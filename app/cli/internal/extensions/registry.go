@@ -161,8 +161,8 @@ func (l *Loaded) Dispose() {
 		return
 	}
 	l.once.Do(func() {
-		for i := len(l.disposables) - 1; i >= 0; i-- {
-			disposeSafely(l.disposables[i])
+		for _, disposable := range slices.Backward(l.disposables) {
+			disposeSafely(disposable)
 		}
 	})
 }

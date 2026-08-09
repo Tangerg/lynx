@@ -362,15 +362,18 @@ func duration(d time.Duration) string {
 // thousands groups an integer for reading.
 func thousands(n int64) string {
 	s := strconv.FormatInt(n, 10)
-	if n < 0 {
-		return "-" + thousands(-n)
+	first := 0
+	if s[0] == '-' {
+		first = 1
 	}
 	var b strings.Builder
-	for i, c := range s {
-		if i > 0 && (len(s)-i)%3 == 0 {
+	b.Grow(len(s) + (len(s)-first-1)/3)
+	b.WriteString(s[:first])
+	for i := first; i < len(s); i++ {
+		if i > first && (len(s)-i)%3 == 0 {
 			b.WriteByte(',')
 		}
-		b.WriteRune(c)
+		b.WriteByte(s[i])
 	}
 	return b.String()
 }

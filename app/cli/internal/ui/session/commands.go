@@ -213,7 +213,6 @@ func (a *app) listenForSearch() {
 	dispatcher := a.loop.Dispatcher()
 	go func() {
 		for result := range results {
-			result := result
 			dispatcher.Post(func() {
 				if result.Err != nil {
 					a.message(fmt.Sprintf("search failed: %v", result.Err))
@@ -241,7 +240,7 @@ func (a *app) Clear() {
 	a.state.ClearPresentation()
 	a.transcript.Reset()
 	a.workflow.Reset()
-	a.status = statusView{theme: a.status.theme, glyphs: a.status.glyphs, doing: "cleared"}
+	a.status = statusView{theme: a.status.theme, glyphs: a.status.glyphs, doing: "cleared", options: a.options}
 }
 
 func (a *app) Find(query string) {

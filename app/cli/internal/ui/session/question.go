@@ -13,8 +13,8 @@ import (
 )
 
 func (a *app) openQuestion(question client.Question) {
-	copy := question
-	a.question = &copy
+	cloned := question
+	a.question = &cloned
 	a.questionText = make(map[string]*string)
 	a.questionMulti = make(map[string]*[]string)
 	a.questionBool = make(map[string]*bool)

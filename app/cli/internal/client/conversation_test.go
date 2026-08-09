@@ -2,6 +2,7 @@ package client
 
 import (
 	"errors"
+	"strconv"
 	"testing"
 )
 
@@ -15,14 +16,16 @@ func TestConversationFoldsACompleteRun(t *testing.T) {
 		PlanChanged{Items: []PlanItem{{Title: "verify", Status: PlanDone}}},
 		RunFinished{Outcome: Outcome{Status: OutcomeCompleted}, Usage: Usage{InputTokens: 12}},
 	}
+	cursor := Cursor(1)
 	for i, event := range events {
-		result, err := c.ApplyEnvelope(testEnvelope(i+1, event))
+		result, err := c.ApplyEnvelope(testEnvelope(cursor, event))
 		if err != nil {
 			t.Fatalf("ApplyEnvelope(%T): %v", event, err)
 		}
 		if !result.Applied {
 			t.Fatalf("event %d was treated as a duplicate", i+1)
 		}
+		cursor++
 	}
 	if c.Phase() != Idle || c.Cursor() != Cursor(len(events)) {
 		t.Fatalf("phase/cursor = %v/%d, want idle/%d", c.Phase(), c.Cursor(), len(events))
@@ -75,15 +78,17 @@ func TestConversationRestoresAtomically(t *testing.T) {
 func TestConversationInterruptAndResumeAreExplicit(t *testing.T) {
 	c := NewConversation()
 	approval := Approval{InterruptID: "approval_1", Title: "edit file"}
-	for i, event := range []Event{
+	cursor := Cursor(1)
+	for _, event := range []Event{
 		RunStarted{RunID: "run_1"},
 		RunInterrupted{Interaction: approval},
 		RunResumed{InterruptID: approval.InterruptID},
 		RunFinished{Outcome: Outcome{Status: OutcomeCompleted}},
 	} {
-		if _, err := c.ApplyEnvelope(testEnvelope(i+1, event)); err != nil {
+		if _, err := c.ApplyEnvelope(testEnvelope(cursor, event)); err != nil {
 			t.Fatalf("ApplyEnvelope(%T): %v", event, err)
 		}
+		cursor++
 	}
 	if c.Phase() != Idle || c.Interaction() != nil {
 		t.Fatalf("settled conversation = phase %v interaction %+v", c.Phase(), c.Interaction())
@@ -115,8 +120,8 @@ func TestConversationClonesNestedState(t *testing.T) {
 	if err := c.Apply(RunInterrupted{Interaction: question}); err != nil {
 		t.Fatal(err)
 	}
-	copy := c.Interaction().(Question)
-	copy.Fields[0].Options[0].Value = "changed"
+	cloned := c.Interaction().(Question)
+	cloned.Fields[0].Options[0].Value = "changed"
 	if got := c.Interaction().(Question).Fields[0].Options[0].Value; got != "a" {
 		t.Fatalf("aggregate leaked question slices: %q", got)
 	}
@@ -140,10 +145,12 @@ func TestConversationRejectsImpossibleTransitions(t *testing.T) {
 
 func TestClearPresentationPreservesReplayCursor(t *testing.T) {
 	c := NewConversation()
-	for i, event := range []Event{RunStarted{RunID: "run"}, BlockCompleted{Block: Block{ID: "x", Kind: BlockUser, Text: "x"}}, RunFinished{}} {
-		if _, err := c.ApplyEnvelope(testEnvelope(i+1, event)); err != nil {
+	cursor := Cursor(1)
+	for _, event := range []Event{RunStarted{RunID: "run"}, BlockCompleted{Block: Block{ID: "x", Kind: BlockUser, Text: "x"}}, RunFinished{}} {
+		if _, err := c.ApplyEnvelope(testEnvelope(cursor, event)); err != nil {
 			t.Fatal(err)
 		}
+		cursor++
 	}
 	c.ClearPresentation()
 	if len(c.Blocks()) != 0 || c.Cursor() != 3 {
@@ -154,6 +161,6 @@ func TestClearPresentationPreservesReplayCursor(t *testing.T) {
 	}
 }
 
-func testEnvelope(cursor int, event Event) Envelope {
-	return Envelope{ID: "event_" + string(rune('a'+cursor-1)), Cursor: Cursor(cursor), RunID: "run", SessionID: "session", Event: event}
+func testEnvelope(cursor Cursor, event Event) Envelope {
+	return Envelope{ID: "event_" + strconv.FormatUint(uint64(cursor), 10), Cursor: cursor, RunID: "run", SessionID: "session", Event: event}
 }

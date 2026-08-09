@@ -19,16 +19,14 @@ import (
 	"github.com/Tangerg/lynx/app/cli/internal/ui/session"
 )
 
-func writePlugin(t *testing.T, root, directory string, declared manifest, executable string) string {
+func writePlugin(t *testing.T, root, directory string, declared manifest, executable string) {
 	t.Helper()
 	pluginDirectory := filepath.Join(root, directory)
-	if err := os.MkdirAll(pluginDirectory, 0o755); err != nil {
+	if err := os.MkdirAll(pluginDirectory, 0o750); err != nil {
 		t.Fatal(err)
 	}
 	if executable != "" {
-		if err := os.WriteFile(filepath.Join(pluginDirectory, declared.Entry), []byte(executable), 0o755); err != nil {
-			t.Fatal(err)
-		}
+		writeExecutable(t, filepath.Join(pluginDirectory, declared.Entry), executable)
 	}
 	encoded, err := json.Marshal(declared)
 	if err != nil {
@@ -37,7 +35,16 @@ func writePlugin(t *testing.T, root, directory string, declared manifest, execut
 	if err := os.WriteFile(filepath.Join(pluginDirectory, manifestName), encoded, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	return pluginDirectory
+}
+
+func writeExecutable(t *testing.T, path, body string) {
+	t.Helper()
+	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(path, 0o700); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func validManifest(id string) manifest {
@@ -74,9 +81,7 @@ func TestSourceDiscoversValidPluginsAndIsolatesMalformedNeighbors(t *testing.T) 
 func TestManifestEntryCannotEscapePluginDirectory(t *testing.T) {
 	root := t.TempDir()
 	outside := filepath.Join(root, "outside")
-	if err := os.WriteFile(outside, []byte("outside"), 0o755); err != nil {
-		t.Fatal(err)
-	}
+	writeExecutable(t, outside, "outside")
 	declared := validManifest("test.escape")
 	declared.Entry = "../outside"
 	writePlugin(t, root, "escape", declared, "")
@@ -157,9 +162,7 @@ func TestCommandRunnerHonorsCancellation(t *testing.T) {
 	}
 	root := t.TempDir()
 	slow := filepath.Join(root, "slow")
-	if err := os.WriteFile(slow, []byte("#!/bin/sh\nsleep 2\n"), 0o755); err != nil {
-		t.Fatal(err)
-	}
+	writeExecutable(t, slow, "#!/bin/sh\nsleep 2\n")
 	runner := commandRunner{pluginID: "test.slow", command: "slow", executable: slow, directory: root, timeout: 20 * time.Millisecond}
 	_, err := runner.Execute(t.Context(), session.CommandRequest{})
 	if !errors.Is(err, context.DeadlineExceeded) {

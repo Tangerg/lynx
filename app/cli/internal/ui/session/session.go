@@ -84,6 +84,10 @@ func Run(ctx context.Context, cfg Config) error {
 	if err != nil {
 		return err
 	}
+	attachments, err := attachment.New(opened.Session.Workspace)
+	if err != nil {
+		return fmt.Errorf("session attachments: %w", err)
+	}
 
 	registry := new(extensions.Registry)
 	kernel, err := extensions.NewKernel(registry)
@@ -111,7 +115,7 @@ func Run(ctx context.Context, cfg Config) error {
 	var active *app
 	err = program.Run(ctx, program.Config{
 		Inline: func(loop *program.InlineRuntime) program.Component {
-			active = newApp(ctx, loop, cfg.Runtime, opened, registry, kernel, discovered.Issues, cfg.Prompt, cfg.Settings, keys)
+			active = newApp(ctx, loop, cfg.Runtime, opened, registry, kernel, discovered.Issues, attachments, cfg.Prompt, cfg.Settings, keys)
 			return headless.NewRoot(active)
 		},
 		Terminal: term.Options{Probe: true, Mouse: cfg.Settings.UI.Mouse, Focus: true, Keyboard: term.KeyboardCompatible},
@@ -212,7 +216,7 @@ type app struct {
 	syntax       highlight.Style
 }
 
-func newApp(ctx context.Context, loop *program.InlineRuntime, backend runtime, opened client.SessionSnapshot, registry *extensions.Registry, plugins *extensions.Kernel, pluginIssues []extensions.SourceIssue, prompt string, configured settings.Settings, keys *keymap.Map) *app {
+func newApp(ctx context.Context, loop *program.InlineRuntime, backend runtime, opened client.SessionSnapshot, registry *extensions.Registry, plugins *extensions.Kernel, pluginIssues []extensions.SourceIssue, attachments *attachment.Resolver, prompt string, configured settings.Settings, keys *keymap.Map) *app {
 	ground := loop.Environment().Ground()
 	theme := kit.Suited(ground)
 	glyphs := kit.GlyphsFor(os.LookupEnv)
@@ -220,7 +224,6 @@ func newApp(ctx context.Context, loop *program.InlineRuntime, backend runtime, o
 	if !ground.BG.Default() && !ground.BG.RGB().Dark() {
 		syntax = "github"
 	}
-	attachmentResolver, _ := attachment.New(opened.Session.Workspace)
 	a := &app{
 		ctx: ctx, loop: loop, backend: backend, session: opened.Session, registry: registry,
 		plugins: plugins, pluginIssues: pluginIssues,
@@ -231,7 +234,7 @@ func newApp(ctx context.Context, loop *program.InlineRuntime, backend runtime, o
 		settings:           configured.Clone(),
 		options:            configured.RunOptions(),
 		syntax:             syntax,
-		attachments:        attachmentResolver,
+		attachments:        attachments,
 		attachmentElements: make(map[uint64]client.Attachment),
 		commandCancels:     make(map[uint64]context.CancelFunc),
 	}
@@ -284,7 +287,7 @@ func newApp(ctx context.Context, loop *program.InlineRuntime, backend runtime, o
 
 func (a *app) buildSessionPicker(theme kit.Theme, glyphs kit.Glyphs) {
 	a.sessionPicker = newPicker(theme, glyphs, "search sessions",
-		func(session client.Session) string { return displayTitle(session) },
+		displayTitle,
 		func(session client.Session) string { return agoShort(session.UpdatedAt) + " · " + session.Workspace },
 		func(session client.Session) {
 			a.sessionDialog.Dismiss()

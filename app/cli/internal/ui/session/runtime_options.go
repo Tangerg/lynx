@@ -34,8 +34,8 @@ func (a *app) buildRuntimePickers(theme kit.Theme, glyphs kit.Glyphs) {
 	a.modelPicker.cancel = a.modelDialog.Dismiss
 
 	a.permissionPicker = newPicker(theme, glyphs, "search permission modes",
-		func(mode client.PermissionMode) string { return permissionTitle(mode) },
-		func(mode client.PermissionMode) string { return permissionDetail(mode) },
+		permissionTitle,
+		permissionDetail,
 		func(mode client.PermissionMode) {
 			a.permissionDialog.Dismiss()
 			a.options.Permission = mode

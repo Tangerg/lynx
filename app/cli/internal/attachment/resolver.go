@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"mime"
 	"net/http"
 	"os"
@@ -164,8 +165,8 @@ func (r *Resolver) Complete(ctx context.Context, query string, limit int) ([]Mat
 		if entry.Type()&os.ModeSymlink != 0 {
 			return nil
 		}
-		info, err := entry.Info()
-		if err != nil || !info.Mode().IsRegular() || info.Size() > r.maxBytes {
+		info, ok := completionFileInfo(entry, r.maxBytes)
+		if !ok {
 			return nil
 		}
 		relative, err := filepath.Rel(r.root, path)
@@ -195,6 +196,17 @@ func (r *Resolver) Complete(ctx context.Context, query string, limit int) ([]Mat
 		return strings.Compare(a.Path, b.Path)
 	})
 	return slices.Clone(matches[:min(len(matches), limit)]), nil
+}
+
+// completionFileInfo makes completion's best-effort policy explicit: a file
+// that vanishes, becomes unreadable, is not regular, or exceeds the resolver's
+// limit is simply not a candidate.
+func completionFileInfo(entry fs.DirEntry, maxBytes int64) (fs.FileInfo, bool) {
+	info, err := entry.Info()
+	if err != nil || !info.Mode().IsRegular() || info.Size() > maxBytes {
+		return nil, false
+	}
+	return info, true
 }
 
 func (r *Resolver) absolute(input string) (string, error) {

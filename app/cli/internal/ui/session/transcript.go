@@ -59,7 +59,10 @@ type trackedTool struct {
 
 func (c *conversationView) ToggleDetails() {
 	c.details = !c.details
-	first, end := c.content.FirstBlock(), c.content.FirstBlock()+headless.BlockID(c.content.Len())
+	first := c.content.FirstBlock()
+	// #nosec G115 -- Transcript.Len is non-negative and cannot exceed the
+	// addressable in-memory slice backing the transcript.
+	end := first + headless.BlockID(c.content.Len())
 	for _, tracked := range c.toolViews {
 		tracked.block.SetExpanded(c.details)
 		if tracked.id >= first && tracked.id < end {

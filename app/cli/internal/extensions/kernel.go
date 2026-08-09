@@ -214,8 +214,7 @@ func (k *Kernel) dependentClosureLocked(id string) map[string]bool {
 func (k *Kernel) unloadSet(ids map[string]bool) {
 	k.mu.Lock()
 	var disposables []*Loaded
-	for i := len(k.order) - 1; i >= 0; i-- {
-		id := k.order[i]
+	for _, id := range slices.Backward(k.order) {
 		if !ids[id] {
 			continue
 		}

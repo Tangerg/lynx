@@ -224,13 +224,13 @@ func cloneInteraction(interaction Interaction) Interaction {
 	case Approval:
 		return item
 	case Question:
-		copy := item
-		copy.Fields = make([]QuestionField, len(item.Fields))
+		cloned := item
+		cloned.Fields = make([]QuestionField, len(item.Fields))
 		for i, field := range item.Fields {
-			copy.Fields[i] = field
-			copy.Fields[i].Options = slices.Clone(field.Options)
+			cloned.Fields[i] = field
+			cloned.Fields[i].Options = slices.Clone(field.Options)
 		}
-		return copy
+		return cloned
 	default:
 		return nil
 	}

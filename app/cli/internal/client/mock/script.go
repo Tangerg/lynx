@@ -45,7 +45,7 @@ const (
 
 // Conversation is the default script: think, run a command, explain, ask to edit
 // a file, then either edit it or say why it did not.
-func Conversation(prompt string) Script {
+func Conversation(_ string) Script {
 	reasoning := "The failure is intermittent, roughly one run in five, which points at timing rather than logic. " +
 		"Let me run the test several times and read what the failing run actually reports."
 

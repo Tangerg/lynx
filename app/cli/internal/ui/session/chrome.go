@@ -146,7 +146,7 @@ func (s *statusView) settled(outcome client.Outcome, usage client.Usage) {
 	case client.OutcomeCompleted:
 		s.doing = "complete"
 	case client.OutcomeCanceled:
-		s.doing = "cancelled"
+		s.doing = "canceled"
 	case client.OutcomeFailed:
 		s.doing = "failed: " + outcome.Error
 	default:
@@ -185,15 +185,15 @@ func usageLabel(usage client.Usage) string {
 }
 
 func thousands(value int64) string {
-	sign := ""
-	if value < 0 {
-		sign, value = "-", -value
-	}
 	digits := strconv.FormatInt(value, 10)
-	for i := len(digits) - 3; i > 0; i -= 3 {
+	first := 0
+	if digits[0] == '-' {
+		first = 1
+	}
+	for i := len(digits) - 3; i > first; i -= 3 {
 		digits = digits[:i] + "," + digits[i:]
 	}
-	return sign + digits
+	return digits
 }
 
 func compactTime(duration time.Duration) string {

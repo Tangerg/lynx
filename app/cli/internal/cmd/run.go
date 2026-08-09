@@ -65,7 +65,7 @@ func newRunCommand(resolve backend, v *viper.Viper) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			rt, err := resolve(cmd)
+			rt, err := resolve.open(cmd)
 			if err != nil {
 				return err
 			}
@@ -89,7 +89,7 @@ func newRunCommand(resolve backend, v *viper.Viper) *cobra.Command {
 	cmd.Flags().BoolVar(&approveAll, "approve-all", false, "Approve every request the run makes")
 	cmd.Flags().StringVarP(&sessionID, "session", "s", "", "Run inside an existing session instead of a new one")
 	cmd.Flags().StringArrayVarP(&files, "file", "f", nil, "Attach a local file (repeatable)")
-	_ = cmd.RegisterFlagCompletionFunc("file", func(cmd *cobra.Command, args []string, value string) ([]string, cobra.ShellCompDirective) {
+	_ = cmd.RegisterFlagCompletionFunc("file", func(cmd *cobra.Command, _ []string, value string) ([]string, cobra.ShellCompDirective) {
 		ws, err := workspace(cmd)
 		if err != nil {
 			return nil, cobra.ShellCompDirectiveError

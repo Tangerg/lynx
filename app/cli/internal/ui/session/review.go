@@ -94,8 +94,8 @@ func (a *app) setReviewForm(initial string) {
 }
 
 func (a *app) openReview(approval client.Approval) {
-	copy := approval
-	a.review = &copy
+	cloned := approval
+	a.review = &cloned
 	a.setReviewForm(approvalDefault(a.settings.Approval.Remember))
 	a.reviewPane.title = approval.Title
 	details := []string{approval.Detail}

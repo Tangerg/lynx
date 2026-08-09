@@ -363,6 +363,12 @@ func (r *Runtime) FollowRun(ctx context.Context, in client.FollowRun) (client.St
 		r.mu.Unlock()
 		return nil, fmt.Errorf("mock: cursor %d predates run start cursor %d", in.After, run.startedAfter)
 	}
+	session := r.sessions[run.sessionID]
+	latest := client.Cursor(len(session.events))
+	if in.After > latest {
+		r.mu.Unlock()
+		return nil, fmt.Errorf("mock: cursor %d is after session cursor %d", in.After, latest)
+	}
 	fault, err := r.takeFaultLocked()
 	r.mu.Unlock()
 	if err != nil {
@@ -376,13 +382,12 @@ func (r *Runtime) FollowRun(ctx context.Context, in client.FollowRun) (client.St
 			r.mu.Lock()
 			session := r.sessions[run.sessionID]
 			var next *client.Envelope
-			for i := int(after); i < len(session.events); i++ {
-				envelope := session.events[i]
-				if envelope.RunID != run.id {
+			for _, envelope := range session.events {
+				if envelope.Cursor <= after || envelope.RunID != run.id {
 					continue
 				}
-				copy := cloneEnvelope(envelope)
-				next = &copy
+				cloned := cloneEnvelope(envelope)
+				next = &cloned
 				break
 			}
 			status := run.status
@@ -575,8 +580,7 @@ func (r *Runtime) rememberApprovalLocked(run *runState, approval client.Approval
 func (r *Runtime) rememberedAnswerLocked(run *runState, approval client.Approval) (client.ApprovalAnswer, bool) {
 	workspace := r.sessions[run.sessionID].meta.Workspace
 	key := approvalRuleKey(approval)
-	for i := len(r.rules) - 1; i >= 0; i-- {
-		rule := r.rules[i]
+	for _, rule := range slices.Backward(r.rules) {
 		if rule.Rule == key && ruleApplies(rule, run.sessionID, workspace) {
 			return client.ApprovalAnswer{Decision: rule.Decision, Remember: rule.Scope}, true
 		}
@@ -753,14 +757,14 @@ func cloneAnswer(answer client.Answer) client.Answer {
 	case client.ApprovalAnswer:
 		return item
 	case client.QuestionAnswer:
-		copy := client.QuestionAnswer{Canceled: item.Canceled}
+		cloned := client.QuestionAnswer{Canceled: item.Canceled}
 		if item.Values != nil {
-			copy.Values = make(map[string][]string, len(item.Values))
+			cloned.Values = make(map[string][]string, len(item.Values))
 			for id, values := range item.Values {
-				copy.Values[id] = slices.Clone(values)
+				cloned.Values[id] = slices.Clone(values)
 			}
 		}
-		return copy
+		return cloned
 	default:
 		return nil
 	}
@@ -846,13 +850,13 @@ func cloneInteraction(interaction client.Interaction) client.Interaction {
 	case client.Approval:
 		return item
 	case client.Question:
-		copy := item
-		copy.Fields = make([]client.QuestionField, len(item.Fields))
+		cloned := item
+		cloned.Fields = make([]client.QuestionField, len(item.Fields))
 		for i, field := range item.Fields {
-			copy.Fields[i] = field
-			copy.Fields[i].Options = slices.Clone(field.Options)
+			cloned.Fields[i] = field
+			cloned.Fields[i].Options = slices.Clone(field.Options)
 		}
-		return copy
+		return cloned
 	default:
 		return nil
 	}

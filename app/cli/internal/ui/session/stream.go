@@ -219,15 +219,15 @@ func (a *app) apply(envelope client.Envelope) error {
 	if err := a.transcript.Apply(event, a.registry); err != nil {
 		return err
 	}
-	switch event.(type) {
+	switch event := event.(type) {
 	case client.RunStarted:
 		a.status.active("working")
 	case client.BlockStarted:
-		if started := event.(client.BlockStarted); started.Block.Kind == client.BlockTool && started.Block.Tool != nil {
-			a.status.active(started.Block.Tool.Summary)
+		if event.Block.Kind == client.BlockTool && event.Block.Tool != nil {
+			a.status.active(event.Block.Tool.Summary)
 		}
 	case client.BlockCompleted:
-		if completed := event.(client.BlockCompleted); completed.Block.Kind == client.BlockTool {
+		if event.Block.Kind == client.BlockTool {
 			a.status.active("working")
 		}
 	case client.PlanChanged:
@@ -271,7 +271,7 @@ func (a *app) cancel() {
 		a.loop.Quit()
 		return
 	}
-	a.status.doing = "cancelling"
+	a.status.doing = "canceling"
 	runID := a.state.RunID()
 	if runID == "" {
 		a.dropStream()

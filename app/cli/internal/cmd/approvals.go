@@ -17,7 +17,7 @@ func newApprovalsCommand(resolve backend) *cobra.Command {
 		Args:         cobra.NoArgs,
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			runtime, err := resolve(cmd)
+			runtime, err := resolve.open(cmd)
 			if err != nil {
 				return err
 			}
@@ -52,7 +52,7 @@ func newApprovalsCommand(resolve backend) *cobra.Command {
 			if !yes {
 				return errors.New("refusing to delete an approval rule without --yes")
 			}
-			runtime, err := resolve(cmd)
+			runtime, err := resolve.open(cmd)
 			if err != nil {
 				return err
 			}

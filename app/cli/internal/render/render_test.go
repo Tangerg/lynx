@@ -280,6 +280,7 @@ func TestThousands(t *testing.T) {
 	}{
 		{0, "0"}, {7, "7"}, {999, "999"}, {1000, "1,000"},
 		{12345, "12,345"}, {1000000, "1,000,000"}, {-4321, "-4,321"},
+		{-1 << 63, "-9,223,372,036,854,775,808"},
 	} {
 		if got := thousands(tc.in); got != tc.want {
 			t.Errorf("thousands(%d) = %q, want %q", tc.in, got, tc.want)

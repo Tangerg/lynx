@@ -33,10 +33,20 @@ var version = "dev"
 // here talks to a real agent yet.
 const mockNotice = "lyra: scripted mock runtime — no backend is wired in yet"
 
-// backend hands a command the runtime it should talk to. It is a function rather
-// than a value because resolving a real runtime will mean opening a database or
-// a connection, which must not happen for `lyra --help`.
-type backend func(*cobra.Command) (client.Runtime, error)
+// backend delays runtime construction until a command actually needs it.
+// Completion has a separate path because it must stay silent: diagnostics on
+// stderr are useful during execution but become shell-completion noise.
+type backend struct {
+	open       func(*cobra.Command) (client.Runtime, error)
+	completion func(*cobra.Command) (client.Runtime, error)
+}
+
+func (b backend) forCompletion(cmd *cobra.Command) (client.Runtime, error) {
+	if b.completion != nil {
+		return b.completion(cmd)
+	}
+	return b.open(cmd)
+}
 
 // Execute runs the CLI and reports the process exit code.
 func Execute(ctx context.Context) int {
@@ -50,12 +60,22 @@ func Execute(ctx context.Context) int {
 // NewRoot builds the command tree. A nil runtime installs the scripted mock,
 // which is what a real build does today; tests pass their own.
 func NewRoot(rt client.Runtime) *cobra.Command {
-	return newRootWithBackend(func(cmd *cobra.Command) (client.Runtime, error) {
+	resolve := func(*cobra.Command) (client.Runtime, error) {
 		if rt != nil {
 			return rt, nil
 		}
-		fmt.Fprintln(cmd.ErrOrStderr(), mockNotice)
 		return mock.New(), nil
+	}
+	return newRootWithBackend(backend{
+		open: func(cmd *cobra.Command) (client.Runtime, error) {
+			if rt == nil {
+				if _, err := fmt.Fprintln(cmd.ErrOrStderr(), mockNotice); err != nil {
+					return nil, fmt.Errorf("announce mock runtime: %w", err)
+				}
+			}
+			return resolve(cmd)
+		},
+		completion: resolve,
 	})
 }
 
@@ -124,7 +144,7 @@ func newRootWithBackend(resolve backend) *cobra.Command {
 // need one, rather than failing with something about file descriptors: a program whose
 // output is being piped wants text, not frames.
 func interactive(cmd *cobra.Command, args []string, resolve backend, value settings.Settings) error {
-	rt, err := resolve(cmd)
+	rt, err := resolve.open(cmd)
 	if err != nil {
 		return err
 	}

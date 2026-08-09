@@ -40,7 +40,7 @@ func newSessionsListCommand(resolve backend) *cobra.Command {
 		Args:         cobra.NoArgs,
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			runtime, err := resolve(cmd)
+			runtime, err := resolve.open(cmd)
 			if err != nil {
 				return err
 			}
@@ -82,7 +82,7 @@ func newSessionsShowCommand(resolve backend) *cobra.Command {
 		Args:         cobra.ExactArgs(1),
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			runtime, err := resolve(cmd)
+			runtime, err := resolve.open(cmd)
 			if err != nil {
 				return err
 			}
@@ -117,7 +117,7 @@ func newSessionsRenameCommand(resolve backend) *cobra.Command {
 		Args:         cobra.ExactArgs(2),
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			runtime, err := resolve(cmd)
+			runtime, err := resolve.open(cmd)
 			if err != nil {
 				return err
 			}
@@ -145,7 +145,7 @@ func newSessionsForkCommand(resolve backend) *cobra.Command {
 		Args:         cobra.ExactArgs(1),
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			runtime, err := resolve(cmd)
+			runtime, err := resolve.open(cmd)
 			if err != nil {
 				return err
 			}
@@ -178,7 +178,7 @@ func newSessionsDeleteCommand(resolve backend) *cobra.Command {
 			if !yes {
 				return errors.New("refusing to delete without --yes")
 			}
-			runtime, err := resolve(cmd)
+			runtime, err := resolve.open(cmd)
 			if err != nil {
 				return err
 			}
@@ -206,8 +206,8 @@ func completeFirstSessionArgument(resolve backend) cobra.CompletionFunc {
 }
 
 func completeSessionIDs(resolve backend) cobra.CompletionFunc {
-	return func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-		runtime, err := resolve(cmd)
+	return func(cmd *cobra.Command, _ []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+		runtime, err := resolve.forCompletion(cmd)
 		if err != nil {
 			return nil, cobra.ShellCompDirectiveError
 		}

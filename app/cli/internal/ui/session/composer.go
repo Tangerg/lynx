@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/Tangerg/oolong/components/headless"
@@ -133,7 +134,7 @@ func (a *app) removeAttachment(argument string) error {
 		if !ok || element.Kind != fileElement {
 			continue
 		}
-		if argument == fmt.Sprint(index+1) || argument == item.Name || argument == filepathBase(item.Name) {
+		if argument == strconv.Itoa(index+1) || argument == item.Name || argument == filepathBase(item.Name) {
 			a.composer.Editor().RemoveElement(element.ID)
 			delete(a.attachmentElements, element.ID)
 			a.message("detached " + item.Name)
@@ -182,8 +183,7 @@ func (a *app) composerMessage() (client.Message, error) {
 		}
 		attachments = append(attachments, item)
 	}
-	for i := len(elements) - 1; i >= 0; i-- {
-		element := elements[i]
+	for _, element := range slices.Backward(elements) {
 		if element.Kind != fileElement || element.Line < 0 || element.Line >= len(lines) {
 			continue
 		}

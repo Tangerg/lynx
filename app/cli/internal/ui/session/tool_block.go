@@ -275,7 +275,7 @@ func parseUnifiedDiff(patch string) []coreDiff.Hunk {
 	var hunks []coreDiff.Hunk
 	var current *coreDiff.Hunk
 	oldLine, newLine := 0, 0
-	for _, line := range strings.Split(strings.TrimRight(patch, "\n"), "\n") {
+	for line := range strings.SplitSeq(strings.TrimRight(patch, "\n"), "\n") {
 		if strings.HasPrefix(line, "@@ ") {
 			oldStart, newStart, ok := parseHunkHeader(line)
 			if !ok {

@@ -26,10 +26,7 @@ func (r Reconnect) Next(n int, err error) (time.Duration, bool) {
 	if n <= 0 || n > r.Attempts || !retryable(err) {
 		return 0, false
 	}
-	base := r.Base
-	if base < 0 {
-		base = 0
-	}
+	base := max(r.Base, 0)
 	maximum := r.Maximum
 	if maximum <= 0 {
 		maximum = time.Second

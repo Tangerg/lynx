@@ -31,7 +31,7 @@ func exec(t *testing.T, rt client.Runtime, stdin string, args ...string) (string
 	root.SetErr(&errb)
 	root.SetIn(strings.NewReader(stdin))
 	root.SetArgs(args)
-	err := root.ExecuteContext(context.Background())
+	err := root.ExecuteContext(t.Context())
 	return out.String(), errb.String(), err
 }
 
@@ -43,7 +43,7 @@ func instant() *mock.Runtime {
 
 func firstSession(t *testing.T, rt client.Runtime) string {
 	t.Helper()
-	sessions, err := rt.ListSessions(context.Background(), client.SessionQuery{})
+	sessions, err := rt.ListSessions(t.Context(), client.SessionQuery{})
 	if err != nil {
 		t.Fatalf("ListSessions: %v", err)
 	}
@@ -221,7 +221,7 @@ func TestRunRecoversAmbiguousControlResponsesWithoutDuplicatingAControl(t *testi
 
 	seen := make(map[string]bool)
 	counts := make(map[string]int)
-	for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
+	for line := range strings.SplitSeq(strings.TrimSpace(out), "\n") {
 		var frame struct {
 			Type    string `json:"type"`
 			EventID string `json:"eventId"`
@@ -385,11 +385,11 @@ func TestRunRejectsAnUnknownSession(t *testing.T) {
 
 func TestRunCreatesASessionWhenNoneIsNamed(t *testing.T) {
 	rt := instant()
-	before, _ := rt.ListSessions(context.Background(), client.SessionQuery{Limit: 100})
+	before, _ := rt.ListSessions(t.Context(), client.SessionQuery{Limit: 100})
 	if _, _, err := exec(t, rt, "", "run", "--approve-all", "why?"); err != nil {
 		t.Fatalf("run: %v", err)
 	}
-	after, _ := rt.ListSessions(context.Background(), client.SessionQuery{Limit: 100})
+	after, _ := rt.ListSessions(t.Context(), client.SessionQuery{Limit: 100})
 	if len(after.Items) != len(before.Items)+1 {
 		t.Fatalf("session count went %d -> %d, want one more", len(before.Items), len(after.Items))
 	}
@@ -527,18 +527,18 @@ func TestCompletionCommand(t *testing.T) {
 	}
 }
 
-// TestHelpDoesNotResolveARuntime pins the reason backend is a function: help must
-// not open a database, a socket or anything else a real runtime needs.
+// TestHelpDoesNotResolveARuntime pins lazy resolution: help must not open a
+// database, a socket, or anything else a real runtime needs.
 func TestHelpDoesNotResolveARuntime(t *testing.T) {
 	var resolved bool
-	root := newRootWithBackend(func(*cobra.Command) (client.Runtime, error) {
+	root := newRootWithBackend(backend{open: func(*cobra.Command) (client.Runtime, error) {
 		resolved = true
 		return instant(), nil
-	})
+	}})
 	root.SetOut(io.Discard)
 	root.SetErr(io.Discard)
 	root.SetArgs([]string{"--help"})
-	if err := root.ExecuteContext(context.Background()); err != nil {
+	if err := root.ExecuteContext(t.Context()); err != nil {
 		t.Fatalf("--help: %v", err)
 	}
 	if resolved {
@@ -558,5 +558,18 @@ func TestMockNoticeGoesToStderrNotStdout(t *testing.T) {
 	}
 	if !strings.Contains(errb, mockNotice) {
 		t.Fatalf("stderr = %q, want the mock notice", errb)
+	}
+}
+
+func TestMockCompletionDoesNotPrintRuntimeNotice(t *testing.T) {
+	out, errb, err := exec(t, nil, "", "__complete", "sessions", "show", "")
+	if err != nil {
+		t.Fatalf("complete sessions: %v", err)
+	}
+	if !strings.Contains(out, "ses_demo_") {
+		t.Fatalf("completion output has no session ids:\n%s", out)
+	}
+	if strings.Contains(errb, mockNotice) {
+		t.Fatalf("completion stderr contains runtime notice: %q", errb)
 	}
 }

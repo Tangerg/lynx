@@ -97,7 +97,7 @@ func TestSessionLifecycleHonorsRevisionAndForkCursor(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(snapshot.Events) != int(events[1].Cursor) || snapshot.Session.Title != "Forked" {
+	if client.Cursor(len(snapshot.Events)) != events[1].Cursor || snapshot.Session.Title != "Forked" {
 		t.Fatalf("fork snapshot = %+v", snapshot)
 	}
 	for _, envelope := range snapshot.Events {
@@ -467,13 +467,28 @@ func TestCanceledSubscriptionDoesNotCancelLogicalRun(t *testing.T) {
 			cancel()
 		}
 	}
-	time.Sleep(120 * time.Millisecond)
 	replayed, err := followAll(t, runtime, run.ID, run.StartedAfter)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if _, ok := replayed[len(replayed)-1].Event.(client.RunFinished); !ok {
 		t.Fatalf("logical run did not finish after subscriber left: %+v", replayed)
+	}
+}
+
+func TestFollowRunRejectsCursorOutsideSessionWithoutOverflow(t *testing.T) {
+	runtime := New()
+	runtime.Instant = true
+	session := newSession(t, runtime)
+	run, err := runtime.StartRun(t.Context(), client.StartRun{
+		SessionID: session.ID,
+		Message:   client.Message{Text: "finish"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := runtime.FollowRun(t.Context(), client.FollowRun{RunID: run.ID, After: ^client.Cursor(0)}); err == nil {
+		t.Fatal("FollowRun accepted a cursor beyond the session")
 	}
 }
 

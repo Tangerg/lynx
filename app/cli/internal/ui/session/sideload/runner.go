@@ -50,6 +50,8 @@ func (r commandRunner) Execute(ctx context.Context, request session.CommandReque
 	if err != nil {
 		return session.CommandResult{}, fmt.Errorf("encode plugin command request: %w", err)
 	}
+	// #nosec G204 -- discovery canonicalizes the manifest entry, proves that it
+	// remains inside the plugin directory, and requires an executable regular file.
 	command := exec.CommandContext(ctx, r.executable)
 	configureProcess(command)
 	command.Dir = r.directory

@@ -17,6 +17,7 @@ import (
 	"github.com/Tangerg/lynx/app/cli/internal/client"
 	"github.com/Tangerg/lynx/app/cli/internal/client/mock"
 	"github.com/Tangerg/lynx/app/cli/internal/extensions"
+	"github.com/Tangerg/lynx/app/cli/internal/settings"
 )
 
 func runUI(t *testing.T, plugins ...extensions.Plugin) (*programtest.Host, func()) {
@@ -461,6 +462,11 @@ func TestModelModePermissionAndEffortApplyToTheNextRun(t *testing.T) {
 	host.Type("/effort max")
 	host.Press(input.Enter)
 	host.Shows(t, "effort · max")
+	host.Type("/clear")
+	host.Press(input.Enter)
+	host.Press(input.Enter)
+	host.Shows(t, "cleared")
+	host.Shows(t, "mock-deep · max · plan · read-only")
 
 	host.Type("use these options")
 	host.Press(input.Enter)
@@ -473,6 +479,29 @@ func TestModelModePermissionAndEffortApplyToTheNextRun(t *testing.T) {
 
 	host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
 	stop()
+}
+
+func TestRunRejectsAnUnresolvableAttachmentWorkspace(t *testing.T) {
+	root := t.TempDir()
+	workspace := filepath.Join(root, "loop")
+	if err := os.Symlink(workspace, workspace); err != nil {
+		t.Fatal(err)
+	}
+	err := Run(t.Context(), Config{
+		Runtime:   mock.New(),
+		Workspace: workspace,
+		Host:      programtest.New(t, 80, 24),
+		Settings:  settings.Default(),
+	})
+	if err == nil || !strings.Contains(err.Error(), "session attachments") {
+		t.Fatalf("Run error = %v, want attachment workspace failure", err)
+	}
+}
+
+func TestStatusFormatsTheMinimumTokenCount(t *testing.T) {
+	if got := thousands(-1 << 63); got != "-9,223,372,036,854,775,808" {
+		t.Fatalf("thousands(MinInt64) = %q", got)
+	}
 }
 
 func TestQuestionFormSubmitsTypedAnswerAndCanCancel(t *testing.T) {
@@ -678,7 +707,7 @@ func TestCancelBeforeRunIdentityDoesNotBlockTheNextRun(t *testing.T) {
 	host.Press(input.Enter)
 	host.Shows(t, "starting run")
 	host.Send(input.Key{Code: input.Character, Rune: 'x', Mods: input.Ctrl})
-	host.Shows(t, "cancelled")
+	host.Shows(t, "canceled")
 
 	host.Type("second request can start")
 	host.Press(input.Enter)
