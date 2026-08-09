@@ -3,7 +3,7 @@
 // "open in the dock / close" affordance without ChatPanel reaching into the view
 // body. null when not inside a view at all (e.g. the chat itself).
 
-import { createContext, useContext } from "react";
+import { createContext, use } from "react";
 
 export interface ViewPlacement {
   /** "full" = the view has the whole content card; "dock" = beside the chat. */
@@ -21,5 +21,5 @@ const Ctx = createContext<ViewPlacement | null>(null);
 export const ViewPlacementProvider = Ctx.Provider;
 
 export function useViewPlacement(): ViewPlacement | null {
-  return useContext(Ctx);
+  return use(Ctx);
 }

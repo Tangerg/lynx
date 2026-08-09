@@ -4,13 +4,13 @@
 // markdownComponents. The `Citation` shape + the source contract live in the
 // SDK so the kernel stays ignorant of which block kind produces citations.
 
-import type { Citation } from "@/plugins/sdk";
-import { createContext, useContext } from "react";
+import type { Citation } from "@/plugins/sdk/types/message";
+import { createContext, use } from "react";
 
 export type { Citation };
 
 export const CitationContext = createContext<Citation[]>([]);
 
 export function useCitations(): Citation[] {
-  return useContext(CitationContext);
+  return use(CitationContext);
 }

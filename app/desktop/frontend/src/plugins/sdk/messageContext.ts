@@ -5,7 +5,7 @@
 // without dragging in the React component tree of `MessageBlock`.
 
 import type { Message } from "@/plugins/sdk/types/agentSessionView";
-import { createContext, useContext } from "react";
+import { createContext, use } from "react";
 
 export const MessageContext = createContext<Message | null>(null);
 
@@ -15,7 +15,7 @@ export const MessageContext = createContext<Message | null>(null);
  * certainly a plugin-author bug.
  */
 export function useCurrentMessage(): Message {
-  const ctx = useContext(MessageContext);
+  const ctx = use(MessageContext);
   if (!ctx) throw new Error("useCurrentMessage() must be called inside a MessageBlock");
   return ctx;
 }

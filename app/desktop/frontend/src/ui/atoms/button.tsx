@@ -1,6 +1,5 @@
 import type { VariantProps } from "class-variance-authority";
 import type { ReactNode } from "react";
-import { forwardRef } from "react";
 import { cva } from "class-variance-authority";
 import { cn } from "@/lib/classNames";
 import { ButtonPrimitive, type ButtonPrimitiveProps } from "@/ui/primitives";
@@ -90,21 +89,26 @@ export type ButtonProps = Omit<ButtonPrimitiveProps, "children"> &
     children?: ReactNode;
   };
 
-export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ variant, size, tone, press, className, children, ...props }, ref) => {
-    const resolvedVariant = variant ?? "ghost";
-    return (
-      <ButtonPrimitive
-        {...props}
-        ref={ref}
-        data-slot="button"
-        data-variant={resolvedVariant}
-        className={cn(buttonStyles({ variant, size, tone, press }), className)}
-      >
-        {children}
-      </ButtonPrimitive>
-    );
-  },
-);
-
-Button.displayName = "Button";
+export function Button({
+  variant,
+  size,
+  tone,
+  press,
+  className,
+  children,
+  ref,
+  ...props
+}: ButtonProps) {
+  const resolvedVariant = variant ?? "ghost";
+  return (
+    <ButtonPrimitive
+      {...props}
+      ref={ref}
+      data-slot="button"
+      data-variant={resolvedVariant}
+      className={cn(buttonStyles({ variant, size, tone, press }), className)}
+    >
+      {children}
+    </ButtonPrimitive>
+  );
+}

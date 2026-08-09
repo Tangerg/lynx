@@ -1,14 +1,20 @@
-import type { ComponentPropsWithoutRef, ReactNode } from "react";
-import { forwardRef } from "react";
+import type { ComponentPropsWithoutRef, ReactNode, Ref } from "react";
 import { Button as BaseButton } from "@base-ui/react/button";
 import { cn } from "@/lib/classNames";
 
 export type ButtonPrimitiveProps = ComponentPropsWithoutRef<typeof BaseButton> & {
   children?: ReactNode;
+  ref?: Ref<HTMLButtonElement>;
 };
 
-export const ButtonPrimitive = forwardRef<HTMLButtonElement, ButtonPrimitiveProps>(
-  ({ className, type = "button", children, ...props }, ref) => (
+export function ButtonPrimitive({
+  className,
+  type = "button",
+  children,
+  ref,
+  ...props
+}: ButtonPrimitiveProps) {
+  return (
     <BaseButton
       {...props}
       ref={ref}
@@ -20,7 +26,5 @@ export const ButtonPrimitive = forwardRef<HTMLButtonElement, ButtonPrimitiveProp
     >
       {children}
     </BaseButton>
-  ),
-);
-
-ButtonPrimitive.displayName = "ButtonPrimitive";
+  );
+}
