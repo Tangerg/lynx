@@ -76,11 +76,13 @@ func (execution *execution) startDelegateSegment(
 }
 
 func (execution *execution) acceptDelegateStarts(signals []agent.Signal) (agent.Transition, error) {
-	starts, steering, consumedSignals, err := collectChildStarts(signals)
+	starts, steer, consumedSignals, err := collectChildStarts(signals)
 	if err != nil {
 		return agent.Transition{}, err
 	}
-	execution.addSteering(steering)
+	if err := execution.addSteer(steer); err != nil {
+		return agent.Transition{}, err
+	}
 	calls, err := execution.activeCallSegment()
 	if err != nil || execution.state.DelegateSegment == nil {
 		return agent.Transition{}, ErrInvalidExecutionState
@@ -143,12 +145,12 @@ func (execution *execution) acceptDelegateStarts(signals []agent.Signal) (agent.
 }
 
 func (execution *execution) acceptDelegateWaitID(signals []agent.Signal) (agent.Transition, error) {
-	if len(signals) == 0 {
-		return agent.Transition{}, fmt.Errorf("%w: Delegate wait-opened Signal is missing", ErrInvalidExecutionState)
-	}
-	opened, err := agent.ParseChildWaitOpened(signals[0])
+	opened, steer, consumedSignals, err := collectChildWaitOpened(signals)
 	if err != nil {
-		return agent.Transition{}, fmt.Errorf("%w: invalid Delegate wait-opened Signal", ErrInvalidExecutionState)
+		return agent.Transition{}, err
+	}
+	if err := execution.addSteer(steer); err != nil {
+		return agent.Transition{}, err
 	}
 	want, err := execution.delegateWaitSpec()
 	if err != nil {
@@ -161,15 +163,17 @@ func (execution *execution) acceptDelegateWaitID(signals []agent.Signal) (agent.
 	waitID := opened.WaitID()
 	execution.state.WaitID = &waitID
 	execution.state.Phase = phaseWaitingDelegates
-	return agent.Wait(1, waitID)
+	return agent.Wait(consumedSignals, waitID)
 }
 
 func (execution *execution) acceptDelegates(signals []agent.Signal) (agent.Transition, error) {
-	completed, steering, consumedSignals, err := collectChildrenCompleted(signals)
+	completed, steer, consumedSignals, err := collectChildrenCompleted(signals)
 	if err != nil {
 		return agent.Transition{}, err
 	}
-	execution.addSteering(steering)
+	if err := execution.addSteer(steer); err != nil {
+		return agent.Transition{}, err
+	}
 	if execution.state.WaitID == nil || completed.WaitID() != *execution.state.WaitID {
 		return agent.Transition{}, fmt.Errorf("%w: Delegate child completion addressed the wrong wait", ErrInvalidExecutionState)
 	}
@@ -265,51 +269,95 @@ func (execution *execution) delegateWaitSpec() (agent.ChildWaitSpec, error) {
 	return spec, nil
 }
 
-func collectChildStarts(signals []agent.Signal) ([]agent.ChildStartResult, []chat.Message, uint32, error) {
+func collectChildStarts(signals []agent.Signal) ([]agent.ChildStartResult, steerBatch, uint32, error) {
 	starts := make([]agent.ChildStartResult, 0, len(signals))
-	steering := make([]chat.Message, 0)
+	var steer steerBatch
 	for _, signal := range signals {
-		if envelope, err := decodeSignal(signal.Payload()); err == nil {
-			if envelope.Operation != operationSteer {
-				return nil, nil, 0, fmt.Errorf("%w: unexpected Interaction Signal while awaiting Delegate starts", ErrInvalidExecutionState)
-			}
-			steering = append(steering, cloneMessages(envelope.Steer.Messages)...)
+		if recognized, err := appendSteerSignal(&steer, signal); err != nil {
+			return nil, steerBatch{}, 0, err
+		} else if recognized {
 			continue
 		}
 		start, err := agent.ParseChildStartResult(signal)
 		if err != nil {
-			return nil, nil, 0, fmt.Errorf("%w: invalid Delegate child-start Signal", ErrInvalidExecutionState)
+			return nil, steerBatch{}, 0, fmt.Errorf("%w: invalid Delegate child-start Signal", ErrInvalidExecutionState)
 		}
 		starts = append(starts, start)
 	}
 	if len(starts) == 0 {
-		return nil, nil, 0, fmt.Errorf("%w: Delegate child-start Signal is missing", ErrInvalidExecutionState)
+		return nil, steerBatch{}, 0, fmt.Errorf("%w: Delegate child-start Signal is missing", ErrInvalidExecutionState)
 	}
-	return starts, steering, uint32(len(signals)), nil
+	return starts, steer, uint32(len(signals)), nil
 }
 
-func collectChildrenCompleted(signals []agent.Signal) (agent.ChildrenCompleted, []chat.Message, uint32, error) {
+func collectChildWaitOpened(signals []agent.Signal) (agent.ChildWaitOpened, steerBatch, uint32, error) {
+	var opened agent.ChildWaitOpened
+	var found bool
+	var steer steerBatch
+	var consumed uint32
+	for _, signal := range signals {
+		if recognized, err := appendSteerSignal(&steer, signal); err != nil {
+			return agent.ChildWaitOpened{}, steerBatch{}, 0, err
+		} else if recognized {
+			consumed++
+			continue
+		}
+		value, err := agent.ParseChildWaitOpened(signal)
+		if err == nil {
+			if found {
+				return agent.ChildWaitOpened{}, steerBatch{}, 0, fmt.Errorf("%w: duplicate Delegate wait-opened Signal", ErrInvalidExecutionState)
+			}
+			opened, found = value, true
+			consumed++
+			continue
+		}
+		if found {
+			if _, completionErr := agent.ParseChildrenCompleted(signal); completionErr == nil {
+				break
+			}
+		}
+		return agent.ChildWaitOpened{}, steerBatch{}, 0, fmt.Errorf("%w: invalid Delegate wait-opened Signal", ErrInvalidExecutionState)
+	}
+	if !found {
+		return agent.ChildWaitOpened{}, steerBatch{}, 0, fmt.Errorf("%w: Delegate wait-opened Signal is missing", ErrInvalidExecutionState)
+	}
+	return opened, steer, consumed, nil
+}
+
+func collectChildrenCompleted(signals []agent.Signal) (agent.ChildrenCompleted, steerBatch, uint32, error) {
 	var completed agent.ChildrenCompleted
 	var found bool
-	var steering []chat.Message
+	var steer steerBatch
 	for _, signal := range signals {
-		if envelope, err := decodeSignal(signal.Payload()); err == nil {
-			if envelope.Operation != operationSteer {
-				return agent.ChildrenCompleted{}, nil, 0, fmt.Errorf("%w: unexpected Interaction Signal while awaiting Delegates", ErrInvalidExecutionState)
-			}
-			steering = append(steering, cloneMessages(envelope.Steer.Messages)...)
+		if recognized, err := appendSteerSignal(&steer, signal); err != nil {
+			return agent.ChildrenCompleted{}, steerBatch{}, 0, err
+		} else if recognized {
 			continue
 		}
 		value, err := agent.ParseChildrenCompleted(signal)
 		if err != nil || found {
-			return agent.ChildrenCompleted{}, nil, 0, fmt.Errorf("%w: invalid or duplicate Delegate completion Signal", ErrInvalidExecutionState)
+			return agent.ChildrenCompleted{}, steerBatch{}, 0, fmt.Errorf("%w: invalid or duplicate Delegate completion Signal", ErrInvalidExecutionState)
 		}
 		completed, found = value, true
 	}
 	if !found {
-		return agent.ChildrenCompleted{}, nil, 0, fmt.Errorf("%w: Delegate completion Signal is missing", ErrInvalidExecutionState)
+		return agent.ChildrenCompleted{}, steerBatch{}, 0, fmt.Errorf("%w: Delegate completion Signal is missing", ErrInvalidExecutionState)
 	}
-	return completed, steering, uint32(len(signals)), nil
+	return completed, steer, uint32(len(signals)), nil
+}
+
+func appendSteerSignal(batch *steerBatch, signal agent.Signal) (bool, error) {
+	envelope, err := decodeSignal(signal.Payload())
+	if err != nil {
+		return false, nil
+	}
+	if envelope.Operation != operationSteer {
+		return true, fmt.Errorf("%w: unexpected Interaction %q Signal", ErrInvalidExecutionState, envelope.Operation)
+	}
+	if err := batch.appendSignal(signal, envelope.Steer.Messages); err != nil {
+		return true, fmt.Errorf("%w: %w", ErrInvalidExecutionState, err)
+	}
+	return true, nil
 }
 
 func delegateSegmentResults(segment delegateSegmentState) ([]chat.ToolResult, error) {

@@ -202,7 +202,7 @@ func (loop *processLoop) applyCommand(ctx context.Context, command processComman
 	case commandResume:
 		loop.resume(ctx, command)
 	case commandCancel:
-		loop.requestCancellation(command)
+		loop.requestCancellation(command.cancellationIntent)
 	case commandKill:
 		loop.requestKill(command)
 	case commandResolveEffect:
@@ -406,16 +406,10 @@ func (loop *processLoop) resume(ctx context.Context, command processCommand) {
 	command.reply(processResponse{})
 }
 
-func (loop *processLoop) requestCancellation(command processCommand) {
-	intent, err := newCancellationIntent(cancellationOwnerHost, command.reason)
-	if err != nil {
-		command.reply(processResponse{err: fmt.Errorf("%w: %w", ErrInvalidProcessControl, err)})
-		return
-	}
+func (loop *processLoop) requestCancellation(intent cancellationIntent) {
 	if !loop.pendingControl.cancellation.valid() {
 		loop.pendingControl.cancellation = intent
 	}
-	command.reply(processResponse{})
 }
 
 func (loop *processLoop) requestKill(command processCommand) {

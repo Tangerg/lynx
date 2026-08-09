@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 )
@@ -22,9 +23,9 @@ var (
 // Process is an Engine-issued handle to one managed execution. Its fields and
 // construction remain private so a caller cannot create a second lifecycle
 // owner. Methods only submit control-plane requests to the owning Engine loop.
-// For methods that submit a command, ctx bounds submission and response
-// waiting. Once the Engine loop receives the command, canceling ctx does not
-// revoke it.
+// Except for RequestCancellation, ctx bounds both command submission and
+// response waiting. Once the Engine loop receives a command, canceling ctx does
+// not revoke it.
 type Process struct {
 	controller *processController
 }
@@ -109,11 +110,31 @@ func (process *Process) Resume(ctx context.Context) error {
 	return err
 }
 
-// Cancel records a caller-owned cancellation. It is committed at the next safe
-// boundary and maps to StatusCanceled with a host-cancellation cause.
-func (process *Process) Cancel(ctx context.Context, reason string) error {
-	_, err := process.request(ctx, processCommand{kind: commandCancel, reason: reason})
-	return err
+// RequestCancellation submits a caller-owned cancellation intent. A nil error
+// means the request entered the owning Engine loop's queue; it does not mean the
+// Process has reached a safe boundary or become terminal. Once submitted, ctx
+// cancellation cannot revoke the request. The first committed cancellation
+// intent maps to StatusCanceled with a host-cancellation cause.
+func (process *Process) RequestCancellation(ctx context.Context, reason string) error {
+	if process == nil || process.controller == nil {
+		return ErrProcessNotRunning
+	}
+	intent, err := newCancellationIntent(cancellationOwnerHost, reason)
+	if err != nil {
+		return fmt.Errorf("%w: %w", ErrInvalidProcessControl, err)
+	}
+	ctx = contextOrBackground(ctx)
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	select {
+	case process.controller.commands <- processCommand{kind: commandCancel, cancellationIntent: intent}:
+		return nil
+	case <-process.controller.done:
+		return ErrProcessFinished
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 // Kill records the Engine control plane's highest-priority terminal intent.
@@ -371,6 +392,7 @@ type processCommand struct {
 	settlement          Settlement
 	internalSignal      Signal
 	parentTermination   Termination
+	cancellationIntent  cancellationIntent
 	preparedStateChange *preparedProcessStateChange
 	release             <-chan struct{}
 	reason              string

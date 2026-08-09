@@ -106,6 +106,7 @@ func fuzzInteractionStates(f testing.TB, definition *Definition) []agent.Executi
 	key, _ := DelegateChildKey(1, call)
 	processID, _ := agent.ParseProcessID("process:fuzz-child")
 	waitID, _ := agent.ParseWaitID("wait:fuzz-child")
+	steerSignalID, _ := agent.ParseSignalID("signal:fuzz-steer")
 	artifactOutput, _ := agent.EncodeOutput(fuzzDelegateOutput{Result: "settled"})
 	states := []executionState{
 		{
@@ -116,6 +117,10 @@ func fuzzInteractionStates(f testing.TB, definition *Definition) []agent.Executi
 		{
 			Phase: phaseWaitingDelegates, WorkingContext: request.Clone(), ModelCallCount: 1,
 			PendingModelResponse: response.Clone(), ActiveToolCallEndIndex: 1, WaitID: &waitID,
+			PendingSteer: &steerBatch{
+				Messages:  []chat.Message{chat.NewUserMessage(chat.NewTextPart("fuzz steer"))},
+				SignalIDs: []agent.SignalID{steerSignalID},
+			},
 			DelegateSegment: &delegateSegmentState{Invocations: []delegateInvocationState{{
 				ChildKey: &key, ChildProcessID: &processID,
 			}}},

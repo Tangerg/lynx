@@ -3,7 +3,7 @@
 > 状态：持续实施
 > 建立日期：2026-08-06
 > 最后更新：2026-08-10
-> 当前阶段：P1–P14 完成
+> 当前阶段：P1–P15 完成
 > 当前实施范围：Framework 重写、消费迁移与 canonical module 替换均已完成；Runtime 最终验收由 `app/runtime` 专项文档拥有
 > 模块路径：`github.com/Tangerg/lynx/agent`
 
@@ -82,6 +82,7 @@ go test ./...
 | P12 重写后精修 | 完成 | 3/3 | 在不改变公共合同的前提下清除实现复杂度、重复职责和边界门禁盲区 |
 | P13 模块内部精修 | 完成 | 3/3 | 继续反证模块内部状态、资源、并发、观察与测试 owner，治本清除新发现的坏味道 |
 | P14 二次反证精修 | 完成 | 3/3 | 从公开 capability 误用、内部签名与命名反例继续证明并收紧模块不变量 |
+| P15 真实消费者反例精修 | 完成 | 2/2 | 以准确提交与 Strategy attribution 消除 command/steer 结果猜测 |
 
 ---
 
@@ -234,6 +235,11 @@ go test ./...
 - [x] P14-02 继续反证 Kernel、Interaction、Planning、Workflow、Platform 与 OTel 的内部 owner、状态和并发边界，只修复有行为证据的真实坏味道。
 - [x] P14-03 完成 standalone build/vet/staticcheck/lint/test/race/fuzz/examples、公开/私有合同和残留复扫，冻结二次精修事实。
 
+### P15：真实消费者反例精修
+
+- [x] P15-01 将 caller cancellation 收敛为准确的队列提交合同，并由 Interaction owner 公开每次模型调用实际应用的 steer Signal 身份；不引入 Host persistence 或产品投影抽象。
+- [x] P15-02 完成 standalone build/vet/staticcheck/lint/test/race/fuzz/examples、公开/私有合同与边界复扫，冻结 Baseline 18。
+
 ---
 
 ## 6. 最终完成定义
@@ -279,6 +285,8 @@ go test ./...
 
 | 日期 | 阶段 | 实际事实 | 验证与结果 |
 |---|---|---|---|
+| 2026-08-10 | P15-02 | 完成 cancellation submission、Interaction applied-steer attribution、Delegate signal prefix、恢复 wire 与模块边界的最终反向复核。生产代码仍只含 Framework/Strategy 概念；没有 Runtime import、产品状态、持久化接口、兼容 alias、第二 command writer 或 Host payload 解释。根与 Interaction public contract 形成 Baseline 18，Interaction state/protocol 为 v6/v4，其余 owner wire保持原版本 | standalone tidy-diff/build/vet/staticcheck/完整 lint、禁缓存 shuffle 全包 race、根/Interaction/Workflow 各 10 轮 race、13 个 fuzz owner 与 8 个 command examples 全绿。wire/public digest、prior-version、恢复、精确 Signal 顺序和防御性复制测试通过；空文件/目录、生产 TODO/FIXME/HACK、Runtime import 为 0，deadcode 只剩冻结的外部 `DeltaListenerFunc.OnDelta` adapter。P15 2/2 完成 |
+| 2026-08-10 | P15-01 | 真实 consumer 反例证明通用 command response 会让 cancellation caller 把 ctx 超时误当作未提交，且 `DeliverSignal` 返回不能指出哪个模型调用真正吸收了 steer。根 Process 以 submission-only `RequestCancellation` 取代 `Cancel`；Interaction 以消息+SignalID共同状态和 `ModelInvocation.AppliedSteerSignalIDs` 给出 exact model boundary attribution，并修正 Delegate wait 对 Signal[0] 与整批消费的错误假设。没有把 Run、Store、transaction、projection 或应用 callback 提升进 Framework | 阻塞 Effect 下 request 先返回且最终 host-canceled、已取消 context 零提交、模型/Tool 安全边界、pending steer state restore、Signal 顺序/副本隔离、steer-before-opened 与 opened-before-immediate-completion 行为测试全绿；Interaction prior v5/v3 直接拒绝，root/Interaction public digest 与 private wire digest完成审计更新 |
 | 2026-08-10 | P14-03 | 完成 Kernel、Interaction、Planning/GOAP、Workflow、Platform 与 OTel 的最终反向复核。额外 errname/mirror/nilness/wastedassign/unparam/gocritic/dupl 扫描为 0；安全扫描剩余的 slice-length 窄化均已有 snapshot/payload、Definition、TreeLimit 或 uint32 protocol 上界证明，child loop 使用独立 background context 则保持“子 Process 生命周期不从属于父 Step 请求”的明确合同，不为追逐告警数字改变语义。生产 package、DAG、公共命名、private owner、mutable state 与 Context 边界未发现新反例 | standalone tidy-diff/build/vet/staticcheck/完整 lint/禁缓存 test 全绿；13 个 fuzz owner 约 301 万次执行，8 个公开 command examples 实际运行，根/Interaction/Planning/GOAP/Workflow/OTel/Platform 各 10 轮 race/stress 全绿。空文件/目录、生产 TODO/FIXME/HACK、Runtime import、旧 agent2 路径与 diff 残留为 0；deadcode 仅剩由 Baseline 17 冻结、供外部消费者使用的 `DeltaListenerFunc.OnDelta` adapter。P14 3/3 完成 |
 | 2026-08-10 | P14-02 | 第二轮逐 owner 反证清除四组事实问题：Process Event 只在完整构造后提交 sequence，表示上限保持饱和不回绕；OTel 对 uint64 sequence 使用无损十进制 attribute、对 Delta drop `Int64Counter` 显式饱和，并在 Close 后分派前退出；Interaction Tool-input pause count 在 `MaxUint32` 明确失败而不回绕；child wait 的“未即时满足”从 `nil, nil` 收敛为 value + satisfied bool，私有 error type 使用 Go `Error` 后缀，Capability 排序直接比较 string。Engine/Observer GoDoc 统一 mutable pointer owner，Process GoDoc 明确 command ctx 不撤销 loop 已接收的命令。没有新增 package、interface、Host 抽象或 wire，OTel sequence attribute 直接切换准确 string，不保留双类型 | 新增 invalid/max Event sequence、OTel uint64/metric saturation/Close、Tool-input pause 极值与 child-wait 返回合同测试；standalone build/vet/staticcheck/项目完整 lint、禁缓存 test/race 与 baseline/diff check 全绿。根与 OTel GoDoc 形成 Baseline 17；fuzz/examples 与最终残留复扫在 P14-03 门禁统一执行 |
 | 2026-08-10 | P14-01 | 发现 exported prepared capability 的 `sync.Mutex + resolved bool` 直接内嵌于可复制值中，显式值副本会共享 gate/tree 资源却分裂一次性状态。现以只含 Framework primitive 的共享 resolution identity 线性化所有别名，zero/nil value 保持 invalid；架构反射守卫锁定两层字段，公开 GoDoc 准确说明副本不能复制 authority。同步移除 Interaction active ToolCall segment 永远未消费的 assistant 返回值，统一 terminal snapshot 的 error-last 返回顺序、context-first 私有边界、prepared state receiver、恢复局部名称与示例泛型函数值；未新增 package/interface/Host 术语，也未改变公开签名或 wire | 原值与显式副本并发 Apply/Discard 的定向 race 反例通过，恰好一个 resolution 成功。standalone build/vet/staticcheck/项目完整 lint、禁缓存 test/race、13 个 fuzz owner（约 318 万次执行）、8 个公开 command examples、tidy-diff、duplicate/unparam/gocritic 与残留扫描全绿；deadcode 仅报告两个已冻结且供外部消费者使用的 listener function adapters。根 GoDoc 显式形成 Baseline 16 |
@@ -369,4 +377,4 @@ go test ./...
 
 ## 9. 当前下一步
 
-P1–P14 与真实 Runtime consumer 证明的 Framework 合同均已完成。`agent` 当前保持唯一 Kernel lifecycle owner、可替换 Strategy、sealed Workflow algebra 与独立 Platform/OTel adapters；一次性 authority、观察数值、mutable owner identity 与 command context 由 Baseline 17 和行为门禁共同冻结。后续只有新的 Framework 能力证据或真实消费者反例才能重开设计，不得以 Runtime 产品、Store、transaction、Run 或消费者术语污染 Framework。
+P1–P15 与真实 consumer 证明的 Framework 合同均已完成。`agent` 当前保持唯一 Kernel lifecycle owner、可替换 Strategy、sealed Workflow algebra 与独立 Platform/OTel adapters；一次性 authority、观察数值、mutable owner identity、提交式 cancellation request 与 Interaction applied-steer attribution 由 Baseline 18 和行为门禁共同冻结。后续只有新的 Framework 能力证据或真实消费者反例才能重开设计，不得以 Runtime 产品、Store、transaction、Run 或消费者术语污染 Framework。

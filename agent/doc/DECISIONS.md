@@ -579,3 +579,19 @@
 - 证据：Process control/query 方法通过单写者 loop 提交命令。ctx 可能在命令进入有界 channel 前取消，也可能在 loop 已接收但尚未回复时取消；后一种情况下撤销命令会引入第二个并发写入口，并使已经接收的 Signal、Cancel、Kill 或 ResolveEffect 出现半撤销。`SignalID` 去重和幂等 control intent 已为调用方处理不确定响应提供稳定语义。
 - 决策：ctx 同时界定命令提交等待和响应等待；一旦 Engine loop 接收命令，ctx 取消只让 caller 停止等待，不撤销已接收命令。Await 只等待 tree-settled terminal result，Start context 则仍是 Process 的 Host cancellation/deadline 来源，二者不与 command 语义混称。Framework 不增加 request lease、rollback、ack registry 或第二 cancel-command 入口。
 - 后果：Process 公共 GoDoc 形成 Baseline 17；实现、方法签名、Signal/wire 与状态机均不变。调用方若收到 ctx error，不得据此断言命令未执行；可依靠稳定 SignalID、状态查询或幂等 control 重试收敛。
+
+## ADR-A2-070：取消请求必须以队列提交而非同步处理结果为合同
+
+- 状态：已接受；P15-01 已实施，形成 Baseline 18。
+- 证据：ADR-A2-069 已准确说明普通 command 的 ctx error 不能证明命令未执行。真实 caller 又证明取消若继续复用“提交后等待 loop response”的通用 helper，就会在 Effect 长时间结算时无谓阻塞，并诱使 caller 将超时误解为未接受后回滚自己的决定。取消是 first-wins terminal intent，请求方只需知道有效请求是否已经进入唯一单写者队列；Process 的安全边界和最终 `Result` 才拥有实际提交事实。
+- 决策：删除 `Process.Cancel`，以 `Process.RequestCancellation(ctx, reason)` 作为唯一 caller-owned 取消入口。Framework 在入队前同步校验 reason；nil 精确表示请求已提交到 Engine command queue，不表示已经处理、到达安全边界或终止。ctx 只界定入队等待，成功入队后取消 ctx 不撤销请求；竞争中先完成的既有终态仍可优先于尚未处理的请求。Kill/Pause/Resume/ResolveEffect 等需要同步验证或返回处理事实的 command 保持响应式合同，不制造通用 fire-and-forget API。
+- 决策：该合同只有 Process、Engine command queue、host-cancellation intent 与终态语义，不增加 Run、Store、transaction、journal、ack registry、lease 或应用回调。旧 `Cancel` 不保留 alias 或兼容转发。
+- 后果：根 public API/GoDoc 形成 Baseline 18；Process Snapshot v6、TreeSnapshot v4、Kernel/Strategy protocol 与 observation wire 均不改变。阻塞 Effect 行为测试证明请求先返回、Effect 仍结算、随后在安全边界得到 `StatusCanceled`；已取消的提交 context 确定不入队。
+
+## ADR-A2-071：模型调用必须携带本轮实际应用的 steer Signal 身份
+
+- 状态：已接受；P15-01 已实施，形成 Baseline 18。
+- 证据：一个 steer Signal 可在模型、Tool 或 Delegate Effect 期间被 Engine 接受，但只在下一个 Strategy-safe 模型边界进入 WorkingContext。仅观察 `DeliverSignal` 的同步返回不能证明某次外部模型请求是否已经看到该输入；只传消息值又无法把具体 Signal 与具体模型调用作无歧义关联。身份属于 Interaction 对自身输入应用时点的语义事实，不属于 Kernel，也不应由 Host 解析 opaque ExecutionState 猜测。
+- 决策：`ModelInvocation` 新增防御性复制的 `AppliedSteerSignalIDs()`，严格按对应 steer 首次进入该模型请求的顺序返回身份；空值只表示本次没有新应用的 steer，不表示 WorkingContext 中没有先前消息。Interaction 将 pending steer 的消息和有序唯一 SignalID 收敛为一个共同校验、共同恢复、共同清除的 Strategy-owned value，并把身份写进同一个 model Effect payload；Dispatcher 只在实际模型调用 context 中公开该 attribution。
+- 决策：模型/Tool/Delegate settlement 同批到达的 steer 都按 mailbox 顺序收集；Delegate wait-opened collector 只消费包含 steer 与唯一 opened acknowledgment 的前缀，不能假设首个 Signal 必为 opened，也不能吞掉随后已就绪的 ChildrenCompleted。身份不得进入 Kernel Signal、Event、snapshot 外层或通用 `EffectRequest`，Framework 不认识 consumer projection、message store 或事务。
+- 后果：Interaction public API/GoDoc 形成 Baseline 18；ExecutionState 从 v5 升为 v6，dispatcher protocol 从 v3 升为 v4，旧版本直接拒绝且不双读。Process Snapshot v6、TreeSnapshot v4、其他 Strategy、Kernel 与 observation wire 均不变。恢复、顺序、防御性复制、模型/Tool 边界和 Delegate 信号交错测试冻结该语义。

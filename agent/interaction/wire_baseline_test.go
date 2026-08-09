@@ -20,7 +20,7 @@ import (
 func TestInteractionWireBaseline(t *testing.T) {
 	shape := interactionWireShape()
 	got := fmt.Sprintf("%x", sha256.Sum256([]byte(shape)))
-	const want = "a7cb939db0f283c3b2c5058ed96888877985f6e209df28c57de45a72f385da06"
+	const want = "3c52c9d0a2333716e19ea03e8150ba80c8b41b070647de6339e282a8894eb6ec"
 	if got != want {
 		t.Fatalf("Interaction wire changed: got %s, want %s\n%s", got, want, shape)
 	}
@@ -33,7 +33,7 @@ func TestInteractionWireBaselineCoversEveryPrivateJSONStruct(t *testing.T) {
 func TestInteractionRejectsPriorProtocolVersion(t *testing.T) {
 	effect, err := newModelEffect(&chat.Request{
 		Messages: []chat.Message{chat.NewUserMessage(chat.NewTextPart("test prior protocol"))},
-	}, 1, nil)
+	}, 1, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -120,6 +120,7 @@ func interactionWireTypes() []reflect.Type {
 		reflect.TypeOf(modelCallResult{}),
 		reflect.TypeOf(modelResponseDeltaWire{}),
 		reflect.TypeOf(signalEnvelope{}),
+		reflect.TypeOf(steerBatch{}),
 		reflect.TypeOf(steerInput{}),
 		reflect.TypeOf(toolBatchCall{}),
 		reflect.TypeOf(toolBatchResult{}),

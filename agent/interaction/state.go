@@ -52,7 +52,7 @@ type executionState struct {
 	ToolCheckpoint           *toolCheckpoint       `json:"tool_checkpoint,omitempty"`
 	DelegateSegment          *delegateSegmentState `json:"delegate_segment,omitempty"`
 	WaitID                   *agent.WaitID         `json:"wait_id,omitempty"`
-	SteeringMessages         []chat.Message        `json:"steering_messages,omitempty"`
+	PendingSteer             *steerBatch           `json:"pending_steer,omitempty"`
 	ArtifactRecords          []artifactRecord      `json:"artifact_records,omitempty"`
 	FinalOutput              *Output               `json:"final_output,omitempty"`
 }
@@ -107,9 +107,9 @@ func (state executionState) validateEnvelope(definition *Definition) error {
 	if err := validateAdvertisedToolNames(state.AdvertisedToolNames); err != nil {
 		return fmt.Errorf("%w: advertised Tools: %w", ErrInvalidExecutionState, err)
 	}
-	if len(state.SteeringMessages) > 0 {
-		if err := validateSteeringMessages(state.SteeringMessages); err != nil {
-			return fmt.Errorf("%w: %w", ErrInvalidExecutionState, err)
+	if state.PendingSteer != nil {
+		if err := state.PendingSteer.validate(); err != nil {
+			return fmt.Errorf("%w: pending steer: %w", ErrInvalidExecutionState, err)
 		}
 	}
 	return nil
@@ -131,14 +131,14 @@ func (state executionState) validatePhaseState(definition *Definition) error {
 }
 
 func (state executionState) validateReadyModelState() error {
-	if state.hasPendingBatch() || state.WaitID != nil || len(state.SteeringMessages) != 0 || state.FinalOutput != nil {
+	if state.hasPendingBatch() || state.WaitID != nil || state.PendingSteer != nil || state.FinalOutput != nil {
 		return fmt.Errorf("%w: ready_model has inconsistent pending response or limit", ErrInvalidExecutionState)
 	}
 	return nil
 }
 
 func (state executionState) validateAwaitingModelState() error {
-	if state.hasPendingBatch() || state.WaitID != nil || len(state.SteeringMessages) != 0 || state.FinalOutput != nil || state.ModelCallCount == 0 {
+	if state.hasPendingBatch() || state.WaitID != nil || state.PendingSteer != nil || state.FinalOutput != nil || state.ModelCallCount == 0 {
 		return fmt.Errorf("%w: awaiting_model has inconsistent pending response or limit", ErrInvalidExecutionState)
 	}
 	return nil
@@ -229,7 +229,7 @@ func (state executionState) validateInputWaitingState(active []chat.ToolCall) er
 }
 
 func (state executionState) validateCompletedState() error {
-	if state.hasPendingBatch() || state.WaitID != nil || len(state.SteeringMessages) != 0 || state.FinalOutput == nil || state.ModelCallCount == 0 {
+	if state.hasPendingBatch() || state.WaitID != nil || state.PendingSteer != nil || state.FinalOutput == nil || state.ModelCallCount == 0 {
 		return fmt.Errorf("%w: completed state requires only its final Output", ErrInvalidExecutionState)
 	}
 	if err := state.FinalOutput.Validate(); err != nil {
@@ -407,8 +407,8 @@ func (state executionState) activeDelegateCalls() ([]chat.ToolCall, error) {
 	if err := state.WorkingContext.Validate(); err != nil || len(state.WorkingContext.Tools) != 0 {
 		return nil, ErrInvalidExecutionState
 	}
-	if len(state.SteeringMessages) > 0 {
-		if err := validateSteeringMessages(state.SteeringMessages); err != nil {
+	if state.PendingSteer != nil {
+		if err := state.PendingSteer.validate(); err != nil {
 			return nil, err
 		}
 	}

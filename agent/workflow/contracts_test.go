@@ -136,7 +136,7 @@ func TestWorkflowCancellationPropagatesToPausedChild(t *testing.T) {
 		t.Fatal(err)
 	}
 	_ = awaitPausedWindow(t, engine, root.ID(), 2)
-	if err := root.Cancel(context.Background(), "cancel Workflow consumer request"); err != nil {
+	if err := root.RequestCancellation(context.Background(), "cancel Workflow consumer request"); err != nil {
 		t.Fatal(err)
 	}
 	result, err := root.Await(context.Background())

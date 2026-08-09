@@ -621,6 +621,65 @@ func TestStartContextCancellationMapsToHostCancellation(t *testing.T) {
 	}
 }
 
+func TestRequestCancellationReturnsAfterSubmissionAndSurvivesContextCancellation(t *testing.T) {
+	definition := newEngineTestDefinition(t, "engine.effect", "effect")
+	release := make(chan struct{})
+	dispatcher := &engineTestDispatcher{
+		policy:  ReplayPolicyNever,
+		started: make(chan struct{}, 1),
+		block:   release,
+	}
+	deployment := engineTestDeployment(t, definition, dispatcher)
+	engine, _ := NewEngine(EngineConfig{})
+	input, _ := EncodeInput(engineTestInput{Value: "cancel after submission"})
+	process, err := engine.Start(context.Background(), deployment, input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	<-dispatcher.started
+
+	requestCtx, cancelRequest := context.WithTimeout(context.Background(), time.Second)
+	if err := process.RequestCancellation(requestCtx, "operator canceled the Process"); err != nil {
+		t.Fatal(err)
+	}
+	cancelRequest()
+	if process.Status().Terminal() {
+		t.Fatal("cancellation became terminal before the in-flight Effect settled")
+	}
+
+	close(release)
+	result := awaitResult(t, process)
+	if result.Status() != StatusCanceled || result.Termination().Cause() != TerminationCauseHostCancellation {
+		t.Fatalf("termination=%+v", result.Termination())
+	}
+}
+
+func TestRequestCancellationRejectsAnAlreadyCanceledSubmissionContext(t *testing.T) {
+	definition := newEngineTestDefinition(t, "engine.wait", "wait")
+	deployment := engineTestDeployment(t, definition, &engineTestDispatcher{policy: ReplayPolicyNever})
+	engine, _ := NewEngine(EngineConfig{})
+	input, _ := EncodeInput(engineTestInput{Value: "remain waiting"})
+	process, err := engine.Start(context.Background(), deployment, input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitForStatus(t, process, StatusWaiting)
+
+	requestCtx, cancelRequest := context.WithCancel(context.Background())
+	cancelRequest()
+	if err := process.RequestCancellation(requestCtx, "must not enter the queue"); !errors.Is(err, context.Canceled) {
+		t.Fatalf("RequestCancellation error=%v, want context.Canceled", err)
+	}
+	if process.Status() != StatusWaiting {
+		t.Fatalf("status=%s, want waiting", process.Status())
+	}
+
+	if err := process.Kill(context.Background(), "test cleanup"); err != nil {
+		t.Fatal(err)
+	}
+	_ = awaitResult(t, process)
+}
+
 func TestKillWaitsForInflightEffectSettlement(t *testing.T) {
 	definition := newEngineTestDefinition(t, "engine.effect", "effect")
 	release := make(chan struct{})

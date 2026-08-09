@@ -582,3 +582,18 @@
 - Kernel、Interaction、Planning/GOAP、Workflow、Platform 与 OTel 已完成第二轮逐 owner 反证；未发现新的跨 package owner、Host import、第二 scheduler、mutable registry、兼容路径或私有 wire 解释者。
 - standalone build/vet/staticcheck/完整 lint/test、13 个 fuzz owner、8 个 command examples 与核心 package 10 轮 race/stress 共同证明 Baseline 17；生产空文件/目录、TODO/FIXME/HACK 与旧 module path 为 0。
 - deadcode 只报告 `DeltaListenerFunc.OnDelta`：它是 Baseline 17 冻结的外部实现 adapter，内部没有消费方不构成不可达生产能力。其余 duplicate、unparam、gocritic、errname、mirror、nilness 和 wasted assignment 扫描为 0。
+
+## 17. P15 真实消费者反例精修证据
+
+### 17.1 Cancellation request submission
+
+- `Process.RequestCancellation` 是唯一 caller-owned cancellation request。它先验证 reason，再把 intent 提交给 Engine 单写者 command queue；nil 不再伪装成“loop 已处理”或“Process 已取消”的同步 acknowledgment。
+- 请求 context 只约束入队：已取消的 context 确定不提交，成功入队后 context 取消不撤销。实际安全边界、first-wins arbitration 和 terminal `Result` 继续只由 Engine 拥有；Kill/Pause/Resume 等需要同步处理反馈的 command 不被泛化成同一语义。
+- 旧 `Cancel` 已整体删除，无 alias、转发、request token、ack registry 或第二 lifecycle writer。阻塞 Effect 反例证明 cancellation request 无需等待外部调用结算即可返回，最终仍在结算后的安全边界得到 host-canceled 终态。
+
+### 17.2 Exact applied-steer attribution
+
+- Interaction 将尚未进入模型请求的 user messages 与有序唯一 SignalID 收敛为同一个 `steerBatch`。两者共同追加、校验、恢复、应用和清除，不存在只有消息没有身份或只有身份没有消息的半状态。
+- 每个 model Effect 保存本轮实际应用的 steer SignalID；Dispatcher 构造的 immutable `ModelInvocation` 通过防御性复制公开 `AppliedSteerSignalIDs`。这项事实只表达 Interaction 输入到模型边界的归因，不含 Engine handle、Run、message store、transaction、checkpoint 或产品状态。
+- steer 可与 model/Tool/Delegate settlement 同批到达并保持 mailbox 顺序。Delegate wait collector 不再假设 `signals[0]` 必为 wait-opened，也不会把其后的即时 child completion 当成 duplicate opened 或提前消费；测试覆盖 steer-before-opened 与 opened-followed-by-completion 两类交错。
+- Interaction ExecutionState/protocol 直接升级为 v6/v4，旧版本不双读。根 Process Snapshot v6、TreeSnapshot v4、Kernel/其他 Strategy/observation wire 全部不变；Baseline 18 只改变根与 Interaction public digest以及 Interaction private wire digest。

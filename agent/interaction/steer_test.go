@@ -130,18 +130,33 @@ func newSteeredModel() *steeredModel {
 	return &steeredModel{firstStarted: make(chan struct{}), firstRelease: make(chan struct{})}
 }
 
-func (model *steeredModel) Call(_ context.Context, request *chat.Request) (*chat.Response, error) {
+func (model *steeredModel) Call(ctx context.Context, request *chat.Request) (*chat.Response, error) {
 	model.mu.Lock()
 	model.calls++
 	call := model.calls
 	model.mu.Unlock()
+	invocation, ok := interaction.ModelInvocationFromContext(ctx)
+	if !ok {
+		return nil, errors.New("model invocation attribution is missing")
+	}
+	appliedSteerSignalIDs := invocation.AppliedSteerSignalIDs()
 	if call == 1 {
+		if len(appliedSteerSignalIDs) != 0 {
+			return nil, errors.New("initial model call reports applied steer input")
+		}
 		if len(request.Messages) != 1 {
 			return nil, errors.New("steer reached the in-flight model request")
 		}
 		close(model.firstStarted)
 		<-model.firstRelease
 		return textResponse("draft"), nil
+	}
+	if len(appliedSteerSignalIDs) != 1 || appliedSteerSignalIDs[0].String() != "signal:model-steer" {
+		return nil, errors.New("next model call has inaccurate steer Signal attribution")
+	}
+	appliedSteerSignalIDs[0] = agent.SignalID{}
+	if invocation.AppliedSteerSignalIDs()[0].String() != "signal:model-steer" {
+		return nil, errors.New("model invocation aliases steer Signal attribution")
 	}
 	if len(request.Messages) != 3 || request.Messages[1].Role != chat.RoleAssistant ||
 		request.Messages[1].Text() != "draft" || request.Messages[2].Role != chat.RoleUser ||
@@ -197,12 +212,23 @@ type toolSteerModel struct {
 	calls int
 }
 
-func (model *toolSteerModel) Call(_ context.Context, request *chat.Request) (*chat.Response, error) {
+func (model *toolSteerModel) Call(ctx context.Context, request *chat.Request) (*chat.Response, error) {
 	model.mu.Lock()
 	defer model.mu.Unlock()
 	model.calls++
+	invocation, ok := interaction.ModelInvocationFromContext(ctx)
+	if !ok {
+		return nil, errors.New("model invocation attribution is missing")
+	}
 	if model.calls == 1 {
+		if len(invocation.AppliedSteerSignalIDs()) != 0 {
+			return nil, errors.New("initial model call reports applied steer input")
+		}
 		return toolCallResponse(chat.ToolCall{ID: "call_settle", Name: "settle", Arguments: `{}`}), nil
+	}
+	appliedSteerSignalIDs := invocation.AppliedSteerSignalIDs()
+	if len(appliedSteerSignalIDs) != 1 || appliedSteerSignalIDs[0].String() != "signal:tool-steer" {
+		return nil, errors.New("post-Tool model call has inaccurate steer Signal attribution")
 	}
 	if len(request.Messages) != 4 || request.Messages[1].Role != chat.RoleAssistant ||
 		request.Messages[2].Role != chat.RoleTool || request.Messages[3].Role != chat.RoleUser ||

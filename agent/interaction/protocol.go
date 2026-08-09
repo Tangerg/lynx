@@ -6,10 +6,11 @@ import (
 	"fmt"
 	"slices"
 
+	agent "github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/core/chat"
 )
 
-const protocolSchemaVersion uint16 = 3
+const protocolSchemaVersion uint16 = 4
 
 type operation string
 
@@ -34,9 +35,10 @@ type effectEnvelope struct {
 }
 
 type modelCall struct {
-	ModelCallSequence   uint32       `json:"model_call_sequence"`
-	Request             chat.Request `json:"request"`
-	AdvertisedToolNames []string     `json:"advertised_tool_names,omitempty"`
+	ModelCallSequence     uint32           `json:"model_call_sequence"`
+	Request               chat.Request     `json:"request"`
+	AdvertisedToolNames   []string         `json:"advertised_tool_names,omitempty"`
+	AppliedSteerSignalIDs []agent.SignalID `json:"applied_steer_signal_ids,omitempty"`
 }
 
 type toolBatchCall struct {
@@ -102,6 +104,7 @@ func newModelEffect(
 	request *chat.Request,
 	modelCallSequence uint32,
 	advertisedToolNames []string,
+	appliedSteerSignalIDs []agent.SignalID,
 ) (effectEnvelope, error) {
 	if request == nil {
 		return effectEnvelope{}, errors.New("interaction: model request is nil")
@@ -112,6 +115,11 @@ func newModelEffect(
 	if err := validateAdvertisedToolNames(advertisedToolNames); err != nil {
 		return effectEnvelope{}, fmt.Errorf("interaction: advertised Tools: %w", err)
 	}
+	if len(appliedSteerSignalIDs) > 0 {
+		if err := validateSteerSignalIDs(appliedSteerSignalIDs); err != nil {
+			return effectEnvelope{}, fmt.Errorf("interaction: applied steer SignalIDs: %w", err)
+		}
+	}
 	cloned := request.Clone()
 	if err := cloned.Validate(); err != nil {
 		return effectEnvelope{}, fmt.Errorf("interaction: model request: %w", err)
@@ -120,8 +128,10 @@ func newModelEffect(
 		SchemaVersion: protocolSchemaVersion,
 		Operation:     operationModelCall,
 		ModelCall: &modelCall{
-			ModelCallSequence: modelCallSequence,
-			Request:           *cloned, AdvertisedToolNames: slices.Clone(advertisedToolNames),
+			ModelCallSequence:     modelCallSequence,
+			Request:               *cloned,
+			AdvertisedToolNames:   slices.Clone(advertisedToolNames),
+			AppliedSteerSignalIDs: slices.Clone(appliedSteerSignalIDs),
 		},
 	}, nil
 }
@@ -201,6 +211,11 @@ func (envelope effectEnvelope) validateModelCall() error {
 	}
 	if err := validateAdvertisedToolNames(envelope.ModelCall.AdvertisedToolNames); err != nil {
 		return fmt.Errorf("interaction: model_call advertised Tools: %w", err)
+	}
+	if len(envelope.ModelCall.AppliedSteerSignalIDs) > 0 {
+		if err := validateSteerSignalIDs(envelope.ModelCall.AppliedSteerSignalIDs); err != nil {
+			return fmt.Errorf("interaction: model_call applied steer SignalIDs: %w", err)
+		}
 	}
 	return nil
 }

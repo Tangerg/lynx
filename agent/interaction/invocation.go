@@ -2,6 +2,7 @@ package interaction
 
 import (
 	"context"
+	"slices"
 
 	agent "github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/core/chat"
@@ -17,11 +18,12 @@ const (
 // ModelInvocation is the immutable execution attribution of one actual model
 // call. It contains no Engine handle or Host metadata.
 type ModelInvocation struct {
-	relation          agent.ProcessRelation
-	deploymentRef     agent.DeploymentRef
-	effectID          agent.EffectID
-	stepSequence      uint64
-	modelCallSequence uint32
+	relation              agent.ProcessRelation
+	deploymentRef         agent.DeploymentRef
+	effectID              agent.EffectID
+	stepSequence          uint64
+	modelCallSequence     uint32
+	appliedSteerSignalIDs []agent.SignalID
 }
 
 // Relation returns the Process tree location that owns the model call.
@@ -43,11 +45,20 @@ func (invocation ModelInvocation) ModelCallSequence() uint32 {
 	return invocation.modelCallSequence
 }
 
+// AppliedSteerSignalIDs returns the ordered identities of steer Signals whose
+// messages were first made visible to this exact model request. The returned
+// slice is independently owned. An empty slice means the request applied no new
+// steer input; previously applied messages may still remain in WorkingContext.
+func (invocation ModelInvocation) AppliedSteerSignalIDs() []agent.SignalID {
+	return slices.Clone(invocation.appliedSteerSignalIDs)
+}
+
 // Valid reports whether invocation contains one complete model-call attribution.
 func (invocation ModelInvocation) Valid() bool {
 	return invocation.relation.Valid() && invocation.deploymentRef.Valid() &&
 		invocation.effectID.Valid() && invocation.stepSequence > 0 &&
-		invocation.modelCallSequence > 0
+		invocation.modelCallSequence > 0 &&
+		(len(invocation.appliedSteerSignalIDs) == 0 || validateSteerSignalIDs(invocation.appliedSteerSignalIDs) == nil)
 }
 
 // ModelInvocationFromContext returns the attribution installed only for the
@@ -114,11 +125,16 @@ func ToolInvocationFromContext(ctx context.Context) (ToolInvocation, bool) {
 	return invocation, present && invocation.Valid()
 }
 
-func modelInvocationFromRequest(request agent.EffectRequest, modelCallSequence uint32) ModelInvocation {
+func modelInvocationFromRequest(
+	request agent.EffectRequest,
+	modelCallSequence uint32,
+	appliedSteerSignalIDs []agent.SignalID,
+) ModelInvocation {
 	return ModelInvocation{
 		relation: request.Relation(), deploymentRef: request.DeploymentRef(),
 		effectID: request.ID(), stepSequence: request.StepSequence(),
-		modelCallSequence: modelCallSequence,
+		modelCallSequence:     modelCallSequence,
+		appliedSteerSignalIDs: slices.Clone(appliedSteerSignalIDs),
 	}
 }
 

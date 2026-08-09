@@ -1,14 +1,14 @@
 # Agent Framework 公共合同基线
 
-> 状态：Baseline 17 已冻结
+> 状态：Baseline 18 已冻结
 > 冻结日期：2026-08-10
-> 适用范围：`agent` 根 package、`agent/interaction`、`agent/planning`、`agent/planning/goap`、`agent/workflow`、`agent/otel`、`agent/platform`、Process Snapshot v6、TreeSnapshot v4、child/framework-effect protocol v2、Interaction state/protocol v5/v3、Planning state/protocol v3/v1、Workflow state v2、Event/Delta observation wire
+> 适用范围：`agent` 根 package、`agent/interaction`、`agent/planning`、`agent/planning/goap`、`agent/workflow`、`agent/otel`、`agent/platform`、Process Snapshot v6、TreeSnapshot v4、child/framework-effect protocol v2、Interaction state/protocol v6/v4、Planning state/protocol v3/v1、Workflow state v2、Event/Delta observation wire
 
 本文只记录已经由 P3 真实 Interaction、P4 child composition、八个独立 command consumer、P5 真实 Planning/GOAP、P6 managed Workflow、P8 Platform 与恢复合同共同证明的公共合同基线。目标架构、ADR、工程标准和实施进度仍由各自文档拥有；这里不复制它们。
 
 ## 1. 基线的含义
 
-Baseline 17 不是兼容承诺或发布版本。仓库仍允许 breaking change，但任何公共名称、参数名、签名、GoDoc、sentinel error、Framework/Strategy recovery wire 或 observation wire 的变化都必须是显式设计决策：
+Baseline 18 不是兼容承诺或发布版本。仓库仍允许 breaking change，但任何公共名称、参数名、签名、GoDoc、sentinel error、Framework/Strategy recovery wire 或 observation wire 的变化都必须是显式设计决策：
 
 1. 先用真实 Strategy 或 consumer 证明变化必要；
 2. 更新或追加 ADR，不保留 alias、双读、双写或兼容 shim；
@@ -23,7 +23,7 @@ Baseline 17 不是兼容承诺或发布版本。仓库仍允许 breaking change�
 
 - Definition/Execution/ExecutionState：不可变定义、有界纯 Step、Strategy-owned portable state。
 - Descriptor/Deployment/DeploymentRef/DeploymentResolver：权威 schema、冻结运行绑定与 exact resolution。
-- Engine/Process/Result/Termination：唯一生命周期 owner、Engine-issued handle 与稳定终态事实。
+- Engine/Process/Result/Termination：唯一生命周期 owner、Engine-issued handle、提交式 cancellation request 与稳定终态事实。
 - Signal/SignalRequest/WaitID/WaitKey：唯一入站信封、外部投递请求、Engine identity 与 Strategy logical identity。
 - Transition/Effect/EffectRequest/Settlement：Step 候选意图、边界外操作、dispatcher 请求与确定/未知结算。
 - Snapshot/TreeSnapshot：单独 root 与完整 Process tree 的 portable capture；不包含 Host persistence 抽象。
@@ -35,7 +35,7 @@ Baseline 17 不是兼容承诺或发布版本。仓库仍允许 breaking change�
 - Event/Delta：自足携带 exact execution attribution 的权威已发生事实与 best-effort 临时增量；listener 无 veto/error 通道。
 - Typed/EncodeInput/DecodeOutput：只存在于类型擦除边缘的人体工程学 adapter。
 
-`interaction` package 冻结为一个原生 Strategy：Definition 拥有 WorkingContext、模型/Tool 状态机、exact managed Delegate、typed Delegate artifacts 与可选 pure completion validator，Dispatcher 只拥有模型和普通 Tool I/O。Delegate 将目标 Descriptor Input 暴露为模型 Tool schema，但只能由 Execution 经 Framework `StartChild`/`WaitForChildren` 推进；成功 child Output 经 exact schema 复验后进入 immutable validator view，validator 读取防御性复制的当前 WorkingContext/candidate/artifacts，拒绝候选时以有界 feedback 进入下一模型轮次。`ActiveDelegateChildrenFromSnapshot` 只解释 Interaction 自己的已提交 opaque state，并以不可变 `ActiveDelegateChild` 公开模型调用序号、ToolCall 位置和值、ChildKey 与 ProcessID；它不暴露 private wire，也不保存 Engine handle 或 Host identity。HITL/steer/stream/tool concurrency 仍通过根窄腰表达。Interaction 不拥有 Process lifecycle、产品 history、artifact store、UI 或 approval policy。
+`interaction` package 冻结为一个原生 Strategy：Definition 拥有 WorkingContext、模型/Tool 状态机、exact managed Delegate、typed Delegate artifacts 与可选 pure completion validator，Dispatcher 只拥有模型和普通 Tool I/O。Delegate 将目标 Descriptor Input 暴露为模型 Tool schema，但只能由 Execution 经 Framework `StartChild`/`WaitForChildren` 推进；成功 child Output 经 exact schema 复验后进入 immutable validator view，validator 读取防御性复制的当前 WorkingContext/candidate/artifacts，拒绝候选时以有界 feedback 进入下一模型轮次。`ModelInvocation.AppliedSteerSignalIDs` 只归因首次进入当前模型请求的 steer Signal；`ActiveDelegateChildrenFromSnapshot` 只解释 Interaction 自己的已提交 opaque state，并以不可变 `ActiveDelegateChild` 公开模型调用序号、ToolCall 位置和值、ChildKey 与 ProcessID。两者都不暴露 private wire，也不保存 Engine handle 或 Host identity。HITL/steer/stream/tool concurrency 仍通过根窄腰表达。Interaction 不拥有 Process lifecycle、产品 history、artifact store、UI 或 approval policy。
 
 `planning` package 冻结为另一个原生 Strategy：Goal、Condition、Truth、WorldState、Action、Plan 和 Planning outcome 全部由 Planning 拥有；Planner 只做无副作用搜索，Observer/ActionExecutor 只存在于 dispatcher 边界。Execution 每次只执行 Plan 的第一个 Action，随后重新观察、确认预测效果并重新规划。dispatcher Action 与 child Process Action 共用同一预测模型，但不共享执行 capability；unreachable/stuck 是 Planning Output，不是共同 Process 状态。
 
@@ -45,21 +45,21 @@ Baseline 17 不是兼容承诺或发布版本。仓库仍允许 breaking change�
 
 ## 3. 自动守卫
 
-`baseline_test.go` 对七个已冻结公共 package 的完整 `go doc -all` 输出做 SHA-256 校验，因此 exported identifier、参数名、字段、签名和 GoDoc 的任何漂移都会失败；AST 守卫还要求所有公开声明/字段有精确 GoDoc、公开 callable 的参数有语义名称，并禁止 error cause 通过 `%v` 丢失 `errors.Is/As` 链。Baseline 17 public digest：
+`baseline_test.go` 对七个已冻结公共 package 的完整 `go doc -all` 输出做 SHA-256 校验，因此 exported identifier、参数名、字段、签名和 GoDoc 的任何漂移都会失败；AST 守卫还要求所有公开声明/字段有精确 GoDoc、公开 callable 的参数有语义名称，并禁止 error cause 通过 `%v` 丢失 `errors.Is/As` 链。Baseline 18 public digest：
 
-- root kernel：`e49d9eb91cc509cca57f406f0f3ff6bfacdee540f962744013743a8ecdcfce2b`
-- interaction：`30e8a8f321a9a5ede295c7e67e96b9495ef3c13de7c4a8ad3803b3db6f6c838f`
+- root kernel：`eab1bda4efe207f907164d129290c9369ab17d08a42ea716307c09bf80c06136`
+- interaction：`98a846c0e8930518948e9e491485f3d572ebe4b540ab566990233afabbd9a625`
 - planning：`48dcc733364cf5345332aeb0f3fd64aeefd2c21e7f0585759e44278b050eb50a`
 - planning/goap：`4aa78b677748784182313d25a187b0074e49ea972c75db2e041c82a0f5f82529`
 - workflow：`1a8d2dfe3803ae114cd5da12ee888acd372bc348b46ae6fecb2a1029a825e749`
 - otel：`aeed9c638fae1729c2965b4bccd466edf858dd9a4cf49e9611386f910d4c5d60`
 - platform：`5d2140197e3ac09ebf62a156b308b0327197716888974706c338cd14b9b9b21b`
 
-Kernel 测试独立冻结其全部 production `*Wire`、Framework Event payload 与 schema version；每个 Strategy package 冻结自己的私有 ExecutionState 和 Effect/Signal/Delta protocol。覆盖守卫要求新增 production wire 或私有 JSON struct 必须进入所有者 baseline，Kernel 始终只保存 opaque `ExecutionState.Payload`，不会递归解释 Strategy shape。Baseline 17 wire digest：
+Kernel 测试独立冻结其全部 production `*Wire`、Framework Event payload 与 schema version；每个 Strategy package 冻结自己的私有 ExecutionState 和 Effect/Signal/Delta protocol。覆盖守卫要求新增 production wire 或私有 JSON struct 必须进入所有者 baseline，Kernel 始终只保存 opaque `ExecutionState.Payload`，不会递归解释 Strategy shape。Baseline 18 wire digest：
 
 - Kernel snapshot/protocol wire：`56ac28855e547d8e6d26ee595278055fa3e24be245a5ce99e8443b4d282c465d`
 - Framework Event/Delta observation wire：`152f8856da33fa85f1ca7eab0bd0b30287915931a100100bdfa83ddf56f9b39e`
-- Interaction state/protocol wire：`a7cb939db0f283c3b2c5058ed96888877985f6e209df28c57de45a72f385da06`
+- Interaction state/protocol wire：`3c52c9d0a2333716e19ea03e8150ba80c8b41b070647de6339e282a8894eb6ec`
 - Planning state/protocol wire：`6b9bf130b4f8869074c5e988d34899a142551b0edda46dccd883e0c2e44682eb`
 - Workflow state wire：`1e223dcfeeca7751f3d440a771364879bdeba2e7a5367c978c9568d31be0c3da`
 
@@ -121,6 +121,8 @@ P14-01 依据 ADR-A2-066 形成 Baseline 16。`PreparedWaitingSubtreeCancellatio
 
 P14-02 依据 ADR-A2-067/A2-069 形成 Baseline 17。Engine 与 OTel Observer 的 GoDoc 明确它们是禁止使用后复制的单一 mutable owner；Process GoDoc 明确 command ctx 只界定提交与响应等待，Engine loop 接收后不撤销命令。公开名称和签名不变。ADR-A2-068 同批修正 Process Event sequence 与 OTel 数值投影，但不改变 Event/Delta wire：sequence attribute 统一以十进制字符串无损表达 `uint64`，Delta drop 到 OTel `Int64Counter` 的窄化使用显式饱和。
 
+P15-01 依据 ADR-A2-070/A2-071 形成 Baseline 18。根 Process 以 `RequestCancellation` 取代会让 caller 误读同步响应的 `Cancel`：nil 只表示有效请求已经进入 Engine 单写者队列，终态仍由安全边界和 `Result` 给出；旧名称不保留 alias。Interaction 的 `ModelInvocation.AppliedSteerSignalIDs` 精确返回首次进入该模型请求的 steer Signal 身份，Dispatcher protocol 同步携带这一 Strategy-owned attribution；pending steer 将消息与有序 SignalID 作为一个不可拆分状态恢复。Interaction ExecutionState/protocol 直接升级为 v6/v4，旧格式不双读；Process Snapshot v6、TreeSnapshot v4、Kernel wire、其他 Strategy 与 observation wire 均未改变。
+
 ## 4. 明确不在基线中的能力
 
-Baseline 17 保持唯一 `agent` module、一次性 prepared authority、mutable owner pointer identity 与准确 command context 合同。模块路径变化不引入 alias、replace compatibility 或旧 wire 双读；七个公共 package 及全部 snapshot、Strategy protocol 和 observation wire 的语义仍由各自 digest 守卫。`flow` 保持独立 in-process 库，不形成 Agent adapter API 或依赖；Workflow 吸收其显式拓扑、确定顺序和有界 fan-out 思想，但不强求复用或建立 adapter。未来编辑器图只能在更高层编译成已验证的 Workflow Definition，不能反向扩张 Kernel 或恢复 wire。
+Baseline 18 保持唯一 `agent` module、一次性 prepared authority、mutable owner pointer identity、提交式取消请求与 Interaction-owned steer 归因合同。模块路径变化不引入 alias、replace compatibility 或旧 wire 双读；七个公共 package 及全部 snapshot、Strategy protocol 和 observation wire 的语义仍由各自 digest 守卫。`flow` 保持独立 in-process 库，不形成 Agent adapter API 或依赖；Workflow 吸收其显式拓扑、确定顺序和有界 fan-out 思想，但不强求复用或建立 adapter。未来编辑器图只能在更高层编译成已验证的 Workflow Definition，不能反向扩张 Kernel 或恢复 wire。

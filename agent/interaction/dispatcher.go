@@ -186,7 +186,11 @@ func (dispatcher *Dispatcher) dispatchModel(
 	}
 	ctx = withModelInvocation(
 		ctx,
-		modelInvocationFromRequest(request, call.ModelCallSequence),
+		modelInvocationFromRequest(
+			request,
+			call.ModelCallSequence,
+			call.AppliedSteerSignalIDs,
+		),
 	)
 	response, err := dispatcher.callModel(ctx, modelRequest, emit)
 	if err != nil {
