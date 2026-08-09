@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { MCPServerSettings } from "./mcpServerQueries";
 import {
+  editRetainedValue,
   initialMCPServerDraft,
   isMCPServerDraftValid,
   mcpServerInputFromDraft,
+  retainedValueText,
+  setRetainedValueCleared,
 } from "./mcpServerDraft";
 
 describe("mcpServerDraft", () => {
@@ -14,14 +17,11 @@ describe("mcpServerDraft", () => {
       description: " repository tools ",
       command: " npx ",
       args: " -y\n@modelcontextprotocol/server-git\n\n",
-      env: "TOKEN=a=b\nEMPTY_KEY\n",
-      clearEnvironment: false,
+      environment: editRetainedValue("TOKEN=a=b\nEMPTY_KEY\n"),
       dir: " /repo ",
       url: "",
-      authorization: "",
-      clearAuthorization: false,
-      headers: "",
-      clearHeaders: false,
+      authorization: setRetainedValueCleared(false),
+      headers: setRetainedValueCleared(false),
       timeoutSec: "30",
       disabledTools: ["danger"],
       autoApproveTools: ["status"],
@@ -62,14 +62,11 @@ describe("mcpServerDraft", () => {
         description: "",
         command: "",
         args: "",
-        env: "",
-        clearEnvironment: false,
+        environment: setRetainedValueCleared(false),
         dir: "",
         url: " https://example.com/mcp ",
-        authorization: "   ",
-        clearAuthorization: false,
-        headers: "X-Trace=abc=123\nBare\n",
-        clearHeaders: false,
+        authorization: editRetainedValue("   "),
+        headers: editRetainedValue("X-Trace=abc=123\nBare\n"),
         timeoutSec: "0",
         disabledTools: [],
         autoApproveTools: [],
@@ -114,13 +111,10 @@ describe("mcpServerDraft", () => {
       transport: "stdio",
       command: "node",
       args: "server.js\n--root\n/repo",
-      env: "",
-      clearEnvironment: false,
-      headers: "",
-      clearHeaders: false,
+      environment: { disposition: "preserve" },
+      headers: { disposition: "preserve" },
       timeoutSec: "15",
-      authorization: "",
-      clearAuthorization: false,
+      authorization: { disposition: "preserve" },
       disabledTools: ["delete"],
       autoApproveTools: ["read"],
     });
@@ -145,13 +139,15 @@ describe("mcpServerDraft", () => {
     };
 
     expect(isMCPServerDraftValid(draft, server)).toBe(false);
-    expect(isMCPServerDraftValid({ ...draft, clearAuthorization: true }, server)).toBe(true);
-    expect(isMCPServerDraftValid({ ...draft, authorization: "Bearer replacement" }, server)).toBe(
-      true,
-    );
+    const cleared = { ...draft, authorization: setRetainedValueCleared(true) };
+    expect(isMCPServerDraftValid(cleared, server)).toBe(true);
     expect(
-      mcpServerInputFromDraft({ ...draft, clearAuthorization: true }, server).authorization,
-    ).toBe(null);
+      isMCPServerDraftValid(
+        { ...draft, authorization: editRetainedValue("Bearer replacement") },
+        server,
+      ),
+    ).toBe(true);
+    expect(mcpServerInputFromDraft(cleared, server).authorization).toBe(null);
   });
 
   it("requires explicit dispositions for stored headers when the HTTP origin changes", () => {
@@ -170,11 +166,15 @@ describe("mcpServerDraft", () => {
     const draft = { ...initialMCPServerDraft(server), url: "https://new.example/mcp" };
 
     expect(isMCPServerDraftValid(draft, server)).toBe(false);
-    expect(isMCPServerDraftValid({ ...draft, clearHeaders: true }, server)).toBe(true);
-    expect(isMCPServerDraftValid({ ...draft, headers: "X-API-Key=replacement" }, server)).toBe(
-      true,
-    );
-    expect(mcpServerInputFromDraft({ ...draft, clearHeaders: true }, server).headers).toBe(null);
+    const cleared = { ...draft, headers: setRetainedValueCleared(true) };
+    expect(isMCPServerDraftValid(cleared, server)).toBe(true);
+    expect(
+      isMCPServerDraftValid(
+        { ...draft, headers: editRetainedValue("X-API-Key=replacement") },
+        server,
+      ),
+    ).toBe(true);
+    expect(mcpServerInputFromDraft(cleared, server).headers).toBe(null);
   });
 
   it("preserves stored environment only for an unchanged stdio process target", () => {
@@ -199,11 +199,15 @@ describe("mcpServerDraft", () => {
 
     const changed = { ...unchanged, args: "other.js" };
     expect(isMCPServerDraftValid(changed, server)).toBe(false);
-    expect(isMCPServerDraftValid({ ...changed, clearEnvironment: true }, server)).toBe(true);
-    expect(mcpServerInputFromDraft({ ...changed, clearEnvironment: true }, server).env).toBe(null);
-    expect(mcpServerInputFromDraft({ ...changed, env: "API_KEY=replacement" }, server).env).toEqual(
-      { API_KEY: "replacement" },
-    );
+    const cleared = { ...changed, environment: setRetainedValueCleared(true) };
+    expect(isMCPServerDraftValid(cleared, server)).toBe(true);
+    expect(mcpServerInputFromDraft(cleared, server).env).toBe(null);
+    expect(
+      mcpServerInputFromDraft(
+        { ...changed, environment: editRetainedValue("API_KEY=replacement") },
+        server,
+      ).env,
+    ).toEqual({ API_KEY: "replacement" });
   });
 
   it("validates the active transport's required field", () => {
@@ -219,5 +223,18 @@ describe("mcpServerDraft", () => {
         url: "https://example.com/mcp",
       }),
     ).toBe(true);
+  });
+
+  it("models retained values as one explicit disposition", () => {
+    const replacement = editRetainedValue("  secret  ");
+    expect(replacement).toEqual({ disposition: "replace", text: "  secret  " });
+    expect(retainedValueText(replacement)).toBe("  secret  ");
+
+    const cleared = setRetainedValueCleared(true);
+    expect(cleared).toEqual({ disposition: "clear" });
+    expect(retainedValueText(cleared)).toBe("");
+
+    expect(editRetainedValue("   ")).toEqual({ disposition: "preserve" });
+    expect(setRetainedValueCleared(false)).toEqual({ disposition: "preserve" });
   });
 });

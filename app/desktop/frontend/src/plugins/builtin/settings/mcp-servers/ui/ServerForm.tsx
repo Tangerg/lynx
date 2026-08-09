@@ -11,6 +11,7 @@ import {
 import { useT } from "@/lib/i18n";
 import { LinesField } from "./ServerFormFields";
 import {
+  editRetainedValue,
   type MCPServerDraft,
   initialMCPServerDraft,
   isMCPServerDraftValid,
@@ -18,6 +19,8 @@ import {
   mcpEnvironmentNeedsDisposition,
   mcpHeadersNeedDisposition,
   mcpServerInputFromDraft,
+  retainedValueText,
+  setRetainedValueCleared,
 } from "../application/mcpServerDraft";
 import { ToolControls } from "./ToolControls";
 import { useProbe } from "../../public";
@@ -124,11 +127,8 @@ export function ServerForm({ server, onDone, onCancel }: Props) {
           />
           <LinesField
             label={t("mcp.form.env")}
-            value={draft.env}
-            onChange={(value) => {
-              updateDraft("env", value);
-              if (value.trim()) updateDraft("clearEnvironment", false);
-            }}
+            value={retainedValueText(draft.environment)}
+            onChange={(value) => updateDraft("environment", editRetainedValue(value))}
             placeholder={
               hasEnvironmentStored ? t("mcp.form.env.keep") : t("mcp.form.env.placeholder")
             }
@@ -137,11 +137,10 @@ export function ServerForm({ server, onDone, onCancel }: Props) {
             <label className="flex items-center justify-between gap-3 text-ui-md text-fg-muted">
               <span>{t("mcp.form.env.clear")}</span>
               <Switch
-                checked={draft.clearEnvironment}
-                onCheckedChange={(value) => {
-                  updateDraft("clearEnvironment", value);
-                  if (value) updateDraft("env", "");
-                }}
+                checked={draft.environment.disposition === "clear"}
+                onCheckedChange={(value) =>
+                  updateDraft("environment", setRetainedValueCleared(value))
+                }
                 ariaLabel={t("mcp.form.env.clear")}
               />
             </label>
@@ -169,22 +168,18 @@ export function ServerForm({ server, onDone, onCancel }: Props) {
           <TextField
             type="password"
             aria-label={t("mcp.form.auth.aria")}
-            value={draft.authorization}
-            onChange={(e) => {
-              updateDraft("authorization", e.target.value);
-              if (e.target.value) updateDraft("clearAuthorization", false);
-            }}
+            value={retainedValueText(draft.authorization)}
+            onChange={(e) => updateDraft("authorization", editRetainedValue(e.target.value))}
             placeholder={hasAuthStored ? t("mcp.form.auth.keep") : t("mcp.form.auth.placeholder")}
           />
           {hasAuthStored && (
             <label className="flex items-center justify-between gap-3 text-ui-md text-fg-muted">
               <span>{t("mcp.form.auth.clear")}</span>
               <Switch
-                checked={draft.clearAuthorization}
-                onCheckedChange={(value) => {
-                  updateDraft("clearAuthorization", value);
-                  if (value) updateDraft("authorization", "");
-                }}
+                checked={draft.authorization.disposition === "clear"}
+                onCheckedChange={(value) =>
+                  updateDraft("authorization", setRetainedValueCleared(value))
+                }
                 ariaLabel={t("mcp.form.auth.clear")}
               />
             </label>
@@ -194,11 +189,8 @@ export function ServerForm({ server, onDone, onCancel }: Props) {
           )}
           <LinesField
             label={t("mcp.form.headers")}
-            value={draft.headers}
-            onChange={(value) => {
-              updateDraft("headers", value);
-              if (value.trim()) updateDraft("clearHeaders", false);
-            }}
+            value={retainedValueText(draft.headers)}
+            onChange={(value) => updateDraft("headers", editRetainedValue(value))}
             placeholder={
               hasHeadersStored ? t("mcp.form.headers.keep") : t("mcp.form.headers.placeholder")
             }
@@ -207,11 +199,8 @@ export function ServerForm({ server, onDone, onCancel }: Props) {
             <label className="flex items-center justify-between gap-3 text-ui-md text-fg-muted">
               <span>{t("mcp.form.headers.clear")}</span>
               <Switch
-                checked={draft.clearHeaders}
-                onCheckedChange={(value) => {
-                  updateDraft("clearHeaders", value);
-                  if (value) updateDraft("headers", "");
-                }}
+                checked={draft.headers.disposition === "clear"}
+                onCheckedChange={(value) => updateDraft("headers", setRetainedValueCleared(value))}
                 ariaLabel={t("mcp.form.headers.clear")}
               />
             </label>

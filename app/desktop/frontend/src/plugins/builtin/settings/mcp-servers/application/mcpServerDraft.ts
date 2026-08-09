@@ -7,17 +7,38 @@ export interface MCPServerDraft {
   description: string;
   command: string;
   args: string;
-  env: string;
-  clearEnvironment: boolean;
+  environment: RetainedValueDraft;
   dir: string;
   url: string;
-  authorization: string;
-  clearAuthorization: boolean;
-  headers: string;
-  clearHeaders: boolean;
+  authorization: RetainedValueDraft;
+  headers: RetainedValueDraft;
   timeoutSec: string;
   disabledTools: string[];
   autoApproveTools: string[];
+}
+
+// Stored credentials are write-only: an empty field means "preserve", while
+// the user may explicitly replace or clear the stored value. A discriminated
+// union prevents contradictory drafts such as "replace and clear".
+export type RetainedValueDraft =
+  | { readonly disposition: "preserve" }
+  | { readonly disposition: "replace"; readonly text: string }
+  | { readonly disposition: "clear" };
+
+function preserveRetainedValue(): RetainedValueDraft {
+  return { disposition: "preserve" };
+}
+
+export function retainedValueText(value: RetainedValueDraft): string {
+  return value.disposition === "replace" ? value.text : "";
+}
+
+export function editRetainedValue(text: string): RetainedValueDraft {
+  return text.trim() ? { disposition: "replace", text } : preserveRetainedValue();
+}
+
+export function setRetainedValueCleared(cleared: boolean): RetainedValueDraft {
+  return cleared ? { disposition: "clear" } : preserveRetainedValue();
 }
 
 function linesToList(text: string): string[] | undefined {
@@ -47,14 +68,11 @@ export function initialMCPServerDraft(server?: MCPServerSettings): MCPServerDraf
     description: server?.description ?? "",
     command: server?.command ?? "",
     args: (server?.args ?? []).join("\n"),
-    env: "",
-    clearEnvironment: false,
+    environment: preserveRetainedValue(),
     dir: server?.dir ?? "",
     url: server?.url ?? "",
-    authorization: "",
-    clearAuthorization: false,
-    headers: "",
-    clearHeaders: false,
+    authorization: preserveRetainedValue(),
+    headers: preserveRetainedValue(),
     timeoutSec: server?.timeoutSeconds ? String(server.timeoutSeconds) : "",
     disabledTools: server?.disabledTools ?? [],
     autoApproveTools: server?.autoApproveTools ?? [],
@@ -77,8 +95,7 @@ export function mcpEnvironmentNeedsDisposition(
 ): boolean {
   return (
     draft.transport === "stdio" &&
-    linesToMap(draft.env) === undefined &&
-    !draft.clearEnvironment &&
+    draft.environment.disposition === "preserve" &&
     server?.type === "stdio" &&
     Boolean(server.envMasked && Object.keys(server.envMasked).length > 0) &&
     !sameStdioTarget(server, draft)
@@ -91,8 +108,7 @@ export function mcpHeadersNeedDisposition(
 ): boolean {
   return (
     draft.transport === "streamableHttp" &&
-    linesToMap(draft.headers) === undefined &&
-    !draft.clearHeaders &&
+    draft.headers.disposition === "preserve" &&
     server?.type === "streamableHttp" &&
     Boolean(server.headersMasked && Object.keys(server.headersMasked).length > 0) &&
     !sameHTTPOrigin(server.url, draft.url)
@@ -105,8 +121,7 @@ export function mcpAuthorizationNeedsDisposition(
 ): boolean {
   return (
     draft.transport === "streamableHttp" &&
-    draft.authorization.trim() === "" &&
-    !draft.clearAuthorization &&
+    draft.authorization.disposition === "preserve" &&
     server?.type === "streamableHttp" &&
     Boolean(server.authorizationMasked) &&
     !sameHTTPOrigin(server.url, draft.url)
@@ -145,22 +160,21 @@ export function mcpServerInputFromDraft(
 }
 
 function authorizationFromDraft(draft: MCPServerDraft): string | null | undefined {
-  const entered = draft.authorization.trim();
-  if (entered) return entered;
-  if (draft.clearAuthorization) return null;
-  return undefined;
+  if (draft.authorization.disposition === "clear") return null;
+  if (draft.authorization.disposition === "preserve") return undefined;
+  return draft.authorization.text.trim() || undefined;
 }
 
 function headersFromDraft(draft: MCPServerDraft): Record<string, string> | null | undefined {
-  const headers = linesToMap(draft.headers);
-  if (headers) return headers;
-  return draft.clearHeaders ? null : undefined;
+  if (draft.headers.disposition === "clear") return null;
+  if (draft.headers.disposition === "preserve") return undefined;
+  return linesToMap(draft.headers.text);
 }
 
 function environmentFromDraft(draft: MCPServerDraft): Record<string, string> | null | undefined {
-  const environment = linesToMap(draft.env);
-  if (environment) return environment;
-  return draft.clearEnvironment ? null : undefined;
+  if (draft.environment.disposition === "clear") return null;
+  if (draft.environment.disposition === "preserve") return undefined;
+  return linesToMap(draft.environment.text);
 }
 
 function sameStdioTarget(server: MCPServerSettings, draft: MCPServerDraft): boolean {
