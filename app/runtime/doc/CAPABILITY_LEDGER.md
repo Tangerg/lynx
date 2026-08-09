@@ -1,6 +1,6 @@
 # Lyra Runtime 能力迁移台账
 
-> 状态：P10 当前事实，随每个实施批次更新
+> 状态：当前能力事实，随每个实施批次更新
 >
 > 基线日期：2026-08-09
 
@@ -21,14 +21,14 @@
 ### 2.1 规模与依赖
 
 - Runtime 源码、测试、`go.mod` 与 `go.sum` 对旧 `github.com/Tangerg/lynx/agent` 的依赖均为零；architecture guard 将其作为永久禁止边，而非迁移数量台账；
-- `go.mod` 精确声明包含 Baseline 14 的 Agent Framework commit；`GOWORK=off` 的 tidy/build/vet/test 已证明 Runtime 不依赖 workspace 隐式替换；
+- `go.mod` 精确声明包含 Baseline 15 的 Agent Framework commit；`GOWORK=off` 的 tidy/build/vet/test 已证明 Runtime 不依赖 workspace 隐式替换；
 - Agent Framework production import 只允许位于 `adapter/agentexec`；Domain、Application、Infra、Delivery、Bootstrap 与通用 Toolset 对 Agent Framework concrete types 为零；
 - P2 已删除 `domain/execution` 及全部 forwarding/alias path；Domain 生产代码与测试对 Application/Adapter/Infra/Delivery/Bootstrap 零 import，context-based I/O port 为零；
 - Run、Accounting、Conversation、Transcript、Interrupt、ToolResult 已成为准确顶层 bounded-context package；executor checkpoint/ref、pending continuation 与 workspace mutation 由 Application consumer 拥有；
 - P3 已删除 Application 的 `ExecutionControl`、`SegmentExecutor`、`SessionLifecycle` 与 `Effects` 胖接口；root start/observe/release、Session reads/termination 与 Run projection write-sets 均由真实 consumer-owned ports 表达；
 - Application executor tree identity 已统一为 `ExecutorMember`/`MemberID`；Framework `ProcessID` 只存在于 `adapter/agentexec` 内部映射，SQLite technical shape 使用 `root_member_id`/`memberId`；
 - 同一 native Interaction tree 已在生产 Bootstrap 接通 conclusive child start、durable Delegate child Run attribution、nested/sibling child reconciliation，以及 one-shot prepared waiting-subtree cancellation；
-- SQLite 当前唯一 shape 为 epoch 62：model/tool invocation operational journal 与 Transcript semantic final 分离，interrupt row 具有 `open`/`resuming` answer-claim 状态；Run pump 是唯一 reducer/persistence writer；
+- SQLite 当前唯一 shape 为 epoch 64：model/tool invocation operational journal 与 Transcript semantic final 分离，interrupt row 具有 `open`/`resuming` answer-claim 状态；Run pump 是唯一 reducer/persistence writer；
 - Agent Framework production dependency 只存在于执行防腐层；Runtime 其他 ring 对 Framework concrete type 为零。
 
 ### 2.2 当前架构基础
@@ -43,7 +43,7 @@
 | Adapter/Infra direction | Adapter 单向使用 Infra；Infra 对 Application/Adapter/Delivery/Bootstrap 反向 import 为零 | Retain | P9 已完成 |
 | Shared capabilities | `component` umbrella 已删除；仅保留七个经多消费者或 codec boundary 证明的准确顶层 capability | Retain exact packages | P9 第一批已完成，永久 purity guard |
 | Contract generation | `contract/` 的 manifest/OpenRPC/schema/TypeScript/Go validator 来自唯一 registry；canonical samples 同时经 round-trip 与 strict validator | Retain | P10 已完成 |
-| SQLite exact epoch | epoch 62 单一 shape，无生产 migration chain | Retain | P6/P8 已完成 |
+| SQLite exact epoch | epoch 64 单一 shape，无生产 migration chain | Retain | P6/P8 已完成 |
 
 ## 3. 产品领域能力
 
@@ -151,7 +151,7 @@ P8 production cutover 已用真实 Bootstrap consumer 冻结 root stage/observe/
 
 ### 5.2 Agent Framework 已提供的合同
 
-| Runtime 需要 | Agent Framework Baseline 14 | Runtime 责任 |
+| Runtime 需要 | Agent Framework Baseline 15 | Runtime 责任 |
 |---|---|---|
 | root execution | Engine/Deployment/Interaction | 组装产品配置并翻译结果 |
 | tree identity | ProcessID/Relation/root/parent/depth | 映射不透明 executor member/child Run |
@@ -190,7 +190,7 @@ P8 production cutover 已用真实 Bootstrap consumer 冻结 root stage/observe/
 
 | 能力 | 当前事实 | Verdict | 验收 |
 |---|---|---|---|
-| SQLite schema | epoch 62；保留 `root_member_id`/`memberId`，新增 open/resuming answer audit；tool invocation identity 按 Segment 隔离 | Retain pattern | 旧 epoch/列/codec 被拒绝，无 migration |
+| SQLite schema | epoch 64；保留 `root_member_id`/`memberId`，新增 open/resuming answer audit；tool invocation identity 按 Segment 隔离 | Retain pattern | 旧 epoch/列/codec 被拒绝，无 migration |
 | executor checkpoint | Host metadata + Agent Framework public complete-tree snapshot | Retain opaque payload owner | Application/Store 完全 opaque；exact capabilities 纳入 expectation |
 | checkpoint transaction | runsegment/persistence 组合 | Retain semantics | waiting facts 同事务 |
 | BuildID | Host-owned | Retain | 不进入 Agent Framework deployment/snapshot |

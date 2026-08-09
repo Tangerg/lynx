@@ -1,6 +1,6 @@
 # Lyra Runtime 合同基线
 
-> 状态：P10 Runtime Protocol Baseline 1
+> 状态：Runtime Protocol Baseline 1
 >
 > 基线日期：2026-08-09
 >
