@@ -8,20 +8,19 @@ import (
 	"time"
 )
 
-// TestHandleCancelLinearizesAfterInterruptCommit: requestCancel must not return
-// while an interrupt commit is in flight (they share the handle lock), and a
-// post-cancel commit is refused — the invariant that stops a cancel from
-// deleting an interrupt the pump is about to publish.
-func TestHandleCancelLinearizesAfterInterruptCommit(t *testing.T) {
+// TestRunTreeOwnerCancelLinearizesAfterInterruptCommit proves requestCancel
+// does not return while an interrupt commit is in flight and that a post-cancel
+// commit is refused. Both operations share the Run-tree owner's lock.
+func TestRunTreeOwnerCancelLinearizesAfterInterruptCommit(t *testing.T) {
 	commitStarted := make(chan struct{})
 	releaseCommit := make(chan struct{})
 	requested := make(chan struct{})
-	h := &handle{}
+	treeOwner := &runTreeOwner{}
 
 	commitDone := make(chan struct{})
 	go func() {
 		defer close(commitDone)
-		committed, err := h.commitInterrupt(t.Context(), func(context.Context) error {
+		committed, err := treeOwner.commitInterrupt(t.Context(), func(context.Context) error {
 			close(commitStarted)
 			<-releaseCommit
 			return nil
@@ -34,7 +33,7 @@ func TestHandleCancelLinearizesAfterInterruptCommit(t *testing.T) {
 
 	cancelDone := make(chan struct{})
 	go func() {
-		committed, err := h.requestCancel(t.Context(), "user canceled", func(context.Context) error {
+		committed, err := treeOwner.requestCancel(t.Context(), "user canceled", func(context.Context) error {
 			close(requested)
 			return nil
 		})
@@ -65,12 +64,12 @@ func TestHandleCancelLinearizesAfterInterruptCommit(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("executor cancellation was not requested")
 	}
-	if got := h.CancelReason(); got != "user canceled" {
+	if got := treeOwner.CancelReason(); got != "user canceled" {
 		t.Fatalf("cancel reason = %q", got)
 	}
 
 	called := false
-	committed, err := h.commitInterrupt(t.Context(), func(context.Context) error {
+	committed, err := treeOwner.commitInterrupt(t.Context(), func(context.Context) error {
 		called = true
 		return nil
 	})
@@ -79,12 +78,12 @@ func TestHandleCancelLinearizesAfterInterruptCommit(t *testing.T) {
 	}
 }
 
-func TestHandleCancelInterruptsBlockedCommit(t *testing.T) {
+func TestRunTreeOwnerCancelInterruptsBlockedCommit(t *testing.T) {
 	commitStarted := make(chan struct{})
-	h := &handle{}
+	treeOwner := &runTreeOwner{}
 	commitResult := make(chan error, 1)
 	go func() {
-		committed, err := h.commitInterrupt(t.Context(), func(ctx context.Context) error {
+		committed, err := treeOwner.commitInterrupt(t.Context(), func(ctx context.Context) error {
 			close(commitStarted)
 			<-ctx.Done()
 			return ctx.Err()
@@ -99,7 +98,7 @@ func TestHandleCancelInterruptsBlockedCommit(t *testing.T) {
 
 	cancelDone := make(chan struct{})
 	go func() {
-		committed, err := h.requestCancel(t.Context(), "user canceled", acceptRootCancel)
+		committed, err := treeOwner.requestCancel(t.Context(), "user canceled", acceptRootCancel)
 		if err != nil || committed {
 			t.Errorf("requestCancel = (%v, %v), want no committed interrupt", committed, err)
 		}
@@ -116,29 +115,29 @@ func TestHandleCancelInterruptsBlockedCommit(t *testing.T) {
 	}
 }
 
-func TestHandleRetainsCommittedInterruptOutcomeAfterCommitReturns(t *testing.T) {
-	h := &handle{}
-	committed, err := h.commitInterrupt(t.Context(), func(context.Context) error {
+func TestRunTreeOwnerRetainsCommittedInterruptOutcomeAfterCommitReturns(t *testing.T) {
+	treeOwner := &runTreeOwner{}
+	committed, err := treeOwner.commitInterrupt(t.Context(), func(context.Context) error {
 		return nil
 	})
 	if err != nil || !committed {
 		t.Fatalf("commitInterrupt = (%v, %v), want committed", committed, err)
 	}
 
-	interruptCommitted, err := h.requestCancel(t.Context(), "user canceled", acceptRootCancel)
+	interruptCommitted, err := treeOwner.requestCancel(t.Context(), "user canceled", acceptRootCancel)
 	if err != nil || !interruptCommitted {
 		t.Fatalf("requestCancel = (%v, %v), want retained committed outcome", interruptCommitted, err)
 	}
 }
 
-func TestHandleCancelWaitIsContextBounded(t *testing.T) {
+func TestRunTreeOwnerCancelWaitIsContextBounded(t *testing.T) {
 	commitStarted := make(chan struct{})
 	releaseCommit := make(chan struct{})
-	h := &handle{}
+	treeOwner := &runTreeOwner{}
 	commitDone := make(chan struct{})
 	go func() {
 		defer close(commitDone)
-		_, _ = h.commitInterrupt(t.Context(), func(context.Context) error {
+		_, _ = treeOwner.commitInterrupt(t.Context(), func(context.Context) error {
 			close(commitStarted)
 			<-releaseCommit
 			return nil
@@ -148,20 +147,20 @@ func TestHandleCancelWaitIsContextBounded(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
-	if _, err := h.requestCancel(ctx, "user canceled", acceptRootCancel); !errors.Is(err, context.Canceled) {
+	if _, err := treeOwner.requestCancel(ctx, "user canceled", acceptRootCancel); !errors.Is(err, context.Canceled) {
 		t.Fatalf("requestCancel error = %v, want context canceled", err)
 	}
 	close(releaseCommit)
 	<-commitDone
 }
 
-func TestHandleCleanupContextDetachesFinishedOwner(t *testing.T) {
+func TestRunTreeOwnerCleanupContextDetachesFinishedTask(t *testing.T) {
 	type contextKey struct{}
 	owner, cancelOwner := context.WithCancel(context.WithValue(t.Context(), contextKey{}, "trace"))
 	cancelOwner()
-	h := &handle{owner: owner}
+	treeOwner := &runTreeOwner{taskContext: owner}
 
-	cleanup, cancelCleanup := h.cleanupContext(context.Background())
+	cleanup, cancelCleanup := treeOwner.cleanupContext(context.Background())
 	defer cancelCleanup()
 	if cleanup.Err() != nil {
 		t.Fatalf("cleanup inherited finished owner cancellation: %v", cleanup.Err())
@@ -174,49 +173,49 @@ func TestHandleCleanupContextDetachesFinishedOwner(t *testing.T) {
 	}
 }
 
-func TestHandleWaitReturnsCompletedOutcomeAfterCallerCancellation(t *testing.T) {
+func TestRunTreeOwnerWaitReturnsCompletedOutcomeAfterCallerCancellation(t *testing.T) {
 	want := errors.New("run cleanup failed")
 	done := make(chan struct{})
 	close(done)
-	h := &handle{done: done, completionErr: want}
+	treeOwner := &runTreeOwner{done: done, completionErr: want}
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
-	if err := h.wait(ctx); !errors.Is(err, want) {
+	if err := treeOwner.wait(ctx); !errors.Is(err, want) {
 		t.Fatalf("wait() = %v, want completed outcome", err)
 	}
 }
 
-func TestHandleCancellationArbiterAllowsOnlyOneTreeOwner(t *testing.T) {
+func TestRunTreeOwnerCancellationArbiterAllowsOnlyOneTreeOwner(t *testing.T) {
 	plan := runningChildCancellationPlan()
 
 	t.Run("child wins", func(t *testing.T) {
 		canceled := false
-		h := &handle{cancel: func() { canceled = true }}
-		attempt, err := h.beginChildCancellation(plan, "stop child")
+		treeOwner := &runTreeOwner{cancel: func() { canceled = true }}
+		attempt, err := treeOwner.beginChildCancellation(plan, "stop child")
 		if err != nil {
 			t.Fatalf("begin child cancellation: %v", err)
 		}
-		if _, err := h.requestCancel(t.Context(), "stop root", acceptRootCancel); !errors.Is(err, ErrSessionBusy) {
+		if _, err := treeOwner.requestCancel(t.Context(), "stop root", acceptRootCancel); !errors.Is(err, ErrSessionBusy) {
 			t.Fatalf("root cancellation error = %v, want ErrSessionBusy", err)
 		}
-		if canceled || h.cancelRequested || h.cancelReason != "" {
+		if canceled || treeOwner.cancelRequested || treeOwner.cancelReason != "" {
 			t.Fatalf(
 				"losing root cancellation mutated owner state: canceled=%t requested=%t reason=%q",
 				canceled,
-				h.cancelRequested,
-				h.cancelReason,
+				treeOwner.cancelRequested,
+				treeOwner.cancelReason,
 			)
 		}
-		h.abortChildCancellation(attempt, errors.New("test complete"))
+		treeOwner.abortChildCancellation(attempt, errors.New("test complete"))
 	})
 
 	t.Run("root wins", func(t *testing.T) {
-		h := &handle{}
-		if _, err := h.requestCancel(t.Context(), "stop root", acceptRootCancel); err != nil {
+		treeOwner := &runTreeOwner{}
+		if _, err := treeOwner.requestCancel(t.Context(), "stop root", acceptRootCancel); err != nil {
 			t.Fatalf("request root cancellation: %v", err)
 		}
-		if _, err := h.beginChildCancellation(plan, "stop child"); !errors.Is(err, ErrSessionBusy) {
+		if _, err := treeOwner.beginChildCancellation(plan, "stop child"); !errors.Is(err, ErrSessionBusy) {
 			t.Fatalf("child cancellation error = %v, want ErrSessionBusy", err)
 		} else if !strings.Contains(err.Error(), plan.root.run.ID) {
 			t.Fatalf("child cancellation error = %q, want root identity", err)

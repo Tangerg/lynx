@@ -566,12 +566,12 @@ func collectRefs(node any) []string {
 // it, the way a shape goes unpublished is silently: nobody notices that no method
 // reaches it.
 var notOnTheWire = map[string]string{
-	"ActiveRunConflict": "the Go error that carries session_has_active_run's payload; its wire projection is ProblemData.activeRun",
-	"CapabilityGap":     "the Go error that carries capability_not_negotiated's payload; its wire projection is ProblemData.requiredCapabilities",
-	"CanonicalSample":   "binds a hand-written fixture to a wire type; it is about the wire, not on it",
-	"Feature":           "the published capability vocabulary's registry entry; its wire projection is FeatureCapability",
-	"ConstraintError":   "the Go validator's error carrier; its wire projection is ProblemData.errors",
-	"WireField":         "reflection over the wire types, not a wire type",
+	"ActiveRunConflictError": "the Go error that carries session_has_active_run's payload; its wire projection is ProblemData.activeRun",
+	"CapabilityGapError":     "the Go error that carries capability_not_negotiated's payload; its wire projection is ProblemData.requiredCapabilities",
+	"CanonicalSample":        "binds a hand-written fixture to a wire type; it is about the wire, not on it",
+	"Feature":                "the published capability vocabulary's registry entry; its wire projection is FeatureCapability",
+	"ConstraintError":        "the Go validator's error carrier; its wire projection is ProblemData.errors",
+	"WireField":              "reflection over the wire types, not a wire type",
 }
 
 // TestEveryWireStructIsPublished checks the bundle against the protocol package.

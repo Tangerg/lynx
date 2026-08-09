@@ -13,9 +13,9 @@ import (
 // address. A child binding is reserved before its durable opening commit,
 // closing the otherwise observable gap in which the Run row exists but
 // cancellation cannot address its member.
-func (h *handle) bindExecutorMember(runID, memberID string) error {
-	if h == nil {
-		return errors.New("runs: bind executor member without a live root handle")
+func (owner *runTreeOwner) bindExecutorMember(runID, memberID string) error {
+	if owner == nil {
+		return errors.New("runs: bind executor member without a live Run-tree owner")
 	}
 	if strings.TrimSpace(runID) == "" || runID != strings.TrimSpace(runID) {
 		return errors.New("runs: bind executor member without a canonical Run id")
@@ -24,9 +24,9 @@ func (h *handle) bindExecutorMember(runID, memberID string) error {
 		return fmt.Errorf("runs: bind Run %q without a canonical executor member id", runID)
 	}
 
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	if existing, bound := h.executorMembers[runID]; bound {
+	owner.mu.Lock()
+	defer owner.mu.Unlock()
+	if existing, bound := owner.executorMembers[runID]; bound {
 		if existing != memberID {
 			return fmt.Errorf(
 				"runs: Run %q executor member changed from %q to %q",
@@ -37,7 +37,7 @@ func (h *handle) bindExecutorMember(runID, memberID string) error {
 		}
 		return nil
 	}
-	for existingRunID, existing := range h.executorMembers {
+	for existingRunID, existing := range owner.executorMembers {
 		if existing == memberID {
 			return fmt.Errorf(
 				"runs: executor member %q is already bound to Run %q, not %q",
@@ -47,34 +47,34 @@ func (h *handle) bindExecutorMember(runID, memberID string) error {
 			)
 		}
 	}
-	if h.executorMembers == nil {
-		h.executorMembers = make(map[string]string)
+	if owner.executorMembers == nil {
+		owner.executorMembers = make(map[string]string)
 	}
-	h.executorMembers[runID] = memberID
+	owner.executorMembers[runID] = memberID
 	return nil
 }
 
 // unbindExecutorMember rolls back a pre-commit child reservation. It removes
 // only the exact binding this opening installed, so it cannot erase a later
 // owner after a conflict.
-func (h *handle) unbindExecutorMember(runID, memberID string) {
-	if h == nil {
+func (owner *runTreeOwner) unbindExecutorMember(runID, memberID string) {
+	if owner == nil {
 		return
 	}
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	if existing, bound := h.executorMembers[runID]; bound && existing == memberID {
-		delete(h.executorMembers, runID)
+	owner.mu.Lock()
+	defer owner.mu.Unlock()
+	if existing, bound := owner.executorMembers[runID]; bound && existing == memberID {
+		delete(owner.executorMembers, runID)
 	}
 }
 
-func (h *handle) executorMemberSnapshot() map[string]string {
-	if h == nil {
+func (owner *runTreeOwner) executorMemberSnapshot() map[string]string {
+	if owner == nil {
 		return nil
 	}
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	members := make(map[string]string, len(h.executorMembers))
-	maps.Copy(members, h.executorMembers)
+	owner.mu.Lock()
+	defer owner.mu.Unlock()
+	members := make(map[string]string, len(owner.executorMembers))
+	maps.Copy(members, owner.executorMembers)
 	return members
 }

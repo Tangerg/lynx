@@ -492,16 +492,17 @@ func TestSequenceAnchorRequiresAPositiveSequence(t *testing.T) {
 	}
 }
 
-// history builds the run page's rows in the order the store returns them: newest
-// admission first, one nanosecond apart. States cycle through the three lifecycle
-// positions so a status filter has something to exclude.
-func history(sessionID string, ids ...string) []transcript.Run {
+// testSessionRunHistory builds the run page's rows in the order the store
+// returns them: newest admission first, one nanosecond apart. States cycle
+// through the three lifecycle positions so a status filter has something to
+// exclude.
+func testSessionRunHistory(ids ...string) []transcript.Run {
 	states := [...]run.State{run.Running, run.Waiting, run.Completed}
 	out := make([]transcript.Run, 0, len(ids))
 	for i, id := range ids {
 		state := states[i%len(states)]
 		record := transcript.Run{
-			ID: id, SessionID: sessionID, State: state,
+			ID: id, SessionID: "ses_1", State: state,
 			CreatedAt: time.Unix(0, int64(len(ids)-i)).UTC(),
 		}
 		if state.IsTerminal() {
@@ -512,11 +513,11 @@ func history(sessionID string, ids ...string) []transcript.Run {
 	return out
 }
 
-func parked(sessionID string, ids ...string) []runs.Pending {
+func testSessionPendingRuns(ids ...string) []runs.Pending {
 	out := make([]runs.Pending, 0, len(ids))
 	for i, id := range ids {
 		out = append(out, runs.Pending{
-			RootRunID: id, SessionID: sessionID, CreatedAt: time.Unix(0, int64(i+1)).UTC(),
+			RootRunID: id, SessionID: "ses_1", CreatedAt: time.Unix(0, int64(i+1)).UTC(),
 		})
 	}
 	return out
@@ -532,7 +533,7 @@ func parked(sessionID string, ids ...string) []runs.Pending {
 // interrupts the client believes it resolved.
 func TestListPendingInterruptPageRefusesACallerThatCannotFollowTheRun(t *testing.T) {
 	ctx := context.Background()
-	waiting := parked("ses_1", "run_1")
+	waiting := testSessionPendingRuns("run_1")
 	waiting[0].Capabilities = run.Capabilities{
 		InterruptKinds: []interrupt.Kind{interrupt.Approval, interrupt.Question},
 	}
@@ -565,7 +566,7 @@ func TestListPendingInterruptPageRefusesACallerThatCannotFollowTheRun(t *testing
 // looking in the wrong place.
 func TestListPendingInterruptPageFiltersByRootAndRefusesAChild(t *testing.T) {
 	ctx := context.Background()
-	ints := &fakeInterrupts{pending: parked("ses_1", "run_1", "run_2")}
+	ints := &fakeInterrupts{pending: testSessionPendingRuns("run_1", "run_2")}
 	c := New(Dependencies{
 		Transcript: &fakeTranscript{},
 		Runs: &fakeRuns{history: []transcript.Run{
@@ -612,7 +613,7 @@ func TestListPendingInterruptPageFiltersByRootAndRefusesAChild(t *testing.T) {
 // forward from the beginning of a long session would reach it last.
 func TestListRunPageWalksBackwardThroughHistory(t *testing.T) {
 	ctx := context.Background()
-	runs := &fakeRuns{history: history("ses_1", "run_3", "run_2", "run_1")}
+	runs := &fakeRuns{history: testSessionRunHistory("run_3", "run_2", "run_1")}
 	c := New(Dependencies{Transcript: &fakeTranscript{}, Runs: runs, Sessions: &fakeSessions{}})
 
 	first, err := c.ListRunPage(ctx, RunPageFilter{SessionID: "ses_1"}, "", 2)
@@ -644,7 +645,7 @@ func TestListRunPageWalksBackwardThroughHistory(t *testing.T) {
 // place that knows.
 func TestListRunPageReturnsEveryStatusUntilFiltered(t *testing.T) {
 	ctx := context.Background()
-	runs := &fakeRuns{history: history("ses_1", "run_3", "run_2", "run_1")}
+	runs := &fakeRuns{history: testSessionRunHistory("run_3", "run_2", "run_1")}
 	c := New(Dependencies{Transcript: &fakeTranscript{}, Runs: runs, Sessions: &fakeSessions{}})
 
 	all, err := c.ListRunPage(ctx, RunPageFilter{SessionID: "ses_1"}, "", 0)
@@ -709,8 +710,8 @@ func TestListRunPageRefusesACursorFromAnotherQuery(t *testing.T) {
 	ctx := context.Background()
 	c := New(Dependencies{
 		Transcript: &fakeTranscript{items: sequencedItems(5)},
-		Runs:       &fakeRuns{history: history("ses_1", "run_3", "run_2", "run_1")},
-		Interrupts: &fakeInterrupts{pending: parked("ses_1", "run_1", "run_2", "run_3")},
+		Runs:       &fakeRuns{history: testSessionRunHistory("run_3", "run_2", "run_1")},
+		Interrupts: &fakeInterrupts{pending: testSessionPendingRuns("run_1", "run_2", "run_3")},
 		Sessions:   &fakeSessions{},
 	})
 
@@ -759,10 +760,10 @@ func TestListRunPageRefusesACursorFromAnotherQuery(t *testing.T) {
 // resumable run that keeps sinking below the page boundary is one nobody answers.
 func TestListPendingInterruptPagePagesOldestFirst(t *testing.T) {
 	ctx := context.Background()
-	ints := &fakeInterrupts{pending: parked("ses_1", "run_1", "run_2", "run_3")}
+	ints := &fakeInterrupts{pending: testSessionPendingRuns("run_1", "run_2", "run_3")}
 	c := New(Dependencies{
 		Transcript: &fakeTranscript{},
-		Runs:       &fakeRuns{history: history("ses_1", "run_3", "run_2", "run_1")},
+		Runs:       &fakeRuns{history: testSessionRunHistory("run_3", "run_2", "run_1")},
 		Interrupts: ints,
 		Sessions:   &fakeSessions{},
 	})

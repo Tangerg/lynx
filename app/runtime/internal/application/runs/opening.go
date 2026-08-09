@@ -62,7 +62,8 @@ func (c *Coordinator) Start(ctx context.Context, cmd StartCommand) (StartResult,
 	if err != nil {
 		return StartResult{}, fmt.Errorf("runs: read conversation for session %q: %w", sess.ID, err)
 	}
-	draft.WorkingContext = append(workingContext, currentMessage.Clone())
+	workingContext = append(workingContext, currentMessage.Clone())
+	draft.WorkingContext = workingContext
 	execCWD, isolated, err := c.executionCWD(ctx, sess)
 	if err != nil {
 		return StartResult{}, err
@@ -187,7 +188,7 @@ func (c *Coordinator) activeRunConflict(ctx context.Context, sessionID string) (
 	if err != nil || !found {
 		return nil, err
 	}
-	return &ActiveRunConflict{RunID: run.ID, Status: run.State.Status()}, nil
+	return &ActiveRunConflictError{RunID: run.ID, Status: run.State.Status()}, nil
 }
 
 // executionCWD resolves where a Session's tools operate: the sandbox copy

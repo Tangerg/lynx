@@ -120,7 +120,7 @@ func TestRPCErrorResolutionUsesRegistryOrder(t *testing.T) {
 func TestAStructuredProblemCarriesItsPayload(t *testing.T) {
 	t.Parallel()
 
-	conflict := problemOf(t, &protocol.ActiveRunConflict{ActiveRun: protocol.ActiveRunRef{
+	conflict := problemOf(t, &protocol.ActiveRunConflictError{ActiveRun: protocol.ActiveRunRef{
 		RunID: "run_1", Status: protocol.RunStatusWaiting,
 	}})
 	if conflict.Type != protocol.ErrSessionHasActiveRun.Error() {
@@ -135,7 +135,7 @@ func TestAStructuredProblemCarriesItsPayload(t *testing.T) {
 
 	// Deduplicated and ordered by (registry, name), so two refusals for the same gap
 	// are the same frame instead of two transcripts of it.
-	gap := problemOf(t, protocol.NewCapabilityGap(
+	gap := problemOf(t, protocol.NewCapabilityGapError(
 		protocol.CapabilityRequirement{Type: protocol.RequirementInterruptType, Name: "toolResult"},
 		protocol.CapabilityRequirement{Type: protocol.RequirementFeature, Name: "subagents"},
 		protocol.CapabilityRequirement{Type: protocol.RequirementFeature, Name: "subagents"},

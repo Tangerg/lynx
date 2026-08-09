@@ -79,10 +79,12 @@ func TestInteractionExecutorRestoresWaitingTreeAndDeliversSemanticAnswer(t *test
 		t.Fatal(err)
 	}
 
-	continuation := interactionWaitingContinuation(
-		barrier.Checkpoint, ref.ExecutorID, "run_root",
+	continuation := rootInteractionWaitingContinuation(
+		barrier.Checkpoint,
+		ref.ExecutorID,
 		run.Capabilities{InterruptKinds: []interrupt.Kind{interrupt.Question}},
 	)
+
 	restoredWaiting, err := executor.RestoreWaitingExecution(t.Context(), continuation)
 	if err != nil {
 		t.Fatalf("RestoreWaitingExecution: %v", err)
@@ -175,8 +177,9 @@ func TestInteractionExecutorRestoresRuntimeAskUserTool(t *testing.T) {
 	if err := executor.Release(t.Context(), ref); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := executor.StageContinuation(t.Context(), interactionWaitingContinuation(
-		barrier.Checkpoint, ref.ExecutorID, "run_root",
+	if _, err := executor.StageContinuation(t.Context(), rootInteractionWaitingContinuation(
+		barrier.Checkpoint,
+		ref.ExecutorID,
 		run.Capabilities{InterruptKinds: []interrupt.Kind{interrupt.Question}},
 	)); err != nil {
 		t.Fatal(err)
@@ -242,10 +245,12 @@ func TestInteractionExecutorRestoresInteractiveApprovalWithoutRepeatingPolicyOrH
 	if err := executor.Release(t.Context(), ref); err != nil {
 		t.Fatal(err)
 	}
-	continuation := interactionWaitingContinuation(
-		barrier.Checkpoint, ref.ExecutorID, "run_root",
+	continuation := rootInteractionWaitingContinuation(
+		barrier.Checkpoint,
+		ref.ExecutorID,
 		run.Capabilities{InterruptKinds: []interrupt.Kind{interrupt.Approval}},
 	)
+
 	if _, err := executor.StageContinuation(t.Context(), continuation); err != nil {
 		t.Fatal(err)
 	}
@@ -324,8 +329,9 @@ func TestInteractionExecutorPreservesDeferredAdvertisementAcrossWaitingRestore(t
 	if err := executor.Release(t.Context(), ref); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := executor.StageContinuation(t.Context(), interactionWaitingContinuation(
-		barrier.Checkpoint, ref.ExecutorID, "run_root",
+	if _, err := executor.StageContinuation(t.Context(), rootInteractionWaitingContinuation(
+		barrier.Checkpoint,
+		ref.ExecutorID,
 		run.Capabilities{InterruptKinds: []interrupt.Kind{interrupt.Question}},
 	)); err != nil {
 		t.Fatal(err)
@@ -393,12 +399,13 @@ type promptingInteractionAuthorizer struct {
 	resolved int
 }
 
-func interactionWaitingContinuation(
+func rootInteractionWaitingContinuation(
 	checkpoint runs.ExecutorCheckpoint,
 	executorID string,
-	runID string,
 	capabilities run.Capabilities,
 ) runs.WaitingContinuation {
+	const rootRunID = "run_root"
+
 	metrics := transcript.RunMetrics{}
 	if len(checkpoint.Usage.Models) > 0 {
 		total, err := checkpoint.Usage.Total()
@@ -424,9 +431,9 @@ func interactionWaitingContinuation(
 		metrics.Steps = total.Calls
 	}
 	return runs.WaitingContinuation{
-		SessionID: checkpoint.Scope.SessionID, ExecutorID: executorID, RootRunID: runID,
+		SessionID: checkpoint.Scope.SessionID, ExecutorID: executorID, RootRunID: rootRunID,
 		Members: []runs.WaitingMember{{
-			RunID: runID, MemberID: checkpoint.RootMemberID,
+			RunID: rootRunID, MemberID: checkpoint.RootMemberID,
 			ModelSelection: checkpoint.ModelSelection, Metrics: metrics,
 		}},
 		Checkpoint: checkpoint, Capabilities: capabilities,
@@ -496,9 +503,12 @@ func TestInteractionExecutorRejectsInvalidWaitingRecoveryFacts(t *testing.T) {
 			executor := newObservedTestInteractionExecutor(t, chat.ModelFunc(func(context.Context, *chat.Request) (*chat.Response, error) {
 				return nil, errors.New("model must not be called while restoring")
 			}), InteractionExecutorConfig{})
-			continuation := interactionWaitingContinuation(
-				candidate, "exec_restore", "run_root", run.Capabilities{},
+			continuation := rootInteractionWaitingContinuation(
+				candidate,
+				"exec_restore",
+				run.Capabilities{},
 			)
+
 			_, err := executor.StageContinuation(t.Context(), continuation)
 			if !errors.Is(err, runs.ErrExecutorStateLost) {
 				t.Fatalf("StageContinuation error = %v, want ErrExecutorStateLost", err)
@@ -520,8 +530,10 @@ func TestInteractionExecutorRejectsInvalidWaitingRecoveryFacts(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		_, err = executor.StageContinuation(t.Context(), interactionWaitingContinuation(
-			checkpoint, "exec_restore", "run_root", run.Capabilities{},
+		_, err = executor.StageContinuation(t.Context(), rootInteractionWaitingContinuation(
+			checkpoint,
+			"exec_restore",
+			run.Capabilities{},
 		))
 		if !errors.Is(err, runs.ErrExecutorStateLost) {
 			t.Fatalf("StageContinuation error = %v, want ErrExecutorStateLost", err)
@@ -537,8 +549,10 @@ func TestInteractionExecutorRejectsInvalidWaitingRecoveryFacts(t *testing.T) {
 				return nil
 			}),
 		})
-		_, err := executor.StageContinuation(t.Context(), interactionWaitingContinuation(
-			candidate, "exec_restore", "run_root", run.Capabilities{},
+		_, err := executor.StageContinuation(t.Context(), rootInteractionWaitingContinuation(
+			candidate,
+			"exec_restore",
+			run.Capabilities{},
 		))
 		if !errors.Is(err, runs.ErrExecutorStateLost) {
 			t.Fatalf("StageContinuation error = %v, want ErrExecutorStateLost", err)

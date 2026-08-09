@@ -29,7 +29,7 @@ func TestLiveChildCancellationReleasesClaimWhenExecutorTeardownFails(t *testing.
 		},
 	}
 	coordinator := NewCoordinator(Dependencies{RunningSubtreeCanceler: control})
-	live := &handle{done: make(chan struct{})}
+	live := &runTreeOwner{done: make(chan struct{})}
 
 	_, err := coordinator.cancelLiveChild(
 		t.Context(),

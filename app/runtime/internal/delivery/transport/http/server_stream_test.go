@@ -74,7 +74,7 @@ func TestStreamableRunStart(t *testing.T) {
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != 200 {
+	if resp.StatusCode != netHTTP.StatusOK {
 		t.Fatalf("status = %d, want 200", resp.StatusCode)
 	}
 	if ct := resp.Header.Get("Content-Type"); !strings.HasPrefix(ct, "text/event-stream") {

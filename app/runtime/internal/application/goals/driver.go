@@ -276,14 +276,14 @@ func (d *Driver) Stop(ctx context.Context, sessionID string) (goal.Goal, error) 
 		return goal.Goal{}, err
 	}
 	wasActive := initiallyPresent && initial.Status == goal.StatusActive
-	handle := d.mutations.quiesce(sessionID)
+	loop := d.mutations.quiesce(sessionID)
 	var quiesceErr error
-	if handle != nil {
-		quiesceErr = handle.wait(ctx)
-		if !handle.finished() {
+	if loop != nil {
+		quiesceErr = loop.wait(ctx)
+		if !loop.finished() {
 			return goal.Goal{}, quiesceErr
 		}
-		d.mutations.forget(sessionID, handle)
+		d.mutations.forget(sessionID, loop)
 	}
 	current, ok, err := d.goals.Get(ctx, sessionID)
 	if err != nil {
@@ -321,13 +321,13 @@ func (d *Driver) Current(ctx context.Context, sessionID string) (goal.Goal, bool
 // a timed-out caller cannot lose the only join point and a later command cannot
 // overlap the old Run's admission with a replacement.
 func (d *Driver) quiesceDrive(ctx context.Context, sessionID string) error {
-	handle := d.mutations.quiesce(sessionID)
-	if handle == nil {
+	loop := d.mutations.quiesce(sessionID)
+	if loop == nil {
 		return nil
 	}
-	err := handle.wait(ctx)
-	if handle.finished() {
-		d.mutations.forget(sessionID, handle)
+	err := loop.wait(ctx)
+	if loop.finished() {
+		d.mutations.forget(sessionID, loop)
 	}
 	return err
 }

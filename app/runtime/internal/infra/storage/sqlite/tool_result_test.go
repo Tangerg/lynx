@@ -20,11 +20,11 @@ func newToolResultStore(t *testing.T) *sqlite.ToolResultStore {
 	return sqlite.NewToolResultStore(db)
 }
 
-func stageToolResult(t *testing.T, store *sqlite.ToolResultStore, sessionID, toolName, body string) toolresult.ID {
+func stageShellResult(t *testing.T, store *sqlite.ToolResultStore, sessionID, body string) toolresult.ID {
 	t.Helper()
 	id := toolresult.NewID()
 	if err := store.Stage(t.Context(), toolresult.Stage{
-		ID: id, SessionID: sessionID, ToolName: toolName, Body: body,
+		ID: id, SessionID: sessionID, ToolName: "shell", Body: body,
 	}); err != nil {
 		t.Fatalf("stage: %v", err)
 	}
@@ -37,7 +37,7 @@ func TestToolResultStageRoundTrip(t *testing.T) {
 		sessID = "sess-1"
 		body   = "the full, oversized tool output that was offloaded"
 	)
-	id := stageToolResult(t, store, sessID, "shell", body)
+	id := stageShellResult(t, store, sessID, body)
 
 	got, found, err := store.Fetch(t.Context(), sessID, id)
 	if err != nil {
@@ -53,7 +53,7 @@ func TestToolResultStageRoundTrip(t *testing.T) {
 
 func TestToolResultFetchIsSessionScoped(t *testing.T) {
 	store := newToolResultStore(t)
-	id := stageToolResult(t, store, "owner", "shell", "secret")
+	id := stageShellResult(t, store, "owner", "secret")
 	// A different session must not read another session's offloaded body.
 	if _, found, err := store.Fetch(t.Context(), "intruder", id); err != nil || found {
 		t.Fatalf("cross-session fetch = (found %v, err %v), want (false, nil)", found, err)
@@ -69,7 +69,7 @@ func TestToolResultFetchUnknownIDIsRecoverableMiss(t *testing.T) {
 
 func TestToolResultDropSession(t *testing.T) {
 	store := newToolResultStore(t)
-	id := stageToolResult(t, store, "doomed", "shell", "body")
+	id := stageShellResult(t, store, "doomed", "body")
 	if err := store.DropSession(t.Context(), "doomed"); err != nil {
 		t.Fatalf("drop: %v", err)
 	}
@@ -80,7 +80,7 @@ func TestToolResultDropSession(t *testing.T) {
 
 func TestToolResultDiscardAndStartupPurgeOnlyRemoveUnboundBlobs(t *testing.T) {
 	store := newToolResultStore(t)
-	discardedID := stageToolResult(t, store, "ses_1", "shell", "discard me")
+	discardedID := stageShellResult(t, store, "ses_1", "discard me")
 	if err := store.Discard(t.Context(), "ses_1", toolresult.Ref{ID: discardedID}); err != nil {
 		t.Fatalf("discard: %v", err)
 	}
@@ -88,7 +88,7 @@ func TestToolResultDiscardAndStartupPurgeOnlyRemoveUnboundBlobs(t *testing.T) {
 		t.Fatalf("discarded fetch = (found %v, err %v), want (false, nil)", found, err)
 	}
 
-	boundID := stageToolResult(t, store, "ses_1", "shell", "keep me")
+	boundID := stageShellResult(t, store, "ses_1", "keep me")
 	boundRef := toolresult.Ref{ID: boundID}
 	if err := store.Bind(t.Context(), "ses_1", "item_1", "preview", boundRef); err != nil {
 		t.Fatal(err)
@@ -100,7 +100,7 @@ func TestToolResultDiscardAndStartupPurgeOnlyRemoveUnboundBlobs(t *testing.T) {
 		t.Fatalf("bound fetch after discard = (found %v, err %v), want (true, nil)", found, err)
 	}
 
-	stageToolResult(t, store, "ses_1", "shell", "stale after crash")
+	stageShellResult(t, store, "ses_1", "stale after crash")
 	removed, err := store.PurgeUnbound(t.Context())
 	if err != nil {
 		t.Fatalf("purge: %v", err)
@@ -135,7 +135,7 @@ func TestToolResultStoreRejectsIncompleteIdentity(t *testing.T) {
 
 func TestToolResultBindingListAndRestore(t *testing.T) {
 	store := newToolResultStore(t)
-	id := stageToolResult(t, store, "source", "shell", "full body")
+	id := stageShellResult(t, store, "source", "full body")
 	ref := toolresult.Ref{ID: id}
 	if err := store.Bind(t.Context(), "source", "item_1", "preview", ref); err != nil {
 		t.Fatalf("bind: %v", err)
@@ -170,7 +170,7 @@ func TestToolResultBindingListAndRestore(t *testing.T) {
 
 func TestToolResultRestoreNeverReparentsAnID(t *testing.T) {
 	store := newToolResultStore(t)
-	id := stageToolResult(t, store, "owner", "shell", "body")
+	id := stageShellResult(t, store, "owner", "body")
 	blob := toolresult.Blob{
 		ID: id, SessionID: "intruder", ItemID: "item_1", ToolName: "shell",
 		Preview: "preview", Body: "body", CreatedAt: time.Now().UTC(),

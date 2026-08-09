@@ -101,7 +101,7 @@ func (ix *Indexer) reconcile(ctx context.Context, cwd string, emb Embedder, mode
 	}
 
 	ix.mu.Lock()
-	ix.corpus[cwd] = &loaded{chunks: all, scannedAt: now, modelID: modelID}
+	ix.corpus[cwd] = &cachedCorpus{chunks: all, scannedAt: now, modelID: modelID}
 	ix.status[cwd] = codebaseindex.Status{State: codebaseindex.StateReady, ModelID: modelID, FileCount: len(current), ChunkCount: len(all), IndexedAt: now, Truncated: truncated}
 	ix.mu.Unlock()
 	return nil

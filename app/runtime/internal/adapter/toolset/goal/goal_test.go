@@ -54,14 +54,14 @@ func (s *memStore) ClearIf(_ context.Context, id string, expected goalstate.Vers
 }
 func (s *memStore) List(context.Context) ([]goalstate.Goal, error) { return nil, nil }
 
-// activeGoal builds a stored active goal with an opaque current lease.
-func activeGoal(session string) goalstate.Goal {
-	g, _ := goalstate.New(session, "obj", modelref.Selection{}, goalstate.Budget{}, "lease-active", time.Unix(0, 0))
+// testSessionActiveGoal builds a stored active goal with an opaque current lease.
+func testSessionActiveGoal() goalstate.Goal {
+	g, _ := goalstate.New("s1", "obj", modelref.Selection{}, goalstate.Budget{}, "lease-active", time.Unix(0, 0))
 	return g
 }
 
-func sessionCtx(session string) context.Context {
-	return executionctx.WithScope(context.Background(), runs.ExecutionScope{SessionID: session})
+func testSessionContext() context.Context {
+	return executionctx.WithScope(context.Background(), runs.ExecutionScope{SessionID: "s1"})
 }
 
 func newGetter(t *testing.T, store goals.Store) *getter {
@@ -76,9 +76,9 @@ func newReporter(t *testing.T, store goals.Store) *outcomeReporter {
 
 func TestReportGoalOutcomeCompleted(t *testing.T) {
 	store := newMemStore()
-	store.put(activeGoal("s1"))
+	store.put(testSessionActiveGoal())
 
-	out, err := newReporter(t, store).report(sessionCtx("s1"), reportArgs{Outcome: "completed"})
+	out, err := newReporter(t, store).report(testSessionContext(), reportArgs{Outcome: "completed"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -92,10 +92,10 @@ func TestReportGoalOutcomeCompleted(t *testing.T) {
 
 func TestReportGoalOutcomeBlockedRequiresReason(t *testing.T) {
 	store := newMemStore()
-	store.put(activeGoal("s1"))
+	store.put(testSessionActiveGoal())
 	tl := newReporter(t, store)
 
-	out, _ := tl.report(sessionCtx("s1"), reportArgs{Outcome: "blocked"})
+	out, _ := tl.report(testSessionContext(), reportArgs{Outcome: "blocked"})
 	if !strings.Contains(out, "reason") {
 		t.Fatalf("blocked without reason = %q, want a reason prompt", out)
 	}
@@ -104,7 +104,7 @@ func TestReportGoalOutcomeBlockedRequiresReason(t *testing.T) {
 	}
 
 	reason := " needs a key "
-	out, _ = tl.report(sessionCtx("s1"), reportArgs{Outcome: "blocked", Reason: &reason})
+	out, _ = tl.report(testSessionContext(), reportArgs{Outcome: "blocked", Reason: &reason})
 	if !strings.Contains(out, "blocked") {
 		t.Fatalf("output = %q", out)
 	}
@@ -115,9 +115,9 @@ func TestReportGoalOutcomeBlockedRequiresReason(t *testing.T) {
 
 func TestReportGoalOutcomeCompletedRejectsReason(t *testing.T) {
 	store := newMemStore()
-	store.put(activeGoal("s1"))
+	store.put(testSessionActiveGoal())
 	reason := "partial caveat"
-	out, err := newReporter(t, store).report(sessionCtx("s1"), reportArgs{Outcome: "completed", Reason: &reason})
+	out, err := newReporter(t, store).report(testSessionContext(), reportArgs{Outcome: "completed", Reason: &reason})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -131,7 +131,7 @@ func TestReportGoalOutcomeCompletedRejectsReason(t *testing.T) {
 
 func TestReportGoalOutcomeNoActiveGoal(t *testing.T) {
 	store := newMemStore() // no goal for s1
-	out, err := newReporter(t, store).report(sessionCtx("s1"), reportArgs{Outcome: "completed"})
+	out, err := newReporter(t, store).report(testSessionContext(), reportArgs{Outcome: "completed"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -142,11 +142,11 @@ func TestReportGoalOutcomeNoActiveGoal(t *testing.T) {
 
 func TestReportGoalOutcomeDoesNotTouchPausedGoal(t *testing.T) {
 	store := newMemStore()
-	g := activeGoal("s1")
+	g := testSessionActiveGoal()
 	g.Pause(goalstate.ReasonStoppedByUser, "", time.Unix(0, 0))
 	store.put(g)
 
-	out, _ := newReporter(t, store).report(sessionCtx("s1"), reportArgs{Outcome: "completed"})
+	out, _ := newReporter(t, store).report(testSessionContext(), reportArgs{Outcome: "completed"})
 	if !strings.Contains(out, "No active Goal") {
 		t.Fatalf("paused goal should be untouchable via report_goal_outcome, got %q", out)
 	}
@@ -160,7 +160,7 @@ func TestReportGoalOutcomeDoesNotTouchPausedGoal(t *testing.T) {
 // signal the current goal, which a fresh Start gave a new lease.
 func TestReportGoalOutcomeSupersededStampRefused(t *testing.T) {
 	store := newMemStore()
-	current := activeGoal("s1")
+	current := testSessionActiveGoal()
 	current.LeaseID = "lease-current"
 	store.put(current)
 
@@ -194,13 +194,13 @@ func TestReportGoalOutcomeNoSession(t *testing.T) {
 
 func TestGetGoalReturnsActionableViewWithoutOwnershipInternals(t *testing.T) {
 	store := newMemStore()
-	g := activeGoal("s1")
+	g := testSessionActiveGoal()
 	g.Revision = 42
 	g.Budget = goalstate.Budget{MaxRuns: 3}
 	g.Used = goalstate.Usage{Runs: 1, Steps: 5}
 	store.put(g)
 
-	result, err := newGetter(t, store).get(sessionCtx("s1"), getArgs{})
+	result, err := newGetter(t, store).get(testSessionContext(), getArgs{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -213,7 +213,7 @@ func TestGetGoalReturnsActionableViewWithoutOwnershipInternals(t *testing.T) {
 }
 
 func TestGetGoalReturnsNullWhenAbsent(t *testing.T) {
-	result, err := newGetter(t, newMemStore()).get(sessionCtx("s1"), getArgs{})
+	result, err := newGetter(t, newMemStore()).get(testSessionContext(), getArgs{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -239,7 +239,7 @@ func (s *fakeStarter) Start(_ context.Context, sessionID, objective string, sele
 
 func TestCreateGoalUsesCurrentSessionAndExplicitBudget(t *testing.T) {
 	starter := &fakeStarter{}
-	result, err := (&creator{goals: starter}).create(sessionCtx("s1"), createArgs{
+	result, err := (&creator{goals: starter}).create(testSessionContext(), createArgs{
 		Objective: "  finish the migration  ",
 		Budget:    &createBudget{MaxRuns: 4, MaxCostUSD: 2.5, MaxSteps: 20},
 	})

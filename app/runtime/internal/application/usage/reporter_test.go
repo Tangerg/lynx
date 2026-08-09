@@ -36,10 +36,10 @@ func TestFoldRunFoldsAllDimensions(t *testing.T) {
 		ModelUsage: transcript.ModelUsage{InputTokens: 100, OutputTokens: 40, CostUSD: usd(1.5)},
 	})
 
-	total := accumulator{}
-	byProvider := map[string]*accumulator{}
-	byModel := map[string]*accumulator{}
-	byDay := map[string]*accumulator{}
+	total := usageAccumulator{}
+	byProvider := map[string]*usageAccumulator{}
+	byModel := map[string]*usageAccumulator{}
+	byDay := map[string]*usageAccumulator{}
 	foldRun(run, time.Time{}, "openai", "gpt", &total, byProvider, byModel, byDay)
 
 	if total.runs != 1 || total.tokens.InputTokens != 100 || total.cost != 1.5 {
@@ -60,8 +60,8 @@ func TestFoldRunDefaultsAttributeUnnamedRuns(t *testing.T) {
 	run := finishedRun(t, "", "", time.Now().UTC(), transcript.Usage{
 		ModelUsage: transcript.ModelUsage{InputTokens: 10},
 	})
-	byProvider := map[string]*accumulator{}
-	byModel := map[string]*accumulator{}
+	byProvider := map[string]*usageAccumulator{}
+	byModel := map[string]*usageAccumulator{}
 	foldRun(run, time.Time{}, "anthropic", "claude-opus-4-8", nil, byProvider, byModel, nil)
 
 	if byProvider["anthropic"] == nil {
@@ -114,7 +114,7 @@ func TestFoldRunPrefersByModelSplit(t *testing.T) {
 			"claude-haiku-4-5": {InputTokens: 20, CostUSD: usd(0.2)},
 		},
 	})
-	byModel := map[string]*accumulator{}
+	byModel := map[string]*usageAccumulator{}
 	foldRun(run, time.Time{}, "", "", nil, nil, byModel, nil)
 
 	if len(byModel) != 2 {
@@ -126,7 +126,7 @@ func TestFoldRunPrefersByModelSplit(t *testing.T) {
 }
 
 func TestFoldRunSkipsUnfinishedAndOld(t *testing.T) {
-	total := accumulator{}
+	total := usageAccumulator{}
 
 	foldRun(transcript.Run{State: run.Running}, time.Time{}, "", "", &total, nil, nil, nil)
 	noUsage := transcript.Run{State: run.Completed}
@@ -141,7 +141,7 @@ func TestFoldRunSkipsUnfinishedAndOld(t *testing.T) {
 }
 
 func TestAccumulatorOmitsCostWhenUnpriced(t *testing.T) {
-	a := accumulator{}
+	a := usageAccumulator{}
 	a.add(transcript.ModelUsage{InputTokens: 10})
 	if got := a.usage(); got.CostUSD != nil {
 		t.Errorf("CostUSD = %v, want nil", *got.CostUSD)
@@ -153,7 +153,7 @@ func TestAccumulatorOmitsCostWhenUnpriced(t *testing.T) {
 }
 
 func TestBucketsBySpendRanksByCostDesc(t *testing.T) {
-	m := map[string]*accumulator{
+	m := map[string]*usageAccumulator{
 		"cheap": {tokens: transcript.ModelUsage{InputTokens: 1}, cost: 0.1, hasCost: true},
 		"dear":  {tokens: transcript.ModelUsage{InputTokens: 1}, cost: 9, hasCost: true},
 	}

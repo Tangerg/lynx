@@ -86,7 +86,7 @@ func TestCancelRunNamesTheCapabilityNeededForAChild(t *testing.T) {
 	if result != nil || !errors.Is(err, protocol.ErrCapabilityNotNeg) {
 		t.Fatalf("CancelRun = (%+v, %v), want nil/capability_not_negotiated", result, err)
 	}
-	gap, ok := errors.AsType[*protocol.CapabilityGap](err)
+	gap, ok := errors.AsType[*protocol.CapabilityGapError](err)
 	if !ok || len(gap.Requirements) != 1 ||
 		gap.Requirements[0].Type != protocol.RequirementFeature ||
 		gap.Requirements[0].Name != protocol.FeatureSubagents {

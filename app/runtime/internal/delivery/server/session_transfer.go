@@ -76,7 +76,7 @@ func (s *Server) validateArtifactStateCapabilities(states []protocol.ArtifactSta
 	if len(gaps) == 0 {
 		return nil
 	}
-	return protocol.NewCapabilityGap(gaps...)
+	return protocol.NewCapabilityGapError(gaps...)
 }
 
 // ImportSession recreates a Session from a SessionArtifact under its original

@@ -16,14 +16,14 @@ const (
 
 var sweepBase = time.Unix(1_700_000_000, 0)
 
-// installAgentActive approves an agent-authored skill (origin=agent) so the
+// installActiveAgentSkill approves an agent-authored skill (origin=agent) so the
 // provenance-gated curator will consider it.
-func installAgentActive(t *testing.T, store *skillauthoring.Store, name, instructions string) {
+func installActiveAgentSkill(t *testing.T, store *skillauthoring.Store, name string) {
 	t.Helper()
 	ref, err := store.SubmitProposal(t.Context(), skills.Proposal{Scope: skills.ScopeUser,
 		Name:         name,
 		Description:  "An agent-authored skill with a long enough description.",
-		Instructions: instructions,
+		Instructions: "instructions",
 		Origin:       skills.ProposalOriginMined,
 	})
 	if err != nil {
@@ -37,7 +37,7 @@ func installAgentActive(t *testing.T, store *skillauthoring.Store, name, instruc
 func TestSweepIdleArchivesOnlyIdleAgentSkills(t *testing.T) {
 	root := t.TempDir()
 	store := skillauthoring.NewStore(root, skills.ScopeUser)
-	installAgentActive(t, store, "agent-skill", "instructions")
+	installActiveAgentSkill(t, store, "agent-skill")
 	installActive(t, store, "human-skill", "instructions") // no provenance → human-authored
 
 	// First sweep seeds FirstSeen for both; nothing is idle yet.
@@ -68,7 +68,7 @@ func TestSweepIdleArchivesOnlyIdleAgentSkills(t *testing.T) {
 
 func TestSweepIdleGivesNeverSweptSkillGrace(t *testing.T) {
 	store := skillauthoring.NewStore(t.TempDir(), skills.ScopeUser)
-	installAgentActive(t, store, "fresh", "instructions")
+	installActiveAgentSkill(t, store, "fresh")
 	// A skill first seen at this sweep gets FirstSeen=now, so it can't be idle yet.
 	archived, err := store.SweepIdle(t.Context(), sweepBase, sweepArchive)
 	if err != nil {
@@ -82,7 +82,7 @@ func TestSweepIdleGivesNeverSweptSkillGrace(t *testing.T) {
 func TestSweepIdleRestoredSkillGetsFreshGrace(t *testing.T) {
 	root := t.TempDir()
 	store := skillauthoring.NewStore(root, skills.ScopeUser)
-	installAgentActive(t, store, "agent-skill", "instructions")
+	installActiveAgentSkill(t, store, "agent-skill")
 	if _, err := store.SweepIdle(t.Context(), sweepBase, sweepArchive); err != nil {
 		t.Fatal(err)
 	}
@@ -110,7 +110,7 @@ func TestSweepIdleRestoredSkillGetsFreshGrace(t *testing.T) {
 func TestManualArchiveThenRestoreGetsFreshGrace(t *testing.T) {
 	root := t.TempDir()
 	store := skillauthoring.NewStore(root, skills.ScopeUser)
-	installAgentActive(t, store, "agent-skill", "instructions")
+	installActiveAgentSkill(t, store, "agent-skill")
 	// Seed a usage record with an old activity time.
 	if _, err := store.SweepIdle(t.Context(), sweepBase, sweepArchive); err != nil {
 		t.Fatal(err)

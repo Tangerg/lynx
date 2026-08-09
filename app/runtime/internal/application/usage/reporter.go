@@ -87,8 +87,8 @@ func (r *Reporter) Session(ctx context.Context, sessionID string) (SessionReport
 	if err != nil {
 		return SessionReport{}, err
 	}
-	total := accumulator{}
-	byModel := map[string]*accumulator{}
+	total := usageAccumulator{}
+	byModel := map[string]*usageAccumulator{}
 	for _, run := range runs {
 		foldRun(run, time.Time{}, r.defaultProvider, r.defaultModel, &total, nil, byModel, nil)
 	}
@@ -115,10 +115,10 @@ func (r *Reporter) Summary(ctx context.Context, sinceDays int) (Summary, error) 
 		since = r.now().UTC().AddDate(0, 0, -sinceDays)
 	}
 
-	total := accumulator{}
-	byProvider := map[string]*accumulator{}
-	byModel := map[string]*accumulator{}
-	byDay := map[string]*accumulator{}
+	total := usageAccumulator{}
+	byProvider := map[string]*usageAccumulator{}
+	byModel := map[string]*usageAccumulator{}
+	byDay := map[string]*usageAccumulator{}
 	sessionCount := 0
 	for _, sess := range sessions {
 		runs, err := r.runs.ListRuns(ctx, sess.ID)
@@ -144,7 +144,7 @@ func (r *Reporter) Summary(ctx context.Context, sinceDays int) (Summary, error) 
 	}, nil
 }
 
-func foldRun(run transcript.Run, since time.Time, defaultProvider, defaultModel string, total *accumulator, byProvider, byModel, byDay map[string]*accumulator) {
+func foldRun(run transcript.Run, since time.Time, defaultProvider, defaultModel string, total *usageAccumulator, byProvider, byModel, byDay map[string]*usageAccumulator) {
 	if !run.State.IsTerminal() || run.Metrics.Usage == nil {
 		return
 	}
@@ -182,14 +182,16 @@ func foldRun(run transcript.Run, since time.Time, defaultProvider, defaultModel 
 	bucket.runs++
 }
 
-type accumulator struct {
+// usageAccumulator preserves the metering fields needed while folding Run
+// records into one report bucket.
+type usageAccumulator struct {
 	tokens  transcript.ModelUsage
 	cost    float64
 	hasCost bool
 	runs    int
 }
 
-func (a *accumulator) add(usage transcript.ModelUsage) {
+func (a *usageAccumulator) add(usage transcript.ModelUsage) {
 	a.tokens.InputTokens += usage.InputTokens
 	a.tokens.OutputTokens += usage.OutputTokens
 	a.tokens.CacheReadTokens += usage.CacheReadTokens
@@ -201,7 +203,7 @@ func (a *accumulator) add(usage transcript.ModelUsage) {
 	}
 }
 
-func (a accumulator) usage() transcript.ModelUsage {
+func (a usageAccumulator) usage() transcript.ModelUsage {
 	out := a.tokens
 	if a.hasCost {
 		cost := a.cost
@@ -210,16 +212,16 @@ func (a accumulator) usage() transcript.ModelUsage {
 	return out
 }
 
-func accumulatorFor(byKey map[string]*accumulator, key string) *accumulator {
+func accumulatorFor(byKey map[string]*usageAccumulator, key string) *usageAccumulator {
 	bucket := byKey[key]
 	if bucket == nil {
-		bucket = &accumulator{}
+		bucket = &usageAccumulator{}
 		byKey[key] = bucket
 	}
 	return bucket
 }
 
-func bucketsBySpend(byKey map[string]*accumulator) []Bucket {
+func bucketsBySpend(byKey map[string]*usageAccumulator) []Bucket {
 	buckets := bucketsOf(byKey)
 	slices.SortFunc(buckets, func(a, b Bucket) int {
 		return cmp.Or(
@@ -230,16 +232,16 @@ func bucketsBySpend(byKey map[string]*accumulator) []Bucket {
 	return buckets
 }
 
-func bucketsByKey(byKey map[string]*accumulator) []Bucket {
+func bucketsByKey(byKey map[string]*usageAccumulator) []Bucket {
 	buckets := bucketsOf(byKey)
 	slices.SortFunc(buckets, func(a, b Bucket) int { return cmp.Compare(a.Key, b.Key) })
 	return buckets
 }
 
-func bucketsOf(byKey map[string]*accumulator) []Bucket {
+func bucketsOf(byKey map[string]*usageAccumulator) []Bucket {
 	buckets := make([]Bucket, 0, len(byKey))
-	for key, accumulator := range byKey {
-		buckets = append(buckets, Bucket{Key: key, Usage: accumulator.usage(), Runs: accumulator.runs})
+	for key, accumulated := range byKey {
+		buckets = append(buckets, Bucket{Key: key, Usage: accumulated.usage(), Runs: accumulated.runs})
 	}
 	return buckets
 }

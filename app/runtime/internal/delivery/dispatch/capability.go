@@ -44,7 +44,7 @@ func (r *Router) enforceCapabilities(ctx context.Context, meta MethodMeta, param
 			return errorToRPC(err)
 		}
 		if len(missing) != 0 {
-			return errorToRPC(protocol.NewCapabilityGap(missing...))
+			return errorToRPC(protocol.NewCapabilityGapError(missing...))
 		}
 	}
 	return nil

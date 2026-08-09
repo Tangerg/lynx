@@ -223,7 +223,7 @@ func (source *invalidatingTokenSource) Token() (*oauth2.Token, error) {
 	source.mu.Lock()
 	defer source.mu.Unlock()
 	if source.invalidated {
-		return nil, &dialFailure{kind: dialFailureNeedsAuth, err: errStoredOAuthRejected}
+		return nil, &dialError{kind: dialErrorNeedsAuth, err: errStoredOAuthRejected}
 	}
 	token, err := source.source.Token()
 	if err == nil || !oauthCredentialRejected(err) {
@@ -231,8 +231,8 @@ func (source *invalidatingTokenSource) Token() (*oauth2.Token, error) {
 	}
 	source.invalidated = true
 	removeErr := source.store.RemoveOAuthSession(context.Background(), source.server)
-	return nil, &dialFailure{
-		kind: dialFailureNeedsAuth,
+	return nil, &dialError{
+		kind: dialErrorNeedsAuth,
 		err:  errors.Join(errStoredOAuthRejected, err, removeErr),
 	}
 }

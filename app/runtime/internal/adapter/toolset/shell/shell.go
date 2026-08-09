@@ -96,7 +96,7 @@ func (a shellIDArgs) validate() error {
 	return nil
 }
 
-type family struct {
+type commandTools struct {
 	shells     *exec.Shells
 	defaultCWD string
 }
@@ -105,7 +105,7 @@ func Build(shells *exec.Shells, defaultCWD string) ([]toolcontract.Tool, error) 
 	if shells == nil {
 		return nil, errors.New("shell: shells is nil")
 	}
-	t := &family{shells: shells, defaultCWD: defaultCWD}
+	t := &commandTools{shells: shells, defaultCWD: defaultCWD}
 
 	shellTool, err := toolcontract.NewFunc[shellArgs, string](
 		toolcontract.FuncConfig{
@@ -144,7 +144,7 @@ func Build(shells *exec.Shells, defaultCWD string) ([]toolcontract.Tool, error) 
 	return []toolcontract.Tool{shellTool, outputTool, killTool}, nil
 }
 
-func (t *family) run(ctx context.Context, a shellArgs) (string, error) {
+func (t *commandTools) run(ctx context.Context, a shellArgs) (string, error) {
 	if err := a.validate(); err != nil {
 		return "", err
 	}
@@ -173,14 +173,14 @@ func (t *family) run(ctx context.Context, a shellArgs) (string, error) {
 	}
 }
 
-func (t *family) completed(id string, sh *exec.Shell) (string, error) {
+func (t *commandTools) completed(id string, sh *exec.Shell) (string, error) {
 	out, dropped := sh.Read()
 	code, killed, dur := sh.Outcome()
 	t.shells.Remove(id)
 	return completedJSON(out, dropped, code, killed, dur)
 }
 
-func (t *family) cancelForeground(ctx context.Context, id string, sh *exec.Shell) (string, error) {
+func (t *commandTools) cancelForeground(ctx context.Context, id string, sh *exec.Shell) (string, error) {
 	// The command may have finished in the same instant the Run was canceled;
 	// select picks a ready case at random, so check Done() before discarding a
 	// completed result the user can still use.
@@ -199,7 +199,7 @@ func (t *family) cancelForeground(ctx context.Context, id string, sh *exec.Shell
 	}
 }
 
-func (t *family) output(ctx context.Context, a shellOutputArgs) (string, error) {
+func (t *commandTools) output(ctx context.Context, a shellOutputArgs) (string, error) {
 	if err := a.validate(); err != nil {
 		return "", err
 	}
@@ -226,7 +226,7 @@ func (t *family) output(ctx context.Context, a shellOutputArgs) (string, error) 
 	return fmt.Sprintf("Shell %s %s.\n%s", a.ShellID, state, string(b)), nil
 }
 
-func (t *family) kill(_ context.Context, a shellIDArgs) (string, error) {
+func (t *commandTools) kill(_ context.Context, a shellIDArgs) (string, error) {
 	if err := a.validate(); err != nil {
 		return "", err
 	}

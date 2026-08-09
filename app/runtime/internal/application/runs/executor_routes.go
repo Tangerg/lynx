@@ -564,11 +564,11 @@ type preparedChildOpening struct {
 	reservation ChildRunStartReservation
 }
 
-func (prepared *preparedChildOpening) releaseBinding(live *handle) {
-	if prepared == nil || prepared.route == nil || live == nil {
+func (prepared *preparedChildOpening) releaseBinding(owner *runTreeOwner) {
+	if prepared == nil || prepared.route == nil || owner == nil {
 		return
 	}
-	live.unbindExecutorMember(prepared.route.runID, prepared.member.MemberID)
+	owner.unbindExecutorMember(prepared.route.runID, prepared.member.MemberID)
 }
 
 // prepareChildOpening freezes the complete application projection for one
@@ -576,7 +576,7 @@ func (prepared *preparedChildOpening) releaseBinding(live *handle) {
 // observable; its caller owns either commit or releaseBinding.
 func (c *Coordinator) prepareChildOpening(
 	spec segmentSpec,
-	live *handle,
+	owner *runTreeOwner,
 	routes *executorRoutes,
 	member ExecutorMember,
 	startedAt time.Time,
@@ -642,15 +642,15 @@ func (c *Coordinator) prepareChildOpening(
 		Limits:         child.limits,
 		Capabilities:   child.capabilities,
 		Now:            c.now,
-		CancelReason:   cancellationReason(live.CancelReasonFor, child.runID),
+		CancelReason:   cancellationReason(owner.CancelReasonFor, child.runID),
 	})
-	if err := live.bindExecutorMember(child.runID, member.MemberID); err != nil {
+	if err := owner.bindExecutorMember(child.runID, member.MemberID); err != nil {
 		return nil, err
 	}
 	release := true
 	defer func() {
 		if release {
-			live.unbindExecutorMember(child.runID, member.MemberID)
+			owner.unbindExecutorMember(child.runID, member.MemberID)
 		}
 	}()
 	projected, err := child.reducer.open()

@@ -216,7 +216,7 @@ type segmentStartup struct {
 	releaseTask    func()
 	executorEvents iter.Seq[ExecutorEvent]
 	journal        *journal
-	treeOwner      *handle
+	treeOwner      *runTreeOwner
 	routes         *executorRoutes
 }
 
@@ -248,11 +248,11 @@ func (c *Coordinator) prepareSegmentStartup(
 	startup.journal = newJournal(streamScope{
 		Epoch: c.epoch, RunID: spec.RunID, SegmentID: spec.SegmentID,
 	}, c.retention)
-	startup.treeOwner = &handle{
-		cancel: cancelRun,
-		owner:  taskContext,
-		hub:    startup.journal,
-		done:   make(chan struct{}),
+	startup.treeOwner = &runTreeOwner{
+		cancel:      cancelRun,
+		taskContext: taskContext,
+		hub:         startup.journal,
+		done:        make(chan struct{}),
 	}
 	startup.routes, err = c.openingRoutes(spec, startup.treeOwner.CancelReasonFor)
 	if err != nil {
@@ -477,7 +477,7 @@ func (c *Coordinator) rejectUnadmittedExecution(ctx context.Context, ref Executo
 // Refusals name what the caller should do instead: [ErrRunNotFound],
 // [transcript.ErrNotRoot], [ErrRunWaiting], [ErrRunFinished],
 // [ErrStaleSegment], [ErrReplayCursorInvalid], [ErrReplayUnavailable], and
-// [rundomain.InsufficientCapabilities] when the caller could not follow what this run
+// [rundomain.InsufficientCapabilitiesError] when the caller could not follow what this run
 // publishes — the same rule a resume applies, kept here rather than at each
 // caller so the two entry points into an existing Run cannot disagree about it.
 func (c *Coordinator) Subscribe(ctx context.Context, req SubscribeRequest) (Subscription, error) {
@@ -486,9 +486,9 @@ func (c *Coordinator) Subscribe(ctx context.Context, req SubscribeRequest) (Subs
 		return Subscription{}, err
 	}
 	if gap := live.record.Capabilities.MissingFrom(req.CallerCapabilities); !gap.IsEmpty() {
-		return Subscription{}, &rundomain.InsufficientCapabilities{RunID: req.RunID, Missing: gap}
+		return Subscription{}, &rundomain.InsufficientCapabilitiesError{RunID: req.RunID, Missing: gap}
 	}
-	attached, err := live.handle.hub.attach(req.Cursor)
+	attached, err := live.owner.hub.attach(req.Cursor)
 	if err != nil {
 		return Subscription{}, err
 	}
@@ -541,7 +541,7 @@ func (c *Coordinator) addressLiveSegment(ctx context.Context, runID, segmentID s
 		return liveSegment{}, fmt.Errorf("%w: run %q is executing %q", ErrStaleSegment, runID, run.ActiveSegmentID)
 	}
 	live, ok := c.registry.Get(runID)
-	if !ok || live.handle == nil || live.handle.hub == nil {
+	if !ok || live.owner == nil || live.owner.hub == nil {
 		// A Running record whose segment this process does not own. Restart recovery
 		// terminalizes orphans before the runtime serves, so this is a broken
 		// invariant rather than a state a client can act on — reporting it as one

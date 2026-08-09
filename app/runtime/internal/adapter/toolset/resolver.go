@@ -170,7 +170,7 @@ func newResolver(d resolverDeps) (*Resolver, error) {
 	return resolver, nil
 }
 
-func (r *Resolver) appendStatic(ctx context.Context, into *resolution, at placement, role string) error {
+func (r *Resolver) appendStatic(ctx context.Context, into *manifestBuilder, at placement, role string) error {
 	for _, spec := range r.staticSpecs {
 		if spec.tool == nil || spec.placement != at || !spec.audience.includes(role) {
 			continue
@@ -285,13 +285,13 @@ func (r *Resolver) Manifest(ctx context.Context, role string) (Manifest, error) 
 	return resolved.manifest(), nil
 }
 
-func (r *Resolver) resolve(ctx context.Context, role string) (resolution, error) {
+func (r *Resolver) resolve(ctx context.Context, role string) (manifestBuilder, error) {
 	if role != domaintool.GroupRoot && role != domaintool.GroupDelegated {
-		return resolution{}, fmt.Errorf("toolset: unsupported tool role %q", role)
+		return manifestBuilder{}, fmt.Errorf("toolset: unsupported tool role %q", role)
 	}
 	cwd := r.cwdFor(ctx)
 	localTools := r.toolsForCWD(cwd)
-	var tools resolution
+	var tools manifestBuilder
 	tools.direct(localTools.readSearch...)
 	tools.direct(localTools.applyPatch)
 	tools.deferTools(r.online...)
@@ -305,19 +305,19 @@ func (r *Resolver) resolve(ctx context.Context, role string) (resolution, error)
 	// available to both root and delegated roles. No tools when no skills exist.
 	skillTools, err := skill.BuildReaders(cwd, r.skillsUserDir, r.skillUsage)
 	if err != nil {
-		return resolution{}, fmt.Errorf("toolset: resolve skill tools: %w", err)
+		return manifestBuilder{}, fmt.Errorf("toolset: resolve skill tools: %w", err)
 	}
 	tools.deferTools(skillTools...)
 	// Built-once, session-keyed helpers (plan/result/memory/transcript search)
 	// are projected from the resolver's role and placement policy.
 	if err := r.appendStatic(ctx, &tools, afterSkill, role); err != nil {
-		return resolution{}, err
+		return manifestBuilder{}, err
 	}
 	// Both roles can ask the user; Plan-mode controls in this placement remain
 	// root-only. A child question waits at the same durable tree boundary as a
 	// child approval.
 	if err := r.appendStatic(ctx, &tools, afterCodebase, role); err != nil {
-		return resolution{}, err
+		return manifestBuilder{}, err
 	}
 	if role == domaintool.GroupRoot {
 		// Goal lifecycle entry is late-bound because its application Driver owns
@@ -330,7 +330,7 @@ func (r *Resolver) resolve(ctx context.Context, role string) (resolution, error)
 		// The remaining schedule and Goal state capabilities are
 		// product-root operations rather than generic child execution tools.
 		if err := r.appendStatic(ctx, &tools, rootTail, role); err != nil {
-			return resolution{}, err
+			return manifestBuilder{}, err
 		}
 	}
 	// search_tools is the sole model-facing entry to every capability withheld
@@ -338,7 +338,7 @@ func (r *Resolver) resolve(ctx context.Context, role string) (resolution, error)
 	// registry, so promotion changes visibility rather than execution authority.
 	search, err := discovery.New(tools.deferred)
 	if err != nil {
-		return resolution{}, fmt.Errorf("toolset: resolve search_tools: %w", err)
+		return manifestBuilder{}, fmt.Errorf("toolset: resolve search_tools: %w", err)
 	}
 	if search != nil {
 		tools.direct(search)

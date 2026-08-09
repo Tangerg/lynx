@@ -223,7 +223,7 @@ func (t *headerRoundTripper) classifyDialError(err error) error {
 		return nil
 	}
 	if t.lastStatus.Load() == http.StatusUnauthorized {
-		return &dialFailure{kind: dialFailureNeedsAuth, err: err}
+		return &dialError{kind: dialErrorNeedsAuth, err: err}
 	}
 	return err
 }

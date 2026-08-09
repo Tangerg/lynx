@@ -20,17 +20,17 @@ var ErrConnectionsClosed = errors.New("mcp: connections closed")
 // nil pool is a composition error, never a successful no-op.
 var ErrConnectionsUnavailable = errors.New("mcp: connections unavailable")
 
-type dialFailureKind uint8
+type dialErrorKind uint8
 
-const dialFailureNeedsAuth dialFailureKind = iota + 1
+const dialErrorNeedsAuth dialErrorKind = iota + 1
 
-type dialFailure struct {
-	kind dialFailureKind
+type dialError struct {
+	kind dialErrorKind
 	err  error
 }
 
-func (e *dialFailure) Error() string { return e.err.Error() }
-func (e *dialFailure) Unwrap() error { return e.err }
+func (e *dialError) Error() string { return e.err.Error() }
+func (e *dialError) Unwrap() error { return e.err }
 
 // dialStatus maps a dial error to the connection status: an
 // auth-distinguishable failure becomes "needsAuth" (so the client can prompt
@@ -47,6 +47,6 @@ func dialStatus(err error) mcpserver.ConnectionState {
 // plain wrapped error, so our transport records the status before that type
 // information is lost.
 func isAuthError(err error) bool {
-	var failure *dialFailure
-	return errors.As(err, &failure) && failure.kind == dialFailureNeedsAuth
+	var failure *dialError
+	return errors.As(err, &failure) && failure.kind == dialErrorNeedsAuth
 }

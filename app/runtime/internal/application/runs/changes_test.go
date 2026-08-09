@@ -89,8 +89,7 @@ func TestStartAndTerminalPublishRunAndSessionChanges(t *testing.T) {
 	if got := changes.resources(); !slices.Equal(got, []change.Resource{change.Runs, change.Sessions}) {
 		t.Fatalf("published on start = %v, want the run and its session", got)
 	}
-	for range result.Events {
-	}
+	consumeEvents(result.Events)
 	// Draining the stream ends the segment, and the synthesized terminal commits
 	// before the journal closes — so by here the run is durably finished.
 	if got := changes.count(change.Runs); got != 2 {

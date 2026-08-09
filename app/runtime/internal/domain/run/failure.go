@@ -21,7 +21,7 @@ const (
 )
 
 // String names the kind for diagnostics — parity with the package's other
-// enums (State / Outcome), so a Failure without an error chain reports a
+// enums (State / Outcome), so a FailureError without an error chain reports a
 // legible name instead of a raw integer.
 func (k FailureKind) String() string {
 	switch k {
@@ -44,16 +44,16 @@ func (k FailureKind) String() string {
 	}
 }
 
-// Failure carries a typed Run classification while preserving the
+// FailureError carries a typed Run classification while preserving the
 // original error chain for diagnostics. RetryAfter is meaningful only for
 // retryable kinds and may be zero when the provider supplied no hint.
-type Failure struct {
+type FailureError struct {
 	Kind       FailureKind
 	RetryAfter time.Duration
 	Err        error
 }
 
-func (e *Failure) Error() string {
+func (e *FailureError) Error() string {
 	if e == nil {
 		return "run failure"
 	}
@@ -63,7 +63,7 @@ func (e *Failure) Error() string {
 	return "run failure: " + e.Kind.String()
 }
 
-func (e *Failure) Unwrap() error {
+func (e *FailureError) Unwrap() error {
 	if e == nil {
 		return nil
 	}

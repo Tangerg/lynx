@@ -72,9 +72,9 @@ type resumeAttemptOutcome struct {
 
 func TestWaitingChildAndRootCancellationHaveOneApplicationOwner(t *testing.T) {
 	t.Run("child owns the tree", func(t *testing.T) {
-		plan := waitingCancellationPlan(t, "run_a", false)
+		plan := runACancellationPlan(t, false)
 		prepared := waitingCancellationMutationWithSiblingBoundary()
-		baseEffects := waitingCancellationEffects(plan, "stop child")
+		baseEffects := stopChildWaitingCancellationEffects(plan)
 		started := make(chan struct{}, 1)
 		release := testReleaseBarrier(t)
 		effects := &blockingWaitingCancellationEffects{
@@ -131,9 +131,9 @@ func TestWaitingChildAndRootCancellationHaveOneApplicationOwner(t *testing.T) {
 	})
 
 	t.Run("root owns the tree", func(t *testing.T) {
-		plan := waitingCancellationPlan(t, "run_a", false)
+		plan := runACancellationPlan(t, false)
 		prepared := waitingCancellationMutationWithSiblingBoundary()
-		effects := waitingCancellationEffects(plan, "stop child")
+		effects := stopChildWaitingCancellationEffects(plan)
 		coordinator, _ := waitingCancellationCoordinator(
 			t,
 			plan,
@@ -201,9 +201,9 @@ func TestWaitingChildAndRootCancellationHaveOneApplicationOwner(t *testing.T) {
 
 func TestWaitingChildCancellationAndResumeHaveOneApplicationOwner(t *testing.T) {
 	t.Run("child cancellation owns the tree", func(t *testing.T) {
-		plan := waitingCancellationPlan(t, "run_a", false)
+		plan := runACancellationPlan(t, false)
 		prepared := waitingCancellationMutationWithSiblingBoundary()
-		baseEffects := waitingCancellationEffects(plan, "stop child")
+		baseEffects := stopChildWaitingCancellationEffects(plan)
 		started := make(chan struct{}, 1)
 		release := testReleaseBarrier(t)
 		effects := &blockingWaitingCancellationEffects{
@@ -252,9 +252,9 @@ func TestWaitingChildCancellationAndResumeHaveOneApplicationOwner(t *testing.T) 
 	})
 
 	t.Run("resume owns the tree", func(t *testing.T) {
-		plan := waitingCancellationPlan(t, "run_a", false)
+		plan := runACancellationPlan(t, false)
 		prepared := waitingCancellationMutationWithSiblingBoundary()
-		baseEffects := waitingCancellationEffects(plan, "stop child")
+		baseEffects := stopChildWaitingCancellationEffects(plan)
 		started := make(chan struct{}, 1)
 		release := testReleaseBarrier(t)
 		effects := &blockingOpeningEffects{
@@ -315,8 +315,7 @@ func TestWaitingChildCancellationAndResumeHaveOneApplicationOwner(t *testing.T) 
 		if outcome.err != nil {
 			t.Fatalf("winning Resume: %v", outcome.err)
 		}
-		for range outcome.result.Events {
-		}
+		consumeEvents(outcome.result.Events)
 		if !control.resumed || len(baseEffects.openings) != 1 {
 			t.Fatalf(
 				"winning Resume = activated:%t openings:%d, want true/1",
@@ -338,8 +337,8 @@ func TestLiveChildCancellationAndNaturalTerminalHaveOneTreeOwner(t *testing.T) {
 	completed.Outcome = &outcome
 
 	t.Run("child cancellation commits first", func(t *testing.T) {
-		handle := &handle{done: make(chan struct{})}
-		attempt, err := handle.beginChildCancellation(plan, "stop child")
+		owner := &runTreeOwner{done: make(chan struct{})}
+		attempt, err := owner.beginChildCancellation(plan, "stop child")
 		if err != nil {
 			t.Fatalf("begin child cancellation: %v", err)
 		}
@@ -347,8 +346,8 @@ func TestLiveChildCancellationAndNaturalTerminalHaveOneTreeOwner(t *testing.T) {
 		canceled.State = run.Canceled
 		canceledOutcome := run.OutcomeCanceled
 		canceled.Outcome = &canceledOutcome
-		handle.recordTerminalRun(canceled)
-		handle.recordChildCancellationItem(
+		owner.recordTerminalRun(canceled)
+		owner.recordChildCancellationItem(
 			plan.target.run.ParentRunID,
 			transcript.Item{
 				ID:     plan.target.run.SpawnedByItemID,
@@ -360,7 +359,7 @@ func TestLiveChildCancellationAndNaturalTerminalHaveOneTreeOwner(t *testing.T) {
 			},
 		)
 
-		target, root, err := handle.waitChildCancellation(t.Context(), attempt)
+		target, root, err := owner.waitChildCancellation(t.Context(), attempt)
 		if err != nil {
 			t.Fatalf("wait child cancellation: %v", err)
 		}
@@ -372,33 +371,33 @@ func TestLiveChildCancellationAndNaturalTerminalHaveOneTreeOwner(t *testing.T) {
 	})
 
 	t.Run("natural terminal commits after child claim", func(t *testing.T) {
-		handle := &handle{done: make(chan struct{})}
-		attempt, err := handle.beginChildCancellation(plan, "stop child")
+		owner := &runTreeOwner{done: make(chan struct{})}
+		attempt, err := owner.beginChildCancellation(plan, "stop child")
 		if err != nil {
 			t.Fatalf("begin child cancellation: %v", err)
 		}
-		if _, err := handle.beginChildCancellation(plan, "duplicate child"); !errors.Is(err, ErrSessionBusy) {
+		if _, err := owner.beginChildCancellation(plan, "duplicate child"); !errors.Is(err, ErrSessionBusy) {
 			t.Fatalf("duplicate child cancellation error = %v, want ErrSessionBusy", err)
 		} else if !strings.Contains(err.Error(), plan.target.run.ID) {
 			t.Fatalf("duplicate child cancellation error = %q, want target identity", err)
 		}
 
-		handle.recordTerminalRun(completed)
-		if _, _, err := handle.waitChildCancellation(t.Context(), attempt); !errors.Is(err, ErrRunFinished) {
+		owner.recordTerminalRun(completed)
+		if _, _, err := owner.waitChildCancellation(t.Context(), attempt); !errors.Is(err, ErrRunFinished) {
 			t.Fatalf("child cancellation result = %v, want ErrRunFinished", err)
 		}
-		if handle.childCancel != nil {
+		if owner.childCancel != nil {
 			t.Fatal("natural terminal left a child cancellation claim")
 		}
 	})
 
 	t.Run("natural terminal precedes child claim", func(t *testing.T) {
-		handle := &handle{}
-		handle.recordTerminalRun(completed)
-		if _, err := handle.beginChildCancellation(plan, "stop child"); !errors.Is(err, ErrRunFinished) {
+		owner := &runTreeOwner{}
+		owner.recordTerminalRun(completed)
+		if _, err := owner.beginChildCancellation(plan, "stop child"); !errors.Is(err, ErrRunFinished) {
 			t.Fatalf("child cancellation error = %v, want ErrRunFinished", err)
 		}
-		if handle.childCancel != nil {
+		if owner.childCancel != nil {
 			t.Fatal("finished target admitted a child cancellation claim")
 		}
 	})
@@ -440,12 +439,12 @@ func waitingCancellationMutationWithSiblingBoundary() *fakePreparedWaitingCancel
 	}
 }
 
-func waitingCancellationEffects(plan cancellationPlan, reason string) *fakeEffects {
+func stopChildWaitingCancellationEffects(plan cancellationPlan) *fakeEffects {
 	return &fakeEffects{
 		waitingResult: WaitingSubtreeCancellationResult{
 			TargetRun: canceledWaitingRun(
 				plan.target.run,
-				reason,
+				"stop child",
 				time.Date(2026, 7, 30, 2, 3, 4, 0, time.UTC),
 			),
 			RootRun: plan.root.run,

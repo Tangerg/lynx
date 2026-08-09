@@ -178,7 +178,7 @@ func TestJournal_ReplayFromAnEphemeralPositionIsExact(t *testing.T) {
 }
 
 func TestJournal_ReplayRefusesCursorsItCannotServe(t *testing.T) {
-	other := func(p replaycursor.Position) string { return replaycursor.Encode(p) }
+	other := replaycursor.Encode
 	for name, test := range map[string]struct {
 		cursor string
 		want   error
@@ -346,8 +346,7 @@ func TestJournalCancelUnblocksWaitingSubscriber(t *testing.T) {
 
 	done := make(chan struct{})
 	go func() {
-		for range attached.Events { // no events will ever arrive; blocks in the source
-		}
+		consumeEvents(attached.Events) // no events will ever arrive; blocks in the source
 		close(done)
 	}()
 
@@ -535,7 +534,7 @@ func TestJournal_ReplayableBacklogWithinTheWindowIsLossless(t *testing.T) {
 	}
 }
 
-func TestJournalConcurrentAppendCloseAndCancel(t *testing.T) {
+func TestJournalConcurrentAppendCloseAndCancel(_ *testing.T) {
 	j := testJournal()
 	attached := j.tail()
 	start := make(chan struct{})
@@ -556,8 +555,7 @@ func TestJournalConcurrentAppendCloseAndCancel(t *testing.T) {
 	})
 	close(start)
 	wg.Wait()
-	for range attached.Events { // drain whatever survived the race; must terminate
-	}
+	consumeEvents(attached.Events) // drain whatever survived the race; must terminate
 }
 
 // BenchmarkJournalAppendDrain records the steady-state per-event append→deliver

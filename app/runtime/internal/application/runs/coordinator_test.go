@@ -744,7 +744,7 @@ func runForSegment(spec segmentSpec) transcript.Run {
 
 func TestResumedExecutorRouteRetainsGoalLeaseForTerminalAccounting(t *testing.T) {
 	createdAt := time.Date(2026, 7, 30, 1, 2, 3, 0, time.UTC)
-	pending := testPendingInterrupt("item_1", "member_root", createdAt)
+	pending := testApprovalPending("member_root", createdAt)
 	pending.GoalLeaseID = "goal-lease-1"
 	pending.Continuations[0].ModelSelection = mustSelection("openai", "model")
 	continuation := mustTreeContinuation(t, pending)
@@ -1015,7 +1015,7 @@ func TestCoordinatorResumeCommitsBeforeActivation(t *testing.T) {
 	coordinator := testCoordinator(executor, effects)
 	spec := testSegment()
 	spec.SegmentID = "seg_2"
-	pending := testPendingInterrupt("item_1", "member_root", spec.CreatedAt)
+	pending := testApprovalPending("member_root", spec.CreatedAt)
 	spec.Continuation = mustTreeContinuation(t, pending)
 	activatedAfterOpening := false
 	spec.BeginExecution = func(context.Context) error {
@@ -2616,8 +2616,7 @@ func TestCoordinatorCloseCancelsAndJoins(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("Close did not cancel and join the segment pump")
 	}
-	for _, ok := next(); ok; _, ok = next() { // drain the remaining terminal events
-	}
+	consumePulledEvents(next) // drain the remaining terminal events
 	if !effects.terminalized("ses_1", "run_1") {
 		t.Fatal("Close left the run non-terminal after canceling its owner context")
 	}
@@ -2684,6 +2683,5 @@ func TestCoordinatorCancelContextSurvivesRequestContext(t *testing.T) {
 		t.Fatalf("control-surface releases = %+v, want pump-only ownership", control.released)
 	}
 	requireCoordinatorShutdown(t, coordinator)
-	for _, ok := next(); ok; _, ok = next() { // drain whatever remains
-	}
+	consumePulledEvents(next) // drain whatever remains
 }

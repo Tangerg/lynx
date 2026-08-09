@@ -9,8 +9,8 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
-// childCancellation is the root handle's one active child-cancel boundary.
-// The handle admits either this boundary or whole-tree cancellation, never both.
+// childCancellation is the root Run-tree owner's one active child-cancel boundary.
+// The owner admits either this boundary or whole-tree cancellation, never both.
 type childCancellation struct {
 	targetRunID    string
 	parentRunID    string
@@ -24,12 +24,12 @@ type childCancellation struct {
 	finished       bool
 }
 
-func (h *handle) beginChildCancellation(
+func (owner *runTreeOwner) beginChildCancellation(
 	plan cancellationPlan,
 	reason string,
 ) (*childCancellation, error) {
-	if h == nil {
-		return nil, errors.New("runs: child cancellation requires a live root handle")
+	if owner == nil {
+		return nil, errors.New("runs: child cancellation requires a live Run-tree owner")
 	}
 	if !plan.target.run.Lineage().IsChild() {
 		return nil, fmt.Errorf("runs: cancellation target %q is not a child Run", plan.target.run.ID)
@@ -62,23 +62,23 @@ func (h *handle) beginChildCancellation(
 		done:           make(chan struct{}),
 	}
 
-	h.mu.Lock()
-	defer h.mu.Unlock()
+	owner.mu.Lock()
+	defer owner.mu.Unlock()
 	switch {
-	case h.cancelRequested:
+	case owner.cancelRequested:
 		return nil, fmt.Errorf(
 			"%w: root Run %q cancellation owns the tree",
 			ErrSessionBusy,
 			plan.root.run.ID,
 		)
-	case h.childCancel != nil:
+	case owner.childCancel != nil:
 		return nil, fmt.Errorf(
 			"%w: child Run %q cancellation owns the tree",
 			ErrSessionBusy,
-			h.childCancel.targetRunID,
+			owner.childCancel.targetRunID,
 		)
-	case h.terminalRuns != nil:
-		if terminal, finished := h.terminalRuns[attempt.targetRunID]; finished {
+	case owner.terminalRuns != nil:
+		if terminal, finished := owner.terminalRuns[attempt.targetRunID]; finished {
 			return nil, fmt.Errorf(
 				"%w: %q completed as %s",
 				ErrRunFinished,
@@ -87,45 +87,45 @@ func (h *handle) beginChildCancellation(
 			)
 		}
 	}
-	h.childCancel = attempt
+	owner.childCancel = attempt
 	return attempt, nil
 }
 
-func (h *handle) abortChildCancellation(attempt *childCancellation, err error) {
-	if h == nil || attempt == nil {
+func (owner *runTreeOwner) abortChildCancellation(attempt *childCancellation, err error) {
+	if owner == nil || attempt == nil {
 		return
 	}
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	if h.childCancel != attempt || attempt.finished {
+	owner.mu.Lock()
+	defer owner.mu.Unlock()
+	if owner.childCancel != attempt || attempt.finished {
 		return
 	}
 	attempt.err = err
-	h.finishChildCancellationLocked(attempt)
+	owner.finishChildCancellationLocked(attempt)
 }
 
-func (h *handle) finishChildCancellationLocked(attempt *childCancellation) {
+func (owner *runTreeOwner) finishChildCancellationLocked(attempt *childCancellation) {
 	if attempt == nil || attempt.finished {
 		return
 	}
 	attempt.finished = true
-	if h.childCancel == attempt {
-		h.childCancel = nil
+	if owner.childCancel == attempt {
+		owner.childCancel = nil
 	}
 	close(attempt.done)
 }
 
-func (h *handle) classifyChildCancellationTool(
+func (owner *runTreeOwner) classifyChildCancellationTool(
 	parentRunID string,
 	itemID string,
 	event ToolCallFinished,
 ) ToolCallFinished {
-	if h == nil {
+	if owner == nil {
 		return event
 	}
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	attempt := h.childCancel
+	owner.mu.Lock()
+	defer owner.mu.Unlock()
+	attempt := owner.childCancel
 	if attempt == nil ||
 		attempt.targetTerminal == nil ||
 		attempt.parentRunID != parentRunID ||
@@ -141,13 +141,13 @@ func (h *handle) classifyChildCancellationTool(
 	return classified
 }
 
-func (h *handle) recordChildCancellationItem(parentRunID string, item transcript.Item) {
-	if h == nil {
+func (owner *runTreeOwner) recordChildCancellationItem(parentRunID string, item transcript.Item) {
+	if owner == nil {
 		return
 	}
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	attempt := h.childCancel
+	owner.mu.Lock()
+	defer owner.mu.Unlock()
+	attempt := owner.childCancel
 	if attempt == nil ||
 		attempt.targetTerminal == nil ||
 		attempt.parentRunID != parentRunID ||
@@ -168,24 +168,24 @@ func (h *handle) recordChildCancellationItem(parentRunID string, item transcript
 			item.Status,
 		)
 	}
-	h.finishChildCancellationLocked(attempt)
+	owner.finishChildCancellationLocked(attempt)
 }
 
-func (h *handle) waitChildCancellation(
+func (owner *runTreeOwner) waitChildCancellation(
 	ctx context.Context,
 	attempt *childCancellation,
 ) (transcript.Run, transcript.Run, error) {
-	if h == nil || attempt == nil {
+	if owner == nil || attempt == nil {
 		return transcript.Run{}, transcript.Run{}, errors.New("runs: missing child cancellation attempt")
 	}
 	select {
 	case <-attempt.done:
-	case <-h.done:
+	case <-owner.done:
 		select {
 		case <-attempt.done:
 		default:
-			if h.completionErr != nil {
-				return transcript.Run{}, transcript.Run{}, h.completionErr
+			if owner.completionErr != nil {
+				return transcript.Run{}, transcript.Run{}, owner.completionErr
 			}
 			return transcript.Run{}, transcript.Run{}, fmt.Errorf(
 				"runs: root segment ended before child Run %q cancellation committed its parent result",
@@ -211,26 +211,26 @@ func (h *handle) waitChildCancellation(
 // just committed. Root cancellation reads the root after joining done; child
 // cancellation arms its parent-result classification only after the target's
 // canceled terminal is durable.
-func (h *handle) recordTerminalRun(run transcript.Run) {
-	if h == nil {
+func (owner *runTreeOwner) recordTerminalRun(run transcript.Run) {
+	if owner == nil {
 		return
 	}
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	if h.terminalRuns == nil {
-		h.terminalRuns = make(map[string]transcript.Run)
+	owner.mu.Lock()
+	defer owner.mu.Unlock()
+	if owner.terminalRuns == nil {
+		owner.terminalRuns = make(map[string]transcript.Run)
 	}
-	if _, duplicate := h.terminalRuns[run.ID]; duplicate {
+	if _, duplicate := owner.terminalRuns[run.ID]; duplicate {
 		panic(fmt.Sprintf("runs: Run %q committed more than one terminal snapshot", run.ID))
 	}
-	h.terminalRuns[run.ID] = run
+	owner.terminalRuns[run.ID] = run
 	if run.Lineage().IsRoot() {
-		if h.terminalRun != nil {
+		if owner.terminalRun != nil {
 			panic("runs: live segment committed more than one root terminal snapshot")
 		}
-		h.terminalRun = &run
+		owner.terminalRun = &run
 	}
-	attempt := h.childCancel
+	attempt := owner.childCancel
 	if attempt == nil || run.ID != attempt.targetRunID {
 		return
 	}
@@ -243,7 +243,7 @@ func (h *handle) recordTerminalRun(run transcript.Run) {
 			run.ID,
 			run.State,
 		)
-		h.finishChildCancellationLocked(attempt)
+		owner.finishChildCancellationLocked(attempt)
 		return
 	}
 	terminal := run
@@ -252,7 +252,7 @@ func (h *handle) recordTerminalRun(run transcript.Run) {
 
 // interruptBoundary records the only two durable facts cancellation needs:
 // whether publication committed, and whether one publication is currently
-// owned. Both fields are guarded by handle.mu.
+// owned. Both fields are guarded by runTreeOwner.mu.
 type interruptBoundary struct {
 	committed bool
 	active    *interruptCommit
@@ -268,34 +268,34 @@ type interruptCommit struct {
 // requestCancel linearizes cancellation with child cancellation and interrupt
 // publication. Once it returns successfully, no child cancellation or new
 // interrupt can own this tree.
-func (h *handle) requestCancel(
+func (owner *runTreeOwner) requestCancel(
 	ctx context.Context,
 	reason string,
 	requestExecutor func(context.Context) error,
 ) (interruptCommitted bool, err error) {
-	if h == nil {
+	if owner == nil {
 		return false, nil
 	}
-	h.mu.Lock()
-	if h.childCancel != nil {
-		targetRunID := h.childCancel.targetRunID
-		h.mu.Unlock()
+	owner.mu.Lock()
+	if owner.childCancel != nil {
+		targetRunID := owner.childCancel.targetRunID
+		owner.mu.Unlock()
 		return false, fmt.Errorf(
 			"%w: child Run %q cancellation owns the tree",
 			ErrSessionBusy,
 			targetRunID,
 		)
 	}
-	h.cancelRequested = true
-	h.cancelReason = reason
-	inflight := h.interrupt.active
-	h.mu.Unlock()
+	owner.cancelRequested = true
+	owner.cancelReason = reason
+	inflight := owner.interrupt.active
+	owner.mu.Unlock()
 	if requestExecutor == nil {
-		h.abortRootCancellation(reason)
+		owner.abortRootCancellation(reason)
 		return false, errors.New("runs: root executor cancellation request is unavailable")
 	}
 	if err := requestExecutor(ctx); err != nil {
-		h.abortRootCancellation(reason)
+		owner.abortRootCancellation(reason)
 		return false, err
 	}
 	if inflight != nil {
@@ -308,18 +308,18 @@ func (h *handle) requestCancel(
 			return false, ctx.Err()
 		}
 	}
-	h.mu.Lock()
-	committed := h.interrupt.committed
-	h.mu.Unlock()
+	owner.mu.Lock()
+	committed := owner.interrupt.committed
+	owner.mu.Unlock()
 	return committed, nil
 }
 
-func (h *handle) abortRootCancellation(reason string) {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	if h.cancelRequested && h.cancelReason == reason {
-		h.cancelRequested = false
-		h.cancelReason = ""
+func (owner *runTreeOwner) abortRootCancellation(reason string) {
+	owner.mu.Lock()
+	defer owner.mu.Unlock()
+	if owner.cancelRequested && owner.cancelReason == reason {
+		owner.cancelRequested = false
+		owner.cancelReason = ""
 	}
 }
 
@@ -327,35 +327,35 @@ func (h *handle) abortRootCancellation(reason string) {
 // durable commit and publication without holding mu, then releases waiting
 // cancellation. committed=false means cancellation won before the reservation
 // or the commit failed.
-func (h *handle) commitInterrupt(ctx context.Context, commit func(context.Context) error) (committed bool, err error) {
-	if h == nil {
-		return false, errors.New("runs: missing live run handle")
+func (owner *runTreeOwner) commitInterrupt(ctx context.Context, commit func(context.Context) error) (committed bool, err error) {
+	if owner == nil {
+		return false, errors.New("runs: missing live Run-tree owner")
 	}
 	commitCtx, cancelCommit := context.WithTimeout(ctx, runCleanupTimeout)
-	h.mu.Lock()
-	if h.cancelRequested {
-		h.mu.Unlock()
+	owner.mu.Lock()
+	if owner.cancelRequested {
+		owner.mu.Unlock()
 		cancelCommit()
 		return false, nil
 	}
-	if h.interrupt.committed || h.interrupt.active != nil {
-		h.mu.Unlock()
+	if owner.interrupt.committed || owner.interrupt.active != nil {
+		owner.mu.Unlock()
 		cancelCommit()
 		return false, errors.New("runs: interrupt boundary already resolved")
 	}
 	inflight := &interruptCommit{done: make(chan struct{}), cancel: cancelCommit}
-	h.interrupt.active = inflight
-	h.mu.Unlock()
+	owner.interrupt.active = inflight
+	owner.mu.Unlock()
 
 	err = commit(commitCtx)
 	cancelCommit()
-	h.mu.Lock()
+	owner.mu.Lock()
 	if err == nil {
-		h.interrupt.committed = true
+		owner.interrupt.committed = true
 	}
 	close(inflight.done)
-	h.interrupt.active = nil
-	h.mu.Unlock()
+	owner.interrupt.active = nil
+	owner.mu.Unlock()
 	if err != nil {
 		return false, err
 	}
@@ -364,28 +364,28 @@ func (h *handle) commitInterrupt(ctx context.Context, commit func(context.Contex
 
 // CancelReason returns the recorded human cancel reason. It is late-bound on
 // purpose because cancellation can arrive after the segment starts.
-func (h *handle) CancelReason() string {
-	if h == nil {
+func (owner *runTreeOwner) CancelReason() string {
+	if owner == nil {
 		return ""
 	}
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	return h.cancelReason
+	owner.mu.Lock()
+	defer owner.mu.Unlock()
+	return owner.cancelReason
 }
 
 // CancelReasonFor returns the reason owned by runID's winning cancellation
 // plan. A child operation applies its reason only to the target subtree; the
 // root reason remains independent for a later whole-tree cancellation.
-func (h *handle) CancelReasonFor(runID string) string {
-	if h == nil {
+func (owner *runTreeOwner) CancelReasonFor(runID string) string {
+	if owner == nil {
 		return ""
 	}
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	if h.childCancel != nil {
-		if _, targeted := h.childCancel.targetRunIDs[runID]; targeted {
-			return h.childCancel.reason
+	owner.mu.Lock()
+	defer owner.mu.Unlock()
+	if owner.childCancel != nil {
+		if _, targeted := owner.childCancel.targetRunIDs[runID]; targeted {
+			return owner.childCancel.reason
 		}
 	}
-	return h.cancelReason
+	return owner.cancelReason
 }

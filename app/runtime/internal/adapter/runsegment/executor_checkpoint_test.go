@@ -7,7 +7,9 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 )
 
-func testExecutorCheckpoint(rootProcessID string) runs.ExecutorCheckpoint {
+func testRootExecutorCheckpoint() runs.ExecutorCheckpoint {
+	const rootProcessID = "proc_1"
+
 	selection, err := modelref.New("anthropic", "claude")
 	if err != nil {
 		panic(err)

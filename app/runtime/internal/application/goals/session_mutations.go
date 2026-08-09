@@ -110,28 +110,28 @@ func (m *SessionMutations) WithSessionMutation(
 	if err := commit(ctx); err != nil {
 		return err
 	}
-	type ownedHandle struct {
+	type ownedLoop struct {
 		sessionID string
-		handle    *loopHandle
+		loop      *loopHandle
 	}
-	handles := make([]ownedHandle, 0, len(sessionIDs))
+	loops := make([]ownedLoop, 0, len(sessionIDs))
 	for _, sessionID := range sessionIDs {
-		if handle := m.quiesce(sessionID); handle != nil {
-			handles = append(handles, ownedHandle{sessionID: sessionID, handle: handle})
+		if loop := m.quiesce(sessionID); loop != nil {
+			loops = append(loops, ownedLoop{sessionID: sessionID, loop: loop})
 		}
 	}
 	var errs []error
-	for _, owned := range handles {
-		errs = append(errs, owned.handle.wait(ctx))
-		if owned.handle.finished() {
-			m.forget(owned.sessionID, owned.handle)
+	for _, owned := range loops {
+		errs = append(errs, owned.loop.wait(ctx))
+		if owned.loop.finished() {
+			m.forget(owned.sessionID, owned.loop)
 		}
 	}
 	errs = append(errs, afterCommit(ctx))
 	return errors.Join(errs...)
 }
 
-func (m *SessionMutations) launch(sessionID string, handle *loopHandle) {
+func (m *SessionMutations) launch(sessionID string, loop *loopHandle) {
 	m.mu.Lock()
 	if m.running == nil {
 		m.running = map[string]*loopHandle{}
@@ -140,13 +140,13 @@ func (m *SessionMutations) launch(sessionID string, handle *loopHandle) {
 		m.mu.Unlock()
 		panic("goals: launch attempted before the prior session driver was joined")
 	}
-	m.running[sessionID] = handle
+	m.running[sessionID] = loop
 	m.mu.Unlock()
 }
 
-func (m *SessionMutations) forget(sessionID string, handle *loopHandle) {
+func (m *SessionMutations) forget(sessionID string, loop *loopHandle) {
 	m.mu.Lock()
-	if m.running[sessionID] == handle {
+	if m.running[sessionID] == loop {
 		delete(m.running, sessionID)
 	}
 	m.mu.Unlock()
@@ -154,15 +154,15 @@ func (m *SessionMutations) forget(sessionID string, handle *loopHandle) {
 
 func (m *SessionMutations) quiesce(sessionID string) *loopHandle {
 	m.mu.Lock()
-	handle := m.running[sessionID]
+	loop := m.running[sessionID]
 	m.mu.Unlock()
-	if handle != nil {
-		handle.quiesce()
+	if loop != nil {
+		loop.quiesce()
 	}
-	return handle
+	return loop
 }
 
-func (m *SessionMutations) driver(sessionID string) *loopHandle {
+func (m *SessionMutations) activeLoop(sessionID string) *loopHandle {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.running[sessionID]

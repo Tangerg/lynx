@@ -174,9 +174,9 @@ func (c *Coordinator) dispatchConnection(
 // A registry mutation, reconnect, or authorization attempt supersedes the previous dial by
 // canceling its context; connection commands must honor ctx while dialing and
 // reject a stale completion through their per-server generation check.
-func (c *Coordinator) replaceDial(ctx context.Context, name string) (context.Context, *dial) {
+func (c *Coordinator) replaceDial(ctx context.Context, name string) (context.Context, *activeDial) {
 	dialCtx, cancel := context.WithCancel(ctx)
-	dial := &dial{cancel: cancel}
+	dial := &activeDial{cancel: cancel}
 	c.dialMu.Lock()
 	if previous := c.dials[name]; previous != nil {
 		previous.cancel()
@@ -195,7 +195,7 @@ func (c *Coordinator) cancelDial(name string) {
 	c.dialMu.Unlock()
 }
 
-func (c *Coordinator) clearDial(name string, dial *dial) {
+func (c *Coordinator) clearDial(name string, dial *activeDial) {
 	c.dialMu.Lock()
 	if c.dials[name] == dial {
 		delete(c.dials, name)
@@ -203,7 +203,7 @@ func (c *Coordinator) clearDial(name string, dial *dial) {
 	c.dialMu.Unlock()
 }
 
-func (c *Coordinator) currentDial(name string, dial *dial) bool {
+func (c *Coordinator) currentDial(name string, dial *activeDial) bool {
 	c.dialMu.Lock()
 	defer c.dialMu.Unlock()
 	return c.dials[name] == dial

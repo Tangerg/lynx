@@ -381,7 +381,7 @@ func (s *Server) subscribedTopics(requested []protocol.RuntimeTopic) (map[protoc
 	topics := make(map[protocol.RuntimeTopic]bool, len(requested))
 	for _, topic := range requested {
 		if !slices.Contains(advertised, topic) {
-			return nil, protocol.NewCapabilityGap(protocol.CapabilityRequirement{
+			return nil, protocol.NewCapabilityGapError(protocol.CapabilityRequirement{
 				Type: protocol.RequirementRuntimeTopic, Name: string(topic),
 			})
 		}
@@ -427,7 +427,7 @@ func validateWorkspaceWatches(watches []protocol.WatchSpec, topics map[protocol.
 // capability and delegates all other workspace failures to the shared mapper.
 func mapWorkspaceWatchError(err error) error {
 	if errors.Is(err, workspaceapp.ErrFileWatchUnavailable) {
-		return protocol.NewCapabilityGap(protocol.CapabilityRequirement{
+		return protocol.NewCapabilityGapError(protocol.CapabilityRequirement{
 			Type: protocol.RequirementFeature, Name: protocol.FeatureFileWatch,
 		})
 	}

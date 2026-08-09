@@ -18,7 +18,7 @@ func TestBeginStartsOnceAndSharesAttempt(t *testing.T) {
 
 	first := step.Begin(t.Context())
 	second := step.Begin(t.Context())
-	if _, complete := first.Result(); complete {
+	if complete, _ := first.Result(); complete {
 		t.Fatal("attempt completed before action was released")
 	}
 	close(release)

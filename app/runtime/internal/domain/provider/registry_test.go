@@ -20,12 +20,12 @@ func TestPatchDistinguishesPreserveReplaceAndClear(t *testing.T) {
 		t.Fatalf("replace endpoint = %+v", updated)
 	}
 
-	clear := ""
-	updated = updated.Apply(Patch{APIKey: &clear})
+	emptyAPIKey := ""
+	updated = updated.Apply(Patch{APIKey: &emptyAPIKey})
 	if updated.APIKey != "" || updated.BaseURL != baseURL {
 		t.Fatalf("clear key = %+v", updated)
 	}
-	if !(Patch{}).Empty() || (Patch{APIKey: &clear}).Empty() {
+	if !(Patch{}).Empty() || (Patch{APIKey: &emptyAPIKey}).Empty() {
 		t.Fatal("Patch.Empty does not distinguish preserve from clear")
 	}
 }

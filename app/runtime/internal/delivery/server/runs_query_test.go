@@ -81,7 +81,7 @@ func TestListRunsPublishesTheWholeHistoryNewestFirst(t *testing.T) {
 // root/exact-run defaults.
 func TestDescendantFiltersReachTheDurableQueries(t *testing.T) {
 	s, rt := rollbackHarness(t)
-	putSession(t, rt, "ses_1")
+	putTestSession(t, rt)
 	putRun(t, rt, "ses_1", "run_root", 10, 1)
 	putChildRun(t, rt, "ses_1", "run_child", 20, 2)
 	putUserItem(t, rt, "ses_1", "run_root", "item_root", "root")
@@ -182,7 +182,7 @@ func TestGetRunResolvesARunWithoutItsSession(t *testing.T) {
 
 func TestChildRunReadsRequireNegotiatedSubagents(t *testing.T) {
 	s, rt := rollbackHarness(t)
-	putSession(t, rt, "ses_1")
+	putTestSession(t, rt)
 	putRun(t, rt, "ses_1", "run_root", 10, 1)
 	putChildRun(t, rt, "ses_1", "run_child", 11, 2)
 	putUserItem(t, rt, "ses_1", "run_child", "it_child", "delegated")
@@ -244,7 +244,7 @@ func TestChildRunCannotBecomeAnIndependentSubscriptionRoot(t *testing.T) {
 
 func assertSubagentCapabilityGap(t *testing.T, operation string, err error) {
 	t.Helper()
-	var gap *protocol.CapabilityGap
+	var gap *protocol.CapabilityGapError
 	if !errors.As(err, &gap) {
 		t.Fatalf("%s = %v, want typed capability gap", operation, err)
 	}
@@ -278,7 +278,7 @@ func putChildRun(t *testing.T, rt *stubRuntime, sessionID, runID string, atUnix 
 // and a long session does not ship its whole run list on every page.
 func TestListItemsReadsTheScopeItWasGiven(t *testing.T) {
 	s, rt := rollbackHarness(t)
-	putSession(t, rt, "ses_1")
+	putTestSession(t, rt)
 	putRun(t, rt, "ses_1", "run_1", 10, 1)
 	putRun(t, rt, "ses_1", "run_2", 20, 2)
 	putUserItem(t, rt, "ses_1", "run_1", "it_1", "first")
@@ -313,7 +313,7 @@ func TestListItemsReadsTheScopeItWasGiven(t *testing.T) {
 // empty page: the client's next move differs, so the two subjects get two errors.
 func TestListItemsRefusesAScopeItCannotServe(t *testing.T) {
 	s, rt := rollbackHarness(t)
-	putSession(t, rt, "ses_1")
+	putTestSession(t, rt)
 	putRun(t, rt, "ses_1", "run_1", 10, 1)
 
 	tests := []struct {
@@ -370,7 +370,7 @@ func TestListItemsRefusesAScopeItCannotServe(t *testing.T) {
 // sequence from the other end, which is what a long session's first screen needs.
 func TestListItemsReadsBackwardWhenAsked(t *testing.T) {
 	s, rt := rollbackHarness(t)
-	putSession(t, rt, "ses_1")
+	putTestSession(t, rt)
 	putRun(t, rt, "ses_1", "run_1", 10, 1)
 	putUserItem(t, rt, "ses_1", "run_1", "it_1", "first")
 	putUserItem(t, rt, "ses_1", "run_1", "it_2", "second")

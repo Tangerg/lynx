@@ -65,10 +65,10 @@ func checkpointHarness(t *testing.T) (*Server, *stubRuntime, *workspace.Checkpoi
 	return s, rt, cp, ses.ID, cwd
 }
 
-func writeFile(t *testing.T, cwd, name, body string) {
+func writeCheckpointFile(t *testing.T, cwd, body string) {
 	t.Helper()
-	if err := os.WriteFile(filepath.Join(cwd, name), []byte(body), 0o644); err != nil {
-		t.Fatalf("write %s: %v", name, err)
+	if err := os.WriteFile(filepath.Join(cwd, "a.txt"), []byte(body), 0o644); err != nil {
+		t.Fatalf("write checkpoint fixture: %v", err)
 	}
 }
 
@@ -78,13 +78,13 @@ func TestRollback_RestoreBoth(t *testing.T) {
 	s, rt, cp, sid, cwd := checkpointHarness(t)
 	ctx := context.Background()
 
-	writeFile(t, cwd, "a.txt", "v1")
+	writeCheckpointFile(t, cwd, "v1")
 	if err := cp.Snapshot(ctx, sid, cwd, "run1"); err != nil {
 		t.Fatalf("snapshot run1: %v", err)
 	}
 	putRun(t, rt, sid, "run1", 1, 1)
 
-	writeFile(t, cwd, "a.txt", "v2")
+	writeCheckpointFile(t, cwd, "v2")
 	if err := cp.Snapshot(ctx, sid, cwd, "run2"); err != nil {
 		t.Fatalf("snapshot run2: %v", err)
 	}
@@ -110,10 +110,10 @@ func TestRollback_RestoreFilesKeepsHistory(t *testing.T) {
 	s, rt, cp, sid, cwd := checkpointHarness(t)
 	ctx := context.Background()
 
-	writeFile(t, cwd, "a.txt", "v1")
+	writeCheckpointFile(t, cwd, "v1")
 	cp.Snapshot(ctx, sid, cwd, "run1")
 	putRun(t, rt, sid, "run1", 1, 1)
-	writeFile(t, cwd, "a.txt", "v2")
+	writeCheckpointFile(t, cwd, "v2")
 	cp.Snapshot(ctx, sid, cwd, "run2")
 	putRun(t, rt, sid, "run2", 2, 2)
 
@@ -141,12 +141,12 @@ func TestRollback_RestoreBoth_ClearsIntent(t *testing.T) {
 	s, rt, cp, sid, cwd := checkpointHarness(t)
 	ctx := context.Background()
 
-	writeFile(t, cwd, "a.txt", "v1")
+	writeCheckpointFile(t, cwd, "v1")
 	if err := cp.Snapshot(ctx, sid, cwd, "run1"); err != nil {
 		t.Fatalf("snapshot run1: %v", err)
 	}
 	putRun(t, rt, sid, "run1", 1, 1)
-	writeFile(t, cwd, "a.txt", "v2")
+	writeCheckpointFile(t, cwd, "v2")
 	if err := cp.Snapshot(ctx, sid, cwd, "run2"); err != nil {
 		t.Fatalf("snapshot run2: %v", err)
 	}
@@ -170,12 +170,12 @@ func TestRecoverRollbacks(t *testing.T) {
 	s, rt, cp, sid, cwd := checkpointHarness(t)
 	ctx := context.Background()
 
-	writeFile(t, cwd, "a.txt", "v1")
+	writeCheckpointFile(t, cwd, "v1")
 	if err := cp.Snapshot(ctx, sid, cwd, "run1"); err != nil {
 		t.Fatalf("snapshot run1: %v", err)
 	}
 	putRun(t, rt, sid, "run1", 1, 1)
-	writeFile(t, cwd, "a.txt", "v2")
+	writeCheckpointFile(t, cwd, "v2")
 	if err := cp.Snapshot(ctx, sid, cwd, "run2"); err != nil {
 		t.Fatalf("snapshot run2: %v", err)
 	}
@@ -212,7 +212,7 @@ func TestRecoverRollbacks_Idempotent(t *testing.T) {
 	s, rt, cp, sid, cwd := checkpointHarness(t)
 	ctx := context.Background()
 
-	writeFile(t, cwd, "a.txt", "v1")
+	writeCheckpointFile(t, cwd, "v1")
 	if err := cp.Snapshot(ctx, sid, cwd, "run1"); err != nil {
 		t.Fatalf("snapshot run1: %v", err)
 	}
@@ -243,12 +243,12 @@ func TestRecoverRollbacks_FilesOnly(t *testing.T) {
 	s, rt, cp, sid, cwd := checkpointHarness(t)
 	ctx := context.Background()
 
-	writeFile(t, cwd, "a.txt", "v1")
+	writeCheckpointFile(t, cwd, "v1")
 	if err := cp.Snapshot(ctx, sid, cwd, "run1"); err != nil {
 		t.Fatalf("snapshot run1: %v", err)
 	}
 	putRun(t, rt, sid, "run1", 1, 1)
-	writeFile(t, cwd, "a.txt", "v2")
+	writeCheckpointFile(t, cwd, "v2")
 	if err := cp.Snapshot(ctx, sid, cwd, "run2"); err != nil {
 		t.Fatalf("snapshot run2: %v", err)
 	}

@@ -27,7 +27,7 @@ func TestSidecarInfo(t *testing.T) {
 		t.Fatalf("get info: %v", err)
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != 200 {
+	if resp.StatusCode != netHTTP.StatusOK {
 		t.Fatalf("status = %d", resp.StatusCode)
 	}
 	var body struct {
@@ -59,7 +59,7 @@ func TestSidecarHealth(t *testing.T) {
 		t.Fatalf("get health: %v", err)
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != 200 {
+	if resp.StatusCode != netHTTP.StatusOK {
 		t.Fatalf("status = %d", resp.StatusCode)
 	}
 	var body struct {
@@ -85,7 +85,7 @@ func TestDiscoverOverRPC(t *testing.T) {
 		t.Fatalf("post rpc: %v", err)
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != 200 {
+	if resp.StatusCode != netHTTP.StatusOK {
 		t.Fatalf("status = %d", resp.StatusCode)
 	}
 	var env struct {
@@ -118,7 +118,7 @@ func TestRPCMethodHeader(t *testing.T) {
 		t.Fatalf("post discover: %v", err)
 	}
 	discoverResp.Body.Close()
-	if discoverResp.StatusCode != 200 {
+	if discoverResp.StatusCode != netHTTP.StatusOK {
 		t.Fatalf("discover status = %d", discoverResp.StatusCode)
 	}
 	if got := discoverResp.Header.Get("X-Method"); got != "runtime.discover" {
@@ -131,7 +131,7 @@ func TestRPCMethodHeader(t *testing.T) {
 		t.Fatalf("post unknown method: %v", err)
 	}
 	defer unknownResp.Body.Close()
-	if unknownResp.StatusCode != 200 {
+	if unknownResp.StatusCode != netHTTP.StatusOK {
 		t.Fatalf("unknown method status = %d", unknownResp.StatusCode)
 	}
 	if got := unknownResp.Header.Get("X-Method"); got != "test.unknown" {
@@ -150,7 +150,7 @@ func TestUnknownRPCEndpointReturns404(t *testing.T) {
 		t.Fatalf("post: %v", err)
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != 404 {
+	if resp.StatusCode != netHTTP.StatusNotFound {
 		raw := readBody(resp)
 		t.Fatalf("status = %d, want 404; body = %s", resp.StatusCode, raw)
 	}
@@ -171,7 +171,7 @@ func TestUnknownMethodReturnsRPCError(t *testing.T) {
 		t.Fatalf("post: %v", err)
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != 200 {
+	if resp.StatusCode != netHTTP.StatusOK {
 		t.Fatalf("status = %d, want 200", resp.StatusCode)
 	}
 	if code := decodeErrorCode(t, resp); code != -32601 {
@@ -191,7 +191,7 @@ func TestBusinessMethodDoesNotRequireDiscover(t *testing.T) {
 		t.Fatalf("post: %v", err)
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != 200 {
+	if resp.StatusCode != netHTTP.StatusOK {
 		raw := readBody(resp)
 		t.Fatalf("status = %d, want 200; body = %s", resp.StatusCode, raw)
 	}
@@ -248,7 +248,7 @@ func TestRPCUsesEnvelopeMethod(t *testing.T) {
 		t.Fatalf("post: %v", err)
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != 200 {
+	if resp.StatusCode != netHTTP.StatusOK {
 		raw := readBody(resp)
 		t.Fatalf("status = %d, want 200; body = %s", resp.StatusCode, raw)
 	}
@@ -266,7 +266,7 @@ func TestNonStringIDRejected(t *testing.T) {
 		t.Fatalf("post: %v", err)
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != 200 {
+	if resp.StatusCode != netHTTP.StatusOK {
 		raw := readBody(resp)
 		t.Fatalf("status = %d, want 200; body = %s", resp.StatusCode, raw)
 	}
@@ -295,7 +295,7 @@ func TestRunsCancelIsRequest(t *testing.T) {
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != 200 {
+	if resp.StatusCode != netHTTP.StatusOK {
 		raw := readBody(resp)
 		t.Fatalf("status = %d, want 200; body = %s", resp.StatusCode, raw)
 	}
@@ -350,7 +350,7 @@ func TestNotificationReturns204(t *testing.T) {
 		t.Fatalf("post: %v", err)
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != 204 {
+	if resp.StatusCode != netHTTP.StatusNoContent {
 		raw := readBody(resp)
 		t.Fatalf("status = %d, want 204; body = %s", resp.StatusCode, raw)
 	}
@@ -369,7 +369,7 @@ func TestBodyTooLargeReturns413(t *testing.T) {
 		t.Fatalf("post: %v", err)
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != 413 {
+	if resp.StatusCode != netHTTP.StatusRequestEntityTooLarge {
 		t.Fatalf("status = %d, want 413", resp.StatusCode)
 	}
 }
@@ -386,7 +386,7 @@ func TestUnsupportedMediaTypeReturns415(t *testing.T) {
 		t.Fatalf("post: %v", err)
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != 415 {
+	if resp.StatusCode != netHTTP.StatusUnsupportedMediaType {
 		t.Fatalf("status = %d, want 415", resp.StatusCode)
 	}
 }
@@ -432,7 +432,7 @@ func TestMethodNotAllowedHasAllow(t *testing.T) {
 		t.Fatalf("do: %v", err)
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != 405 {
+	if resp.StatusCode != netHTTP.StatusMethodNotAllowed {
 		t.Fatalf("status = %d, want 405", resp.StatusCode)
 	}
 	if allow := resp.Header.Get("Allow"); !strings.Contains(allow, "POST") {

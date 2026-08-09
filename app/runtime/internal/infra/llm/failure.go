@@ -58,15 +58,15 @@ func classifyModelError(err error) error {
 	if err == nil || errors.Is(err, context.Canceled) {
 		return err
 	}
-	var classified *run.Failure
+	var classified *run.FailureError
 	if errors.As(err, &classified) {
 		return err
 	}
 	if errors.Is(err, context.DeadlineExceeded) {
-		return &run.Failure{Kind: run.FailureTimeout, Err: err}
+		return &run.FailureError{Kind: run.FailureTimeout, Err: err}
 	}
 	if status, header, ok := providerHTTPError(err); ok {
-		return &run.Failure{
+		return &run.FailureError{
 			Kind:       failureKindForHTTPStatus(status),
 			RetryAfter: retryAfter(header, time.Now()),
 			Err:        err,
@@ -78,7 +78,7 @@ func classifyModelError(err error) error {
 		if netErr.Timeout() {
 			kind = run.FailureTimeout
 		}
-		return &run.Failure{Kind: kind, Err: err}
+		return &run.FailureError{Kind: kind, Err: err}
 	}
 	return err
 }

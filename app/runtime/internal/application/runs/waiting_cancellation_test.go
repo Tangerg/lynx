@@ -61,7 +61,7 @@ func (prepared *fakePreparedWaitingCancellation) value() PreparedWaitingSubtreeC
 }
 
 func TestPrepareWaitingCancellationRejectsCheckpointBoundToDifferentApplicationFacts(t *testing.T) {
-	plan := waitingCancellationPlan(t, "run_a", false)
+	plan := runACancellationPlan(t, false)
 	for name, mutate := range map[string]func(*ExecutorCheckpoint){
 		"root":       func(checkpoint *ExecutorCheckpoint) { checkpoint.RootMemberID = "other_root" },
 		"session":    func(checkpoint *ExecutorCheckpoint) { checkpoint.Scope.SessionID = "other_session" },
@@ -126,7 +126,7 @@ func (prepared *fakePreparedWaitingCancellation) Discard() error {
 }
 
 func TestPrepareWaitingCancellationKeepsSurvivingExternalBoundary(t *testing.T) {
-	plan := waitingCancellationPlan(t, "run_a", false)
+	plan := runACancellationPlan(t, false)
 	prepared := &fakePreparedWaitingCancellation{
 		canceled: []string{"member_a", "member_grandchild"},
 		interruptions: []MemberInterruption{{
@@ -183,7 +183,7 @@ func TestPrepareWaitingCancellationKeepsSurvivingExternalBoundary(t *testing.T) 
 }
 
 func TestPrepareWaitingCancellationContinuesAfterFinalBoundaryIsRemoved(t *testing.T) {
-	plan := waitingCancellationPlan(t, "run_a", true)
+	plan := runACancellationPlan(t, true)
 	prepared := &fakePreparedWaitingCancellation{
 		canceled: []string{"member_a", "member_grandchild"},
 	}
@@ -234,7 +234,7 @@ func TestPublishWaitingChildCancellationInvalidatesExactReadSet(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			plan := waitingCancellationPlan(t, "run_a", test.finalBoundary)
+			plan := runACancellationPlan(t, test.finalBoundary)
 			prepared := &fakePreparedWaitingCancellation{
 				canceled:      []string{"member_a", "member_grandchild"},
 				interruptions: test.interruptions,
@@ -266,7 +266,7 @@ func TestPublishWaitingChildCancellationInvalidatesExactReadSet(t *testing.T) {
 }
 
 func TestCancelWaitingChildCommitsReducedPendingBeforeRuntimeTransition(t *testing.T) {
-	plan := waitingCancellationPlan(t, "run_a", false)
+	plan := runACancellationPlan(t, false)
 	prepared := &fakePreparedWaitingCancellation{
 		canceled: []string{"member_a", "member_grandchild"},
 		interruptions: []MemberInterruption{{
@@ -319,7 +319,7 @@ func TestCancelWaitingChildCommitsReducedPendingBeforeRuntimeTransition(t *testi
 }
 
 func TestCancelWaitingChildRestoresCommittedTreeWhenRuntimeApplyFails(t *testing.T) {
-	plan := waitingCancellationPlan(t, "run_a", false)
+	plan := runACancellationPlan(t, false)
 	applyErr := errors.New("runtime apply failed")
 	prepared := &fakePreparedWaitingCancellation{
 		canceled: []string{"member_a", "member_grandchild"},
@@ -380,7 +380,7 @@ func TestCancelWaitingChildRestoresCommittedTreeWhenRuntimeApplyFails(t *testing
 }
 
 func TestCancelWaitingChildMarksRunLostOnlyWhenCommittedCheckpointCannotRestore(t *testing.T) {
-	plan := waitingCancellationPlan(t, "run_a", false)
+	plan := runACancellationPlan(t, false)
 	applyErr := errors.New("runtime apply failed")
 	restoreErr := errors.New("committed checkpoint is corrupt")
 	prepared := &fakePreparedWaitingCancellation{
@@ -422,7 +422,7 @@ func TestCancelWaitingChildMarksRunLostOnlyWhenCommittedCheckpointCannotRestore(
 }
 
 func TestCancelWaitingChildPassesDurableTreeToExecutorAfterRuntimeRestart(t *testing.T) {
-	plan := waitingCancellationPlan(t, "run_a", false)
+	plan := runACancellationPlan(t, false)
 	prepared := &fakePreparedWaitingCancellation{
 		canceled: []string{"member_a", "member_grandchild"},
 		interruptions: []MemberInterruption{{
@@ -478,7 +478,7 @@ func TestCancelWaitingChildPassesDurableTreeToExecutorAfterRuntimeRestart(t *tes
 }
 
 func TestCancelWaitingChildOpensContinuationWhenFinalBoundaryIsRemoved(t *testing.T) {
-	plan := waitingCancellationPlan(t, "run_a", true)
+	plan := runACancellationPlan(t, true)
 	prepared := &fakePreparedWaitingCancellation{
 		canceled: []string{"member_a", "member_grandchild"},
 	}
@@ -554,7 +554,7 @@ func TestCancelWaitingChildOpensContinuationWhenFinalBoundaryIsRemoved(t *testin
 }
 
 func TestCancelWaitingChildTerminalizesCommittedTreeWhenActivationFails(t *testing.T) {
-	plan := waitingCancellationPlan(t, "run_a", true)
+	plan := runACancellationPlan(t, true)
 	continueErr := errors.New("continue failed")
 	prepared := &fakePreparedWaitingCancellation{
 		canceled:    []string{"member_a", "member_grandchild"},
@@ -656,7 +656,7 @@ func TestCancelWaitingChildTerminalizesCommittedTreeWhenActivationFails(t *testi
 }
 
 func TestCancelWaitingChildAbortsPreparedOperationWhenDurableCommitFails(t *testing.T) {
-	plan := waitingCancellationPlan(t, "run_a", false)
+	plan := runACancellationPlan(t, false)
 	prepared := &fakePreparedWaitingCancellation{
 		canceled: []string{"member_a", "member_grandchild"},
 		interruptions: []MemberInterruption{{
@@ -750,12 +750,13 @@ func waitingCancellationCoordinator(
 	return coordinator, control
 }
 
-func waitingCancellationPlan(
+func runACancellationPlan(
 	t *testing.T,
-	targetRunID string,
 	finalBoundary bool,
 ) cancellationPlan {
 	t.Helper()
+	const targetRunID = "run_a"
+
 	createdAt := time.Date(2026, 7, 30, 1, 2, 3, 0, time.UTC)
 	pending := resumedTreePending(createdAt)
 	if finalBoundary {

@@ -440,7 +440,7 @@ func (c *Coordinator) ListPendingInterruptPage(ctx context.Context, sessionID, r
 	})
 	for _, pending := range page.Rows {
 		if gap := pending.Capabilities.MissingFrom(caller); !gap.IsEmpty() {
-			return pagination.Page[runs.Pending]{}, &run.InsufficientCapabilities{RunID: pending.RootRunID, Missing: gap}
+			return pagination.Page[runs.Pending]{}, &run.InsufficientCapabilitiesError{RunID: pending.RootRunID, Missing: gap}
 		}
 	}
 	return page, nil

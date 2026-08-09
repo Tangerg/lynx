@@ -58,7 +58,7 @@ func (r *ChatResolver) ResolveChat(ctx context.Context, selection modelref.Selec
 		return nil, err
 	}
 	if !ok || !entry.Enabled() {
-		return nil, &run.Failure{
+		return nil, &run.FailureError{
 			Kind: run.FailureInvalidCredentials,
 			Err:  fmt.Errorf("modelclient: provider %q is not configured (set its API key first)", providerID),
 		}

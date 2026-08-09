@@ -345,7 +345,7 @@ func TestCommitTreeBarrierRecordsPendingSetAndSuspends(t *testing.T) {
 
 	err := effects.CommitTreeBarrier(context.Background(), runs.TreeBarrierCommit{
 		Pending:    pending,
-		Checkpoint: testExecutorCheckpoint("proc_1"),
+		Checkpoint: testRootExecutorCheckpoint(),
 		Runs: []runs.EventCommit{{
 			RunID:     "run_1",
 			SessionID: "ses_1",
@@ -402,7 +402,7 @@ func TestCommitTreeBarrierRejectsIncompleteContinuation(t *testing.T) {
 
 	err := effects.CommitTreeBarrier(context.Background(), runs.TreeBarrierCommit{
 		Pending:    pending,
-		Checkpoint: testExecutorCheckpoint("proc_1"),
+		Checkpoint: testRootExecutorCheckpoint(),
 		Runs: []runs.EventCommit{{
 			RunID: "run_1", SessionID: "ses_1", State: runs.StateSuspend,
 			Run: &transcript.Run{
@@ -449,7 +449,7 @@ func TestCommitTreeBarrierRejectsMismatchedCheckpointBindingBeforeTransaction(t 
 			stores := &fakeStores{interrupts: &fakeInterrupts{}}
 			tx := &fakeTx{}
 			effects := testEffects(stores, Config{State: &fakeRunState{}, Tx: tx.run})
-			checkpoint := testExecutorCheckpoint("proc_1")
+			checkpoint := testRootExecutorCheckpoint()
 			mutate(&checkpoint)
 			err := effects.CommitTreeBarrier(t.Context(), runs.TreeBarrierCommit{
 				Pending:    pending,
@@ -537,7 +537,7 @@ func TestCommitTreeBarrierRejectsRunContinuationFactDriftBeforeTransaction(t *te
 				MessageMark:    transcript.UnknownMessageMark,
 			}
 			test.mutate(&pending, &run)
-			checkpoint := testExecutorCheckpoint("proc_1")
+			checkpoint := testRootExecutorCheckpoint()
 			checkpoint.Scope.GoalLeaseID = pending.GoalLeaseID
 			checkpoint.Limits = pending.Continuations[0].Limits
 			stores := &fakeStores{interrupts: &fakeInterrupts{}}

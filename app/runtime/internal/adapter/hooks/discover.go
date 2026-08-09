@@ -49,14 +49,14 @@ func load(ctx context.Context, cwd, home string, includeProject bool) ([]domainh
 			return nil
 		}
 		seen[abs] = struct{}{}
-		cfg, ok, err := readConfig(abs)
+		file, ok, err := readHooksFile(abs)
 		if err != nil {
 			return fmt.Errorf("hooks: load config %q: %w", abs, err)
 		}
 		if !ok {
 			return nil
 		}
-		for _, wire := range cfg.Hooks {
+		for _, wire := range file.Hooks {
 			h := wire.domain()
 			h.Scope = scope
 			h.Source = abs
@@ -80,7 +80,8 @@ func load(ctx context.Context, cwd, home string, includeProject bool) ([]domainh
 	return out, nil
 }
 
-type config struct {
+// hooksFile is the validated wire shape of one hooks.json file.
+type hooksFile struct {
 	Hooks []hookWire `json:"hooks"`
 }
 
@@ -99,36 +100,35 @@ func (wire hookWire) domain() domainhooks.Hook {
 	}
 }
 
-func readConfig(path string) (config, bool, error) {
+func readHooksFile(path string) (hooksFile, bool, error) {
 	info, err := os.Stat(path)
 	if errors.Is(err, os.ErrNotExist) {
-		return config{}, false, nil
+		return hooksFile{}, false, nil
 	}
 	if err != nil {
-		return config{}, false, err
+		return hooksFile{}, false, err
 	}
 	if !info.Mode().IsRegular() {
-		return config{}, false, errors.New("not a regular file")
+		return hooksFile{}, false, errors.New("not a regular file")
 	}
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return config{}, false, err
+		return hooksFile{}, false, err
 	}
 	if len(data) == 0 {
-		return config{}, false, nil
+		return hooksFile{}, false, nil
 	}
-	var cfg config
-	if err := json.Unmarshal(data, &cfg); err != nil {
-		return config{}, false, err
+	var file hooksFile
+	if err := json.Unmarshal(data, &file); err != nil {
+		return hooksFile{}, false, err
 	}
-	for index, wire := range cfg.Hooks {
+	for index, wire := range file.Hooks {
 		hook := wire.domain()
 		if err := hook.Validate(); err != nil {
-			return config{}, false, fmt.Errorf("hook %d: %w", index, err)
+			return hooksFile{}, false, fmt.Errorf("hook %d: %w", index, err)
 		}
-		cfg.Hooks[index] = wire
 	}
-	return cfg, true, nil
+	return file, true, nil
 }
 
 // ProjectRoot returns cwd's project root, the nearest ancestor with a `.git`

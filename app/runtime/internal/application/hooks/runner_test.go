@@ -7,7 +7,7 @@ import (
 	"sync"
 	"testing"
 
-	. "github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
+	hookdomain "github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
 )
 
 func ctxBG() context.Context { return context.Background() }
@@ -37,26 +37,26 @@ func (s *commandStub) calls() int {
 }
 
 func TestBoundHandlesAnyRequestedEvent(t *testing.T) {
-	bound := NewBound([]Hook{
-		{Event: Stop, Command: "notify"},
-		{Event: PreToolUse, Command: "guard"},
+	bound := NewBound([]hookdomain.Hook{
+		{Event: hookdomain.Stop, Command: "notify"},
+		{Event: hookdomain.PreToolUse, Command: "guard"},
 	}, nil)
 
-	if !bound.Handles(SubagentStart, Stop) {
+	if !bound.Handles(hookdomain.SubagentStart, hookdomain.Stop) {
 		t.Fatal("Handles() missed a matching event")
 	}
-	if bound.Handles(SubagentStart, SubagentStop) {
+	if bound.Handles(hookdomain.SubagentStart, hookdomain.SubagentStop) {
 		t.Fatal("Handles() reported absent events")
 	}
-	if (*Bound)(nil).Handles(Stop) {
+	if (*Bound)(nil).Handles(hookdomain.Stop) {
 		t.Fatal("nil Bound reported an event")
 	}
 }
 
 func TestRunner_DeclarativeInject(t *testing.T) {
 	r := NewRunner(nil, nil)
-	hooks := []Hook{{Event: SessionStart, Inject: "remember: use tabs"}}
-	dec := r.Run(ctxBG(), hooks, Input{Event: SessionStart})
+	hooks := []hookdomain.Hook{{Event: hookdomain.SessionStart, Inject: "remember: use tabs"}}
+	dec := r.Run(ctxBG(), hooks, hookdomain.Input{Event: hookdomain.SessionStart})
 	if dec.InjectContext != "remember: use tabs" {
 		t.Fatalf("InjectContext = %q", dec.InjectContext)
 	}
@@ -68,26 +68,26 @@ func TestRunner_DeclarativeInject(t *testing.T) {
 func TestRunner_CommandReceivesTypedEvent(t *testing.T) {
 	cmds := &commandStub{results: []CommandResult{{Decision: CommandDecision{InjectContext: "saw-event"}}}}
 	r := NewRunner(cmds, nil)
-	hooks := []Hook{{
-		Event:   UserPromptSubmit,
+	hooks := []hookdomain.Hook{{
+		Event:   hookdomain.UserPromptSubmit,
 		Command: "hook",
 	}}
-	dec := r.Run(ctxBG(), hooks, Input{Event: UserPromptSubmit, Prompt: "hi"})
+	dec := r.Run(ctxBG(), hooks, hookdomain.Input{Event: hookdomain.UserPromptSubmit, Prompt: "hi"})
 	if dec.InjectContext != "saw-event" {
 		t.Fatalf("InjectContext = %q — stdin event not delivered?", dec.InjectContext)
 	}
-	if len(cmds.requests) != 1 || cmds.requests[0].Input.Event != UserPromptSubmit || cmds.requests[0].Input.Prompt != "hi" {
+	if len(cmds.requests) != 1 || cmds.requests[0].Input.Event != hookdomain.UserPromptSubmit || cmds.requests[0].Input.Prompt != "hi" {
 		t.Fatalf("request = %+v, want typed prompt event", cmds.requests)
 	}
 }
 
 func TestRunner_StdoutDenyBlocks(t *testing.T) {
 	r := NewRunner(&commandStub{results: []CommandResult{{Decision: CommandDecision{Verdict: CommandDeny, Reason: "no rm allowed"}}}}, nil)
-	hooks := []Hook{{
-		Event:   PreToolUse,
+	hooks := []hookdomain.Hook{{
+		Event:   hookdomain.PreToolUse,
 		Command: "hook",
 	}}
-	dec := r.Run(ctxBG(), hooks, Input{Event: PreToolUse, Tool: &ToolInput{Name: "shell"}})
+	dec := r.Run(ctxBG(), hooks, hookdomain.Input{Event: hookdomain.PreToolUse, Tool: &hookdomain.ToolInput{Name: "shell"}})
 	if !dec.Block || dec.Reason != "no rm allowed" {
 		t.Fatalf("got block=%v reason=%q, want deny", dec.Block, dec.Reason)
 	}
@@ -99,11 +99,11 @@ func TestRunner_Exit2Blocks(t *testing.T) {
 		ExitCode: blockExitCode,
 		Err:      errors.New("exit status 2"),
 	}}}, nil)
-	hooks := []Hook{{
-		Event:   PreToolUse,
+	hooks := []hookdomain.Hook{{
+		Event:   hookdomain.PreToolUse,
 		Command: "hook",
 	}}
-	dec := r.Run(ctxBG(), hooks, Input{Event: PreToolUse, Tool: &ToolInput{Name: "shell"}})
+	dec := r.Run(ctxBG(), hooks, hookdomain.Input{Event: hookdomain.PreToolUse, Tool: &hookdomain.ToolInput{Name: "shell"}})
 	if !dec.Block || dec.Reason != "blocked by policy" {
 		t.Fatalf("got block=%v reason=%q, want exit-2 block w/ stderr reason", dec.Block, dec.Reason)
 	}
@@ -111,8 +111,8 @@ func TestRunner_Exit2Blocks(t *testing.T) {
 
 func TestRunner_AskEscalates(t *testing.T) {
 	r := NewRunner(&commandStub{results: []CommandResult{{Decision: CommandDecision{Verdict: CommandAsk, Reason: "review"}}}}, nil)
-	hooks := []Hook{{Event: PreToolUse, Command: "hook"}}
-	dec := r.Run(ctxBG(), hooks, Input{Event: PreToolUse, Tool: &ToolInput{Name: "shell"}})
+	hooks := []hookdomain.Hook{{Event: hookdomain.PreToolUse, Command: "hook"}}
+	dec := r.Run(ctxBG(), hooks, hookdomain.Input{Event: hookdomain.PreToolUse, Tool: &hookdomain.ToolInput{Name: "shell"}})
 	if dec.Block || !dec.Ask {
 		t.Fatalf("got block=%v ask=%v, want ask", dec.Block, dec.Ask)
 	}
@@ -120,8 +120,8 @@ func TestRunner_AskEscalates(t *testing.T) {
 
 func TestRunner_RewriteArguments(t *testing.T) {
 	r := NewRunner(&commandStub{results: []CommandResult{{Decision: CommandDecision{RewriteArguments: `{"path":"safe"}`}}}}, nil)
-	hooks := []Hook{{Event: PreToolUse, Command: "hook"}}
-	dec := r.Run(ctxBG(), hooks, Input{Event: PreToolUse, Tool: &ToolInput{Name: "write"}})
+	hooks := []hookdomain.Hook{{Event: hookdomain.PreToolUse, Command: "hook"}}
+	dec := r.Run(ctxBG(), hooks, hookdomain.Input{Event: hookdomain.PreToolUse, Tool: &hookdomain.ToolInput{Name: "write"}})
 	if dec.RewriteArguments != `{"path":"safe"}` {
 		t.Fatalf("RewriteArguments = %q", dec.RewriteArguments)
 	}
@@ -140,8 +140,8 @@ func TestRunner_NonBlockingErrorProceeds(t *testing.T) {
 		errs = append(errs, err.Error())
 		mu.Unlock()
 	})
-	hooks := []Hook{{Event: PreToolUse, Command: "hook"}}
-	dec := r.Run(ctxBG(), hooks, Input{Event: PreToolUse, Tool: &ToolInput{Name: "shell"}})
+	hooks := []hookdomain.Hook{{Event: hookdomain.PreToolUse, Command: "hook"}}
+	dec := r.Run(ctxBG(), hooks, hookdomain.Input{Event: hookdomain.PreToolUse, Tool: &hookdomain.ToolInput{Name: "shell"}})
 	if dec.Block {
 		t.Error("a non-2 exit must NOT block (broken hook can't brick the agent)")
 	}
@@ -153,8 +153,8 @@ func TestRunner_NonBlockingErrorProceeds(t *testing.T) {
 func TestRunner_TimeoutIsNonBlocking(t *testing.T) {
 	var got error
 	r := NewRunner(&commandStub{results: []CommandResult{{TimedOut: true}}}, func(_ context.Context, _ string, err error) { got = err })
-	hooks := []Hook{{Event: PreToolUse, Command: "hook", TimeoutMillis: 40}}
-	dec := r.Run(ctxBG(), hooks, Input{Event: PreToolUse, Tool: &ToolInput{Name: "shell"}})
+	hooks := []hookdomain.Hook{{Event: hookdomain.PreToolUse, Command: "hook", TimeoutMillis: 40}}
+	dec := r.Run(ctxBG(), hooks, hookdomain.Input{Event: hookdomain.PreToolUse, Tool: &hookdomain.ToolInput{Name: "shell"}})
 	if dec.Block {
 		t.Error("a timed-out hook must not block")
 	}
@@ -166,13 +166,13 @@ func TestRunner_TimeoutIsNonBlocking(t *testing.T) {
 func TestRunner_MatcherGatesByToolName(t *testing.T) {
 	cmds := &commandStub{results: []CommandResult{{Decision: CommandDecision{Verdict: CommandDeny, Reason: "x"}}}}
 	r := NewRunner(cmds, nil)
-	hooks := []Hook{{Event: PreToolUse, Matcher: "shell", Command: "hook"}}
+	hooks := []hookdomain.Hook{{Event: hookdomain.PreToolUse, Matcher: "shell", Command: "hook"}}
 
-	denied := r.Run(ctxBG(), hooks, Input{Event: PreToolUse, Tool: &ToolInput{Name: "shell"}})
+	denied := r.Run(ctxBG(), hooks, hookdomain.Input{Event: hookdomain.PreToolUse, Tool: &hookdomain.ToolInput{Name: "shell"}})
 	if !denied.Block {
 		t.Error("matcher shell should fire for shell")
 	}
-	passed := r.Run(ctxBG(), hooks, Input{Event: PreToolUse, Tool: &ToolInput{Name: "read"}})
+	passed := r.Run(ctxBG(), hooks, hookdomain.Input{Event: hookdomain.PreToolUse, Tool: &hookdomain.ToolInput{Name: "read"}})
 	if passed.Block {
 		t.Error("matcher shell must NOT fire for read")
 	}
@@ -186,13 +186,13 @@ func TestRunner_FirstBlockWins_ContextConcatenated(t *testing.T) {
 		{Decision: CommandDecision{Verdict: CommandDeny, Reason: "first"}},
 		{Decision: CommandDecision{Verdict: CommandDeny, Reason: "second"}},
 	}}, nil)
-	hooks := []Hook{
-		{Event: PostToolUse, Inject: "ctx-a"},
-		{Event: PostToolUse, Command: "hook"},
-		{Event: PostToolUse, Command: "hook"},
-		{Event: PostToolUse, Inject: "ctx-b"},
+	hooks := []hookdomain.Hook{
+		{Event: hookdomain.PostToolUse, Inject: "ctx-a"},
+		{Event: hookdomain.PostToolUse, Command: "hook"},
+		{Event: hookdomain.PostToolUse, Command: "hook"},
+		{Event: hookdomain.PostToolUse, Inject: "ctx-b"},
 	}
-	dec := r.Run(ctxBG(), hooks, Input{Event: PostToolUse, Tool: &ToolInput{Name: "shell"}})
+	dec := r.Run(ctxBG(), hooks, hookdomain.Input{Event: hookdomain.PostToolUse, Tool: &hookdomain.ToolInput{Name: "shell"}})
 	if dec.Reason != "first" {
 		t.Errorf("Reason = %q, want first-block-wins", dec.Reason)
 	}
@@ -204,8 +204,8 @@ func TestRunner_FirstBlockWins_ContextConcatenated(t *testing.T) {
 func TestRunner_WrongEventDoesNotFire(t *testing.T) {
 	cmds := &commandStub{results: []CommandResult{{Decision: CommandDecision{Verdict: CommandDeny}}}}
 	r := NewRunner(cmds, nil)
-	hooks := []Hook{{Event: Stop, Command: "hook"}}
-	dec := r.Run(ctxBG(), hooks, Input{Event: PreToolUse, Tool: &ToolInput{Name: "shell"}})
+	hooks := []hookdomain.Hook{{Event: hookdomain.Stop, Command: "hook"}}
+	dec := r.Run(ctxBG(), hooks, hookdomain.Input{Event: hookdomain.PreToolUse, Tool: &hookdomain.ToolInput{Name: "shell"}})
 	if dec.Block {
 		t.Error("a Stop hook must not fire on PreToolUse")
 	}

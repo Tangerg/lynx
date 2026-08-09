@@ -61,7 +61,7 @@ type Management interface {
 	Delete(ctx context.Context, id string) error
 }
 
-type family struct{ coordinator Management }
+type managementTools struct{ coordinator Management }
 
 // Build constructs one tool per schedule action. Each schema therefore contains
 // only fields that action can consume. A nil coordinator disables the family.
@@ -69,7 +69,7 @@ func Build(coordinator Management) ([]toolcontract.Tool, error) {
 	if coordinator == nil {
 		return nil, nil
 	}
-	t := &family{coordinator: coordinator}
+	t := &managementTools{coordinator: coordinator}
 	list, err := toolcontract.NewFunc[struct{}, scheduleListResponse](
 		toolcontract.FuncConfig{
 			Name:        catalog.ListSchedules,
@@ -104,7 +104,7 @@ func Build(coordinator Management) ([]toolcontract.Tool, error) {
 	return []toolcontract.Tool{list, create, deleteSchedule}, nil
 }
 
-func (t *family) list(ctx context.Context, _ struct{}) (scheduleListResponse, error) {
+func (t *managementTools) list(ctx context.Context, _ struct{}) (scheduleListResponse, error) {
 	items, err := t.coordinator.List(ctx)
 	if err != nil {
 		return scheduleListResponse{}, fmt.Errorf("list_schedules: %w", err)
@@ -116,7 +116,7 @@ func (t *family) list(ctx context.Context, _ struct{}) (scheduleListResponse, er
 	return scheduleListResponse{Schedules: views}, nil
 }
 
-func (t *family) create(ctx context.Context, in createScheduleArgs) (scheduleResponse, error) {
+func (t *managementTools) create(ctx context.Context, in createScheduleArgs) (scheduleResponse, error) {
 	selection, err := modelref.New(in.Provider, in.Model)
 	if err != nil {
 		return scheduleResponse{}, fmt.Errorf("create_schedule: %w", err)
@@ -135,7 +135,7 @@ func (t *family) create(ctx context.Context, in createScheduleArgs) (scheduleRes
 	return scheduleResponse{Schedule: viewSchedule(created)}, nil
 }
 
-func (t *family) delete(ctx context.Context, in deleteScheduleArgs) (scheduleDeleteResponse, error) {
+func (t *managementTools) delete(ctx context.Context, in deleteScheduleArgs) (scheduleDeleteResponse, error) {
 	if err := t.coordinator.Delete(ctx, in.ScheduleID); err != nil {
 		return scheduleDeleteResponse{}, fmt.Errorf("delete_schedule: %w", err)
 	}

@@ -24,34 +24,34 @@ func (manifest Manifest) Clone() Manifest {
 	}
 }
 
-// resolution is the one real visibility decision made while assembling a
+// manifestBuilder owns the one real visibility decision made while assembling a
 // Run: direct tools enter the initial model manifest, while deferred tools stay
 // executable but are loaded through search_tools. Unavailable tools are simply
 // never added; there is no synthetic visibility state for them.
-type resolution struct {
+type manifestBuilder struct {
 	visible  []toolcontract.Tool
 	deferred []toolcontract.Tool
 }
 
-func (s *resolution) direct(tools ...toolcontract.Tool) {
+func (builder *manifestBuilder) direct(tools ...toolcontract.Tool) {
 	for _, candidate := range tools {
 		if candidate != nil {
-			s.visible = append(s.visible, candidate)
+			builder.visible = append(builder.visible, candidate)
 		}
 	}
 }
 
-func (s *resolution) deferTools(tools ...toolcontract.Tool) {
+func (builder *manifestBuilder) deferTools(tools ...toolcontract.Tool) {
 	for _, candidate := range tools {
 		if candidate != nil {
-			s.deferred = append(s.deferred, candidate)
+			builder.deferred = append(builder.deferred, candidate)
 		}
 	}
 }
 
-func (s resolution) manifest() Manifest {
+func (builder manifestBuilder) manifest() Manifest {
 	return Manifest{
-		Visible:  slices.Clone(s.visible),
-		Deferred: slices.Clone(s.deferred),
+		Visible:  slices.Clone(builder.visible),
+		Deferred: slices.Clone(builder.deferred),
 	}
 }

@@ -21,8 +21,8 @@ func (c *Coordinator) pump(
 	ctx context.Context,
 	ownerCtx context.Context,
 	spec segmentSpec,
-	inner iter.Seq[ExecutorEvent],
-	live *handle,
+	executorEvents iter.Seq[ExecutorEvent],
+	owner *runTreeOwner,
 	routes *executorRoutes,
 ) {
 	pump := &segmentPump{
@@ -30,11 +30,11 @@ func (c *Coordinator) pump(
 		ctx:         ctx,
 		ownerCtx:    ownerCtx,
 		spec:        spec,
-		events:      inner,
-		live:        live,
+		events:      executorEvents,
+		owner:       owner,
 		routes:      routes,
 	}
-	pump.publisher = treePublisher{coordinator: c, rootSpec: spec, live: live}
+	pump.publisher = treePublisher{coordinator: c, rootSpec: spec, owner: owner}
 	pump.run()
 }
 
@@ -47,7 +47,7 @@ type segmentPump struct {
 	ownerCtx    context.Context
 	spec        segmentSpec
 	events      iter.Seq[ExecutorEvent]
-	live        *handle
+	owner       *runTreeOwner
 	routes      *executorRoutes
 	publisher   treePublisher
 
@@ -76,16 +76,16 @@ type authoritativeFactResult struct {
 }
 
 func (p *segmentPump) run() {
-	defer close(p.live.done)
+	defer close(p.owner.done)
 	defer p.finish()
 	for event := range p.events {
-		if !p.handle(event) {
+		if !p.processEvent(event) {
 			return
 		}
 	}
 }
 
-func (p *segmentPump) handle(event ExecutorEvent) bool {
+func (p *segmentPump) processEvent(event ExecutorEvent) bool {
 	if request, reserving := event.Payload.(ChildRunReservationRequest); reserving {
 		return p.handleChildRunReservation(event, request)
 	}
@@ -167,14 +167,14 @@ func (p *segmentPump) handleChildRunReservation(
 		return true
 	}
 	prepared, err := p.coordinator.prepareChildOpening(
-		p.spec, p.live, p.routes, event.Member, request.StartedAt,
+		p.spec, p.owner, p.routes, event.Member, request.StartedAt,
 	)
 	if err == nil {
 		err = p.coordinator.childStarts.ReserveChildRunStart(p.ownerCtx, prepared.reservation)
 	}
 	if err != nil {
 		if prepared != nil {
-			prepared.releaseBinding(p.live)
+			prepared.releaseBinding(p.owner)
 		}
 		_ = request.complete(ChildRunBinding{}, err)
 		return true
@@ -257,13 +257,13 @@ func (p *segmentPump) handleChildRunStartOutcome(
 				context.WithoutCancel(p.ownerCtx), prepared.reservation,
 			)
 			err = errors.Join(err, cleanupErr)
-			prepared.releaseBinding(p.live)
+			prepared.releaseBinding(p.owner)
 		}
 	case ChildRunStartAborted:
 		err = p.coordinator.childStarts.AbortChildRunStart(p.ownerCtx, prepared.reservation)
 		if err == nil {
 			managed.outcome = request.Outcome
-			prepared.releaseBinding(p.live)
+			prepared.releaseBinding(p.owner)
 		}
 	default:
 		err = errors.New("runs: invalid child Run start outcome")
@@ -284,7 +284,7 @@ func (p *segmentPump) abortPreparedChildStart(prepared *preparedChildOpening) {
 	if p.coordinator.childStarts != nil {
 		recordRunCleanupError(ctx, p.coordinator.childStarts.AbortChildRunStart(ctx, prepared.reservation))
 	}
-	prepared.releaseBinding(p.live)
+	prepared.releaseBinding(p.owner)
 }
 
 func (p *segmentPump) handleAuthoritativeFact(
@@ -297,7 +297,7 @@ func (p *segmentPump) handleAuthoritativeFact(
 	}
 	result := authoritativeFactResult{runID: route.runID}
 	if route.member.MemberID != "" {
-		if err := p.live.bindExecutorMember(route.runID, route.member.MemberID); err != nil {
+		if err := p.owner.bindExecutorMember(route.runID, route.member.MemberID); err != nil {
 			return result, err
 		}
 	}
@@ -463,7 +463,7 @@ func (p *segmentPump) handleExecutionFact(member ExecutorMember, executionFact E
 		return false, err
 	}
 	if route.member.MemberID != "" {
-		if err := p.live.bindExecutorMember(route.runID, route.member.MemberID); err != nil {
+		if err := p.owner.bindExecutorMember(route.runID, route.member.MemberID); err != nil {
 			return false, err
 		}
 	}
@@ -518,7 +518,7 @@ func (p *segmentPump) classifyChildCancellationFact(
 	if !open {
 		return fact
 	}
-	return p.live.classifyChildCancellationTool(route.runID, itemID, toolEnd)
+	return p.owner.classifyChildCancellationTool(route.runID, itemID, toolEnd)
 }
 
 func (p *segmentPump) fail(err error) {
@@ -617,16 +617,16 @@ func (p *segmentPump) tearDownExecutor() {
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(p.ownerCtx), runCleanupTimeout)
 	defer cancel()
 	if err := p.coordinator.releases.Release(ctx, p.spec.executorRef()); err != nil && !errors.Is(err, ErrExecutorNotLive) {
-		p.live.completionErr = fmt.Errorf("runs: tear down executor %q: %w", p.spec.ExecutorID, err)
-		recordRunCleanupError(ctx, p.live.completionErr)
+		p.owner.completionErr = fmt.Errorf("runs: tear down executor %q: %w", p.spec.ExecutorID, err)
+		recordRunCleanupError(ctx, p.owner.completionErr)
 	}
 }
 
 func (p *segmentPump) finishBoundary() {
 	releaseMaintenance, maintenanceHeld := p.coordinator.admission.BeginMaintenance(p.spec.RunID)
 	entry, tracked := p.coordinator.registry.Get(p.spec.RunID)
-	if tracked && !p.rootParked && entry.handle != nil {
-		entry.handle.stop()
+	if tracked && !p.rootParked && entry.owner != nil {
+		entry.owner.stop()
 	}
 	if p.rootFinished {
 		ctx, cancel := context.WithTimeout(context.WithoutCancel(p.ownerCtx), runCleanupTimeout)
@@ -646,7 +646,7 @@ func (p *segmentPump) finishBoundary() {
 	}
 	// Closing the journal is the externally observable completion boundary. The
 	// synchronous maintenance fence and admission claim must be gone first.
-	p.live.hub.close()
+	p.owner.hub.close()
 	p.coordinator.registry.Remove(p.spec.RunID)
 }
 

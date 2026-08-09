@@ -86,8 +86,8 @@ func invalidWireContentBlock(index int, field, detail string) error {
 func wireRunStartErr(err error) error {
 	// A session that already has a run is refused WITH that run: the client offers
 	// steer / resume / cancel, and the runtime cancels nothing on its own.
-	if conflict, ok := errors.AsType[*runs.ActiveRunConflict](err); ok {
-		return &protocol.ActiveRunConflict{ActiveRun: protocol.ActiveRunRef{
+	if conflict, ok := errors.AsType[*runs.ActiveRunConflictError](err); ok {
+		return &protocol.ActiveRunConflictError{ActiveRun: protocol.ActiveRunRef{
 			RunID: conflict.RunID, Status: presentRunStatus(conflict.Status),
 		}}
 	}

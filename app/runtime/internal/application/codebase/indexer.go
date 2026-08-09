@@ -19,8 +19,9 @@ const defaultTopK = 8
 // embedBatch bounds one embedding API call.
 const embedBatch = 96
 
-// loaded is a cwd's in-memory search corpus plus when it was last reconciled.
-type loaded struct {
+// cachedCorpus is one workspace's in-memory search corpus and reconciliation
+// watermark.
+type cachedCorpus struct {
 	chunks    []codebaseindex.Chunk
 	scannedAt time.Time
 	modelID   string
@@ -35,7 +36,7 @@ type Indexer struct {
 
 	mu     sync.Mutex
 	locks  map[string]*sync.Mutex          // per-cwd build lock (serializes concurrent builds of one cwd)
-	corpus map[string]*loaded              // cwd → in-memory search corpus
+	corpus map[string]*cachedCorpus        // cwd → in-memory search corpus
 	status map[string]codebaseindex.Status // cwd → last known status
 }
 
@@ -71,7 +72,7 @@ func NewIndex(store Store, resolve func(context.Context) (Embedder, error), sour
 		resolve: resolve,
 		source:  source,
 		locks:   map[string]*sync.Mutex{},
-		corpus:  map[string]*loaded{},
+		corpus:  map[string]*cachedCorpus{},
 		status:  map[string]codebaseindex.Status{},
 	}
 }

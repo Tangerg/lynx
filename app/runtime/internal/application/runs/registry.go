@@ -24,11 +24,11 @@ type Record struct {
 }
 
 // liveSegment is the coordinator's process-local state for a currently active
-// run. The registry only ever manages run handles, so making it generic would
+// run. The registry only ever manages Run-tree owners, so making it generic would
 // hide its actual lifecycle ownership.
 type liveSegment struct {
 	record Record
-	handle *handle
+	owner  *runTreeOwner
 }
 
 // registry is the process-local registry of live run segments. Session
@@ -42,10 +42,10 @@ type registry struct {
 }
 
 // Open registers an active run segment.
-func (r *registry) Open(record Record, handle *handle) {
+func (r *registry) Open(record Record, owner *runTreeOwner) {
 	r.mu.Lock()
 	r.initLocked()
-	r.runs[record.ID] = liveSegment{record: cloneRecord(record), handle: handle}
+	r.runs[record.ID] = liveSegment{record: cloneRecord(record), owner: owner}
 	r.mu.Unlock()
 }
 

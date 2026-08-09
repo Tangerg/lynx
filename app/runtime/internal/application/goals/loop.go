@@ -33,20 +33,20 @@ func (d *Driver) launchLocked(parent context.Context, sessionID, leaseID string)
 		return false
 	}
 	ctx, cancel := context.WithCancel(owner)
-	handle := &loopHandle{
+	loop := &loopHandle{
 		leaseID:  leaseID,
 		cancel:   cancel,
 		released: make(chan struct{}),
 	}
 
-	d.mutations.launch(sessionID, handle)
+	d.mutations.launch(sessionID, loop)
 
 	go func() {
 		defer release()
-		handle.err = d.drive(ctx, sessionID, leaseID)
-		close(handle.released)
-		if handle.err == nil {
-			d.mutations.forget(sessionID, handle)
+		loop.err = d.drive(ctx, sessionID, leaseID)
+		close(loop.released)
+		if loop.err == nil {
+			d.mutations.forget(sessionID, loop)
 		}
 	}()
 	return true
@@ -60,15 +60,15 @@ func (d *Driver) ensureDriveLocked(ctx context.Context, sessionID, leaseID strin
 	if d.closed.Load() {
 		return ErrClosed
 	}
-	if handle := d.mutations.driver(sessionID); handle != nil {
-		if handle.leaseID != leaseID {
+	if loop := d.mutations.activeLoop(sessionID); loop != nil {
+		if loop.leaseID != leaseID {
 			return ErrGoalConflict
 		}
-		if finished, err := handle.finishedResult(); finished {
+		if finished, err := loop.finishedResult(); finished {
 			if err != nil {
 				return err
 			}
-			d.mutations.forget(sessionID, handle)
+			d.mutations.forget(sessionID, loop)
 		} else {
 			return nil
 		}

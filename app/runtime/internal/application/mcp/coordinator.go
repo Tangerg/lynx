@@ -61,7 +61,7 @@ type Coordinator struct {
 	policy                *ToolPolicyState
 	mutationMu            sync.Mutex
 	dialMu                sync.Mutex
-	dials                 map[string]*dial
+	dials                 map[string]*activeDial
 	statusSequence        uint64
 	statusQueue           *statusQueue
 	authorizationAttempts *authorizationAttemptStore
@@ -97,13 +97,15 @@ func New(cfg Config) *Coordinator {
 		connectionControl:     cfg.ConnectionControl,
 		connectionLifecycle:   cfg.ConnectionLifecycle,
 		policy:                cfg.Policy,
-		dials:                 make(map[string]*dial),
+		dials:                 make(map[string]*activeDial),
 		statusQueue:           newStatusQueue(cfg.StatusChanged),
 		authorizationAttempts: newAuthorizationAttemptStore(),
 	}
 }
 
-type dial struct {
+// activeDial is the cancellation handle for one server's current connection
+// attempt.
+type activeDial struct {
 	cancel context.CancelFunc
 }
 

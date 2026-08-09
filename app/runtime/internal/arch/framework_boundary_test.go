@@ -324,7 +324,7 @@ func TestWaitingCheckpointPersistenceBelongsToApplicationTransactions(t *testing
 	if err != nil {
 		t.Fatalf("parse runsegment effects: %v", err)
 	}
-	barrier := methodBody(commitFile, "Effects", "CommitTreeBarrier")
+	barrier := effectsMethodBody(commitFile, "CommitTreeBarrier")
 	transaction, ok := calledClosure(barrier, "runInTx")
 	if !ok {
 		t.Fatal("CommitTreeBarrier does not execute one application transaction")
@@ -334,7 +334,7 @@ func TestWaitingCheckpointPersistenceBelongsToApplicationTransactions(t *testing
 			t.Errorf("CommitTreeBarrier transaction does not own %s", required)
 		}
 	}
-	terminal := methodBody(commitFile, "Effects", "CommitEvent")
+	terminal := effectsMethodBody(commitFile, "CommitEvent")
 	terminalTx, ok := calledClosure(terminal, "runInTx")
 	if !ok || !selectorCallExists(terminalTx.Body, "DeleteCheckpoints") {
 		t.Error("CommitEvent terminal transaction does not own executor checkpoint deletion")
@@ -345,12 +345,12 @@ func TestWaitingCheckpointPersistenceBelongsToApplicationTransactions(t *testing
 	if err != nil {
 		t.Fatalf("parse waiting cancellation effects: %v", err)
 	}
-	waiting := methodBody(waitingFile, "Effects", "CommitWaitingSubtreeCancellation")
+	waiting := effectsMethodBody(waitingFile, "CommitWaitingSubtreeCancellation")
 	waitingTx, ok := calledClosure(waiting, "runInTx")
 	if !ok || !selectorCallExists(waitingTx.Body, "persistWaitingCancellationProjection") {
 		t.Error("waiting subtree transaction does not invoke its replacement projection owner")
 	}
-	waitingProjection := methodBody(waitingFile, "Effects", "persistWaitingCancellationProjection")
+	waitingProjection := effectsMethodBody(waitingFile, "persistWaitingCancellationProjection")
 	if !selectorCallExists(waitingProjection, "SaveCheckpoint") {
 		t.Error("waiting subtree projection owner does not persist the replacement checkpoint")
 	}
@@ -1144,7 +1144,7 @@ func TestRuntimeDoesNotConfigureSingleProcessPreparedStepDurability(t *testing.T
 	}
 }
 
-func methodBody(file *ast.File, receiver, name string) *ast.BlockStmt {
+func effectsMethodBody(file *ast.File, name string) *ast.BlockStmt {
 	if file == nil {
 		return nil
 	}
@@ -1154,7 +1154,7 @@ func methodBody(file *ast.File, receiver, name string) *ast.BlockStmt {
 			continue
 		}
 		receiverName := strings.TrimPrefix(exprString(function.Recv.List[0].Type), "*")
-		if receiverName == receiver {
+		if receiverName == "Effects" {
 			return function.Body
 		}
 	}

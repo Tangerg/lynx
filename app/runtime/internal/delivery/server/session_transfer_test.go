@@ -642,7 +642,7 @@ func TestSessionImportRefusesAnUnadvertisedStateKey(t *testing.T) {
 	if !errors.Is(err, protocol.ErrCapabilityNotNeg) {
 		t.Fatalf("import err = %v, want capability_not_negotiated", err)
 	}
-	gap, ok := errors.AsType[*protocol.CapabilityGap](err)
+	gap, ok := errors.AsType[*protocol.CapabilityGapError](err)
 	if !ok || len(gap.Requirements) != 1 {
 		t.Fatalf("gap = %+v, want one requirement", gap)
 	}

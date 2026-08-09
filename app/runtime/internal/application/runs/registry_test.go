@@ -11,16 +11,16 @@ import (
 func TestRegistryRemovesCompletedRun(t *testing.T) {
 	var r registry
 	started := time.Unix(42, 0).UTC()
-	handle := &handle{}
-	r.Open(Record{ID: "run_1", SessionID: "ses_1", CWD: "/repo", CreatedAt: started}, handle)
+	owner := &runTreeOwner{}
+	r.Open(Record{ID: "run_1", SessionID: "ses_1", CWD: "/repo", CreatedAt: started}, owner)
 
 	e, ok := r.Get("run_1")
-	if !ok || e.record.CreatedAt != started || e.handle != handle {
+	if !ok || e.record.CreatedAt != started || e.owner != owner {
 		t.Fatalf("entry = %+v, ok=%v", e, ok)
 	}
 
 	closed, ok := r.Remove("run_1")
-	if !ok || closed.handle != handle {
+	if !ok || closed.owner != owner {
 		t.Fatalf("removed entry = %+v, ok=%v", closed, ok)
 	}
 	if _, ok := r.Get("run_1"); ok {

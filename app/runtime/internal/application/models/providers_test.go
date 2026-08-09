@@ -182,8 +182,8 @@ func TestUpdateProviderOwnsSupportAndBaseURLPolicy(t *testing.T) {
 		t.Fatalf("base URL = %q, want preserved %q", configured.BaseURL, baseURL)
 	}
 
-	clear := ""
-	if _, err := c.UpdateProvider(t.Context(), UpdateProviderCommand{ID: "compat", BaseURL: &clear}); !errors.Is(err, ErrProviderBaseURLRequired) {
+	emptyBaseURL := ""
+	if _, err := c.UpdateProvider(t.Context(), UpdateProviderCommand{ID: "compat", BaseURL: &emptyBaseURL}); !errors.Is(err, ErrProviderBaseURLRequired) {
 		t.Fatalf("clear required base URL error = %v", err)
 	}
 	if _, err := c.UpdateProvider(t.Context(), UpdateProviderCommand{ID: "compat"}); !errors.Is(err, ErrProviderUpdateRequired) {

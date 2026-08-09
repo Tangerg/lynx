@@ -41,14 +41,14 @@ func TestValidateSnapshotRejectsInconsistentPortableState(t *testing.T) {
 		{"unknown item status", func(s *Snapshot) { s.Items[0].Status = transcript.ItemStatus(255) }},
 		{"partial child lineage", func(s *Snapshot) { s.Runs[0].SpawnedByItemID = "item_missing" }},
 		{"unknown spawning item", func(s *Snapshot) {
-			appendSnapshotChild(s, "run_2", "run_1", "run_1", "item_missing")
+			appendRootedSnapshotRun(s, "run_2", "run_1", "item_missing")
 		}},
 		{"non-tool spawning item", func(s *Snapshot) {
-			appendSnapshotChild(s, "run_2", "run_1", "run_1", "item_1")
+			appendRootedSnapshotRun(s, "run_2", "run_1", "item_1")
 		}},
 		{"run tree cycle", func(s *Snapshot) {
-			appendSnapshotChild(s, "run_2", "run_3", "run_1", "item_2")
-			appendSnapshotChild(s, "run_3", "run_2", "run_1", "item_3")
+			appendRootedSnapshotRun(s, "run_2", "run_3", "item_2")
+			appendRootedSnapshotRun(s, "run_3", "run_2", "item_3")
 			s.Items = append(s.Items,
 				transcript.Item{
 					SessionID: "ses_1", ID: "item_2", RunID: "run_3",
@@ -72,12 +72,12 @@ func TestValidateSnapshotRejectsInconsistentPortableState(t *testing.T) {
 	}
 }
 
-func appendSnapshotChild(snapshot *Snapshot, runID, parentRunID, rootRunID, spawningItemID string) {
+func appendRootedSnapshotRun(snapshot *Snapshot, runID, parentRunID, spawningItemID string) {
 	child := snapshot.Runs[0]
 	child.ID = runID
 	child.SpawnedByItemID = spawningItemID
 	child.ParentRunID = parentRunID
-	child.RootRunID = rootRunID
+	child.RootRunID = "run_1"
 	snapshot.Runs = append(snapshot.Runs, child)
 }
 

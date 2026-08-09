@@ -119,7 +119,7 @@ func (s *Server) ListInterrupts(ctx context.Context, in protocol.ListInterruptsR
 // wireInterruptPageError maps the read's two refusals. Both name something the
 // caller can act on: declare the capabilities, or ask under the root.
 func wireInterruptPageError(err error) error {
-	if uncovered, ok := errors.AsType[*run.InsufficientCapabilities](err); ok {
+	if uncovered, ok := errors.AsType[*run.InsufficientCapabilitiesError](err); ok {
 		return capabilityGap(uncovered.Missing)
 	}
 	switch {
@@ -169,7 +169,7 @@ func (s *Server) SubscribeRun(ctx context.Context, in protocol.SubscribeRunReque
 // into run_not_found: "the run is waiting", "the run finished", "you are holding
 // the wrong segment" and "your cursor is too old" have four different remedies.
 func wireLiveSegmentError(err error) error {
-	if uncovered, ok := errors.AsType[*run.InsufficientCapabilities](err); ok {
+	if uncovered, ok := errors.AsType[*run.InsufficientCapabilitiesError](err); ok {
 		return capabilityGap(uncovered.Missing)
 	}
 	switch {

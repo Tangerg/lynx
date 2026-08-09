@@ -438,15 +438,18 @@ func newOpeningResumeFixture(t *testing.T, suspendRoot bool) openingResumeFixtur
 	}); err != nil {
 		t.Fatalf("admit child: %v", err)
 	}
-	childRun := waitingTreeRun(
-		"run_child", "session_1", lineage, createdAt,
+	childRun := waitingTestSessionRun(
+		"run_child",
+		lineage,
+		createdAt,
 		[]transcript.Interrupt{treeQuestion("item_child", "run_child")},
 	)
+
 	if err := runStore.Suspend(ctx, childRun); err != nil {
 		t.Fatalf("suspend child: %v", err)
 	}
 	if suspendRoot {
-		rootRun := waitingTreeRun("run_root", "session_1", run.Lineage{}, createdAt, nil)
+		rootRun := waitingTestSessionRun("run_root", run.Lineage{}, createdAt, nil)
 		if err := runStore.Suspend(ctx, rootRun); err != nil {
 			t.Fatalf("suspend root: %v", err)
 		}
@@ -530,16 +533,15 @@ func treeQuestion(itemID, runID string) transcript.Interrupt {
 	}
 }
 
-func waitingTreeRun(
+func waitingTestSessionRun(
 	runID string,
-	sessionID string,
 	lineage run.Lineage,
 	createdAt time.Time,
 	open []transcript.Interrupt,
 ) transcript.Run {
 	return transcript.Run{
 		ID:              runID,
-		SessionID:       sessionID,
+		SessionID:       "session_1",
 		SpawnedByItemID: lineage.SpawnedByItemID,
 		ParentRunID:     lineage.ParentRunID,
 		RootRunID:       lineage.RootRunID,
@@ -1299,45 +1301,45 @@ func newWaitingCancellationSQLiteFixtureAt(
 		}
 	}
 	grandchildQuestion := treeQuestion("item_grandchild_question", "run_grandchild")
-	grandchildRun := waitingTreeRun(
+	grandchildRun := waitingTestSessionRun(
 		"run_grandchild",
-		"session_1",
 		grandchildLineage,
 		createdAt,
 		[]transcript.Interrupt{grandchildQuestion},
 	)
+
 	grandchildRun.Capabilities = capabilities
 	grandchildRun.UpdatedAt = finishedAt
 	childQuestion := treeQuestion("item_child_question", "run_child")
-	childRun := waitingTreeRun(
+	childRun := waitingTestSessionRun(
 		"run_child",
-		"session_1",
 		childLineage,
 		createdAt,
 		[]transcript.Interrupt{childQuestion},
 	)
+
 	childRun.Capabilities = capabilities
 	childRun.UpdatedAt = finishedAt
 	var siblingRun transcript.Run
 	if survivingBoundary {
 		siblingQuestion := treeQuestion("item_sibling_question", "run_sibling")
-		siblingRun = waitingTreeRun(
+		siblingRun = waitingTestSessionRun(
 			"run_sibling",
-			"session_1",
 			siblingLineage,
 			createdAt,
 			[]transcript.Interrupt{siblingQuestion},
 		)
+
 		siblingRun.Capabilities = capabilities
 		siblingRun.UpdatedAt = finishedAt
 	}
-	rootRun := waitingTreeRun(
+	rootRun := waitingTestSessionRun(
 		"run_root",
-		"session_1",
 		rootLineage,
 		createdAt,
 		nil,
 	)
+
 	rootRun.Capabilities = capabilities
 	rootRun.UpdatedAt = finishedAt
 	grandchildQuestionItem := transcript.Item{

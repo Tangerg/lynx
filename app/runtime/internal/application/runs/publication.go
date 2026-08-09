@@ -20,7 +20,7 @@ type reductionPublication struct {
 type treePublisher struct {
 	coordinator *Coordinator
 	rootSpec    segmentSpec
-	live        *handle
+	owner       *runTreeOwner
 }
 
 // publish validates a complete batch before any side effect, then commits every
@@ -63,10 +63,10 @@ func (p treePublisher) publish(
 				if reduced.Commit.Run == nil {
 					return reductionPublication{}, errors.New("runs: terminal commit has no run snapshot")
 				}
-				p.live.recordTerminalRun(*reduced.Commit.Run)
+				p.owner.recordTerminalRun(*reduced.Commit.Run)
 			}
 			for _, item := range reduced.Commit.Items {
-				p.live.recordChildCancellationItem(route.runID, item)
+				p.owner.recordChildCancellationItem(route.runID, item)
 			}
 			goalCharged = goalCharged || reduced.Commit.GoalRun != nil
 		}
@@ -148,7 +148,7 @@ func (p treePublisher) publishAuthoritativeAtomically(
 			return reductionPublication{}, fmt.Errorf("runs: commit authoritative fact: %w", err)
 		}
 		for _, item := range combined.Items {
-			p.live.recordChildCancellationItem(route.runID, item)
+			p.owner.recordChildCancellationItem(route.runID, item)
 		}
 	}
 	for _, reduced := range batch.events {
@@ -216,9 +216,9 @@ func (p treePublisher) publishTerminalAtomically(
 	if err := p.coordinator.events.CommitEvent(ctx, combined); err != nil {
 		return reductionPublication{}, fmt.Errorf("runs: commit atomic terminal: %w", err)
 	}
-	p.live.recordTerminalRun(*combined.Run)
+	p.owner.recordTerminalRun(*combined.Run)
 	for _, item := range combined.Items {
-		p.live.recordChildCancellationItem(route.runID, item)
+		p.owner.recordChildCancellationItem(route.runID, item)
 	}
 	for _, reduced := range batch.events {
 		p.append(route, reduced)
@@ -251,7 +251,7 @@ func (p treePublisher) publishTreeBarrier(
 	if err != nil {
 		return reductionPublication{}, err
 	}
-	committed, err := p.live.commitInterrupt(ctx, func(interruptCtx context.Context) error {
+	committed, err := p.owner.commitInterrupt(ctx, func(interruptCtx context.Context) error {
 		if err := p.coordinator.barriers.CommitTreeBarrier(interruptCtx, TreeBarrierCommit{
 			Pending:    projection.pending,
 			Runs:       projection.commits,
@@ -436,7 +436,7 @@ func (p treePublisher) reduceInterruptedRoute(
 }
 
 func (p treePublisher) append(route *executorRoute, reduced reduction) {
-	p.live.hub.append(p.coordinator.event(route.runID, route.segmentID, reduced))
+	p.owner.hub.append(p.coordinator.event(route.runID, route.segmentID, reduced))
 	if reduced.Nudge != nil {
 		p.coordinator.workspace.Nudge(reduced.Nudge.CWD, reduced.Nudge.Paths)
 	}

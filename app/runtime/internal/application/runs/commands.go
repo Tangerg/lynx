@@ -365,7 +365,7 @@ func validateOptions(options *corechat.Options) error {
 	return nil
 }
 
-// ActiveRunConflict reports that a Session already holds a non-terminal root Run,
+// ActiveRunConflictError reports that a Session already holds a non-terminal root Run,
 // so a new one cannot be admitted. It carries the Run because the caller's next move
 // depends on which one it is and what it is doing — steer it, answer it, or cancel it
 // — and because the runtime will not choose for them: an implicit cancel would throw
@@ -373,11 +373,11 @@ func validateOptions(options *corechat.Options) error {
 //
 // It is a typed error rather than a sentinel: the identity IS the information, and a
 // sentinel would leave the caller to go find out what blocked it.
-type ActiveRunConflict struct {
+type ActiveRunConflictError struct {
 	RunID  string
 	Status run.Status
 }
 
-func (e *ActiveRunConflict) Error() string {
+func (e *ActiveRunConflictError) Error() string {
 	return fmt.Sprintf("runs: session already has a %s run %q", e.Status, e.RunID)
 }

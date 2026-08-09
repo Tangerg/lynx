@@ -382,8 +382,7 @@ func TestStartOwnsCompleteAdmissionSequence(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Start: %v", err)
 	}
-	for range result.Events {
-	}
+	consumeEvents(result.Events)
 	if result.RunID != "run_new" || result.SegmentID != "seg_new" || result.SessionID != "ses_1" {
 		t.Fatalf("result = %+v", result)
 	}
@@ -427,8 +426,7 @@ func TestStartSeedsExecutorFromConversationAndCurrentUserMessage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for range result.Events {
-	}
+	consumeEvents(result.Events)
 	context := control.started.WorkingContext
 	if len(context) != 3 || context[0].Text() != "earlier question" ||
 		context[1].Text() != "earlier answer" || context[2].Text() != "current question" ||
@@ -462,8 +460,7 @@ func TestStartSeparatesIsolatedExecutionDirFromPersistentWorkspace(t *testing.T)
 	if err != nil {
 		t.Fatalf("Start: %v", err)
 	}
-	for range result.Events {
-	}
+	consumeEvents(result.Events)
 	if control.started.CWD != "/sandbox/copy" || control.started.WorkspaceCWD != "/work" || !control.started.Isolated {
 		t.Fatalf("started execution scope = %+v", control.started)
 	}
@@ -555,8 +552,7 @@ func TestFastStartReleaseCannotCrossTerminalMaintenance(t *testing.T) {
 	}
 
 	close(releaseFinish)
-	for range outcome.result.Events {
-	}
+	consumeEvents(outcome.result.Events)
 	requireCoordinatorShutdown(t, c)
 	if hasActiveSession(c, "ses_1") {
 		t.Fatal("terminal maintenance did not release its claim")
@@ -588,7 +584,7 @@ func TestResumeCommitsOpeningBeforeActivation(t *testing.T) {
 	sessions := &fakeRunSessions{
 		sess: session.Session{ID: "ses_1", CWD: "/work"},
 		pending: map[string]Pending{
-			"run_1": testPendingInterrupt("item_1", "member_1", createdAt),
+			"run_1": testApprovalPending("member_1", createdAt),
 		},
 	}
 	control := &fakeExecutionPorts{prepared: ExecutorRef{SessionID: "ses_1", ExecutorID: "turn_1"}}
@@ -609,8 +605,7 @@ func TestResumeCommitsOpeningBeforeActivation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Resume: %v", err)
 	}
-	for range result.Events {
-	}
+	consumeEvents(result.Events)
 	if !control.resumed || !activatedAfterOpening {
 		t.Fatalf("resumed=%v activatedAfterOpening=%v", control.resumed, activatedAfterOpening)
 	}
@@ -624,7 +619,7 @@ func TestResumeCommitsOpeningBeforeActivation(t *testing.T) {
 // supply a different accounting snapshot before the executor is prepared.
 func TestResumeRejectsContinuationFactDriftBeforeExecutorPreparation(t *testing.T) {
 	createdAt := time.Date(2026, 7, 30, 11, 0, 0, 0, time.UTC)
-	pending := testPendingInterrupt("item_1", "member_root", createdAt)
+	pending := testApprovalPending("member_root", createdAt)
 	sessions := &fakeRunSessions{
 		sess: session.Session{ID: pending.SessionID, CWD: "/work"},
 		pending: map[string]Pending{
@@ -664,7 +659,7 @@ func TestResumeRejectsContinuationFactDriftBeforeExecutorPreparation(t *testing.
 
 func TestResumeAndRootCancelShareOneApplicationAdmissionBoundary(t *testing.T) {
 	createdAt := time.Date(2026, 7, 30, 12, 0, 0, 0, time.UTC)
-	pending := testPendingInterrupt("item_1", "member_1", createdAt)
+	pending := testApprovalPending("member_1", createdAt)
 	sessions := &fakeRunSessions{
 		sess: session.Session{ID: "ses_1", CWD: "/work"},
 		pending: map[string]Pending{
@@ -728,8 +723,7 @@ func TestResumeAndRootCancelShareOneApplicationAdmissionBoundary(t *testing.T) {
 	if outcome.err != nil {
 		t.Fatalf("Resume: %v", outcome.err)
 	}
-	for range outcome.result.Events {
-	}
+	consumeEvents(outcome.result.Events)
 	if !control.resumed {
 		t.Fatal("winning resume did not activate its continuation")
 	}
@@ -750,7 +744,7 @@ func TestResumeWithInputCommitsTheUserItemWithTheContinuation(t *testing.T) {
 		sessions := &fakeRunSessions{
 			sess: session.Session{ID: "ses_1", CWD: "/work"},
 			pending: map[string]Pending{
-				"run_1": testPendingInterrupt("item_1", "member_1", createdAt),
+				"run_1": testApprovalPending("member_1", createdAt),
 			},
 		}
 		control := &fakeExecutionPorts{prepared: ExecutorRef{SessionID: "ses_1", ExecutorID: "turn_1"}}
@@ -772,8 +766,7 @@ func TestResumeWithInputCommitsTheUserItemWithTheContinuation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Resume with input: %v", err)
 	}
-	for range withInput.Events {
-	}
+	consumeEvents(withInput.Events)
 	if withInput.UserItemID == "" {
 		t.Fatal("a resume that carried input named no user item")
 	}
@@ -803,8 +796,7 @@ func TestResumeWithInputCommitsTheUserItemWithTheContinuation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Resume without input: %v", err)
 	}
-	for range without.Events {
-	}
+	consumeEvents(without.Events)
 	if without.UserItemID != "" {
 		t.Fatalf("userItemId = %q on a resume that opened no user input", without.UserItemID)
 	}
@@ -815,7 +807,7 @@ func TestResumeRecoversLostExecutorStateBeforeReturning(t *testing.T) {
 	sessions := &fakeRunSessions{
 		sess: session.Session{ID: "ses_1", CWD: "/work"},
 		pending: map[string]Pending{
-			"run_1": testPendingInterrupt("item_1", "member_1", time.Now().UTC()),
+			"run_1": testApprovalPending("member_1", time.Now().UTC()),
 		},
 		operations: &operations,
 	}
@@ -866,7 +858,7 @@ func TestResumeOpeningFailureMarksClaimedRunLostBeforeReleasingTree(t *testing.T
 	sessions := &fakeRunSessions{
 		sess: session.Session{ID: "ses_1", CWD: "/work"},
 		pending: map[string]Pending{
-			"run_1": testPendingInterrupt("item_1", "member_1", time.Now().UTC()),
+			"run_1": testApprovalPending("member_1", time.Now().UTC()),
 		},
 		operations: &operations,
 	}
@@ -928,7 +920,7 @@ func TestResumeRejectsClaimResultDriftBeforeStagingAndMarksRunLost(t *testing.T)
 			sessions := &fakeRunSessions{
 				sess: session.Session{ID: "ses_1", CWD: "/work"},
 				pending: map[string]Pending{
-					"run_1": testPendingInterrupt("item_1", "member_1", time.Now().UTC()),
+					"run_1": testApprovalPending("member_1", time.Now().UTC()),
 				},
 				operations: &operations,
 			}
@@ -972,7 +964,7 @@ func TestResumeOpeningFailureKeepsTreeWhenRunLostCommitFails(t *testing.T) {
 	sessions := &fakeRunSessions{
 		sess: session.Session{ID: "ses_1", CWD: "/work"},
 		pending: map[string]Pending{
-			"run_1": testPendingInterrupt("item_1", "member_1", time.Now().UTC()),
+			"run_1": testApprovalPending("member_1", time.Now().UTC()),
 		},
 		lostErr:    lostErr,
 		operations: &operations,
@@ -1019,7 +1011,7 @@ func TestResumeOpeningFailureReportsReleaseAfterDurableRunLost(t *testing.T) {
 	sessions := &fakeRunSessions{
 		sess: session.Session{ID: "ses_1", CWD: "/work"},
 		pending: map[string]Pending{
-			"run_1": testPendingInterrupt("item_1", "member_1", time.Now().UTC()),
+			"run_1": testApprovalPending("member_1", time.Now().UTC()),
 		},
 		operations: &operations,
 	}
@@ -1100,8 +1092,7 @@ func TestResumeRehydrateRestoresChildSourceProjection(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Resume: %v", err)
 	}
-	for range result.Events {
-	}
+	consumeEvents(result.Events)
 	if !control.continuation.ChildRunAdmissionEnabled {
 		t.Fatalf("rehydrate request = %+v, want child member projection enabled", control.continuation)
 	}
@@ -1129,7 +1120,7 @@ func TestResumeRehydrateRestoresChildSourceProjection(t *testing.T) {
 
 func TestResumeRehydrateRestoresChildAdmissionBeforeAnyChildExists(t *testing.T) {
 	createdAt := time.Date(2026, 7, 30, 12, 0, 0, 0, time.UTC)
-	pending := testPendingInterrupt("item_1", "member_root", createdAt)
+	pending := testApprovalPending("member_root", createdAt)
 	pending.Capabilities.ChildRuns = true
 	pending.Continuations[0].ModelSelection = mustUseCaseSelection("openai", "model")
 	sessions := &fakeRunSessions{
@@ -1161,8 +1152,7 @@ func TestResumeRehydrateRestoresChildAdmissionBeforeAnyChildExists(t *testing.T)
 	if err != nil {
 		t.Fatalf("Resume: %v", err)
 	}
-	for range result.Events {
-	}
+	consumeEvents(result.Events)
 	if len(pending.Continuations) != 1 {
 		t.Fatalf("test fixture has %d continuations, want one root only", len(pending.Continuations))
 	}
@@ -1176,7 +1166,7 @@ func TestResumeRefusesIsolatedRunAfterRuntimeRestart(t *testing.T) {
 	sessions := &fakeRunSessions{
 		sess: session.Session{ID: "ses_1", CWD: "/work", Isolated: true},
 		pending: map[string]Pending{
-			"run_1": testPendingInterrupt("item_1", "member_1", time.Now().UTC()),
+			"run_1": testApprovalPending("member_1", time.Now().UTC()),
 		},
 		operations: &operations,
 	}
@@ -1219,8 +1209,10 @@ func approvalInterrupt(itemID string, occurredAt time.Time) []transcript.Interru
 	}}
 }
 
-func testPendingInterrupt(itemID, memberID string, runCreatedAt time.Time) Pending {
-	interruptValues := approvalInterrupt(itemID, runCreatedAt)
+func testApprovalPending(memberID string, runCreatedAt time.Time) Pending {
+	const interruptItemID = "item_1"
+
+	interruptValues := approvalInterrupt(interruptItemID, runCreatedAt)
 	return Pending{
 		RootRunID:  "run_1",
 		SessionID:  "ses_1",
@@ -1230,7 +1222,7 @@ func testPendingInterrupt(itemID, memberID string, runCreatedAt time.Time) Pendi
 			InterruptKinds: []interrupt.Kind{interrupt.Approval},
 		},
 		Bindings: []InterruptBinding{{
-			InterruptItemID: itemID,
+			InterruptItemID: interruptItemID,
 			MemberID:        memberID,
 			RequestID:       "request_1",
 		}},
@@ -1275,7 +1267,7 @@ func runForContinuation(
 
 func TestCancelParkedRunUsesApplicationAdmission(t *testing.T) {
 	var operations []string
-	pending := testPendingInterrupt("item_1", "member_1", time.Now().UTC())
+	pending := testApprovalPending("member_1", time.Now().UTC())
 	sessions := &fakeRunSessions{
 		pending: map[string]Pending{
 			"run_1": pending,
@@ -1429,16 +1421,16 @@ func requireChildCancellationProjection(
 func requireLiveJournalHead(t *testing.T, coordinator *Coordinator, runID string) (*journal, string) {
 	t.Helper()
 	entry, live := coordinator.registry.Get(runID)
-	if !live || entry.handle == nil || entry.handle.hub == nil {
+	if !live || entry.owner == nil || entry.owner.hub == nil {
 		t.Fatalf("continued Run %q has no event journal", runID)
 	}
-	subscription := entry.handle.hub.tail()
+	subscription := entry.owner.hub.tail()
 	cursor := subscription.HeadCursor
 	subscription.Cancel()
 	if cursor == "" {
 		t.Fatalf("Run %q journal has no established cursor", runID)
 	}
-	return entry.handle.hub, cursor
+	return entry.owner.hub, cursor
 }
 
 func requireNaturalRootCompletion(t *testing.T, streamDone <-chan []Event, rootRunID string) {
@@ -1553,7 +1545,7 @@ func TestCancelRunningChildCommitsExactSubtreeBoundaryAndKeepsRootRunning(t *tes
 
 func TestCancelParkedRunReportsExecutorReleaseFailureAfterDurableCommit(t *testing.T) {
 	cleanupErr := errors.New("executor release failed")
-	pending := testPendingInterrupt("item_1", "member_1", time.Now().UTC())
+	pending := testApprovalPending("member_1", time.Now().UTC())
 	sessions := &fakeRunSessions{pending: map[string]Pending{
 		"run_1": pending,
 	}}
@@ -1599,8 +1591,7 @@ func TestCancelLiveRunReportsExecutorReleaseFailureAndStillTerminalizes(t *testi
 	if !errors.Is(err, cleanupErr) {
 		t.Fatalf("Cancel error = %v, want cleanup failure", err)
 	}
-	for _, ok := next(); ok; _, ok = next() { // drain the terminal events
-	}
+	consumePulledEvents(next) // drain the terminal events
 	if !effects.terminalized("ses_1", "run_1") {
 		t.Fatal("executor release failure prevented live Run terminalization")
 	}
@@ -1657,8 +1648,7 @@ func TestCancelLiveRunJoinsTerminalMaintenance(t *testing.T) {
 	if hasActiveSession(c, "ses_1") {
 		t.Fatal("Cancel returned before releasing session admission")
 	}
-	for range result.Events {
-	}
+	consumeEvents(result.Events)
 }
 
 func TestCancelLosesToACommittedNaturalTerminal(t *testing.T) {
@@ -1701,7 +1691,7 @@ func TestCancelLosesToACommittedNaturalTerminal(t *testing.T) {
 		t.Fatal("terminal commit lost its live cancellation join")
 	}
 	deadline := time.After(time.Second)
-	for entry.handle.CancelReason() != "too late" {
+	for entry.owner.CancelReason() != "too late" {
 		select {
 		case <-deadline:
 			t.Fatal("cancel did not join the in-flight terminal commit")
@@ -1794,7 +1784,7 @@ func TestCancelLetsCommittedInterruptOwnDurableFirstTeardown(t *testing.T) {
 }
 
 func TestCancelTreatsAlreadyReleasedExecutorAsIdempotentSuccess(t *testing.T) {
-	pending := testPendingInterrupt("item_1", "member_1", time.Now().UTC())
+	pending := testApprovalPending("member_1", time.Now().UTC())
 	sessions := &fakeRunSessions{pending: map[string]Pending{
 		"run_1": pending,
 	}}
@@ -1879,9 +1869,9 @@ func TestStartRefusesASessionThatAlreadyHasARunAndNamesIt(t *testing.T) {
 				ModelSelection: mustUseCaseSelection("provider", "model"),
 				Input:          []transcript.ContentBlock{{Kind: transcript.TextContent, Text: "hi"}},
 			})
-			conflict, ok := errors.AsType[*ActiveRunConflict](err)
+			conflict, ok := errors.AsType[*ActiveRunConflictError](err)
 			if !ok {
-				t.Fatalf("Start = %v, want an ActiveRunConflict", err)
+				t.Fatalf("Start = %v, want an ActiveRunConflictError", err)
 			}
 			if conflict.RunID != "run_active" || conflict.Status != tt.status {
 				t.Fatalf("conflict = %+v, want run_active as %s", conflict, tt.status)

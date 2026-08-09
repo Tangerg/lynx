@@ -103,23 +103,23 @@ type CapabilityRequirement struct {
 	Name string                    `json:"name"`
 }
 
-// CapabilityGap is the capability_not_negotiated problem with its required payload:
+// CapabilityGapError is the capability_not_negotiated problem with its required payload:
 // every gap of THIS request, so the caller fixes them in one round.
-type CapabilityGap struct {
+type CapabilityGapError struct {
 	Requirements []CapabilityRequirement
 }
 
-// NewCapabilityGap builds the refusal. Requirements are deduplicated and ordered by
+// NewCapabilityGapError builds the refusal. Requirements are deduplicated and ordered by
 // (type, name) so the same gap reads the same in every response — a client diffing
 // two refusals is comparing sets, not transcripts.
-func NewCapabilityGap(requirements ...CapabilityRequirement) *CapabilityGap {
+func NewCapabilityGapError(requirements ...CapabilityRequirement) *CapabilityGapError {
 	slices.SortStableFunc(requirements, func(a, b CapabilityRequirement) int {
 		if a.Type != b.Type {
 			return cmp.Compare(requirementOrder(a.Type), requirementOrder(b.Type))
 		}
 		return cmp.Compare(a.Name, b.Name)
 	})
-	return &CapabilityGap{Requirements: slices.Compact(requirements)}
+	return &CapabilityGapError{Requirements: slices.Compact(requirements)}
 }
 
 // requirementOrder is the registry order the canonical encoder sorts by — the order
@@ -131,7 +131,7 @@ func requirementOrder(kind CapabilityRequirementType) int {
 	}, kind)
 }
 
-func (e *CapabilityGap) Error() string {
+func (e *CapabilityGapError) Error() string {
 	names := make([]string, 0, len(e.Requirements))
 	for _, requirement := range e.Requirements {
 		names = append(names, string(requirement.Type)+"."+requirement.Name)
@@ -141,10 +141,10 @@ func (e *CapabilityGap) Error() string {
 
 // Is answers to the sentinel so every reader that branches on the problem type keeps
 // working, and only a reader that needs the gaps asks for the type.
-func (e *CapabilityGap) Is(target error) bool { return target == ErrCapabilityNotNeg }
+func (e *CapabilityGapError) Is(target error) bool { return target == ErrCapabilityNotNeg }
 
 // Enrich carries the gaps to the frame (§9.2's presence table).
-func (e *CapabilityGap) Enrich(problem *ProblemData) {
+func (e *CapabilityGapError) Enrich(problem *ProblemData) {
 	problem.RequiredCapabilities = e.Requirements
 }
 
@@ -158,26 +158,26 @@ type ActiveRunRef struct {
 	Status RunStatus `json:"status"`
 }
 
-// ActiveRunConflict is the session_has_active_run problem with its required
+// ActiveRunConflictError is the session_has_active_run problem with its required
 // payload. It is an error rather than a return value because it IS the refusal:
 // nothing was created, so there is no result to carry it on.
-type ActiveRunConflict struct {
+type ActiveRunConflictError struct {
 	ActiveRun ActiveRunRef
 }
 
-func (e *ActiveRunConflict) Error() string {
+func (e *ActiveRunConflictError) Error() string {
 	return fmt.Sprintf("%s: run %s is %s", ErrSessionHasActiveRun, e.ActiveRun.RunID, e.ActiveRun.Status)
 }
 
 // Is makes the typed conflict answer to its sentinel, so every reader that
 // branches on problem type keeps working and only a reader that needs the payload
 // asks for the type.
-func (e *ActiveRunConflict) Is(target error) bool { return target == ErrSessionHasActiveRun }
+func (e *ActiveRunConflictError) Is(target error) bool { return target == ErrSessionHasActiveRun }
 
 // Enrich fills the structured fields this problem type requires (§8.2's frame
 // table). It exists so the field travels with the error that knows it, instead of
 // delivery re-deriving it where the error is turned into a frame.
-func (e *ActiveRunConflict) Enrich(problem *ProblemData) { problem.ActiveRun = &e.ActiveRun }
+func (e *ActiveRunConflictError) Enrich(problem *ProblemData) { problem.ActiveRun = &e.ActiveRun }
 
 // ProblemDetailed is implemented by an error whose problem type requires structured
 // fields beyond the prose detail. The dispatcher applies it when building the frame.
@@ -285,7 +285,7 @@ var (
 	// ErrSessionHasActiveRun: runs.start found the session already holding a
 	// non-terminal root run. The runtime does NOT cancel it — which run continues is
 	// a decision only the person can make, and an implicit cancel would throw work
-	// away to serve a request that could have been a steer. See [ActiveRunConflict],
+	// away to serve a request that could have been a steer. See [ActiveRunConflictError],
 	// which carries the run so the client can offer the choice.
 	ErrSessionHasActiveRun = errors.New("session_has_active_run")
 	// ErrRunNotRoot: a root-only operation named a child run. It is not

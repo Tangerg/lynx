@@ -28,13 +28,13 @@ func (c *Coordinator) Cancel(ctx context.Context, cmd CancelCommand) (CancelResu
 	if plan.target.run.Lineage().IsChild() {
 		switch plan.treeState {
 		case rundomain.Running:
-			if !live || entry.handle == nil {
+			if !live || entry.owner == nil {
 				return CancelResult{}, fmt.Errorf(
 					"runs: running child Run %q has no live root owner",
 					cmd.RunID,
 				)
 			}
-			return c.cancelLiveChild(ctx, cmd, plan, entry.handle)
+			return c.cancelLiveChild(ctx, cmd, plan, entry.owner)
 		case rundomain.Waiting:
 			return c.cancelWaitingChild(ctx, cmd, plan)
 		default:
@@ -48,18 +48,18 @@ func (c *Coordinator) Cancel(ctx context.Context, cmd CancelCommand) (CancelResu
 	if !live {
 		return c.cancelWithoutLiveSegment(ctx, cmd, plan.root.run)
 	}
-	if entry.handle == nil {
+	if entry.owner == nil {
 		return CancelResult{}, fmt.Errorf(
-			"runs: root Run %q has a live registry entry without a handle",
+			"runs: root Run %q has a live registry entry without a Run-tree owner",
 			plan.root.run.ID,
 		)
 	}
-	cleanupCtx, cancel := entry.handle.cleanupContext(ctx)
+	cleanupCtx, cancel := entry.owner.cleanupContext(ctx)
 	defer cancel()
 	if c.rootCancellation == nil {
 		return CancelResult{}, errors.New("runs: root execution cancellation requester is required")
 	}
-	interruptCommitted, requestErr := entry.handle.requestCancel(
+	interruptCommitted, requestErr := entry.owner.requestCancel(
 		cleanupCtx,
 		cmd.Reason,
 		func(requestCtx context.Context) error {
@@ -73,25 +73,25 @@ func (c *Coordinator) Cancel(ctx context.Context, cmd CancelCommand) (CancelResu
 			return CancelResult{}, requestErr
 		}
 		c.registry.MarkCancel(plan.root.run.ID, cmd.Reason)
-		return CancelResult{}, errors.Join(requestErr, entry.handle.wait(cleanupCtx))
+		return CancelResult{}, errors.Join(requestErr, entry.owner.wait(cleanupCtx))
 	}
 	c.registry.MarkCancel(plan.root.run.ID, cmd.Reason)
 	if interruptCommitted {
 		// The interrupt transaction won before cancellation. Its pump owns the
 		// live admission until it has published and closed the parked segment;
 		// join that boundary, then apply the durable parked cancel transaction.
-		if err := entry.handle.wait(cleanupCtx); err != nil {
+		if err := entry.owner.wait(cleanupCtx); err != nil {
 			return CancelResult{}, err
 		}
 		return c.cancelKnownParkedRun(cleanupCtx, cmd, plan.root.run, plan.executor)
 	}
 	// The pump owns every non-parked live teardown. requestCancel has stopped its
-	// stream context; joining the handle returns that single owner's complete
+	// stream context; joining the Run-tree owner returns that single owner's complete
 	// cleanup boundary without racing a second executor Release from this goroutine.
-	if err := entry.handle.wait(cleanupCtx); err != nil {
+	if err := entry.owner.wait(cleanupCtx); err != nil {
 		return CancelResult{}, err
 	}
-	terminal, committed := entry.handle.committedTerminalRun()
+	terminal, committed := entry.owner.committedTerminalRun()
 	if !committed {
 		return CancelResult{}, fmt.Errorf(
 			"runs: canceled live root Run %q completed without a terminal snapshot",
@@ -113,13 +113,13 @@ func (c *Coordinator) cancelLiveChild(
 	ctx context.Context,
 	cmd CancelCommand,
 	plan cancellationPlan,
-	live *handle,
+	owner *runTreeOwner,
 ) (CancelResult, error) {
-	attempt, err := live.beginChildCancellation(plan, cmd.Reason)
+	attempt, err := owner.beginChildCancellation(plan, cmd.Reason)
 	if err != nil {
 		return CancelResult{}, err
 	}
-	cleanupCtx, cancel := live.cleanupContext(ctx)
+	cleanupCtx, cancel := owner.cleanupContext(ctx)
 	defer cancel()
 	if err := c.runningSubtreeCanceler.CancelRunningSubtree(
 		cleanupCtx,
@@ -127,7 +127,7 @@ func (c *Coordinator) cancelLiveChild(
 		plan.target.memberID,
 		cmd.Reason,
 	); err != nil {
-		live.abortChildCancellation(attempt, err)
+		owner.abortChildCancellation(attempt, err)
 		return CancelResult{}, fmt.Errorf(
 			"runs: cancel child Run %q executor subtree %q: %w",
 			plan.target.run.ID,
@@ -135,7 +135,7 @@ func (c *Coordinator) cancelLiveChild(
 			err,
 		)
 	}
-	target, root, err := live.waitChildCancellation(cleanupCtx, attempt)
+	target, root, err := owner.waitChildCancellation(cleanupCtx, attempt)
 	if err != nil {
 		return CancelResult{}, err
 	}
@@ -197,7 +197,7 @@ func (c *Coordinator) cancelWaitingChild(
 	}
 	defer runAdmission.Release()
 
-	cleanupCtx, cancelCleanup := (*handle)(nil).cleanupContext(ctx)
+	cleanupCtx, cancelCleanup := (*runTreeOwner)(nil).cleanupContext(ctx)
 	defer cancelCleanup()
 
 	plan, err := c.resolveClaimedWaitingChildCancellation(cleanupCtx, cmd)
@@ -268,7 +268,7 @@ func (c *Coordinator) resolveClaimedWaitingChildCancellation(
 		return cancellationPlan{}, err
 	}
 	if live {
-		if entry.handle == nil {
+		if entry.owner == nil {
 			return cancellationPlan{}, fmt.Errorf(
 				"runs: waiting child Run %q has a live registry entry without an owner",
 				cmd.RunID,
@@ -277,7 +277,7 @@ func (c *Coordinator) resolveClaimedWaitingChildCancellation(
 		// A just-committed park releases admission immediately before its pump
 		// removes the live registry entry. Join that already-terminal boundary and
 		// then resolve the now-authoritative parked facts.
-		if err := entry.handle.wait(ctx); err != nil {
+		if err := entry.owner.wait(ctx); err != nil {
 			return cancellationPlan{}, err
 		}
 		plan, _, live, err = c.cancellationPlanFor(ctx, cmd)
@@ -581,7 +581,7 @@ func (c *Coordinator) publishWaitingChildCancellation(
 // never run_not_found.
 func (c *Coordinator) cancelWithoutLiveSegment(ctx context.Context, cmd CancelCommand, run transcript.Run) (CancelResult, error) {
 	if run.State == rundomain.Waiting {
-		cleanupCtx, cancel := (*handle)(nil).cleanupContext(ctx)
+		cleanupCtx, cancel := (*runTreeOwner)(nil).cleanupContext(ctx)
 		defer cancel()
 		return c.cancelParkedRun(cleanupCtx, cmd, run)
 	}
@@ -594,7 +594,7 @@ func (c *Coordinator) cancelWithoutLiveSegment(ctx context.Context, cmd CancelCo
 	case refreshed.State.IsTerminal():
 		return CancelResult{}, fmt.Errorf("%w: %q completed as %s", ErrRunFinished, cmd.RunID, refreshed.State)
 	case refreshed.State == rundomain.Waiting:
-		cleanupCtx, cancel := (*handle)(nil).cleanupContext(ctx)
+		cleanupCtx, cancel := (*runTreeOwner)(nil).cleanupContext(ctx)
 		defer cancel()
 		return c.cancelParkedRun(cleanupCtx, cmd, refreshed)
 	case refreshed.State == rundomain.Running:
@@ -647,8 +647,8 @@ func (c *Coordinator) cancelParkedRun(ctx context.Context, cmd CancelCommand, ru
 	})
 }
 
-// cancelKnownParkedRun is used only after the live handle proves its interrupt
-// transaction committed. The handle's Segment binding is therefore the exact
+// cancelKnownParkedRun is used only after the live Run-tree owner proves its
+// interrupt transaction committed. The owner's Segment binding is therefore the exact
 // executor that transaction parked; resolving it again would introduce a second,
 // weaker source of identity between two halves of one command.
 func (c *Coordinator) cancelKnownParkedRun(

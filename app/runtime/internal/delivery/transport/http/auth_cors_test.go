@@ -53,7 +53,7 @@ func TestAuthGateMissingToken(t *testing.T) {
 		t.Fatalf("post: %v", err)
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != 401 {
+	if resp.StatusCode != netHTTP.StatusUnauthorized {
 		t.Fatalf("status = %d, want 401", resp.StatusCode)
 	}
 	raw := readBody(resp)
@@ -77,7 +77,7 @@ func TestAuthGate401HasChallenge(t *testing.T) {
 		t.Fatalf("post: %v", err)
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != 401 {
+	if resp.StatusCode != netHTTP.StatusUnauthorized {
 		t.Fatalf("status = %d, want 401", resp.StatusCode)
 	}
 	if got := resp.Header.Get("WWW-Authenticate"); !strings.Contains(got, "Bearer") {
@@ -99,7 +99,7 @@ func TestAuthGateWrongToken(t *testing.T) {
 		t.Fatalf("do: %v", err)
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != 401 {
+	if resp.StatusCode != netHTTP.StatusUnauthorized {
 		t.Fatalf("status = %d, want 401", resp.StatusCode)
 	}
 }
@@ -120,7 +120,7 @@ func TestAuthGateCorrectToken(t *testing.T) {
 		t.Fatalf("do: %v", err)
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != 200 {
+	if resp.StatusCode != netHTTP.StatusOK {
 		raw := readBody(resp)
 		t.Fatalf("status = %d, body = %s", resp.StatusCode, raw)
 	}
@@ -139,7 +139,7 @@ func TestAuthGateBypassesSidecars(t *testing.T) {
 			t.Fatalf("get %s: %v", path, err)
 		}
 		resp.Body.Close()
-		if resp.StatusCode != 200 {
+		if resp.StatusCode != netHTTP.StatusOK {
 			t.Fatalf("%s status = %d, want 200", path, resp.StatusCode)
 		}
 	}
@@ -162,7 +162,7 @@ func TestCORSPreflight(t *testing.T) {
 		t.Fatalf("do: %v", err)
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+	if resp.StatusCode < netHTTP.StatusOK || resp.StatusCode >= 300 {
 		t.Fatalf("status = %d, want 2xx", resp.StatusCode)
 	}
 	if got := resp.Header.Get("Access-Control-Allow-Origin"); got != "http://app" {

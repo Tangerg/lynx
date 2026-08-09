@@ -36,9 +36,9 @@ func planContext(t *testing.T, sessionID string) context.Context {
 	return executionctx.WithScope(t.Context(), runs.ExecutionScope{SessionID: sessionID})
 }
 
-func planPolicy(t *testing.T, mode approval.Mode) *approvals.RuntimePolicy {
+func balancedPlanPolicy(t *testing.T) *approvals.RuntimePolicy {
 	t.Helper()
-	policy, err := approvals.NewRuntimePolicy(mode, nil, &modeStore{states: make(map[string]approval.SessionMode)})
+	policy, err := approvals.NewRuntimePolicy(approval.ModeBalanced, nil, &modeStore{states: make(map[string]approval.SessionMode)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -46,7 +46,7 @@ func planPolicy(t *testing.T, mode approval.Mode) *approvals.RuntimePolicy {
 }
 
 func TestNewRequiresModeAndPlanPorts(t *testing.T) {
-	policy := planPolicy(t, approval.ModeBalanced)
+	policy := balancedPlanPolicy(t)
 	for _, build := range []func() (any, error){
 		func() (any, error) { return newExit(nil, planReader{}, nil) },
 		func() (any, error) { return newExit(policy, nil, nil) },
@@ -62,7 +62,7 @@ func TestNewRequiresModeAndPlanPorts(t *testing.T) {
 }
 
 func TestDefinitionHasNoSecondPlanInput(t *testing.T) {
-	tool, err := newExit(planPolicy(t, approval.ModeBalanced), planReader{}, nil)
+	tool, err := newExit(balancedPlanPolicy(t), planReader{}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -79,7 +79,7 @@ func TestDefinitionHasNoSecondPlanInput(t *testing.T) {
 }
 
 func TestExitRequiresSessionAndPlanMode(t *testing.T) {
-	policy := planPolicy(t, approval.ModeBalanced)
+	policy := balancedPlanPolicy(t)
 	tool, err := newExit(policy, planReader{steps: []plandomain.Step{{Description: "inspect", Status: plandomain.StatusPending}}}, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -93,7 +93,7 @@ func TestExitRequiresSessionAndPlanMode(t *testing.T) {
 }
 
 func TestExitRejectsEmptyCanonicalPlan(t *testing.T) {
-	policy := planPolicy(t, approval.ModeBalanced)
+	policy := balancedPlanPolicy(t)
 	if _, err := policy.EnterPlanMode(t.Context(), "session-1"); err != nil {
 		t.Fatal(err)
 	}
@@ -108,7 +108,7 @@ func TestExitRejectsEmptyCanonicalPlan(t *testing.T) {
 
 func TestRejectionKeepsPlanMode(t *testing.T) {
 	const sessionID = "session-reject"
-	policy := planPolicy(t, approval.ModeBalanced)
+	policy := balancedPlanPolicy(t)
 	if _, err := policy.EnterPlanMode(t.Context(), sessionID); err != nil {
 		t.Fatal(err)
 	}
@@ -133,7 +133,7 @@ func TestRejectionKeepsPlanMode(t *testing.T) {
 
 func TestApprovalRestoresModeCapturedOnEntry(t *testing.T) {
 	const sessionID = "session-approve"
-	policy := planPolicy(t, approval.ModeBalanced)
+	policy := balancedPlanPolicy(t)
 	if _, err := policy.EnterPlanMode(t.Context(), sessionID); err != nil {
 		t.Fatal(err)
 	}

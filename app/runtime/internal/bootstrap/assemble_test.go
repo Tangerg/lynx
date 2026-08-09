@@ -16,7 +16,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/goals"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	scheduleapp "github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/accounting"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
@@ -497,7 +496,7 @@ func TestAssemblyRecoversParkedRunWithIncompatibleDeployment(t *testing.T) {
 		t.Fatalf("open interrupt: %v", err)
 	}
 	tree := bootstrapSnapshotTree(processID, bootstrapWaitingSnapshot(processID))
-	if err := cfg.ExecutorCheckpoints.SaveCheckpoint(ctx, bootstrapCheckpoint(tree, sessionID, accounting.Snapshot{})); err != nil {
+	if err := cfg.ExecutorCheckpoints.SaveCheckpoint(ctx, bootstrapCheckpoint(tree, sessionID)); err != nil {
 		t.Fatalf("save executor checkpoint: %v", err)
 	}
 

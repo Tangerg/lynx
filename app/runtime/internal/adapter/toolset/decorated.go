@@ -11,20 +11,20 @@ import (
 // decorate replaces Call while preserving the inner capability declarations
 // — the shared spine of read/mutation guards and post-mutation diagnostics.
 func decorate(inner toolcontract.Tool, call func(ctx context.Context, arguments string) (string, error)) toolcontract.Tool {
-	return &decorated{inner: inner, call: call}
+	return &callDecorator{inner: inner, call: call}
 }
 
-// decorated is the backing type for [decorate]: it overrides Call while
+// callDecorator is the backing type for [decorate]: it overrides Call while
 // delegating Definition plus optional tool-loop declarations to the wrapped
 // tool, so a decorator stack preserves the inner tool's full contract.
-type decorated struct {
+type callDecorator struct {
 	inner toolcontract.Tool
 	call  func(ctx context.Context, arguments string) (string, error)
 }
 
-func (d *decorated) Definition() chat.ToolDefinition { return d.inner.Definition() }
+func (d *callDecorator) Definition() chat.ToolDefinition { return d.inner.Definition() }
 
-func (d *decorated) Call(ctx context.Context, arguments string) (string, error) {
+func (d *callDecorator) Call(ctx context.Context, arguments string) (string, error) {
 	return d.call(ctx, arguments)
 }
 
@@ -32,4 +32,4 @@ func (d *decorated) Call(ctx context.Context, arguments string) (string, error) 
 // keyed file tool's per-path conflict class, where its mutations land, a
 // return-direct policy — survive the whole decorator stack. Only Call is
 // overridden here.
-func (d *decorated) Unwrap() toolcontract.Tool { return d.inner }
+func (d *callDecorator) Unwrap() toolcontract.Tool { return d.inner }

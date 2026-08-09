@@ -90,11 +90,12 @@ func (change *interactionWaitingSubtreeChange) Apply(
 			err = errors.Join(err, fmt.Errorf("discard failed prepared Interaction subtree: %w", discardErr))
 		}
 	}
-	if err != nil {
+	switch {
+	case err != nil:
 		change.state = interactionWaitingSubtreeChangeApplyFailed
-	} else if disposition == runs.WaitingSubtreeStaysWaiting {
+	case disposition == runs.WaitingSubtreeStaysWaiting:
 		change.state = interactionWaitingSubtreeChangeWaiting
-	} else {
+	default:
 		change.state = interactionWaitingSubtreeChangeContinuationReady
 	}
 	change.session.finishSubtreeApplication(change, disposition, err)

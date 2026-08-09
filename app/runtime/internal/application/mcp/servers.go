@@ -93,7 +93,7 @@ func (c *Coordinator) UpdateServer(ctx context.Context, name string, patch Serve
 	return c.commitServer(write, updated)
 }
 
-func (c *Coordinator) commitServer(write *mutation, srv mcpserver.Server) (Server, error) {
+func (c *Coordinator) commitServer(write *mutationScope, srv mcpserver.Server) (Server, error) {
 	if err := c.registry.Save(write.requestCtx, srv); err != nil {
 		return Server{}, err
 	}
@@ -158,7 +158,9 @@ func (c *Coordinator) DeleteServer(ctx context.Context, name string) error {
 	return errors.Join(projectionErr, policyErr)
 }
 
-type mutation struct {
+// mutationScope owns one registry mutation's request lifetime, detached repair
+// lifetime, and serialization lock.
+type mutationScope struct {
 	coordinator *Coordinator
 	requestCtx  context.Context
 	ownerCtx    context.Context
@@ -169,7 +171,7 @@ type mutation struct {
 // beginMutation owns both task scopes and the durable mutation lock. Callers
 // release the lock before invoking status sinks or dispatching live dials, then
 // defer close to release the task scopes on every exit.
-func (c *Coordinator) beginMutation(ctx context.Context) (*mutation, error) {
+func (c *Coordinator) beginMutation(ctx context.Context) (*mutationScope, error) {
 	ownerCtx, releaseOwner, ok := c.tasks.Attach(ctx)
 	if !ok {
 		return nil, errClosed
@@ -186,7 +188,7 @@ func (c *Coordinator) beginMutation(ctx context.Context) (*mutation, error) {
 		releaseOwner()
 		return nil, err
 	}
-	return &mutation{
+	return &mutationScope{
 		coordinator: c,
 		requestCtx:  requestCtx,
 		ownerCtx:    ownerCtx,
@@ -198,14 +200,14 @@ func (c *Coordinator) beginMutation(ctx context.Context) (*mutation, error) {
 	}, nil
 }
 
-func (write *mutation) unlock() {
+func (write *mutationScope) unlock() {
 	if write != nil && write.locked {
 		write.locked = false
 		write.coordinator.mutationMu.Unlock()
 	}
 }
 
-func (write *mutation) close() {
+func (write *mutationScope) close() {
 	if write == nil || write.finish == nil {
 		return
 	}

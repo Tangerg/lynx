@@ -23,11 +23,11 @@ func TestChatResolverRejectsUnconfigured(t *testing.T) {
 	ps := sqlitestore.NewProviderStore(db) // empty: deepseek not configured
 	r := NewChatResolver(ps)
 
-	_, err = r.ResolveChat(t.Context(), testSelection(t, "deepseek", "deepseek-v4-pro"))
+	_, err = r.ResolveChat(t.Context(), testDeepSeekSelection(t, "deepseek-v4-pro"))
 	if err == nil {
 		t.Fatal("expected an error resolving against an unconfigured provider")
 	}
-	var failure *run.Failure
+	var failure *run.FailureError
 	if !errors.As(err, &failure) || failure.Kind != run.FailureInvalidCredentials {
 		t.Fatalf("unconfigured provider error = %#v, want invalid-credentials failure", err)
 	}
@@ -37,23 +37,23 @@ func TestChatResolverRejectsUnconfigured(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	c, err := r.ResolveChat(t.Context(), testSelection(t, "deepseek", "deepseek-v4-pro"))
+	c, err := r.ResolveChat(t.Context(), testDeepSeekSelection(t, "deepseek-v4-pro"))
 	if err != nil || c == nil {
 		t.Fatalf("ResolveChat after configure: client=%v err=%v", c, err)
 	}
 	// Same (provider, model) is cached — second call returns the same client.
-	if c2, _ := r.ResolveChat(t.Context(), testSelection(t, "deepseek", "deepseek-v4-pro")); c2 != c {
+	if c2, _ := r.ResolveChat(t.Context(), testDeepSeekSelection(t, "deepseek-v4-pro")); c2 != c {
 		t.Error("expected the resolved client to be cached")
 	}
 	// A different model on the same provider builds a distinct client.
-	if c3, _ := r.ResolveChat(t.Context(), testSelection(t, "deepseek", "deepseek-v4-flash")); c3 == c {
+	if c3, _ := r.ResolveChat(t.Context(), testDeepSeekSelection(t, "deepseek-v4-flash")); c3 == c {
 		t.Error("different model should resolve a distinct client")
 	}
 }
 
-func testSelection(t testing.TB, provider, model string) modelref.Selection {
+func testDeepSeekSelection(t testing.TB, model string) modelref.Selection {
 	t.Helper()
-	selection, err := modelref.New(provider, model)
+	selection, err := modelref.New("deepseek", model)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -36,8 +36,8 @@ type searchArgs struct {
 	Limit int    `json:"limit,omitempty" jsonschema:"minimum=1,maximum=20" jsonschema_description:"Maximum keyword matches to load. Defaults to 5. Exact select: queries ignore this value."`
 }
 
-// entry is one searchable withheld tool with its precomputed match terms.
-type entry struct {
+// searchableTool is one withheld tool with its precomputed match terms.
+type searchableTool struct {
 	definition chat.ToolDefinition
 	source     string   // runtime or MCP server identity, for grouping and fairness
 	nameTerms  []string // tokenized qualified name
@@ -69,8 +69,8 @@ func WithToolAdvertiser(ctx context.Context, advertiser ToolAdvertiser) context.
 // built per Run from the resolver's complete deferred set, so its advertised
 // catalog and promotable definitions never drift.
 type Search struct {
-	entries []entry
-	byName  map[string]entry
+	entries []searchableTool
+	byName  map[string]searchableTool
 	names   []string // deferred tool names, in stable source-then-name order
 	inner   toolcontract.Tool
 }
@@ -83,10 +83,10 @@ func New(withheld []toolcontract.Tool) (*Search, error) {
 	if len(withheld) == 0 {
 		return nil, nil
 	}
-	t := &Search{byName: make(map[string]entry, len(withheld))}
+	t := &Search{byName: make(map[string]searchableTool, len(withheld))}
 	for _, tool := range withheld {
 		def := tool.Definition()
-		e := entry{
+		e := searchableTool{
 			definition: def,
 			source:     sourceOf(tool),
 			nameTerms:  tokenize(def.Name),
@@ -98,7 +98,7 @@ func New(withheld []toolcontract.Tool) (*Search, error) {
 	}
 	// Stable order: source, then name — drives the round-robin rotation and the
 	// catalog listed in the description.
-	slices.SortFunc(t.entries, func(a, b entry) int {
+	slices.SortFunc(t.entries, func(a, b searchableTool) int {
 		if a.source != b.source {
 			return strings.Compare(a.source, b.source)
 		}
@@ -174,7 +174,7 @@ func (t *Search) search(ctx context.Context, args searchArgs) (string, error) {
 		limit = defaultLimit
 	}
 
-	var matches []entry
+	var matches []searchableTool
 	if rest, ok := strings.CutPrefix(query, selectPrefix); ok {
 		matches = t.selectByName(rest)
 	} else {
@@ -200,8 +200,8 @@ func (t *Search) search(ctx context.Context, args searchArgs) (string, error) {
 
 // selectByName resolves an exact "select:a,b,c" list, preserving request order
 // and dropping unknown names.
-func (t *Search) selectByName(list string) []entry {
-	var out []entry
+func (t *Search) selectByName(list string) []searchableTool {
+	var out []searchableTool
 	seen := make(map[string]struct{})
 	for name := range strings.SplitSeq(list, ",") {
 		name = strings.TrimSpace(name)
@@ -219,38 +219,38 @@ func (t *Search) selectByName(list string) []entry {
 	return out
 }
 
-type scored struct {
-	entry entry
+type rankedTool struct {
+	tool  searchableTool
 	score int
 }
 
 // searchByKeyword ranks the withheld tools against the query terms, then spreads
 // the top results across servers (round-robin) so one large integration cannot
 // starve the others out of the result window.
-func (t *Search) searchByKeyword(query string, limit int) []entry {
+func (t *Search) searchByKeyword(query string, limit int) []searchableTool {
 	terms := strings.Fields(strings.ToLower(query))
 	if len(terms) == 0 {
 		return nil
 	}
-	var hits []scored
+	var hits []rankedTool
 	for _, e := range t.entries {
 		if s, ok := scoreEntry(terms, e); ok {
-			hits = append(hits, scored{entry: e, score: s})
+			hits = append(hits, rankedTool{tool: e, score: s})
 		}
 	}
 	// Highest score first; stable by name so ties are deterministic.
-	slices.SortStableFunc(hits, func(a, b scored) int {
+	slices.SortStableFunc(hits, func(a, b rankedTool) int {
 		if a.score != b.score {
 			return cmp.Compare(b.score, a.score)
 		}
-		return strings.Compare(a.entry.definition.Name, b.entry.definition.Name)
+		return strings.Compare(a.tool.definition.Name, b.tool.definition.Name)
 	})
 	return roundRobinBySource(hits, limit)
 }
 
 // scoreEntry weights a name-term match above a description-only match. A term
 // prefixed with + is mandatory: if it matches nothing, the tool is excluded.
-func scoreEntry(terms []string, e entry) (int, bool) {
+func scoreEntry(terms []string, e searchableTool) (int, bool) {
 	total := 0
 	for _, term := range terms {
 		required := strings.HasPrefix(term, "+")
@@ -277,19 +277,19 @@ func scoreEntry(terms []string, e entry) (int, bool) {
 
 // roundRobinBySource draws from each source's ranked list in turn until limit
 // is reached, so one large capability family cannot monopolize the result.
-func roundRobinBySource(hits []scored, limit int) []entry {
+func roundRobinBySource(hits []rankedTool, limit int) []searchableTool {
 	if len(hits) == 0 {
 		return nil
 	}
-	perSource := make(map[string][]entry)
+	perSource := make(map[string][]searchableTool)
 	var order []string // first-seen source order (already score-then-name sorted)
 	for _, h := range hits {
-		if _, ok := perSource[h.entry.source]; !ok {
-			order = append(order, h.entry.source)
+		if _, ok := perSource[h.tool.source]; !ok {
+			order = append(order, h.tool.source)
 		}
-		perSource[h.entry.source] = append(perSource[h.entry.source], h.entry)
+		perSource[h.tool.source] = append(perSource[h.tool.source], h.tool)
 	}
-	out := make([]entry, 0, min(limit, len(hits)))
+	out := make([]searchableTool, 0, min(limit, len(hits)))
 	for len(out) < limit {
 		progressed := false
 		for _, source := range order {
@@ -311,7 +311,7 @@ func roundRobinBySource(hits []scored, limit int) []entry {
 	return out
 }
 
-func (t *Search) renderMatches(matches []entry) string {
+func (t *Search) renderMatches(matches []searchableTool) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "Loaded %d tool(s) — now callable directly on your next step:\n", len(matches))
 	for _, m := range matches {

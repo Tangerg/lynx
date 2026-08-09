@@ -73,8 +73,8 @@ func TestRunCapabilitiesReportsTheCompleteMissingSet(t *testing.T) {
 		t.Fatalf("String() = %q, want semantic capability names", text)
 	}
 
-	err := &InsufficientCapabilities{RunID: "run_1", Missing: missing}
+	err := &InsufficientCapabilitiesError{RunID: "run_1", Missing: missing}
 	if !errors.Is(err, ErrInsufficientCapabilities) || !strings.Contains(err.Error(), `run "run_1" requires child runs, question interrupts`) {
-		t.Fatalf("InsufficientCapabilities = %v", err)
+		t.Fatalf("InsufficientCapabilitiesError = %v", err)
 	}
 }

@@ -36,7 +36,7 @@ func (fakeEmbedder) Embed(_ context.Context, texts []string) ([][]float32, error
 	for i, t := range texts {
 		v := make([]float32, fakeDim)
 		for w := range strings.FieldsSeq(strings.ToLower(t)) {
-			v[wordBucket(w)] += 1
+			v[wordBucket(w)]++
 		}
 		out[i] = v
 	}

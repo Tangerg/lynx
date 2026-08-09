@@ -14,7 +14,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/conversations"
 	runsapp "github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/accounting"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
@@ -49,7 +48,6 @@ func bootstrapSnapshotTree(rootID string, snapshots ...bootstrapProcessSnapshot)
 func bootstrapCheckpoint(
 	tree bootstrapProcessSnapshotTree,
 	sessionID string,
-	usage accounting.Snapshot,
 ) runsapp.ExecutorCheckpoint {
 	payload, err := json.Marshal(tree)
 	if err != nil {
@@ -60,7 +58,6 @@ func bootstrapCheckpoint(
 		Payload:      payload,
 		BuildID:      bootstrapCheckpointBuildID,
 		Scope:        runsapp.ExecutionScope{SessionID: sessionID},
-		Usage:        usage,
 	}
 }
 
@@ -161,15 +158,14 @@ func restoredRun(sessionID, runID string, at time.Time) transcript.Run {
 	}
 }
 
-func park(
+func parkSessionARootRun(
 	t *testing.T,
 	sessions *sqlite.SessionStore,
 	runs *sqlite.RunStore,
 	ints *persistence.InterruptStore,
 	checkpoints *persistence.ExecutorCheckpointStore,
-	sessionID, runID string,
 ) string {
-	return parkWithGoalLease(t, sessions, runs, ints, checkpoints, sessionID, runID, "")
+	return parkWithGoalLease(t, sessions, runs, ints, checkpoints, "ses_A", "run_1", "")
 }
 
 func parkWithGoalLease(
@@ -192,7 +188,7 @@ func parkWithGoalLease(
 	}
 	processID := "proc_" + runID
 	tree := bootstrapSnapshotTree(processID, bootstrapWaitingSnapshot(processID))
-	checkpoint := bootstrapCheckpoint(tree, sessionID, accounting.Snapshot{})
+	checkpoint := bootstrapCheckpoint(tree, sessionID)
 	checkpoint.Scope.GoalLeaseID = goalLeaseID
 	if err := checkpoints.SaveCheckpoint(ctx, checkpoint); err != nil {
 		t.Fatalf("save executor checkpoint: %v", err)
@@ -243,7 +239,7 @@ func parkWithGoalLease(
 func TestApplyTerminalDropsInterruptAndTerminalizes(t *testing.T) {
 	ss, runs, ints := newWriteSetFixture(t)
 	ctx := t.Context()
-	processID := park(t, ss.sessions, runs, ints, ss.checkpoints, "ses_A", "run_1")
+	processID := parkSessionARootRun(t, ss.sessions, runs, ints, ss.checkpoints)
 	child := bootstrapWaitingSnapshot("child_" + processID)
 	child.ParentID = processID
 	tree := bootstrapSnapshotTree(
@@ -251,7 +247,7 @@ func TestApplyTerminalDropsInterruptAndTerminalizes(t *testing.T) {
 		bootstrapWaitingSnapshot(processID),
 		child,
 	)
-	if err := ss.checkpoints.SaveCheckpoint(ctx, bootstrapCheckpoint(tree, "ses_A", accounting.Snapshot{})); err != nil {
+	if err := ss.checkpoints.SaveCheckpoint(ctx, bootstrapCheckpoint(tree, "ses_A")); err != nil {
 		t.Fatalf("save root executor checkpoint containing a child: %v", err)
 	}
 	outcome := run.OutcomeCanceled
@@ -286,7 +282,7 @@ func TestApplyTerminalDropsInterruptAndTerminalizes(t *testing.T) {
 func TestApplyTerminalRecoversLostParkAtomically(t *testing.T) {
 	ss, runs, ints := newWriteSetFixture(t)
 	ctx := t.Context()
-	processID := park(t, ss.sessions, runs, ints, ss.checkpoints, "ses_A", "run_1")
+	processID := parkSessionARootRun(t, ss.sessions, runs, ints, ss.checkpoints)
 	child := bootstrapWaitingSnapshot("child_" + processID)
 	child.ParentID = processID
 	tree := bootstrapSnapshotTree(
@@ -294,7 +290,7 @@ func TestApplyTerminalRecoversLostParkAtomically(t *testing.T) {
 		bootstrapWaitingSnapshot(processID),
 		child,
 	)
-	if err := ss.checkpoints.SaveCheckpoint(ctx, bootstrapCheckpoint(tree, "ses_A", accounting.Snapshot{})); err != nil {
+	if err := ss.checkpoints.SaveCheckpoint(ctx, bootstrapCheckpoint(tree, "ses_A")); err != nil {
 		t.Fatalf("save root executor checkpoint containing a child: %v", err)
 	}
 	outcome := run.OutcomeLost
@@ -413,7 +409,7 @@ func TestApplyTerminalChargesGoalOwnedParkAtomically(t *testing.T) {
 func TestApplyRollbackDropsRunsAndFreesAdmission(t *testing.T) {
 	ss, runs, ints := newWriteSetFixture(t)
 	ctx := context.Background()
-	processID := park(t, ss.sessions, runs, ints, ss.checkpoints, "ses_A", "run_1")
+	processID := parkSessionARootRun(t, ss.sessions, runs, ints, ss.checkpoints)
 	if err := ss.plan.Replace(ctx, "ses_A", []plan.Step{{Description: "future work", Status: plan.StatusPending}}); err != nil {
 		t.Fatalf("seed plan: %v", err)
 	}
@@ -458,7 +454,7 @@ func TestApplyRollbackDropsRunsAndFreesAdmission(t *testing.T) {
 func TestApplyRollbackRepublishesBoundaryPlan(t *testing.T) {
 	ss, runs, ints := newWriteSetFixture(t)
 	ctx := t.Context()
-	processID := park(t, ss.sessions, runs, ints, ss.checkpoints, "ses_A", "run_1")
+	processID := parkSessionARootRun(t, ss.sessions, runs, ints, ss.checkpoints)
 	if err := ss.plan.Replace(ctx, "ses_A", []plan.Step{
 		{Description: "work the rollback discards", Status: plan.StatusInProgress},
 	}); err != nil {
@@ -498,7 +494,7 @@ func TestApplyRollbackRepublishesBoundaryPlan(t *testing.T) {
 func TestApplyRollbackClearsToARecordedEmptyBoundary(t *testing.T) {
 	ss, runs, ints := newWriteSetFixture(t)
 	ctx := t.Context()
-	processID := park(t, ss.sessions, runs, ints, ss.checkpoints, "ses_A", "run_1")
+	processID := parkSessionARootRun(t, ss.sessions, runs, ints, ss.checkpoints)
 	if err := ss.plan.Replace(ctx, "ses_A", []plan.Step{{Description: "later work", Status: plan.StatusPending}}); err != nil {
 		t.Fatalf("seed plan: %v", err)
 	}
@@ -581,19 +577,19 @@ func TestApplyDeleteRemovesRunRows(t *testing.T) {
 	if err := ss.sessions.Restore(ctx, session.Session{ID: "ses_A"}); err != nil {
 		t.Fatalf("seed session: %v", err)
 	}
-	processID := park(t, ss.sessions, runs, ints, ss.checkpoints, "ses_A", "run_1")
+	processID := parkSessionARootRun(t, ss.sessions, runs, ints, ss.checkpoints)
 	orphanProcessID := "proc_orphan"
 	orphanTree := bootstrapSnapshotTree(
 		orphanProcessID,
 		bootstrapWaitingSnapshot(orphanProcessID),
 	)
-	if err := ss.checkpoints.SaveCheckpoint(ctx, bootstrapCheckpoint(orphanTree, "ses_A", accounting.Snapshot{})); err != nil {
+	if err := ss.checkpoints.SaveCheckpoint(ctx, bootstrapCheckpoint(orphanTree, "ses_A")); err != nil {
 		t.Fatalf("seed orphan checkpoint: %v", err)
 	}
 	if err := ss.plan.Replace(ctx, "ses_A", []plan.Step{{Description: "owned", Status: plan.StatusPending}}); err != nil {
 		t.Fatalf("seed plan: %v", err)
 	}
-	if err := ss.approvals.Put(ctx, testApprovalRule(t, approval.ScopeSession, "ses_A", "shell", approval.Allow)); err != nil {
+	if err := ss.approvals.Put(ctx, testAllowRule(t, approval.ScopeSession, "ses_A", "shell")); err != nil {
 		t.Fatalf("seed approval: %v", err)
 	}
 
@@ -635,9 +631,9 @@ func TestApplyRestoreClearsSessionOwnedProjections(t *testing.T) {
 		t.Fatalf("seed plan: %v", err)
 	}
 	seedGoal(t, ss, "ses_A")
-	sessionRule := testApprovalRule(t, approval.ScopeSession, "ses_A", "shell", approval.Allow)
-	projectRule := testApprovalRule(t, approval.ScopeProject, "/repo", "write", approval.Allow)
-	globalRule := testApprovalRule(t, approval.ScopeGlobal, "", "read", approval.Allow)
+	sessionRule := testAllowRule(t, approval.ScopeSession, "ses_A", "shell")
+	projectRule := testAllowRule(t, approval.ScopeProject, "/repo", "write")
+	globalRule := testAllowRule(t, approval.ScopeGlobal, "", "read")
 	for _, rule := range []approval.Rule{sessionRule, projectRule, globalRule} {
 		if err := ss.approvals.Put(ctx, rule); err != nil {
 			t.Fatalf("seed approval %s: %v", rule.ID, err)
@@ -666,9 +662,9 @@ func TestApplyRestoreClearsSessionOwnedProjections(t *testing.T) {
 	}
 }
 
-func testApprovalRule(t *testing.T, scope approval.Scope, scopeKey, toolName string, decision approval.Decision) approval.Rule {
+func testAllowRule(t *testing.T, scope approval.Scope, scopeKey, toolName string) approval.Rule {
 	t.Helper()
-	rule, err := approval.NewRule(scope, scopeKey, toolName, "", decision)
+	rule, err := approval.NewRule(scope, scopeKey, toolName, "", approval.Allow)
 	if err != nil {
 		t.Fatalf("new approval rule: %v", err)
 	}
@@ -687,7 +683,7 @@ func TestApplyRollbackRejectsInvalidProcessSetAtomically(t *testing.T) {
 		"proc_preserve",
 		bootstrapWaitingSnapshot("proc_preserve"),
 	)
-	if err := ss.checkpoints.SaveCheckpoint(ctx, bootstrapCheckpoint(preservedTree, parent.ID, accounting.Snapshot{})); err != nil {
+	if err := ss.checkpoints.SaveCheckpoint(ctx, bootstrapCheckpoint(preservedTree, parent.ID)); err != nil {
 		t.Fatalf("seed executor checkpoint: %v", err)
 	}
 

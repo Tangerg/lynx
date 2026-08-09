@@ -13,9 +13,9 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 )
 
-// target is a connected (name, session) pair snapshotted under the lock so the
-// live tools/list RPCs can run outside it.
-type target struct {
+// toolListTarget is a connected server/session pair snapshotted under the lock
+// so live tools/list RPCs can run outside it.
+type toolListTarget struct {
 	name    string
 	session *sdkmcp.ClientSession
 }
@@ -50,12 +50,12 @@ func (c *Connections) Tools(ctx context.Context, server string) ([]mcpserver.Too
 	// live tools/list RPCs outside it — a slow upstream mustn't block reconnect
 	// or status reads. A session closed by a racing reconnect just errors here.
 	c.mu.Lock()
-	var targets []target
+	var targets []toolListTarget
 	for _, ms := range c.servers {
 		if ms.session == nil || (server != "" && ms.name() != server) {
 			continue
 		}
-		targets = append(targets, target{ms.name(), ms.session})
+		targets = append(targets, toolListTarget{ms.name(), ms.session})
 	}
 	c.mu.Unlock()
 

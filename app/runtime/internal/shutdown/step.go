@@ -18,10 +18,10 @@ type Step struct {
 
 	mu       sync.Mutex
 	complete bool
-	active   *attempt
+	active   *attemptState
 }
 
-type attempt struct {
+type attemptState struct {
 	done chan struct{}
 	err  error
 }
@@ -29,7 +29,7 @@ type attempt struct {
 // Attempt is one immutable Step run. It lets an owner start several
 // teardown steps before joining them.
 type Attempt struct {
-	state *attempt
+	state *attemptState
 }
 
 // New returns a context-aware teardown step around action. A nil action is a
@@ -65,7 +65,7 @@ func (s *Step) Begin(ctx context.Context) *Attempt {
 	}
 	running := s.active
 	if running == nil {
-		running = &attempt{done: make(chan struct{})}
+		running = &attemptState{done: make(chan struct{})}
 		s.active = running
 		go s.run(ctx, running)
 	}
@@ -88,26 +88,26 @@ func (a *Attempt) Wait(ctx context.Context) error {
 	return a.state.err
 }
 
-// Result returns the attempt error once it has completed.
-func (a *Attempt) Result() (error, bool) {
+// Result reports whether the attempt completed and returns its terminal error.
+func (a *Attempt) Result() (completed bool, err error) {
 	if a == nil || a.state == nil {
-		return nil, true
+		return true, nil
 	}
 	select {
 	case <-a.state.done:
-		return a.state.err, true
+		return true, a.state.err
 	default:
-		return nil, false
+		return false, nil
 	}
 }
 
 func completedAttempt(err error) *Attempt {
-	state := &attempt{done: make(chan struct{}), err: err}
+	state := &attemptState{done: make(chan struct{}), err: err}
 	close(state.done)
 	return &Attempt{state: state}
 }
 
-func (s *Step) run(ctx context.Context, running *attempt) {
+func (s *Step) run(ctx context.Context, running *attemptState) {
 	err := s.action(ctx)
 	s.mu.Lock()
 	running.err = err

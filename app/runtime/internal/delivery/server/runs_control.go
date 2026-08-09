@@ -29,7 +29,7 @@ func (s *Server) CancelRun(ctx context.Context, in protocol.CancelRunRequest) (*
 	case errors.Is(err, runs.ErrSessionBusy):
 		return nil, protocol.ErrSessionBusy
 	case errors.Is(err, runs.ErrChildRunNotAllowed):
-		return nil, protocol.NewCapabilityGap(protocol.CapabilityRequirement{
+		return nil, protocol.NewCapabilityGapError(protocol.CapabilityRequirement{
 			Type: protocol.RequirementFeature,
 			Name: protocol.FeatureSubagents,
 		})

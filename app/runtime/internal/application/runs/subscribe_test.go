@@ -67,7 +67,7 @@ func liveCoordinator(t *testing.T, run transcript.Run) (*Coordinator, *journal) 
 		Epoch: c.epoch, RunID: testRunID, SegmentID: testSegmentID,
 	}, c.retention)
 	c.registry.Open(Record{ID: testRunID, SegmentID: testSegmentID, SessionID: "ses_1", ExecutorID: "turn_1"},
-		&handle{hub: hub})
+		&runTreeOwner{hub: hub})
 	return c, hub
 }
 
@@ -278,11 +278,11 @@ func TestSubscribeRefusesACallerThatCouldNotFollowTheRun(t *testing.T) {
 	hub := newJournal(streamScope{Epoch: c.epoch, RunID: testRunID, SegmentID: testSegmentID}, c.retention)
 	c.registry.Open(Record{
 		ID: testRunID, SegmentID: testSegmentID, SessionID: "ses_1", Capabilities: capabilities,
-	}, &handle{hub: hub})
+	}, &runTreeOwner{hub: hub})
 
 	_, err := c.Subscribe(t.Context(), SubscribeRequest{RunID: testRunID, SegmentID: testSegmentID})
-	if _, ok := errors.AsType[*run.InsufficientCapabilities](err); !ok {
-		t.Fatalf("Subscribe err = %v, want InsufficientCapabilities", err)
+	if _, ok := errors.AsType[*run.InsufficientCapabilitiesError](err); !ok {
+		t.Fatalf("Subscribe err = %v, want InsufficientCapabilitiesError", err)
 	}
 }
 

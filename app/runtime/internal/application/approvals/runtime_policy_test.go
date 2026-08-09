@@ -9,7 +9,7 @@ import (
 )
 
 func TestDefaultModeGetSet(t *testing.T) {
-	policy := mustRuntimePolicy(t, approval.ModeYolo, nil)
+	policy := mustStorelessRuntimePolicy(t, approval.ModeYolo)
 	if mode, _ := policy.DefaultMode(t.Context()); mode != approval.ModeYolo {
 		t.Fatalf("initial mode = %v, want Yolo", mode)
 	}
@@ -22,7 +22,7 @@ func TestDefaultModeGetSet(t *testing.T) {
 }
 
 func TestNilRuleStore(t *testing.T) {
-	policy := mustRuntimePolicy(t, approval.ModeSafe, nil)
+	policy := mustStorelessRuntimePolicy(t, approval.ModeSafe)
 	request := approval.RememberRequest{
 		Scope: approval.ScopeGlobal, Tool: "shell", Subject: "go test", Decision: approval.Allow,
 	}
@@ -47,7 +47,7 @@ func TestPolicyRejectsInvalidDefaultMode(t *testing.T) {
 	if _, err := NewRuntimePolicy(approval.ModePlan, nil, nil); !errors.Is(err, approval.ErrInvalidMode) {
 		t.Fatalf("New Plan default error = %v, want ErrInvalidMode", err)
 	}
-	policy := mustRuntimePolicy(t, approval.ModeSafe, nil)
+	policy := mustStorelessRuntimePolicy(t, approval.ModeSafe)
 	if err := policy.SetDefaultMode(t.Context(), approval.Mode(255)); !errors.Is(err, approval.ErrInvalidMode) {
 		t.Fatalf("SetDefaultMode error = %v, want ErrInvalidMode", err)
 	}
@@ -104,7 +104,7 @@ func TestPlanModeIsSessionScopedAndRestoresEntryMode(t *testing.T) {
 }
 
 func TestPlanModeRequiresDurableStore(t *testing.T) {
-	policy := mustRuntimePolicy(t, approval.ModeBalanced, nil)
+	policy := mustStorelessRuntimePolicy(t, approval.ModeBalanced)
 	if _, err := policy.EnterPlanMode(t.Context(), "session-a"); !errors.Is(err, ErrModeStoreUnavailable) {
 		t.Fatalf("EnterPlanMode error = %v, want ErrModeStoreUnavailable", err)
 	}
@@ -113,9 +113,9 @@ func TestPlanModeRequiresDurableStore(t *testing.T) {
 	}
 }
 
-func mustRuntimePolicy(t *testing.T, mode approval.Mode, store RuleStore) *RuntimePolicy {
+func mustStorelessRuntimePolicy(t *testing.T, mode approval.Mode) *RuntimePolicy {
 	t.Helper()
-	policy, err := NewRuntimePolicy(mode, store, nil)
+	policy, err := NewRuntimePolicy(mode, nil, nil)
 	if err != nil {
 		t.Fatalf("NewRuntimePolicy: %v", err)
 	}

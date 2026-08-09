@@ -39,9 +39,9 @@ func TestClassifyModelErrorUsesTypedProviderStatus(t *testing.T) {
 		header: http.Header{"Retry-After": []string{"12"}},
 	}
 	err := classifyModelError(providerErr)
-	var failure *run.Failure
+	var failure *run.FailureError
 	if !errors.As(err, &failure) {
-		t.Fatalf("classified error = %T, want *run.Failure", err)
+		t.Fatalf("classified error = %T, want *run.FailureError", err)
 	}
 	if failure.Kind != run.FailureRateLimited || failure.RetryAfter != 12*time.Second {
 		t.Fatalf("failure = %+v, want rate limited with 12s retry", failure)
@@ -55,7 +55,7 @@ func TestClassifyModelErrorPreservesCancellationAndClassifiesDeadline(t *testing
 	if got := classifyModelError(context.Canceled); !errors.Is(got, context.Canceled) {
 		t.Fatalf("cancellation = %v", got)
 	}
-	var failure *run.Failure
+	var failure *run.FailureError
 	if err := classifyModelError(context.DeadlineExceeded); !errors.As(err, &failure) || failure.Kind != run.FailureTimeout {
 		t.Fatalf("deadline = %#v, want timeout failure", err)
 	}

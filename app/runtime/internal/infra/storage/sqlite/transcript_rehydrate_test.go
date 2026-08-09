@@ -67,7 +67,7 @@ func TestTranscriptRehydratesOffloadedToolResult(t *testing.T) {
 	const sess = "sess-1"
 	full := strings.Repeat("Z", 300)
 
-	id := stageToolResult(t, blobs, sess, "shell", full)
+	id := stageShellResult(t, blobs, sess, full)
 	preview := "offloaded preview"
 	if len(preview) >= len(full) {
 		t.Fatal("test setup: preview should be smaller than the full body")
@@ -125,7 +125,7 @@ func TestTranscriptLeavesOrdinaryToolResultUntouched(t *testing.T) {
 func TestDeleteRunDropsItsBoundToolResults(t *testing.T) {
 	tr, blobs := openTranscriptAndBlobs(t)
 	const sess = "sess-drop"
-	id := stageToolResult(t, blobs, sess, "shell", "full body")
+	id := stageShellResult(t, blobs, sess, "full body")
 	ref := &resultoffload.Ref{ID: id}
 	if err := tr.AppendItem(t.Context(), toolItem(sess, "item-1", "preview", ref)); err != nil {
 		t.Fatal(err)

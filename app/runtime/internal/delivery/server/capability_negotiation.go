@@ -45,7 +45,7 @@ func (s *Server) negotiateCapabilities(ctx context.Context) (run.Capabilities, e
 		}
 		published, known := protocol.LookupFeature(key)
 		if !known || !advertised[key].Enabled {
-			return run.Capabilities{}, protocol.NewCapabilityGap(protocol.CapabilityRequirement{
+			return run.Capabilities{}, protocol.NewCapabilityGapError(protocol.CapabilityRequirement{
 				Type: protocol.RequirementFeature, Name: key,
 			})
 		}
@@ -76,7 +76,7 @@ func (s *Server) negotiateCapabilities(ctx context.Context) (run.Capabilities, e
 			// runtime can only produce it with features.clientTools. Both gaps are named:
 			// the type the caller asked for and the feature that would make it possible,
 			// because fixing only one of them changes nothing.
-			return run.Capabilities{}, protocol.NewCapabilityGap(
+			return run.Capabilities{}, protocol.NewCapabilityGapError(
 				protocol.CapabilityRequirement{Type: protocol.RequirementInterruptType, Name: string(declared)},
 				protocol.CapabilityRequirement{Type: protocol.RequirementFeature, Name: protocol.FeatureClientTools},
 			)
@@ -107,7 +107,7 @@ func (s *Server) requireFeature(ctx context.Context, feature string) error {
 	if len(missing) == 0 {
 		return nil
 	}
-	return protocol.NewCapabilityGap(missing...)
+	return protocol.NewCapabilityGapError(missing...)
 }
 
 func (s *Server) requestCanUseFeature(ctx context.Context, feature string) bool {
@@ -118,7 +118,7 @@ func (s *Server) requestCanUseFeature(ctx context.Context, feature string) bool 
 //
 // Every gap at once, because a caller told about one at a time cannot get itself into
 // a state where the call succeeds.
-func capabilityGap(missing run.Capabilities) *protocol.CapabilityGap {
+func capabilityGap(missing run.Capabilities) *protocol.CapabilityGapError {
 	requirements := make([]protocol.CapabilityRequirement, 0,
 		1+len(missing.InterruptKinds))
 	if missing.ChildRuns {
@@ -131,7 +131,7 @@ func capabilityGap(missing run.Capabilities) *protocol.CapabilityGap {
 			Type: protocol.RequirementInterruptType, Name: string(presentInterruptType(kind)),
 		})
 	}
-	return protocol.NewCapabilityGap(requirements...)
+	return protocol.NewCapabilityGapError(requirements...)
 }
 
 // interruptKindFromWire maps a declared interrupt type onto the durable kind the

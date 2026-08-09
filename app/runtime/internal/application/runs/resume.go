@@ -28,7 +28,7 @@ func (c *Coordinator) Resume(ctx context.Context, cmd ResumeCommand) (StartResul
 		return StartResult{}, fmt.Errorf("runs: invalid pending interrupt set: %w", err)
 	}
 	if gap := pending.Capabilities.MissingFrom(cmd.CallerCapabilities); !gap.IsEmpty() {
-		return StartResult{}, &run.InsufficientCapabilities{RunID: cmd.RunID, Missing: gap}
+		return StartResult{}, &run.InsufficientCapabilitiesError{RunID: cmd.RunID, Missing: gap}
 	}
 	answers, err := resolveResumeResponses(pending, cmd.Responses)
 	if err != nil {

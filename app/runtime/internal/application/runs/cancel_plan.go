@@ -167,7 +167,7 @@ func (c *Coordinator) resolveCancellationOwner(
 				root.ID,
 			)
 		}
-		if !hasLive || live.handle == nil {
+		if !hasLive || live.owner == nil {
 			// The terminal commit may have won after Tree returned. Refresh
 			// the addressed Run once so that race reports run_finished rather
 			// than a false missing-owner invariant.
@@ -200,7 +200,7 @@ func (c *Coordinator) resolveCancellationOwner(
 		return ExecutorRef{
 			SessionID:  live.record.SessionID,
 			ExecutorID: live.record.ExecutorID,
-		}, live.handle.executorMemberSnapshot(), nil
+		}, live.owner.executorMemberSnapshot(), nil
 	case rundomain.Waiting:
 		if !hasPending {
 			return ExecutorRef{}, nil, fmt.Errorf(
@@ -220,9 +220,9 @@ func (c *Coordinator) resolveCancellationOwner(
 			members[continuation.RunID] = continuation.MemberID
 		}
 		if hasLive {
-			if live.handle == nil {
+			if live.owner == nil {
 				return ExecutorRef{}, nil, fmt.Errorf(
-					"runs: waiting tree %q has a live registry entry without a handle",
+					"runs: waiting tree %q has a live registry entry without a Run-tree owner",
 					root.ID,
 				)
 			}
