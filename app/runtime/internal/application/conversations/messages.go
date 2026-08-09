@@ -114,17 +114,3 @@ func (m *Messages) Clear(ctx context.Context, sessionID string) error {
 	}
 	return nil
 }
-
-// AppendUserMessage validates and appends one user message.
-func (m *Messages) AppendUserMessage(ctx context.Context, sessionID string, message chat.Message) error {
-	if sessionID == "" {
-		return errSessionIDRequired
-	}
-	if _, err := (conversation.Conversation{}).AppendUser(message); err != nil {
-		return err
-	}
-	if err := m.store.Write(ctx, sessionID, message.Clone()); err != nil {
-		return fmt.Errorf("conversations: append user message to session %q: %w", sessionID, err)
-	}
-	return nil
-}

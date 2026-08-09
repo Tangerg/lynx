@@ -107,7 +107,7 @@ func TestProviderToWire_RequiresBaseURL(t *testing.T) {
 		{id: "anthropic", want: false},
 	}
 	for _, test := range tests {
-		wire, err := presentProvider(models.ProviderInfo{ID: test.id, RequiresBaseURL: test.want})
+		wire, err := presentProvider(models.ProviderSummary{ID: test.id, RequiresBaseURL: test.want})
 		if err != nil {
 			t.Fatalf("presentProvider(%q): %v", test.id, err)
 		}

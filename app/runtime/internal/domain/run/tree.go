@@ -12,7 +12,7 @@ import (
 var ErrInvalidTree = errors.New("run: invalid tree")
 
 // TreeMember is the identity-only input used to assemble a Tree. Host
-// state, persistence records, executor processes, and presentation values do not
+// state, persistence records, executor state, and presentation values do not
 // belong here: topology is the one fact shared by all of those representations.
 type TreeMember struct {
 	RunID   string

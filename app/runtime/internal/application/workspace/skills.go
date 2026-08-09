@@ -16,7 +16,7 @@ var (
 
 // SkillCatalog enumerates skills visible from a working directory.
 type SkillCatalog interface {
-	List(ctx context.Context, cwd string) ([]SkillInfo, error)
+	List(ctx context.Context, cwd string) ([]SkillSummary, error)
 }
 
 // SkillCurator manages active and archived user-authored Skills.
@@ -29,7 +29,7 @@ type SkillCurator interface {
 // SkillProposals stores immutable project or user proposals.
 type SkillProposals interface {
 	SubmitProposal(ctx context.Context, projectRoot string, proposal skills.Proposal) (skills.ProposalRef, error)
-	ListProposals(ctx context.Context, projectRoot string) ([]skills.ProposalInfo, error)
+	ListProposals(ctx context.Context, projectRoot string) ([]skills.ProposalReview, error)
 	ApproveProposal(ctx context.Context, projectRoot string, ref skills.ProposalRef) error
 	RejectProposal(ctx context.Context, projectRoot string, ref skills.ProposalRef) error
 }
@@ -48,7 +48,7 @@ func NewSkills(scope *Scope, catalog SkillCatalog, curator SkillCurator, proposa
 }
 
 // List enumerates the Skills visible from cwd.
-func (s *Skills) List(ctx context.Context, cwd string) ([]SkillInfo, error) {
+func (s *Skills) List(ctx context.Context, cwd string) ([]SkillSummary, error) {
 	root, err := s.scope.root(cwd)
 	if err != nil {
 		return nil, err
@@ -109,7 +109,7 @@ func (s *Skills) SubmitProposal(ctx context.Context, cwd string, proposal skills
 }
 
 // Proposals returns immutable Skill proposals visible from cwd.
-func (s *Skills) Proposals(ctx context.Context, cwd string) ([]skills.ProposalInfo, error) {
+func (s *Skills) Proposals(ctx context.Context, cwd string) ([]skills.ProposalReview, error) {
 	if s.proposals == nil {
 		return nil, ErrSkillProposalsUnavailable
 	}

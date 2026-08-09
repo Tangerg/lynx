@@ -68,20 +68,22 @@ func TestResolverMCPToolsReadsCurrentPolicy(t *testing.T) {
 	}
 }
 
-func TestResolverMCPPolicyUsesSourceIdentityNotPublicName(t *testing.T) {
+func TestResolverMCPPolicyUsesSourceIdentityNotModelName(t *testing.T) {
 	disabledRef := mcpserver.ToolRef{Server: "a_b", Tool: "c"}
 	liveRef := mcpserver.ToolRef{Server: "a", Tool: "b_c"}
-	if disabledRef.PublicName() != liveRef.PublicName() {
-		t.Fatalf("fixture names do not collide: %q != %q", disabledRef.PublicName(), liveRef.PublicName())
+	disabledName := mcpserver.ToolName(disabledRef.Server, disabledRef.Tool)
+	liveName := mcpserver.ToolName(liveRef.Server, liveRef.Tool)
+	if disabledName != liveName {
+		t.Fatalf("fixture names do not collide: %q != %q", disabledName, liveName)
 	}
 
 	resolver := &Resolver{mcpToolDisabled: func(ref mcpserver.ToolRef) bool { return ref == disabledRef }}
 	resolver.SetMCPTools([]toolcontract.Tool{mcpToolStub{
-		name: liveRef.PublicName(), server: liveRef.Server, remote: liveRef.Tool,
+		name: liveName, server: liveRef.Server, remote: liveRef.Tool,
 	}})
 
 	got := resolver.mcpTools()
-	if len(got) != 1 || got[0].Definition().Name != liveRef.PublicName() {
+	if len(got) != 1 || got[0].Definition().Name != liveName {
 		t.Fatalf("policy for %+v hid colliding live tool %+v", disabledRef, liveRef)
 	}
 }

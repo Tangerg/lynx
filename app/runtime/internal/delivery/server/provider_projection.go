@@ -8,7 +8,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
 )
 
-func presentProvider(info modelapp.ProviderInfo) (protocol.Provider, error) {
+func presentProvider(info modelapp.ProviderSummary) (protocol.Provider, error) {
 	keySource, err := presentProviderKeySource(info.KeySource)
 	if err != nil {
 		return protocol.Provider{}, err

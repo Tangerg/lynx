@@ -44,7 +44,7 @@ type ModelUsage struct {
 	Calls   int
 }
 
-// Snapshot is the durable usage projection for one complete process tree.
+// Snapshot is the durable usage projection for one complete execution tree.
 // Models are unique and sorted by model ID so concurrent
 // execution cannot make checkpoint bytes or output ordering nondeterministic.
 type Snapshot struct {
@@ -53,7 +53,7 @@ type Snapshot struct {
 
 // Total returns the checked aggregate of every model in the snapshot. The
 // result intentionally has an empty Model because it represents the whole
-// process subtree rather than another served model.
+// execution subtree rather than another served model.
 func (s Snapshot) Total() (ModelUsage, error) {
 	if err := s.Validate(); err != nil {
 		return ModelUsage{}, err

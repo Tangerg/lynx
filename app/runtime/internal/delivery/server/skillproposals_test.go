@@ -11,7 +11,7 @@ import (
 )
 
 type stubSkillProposals struct {
-	list       []skills.ProposalInfo
+	list       []skills.ProposalReview
 	approveErr error
 	approved   []skills.ProposalRef
 	rejected   []skills.ProposalRef
@@ -22,7 +22,7 @@ func (s *stubSkillProposals) SubmitProposal(context.Context, string, skills.Prop
 	panic("unexpected SubmitProposal")
 }
 
-func (s *stubSkillProposals) ListProposals(_ context.Context, root string) ([]skills.ProposalInfo, error) {
+func (s *stubSkillProposals) ListProposals(_ context.Context, root string) ([]skills.ProposalReview, error) {
 	s.root = root
 	return s.list, nil
 }
@@ -60,7 +60,7 @@ func TestSkillProposalHandlersDisabled(t *testing.T) {
 func TestSkillProposalListMapsCompleteReviewContent(t *testing.T) {
 	root := t.TempDir()
 	ref := skills.NewProposalRef(skills.ScopeProject, "run-tests", []byte("content"))
-	stub := &stubSkillProposals{list: []skills.ProposalInfo{{
+	stub := &stubSkillProposals{list: []skills.ProposalReview{{
 		Ref:           ref,
 		Description:   "Run the project tests before final verification.",
 		Instructions:  "Run `go test ./...` from the module root.",

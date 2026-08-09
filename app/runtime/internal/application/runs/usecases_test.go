@@ -1485,7 +1485,7 @@ func TestCancelRunningChildCommitsExactSubtreeBoundaryAndKeepsRootRunning(t *tes
 			return errors.New("subtree cancellation addressed the wrong execution")
 		}
 		if memberID != childMember.MemberID {
-			return errors.New("subtree cancellation addressed the wrong process")
+			return errors.New("subtree cancellation addressed the wrong executor member")
 		}
 		if reason != "stop delegated work" {
 			return errors.New("subtree cancellation changed the product reason")

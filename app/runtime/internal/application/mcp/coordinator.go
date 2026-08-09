@@ -17,7 +17,7 @@ type StatusReader interface {
 
 // ToolCatalog reads tools advertised by live MCP connections.
 type ToolCatalog interface {
-	Tools(ctx context.Context, server string) ([]mcpserver.ToolInfo, error)
+	Tools(ctx context.Context, server string) ([]mcpserver.AdvertisedTool, error)
 }
 
 // ConnectionControl reconnects and authorizes configured servers.

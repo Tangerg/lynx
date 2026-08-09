@@ -53,7 +53,7 @@ type mcpUseCases interface {
 	AuthorizationAttempt(ctx context.Context, id string) (mcpapp.AuthorizationAttempt, error)
 	AuthorizationAttemptRetention() time.Duration
 	Servers(ctx context.Context) ([]mcpapp.Server, error)
-	Tools(ctx context.Context, server string) ([]mcpserver.ToolInfo, error)
+	Tools(ctx context.Context, server string) ([]mcpserver.AdvertisedTool, error)
 	ReconnectServer(ctx context.Context, name string) error
 	TestServer(ctx context.Context, input mcpapp.ServerInput) (mcpapp.TestResult, error)
 	UpdateServer(ctx context.Context, name string, patch mcpapp.ServerPatch) (mcpapp.Server, error)
@@ -67,10 +67,10 @@ type approvalUseCases interface {
 }
 
 type modelUseCases interface {
-	UpdateProvider(ctx context.Context, cmd models.UpdateProviderCommand) (models.ProviderInfo, error)
+	UpdateProvider(ctx context.Context, cmd models.UpdateProviderCommand) (models.ProviderSummary, error)
 	EmbeddingRole() modelref.Selection
 	ListModels(ctx context.Context, providerID string) []models.Model
-	ListProviders(ctx context.Context) ([]models.ProviderInfo, error)
+	ListProviders(ctx context.Context) ([]models.ProviderSummary, error)
 	SetEmbeddingRole(ctx context.Context, providerID, model string) (modelref.Selection, error)
 	SetUtilityRole(ctx context.Context, provider, model string) (modelref.Selection, error)
 	TestProvider(ctx context.Context, id string) (models.ProviderTestOutcome, error)
@@ -160,8 +160,8 @@ type workspaceKnowledgeUseCases interface {
 type workspaceSkillUseCases interface {
 	Archive(ctx context.Context, name string) error
 	Managed(ctx context.Context) ([]skills.Entry, error)
-	Proposals(ctx context.Context, cwd string) ([]skills.ProposalInfo, error)
-	List(ctx context.Context, cwd string) ([]workspaceapp.SkillInfo, error)
+	Proposals(ctx context.Context, cwd string) ([]skills.ProposalReview, error)
+	List(ctx context.Context, cwd string) ([]workspaceapp.SkillSummary, error)
 	ApproveProposal(ctx context.Context, cwd string, ref skills.ProposalRef) error
 	RejectProposal(ctx context.Context, cwd string, ref skills.ProposalRef) error
 	Restore(ctx context.Context, name string) error

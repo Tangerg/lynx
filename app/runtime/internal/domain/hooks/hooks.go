@@ -1,22 +1,7 @@
-// Package hooks is Lyra's user-configurable lifecycle hooks: at fixed points in
-// a Run (before/after a tool, at prompt submit, Session start, compaction,
-// Run end, and when waiting on the user) the runtime runs user-authored hooks
-// and lets them observe, block, or rewrite what happens next.
-//
-// Design — why subprocess, not an embedded script VM (see doc): a hook is an
-// external COMMAND (any language) invoked with the event as JSON on stdin; it
-// answers with an exit code (+ optional JSON on stdout). This is a host-language-
-// agnostic contract — the same model Claude Code uses — so being a Go runtime is
-// no disadvantage (Go orchestrates processes well), and users write hooks in
-// whatever they like. A declarative `inject`
-// covers the common "add this context" case with zero process spawn; the matcher
-// gates an action so an unrelated tool never runs it. There is deliberately NO
-// embedded interpreter (Goja/Starlark/…): that's weight + a security surface the
-// subprocess contract doesn't need.
-//
-// This package is the pure hook core: lifecycle types, matching, and decision
-// combination. Filesystem discovery and shell execution are outer runtime
-// concerns and deliberately absent from this package.
+// Package hooks defines user-configurable lifecycle hook values, event matching,
+// and decision combination. A hook either contributes declarative context or
+// names a command action; configuration discovery, trust persistence, and action
+// execution remain outside this pure domain package.
 package hooks
 
 import (

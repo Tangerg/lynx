@@ -109,6 +109,7 @@ func TestUpdateOwnsPatchAndPreservesSnapshotState(t *testing.T) {
 	createdAt := time.Date(2026, 7, 1, 9, 0, 0, 0, time.UTC)
 	store := &runNowStore{schedule: schedule.Schedule{
 		ID:           "sch_1",
+		Revision:     3,
 		Instructions: "before",
 		CWD:          "/before",
 		Cron:         "0 9 * * *",
@@ -124,10 +125,13 @@ func TestUpdateOwnsPatchAndPreservesSnapshotState(t *testing.T) {
 	})
 	cwd, instructions, enabled := "after", "after", false
 
-	updated, err := c.UpdateLatest(t.Context(), "sch_1", schedule.Patch{
-		Instructions: &instructions,
-		CWD:          &cwd,
-		Enabled:      &enabled,
+	updated, err := c.Update(t.Context(), UpdateCommand{
+		ID: "sch_1", ExpectedRevision: 3,
+		Patch: schedule.Patch{
+			Instructions: &instructions,
+			CWD:          &cwd,
+			Enabled:      &enabled,
+		},
 	})
 	if err != nil {
 		t.Fatalf("Update: %v", err)

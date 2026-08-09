@@ -260,9 +260,9 @@ func TestWorkspaceGrep(t *testing.T) {
 	}
 }
 
-type fakeSkillCatalog struct{ skills []workspaceapp.SkillInfo }
+type fakeSkillCatalog struct{ skills []workspaceapp.SkillSummary }
 
-func (f fakeSkillCatalog) List(context.Context, string) ([]workspaceapp.SkillInfo, error) {
+func (f fakeSkillCatalog) List(context.Context, string) ([]workspaceapp.SkillSummary, error) {
 	return f.skills, nil
 }
 
@@ -276,7 +276,7 @@ func (f fakeRecipeLister) List(context.Context, string) ([]workspaceapp.Recipe, 
 // carrying each one's scope through the wire, and defaults cwd to the serve dir.
 func TestListDiscoveredSkills(t *testing.T) {
 	dir := t.TempDir()
-	s := newWorkspaceServerWithConfig(dir, workspaceTestConfig{Skills: fakeSkillCatalog{skills: []workspaceapp.SkillInfo{
+	s := newWorkspaceServerWithConfig(dir, workspaceTestConfig{Skills: fakeSkillCatalog{skills: []workspaceapp.SkillSummary{
 		{Name: "pdf", Description: "PDF tools", Scope: "project"},
 		{Name: "web", Description: "web tools", Scope: "user"},
 	}}})

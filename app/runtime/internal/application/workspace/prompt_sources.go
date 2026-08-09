@@ -35,9 +35,9 @@ const (
 	SkillScopeUser    SkillScope = "user"
 )
 
-// SkillInfo is one skill visible to a workspace, including the source layer
+// SkillSummary is one skill visible to a workspace, including the source layer
 // selected by prompt-source precedence.
-type SkillInfo struct {
+type SkillSummary struct {
 	Name        string
 	Description string
 	Scope       SkillScope

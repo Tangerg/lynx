@@ -121,9 +121,9 @@ func (r ProposalRef) Matches(content []byte) bool {
 	return r == NewProposalRef(r.Scope, r.Name, content)
 }
 
-// ProposalInfo contains the complete immutable content and provenance a human
+// ProposalReview contains the complete immutable content and provenance a human
 // needs to review before approving or rejecting a proposal.
-type ProposalInfo struct {
+type ProposalReview struct {
 	Ref           ProposalRef
 	Description   string
 	Instructions  string

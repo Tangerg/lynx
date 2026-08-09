@@ -44,7 +44,7 @@ func (c *Coordinator) applyRollback(ctx context.Context, sessionID string, bound
 			}
 			return c.writes.ApplyRollback(ctx, RollbackPlan{
 				SessionID:         sessionID,
-				KeepMark:          boundary.KeepMark,
+				KeepMessageMark:   boundary.KeepMessageMark,
 				DropRunIDs:        dropRunIDs,
 				CheckpointRootIDs: parkedCheckpointRootIDs(parked),
 				Plan:              plan,

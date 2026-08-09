@@ -16,7 +16,6 @@ import (
 	"strings"
 	"testing"
 
-	invariant "github.com/Tangerg/lynx/app/runtime/internal/application/invariant"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	deliveryserver "github.com/Tangerg/lynx/app/runtime/internal/delivery/server"
 )
@@ -218,13 +217,16 @@ func TestRetiredRuntimeVocabularyDoesNotReturn(t *testing.T) {
 	root := moduleRoot(t)
 	reason := "use the package's canonical ownership vocabulary"
 	for path, names := range map[string][]string{
-		filepath.Join(root, "internal", "adapter", "agentexec"):      {"Workdir", "MemorySearcher"},
-		filepath.Join(root, "internal", "adapter", "hooks"):          {"config", "readConfig"},
-		filepath.Join(root, "internal", "adapter", "modelclient"):    {"ClientResolver", "NewClientResolver", "ResolveClient"},
-		filepath.Join(root, "internal", "adapter", "pricing"):        {"Catalog"},
-		filepath.Join(root, "internal", "adapter", "runmaintenance"): {"Suite", "NewSuite", "SubmitSkillProposal"},
-		filepath.Join(root, "internal", "adapter", "mcpconnection"):  {"Connections"},
-		filepath.Join(root, "internal", "application", "models"):     {"ModelDetails"},
+		filepath.Join(root, "internal", "adapter", "agentexec"):         {"Workdir", "MemorySearcher"},
+		filepath.Join(root, "internal", "adapter", "hooks"):             {"config", "readConfig"},
+		filepath.Join(root, "internal", "adapter", "modelclient"):       {"ClientResolver", "NewClientResolver", "ResolveClient"},
+		filepath.Join(root, "internal", "adapter", "pricing"):           {"Catalog"},
+		filepath.Join(root, "internal", "adapter", "runmaintenance"):    {"Suite", "NewSuite", "SubmitSkillProposal"},
+		filepath.Join(root, "internal", "adapter", "mcpconnection"):     {"Connections"},
+		filepath.Join(root, "internal", "application", "models"):        {"ModelDetails", "ProviderInfo"},
+		filepath.Join(root, "internal", "application", "conversations"): {"AppendUserMessage"},
+		filepath.Join(root, "internal", "application", "hooks"):         {"Handles"},
+		filepath.Join(root, "internal", "application", "schedules"):     {"UpdateLatest"},
 		filepath.Join(root, "internal", "application", "sessions"): {
 			"SessionStore", "SessionForgetter", "SessionAdmissions", "SessionAdmission",
 			"SessionState", "SessionView",
@@ -235,13 +237,10 @@ func TestRetiredRuntimeVocabularyDoesNotReturn(t *testing.T) {
 			"ListFiles", "ReadFile", "ListFileChanges", "ListRecipes", "ResolveWorkspace", "ListWorkspaces",
 			"ListAgentDocs", "ListSkills", "ListManagedSkills", "ArchiveSkill", "RestoreSkill",
 			"SubmitSkillProposal", "ListSkillProposals", "ApproveSkillProposal", "RejectSkillProposal",
-			"InspectHooks", "SetProjectHookTrust", "HasFileWatch", "WatchGitState",
+			"InspectHooks", "SetProjectHookTrust", "HasFileWatch", "WatchGitState", "SkillInfo",
 		},
 		filepath.Join(root, "internal", "application", "codebase"): {"loaded"},
 		filepath.Join(root, "internal", "application", "goals"):    {"State", "NewState", "PromptInput", "PromptBuilder", "driver"},
-		filepath.Join(root, "internal", "application", "invariant"): {
-			"SystemInvariantSpec", "TransactionBoundary",
-		},
 		filepath.Join(root, "internal", "application", "mcp"): {
 			"MCPServer", "MCPConnection", "MCPServerState", "MCPTestResult",
 			"MCPAuthorizationAttempt", "MCPPolicy", "ConnectionCommands", "RegistryCommands",
@@ -249,6 +248,7 @@ func TestRetiredRuntimeVocabularyDoesNotReturn(t *testing.T) {
 		},
 		filepath.Join(root, "internal", "application", "runs"): {
 			"EngineEvent", "ToolCallStart", "ToolCallEnd", "CompactBoundary", "handle", "ActiveRunConflict",
+			"ContinuationFor", "ValidateChildRunBindings", "continuationForProcess", "validateCancellationProcessTree",
 		},
 		filepath.Join(root, "internal", "application", "usage"): {"accumulator"},
 		filepath.Join(root, "internal", "config"): {
@@ -276,7 +276,11 @@ func TestRetiredRuntimeVocabularyDoesNotReturn(t *testing.T) {
 		filepath.Join(root, "internal", "adapter", "toolset", "shell"):     {"toolSet", "family"},
 		filepath.Join(root, "internal", "adapter", "toolset", "skill"):     {"SubmitSkillProposal"},
 		filepath.Join(root, "internal", "adapter", "workspace"):            {"Reads", "WatchGitState"},
+		filepath.Join(root, "internal", "domain", "conversation"):          {"AppendUser"},
+		filepath.Join(root, "internal", "domain", "mcpserver"):             {"PublicName", "ToolInfo"},
 		filepath.Join(root, "internal", "domain", "run"):                   {"InsufficientCapabilities", "Failure"},
+		filepath.Join(root, "internal", "domain", "skills"):                {"ProposalInfo"},
+		filepath.Join(root, "internal", "domain", "transcript"):            {"Plus"},
 		filepath.Join(root, "internal", "infra", "mcp"): {
 			"target", "dialFailure", "dialFailureKind", "dialFailureNeedsAuth",
 		},
@@ -366,7 +370,8 @@ func TestRuntimeResponsibilityFilesStayFocused(t *testing.T) {
 		filepath.Join("internal", "adapter", "runmaintenance", "skillcurate.go"):       "idle-Skill archival belongs to skill_archiving.go",
 		filepath.Join("internal", "adapter", "sessiontitle", "title.go"):               "Session title generation belongs to generator.go",
 		filepath.Join("internal", "application", "integrations"):                       "MCP application ownership belongs to application/mcp",
-		filepath.Join("internal", "application", "contract"):                           "cross-resource invariants belong to application/invariant",
+		filepath.Join("internal", "application", "contract"):                           "published invariant metadata belongs to cmd/contractgen",
+		filepath.Join("internal", "application", "invariant"):                          "published invariant metadata belongs to cmd/contractgen, not a production Application package",
 		filepath.Join("internal", "adapter", "toolset", "workdir.go"):                  "CWD-bound tool composition belongs to cwd_tools.go",
 		filepath.Join("internal", "adapter", "workspace", "reads.go"):                  "filesystem browsing and Git reads belong to focused adapter files",
 		filepath.Join("internal", "adapter", "toolset", "semantics.go"):                "concrete tool interpretation belongs to interpreter.go",
@@ -2084,21 +2089,18 @@ func moduleRoot(t *testing.T) string {
 	}
 }
 
-// TestSystemInvariantsStayInApplication keeps cross-resource invariants out of
-// the wire ring. An invariant.Spec names a fact that spans
-// runs, interrupts and the store, and it points at the invariant.Boundary responsible
-// for it — neither of which delivery can see. Two things go wrong if delivery
-// names one: the wire layer starts asserting business facts, and the application
-// ring would have to import delivery to register, which is an outward edge.
-func TestSystemInvariantsStayInApplication(t *testing.T) {
+// TestSystemInvariantCatalogStaysOutOfRuntimeRings keeps descriptive contract
+// metadata out of production packages. The actual transaction behavior remains
+// in Application; only contractgen names the published catalog.
+func TestSystemInvariantCatalogStaysOutOfRuntimeRings(t *testing.T) {
 	root := moduleRoot(t)
-	forbidTopLevelNames(t, filepath.Join(root, "internal", "delivery"), map[string]string{
+	forbidTopLevelNames(t, filepath.Join(root, "internal"), map[string]string{
 		"SystemInvariantSpec": "a cross-resource invariant is named by the ring that owns its transaction",
-		"TransactionBoundary": "a transaction boundary is an application concern",
+		"TransactionBoundary": "descriptive contract metadata belongs outside the production graph",
 	})
-	// The declared set must be actionable wherever it lives. This validation is
-	// fitness-test behavior, so it stays out of the production contract package.
-	specs := invariant.All()
+	// The generated catalog must remain actionable. This validation is
+	// fitness-test behavior rather than a production Runtime dependency.
+	specs := readSystemInvariantSpecs(t)
 	if len(specs) == 0 {
 		t.Fatal("no system invariant is declared; the manifest gate would pass vacuously")
 	}

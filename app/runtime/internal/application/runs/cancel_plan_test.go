@@ -62,14 +62,14 @@ func TestCancellationPlanRejectsInconsistentTreeFacts(t *testing.T) {
 			want: "while root",
 		},
 		{
-			name: "missing child process",
+			name: "missing child executor member",
 			mutate: func(_ []transcript.Run, members map[string]string) {
 				delete(members, "run_a1")
 			},
 			want: "has no executor binding",
 		},
 		{
-			name: "duplicate process binding",
+			name: "duplicate executor member binding",
 			mutate: func(_ []transcript.Run, members map[string]string) {
 				members["run_a1"] = members["run_b"]
 			},
@@ -78,7 +78,7 @@ func TestCancellationPlanRejectsInconsistentTreeFacts(t *testing.T) {
 		{
 			name: "unknown bound Run",
 			mutate: func(_ []transcript.Run, members map[string]string) {
-				members["run_unknown"] = "process_unknown"
+				members["run_unknown"] = "member_unknown"
 			},
 			want: "names unknown Run",
 		},

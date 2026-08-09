@@ -27,8 +27,8 @@ type ConnectionStatus struct {
 // that was never configured.
 var ErrUnknownServer = errors.New("mcp: unknown server")
 
-// ToolInfo is one tool advertised by a connected MCP server.
-type ToolInfo struct {
+// AdvertisedTool is one tool advertised by a connected MCP server.
+type AdvertisedTool struct {
 	Server      string
 	Name        string
 	Description string

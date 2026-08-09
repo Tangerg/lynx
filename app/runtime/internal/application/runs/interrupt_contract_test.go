@@ -60,7 +60,7 @@ func TestResolveResumeResponsesValidatesExactTypedCoverage(t *testing.T) {
 			Options: []transcript.QuestionOption{{Label: "Go"}, {Label: "Stop"}},
 		}}},
 	}}, Bindings: []InterruptBinding{{
-		InterruptItemID: "item_question", MemberID: "process_question", RequestID: "request_question",
+		InterruptItemID: "item_question", MemberID: "member_question", RequestID: "request_question",
 	}}}
 	answers, err = resolveResumeResponses(questionPending, []ResumeResponse{{
 		ItemID: "item_question",
@@ -104,7 +104,7 @@ func TestResolveResumeResponsesValidatesExactTypedCoverage(t *testing.T) {
 				Approval: &transcript.Approval{Tool: transcript.ToolInvocation{Name: "shell"}, Risk: "medium"},
 			}},
 			Bindings: []InterruptBinding{{
-				InterruptItemID: "item_one_off", MemberID: "process_one_off", RequestID: "request_one_off",
+				InterruptItemID: "item_one_off", MemberID: "member_one_off", RequestID: "request_one_off",
 			}},
 		}, responses: []ResumeResponse{{
 			ItemID: "item_one_off", Kind: ApprovalResponseKind,

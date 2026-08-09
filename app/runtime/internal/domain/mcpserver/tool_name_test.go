@@ -23,13 +23,15 @@ func TestToolName(t *testing.T) {
 	}
 }
 
-func TestToolRefPreservesIdentityAcrossPublicNameCollision(t *testing.T) {
+func TestToolRefPreservesIdentityAcrossModelNameCollision(t *testing.T) {
 	first := ToolRef{Server: "a_b", Tool: "c"}
 	second := ToolRef{Server: "a", Tool: "b_c"}
 	if first == second {
 		t.Fatal("distinct tool references compared equal")
 	}
-	if first.PublicName() != second.PublicName() {
-		t.Fatalf("fixture public names do not collide: %q != %q", first.PublicName(), second.PublicName())
+	firstName := ToolName(first.Server, first.Tool)
+	secondName := ToolName(second.Server, second.Tool)
+	if firstName != secondName {
+		t.Fatalf("fixture model names do not collide: %q != %q", firstName, secondName)
 	}
 }

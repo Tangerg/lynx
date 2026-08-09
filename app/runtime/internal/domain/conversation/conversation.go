@@ -63,16 +63,3 @@ func (c Conversation) Truncate(keepN int) Conversation {
 	truncated, _ := New(c.messages[:keepN])
 	return truncated
 }
-
-// AppendUser appends one validated user message.
-func (c Conversation) AppendUser(message chat.Message) (Conversation, error) {
-	if message.Role != chat.RoleUser {
-		return Conversation{}, fmt.Errorf("%w: appended message must have user role", ErrInvalid)
-	}
-	if err := message.Validate(); err != nil {
-		return Conversation{}, fmt.Errorf("%w: user message: %w", ErrInvalid, err)
-	}
-	owned := c.Messages()
-	owned = append(owned, message.Clone())
-	return Conversation{messages: owned}, nil
-}

@@ -159,7 +159,7 @@ func (p treePublisher) publishAuthoritativeAtomically(
 
 // publishTerminalAtomically commits every item closure and the terminal Run in
 // one EventCommit before publishing any event. Unknown external outcomes use
-// this path so a failed transaction leaves the live Process blocked and the
+// this path so a failed transaction leaves the live executor tree blocked and the
 // exact immutable batch can be retried without exposing a partial RunLost fact.
 func (p treePublisher) publishTerminalAtomically(
 	ctx context.Context,

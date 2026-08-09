@@ -356,7 +356,7 @@ func (r *reducer) reduceAssistantMessage(completed AssistantMessageCompleted) (f
 	if r.lastModelMessage != nil {
 		if !reflect.DeepEqual(*r.lastModelMessage, completed.Message) {
 			return factReduction{}, fmt.Errorf(
-				"%w: Process final assistant message differs from the last committed model response",
+				"%w: executor final assistant message differs from the last committed model response",
 				errExecutorContract,
 			)
 		}

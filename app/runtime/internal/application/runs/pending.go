@@ -1,7 +1,3 @@
-// Package runs owns the durable hand-off between a running executor tree
-// and a later continuation. One root-owned [Pending] set records the complete
-// tree when it reaches a human-input barrier; a resume consumes that set
-// atomically.
 package runs
 
 import (
@@ -113,16 +109,6 @@ type CommittedTool struct {
 func (p Pending) RootContinuation() (Continuation, bool) {
 	for _, continuation := range p.Continuations {
 		if continuation.RunID == p.RootRunID {
-			return continuation, true
-		}
-	}
-	return Continuation{}, false
-}
-
-// ContinuationFor returns the hand-off for runID.
-func (p Pending) ContinuationFor(runID string) (Continuation, bool) {
-	for _, continuation := range p.Continuations {
-		if continuation.RunID == runID {
 			return continuation, true
 		}
 	}
@@ -297,7 +283,7 @@ func (p Pending) validateBindings(interruptsByItem map[string]transcript.Interru
 				p.Interrupts[index].ItemID,
 			)
 		}
-		continuation, exists := continuationForProcess(p.Continuations, binding.MemberID)
+		continuation, exists := continuationForMember(p.Continuations, binding.MemberID)
 		if !exists {
 			return fmt.Errorf(
 				"interrupts: input-request binding[%d] names unknown member %q",
@@ -459,7 +445,7 @@ func validateRequiredIdentity(name, value string) error {
 	return nil
 }
 
-func continuationForProcess(continuations []Continuation, memberID string) (Continuation, bool) {
+func continuationForMember(continuations []Continuation, memberID string) (Continuation, bool) {
 	for _, continuation := range continuations {
 		if continuation.MemberID == memberID {
 			return continuation, true

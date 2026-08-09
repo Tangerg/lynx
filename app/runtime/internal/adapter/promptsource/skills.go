@@ -59,9 +59,9 @@ func MergeSkillSource(projectDir, userDir string, decorateUser func(sdk.Resource
 // userDir, project winning on a name collision (the same precedence
 // MergeSkillSource gives the model). A missing directory contributes nothing
 // rather than erroring. Result is sorted by name.
-func ListSkills(ctx context.Context, projectDir, userDir string) ([]workspaceapp.SkillInfo, error) {
+func ListSkills(ctx context.Context, projectDir, userDir string) ([]workspaceapp.SkillSummary, error) {
 	seen := make(map[string]struct{})
-	var out []workspaceapp.SkillInfo
+	var out []workspaceapp.SkillSummary
 	add := func(dir string, scope workspaceapp.SkillScope) error {
 		if !dirExists(dir) {
 			return nil
@@ -75,7 +75,7 @@ func ListSkills(ctx context.Context, projectDir, userDir string) ([]workspaceapp
 				continue // a higher-precedence (project) source already provided it
 			}
 			seen[s.Name] = struct{}{}
-			out = append(out, workspaceapp.SkillInfo{Name: s.Name, Description: s.Description, Scope: scope})
+			out = append(out, workspaceapp.SkillSummary{Name: s.Name, Description: s.Description, Scope: scope})
 		}
 		return nil
 	}
@@ -85,7 +85,7 @@ func ListSkills(ctx context.Context, projectDir, userDir string) ([]workspaceapp
 	if err := add(userDir, workspaceapp.SkillScopeUser); err != nil {
 		return nil, err
 	}
-	slices.SortFunc(out, func(a, b workspaceapp.SkillInfo) int { return strings.Compare(a.Name, b.Name) })
+	slices.SortFunc(out, func(a, b workspaceapp.SkillSummary) int { return strings.Compare(a.Name, b.Name) })
 	return out, nil
 }
 

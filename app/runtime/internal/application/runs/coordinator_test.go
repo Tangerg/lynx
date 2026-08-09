@@ -787,7 +787,7 @@ func TestResumedExecutorRoutesBindLiveTopologyWithoutPersistingIt(t *testing.T) 
 	}
 	child := routes.byRunID["run_a"]
 	if child == nil || child.memberBound || child.member.MemberID != "member_a" {
-		t.Fatalf("restored child route = %+v, want opaque process binding without persisted topology", child)
+		t.Fatalf("restored child route = %+v, want opaque executor member binding without persisted topology", child)
 	}
 
 	member := ExecutorMember{MemberID: "member_a", ParentID: "member_root", SpawnCallID: "spawn_a"}

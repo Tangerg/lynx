@@ -436,7 +436,7 @@ func entries(ctx context.Context, dir string, lifecycle skills.Lifecycle) ([]ski
 // is skipped as corrupt/tampered; unparseable staged content is skipped rather
 // than failing the whole listing. Ordering follows the sorted revision dirs.
 // Returns empty when authoring is disabled or nothing is staged.
-func (s *Store) ListProposals(ctx context.Context) ([]skills.ProposalInfo, error) {
+func (s *Store) ListProposals(ctx context.Context) ([]skills.ProposalReview, error) {
 	if !s.Enabled() {
 		return nil, nil
 	}
@@ -458,7 +458,7 @@ func (s *Store) ListProposals(ctx context.Context) ([]skills.ProposalInfo, error
 	if err != nil {
 		return nil, fmt.Errorf("skillauthoring: list proposals: %w", err)
 	}
-	var out []skills.ProposalInfo
+	var out []skills.ProposalReview
 	for _, entry := range dirEntries {
 		// Skip the transient .stage-* staging dirs and any non-directory entry.
 		if !entry.IsDir() || strings.HasPrefix(entry.Name(), ".") {
@@ -484,7 +484,7 @@ func (s *Store) ListProposals(ctx context.Context) ([]skills.ProposalInfo, error
 		if ref.Revision != revision {
 			continue
 		}
-		out = append(out, skills.ProposalInfo{
+		out = append(out, skills.ProposalReview{
 			Ref:           ref,
 			Description:   front.Description,
 			Instructions:  instructions,

@@ -15,7 +15,7 @@ import (
 func TestServersAndToolsUsePorts(t *testing.T) {
 	ports := &fakePorts{
 		statuses: []mcpserver.ConnectionStatus{{Name: "fs", State: mcpserver.ConnectionConnected, ToolCount: 1}},
-		tools:    []mcpserver.ToolInfo{{Server: "fs", Name: "read"}},
+		tools:    []mcpserver.AdvertisedTool{{Server: "fs", Name: "read"}},
 	}
 	c := New(configWithPorts(ports))
 
@@ -299,7 +299,7 @@ func TestTestServerUsesLiveRegistryPort(t *testing.T) {
 
 type fakePorts struct {
 	statuses []mcpserver.ConnectionStatus
-	tools    []mcpserver.ToolInfo
+	tools    []mcpserver.AdvertisedTool
 
 	toolsServer string
 	toolsCalls  int
@@ -319,7 +319,7 @@ type fakePorts struct {
 
 func (f *fakePorts) Statuses() []mcpserver.ConnectionStatus { return f.statuses }
 
-func (f *fakePorts) Tools(_ context.Context, server string) ([]mcpserver.ToolInfo, error) {
+func (f *fakePorts) Tools(_ context.Context, server string) ([]mcpserver.AdvertisedTool, error) {
 	f.toolsCalls++
 	f.toolsServer = server
 	return f.tools, nil

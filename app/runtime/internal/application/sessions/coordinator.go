@@ -1,6 +1,6 @@
 // Package sessions owns the cross-domain atomic write-sets behind a few
 // session/run lifecycle use-cases — rollback truncation, the session-delete
-// cascade, the import/restore sequence, and the subagent subtree purge. Each
+// cascade, the import/restore sequence, and the child-Run subtree purge. Each
 // spans several domain stores (the session row, the transcript, the chat history
 // log, open interrupts) and several commit as ONE transaction via RunInTx, so a
 // mid-sequence failure leaves no half-mutated session.

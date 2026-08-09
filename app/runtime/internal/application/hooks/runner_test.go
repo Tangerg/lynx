@@ -36,23 +36,6 @@ func (s *commandStub) calls() int {
 	return len(s.requests)
 }
 
-func TestBoundHandlesAnyRequestedEvent(t *testing.T) {
-	bound := NewBound([]hookdomain.Hook{
-		{Event: hookdomain.Stop, Command: "notify"},
-		{Event: hookdomain.PreToolUse, Command: "guard"},
-	}, nil)
-
-	if !bound.Handles(hookdomain.SubagentStart, hookdomain.Stop) {
-		t.Fatal("Handles() missed a matching event")
-	}
-	if bound.Handles(hookdomain.SubagentStart, hookdomain.SubagentStop) {
-		t.Fatal("Handles() reported absent events")
-	}
-	if (*Bound)(nil).Handles(hookdomain.Stop) {
-		t.Fatal("nil Bound reported an event")
-	}
-}
-
 func TestRunner_DeclarativeInject(t *testing.T) {
 	r := NewRunner(nil, nil)
 	hooks := []hookdomain.Hook{{Event: hookdomain.SessionStart, Inject: "remember: use tabs"}}

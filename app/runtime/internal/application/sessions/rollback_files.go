@@ -161,7 +161,7 @@ func (c *Coordinator) resolveRollbackBoundary(
 	}
 	return resolvedRollbackBoundary{
 		timeline:    boundary,
-		droppedRuns: projectDroppedRuns(boundary, runs, transcript.OpeningInputs(items)),
+		droppedRuns: projectDroppedRuns(boundary, runs, transcript.OpeningUserMessagesByRun(items)),
 	}, nil
 }
 

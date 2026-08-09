@@ -149,7 +149,7 @@ type WaitingSubtreeDisposition uint8
 const (
 	// WaitingSubtreeStaysWaiting keeps the surviving external boundaries parked.
 	WaitingSubtreeStaysWaiting WaitingSubtreeDisposition = iota + 1
-	// WaitingSubtreeResumesRunning resumes the paused surviving Process members.
+	// WaitingSubtreeResumesRunning resumes the paused surviving executor members.
 	WaitingSubtreeResumesRunning
 )
 

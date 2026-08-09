@@ -11,9 +11,9 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
 )
 
-// ProviderInfo is the application result for provider discovery and
+// ProviderSummary is the application result for provider discovery and
 // configuration. It intentionally carries only the redacted credential view.
-type ProviderInfo struct {
+type ProviderSummary struct {
 	ID                    string
 	BaseURL               string
 	APIKeyMasked          string
@@ -45,7 +45,7 @@ const (
 
 // ListProviders returns the supported-provider set annotated with its current
 // configuration. Registry-only unknown providers are intentionally omitted.
-func (c *Coordinator) ListProviders(ctx context.Context) ([]ProviderInfo, error) {
+func (c *Coordinator) ListProviders(ctx context.Context) ([]ProviderSummary, error) {
 	if c.providers == nil {
 		return nil, errors.New("models: provider registry is unavailable")
 	}
@@ -58,47 +58,47 @@ func (c *Coordinator) ListProviders(ctx context.Context) ([]ProviderInfo, error)
 		byID[entry.ID] = entry
 	}
 	metadata := c.supportedProviders()
-	out := make([]ProviderInfo, 0, len(metadata))
+	out := make([]ProviderSummary, 0, len(metadata))
 	for _, meta := range metadata {
-		out = append(out, providerInfo(meta, byID[meta.ID]))
+		out = append(out, providerSummary(meta, byID[meta.ID]))
 	}
 	return out, nil
 }
 
 // UpdateProvider validates and persists one supported provider, returning
 // its redacted stored result.
-func (c *Coordinator) UpdateProvider(ctx context.Context, cmd UpdateProviderCommand) (ProviderInfo, error) {
+func (c *Coordinator) UpdateProvider(ctx context.Context, cmd UpdateProviderCommand) (ProviderSummary, error) {
 	meta, err := c.supportedProvider(cmd.ID)
 	if err != nil {
-		return ProviderInfo{}, err
+		return ProviderSummary{}, err
 	}
 	if c.providers == nil {
-		return ProviderInfo{}, errors.New("models: provider registry is unavailable")
+		return ProviderSummary{}, errors.New("models: provider registry is unavailable")
 	}
 	patch := provider.Patch{APIKey: cmd.APIKey, BaseURL: cmd.BaseURL}
 	if patch.Empty() {
-		return ProviderInfo{}, fmt.Errorf("%w: provider %q has no changes", ErrProviderUpdateRequired, cmd.ID)
+		return ProviderSummary{}, fmt.Errorf("%w: provider %q has no changes", ErrProviderUpdateRequired, cmd.ID)
 	}
 	if meta.RequiresBaseURL {
 		if cmd.BaseURL != nil {
 			if *cmd.BaseURL == "" {
-				return ProviderInfo{}, fmt.Errorf("%w: provider %q", ErrProviderBaseURLRequired, cmd.ID)
+				return ProviderSummary{}, fmt.Errorf("%w: provider %q", ErrProviderBaseURLRequired, cmd.ID)
 			}
 		} else {
 			existing, _, err := c.providers.Get(ctx, cmd.ID)
 			if err != nil {
-				return ProviderInfo{}, err
+				return ProviderSummary{}, err
 			}
 			if existing.BaseURL == "" {
-				return ProviderInfo{}, fmt.Errorf("%w: provider %q", ErrProviderBaseURLRequired, cmd.ID)
+				return ProviderSummary{}, fmt.Errorf("%w: provider %q", ErrProviderBaseURLRequired, cmd.ID)
 			}
 		}
 	}
 	entry, err := c.providers.Update(ctx, cmd.ID, patch)
 	if err != nil {
-		return ProviderInfo{}, err
+		return ProviderSummary{}, err
 	}
-	return providerInfo(meta, entry), nil
+	return providerSummary(meta, entry), nil
 }
 
 // TestProvider checks that a supported, configured provider accepts a minimal
@@ -220,8 +220,8 @@ func (c *Coordinator) lookupModel(providerID, modelID string) (Model, bool) {
 	return c.catalog.LookupModel(providerID, modelID)
 }
 
-func providerInfo(meta ProviderMetadata, entry provider.Provider) ProviderInfo {
-	return ProviderInfo{
+func providerSummary(meta ProviderMetadata, entry provider.Provider) ProviderSummary {
+	return ProviderSummary{
 		ID:                    meta.ID,
 		BaseURL:               entry.BaseURL,
 		APIKeyMasked:          secrets.Mask(entry.APIKey),

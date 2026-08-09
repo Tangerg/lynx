@@ -468,7 +468,7 @@ func newCancellationPlan(
 	if err != nil {
 		return cancellationPlan{}, err
 	}
-	if err := validateCancellationProcessTree(runTree.byRunID, bindings); err != nil {
+	if err := validateCancellationMemberBindings(runTree.byRunID, bindings); err != nil {
 		return cancellationPlan{}, err
 	}
 	if err := validateCancellationPending(runTree.root, openRunIDs, bindings, pending); err != nil {
@@ -684,7 +684,7 @@ func cancellationBindings(
 	return bindings, nil
 }
 
-func validateCancellationProcessTree(
+func validateCancellationMemberBindings(
 	runs map[string]transcript.Run,
 	bindings map[string]cancellationRun,
 ) error {

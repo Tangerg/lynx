@@ -22,7 +22,7 @@ import (
 // its record is also how it releases the session's admission slot.
 type RollbackPlan struct {
 	SessionID         string
-	KeepMark          int
+	KeepMessageMark   int
 	DropRunIDs        []string
 	CheckpointRootIDs []string
 	// Plan is the Plan the boundary held. Applying it is a NEW state commit

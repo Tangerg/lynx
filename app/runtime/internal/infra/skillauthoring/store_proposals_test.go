@@ -75,7 +75,7 @@ func TestListProposalsReportsRefsAndProvenance(t *testing.T) {
 		t.Fatalf("ListProposals returned %d proposals, want 2", len(proposals))
 	}
 
-	byName := map[string]skills.ProposalInfo{}
+	byName := map[string]skills.ProposalReview{}
 	for _, d := range proposals {
 		byName[d.Ref.Name] = d
 	}

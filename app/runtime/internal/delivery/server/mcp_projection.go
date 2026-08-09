@@ -101,7 +101,7 @@ func presentMCPAuthorizationAttempt(attempt mcpapp.AuthorizationAttempt) protoco
 	}
 }
 
-func presentMCPTool(tool mcpserver.ToolInfo) protocol.MCPTool {
+func presentMCPTool(tool mcpserver.AdvertisedTool) protocol.MCPTool {
 	return protocol.MCPTool{
 		Server:      tool.Server,
 		Name:        tool.Name,

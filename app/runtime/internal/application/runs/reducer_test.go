@@ -92,7 +92,7 @@ func TestReducerFinalAssistantMessageSupersedesPartialStreamingObservation(t *te
 	}
 }
 
-func TestReducerDoesNotDuplicateModelFinalWhenProcessConfirmsSameMessage(t *testing.T) {
+func TestReducerDoesNotDuplicateModelFinalWhenExecutorConfirmsSameMessage(t *testing.T) {
 	reducer := newReducer(testReducerConfig())
 	message := corechat.NewAssistantMessage(corechat.NewTextPart("authoritative answer"))
 	mustReduce(t, reducer, ModelCallStarted{CallID: "model_call_1"})
@@ -110,7 +110,7 @@ func TestReducerDoesNotDuplicateModelFinalWhenProcessConfirmsSameMessage(t *test
 	}
 	processBatch := mustReduce(t, reducer, AssistantMessageCompleted{Message: message})
 	if len(processBatch) != 0 {
-		t.Fatalf("Process confirmation duplicated model final: %#v", processBatch)
+		t.Fatalf("executor confirmation duplicated model final: %#v", processBatch)
 	}
 }
 

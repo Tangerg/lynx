@@ -53,7 +53,7 @@ func (c *Pool) Statuses() []mcpserver.ConnectionStatus {
 	return c.inner.Statuses()
 }
 
-func (c *Pool) Tools(ctx context.Context, server string) ([]mcpserver.ToolInfo, error) {
+func (c *Pool) Tools(ctx context.Context, server string) ([]mcpserver.AdvertisedTool, error) {
 	if c == nil || c.inner == nil {
 		return nil, nil
 	}

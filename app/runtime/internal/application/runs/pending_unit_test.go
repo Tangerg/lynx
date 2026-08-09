@@ -30,7 +30,7 @@ func TestPendingValidateRequiresOneCanonicalConnectedTree(t *testing.T) {
 			want: "canonical postorder",
 		},
 		{
-			name: "duplicate opaque process binding",
+			name: "duplicate opaque executor member binding",
 			mutate: func(p *Pending) {
 				p.Continuations[0].MemberID = p.Continuations[1].MemberID
 			},

@@ -105,7 +105,7 @@ func (p *segmentPump) processEvent(event ExecutorEvent) bool {
 		result, err := p.handleAuthoritativeFact(event.Member, commit.Fact)
 		p.completeAuthoritativeFact(commit, result, err)
 		// A rejected authoritative write is reported synchronously to the
-		// dispatcher. The Process then produces either a definite failed result or
+		// executor. It then produces either a definite failed result or
 		// an unknown settlement; stopping this pump here would race that decision
 		// and tear down the only source able to report it.
 		return true
@@ -243,7 +243,7 @@ func (p *segmentPump) handleChildRunStartOutcome(
 					publishErr = fmt.Errorf("runs: child member %q start unexpectedly reached a boundary", event.Member.MemberID)
 				}
 				// The durable child Run now exists. Rejecting the executor's started
-				// outcome would create a public Run without a Process, so acknowledge
+				// outcome would create a public Run without its executor member, so acknowledge
 				// the conclusive start and fail this projection pump instead.
 				p.fail(publishErr)
 				keep = false

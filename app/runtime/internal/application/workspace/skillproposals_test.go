@@ -11,7 +11,7 @@ import (
 type fakeSkillProposals struct {
 	root       string
 	proposal   skills.Proposal
-	list       []skills.ProposalInfo
+	list       []skills.ProposalReview
 	approved   []skills.ProposalRef
 	rejected   []skills.ProposalRef
 	submitErr  error
@@ -28,7 +28,7 @@ func (f *fakeSkillProposals) SubmitProposal(_ context.Context, projectRoot strin
 	return skills.NewProposalRef(proposal.Scope, proposal.Name, []byte(proposal.Instructions)), nil
 }
 
-func (f *fakeSkillProposals) ListProposals(_ context.Context, projectRoot string) ([]skills.ProposalInfo, error) {
+func (f *fakeSkillProposals) ListProposals(_ context.Context, projectRoot string) ([]skills.ProposalReview, error) {
 	f.root = projectRoot
 	return f.list, nil
 }
@@ -73,7 +73,7 @@ func TestSkillProposalsUnavailableWithoutStore(t *testing.T) {
 func TestSkillProposalsResolveWorkspaceAndDelegate(t *testing.T) {
 	proposal := skills.Proposal{Scope: skills.ScopeProject, Name: "run-tests", Description: "Run the project tests when verification is requested.", Instructions: "Run the tests."}
 	ref := skills.NewProposalRef(proposal.Scope, proposal.Name, []byte(proposal.Instructions))
-	fake := &fakeSkillProposals{list: []skills.ProposalInfo{{Ref: ref, Description: proposal.Description, Instructions: proposal.Instructions}}}
+	fake := &fakeSkillProposals{list: []skills.ProposalReview{{Ref: ref, Description: proposal.Description, Instructions: proposal.Instructions}}}
 	c := NewSkills(NewScope("", "", testPaths{}), nil, nil, fake, nil)
 
 	gotRef, err := c.SubmitProposal(t.Context(), "/repo", proposal)

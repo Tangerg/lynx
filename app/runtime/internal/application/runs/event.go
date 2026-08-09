@@ -6,7 +6,7 @@ import "time"
 //
 // RunID and SegmentID are the ENVELOPE: which run and segment produced this
 // event. They are not the stream's scope — one root stream carries its whole
-// subagent tree, so a child's event rides it bearing the child's own ids.
+// child-Run tree, so a child's event rides it bearing the child's own IDs.
 type Event struct {
 	RunID     string
 	SegmentID string

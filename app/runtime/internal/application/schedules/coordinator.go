@@ -173,23 +173,6 @@ func (c *Coordinator) Update(ctx context.Context, cmd UpdateCommand) (schedule.S
 	return c.updateExisting(ctx, existing, cmd.Patch, cmd.ExpectedRevision)
 }
 
-// UpdateLatest applies a patch to the latest durable revision. Unlike Update
-// with an observed revision, this use case has no caller snapshot to protect;
-// the coordinator's own read is its optimistic-concurrency baseline.
-func (c *Coordinator) UpdateLatest(ctx context.Context, id string, patch schedule.Patch) (schedule.Schedule, error) {
-	if !c.enabled {
-		return schedule.Schedule{}, schedule.ErrUnavailable
-	}
-	if id == "" {
-		return schedule.Schedule{}, schedule.ErrIDRequired
-	}
-	existing, err := c.store.Get(ctx, id)
-	if err != nil {
-		return schedule.Schedule{}, fmt.Errorf("schedules: get %q for update: %w", id, err)
-	}
-	return c.updateExisting(ctx, existing, patch, existing.Revision)
-}
-
 func (c *Coordinator) updateExisting(
 	ctx context.Context,
 	existing schedule.Schedule,

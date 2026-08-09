@@ -10,7 +10,7 @@ import (
 //
 // It lives beside [State] and [Outcome] rather than with the accrued
 // accounting because it is Run policy — an input admission fixes,
-// which the executor enforces and a cross-process rehydrate must reapply — while
+// which the executor enforces and restart recovery must reapply — while
 // what was actually spent is a recorded fact.
 type Limits struct {
 	MaxTotalTokens int64

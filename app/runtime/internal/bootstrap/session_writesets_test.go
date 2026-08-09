@@ -417,7 +417,7 @@ func TestApplyRollbackDropsRunsAndFreesAdmission(t *testing.T) {
 
 	if err := ss.ApplyRollback(ctx, sessions.RollbackPlan{
 		SessionID:         "ses_A",
-		KeepMark:          -1,
+		KeepMessageMark:   -1,
 		DropRunIDs:        []string{"run_1"},
 		CheckpointRootIDs: []string{processID},
 	}); err != nil {
@@ -468,7 +468,7 @@ func TestApplyRollbackRepublishesBoundaryPlan(t *testing.T) {
 	boundary := []plan.Step{{Description: "the plan at the boundary", Status: plan.StatusPending}}
 	if err := ss.ApplyRollback(ctx, sessions.RollbackPlan{
 		SessionID:         "ses_A",
-		KeepMark:          -1,
+		KeepMessageMark:   -1,
 		DropRunIDs:        []string{"run_1"},
 		CheckpointRootIDs: []string{processID},
 		Plan:              sessions.PlanBoundary{Steps: boundary, Recorded: true},
@@ -505,7 +505,7 @@ func TestApplyRollbackClearsToARecordedEmptyBoundary(t *testing.T) {
 
 	if err := ss.ApplyRollback(ctx, sessions.RollbackPlan{
 		SessionID:         "ses_A",
-		KeepMark:          -1,
+		KeepMessageMark:   -1,
 		DropRunIDs:        []string{"run_1"},
 		CheckpointRootIDs: []string{processID},
 		Plan:              sessions.PlanBoundary{Recorded: true},
@@ -688,7 +688,7 @@ func TestApplyRollbackRejectsInvalidProcessSetAtomically(t *testing.T) {
 	}
 
 	err = ss.ApplyRollback(ctx, sessions.RollbackPlan{
-		SessionID: parent.ID, KeepMark: -1,
+		SessionID: parent.ID, KeepMessageMark: -1,
 		CheckpointRootIDs: []string{"proc_preserve", ""},
 	})
 	if err == nil {

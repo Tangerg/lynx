@@ -1,18 +1,55 @@
 package arch
 
 import (
+	"encoding/json"
 	"go/ast"
 	"go/parser"
 	"go/token"
 	"maps"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
 
-	invariant "github.com/Tangerg/lynx/app/runtime/internal/application/invariant"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/dispatch"
 )
+
+type transactionBoundary string
+
+const (
+	boundaryRunAdmission               transactionBoundary = "runs.admission"
+	boundarySegmentOpening             transactionBoundary = "runsegment.opening"
+	boundarySegmentEvent               transactionBoundary = "runsegment.event"
+	boundaryWaitingSubtreeCancellation transactionBoundary = "runsegment.waiting_subtree_cancel"
+	boundaryRunRecovery                transactionBoundary = "runs.recovery"
+	boundaryParkedTermination          transactionBoundary = "sessions.parked_terminal"
+	boundarySessionRollback            transactionBoundary = "sessions.rollback"
+	boundarySessionDelete              transactionBoundary = "sessions.delete"
+	boundarySessionImport              transactionBoundary = "sessions.import"
+	boundaryGoalLifecycle              transactionBoundary = "goals.lifecycle"
+)
+
+type systemInvariantSpec struct {
+	Key        string                `json:"key"`
+	Why        string                `json:"why"`
+	Boundaries []transactionBoundary `json:"boundaries"`
+}
+
+func readSystemInvariantSpecs(t *testing.T) []systemInvariantSpec {
+	t.Helper()
+	payload, err := os.ReadFile(filepath.Join(moduleRoot(t), "contract", "manifest.json"))
+	if err != nil {
+		t.Fatalf("read generated contract manifest: %v", err)
+	}
+	var manifest struct {
+		SystemInvariants []systemInvariantSpec `json:"systemInvariants"`
+	}
+	if err := json.Unmarshal(payload, &manifest); err != nil {
+		t.Fatalf("decode generated contract manifest: %v", err)
+	}
+	return manifest.SystemInvariants
+}
 
 // TestEverySystemInvariantHasAnIntegrationFixture is contract §11.4 gate 8: every
 // transaction system invariant has a cross-projection integration fixture.
@@ -32,9 +69,9 @@ import (
 func TestEverySystemInvariantHasAnIntegrationFixture(t *testing.T) {
 	root := moduleRoot(t)
 
-	declared := make(map[string]map[invariant.Boundary]bool)
-	for _, spec := range invariant.All() {
-		boundaries := make(map[invariant.Boundary]bool, len(spec.Boundaries))
+	declared := make(map[string]map[transactionBoundary]bool)
+	for _, spec := range readSystemInvariantSpecs(t) {
+		boundaries := make(map[transactionBoundary]bool, len(spec.Boundaries))
 		for _, boundary := range spec.Boundaries {
 			boundaries[boundary] = true
 		}
@@ -75,55 +112,55 @@ func TestEverySystemInvariantHasAnIntegrationFixture(t *testing.T) {
 // a runtime registry would only ever see the one package it was compiled into, and
 // reading the claims out of source would mean mapping a boundary CONSTANT back to
 // its value — a second table of exactly what this one replaces.
-var invariantFixtures = map[string]map[invariant.Boundary]fixtureRef{
+var invariantFixtures = map[string]map[transactionBoundary]fixtureRef{
 	"session_has_at_most_one_open_run": {
-		invariant.BoundaryRunAdmission:   {"internal/infra/storage/sqlite", "TestRunAdmitEnforcesOneActivePerSession"},
-		invariant.BoundarySegmentOpening: {"internal/adapter/runsegment", "TestCommitOpeningRefusesASecondOpenRun"},
+		boundaryRunAdmission:   {"internal/infra/storage/sqlite", "TestRunAdmitEnforcesOneActivePerSession"},
+		boundarySegmentOpening: {"internal/adapter/runsegment", "TestCommitOpeningRefusesASecondOpenRun"},
 	},
 	"terminal_run_explains_how_it_ended": {
-		invariant.BoundarySegmentEvent: {"internal/adapter/runsegment", "TestCommitEventPersistsTheTerminalRunsResult"},
-		invariant.BoundaryRunRecovery:  {"internal/adapter/runrecovery", "TestRecoveryRepairsWholeDurableLifecycle"},
-		invariant.BoundarySessionImport: {
+		boundarySegmentEvent: {"internal/adapter/runsegment", "TestCommitEventPersistsTheTerminalRunsResult"},
+		boundaryRunRecovery:  {"internal/adapter/runrecovery", "TestRecoveryRepairsWholeDurableLifecycle"},
+		boundarySessionImport: {
 			"internal/delivery/server", "TestSessionImportRejectsAFailedRunWithoutItsFailure",
 		},
 	},
 	"run_capabilities_are_immutable": {
-		invariant.BoundaryRunAdmission: {"internal/infra/storage/sqlite", "TestRunCapabilitiesAreImmutable"},
+		boundaryRunAdmission: {"internal/infra/storage/sqlite", "TestRunCapabilitiesAreImmutable"},
 	},
 	"parked_tree_has_exactly_one_open_interrupt_set": {
-		invariant.BoundarySegmentEvent: {"internal/adapter/runsegment", "TestCommitTreeBarrierProducesDurableTriplet"},
-		invariant.BoundaryRunRecovery: {
+		boundarySegmentEvent: {"internal/adapter/runsegment", "TestCommitTreeBarrierProducesDurableTriplet"},
+		boundaryRunRecovery: {
 			"internal/adapter/runrecovery", "TestRecoveryRejectsPartialParkWithoutMutatingIt",
 		},
 	},
 	"parked_continuation_matches_run_facts": {
-		invariant.BoundarySegmentOpening: {
+		boundarySegmentOpening: {
 			"internal/application/runs", "TestResumeRejectsContinuationFactDriftBeforeExecutorPreparation",
 		},
-		invariant.BoundarySegmentEvent: {
+		boundarySegmentEvent: {
 			"internal/adapter/runsegment", "TestCommitTreeBarrierRejectsRunContinuationFactDriftBeforeTransaction",
 		},
-		invariant.BoundaryWaitingSubtreeCancellation: {
+		boundaryWaitingSubtreeCancellation: {
 			"internal/adapter/runsegment", "TestCommitWaitingSubtreeCancellationRejectsRunContinuationFactDriftWithoutMutation",
 		},
-		invariant.BoundaryRunRecovery: {
+		boundaryRunRecovery: {
 			"internal/application/runs", "TestRecoveryRejectsContinuationFactDriftWithoutProbingCheckpoint",
 		},
-		invariant.BoundaryParkedTermination: {
+		boundaryParkedTermination: {
 			"internal/application/sessions", "TestApplyRunLostRejectsContinuationFactDriftBeforeTerminalCommit",
 		},
 	},
 	"dropped_run_leaves_nothing_behind": {
-		invariant.BoundarySessionRollback: {"internal/bootstrap", "TestApplyRollbackDropsRunsAndFreesAdmission"},
-		invariant.BoundarySessionDelete:   {"internal/bootstrap", "TestApplyDeleteRemovesRunRows"},
+		boundarySessionRollback: {"internal/bootstrap", "TestApplyRollbackDropsRunsAndFreesAdmission"},
+		boundarySessionDelete:   {"internal/bootstrap", "TestApplyDeleteRemovesRunRows"},
 	},
 	"imported_session_keeps_its_identity": {
-		invariant.BoundarySessionImport: {"internal/delivery/server", "TestSessionExportImport_RoundTrip"},
+		boundarySessionImport: {"internal/delivery/server", "TestSessionExportImport_RoundTrip"},
 	},
 	"goal_never_outlives_its_session": {
-		invariant.BoundaryGoalLifecycle:   {"internal/infra/storage/sqlite", "TestGoalStoreRejectsMissingSession"},
-		invariant.BoundarySessionDelete:   {"internal/bootstrap", "TestApplyDeleteClearsSessionGoal"},
-		invariant.BoundarySessionRollback: {"internal/bootstrap", "TestApplyRollbackDropsRunsAndFreesAdmission"},
+		boundaryGoalLifecycle:   {"internal/infra/storage/sqlite", "TestGoalStoreRejectsMissingSession"},
+		boundarySessionDelete:   {"internal/bootstrap", "TestApplyDeleteClearsSessionGoal"},
+		boundarySessionRollback: {"internal/bootstrap", "TestApplyRollbackDropsRunsAndFreesAdmission"},
 	},
 }
 

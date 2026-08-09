@@ -10,7 +10,7 @@ import (
 
 func TestListUsesCatalogPort(t *testing.T) {
 	catalog := &fakeSkillCatalog{
-		skills: []SkillInfo{{Name: "lint", Description: "check code", Scope: SkillScopeProject}},
+		skills: []SkillSummary{{Name: "lint", Description: "check code", Scope: SkillScopeProject}},
 	}
 	c := NewSkills(NewScope("", "", testPaths{}), catalog, nil, nil, nil)
 
@@ -86,7 +86,7 @@ func TestSkillMutationsNotifyOnlyAfterSuccessfulCommit(t *testing.T) {
 
 type fakeSkillCatalog struct {
 	cwd    string
-	skills []SkillInfo
+	skills []SkillSummary
 }
 
 type fakeSkillCurator struct {
@@ -105,7 +105,7 @@ func (testPaths) ResolveExistingInRoot(_, path string) (string, error) {
 	return path, nil
 }
 
-func (f *fakeSkillCatalog) List(_ context.Context, cwd string) ([]SkillInfo, error) {
+func (f *fakeSkillCatalog) List(_ context.Context, cwd string) ([]SkillSummary, error) {
 	f.cwd = cwd
 	return f.skills, nil
 }

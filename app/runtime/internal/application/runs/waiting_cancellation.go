@@ -336,9 +336,9 @@ func (builder waitingCancellationBuilder) remainingInterruptions(
 	for index, binding := range builder.plan.pending.Bindings {
 		oldBindingByKey[inputRequestIdentity(binding.MemberID, binding.RequestID)] = index
 	}
-	survivingRunByProcess := make(map[string]string, len(continuations))
+	survivingRunByMemberID := make(map[string]string, len(continuations))
 	for _, continuation := range continuations {
-		survivingRunByProcess[continuation.MemberID] = continuation.RunID
+		survivingRunByMemberID[continuation.MemberID] = continuation.RunID
 	}
 	pendingInterruptions := builder.prepared.PendingInterruptions
 	remainingInterrupts := make([]transcript.Interrupt, 0, len(pendingInterruptions))
@@ -370,7 +370,7 @@ func (builder waitingCancellationBuilder) remainingInterruptions(
 		}
 		binding := builder.plan.pending.Bindings[index]
 		interrupt := builder.plan.pending.Interrupts[index]
-		runID, survives := survivingRunByProcess[binding.MemberID]
+		runID, survives := survivingRunByMemberID[binding.MemberID]
 		if !survives || interrupt.RunID != runID {
 			return nil, nil, fmt.Errorf(
 				"runs: prepared input request %q belongs to removed member %q",

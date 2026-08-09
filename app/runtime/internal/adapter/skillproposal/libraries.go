@@ -30,7 +30,7 @@ func (l *Libraries) SubmitProposal(ctx context.Context, projectRoot string, prop
 	return store.SubmitProposal(ctx, proposal)
 }
 
-func (l *Libraries) ListProposals(ctx context.Context, projectRoot string) ([]skills.ProposalInfo, error) {
+func (l *Libraries) ListProposals(ctx context.Context, projectRoot string) ([]skills.ProposalReview, error) {
 	project, err := l.store(skills.ScopeProject, projectRoot)
 	if err != nil {
 		return nil, err

@@ -489,8 +489,8 @@ func (s stubLifecycleStores) ApplyFork(ctx context.Context, plan sessions.ForkPl
 // The atomic write-sets over the stub's in-memory chat log + real sqlite
 // transcript/run/interrupt/session stores, mirroring the persistence adapter.
 func (s stubLifecycleStores) ApplyRollback(ctx context.Context, plan sessions.RollbackPlan) error {
-	if plan.KeepMark >= 0 {
-		if err := s.rt.TruncateMessages(ctx, plan.SessionID, plan.KeepMark); err != nil {
+	if plan.KeepMessageMark >= 0 {
+		if err := s.rt.TruncateMessages(ctx, plan.SessionID, plan.KeepMessageMark); err != nil {
 			return err
 		}
 	}

@@ -3,7 +3,6 @@ package transcript
 import (
 	"errors"
 	"fmt"
-	"maps"
 	"math"
 	"slices"
 	"strings"
@@ -64,7 +63,7 @@ type Run struct {
 	Metrics RunMetrics
 	// Limits is the allowance actually in force for this Run, frozen at
 	// admission. It is durable rather than a per-request echo because a resume
-	// and a cross-process rehydrate have to apply the same caps the first segment
+	// and restart recovery have to apply the same caps the first segment
 	// did.
 	Limits rundomain.Limits
 	// Capabilities is the optional behavior enabled at admission and retained for
@@ -87,17 +86,6 @@ type RunMetrics struct {
 	// so a Run parked overnight accrues nothing while parked — which is why this
 	// is a sum of segment durations rather than FinishedAt minus CreatedAt.
 	ActiveDuration time.Duration
-}
-
-// Plus returns the metrics of a Run that has accrued more, leaving the receiver
-// untouched. It is addition rather than replacement because each segment reports
-// its own consumption while the Run's record is cumulative.
-func (m RunMetrics) Plus(other RunMetrics) RunMetrics {
-	return RunMetrics{
-		Usage:          m.Usage.Plus(other.Usage),
-		Steps:          m.Steps + other.Steps,
-		ActiveDuration: m.ActiveDuration + other.ActiveDuration,
-	}
 }
 
 // Equal reports whether two snapshots contain the same cumulative accounting
@@ -152,52 +140,6 @@ type ModelUsage struct {
 type Usage struct {
 	ModelUsage
 	ByModel map[string]ModelUsage
-}
-
-// Plus returns the combined usage of the receiver and other, or nil when neither
-// reported any. A nil operand is "nothing reported", not "reported zero", so
-// adding to nil yields the other side unchanged.
-func (usage *Usage) Plus(other *Usage) *Usage {
-	switch {
-	case usage == nil:
-		return other
-	case other == nil:
-		return usage
-	}
-	sum := &Usage{ModelUsage: usage.ModelUsage.Plus(other.ModelUsage)}
-	if len(usage.ByModel) == 0 && len(other.ByModel) == 0 {
-		return sum
-	}
-	sum.ByModel = make(map[string]ModelUsage, len(usage.ByModel)+len(other.ByModel))
-	maps.Copy(sum.ByModel, usage.ByModel)
-	for model, perModel := range other.ByModel {
-		sum.ByModel[model] = sum.ByModel[model].Plus(perModel)
-	}
-	return sum
-}
-
-// Plus returns the combined token counts and cost. Cost stays absent when
-// neither side priced its tokens; one priced side is enough to produce a total,
-// since the unpriced side contributes nothing to spend either way.
-func (usage ModelUsage) Plus(other ModelUsage) ModelUsage {
-	sum := ModelUsage{
-		InputTokens:      usage.InputTokens + other.InputTokens,
-		OutputTokens:     usage.OutputTokens + other.OutputTokens,
-		CacheReadTokens:  usage.CacheReadTokens + other.CacheReadTokens,
-		CacheWriteTokens: usage.CacheWriteTokens + other.CacheWriteTokens,
-		ReasoningTokens:  usage.ReasoningTokens + other.ReasoningTokens,
-	}
-	if usage.CostUSD != nil || other.CostUSD != nil {
-		sum.CostUSD = new(costOf(usage.CostUSD) + costOf(other.CostUSD))
-	}
-	return sum
-}
-
-func costOf(cost *float64) float64 {
-	if cost == nil {
-		return 0
-	}
-	return *cost
 }
 
 type ItemStatus uint8

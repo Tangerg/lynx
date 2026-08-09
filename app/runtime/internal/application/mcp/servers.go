@@ -527,7 +527,7 @@ func resolveEnvironment(
 
 // Tools lists tools advertised by the connected MCP servers (scoped to server
 // when non-empty) for tool discovery.
-func (c *Coordinator) Tools(ctx context.Context, server string) ([]mcpserver.ToolInfo, error) {
+func (c *Coordinator) Tools(ctx context.Context, server string) ([]mcpserver.AdvertisedTool, error) {
 	if c.toolCatalog == nil {
 		return nil, nil
 	}

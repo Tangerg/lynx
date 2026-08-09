@@ -46,9 +46,9 @@ func idleStores(rolledBack *RollbackPlan) coordinatorStores {
 
 func droppedBoundary(keepRunID string, keepMark int) transcript.Boundary {
 	return transcript.Boundary{
-		KeepMark:  keepMark,
-		KeepRunID: keepRunID,
-		Dropped:   []transcript.RunNode{{ID: "run_dropped", Mark: keepMark + 2}},
+		KeepMessageMark: keepMark,
+		KeepRunID:       keepRunID,
+		Dropped:         []transcript.RunNode{{ID: "run_dropped", MessageMark: keepMark + 2}},
 	}
 }
 

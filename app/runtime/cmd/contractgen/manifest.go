@@ -5,7 +5,6 @@ import (
 	"slices"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
-	"github.com/Tangerg/lynx/app/runtime/internal/application/invariant"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/dispatch"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 )
@@ -193,7 +192,7 @@ func build(walked *schemaSet) manifest {
 		Unions:              unions(shapes),
 		Constraints:         constraints(shapes),
 		ValueConstraints:    valueConstraints(shapes),
-		SystemInvariants:    invariants(),
+		SystemInvariants:    systemInvariants(),
 		CanonicalSamples:    canonicalSamples(),
 	}
 }
@@ -399,19 +398,6 @@ func valueConstraints(shapes *dispatch.Shapes) []valueConstraintEntry {
 			})
 		}
 		out = append(out, valueConstraintEntry{Type: spec.GoType.Name(), Rules: rules})
-	}
-	return out
-}
-
-func invariants() []invariantEntry {
-	specs := invariant.All()
-	out := make([]invariantEntry, 0, len(specs))
-	for _, spec := range specs {
-		boundaries := make([]string, 0, len(spec.Boundaries))
-		for _, boundary := range spec.Boundaries {
-			boundaries = append(boundaries, string(boundary))
-		}
-		out = append(out, invariantEntry{Key: spec.Key, Why: spec.Why, Boundaries: boundaries})
 	}
 	return out
 }

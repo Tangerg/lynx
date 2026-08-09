@@ -15,18 +15,18 @@ import (
 // configuration tests drive a separate durable registry fake.
 type fakeMCPPorts struct {
 	statuses      []mcpserver.ConnectionStatus
-	tools         []mcpserver.ToolInfo
+	tools         []mcpserver.AdvertisedTool
 	reconnectName string
 	authorizeName string
 }
 
 func (f *fakeMCPPorts) Statuses() []mcpserver.ConnectionStatus { return f.statuses }
 
-func (f *fakeMCPPorts) Tools(_ context.Context, server string) ([]mcpserver.ToolInfo, error) {
+func (f *fakeMCPPorts) Tools(_ context.Context, server string) ([]mcpserver.AdvertisedTool, error) {
 	if server == "" {
 		return f.tools, nil
 	}
-	var out []mcpserver.ToolInfo
+	var out []mcpserver.AdvertisedTool
 	for _, t := range f.tools {
 		if t.Server == server {
 			out = append(out, t)

@@ -9,13 +9,13 @@ func TestExecutorMemberValidate(t *testing.T) {
 		wantErr string
 	}{
 		{
-			name: "root process",
+			name: "root executor member",
 			member: ExecutorMember{
 				MemberID: "member_root",
 			},
 		},
 		{
-			name: "child process",
+			name: "child executor member",
 			member: ExecutorMember{
 				MemberID:    "member_child",
 				ParentID:    "member_root",
@@ -23,10 +23,10 @@ func TestExecutorMemberValidate(t *testing.T) {
 			},
 		},
 		{
-			name: "failure before process creation",
+			name: "failure before executor member creation",
 		},
 		{
-			name:    "process whitespace",
+			name:    "executor member whitespace",
 			member:  ExecutorMember{MemberID: " member_root"},
 			wantErr: "runs: executor member id has surrounding whitespace",
 		},
@@ -48,14 +48,14 @@ func TestExecutorMemberValidate(t *testing.T) {
 			wantErr: "runs: executor member spawn call id has surrounding whitespace",
 		},
 		{
-			name: "empty process with parent",
+			name: "empty executor member with parent",
 			member: ExecutorMember{
 				ParentID: "member_root",
 			},
 			wantErr: "runs: empty executor member id cannot carry parent or spawn-call identity",
 		},
 		{
-			name: "empty process with spawn call",
+			name: "empty executor member with spawn call",
 			member: ExecutorMember{
 				SpawnCallID: "call_delegate",
 			},

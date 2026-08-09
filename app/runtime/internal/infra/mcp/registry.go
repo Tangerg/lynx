@@ -42,7 +42,7 @@ func (c *Connections) Statuses() []mcpserver.ConnectionStatus {
 // Tools lists the tools advertised by the connected servers, scoped to server
 // when non-empty. It queries each session's tools/list live, ordered by
 // (server, tool name) as dialed. Nil-safe.
-func (c *Connections) Tools(ctx context.Context, server string) ([]mcpserver.ToolInfo, error) {
+func (c *Connections) Tools(ctx context.Context, server string) ([]mcpserver.AdvertisedTool, error) {
 	if c == nil {
 		return nil, nil
 	}
@@ -59,7 +59,7 @@ func (c *Connections) Tools(ctx context.Context, server string) ([]mcpserver.Too
 	}
 	c.mu.Unlock()
 
-	var out []mcpserver.ToolInfo
+	var out []mcpserver.AdvertisedTool
 	for _, t := range targets {
 		for descriptor, err := range t.session.Tools(ctx, nil) {
 			if err != nil {
@@ -74,7 +74,7 @@ func (c *Connections) Tools(ctx context.Context, server string) ([]mcpserver.Too
 					err,
 				)
 			}
-			out = append(out, mcpserver.ToolInfo{
+			out = append(out, mcpserver.AdvertisedTool{
 				Server:      t.name,
 				Name:        descriptor.Name,
 				Description: descriptor.Description,

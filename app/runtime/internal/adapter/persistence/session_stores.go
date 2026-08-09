@@ -203,8 +203,8 @@ func (s *SessionStores) republishRollbackState(ctx context.Context, rollback ses
 			return err
 		}
 	}
-	if rollback.KeepMark >= 0 {
-		return s.history.Truncate(ctx, rollback.SessionID, rollback.KeepMark)
+	if rollback.KeepMessageMark >= 0 {
+		return s.history.Truncate(ctx, rollback.SessionID, rollback.KeepMessageMark)
 	}
 	return nil
 }

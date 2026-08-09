@@ -34,7 +34,7 @@ func TestListMCPServers(t *testing.T) {
 			{Name: "fs", State: mcpserver.ConnectionConnected, ToolCount: 2},
 			{Name: "down", State: mcpserver.ConnectionFailed},
 		},
-		tools: []mcpserver.ToolInfo{
+		tools: []mcpserver.AdvertisedTool{
 			{Server: "fs", Name: "read"}, {Server: "fs", Name: "write"},
 		},
 	}))
@@ -101,7 +101,7 @@ func TestMCPServerWireRejectsUnknownDomainState(t *testing.T) {
 func TestReconnectMCPServer(t *testing.T) {
 	s := serverWithMCP(fakeMCPPortsConfig(&fakeMCPPorts{
 		statuses: []mcpserver.ConnectionStatus{{Name: "fs", State: mcpserver.ConnectionConnected, ToolCount: 1}},
-		tools:    []mcpserver.ToolInfo{{Server: "fs", Name: "read"}},
+		tools:    []mcpserver.AdvertisedTool{{Server: "fs", Name: "read"}},
 	}))
 	defer s.Close()
 	events, unsub := s.workspaceHub.subscribe()
@@ -130,7 +130,7 @@ func TestListMCPTools(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ParseInputSchema: %v", err)
 	}
-	s := serverWithMCP(fakeMCPPortsConfig(&fakeMCPPorts{tools: []mcpserver.ToolInfo{
+	s := serverWithMCP(fakeMCPPortsConfig(&fakeMCPPorts{tools: []mcpserver.AdvertisedTool{
 		{Server: "fs", Name: "read", Description: "read a file", InputSchema: readSchema},
 		{Server: "fs", Name: "write"},
 		{Server: "git", Name: "log"},
