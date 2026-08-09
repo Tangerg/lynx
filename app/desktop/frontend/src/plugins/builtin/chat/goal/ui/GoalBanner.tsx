@@ -13,7 +13,7 @@ import {
   tightestAxis,
   type BudgetAxisView,
 } from "../application/goalBanner";
-import { useGoal } from "../application/goalQueries";
+import { type GoalReadModel, useGoal } from "../application/goalQueries";
 
 /**
  * The session's standing order, pinned above the stream.
@@ -25,58 +25,65 @@ import { useGoal } from "../application/goalQueries";
  * invisible at exactly the moment it matters.
  */
 export function GoalBanner() {
-  const t = useT();
   const sessionId = useActiveSessionId();
   const { data } = useGoal(sessionId ? { sessionId } : undefined);
-  const [expanded, setExpanded] = useState(false);
   const goal = data?.goal;
-  const axes = goal ? goalBudgetAxes(goal) : [];
 
   return (
     <AnimatePresence initial={false}>
       {goal && (
-        <motion.div
-          initial={{ opacity: 0, y: -4 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -4 }}
-          transition={disclosureTransition}
-          className="mt-1.5 mb-1"
-        >
-          <AgentActivityDisclosure
-            icon="target"
-            shell="card"
-            tone={GOAL_STATUS_I18N[goal.status].tone}
-            label={<span className="block min-w-0 truncate">{goal.objective}</span>}
-            trailing={<Allowance axis={tightestAxis(axes)} />}
-            // Only when it is not running: "Running" is what a goal banner being
-            // on screen already says, and a badge repeating it would leave the two
-            // states that need saying — paused, blocked — competing with noise.
-            actions={
-              goal.status !== "active" && (
-                <Badge tone={GOAL_STATUS_I18N[goal.status].tone}>
-                  {t(GOAL_STATUS_I18N[goal.status].label)}
-                </Badge>
-              )
-            }
-            open={expanded}
-            onToggle={() => setExpanded((value) => !value)}
-            toggleLabel={expanded ? t("goal.collapse") : t("goal.expand")}
-          >
-            <div className="flex flex-col gap-1.5">
-              {axes.map((axis) => (
-                <BudgetAxis key={axis.label} axis={axis} />
-              ))}
-            </div>
-            {goal.stop && (
-              <p className="mt-2.5 text-ui-sm leading-body text-fg-muted">
-                {t(GOAL_STOP_I18N[goal.stop.code])}
-                {goal.stop.detail && ` — ${goal.stop.detail}`}
-              </p>
-            )}
-          </AgentActivityDisclosure>
-        </motion.div>
+        <GoalDisclosure key={JSON.stringify([goal.sessionId, goal.objective])} goal={goal} />
       )}
     </AnimatePresence>
+  );
+}
+
+function GoalDisclosure({ goal }: { goal: GoalReadModel }) {
+  const t = useT();
+  const [expanded, setExpanded] = useState(false);
+  const axes = goalBudgetAxes(goal);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: -4 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -4 }}
+      transition={disclosureTransition}
+      className="mt-1.5 mb-1"
+    >
+      <AgentActivityDisclosure
+        icon="target"
+        shell="card"
+        tone={GOAL_STATUS_I18N[goal.status].tone}
+        label={<span className="block min-w-0 truncate">{goal.objective}</span>}
+        trailing={<Allowance axis={tightestAxis(axes)} />}
+        // Only when it is not running: "Running" is what a goal banner being
+        // on screen already says, and a badge repeating it would leave the two
+        // states that need saying — paused, blocked — competing with noise.
+        actions={
+          goal.status !== "active" && (
+            <Badge tone={GOAL_STATUS_I18N[goal.status].tone}>
+              {t(GOAL_STATUS_I18N[goal.status].label)}
+            </Badge>
+          )
+        }
+        open={expanded}
+        onToggle={() => setExpanded((value) => !value)}
+        toggleLabel={expanded ? t("goal.collapse") : t("goal.expand")}
+      >
+        <div className="flex flex-col gap-1.5">
+          {axes.map((axis) => (
+            <BudgetAxis key={axis.label} axis={axis} />
+          ))}
+        </div>
+        {goal.stop && (
+          <p className="mt-2.5 text-ui-sm leading-body text-fg-muted">
+            {t(GOAL_STOP_I18N[goal.stop.code])}
+            {goal.stop.detail && ` — ${goal.stop.detail}`}
+          </p>
+        )}
+      </AgentActivityDisclosure>
+    </motion.div>
   );
 }
 
