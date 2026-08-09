@@ -72,7 +72,7 @@ func (execution *execution) advance(signals []agent.Signal) (agent.Transition, e
 	case stageKindSwitch:
 		selected, err := stage.switcher.selectCase(execution.state.CurrentValue)
 		if err != nil {
-			var unknown unknownSwitchCase
+			var unknown unknownSwitchCaseError
 			if errors.As(err, &unknown) {
 				return execution.failContract(
 					0, "workflow.switch.case_unknown",
@@ -92,7 +92,7 @@ func (execution *execution) advance(signals []agent.Signal) (agent.Transition, e
 	case stageKindMap:
 		count, err := stage.fanoutCount(execution.state.CurrentValue)
 		if err != nil {
-			var exceeded mapItemLimitExceeded
+			var exceeded mapItemLimitExceededError
 			if errors.As(err, &exceeded) {
 				return execution.failContract(
 					0, "workflow.map.item_limit_exceeded",

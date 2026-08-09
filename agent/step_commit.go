@@ -251,15 +251,15 @@ func (finalization *preparedStepFinalization) registerChildWait(record preparedE
 	if err := finalization.mailbox.registerWait(spec.Key, waitID, false); err != nil {
 		return WaitID{}, err
 	}
-	immediate, err := finalization.loop.engine.registerChildWait(
+	immediateSignal, immediatelySatisfied, err := finalization.loop.engine.registerChildWait(
 		finalization.loop.controller.processID, waitID, spec,
 	)
 	if err != nil {
 		return WaitID{}, err
 	}
 	finalization.registeredChildWaits = append(finalization.registeredChildWaits, waitID)
-	if immediate != nil {
-		finalization.immediateChildSignals = append(finalization.immediateChildSignals, *immediate)
+	if immediatelySatisfied {
+		finalization.immediateChildSignals = append(finalization.immediateChildSignals, immediateSignal)
 	}
 	return waitID, nil
 }

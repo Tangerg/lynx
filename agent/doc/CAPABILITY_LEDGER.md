@@ -563,3 +563,16 @@
 - resolution identity 只拥有互斥锁和 resolved 事实；frozen TreeSnapshot、Process IDs、Engine tree operation、quiescence、staged changes 与 apply gate 仍由 prepared capability 直接收敛。没有 token registry、第二 Engine mutation API、Host lease、transaction 或 checkpoint 进入 Framework。
 - owner race test 显式复制 exported value，让原值与副本并发 Apply/Discard，并证明恰好一个成功、另一方稳定收到 `ErrPreparedWaitingSubtreeCancellationResolved`；architecture reflection gate 同时冻结 capability 与 resolution identity 的 Framework-only 字段集合。
 - 该修复只强化既有恰好一次语义。Process Snapshot v6、TreeSnapshot v4、全部 Strategy/protocol/observation wire 不变；根 GoDoc 的准确化形成 Baseline 16。
+
+### 16.2 Mutable owner 与 Process command context
+
+- Engine、Platform、OTel Observer 是三个不同职责的 mutable owner，但都只允许一个构造返回的 pointer identity。Platform 已有 no-copy GoDoc；Engine/Observer 在 Baseline 17 同步冻结同一约束。该规则不扩张到 immutable values、Definitions、Deployments 或 Process handle。
+- Process command 的 ctx 只界定 channel 提交和 response 等待；loop 接收后仍按单写者顺序处理，caller 取消不产生撤销写入口。Start context 继续提供 Host termination intent，Await context 只停止等待 terminal result，三个语义保持正交。
+- 这些准确化不增加 request token、lease、rollback、ack registry、service facade 或 Host protocol；公开签名和全部 wire 不变。
+
+### 16.3 Observation 与 representational bounds
+
+- Process Event sequence 现在只在完整 Event 构造成功后推进，达到 `MaxUint64` 后保持饱和，不产生幽灵 gap、0 回绕或重复低序号。观察表示耗尽不会反向改变 Process 语义。
+- OTel 对 Process/Step sequence 使用十进制字符串保留全部 `uint64`；Delta drop 先按 Event owner 的 `uint64` payload 解码，再对官方 `Int64Counter` 做显式 `MaxInt64` 饱和。Observer Close 后的 Event 不再写 span/metric。
+- Interaction Tool-input pause count 在 `MaxUint32` 明确失败，不生成 `PauseCount=0` 的伪初态；child wait 的即时完成使用 value + satisfied bool，不再用 `nil, nil` 同时表达“合法未满足”和无结果。
+- Process Snapshot v6、TreeSnapshot v4、Interaction state/protocol v5/v3 与 Event/Delta wire 均未改变；OTel sequence attribute 类型直接切换为准确 string，不维护旧 int64 双写。

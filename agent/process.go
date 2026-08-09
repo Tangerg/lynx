@@ -22,6 +22,9 @@ var (
 // Process is an Engine-issued handle to one managed execution. Its fields and
 // construction remain private so a caller cannot create a second lifecycle
 // owner. Methods only submit control-plane requests to the owning Engine loop.
+// For methods that submit a command, ctx bounds submission and response
+// waiting. Once the Engine loop receives the command, canceling ctx does not
+// revoke it.
 type Process struct {
 	controller *processController
 }

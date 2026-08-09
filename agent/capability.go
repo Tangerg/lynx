@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 )
 
 // ErrInvalidCapability reports a malformed capability name or set.
@@ -64,7 +65,7 @@ func NewCapabilitySet(capabilities ...Capability) (CapabilitySet, error) {
 		}
 	}
 	slices.SortFunc(values, func(left, right Capability) int {
-		return bytes.Compare([]byte(left.name), []byte(right.name))
+		return strings.Compare(left.name, right.name)
 	})
 	values = slices.Compact(values)
 	return CapabilitySet{values: values}, nil
@@ -79,7 +80,7 @@ func (set CapabilitySet) Contains(capability Capability) bool {
 		return false
 	}
 	_, found := slices.BinarySearchFunc(set.values, capability, func(left, right Capability) int {
-		return bytes.Compare([]byte(left.name), []byte(right.name))
+		return strings.Compare(left.name, right.name)
 	})
 	return found
 }

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"reflect"
 
 	agent "github.com/Tangerg/lynx/agent"
@@ -390,6 +391,9 @@ func (dispatch *toolBatchDispatch) dispatchRemaining() (agent.Settlement, bool, 
 }
 
 func (dispatch *toolBatchDispatch) pause(index uint32, request ToolInputRequest) (agent.Settlement, error) {
+	if dispatch.pauseCount == math.MaxUint32 {
+		return agent.Settlement{}, errors.New("interaction: Tool input pause count is exhausted")
+	}
 	checkpoint := &toolCheckpoint{
 		CompletedResults:    append([]chat.ToolResult(nil), dispatch.results...),
 		AdvertisedToolNames: append([]string(nil), dispatch.advertisedToolNames...),

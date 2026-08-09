@@ -105,6 +105,62 @@ func TestObserverRejectsTypedNilTracerProvider(t *testing.T) {
 	}
 }
 
+func TestObserverIgnoresEventsAfterClose(t *testing.T) {
+	var events []agent.Event
+	engine, err := agent.NewEngine(agent.EngineConfig{EventListeners: []agent.EventListener{
+		agent.EventListenerFunc(func(_ context.Context, event agent.Event) {
+			events = append(events, event)
+		}),
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	input, err := agent.EncodeInput(testInput{Value: "closed observer"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result, runErr := engine.Run(context.Background(), testDeployment(t), input); runErr != nil || !result.Valid() {
+		t.Fatalf("result = %#v, error = %v", result, runErr)
+	}
+	if err := engine.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	reader := sdkmetric.NewManualReader()
+	meterProvider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
+	t.Cleanup(func() { _ = meterProvider.Shutdown(context.Background()) })
+	observer, err := agentotel.New(agentotel.Config{MeterProvider: meterProvider})
+	if err != nil {
+		t.Fatal(err)
+	}
+	observer.Close()
+	for _, event := range events {
+		observer.OnEvent(context.Background(), event)
+	}
+	var metrics metricdata.ResourceMetrics
+	if err := reader.Collect(context.Background(), &metrics); err != nil {
+		t.Fatal(err)
+	}
+	for _, scope := range metrics.ScopeMetrics {
+		for _, metric := range scope.Metrics {
+			switch data := metric.Data.(type) {
+			case metricdata.Sum[int64]:
+				for _, point := range data.DataPoints {
+					if point.Value != 0 {
+						t.Fatalf("metric %q recorded %d after Close", metric.Name, point.Value)
+					}
+				}
+			case metricdata.Histogram[float64]:
+				for _, point := range data.DataPoints {
+					if point.Count != 0 {
+						t.Fatalf("metric %q recorded %d samples after Close", metric.Name, point.Count)
+					}
+				}
+			}
+		}
+	}
+}
+
 type testInput struct {
 	Value string `json:"value"`
 }

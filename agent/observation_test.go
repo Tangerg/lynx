@@ -1,7 +1,9 @@
 package agent
 
 import (
+	"context"
 	"encoding/json"
+	"math"
 	"testing"
 	"time"
 )
@@ -62,5 +64,52 @@ func TestDeltaIsEffectLocalAndImmutable(t *testing.T) {
 	}
 	if decoded.ProcessID() != processID || decoded.EffectID() != effectID {
 		t.Fatalf("decoded Delta = %+v", decoded)
+	}
+}
+
+func TestProcessEventSequenceAdvancesOnlyForConstructedEvents(t *testing.T) {
+	deployment := newChildTestDeployment(t)
+	processID, _ := ParseProcessID("process:event-sequence")
+	relation := rootProcessRelation(processID)
+	var events []Event
+	engine, err := NewEngine(EngineConfig{EventListeners: []EventListener{
+		EventListenerFunc(func(_ context.Context, event Event) { events = append(events, event) }),
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = engine.Close() })
+	loop := &processLoop{
+		engine: engine,
+		controller: &processController{
+			processID: processID, relation: relation, deploymentRef: deployment.DeploymentRef(),
+		},
+		deployment: deployment,
+	}
+
+	loop.processEventSequence = 7
+	loop.publishEvent(
+		context.Background(), "invalid event name", EventPhaseAttempt,
+		0, EffectID{}, emptyEventPayload(),
+	)
+	if loop.processEventSequence != 7 || len(events) != 0 {
+		t.Fatalf("invalid Event changed sequence to %d or published %d facts", loop.processEventSequence, len(events))
+	}
+
+	loop.publishEvent(
+		context.Background(), EventProcessStarted, EventPhaseCommitted,
+		0, EffectID{}, emptyEventPayload(),
+	)
+	if loop.processEventSequence != 8 || len(events) != 1 || events[0].ProcessSequence() != 8 {
+		t.Fatalf("valid Event sequence = %d, events = %#v", loop.processEventSequence, events)
+	}
+
+	loop.processEventSequence = math.MaxUint64
+	loop.publishEvent(
+		context.Background(), EventProcessResumed, EventPhaseCommitted,
+		0, EffectID{}, emptyEventPayload(),
+	)
+	if loop.processEventSequence != math.MaxUint64 || len(events) != 1 {
+		t.Fatalf("exhausted Event sequence wrapped to %d or published %d facts", loop.processEventSequence, len(events))
 	}
 }

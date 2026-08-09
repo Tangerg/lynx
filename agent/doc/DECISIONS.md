@@ -557,3 +557,25 @@
 - 决策：prepared value 继续是唯一公开 capability，不新增 token、registry、Engine apply 旁路或 Host 协议；其私有 resolution 状态改为一个共享指针 identity，identity 内只含互斥锁和 resolved 事实。所有 Apply/Discard alias 必须先在线性化锁下检查并推进同一状态；value 内其余 frozen tree 资源仍由原 capability 持有，resolution 后不得再次访问。zero/nil value 始终是 invalid，不通过第一次错误调用伪造 resolved 状态。
 - 决策：公开 GoDoc 继续要求调用方不复制 capability，同时准确说明意外副本不会复制 authority。architecture reflection gate 分别锁定 capability 与 resolution identity 都只拥有 Framework primitive；不得加入 Run、Store、transaction、checkpoint、lease、产品 revision 或应用 callback。
 - 后果：根 GoDoc digest 升为 Baseline 16；公开名称、参数和签名、Process Snapshot v6、TreeSnapshot v4、Strategy protocol、Event/Delta wire 与其他六个 public digest 不变。新增并发反例对原值和显式值副本同时 Apply/Discard，并证明竞态下恰好一个成功、另一个稳定返回 resolved。
+
+## ADR-A2-067：有状态公共 owner 只具有一个 pointer identity
+
+- 状态：已接受；P14-02 已实施，形成 Baseline 17。
+- 证据：Engine、Platform 与 OTel Observer 都拥有互斥锁、共享 map、worker/span 或关闭状态。它们的构造函数返回指针，Platform GoDoc 已禁止使用后复制，但 Engine 与 Observer 未陈述同一约束；调用方值复制会分裂锁和 closed 状态却共享底层资源，形成第二 lifecycle/observation owner。把全部状态搬入可复制 facade 的额外间接层不能增加框架能力，只会掩盖误用。
+- 决策：三类 mutable owner 保持 concrete pointer API，不增加 interface facade、registry 或共享 service object。Engine 必须由 `NewEngine` 构造，Observer 必须由 `otel.New` 构造，二者与 Platform 都不得在首次使用后复制；公共 GoDoc 与 digest 直接冻结该约束。不可变值、Deployment/Definition 与只读 handle 继续可安全复制，不把 no-copy 规则泛化到整个 Framework。
+- 后果：根与 OTel GoDoc 形成 Baseline 17，公开名称、方法、wire 与 package DAG 不变。现有 mutex 也让 downstream `go vet copylocks` 能识别具体值复制；Framework 不为非法复制提供兼容状态同步。
+
+## ADR-A2-068：观察序号不得伪造或回绕，OTel 必须显式处理无符号范围
+
+- 状态：已接受；P14-02 已实施。
+- 证据：Process 原先先递增 `processEventSequence` 再构造 Event，内部构造拒绝会留下没有对应 fact 的幽灵序号；从极值 snapshot 恢复后再次发布还会从 `MaxUint64` 回绕到 0。OTel adapter 又把 Process/Step sequence 直接转成 `int64`，高位会变成负数；Delta drop payload 是 `uint64`，解码进 `int64` 时超界会整体失败并因观察侧忽略 error 静默记成 0。
+- 决策：Kernel 先计算候选序号并构造完整 Event，只有成功后才安装序号并同步投递；达到 `MaxUint64` 后保持饱和且不伪造新 Event，绝不回绕或改变 Process 语义。OTel 的 Process/Step sequence attribute 统一使用十进制字符串无损表达 `uint64`；Delta drop payload 按 owner wire 解码为 `uint64`，投影到官方 `Int64Counter` 时显式饱和到 `MaxInt64`。Observer 在 Close 后的调用一律于分派前退出，不再写 span 或 metric。
+- 决策：这些是 observation 投影规则，不升级 Process Snapshot v6、TreeSnapshot v4 或 Event/Delta wire，不加入 Host telemetry schema、可靠投递或 observer veto。表示上限后的 Event 不足不能反向终止 Process；观察能力仍不拥有业务正确性。
+- 后果：新增无效 Event 不推进序号、极值不回绕、完整 `uint64` attribute、metric 饱和和 Close 后零记录测试。OTel attribute 的 sequence value type 从有损 `int64` 直接切换为准确 string，不保留双属性或旧类型兼容路径。
+
+## ADR-A2-069：Process command context 只界定提交与响应等待
+
+- 状态：已接受；P14-02 以准确 GoDoc 冻结既有语义，形成 Baseline 17。
+- 证据：Process control/query 方法通过单写者 loop 提交命令。ctx 可能在命令进入有界 channel 前取消，也可能在 loop 已接收但尚未回复时取消；后一种情况下撤销命令会引入第二个并发写入口，并使已经接收的 Signal、Cancel、Kill 或 ResolveEffect 出现半撤销。`SignalID` 去重和幂等 control intent 已为调用方处理不确定响应提供稳定语义。
+- 决策：ctx 同时界定命令提交等待和响应等待；一旦 Engine loop 接收命令，ctx 取消只让 caller 停止等待，不撤销已接收命令。Await 只等待 tree-settled terminal result，Start context 则仍是 Process 的 Host cancellation/deadline 来源，二者不与 command 语义混称。Framework 不增加 request lease、rollback、ack registry 或第二 cancel-command 入口。
+- 后果：Process 公共 GoDoc 形成 Baseline 17；实现、方法签名、Signal/wire 与状态机均不变。调用方若收到 ctx error，不得据此断言命令未执行；可依靠稳定 SignalID、状态查询或幂等 control 重试收敛。

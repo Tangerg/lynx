@@ -86,7 +86,8 @@ type EngineConfig struct {
 
 // Engine is the sole owner of Process construction, scheduling, lifecycle,
 // Signal delivery, Effect dispatch, and snapshot boundaries. It contains no
-// Deployment catalog or Host persistence abstraction.
+// Deployment catalog or Host persistence abstraction. Engine values must be
+// constructed with NewEngine and must not be copied after first use.
 type Engine struct {
 	acknowledger             PreparedStepAcknowledger
 	startOutcomeAcknowledger ProcessStartOutcomeAcknowledger

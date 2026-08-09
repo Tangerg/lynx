@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"encoding/json"
+	"math"
 	"time"
 )
 
@@ -14,14 +15,18 @@ func (loop *processLoop) publishEvent(
 	effectID EffectID,
 	payload json.RawMessage,
 ) {
-	loop.processEventSequence++
+	if loop.processEventSequence == math.MaxUint64 {
+		return
+	}
+	nextSequence := loop.processEventSequence + 1
 	event, err := newEvent(
-		loop.processEventSequence, loop.controller.processID, loop.deployment.DeploymentRef(),
+		nextSequence, loop.controller.processID, loop.deployment.DeploymentRef(),
 		loop.controller.relation, step, effectID, name, phase, time.Now(), payload,
 	)
 	if err != nil {
 		return
 	}
+	loop.processEventSequence = nextSequence
 	loop.engine.observation.publishEvent(context.WithoutCancel(ctx), event)
 }
 

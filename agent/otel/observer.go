@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"reflect"
+	"strconv"
 	"sync"
 	"time"
 
@@ -38,6 +40,8 @@ type Config struct {
 // Observer projects immutable Framework Event facts into OpenTelemetry spans
 // and metrics. It implements agent.EventListener and is safe for concurrent
 // calls. Observer never receives Process behavior or application state.
+// Observer values must be constructed with New and must not be copied after
+// first use.
 type Observer struct {
 	tracer trace.Tracer
 
@@ -133,6 +137,12 @@ func New(config Config) (*Observer, error) {
 // Close are ignored because observation cannot affect Process correctness.
 func (observer *Observer) OnEvent(ctx context.Context, event agent.Event) {
 	if observer == nil || !event.Valid() {
+		return
+	}
+	observer.mu.Lock()
+	closed := observer.closed
+	observer.mu.Unlock()
+	if closed {
 		return
 	}
 	if ctx == nil {
@@ -274,7 +284,7 @@ func (observer *Observer) startStep(event agent.Event) {
 	ctx, span := observer.tracer.Start(
 		process.ctx, "agent.step",
 		trace.WithTimestamp(event.OccurredAt()),
-		trace.WithAttributes(attribute.Int64("agent.step.sequence", int64(sequence))),
+		trace.WithAttributes(uint64Attribute("agent.step.sequence", sequence)),
 	)
 	observer.steps[key] = spanRecord{
 		processID: event.ProcessID(), ctx: ctx, span: span, startedAt: event.OccurredAt(),
@@ -374,7 +384,7 @@ func (observer *Observer) finishEffect(ctx context.Context, event agent.Event) {
 func (observer *Observer) recordDeltaDrop(ctx context.Context, event agent.Event) {
 	payload := decodePayload(event)
 	if payload.DroppedDeltaCount > 0 {
-		observer.deltaDrops.Add(ctx, payload.DroppedDeltaCount)
+		observer.deltaDrops.Add(ctx, saturatingInt64(payload.DroppedDeltaCount))
 	}
 	observer.addProcessEvent(event)
 }
@@ -387,11 +397,11 @@ func (observer *Observer) addProcessEvent(event agent.Event) {
 		return
 	}
 	attributes := []attribute.KeyValue{
-		attribute.Int64("agent.process.event_sequence", int64(event.ProcessSequence())),
+		uint64Attribute("agent.process.event_sequence", event.ProcessSequence()),
 		attribute.String("agent.event.phase", event.Phase().String()),
 	}
 	if step, ok := event.StepSequence(); ok {
-		attributes = append(attributes, attribute.Int64("agent.step.sequence", int64(step)))
+		attributes = append(attributes, uint64Attribute("agent.step.sequence", step))
 	}
 	if effectID, ok := event.EffectID(); ok {
 		attributes = append(attributes, attribute.String("agent.effect.id", effectID.String()))
@@ -407,7 +417,18 @@ type eventPayload struct {
 	StepStatus        string `json:"step_status"`
 	EffectTarget      string `json:"effect_target"`
 	SettlementStatus  string `json:"settlement_status"`
-	DroppedDeltaCount int64  `json:"dropped_delta_count"`
+	DroppedDeltaCount uint64 `json:"dropped_delta_count"`
+}
+
+func uint64Attribute(name string, value uint64) attribute.KeyValue {
+	return attribute.String(name, strconv.FormatUint(value, 10))
+}
+
+func saturatingInt64(value uint64) int64 {
+	if value > math.MaxInt64 {
+		return math.MaxInt64
+	}
+	return int64(value)
 }
 
 func decodePayload(event agent.Event) eventPayload {

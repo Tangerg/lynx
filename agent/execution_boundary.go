@@ -22,16 +22,16 @@ func failureFromError(kind FailureKind, code string, err error) (Failure, error)
 }
 
 func failureKindForError(err error) FailureKind {
-	var panicError executionPanic
+	var panicError executionPanicError
 	if errors.As(err, &panicError) {
 		return FailureKindPanic
 	}
 	return FailureKindExecution
 }
 
-type executionPanic struct{ value any }
+type executionPanicError struct{ value any }
 
-func (panicError executionPanic) Error() string {
+func (panicError executionPanicError) Error() string {
 	return fmt.Sprintf("execution panicked: %v", panicError.value)
 }
 
@@ -39,7 +39,7 @@ func startExecution(definition Definition, input Input) (execution Execution, er
 	defer func() {
 		if recovered := recover(); recovered != nil {
 			execution = nil
-			err = executionPanic{value: recovered}
+			err = executionPanicError{value: recovered}
 		}
 	}()
 	execution, err = definition.Start(input)
@@ -53,7 +53,7 @@ func restoreExecution(definition Definition, state ExecutionState) (execution Ex
 	defer func() {
 		if recovered := recover(); recovered != nil {
 			execution = nil
-			err = executionPanic{value: recovered}
+			err = executionPanicError{value: recovered}
 		}
 	}()
 	execution, err = definition.Restore(state)
@@ -67,7 +67,7 @@ func stepExecution(ctx context.Context, execution Execution, signals []Signal) (
 	defer func() {
 		if recovered := recover(); recovered != nil {
 			transition = Transition{}
-			err = executionPanic{value: recovered}
+			err = executionPanicError{value: recovered}
 		}
 	}()
 	return execution.Step(ctx, signals)
@@ -77,7 +77,7 @@ func captureExecution(execution Execution) (state ExecutionState, err error) {
 	defer func() {
 		if recovered := recover(); recovered != nil {
 			state = ExecutionState{}
-			err = executionPanic{value: recovered}
+			err = executionPanicError{value: recovered}
 		}
 	}()
 	state, err = execution.Snapshot()

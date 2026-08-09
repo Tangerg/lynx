@@ -23,43 +23,43 @@ func (engine *Engine) registerChildWait(
 	parent ProcessID,
 	waitID WaitID,
 	spec ChildWaitSpec,
-) (*Signal, error) {
+) (Signal, bool, error) {
 	if !parent.Valid() || !waitID.Valid() || !spec.Valid() {
-		return nil, ErrInvalidChildWait
+		return Signal{}, false, ErrInvalidChildWait
 	}
 	engine.mu.Lock()
 	defer engine.mu.Unlock()
 	if _, duplicate := engine.childWaits[waitID]; duplicate {
-		return nil, ErrInvalidChildWait
+		return Signal{}, false, ErrInvalidChildWait
 	}
 	if _, exists := engine.processes[parent]; !exists {
-		return nil, ErrInvalidProcessRelation
+		return Signal{}, false, ErrInvalidProcessRelation
 	}
 	for _, childID := range spec.Children {
 		controller, exists := engine.processes[childID]
 		if !exists {
-			return nil, ErrInvalidChildWait
+			return Signal{}, false, ErrInvalidChildWait
 		}
 		actualParent, child := controller.relation.ParentID()
 		if !child || actualParent != parent {
-			return nil, ErrInvalidChildWait
+			return Signal{}, false, ErrInvalidChildWait
 		}
 	}
 	registration := &childWaitRegistration{
 		parent: parent, waitID: waitID, spec: cloneChildWaitSpec(spec),
 	}
 	engine.childWaits[waitID] = registration
-	outcomes, ready := engine.childWaitOutcomesLocked(registration)
-	if !ready {
-		return nil, nil
+	outcomes, satisfied := engine.childWaitOutcomesLocked(registration)
+	if !satisfied {
+		return Signal{}, false, nil
 	}
 	signal, err := encodeChildrenCompleted(waitID, spec.Key, outcomes)
 	if err != nil {
 		delete(engine.childWaits, waitID)
-		return nil, err
+		return Signal{}, false, err
 	}
 	registration.delivered = true
-	return &signal, nil
+	return signal, true, nil
 }
 
 func (engine *Engine) unregisterChildWait(waitID WaitID) {
@@ -90,8 +90,8 @@ func (engine *Engine) processFinished(controller *processController) {
 		if registration.delivered || !childWaitContains(registration.spec, controller.processID) {
 			continue
 		}
-		outcomes, ready := engine.childWaitOutcomesLocked(registration)
-		if !ready {
+		outcomes, satisfied := engine.childWaitOutcomesLocked(registration)
+		if !satisfied {
 			continue
 		}
 		signal, err := encodeChildrenCompleted(registration.waitID, registration.spec.Key, outcomes)

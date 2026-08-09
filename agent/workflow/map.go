@@ -141,7 +141,7 @@ func decodeMapValues[I any](raw json.RawMessage, schema agent.Schema, limit uint
 		return nil, err
 	}
 	if uint64(len(values)) > uint64(limit) || uint64(len(values)) > math.MaxUint32 {
-		return nil, mapItemLimitExceeded{count: uint64(len(values)), limit: limit}
+		return nil, mapItemLimitExceededError{count: uint64(len(values)), limit: limit}
 	}
 	return values, nil
 }
@@ -190,11 +190,11 @@ func collectMapOutputs[O any](
 	return erased.JSON(), nil
 }
 
-type mapItemLimitExceeded struct {
+type mapItemLimitExceededError struct {
 	count uint64
 	limit uint32
 }
 
-func (failure mapItemLimitExceeded) Error() string {
+func (failure mapItemLimitExceededError) Error() string {
 	return fmt.Sprintf("Map input contains %d items, exceeding limit %d", failure.count, failure.limit)
 }

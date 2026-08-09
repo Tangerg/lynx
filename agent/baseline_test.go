@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	currentAPIBaseline         = 16
+	currentAPIBaseline         = 17
 	currentAPIBaselineFrozenOn = "2026-08-10"
 )
 
@@ -26,12 +26,12 @@ var exportedAPIBaselines = []struct {
 	directory string
 	want      string
 }{
-	{name: "kernel", label: "root kernel", directory: ".", want: "8032f8208a221737a217eeebcc198914b6c9373ce20763f2044c6df2f688d323"},
+	{name: "kernel", label: "root kernel", directory: ".", want: "e49d9eb91cc509cca57f406f0f3ff6bfacdee540f962744013743a8ecdcfce2b"},
 	{name: "interaction", label: "interaction", directory: "interaction", want: "30e8a8f321a9a5ede295c7e67e96b9495ef3c13de7c4a8ad3803b3db6f6c838f"},
 	{name: "planning", label: "planning", directory: "planning", want: "48dcc733364cf5345332aeb0f3fd64aeefd2c21e7f0585759e44278b050eb50a"},
 	{name: "goap", label: "planning/goap", directory: "planning/goap", want: "4aa78b677748784182313d25a187b0074e49ea972c75db2e041c82a0f5f82529"},
 	{name: "workflow", label: "workflow", directory: "workflow", want: "1a8d2dfe3803ae114cd5da12ee888acd372bc348b46ae6fecb2a1029a825e749"},
-	{name: "otel", label: "otel", directory: "otel", want: "d3048e0deeb32cdaef3d09e1f9152df6842e88b594f7af2ecab06ab4a33964d6"},
+	{name: "otel", label: "otel", directory: "otel", want: "aeed9c638fae1729c2965b4bccd466edf858dd9a4cf49e9611386f910d4c5d60"},
 	{name: "platform", label: "platform", directory: "platform", want: "5d2140197e3ac09ebf62a156b308b0327197716888974706c338cd14b9b9b21b"},
 }
 

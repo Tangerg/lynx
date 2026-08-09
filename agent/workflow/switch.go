@@ -126,7 +126,7 @@ func Switch[I any](config SwitchConfig[I]) (Stage, error) {
 			return "", fmt.Errorf("Switch %q selector: %w", config.ID, err)
 		}
 		if _, found := indices[selected]; !found {
-			return "", unknownSwitchCase{id: selected}
+			return "", unknownSwitchCaseError{id: selected}
 		}
 		return selected, nil
 	}
@@ -146,8 +146,8 @@ func (stage switchStage) binding(caseID string) (childBinding, bool) {
 	return childBinding{}, false
 }
 
-type unknownSwitchCase struct{ id string }
+type unknownSwitchCaseError struct{ id string }
 
-func (failure unknownSwitchCase) Error() string {
+func (failure unknownSwitchCaseError) Error() string {
 	return fmt.Sprintf("Switch selector returned undeclared case %q", failure.id)
 }
