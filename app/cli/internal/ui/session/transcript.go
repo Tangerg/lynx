@@ -17,8 +17,6 @@ import (
 	"github.com/Tangerg/lynx/app/cli/internal/extensions"
 )
 
-const retainedBlocks = 12
-
 type conversationView struct {
 	theme  kit.Theme
 	glyphs kit.Glyphs
@@ -35,6 +33,8 @@ type conversationView struct {
 	query     string
 	matches   []headless.Match
 	current   int
+	retain    int
+	details   bool
 
 	streamID string
 	stream   markdown.Stream
@@ -43,11 +43,20 @@ type conversationView struct {
 	openID   headless.BlockID
 }
 
-func newConversationView(theme kit.Theme, glyphs kit.Glyphs, wheel input.Wheel, syntax highlight.Style) *conversationView {
+func (c *conversationView) ToggleDetails() { c.details = !c.details }
+
+func (c *conversationView) DetailsLabel() string {
+	if c.details {
+		return "tool details expanded"
+	}
+	return "tool details collapsed"
+}
+
+func newConversationView(theme kit.Theme, glyphs kit.Glyphs, wheel input.Wheel, syntax highlight.Style, retain int) *conversationView {
 	c := &conversationView{
 		theme: theme, glyphs: glyphs, wheel: wheel,
 		look: markdownLook(theme, glyphs, syntax), syntax: syntax,
-		search: headless.NewSearch(), current: -1,
+		search: headless.NewSearch(), current: -1, retain: max(retain, 4),
 	}
 	c.scroll.Wheel(wheel)
 	c.sticky.MinHeight, c.sticky.Gap = 1, 1
@@ -172,7 +181,7 @@ func (c *conversationView) Retain(printer kit.Printer) {
 		}
 		finished++
 	}
-	if excess := finished - retainedBlocks; excess > 0 {
+	if excess := finished - c.retain; excess > 0 {
 		c.view.CommitN(printer, excess)
 	}
 	c.scroll.ToBottom()

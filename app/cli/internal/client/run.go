@@ -154,7 +154,10 @@ type ApprovalAnswer struct {
 	Reason   string
 }
 
-type QuestionAnswer struct{ Values map[string][]string }
+type QuestionAnswer struct {
+	Values   map[string][]string
+	Canceled bool
+}
 
 func (ApprovalAnswer) clientAnswer() {}
 func (QuestionAnswer) clientAnswer() {}

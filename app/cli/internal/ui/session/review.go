@@ -3,7 +3,6 @@ package session
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strings"
 
 	"github.com/Tangerg/oolong/components/headless"
@@ -19,6 +18,7 @@ import (
 
 type reviewPane struct {
 	theme    kit.Theme
+	glyphs   kit.Glyphs
 	title    string
 	detail   *kit.Paragraph
 	code     *kit.Code
@@ -28,11 +28,11 @@ type reviewPane struct {
 
 func (p *reviewPane) Draw(frame headless.Frame) {
 	width, height := frame.Size()
-	if width <= 0 || height <= 0 {
+	if width <= 0 || height <= 0 || p.form == nil {
 		return
 	}
-	detailRows := min(p.detail.Measure(width), 3)
-	formRows := min(p.form.Measure(width), 3)
+	detailRows := min(p.detail.Measure(width), 4)
+	formRows := min(p.form.Measure(width), 7)
 	rows := frame.Subs(layout.Down.Rects(frame.Bounds().Size(),
 		layout.Slot{Size: layout.Fixed(1)},
 		layout.Slot{Size: layout.Fixed(detailRows)},
@@ -46,48 +46,66 @@ func (p *reviewPane) Draw(frame headless.Frame) {
 }
 
 func (p *reviewPane) Handle(event input.Event) bool {
-	if p.form.Handle(event) {
+	if p.form != nil && p.form.Handle(event) {
 		return true
 	}
 	return p.viewport.Handle(event)
 }
 
-func (p *reviewPane) Focus(has bool) { p.form.Focus(has) }
+func (p *reviewPane) Focus(has bool) {
+	if p.form != nil {
+		p.form.Focus(has)
+	}
+}
 
 func (a *app) buildReview(theme kit.Theme, glyphs kit.Glyphs) {
-	a.reviewAnswer = true
-	a.confirm = &headless.Confirm{
-		Label: "Allow this tool call?", Value: headless.Bind(&a.reviewAnswer),
-		Yes: "allow once", No: "deny",
-	}
-	keys := headless.DefaultFormKeys()
-	a.reviewForm = headless.NewForm(a.confirm)
-	a.reviewForm.Keys = keys
-	a.reviewForm.Done = func() { a.answerReview(a.reviewAnswer) }
-	a.reviewForm.GaveUp = func() { a.answerReview(false) }
-	dressed := kit.NewForm(theme, glyphs, a.reviewForm)
-	dressed.Keys = keys
-	dressed.Hints = []keymap.Action{headless.Submit, headless.Cancel}
 	code := kit.NewCode(nil)
 	code.Gutter = kit.LineNumbers{Style: theme.Subtle, Separator: glyphs.Vertical}
 	a.reviewPane = reviewPane{
-		theme: theme, detail: kit.NewParagraph("", theme.Text), code: code,
-		viewport: headless.NewViewport(headless.Static{Of: code}), form: dressed,
+		theme: theme, glyphs: glyphs, detail: kit.NewParagraph("", theme.Text), code: code,
+		viewport: headless.NewViewport(headless.Static{Of: code}),
 	}
+	a.setReviewForm("allow-once")
 	a.reviewDialog = kit.NewDialog(&a.stack, theme, glyphs, "Tool approval", &a.reviewPane)
-	a.reviewDialog.Panel().Where = layout.Placement{Width: 82, Height: 20, Margin: 1}
+	a.reviewDialog.Panel().Where = layout.Placement{Width: 88, Height: 24, Margin: 1}
+}
+
+func (a *app) setReviewForm(initial string) {
+	a.reviewChoice = initial
+	choice := &headless.Select[string]{
+		Label: "How should lyra proceed?", Value: headless.Bind(&a.reviewChoice), Rows: 5,
+	}
+	choice.SetOptions([]headless.Option[string]{
+		{Label: "Allow once", Value: "allow-once"},
+		{Label: "Allow for this session", Value: "allow-session"},
+		{Label: "Allow for this project", Value: "allow-project"},
+		{Label: "Always allow this rule", Value: "allow-global"},
+		{Label: "Deny", Value: "deny"},
+	})
+	keys := headless.DefaultFormKeys()
+	a.reviewForm = headless.NewForm(choice)
+	a.reviewForm.Keys = keys
+	a.reviewForm.Done = func() { a.answerReview(a.reviewChoice) }
+	a.reviewForm.GaveUp = func() { a.answerReview("deny") }
+	dressed := kit.NewForm(a.reviewPane.theme, a.reviewPane.glyphs, a.reviewForm)
+	dressed.Keys = keys
+	dressed.Hints = []keymap.Action{headless.Submit, headless.Cancel}
+	a.reviewPane.form = dressed
 }
 
 func (a *app) openReview(approval client.Approval) {
-	if a.review != nil {
-		a.answerReview(false)
-	}
 	copy := approval
 	a.review = &copy
-	a.reviewAnswer = true
-	a.confirm.Say(true)
+	a.setReviewForm(approvalDefault(a.settings.Approval.Remember))
 	a.reviewPane.title = approval.Title
-	a.reviewPane.detail.SetText([]text.Line{text.Of(approval.Detail, a.reviewPane.theme.Text)})
+	details := []string{approval.Detail}
+	if approval.Risk != "" {
+		details = append(details, "risk: "+approval.Risk)
+	}
+	if approval.RuleHint != "" {
+		details = append(details, "rule: "+approval.RuleHint)
+	}
+	a.reviewPane.detail.SetText([]text.Line{text.Of(strings.Join(nonEmpty(details), "\n"), a.reviewPane.theme.Text)})
 	diff := strings.TrimSpace(approval.Diff)
 	if diff == "" {
 		diff = "No diff was supplied for this request."
@@ -99,17 +117,21 @@ func (a *app) openReview(approval client.Approval) {
 }
 
 func (a *app) openInteraction(interaction client.Interaction) {
+	if a.review != nil || a.question != nil {
+		a.fail(errors.New("runtime opened a second interaction while one is active"))
+		return
+	}
 	switch item := interaction.(type) {
 	case client.Approval:
 		a.openReview(item)
 	case client.Question:
-		a.fail(fmt.Errorf("question interaction %q is not rendered yet", item.Title))
+		a.openQuestion(item)
 	default:
 		a.fail(errors.New("runtime returned an unknown interaction"))
 	}
 }
 
-func (a *app) answerReview(approved bool) {
+func (a *app) answerReview(choice string) {
 	approval := a.review
 	if approval == nil {
 		return
@@ -118,20 +140,57 @@ func (a *app) answerReview(approved bool) {
 	a.reviewDialog.Dismiss()
 	a.status.active("resuming")
 	a.syncAnimation()
-	decision := client.ApprovalAnswer{Decision: client.ApprovalDeny, Remember: client.RememberNone}
-	if approved {
-		decision.Decision = client.ApprovalAllow
-	}
-	if !approved {
+	decision := approvalAnswer(choice)
+	if decision.Decision == client.ApprovalDeny {
 		decision.Reason = "denied by the user in the terminal"
 	}
+	a.resumeInteraction(approval.InterruptID, decision)
+}
+
+func approvalDefault(scope client.RememberScope) string {
+	switch scope {
+	case client.RememberSession:
+		return "allow-session"
+	case client.RememberProject:
+		return "allow-project"
+	case client.RememberGlobal:
+		return "allow-global"
+	default:
+		return "allow-once"
+	}
+}
+
+func approvalAnswer(choice string) client.ApprovalAnswer {
+	switch choice {
+	case "allow-session":
+		return client.ApprovalAnswer{Decision: client.ApprovalAllow, Remember: client.RememberSession}
+	case "allow-project":
+		return client.ApprovalAnswer{Decision: client.ApprovalAllow, Remember: client.RememberProject}
+	case "allow-global":
+		return client.ApprovalAnswer{Decision: client.ApprovalAllow, Remember: client.RememberGlobal}
+	case "allow-once":
+		return client.ApprovalAnswer{Decision: client.ApprovalAllow, Remember: client.RememberNone}
+	default:
+		return client.ApprovalAnswer{Decision: client.ApprovalDeny, Remember: client.RememberNone}
+	}
+}
+
+func (a *app) resumeInteraction(interruptID string, answer client.Answer) {
 	runID := a.state.RunID()
 	a.follow(func(ctx context.Context) (subscription, error) {
-		if err := a.backend.ResumeRun(ctx, client.ResumeRun{
-			RunID: runID, InterruptID: approval.InterruptID, Answer: decision,
-		}); err != nil {
+		if err := a.backend.ResumeRun(ctx, client.ResumeRun{RunID: runID, InterruptID: interruptID, Answer: answer}); err != nil {
 			return subscription{}, err
 		}
 		return subscription{runID: runID, after: a.state.Cursor()}, nil
 	})
+}
+
+func nonEmpty(values []string) []string {
+	out := values[:0]
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			out = append(out, value)
+		}
+	}
+	return out
 }

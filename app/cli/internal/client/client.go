@@ -18,6 +18,7 @@ type Runtime interface {
 	SessionWriter
 	Runs
 	Models
+	Approvals
 }
 
 // SessionCatalog discovers sessions without loading their transcripts.
@@ -52,6 +53,12 @@ type Runs interface {
 // modes remain CLI product concepts and are sent back in RunOptions.
 type Models interface {
 	ListModels(context.Context) ([]Model, error)
+}
+
+// Approvals manages remembered decisions independently from live interrupts.
+type Approvals interface {
+	ListApprovalRules(context.Context) ([]ApprovalRule, error)
+	DeleteApprovalRule(context.Context, string) error
 }
 
 // StartRun describes a new user turn.

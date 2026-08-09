@@ -232,6 +232,67 @@ func TestSessionsListPaginatesAndSearches(t *testing.T) {
 	}
 }
 
+func TestApprovalRuleCommandsInspectAndForget(t *testing.T) {
+	runtime := instant()
+	sessionID := firstSession(t, runtime)
+	run, err := runtime.StartRun(t.Context(), client.StartRun{SessionID: sessionID, Message: client.Message{Text: "remember this"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	stream, err := runtime.FollowRun(t.Context(), client.FollowRun{RunID: run.ID, After: run.StartedAfter})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var interrupted client.Approval
+	var after client.Cursor
+	for envelope, streamErr := range stream {
+		if streamErr != nil {
+			t.Fatal(streamErr)
+		}
+		after = envelope.Cursor
+		if event, ok := envelope.Event.(client.RunInterrupted); ok {
+			interrupted = event.Interaction.(client.Approval)
+		}
+	}
+	if err := runtime.ResumeRun(t.Context(), client.ResumeRun{
+		RunID: run.ID, InterruptID: interrupted.InterruptID,
+		Answer: client.ApprovalAnswer{Decision: client.ApprovalAllow, Remember: client.RememberProject},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	continuation, err := runtime.FollowRun(t.Context(), client.FollowRun{RunID: run.ID, After: after})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, streamErr := range continuation {
+		if streamErr != nil {
+			t.Fatal(streamErr)
+		}
+	}
+
+	out, _, err := exec(t, runtime, "", "approvals", "ls")
+	if err != nil || !strings.Contains(out, "edit:internal/store/cache_test.go") || !strings.Contains(out, "project") {
+		t.Fatalf("approvals ls = %q, %v", out, err)
+	}
+	rules, _ := runtime.ListApprovalRules(t.Context())
+	if _, _, err := exec(t, runtime, "", "approvals", "forget", rules[0].ID); err == nil {
+		t.Fatal("approvals forget did not require --yes")
+	}
+	if _, _, err := exec(t, runtime, "", "approvals", "forget", "--yes", rules[0].ID); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestCompletionCommand(t *testing.T) {
+	out, _, err := exec(t, instant(), "", "completion", "zsh")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out, "compdef") || !strings.Contains(out, "lyra") {
+		t.Fatalf("zsh completion is incomplete:\n%s", out)
+	}
+}
+
 // TestHelpDoesNotResolveARuntime pins the reason backend is a function: help must
 // not open a database, a socket or anything else a real runtime needs.
 func TestHelpDoesNotResolveARuntime(t *testing.T) {

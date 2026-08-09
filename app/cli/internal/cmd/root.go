@@ -14,11 +14,13 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 
 	"github.com/Tangerg/oolong/core/term"
 
 	"github.com/Tangerg/lynx/app/cli/internal/client"
 	"github.com/Tangerg/lynx/app/cli/internal/client/mock"
+	"github.com/Tangerg/lynx/app/cli/internal/settings"
 	"github.com/Tangerg/lynx/app/cli/internal/ui/session"
 )
 
@@ -58,6 +60,7 @@ func NewRoot(rt client.Runtime) *cobra.Command {
 // newRootWithBackend builds the tree around a way of getting a runtime, which is
 // the seam the real backends will arrive through.
 func newRootWithBackend(resolve backend) *cobra.Command {
+	v := viper.New()
 	root := &cobra.Command{
 		Use:   "lyra",
 		Short: "Terminal front end for the lyra agent runtime",
@@ -77,15 +80,38 @@ func newRootWithBackend(resolve backend) *cobra.Command {
 		SilenceUsage:  true,
 		SilenceErrors: false,
 		Args:          cobra.ArbitraryArgs,
+		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
+			return loadConfig(v, cmd)
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return interactive(cmd, args, resolve)
+			value, err := readSettings(v)
+			if err != nil {
+				return err
+			}
+			return interactive(cmd, args, resolve, value)
 		},
 	}
+	configure(v, root)
 	root.SetOut(os.Stdout)
 	root.SetErr(os.Stderr)
 	root.Flags().StringP("session", "s", "", "Open an existing session instead of a new one")
 	root.PersistentFlags().StringP("cwd", "C", "", "Workspace directory for a new session (default: current directory)")
-	root.AddCommand(newRunCommand(resolve), newSessionsCommand(resolve))
+	root.AddGroup(
+		&cobra.Group{ID: "work", Title: "Work:"},
+		&cobra.Group{ID: "manage", Title: "Manage:"},
+		&cobra.Group{ID: "setup", Title: "Setup:"},
+	)
+	run := newRunCommand(resolve, v)
+	run.GroupID = "work"
+	sessions := newSessionsCommand(resolve)
+	sessions.GroupID = "manage"
+	approvals := newApprovalsCommand(resolve)
+	approvals.GroupID = "manage"
+	config := newConfigCommand(v)
+	config.GroupID = "setup"
+	completion := newCompletionCommand(root)
+	completion.GroupID = "setup"
+	root.AddCommand(run, sessions, approvals, config, completion)
 	return root
 }
 
@@ -95,7 +121,7 @@ func newRootWithBackend(resolve backend) *cobra.Command {
 // With no terminal to take over it says so and points at the command that does not
 // need one, rather than failing with something about file descriptors: a program whose
 // output is being piped wants text, not frames.
-func interactive(cmd *cobra.Command, args []string, resolve backend) error {
+func interactive(cmd *cobra.Command, args []string, resolve backend, value settings.Settings) error {
 	rt, err := resolve(cmd)
 	if err != nil {
 		return err
@@ -113,6 +139,7 @@ func interactive(cmd *cobra.Command, args []string, resolve backend) error {
 		Session:   sessionID,
 		Workspace: ws,
 		Prompt:    strings.TrimSpace(strings.Join(args, " ")),
+		Settings:  value,
 	})
 	if errors.Is(err, term.ErrNotTerminal) {
 		return errors.New("no terminal to draw on; use `lyra run` for a one-shot run")

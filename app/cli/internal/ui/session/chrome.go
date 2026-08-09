@@ -71,6 +71,7 @@ type statusView struct {
 	outcome client.Outcome
 	status  kit.Status
 	busy    bool
+	options client.RunOptions
 }
 
 func (s *statusView) Measure(int) int { return 1 }
@@ -87,6 +88,9 @@ func (s *statusView) Draw(view grid.View) {
 		return
 	}
 	right := usageLabel(s.usage)
+	if right == "" {
+		right = optionsLabel(s.options)
+	}
 	style := s.theme.Muted
 	switch s.outcome.Status {
 	case client.OutcomeCompleted:
@@ -104,6 +108,25 @@ func (s *statusView) Draw(view grid.View) {
 	rightWidth := text.Width(right)
 	kit.Label{Text: left, Style: style, Ellipsis: s.glyphs.Ellipsis}.Draw(view.Sub(grid.Rect(0, 0, width-rightWidth-1, 1)))
 	view.Text(width-rightWidth, 0, right, s.theme.Subtle)
+}
+
+func (s *statusView) setOptions(options client.RunOptions) { s.options = options }
+
+func optionsLabel(options client.RunOptions) string {
+	parts := make([]string, 0, 4)
+	if options.Model != "" {
+		parts = append(parts, options.Model)
+	}
+	if options.Effort != "" {
+		parts = append(parts, options.Effort)
+	}
+	if options.Mode != "" {
+		parts = append(parts, string(options.Mode))
+	}
+	if options.Permission != "" {
+		parts = append(parts, string(options.Permission))
+	}
+	return strings.Join(parts, " · ")
 }
 
 func (s *statusView) tick(elapsed time.Duration) {

@@ -22,6 +22,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/cli/internal/client"
 	"github.com/Tangerg/lynx/app/cli/internal/extensions"
+	"github.com/Tangerg/lynx/app/cli/internal/settings"
 )
 
 const (
@@ -30,9 +31,14 @@ const (
 )
 
 const (
-	sendPrompt keymap.Action = "send"
-	cancelRun  keymap.Action = "cancel-run"
-	quitApp    keymap.Action = "quit"
+	sendPrompt     keymap.Action = settings.ActionSend
+	cancelRun      keymap.Action = settings.ActionCancelRun
+	quitApp        keymap.Action = settings.ActionQuit
+	commandPalette keymap.Action = settings.ActionCommandPalette
+	showSessions   keymap.Action = settings.ActionSessions
+	searchHistory  keymap.Action = settings.ActionSearch
+	cycleMode      keymap.Action = settings.ActionCycleMode
+	toggleDetails  keymap.Action = settings.ActionToggleDetails
 )
 
 // runtime is the product capability this adapter consumes. A future real
@@ -44,6 +50,7 @@ type runtime interface {
 	client.SessionWriter
 	client.Runs
 	client.Models
+	client.Approvals
 }
 
 // Config describes one interactive session.
@@ -54,12 +61,23 @@ type Config struct {
 	Prompt    string
 	Plugins   []extensions.Plugin
 	Host      program.Host
+	Settings  settings.Settings
 }
 
 // Run opens and owns the terminal interface until the user leaves.
 func Run(ctx context.Context, cfg Config) error {
 	if cfg.Runtime == nil {
 		return errors.New("session: a runtime is required")
+	}
+	if cfg.Settings.Model == "" {
+		cfg.Settings = settings.Default()
+	}
+	if err := cfg.Settings.Validate(); err != nil {
+		return fmt.Errorf("session settings: %w", err)
+	}
+	keys, err := configuredKeys(cfg.Settings)
+	if err != nil {
+		return err
 	}
 	opened, err := open(ctx, cfg.Runtime, cfg.Session, cfg.Workspace)
 	if err != nil {
@@ -76,10 +94,10 @@ func Run(ctx context.Context, cfg Config) error {
 	var active *app
 	err = program.Run(ctx, program.Config{
 		Inline: func(loop *program.InlineRuntime) program.Component {
-			active = newApp(ctx, loop, cfg.Runtime, opened, registry, cfg.Prompt)
+			active = newApp(ctx, loop, cfg.Runtime, opened, registry, cfg.Prompt, cfg.Settings, keys)
 			return headless.NewRoot(active)
 		},
-		Terminal: term.Options{Probe: true, Mouse: true, Focus: true, Keyboard: term.KeyboardCompatible},
+		Terminal: term.Options{Probe: true, Mouse: cfg.Settings.UI.Mouse, Focus: true, Keyboard: term.KeyboardCompatible},
 		Host:     cfg.Host,
 	})
 	if active != nil {
@@ -132,20 +150,34 @@ type app struct {
 	transcript *conversationView
 	workflow   workflowView
 	status     statusView
+	settings   settings.Settings
+	options    client.RunOptions
 	composer   kit.Composer
 	commands   headless.Commands
 	completion headless.Completion
 	body       *headless.Container
 	stack      headless.Stack
 
-	review        *client.Approval
-	reviewAnswer  bool
-	confirm       *headless.Confirm
-	reviewForm    *headless.Form
-	reviewPane    reviewPane
-	reviewDialog  *kit.Dialog
-	sessionPicker *picker[client.Session]
-	sessionDialog *kit.Dialog
+	review           *client.Approval
+	reviewChoice     string
+	reviewForm       *headless.Form
+	reviewPane       reviewPane
+	reviewDialog     *kit.Dialog
+	sessionPicker    *picker[client.Session]
+	sessionDialog    *kit.Dialog
+	modelPicker      *picker[client.Model]
+	modelDialog      *kit.Dialog
+	permissionPicker *picker[client.PermissionMode]
+	permissionDialog *kit.Dialog
+	question         *client.Question
+	questionDialog   *kit.Dialog
+	questionText     map[string]*string
+	questionMulti    map[string]*[]string
+	questionBool     map[string]*bool
+	commandPicker    *picker[headless.Command]
+	commandDialog    *kit.Dialog
+	searchDialog     *kit.Dialog
+	searchQuery      string
 
 	streamCancel context.CancelFunc
 	streamSeq    uint64
@@ -157,7 +189,7 @@ type app struct {
 	syntax       highlight.Style
 }
 
-func newApp(ctx context.Context, loop *program.InlineRuntime, backend runtime, opened client.SessionSnapshot, registry *extensions.Registry, prompt string) *app {
+func newApp(ctx context.Context, loop *program.InlineRuntime, backend runtime, opened client.SessionSnapshot, registry *extensions.Registry, prompt string, configured settings.Settings, keys *keymap.Map) *app {
 	ground := loop.Environment().Ground()
 	theme := kit.Suited(ground)
 	glyphs := kit.GlyphsFor(os.LookupEnv)
@@ -165,22 +197,19 @@ func newApp(ctx context.Context, loop *program.InlineRuntime, backend runtime, o
 	if !ground.BG.Default() && !ground.BG.RGB().Dark() {
 		syntax = "github"
 	}
-	keys := headless.DefaultEditorKeys()
-	keys.Bind(sendPrompt, input.Chord{Code: input.Enter})
-	keys.Bind(cancelRun, input.Ctrl.Rune('x'))
-	keys.Bind(quitApp, input.Ctrl.Rune('c'))
-
 	a := &app{
 		ctx: ctx, loop: loop, backend: backend, session: opened.Session, registry: registry,
 		state:      client.NewConversation(),
-		transcript: newConversationView(theme, glyphs, loop.Environment().Wheel(), syntax),
+		transcript: newConversationView(theme, glyphs, loop.Environment().Wheel(), syntax, configured.UI.TranscriptRetain),
 		workflow:   newWorkflowView(theme, glyphs),
-		status:     statusView{theme: theme, glyphs: glyphs, doing: "ready"},
+		status:     statusView{theme: theme, glyphs: glyphs, doing: "ready", options: configured.RunOptions()},
+		settings:   configured.Clone(),
+		options:    configured.RunOptions(),
 		syntax:     syntax,
 	}
 	a.composer = kit.Composer{
 		Theme: theme, Prompt: glyphs.Marker + " ",
-		Hints: []keymap.Action{sendPrompt, cancelRun, quitApp}, MaxRows: 6,
+		Hints: []keymap.Action{sendPrompt, cancelRun, showSessions, cycleMode, quitApp}, MaxRows: 6,
 	}
 	a.composer.Editor().Placeholder = "Ask lyra to inspect, explain, or change something"
 	a.composer.Editor().Keys = keys
@@ -209,6 +238,9 @@ func newApp(ctx context.Context, loop *program.InlineRuntime, backend runtime, o
 	a.stack.SetBase(a.body)
 	a.buildReview(theme, glyphs)
 	a.buildSessionPicker(theme, glyphs)
+	a.buildRuntimePickers(theme, glyphs)
+	a.buildCommandPalette(theme, glyphs)
+	a.buildSearchDialog(theme, glyphs)
 	a.listenForSearch()
 	loop.Session().SetTitle("lyra — " + displayTitle(opened.Session))
 	a.restore(opened)
@@ -276,8 +308,9 @@ func (a *app) Draw(frame headless.Frame) {
 }
 
 func (a *app) Handle(event input.Event) bool {
+	var action keymap.Action
 	if key, ok := event.(input.Key); ok && key.Down() {
-		action, _ := a.composer.Editor().Keys.Action(key.Chord())
+		action, _ = a.composer.Editor().Keys.Action(key.Chord())
 		switch action {
 		case quitApp:
 			a.loop.Quit()
@@ -289,6 +322,24 @@ func (a *app) Handle(event input.Event) bool {
 	}
 	if !a.stack.Empty() {
 		return a.stack.Handle(event)
+	}
+	switch action {
+	case commandPalette:
+		a.showCommandPalette()
+		return true
+	case showSessions:
+		a.ShowSessions()
+		return true
+	case cycleMode:
+		a.CycleMode()
+		return true
+	case searchHistory:
+		a.showSearchDialog()
+		return true
+	case toggleDetails:
+		a.transcript.ToggleDetails()
+		a.message(a.transcript.DetailsLabel())
+		return true
 	}
 	if a.completion.Handle(event) {
 		return true
@@ -344,7 +395,7 @@ func (a *app) start(prompt string) {
 	a.started = time.Now()
 	a.syncAnimation()
 	a.follow(func(ctx context.Context) (subscription, error) {
-		run, err := a.backend.StartRun(ctx, client.StartRun{SessionID: a.session.ID, Message: client.Message{Text: prompt}})
+		run, err := a.backend.StartRun(ctx, client.StartRun{SessionID: a.session.ID, Message: client.Message{Text: prompt}, Options: a.options})
 		if err != nil {
 			return subscription{}, err
 		}
@@ -474,7 +525,9 @@ func (a *app) apply(envelope client.Envelope) {
 	case client.RunFinished:
 		a.following = false
 		a.status.settled(a.state.Outcome(), a.state.Usage())
-		a.loop.Session().Notify("lyra mock run completed")
+		if a.settings.UI.Notifications {
+			a.loop.Session().Notify("lyra mock run completed")
+		}
 	}
 	a.transcript.Retain(a.loop)
 	a.syncAnimation()
@@ -493,7 +546,11 @@ func (a *app) fail(err error) {
 
 func (a *app) cancel() {
 	if a.review != nil {
-		a.answerReview(false)
+		a.answerReview("deny")
+		return
+	}
+	if a.question != nil {
+		a.answerQuestion(true)
 		return
 	}
 	if !a.state.Busy() && !a.following {

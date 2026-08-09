@@ -291,7 +291,7 @@ func (a *app) installSnapshot(snapshot client.SessionSnapshot) {
 	a.state = client.NewConversation()
 	a.transcript.Reset()
 	a.workflow.Reset()
-	a.status = statusView{theme: a.status.theme, glyphs: a.status.glyphs, doing: "ready"}
+	a.status = statusView{theme: a.status.theme, glyphs: a.status.glyphs, doing: "ready", options: a.options}
 	a.loop.Session().SetTitle("lyra — " + displayTitle(snapshot.Session))
 	a.restore(snapshot)
 	if a.state.Phase() == client.Idle {

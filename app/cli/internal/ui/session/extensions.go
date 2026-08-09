@@ -26,6 +26,12 @@ type CommandHost interface {
 	NewSession()
 	RenameSession(string)
 	ForkSession(string)
+	ChooseModel()
+	CycleMode()
+	ChoosePermission()
+	SetEffort(string)
+	ShowRuntimeStatus()
+	ShowApprovalRules()
 }
 
 // SlashCommand is a contributed composer command.
@@ -68,6 +74,12 @@ func builtinPlugin() extensions.Plugin {
 			{Name: "new", Title: "start a new session", Run: func(host CommandHost, _ string) error { host.NewSession(); return nil }},
 			{Name: "rename", Title: "rename the current session", Takes: true, Run: func(host CommandHost, title string) error { host.RenameSession(title); return nil }},
 			{Name: "fork", Title: "fork the current session at its latest event", Takes: true, Run: func(host CommandHost, title string) error { host.ForkSession(title); return nil }},
+			{Name: "model", Title: "choose the model for new runs", Run: func(host CommandHost, _ string) error { host.ChooseModel(); return nil }},
+			{Name: "mode", Title: "cycle build, plan, and review modes", Run: func(host CommandHost, _ string) error { host.CycleMode(); return nil }},
+			{Name: "permissions", Title: "choose the permission mode", Aliases: []string{"permission"}, Run: func(host CommandHost, _ string) error { host.ChoosePermission(); return nil }},
+			{Name: "effort", Title: "set reasoning effort", Takes: true, Run: func(host CommandHost, value string) error { host.SetEffort(value); return nil }},
+			{Name: "status", Title: "show model, mode, permission, and effort", Run: func(host CommandHost, _ string) error { host.ShowRuntimeStatus(); return nil }},
+			{Name: "rules", Title: "show remembered approval rules", Run: func(host CommandHost, _ string) error { host.ShowApprovalRules(); return nil }},
 		}
 		for i, command := range commands {
 			if _, err := extensions.Contribute(scope, SlashCommands, command, extensions.Contribution{Order: i}); err != nil {

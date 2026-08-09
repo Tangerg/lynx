@@ -138,6 +138,8 @@ func Conversation(prompt string) Script {
 			Title:       "edit internal/store/cache_test.go",
 			Detail:      "Replace the fixed 50ms sleep with a wait on the janitor's sweep signal.",
 			Diff:        diff,
+			Risk:        "writes one workspace test file",
+			RuleHint:    "edit:internal/store/cache_test.go",
 		},
 		Continue: func(answer client.Answer) []Step {
 			approval, ok := answer.(client.ApprovalAnswer)

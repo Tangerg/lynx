@@ -50,6 +50,25 @@ type delayedFirstRuntime struct {
 	starts atomic.Int32
 }
 
+type recordingRuntime struct {
+	*mock.Runtime
+	mu   sync.Mutex
+	last client.StartRun
+}
+
+func (r *recordingRuntime) StartRun(ctx context.Context, input client.StartRun) (client.Run, error) {
+	r.mu.Lock()
+	r.last = input
+	r.mu.Unlock()
+	return r.Runtime.StartRun(ctx, input)
+}
+
+func (r *recordingRuntime) options() client.RunOptions {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.last.Options
+}
+
 func (r *delayedFirstRuntime) StartRun(ctx context.Context, input client.StartRun) (client.Run, error) {
 	if r.starts.Add(1) == 1 {
 		<-ctx.Done()
@@ -65,7 +84,7 @@ func TestMockConversationStreamsReviewsAndCompletes(t *testing.T) {
 	host.Type("why is the cache test flaky?")
 	host.Press(input.Enter)
 	host.Shows(t, "Tool approval")
-	host.Shows(t, "Allow this tool call?")
+	host.Shows(t, "How should lyra proceed?")
 	host.Shows(t, "cache_test.go")
 
 	host.Press(input.Enter)
@@ -174,6 +193,142 @@ func TestSessionPickerRestoresHistoryAndLifecycleCommandsSwitchCleanly(t *testin
 	stop()
 }
 
+func TestModelModePermissionAndEffortApplyToTheNextRun(t *testing.T) {
+	backend := &recordingRuntime{Runtime: mock.New()}
+	backend.Instant = true
+	host, stop := runUIWith(t, backend)
+	host.Shows(t, "mock-balanced · medium · build · ask")
+
+	host.Type("/model")
+	host.Press(input.Enter)
+	host.Press(input.Enter)
+	host.Shows(t, "Models")
+	host.Type("Deep")
+	host.Shows(t, "Mock Deep")
+	host.Press(input.Enter)
+	host.Shows(t, "model · Mock Deep")
+
+	host.Send(input.Key{Code: input.Tab, Mods: input.Shift})
+	host.Shows(t, "mode · plan")
+	host.Type("/permissions")
+	host.Press(input.Enter)
+	host.Press(input.Enter)
+	host.Shows(t, "Permissions")
+	host.Press(input.Down)
+	host.Press(input.Enter)
+	host.Shows(t, "permissions · read-only")
+	host.Type("/effort max")
+	host.Press(input.Enter)
+	host.Shows(t, "effort · max")
+
+	host.Type("use these options")
+	host.Press(input.Enter)
+	host.Shows(t, "How should lyra proceed?")
+	host.Press(input.Esc)
+	host.Shows(t, "complete")
+	if got := backend.options(); got.Model != "mock-deep" || got.Mode != client.ModePlan || got.Permission != client.PermissionReadOnly || got.Effort != "max" {
+		t.Fatalf("StartRun options = %+v", got)
+	}
+
+	host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
+	stop()
+}
+
+func TestQuestionFormSubmitsTypedAnswerAndCanCancel(t *testing.T) {
+	backend := mock.New()
+	backend.Instant = true
+	answers := make(chan client.QuestionAnswer, 2)
+	backend.Script = func(string) mock.Script {
+		return mock.Script{
+			Interaction: client.Question{
+				InterruptID: "question_1", Title: "Choose a strategy", Detail: "One short decision",
+				Fields: []client.QuestionField{{
+					ID: "strategy", Label: "Strategy", Kind: client.QuestionSingle, Required: true,
+					Options: []client.QuestionOption{{Value: "safe", Label: "Safe", Recommended: true}, {Value: "fast", Label: "Fast"}},
+				}},
+			},
+			Continue: func(answer client.Answer) []mock.Step {
+				answers <- answer.(client.QuestionAnswer)
+				return []mock.Step{{Event: client.RunFinished{Outcome: client.Outcome{Status: client.OutcomeCompleted}}}}
+			},
+		}
+	}
+	host, stop := runUIWith(t, backend)
+	host.Shows(t, "Ask lyra")
+	host.Type("ask me")
+	host.Press(input.Enter)
+	host.Shows(t, "Choose a strategy")
+	host.Shows(t, "Safe (recommended)")
+	host.Press(input.Enter)
+	host.Shows(t, "complete")
+	if answer := <-answers; answer.Canceled || len(answer.Values["strategy"]) != 1 || answer.Values["strategy"][0] != "safe" {
+		t.Fatalf("submitted answer = %+v", answer)
+	}
+
+	host.Type("ask again")
+	host.Press(input.Enter)
+	host.Shows(t, "Choose a strategy")
+	host.Press(input.Esc)
+	host.Shows(t, "complete")
+	if answer := <-answers; !answer.Canceled {
+		t.Fatalf("canceled answer = %+v", answer)
+	}
+
+	host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
+	stop()
+}
+
+func TestApprovalRememberScopeAppliesToLaterRuns(t *testing.T) {
+	backend := mock.New()
+	backend.Instant = true
+	host, stop := runUIWith(t, backend)
+	host.Shows(t, "Ask lyra")
+	host.Type("first edit")
+	host.Press(input.Enter)
+	host.Shows(t, "How should lyra proceed?")
+	host.Press(input.Down)
+	host.Press(input.Enter)
+	host.Shows(t, "complete")
+
+	host.Type("second edit")
+	host.Press(input.Enter)
+	host.Shows(t, "Applied remembered approval rule")
+	host.Shows(t, "complete")
+	host.Hides(t, "How should lyra proceed?")
+	rules, err := backend.ListApprovalRules(t.Context())
+	if err != nil || len(rules) != 1 || rules[0].Scope != client.RememberSession {
+		t.Fatalf("remembered rules = %+v, %v", rules, err)
+	}
+
+	host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
+	stop()
+}
+
+func TestCommandPaletteSearchAndDetailShortcutsAreReachable(t *testing.T) {
+	host, stop := runUI(t)
+	host.Shows(t, "Ask lyra")
+	host.Send(input.Key{Code: input.Character, Rune: 'p', Mods: input.Ctrl})
+	host.Shows(t, "Commands")
+	host.Type("status")
+	host.Shows(t, "/status")
+	host.Press(input.Enter)
+	host.Shows(t, "runtime options")
+
+	host.Send(input.Key{Code: input.Character, Rune: 'f', Mods: input.Ctrl})
+	host.Shows(t, "Find in the live transcript")
+	host.Type("model")
+	host.Press(input.Enter)
+	host.Shows(t, "match(es) for")
+
+	host.Send(input.Key{Code: input.Character, Rune: 'o', Mods: input.Ctrl})
+	host.Shows(t, "tool details expanded")
+	host.Send(input.Key{Code: input.Character, Rune: 'o', Mods: input.Ctrl})
+	host.Shows(t, "tool details collapsed")
+
+	host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
+	stop()
+}
+
 func TestCancelBeforeRunIdentityDoesNotBlockTheNextRun(t *testing.T) {
 	backend := mock.New()
 	backend.Instant = true
@@ -212,7 +367,7 @@ func TestApprovalRemainsUsableAtRepresentativeWidths(t *testing.T) {
 			}
 			host.Type("review this at the current terminal width")
 			host.Press(input.Enter)
-			host.Shows(t, "Allow this tool call?")
+			host.Shows(t, "How should lyra proceed?")
 			host.Press(input.Esc)
 			host.Shows(t, "Left the file alone")
 			host.Shows(t, "complete")

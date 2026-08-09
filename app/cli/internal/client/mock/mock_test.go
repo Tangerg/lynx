@@ -176,7 +176,7 @@ func TestQuestionRequiresTypedCompleteAnswer(t *testing.T) {
 	runtime.Instant = true
 	runtime.Script = func(string) Script {
 		return Script{
-			Interaction: client.Question{InterruptID: "question_1", Title: "Choose", Fields: []client.QuestionField{{ID: "strategy", Label: "Strategy", Kind: client.QuestionSingle, Required: true}}},
+			Interaction: client.Question{InterruptID: "question_1", Title: "Choose", Fields: []client.QuestionField{{ID: "strategy", Label: "Strategy", Kind: client.QuestionSingle, Required: true, Options: []client.QuestionOption{{Value: "safe", Label: "Safe"}}}}},
 			Continue: func(client.Answer) []Step {
 				return []Step{{Event: client.RunFinished{Outcome: client.Outcome{Status: client.OutcomeCompleted}}}}
 			},
@@ -231,6 +231,58 @@ func TestCancelWaitingRunFinishesIt(t *testing.T) {
 	finished := continued[0].Event.(client.RunFinished)
 	if finished.Outcome.Status != client.OutcomeCanceled {
 		t.Fatalf("cancel outcome = %+v", finished.Outcome)
+	}
+}
+
+func TestRememberedApprovalRuleSkipsMatchingInterruptAndCanBeForgotten(t *testing.T) {
+	runtime := New()
+	runtime.Instant = true
+	session := newSession(t, runtime)
+	firstRun, err := runtime.StartRun(t.Context(), client.StartRun{SessionID: session.ID, Message: client.Message{Text: "first"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	first, err := followAll(t, runtime, firstRun.ID, firstRun.StartedAfter)
+	if err != nil {
+		t.Fatal(err)
+	}
+	approval := first[len(first)-1].Event.(client.RunInterrupted).Interaction.(client.Approval)
+	if err := runtime.ResumeRun(t.Context(), client.ResumeRun{
+		RunID: firstRun.ID, InterruptID: approval.InterruptID,
+		Answer: client.ApprovalAnswer{Decision: client.ApprovalAllow, Remember: client.RememberSession},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := followAll(t, runtime, firstRun.ID, first[len(first)-1].Cursor); err != nil {
+		t.Fatal(err)
+	}
+
+	rules, err := runtime.ListApprovalRules(t.Context())
+	if err != nil || len(rules) != 1 || rules[0].Scope != client.RememberSession {
+		t.Fatalf("rules = %+v, %v", rules, err)
+	}
+	secondRun, err := runtime.StartRun(t.Context(), client.StartRun{SessionID: session.ID, Message: client.Message{Text: "second"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := followAll(t, runtime, secondRun.ID, secondRun.StartedAfter)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if slices.ContainsFunc(second, func(envelope client.Envelope) bool {
+		_, interrupted := envelope.Event.(client.RunInterrupted)
+		return interrupted
+	}) {
+		t.Fatalf("remembered rule did not skip approval: %+v", second)
+	}
+	if _, ok := second[len(second)-1].Event.(client.RunFinished); !ok {
+		t.Fatalf("second run did not finish: %+v", second)
+	}
+	if err := runtime.DeleteApprovalRule(t.Context(), rules[0].ID); err != nil {
+		t.Fatal(err)
+	}
+	if rules, _ := runtime.ListApprovalRules(t.Context()); len(rules) != 0 {
+		t.Fatalf("deleted rule remains: %+v", rules)
 	}
 }
 

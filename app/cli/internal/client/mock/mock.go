@@ -30,6 +30,7 @@ type Runtime struct {
 	mu       sync.Mutex
 	sessions map[string]*sessionState
 	runs     map[string]*runState
+	rules    []client.ApprovalRule
 	next     uint64
 	now      func() time.Time
 }
@@ -238,6 +239,25 @@ func (r *Runtime) ListModels(context.Context) ([]client.Model, error) {
 	}, nil
 }
 
+func (r *Runtime) ListApprovalRules(context.Context) ([]client.ApprovalRule, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	out := slices.Clone(r.rules)
+	slices.Reverse(out)
+	return out, nil
+}
+
+func (r *Runtime) DeleteApprovalRule(_ context.Context, id string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	at := slices.IndexFunc(r.rules, func(rule client.ApprovalRule) bool { return rule.ID == id })
+	if at < 0 {
+		return fmt.Errorf("mock: approval rule %s not found", id)
+	}
+	r.rules = slices.Delete(r.rules, at, at+1)
+	return nil
+}
+
 func (r *Runtime) StartRun(_ context.Context, in client.StartRun) (client.Run, error) {
 	prompt := strings.TrimSpace(in.Message.Text)
 	if prompt == "" && len(in.Message.Attachments) == 0 {
@@ -352,6 +372,11 @@ func (r *Runtime) ResumeRun(_ context.Context, in client.ResumeRun) error {
 		r.mu.Unlock()
 		return err
 	}
+	if approval, ok := run.interaction.(client.Approval); ok {
+		if answer, ok := in.Answer.(client.ApprovalAnswer); ok && answer.Remember != client.RememberNone {
+			r.rememberApprovalLocked(run, approval, answer)
+		}
+	}
 	steps := run.script.continueWith(in.Answer)
 	run.status = client.RunActive
 	run.interaction = nil
@@ -399,10 +424,75 @@ func (r *Runtime) play(run *runState, steps []Step, interrupt bool) {
 		r.mu.Unlock()
 		return
 	}
+	if approval, ok := run.script.Interaction.(client.Approval); ok {
+		if answer, matched := r.rememberedAnswerLocked(run, approval); matched {
+			r.emitLocked(run, client.BlockCompleted{Block: client.Block{
+				ID: run.id + "_approval_rule", Kind: client.BlockNotice,
+				Text: "Applied remembered approval rule: " + approvalRuleKey(approval),
+			}})
+			r.mu.Unlock()
+			r.play(run, run.script.continueWith(answer), false)
+			return
+		}
+	}
 	run.status = client.RunWaiting
 	run.interaction = cloneInteraction(run.script.Interaction)
 	r.emitLocked(run, client.RunInterrupted{Interaction: cloneInteraction(run.interaction)})
 	r.mu.Unlock()
+}
+
+func (r *Runtime) rememberApprovalLocked(run *runState, approval client.Approval, answer client.ApprovalAnswer) {
+	session := r.sessions[run.sessionID]
+	key := approvalRuleKey(approval)
+	for _, rule := range r.rules {
+		if rule.Rule == key && rule.Scope == answer.Remember && ruleApplies(rule, run.sessionID, session.meta.Workspace) {
+			return
+		}
+	}
+	r.next++
+	rule := client.ApprovalRule{
+		ID: fmt.Sprintf("rule_mock_%d", r.next), Rule: key, Decision: answer.Decision,
+		Scope: answer.Remember, CreatedAt: r.now(),
+	}
+	switch answer.Remember {
+	case client.RememberSession:
+		rule.SessionID = run.sessionID
+	case client.RememberProject:
+		rule.Workspace = session.meta.Workspace
+	}
+	r.rules = append(r.rules, rule)
+}
+
+func (r *Runtime) rememberedAnswerLocked(run *runState, approval client.Approval) (client.ApprovalAnswer, bool) {
+	workspace := r.sessions[run.sessionID].meta.Workspace
+	key := approvalRuleKey(approval)
+	for i := len(r.rules) - 1; i >= 0; i-- {
+		rule := r.rules[i]
+		if rule.Rule == key && ruleApplies(rule, run.sessionID, workspace) {
+			return client.ApprovalAnswer{Decision: rule.Decision, Remember: rule.Scope}, true
+		}
+	}
+	return client.ApprovalAnswer{}, false
+}
+
+func ruleApplies(rule client.ApprovalRule, sessionID, workspace string) bool {
+	switch rule.Scope {
+	case client.RememberSession:
+		return rule.SessionID == sessionID
+	case client.RememberProject:
+		return rule.Workspace == workspace
+	case client.RememberGlobal:
+		return true
+	default:
+		return false
+	}
+}
+
+func approvalRuleKey(approval client.Approval) string {
+	if key := strings.TrimSpace(approval.RuleHint); key != "" {
+		return key
+	}
+	return strings.TrimSpace(approval.Title)
 }
 
 func (r *Runtime) pause(run *runState, delay time.Duration) error {
@@ -480,9 +570,39 @@ func validateAnswer(interaction client.Interaction, answer client.Answer) error 
 		if !ok {
 			return errors.New("mock: question requires field answers")
 		}
+		if provided.Canceled {
+			return nil
+		}
+		fields := make(map[string]client.QuestionField, len(question.Fields))
 		for _, field := range question.Fields {
-			if field.Required && len(provided.Values[field.ID]) == 0 {
+			fields[field.ID] = field
+		}
+		for id := range provided.Values {
+			if _, ok := fields[id]; !ok {
+				return fmt.Errorf("mock: answer contains unknown question field %q", id)
+			}
+		}
+		for _, field := range question.Fields {
+			values := provided.Values[field.ID]
+			if field.Required && (len(values) == 0 || (field.Kind != client.QuestionMulti && strings.TrimSpace(values[0]) == "")) {
 				return fmt.Errorf("mock: question field %q is required", field.ID)
+			}
+			if field.Kind == client.QuestionSingle && len(values) > 1 {
+				return fmt.Errorf("mock: question field %q accepts one value", field.ID)
+			}
+			if field.Kind == client.QuestionBool && len(values) > 0 && values[0] != "true" && values[0] != "false" {
+				return fmt.Errorf("mock: question field %q requires true or false", field.ID)
+			}
+			if field.Kind == client.QuestionSingle || field.Kind == client.QuestionMulti {
+				allowed := make([]string, 0, len(field.Options))
+				for _, option := range field.Options {
+					allowed = append(allowed, option.Value)
+				}
+				for _, value := range values {
+					if !slices.Contains(allowed, value) {
+						return fmt.Errorf("mock: question field %q does not offer %q", field.ID, value)
+					}
+				}
 			}
 		}
 		return nil

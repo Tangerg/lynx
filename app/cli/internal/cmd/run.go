@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 
 	"github.com/Tangerg/lynx/app/cli/internal/client"
 	"github.com/Tangerg/lynx/app/cli/internal/render"
@@ -26,7 +27,7 @@ type renderer interface {
 	Close() error
 }
 
-func newRunCommand(resolve backend) *cobra.Command {
+func newRunCommand(resolve backend, v *viper.Viper) *cobra.Command {
 	var (
 		asJSON     bool
 		approveAll bool
@@ -44,6 +45,10 @@ func newRunCommand(resolve backend) *cobra.Command {
 		Args:         cobra.ArbitraryArgs,
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			value, err := readSettings(v)
+			if err != nil {
+				return err
+			}
 			rt, err := resolve(cmd)
 			if err != nil {
 				return err
@@ -68,13 +73,13 @@ func newRunCommand(resolve backend) *cobra.Command {
 			return follow(cmd.Context(), rt, out, client.StartRun{
 				SessionID: session.ID,
 				Message:   client.Message{Text: prompt},
+				Options:   value.RunOptions(),
 			}, approveAll)
 		},
 	}
 	cmd.Flags().BoolVar(&asJSON, "json", false, "Write newline-delimited JSON instead of text")
 	cmd.Flags().BoolVar(&approveAll, "approve-all", false, "Approve every request the run makes")
 	cmd.Flags().StringVarP(&sessionID, "session", "s", "", "Run inside an existing session instead of a new one")
-	cmd.Flags().StringP("cwd", "C", "", "Workspace directory for a new session (default: current directory)")
 	return cmd
 }
 
