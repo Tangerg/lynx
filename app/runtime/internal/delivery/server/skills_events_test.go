@@ -5,13 +5,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/component/signal"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 )
 
 func TestSkillChangeBridgePublishesWorkspaceRefresh(t *testing.T) {
 	s := &Server{wsHub: newWorkspaceHub()}
-	notifier := new(signal.Signal[struct{}])
+	notifier := new(testNotification[struct{}])
 	s.observeSkillChanges(notifier)
 
 	ctx, cancel := context.WithCancel(context.Background())

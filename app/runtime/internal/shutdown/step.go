@@ -1,15 +1,15 @@
 // Package shutdown owns deadline-aware teardown steps for process resources
-// whose underlying Close operation may not accept a context.
+// whose underlying close operation may not accept a context.
 package shutdown
 
 import (
 	"context"
 	"sync"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/component/completion"
+	"github.com/Tangerg/lynx/app/runtime/internal/completion"
 )
 
-// Step serializes one teardown operation. If Action ignores cancellation, a
+// Step serializes one teardown operation. If its action ignores cancellation, a
 // caller still returns at its deadline while Step retains ownership of the
 // in-flight operation. A later call joins that operation instead of issuing a
 // concurrent second teardown.

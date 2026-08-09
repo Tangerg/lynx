@@ -1,4 +1,4 @@
-// Package httporigin provides fail-closed HTTP(S) origin normalization and
+// Package httporigin provides shared fail-closed HTTP(S) origin normalization and
 // comparison for credential and redirect boundaries.
 package httporigin
 

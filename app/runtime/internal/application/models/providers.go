@@ -7,7 +7,7 @@ import (
 
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/component/secretmask"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/secrets"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
 )
 
@@ -224,7 +224,7 @@ func providerInfo(meta ProviderMetadata, entry provider.Provider) ProviderInfo {
 	return ProviderInfo{
 		ID:                    meta.ID,
 		BaseURL:               entry.BaseURL,
-		APIKeyMasked:          secretmask.Mask(entry.APIKey),
+		APIKeyMasked:          secrets.Mask(entry.APIKey),
 		KeySource:             entry.KeySource,
 		RequiresBaseURL:       meta.RequiresBaseURL,
 		EmbeddingCapable:      meta.EmbeddingCapable,

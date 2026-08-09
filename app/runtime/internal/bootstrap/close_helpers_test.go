@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/component/shutdown"
+	"github.com/Tangerg/lynx/app/runtime/internal/shutdown"
 )
 
 func TestClosePendingResourcesPreservesDependenciesAfterFailure(t *testing.T) {

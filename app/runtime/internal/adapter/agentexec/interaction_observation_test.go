@@ -455,8 +455,15 @@ func TestInteractionExecutorPreservesConcurrentToolAttributionWhenCompletionIsOu
 		t.Fatalf("Tool completion arrival order = %#v, want second then first", finishes)
 	}
 	starts := payloadsOf[runs.ToolCallStarted](events)
-	if len(starts) != 2 || starts[0].ModelCallSequence != 1 || starts[0].ToolCallIndex != 0 ||
-		starts[1].ModelCallSequence != 1 || starts[1].ToolCallIndex != 1 {
+	byIndex := make(map[uint32]runs.ToolCallStarted, len(starts))
+	for _, started := range starts {
+		if started.ModelCallSequence != 1 {
+			t.Fatalf("Tool attribution = %#v", starts)
+		}
+		byIndex[started.ToolCallIndex] = started
+	}
+	if len(starts) != 2 || byIndex[0].SourceCallID != "provider_first" ||
+		byIndex[1].SourceCallID != "provider_second" {
 		t.Fatalf("Tool attribution = %#v", starts)
 	}
 	mu.Lock()

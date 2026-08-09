@@ -5,8 +5,8 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/pagination"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/queries"
-	"github.com/Tangerg/lynx/app/runtime/internal/component/keyset"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
@@ -17,7 +17,7 @@ import (
 // letting it fall through to the unrecognized-error default would tell the client
 // the server broke and hide the one remedy — start from the first page.
 func wirePageError(err error) error {
-	if errors.Is(err, keyset.ErrInvalidCursor) || errors.Is(err, keyset.ErrInvalidLimit) {
+	if errors.Is(err, pagination.ErrInvalidCursor) || errors.Is(err, pagination.ErrInvalidLimit) {
 		return fmt.Errorf("%w: %w", protocol.ErrInvalidParams, err)
 	}
 	return err

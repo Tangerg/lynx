@@ -11,8 +11,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/pagination"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
-	"github.com/Tangerg/lynx/app/runtime/internal/component/keyset"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
@@ -168,7 +168,7 @@ func RunTreeItems(runID string) ItemScope {
 // something that does not exist.
 //
 // An unusable cursor is refused rather than reinterpreted — see
-// [keyset.ErrInvalidCursor]. Silently restarting from the top would look like a
+// [pagination.ErrInvalidCursor]. Silently restarting from the top would look like a
 // page of duplicates to a client that had already read them.
 func (c *Coordinator) ListItemPage(ctx context.Context, scope ItemScope, order transcript.SequenceOrder, cursor string, limit int) (ItemPage, error) {
 	if err := order.Validate(); err != nil {
@@ -178,7 +178,7 @@ func (c *Coordinator) ListItemPage(ctx context.Context, scope ItemScope, order t
 	if err != nil {
 		return ItemPage{}, err
 	}
-	anchor, err := keyset.Decode(cursor, itemPageNamespace, filters)
+	anchor, err := pagination.Decode(cursor, itemPageNamespace, filters)
 	if err != nil {
 		return ItemPage{}, err
 	}
@@ -186,7 +186,7 @@ func (c *Coordinator) ListItemPage(ctx context.Context, scope ItemScope, order t
 	if err != nil {
 		return ItemPage{}, err
 	}
-	size, err := keyset.Limit(limit, itemPageLimit)
+	size, err := pagination.Limit(limit, itemPageLimit)
 	if err != nil {
 		return ItemPage{}, err
 	}
@@ -200,7 +200,7 @@ func (c *Coordinator) ListItemPage(ctx context.Context, scope ItemScope, order t
 	if err != nil {
 		return ItemPage{}, err
 	}
-	page := keyset.PageOf(sequenced, size, itemPageNamespace, filters,
+	page := pagination.PageOf(sequenced, size, itemPageNamespace, filters,
 		func(entry transcript.SequencedItem) []string {
 			return []string{strconv.FormatInt(entry.Sequence, 10)}
 		})
@@ -307,7 +307,7 @@ func sequenceAnchor(anchor []string) (int64, error) {
 	}
 	sequence, err := strconv.ParseInt(anchor[0], 10, 64)
 	if err != nil || len(anchor) != 1 || sequence <= 0 {
-		return 0, keyset.ErrInvalidCursor
+		return 0, pagination.ErrInvalidCursor
 	}
 	return sequence, nil
 }
@@ -344,7 +344,7 @@ type RunPageFilter struct {
 // The cursor is bound to the normalized filter, not just to the method: continuing
 // a page under a different session or status set would seek into a collection the
 // anchor was never a position in.
-func (c *Coordinator) ListRunPage(ctx context.Context, filter RunPageFilter, cursor string, limit int) (keyset.Page[transcript.Run], error) {
+func (c *Coordinator) ListRunPage(ctx context.Context, filter RunPageFilter, cursor string, limit int) (pagination.Page[transcript.Run], error) {
 	filter.Statuses = normalizeStatuses(filter.Statuses)
 	filters := []string{
 		filter.SessionID,
@@ -353,11 +353,11 @@ func (c *Coordinator) ListRunPage(ctx context.Context, filter RunPageFilter, cur
 	}
 	beforeCreatedAt, beforeID, err := timeAndIDAnchor(cursor, runPageNamespace, filters)
 	if err != nil {
-		return keyset.Page[transcript.Run]{}, err
+		return pagination.Page[transcript.Run]{}, err
 	}
-	size, err := keyset.Limit(limit, runPageLimit)
+	size, err := pagination.Limit(limit, runPageLimit)
 	if err != nil {
-		return keyset.Page[transcript.Run]{}, err
+		return pagination.Page[transcript.Run]{}, err
 	}
 	rows, err := c.runs.PageRuns(
 		ctx,
@@ -369,9 +369,9 @@ func (c *Coordinator) ListRunPage(ctx context.Context, filter RunPageFilter, cur
 		size+1,
 	)
 	if err != nil {
-		return keyset.Page[transcript.Run]{}, err
+		return pagination.Page[transcript.Run]{}, err
 	}
-	return keyset.PageOf(rows, size, runPageNamespace, filters, func(run transcript.Run) []string {
+	return pagination.PageOf(rows, size, runPageNamespace, filters, func(run transcript.Run) []string {
 		return []string{strconv.FormatInt(run.CreatedAt.UnixNano(), 10), run.ID}
 	}), nil
 }
@@ -418,29 +418,29 @@ func statusFilter(statuses []run.RunStatus) string {
 //
 // rootRunID must name a root. A child id is [transcript.ErrNotRoot], because the
 // set it belongs to exists — under the root — and an empty page would say otherwise.
-func (c *Coordinator) ListPendingInterruptPage(ctx context.Context, sessionID, rootRunID string, caller run.RunCapabilities, cursor string, limit int) (keyset.Page[runs.Pending], error) {
+func (c *Coordinator) ListPendingInterruptPage(ctx context.Context, sessionID, rootRunID string, caller run.RunCapabilities, cursor string, limit int) (pagination.Page[runs.Pending], error) {
 	filters := []string{sessionID, rootRunID}
 	afterCreatedAt, afterID, err := timeAndIDAnchor(cursor, interruptPageNamespace, filters)
 	if err != nil {
-		return keyset.Page[runs.Pending]{}, err
+		return pagination.Page[runs.Pending]{}, err
 	}
-	size, err := keyset.Limit(limit, interruptPageLimit)
+	size, err := pagination.Limit(limit, interruptPageLimit)
 	if err != nil {
-		return keyset.Page[runs.Pending]{}, err
+		return pagination.Page[runs.Pending]{}, err
 	}
 	if err := c.requireRoot(ctx, rootRunID); err != nil {
-		return keyset.Page[runs.Pending]{}, err
+		return pagination.Page[runs.Pending]{}, err
 	}
 	rows, err := c.interrupts.ListPage(ctx, sessionID, rootRunID, afterCreatedAt, afterID, size+1)
 	if err != nil {
-		return keyset.Page[runs.Pending]{}, err
+		return pagination.Page[runs.Pending]{}, err
 	}
-	page := keyset.PageOf(rows, size, interruptPageNamespace, filters, func(pending runs.Pending) []string {
+	page := pagination.PageOf(rows, size, interruptPageNamespace, filters, func(pending runs.Pending) []string {
 		return []string{strconv.FormatInt(pending.CreatedAt.UnixNano(), 10), pending.RootRunID}
 	})
 	for _, pending := range page.Rows {
 		if gap := pending.Capabilities.MissingFrom(caller); !gap.IsEmpty() {
-			return keyset.Page[runs.Pending]{}, &run.InsufficientCapabilities{RunID: pending.RootRunID, Missing: gap}
+			return pagination.Page[runs.Pending]{}, &run.InsufficientCapabilities{RunID: pending.RootRunID, Missing: gap}
 		}
 	}
 	return page, nil
@@ -468,7 +468,7 @@ func (c *Coordinator) requireRoot(ctx context.Context, runID string) error {
 // is what makes the order total: two rows can share a nanosecond, and a
 // timestamp-only bound would then drop one or return it twice.
 func timeAndIDAnchor(cursor, method string, filters []string) (int64, string, error) {
-	anchor, err := keyset.Decode(cursor, method, filters)
+	anchor, err := pagination.Decode(cursor, method, filters)
 	if err != nil {
 		return 0, "", err
 	}
@@ -476,11 +476,11 @@ func timeAndIDAnchor(cursor, method string, filters []string) (int64, string, er
 		return 0, "", nil
 	}
 	if len(anchor) != 2 {
-		return 0, "", keyset.ErrInvalidCursor
+		return 0, "", pagination.ErrInvalidCursor
 	}
 	stamp, err := strconv.ParseInt(anchor[0], 10, 64)
 	if err != nil {
-		return 0, "", keyset.ErrInvalidCursor
+		return 0, "", pagination.ErrInvalidCursor
 	}
 	return stamp, anchor[1], nil
 }

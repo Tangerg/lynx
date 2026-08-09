@@ -1,4 +1,4 @@
-package secretmask
+package secrets
 
 import "testing"
 

@@ -399,12 +399,8 @@ func TestDomainHooksStayPure(t *testing.T) {
 // domain values at the boundary.
 func TestDomainStaysFrameworkFree(t *testing.T) {
 	root := moduleRoot(t)
-	// componentPkg is banned here (not in frameworkImports) because application
-	// legitimately imports internal/component/taskgroup — only the inner domain
-	// ring must stay free of it, and layerOf leaves component unclassified so the
-	// ring rule alone would miss a domain → component edge.
 	forbidExternalImports(t, filepath.Join(root, "internal", "domain"),
-		append([]string{componentPkg, "path/filepath"}, frameworkImports...))
+		append(append([]string{"path/filepath"}, sharedCapabilityImports...), frameworkImports...))
 }
 
 // TestDomainDoesNotRenderAgentOrToolPresentation keeps model/tool text and
@@ -438,14 +434,23 @@ func TestDomainDoesNotRenderAgentOrToolPresentation(t *testing.T) {
 	}
 }
 
-// TestComponentStaysDomainFree keeps the internal/component ring free of DOMAIN
-// coupling: components are no-domain-semantics primitives (signal / taskgroup /
-// pathidentity / httporigin) that both application and
-// adapter reuse. layerOf leaves component unclassified, so the ring rule catches
-// only the INBOUND domain → component edge; this covers the OUTBOUND one.
-func TestComponentStaysDomainFree(t *testing.T) {
+// TestSharedCapabilitiesStayPure keeps the few cross-ring mechanisms free of
+// product and ring ownership. Each package names one proven shared capability;
+// none may become a replacement common/component umbrella.
+func TestSharedCapabilitiesStayPure(t *testing.T) {
 	root := moduleRoot(t)
-	forbidExternalImports(t, filepath.Join(root, "internal", "component"), []string{domainPkg})
+	for _, name := range []string{
+		"completion", "httporigin", "idempotency", "pagination", "replaycursor", "shutdown", "taskgroup",
+	} {
+		forbidExternalImports(t, filepath.Join(root, "internal", name), []string{
+			domainPkg,
+			"github.com/Tangerg/lynx/app/runtime/internal/application",
+			"github.com/Tangerg/lynx/app/runtime/internal/adapter",
+			"github.com/Tangerg/lynx/app/runtime/internal/infra",
+			"github.com/Tangerg/lynx/app/runtime/internal/delivery",
+			"github.com/Tangerg/lynx/app/runtime/internal/bootstrap",
+		})
+	}
 }
 
 // TestApplicationStaysFrameworkFree enforces ARCHITECTURE.md §6.2's application-purity
@@ -560,16 +565,17 @@ func TestAgent2StaysBehindAgentexec(t *testing.T) {
 
 // TestDomainStaysPure protects every bounded context in the innermost ring:
 // it must not touch the filesystem, a SQL driver, HTTP, OTel, the agent SDK, or a
-// concurrency/wiring primitive (internal/component/*). (The accounting sub-context
+// shared runtime coordination primitives. (The accounting sub-context
 // maps the SDK's token counts at the agentexec boundary, so it holds only the
-// neutral core chat model, never agent/*.) The component ban is listed explicitly
-// because layerOf leaves internal/component unclassified — the ring rule would not
-// otherwise catch a domain → component/taskgroup edge.
+// neutral core chat model, never agent/*.) The shared-capability ban is listed
+// explicitly because layerOf intentionally leaves those exact packages unclassified.
 func TestDomainStaysPure(t *testing.T) {
 	root := moduleRoot(t)
 	domain := filepath.Join(root, "internal", "domain")
-	forbidExternalImports(t, domain,
-		[]string{"os", "database/sql", "net", "net/http", "go.opentelemetry.io", "github.com/Tangerg/lynx/agent", componentPkg})
+	forbidExternalImports(t, domain, append(
+		[]string{"os", "database/sql", "net", "net/http", "go.opentelemetry.io", "github.com/Tangerg/lynx/agent"},
+		sharedCapabilityImports...,
+	))
 	forbidTestImports(t, domain, []string{
 		"github.com/Tangerg/lynx/app/runtime/internal/application",
 		"github.com/Tangerg/lynx/app/runtime/internal/adapter",
@@ -958,7 +964,7 @@ func TestHostOwnsShutdownGraph(t *testing.T) {
 func TestDeliveryHoldsNoRunLifecycleState(t *testing.T) {
 	root := moduleRoot(t)
 	dir := filepath.Join(root, "internal", "delivery", "server")
-	forbidExternalImports(t, dir, []string{"github.com/Tangerg/lynx/app/runtime/internal/component/taskgroup"})
+	forbidExternalImports(t, dir, []string{"github.com/Tangerg/lynx/app/runtime/internal/taskgroup"})
 
 	// taskgroup.Group is also import-forbidden above; context.CancelFunc and
 	// runs.Registry cover the rule's "cancel func" + "run registry" clauses so a
@@ -1243,7 +1249,7 @@ func TestDeliveryServerDependsOnUseCaseBoundaries(t *testing.T) {
 		"github.com/Tangerg/lynx/app/runtime/internal/adapter",
 		"github.com/Tangerg/lynx/app/runtime/internal/infra",
 		"github.com/Tangerg/lynx/app/runtime/internal/bootstrap",
-		"github.com/Tangerg/lynx/app/runtime/internal/component/idempotency",
+		"github.com/Tangerg/lynx/app/runtime/internal/idempotency",
 	})
 }
 
@@ -1266,10 +1272,10 @@ func TestDeliveryDoesNotImplementQuerySemantics(t *testing.T) {
 		"defaultSessionPageLimit": "how wide a page may be is the read's policy",
 	})
 	forbidQualifiedCalls(t, server, map[string]string{
-		"keyset.Decode": "a cursor is decoded by the read that minted it",
-		"keyset.Encode": "a cursor is minted by the read that knows the sort position",
-		"keyset.Limit":  "how wide a page may be is the read's policy",
-		"keyset.PageOf": "cutting a page belongs to the read that ordered the rows",
+		"pagination.Decode": "a cursor is decoded by the read that minted it",
+		"pagination.Encode": "a cursor is minted by the read that knows the sort position",
+		"pagination.Limit":  "how wide a page may be is the read's policy",
+		"pagination.PageOf": "cutting a page belongs to the read that ordered the rows",
 	})
 }
 
@@ -1612,15 +1618,17 @@ func TestRunReductionHasNoOuterProjectionSeam(t *testing.T) {
 	}
 }
 
-// componentPkg is the neutral concurrency/wiring primitive package
-// (signal / taskgroup). layerOf leaves it unclassified so the
-// ring rule doesn't check edges into it; the domain rings ban it explicitly
-// (application/delivery/composition may import it). Prefix-matched.
-const componentPkg = "github.com/Tangerg/lynx/app/runtime/internal/component"
+var sharedCapabilityImports = []string{
+	"github.com/Tangerg/lynx/app/runtime/internal/completion",
+	"github.com/Tangerg/lynx/app/runtime/internal/httporigin",
+	"github.com/Tangerg/lynx/app/runtime/internal/idempotency",
+	"github.com/Tangerg/lynx/app/runtime/internal/pagination",
+	"github.com/Tangerg/lynx/app/runtime/internal/replaycursor",
+	"github.com/Tangerg/lynx/app/runtime/internal/shutdown",
+	"github.com/Tangerg/lynx/app/runtime/internal/taskgroup",
+}
 
-// domainPkg is the bounded-context ring. internal/component must not import it
-// (components are no-domain-semantics primitives); layerOf leaves component
-// unclassified, so the ring rule alone would miss the outbound edge. Prefix-matched.
+// domainPkg is the bounded-context ring. Prefix-matched.
 const domainPkg = "github.com/Tangerg/lynx/app/runtime/internal/domain"
 
 // protocolPkg is the wire-type package; it must stay pure wire (no domain /

@@ -8,8 +8,8 @@ import (
 	"slices"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/component/httporigin"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
+	"github.com/Tangerg/lynx/app/runtime/internal/httporigin"
 )
 
 const reconcileTimeout = 30 * time.Second

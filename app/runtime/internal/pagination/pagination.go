@@ -1,4 +1,5 @@
-// Package keyset encodes the page anchors a cursor-paginated read hands back to
+// Package pagination encodes the page anchors a cursor-paginated read hands
+// back to
 // its caller. A token names the query it was minted for and the sort position it
 // stopped at, so continuing a page is a bounded seek rather than a scan.
 //
@@ -14,7 +15,7 @@
 // or repeat rows; with it, a mismatched cursor is rejected and the caller starts
 // over. That check is the integrity guarantee here — no secret is involved,
 // because the runtime has no user boundary to defend across.
-package keyset
+package pagination
 
 import (
 	"encoding/base64"
@@ -28,12 +29,12 @@ import (
 // minted by an older format, or issued for a different namespace or filter set.
 // All of those have one remedy — restart from the first page — so they are one
 // sentinel rather than a taxonomy the caller would branch on identically.
-var ErrInvalidCursor = errors.New("keyset: cursor cannot continue this query")
+var ErrInvalidCursor = errors.New("pagination: cursor cannot continue this query")
 
 // ErrInvalidLimit reports a page size a read will not serve. Separate from
 // ErrInvalidCursor because the caller's fix differs: correct the request, rather
 // than start the collection over.
-var ErrInvalidLimit = errors.New("keyset: page limit is invalid")
+var ErrInvalidLimit = errors.New("pagination: page limit is invalid")
 
 // formatVersion changes when the token layout does, so a cursor in flight across
 // an upgrade is rejected instead of decoded as something else.
@@ -62,7 +63,7 @@ type token struct {
 // ascending page cannot continue a descending one.
 func Encode(namespace string, filters []string, key []string) string {
 	if namespace == "" {
-		panic("keyset: encode cursor: namespace is required")
+		panic("pagination: encode cursor: namespace is required")
 	}
 	payload, err := json.Marshal(token{
 		Version: formatVersion, Namespace: namespace,
@@ -71,7 +72,7 @@ func Encode(namespace string, filters []string, key []string) string {
 	if err != nil {
 		// token holds only strings, ints and a string slice, so marshaling it
 		// cannot fail; a nil cursor would read as "no more pages" and truncate.
-		panic("keyset: encode cursor: " + err.Error())
+		panic("pagination: encode cursor: " + err.Error())
 	}
 	return base64.RawURLEncoding.EncodeToString(payload)
 }
@@ -119,7 +120,7 @@ func Limit(requested, ceiling int) (int, error) {
 // the last row the page actually returns.
 func PageOf[T any](rows []T, limit int, namespace string, filters []string, nextKey func(T) []string) Page[T] {
 	if namespace == "" {
-		panic("keyset: page namespace is required")
+		panic("pagination: page namespace is required")
 	}
 	if len(rows) <= limit {
 		return Page[T]{Rows: rows}

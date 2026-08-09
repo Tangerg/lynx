@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/component/keyset"
+	"github.com/Tangerg/lynx/app/runtime/internal/pagination"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
 )
 
@@ -289,11 +289,11 @@ func TestListPagePagesNewestFirstAndRefusesAForeignCursor(t *testing.T) {
 		t.Fatalf("second page = %+v, want the tail and no cursor", second.Rows)
 	}
 
-	foreign := keyset.Encode("sessions", nil, []string{"0", "sch_1"})
-	if _, err := c.ListPage(ctx, foreign, 2); !errors.Is(err, keyset.ErrInvalidCursor) {
+	foreign := pagination.Encode("sessions", nil, []string{"0", "sch_1"})
+	if _, err := c.ListPage(ctx, foreign, 2); !errors.Is(err, pagination.ErrInvalidCursor) {
 		t.Fatalf("cursor from another query err = %v, want ErrInvalidCursor", err)
 	}
-	if _, err := c.ListPage(ctx, first.NextCursor+"x", 2); !errors.Is(err, keyset.ErrInvalidCursor) {
+	if _, err := c.ListPage(ctx, first.NextCursor+"x", 2); !errors.Is(err, pagination.ErrInvalidCursor) {
 		t.Fatalf("damaged cursor err = %v, want ErrInvalidCursor", err)
 	}
 }

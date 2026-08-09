@@ -9,7 +9,7 @@ import (
 	toolcontract "github.com/Tangerg/lynx/tool"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/executionctx"
-	"github.com/Tangerg/lynx/app/runtime/internal/component/pathidentity"
+	"github.com/Tangerg/lynx/app/runtime/internal/infra/pathidentity"
 )
 
 // protectedDirs are directory names the agent must never modify, even when

@@ -616,10 +616,6 @@ func TestInnerRingCommentsDoNotNameOuterArchitecture(t *testing.T) {
 			forbidden: regexp.MustCompile(`(?i)delivery[/ -](layer|protocol|server)|\b(bootstrap|frontend|desktop|tui|cli)\b|composition[ -]root|internal/adapter/`),
 		},
 		{
-			ring:      "component",
-			forbidden: regexp.MustCompile(`(?i)\b(application|adapters?|delivery|infrastructure|infra|bootstrap|frontend|desktop|tui|cli)\b|composition[ -]root`),
-		},
-		{
 			ring:      "config",
 			forbidden: regexp.MustCompile(`(?i)\b(delivery|bootstrap|frontend|desktop|tui|cli)\b|composition[ -]root`),
 		},

@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/component/keyset"
+	"github.com/Tangerg/lynx/app/runtime/internal/pagination"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 )
 
@@ -88,36 +88,36 @@ const viewPageLimit = 100
 // ListViewPage resolves one page of user-facing sessions, continuing after
 // cursor. The page is bounded by the query, so only the sessions being returned
 // are resolved against the filesystem and the live-run registry.
-func (c *Coordinator) ListViewPage(ctx context.Context, cursor string, limit int) (keyset.Page[View], error) {
+func (c *Coordinator) ListViewPage(ctx context.Context, cursor string, limit int) (pagination.Page[View], error) {
 	if c.sessions == nil {
-		return keyset.Page[View]{}, errors.New("sessions: session store is unavailable")
+		return pagination.Page[View]{}, errors.New("sessions: session store is unavailable")
 	}
-	anchor, err := keyset.Decode(cursor, viewPageNamespace, nil)
+	anchor, err := pagination.Decode(cursor, viewPageNamespace, nil)
 	if err != nil {
-		return keyset.Page[View]{}, err
+		return pagination.Page[View]{}, err
 	}
 	var afterFavorite bool
 	var afterUpdatedAt int64
 	var afterID string
 	if len(anchor) > 0 {
 		if len(anchor) != 3 {
-			return keyset.Page[View]{}, keyset.ErrInvalidCursor
+			return pagination.Page[View]{}, pagination.ErrInvalidCursor
 		}
 		afterFavorite = anchor[0] == "1"
 		if afterUpdatedAt, err = strconv.ParseInt(anchor[1], 10, 64); err != nil {
-			return keyset.Page[View]{}, keyset.ErrInvalidCursor
+			return pagination.Page[View]{}, pagination.ErrInvalidCursor
 		}
 		afterID = anchor[2]
 	}
-	size, err := keyset.Limit(limit, viewPageLimit)
+	size, err := pagination.Limit(limit, viewPageLimit)
 	if err != nil {
-		return keyset.Page[View]{}, err
+		return pagination.Page[View]{}, err
 	}
 	values, err := c.sessions.ListPage(ctx, afterFavorite, afterUpdatedAt, afterID, size+1)
 	if err != nil {
-		return keyset.Page[View]{}, err
+		return pagination.Page[View]{}, err
 	}
-	bounded := keyset.PageOf(values, size, viewPageNamespace, nil, func(value session.Session) []string {
+	bounded := pagination.PageOf(values, size, viewPageNamespace, nil, func(value session.Session) []string {
 		favorite := "0"
 		if value.Favorite {
 			favorite = "1"
@@ -126,9 +126,9 @@ func (c *Coordinator) ListViewPage(ctx context.Context, cursor string, limit int
 	})
 	views, err := c.views(ctx, bounded.Rows)
 	if err != nil {
-		return keyset.Page[View]{}, err
+		return pagination.Page[View]{}, err
 	}
-	return keyset.Page[View]{Rows: views, NextCursor: bounded.NextCursor}, nil
+	return pagination.Page[View]{Rows: views, NextCursor: bounded.NextCursor}, nil
 }
 
 // View resolves one session's complete application read model.

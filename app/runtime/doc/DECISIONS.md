@@ -155,9 +155,9 @@
 
 ## ADR-RT-025：消除 `component` 杂物分类
 
-- 状态：已接受。
+- 状态：已接受，P9 已实施。
 - 决策：单一 owner 的原语回归 owner；真正被多个平级消费者复用的中性原语以准确能力名存在于 `internal`，不保留通用 `component/common/core/utils` 收纳层。
-- 后果：迁移按 import graph 和所有权逐个完成，不机械内联或制造反向依赖。
+- 后果：pagination/replay cursor 保持准确 codec capability；completion、HTTP origin、idempotency、shutdown、taskgroup 以各自精确能力名存在；path identity 归 Infra，secret masking 归 Application，notification relay 归 Adapter。`component` 目录和 temporary exception 已删除。
 
 ## ADR-RT-026：Protocol 机器制品是外部合同真相源
 

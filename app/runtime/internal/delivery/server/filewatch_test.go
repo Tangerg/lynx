@@ -9,7 +9,6 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/runsegment"
 	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
-	"github.com/Tangerg/lynx/app/runtime/internal/component/signal"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 )
 
@@ -91,7 +90,7 @@ func TestRunEffectsNudgePublishesFileChange(t *testing.T) {
 
 	// Wire the production seam: the run effects publish nudges through the
 	// notifier, and the hub observes it (mapping to the wire files.changed).
-	fc := &signal.Signal[workspaceapp.FileChangeNotice]{}
+	fc := &testNotification[workspaceapp.FileChangeNotice]{}
 	s.observeFileChanges(fc)
 	effects := runsegment.New(runsegment.Config{PublishFileChanges: fc.Publish})
 

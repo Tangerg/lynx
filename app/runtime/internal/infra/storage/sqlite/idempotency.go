@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/component/idempotency"
+	"github.com/Tangerg/lynx/app/runtime/internal/idempotency"
 )
 
 // IdempotencyStore persists replay records across runtime restarts.

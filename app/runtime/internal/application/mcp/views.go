@@ -4,7 +4,7 @@ import (
 	"slices"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/component/secretmask"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/secrets"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 )
 
@@ -138,7 +138,7 @@ func connectionView(server mcpserver.Server) Connection {
 	return Connection{
 		Transport:           server.Transport,
 		URL:                 server.URL,
-		AuthorizationMasked: secretmask.Mask(server.Authorization),
+		AuthorizationMasked: secrets.Mask(server.Authorization),
 		HeadersMasked:       maskedValues(server.Headers),
 		Command:             server.Command,
 		Args:                slices.Clone(server.Args),
@@ -153,7 +153,7 @@ func maskedValues(values map[string]string) map[string]string {
 	}
 	masked := make(map[string]string, len(values))
 	for key, value := range values {
-		masked[key] = secretmask.Mask(value)
+		masked[key] = secrets.Mask(value)
 	}
 	return masked
 }

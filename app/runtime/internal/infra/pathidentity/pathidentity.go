@@ -1,4 +1,5 @@
-// Package pathidentity gives filesystem aliases one stable physical identity.
+// Package pathidentity gives filesystem aliases one stable physical identity
+// for filesystem-facing adapters.
 package pathidentity
 
 import (

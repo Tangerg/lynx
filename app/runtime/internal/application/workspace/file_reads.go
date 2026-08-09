@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/component/keyset"
+	"github.com/Tangerg/lynx/app/runtime/internal/pagination"
 )
 
 // Files owns root-scoped file browser operations.
@@ -270,12 +270,12 @@ func previewLines(read FileReadResult) []FileLine {
 }
 
 func pageFileEntries(entries []FileEntry, filters []string, cursor string, limit int) ([]FileEntry, string, error) {
-	size, err := keyset.Limit(limit, defaultFileListPageLimit)
+	size, err := pagination.Limit(limit, defaultFileListPageLimit)
 	if err != nil {
 		return nil, "", fmt.Errorf("%w: %w", ErrPageLimit, err)
 	}
 	slices.SortFunc(entries, func(a, b FileEntry) int { return cmp.Compare(a.orderKey(), b.orderKey()) })
-	anchor, err := keyset.Decode(cursor, fileListPageNamespace, filters)
+	anchor, err := pagination.Decode(cursor, fileListPageNamespace, filters)
 	if err != nil {
 		return nil, "", fmt.Errorf("%w: %w", ErrPageCursor, err)
 	}
@@ -300,5 +300,5 @@ func pageFileEntries(entries []FileEntry, filters []string, cursor string, limit
 	if end == len(entries) {
 		return page, "", nil
 	}
-	return page, keyset.Encode(fileListPageNamespace, filters, []string{entries[end-1].orderKey()}), nil
+	return page, pagination.Encode(fileListPageNamespace, filters, []string{entries[end-1].orderKey()}), nil
 }

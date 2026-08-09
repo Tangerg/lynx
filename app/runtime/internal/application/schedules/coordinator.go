@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/component/keyset"
+	"github.com/Tangerg/lynx/app/runtime/internal/pagination"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
 )
@@ -98,31 +98,31 @@ const listPageLimit = 100
 
 // ListPage returns one page of schedules, newest-created first, continuing after
 // cursor.
-func (c *Coordinator) ListPage(ctx context.Context, cursor string, limit int) (keyset.Page[schedule.Schedule], error) {
-	anchor, err := keyset.Decode(cursor, listPageNamespace, nil)
+func (c *Coordinator) ListPage(ctx context.Context, cursor string, limit int) (pagination.Page[schedule.Schedule], error) {
+	anchor, err := pagination.Decode(cursor, listPageNamespace, nil)
 	if err != nil {
-		return keyset.Page[schedule.Schedule]{}, err
+		return pagination.Page[schedule.Schedule]{}, err
 	}
 	var afterCreatedAt int64
 	var afterID string
 	if len(anchor) > 0 {
 		if len(anchor) != 2 {
-			return keyset.Page[schedule.Schedule]{}, keyset.ErrInvalidCursor
+			return pagination.Page[schedule.Schedule]{}, pagination.ErrInvalidCursor
 		}
 		if afterCreatedAt, err = strconv.ParseInt(anchor[0], 10, 64); err != nil {
-			return keyset.Page[schedule.Schedule]{}, keyset.ErrInvalidCursor
+			return pagination.Page[schedule.Schedule]{}, pagination.ErrInvalidCursor
 		}
 		afterID = anchor[1]
 	}
-	size, err := keyset.Limit(limit, listPageLimit)
+	size, err := pagination.Limit(limit, listPageLimit)
 	if err != nil {
-		return keyset.Page[schedule.Schedule]{}, err
+		return pagination.Page[schedule.Schedule]{}, err
 	}
 	rows, err := c.store.ListPage(ctx, afterCreatedAt, afterID, size+1)
 	if err != nil {
-		return keyset.Page[schedule.Schedule]{}, err
+		return pagination.Page[schedule.Schedule]{}, err
 	}
-	return keyset.PageOf(rows, size, listPageNamespace, nil, func(sc schedule.Schedule) []string {
+	return pagination.PageOf(rows, size, listPageNamespace, nil, func(sc schedule.Schedule) []string {
 		return []string{strconv.FormatInt(sc.CreatedAt.UnixNano(), 10), sc.ID}
 	}), nil
 }

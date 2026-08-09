@@ -10,7 +10,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/codeintel"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/executionctx"
-	"github.com/Tangerg/lynx/app/runtime/internal/component/pathidentity"
+	"github.com/Tangerg/lynx/app/runtime/internal/infra/pathidentity"
 )
 
 // These decorators enforce the readTracker invariant at the model boundary.

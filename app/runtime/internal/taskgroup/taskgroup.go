@@ -10,7 +10,7 @@ import (
 	"slices"
 	"sync"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/component/completion"
+	"github.com/Tangerg/lynx/app/runtime/internal/completion"
 )
 
 // Group starts request-detached tasks and cancels and joins them at Close.

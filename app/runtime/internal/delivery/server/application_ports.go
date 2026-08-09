@@ -9,6 +9,7 @@ import (
 	feedbackapp "github.com/Tangerg/lynx/app/runtime/internal/application/feedback"
 	mcpapp "github.com/Tangerg/lynx/app/runtime/internal/application/mcp"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/models"
+	"github.com/Tangerg/lynx/app/runtime/internal/pagination"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/queries"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
@@ -16,7 +17,6 @@ import (
 	toolapp "github.com/Tangerg/lynx/app/runtime/internal/application/tools"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/usage"
 	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
-	"github.com/Tangerg/lynx/app/runtime/internal/component/keyset"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/knowledge"
@@ -38,7 +38,7 @@ type sessionUseCases interface {
 	CreateView(ctx context.Context, title, cwd string) (sessions.View, error)
 	DeleteSession(ctx context.Context, sessionID string) error
 	ForkView(ctx context.Context, spec sessions.ForkSpec) (sessions.View, error)
-	ListViewPage(ctx context.Context, cursor string, limit int) (keyset.Page[sessions.View], error)
+	ListViewPage(ctx context.Context, cursor string, limit int) (pagination.Page[sessions.View], error)
 	ExportSession(ctx context.Context, sessionID string) (sessions.ExportResult, error)
 	RestorePortableSession(ctx context.Context, snapshot sessions.PortableSnapshot) (sessions.View, error)
 	Rollback(ctx context.Context, spec sessions.RollbackSpec) (sessions.RollbackResult, error)
@@ -103,10 +103,10 @@ type runUseCases interface {
 
 type queryUseCases interface {
 	ListItemPage(ctx context.Context, scope queries.ItemScope, order transcript.SequenceOrder, cursor string, limit int) (queries.ItemPage, error)
-	ListPendingInterruptPage(ctx context.Context, sessionID, rootRunID string, caller run.RunCapabilities, cursor string, limit int) (keyset.Page[runs.Pending], error)
+	ListPendingInterruptPage(ctx context.Context, sessionID, rootRunID string, caller run.RunCapabilities, cursor string, limit int) (pagination.Page[runs.Pending], error)
 	Run(ctx context.Context, runID string) (transcript.Run, bool, error)
 	PlanState(ctx context.Context, sessionID string) (plan.State, error)
-	ListRunPage(ctx context.Context, filter queries.RunPageFilter, cursor string, limit int) (keyset.Page[transcript.Run], error)
+	ListRunPage(ctx context.Context, filter queries.RunPageFilter, cursor string, limit int) (pagination.Page[transcript.Run], error)
 }
 
 type usageUseCases interface {
@@ -122,7 +122,7 @@ type scheduleManagementUseCases interface {
 	Available() bool
 	Create(ctx context.Context, cmd schedules.CreateCommand) (schedule.Schedule, error)
 	Delete(ctx context.Context, id string) error
-	ListPage(ctx context.Context, cursor string, limit int) (keyset.Page[schedule.Schedule], error)
+	ListPage(ctx context.Context, cursor string, limit int) (pagination.Page[schedule.Schedule], error)
 	Update(ctx context.Context, cmd schedules.UpdateCommand) (schedule.Schedule, error)
 }
 

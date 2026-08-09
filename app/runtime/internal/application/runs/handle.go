@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/component/completion"
+	"github.com/Tangerg/lynx/app/runtime/internal/completion"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 

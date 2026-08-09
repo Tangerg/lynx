@@ -1,4 +1,4 @@
-package keyset
+package pagination
 
 import (
 	"errors"

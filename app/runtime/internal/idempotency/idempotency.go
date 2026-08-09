@@ -1,4 +1,4 @@
-// Package idempotency provides durable request-result replay coordination.
+// Package idempotency defines durable request-result replay coordination.
 //
 // It intentionally deals in opaque keys, fingerprints, and bytes: callers
 // decide how to derive a request fingerprint and encode a result. The mechanism

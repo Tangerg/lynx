@@ -1,5 +1,5 @@
-// Package replaycursor encodes the position a live event stream hands to a
-// subscriber, so a reconnect resumes exactly where the last one stopped.
+// Package replaycursor encodes the opaque position token a live event stream
+// hands to a subscriber, so a reconnect resumes exactly where the last one stopped.
 //
 // A stream position is not a number. A bare sequence would decode against
 // whatever stream the request happens to name: a cursor from a previous process,
@@ -84,7 +84,7 @@ func Encode(p Position) string {
 // first event of a stream is 1, so zero would be indistinguishable from a field
 // that was never set).
 //
-// Decode does NOT decide whether the position is usable: whether the epoch is
+// Decode does not decide whether the position is usable: whether the epoch is
 // current, the scope is the one being subscribed, or the position is still
 // retained are facts only the stream's owner holds.
 func Decode(token string) (Position, error) {

@@ -17,7 +17,7 @@ import (
 // §11.4 gate 11: each seek-paged read binds its cursors to its own application
 // namespace.
 //
-// The paging component already refuses a cursor minted by another query — that is
+// The application pagination capability already refuses a cursor minted by another query — that is
 // what the namespace in the token is for. What it cannot see is two readers sharing
 // a namespace, which would let each continue the other's cursor in a different
 // ordering or filter scope.
@@ -27,13 +27,13 @@ import (
 func TestPageCursorsHaveUniqueSemanticNamespaces(t *testing.T) {
 	root := moduleRoot(t)
 	namespaces := pageCursorNamespaces(t, root)
-	keysetPath := filepath.Join(root, "internal", "component", "keyset", "keyset.go")
-	keysetFile, err := parser.ParseFile(token.NewFileSet(), keysetPath, nil, 0)
+	paginationPath := filepath.Join(root, "internal", "pagination", "pagination.go")
+	paginationFile, err := parser.ParseFile(token.NewFileSet(), paginationPath, nil, 0)
 	if err != nil {
-		t.Fatalf("parse keyset cursor: %v", err)
+		t.Fatalf("parse pagination cursor: %v", err)
 	}
-	if fields := structFields(keysetFile, "token"); !slices.Equal(fields, []string{"Version", "Namespace", "Filters", "Key"}) {
-		t.Fatalf("keyset token fields = %v, want semantic namespace ownership", fields)
+	if fields := structFields(paginationFile, "token"); !slices.Equal(fields, []string{"Version", "Namespace", "Filters", "Key"}) {
+		t.Fatalf("pagination token fields = %v, want semantic namespace ownership", fields)
 	}
 
 	// Six reads page by seeking today. The floor is here so the gate cannot pass by

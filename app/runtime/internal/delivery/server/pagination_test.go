@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/component/keyset"
+	"github.com/Tangerg/lynx/app/runtime/internal/pagination"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 )
 
@@ -14,8 +14,8 @@ import (
 // first page.
 func TestWirePageErrorMapsRefusedPageRequests(t *testing.T) {
 	for name, err := range map[string]error{
-		"cursor": keyset.ErrInvalidCursor,
-		"limit":  keyset.ErrInvalidLimit,
+		"cursor": pagination.ErrInvalidCursor,
+		"limit":  pagination.ErrInvalidLimit,
 	} {
 		t.Run(name, func(t *testing.T) {
 			if got := wirePageError(err); !errors.Is(got, protocol.ErrInvalidParams) {

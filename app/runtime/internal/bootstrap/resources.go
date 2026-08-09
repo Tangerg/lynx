@@ -4,7 +4,7 @@ import (
 	"context"
 	"slices"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/component/shutdown"
+	"github.com/Tangerg/lynx/app/runtime/internal/shutdown"
 )
 
 func shutdownResources(resources []ShutdownResource) []ShutdownResource {

@@ -5,7 +5,6 @@ import (
 	"go/parser"
 	"go/token"
 	"io/fs"
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -95,45 +94,6 @@ func interfaceUsesContext(contract *ast.InterfaceType) bool {
 		}
 	}
 	return false
-}
-
-type temporaryComponent struct {
-	owner       string
-	deletePhase string
-}
-
-var temporaryComponents = map[string]temporaryComponent{
-	"completion":   {"internal/component/completion", "P9"},
-	"httporigin":   {"internal/component/httporigin", "P9"},
-	"idempotency":  {"internal/component/idempotency", "P9"},
-	"keyset":       {"internal/component/keyset", "P9"},
-	"pathidentity": {"internal/component/pathidentity", "P9"},
-	"replaycursor": {"internal/component/replaycursor", "P9"},
-	"secretmask":   {"internal/component/secretmask", "P9"},
-	"shutdown":     {"internal/component/shutdown", "P9"},
-	"signal":       {"internal/component/signal", "P9"},
-	"taskgroup":    {"internal/component/taskgroup", "P9"},
-}
-
-func TestTemporaryComponentPackagesAreExact(t *testing.T) {
-	root := moduleRoot(t)
-	componentRoot := filepath.Join(root, "internal", "component")
-	for name, component := range temporaryComponents {
-		if component.owner == "" || component.deletePhase == "" {
-			t.Errorf("component package %s lacks an owner or deletion phase", name)
-		}
-	}
-	entries, err := os.ReadDir(componentRoot)
-	if err != nil {
-		t.Fatalf("read component umbrella: %v", err)
-	}
-	actual := make(map[string]struct{})
-	for _, entry := range entries {
-		if entry.IsDir() {
-			actual[entry.Name()] = struct{}{}
-		}
-	}
-	compareTemporarySet(t, "component package", actual, temporaryComponents)
 }
 
 func walkGoFiles(root string, visit func(path string, file *ast.File)) error {

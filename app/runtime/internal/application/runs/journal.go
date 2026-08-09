@@ -6,7 +6,7 @@ import (
 	"iter"
 	"sync"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/component/replaycursor"
+	"github.com/Tangerg/lynx/app/runtime/internal/replaycursor"
 )
 
 // liveHeadroom bounds queued live-only events per subscriber. Replayable events

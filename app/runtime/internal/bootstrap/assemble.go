@@ -17,6 +17,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/maintenance"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/modelcatalog"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/modelclient"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/notification"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/persistence"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/promptsource"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/runrecovery"
@@ -44,13 +45,12 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/tools"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/usage"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
-	"github.com/Tangerg/lynx/app/runtime/internal/component/idempotency"
-	"github.com/Tangerg/lynx/app/runtime/internal/component/shutdown"
-	"github.com/Tangerg/lynx/app/runtime/internal/component/signal"
-	"github.com/Tangerg/lynx/app/runtime/internal/component/taskgroup"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/skills"
+	"github.com/Tangerg/lynx/app/runtime/internal/idempotency"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/skillauthoring"
+	"github.com/Tangerg/lynx/app/runtime/internal/shutdown"
+	"github.com/Tangerg/lynx/app/runtime/internal/taskgroup"
 )
 
 // Stack is the assembled application: the coordinators + adapters the delivery
@@ -82,20 +82,20 @@ type Stack struct {
 	Runs        *runs.Coordinator
 	// FileChanges carries committed workspace mutation scopes to protocol
 	// subscribers without exposing a wire event to the producer.
-	FileChanges *signal.Signal[workspace.FileChangeNotice]
+	FileChanges NotificationSource[workspace.FileChangeNotice]
 	// MCPStatusChanges bridges the MCP coordinator's connection transitions
 	// to the delivery workspace hub, same seam as FileChanges. Delivery observes it.
-	MCPStatusChanges *signal.Signal[mcpapp.ServerStatus]
+	MCPStatusChanges NotificationSource[mcpapp.ServerStatus]
 	// SkillChanges bridges committed skill-library mutations to the delivery
 	// workspace hub. Delivery maps the nudge to a skills.changed event.
-	SkillChanges *signal.Signal[struct{}]
+	SkillChanges NotificationSource[struct{}]
 	// ScheduleFires bridges accepted scheduled-run notifications to the delivery
 	// workspace hub. Bootstrap owns the runner; delivery only observes this nudge.
-	ScheduleFires *signal.Signal[string]
+	ScheduleFires NotificationSource[string]
 	// Changes bridges every committed session / run / interrupt / goal / state change
 	// to the delivery hub, which names each one's topic. Same seam as the nudges
 	// above; the producers are the use cases that committed the write.
-	Changes          *signal.Signal[change.Notice]
+	Changes          NotificationSource[change.Notice]
 	ScheduleFiring   *schedules.Firing
 	IdempotencyStore idempotency.Store
 	GitAvailable     bool
@@ -254,7 +254,7 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 	// hub that names its topic. It is one channel rather than five because the
 	// producers publish the same shape (a resource plus the ids that moved), and the
 	// wire vocabulary belongs to delivery either way.
-	changes := &signal.Signal[change.Notice]{}
+	changes := &notification.Relay[change.Notice]{}
 	// Goal reads and terminal outcome reporting cross into the tool environment
 	// before the loop driver can be constructed. They remain separate application
 	// boundaries over the same change-publishing store.
@@ -274,7 +274,7 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 	workspaceScope := workspace.NewScope(cfg.DefaultWorkspacePath, cfg.UserHome, workspacepath.Resolver{})
 	// One signal covers every committed Skill-library mutation, including
 	// proposal submission and review decisions.
-	skillChanges := &signal.Signal[struct{}]{}
+	skillChanges := &notification.Relay[struct{}]{}
 	skillStore := skillauthoring.NewStore(cfg.SkillsUserDir, skills.ScopeUser)
 	var skillCurator workspace.SkillCurator
 	if skillStore.Enabled() {
@@ -385,7 +385,7 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 	// through the Run-segment adapter and publishes file-change nudges through the
 	// workspace signal. Agent execution is driven through the same semantic
 	// execution-control adapter consumed by application/runs.
-	fileChanges := &signal.Signal[workspace.FileChangeNotice]{}
+	fileChanges := &notification.Relay[workspace.FileChangeNotice]{}
 	runExecutor := interactionExecutor
 	// effectsTasks owns title generation after the synchronous checkpoint
 	// boundary; the Host joins accepted title tasks after the pumps.
@@ -415,7 +415,7 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 	})
 	// mcpStatus bridges the MCP coordinator's reconnect/authorize
 	// transitions to the delivery workspace stream the Server observes.
-	mcpStatus := &signal.Signal[mcpapp.ServerStatus]{}
+	mcpStatus := &notification.Relay[mcpapp.ServerStatus]{}
 	admissions := &admission.Gate{}
 	sessionStorage := persistence.NewSessionStores(persistence.SessionStoresConfig{
 		Sessions:            cfg.SessionStore,
@@ -522,7 +522,7 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 	}
 	runCoord := runs.NewCoordinator(runDeps)
 	lifetime.coordinator = runCoord
-	scheduleFires := &signal.Signal[string]{}
+	scheduleFires := &notification.Relay[string]{}
 	scheduleFiring := schedules.NewFiring(
 		cfg.ScheduleStore,
 		schedules.NewRunLauncher(runCoord, cfg.DefaultWorkspacePath, scheduleFires.Publish),

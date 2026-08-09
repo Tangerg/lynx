@@ -13,11 +13,11 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/observability"
 	"github.com/Tangerg/lynx/app/runtime/internal/bootstrap"
-	"github.com/Tangerg/lynx/app/runtime/internal/component/idempotency"
 	"github.com/Tangerg/lynx/app/runtime/internal/config"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/server"
 	lyrahttp "github.com/Tangerg/lynx/app/runtime/internal/delivery/transport/http"
+	"github.com/Tangerg/lynx/app/runtime/internal/idempotency"
 )
 
 func run(ctx context.Context, errw io.Writer) (err error) {

@@ -1,4 +1,4 @@
-// Package completion owns the common join rule for authoritative completion
+// Package completion owns the shared join rule for authoritative completion
 // boundaries.
 package completion
 

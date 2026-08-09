@@ -194,7 +194,7 @@ P1 已建立：
 - Agent2 importing leaf 与 imported public package 的双重 exact allowlist；
 - 旧 Agent import 的逐文件、逐数量、逐 owner 和删除阶段台账；
 - Domain、Application 与 Delivery 既有 external SDK denylist；
-- context-based Domain I/O port、`component` direct package、旧 private snapshot decoder 和旧 lifecycle owner 的精确 Temporary 台账；
+- context-based Domain I/O port、旧 private snapshot decoder 和旧 lifecycle owner 的精确 Temporary 台账；
 - compatibility/legacy/versioned source directory 禁令。
 
 机器 owner 是 `internal/arch/target_architecture_test.go` 与 `internal/arch/temporary_architecture_test.go`；本文件不复制易漂移的逐文件集合。
@@ -205,7 +205,7 @@ P2–P10 继续逐步建立：
 - SQLite schema epoch 和 prior-version rejection test；
 - checkpoint envelope strict codec、size、copy、round-trip 和 prior-version rejection（P6 已覆盖 native TreeSnapshot parser、copy、corrupt/wrong-build/deployment；P8 随 production owner 收口剩余 envelope guard）；
 - Agent2 type/name leakage AST guard；
-- no `component/common/core/utils` package guard；
+- no `component/common/core/utils` package guard（P9 已建立准确 shared-capability purity allowlist）；
 - no alias/dual codec/legacy path guard；
 - exported contract GoDoc/parameter/error wrapping guard where the contract is intentionally frozen。
 
@@ -215,7 +215,6 @@ P2–P10 继续逐步建立：
 - Runtime 对 Agent2 Platform 的接入；
 - 前端/TUI/CLI 新 consumer API；
 - Delivery `server`/`dispatch` 保持现名；未由真实职责变化证明时不做目录改名；
-- 未由使用图裁决的 `component` 最终位置；
 - 未来数据库 epoch、artifact version 或 Agent2 TreeSnapshot version。
 
 这些内容不能以 placeholder、预留字段或空接口提前进入代码；真实阶段完成后再冻结。

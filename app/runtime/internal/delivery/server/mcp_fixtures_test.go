@@ -7,7 +7,6 @@ import (
 	"sync"
 
 	mcpapp "github.com/Tangerg/lynx/app/runtime/internal/application/mcp"
-	"github.com/Tangerg/lynx/app/runtime/internal/component/signal"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 )
 
@@ -126,7 +125,7 @@ func serverWithMCP(cfg mcpapp.Config) *Server {
 		policy := mcpserver.NewToolPolicy(nil)
 		cfg.Policy = mcpapp.NewToolPolicyState(policy)
 	}
-	mcpStatus := &signal.Signal[mcpapp.ServerStatus]{}
+	mcpStatus := &testNotification[mcpapp.ServerStatus]{}
 	cfg.StatusChanged = mcpStatus.Publish
 	s := &Server{mcp: mcpapp.New(cfg), wsHub: newWorkspaceHub()}
 	s.observeMCPStatusChanges(mcpStatus)

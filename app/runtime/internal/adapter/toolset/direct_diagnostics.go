@@ -13,8 +13,8 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/catalog"
 	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
-	"github.com/Tangerg/lynx/app/runtime/internal/component/pathidentity"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
+	"github.com/Tangerg/lynx/app/runtime/internal/infra/pathidentity"
 	"github.com/Tangerg/lynx/tools/fs"
 )
 

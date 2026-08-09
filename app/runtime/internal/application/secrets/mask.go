@@ -1,6 +1,6 @@
-// Package secretmask provides fixed-width redaction for values and diagnostics
-// that may leave their secret-owning boundary.
-package secretmask
+// Package secrets provides application-level handling for credential values
+// that may cross a presentation or diagnostic boundary.
+package secrets
 
 const (
 	maskStars      = "****"

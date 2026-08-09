@@ -16,7 +16,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/goals"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	scheduleapp "github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
-	"github.com/Tangerg/lynx/app/runtime/internal/component/shutdown"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/accounting"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
@@ -24,6 +23,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/skillauthoring"
 	sqlitestore "github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
+	"github.com/Tangerg/lynx/app/runtime/internal/shutdown"
 	"github.com/Tangerg/lynx/chatclient"
 )
 
@@ -300,7 +300,7 @@ func TestAssemblyBuilderFailureReclaimsReturnedAcquisitions(t *testing.T) {
 func TestAssemblyFailureRetainsRetryableCleanupOwner(t *testing.T) {
 	cfg := runtimeConfigWithRequiredDeps(t)
 	// Fail after tools exist, then make the last tool closer fail once. The
-	// Assembly must retain the same shutdown.Step so a retry continues the
+	// Assembly must retain the same shutdown step so a retry continues the
 	// dependency-ordered teardown instead of silently abandoning it.
 	cfg.BuildID = "dev"
 	closeErr := errors.New("tool close")

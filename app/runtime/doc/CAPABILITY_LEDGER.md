@@ -41,7 +41,7 @@
 | Agent anti-corruption | Agent2 native tree、model/tool Effect、waiting/restore/steer、Delegate child 与 prepared subtree change 均由 `adapter/agentexec` 生产 owner 独占 | Retain | P8 已接管生产；旧 Framework lifecycle 已删除 |
 | Delivery separation | P1 起 target DAG 禁止 Delivery import 任意 concrete Adapter；protocol/dispatch/server/transport 继续按现有职责迁移 | Retain + naming audit | P1 guard；P9–P10 收口 |
 | Adapter/Infra direction | 当前主要为 Adapter 使用 Infra，Infra 不反向 import Adapter | Retain + package audit | P9 |
-| Component primitives | 十个 direct package 已由 P1 exact ledger 锁定，不能新增；umbrella 名仍过宽 | Refactor ownership | P9 |
+| Shared capabilities | `component` umbrella 已删除；仅保留七个经多消费者或 codec boundary 证明的准确顶层 capability | Retain exact packages | P9 第一批已完成，永久 purity guard |
 | Contract generation | `contract/` 已生成 manifest/OpenRPC/schema/TypeScript | Retain | P10 |
 | SQLite exact epoch | epoch 62 单一 shape，无生产 migration chain | Retain | P6 已推进；P8/P10 继续 |
 
@@ -216,22 +216,22 @@ P8 production cutover 已用真实 Bootstrap consumer 冻结 root stage/observe/
 
 ## 9. 结构清理台账
 
-### 9.1 `component`
+### 9.1 Shared capabilities
 
-| 当前 package | 初步 owner verdict | 最终裁决阶段 |
+| 能力 | 最终 owner | 证据 |
 |---|---|---|
-| completion | 移到拥有等待/完成语义的 Application owner，或证明多 consumer 后准确提升 | P9 |
-| httporigin | HTTP/MCP 真实消费者裁决，不能留泛 component | P9 |
-| idempotency | RPC/transport 或 persistence owner，按身份语义拆分，不能虚假共享 | P9 |
-| keyset | 查询/pagination 真实 owner | P9 |
-| pathidentity | workspace/execution adapter owner 或准确共享 package | P9 |
-| replaycursor | Run journal/RPC replay owner | P9 |
-| secretmask | model/MCP config projection owner 或准确共享 package | P9 |
-| shutdown | bootstrap/host lifecycle owner | P9 |
-| signal | 真实使用点裁决，避免与 Agent2 Signal 同名 | P9 |
-| taskgroup | bootstrap/application task ownership；若多 owner 证明则准确共享 | P9 |
+| completion | `internal/completion` | Application、taskgroup、shutdown 共享同一 completion-first join rule |
+| HTTP origin | `internal/httporigin` | Application MCP policy 与 Infra MCP redirect security 共用纯 normalization |
+| idempotency | `internal/idempotency` | Delivery consumer port 与 SQLite implementation 共享 opaque record/errors |
+| pagination cursor | `internal/pagination` | 多 Application reads 与 Delivery error mapping 共用；base64/JSON codec 不进入 Application ring |
+| replay cursor | `internal/replaycursor` | Run journal 拥有位置语义；opaque base64/JSON codec 保持在 ring 外的准确 capability |
+| shutdown | `internal/shutdown` | Bootstrap 只装配/调用；deadline-aware teardown mechanism 不藏进 composition root |
+| task group | `internal/taskgroup` | Application、Delivery transport 与 Bootstrap 共享 request-detached task ownership |
+| path identity | `infra/pathidentity` | filesystem/symlink identity 是技术机制，Adapter 单向消费 Infra |
+| secret masking | `application/secrets` | model/MCP 两个 Application consumer 共享 presentation-boundary policy |
+| notification relay | `adapter/notification` | Bootstrap 只组装，producer/Delivery 各见其最小 method set；避免与 Agent2 Signal 同名 |
 
-这些是待使用图验证的 owner verdict，不是提前指定机械移动路径。最终要求是 umbrella `component` 清零且依赖不反转。
+`internal/component` 已物理删除；永久架构守卫只允许上表经证明的准确共享 capability，且禁止其反向依赖任何产品 ring。
 
 ### 9.2 Adapter/Infra
 
@@ -256,7 +256,7 @@ P8 production cutover 已用真实 Bootstrap consumer 冻结 root stage/observe/
 - Application/Domain 中 `execution` package path；
 - Product-facing `ProcessID`/`TurnID` terminology；
 - Delivery 对 concrete agentexec/persistence/infra 的直接控制；
-- `component` umbrella；
+- `component` umbrella（P9 已删除并由永久 guard 禁止）；
 - temporary architecture exceptions；
 - alias、dual wire、compat decoder、空目录和历史 TODO。
 

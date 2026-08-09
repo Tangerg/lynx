@@ -10,8 +10,8 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/auth"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/component/httporigin"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
+	"github.com/Tangerg/lynx/app/runtime/internal/httporigin"
 	lynxmcp "github.com/Tangerg/lynx/mcp"
 )
 

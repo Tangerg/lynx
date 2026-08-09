@@ -11,10 +11,10 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/admission"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/change"
-	"github.com/Tangerg/lynx/app/runtime/internal/component/replaycursor"
-	"github.com/Tangerg/lynx/app/runtime/internal/component/taskgroup"
 	rundomain "github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/replaycursor"
+	"github.com/Tangerg/lynx/app/runtime/internal/taskgroup"
 )
 
 // ErrClosed is returned by [Coordinator.Start] once the Coordinator is closing:
