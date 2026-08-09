@@ -3,7 +3,7 @@
 > 状态：持续实施
 > 建立日期：2026-08-06
 > 最后更新：2026-08-10
-> 当前阶段：P1–P13 完成；P14 二次反证精修进行中
+> 当前阶段：P1–P14 完成
 > 当前实施范围：Framework 重写、消费迁移与 canonical module 替换均已完成；Runtime 最终验收由 `app/runtime` 专项文档拥有
 > 模块路径：`github.com/Tangerg/lynx/agent`
 
@@ -81,7 +81,7 @@ go test ./...
 | P11 原模块替换 | 完成 | 5/5 | 原实现和临时路径已删除，唯一 canonical module 已发布并通过最终门禁 |
 | P12 重写后精修 | 完成 | 3/3 | 在不改变公共合同的前提下清除实现复杂度、重复职责和边界门禁盲区 |
 | P13 模块内部精修 | 完成 | 3/3 | 继续反证模块内部状态、资源、并发、观察与测试 owner，治本清除新发现的坏味道 |
-| P14 二次反证精修 | 进行中 | 2/3 | 从公开 capability 误用、内部签名与命名反例继续证明并收紧模块不变量 |
+| P14 二次反证精修 | 完成 | 3/3 | 从公开 capability 误用、内部签名与命名反例继续证明并收紧模块不变量 |
 
 ---
 
@@ -232,7 +232,7 @@ go test ./...
 
 - [x] P14-01 使一次性 prepared authority 对意外值副本仍保持共享线性化，并清除已确认的内部返回值、context 顺序、receiver 与局部名称噪声。
 - [x] P14-02 继续反证 Kernel、Interaction、Planning、Workflow、Platform 与 OTel 的内部 owner、状态和并发边界，只修复有行为证据的真实坏味道。
-- [ ] P14-03 完成 standalone build/vet/staticcheck/lint/test/race/fuzz/examples、公开/私有合同和残留复扫，冻结二次精修事实。
+- [x] P14-03 完成 standalone build/vet/staticcheck/lint/test/race/fuzz/examples、公开/私有合同和残留复扫，冻结二次精修事实。
 
 ---
 
@@ -279,6 +279,7 @@ go test ./...
 
 | 日期 | 阶段 | 实际事实 | 验证与结果 |
 |---|---|---|---|
+| 2026-08-10 | P14-03 | 完成 Kernel、Interaction、Planning/GOAP、Workflow、Platform 与 OTel 的最终反向复核。额外 errname/mirror/nilness/wastedassign/unparam/gocritic/dupl 扫描为 0；安全扫描剩余的 slice-length 窄化均已有 snapshot/payload、Definition、TreeLimit 或 uint32 protocol 上界证明，child loop 使用独立 background context 则保持“子 Process 生命周期不从属于父 Step 请求”的明确合同，不为追逐告警数字改变语义。生产 package、DAG、公共命名、private owner、mutable state 与 Context 边界未发现新反例 | standalone tidy-diff/build/vet/staticcheck/完整 lint/禁缓存 test 全绿；13 个 fuzz owner 约 301 万次执行，8 个公开 command examples 实际运行，根/Interaction/Planning/GOAP/Workflow/OTel/Platform 各 10 轮 race/stress 全绿。空文件/目录、生产 TODO/FIXME/HACK、Runtime import、旧 agent2 路径与 diff 残留为 0；deadcode 仅剩由 Baseline 17 冻结、供外部消费者使用的 `DeltaListenerFunc.OnDelta` adapter。P14 3/3 完成 |
 | 2026-08-10 | P14-02 | 第二轮逐 owner 反证清除四组事实问题：Process Event 只在完整构造后提交 sequence，表示上限保持饱和不回绕；OTel 对 uint64 sequence 使用无损十进制 attribute、对 Delta drop `Int64Counter` 显式饱和，并在 Close 后分派前退出；Interaction Tool-input pause count 在 `MaxUint32` 明确失败而不回绕；child wait 的“未即时满足”从 `nil, nil` 收敛为 value + satisfied bool，私有 error type 使用 Go `Error` 后缀，Capability 排序直接比较 string。Engine/Observer GoDoc 统一 mutable pointer owner，Process GoDoc 明确 command ctx 不撤销 loop 已接收的命令。没有新增 package、interface、Host 抽象或 wire，OTel sequence attribute 直接切换准确 string，不保留双类型 | 新增 invalid/max Event sequence、OTel uint64/metric saturation/Close、Tool-input pause 极值与 child-wait 返回合同测试；standalone build/vet/staticcheck/项目完整 lint、禁缓存 test/race 与 baseline/diff check 全绿。根与 OTel GoDoc 形成 Baseline 17；fuzz/examples 与最终残留复扫在 P14-03 门禁统一执行 |
 | 2026-08-10 | P14-01 | 发现 exported prepared capability 的 `sync.Mutex + resolved bool` 直接内嵌于可复制值中，显式值副本会共享 gate/tree 资源却分裂一次性状态。现以只含 Framework primitive 的共享 resolution identity 线性化所有别名，zero/nil value 保持 invalid；架构反射守卫锁定两层字段，公开 GoDoc 准确说明副本不能复制 authority。同步移除 Interaction active ToolCall segment 永远未消费的 assistant 返回值，统一 terminal snapshot 的 error-last 返回顺序、context-first 私有边界、prepared state receiver、恢复局部名称与示例泛型函数值；未新增 package/interface/Host 术语，也未改变公开签名或 wire | 原值与显式副本并发 Apply/Discard 的定向 race 反例通过，恰好一个 resolution 成功。standalone build/vet/staticcheck/项目完整 lint、禁缓存 test/race、13 个 fuzz owner（约 318 万次执行）、8 个公开 command examples、tidy-diff、duplicate/unparam/gocritic 与残留扫描全绿；deadcode 仅报告两个已冻结且供外部消费者使用的 listener function adapters。根 GoDoc 显式形成 Baseline 16 |
 | 2026-08-10 | P13-03 | 完成最终职责与复杂度精修。Workflow `Stage.Valid` 不再为六种 sealed behavior 复制互斥布尔式，而由 Stage 自己判定唯一 active behavior 与 declared kind 一致；Process Snapshot 的总校验拆回 contract/relation/progress/lifecycle/control 各自 owner；覆盖 child recursion、fan-out、wait、budget 与 termination 的测试 Execution 从一个 141 cognitive/77 cyclomatic 的相位巨函数拆为可命名的状态行为；API/GoDoc 与 Workflow sealed-algebra 架构守卫共用各自唯一生产文件枚举和文件级断言。没有新增接口、package、service object 或公共 helper，也没有改变 exported API、wire/schema、DAG、Strategy/Kernel 边界。最终 production complexity 仅保留 `quiesceTree` 的 tree-membership convergence barrier 与 Planning sealed phase validator 两个完整领域不变量，不拆成第二 scheduler 或分散非法状态矩阵 | `GOWORK=off` build/vet、staticcheck、完整 lint（0 issues）、禁用缓存 race、13 个 fuzz owner（首次并行资源竞争触发一次 harness deadline，隔离重跑五个 Planning target 全部通过）、8 个公开 command examples、tidy-diff 与 diff check 全绿。duplicate scan 为 0；生产 TODO/FIXME/HACK、Host 抽象词、空文件/空目录与跨层依赖残留为 0。P13 3/3 完成 |
@@ -368,4 +369,4 @@ go test ./...
 
 ## 9. 当前下一步
 
-P1–P13 与真实 Runtime consumer 证明的 Framework 合同均已完成。P14-01/P14-02 已固定一次性 prepared authority、Event/OTel 数值边界、Tool-input 极值、mutable owner identity 与 Process command context，形成 Baseline 17。下一步只做 P14-03 最终门禁与反向残留复扫；不得以 Runtime 产品、Store、transaction、Run 或消费者术语污染 Framework。
+P1–P14 与真实 Runtime consumer 证明的 Framework 合同均已完成。`agent` 当前保持唯一 Kernel lifecycle owner、可替换 Strategy、sealed Workflow algebra 与独立 Platform/OTel adapters；一次性 authority、观察数值、mutable owner identity 与 command context 由 Baseline 17 和行为门禁共同冻结。后续只有新的 Framework 能力证据或真实消费者反例才能重开设计，不得以 Runtime 产品、Store、transaction、Run 或消费者术语污染 Framework。

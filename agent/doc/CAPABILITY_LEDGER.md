@@ -576,3 +576,9 @@
 - OTel 对 Process/Step sequence 使用十进制字符串保留全部 `uint64`；Delta drop 先按 Event owner 的 `uint64` payload 解码，再对官方 `Int64Counter` 做显式 `MaxInt64` 饱和。Observer Close 后的 Event 不再写 span/metric。
 - Interaction Tool-input pause count 在 `MaxUint32` 明确失败，不生成 `PauseCount=0` 的伪初态；child wait 的即时完成使用 value + satisfied bool，不再用 `nil, nil` 同时表达“合法未满足”和无结果。
 - Process Snapshot v6、TreeSnapshot v4、Interaction state/protocol v5/v3 与 Event/Delta wire 均未改变；OTel sequence attribute 类型直接切换为准确 string，不维护旧 int64 双写。
+
+### 16.4 P14 最终验收
+
+- Kernel、Interaction、Planning/GOAP、Workflow、Platform 与 OTel 已完成第二轮逐 owner 反证；未发现新的跨 package owner、Host import、第二 scheduler、mutable registry、兼容路径或私有 wire 解释者。
+- standalone build/vet/staticcheck/完整 lint/test、13 个 fuzz owner、8 个 command examples 与核心 package 10 轮 race/stress 共同证明 Baseline 17；生产空文件/目录、TODO/FIXME/HACK 与旧 module path 为 0。
+- deadcode 只报告 `DeltaListenerFunc.OnDelta`：它是 Baseline 17 冻结的外部实现 adapter，内部没有消费方不构成不可达生产能力。其余 duplicate、unparam、gocritic、errname、mirror、nilness 和 wasted assignment 扫描为 0。
