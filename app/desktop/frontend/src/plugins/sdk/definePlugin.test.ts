@@ -313,7 +313,7 @@ describe("lazy activation", () => {
           host.commands.register({ id: "ok", label: "OK", run: () => {} });
           try {
             // host.window is not declared — must throw.
-            (host as unknown as Record<string, { setTitle: () => void }>).window!.setTitle();
+            host.window.setTitle("denied");
           } catch (err) {
             captured = err;
           }
