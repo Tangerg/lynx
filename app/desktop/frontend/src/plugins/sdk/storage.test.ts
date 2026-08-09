@@ -1,5 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createStorage } from "./storage";
+
+afterEach(() => vi.restoreAllMocks());
 
 describe("createStorage", () => {
   it("round-trips JSON values under a namespaced key", () => {
@@ -64,5 +66,39 @@ describe("createStorage", () => {
     // Bypass the typed setter to plant a raw value.
     localStorage.setItem("lyra.plugin.alpha.raw", "not-json");
     expect(s.get("raw")).toBe("not-json");
+  });
+
+  it("contains failures from every Storage operation", () => {
+    const denied = new DOMException("denied", "SecurityError");
+    const deniedStorage = {
+      get length(): number {
+        throw denied;
+      },
+      clear(): void {
+        throw denied;
+      },
+      getItem(): string | null {
+        throw denied;
+      },
+      key(): string | null {
+        throw denied;
+      },
+      removeItem(): void {
+        throw denied;
+      },
+      setItem(): void {
+        throw denied;
+      },
+    } satisfies Storage;
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.spyOn(window, "localStorage", "get").mockReturnValue(deniedStorage);
+
+    const storage = createStorage("alpha");
+    expect(storage.get("key")).toBeUndefined();
+    expect(storage.keys()).toEqual([]);
+    expect(() => storage.set("key", "value")).not.toThrow();
+    expect(() => storage.remove("key")).not.toThrow();
+    expect(() => storage.clear()).not.toThrow();
+    expect(warn).toHaveBeenCalledTimes(3);
   });
 });

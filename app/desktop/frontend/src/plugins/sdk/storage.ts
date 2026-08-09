@@ -22,73 +22,73 @@ export interface KeyValueStore {
   keys: () => string[];
 }
 
+function readStorage<T>(fallback: T, read: (storage: Storage) => T): T {
+  try {
+    if (typeof window === "undefined") return fallback;
+    return read(window.localStorage);
+  } catch {
+    return fallback;
+  }
+}
+
+function writeStorage(operation: string, write: (storage: Storage) => void): void {
+  try {
+    if (typeof window === "undefined") return;
+    write(window.localStorage);
+  } catch (error) {
+    console.warn(`[plugin] storage.${operation} failed:`, error);
+  }
+}
+
 export function createStorage(pluginName: string): KeyValueStore {
   const prefix = `${ROOT}.${pluginName}.`;
 
-  // localStorage may throw in private-mode or sandboxed contexts. Wrap every
-  // op so a plugin author doesn't have to handle the cross-browser quirks.
-  const safeStorage = (): Storage | null => {
-    try {
-      return typeof window !== "undefined" ? window.localStorage : null;
-    } catch {
-      return null;
-    }
-  };
-
   return {
     get(key: string): unknown {
-      const ls = safeStorage();
-      if (!ls) return undefined;
-      const raw = ls.getItem(prefix + key);
-      if (raw == null) return undefined;
-      try {
-        const parsed: unknown = JSON.parse(raw);
-        return parsed;
-      } catch {
-        // Stored as opaque string — return as-is.
-        return raw;
-      }
+      return readStorage<unknown>(undefined, (storage) => {
+        const raw = storage.getItem(prefix + key);
+        if (raw == null) return undefined;
+        try {
+          const parsed: unknown = JSON.parse(raw);
+          return parsed;
+        } catch {
+          return raw;
+        }
+      });
     },
 
     set(key: string, value: unknown): void {
-      const ls = safeStorage();
-      if (!ls) return;
-      try {
-        ls.setItem(prefix + key, JSON.stringify(value));
-      } catch (err) {
-        // Quota exceeded, etc. Surface to console but don't throw — plugins
-        // shouldn't crash because storage is full.
-
-        console.warn(`[plugin] storage.set("${key}") failed:`, err);
-      }
+      writeStorage(`set("${key}")`, (storage) => {
+        storage.setItem(prefix + key, JSON.stringify(value));
+      });
     },
 
     remove(key: string): void {
-      const ls = safeStorage();
-      if (!ls) return;
-      ls.removeItem(prefix + key);
+      writeStorage(`remove("${key}")`, (storage) => {
+        storage.removeItem(prefix + key);
+      });
     },
 
     clear(): void {
-      const ls = safeStorage();
-      if (!ls) return;
-      const doomed: string[] = [];
-      for (let i = 0; i < ls.length; i++) {
-        const k = ls.key(i);
-        if (k && k.startsWith(prefix)) doomed.push(k);
-      }
-      for (const k of doomed) ls.removeItem(k);
+      writeStorage("clear()", (storage) => {
+        const doomed: string[] = [];
+        for (let i = 0; i < storage.length; i++) {
+          const key = storage.key(i);
+          if (key?.startsWith(prefix)) doomed.push(key);
+        }
+        for (const key of doomed) storage.removeItem(key);
+      });
     },
 
     keys(): string[] {
-      const ls = safeStorage();
-      if (!ls) return [];
-      const out: string[] = [];
-      for (let i = 0; i < ls.length; i++) {
-        const k = ls.key(i);
-        if (k && k.startsWith(prefix)) out.push(k.slice(prefix.length));
-      }
-      return out;
+      return readStorage<string[]>([], (storage) => {
+        const keys: string[] = [];
+        for (let i = 0; i < storage.length; i++) {
+          const key = storage.key(i);
+          if (key?.startsWith(prefix)) keys.push(key.slice(prefix.length));
+        }
+        return keys;
+      });
     },
   };
 }
