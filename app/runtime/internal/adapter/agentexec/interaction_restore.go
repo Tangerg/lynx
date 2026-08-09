@@ -6,8 +6,8 @@ import (
 	"math"
 	"slices"
 
-	agent "github.com/Tangerg/lynx/agent2"
-	"github.com/Tangerg/lynx/agent2/interaction"
+	agent "github.com/Tangerg/lynx/agent"
+	"github.com/Tangerg/lynx/agent/interaction"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/accounting"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"

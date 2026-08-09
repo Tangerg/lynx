@@ -183,12 +183,12 @@ interface ToolCallingManager { List<ToolDefinition> resolveToolDefinitions(...);
 
 工具循环由 `ToolCallingAdvisor` 在 advisor chain 里跑(见 §6),或由 `ToolCallingManager` 编排。
 
-**lynx**:**core 只保留协议值**(`ToolDefinition`、tool-call part、tool-result part),**执行与循环全在 `agent/toolloop`**。
+**lynx**:**core 只保留协议值**(`ToolDefinition`、tool-call part、tool-result part),**可执行 Tool 与托管循环分别属于 `tool` 和 `agent/interaction`**。
 
-- core `chat` 只有 `ToolDefinition`、`ToolCall`、`ToolResult` 等协议值,**没有可执行 `Tool` 接口**,也没有 `ToolCallingManager` 这类编排服务。可执行工具的最小接口位于外圈 `tools` 模块。
-- 工具循环是 `agent/toolloop.Runner`:消费 `chat.Model` + `Request` + `ToolResolver`,emit `iter.Seq2` 的 `Event`;工具默认互斥,实现 `ConcurrentTool` 后可按 resource key 做有界 conflict-aware 并发,但结果与 continuation 始终按原 tool-call 顺序提交;无自动 retry,可 `checkpoint`/`resume`(pause 在 pending call 处续跑,不重放已完成工具或模型轮)。协议值与运行时状态**分离**:model request/response 是协议值,可执行工具在运行时的 `ToolResolver` 里,pause/resume 通过 `Event` 表达,不往 provider `Response` 塞运行时状态。
+- core `chat` 只有 `ToolDefinition`、`ToolCall`、`ToolResult` 等协议值，**没有可执行 `Tool` 接口**，也没有 `ToolCallingManager` 这类编排服务。可执行工具的最小接口位于外圈 `tool` 模块，typed function 和具体实现继续通过 sibling `tools` 组合。
+- 托管模型→Tool→模型循环是原生 `agent/interaction` Strategy：Definition 冻结契约与上限，Dispatcher 持有 `chatclient.Client` 和可执行 Tools，Engine 通过 Process/Effect/Signal 推进并以完整 TreeSnapshot 恢复。工具默认串行，只有 `ConcurrentTool` 明确声明后才按 resource key 有界并发；结果与 continuation 始终按原 ToolCall 顺序提交。无可证明 settlement 不自动重试；Tool 输入等待由 Engine-minted WaitID 和 Strategy-owned checkpoint 表达，不往 provider `Response` 塞运行时状态，也不存在第二 Runner/Resume 生命周期。
 
-**取舍与理由**:core 是"协议,不是总框架"。`ToolCallingManager` / 工具循环是**运行时语义**,不是 provider 之间稳定共享的协议 —— 放 core 会让 core 反向不变量(❌ 在 core 放 tool executor/registry / agent control flow)破功。lynx 把它下沉到 agent framework,core 只欠"一个 tool-call 长什么样"的协议定义。此外 lynx 不把 structured output 当 tool-options 的一个开关(Spring 的 `StructuredOutputChatOptions`),而由 `chatclient.Output[T]` 组合调用方拥有的 instructions 与 decoder；`agent.Prompt[T]` 只把这个 abstraction 接入 managed ToolLoop。Reasoning 是 first-class([[feedback_structured_output_closed]])。
+**取舍与理由**:core 是"协议,不是总框架"。`ToolCallingManager` / 工具循环是**运行时语义**,不是 provider 之间稳定共享的协议 —— 放 core 会让 core 反向不变量(❌ 在 core 放 tool executor/registry / agent control flow)破功。lynx 把执行窄腰放在 Agent Framework，core 只定义"一个 ToolCall 长什么样"。此外 lynx 不把 structured output 当 tool-options 的一个开关(Spring 的 `StructuredOutputChatOptions`)，而由 `chatclient.CallStructured` 组合调用方拥有的 instructions 与 decoder；需要恢复和治理时再由 typed Agent Input/Output schema 接入 managed Process。
 
 ---
 

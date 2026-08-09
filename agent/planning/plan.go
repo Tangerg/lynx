@@ -1,233 +1,132 @@
 package planning
 
 import (
+	"encoding/json"
 	"fmt"
+	"math"
 	"slices"
-
-	"github.com/Tangerg/lynx/agent/core"
-	"github.com/Tangerg/lynx/agent/internal/nilvalue"
-	"github.com/Tangerg/lynx/agent/internal/score"
 )
 
-// Plan is a planner output: an ordered action chain whose accumulated effects
-// achieve its goal. It owns the chain's slice storage but retains the action
-// capabilities. [Domain.Plans] validates and replaces candidates with the
-// Domain's canonical actions before returning a plan to runtime. An empty
-// chain with a non-nil goal means the goal is already satisfied.
-type Plan struct {
-	actions []core.Action
-	goal    *core.Goal
+// PlannedAction is one immutable Action reference in Planner-selected order.
+// It contains no executable capability or copied Action metadata.
+type PlannedAction struct {
+	name string
 }
 
-// PlanDescriptor is the immutable, non-executable projection of a plan.
-// It is the observation shape; the executable Plan remains private to planning
-// and runtime control flow.
-type PlanDescriptor struct {
-	actions []core.ActionDescriptor
-	goal    core.GoalDescriptor
+// NewPlannedAction constructs a stable reference to a named Action.
+func NewPlannedAction(name string) (PlannedAction, error) {
+	if !validName(name) {
+		return PlannedAction{}, fmt.Errorf("%w: invalid Action name %q", ErrInvalidPlan, name)
+	}
+	return PlannedAction{name: name}, nil
 }
 
-// NewPlan constructs a complete planner result and snapshots the action chain.
-func NewPlan(actions []core.Action, goal *core.Goal) *Plan {
-	return &Plan{actions: slices.Clone(actions), goal: goal}
+// Name returns the referenced Action identity.
+func (action PlannedAction) Name() string { return action.name }
+
+// Valid reports whether the reference contains a valid Action identity.
+func (action PlannedAction) Valid() bool { return validName(action.name) }
+
+// MarshalJSON returns the validated Action reference.
+func (action PlannedAction) MarshalJSON() ([]byte, error) {
+	if !action.Valid() {
+		return nil, ErrInvalidPlan
+	}
+	return json.Marshal(action.name)
 }
 
-// Actions returns a snapshot of the ordered action chain.
-func (p *Plan) Actions() []core.Action {
-	if p == nil {
-		return nil
+// UnmarshalJSON replaces action with a strictly decoded Action reference.
+func (action *PlannedAction) UnmarshalJSON(data []byte) error {
+	if action == nil {
+		return fmt.Errorf("%w: nil PlannedAction receiver", ErrInvalidPlan)
 	}
-	return slices.Clone(p.actions)
-}
-
-// Goal returns the immutable target of the plan.
-func (p *Plan) Goal() *core.Goal {
-	if p == nil {
-		return nil
+	var name string
+	if err := decodeStrict(data, &name); err != nil {
+		return fmt.Errorf("%w: decode PlannedAction: %w", ErrInvalidPlan, err)
 	}
-	return p.goal
-}
-
-// Descriptor projects a plan without exposing executable actions or score
-// functions.
-func (p *Plan) Descriptor() PlanDescriptor {
-	if p == nil {
-		return PlanDescriptor{}
+	value, err := NewPlannedAction(name)
+	if err != nil {
+		return err
 	}
-	actions := make([]core.ActionDescriptor, len(p.actions))
-	for index, action := range p.actions {
-		if !nilvalue.Is(action) {
-			actions[index] = action.Metadata().Descriptor()
-		}
-	}
-	return PlanDescriptor{actions: actions, goal: p.goal.Descriptor()}
-}
-
-// Actions returns an independent snapshot of the ordered action descriptions.
-func (d PlanDescriptor) Actions() []core.ActionDescriptor {
-	return slices.Clone(d.actions)
-}
-
-// Goal returns the plan's inert target description.
-func (d PlanDescriptor) Goal() core.GoalDescriptor { return d.goal }
-
-// Complete reports whether the descriptor contains no action to execute.
-func (d PlanDescriptor) Complete() bool { return len(d.actions) == 0 }
-
-// Complete reports whether no more work is needed for this goal.
-func (p *Plan) Complete() bool {
-	return p == nil || len(p.actions) == 0
-}
-
-// TotalCost is the sum of action costs; the planner uses it to rank competing
-// plans. It samples each action's cost against the supplied world state so
-// dynamic-cost actions get evaluated correctly. Actions with a nil Cost
-// contribute nothing — the canonical construction path ([core.NewAction])
-// fills in [core.FixedScore](1.0).
-func (p *Plan) TotalCost(worldState core.WorldState) float64 {
-	if p == nil {
-		return 0
-	}
-
-	total := 0.0
-	for _, action := range p.actions {
-		if nilvalue.Is(action) {
-			continue
-		}
-		if fn := action.Metadata().Cost; fn != nil {
-			total += fn(worldState)
-		}
-	}
-	return total
-}
-
-// GoalValue evaluates the goal value. A nil goal contributes zero.
-func (p *Plan) GoalValue(worldState core.WorldState) float64 {
-	if p == nil || p.goal == nil {
-		return 0
-	}
-	return p.goal.Value(worldState)
-}
-
-// TotalActionValue is the sum of the plan's action values, sampled against the
-// supplied world state so dynamic-value actions get evaluated correctly.
-// Actions with a nil Value contribute nothing — the canonical construction
-// path ([core.NewAction]) fills in [core.FixedScore](0), so this term is zero
-// unless an action opts into a non-trivial value.
-func (p *Plan) TotalActionValue(worldState core.WorldState) float64 {
-	if p == nil {
-		return 0
-	}
-
-	total := 0.0
-	for _, action := range p.actions {
-		if nilvalue.Is(action) {
-			continue
-		}
-		if fn := action.Metadata().Value; fn != nil {
-			total += fn(worldState)
-		}
-	}
-	return total
-}
-
-// NetValue ranks competing plans as goal value plus [Plan.TotalActionValue] minus
-// [Plan.TotalCost]. The actions term is what stops the ranking from always preferring
-// the cheapest path to a goal; most actions leave Value at
-// [core.FixedScore](0), so it contributes nothing unless an author opts in.
-func (p *Plan) NetValue(worldState core.WorldState) float64 {
-	return p.GoalValue(worldState) + p.TotalActionValue(worldState) - p.TotalCost(worldState)
-}
-
-// sortByNetValueDesc sorts plans in place by NetValue descending.
-// NetValue is computed once per plan against worldState (the standard
-// "evaluate at plan-selection time" snapshot) and the cached keys
-// drive a stable sort — so each plan's NetValue is touched once
-// instead of O(n log n) times.
-//
-// Used by [Domain.Plans] to rank candidates;
-// hoisted here so the three implementations don't drift on the
-// (subtle) ranking semantics.
-func sortByNetValueDesc(plans []*Plan, worldState core.WorldState) error {
-	if len(plans) < 2 {
-		if len(plans) == 1 {
-			_, err := plans[0].checkedNetValue(worldState)
-			return err
-		}
-		return nil
-	}
-	type keyed struct {
-		plan *Plan
-		net  float64
-	}
-	ranked := make([]keyed, len(plans))
-	for index, plan := range plans {
-		net, err := plan.checkedNetValue(worldState)
-		if err != nil {
-			return err
-		}
-		ranked[index] = keyed{plan: plan, net: net}
-	}
-	slices.SortStableFunc(ranked, func(left, right keyed) int {
-		switch {
-		case left.net > right.net:
-			return -1
-		case left.net < right.net:
-			return 1
-		}
-		return 0
-	})
-	for index, item := range ranked {
-		plans[index] = item.plan
-	}
+	*action = value
 	return nil
 }
 
-func (p *Plan) checkedNetValue(worldState core.WorldState) (float64, error) {
-	goalValue := 0.0
-	if p.goal != nil {
-		var err error
-		goalValue, err = score.Evaluate(func(state core.WorldState) float64 { return p.goal.Value(state) }, worldState)
-		if err != nil {
-			return 0, fmt.Errorf("planning: goal %q value: %w", p.goal.Name(), err)
-		}
-		if !score.Finite(goalValue) {
-			return 0, fmt.Errorf("planning: goal %q value returned %v", p.goal.Name(), goalValue)
+// Plan is an immutable ordered Action sequence and its predicted total cost.
+// An empty Plan with zero cost is valid and represents an already-satisfied
+// Goal; Planner's separate found result distinguishes it from no solution.
+type Plan struct {
+	actions   []PlannedAction
+	totalCost float64
+}
+
+// NewPlan validates and freezes a Planner result.
+func NewPlan(actions []PlannedAction, totalCost float64) (Plan, error) {
+	if math.IsNaN(totalCost) || math.IsInf(totalCost, 0) || totalCost < 0 {
+		return Plan{}, fmt.Errorf("%w: invalid total cost %v", ErrInvalidPlan, totalCost)
+	}
+	values := slices.Clone(actions)
+	for index, action := range values {
+		if !action.Valid() {
+			return Plan{}, fmt.Errorf("%w: Action %d", ErrInvalidPlan, index)
 		}
 	}
-	total := goalValue
-	for _, action := range p.actions {
-		if nilvalue.Is(action) {
-			continue
-		}
-		metadata := action.Metadata()
-		if metadata.Value != nil {
-			value, err := score.Evaluate(metadata.Value, worldState)
-			if err != nil {
-				return 0, fmt.Errorf("planning: action %q value: %w", metadata.Name, err)
-			}
-			if !score.Finite(value) {
-				return 0, fmt.Errorf("planning: action %q value returned %v", metadata.Name, value)
-			}
-			total += value
-		}
-		if metadata.Cost != nil {
-			cost, err := score.Evaluate(metadata.Cost, worldState)
-			if err != nil {
-				return 0, fmt.Errorf("planning: action %q cost: %w", metadata.Name, err)
-			}
-			if !score.Finite(cost) || cost < 0 {
-				return 0, fmt.Errorf("planning: action %q cost returned %v; cost must be finite and non-negative", metadata.Name, cost)
-			}
-			total -= cost
+	if len(values) == 0 && totalCost != 0 {
+		return Plan{}, fmt.Errorf("%w: empty Plan must have zero cost", ErrInvalidPlan)
+	}
+	return Plan{actions: values, totalCost: totalCost}, nil
+}
+
+// Actions returns independently owned Action references in execution order.
+func (plan Plan) Actions() []PlannedAction { return slices.Clone(plan.actions) }
+
+// TotalCost returns the predicted sum of Action edge costs.
+func (plan Plan) TotalCost() float64 { return plan.totalCost }
+
+// Valid reports whether every reference and the total cost are valid.
+func (plan Plan) Valid() bool {
+	if math.IsNaN(plan.totalCost) || math.IsInf(plan.totalCost, 0) || plan.totalCost < 0 ||
+		len(plan.actions) == 0 && plan.totalCost != 0 {
+		return false
+	}
+	for _, action := range plan.actions {
+		if !action.Valid() {
+			return false
 		}
 	}
-	if !score.Finite(total) {
-		goalName := "<nil>"
-		if p.goal != nil {
-			goalName = p.goal.Name()
-		}
-		return 0, fmt.Errorf("planning: plan for goal %q net value overflowed to %v", goalName, total)
+	return true
+}
+
+// MarshalJSON returns the validated ordered Planner result.
+func (plan Plan) MarshalJSON() ([]byte, error) {
+	if !plan.Valid() {
+		return nil, ErrInvalidPlan
 	}
-	return total, nil
+	actions := slices.Clone(plan.actions)
+	if actions == nil {
+		actions = []PlannedAction{}
+	}
+	return json.Marshal(planWire{Actions: actions, TotalCost: plan.totalCost})
+}
+
+// UnmarshalJSON replaces plan with a strictly decoded Planner result.
+func (plan *Plan) UnmarshalJSON(data []byte) error {
+	if plan == nil {
+		return fmt.Errorf("%w: nil receiver", ErrInvalidPlan)
+	}
+	var wire planWire
+	if err := decodeStrict(data, &wire); err != nil {
+		return fmt.Errorf("%w: decode: %w", ErrInvalidPlan, err)
+	}
+	value, err := NewPlan(wire.Actions, wire.TotalCost)
+	if err != nil {
+		return err
+	}
+	*plan = value
+	return nil
+}
+
+type planWire struct {
+	Actions   []PlannedAction `json:"actions"`
+	TotalCost float64         `json:"total_cost"`
 }

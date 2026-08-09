@@ -73,7 +73,7 @@ func TestPlanModeToolsAreRootOnly(t *testing.T) {
 		t.Fatalf("delegated tools = %v, want ask_user", names)
 	}
 	if names["delegate_task"] || names["list_schedules"] || names["create_schedule"] || names["delete_schedule"] {
-		t.Fatalf("delegated tools = %v; delegation belongs to Agent2 Definition, not the Tool manifest", names)
+		t.Fatalf("delegated tools = %v; delegation belongs to Agent Framework Definition, not the Tool manifest", names)
 	}
 	if names["enter_plan_mode"] || names["exit_plan_mode"] || names["set_plan"] {
 		t.Fatalf("delegated tools = %v; Plan control belongs only to the root Agent", names)

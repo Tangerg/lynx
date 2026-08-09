@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	agent "github.com/Tangerg/lynx/agent2"
+	agent "github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"

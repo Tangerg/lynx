@@ -1,144 +1,135 @@
 package workflow
 
 import (
-	"cmp"
-	"context"
-	"errors"
+	"encoding/json"
 	"fmt"
 
-	"github.com/Tangerg/lynx/agent/core"
-	"github.com/Tangerg/lynx/agent/runtime"
+	agent "github.com/Tangerg/lynx/agent"
 )
 
-// defaultLoopIterations bounds Loop when Config.MaxIterations is unset. Every
-// iteration spawns a child that stays in the process tree until the host
-// releases the root, so an unbounded loop grows framework-owned state — the
-// same reason [runtime.DefaultMaxChildDepth] exists, and why this rail is not
-// the caller's threshold to choose.
-const defaultLoopIterations = 5
+// LoopPredicate is a bounded, deterministic, side-effect-free completion test
+// evaluated after each successful body child Process.
+type LoopPredicate[T any] func(value T) (bool, error)
 
-// LoopConfig configures a "run a sub-agent body repeatedly until
-// Until returns true (or MaxIterations expires)" workflow. Each
-// iteration runs Body via [runtime.Engine.RunChild] — a child process
-// with a CLEAN blackboard seeded only with the typed input. This
-// branch isolation is essential: without it, the orchestrator's
-// accumulated Out bindings would leak into the body's blackboard, and
-// the body's "produce Out" goal would be considered already satisfied
-// (so the body would short-circuit without doing work).
-//
-// Because each iteration starts clean, the body sub-agent **cannot
-// read its own prior outputs**. If iteration-aware behavior is
-// needed, encode it externally — closure state, an injected dependency,
-// or fold the previous Out into the typed In type so the
-// orchestrator's typed wrapper feeds it back in (the next iteration's
-// In is resolved from the parent blackboard via type-based binding,
-// where every iteration's Out has been bound by the typed action
-// wrapper).
-//
-// Compare to [RepeatUntilConfig]: that one's Task is an inline closure
-// (action level); LoopConfig.Body is a full sub-agent (agent
-// level), so Body can have its own LLM tool loop, sub-actions, etc.
-// Use [RepeatUntilConfig] for "loop a single function"; use Loop
-// for "loop a whole agent".
-type LoopConfig[In, Out any] struct {
-	// Name names the produced agent + its goal + the iteration's
-	// computed condition. Required; surrounding whitespace is invalid.
-	Name string
-
-	// Description is the agent's human-facing summary.
-	Description string
-
-	// MaxIterations bounds the loop; zero defaults to 5 and negative values are
-	// invalid. The workflow always runs Body at least once (the action is Repeatable, so
-	// planner reschedules until Until says stop).
-	MaxIterations int
-
-	// Body is the per-iteration sub-agent. It receives In on its
-	// blackboard each iteration and is expected to bind a fresh Out.
-	// Required.
-	Body *core.Agent
-
-	// Until inspects the loop input + the latest body output and
-	// returns true to stop the loop. Required.
-	Until func(ctx context.Context, input In, latest Out) bool
+// LoopResult is the exact semantic output of a Loop Stage. Satisfied is false
+// when MaxIterations was exhausted; that outcome is still a valid completion.
+type LoopResult[T any] struct {
+	// Value is the latest body output, or the initial input before any iteration.
+	Value T `json:"value"`
+	// Iterations is the number of completed body child Processes.
+	Iterations uint32 `json:"iterations"`
+	// Satisfied reports whether Predicate accepted Value.
+	Satisfied bool `json:"satisfied"`
 }
 
-// Loop compiles config into a deployable agent. The compiled agent
-// has one Repeatable=true action ("{Name}-iter") that runs Body once and
-// records the result on the parent blackboard via [History][Out];
-// after each run the runtime re-evaluates the "{Name}_done" computed
-// condition. When Until or MaxIterations triggers, the goal (which
-// preconditions on it) is satisfied and the loop terminates; otherwise
-// GOAP re-plans and runs the action again.
-//
-// Mirrors [RepeatUntil]'s mechanics — same single-action +
-// computed-condition + History pattern — substituting "run a sub-agent"
-// for "call a closure".
-//
-// Returns an error on a nil engine, missing or whitespace-padded Name, nil or
-// structurally invalid Body, nil Until, or negative MaxIterations. Static
-// validation finishes before Body is deployed.
-func Loop[In, Out any](
-	ctx context.Context,
-	engine *runtime.Engine,
-	config LoopConfig[In, Out],
-) (*core.Agent, error) {
-	if engine == nil {
-		return nil, errors.New("workflow.Loop: engine must not be nil")
+// Valid reports whether at least one body iteration produced this result.
+func (result LoopResult[T]) Valid() bool { return result.Iterations > 0 }
+
+// LoopConfig declares one at-least-once managed body iteration.
+type LoopConfig[T any] struct {
+	// ID is unique within the Workflow and remains stable across restoration.
+	ID string
+
+	// Body is the exact T-to-T child Deployment used for every iteration.
+	Body agent.Deployment
+
+	// Budget is permanently allocated from the parent for each iteration.
+	Budget agent.Budget
+
+	// Capabilities is the attenuated authority set granted to each child.
+	Capabilities agent.CapabilitySet
+
+	// MaxIterations is the positive hard upper bound on body child Processes.
+	MaxIterations uint32
+
+	// Predicate decides whether the latest body output satisfies the Loop.
+	Predicate LoopPredicate[T]
+}
+
+type loopStage struct {
+	binding       childBinding
+	maxIterations uint32
+	valueSchema   agent.Schema
+	predicate     func(json.RawMessage) (bool, error)
+	result        func(json.RawMessage, uint32, bool) (json.RawMessage, error)
+}
+
+func (stage loopStage) valid() bool {
+	return stage.binding.valid() && stage.maxIterations > 0 && stage.valueSchema.Valid() &&
+		stage.predicate != nil && stage.result != nil
+}
+
+// Loop constructs one at-least-once managed iteration Stage. Body must accept
+// and produce exactly T; the Stage itself produces LoopResult[T].
+func Loop[T any](config LoopConfig[T]) (Stage, error) {
+	if !validStageID(config.ID) || !config.Body.Valid() || !config.Budget.Valid() ||
+		!config.Capabilities.Valid() || config.MaxIterations == 0 || config.Predicate == nil {
+		return Stage{}, ErrInvalidStage
 	}
-	if err := validateName("Loop", config.Name); err != nil {
-		return nil, err
-	}
-	if config.Body == nil {
-		return nil, errors.New("workflow.Loop: Body must not be nil")
-	}
-	if config.Until == nil {
-		return nil, errors.New("workflow.Loop: Until must not be nil")
-	}
-	if config.MaxIterations < 0 {
-		return nil, fmt.Errorf("workflow.Loop: MaxIterations %d must not be negative", config.MaxIterations)
-	}
-	if err := config.Body.Validate(); err != nil {
-		return nil, fmt.Errorf("workflow.Loop: Body %q is invalid: %w", config.Body.Name(), err)
-	}
-	bodyDeployment, err := engine.Deploy(ctx, config.Body)
+	valueSchema, err := agent.SchemaFor[T]()
 	if err != nil {
-		return nil, fmt.Errorf("workflow.Loop: deploy Body %q: %w", config.Body.Name(), err)
+		return Stage{}, fmt.Errorf("%w: Loop %q value schema: %w", ErrInvalidStage, config.ID, err)
 	}
-	bodyName := bodyDeployment.Ref().Name
-	maxIterations := cmp.Or(config.MaxIterations, defaultLoopIterations)
-
-	doneKey := config.Name + "_done"
-	historyState := core.NewBinding[History[Out]](config.Name + historyStateSuffix)
-
-	return compileRepeatWorkflow(repeatWorkflowConfig[In, Out, History[Out]]{
-		name:          config.Name,
-		description:   config.Description,
-		actionName:    config.Name + "-iter",
-		doneKey:       doneKey,
-		maxIterations: maxIterations,
-		stateBinding:  historyState,
-		newState:      func() History[Out] { return History[Out]{} },
-		count:         History[Out].Count,
-		run: func(ctx context.Context, process *core.ProcessContext, input In, history History[Out]) (Out, History[Out], error) {
-			var zero Out
-			child, err := engine.RunChild(ctx, bodyDeployment, input)
-			if err != nil {
-				return zero, history, fmt.Errorf("iteration %d: %w", history.Count(), err)
-			}
-			if err := child.CompletionError(); err != nil {
-				return zero, history, fmt.Errorf("iteration %d (%s): %w", history.Count(), bodyName, err)
-			}
-
-			output, ok := core.Result[Out](child)
-			if !ok {
-				return zero, history, fmt.Errorf("iteration %d (%s) produced no %T", history.Count(), bodyName, zero)
-			}
-			return output, history.withAttempt(output), nil
+	resultSchema, err := agent.SchemaFor[LoopResult[T]]()
+	if err != nil {
+		return Stage{}, fmt.Errorf("%w: Loop %q result schema: %w", ErrInvalidStage, config.ID, err)
+	}
+	descriptor := config.Body.Descriptor()
+	if !schemasEqual(valueSchema, descriptor.InputSchema()) ||
+		!schemasEqual(valueSchema, descriptor.OutputSchema()) {
+		return Stage{}, fmt.Errorf("%w: Loop %q body must have an exact T-to-T contract", ErrInvalidStage, config.ID)
+	}
+	predicate := config.Predicate
+	evaluate := func(raw json.RawMessage) (bool, error) {
+		output, err := agent.ParseOutput(raw)
+		if err != nil {
+			return false, err
+		}
+		if err := valueSchema.ValidateOutput(output); err != nil {
+			return false, err
+		}
+		value, err := agent.DecodeOutput[T](output)
+		if err != nil {
+			return false, err
+		}
+		satisfied, err := predicate(value)
+		if err != nil {
+			return false, fmt.Errorf("Loop %q predicate: %w", config.ID, err)
+		}
+		return satisfied, nil
+	}
+	result := func(raw json.RawMessage, iterations uint32, satisfied bool) (json.RawMessage, error) {
+		output, err := agent.ParseOutput(raw)
+		if err != nil {
+			return nil, err
+		}
+		value, err := agent.DecodeOutput[T](output)
+		if err != nil {
+			return nil, err
+		}
+		loopResult := LoopResult[T]{Value: value, Iterations: iterations, Satisfied: satisfied}
+		if !loopResult.Valid() {
+			return nil, ErrInvalidExecutionState
+		}
+		erased, err := agent.EncodeOutput(loopResult)
+		if err != nil {
+			return nil, err
+		}
+		if err := resultSchema.ValidateOutput(erased); err != nil {
+			return nil, err
+		}
+		return erased.JSON(), nil
+	}
+	return Stage{
+		id: config.ID, kind: stageKindLoop,
+		inputSchema: valueSchema, outputSchema: resultSchema,
+		loop: loopStage{
+			binding: childBinding{
+				deploymentRef: config.Body.DeploymentRef(), budget: config.Budget,
+				capabilities: config.Capabilities,
+			},
+			maxIterations: config.MaxIterations, valueSchema: valueSchema,
+			predicate: evaluate, result: result,
 		},
-		until: func(ctx context.Context, input In, history History[Out]) bool {
-			last, ok := history.Last()
-			return ok && config.Until(ctx, input, last)
-		},
-	}), nil
+	}, nil
 }

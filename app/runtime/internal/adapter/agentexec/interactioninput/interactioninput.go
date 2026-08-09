@@ -1,5 +1,5 @@
-// Package interactioninput translates product Interrupt values to Agent2
-// Interaction pending inputs and semantic response Signals. Agent2 owns the
+// Package interactioninput translates product Interrupt values to Agent Framework
+// Interaction pending inputs and semantic response Signals. Agent Framework owns the
 // wait lifecycle; this package owns only the anti-corruption boundary.
 package interactioninput
 
@@ -13,7 +13,7 @@ import (
 	"io"
 	"slices"
 
-	"github.com/Tangerg/lynx/agent2/interaction"
+	"github.com/Tangerg/lynx/agent/interaction"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/interruptcodec"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
@@ -58,7 +58,7 @@ type continuationWire struct {
 	Prompt        json.RawMessage `json:"prompt"`
 }
 
-// Continuation is the validated product input restored while Agent2 re-enters
+// Continuation is the validated product input restored while Agent Framework re-enters
 // the Tool invocation that requested it.
 type Continuation struct {
 	Key        string
@@ -66,7 +66,7 @@ type Continuation struct {
 	Resolution interrupt.Resolution
 }
 
-// Restore reads the exact prompt and response from Agent2's public Tool-input
+// Restore reads the exact prompt and response from Agent Framework's public Tool-input
 // continuation context. found=false identifies an initial invocation.
 func Restore(ctx context.Context) (Continuation, bool, error) {
 	continuation, found := interaction.ToolInputContinuationFromContext(ctx)
@@ -99,7 +99,7 @@ func Restore(ctx context.Context) (Continuation, bool, error) {
 }
 
 // Require returns a restored decision at the original call site or requests a
-// new Agent2 Interaction input.
+// new Agent Framework Interaction input.
 func Require(ctx context.Context, key string, prompt runs.Interrupt) (interrupt.Resolution, error) {
 	if err := prompt.Validate(); err != nil {
 		return interrupt.Resolution{}, err
@@ -144,13 +144,13 @@ func Require(ctx context.Context, key string, prompt runs.Interrupt) (interrupt.
 	return interrupt.Resolution{}, interaction.RequireToolInput(promptJSON, resolutionSchema, stateJSON)
 }
 
-// DecodePrompt translates an Agent2 public pending-input prompt to its product
+// DecodePrompt translates an Agent Framework public pending-input prompt to its product
 // Interrupt value.
 func DecodePrompt(raw []byte) (runs.Interrupt, error) {
 	return interruptcodec.DecodePrompt(raw)
 }
 
-// EncodeResolution translates one validated product answer to the Agent2
+// EncodeResolution translates one validated product answer to the Agent Framework
 // response payload checked by the pending input's schema.
 func EncodeResolution(resolution interrupt.Resolution) (json.RawMessage, error) {
 	return interruptcodec.EncodeResolution(resolution)

@@ -4,223 +4,166 @@ import (
 	"container/heap"
 	"context"
 	"fmt"
+	"math"
 	"slices"
 
-	"github.com/Tangerg/lynx/agent/core"
-	"github.com/Tangerg/lynx/agent/internal/score"
 	"github.com/Tangerg/lynx/agent/planning"
 )
 
 type searchNode struct {
-	state core.WorldState
+	state planning.WorldState
 	cost  float64
 	order uint64
 }
 
-// frontier implements heap.Interface for one uniform-cost search.
 type frontier []*searchNode
 
-func (f frontier) Len() int { return len(f) }
+func (values frontier) Len() int { return len(values) }
 
-func (f frontier) Less(i, j int) bool {
-	if f[i].cost != f[j].cost {
-		return f[i].cost < f[j].cost
+func (values frontier) Less(left, right int) bool {
+	if values[left].cost != values[right].cost {
+		return values[left].cost < values[right].cost
 	}
-	return f[i].order < f[j].order
+	return values[left].order < values[right].order
 }
 
-func (f frontier) Swap(i, j int) { f[i], f[j] = f[j], f[i] }
-
-func (f *frontier) Push(value any) {
-	*f = append(*f, value.(*searchNode))
+func (values frontier) Swap(left, right int) {
+	values[left], values[right] = values[right], values[left]
 }
 
-func (f *frontier) Pop() any {
-	old := *f
+func (values *frontier) Push(value any) { *values = append(*values, value.(*searchNode)) }
+
+func (values *frontier) Pop() any {
+	old := *values
 	last := len(old) - 1
-	node := old[last]
+	value := old[last]
 	old[last] = nil
-	*f = old[:last]
-	return node
+	*values = old[:last]
+	return value
 }
 
-// search holds one uniform-cost run over immutable world states.
+type predecessor struct {
+	stateKey string
+	action   planning.PlannedAction
+}
+
 type search struct {
-	start         core.WorldState
-	actions       []core.Action
-	domain        *planning.Domain
-	goal          *core.Goal
-	resolver      planning.ConditionResolver
-	maxExpansions int
-
-	startKey     string
-	frontier     *frontier
-	bestCosts    map[string]float64
-	predecessors map[string]edge
-	nextOrder    uint64
-
-	// expansions counts expanded nodes; read for tracing after run.
-	expansions int
+	problem       planning.Problem
+	maxExpansions uint32
+	startKey      string
+	frontier      *frontier
+	bestCosts     map[string]float64
+	predecessors  map[string]predecessor
+	nextOrder     uint64
+	expansions    uint32
 }
 
-// edge records the predecessor state and the action taken to reach a
-// successor, so reconstructPath can walk the cheapest chain back to the start.
-type edge struct {
-	prevKey string
-	action  core.Action
-}
-
-// newSearch seeds a uniform-cost frontier for this planning pass.
-func newSearch(
-	start core.WorldState,
-	actions []core.Action,
-	domain *planning.Domain,
-	goal *core.Goal,
-	resolver planning.ConditionResolver,
-	maxExpansions int,
-) *search {
-	startKey := start.Key()
-	s := &search{
-		start:         start,
-		actions:       actions,
-		domain:        domain,
-		goal:          goal,
-		resolver:      resolver,
-		maxExpansions: maxExpansions,
-		startKey:      startKey,
-		frontier:      &frontier{},
-		bestCosts:     map[string]float64{startKey: 0},
-		predecessors:  map[string]edge{},
+func newSearch(problem planning.Problem, maxExpansions uint32) *search {
+	start := problem.InitialState()
+	queue := &frontier{}
+	heap.Init(queue)
+	search := &search{
+		problem: problem, maxExpansions: maxExpansions, startKey: start.Key(), frontier: queue,
+		bestCosts: map[string]float64{start.Key(): 0}, predecessors: make(map[string]predecessor),
 	}
-	heap.Init(s.frontier)
-	s.push(start, 0)
-	return s
+	search.push(start, 0)
+	return search
 }
 
-func (s *search) push(state core.WorldState, cost float64) {
-	heap.Push(s.frontier, &searchNode{state: state, cost: cost, order: s.nextOrder})
-	s.nextOrder++
+func (search *search) push(state planning.WorldState, cost float64) {
+	heap.Push(search.frontier, &searchNode{state: state, cost: cost, order: search.nextOrder})
+	search.nextOrder++
 }
 
-// run returns the first goal state removed from the cost-ordered frontier.
-// With non-negative edges, that node is globally cheapest.
-func (s *search) run(ctx context.Context) (*searchNode, error) {
-	for s.frontier.Len() > 0 && s.expansions < s.maxExpansions {
+func (search *search) run(ctx context.Context) (searchNode, bool, error) {
+	for search.frontier.Len() > 0 {
 		if err := ctx.Err(); err != nil {
-			return nil, err
+			return searchNode{}, false, err
 		}
-
-		current := heap.Pop(s.frontier).(*searchNode)
-		key := current.state.Key()
-		// expand pushes a key only on a strict cost decrease, so bestCosts[key]
-		// holds the minimum and exactly one queued entry — the one pushed at
-		// that minimum — matches here; costlier duplicates are skipped and each
-		// key is expanded at most once. This lazy-deletion guard is the whole
-		// closed set, so no separate settled map is required.
-		if current.cost != s.bestCosts[key] {
-			continue // stale entry superseded by a cheaper path
+		current := heap.Pop(search.frontier).(*searchNode)
+		currentKey := current.state.Key()
+		if current.cost != search.bestCosts[currentKey] {
+			continue
 		}
-		s.expansions++
-
-		satisfied, err := s.domain.Satisfies(ctx, current.state, s.goal.Requirements(), s.resolver)
-		if err != nil {
-			return nil, err
+		if search.expansions == search.maxExpansions {
+			return searchNode{}, false, fmt.Errorf("%w: %d", ErrExpansionLimitReached, search.maxExpansions)
 		}
-		if satisfied {
-			return current, nil
+		search.expansions++
+		if search.problem.Goal().SatisfiedBy(current.state) {
+			return *current, true, nil
 		}
-
-		if err := s.expand(ctx, current); err != nil {
-			return nil, err
+		if err := search.expand(current); err != nil {
+			return searchNode{}, false, err
 		}
 	}
-	return nil, nil
+	return searchNode{}, false, nil
 }
 
-// expand enqueues every state reachable from current by applying one
-// applicable action. A dynamic cost is evaluated against the edge's source
-// state, preserving the public ScoreFunc contract.
-func (s *search) expand(ctx context.Context, current *searchNode) error {
+func (search *search) expand(current *searchNode) error {
 	currentKey := current.state.Key()
-	applicable, err := s.domain.ApplicableActions(ctx, current.state, s.actions, s.resolver)
-	if err != nil {
-		return err
-	}
-	scoreState, err := s.domain.StateWithResolvedConditions(current.state, s.resolver)
-	if err != nil {
-		return err
-	}
-	for _, action := range applicable {
-		metadata := action.Metadata()
-
-		nextState := current.state.Apply(metadata.Effects)
+	for _, action := range search.problem.Actions() {
+		if !action.Applicable(current.state) {
+			continue
+		}
+		nextState, err := action.Apply(current.state)
+		if err != nil {
+			return fmt.Errorf("goap: apply Action %q at state %q: %w", action.Name(), currentKey, err)
+		}
 		nextKey := nextState.Key()
 		if nextKey == currentKey {
 			continue
 		}
-
-		edgeCost := 0.0
-		if metadata.Cost != nil {
-			var err error
-			edgeCost, err = score.Evaluate(metadata.Cost, scoreState)
-			if err != nil {
-				return fmt.Errorf("%w: action %q at state %q: %w", ErrInvalidActionCost, metadata.Name, currentKey, err)
-			}
-		}
-		if !score.Finite(edgeCost) || edgeCost < 0 {
-			return fmt.Errorf(
-				"%w: action %q at state %q returned %v",
-				ErrInvalidActionCost,
-				metadata.Name,
-				currentKey,
-				edgeCost,
-			)
+		edgeCost, err := action.Cost(current.state)
+		if err != nil {
+			return fmt.Errorf("goap: Action %q at state %q: %w", action.Name(), currentKey, err)
 		}
 		cost := current.cost + edgeCost
-		if existing, ok := s.bestCosts[nextKey]; ok && cost >= existing {
+		if math.IsInf(cost, 0) {
+			return fmt.Errorf("%w: Action %q overflows cumulative cost", planning.ErrInvalidActionCost, action.Name())
+		}
+		if best, known := search.bestCosts[nextKey]; known && cost >= best {
 			continue
 		}
-
-		s.bestCosts[nextKey] = cost
-		s.predecessors[nextKey] = edge{prevKey: currentKey, action: action}
-		s.push(nextState, cost)
+		planned, err := planning.NewPlannedAction(action.Name())
+		if err != nil {
+			return err
+		}
+		search.bestCosts[nextKey] = cost
+		search.predecessors[nextKey] = predecessor{stateKey: currentKey, action: planned}
+		search.push(nextState, cost)
 	}
 	return nil
 }
 
-func (s *search) reconstructPath(goalKey string) ([]core.Action, error) {
-	var reversed []core.Action
-	for cursor := goalKey; cursor != s.startKey; {
-		edge, ok := s.predecessors[cursor]
-		if !ok {
+func (search *search) reconstruct(goalKey string) ([]planning.PlannedAction, error) {
+	var reversed []planning.PlannedAction
+	for cursor := goalKey; cursor != search.startKey; {
+		previous, found := search.predecessors[cursor]
+		if !found {
 			return nil, fmt.Errorf("goap: predecessor missing for state %q", cursor)
 		}
-		reversed = append(reversed, edge.action)
-		cursor = edge.prevKey
+		reversed = append(reversed, previous.action)
+		cursor = previous.stateKey
 	}
 	slices.Reverse(reversed)
 	return reversed, nil
 }
 
-// hasGoalProducers is a conservative direct-producer check. It catches the
-// common "no action can establish this goal condition" case before search
-// burns the expansion cap; it is not a transitive reachability proof.
-func (s *search) hasGoalProducers() bool {
-	state := s.start.Conditions()
-	for key, required := range s.goal.Requirements() {
-		if state[key] == required {
-			continue
-		}
-		// An evaluator-backed Unknown may satisfy this requirement when the
-		// search reaches a state where the rest of the goal holds. It does not
-		// need an action producer.
-		if ref, ok := s.domain.ConditionRef(key); ok && ref.Source == planning.ConditionEvaluator && state[key] == core.Unknown {
+func (search *search) hasGoalProducers() bool {
+	initial := search.problem.InitialState()
+	for _, required := range search.problem.Goal().Conditions() {
+		if initial.Truth(required.Key()) == required.Truth() {
 			continue
 		}
 		produced := false
-		for _, a := range s.actions {
-			if a.Metadata().Effects[key] == required {
-				produced = true
+		for _, action := range search.problem.Actions() {
+			for _, effect := range action.Effects() {
+				if effect.Key() == required.Key() && effect.Truth() == required.Truth() {
+					produced = true
+					break
+				}
+			}
+			if produced {
 				break
 			}
 		}

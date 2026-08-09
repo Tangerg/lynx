@@ -7,8 +7,8 @@ import (
 	"slices"
 	"strings"
 
-	agent "github.com/Tangerg/lynx/agent2"
-	"github.com/Tangerg/lynx/agent2/interaction"
+	agent "github.com/Tangerg/lynx/agent"
+	"github.com/Tangerg/lynx/agent/interaction"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/interactioninput"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/executionctx"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
@@ -17,7 +17,7 @@ import (
 const interactionBarrierPauseReason = "runtime human-input tree barrier"
 
 // CancelRunningSubtree submits a product-owned cancellation to one exact live
-// managed Delegate. Agent2 owns propagation to descendants and the resulting
+// managed Delegate. Agent Framework owns propagation to descendants and the resulting
 // child completion; Runtime observes those facts through the normal tree pump.
 func (executor *InteractionExecutor) CancelRunningSubtree(
 	ctx context.Context,

@@ -165,7 +165,7 @@ type ExportSessionResponse struct {
 // artifact it doesn't recognize; development builds do not migrate old
 // artifacts.
 //
-// v14 is the Agent2 Runtime cutover baseline. It admits only artifacts written
+// v14 is the Agent Framework Runtime cutover baseline. It admits only artifacts written
 // against the single Run/Segment/Interrupt vocabulary and rejects documents
 // from the superseded execution lifecycle before any write.
 const SessionArtifactVersion = 14

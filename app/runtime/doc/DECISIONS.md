@@ -22,20 +22,20 @@
 ## ADR-RT-003：产品 Run 与 Framework Process/Execution 分离
 
 - 状态：已接受。
-- 决策：`Run`、`Segment` 属于 Runtime；`Process`、`Execution` 属于 Agent2。二者只能在 `adapter/agentexec` 映射。
-- 后果：Application 保存应用侧不透明 executor identity，不保存 Agent2 concrete handle 或 Strategy payload。
+- 决策：`Run`、`Segment` 属于 Runtime；`Process`、`Execution` 属于 Agent Framework。二者只能在 `adapter/agentexec` 映射。
+- 后果：Application 保存应用侧不透明 executor identity，不保存 Agent Framework concrete handle 或 Strategy payload。
 
 ## ADR-RT-004：`domain/execution` 改名为 `domain/run`
 
 - 状态：已接受。
-- 背景：当前 package 实际拥有产品 Run，但 Agent2 已把 Execution 定义为正式框架术语。
+- 背景：当前 package 实际拥有产品 Run，但 Agent Framework 已把 Execution 定义为正式框架术语。
 - 决策：重构阶段一次性改名并重新裁定子上下文所有权，不保留 alias 或 forwarding package。
 - 后果：代码、测试、SQLite adapter、协议 projection 和文档统一使用 Run 语言。
 
 ## ADR-RT-005：Conversation、Transcript、Knowledge 和 WorkingContext 是不同真相源
 
 - 状态：已接受。
-- 决策：Conversation 是产品模型历史；Transcript 是 Items-and-Runs 权威观察记录；Knowledge 是用户可编辑长期知识；WorkingContext 是 Agent2 Process 私有恢复状态。
+- 决策：Conversation 是产品模型历史；Transcript 是 Items-and-Runs 权威观察记录；Knowledge 是用户可编辑长期知识；WorkingContext 是 Agent Framework Process 私有恢复状态。
 - 后果：它们不能相互重建或混合持久化。Conversation truncate/fork 不允许静默改变已存在 Process 的恢复状态。
 
 ## ADR-RT-006：采用 Clean Architecture 的单向依赖 DAG
@@ -62,10 +62,10 @@
 - 决策：Run admission、waiting barrier、terminal tree、rollback 等各自拥有准确 write-set 和顺序；Domain 不执行 I/O，Framework 不提供 Store/transaction SPI。
 - 后果：不建立通用 UnitOfWork、Saga、CQRS 或 EventBus。业务幂等由真实应用入口/adapter 按稳定业务身份实现。
 
-## ADR-RT-010：Agent2 只通过 `adapter/agentexec` 消费
+## ADR-RT-010：Agent Framework 只通过 `adapter/agentexec` 消费
 
 - 状态：已接受。
-- 决策：Agent2 import 收敛到 `adapter/agentexec` 及明确的 framework-integration 叶子；Domain、Application、Delivery、Infra 和通用 Toolset 不认识 Agent2。
+- 决策：Agent Framework import 收敛到 `adapter/agentexec` 及明确的 framework-integration 叶子；Domain、Application、Delivery、Infra 和通用 Toolset 不认识 Agent Framework。
 - 后果：Process、Signal、Effect、Deployment、TreeSnapshot concrete type 和 Strategy payload 不越过防腐层。
 
 ## ADR-RT-011：根聊天使用原生 Interaction
@@ -75,10 +75,10 @@
 - 决策：删除“GOAP 单 Action 包裹完整 Interaction”，直接部署 `interaction.Definition`。
 - 后果：Planning/GOAP 只在真实规划用例被产品选择时组合，不作为默认聊天中心。
 
-## ADR-RT-012：Agent2 Engine 是唯一执行生命周期所有者
+## ADR-RT-012：Agent Framework Engine 是唯一执行生命周期所有者
 
 - 状态：已接受。
-- 决策：不迁移 `TurnProcess`、第二 controller、外置 ToolLoop、child scheduler 或 continuation state machine。Runtime 只通过 Agent2 公共合同驱动和观察 Process tree。
+- 决策：不迁移 `TurnProcess`、第二 controller、外置 ToolLoop、child scheduler 或 continuation state machine。Runtime 只通过 Agent Framework 公共合同驱动和观察 Process tree。
 - 后果：现有 `adapter/agentexec/turn` 中重复 Framework 责任的代码全部删除，而不是换 import path。
 
 ## ADR-RT-013：每棵 root Run tree 使用独立 Engine
@@ -87,7 +87,7 @@
 - 决策：按 Run 冻结 exact root/child Deployments、resolver、limits、capabilities、listeners 和 admitter。
 - 后果：Runtime 不建立全局 Agent facade 或跨 Run 的共享 mutable Agent lifecycle registry；agentexec 可以在一个明确 owner 的 per-root tree session 内保存 Engine/Process handle 和 reconciliation state，Application 可以保存 Run command routing/pump state。Process lifecycle 仍由对应 Engine 唯一拥有。
 
-## ADR-RT-014：Agent2 Platform 不是迁移前置条件
+## ADR-RT-014：Agent Framework Platform 不是迁移前置条件
 
 - 状态：已接受。
 - 决策：当前使用 caller-owned exact resolver。只有产品出现真实 Deployment 发布、版本路由和治理用例时才接入 Platform。
@@ -96,7 +96,7 @@
 ## ADR-RT-015：TreeSnapshot 对 Runtime 内环不透明
 
 - 状态：已接受。
-- 决策：`adapter/agentexec` 负责 Agent2 capture/restore；Application checkpoint 只保存 Host metadata 和 opaque payload。
+- 决策：`adapter/agentexec` 负责 Agent Framework capture/restore；Application checkpoint 只保存 Host metadata 和 opaque payload。
 - 后果：Runtime 不解析 ExecutionState、Interaction phase、mailbox、child protocol 或 snapshot private JSON。
 
 ## ADR-RT-016：恢复只使用 Process 自有 snapshot
@@ -108,26 +108,26 @@
 ## ADR-RT-017：Framework Delta 不是权威记录
 
 - 状态：已接受。
-- 决策：模型 chunk、ToolCall、Tool result、usage 和 pricing 在 model/tool 调用链内同步投影。Agent2 Event/Delta 只承载生命周期与临时流。
+- 决策：模型 chunk、ToolCall、Tool result、usage 和 pricing 在 model/tool 调用链内同步投影。Agent Framework Event/Delta 只承载生命周期与临时流。
 - 后果：listener 丢失、panic 隔离或 Delta drop 不得改变最终结果和 Transcript 正确性。
 
 ## ADR-RT-018：Invocation context 是执行归因边界
 
 - 状态：已接受。
-- 决策：Runtime decorator 使用 Agent2 `ModelInvocation`/`ToolInvocation` 获取 ProcessRelation、exact DeploymentRef、EffectID、Step/model-call/ToolCall sequence。
+- 决策：Runtime decorator 使用 Agent Framework `ModelInvocation`/`ToolInvocation` 获取 ProcessRelation、exact DeploymentRef、EffectID、Step/model-call/ToolCall sequence。
 - 后果：不恢复旧 ProcessContext、全局 dependency scope 或 Engine 反查 API。
 
 ## ADR-RT-019：Managed Delegate child 是产品 child Run 的明确来源
 
 - 状态：已接受。
 - 决策：ProcessAdmitter 在 child 发布前完成 Application-owned durable admission；Delegate child key 在模型观察和 admission 两端使用 Interaction 同一算法。
-- 后果：Agent2 不认识 Run；Framework-internal Planning/Workflow child 是否投影为 Run，由 agentexec 的产品语义映射决定。
+- 后果：Agent Framework 不认识 Run；Framework-internal Planning/Workflow child 是否投影为 Run，由 agentexec 的产品语义映射决定。
 
 ## ADR-RT-020：Waiting subtree cancellation 使用 plan/commit/apply
 
 - 状态：核心顺序保留，具体边界已由 ADR-RT-042 收紧。
 - 决策：先取得 Framework prospective change，再提交 Application write-set，成功后 Apply 到同一 live tree。
-- 后果：Runtime 不改写 Interaction state；Agent2 不持有 Host transaction。Baseline 9 的 pure plan 无法在 transaction 期间防止 source 漂移，因此不能直接作为最终实现，必须采用 ADR-RT-042 的 one-shot prepared change。
+- 后果：Runtime 不改写 Interaction state；Agent Framework 不持有 Host transaction。Baseline 9 的 pure plan 无法在 transaction 期间防止 source 漂移，因此不能直接作为最终实现，必须采用 ADR-RT-042 的 one-shot prepared change。
 
 ## ADR-RT-021：Steer 和 interrupt answer 是产品命令，不是通用 Signal API
 
@@ -139,7 +139,7 @@
 
 - 状态：已接受。
 - 决策：通用 Toolset 只理解 Tool、产品端口和执行 capability。Interaction-specific deferred advertisement 放在 agentexec decorator 或通过准确回调注入。
-- 后果：不能让 `search_tools` 把 Agent2 import 扩散到整个 Toolset，也不能动态增加未冻结的执行权限。
+- 后果：不能让 `search_tools` 把 Agent Framework import 扩散到整个 Toolset，也不能动态增加未冻结的执行权限。
 
 ## ADR-RT-023：Adapter 与 Infra 不整体合并
 
@@ -174,8 +174,8 @@
 ## ADR-RT-028：产品 accounting 不下沉到 Framework Usage
 
 - 状态：已接受。
-- 决策：模型 token、provider/model、USD cost 和产品 budget 属于 Runtime accounting；Agent2 Usage 只保留框架中性资源事实。
-- 后果：agentexec 负责归因和翻译，不修改 Agent2 Usage schema 迎合产品报表。
+- 决策：模型 token、provider/model、USD cost 和产品 budget 属于 Runtime accounting；Agent Framework Usage 只保留框架中性资源事实。
+- 后果：agentexec 负责归因和翻译，不修改 Agent Framework Usage schema 迎合产品报表。
 
 ## ADR-RT-029：Application 允许官方 OTel API，不允许 OTel SDK
 
@@ -195,11 +195,11 @@
 - 决策：本轮 Runtime 重构只处理服务端及直接后端爆炸半径；前端、TUI、CLI 的协议接线作为后续独立阶段。
 - 后果：服务端 contract 仍必须同步生成并记录漂移，不能用兼容字段维持旧消费者；阶段完成事实必须明确哪些 consumer 尚未接线。
 
-## ADR-RT-032：旧 `agent` 最终删除，`agent2` 恢复唯一模块名
+## ADR-RT-032：原框架实现最终删除，重写实现取得唯一 `agent` 模块名
 
-- 状态：已接受。
-- 决策：App 所有旧 Agent consumer 迁移完成后，删除旧模块并把 `agent2` 目录/module path 原子改回 `agent`。
-- 后果：`agent2` 只是重构期间路径，不能进入长期 Runtime protocol、Domain 语言或产品配置。
+- 状态：已接受，P11 已实施。
+- 决策：App 所有原框架 consumer 迁移完成后，整体删除原实现，并把绿色重写实现原子安装为唯一 `agent` 目录/module path。
+- 后果：临时孵化路径已经退休，不能进入 Runtime protocol、Domain 语言或产品配置；禁止 alias、replace compatibility 和双 framework path 回流。
 
 ## ADR-RT-033：架构规则必须机器执行
 
@@ -219,32 +219,32 @@
 - 决策：阶段可以拆成多个可验证纵切批次，但每个提交必须自洽、可构建、无 TODO/stub/死路径；P4–P7 的新 adapter 只由真实 harness 消费，能力齐备前不接管生产 Run，P8 一次切换并删除旧路径。临时迁移类型必须在其授权阶段结束前删除。
 - 后果：进度由 Execution Plan 记录，不能以“以后补”解释已知错误边界。
 
-## ADR-RT-036：Run 终态由 Application intent 与 Agent2 Termination 共同决定
+## ADR-RT-036：Run 终态由 Application intent 与 Agent Framework Termination 共同决定
 
 - 状态：已接受。
-- 决策：不从 `error`、`context.Canceled` 或 Delta 推断终态。Completion、cancellation、deadline 和 classified failure 首先按 Agent2 Termination 读取；Runtime budget、已提交 teardown、recovery loss 等产品意图再决定精确 Run outcome。
+- 决策：不从 `error`、`context.Canceled` 或 Delta 推断终态。Completion、cancellation、deadline 和 classified failure 首先按 Agent Framework Termination 读取；Runtime budget、已提交 teardown、recovery loss 等产品意图再决定精确 Run outcome。
 - 后果：deadline 保留独立 TimedOut outcome；未知 Engine kill fail closed；已提交终态后的 executor teardown 不得覆盖产品结果；映射在 agentexec/Application 边界集中测试。
 
 ## ADR-RT-037：Unknown Effect 当前 fail closed，不开放通用裁决 API
 
 - 状态：已接受。
-- 决策：live 或 recovery 发现 Agent2 unknown Effect 时都不自动重放，不从 UI/协议接收 arbitrary Settlement，也不伪造 Interaction owner payload。agentexec 在 Dispatcher 返回 indeterminate error 前标记并唤醒 per-tree reconciliation；Run pump 仍通过公共 `UnknownEffectIDs` 对账，listener 丢失由有界 reconciliation tick 兜底。
+- 决策：live 或 recovery 发现 Agent Framework unknown Effect 时都不自动重放，不从 UI/协议接收 arbitrary Settlement，也不伪造 Interaction owner payload。agentexec 在 Dispatcher 返回 indeterminate error 前标记并唤醒 per-tree reconciliation；Run pump 仍通过公共 `UnknownEffectIDs` 对账，listener 丢失由有界 reconciliation tick 兜底。
 - 决策：Application 先原子提交 incomplete 诊断、RunLost、checkpoint invalidation 和 cleanup intent，成功后才 Kill/release tree；事务失败则让 Process 保持 Framework 的 unknown wait 并重试。unknown 与尚未终结的 cancel/deadline 竞争时 RunLost 优先，控制意图保留为诊断；已提交 terminal 仍 first-wins。
 - 后果：当前无需泄露 `ResolveEffect`。未来人工裁决必须由 Strategy owner 的 typed resolution contract 和独立产品 ADR 驱动。
 
 ## ADR-RT-038：Application executor port 由纵切消费者逐步发现，P8 冻结
 
 - 状态：已接受，P8 已完成。
-- 背景：P3 尚未有 Agent2 真实消费者，若一次设计 Start/Wait/Steer/Subtree 全部方法，只会把现有宽接口换一套名字，违背 consumer-owned interface。
+- 背景：P3 尚未有 Agent Framework 真实消费者，若一次设计 Start/Wait/Steer/Subtree 全部方法，只会把现有宽接口换一套名字，违背 consumer-owned interface。
 - 决策：P3 只建立 root start/observe/cancel 所需的最小候选；P4 验证并修订 root shape，P6/P7 分别在 waiting/restore 与 child/subtree 消费者出现时增加准确能力。P8 原子生产切换前完成整体命名、参数、error 和 GoDoc 审计并冻结。
 - 后果：P4–P7 允许的 breaking 演进已经结束。生产端口以 P8 真实 Bootstrap consumer 为准；后续只有新的独立用例和 superseding ADR 才能扩展，不能重新制造宽 Framework facade。
 
 ## ADR-RT-039：初版不启用单 Process prepared-step durability acknowledgment
 
 - 状态：已接受，P6 已实施并验证。
-- 背景：Agent2 `PreparedStepAcknowledger` 只提供一个 Process `Snapshot`，而包含 child relation/child wait 的树只能从完整 `TreeSnapshot` 恢复。Runtime 无权拼接 Agent2 private tree wire。
+- 背景：Agent Framework `PreparedStepAcknowledger` 只提供一个 Process `Snapshot`，而包含 child relation/child wait 的树只能从完整 `TreeSnapshot` 恢复。Runtime 无权拼接 Agent Framework private tree wire。
 - 决策：初版 EngineConfig 不配置 acknowledger。Runtime 只承诺从 Application 已原子提交的 quiescent complete-tree checkpoint 恢复；active tree/step 在进程崩溃且没有该边界时以 `RunLost` 收口。
-- 后果：不宣称 Effect-level crash durability。未来只有 Agent2 先提供中性 tree-wide durability contract，且产品有真实 pre-dispatch crash recovery 需求时才启用；Framework 仍不取得 Runtime Store/transaction。
+- 后果：不宣称 Effect-level crash durability。未来只有 Agent Framework 先提供中性 tree-wide durability contract，且产品有真实 pre-dispatch crash recovery 需求时才启用；Framework 仍不取得 Runtime Store/transaction。
 
 ## ADR-RT-040：外部调用与 authoritative projection 使用 dispatch-attempt 协议
 
@@ -256,17 +256,17 @@
 
 ## ADR-RT-041：Durable Process admission 必须有 conclusive start outcome
 
-- 状态：已接受，P7 已实施并验证；Agent2 中性合同形成 Baseline 10。
-- 背景：Agent2 Baseline 9 在 ProcessAdmitter 成功后仍会执行可失败的 Definition.Start、initial capture/restore 和 register。root 失败可由直接 `Engine.Start` 调用者收口；child 失败只返回不含 prospective ProcessID 的 parent result，没有 post-admission aborted fact。Runtime 若已 durable 创建 child Run，会留下无法确定的 Opening 记录。
+- 状态：已接受，P7 已实施并验证；Agent Framework 中性合同形成 Baseline 10。
+- 背景：Agent Framework Baseline 9 在 ProcessAdmitter 成功后仍会执行可失败的 Definition.Start、initial capture/restore 和 register。root 失败可由直接 `Engine.Start` 调用者收口；child 失败只返回不含 prospective ProcessID 的 parent result，没有 post-admission aborted fact。Runtime 若已 durable 创建 child Run，会留下无法确定的 Opening 记录。
 - 决策：Application 先 durable 创建 root Opening Run/Segment；root admission 只绑定 prospective executor identity，Started fact 后转 Running，直接 start error 或启动崩溃分别收口为 start failure/RunLost。Delegate child 的 model ToolCall 必须先提交，child admission 只创建不可见 opening reservation/binding；收到 Framework conclusive started 后才公开 Run。
-- 决策：Agent2 以中性 `ProcessStartOutcomeAcknowledger` 提供带 prospective identity 的 admitted→started/aborted 结果。Runtime 不使用 timeout、private ID derivation、Effect 顺序或 tree wire猜测 child outcome；root/child 共用同一 reservation→conclusive outcome 协议。
-- 后果：本项推翻“Agent2 当前没有已知迁移 blocker”的旧判断。Framework 合同只描述 Process start lifecycle，不出现 Run、Store、transaction 或产品幂等。
+- 决策：Agent Framework 以中性 `ProcessStartOutcomeAcknowledger` 提供带 prospective identity 的 admitted→started/aborted 结果。Runtime 不使用 timeout、private ID derivation、Effect 顺序或 tree wire猜测 child outcome；root/child 共用同一 reservation→conclusive outcome 协议。
+- 后果：本项推翻“Agent Framework 当前没有已知迁移 blocker”的旧判断。Framework 合同只描述 Process start lifecycle，不出现 Run、Store、transaction 或产品幂等。
 
 ## ADR-RT-042：Waiting subtree 应用原子性需要 one-shot prepared tree change
 
-- 状态：已接受，P7 已实施并验证；补充并收紧 ADR-RT-020，Agent2 合同形成 Baseline 14。
+- 状态：已接受，P7 已实施并验证；补充并收紧 ADR-RT-020，Agent Framework 合同形成 Baseline 14。
 - 背景：Baseline 9 的 pure `WaitingSubtreeCancellationPlan` 在返回前释放 quiescence。Application durable commit 期间 sibling/tree 仍可能推进，随后 Apply 可 stale；此时已提交的 resulting checkpoint 与 live 外部副作用无法证明一致。
-- 决策：Agent2 提供中性的 one-shot prepared change，在 `Apply`/`Discard` 前保持 source tree frozen，并暴露 resulting TreeSnapshot 与 canceled/paused Process IDs。agentexec concrete capability 持有 Framework value；Application 只看 canceled/paused member 和 opaque checkpoint，并在当前 use case 内通过准确的小 capability 调用 Apply/Discard，不序列化 plan 或 lock。所有可失败、可取消 staging 都在 Prepare 返回前完成；Agent2 `Apply()` 不接受 context，因为 application transaction 提交后已经不存在合法的请求取消点。Runtime execution ACL 将状态安装 `Apply` 与移除最后外部边界后的 Process `Continue(ctx)` 分离，二者失败不能混称。
+- 决策：Agent Framework 提供中性的 one-shot prepared change，在 `Apply`/`Discard` 前保持 source tree frozen，并暴露 resulting TreeSnapshot 与 canceled/paused Process IDs。agentexec concrete capability 持有 Framework value；Application 只看 canceled/paused member 和 opaque checkpoint，并在当前 use case 内通过准确的小 capability 调用 Apply/Discard，不序列化 plan 或 lock。所有可失败、可取消 staging 都在 Prepare 返回前完成；Agent Framework `Apply()` 不接受 context，因为 application transaction 提交后已经不存在合法的请求取消点。Runtime execution ACL 将状态安装 `Apply` 与移除最后外部边界后的 Process `Continue(ctx)` 分离，二者失败不能混称。
 - 后果：capability one-shot，Discard 幂等，并绑定只作用于 preparation/transaction 的 Host-owned deadline；transaction failure 调用 Discard，零 Framework mutation。commit 后 contextless Apply，崩溃则恢复 committed resulting checkpoint。任何仍无法证明的 apply failure 都先释放旧 owner并通过 Application `WaitingExecutionRestorer` 恢复 exact resulting checkpoint；恢复失败才 RunLost。不得复活旧通用 Mutation lease，也不得仅靠文档假定 plan 不会 stale。
 
 ## ADR-RT-043：回答 waiting Interrupt 会原子作废旧恢复点
@@ -289,14 +289,14 @@
 - 背景：旧 `ExecutionControl`、`SegmentExecutor`、`SessionLifecycle` 与 `Effects` 把启动、观察、产品取消、资源清理、读取和多个 write-set 混成实现镜像。`CancelExecution` 同时被用于产品取消和无产品事实的 cleanup，使调用顺序与 owner 不清晰；`ProcessID` 又把 Framework 术语带入 Application 和 technical storage。
 - 决策：root start 当前分为 `ValidateRootStart`、不跨 model/tool side-effect boundary 的 `StageRoot`、durable opening commit 和 commit 后 `BeginRoot`；Observation 必须在 opening 前成功 attach，失败或 opening reject 只调用 `Release`。Application 的 product Cancel 先决定并提交 Run outcome，随后才 Release executor resource；自然终态和失败终态同样 Release，Waiting boundary 不 Release。
 - 决策：Coordinator 只保存各 use case 实际消费的窄端口；`SessionPorts`/`ProjectionPorts` 仅是 Bootstrap 参数分组，不成为运行时 facade。executor tree 的 Application 语言统一为 `ExecutorMember`/`MemberID`，SQLite epoch 59 直接采用 `root_member_id`/`memberId`，不保留 `ProcessID` alias、旧列或 dual codec。
-- 后果：P4 真实 Agent2 root consumer 可以修订 root candidate，但不得重新合并 product Cancel 与 resource Release，也不得把 Framework `Process` 语言带回 Application。P6/P7 的 provisional legacy seams 必须在对应纵切中被真实 consumer shape 替换。
+- 后果：P4 真实 Agent Framework root consumer 可以修订 root candidate，但不得重新合并 product Cancel 与 resource Release，也不得把 Framework `Process` 语言带回 Application。P6/P7 的 provisional legacy seams 必须在对应纵切中被真实 consumer shape 替换。
 
 ## ADR-RT-046：Fresh WorkingContext 由 Application 组装，final assistant message 来自 Result
 
 - 状态：已接受，P4 已实施。
-- 背景：旧 root request 只携带拆开的 prompt text/media，完整历史由旧 Agent middleware 隐式反查。这既会丢失多模态消息顺序，也把产品 Conversation 读取藏进 executor。另一方面，Agent2 Delta 是 best-effort observation，不能作为完整 assistant output 的真相源。
+- 背景：旧 root request 只携带拆开的 prompt text/media，完整历史由旧 Agent middleware 隐式反查。这既会丢失多模态消息顺序，也把产品 Conversation 读取藏进 executor。另一方面，Agent Framework Delta 是 best-effort observation，不能作为完整 assistant output 的真相源。
 - 决策：Application 在 fresh Run admission gate 内读取已验证 Host Conversation，追加当前 canonical user message，并把完整 provider-neutral `WorkingContext` seed 交给 `StageRoot`。agentexec 必须拥有该 seed 的副本；Process 开始或恢复后不再回读 mutable Conversation。成功终态由 `Process.Await` 的 `Result.Output` 投影一个 Application-owned `AssistantMessageCompleted`；text/reasoning Delta 只改善实时体验，Reducer 以 final message 覆盖 partial/missing streaming observation。
-- 后果：Conversation 仍是产品模型历史，WorkingContext 仍是 executor 私有运行/恢复状态，二者没有共享可变所有权。当前旧生产 owner 为 P8 parallel cutover 暂时继续消费 legacy text/media 字段，但 Agent2 路径只接受完整 WorkingContext；P8 删除旧 owner 时同批删除 legacy request 表达，不保留 dual API。
+- 后果：Conversation 仍是产品模型历史，WorkingContext 仍是 executor 私有运行/恢复状态，二者没有共享可变所有权。当前旧生产 owner 为 P8 parallel cutover 暂时继续消费 legacy text/media 字段，但 Agent Framework 路径只接受完整 WorkingContext；P8 删除旧 owner 时同批删除 legacy request 表达，不保留 dual API。
 
 ## ADR-RT-047：Invocation journal 与 semantic Transcript 分离，并发 Tool final 按模型顺序成批提交
 
@@ -309,21 +309,21 @@
 ## ADR-RT-048：Native waiting 只经 Interaction pending-input ACL，不兼容解释旧 suspension
 
 - 状态：已接受，P6 已实施。
-- 背景：产品 ask-user、approval 和 plan-exit 共享 `runs.Interrupt` 语义，但旧生产 owner 使用 old Agent suspension。若 native Interaction 复用旧 package、双读 old private JSON，或让 Toolset import Agent2，就会把迁移兼容性变成新的永久边界。
-- 决策：framework-neutral `interruptcodec` 只编码产品 prompt/resolution；`interactioninput` 是唯一 Agent2 ACL，负责 capability freeze、Tool continuation state digest、public pending input 和 response Signal。旧 private suspension adapter 已在 P8 删除；Toolset 通过 `runs.InterruptFunc` 注入 native capability，保持对 Framework 零依赖。
+- 背景：产品 ask-user、approval 和 plan-exit 共享 `runs.Interrupt` 语义，但旧生产 owner 使用 old Agent suspension。若 native Interaction 复用旧 package、双读 old private JSON，或让 Toolset import Agent Framework，就会把迁移兼容性变成新的永久边界。
+- 决策：framework-neutral `interruptcodec` 只编码产品 prompt/resolution；`interactioninput` 是唯一 Agent Framework ACL，负责 capability freeze、Tool continuation state digest、public pending input 和 response Signal。旧 private suspension adapter 已在 P8 删除；Toolset 通过 `runs.InterruptFunc` 注入 native capability，保持对 Framework 零依赖。
 - 决策：Interactive approval 首次进入时冻结 effective arguments、policy prompt 与 logical call identity；restore 直接解析该 prompt 并 resolve，不能重跑 pre-hook/authorization plan。Interaction 自己的 deferred advertisement 留在 TreeSnapshot 内，Runtime 不建第二份 advertised-tool 状态。
 - 后果：真实 `ask_user`、approval restore、deferred advertisement、corrupt prompt/state 与 capability mismatch 可分别测试；生产切换未迁移产品 Interrupt 或 Tool schema。
 
 ## ADR-RT-049：取消是控制请求，观察与资源释放保持分离
 
 - 状态：已接受，P8 已实施。
-- 背景：若用户 cancel 直接取消 Run pump 的 observation context，Application 会在 Agent2 到达安全边界并给出确定 Termination 前失去唯一事实流，也会把请求方 context 生命周期误当成执行终态。
+- 背景：若用户 cancel 直接取消 Run pump 的 observation context，Application 会在 Agent Framework 到达安全边界并给出确定 Termination 前失去唯一事实流，也会把请求方 context 生命周期误当成执行终态。
 - 决策：Application 先 durable 记录 cancel intent，再调用 `RunningRootCancellationRequester` 请求 Framework 停止；Run pump 保持附着，直到 terminal/unknown write-set 成功提交。`ExecutionReleaser` 只在确定终态后释放 tree，不决定产品 outcome。
 - 后果：cancel 生效延迟等于当前 Strategy safe step；取消、deadline、unknown 与 terminal 继续由 first-wins matrix 裁决，请求 context 超时只结束调用等待，不静默杀死产品 Run。
 
 ## ADR-RT-050：Tool 可见性保持 Framework-neutral，广告能力在执行边界注入
 
 - 状态：已接受，P8 已实施。
-- 背景：让通用 Toolset 返回 Agent2 ToolGroup、持有 delegate Tool，或 fallback 到某个 ToolLoop，会把执行策略和 private lifecycle 扩散进产品工具目录，并形成第二份 visible/deferred authority。
+- 背景：让通用 Toolset 返回 Agent Framework ToolGroup、持有 delegate Tool，或 fallback 到某个 ToolLoop，会把执行策略和 private lifecycle 扩散进产品工具目录，并形成第二份 visible/deferred authority。
 - 决策：`toolset.Resolver` 只返回 framework-neutral `Manifest{Visible, Deferred}`；需要动态广告的 Tool 只依赖最小 `ToolAdvertiser` capability。agentexec 在真实 Interaction invocation context 中绑定 `AdvertiseTools`，无绑定时 fail closed，不保留 legacy fallback。
-- 后果：Tool schema、authorization 与 visibility 仍由 Runtime 单一 owner 管理；Agent2 只在冻结的 Deployment 内执行/广告工具，Toolset 对 Agent2 零 import。
+- 后果：Tool schema、authorization 与 visibility 仍由 Runtime 单一 owner 管理；Agent Framework 只在冻结的 Deployment 内执行/广告工具，Toolset 对 Agent Framework 零 import。

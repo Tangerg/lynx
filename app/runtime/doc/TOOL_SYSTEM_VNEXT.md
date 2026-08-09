@@ -1,6 +1,6 @@
 # Tool System vNext
 
-> 状态：当前模型工具合同与已完成专项台账。工具名称、描述、参数、schema、可见性和删除裁决仍由本文拥有；旧 Agent/toolloop 接线细节将在 Runtime P5 按 [`ARCHITECTURE.md`](ARCHITECTURE.md) 重写，不能作为 Agent2 兼容要求。
+> 状态：当前模型工具合同与已完成专项台账。工具名称、描述、参数、schema、可见性和删除裁决仍由本文拥有；执行接线已经由 Runtime native Interaction 完成，Agent Framework 只消费通用 Tool 合同。
 
 本文是 `app/runtime` 新工具体系的活文档，也是分批实施台账。代码、协议、提示词、持久化和桌面 UI 必须使用同一套领域词汇；不保留旧名称、别名字段或双路径兼容。
 
@@ -130,7 +130,7 @@
 - **Hidden**：Runtime 可解析但模型不可见；
 - **Unavailable**：当前 Run 不注册。
 
-这四个词是行为分类，不强制对应一个通用 enum。当前实现只有 Direct 与 Deferred 构成真实的组装变化轴：Resolver 把两组工具注册到同一 Run，`agent/toolloop` 只读取 `search_tools` 已有的通用 `DeferredTool` 能力生成初始 manifest。Unavailable 继续用“不加入 Run registry”表达；当前没有内建 Hidden 工具，因此不为它创建无消费者的状态、接口或 registry 层。
+这四个词是行为分类，不强制对应一个通用 enum。当前实现只有 Direct 与 Deferred 构成真实的组装变化轴：Runtime Resolver 生成唯一不可变 manifest，`agent/interaction` 分别以 `Tools` 与 `DeferredTools` 冻结初始可见和已授权但未广告的工具；`search_tools` 只通过 `AdvertiseTools` 单调提升既有名称。Unavailable 继续用“不加入 manifest”表达；当前没有内建 Hidden 工具，因此不为它创建无消费者的状态、接口或 registry 层。
 
 可见性过滤不是授权。执行时仍按 permission action、session mode 和安全策略重新判定。
 
@@ -247,7 +247,7 @@
 - Toolset 的同一 descriptor 同时绑定 client-facing result projector、根结果类型与闭集 enum；生成 manifest 的 `toolResultPresentations` 按 `toolName` 发布这些精确映射，不由 Delivery 为 opaque `tool.result` 猜测或复制具体工具结构；
 - `apply_patch` 的展示结果固定为 `{changes:[{path,status,from?}]}`，其中 `status` 是 `added | deleted | modified | moved`，`from` 只表达移动前路径；它不复用 VCS 的 `renamed/untracked` 状态，也不伪造未返回的 diff；
 - 工具输出保持各模型协议共同支持的文本结果；结构化结果可以编码为 JSON 文本，但在出现至少两个真实 output-schema 消费者前不提升为通用协议；
-- 普通工具错误由 `agent/toolloop` 结算为 `ToolResult.IsError`，不再增加第二套失败类型；approval、question 和 lifecycle interrupt 仍是控制流；
+- 普通工具错误由 `agent/interaction` 结算为 `ToolResult.IsError`，不再增加第二套失败类型；approval、question 和 lifecycle interrupt 仍是控制流；
 - 输出裁剪与 offload 由统一 settlement 边界负责，不进入 `tool.Tool`。
 
 ## 9. `agent` 与 `app/runtime` 边界
@@ -310,7 +310,7 @@
 - `core/chat.ToolDefinition` 统一验证 provider 共同接受的名称字符集、64 字符上限和 object input schema；
 - typed function schema 从 Go JSON 语义推导 required / optional，并新增字符串、数值、正则和数组约束；
 - typed function 调用在解码前执行同一份派生 schema，缺字段、未知字段和越界参数成为可恢复的工具错误；
-- 保持 `tool.Tool` 两方法最小接口，复用 `agent/toolloop` 已有的 `ToolResult.IsError` 结算；
+- 保持 `tool.Tool` 两方法最小接口，复用 `agent/interaction` 的 `ToolResult.IsError` 结算；
 - 否决通用 output schema 和新 error-code SPI：当前 provider 没有共同消费方，引入会造成过度抽象；
 - 参数校验只依赖标准库，根模块继续零外部依赖，`tool` 继续只依赖 Core。
 
@@ -353,7 +353,7 @@
 - **本条已由批次 11 取代。** 当时按模型选择 mutation vocabulary；现行实现对所有模型只注册 `apply_patch`，不再维护模型 id 映射；
 - 模型选择以临时 `executionctx` 值从 fresh/restore 两个执行入口传播，Resolver 才读取；默认选择由 Bootstrap 组装传入。持久 `TurnScope`、Agent blackboard、通用 Tool 和 Agent Runtime API 均未扩张；
 - 将 `search_tools` 从 MCP catalog 改为完整 Deferred catalog，按 runtime 或 MCP source 分组并公平排序；`query` 和 `limit` 改用 typed function 严格 schema，拒绝缺字段、未知字段与越界值；
-- 继续复用 `agent/toolloop.DeferredTool` 与 `PromoteTools` 的通用 manifest 投影。`agent` 不知道 Plan、Goal、session、model provider、Exposure 策略或 runtime registry；边界变化仅发生在 app adapter/composition root。
+- Runtime Resolver 以唯一 `toolset.Manifest` 投影 Direct/Deferred；`agent/interaction` 只冻结 executable `Tools`/`DeferredTools` 并通过 `AdvertiseTools` 提升 exact 已绑定名称。`agent` 不知道 Plan、Goal、session、model provider、Exposure 策略或 Runtime registry；边界变化仅发生在 Runtime adapter/composition root。
 
 ### 批次 5a
 
@@ -455,7 +455,7 @@
 
 - 现行架构基准把旧 `task` / Todo 改为 `delegate_task` / Plan，端口文档同步真实的 `toolset/plan.Store`、`agentexec.PlanReader` 与 SQLite plan store，不再让已经删除的类型看起来仍是当前设计；
 - `ARCHITECTURE_HYGIENE_PLAN.md` 明确降级为历史实施台账，`doc/inspiration` 总索引明确降级为同类产品对比快照；其中 Todo/Task 等词只保留为历史代码或其他产品原生术语，不再声明 Lynx 当前实现状态；
-- 当前规范只有本文与 `EXECUTION_CENTERED_ARCHITECTURE.md` / `EXTENSIBILITY.md`。历史材料通过醒目链接回到本文，而不是复制一份会再次漂移的“当前工具表”；
+- 当前规范只有本文、[`ARCHITECTURE.md`](ARCHITECTURE.md) 与机器 contract。迁移期 execution/port 快照已经在 P11 删除，历史事实只留在 Git，不保留一份会再次漂移的“当前工具表”；
 - 排除已标记历史材料、本文删除记录和本轮刻意未修改的前端 generated baseline 后，现行 runtime 文档不再出现 Todo、`task`、`update_plan` 或 `update_goal`。
 
 ### 批次 7g
@@ -522,7 +522,7 @@
 - 闭集动作字段由 Presenter 映射为稳定短文案：`lsp.operation` 区分 definition/references/diagnostics 等查询，`http_request.method` 区分 GET/POST 等方法。HTTP URL、搜索 query、文件 path、instructions 和各种 id 不进入 activity，避免长文本、凭据、实现标识与用户内容挤占工具标题；
 - Plan、Goal、Schedule、Skill、memory、conversation search、tool discovery 和 offloaded-result 工具补齐服务端 canonical activity。未知 MCP/A2A 工具继续走通用工具名降级，不猜测第三方参数语义；
 - `delegate_task.summary` 的 schema 现在落实 `1..80` 字符且禁止首尾空白，保持其 3–5 词动作标签语义；`propose_skill.name` 的 schema 与 Skill 领域规则对齐为最多 64 字符的 lowercase-hyphenated identifier，description 上限同步为领域已有的 1024 字符。约束在 typed-tool 解码阶段生效，不再等进入 Agent/Skill 领域后才失败；
-- Presenter 仍是 toolset adapter 内的 client-facing projection，没有把具体工具名、参数结构或 activity 规则泄露到 `agentexec/turn`、通用 Agent runtime、领域对象或 delivery DTO。本批仍只修改服务端，未改桌面前端接线。
+- Presenter 仍是 toolset adapter 内的 client-facing projection，没有把具体工具名、参数结构或 activity 规则泄露到 `agentexec` execution boundary、通用 Agent Framework、领域对象或 delivery DTO。本批仍只修改服务端，未改桌面前端接线。
 
 ### 批次 11
 

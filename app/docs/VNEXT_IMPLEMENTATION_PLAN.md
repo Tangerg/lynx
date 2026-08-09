@@ -1258,7 +1258,7 @@ A ──→ A′ (4 slice, 修现役泄露, 落 main) ──┬─→ B  (Regist
 - [`PROTOCOL_VNEXT_REVIEW.md`](PROTOCOL_VNEXT_REVIEW.md) —— 八轮评审
 - [`codex_runtime_api_design_guide.md`](codex_runtime_api_design_guide.md)
 - [`../desktop/docs/protocol/`](../desktop/docs/protocol/) —— 切换前的当前 wire 真相（API / AUX_API / TRANSPORT）
-- [`../runtime/doc/EXECUTION_CENTERED_ARCHITECTURE.md`](../runtime/doc/EXECUTION_CENTERED_ARCHITECTURE.md) —— 环形架构基准
+- [`../runtime/doc/ARCHITECTURE.md`](../runtime/doc/ARCHITECTURE.md) —— 当前 Clean Architecture/DDD 基准
 - `app/runtime/internal/arch/arch_test.go` —— 反泄露守卫的机器强制点
 
 

@@ -10,9 +10,9 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/pagination"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
+	"github.com/Tangerg/lynx/app/runtime/internal/pagination"
 )
 
 // ManagementStore is the editable-schedule persistence slice owned by this

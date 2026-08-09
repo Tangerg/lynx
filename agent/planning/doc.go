@@ -1,6 +1,10 @@
-// Package planning defines the planner-facing types: WorldState
-// implementations, the Plan struct, the Domain (the agent
-// capability set the planner reasons over), and the Planner interface.
-// Concrete planners live in sibling packages such as planning/goap and
-// planning/htn.
+// Package planning provides goal-directed state planning as an Agent execution
+// strategy. Goal, Condition, WorldState, Action, and Plan belong exclusively to
+// this package; the Agent kernel sees only opaque Execution state and Effects.
+//
+// Planning separates predicted Action semantics from external execution. A
+// Planner is a pure, deterministic search over a Problem. A managed Planning
+// Execution observes the real world and executes selected Actions outside its
+// Step through a Deployment-bound dispatcher or a child Process, then observes
+// again before accepting that the prediction became true.
 package planning

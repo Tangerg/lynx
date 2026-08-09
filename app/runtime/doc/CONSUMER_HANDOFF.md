@@ -15,7 +15,7 @@
 - Machine truth: [`../contract/`](../contract/) generated from the Go contract
   registry with `go generate ./...`.
 - Product execution vocabulary is exclusively Run, Segment, Item, and
-  Interrupt. Agent2 Process/Execution/Member identity is not a wire concept.
+  Interrupt. Agent Framework Process/Execution/Member identity is not a wire concept.
 
 ## Breaking surface
 

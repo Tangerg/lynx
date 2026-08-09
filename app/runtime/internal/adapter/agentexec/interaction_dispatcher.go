@@ -15,8 +15,8 @@ import (
 
 	"go.opentelemetry.io/otel/trace"
 
-	agent "github.com/Tangerg/lynx/agent2"
-	"github.com/Tangerg/lynx/agent2/interaction"
+	agent "github.com/Tangerg/lynx/agent"
+	"github.com/Tangerg/lynx/agent/interaction"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/interactioninput"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/discovery"
@@ -36,7 +36,7 @@ const authoritativeProjectionTimeout = 15 * time.Second
 // interactionDispatcher gives each EffectRequest one independent attempt
 // tracker. The inner Interaction Dispatcher still owns protocol decoding and
 // definite settlements; this wrapper alone converts a post-external-call
-// projection failure into Agent2's unknown settlement path.
+// projection failure into Agent Framework's unknown settlement path.
 type interactionDispatcher struct {
 	inner   *interaction.Dispatcher
 	session *interactionSession

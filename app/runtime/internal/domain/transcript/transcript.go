@@ -21,7 +21,7 @@ import (
 // (with its subagents) and dropping/copying from the next root on. That boundary
 // math is a domain invariant of the Run log, so it lives here; callers only map
 // these canonical values and sentinels to their external representation. See
-// doc/EXECUTION_CENTERED_ARCHITECTURE.md.
+// doc/ARCHITECTURE.md.
 
 // Boundary-resolution errors.
 var (

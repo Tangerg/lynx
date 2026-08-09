@@ -3,154 +3,77 @@ package goap
 import (
 	"context"
 	"errors"
-	"slices"
+	"fmt"
 
-	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/codes"
-	"go.opentelemetry.io/otel/trace"
-
-	"github.com/Tangerg/lynx/agent/core"
-	"github.com/Tangerg/lynx/agent/internal/nilvalue"
 	"github.com/Tangerg/lynx/agent/planning"
 )
 
-const defaultMaxExpansions = 10_000
+const defaultMaxExpansions uint32 = 10_000
 
-// ErrInvalidActionCost reports a cost probe that returned a negative,
-// non-finite value. Uniform-cost search requires non-negative finite edges.
-var ErrInvalidActionCost = errors.New("goap: invalid action cost")
+// ErrExpansionLimitReached reports that search stopped before exhausting the frontier.
+// It is not equivalent to a proven unreachable Goal.
+var ErrExpansionLimitReached = errors.New("goap: expansion limit reached")
 
-// Tracing span / attribute keys for the GOAP planner. Centralized so a
-// typo at one call site is impossible and listeners have one schema to
-// key off; treat as stable across releases.
-const (
-	spanGOAP = planning.GOAPPlannerName + ".plan"
+// Config contains the bounded search policy for a GOAP Planner.
+type Config struct {
+	// MaxExpansions bounds states removed from the frontier. Zero selects a safe
+	// default of 10,000 expansions.
+	MaxExpansions uint32
+}
 
-	// GOAP-specific search diagnostics — no cross-planner equivalent, so they
-	// stay namespaced under the algorithm.
-	attrActionsCount     = "agent.actions.count"
-	attrGOAPAlreadySat   = "agent.goap.already_satisfied"
-	attrGOAPHasProducers = "agent.goap.has_goal_producers"
-	attrGOAPExpansions   = "agent.goap.expansions"
-	attrGOAPFound        = "agent.goap.found"
-)
-
-var plannerTracer = otel.Tracer(planning.TracerName)
-
-// Planner is the concrete planner. It's stateless across PlanToGoal
-// calls; safe to share across goroutines.
+// Planner performs stateless uniform-cost search and is safe for concurrent
+// use after construction.
 type Planner struct {
-	maxExpansions int
+	maxExpansions uint32
 }
 
-// NewPlanner returns a planner with a 10k node-expansion safety cap.
-func NewPlanner() *Planner {
-	return &Planner{maxExpansions: defaultMaxExpansions}
+// New constructs a GOAP Planner with an explicit or default expansion limit.
+func New(config Config) *Planner {
+	limit := config.MaxExpansions
+	if limit == 0 {
+		limit = defaultMaxExpansions
+	}
+	return &Planner{maxExpansions: limit}
 }
 
-// Name is the planner's extension identifier — the value an agent's
-// [core.AgentConfig.PlannerName] must match to select this planner.
-func (p *Planner) Name() string { return planning.GOAPPlannerName }
-
-// PlanToGoal runs a forward uniform-cost search over world states. Uniform
-// cost is A* with h=0: less aggressive than a domain-specific heuristic, but
-// correct for every non-negative action-cost model the public API permits.
-func (p *Planner) PlanToGoal(
-	ctx context.Context,
-	start core.WorldState,
-	domain *planning.Domain,
-	goal *core.Goal,
-	options planning.Options,
-) (*planning.Plan, error) {
-	if err := domain.ValidatePlanInputs(start, goal); err != nil {
-		return nil, err
+// Plan finds the least-cost Action sequence that predicts satisfaction of the
+// Problem Goal. An exhausted frontier returns found=false; hitting the bounded
+// expansion limit returns ErrExpansionLimitReached because reachability remains
+// unknown.
+func (planner *Planner) Plan(ctx context.Context, problem planning.Problem) (planning.Plan, bool, error) {
+	if planner == nil || planner.maxExpansions == 0 || !problem.Valid() {
+		return planning.Plan{}, false, planning.ErrInvalidProblem
 	}
-
-	ctx, span := plannerTracer.Start(ctx, spanGOAP,
-		trace.WithAttributes(
-			attribute.String(planning.PlannerNameKey, p.Name()),
-			attribute.String(planning.GoalNameKey, goal.Name()),
-			attribute.Int(attrActionsCount, len(domain.Actions())),
-		),
-	)
-	defer span.End()
-
-	// fail records err on the span before returning it, so a search that hits
-	// an invalid cost, context cancellation, or reconstruction error traces as
-	// an error span rather than a clean one (see doc/OBSERVABILITY.md).
-	fail := func(err error) (*planning.Plan, error) {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
-		return nil, err
+	if err := ctx.Err(); err != nil {
+		return planning.Plan{}, false, err
 	}
-
-	satisfied, err := domain.Satisfies(ctx, start, goal.Requirements(), options.ConditionResolver)
+	if problem.Goal().SatisfiedBy(problem.InitialState()) {
+		plan, err := planning.NewPlan(nil, 0)
+		return plan, true, err
+	}
+	search := newSearch(problem, planner.maxExpansions)
+	if !search.hasGoalProducers() {
+		return planning.Plan{}, false, nil
+	}
+	goal, found, err := search.run(ctx)
 	if err != nil {
-		return fail(err)
+		return planning.Plan{}, false, err
 	}
-	if satisfied {
-		span.SetAttributes(attribute.Bool(attrGOAPAlreadySat, true))
-		return planning.NewPlan(nil, goal), nil
+	if !found {
+		return planning.Plan{}, false, nil
 	}
-
-	candidates := p.candidateActions(domain.Actions(), options.ExcludedActions)
-
-	s := newSearch(start, candidates, domain, goal, options.ConditionResolver, p.maxExpansions)
-
-	// Producer pre-check — short-circuits before search burns the expansion
-	// cap chasing a goal whose required conditions no candidate action can
-	// establish. It is a conservative direct-producer scan (see
-	// hasGoalProducers): it does not verify that those producers are
-	// themselves reachable, so it only ever rejects genuinely unreachable
-	// goals and never a solvable one.
-	if !s.hasGoalProducers() {
-		span.SetAttributes(attribute.Bool(attrGOAPHasProducers, false))
-		return nil, nil
-	}
-
-	bestGoalNode, err := s.run(ctx)
+	actions, err := search.reconstruct(goal.state.Key())
 	if err != nil {
-		return fail(err)
+		return planning.Plan{}, false, err
 	}
-
-	span.SetAttributes(attribute.Int(attrGOAPExpansions, s.expansions))
-
-	if bestGoalNode == nil {
-		span.SetAttributes(attribute.Bool(attrGOAPFound, false))
-		return nil, nil
-	}
-
-	path, err := s.reconstructPath(bestGoalNode.state.Key())
+	plan, err := planning.NewPlan(actions, goal.cost)
 	if err != nil {
-		return fail(err)
+		return planning.Plan{}, false, err
 	}
-
-	span.SetAttributes(
-		attribute.Bool(attrGOAPFound, true),
-		attribute.Int(planning.PlanLengthKey, len(path)),
-	)
-	return planning.NewPlan(path, goal), nil
+	if err := problem.ValidatePlan(plan); err != nil {
+		return planning.Plan{}, false, fmt.Errorf("goap: validate result: %w", err)
+	}
+	return plan, true, nil
 }
 
-// candidateActions filters the master action list against the per-call
-// exclusion set and stable-sorts so more-specific actions (those with more
-// preconditions) get expanded first. Specificity-first tie ordering keeps the
-// search frontier focused without affecting cost optimality.
-func (p *Planner) candidateActions(actions []core.Action, excluded planning.Exclusions) []core.Action {
-	out := make([]core.Action, 0, len(actions))
-	for _, action := range actions {
-		if nilvalue.Is(action) {
-			continue
-		}
-		if excluded.Contains(action.Metadata().Name) {
-			continue
-		}
-		out = append(out, action)
-	}
-
-	slices.SortStableFunc(out, func(a, b core.Action) int {
-		return len(b.Metadata().Preconditions) - len(a.Metadata().Preconditions)
-	})
-	return out
-}
+var _ planning.Planner = (*Planner)(nil)

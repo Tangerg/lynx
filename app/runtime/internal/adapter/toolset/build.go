@@ -31,7 +31,7 @@ import (
 // background exec, MCP, A2A) and wires them into the resolver — so the engine
 // CORE imports none of them; it receives the assembled [Built]. Tool capability
 // construction therefore stays outside Agent
-// execution (doc/EXECUTION_CENTERED_ARCHITECTURE.md).
+// execution (doc/ARCHITECTURE.md).
 
 // BuildConfig is the tool-environment construction input (the working-directory
 // scope + the capability tables). Driven by the runtime config.

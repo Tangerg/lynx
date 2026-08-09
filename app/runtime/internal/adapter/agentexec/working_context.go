@@ -163,7 +163,7 @@ func (composer *WorkingContextComposer) ForgetSession(sessionID string) {
 
 // BeforeToolUse projects the trusted Runtime hook decision onto the native
 // executor's framework-neutral Tool boundary. A hook's ASK remains a product
-// approval escalation; it is not encoded as an Agent2 Signal here.
+// approval escalation; it is not encoded as an Agent Framework Signal here.
 func (composer *WorkingContextComposer) BeforeToolUse(
 	ctx context.Context,
 	input InteractionToolHookInput,

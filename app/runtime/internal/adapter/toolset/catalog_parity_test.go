@@ -218,7 +218,7 @@ func TestDescriptorCatalogMatchesBuiltInTools(t *testing.T) {
 		checkedContracts[name] = true
 		assertBuiltInToolContract(t, candidate)
 	}
-	// Agent2 advertises delegate_task from the Interaction Definition rather than
+	// Agent Framework advertises delegate_task from the Interaction Definition rather than
 	// the ordinary Tool manifest.
 	existing[catalog.DelegateTask] = true
 

@@ -9,7 +9,7 @@ import (
 )
 
 // delegatingStubModel drives one root-to-child interaction through the native
-// Agent2 Delegate effect through the production execution boundary.
+// Agent Framework Delegate effect through the production execution boundary.
 type delegatingStubModel struct{ defaults *chat.Options }
 
 func newDelegatingStubModel() *delegatingStubModel {
@@ -41,7 +41,7 @@ func (model *delegatingStubModel) Stream(
 }
 
 // nestedDelegatingStub drives root → child → grandchild, proving that each
-// Agent2 Process owns its own interaction context and product Run lineage.
+// Agent Framework Process owns its own interaction context and product Run lineage.
 type nestedDelegatingStub struct{ defaults *chat.Options }
 
 func newNestedDelegatingStub() *nestedDelegatingStub {

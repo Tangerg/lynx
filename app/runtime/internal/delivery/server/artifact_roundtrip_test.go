@@ -32,7 +32,7 @@ import (
 // it is a breaking act, so it should cost a deliberate edit here.
 func TestArtifactVersionIsTheOneVNextFroze(t *testing.T) {
 	if protocol.SessionArtifactVersion != 14 {
-		t.Fatalf("SessionArtifactVersion = %d; Agent2 Runtime cutover requires artifact v14",
+		t.Fatalf("SessionArtifactVersion = %d; Agent Framework Runtime cutover requires artifact v14",
 			protocol.SessionArtifactVersion)
 	}
 }

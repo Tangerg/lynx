@@ -1538,7 +1538,7 @@ stream；客户端永远不需要猜某个事件是否是唯一事实。**
 ## 附录 B：主要本地参考
 
 - [`app/runtime/CLAUDE.md`](../runtime/CLAUDE.md)
-- [`app/runtime/doc/EXECUTION_CENTERED_ARCHITECTURE.md`](../runtime/doc/EXECUTION_CENTERED_ARCHITECTURE.md)
+- [`app/runtime/doc/ARCHITECTURE.md`](../runtime/doc/ARCHITECTURE.md)
 - [`app/desktop/docs/protocol/API.md`](../desktop/docs/protocol/API.md)
 - [`app/desktop/docs/protocol/AUX_API.md`](../desktop/docs/protocol/AUX_API.md)
 - [`app/desktop/docs/protocol/TRANSPORT.md`](../desktop/docs/protocol/TRANSPORT.md)

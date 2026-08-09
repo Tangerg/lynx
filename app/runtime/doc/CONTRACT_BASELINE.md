@@ -4,7 +4,7 @@
 >
 > 基线日期：2026-08-09
 >
-> 适用范围：Runtime Protocol 制品、持久化 shape、Agent2 消费边界和重构期间的内部防腐合同
+> 适用范围：Runtime Protocol 制品、持久化 shape、Agent Framework 消费边界和重构期间的内部防腐合同
 
 本文只记录可被机器比较的边界事实和版本。它不是向旧消费者承诺兼容；仓库允许 breaking change，但任何变化必须显式、一次性、可验收。
 
@@ -67,37 +67,37 @@ TypeScript generated files 是派生制品，不单独定义语义。它们必�
 
 ### 3.2 Executor checkpoint
 
-当前 checkpoint 的产品语义是 Host envelope + opaque Agent2 complete-tree payload。生产 Bootstrap 只保存 Agent2 public TreeSnapshot v4 JSON，由 `adapter/agentexec` 唯一解释；Application/Store 不分支解析。
+当前 checkpoint 的产品语义是 Host envelope + opaque Agent Framework complete-tree payload。生产 Bootstrap 只保存 Agent Framework public TreeSnapshot v4 JSON，由 `adapter/agentexec` 唯一解释；Application/Store 不分支解析。
 
 目标合同：
 
 - Application owns checkpoint identity、BuildID、Session/Run identity、model selection、limits、capabilities、accounting 和 child Run binding；
-- `adapter/agentexec` owns Agent2 TreeSnapshot encode/decode/restore；
+- `adapter/agentexec` owns Agent Framework TreeSnapshot encode/decode/restore；
 - payload 对 Application、Domain、Delivery、SQLite 和 Protocol 不透明；
 - root Process tree 是 executor payload 的不可拆分恢复单位；
 - checkpoint replacement 只能推进 frozen identity/limits 和 monotonic usage；
 - terminalization 与 checkpoint deletion 由 Application write-set 原子决定。
 
-P7 延续的 native payload baseline 是 Agent2 TreeSnapshot v4 本身，不再包一层 Runtime 自创 payload version。Agent2 public parser 校验 snapshot version/shape，exact DeploymentRef 校验策略实现与配置，Host BuildID 校验当前二进制/adapter expectation；任一不一致都 fail closed。Host envelope 的技术 codec 仍由 Runtime 当前唯一 SQLite epoch 拥有。
+P7 延续的 native payload baseline 是 Agent Framework TreeSnapshot v4 本身，不再包一层 Runtime 自创 payload version。Agent Framework public parser 校验 snapshot version/shape，exact DeploymentRef 校验策略实现与配置，Host BuildID 校验当前二进制/adapter expectation；任一不一致都 fail closed。Host envelope 的技术 codec 仍由 Runtime 当前唯一 SQLite epoch 拥有。
 
 ### 3.3 Artifact 与 Transcript
 
 Artifact、Transcript Item 和 ToolCall timing 的当前机器 shape 仍由 Runtime contract/store codec 拥有。Session Artifact 当前唯一版本为 14；v13 及更早版本在任何写入前确定性拒绝，不从旧 artifact 猜测缺失事实或改写版本号。
 
-## 4. Agent2 消费 Baseline
+## 4. Agent Framework 消费 Baseline
 
-Runtime 使用 Agent2 [`API_BASELINE.md`](../../../agent2/doc/API_BASELINE.md) 的 Baseline 14。P8 已把 P4–P7 验证的 root start/result、authoritative model/tool、waiting/restore/answer/steer、managed Delegate child 和 prepared waiting-subtree合同切为生产 Bootstrap 唯一 owner：
+Runtime 使用 Agent Framework [`API_BASELINE.md`](../../../agent/doc/API_BASELINE.md) 的 Baseline 15。P8 已把 P4–P7 验证的 root start/result、authoritative model/tool、waiting/restore/answer/steer、managed Delegate child 和 prepared waiting-subtree合同切为生产 Bootstrap 唯一 owner，P11 完成 canonical module path 替换：
 
 - root Kernel、Interaction、Planning、Planning/GOAP、Workflow、OTel、Platform 七个 public package 已冻结；
 - Process Snapshot v6、TreeSnapshot v4；
 - Interaction state/protocol v5/v3；
 - context-aware ProcessAdmitter、conclusive ProcessStartOutcome、ModelInvocation/ToolInvocation、DelegateChildKey、ActiveDelegateChild inspector、DeferredTools/AdvertiseTools 与 contextless PreparedWaitingSubtreeCancellation Apply 已存在；
-- Agent2 Event 是 Framework 已发生事实，Delta 是 best-effort 临时输出；
+- Agent Framework Event 是 Framework 已发生事实，Delta 是 best-effort 临时输出；
 - Strategy payload 和 TreeSnapshot private state 对 Runtime 不透明。
 
-Runtime 只把 Agent2 public API 当合同。旧 `agent`、Agent2 tests/private wire、当前 `agentexec` API 都不是新实现兼容基线。
+Runtime 只把 Agent Framework public API 当合同。原框架实现、Agent Framework tests/private wire、当前 `agentexec` API 都不是兼容基线。
 
-P7 的两个前置缺口已经由真实 Runtime consumer 在 Agent2 中以 Framework-neutral 合同关闭：accepted admission 通过 prospective identity 的 started/aborted outcome闭合；waiting subtree 通过 one-shot prepared capability 持有同一 safe cut，全部 fallible staging 位于 Prepare，durable commit 后只调用 contextless Apply。Run、Store、transaction、产品 ID 和 private tree wire均未进入 Agent2。
+P7 的两个前置缺口已经由真实 Runtime consumer 在 Agent Framework 中以 Framework-neutral 合同关闭：accepted admission 通过 prospective identity 的 started/aborted outcome闭合；waiting subtree 通过 one-shot prepared capability 持有同一 safe cut，全部 fallible staging 位于 Prepare，durable commit 后只调用 contextless Apply。Run、Store、transaction、产品 ID 和 private tree wire均未进入 Agent Framework。
 
 `PreparedStepAcknowledger` 仍只回调单 Process Snapshot，Runtime 初版不启用。durable recovery baseline 只有已提交 quiescent complete-tree checkpoint；active-step crash 不伪装为可恢复。
 
@@ -106,20 +106,20 @@ P7 的两个前置缺口已经由真实 Runtime consumer 在 Agent2 中以 Frame
 目标 production allowlist：
 
 ```text
-internal/adapter/agentexec/** -> agent2, agent2/interaction
+internal/adapter/agentexec/** -> agent, agent/interaction
 ```
 
 只有真实接入 Planning/Workflow/OTel/Platform 时，才分别通过 ADR 增加精确 package edge。默认禁止：
 
 ```text
-internal/domain/**      -> agent2/**
-internal/application/** -> agent2/**
-internal/delivery/**    -> agent2/**
-internal/infra/**       -> agent2/**
-internal/adapter/toolset/** -> agent2/**
+internal/domain/**      -> agent/**
+internal/application/** -> agent/**
+internal/delivery/**    -> agent/**
+internal/infra/**       -> agent/**
+internal/adapter/toolset/** -> agent/**
 ```
 
-旧 `agent` import 已永久禁止；不存在迁移 allowlist。
+临时 Agent module import 已永久禁止；不存在迁移 allowlist。
 
 ## 5. Application/Agent 防腐基线
 
@@ -135,11 +135,11 @@ internal/adapter/toolset/** -> agent2/**
 
 ### 5.2 Application 不得表达
 
-- Agent2 `Process`、`Execution`、`Deployment`、`Signal`、`Effect`、`WaitID` concrete types；
+- Agent Framework `Process`、`Execution`、`Deployment`、`Signal`、`Effect`、`WaitID` concrete types；
 - `TreeSnapshot` field、ExecutionState payload、Interaction phase 或 mailbox；
 - arbitrary Signal submission；
 - model/tool lifecycle 从 Delta 推断；
-- Agent2 Engine/Dispatcher/Resolver handle；
+- Agent Framework Engine/Dispatcher/Resolver handle；
 - arbitrary EffectID/Settlement/ResolveEffect endpoint；
 - Framework Store、transaction 或 product metadata extension。
 
@@ -147,17 +147,17 @@ Unknown Effect 的产品合同是 live/recovery 一致的 fail closed：Applicat
 
 P8 已冻结生产 executor port：`RootExecutionStarter` 负责 validate/stage/begin，`ExecutionObserver` 负责只读事实流，`RunningRootCancellationRequester` 只提交 Framework cancel request，`ExecutionReleaser` 只负责 resource lifecycle；`WorkingContextComposer` 在 Application 边界组装完整 fresh-root context。Application opening durable 后 Begin 才 Start Process；cancel intent durable 后请求停止，pump 继续观察到确定终态才 release。
 
-P8 已冻结 authoritative model/tool 合同：executor producer 只能通过同一有序 observation stream 提交 Application-owned closed fact 并等待 receipt；它不取得 Store、transaction 或 reducer。Application Run pump 在 speculative reducer 上计算 write-set，只有 persistence 全部成功才替换 live reducer并完成 receipt。model/tool post-call receipt failure 必须返回 Agent2 Dispatcher 形成 unknown；pre-call failure 禁止外呼。Toolset 的唯一 visibility value 是 framework-neutral `toolset.Manifest`，通用 Toolset 对 Agent2 零 import。
+P8 已冻结 authoritative model/tool 合同：executor producer 只能通过同一有序 observation stream 提交 Application-owned closed fact 并等待 receipt；它不取得 Store、transaction 或 reducer。Application Run pump 在 speculative reducer 上计算 write-set，只有 persistence 全部成功才替换 live reducer并完成 receipt。model/tool post-call receipt failure 必须返回 Agent Framework Dispatcher 形成 unknown；pre-call failure 禁止外呼。Toolset 的唯一 visibility value 是 framework-neutral `toolset.Manifest`，通用 Toolset 对 Agent Framework 零 import。
 
 P8 已冻结 continuation 合同：`WaitingExecutionContinuer.StageContinuation` 只 stage 一棵 exact live waiting tree，或按 opaque TreeSnapshot + exact Deployment/BuildID/Host scope 恢复；它不读取 Conversation，也不重算 WorkingContext。Application 先原子记录 exact answers、隐藏 interrupt row 并删除旧 checkpoint，再 stage/restore；next-Segment opening transaction 必须证明 durable `resuming` claim，成功后 `BeginContinuation` 才投递 WaitID-addressed semantic Signal。claim 后到下一 quiescent checkpoint 前没有 fallback recovery point，crash/boot recovery 一律 `RunLost`。
 
-Product Interrupt/prompt/answer 使用 framework-neutral strict codec；native `interactioninput` ACL 是唯一把它映射到 Agent2 pending-input/Signal 的 owner。旧 private suspension adapter 已删除。真实 Runtime `ask_user`、interactive approval、deferred advertisement restore 与 steer 均走唯一生产路径。
+Product Interrupt/prompt/answer 使用 framework-neutral strict codec；native `interactioninput` ACL 是唯一把它映射到 Agent Framework pending-input/Signal 的 owner。旧 private suspension adapter 已删除。真实 Runtime `ask_user`、interactive approval、deferred advertisement restore 与 steer 均走唯一生产路径。
 
-P8 已冻结 child/subtree 合同：Delegate ToolCall authoritative commit 先于不可见 child start reservation；Agent2 conclusive started 后才公开 child Run，aborted 只闭合 reservation。多 child、嵌套 child与乱序 sibling completion 使用稳定 parent/model-call/tool-index 因果顺序；恢复归因只调用 Interaction owner 的 typed inspector。waiting child cancellation 执行 prepare → application transaction → contextless Apply/Discard；移除最后边界时，Apply 只安装 resulting state，独立 Continue 才激活已提交 Segment。Apply 异常先释放旧 owner并由 `WaitingExecutionRestorer` 从 committed resulting checkpoint 精确恢复，恢复失败才 RunLost。
+P8 已冻结 child/subtree 合同：Delegate ToolCall authoritative commit 先于不可见 child start reservation；Agent Framework conclusive started 后才公开 child Run，aborted 只闭合 reservation。多 child、嵌套 child与乱序 sibling completion 使用稳定 parent/model-call/tool-index 因果顺序；恢复归因只调用 Interaction owner 的 typed inspector。waiting child cancellation 执行 prepare → application transaction → contextless Apply/Discard；移除最后边界时，Apply 只安装 resulting state，独立 Continue 才激活已提交 Segment。Apply 异常先释放旧 owner并由 `WaitingExecutionRestorer` 从 committed resulting checkpoint 精确恢复，恢复失败才 RunLost。
 
 P8 已冻结这些内部消费端口及防腐语义：Application 单写者、operational journal 与 semantic Transcript 分离、final 独立于 Delta、并发 Tool canonical prefix 原子提交、unknown 在 release 前 durable `RunLost` 收口、answer claim → stage/restore → durable opening → semantic Signal，以及 Delegate reservation → conclusive start → public child Run 的唯一顺序。
 
-Fresh root input 的防腐合同是 Application `WorkingContextComposer` 读取 Host Conversation 并追加当前 user message，再组装 Knowledge、Plan、Memory 与 hooks，形成完整 `WorkingContext` seed；agentexec 不读取产品 Store。成功 assistant final 由 Agent2 Result 投影 `AssistantMessageCompleted`，不从 Delta 拼接。
+Fresh root input 的防腐合同是 Application `WorkingContextComposer` 读取 Host Conversation 并追加当前 user message，再组装 Knowledge、Plan、Memory 与 hooks，形成完整 `WorkingContext` seed；agentexec 不读取产品 Store。成功 assistant final 由 Agent Framework Result 投影 `AssistantMessageCompleted`，不从 Delta 拼接。
 
 Application executor tree identity 统一为 `ExecutorMember`/`MemberID`。Framework `ProcessID` 只能由 execution adapter 在边界内映射，不能重新进入 Application field、port 参数、持久化 technical field 或 Runtime Protocol。
 
@@ -179,10 +179,10 @@ cmd         -> bootstrap + config
 
 ```text
 domain      -/> application|adapter|infra|delivery|bootstrap
-application -/> adapter|infra|delivery|bootstrap|Agent2|driver SDKs
+application -/> adapter|infra|delivery|bootstrap|Agent Framework|driver SDKs
 infra       -/> application|adapter|delivery|bootstrap
 adapter     -/> delivery|bootstrap
-delivery    -/> adapter|infra|bootstrap|Agent2
+delivery    -/> adapter|infra|bootstrap|Agent Framework
 all rings   -/> bootstrap composition objects
 ```
 
@@ -193,8 +193,8 @@ all rings   -/> bootstrap composition objects
 P1 已建立：
 
 - production target package DAG，以及会被稳定拒绝的 Delivery → Adapter 反例 fixture；
-- Agent2 importing leaf 与 imported public package 的双重 exact allowlist；
-- 旧 Agent import 的永久 absence guard；
+- Agent Framework importing leaf 与 imported public package 的双重 exact allowlist；
+- 临时 Agent module import 的永久 absence guard；
 - Domain、Application 与 Delivery 既有 external SDK denylist；
 - context-based Domain I/O port、旧 private snapshot decoder 和旧 lifecycle owner 的永久禁止守卫；
 - compatibility/legacy/versioned source directory 禁令。
@@ -206,16 +206,16 @@ P2–P10 已建立：
 - protocol artifact digest/drift test，以及 canonical sample 同类型 strict `ValidateWire` gate；
 - SQLite schema epoch 和 prior-version rejection test；
 - checkpoint envelope strict codec、size、copy、round-trip 和 prior-version rejection（P6 已覆盖 native TreeSnapshot parser、copy、corrupt/wrong-build/deployment；P8 随 production owner 收口剩余 envelope guard）；
-- Agent2 type/name leakage AST guard；
+- Agent Framework type/name leakage AST guard；
 - no `component/common/core/utils` package guard（P9 已建立准确 shared-capability purity allowlist）；
 - no alias/dual codec/legacy path guard；
 - exported contract GoDoc/parameter/error wrapping guard where the contract is intentionally frozen。
 
 ## 8. 不在 Baseline 1 中
 
-- Runtime 对 Agent2 Platform 的接入；
+- Runtime 对 Agent Framework Platform 的接入；
 - 前端/TUI/CLI 新 consumer API；
 - Delivery `server`/`dispatch` 保持现名；未由真实职责变化证明时不做目录改名；
-- 未来数据库 epoch、artifact version 或 Agent2 TreeSnapshot version。
+- 未来数据库 epoch、artifact version 或 Agent Framework TreeSnapshot version。
 
 这些内容不能以 placeholder、预留字段或空接口提前进入代码；真实阶段完成后再冻结。

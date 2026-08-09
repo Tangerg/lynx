@@ -21,7 +21,7 @@ import (
 
 // Config is the construction-time bundle for [Assemble]. It contains host
 // capabilities and application adapters only; Bootstrap derives the native
-// Agent2 executor configuration so no second source of Runtime facts exists.
+// Agent Framework executor configuration so no second source of Runtime facts exists.
 type Config struct {
 	// BuildID identifies the running executable at durable executor boundaries.
 	BuildID string
@@ -103,7 +103,7 @@ type Config struct {
 	// the consumers that each hold their own narrow session port — the sessions
 	// coordinator, the run-segment titler, and the sub-agent spawn adapter. The
 	// concrete type is named here because persistence is single-backend and this
-	// is the composition ring (see doc/EXECUTION_CENTERED_ARCHITECTURE.md §8.1).
+	// is the composition ring (see doc/ARCHITECTURE.md).
 	SessionStore *sqlitestore.SessionStore
 
 	// RunStore is the durable Run table (§8.2): the authoritative "one

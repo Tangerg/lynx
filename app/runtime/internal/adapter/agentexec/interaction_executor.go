@@ -17,8 +17,8 @@ import (
 
 	"github.com/google/uuid"
 
-	agent "github.com/Tangerg/lynx/agent2"
-	"github.com/Tangerg/lynx/agent2/interaction"
+	agent "github.com/Tangerg/lynx/agent"
+	"github.com/Tangerg/lynx/agent/interaction"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/interactioninput"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/executionctx"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
@@ -65,7 +65,7 @@ type CheckpointReader interface {
 // InteractionExecutorConfig freezes the host-owned inputs shared by native
 // Interaction root executions. Identity strings must change whenever the
 // executable Interaction adapter or behavior-affecting dispatcher configuration
-// changes, so Agent2 Deployment references remain honest.
+// changes, so Agent Framework Deployment references remain honest.
 type InteractionExecutorConfig struct {
 	BuildID                   string
 	DefaultClient             *chatclient.Client
@@ -96,7 +96,7 @@ type InteractionExecutorConfig struct {
 	Delegation                InteractionDelegationConfig
 }
 
-// InteractionExecutor is the native Agent2 root execution adapter. Each staged
+// InteractionExecutor is the native Agent Framework root execution adapter. Each staged
 // root owns an independent Engine and exactly one Interaction Process; the
 // Application owns durable Run state and consumes only [runs.ExecutorEvent].
 type InteractionExecutor struct {
@@ -470,7 +470,7 @@ func (executor *InteractionExecutor) Observe(
 	}, nil
 }
 
-// BeginRoot starts the staged Process exactly once. Agent2 owns every execution
+// BeginRoot starts the staged Process exactly once. Agent Framework owns every execution
 // step; this adapter only awaits the immutable terminal result and translates it.
 func (executor *InteractionExecutor) BeginRoot(ctx context.Context, ref runs.ExecutorRef) error {
 	session, err := executor.session(ref)
@@ -782,7 +782,7 @@ func (executor *InteractionExecutor) BeginContinuation(
 }
 
 // SubmitSteer queues one user message for the next Interaction safe boundary.
-// Agent2 rejects it while the Process is waiting; accepted content is projected
+// Agent Framework rejects it while the Process is waiting; accepted content is projected
 // immediately before the model request that can first observe it.
 func (executor *InteractionExecutor) SubmitSteer(
 	ctx context.Context,
@@ -855,7 +855,7 @@ func (executor *InteractionExecutor) Release(ctx context.Context, ref runs.Execu
 }
 
 // RequestRootCancellation records the Application's accepted cancellation in
-// Agent2 without deciding the product outcome or releasing the tree. Agent2
+// Agent Framework without deciding the product outcome or releasing the tree. Agent Framework
 // lets an in-flight Effect settle, then applies the intent at its safe boundary.
 func (executor *InteractionExecutor) RequestRootCancellation(
 	ctx context.Context,

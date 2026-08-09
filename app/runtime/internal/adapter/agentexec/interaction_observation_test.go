@@ -171,7 +171,7 @@ func TestInteractionExecutorChunkDropPreservesFinalAndUsage(t *testing.T) {
 	}
 }
 
-func TestInteractionExecutorCommitsDeferredAdvertisementThroughAgent2(t *testing.T) {
+func TestInteractionExecutorCommitsDeferredAdvertisementThroughAgentFramework(t *testing.T) {
 	hidden, err := toolcontract.NewFunc(toolcontract.FuncConfig{
 		Name: "hidden_lookup", Description: "Read a hidden value.",
 	}, func(context.Context, struct{}) (string, error) { return "found", nil })

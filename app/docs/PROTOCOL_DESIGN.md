@@ -621,4 +621,4 @@ flat union 的 encode 边界 `Validate()`；三级可靠性术语落进文档与
 
 **外部（一手）**：Codex app-server 规范 · opencode v2 `packages/{protocol,schema}` 源码与在线 API 文档（**注意分级**：公开稳定文档 / Experimental 文档 / 仓库 HEAD 不是同一级契约，其公开 `/api/event` 与源码里的 durable session event 不能混写成一个结论）· Claude Code headless / Agent SDK 文档与其 bridge 的 `control_request` 实现。
 
-**本地**：`app/desktop/docs/protocol/{API,AUX_API,TRANSPORT}.md` · `app/runtime/internal/delivery/{protocol,dispatch,server}` · `app/runtime/internal/application/runs` · `app/runtime/internal/domain/execution` · `app/desktop/frontend/src/rpc` · [`../runtime/CLAUDE.md`](../runtime/CLAUDE.md) · [`../runtime/doc/EXECUTION_CENTERED_ARCHITECTURE.md`](../runtime/doc/EXECUTION_CENTERED_ARCHITECTURE.md)
+**本地**：`app/desktop/docs/protocol/{API,AUX_API,TRANSPORT}.md` · `app/runtime/internal/delivery/{protocol,dispatch,server}` · `app/runtime/internal/application/runs` · `app/runtime/internal/domain/run` · `app/desktop/frontend/src/rpc` · [`../runtime/CLAUDE.md`](../runtime/CLAUDE.md) · [`../runtime/doc/ARCHITECTURE.md`](../runtime/doc/ARCHITECTURE.md)

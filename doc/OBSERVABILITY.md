@@ -429,7 +429,7 @@ otel.SetTracerProvider(tp)
 - [x] `rag/pipeline.go` 五阶段加 span（`rag.pipeline` 父 span + Query/Retrieve/Augment/Generate/Stream 子 span）
 - [x] `otel/vectorstore.New` 从外层为 VectorStore 发射统一的 `db.vector.*` 埋点；25 个 provider 保持纯存储职责，CockroachDB 与 pgvector 仅复用 module-internal PostgreSQL 执行内核，不存在伪 provider alias
 - [x] `mcp/tool.go::Tool.Call` + `mcp/server.go::makeServerHandler` 加 `mcp.tool.call` / `mcp.tool.serve` span
-- [x] `agent/runtime/` tick / action / plan 全套埋点：span（含 HTN / Reactive / GOAP planner）+ metrics（`agent.ticks` / `agent.action.executions` / `agent.action.duration` / `agent.plan.duration` / `agent.process.exits`）
+- [x] `agent/otel.Observer` 单向消费 Framework Event：Process/Step/Effect spans，以及 Process start/exit、Step/Effect duration、Delta drop metrics；Kernel 与具体 Strategy 不依赖 OTel
 - [x] `chathistory/{postgres,redis,mongodb,cassandra,neo4j,cosmosdb}` 6 个 provider Read/Write/Clear 加 DB-semconv span
 - [x] **lyra 业务层**：chat turn `invoke_agent <model>` span（全链路父 span）+ `run.duration` / `run.interrupts` metrics；MCP dial（`mcp.dial_servers`）、直调 tool（`execute_tool`）span；session/run 生命周期由 RPC server span + turn span 覆盖（**不撒 slog**——见 §1.2 P6）
 

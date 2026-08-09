@@ -7,8 +7,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/pagination"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
+	"github.com/Tangerg/lynx/app/runtime/internal/pagination"
 )
 
 // Activity is the resolved session activity view used by read consumers.

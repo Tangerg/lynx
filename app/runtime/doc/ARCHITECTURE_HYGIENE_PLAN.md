@@ -3,7 +3,7 @@
 > Status: Completed
 > Started: 2026-07-22  
 > Scope: `app/runtime`  
-> Architecture baseline at completion time: [EXECUTION_CENTERED_ARCHITECTURE.md](EXECUTION_CENTERED_ARCHITECTURE.md)
+> Current architecture: [ARCHITECTURE.md](ARCHITECTURE.md). The migration-era execution baseline was retired after the native Interaction cutover; Git history remains the evidence source.
 >
 > Historical implementation ledger. Names such as Todo or `task` below describe
 > the code that existed during those completed batches and are not current

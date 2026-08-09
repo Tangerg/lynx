@@ -901,6 +901,7 @@ github.com/Tangerg/lynx/a2a v0.0.0-20260715080233-229e06c8ed2f/go.mod h1:G6Tg+4x
 github.com/Tangerg/lynx/agent v0.0.0-20260715080233-229e06c8ed2f/go.mod h1:hEsoUk+ASyd+lLyasWHUETLuf0nKwD4Qe5fbrxJIAzc=
 github.com/Tangerg/lynx/agent v0.0.0-20260719031314-1e49c2a0f145/go.mod h1:hLd2Gp8/8R6Srd5eHTIoy7ES54vg7bsMbAW4hd+IFro=
 github.com/Tangerg/lynx/agent v0.0.0-20260721023422-b01ee95543a4/go.mod h1:hLd2Gp8/8R6Srd5eHTIoy7ES54vg7bsMbAW4hd+IFro=
+github.com/Tangerg/lynx/agent v0.0.0-20260809020332-1225c9752d4f/go.mod h1:GUC4jamzZUAARms+6eb4ZreEfNJER2j1AsLqo/j5fzA=
 github.com/Tangerg/lynx/chatclient v0.0.0-20260719031314-1e49c2a0f145/go.mod h1:trFaa8ARMyotTzfXw1j1w9NNzQbbOL3qwmbjLsz/gv0=
 github.com/Tangerg/lynx/chatclient v0.0.0-20260731193916-0098789d89e9 h1:8BhoC1PKzDbC1wrg+MpHupvHYiPrUF16yoSNAIwCFvk=
 github.com/Tangerg/lynx/chatclient v0.0.0-20260731193916-0098789d89e9/go.mod h1:trFaa8ARMyotTzfXw1j1w9NNzQbbOL3qwmbjLsz/gv0=
@@ -1328,8 +1329,6 @@ github.com/dgryski/trifles v0.0.0-20200323201526-dd97f9abfb48 h1:fRzb/w+pyskVMQ+
 github.com/dgryski/trifles v0.0.0-20200323201526-dd97f9abfb48/go.mod h1:if7Fbed8SFyPtHLHbg49SI7NAdJiC5WIA09pe59rfAA=
 github.com/djherbis/atime v1.1.0 h1:rgwVbP/5by8BvvjBNrbh64Qz33idKT3pSnMSJsxhi0g=
 github.com/djherbis/atime v1.1.0/go.mod h1:28OF6Y8s3NQWwacXc5eZTsEsiMzp7LF8MbXE+XJPdBE=
-github.com/dlclark/regexp2 v1.11.5 h1:Q/sSnsKerHeCkc/jSTNq1oCm7KiVgUMZRDUoRu0JQZQ=
-github.com/dlclark/regexp2 v1.11.5/go.mod h1:DHkYz0B9wPfa6wondMfaivmHpzrQ3v9q8cnmRbL6yW8=
 github.com/dmarkham/enumer v1.6.3 h1:B4aV4OsfzbrS5rvjILt4mMjiWBA//cKxJUMsvHZ8mEI=
 github.com/dmarkham/enumer v1.6.3/go.mod h1:DyjXaqCglj4GhELF73oWiparNkYkXvmOBLza/o4kO74=
 github.com/docker/cli v29.2.0+incompatible h1:9oBd9+YM7rxjZLfyMGxjraKBKE4/nVyvVfN4qNl9XRM=

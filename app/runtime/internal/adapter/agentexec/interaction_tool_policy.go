@@ -23,7 +23,7 @@ type InteractionApprovalPolicy interface {
 	Remember(ctx context.Context, request approval.RememberRequest) error
 }
 
-// ToolAuthorizer evaluates Runtime approval policy independently of Agent2.
+// ToolAuthorizer evaluates Runtime approval policy independently of Agent Framework.
 // It returns a durable product prompt when a person is required; the executor
 // ACL alone maps that prompt to an Interaction wait and response Signal.
 type ToolAuthorizer struct{ policy InteractionApprovalPolicy }

@@ -10,7 +10,7 @@
 
 以 **Run 生命周期**（而非 agent loop）为中心的 Agent 应用后端。**协议层薄、业务层厚、传输层可换**：`internal/delivery` 是 wire 边界，`internal/application/*` 驱动 Run/Session/能力生命周期，`internal/adapter/agentexec` 隔离 Agent Framework，`internal/domain/*` 按限界上下文表达产品规则，`internal/infra/*` 提供技术机制。客户端独立消费 Runtime 发布的 JSON-RPC / contract 制品，不共享服务端实现类型。
 
-当前生产代码仍消费旧 [`agent`](../../agent)，正在依据 [`agent2`](../../agent2) Baseline 9 设计原位重构；旧实现不是新 API 的兼容规范。
+当前生产执行只消费唯一的 [`agent`](../../agent) Framework Baseline 15，并通过 `internal/adapter/agentexec` 完成防腐翻译。Runtime 不解析 Framework private state，也不复制 Process loop、tree scheduler 或 Tool loop。
 
 ## 架构（Clean Arch 同心环，依赖向内，`internal/arch` 机器强制）
 
@@ -27,7 +27,7 @@ domain      (internal/domain/*)      entity / value / aggregate behavior / pure 
 
 ## 能力（现状）
 
-Planner-driven Agent process tree · framework-managed interaction · nested child checkpoint 精确
+Framework-managed Interaction · nested child checkpoint 精确
 pause/resume · HITL 审批/提问 · plan 模式 · LSP 代码智能 · read-before/stale 编辑保护 ·
 worktree 与 Git checkpoint · MCP client/server bridge · A2A 远端 agent · Agent Skills ·
 LYRA.md 长期知识与提取 · model-facing plan · per-run provider+model 显式选择 ·

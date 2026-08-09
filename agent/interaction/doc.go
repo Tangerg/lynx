@@ -1,8 +1,13 @@
-// Package interaction defines the stable protocol exchanged between agent
-// actions and framework-managed model/tool execution.
+// Package interaction provides the model-directed execution Strategy for the
+// Agent Framework.
 //
-// The package contains data and narrow ports only. It does not run a process,
-// call a model, or execute a tool. Concrete drivers such as toolloop implement
-// the protocol, while runtime owns process identity, continuation state,
-// execution-resource counters, and event publication.
+// A Definition owns the serializable working context, bounded model/Tool state
+// machine, exact managed Delegate bindings, typed Delegate Artifacts, and an
+// optional pure completion validator. A Dispatcher owns chatclient and ordinary
+// executable Tool I/O. Delegate child Processes are requested only by the
+// Execution through Framework Effects. Both components are bound into one agent
+// Deployment; neither owns a Process lifecycle, product conversation history,
+// persistence, an application artifact store, pricing, approval policy, or UI
+// records. Direct model calls remain available through package chatclient
+// without constructing an Interaction or Engine.
 package interaction

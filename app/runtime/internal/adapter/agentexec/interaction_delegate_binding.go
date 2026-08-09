@@ -6,15 +6,15 @@ import (
 	"strings"
 	"sync"
 
-	agent "github.com/Tangerg/lynx/agent2"
-	"github.com/Tangerg/lynx/agent2/interaction"
+	agent "github.com/Tangerg/lynx/agent"
+	"github.com/Tangerg/lynx/agent/interaction"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/delegation"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	corechat "github.com/Tangerg/lynx/core/chat"
 )
 
-// delegateCallIdentity mirrors Agent2's documented parent-scoped ChildKey
+// delegateCallIdentity mirrors Agent Framework's documented parent-scoped ChildKey
 // identity without copying any Framework tree wire into Runtime state.
 type delegateCallIdentity struct {
 	parentID agent.ProcessID
@@ -82,7 +82,7 @@ func (session *interactionSession) registerDelegateCalls(
 		}
 		input, arguments, err := decodeDelegateCall(call)
 		if err != nil {
-			// Agent2 applies the same Descriptor contract before creating a child
+			// Agent Framework applies the same Descriptor contract before creating a child
 			// Effect and returns an ordinary Tool error for malformed input.
 			toolCallIndex++
 			continue

@@ -339,7 +339,7 @@ func TestProtocolContractIsRuntimeOwned(t *testing.T) {
 		strings.Join([]string{"desktop", "docs", "protocol"}, "/"),
 		strings.Join([]string{`filepath.Join(root, "`, `..", "`, `desktop"`}, ""),
 	}
-	for _, rel := range []string{"CLAUDE.md", "cmd", "internal", "doc/README.md", "doc/EXECUTION_CENTERED_ARCHITECTURE.md"} {
+	for _, rel := range []string{"CLAUDE.md", "cmd", "internal", "doc/README.md", "doc/ARCHITECTURE.md"} {
 		path := filepath.Join(root, rel)
 		info, err := os.Stat(path)
 		if err != nil {

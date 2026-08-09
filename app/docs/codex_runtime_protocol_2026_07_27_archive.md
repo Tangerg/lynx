@@ -2590,7 +2590,7 @@ Go/TypeScript SDK 与 reducer 对本文给出同一个可机器验证的答案�
 - [`API.md`](../desktop/docs/protocol/API.md)
 - [`AUX_API.md`](../desktop/docs/protocol/AUX_API.md)
 - [`TRANSPORT.md`](../desktop/docs/protocol/TRANSPORT.md)
-- [`EXECUTION_CENTERED_ARCHITECTURE.md`](../runtime/doc/EXECUTION_CENTERED_ARCHITECTURE.md)
+- [`ARCHITECTURE.md`](../runtime/doc/ARCHITECTURE.md)
 - [OpenCode v2 API](https://opencode.ai/v2/docs/api)
 - [Codex App Server](https://learn.chatgpt.com/docs/app-server)
 - [Claude Code Agent SDK](https://code.claude.com/docs/en/agent-sdk)

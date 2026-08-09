@@ -507,15 +507,15 @@ func TestApplicationDoesNotInterpretExecutorContinuationState(t *testing.T) {
 	}
 }
 
-// TestAgent2StaysBehindAgentexec keeps the replacement framework at Runtime's
+// TestAgentFrameworkStaysBehindAgentexec keeps the Agent Framework at Runtime's
 // single anti-corruption edge. Both the importing Runtime leaf and the imported
-// Agent2 packages are explicit: widening either set requires a reviewed contract
+// Agent Framework packages are explicit: widening either set requires a reviewed contract
 // decision instead of silently turning an umbrella prefix into an allowlist.
-func TestAgent2StaysBehindAgentexec(t *testing.T) {
+func TestAgentFrameworkStaysBehindAgentexec(t *testing.T) {
 	const agentexecDir = "internal/adapter/agentexec"
 	allowedImports := map[string]struct{}{
-		"github.com/Tangerg/lynx/agent2":             {},
-		"github.com/Tangerg/lynx/agent2/interaction": {},
+		"github.com/Tangerg/lynx/agent":             {},
+		"github.com/Tangerg/lynx/agent/interaction": {},
 	}
 	root := moduleRoot(t)
 	fset := token.NewFileSet()
@@ -539,8 +539,8 @@ func TestAgent2StaysBehindAgentexec(t *testing.T) {
 		}
 		for _, imported := range file.Imports {
 			importPath := strings.Trim(imported.Path.Value, `"`)
-			if importPath != "github.com/Tangerg/lynx/agent2" &&
-				!strings.HasPrefix(importPath, "github.com/Tangerg/lynx/agent2/") {
+			if importPath != "github.com/Tangerg/lynx/agent" &&
+				!strings.HasPrefix(importPath, "github.com/Tangerg/lynx/agent/") {
 				continue
 			}
 			relativePath, relErr := filepath.Rel(root, path)
@@ -550,10 +550,10 @@ func TestAgent2StaysBehindAgentexec(t *testing.T) {
 			relativePath = filepath.ToSlash(relativePath)
 			relativeDir := filepath.ToSlash(filepath.Dir(relativePath))
 			if relativeDir != agentexecDir && !strings.HasPrefix(relativeDir, agentexecDir+"/") {
-				t.Errorf("Agent2 import escaped %s: %s imports %q", agentexecDir, relativePath, importPath)
+				t.Errorf("Agent Framework import escaped %s: %s imports %q", agentexecDir, relativePath, importPath)
 			}
 			if _, allowed := allowedImports[importPath]; !allowed {
-				t.Errorf("unreviewed Agent2 package import: %s imports %q", relativePath, importPath)
+				t.Errorf("unreviewed Agent Framework package import: %s imports %q", relativePath, importPath)
 			}
 		}
 		return nil

@@ -2,245 +2,137 @@ package workflow_test
 
 import (
 	"context"
-	"sync/atomic"
+	"errors"
 	"testing"
 
-	"github.com/Tangerg/lynx/agent"
-	"github.com/Tangerg/lynx/agent/core"
-	"github.com/Tangerg/lynx/agent/runtime"
+	agent "github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/workflow"
 )
 
-// Domain types for the loop test. The body is a sub-agent — under
-// RunChild semantics ensure each iteration runs with a clean blackboard
-// seeded only with the typed input, so the body itself cannot read its
-// own prior outputs. iteration progress is observable via a closure-
-// tracked counter (the realistic shape: a sub-agent whose state lives
-// in some external service / instance variable).
-type loopIn struct{ Target int }
-type loopOut struct{ Value int }
-
-// makeIncrementingBody returns (body, *iterCount). Each invocation
-// increments iterCount and returns loopOut{Value: count}. The body
-// agent itself is stateless — the counter lives in the closure.
-func makeIncrementingBody() (*core.Agent, *atomic.Int32) {
-	var iterCount atomic.Int32
-	body := agent.New(agent.Config{Name: "incrementing-body", Description: "returns loopOut whose Value is the call count", Actions: []agent.Action{agent.NewAction("step", func(_ context.Context, _ *core.ProcessContext, _ loopIn) (loopOut, error) {
-		v := iterCount.Add(1)
-		return loopOut{Value: int(v)}, nil
-	}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[loopOut](core.GoalConfig{Description: "loopOut produced"})}})
-	return body, &iterCount
+type loopValue struct {
+	Value int `json:"value"`
 }
 
-func TestLoop_LoopsUntilUntilTrue(t *testing.T) {
-	engine := agent.MustNewEngine(runtime.Config{})
-	body, iterCount := makeIncrementingBody()
-	if _, err := engine.Deploy(t.Context(), body); err != nil {
-		t.Fatalf("deploy body: %v", err)
-	}
-
-	wf, err := workflow.Loop[loopIn, loopOut](t.Context(),
-		engine,
-		workflow.LoopConfig[loopIn, loopOut]{
-			Name:          "incr-loop",
-			MaxIterations: 10,
-			Body:          body,
-			Until: func(_ context.Context, in loopIn, last loopOut) bool {
-				return last.Value >= in.Target
-			},
-		},
-	)
-	if err != nil {
-		t.Fatalf("Loop: %v", err)
-	}
-	if _, err := engine.Deploy(t.Context(), wf); err != nil {
-		t.Fatalf("deploy wf: %v", err)
-	}
-
-	proc, runErr := engine.Run(t.Context(), wf,
-		core.Input(loopIn{Target: 4}),
-		core.ProcessOptions{},
-	)
-	if runErr != nil {
-		t.Fatalf("Run: %v", runErr)
-	}
-	if proc.Status() != core.StatusCompleted {
-		t.Fatalf("status = %s; failure = %v", proc.Status(), proc.Failure())
-	}
-	got, ok := core.Result[loopOut](proc)
-	if !ok {
-		t.Fatal("no loopOut bound")
-	}
-	if got.Value != 4 {
-		t.Fatalf("Value = %d, want 4", got.Value)
-	}
-	if iterCount.Load() != 4 {
-		t.Fatalf("iterCount = %d, want 4", iterCount.Load())
+func TestLoopRunsAtLeastOnceAndReportsSatisfiedOrExhausted(t *testing.T) {
+	body := mustDeployment(t, mustDefinition(t, "test.workflow.loop_body",
+		mustTransform(t, "increment", func(input loopValue) (loopValue, error) {
+			return loopValue{Value: input.Value + 1}, nil
+		}),
+	), "loop-body")
+	for _, test := range []struct {
+		name           string
+		initial        int
+		maximum        uint32
+		threshold      int
+		wantValue      int
+		wantIterations uint32
+		wantSatisfied  bool
+	}{
+		{name: "satisfied", initial: 0, maximum: 5, threshold: 3, wantValue: 3, wantIterations: 3, wantSatisfied: true},
+		{name: "exhausted", initial: 0, maximum: 2, threshold: 3, wantValue: 2, wantIterations: 2, wantSatisfied: false},
+		{name: "at_least_once", initial: 3, maximum: 5, threshold: 3, wantValue: 4, wantIterations: 1, wantSatisfied: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			stage, err := workflow.Loop(workflow.LoopConfig[loopValue]{
+				ID: "improve", Body: body, Budget: mustBudget(t), MaxIterations: test.maximum,
+				Predicate: func(value loopValue) (bool, error) { return value.Value >= test.threshold, nil },
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !stage.Valid() {
+				t.Fatalf("Loop Stage = %#v", stage)
+			}
+			deployment := mustDeployment(t, mustDefinition(t, "test.workflow.loop_"+test.name, stage), "loop-"+test.name)
+			engine, err := agent.NewEngine(agent.EngineConfig{
+				DeploymentResolver: deploymentResolver{body.DeploymentRef(): body},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			input, _ := agent.EncodeInput(loopValue{Value: test.initial})
+			result, err := engine.Run(context.Background(), deployment, input)
+			if err != nil {
+				t.Fatal(err)
+			}
+			output := decodeCompleted[workflow.LoopResult[loopValue]](t, result)
+			if !output.Valid() || output.Value.Value != test.wantValue ||
+				output.Iterations != test.wantIterations || output.Satisfied != test.wantSatisfied {
+				t.Fatalf("Loop output = %#v", output)
+			}
+			tree, err := engine.CaptureTree(context.Background(), result.ProcessID())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := len(tree.ProcessSnapshots()); got != int(test.wantIterations)+1 {
+				t.Fatalf("Loop tree Process count = %d, want %d", got, test.wantIterations+1)
+			}
+			if err := engine.Close(); err != nil {
+				t.Fatal(err)
+			}
+		})
 	}
 }
 
-func TestLoop_MaxIterationsCapsTheLoop(t *testing.T) {
-	engine := agent.MustNewEngine(runtime.Config{})
-	body, iterCount := makeIncrementingBody()
-	mustDeploy(t, engine, body)
-
-	wf, err := workflow.Loop[loopIn, loopOut](t.Context(),
-		engine,
-		workflow.LoopConfig[loopIn, loopOut]{
-			Name:          "capped-loop",
-			MaxIterations: 3, // cap kicks in before Target=100
-			Body:          body,
-			Until: func(_ context.Context, in loopIn, last loopOut) bool {
-				return last.Value >= in.Target
-			},
-		},
-	)
-	if err != nil {
-		t.Fatalf("Loop: %v", err)
-	}
-	mustDeploy(t, engine, wf)
-
-	proc := mustRun(t, engine, wf, core.Input(loopIn{Target: 100}))
-	if proc.Status() != core.StatusCompleted {
-		t.Fatalf("status = %s; failure = %v", proc.Status(), proc.Failure())
-	}
-	got := mustResult[loopOut](t, proc)
-	if got.Value != 3 {
-		t.Fatalf("Value = %d, want 3 (MaxIterations cap)", got.Value)
-	}
-	if iterCount.Load() != 3 {
-		t.Fatalf("iterCount = %d, want 3 (MaxIterations cap)", iterCount.Load())
-	}
-}
-
-func TestLoop_SnapshotTreePreservesWorkflowState(t *testing.T) {
-	engine := agent.MustNewEngine(runtime.Config{})
-	body, _ := makeIncrementingBody()
-	mustDeploy(t, engine, body)
-	wf, err := workflow.Loop[loopIn, loopOut](t.Context(), engine, workflow.LoopConfig[loopIn, loopOut]{
-		Name: "snapshot-loop", MaxIterations: 2, Body: body,
-		Until: func(context.Context, loopIn, loopOut) bool { return false },
+func TestLoopAttributesBodyFailure(t *testing.T) {
+	body := mustDeployment(t, mustDefinition(t, "test.workflow.failing_loop_body",
+		mustTransform(t, "fail", func(loopValue) (loopValue, error) {
+			return loopValue{}, errors.New("deliberate Loop body failure")
+		}),
+	), "failing-loop-body")
+	stage, err := workflow.Loop(workflow.LoopConfig[loopValue]{
+		ID: "improve", Body: body, Budget: mustBudget(t), MaxIterations: 2,
+		Predicate: func(loopValue) (bool, error) { return false, nil },
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	mustDeploy(t, engine, wf)
-	process, err := engine.Run(t.Context(), wf, core.Input(loopIn{Target: 99}), core.ProcessOptions{})
-	if err != nil {
-		t.Fatalf("Run: %v", err)
-	}
-	if process.Status() != core.StatusCompleted {
-		t.Fatalf("Run status=%s failure=%v", process.Status(), process.Failure())
-	}
-	tree, err := engine.SnapshotTree(t.Context(), process.ID())
-	if err != nil {
-		t.Fatalf("SnapshotTree: %v", err)
-	}
-	if err := engine.RemoveTree(t.Context(), process.ID()); err != nil {
-		t.Fatalf("RemoveTree before restore: %v", err)
-	}
-	restored, err := engine.RestoreTree(t.Context(), tree, core.ProcessOptions{})
+	deployment := mustDeployment(t, mustDefinition(t, "test.workflow.failing_loop", stage), "failing-loop")
+	engine, _ := agent.NewEngine(agent.EngineConfig{
+		DeploymentResolver: deploymentResolver{body.DeploymentRef(): body},
+	})
+	input, _ := agent.EncodeInput(loopValue{})
+	result, err := engine.Run(context.Background(), deployment, input)
 	if err != nil {
 		t.Fatal(err)
 	}
-	history, ok := core.Result[workflow.History[loopOut]](restored)
-	if !ok || history.Count() != 2 {
-		t.Fatalf("restored history count=%d ok=%v, want 2", history.Count(), ok)
+	failure, present := result.Termination().Failure()
+	if result.Status() != agent.StatusFailed || !present || failure.Code() != "workflow.loop.child_failed" {
+		t.Fatalf("Loop termination = %#v", result.Termination())
+	}
+	if err := engine.Close(); err != nil {
+		t.Fatal(err)
 	}
 }
 
-func TestLoop_BranchIsolation(t *testing.T) {
-	// Verify the body sub-agent runs with a FRESH blackboard each
-	// iteration: it should NOT see prior iterations' loopOut bindings
-	// from the Loop's own blackboard. We check this by having the
-	// body assert the absence of any prior loopOut on its blackboard.
-	engine := agent.MustNewEngine(runtime.Config{})
-
-	var sawPriorOut atomic.Bool
-	body := agent.New(agent.Config{Name: "isolation-body", Actions: []agent.Action{agent.NewAction("step", func(_ context.Context, pc *core.ProcessContext, _ loopIn) (loopOut, error) {
-		if _, exists := core.Last[loopOut](pc.Blackboard()); exists {
-			sawPriorOut.Store(true)
-		}
-		return loopOut{Value: 1}, nil
-	}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[loopOut](core.GoalConfig{Description: "loopOut"})}})
-	mustDeploy(t, engine, body)
-
-	wf, err := workflow.Loop[loopIn, loopOut](t.Context(),
-		engine,
-		workflow.LoopConfig[loopIn, loopOut]{
-			Name:          "isolation-loop",
-			MaxIterations: 3,
-			Body:          body,
-			Until:         func(context.Context, loopIn, loopOut) bool { return false },
+func TestLoopRequiresExplicitBoundPredicateAndExactBodyContract(t *testing.T) {
+	validBody := mustDeployment(t, mustDefinition(t, "test.workflow.valid_loop_body",
+		mustTransform(t, "identity", func(input loopValue) (loopValue, error) { return input, nil }),
+	), "valid-loop-body")
+	wrongBody := mustDeployment(t, mustDefinition(t, "test.workflow.wrong_loop_body",
+		mustTransform(t, "wrong", func(textValue) (textValue, error) { return textValue{}, nil }),
+	), "wrong-loop-body")
+	valid := workflow.LoopConfig[loopValue]{
+		ID: "improve", Body: validBody, Budget: mustBudget(t), MaxIterations: 2,
+		Predicate: func(loopValue) (bool, error) { return true, nil },
+	}
+	for name, config := range map[string]workflow.LoopConfig[loopValue]{
+		"zero maximum": {ID: valid.ID, Body: valid.Body, Budget: valid.Budget, Predicate: valid.Predicate},
+		"nil predicate": {
+			ID: valid.ID, Body: valid.Body, Budget: valid.Budget, MaxIterations: valid.MaxIterations,
 		},
-	)
-	if err != nil {
-		t.Fatalf("Loop: %v", err)
-	}
-	mustDeploy(t, engine, wf)
-
-	mustRun(t, engine, wf, core.Input(loopIn{Target: 100}))
-	if sawPriorOut.Load() {
-		t.Fatal("body saw a prior iteration's loopOut on its blackboard — branch isolation broken")
-	}
-}
-
-func TestLoop_RejectsNilBody(t *testing.T) {
-	engine := agent.MustNewEngine(runtime.Config{})
-	if _, err := workflow.Loop[loopIn, loopOut](t.Context(), engine, workflow.LoopConfig[loopIn, loopOut]{
-		Name:  "no-body",
-		Until: func(_ context.Context, _ loopIn, _ loopOut) bool { return true },
-	}); err == nil {
-		t.Fatal("expected error")
-	}
-}
-
-func TestLoop_RejectsNilUntil(t *testing.T) {
-	engine := agent.MustNewEngine(runtime.Config{})
-	body, _ := makeIncrementingBody()
-	if _, err := workflow.Loop[loopIn, loopOut](t.Context(), engine, workflow.LoopConfig[loopIn, loopOut]{
-		Name: "no-until",
-		Body: body,
-	}); err == nil {
-		t.Fatal("expected error")
-	}
-}
-
-func TestLoopRejectsNegativeIterationsBeforeDeploy(t *testing.T) {
-	engine := agent.MustNewEngine(runtime.Config{})
-	body, _ := makeIncrementingBody()
-	_, err := workflow.Loop[loopIn, loopOut](t.Context(), engine, workflow.LoopConfig[loopIn, loopOut]{
-		Name:          "negative-iterations",
-		MaxIterations: -1,
-		Body:          body,
-		Until:         func(context.Context, loopIn, loopOut) bool { return true },
-	})
-	if err == nil {
-		t.Fatal("Loop succeeded with negative iterations")
-	}
-	if _, deployed := engine.ActiveDeployment(body.Name()); deployed {
-		t.Fatal("invalid Loop config deployed its body")
-	}
-}
-
-func TestLoopValidatesDefinitionBeforeDeployingBody(t *testing.T) {
-	validBody, _ := makeIncrementingBody()
-	for _, config := range []workflow.LoopConfig[loopIn, loopOut]{
-		{
-			Name: " invalid-parent ", Body: validBody,
-			Until: func(context.Context, loopIn, loopOut) bool { return true },
-		},
-		{
-			Name: "parent", Body: invalidWorkflowAgent(),
-			Until: func(context.Context, loopIn, loopOut) bool { return true },
+		"body mismatch": {
+			ID: valid.ID, Body: wrongBody, Budget: valid.Budget,
+			MaxIterations: valid.MaxIterations, Predicate: valid.Predicate,
 		},
 	} {
-		engine := agent.MustNewEngine(runtime.Config{})
-		if _, err := workflow.Loop(t.Context(), engine, config); err == nil {
-			t.Fatal("Loop accepted invalid static configuration")
-		}
-		if deployments := engine.ActiveDeployments(); len(deployments) != 0 {
-			t.Fatalf("invalid Loop configuration deployed %d body definitions", len(deployments))
-		}
+		t.Run(name, func(t *testing.T) {
+			if _, err := workflow.Loop(config); !errors.Is(err, workflow.ErrInvalidStage) {
+				t.Fatalf("Loop error = %v", err)
+			}
+		})
+	}
+	if (workflow.LoopResult[loopValue]{}).Valid() {
+		t.Fatal("zero LoopResult is valid")
 	}
 }

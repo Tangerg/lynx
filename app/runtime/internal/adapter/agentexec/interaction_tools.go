@@ -21,7 +21,7 @@ type InteractionToolResolver interface {
 }
 
 // InteractionToolInterpreter owns product policy facts implied by concrete
-// Tool identities. Toolset satisfies this port without importing Agent2. An
+// Tool identities. Toolset satisfies this port without importing Agent Framework. An
 // implementation must be safe for concurrent calls from one Tool batch.
 type InteractionToolInterpreter interface {
 	SafetyClass(name string) tool.SafetyClass
@@ -32,7 +32,7 @@ type InteractionToolInterpreter interface {
 }
 
 // InteractionToolPresenter owns client-facing activity and result projection.
-// Its implementation remains in Toolset; Agent2 sees only ordinary Tools. An
+// Its implementation remains in Toolset; Agent Framework sees only ordinary Tools. An
 // implementation must be safe for concurrent calls from one Tool batch.
 type InteractionToolPresenter interface {
 	Activity(name string, arguments tool.Arguments) string
@@ -68,7 +68,7 @@ type ToolAuthorizationDecision struct {
 
 // InteractionToolAuthorizer evaluates Runtime Tool policy and resolves its
 // optional durable human response. It plans but never owns the wait lifecycle:
-// interactioninput remains the sole Agent2 ACL. Implementations must be safe
+// interactioninput remains the sole Agent Framework ACL. Implementations must be safe
 // for concurrent calls from one Tool batch.
 type InteractionToolAuthorizer interface {
 	AuthorizeTool(ctx context.Context, request ToolAuthorizationRequest) (ToolAuthorizationDecision, error)

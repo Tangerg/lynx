@@ -15,7 +15,7 @@
 | 3 | [ENGINEERING_STANDARDS.md](ENGINEERING_STANDARDS.md) | 强制实施、Go API、测试和完成标准 |
 | 4 | [EXECUTION_PLAN.md](EXECUTION_PLAN.md) | 授权范围、阶段、依赖、进度和当前下一步 |
 | 5 | [CAPABILITY_LEDGER.md](CAPABILITY_LEDGER.md) | 当前能力事实、retain/refactor/rewrite/remove verdict 与验收证据 |
-| 6 | [CONTRACT_BASELINE.md](CONTRACT_BASELINE.md) | Protocol、storage、Agent2 consumer 与架构边界的可比较基线 |
+| 6 | [CONTRACT_BASELINE.md](CONTRACT_BASELINE.md) | Protocol、storage、Agent Framework consumer 与架构边界的可比较基线 |
 
 六份文档的 owner 不可互换。改变已接受结论必须追加或取代 ADR；完成一个批次必须更新 Execution Plan 和 Capability Ledger；contract/wire/version 变化必须更新 Contract Baseline。
 
@@ -35,8 +35,6 @@
 | 文档 | 地位 |
 |---|---|
 | [TOOL_SYSTEM_VNEXT.md](TOOL_SYSTEM_VNEXT.md) | 当前工具体系的唯一模型工具词汇、schema、能力删除和工具专项实施事实；新架构只引用其 Tool/Agent 边界，不复制工具目录 |
-| [EXECUTION_CENTERED_ARCHITECTURE.md](EXECUTION_CENTERED_ARCHITECTURE.md) | 迁移前当前实现参考；包含旧 Agent/Turn 细节，不再是目标架构合同，完成重构后删除 |
-| [EXTENSIBILITY.md](EXTENSIBILITY.md) | 迁移前当前端口快照；目标端口由 P4–P7 真实 consumers 逐步发现、P8 切换前冻结，完成后更新或删除 |
 | [ARCHITECTURE_HYGIENE_PLAN.md](ARCHITECTURE_HYGIENE_PLAN.md) | 已完成的历史实施台账，不是当前目标或进度源 |
 
 ## D. 外部参考

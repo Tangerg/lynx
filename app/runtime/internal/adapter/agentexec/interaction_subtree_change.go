@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"sync"
 
-	agent "github.com/Tangerg/lynx/agent2"
+	agent "github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 )
 
@@ -77,7 +77,7 @@ func (change *interactionWaitingSubtreeChange) Apply(
 	if err := change.session.beginSubtreeApplication(change); err != nil {
 		return err
 	}
-	// The Application transaction is already authoritative. Agent2 staged every
+	// The Application transaction is already authoritative. Agent Framework staged every
 	// fallible Process change during Prepare, so its apply gate cannot be revoked
 	// by the request that initiated the product command.
 	err := change.prepared.Apply()

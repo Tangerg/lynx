@@ -32,8 +32,8 @@
 
 任何跨包类型都要回答：它是谁的语言、谁能改变它、谁负责验证它。以下均视为泄露：
 
-- Domain/Application 出现 Agent2 Process、Signal、Effect、Deployment 或 snapshot payload；
-- Agent2 出现 Run、Session、pricing、approval、Store 或 Runtime protocol；
+- Domain/Application 出现 Agent Framework Process、Signal、Effect、Deployment 或 snapshot payload；
+- Agent Framework 出现 Run、Session、pricing、approval、Store 或 Runtime protocol；
 - Delivery 持有 executor handle、Run pump、Store 或 SDK client；
 - Infra 决定应用事务、Run terminal policy 或 UI projection；
 - Toolset 取得完整 Engine/Stack 或 Interaction private state；
@@ -86,7 +86,7 @@ Entity 自己保护状态迁移和不变量。Application 不得通过一串 set
 
 ### 3.1 Domain
 
-- 禁止 Application、Adapter、Infra、Delivery、Bootstrap、Agent2、SQLite、JSON-RPC 和外部驱动 SDK import；
+- 禁止 Application、Adapter、Infra、Delivery、Bootstrap、Agent Framework、SQLite、JSON-RPC 和外部驱动 SDK import；
 - 领域错误不引用协议 code 或 HTTP status；
 - 时间、随机数等不确定输入由 Application 提供准确值，领域方法消费值而不是隐式读全局；
 - 纯计算使用 value receiver 时保持值语义，mutable entity 使用 pointer receiver 并集中修改。
@@ -98,7 +98,7 @@ Entity 自己保护状态迁移和不变量。Application 不得通过一串 set
 - I/O 和长任务首参数是 `context.Context`，不存入 struct；
 - 明确写出 validation、claim、durable commit、external apply、publish 的顺序；
 - 失败路径必须说明哪些事实尚未改变、哪些已经提交、如何 fail closed；
-- 不导入具体 Adapter/Infra/Delivery/Agent2；
+- 不导入具体 Adapter/Infra/Delivery/Agent Framework；
 - 不通过 callback 把应用事务交给 Adapter 决定；
 - 同一 use case 的 goroutine、channel、claim 和 shutdown 必须由一个 concrete owner 收敛。
 
@@ -138,18 +138,18 @@ Entity 自己保护状态迁移和不变量。Application 不得通过一串 set
 - 后台任务加入明确 task group，Host shutdown 等待它们结束；
 - optional capability 只在真实配置关闭时为 nil/absent，不通过半可用对象推迟错误。
 
-## 4. Agent2 接线标准
+## 4. Agent Framework 接线标准
 
-### 4.1 Agent2 public API only
+### 4.1 Agent Framework public API only
 
-- 只调用 Agent2 已冻结的公共合同；
+- 只调用 Agent Framework 已冻结的公共合同；
 - 不读取 private JSON、未导出的 wire 或测试 helper；
 - 不把旧 Agent 行为当兼容规范；
 - 需要新 Framework 能力时，先证明是中性框架缺口，而不是 Runtime 产品策略，再单独修改 Agent Framework ADR/baseline。
 
 ### 4.2 一个执行循环
 
-- Agent2 Engine 唯一驱动 Process；
+- Agent Framework Engine 唯一驱动 Process；
 - agentexec 不建立第二 controller、scheduler、ToolLoop、mailbox 或 child registry；
 - Application 可以拥有 Run pump，但 pump 只归约 executor facts 和提交产品状态，不推进 Framework internal state；
 - `Turn` 不越过 agentexec 内部；目标完成后不保留 Turn lifecycle abstraction。
@@ -162,7 +162,7 @@ Entity 自己保护状态迁移和不变量。Application 不得通过一串 set
 - restore 必须重建 exact Deployment 集并验证 ref/digest；
 - snapshot 损坏、BuildID 不匹配或外部事实失效按明确产品 policy 失败，不猜测修复。
 - 初版不配置只接收单 Process Snapshot 的 `PreparedStepAcknowledger`；只有完整 quiescent TreeSnapshot 可以成为 durable recovery point；
-- native payload 直接使用 Agent2 public TreeSnapshot，不创建 Runtime private tree wire、拼装 Process Snapshot 或第二 payload version；
+- native payload 直接使用 Agent Framework public TreeSnapshot，不创建 Runtime private tree wire、拼装 Process Snapshot 或第二 payload version；
 - answer claim 必须原子记录 exact answer、隐藏 `resuming` row 并删除旧 waiting recovery point。next-Segment opening 必须在同一事务中证明 durable claim，commit 后才允许提交 semantic Signal；
 - 进入 `resuming` 后直到新 quiescent checkpoint 提交，任何 crash 都不能回退旧 snapshot。pre-opening failure 必须先 durable `RunLost` 再 release；若 terminal write 失败，tree/claim 保持供 recovery 收口；
 - 下一 barrier 只能由同一 Session/executor/root-member owner 替换 `resuming` row；terminal/recovery 负责删除，普通查询不得把 answer audit 当 open input；
@@ -286,14 +286,14 @@ Entity 自己保护状态迁移和不变量。Application 不得通过一串 set
 2. Application use-case tests，使用最小 handwritten fakes；
 3. Adapter contract/translation tests；
 4. SQLite/HTTP/in-process integration tests；
-5. Agent2 真实 Engine 纵切 consumer tests；
+5. Agent Framework 真实 Engine 纵切 consumer tests；
 6. architecture/static baseline tests；
 7. concurrency race tests；
 8. 对 snapshot、protocol、strict codec 的 fuzz/round-trip tests。
 
 ### 7.2 真实纵切
 
-Agent2 迁移不能只用 mock Engine 证明。必须运行真实 Interaction + Engine，覆盖：
+Agent Framework 迁移不能只用 mock Engine 证明。必须运行真实 Interaction + Engine，覆盖：
 
 - start/stream/terminal；
 - model ToolCall 与 authoritative projection；
@@ -309,7 +309,7 @@ Agent2 迁移不能只用 mock Engine 证明。必须运行真实 Interaction + 
 至少机器守卫：
 
 - 精确 package DAG；
-- Agent2 import allowlist；
+- Agent Framework import allowlist；
 - Application/Domain/Delivery 禁止外环 SDK；
 - Delivery 不持有 Run/executor lifecycle state；
 - Infra 不 import Application/Adapter/Delivery；

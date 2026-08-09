@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"math"
 
-	agent "github.com/Tangerg/lynx/agent2"
-	"github.com/Tangerg/lynx/agent2/interaction"
+	agent "github.com/Tangerg/lynx/agent"
+	"github.com/Tangerg/lynx/agent/interaction"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/delegation"
 	corechat "github.com/Tangerg/lynx/core/chat"
 	toolcontract "github.com/Tangerg/lynx/tool"
@@ -26,7 +26,7 @@ const (
 
 // InteractionDelegationConfig bounds native managed children independently of
 // model/token product limits. Zero fields inherit conservative defaults. The
-// values translate only into Agent2 structural limits and a minimum per-Process
+// values translate only into Agent Framework structural limits and a minimum per-Process
 // work allocation. A delegated Process receives one allocation unit for itself
 // and one for each remaining recursion level, so the configured depth is
 // reachable without renewing or duplicating Framework budget.
@@ -145,7 +145,7 @@ func newDelegatedInteractionDefinition(
 }
 
 // runtimeContractSchema preserves Runtime's established jsonschema tag
-// vocabulary at the Agent2 ACL. Agent2 accepts the resulting neutral JSON
+// vocabulary at the Agent Framework ACL. Agent Framework accepts the resulting neutral JSON
 // Schema and remains independent of Runtime's tool-contract implementation.
 func runtimeContractSchema[T any]() (agent.Schema, error) {
 	raw, err := toolcontract.Schema[T]()

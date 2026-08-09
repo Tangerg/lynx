@@ -6,6 +6,6 @@
 // The package defines the state machine, terminal taxonomy, immutable lineage,
 // admitted limits and capabilities, tree topology, and pure validation needed
 // to preserve those facts. It performs no I/O and knows nothing about executor
-// handles, checkpoints, conversation content, transcript ordering, or Agent2
+// handles, checkpoints, conversation content, transcript ordering, or Agent Framework
 // Process and Execution state.
 package run

@@ -1,7 +1,8 @@
 # Core API 最小上手
 
-本文展示当前稳定方向的路径和调用面。完整的可运行版本见
-[`agent/examples/toolloop`](../agent/examples/toolloop/)。
+本文展示当前稳定方向的路径和调用面。直接调用与托管 Process 的完整对照见
+[`agent/examples/direct_vs_managed`](../agent/examples/direct_vs_managed/)，模型自主调用 Tool 的完整示例见
+[`agent/examples/autonomous`](../agent/examples/autonomous/)。
 
 ## 1. 先选最小依赖
 
@@ -12,7 +13,7 @@
 | 最小工具契约、decorator 能力发现和 typed/schema 辅助 | `tool` |
 | 实例工具集合与 Registry | `tools` |
 | 把 typed function 变成可执行工具 | `tool` |
-| 多轮工具执行、普通错误反馈、direct return、暂停/恢复 | `agent/toolloop` |
+| 可恢复的模型/工具自主循环、暂停/恢复和子 Process | `agent`、`agent/interaction` |
 | 聊天历史 | `chathistory` |
 | OpenTelemetry | `otel/chat`、`otel/chathistory`、`otel/vectorstore`、`otel/slog` |
 
@@ -65,7 +66,7 @@ for response, err := range client.Stream(ctx, request) {
 调用方提前停止 range 时，provider 必须同步释放资源。框架不会用一次同步 Call
 伪造 streaming。
 
-## 4. Typed Tool 与工具循环
+## 4. Typed Tool 与托管 Interaction
 
 ```go
 type addInput struct {
@@ -82,87 +83,25 @@ add, err := tool.NewFunc(tool.FuncConfig{
 if err != nil {
     return err
 }
-registry, err := tools.NewRegistry(add)
-if err != nil {
-    return err
-}
-
-request, err := chat.NewRequest(
-    chat.NewUserMessage(chat.NewTextPart("What is 2 + 3?")),
-)
-if err != nil {
-    return err
-}
-request.Tools = registry.Definitions()
-
-invocation, err := toolloop.NewInvocation(request, registry)
-if err != nil {
-    return err
-}
-runner, err := toolloop.NewRunner(model, toolloop.RunnerConfig{})
-if err != nil {
-    return err
-}
-
-for event, err := range runner.Run(ctx, invocation) {
-    if err != nil {
-        return err
-    }
-    switch {
-    case event.Kind == toolloop.EventToolResult:
-        fmt.Println("tool:", event.ToolResult.Result)
-    case event.Kind == toolloop.EventModelResponse && event.Final:
-        fmt.Println("assistant:", event.Response.Text())
-    }
-}
 ```
 
-这里有两条边界不能省略：
+`tool.NewFunc` 只负责建立准确的 Tool schema 与调用边界。只需直接调用时，调用方可自行把 Tool definitions 放入 `chat.Request` 并执行返回的 ToolCall；需要框架托管的模型→Tool→模型循环时，使用 `agent/interaction`：
 
-- `request.Tools` 只含可序列化 `ToolDefinition`；可执行对象在相邻的
-  `Invocation.Tools`，`Invocation` 本身拒绝 JSON 序列化。
-- 工具普通 error 会变成 `IsError` ToolResult 反馈给模型；context error 和
-  `toolloop.AbortError` 终止运行。Runner 不自动重试。
+- `interaction.Definition` 冻结静态契约和模型调用上限；
+- `interaction.Dispatcher` 持有 `chatclient.Client` 与可执行 Tools；
+- `agent.Deployment` 冻结 Definition、Dispatcher 与精确 digest；
+- `agent.Engine` 是 Process 生命周期、Signal、Effect、snapshot 和 child tree 的唯一 owner。
 
 直接运行完整示例：
 
 ```bash
 cd agent
-go run ./examples/toolloop
+go run ./examples/autonomous
 ```
 
-## 5. Pause / Resume
+Tool 的普通 error 由 Interaction 作为 `IsError` ToolResult 反馈给模型；请求取消和无法证明的副作用结果不会被自动重试。需要外部输入的 Tool 使用 `interaction.RequireToolInput` 产生 Strategy-owned 请求，由 Engine 铸造 WaitID；Host 只保存完整 `agent.TreeSnapshot` 并通过 `interaction.PendingToolInputFromSnapshot` 构造类型化响应。具体恢复流程以 `agent/interaction` GoDoc 和合同测试为准，不存在第二套 Runner/Resume 生命周期。
 
-需要批准的工具必须在产生副作用前返回稳定 checkpoint ID：
-
-```go
-resume, resumed := toolloop.ResumeFromContext(ctx)
-if !resumed {
-    return "", &toolloop.PauseError{
-        ID:     "approve-delete-42",
-        Reason: "delete record 42",
-    }
-}
-if resume.Input != "approved" {
-    return "", errors.New("approval rejected")
-}
-// 从这里开始才执行副作用。
-```
-
-`EventPause` 携带 JSON-safe `Checkpoint`。持久化该 checkpoint 后，使用相同
-resolver 恢复：
-
-```go
-resume := toolloop.Resume{ID: checkpoint.ID, Input: "approved"}
-for event, err := range runner.Resume(ctx, checkpoint, registry, resume) {
-    // 与 Run 使用同一套 Event 消费逻辑。
-}
-```
-
-Resume 不重新调用产生该 tool-call round 的模型，也不重新执行 checkpoint 中已
-完成的工具。待恢复工具可以再次返回 PauseError，形成新的 checkpoint。
-
-## 6. 模板与结构化输出
+## 5. 模板与结构化输出
 
 模板只负责渲染，不持有可变 per-call 状态：
 
@@ -191,6 +130,7 @@ decode 失败时仍返回原始 Response，repair/retry 策略由调用方显式
 - `go doc github.com/Tangerg/lynx/chatclient`
 - `go doc github.com/Tangerg/lynx/tool`
 - `go doc github.com/Tangerg/lynx/tools`
-- `go doc github.com/Tangerg/lynx/agent/toolloop`
+- `go doc github.com/Tangerg/lynx/agent`
+- `go doc github.com/Tangerg/lynx/agent/interaction`
 - 观测接入见 [`OBSERVABILITY.md`](./OBSERVABILITY.md)
 - 模块维护规则与反向不变量见 [`../core/CLAUDE.md`](../core/CLAUDE.md)

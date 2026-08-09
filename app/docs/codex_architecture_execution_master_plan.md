@@ -47,9 +47,9 @@
    Desktop B1.6 的目标读模型、爆炸半径与原子执行卡。
 5. [`codex_synara_visual_baseline_and_execution_plan.md`](codex_synara_visual_baseline_and_execution_plan.md)
    W7 的视觉目标、状态映射、冻结决策、验收矩阵与原子执行卡。
-6. [`../../doc/AGENT_FRAMEWORK_ARCHITECTURE_EXECUTION_PLAN.md`](../../doc/AGENT_FRAMEWORK_ARCHITECTURE_EXECUTION_PLAN.md)
-   Agent Framework 专项台账。
-7. [`../runtime/doc/EXECUTION_CENTERED_ARCHITECTURE.md`](../runtime/doc/EXECUTION_CENTERED_ARCHITECTURE.md)、
+6. [`../../agent/doc/EXECUTION_PLAN.md`](../../agent/doc/EXECUTION_PLAN.md)
+   Agent Framework 专项台账；稳定架构和公共合同由同目录其他 owner 文档维护。
+7. [`../runtime/doc/ARCHITECTURE.md`](../runtime/doc/ARCHITECTURE.md)、
    [`../desktop/frontend/ARCHITECTURE.md`](../desktop/frontend/ARCHITECTURE.md) 与
    [`../desktop/docs/FRONTEND_PLUGIN_CONTEXTS.md`](../desktop/docs/FRONTEND_PLUGIN_CONTEXTS.md)
    各模块的现行架构基准。
@@ -415,7 +415,7 @@ coordinator、锁层、协议方法或兼容分支。
 
 ### 4.3 架构文档状态
 
-- `app/runtime/doc/EXECUTION_CENTERED_ARCHITECTURE.md` 已使用 root-owned direct
+- `app/runtime/doc/ARCHITECTURE.md` 已使用 root-owned direct
   suspension set，并记录 waiting child cancellation 的 prepared mutation / atomic
   transaction 边界；其取消与恢复心智和 B1.4d 最终实现一致，未发现 root-only /
   single-interrupt 残留；
@@ -2609,7 +2609,7 @@ SQLite epoch 47
 专项责任矩阵、禁止 seam、transaction timeline、architecture guards 和人工 checklist 以
 [`codex_agent_app_abstraction_boundary_audit.md`](codex_agent_app_abstraction_boundary_audit.md)
 为准；Runtime 现行结构以
-[`../runtime/doc/EXECUTION_CENTERED_ARCHITECTURE.md`](../runtime/doc/EXECUTION_CENTERED_ARCHITECTURE.md)
+[`../runtime/doc/ARCHITECTURE.md`](../runtime/doc/ARCHITECTURE.md)
 为准。P25/P26/P27 术语只作为历史过程存在，不能据此恢复旧 API 或 Store shape。
 
 ---

@@ -4,8 +4,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/pagination"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/app/runtime/internal/pagination"
 )
 
 // A page request a read refuses is the client's to fix, so it has to reach the

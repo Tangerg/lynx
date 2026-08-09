@@ -12,12 +12,12 @@ import (
 	"testing"
 )
 
-const oldAgentModulePath = "github.com/Tangerg/lynx/agent"
+const retiredAgentModulePath = "github.com/Tangerg/lynx/agent2"
 
-// TestOldAgentModuleIsAbsent prevents the superseded framework from returning
-// after the production execution cutover. Runtime has one framework boundary:
-// Agent2 through adapter/agentexec.
-func TestOldAgentModuleIsAbsent(t *testing.T) {
+// TestRetiredAgentModuleIsAbsent prevents the temporary incubation module path
+// from returning after the canonical module cutover. Runtime has one framework
+// boundary: the Agent Framework through adapter/agentexec.
+func TestRetiredAgentModuleIsAbsent(t *testing.T) {
 	root := moduleRoot(t)
 	err := filepath.WalkDir(root, func(path string, entry os.DirEntry, walkErr error) error {
 		if walkErr != nil {
@@ -38,16 +38,16 @@ func TestOldAgentModuleIsAbsent(t *testing.T) {
 		}
 		for _, imported := range file.Imports {
 			importPath := strings.Trim(imported.Path.Value, `"`)
-			if importPath != oldAgentModulePath && !strings.HasPrefix(importPath, oldAgentModulePath+"/") {
+			if importPath != retiredAgentModulePath && !strings.HasPrefix(importPath, retiredAgentModulePath+"/") {
 				continue
 			}
 			relativePath, _ := filepath.Rel(root, path)
-			t.Errorf("old Agent import remains after production cutover: %s", filepath.ToSlash(relativePath))
+			t.Errorf("retired Agent module import remains after canonical cutover: %s", filepath.ToSlash(relativePath))
 		}
 		return nil
 	})
 	if err != nil {
-		t.Fatalf("scan old Agent imports: %v", err)
+		t.Fatalf("scan retired Agent module imports: %v", err)
 	}
 }
 
@@ -394,7 +394,7 @@ func TestExecutionContextIsNeutralBetweenPeerAdapters(t *testing.T) {
 }
 
 // TestApplicationExecutionPortsUseApplicationVocabulary locks the P3
-// consumer-owned root seam. Later Agent2 vertical slices may deliberately
+// consumer-owned root seam. Later Agent Framework vertical slices may deliberately
 // revise this candidate, but they may not restore the old implementation-shaped
 // facade or Framework Process vocabulary in Application.
 func TestApplicationExecutionPortsUseApplicationVocabulary(t *testing.T) {
@@ -1103,7 +1103,7 @@ func TestRuntimeDoesNotConfigureSingleProcessPreparedStepDurability(t *testing.T
 		return nil
 	})
 	if err != nil {
-		t.Fatalf("scan Agent2 Engine configuration: %v", err)
+		t.Fatalf("scan Agent Framework Engine configuration: %v", err)
 	}
 }
 

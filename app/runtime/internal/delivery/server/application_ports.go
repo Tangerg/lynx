@@ -9,7 +9,6 @@ import (
 	feedbackapp "github.com/Tangerg/lynx/app/runtime/internal/application/feedback"
 	mcpapp "github.com/Tangerg/lynx/app/runtime/internal/application/mcp"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/models"
-	"github.com/Tangerg/lynx/app/runtime/internal/pagination"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/queries"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
@@ -29,6 +28,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/skills"
 	toolsvc "github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/pagination"
 )
 
 // Every interface below is defined by Delivery — the consuming side. They keep

@@ -1,6 +1,6 @@
 # Lyra Runtime 重构实施计划
 
-> 状态：P10 服务端 Protocol 收口已完成；下一阶段 P11
+> 状态：P11 4/5 完成；正在执行唯一 Agent Framework module 的最终门禁
 >
 > 工作方式：原模块内治本重构，按可验证纵切分批完成；不创建完整 `runtime2`
 
@@ -13,7 +13,7 @@
 - 严格按本文 P1–P12 的依赖顺序重构 `app/runtime`；
 - 每完成一个可独立验收批次，同步本计划和 Capability Ledger，统一验证、提交并推送；
 - 允许服务端内部与 Runtime Protocol breaking change，不建立兼容路径；
-- 读取旧 `agent` 与 `agent2` 作为实现证据，但 Runtime 对 Framework 只依赖 Agent2 公共合同。
+- 仓库历史与能力台账中的原框架实现只作为证据；Runtime 对 Framework 只依赖当前 `agent` 公共合同。
 
 本 goal 不修改前端、TUI、CLI，也不为它们保留兼容字段；消费端接线在服务端完成后专项处理。跨出 `app/runtime` 的 Framework 合同变化仍需单独满足 P7 的证据与授权约束，不能在 Runtime 内伪造替代合同。
 
@@ -23,9 +23,9 @@
 - breaking change 允许，禁止 alias、shim、dual read/write 和两套长期路径；
 - 每个阶段按依赖方向从内到外推进，但每个提交必须形成可运行纵切，不允许长期红仓；
 - 旧实现可以作为事实证据，不能成为新 API 兼容规范；
-- Agent2 Baseline 14 是当前 Framework 合同；Runtime 不读取其 private state；
+- Agent Framework Baseline 15 是当前 Framework 合同；Runtime 不读取其 private state；
 - 每批完成后更新本计划和 Capability Ledger，运行对应质量门禁，提交并推送；
-- 如果发现 Agent2 缺口，先证明它是中性 Framework 能力且已有真实 Runtime consumer，再单独走 Agent2 ADR/baseline；禁止在 Runtime 侧补第二套内核；
+- 如果发现 Agent Framework 缺口，先证明它是中性 Framework 能力且已有真实 Runtime consumer，再单独走 Agent Framework ADR/baseline；禁止在 Runtime 侧补第二套内核；
 - 阶段完成不以文件数量或目录形状判断，只以验收合同和旧 owner 删除判断。
 
 ## 3. 阶段总览
@@ -39,11 +39,11 @@
 | P4 | 原生 Interaction 的 root 纵切 | P3 | 已完成 |
 | P5 | 权威 model/tool observation 与 Tool 接线 | P4 | 已完成 |
 | P6 | waiting、checkpoint、restore、resume、steer | P5 | 已完成 |
-| P7 | Delegate child Run 与 waiting subtree | P6 + 两项 Agent2 中性合同 | 已完成 |
+| P7 | Delegate child Run 与 waiting subtree | P6 + 两项 Agent Framework 中性合同 | 已完成 |
 | P8 | terminal、recovery 与跨聚合一致性收口 | P7 | 已完成 |
 | P9 | Adapter/Infra/共享原语/Delivery 结构收敛 | P8 | 已完成 |
 | P10 | 协议、生成物与服务端 API 收口 | P9 | 已完成 |
-| P11 | 旧 Agent 删除与唯一模块名替换 | P10 | 未开始 |
+| P11 | 原框架实现删除与唯一模块名替换 | P10 | 进行中 |
 | P12 | 全量质量验收与消费者接线移交 | P11 | 未开始 |
 
 ## 4. P0 — 文档、事实和边界基线
@@ -68,7 +68,7 @@
 
 - 六份核心文档职责互斥且互相可导航；
 - 明确不创建 `runtime2`；
-- 明确 Agent2/Runtime、Run/Process、Conversation/Transcript/WorkingContext 边界；
+- 明确 Agent Framework/Runtime、Run/Process、Conversation/Transcript/WorkingContext 边界；
 - 每个生产能力都有 retain/refactor/rewrite/remove verdict；
 - 实施阶段有依赖、输出、行为验收和删除条件；
 - 本轮由本 goal 产生的变更只有 Runtime 文档；工作区中并存的用户改动保持未触碰、未纳入；
@@ -84,7 +84,7 @@
 
 - 将当前 architecture tests 按 Target/Temporary 两类整理；
 - 冻结 Domain、Application、Adapter、Infra、Delivery、Bootstrap 的允许边；
-- 新增 Agent2 import allowlist，默认只允许 `adapter/agentexec` integration leaf；
+- 新增 Agent Framework import allowlist，默认只允许 `adapter/agentexec` integration leaf；
 - 禁止 Delivery import concrete adapters，禁止 Infra import Application/Adapter；
 - 建立旧 `agent` import census guard，迁移期间只允许数量单调不增，P8 切换后归零；
 - 建立旧术语、compat path、private snapshot decoding 和第二 lifecycle owner 的静态守卫；
@@ -101,7 +101,7 @@
 
 ### 目标
 
-清除产品 `execution` 与 Framework `Execution` 冲突，建立可以独立于 Agent2 表达的产品领域模型。
+清除产品 `execution` 与 Framework `Execution` 冲突，建立可以独立于 Agent Framework 表达的产品领域模型。
 
 ### 工作项
 
@@ -120,7 +120,7 @@
 - Run 跨 Segment 保持 identity；
 - 非法状态迁移、usage regression、lineage/capability 矛盾在 Domain 边界失败；
 - Conversation truncate/seed 与 Transcript rollback 是独立行为；
-- Domain 对 Agent/Agent2、I/O framework 和 Delivery 零依赖；
+- Domain 对 Agent/Agent Framework、I/O framework 和 Delivery 零依赖；
 - 旧 package path 和 terminology 全部删除。
 
 ## 7. P3 — Application root execution use cases 与候选消费端口
@@ -142,7 +142,7 @@
 
 ### 行为验收
 
-- fake executor 可以证明全部应用状态机而不导入 Agent2；
+- fake executor 可以证明全部应用状态机而不导入 Agent Framework；
 - executor error、cancel source、deadline、lost checkpoint 映射为稳定产品结果；
 - transaction failure 不会发布未提交 Run event；
 - cancel/resume/terminal 竞争只有一个合法结果；
@@ -155,14 +155,14 @@
 - Run pump 保持唯一 application fact reducer；非 Waiting 的每个终止边界恰好 release 一次，Waiting tree 继续由 active owner 持有；
 - `SessionLifecycle` 与 `Effects` 胖接口分别拆为真实 use case 消费的 reader/committer ports；组合 struct 只服务 Bootstrap，Coordinator 不保存 facade；
 - Application 统一采用 `ExecutorMember`/`MemberID`，旧 Framework `ProcessID` 只留在待 P8 删除的 adapter 内部；SQLite technical record 同步采用 `root_member_id`/`memberId`，schema epoch 提升到 59，不保留旧列或 dual codec；
-- P6/P7 尚未纵切的 continuation、steer、subtree 能力只作为隔离的旧生产路径消费 seam 存在，不属于 P3 root baseline，也不约束后续 Agent2 consumer shape；
+- P6/P7 尚未纵切的 continuation、steer、subtree 能力只作为隔离的旧生产路径消费 seam 存在，不属于 P3 root baseline，也不约束后续 Agent Framework consumer shape；
 - architecture tests 已锁定当前 root candidate、Application Framework vocabulary 禁区、opaque checkpoint 字段和 storage exact shape。
 
 ## 8. P4 — 原生 Interaction root 纵切
 
 ### 目标
 
-用 Agent2 原生 Interaction 跑通最小真实 root Run：start、模型输出、terminal、cancel。
+用 Agent Framework 原生 Interaction 跑通最小真实 root Run：start、模型输出、terminal、cancel。
 
 ### 工作项
 
@@ -177,7 +177,7 @@
 
 ### 行为验收
 
-- 真实 Agent2 Engine + Interaction 完成一次 root Run；
+- 真实 Agent Framework Engine + Interaction 完成一次 root Run；
 - normal completion、model failure、deadline、cancel、panic isolation 有稳定映射；
 - final Output 不依赖 Delta 拼接；
 - 旧 Agent import 数量不增加，P8 原子切换后归零；
@@ -185,11 +185,11 @@
 
 ### 完成事实
 
-- 在现有 `adapter/agentexec` 内新增 `InteractionExecutor`，每个 staged root 独占一个 Agent2 Engine、exact Deployment resolver、root admission guard、显式 Framework/Tree limits 和 bounded Delta listener；未创建 `agentexec2`、GOAP wrapper、`TurnProcess` 或第二执行 loop；
+- 在现有 `adapter/agentexec` 内新增 `InteractionExecutor`，每个 staged root 独占一个 Agent Framework Engine、exact Deployment resolver、root admission guard、显式 Framework/Tree limits 和 bounded Delta listener；未创建 `agentexec2`、GOAP wrapper、`TurnProcess` 或第二执行 loop；
 - P3 root candidate 经真实 consumer 验证继续成立：Stage 只解析完整 WorkingContext、选择 client 并组装 Definition/Dispatcher/Deployment/Engine/Input，零模型/Tool 调用；Observe 单消费者先 attach，durable opening 后 Begin 才调用 `Engine.Start`；
 - Application 增加准确的 `ConversationReader`，在 admission gate 内读取 Host Conversation 并追加当前已校验 user message，形成 fresh `WorkingContext` seed；Agent adapter 不读取 Conversation store，Process 开始后也不回读可变 Host history；
 - 成功终态从 `Process.Await`/`Result.Output` 投影 `AssistantMessageCompleted`，Reducer 用完整 final message 覆盖 partial/missing Delta；Delta 只投影临时 text/reasoning increments；
-- Agent2 Termination 集中映射为 Completed/Canceled/TimedOut/Failed/MaxSteps，模型 external failure、Host cancel/deadline、Framework panic cause 和 dispatcher panic isolation 均有确定测试；
+- Agent Framework Termination 集中映射为 Completed/Canceled/TimedOut/Failed/MaxSteps，模型 external failure、Host cancel/deadline、Framework panic cause 和 dispatcher panic isolation 均有确定测试；
 - 初版 Engine 明确不配置 `PreparedStepAcknowledger`；P4 新路径仅由独立真实 harness 消费，Bootstrap 生产 wiring 仍使用旧 Agent owner，精确旧 import/delete ledger 未增长并保留到 P8 原子切换。
 
 ## 9. P5 — 权威 model/tool observation 与 Tool 接线
@@ -204,7 +204,7 @@
 - model stream wrapper best-effort 投影 chunk，并同步 durable 投影完整 final/usage；
 - Tool decorator 同步投影 ToolCall、result、timing、presentation、approval 和 hooks；
 - 为每个 EffectRequest 建立 context-scoped dispatch-attempt tracker：pre-call write 失败不外呼，post-call authoritative write 失败由 outer Dispatcher 返回 error 形成 unknown settlement；
-- 将通用 Toolset 与 Agent2 import 解耦；
+- 将通用 Toolset 与 Agent Framework import 解耦；
 - 使用 Interaction `Tools`/`DeferredTools` 冻结 manifest；
 - 用 agentexec integration 调用 `AdvertiseTools`，保持 discovery Tool 通用；
 - 对比现有 doom-loop/offload/history partition 行为，保留产品语义、删除旧 Framework 补偿。
@@ -219,25 +219,25 @@
 - model started write failure、Tool started write failure、外部成功后 final/result/usage write failure、chunk drop 和并行 Tool batch partial write failure逐项有行为测试；
 - 外部调用后 authoritative write 失败留下 incomplete/unknown Transcript fact，不伪造 Tool result，Effect 不自动重放；
 - live unknown 不永久挂起：listener 丢失仍被 reconciliation 发现；RunLost transaction 失败可重试且不会提前 Kill；unknown 与 cancel/deadline 竞争有唯一 Lost-first 映射；
-- Toolset production 对 Agent2 零 import。
+- Toolset production 对 Agent Framework 零 import。
 
 ### 完成事实
 
-- outer Dispatcher 为每个 Agent2 Effect 建立 context-scoped、按 EffectID 校验且并发安全的 dispatch-attempt tracker；model/Tool started 必须先完成 Application receipt 才跨过外部调用边界，post-call final/result/usage commit 失败统一使整个 Effect 进入 unknown，pre-call 失败保证零外呼；
+- outer Dispatcher 为每个 Agent Framework Effect 建立 context-scoped、按 EffectID 校验且并发安全的 dispatch-attempt tracker；model/Tool started 必须先完成 Application receipt 才跨过外部调用边界，post-call final/result/usage commit 失败统一使整个 Effect 进入 unknown，pre-call 失败保证零外呼；
 - Application Run pump 仍是唯一 reducer/persistence writer。authoritative fact 使用同一 executor stream 的 commit/receipt handshake 和 speculative reducer，完整 Transcript、invocation journal、Run metrics 与 live publication 只有在一个 write-set 成功后才生效；
 - SQLite epoch 61 新增 model/tool invocation operational journals。它们只保存 attempt started/completed/failed/unknown/incomplete 边界，不复制语义 final/result；完整 model final + cumulative usage/pricing + Run progress 同事务提交，Tool final Items 与 invocation terminal 同事务提交；
 - 并发 Tool 的 start 不占用 Transcript 顺序；pump 暂存乱序完成结果，只在形成模型声明顺序的连续前缀时批量提交，并一起结算所有 receipt。批量失败会丢弃 speculative results，保留 started journal，随后以 incomplete Tool Items + `RunLost` 原子收口；
-- Toolset 使用唯一 framework-neutral `toolset.Manifest`；现有 `toolset.Resolver` 直接满足 native Interaction 的消费端口，Runtime execution scope 同时绑定到 manifest resolution 和实际 Tool context。`search_tools` 通过精确 callback 调用 `AdvertiseTools`，Toolset 对 Agent2 零 import；
+- Toolset 使用唯一 framework-neutral `toolset.Manifest`；现有 `toolset.Resolver` 直接满足 native Interaction 的消费端口，Runtime execution scope 同时绑定到 manifest resolution 和实际 Tool context。`search_tools` 通过精确 callback 调用 `AdvertiseTools`，Toolset 对 Agent Framework 零 import；
 - 真实 Tool decorator 保留 safety、自动 allow/deny、argument rewrite、activity/presentation、hooks、result offload、mutation paths 与 doom-loop policy。canonical Tool result 是 settlement truth；可重新读取的 live projection 和 post-hook 失败只进入观测，不把已经确定的 Effect 改成 unknown；
 - model chunk 经过有界 best-effort 队列；Runtime 本地 drop 产生 OTel event，完整 final/usage 独立于 Delta 提交。慢消费反例证明 chunk 丢失不损坏 final 或 usage；
 - live unknown 使用 Dispatcher 直接 wake 与有界 public `UnknownEffectIDs` polling 双通道。Run pump 在 release 前原子提交 started/incomplete diagnostic 与 `RunLost`，终态写失败持续重试；丢 wake、写失败重试和最终 release 顺序均有行为测试；
-- P5 新路径仍只由真实 Agent2 harness 消费，Bootstrap 生产 owner 保持旧 Agent 路径，等待 P8 原子切换；旧 owner 没有扩散，P5 没有引入第二执行 loop 或兼容路径。
+- P5 新路径仍只由真实 Agent Framework harness 消费，Bootstrap 生产 owner 保持旧 Agent 路径，等待 P8 原子切换；旧 owner 没有扩散，P5 没有引入第二执行 loop 或兼容路径。
 
 ## 10. P6 — Waiting、Checkpoint、Restore、Resume 与 Steer
 
 ### 目标
 
-用 Agent2 公共 pending-input 和 snapshot 合同替换旧 suspension/continuation 私有解释。
+用 Agent Framework 公共 pending-input 和 snapshot 合同替换旧 suspension/continuation 私有解释。
 
 ### 工作项
 
@@ -249,7 +249,7 @@
 - 将 SteerRun 编码为 steer signal，并明确下一安全 Step 的生效语义；
 - 接入需要用户输入的 approval/ask-user HITL，并验证 deferred advertisement 在 wait/restore 前后保持 owner state；
 - 新路径不读取旧 suspension private JSON、ProcessSnapshot codec 或 Continue/Resume 猜测路径；仍服务生产旧路径的对应文件加入 P8 原子删除清单；
-- 初版明确不配置 Agent2 `PreparedStepAcknowledger`；只持久化 quiescent complete-tree checkpoint，不声明 active-step crash recovery；
+- 初版明确不配置 Agent Framework `PreparedStepAcknowledger`；只持久化 quiescent complete-tree checkpoint，不声明 active-step crash recovery；
 - 回答 Interrupt 时同一事务记录 exact answer claim、把 interrupt row 变为 `resuming`/普通读取不可见并删除旧 checkpoint；成功后才 stage live tree 或 RestoreTree，next-Segment opening transaction 证明 claim 后才 deliver semantic Signal；
 - 恢复探测 unresolved unknown Effect 时拒绝自动恢复并返回准确不可恢复事实，不调用任意 `ResolveEffect`。
 
@@ -272,7 +272,7 @@
 - continuation 使用 `StageContinuation`/`BeginContinuation`：live waiting tree 必须匹配已提交 checkpoint，cold restore 必须匹配 BuildID、Host scope、TreeSnapshot root/status、exact DeploymentRef 与 active WaitID；Application opening commit 早于 Signal；
 - post-claim pre-opening failure 先提交 root `RunLost` 再 release staged tree。RunLost write 失败保持 tree/claim；release 失败与原 cause 一起报告。boot 对任何无 checkpoint 的 claimed-resume tree 都确定收口为 Lost；
 - 真实 Runtime `ask_user`、interactive approval、approval argument/remember resolution、doom-loop HITL 与 deferred advertisement 均复用产品 Interrupt contract。Approval restore 不重跑 pre-hook 或 plan；
-- steer 使用 `RunningExecutionSteerer.SubmitSteer`，Agent2 在当前 model call 之后的下一 safe boundary 消费；产品 `SteerMessage` 在首个能看到它的 `ModelCallStarted` 前提交；
+- steer 使用 `RunningExecutionSteerer.SubmitSteer`，Agent Framework 在当前 model call 之后的下一 safe boundary 消费；产品 `SteerMessage` 在首个能看到它的 `ModelCallStarted` 前提交；
 - corrupt TreeSnapshot、wrong BuildID/DeploymentRef、missing/isolated workspace、capability mismatch、claim result drift、conversation change、unknown checkpoint prohibition 和 answer/release ordering 均有真实行为或 SQLite transaction test。
 
 ## 11. P7 — Delegate child Run 与 waiting subtree
@@ -283,7 +283,7 @@
 
 ### 工作项
 
-- P7 的第一项是补齐并冻结两个中性 Agent2 前置合同：admitted child 的 conclusive started/aborted outcome，以及在 Apply/Discard 前冻结 source tree 的 one-shot prepared change；在此之前不得接 durable child/subtree production path；
+- P7 的第一项是补齐并冻结两个中性 Agent Framework 前置合同：admitted child 的 conclusive started/aborted outcome，以及在 Apply/Discard 前冻结 source tree 的 one-shot prepared change；在此之前不得接 durable child/subtree production path；
 - 实现 context-aware `ProcessAdmitter` adapter；
 - root/child admission 使用 prospective Process identity 和 stable StartedAt；
 - Delegate ToolCall durable commit 必须早于 child opening reservation；admission 只创建不可见 Opening，conclusive started fact 后才公开 Running；
@@ -305,10 +305,10 @@
 
 ### 完成事实
 
-- Agent2 以中性 `ProcessStartOutcomeAcknowledger` 闭合 accepted admission 后的 started/aborted 结论；Runtime 在 Delegate ToolCall durable commit 后创建不可见 child opening reservation，收到同一 prospective member 的 conclusive started fact 后才公开 Running，aborted 则只闭合 reservation；
+- Agent Framework 以中性 `ProcessStartOutcomeAcknowledger` 闭合 accepted admission 后的 started/aborted 结论；Runtime 在 Delegate ToolCall durable commit 后创建不可见 child opening reservation，收到同一 prospective member 的 conclusive started fact 后才公开 Running，aborted 则只闭合 reservation；
 - `InteractionExecutor` 从 Interaction-owned typed active-child inspector 投影稳定 model-call/tool-index/ChildKey/Process identity，不读取 Strategy private state；多 child、nested child、sibling 乱序完成与 restore 已验证不重复创建产品 child Run；
 - child opening persistence 使用单一 transaction boundary，public `CommitStartedChildRun` 不在外层 transaction 内重入另一个 public transaction method；non-reentrant transaction 反例已锁定该所有权；
-- Agent2 Baseline 14 将 prepared waiting-subtree 变换收敛为 contextless one-shot `Apply()`：全部可失败、可取消的 staging 在 Prepare 内完成，Host durable decision 之后请求取消不能撤销提交；Agent2 仍不感知产品 Run、Store 或 transaction；
+- Agent Framework Baseline 14 将 prepared waiting-subtree 变换收敛为 contextless one-shot `Apply()`：全部可失败、可取消的 staging 在 Prepare 内完成，Host durable decision 之后请求取消不能撤销提交；Agent Framework 仍不感知产品 Run、Store 或 transaction；
 - agentexec concrete 独占 prepared Framework capability；Application 只消费 canceled/paused member projection、opaque resulting checkpoint 与 Apply/Discard/Continue。transaction failure Discard；commit 后 Apply 只安装 resulting state；移除最后边界时独立 Continue 才激活已提交 Segment。无法证明 Apply 成功时先 release obsolete owner，再通过 `WaitingExecutionRestorer` 精确恢复 committed checkpoint，恢复失败才 durable `RunLost`；
 - P7 重复门禁暴露并治本修复旧 turn shutdown 的 stale-attempt 竞争：caller deadline 只结束当次等待，`turnState.done` 才是资源释放真相；旧 attempt 的 context error 不再污染已经完成的后续 join；
 - P7 新增 child integration 没有堆进新的巨型文件：production 按 Delegate binding、child admission、child projection 分文件收敛，集成测试按核心执行、restore、waiting subtree 与 fixture 分离；全部保持同一 `agentexec` package，不为文件拆分制造新 package 或接口；
@@ -322,13 +322,13 @@
 
 ### 工作项
 
-- 汇总 P2 taxonomy、P4 root、P6 waiting/recovery、P7 child 逐步验证结果，用 Agent2 Termination + Application control intent 完成并行为冻结完整 product outcome matrix；
+- 汇总 P2 taxonomy、P4 root、P6 waiting/recovery、P7 child 逐步验证结果，用 Agent Framework Termination + Application control intent 完成并行为冻结完整 product outcome matrix；
 - 收敛 terminal write-set、checkpoint deletion、Pending cleanup、Transcript repair、Goal reporting；
 - 将 P5 live unknown 收口扩展到完整 root/child tree，并与 cancel/deadline/terminal first-wins matrix 合并；
 - 重审 isolated workspace、BuildID、Session cwd/isolation 和 rollback 的恢复 policy；
 - 启动 recovery 只读取 Application facts，通过 agentexec probe opaque checkpoint；
 - 删除 root-only 与 tree-wide 重复 terminal transaction；
-- 在全部执行能力纵切通过后一次切换 Bootstrap 到 Agent2 实现，并删除旧 root GOAP wrapper、Engine facade、TurnProcess、turn controller 和其余生产 execution path；
+- 在全部执行能力纵切通过后一次切换 Bootstrap 到 Agent Framework 实现，并删除旧 root GOAP wrapper、Engine facade、TurnProcess、turn controller 和其余生产 execution path；
 - 覆盖 crash point：quiescent capture 前后、waiting commit 前后、answer claim 前后、subtree commit 后 apply 前、terminal commit 前后；不包含未启用的 prepared-step ack。
 
 ### 行为验收
@@ -342,11 +342,11 @@
 ### 完成事实
 
 - Bootstrap、boot recovery、Run opening/continuation/cancel/release 已统一装配 `InteractionExecutor`；旧 Agent module dependency、root GOAP wrapper、Engine facade、TurnProcess、turn controller、private tree/suspension codec 及其旧测试已物理删除，Runtime 对旧 Agent import 为零；
-- fresh root 由 Application `WorkingContextComposer` 读取产品 Conversation、Knowledge、Plan、Memory 与 hooks，输出完整模型上下文；Agent2 只接收中性 WorkingContext/Tool/Deployment，不读取产品 Store，也没有新增 Runtime 抽象；
+- fresh root 由 Application `WorkingContextComposer` 读取产品 Conversation、Knowledge、Plan、Memory 与 hooks，输出完整模型上下文；Agent Framework 只接收中性 WorkingContext/Tool/Deployment，不读取产品 Store，也没有新增 Runtime 抽象；
 - 产品取消先提交 control intent，再由 `RunningRootCancellationRequester` 请求 Framework 在安全边界停止；Run pump 持续观察到确定终态，`ExecutionReleaser` 只释放资源，不再把请求 context 取消混成产品终态；
 - terminal matrix 已覆盖 completion、root/parent/host deadline、root/parent cancellation、model-call limit、strategy/external/contract/panic failure 与无意图 Engine kill；live/recovery unknown 均在 release 前 durable 收口为 `RunLost`；
-- checkpoint 只接受带 exact build/deployment/workspace/model/limits/capabilities 的 Agent2 public complete-tree snapshot；answer claim 后旧恢复点失效，active-step crash 不伪装为 effect-level durable recovery；
-- Toolset 只暴露 framework-neutral `Manifest` 与精确 `ToolAdvertiser` capability；Agent2 advertisement 由 agentexec 在调用边界注入，通用 Toolset 对两个 Framework 均零依赖；
+- checkpoint 只接受带 exact build/deployment/workspace/model/limits/capabilities 的 Agent Framework public complete-tree snapshot；answer claim 后旧恢复点失效，active-step crash 不伪装为 effect-level durable recovery；
+- Toolset 只暴露 framework-neutral `Manifest` 与精确 `ToolAdvertiser` capability；Agent Framework advertisement 由 agentexec 在调用边界注入，通用 Toolset 对两个 Framework 均零依赖；
 - child opening 只保留 admission reservation → conclusive start outcome 的生产路径；旧 `ChildOpeningRequest`/rehydrate shadow path 删除，持久化测试改用 Runtime 自有 opaque executor-tree fixture；
 - 删除旧执行路径后留下的空目录、漂移术语、只服务旧路径的 fixtures 与 temporary architecture exception 已清零。
 
@@ -396,24 +396,25 @@
 - server 无旧字段/method/event；
 - consumer backlog 精确列出，不伪装为整体完成。
 
-## 15. P11 — 旧 Agent 删除与唯一模块名替换
+## 15. P11 — 原框架实现删除与唯一模块名替换
 
 ### 目标
 
-完成 Agent2 项目最后的消费者迁移和模块替换，不长期保留两个 Agent Framework。
+完成 Agent Framework 项目最后的消费者迁移和模块替换，只保留一个 canonical module。
 
 ### 工作项
 
-- workspace 搜索并迁移所有剩余旧 `agent` consumer；
-- 删除旧 Agent module；
-- 将 `agent2` directory/module path 原子改回 `agent`；
-- 更新 Runtime import、workspace metadata、文档、baseline 和 architecture guards；
-- 不保留 `agent2` alias module 或 replace compatibility。
+- [x] workspace 搜索并确认原框架实现没有剩余 consumer 或独有能力；
+- [x] 删除原框架实现；
+- [x] 将重写实现原子安装为唯一 `agent` directory/module path；
+- [x] 更新 Runtime import、workspace metadata、文档、baseline 和 architecture guards；
+- [ ] 完成 Agent Framework standalone、Runtime standalone 与 workspace 最终门禁；
+- [x] 不保留 alias module、replace compatibility 或双 framework path。
 
 ### 验收
 
 - workspace 只有一个 Agent Framework module/path；
-- 旧 Agent symbols、imports、docs 和 module metadata 为零；
+- 原框架 symbols、imports、docs 和 module metadata 为零；
 - Agent Framework standalone 全门禁和 Runtime 全门禁同时通过。
 
 ## 16. P12 — 全量质量验收与消费者移交
@@ -439,21 +440,22 @@
 
 | 日期 | 阶段 | 完成事实 | 验证 |
 |---|---|---|---|
-| 2026-08-08 | P0 | 只读盘点 Runtime 当前 package、旧 Agent import、Agent2 Baseline 9、协议制品与 SQLite schema epoch；确认选择原模块内局部绿色重写，不创建 runtime2 | 生产代码未修改；事实写入 Capability Ledger 与 Contract Baseline |
-| 2026-08-08 | P0 | 建立并交叉收口六份核心文档，冻结 DDD/Clean Architecture 边界、Agent2 防腐合同、P1–P12 依赖、parallel harness/P8 cutover、恢复与副作用失败语义；识别并裁决 P7 两项 Agent2 中性前置合同 | 独立 Go spec review 结论 Approved/Ready；本 goal 未修改生产代码；本地链接检查与 `git diff --check` 通过 |
-| 2026-08-08 | P1 | 冻结目标六环 DAG；Delivery 开始禁止 concrete Adapter；Agent2 只允许从 `adapter/agentexec` 导入两个已批准 public package；旧 Agent import、Domain context I/O ports、`component` umbrella、旧 private snapshot decoder 和唯一旧 lifecycle owner 全部进入精确 Temporary 台账 | 错误 Delivery→Adapter fixture 被稳定拒绝；`go test ./...`、`go vet ./...`、`go build ./...` 通过 |
+| 2026-08-09 | P11（canonical source publication） | 删除原框架 module，把绿色重写实现安装为唯一 `agent` module；Runtime imports、workspace metadata、architecture guards、Baseline 15 和直接受影响文档同步。删除已完成迁移后仍描述 `agent/runtime`、`agentexec/turn` 的 execution/port 快照，不保留第二套现状 | Agent Framework standalone tidy-diff/build/vet/staticcheck/test/race 全绿；Runtime workspace 全量 test 通过。Runtime standalone 依赖将在 canonical source commit 推送后立即绑定其真实 pseudo-version，故 P11 当前为 4/5 |
+| 2026-08-08 | P0 | 只读盘点 Runtime 当前 package、旧 Agent import、Agent Framework Baseline 9、协议制品与 SQLite schema epoch；确认选择原模块内局部绿色重写，不创建 runtime2 | 生产代码未修改；事实写入 Capability Ledger 与 Contract Baseline |
+| 2026-08-08 | P0 | 建立并交叉收口六份核心文档，冻结 DDD/Clean Architecture 边界、Agent Framework 防腐合同、P1–P12 依赖、parallel harness/P8 cutover、恢复与副作用失败语义；识别并裁决 P7 两项 Agent Framework 中性前置合同 | 独立 Go spec review 结论 Approved/Ready；本 goal 未修改生产代码；本地链接检查与 `git diff --check` 通过 |
+| 2026-08-08 | P1 | 冻结目标六环 DAG；Delivery 开始禁止 concrete Adapter；Agent Framework 只允许从 `adapter/agentexec` 导入两个已批准 public package；旧 Agent import、Domain context I/O ports、`component` umbrella、旧 private snapshot decoder 和唯一旧 lifecycle owner 全部进入精确 Temporary 台账 | 错误 Delivery→Adapter fixture 被稳定拒绝；`go test ./...`、`go vet ./...`、`go build ./...` 通过 |
 | 2026-08-08 | P2 | 一次性删除 `domain/execution`：Run、Accounting、Conversation、Transcript、Interrupt 与 ToolResult 按 bounded context 提升；executor ref/checkpoint、pending continuation、workspace mutation 归还 Application；Approval、Agent Memory、Codebase、Hooks、Provider 的十个 context I/O port 全部移到真实 Application consumer，Domain 生产与测试均禁止向外依赖 | Domain context I/O port 从精确十项例外降为零；旧 path、alias、空目录为零；Run 状态/lineage/capabilities、Conversation seed/truncate、usage monotonicity 与 checkpoint expectation 行为测试通过 |
 | 2026-08-08 | P2 | SQLite executor checkpoint、pending interrupt 和 workspace mutation 改为 technical records，由 `adapter/persistence` 显式映射 Application values，清除 Infra→Application 反向依赖；终态统一为 Completed/Canceled/TimedOut/Failed/MaxBudget/MaxSteps/Lost，并同步服务端 protocol/schema/generated artifacts | architecture target DAG、Domain test isolation、strict storage codecs、outcome round-trip 与 compatibility differ 通过；`go test ./...`、`go vet ./...`、`go build ./...` 通过 |
 | 2026-08-08 | P3 | 删除 `ExecutionControl`、`SegmentExecutor`、`SessionLifecycle` 与 `Effects` 胖边界；建立 root stage/commit/begin、observe/release 的消费方端口；Run pump 在所有非 Waiting 边界统一释放；Application executor identity 统一为 Member；SQLite epoch 59 一次性采用 `root_member_id`/`memberId` | fake-backed ordering/race/release/waiting tests 与 architecture vocabulary/port-shape guards 通过；`go test ./...`、`go vet ./...`、`go build ./...` 及 runs/sessions/runsegment/SQLite targeted race 通过 |
-| 2026-08-08 | P4 | 在原 `agentexec` 内完成 Agent2 native Interaction root harness；每 root 独立 Engine + exact Deployment；Application 组装完整 Conversation seed；Result final 与 Delta 分离；集中映射 completion/model failure/cancel/deadline/panic；生产旧 owner 保留到 P8 | real Engine/Interaction integration、stage-zero-side-effect、complete WorkingContext、final-without-Delta、termination/panic/release tests 通过；architecture exact old-import ledger 未增长；`go test ./...` 通过 |
+| 2026-08-08 | P4 | 在原 `agentexec` 内完成 Agent Framework native Interaction root harness；每 root 独立 Engine + exact Deployment；Application 组装完整 Conversation seed；Result final 与 Delta 分离；集中映射 completion/model failure/cancel/deadline/panic；生产旧 owner 保留到 P8 | real Engine/Interaction integration、stage-zero-side-effect、complete WorkingContext、final-without-Delta、termination/panic/release tests 通过；architecture exact old-import ledger 未增长；`go test ./...` 通过 |
 | 2026-08-09 | P5 | 建立 per-Effect dispatch-attempt 与 authoritative commit receipt；model/tool invocation journal、Transcript final、usage/pricing 和 Run progress 原子提交；并发 Tool 乱序完成按模型顺序批量结算；接通唯一 Toolset Manifest、scope、deferred advertisement、approval/hooks/presentation/offload/doom-loop；live unknown 由 wake + polling 收口为 durable RunLost | pre/post-call failure、chunk drop、并发逆序与 batch rollback、lost wake、RunLost retry-before-release、scope propagation、best-effort projection/hook、SQLite transaction/order integration tests 通过；`go mod tidy` diff-free，`go test ./...`、`go vet ./...`、`go build ./...`、`staticcheck ./...` 与 agentexec/runs/runsegment/SQLite targeted race 全绿 |
-| 2026-08-09 | P6 | 以 Agent2 public pending input/TreeSnapshot/RestoreTree/typed Signal 完成 native waiting、exact restore、answer claim、resume、ask-user/interactive approval、deferred advertisement 与 safe-boundary steer；SQLite epoch 62 引入 hidden `resuming` answer audit，opening 强制证明 claim；旧 suspension 仅保留为 P8 production delete owner | live/cold resume、real ask_user、approval hook-once、advertisement restore、corrupt/build/deployment/workspace/capability failure、unknown no-checkpoint、conversation isolation、steer ordering、claim rollback/audit/replacement/terminal/boot cleanup、post-claim RunLost-before-release tests通过；`go mod tidy -diff`、`go test ./...`、`go vet ./...`、`go build ./...`、`staticcheck ./app/runtime/...` 与 Agent2/runs/runsegment/runrecovery/SQLite targeted race 全绿 |
-| 2026-08-09 | P7 | 以 Agent2 conclusive start outcome 和 one-shot prepared waiting-subtree change 完成 durable Delegate child Run、nested/sibling causal binding、restore attribution、waiting child cancellation 与 resulting checkpoint recovery；Application 与 Agent2 之间只传中性 member projection 和 opaque checkpoint | accepted→started/aborted、admission reject、multi/nested/restore、non-reentrant child commit、prepare/transaction/Apply-or-Discard、Apply/Continue 分相、commit-after-Apply-failure exact restore、restore failure RunLost 与 canceled-request-after-commit tests 通过；旧 turn shutdown 竞争目标测试 100 次、整包 10 次稳定；Runtime/Agent2 `go mod tidy -diff`、全量 test/vet/build/staticcheck、Agent2 全量 race 与 Runtime 高风险 race 全绿 |
-| 2026-08-09 | P8 | 原子切换 Bootstrap/boot recovery 到 Agent2 原生 Interaction；Application-owned WorkingContext composition、request-cancel/observe/release、tree-wide termination/recovery 与 Tool advertisement 均完成最终纵切；旧 Agent module dependency、GOAP/TurnProcess/turn/suspension/private-tree/duplicate-child 路径及临时例外全部删除；standalone module dependency 提升到实际消费的 Agent2 Baseline 14 commit | terminal cause matrix、native delegation/waiting/restore/cancellation/unknown、cold restart、opaque checkpoint capability、Toolset advertiser 与 protocol lifecycle tests 通过；`go mod tidy -diff`、全量 test/vet/build/staticcheck、`deadcode -test`、standalone GOWORK=off 全门禁、Agent2/runs/runsegment/runrecovery/bootstrap race、cold restart 与 native lifecycle 各 10 次重复验证全绿 |
+| 2026-08-09 | P6 | 以 Agent Framework public pending input/TreeSnapshot/RestoreTree/typed Signal 完成 native waiting、exact restore、answer claim、resume、ask-user/interactive approval、deferred advertisement 与 safe-boundary steer；SQLite epoch 62 引入 hidden `resuming` answer audit，opening 强制证明 claim；旧 suspension 仅保留为 P8 production delete owner | live/cold resume、real ask_user、approval hook-once、advertisement restore、corrupt/build/deployment/workspace/capability failure、unknown no-checkpoint、conversation isolation、steer ordering、claim rollback/audit/replacement/terminal/boot cleanup、post-claim RunLost-before-release tests通过；`go mod tidy -diff`、`go test ./...`、`go vet ./...`、`go build ./...`、`staticcheck ./app/runtime/...` 与 Agent Framework/runs/runsegment/runrecovery/SQLite targeted race 全绿 |
+| 2026-08-09 | P7 | 以 Agent Framework conclusive start outcome 和 one-shot prepared waiting-subtree change 完成 durable Delegate child Run、nested/sibling causal binding、restore attribution、waiting child cancellation 与 resulting checkpoint recovery；Application 与 Agent Framework 之间只传中性 member projection 和 opaque checkpoint | accepted→started/aborted、admission reject、multi/nested/restore、non-reentrant child commit、prepare/transaction/Apply-or-Discard、Apply/Continue 分相、commit-after-Apply-failure exact restore、restore failure RunLost 与 canceled-request-after-commit tests 通过；旧 turn shutdown 竞争目标测试 100 次、整包 10 次稳定；Runtime/Agent Framework `go mod tidy -diff`、全量 test/vet/build/staticcheck、Agent Framework 全量 race 与 Runtime 高风险 race 全绿 |
+| 2026-08-09 | P8 | 原子切换 Bootstrap/boot recovery 到 Agent Framework 原生 Interaction；Application-owned WorkingContext composition、request-cancel/observe/release、tree-wide termination/recovery 与 Tool advertisement 均完成最终纵切；旧 Agent module dependency、GOAP/TurnProcess/turn/suspension/private-tree/duplicate-child 路径及临时例外全部删除；standalone module dependency 提升到实际消费的 Agent Framework Baseline 14 commit | terminal cause matrix、native delegation/waiting/restore/cancellation/unknown、cold restart、opaque checkpoint capability、Toolset advertiser 与 protocol lifecycle tests 通过；`go mod tidy -diff`、全量 test/vet/build/staticcheck、`deadcode -test`、standalone GOWORK=off 全门禁、Agent Framework/runs/runsegment/runrecovery/bootstrap race、cold restart 与 native lifecycle 各 10 次重复验证全绿 |
 | 2026-08-09 | P9.1 | 依据真实 import graph 清零 `component` umbrella：path identity、secret masking、notification relay 分别归 Infra/Application/Adapter；pagination/replay cursor、completion/HTTP origin/idempotency/shutdown/taskgroup 以准确 capability 存在；Bootstrap 中长期同步行为移出 composition root；并发 Tool attribution test 改为按稳定 model-call/index 断言而非 goroutine 到达序 | component path/empty dir/temporary ledger 为零；shared capability purity、content-codec boundary、Bootstrap no-business-method、inner-ring comment gates 全绿；`go mod tidy -diff`、全量 test/vet/build/staticcheck、`deadcode -test`、相关 owner/ring race 通过，并发 attribution 100 次重复稳定 |
 | 2026-08-09 | P9.2 | 完成 Adapter/Infra/Application/Delivery 逐包职责审计；workspace physical path identity 收敛到唯一 Infra mechanism；删除空的 temporary architecture 台账并把旧 Agent 禁止与 Domain no-context-I/O 变为永久 framework boundary guard；确认 agentexec 按真实变化原因组织且没有第二 lifecycle owner或虚构子包 | Adapter→Infra 单向图与目标六环 DAG 全绿；Delivery concrete Adapter/Infra import、Infra 反向 import、Application outward import、纯转发 wrapper、package/type 口吃、空目录和 temporary exception 均为零；workspacepath/pathidentity/arch targeted tests 与全量质量门禁通过 |
 | 2026-08-09 | P10 | Runtime Protocol 一次性提升到 `2026-08-09`、Session Artifact 到 v14；删除 wire 中实现泄露的 `processRootSegment`，只保留准确的 `runtimeInstanceRootSegment`；Go registry、validator、manifest、OpenRPC、JSON Schema、TypeScript binding、canonical samples 与人读 API/Transport/Aux 文档同步；新增精确 consumer handoff | canonical artifact samples 中漏存的 v12 与旧 `outcome.error` 被 strict sample gate 暴露并治本修正；生成器零漂移、旧 wire token/版本归零、strict validator/round-trip、HTTP/in-process、全量质量门禁通过；Desktop backlog 已记录但未改消费者 |
 
 ## 18. 当前下一步
 
-P10 已完成服务端 Protocol 唯一 shape 与生成物收口。下一批执行 P11：盘点旧 Agent module 与 Agent2 唯一模块名替换的真实影响面；仍不修改前端、TUI 或 CLI，不保留 alias module、replace compatibility 或双 framework path。
+P11 已删除原框架实现，并把绿色重写实现安装为唯一 `agent` module；正在完成 module publication、standalone/workspace 门禁和文档事实收口。仍不修改前端、TUI 或 CLI，也不保留 alias module、replace compatibility 或双 framework path。

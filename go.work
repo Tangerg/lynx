@@ -4,7 +4,6 @@ use (
 	.
 	./a2a
 	./agent
-	./agent2
 	./app/cli
 	./app/desktop
 	./app/runtime

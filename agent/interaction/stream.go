@@ -1,62 +1,92 @@
 package interaction
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 
-	"github.com/Tangerg/lynx/agent/internal/nilvalue"
-	"github.com/Tangerg/lynx/agent/internal/panicerr"
+	agent "github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/core/chat"
 )
 
-// StreamCall drives streamer for one request and returns the single response
-// the synchronous managed-interaction port consumes. It forwards every stream
-// delta to onDelta (nil to ignore) and merges the deltas into one response via
-// [chat.ResponseAccumulator].
-//
-// Cancellation, idle, and retry policy stay with the caller through ctx and the
-// supplied streamer; StreamCall owns only accumulation and delta forwarding. It
-// reports an error when the stream fails, yields a nil delta, cannot be
-// accumulated, or ends without producing any delta. A streamer or observer
-// panic is returned as an attributed error. onDelta observes a delta only after
-// it has been accumulated, so a delta it sees is always valid.
-func StreamCall(ctx context.Context, streamer chat.Streamer, req *chat.Request, onDelta func(*chat.Response)) (*chat.Response, error) {
-	return streamCall(ctx, streamer, req, onDelta)
+// ModelResponseDelta is one validated provider-neutral streaming increment.
+// It is observational and never a source for final Output or restoration.
+type ModelResponseDelta struct {
+	response chat.Response
 }
 
-func streamCall(ctx context.Context, streamer chat.Streamer, req *chat.Request, onDelta func(*chat.Response)) (response *chat.Response, err error) {
-	if nilvalue.Is(streamer) {
-		return nil, errors.New("interaction: nil streamer")
+// ParseModelResponseDelta strictly decodes an Interaction model Delta payload.
+func ParseModelResponseDelta(payload json.RawMessage) (ModelResponseDelta, error) {
+	var wire modelResponseDeltaWire
+	if err := decodeStrict(payload, &wire); err != nil {
+		return ModelResponseDelta{}, fmt.Errorf("interaction: decode model response Delta: %w", err)
 	}
-	panicSource := "chat stream"
-	defer func() {
-		if recovered := recover(); recovered != nil {
-			response = nil
-			err = panicerr.New("interaction: "+panicSource+" panicked", recovered)
-		}
-	}()
+	if wire.SchemaVersion != protocolSchemaVersion {
+		return ModelResponseDelta{}, errors.New("interaction: unsupported model response Delta schema")
+	}
+	if err := wire.Response.Validate(); err != nil {
+		return ModelResponseDelta{}, fmt.Errorf("interaction: model response Delta: %w", err)
+	}
+	return ModelResponseDelta{response: *wire.Response.Clone()}, nil
+}
+
+// Response returns an independently owned response chunk.
+func (delta ModelResponseDelta) Response() *chat.Response {
+	return delta.response.Clone()
+}
+
+type modelResponseDeltaWire struct {
+	SchemaVersion uint16        `json:"schema_version"`
+	Response      chat.Response `json:"response"`
+}
+
+func encodeModelResponseDelta(response *chat.Response) (json.RawMessage, error) {
+	if response == nil {
+		return nil, errors.New("interaction: cannot encode a nil model response Delta")
+	}
+	payload, err := json.Marshal(modelResponseDeltaWire{
+		SchemaVersion: protocolSchemaVersion,
+		Response:      *response.Clone(),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("interaction: encode model response Delta: %w", err)
+	}
+	return bytes.Clone(payload), nil
+}
+
+func (dispatcher *Dispatcher) callModel(
+	ctx context.Context,
+	request *chat.Request,
+	emit agent.DeltaEmitter,
+) (*chat.Response, error) {
+	if !dispatcher.stream {
+		return dispatcher.client.Call(ctx, request)
+	}
 	var accumulator chat.ResponseAccumulator
 	seen := false
-	for delta, err := range streamer.Stream(ctx, req) {
+	for delta, err := range dispatcher.client.Stream(ctx, request) {
 		if err != nil {
 			return nil, err
 		}
 		if delta == nil {
-			return nil, errors.New("interaction: chat stream yielded a nil delta")
+			return nil, errors.New("model stream yielded a nil response Delta")
 		}
 		if err := accumulator.Add(delta); err != nil {
-			return nil, fmt.Errorf("interaction: accumulate chat stream: %w", err)
+			return nil, fmt.Errorf("accumulate model stream: %w", err)
+		}
+		payload, err := encodeModelResponseDelta(delta)
+		if err != nil {
+			return nil, err
 		}
 		seen = true
-		if onDelta != nil {
-			panicSource = "stream observer"
-			onDelta(delta)
-			panicSource = "chat stream"
+		if emit != nil {
+			emit(payload)
 		}
 	}
 	if !seen {
-		return nil, errors.New("interaction: chat stream ended without a delta")
+		return nil, errors.New("model stream ended without a response Delta")
 	}
 	return accumulator.Response(), nil
 }
