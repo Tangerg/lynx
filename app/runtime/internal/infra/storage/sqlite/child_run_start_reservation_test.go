@@ -16,7 +16,7 @@ func TestChildRunStartReservationRetainsIdempotentConclusion(t *testing.T) {
 	t.Cleanup(func() { _ = db.Close() })
 	store := storage.NewChildRunStartReservationStore(db)
 	record := storage.ChildRunStartReservationRecord{
-		MemberID: "process-child", SessionID: "session-1",
+		MemberID: "member-child", SessionID: "session-1",
 		Payload: []byte(`{"run":"child"}`), CreatedAt: time.Unix(1, 2).UTC(),
 	}
 	if err := store.Reserve(t.Context(), record); err != nil {
@@ -60,7 +60,7 @@ func TestChildRunStartReservationRejectsMissingAndChangedIdentity(t *testing.T) 
 	t.Cleanup(func() { _ = db.Close() })
 	store := storage.NewChildRunStartReservationStore(db)
 	record := storage.ChildRunStartReservationRecord{
-		MemberID: "process-child", SessionID: "session-1",
+		MemberID: "member-child", SessionID: "session-1",
 		Payload: []byte(`{"run":"child"}`), CreatedAt: time.Unix(1, 2).UTC(),
 	}
 	if _, err := store.Conclude(

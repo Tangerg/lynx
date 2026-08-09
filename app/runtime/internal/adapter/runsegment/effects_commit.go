@@ -97,7 +97,16 @@ func childRunStartReservationRecord(
 	if err := reservation.Validate(); err != nil {
 		return sqlite.ChildRunStartReservationRecord{}, fmt.Errorf("runsegment: invalid child Run start reservation: %w", err)
 	}
-	payload, err := json.Marshal(reservation)
+	payload, err := json.Marshal(childRunStartReservationPayload{
+		ExecutorID:      reservation.ExecutorID,
+		ParentMemberID:  reservation.Member.ParentID,
+		SpawnCallID:     reservation.Member.SpawnCallID,
+		RunID:           reservation.Binding.RunID,
+		ParentRunID:     reservation.Binding.ParentRunID,
+		SegmentID:       reservation.SegmentID,
+		SpawnedByItemID: reservation.SpawnedByItemID,
+		RootRunID:       reservation.RootRunID,
+	})
 	if err != nil {
 		return sqlite.ChildRunStartReservationRecord{}, fmt.Errorf("runsegment: encode child Run start reservation: %w", err)
 	}
@@ -105,6 +114,21 @@ func childRunStartReservationRecord(
 		MemberID: reservation.Member.MemberID, SessionID: reservation.SessionID,
 		Payload: payload, CreatedAt: reservation.StartedAt.UTC(),
 	}, nil
+}
+
+// childRunStartReservationPayload is runsegment's canonical durable comparison
+// payload. MemberID, SessionID, and StartedAt already have dedicated record
+// columns; the remaining reservation facts stay adapter-owned instead of making
+// an Application struct's Go layout an implicit storage wire.
+type childRunStartReservationPayload struct {
+	ExecutorID      string `json:"executorId"`
+	ParentMemberID  string `json:"parentMemberId"`
+	SpawnCallID     string `json:"spawnCallId"`
+	RunID           string `json:"runId"`
+	ParentRunID     string `json:"parentRunId"`
+	SegmentID       string `json:"segmentId"`
+	SpawnedByItemID string `json:"spawnedByItemId"`
+	RootRunID       string `json:"rootRunId"`
 }
 
 func validateStartedChildOpening(

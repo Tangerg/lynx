@@ -289,6 +289,35 @@ func TestCommitStartedChildRunOwnsOneTransactionBoundary(t *testing.T) {
 	}
 }
 
+func TestChildRunStartReservationUsesAdapterOwnedCanonicalPayload(t *testing.T) {
+	startedAt := time.Date(2026, time.August, 10, 3, 4, 5, 6, time.FixedZone("offset", 8*60*60))
+	record, err := childRunStartReservationRecord(runs.ChildRunStartReservation{
+		SessionID:  "ses_1",
+		ExecutorID: "executor_1",
+		Member: runs.ExecutorMember{
+			MemberID: "member_child", ParentID: "member_root", SpawnCallID: "call_1",
+		},
+		Binding: runs.ChildRunBinding{
+			MemberID: "member_child", RunID: "run_child", ParentRunID: "run_root",
+		},
+		SegmentID:       "segment_child",
+		SpawnedByItemID: "item_delegate",
+		RootRunID:       "run_root",
+		StartedAt:       startedAt,
+	})
+	if err != nil {
+		t.Fatalf("childRunStartReservationRecord: %v", err)
+	}
+	if record.MemberID != "member_child" || record.SessionID != "ses_1" ||
+		!record.CreatedAt.Equal(startedAt.UTC()) {
+		t.Fatalf("technical record identity = %+v", record)
+	}
+	wantPayload := `{"executorId":"executor_1","parentMemberId":"member_root","spawnCallId":"call_1","runId":"run_child","parentRunId":"run_root","segmentId":"segment_child","spawnedByItemId":"item_delegate","rootRunId":"run_root"}`
+	if got := string(record.Payload); got != wantPayload {
+		t.Fatalf("reservation payload = %s, want %s", got, wantPayload)
+	}
+}
+
 func TestCommitOpeningResumesAfterSeparateAnswerClaim(t *testing.T) {
 	now := time.Now().UTC()
 	ints := &fakeInterrupts{pending: singleRunPending(
