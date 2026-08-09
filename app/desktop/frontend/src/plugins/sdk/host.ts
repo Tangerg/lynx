@@ -19,7 +19,12 @@ import type {
   PluginSpec,
   ReadyHandler,
 } from "./types";
-import type { ContentBlockKind } from "@/plugins/sdk/types/contentBlock";
+import type {
+  ContentBlock,
+  ContentBlockKind,
+  ContentBlockMap,
+} from "@/plugins/sdk/types/contentBlock";
+import { createElement } from "react";
 import { addLocaleBundle } from "@/lib/i18n";
 import { useContextDockStore } from "@/state/contextDockStore";
 import { navigator } from "@/lib/navigation";
@@ -56,6 +61,13 @@ export { setPluginRuntime } from "./hostRuntime";
 export { PLUGIN_TOAST_EVENT } from "./hostToast";
 export type { PluginToastDetail } from "./hostToast";
 
+function hasContentBlockKind<K extends ContentBlockKind>(
+  block: ContentBlock,
+  kind: K,
+): block is ContentBlockMap[K] {
+  return block.kind === kind;
+}
+
 /**
  * Build a Host bound to a specific plugin. `contribute` and the facades return
  * Disposables; `setup`'s caller (loadPlugin) collects them so it can dispose on
@@ -82,11 +94,11 @@ export function createHost(
         renderer: ContentBlockRenderer<K>,
       ): Disposable {
         assertNamespaced(pluginName, "content-block kind", kind);
-        // The substrate holds renderers as the union root type; the public
-        // method is typed per-kind for plugin author ergonomics.
-        return contribute(CONTENT_BLOCK, renderer as ContentBlockRenderer<ContentBlockKind>, {
-          key: kind,
-        });
+        return contribute(
+          CONTENT_BLOCK,
+          (block) => (hasContentBlockKind(block, kind) ? createElement(renderer, { block }) : null),
+          { key: kind },
+        );
       },
     },
 

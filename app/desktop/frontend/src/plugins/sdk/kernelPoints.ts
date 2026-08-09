@@ -14,7 +14,6 @@ import type {
   CommandSpec,
   ComposerAttachmentSourceSpec,
   ComposerKeyBindingSpec,
-  ContentBlockRenderer,
   ContextDockDestinationSpec,
   StreamEventHandler,
   CustomEventHandler,
@@ -40,10 +39,13 @@ import type {
   WorkIndexItemSpec,
   WorkspaceViewSpec,
 } from "./types";
-import type { ContentBlockKind } from "@/plugins/sdk/types/contentBlock";
+import type { ReactNode } from "react";
+import type { ContentBlock } from "@/plugins/sdk/types/contentBlock";
 import { defineExtensionPoint } from "./defineExtensionPoint";
 import { LIFECYCLE_POINT_IDS } from "./pointIds";
 import { normalizeCombo } from "./registry";
+
+type RegisteredContentBlockRenderer = (block: ContentBlock) => ReactNode;
 
 export const COLOR_THEME = defineExtensionPoint<ColorThemeSpec>({
   id: "lyra.colorTheme",
@@ -247,7 +249,7 @@ export const TOOL_STANDING_SURFACE = defineExtensionPoint<string>({
   capability: "tool",
   keying: "single",
 });
-export const CONTENT_BLOCK = defineExtensionPoint<ContentBlockRenderer<ContentBlockKind>>({
+export const CONTENT_BLOCK = defineExtensionPoint<RegisteredContentBlockRenderer>({
   id: "lyra.message.contentBlock",
   capability: "message",
   keying: "single",

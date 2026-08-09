@@ -9,13 +9,11 @@ import { PluginBoundary } from "./PluginBoundary";
 import { CONTENT_BLOCK, useExtensionByKey } from "../sdk";
 
 export function PluginContentBlock({ block }: { block: ContentBlock }) {
-  const Renderer = useExtensionByKey(CONTENT_BLOCK, block.kind);
-  if (!Renderer) return null;
+  const render = useExtensionByKey(CONTENT_BLOCK, block.kind);
+  if (!render) return null;
   return (
     <PluginBoundary plugin={`content-block:${block.kind}`} label={`${block.kind} block`}>
-      {/* Renderer's prop type is per-kind; storage widens to the union root.
-          Cast the block to `any` here so React passes it through. */}
-      <Renderer block={block as any} />
+      {render(block)}
     </PluginBoundary>
   );
 }

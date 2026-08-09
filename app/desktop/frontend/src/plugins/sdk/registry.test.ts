@@ -1,5 +1,5 @@
 import type { RunEvent } from "@/rpc";
-import type { Disposable, ToolPreviewComponent } from "./types";
+import type { ContentBlockRenderer, Disposable, ToolPreviewComponent } from "./types";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EMPTY_AGENT_SESSION_VIEW } from "@/plugins/sdk/types/agentSessionView";
 import { useConfigStore } from "./config";
@@ -12,6 +12,7 @@ import {
   COMMAND,
   COMPOSER_ATTACHMENT_SOURCE,
   COMPOSER_KEY_BINDING,
+  CONTENT_BLOCK,
   DATA_PROVIDER,
   ERROR_FALLBACK,
   LAYOUT_SLOT,
@@ -46,6 +47,18 @@ import {
 const StubPreview: ToolPreviewComponent = () => null;
 
 describe("plugin registry", () => {
+  it("adapts content-block components at the keyed registry boundary", () => {
+    const sink: Disposable[] = [];
+    const Renderer: ContentBlockRenderer<"text"> = () => null;
+    createHost("alpha", sink).message.registerContentBlock("text", Renderer);
+
+    const render = lookupExtensionByKey(CONTENT_BLOCK, "text");
+    const block = { kind: "text", text: "hello", status: "complete" } as const;
+
+    expect(render?.(block)).toMatchObject({ type: Renderer, props: { block } });
+    expect(render?.({ kind: "image", mime: "image/png", data: "" })).toBeNull();
+  });
+
   it("addToolPreview stores by fn name + tracks owner", () => {
     const sink: Disposable[] = [];
     const host = createHost("alpha", sink);
