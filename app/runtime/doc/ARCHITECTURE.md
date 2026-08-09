@@ -4,7 +4,7 @@
 >
 > 适用范围：`app/runtime` 及其为完成服务端重构必须调整的直接后端依赖
 >
-> 实施状态：P9 已完成，下一阶段 P10；当前代码事实见 [`CAPABILITY_LEDGER.md`](CAPABILITY_LEDGER.md)，阶段与进度见 [`EXECUTION_PLAN.md`](EXECUTION_PLAN.md)
+> 实施状态：P10 已完成，下一阶段 P11；当前代码事实见 [`CAPABILITY_LEDGER.md`](CAPABILITY_LEDGER.md)，阶段与进度见 [`EXECUTION_PLAN.md`](EXECUTION_PLAN.md)
 
 本文定义 Lyra Runtime 重构完成后的稳定架构、统一语言、所有权和依赖方向。它不记录逐批进度，不枚举完整协议字段，也不复制 Agent Framework 的内部设计。
 

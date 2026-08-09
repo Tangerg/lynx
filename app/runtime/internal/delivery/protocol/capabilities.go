@@ -199,9 +199,9 @@ type MCPAuthorizationAttemptLimits struct {
 type RunReplayScope string
 
 const (
-	// ReplayScopeProcessRootSegment — this process, this root segment. A restart or a
-	// new segment starts a new buffer.
-	ReplayScopeProcessRootSegment RunReplayScope = "processRootSegment"
+	// ReplayScopeRuntimeInstanceRootSegment — this Runtime instance and this root
+	// segment. A Runtime restart or a new segment starts a new buffer.
+	ReplayScopeRuntimeInstanceRootSegment RunReplayScope = "runtimeInstanceRootSegment"
 )
 
 // RunReplayLimits is the retention a reconnect can count on.

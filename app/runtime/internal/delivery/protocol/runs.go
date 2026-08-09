@@ -8,7 +8,7 @@ import (
 
 // Runs is the runs.* method group (API.md §7.3). HITL uses the R model:
 // a run finishes with an interrupt outcome; the client resumes via a
-// continuation run.
+// new segment of the same run.
 type Runs interface {
 	// StartRun starts a new run and opens its event stream. Returns the
 	// runId synchronously; events flow out via notifications.run.event.

@@ -28,7 +28,7 @@ export const WIRE_SAMPLES: readonly WireSample[] = [
   { file: "delta.reasoning.json", shape: "ItemDelta" },
   { file: "delta.toolArguments.json", shape: "ItemDelta" },
   { file: "delta.toolOutput.json", shape: "ItemDelta" },
-  { file: "outcome.error.json", shape: "RunOutcome" },
+  { file: "outcome.failed.json", shape: "RunOutcome" },
   { file: "outcome.maxSteps.json", shape: "RunOutcome" },
   { file: "outcome.maxBudget.json", shape: "RunOutcome" },
   { file: "outcome.canceled.json", shape: "RunOutcome" },

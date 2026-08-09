@@ -1,6 +1,6 @@
 # Lyra Runtime 能力迁移台账
 
-> 状态：P8 当前事实，随每个实施批次更新
+> 状态：P10 当前事实，随每个实施批次更新
 >
 > 基线日期：2026-08-09
 
@@ -26,24 +26,24 @@
 - P2 已删除 `domain/execution` 及全部 forwarding/alias path；Domain 生产代码与测试对 Application/Adapter/Infra/Delivery/Bootstrap 零 import，context-based I/O port 为零；
 - Run、Accounting、Conversation、Transcript、Interrupt、ToolResult 已成为准确顶层 bounded-context package；executor checkpoint/ref、pending continuation 与 workspace mutation 由 Application consumer 拥有；
 - P3 已删除 Application 的 `ExecutionControl`、`SegmentExecutor`、`SessionLifecycle` 与 `Effects` 胖接口；root start/observe/release、Session reads/termination 与 Run projection write-sets 均由真实 consumer-owned ports 表达；
-- P3 已把 Application executor tree identity 统一为 `ExecutorMember`/`MemberID`；旧 `ProcessID` 只存在于待替换的 old Agent adapter 内部，SQLite technical shape 已一次性改为 epoch 59 的 `root_member_id`/`memberId`；
-- P7 已在同一 native Interaction tree 上接通 conclusive child start、durable Delegate child Run attribution、nested/sibling child reconciliation，以及 one-shot prepared waiting-subtree cancellation；新路径尚未接管 Bootstrap；
+- Application executor tree identity 已统一为 `ExecutorMember`/`MemberID`；Framework `ProcessID` 只存在于 `adapter/agentexec` 内部映射，SQLite technical shape 使用 `root_member_id`/`memberId`；
+- 同一 native Interaction tree 已在生产 Bootstrap 接通 conclusive child start、durable Delegate child Run attribution、nested/sibling child reconciliation，以及 one-shot prepared waiting-subtree cancellation；
 - SQLite 当前唯一 shape 为 epoch 62：model/tool invocation operational journal 与 Transcript semantic final 分离，interrupt row 具有 `open`/`resuming` answer-claim 状态；Run pump 是唯一 reducer/persistence writer；
-- 当前 Agent dependency 已经主要集中在执行防腐层，这是原位重构而非完整 runtime2 的关键依据。
+- Agent2 production dependency 只存在于执行防腐层；Runtime 其他 ring 对 Framework concrete type 为零。
 
 ### 2.2 当前架构基础
 
 | 能力 | 当前事实 | Verdict | 阶段 |
 |---|---|---|---|
-| Run lifecycle | `application/runs` 拥有 start、pump、waiting、resume、cancel、terminal ordering；P7 已验证 child opening reservation、conclusive start 与 waiting-subtree transaction ordering | Retain；P8 收口 | P3–P7 已完成；P8 纵切 |
+| Run lifecycle | `application/runs` 拥有 start、pump、waiting、resume、cancel、terminal ordering；child opening reservation、conclusive start 与 waiting-subtree transaction ordering 已在生产冻结 | Retain | P3–P8 已完成 |
 | Session lifecycle | 独立 application/domain，拥有 workspace/admission 产品语义 | Retain | P2/P8 |
 | Domain framework isolation | P2 已删除十个 context-based Domain I/O port，生产与测试均由机器守卫禁止向外依赖 | Retain + strengthen | P2 已完成；例外为零 |
 | Agent anti-corruption | Agent2 native tree、model/tool Effect、waiting/restore/steer、Delegate child 与 prepared subtree change 均由 `adapter/agentexec` 生产 owner 独占 | Retain | P8 已接管生产；旧 Framework lifecycle 已删除 |
-| Delivery separation | P1 起 target DAG 禁止 Delivery import 任意 concrete Adapter；protocol/dispatch/server/transport 继续按现有职责迁移 | Retain + naming audit | P1 guard；P9–P10 收口 |
-| Adapter/Infra direction | 当前主要为 Adapter 使用 Infra，Infra 不反向 import Adapter | Retain + package audit | P9 |
+| Delivery separation | target DAG 禁止 Delivery import 任意 concrete Adapter；protocol/dispatch/server/transport 已按准确职责收口 | Retain | P1/P9/P10 已完成 |
+| Adapter/Infra direction | Adapter 单向使用 Infra；Infra 对 Application/Adapter/Delivery/Bootstrap 反向 import 为零 | Retain | P9 已完成 |
 | Shared capabilities | `component` umbrella 已删除；仅保留七个经多消费者或 codec boundary 证明的准确顶层 capability | Retain exact packages | P9 第一批已完成，永久 purity guard |
-| Contract generation | `contract/` 已生成 manifest/OpenRPC/schema/TypeScript | Retain | P10 |
-| SQLite exact epoch | epoch 62 单一 shape，无生产 migration chain | Retain | P6 已推进；P8/P10 继续 |
+| Contract generation | `contract/` 的 manifest/OpenRPC/schema/TypeScript/Go validator 来自唯一 registry；canonical samples 同时经 round-trip 与 strict validator | Retain | P10 已完成 |
+| SQLite exact epoch | epoch 62 单一 shape，无生产 migration chain | Retain | P6/P8 已完成 |
 
 ## 3. 产品领域能力
 
@@ -205,14 +205,14 @@ P8 production cutover 已用真实 Bootstrap consumer 冻结 root stage/observe/
 
 | 能力 | 当前 owner | Verdict | 说明 |
 |---|---|---|---|
-| Protocol types/errors | `delivery/protocol` + `contract` | Retain | 机器真相在 contract |
+| Protocol types/errors | `delivery/protocol` + `contract` | Retain | Protocol `2026-08-09`、Artifact v14；机器真相在 contract |
 | Runtime method implementation | `delivery/server` | Retain | Protocol server side 与 projection，不持有 transport listener |
 | JSON-RPC dispatch/registry | `delivery/dispatch` | Retain | method dispatch/router，不与 server 合并 |
 | HTTP/SSE | transport/http | Retain | envelope I/O、stream/backpressure |
 | In-process | transport/inprocess | Retain | 与 HTTP 共享 Application entrypoint |
 | Server direct domain projections | 当前较多 | Refactor | 优先消费 Application read models |
 | Delivery adapter imports | target 禁止 | Refactor | Delivery 只驱动 Application |
-| frontend/TUI/CLI generated consumers | 当前旧 baseline | Defer | 服务端 contract 后专项接线 |
+| frontend/TUI/CLI generated consumers | Desktop 仍含旧 `processRootSegment` vendored binding/fixtures；CLI/TUI 当前扫描无该 token | Defer | 精确 backlog 见 `CONSUMER_HANDOFF.md`；本 goal 不改消费者 |
 
 ## 9. 结构清理台账
 

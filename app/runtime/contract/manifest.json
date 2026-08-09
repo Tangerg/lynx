@@ -1,7 +1,7 @@
 {
   "protocol": {
-    "current": "2026-08-05",
-    "minSupported": "2026-08-05"
+    "current": "2026-08-09",
+    "minSupported": "2026-08-09"
   },
   "features": [
     "reasoning",
@@ -4169,11 +4169,11 @@
       "rules": [
         {
           "field": "version",
-          "constraint": "minimum(13)"
+          "constraint": "minimum(14)"
         },
         {
           "field": "version",
-          "constraint": "maximum(13)"
+          "constraint": "maximum(14)"
         }
       ]
     },
@@ -5411,7 +5411,7 @@
       "shape": "ItemDelta"
     },
     {
-      "file": "outcome.error.json",
+      "file": "outcome.failed.json",
       "shape": "RunOutcome"
     },
     {

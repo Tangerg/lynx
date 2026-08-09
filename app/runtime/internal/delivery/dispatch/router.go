@@ -23,7 +23,7 @@ type Router struct {
 }
 
 // Config supplies optional Router dependencies. A nil IdempotencyStore
-// selects the process-local replay store.
+// selects the Runtime-instance-local replay store.
 type Config struct {
 	IdempotencyStore idempotency.Store
 }

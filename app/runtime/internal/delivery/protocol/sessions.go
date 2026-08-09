@@ -165,10 +165,10 @@ type ExportSessionResponse struct {
 // artifact it doesn't recognize; development builds do not migrate old
 // artifacts.
 //
-// v13 spells millisecond durations out as durationMillis and
-// activeDurationMillis. Older documents are refused before any write rather
-// than accepting parallel abbreviations for the same unit.
-const SessionArtifactVersion = 13
+// v14 is the Agent2 Runtime cutover baseline. It admits only artifacts written
+// against the single Run/Segment/Interrupt vocabulary and rejects documents
+// from the superseded execution lifecycle before any write.
+const SessionArtifactVersion = 14
 
 // SessionArtifact is the portable, round-trippable form of a session: its
 // identity plus the full conversation — chat messages (the model's context),
@@ -177,10 +177,10 @@ const SessionArtifactVersion = 13
 // their single full-body source. Messages remain opaque chat.Message values.
 //
 // Artifact records intentionally do not reuse the live Session, RunRef, or
-// Item response DTOs. A live response includes process-local and derived
+// Item response DTOs. A live response includes Runtime-instance-local and derived
 // presentation state (for example status and workspace inspection), while an
 // artifact is a durable input document. Runs are terminal-only: live and
-// interrupted executor state is process-local and is therefore not portable.
+// waiting executor state is Runtime-instance-local and is therefore not portable.
 type SessionArtifact struct {
 	Version     int                  `json:"version"`
 	Session     ArtifactSession      `json:"session"`

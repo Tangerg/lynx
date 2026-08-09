@@ -1,13 +1,13 @@
-// Package protocol is the single source of truth for the Lyra Runtime Protocol
-// v2. Its typed interfaces and values define the behavior and wire shapes shared
+// Package protocol is the single source of truth for the Lyra Runtime Protocol.
+// Its typed interfaces and values define the behavior and wire shapes shared
 // by transports and protocol implementations.
 //
 // doc/API.md describes the wire semantics; contract/API_REFERENCE.md is the
 // generated method index for [Runtime]. The model is Session → Run → Item
 // (doc/API.md §0): Item is the single history+streaming primitive, runs
 // finish with a discriminated RunOutcome, and human-in-the-loop uses
-// the R model (finish with interrupt outcome, resume via a
-// continuation run).
+// the R model (finish one segment with an interrupt outcome, then resume the
+// same run in a new segment).
 //
 // Discriminated unions (StreamEvent / Item / RunOutcome / ItemDelta /
 // Interrupt) are modeled as flat tag-discriminated
@@ -55,8 +55,8 @@ type Runtime interface {
 // obligation, and a range wider than one version would advertise a negotiation
 // the code does not perform.
 const (
-	ProtocolVersion    = "2026-08-05"
-	MinProtocolVersion = "2026-08-05"
+	ProtocolVersion    = "2026-08-09"
+	MinProtocolVersion = "2026-08-09"
 )
 
 type ProtocolRange struct {

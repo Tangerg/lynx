@@ -76,7 +76,7 @@ func (value StreamEvent) Authoritative() bool {
 	}
 }
 
-// Replayable reports whether the process-local segment journal retains this
+// Replayable reports whether the Runtime-instance-local segment journal retains this
 // event and whether its HTTP frame receives an SSE id. Unknown and custom
 // events fail closed: neither enters the replay window.
 func (value StreamEvent) Replayable() bool {

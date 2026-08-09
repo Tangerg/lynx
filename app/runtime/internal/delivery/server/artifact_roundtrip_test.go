@@ -31,13 +31,13 @@ import (
 // is that the document this build writes is the version the contract named. Bumping
 // it is a breaking act, so it should cost a deliberate edit here.
 func TestArtifactVersionIsTheOneVNextFroze(t *testing.T) {
-	if protocol.SessionArtifactVersion != 13 {
-		t.Fatalf("SessionArtifactVersion = %d; explicit millisecond field names require artifact v13",
+	if protocol.SessionArtifactVersion != 14 {
+		t.Fatalf("SessionArtifactVersion = %d; Agent2 Runtime cutover requires artifact v14",
 			protocol.SessionArtifactVersion)
 	}
 }
 
-// TestArtifactV13RoundTripsEveryFieldItCarries is the rest of gate 15.
+// TestArtifactV14RoundTripsEveryFieldItCarries is the rest of gate 15.
 //
 // The failure mode a version bump actually has is a field the encoder writes and
 // the decoder drops — the archive still imports, still looks right, and the value is
@@ -50,7 +50,7 @@ func TestArtifactVersionIsTheOneVNextFroze(t *testing.T) {
 //   - the archive survives the trip WHOLE — export, wipe, import, export again, and
 //     the two documents must be identical byte for byte. Any field the decoder
 //     forgets is missing from the second document.
-func TestArtifactV13RoundTripsEveryFieldItCarries(t *testing.T) {
+func TestArtifactV14RoundTripsEveryFieldItCarries(t *testing.T) {
 	s, rt := rollbackHarness(t)
 	s.features.plan = true // this composition owns the key, so it may restore it
 	ctx := t.Context()

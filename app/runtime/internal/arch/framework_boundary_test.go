@@ -464,6 +464,41 @@ func TestApplicationExecutionPortsUseApplicationVocabulary(t *testing.T) {
 	}
 }
 
+// TestProtocolHidesExecutorVocabulary keeps Framework routing identities and
+// implementation-lifetime terms out of the product wire. Clients address Runs,
+// Segments, Items, and Interrupts; a Runtime instance is the observable replay
+// lifetime boundary.
+func TestProtocolHidesExecutorVocabulary(t *testing.T) {
+	root := moduleRoot(t)
+	protocolRoot := filepath.Join(root, "internal", "delivery", "protocol")
+	forbidden := []string{
+		`json:"process`, `json:"turn`, `json:"execution`, `json:"executor`,
+		`json:"member`, `json:"suspension`, `"processRootSegment"`,
+	}
+	err := filepath.WalkDir(protocolRoot, func(path string, entry os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() || filepath.Ext(path) != ".go" || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		source, readErr := os.ReadFile(path)
+		if readErr != nil {
+			return readErr
+		}
+		for _, term := range forbidden {
+			if strings.Contains(string(source), term) {
+				relative, _ := filepath.Rel(root, path)
+				t.Errorf("%s leaks executor wire vocabulary %q", relative, term)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("scan Protocol executor vocabulary: %v", err)
+	}
+}
+
 // TestPendingStoresOnlyOpaqueExecutorBindings prevents the application continuation
 // from persisting a second copy of executor parent/spawn topology. Run lineage
 // is the durable product tree; live executor topology is validated only while

@@ -101,7 +101,7 @@ type Config struct {
 	HealthProbes []HealthProbe
 
 	// IdempotencyStore persists first responses for Idempotency-Key replay. nil
-	// uses the router's process-local store (appropriate for tests).
+	// uses the router's Runtime-instance-local store (appropriate for tests).
 	IdempotencyStore idempotency.Store
 }
 

@@ -1,6 +1,6 @@
 # Lyra Runtime 合同基线
 
-> 状态：P7 Managed Delegate Tree Baseline 6
+> 状态：P10 Runtime Protocol Baseline 1
 >
 > 基线日期：2026-08-09
 >
@@ -29,15 +29,15 @@ Digest 只用于发现未审计漂移，不能替代语义测试。
 
 当前 Runtime module 使用 Go `1.26.5`。重构代码使用该版本已经提供的标准库和测试能力，不引入为旧 Go 版本服务的兼容写法；Go 版本随仓库统一升级时同步更新本基线。
 
-## 2. Runtime Protocol Baseline 0
+## 2. Runtime Protocol Baseline 1
 
 机器真相源位于 [`../contract`](../contract)：
 
 | 制品 | SHA-256 |
 |---|---|
-| `contract/manifest.json` | `0c12c0bd4964b5742043c18b5a403487812d201e573e99367a830487e63fc4fd` |
-| `contract/openrpc.json` | `e460299ebcbcbd404e8e790ebfd5ad328a6bd5a7266d5340d27cc17549628a5a` |
-| `contract/schema.json` | `4b40da69aa355e3bdb28795d3db49fcd3824dd67931c63d5bbf750ee1814ce7a` |
+| `contract/manifest.json` | `31f3413e85bf1f1c92b3a8b9e2340619e8921b019b65b368f8557ef97b764b28` |
+| `contract/openrpc.json` | `aa32dc1abfe9b18f6c01302f2187e8a1be08047ea14d52c980678f58eee49349` |
+| `contract/schema.json` | `4afbb27666354a95644b416da143412fff8074930ce150dcc07b5cce40074630` |
 
 TypeScript generated files 是派生制品，不单独定义语义。它们必须由同一个 contract generator 产生且 diff-free；当前前端/TUI/CLI 是否已经消费最新 shape，由 P10/P12 的 consumer handoff 记录，不通过兼容字段掩盖。
 
@@ -49,7 +49,9 @@ TypeScript generated files 是派生制品，不单独定义语义。它们必�
 
 本文件不复制 method、field、error 或 example catalog。
 
-## 3. 持久化 Baseline 0
+当前协议版本为 `2026-08-09`，只服务同值的 `minSupported`。唯一 replay scope 是 `runtimeInstanceRootSegment`：它准确表达一个 Runtime instance 内的一条 root Segment replay buffer；旧 `processRootSegment` 已直接删除。消费者 breaking surface 与未接线事实由 [`CONSUMER_HANDOFF.md`](CONSUMER_HANDOFF.md) 唯一记录。
+
+## 3. 持久化 Baseline 1
 
 ### 3.1 SQLite
 
@@ -80,7 +82,7 @@ P7 延续的 native payload baseline 是 Agent2 TreeSnapshot v4 本身，不再�
 
 ### 3.3 Artifact 与 Transcript
 
-Artifact、Transcript Item 和 ToolCall timing 的当前机器 shape 仍由 Runtime contract/store codec 拥有。P10 若因 Run/Segment/Interrupt 词汇发生 breaking change，直接产生唯一新 version；不从旧 artifact 猜测缺失事实。
+Artifact、Transcript Item 和 ToolCall timing 的当前机器 shape 仍由 Runtime contract/store codec 拥有。Session Artifact 当前唯一版本为 14；v13 及更早版本在任何写入前确定性拒绝，不从旧 artifact 猜测缺失事实或改写版本号。
 
 ## 4. Agent2 消费 Baseline
 
@@ -145,13 +147,13 @@ Unknown Effect 的产品合同是 live/recovery 一致的 fail closed：Applicat
 
 P8 已冻结生产 executor port：`RootExecutionStarter` 负责 validate/stage/begin，`ExecutionObserver` 负责只读事实流，`RunningRootCancellationRequester` 只提交 Framework cancel request，`ExecutionReleaser` 只负责 resource lifecycle；`WorkingContextComposer` 在 Application 边界组装完整 fresh-root context。Application opening durable 后 Begin 才 Start Process；cancel intent durable 后请求停止，pump 继续观察到确定终态才 release。
 
-P5 已验证 authoritative model/tool candidate：executor producer 只能通过同一有序 observation stream 提交 Application-owned closed fact 并等待 receipt；它不取得 Store、transaction 或 reducer。Application Run pump 在 speculative reducer 上计算 write-set，只有 persistence 全部成功才替换 live reducer 并完成 receipt。model/tool post-call receipt failure 必须返回 Agent2 Dispatcher 形成 unknown；pre-call failure禁止外呼。Toolset 的唯一 visibility value 是 framework-neutral `toolset.Manifest`，通用 Toolset 对 Agent2 零 import。
+P8 已冻结 authoritative model/tool 合同：executor producer 只能通过同一有序 observation stream 提交 Application-owned closed fact 并等待 receipt；它不取得 Store、transaction 或 reducer。Application Run pump 在 speculative reducer 上计算 write-set，只有 persistence 全部成功才替换 live reducer并完成 receipt。model/tool post-call receipt failure 必须返回 Agent2 Dispatcher 形成 unknown；pre-call failure 禁止外呼。Toolset 的唯一 visibility value 是 framework-neutral `toolset.Manifest`，通用 Toolset 对 Agent2 零 import。
 
-P6 已验证 continuation candidate：`WaitingExecutionContinuer.StageContinuation` 只 stage 一棵 exact live waiting tree，或按 opaque TreeSnapshot + exact Deployment/BuildID/Host scope 恢复；它不读取 Conversation，也不重算 WorkingContext。Application 先原子记录 exact answers、隐藏 interrupt row 并删除旧 checkpoint，再 stage/restore；next-Segment opening transaction 必须证明 durable `resuming` claim，成功后 `BeginContinuation` 才投递 WaitID-addressed semantic Signal。claim 后到下一 quiescent checkpoint 前没有 fallback recovery point，crash/boot recovery 一律 `RunLost`。
+P8 已冻结 continuation 合同：`WaitingExecutionContinuer.StageContinuation` 只 stage 一棵 exact live waiting tree，或按 opaque TreeSnapshot + exact Deployment/BuildID/Host scope 恢复；它不读取 Conversation，也不重算 WorkingContext。Application 先原子记录 exact answers、隐藏 interrupt row 并删除旧 checkpoint，再 stage/restore；next-Segment opening transaction 必须证明 durable `resuming` claim，成功后 `BeginContinuation` 才投递 WaitID-addressed semantic Signal。claim 后到下一 quiescent checkpoint 前没有 fallback recovery point，crash/boot recovery 一律 `RunLost`。
 
 Product Interrupt/prompt/answer 使用 framework-neutral strict codec；native `interactioninput` ACL 是唯一把它映射到 Agent2 pending-input/Signal 的 owner。旧 private suspension adapter 已删除。真实 Runtime `ask_user`、interactive approval、deferred advertisement restore 与 steer 均走唯一生产路径。
 
-P7 已验证 child/subtree candidate：Delegate ToolCall authoritative commit 先于不可见 child start reservation；Agent2 conclusive started 后才公开 child Run，aborted 只闭合 reservation。多 child、嵌套 child与乱序 sibling completion 使用稳定 parent/model-call/tool-index 因果顺序；恢复归因只调用 Interaction owner 的 typed inspector。waiting child cancellation 执行 prepare → application transaction → contextless Apply/Discard；移除最后边界时，Apply 只安装 resulting state，独立 Continue 才激活已提交 Segment。Apply 异常先释放旧 owner并由 `WaitingExecutionRestorer` 从 committed resulting checkpoint精确恢复，恢复失败才 RunLost。
+P8 已冻结 child/subtree 合同：Delegate ToolCall authoritative commit 先于不可见 child start reservation；Agent2 conclusive started 后才公开 child Run，aborted 只闭合 reservation。多 child、嵌套 child与乱序 sibling completion 使用稳定 parent/model-call/tool-index 因果顺序；恢复归因只调用 Interaction owner 的 typed inspector。waiting child cancellation 执行 prepare → application transaction → contextless Apply/Discard；移除最后边界时，Apply 只安装 resulting state，独立 Continue 才激活已提交 Segment。Apply 异常先释放旧 owner并由 `WaitingExecutionRestorer` 从 committed resulting checkpoint 精确恢复，恢复失败才 RunLost。
 
 P8 已冻结这些内部消费端口及防腐语义：Application 单写者、operational journal 与 semantic Transcript 分离、final 独立于 Delta、并发 Tool canonical prefix 原子提交、unknown 在 release 前 durable `RunLost` 收口、answer claim → stage/restore → durable opening → semantic Signal，以及 Delegate reservation → conclusive start → public child Run 的唯一顺序。
 
@@ -192,16 +194,16 @@ P1 已建立：
 
 - production target package DAG，以及会被稳定拒绝的 Delivery → Adapter 反例 fixture；
 - Agent2 importing leaf 与 imported public package 的双重 exact allowlist；
-- 旧 Agent import 的逐文件、逐数量、逐 owner 和删除阶段台账；
+- 旧 Agent import 的永久 absence guard；
 - Domain、Application 与 Delivery 既有 external SDK denylist；
-- context-based Domain I/O port、旧 private snapshot decoder 和旧 lifecycle owner 的精确 Temporary 台账；
+- context-based Domain I/O port、旧 private snapshot decoder 和旧 lifecycle owner 的永久禁止守卫；
 - compatibility/legacy/versioned source directory 禁令。
 
 机器 owner 是 `internal/arch/target_architecture_test.go`、`internal/arch/framework_boundary_test.go` 与各专项 architecture fitness test；不存在 temporary exception 台账，本文件不复制易漂移的逐文件集合。
 
-P2–P10 继续逐步建立：
+P2–P10 已建立：
 
-- protocol artifact digest/drift test；
+- protocol artifact digest/drift test，以及 canonical sample 同类型 strict `ValidateWire` gate；
 - SQLite schema epoch 和 prior-version rejection test；
 - checkpoint envelope strict codec、size、copy、round-trip 和 prior-version rejection（P6 已覆盖 native TreeSnapshot parser、copy、corrupt/wrong-build/deployment；P8 随 production owner 收口剩余 envelope guard）；
 - Agent2 type/name leakage AST guard；
@@ -209,9 +211,8 @@ P2–P10 继续逐步建立：
 - no alias/dual codec/legacy path guard；
 - exported contract GoDoc/parameter/error wrapping guard where the contract is intentionally frozen。
 
-## 8. 不在 Baseline 0 中
+## 8. 不在 Baseline 1 中
 
-- 尚未由 P7 child/subtree real consumer 证明、并由 P8 cutover 冻结的完整 executor port 方法和参数；
 - Runtime 对 Agent2 Platform 的接入；
 - 前端/TUI/CLI 新 consumer API；
 - Delivery `server`/`dispatch` 保持现名；未由真实职责变化证明时不做目录改名；

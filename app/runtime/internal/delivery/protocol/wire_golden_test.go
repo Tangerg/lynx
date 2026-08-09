@@ -33,6 +33,11 @@ func TestWireGoldenRoundTrip(t *testing.T) {
 			if err := json.Unmarshal(raw, target); err != nil {
 				t.Fatalf("unmarshal into %T: %v", target, err)
 			}
+			if validator, ok := target.(interface{ ValidateWire() error }); ok {
+				if err := validator.ValidateWire(); err != nil {
+					t.Fatalf("canonical sample violates %s wire constraints: %v", s.Type, err)
+				}
+			}
 			reencoded, err := json.Marshal(target)
 			if err != nil {
 				t.Fatalf("re-marshal %T: %v", target, err)

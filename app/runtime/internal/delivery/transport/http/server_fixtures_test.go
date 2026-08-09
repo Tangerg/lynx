@@ -56,7 +56,7 @@ func validTestCapabilities() protocol.ServerCapabilities {
 		Limits: protocol.RuntimeLimits{
 			Idempotency: protocol.IdempotencyLimits{RetentionSeconds: 1},
 			RunReplay: protocol.RunReplayLimits{
-				Scope: protocol.ReplayScopeProcessRootSegment, MaxEvents: 1, MaxBytes: 1,
+				Scope: protocol.ReplayScopeRuntimeInstanceRootSegment, MaxEvents: 1, MaxBytes: 1,
 			},
 			MCPAuthorizationAttempts: protocol.MCPAuthorizationAttemptLimits{RetentionSeconds: 1},
 			RuntimeSubscription:      protocol.SubscriptionLimits{MaxTopics: 1, MaxWatches: 1},

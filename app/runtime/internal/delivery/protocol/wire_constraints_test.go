@@ -381,7 +381,7 @@ func TestItemTimingVocabularyIsVariantExclusive(t *testing.T) {
 func TestPublishedLimitWireConstraints(t *testing.T) {
 	t.Parallel()
 
-	replay := RunReplayLimits{Scope: ReplayScopeProcessRootSegment}
+	replay := RunReplayLimits{Scope: ReplayScopeRuntimeInstanceRootSegment}
 	assertConstraintField(t, replay.ValidateWire(), "RunReplayLimits", "maxEvents")
 
 	subscription := SubscriptionLimits{}

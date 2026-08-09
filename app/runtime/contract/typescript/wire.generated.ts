@@ -9,7 +9,7 @@
 // in the generated validator and in schema.json.
 
 // The wire version this runtime serves; a client states it in request metadata.
-export const PROTOCOL_VERSION = "2026-08-05";
+export const PROTOCOL_VERSION = "2026-08-09";
 
 // The methods the runtime sends downstream. A client only ever subscribes.
 export const NOTIFICATIONS_RUN_EVENT = "notifications.run.event";
@@ -1152,7 +1152,7 @@ export interface RunReplayLimits {
   scope: RunReplayScope;
 }
 
-export type RunReplayScope = "processRootSegment";
+export type RunReplayScope = "runtimeInstanceRootSegment";
 
 export interface RunScheduleNowRequest {
   id: string;
@@ -1621,7 +1621,7 @@ export const WIRE_ENUMS = {
   RestoreType: ["history", "files", "both"],
   RunOutcomeType: ["completed", "timedOut", "failed", "maxSteps", "maxBudget", "canceled", "lost"],
   RunProtocolFeature: ["subagents"],
-  RunReplayScope: ["processRootSegment"],
+  RunReplayScope: ["runtimeInstanceRootSegment"],
   RunStatus: ["running", "waiting", "finished"],
   RuntimeEventType: ["files.changed", "skills.changed", "mcp.changed", "schedules.changed", "sessions.changed", "runs.changed", "state.changed", "goals.changed", "interrupts.changed", "resync"],
   RuntimeTopic: ["files.changed", "skills.changed", "mcp.changed", "schedules.changed", "sessions.changed", "runs.changed", "state.changed", "goals.changed", "interrupts.changed"],

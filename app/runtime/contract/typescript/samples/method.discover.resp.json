@@ -1,7 +1,7 @@
 {
   "protocol": {
-    "current": "2026-08-05",
-    "minSupported": "2026-08-05"
+    "current": "2026-08-09",
+    "minSupported": "2026-08-09"
   },
   "serverInfo": {
     "name": "lyra",
@@ -136,7 +136,7 @@
         "retentionSeconds": 86400
       },
       "runReplay": {
-        "scope": "processRootSegment",
+        "scope": "runtimeInstanceRootSegment",
         "maxEvents": 2048,
         "maxBytes": 16777216
       },

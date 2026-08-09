@@ -1434,8 +1434,8 @@ func (value ArtifactRun) ValidateWire() error {
 
 func (value SessionArtifact) ValidateWire() error {
 	return collectWireViolations("SessionArtifact",
-		minimumNumber("version", value.Version, 13),
-		maximumNumber("version", value.Version, 13),
+		minimumNumber("version", value.Version, 14),
+		maximumNumber("version", value.Version, 14),
 	)
 }
 
@@ -1606,7 +1606,7 @@ func (value RunReplayLimits) ValidateWire() error {
 	return collectWireViolations("RunReplayLimits",
 		positiveNumber("maxEvents", value.MaxEvents),
 		positiveNumber("maxBytes", value.MaxBytes),
-		closedEnum("scope", string(value.Scope), []string{"processRootSegment"}, false),
+		closedEnum("scope", string(value.Scope), []string{"runtimeInstanceRootSegment"}, false),
 	)
 }
 

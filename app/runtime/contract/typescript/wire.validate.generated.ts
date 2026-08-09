@@ -2460,7 +2460,7 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     maxEvents: allOf([integer(), minimum(1)]),
     scope: ref(() => CHECKS.RunReplayScope),
   }, ["maxBytes", "maxEvents", "scope"]),
-  RunReplayScope: enumOf(["processRootSegment"]),
+  RunReplayScope: enumOf(["runtimeInstanceRootSegment"]),
   RunScheduleNowRequest: object({
     id: allOf([text(), minLength(1)]),
   }, ["id"]),
@@ -2835,7 +2835,7 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     session: ref(() => CHECKS.ArtifactSession),
     states: array(ref(() => CHECKS.ArtifactState)),
     toolResults: array(ref(() => CHECKS.ArtifactToolResult)),
-    version: allOf([integer(), minimum(13), maximum(13)]),
+    version: allOf([integer(), minimum(14), maximum(14)]),
   }, ["items", "messages", "runs", "session", "toolResults", "version"]),
   SessionStatus: enumOf(["running", "waiting", "idle"]),
   SessionUsageRequest: object({

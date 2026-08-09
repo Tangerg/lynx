@@ -26,6 +26,7 @@
 | [API.md](API.md) | Runtime Protocol 业务语义和跨方法不变量 |
 | [TRANSPORT.md](TRANSPORT.md) | HTTP/SSE 与 in-process binding、流、重放和安全边界 |
 | [AUX_API.md](AUX_API.md) | VCS、MCP、审批等旁路能力语义 |
+| [CONSUMER_HANDOFF.md](CONSUMER_HANDOFF.md) | 服务端 breaking contract 版本与前端/TUI/CLI 后续接线清单 |
 
 字段、方法、错误、union 和示例的机器真相源是 [`../contract/`](../contract/)。客户端只能消费这些制品，不能反向成为 Runtime 契约作者。
 

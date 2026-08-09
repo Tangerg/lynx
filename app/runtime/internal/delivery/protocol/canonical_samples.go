@@ -51,7 +51,7 @@ func CanonicalSamples() []CanonicalSample {
 		{"delta.toolOutput.json", reflect.TypeFor[ItemDelta]()},
 
 		// §4.2 Run — RunOutcome union, RunRef, Interrupt union, method envelopes.
-		{"outcome.error.json", reflect.TypeFor[RunOutcome]()},
+		{"outcome.failed.json", reflect.TypeFor[RunOutcome]()},
 		{"outcome.maxSteps.json", reflect.TypeFor[RunOutcome]()},
 		{"outcome.maxBudget.json", reflect.TypeFor[RunOutcome]()},
 		{"outcome.canceled.json", reflect.TypeFor[RunOutcome]()},

@@ -22,7 +22,7 @@
 
 ## 当前状态
 
-P9 已完成外环结构收敛：`component` umbrella、temporary architecture exception、重复 path identity 与纯转发/错误依赖方向均已清零。当前进入 P10 服务端 Protocol/生成物/API 收口；历史实现细节可参考 [`doc/EXECUTION_CENTERED_ARCHITECTURE.md`](doc/EXECUTION_CENTERED_ARCHITECTURE.md)，但它不是兼容规范。
+P10 已完成服务端 Protocol 收口：Protocol `2026-08-09`、Artifact v14、唯一 `runtimeInstanceRootSegment` replay scope 及全部生成物/严格 sample gate 已同步。当前进入 P11 唯一 Agent Framework module/path 收口；历史实现细节可参考 [`doc/EXECUTION_CENTERED_ARCHITECTURE.md`](doc/EXECUTION_CENTERED_ARCHITECTURE.md)，但它不是兼容规范。
 
 ## 工作纪律
 

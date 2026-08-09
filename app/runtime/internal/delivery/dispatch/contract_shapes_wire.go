@@ -396,7 +396,7 @@ func registerEventUnions(s *Shapes) {
 func registerArtifactUnions(s *Shapes) {
 	// An artifact's terminal vocabulary is deliberately NOT the live RunOutcome
 	// union: it cannot carry the live-only interrupt outcome, because a parked
-	// executor is process-local and does not travel.
+	// waiting executor state is Runtime-instance-local and does not travel.
 	s.union(UnionSpec{
 		GoType:        typeOf[protocol.ArtifactOutcome](),
 		Discriminator: "type",
@@ -663,7 +663,7 @@ func failureTerminalRules() []PresenceRule {
 func registerStateKeys(s *Shapes) {
 	// `plan` is the only first-party shared-state key today.
 	//
-	// The event is authoritative and replayable in the process-local segment
+	// The event is authoritative and replayable in the Runtime-instance-local segment
 	// window; the persisted projection is independently recoverable through
 	// plan.get. These are three different guarantees and are kept explicit.
 	s.stateKey(StateKeySpec{

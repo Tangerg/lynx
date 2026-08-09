@@ -83,7 +83,7 @@ var wireEnums = map[reflect.Type][]string{
 	reflect.TypeFor[WorkspaceAvailability]():             {string(WorkspaceAvailable), string(WorkspaceMissing)},
 	reflect.TypeFor[RuntimeEventType]():                  runtimeEventValues(),
 	reflect.TypeFor[RuntimeTopic]():                      runtimeTopicValues(),
-	reflect.TypeFor[RunReplayScope]():                    {string(ReplayScopeProcessRootSegment)},
+	reflect.TypeFor[RunReplayScope]():                    {string(ReplayScopeRuntimeInstanceRootSegment)},
 	reflect.TypeFor[StateSnapshotScope]():                {string(StateScopeSession), string(StateScopeRun)},
 	reflect.TypeFor[StateSnapshotWriter]():               {string(StateWriterRootRun), string(StateWriterAnyRun)},
 }

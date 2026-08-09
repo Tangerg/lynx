@@ -269,7 +269,7 @@ func (s *Server) capabilities() protocol.ServerCapabilities {
 func replayLimitsFrom(useCases runUseCases) protocol.RunReplayLimits {
 	retention := useCases.ReplayRetention()
 	return protocol.RunReplayLimits{
-		Scope:     protocol.ReplayScopeProcessRootSegment,
+		Scope:     protocol.ReplayScopeRuntimeInstanceRootSegment,
 		MaxEvents: retention.MaxEvents,
 		MaxBytes:  retention.MaxBytes,
 	}

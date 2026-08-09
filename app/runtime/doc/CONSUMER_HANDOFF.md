@@ -1,0 +1,65 @@
+# Runtime Protocol consumer handoff
+
+> Owner: the server-side contract cutover facts that frontend, TUI, CLI, and
+> other Runtime Protocol consumers must adopt after the Runtime rewrite.
+>
+> This document records work deliberately not performed by the Runtime goal. It
+> is not a compatibility promise and does not authorize dual fields or fallback
+> decoding in the server.
+
+## Current server baseline
+
+- Protocol version: `2026-08-09`; `minSupported` is the same value.
+- Session artifact version: `14`; versions 13 and earlier are rejected before
+  any import write.
+- Machine truth: [`../contract/`](../contract/) generated from the Go contract
+  registry with `go generate ./...`.
+- Product execution vocabulary is exclusively Run, Segment, Item, and
+  Interrupt. Agent2 Process/Execution/Member identity is not a wire concept.
+
+## Breaking surface
+
+`RunReplayScope` now has the sole value `runtimeInstanceRootSegment`. It means
+that replay is bounded to one Runtime instance and one root Segment; a Runtime
+restart or a new Segment owns a new buffer. The former
+`processRootSegment` value is removed, not aliased.
+
+The protocol and artifact version bumps are deliberate rejection boundaries.
+Consumers must not retry with an older version or rewrite an old artifact's
+version number: old artifacts must be re-exported by the build that owns their
+schema.
+
+## Desktop follow-up
+
+The desktop currently vendors generated Runtime bindings and samples. Its
+follow-up must replace those copies from `app/runtime/contract/typescript`, then
+update handwritten fixtures and assertions that still state
+`processRootSegment`:
+
+- `app/desktop/frontend/src/rpc/` generated bindings, validators, samples, SDK,
+  preflight, and schema tests;
+- `app/desktop/frontend/src/plugins/builtin/runtime/` discovery and capability
+  store tests;
+- `app/desktop/frontend/visual/installVisualWorkspaceFixture.ts`;
+- `app/desktop/frontend/CONTENT_RENDERING.md`.
+
+No desktop source was changed by this Runtime goal.
+
+## CLI and TUI follow-up
+
+The current repository scan found no direct copy of the removed replay-scope
+value in `app/cli`, and no standalone TUI protocol binding in this checkout.
+Those consumers must still negotiate `2026-08-09` and regenerate or vendor the
+current machine contract when their dedicated consumer-wiring work begins. Absence from this
+list is not evidence that an out-of-tree consumer is compatible.
+
+## Consumer acceptance
+
+A consumer migration is complete only when it:
+
+1. vendors or generates from the current Runtime-owned contract;
+2. sends `protocolVersion: "2026-08-09"` and rejects any different discovered
+   range instead of guessing compatibility;
+3. accepts only `runtimeInstanceRootSegment` for `RunReplayScope`;
+4. imports/exports Session artifact v14 without rewriting prior documents;
+5. passes its strict fixture validation and HTTP/in-process integration suite.
