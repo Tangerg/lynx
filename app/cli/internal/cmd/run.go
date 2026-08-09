@@ -18,6 +18,7 @@ import (
 	"github.com/Tangerg/lynx/app/cli/internal/attachment"
 	"github.com/Tangerg/lynx/app/cli/internal/client"
 	"github.com/Tangerg/lynx/app/cli/internal/render"
+	"github.com/Tangerg/lynx/app/cli/internal/resilience"
 )
 
 // renderer is what `run` needs to write a run out. Declared here, where it is
@@ -80,7 +81,7 @@ func newRunCommand(resolve backend, v *viper.Viper) *cobra.Command {
 				SessionID: session.ID,
 				Message:   client.Message{Text: prompt, Attachments: attached},
 				Options:   value.RunOptions(),
-			}, approveAll)
+			}, approveAll, value.UI.ReconnectAttempts)
 		},
 	}
 	cmd.Flags().BoolVar(&asJSON, "json", false, "Write newline-delimited JSON instead of text")
@@ -139,7 +140,7 @@ func resolveAttachments(ctx context.Context, workspace string, paths []string) (
 // follow drives a run to its end, answering each park and continuing on the
 // stream the answer opens. A park is not an ending: the run id is stable across
 // it, and only the stream is new.
-func follow(ctx context.Context, rt client.Runtime, out renderer, start client.StartRun, approveAll bool) error {
+func follow(ctx context.Context, rt client.Runtime, out renderer, start client.StartRun, approveAll bool, reconnectAttempts int) error {
 	run, err := rt.StartRun(ctx, start)
 	if err != nil {
 		return err
@@ -165,44 +166,81 @@ func follow(ctx context.Context, rt client.Runtime, out renderer, start client.S
 		}
 	}()
 
-	after := run.StartedAfter
+	sequence := client.NewEventSequence(run.StartedAfter)
+	policy := resilience.Standard(reconnectAttempts)
+	failures := 0
 	for {
-		stream, err := rt.FollowRun(ctx, client.FollowRun{RunID: run.ID, After: after})
+		before := sequence.Cursor()
+		stream, err := rt.FollowRun(ctx, client.FollowRun{RunID: run.ID, After: before})
 		if err != nil {
-			return err
+			if retryErr := waitToReconnect(ctx, policy, &failures, false, err); retryErr != nil {
+				return retryErr
+			}
+			continue
+		}
+		if stream == nil {
+			return errors.New("runtime returned a nil event stream")
 		}
 		var interrupted client.Interaction
 		finished := false
+		var subscriptionErr error
 		for envelope, streamErr := range stream {
 			if streamErr != nil {
-				return streamErr
+				subscriptionErr = streamErr
+				break
 			}
-			if err := out.Render(envelope); err != nil {
-				return err
+			result, err := sequence.Accept(envelope, func() error { return out.Render(envelope) })
+			if err != nil {
+				subscriptionErr = fmt.Errorf("accept runtime event at cursor %d: %w", envelope.Cursor, err)
+				break
 			}
-			after = envelope.Cursor
+			if !result.Applied {
+				continue
+			}
 			switch event := envelope.Event.(type) {
 			case client.RunInterrupted:
 				interrupted = event.Interaction
-				break
 			case client.RunFinished:
 				finished = true
 			}
 		}
+		progressed := sequence.Cursor() > before
 		if finished {
 			return out.Close()
 		}
-		if interrupted == nil {
-			return errors.New("runtime subscription ended without interrupting or finishing the run")
+		if interrupted != nil {
+			answer, interruptID, err := unattendedAnswer(interrupted, approveAll)
+			if err != nil {
+				return err
+			}
+			if err := rt.ResumeRun(ctx, client.ResumeRun{RunID: run.ID, InterruptID: interruptID, Answer: answer}); err != nil {
+				return err
+			}
+			failures = 0
+			continue
 		}
-		answer, interruptID, err := unattendedAnswer(interrupted, approveAll)
-		if err != nil {
-			return err
+		if subscriptionErr == nil {
+			subscriptionErr = fmt.Errorf("%w: runtime subscription ended without interrupting or finishing the run", client.ErrDisconnected)
 		}
-		if err := rt.ResumeRun(ctx, client.ResumeRun{RunID: run.ID, InterruptID: interruptID, Answer: answer}); err != nil {
-			return err
+		if retryErr := waitToReconnect(ctx, policy, &failures, progressed, subscriptionErr); retryErr != nil {
+			return retryErr
 		}
 	}
+}
+
+func waitToReconnect(ctx context.Context, policy resilience.Reconnect, failures *int, progressed bool, cause error) error {
+	if progressed {
+		*failures = 0
+	}
+	*failures++
+	delay, ok := policy.Next(*failures, cause)
+	if !ok {
+		return cause
+	}
+	if err := resilience.Wait(ctx, delay); err != nil {
+		return err
+	}
+	return nil
 }
 
 // decide answers a park. Unattended, a request is refused rather than guessed

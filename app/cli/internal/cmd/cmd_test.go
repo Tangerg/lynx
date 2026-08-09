@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -117,6 +118,71 @@ func TestRunJSONIsOneObjectPerLineEndingWithTheRun(t *testing.T) {
 	if last.Type != "run.finished" || last.Outcome.Status != "completed" {
 		t.Fatalf("last frame = %s, want a completed run.finished", lines[len(lines)-1])
 	}
+}
+
+func TestRunRecoversTransportFaultsWithoutRenderingDuplicates(t *testing.T) {
+	for _, fault := range []mock.FaultKind{mock.FaultDisconnect, mock.FaultDuplicate, mock.FaultGap} {
+		t.Run(string(fault), func(t *testing.T) {
+			rt := instant()
+			rt.Script = shortCompletedScript
+			rt.Faults = []mock.SubscriptionFault{{Kind: fault, After: 1}}
+			out, _, err := exec(t, rt, "", "run", "--json", "-s", firstSession(t, rt), "recover")
+			if err != nil {
+				t.Fatalf("run: %v\n%s", err, out)
+			}
+			seen := make(map[string]bool)
+			var lastType string
+			for i, line := range strings.Split(strings.TrimSpace(out), "\n") {
+				var frame struct {
+					Type    string `json:"type"`
+					EventID string `json:"eventId"`
+				}
+				if err := json.Unmarshal([]byte(line), &frame); err != nil {
+					t.Fatalf("line %d: %v", i, err)
+				}
+				if seen[frame.EventID] {
+					t.Fatalf("event %s rendered twice:\n%s", frame.EventID, out)
+				}
+				seen[frame.EventID] = true
+				lastType = frame.Type
+			}
+			if lastType != "run.finished" {
+				t.Fatalf("last event = %q, want run.finished\n%s", lastType, out)
+			}
+		})
+	}
+}
+
+func TestRunRejectsConflictingReplay(t *testing.T) {
+	rt := instant()
+	rt.Script = shortCompletedScript
+	rt.Faults = []mock.SubscriptionFault{{Kind: mock.FaultConflict, After: 1}}
+	_, _, err := exec(t, rt, "", "run", "--json", "-s", firstSession(t, rt), "conflict")
+	if !errors.Is(err, client.ErrEventConflict) {
+		t.Fatalf("run error = %v, want ErrEventConflict", err)
+	}
+}
+
+type alwaysDisconnected struct{ client.Runtime }
+
+func (alwaysDisconnected) FollowRun(context.Context, client.FollowRun) (client.Stream, error) {
+	return nil, fmt.Errorf("test transport: %w", client.ErrDisconnected)
+}
+
+func TestRunStopsAfterReconnectBudgetIsExhausted(t *testing.T) {
+	rt := instant()
+	rt.Script = shortCompletedScript
+	_, _, err := exec(t, alwaysDisconnected{Runtime: rt}, "", "--reconnect-attempts", "2", "run", "-s", firstSession(t, rt), "offline")
+	if !errors.Is(err, client.ErrDisconnected) {
+		t.Fatalf("run error = %v, want ErrDisconnected", err)
+	}
+}
+
+func shortCompletedScript(string) mock.Script {
+	return mock.Script{Prelude: []mock.Step{
+		{Event: client.BlockCompleted{Block: client.Block{ID: "answer", Kind: client.BlockAssistant, Text: "done"}}},
+		{Event: client.RunFinished{Outcome: client.Outcome{Status: client.OutcomeCompleted}}},
+	}}
 }
 
 func TestRunReadsAPipedPromptAndCombinesItWithTheArgument(t *testing.T) {

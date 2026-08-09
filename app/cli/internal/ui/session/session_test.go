@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -119,6 +120,51 @@ func TestMockConversationStreamsReviewsAndCompletes(t *testing.T) {
 
 	host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
 	stop()
+}
+
+func TestInteractiveRunRecoversTransportFaultsWithoutDuplicatingTranscript(t *testing.T) {
+	for _, fault := range []mock.FaultKind{mock.FaultDisconnect, mock.FaultDuplicate, mock.FaultGap} {
+		t.Run(string(fault), func(t *testing.T) {
+			backend := mock.New()
+			backend.Instant = true
+			backend.Script = stableCompletedScript
+			backend.Faults = []mock.SubscriptionFault{{Kind: fault, After: 1}}
+			host, stop := runUIWith(t, backend)
+			host.Shows(t, "Ask lyra")
+			host.Type("recover the stream")
+			host.Press(input.Enter)
+			host.Shows(t, "stable answer")
+			host.Shows(t, "complete")
+			host.Hides(t, "failed:")
+			if count := strings.Count(host.Frame(), "stable answer"); count != 1 {
+				t.Fatalf("stable answer appears %d times:\n%s", count, host.Frame())
+			}
+			host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
+			stop()
+		})
+	}
+}
+
+func TestInteractiveRunRejectsConflictingReplay(t *testing.T) {
+	backend := mock.New()
+	backend.Instant = true
+	backend.Script = stableCompletedScript
+	backend.Faults = []mock.SubscriptionFault{{Kind: mock.FaultConflict, After: 1}}
+	host, stop := runUIWith(t, backend)
+	host.Shows(t, "Ask lyra")
+	host.Type("detect a conflict")
+	host.Press(input.Enter)
+	host.Shows(t, "failed:")
+	host.Shows(t, "event identity conflict")
+	host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
+	stop()
+}
+
+func stableCompletedScript(string) mock.Script {
+	return mock.Script{Prelude: []mock.Step{
+		{Event: client.BlockCompleted{Block: client.Block{ID: "answer", Kind: client.BlockAssistant, Text: "stable answer"}}},
+		{Event: client.RunFinished{Outcome: client.Outcome{Status: client.OutcomeCompleted}}},
+	}}
 }
 
 func TestDenyingApprovalIsAProductResult(t *testing.T) {

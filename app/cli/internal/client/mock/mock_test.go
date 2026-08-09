@@ -171,6 +171,73 @@ func TestRunReplaysAndResumesApprovalWithoutDuplicates(t *testing.T) {
 	}
 }
 
+func TestFollowRunInjectsTransportFaultsWithoutChangingDurableLog(t *testing.T) {
+	tests := []struct {
+		name  string
+		fault SubscriptionFault
+		check func(*testing.T, []client.Envelope, error)
+	}{
+		{
+			name: "disconnect", fault: SubscriptionFault{Kind: FaultDisconnect, After: 1},
+			check: func(t *testing.T, events []client.Envelope, err error) {
+				if len(events) != 1 || !errors.Is(err, client.ErrDisconnected) {
+					t.Fatalf("events = %d, error = %v", len(events), err)
+				}
+			},
+		},
+		{
+			name: "duplicate", fault: SubscriptionFault{Kind: FaultDuplicate, After: 1},
+			check: func(t *testing.T, events []client.Envelope, err error) {
+				if err != nil || len(events) < 2 || events[0].ID != events[1].ID {
+					t.Fatalf("events = %+v, error = %v", events, err)
+				}
+			},
+		},
+		{
+			name: "gap", fault: SubscriptionFault{Kind: FaultGap, After: 1},
+			check: func(t *testing.T, events []client.Envelope, err error) {
+				if err != nil || len(events) == 0 || events[0].Cursor < 2 {
+					t.Fatalf("events = %+v, error = %v", events, err)
+				}
+			},
+		},
+		{
+			name: "conflict", fault: SubscriptionFault{Kind: FaultConflict, After: 1},
+			check: func(t *testing.T, events []client.Envelope, err error) {
+				if err != nil || len(events) != 2 || events[0].Cursor != events[1].Cursor || events[0].ID == events[1].ID {
+					t.Fatalf("events = %+v, error = %v", events, err)
+				}
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			runtime := New()
+			runtime.Instant = true
+			runtime.Faults = []SubscriptionFault{tt.fault}
+			session := newSession(t, runtime)
+			run, err := runtime.StartRun(t.Context(), client.StartRun{SessionID: session.ID, Message: client.Message{Text: "fault"}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			events, streamErr := followAll(t, runtime, run.ID, run.StartedAfter)
+			tt.check(t, events, streamErr)
+
+			replayed, err := followAll(t, runtime, run.ID, run.StartedAfter)
+			if err != nil {
+				t.Fatal(err)
+			}
+			snapshot, err := runtime.GetSession(t.Context(), session.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(replayed) != len(snapshot.Events) {
+				t.Fatalf("durable replay = %d events, snapshot = %d", len(replayed), len(snapshot.Events))
+			}
+		})
+	}
+}
+
 func TestQuestionRequiresTypedCompleteAnswer(t *testing.T) {
 	runtime := New()
 	runtime.Instant = true

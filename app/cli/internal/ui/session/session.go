@@ -23,6 +23,7 @@ import (
 	"github.com/Tangerg/lynx/app/cli/internal/attachment"
 	"github.com/Tangerg/lynx/app/cli/internal/client"
 	"github.com/Tangerg/lynx/app/cli/internal/extensions"
+	"github.com/Tangerg/lynx/app/cli/internal/resilience"
 	"github.com/Tangerg/lynx/app/cli/internal/settings"
 )
 
@@ -469,60 +470,110 @@ func (a *app) follow(open func(context.Context) (subscription, error)) {
 		defer cancel()
 		sub, err := open(ctx)
 		if err != nil {
-			_ = post(ctx, dispatcher, func() {
-				if a.streamSeq == sequence {
-					a.fail(err)
-				}
-			})
+			a.postStreamFailure(ctx, dispatcher, sequence, err)
 			return
 		}
-		stream, err := a.backend.FollowRun(ctx, client.FollowRun{RunID: sub.runID, After: sub.after})
-		if err != nil {
-			_ = post(ctx, dispatcher, func() {
-				if a.streamSeq == sequence {
-					a.fail(err)
-				}
-			})
-			return
-		}
-		if stream == nil {
-			_ = post(ctx, dispatcher, func() {
-				if a.streamSeq == sequence {
-					a.fail(errors.New("runtime returned a nil event stream"))
-				}
-			})
-			return
-		}
-		for envelope, streamErr := range stream {
-			if streamErr != nil {
-				if !errors.Is(streamErr, context.Canceled) {
-					_ = post(ctx, dispatcher, func() {
-						if a.streamSeq == sequence {
-							a.fail(streamErr)
+
+		after := sub.after
+		policy := resilience.Standard(a.settings.UI.ReconnectAttempts)
+		failures := 0
+		for {
+			before := after
+			stream, followErr := a.backend.FollowRun(ctx, client.FollowRun{RunID: sub.runID, After: after})
+			if followErr == nil && stream == nil {
+				followErr = errors.New("runtime returned a nil event stream")
+			}
+
+			active := true
+			phase := client.Running
+			if followErr == nil {
+				for envelope, streamErr := range stream {
+					if streamErr != nil {
+						followErr = streamErr
+						break
+					}
+					var applyErr error
+					if err := post(ctx, dispatcher, func() {
+						if a.streamSeq != sequence {
+							active = false
+							return
 						}
-					})
+						applyErr = a.apply(envelope)
+						after = a.state.Cursor()
+						phase = a.state.Phase()
+					}); err != nil || !active {
+						return
+					}
+					if applyErr != nil {
+						followErr = applyErr
+						break
+					}
 				}
+			}
+
+			if err := post(ctx, dispatcher, func() {
+				if a.streamSeq != sequence {
+					active = false
+					return
+				}
+				after = a.state.Cursor()
+				phase = a.state.Phase()
+			}); err != nil || !active {
+				return
+			}
+			if phase != client.Running {
+				a.finishFollowing(dispatcher, sequence)
+				return
+			}
+			if followErr == nil {
+				followErr = fmt.Errorf("%w: runtime stream ended without parking or finishing the run", client.ErrDisconnected)
+			}
+			if ctx.Err() != nil {
+				return
+			}
+			if after > before {
+				failures = 0
+			}
+			failures++
+			delay, retry := policy.Next(failures, followErr)
+			if !retry {
+				a.postStreamFailure(ctx, dispatcher, sequence, followErr)
 				return
 			}
 			if err := post(ctx, dispatcher, func() {
 				if a.streamSeq == sequence {
-					a.apply(envelope)
+					a.status.note(fmt.Sprintf("reconnecting %d/%d", failures, policy.Attempts))
+					a.syncAnimation()
 				}
 			}); err != nil {
 				return
 			}
-		}
-		_ = post(context.WithoutCancel(ctx), dispatcher, func() {
-			if a.streamSeq != sequence {
+			if err := resilience.Wait(ctx, delay); err != nil {
 				return
 			}
+		}
+	}()
+}
+
+func (a *app) postStreamFailure(ctx context.Context, dispatcher program.Dispatcher, sequence uint64, err error) {
+	if errors.Is(err, context.Canceled) || ctx.Err() != nil {
+		return
+	}
+	_ = post(ctx, dispatcher, func() {
+		if a.streamSeq == sequence {
+			a.streamCancel = nil
+			a.fail(err)
+		}
+	})
+}
+
+func (a *app) finishFollowing(dispatcher program.Dispatcher, sequence uint64) {
+	_ = post(context.WithoutCancel(a.ctx), dispatcher, func() {
+		if a.streamSeq == sequence {
 			a.streamCancel = nil
 			a.following = false
-			if a.state.Phase() == client.Running {
-				a.fail(errors.New("runtime stream ended without parking or finishing the run"))
-			}
-		})
-	}()
+		}
+	})
 }
 
 func post(ctx context.Context, dispatcher program.Dispatcher, fn func()) error {
@@ -541,19 +592,17 @@ func post(ctx context.Context, dispatcher program.Dispatcher, fn func()) error {
 	}
 }
 
-func (a *app) apply(envelope client.Envelope) {
+func (a *app) apply(envelope client.Envelope) error {
 	result, err := a.state.ApplyEnvelope(envelope)
 	if err != nil {
-		a.fail(fmt.Errorf("apply runtime event %T at cursor %d: %w", envelope.Event, envelope.Cursor, err))
-		return
+		return fmt.Errorf("apply runtime event %T at cursor %d: %w", envelope.Event, envelope.Cursor, err)
 	}
 	if !result.Applied {
-		return
+		return nil
 	}
 	event := envelope.Event
 	if err := a.transcript.Apply(event, a.registry); err != nil {
-		a.fail(err)
-		return
+		return err
 	}
 	switch event.(type) {
 	case client.RunStarted:
@@ -580,6 +629,7 @@ func (a *app) apply(envelope client.Envelope) {
 	}
 	a.transcript.Retain(a.loop)
 	a.syncAnimation()
+	return nil
 }
 
 func (a *app) fail(err error) {

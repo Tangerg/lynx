@@ -40,14 +40,13 @@ type Conversation struct {
 	phase    Phase
 	runID    string
 	index    map[string]int
-	events   map[Cursor]string
-	cursor   Cursor
+	sequence *EventSequence
 	revision uint64
 }
 
 // NewConversation returns an empty aggregate.
 func NewConversation() *Conversation {
-	return &Conversation{index: make(map[string]int), events: make(map[Cursor]string)}
+	return &Conversation{index: make(map[string]int), sequence: NewEventSequence(0)}
 }
 
 func (c *Conversation) Blocks() []Block {
@@ -64,41 +63,25 @@ func (c *Conversation) Outcome() Outcome         { return c.outcome }
 func (c *Conversation) Phase() Phase             { return c.phase }
 func (c *Conversation) RunID() string            { return c.runID }
 func (c *Conversation) Revision() uint64         { return c.revision }
-func (c *Conversation) Cursor() Cursor           { return c.cursor }
-func (c *Conversation) Busy() bool               { return c.phase != Idle }
+func (c *Conversation) Cursor() Cursor {
+	if c.sequence == nil {
+		return 0
+	}
+	return c.sequence.Cursor()
+}
+func (c *Conversation) Busy() bool { return c.phase != Idle }
 
 // ApplyEnvelope folds one durable event exactly once. Replayed duplicates are
 // accepted without changing presentation state; gaps and conflicting cursor
 // identities are rejected so callers can resnapshot instead of hiding loss.
 func (c *Conversation) ApplyEnvelope(envelope Envelope) (ApplyResult, error) {
-	if envelope.Cursor == 0 {
-		return ApplyResult{}, errors.New("conversation: event cursor is zero")
-	}
-	if envelope.ID == "" {
-		return ApplyResult{}, errors.New("conversation: event id is empty")
-	}
 	if envelope.Event == nil {
 		return ApplyResult{}, errors.New("conversation: envelope has no event")
 	}
-	if c.events == nil {
-		c.events = make(map[Cursor]string)
+	if c.sequence == nil {
+		c.sequence = NewEventSequence(0)
 	}
-	if known, ok := c.events[envelope.Cursor]; ok {
-		if known != envelope.ID {
-			return ApplyResult{}, fmt.Errorf("%w at cursor %d: have %s, received %s", ErrEventConflict, envelope.Cursor, known, envelope.ID)
-		}
-		return ApplyResult{}, nil
-	}
-	want := c.cursor + 1
-	if envelope.Cursor != want {
-		return ApplyResult{}, fmt.Errorf("%w: expected cursor %d, received %d", ErrEventGap, want, envelope.Cursor)
-	}
-	if err := c.Apply(envelope.Event); err != nil {
-		return ApplyResult{}, err
-	}
-	c.events[envelope.Cursor] = envelope.ID
-	c.cursor = envelope.Cursor
-	return ApplyResult{Applied: true}, nil
+	return c.sequence.Accept(envelope, func() error { return c.Apply(envelope.Event) })
 }
 
 // Restore atomically rebuilds a conversation from an authoritative snapshot.
@@ -211,7 +194,7 @@ func (c *Conversation) Failed(err error) {
 // Reset releases the conversation while preserving a monotonic revision.
 func (c *Conversation) Reset() {
 	revision := c.revision + 1
-	*c = Conversation{index: make(map[string]int), events: make(map[Cursor]string), revision: revision}
+	*c = Conversation{index: make(map[string]int), sequence: NewEventSequence(0), revision: revision}
 }
 
 // ClearPresentation releases transcript and settled run details while keeping

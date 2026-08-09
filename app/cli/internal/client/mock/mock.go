@@ -20,17 +20,39 @@ const (
 	maximumPageSize = 100
 )
 
+// FaultKind identifies one transport fault injected into the next run
+// subscription. Faults alter delivery only; the durable session log remains
+// intact so clients can prove their replay and recovery behavior.
+type FaultKind string
+
+const (
+	FaultDisconnect FaultKind = "disconnect"
+	FaultDuplicate  FaultKind = "duplicate"
+	FaultGap        FaultKind = "gap"
+	FaultConflict   FaultKind = "conflict"
+)
+
+// SubscriptionFault is consumed by one FollowRun call. After is the one-based
+// delivery position at which the fault occurs; values below one mean the first
+// event.
+type SubscriptionFault struct {
+	Kind  FaultKind
+	After int
+}
+
 // Runtime is a complete in-memory runtime adapter. Runs outlive individual
 // subscriptions, event logs are replayable, and every operation is safe for
 // concurrent use so the mock exercises the same lifecycle as a remote adapter.
 type Runtime struct {
 	Instant bool
 	Script  func(prompt string) Script
+	Faults  []SubscriptionFault
 
 	mu       sync.Mutex
 	sessions map[string]*sessionState
 	runs     map[string]*runState
 	rules    []client.ApprovalRule
+	fault    int
 	next     uint64
 	now      func() time.Time
 }
@@ -316,10 +338,15 @@ func (r *Runtime) FollowRun(ctx context.Context, in client.FollowRun) (client.St
 		r.mu.Unlock()
 		return nil, fmt.Errorf("mock: cursor %d predates run start cursor %d", in.After, run.startedAfter)
 	}
+	fault, err := r.takeFaultLocked()
 	r.mu.Unlock()
+	if err != nil {
+		return nil, err
+	}
 
 	return func(yield func(client.Envelope, error) bool) {
 		after := in.After
+		position := 0
 		for {
 			r.mu.Lock()
 			session := r.sessions[run.sessionID]
@@ -338,12 +365,34 @@ func (r *Runtime) FollowRun(ctx context.Context, in client.FollowRun) (client.St
 			r.mu.Unlock()
 
 			if next != nil {
+				position++
+				if fault.Kind == FaultGap && position == fault.After {
+					after = next.Cursor
+					continue
+				}
 				after = next.Cursor
 				if !yield(*next, nil) {
 					return
 				}
+				if position == fault.After {
+					switch fault.Kind {
+					case FaultDuplicate:
+						if !yield(*next, nil) {
+							return
+						}
+					case FaultConflict:
+						conflict := cloneEnvelope(*next)
+						conflict.ID += "_conflict"
+						yield(conflict, nil)
+						return
+					}
+				}
 				switch next.Event.(type) {
 				case client.RunInterrupted, client.RunFinished:
+					return
+				}
+				if fault.Kind == FaultDisconnect && position == fault.After {
+					yield(client.Envelope{}, fmt.Errorf("%w after cursor %d", client.ErrDisconnected, after))
 					return
 				}
 				continue
@@ -361,6 +410,23 @@ func (r *Runtime) FollowRun(ctx context.Context, in client.FollowRun) (client.St
 			}
 		}
 	}, nil
+}
+
+func (r *Runtime) takeFaultLocked() (SubscriptionFault, error) {
+	if r.fault >= len(r.Faults) {
+		return SubscriptionFault{}, nil
+	}
+	fault := r.Faults[r.fault]
+	r.fault++
+	if fault.After < 1 {
+		fault.After = 1
+	}
+	switch fault.Kind {
+	case FaultDisconnect, FaultDuplicate, FaultGap, FaultConflict:
+		return fault, nil
+	default:
+		return SubscriptionFault{}, fmt.Errorf("mock: unknown subscription fault %q", fault.Kind)
+	}
 }
 
 func (r *Runtime) ResumeRun(_ context.Context, in client.ResumeRun) error {

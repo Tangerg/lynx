@@ -31,6 +31,7 @@ var (
 	ErrRevisionConflict = errors.New("revision conflict")
 	ErrEventGap         = errors.New("event gap")
 	ErrEventConflict    = errors.New("event identity conflict")
+	ErrDisconnected     = errors.New("runtime disconnected")
 )
 
 // BlockKind names what a transcript block is. The set is closed: an item a

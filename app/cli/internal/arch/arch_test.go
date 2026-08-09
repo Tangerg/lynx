@@ -29,6 +29,7 @@ var layers = []struct {
 	{"internal/client/mock/", "mock"},
 	{"internal/ui/session/", "terminal"},
 	{"internal/attachment/", "attachment"},
+	{"internal/resilience/", "resilience"},
 	{"internal/client/", "client"},
 	{"internal/extensions/", "extensions"},
 	{"internal/render/", "render"},
@@ -45,6 +46,7 @@ var forbidden = map[string][]string{
 	// Local file discovery is an outbound adapter around the client attachment
 	// value. It must not reach into delivery mechanisms or the mock backend.
 	"attachment": {"mock", "extensions", "terminal", "render", "cmd"},
+	"resilience": {"mock", "extensions", "terminal", "render", "cmd", "attachment"},
 
 	// The generic plugin substrate is policy-free and reusable by every outer ring.
 	"extensions": {"client", "mock", "terminal", "render", "cmd"},
@@ -106,7 +108,7 @@ func TestTheLibraryStaysALibrary(t *testing.T) {
 	root := moduleRoot(t)
 	fset := token.NewFileSet()
 
-	terminalFree := []string{"client", "mock", "attachment", "extensions", "render"}
+	terminalFree := []string{"client", "mock", "attachment", "resilience", "extensions", "render"}
 	walk(t, root, func(dir, path string) {
 		layer := layerOf(dir)
 		if !slices.Contains(terminalFree, layer) {
@@ -133,6 +135,7 @@ func TestTheRulesWouldActuallyRefuseSomething(t *testing.T) {
 		{"internal/extensions", "internal/client", true},
 		{"internal/client/mock", "internal/render", true},
 		{"internal/attachment", "internal/ui/session", true},
+		{"internal/resilience", "internal/cmd", true},
 		{"internal/render", "internal/ui/session", true},
 		{"internal/ui/session", "internal/cmd", true},
 
@@ -142,6 +145,7 @@ func TestTheRulesWouldActuallyRefuseSomething(t *testing.T) {
 		{"internal/cmd", "internal/ui/session", false},
 		{"internal/render", "internal/client", false},
 		{"internal/attachment", "internal/client", false},
+		{"internal/resilience", "internal/client", false},
 	} {
 		from, to := layerOf(tc.from), layerOf(tc.to)
 		if from == "" {
