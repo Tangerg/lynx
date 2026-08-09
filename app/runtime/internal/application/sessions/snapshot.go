@@ -124,88 +124,130 @@ func (snapshot Snapshot) validateItems(runs map[string]struct{}) (map[string]tra
 }
 
 func validateSnapshotRunTree(runs []transcript.Run, items map[string]transcript.Item) error {
-	byID := make(map[string]transcript.Run, len(runs))
-	for _, run := range runs {
-		byID[run.ID] = run
+	tree, err := newSnapshotRunTree(runs, items)
+	if err != nil {
+		return err
 	}
-	parents := make(map[string]string, len(runs))
+	return tree.validateRootLineage(runs)
+}
+
+type snapshotRunTree struct {
+	runByID             map[string]transcript.Run
+	parentByRunID       map[string]string
+	visitStateByRunID   map[string]snapshotRunVisitState
+	resolvedRootByRunID map[string]string
+}
+
+type snapshotRunVisitState uint8
+
+const (
+	snapshotRunUnvisited snapshotRunVisitState = iota
+	snapshotRunVisiting
+	snapshotRunVisited
+)
+
+func newSnapshotRunTree(
+	runs []transcript.Run,
+	items map[string]transcript.Item,
+) (*snapshotRunTree, error) {
+	tree := &snapshotRunTree{
+		runByID:             make(map[string]transcript.Run, len(runs)),
+		parentByRunID:       make(map[string]string, len(runs)),
+		visitStateByRunID:   make(map[string]snapshotRunVisitState, len(runs)),
+		resolvedRootByRunID: make(map[string]string, len(runs)),
+	}
+	for _, run := range runs {
+		tree.runByID[run.ID] = run
+	}
 	for _, run := range runs {
 		if run.Lineage().IsRoot() {
 			continue
 		}
-		parent, parentFound := byID[run.ParentRunID]
-		if !parentFound {
-			return fmt.Errorf("sessions: snapshot child run %q references unknown parent %q", run.ID, run.ParentRunID)
+		if err := tree.indexChild(run, items); err != nil {
+			return nil, err
 		}
-		root, rootFound := byID[run.RootRunID]
-		if !rootFound {
-			return fmt.Errorf("sessions: snapshot child run %q references unknown root %q", run.ID, run.RootRunID)
-		}
-		if !root.Lineage().IsRoot() {
-			return fmt.Errorf("sessions: snapshot child run %q names child %q as its root", run.ID, run.RootRunID)
-		}
-		if !root.Capabilities.ChildRuns {
-			return fmt.Errorf(
-				"sessions: snapshot child run %q belongs to root %q whose run capabilities disallow child runs",
-				run.ID,
-				root.ID,
-			)
-		}
-		item, found := items[run.SpawnedByItemID]
-		if !found {
-			return fmt.Errorf("sessions: snapshot run %q references unknown spawning item %q", run.ID, run.SpawnedByItemID)
-		}
-		if item.Kind != transcript.ToolCall {
-			return fmt.Errorf("sessions: snapshot run %q spawning item %q is not a tool call", run.ID, run.SpawnedByItemID)
-		}
-		if item.RunID != parent.ID {
-			return fmt.Errorf(
-				"sessions: snapshot child run %q spawning item %q belongs to run %q, want parent %q",
-				run.ID,
-				item.ID,
-				item.RunID,
-				parent.ID,
-			)
-		}
-		parents[run.ID] = parent.ID
 	}
+	return tree, nil
+}
 
-	states := make(map[string]uint8, len(runs))
-	treeRoots := make(map[string]string, len(runs))
-	var visit func(string) (string, error)
-	visit = func(runID string) (string, error) {
-		switch states[runID] {
-		case 1:
-			return "", fmt.Errorf("sessions: snapshot run tree contains a cycle at %q", runID)
-		case 2:
-			return treeRoots[runID], nil
-		}
-		states[runID] = 1
-		rootID := runID
-		if parentID := parents[runID]; parentID != "" {
-			var err error
-			rootID, err = visit(parentID)
-			if err != nil {
-				return "", err
-			}
-		}
-		states[runID] = 2
-		treeRoots[runID] = rootID
-		return rootID, nil
+func (tree *snapshotRunTree) indexChild(
+	child transcript.Run,
+	items map[string]transcript.Item,
+) error {
+	parent, parentFound := tree.runByID[child.ParentRunID]
+	if !parentFound {
+		return fmt.Errorf("sessions: snapshot child run %q references unknown parent %q", child.ID, child.ParentRunID)
 	}
+	root, rootFound := tree.runByID[child.RootRunID]
+	if !rootFound {
+		return fmt.Errorf("sessions: snapshot child run %q references unknown root %q", child.ID, child.RootRunID)
+	}
+	if !root.Lineage().IsRoot() {
+		return fmt.Errorf("sessions: snapshot child run %q names child %q as its root", child.ID, child.RootRunID)
+	}
+	if !root.Capabilities.ChildRuns {
+		return fmt.Errorf(
+			"sessions: snapshot child run %q belongs to root %q whose run capabilities disallow child runs",
+			child.ID,
+			root.ID,
+		)
+	}
+	item, found := items[child.SpawnedByItemID]
+	if !found {
+		return fmt.Errorf("sessions: snapshot run %q references unknown spawning item %q", child.ID, child.SpawnedByItemID)
+	}
+	if item.Kind != transcript.ToolCall {
+		return fmt.Errorf("sessions: snapshot run %q spawning item %q is not a tool call", child.ID, child.SpawnedByItemID)
+	}
+	if item.RunID != parent.ID {
+		return fmt.Errorf(
+			"sessions: snapshot child run %q spawning item %q belongs to run %q, want parent %q",
+			child.ID,
+			item.ID,
+			item.RunID,
+			parent.ID,
+		)
+	}
+	tree.parentByRunID[child.ID] = parent.ID
+	return nil
+}
+
+func (tree *snapshotRunTree) validateRootLineage(runs []transcript.Run) error {
 	for _, run := range runs {
-		rootID, err := visit(run.ID)
+		rootRunID, err := tree.resolveRootRunID(run.ID)
 		if err != nil {
 			return err
 		}
-		if run.Lineage().IsChild() && rootID != run.RootRunID {
+		if run.Lineage().IsChild() && rootRunID != run.RootRunID {
 			return fmt.Errorf(
 				"sessions: snapshot child run %q reaches root %q through parents, want %q",
 				run.ID,
-				rootID,
+				rootRunID,
 				run.RootRunID,
 			)
 		}
 	}
 	return nil
+}
+
+func (tree *snapshotRunTree) resolveRootRunID(runID string) (string, error) {
+	switch tree.visitStateByRunID[runID] {
+	case snapshotRunVisiting:
+		return "", fmt.Errorf("sessions: snapshot run tree contains a cycle at %q", runID)
+	case snapshotRunVisited:
+		return tree.resolvedRootByRunID[runID], nil
+	case snapshotRunUnvisited:
+	}
+	tree.visitStateByRunID[runID] = snapshotRunVisiting
+	rootRunID := runID
+	if parentRunID := tree.parentByRunID[runID]; parentRunID != "" {
+		var err error
+		rootRunID, err = tree.resolveRootRunID(parentRunID)
+		if err != nil {
+			return "", err
+		}
+	}
+	tree.visitStateByRunID[runID] = snapshotRunVisited
+	tree.resolvedRootByRunID[runID] = rootRunID
+	return rootRunID, nil
 }

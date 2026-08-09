@@ -60,55 +60,47 @@ func (c *Coordinator) Rollback(ctx context.Context, spec RollbackSpec) (Rollback
 	if c.sessions == nil {
 		return RollbackResult{}, errors.New("sessions: session store is unavailable")
 	}
-	ses, err := c.sessions.Get(ctx, spec.SessionID)
+	currentSession, err := c.sessions.Get(ctx, spec.SessionID)
 	if err != nil {
 		return RollbackResult{}, err
 	}
 	result := RollbackResult{}
 
-	admission, err := c.ClaimSessionMutation(spec.SessionID)
+	sessionMutation, err := c.ClaimSessionMutation(spec.SessionID)
 	if err != nil {
 		return result, err
 	}
-	defer admission.Release()
+	defer sessionMutation.Release()
 
 	var cwd string
 	if spec.RestoreFiles {
-		cwd = ses.CWD
+		cwd = currentSession.CWD
 		if cwd == "" {
 			return result, ErrCheckpointUnavailable
 		}
-		treeAdmission, ok := c.ClaimWorkingTreeMutation(cwd)
-		if !ok {
+		workingTreeMutation, claimed := c.ClaimWorkingTreeMutation(cwd)
+		if !claimed {
 			return result, fmt.Errorf("%w: working tree %q has a run admission in flight", ErrSessionBusy, cwd)
 		}
-		defer treeAdmission.Release()
+		defer workingTreeMutation.Release()
 	}
 
 	if c.transcript == nil || c.runs == nil {
 		return RollbackResult{}, errors.New("sessions: transcript store is unavailable")
 	}
-	items, err := c.transcript.List(ctx, spec.SessionID)
-	if err != nil {
-		return result, err
-	}
-	runs, err := c.runs.ListRuns(ctx, spec.SessionID)
-	if err != nil {
-		return result, err
-	}
-	boundary, err := transcript.TimelineFromRuns(runs).BoundaryAt(spec.ToRunID, true)
+	resolvedBoundary, err := c.resolveRollbackBoundary(ctx, spec.SessionID, spec.ToRunID)
 	if err != nil {
 		return result, err
 	}
 	if spec.RestoreHistory {
-		result.Dropped = droppedRuns(boundary, runs, transcript.OpeningInputs(items))
+		result.Dropped = resolvedBoundary.droppedRuns
 	}
 	// Every file restore is logged before Git touches the working tree. A reset
 	// updates multiple paths and can fail after changing only some of them, so
 	// even files-only rollback needs boot recovery. RestoreHistory distinguishes
 	// that operation from the cross-resource files+history variant.
-	restoreLogged := spec.RestoreFiles && c.mutations != nil
-	if restoreLogged {
+	mutationRecorded := spec.RestoreFiles && c.mutations != nil
+	if mutationRecorded {
 		if err := c.recordMutation(ctx, WorkspaceMutation{
 			SessionID: spec.SessionID, CWD: cwd, ToRunID: spec.ToRunID,
 			RestoreHistory: spec.RestoreHistory,
@@ -120,39 +112,80 @@ func (c *Coordinator) Rollback(ctx context.Context, spec RollbackSpec) (Rollback
 	// Errors before reset begins leave the tree unchanged, so their intent can be
 	// cleared. ErrCheckpointRestoreIncomplete is different: reset may have
 	// changed only part of the tree, and its intent must survive for recovery.
-	if spec.RestoreFiles {
-		if err := c.restore(ctx, spec.SessionID, cwd, spec.ToRunID); err != nil {
-			if restoreLogged && !errors.Is(err, ErrCheckpointRestoreIncomplete) {
-				if cleanupErr := c.completeMutationDetached(ctx, spec.SessionID); cleanupErr != nil {
-					return result, errors.Join(err, fmt.Errorf("sessions: clear failed rollback intent: %w", cleanupErr))
-				}
-			}
-			return result, err
-		}
+	if err := c.restoreRollbackFiles(ctx, spec, cwd, mutationRecorded); err != nil {
+		return result, err
 	}
 
 	// The tree is restored now; a durable failure here leaves the intent logged so
 	// boot recovery completes the truncation (the tree + history would otherwise
 	// disagree).
-	if spec.RestoreHistory && len(boundary.Dropped) > 0 {
-		if err := c.applyRollback(ctx, spec.SessionID, boundary); err != nil {
+	if spec.RestoreHistory && len(resolvedBoundary.timeline.Dropped) > 0 {
+		if err := c.applyRollback(ctx, spec.SessionID, resolvedBoundary.timeline); err != nil {
 			return result, err
 		}
 	}
 
-	if restoreLogged {
+	if mutationRecorded {
 		if err := c.completeMutationDetached(ctx, spec.SessionID); err != nil {
 			return result, err
 		}
 	}
-	result.Session, err = c.view(ses, ActivityIdle)
+	result.Session, err = c.view(currentSession, ActivityIdle)
 	if err != nil {
 		return result, err
 	}
 	return result, nil
 }
 
-func droppedRuns(boundary transcript.Boundary, runs []transcript.Run, inputs map[string][]transcript.ContentBlock) []DroppedRun {
+type resolvedRollbackBoundary struct {
+	timeline    transcript.Boundary
+	droppedRuns []DroppedRun
+}
+
+func (c *Coordinator) resolveRollbackBoundary(
+	ctx context.Context,
+	sessionID string,
+	toRunID string,
+) (resolvedRollbackBoundary, error) {
+	items, err := c.transcript.List(ctx, sessionID)
+	if err != nil {
+		return resolvedRollbackBoundary{}, err
+	}
+	runs, err := c.runs.ListRuns(ctx, sessionID)
+	if err != nil {
+		return resolvedRollbackBoundary{}, err
+	}
+	boundary, err := transcript.TimelineFromRuns(runs).BoundaryAt(toRunID, true)
+	if err != nil {
+		return resolvedRollbackBoundary{}, err
+	}
+	return resolvedRollbackBoundary{
+		timeline:    boundary,
+		droppedRuns: projectDroppedRuns(boundary, runs, transcript.OpeningInputs(items)),
+	}, nil
+}
+
+func (c *Coordinator) restoreRollbackFiles(
+	ctx context.Context,
+	spec RollbackSpec,
+	cwd string,
+	mutationRecorded bool,
+) error {
+	if !spec.RestoreFiles {
+		return nil
+	}
+	err := c.restore(ctx, spec.SessionID, cwd, spec.ToRunID)
+	if err == nil || !mutationRecorded || errors.Is(err, ErrCheckpointRestoreIncomplete) {
+		return err
+	}
+	cleanupErr := c.completeMutationDetached(ctx, spec.SessionID)
+	if cleanupErr == nil {
+		return err
+	}
+	return errors.Join(err, fmt.Errorf("sessions: clear failed rollback intent: %w", cleanupErr))
+}
+
+func projectDroppedRuns(boundary transcript.Boundary, runs []transcript.Run, inputs map[string][]transcript.ContentBlock) []DroppedRun {
 	byID := make(map[string]transcript.Run, len(runs))
 	for _, run := range runs {
 		byID[run.ID] = run

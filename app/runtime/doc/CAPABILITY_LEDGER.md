@@ -36,7 +36,7 @@
 | 能力 | 当前事实 | Verdict | 阶段 |
 |---|---|---|---|
 | Run lifecycle | `application/runs` 拥有 start、pump、waiting、resume、cancel、terminal ordering；child opening reservation、conclusive start 与 waiting-subtree transaction ordering 已在生产冻结 | Retain | P3–P8 已完成 |
-| Session lifecycle | 独立 application/domain，拥有 workspace/admission 产品语义 | Retain | P2/P8 |
+| Session lifecycle | 独立 application/domain，拥有 workspace/admission 产品语义；Rollback boundary、workspace restore intent/cleanup 与 portable snapshot Run-tree integrity 各有准确内部 owner | Retain | P2/P8；P14 内部职责精修 |
 | Domain framework isolation | P2 已删除十个 context-based Domain I/O port，生产与测试均由机器守卫禁止向外依赖 | Retain + strengthen | P2 已完成；例外为零 |
 | Agent anti-corruption | Agent Framework native tree、model/tool Effect、waiting/restore/steer、Delegate child 与 prepared subtree change 均由 `adapter/agentexec` 生产 owner 独占 | Retain | P8 已接管生产；旧 Framework lifecycle 已删除 |
 | Delivery separation | target DAG 禁止 Delivery import 任意 concrete Adapter；protocol/dispatch/server/transport 已按准确职责收口 | Retain | P1/P9/P10 已完成 |
@@ -240,7 +240,7 @@ P8 production cutover 已用真实 Bootstrap consumer 冻结 root stage/observe/
 - SQLite、Git、exec、sandbox、LSP、MCP/A2A client、checkpoint、storage 与 path identity 只提供可复用 technical mechanism，保留 Infra；Infra 对 Application/Adapter/Delivery/Bootstrap 反向 import 为零；
 - `workspacepath` 原有第二份 symlink/containment 判定已删除，统一消费 `infra/pathidentity` 的 physical identity；Adapter 只保留 Application path-policy 错误与相对路径投影；
 - `agentexec` 已按 root execution、effect attribution、waiting/restore、Delegate admission/projection、tree mutation 分离变化原因；没有第二 controller、scheduler、mailbox、private wire owner 或为了文件拆分制造的子 package；
-- `persistence.SessionStores` 仍是 Session aggregate 原子 write-set 的单一 Adapter，但 rollback republish/drop、restore projection rebuild、parked terminal cleanup/terminalize/Goal record 已各归准确私有行为；不存在只转发 `Transactor` 的伪抽象；
+- `persistence.SessionStores` 仍是 Session aggregate 原子 write-set 的单一 Adapter，但 rollback boundary/drop projection、workspace restore intent/cleanup、restore projection rebuild、parked terminal cleanup/terminalize/Goal record 已各归准确私有行为；portable snapshot 的 Run/parent index、cycle detection 与 resolved-root lineage 由单一 `snapshotRunTree` 拥有，不存在只转发 `Transactor` 的伪抽象；
 - Application consumer-owned ports 均按用例拆分；`Coordinator` 只用于确实协调多个 use-case collaborators 的 package aggregate，不存在 package-name + exported-type 口吃或跨用例胖 executor interface；
 - Delivery `server` 只做 wire validation/projection，`dispatch` 只做 JSON-RPC registry/routing/idempotency，二者对 concrete Adapter/Infra/Bootstrap/Agent Framework import 为零，现名准确且不合包；
 - `internal/component`、temporary exception、空目录、历史 fixture 与一层纯转发 wrapper 均为零；最终 DAG、命名和 shared-capability purity 由永久 architecture tests 守卫。
