@@ -89,14 +89,14 @@ func (s *controller) CancelSubtree(
 	return nil
 }
 
-// PrepareWaitingSubtreeCancellation claims one parked turn and asks the Agent
-// adapter for an immutable execution-transition plan. The returned application
-// capability owns only the Application lifecycle claim until Commit or Abort; Agent
-// runtime retains no resource while the Application transaction runs.
+// PrepareWaitingSubtreeCancellation claims one legacy parked turn and projects
+// its old executor plan through the Application one-shot change contract. This
+// adapter exists only until the P8 production cutover removes the legacy turn.
 func (s *controller) PrepareWaitingSubtreeCancellation(
 	ctx context.Context,
 	handle Handle,
 	processID string,
+	_ string,
 ) (runs.PreparedWaitingSubtreeCancellation, error) {
 	state, err := s.findTurn(handle.TurnID)
 	if err != nil {
@@ -152,96 +152,120 @@ func (s *controller) PrepareWaitingSubtreeCancellation(
 			Interrupt: interrupt,
 		}
 	}
-	mutation := &preparedWaitingSubtreeCancellation{controller: s, state: state, plan: plan}
+	change := &waitingSubtreeChange{controller: s, state: state, plan: plan}
 	return runs.PreparedWaitingSubtreeCancellation{
 		CanceledMemberIDs:    plan.CanceledProcessIDs(),
 		PendingInterruptions: projected,
 		Checkpoint:           plan.Checkpoint(),
-		Mutation:             mutation,
+		Change:               change,
 	}, nil
 }
 
-type preparedWaitingSubtreeCancellation struct {
+type waitingSubtreeChange struct {
 	mu sync.Mutex
 
 	controller *controller
 	state      *turnState
 	plan       agentexec.WaitingSubtreeCancellationPlan
-	settled    bool
+	phase      waitingSubtreeChangePhase
 }
 
-func (prepared *preparedWaitingSubtreeCancellation) Commit(
-	ctx context.Context,
+type waitingSubtreeChangePhase uint8
+
+const (
+	waitingSubtreeChangePrepared waitingSubtreeChangePhase = iota
+	waitingSubtreeChangeWaiting
+	waitingSubtreeChangeContinuationReady
+	waitingSubtreeChangeContinued
+)
+
+func (change *waitingSubtreeChange) Apply(
 	disposition runs.WaitingSubtreeDisposition,
 ) error {
-	if prepared == nil || prepared.state == nil || prepared.plan == nil {
-		return errors.New("turn: commit waiting subtree cancellation: incomplete application operation")
+	if change == nil || change.state == nil || change.plan == nil {
+		return errors.New("turn: apply waiting subtree cancellation: incomplete application operation")
 	}
-	prepared.mu.Lock()
-	defer prepared.mu.Unlock()
-	if prepared.settled {
-		return nil
+	change.mu.Lock()
+	defer change.mu.Unlock()
+	if change.phase != waitingSubtreeChangePrepared {
+		return errors.New("turn: waiting subtree cancellation was already applied")
 	}
 	switch disposition {
-	case runs.WaitingSubtreeRemainsInterrupted, runs.WaitingSubtreeContinues:
+	case runs.WaitingSubtreeStaysWaiting, runs.WaitingSubtreeResumesRunning:
 	default:
 		return fmt.Errorf("turn: unknown waiting subtree disposition %d", disposition)
 	}
 
-	prepared.state.lifecycleMu.Lock()
-	if err := prepared.plan.Apply(ctx); err != nil {
-		prepared.state.lifecycleMu.Unlock()
+	change.state.lifecycleMu.Lock()
+	if err := change.plan.Apply(change.state.ctx); err != nil {
+		change.state.lifecycleMu.Unlock()
 		return fmt.Errorf(
 			"turn: apply waiting subtree runtime transition for turn %q: %w",
-			prepared.state.handle.TurnID,
+			change.state.handle.TurnID,
 			err,
 		)
 	}
-	prepared.settled = true
-	if disposition == runs.WaitingSubtreeRemainsInterrupted {
-		prepared.state.commitWaitingMutation(false)
-		prepared.state.lifecycleMu.Unlock()
+	if disposition == runs.WaitingSubtreeStaysWaiting {
+		change.phase = waitingSubtreeChangeWaiting
+		change.state.commitWaitingMutation(false)
+		change.state.lifecycleMu.Unlock()
 		return nil
 	}
-	if err := prepared.plan.Continue(prepared.state.ctx); err != nil {
+	change.phase = waitingSubtreeChangeContinuationReady
+	change.state.lifecycleMu.Unlock()
+	return nil
+}
+
+func (change *waitingSubtreeChange) Continue(context.Context) error {
+	if change == nil || change.state == nil || change.plan == nil {
+		return errors.New("turn: continue waiting subtree cancellation: incomplete application operation")
+	}
+	change.mu.Lock()
+	defer change.mu.Unlock()
+	if change.phase != waitingSubtreeChangeContinuationReady {
+		return errors.New("turn: waiting subtree cancellation is not ready to continue")
+	}
+	change.phase = waitingSubtreeChangeContinued
+	change.state.lifecycleMu.Lock()
+	if err := change.plan.Continue(change.state.ctx); err != nil {
 		continuationErr := fmt.Errorf(
 			"turn: continue applied waiting subtree transition for turn %q: %w",
-			prepared.state.handle.TurnID,
+			change.state.handle.TurnID,
 			err,
 		)
-		prepared.state.commitWaitingMutation(true)
-		prepared.state.lifecycleMu.Unlock()
-		finishErr := prepared.controller.finishExecutionError(
-			prepared.state,
+		change.state.commitWaitingMutation(true)
+		change.state.lifecycleMu.Unlock()
+		finishErr := change.controller.finishExecutionError(
+			change.state,
 			problemFromError(continuationErr),
 			continuationErr,
 		)
 		return errors.Join(continuationErr, finishErr)
 	}
-	if !prepared.state.commitWaitingMutation(true) {
+	if !change.state.commitWaitingMutation(true) {
 		// Shutdown claimed the turn while the durable transaction committed.
 		// Its lifecycle owner will cancel the now-stable runtime tree.
-		prepared.state.lifecycleMu.Unlock()
+		change.state.lifecycleMu.Unlock()
 		return nil
 	}
-	prepared.state.lifecycleMu.Unlock()
-	go prepared.controller.drive(prepared.state)
+	change.state.lifecycleMu.Unlock()
+	go change.controller.drive(change.state)
 	return nil
 }
 
-func (prepared *preparedWaitingSubtreeCancellation) Abort() {
-	if prepared == nil || prepared.state == nil || prepared.plan == nil {
-		return
+func (change *waitingSubtreeChange) Discard() error {
+	if change == nil || change.state == nil || change.plan == nil {
+		return errors.New("turn: discard waiting subtree cancellation: incomplete application operation")
 	}
-	prepared.mu.Lock()
-	defer prepared.mu.Unlock()
-	if prepared.settled {
-		return
+	change.mu.Lock()
+	defer change.mu.Unlock()
+	if change.phase != waitingSubtreeChangePrepared {
+		return nil
 	}
-	prepared.state.lifecycleMu.Lock()
-	prepared.state.abortWaitingMutation()
-	prepared.state.lifecycleMu.Unlock()
-	prepared.settled = true
+	change.state.lifecycleMu.Lock()
+	change.state.abortWaitingMutation()
+	change.state.lifecycleMu.Unlock()
+	return nil
 }
 
 func cancelTurnProcess(ctx context.Context, process agentexec.TurnProcess) error {

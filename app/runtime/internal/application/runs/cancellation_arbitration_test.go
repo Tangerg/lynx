@@ -109,8 +109,8 @@ func TestWaitingChildAndRootCancellationHaveOneApplicationOwner(t *testing.T) {
 				t.Fatalf("losing Cancel(%q) error = %v, want ErrSessionBusy", command.RunID, err)
 			}
 		}
-		if prepared.committed != 0 {
-			t.Fatalf("prepared application operation committed before durable release: %d", prepared.committed)
+		if prepared.applied != 0 {
+			t.Fatalf("prepared application operation applied before durable release: %d", prepared.applied)
 		}
 
 		closeTestBarrier(release)
@@ -121,11 +121,11 @@ func TestWaitingChildAndRootCancellationHaveOneApplicationOwner(t *testing.T) {
 		if outcome.result.Run.ID != plan.target.run.ID {
 			t.Fatalf("winning child result = %+v, want %q", outcome.result, plan.target.run.ID)
 		}
-		if len(baseEffects.waitingCancels) != 1 || prepared.committed != 1 {
+		if len(baseEffects.waitingCancels) != 1 || prepared.applied != 1 {
 			t.Fatalf(
 				"winning child commits = durable:%d runtime:%d, want 1/1",
 				len(baseEffects.waitingCancels),
-				prepared.committed,
+				prepared.applied,
 			)
 		}
 	})
@@ -176,11 +176,11 @@ func TestWaitingChildAndRootCancellationHaveOneApplicationOwner(t *testing.T) {
 				t.Fatalf("losing Cancel(%q) error = %v, want ErrSessionBusy", command.RunID, err)
 			}
 		}
-		if prepared.committed != 0 || len(effects.waitingCancels) != 0 {
+		if prepared.applied != 0 || len(effects.waitingCancels) != 0 {
 			t.Fatalf(
 				"losing child mutated state: durable=%d runtime=%d",
 				len(effects.waitingCancels),
-				prepared.committed,
+				prepared.applied,
 			)
 		}
 
@@ -302,11 +302,11 @@ func TestWaitingChildCancellationAndResumeHaveOneApplicationOwner(t *testing.T) 
 		}); !errors.Is(err, ErrSessionBusy) {
 			t.Fatalf("losing child Cancel error = %v, want ErrSessionBusy", err)
 		}
-		if prepared.committed != 0 || len(baseEffects.waitingCancels) != 0 {
+		if prepared.applied != 0 || len(baseEffects.waitingCancels) != 0 {
 			t.Fatalf(
 				"losing child mutated state: durable=%d runtime=%d",
 				len(baseEffects.waitingCancels),
-				prepared.committed,
+				prepared.applied,
 			)
 		}
 

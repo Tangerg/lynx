@@ -37,15 +37,13 @@ type fakePreparedWaitingCancellation struct {
 	canceled      []string
 	interruptions []MemberInterruption
 	checkpoint    *ExecutorCheckpoint
-	commitErr     error
-	// settleOnCommitError models the executor's post-commit Continue
-	// failure: the planned runtime transition is already applied, so Abort must
-	// be a no-op while the opened segment error-terminalizes.
-	settleOnCommitError bool
+	applyErr      error
+	continueErr   error
 
 	disposition WaitingSubtreeDisposition
-	committed   int
-	aborted     int
+	applied     int
+	continued   int
+	discarded   int
 	settled     bool
 }
 
@@ -58,7 +56,7 @@ func (prepared *fakePreparedWaitingCancellation) value() PreparedWaitingSubtreeC
 		CanceledMemberIDs:    slices.Clone(prepared.canceled),
 		PendingInterruptions: slices.Clone(prepared.interruptions),
 		Checkpoint:           checkpoint,
-		Mutation:             prepared,
+		Change:               prepared,
 	}
 }
 
@@ -91,35 +89,40 @@ func TestPrepareWaitingCancellationRejectsCheckpointBoundToDifferentApplicationF
 			if !errors.Is(err, ErrInvalidExecutorCheckpoint) {
 				t.Fatalf("prepare error = %v, want ErrInvalidExecutorCheckpoint", err)
 			}
-			if prepared.committed != 0 || prepared.aborted != 0 {
-				t.Fatalf("mutation touched before ownership validation: committed=%d aborted=%d", prepared.committed, prepared.aborted)
+			if prepared.applied != 0 || prepared.discarded != 0 {
+				t.Fatalf("mutation touched before ownership validation: applied=%d discarded=%d", prepared.applied, prepared.discarded)
 			}
 		})
 	}
 }
 
-func (prepared *fakePreparedWaitingCancellation) Commit(
-	_ context.Context,
+func (prepared *fakePreparedWaitingCancellation) Apply(
 	disposition WaitingSubtreeDisposition,
 ) error {
-	prepared.committed++
+	prepared.applied++
 	prepared.disposition = disposition
-	if prepared.commitErr != nil {
-		if prepared.settleOnCommitError {
-			prepared.settled = true
-		}
-		return prepared.commitErr
+	if prepared.applyErr != nil {
+		return prepared.applyErr
 	}
 	prepared.settled = true
 	return nil
 }
 
-func (prepared *fakePreparedWaitingCancellation) Abort() {
-	if prepared.settled {
-		return
+func (prepared *fakePreparedWaitingCancellation) Continue(context.Context) error {
+	if !prepared.settled || prepared.disposition != WaitingSubtreeResumesRunning {
+		return errors.New("fake waiting subtree cancellation was not applied for continuation")
 	}
-	prepared.aborted++
+	prepared.continued++
+	return prepared.continueErr
+}
+
+func (prepared *fakePreparedWaitingCancellation) Discard() error {
+	if prepared.settled {
+		return nil
+	}
+	prepared.discarded++
 	prepared.settled = true
+	return nil
 }
 
 func TestPrepareWaitingCancellationKeepsSurvivingExternalBoundary(t *testing.T) {
@@ -297,14 +300,14 @@ func TestCancelWaitingChildCommitsReducedPendingBeforeRuntimeTransition(t *testi
 		result.RootRun.State != run.Waiting {
 		t.Fatalf("Cancel result = %+v, want canceled child and waiting root", result)
 	}
-	if prepared.committed != 1 ||
-		prepared.disposition != WaitingSubtreeRemainsInterrupted ||
-		prepared.aborted != 0 {
+	if prepared.applied != 1 ||
+		prepared.disposition != WaitingSubtreeStaysWaiting ||
+		prepared.discarded != 0 {
 		t.Fatalf(
-			"prepared settlement = commits:%d disposition:%d aborts:%d",
-			prepared.committed,
+			"prepared settlement = applies:%d disposition:%d discards:%d",
+			prepared.applied,
 			prepared.disposition,
-			prepared.aborted,
+			prepared.discarded,
 		)
 	}
 	if len(effects.waitingCancels) != 1 || effects.waitingCancels[0].RemainingPending == nil {
@@ -315,12 +318,12 @@ func TestCancelWaitingChildCommitsReducedPendingBeforeRuntimeTransition(t *testi
 	}
 }
 
-func TestCancelWaitingChildRecoversCommittedTreeWhenRuntimeApplyFails(t *testing.T) {
+func TestCancelWaitingChildRestoresCommittedTreeWhenRuntimeApplyFails(t *testing.T) {
 	plan := waitingCancellationPlan(t, "run_a", false)
 	applyErr := errors.New("runtime apply failed")
 	prepared := &fakePreparedWaitingCancellation{
-		canceled:  []string{"member_a", "member_grandchild"},
-		commitErr: applyErr,
+		canceled: []string{"member_a", "member_grandchild"},
+		applyErr: applyErr,
 		interruptions: []MemberInterruption{{
 			MemberID:  "member_b",
 			RequestID: "request_b",
@@ -343,33 +346,82 @@ func TestCancelWaitingChildRecoversCommittedTreeWhenRuntimeApplyFails(t *testing
 	sessions.operations = &operations
 	control.operations = &operations
 
-	_, err := coordinator.Cancel(t.Context(), CancelCommand{
+	result, err := coordinator.Cancel(t.Context(), CancelCommand{
 		RunID:         plan.target.run.ID,
 		Reason:        "stop delegated branch",
 		AllowChildRun: true,
 	})
-	if !errors.Is(err, applyErr) {
-		t.Fatalf("Cancel error = %v, want runtime apply failure", err)
+	if err != nil {
+		t.Fatalf("Cancel after exact waiting-tree recovery: %v", err)
 	}
-	if prepared.committed != 1 || prepared.aborted != 1 {
+	if prepared.applied != 1 || prepared.discarded != 1 {
 		t.Fatalf(
-			"prepared settlement = commits:%d aborts:%d, want 1/1",
-			prepared.committed,
-			prepared.aborted,
+			"prepared settlement = applies:%d discards:%d, want 1/1",
+			prepared.applied,
+			prepared.discarded,
 		)
 	}
-	if sessions.lostRunID != plan.root.run.ID {
-		t.Fatalf("recovered Run = %q, want root %q", sessions.lostRunID, plan.root.run.ID)
+	if sessions.lostRunID != "" {
+		t.Fatalf("recovered waiting tree was incorrectly marked lost as %q", sessions.lostRunID)
 	}
 	if !reflect.DeepEqual(control.released, []ExecutorRef{plan.executor}) {
 		t.Fatalf("released execution = %+v, want [%+v]", control.released, plan.executor)
 	}
-	if !slices.Equal(operations, []string{"durable.lost", "executor.release"}) {
-		t.Fatalf("recovery operations = %v, want durable.lost then executor.release", operations)
+	if len(control.restoreWaiting) != 1 ||
+		control.restoreWaiting[0].Checkpoint.RootMemberID != plan.pending.Continuations[len(plan.pending.Continuations)-1].MemberID {
+		t.Fatalf("restored waiting continuation = %+v, want committed resulting checkpoint", control.restoreWaiting)
+	}
+	if result.Run.ID != plan.target.run.ID || result.RootRun == nil || result.RootRun.ID != plan.root.run.ID {
+		t.Fatalf("Cancel result = %+v, want committed child/root result", result)
+	}
+	if !slices.Equal(operations, []string{"executor.release", "executor.restore_waiting"}) {
+		t.Fatalf("recovery operations = %v, want release then exact restore", operations)
 	}
 }
 
-func TestCancelWaitingChildRestoresParkedExecutorAfterRuntimeRestart(t *testing.T) {
+func TestCancelWaitingChildMarksRunLostOnlyWhenCommittedCheckpointCannotRestore(t *testing.T) {
+	plan := waitingCancellationPlan(t, "run_a", false)
+	applyErr := errors.New("runtime apply failed")
+	restoreErr := errors.New("committed checkpoint is corrupt")
+	prepared := &fakePreparedWaitingCancellation{
+		canceled: []string{"member_a", "member_grandchild"},
+		applyErr: applyErr,
+		interruptions: []MemberInterruption{{
+			MemberID: "member_b", RequestID: "request_b", Interrupt: waitingQuestionPrompt(),
+		}},
+	}
+	effects := &fakeEffects{waitingResult: WaitingSubtreeCancellationResult{
+		TargetRun: canceledWaitingRun(
+			plan.target.run,
+			"stop delegated branch",
+			time.Date(2026, 7, 30, 2, 3, 4, 0, time.UTC),
+		),
+		RootRun: plan.root.run,
+	}}
+	coordinator, control := waitingCancellationCoordinator(t, plan, prepared, effects, &fakeExecutor{})
+	sessions := coordinator.sessionReader.(*fakeRunSessions)
+	var operations []string
+	sessions.operations = &operations
+	control.operations = &operations
+	control.restoreErr = restoreErr
+
+	_, err := coordinator.Cancel(t.Context(), CancelCommand{
+		RunID: plan.target.run.ID, Reason: "stop delegated branch", AllowChildRun: true,
+	})
+	if !errors.Is(err, applyErr) || !errors.Is(err, restoreErr) {
+		t.Fatalf("Cancel error = %v, want apply and restore failures", err)
+	}
+	if sessions.lostRunID != plan.root.run.ID {
+		t.Fatalf("lost Run = %q, want root %q", sessions.lostRunID, plan.root.run.ID)
+	}
+	if !slices.Equal(operations, []string{
+		"executor.release", "executor.restore_waiting", "durable.lost",
+	}) {
+		t.Fatalf("recovery operations = %v, want release, restore, then durable lost", operations)
+	}
+}
+
+func TestCancelWaitingChildPassesDurableTreeToExecutorAfterRuntimeRestart(t *testing.T) {
 	plan := waitingCancellationPlan(t, "run_a", false)
 	prepared := &fakePreparedWaitingCancellation{
 		canceled: []string{"member_a", "member_grandchild"},
@@ -390,30 +442,36 @@ func TestCancelWaitingChildRestoresParkedExecutorAfterRuntimeRestart(t *testing.
 		},
 	}
 	coordinator, control := waitingCancellationCoordinator(t, plan, prepared, effects, &fakeExecutor{})
-	control.prepared = ExecutorRef{}
-	control.prepareErr = ErrExecutorNotLive
-	control.rehydrated = plan.executor
+	originalPrepare := control.prepareWaiting
+	var request WaitingSubtreeCancellationRequest
+	control.prepareWaiting = func(
+		candidate WaitingSubtreeCancellationRequest,
+	) (PreparedWaitingSubtreeCancellation, error) {
+		request = candidate
+		return originalPrepare(candidate)
+	}
 
 	if _, err := coordinator.Cancel(t.Context(), CancelCommand{
 		RunID:         plan.target.run.ID,
 		Reason:        "stop after restart",
 		AllowChildRun: true,
 	}); err != nil {
-		t.Fatalf("Cancel rehydrated waiting child: %v", err)
+		t.Fatalf("Cancel restored waiting child: %v", err)
 	}
 	rootContinuation, _ := plan.pending.RootContinuation()
-	if control.rehydrateReq.SessionID != plan.pending.SessionID ||
-		control.rehydrateReq.ExecutorID != plan.pending.ExecutorID ||
-		control.rehydrateReq.MemberID != rootContinuation.MemberID ||
-		control.rehydrateReq.CWD != "/work" ||
-		control.rehydrateReq.ModelSelection != rootContinuation.ModelSelection {
-		t.Fatalf("rehydrate request = %+v, want durable root continuation", control.rehydrateReq)
+	continuation := request.Continuation
+	if continuation.SessionID != plan.pending.SessionID ||
+		continuation.ExecutorID != plan.pending.ExecutorID ||
+		continuation.Checkpoint.RootMemberID != rootContinuation.MemberID ||
+		continuation.Checkpoint.Scope.CWD != "/work" ||
+		continuation.Checkpoint.ModelSelection != rootContinuation.ModelSelection {
+		t.Fatalf("waiting subtree request = %+v, want durable root continuation", request)
 	}
-	if prepared.committed != 1 ||
-		prepared.disposition != WaitingSubtreeRemainsInterrupted {
+	if prepared.applied != 1 ||
+		prepared.disposition != WaitingSubtreeStaysWaiting {
 		t.Fatalf(
-			"rehydrated prepared settlement = commits:%d disposition:%d",
-			prepared.committed,
+			"restored prepared settlement = applies:%d disposition:%d",
+			prepared.applied,
 			prepared.disposition,
 		)
 	}
@@ -471,14 +529,16 @@ func TestCancelWaitingChildOpensContinuationWhenFinalBoundaryIsRemoved(t *testin
 		result.RootRun.ActiveSegmentID != "seg_root_continuation" {
 		t.Fatalf("Cancel result root = %+v, want opened continuation", result.RootRun)
 	}
-	if prepared.committed != 1 ||
-		prepared.disposition != WaitingSubtreeContinues ||
-		prepared.aborted != 0 {
+	if prepared.applied != 1 ||
+		prepared.disposition != WaitingSubtreeResumesRunning ||
+		prepared.continued != 1 ||
+		prepared.discarded != 0 {
 		t.Fatalf(
-			"prepared settlement = commits:%d disposition:%d aborts:%d",
-			prepared.committed,
+			"prepared settlement = applies:%d disposition:%d continues:%d discards:%d",
+			prepared.applied,
 			prepared.disposition,
-			prepared.aborted,
+			prepared.continued,
+			prepared.discarded,
 		)
 	}
 	if len(effects.waitingCancels) != 1 {
@@ -497,9 +557,8 @@ func TestCancelWaitingChildTerminalizesCommittedTreeWhenActivationFails(t *testi
 	plan := waitingCancellationPlan(t, "run_a", true)
 	continueErr := errors.New("continue failed")
 	prepared := &fakePreparedWaitingCancellation{
-		canceled:            []string{"member_a", "member_grandchild"},
-		commitErr:           continueErr,
-		settleOnCommitError: true,
+		canceled:    []string{"member_a", "member_grandchild"},
+		continueErr: continueErr,
 	}
 	rootAfterCommit := plan.root.run
 	rootAfterCommit.State = run.Running
@@ -553,15 +612,17 @@ func TestCancelWaitingChildTerminalizesCommittedTreeWhenActivationFails(t *testi
 	if err := coordinator.AwaitShutdown(shutdownCtx); err != nil {
 		t.Fatalf("await failed continuation cleanup: %v", err)
 	}
-	if prepared.committed != 1 ||
-		prepared.disposition != WaitingSubtreeContinues ||
-		prepared.aborted != 0 {
+	if prepared.applied != 1 ||
+		prepared.disposition != WaitingSubtreeResumesRunning ||
+		prepared.continued != 1 ||
+		prepared.discarded != 0 {
 		t.Fatalf(
-			"prepared settlement = commits:%d disposition:%d aborts:%d, want 1/%d/0",
-			prepared.committed,
+			"prepared settlement = applies:%d disposition:%d continues:%d discards:%d, want 1/%d/1/0",
+			prepared.applied,
 			prepared.disposition,
-			prepared.aborted,
-			WaitingSubtreeContinues,
+			prepared.continued,
+			prepared.discarded,
+			WaitingSubtreeResumesRunning,
 		)
 	}
 	if len(effects.waitingCancels) != 1 {
@@ -616,11 +677,11 @@ func TestCancelWaitingChildAbortsPreparedOperationWhenDurableCommitFails(t *test
 	if !errors.Is(err, commitErr) {
 		t.Fatalf("Cancel error = %v, want durable commit failure", err)
 	}
-	if prepared.committed != 0 || prepared.aborted != 1 {
+	if prepared.applied != 0 || prepared.discarded != 1 {
 		t.Fatalf(
-			"prepared settlement = commits:%d aborts:%d, want 0/1",
-			prepared.committed,
-			prepared.aborted,
+			"prepared settlement = applies:%d discards:%d, want 0/1",
+			prepared.applied,
+			prepared.discarded,
 		)
 	}
 	if hasActiveSession(coordinator, plan.pending.SessionID) {
@@ -645,14 +706,20 @@ func waitingCancellationCoordinator(
 	}
 	control := &fakeExecutionPorts{prepared: plan.executor}
 	control.prepareWaiting = func(
-		ref ExecutorRef,
-		memberID string,
+		request WaitingSubtreeCancellationRequest,
 	) (PreparedWaitingSubtreeCancellation, error) {
+		ref := ExecutorRef{
+			SessionID:  request.Continuation.SessionID,
+			ExecutorID: request.Continuation.ExecutorID,
+		}
 		if ref != plan.executor {
 			return PreparedWaitingSubtreeCancellation{}, errors.New("prepared the wrong execution")
 		}
-		if memberID != plan.target.memberID {
-			return PreparedWaitingSubtreeCancellation{}, errors.New("prepared the wrong process subtree")
+		if request.TargetMemberID != plan.target.memberID {
+			return PreparedWaitingSubtreeCancellation{}, errors.New("prepared the wrong executor member subtree")
+		}
+		if request.Reason == "" {
+			return PreparedWaitingSubtreeCancellation{}, errors.New("prepared without a cancellation reason")
 		}
 		return prepared.value(), nil
 	}
@@ -663,17 +730,17 @@ func waitingCancellationCoordinator(
 		},
 	}
 	coordinator := NewCoordinator(Dependencies{
-		Observations:  executor,
-		Releases:      control,
-		Continuation:  control,
-		LegacyWaiting: control,
-		RunningTrees:  control,
-		WaitingTrees:  control,
-		Session:       testSessionPorts(sessions),
-		Projection:    testProjectionPorts(effects),
-		Runs:          &fakeRunProjection{runs: runsByID},
-		Items:         &fakeItemProjection{items: waitingCancellationItems(plan)},
-		Admissions:    new(admission.Gate),
+		Observations:                       executor,
+		Releases:                           control,
+		Continuation:                       control,
+		WaitingRestorer:                    control,
+		RunningSubtreeCanceler:             control,
+		WaitingSubtreeCancellationPreparer: control,
+		Session:                            testSessionPorts(sessions),
+		Projection:                         testProjectionPorts(effects),
+		Runs:                               &fakeRunProjection{runs: runsByID},
+		Items:                              &fakeItemProjection{items: waitingCancellationItems(plan)},
+		Admissions:                         new(admission.Gate),
 		Now: func() time.Time {
 			return time.Date(2026, 7, 30, 2, 3, 4, 0, time.UTC)
 		},

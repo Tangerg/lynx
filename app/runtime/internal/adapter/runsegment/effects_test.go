@@ -22,6 +22,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/toolresult"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 )
 
 var (
@@ -241,6 +242,50 @@ func TestCommitOpeningAdmitsAndProjectsInOneTransaction(t *testing.T) {
 	}
 	if tx.calls != 1 || len(runState.admitted) != 1 || len(stores.transcript.items) != 1 {
 		t.Fatalf("opening tx=%d admitted=%d items=%d, want 1/1/1", tx.calls, len(runState.admitted), len(stores.transcript.items))
+	}
+}
+
+func TestCommitStartedChildRunOwnsOneTransactionBoundary(t *testing.T) {
+	startedAt := time.Unix(2, 0).UTC()
+	reservation := runs.ChildRunStartReservation{
+		SessionID:  "ses_1",
+		ExecutorID: "executor_1",
+		Member: runs.ExecutorMember{
+			MemberID: "member_child", ParentID: "member_root", SpawnCallID: "call_1",
+		},
+		Binding: runs.ChildRunBinding{
+			MemberID: "member_child", RunID: "run_child", ParentRunID: "run_root",
+		},
+		SegmentID:       "segment_child",
+		SpawnedByItemID: "item_delegate",
+		RootRunID:       "run_root",
+		StartedAt:       startedAt,
+	}
+	draft := run.RunDraft{
+		RunID: "run_child", SessionID: "ses_1", SegmentID: "segment_child",
+		SpawnedByItemID: "item_delegate", ParentRunID: "run_root", RootRunID: "run_root",
+		CreatedAt: startedAt,
+	}
+	tx := &nonReentrantTx{}
+	childStarts := &fakeChildRunStarts{}
+	runState := &fakeRunState{}
+	effects := testEffects(&fakeStores{transcript: &fakeTranscript{}}, Config{
+		RunState: runState, ChildRunStarts: childStarts, Tx: tx.run,
+	})
+
+	if err := effects.CommitStartedChildRun(t.Context(), reservation, runs.OpeningCommit{
+		Admit: &draft,
+	}); err != nil {
+		t.Fatalf("CommitStartedChildRun: %v", err)
+	}
+	if tx.calls != 1 {
+		t.Fatalf("transaction entries = %d, want one composite boundary", tx.calls)
+	}
+	if childStarts.conclusions != 1 || len(runState.admitted) != 1 {
+		t.Fatalf(
+			"conclusions=%d admitted=%d, want one reservation conclusion and one admission",
+			childStarts.conclusions, len(runState.admitted),
+		)
 	}
 }
 
@@ -755,6 +800,36 @@ type fakeTx struct{ calls int }
 func (t *fakeTx) run(ctx context.Context, fn func(context.Context) error) error {
 	t.calls++
 	return fn(ctx)
+}
+
+type nonReentrantTx struct {
+	calls  int
+	active bool
+}
+
+func (t *nonReentrantTx) run(ctx context.Context, fn func(context.Context) error) error {
+	t.calls++
+	if t.active {
+		return errors.New("nested transaction")
+	}
+	t.active = true
+	defer func() { t.active = false }()
+	return fn(ctx)
+}
+
+type fakeChildRunStarts struct{ conclusions int }
+
+func (*fakeChildRunStarts) Reserve(context.Context, sqlite.ChildRunStartReservationRecord) error {
+	return nil
+}
+
+func (store *fakeChildRunStarts) Conclude(
+	context.Context,
+	sqlite.ChildRunStartReservationRecord,
+	sqlite.ChildRunStartConclusion,
+) (bool, error) {
+	store.conclusions++
+	return true, nil
 }
 
 type fakeTranscript struct {

@@ -290,6 +290,13 @@ func shutdownRemaining(targets []*shutdownTarget) int {
 func shutdownAttemptErrors(targets []*shutdownTarget, attempts []*shutdown.Attempt) error {
 	var errs []error
 	for i, attempt := range attempts {
+		// The turn completion boundary is authoritative. A caller-scoped attempt
+		// may finish with its old deadline at the same instant another lifecycle
+		// owner closes the turn; once done is observable, that attempt error no
+		// longer describes an unreleased resource and must not poison a later join.
+		if channelClosed(targets[i].state.done) {
+			continue
+		}
 		err, complete := attempt.Result()
 		if complete && err != nil && !errors.Is(err, ErrTurnNotFound) {
 			errs = append(errs, fmt.Errorf(

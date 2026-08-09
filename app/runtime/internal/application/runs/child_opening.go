@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"sync"
 	"time"
 )
 
@@ -19,13 +18,13 @@ import (
 type ChildOpeningRequest struct {
 	executorPayloadBase
 	StartedAt time.Time
-	exchange  *childOpeningExchange
+	exchange  *executorRequest[ChildRunBinding]
 }
 
 // ChildOpeningConfirmation is the executor's read-only side of one child
 // opening transaction.
 type ChildOpeningConfirmation struct {
-	exchange *childOpeningExchange
+	exchange *executorRequest[ChildRunBinding]
 }
 
 // ChildRunBinding is the application identity assigned to one opaque executor
@@ -114,7 +113,7 @@ func ValidateChildRunBindings(rootRunID string, bindings []ChildRunBinding) erro
 
 // NewChildOpeningRequest creates one single-use child opening handshake.
 func NewChildOpeningRequest(startedAt time.Time) (ChildOpeningRequest, ChildOpeningConfirmation) {
-	exchange := &childOpeningExchange{result: make(chan childOpeningResult, 1)}
+	exchange := newExecutorRequest[ChildRunBinding]()
 	return ChildOpeningRequest{StartedAt: startedAt, exchange: exchange},
 		ChildOpeningConfirmation{exchange: exchange}
 }
@@ -154,7 +153,7 @@ func (request ChildOpeningRequest) complete(binding ChildRunBinding, err error) 
 		err = errors.Join(err, contractErr)
 		binding = ChildRunBinding{}
 	}
-	if completionErr := request.exchange.complete(childOpeningResult{binding: binding, err: err}); completionErr != nil {
+	if completionErr := request.exchange.complete(binding, err); completionErr != nil {
 		return errors.Join(contractErr, completionErr)
 	}
 	return contractErr
@@ -172,95 +171,4 @@ func (confirmation ChildOpeningConfirmation) Await(ctx context.Context) (ChildRu
 		ctx = context.Background()
 	}
 	return confirmation.exchange.await(ctx)
-}
-
-type childOpeningState uint8
-
-const (
-	childOpeningPending childOpeningState = iota
-	childOpeningClaimed
-	childOpeningCompleted
-	childOpeningCanceled
-)
-
-type childOpeningExchange struct {
-	mu     sync.Mutex
-	state  childOpeningState
-	result chan childOpeningResult
-}
-
-type childOpeningResult struct {
-	binding ChildRunBinding
-	err     error
-}
-
-func (exchange *childOpeningExchange) claim() bool {
-	exchange.mu.Lock()
-	defer exchange.mu.Unlock()
-	if exchange.state != childOpeningPending {
-		return false
-	}
-	exchange.state = childOpeningClaimed
-	return true
-}
-
-func (exchange *childOpeningExchange) complete(result childOpeningResult) error {
-	exchange.mu.Lock()
-	if exchange.state != childOpeningClaimed {
-		state := exchange.state
-		exchange.mu.Unlock()
-		return fmt.Errorf(
-			"runs: complete child opening confirmation in %s state; want claimed",
-			state,
-		)
-	}
-	exchange.state = childOpeningCompleted
-	exchange.mu.Unlock()
-	exchange.result <- result
-	return nil
-}
-
-func (exchange *childOpeningExchange) await(ctx context.Context) (ChildRunBinding, error) {
-	select {
-	case result := <-exchange.result:
-		return result.binding, result.err
-	case <-ctx.Done():
-	}
-
-	exchange.mu.Lock()
-	switch exchange.state {
-	case childOpeningPending:
-		exchange.state = childOpeningCanceled
-		exchange.mu.Unlock()
-		return ChildRunBinding{}, ctx.Err()
-	case childOpeningClaimed:
-		exchange.mu.Unlock()
-		result := <-exchange.result
-		return result.binding, result.err
-	case childOpeningCompleted:
-		exchange.mu.Unlock()
-		result := <-exchange.result
-		return result.binding, result.err
-	case childOpeningCanceled:
-		exchange.mu.Unlock()
-		return ChildRunBinding{}, ctx.Err()
-	default:
-		exchange.mu.Unlock()
-		return ChildRunBinding{}, errors.New("runs: child opening confirmation has an invalid state")
-	}
-}
-
-func (state childOpeningState) String() string {
-	switch state {
-	case childOpeningPending:
-		return "pending"
-	case childOpeningClaimed:
-		return "claimed"
-	case childOpeningCompleted:
-		return "completed"
-	case childOpeningCanceled:
-		return "canceled"
-	default:
-		return "invalid"
-	}
 }

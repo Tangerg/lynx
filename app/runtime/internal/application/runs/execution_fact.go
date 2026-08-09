@@ -75,8 +75,8 @@ func (event ExecutorEvent) Validate() error {
 
 // ExecutorPayload is the closed family carried by the ordered executor stream.
 // Most values are reducible [ExecutionFact] facts. A control handshake such as
-// [ChildOpeningRequest] shares the stream only when its ordering relative to
-// those facts is itself part of correctness.
+// control requests share the stream only when their ordering relative to those
+// facts is itself part of correctness.
 type ExecutorPayload interface {
 	executorPayload()
 }

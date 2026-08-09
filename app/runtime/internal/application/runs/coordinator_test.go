@@ -16,6 +16,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	corechat "github.com/Tangerg/lynx/core/chat"
 )
@@ -62,6 +63,63 @@ type acknowledgedChildExecutor struct {
 	confirmation ChildOpeningConfirmation
 	childStarted chan struct{}
 }
+
+type acknowledgedNativeChildExecutor struct {
+	rootMember         ExecutorMember
+	childMember        ExecutorMember
+	reservation        ChildRunReservationRequest
+	reservationReceipt ChildRunReservationReceipt
+}
+
+func (e *acknowledgedNativeChildExecutor) Observe(
+	ctx context.Context,
+	_ ExecutorRef,
+) (iter.Seq[ExecutorEvent], error) {
+	return func(yield func(ExecutorEvent) bool) {
+		if !yield(ExecutorEvent{
+			Member: e.rootMember,
+			Payload: ToolCallStarted{
+				CallID: "delegate-call", ModelCallSequence: 1,
+				SourceCallID: e.childMember.SpawnCallID, ToolCallIndex: 0,
+				ToolName: "delegate_task", Arguments: `{"summary":"child"}`,
+				SafetyClass: tool.SafetyClassExec,
+			},
+		}) || !yield(ExecutorEvent{Member: e.childMember, Payload: e.reservation}) {
+			return
+		}
+		binding, err := e.reservationReceipt.Await(ctx)
+		if err != nil {
+			return
+		}
+		outcome, receipt := NewChildRunStartOutcomeRequest(binding, ChildRunStarted)
+		if !yield(ExecutorEvent{Member: e.childMember, Payload: outcome}) || receipt.Await(ctx) != nil {
+			return
+		}
+		// A fresh request carrying the same conclusive result proves pump-level
+		// idempotence rather than merely re-reading one receipt.
+		replay, replayReceipt := NewChildRunStartOutcomeRequest(binding, ChildRunStarted)
+		if !yield(ExecutorEvent{Member: e.childMember, Payload: replay}) || replayReceipt.Await(ctx) != nil {
+			return
+		}
+		if !yield(ExecutorEvent{
+			Member: e.childMember, Payload: SegmentEnded{Reason: run.OutcomeCompleted},
+		}) {
+			return
+		}
+		result := tool.StringResult(`{"reply":"done"}`)
+		if !yield(ExecutorEvent{
+			Member: e.rootMember,
+			Payload: ToolCallFinished{
+				CallID: "delegate-call", Arguments: `{"summary":"child"}`, Result: &result,
+			},
+		}) {
+			return
+		}
+		yield(ExecutorEvent{Member: e.rootMember, Payload: SegmentEnded{Reason: run.OutcomeCompleted}})
+	}, nil
+}
+
+func (*acknowledgedNativeChildExecutor) Release(context.Context, ExecutorRef) error { return nil }
 
 type cancellableChildExecutor struct {
 	rootMember      ExecutorMember
@@ -244,6 +302,75 @@ type fakeEffects struct {
 	finishStarted   chan<- struct{}
 	finishRelease   <-chan struct{}
 	mutateClaim     func(*ClaimedResume)
+	childStarts     map[string]ChildRunStartReservation
+	childOutcomes   map[string]ChildRunStartOutcome
+}
+
+func (e *fakeEffects) ReserveChildRunStart(
+	_ context.Context,
+	reservation ChildRunStartReservation,
+) error {
+	if err := reservation.Validate(); err != nil {
+		return err
+	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.childStarts == nil {
+		e.childStarts = make(map[string]ChildRunStartReservation)
+		e.childOutcomes = make(map[string]ChildRunStartOutcome)
+	}
+	memberID := reservation.Member.MemberID
+	if existing, found := e.childStarts[memberID]; found {
+		if existing != reservation {
+			return errors.New("fake child start reservation conflict")
+		}
+		return nil
+	}
+	e.childStarts[memberID] = reservation
+	return nil
+}
+
+func (e *fakeEffects) CommitStartedChildRun(
+	_ context.Context,
+	reservation ChildRunStartReservation,
+	opening OpeningCommit,
+) error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	memberID := reservation.Member.MemberID
+	if e.childStarts[memberID] != reservation {
+		return errors.New("fake started child has no reservation")
+	}
+	if outcome := e.childOutcomes[memberID]; outcome.valid() {
+		if outcome != ChildRunStarted {
+			return errors.New("fake child start outcome conflict")
+		}
+		return nil
+	}
+	e.childOutcomes[memberID] = ChildRunStarted
+	e.openings = append(e.openings, opening)
+	e.commits = append(e.commits, opening.Events...)
+	return nil
+}
+
+func (e *fakeEffects) AbortChildRunStart(
+	_ context.Context,
+	reservation ChildRunStartReservation,
+) error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	memberID := reservation.Member.MemberID
+	if e.childStarts[memberID] != reservation {
+		return errors.New("fake aborted child has no reservation")
+	}
+	if outcome := e.childOutcomes[memberID]; outcome.valid() {
+		if outcome != ChildRunStartAborted {
+			return errors.New("fake child start outcome conflict")
+		}
+		return nil
+	}
+	e.childOutcomes[memberID] = ChildRunStartAborted
+	return nil
 }
 
 func (e *fakeEffects) ClaimResume(_ context.Context, claim ResumeClaimCommit) (ClaimedResume, error) {
@@ -271,9 +398,11 @@ func (e *fakeEffects) ClaimResume(_ context.Context, claim ResumeClaimCommit) (C
 
 type completeTestProjectionPorts interface {
 	OpeningCommitter
+	ChildRunStartCommitter
 	ResumeClaimCommitter
 	EventCommitter
 	TreeBarrierCommitter
+	WaitingCheckpointReader
 	WaitingSubtreeCancellationCommitter
 	WorkspaceChangeNotifier
 	SegmentFinalizer
@@ -281,14 +410,27 @@ type completeTestProjectionPorts interface {
 
 func testProjectionPorts(ports completeTestProjectionPorts) ProjectionPorts {
 	return ProjectionPorts{
-		Openings:     ports,
-		ResumeClaims: ports,
-		Events:       ports,
-		Barriers:     ports,
-		WaitingEdits: ports,
-		Workspace:    ports,
-		Finalizer:    ports,
+		Openings:                    ports,
+		ChildStarts:                 ports,
+		ResumeClaims:                ports,
+		Events:                      ports,
+		Barriers:                    ports,
+		Checkpoints:                 ports,
+		WaitingSubtreeCancellations: ports,
+		Workspace:                   ports,
+		Finalizer:                   ports,
 	}
+}
+
+func (e *fakeEffects) ReadWaitingCheckpoint(
+	_ context.Context,
+	rootMemberID string,
+) (ExecutorCheckpoint, error) {
+	checkpoint := testExecutorCheckpoint()
+	checkpoint.RootMemberID = rootMemberID
+	checkpoint.Scope.CWD = "/work"
+	checkpoint.Scope.WorkspaceCWD = "/work"
+	return checkpoint, nil
 }
 
 type blockingChildOpeningEffects struct {
@@ -1182,6 +1324,50 @@ func TestCoordinatorAtomicallyAdmitsChildRunFromSpawningItem(t *testing.T) {
 		spawningItem.Tool == nil ||
 		spawningItem.Tool.Name != "delegate_task" {
 		t.Fatalf("parent spawning-item commit = %+v", parentCommit)
+	}
+}
+
+func TestCoordinatorPublishesNativeChildOnlyAfterConclusiveStart(t *testing.T) {
+	startedAt := time.Date(2026, 7, 13, 1, 2, 4, 0, time.UTC)
+	reservation, receipt := NewChildRunReservationRequest(startedAt)
+	rootMember := ExecutorMember{MemberID: "member_root"}
+	childMember := ExecutorMember{
+		MemberID: "member_child", ParentID: rootMember.MemberID, SpawnCallID: "provider_delegate",
+	}
+	executor := &acknowledgedNativeChildExecutor{
+		rootMember: rootMember, childMember: childMember,
+		reservation: reservation, reservationReceipt: receipt,
+	}
+	effects := &fakeEffects{}
+	coordinator := testCoordinator(executor, effects)
+	coordinator.newRunID = func() string { return "run_child" }
+	coordinator.newSegmentID = func() string { return "segment_child" }
+	spec := testSegment()
+	spec.Capabilities = run.RunCapabilities{ChildRuns: true}
+
+	stream, err := coordinator.openSegment(t.Context(), spec)
+	if err != nil {
+		t.Fatalf("openSegment: %v", err)
+	}
+	events := collectEvents(stream)
+	if len(events) < 4 {
+		t.Fatalf("published events = %d, want root and child lifecycle", len(events))
+	}
+	openings := effects.openingSnapshot()
+	if len(openings) != 2 || openings[1].Admit == nil {
+		t.Fatalf("openings = %#v, want one conclusive child admission", openings)
+	}
+	child := openings[1].Admit
+	if child.RunID != "run_child" || child.SegmentID != "segment_child" ||
+		!child.Capabilities.ChildRuns || !child.CreatedAt.Equal(startedAt) {
+		t.Fatalf("child draft = %+v", child)
+	}
+	effects.mu.Lock()
+	storedReservation := effects.childStarts[childMember.MemberID]
+	storedOutcome := effects.childOutcomes[childMember.MemberID]
+	effects.mu.Unlock()
+	if storedReservation.Binding.RunID != child.RunID || storedOutcome != ChildRunStarted {
+		t.Fatalf("child start ledger = (%+v, %v)", storedReservation, storedOutcome)
 	}
 }
 
@@ -2294,7 +2480,7 @@ func TestCoordinatorCancelContextSurvivesRequestContext(t *testing.T) {
 	executor := &fakeExecutor{block: true}
 	coordinator := testCoordinator(executor, &fakeEffects{})
 	control := &fakeExecutionPorts{}
-	coordinator.waitingTrees = control
+	coordinator.waitingSubtreeCancellationPreparer = control
 	sessions := &fakeRunSessions{}
 	coordinator.sessionReader = sessions
 	coordinator.sessionCreator = sessions

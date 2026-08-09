@@ -74,10 +74,10 @@ func (prepared *PreparedWaitingSubtreeCancellation) PausedProcessIDs() []Process
 }
 
 // Apply commits the exact prepared Framework state and releases the frozen
-// source tree. An error before the apply boundary discards the prepared change
-// and leaves the tree unchanged; after the boundary, finalization is bounded
-// and completes independently of ctx.
-func (prepared *PreparedWaitingSubtreeCancellation) Apply(ctx context.Context) error {
+// source tree. Prepare completed every fallible or cancelable operation, so
+// Apply deliberately has no context: once the caller's durable decision exists,
+// request cancellation cannot revoke this in-memory commit boundary.
+func (prepared *PreparedWaitingSubtreeCancellation) Apply() error {
 	if prepared == nil {
 		return ErrInvalidPreparedWaitingSubtreeCancellation
 	}
@@ -89,29 +89,6 @@ func (prepared *PreparedWaitingSubtreeCancellation) Apply(ctx context.Context) e
 	if !prepared.valid() {
 		prepared.resolveLocked()
 		return ErrInvalidPreparedWaitingSubtreeCancellation
-	}
-	ctx = contextOrBackground(ctx)
-	for _, change := range prepared.preparedStateChanges {
-		controller := controllerByID(prepared.quiescence.controllers, change.processID)
-		if controller == nil {
-			prepared.resolveLocked()
-			return ErrEngineQuiescenceUnavailable
-		}
-		response, err := (&Process{controller: controller}).request(ctx, processCommand{
-			kind: commandStagePreparedProcessState, preparedStateChange: change,
-		})
-		if err != nil {
-			prepared.resolveLocked()
-			return err
-		}
-		if !response.accepted {
-			prepared.resolveLocked()
-			return ErrEngineQuiescenceUnavailable
-		}
-	}
-	if err := ctx.Err(); err != nil {
-		prepared.resolveLocked()
-		return err
 	}
 	prepared.engine.replaceTreeChildWaits(
 		prepared.resultingSnapshot.RootID(), prepared.childWaitRegistrations,
@@ -244,8 +221,34 @@ func (engine *Engine) PrepareWaitingSubtreeCancellation(
 	if !prepared.valid() {
 		return nil, ErrInvalidPreparedWaitingSubtreeCancellation
 	}
+	if err := stagePreparedProcessStateChanges(ctx, quiescence, stateChanges); err != nil {
+		return nil, err
+	}
 	release = false
 	return prepared, nil
+}
+
+func stagePreparedProcessStateChanges(
+	ctx context.Context,
+	quiescence *treeQuiescence,
+	changes []*preparedProcessStateChange,
+) error {
+	for _, change := range changes {
+		controller := controllerByID(quiescence.controllers, change.processID)
+		if controller == nil {
+			return ErrEngineQuiescenceUnavailable
+		}
+		response, err := (&Process{controller: controller}).request(ctx, processCommand{
+			kind: commandStagePreparedProcessState, preparedStateChange: change,
+		})
+		if err != nil {
+			return err
+		}
+		if !response.accepted {
+			return ErrEngineQuiescenceUnavailable
+		}
+	}
+	return nil
 }
 
 func validWaitingSubtreeCancellationProjection(

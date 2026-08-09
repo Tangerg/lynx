@@ -61,7 +61,7 @@ func Open(ctx context.Context, path string) (*sql.DB, error) {
 // schemaEpoch identifies the one storage shape this build understands. It is an
 // epoch rather than a version because nothing connects two values: a database
 // stamped with any other number is refused, never upgraded.
-const schemaEpoch = 62
+const schemaEpoch = 64
 
 func installCurrentSchema(ctx context.Context, db *sql.DB, path string) error {
 	var epoch int
@@ -228,6 +228,21 @@ func installCurrentSchema(ctx context.Context, db *sql.DB, path string) error {
 			ON tool_invocations(run_id, segment_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_tool_invocations_open
 			ON tool_invocations(state) WHERE state = 'started'`,
+		// child_run_start_reservations are invisible executor/application ACL
+		// records. They allocate product identity after a managed child admission
+		// but before the executor has conclusively initialized. The conclusive
+		// state is retained so an exact callback replay is distinguishable from a
+		// missing reservation; only started rows have a corresponding public Run.
+		`CREATE TABLE IF NOT EXISTS child_run_start_reservations (
+			member_id  TEXT PRIMARY KEY,
+			session_id TEXT NOT NULL,
+			payload    BLOB NOT NULL,
+			created_at INTEGER NOT NULL,
+			state      TEXT NOT NULL DEFAULT 'reserved'
+			           CHECK (state IN ('reserved', 'started', 'aborted'))
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_child_run_start_reservations_session
+			ON child_run_start_reservations(session_id)`,
 		// One root-owned row per parked Run tree. payload is the client-facing
 		// interrupt set; interrupt_bindings maps each item to the private executor
 		// boundary it answers; continuations carries every waiting Run's

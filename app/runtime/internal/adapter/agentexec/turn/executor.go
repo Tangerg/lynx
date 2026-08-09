@@ -34,6 +34,7 @@ type waitingSubtreeControl interface {
 		ctx context.Context,
 		handle Handle,
 		processID string,
+		reason string,
 	) (runs.PreparedWaitingSubtreeCancellation, error)
 }
 
@@ -72,23 +73,31 @@ func (e *Executor) CancelRunningSubtree(
 	ctx context.Context,
 	ref runs.ExecutorRef,
 	processID string,
+	_ string,
 ) error {
 	return mapControlError(e.controller.CancelSubtree(ctx, concreteHandle(ref), processID))
 }
 
 func (e *Executor) PrepareWaitingSubtreeCancellation(
 	ctx context.Context,
-	ref runs.ExecutorRef,
-	processID string,
+	request runs.WaitingSubtreeCancellationRequest,
 ) (runs.PreparedWaitingSubtreeCancellation, error) {
+	if err := request.Validate(); err != nil {
+		return runs.PreparedWaitingSubtreeCancellation{}, err
+	}
 	controller, ok := e.controller.(waitingSubtreeControl)
 	if !ok {
 		return runs.PreparedWaitingSubtreeCancellation{}, errors.New("turn executor: waiting subtree cancellation is unavailable")
 	}
+	ref, err := e.StageContinuation(ctx, request.Continuation)
+	if err != nil {
+		return runs.PreparedWaitingSubtreeCancellation{}, err
+	}
 	prepared, err := controller.PrepareWaitingSubtreeCancellation(
 		ctx,
 		concreteHandle(ref),
-		processID,
+		request.TargetMemberID,
+		request.Reason,
 	)
 	if err != nil {
 		return runs.PreparedWaitingSubtreeCancellation{}, mapControlError(err)
@@ -142,13 +151,49 @@ func (e *Executor) StageContinuation(
 	return e.RestoreWaiting(ctx, runs.RehydrateExecution{
 		SessionID: continuation.SessionID, ExecutorID: continuation.ExecutorID,
 		MemberID: checkpoint.RootMemberID, RootRunID: continuation.RootRunID,
-		ChildRuns: continuation.ChildRuns, ModelSelection: checkpoint.ModelSelection,
+		ChildRuns: legacyChildRunBindings(continuation.Members), ModelSelection: checkpoint.ModelSelection,
 		CWD: checkpoint.Scope.CWD, WorkspaceCWD: checkpoint.Scope.WorkspaceCWD,
 		Isolated: checkpoint.Scope.Isolated, GoalLeaseID: checkpoint.Scope.GoalLeaseID,
 		Limits:                   checkpoint.Limits,
 		ChildRunAdmissionEnabled: continuation.ChildRunAdmissionEnabled,
 		Checkpoint:               &checkpoint,
 	})
+}
+
+// RestoreWaitingExecution rebuilds an exact committed parked tree without
+// claiming its answer boundary. This legacy implementation exists only until
+// the P8 production cutover removes the turn adapter.
+func (e *Executor) RestoreWaitingExecution(
+	ctx context.Context,
+	continuation runs.WaitingContinuation,
+) (runs.ExecutorRef, error) {
+	if err := continuation.Validate(); err != nil {
+		return runs.ExecutorRef{}, err
+	}
+	checkpoint := continuation.Checkpoint.Clone()
+	return e.RestoreWaiting(ctx, runs.RehydrateExecution{
+		SessionID: continuation.SessionID, ExecutorID: continuation.ExecutorID,
+		MemberID: checkpoint.RootMemberID, RootRunID: continuation.RootRunID,
+		ChildRuns: legacyChildRunBindings(continuation.Members), ModelSelection: checkpoint.ModelSelection,
+		CWD: checkpoint.Scope.CWD, WorkspaceCWD: checkpoint.Scope.WorkspaceCWD,
+		Isolated: checkpoint.Scope.Isolated, GoalLeaseID: checkpoint.Scope.GoalLeaseID,
+		Limits:                   checkpoint.Limits,
+		ChildRunAdmissionEnabled: continuation.ChildRunAdmissionEnabled,
+		Checkpoint:               &checkpoint,
+	})
+}
+
+func legacyChildRunBindings(members []runs.WaitingMember) []runs.ChildRunBinding {
+	bindings := make([]runs.ChildRunBinding, 0, len(members)-1)
+	for _, member := range members {
+		if member.ParentRunID == "" {
+			continue
+		}
+		bindings = append(bindings, runs.ChildRunBinding{
+			MemberID: member.MemberID, RunID: member.RunID, ParentRunID: member.ParentRunID,
+		})
+	}
+	return bindings
 }
 
 func (e *Executor) BeginContinuation(

@@ -4,7 +4,7 @@
 >
 > 适用范围：`app/runtime` 及其为完成服务端重构必须调整的直接后端依赖
 >
-> 实施状态：P6 已完成，下一阶段 P7；当前代码事实和迁移差距见 [`CAPABILITY_LEDGER.md`](CAPABILITY_LEDGER.md)，阶段与进度见 [`EXECUTION_PLAN.md`](EXECUTION_PLAN.md)
+> 实施状态：P7 已完成，下一阶段 P8；当前代码事实和迁移差距见 [`CAPABILITY_LEDGER.md`](CAPABILITY_LEDGER.md)，阶段与进度见 [`EXECUTION_PLAN.md`](EXECUTION_PLAN.md)
 
 本文定义 Lyra Runtime 重构完成后的稳定架构、统一语言、所有权和依赖方向。它不记录逐批进度，不枚举完整协议字段，也不复制 Agent Framework 的内部设计。
 
@@ -378,7 +378,7 @@ P6 的 native Interaction 只通过 public pending-input helper 读取 prompt/Wa
 
 Managed Delegate 的 child Process 是 first-class child Run 的来源。模型响应中的 Delegate ToolCall 必须先 durable commit；Agent2 `ProcessAdmitter` 随后在 Process 发布前调用 Application-owned admission use case，用 prospective identity 和同一 Delegate child key 原子创建不可见的 child opening reservation、产品 child Run identity 和父因果 binding。`EventProcessStarted` 只作为对账唤醒；agentexec 验证 live Process/关系后产生 executor fact，Application 提交后才把 child Run 公开为 Running。
 
-Admission 成功不等于 Process 已启动。root 的 `Engine.Start` 失败由直接调用者把已存在 Opening Run 终结为 start failure；进程崩溃后，任何没有 checkpoint/started fact 的 Opening root 都按 recovery loss 收口。child 则必须从 Framework 得到 prospective identity 对应的 conclusive started/aborted outcome，或使用“admission 后 publication 不再失败”的中性 reservation 合同。Agent2 Baseline 9 尚未提供这条事实，因此 P7 在补齐并冻结该 Framework 合同前不得接入 durable child Run admission；Runtime 不用超时、私有 ID 算法或父 Effect 顺序猜测结果。
+Admission 成功不等于 Process 已启动。root 的 `Engine.Start` 失败由直接调用者把已存在 Opening Run 终结为 start failure；进程崩溃后，任何没有 checkpoint/started fact 的 Opening root 都按 recovery loss 收口。P7 已通过 Agent2 Baseline 10 的中性 `ProcessStartOutcomeAcknowledger` 取得 prospective identity 对应的 conclusive started/aborted outcome：started 后才公开 child Run，aborted 只闭合不可见 reservation。Runtime 不用超时、私有 ID 算法、Event 顺序或父 Effect payload 猜测结果。
 
 不是所有 Framework child 都自动成为产品 Run。Planning/Workflow 的内部 child 是否投影为产品 Run，由 agentexec 根据 exact Deployment 和组合语义决定；不得把产品 `Run` 标记塞入 Agent2 ProcessRelation 或 ChildSpec。
 
@@ -391,12 +391,12 @@ Delegate 因果映射使用 Interaction 提供的稳定 child key；Runtime 不�
 1. agentexec 在完整 tree safe boundary 取得 prepared change；该 capability 在 `Apply` 或 `Discard` 前冻结 source tree，但不暴露 Agent2 plan、lock 或 snapshot type；
 2. agentexec 把 canceled/paused executor member、resulting opaque checkpoint 投影为 Application 值，concrete capability 只在当前 use case 内存活；
 3. Application 提交 Run/Transcript/Pending/resulting checkpoint write-set；transaction 失败时调用 `Discard`，live tree 保持 source state；
-4. durable commit 成功后调用 `Apply`，把仍被冻结的 live tree 线性化到已持久化的 resulting state；
-5. 进程在 commit 后、Apply 前崩溃时，重启直接恢复已提交 resulting checkpoint；Apply 跨过 Framework commit gate 后即使调用 context 取消也必须完成；若仍出现无法证明的 apply 失败，销毁旧 live tree并从 resulting checkpoint 恢复，恢复失败则 `RunLost`。
+4. durable commit 成功后调用 contextless `Apply`，把仍被冻结的 live tree 线性化到已持久化的 resulting state；若该变换移除了最后一个外部边界，已提交 Segment 的 activation 再单独调用 `Continue(ctx)`，不能把执行启动失败混称为 apply failure；
+5. 进程在 commit 后、Apply 前崩溃时，重启直接恢复已提交 resulting checkpoint；Agent2 Baseline 14 的 contextless `Apply()` 不允许请求取消撤销已提交决定。若内部不变量仍使 Apply 无法证明成功，Application 释放旧 owner并从 resulting checkpoint 精确恢复；只有精确恢复失败才提交 `RunLost`。
 
-prepared change 必须 one-shot、`Discard` 幂等且有 Host-owned deadline；agentexec 取得后立即注册 `defer Discard`，只有 Apply 成功才解除。Framework 不允许因调用方遗漏或 transaction 卡住而无限冻结 tree。
+prepared change 必须 one-shot、`Discard` 幂等且有 Host-owned preparation deadline；agentexec 取得后立即注册 `defer Discard`。deadline 只允许在 application transaction 提交前释放冻结边界，提交后的 contextless Apply 不再受请求生命周期控制。Framework 不允许因调用方遗漏或 transaction 卡住而无限冻结 tree。
 
-当前 Agent2 `WaitingSubtreeCancellationPlan` 是纯 prospective value，规划返回后会释放 tree quiescence，不能单独满足步骤 1 的应用原子性。因此 P7 前必须先在 Agent2 增加中性 prepared-change capability；Runtime 不持久化 plan、不复刻 source digest，也不重新引入含糊的通用 Mutation lease。
+P7 已由真实 Runtime consumer 把 Agent2 收敛为中性 `PreparedWaitingSubtreeCancellation`：Prepare 在返回前完成全部可失败 staging并持续冻结 source tree，Application 不持久化 Framework capability、不复刻 source digest，也没有重新引入通用 Mutation lease。Runtime execution ACL 进一步把 resulting state 的 `Apply` 与 final-boundary `Continue` 分成两个准确阶段；只有后者推进 Process。`WaitingExecutionRestorer` 只消费 Application `WaitingContinuation` 与 opaque checkpoint，不解析 Agent2 tree wire。
 
 ### 7.6 终态翻译
 
@@ -440,7 +440,7 @@ Application port 只表达产品真正需要的执行能力，不能镜像 Agent
 - 规划并在应用事务后应用 waiting subtree cancellation；
 - 释放终态或失效的 executor tree。
 
-端口方法、参数名和返回值随 P4–P7 的真实纵切按 consumer-discovered interface 原则演进，不把旧 `ExecutionControl`、`PrepareStart`、`Activate`、`Prepare` 或 `TurnProcess` 当成兼容合同。P3 已建立最小 root candidate：`RootExecutionStarter` 用 validate/stage/begin 准确表达 admission 两侧，`ExecutionObserver` 只观察 Application facts，`ExecutionReleaser` 只释放资源且不决定产品 Cancel。P6 的真实 Agent2 consumer 已推导出 `WaitingExecutionContinuer` 的 stage/begin 两阶段和 `RunningExecutionSteerer` 的语义 steer 能力；旧生产路径仍需要的 legacy waiting/child/subtree seam 不属于目标合同。P7 继续由 child/subtree consumer 重推，P8 生产切换前才冻结完整端口。最终命名必须以 Run 用例语义为准，不能用含糊的 `Prepare`、`Handle`、`Manager` 掩盖不同阶段。
+端口方法、参数名和返回值随 P4–P7 的真实纵切按 consumer-discovered interface 原则演进，不把旧 `ExecutionControl`、`PrepareStart`、`Activate`、`Prepare` 或 `TurnProcess` 当成兼容合同。P3 已建立最小 root candidate：`RootExecutionStarter` 用 validate/stage/begin 准确表达 admission 两侧，`ExecutionObserver` 只观察 Application facts，`ExecutionReleaser` 只释放资源且不决定产品 Cancel。P6 的真实 Agent2 consumer 已推导出 `WaitingExecutionContinuer` 的 stage/begin 两阶段和 `RunningExecutionSteerer` 的语义 steer 能力；P7 又推导出 conclusive child start、prepared subtree change 与 exact waiting restore 能力。旧生产路径仍需要的 legacy waiting/child/subtree seam 不属于目标合同，P8 生产切换前才冻结完整端口。最终命名必须以 Run 用例语义为准，不能用含糊的 `Prepare`、`Handle`、`Manager` 掩盖不同阶段。
 
 ## 9. 工具能力
 

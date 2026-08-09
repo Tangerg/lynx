@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 	"sync"
@@ -17,7 +18,6 @@ import (
 
 	agent "github.com/Tangerg/lynx/agent2"
 	"github.com/Tangerg/lynx/agent2/interaction"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/interactioninput"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/executionctx"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/accounting"
@@ -29,49 +29,72 @@ import (
 )
 
 type interactionSession struct {
-	ref         runs.ExecutorRef
-	scope       runs.ExecutionScope
-	deployment  agent.Deployment
-	input       agent.Input
-	engine      *agent.Engine
-	events      chan runs.ExecutorEvent
-	done        chan struct{}
-	releasing   chan struct{}
-	unknownWake chan struct{}
-	stateWake   chan struct{}
+	ref           runs.ExecutorRef
+	scope         runs.ExecutionScope
+	deployment    agent.Deployment
+	input         agent.Input
+	engine        *agent.Engine
+	events        chan runs.ExecutorEvent
+	done          chan struct{}
+	releasing     chan struct{}
+	lifecycle     context.Context
+	stopLifecycle context.CancelFunc
+	unknownWake   chan struct{}
+	stateWake     chan struct{}
 
-	mu                  sync.Mutex
-	steerMu             sync.Mutex
-	pendingSteers       []pendingInteractionSteer
-	process             *agent.Process
-	admittedProcessID   agent.ProcessID
-	observerWasAttached bool
-	begun               bool
-	finished            bool
-	waitingPublished    bool
-	continuationStaged  bool
-	waitingCheckpoint   runs.ExecutorCheckpoint
-	releaseOnce         sync.Once
-	finishOnce          sync.Once
-	workers             sync.WaitGroup
-	usageByModel        map[string]accounting.ModelUsage
-	provider            string
-	fallbackModel       string
-	pricing             accounting.Pricing
-	unknownPollInterval time.Duration
-	statePollInterval   time.Duration
-	buildID             string
-	start               runs.RootExecutionStart
-	unknownReported     bool
-	toolOutcomeKey      string
-	toolOutcomeDigest   [sha256.Size]byte
-	toolOutcomeRepeats  int
+	mu                    sync.Mutex
+	childProjectionMu     sync.Mutex
+	steerMu               sync.Mutex
+	pendingSteers         []pendingInteractionSteer
+	process               *agent.Process
+	admittedProcessID     agent.ProcessID
+	observerWasAttached   bool
+	begun                 bool
+	finished              bool
+	boundary              interactionBoundary
+	waitingCheckpoint     runs.ExecutorCheckpoint
+	subtreeChange         *interactionWaitingSubtreeChange
+	subtreePrepared       chan struct{}
+	releaseOnce           sync.Once
+	finishOnce            sync.Once
+	workers               sync.WaitGroup
+	reconcilers           sync.WaitGroup
+	usageByProcess        map[agent.ProcessID]map[string]accounting.ModelUsage
+	carriedUsage          map[string]accounting.ModelUsage
+	provider              string
+	fallbackModel         string
+	pricing               accounting.Pricing
+	unknownPollInterval   time.Duration
+	statePollInterval     time.Duration
+	buildID               string
+	start                 runs.RootExecutionStart
+	unknownReported       bool
+	toolOutcomeKey        string
+	toolOutcomeDigest     [sha256.Size]byte
+	toolOutcomeRepeats    int
+	deployments           *interactionDeploymentSet
+	delegateCalls         map[delegateCallIdentity]*managedDelegateCall
+	delegateChildren      map[agent.ProcessID]*managedDelegateCall
+	committedModelReplies map[agent.ProcessID]corechat.Message
 }
 
 type pendingInteractionSteer struct {
 	content  []transcript.ContentBlock
 	accepted bool
 }
+
+type interactionBoundary uint8
+
+const (
+	interactionBoundaryInactive interactionBoundary = iota
+	interactionBoundaryWaiting
+	interactionBoundaryContinuationStaged
+	interactionBoundarySubtreePreparing
+	interactionBoundarySubtreePrepared
+	interactionBoundarySubtreeApplying
+	interactionBoundarySubtreeApplied
+	interactionBoundarySubtreeRecovery
+)
 
 func (session *interactionSession) repeatedToolOutcome(toolName string, arguments tool.Arguments) int {
 	key := toolName + "\x00" + arguments.Canonical()
@@ -112,19 +135,53 @@ func newInteractionSession(
 	start runs.RootExecutionStart,
 	config InteractionExecutorConfig,
 ) *interactionSession {
+	lifecycle, stopLifecycle := context.WithCancel(context.Background())
 	provider := start.ModelSelection.Provider()
 	if provider == "" {
 		provider = config.Provider
 	}
 	return &interactionSession{
 		ref: ref, scope: rootExecutionScope(start), events: make(chan runs.ExecutorEvent, interactionEventBuffer),
-		done: make(chan struct{}), releasing: make(chan struct{}),
-		unknownWake: make(chan struct{}, 1), usageByModel: make(map[string]accounting.ModelUsage),
-		stateWake: make(chan struct{}, 1),
-		provider:  provider, fallbackModel: start.ModelSelection.Model(), pricing: config.Pricing,
+		done: make(chan struct{}), releasing: make(chan struct{}), lifecycle: lifecycle, stopLifecycle: stopLifecycle,
+		unknownWake: make(chan struct{}, 1), usageByProcess: make(map[agent.ProcessID]map[string]accounting.ModelUsage),
+		carriedUsage:          make(map[string]accounting.ModelUsage),
+		delegateCalls:         make(map[delegateCallIdentity]*managedDelegateCall),
+		delegateChildren:      make(map[agent.ProcessID]*managedDelegateCall),
+		committedModelReplies: make(map[agent.ProcessID]corechat.Message),
+		stateWake:             make(chan struct{}, 1),
+		provider:              provider, fallbackModel: start.ModelSelection.Model(), pricing: config.Pricing,
 		unknownPollInterval: config.UnknownEffectPollInterval,
 		statePollInterval:   config.StatePollInterval, buildID: config.BuildID, start: start,
 	}
+}
+
+// recordCommittedModelReply retains the exact assistant value accepted by the
+// authoritative Run projection. A delegated Process has to close that same
+// value at its semantic completion boundary; reconstructing it from the
+// delegate's text result would discard structured parts and metadata.
+func (session *interactionSession) recordCommittedModelReply(
+	processID agent.ProcessID,
+	message corechat.Message,
+) {
+	cloned := message.Clone()
+	session.mu.Lock()
+	session.committedModelReplies[processID] = cloned
+	session.mu.Unlock()
+}
+
+func (session *interactionSession) committedModelReplyFor(
+	processID agent.ProcessID,
+) (corechat.Message, bool) {
+	session.mu.Lock()
+	defer session.mu.Unlock()
+	message, found := session.committedModelReplies[processID]
+	return message.Clone(), found
+}
+
+func (session *interactionSession) forgetCommittedModelReply(processID agent.ProcessID) {
+	session.mu.Lock()
+	delete(session.committedModelReplies, processID)
+	session.mu.Unlock()
 }
 
 func (session *interactionSession) attachObserver() bool {
@@ -133,7 +190,8 @@ func (session *interactionSession) attachObserver() bool {
 	if session.observerWasAttached || session.finished {
 		return false
 	}
-	if session.begun && !session.continuationStaged {
+	if session.begun && session.boundary != interactionBoundaryContinuationStaged &&
+		session.boundary != interactionBoundarySubtreePrepared {
 		return false
 	}
 	session.observerWasAttached = true
@@ -166,32 +224,6 @@ func (session *interactionSession) setProcess(process *agent.Process) {
 	session.mu.Lock()
 	session.process = process
 	session.mu.Unlock()
-}
-
-func (session *interactionSession) initializeRestoredContinuation(
-	process *agent.Process,
-	checkpoint runs.ExecutorCheckpoint,
-) error {
-	if process == nil || process.Status() != agent.StatusWaiting {
-		return fmt.Errorf("%w: restored Interaction is not waiting", runs.ErrExecutorStateLost)
-	}
-	usageByModel := make(map[string]accounting.ModelUsage, len(checkpoint.Usage.Models))
-	for _, usage := range checkpoint.Usage.Models {
-		usageByModel[usage.Model] = usage
-	}
-	session.mu.Lock()
-	defer session.mu.Unlock()
-	if session.begun || session.finished || session.process != nil {
-		return runs.ErrExecutionClaimed
-	}
-	session.process = process
-	session.admittedProcessID = process.ID()
-	session.begun = true
-	session.waitingPublished = true
-	session.continuationStaged = true
-	session.waitingCheckpoint = checkpoint.Clone()
-	session.usageByModel = usageByModel
-	return nil
 }
 
 func (session *interactionSession) processHandle() *agent.Process {
@@ -259,44 +291,40 @@ func (session *interactionSession) commitPendingSteers(
 }
 
 func (session *interactionSession) startWorkers() {
-	session.workers.Add(3)
+	session.workers.Add(1)
 	go func() {
 		defer session.workers.Done()
 		session.await()
 	}()
+	session.reconcilers.Add(2)
 	go func() {
-		defer session.workers.Done()
+		defer session.reconcilers.Done()
 		session.reconcileUnknownEffects()
 	}()
 	go func() {
-		defer session.workers.Done()
+		defer session.reconcilers.Done()
 		session.reconcileExecutionState()
 	}()
 }
 
 func (session *interactionSession) failStart() {
+	session.finish()
+}
+
+func (session *interactionSession) stopReconciliation() {
+	session.stopLifecycle()
+	session.reconcilers.Wait()
+}
+
+func (session *interactionSession) finish() {
 	session.finishOnce.Do(func() {
 		session.mu.Lock()
 		session.finished = true
 		session.mu.Unlock()
+		session.stopReconciliation()
 		close(session.events)
 		close(session.done)
 	})
-}
-
-func (session *interactionSession) admitRoot(_ context.Context, admission agent.ProcessAdmission) error {
-	relation := admission.Relation()
-	if !admission.Valid() || !relation.IsRoot() || admission.DeploymentRef() != session.deployment.DeploymentRef() {
-		return errors.New("agentexec: native Interaction received an invalid root admission")
-	}
-	session.mu.Lock()
-	defer session.mu.Unlock()
-	processID := relation.ProcessID()
-	if session.admittedProcessID.Valid() && session.admittedProcessID != processID {
-		return errors.New("agentexec: native Interaction root admission identity changed")
-	}
-	session.admittedProcessID = processID
-	return nil
 }
 
 func (session *interactionSession) projectDelta(ctx context.Context, delta agent.Delta) {
@@ -319,9 +347,8 @@ func (session *interactionSession) projectDelta(ctx context.Context, delta agent
 			default:
 				continue
 			}
-			if session.offer(runs.ExecutorEvent{
-				Member: runs.ExecutorMember{MemberID: delta.ProcessID().String()}, Payload: payload,
-			}) {
+			member, found := session.executorMemberByProcessID(delta.ProcessID())
+			if found && session.offer(runs.ExecutorEvent{Member: member, Payload: payload}) {
 				continue
 			}
 			trace.SpanFromContext(ctx).AddEvent(
@@ -365,6 +392,8 @@ func (session *interactionSession) commitFact(
 	member runs.ExecutorMember,
 	fact runs.ExecutionFact,
 ) error {
+	ctx, cancel := session.lifecycleContext(ctx)
+	defer cancel()
 	commit, receipt, err := runs.NewExecutionFactCommit(fact)
 	if err != nil {
 		return err
@@ -378,6 +407,18 @@ func (session *interactionSession) commitFact(
 		return ctx.Err()
 	}
 	return receipt.Await(ctx)
+}
+
+func (session *interactionSession) lifecycleContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	bound, cancel := context.WithCancel(ctx)
+	stop := context.AfterFunc(session.lifecycle, cancel)
+	return bound, func() {
+		stop()
+		cancel()
+	}
 }
 
 func (session *interactionSession) wakeUnknownReconciliation() {
@@ -394,9 +435,7 @@ func (session *interactionSession) reconcileUnknownEffects() {
 		select {
 		case <-session.unknownWake:
 		case <-ticker.C:
-		case <-session.done:
-			return
-		case <-session.releasing:
+		case <-session.lifecycle.Done():
 			return
 		}
 		if session.reportUnknownEffects() {
@@ -412,10 +451,18 @@ func (session *interactionSession) reconcileExecutionState() {
 		select {
 		case <-session.stateWake:
 		case <-ticker.C:
-		case <-session.done:
+		case <-session.lifecycle.Done():
 			return
-		case <-session.releasing:
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), authoritativeProjectionTimeout)
+		progressed, err := session.reconcileCompletedDelegateChildren(ctx)
+		cancel()
+		if err != nil {
+			session.publishProjectionFailure(err)
 			return
+		}
+		if progressed {
+			continue
 		}
 		if session.publishWaitingBoundary() {
 			continue
@@ -426,7 +473,7 @@ func (session *interactionSession) reconcileExecutionState() {
 func (session *interactionSession) publishWaitingBoundary() bool {
 	session.mu.Lock()
 	process := session.process
-	if process == nil || session.finished || session.waitingPublished || session.continuationStaged {
+	if process == nil || session.finished || session.boundary != interactionBoundaryInactive {
 		session.mu.Unlock()
 		return false
 	}
@@ -436,49 +483,32 @@ func (session *interactionSession) publishWaitingBoundary() bool {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), authoritativeProjectionTimeout)
 	defer cancel()
-	pending, found, err := interaction.PendingToolInputFromProcess(ctx, process)
-	if err != nil || !found {
-		if err != nil {
-			session.publishProjectionFailure(err)
-		}
-		return false
-	}
-	prompt, err := interactioninput.DecodePrompt(pending.Prompt())
+	snapshot, interruptions, found, err := session.captureHumanInputBarrier(ctx)
 	if err != nil {
 		session.publishProjectionFailure(err)
 		return false
 	}
-	snapshot, err := session.engine.CaptureTree(ctx, process.Relation().RootID())
-	if err != nil {
-		session.publishProjectionFailure(err)
+	if !found {
 		return false
 	}
-	checkpoint := runs.ExecutorCheckpoint{
-		RootMemberID: process.Relation().RootID().String(), Payload: snapshot.JSON(),
-		BuildID: session.buildID, Scope: session.scope,
-		ModelSelection: session.start.ModelSelection, Limits: session.start.Limits,
-		Usage: session.accountingSnapshot(),
-	}
-	if err := checkpoint.Validate(); err != nil {
+	checkpoint, err := session.executorCheckpoint(snapshot)
+	if err != nil {
 		session.publishProjectionFailure(err)
 		return false
 	}
 	session.mu.Lock()
-	if session.finished || session.waitingPublished || session.continuationStaged ||
+	if session.finished || session.boundary != interactionBoundaryInactive ||
 		session.process != process || process.Status() != agent.StatusWaiting {
 		session.mu.Unlock()
 		return false
 	}
-	session.waitingPublished = true
+	session.boundary = interactionBoundaryWaiting
 	session.waitingCheckpoint = checkpoint.Clone()
 	session.mu.Unlock()
 	return session.send(runs.ExecutorEvent{
-		Member: runs.ExecutorMember{MemberID: process.ID().String()},
+		Member: session.executorMember(process.Relation()),
 		Payload: runs.TreeInterrupted{
-			Checkpoint: checkpoint,
-			Interruptions: []runs.MemberInterruption{{
-				MemberID: process.ID().String(), RequestID: pending.WaitID().String(), Interrupt: prompt,
-			}},
+			Checkpoint: checkpoint, Interruptions: interruptions,
 		},
 	})
 }
@@ -492,14 +522,14 @@ func (session *interactionSession) stageContinuation(checkpoint runs.ExecutorChe
 	if session.finished || session.process == nil {
 		return runs.ErrExecutorNotLive
 	}
-	if !session.waitingPublished || session.continuationStaged || session.observerWasAttached ||
-		session.process.Status() != agent.StatusWaiting {
+	if session.boundary != interactionBoundaryWaiting || session.observerWasAttached ||
+		!isInteractionWaitingBoundary(session.process.Status()) {
 		return runs.ErrExecutionClaimed
 	}
 	if !executorCheckpointsEqual(session.waitingCheckpoint, checkpoint) {
 		return fmt.Errorf("%w: live Interaction checkpoint differs from the claimed waiting boundary", runs.ErrInvalidExecutorCheckpoint)
 	}
-	session.continuationStaged = true
+	session.boundary = interactionBoundaryContinuationStaged
 	return nil
 }
 
@@ -509,8 +539,8 @@ func (session *interactionSession) beginContinuation(allowedInterrupts []interru
 	if session.finished || session.process == nil {
 		return runs.ErrExecutorNotLive
 	}
-	if !session.continuationStaged || !session.observerWasAttached ||
-		session.process.Status() != agent.StatusWaiting {
+	if session.boundary != interactionBoundaryContinuationStaged || !session.observerWasAttached ||
+		!isInteractionWaitingBoundary(session.process.Status()) {
 		return errors.New("agentexec: native Interaction continuation was not staged and observed")
 	}
 	if !slices.Equal(session.start.InterruptKinds, allowedInterrupts) {
@@ -519,10 +549,13 @@ func (session *interactionSession) beginContinuation(allowedInterrupts []interru
 	return nil
 }
 
+func isInteractionWaitingBoundary(status agent.Status) bool {
+	return status == agent.StatusWaiting || status == agent.StatusPaused
+}
+
 func (session *interactionSession) continuationAccepted() {
 	session.mu.Lock()
-	session.continuationStaged = false
-	session.waitingPublished = false
+	session.boundary = interactionBoundaryInactive
 	session.waitingCheckpoint = runs.ExecutorCheckpoint{}
 	session.mu.Unlock()
 }
@@ -537,8 +570,13 @@ func executorCheckpointsEqual(left, right runs.ExecutorCheckpoint) bool {
 func (session *interactionSession) accountingSnapshot() accounting.Snapshot {
 	session.mu.Lock()
 	defer session.mu.Unlock()
-	models := make([]accounting.ModelUsage, 0, len(session.usageByModel))
-	for _, usage := range session.usageByModel {
+	byModel := make(map[string]accounting.ModelUsage)
+	mergeInteractionUsage(byModel, session.carriedUsage)
+	for _, processUsage := range session.usageByProcess {
+		mergeInteractionUsage(byModel, processUsage)
+	}
+	models := make([]accounting.ModelUsage, 0, len(byModel))
+	for _, usage := range byModel {
 		models = append(models, usage)
 	}
 	slices.SortFunc(models, func(left, right accounting.ModelUsage) int {
@@ -547,10 +585,39 @@ func (session *interactionSession) accountingSnapshot() accounting.Snapshot {
 	return accounting.Snapshot{Models: models}
 }
 
+func mergeInteractionUsage(
+	target map[string]accounting.ModelUsage,
+	source map[string]accounting.ModelUsage,
+) {
+	for model, usage := range source {
+		current := target[model]
+		if current.Model == "" {
+			current.Model = model
+		}
+		current.TokenUsage.Add(usage.TokenUsage)
+		current.CostUSD += usage.CostUSD
+		current.Calls += usage.Calls
+		target[model] = current
+	}
+}
+
+func (session *interactionSession) interactionCheckpointPayload(
+	tree agent.TreeSnapshot,
+) ([]byte, error) {
+	session.mu.Lock()
+	usageByProcess := make(map[agent.ProcessID]map[string]accounting.ModelUsage, len(session.usageByProcess))
+	for processID, byModel := range session.usageByProcess {
+		usageByProcess[processID] = maps.Clone(byModel)
+	}
+	carried := maps.Clone(session.carriedUsage)
+	session.mu.Unlock()
+	return encodeInteractionCheckpointPayload(tree, usageByProcess, carried)
+}
+
 func (session *interactionSession) reportUnknownEffects() bool {
 	ctx, cancel := context.WithTimeout(context.Background(), authoritativeProjectionTimeout)
 	defer cancel()
-	ids, err := session.process.UnknownEffectIDs(ctx)
+	ids, err := session.unknownEffectIDs(ctx)
 	if err != nil || len(ids) == 0 {
 		return false
 	}
@@ -584,7 +651,13 @@ func (session *interactionSession) accountModelCall(
 	}
 	session.mu.Lock()
 	defer session.mu.Unlock()
-	current := session.usageByModel[delta.Model]
+	processID := invocation.Relation().ProcessID()
+	usageByModel := session.usageByProcess[processID]
+	if usageByModel == nil {
+		usageByModel = make(map[string]accounting.ModelUsage)
+		session.usageByProcess[processID] = usageByModel
+	}
+	current := usageByModel[delta.Model]
 	if current.Model == "" {
 		current.Model = delta.Model
 	}
@@ -594,9 +667,9 @@ func (session *interactionSession) accountModelCall(
 	if err := current.Validate(); err != nil {
 		return runs.ModelCallCompleted{}, fmt.Errorf("agentexec: aggregate model call: %w", err)
 	}
-	session.usageByModel[delta.Model] = current
-	models := make([]accounting.ModelUsage, 0, len(session.usageByModel))
-	for _, usage := range session.usageByModel {
+	usageByModel[delta.Model] = current
+	models := make([]accounting.ModelUsage, 0, len(usageByModel))
+	for _, usage := range usageByModel {
 		models = append(models, usage)
 	}
 	slices.SortFunc(models, func(left, right accounting.ModelUsage) int {
@@ -626,6 +699,12 @@ func (session *interactionSession) accountModelCall(
 func (session *interactionSession) await() {
 	result, err := session.process.Await(context.Background())
 	if err == nil {
+		projectionCtx, cancel := context.WithTimeout(context.Background(), authoritativeProjectionTimeout)
+		_, err = session.reconcileCompletedDelegateChildren(projectionCtx)
+		cancel()
+	}
+	session.stopReconciliation()
+	if err == nil {
 		err = session.engine.Close()
 	}
 	if err == nil {
@@ -634,13 +713,7 @@ func (session *interactionSession) await() {
 	if err != nil {
 		session.publishProjectionFailure(err)
 	}
-	session.finishOnce.Do(func() {
-		session.mu.Lock()
-		session.finished = true
-		session.mu.Unlock()
-		close(session.events)
-		close(session.done)
-	})
+	session.finish()
 }
 
 func (session *interactionSession) publishResult(result agent.Result) error {
@@ -672,7 +745,7 @@ func (session *interactionSession) publishResult(result agent.Result) error {
 	return nil
 }
 
-func (session *interactionSession) publishProjectionFailure(_ error) {
+func (session *interactionSession) publishProjectionFailure(cause error) {
 	member := runs.ExecutorMember{}
 	session.mu.Lock()
 	if session.admittedProcessID.Valid() {
@@ -681,7 +754,10 @@ func (session *interactionSession) publishProjectionFailure(_ error) {
 	session.mu.Unlock()
 	problem := transcript.Problem{
 		Kind: transcript.InternalProblem, Scope: transcript.RunProblem,
-		Detail: "executor result could not be projected",
+		Detail: executorDiagnostic(cause),
+	}
+	if problem.Detail == "" {
+		problem.Detail = "executor result could not be projected"
 	}
 	session.send(runs.ExecutorEvent{
 		Member:  member,
@@ -699,7 +775,13 @@ func (session *interactionSession) send(event runs.ExecutorEvent) bool {
 }
 
 func (session *interactionSession) release(ctx context.Context) error {
-	session.releaseOnce.Do(func() { close(session.releasing) })
+	session.releaseOnce.Do(func() {
+		session.stopLifecycle()
+		close(session.releasing)
+	})
+	if err := session.discardPreparedSubtree(ctx); err != nil {
+		return fmt.Errorf("agentexec: discard prepared waiting subtree before release: %w", err)
+	}
 	session.mu.Lock()
 	process := session.process
 	begun := session.begun
@@ -730,8 +812,9 @@ func (session *interactionSession) segmentEnd(result agent.Result) runs.SegmentE
 		max(result.FinishedAt().Sub(result.StartedAt()), 0),
 	)
 	session.mu.Lock()
-	models := make([]accounting.ModelUsage, 0, len(session.usageByModel))
-	for _, usage := range session.usageByModel {
+	usageByModel := session.usageByProcess[result.ProcessID()]
+	models := make([]accounting.ModelUsage, 0, len(usageByModel))
+	for _, usage := range usageByModel {
 		models = append(models, usage)
 	}
 	session.mu.Unlock()
@@ -774,7 +857,7 @@ func segmentEndFromTermination(termination agent.Termination, duration time.Dura
 		end.Reason = run.OutcomeFailed
 		problem := transcript.Problem{
 			Kind: transcript.AgentStuckProblem, Scope: transcript.RunProblem,
-			Detail: "interaction execution failed",
+			Detail: executorDiagnostic(errors.New(failure.Message())),
 		}
 		end.Problem = &problem
 	case agent.TerminationCauseExternalFailure:
@@ -784,11 +867,19 @@ func segmentEndFromTermination(termination agent.Termination, duration time.Dura
 			Detail: "model provider failed",
 		}
 		end.Problem = &problem
-	case agent.TerminationCauseContractFailure, agent.TerminationCausePanic, agent.TerminationCauseEngineKill:
+	case agent.TerminationCauseContractFailure, agent.TerminationCausePanic:
+		end.Reason = run.OutcomeFailed
+		failure, _ := termination.Failure()
+		problem := transcript.Problem{
+			Kind: transcript.InternalProblem, Scope: transcript.RunProblem,
+			Detail: executorDiagnostic(errors.New(failure.Message())),
+		}
+		end.Problem = &problem
+	case agent.TerminationCauseEngineKill:
 		end.Reason = run.OutcomeFailed
 		problem := transcript.Problem{
 			Kind: transcript.InternalProblem, Scope: transcript.RunProblem,
-			Detail: "executor failed",
+			Detail: termination.Reason(),
 		}
 		end.Problem = &problem
 	default:

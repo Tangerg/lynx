@@ -188,7 +188,7 @@ func (model *observedInteractionModel) fail(
 	defer cancel()
 	return model.session.commitFact(
 		projectionCtx,
-		executorMember(invocation.Relation()),
+		model.session.executorMember(invocation.Relation()),
 		runs.ModelCallFailed{CallID: callID},
 	)
 }
@@ -205,7 +205,10 @@ func (model *observedInteractionModel) begin(
 		return interaction.ModelInvocation{}, nil, "", err
 	}
 	callID := modelInvocationID(invocation)
-	member := executorMember(invocation.Relation())
+	if _, err := model.session.reconcileCompletedDelegateChildren(ctx); err != nil {
+		return interaction.ModelInvocation{}, nil, "", err
+	}
+	member := model.session.executorMember(invocation.Relation())
 	if err := model.session.commitPendingSteers(ctx, member); err != nil {
 		return interaction.ModelInvocation{}, nil, "", err
 	}
@@ -231,7 +234,15 @@ func (model *observedInteractionModel) complete(
 	}
 	projectionCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), authoritativeProjectionTimeout)
 	defer cancel()
-	return model.session.commitFact(projectionCtx, executorMember(invocation.Relation()), fact)
+	if err := model.session.commitFact(
+		projectionCtx, model.session.executorMember(invocation.Relation()), fact,
+	); err != nil {
+		return err
+	}
+	if !invocation.Relation().IsRoot() {
+		model.session.recordCommittedModelReply(invocation.Relation().ProcessID(), fact.Message)
+	}
+	return model.session.registerDelegateCalls(invocation, choice.Message)
 }
 
 type observedInteractionTool struct {
@@ -278,7 +289,7 @@ func (observed *observedInteractionTool) Call(ctx context.Context, rawArguments 
 		return "", err
 	}
 	rawArguments = arguments.Canonical()
-	member := executorMember(invocation.Relation())
+	member := observed.session.executorMember(invocation.Relation())
 	start := runs.ToolCallStarted{
 		CallID: callID, ModelCallSequence: invocation.ModelCallSequence(),
 		ToolCallIndex: invocation.ToolCallIndex(), SourceCallID: call.ID, ToolName: call.Name,
@@ -309,6 +320,14 @@ func (observed *observedInteractionTool) Call(ctx context.Context, rawArguments 
 		return "", err
 	}
 	output, callErr := observed.inner.Call(ctx, rawArguments)
+	var inputRequired *interaction.ToolInputRequiredError
+	if errors.As(callErr, &inputRequired) {
+		// Tool input is an Interaction control boundary, not a failed external
+		// call. The started fact remains open so the Run barrier can carry it as
+		// a drained Tool; the restored invocation will commit the sole final fact
+		// after consuming the semantic response Signal.
+		return "", callErr
+	}
 	modelOutput, offload := observed.offload(ctx, call.Name, output, callErr)
 	end := observed.finishedFact(
 		callID,
@@ -637,19 +656,29 @@ func modelInvocationID(invocation interaction.ModelInvocation) string {
 }
 
 func toolInvocationID(invocation interaction.ToolInvocation) string {
+	return delegatedToolCallID(
+		invocation.Relation(), invocation.ModelCallSequence(), invocation.ToolCallIndex(), invocation.ToolCall(),
+	)
+}
+
+func delegatedToolCallID(
+	relation agent.ProcessRelation,
+	modelCallSequence uint32,
+	toolCallIndex uint32,
+	call corechat.ToolCall,
+) string {
 	digest := sha256.New()
-	_, _ = digest.Write([]byte(invocation.Relation().ProcessID().String()))
+	_, _ = digest.Write([]byte(relation.ProcessID().String()))
 	_, _ = digest.Write([]byte{0})
-	_, _ = digest.Write([]byte(strconv.FormatUint(uint64(invocation.ModelCallSequence()), 10)))
+	_, _ = digest.Write([]byte(strconv.FormatUint(uint64(modelCallSequence), 10)))
 	_, _ = digest.Write([]byte{0})
-	call := invocation.ToolCall()
 	_, _ = digest.Write([]byte(call.ID))
 	_, _ = digest.Write([]byte{0})
 	_, _ = digest.Write([]byte(call.Name))
-	return "tool:" + hex.EncodeToString(digest.Sum(nil)) + ":" + strconv.FormatUint(uint64(invocation.ToolCallIndex()), 10)
+	return "tool:" + hex.EncodeToString(digest.Sum(nil)) + ":" + strconv.FormatUint(uint64(toolCallIndex), 10)
 }
 
-func executorMember(relation agent.ProcessRelation) runs.ExecutorMember {
+func basicExecutorMember(relation agent.ProcessRelation) runs.ExecutorMember {
 	member := runs.ExecutorMember{MemberID: relation.ProcessID().String()}
 	if parentID, child := relation.ParentID(); child {
 		member.ParentID = parentID.String()

@@ -4,11 +4,72 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 	"time"
 
 	rundomain "github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
+
+// Validate verifies the Application projection and one-shot executor
+// capability without interpreting the opaque checkpoint payload.
+func (prepared PreparedWaitingSubtreeCancellation) Validate() error {
+	if prepared.Change == nil {
+		return errors.New("runs: prepared waiting subtree cancellation has no executor change")
+	}
+	if err := prepared.Checkpoint.Validate(); err != nil {
+		return err
+	}
+	if len(prepared.CanceledMemberIDs) == 0 {
+		return errors.New("runs: prepared waiting subtree cancellation has no canceled members")
+	}
+	canceledMembers := make(map[string]struct{}, len(prepared.CanceledMemberIDs))
+	seenMembers := make(map[string]struct{}, len(prepared.CanceledMemberIDs)+len(prepared.PausedMemberIDs))
+	for _, memberID := range prepared.CanceledMemberIDs {
+		if strings.TrimSpace(memberID) == "" || memberID != strings.TrimSpace(memberID) {
+			return errors.New("runs: prepared waiting subtree cancellation has an invalid canceled member ID")
+		}
+		if _, duplicate := seenMembers[memberID]; duplicate {
+			return fmt.Errorf("runs: prepared waiting subtree cancellation repeats member %q", memberID)
+		}
+		canceledMembers[memberID] = struct{}{}
+		seenMembers[memberID] = struct{}{}
+	}
+	for _, memberID := range prepared.PausedMemberIDs {
+		if strings.TrimSpace(memberID) == "" || memberID != strings.TrimSpace(memberID) {
+			return errors.New("runs: prepared waiting subtree cancellation has an invalid paused member ID")
+		}
+		if _, duplicate := seenMembers[memberID]; duplicate {
+			return fmt.Errorf("runs: prepared waiting subtree cancellation repeats member %q", memberID)
+		}
+		seenMembers[memberID] = struct{}{}
+	}
+	requests := make(map[string]struct{}, len(prepared.PendingInterruptions))
+	for index, interruption := range prepared.PendingInterruptions {
+		if strings.TrimSpace(interruption.MemberID) == "" ||
+			interruption.MemberID != strings.TrimSpace(interruption.MemberID) ||
+			strings.TrimSpace(interruption.RequestID) == "" ||
+			interruption.RequestID != strings.TrimSpace(interruption.RequestID) {
+			return fmt.Errorf("runs: prepared waiting subtree interruption[%d] has invalid identity", index)
+		}
+		if _, canceled := canceledMembers[interruption.MemberID]; canceled {
+			return fmt.Errorf(
+				"runs: prepared waiting subtree interruption[%d] belongs to canceled member %q",
+				index,
+				interruption.MemberID,
+			)
+		}
+		if err := interruption.Interrupt.Validate(); err != nil {
+			return fmt.Errorf("runs: prepared waiting subtree interruption[%d]: %w", index, err)
+		}
+		identity := inputRequestIdentity(interruption.MemberID, interruption.RequestID)
+		if _, duplicate := requests[identity]; duplicate {
+			return fmt.Errorf("runs: prepared waiting subtree cancellation repeats interruption %q", identity)
+		}
+		requests[identity] = struct{}{}
+	}
+	return nil
+}
 
 type waitingCancellationTransformation struct {
 	terminalRuns   []transcript.Run
@@ -28,6 +89,9 @@ func prepareWaitingCancellationTransformation(
 	finishedAt time.Time,
 	prepared PreparedWaitingSubtreeCancellation,
 ) (waitingCancellationTransformation, error) {
+	if err := prepared.Validate(); err != nil {
+		return waitingCancellationTransformation{}, err
+	}
 	switch {
 	case plan.treeState != rundomain.Waiting:
 		return waitingCancellationTransformation{}, fmt.Errorf(
@@ -40,8 +104,6 @@ func prepareWaitingCancellationTransformation(
 		return waitingCancellationTransformation{}, errors.New("runs: waiting cancellation plan has no pending set")
 	case !plan.hasSpawningItem:
 		return waitingCancellationTransformation{}, errors.New("runs: waiting cancellation plan has no spawning Item")
-	case prepared.Mutation == nil:
-		return waitingCancellationTransformation{}, errors.New("runs: prepared waiting subtree cancellation has no mutation lease")
 	case finishedAt.IsZero():
 		return waitingCancellationTransformation{}, errors.New("runs: waiting cancellation finish time is required")
 	}
@@ -94,6 +156,27 @@ func prepareWaitingCancellationTransformation(
 			)
 		}
 		canceledMemberSet[memberID] = struct{}{}
+	}
+	pausedMemberSet := make(map[string]struct{}, len(prepared.PausedMemberIDs))
+	for _, memberID := range prepared.PausedMemberIDs {
+		if memberID == "" {
+			return waitingCancellationTransformation{}, errors.New(
+				"runs: prepared waiting cancellation returned an empty paused member id",
+			)
+		}
+		if _, canceled := canceledMemberSet[memberID]; canceled {
+			return waitingCancellationTransformation{}, fmt.Errorf(
+				"runs: prepared waiting cancellation both canceled and paused member %q",
+				memberID,
+			)
+		}
+		if _, duplicate := pausedMemberSet[memberID]; duplicate {
+			return waitingCancellationTransformation{}, fmt.Errorf(
+				"runs: prepared waiting cancellation repeated paused member %q",
+				memberID,
+			)
+		}
+		pausedMemberSet[memberID] = struct{}{}
 	}
 
 	expectedProcesses := make(map[string]struct{})

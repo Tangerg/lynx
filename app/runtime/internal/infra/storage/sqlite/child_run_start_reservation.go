@@ -1,0 +1,183 @@
+package sqlite
+
+import (
+	"bytes"
+	"context"
+	"database/sql"
+	"errors"
+	"fmt"
+	"strings"
+	"time"
+)
+
+var (
+	ErrInvalidChildRunStartReservation  = errors.New("sqlite: invalid child Run start reservation")
+	ErrChildRunStartReservationConflict = errors.New("sqlite: child Run start reservation conflict")
+)
+
+// ChildRunStartConclusion is the durable conclusion of an opaque reservation.
+// Storage does not interpret the payload or publish product state.
+type ChildRunStartConclusion string
+
+const (
+	ChildRunStartConclusionStarted ChildRunStartConclusion = "started"
+	ChildRunStartConclusionAborted ChildRunStartConclusion = "aborted"
+)
+
+func (conclusion ChildRunStartConclusion) valid() bool {
+	return conclusion == ChildRunStartConclusionStarted || conclusion == ChildRunStartConclusionAborted
+}
+
+const childRunStartReserved = "reserved"
+
+// ChildRunStartReservationRecord is SQLite's opaque technical record. Runtime
+// application semantics live in the runsegment adapter; storage only enforces
+// exact identity and compare-before-delete behavior.
+type ChildRunStartReservationRecord struct {
+	MemberID  string
+	SessionID string
+	Payload   []byte
+	CreatedAt time.Time
+}
+
+func (record ChildRunStartReservationRecord) validate() error {
+	if strings.TrimSpace(record.MemberID) == "" || record.MemberID != strings.TrimSpace(record.MemberID) {
+		return fmt.Errorf("%w: member ID", ErrInvalidChildRunStartReservation)
+	}
+	if strings.TrimSpace(record.SessionID) == "" || record.SessionID != strings.TrimSpace(record.SessionID) {
+		return fmt.Errorf("%w: session ID", ErrInvalidChildRunStartReservation)
+	}
+	if len(record.Payload) == 0 {
+		return fmt.Errorf("%w: payload", ErrInvalidChildRunStartReservation)
+	}
+	if record.CreatedAt.IsZero() {
+		return fmt.Errorf("%w: creation time", ErrInvalidChildRunStartReservation)
+	}
+	return nil
+}
+
+// ChildRunStartReservationStore persists opaque child-start reservations and
+// their conclusive state. Rows intentionally survive conclusion so exact
+// callbacks remain idempotent without guessing from absence.
+type ChildRunStartReservationStore struct{ db *sql.DB }
+
+func NewChildRunStartReservationStore(db *sql.DB) *ChildRunStartReservationStore {
+	return &ChildRunStartReservationStore{db: db}
+}
+
+// Reserve inserts one record or accepts an exact replay. Reusing MemberID with
+// different content is a durable identity conflict.
+func (store *ChildRunStartReservationStore) Reserve(
+	ctx context.Context,
+	record ChildRunStartReservationRecord,
+) error {
+	if store == nil || store.db == nil {
+		return errors.New("sqlite: child Run start reservation store is unavailable")
+	}
+	if err := record.validate(); err != nil {
+		return err
+	}
+	result, err := conn(ctx, store.db).ExecContext(ctx, `
+		INSERT INTO child_run_start_reservations(member_id, session_id, payload, created_at, state)
+		VALUES (?, ?, ?, ?, ?)
+		ON CONFLICT(member_id) DO NOTHING`,
+		record.MemberID, record.SessionID, record.Payload, record.CreatedAt.UTC().UnixNano(), childRunStartReserved,
+	)
+	if err != nil {
+		return fmt.Errorf("sqlite: reserve child Run start: %w", err)
+	}
+	inserted, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("sqlite: inspect child Run start reservation: %w", err)
+	}
+	if inserted == 1 {
+		return nil
+	}
+	existing, _, err := store.load(ctx, record.MemberID)
+	if err != nil {
+		return err
+	}
+	if existing.SessionID != record.SessionID || !existing.CreatedAt.Equal(record.CreatedAt.UTC()) ||
+		!bytes.Equal(existing.Payload, record.Payload) {
+		return ErrChildRunStartReservationConflict
+	}
+	return nil
+}
+
+// Conclude advances an exact reservation from reserved to one conclusive
+// state. changed is true only for the first conclusion. An exact replay of the
+// same conclusion returns false; absence, different content, or a different
+// prior conclusion is a conflict.
+func (store *ChildRunStartReservationStore) Conclude(
+	ctx context.Context,
+	record ChildRunStartReservationRecord,
+	conclusion ChildRunStartConclusion,
+) (bool, error) {
+	if store == nil || store.db == nil {
+		return false, errors.New("sqlite: child Run start reservation store is unavailable")
+	}
+	if err := record.validate(); err != nil {
+		return false, err
+	}
+	if !conclusion.valid() {
+		return false, errors.New("sqlite: child Run start conclusion is invalid")
+	}
+	existing, state, err := store.load(ctx, record.MemberID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, ErrChildRunStartReservationConflict
+	}
+	if err != nil {
+		return false, err
+	}
+	if existing.SessionID != record.SessionID || !existing.CreatedAt.Equal(record.CreatedAt.UTC()) ||
+		!bytes.Equal(existing.Payload, record.Payload) {
+		return false, ErrChildRunStartReservationConflict
+	}
+	if state == string(conclusion) {
+		return false, nil
+	}
+	if state != childRunStartReserved {
+		return false, ErrChildRunStartReservationConflict
+	}
+	result, err := conn(ctx, store.db).ExecContext(ctx, `
+		UPDATE child_run_start_reservations
+		SET state = ?
+		WHERE member_id = ? AND state = ?`, conclusion, record.MemberID, childRunStartReserved)
+	if err != nil {
+		return false, fmt.Errorf("sqlite: conclude child Run start reservation: %w", err)
+	}
+	changed, err := result.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("sqlite: inspect child Run start conclusion: %w", err)
+	}
+	if changed != 1 {
+		return false, ErrChildRunStartReservationConflict
+	}
+	return true, nil
+}
+
+func (store *ChildRunStartReservationStore) load(
+	ctx context.Context,
+	memberID string,
+) (ChildRunStartReservationRecord, string, error) {
+	var record ChildRunStartReservationRecord
+	var createdAt int64
+	var state string
+	err := conn(ctx, store.db).QueryRowContext(ctx, `
+		SELECT member_id, session_id, payload, created_at, state
+		FROM child_run_start_reservations
+		WHERE member_id = ?`, memberID,
+	).Scan(&record.MemberID, &record.SessionID, &record.Payload, &createdAt, &state)
+	if err != nil {
+		return ChildRunStartReservationRecord{}, "", err
+	}
+	record.CreatedAt = time.Unix(0, createdAt).UTC()
+	if err := record.validate(); err != nil {
+		return ChildRunStartReservationRecord{}, "", err
+	}
+	if state != childRunStartReserved && state != string(ChildRunStartConclusionStarted) &&
+		state != string(ChildRunStartConclusionAborted) {
+		return ChildRunStartReservationRecord{}, "", ErrChildRunStartReservationConflict
+	}
+	return record, state, nil
+}

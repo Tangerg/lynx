@@ -143,6 +143,7 @@ func TestPrepareWaitingCancellationProjectsTypedBoundaryAndReleasesClaimOnAbort(
 		t.Context(),
 		handle,
 		"process_child",
+		"stop child",
 	)
 	if err != nil {
 		t.Fatalf("PrepareWaitingSubtreeCancellation: %v", err)
@@ -154,7 +155,9 @@ func TestPrepareWaitingCancellationProjectsTypedBoundaryAndReleasesClaimOnAbort(
 		pending[0].Interrupt.Kind != interrupt.Question {
 		t.Fatalf("projected pending suspensions = %+v", pending)
 	}
-	prepared.Mutation.Abort()
+	if err := prepared.Change.Discard(); err != nil {
+		t.Fatalf("Discard: %v", err)
+	}
 	if !state.claimWaitingMutation() {
 		t.Fatal("Abort did not release the parked-turn mutation claim")
 	}
@@ -176,7 +179,7 @@ func TestPreparedWaitingCancellationContinuationFailureDoesNotReenterLifecycleLo
 	}
 	continueErr := errors.New("continue failed")
 	plan := &stubWaitingSubtreePlan{continueErr: continueErr}
-	prepared := &preparedWaitingSubtreeCancellation{
+	prepared := &waitingSubtreeChange{
 		controller: controller,
 		state:      state,
 		plan:       plan,
@@ -184,7 +187,11 @@ func TestPreparedWaitingCancellationContinuationFailureDoesNotReenterLifecycleLo
 
 	done := make(chan error, 1)
 	go func() {
-		done <- prepared.Commit(t.Context(), runs.WaitingSubtreeContinues)
+		if err := prepared.Apply(runs.WaitingSubtreeResumesRunning); err != nil {
+			done <- err
+			return
+		}
+		done <- prepared.Continue(t.Context())
 	}()
 	select {
 	case err := <-done:
@@ -243,20 +250,22 @@ func TestPreparedWaitingCancellationRuntimeApplyFailureReleasesClaimOnAbort(t *t
 	}
 	applyErr := errors.New("runtime apply failed")
 	plan := &stubWaitingSubtreePlan{applyErr: applyErr}
-	prepared := &preparedWaitingSubtreeCancellation{
+	prepared := &waitingSubtreeChange{
 		controller: controller,
 		state:      state,
 		plan:       plan,
 	}
 
-	err := prepared.Commit(t.Context(), runs.WaitingSubtreeRemainsInterrupted)
+	err := prepared.Apply(runs.WaitingSubtreeStaysWaiting)
 	if !errors.Is(err, applyErr) {
 		t.Fatalf("Commit error = %v, want runtime cause", err)
 	}
 	if !strings.Contains(err.Error(), handle.TurnID) {
 		t.Fatalf("Commit error = %q, want turn identity", err)
 	}
-	prepared.Abort()
+	if err := prepared.Discard(); err != nil {
+		t.Fatalf("Discard: %v", err)
+	}
 	if plan.applied != 1 {
 		t.Fatalf("runtime apply calls = %d, want 1", plan.applied)
 	}

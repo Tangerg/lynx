@@ -122,15 +122,14 @@ func (m *nestedDelegatingStub) Call(_ context.Context, request *chat.Request) (*
 	m.calls++
 	m.mu.Unlock()
 
-	taskOutput := toolResult(request.Messages, "delegate_task")
 	var (
 		response *chat.Response
 		err      error
 	)
 	switch {
-	case strings.Contains(taskOutput, "grandchild: result"):
+	case hasToolMessage(request.Messages) && userMessagesContain(request.Messages, "child delegate"):
 		response, err = responseWithText("child: result")
-	case strings.Contains(taskOutput, "child: result"):
+	case hasToolMessage(request.Messages):
 		response, err = responseWithText("root: result")
 	case userMessagesContain(request.Messages, "nested root"):
 		response, err = responseWithToolCall("delegate_task", `{"summary":"delegated work","instructions":"child delegate"}`)

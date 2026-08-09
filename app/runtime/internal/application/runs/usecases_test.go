@@ -138,8 +138,10 @@ type fakeExecutionPorts struct {
 	operations     *[]string
 	releaseErr     error
 	cancelTreeErr  error
-	cancelSubtree  func(ExecutorRef, string) error
-	prepareWaiting func(ExecutorRef, string) (PreparedWaitingSubtreeCancellation, error)
+	cancelSubtree  func(ExecutorRef, string, string) error
+	prepareWaiting func(WaitingSubtreeCancellationRequest) (PreparedWaitingSubtreeCancellation, error)
+	restoreWaiting []WaitingContinuation
+	restoreErr     error
 }
 
 type blockingOpeningEffects struct {
@@ -183,8 +185,9 @@ func (f *fakeExecutionPorts) StageContinuation(_ context.Context, continuation W
 	f.rehydrateReq = RehydrateExecution{
 		SessionID: continuation.SessionID, ExecutorID: continuation.ExecutorID,
 		MemberID: continuation.Checkpoint.RootMemberID, RootRunID: continuation.RootRunID,
-		ChildRuns: continuation.ChildRuns, ModelSelection: continuation.Checkpoint.ModelSelection,
-		CWD: continuation.Checkpoint.Scope.CWD, WorkspaceCWD: continuation.Checkpoint.Scope.WorkspaceCWD,
+		ChildRuns:      testChildRunBindings(continuation.Members),
+		ModelSelection: continuation.Checkpoint.ModelSelection,
+		CWD:            continuation.Checkpoint.Scope.CWD, WorkspaceCWD: continuation.Checkpoint.Scope.WorkspaceCWD,
 		Isolated:    continuation.Checkpoint.Scope.Isolated,
 		GoalLeaseID: continuation.Checkpoint.Scope.GoalLeaseID, Limits: continuation.Checkpoint.Limits,
 		ChildRunAdmissionEnabled: continuation.ChildRunAdmissionEnabled,
@@ -206,6 +209,33 @@ func (f *fakeExecutionPorts) StageContinuation(_ context.Context, continuation W
 	return ExecutorRef{SessionID: continuation.SessionID, ExecutorID: continuation.ExecutorID}, nil
 }
 
+func (f *fakeExecutionPorts) RestoreWaitingExecution(
+	_ context.Context,
+	continuation WaitingContinuation,
+) (ExecutorRef, error) {
+	f.restoreWaiting = append(f.restoreWaiting, continuation)
+	if f.operations != nil {
+		*f.operations = append(*f.operations, "executor.restore_waiting")
+	}
+	if f.restoreErr != nil {
+		return ExecutorRef{}, f.restoreErr
+	}
+	return ExecutorRef{SessionID: continuation.SessionID, ExecutorID: continuation.ExecutorID}, nil
+}
+
+func testChildRunBindings(members []WaitingMember) []ChildRunBinding {
+	bindings := make([]ChildRunBinding, 0, len(members)-1)
+	for _, member := range members {
+		if member.ParentRunID == "" {
+			continue
+		}
+		bindings = append(bindings, ChildRunBinding{
+			MemberID: member.MemberID, RunID: member.RunID, ParentRunID: member.ParentRunID,
+		})
+	}
+	return bindings
+}
+
 func (f *fakeExecutionPorts) BeginContinuation(
 	context.Context,
 	ExecutorRef,
@@ -219,23 +249,6 @@ func (f *fakeExecutionPorts) BeginContinuation(
 	return nil
 }
 
-func (f *fakeExecutionPorts) ClaimWaiting(context.Context, ExecutorRef) (ExecutorRef, error) {
-	return f.prepared, f.prepareErr
-}
-
-func (f *fakeExecutionPorts) ResumeWaiting(context.Context, ExecutorRef, []InterruptAnswer, []interrupt.Kind) error {
-	if f.resumeCheck != nil {
-		f.resumeCheck()
-	}
-	f.resumed = true
-	return nil
-}
-
-func (f *fakeExecutionPorts) RestoreWaiting(_ context.Context, request RehydrateExecution) (ExecutorRef, error) {
-	f.rehydrateReq = request
-	return f.rehydrated, f.rehydrateErr
-}
-
 func (f *fakeExecutionPorts) Release(_ context.Context, ref ExecutorRef) error {
 	if f.operations != nil {
 		*f.operations = append(*f.operations, "executor.release")
@@ -244,26 +257,30 @@ func (f *fakeExecutionPorts) Release(_ context.Context, ref ExecutorRef) error {
 	return f.releaseErr
 }
 
-func (f *fakeExecutionPorts) CancelRunningSubtree(_ context.Context, ref ExecutorRef, memberID string) error {
+func (f *fakeExecutionPorts) CancelRunningSubtree(
+	_ context.Context,
+	ref ExecutorRef,
+	memberID string,
+	reason string,
+) error {
 	if f.operations != nil {
 		*f.operations = append(*f.operations, "run.cancel_subtree:"+memberID)
 	}
 	f.canceledTrees = append(f.canceledTrees, ref)
 	if f.cancelSubtree != nil {
-		return f.cancelSubtree(ref, memberID)
+		return f.cancelSubtree(ref, memberID, reason)
 	}
 	return f.cancelTreeErr
 }
 
 func (f *fakeExecutionPorts) PrepareWaitingSubtreeCancellation(
 	_ context.Context,
-	ref ExecutorRef,
-	memberID string,
+	request WaitingSubtreeCancellationRequest,
 ) (PreparedWaitingSubtreeCancellation, error) {
 	if f.prepareWaiting == nil {
 		return PreparedWaitingSubtreeCancellation{}, errors.New("fake execution control: waiting subtree cancellation is not configured")
 	}
-	return f.prepareWaiting(ref, memberID)
+	return f.prepareWaiting(request)
 }
 
 func (f *fakeExecutionPorts) SubmitSteer(_ context.Context, ref ExecutorRef, input []transcript.ContentBlock) error {
@@ -289,21 +306,21 @@ func newUseCaseCoordinator(exec ExecutionObserver, control *fakeExecutionPorts, 
 		}
 	}
 	deps := Dependencies{
-		RootStarts:    control,
-		Observations:  exec,
-		Releases:      control,
-		Conversation:  emptyConversationReader{},
-		Continuation:  control,
-		LegacyWaiting: control,
-		Steering:      control,
-		RunningTrees:  control,
-		WaitingTrees:  control,
-		Session:       testSessionPorts(sessions),
-		Projection:    testProjectionPorts(effects),
-		Runs:          projection,
-		Now:           func() time.Time { return time.Date(2026, 7, 13, 1, 2, 3, 0, time.UTC) },
-		NewRunID:      func() string { return "run_new" },
-		NewSegmentID:  func() string { return "seg_new" },
+		RootStarts:                         control,
+		Observations:                       exec,
+		Releases:                           control,
+		Conversation:                       emptyConversationReader{},
+		Continuation:                       control,
+		WaitingRestorer:                    control,
+		Steering:                           control,
+		RunningSubtreeCanceler:             control,
+		WaitingSubtreeCancellationPreparer: control,
+		Session:                            testSessionPorts(sessions),
+		Projection:                         testProjectionPorts(effects),
+		Runs:                               projection,
+		Now:                                func() time.Time { return time.Date(2026, 7, 13, 1, 2, 3, 0, time.UTC) },
+		NewRunID:                           func() string { return "run_new" },
+		NewSegmentID:                       func() string { return "seg_new" },
 	}
 	deps.Admissions = new(admission.Gate)
 	return NewCoordinator(deps)
@@ -1353,12 +1370,15 @@ func TestCancelRunningChildCommitsExactSubtreeBoundaryAndKeepsRootRunning(t *tes
 		finishRoot:      make(chan struct{}),
 	}
 	control := &fakeExecutionPorts{}
-	control.cancelSubtree = func(ref ExecutorRef, memberID string) error {
+	control.cancelSubtree = func(ref ExecutorRef, memberID, reason string) error {
 		if ref != (ExecutorRef{SessionID: "ses_1", ExecutorID: "turn_1"}) {
 			return errors.New("subtree cancellation addressed the wrong execution")
 		}
 		if memberID != childMember.MemberID {
 			return errors.New("subtree cancellation addressed the wrong process")
+		}
+		if reason != "stop delegated work" {
+			return errors.New("subtree cancellation changed the product reason")
 		}
 		close(executor.cancelRequested)
 		return nil
@@ -1368,16 +1388,16 @@ func TestCancelRunningChildCommitsExactSubtreeBoundaryAndKeepsRootRunning(t *tes
 		"run_1": runForSegment(testSegment()),
 	}}
 	coordinator := NewCoordinator(Dependencies{
-		Observations: executor,
-		Releases:     control,
-		RunningTrees: control,
-		Session:      testSessionPorts(&fakeRunSessions{}),
-		Projection:   testProjectionPorts(effects),
-		Runs:         projection,
-		Admissions:   new(admission.Gate),
-		Now:          func() time.Time { return time.Date(2026, 7, 30, 1, 2, 3, 0, time.UTC) },
-		NewRunID:     func() string { return "run_child" },
-		NewSegmentID: func() string { return "seg_child" },
+		Observations:           executor,
+		Releases:               control,
+		RunningSubtreeCanceler: control,
+		Session:                testSessionPorts(&fakeRunSessions{}),
+		Projection:             testProjectionPorts(effects),
+		Runs:                   projection,
+		Admissions:             new(admission.Gate),
+		Now:                    func() time.Time { return time.Date(2026, 7, 30, 1, 2, 3, 0, time.UTC) },
+		NewRunID:               func() string { return "run_child" },
+		NewSegmentID:           func() string { return "seg_child" },
 	})
 	stream, err := coordinator.openSegment(t.Context(), testSegment())
 	if err != nil {

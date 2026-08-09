@@ -31,6 +31,11 @@ type TreeBarrierCommitter interface {
 	CommitTreeBarrier(ctx context.Context, barrier TreeBarrierCommit) error
 }
 
+// WaitingCheckpointReader returns one exact opaque waiting-tree recovery point.
+type WaitingCheckpointReader interface {
+	ReadWaitingCheckpoint(ctx context.Context, rootMemberID string) (ExecutorCheckpoint, error)
+}
+
 // WaitingSubtreeCancellationCommitter owns the atomic application write-set for
 // canceling a child subtree while its root is waiting.
 type WaitingSubtreeCancellationCommitter interface {
@@ -56,13 +61,15 @@ type SegmentFinalizer interface {
 // composition. It is a value bundle, not a facade: Coordinator stores and uses
 // each capability separately, and implementations may provide them independently.
 type ProjectionPorts struct {
-	Openings     OpeningCommitter
-	ResumeClaims ResumeClaimCommitter
-	Events       EventCommitter
-	Barriers     TreeBarrierCommitter
-	WaitingEdits WaitingSubtreeCancellationCommitter
-	Workspace    WorkspaceChangeNotifier
-	Finalizer    SegmentFinalizer
+	Openings                    OpeningCommitter
+	ChildStarts                 ChildRunStartCommitter
+	ResumeClaims                ResumeClaimCommitter
+	Events                      EventCommitter
+	Barriers                    TreeBarrierCommitter
+	Checkpoints                 WaitingCheckpointReader
+	WaitingSubtreeCancellations WaitingSubtreeCancellationCommitter
+	Workspace                   WorkspaceChangeNotifier
+	Finalizer                   SegmentFinalizer
 }
 
 // Finish describes terminal Run-boundary maintenance after the live stream closes.

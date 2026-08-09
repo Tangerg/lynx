@@ -1,6 +1,6 @@
 # Lyra Runtime 重构实施计划
 
-> 状态：P6 durable waiting/restore/resume/steer 已完成；下一阶段 P7
+> 状态：P7 Delegate child Run 与 waiting subtree 已完成；下一阶段 P8
 >
 > 工作方式：原模块内治本重构，按可验证纵切分批完成；不创建完整 `runtime2`
 
@@ -23,7 +23,7 @@
 - breaking change 允许，禁止 alias、shim、dual read/write 和两套长期路径；
 - 每个阶段按依赖方向从内到外推进，但每个提交必须形成可运行纵切，不允许长期红仓；
 - 旧实现可以作为事实证据，不能成为新 API 兼容规范；
-- Agent2 Baseline 9 是当前 Framework 合同；Runtime 不读取其 private state；
+- Agent2 Baseline 14 是当前 Framework 合同；Runtime 不读取其 private state；
 - 每批完成后更新本计划和 Capability Ledger，运行对应质量门禁，提交并推送；
 - 如果发现 Agent2 缺口，先证明它是中性 Framework 能力且已有真实 Runtime consumer，再单独走 Agent2 ADR/baseline；禁止在 Runtime 侧补第二套内核；
 - 阶段完成不以文件数量或目录形状判断，只以验收合同和旧 owner 删除判断。
@@ -39,7 +39,7 @@
 | P4 | 原生 Interaction 的 root 纵切 | P3 | 已完成 |
 | P5 | 权威 model/tool observation 与 Tool 接线 | P4 | 已完成 |
 | P6 | waiting、checkpoint、restore、resume、steer | P5 | 已完成 |
-| P7 | Delegate child Run 与 waiting subtree | P6 + 两项 Agent2 中性合同 | 未开始 |
+| P7 | Delegate child Run 与 waiting subtree | P6 + 两项 Agent2 中性合同 | 已完成 |
 | P8 | terminal、recovery 与跨聚合一致性收口 | P7 | 未开始 |
 | P9 | Adapter/Infra/共享原语/Delivery 结构收敛 | P8 | 未开始 |
 | P10 | 协议、生成物与服务端 API 收口 | P9 | 未开始 |
@@ -303,6 +303,17 @@
 - transaction failure Discard 且 live tree 不变；commit 后 Apply 精确一致，commit 后 crash 恢复 resulting checkpoint，无法证明的 apply failure 丢弃旧 tree并恢复该 checkpoint，失败才 RunLost；
 - Framework 仍对 Run/transaction/store 零感知。
 
+### 完成事实
+
+- Agent2 以中性 `ProcessStartOutcomeAcknowledger` 闭合 accepted admission 后的 started/aborted 结论；Runtime 在 Delegate ToolCall durable commit 后创建不可见 child opening reservation，收到同一 prospective member 的 conclusive started fact 后才公开 Running，aborted 则只闭合 reservation；
+- `InteractionExecutor` 从 Interaction-owned typed active-child inspector 投影稳定 model-call/tool-index/ChildKey/Process identity，不读取 Strategy private state；多 child、nested child、sibling 乱序完成与 restore 已验证不重复创建产品 child Run；
+- child opening persistence 使用单一 transaction boundary，public `CommitStartedChildRun` 不在外层 transaction 内重入另一个 public transaction method；non-reentrant transaction 反例已锁定该所有权；
+- Agent2 Baseline 14 将 prepared waiting-subtree 变换收敛为 contextless one-shot `Apply()`：全部可失败、可取消的 staging 在 Prepare 内完成，Host durable decision 之后请求取消不能撤销提交；Agent2 仍不感知产品 Run、Store 或 transaction；
+- agentexec concrete 独占 prepared Framework capability；Application 只消费 canceled/paused member projection、opaque resulting checkpoint 与 Apply/Discard/Continue。transaction failure Discard；commit 后 Apply 只安装 resulting state；移除最后边界时独立 Continue 才激活已提交 Segment。无法证明 Apply 成功时先 release obsolete owner，再通过 `WaitingExecutionRestorer` 精确恢复 committed checkpoint，恢复失败才 durable `RunLost`；
+- P7 重复门禁暴露并治本修复旧 turn shutdown 的 stale-attempt 竞争：caller deadline 只结束当次等待，`turnState.done` 才是资源释放真相；旧 attempt 的 context error 不再污染已经完成的后续 join；
+- P7 新增 child integration 没有堆进新的巨型文件：production 按 Delegate binding、child admission、child projection 分文件收敛，集成测试按核心执行、restore、waiting subtree 与 fixture 分离；全部保持同一 `agentexec` package，不为文件拆分制造新 package 或接口；
+- P7 新路径仍只由真实 Agent2 harness 消费，Bootstrap 生产 owner 保持旧 Agent 路径，等待 P8 原子切换；旧 child controller、GOAP wrapper 和 suspension codec 没有扩散，仍在 P8 删除台账。
+
 ## 12. P8 — Terminal、Recovery 与跨聚合一致性收口
 
 ### 目标
@@ -426,7 +437,8 @@
 | 2026-08-08 | P4 | 在原 `agentexec` 内完成 Agent2 native Interaction root harness；每 root 独立 Engine + exact Deployment；Application 组装完整 Conversation seed；Result final 与 Delta 分离；集中映射 completion/model failure/cancel/deadline/panic；生产旧 owner 保留到 P8 | real Engine/Interaction integration、stage-zero-side-effect、complete WorkingContext、final-without-Delta、termination/panic/release tests 通过；architecture exact old-import ledger 未增长；`go test ./...` 通过 |
 | 2026-08-09 | P5 | 建立 per-Effect dispatch-attempt 与 authoritative commit receipt；model/tool invocation journal、Transcript final、usage/pricing 和 Run progress 原子提交；并发 Tool 乱序完成按模型顺序批量结算；接通唯一 Toolset Manifest、scope、deferred advertisement、approval/hooks/presentation/offload/doom-loop；live unknown 由 wake + polling 收口为 durable RunLost | pre/post-call failure、chunk drop、并发逆序与 batch rollback、lost wake、RunLost retry-before-release、scope propagation、best-effort projection/hook、SQLite transaction/order integration tests 通过；`go mod tidy` diff-free，`go test ./...`、`go vet ./...`、`go build ./...`、`staticcheck ./...` 与 agentexec/runs/runsegment/SQLite targeted race 全绿 |
 | 2026-08-09 | P6 | 以 Agent2 public pending input/TreeSnapshot/RestoreTree/typed Signal 完成 native waiting、exact restore、answer claim、resume、ask-user/interactive approval、deferred advertisement 与 safe-boundary steer；SQLite epoch 62 引入 hidden `resuming` answer audit，opening 强制证明 claim；旧 suspension 仅保留为 P8 production delete owner | live/cold resume、real ask_user、approval hook-once、advertisement restore、corrupt/build/deployment/workspace/capability failure、unknown no-checkpoint、conversation isolation、steer ordering、claim rollback/audit/replacement/terminal/boot cleanup、post-claim RunLost-before-release tests通过；`go mod tidy -diff`、`go test ./...`、`go vet ./...`、`go build ./...`、`staticcheck ./app/runtime/...` 与 Agent2/runs/runsegment/runrecovery/SQLite targeted race 全绿 |
+| 2026-08-09 | P7 | 以 Agent2 conclusive start outcome 和 one-shot prepared waiting-subtree change 完成 durable Delegate child Run、nested/sibling causal binding、restore attribution、waiting child cancellation 与 resulting checkpoint recovery；Application 与 Agent2 之间只传中性 member projection 和 opaque checkpoint | accepted→started/aborted、admission reject、multi/nested/restore、non-reentrant child commit、prepare/transaction/Apply-or-Discard、Apply/Continue 分相、commit-after-Apply-failure exact restore、restore failure RunLost 与 canceled-request-after-commit tests 通过；旧 turn shutdown 竞争目标测试 100 次、整包 10 次稳定；Runtime/Agent2 `go mod tidy -diff`、全量 test/vet/build/staticcheck、Agent2 全量 race 与 Runtime 高风险 race 全绿 |
 
 ## 18. 当前下一步
 
-P6 已完成。下一批进入 P7：先用真实 Runtime consumer 证明并补齐 Agent2 的两项中性前置合同——admitted child 的 conclusive started/aborted outcome，以及 Apply/Discard 前冻结 source tree 的 one-shot prepared change；随后接通 Delegate child Run admission、stable causality binding 和 waiting subtree transaction。P7 不得在 Runtime 内用 timeout、private identity、补偿内核或旧 mutation lease 绕过这些 Framework 缺口。
+P7 已完成。下一批进入 P8：统一 root/child tree 的 terminal、cancel、deadline、live unknown、boot recovery、rollback cleanup 与 first-wins outcome matrix；随后在同一批原子切换 Bootstrap 到 native Agent2 owner，并删除旧 root GOAP wrapper、TurnProcess、turn controller、suspension/tree codec 和其余旧 execution path。P8 不保留双 production owner，也不把 Application 的 Run、transaction、recovery policy 下沉 Agent2。

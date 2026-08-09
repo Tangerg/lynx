@@ -208,7 +208,7 @@ Entity 自己保护状态迁移和不变量。Application 不得通过一串 set
 - agentexec concrete one-shot capability 唯一持有 prepared Framework change；Application 只看 member projections、opaque resulting checkpoint 和准确的 Apply/Discard capability；
 - prepared change 在 Apply/Discard 前保持 source tree frozen；Application transaction 不持有自己不拥有的 Framework lock；
 - capability 必须 one-shot、Discard 幂等、有 Host-owned deadline；agentexec 获取后立即 `defer Discard`，禁止遗漏清理导致 tree 无限冻结；
-- transaction failure 必须 Discard，commit 后必须 Apply；commit 后 crash 恢复 resulting checkpoint，无法证明的 apply failure 丢弃旧 live tree并从该 checkpoint 恢复，失败则 RunLost。
+- transaction failure 必须 Discard；commit 后必须调用不接受请求 context 的 Apply。若最终外部边界被移除，Process activation 必须由独立 `Continue(ctx)` 表达，不能塞进 Apply 或把 activation failure 伪装成 apply failure；commit 后 crash 恢复 resulting checkpoint；无法证明的 apply failure 先释放旧 owner并从该 checkpoint 精确恢复，只有恢复失败才提交 RunLost。
 
 ## 5. Go API 标准
 

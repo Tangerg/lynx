@@ -509,7 +509,7 @@
 
 ## ADR-A2-061：等待子树变更以一次性 prepared capability 持有源边界
 
-- 状态：已接受；完成 P10-05，形成 Baseline 11；取代 ADR-A2-058/A2-059 中 pure plan、source digest 和后续 Engine apply 的合同。
+- 状态：已接受；完成 P10-05，形成 Baseline 11；取代 ADR-A2-058/A2-059 中 pure plan、source digest 和后续 Engine apply 的合同；其中 `Apply(ctx)` 的取消语义已由 ADR-A2-064 取代。
 - 证据：Runtime 的正确调用顺序是先获得确定 resulting tree，在自己的原子边界保存该结果，再把同一变更提交到 live Framework tree。Baseline 9 的 value plan 在计算后立即释放 quiescence；调用方提交期间 source tree 可以继续接收 Signal、控制请求或 child completion，随后 `ApplyWaitingSubtreeCancellation` 只能以 stale 失败。此时 caller-owned durable result 已提交但 live tree 未改变，无法用重试、lease、补偿或 private snapshot mutation 在 Framework 外治本。把 Runtime transaction、checkpoint、revision 或 opaque app token 放进 Kernel 又会造成明确抽象泄漏。
 - 决策：根公共面只保留 `Engine.PrepareWaitingSubtreeCancellation(ctx, rootID, targetID, reason)`，返回指针语义的一次性 `PreparedWaitingSubtreeCancellation`。Prepare 在一个完整 Strategy-safe cut 上计算 exact resulting `TreeSnapshot`、canceled Process IDs 和 paused Process IDs，并持续持有该 source root tree 的 operation/quiescence。capability 不可复制，必须且只能由 `Apply(ctx)` 或 `Discard()` 结束；第二次 resolution 返回稳定 resolved error。resulting snapshot 和防御性复制的 ID 列表在 resolution 后仍可读取。
 - 决策：`Apply` 先在所有既有 Process 单写者中暂存并复验 prepared Framework projection；共享 gate 前的 context 取消、stage failure 或内部不一致自动 Discard，释放 source tree且 live state 零修改。child-wait projection 写入后关闭唯一 gate；跨过该边界后 finalization 独立于调用 context 有界完成，保留原 controller/Process handle并复用既有终态 bookkeeping。`Discard` 不应用任何 prospective state，只释放边界。旧 `WaitingSubtreeCancellationPlan`、Engine plan/apply、Engine identity token、source digest 与 stale/foreign errors 全部删除，不提供 alias 或 shim。
@@ -534,3 +534,11 @@
 - 决策：等待原因仍只属于 Interaction private state，不进入 Kernel Status、Snapshot wire或新的公共枚举。Delegate 恢复归因继续由 `ActiveDelegateChildrenFromSnapshot` 提供；Tool 输入继续由 `PendingToolInputFromSnapshot` 提供。两者不是近义入口，而是各自拥有不同结果类型、验证合同和消费者的正交 typed view。
 - 原因：Kernel 只应知道 Process 正在等待哪个 WaitID，等待的业务/策略原因必须由 Strategy owner 解释。精确区分“不是该 inspector 的能力”与“该 owner state 已损坏”，既保持窄腰不透明，也避免 Host 通过错误分支猜 private phase。
 - 后果：形成 Baseline 13。七个 public API digest、Process Snapshot v6、TreeSnapshot v4、Interaction state/protocol v5/v3、其余 owner wire与 observation wire全部不变；新增行为测试证明合法 Delegate wait 返回 `found=false`，真实 Runtime 完整 tree restore 不需要绕过错误。
+
+## ADR-A2-064：Prepared tree Apply 不接受虚假的请求取消
+
+- 状态：已接受；作为 P10-06 Runtime durable consumer 的 Framework 支撑形成 Baseline 14。
+- 证据：Runtime 只有在自身 application transaction 已提交 resulting checkpoint 后才调用 prepared Apply。原 `Apply(ctx)` 允许 gate 前请求取消，意味着持久真相已经改变但 Framework source tree仍保持旧状态，迫使 Host 重试一个本应不可撤销的内存提交；这不是有用的协作取消，而是错误的 API 承诺。所有真正可失败的 controller lookup、source validation 与 projection staging 已经在 `PrepareWaitingSubtreeCancellation` 返回前完成。
+- 决策：`PreparedWaitingSubtreeCancellation.Apply` 移除 `context.Context`，只保留 `Apply()`。Prepare 继续接收 context 并在 acquire/quiesce/capture/project/stage 任一失败时释放 source tree、返回零 capability；成功返回后，Apply 在 resolution lock 下复验 capability 内部完整性，跨越唯一 gate并独立完成 state installation、quiescence release与既有终态 bookkeeping。nil、损坏或已经 resolved 仍返回稳定 misuse error；正常 caller cancellation 不再是 Apply 的状态分支。
+- 决策：该变化只描述 Framework prepared state 的不可撤销提交点，不引入 durability、transaction、checkpoint、Run、application disposition、retry policy 或 Host callback。是否先持久化、崩溃后恢复哪个 snapshot，仍完全属于 Host。
+- 后果：根 public API/GoDoc 形成 Baseline 14；Process Snapshot v6、TreeSnapshot v4、Framework/Strategy protocol、Event/Delta wire与其余六个 public package不变。owner tests证明 Apply/Discard 并发仍恰好一个获胜，Apply 后 live tree精确等于 ResultingSnapshot，且不存在请求取消造成的半决策状态。

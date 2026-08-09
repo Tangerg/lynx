@@ -2,6 +2,7 @@ package runsegment
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"reflect"
@@ -10,7 +11,120 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 )
+
+// ReserveChildRunStart durably records one invisible child identity. It does
+// not admit a Run or append Transcript content.
+func (e *Effects) ReserveChildRunStart(
+	ctx context.Context,
+	reservation runs.ChildRunStartReservation,
+) error {
+	if e.tx == nil || e.childRunStarts == nil {
+		return errors.New("runsegment: child Run start persistence is unavailable")
+	}
+	record, err := childRunStartReservationRecord(reservation)
+	if err != nil {
+		return err
+	}
+	return e.runInTx(ctx, func(ctx context.Context) error {
+		if err := e.childRunStarts.Reserve(ctx, record); err != nil {
+			return fmt.Errorf("runsegment: reserve child Run start: %w", err)
+		}
+		return nil
+	})
+}
+
+// CommitStartedChildRun atomically consumes the invisible reservation with the
+// public Running child Run and its causal parent Item.
+func (e *Effects) CommitStartedChildRun(
+	ctx context.Context,
+	reservation runs.ChildRunStartReservation,
+	opening runs.OpeningCommit,
+) error {
+	if e.tx == nil || e.childRunStarts == nil {
+		return errors.New("runsegment: child Run start persistence is unavailable")
+	}
+	record, err := childRunStartReservationRecord(reservation)
+	if err != nil {
+		return err
+	}
+	if err := validateStartedChildOpening(reservation, opening); err != nil {
+		return err
+	}
+	return e.runInTx(ctx, func(ctx context.Context) error {
+		changed, err := e.childRunStarts.Conclude(
+			ctx, record, sqlite.ChildRunStartConclusionStarted,
+		)
+		if err != nil {
+			return fmt.Errorf("runsegment: conclude started child Run reservation: %w", err)
+		}
+		if !changed {
+			return nil
+		}
+		if err := e.commitOpening(ctx, opening); err != nil {
+			return fmt.Errorf("runsegment: commit started child Run opening: %w", err)
+		}
+		return nil
+	})
+}
+
+// AbortChildRunStart consumes an invisible reservation without creating a Run.
+func (e *Effects) AbortChildRunStart(
+	ctx context.Context,
+	reservation runs.ChildRunStartReservation,
+) error {
+	if e.tx == nil || e.childRunStarts == nil {
+		return errors.New("runsegment: child Run start persistence is unavailable")
+	}
+	record, err := childRunStartReservationRecord(reservation)
+	if err != nil {
+		return err
+	}
+	return e.runInTx(ctx, func(ctx context.Context) error {
+		if _, err := e.childRunStarts.Conclude(
+			ctx, record, sqlite.ChildRunStartConclusionAborted,
+		); err != nil {
+			return fmt.Errorf("runsegment: abort child Run start: %w", err)
+		}
+		return nil
+	})
+}
+
+func childRunStartReservationRecord(
+	reservation runs.ChildRunStartReservation,
+) (sqlite.ChildRunStartReservationRecord, error) {
+	if err := reservation.Validate(); err != nil {
+		return sqlite.ChildRunStartReservationRecord{}, fmt.Errorf("runsegment: invalid child Run start reservation: %w", err)
+	}
+	payload, err := json.Marshal(reservation)
+	if err != nil {
+		return sqlite.ChildRunStartReservationRecord{}, fmt.Errorf("runsegment: encode child Run start reservation: %w", err)
+	}
+	return sqlite.ChildRunStartReservationRecord{
+		MemberID: reservation.Member.MemberID, SessionID: reservation.SessionID,
+		Payload: payload, CreatedAt: reservation.StartedAt.UTC(),
+	}, nil
+}
+
+func validateStartedChildOpening(
+	reservation runs.ChildRunStartReservation,
+	opening runs.OpeningCommit,
+) error {
+	if err := opening.Validate(); err != nil {
+		return fmt.Errorf("runsegment: invalid started child opening: %w", err)
+	}
+	if opening.Admit == nil || opening.Resume != nil || opening.Admit.RunID != reservation.Binding.RunID ||
+		opening.Admit.SessionID != reservation.SessionID ||
+		opening.Admit.ParentRunID != reservation.Binding.ParentRunID ||
+		opening.Admit.RootRunID != reservation.RootRunID ||
+		opening.Admit.SpawnedByItemID != reservation.SpawnedByItemID ||
+		opening.Admit.SegmentID != reservation.SegmentID ||
+		!opening.Admit.CreatedAt.Equal(reservation.StartedAt) {
+		return errors.New("runsegment: started child opening differs from its reservation")
+	}
+	return nil
+}
 
 // ClaimResume is the waiting-answer linearization point. Loading the exact
 // checkpoint, consuming the exact Pending value, and deleting that checkpoint
@@ -87,50 +201,57 @@ func (e *Effects) CommitOpening(ctx context.Context, opening runs.OpeningCommit)
 		return fmt.Errorf("runsegment: invalid opening: %w", err)
 	}
 	return e.runInTx(ctx, func(ctx context.Context) error {
-		switch {
-		case opening.Admit != nil:
-			if e.runState == nil {
-				return errors.New("runsegment: run-state persistence is unavailable")
-			}
-			if opening.ScheduledSession != nil {
-				if e.sessions == nil {
-					return errors.New("runsegment: session persistence is unavailable")
-				}
-				if _, err := e.sessions.Ensure(ctx, *opening.ScheduledSession); err != nil {
-					return fmt.Errorf("runsegment: persist opening scheduled session: %w", err)
-				}
-			}
-			if err := e.runState.Admit(ctx, *opening.Admit); err != nil {
-				return err
-			}
-			if opening.SessionModel != nil {
-				if e.sessions == nil {
-					return errors.New("runsegment: session persistence is unavailable")
-				}
-				if err := e.sessions.SetModel(ctx, opening.SessionModel.SessionID, opening.SessionModel.Model); err != nil {
-					return fmt.Errorf("runsegment: persist opening session model: %w", err)
-				}
-			}
-			if opening.ScheduleFiring != "" {
-				if e.scheduleFirings == nil {
-					return errors.New("runsegment: schedule-firing persistence is unavailable")
-				}
-				if err := e.scheduleFirings.Accept(ctx, opening.ScheduleFiring, opening.Admit.RunID); err != nil {
-					return fmt.Errorf("runsegment: accept scheduled occurrence: %w", err)
-				}
-			}
-		case opening.Resume != nil:
-			if err := e.resumeTree(ctx, *opening.Resume); err != nil {
-				return err
-			}
-		}
-		for _, commit := range opening.Events {
-			if err := e.applyCommit(ctx, commit); err != nil {
-				return err
-			}
-		}
-		return nil
+		return e.commitOpening(ctx, opening)
 	})
+}
+
+// commitOpening assumes that the caller has validated opening and owns the
+// transaction boundary. Keeping the persistence body separate prevents
+// composite commits from depending on reentrant transaction implementations.
+func (e *Effects) commitOpening(ctx context.Context, opening runs.OpeningCommit) error {
+	switch {
+	case opening.Admit != nil:
+		if e.runState == nil {
+			return errors.New("runsegment: run-state persistence is unavailable")
+		}
+		if opening.ScheduledSession != nil {
+			if e.sessions == nil {
+				return errors.New("runsegment: session persistence is unavailable")
+			}
+			if _, err := e.sessions.Ensure(ctx, *opening.ScheduledSession); err != nil {
+				return fmt.Errorf("runsegment: persist opening scheduled session: %w", err)
+			}
+		}
+		if err := e.runState.Admit(ctx, *opening.Admit); err != nil {
+			return err
+		}
+		if opening.SessionModel != nil {
+			if e.sessions == nil {
+				return errors.New("runsegment: session persistence is unavailable")
+			}
+			if err := e.sessions.SetModel(ctx, opening.SessionModel.SessionID, opening.SessionModel.Model); err != nil {
+				return fmt.Errorf("runsegment: persist opening session model: %w", err)
+			}
+		}
+		if opening.ScheduleFiring != "" {
+			if e.scheduleFirings == nil {
+				return errors.New("runsegment: schedule-firing persistence is unavailable")
+			}
+			if err := e.scheduleFirings.Accept(ctx, opening.ScheduleFiring, opening.Admit.RunID); err != nil {
+				return fmt.Errorf("runsegment: accept scheduled occurrence: %w", err)
+			}
+		}
+	case opening.Resume != nil:
+		if err := e.resumeTree(ctx, *opening.Resume); err != nil {
+			return err
+		}
+	}
+	for _, commit := range opening.Events {
+		if err := e.applyCommit(ctx, commit); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // CommitEvent applies one run event's durable parts atomically (§8.3/§8.4): the

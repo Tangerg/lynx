@@ -49,7 +49,7 @@ func (*blockingRunRuntime) Observe(ctx context.Context, _ runs.ExecutorRef) (ite
 }
 
 func (*blockingRunRuntime) Release(context.Context, runs.ExecutorRef) error { return nil }
-func (*blockingRunRuntime) CancelRunningSubtree(context.Context, runs.ExecutorRef, string) error {
+func (*blockingRunRuntime) CancelRunningSubtree(context.Context, runs.ExecutorRef, string, string) error {
 	return nil
 }
 

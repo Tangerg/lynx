@@ -56,6 +56,12 @@ type segmentPump struct {
 	abortExecution bool
 
 	pendingToolCommits map[toolCommitKey]ExecutionFactCommit
+	childStarts        map[string]*managedChildStart
+}
+
+type managedChildStart struct {
+	prepared *preparedChildOpening
+	outcome  ChildRunStartOutcome
 }
 
 type toolCommitKey struct {
@@ -80,6 +86,12 @@ func (p *segmentPump) run() {
 }
 
 func (p *segmentPump) handle(event ExecutorEvent) bool {
+	if request, reserving := event.Payload.(ChildRunReservationRequest); reserving {
+		return p.handleChildRunReservation(event, request)
+	}
+	if request, concluding := event.Payload.(ChildRunStartOutcomeRequest); concluding {
+		return p.handleChildRunStartOutcome(event, request)
+	}
 	if request, opening := event.Payload.(ChildOpeningRequest); opening {
 		return p.handleChildOpening(event, request)
 	}
@@ -124,6 +136,160 @@ func (p *segmentPump) handle(event ExecutorEvent) bool {
 	return keep
 }
 
+func (p *segmentPump) handleChildRunReservation(
+	event ExecutorEvent,
+	request ChildRunReservationRequest,
+) bool {
+	if err := event.Validate(); err != nil {
+		if request.claim() {
+			_ = request.complete(ChildRunBinding{}, err)
+		}
+		p.fail(err)
+		return false
+	}
+	if err := request.validate(); err != nil {
+		p.fail(err)
+		return false
+	}
+	if !request.claim() {
+		return true
+	}
+	if p.coordinator.childStarts == nil {
+		err := errors.New("runs: child Run start persistence is unavailable")
+		_ = request.complete(ChildRunBinding{}, err)
+		return true
+	}
+	if existing := p.childStarts[event.Member.MemberID]; existing != nil {
+		if existing.prepared.member != event.Member ||
+			!existing.prepared.reservation.StartedAt.Equal(request.StartedAt.UTC()) {
+			err := fmt.Errorf("runs: child member %q repeated a different start reservation", event.Member.MemberID)
+			_ = request.complete(ChildRunBinding{}, err)
+			return true
+		}
+		_ = request.complete(existing.prepared.reservation.Binding, nil)
+		return true
+	}
+	prepared, err := p.coordinator.prepareChildOpening(
+		p.spec, p.live, p.routes, event.Member, request.StartedAt,
+	)
+	if err == nil {
+		err = p.coordinator.childStarts.ReserveChildRunStart(p.ownerCtx, prepared.reservation)
+	}
+	if err != nil {
+		if prepared != nil {
+			prepared.releaseBinding(p.live)
+		}
+		_ = request.complete(ChildRunBinding{}, err)
+		return true
+	}
+	if p.childStarts == nil {
+		p.childStarts = make(map[string]*managedChildStart)
+	}
+	p.childStarts[event.Member.MemberID] = &managedChildStart{prepared: prepared}
+	if err := request.complete(prepared.reservation.Binding, nil); err != nil {
+		p.abortPreparedChildStart(prepared)
+		delete(p.childStarts, event.Member.MemberID)
+		p.fail(err)
+		return false
+	}
+	return true
+}
+
+func (p *segmentPump) handleChildRunStartOutcome(
+	event ExecutorEvent,
+	request ChildRunStartOutcomeRequest,
+) bool {
+	if err := event.Validate(); err != nil {
+		if request.claim() {
+			_ = request.complete(err)
+		}
+		p.fail(err)
+		return false
+	}
+	if err := request.validate(); err != nil {
+		p.fail(err)
+		return false
+	}
+	if !request.claim() {
+		return true
+	}
+	managed := p.childStarts[event.Member.MemberID]
+	if managed == nil || managed.prepared.member != event.Member ||
+		managed.prepared.reservation.Binding != request.Binding {
+		err := fmt.Errorf("runs: child member %q has no matching start reservation", event.Member.MemberID)
+		_ = request.complete(err)
+		return true
+	}
+	if managed.outcome.valid() {
+		if managed.outcome != request.Outcome {
+			err := fmt.Errorf("runs: child member %q repeated a contradictory start outcome", event.Member.MemberID)
+			_ = request.complete(err)
+			return true
+		}
+		_ = request.complete(nil)
+		return true
+	}
+	prepared := managed.prepared
+	var err error
+	keep := true
+	switch request.Outcome {
+	case ChildRunStarted:
+		err = p.coordinator.childStarts.CommitStartedChildRun(
+			p.ownerCtx, prepared.reservation, prepared.opening,
+		)
+		if err == nil {
+			managed.outcome = request.Outcome
+			p.coordinator.activatePreparedChild(p.spec, p.routes, prepared)
+			publication, publishErr := p.publisher.publish(p.ownerCtx, prepared.route, prepared.batch)
+			if publishErr != nil || publication.finished || publication.parked {
+				if publishErr == nil {
+					publishErr = fmt.Errorf("runs: child member %q start unexpectedly reached a boundary", event.Member.MemberID)
+				}
+				// The durable child Run now exists. Rejecting the executor's started
+				// outcome would create a public Run without a Process, so acknowledge
+				// the conclusive start and fail this projection pump instead.
+				p.fail(publishErr)
+				keep = false
+			}
+		}
+		if err != nil {
+			// The executor will not publish a child when this receipt fails. Consume
+			// the invisible reservation as aborted; a failed cleanup remains hidden
+			// and is reconciled at startup rather than becoming a ghost Run.
+			cleanupErr := p.coordinator.childStarts.AbortChildRunStart(
+				context.WithoutCancel(p.ownerCtx), prepared.reservation,
+			)
+			err = errors.Join(err, cleanupErr)
+			prepared.releaseBinding(p.live)
+		}
+	case ChildRunStartAborted:
+		err = p.coordinator.childStarts.AbortChildRunStart(p.ownerCtx, prepared.reservation)
+		if err == nil {
+			managed.outcome = request.Outcome
+			prepared.releaseBinding(p.live)
+		}
+	default:
+		err = errors.New("runs: invalid child Run start outcome")
+	}
+	if completionErr := request.complete(err); completionErr != nil {
+		p.fail(errors.Join(err, completionErr))
+		return false
+	}
+	return keep
+}
+
+func (p *segmentPump) abortPreparedChildStart(prepared *preparedChildOpening) {
+	if prepared == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(p.ownerCtx), runCleanupTimeout)
+	defer cancel()
+	if p.coordinator.childStarts != nil {
+		recordRunCleanupError(ctx, p.coordinator.childStarts.AbortChildRunStart(ctx, prepared.reservation))
+	}
+	prepared.releaseBinding(p.live)
+}
+
 func (p *segmentPump) handleAuthoritativeFact(
 	member ExecutorMember,
 	fact ExecutionFact,
@@ -141,6 +307,7 @@ func (p *segmentPump) handleAuthoritativeFact(
 	if route.reducer == nil {
 		return result, fmt.Errorf("runs: admitted child run %q has no segment reducer", route.runID)
 	}
+	fact = p.classifyChildCancellationFact(route, fact)
 	speculative := route.reducer.clone()
 	if speculative == nil {
 		return result, fmt.Errorf("runs: admitted child run %q has no cloneable reducer", route.runID)
@@ -362,11 +529,7 @@ func (p *segmentPump) handleExecutionFact(member ExecutorMember, executionFact E
 	if _, interrupted := executionFact.(SegmentInterrupted); interrupted {
 		return false, errors.New("runs: executor emitted a per-Run interrupt instead of a tree barrier")
 	}
-	if toolEnd, endingTool := executionFact.(ToolCallFinished); endingTool {
-		if itemID, open := route.reducer.openToolItemID(toolEnd.CallID); open {
-			executionFact = p.live.classifyChildCancellationTool(route.runID, itemID, toolEnd)
-		}
-	}
+	executionFact = p.classifyChildCancellationFact(route, executionFact)
 	if route == p.routes.root && engineEventEndsSegment(executionFact) {
 		if activeChildren := p.routes.unfinishedCount() - 1; activeChildren > 0 {
 			return false, fmt.Errorf(
@@ -399,6 +562,21 @@ func (p *segmentPump) handleExecutionFact(member ExecutorMember, executionFact E
 	return !p.rootParked && !p.rootFinished, nil
 }
 
+func (p *segmentPump) classifyChildCancellationFact(
+	route *executorRoute,
+	fact ExecutionFact,
+) ExecutionFact {
+	toolEnd, endingTool := fact.(ToolCallFinished)
+	if !endingTool || route == nil || route.reducer == nil {
+		return fact
+	}
+	itemID, open := route.reducer.openToolItemID(toolEnd.CallID)
+	if !open {
+		return fact
+	}
+	return p.live.classifyChildCancellationTool(route.runID, itemID, toolEnd)
+}
+
 func (p *segmentPump) fail(err error) {
 	p.abortExecution = true
 	if p.ctx.Err() == nil && p.ownerCtx.Err() == nil {
@@ -409,6 +587,12 @@ func (p *segmentPump) fail(err error) {
 
 func (p *segmentPump) finish() {
 	p.failPendingToolCommits(errors.New("runs: execution ended before concurrent Tool results formed a durable prefix"))
+	for memberID, managed := range p.childStarts {
+		if !managed.outcome.valid() {
+			p.abortPreparedChildStart(managed.prepared)
+		}
+		delete(p.childStarts, memberID)
+	}
 	if !p.rootFinished {
 		p.synthesizeUnfinished()
 	}

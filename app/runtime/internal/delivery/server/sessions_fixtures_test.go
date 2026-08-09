@@ -37,7 +37,6 @@ type testRuntime interface {
 	runs.ExecutionObserver
 	runs.ExecutionReleaser
 	runs.WaitingExecutionContinuer
-	runs.LegacyWaitingExecutor
 	runs.RunningExecutionSteerer
 	runs.RunningSubtreeCanceler
 	runs.WaitingSubtreeCancellationPreparer
@@ -110,7 +109,6 @@ type executionRuntime interface {
 	runs.ExecutionObserver
 	runs.ExecutionReleaser
 	runs.WaitingExecutionContinuer
-	runs.LegacyWaitingExecutor
 	runs.RunningExecutionSteerer
 	runs.RunningSubtreeCanceler
 	runs.WaitingSubtreeCancellationPreparer
@@ -224,24 +222,24 @@ func newTestServer(rt testRuntime) *Server {
 	}
 	projectionWriter := rt.RunSegmentEffects(nil, nil)
 	s.runs = runs.NewCoordinator(runs.Dependencies{
-		RootStarts:    rt,
-		Observations:  rt,
-		Releases:      rt,
-		Conversation:  conversation,
-		Continuation:  rt,
-		LegacyWaiting: rt,
-		Steering:      rt,
-		RunningTrees:  rt,
-		WaitingTrees:  rt,
-		Session:       sessionPorts,
+		RootStarts:                         rt,
+		Observations:                       rt,
+		Releases:                           rt,
+		Conversation:                       conversation,
+		Continuation:                       rt,
+		Steering:                           rt,
+		RunningSubtreeCanceler:             rt,
+		WaitingSubtreeCancellationPreparer: rt,
+		Session:                            sessionPorts,
 		Projection: runs.ProjectionPorts{
-			Openings:     projectionWriter,
-			ResumeClaims: projectionWriter,
-			Events:       projectionWriter,
-			Barriers:     projectionWriter,
-			WaitingEdits: projectionWriter,
-			Workspace:    projectionWriter,
-			Finalizer:    projectionWriter,
+			Openings:                    projectionWriter,
+			Checkpoints:                 projectionWriter,
+			ResumeClaims:                projectionWriter,
+			Events:                      projectionWriter,
+			Barriers:                    projectionWriter,
+			WaitingSubtreeCancellations: projectionWriter,
+			Workspace:                   projectionWriter,
+			Finalizer:                   projectionWriter,
 		},
 		Runs:       runProjection,
 		Admissions: admissions,
@@ -323,23 +321,13 @@ func (executionStub) StageContinuation(_ context.Context, continuation runs.Wait
 func (executionStub) BeginContinuation(context.Context, runs.ExecutorRef, []runs.InterruptAnswer, []interrupt.Kind) error {
 	return nil
 }
-func (executionStub) ClaimWaiting(_ context.Context, ref runs.ExecutorRef) (runs.ExecutorRef, error) {
-	return ref, nil
-}
-func (executionStub) ResumeWaiting(context.Context, runs.ExecutorRef, []runs.InterruptAnswer, []interrupt.Kind) error {
-	return nil
-}
-func (executionStub) RestoreWaiting(_ context.Context, req runs.RehydrateExecution) (runs.ExecutorRef, error) {
-	return runs.ExecutorRef{SessionID: req.SessionID, ExecutorID: req.ExecutorID}, nil
-}
 func (executionStub) Release(context.Context, runs.ExecutorRef) error { return nil }
-func (executionStub) CancelRunningSubtree(context.Context, runs.ExecutorRef, string) error {
+func (executionStub) CancelRunningSubtree(context.Context, runs.ExecutorRef, string, string) error {
 	return nil
 }
 func (executionStub) PrepareWaitingSubtreeCancellation(
 	context.Context,
-	runs.ExecutorRef,
-	string,
+	runs.WaitingSubtreeCancellationRequest,
 ) (runs.PreparedWaitingSubtreeCancellation, error) {
 	return runs.PreparedWaitingSubtreeCancellation{}, errors.New("test execution: waiting subtree cancellation is unavailable")
 }
@@ -393,18 +381,6 @@ func (s stubRuntime) BeginRoot(ctx context.Context, ref runs.ExecutorRef) error 
 	return s.executionController().BeginRoot(ctx, ref)
 }
 
-func (s stubRuntime) ClaimWaiting(ctx context.Context, ref runs.ExecutorRef) (runs.ExecutorRef, error) {
-	return s.executionController().ClaimWaiting(ctx, ref)
-}
-
-func (s stubRuntime) ResumeWaiting(ctx context.Context, prepared runs.ExecutorRef, answers []runs.InterruptAnswer, interruptKinds []interrupt.Kind) error {
-	return s.executionController().ResumeWaiting(ctx, prepared, answers, interruptKinds)
-}
-
-func (s stubRuntime) RestoreWaiting(ctx context.Context, req runs.RehydrateExecution) (runs.ExecutorRef, error) {
-	return s.executionController().RestoreWaiting(ctx, req)
-}
-
 func (s stubRuntime) Cancel(ctx context.Context, ref runs.ExecutorRef) error {
 	return s.executionController().Release(ctx, ref)
 }
@@ -413,19 +389,18 @@ func (s stubRuntime) CancelRunningSubtree(
 	ctx context.Context,
 	ref runs.ExecutorRef,
 	processID string,
+	reason string,
 ) error {
-	return s.executionController().CancelRunningSubtree(ctx, ref, processID)
+	return s.executionController().CancelRunningSubtree(ctx, ref, processID, reason)
 }
 
 func (s stubRuntime) PrepareWaitingSubtreeCancellation(
 	ctx context.Context,
-	ref runs.ExecutorRef,
-	processID string,
+	request runs.WaitingSubtreeCancellationRequest,
 ) (runs.PreparedWaitingSubtreeCancellation, error) {
 	return s.executionController().PrepareWaitingSubtreeCancellation(
 		ctx,
-		ref,
-		processID,
+		request,
 	)
 }
 

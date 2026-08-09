@@ -71,7 +71,7 @@ func (c *Coordinator) Resume(ctx context.Context, cmd ResumeCommand) (StartResul
 	}
 	ref, err := c.continuation.StageContinuation(ctx, WaitingContinuation{
 		SessionID: pending.SessionID, ExecutorID: pending.ExecutorID,
-		RootRunID: pending.RootRunID, ChildRuns: childRunBindingsFromPending(pending),
+		RootRunID: pending.RootRunID, Members: waitingMembersFromPending(pending),
 		Checkpoint:               claimed.Checkpoint,
 		Capabilities:             pending.Capabilities,
 		ChildRunAdmissionEnabled: pending.Capabilities.ChildRuns,
@@ -153,10 +153,7 @@ func validateClaimedResume(
 	if err := claimed.Checkpoint.ValidateOwnership(root.MemberID, expected.SessionID); err != nil {
 		return err
 	}
-	if claimed.Checkpoint.Scope.WorkspaceCWD != sess.CWD || claimed.Checkpoint.Scope.Isolated != sess.Isolated {
-		return fmt.Errorf("%w: checkpoint workspace scope differs from Session", ErrExecutorStateLost)
-	}
-	return nil
+	return validateCheckpointSessionScope(claimed.Checkpoint, sess)
 }
 
 func (c *Coordinator) failClaimedResume(
@@ -190,17 +187,18 @@ func (c *Coordinator) failClaimedResume(
 	return result
 }
 
-func childRunBindingsFromPending(pending Pending) []ChildRunBinding {
-	bindings := make([]ChildRunBinding, 0, len(pending.Continuations)-1)
+func waitingMembersFromPending(pending Pending) []WaitingMember {
+	members := make([]WaitingMember, 0, len(pending.Continuations))
 	for _, continuation := range pending.Continuations {
-		if !continuation.Lineage.IsChild() {
-			continue
+		parentRunID := ""
+		if continuation.Lineage.IsChild() {
+			parentRunID = continuation.Lineage.ParentRunID
 		}
-		bindings = append(bindings, ChildRunBinding{
-			MemberID:    continuation.MemberID,
-			RunID:       continuation.RunID,
-			ParentRunID: continuation.Lineage.ParentRunID,
+		members = append(members, WaitingMember{
+			RunID: continuation.RunID, MemberID: continuation.MemberID,
+			ParentRunID: parentRunID, SpawnedByItemID: continuation.Lineage.SpawnedByItemID,
+			ModelSelection: continuation.ModelSelection, Metrics: continuation.Metrics,
 		})
 	}
-	return bindings
+	return members
 }

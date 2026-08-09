@@ -256,18 +256,18 @@
 
 ## ADR-RT-041：Durable Process admission 必须有 conclusive start outcome
 
-- 状态：已接受，Agent2 前置合同待补齐。
+- 状态：已接受，P7 已实施并验证；Agent2 中性合同形成 Baseline 10。
 - 背景：Agent2 Baseline 9 在 ProcessAdmitter 成功后仍会执行可失败的 Definition.Start、initial capture/restore 和 register。root 失败可由直接 `Engine.Start` 调用者收口；child 失败只返回不含 prospective ProcessID 的 parent result，没有 post-admission aborted fact。Runtime 若已 durable 创建 child Run，会留下无法确定的 Opening 记录。
 - 决策：Application 先 durable 创建 root Opening Run/Segment；root admission 只绑定 prospective executor identity，Started fact 后转 Running，直接 start error 或启动崩溃分别收口为 start failure/RunLost。Delegate child 的 model ToolCall 必须先提交，child admission 只创建不可见 opening reservation/binding；收到 Framework conclusive started 后才公开 Run。
-- 决策：P7 开始前，Agent2 必须提供中性、带 prospective identity 的 admitted→started/aborted 结果，或把 admission 放入一个批准后 publication 不再失败的 Framework reservation。Runtime 不使用 timeout、private ID derivation、Effect 顺序或 tree wire猜测 child outcome。
+- 决策：Agent2 以中性 `ProcessStartOutcomeAcknowledger` 提供带 prospective identity 的 admitted→started/aborted 结果。Runtime 不使用 timeout、private ID derivation、Effect 顺序或 tree wire猜测 child outcome；root/child 共用同一 reservation→conclusive outcome 协议。
 - 后果：本项推翻“Agent2 当前没有已知迁移 blocker”的旧判断。Framework 合同只描述 Process start lifecycle，不出现 Run、Store、transaction 或产品幂等。
 
 ## ADR-RT-042：Waiting subtree 应用原子性需要 one-shot prepared tree change
 
-- 状态：已接受，Agent2 前置合同待补齐；补充并收紧 ADR-RT-020。
+- 状态：已接受，P7 已实施并验证；补充并收紧 ADR-RT-020，Agent2 合同形成 Baseline 14。
 - 背景：Baseline 9 的 pure `WaitingSubtreeCancellationPlan` 在返回前释放 quiescence。Application durable commit 期间 sibling/tree 仍可能推进，随后 Apply 可 stale；此时已提交的 resulting checkpoint 与 live 外部副作用无法证明一致。
-- 决策：Agent2 必须提供中性的 one-shot prepared change，在 `Apply`/`Discard` 前保持 source tree frozen，并暴露 resulting TreeSnapshot 与 canceled/paused Process IDs。agentexec concrete capability 持有 Framework value；Application 只看 canceled/paused member 和 opaque checkpoint，并在当前 use case 内通过准确的小 capability 调用 Apply/Discard，不序列化 plan 或 lock。
-- 后果：capability one-shot，Discard 幂等，并绑定 Host-owned deadline；agentexec 取得后立即 `defer Discard`。transaction failure 调用 Discard，零 Framework mutation；commit 后 Apply，崩溃则恢复 committed resulting checkpoint。跨过 apply gate 后必须完成；任何仍无法证明的 apply failure 都丢弃旧 live tree并恢复 resulting checkpoint，失败则 RunLost。不得复活旧通用 Mutation lease，也不得仅靠文档假定 plan 不会 stale。
+- 决策：Agent2 提供中性的 one-shot prepared change，在 `Apply`/`Discard` 前保持 source tree frozen，并暴露 resulting TreeSnapshot 与 canceled/paused Process IDs。agentexec concrete capability 持有 Framework value；Application 只看 canceled/paused member 和 opaque checkpoint，并在当前 use case 内通过准确的小 capability 调用 Apply/Discard，不序列化 plan 或 lock。所有可失败、可取消 staging 都在 Prepare 返回前完成；Agent2 `Apply()` 不接受 context，因为 application transaction 提交后已经不存在合法的请求取消点。Runtime execution ACL 将状态安装 `Apply` 与移除最后外部边界后的 Process `Continue(ctx)` 分离，二者失败不能混称。
+- 后果：capability one-shot，Discard 幂等，并绑定只作用于 preparation/transaction 的 Host-owned deadline；transaction failure 调用 Discard，零 Framework mutation。commit 后 contextless Apply，崩溃则恢复 committed resulting checkpoint。任何仍无法证明的 apply failure 都先释放旧 owner并通过 Application `WaitingExecutionRestorer` 恢复 exact resulting checkpoint；恢复失败才 RunLost。不得复活旧通用 Mutation lease，也不得仅靠文档假定 plan 不会 stale。
 
 ## ADR-RT-043：回答 waiting Interrupt 会原子作废旧恢复点
 

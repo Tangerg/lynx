@@ -12,6 +12,8 @@ package runsegment
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"slices"
 	"time"
 
@@ -22,6 +24,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/toolresult"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 )
 
 // SessionStore is the run-segment side-effect view of session persistence.
@@ -169,6 +172,18 @@ type ExecutorCheckpointStore interface {
 	DeleteCheckpoints(ctx context.Context, sessionID string, rootIDs []string) error
 }
 
+// ChildRunStartReservationStore is the technical persistence mechanism behind
+// the Application-owned child-start write-set. Its payload is opaque to SQLite;
+// this adapter alone translates the application value.
+type ChildRunStartReservationStore interface {
+	Reserve(ctx context.Context, record sqlite.ChildRunStartReservationRecord) error
+	Conclude(
+		ctx context.Context,
+		record sqlite.ChildRunStartReservationRecord,
+		conclusion sqlite.ChildRunStartConclusion,
+	) (changed bool, err error)
+}
+
 // Transactor runs fn inside one storage transaction: every store call made by
 // fn joins that transaction through the context. Durable commits reject a nil
 // transactor rather than silently weakening atomicity.
@@ -218,6 +233,7 @@ type Config struct {
 	RunState            RunWriter
 	RunMetrics          RunMetricsWriter
 	ExecutorCheckpoints ExecutorCheckpointStore
+	ChildRunStarts      ChildRunStartReservationStore
 	Tx                  Transactor
 	Checkpoints         Checkpoints
 	Tasks               TaskLauncher
@@ -242,6 +258,7 @@ type Effects struct {
 	runState            RunWriter
 	runMetrics          RunMetricsWriter
 	executorCheckpoints ExecutorCheckpointStore
+	childRunStarts      ChildRunStartReservationStore
 	tx                  Transactor
 	checkpoints         Checkpoints
 	tasks               TaskLauncher
@@ -250,9 +267,11 @@ type Effects struct {
 
 var (
 	_ runs.OpeningCommitter                    = (*Effects)(nil)
+	_ runs.ChildRunStartCommitter              = (*Effects)(nil)
 	_ runs.ResumeClaimCommitter                = (*Effects)(nil)
 	_ runs.EventCommitter                      = (*Effects)(nil)
 	_ runs.TreeBarrierCommitter                = (*Effects)(nil)
+	_ runs.WaitingCheckpointReader             = (*Effects)(nil)
 	_ runs.WaitingSubtreeCancellationCommitter = (*Effects)(nil)
 	_ runs.WorkspaceChangeNotifier             = (*Effects)(nil)
 	_ runs.SegmentFinalizer                    = (*Effects)(nil)
@@ -278,11 +297,28 @@ func New(cfg Config) *Effects {
 		runState:            cfg.RunState,
 		runMetrics:          cfg.RunMetrics,
 		executorCheckpoints: cfg.ExecutorCheckpoints,
+		childRunStarts:      cfg.ChildRunStarts,
 		tx:                  cfg.Tx,
 		checkpoints:         cfg.Checkpoints,
 		tasks:               cfg.Tasks,
 		publish:             cfg.PublishFileChanges,
 	}
+}
+
+// ReadWaitingCheckpoint returns the exact opaque recovery point selected by
+// the Application waiting-tree use case.
+func (e *Effects) ReadWaitingCheckpoint(
+	ctx context.Context,
+	rootMemberID string,
+) (runs.ExecutorCheckpoint, error) {
+	if e.executorCheckpoints == nil {
+		return runs.ExecutorCheckpoint{}, errors.New("runsegment: executor checkpoint persistence is unavailable")
+	}
+	checkpoint, err := e.executorCheckpoints.LoadCheckpoint(ctx, rootMemberID)
+	if err != nil {
+		return runs.ExecutorCheckpoint{}, fmt.Errorf("runsegment: load waiting executor checkpoint: %w", err)
+	}
+	return checkpoint.Clone(), nil
 }
 
 // Nudge publishes a non-durable live workspace change to subscribers.

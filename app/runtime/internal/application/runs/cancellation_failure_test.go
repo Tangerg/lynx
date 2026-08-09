@@ -11,7 +11,7 @@ func TestLiveChildCancellationReleasesClaimWhenExecutorTeardownFails(t *testing.
 	plan.executor = ExecutorRef{SessionID: "session", ExecutorID: "turn_root"}
 	teardownErr := errors.New("subtree teardown failed")
 	control := &fakeExecutionPorts{
-		cancelSubtree: func(ref ExecutorRef, memberID string) error {
+		cancelSubtree: func(ref ExecutorRef, memberID, reason string) error {
 			if ref != (ExecutorRef{SessionID: "session", ExecutorID: "turn_root"}) {
 				t.Fatalf("CancelSubtree execution = %+v, want session/exec_root", ref)
 			}
@@ -22,10 +22,13 @@ func TestLiveChildCancellationReleasesClaimWhenExecutorTeardownFails(t *testing.
 					plan.target.memberID,
 				)
 			}
+			if reason != "stop child" {
+				t.Fatalf("CancelSubtree reason = %q, want stop child", reason)
+			}
 			return teardownErr
 		},
 	}
-	coordinator := NewCoordinator(Dependencies{RunningTrees: control})
+	coordinator := NewCoordinator(Dependencies{RunningSubtreeCanceler: control})
 	live := &handle{done: make(chan struct{})}
 
 	_, err := coordinator.cancelLiveChild(

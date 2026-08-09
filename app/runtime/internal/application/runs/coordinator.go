@@ -29,31 +29,33 @@ var ErrClosed = errors.New("runs: coordinator closed")
 // Reading Start and the pump explains a Run end to end through canonical
 // application events.
 type Coordinator struct {
-	rootStarts     RootExecutionStarter
-	observations   ExecutionObserver
-	releases       ExecutionReleaser
-	conversation   ConversationReader
-	continuation   WaitingExecutionContinuer
-	legacyWaiting  LegacyWaitingExecutor
-	steering       RunningExecutionSteerer
-	runningTrees   RunningSubtreeCanceler
-	waitingTrees   WaitingSubtreeCancellationPreparer
-	sessionReader  SessionReader
-	sessionCreator SessionCreator
-	activeRuns     ActiveRunReader
-	interrupts     PendingInterruptReader
-	terminations   RunTerminationCommitter
-	openings       OpeningCommitter
-	resumeClaims   ResumeClaimCommitter
-	events         EventCommitter
-	barriers       TreeBarrierCommitter
-	waitingEdits   WaitingSubtreeCancellationCommitter
-	workspace      WorkspaceChangeNotifier
-	finalizer      SegmentFinalizer
-	isolation      IsolationProvider // resolves an isolated session's sandbox copy; nil = isolation off
-	now            func() time.Time
-	newRunID       func() string
-	newSegmentID   func() string
+	rootStarts                         RootExecutionStarter
+	observations                       ExecutionObserver
+	releases                           ExecutionReleaser
+	conversation                       ConversationReader
+	continuation                       WaitingExecutionContinuer
+	waitingRestorer                    WaitingExecutionRestorer
+	steering                           RunningExecutionSteerer
+	runningSubtreeCanceler             RunningSubtreeCanceler
+	waitingSubtreeCancellationPreparer WaitingSubtreeCancellationPreparer
+	sessionReader                      SessionReader
+	sessionCreator                     SessionCreator
+	activeRuns                         ActiveRunReader
+	interrupts                         PendingInterruptReader
+	terminations                       RunTerminationCommitter
+	openings                           OpeningCommitter
+	childStarts                        ChildRunStartCommitter
+	resumeClaims                       ResumeClaimCommitter
+	events                             EventCommitter
+	barriers                           TreeBarrierCommitter
+	checkpoints                        WaitingCheckpointReader
+	waitingSubtreeCancellations        WaitingSubtreeCancellationCommitter
+	workspace                          WorkspaceChangeNotifier
+	finalizer                          SegmentFinalizer
+	isolation                          IsolationProvider // resolves an isolated session's sandbox copy; nil = isolation off
+	now                                func() time.Time
+	newRunID                           func() string
+	newSegmentID                       func() string
 	// runs reads the durable run record. A subscribe or a steer that cannot be
 	// served has to say WHY — waiting, finished, a child, or a segment that has
 	// been replaced — and only the durable projection knows: the live registry
@@ -82,22 +84,22 @@ type Coordinator struct {
 // Dependencies is the complete collaborator set for the user-visible run use
 // cases and the segment supervisor they own.
 type Dependencies struct {
-	RootStarts    RootExecutionStarter
-	Observations  ExecutionObserver
-	Releases      ExecutionReleaser
-	Conversation  ConversationReader
-	Continuation  WaitingExecutionContinuer
-	LegacyWaiting LegacyWaitingExecutor
-	Steering      RunningExecutionSteerer
-	RunningTrees  RunningSubtreeCanceler
-	WaitingTrees  WaitingSubtreeCancellationPreparer
-	Session       SessionPorts
-	Projection    ProjectionPorts
-	Runs          RunProjection
-	Items         ItemProjection
-	Admissions    *admission.Gate
-	Isolation     IsolationProvider // nil disables isolated sessions (their start is refused)
-	Now           func() time.Time
+	RootStarts                         RootExecutionStarter
+	Observations                       ExecutionObserver
+	Releases                           ExecutionReleaser
+	Conversation                       ConversationReader
+	Continuation                       WaitingExecutionContinuer
+	WaitingRestorer                    WaitingExecutionRestorer
+	Steering                           RunningExecutionSteerer
+	RunningSubtreeCanceler             RunningSubtreeCanceler
+	WaitingSubtreeCancellationPreparer WaitingSubtreeCancellationPreparer
+	Session                            SessionPorts
+	Projection                         ProjectionPorts
+	Runs                               RunProjection
+	Items                              ItemProjection
+	Admissions                         *admission.Gate
+	Isolation                          IsolationProvider // nil disables isolated sessions (their start is refused)
+	Now                                func() time.Time
 	// Retention bounds every segment's replay window. Zero takes
 	// [DefaultRetention], which is also what discovery advertises.
 	Retention    Retention
@@ -117,37 +119,39 @@ func NewCoordinator(deps Dependencies) *Coordinator {
 		deps.Retention = DefaultRetention()
 	}
 	return &Coordinator{
-		rootStarts:     deps.RootStarts,
-		observations:   deps.Observations,
-		releases:       deps.Releases,
-		conversation:   deps.Conversation,
-		continuation:   deps.Continuation,
-		legacyWaiting:  deps.LegacyWaiting,
-		steering:       deps.Steering,
-		runningTrees:   deps.RunningTrees,
-		waitingTrees:   deps.WaitingTrees,
-		sessionReader:  deps.Session.Reader,
-		sessionCreator: deps.Session.Creator,
-		activeRuns:     deps.Session.ActiveRuns,
-		interrupts:     deps.Session.Interrupts,
-		terminations:   deps.Session.Terminations,
-		openings:       deps.Projection.Openings,
-		resumeClaims:   deps.Projection.ResumeClaims,
-		events:         deps.Projection.Events,
-		barriers:       deps.Projection.Barriers,
-		waitingEdits:   deps.Projection.WaitingEdits,
-		workspace:      deps.Projection.Workspace,
-		finalizer:      deps.Projection.Finalizer,
-		runs:           deps.Runs,
-		items:          deps.Items,
-		isolation:      deps.Isolation,
-		now:            deps.Now,
-		newRunID:       deps.NewRunID,
-		newSegmentID:   deps.NewSegmentID,
-		epoch:          replaycursor.NewEpoch(),
-		retention:      deps.Retention,
-		admission:      deps.Admissions,
-		changed:        deps.Changed,
+		rootStarts:                         deps.RootStarts,
+		observations:                       deps.Observations,
+		releases:                           deps.Releases,
+		conversation:                       deps.Conversation,
+		continuation:                       deps.Continuation,
+		waitingRestorer:                    deps.WaitingRestorer,
+		steering:                           deps.Steering,
+		runningSubtreeCanceler:             deps.RunningSubtreeCanceler,
+		waitingSubtreeCancellationPreparer: deps.WaitingSubtreeCancellationPreparer,
+		sessionReader:                      deps.Session.Reader,
+		sessionCreator:                     deps.Session.Creator,
+		activeRuns:                         deps.Session.ActiveRuns,
+		interrupts:                         deps.Session.Interrupts,
+		terminations:                       deps.Session.Terminations,
+		openings:                           deps.Projection.Openings,
+		childStarts:                        deps.Projection.ChildStarts,
+		resumeClaims:                       deps.Projection.ResumeClaims,
+		events:                             deps.Projection.Events,
+		barriers:                           deps.Projection.Barriers,
+		checkpoints:                        deps.Projection.Checkpoints,
+		waitingSubtreeCancellations:        deps.Projection.WaitingSubtreeCancellations,
+		workspace:                          deps.Projection.Workspace,
+		finalizer:                          deps.Projection.Finalizer,
+		runs:                               deps.Runs,
+		items:                              deps.Items,
+		isolation:                          deps.Isolation,
+		now:                                deps.Now,
+		newRunID:                           deps.NewRunID,
+		newSegmentID:                       deps.NewSegmentID,
+		epoch:                              replaycursor.NewEpoch(),
+		retention:                          deps.Retention,
+		admission:                          deps.Admissions,
+		changed:                            deps.Changed,
 	}
 }
 

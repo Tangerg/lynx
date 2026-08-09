@@ -108,10 +108,11 @@ func (c *Coordinator) cancelLiveChild(
 	}
 	cleanupCtx, cancel := live.cleanupContext(ctx)
 	defer cancel()
-	if err := c.runningTrees.CancelRunningSubtree(
+	if err := c.runningSubtreeCanceler.CancelRunningSubtree(
 		cleanupCtx,
 		plan.executor,
 		plan.target.memberID,
+		cmd.Reason,
 	); err != nil {
 		live.abortChildCancellation(attempt, err)
 		return CancelResult{}, fmt.Errorf(
@@ -148,10 +149,10 @@ func (c *Coordinator) cancelLiveChild(
 
 // cancelWaitingChild removes one complete child subtree from an executor tree
 // parked at a human boundary. It first reserves the Session + working tree,
-// claims the execution lifecycle, and obtains an immutable transition plan
-// that retains no runtime ownership. The application projections and replacement
-// executor checkpoint commit in one transaction; only after that durable boundary may
-// the live transition be applied.
+// claims the execution lifecycle, and prepares one exact executor change that
+// keeps its source tree frozen. The application projections and replacement
+// executor checkpoint commit in one transaction; only after that durable
+// boundary may the prepared change be applied.
 //
 // When another external boundary survives, the tree stays Waiting. Removing
 // the final boundary instead opens continuation Segments in the same transaction
@@ -161,9 +162,9 @@ func (c *Coordinator) cancelWaitingChild(
 	ctx context.Context,
 	cmd CancelCommand,
 	initial cancellationPlan,
-) (CancelResult, error) {
-	if c.waitingEdits == nil {
-		return CancelResult{}, errors.New("runs: effects are required for waiting child cancellation")
+) (result CancelResult, err error) {
+	if c.waitingSubtreeCancellations == nil {
+		return CancelResult{}, errors.New("runs: waiting subtree cancellation persistence is unavailable")
 	}
 	if c.newSegmentID == nil {
 		return CancelResult{}, errors.New("runs: segment id generator is required for waiting child cancellation")
@@ -226,9 +227,16 @@ func (c *Coordinator) cancelWaitingChild(
 		)
 	}
 
-	ref, err := c.prepareLegacyWaitingExecution(cleanupCtx, plan.pending, sess.CWD, sess.Isolated)
+	if c.waitingSubtreeCancellationPreparer == nil || c.waitingRestorer == nil || c.checkpoints == nil {
+		return CancelResult{}, errors.New("runs: waiting subtree cancellation is unavailable")
+	}
+	rootContinuation, ok := plan.pending.RootContinuation()
+	if !ok {
+		return CancelResult{}, errors.New("runs: waiting subtree Pending has no root continuation")
+	}
+	checkpoint, err := c.checkpoints.ReadWaitingCheckpoint(cleanupCtx, rootContinuation.MemberID)
 	if err != nil {
-		if errors.Is(err, ErrExecutorStateLost) {
+		if errors.Is(err, ErrExecutorStateLost) || errors.Is(err, ErrExecutorCheckpointNotFound) {
 			lostErr := c.terminations.ApplyRunLost(
 				cleanupCtx,
 				plan.pending.SessionID,
@@ -245,25 +253,34 @@ func (c *Coordinator) cancelWaitingChild(
 		}
 		return CancelResult{}, err
 	}
-	if ref != plan.executor {
-		return CancelResult{}, fmt.Errorf(
-			"runs: prepared executor %q/%q differs from waiting cancellation executor %q/%q",
-			ref.SessionID,
-			ref.ExecutorID,
-			plan.executor.SessionID,
-			plan.executor.ExecutorID,
-		)
+	if err := validateCheckpointSessionScope(checkpoint, sess); err != nil {
+		return CancelResult{}, err
 	}
-
-	prepared, err := c.waitingTrees.PrepareWaitingSubtreeCancellation(
+	continuation, err := waitingContinuationFromPending(plan.pending, checkpoint)
+	if err != nil {
+		return CancelResult{}, err
+	}
+	prepared, err := c.waitingSubtreeCancellationPreparer.PrepareWaitingSubtreeCancellation(
 		cleanupCtx,
-		ref,
-		plan.target.memberID,
+		WaitingSubtreeCancellationRequest{
+			Continuation: continuation, TargetMemberID: plan.target.memberID, Reason: cmd.Reason,
+		},
 	)
 	if err != nil {
 		return CancelResult{}, err
 	}
-	defer prepared.Mutation.Abort()
+	if err := prepared.Validate(); err != nil {
+		return CancelResult{}, err
+	}
+	defer func() {
+		if discardErr := prepared.Change.Discard(); discardErr != nil {
+			result = CancelResult{}
+			err = errors.Join(
+				err,
+				fmt.Errorf("runs: discard waiting subtree change: %w", discardErr),
+			)
+		}
+	}()
 
 	transformation, err := prepareWaitingCancellationTransformation(
 		plan,
@@ -275,14 +292,14 @@ func (c *Coordinator) cancelWaitingChild(
 		return CancelResult{}, err
 	}
 	if transformation.remaining != nil {
-		result, err := c.waitingEdits.CommitWaitingSubtreeCancellation(
+		result, err := c.waitingSubtreeCancellations.CommitWaitingSubtreeCancellation(
 			cleanupCtx,
 			transformation.durableCommit(plan.pending),
 		)
 		if err != nil {
 			return CancelResult{}, err
 		}
-		if err := prepared.Mutation.Commit(cleanupCtx, WaitingSubtreeRemainsInterrupted); err != nil {
+		if err := prepared.Change.Apply(WaitingSubtreeStaysWaiting); err != nil {
 			applyErr := fmt.Errorf(
 				"runs: apply committed cancellation of waiting child Run %q in root Run %q: %w",
 				plan.target.run.ID,
@@ -292,9 +309,10 @@ func (c *Coordinator) cancelWaitingChild(
 			// The database transaction is already authoritative. Release the
 			// lifecycle claim before tearing down the obsolete execution tree, then
 			// fail the durable tree closed as run_lost.
-			prepared.Mutation.Abort()
-			recoveryErr := c.recoverCommittedWaitingCancellation(cleanupCtx, plan)
-			return CancelResult{}, errors.Join(applyErr, recoveryErr)
+			recoveryErr := c.recoverCommittedWaitingCancellation(cleanupCtx, plan, transformation)
+			if recoveryErr != nil {
+				return CancelResult{}, errors.Join(applyErr, recoveryErr)
+			}
 		}
 		if err := validateWaitingChildCancellationResult(plan, result); err != nil {
 			return CancelResult{}, err
@@ -303,7 +321,7 @@ func (c *Coordinator) cancelWaitingChild(
 		return CancelResult{Run: result.TargetRun, RootRun: &result.RootRun}, nil
 	}
 
-	rootContinuation, ok := transformation.continuation.root()
+	rootContinuation, ok = transformation.continuation.root()
 	if !ok {
 		return CancelResult{}, errors.New("runs: waiting child cancellation continuation has no root Run")
 	}
@@ -317,7 +335,7 @@ func (c *Coordinator) cancelWaitingChild(
 		SegmentID:      segmentID,
 		SessionID:      plan.pending.SessionID,
 		CWD:            sess.CWD,
-		ExecutorID:     ref.ExecutorID,
+		ExecutorID:     plan.executor.ExecutorID,
 		ModelSelection: rootContinuation.ModelSelection,
 		GoalLeaseID:    transformation.continuation.goalLeaseID,
 		CreatedAt:      rootContinuation.RunCreatedAt,
@@ -330,18 +348,26 @@ func (c *Coordinator) cancelWaitingChild(
 			durable := transformation.durableCommit(plan.pending)
 			durable.Resume = opening.Resume
 			durable.OpeningEvents = opening.Events
-			result, commitErr := c.waitingEdits.CommitWaitingSubtreeCancellation(commitCtx, durable)
+			result, commitErr := c.waitingSubtreeCancellations.CommitWaitingSubtreeCancellation(commitCtx, durable)
 			if commitErr == nil {
 				committed = result
 			}
 			return commitErr
 		},
 		BeginExecution: func(beginCtx context.Context) error {
-			if err := prepared.Mutation.Commit(beginCtx, WaitingSubtreeContinues); err != nil {
+			if err := prepared.Change.Apply(WaitingSubtreeResumesRunning); err != nil {
 				return fmt.Errorf(
 					"runs: apply committed cancellation of waiting child Run %q in root Run %q: %w",
 					plan.target.run.ID,
 					plan.root.run.ID,
+					err,
+				)
+			}
+			if err := prepared.Change.Continue(beginCtx); err != nil {
+				return fmt.Errorf(
+					"runs: continue root Run %q after canceling final waiting child Run %q: %w",
+					plan.root.run.ID,
+					plan.target.run.ID,
 					err,
 				)
 			}
@@ -364,30 +390,71 @@ func (c *Coordinator) cancelWaitingChild(
 func (c *Coordinator) recoverCommittedWaitingCancellation(
 	ctx context.Context,
 	plan cancellationPlan,
+	transformation waitingCancellationTransformation,
 ) error {
 	recoveryCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), runCleanupTimeout)
 	defer cancel()
-	if err := c.terminations.ApplyRunLost(
-		recoveryCtx,
-		plan.pending.SessionID,
-		plan.root.run.ID,
-		c.now().UTC(),
-	); err != nil {
-		return fmt.Errorf(
-			"runs: recover root Run %q after its committed executor checkpoint could not be applied to the live runtime: %w",
-			plan.root.run.ID,
-			err,
-		)
+	if transformation.remaining == nil {
+		return errors.New("runs: committed waiting cancellation recovery has no waiting boundary")
 	}
-	if err := c.releases.Release(recoveryCtx, plan.executor); err != nil {
+	continuation, err := waitingContinuationFromPending(
+		*transformation.remaining,
+		transformation.checkpoint,
+	)
+	if err != nil {
+		return c.failCommittedWaitingCancellationRecovery(recoveryCtx, plan, err)
+	}
+	if err := c.releases.Release(recoveryCtx, plan.executor); err != nil &&
+		!errors.Is(err, ErrExecutorNotLive) {
 		return fmt.Errorf(
-			"runs: release obsolete executor %q after root Run %q was recovered lost: %w",
+			"runs: release obsolete executor %q before restoring committed root Run %q: %w",
 			plan.executor.ExecutorID,
 			plan.root.run.ID,
 			err,
 		)
 	}
+	restored, err := c.waitingRestorer.RestoreWaitingExecution(recoveryCtx, continuation)
+	if err == nil {
+		err = restored.ValidateFor(plan.pending.SessionID)
+	}
+	if err == nil && restored.ExecutorID != plan.executor.ExecutorID {
+		err = fmt.Errorf(
+			"restored executor %q differs from committed executor %q",
+			restored.ExecutorID,
+			plan.executor.ExecutorID,
+		)
+	}
+	if err != nil {
+		return c.failCommittedWaitingCancellationRecovery(recoveryCtx, plan, err)
+	}
 	return nil
+}
+
+func (c *Coordinator) failCommittedWaitingCancellationRecovery(
+	ctx context.Context,
+	plan cancellationPlan,
+	cause error,
+) error {
+	if err := c.terminations.ApplyRunLost(
+		ctx,
+		plan.pending.SessionID,
+		plan.root.run.ID,
+		c.now().UTC(),
+	); err != nil {
+		return errors.Join(
+			fmt.Errorf(
+				"runs: restore committed waiting tree for root Run %q: %w",
+				plan.root.run.ID,
+				cause,
+			),
+			fmt.Errorf("runs: mark unrecoverable root Run %q lost: %w", plan.root.run.ID, err),
+		)
+	}
+	return fmt.Errorf(
+		"runs: restore committed waiting tree for root Run %q: %w",
+		plan.root.run.ID,
+		cause,
+	)
 }
 
 func validateWaitingChildCancellationResult(

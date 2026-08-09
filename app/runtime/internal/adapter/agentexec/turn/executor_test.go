@@ -74,7 +74,7 @@ func TestExecutorTranslatesReference(t *testing.T) {
 	if disp.cancelHandle != handle {
 		t.Fatalf("cancel handle=%+v", disp.cancelHandle)
 	}
-	if err := exec.CancelRunningSubtree(ctx, ref, "process_child"); err != nil {
+	if err := exec.CancelRunningSubtree(ctx, ref, "process_child", "caller canceled child"); err != nil {
 		t.Fatalf("CancelSubtree: %v", err)
 	}
 	if disp.cancelHandle != handle || disp.subtreeID != "process_child" {
@@ -100,7 +100,7 @@ func TestExecutorMapsMissingTurnOnBothCancelPorts(t *testing.T) {
 	}{
 		{name: "segment", cancel: func() error { return executor.Release(t.Context(), ref) }},
 		{name: "subtree", cancel: func() error {
-			return executor.CancelRunningSubtree(t.Context(), ref, "process_child")
+			return executor.CancelRunningSubtree(t.Context(), ref, "process_child", "caller canceled child")
 		}},
 	}
 	for _, test := range tests {

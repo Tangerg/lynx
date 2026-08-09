@@ -67,14 +67,15 @@ type WaitingExecutionContinuer interface {
 	) error
 }
 
-// LegacyWaitingExecutor is consumed only by the P7 waiting-subtree production
-// bridge. It mirrors the old executor's mutation lease and is deleted with that
-// bridge at the P8 atomic cutover; ordinary answer/resume no longer depends on
-// it.
-type LegacyWaitingExecutor interface {
-	ClaimWaiting(ctx context.Context, ref ExecutorRef) (ExecutorRef, error)
-	ResumeWaiting(ctx context.Context, ref ExecutorRef, answers []InterruptAnswer, interruptKinds []interrupt.Kind) error
-	RestoreWaiting(ctx context.Context, req RehydrateExecution) (ExecutorRef, error)
+// WaitingExecutionRestorer reconstructs one exact committed waiting tree
+// without claiming or advancing it. It is used after the previous live owner is
+// known obsolete; the supplied Application value and opaque checkpoint are the
+// only recovery source.
+type WaitingExecutionRestorer interface {
+	RestoreWaitingExecution(
+		ctx context.Context,
+		continuation WaitingContinuation,
+	) (ExecutorRef, error)
 }
 
 // RunningExecutionSteerer submits user content to the addressed live execution.
@@ -84,20 +85,26 @@ type RunningExecutionSteerer interface {
 	SubmitSteer(ctx context.Context, ref ExecutorRef, input []transcript.ContentBlock) error
 }
 
-// RunningSubtreeCanceler is consumed only by child Run cancellation. P7 owns its
-// Agent2 replacement.
+// RunningSubtreeCanceler submits the Application's already-validated product
+// cancellation intent to one live child executor subtree. It does not decide or
+// persist the Run outcome; the ordered executor facts remain authoritative.
 type RunningSubtreeCanceler interface {
-	CancelRunningSubtree(ctx context.Context, ref ExecutorRef, memberID string) error
-}
-
-// WaitingSubtreeCancellationPreparer is the provisional old-executor capability
-// consumed by waiting child cancellation. Its concrete contract is replaced in
-// P7 after the required Agent2 prepared-change capability exists.
-type WaitingSubtreeCancellationPreparer interface {
-	PrepareWaitingSubtreeCancellation(
+	CancelRunningSubtree(
 		ctx context.Context,
 		ref ExecutorRef,
 		memberID string,
+		reason string,
+	) error
+}
+
+// WaitingSubtreeCancellationPreparer freezes one exact waiting executor tree
+// and returns its prospective product projection plus a one-shot change. The
+// implementation may use a matching live tree or restore only the supplied
+// opaque checkpoint; it never reads Application persistence.
+type WaitingSubtreeCancellationPreparer interface {
+	PrepareWaitingSubtreeCancellation(
+		ctx context.Context,
+		request WaitingSubtreeCancellationRequest,
 	) (PreparedWaitingSubtreeCancellation, error)
 }
 
@@ -108,27 +115,38 @@ type WaitingSubtreeCancellationPreparer interface {
 type WaitingSubtreeDisposition uint8
 
 const (
-	waitingSubtreeDispositionInvalid WaitingSubtreeDisposition = iota
-	WaitingSubtreeRemainsInterrupted
-	WaitingSubtreeContinues
+	// WaitingSubtreeStaysWaiting keeps the surviving external boundaries parked.
+	WaitingSubtreeStaysWaiting WaitingSubtreeDisposition = iota + 1
+	// WaitingSubtreeResumesRunning resumes the paused surviving Process members.
+	WaitingSubtreeResumesRunning
 )
 
-// WaitingSubtreeMutation is the live executor lease attached to a data-only
-// prepared cancellation. Commit crosses the executor boundary only after the
-// application transaction succeeds; Abort releases its lifecycle claim.
-type WaitingSubtreeMutation interface {
-	Commit(ctx context.Context, disposition WaitingSubtreeDisposition) error
-	Abort()
+// WaitingSubtreeChange is the one-shot executor capability attached to a
+// prepared cancellation. Apply installs the committed tree disposition after
+// the application transaction succeeds. Continue advances a disposition that
+// removed the final external boundary; it is a distinct activation phase so an
+// execution failure cannot be mistaken for a failed state installation.
+// Discard idempotently releases a change that was not applied.
+type WaitingSubtreeChange interface {
+	Apply(disposition WaitingSubtreeDisposition) error
+	Continue(ctx context.Context) error
+	Discard() error
 }
 
 // PreparedWaitingSubtreeCancellation separates immutable application data from
-// the live executor lease that can apply it. No persistence behavior crosses the
-// application boundary.
+// the one-shot executor capability that can apply it. No persistence behavior
+// crosses the application boundary.
 type PreparedWaitingSubtreeCancellation struct {
-	CanceledMemberIDs    []string
+	// CanceledMemberIDs names the exact product members projected as canceled.
+	CanceledMemberIDs []string
+	// PausedMemberIDs names surviving members held before child-outcome consumption.
+	PausedMemberIDs []string
+	// PendingInterruptions contains the surviving external waiting boundaries.
 	PendingInterruptions []MemberInterruption
-	Checkpoint           ExecutorCheckpoint
-	Mutation             WaitingSubtreeMutation
+	// Checkpoint is the opaque complete-tree state that Change.Apply installs.
+	Checkpoint ExecutorCheckpoint
+	// Change owns the frozen executor source until Apply or Discard resolves it.
+	Change WaitingSubtreeChange
 }
 
 // SessionReader resolves the product Session a Run belongs to.
@@ -224,17 +242,27 @@ type RootExecutionStart struct {
 	GoalLeaseID string
 }
 
+// WaitingMember is the minimum durable Application state an executor needs to
+// rebind one surviving member after restoring an opaque tree. Product lineage
+// remains independent of executor topology and is cross-checked at the executor
+// boundary.
+type WaitingMember struct {
+	RunID           string
+	MemberID        string
+	ParentRunID     string
+	SpawnedByItemID string
+	ModelSelection  modelref.Selection
+	Metrics         transcript.RunMetrics
+}
+
 // WaitingContinuation is the complete Application-owned input for staging one
 // parked tree. Checkpoint payload interpretation remains executor-private;
-// RootRunID and ChildRuns are product identities used only by the legacy bridge
-// until the P7 child vertical replaces it.
+// Members carries only surviving product identities and cumulative accounting.
 type WaitingContinuation struct {
-	SessionID  string
-	ExecutorID string
-	RootRunID  string
-	// ChildRuns restores the application identities of already-admitted child
-	// executor members so lifecycle hooks never need executor topology.
-	ChildRuns                []ChildRunBinding
+	SessionID                string
+	ExecutorID               string
+	RootRunID                string
+	Members                  []WaitingMember
 	Checkpoint               ExecutorCheckpoint
 	Capabilities             run.RunCapabilities
 	ChildRunAdmissionEnabled bool

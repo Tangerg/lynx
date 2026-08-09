@@ -28,10 +28,14 @@ func TestClaimedChildOpeningWaitsForAuthoritativeResult(t *testing.T) {
 			t.Fatal("claim child opening request")
 		}
 		ctx, cancel := context.WithCancel(t.Context())
-		result := make(chan childOpeningResult, 1)
+		type awaitResult struct {
+			binding ChildRunBinding
+			err     error
+		}
+		result := make(chan awaitResult, 1)
 		go func() {
 			binding, err := confirmation.Await(ctx)
-			result <- childOpeningResult{binding: binding, err: err}
+			result <- awaitResult{binding: binding, err: err}
 		}()
 		cancel()
 		synctest.Wait()

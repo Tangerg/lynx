@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"slices"
-	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -87,57 +86,44 @@ func TestInteractionExecutorMapsModelFailure(t *testing.T) {
 	}
 }
 
-func TestInteractionExecutorMapsHostIntentRatherThanModelError(t *testing.T) {
-	for _, test := range []struct {
-		name    string
-		hostErr error
-		outcome run.Outcome
-		problem transcript.ProblemKind
-	}{
-		{name: "cancel", hostErr: context.Canceled, outcome: run.OutcomeCanceled},
-		{name: "deadline", hostErr: context.DeadlineExceeded, outcome: run.OutcomeTimedOut, problem: transcript.TimeoutProblem},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			entered := make(chan struct{})
-			release := make(chan struct{})
-			model := chat.ModelFunc(func(context.Context, *chat.Request) (*chat.Response, error) {
-				close(entered)
-				<-release
-				return nil, errors.New("model call also failed")
-			})
-			executor := newTestInteractionExecutor(t, model)
-			host := newControlledContext(test.hostErr)
-			events := runInteractionHarness(t, executor, host, interactionTestStart(), func() {
-				<-entered
-				host.Trigger()
-				close(release)
-			})
-			ended := payloadsOf[runs.SegmentEnded](events)
-			if len(ended) != 1 || ended[0].Reason != test.outcome {
-				t.Fatalf("segment end = %#v", ended)
-			}
-			if test.outcome == run.OutcomeTimedOut && (ended[0].Problem == nil || ended[0].Problem.Kind != test.problem) {
-				t.Fatalf("timeout problem = %#v", ended[0].Problem)
-			}
-		})
+func TestInteractionExecutorDoesNotBindRunLifetimeToCallerContext(t *testing.T) {
+	modelContext := make(chan context.Context, 1)
+	release := make(chan struct{})
+	model := chat.ModelFunc(func(ctx context.Context, _ *chat.Request) (*chat.Response, error) {
+		modelContext <- ctx
+		<-release
+		return interactionTextResponse("caller returned; Run continued"), nil
+	})
+	executor := newTestInteractionExecutor(t, model)
+	caller, cancelCaller := context.WithCancel(context.Background())
+	events := runInteractionHarness(t, executor, caller, interactionTestStart(), func() {
+		runContext := <-modelContext
+		cancelCaller()
+		if err := runContext.Err(); err != nil {
+			t.Fatalf("Run lifecycle context followed caller cancellation: %v", err)
+		}
+		close(release)
+	})
+	ended := payloadsOf[runs.SegmentEnded](events)
+	if len(ended) != 1 || ended[0].Reason != run.OutcomeCompleted {
+		t.Fatalf("segment end = %#v", ended)
 	}
 }
 
-func TestInteractionExecutorIsolatesDispatcherPanic(t *testing.T) {
-	entered := make(chan struct{})
-	host := newControlledContext(context.Canceled)
+func TestInteractionExecutorReportsDispatcherPanicAsUnknownEffect(t *testing.T) {
 	model := chat.ModelFunc(func(context.Context, *chat.Request) (*chat.Response, error) {
-		close(entered)
 		panic("provider panic")
 	})
 	executor := newTestInteractionExecutor(t, model)
-	events := runInteractionHarness(t, executor, host, interactionTestStart(), func() {
-		<-entered
-		host.Trigger()
-	})
-	ended := payloadsOf[runs.SegmentEnded](events)
-	if len(ended) != 1 || ended[0].Reason != run.OutcomeCanceled {
-		t.Fatalf("panic-isolated terminal = %#v", ended)
+	events := runInteractionHarnessWithCommit(
+		t, executor, interactionTestStart(), func(runs.ExecutionFact) error { return nil },
+	)
+	unknown := payloadsOf[runs.UnknownEffectsDetected](events)
+	if len(unknown) != 1 || len(unknown[0].IDs) != 1 {
+		t.Fatalf("panic unknown effects = %#v", unknown)
+	}
+	if ended := payloadsOf[runs.SegmentEnded](events); len(ended) != 0 {
+		t.Fatalf("dispatcher panic was projected as a definite terminal = %#v", ended)
 	}
 }
 
@@ -250,27 +236,3 @@ func interactionTextResponse(text string) *chat.Response {
 		Index: 0, Message: &message, FinishReason: chat.FinishReasonStop,
 	}}}
 }
-
-type controlledContext struct {
-	context.Context
-	done chan struct{}
-	err  error
-	once sync.Once
-}
-
-func newControlledContext(err error) *controlledContext {
-	return &controlledContext{Context: context.Background(), done: make(chan struct{}), err: err}
-}
-
-func (ctx *controlledContext) Done() <-chan struct{} { return ctx.done }
-
-func (ctx *controlledContext) Err() error {
-	select {
-	case <-ctx.done:
-		return ctx.err
-	default:
-		return nil
-	}
-}
-
-func (ctx *controlledContext) Trigger() { ctx.once.Do(func() { close(ctx.done) }) }
