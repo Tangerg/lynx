@@ -576,6 +576,24 @@ func TestEngineRejectsWaitingOnDescendantThatIsNotDirectChild(t *testing.T) {
 	}
 }
 
+func TestChildCompletionDeliveriesAreOrderedByWaitIdentity(t *testing.T) {
+	waitC, _ := ParseWaitID("wait:c")
+	waitA, _ := ParseWaitID("wait:a")
+	waitB, _ := ParseWaitID("wait:b")
+	deliveries := []childCompletionDelivery{
+		{waitID: waitC},
+		{waitID: waitA},
+		{waitID: waitB},
+	}
+	sortChildCompletionDeliveries(deliveries)
+	want := []WaitID{waitA, waitB, waitC}
+	for index, delivery := range deliveries {
+		if delivery.waitID != want[index] {
+			t.Fatalf("delivery %d WaitID = %s, want %s", index, delivery.waitID, want[index])
+		}
+	}
+}
+
 type childTestInput struct {
 	Mode string `json:"mode"`
 }

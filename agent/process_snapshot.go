@@ -247,11 +247,20 @@ func validateProcessSnapshot(wire processSnapshotWire) error {
 	if err != nil {
 		return fmt.Errorf("%w: mailbox: %w", ErrInvalidSnapshot, err)
 	}
+	if wire.Usage.AcceptedSignals != mailbox.arrivalSequence() {
+		return fmt.Errorf("%w: accepted Signal count does not match mailbox", ErrInvalidSnapshot)
+	}
 	if wire.Prepared != nil {
 		if wire.Status != StatusRunning || wire.Termination != nil || wire.FinishedAt != nil {
 			return fmt.Errorf("%w: prepared Step requires a nonterminal Running Process", ErrInvalidSnapshot)
 		}
-		if err := validatePreparedStep(wire.ProcessID, wire.CommittedSteps+1, wire.LastStableState, mailbox, *wire.Prepared); err != nil {
+		const maxUint64 = ^uint64(0)
+		if !resourceQuantitiesFit(maxUint64, wire.CommittedSteps, 1) {
+			return fmt.Errorf("%w: prepared Step sequence overflows", ErrInvalidSnapshot)
+		}
+		if err := validatePreparedStep(
+			wire.ProcessID, wire.CommittedSteps+1, wire.LastStableState, mailbox, *wire.Prepared,
+		); err != nil {
 			return fmt.Errorf("%w: %w", ErrInvalidSnapshot, err)
 		}
 	}

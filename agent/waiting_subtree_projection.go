@@ -166,9 +166,12 @@ func (projection *waitingSubtreeProjection) deliverBoundaryCompletion(
 		return err
 	}
 	if !mailbox.contains(signal.ID()) {
-		if parent.Usage.AcceptedSignals >= parent.Limits.MaxSignals ||
-			mailbox.pendingCount() >= parent.Limits.MaxPendingSignals ||
-			parent.Usage.AcceptedSignals+1+parent.ReservedBudget.Signals > parent.Budget.Signals {
+		if !resourceQuantitiesFit(parent.Limits.MaxSignals, parent.Usage.AcceptedSignals, 1) ||
+			!resourceQuantitiesFit(parent.Limits.MaxPendingSignals, mailbox.pendingCount(), 1) ||
+			!resourceQuantitiesFit(
+				parent.Budget.Signals,
+				parent.Usage.AcceptedSignals, parent.ReservedBudget.Signals, 1,
+			) {
 			return fmt.Errorf(
 				"%w: %w", ErrWaitingSubtreeCancellationUnavailable, ErrResourceLimitExceeded,
 			)

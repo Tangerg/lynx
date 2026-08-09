@@ -1,6 +1,10 @@
 package agent
 
-import "context"
+import (
+	"cmp"
+	"context"
+	"slices"
+)
 
 type childWaitRegistration struct {
 	parent    ProcessID
@@ -11,6 +15,7 @@ type childWaitRegistration struct {
 
 type childCompletionDelivery struct {
 	parent ProcessID
+	waitID WaitID
 	signal Signal
 }
 
@@ -94,14 +99,15 @@ func (engine *Engine) processFinished(controller *processController) {
 			continue
 		}
 		deliveries = append(deliveries, childCompletionDelivery{
-			parent: registration.parent, signal: signal,
+			parent: registration.parent, waitID: registration.waitID, signal: signal,
 		})
 	}
 	engine.mu.Unlock()
+	sortChildCompletionDeliveries(deliveries)
 	for _, delivery := range deliveries {
 		if engine.deliverChildCompletion(delivery) {
 			engine.mu.Lock()
-			if registration := engine.childWaits[signalWaitID(delivery.signal)]; registration != nil {
+			if registration := engine.childWaits[delivery.waitID]; registration != nil {
 				registration.delivered = true
 			}
 			engine.mu.Unlock()
@@ -152,9 +158,10 @@ func (engine *Engine) deliverChildCompletion(delivery childCompletionDelivery) b
 	return err == nil && response.accepted
 }
 
-func signalWaitID(signal Signal) WaitID {
-	waitID, _ := signal.WaitID()
-	return waitID
+func sortChildCompletionDeliveries(deliveries []childCompletionDelivery) {
+	slices.SortFunc(deliveries, func(left, right childCompletionDelivery) int {
+		return cmp.Compare(left.waitID.String(), right.waitID.String())
+	})
 }
 
 func childWaitContains(spec ChildWaitSpec, childID ProcessID) bool {
