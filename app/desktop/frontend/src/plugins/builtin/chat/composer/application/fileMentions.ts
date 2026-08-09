@@ -21,7 +21,7 @@ export function mentionOptionId(index: number): string {
   return `composer-mention-option-${index}`;
 }
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useWorkspaceListFiles } from "@/plugins/builtin/workspace/public/queries";
 import { fuzzyFile } from "./fuzzyFile";
 
@@ -70,7 +70,10 @@ export interface FileMentions {
 }
 
 export function useFileMentions({ value, caret, cwd, apply }: Args): FileMentions {
-  const [index, setIndex] = useState(0);
+  const [selection, setSelection] = useState<{
+    candidateKey: string;
+    index: number;
+  } | null>(null);
   // The '@' position a user dismissed with Esc — suppresses the popup for that
   // one mention until they move off it (a new '@' reopens).
   const [dismissedStart, setDismissedStart] = useState<number | null>(null);
@@ -92,10 +95,21 @@ export function useFileMentions({ value, caret, cwd, apply }: Args): FileMention
     );
   }, [open, mention, files]);
 
-  // Reset the highlighted row whenever the candidate set changes.
-  useEffect(() => {
-    setIndex(0);
-  }, [mention?.query, files]);
+  // Selection belongs to one concrete candidate set. Deriving the visible
+  // index from that identity resets it during render when the mention or
+  // results change, without an effect and its one-frame stale selection.
+  const candidateKey = [cwd, mention?.start, mention?.query, ...items].join("\0");
+  const index =
+    selection?.candidateKey === candidateKey && selection.index < items.length
+      ? selection.index
+      : 0;
+  const setIndex = useCallback(
+    (nextIndex: number) => {
+      if (nextIndex < 0 || nextIndex >= items.length) return;
+      setSelection({ candidateKey, index: nextIndex });
+    },
+    [candidateKey, items.length],
+  );
 
   const active = open && items.length > 0;
 
@@ -117,10 +131,10 @@ export function useFileMentions({ value, caret, cwd, apply }: Args): FileMention
       if (!active) return false;
       switch (e.key) {
         case "ArrowDown":
-          setIndex((i) => (i + 1) % items.length);
+          setIndex((index + 1) % items.length);
           return true;
         case "ArrowUp":
-          setIndex((i) => (i - 1 + items.length) % items.length);
+          setIndex((index - 1 + items.length) % items.length);
           return true;
         case "Tab":
           accept(items[index] ?? items[0]!);
@@ -136,7 +150,7 @@ export function useFileMentions({ value, caret, cwd, apply }: Args): FileMention
           return false;
       }
     },
-    [active, items, index, accept, mention],
+    [active, items, index, setIndex, accept, mention],
   );
 
   return { active, items, index, setIndex, accept, handleKeyDown };
