@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { useId, useLayoutEffect, useRef, useState } from "react";
 import { cn } from "@/lib/classNames";
 import { DialogPrimitive } from "@/ui/primitives";
 import { Icon } from "@/ui/icons";
@@ -54,6 +54,47 @@ export function SearchOverlay({
   options,
   empty,
 }: SearchOverlayProps) {
+  return (
+    <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
+      <DialogPrimitive.Portal>
+        <DialogPrimitive.Backdrop data-slot="search-overlay-backdrop" className={MODAL_SCRIM} />
+        <DialogPrimitive.Popup
+          data-slot="search-overlay"
+          aria-label={label}
+          className={cn(
+            "fixed inset-x-0 top-24 z-[var(--layer-modal)] mx-auto flex w-[min(520px,calc(100vw-32px))]",
+            "flex-col overflow-hidden rounded-[var(--floating-panel-radius)] outline-none",
+            // Opaque, and the modal shadow — this is a modal, so it gives the answer
+            // ConfirmDialog gives. The ring's frosted fill is for a popover: small,
+            // anchored, read as glass. Over a whole transcript at 520px it was a
+            // window onto the prose underneath.
+            "bg-canvas shadow-[var(--shadow-modal)]",
+            FLOATING_MOTION,
+          )}
+        >
+          <SearchOverlayContent
+            key={open ? "open" : "closed"}
+            open={open}
+            label={label}
+            placeholder={placeholder}
+            options={options}
+            empty={empty}
+          />
+        </DialogPrimitive.Popup>
+      </DialogPrimitive.Portal>
+    </DialogPrimitive.Root>
+  );
+}
+
+type SearchOverlayContentProps = Omit<SearchOverlayProps, "onOpenChange">;
+
+function SearchOverlayContent({
+  open,
+  label,
+  placeholder,
+  options,
+  empty,
+}: SearchOverlayContentProps) {
   const [query, setQuery] = useState("");
   const [highlight, setHighlight] = useState(0);
   const listRef = useRef<HTMLDivElement>(null);
@@ -67,27 +108,34 @@ export function SearchOverlay({
   const active = rows.length === 0 ? 0 : Math.min(Math.max(highlight, 0), rows.length - 1);
   const activeId = rows.length === 0 ? undefined : `${baseId}-${active}`;
 
-  useEffect(() => {
-    if (!open) {
-      setQuery("");
-      setHighlight(0);
-    }
-  }, [open]);
-
   // The list is taller than its box, so a highlight the keyboard moved past the
   // eighth row is a highlight nobody can see.
   useLayoutEffect(() => {
+    if (!open) return;
     listRef.current?.querySelector("[aria-selected='true']")?.scrollIntoView({ block: "nearest" });
-  }, [activeId]);
+  }, [activeId, open]);
 
   return (
-    <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
-      <DialogPrimitive.Portal>
-        <DialogPrimitive.Backdrop data-slot="search-overlay-backdrop" className={MODAL_SCRIM} />
-        <DialogPrimitive.Popup
-          data-slot="search-overlay"
-          aria-label={label}
+    <div className="contents">
+      <div className="flex items-center gap-2.5 border-b border-line-soft px-3.5 py-2.5 text-fg-muted">
+        <Icon name="search" size="md" />
+        <TextField
+          variant="bare"
+          // A session title is prose; the default mono is for paths and patterns.
+          font="sans"
+          // The surface exists to be typed into, and the user opened it with a
+          // keystroke — landing anywhere else would be the surprise.
+          // oxlint-disable-next-line jsx-a11y/no-autofocus
+          autoFocus={open}
+          role="combobox"
+          aria-expanded
+          aria-controls={listboxId}
+          aria-activedescendant={activeId}
+          value={query}
           onKeyDown={(event) => {
+            // Candidate navigation and acceptance belong to the IME while it is
+            // composing; the search list takes over only after commit.
+            if (event.nativeEvent.isComposing) return;
             if (event.key === "ArrowDown" || event.key === "ArrowUp") {
               event.preventDefault();
               setHighlight(wrap(active, rows.length, event.key === "ArrowDown" ? 1 : -1));
@@ -98,68 +146,40 @@ export function SearchOverlay({
               rows[active]?.onSelect();
             }
           }}
-          className={cn(
-            "fixed inset-x-0 top-24 z-[var(--layer-modal)] mx-auto flex w-[min(520px,calc(100vw-32px))]",
-            "flex-col overflow-hidden rounded-[var(--floating-panel-radius)] outline-none",
-            // Opaque, and the modal shadow — this is a modal, so it gives the answer
-            // ConfirmDialog gives. The ring's frosted fill is for a popover: small,
-            // anchored, read as glass. Over a whole transcript at 520px it was a
-            // window onto the prose underneath.
-            "bg-canvas shadow-[var(--shadow-modal)]",
-            FLOATING_MOTION,
-          )}
-        >
-          <div className="flex items-center gap-2.5 border-b border-line-soft px-3.5 py-2.5 text-fg-muted">
-            <Icon name="search" size="md" />
-            <TextField
-              variant="bare"
-              // A session title is prose; the default mono is for paths and patterns.
-              font="sans"
-              // The surface exists to be typed into, and the user opened it with a
-              // keystroke — landing anywhere else would be the surprise.
-              // oxlint-disable-next-line jsx-a11y/no-autofocus
-              autoFocus
-              role="combobox"
-              aria-expanded
-              aria-controls={listboxId}
-              aria-activedescendant={activeId}
-              value={query}
-              onChange={(event) => {
-                setQuery(event.target.value);
-                setHighlight(0);
-              }}
-              placeholder={placeholder}
-              aria-label={placeholder}
-              className="flex-1"
-            />
-            <Kbd>esc</Kbd>
-          </div>
-          <div
-            ref={listRef}
-            id={listboxId}
-            role="listbox"
-            aria-label={label}
-            className="max-h-80 overflow-y-auto p-1.5"
-          >
-            {rows.length === 0
-              ? empty
-              : rows.map((option, index) => (
-                  <OptionRow
-                    key={option.key}
-                    id={`${baseId}-${index}`}
-                    layout="flex"
-                    size="lg"
-                    tabIndex={-1}
-                    selected={index === active}
-                    onPointerMove={() => setHighlight(index)}
-                    onClick={option.onSelect}
-                  >
-                    {option.children}
-                  </OptionRow>
-                ))}
-          </div>
-        </DialogPrimitive.Popup>
-      </DialogPrimitive.Portal>
-    </DialogPrimitive.Root>
+          onChange={(event) => {
+            setQuery(event.target.value);
+            setHighlight(0);
+          }}
+          placeholder={placeholder}
+          aria-label={placeholder}
+          className="flex-1"
+        />
+        <Kbd>esc</Kbd>
+      </div>
+      <div
+        ref={listRef}
+        id={listboxId}
+        role="listbox"
+        aria-label={label}
+        className="max-h-80 overflow-y-auto p-1.5"
+      >
+        {rows.length === 0
+          ? empty
+          : rows.map((option, index) => (
+              <OptionRow
+                key={option.key}
+                id={`${baseId}-${index}`}
+                layout="flex"
+                size="lg"
+                tabIndex={-1}
+                selected={index === active}
+                onPointerMove={() => setHighlight(index)}
+                onClick={option.onSelect}
+              >
+                {option.children}
+              </OptionRow>
+            ))}
+      </div>
+    </div>
   );
 }

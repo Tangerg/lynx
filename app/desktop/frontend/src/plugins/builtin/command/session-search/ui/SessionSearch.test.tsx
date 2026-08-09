@@ -1,6 +1,6 @@
 import type { ReactElement } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AGENT_SESSIONS_KEY } from "@/plugins/builtin/agent/public/session";
 import { useSessionSearchStore } from "../../sessionSearchStore";
@@ -91,6 +91,19 @@ describe("going to a session", () => {
     expect(screen.queryAllByRole("option")).toHaveLength(0);
     expect(screen.getByText("No session matches")).toBeTruthy();
   });
+
+  it("starts from a fresh query and highlight after an external close", () => {
+    wrap(open());
+    fireEvent.change(field(), { target: { value: "retry" } });
+    expect(screen.getAllByRole("option")).toHaveLength(1);
+
+    act(() => useSessionSearchStore.getState().setOpen(false));
+    act(() => useSessionSearchStore.getState().setOpen(true));
+
+    expect((field() as HTMLInputElement).value).toBe("");
+    expect(screen.getAllByRole("option")).toHaveLength(2);
+    expect(marked()[0]?.textContent).toContain("Rename the dock");
+  });
 });
 
 // Focus stays in the field, so the field is the only thing that can say which row
@@ -121,5 +134,16 @@ describe("reaching the list without a pointer", () => {
     fireEvent.change(field(), { target: { value: "nothing here" } });
 
     expect(field().getAttribute("aria-activedescendant")).toBe(null);
+  });
+
+  it("leaves navigation and acceptance keys with an active IME", () => {
+    wrap(open());
+    const initial = marked()[0]?.textContent;
+
+    fireEvent.keyDown(field(), { key: "ArrowDown", isComposing: true });
+    fireEvent.keyDown(field(), { key: "Enter", isComposing: true });
+
+    expect(marked()[0]?.textContent).toBe(initial);
+    expect(selectAgentSession).not.toHaveBeenCalled();
   });
 });
