@@ -197,7 +197,7 @@ P1 已建立：
 - context-based Domain I/O port、旧 private snapshot decoder 和旧 lifecycle owner 的精确 Temporary 台账；
 - compatibility/legacy/versioned source directory 禁令。
 
-机器 owner 是 `internal/arch/target_architecture_test.go` 与 `internal/arch/temporary_architecture_test.go`；本文件不复制易漂移的逐文件集合。
+机器 owner 是 `internal/arch/target_architecture_test.go`、`internal/arch/framework_boundary_test.go` 与各专项 architecture fitness test；不存在 temporary exception 台账，本文件不复制易漂移的逐文件集合。
 
 P2–P10 继续逐步建立：
 

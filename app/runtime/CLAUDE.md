@@ -22,7 +22,7 @@
 
 ## 当前状态
 
-P8 已完成生产执行纵切：Bootstrap 只装配 Agent2 原生 Interaction，Runtime 源码、测试与模块依赖中的旧 `agent` consumer 已归零。当前进入 P9 外环结构收敛；历史实现细节可参考 [`doc/EXECUTION_CENTERED_ARCHITECTURE.md`](doc/EXECUTION_CENTERED_ARCHITECTURE.md)，但它不是兼容规范。
+P9 已完成外环结构收敛：`component` umbrella、temporary architecture exception、重复 path identity 与纯转发/错误依赖方向均已清零。当前进入 P10 服务端 Protocol/生成物/API 收口；历史实现细节可参考 [`doc/EXECUTION_CENTERED_ARCHITECTURE.md`](doc/EXECUTION_CENTERED_ARCHITECTURE.md)，但它不是兼容规范。
 
 ## 工作纪律
 

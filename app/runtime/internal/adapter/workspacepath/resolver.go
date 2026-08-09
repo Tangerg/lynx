@@ -11,6 +11,7 @@ import (
 
 	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
+	"github.com/Tangerg/lynx/app/runtime/internal/infra/pathidentity"
 )
 
 // ErrNotDirectory reports that a path exists but is not a directory.
@@ -25,14 +26,11 @@ var ErrAbsolutePathRequired = errors.New("workspacepath: absolute path required"
 // absolute spelling; callers that require existence use Resolver. Relative
 // values are rejected because resolving them would depend on the process cwd.
 func Canonical(path string) (string, error) {
-	if !filepath.IsAbs(path) {
+	canonical, err := pathidentity.Canonical("", path)
+	if err != nil {
 		return "", ErrAbsolutePathRequired
 	}
-	abs := filepath.Clean(path)
-	if resolved, err := filepath.EvalSymlinks(abs); err == nil {
-		return resolved, nil
-	}
-	return abs, nil
+	return canonical, nil
 }
 
 // Resolver implements the application session coordinator's cwd-resolution
@@ -85,19 +83,19 @@ func (r Resolver) ResolveExistingInRoot(root, path string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	resolved, err := filepath.EvalSymlinks(filepath.Join(root, rel))
-	if err != nil {
-		return rel, nil
-	}
-	canonicalRoot, err := Canonical(root)
+	physicalRoot, err := pathidentity.Resolve("", root)
 	if err != nil {
 		return "", err
 	}
-	canonicalResolved, err := Canonical(resolved)
+	physicalTarget, err := pathidentity.Resolve(physicalRoot, rel)
 	if err != nil {
 		return "", err
 	}
-	if !pathInside(canonicalRoot, canonicalResolved) {
+	inside, err := pathidentity.Contains(physicalRoot, physicalTarget)
+	if err != nil {
+		return "", err
+	}
+	if !inside {
 		return "", workspaceapp.ErrPathOutsideRoot
 	}
 	return rel, nil
@@ -150,9 +148,4 @@ func nearestProjectRoot(cwd string) (string, error) {
 			return cwd, nil
 		}
 	}
-}
-
-func pathInside(root, path string) bool {
-	rel, err := filepath.Rel(root, path)
-	return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }

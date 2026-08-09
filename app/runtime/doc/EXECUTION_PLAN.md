@@ -1,6 +1,6 @@
 # Lyra Runtime 重构实施计划
 
-> 状态：P8 production Agent2 cutover 已完成；下一阶段 P9
+> 状态：P9 外环结构收敛已完成；下一阶段 P10
 >
 > 工作方式：原模块内治本重构，按可验证纵切分批完成；不创建完整 `runtime2`
 
@@ -41,7 +41,7 @@
 | P6 | waiting、checkpoint、restore、resume、steer | P5 | 已完成 |
 | P7 | Delegate child Run 与 waiting subtree | P6 + 两项 Agent2 中性合同 | 已完成 |
 | P8 | terminal、recovery 与跨聚合一致性收口 | P7 | 已完成 |
-| P9 | Adapter/Infra/共享原语/Delivery 结构收敛 | P8 | 进行中 |
+| P9 | Adapter/Infra/共享原语/Delivery 结构收敛 | P8 | 已完成 |
 | P10 | 协议、生成物与服务端 API 收口 | P9 | 未开始 |
 | P11 | 旧 Agent 删除与唯一模块名替换 | P10 | 未开始 |
 | P12 | 全量质量验收与消费者接线移交 | P11 | 未开始 |
@@ -451,7 +451,8 @@
 | 2026-08-09 | P7 | 以 Agent2 conclusive start outcome 和 one-shot prepared waiting-subtree change 完成 durable Delegate child Run、nested/sibling causal binding、restore attribution、waiting child cancellation 与 resulting checkpoint recovery；Application 与 Agent2 之间只传中性 member projection 和 opaque checkpoint | accepted→started/aborted、admission reject、multi/nested/restore、non-reentrant child commit、prepare/transaction/Apply-or-Discard、Apply/Continue 分相、commit-after-Apply-failure exact restore、restore failure RunLost 与 canceled-request-after-commit tests 通过；旧 turn shutdown 竞争目标测试 100 次、整包 10 次稳定；Runtime/Agent2 `go mod tidy -diff`、全量 test/vet/build/staticcheck、Agent2 全量 race 与 Runtime 高风险 race 全绿 |
 | 2026-08-09 | P8 | 原子切换 Bootstrap/boot recovery 到 Agent2 原生 Interaction；Application-owned WorkingContext composition、request-cancel/observe/release、tree-wide termination/recovery 与 Tool advertisement 均完成最终纵切；旧 Agent module dependency、GOAP/TurnProcess/turn/suspension/private-tree/duplicate-child 路径及临时例外全部删除；standalone module dependency 提升到实际消费的 Agent2 Baseline 14 commit | terminal cause matrix、native delegation/waiting/restore/cancellation/unknown、cold restart、opaque checkpoint capability、Toolset advertiser 与 protocol lifecycle tests 通过；`go mod tidy -diff`、全量 test/vet/build/staticcheck、`deadcode -test`、standalone GOWORK=off 全门禁、Agent2/runs/runsegment/runrecovery/bootstrap race、cold restart 与 native lifecycle 各 10 次重复验证全绿 |
 | 2026-08-09 | P9.1 | 依据真实 import graph 清零 `component` umbrella：path identity、secret masking、notification relay 分别归 Infra/Application/Adapter；pagination/replay cursor、completion/HTTP origin/idempotency/shutdown/taskgroup 以准确 capability 存在；Bootstrap 中长期同步行为移出 composition root；并发 Tool attribution test 改为按稳定 model-call/index 断言而非 goroutine 到达序 | component path/empty dir/temporary ledger 为零；shared capability purity、content-codec boundary、Bootstrap no-business-method、inner-ring comment gates 全绿；`go mod tidy -diff`、全量 test/vet/build/staticcheck、`deadcode -test`、相关 owner/ring race 通过，并发 attribution 100 次重复稳定 |
+| 2026-08-09 | P9.2 | 完成 Adapter/Infra/Application/Delivery 逐包职责审计；workspace physical path identity 收敛到唯一 Infra mechanism；删除空的 temporary architecture 台账并把旧 Agent 禁止与 Domain no-context-I/O 变为永久 framework boundary guard；确认 agentexec 按真实变化原因组织且没有第二 lifecycle owner或虚构子包 | Adapter→Infra 单向图与目标六环 DAG 全绿；Delivery concrete Adapter/Infra import、Infra 反向 import、Application outward import、纯转发 wrapper、package/type 口吃、空目录和 temporary exception 均为零；workspacepath/pathidentity/arch targeted tests 与全量质量门禁通过 |
 
 ## 18. 当前下一步
 
-P9 第一批已删除 `component` umbrella。下一批继续按真实使用图审计 Adapter/Infra 纯转发、Application 口吃/胖接口、Delivery 越界职责、空目录和剩余 temporary exception。P9 不重开已经冻结的 Agent2 execution lifecycle，也不把 Runtime 产品抽象下沉 Agent2。
+P9 已完成最终外环收敛。下一批执行 P10：以 `contract/` 为机器真相源审计 execution/turn/process wire 词汇，一次性收口 Go protocol、OpenRPC、JSON Schema、manifest、examples 与 server projection；只修改服务端，不接线前端、TUI 或 CLI，也不为旧消费者保留双字段或兼容路径。

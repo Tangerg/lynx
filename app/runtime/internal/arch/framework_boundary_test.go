@@ -12,6 +12,111 @@ import (
 	"testing"
 )
 
+const oldAgentModulePath = "github.com/Tangerg/lynx/agent"
+
+// TestOldAgentModuleIsAbsent prevents the superseded framework from returning
+// after the production execution cutover. Runtime has one framework boundary:
+// Agent2 through adapter/agentexec.
+func TestOldAgentModuleIsAbsent(t *testing.T) {
+	root := moduleRoot(t)
+	err := filepath.WalkDir(root, func(path string, entry os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() {
+			if entry.Name() == "vendor" || (strings.HasPrefix(entry.Name(), ".") && path != root) {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if filepath.Ext(path) != ".go" {
+			return nil
+		}
+		file, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.ImportsOnly)
+		if err != nil {
+			return err
+		}
+		for _, imported := range file.Imports {
+			importPath := strings.Trim(imported.Path.Value, `"`)
+			if importPath != oldAgentModulePath && !strings.HasPrefix(importPath, oldAgentModulePath+"/") {
+				continue
+			}
+			relativePath, _ := filepath.Rel(root, path)
+			t.Errorf("old Agent import remains after production cutover: %s", filepath.ToSlash(relativePath))
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("scan old Agent imports: %v", err)
+	}
+}
+
+// TestDomainHasNoContextIOPorts keeps external interaction out of the Domain
+// ring. Domain may own pure strategy contracts; context-bearing I/O contracts
+// belong to their Application consumers.
+func TestDomainHasNoContextIOPorts(t *testing.T) {
+	root := moduleRoot(t)
+	domainRoot := filepath.Join(root, "internal", "domain")
+	err := filepath.WalkDir(domainRoot, func(path string, entry os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() || filepath.Ext(path) != ".go" {
+			return nil
+		}
+		file, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
+		if err != nil {
+			return err
+		}
+		for _, declaration := range file.Decls {
+			general, ok := declaration.(*ast.GenDecl)
+			if !ok || general.Tok != token.TYPE {
+				continue
+			}
+			for _, specification := range general.Specs {
+				named, ok := specification.(*ast.TypeSpec)
+				if !ok {
+					continue
+				}
+				contract, ok := named.Type.(*ast.InterfaceType)
+				if !ok || !interfaceUsesContext(contract) {
+					continue
+				}
+				relativePath, _ := filepath.Rel(root, path)
+				t.Errorf("Domain context I/O port is forbidden: %s:%s", filepath.ToSlash(relativePath), named.Name.Name)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("scan Domain I/O ports: %v", err)
+	}
+}
+
+func interfaceUsesContext(contract *ast.InterfaceType) bool {
+	if contract.Methods == nil {
+		return false
+	}
+	for _, method := range contract.Methods.List {
+		usesContext := false
+		ast.Inspect(method.Type, func(node ast.Node) bool {
+			selector, ok := node.(*ast.SelectorExpr)
+			if !ok || selector.Sel.Name != "Context" {
+				return true
+			}
+			packageName, ok := selector.X.(*ast.Ident)
+			if ok && packageName.Name == "context" {
+				usesContext = true
+			}
+			return true
+		})
+		if usesContext {
+			return true
+		}
+	}
+	return false
+}
+
 // TestSQLiteDoesNotDiscardRowsAffectedErrors protects compare-and-swap and
 // mutation outcomes from treating a driver failure as a successful zero count.
 func TestSQLiteDoesNotDiscardRowsAffectedErrors(t *testing.T) {

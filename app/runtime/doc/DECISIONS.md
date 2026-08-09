@@ -143,9 +143,9 @@
 
 ## ADR-RT-023：Adapter 与 Infra 不整体合并
 
-- 状态：已接受。
+- 状态：已接受，P9 已实施。
 - 决策：Adapter 翻译/组合应用语义；Infra 提供低层技术 mechanism。Adapter 可以依赖 Infra，Infra 不反向依赖 Adapter/Application。
-- 后果：每个包逐一审计；纯透传 wrapper 合并，真实复用机制保留。目录名不能替代职责证明。
+- 后果：每个包已按真实 import graph 与调用职责逐一审计；Adapter 保留应用语义翻译、组合和外部 SDK 防腐，Infra 保留可复用技术机制。重复的物理路径判定已统一归 `infra/pathidentity`；未发现需要整体合并的环或仅为目录对称存在的生产 wrapper。永久 DAG guard 防止 Infra 反向依赖 Adapter/Application。目录名不能替代职责证明。
 
 ## ADR-RT-024：Delivery Server 与 Dispatch 分离
 
