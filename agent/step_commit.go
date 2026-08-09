@@ -121,160 +121,259 @@ func (loop *processLoop) acknowledgePrepared(ctx context.Context) bool {
 	return false
 }
 
-func (loop *processLoop) finalizePrepared(ctx context.Context) (returnErr error) {
-	prepared := loop.prepared
-	var immediateChildSignals []Signal
-	var registeredChildWaits []WaitID
-	committed := false
-	defer func() {
-		if committed {
-			return
-		}
-		for _, waitID := range registeredChildWaits {
-			loop.engine.unregisterChildWait(waitID)
-		}
-	}()
+func (loop *processLoop) finalizePrepared(ctx context.Context) error {
+	finalization, err := newPreparedStepFinalization(loop)
+	if err != nil {
+		return err
+	}
+	defer finalization.rollback()
+	if err := finalization.prepare(); err != nil {
+		return err
+	}
+	return finalization.commit(ctx)
+}
+
+type preparedStepFinalization struct {
+	loop                  *processLoop
+	prepared              *preparedStep
+	mailbox               signalMailbox
+	consumedChildWaits    []WaitID
+	registeredChildWaits  []WaitID
+	immediateChildSignals []Signal
+	transition            preparedTransitionState
+	committed             bool
+}
+
+type preparedTransitionState struct {
+	status           Status
+	currentWaitID    WaitID
+	pauseReason      string
+	finalOutput      Output
+	termination      Termination
+	finishedAt       time.Time
+	closedChildWaits []WaitID
+}
+
+func newPreparedStepFinalization(loop *processLoop) (*preparedStepFinalization, error) {
 	mailbox, err := restoreSignalMailbox(loop.mailbox.snapshot())
 	if err != nil {
+		return nil, err
+	}
+	consumedChildWaits, err := mailbox.consumedChildWaitIDs(loop.prepared.wire.Transition.ConsumedSignals())
+	if err != nil {
+		return nil, err
+	}
+	if err := mailbox.commit(loop.prepared.wire.Transition.ConsumedSignals()); err != nil {
+		return nil, err
+	}
+	return &preparedStepFinalization{
+		loop: loop, prepared: loop.prepared, mailbox: mailbox,
+		consumedChildWaits: consumedChildWaits,
+	}, nil
+}
+
+func (finalization *preparedStepFinalization) prepare() error {
+	for _, record := range finalization.prepared.wire.Effects {
+		if err := finalization.applySettlement(record); err != nil {
+			return err
+		}
+	}
+	if err := finalization.enqueueImmediateChildSignals(); err != nil {
 		return err
 	}
-	consumedChildWaits, err := mailbox.consumedChildWaitIDs(prepared.wire.Transition.ConsumedSignals())
+	return finalization.prepareTransition()
+}
+
+func (finalization *preparedStepFinalization) applySettlement(record preparedEffectWire) error {
+	if record.Settlement == nil || record.Settlement.Status() == SettlementStatusUnknown {
+		return errors.New("effect batch is not definitely settled")
+	}
+	waitID, err := finalization.registerFrameworkEffect(record)
 	if err != nil {
 		return err
 	}
-	if err := mailbox.commit(prepared.wire.Transition.ConsumedSignals()); err != nil {
+	signal, err := newSignal(
+		deriveSettlementSignalID(record.ID), waitID, time.Now(), record.Settlement.Payload(),
+	)
+	if err != nil {
 		return err
 	}
-	for _, record := range prepared.wire.Effects {
-		if record.Settlement == nil || record.Settlement.Status() == SettlementStatusUnknown {
-			return errors.New("effect batch is not definitely settled")
+	if waitID.Valid() {
+		return finalization.mailbox.enqueueWaitOpened(signal)
+	}
+	accepted, err := finalization.mailbox.enqueue(StatusRunning, signal)
+	if err != nil || !accepted {
+		return errors.Join(err, errors.New("internal settlement Signal was not accepted"))
+	}
+	return nil
+}
+
+func (finalization *preparedStepFinalization) registerFrameworkEffect(record preparedEffectWire) (WaitID, error) {
+	if record.Effect.Target() != EffectTargetFramework {
+		return WaitID{}, nil
+	}
+	operation, err := frameworkEffectOperation(record.Effect.Payload())
+	if err != nil {
+		return WaitID{}, errors.New("invalid prepared framework Effect")
+	}
+	switch operation {
+	case frameworkEffectWait:
+		key, _, err := decodeWaitRequest(record.Effect)
+		if err != nil || record.WaitID == nil {
+			return WaitID{}, errors.New("invalid prepared wait Effect")
 		}
-		waitID := WaitID{}
-		if record.Effect.Target() == EffectTargetFramework {
-			operation, err := frameworkEffectOperation(record.Effect.Payload())
-			if err != nil {
-				return errors.New("invalid prepared framework Effect")
-			}
-			switch operation {
-			case frameworkEffectWait:
-				key, _, err := decodeWaitRequest(record.Effect)
-				if err != nil || record.WaitID == nil {
-					return errors.New("invalid prepared wait Effect")
-				}
-				waitID = *record.WaitID
-				if err := mailbox.registerWait(key, waitID, true); err != nil {
-					return err
-				}
-			case frameworkEffectStartChild:
-				if record.WaitID != nil {
-					return errors.New("child-start Effect unexpectedly contains a WaitID")
-				}
-			case frameworkEffectWaitChildren:
-				spec, err := decodeChildWaitEffect(record.Effect.Payload())
-				if err != nil || record.WaitID == nil {
-					return errors.New("invalid child-wait Effect")
-				}
-				waitID = *record.WaitID
-				if err := mailbox.registerWait(spec.Key, waitID, false); err != nil {
-					return err
-				}
-				immediate, err := loop.engine.registerChildWait(loop.controller.processID, waitID, spec)
-				if err != nil {
-					return err
-				}
-				registeredChildWaits = append(registeredChildWaits, waitID)
-				if immediate != nil {
-					immediateChildSignals = append(immediateChildSignals, *immediate)
-				}
-			default:
-				return errors.New("unsupported prepared framework Effect")
-			}
+		if err := finalization.mailbox.registerWait(key, *record.WaitID, true); err != nil {
+			return WaitID{}, err
 		}
-		signal, err := newSignal(
-			deriveSettlementSignalID(record.ID), waitID, time.Now(), record.Settlement.Payload(),
+		return *record.WaitID, nil
+	case frameworkEffectStartChild:
+		if record.WaitID != nil {
+			return WaitID{}, errors.New("child-start Effect unexpectedly contains a WaitID")
+		}
+		return WaitID{}, nil
+	case frameworkEffectWaitChildren:
+		return finalization.registerChildWait(record)
+	default:
+		return WaitID{}, errors.New("unsupported prepared framework Effect")
+	}
+}
+
+func (finalization *preparedStepFinalization) registerChildWait(record preparedEffectWire) (WaitID, error) {
+	spec, err := decodeChildWaitEffect(record.Effect.Payload())
+	if err != nil || record.WaitID == nil {
+		return WaitID{}, errors.New("invalid child-wait Effect")
+	}
+	waitID := *record.WaitID
+	if err := finalization.mailbox.registerWait(spec.Key, waitID, false); err != nil {
+		return WaitID{}, err
+	}
+	immediate, err := finalization.loop.engine.registerChildWait(
+		finalization.loop.controller.processID, waitID, spec,
+	)
+	if err != nil {
+		return WaitID{}, err
+	}
+	finalization.registeredChildWaits = append(finalization.registeredChildWaits, waitID)
+	if immediate != nil {
+		finalization.immediateChildSignals = append(finalization.immediateChildSignals, *immediate)
+	}
+	return waitID, nil
+}
+
+func (finalization *preparedStepFinalization) enqueueImmediateChildSignals() error {
+	preparedSignals := uint64(len(finalization.prepared.wire.Effects))
+	for index, signal := range finalization.immediateChildSignals {
+		acceptedSignals := finalization.loop.usage.AcceptedSignals + preparedSignals + uint64(index) + 1
+		if acceptedSignals > finalization.loop.limits.MaxSignals ||
+			finalization.mailbox.pendingCount()+1 > finalization.loop.limits.MaxPendingSignals ||
+			acceptedSignals+finalization.loop.reservedBudget.Signals > finalization.loop.budget.Signals {
+			return ErrResourceLimitExceeded
+		}
+		accepted, err := finalization.mailbox.enqueueChildCompletion(StatusRunning, signal)
+		if err != nil || !accepted {
+			return errors.Join(err, errors.New("immediate child completion Signal was not accepted"))
+		}
+	}
+	return nil
+}
+
+func (finalization *preparedStepFinalization) prepareTransition() error {
+	transition := finalization.prepared.wire.Transition
+	switch transition.Kind() {
+	case TransitionKindContinue:
+		finalization.transition.status = StatusRunning
+	case TransitionKindWait:
+		return finalization.prepareWaitTransition(transition)
+	case TransitionKindPause:
+		finalization.transition.status = StatusPaused
+		finalization.transition.pauseReason, _ = transition.Reason()
+	case TransitionKindComplete:
+		finalization.transition.finalOutput, _ = transition.Output()
+		finalization.prepareTermination(completedOutcome())
+	case TransitionKindFail:
+		failure, _ := transition.Failure()
+		outcome, err := failedOutcome(failure)
+		if err != nil {
+			return err
+		}
+		finalization.prepareTermination(outcome)
+	default:
+		return ErrInvalidTransition
+	}
+	return nil
+}
+
+func (finalization *preparedStepFinalization) prepareWaitTransition(transition Transition) error {
+	waitID, _ := transition.WaitID()
+	shouldWait, err := finalization.mailbox.enterWait(waitID)
+	if err != nil {
+		return err
+	}
+	if shouldWait {
+		finalization.transition.status = StatusWaiting
+		finalization.transition.currentWaitID = waitID
+	} else {
+		finalization.transition.status = StatusRunning
+	}
+	return nil
+}
+
+func (finalization *preparedStepFinalization) prepareTermination(outcome stepOutcome) {
+	finalization.transition.termination = finalization.loop.resolveStepTermination(outcome)
+	finalization.transition.status = finalization.transition.termination.Status()
+	finalization.transition.finishedAt = time.Now().Round(0).UTC()
+	finalization.transition.closedChildWaits = finalization.mailbox.closeAllWaits()
+}
+
+func (finalization *preparedStepFinalization) commit(ctx context.Context) error {
+	execution := finalization.prepared.candidate
+	if execution == nil {
+		var err error
+		execution, err = restoreExecution(
+			finalization.loop.deployment.Definition(), finalization.prepared.wire.CandidateState,
 		)
 		if err != nil {
 			return err
 		}
-		if waitID.Valid() {
-			if err := mailbox.enqueueWaitOpened(signal); err != nil {
-				return err
-			}
-		} else {
-			accepted, err := mailbox.enqueue(StatusRunning, signal)
-			if err != nil || !accepted {
-				return errors.Join(err, errors.New("internal settlement Signal was not accepted"))
-			}
-		}
 	}
-	for _, signal := range immediateChildSignals {
-		if loop.usage.AcceptedSignals+uint64(len(prepared.wire.Effects))+1 > loop.limits.MaxSignals ||
-			mailbox.pendingCount()+1 > loop.limits.MaxPendingSignals ||
-			loop.usage.AcceptedSignals+uint64(len(prepared.wire.Effects))+1+
-				loop.reservedBudget.Signals > loop.budget.Signals {
-			waitID, _ := signal.WaitID()
-			loop.engine.unregisterChildWait(waitID)
-			return ErrResourceLimitExceeded
-		}
-		accepted, err := mailbox.enqueueChildCompletion(StatusRunning, signal)
-		if err != nil || !accepted {
-			waitID, _ := signal.WaitID()
-			loop.engine.unregisterChildWait(waitID)
-			return errors.Join(err, errors.New("immediate child completion Signal was not accepted"))
-		}
-	}
-	loop.execution = prepared.candidate
-	if loop.execution == nil {
-		loop.execution, err = restoreExecution(loop.deployment.Definition(), prepared.wire.CandidateState)
-		if err != nil {
-			return err
-		}
-	}
-	loop.lastStableState = prepared.wire.CandidateState
-	loop.mailbox = mailbox
-	loop.committedSteps = prepared.wire.StepSequence
+	loop := finalization.loop
+	loop.execution = execution
+	loop.lastStableState = finalization.prepared.wire.CandidateState
+	loop.mailbox = finalization.mailbox
+	loop.committedSteps = finalization.prepared.wire.StepSequence
 	loop.usage.CommittedSteps = loop.committedSteps
-	loop.usage.AcceptedSignals += uint64(len(prepared.wire.Effects))
-	loop.usage.AcceptedSignals += uint64(len(immediateChildSignals))
-	transition := prepared.wire.Transition
+	loop.usage.AcceptedSignals += uint64(len(finalization.prepared.wire.Effects))
+	loop.usage.AcceptedSignals += uint64(len(finalization.immediateChildSignals))
 	loop.prepared = nil
-	switch transition.Kind() {
-	case TransitionKindContinue:
-		loop.status = StatusRunning
-	case TransitionKindWait:
-		waitID, _ := transition.WaitID()
-		shouldWait, err := loop.mailbox.enterWait(waitID)
-		if err != nil {
-			return err
-		}
-		if shouldWait {
-			loop.status = StatusWaiting
-			loop.currentWaitID = waitID
-		} else {
-			loop.status = StatusRunning
-			loop.currentWaitID = WaitID{}
-		}
-	case TransitionKindPause:
-		loop.status = StatusPaused
-		loop.pauseReason, _ = transition.Reason()
-	case TransitionKindComplete:
-		loop.finalOutput, _ = transition.Output()
-		loop.commitTermination(completedOutcome())
-	case TransitionKindFail:
-		failure, _ := transition.Failure()
-		outcome, _ := failedOutcome(failure)
-		loop.commitTermination(outcome)
-	default:
-		return ErrInvalidTransition
+	loop.status = finalization.transition.status
+	loop.currentWaitID = finalization.transition.currentWaitID
+	loop.pauseReason = finalization.transition.pauseReason
+	loop.finalOutput = finalization.transition.finalOutput
+	if finalization.transition.termination.Valid() {
+		loop.termination = finalization.transition.termination
+		loop.finishedAt = finalization.transition.finishedAt
+		loop.pendingControl = pendingControl{}
 	}
 	loop.updateView()
 	payload, _ := json.Marshal(stepCommittedEventPayload{ProcessStatus: loop.status.String()})
 	loop.publishEvent(ctx, EventStepCommitted, EventPhaseCommitted, loop.committedSteps, EffectID{}, payload)
-	for _, waitID := range consumedChildWaits {
+	for _, waitID := range finalization.consumedChildWaits {
 		loop.engine.unregisterChildWait(waitID)
 	}
-	committed = true
+	for _, waitID := range finalization.transition.closedChildWaits {
+		loop.engine.unregisterChildWait(waitID)
+	}
+	finalization.committed = true
 	return nil
+}
+
+func (finalization *preparedStepFinalization) rollback() {
+	if finalization == nil || finalization.committed {
+		return
+	}
+	for _, waitID := range finalization.registeredChildWaits {
+		finalization.loop.engine.unregisterChildWait(waitID)
+	}
 }
 
 func (loop *processLoop) discardPrepared() {
@@ -301,14 +400,7 @@ func (loop *processLoop) fail(ctx context.Context, kind FailureKind, code string
 }
 
 func (loop *processLoop) commitTermination(outcome stepOutcome) {
-	termination, err := resolveTermination(terminationFacts{
-		kill: loop.pendingControl.kill, deadline: loop.pendingControl.deadline,
-		cancellation: loop.pendingControl.cancellation, outcome: outcome,
-	})
-	if err != nil {
-		failure, _ := NewFailure(FailureKindContract, "engine.termination.invalid", err.Error())
-		termination = terminationForFailure(failure)
-	}
+	termination := loop.resolveStepTermination(outcome)
 	loop.termination = termination
 	loop.status = termination.Status()
 	loop.finishedAt = time.Now().Round(0).UTC()
@@ -319,6 +411,18 @@ func (loop *processLoop) commitTermination(outcome stepOutcome) {
 		loop.engine.unregisterChildWait(waitID)
 	}
 	loop.updateView()
+}
+
+func (loop *processLoop) resolveStepTermination(outcome stepOutcome) Termination {
+	termination, err := resolveTermination(terminationFacts{
+		kill: loop.pendingControl.kill, deadline: loop.pendingControl.deadline,
+		cancellation: loop.pendingControl.cancellation, outcome: outcome,
+	})
+	if err != nil {
+		failure, _ := NewFailure(FailureKindContract, "engine.termination.invalid", err.Error())
+		termination = terminationForFailure(failure)
+	}
+	return termination
 }
 
 func (loop *processLoop) observeHostError(ctx context.Context) {

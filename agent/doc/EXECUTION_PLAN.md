@@ -79,6 +79,7 @@ go test ./...
 | P9 独立完整性验收 | 完成 | 6/6 | API/wire/arch/race/fuzz/examples/standalone 全绿 |
 | P10 消费迁移 | 完成 | 8/8 | Runtime 已完成生产纵切并删除应用侧旧 Framework owner |
 | P11 原模块替换 | 完成 | 5/5 | 原实现和临时路径已删除，唯一 canonical module 已发布并通过最终门禁 |
+| P12 重写后精修 | 进行中 | 1/3 | 在不改变公共合同的前提下清除实现复杂度、重复职责和边界门禁盲区 |
 
 ---
 
@@ -213,6 +214,12 @@ go test ./...
 - [x] P11-04 清理 workspace、文档、依赖和旧术语。
 - [x] P11-05 执行全 workspace 最终门禁并记录替换提交。
 
+### P12：重写后精修
+
+- [x] P12-01 收敛 Step finalization、TreeSnapshot 校验与 Interaction phase 校验的变化原因，并补齐 immediate child Signal 累计限额反例。
+- [ ] P12-02 继续审计 Strategy protocol、状态推进与 Kernel lifecycle 的高复杂度 owner，区分严格校验与真实职责混杂后治本清理。
+- [ ] P12-03 与 Runtime 执行双向抽象泄露复审、完整 race/fuzz/examples/standalone 门禁并冻结最终事实。
+
 ---
 
 ## 6. 最终完成定义
@@ -258,6 +265,7 @@ go test ./...
 
 | 日期 | 阶段 | 实际事实 | 验证与结果 |
 |---|---|---|---|
+| 2026-08-09 | P12-01 | 将 Interaction execution state 的共同 envelope、active Tool/Delegate batch 与具体 phase 不变量收回各自校验行为；TreeSnapshot 将 Process 索引、关系/预算和 child-wait 合法性收敛为一个私有 validation owner；Step finalization 现在先在克隆 mailbox 上完成 settlement、wait registration、transition 与 termination staging，全部可失败步骤通过后才一次安装 live state。审计同时发现多个 immediate child completion Signal 只按“一个”计入 MaxSignals/Budget 的累计遗漏，现按 batch index 精确计数并保留回归测试。没有修改 exported API、wire、schema、package DAG 或 Host/Runtime 边界 | Agent Framework standalone 禁用缓存全量测试、vet、staticcheck 与完整 lint 全绿；新增累计限额反例在旧实现会接收第二个越界 Signal，当前确定返回 `ErrResourceLimitExceeded`；root module 全量测试亦通过 |
 | 2026-08-09 | P11（publication completion） | canonical source commit 发布后，Runtime standalone 依赖绑定真实 `github.com/Tangerg/lynx/agent v0.0.0-20260809043847-2590dbc81a1f`；本地 workspace 与关闭 workspace 的依赖解析均指向同一 Baseline 15 源码，不保留 `replace`、alias module 或临时 module path | Runtime `GOWORK=off` tidy-diff/build/vet/staticcheck/test/race 全绿；Agent Framework standalone 与 Runtime workspace 门禁全绿，P11 5/5 完成 |
 | 2026-08-09 | P11（canonical source publication） | 生产 Runtime 已无原框架 consumer 或独有能力；整体删除原实现，并把绿色重写实现安装为唯一 `github.com/Tangerg/lynx/agent` module。同步 Runtime imports、workspace、根文档、examples、GoDoc、architecture guards 与 Baseline 15；删除迁移期第二真相源和所有 alias/replace/转发路径。模块路径切换导致 GoDoc 与反射型 wire digest 按 canonical package identity 重新冻结，但 schema version、JSON tag、API 语义和行为合同未改变 | Agent Framework `GOWORK=off` tidy-diff/build/vet/staticcheck/test/race 全绿，八个 commands 与全部 owner baseline 通过；Runtime workspace 全量 test 通过；临时 module path 只保留在永久 absence guard。Runtime standalone dependency 必须在本 source commit 推送后绑定其真实 pseudo-version，因此 P11 保持 4/5，下一提交立即完成 publication dependency 与最终门禁，不引入兼容路径 |
 | 2026-08-09 | P10-06（Framework 支撑） | Runtime durable prepared-change consumer 证明 `Apply(ctx)` 的 gate 前请求取消与已经提交的 Host decision 矛盾。Kernel 将全部可失败/可取消的 Process projection staging 保留在 Prepare 内，并把 returned capability 的提交入口治本收敛为 contextless `Apply()`；没有加入 transaction、checkpoint、Run、application disposition 或 callback | 形成 Baseline 14：root public digest `f78b014a…00a4`；Process Snapshot v6、TreeSnapshot v4、全部 Strategy/observation wire与其余六个 public digest不变。prepared owner tests 与 Runtime waiting-subtree recovery tests通过；完整阶段验证随 Runtime P7 批次统一记录 |
@@ -341,4 +349,4 @@ go test ./...
 
 P1–P11 与真实 Runtime consumer 证明的全部 Framework 合同已经完成，Baseline 15 是当前唯一 `agent` 基线。原框架实现、临时孵化 module 和迁移兼容路径均已清零；Runtime standalone 已绑定 canonical source commit 的真实 pseudo-version。除非真实消费再次证明中性 Framework 缺口，否则不修改公共合同。
 
-Framework 专项已完成。下一步仅由 Runtime P12 执行服务端最终质量验收与消费者 breaking-surface 移交；不修改前端、TUI 或 CLI，也不引入任何迁移兼容路径。
+当前执行 P12 重写后精修。下一批继续只处理 Framework 自身的实现所有权、复杂度和门禁盲区；Runtime 产品、Store、transaction、Run、前端、TUI 与 CLI 均不得进入 Framework。
