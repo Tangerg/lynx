@@ -394,6 +394,54 @@ func TestWorkspaceFileCompletionCreatesAtomicAttachments(t *testing.T) {
 	stop()
 }
 
+func TestToolKindsRenderLiveAndDetailToggleChangesTheTranscript(t *testing.T) {
+	backend := mock.New()
+	backend.Instant = true
+	backend.Script = func(string) mock.Script {
+		zero := 0
+		return mock.Script{Prelude: []mock.Step{
+			{Event: client.BlockStarted{Block: client.Block{ID: "shell", Kind: client.BlockTool, Tool: &client.ToolCall{
+				Kind: client.ToolShell, Name: "provider.exec", Command: "go test ./...", Summary: "run tests", Status: client.ToolRunning,
+			}}}},
+			{Event: client.BlockCompleted{Block: client.Block{ID: "shell", Kind: client.BlockTool, Tool: &client.ToolCall{
+				Kind: client.ToolShell, Name: "provider.exec", Command: "go test ./...", Summary: "run tests", Status: client.ToolOK,
+				Output: "SHELL_DETAIL_OK\nsecond line", ExitCode: &zero,
+			}}}},
+			{Event: client.BlockCompleted{Block: client.Block{ID: "edit", Kind: client.BlockTool, Tool: &client.ToolCall{
+				Kind: client.ToolEdit, Name: "provider.patch", Path: "internal/cache.go", Summary: "update cache", Status: client.ToolOK,
+				Diff: "--- a/internal/cache.go\n+++ b/internal/cache.go\n@@ -1,2 +1,2 @@\n package cache\n-oldTicker()\n+newSweepSignal()\n",
+			}}}},
+			{Event: client.BlockCompleted{Block: client.Block{ID: "search", Kind: client.BlockTool, Tool: &client.ToolCall{
+				Kind: client.ToolSearch, Name: "provider.grep", Query: "cache expiry", Summary: "find expiry", Status: client.ToolOK,
+				Output: "internal/cache.go:22\ninternal/cache_test.go:18",
+			}}}},
+			{Event: client.RunFinished{Outcome: client.Outcome{Status: client.OutcomeCompleted}}},
+		},
+		}
+	}
+	host, stop := runUIWith(t, backend)
+	host.Shows(t, "Ask lyra")
+	host.Type("show tool views")
+	host.Press(input.Enter)
+	host.Shows(t, "$ go test ./...")
+	host.Shows(t, "edit · internal/cache.go")
+	host.Shows(t, "search · cache expiry")
+	host.Hides(t, "SHELL_DETAIL_OK")
+	host.Hides(t, "newSweepSignal")
+
+	host.Send(input.Key{Code: input.Character, Rune: 'o', Mods: input.Ctrl})
+	host.Shows(t, "SHELL_DETAIL_OK")
+	host.Shows(t, "newSweepSignal")
+	host.Shows(t, "internal/cache_test.go:18")
+
+	host.Send(input.Key{Code: input.Character, Rune: 'o', Mods: input.Ctrl})
+	host.Hides(t, "SHELL_DETAIL_OK")
+	host.Hides(t, "newSweepSignal")
+
+	host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
+	stop()
+}
+
 func TestCancelBeforeRunIdentityDoesNotBlockTheNextRun(t *testing.T) {
 	backend := mock.New()
 	backend.Instant = true

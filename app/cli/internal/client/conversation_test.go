@@ -92,15 +92,20 @@ func TestConversationInterruptAndResumeAreExplicit(t *testing.T) {
 
 func TestConversationClonesNestedState(t *testing.T) {
 	c := NewConversation()
-	tool := &ToolCall{Name: "shell", Output: "safe"}
+	exit := 0
+	tool := &ToolCall{Kind: ToolUnknown, Name: "shell", Status: ToolOK, Output: "safe", ExitCode: &exit}
 	if err := c.Apply(BlockCompleted{Block: Block{ID: "tool", Kind: BlockTool, Tool: tool}}); err != nil {
 		t.Fatal(err)
 	}
 	tool.Output = "mutated"
+	exit = 9
 	blocks := c.Blocks()
 	blocks[0].Tool.Output = "also mutated"
 	if got := c.Blocks()[0].Tool.Output; got != "safe" {
 		t.Fatalf("aggregate leaked tool pointer: %q", got)
+	}
+	if got := *c.Blocks()[0].Tool.ExitCode; got != 0 {
+		t.Fatalf("aggregate leaked exit code pointer: %d", got)
 	}
 
 	question := Question{InterruptID: "q", Fields: []QuestionField{{ID: "choice", Options: []QuestionOption{{Value: "a"}}}}}

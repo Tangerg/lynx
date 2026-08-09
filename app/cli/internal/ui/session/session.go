@@ -42,6 +42,8 @@ const (
 	toggleDetails   keymap.Action = settings.ActionToggleDetails
 	historyPrevious keymap.Action = settings.ActionHistoryPrevious
 	historyNext     keymap.Action = settings.ActionHistoryNext
+	nextMatch       keymap.Action = settings.ActionNextMatch
+	previousMatch   keymap.Action = settings.ActionPreviousMatch
 )
 
 // runtime is the product capability this adapter consumes. A future real
@@ -209,7 +211,7 @@ func newApp(ctx context.Context, loop *program.InlineRuntime, backend runtime, o
 	a := &app{
 		ctx: ctx, loop: loop, backend: backend, session: opened.Session, registry: registry,
 		state:              client.NewConversation(),
-		transcript:         newConversationView(theme, glyphs, loop.Environment().Wheel(), syntax, configured.UI.TranscriptRetain),
+		transcript:         newConversationView(theme, glyphs, loop.Environment().Wheel(), syntax, configured.UI.TranscriptRetain, configured.UI.ToolDetails),
 		workflow:           newWorkflowView(theme, glyphs),
 		status:             statusView{theme: theme, glyphs: glyphs, doing: "ready", options: configured.RunOptions()},
 		settings:           configured.Clone(),
@@ -355,8 +357,13 @@ func (a *app) Handle(event input.Event) bool {
 		a.showSearchDialog()
 		return true
 	case toggleDetails:
-		a.transcript.ToggleDetails()
-		a.message(a.transcript.DetailsLabel())
+		a.ToggleToolDetails()
+		return true
+	case nextMatch:
+		a.NextMatch()
+		return true
+	case previousMatch:
+		a.PreviousMatch()
 		return true
 	}
 	if a.completion.Handle(event) {

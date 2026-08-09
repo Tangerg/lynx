@@ -21,3 +21,16 @@ func TestAttachmentValidationRejectsEveryMalformedField(t *testing.T) {
 		t.Fatalf("valid attachment: %v", err)
 	}
 }
+
+func TestToolCallValidationUsesClosedSemanticKinds(t *testing.T) {
+	invalid := ToolCall{Kind: "provider-specific", Status: "maybe"}
+	if err := invalid.Validate(); err == nil || !strings.Contains(err.Error(), "kind") || !strings.Contains(err.Error(), "status") {
+		t.Fatalf("invalid tool error = %v", err)
+	}
+	if err := (ToolCall{Kind: ToolUnknown, Name: "custom", Status: ToolOK}).Validate(); err != nil {
+		t.Fatalf("named custom tool: %v", err)
+	}
+	if err := (ToolCall{Kind: ToolShell, Status: ToolRunning}).Validate(); err != nil {
+		t.Fatalf("running shell tool: %v", err)
+	}
+}

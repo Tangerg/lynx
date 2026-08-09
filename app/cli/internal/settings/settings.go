@@ -23,6 +23,8 @@ const (
 	ActionToggleDetails   = "toggle-details"
 	ActionHistoryPrevious = "history-previous"
 	ActionHistoryNext     = "history-next"
+	ActionNextMatch       = "next-match"
+	ActionPreviousMatch   = "previous-match"
 )
 
 type Settings struct {
@@ -42,6 +44,7 @@ type Approval struct {
 type UI struct {
 	Mouse             bool `json:"mouse" mapstructure:"mouse"`
 	Notifications     bool `json:"notifications" mapstructure:"notifications"`
+	ToolDetails       bool `json:"toolDetails" mapstructure:"tool-details"`
 	TranscriptRetain  int  `json:"transcriptRetain" mapstructure:"transcript-retain"`
 	ReconnectAttempts int  `json:"reconnectAttempts" mapstructure:"reconnect-attempts"`
 }
@@ -50,7 +53,7 @@ func Default() Settings {
 	return Settings{
 		Model: "mock-balanced", Effort: "medium", Mode: client.ModeBuild, Permission: client.PermissionAsk,
 		Approval: Approval{Remember: client.RememberNone},
-		UI:       UI{Mouse: true, Notifications: true, TranscriptRetain: 24, ReconnectAttempts: 4},
+		UI:       UI{Mouse: true, Notifications: true, ToolDetails: false, TranscriptRetain: 24, ReconnectAttempts: 4},
 		Keys: map[string][]string{
 			ActionSend:            {"enter"},
 			ActionCancelRun:       {"ctrl+x"},
@@ -62,6 +65,8 @@ func Default() Settings {
 			ActionToggleDetails:   {"ctrl+o"},
 			ActionHistoryPrevious: {"alt+up"},
 			ActionHistoryNext:     {"alt+down"},
+			ActionNextMatch:       {"f3"},
+			ActionPreviousMatch:   {"shift+f3"},
 		},
 	}
 }

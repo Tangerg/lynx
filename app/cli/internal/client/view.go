@@ -15,6 +15,8 @@ package client
 
 import (
 	"errors"
+	"fmt"
+	"strings"
 	"time"
 )
 
@@ -67,21 +69,68 @@ const (
 	ToolError   ToolStatus = "error"
 )
 
-// ToolCall is a tool invocation as the runtime chose to present it.
+// ToolKind is a terminal-relevant semantic category assigned by a runtime
+// adapter. Delivery adapters switch on this closed projection, never on a
+// provider's tool name.
+type ToolKind string
+
+const (
+	ToolUnknown ToolKind = "unknown"
+	ToolShell   ToolKind = "shell"
+	ToolEdit    ToolKind = "edit"
+	ToolRead    ToolKind = "read"
+	ToolSearch  ToolKind = "search"
+	ToolWeb     ToolKind = "web"
+	ToolTask    ToolKind = "task"
+)
+
+// ToolCall is a tool invocation as the runtime adapter chose to present it.
 //
-// Every field is a projection the runtime already computed. The CLI renders
-// Summary, Output and Diff as given and never reads Name to decide how: tool
-// semantics belong to the runtime's toolset, and a renderer that special-cases
-// a tool name becomes a second place those semantics live.
+// Every field is a projection the adapter already computed. Name preserves the
+// provider-facing label for diagnostics; Kind and the structured fields below
+// are the stable vocabulary renderers use. This keeps provider tool semantics in
+// one adapter rather than rediscovering them in every UI.
 type ToolCall struct {
+	Kind    ToolKind
 	Name    string
 	Summary string
 	Status  ToolStatus
+	Command string
+	Path    string
+	Query   string
+	URL     string
 	Output  string
 	// Diff is a unified diff when the call changed files.
 	Diff string
+	// ExitCode is set for completed process-like tools. Nil distinguishes an
+	// absent code from a successful zero.
+	ExitCode *int
 	// Duration is how long the call took, once it has finished.
 	Duration time.Duration
+}
+
+func (t ToolCall) Validate() error {
+	var problems []error
+	switch t.Kind {
+	case ToolUnknown, ToolShell, ToolEdit, ToolRead, ToolSearch, ToolWeb, ToolTask:
+	default:
+		problems = append(problems, fmt.Errorf("kind %q is invalid", t.Kind))
+	}
+	switch t.Status {
+	case ToolRunning, ToolOK, ToolError:
+	default:
+		problems = append(problems, fmt.Errorf("status %q is invalid", t.Status))
+	}
+	if t.Kind == ToolUnknown && strings.TrimSpace(t.Name) == "" {
+		problems = append(problems, errors.New("unknown tool has no provider name"))
+	}
+	if t.Status == ToolRunning && t.ExitCode != nil {
+		problems = append(problems, errors.New("running tool has an exit code"))
+	}
+	if err := errors.Join(problems...); err != nil {
+		return fmt.Errorf("tool call: %w", err)
+	}
+	return nil
 }
 
 // PlanStatus is a plan item's state.

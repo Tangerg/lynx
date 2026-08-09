@@ -65,11 +65,17 @@ type attachmentFrame struct {
 }
 
 type toolFrame struct {
+	Kind       string  `json:"kind"`
 	Name       string  `json:"name"`
 	Summary    string  `json:"summary,omitempty"`
 	Status     string  `json:"status"`
+	Command    string  `json:"command,omitempty"`
+	Path       string  `json:"path,omitempty"`
+	Query      string  `json:"query,omitempty"`
+	URL        string  `json:"url,omitempty"`
 	Output     string  `json:"output,omitempty"`
 	Diff       string  `json:"diff,omitempty"`
+	ExitCode   *int    `json:"exitCode,omitempty"`
 	DurationMS float64 `json:"durationMs,omitempty"`
 }
 
@@ -188,11 +194,17 @@ func encodeBlock(b client.Block) *blockFrame {
 	}
 	if b.Tool != nil {
 		out.Tool = &toolFrame{
+			Kind:       string(b.Tool.Kind),
 			Name:       b.Tool.Name,
 			Summary:    b.Tool.Summary,
 			Status:     string(b.Tool.Status),
+			Command:    b.Tool.Command,
+			Path:       b.Tool.Path,
+			Query:      b.Tool.Query,
+			URL:        b.Tool.URL,
 			Output:     b.Tool.Output,
 			Diff:       b.Tool.Diff,
+			ExitCode:   b.Tool.ExitCode,
 			DurationMS: float64(b.Tool.Duration.Milliseconds()),
 		}
 	}

@@ -257,6 +257,22 @@ func (c *Conversation) put(block Block, completed bool) error {
 	if block.ID == "" {
 		return errors.New("conversation: transcript block has no id")
 	}
+	if block.Kind == BlockTool {
+		if block.Tool == nil {
+			return errors.New("conversation: tool block has no tool projection")
+		}
+		if err := block.Tool.Validate(); err != nil {
+			return fmt.Errorf("conversation: block %s: %w", block.ID, err)
+		}
+		if !completed && block.Tool.Status != ToolRunning {
+			return fmt.Errorf("conversation: block %s started with tool status %q", block.ID, block.Tool.Status)
+		}
+		if completed && block.Tool.Status == ToolRunning {
+			return fmt.Errorf("conversation: block %s completed while tool is still running", block.ID)
+		}
+	} else if block.Tool != nil {
+		return fmt.Errorf("conversation: %s block %s carries a tool projection", block.Kind, block.ID)
+	}
 	if at, ok := c.index[block.ID]; ok {
 		c.blocks[at] = cloneBlock(block)
 		return nil
@@ -276,6 +292,10 @@ func cloneBlock(block Block) Block {
 	block.Attachments = slices.Clone(block.Attachments)
 	if block.Tool != nil {
 		tool := *block.Tool
+		if block.Tool.ExitCode != nil {
+			code := *block.Tool.ExitCode
+			tool.ExitCode = &code
+		}
 		block.Tool = &tool
 	}
 	return block

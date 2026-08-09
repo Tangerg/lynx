@@ -29,6 +29,7 @@ func configure(v *viper.Viper, root *cobra.Command) {
 	flags.String("permission", string(defaults.Permission), "Permission mode: ask, read-only, auto-edit, or full-access")
 	flags.Bool("mouse", defaults.UI.Mouse, "Enable mouse input in the terminal UI")
 	flags.Bool("notifications", defaults.UI.Notifications, "Enable terminal completion notifications")
+	flags.Bool("tool-details", defaults.UI.ToolDetails, "Expand tool output and diffs by default")
 	flags.Int("transcript-retain", defaults.UI.TranscriptRetain, "Finished blocks retained in the live terminal viewport")
 	flags.Int("reconnect-attempts", defaults.UI.ReconnectAttempts, "Times to reconnect a dropped run subscription")
 }
@@ -41,6 +42,7 @@ func setDefaults(v *viper.Viper, defaults settings.Settings) {
 	v.SetDefault("approval.remember", defaults.Approval.Remember)
 	v.SetDefault("ui.mouse", defaults.UI.Mouse)
 	v.SetDefault("ui.notifications", defaults.UI.Notifications)
+	v.SetDefault("ui.tool-details", defaults.UI.ToolDetails)
 	v.SetDefault("ui.transcript-retain", defaults.UI.TranscriptRetain)
 	v.SetDefault("ui.reconnect-attempts", defaults.UI.ReconnectAttempts)
 	for action, bindings := range defaults.Keys {
@@ -84,6 +86,7 @@ func loadConfig(v *viper.Viper, cmd *cobra.Command) error {
 	}
 	for key, flag := range map[string]string{
 		"ui.mouse": "mouse", "ui.notifications": "notifications",
+		"ui.tool-details":      "tool-details",
 		"ui.transcript-retain": "transcript-retain", "ui.reconnect-attempts": "reconnect-attempts",
 	} {
 		if found := cmd.Flags().Lookup(flag); found != nil {

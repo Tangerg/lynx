@@ -95,7 +95,7 @@ func Conversation(prompt string) Script {
 		{Title: "Replace the sleep and re-run", Status: client.PlanPending},
 	}}})
 	prelude = append(prelude, stream("rsn_1", client.BlockReasoning, reasoning)...)
-	prelude = append(prelude, tool("tool_1", "shell",
+	prelude = append(prelude, tool("tool_1", client.ToolShell, "shell",
 		"go test ./internal/store -run TestCacheExpiry -count=5",
 		client.ToolOK, testOutput, "", 3*time.Second+412*time.Millisecond)...)
 	prelude = append(prelude, Step{Delay: beat, Event: client.PlanChanged{Items: []client.PlanItem{
@@ -105,9 +105,9 @@ func Conversation(prompt string) Script {
 	}}})
 	prelude = append(prelude, stream("msg_1", client.BlockAssistant, explain)...)
 
-	approved := tool("tool_2", "edit", "internal/store/cache_test.go",
+	approved := tool("tool_2", client.ToolEdit, "edit", "internal/store/cache_test.go",
 		client.ToolOK, "", diff, 118*time.Millisecond)
-	approved = append(approved, tool("tool_3", "shell",
+	approved = append(approved, tool("tool_3", client.ToolShell, "shell",
 		"go test ./internal/store -run TestCacheExpiry -count=50",
 		client.ToolOK, "ok  \tgithub.com/example/store\t2.104s", "", 2*time.Second+104*time.Millisecond)...)
 	approved = append(approved, stream("msg_2", client.BlockAssistant, summary)...)
@@ -162,13 +162,28 @@ func stream(id string, kind client.BlockKind, text string) []Step {
 }
 
 // tool renders one call as running, then finished with its result.
-func tool(id, name, summary string, status client.ToolStatus, output, diff string, d time.Duration) []Step {
+func tool(id string, kind client.ToolKind, name, summary string, status client.ToolStatus, output, patch string, d time.Duration) []Step {
 	running := client.Block{ID: id, Kind: client.BlockTool, Tool: &client.ToolCall{
-		Name: name, Summary: summary, Status: client.ToolRunning,
+		Kind: kind, Name: name, Summary: summary, Status: client.ToolRunning,
 	}}
 	done := client.Block{ID: id, Kind: client.BlockTool, Tool: &client.ToolCall{
-		Name: name, Summary: summary, Status: status, Output: output, Diff: diff, Duration: d,
+		Kind: kind, Name: name, Summary: summary, Status: status, Output: output, Diff: patch, Duration: d,
 	}}
+	switch kind {
+	case client.ToolShell:
+		running.Tool.Command, done.Tool.Command = summary, summary
+		code := 0
+		if status == client.ToolError {
+			code = 1
+		}
+		done.Tool.ExitCode = &code
+	case client.ToolEdit, client.ToolRead:
+		running.Tool.Path, done.Tool.Path = summary, summary
+	case client.ToolSearch:
+		running.Tool.Query, done.Tool.Query = summary, summary
+	case client.ToolWeb:
+		running.Tool.URL, done.Tool.URL = summary, summary
+	}
 	return []Step{
 		{Delay: beat, Event: client.BlockStarted{Block: running}},
 		{Delay: 3 * beat, Event: client.BlockCompleted{Block: done}},

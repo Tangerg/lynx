@@ -7,6 +7,7 @@ import (
 
 	"github.com/Tangerg/oolong/components/headless"
 	"github.com/Tangerg/oolong/components/kit"
+	"github.com/Tangerg/oolong/highlight"
 	"github.com/Tangerg/oolong/markdown"
 
 	"github.com/Tangerg/lynx/app/cli/internal/client"
@@ -35,6 +36,7 @@ type CommandHost interface {
 	AttachFile(string) error
 	DetachFile(string) error
 	ShowAttachments()
+	ToggleToolDetails()
 }
 
 // SlashCommand is a contributed composer command.
@@ -51,6 +53,7 @@ type Presentation struct {
 	Theme  kit.Theme
 	Glyphs kit.Glyphs
 	Look   markdown.Look
+	Syntax highlight.Style
 }
 
 // BlockPresenter maps one closed domain block kind to terminal blocks.
@@ -86,6 +89,7 @@ func builtinPlugin() extensions.Plugin {
 			{Name: "attach", Title: "attach a local file to the next prompt", Takes: true, Run: func(host CommandHost, path string) error { return host.AttachFile(path) }},
 			{Name: "detach", Title: "remove an attachment by name, number, or all", Takes: true, Run: func(host CommandHost, value string) error { return host.DetachFile(value) }},
 			{Name: "attachments", Title: "show files attached to the next prompt", Aliases: []string{"files"}, Run: func(host CommandHost, _ string) error { host.ShowAttachments(); return nil }},
+			{Name: "details", Title: "expand or collapse tool output and diffs", Run: func(host CommandHost, _ string) error { host.ToggleToolDetails(); return nil }},
 		}
 		for i, command := range commands {
 			if _, err := extensions.Contribute(scope, SlashCommands, command, extensions.Contribution{Order: i}); err != nil {
@@ -138,24 +142,7 @@ func presentMarkdown(speaker string) func(Presentation, client.Block) []headless
 }
 
 func presentTool(p Presentation, block client.Block) []headless.Block {
-	if block.Tool == nil {
-		return []headless.Block{presentError(p.Theme, "tool block has no tool projection")}
-	}
-	tool := block.Tool
-	speaker := "tool · " + tool.Name
-	body := strings.TrimSpace(tool.Summary)
-	if tool.Output != "" {
-		body += "\n\n```text\n" + strings.TrimRight(tool.Output, "\n") + "\n```"
-	}
-	if tool.Diff != "" {
-		body += "\n\n```diff\n" + strings.TrimRight(tool.Diff, "\n") + "\n```"
-	}
-	if tool.Duration > 0 {
-		body += fmt.Sprintf("\n\n_%s in %s_", tool.Status, compactTime(tool.Duration))
-	}
-	message := &markdownMessage{theme: p.Theme, speaker: speaker}
-	message.doc.SetBlocks(markdown.Render(strings.TrimSpace(body), p.Look))
-	return []headless.Block{message}
+	return []headless.Block{newToolBlock(p, block)}
 }
 
 func presentNotice(p Presentation, block client.Block) []headless.Block {

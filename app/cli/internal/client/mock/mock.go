@@ -664,6 +664,10 @@ func cloneBlock(block client.Block) client.Block {
 	block.Attachments = slices.Clone(block.Attachments)
 	if block.Tool != nil {
 		tool := *block.Tool
+		if block.Tool.ExitCode != nil {
+			code := *block.Tool.ExitCode
+			tool.ExitCode = &code
+		}
 		block.Tool = &tool
 	}
 	return block

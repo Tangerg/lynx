@@ -155,10 +155,13 @@ func (a *app) listenForSearch() {
 					a.message(fmt.Sprintf("search failed: %v", result.Err))
 					return
 				}
-				if !a.transcript.AcceptSearch(result) {
+				accepted, announce := a.transcript.AcceptSearch(result)
+				if !accepted {
 					return
 				}
-				a.message(fmt.Sprintf("%d match(es) for %q", len(result.Matches), result.Query))
+				if announce {
+					a.message(fmt.Sprintf("%d match(es) for %q", len(result.Matches), result.Query))
+				}
 			})
 		}
 	}()
@@ -217,6 +220,11 @@ func (a *app) AttachFile(path string) error { return a.addAttachment(path) }
 func (a *app) DetachFile(value string) error { return a.removeAttachment(value) }
 
 func (a *app) ShowAttachments() { a.showAttachments() }
+
+func (a *app) ToggleToolDetails() {
+	a.transcript.ToggleDetails()
+	a.message(a.transcript.DetailsLabel())
+}
 
 func (a *app) ShowSessions() {
 	if a.state.Busy() || a.following {

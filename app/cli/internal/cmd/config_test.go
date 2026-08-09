@@ -30,6 +30,7 @@ func TestConfigurationPrecedenceFileEnvironmentFlag(t *testing.T) {
 
 func TestConfigurationRegistersEnvironmentOnlyKeysForUnmarshal(t *testing.T) {
 	t.Setenv("LYRA_UI_TRANSCRIPT_RETAIN", "77")
+	t.Setenv("LYRA_UI_TOOL_DETAILS", "true")
 	t.Setenv("LYRA_APPROVAL_REMEMBER", "project")
 	out, _, err := exec(t, instant(), "", "config", "show")
 	if err != nil {
@@ -39,7 +40,7 @@ func TestConfigurationRegistersEnvironmentOnlyKeysForUnmarshal(t *testing.T) {
 	if err := json.Unmarshal([]byte(out), &got); err != nil {
 		t.Fatal(err)
 	}
-	if got.UI.TranscriptRetain != 77 || got.Approval.Remember != "project" {
+	if got.UI.TranscriptRetain != 77 || !got.UI.ToolDetails || got.Approval.Remember != "project" {
 		t.Fatalf("environment settings = %+v", got)
 	}
 }

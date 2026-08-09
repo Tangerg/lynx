@@ -206,7 +206,8 @@ func TestJSONCarriesTheToolProjection(t *testing.T) {
 	var buf bytes.Buffer
 	j := NewJSON(&buf)
 	if err := j.Render(envelope(client.BlockCompleted{Block: client.Block{ID: "t", Kind: client.BlockTool, Tool: &client.ToolCall{
-		Name: "edit", Summary: "a.go", Status: client.ToolOK, Diff: "--- a\n+++ b", Duration: 250 * time.Millisecond,
+		Kind: client.ToolEdit, Name: "provider.patch", Path: "a.go", Summary: "change a.go",
+		Status: client.ToolOK, Diff: "--- a\n+++ b", Duration: 250 * time.Millisecond,
 	}}})); err != nil {
 		t.Fatal(err)
 	}
@@ -218,7 +219,7 @@ func TestJSONCarriesTheToolProjection(t *testing.T) {
 		t.Fatalf("frame = %+v, want a tool projection", got)
 	}
 	tool := got.Block.Tool
-	if tool.Name != "edit" || tool.Status != "ok" || tool.Diff == "" || tool.DurationMS != 250 {
+	if tool.Kind != "edit" || tool.Name != "provider.patch" || tool.Path != "a.go" || tool.Status != "ok" || tool.Diff == "" || tool.DurationMS != 250 {
 		t.Fatalf("tool = %+v, want the call carried through intact", tool)
 	}
 }

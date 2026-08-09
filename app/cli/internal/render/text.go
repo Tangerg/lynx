@@ -154,8 +154,12 @@ func (t *Text) tool(b client.Block) {
 		return
 	}
 	t.blank()
-	head := "● " + call.Name
-	if call.Summary != "" {
+	head := "● " + textToolName(call)
+	primary := textToolPrimary(call)
+	if primary != "" {
+		head += " · " + primary
+	}
+	if call.Summary != "" && call.Summary != primary {
 		head += " · " + call.Summary
 	}
 	t.line(head)
@@ -180,10 +184,53 @@ func (t *Text) tool(b client.Block) {
 		mark = "✗"
 	}
 	status := "  " + mark
+	if call.ExitCode != nil && *call.ExitCode != 0 {
+		status += " exit " + strconv.Itoa(*call.ExitCode)
+	}
 	if call.Duration > 0 {
 		status += " " + duration(call.Duration)
 	}
 	t.line(status)
+}
+
+func textToolName(call *client.ToolCall) string {
+	switch call.Kind {
+	case client.ToolShell:
+		return "shell"
+	case client.ToolEdit:
+		return "edit"
+	case client.ToolRead:
+		return "read"
+	case client.ToolSearch:
+		return "search"
+	case client.ToolWeb:
+		return "web"
+	case client.ToolTask:
+		return "task"
+	default:
+		if call.Name != "" {
+			return call.Name
+		}
+		return "tool"
+	}
+}
+
+func textToolPrimary(call *client.ToolCall) string {
+	var value string
+	switch call.Kind {
+	case client.ToolShell:
+		value = call.Command
+	case client.ToolEdit, client.ToolRead:
+		value = call.Path
+	case client.ToolSearch:
+		value = call.Query
+	case client.ToolWeb:
+		value = call.URL
+	}
+	if value != "" {
+		return value
+	}
+	return call.Summary
 }
 
 func (t *Text) diff(d string) {
