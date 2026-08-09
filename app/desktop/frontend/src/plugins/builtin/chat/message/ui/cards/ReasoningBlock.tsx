@@ -56,18 +56,15 @@ function lastLine(text: string): string {
 export function ReasoningBlock({ text, status, superseded = false }: Props) {
   const t = useT();
   const streaming = status === "running";
-  const [open, setOpen] = useState(true);
-  const [userToggled, setUserToggled] = useState(false);
-  const isOpen = userToggled ? open : streaming && !superseded;
+  // null delegates to the domain policy; a boolean is the user's explicit
+  // override. This is one state machine, not two booleans that can disagree.
+  const [openOverride, setOpenOverride] = useState<boolean | null>(null);
+  const isOpen = openOverride ?? (streaming && !superseded);
 
   // Flip relative to what the user *sees* (isOpen), not the underlying
-  // `open` slot. Before first toggle, `isOpen` follows `streaming` while
-  // `open` is still the initial `true` — flipping `open` would land on
-  // the same state the user already sees and the first click would feel
-  // dead. Anchoring on isOpen makes every click match its arrow.
+  // automatic policy. Anchoring on isOpen makes every click match its arrow.
   const toggle = () => {
-    setUserToggled(true);
-    setOpen(!isOpen);
+    setOpenOverride(!isOpen);
   };
 
   const startedAtRef = useRef<number>(Date.now());
