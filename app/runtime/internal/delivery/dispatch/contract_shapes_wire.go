@@ -508,10 +508,10 @@ func registerObjectConstraints(s *Shapes) {
 		Rules: []PresenceRule{{
 			When:      []FieldCondition{{Field: "status.type", Operator: OperatorEquals, Value: string(protocol.MCPAuthorizationAttemptPending)}},
 			Forbidden: []string{"finishedAt"},
-		}, PresenceRule{
+		}, {
 			When:     []FieldCondition{{Field: "status.type", Operator: OperatorEquals, Value: string(protocol.MCPAuthorizationAttemptSucceeded)}},
 			Required: []string{"finishedAt"},
-		}, PresenceRule{
+		}, {
 			When:     []FieldCondition{{Field: "status.type", Operator: OperatorEquals, Value: string(protocol.MCPAuthorizationAttemptFailed)}},
 			Required: []string{"finishedAt"},
 		}, {

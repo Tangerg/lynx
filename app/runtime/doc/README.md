@@ -30,12 +30,11 @@
 
 字段、方法、错误、union 和示例的机器真相源是 [`../contract/`](../contract/)。客户端只能消费这些制品，不能反向成为 Runtime 契约作者。
 
-## C. 子系统与迁移参考
+## C. 子系统规范
 
 | 文档 | 地位 |
 |---|---|
 | [TOOL_SYSTEM_VNEXT.md](TOOL_SYSTEM_VNEXT.md) | 当前工具体系的唯一模型工具词汇、schema、能力删除和工具专项实施事实；新架构只引用其 Tool/Agent 边界，不复制工具目录 |
-| [ARCHITECTURE_HYGIENE_PLAN.md](ARCHITECTURE_HYGIENE_PLAN.md) | 已完成的历史实施台账，不是当前目标或进度源 |
 
 ## D. 外部参考
 

@@ -614,7 +614,7 @@ func mergeInteractionUsage(
 		if current.Model == "" {
 			current.Model = model
 		}
-		current.TokenUsage.Add(usage.TokenUsage)
+		current.Add(usage.TokenUsage)
 		current.CostUSD += usage.CostUSD
 		current.Calls += usage.Calls
 		target[model] = current
@@ -685,7 +685,7 @@ func (session *interactionSession) accountModelCall(
 	if current.Model == "" {
 		current.Model = delta.Model
 	}
-	current.TokenUsage.Add(delta.TokenUsage)
+	current.Add(delta.TokenUsage)
 	current.CostUSD += delta.CostUSD
 	current.Calls += delta.Calls
 	if err := current.Validate(); err != nil {

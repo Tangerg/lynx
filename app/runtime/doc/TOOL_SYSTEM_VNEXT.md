@@ -454,7 +454,7 @@
 ### 批次 7f
 
 - 现行架构基准把旧 `task` / Todo 改为 `delegate_task` / Plan，端口文档同步真实的 `toolset/plan.Store`、`agentexec.PlanReader` 与 SQLite plan store，不再让已经删除的类型看起来仍是当前设计；
-- `ARCHITECTURE_HYGIENE_PLAN.md` 明确降级为历史实施台账，`doc/inspiration` 总索引明确降级为同类产品对比快照；其中 Todo/Task 等词只保留为历史代码或其他产品原生术语，不再声明 Lynx 当前实现状态；
+- 旧架构清洗台账已在 Runtime 最终收口时删除，历史实施事实只由 Git 保存；`doc/inspiration` 总索引仍是带日期的同类产品对比快照，其中 Todo/Task 等词只描述其他产品原生术语，不声明 Lynx 当前实现状态；
 - 当前规范只有本文、[`ARCHITECTURE.md`](ARCHITECTURE.md) 与机器 contract。迁移期 execution/port 快照已经在 P11 删除，历史事实只留在 Git，不保留一份会再次漂移的“当前工具表”；
 - 排除已标记历史材料、本文删除记录和本轮刻意未修改的前端 generated baseline 后，现行 runtime 文档不再出现 Todo、`task`、`update_plan` 或 `update_goal`。
 
