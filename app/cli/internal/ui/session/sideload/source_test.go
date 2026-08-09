@@ -151,7 +151,7 @@ func TestCommandRunnerUsesBoundedJSONProtocol(t *testing.T) {
 	}
 }
 
-func TestCommandRunnerHonorsCancellationAndRejectsMalformedResponse(t *testing.T) {
+func TestCommandRunnerHonorsCancellation(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("shell fixture is Unix-specific")
 	}
@@ -165,13 +165,10 @@ func TestCommandRunnerHonorsCancellationAndRejectsMalformedResponse(t *testing.T
 	if !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("timeout error = %v", err)
 	}
+}
 
-	malformed := filepath.Join(root, "malformed")
-	if err := os.WriteFile(malformed, []byte("#!/bin/sh\nprintf 'not json'\n"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	runner = commandRunner{pluginID: "test.bad", command: "bad", executable: malformed, directory: root, timeout: time.Second}
-	if _, err := runner.Execute(t.Context(), session.CommandRequest{}); err == nil || !strings.Contains(err.Error(), "decode plugin") {
+func TestCommandResponseRejectsMalformedProtocolWithoutProcessTiming(t *testing.T) {
+	if _, err := decodeCommandResponse("test.bad", "bad", []byte("not json")); err == nil || !strings.Contains(err.Error(), "decode plugin") {
 		t.Fatalf("malformed response error = %v", err)
 	}
 }

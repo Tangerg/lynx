@@ -114,9 +114,7 @@ func (s *statusView) setOptions(options client.RunOptions) { s.options = options
 
 func optionsLabel(options client.RunOptions) string {
 	parts := make([]string, 0, 4)
-	if options.Model != "" {
-		parts = append(parts, options.Model)
-	}
+	parts = append(parts, modelLabel(options.Model))
 	if options.Effort != "" {
 		parts = append(parts, options.Effort)
 	}
@@ -127,6 +125,13 @@ func optionsLabel(options client.RunOptions) string {
 		parts = append(parts, string(options.Permission))
 	}
 	return strings.Join(parts, " · ")
+}
+
+func modelLabel(model string) string {
+	if model = strings.TrimSpace(model); model != "" {
+		return model
+	}
+	return "runtime default"
 }
 
 func (s *statusView) tick(elapsed time.Duration) {

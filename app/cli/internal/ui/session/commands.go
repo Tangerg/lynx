@@ -45,9 +45,21 @@ func (a *app) executeCommand(command SlashCommand, argument string) {
 	a.status.note("running /" + command.Name)
 	request := CommandRequest{Argument: argument, Workspace: a.session.Workspace, SessionID: a.session.ID}
 	dispatcher := a.loop.Dispatcher()
+	ctx, cancel := context.WithCancel(a.ctx)
+	a.commandSeq++
+	sequence := a.commandSeq
+	a.commandCancels[sequence] = cancel
 	go func() {
-		result, err := executeCommandSafely(a.ctx, command, request)
+		defer cancel()
+		result, err := executeCommandSafely(ctx, command, request)
 		_ = post(a.ctx, dispatcher, func() {
+			if _, active := a.commandCancels[sequence]; !active {
+				return
+			}
+			delete(a.commandCancels, sequence)
+			if errors.Is(err, context.Canceled) {
+				return
+			}
 			if err != nil {
 				a.message(err.Error())
 				return
@@ -59,6 +71,13 @@ func (a *app) executeCommand(command SlashCommand, argument string) {
 			a.message(message)
 		})
 	}()
+}
+
+func (a *app) cancelPluginCommands() {
+	for sequence, cancel := range a.commandCancels {
+		cancel()
+		delete(a.commandCancels, sequence)
+	}
 }
 
 func executeCommandSafely(ctx context.Context, command SlashCommand, request CommandRequest) (result CommandResult, err error) {
@@ -310,6 +329,7 @@ func (a *app) ReloadPlugin(id string) {
 		a.message("plugin kernel is unavailable")
 		return
 	}
+	a.cancelPluginCommands()
 	results, err := a.plugins.Reload(strings.TrimSpace(id))
 	if err != nil {
 		a.message(err.Error())
@@ -337,6 +357,7 @@ func (a *app) UnloadPlugin(id string) {
 			return
 		}
 	}
+	a.cancelPluginCommands()
 	if err := a.plugins.Unload(id); err != nil {
 		a.message(err.Error())
 		return

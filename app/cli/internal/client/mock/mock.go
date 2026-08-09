@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 
 	"github.com/Tangerg/lynx/app/cli/internal/client"
 )
@@ -51,6 +52,7 @@ type Runtime struct {
 	mu       sync.Mutex
 	sessions map[string]*sessionState
 	runs     map[string]*runState
+	requests map[string]string
 	rules    []client.ApprovalRule
 	fault    int
 	next     uint64
@@ -71,6 +73,8 @@ type runState struct {
 	status       client.RunStatus
 	script       Script
 	interaction  client.Interaction
+	start        client.StartRun
+	answers      map[string]client.Answer
 	cancel       chan struct{}
 	cancelOnce   sync.Once
 	finishOnce   sync.Once
@@ -80,6 +84,7 @@ func New() *Runtime {
 	r := &Runtime{
 		sessions: make(map[string]*sessionState),
 		runs:     make(map[string]*runState),
+		requests: make(map[string]string),
 		now:      time.Now,
 	}
 	for _, session := range demoSessions() {
@@ -281,6 +286,9 @@ func (r *Runtime) DeleteApprovalRule(_ context.Context, id string) error {
 }
 
 func (r *Runtime) StartRun(_ context.Context, in client.StartRun) (client.Run, error) {
+	if err := validateRequestID(in.RequestID); err != nil {
+		return client.Run{}, err
+	}
 	prompt := strings.TrimSpace(in.Message.Text)
 	if prompt == "" && len(in.Message.Attachments) == 0 {
 		return client.Run{}, errors.New("mock: prompt and attachments are empty")
@@ -304,6 +312,19 @@ func (r *Runtime) StartRun(_ context.Context, in client.StartRun) (client.Run, e
 		r.mu.Unlock()
 		return client.Run{}, fmt.Errorf("%w: %s", client.ErrSessionNotFound, in.SessionID)
 	}
+	if in.RequestID != "" {
+		key := requestKey(in.SessionID, in.RequestID)
+		if runID, exists := r.requests[key]; exists {
+			existing := r.runs[runID]
+			if existing == nil || !sameStart(existing.start, in) {
+				r.mu.Unlock()
+				return client.Run{}, fmt.Errorf("%w: request %s", client.ErrRequestConflict, in.RequestID)
+			}
+			started := projectRun(existing)
+			r.mu.Unlock()
+			return started, nil
+		}
+	}
 	if session.active != "" {
 		r.mu.Unlock()
 		return client.Run{}, fmt.Errorf("%w: %s", client.ErrSessionBusy, in.SessionID)
@@ -312,9 +333,13 @@ func (r *Runtime) StartRun(_ context.Context, in client.StartRun) (client.Run, e
 	run := &runState{
 		id: fmt.Sprintf("run_mock_%d", r.next), sessionID: in.SessionID,
 		startedAfter: client.Cursor(len(session.events)), status: client.RunActive,
-		script: build(prompt), cancel: make(chan struct{}),
+		script: build(prompt), start: cloneStart(in), answers: make(map[string]client.Answer),
+		cancel: make(chan struct{}),
 	}
 	r.runs[run.id] = run
+	if in.RequestID != "" {
+		r.requests[requestKey(in.SessionID, in.RequestID)] = run.id
+	}
 	session.active = run.id
 	r.emitLocked(run, client.RunStarted{RunID: run.id, SessionID: run.sessionID, Options: in.Options})
 	r.emitLocked(run, client.BlockCompleted{Block: client.Block{
@@ -439,6 +464,14 @@ func (r *Runtime) ResumeRun(_ context.Context, in client.ResumeRun) error {
 		r.mu.Unlock()
 		return fmt.Errorf("%w: %s", client.ErrRunNotFound, in.RunID)
 	}
+	if answered, exists := run.answers[in.InterruptID]; exists {
+		if sameAnswer(answered, in.Answer) {
+			r.mu.Unlock()
+			return nil
+		}
+		r.mu.Unlock()
+		return fmt.Errorf("%w: interrupt %s", client.ErrRequestConflict, in.InterruptID)
+	}
 	if run.status != client.RunWaiting || interactionID(run.interaction) != in.InterruptID {
 		r.mu.Unlock()
 		return fmt.Errorf("%w: %s", client.ErrInterruptNotOpen, in.InterruptID)
@@ -447,6 +480,7 @@ func (r *Runtime) ResumeRun(_ context.Context, in client.ResumeRun) error {
 		r.mu.Unlock()
 		return err
 	}
+	run.answers[in.InterruptID] = cloneAnswer(in.Answer)
 	if approval, ok := run.interaction.(client.Approval); ok {
 		if answer, ok := in.Answer.(client.ApprovalAnswer); ok && answer.Remember != client.RememberNone {
 			r.rememberApprovalLocked(run, approval, answer)
@@ -621,6 +655,34 @@ func projectRun(run *runState) client.Run {
 	return client.Run{ID: run.id, SessionID: run.sessionID, Status: run.status, StartedAfter: run.startedAfter}
 }
 
+func validateRequestID(id string) error {
+	if id == "" {
+		return nil
+	}
+	if len(id) > 128 || strings.IndexFunc(id, unicode.IsSpace) >= 0 {
+		return fmt.Errorf("mock: request id %q is invalid", id)
+	}
+	return nil
+}
+
+func requestKey(sessionID, requestID string) string {
+	return sessionID + "\x00" + requestID
+}
+
+func cloneStart(start client.StartRun) client.StartRun {
+	start.Message.Text = strings.Clone(start.Message.Text)
+	start.Message.Attachments = slices.Clone(start.Message.Attachments)
+	return start
+}
+
+func sameStart(a, b client.StartRun) bool {
+	return a.RequestID == b.RequestID &&
+		a.SessionID == b.SessionID &&
+		a.Message.Text == b.Message.Text &&
+		a.Options == b.Options &&
+		slices.Equal(a.Message.Attachments, b.Message.Attachments)
+}
+
 func interactionID(interaction client.Interaction) string {
 	switch item := interaction.(type) {
 	case client.Approval:
@@ -683,6 +745,46 @@ func validateAnswer(interaction client.Interaction, answer client.Answer) error 
 		return nil
 	default:
 		return errors.New("mock: unsupported interaction")
+	}
+}
+
+func cloneAnswer(answer client.Answer) client.Answer {
+	switch item := answer.(type) {
+	case client.ApprovalAnswer:
+		return item
+	case client.QuestionAnswer:
+		copy := client.QuestionAnswer{Canceled: item.Canceled}
+		if item.Values != nil {
+			copy.Values = make(map[string][]string, len(item.Values))
+			for id, values := range item.Values {
+				copy.Values[id] = slices.Clone(values)
+			}
+		}
+		return copy
+	default:
+		return nil
+	}
+}
+
+func sameAnswer(a, b client.Answer) bool {
+	switch first := a.(type) {
+	case client.ApprovalAnswer:
+		second, ok := b.(client.ApprovalAnswer)
+		return ok && first == second
+	case client.QuestionAnswer:
+		second, ok := b.(client.QuestionAnswer)
+		if !ok || first.Canceled != second.Canceled || len(first.Values) != len(second.Values) {
+			return false
+		}
+		for id, values := range first.Values {
+			other, exists := second.Values[id]
+			if !exists || !slices.Equal(values, other) {
+				return false
+			}
+		}
+		return true
+	default:
+		return false
 	}
 }
 

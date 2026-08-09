@@ -110,7 +110,7 @@ func (a *app) SetEffort(value string) {
 func (a *app) ShowRuntimeStatus() {
 	a.transcript.Append(kit.Message{
 		Theme: a.transcript.theme, Speaker: "runtime options",
-		Body: fmt.Sprintf("model: %s\neffort: %s\nmode: %s\npermissions: %s", a.options.Model, a.options.Effort, a.options.Mode, a.options.Permission),
+		Body: fmt.Sprintf("model: %s\neffort: %s\nmode: %s\npermissions: %s", modelLabel(a.options.Model), a.options.Effort, a.options.Mode, a.options.Permission),
 	})
 }
 

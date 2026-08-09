@@ -41,7 +41,9 @@ type SessionWriter interface {
 
 // Runs controls logical runs independently from their transport subscriptions.
 // A disconnected subscriber can call FollowRun again with the last accepted
-// cursor without restarting or duplicating the run.
+// cursor without restarting or duplicating the run. StartRun is idempotent for
+// a non-empty RequestID, and ResumeRun is idempotent for the same interrupt and
+// answer, so a lost control response can be retried safely.
 type Runs interface {
 	StartRun(context.Context, StartRun) (Run, error)
 	FollowRun(context.Context, FollowRun) (Stream, error)
@@ -63,6 +65,7 @@ type Approvals interface {
 
 // StartRun describes a new user turn.
 type StartRun struct {
+	RequestID string
 	SessionID string
 	Message   Message
 	Options   RunOptions

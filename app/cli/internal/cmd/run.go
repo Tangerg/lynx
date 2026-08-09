@@ -17,6 +17,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/cli/internal/attachment"
 	"github.com/Tangerg/lynx/app/cli/internal/client"
+	"github.com/Tangerg/lynx/app/cli/internal/identity"
 	"github.com/Tangerg/lynx/app/cli/internal/render"
 	"github.com/Tangerg/lynx/app/cli/internal/resilience"
 )
@@ -141,7 +142,17 @@ func resolveAttachments(ctx context.Context, workspace string, paths []string) (
 // stream the answer opens. A park is not an ending: the run id is stable across
 // it, and only the stream is new.
 func follow(ctx context.Context, rt client.Runtime, out renderer, start client.StartRun, approveAll bool, reconnectAttempts int) error {
-	run, err := rt.StartRun(ctx, start)
+	if start.RequestID == "" {
+		requestID, err := identity.New("req")
+		if err != nil {
+			return err
+		}
+		start.RequestID = requestID
+	}
+	policy := resilience.Standard(reconnectAttempts)
+	run, err := retryControlValue(ctx, policy, func() (client.Run, error) {
+		return rt.StartRun(ctx, start)
+	})
 	if err != nil {
 		return err
 	}
@@ -167,7 +178,6 @@ func follow(ctx context.Context, rt client.Runtime, out renderer, start client.S
 	}()
 
 	sequence := client.NewEventSequence(run.StartedAfter)
-	policy := resilience.Standard(reconnectAttempts)
 	failures := 0
 	for {
 		before := sequence.Cursor()
@@ -209,11 +219,12 @@ func follow(ctx context.Context, rt client.Runtime, out renderer, start client.S
 			return out.Close()
 		}
 		if interrupted != nil {
-			answer, interruptID, err := unattendedAnswer(interrupted, approveAll)
+			answer, interruptID, err := unattendedAnswer(interrupted, approveAll, start.SessionID)
 			if err != nil {
 				return err
 			}
-			if err := rt.ResumeRun(ctx, client.ResumeRun{RunID: run.ID, InterruptID: interruptID, Answer: answer}); err != nil {
+			resume := client.ResumeRun{RunID: run.ID, InterruptID: interruptID, Answer: answer}
+			if err := retryControl(ctx, policy, func() error { return rt.ResumeRun(ctx, resume) }); err != nil {
 				return err
 			}
 			failures = 0
@@ -224,6 +235,33 @@ func follow(ctx context.Context, rt client.Runtime, out renderer, start client.S
 		}
 		if retryErr := waitToReconnect(ctx, policy, &failures, progressed, subscriptionErr); retryErr != nil {
 			return retryErr
+		}
+	}
+}
+
+func retryControl(ctx context.Context, policy resilience.Reconnect, operation func() error) error {
+	_, err := retryControlValue(ctx, policy, func() (struct{}, error) {
+		return struct{}{}, operation()
+	})
+	return err
+}
+
+func retryControlValue[T any](ctx context.Context, policy resilience.Reconnect, operation func() (T, error)) (T, error) {
+	var zero T
+	for failure := 1; ; failure++ {
+		value, err := operation()
+		if err == nil {
+			return value, nil
+		}
+		if !errors.Is(err, client.ErrDisconnected) {
+			return zero, err
+		}
+		delay, retry := policy.Next(failure, err)
+		if !retry {
+			return zero, err
+		}
+		if err := resilience.Wait(ctx, delay); err != nil {
+			return zero, err
 		}
 	}
 }
@@ -252,12 +290,12 @@ func decide(approveAll bool) client.ApprovalAnswer {
 	return client.ApprovalAnswer{Decision: client.ApprovalDeny, Reason: "declined: this run is unattended (rerun with --approve-all to allow it)"}
 }
 
-func unattendedAnswer(interaction client.Interaction, approveAll bool) (client.Answer, string, error) {
+func unattendedAnswer(interaction client.Interaction, approveAll bool, sessionID string) (client.Answer, string, error) {
 	switch item := interaction.(type) {
 	case client.Approval:
 		return decide(approveAll), item.InterruptID, nil
 	case client.Question:
-		return nil, item.InterruptID, fmt.Errorf("run needs answers to %q; continue it interactively with --session %s", item.Title, "<session-id>")
+		return nil, item.InterruptID, fmt.Errorf("run needs answers to %q; continue it interactively with --session %s", item.Title, sessionID)
 	default:
 		return nil, "", errors.New("runtime returned an unknown interaction")
 	}

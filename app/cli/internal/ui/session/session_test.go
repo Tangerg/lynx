@@ -9,6 +9,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/Tangerg/oolong/core/input"
 	"github.com/Tangerg/oolong/core/programtest"
@@ -62,6 +63,48 @@ type recordingRuntime struct {
 	*mock.Runtime
 	mu   sync.Mutex
 	last client.StartRun
+}
+
+type ambiguousControlRuntime struct {
+	*mock.Runtime
+	mu      sync.Mutex
+	starts  int
+	resumes int
+}
+
+func (r *ambiguousControlRuntime) StartRun(ctx context.Context, input client.StartRun) (client.Run, error) {
+	run, err := r.Runtime.StartRun(ctx, input)
+	if err != nil {
+		return client.Run{}, err
+	}
+	r.mu.Lock()
+	r.starts++
+	lost := r.starts == 1
+	r.mu.Unlock()
+	if lost {
+		return client.Run{}, fmt.Errorf("lost start response: %w", client.ErrDisconnected)
+	}
+	return run, nil
+}
+
+func (r *ambiguousControlRuntime) ResumeRun(ctx context.Context, input client.ResumeRun) error {
+	if err := r.Runtime.ResumeRun(ctx, input); err != nil {
+		return err
+	}
+	r.mu.Lock()
+	r.resumes++
+	lost := r.resumes == 1
+	r.mu.Unlock()
+	if lost {
+		return fmt.Errorf("lost resume response: %w", client.ErrDisconnected)
+	}
+	return nil
+}
+
+func (r *ambiguousControlRuntime) counts() (int, int) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.starts, r.resumes
 }
 
 func (r *recordingRuntime) StartRun(ctx context.Context, input client.StartRun) (client.Run, error) {
@@ -144,6 +187,29 @@ func TestInteractiveRunRecoversTransportFaultsWithoutDuplicatingTranscript(t *te
 			stop()
 		})
 	}
+}
+
+func TestInteractiveRunRecoversAmbiguousControlResponses(t *testing.T) {
+	base := mock.New()
+	base.Instant = true
+	backend := &ambiguousControlRuntime{Runtime: base}
+	host, stop := runUIWith(t, backend)
+	host.Shows(t, "Ask lyra")
+	host.Type("recover ambiguous controls")
+	host.Press(input.Enter)
+	host.Shows(t, "Tool approval")
+	host.Press(input.Enter)
+	host.Shows(t, "complete")
+	host.Hides(t, "failed:")
+	starts, resumes := backend.counts()
+	if starts != 2 || resumes != 2 {
+		t.Fatalf("control calls = start %d, resume %d; want one retry each", starts, resumes)
+	}
+	if count := strings.Count(host.Frame(), "Replaced the sleep"); count != 1 {
+		t.Fatalf("assistant result appears %d times:\n%s", count, host.Frame())
+	}
+	host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
+	stop()
 }
 
 func TestInteractiveRunRejectsConflictingReplay(t *testing.T) {
@@ -301,6 +367,42 @@ func TestPluginCommandPanicBecomesAnError(t *testing.T) {
 	}
 }
 
+func TestUnloadingPluginCancelsItsInFlightCommand(t *testing.T) {
+	canceled := make(chan struct{}, 1)
+	plugin := extensions.Plugin{
+		ID: "test.cancel", Version: "1.0.0", APIVersion: extensions.HostAPIVersion,
+		Capabilities: []extensions.Capability{SlashCommands.Capability()},
+		Setup: func(scope *extensions.Scope) error {
+			_, err := extensions.Contribute(scope, SlashCommands, SlashCommand{
+				Name: "wait", Title: "wait until unloaded",
+				Execute: func(ctx context.Context, _ CommandRequest) (CommandResult, error) {
+					<-ctx.Done()
+					canceled <- struct{}{}
+					return CommandResult{}, context.Cause(ctx)
+				},
+			}, extensions.Contribution{})
+			return err
+		},
+	}
+	host, stop := runUI(t, plugin)
+	host.Shows(t, "Ask lyra")
+	host.Type("/wait")
+	host.Press(input.Enter)
+	host.Press(input.Enter)
+	host.Shows(t, "running /wait")
+	host.Type("/unload test.cancel")
+	host.Press(input.Enter)
+	host.Press(input.Enter)
+	host.Shows(t, "unloaded plugin test.cancel")
+	select {
+	case <-canceled:
+	case <-time.After(time.Second):
+		t.Fatal("plugin command was not canceled on unload")
+	}
+	host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
+	stop()
+}
+
 func TestSessionPickerRestoresHistoryAndLifecycleCommandsSwitchCleanly(t *testing.T) {
 	host, stop := runUI(t)
 	host.Shows(t, "Ask lyra")
@@ -336,7 +438,7 @@ func TestModelModePermissionAndEffortApplyToTheNextRun(t *testing.T) {
 	backend := &recordingRuntime{Runtime: mock.New()}
 	backend.Instant = true
 	host, stop := runUIWith(t, backend)
-	host.Shows(t, "mock-balanced · medium · build · ask")
+	host.Shows(t, "runtime default · medium · build · ask")
 
 	host.Type("/model")
 	host.Press(input.Enter)
@@ -574,7 +676,7 @@ func TestCancelBeforeRunIdentityDoesNotBlockTheNextRun(t *testing.T) {
 	host.Shows(t, "Ask lyra")
 	host.Type("first request waits before returning a stream")
 	host.Press(input.Enter)
-	host.Shows(t, "starting mock runtime")
+	host.Shows(t, "starting run")
 	host.Send(input.Key{Code: input.Character, Rune: 'x', Mods: input.Ctrl})
 	host.Shows(t, "cancelled")
 
@@ -614,4 +716,23 @@ func TestApprovalRemainsUsableAtRepresentativeWidths(t *testing.T) {
 			stop()
 		})
 	}
+}
+
+func TestTerminalSurvivesExtremeResizeAndRemainsInteractive(t *testing.T) {
+	host, stop := runUI(t)
+	host.Shows(t, "Ask lyra")
+	for _, size := range []struct{ width, height int }{{20, 8}, {200, 60}, {32, 10}, {96, 28}} {
+		if !host.Resize(size.width, size.height) {
+			t.Fatalf("resize to %dx%d was refused", size.width, size.height)
+		}
+		if !host.Repaint() {
+			t.Fatalf("repaint at %dx%d was refused", size.width, size.height)
+		}
+	}
+	host.Type("/plugins")
+	host.Press(input.Enter)
+	host.Press(input.Enter)
+	host.Shows(t, "terminal.core@1.0.0")
+	host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
+	stop()
 }

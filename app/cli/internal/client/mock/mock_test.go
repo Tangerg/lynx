@@ -171,6 +171,96 @@ func TestRunReplaysAndResumesApprovalWithoutDuplicates(t *testing.T) {
 	}
 }
 
+func TestStartRunIsIdempotentForARequestIdentity(t *testing.T) {
+	runtime := New()
+	runtime.Instant = true
+	session := newSession(t, runtime)
+	start := client.StartRun{
+		RequestID: "req_retry_1",
+		SessionID: session.ID,
+		Message:   client.Message{Text: "retry this turn"},
+		Options:   client.RunOptions{Mode: client.ModeBuild, Permission: client.PermissionAsk},
+	}
+	first, err := runtime.StartRun(t.Context(), start)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := runtime.StartRun(t.Context(), start)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first != second {
+		t.Fatalf("replayed start = %+v, want %+v", second, first)
+	}
+
+	conflict := start
+	conflict.Message.Text = "a different turn"
+	if _, err := runtime.StartRun(t.Context(), conflict); !errors.Is(err, client.ErrRequestConflict) {
+		t.Fatalf("conflicting replay error = %v", err)
+	}
+	if _, err := runtime.StartRun(t.Context(), client.StartRun{
+		RequestID: "bad request", SessionID: session.ID, Message: client.Message{Text: "invalid"},
+	}); err == nil {
+		t.Fatal("request identity containing whitespace was accepted")
+	}
+
+	events, err := followAll(t, runtime, first.ID, first.StartedAfter)
+	if err != nil {
+		t.Fatal(err)
+	}
+	started := 0
+	for _, envelope := range events {
+		if _, ok := envelope.Event.(client.RunStarted); ok {
+			started++
+		}
+	}
+	if started != 1 {
+		t.Fatalf("idempotent start emitted %d RunStarted events", started)
+	}
+}
+
+func TestResumeRunIsIdempotentForTheSameAnswer(t *testing.T) {
+	runtime := New()
+	runtime.Instant = true
+	session := newSession(t, runtime)
+	run, err := runtime.StartRun(t.Context(), client.StartRun{SessionID: session.ID, Message: client.Message{Text: "why?"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	before, err := followAll(t, runtime, run.ID, run.StartedAfter)
+	if err != nil {
+		t.Fatal(err)
+	}
+	approval := before[len(before)-1].Event.(client.RunInterrupted).Interaction.(client.Approval)
+	resume := client.ResumeRun{
+		RunID: run.ID, InterruptID: approval.InterruptID,
+		Answer: client.ApprovalAnswer{Decision: client.ApprovalAllow, Remember: client.RememberNone},
+	}
+	if err := runtime.ResumeRun(t.Context(), resume); err != nil {
+		t.Fatal(err)
+	}
+	if err := runtime.ResumeRun(t.Context(), resume); err != nil {
+		t.Fatalf("replayed answer: %v", err)
+	}
+	resume.Answer = client.ApprovalAnswer{Decision: client.ApprovalDeny, Remember: client.RememberNone}
+	if err := runtime.ResumeRun(t.Context(), resume); !errors.Is(err, client.ErrRequestConflict) {
+		t.Fatalf("conflicting answer error = %v", err)
+	}
+	continued, err := followAll(t, runtime, run.ID, before[len(before)-1].Cursor)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resumed := 0
+	for _, envelope := range continued {
+		if _, ok := envelope.Event.(client.RunResumed); ok {
+			resumed++
+		}
+	}
+	if resumed != 1 {
+		t.Fatalf("idempotent answer emitted %d RunResumed events", resumed)
+	}
+}
+
 func TestFollowRunInjectsTransportFaultsWithoutChangingDurableLog(t *testing.T) {
 	tests := []struct {
 		name  string

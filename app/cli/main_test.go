@@ -27,7 +27,10 @@ func TestInteractiveBinaryReturnsTheTerminalIntact(t *testing.T) {
 
 	session, err := ptytest.StartWith(t.Context(), ptytest.Options{
 		Size: ptytest.Size{Cols: 80, Rows: 24},
-		Env:  append(os.Environ(), "TERM=xterm-256color", "COLORTERM=truecolor"),
+		Env: append(os.Environ(),
+			"TERM=xterm-256color", "COLORTERM=truecolor",
+			"HOME="+t.TempDir(), "USERPROFILE="+t.TempDir(),
+		),
 	}, binary)
 	if errors.Is(err, ptytest.ErrUnsupported) {
 		t.Skip("no pty on this platform")

@@ -70,21 +70,25 @@ func (r commandRunner) Execute(ctx context.Context, request session.CommandReque
 	if stdout.overflow || stderr.overflow {
 		return session.CommandResult{}, fmt.Errorf("plugin %s command /%s exceeded the %d-byte output limit", r.pluginID, r.command, maximumOutput)
 	}
-	decoder := json.NewDecoder(bytes.NewReader(stdout.Bytes()))
+	return decodeCommandResponse(r.pluginID, r.command, stdout.Bytes())
+}
+
+func decodeCommandResponse(pluginID, command string, output []byte) (session.CommandResult, error) {
+	decoder := json.NewDecoder(bytes.NewReader(output))
 	decoder.DisallowUnknownFields()
 	var response commandResponse
 	if err := decoder.Decode(&response); err != nil {
-		return session.CommandResult{}, fmt.Errorf("decode plugin %s command /%s response: %w", r.pluginID, r.command, err)
+		return session.CommandResult{}, fmt.Errorf("decode plugin %s command /%s response: %w", pluginID, command, err)
 	}
 	if err := rejectTrailingJSON(decoder); err != nil {
-		return session.CommandResult{}, fmt.Errorf("decode plugin %s command /%s response: %w", r.pluginID, r.command, err)
+		return session.CommandResult{}, fmt.Errorf("decode plugin %s command /%s response: %w", pluginID, command, err)
 	}
 	if response.Protocol != commandProtocol {
-		return session.CommandResult{}, fmt.Errorf("plugin %s command /%s responded with protocol %d, want %d", r.pluginID, r.command, response.Protocol, commandProtocol)
+		return session.CommandResult{}, fmt.Errorf("plugin %s command /%s responded with protocol %d, want %d", pluginID, command, response.Protocol, commandProtocol)
 	}
 	message := strings.TrimSpace(response.Message)
 	if len(message) > maximumMessage {
-		return session.CommandResult{}, fmt.Errorf("plugin %s command /%s message exceeds %d bytes", r.pluginID, r.command, maximumMessage)
+		return session.CommandResult{}, fmt.Errorf("plugin %s command /%s message exceeds %d bytes", pluginID, command, maximumMessage)
 	}
 	return session.CommandResult{Message: message}, nil
 }

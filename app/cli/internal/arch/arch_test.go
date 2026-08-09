@@ -31,6 +31,7 @@ var layers = []struct {
 	{"internal/ui/session/", "terminal"},
 	{"internal/attachment/", "attachment"},
 	{"internal/resilience/", "resilience"},
+	{"internal/identity/", "identity"},
 	{"internal/client/", "client"},
 	{"internal/extensions/", "extensions"},
 	{"internal/render/", "render"},
@@ -48,6 +49,7 @@ var forbidden = map[string][]string{
 	// value. It must not reach into delivery mechanisms or the mock backend.
 	"attachment": {"mock", "extensions", "terminal", "render", "cmd"},
 	"resilience": {"mock", "extensions", "terminal", "render", "cmd", "attachment"},
+	"identity":   {"client", "mock", "attachment", "resilience", "extensions", "terminal", "render", "cmd"},
 
 	// The generic plugin substrate is policy-free and reusable by every outer ring.
 	"extensions": {"client", "mock", "terminal", "render", "cmd"},
@@ -113,7 +115,7 @@ func TestTheLibraryStaysALibrary(t *testing.T) {
 	root := moduleRoot(t)
 	fset := token.NewFileSet()
 
-	terminalFree := []string{"client", "mock", "attachment", "resilience", "extensions", "render"}
+	terminalFree := []string{"client", "mock", "attachment", "resilience", "identity", "extensions", "render"}
 	walk(t, root, func(dir, path string) {
 		layer := layerOf(dir)
 		if !slices.Contains(terminalFree, layer) {
@@ -141,6 +143,7 @@ func TestTheRulesWouldActuallyRefuseSomething(t *testing.T) {
 		{"internal/client/mock", "internal/render", true},
 		{"internal/attachment", "internal/ui/session", true},
 		{"internal/resilience", "internal/cmd", true},
+		{"internal/identity", "internal/client", true},
 		{"internal/render", "internal/ui/session", true},
 		{"internal/ui/session", "internal/cmd", true},
 		{"internal/ui/session/sideload", "internal/cmd", true},
@@ -153,6 +156,7 @@ func TestTheRulesWouldActuallyRefuseSomething(t *testing.T) {
 		{"internal/render", "internal/client", false},
 		{"internal/attachment", "internal/client", false},
 		{"internal/resilience", "internal/client", false},
+		{"internal/cmd", "internal/identity", false},
 	} {
 		from, to := layerOf(tc.from), layerOf(tc.to)
 		if from == "" {

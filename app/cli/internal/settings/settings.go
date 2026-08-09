@@ -56,7 +56,7 @@ type Plugins struct {
 
 func Default() Settings {
 	return Settings{
-		Model: "mock-balanced", Effort: "medium", Mode: client.ModeBuild, Permission: client.PermissionAsk,
+		Effort: "medium", Mode: client.ModeBuild, Permission: client.PermissionAsk,
 		Approval: Approval{Remember: client.RememberNone},
 		UI:       UI{Mouse: true, Notifications: true, ToolDetails: false, TranscriptRetain: 24, ReconnectAttempts: 4},
 		Keys: map[string][]string{
@@ -78,9 +78,6 @@ func Default() Settings {
 
 func (s Settings) Validate() error {
 	var problems []error
-	if strings.TrimSpace(s.Model) == "" {
-		problems = append(problems, errors.New("model is required"))
-	}
 	if !slices.Contains([]string{"low", "medium", "high", "max", "ultra"}, s.Effort) {
 		problems = append(problems, fmt.Errorf("effort %q is not one of low, medium, high, max, ultra", s.Effort))
 	}

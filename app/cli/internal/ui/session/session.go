@@ -23,13 +23,7 @@ import (
 	"github.com/Tangerg/lynx/app/cli/internal/attachment"
 	"github.com/Tangerg/lynx/app/cli/internal/client"
 	"github.com/Tangerg/lynx/app/cli/internal/extensions"
-	"github.com/Tangerg/lynx/app/cli/internal/resilience"
 	"github.com/Tangerg/lynx/app/cli/internal/settings"
-)
-
-const (
-	animationRate  = 100 * time.Millisecond
-	controlTimeout = 5 * time.Second
 )
 
 const (
@@ -76,7 +70,7 @@ func Run(ctx context.Context, cfg Config) error {
 	if cfg.Runtime == nil {
 		return errors.New("session: a runtime is required")
 	}
-	if cfg.Settings.Model == "" {
+	if cfg.Settings.Keys == nil {
 		cfg.Settings = settings.Default()
 	}
 	if err := cfg.Settings.Validate(); err != nil {
@@ -205,6 +199,8 @@ type app struct {
 	history            promptHistory
 	completionSeq      uint64
 	completionCancel   context.CancelFunc
+	commandSeq         uint64
+	commandCancels     map[uint64]context.CancelFunc
 
 	streamCancel context.CancelFunc
 	streamSeq    uint64
@@ -237,6 +233,7 @@ func newApp(ctx context.Context, loop *program.InlineRuntime, backend runtime, o
 		syntax:             syntax,
 		attachments:        attachmentResolver,
 		attachmentElements: make(map[uint64]client.Attachment),
+		commandCancels:     make(map[uint64]context.CancelFunc),
 	}
 	a.composer = kit.Composer{
 		Theme: theme, Prompt: glyphs.Marker + " ",
@@ -420,6 +417,7 @@ func (a *app) Close() {
 		a.completionCancel()
 		a.completionCancel = nil
 	}
+	a.cancelPluginCommands()
 	a.transcript.Close()
 	if a.stopClock != nil {
 		a.stopClock()
@@ -453,267 +451,4 @@ func (a *app) submit() {
 	a.resetComposer()
 	a.completion.Dismiss()
 	a.start(message)
-}
-
-func (a *app) start(message client.Message) {
-	a.state.Starting()
-	a.workflow.Reset()
-	a.status.active("starting mock runtime")
-	a.started = time.Now()
-	a.syncAnimation()
-	a.follow(func(ctx context.Context) (subscription, error) {
-		run, err := a.backend.StartRun(ctx, client.StartRun{SessionID: a.session.ID, Message: cloneMessage(message), Options: a.options})
-		if err != nil {
-			return subscription{}, err
-		}
-		return subscription{runID: run.ID, after: run.StartedAfter}, nil
-	})
-}
-
-type subscription struct {
-	runID string
-	after client.Cursor
-}
-
-func (a *app) follow(open func(context.Context) (subscription, error)) {
-	a.dropStream()
-	sequence := a.streamSeq
-	ctx, cancel := context.WithCancel(a.ctx)
-	a.streamCancel = cancel
-	a.following = true
-	dispatcher := a.loop.Dispatcher()
-
-	go func() {
-		defer cancel()
-		sub, err := open(ctx)
-		if err != nil {
-			a.postStreamFailure(ctx, dispatcher, sequence, err)
-			return
-		}
-
-		after := sub.after
-		policy := resilience.Standard(a.settings.UI.ReconnectAttempts)
-		failures := 0
-		for {
-			before := after
-			stream, followErr := a.backend.FollowRun(ctx, client.FollowRun{RunID: sub.runID, After: after})
-			if followErr == nil && stream == nil {
-				followErr = errors.New("runtime returned a nil event stream")
-			}
-
-			active := true
-			phase := client.Running
-			if followErr == nil {
-				for envelope, streamErr := range stream {
-					if streamErr != nil {
-						followErr = streamErr
-						break
-					}
-					var applyErr error
-					if err := post(ctx, dispatcher, func() {
-						if a.streamSeq != sequence {
-							active = false
-							return
-						}
-						applyErr = a.apply(envelope)
-						after = a.state.Cursor()
-						phase = a.state.Phase()
-					}); err != nil || !active {
-						return
-					}
-					if applyErr != nil {
-						followErr = applyErr
-						break
-					}
-				}
-			}
-
-			if err := post(ctx, dispatcher, func() {
-				if a.streamSeq != sequence {
-					active = false
-					return
-				}
-				after = a.state.Cursor()
-				phase = a.state.Phase()
-			}); err != nil || !active {
-				return
-			}
-			if phase != client.Running {
-				a.finishFollowing(dispatcher, sequence)
-				return
-			}
-			if followErr == nil {
-				followErr = fmt.Errorf("%w: runtime stream ended without parking or finishing the run", client.ErrDisconnected)
-			}
-			if ctx.Err() != nil {
-				return
-			}
-			if after > before {
-				failures = 0
-			}
-			failures++
-			delay, retry := policy.Next(failures, followErr)
-			if !retry {
-				a.postStreamFailure(ctx, dispatcher, sequence, followErr)
-				return
-			}
-			if err := post(ctx, dispatcher, func() {
-				if a.streamSeq == sequence {
-					a.status.note(fmt.Sprintf("reconnecting %d/%d", failures, policy.Attempts))
-					a.syncAnimation()
-				}
-			}); err != nil {
-				return
-			}
-			if err := resilience.Wait(ctx, delay); err != nil {
-				return
-			}
-		}
-	}()
-}
-
-func (a *app) postStreamFailure(ctx context.Context, dispatcher program.Dispatcher, sequence uint64, err error) {
-	if errors.Is(err, context.Canceled) || ctx.Err() != nil {
-		return
-	}
-	_ = post(ctx, dispatcher, func() {
-		if a.streamSeq == sequence {
-			a.streamCancel = nil
-			a.fail(err)
-		}
-	})
-}
-
-func (a *app) finishFollowing(dispatcher program.Dispatcher, sequence uint64) {
-	_ = post(context.WithoutCancel(a.ctx), dispatcher, func() {
-		if a.streamSeq == sequence {
-			a.streamCancel = nil
-			a.following = false
-		}
-	})
-}
-
-func post(ctx context.Context, dispatcher program.Dispatcher, fn func()) error {
-	done := make(chan struct{}, 1)
-	dispatcher.Post(func() {
-		fn()
-		done <- struct{}{}
-	})
-	select {
-	case <-done:
-		return nil
-	case <-ctx.Done():
-		return context.Cause(ctx)
-	case <-dispatcher.Done():
-		return program.ErrStopped
-	}
-}
-
-func (a *app) apply(envelope client.Envelope) error {
-	result, err := a.state.ApplyEnvelope(envelope)
-	if err != nil {
-		return fmt.Errorf("apply runtime event %T at cursor %d: %w", envelope.Event, envelope.Cursor, err)
-	}
-	if !result.Applied {
-		return nil
-	}
-	event := envelope.Event
-	if err := a.transcript.Apply(event, a.registry); err != nil {
-		return err
-	}
-	switch event.(type) {
-	case client.RunStarted:
-		a.status.active("working")
-	case client.BlockStarted:
-		if started := event.(client.BlockStarted); started.Block.Kind == client.BlockTool && started.Block.Tool != nil {
-			a.status.active(started.Block.Tool.Summary)
-		}
-	case client.BlockCompleted:
-		if completed := event.(client.BlockCompleted); completed.Block.Kind == client.BlockTool {
-			a.status.active("working")
-		}
-	case client.PlanChanged:
-		a.workflow.Set(a.state.Plan())
-	case client.RunInterrupted:
-		a.openInteraction(a.state.Interaction())
-		a.status.note("waiting for your answer")
-	case client.RunFinished:
-		a.following = false
-		a.status.settled(a.state.Outcome(), a.state.Usage())
-		if a.settings.UI.Notifications {
-			a.loop.Session().Notify("lyra mock run completed")
-		}
-	}
-	a.transcript.Retain(a.loop)
-	a.syncAnimation()
-	return nil
-}
-
-func (a *app) fail(err error) {
-	if err == nil || errors.Is(err, context.Canceled) {
-		return
-	}
-	a.following = false
-	a.state.Failed(err)
-	a.transcript.Append(presentError(a.transcript.theme, err.Error()))
-	a.status.settled(a.state.Outcome(), a.state.Usage())
-	a.syncAnimation()
-}
-
-func (a *app) cancel() {
-	if a.review != nil {
-		a.answerReview("deny")
-		return
-	}
-	if a.question != nil {
-		a.answerQuestion(true)
-		return
-	}
-	if !a.state.Busy() && !a.following {
-		a.loop.Quit()
-		return
-	}
-	a.status.doing = "cancelling"
-	runID := a.state.RunID()
-	if runID == "" {
-		a.dropStream()
-		a.following = false
-		_ = a.state.Apply(client.RunFinished{Outcome: client.Outcome{Status: client.OutcomeCanceled}})
-		a.status.settled(a.state.Outcome(), a.state.Usage())
-		a.syncAnimation()
-		return
-	}
-	go func() {
-		ctx, cancel := context.WithTimeout(context.WithoutCancel(a.ctx), controlTimeout)
-		defer cancel()
-		if err := a.backend.CancelRun(ctx, runID); err != nil {
-			a.loop.Dispatcher().Post(func() { a.fail(err) })
-		}
-	}()
-}
-
-func (a *app) dropStream() {
-	a.streamSeq++
-	if a.streamCancel != nil {
-		a.streamCancel()
-		a.streamCancel = nil
-	}
-}
-
-func (a *app) syncAnimation() {
-	running := a.state.Phase() == client.Running
-	switch {
-	case running && a.stopClock == nil:
-		a.stopClock = a.loop.Every(animationRate, func() {
-			a.status.tick(time.Since(a.started))
-		})
-	case !running && a.stopClock != nil:
-		a.stopClock()
-		a.stopClock = nil
-	}
-	state := term.Progress{}
-	if running {
-		state.State = term.ProgressIndeterminate
-	}
-	a.loop.Session().SetProgress(state)
 }

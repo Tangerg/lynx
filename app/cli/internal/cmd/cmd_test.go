@@ -9,7 +9,9 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/spf13/cobra"
@@ -153,6 +155,91 @@ func TestRunRecoversTransportFaultsWithoutRenderingDuplicates(t *testing.T) {
 	}
 }
 
+type ambiguousControls struct {
+	*mock.Runtime
+	mu          sync.Mutex
+	starts      int
+	resumes     int
+	requestIDs  []string
+	interruptID []string
+}
+
+func (r *ambiguousControls) StartRun(ctx context.Context, input client.StartRun) (client.Run, error) {
+	run, err := r.Runtime.StartRun(ctx, input)
+	if err != nil {
+		return client.Run{}, err
+	}
+	r.mu.Lock()
+	r.starts++
+	r.requestIDs = append(r.requestIDs, input.RequestID)
+	lost := r.starts == 1
+	r.mu.Unlock()
+	if lost {
+		return client.Run{}, fmt.Errorf("lost start response: %w", client.ErrDisconnected)
+	}
+	return run, nil
+}
+
+func (r *ambiguousControls) ResumeRun(ctx context.Context, input client.ResumeRun) error {
+	if err := r.Runtime.ResumeRun(ctx, input); err != nil {
+		return err
+	}
+	r.mu.Lock()
+	r.resumes++
+	r.interruptID = append(r.interruptID, input.InterruptID)
+	lost := r.resumes == 1
+	r.mu.Unlock()
+	if lost {
+		return fmt.Errorf("lost resume response: %w", client.ErrDisconnected)
+	}
+	return nil
+}
+
+func (r *ambiguousControls) calls() (int, int, []string, []string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.starts, r.resumes, slices.Clone(r.requestIDs), slices.Clone(r.interruptID)
+}
+
+func TestRunRecoversAmbiguousControlResponsesWithoutDuplicatingAControl(t *testing.T) {
+	base := instant()
+	runtime := &ambiguousControls{Runtime: base}
+	out, _, err := exec(t, runtime, "", "run", "--json", "--approve-all", "-s", firstSession(t, runtime), "recover controls")
+	if err != nil {
+		t.Fatalf("run: %v\n%s", err, out)
+	}
+	starts, resumes, requestIDs, interruptIDs := runtime.calls()
+	if starts != 2 || resumes != 2 {
+		t.Fatalf("control calls = start %d, resume %d; want one retry each", starts, resumes)
+	}
+	if requestIDs[0] == "" || requestIDs[0] != requestIDs[1] {
+		t.Fatalf("start retries used request identities %q", requestIDs)
+	}
+	if interruptIDs[0] == "" || interruptIDs[0] != interruptIDs[1] {
+		t.Fatalf("resume retries used interrupt identities %q", interruptIDs)
+	}
+
+	seen := make(map[string]bool)
+	counts := make(map[string]int)
+	for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
+		var frame struct {
+			Type    string `json:"type"`
+			EventID string `json:"eventId"`
+		}
+		if err := json.Unmarshal([]byte(line), &frame); err != nil {
+			t.Fatal(err)
+		}
+		if seen[frame.EventID] {
+			t.Fatalf("event %s rendered twice:\n%s", frame.EventID, out)
+		}
+		seen[frame.EventID] = true
+		counts[frame.Type]++
+	}
+	if counts["run.started"] != 1 || counts["run.resumed"] != 1 || counts["run.finished"] != 1 {
+		t.Fatalf("control event counts = %+v\n%s", counts, out)
+	}
+}
+
 func TestRunRejectsConflictingReplay(t *testing.T) {
 	rt := instant()
 	rt.Script = shortCompletedScript
@@ -160,6 +247,21 @@ func TestRunRejectsConflictingReplay(t *testing.T) {
 	_, _, err := exec(t, rt, "", "run", "--json", "-s", firstSession(t, rt), "conflict")
 	if !errors.Is(err, client.ErrEventConflict) {
 		t.Fatalf("run error = %v, want ErrEventConflict", err)
+	}
+}
+
+func TestRunQuestionNamesTheResumableSession(t *testing.T) {
+	rt := instant()
+	rt.Script = func(string) mock.Script {
+		return mock.Script{Interaction: client.Question{
+			InterruptID: "question_1", Title: "Choose a strategy",
+			Fields: []client.QuestionField{{ID: "strategy", Label: "Strategy", Kind: client.QuestionText}},
+		}}
+	}
+	id := firstSession(t, rt)
+	_, _, err := exec(t, rt, "", "run", "-s", id, "ask me")
+	if err == nil || !strings.Contains(err.Error(), "--session "+id) || strings.Contains(err.Error(), "<session-id>") {
+		t.Fatalf("question error = %v", err)
 	}
 }
 
