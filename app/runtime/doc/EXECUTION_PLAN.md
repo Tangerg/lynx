@@ -45,7 +45,7 @@
 | P10 | 协议、生成物与服务端 API 收口 | P9 | 已完成 |
 | P11 | 原框架实现删除与唯一模块名替换 | P10 | 已完成 |
 | P12 | 全量质量验收与消费者接线移交 | P11 | 已完成 |
-| P13 | 重写后精修与双向边界复审 | P12 | 进行中（3/4） |
+| P13 | 重写后精修与双向边界复审 | P12 | 已完成 |
 
 ## 4. P0 — 文档、事实和边界基线
 
@@ -448,12 +448,13 @@
 - [x] P13-01 清除 Architecture/Capability Ledger/Contract Baseline 的可变阶段与版本漂移，并建立单一版本 owner 的永久门禁；
 - [x] P13-02 精修 Application/Domain 的状态变换、聚合行为和 use-case orchestration；
 - [x] P13-03 精修 Adapter/Infra/Delivery 的转换、技术机制与协议边界；
-- [ ] P13-04 执行 Runtime/Agent Framework 双向抽象泄露复审、全量 race/fuzz/contract/standalone 门禁并冻结事实。
+- [x] P13-04 执行 Runtime/Agent Framework 双向抽象泄露复审、全量 race/fuzz/contract/standalone 门禁并冻结事实。
 
 ## 18. 进度记录
 
 | 日期 | 阶段 | 完成事实 | 验证 |
 |---|---|---|---|
+| 2026-08-09 | P13-04（final boundary freeze） | 完成 Runtime/Agent Framework 双向抽象泄露反证：Framework 生产代码不含产品、持久化或 Runtime 类型；Runtime 的 Framework import 仍唯一收敛于 `adapter/agentexec`，Domain/Application/Infra/Delivery 不持有 Framework 状态，不解析 private strategy payload。剩余高分支生产行为逐项复核为聚合不变量、递归 wire 校验、原子写集、组合根或安全状态机，没有为复杂度分数制造第二 owner。前端、TUI、CLI 和用户并行修改保持未触碰 | Runtime standalone tidy-diff/build/vet/staticcheck/完整 lint/deadcode/test/race 全绿；3 个 strict ACL codec fuzz 本轮约 42.5 万次执行无失败；contract generator 重跑后 manifest/schema/OpenRPC/Go validator/TypeScript 零漂移；Agent Framework standalone 同级门禁、13 个 fuzz owner、8 个实跑 examples 与 root workspace build/vet/test 全绿；跨环 import、旧术语、tracked 空文件/空目录、生产 TODO/FIXME/HACK 扫描零违规，P13 完成 |
 | 2026-08-09 | P13-03（Adapter/Infra/Delivery） | Agent Framework ACL 将 continuation answer 的全量翻译校验置于 Signal 投递前，并统一 streaming 失败的权威投影结算；Run persistence 将 opening admission、model/tool invocation、progress 与 waiting-subtree 原子写集收敛到准确的私有 owner，`Pending` 的持久值相等行为归还 Application，Adapter 不再理解 SQLite 表示差异；Delivery contract validation 按 identity/problem/operation/shape/capability 和 union validation state 分责，清除稳定注释中的阶段、具体存储与具体消费者词汇；archive extraction 以平台无关规则拒绝反斜杠和 Windows drive path；skill lifecycle move 保留同一 capability root 内的精确 `os.Root.Rename`，只分离 replay/outcome reconciliation，避免通用 move 的冲突改名语义破坏稳定 destination identity | 受影响 Application/Adapter/Infra/Delivery packages 的 test/race 全绿；Runtime 全量 test 除精确 owner 门禁随重构迁移后通过，vet/staticcheck/完整 lint/deadcode 零问题；架构 DAG、checkpoint transaction owner、空目录、坏味道标记和外环词汇扫描零违规 |
 | 2026-08-09 | P13-02（Application/Domain final audit） | 将 MCP connection replacement 从一个混合 HTTP/stdio/authorization/headers/environment 的条件树收敛为 transport-specific resolver 和三种精确 secret-change 行为，没有引入不透明泛型；全 Application/Domain 复核确认剩余高分支点均是单一状态机、聚合不变量或顺序敏感 saga，继续拆分会产生第二 owner。Domain 生产代码保持 context/I/O/Framework import 为零，Application 端口继续由真实消费者拥有 | MCP 全量测试通过；Application/Domain hygiene 与依赖扫描零违规；Runtime 全量质量门禁通过后冻结 P13-02 |
 | 2026-08-09 | P13-02（Application recovery / parked lifecycle） | 将 boot recovery 收敛为一次启动快照专属 planner：库存读取、Pending/checkpoint 唯一性、Session 级缓存、tree preservation/loss 和最终写集各有明确阶段；等待 child cancellation 的长 saga 拆为 admission 后重读、checkpoint continuation、stays-waiting commit/apply 与 resumes-running 四个行为；Session parked terminalization 从 Coordinator I/O 编排中抽出纯写集行为对象，并修正 `Snapshot` 过窄注释。恢复策略仍属于 Application，Run 聚合没有接收 I/O，executor checkpoint 仍完全 opaque | `application/runs`、`application/sessions` 全量 test/race、Runtime vet/staticcheck/lint 全绿；全量回归发现并修正 parked terminalization owner 的硬编码架构门禁后，arch 与全 Runtime tests 通过 |
@@ -480,4 +481,4 @@
 
 ## 19. 当前下一步
 
-P1–P12 服务端重构和 P13 Runtime 分环精修已经完成，当前执行 P13-04。下一批只做 Runtime/Agent Framework 双向边界反证、两个模块的最终实现复核和全量质量冻结；前端、TUI、CLI 与兼容路径不进入本 goal。
+P1–P13 服务端重构、分环精修和 Runtime/Agent Framework 双向边界冻结已经完成。当前没有剩余服务端迁移或已知坏味道；前端、TUI、CLI 继续按独立 consumer handoff 专项接线，不属于本 goal。
