@@ -222,7 +222,11 @@ func extractArchive(ctx context.Context, destination string, archive []byte) err
 }
 
 func cleanArchiveName(name string) (string, error) {
-	if name == "" || strings.ContainsRune(name, '\x00') || path.IsAbs(name) {
+	platformName := filepath.FromSlash(name)
+	if name == "" ||
+		strings.ContainsRune(name, '\x00') ||
+		strings.ContainsRune(name, '\\') ||
+		isArchiveAbsolutePath(name, platformName) {
 		return "", fmt.Errorf("archive contains invalid path %q", name)
 	}
 	cleaned := path.Clean(name)
@@ -233,7 +237,11 @@ func cleanArchiveName(name string) (string, error) {
 }
 
 func validateSymlinkTarget(name, target string) error {
-	if target == "" || strings.ContainsRune(target, '\x00') || path.IsAbs(target) {
+	platformTarget := filepath.FromSlash(target)
+	if target == "" ||
+		strings.ContainsRune(target, '\x00') ||
+		strings.ContainsRune(target, '\\') ||
+		isArchiveAbsolutePath(target, platformTarget) {
 		return fmt.Errorf("archive symlink %q has unsafe target %q", name, target)
 	}
 	resolved := path.Clean(path.Join(path.Dir(name), target))
@@ -241,4 +249,16 @@ func validateSymlinkTarget(name, target string) error {
 		return fmt.Errorf("archive symlink %q escapes the workspace via %q", name, target)
 	}
 	return nil
+}
+
+func isArchiveAbsolutePath(portableName, platformName string) bool {
+	if path.IsAbs(portableName) ||
+		filepath.IsAbs(platformName) ||
+		filepath.VolumeName(platformName) != "" {
+		return true
+	}
+	return len(portableName) >= 2 &&
+		((portableName[0] >= 'a' && portableName[0] <= 'z') ||
+			(portableName[0] >= 'A' && portableName[0] <= 'Z')) &&
+		portableName[1] == ':'
 }

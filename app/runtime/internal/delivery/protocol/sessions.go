@@ -165,9 +165,8 @@ type ExportSessionResponse struct {
 // artifact it doesn't recognize; development builds do not migrate old
 // artifacts.
 //
-// v14 is the Agent Framework Runtime cutover baseline. It admits only artifacts written
-// against the single Run/Segment/Interrupt vocabulary and rejects documents
-// from the superseded execution lifecycle before any write.
+// Version 14 admits only the current Run/Segment/Interrupt vocabulary and
+// rejects unsupported artifact schemas before any write.
 const SessionArtifactVersion = 14
 
 // SessionArtifact is the portable, round-trippable form of a session: its

@@ -39,7 +39,7 @@ task is ambiguous, ask one focused question rather than guess.`
 //
 //	<base prompt>
 //	<user knowledge>       (~/.lyra/LYRA.md — global, user-managed)
-//	<pinned agent memory>  (SQLite — project-scoped, agent-managed)
+//	<pinned agent memory>  (durable, project-scoped, agent-managed)
 //	<project knowledge>    (<cwd>/LYRA.md — per-session project dir)
 //	<discovered>      (agentdoc cascade — global AGENTS.md first
 //	                   (~/.lyra, ~/.agents), then project root → cwd)

@@ -4,9 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"reflect"
-	"slices"
-	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
@@ -31,71 +28,15 @@ func (e *Effects) CommitWaitingSubtreeCancellation(
 	}
 	var target, root transcript.Run
 	err := e.runInTx(ctx, func(ctx context.Context) error {
-		pending, found, err := e.interrupts.Consume(ctx, commit.SessionID, commit.RootRunID)
+		if err := e.claimWaitingCancellation(ctx, commit); err != nil {
+			return err
+		}
+		if err := e.persistWaitingCancellationProjection(ctx, commit); err != nil {
+			return err
+		}
+		terminalByID, err := e.terminalizeWaitingCancellationRuns(ctx, commit.TerminalRuns)
 		if err != nil {
-			return fmt.Errorf(
-				"runsegment: claim waiting cancellation interrupt for root Run %q: %w",
-				commit.RootRunID,
-				err,
-			)
-		}
-		if !found {
-			return fmt.Errorf(
-				"%w: waiting cancellation interrupt for root Run %q is no longer open",
-				runs.ErrSessionBusy,
-				commit.RootRunID,
-			)
-		}
-		if !samePendingSnapshot(pending, commit.ExpectedPending) {
-			return fmt.Errorf(
-				"%w: waiting cancellation interrupt for root Run %q changed after preparation",
-				runs.ErrSessionBusy,
-				commit.RootRunID,
-			)
-		}
-		if err := e.executorCheckpoints.SaveCheckpoint(ctx, commit.Checkpoint); err != nil {
-			return fmt.Errorf(
-				"runsegment: persist checkpoint for waiting child Run %q in root Run %q: %w",
-				commit.TargetRunID,
-				commit.RootRunID,
-				err,
-			)
-		}
-		if err := e.itemReplacer.ReplaceItem(ctx, commit.ParentItem.Expected, commit.ParentItem.Replacement); err != nil {
-			return fmt.Errorf(
-				"runsegment: replace spawning Item %q for waiting child Run %q: %w",
-				commit.ParentItem.Expected.ID,
-				commit.TargetRunID,
-				err,
-			)
-		}
-		for _, item := range commit.TerminalItems {
-			if err := e.itemReplacer.ReplaceItem(ctx, item.Expected, item.Replacement); err != nil {
-				return fmt.Errorf(
-					"runsegment: settle interrupted Item %q for canceled Run %q: %w",
-					item.Expected.ID,
-					item.Expected.RunID,
-					err,
-				)
-			}
-		}
-
-		terminalByID := make(map[string]transcript.Run, len(commit.TerminalRuns))
-		for _, planned := range commit.TerminalRuns {
-			finalized, err := e.finishedRun(ctx, runs.EventCommit{
-				RunID:     planned.ID,
-				SessionID: planned.SessionID,
-				State:     runs.StateTerminalize,
-				Outcome:   run.OutcomeCanceled,
-				Run:       &planned,
-			})
-			if err != nil {
-				return fmt.Errorf("runsegment: finalize canceled Run %q: %w", planned.ID, err)
-			}
-			if err := e.runState.Terminalize(ctx, finalized); err != nil {
-				return fmt.Errorf("runsegment: terminalize canceled Run %q: %w", planned.ID, err)
-			}
-			terminalByID[planned.ID] = finalized
+			return err
 		}
 		var targetFound bool
 		target, targetFound = terminalByID[commit.TargetRunID]
@@ -104,39 +45,7 @@ func (e *Effects) CommitWaitingSubtreeCancellation(
 		}
 
 		root = commit.RootRun
-		if commit.RemainingPending != nil {
-			if err := e.interrupts.Open(ctx, *commit.RemainingPending); err != nil {
-				return fmt.Errorf(
-					"runsegment: persist reduced interrupt for root Run %q: %w",
-					commit.RootRunID,
-					err,
-				)
-			}
-			root.Interrupts = directInterrupts(*commit.RemainingPending, commit.RootRunID)
-			return nil
-		}
-
-		for _, draft := range commit.Resume.Runs {
-			if err := e.runState.Resume(ctx, commit.Resume.SessionID, draft, commit.Resume.ResumedAt); err != nil {
-				return fmt.Errorf("runsegment: resume surviving Run %q: %w", draft.RunID, err)
-			}
-			if draft.RunID == commit.RootRunID {
-				root.State = run.Running
-				root.ActiveSegmentID = draft.SegmentID
-				root.Interrupts = nil
-				root.UpdatedAt = commit.Resume.ResumedAt.UTC()
-			}
-		}
-		for _, event := range commit.OpeningEvents {
-			if err := e.applyCommit(ctx, event); err != nil {
-				return fmt.Errorf(
-					"runsegment: persist opening projection for surviving Run %q: %w",
-					event.RunID,
-					err,
-				)
-			}
-		}
-		return nil
+		return e.persistWaitingCancellationDisposition(ctx, commit, &root)
 	})
 	if err != nil {
 		return runs.WaitingSubtreeCancellationResult{}, fmt.Errorf(
@@ -147,6 +56,138 @@ func (e *Effects) CommitWaitingSubtreeCancellation(
 		)
 	}
 	return runs.WaitingSubtreeCancellationResult{TargetRun: target, RootRun: root}, nil
+}
+
+func (e *Effects) claimWaitingCancellation(
+	ctx context.Context,
+	commit runs.WaitingSubtreeCancellationCommit,
+) error {
+	pending, found, err := e.interrupts.Consume(ctx, commit.SessionID, commit.RootRunID)
+	if err != nil {
+		return fmt.Errorf(
+			"runsegment: claim waiting cancellation interrupt for root Run %q: %w",
+			commit.RootRunID,
+			err,
+		)
+	}
+	if !found {
+		return fmt.Errorf(
+			"%w: waiting cancellation interrupt for root Run %q is no longer open",
+			runs.ErrSessionBusy,
+			commit.RootRunID,
+		)
+	}
+	if !pending.Equal(commit.ExpectedPending) {
+		return fmt.Errorf(
+			"%w: waiting cancellation interrupt for root Run %q changed after preparation",
+			runs.ErrSessionBusy,
+			commit.RootRunID,
+		)
+	}
+	return nil
+}
+
+func (e *Effects) persistWaitingCancellationProjection(
+	ctx context.Context,
+	commit runs.WaitingSubtreeCancellationCommit,
+) error {
+	if err := e.executorCheckpoints.SaveCheckpoint(ctx, commit.Checkpoint); err != nil {
+		return fmt.Errorf(
+			"runsegment: persist checkpoint for waiting child Run %q in root Run %q: %w",
+			commit.TargetRunID,
+			commit.RootRunID,
+			err,
+		)
+	}
+	if err := e.itemReplacer.ReplaceItem(
+		ctx,
+		commit.ParentItem.Expected,
+		commit.ParentItem.Replacement,
+	); err != nil {
+		return fmt.Errorf(
+			"runsegment: replace spawning Item %q for waiting child Run %q: %w",
+			commit.ParentItem.Expected.ID,
+			commit.TargetRunID,
+			err,
+		)
+	}
+	for _, item := range commit.TerminalItems {
+		if err := e.itemReplacer.ReplaceItem(ctx, item.Expected, item.Replacement); err != nil {
+			return fmt.Errorf(
+				"runsegment: settle interrupted Item %q for canceled Run %q: %w",
+				item.Expected.ID,
+				item.Expected.RunID,
+				err,
+			)
+		}
+	}
+	return nil
+}
+
+func (e *Effects) terminalizeWaitingCancellationRuns(
+	ctx context.Context,
+	planned []transcript.Run,
+) (map[string]transcript.Run, error) {
+	terminalByID := make(map[string]transcript.Run, len(planned))
+	for _, runRecord := range planned {
+		finalized, err := e.finishedRun(ctx, runs.EventCommit{
+			RunID:     runRecord.ID,
+			SessionID: runRecord.SessionID,
+			State:     runs.StateTerminalize,
+			Outcome:   run.OutcomeCanceled,
+			Run:       &runRecord,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("runsegment: finalize canceled Run %q: %w", runRecord.ID, err)
+		}
+		if err := e.runState.Terminalize(ctx, finalized); err != nil {
+			return nil, fmt.Errorf("runsegment: terminalize canceled Run %q: %w", runRecord.ID, err)
+		}
+		terminalByID[runRecord.ID] = finalized
+	}
+	return terminalByID, nil
+}
+
+func (e *Effects) persistWaitingCancellationDisposition(
+	ctx context.Context,
+	commit runs.WaitingSubtreeCancellationCommit,
+	root *transcript.Run,
+) error {
+	if root == nil {
+		return errors.New("runsegment: waiting cancellation root projection is required")
+	}
+	if commit.RemainingPending != nil {
+		if err := e.interrupts.Open(ctx, *commit.RemainingPending); err != nil {
+			return fmt.Errorf(
+				"runsegment: persist reduced interrupt for root Run %q: %w",
+				commit.RootRunID,
+				err,
+			)
+		}
+		root.Interrupts = directInterrupts(*commit.RemainingPending, commit.RootRunID)
+		return nil
+	}
+	for _, draft := range commit.Resume.Runs {
+		if err := e.runState.Resume(ctx, commit.Resume.SessionID, draft, commit.Resume.ResumedAt); err != nil {
+			return fmt.Errorf("runsegment: resume surviving Run %q: %w", draft.RunID, err)
+		}
+		if draft.RunID == commit.RootRunID {
+			root.State = run.Running
+			root.ActiveSegmentID = draft.SegmentID
+			root.Interrupts = nil
+			root.UpdatedAt = commit.Resume.ResumedAt.UTC()
+		}
+	}
+	for _, event := range commit.OpeningEvents {
+		if err := e.applyCommit(ctx, event); err != nil {
+			return fmt.Errorf(
+				"runsegment: persist opening projection for surviving Run %q: %w",
+				event.RunID,
+				err,
+			)
+		}
+	}
+	return nil
 }
 
 func (e *Effects) requireWaitingCancellationStores() error {
@@ -174,76 +215,4 @@ func directInterrupts(pending runs.Pending, runID string) []transcript.Interrupt
 		}
 	}
 	return out
-}
-
-// samePendingSnapshot compares the frozen optimistic-lock value with the row
-// claimed inside the transaction. SQLite may round-trip equivalent empty slices
-// and time representations differently, so those storage forms are normalized.
-func samePendingSnapshot(left, right runs.Pending) bool {
-	return reflect.DeepEqual(normalizePendingSnapshot(left), normalizePendingSnapshot(right))
-}
-
-func normalizePendingSnapshot(pending runs.Pending) runs.Pending {
-	pending.Interrupts = slices.Clone(pending.Interrupts)
-	pending.Bindings = slices.Clone(pending.Bindings)
-	pending.Continuations = slices.Clone(pending.Continuations)
-	pending.CreatedAt = timeFromUnixNano(pending.CreatedAt)
-	pending.Capabilities = normalizeCapabilities(pending.Capabilities)
-	for index := range pending.Continuations {
-		pending.Continuations[index] = normalizeContinuationSnapshot(pending.Continuations[index])
-	}
-	for index := range pending.Interrupts {
-		pending.Interrupts[index].ItemOccurredAt = timeFromUnixNano(pending.Interrupts[index].ItemOccurredAt)
-		if pending.Interrupts[index].Question == nil {
-			continue
-		}
-		question := *pending.Interrupts[index].Question
-		question.Fields = slices.Clone(question.Fields)
-		for fieldIndex := range question.Fields {
-			if len(question.Fields[fieldIndex].Options) == 0 {
-				question.Fields[fieldIndex].Options = nil
-			}
-		}
-		if len(question.Fields) == 0 {
-			question.Fields = nil
-		}
-		pending.Interrupts[index].Question = &question
-	}
-	return pending
-}
-
-func normalizeContinuationSnapshot(continuation runs.Continuation) runs.Continuation {
-	continuation.RunCreatedAt = timeFromUnixNano(continuation.RunCreatedAt)
-	for index := range continuation.DrainedTools {
-		continuation.DrainedTools[index].ItemOccurredAt = timeFromUnixNano(continuation.DrainedTools[index].ItemOccurredAt)
-	}
-	if len(continuation.DrainedTools) == 0 {
-		continuation.DrainedTools = nil
-	}
-	if len(continuation.CommittedTools) == 0 {
-		continuation.CommittedTools = nil
-	}
-	if continuation.Metrics.Usage != nil {
-		usage := *continuation.Metrics.Usage
-		if len(usage.ByModel) == 0 {
-			usage.ByModel = nil
-		}
-		continuation.Metrics.Usage = &usage
-	}
-	return continuation
-}
-
-func normalizeCapabilities(capabilities run.RunCapabilities) run.RunCapabilities {
-	capabilities = capabilities.Normalized()
-	if len(capabilities.InterruptKinds) == 0 {
-		capabilities.InterruptKinds = nil
-	}
-	return capabilities
-}
-
-func timeFromUnixNano(value time.Time) time.Time {
-	if value.IsZero() {
-		return time.Time{}
-	}
-	return time.Unix(0, value.UnixNano()).UTC()
 }

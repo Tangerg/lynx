@@ -1,6 +1,6 @@
-// Package inprocess provides the concrete JSON-RPC transport for same-process
-// clients such as a CLI/TUI that embeds the runtime instead of talking over
-// HTTP. The runtime server binary does not use this package.
+// Package inprocess provides the concrete JSON-RPC transport for clients that
+// embed the runtime instead of talking over HTTP. The runtime server binary does
+// not use this package.
 //
 // Two modes of use:
 //

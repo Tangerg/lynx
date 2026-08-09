@@ -417,115 +417,170 @@ func (u UnionSpec) validate() error {
 	if u.GoType == nil || u.GoType.Kind() != reflect.Struct {
 		return fmt.Errorf("union spec needs a struct type, got %v", u.GoType)
 	}
-	name := u.GoType.Name()
+	validation := unionValidation{
+		spec: u, name: u.GoType.Name(),
+		accounted: []string{u.Discriminator},
+		tags:      make(map[string]bool, len(u.Variants)),
+	}
+	if err := validation.validateDiscriminator(); err != nil {
+		return err
+	}
+	if err := validation.validateForbiddenFields(); err != nil {
+		return err
+	}
+	for _, variant := range u.Variants {
+		if err := validation.validateLiteralVariant(variant); err != nil {
+			return err
+		}
+	}
+	if err := validation.validatePatternVariant(); err != nil {
+		return err
+	}
+	return validation.validateCoverage()
+}
+
+type unionValidation struct {
+	spec      UnionSpec
+	name      string
+	accounted []string
+	tags      map[string]bool
+}
+
+func (validation *unionValidation) validateDiscriminator() error {
+	u := validation.spec
 	if u.Discriminator != "type" {
-		return fmt.Errorf("%s: discriminator is %q — API.md §2.1 fixes it at \"type\"", name, u.Discriminator)
+		return fmt.Errorf(
+			"%s: discriminator is %q — API.md §2.1 fixes it at \"type\"",
+			validation.name,
+			u.Discriminator,
+		)
 	}
 	if err := protocol.HasWirePath(u.GoType, u.Discriminator); err != nil {
-		return fmt.Errorf("%s: %w", name, err)
+		return fmt.Errorf("%s: %w", validation.name, err)
 	}
 	if len(u.Variants) == 0 {
-		return fmt.Errorf("%s: a union with no literal variants describes nothing", name)
+		return fmt.Errorf("%s: a union with no literal variants describes nothing", validation.name)
 	}
+	return nil
+}
+
+func (validation *unionValidation) validateForbiddenFields() error {
+	u := validation.spec
 	for index, field := range u.Forbidden {
 		switch {
 		case field == "":
-			return fmt.Errorf("%s: forbidden field %d has no name", name, index)
+			return fmt.Errorf("%s: forbidden field %d has no name", validation.name, index)
 		case strings.Contains(field, "."):
-			return fmt.Errorf("%s: forbidden field %q must be a top-level JSON member", name, field)
+			return fmt.Errorf(
+				"%s: forbidden field %q must be a top-level JSON member",
+				validation.name,
+				field,
+			)
 		case slices.Contains(u.Forbidden[:index], field):
-			return fmt.Errorf("%s: forbidden field %q is declared twice", name, field)
+			return fmt.Errorf("%s: forbidden field %q is declared twice", validation.name, field)
 		case slices.Contains(protocol.WireFieldNames(u.GoType), field):
-			return fmt.Errorf("%s: forbidden field %q still exists on the Go wire shape", name, field)
+			return fmt.Errorf(
+				"%s: forbidden field %q still exists on the Go wire shape",
+				validation.name,
+				field,
+			)
 		}
 	}
-	accounted := []string{u.Discriminator}
-	tags := make(map[string]bool, len(u.Variants))
-	for _, variant := range u.Variants {
-		if variant.Tag == "" {
-			return fmt.Errorf("%s: a variant needs a tag", name)
-		}
-		if tags[variant.Tag] {
-			return fmt.Errorf("%s: variant %q is declared twice", name, variant.Tag)
-		}
-		tags[variant.Tag] = true
-		for fieldIndex, field := range variant.Required {
-			if slices.Contains(variant.Required[:fieldIndex], field) {
-				return fmt.Errorf(
-					"%s variant %q: required field %q is declared twice",
-					name, variant.Tag, field,
-				)
-			}
-		}
-		for fieldIndex, field := range variant.Optional {
-			switch {
-			case slices.Contains(variant.Optional[:fieldIndex], field):
-				return fmt.Errorf(
-					"%s variant %q: optional field %q is declared twice",
-					name, variant.Tag, field,
-				)
-			case slices.Contains(variant.Required, field):
-				return fmt.Errorf(
-					"%s variant %q: field %q cannot be both required and optional",
-					name, variant.Tag, field,
-				)
-			}
-		}
-		for _, field := range slices.Concat(variant.Required, variant.Optional) {
-			if err := protocol.HasWirePath(u.GoType, field); err != nil {
-				return fmt.Errorf("%s variant %q: %w", name, variant.Tag, err)
-			}
-			// A nested declaration accounts for the frame that holds it: claiming
-			// `payload.tool` claims `payload`.
-			root := strings.Split(field, ".")[0]
-			if !slices.Contains(accounted, root) {
-				accounted = append(accounted, root)
-			}
+	return nil
+}
+
+func (validation *unionValidation) validateLiteralVariant(variant VariantSpec) error {
+	if variant.Tag == "" {
+		return fmt.Errorf("%s: a variant needs a tag", validation.name)
+	}
+	if validation.tags[variant.Tag] {
+		return fmt.Errorf("%s: variant %q is declared twice", validation.name, variant.Tag)
+	}
+	validation.tags[variant.Tag] = true
+	return validation.claimFields(
+		fmt.Sprintf("%s variant %q", validation.name, variant.Tag),
+		variant.Required,
+		variant.Optional,
+	)
+}
+
+func (validation *unionValidation) validatePatternVariant() error {
+	pattern := validation.spec.PatternVariant
+	if pattern == nil {
+		return nil
+	}
+	compiled, err := regexp.Compile(pattern.TagPattern)
+	switch {
+	case pattern.TagPattern == "":
+		return fmt.Errorf("%s: pattern variant needs a tag pattern", validation.name)
+	case err != nil:
+		return fmt.Errorf(
+			"%s: invalid pattern variant tag %q: %w",
+			validation.name,
+			pattern.TagPattern,
+			err,
+		)
+	case pattern.TypeScriptType == "":
+		return fmt.Errorf("%s: pattern variant needs a TypeScript type", validation.name)
+	}
+	for tag := range validation.tags {
+		if compiled.MatchString(tag) {
+			return fmt.Errorf(
+				"%s: pattern variant also matches literal tag %q",
+				validation.name,
+				tag,
+			)
 		}
 	}
-	if pattern := u.PatternVariant; pattern != nil {
-		compiled, err := regexp.Compile(pattern.TagPattern)
+	return validation.claimFields(
+		validation.name+" pattern variant",
+		pattern.Required,
+		pattern.Optional,
+	)
+}
+
+func (validation *unionValidation) claimFields(
+	owner string,
+	required []string,
+	optional []string,
+) error {
+	for index, field := range required {
+		if slices.Contains(required[:index], field) {
+			return fmt.Errorf("%s: required field %q is declared twice", owner, field)
+		}
+	}
+	for index, field := range optional {
 		switch {
-		case pattern.TagPattern == "":
-			return fmt.Errorf("%s: pattern variant needs a tag pattern", name)
-		case err != nil:
-			return fmt.Errorf("%s: invalid pattern variant tag %q: %w", name, pattern.TagPattern, err)
-		case pattern.TypeScriptType == "":
-			return fmt.Errorf("%s: pattern variant needs a TypeScript type", name)
-		}
-		for tag := range tags {
-			if compiled.MatchString(tag) {
-				return fmt.Errorf("%s: pattern variant also matches literal tag %q", name, tag)
-			}
-		}
-		for index, field := range pattern.Required {
-			if slices.Contains(pattern.Required[:index], field) {
-				return fmt.Errorf("%s pattern variant: required field %q is declared twice", name, field)
-			}
-		}
-		for index, field := range pattern.Optional {
-			switch {
-			case slices.Contains(pattern.Optional[:index], field):
-				return fmt.Errorf("%s pattern variant: optional field %q is declared twice", name, field)
-			case slices.Contains(pattern.Required, field):
-				return fmt.Errorf("%s pattern variant: field %q cannot be both required and optional", name, field)
-			}
-		}
-		for _, field := range slices.Concat(pattern.Required, pattern.Optional) {
-			if err := protocol.HasWirePath(u.GoType, field); err != nil {
-				return fmt.Errorf("%s pattern variant: %w", name, err)
-			}
-			root := strings.Split(field, ".")[0]
-			if !slices.Contains(accounted, root) {
-				accounted = append(accounted, root)
-			}
+		case slices.Contains(optional[:index], field):
+			return fmt.Errorf("%s: optional field %q is declared twice", owner, field)
+		case slices.Contains(required, field):
+			return fmt.Errorf("%s: field %q cannot be both required and optional", owner, field)
 		}
 	}
+	for _, field := range slices.Concat(required, optional) {
+		if err := protocol.HasWirePath(validation.spec.GoType, field); err != nil {
+			return fmt.Errorf("%s: %w", owner, err)
+		}
+		// A nested declaration accounts for the frame that holds it: claiming
+		// `payload.tool` claims `payload`.
+		root := strings.Split(field, ".")[0]
+		if !slices.Contains(validation.accounted, root) {
+			validation.accounted = append(validation.accounted, root)
+		}
+	}
+	return nil
+}
+
+func (validation *unionValidation) validateCoverage() error {
 	// The drift that actually happens: a field is added to the struct and no
 	// variant claims it, so the generated schema would allow it under every tag.
-	for _, field := range protocol.WireFieldNames(u.GoType) {
-		if !slices.Contains(accounted, field) {
-			return fmt.Errorf("%s: field %q belongs to no variant — every union field must name its tag", name, field)
+	for _, field := range protocol.WireFieldNames(validation.spec.GoType) {
+		if !slices.Contains(validation.accounted, field) {
+			return fmt.Errorf(
+				"%s: field %q belongs to no variant — every union field must name its tag",
+				validation.name,
+				field,
+			)
 		}
 	}
 	return nil
@@ -606,77 +661,93 @@ func (f FieldConstraintSpec) validate() error {
 				name, constraint.Field, constraint.Kind,
 			)
 		}
-		_, leaf, ok := protocol.GoPath(f.GoType, constraint.Field)
-		if !ok {
-			return fmt.Errorf("%s: no JSON field %q", name, constraint.Field)
+		if err := validateFieldConstraint(name, f.GoType, constraint); err != nil {
+			return err
 		}
-		leafType := leaf.Type
-		if leafType.Kind() == reflect.Pointer {
-			leafType = leafType.Elem()
+	}
+	return nil
+}
+
+func validateFieldConstraint(owner string, shape reflect.Type, constraint FieldConstraint) error {
+	_, leaf, ok := protocol.GoPath(shape, constraint.Field)
+	if !ok {
+		return fmt.Errorf("%s: no JSON field %q", owner, constraint.Field)
+	}
+	leafType := leaf.Type
+	if leafType.Kind() == reflect.Pointer {
+		leafType = leafType.Elem()
+	}
+	kind := leafType.Kind()
+	bounded := constraint.Kind == ConstraintMinItems ||
+		constraint.Kind == ConstraintMaxLength ||
+		constraint.Kind == ConstraintMinimum ||
+		constraint.Kind == ConstraintMaximum
+	if bounded && constraint.Limit <= 0 {
+		return fmt.Errorf(
+			"%s.%s constraint %s needs a positive limit",
+			owner,
+			constraint.Field,
+			constraint.Kind,
+		)
+	}
+	if !bounded && constraint.Limit != 0 {
+		return fmt.Errorf(
+			"%s.%s constraint %s does not accept a limit",
+			owner,
+			constraint.Field,
+			constraint.Kind,
+		)
+	}
+	switch constraint.Kind {
+	case ConstraintNonEmpty:
+		if kind != reflect.String {
+			return fmt.Errorf("%s.%s is %s; only a string can be non-empty", owner, constraint.Field, kind)
 		}
-		kind := leafType.Kind()
-		bounded := constraint.Kind == ConstraintMinItems || constraint.Kind == ConstraintMaxLength || constraint.Kind == ConstraintMinimum || constraint.Kind == ConstraintMaximum
-		if bounded && constraint.Limit <= 0 {
-			return fmt.Errorf("%s.%s constraint %s needs a positive limit", name, constraint.Field, constraint.Kind)
+	case ConstraintPositive:
+		if kind != reflect.Uint64 && kind != reflect.Int && kind != reflect.Int64 {
+			return fmt.Errorf("%s.%s is %s; only a number can be positive", owner, constraint.Field, kind)
 		}
-		if !bounded && constraint.Limit != 0 {
-			return fmt.Errorf("%s.%s constraint %s does not accept a limit", name, constraint.Field, constraint.Kind)
+	case ConstraintNonNegative:
+		if kind != reflect.Int && kind != reflect.Int64 && kind != reflect.Float64 {
+			return fmt.Errorf("%s.%s is %s; only a number can be non-negative", owner, constraint.Field, kind)
 		}
-		switch constraint.Kind {
-		case ConstraintNonEmpty:
-			if kind != reflect.String {
-				return fmt.Errorf("%s.%s is %s; only a string can be non-empty", name, constraint.Field, kind)
-			}
-		case ConstraintPositive:
-			if kind != reflect.Uint64 && kind != reflect.Int && kind != reflect.Int64 {
-				return fmt.Errorf("%s.%s is %s; only a number can be positive", name, constraint.Field, kind)
-			}
-		case ConstraintNonNegative:
-			if kind != reflect.Int && kind != reflect.Int64 && kind != reflect.Float64 {
-				return fmt.Errorf("%s.%s is %s; only a number can be non-negative", name, constraint.Field, kind)
-			}
-		case ConstraintNonEmptyItems, ConstraintUniqueItems:
-			if leafType.Kind() != reflect.Slice {
-				return fmt.Errorf("%s.%s is %s; only an array has items", name, constraint.Field, leaf.Type.Kind())
-			}
-		case ConstraintMinItems:
-			if leafType.Kind() != reflect.Slice {
-				return fmt.Errorf("%s.%s is %s; only an array has items", name, constraint.Field, leaf.Type.Kind())
-			}
-		case ConstraintMaxLength:
-			if kind != reflect.String {
-				return fmt.Errorf("%s.%s is %s; only a string has a length", name, constraint.Field, kind)
-			}
-		case ConstraintMinimum:
-			if kind != reflect.Int && kind != reflect.Int64 && kind != reflect.Float64 {
-				return fmt.Errorf("%s.%s is %s; only a number can have a minimum", name, constraint.Field, kind)
-			}
-		case ConstraintMaximum:
-			if kind != reflect.Int && kind != reflect.Int64 && kind != reflect.Float64 {
-				return fmt.Errorf("%s.%s is %s; only a number can have a maximum", name, constraint.Field, kind)
-			}
-		case ConstraintNonEmptyProperties:
-			if leafType.Kind() != reflect.Map {
-				return fmt.Errorf("%s.%s is %s; only an object map has properties", name, constraint.Field, leaf.Type.Kind())
-			}
-		default:
-			return fmt.Errorf(
-				"%s.%s has invalid constraint kind %s; expected %s, %s, %s, %s, %s, %s, %s, %s, %s or %s",
-				name,
-				constraint.Field,
-				constraint.Kind,
-				ConstraintNonEmpty,
-				ConstraintPositive,
-				ConstraintNonNegative,
-				ConstraintNonEmptyItems,
-				ConstraintNonEmptyProperties,
-				ConstraintUniqueItems,
-				ConstraintMinItems,
-				ConstraintMaxLength,
-				ConstraintMinimum,
-				ConstraintMaximum,
-			)
+	case ConstraintNonEmptyItems, ConstraintUniqueItems, ConstraintMinItems:
+		if leafType.Kind() != reflect.Slice {
+			return fmt.Errorf("%s.%s is %s; only an array has items", owner, constraint.Field, leaf.Type.Kind())
 		}
+	case ConstraintMaxLength:
+		if kind != reflect.String {
+			return fmt.Errorf("%s.%s is %s; only a string has a length", owner, constraint.Field, kind)
+		}
+	case ConstraintMinimum:
+		if kind != reflect.Int && kind != reflect.Int64 && kind != reflect.Float64 {
+			return fmt.Errorf("%s.%s is %s; only a number can have a minimum", owner, constraint.Field, kind)
+		}
+	case ConstraintMaximum:
+		if kind != reflect.Int && kind != reflect.Int64 && kind != reflect.Float64 {
+			return fmt.Errorf("%s.%s is %s; only a number can have a maximum", owner, constraint.Field, kind)
+		}
+	case ConstraintNonEmptyProperties:
+		if leafType.Kind() != reflect.Map {
+			return fmt.Errorf("%s.%s is %s; only an object map has properties", owner, constraint.Field, leaf.Type.Kind())
+		}
+	default:
+		return fmt.Errorf(
+			"%s.%s has invalid constraint kind %s; expected %s, %s, %s, %s, %s, %s, %s, %s, %s or %s",
+			owner,
+			constraint.Field,
+			constraint.Kind,
+			ConstraintNonEmpty,
+			ConstraintPositive,
+			ConstraintNonNegative,
+			ConstraintNonEmptyItems,
+			ConstraintNonEmptyProperties,
+			ConstraintUniqueItems,
+			ConstraintMinItems,
+			ConstraintMaxLength,
+			ConstraintMinimum,
+			ConstraintMaximum,
+		)
 	}
 	return nil
 }

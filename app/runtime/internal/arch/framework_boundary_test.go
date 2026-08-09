@@ -326,8 +326,12 @@ func TestWaitingCheckpointPersistenceBelongsToApplicationTransactions(t *testing
 	}
 	waiting := methodBody(waitingFile, "Effects", "CommitWaitingSubtreeCancellation")
 	waitingTx, ok := calledClosure(waiting, "runInTx")
-	if !ok || !selectorCallExists(waitingTx.Body, "SaveCheckpoint") {
-		t.Error("waiting subtree transaction does not own replacement checkpoint persistence")
+	if !ok || !selectorCallExists(waitingTx.Body, "persistWaitingCancellationProjection") {
+		t.Error("waiting subtree transaction does not invoke its replacement projection owner")
+	}
+	waitingProjection := methodBody(waitingFile, "Effects", "persistWaitingCancellationProjection")
+	if !selectorCallExists(waitingProjection, "SaveCheckpoint") {
+		t.Error("waiting subtree projection owner does not persist the replacement checkpoint")
 	}
 }
 

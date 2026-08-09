@@ -287,22 +287,7 @@ func (s *Store) moveLifecycle(ctx context.Context, name string, from, to skills.
 
 	info, err := root.Lstat(source)
 	if errors.Is(err, fs.ErrNotExist) {
-		content, found, readErr := readSkill(root, destination)
-		if readErr != nil {
-			return fmt.Errorf("skillauthoring: inspect completed %s for %q: %w", operation, name, readErr)
-		}
-		if found {
-			if err := validateSkill(name, content); err != nil {
-				return fmt.Errorf("%w: cannot replay %s %q: %w", skills.ErrConflict, operation, name, err)
-			}
-			return nil
-		}
-		if _, destinationErr := root.Lstat(destination); destinationErr == nil {
-			return fmt.Errorf("%w: cannot replay %s %q: destination is not a valid skill", skills.ErrConflict, operation, name)
-		} else if !errors.Is(destinationErr, fs.ErrNotExist) {
-			return fmt.Errorf("skillauthoring: inspect %s destination for %q: %w", operation, name, destinationErr)
-		}
-		return fmt.Errorf("%w: cannot %s %q", skills.ErrNotFound, operation, name)
+		return inspectCompletedLifecycleMove(root, name, destination, operation)
 	}
 	if err != nil {
 		return fmt.Errorf("skillauthoring: cannot %s %q: %w", operation, name, err)
@@ -332,25 +317,76 @@ func (s *Store) moveLifecycle(ctx context.Context, name string, from, to skills.
 		return err
 	}
 	if err := root.Rename(source, destination); err != nil {
-		moved, found, readErr := readSkill(root, destination)
-		if readErr != nil {
-			return fmt.Errorf("skillauthoring: inspect %s outcome for %q: %w", operation, name, errors.Join(err, readErr))
-		}
-		if found && bytes.Equal(moved, content) {
-			if _, sourceErr := root.Lstat(source); errors.Is(sourceErr, fs.ErrNotExist) {
-				return nil
-			} else if sourceErr != nil {
-				return fmt.Errorf("skillauthoring: inspect %s source for %q: %w", operation, name, sourceErr)
-			}
-		}
-		if _, statErr := root.Lstat(destination); statErr == nil {
-			return fmt.Errorf("%w: cannot %s %q", skills.ErrConflict, operation, name)
-		} else if !errors.Is(statErr, fs.ErrNotExist) {
-			return fmt.Errorf("skillauthoring: inspect %s destination for %q: %w", operation, name, errors.Join(err, statErr))
-		}
-		return fmt.Errorf("skillauthoring: %s %q: %w", operation, name, err)
+		return reconcileLifecycleRename(root, name, source, destination, operation, content, err)
 	}
 	return nil
+}
+
+func inspectCompletedLifecycleMove(root *os.Root, name, destination, operation string) error {
+	content, found, err := readSkill(root, destination)
+	if err != nil {
+		return fmt.Errorf("skillauthoring: inspect completed %s for %q: %w", operation, name, err)
+	}
+	if found {
+		if err := validateSkill(name, content); err != nil {
+			return fmt.Errorf("%w: cannot replay %s %q: %w", skills.ErrConflict, operation, name, err)
+		}
+		return nil
+	}
+	if _, err := root.Lstat(destination); err == nil {
+		return fmt.Errorf(
+			"%w: cannot replay %s %q: destination is not a valid skill",
+			skills.ErrConflict,
+			operation,
+			name,
+		)
+	} else if !errors.Is(err, fs.ErrNotExist) {
+		return fmt.Errorf("skillauthoring: inspect %s destination for %q: %w", operation, name, err)
+	}
+	return fmt.Errorf("%w: cannot %s %q", skills.ErrNotFound, operation, name)
+}
+
+func reconcileLifecycleRename(
+	root *os.Root,
+	name string,
+	source string,
+	destination string,
+	operation string,
+	content []byte,
+	renameErr error,
+) error {
+	moved, found, readErr := readSkill(root, destination)
+	if readErr != nil {
+		return fmt.Errorf(
+			"skillauthoring: inspect %s outcome for %q: %w",
+			operation,
+			name,
+			errors.Join(renameErr, readErr),
+		)
+	}
+	if found && bytes.Equal(moved, content) {
+		if _, sourceErr := root.Lstat(source); errors.Is(sourceErr, fs.ErrNotExist) {
+			return nil
+		} else if sourceErr != nil {
+			return fmt.Errorf(
+				"skillauthoring: inspect %s source for %q: %w",
+				operation,
+				name,
+				sourceErr,
+			)
+		}
+	}
+	if _, err := root.Lstat(destination); err == nil {
+		return fmt.Errorf("%w: cannot %s %q", skills.ErrConflict, operation, name)
+	} else if !errors.Is(err, fs.ErrNotExist) {
+		return fmt.Errorf(
+			"skillauthoring: inspect %s destination for %q: %w",
+			operation,
+			name,
+			errors.Join(renameErr, err),
+		)
+	}
+	return fmt.Errorf("skillauthoring: %s %q: %w", operation, name, renameErr)
 }
 
 func lifecycleOperation(from, to skills.Lifecycle) (string, error) {

@@ -37,7 +37,11 @@ func TestExtractArchiveRejectsTraversalAndEscapingSymlink(t *testing.T) {
 	}{
 		{name: "parent traversal", header: tar.Header{Name: "../outside", Typeflag: tar.TypeReg, Size: 1, Mode: 0o644}, contents: "x"},
 		{name: "absolute path", header: tar.Header{Name: "/outside", Typeflag: tar.TypeReg, Size: 1, Mode: 0o644}, contents: "x"},
+		{name: "windows drive path", header: tar.Header{Name: `C:/outside`, Typeflag: tar.TypeReg, Size: 1, Mode: 0o644}, contents: "x"},
+		{name: "windows separator traversal", header: tar.Header{Name: `..\outside`, Typeflag: tar.TypeReg, Size: 1, Mode: 0o644}, contents: "x"},
 		{name: "escaping symlink", header: tar.Header{Name: "link", Typeflag: tar.TypeSymlink, Linkname: "../outside", Mode: 0o777}},
+		{name: "windows drive symlink", header: tar.Header{Name: "link", Typeflag: tar.TypeSymlink, Linkname: `C:/outside`, Mode: 0o777}},
+		{name: "windows separator symlink", header: tar.Header{Name: "link", Typeflag: tar.TypeSymlink, Linkname: `..\outside`, Mode: 0o777}},
 		{name: "device", header: tar.Header{Name: "device", Typeflag: tar.TypeChar, Mode: 0o600}},
 		{name: "invalid permission bits", header: tar.Header{Name: "file", Typeflag: tar.TypeReg, Mode: 1 << 40}},
 	} {

@@ -211,35 +211,8 @@ func (e *Effects) CommitOpening(ctx context.Context, opening runs.OpeningCommit)
 func (e *Effects) commitOpening(ctx context.Context, opening runs.OpeningCommit) error {
 	switch {
 	case opening.Admit != nil:
-		if e.runState == nil {
-			return errors.New("runsegment: run-state persistence is unavailable")
-		}
-		if opening.ScheduledSession != nil {
-			if e.sessions == nil {
-				return errors.New("runsegment: session persistence is unavailable")
-			}
-			if _, err := e.sessions.Ensure(ctx, *opening.ScheduledSession); err != nil {
-				return fmt.Errorf("runsegment: persist opening scheduled session: %w", err)
-			}
-		}
-		if err := e.runState.Admit(ctx, *opening.Admit); err != nil {
+		if err := e.admitOpening(ctx, opening); err != nil {
 			return err
-		}
-		if opening.SessionModel != nil {
-			if e.sessions == nil {
-				return errors.New("runsegment: session persistence is unavailable")
-			}
-			if err := e.sessions.SetModel(ctx, opening.SessionModel.SessionID, opening.SessionModel.Model); err != nil {
-				return fmt.Errorf("runsegment: persist opening session model: %w", err)
-			}
-		}
-		if opening.ScheduleFiring != "" {
-			if e.scheduleFirings == nil {
-				return errors.New("runsegment: schedule-firing persistence is unavailable")
-			}
-			if err := e.scheduleFirings.Accept(ctx, opening.ScheduleFiring, opening.Admit.RunID); err != nil {
-				return fmt.Errorf("runsegment: accept scheduled occurrence: %w", err)
-			}
 		}
 	case opening.Resume != nil:
 		if err := e.resumeTree(ctx, *opening.Resume); err != nil {
@@ -250,6 +223,48 @@ func (e *Effects) commitOpening(ctx context.Context, opening runs.OpeningCommit)
 		if err := e.applyCommit(ctx, commit); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+func (e *Effects) admitOpening(ctx context.Context, opening runs.OpeningCommit) error {
+	if opening.Admit == nil {
+		return errors.New("runsegment: opening admission is required")
+	}
+	if e.runState == nil {
+		return errors.New("runsegment: run-state persistence is unavailable")
+	}
+	if opening.ScheduledSession != nil {
+		if e.sessions == nil {
+			return errors.New("runsegment: session persistence is unavailable")
+		}
+		if _, err := e.sessions.Ensure(ctx, *opening.ScheduledSession); err != nil {
+			return fmt.Errorf("runsegment: persist opening scheduled session: %w", err)
+		}
+	}
+	if err := e.runState.Admit(ctx, *opening.Admit); err != nil {
+		return err
+	}
+	if opening.SessionModel != nil {
+		if e.sessions == nil {
+			return errors.New("runsegment: session persistence is unavailable")
+		}
+		if err := e.sessions.SetModel(
+			ctx,
+			opening.SessionModel.SessionID,
+			opening.SessionModel.Model,
+		); err != nil {
+			return fmt.Errorf("runsegment: persist opening session model: %w", err)
+		}
+	}
+	if opening.ScheduleFiring == "" {
+		return nil
+	}
+	if e.scheduleFirings == nil {
+		return errors.New("runsegment: schedule-firing persistence is unavailable")
+	}
+	if err := e.scheduleFirings.Accept(ctx, opening.ScheduleFiring, opening.Admit.RunID); err != nil {
+		return fmt.Errorf("runsegment: accept scheduled occurrence: %w", err)
 	}
 	return nil
 }
@@ -365,87 +380,14 @@ func (e *Effects) applyCommit(ctx context.Context, commit runs.EventCommit) erro
 			return err
 		}
 	}
-	if len(commit.ModelInvocations) > 0 {
-		if e.modelInvocations == nil {
-			return errors.New("runsegment: model-invocation persistence is unavailable")
-		}
-		for _, invocation := range commit.ModelInvocations {
-			var err error
-			switch invocation.State {
-			case runs.ModelInvocationStarted:
-				err = e.modelInvocations.StartModelInvocation(
-					ctx, commit.SessionID, commit.RunID, invocation.SegmentID,
-					invocation.CallID, invocation.StartedAt,
-				)
-			case runs.ModelInvocationCompleted:
-				err = e.modelInvocations.CompleteModelInvocation(
-					ctx, commit.SessionID, commit.RunID, invocation.SegmentID,
-					invocation.CallID, invocation.StartedAt, invocation.FinishedAt,
-				)
-			case runs.ModelInvocationFailed:
-				err = e.modelInvocations.FailModelInvocation(
-					ctx, commit.SessionID, commit.RunID, invocation.SegmentID,
-					invocation.CallID, invocation.StartedAt, invocation.FinishedAt,
-				)
-			case runs.ModelInvocationUnknown:
-				err = e.modelInvocations.MarkModelInvocationUnknown(
-					ctx, commit.SessionID, commit.RunID, invocation.SegmentID,
-					invocation.CallID, invocation.StartedAt, invocation.FinishedAt,
-				)
-			default:
-				err = fmt.Errorf("unsupported state %d", invocation.State)
-			}
-			if err != nil {
-				return fmt.Errorf("runsegment: record model invocation %q: %w", invocation.CallID, err)
-			}
-		}
+	if err := e.applyModelInvocations(ctx, commit); err != nil {
+		return err
 	}
-	if len(commit.ToolInvocations) > 0 {
-		if e.toolInvocations == nil {
-			return errors.New("runsegment: Tool-invocation persistence is unavailable")
-		}
-		for _, invocation := range commit.ToolInvocations {
-			var err error
-			switch invocation.State {
-			case runs.ToolInvocationStarted:
-				err = e.toolInvocations.StartToolInvocation(
-					ctx, commit.SessionID, commit.RunID, invocation.SegmentID,
-					invocation.CallID, invocation.ItemID, invocation.StartedAt,
-				)
-			case runs.ToolInvocationCompleted:
-				err = e.toolInvocations.CompleteToolInvocation(
-					ctx, commit.SessionID, commit.RunID, invocation.SegmentID,
-					invocation.CallID, invocation.ItemID,
-					invocation.StartedAt, invocation.FinishedAt,
-				)
-			case runs.ToolInvocationIncomplete:
-				err = e.toolInvocations.MarkToolInvocationIncomplete(
-					ctx, commit.SessionID, commit.RunID, invocation.SegmentID,
-					invocation.CallID, invocation.ItemID,
-					invocation.StartedAt, invocation.FinishedAt,
-				)
-			default:
-				err = fmt.Errorf("unsupported state %d", invocation.State)
-			}
-			if err != nil {
-				return fmt.Errorf("runsegment: record Tool invocation %q: %w", invocation.CallID, err)
-			}
-		}
+	if err := e.applyToolInvocations(ctx, commit); err != nil {
+		return err
 	}
-	if commit.Progress != nil {
-		if e.runMetrics == nil {
-			return errors.New("runsegment: Run-metrics persistence is unavailable")
-		}
-		if err := e.runMetrics.UpdateMetrics(
-			ctx,
-			commit.SessionID,
-			commit.RunID,
-			commit.Progress.SegmentID,
-			commit.Progress.Metrics,
-			commit.Progress.UpdatedAt,
-		); err != nil {
-			return fmt.Errorf("runsegment: update Run metrics: %w", err)
-		}
+	if err := e.applyProgress(ctx, commit); err != nil {
+		return err
 	}
 	if err := e.applyState(ctx, commit); err != nil {
 		return err
@@ -457,6 +399,103 @@ func (e *Effects) applyCommit(ctx context.Context, commit runs.EventCommit) erro
 		if err := e.goalRuns.RecordRun(ctx, *commit.GoalRun); err != nil {
 			return fmt.Errorf("runsegment: record Goal Run: %w", err)
 		}
+	}
+	return nil
+}
+
+func (e *Effects) applyModelInvocations(ctx context.Context, commit runs.EventCommit) error {
+	if len(commit.ModelInvocations) == 0 {
+		return nil
+	}
+	if e.modelInvocations == nil {
+		return errors.New("runsegment: model-invocation persistence is unavailable")
+	}
+	for _, invocation := range commit.ModelInvocations {
+		var err error
+		switch invocation.State {
+		case runs.ModelInvocationStarted:
+			err = e.modelInvocations.StartModelInvocation(
+				ctx, commit.SessionID, commit.RunID, invocation.SegmentID,
+				invocation.CallID, invocation.StartedAt,
+			)
+		case runs.ModelInvocationCompleted:
+			err = e.modelInvocations.CompleteModelInvocation(
+				ctx, commit.SessionID, commit.RunID, invocation.SegmentID,
+				invocation.CallID, invocation.StartedAt, invocation.FinishedAt,
+			)
+		case runs.ModelInvocationFailed:
+			err = e.modelInvocations.FailModelInvocation(
+				ctx, commit.SessionID, commit.RunID, invocation.SegmentID,
+				invocation.CallID, invocation.StartedAt, invocation.FinishedAt,
+			)
+		case runs.ModelInvocationUnknown:
+			err = e.modelInvocations.MarkModelInvocationUnknown(
+				ctx, commit.SessionID, commit.RunID, invocation.SegmentID,
+				invocation.CallID, invocation.StartedAt, invocation.FinishedAt,
+			)
+		default:
+			err = fmt.Errorf("unsupported state %d", invocation.State)
+		}
+		if err != nil {
+			return fmt.Errorf("runsegment: record model invocation %q: %w", invocation.CallID, err)
+		}
+	}
+	return nil
+}
+
+func (e *Effects) applyToolInvocations(ctx context.Context, commit runs.EventCommit) error {
+	if len(commit.ToolInvocations) == 0 {
+		return nil
+	}
+	if e.toolInvocations == nil {
+		return errors.New("runsegment: Tool-invocation persistence is unavailable")
+	}
+	for _, invocation := range commit.ToolInvocations {
+		var err error
+		switch invocation.State {
+		case runs.ToolInvocationStarted:
+			err = e.toolInvocations.StartToolInvocation(
+				ctx, commit.SessionID, commit.RunID, invocation.SegmentID,
+				invocation.CallID, invocation.ItemID, invocation.StartedAt,
+			)
+		case runs.ToolInvocationCompleted:
+			err = e.toolInvocations.CompleteToolInvocation(
+				ctx, commit.SessionID, commit.RunID, invocation.SegmentID,
+				invocation.CallID, invocation.ItemID,
+				invocation.StartedAt, invocation.FinishedAt,
+			)
+		case runs.ToolInvocationIncomplete:
+			err = e.toolInvocations.MarkToolInvocationIncomplete(
+				ctx, commit.SessionID, commit.RunID, invocation.SegmentID,
+				invocation.CallID, invocation.ItemID,
+				invocation.StartedAt, invocation.FinishedAt,
+			)
+		default:
+			err = fmt.Errorf("unsupported state %d", invocation.State)
+		}
+		if err != nil {
+			return fmt.Errorf("runsegment: record Tool invocation %q: %w", invocation.CallID, err)
+		}
+	}
+	return nil
+}
+
+func (e *Effects) applyProgress(ctx context.Context, commit runs.EventCommit) error {
+	if commit.Progress == nil {
+		return nil
+	}
+	if e.runMetrics == nil {
+		return errors.New("runsegment: Run-metrics persistence is unavailable")
+	}
+	if err := e.runMetrics.UpdateMetrics(
+		ctx,
+		commit.SessionID,
+		commit.RunID,
+		commit.Progress.SegmentID,
+		commit.Progress.Metrics,
+		commit.Progress.UpdatedAt,
+	); err != nil {
+		return fmt.Errorf("runsegment: update Run metrics: %w", err)
 	}
 	return nil
 }

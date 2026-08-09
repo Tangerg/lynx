@@ -635,7 +635,7 @@ func failureArtifactRules() []PresenceRule {
 // NOT here. JSON Schema cannot compare two fields, so it could not be one of the
 // three equivalent statements §11.2 asks for; it is an identity invariant of the
 // child-creation transaction. It is registered as a system invariant and proved
-// by the application/SQLite admission fixtures; fusing an inequality into a
+// by admission and durable-adapter fixtures; fusing an inequality into a
 // presence rule would be one primitive doing two jobs.
 func childLineageRules() []PresenceRule {
 	edges := []string{"spawnedByItemId", "parentRunId", "rootRunId"}

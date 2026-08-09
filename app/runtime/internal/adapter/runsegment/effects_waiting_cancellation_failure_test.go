@@ -362,7 +362,7 @@ func assertWaitingCancellationUnchanged(
 ) {
 	t.Helper()
 	pending, found, err := fixture.interrupts.Get(fixture.ctx, fixture.rootRun.ID)
-	if err != nil || !found || !samePendingSnapshot(pending, expectedPending) {
+	if err != nil || !found || !pending.Equal(expectedPending) {
 		t.Fatalf(
 			"Pending after rollback = found:%t value:%+v err:%v, want %+v",
 			found,

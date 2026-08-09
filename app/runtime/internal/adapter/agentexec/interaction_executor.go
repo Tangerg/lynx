@@ -700,16 +700,39 @@ func (executor *InteractionExecutor) BeginContinuation(
 	if err != nil {
 		return fmt.Errorf("agentexec: inspect paused Interaction members: %w", err)
 	}
+	prepared, err := session.prepareContinuationAnswers(ctx, answers)
+	if err != nil {
+		return err
+	}
+	if err := session.deliverContinuationAnswers(ctx, prepared); err != nil {
+		return err
+	}
+	if err := session.resumePausedProcesses(ctx, paused); err != nil {
+		return err
+	}
+	session.continuationAccepted()
+	return nil
+}
+
+type preparedInteractionAnswer struct {
+	process *agent.Process
+	signal  agent.SignalRequest
+}
+
+func (session *interactionSession) prepareContinuationAnswers(
+	ctx context.Context,
+	answers []runs.InterruptAnswer,
+) ([]preparedInteractionAnswer, error) {
 	session.mu.Lock()
 	checkpoint := session.waitingCheckpoint.Clone()
 	session.mu.Unlock()
 	checkpointState, err := decodeInteractionCheckpointPayload(checkpoint.Payload)
 	if err != nil {
-		return fmt.Errorf("agentexec: decode staged Interaction checkpoint: %w", err)
+		return nil, fmt.Errorf("agentexec: decode staged Interaction checkpoint: %w", err)
 	}
 	interruptions, err := session.pendingInterruptions(checkpointState.tree)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	orderedAnswers := slices.Clone(answers)
 	slices.SortFunc(orderedAnswers, func(left, right runs.InterruptAnswer) int {
@@ -719,51 +742,54 @@ func (executor *InteractionExecutor) BeginContinuation(
 		return strings.Compare(left.RequestID, right.RequestID)
 	})
 	if len(orderedAnswers) != len(interruptions) {
-		return fmt.Errorf(
+		return nil, fmt.Errorf(
 			"agentexec: %d Interaction answers do not match %d pending inputs",
 			len(orderedAnswers), len(interruptions),
 		)
 	}
-	type preparedAnswer struct {
-		process *agent.Process
-		signal  agent.SignalRequest
-	}
-	prepared := make([]preparedAnswer, 0, len(orderedAnswers))
+	prepared := make([]preparedInteractionAnswer, 0, len(orderedAnswers))
 	for index, answer := range orderedAnswers {
 		expected := interruptions[index]
 		if answer.MemberID != expected.MemberID || answer.RequestID != expected.RequestID {
-			return errors.New("agentexec: interrupt answer set differs from the staged Interaction inputs")
+			return nil, errors.New("agentexec: interrupt answer set differs from the staged Interaction inputs")
 		}
 		processID, err := agent.ParseProcessID(answer.MemberID)
 		if err != nil {
-			return fmt.Errorf("agentexec: parse answered Interaction member: %w", err)
+			return nil, fmt.Errorf("agentexec: parse answered Interaction member: %w", err)
 		}
 		process, found := session.engine.Process(processID)
 		if !found {
-			return errors.New("agentexec: answered Interaction member is unavailable")
+			return nil, errors.New("agentexec: answered Interaction member is unavailable")
 		}
 		pending, found, err := interaction.PendingToolInputFromProcess(ctx, process)
 		if err != nil {
-			return fmt.Errorf("agentexec: inspect pending Interaction input: %w", err)
+			return nil, fmt.Errorf("agentexec: inspect pending Interaction input: %w", err)
 		}
 		if !found || answer.RequestID != pending.WaitID().String() {
-			return errors.New("agentexec: interrupt answer does not address the active Interaction input")
+			return nil, errors.New("agentexec: interrupt answer does not address the active Interaction input")
 		}
 		response, err := interactioninput.EncodeResolution(answer.Resolution)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		signalID, err := interactionAnswerSignalID(answer, response)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		signal, err := pending.ResponseSignal(signalID, response)
 		if err != nil {
-			return fmt.Errorf("agentexec: construct Interaction answer Signal: %w", err)
+			return nil, fmt.Errorf("agentexec: construct Interaction answer Signal: %w", err)
 		}
-		prepared = append(prepared, preparedAnswer{process: process, signal: signal})
+		prepared = append(prepared, preparedInteractionAnswer{process: process, signal: signal})
 	}
-	for _, answer := range prepared {
+	return prepared, nil
+}
+
+func (session *interactionSession) deliverContinuationAnswers(
+	ctx context.Context,
+	answers []preparedInteractionAnswer,
+) error {
+	for _, answer := range answers {
 		accepted, err := answer.process.DeliverSignal(
 			executionctx.WithScope(ctx, session.scope), answer.signal,
 		)
@@ -774,10 +800,6 @@ func (executor *InteractionExecutor) BeginContinuation(
 			return errors.New("agentexec: Interaction answer Signal was already accepted")
 		}
 	}
-	if err := session.resumePausedProcesses(ctx, paused); err != nil {
-		return err
-	}
-	session.continuationAccepted()
 	return nil
 }
 

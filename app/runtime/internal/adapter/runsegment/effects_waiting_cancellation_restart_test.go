@@ -253,7 +253,7 @@ func assertRestartedWaitingBoundary(
 	if err != nil ||
 		!found ||
 		fixture.commit.RemainingPending == nil ||
-		!samePendingSnapshot(pending, *fixture.commit.RemainingPending) {
+		!pending.Equal(*fixture.commit.RemainingPending) {
 		t.Fatalf(
 			"restarted reduced Pending = found:%t value:%+v err:%v, want %+v",
 			found,

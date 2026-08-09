@@ -1,6 +1,7 @@
 package runs
 
 import (
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -104,6 +105,22 @@ func TestPendingValidateRequiresOneCanonicalConnectedTree(t *testing.T) {
 				t.Fatalf("Validate error = %v, want containing %q", err, test.want)
 			}
 		})
+	}
+}
+
+func TestPendingEqualUsesLogicalDurableValue(t *testing.T) {
+	left := validTreePending()
+	right := left
+	right.CreatedAt = right.CreatedAt.In(time.FixedZone("equal-instant", 8*60*60))
+	right.Continuations = slices.Clone(right.Continuations)
+	right.Continuations[0].DrainedTools = []DrainedTool{}
+	right.Continuations[0].CommittedTools = []CommittedTool{}
+	if !left.Equal(right) {
+		t.Fatal("Equal rejected equivalent time and empty collection representations")
+	}
+	right.ExecutorID = "turn_2"
+	if left.Equal(right) {
+		t.Fatal("Equal accepted a different executor identity")
 	}
 }
 

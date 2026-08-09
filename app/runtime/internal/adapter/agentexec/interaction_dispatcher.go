@@ -132,44 +132,31 @@ func (model *observedInteractionModel) Stream(
 		var accumulated corechat.ResponseAccumulator
 		for chunk, streamErr := range model.inner.Stream(ctx, request) {
 			if streamErr != nil {
-				if projectionErr := model.fail(ctx, invocation, callID); projectionErr != nil {
-					attempt.recordProjectionFailure(projectionErr)
-					streamErr = errors.Join(streamErr, projectionErr)
-				}
-				yield(nil, streamErr)
+				yield(nil, model.finishFailedStream(ctx, invocation, attempt, callID, streamErr))
 				return
 			}
 			if err := accumulated.Add(chunk); err != nil {
-				if projectionErr := model.fail(ctx, invocation, callID); projectionErr != nil {
-					attempt.recordProjectionFailure(projectionErr)
-					err = errors.Join(err, projectionErr)
-				}
-				yield(nil, err)
+				yield(nil, model.finishFailedStream(ctx, invocation, attempt, callID, err))
 				return
 			}
 			if !yield(chunk, nil) {
-				if projectionErr := model.fail(ctx, invocation, callID); projectionErr != nil {
-					attempt.recordProjectionFailure(projectionErr)
-				}
+				_ = model.finishFailedStream(ctx, invocation, attempt, callID, nil)
 				return
 			}
 		}
 		response := accumulated.Response()
 		if response == nil {
-			if projectionErr := model.fail(ctx, invocation, callID); projectionErr != nil {
-				attempt.recordProjectionFailure(projectionErr)
-				yield(nil, projectionErr)
-				return
-			}
-			yield(nil, errors.New("agentexec: model stream completed without a response"))
+			yield(nil, model.finishFailedStream(
+				ctx,
+				invocation,
+				attempt,
+				callID,
+				errors.New("agentexec: model stream completed without a response"),
+			))
 			return
 		}
 		if err := response.Validate(); err != nil {
-			if projectionErr := model.fail(ctx, invocation, callID); projectionErr != nil {
-				attempt.recordProjectionFailure(projectionErr)
-				err = errors.Join(err, projectionErr)
-			}
-			yield(nil, err)
+			yield(nil, model.finishFailedStream(ctx, invocation, attempt, callID, err))
 			return
 		}
 		if err := model.complete(ctx, invocation, callID, response); err != nil {
@@ -177,6 +164,21 @@ func (model *observedInteractionModel) Stream(
 			yield(nil, err)
 		}
 	}
+}
+
+func (model *observedInteractionModel) finishFailedStream(
+	ctx context.Context,
+	invocation interaction.ModelInvocation,
+	attempt *dispatchAttempt,
+	callID string,
+	cause error,
+) error {
+	projectionErr := model.fail(ctx, invocation, callID)
+	if projectionErr == nil {
+		return cause
+	}
+	attempt.recordProjectionFailure(projectionErr)
+	return errors.Join(cause, projectionErr)
 }
 
 func (model *observedInteractionModel) fail(

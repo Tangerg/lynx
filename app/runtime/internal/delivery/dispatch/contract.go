@@ -233,6 +233,22 @@ func (m MethodMeta) ProblemTypes() []string {
 // own metadata is inconsistent is worse than none: every generated artifact
 // would inherit the inconsistency.
 func (m MethodMeta) validate() error {
+	if err := m.validateIdentity(); err != nil {
+		return err
+	}
+	if err := m.validateProblems(); err != nil {
+		return err
+	}
+	if err := m.validateOperationPolicy(); err != nil {
+		return err
+	}
+	if err := m.validateShapes(); err != nil {
+		return err
+	}
+	return m.validateCapabilityRules()
+}
+
+func (m MethodMeta) validateIdentity() error {
 	if m.Name == "" {
 		return errors.New("method name is required")
 	}
@@ -292,6 +308,10 @@ func (m MethodMeta) validate() error {
 			protocol.StabilityExperimental,
 		)
 	}
+	return nil
+}
+
+func (m MethodMeta) validateProblems() error {
 	for index, problem := range m.Errors {
 		if !IsMethodProblemType(problem) {
 			return fmt.Errorf("%s: %q is not a declarable problem type", m.Name, problem)
@@ -300,6 +320,10 @@ func (m MethodMeta) validate() error {
 			return fmt.Errorf("%s: problem type %q is declared twice", m.Name, problem)
 		}
 	}
+	return nil
+}
+
+func (m MethodMeta) validateOperationPolicy() error {
 	switch m.Operation {
 	case OperationQuery:
 		if m.Kind != KindUnary || m.Idempotency != IdempotencyNone {
@@ -320,6 +344,10 @@ func (m MethodMeta) validate() error {
 	if m.Pagination == PaginationCursor && m.Operation != OperationQuery {
 		return fmt.Errorf("%s: only a query may return a cursor page", m.Name)
 	}
+	return nil
+}
+
+func (m MethodMeta) validateShapes() error {
 	if m.Params == nil {
 		return fmt.Errorf("%s: params type is required — a method with no schema cannot be published", m.Name)
 	}
@@ -339,6 +367,10 @@ func (m MethodMeta) validate() error {
 	if m.ResultNullable && (m.Result == nil || m.Result.Kind() != reflect.Pointer) {
 		return fmt.Errorf("%s: a nullable result needs a pointer to be nil", m.Name)
 	}
+	return nil
+}
+
+func (m MethodMeta) validateCapabilityRules() error {
 	for ruleIndex, rule := range m.CapabilityRules {
 		if len(rule.Requires) == 0 {
 			return fmt.Errorf(
