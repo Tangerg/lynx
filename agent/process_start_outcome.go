@@ -110,8 +110,8 @@ func abortedProcessOutcome(admission ProcessAdmission, failure Failure) ProcessS
 }
 
 func acknowledgeProcessStartOutcome(
-	acknowledger ProcessStartOutcomeAcknowledger,
 	ctx context.Context,
+	acknowledger ProcessStartOutcomeAcknowledger,
 	outcome ProcessStartOutcome,
 ) (err error) {
 	if acknowledger == nil {

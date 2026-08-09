@@ -61,11 +61,11 @@ func newObservationBus(events []EventListener, deltas []DeltaListener, capacity 
 
 func (bus *observationBus) publishEvent(ctx context.Context, event Event) {
 	for _, listener := range bus.events {
-		callEventListener(listener, ctx, event)
+		callEventListener(ctx, listener, event)
 	}
 }
 
-func callEventListener(listener EventListener, ctx context.Context, event Event) {
+func callEventListener(ctx context.Context, listener EventListener, event Event) {
 	defer func() { _ = recover() }()
 	listener.OnEvent(ctx, event)
 }

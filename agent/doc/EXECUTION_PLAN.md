@@ -3,7 +3,7 @@
 > 状态：持续实施
 > 建立日期：2026-08-06
 > 最后更新：2026-08-10
-> 当前阶段：P1–P12 完成；P13 模块内部精修进行中
+> 当前阶段：P1–P13 完成；P14 二次反证精修进行中
 > 当前实施范围：Framework 重写、消费迁移与 canonical module 替换均已完成；Runtime 最终验收由 `app/runtime` 专项文档拥有
 > 模块路径：`github.com/Tangerg/lynx/agent`
 
@@ -80,7 +80,8 @@ go test ./...
 | P10 消费迁移 | 完成 | 8/8 | Runtime 已完成生产纵切并删除应用侧旧 Framework owner |
 | P11 原模块替换 | 完成 | 5/5 | 原实现和临时路径已删除，唯一 canonical module 已发布并通过最终门禁 |
 | P12 重写后精修 | 完成 | 3/3 | 在不改变公共合同的前提下清除实现复杂度、重复职责和边界门禁盲区 |
-| P13 模块内部精修 | 进行中 | 1/3 | 继续反证模块内部状态、资源、并发、观察与测试 owner，治本清除新发现的坏味道 |
+| P13 模块内部精修 | 完成 | 3/3 | 继续反证模块内部状态、资源、并发、观察与测试 owner，治本清除新发现的坏味道 |
+| P14 二次反证精修 | 进行中 | 1/3 | 从公开 capability 误用、内部签名与命名反例继续证明并收紧模块不变量 |
 
 ---
 
@@ -227,6 +228,12 @@ go test ./...
 - [x] P13-02 继续反证 Kernel、Strategy、Platform、OTel 与测试支持代码的状态所有权、并发时序、错误分类和命名职责，逐项治本清理。
 - [x] P13-03 完成 standalone build/vet/staticcheck/lint/test/race/fuzz/examples、复杂度与残留复扫，冻结模块内部精修事实。
 
+### P14：二次反证精修
+
+- [x] P14-01 使一次性 prepared authority 对意外值副本仍保持共享线性化，并清除已确认的内部返回值、context 顺序、receiver 与局部名称噪声。
+- [ ] P14-02 继续反证 Kernel、Interaction、Planning、Workflow、Platform 与 OTel 的内部 owner、状态和并发边界，只修复有行为证据的真实坏味道。
+- [ ] P14-03 完成 standalone build/vet/staticcheck/lint/test/race/fuzz/examples、公开/私有合同和残留复扫，冻结二次精修事实。
+
 ---
 
 ## 6. 最终完成定义
@@ -272,6 +279,7 @@ go test ./...
 
 | 日期 | 阶段 | 实际事实 | 验证与结果 |
 |---|---|---|---|
+| 2026-08-10 | P14-01 | 发现 exported prepared capability 的 `sync.Mutex + resolved bool` 直接内嵌于可复制值中，显式值副本会共享 gate/tree 资源却分裂一次性状态。现以只含 Framework primitive 的共享 resolution identity 线性化所有别名，zero/nil value 保持 invalid；架构反射守卫锁定两层字段，公开 GoDoc 准确说明副本不能复制 authority。同步移除 Interaction active ToolCall segment 永远未消费的 assistant 返回值，统一 terminal snapshot 的 error-last 返回顺序、context-first 私有边界、prepared state receiver、恢复局部名称与示例泛型函数值；未新增 package/interface/Host 术语，也未改变公开签名或 wire | 原值与显式副本并发 Apply/Discard 的定向 race 反例通过，恰好一个 resolution 成功。standalone build/vet/staticcheck/项目完整 lint、禁缓存 test/race、13 个 fuzz owner（约 318 万次执行）、8 个公开 command examples、tidy-diff、duplicate/unparam/gocritic 与残留扫描全绿；deadcode 仅报告两个已冻结且供外部消费者使用的 listener function adapters。根 GoDoc 显式形成 Baseline 16 |
 | 2026-08-10 | P13-03 | 完成最终职责与复杂度精修。Workflow `Stage.Valid` 不再为六种 sealed behavior 复制互斥布尔式，而由 Stage 自己判定唯一 active behavior 与 declared kind 一致；Process Snapshot 的总校验拆回 contract/relation/progress/lifecycle/control 各自 owner；覆盖 child recursion、fan-out、wait、budget 与 termination 的测试 Execution 从一个 141 cognitive/77 cyclomatic 的相位巨函数拆为可命名的状态行为；API/GoDoc 与 Workflow sealed-algebra 架构守卫共用各自唯一生产文件枚举和文件级断言。没有新增接口、package、service object 或公共 helper，也没有改变 exported API、wire/schema、DAG、Strategy/Kernel 边界。最终 production complexity 仅保留 `quiesceTree` 的 tree-membership convergence barrier 与 Planning sealed phase validator 两个完整领域不变量，不拆成第二 scheduler 或分散非法状态矩阵 | `GOWORK=off` build/vet、staticcheck、完整 lint（0 issues）、禁用缓存 race、13 个 fuzz owner（首次并行资源竞争触发一次 harness deadline，隔离重跑五个 Planning target 全部通过）、8 个公开 command examples、tidy-diff 与 diff check 全绿。duplicate scan 为 0；生产 TODO/FIXME/HACK、Host 抽象词、空文件/空目录与跨层依赖残留为 0。P13 3/3 完成 |
 | 2026-08-10 | P13-02 | 继续反证恢复与 child coordination 边界：Process Snapshot 现在要求 `Usage.AcceptedSignals` 与完整 mailbox 到达序互相证明，损坏快照不能通过降低 usage 重置 Signal 配额；含 prepared Step 的快照在计算下一序列前显式拒绝 `uint64` 回绕；waiting-subtree 投影复用资源 owner 的减法式容量判断；一个 child completion 同时满足多个 wait 时，Engine 在进入父 Process mailbox 前按稳定 WaitID 排序，map 遍历顺序不再成为 Process-local 输入。没有修改 exported API、wire shape/schema、package DAG 或 Host 边界 | 新增 accepted-Signal 计数篡改、prepared sequence 极值回绕与 child completion 规范顺序反例；standalone 全量 test 通过，完整 vet/staticcheck/lint/race 与残留扫描随本批提交前门禁执行 |
 | 2026-08-10 | P13-01 | 资源预算的权威校验原本在 `Budget` 内使用安全减法，但 Step prepare、外部/child Signal 接收、即时 child completion 与计数提交仍各自拼接 `used + requested + reserved`。合法快照把计数恢复到 `uint64` 边界附近时会回绕，使父 Process 消费已永久划拨给 child 的预算，或让限制判断错误放行。现以单一逐项扣减校验覆盖 Steps/Effects/Signals/pending mailbox 与 Budget allocation，并让无硬上限的 DroppedDeltas 在表示上限处饱和，保持 Usage 单调；没有修改 exported API、wire、schema、package DAG 或 Host 边界 | 新增极值和真实 Step reservation 回归，旧加法实现会把 `MaxUint64-1 + reserved 1 + next 1` 回绕后继续执行，当前确定以 `engine.limit.steps` 失败。standalone 禁用缓存全量 test、vet、staticcheck 与 diff check 全绿；完整 lint/race 随本批提交前门禁执行 |
@@ -359,4 +367,4 @@ go test ./...
 
 ## 9. 当前下一步
 
-P1–P13 与真实 Runtime consumer 证明的 Framework 合同均已完成。`agent` 当前保持唯一 Kernel lifecycle owner、可替换 Strategy、sealed Workflow algebra 与独立 Platform/OTel adapters；公共合同、wire 和 package DAG 未因内部精修漂移。后续只有新的 Framework 能力证据或真实消费者反例才能重开设计，不得以 Runtime 产品、Store、transaction、Run 或消费者术语污染 Framework。
+P1–P13 与真实 Runtime consumer 证明的 Framework 合同均已完成。P14 正在用新反例继续精修 Framework 内部实现；P14-01 已固定一次性 prepared authority 在意外值副本下的共享线性化，并形成 Baseline 16。下一步继续反证各 production owner，不得以 Runtime 产品、Store、transaction、Run 或消费者术语污染 Framework。

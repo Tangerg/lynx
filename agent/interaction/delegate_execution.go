@@ -81,7 +81,7 @@ func (execution *execution) acceptDelegateStarts(signals []agent.Signal) (agent.
 		return agent.Transition{}, err
 	}
 	execution.addSteering(steering)
-	calls, _, err := execution.activeCallSegment()
+	calls, err := execution.activeCallSegment()
 	if err != nil || execution.state.DelegateSegment == nil {
 		return agent.Transition{}, ErrInvalidExecutionState
 	}
@@ -177,7 +177,7 @@ func (execution *execution) acceptDelegates(signals []agent.Signal) (agent.Trans
 	if err != nil || completed.Key() != want.Key {
 		return agent.Transition{}, fmt.Errorf("%w: Delegate child completion wait mismatch", ErrInvalidExecutionState)
 	}
-	calls, _, err := execution.activeCallSegment()
+	calls, err := execution.activeCallSegment()
 	if err != nil {
 		return agent.Transition{}, err
 	}

@@ -172,7 +172,7 @@ func (engine *Engine) acknowledgeStartedProcessOutcome(
 	admission ProcessAdmission,
 ) error {
 	if err := acknowledgeProcessStartOutcome(
-		engine.startOutcomeAcknowledger, ctx, startedProcessOutcome(admission),
+		ctx, engine.startOutcomeAcknowledger, startedProcessOutcome(admission),
 	); err != nil {
 		return fmt.Errorf("agent: acknowledge started Process: %w", err)
 	}
@@ -185,7 +185,7 @@ func (engine *Engine) acknowledgeAbortedProcessOutcome(
 	failure Failure,
 ) error {
 	if err := acknowledgeProcessStartOutcome(
-		engine.startOutcomeAcknowledger, ctx, abortedProcessOutcome(admission, failure),
+		ctx, engine.startOutcomeAcknowledger, abortedProcessOutcome(admission, failure),
 	); err != nil {
 		return fmt.Errorf("agent: acknowledge aborted Process: %w", err)
 	}

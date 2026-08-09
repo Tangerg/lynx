@@ -549,3 +549,11 @@
 - 证据：Runtime 已在 P8 完成原生 Interaction、waiting/restore、Delegate child tree、termination 与 recovery 的生产纵切；workspace 搜索证明原框架实现没有剩余 consumer 或独有能力。继续并存只会制造两个模块身份、两套文档和依赖解析歧义。
 - 决策：整体删除原框架实现，把绿色重写实现安装为唯一 `github.com/Tangerg/lynx/agent` module，并同步所有真实 consumer、workspace metadata、文档和 architecture guards。禁止 alias module、replace compatibility、转发 package、双读 wire 或旧 package 名。
 - 后果：模块发布需要先形成 canonical source commit，再由 Runtime standalone dependency 引用该 commit；这个发布边界不引入第二路径。Baseline 15 重新冻结 canonical GoDoc digest，Framework API 语义和全部 wire version 不变。
+
+## ADR-A2-066：一次性 prepared authority 必须由所有别名共享同一 resolution identity
+
+- 状态：已接受；P14-01 已实施，形成 Baseline 16。
+- 证据：`PreparedWaitingSubtreeCancellation` 是 exported struct，Go 调用方即使拿到指针，仍可执行 `duplicate := *prepared`。当互斥锁与 `resolved` 布尔值直接内嵌在该值中时，两个副本拥有不同的 resolution 状态，却共享同一 apply gate、tree operation 与 quiescence；并发 Apply/Discard 因而可能各自通过未解决判断、重复释放资源或关闭同一 gate。仅用“不得复制”的 GoDoc 约束不能证明 Kernel 已承诺的恰好一次语义。
+- 决策：prepared value 继续是唯一公开 capability，不新增 token、registry、Engine apply 旁路或 Host 协议；其私有 resolution 状态改为一个共享指针 identity，identity 内只含互斥锁和 resolved 事实。所有 Apply/Discard alias 必须先在线性化锁下检查并推进同一状态；value 内其余 frozen tree 资源仍由原 capability 持有，resolution 后不得再次访问。zero/nil value 始终是 invalid，不通过第一次错误调用伪造 resolved 状态。
+- 决策：公开 GoDoc 继续要求调用方不复制 capability，同时准确说明意外副本不会复制 authority。architecture reflection gate 分别锁定 capability 与 resolution identity 都只拥有 Framework primitive；不得加入 Run、Store、transaction、checkpoint、lease、产品 revision 或应用 callback。
+- 后果：根 GoDoc digest 升为 Baseline 16；公开名称、参数和签名、Process Snapshot v6、TreeSnapshot v4、Strategy protocol、Event/Delta wire 与其他六个 public digest 不变。新增并发反例对原值和显式值副本同时 Apply/Discard，并证明竞态下恰好一个成功、另一个稳定返回 resolved。

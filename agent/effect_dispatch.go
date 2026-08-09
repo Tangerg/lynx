@@ -150,7 +150,7 @@ func (loop *processLoop) dispatchStrategyEffect(
 	result := make(chan dispatchResult, 1)
 	dispatchCtx := context.WithoutCancel(ctx)
 	go func() {
-		settlement, err := dispatchEffect(loop.deployment.effectDispatcher(), dispatchCtx, request, emit)
+		settlement, err := dispatchEffect(dispatchCtx, loop.deployment.effectDispatcher(), request, emit)
 		result <- dispatchResult{settlement: settlement, err: err}
 	}()
 	for {
@@ -195,8 +195,8 @@ func dispatcherReplayPolicy(dispatcher Dispatcher, effect Effect) (policy Replay
 }
 
 func dispatchEffect(
-	dispatcher Dispatcher,
 	ctx context.Context,
+	dispatcher Dispatcher,
 	request EffectRequest,
 	emit DeltaEmitter,
 ) (settlement Settlement, err error) {

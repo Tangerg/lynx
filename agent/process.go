@@ -140,7 +140,7 @@ func (process *Process) Capture(ctx context.Context) (Snapshot, error) {
 	if process == nil || process.controller == nil {
 		return Snapshot{}, ErrProcessNotRunning
 	}
-	if snapshot, err, ok := process.controller.finishedSnapshot(); ok {
+	if snapshot, ok, err := process.controller.finishedSnapshot(); ok {
 		return snapshot, err
 	}
 	response, err := process.request(ctx, processCommand{kind: commandCapture})
@@ -333,14 +333,14 @@ func (controller *processController) terminalResult() Result {
 	return controller.result
 }
 
-func (controller *processController) finishedSnapshot() (Snapshot, error, bool) {
+func (controller *processController) finishedSnapshot() (Snapshot, bool, error) {
 	select {
 	case <-controller.done:
 		controller.viewMu.RLock()
 		defer controller.viewMu.RUnlock()
-		return controller.terminalSnapshot, controller.terminalSnapshotErr, true
+		return controller.terminalSnapshot, true, controller.terminalSnapshotErr
 	default:
-		return Snapshot{}, nil, false
+		return Snapshot{}, false, nil
 	}
 }
 

@@ -422,7 +422,7 @@ func (engine *Engine) captureQuiescedTree(
 		var snapshot Snapshot
 		if controller.status().Terminal() {
 			var ok bool
-			snapshot, err, ok = controller.finishedSnapshot()
+			snapshot, ok, err = controller.finishedSnapshot()
 			if !ok {
 				return TreeSnapshot{}, ErrEngineQuiescenceUnavailable
 			}

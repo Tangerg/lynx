@@ -161,7 +161,7 @@ func (execution *execution) acceptTools(signals []agent.Signal) (agent.Transitio
 		return agent.Transition{}, err
 	}
 	execution.addSteering(steering)
-	calls, _, err := execution.activeCallSegment()
+	calls, err := execution.activeCallSegment()
 	if err != nil {
 		return agent.Transition{}, err
 	}
@@ -198,7 +198,7 @@ func (execution *execution) requestInputWait(
 	if checkpoint == nil {
 		return agent.Transition{}, fmt.Errorf("%w: missing Tool checkpoint", ErrInvalidExecutionState)
 	}
-	calls, _, err := execution.activeCallSegment()
+	calls, err := execution.activeCallSegment()
 	if err != nil {
 		return agent.Transition{}, err
 	}
@@ -284,7 +284,7 @@ func (execution *execution) acceptInputResponse(signals []agent.Signal) (agent.T
 	if err != nil {
 		return agent.Transition{}, err
 	}
-	calls, _, err := execution.activeCallSegment()
+	calls, err := execution.activeCallSegment()
 	if err != nil {
 		return agent.Transition{}, err
 	}
@@ -464,13 +464,13 @@ func (execution *execution) requestToolCallSegment(
 	return agent.Continue(consumedSignals, effect)
 }
 
-func (execution *execution) activeCallSegment() ([]chat.ToolCall, *chat.Message, error) {
-	calls, assistant, err := responseToolCalls(execution.state.PendingModelResponse)
+func (execution *execution) activeCallSegment() ([]chat.ToolCall, error) {
+	calls, _, err := responseToolCalls(execution.state.PendingModelResponse)
 	if err != nil || execution.state.NextToolCallIndex >= execution.state.ActiveToolCallEndIndex ||
 		uint64(execution.state.ActiveToolCallEndIndex) > uint64(len(calls)) {
-		return nil, nil, fmt.Errorf("%w: invalid active ToolCall segment", ErrInvalidExecutionState)
+		return nil, fmt.Errorf("%w: invalid active ToolCall segment", ErrInvalidExecutionState)
 	}
-	return calls[execution.state.NextToolCallIndex:execution.state.ActiveToolCallEndIndex], assistant, nil
+	return calls[execution.state.NextToolCallIndex:execution.state.ActiveToolCallEndIndex], nil
 }
 
 func (execution *execution) clearToolCallBatch() {

@@ -240,7 +240,7 @@ func (dispatcher *Dispatcher) dispatchToolBatch(
 	request agent.EffectRequest,
 	batch *toolBatchCall,
 ) (agent.Settlement, error) {
-	dispatch, err := newToolBatchDispatch(dispatcher, ctx, request, batch)
+	dispatch, err := newToolBatchDispatch(ctx, dispatcher, request, batch)
 	if err != nil {
 		return agent.Settlement{}, err
 	}
@@ -261,8 +261,8 @@ type toolBatchDispatch struct {
 }
 
 func newToolBatchDispatch(
-	dispatcher *Dispatcher,
 	ctx context.Context,
+	dispatcher *Dispatcher,
 	request agent.EffectRequest,
 	batch *toolBatchCall,
 ) (*toolBatchDispatch, error) {

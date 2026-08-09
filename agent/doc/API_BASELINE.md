@@ -1,14 +1,14 @@
 # Agent Framework 公共合同基线
 
-> 状态：Baseline 15 已冻结
-> 冻结日期：2026-08-09
+> 状态：Baseline 16 已冻结
+> 冻结日期：2026-08-10
 > 适用范围：`agent` 根 package、`agent/interaction`、`agent/planning`、`agent/planning/goap`、`agent/workflow`、`agent/otel`、`agent/platform`、Process Snapshot v6、TreeSnapshot v4、child/framework-effect protocol v2、Interaction state/protocol v5/v3、Planning state/protocol v3/v1、Workflow state v2、Event/Delta observation wire
 
 本文只记录已经由 P3 真实 Interaction、P4 child composition、八个独立 command consumer、P5 真实 Planning/GOAP、P6 managed Workflow、P8 Platform 与恢复合同共同证明的公共合同基线。目标架构、ADR、工程标准和实施进度仍由各自文档拥有；这里不复制它们。
 
 ## 1. 基线的含义
 
-Baseline 15 不是兼容承诺或发布版本。仓库仍允许 breaking change，但任何公共名称、参数名、签名、GoDoc、sentinel error、Framework/Strategy recovery wire 或 observation wire 的变化都必须是显式设计决策：
+Baseline 16 不是兼容承诺或发布版本。仓库仍允许 breaking change，但任何公共名称、参数名、签名、GoDoc、sentinel error、Framework/Strategy recovery wire 或 observation wire 的变化都必须是显式设计决策：
 
 1. 先用真实 Strategy 或 consumer 证明变化必要；
 2. 更新或追加 ADR，不保留 alias、双读、双写或兼容 shim；
@@ -45,9 +45,9 @@ Baseline 15 不是兼容承诺或发布版本。仓库仍允许 breaking change�
 
 ## 3. 自动守卫
 
-`baseline_test.go` 对七个已冻结公共 package 的完整 `go doc -all` 输出做 SHA-256 校验，因此 exported identifier、参数名、字段、签名和 GoDoc 的任何漂移都会失败；AST 守卫还要求所有公开声明/字段有精确 GoDoc、公开 callable 的参数有语义名称，并禁止 error cause 通过 `%v` 丢失 `errors.Is/As` 链。Baseline 15 public digest：
+`baseline_test.go` 对七个已冻结公共 package 的完整 `go doc -all` 输出做 SHA-256 校验，因此 exported identifier、参数名、字段、签名和 GoDoc 的任何漂移都会失败；AST 守卫还要求所有公开声明/字段有精确 GoDoc、公开 callable 的参数有语义名称，并禁止 error cause 通过 `%v` 丢失 `errors.Is/As` 链。Baseline 16 public digest：
 
-- root kernel：`5c5c002b184a0d408b8217d2f63af56e6e104ebf06e1105668ef96828f481880`
+- root kernel：`8032f8208a221737a217eeebcc198914b6c9373ce20763f2044c6df2f688d323`
 - interaction：`30e8a8f321a9a5ede295c7e67e96b9495ef3c13de7c4a8ad3803b3db6f6c838f`
 - planning：`48dcc733364cf5345332aeb0f3fd64aeefd2c21e7f0585759e44278b050eb50a`
 - planning/goap：`4aa78b677748784182313d25a187b0074e49ea972c75db2e041c82a0f5f82529`
@@ -55,7 +55,7 @@ Baseline 15 不是兼容承诺或发布版本。仓库仍允许 breaking change�
 - otel：`d3048e0deeb32cdaef3d09e1f9152df6842e88b594f7af2ecab06ab4a33964d6`
 - platform：`5d2140197e3ac09ebf62a156b308b0327197716888974706c338cd14b9b9b21b`
 
-Kernel 测试独立冻结其全部 production `*Wire`、Framework Event payload 与 schema version；每个 Strategy package 冻结自己的私有 ExecutionState 和 Effect/Signal/Delta protocol。覆盖守卫要求新增 production wire 或私有 JSON struct 必须进入所有者 baseline，Kernel 始终只保存 opaque `ExecutionState.Payload`，不会递归解释 Strategy shape。Baseline 15 wire digest：
+Kernel 测试独立冻结其全部 production `*Wire`、Framework Event payload 与 schema version；每个 Strategy package 冻结自己的私有 ExecutionState 和 Effect/Signal/Delta protocol。覆盖守卫要求新增 production wire 或私有 JSON struct 必须进入所有者 baseline，Kernel 始终只保存 opaque `ExecutionState.Payload`，不会递归解释 Strategy shape。Baseline 16 wire digest：
 
 - Kernel snapshot/protocol wire：`56ac28855e547d8e6d26ee595278055fa3e24be245a5ce99e8443b4d282c465d`
 - Framework Event/Delta observation wire：`152f8856da33fa85f1ca7eab0bd0b30287915931a100100bdfa83ddf56f9b39e`
@@ -117,6 +117,8 @@ P10-06 Runtime 的 durable prepared-change consumer 依据 ADR-A2-064 形成 Bas
 
 P11 依据 ADR-A2-065 形成 Baseline 15。原框架实现整体删除，绿色重写实现从临时孵化位置原子安装为唯一 `github.com/Tangerg/lynx/agent` module；Runtime consumer、workspace metadata、package docs、examples 和 architecture guards 同步切换。没有 alias module、replace compatibility、转发 package 或双路径。模块路径切换不改变七个公共 package 的语义，也不改变 Process Snapshot v6、TreeSnapshot v4、Strategy protocol 或 observation wire；GoDoc digest 以 canonical package path 重新冻结。
 
+P14-01 依据 ADR-A2-066 形成 Baseline 16。`PreparedWaitingSubtreeCancellation` 的 GoDoc 明确一次性 authority 由所有别名共享；私有 resolution identity 使误复制的值也不能获得第二次 Apply/Discard 权限。公开名称、方法签名和行为方向不变，Process Snapshot v6、TreeSnapshot v4、全部 Strategy/observation wire 与其他六个 public digest 均未变化。
+
 ## 4. 明确不在基线中的能力
 
-Baseline 15 已完成唯一 `agent` module 替换。模块路径变化不引入 alias、replace compatibility 或旧 wire 双读；七个公共 package 及全部 snapshot、Strategy protocol 和 observation wire 的语义仍由各自 digest 守卫。`flow` 保持独立 in-process 库，不形成 Agent adapter API 或依赖；Workflow 吸收其显式拓扑、确定顺序和有界 fan-out 思想，但不强求复用或建立 adapter。未来编辑器图只能在更高层编译成已验证的 Workflow Definition，不能反向扩张 Kernel 或恢复 wire。
+Baseline 16 保持唯一 `agent` module 与一次性 prepared authority 的线性化合同。模块路径变化不引入 alias、replace compatibility 或旧 wire 双读；七个公共 package 及全部 snapshot、Strategy protocol 和 observation wire 的语义仍由各自 digest 守卫。`flow` 保持独立 in-process 库，不形成 Agent adapter API 或依赖；Workflow 吸收其显式拓扑、确定顺序和有界 fan-out 思想，但不强求复用或建立 adapter。未来编辑器图只能在更高层编译成已验证的 Workflow Definition，不能反向扩张 Kernel 或恢复 wire。

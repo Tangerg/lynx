@@ -554,3 +554,12 @@
 - Runtime 已在 P8 以原生 Interaction、完整 TreeSnapshot、typed waiting/Delegate inspectors 和 prepared subtree change 取代原框架执行路径；workspace 搜索证明原实现没有剩余生产 consumer、测试依赖或独有能力。
 - P11 整体删除原实现，把绿色重写实现安装为唯一 `github.com/Tangerg/lynx/agent` module，并同步 Runtime imports、workspace metadata、examples、GoDoc 和 architecture guards。不存在 alias module、replace compatibility、转发 package 或第二 lifecycle owner。
 - 模块身份变化形成 Baseline 15；七个公共 package 的语义与全部 Process Snapshot、TreeSnapshot、Strategy protocol、Event/Delta wire version不变。Runtime 产品 Run、Store、transaction、checkpoint policy、WorkingContext composition 与 protocol 仍停留在应用侧，未泄露进 Framework。
+
+## 16. P14 二次反证精修证据
+
+### 16.1 一次性 prepared authority
+
+- `PreparedWaitingSubtreeCancellation` 的 authority 现在由私有共享 resolution identity 唯一表示。调用方仍应只持有 Prepare 返回的指针；即使误做值复制，副本也只得到同一 authority 的别名，不能形成第二个 Apply/Discard 权限。
+- resolution identity 只拥有互斥锁和 resolved 事实；frozen TreeSnapshot、Process IDs、Engine tree operation、quiescence、staged changes 与 apply gate 仍由 prepared capability 直接收敛。没有 token registry、第二 Engine mutation API、Host lease、transaction 或 checkpoint 进入 Framework。
+- owner race test 显式复制 exported value，让原值与副本并发 Apply/Discard，并证明恰好一个成功、另一方稳定收到 `ErrPreparedWaitingSubtreeCancellationResolved`；architecture reflection gate 同时冻结 capability 与 resolution identity 的 Framework-only 字段集合。
+- 该修复只强化既有恰好一次语义。Process Snapshot v6、TreeSnapshot v4、全部 Strategy/protocol/observation wire 不变；根 GoDoc 的准确化形成 Baseline 16。

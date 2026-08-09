@@ -140,9 +140,7 @@ func newOrchestratorWorkers() (agent.Deployment, deploymentResolver, error) {
 		return agent.Deployment{}, nil, err
 	}
 
-	renderGoal, err := workflow.Transform("render_goal", func(goal orchestrationGoal) (interaction.Input, error) {
-		return interactionInput(goal)
-	})
+	renderGoal, err := workflow.Transform("render_goal", interactionInput[orchestrationGoal])
 	if err != nil {
 		return agent.Deployment{}, nil, err
 	}
@@ -172,9 +170,7 @@ func newOrchestratorWorkers() (agent.Deployment, deploymentResolver, error) {
 	if err != nil {
 		return agent.Deployment{}, nil, err
 	}
-	renderResults, err := workflow.Transform("render_results", func(results []workerResult) (interaction.Input, error) {
-		return interactionInput(results)
-	})
+	renderResults, err := workflow.Transform("render_results", interactionInput[[]workerResult])
 	if err != nil {
 		return agent.Deployment{}, nil, err
 	}

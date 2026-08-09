@@ -27,10 +27,11 @@ var (
 )
 
 // PreparedWaitingSubtreeCancellation owns one frozen, Strategy-safe source
-// tree and its exact prospective cancellation result. It must not be copied
-// after first use. The caller must resolve it exactly once with Apply or
-// Discard; until then that source tree remains frozen. Other root trees in the
-// Engine remain independent.
+// tree and its exact prospective cancellation result. Callers must retain the
+// returned pointer rather than copy the value. The underlying authority is
+// shared and must be resolved exactly once with Apply or Discard; an accidental
+// value copy does not duplicate that authority. Until resolution, the source
+// tree remains frozen. Other root trees in the Engine remain independent.
 type PreparedWaitingSubtreeCancellation struct {
 	engine                 *Engine
 	operation              *treeOperation
@@ -42,8 +43,15 @@ type PreparedWaitingSubtreeCancellation struct {
 	childWaitRegistrations []*childWaitRegistration
 	applyGate              chan struct{}
 
-	resolutionMu sync.Mutex
-	resolved     bool
+	resolution *waitingSubtreeCancellationResolution
+}
+
+// waitingSubtreeCancellationResolution is the identity of the one-shot
+// authority. Keeping it behind a pointer makes resolution linearizable even
+// when a caller accidentally copies the exported prepared value.
+type waitingSubtreeCancellationResolution struct {
+	mu       sync.Mutex
+	resolved bool
 }
 
 // ResultingSnapshot returns the exact complete tree state that Apply will
@@ -78,12 +86,12 @@ func (prepared *PreparedWaitingSubtreeCancellation) PausedProcessIDs() []Process
 // Apply deliberately has no context: once the caller's durable decision exists,
 // request cancellation cannot revoke this in-memory commit boundary.
 func (prepared *PreparedWaitingSubtreeCancellation) Apply() error {
-	if prepared == nil {
+	if prepared == nil || prepared.resolution == nil {
 		return ErrInvalidPreparedWaitingSubtreeCancellation
 	}
-	prepared.resolutionMu.Lock()
-	defer prepared.resolutionMu.Unlock()
-	if prepared.resolved {
+	prepared.resolution.mu.Lock()
+	defer prepared.resolution.mu.Unlock()
+	if prepared.resolution.resolved {
 		return ErrPreparedWaitingSubtreeCancellationResolved
 	}
 	if !prepared.valid() {
@@ -111,12 +119,12 @@ func (prepared *PreparedWaitingSubtreeCancellation) Apply() error {
 // Discard releases the frozen source tree without applying the prospective
 // cancellation. It returns an error when Apply or Discard already resolved it.
 func (prepared *PreparedWaitingSubtreeCancellation) Discard() error {
-	if prepared == nil {
+	if prepared == nil || prepared.resolution == nil {
 		return ErrInvalidPreparedWaitingSubtreeCancellation
 	}
-	prepared.resolutionMu.Lock()
-	defer prepared.resolutionMu.Unlock()
-	if prepared.resolved {
+	prepared.resolution.mu.Lock()
+	defer prepared.resolution.mu.Unlock()
+	if prepared.resolution.resolved {
 		return ErrPreparedWaitingSubtreeCancellationResolved
 	}
 	if !prepared.valid() {
@@ -135,7 +143,7 @@ func (prepared *PreparedWaitingSubtreeCancellation) valid() bool {
 		len(prepared.canceledProcessIDs) > 0 &&
 		len(prepared.preparedStateChanges) ==
 			len(prepared.canceledProcessIDs)+len(prepared.pausedProcessIDs) &&
-		prepared.applyGate != nil &&
+		prepared.applyGate != nil && prepared.resolution != nil &&
 		validWaitingSubtreeCancellationProjection(
 			prepared.resultingSnapshot,
 			prepared.canceledProcessIDs,
@@ -152,7 +160,7 @@ func (prepared *PreparedWaitingSubtreeCancellation) resolveLocked() {
 	prepared.preparedStateChanges = nil
 	prepared.childWaitRegistrations = nil
 	prepared.applyGate = nil
-	prepared.resolved = true
+	prepared.resolution.resolved = true
 }
 
 // PrepareWaitingSubtreeCancellation freezes one complete source tree and
@@ -216,7 +224,7 @@ func (engine *Engine) PrepareWaitingSubtreeCancellation(
 		engine: engine, operation: operation, quiescence: quiescence,
 		resultingSnapshot: result, canceledProcessIDs: canceled, pausedProcessIDs: paused,
 		preparedStateChanges: stateChanges, childWaitRegistrations: registrations,
-		applyGate: applyGate,
+		applyGate: applyGate, resolution: &waitingSubtreeCancellationResolution{},
 	}
 	if !prepared.valid() {
 		return nil, ErrInvalidPreparedWaitingSubtreeCancellation

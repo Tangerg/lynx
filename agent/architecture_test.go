@@ -76,8 +76,7 @@ func TestPreparedWaitingSubtreeCancellationOwnsOnlyFrameworkState(t *testing.T) 
 		{name: "preparedStateChanges", typeOf: reflect.TypeFor[[]*preparedProcessStateChange]()},
 		{name: "childWaitRegistrations", typeOf: reflect.TypeFor[[]*childWaitRegistration]()},
 		{name: "applyGate", typeOf: reflect.TypeFor[chan struct{}]()},
-		{name: "resolutionMu", typeOf: reflect.TypeFor[sync.Mutex]()},
-		{name: "resolved", typeOf: reflect.TypeFor[bool]()},
+		{name: "resolution", typeOf: reflect.TypeFor[*waitingSubtreeCancellationResolution]()},
 	}
 	if typeOf.NumField() != len(want) {
 		t.Fatalf("PreparedWaitingSubtreeCancellation fields = %d, want %d", typeOf.NumField(), len(want))
@@ -87,6 +86,29 @@ func TestPreparedWaitingSubtreeCancellationOwnsOnlyFrameworkState(t *testing.T) 
 		if field.IsExported() || field.Name != expected.name || field.Type != expected.typeOf {
 			t.Fatalf(
 				"PreparedWaitingSubtreeCancellation field %d = %s %v",
+				index, field.Name, field.Type,
+			)
+		}
+	}
+}
+
+func TestWaitingSubtreeCancellationResolutionContainsOnlyFrameworkState(t *testing.T) {
+	typeOf := reflect.TypeFor[waitingSubtreeCancellationResolution]()
+	want := []struct {
+		name   string
+		typeOf reflect.Type
+	}{
+		{name: "mu", typeOf: reflect.TypeFor[sync.Mutex]()},
+		{name: "resolved", typeOf: reflect.TypeFor[bool]()},
+	}
+	if typeOf.NumField() != len(want) {
+		t.Fatalf("waitingSubtreeCancellationResolution fields = %d, want %d", typeOf.NumField(), len(want))
+	}
+	for index, expected := range want {
+		field := typeOf.Field(index)
+		if field.IsExported() || field.Name != expected.name || field.Type != expected.typeOf {
+			t.Fatalf(
+				"waitingSubtreeCancellationResolution field %d = %s %v",
 				index, field.Name, field.Type,
 			)
 		}

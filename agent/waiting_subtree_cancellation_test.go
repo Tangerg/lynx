@@ -93,8 +93,8 @@ func TestPreparedWaitingSubtreeCancellationRejectsNilAndZeroValues(t *testing.T)
 	if err := zero.Discard(); !errors.Is(err, ErrInvalidPreparedWaitingSubtreeCancellation) {
 		t.Fatalf("zero Discard error = %v", err)
 	}
-	if err := zero.Apply(); !errors.Is(err, ErrPreparedWaitingSubtreeCancellationResolved) {
-		t.Fatalf("resolved zero Apply error = %v", err)
+	if err := zero.Apply(); !errors.Is(err, ErrInvalidPreparedWaitingSubtreeCancellation) {
+		t.Fatalf("zero Apply error = %v", err)
 	}
 }
 
@@ -130,6 +130,51 @@ func TestPreparedWaitingSubtreeCancellationResolvesExactlyOnceConcurrently(t *te
 	}
 	if !errors.Is(resolvedErr, ErrPreparedWaitingSubtreeCancellationResolved) {
 		t.Fatalf("losing resolution error = %v, want resolved", resolvedErr)
+	}
+	if err := root.Kill(context.Background(), "test cleanup"); err != nil {
+		t.Fatal(err)
+	}
+	_ = mustAwait(t, root)
+	_ = mustAwait(t, target)
+	_ = mustAwait(t, descendant)
+	if err := engine.Close(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestPreparedWaitingSubtreeCancellationCopyCannotDuplicateAuthority(t *testing.T) {
+	engine, root, target, descendant := startWaitingSubtree(t)
+	prepared, err := engine.PrepareWaitingSubtreeCancellation(
+		context.Background(), root.ID(), target.ID(), "resolve copied capability concurrently",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	duplicate := *prepared
+	start := make(chan struct{})
+	results := make(chan error, 2)
+	go func() {
+		<-start
+		results <- prepared.Apply()
+	}()
+	go func() {
+		<-start
+		results <- duplicate.Discard()
+	}()
+	close(start)
+	first, second := <-results, <-results
+	if first != nil && second != nil {
+		t.Fatalf("both copied-capability resolutions failed: %v; %v", first, second)
+	}
+	if first == nil && second == nil {
+		t.Fatal("a copied prepared value duplicated the one-shot authority")
+	}
+	resolvedErr := first
+	if resolvedErr == nil {
+		resolvedErr = second
+	}
+	if !errors.Is(resolvedErr, ErrPreparedWaitingSubtreeCancellationResolved) {
+		t.Fatalf("losing copied-capability resolution error = %v, want resolved", resolvedErr)
 	}
 	if err := root.Kill(context.Background(), "test cleanup"); err != nil {
 		t.Fatal(err)

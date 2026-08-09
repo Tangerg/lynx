@@ -129,8 +129,8 @@ func processInitializationFailure(kind FailureKind, code string, cause error) Fa
 }
 
 func acknowledgePreparedStep(
-	acknowledger PreparedStepAcknowledger,
 	ctx context.Context,
+	acknowledger PreparedStepAcknowledger,
 	snapshot Snapshot,
 ) (err error) {
 	defer func() {

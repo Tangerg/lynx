@@ -85,8 +85,8 @@ func restoreProcessLoop(
 	}
 	loop.pendingControl = control
 	if wire.Prepared != nil {
-		copy := clonePreparedStep(*wire.Prepared)
-		loop.prepared = &preparedStep{wire: copy, acknowledged: true, fromSnapshot: true}
+		preparedWire := clonePreparedStep(*wire.Prepared)
+		loop.prepared = &preparedStep{wire: preparedWire, acknowledged: true, fromSnapshot: true}
 	}
 	controller.updateView(loop.status, loop.currentWaitID, loop.usage)
 	return loop, nil

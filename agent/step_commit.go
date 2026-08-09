@@ -10,7 +10,7 @@ import (
 func (loop *processLoop) prepareNextStep(ctx context.Context) {
 	if !resourceQuantitiesFit(loop.limits.MaxSteps, loop.committedSteps, 1) ||
 		!resourceQuantitiesFit(loop.budget.Steps, loop.committedSteps, loop.reservedBudget.Steps, 1) {
-		loop.fail(ctx, FailureKindExecution, "engine.limit.steps", ErrResourceLimitExceeded)
+		loop.fail(FailureKindExecution, "engine.limit.steps", ErrResourceLimitExceeded)
 		return
 	}
 	sequence := loop.committedSteps + 1
@@ -29,18 +29,18 @@ func (loop *processLoop) prepareNextStep(ctx context.Context) {
 	if err != nil {
 		loop.observeHostError(ctx)
 		loop.discardExecution()
-		loop.fail(ctx, failureKindForError(err), "execution.step.failed", err)
+		loop.fail(failureKindForError(err), "execution.step.failed", err)
 		return
 	}
 	if !transition.Valid() || uint64(transition.ConsumedSignals()) > uint64(len(signals)) {
 		loop.discardExecution()
-		loop.fail(ctx, FailureKindContract, "execution.transition.invalid", ErrInvalidTransition)
+		loop.fail(FailureKindContract, "execution.transition.invalid", ErrInvalidTransition)
 		return
 	}
 	for _, effect := range transition.Effects() {
 		if !loop.capabilities.Allows(effect.RequiredCapabilities()) {
 			loop.discardExecution()
-			loop.fail(ctx, FailureKindContract, "engine.capability.denied", ErrInvalidCapability)
+			loop.fail(FailureKindContract, "engine.capability.denied", ErrInvalidCapability)
 			return
 		}
 	}
@@ -50,7 +50,7 @@ func (loop *processLoop) prepareNextStep(ctx context.Context) {
 			loop.budget.Effects, loop.usage.PreparedEffects, loop.reservedBudget.Effects, effectCount,
 		) {
 		loop.discardExecution()
-		loop.fail(ctx, FailureKindExecution, "engine.limit.effects", ErrResourceLimitExceeded)
+		loop.fail(FailureKindExecution, "engine.limit.effects", ErrResourceLimitExceeded)
 		return
 	}
 	remainingPending := loop.mailbox.pendingCount() - uint64(transition.ConsumedSignals())
@@ -60,32 +60,32 @@ func (loop *processLoop) prepareNextStep(ctx context.Context) {
 			loop.budget.Signals, loop.usage.AcceptedSignals, loop.reservedBudget.Signals, effectCount,
 		) {
 		loop.discardExecution()
-		loop.fail(ctx, FailureKindExecution, "engine.limit.signals", ErrResourceLimitExceeded)
+		loop.fail(FailureKindExecution, "engine.limit.signals", ErrResourceLimitExceeded)
 		return
 	}
 	if output, completes := transition.Output(); completes {
 		if err := loop.deployment.Descriptor().ValidateOutput(output); err != nil {
 			loop.discardExecution()
-			loop.fail(ctx, FailureKindContract, "execution.output.invalid", err)
+			loop.fail(FailureKindContract, "execution.output.invalid", err)
 			return
 		}
 	}
 	candidateState, err := captureExecution(loop.execution)
 	if err != nil {
 		loop.discardExecution()
-		loop.fail(ctx, failureKindForError(err), "execution.snapshot.failed", err)
+		loop.fail(failureKindForError(err), "execution.snapshot.failed", err)
 		return
 	}
 	candidate, err := restoreExecution(loop.deployment.Definition(), candidateState)
 	if err != nil {
 		loop.discardExecution()
-		loop.fail(ctx, failureKindForError(err), "execution.snapshot.unrestorable", err)
+		loop.fail(failureKindForError(err), "execution.snapshot.unrestorable", err)
 		return
 	}
 	digest, err := executionStateDigest(loop.lastStableState)
 	if err != nil {
 		loop.discardExecution()
-		loop.fail(ctx, FailureKindContract, "engine.last_stable.invalid", err)
+		loop.fail(FailureKindContract, "engine.last_stable.invalid", err)
 		return
 	}
 	wire := preparedStepWire{
@@ -113,7 +113,7 @@ func (loop *processLoop) acknowledgePrepared(ctx context.Context) bool {
 	}
 	snapshot, err := loop.capture()
 	if err == nil {
-		err = acknowledgePreparedStep(loop.engine.acknowledger, ctx, snapshot)
+		err = acknowledgePreparedStep(ctx, loop.engine.acknowledger, snapshot)
 	}
 	if err == nil {
 		loop.prepared.acknowledged = true
@@ -121,7 +121,7 @@ func (loop *processLoop) acknowledgePrepared(ctx context.Context) bool {
 	}
 	loop.observeHostError(ctx)
 	loop.discardPrepared()
-	loop.fail(ctx, FailureKindExternal, "engine.prepared_acknowledgment.failed", err)
+	loop.fail(FailureKindExternal, "engine.prepared_acknowledgment.failed", err)
 	return false
 }
 
@@ -401,7 +401,7 @@ func (loop *processLoop) discardExecution() {
 	}
 }
 
-func (loop *processLoop) fail(ctx context.Context, kind FailureKind, code string, err error) {
+func (loop *processLoop) fail(kind FailureKind, code string, err error) {
 	failure, failureErr := failureFromError(kind, code, err)
 	if failureErr != nil {
 		failure, _ = NewFailure(FailureKindContract, "engine.failure.invalid", "Engine could not construct a valid failure")

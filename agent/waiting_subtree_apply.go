@@ -144,32 +144,32 @@ func (prepared *preparedProcessStateChange) preparePauseEvents(
 	return nil
 }
 
-func (preparedChange *preparedProcessStateChange) validateSource(loop *processLoop) error {
-	if preparedChange == nil || loop == nil || preparedChange.processID != loop.controller.processID ||
+func (prepared *preparedProcessStateChange) validateSource(loop *processLoop) error {
+	if prepared == nil || loop == nil || prepared.processID != loop.controller.processID ||
 		loop.status.Terminal() {
 		return ErrInvalidPreparedWaitingSubtreeCancellation
 	}
 	current, err := loop.capture()
-	if err != nil || !bytes.Equal(current.JSON(), preparedChange.source.JSON()) {
+	if err != nil || !bytes.Equal(current.JSON(), prepared.source.JSON()) {
 		return ErrInvalidPreparedWaitingSubtreeCancellation
 	}
 	return nil
 }
 
-func (preparedChange *preparedProcessStateChange) apply(ctx context.Context, loop *processLoop) {
-	result := preparedChange.result
+func (prepared *preparedProcessStateChange) apply(ctx context.Context, loop *processLoop) {
+	result := prepared.result
 	loop.startedAt = result.StartedAt
 	loop.status = result.Status
 	loop.committedSteps = result.CommittedSteps
 	loop.lastStableState = result.LastStableState.clone()
-	loop.mailbox = preparedChange.mailbox
+	loop.mailbox = prepared.mailbox
 	loop.prepared = nil
 	loop.currentWaitID = WaitID{}
 	if result.CurrentWaitID != nil {
 		loop.currentWaitID = *result.CurrentWaitID
 	}
 	loop.pauseReason = result.PauseReason
-	loop.pendingControl = preparedChange.control
+	loop.pendingControl = prepared.control
 	loop.finalOutput = Output{}
 	if result.Output != nil {
 		loop.finalOutput = *result.Output
@@ -184,12 +184,12 @@ func (preparedChange *preparedProcessStateChange) apply(ctx context.Context, loo
 	}
 	loop.reservedBudget = result.ReservedBudget
 	loop.usage = result.Usage
-	loop.processEventSequence = result.ProcessEventSequence - uint64(len(preparedChange.events))
+	loop.processEventSequence = result.ProcessEventSequence - uint64(len(prepared.events))
 	if result.Status.Terminal() {
 		loop.processEventSequence--
 	}
 	loop.updateView()
-	for _, event := range preparedChange.events {
+	for _, event := range prepared.events {
 		loop.publishEvent(ctx, event.name, EventPhaseCommitted, 0, EffectID{}, event.payload)
 	}
 }

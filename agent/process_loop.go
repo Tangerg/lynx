@@ -117,7 +117,7 @@ func (loop *processLoop) advancePrepared(ctx context.Context, hostDone *<-chan s
 	}
 	if err := loop.finalizePrepared(ctx); err != nil {
 		loop.discardPrepared()
-		loop.fail(ctx, FailureKindContract, "engine.finalize.invalid", err)
+		loop.fail(FailureKindContract, "engine.finalize.invalid", err)
 	}
 }
 
@@ -149,7 +149,7 @@ func (loop *processLoop) advanceStatus(ctx context.Context, hostDone *<-chan str
 			loop.prepareNextStep(ctx)
 		}
 	default:
-		loop.fail(ctx, FailureKindContract, "engine.status.invalid", fmt.Errorf("unexpected status %s", loop.status))
+		loop.fail(FailureKindContract, "engine.status.invalid", fmt.Errorf("unexpected status %s", loop.status))
 	}
 }
 
@@ -255,12 +255,12 @@ func (loop *processLoop) deliverChildrenCompleted(ctx context.Context, signal Si
 		!resourceQuantitiesFit(
 			loop.budget.Signals, loop.usage.AcceptedSignals, loop.reservedBudget.Signals, 1,
 		) {
-		loop.fail(ctx, FailureKindExecution, "engine.limit.child_completion_signal", ErrResourceLimitExceeded)
+		loop.fail(FailureKindExecution, "engine.limit.child_completion_signal", ErrResourceLimitExceeded)
 		return false
 	}
 	accepted, err := loop.mailbox.enqueueChildCompletion(loop.status, signal)
 	if err != nil {
-		loop.fail(ctx, FailureKindContract, "engine.child.completion.invalid", err)
+		loop.fail(FailureKindContract, "engine.child.completion.invalid", err)
 		return false
 	}
 	if !accepted {
