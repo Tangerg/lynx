@@ -40,6 +40,20 @@ type cancellationPlan struct {
 	completePostorderIDs []string
 }
 
+// cancellationPlanSource is the coherent read model used to build one
+// cancellation plan. It keeps repository facts and the process-local owner
+// together only inside this use case; neither representation is promoted to a
+// domain or executor contract.
+type cancellationPlanSource struct {
+	runs       []transcript.Run
+	pending    Pending
+	hasPending bool
+	live       liveSegment
+	hasLive    bool
+	executor   ExecutorRef
+	members    map[string]string
+}
+
 // cancellationPlanFor resolves either a root or child address to one complete
 // tree snapshot before any executor side effect. The single RunTree read avoids
 // racing a target lookup against a second aggregate lookup.
@@ -47,31 +61,56 @@ func (c *Coordinator) cancellationPlanFor(
 	ctx context.Context,
 	cmd CancelCommand,
 ) (cancellationPlan, liveSegment, bool, error) {
-	runs, err := c.runs.RunTree(ctx, cmd.RunID)
+	source, err := c.readCancellationPlanSource(ctx, cmd)
 	if err != nil {
 		return cancellationPlan{}, liveSegment{}, false, err
 	}
+
+	var pending *Pending
+	if source.hasPending {
+		pending = &source.pending
+	}
+	plan, err := newCancellationPlan(cmd.RunID, source.runs, source.executor, source.members, pending)
+	if err != nil {
+		return cancellationPlan{}, liveSegment{}, false, err
+	}
+	if plan.treeState == rundomain.Waiting && plan.target.run.Lineage().IsChild() {
+		if err := c.loadWaitingCancellationItems(ctx, &plan); err != nil {
+			return cancellationPlan{}, liveSegment{}, false, err
+		}
+	}
+	return plan, source.live, source.hasLive, nil
+}
+
+func (c *Coordinator) readCancellationPlanSource(
+	ctx context.Context,
+	cmd CancelCommand,
+) (cancellationPlanSource, error) {
+	runs, err := c.runs.RunTree(ctx, cmd.RunID)
+	if err != nil {
+		return cancellationPlanSource{}, err
+	}
 	if len(runs) == 0 {
-		return cancellationPlan{}, liveSegment{}, false, fmt.Errorf("%w: %q", ErrRunNotFound, cmd.RunID)
+		return cancellationPlanSource{}, fmt.Errorf("%w: %q", ErrRunNotFound, cmd.RunID)
 	}
 	target, found := runByID(runs, cmd.RunID)
 	if !found {
-		return cancellationPlan{}, liveSegment{}, false, fmt.Errorf(
+		return cancellationPlanSource{}, fmt.Errorf(
 			"runs: tree containing target %q omitted the target",
 			cmd.RunID,
 		)
 	}
 	if target.Lineage().IsChild() && !cmd.AllowChildRun {
-		return cancellationPlan{}, liveSegment{}, false, fmt.Errorf("%w: %q", ErrChildRunNotAllowed, cmd.RunID)
+		return cancellationPlanSource{}, fmt.Errorf("%w: %q", ErrChildRunNotAllowed, cmd.RunID)
 	}
 	if target.State.IsTerminal() {
-		return cancellationPlan{}, liveSegment{}, false, fmt.Errorf("%w: %q", ErrRunFinished, cmd.RunID)
+		return cancellationPlanSource{}, fmt.Errorf("%w: %q", ErrRunFinished, cmd.RunID)
 	}
 
 	rootRunID := target.Lineage().TreeRootID(target.ID)
 	root, found := runByID(runs, rootRunID)
 	if !found {
-		return cancellationPlan{}, liveSegment{}, false, fmt.Errorf(
+		return cancellationPlanSource{}, fmt.Errorf(
 			"runs: cancellation tree for Run %q omits root %q",
 			cmd.RunID,
 			rootRunID,
@@ -79,167 +118,191 @@ func (c *Coordinator) cancellationPlanFor(
 	}
 	pending, pendingFound, err := c.interrupts.LookupOpenInterrupt(ctx, rootRunID)
 	if err != nil {
-		return cancellationPlan{}, liveSegment{}, false, err
+		return cancellationPlanSource{}, err
 	}
 	live, liveFound := c.registry.Get(rootRunID)
-
-	var (
-		executor ExecutorRef
-		members  map[string]string
+	executor, members, err := c.resolveCancellationOwner(
+		ctx,
+		cmd.RunID,
+		root,
+		pending,
+		pendingFound,
+		live,
+		liveFound,
 	)
+	if err != nil {
+		return cancellationPlanSource{}, err
+	}
+	return cancellationPlanSource{
+		runs:       runs,
+		pending:    pending,
+		hasPending: pendingFound,
+		live:       live,
+		hasLive:    liveFound,
+		executor:   executor,
+		members:    members,
+	}, nil
+}
+
+func (c *Coordinator) resolveCancellationOwner(
+	ctx context.Context,
+	targetRunID string,
+	root transcript.Run,
+	pending Pending,
+	hasPending bool,
+	live liveSegment,
+	hasLive bool,
+) (ExecutorRef, map[string]string, error) {
 	switch root.State {
 	case rundomain.Running:
-		if pendingFound {
-			return cancellationPlan{}, liveSegment{}, false, fmt.Errorf(
+		if hasPending {
+			return ExecutorRef{}, nil, fmt.Errorf(
 				"runs: running tree %q has an open interrupt",
-				rootRunID,
+				root.ID,
 			)
 		}
-		if !liveFound || live.handle == nil {
+		if !hasLive || live.handle == nil {
 			// The terminal commit may have won after RunTree returned. Refresh
 			// the addressed Run once so that race reports run_finished rather
 			// than a false missing-owner invariant.
-			refreshed, refreshedFound, refreshErr := c.runs.Run(ctx, cmd.RunID)
+			refreshed, refreshedFound, refreshErr := c.runs.Run(ctx, targetRunID)
 			switch {
 			case refreshErr != nil:
-				return cancellationPlan{}, liveSegment{}, false, refreshErr
+				return ExecutorRef{}, nil, refreshErr
 			case !refreshedFound:
-				return cancellationPlan{}, liveSegment{}, false, fmt.Errorf(
+				return ExecutorRef{}, nil, fmt.Errorf(
 					"runs: Run %q disappeared after its cancellation tree was resolved",
-					cmd.RunID,
+					targetRunID,
 				)
 			case refreshed.State.IsTerminal():
-				return cancellationPlan{}, liveSegment{}, false, fmt.Errorf(
+				return ExecutorRef{}, nil, fmt.Errorf(
 					"%w: %q completed as %s",
 					ErrRunFinished,
-					cmd.RunID,
+					targetRunID,
 					refreshed.State,
 				)
 			default:
-				return cancellationPlan{}, liveSegment{}, false, fmt.Errorf(
+				return ExecutorRef{}, nil, fmt.Errorf(
 					"runs: running tree %q has no live root owner",
-					rootRunID,
+					root.ID,
 				)
 			}
 		}
 		if err := validateCancellationLiveRoot(live, root); err != nil {
-			return cancellationPlan{}, liveSegment{}, false, err
+			return ExecutorRef{}, nil, err
 		}
-		executor = ExecutorRef{SessionID: live.record.SessionID, ExecutorID: live.record.ExecutorID}
-		members = live.handle.executorMemberSnapshot()
+		return ExecutorRef{
+			SessionID:  live.record.SessionID,
+			ExecutorID: live.record.ExecutorID,
+		}, live.handle.executorMemberSnapshot(), nil
 	case rundomain.Waiting:
-		if !pendingFound {
-			return cancellationPlan{}, liveSegment{}, false, fmt.Errorf(
+		if !hasPending {
+			return ExecutorRef{}, nil, fmt.Errorf(
 				"runs: waiting tree %q has no open interrupt",
-				rootRunID,
+				root.ID,
 			)
 		}
 		if err := pending.Validate(); err != nil {
-			return cancellationPlan{}, liveSegment{}, false, fmt.Errorf(
+			return ExecutorRef{}, nil, fmt.Errorf(
 				"runs: cancellation tree %q pending set: %w",
-				rootRunID,
+				root.ID,
 				err,
 			)
 		}
-		executor = ExecutorRef{SessionID: pending.SessionID, ExecutorID: pending.ExecutorID}
-		members = make(map[string]string, len(pending.Continuations))
+		members := make(map[string]string, len(pending.Continuations))
 		for _, continuation := range pending.Continuations {
 			members[continuation.RunID] = continuation.MemberID
 		}
-		if liveFound {
+		if hasLive {
 			if live.handle == nil {
-				return cancellationPlan{}, liveSegment{}, false, fmt.Errorf(
+				return ExecutorRef{}, nil, fmt.Errorf(
 					"runs: waiting tree %q has a live registry entry without a handle",
-					rootRunID,
+					root.ID,
 				)
 			}
 			if err := validateCancellationLiveRoot(live, root); err != nil {
-				return cancellationPlan{}, liveSegment{}, false, err
+				return ExecutorRef{}, nil, err
 			}
 			if live.record.ExecutorID != pending.ExecutorID {
-				return cancellationPlan{}, liveSegment{}, false, fmt.Errorf(
+				return ExecutorRef{}, nil, fmt.Errorf(
 					"runs: waiting tree %q live executor %q differs from pending executor %q",
-					rootRunID,
+					root.ID,
 					live.record.ExecutorID,
 					pending.ExecutorID,
 				)
 			}
 		}
+		return ExecutorRef{
+			SessionID:  pending.SessionID,
+			ExecutorID: pending.ExecutorID,
+		}, members, nil
 	default:
-		return cancellationPlan{}, liveSegment{}, false, fmt.Errorf(
+		return ExecutorRef{}, nil, fmt.Errorf(
 			"runs: cancellation root %q has state %s while target %q remains non-terminal",
-			rootRunID,
+			root.ID,
 			root.State,
-			cmd.RunID,
+			targetRunID,
 		)
 	}
+}
 
-	var pendingPlan *Pending
-	if pendingFound {
-		pendingCopy := pending
-		pendingPlan = &pendingCopy
+func (c *Coordinator) loadWaitingCancellationItems(ctx context.Context, plan *cancellationPlan) error {
+	if plan == nil {
+		return errors.New("runs: waiting cancellation plan is required")
 	}
-	plan, err := newCancellationPlan(cmd.RunID, runs, executor, members, pendingPlan)
+	if c.items == nil {
+		return errors.New("runs: transcript item projection is required for waiting child cancellation")
+	}
+	item, found, err := c.items.Item(ctx, plan.target.run.SpawnedByItemID)
 	if err != nil {
-		return cancellationPlan{}, liveSegment{}, false, err
+		return fmt.Errorf(
+			"runs: read spawning Item %q: %w",
+			plan.target.run.SpawnedByItemID,
+			err,
+		)
 	}
-	if plan.treeState == rundomain.Waiting && plan.target.run.Lineage().IsChild() {
-		if c.items == nil {
-			return cancellationPlan{}, liveSegment{}, false, errors.New(
-				"runs: transcript item projection is required for waiting child cancellation",
-			)
+	if !found {
+		return fmt.Errorf(
+			"runs: waiting child Run %q spawning Item %q is missing",
+			plan.target.run.ID,
+			plan.target.run.SpawnedByItemID,
+		)
+	}
+	if err := validateWaitingCancellationSpawningItem(*plan, item); err != nil {
+		return err
+	}
+	plan.spawningItem = item
+	plan.hasSpawningItem = true
+	targetRunIDs := make(map[string]struct{}, len(plan.targetSubtree))
+	for _, member := range plan.targetSubtree {
+		targetRunIDs[member.run.ID] = struct{}{}
+	}
+	for _, request := range plan.pending.Interrupts {
+		if _, targeted := targetRunIDs[request.RunID]; !targeted {
+			continue
 		}
-		item, found, err := c.items.Item(ctx, plan.target.run.SpawnedByItemID)
+		item, found, err := c.items.Item(ctx, request.ItemID)
 		if err != nil {
-			return cancellationPlan{}, liveSegment{}, false, fmt.Errorf(
-				"runs: read spawning Item %q: %w",
-				plan.target.run.SpawnedByItemID,
+			return fmt.Errorf(
+				"runs: read waiting interrupt Item %q for Run %q: %w",
+				request.ItemID,
+				request.RunID,
 				err,
 			)
 		}
 		if !found {
-			return cancellationPlan{}, liveSegment{}, false, fmt.Errorf(
-				"runs: waiting child Run %q spawning Item %q is missing",
-				plan.target.run.ID,
-				plan.target.run.SpawnedByItemID,
+			return fmt.Errorf(
+				"runs: waiting interrupt Item %q for Run %q is missing",
+				request.ItemID,
+				request.RunID,
 			)
 		}
-		if err := validateWaitingCancellationSpawningItem(plan, item); err != nil {
-			return cancellationPlan{}, liveSegment{}, false, err
+		if err := validateWaitingCancellationInterruptItem(*plan, request, item); err != nil {
+			return err
 		}
-		plan.spawningItem = item
-		plan.hasSpawningItem = true
-		targetRunIDs := make(map[string]struct{}, len(plan.targetSubtree))
-		for _, member := range plan.targetSubtree {
-			targetRunIDs[member.run.ID] = struct{}{}
-		}
-		for _, interrupt := range plan.pending.Interrupts {
-			if _, targeted := targetRunIDs[interrupt.RunID]; !targeted {
-				continue
-			}
-			item, found, err := c.items.Item(ctx, interrupt.ItemID)
-			if err != nil {
-				return cancellationPlan{}, liveSegment{}, false, fmt.Errorf(
-					"runs: read waiting interrupt Item %q for Run %q: %w",
-					interrupt.ItemID,
-					interrupt.RunID,
-					err,
-				)
-			}
-			if !found {
-				return cancellationPlan{}, liveSegment{}, false, fmt.Errorf(
-					"runs: waiting interrupt Item %q for Run %q is missing",
-					interrupt.ItemID,
-					interrupt.RunID,
-				)
-			}
-			if err := validateWaitingCancellationInterruptItem(plan, interrupt, item); err != nil {
-				return cancellationPlan{}, liveSegment{}, false, err
-			}
-			plan.targetInterruptItems = append(plan.targetInterruptItems, item)
-		}
+		plan.targetInterruptItems = append(plan.targetInterruptItems, item)
 	}
-	return plan, live, liveFound, nil
+	return nil
 }
 
 func validateWaitingCancellationInterruptItem(

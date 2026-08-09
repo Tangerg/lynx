@@ -43,6 +43,16 @@ type reductionBatch struct {
 	settledToolCallIDs []string
 }
 
+// factReduction is the complete in-memory consequence of one executor fact
+// before Run events are projected into their durable publication shape.
+type factReduction struct {
+	events             []RunEvent
+	modelInvocations   []ModelInvocationCommit
+	toolInvocations    []ToolInvocationCommit
+	settledToolCallIDs []string
+	progress           *RunProgressCommit
+}
+
 type reducerConfig struct {
 	RunID          string
 	SegmentID      string
@@ -273,188 +283,247 @@ func (r *reducer) open() (reductionBatch, error) {
 }
 
 func (r *reducer) reduce(ev ExecutionFact) (reductionBatch, error) {
-	var out []RunEvent
-	var modelInvocations []ModelInvocationCommit
-	var toolInvocations []ToolInvocationCommit
-	var settledToolCallIDs []string
-	var progress *RunProgressCommit
-	switch e := ev.(type) {
-	case MessageDelta:
-		out = r.closeReasoning()
-		out = append(out, r.appendText(e.Text)...)
-	case ReasoningDelta:
-		out = r.closeText()
-		out = append(out, r.appendReasoning(e.Text)...)
-	case AssistantMessageCompleted:
-		if r.lastModelMessage != nil {
-			if !reflect.DeepEqual(*r.lastModelMessage, e.Message) {
-				return reductionBatch{}, fmt.Errorf(
-					"%w: Process final assistant message differs from the last committed model response",
-					errExecutorContract,
-				)
-			}
-			r.lastModelMessage = nil
-			break
-		}
-		var err error
-		out, err = r.completeAssistantMessage(e.Message)
-		if err != nil {
-			return reductionBatch{}, fmt.Errorf("%w: assistant message completion: %w", errExecutorContract, err)
-		}
-	case ModelCallStarted:
-		if strings.TrimSpace(e.CallID) == "" || e.CallID != strings.TrimSpace(e.CallID) {
-			return reductionBatch{}, fmt.Errorf("%w: model call start has an invalid id", errExecutorContract)
-		}
-		if _, duplicate := r.modelCalls[e.CallID]; duplicate {
-			return reductionBatch{}, fmt.Errorf("%w: model call %q started more than once", errExecutorContract, e.CallID)
-		}
-		startedAt := r.now()
-		r.modelCalls[e.CallID] = startedAt
-		modelInvocations = []ModelInvocationCommit{{
-			CallID: e.CallID, SegmentID: r.cfg.SegmentID,
-			State: ModelInvocationStarted, StartedAt: startedAt,
-		}}
-		out = []RunEvent{SegmentProgressed{Progress: RunProgress{Activity: "Calling model"}}}
-	case ModelCallCompleted:
-		if strings.TrimSpace(e.CallID) == "" || e.CallID != strings.TrimSpace(e.CallID) {
-			return reductionBatch{}, fmt.Errorf("%w: model call completion has an invalid id", errExecutorContract)
-		}
-		startedAt, started := r.modelCalls[e.CallID]
-		if !started {
-			return reductionBatch{}, fmt.Errorf("%w: model call %q completed without a start", errExecutorContract, e.CallID)
-		}
-		finishedAt := r.now()
-		if finishedAt.Before(startedAt) {
-			return reductionBatch{}, fmt.Errorf("%w: model call %q completion precedes its start", errExecutorContract, e.CallID)
-		}
-		delete(r.modelCalls, e.CallID)
-		var err error
-		out, err = r.completeModelMessage(e.Message)
-		if err != nil {
-			return reductionBatch{}, fmt.Errorf("%w: model call completion: %w", errExecutorContract, err)
-		}
-		message := e.Message.Clone()
-		r.lastModelMessage = &message
-		progressEvents, err := r.usageProgress(UsageReported{
-			TokenUsage: e.TokenUsage, ByModel: e.ByModel, CostUSD: e.CostUSD,
-			Steps: e.Steps, ContextTokens: e.ContextTokens,
-		})
-		if err != nil {
-			return reductionBatch{}, fmt.Errorf("%w: model call usage: %w", errExecutorContract, err)
-		}
-		out = append(out, progressEvents...)
-		modelInvocations = []ModelInvocationCommit{{
-			CallID: e.CallID, SegmentID: r.cfg.SegmentID,
-			State: ModelInvocationCompleted, StartedAt: startedAt, FinishedAt: finishedAt,
-		}}
-		progress = &RunProgressCommit{
-			SegmentID: r.cfg.SegmentID, Metrics: r.metrics(), UpdatedAt: finishedAt,
-		}
-	case ModelCallFailed:
-		if strings.TrimSpace(e.CallID) == "" || e.CallID != strings.TrimSpace(e.CallID) {
-			return reductionBatch{}, fmt.Errorf("%w: model call failure has an invalid id", errExecutorContract)
-		}
-		startedAt, started := r.modelCalls[e.CallID]
-		if !started {
-			return reductionBatch{}, fmt.Errorf("%w: model call %q failed without a start", errExecutorContract, e.CallID)
-		}
-		finishedAt := r.now()
-		if finishedAt.Before(startedAt) {
-			return reductionBatch{}, fmt.Errorf("%w: model call %q failure precedes its start", errExecutorContract, e.CallID)
-		}
-		delete(r.modelCalls, e.CallID)
-		modelInvocations = []ModelInvocationCommit{{
-			CallID: e.CallID, SegmentID: r.cfg.SegmentID,
-			State: ModelInvocationFailed, StartedAt: startedAt, FinishedAt: finishedAt,
-		}}
-		out = []RunEvent{SegmentProgressed{Progress: RunProgress{Activity: "Model call failed"}}}
-	case ToolCallStarted:
-		var err error
-		out, err = r.toolStart(e)
-		if err != nil {
-			return reductionBatch{}, fmt.Errorf("%w: tool call start: %w", errExecutorContract, err)
-		}
-		if ref := r.tools[e.CallID]; ref != nil && ref.modelCallSequence > 0 {
-			toolInvocations = []ToolInvocationCommit{{
-				CallID: ref.callID, ItemID: ref.id, SegmentID: r.cfg.SegmentID,
-				State: ToolInvocationStarted, StartedAt: ref.attemptStartedAt,
-			}}
-		}
-	case ToolCallFinished:
-		var err error
-		out, toolInvocations, err = r.toolEnd(e)
-		if err != nil {
-			return reductionBatch{}, fmt.Errorf("%w: tool call end: %w", errExecutorContract, err)
-		}
-		settledToolCallIDs = make([]string, len(toolInvocations))
-		for index, invocation := range toolInvocations {
-			settledToolCallIDs[index] = invocation.CallID
-		}
-	case UsageReported:
-		var err error
-		out, err = r.usageProgress(e)
-		if err != nil {
-			return reductionBatch{}, fmt.Errorf("%w: usage report: %w", errExecutorContract, err)
-		}
-	case SteerMessage:
-		out = r.steerMessage(e)
-	case PlanUpdated:
-		out = r.planSnapshot(e)
-	case CompactionBoundary:
-		out = r.compaction(e)
-	case SegmentInterrupted:
-		var err error
-		out, err = r.interrupt(e)
-		if err != nil {
-			return reductionBatch{}, fmt.Errorf("%w: interrupt: %w", errExecutorContract, err)
-		}
-	case SegmentEnded:
-		if len(r.modelCalls) > 0 && e.Reason != run.OutcomeLost {
-			return reductionBatch{}, fmt.Errorf(
-				"%w: segment ended with %d unsettled model calls",
-				errExecutorContract,
-				len(r.modelCalls),
-			)
-		}
-		if e.Reason == run.OutcomeLost {
-			finishedAt := r.now()
-			callIDs := make([]string, 0, len(r.modelCalls))
-			for callID := range r.modelCalls {
-				callIDs = append(callIDs, callID)
-			}
-			slices.Sort(callIDs)
-			modelInvocations = make([]ModelInvocationCommit, 0, len(callIDs))
-			for _, callID := range callIDs {
-				startedAt := r.modelCalls[callID]
-				if finishedAt.Before(startedAt) {
-					return reductionBatch{}, fmt.Errorf("%w: model call %q loss precedes its start", errExecutorContract, callID)
-				}
-				modelInvocations = append(modelInvocations, ModelInvocationCommit{
-					CallID: callID, SegmentID: r.cfg.SegmentID,
-					State: ModelInvocationUnknown, StartedAt: startedAt, FinishedAt: finishedAt,
-				})
-			}
-			clear(r.modelCalls)
-		}
-		openTools := r.tools.ordered()
-		var err error
-		out, err = r.segmentEnd(e)
-		if err != nil {
-			return reductionBatch{}, fmt.Errorf("%w: segment end: %w", errExecutorContract, err)
-		}
-		toolInvocations = closedToolInvocationCommits(r.cfg.SegmentID, openTools)
-	default:
-		return reductionBatch{}, fmt.Errorf("%w: unhandled event %T", errExecutorContract, ev)
-	}
-	batch, err := r.project(out)
+	reduced, err := r.reduceFact(ev)
 	if err != nil {
 		return reductionBatch{}, err
 	}
-	batch.settledToolCallIDs = slices.Clone(settledToolCallIDs)
-	if err := r.attachDurableObservation(&batch, modelInvocations, toolInvocations, progress); err != nil {
+	batch, err := r.project(reduced.events)
+	if err != nil {
+		return reductionBatch{}, err
+	}
+	batch.settledToolCallIDs = slices.Clone(reduced.settledToolCallIDs)
+	if err := r.attachDurableObservation(
+		&batch,
+		reduced.modelInvocations,
+		reduced.toolInvocations,
+		reduced.progress,
+	); err != nil {
 		return reductionBatch{}, err
 	}
 	return batch, nil
+}
+
+func (r *reducer) reduceFact(ev ExecutionFact) (factReduction, error) {
+	switch e := ev.(type) {
+	case MessageDelta:
+		events := r.closeReasoning()
+		return factReduction{events: append(events, r.appendText(e.Text)...)}, nil
+	case ReasoningDelta:
+		events := r.closeText()
+		return factReduction{events: append(events, r.appendReasoning(e.Text)...)}, nil
+	case AssistantMessageCompleted:
+		return r.reduceAssistantMessage(e)
+	case ModelCallStarted:
+		return r.startModelCall(e)
+	case ModelCallCompleted:
+		return r.completeModelCall(e)
+	case ModelCallFailed:
+		return r.failModelCall(e)
+	case ToolCallStarted:
+		return r.startToolCall(e)
+	case ToolCallFinished:
+		return r.finishToolCall(e)
+	case UsageReported:
+		events, err := r.usageProgress(e)
+		if err != nil {
+			return factReduction{}, fmt.Errorf("%w: usage report: %w", errExecutorContract, err)
+		}
+		return factReduction{events: events}, nil
+	case SteerMessage:
+		return factReduction{events: r.steerMessage(e)}, nil
+	case PlanUpdated:
+		return factReduction{events: r.planSnapshot(e)}, nil
+	case CompactionBoundary:
+		return factReduction{events: r.compaction(e)}, nil
+	case SegmentInterrupted:
+		events, err := r.interrupt(e)
+		if err != nil {
+			return factReduction{}, fmt.Errorf("%w: interrupt: %w", errExecutorContract, err)
+		}
+		return factReduction{events: events}, nil
+	case SegmentEnded:
+		return r.endSegment(e)
+	default:
+		return factReduction{}, fmt.Errorf("%w: unhandled event %T", errExecutorContract, ev)
+	}
+}
+
+func (r *reducer) reduceAssistantMessage(completed AssistantMessageCompleted) (factReduction, error) {
+	if r.lastModelMessage != nil {
+		if !reflect.DeepEqual(*r.lastModelMessage, completed.Message) {
+			return factReduction{}, fmt.Errorf(
+				"%w: Process final assistant message differs from the last committed model response",
+				errExecutorContract,
+			)
+		}
+		r.lastModelMessage = nil
+		return factReduction{}, nil
+	}
+	events, err := r.completeAssistantMessage(completed.Message)
+	if err != nil {
+		return factReduction{}, fmt.Errorf("%w: assistant message completion: %w", errExecutorContract, err)
+	}
+	return factReduction{events: events}, nil
+}
+
+func (r *reducer) startModelCall(started ModelCallStarted) (factReduction, error) {
+	if strings.TrimSpace(started.CallID) == "" || started.CallID != strings.TrimSpace(started.CallID) {
+		return factReduction{}, fmt.Errorf("%w: model call start has an invalid id", errExecutorContract)
+	}
+	if _, duplicate := r.modelCalls[started.CallID]; duplicate {
+		return factReduction{}, fmt.Errorf("%w: model call %q started more than once", errExecutorContract, started.CallID)
+	}
+	startedAt := r.now()
+	r.modelCalls[started.CallID] = startedAt
+	return factReduction{
+		events: []RunEvent{SegmentProgressed{Progress: RunProgress{Activity: "Calling model"}}},
+		modelInvocations: []ModelInvocationCommit{{
+			CallID: started.CallID, SegmentID: r.cfg.SegmentID,
+			State: ModelInvocationStarted, StartedAt: startedAt,
+		}},
+	}, nil
+}
+
+func (r *reducer) completeModelCall(completed ModelCallCompleted) (factReduction, error) {
+	if strings.TrimSpace(completed.CallID) == "" || completed.CallID != strings.TrimSpace(completed.CallID) {
+		return factReduction{}, fmt.Errorf("%w: model call completion has an invalid id", errExecutorContract)
+	}
+	startedAt, started := r.modelCalls[completed.CallID]
+	if !started {
+		return factReduction{}, fmt.Errorf("%w: model call %q completed without a start", errExecutorContract, completed.CallID)
+	}
+	finishedAt := r.now()
+	if finishedAt.Before(startedAt) {
+		return factReduction{}, fmt.Errorf(
+			"%w: model call %q completion precedes its start",
+			errExecutorContract,
+			completed.CallID,
+		)
+	}
+	delete(r.modelCalls, completed.CallID)
+	events, err := r.completeModelMessage(completed.Message)
+	if err != nil {
+		return factReduction{}, fmt.Errorf("%w: model call completion: %w", errExecutorContract, err)
+	}
+	message := completed.Message.Clone()
+	r.lastModelMessage = &message
+	progressEvents, err := r.usageProgress(UsageReported{
+		TokenUsage: completed.TokenUsage, ByModel: completed.ByModel, CostUSD: completed.CostUSD,
+		Steps: completed.Steps, ContextTokens: completed.ContextTokens,
+	})
+	if err != nil {
+		return factReduction{}, fmt.Errorf("%w: model call usage: %w", errExecutorContract, err)
+	}
+	return factReduction{
+		events: append(events, progressEvents...),
+		modelInvocations: []ModelInvocationCommit{{
+			CallID: completed.CallID, SegmentID: r.cfg.SegmentID,
+			State: ModelInvocationCompleted, StartedAt: startedAt, FinishedAt: finishedAt,
+		}},
+		progress: &RunProgressCommit{
+			SegmentID: r.cfg.SegmentID, Metrics: r.metrics(), UpdatedAt: finishedAt,
+		},
+	}, nil
+}
+
+func (r *reducer) failModelCall(failed ModelCallFailed) (factReduction, error) {
+	if strings.TrimSpace(failed.CallID) == "" || failed.CallID != strings.TrimSpace(failed.CallID) {
+		return factReduction{}, fmt.Errorf("%w: model call failure has an invalid id", errExecutorContract)
+	}
+	startedAt, started := r.modelCalls[failed.CallID]
+	if !started {
+		return factReduction{}, fmt.Errorf("%w: model call %q failed without a start", errExecutorContract, failed.CallID)
+	}
+	finishedAt := r.now()
+	if finishedAt.Before(startedAt) {
+		return factReduction{}, fmt.Errorf(
+			"%w: model call %q failure precedes its start",
+			errExecutorContract,
+			failed.CallID,
+		)
+	}
+	delete(r.modelCalls, failed.CallID)
+	return factReduction{
+		events: []RunEvent{SegmentProgressed{Progress: RunProgress{Activity: "Model call failed"}}},
+		modelInvocations: []ModelInvocationCommit{{
+			CallID: failed.CallID, SegmentID: r.cfg.SegmentID,
+			State: ModelInvocationFailed, StartedAt: startedAt, FinishedAt: finishedAt,
+		}},
+	}, nil
+}
+
+func (r *reducer) startToolCall(started ToolCallStarted) (factReduction, error) {
+	events, err := r.toolStart(started)
+	if err != nil {
+		return factReduction{}, fmt.Errorf("%w: tool call start: %w", errExecutorContract, err)
+	}
+	reduced := factReduction{events: events}
+	if ref := r.tools[started.CallID]; ref != nil && ref.modelCallSequence > 0 {
+		reduced.toolInvocations = []ToolInvocationCommit{{
+			CallID: ref.callID, ItemID: ref.id, SegmentID: r.cfg.SegmentID,
+			State: ToolInvocationStarted, StartedAt: ref.attemptStartedAt,
+		}}
+	}
+	return reduced, nil
+}
+
+func (r *reducer) finishToolCall(finished ToolCallFinished) (factReduction, error) {
+	events, invocations, err := r.toolEnd(finished)
+	if err != nil {
+		return factReduction{}, fmt.Errorf("%w: tool call end: %w", errExecutorContract, err)
+	}
+	settledCallIDs := make([]string, len(invocations))
+	for index, invocation := range invocations {
+		settledCallIDs[index] = invocation.CallID
+	}
+	return factReduction{
+		events: events, toolInvocations: invocations, settledToolCallIDs: settledCallIDs,
+	}, nil
+}
+
+func (r *reducer) endSegment(ended SegmentEnded) (factReduction, error) {
+	if len(r.modelCalls) > 0 && ended.Reason != run.OutcomeLost {
+		return factReduction{}, fmt.Errorf(
+			"%w: segment ended with %d unsettled model calls",
+			errExecutorContract,
+			len(r.modelCalls),
+		)
+	}
+	modelInvocations, err := r.closeLostModelCalls(ended.Reason)
+	if err != nil {
+		return factReduction{}, err
+	}
+	openTools := r.tools.ordered()
+	events, err := r.segmentEnd(ended)
+	if err != nil {
+		return factReduction{}, fmt.Errorf("%w: segment end: %w", errExecutorContract, err)
+	}
+	return factReduction{
+		events:           events,
+		modelInvocations: modelInvocations,
+		toolInvocations:  closedToolInvocationCommits(r.cfg.SegmentID, openTools),
+	}, nil
+}
+
+func (r *reducer) closeLostModelCalls(outcome run.Outcome) ([]ModelInvocationCommit, error) {
+	if outcome != run.OutcomeLost {
+		return nil, nil
+	}
+	finishedAt := r.now()
+	callIDs := slices.Sorted(maps.Keys(r.modelCalls))
+	invocations := make([]ModelInvocationCommit, 0, len(callIDs))
+	for _, callID := range callIDs {
+		startedAt := r.modelCalls[callID]
+		if finishedAt.Before(startedAt) {
+			return nil, fmt.Errorf("%w: model call %q loss precedes its start", errExecutorContract, callID)
+		}
+		invocations = append(invocations, ModelInvocationCommit{
+			CallID: callID, SegmentID: r.cfg.SegmentID,
+			State: ModelInvocationUnknown, StartedAt: startedAt, FinishedAt: finishedAt,
+		})
+	}
+	clear(r.modelCalls)
+	return invocations, nil
 }
 
 func (r *reducer) attachDurableObservation(
