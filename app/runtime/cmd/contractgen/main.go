@@ -1,11 +1,11 @@
 // Command contractgen writes the machine-readable projection of the Contract
 // Registry.
 //
-// It lives OUTSIDE the ring architecture on purpose (vNext plan D3): it reads the
-// delivery ring's method and shape specs and the application ring's system
-// invariants, which no runtime component may do in that combination. A code
-// generator is not in the runtime's import graph, so the layering rule — which
-// constrains that graph — does not apply to it.
+// It lives outside the runtime ring architecture: it reads the delivery ring's
+// method and shape specs together with the application ring's system invariants,
+// which no runtime component may do. A code generator is not in the runtime's
+// import graph, so the layering rule that constrains that graph does not apply to
+// it.
 //
 // Run it through `go generate ./...`. CI's drift gate reruns it and fails on a
 // worktree diff (contract §11.4 gate 1): that is the only mechanism that notices

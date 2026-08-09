@@ -1,6 +1,6 @@
 # Lyra Runtime 重构实施计划
 
-> 状态：P11 已完成；正在执行 P12 全量质量验收与消费者移交
+> 状态：P1–P12 已完成；服务端与 Agent Framework 自洽，消费者接线留给独立专项
 >
 > 工作方式：原模块内治本重构，按可验证纵切分批完成；不创建完整 `runtime2`
 
@@ -44,7 +44,7 @@
 | P9 | Adapter/Infra/共享原语/Delivery 结构收敛 | P8 | 已完成 |
 | P10 | 协议、生成物与服务端 API 收口 | P9 | 已完成 |
 | P11 | 原框架实现删除与唯一模块名替换 | P10 | 已完成 |
-| P12 | 全量质量验收与消费者接线移交 | P11 | 进行中 |
+| P12 | 全量质量验收与消费者接线移交 | P11 | 已完成 |
 
 ## 4. P0 — 文档、事实和边界基线
 
@@ -266,7 +266,7 @@
 
 ### 完成事实
 
-- Native Interaction 只通过 public pending-input helper、`TreeSnapshot`/`RestoreTree`、typed response/steer Signal 实现 waiting/restore；`interactioninput` 与 framework-neutral `interruptcodec` 已从旧 suspension adapter 治本分离，新路径对 old Agent 零 import；
+- Native Interaction 只通过 public pending-input helper、`TreeSnapshot`/`RestoreTree`、typed response/steer Signal 实现 waiting/restore；P12 将只有单一消费者的 codec 子包及重复 decoder 收回唯一 `interactioninput` ACL，新路径对旧 Agent 零 import；
 - quiescent waiting reconciliation 从 public Process status + Strategy helper 捕获完整 tree，并将 opaque TreeSnapshot、Pending、Run/Items 作为 Application tree barrier 原子提交；Runtime 未配置 `PreparedStepAcknowledger`，unknown Effect 无法被捕获为 recovery point；
 - `ClaimResume` 在 SQLite epoch 62 内原子记录答案、`open -> resuming` 并删除旧 checkpoint。Continuation opening 必须在事务内 `RequireResumeClaim`；下一 barrier 只有 exact Session/executor/root-member owner 可以替换，terminal/boot recovery 删除 hidden claim；
 - continuation 使用 `StageContinuation`/`BeginContinuation`：live waiting tree 必须匹配已提交 checkpoint，cold restore 必须匹配 BuildID、Host scope、TreeSnapshot root/status、exact DeploymentRef 与 active WaitID；Application opening commit 早于 Signal；
@@ -425,14 +425,14 @@
 
 ### 验收矩阵
 
-- `go mod tidy`/workspace diff；
-- 全 workspace build/vet/staticcheck；
-- Runtime 普通测试、race、相关 fuzz；
-- Agent Framework standalone 普通测试、race、fuzz、examples；
-- SQLite fresh schema、HTTP/SSE、in-process、recovery、rollback；
-- architecture DAG、API/contract/wire baseline；
-- 旧名称、旧 import、compat codec、空目录、TODO 和漂移注释扫描；
-- 前端/TUI/CLI breaking surface handoff 文档。
+- [x] Agent Framework 与 Runtime standalone `go mod tidy -diff` 为零，workspace 与 standalone 解析同一 canonical Framework source；
+- [x] root/Agent Framework/Runtime 受影响后端 module 的 workspace build/vet/test；Agent Framework 与 Runtime standalone staticcheck、完整 lint；
+- [x] Runtime 禁用缓存普通测试、完整 race 和 continuation/prompt/resolution 三个 strict-codec fuzz owner；
+- [x] Agent Framework standalone 禁用缓存普通测试、完整 race、13 个 fuzz owner和 8 个真实 command examples；
+- [x] SQLite fresh schema、HTTP/SSE、in-process、waiting/restore/recovery/rollback 高风险矩阵在 race 下重复验证；
+- [x] architecture DAG、Agent API/wire baseline、Runtime protocol/contract/schema digest 和 generator 零漂移；
+- [x] 旧名称、旧 import、compat codec、空目录、tracked 空文件、TODO/FIXME/HACK、死代码、漂移注释与失效本地文档链接扫描；
+- [x] 前端/TUI/CLI breaking surface 由 [`CONSUMER_HANDOFF.md`](CONSUMER_HANDOFF.md) 精确移交，未修改消费者实现。
 
 完成 P12 只表示服务端和 Agent Framework 自洽。消费者接线完成后才能宣称整个产品迁移完成。
 
@@ -440,6 +440,7 @@
 
 | 日期 | 阶段 | 完成事实 | 验证 |
 |---|---|---|---|
+| 2026-08-09 | P12（final acceptance） | 完成 Runtime/Agent Framework 最终质量矩阵；将已完成工具规范从迁移名收敛为唯一 `TOOL_SYSTEM.md`，清除源码/测试中的模糊 vNext 术语；发现并修正 Contract Baseline 的 SQLite epoch 62→64 漂移并建立永久测试守卫；把单一消费者 `interruptcodec`、转发函数和重复 decoder 收回唯一 `interactioninput` ACL。strict continuation codec 现在拒绝大小写 alias、duplicate/unknown field 和 trailing value，并规范化空集合；fuzz 找到的两个反例作为 regression corpus 保留 | Runtime standalone tidy-diff/build/vet/staticcheck、完整 lint、禁用缓存全量 test/race 全绿；3 个 Runtime fuzz owner 单轮执行约 84 万次。Agent Framework standalone 同等门禁全绿，13 个 fuzz owner单轮约 320 万次、8 个 examples 全部实跑。SQLite/HTTP/SSE/in-process/recovery/rollback 关键矩阵在 race 下重复 10 次；root module build/vet/test、contract generator/digest、architecture/API/wire baseline、文档本地链接和最终 hygiene scan 全部通过。P12 完成；消费者仍按 handoff 独立接线 |
 | 2026-08-09 | P12（zero-debt audit） | 完整 lint 发现并清除两处嵌入字段冗余选择器和一处复合字面量格式漂移；删除 1935 行已完成架构清洗台账及其索引，把历史实施事实归还 Git，避免已删除类型以“历史文档”形式继续形成第二真相源。当前六份重构 owner、工具规范与带日期外部证据各守唯一职责 | Runtime/Agent Framework `gofmt` 与 `golangci fmt` 零漂移；Runtime `golangci-lint` 零问题、`deadcode -test` 零内部死代码；tracked production TODO/FIXME/HACK、旧 Framework path/类型、旧 replay scope、空文件和空目录扫描为零。P12 继续执行全量行为矩阵 |
 | 2026-08-09 | P11（publication completion） | canonical source commit 发布后，Runtime standalone 依赖绑定真实 `github.com/Tangerg/lynx/agent v0.0.0-20260809043847-2590dbc81a1f`；关闭 workspace 与本地 workspace 均消费同一 Baseline 15 源码，未建立 `replace`、alias module、临时 path 或双 Framework 路径 | Runtime `GOWORK=off` tidy-diff/build/vet/staticcheck/test/race 全绿；Agent Framework standalone 与 Runtime workspace 门禁全绿，P11 完成 |
 | 2026-08-09 | P11（canonical source publication） | 删除原框架 module，把绿色重写实现安装为唯一 `agent` module；Runtime imports、workspace metadata、architecture guards、Baseline 15 和直接受影响文档同步。删除已完成迁移后仍描述 `agent/runtime`、`agentexec/turn` 的 execution/port 快照，不保留第二套现状 | Agent Framework standalone tidy-diff/build/vet/staticcheck/test/race 全绿；Runtime workspace 全量 test 通过。Runtime standalone 依赖将在 canonical source commit 推送后立即绑定其真实 pseudo-version，故 P11 当前为 4/5 |
@@ -460,4 +461,4 @@
 
 ## 18. 当前下一步
 
-P11 已完成：原框架实现和临时 module 均已删除，绿色重写实现是唯一 `agent` module，Runtime standalone 已绑定真实发布版本。当前进入 P12，只做服务端与 Framework 的全量质量验收、坏味道清零和消费者 breaking-surface 精确移交；仍不修改前端、TUI 或 CLI。
+P1–P12 服务端重构已经完成：Runtime 与唯一 `agent` Framework 的源码、standalone module、持久化、协议、恢复和架构边界均已通过最终门禁，迁移路径、第二真相源与已发现坏味道已清零。下一步只有 [`CONSUMER_HANDOFF.md`](CONSUMER_HANDOFF.md) 记录的前端/TUI/CLI 独立接线；不得为消费者恢复 alias、dual field 或旧 Framework 路径。

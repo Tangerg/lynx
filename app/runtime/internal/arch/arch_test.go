@@ -2084,7 +2084,7 @@ func moduleRoot(t *testing.T) string {
 }
 
 // TestSystemInvariantsStayInApplication keeps cross-resource invariants out of
-// the wire ring (vNext plan D3). An invariant.Spec names a fact that spans
+// the wire ring. An invariant.Spec names a fact that spans
 // runs, interrupts and the store, and it points at the invariant.Boundary responsible
 // for it — neither of which delivery can see. Two things go wrong if delivery
 // names one: the wire layer starts asserting business facts, and the application

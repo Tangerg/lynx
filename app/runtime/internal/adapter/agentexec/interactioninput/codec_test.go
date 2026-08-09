@@ -1,4 +1,4 @@
-package interruptcodec
+package interactioninput
 
 import (
 	"encoding/json"
@@ -69,6 +69,9 @@ func TestDecodePromptDiscriminatesAndRejectsGuesses(t *testing.T) {
 		[]byte(`{"kind":"approval","approval":{"toolName":"shell","arguments":"not-json","safetyClass":"exec"}}`),
 		[]byte(`{"kind":"approval","approval":{"toolName":"shell","arguments":"{}","safetyClass":"future"}}`),
 		[]byte(`{"kind":"approval","approval":{"toolName":"shell","arguments":"{}","safetyClass":"exec","risk":"critical"}}`),
+		[]byte(`{"Kind":"approval","approval":{"toolName":"shell","arguments":"{}","safetyClass":"exec"}}`),
+		[]byte(`{"kind":"approval","approval":{"ToolName":"shell","arguments":"{}","safetyClass":"exec"}}`),
+		[]byte(`{"kind":"approval","kind":"question","approval":{"toolName":"shell","arguments":"{}","safetyClass":"exec"}}`),
 	} {
 		if _, err := DecodePrompt(raw); err == nil {
 			t.Errorf("DecodePrompt(%s) succeeded, want error", raw)
@@ -94,9 +97,27 @@ func TestResolutionCodecUsesAgentWireVocabulary(t *testing.T) {
 	if _, found := wire["Approved"]; found {
 		t.Fatalf("response leaked Go field name: %#v", wire)
 	}
+	if _, err := DecodeResolution([]byte(`{"Answers":[]}`)); err == nil {
+		t.Fatal("DecodeResolution accepted a case-insensitive Go field name")
+	}
+	if _, err := DecodeResolution([]byte(`{"approved":true,"approved":false}`)); err == nil {
+		t.Fatal("DecodeResolution accepted a duplicate field")
+	}
 	decoded, err := DecodeResolution(raw)
 	if err != nil || decoded.RememberScope != approval.ScopeSession ||
 		len(decoded.Answers) != 1 || len(decoded.Answers[0]) != 1 || decoded.Answers[0][0] != "yes" {
 		t.Fatalf("DecodeResolution = %#v, %v", decoded, err)
+	}
+}
+
+func TestContinuationCodecRejectsAliasesAndDuplicates(t *testing.T) {
+	for _, raw := range [][]byte{
+		[]byte(`{"SchemaVersion":1}`),
+		[]byte(`{"schema_version":1,"schema_version":2}`),
+	} {
+		var continuation continuationWire
+		if err := decode(raw, &continuation); err == nil {
+			t.Errorf("decode(%s) succeeded, want error", raw)
+		}
 	}
 }

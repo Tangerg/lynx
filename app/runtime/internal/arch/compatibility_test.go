@@ -354,9 +354,10 @@ func diffShapeProperties(name string, previous, current releaseShape, out *compa
 // as breaking.
 //
 // The assertion is not "something is breaking" — one renamed field would satisfy
-// that. vNext reshaped the method surface, the closed topic set, the error registry,
-// the shapes and several unions, and each has to show up, because a differ blind to
-// one category would pass this release while ignoring that category forever.
+// that. The current protocol release reshaped the method surface, the closed topic
+// set, the error registry, the shapes and several unions, and each has to show up,
+// because a differ blind to one category would pass this release while ignoring
+// that category forever.
 func TestReleaseIsBreaking(t *testing.T) {
 	diff := diffReleases(t)
 	if len(diff.breaking) == 0 {
@@ -370,7 +371,7 @@ func TestReleaseIsBreaking(t *testing.T) {
 		{"a union's variants", "union "},
 	} {
 		if !slices.ContainsFunc(diff.breaking, func(entry string) bool { return strings.Contains(entry, category.needle) }) {
-			t.Errorf("the diff reports nothing breaking about %s; vNext changed it", category.name)
+			t.Errorf("the diff reports nothing breaking about %s; the current release changed it", category.name)
 		}
 	}
 	if len(diff.compatible) == 0 {
@@ -420,7 +421,7 @@ func TestDifferCallsAnUnchangedContractCompatible(t *testing.T) {
 
 // TestDifferSeparatesAdditiveChangesFromBreakingOnes pins the classification itself,
 // one synthetic pair per rule. The release diff cannot do this: it is a single pair,
-// so it only exercises whichever rules vNext happened to trip.
+// so it only exercises the rules the current release happened to trip.
 func TestDifferSeparatesAdditiveChangesFromBreakingOnes(t *testing.T) {
 	for _, tt := range []struct {
 		name     string

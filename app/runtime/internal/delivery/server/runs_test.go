@@ -12,7 +12,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
-// TestSubscribeRun_AttachesToTheAddressedSegment verifies the vNext subscribe
+// TestSubscribeRun_AttachesToTheAddressedSegment verifies the current subscribe
 // semantics: the request names a segment, the ack names the position the tail
 // starts after, and a request that addresses something else is refused by name.
 //

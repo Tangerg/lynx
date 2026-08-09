@@ -308,7 +308,7 @@
 
 ## ADR-RT-048：Native waiting 只经 Interaction pending-input ACL，不兼容解释旧 suspension
 
-- 状态：已接受，P6 已实施。
+- 状态：已接受，P6 已实施；codec 的物理拆包决定由 ADR-RT-051 取代。
 - 背景：产品 ask-user、approval 和 plan-exit 共享 `runs.Interrupt` 语义，但旧生产 owner 使用 old Agent suspension。若 native Interaction 复用旧 package、双读 old private JSON，或让 Toolset import Agent Framework，就会把迁移兼容性变成新的永久边界。
 - 决策：framework-neutral `interruptcodec` 只编码产品 prompt/resolution；`interactioninput` 是唯一 Agent Framework ACL，负责 capability freeze、Tool continuation state digest、public pending input 和 response Signal。旧 private suspension adapter 已在 P8 删除；Toolset 通过 `runs.InterruptFunc` 注入 native capability，保持对 Framework 零依赖。
 - 决策：Interactive approval 首次进入时冻结 effective arguments、policy prompt 与 logical call identity；restore 直接解析该 prompt 并 resolve，不能重跑 pre-hook/authorization plan。Interaction 自己的 deferred advertisement 留在 TreeSnapshot 内，Runtime 不建第二份 advertised-tool 状态。
@@ -327,3 +327,10 @@
 - 背景：让通用 Toolset 返回 Agent Framework ToolGroup、持有 delegate Tool，或 fallback 到某个 ToolLoop，会把执行策略和 private lifecycle 扩散进产品工具目录，并形成第二份 visible/deferred authority。
 - 决策：`toolset.Resolver` 只返回 framework-neutral `Manifest{Visible, Deferred}`；需要动态广告的 Tool 只依赖最小 `ToolAdvertiser` capability。agentexec 在真实 Interaction invocation context 中绑定 `AdvertiseTools`，无绑定时 fail closed，不保留 legacy fallback。
 - 后果：Tool schema、authorization 与 visibility 仍由 Runtime 单一 owner 管理；Agent Framework 只在冻结的 Deployment 内执行/广告工具，Toolset 对 Agent Framework 零 import。
+
+## ADR-RT-051：Interaction input ACL 统一拥有 continuation codec
+
+- 状态：已接受，P12 已实施；取代 ADR-RT-048 中把 prompt/resolution codec 拆成独立子包的物理组织，不改变 waiting 领域边界。
+- 背景：`interruptcodec` 只有 `interactioninput` 一个生产消费者，却额外形成一个单边 package，并让两个 package 各自维护一套 strict JSON decoder。P12 fuzz 进一步证明标准 `encoding/json` 会把 `Answers` 当作 `answers` 接受，并让空 answers 在第一次与第二次 round-trip 间产生 non-nil/nil 双表示；“拆包保持 framework-neutral”没有换来独立变化轴，反而分裂了同一个 continuation contract。
+- 决策：`interactioninput` 唯一拥有 capability freeze、Tool continuation identity、prompt/resolution wire、pending input 和 response Signal。其 decoder 递归拒绝大小写别名、未知字段和 trailing value，成功值在进入产品 `Interrupt`/`Resolution` 前规范化空集合。删除 `interruptcodec` package、转发函数和第二 decoder；Toolset 仍只依赖 `runs.InterruptFunc`，Domain/Product 值仍不认识 Agent Framework 或 JSON。
+- 后果：一个 package 对一个变化原因负责，pending continuation、prompt 与 resolution 共用同一 strict contract；单元测试和三个 fuzz owner 同时守住 exact field name、canonical round-trip 与任意输入不 panic。这个收敛没有把 Runtime persistence、transaction、Run 或 UI 抽象带入 Agent Framework。

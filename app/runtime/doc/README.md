@@ -34,7 +34,7 @@
 
 | 文档 | 地位 |
 |---|---|
-| [TOOL_SYSTEM_VNEXT.md](TOOL_SYSTEM_VNEXT.md) | 当前工具体系的唯一模型工具词汇、schema、能力删除和工具专项实施事实；新架构只引用其 Tool/Agent 边界，不复制工具目录 |
+| [TOOL_SYSTEM.md](TOOL_SYSTEM.md) | 当前工具体系的唯一模型工具词汇、schema、能力删除和工具专项实施事实；架构文档只引用其 Tool/Agent 边界，不复制工具目录 |
 
 ## D. 外部参考
 

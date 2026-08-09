@@ -10,11 +10,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"slices"
 
 	"github.com/Tangerg/lynx/agent/interaction"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/interruptcodec"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
 )
@@ -80,18 +78,18 @@ func Restore(ctx context.Context) (Continuation, bool, error) {
 	if state.SchemaVersion != continuationSchemaVersion || state.Key == "" || !json.Valid(state.Prompt) {
 		return Continuation{}, true, errors.New("agentexec interaction input: invalid continuation identity or prompt")
 	}
-	prompt, err := interruptcodec.DecodePrompt(state.Prompt)
+	prompt, err := DecodePrompt(state.Prompt)
 	if err != nil {
 		return Continuation{}, true, fmt.Errorf("agentexec interaction input: restore prompt: %w", err)
 	}
-	canonicalPrompt, err := interruptcodec.EncodePrompt(prompt)
+	canonicalPrompt, err := EncodePrompt(prompt)
 	if err != nil {
 		return Continuation{}, true, fmt.Errorf("agentexec interaction input: normalize restored prompt: %w", err)
 	}
 	if state.PromptDigest != promptDigest(canonicalPrompt) {
 		return Continuation{}, true, errors.New("agentexec interaction input: continuation prompt digest differs")
 	}
-	resolution, err := interruptcodec.DecodeResolution(continuation.Response())
+	resolution, err := DecodeResolution(continuation.Response())
 	if err != nil {
 		return Continuation{}, true, err
 	}
@@ -114,7 +112,7 @@ func Require(ctx context.Context, key string, prompt runs.Interrupt) (interrupt.
 			prompt.Kind,
 		)
 	}
-	promptJSON, err := interruptcodec.EncodePrompt(prompt)
+	promptJSON, err := EncodePrompt(prompt)
 	if err != nil {
 		return interrupt.Resolution{}, err
 	}
@@ -126,7 +124,7 @@ func Require(ctx context.Context, key string, prompt runs.Interrupt) (interrupt.
 		if continued.Key != key {
 			return interrupt.Resolution{}, errors.New("agentexec interaction input: continuation addresses another request")
 		}
-		storedJSON, err := interruptcodec.EncodePrompt(continued.Interrupt)
+		storedJSON, err := EncodePrompt(continued.Interrupt)
 		if err != nil || !bytes.Equal(storedJSON, promptJSON) {
 			return interrupt.Resolution{}, errors.New("agentexec interaction input: prompt changed during continuation")
 		}
@@ -144,18 +142,6 @@ func Require(ctx context.Context, key string, prompt runs.Interrupt) (interrupt.
 	return interrupt.Resolution{}, interaction.RequireToolInput(promptJSON, resolutionSchema, stateJSON)
 }
 
-// DecodePrompt translates an Agent Framework public pending-input prompt to its product
-// Interrupt value.
-func DecodePrompt(raw []byte) (runs.Interrupt, error) {
-	return interruptcodec.DecodePrompt(raw)
-}
-
-// EncodeResolution translates one validated product answer to the Agent Framework
-// response payload checked by the pending input's schema.
-func EncodeResolution(resolution interrupt.Resolution) (json.RawMessage, error) {
-	return interruptcodec.EncodeResolution(resolution)
-}
-
 func capabilityPolicyFrom(ctx context.Context) (capabilityPolicy, bool) {
 	if ctx == nil {
 		return capabilityPolicy{}, false
@@ -166,20 +152,4 @@ func capabilityPolicyFrom(ctx context.Context) (capabilityPolicy, bool) {
 
 func promptDigest(prompt json.RawMessage) string {
 	return fmt.Sprintf("sha256:%x", sha256.Sum256(prompt))
-}
-
-func decode(raw []byte, target any) error {
-	decoder := json.NewDecoder(bytes.NewReader(raw))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(target); err != nil {
-		return err
-	}
-	var trailing any
-	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
-		if err == nil {
-			return errors.New("trailing JSON value")
-		}
-		return fmt.Errorf("trailing JSON value: %w", err)
-	}
-	return nil
 }

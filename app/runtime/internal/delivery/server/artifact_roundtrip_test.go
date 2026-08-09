@@ -23,14 +23,14 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
-// TestArtifactVersionIsTheOneVNextFroze is half of contract §11.4 gate 15: the
-// number, stated once.
+// TestArtifactVersionMatchesCurrentContractBaseline is half of contract §11.4
+// gate 15: the number, stated once.
 //
 // It is pinned to a literal on purpose. Comparing the stamped version to the
 // constant proves only that one line reads another; what a version gate has to hold
 // is that the document this build writes is the version the contract named. Bumping
 // it is a breaking act, so it should cost a deliberate edit here.
-func TestArtifactVersionIsTheOneVNextFroze(t *testing.T) {
+func TestArtifactVersionMatchesCurrentContractBaseline(t *testing.T) {
 	if protocol.SessionArtifactVersion != 14 {
 		t.Fatalf("SessionArtifactVersion = %d; Agent Framework Runtime cutover requires artifact v14",
 			protocol.SessionArtifactVersion)

@@ -90,15 +90,15 @@ func TestBindRequestMetaRejectsNullMeta(t *testing.T) {
 //
 // "2026-07-19" is the version this runtime served until the cutover, and it is the
 // case that matters — a client that still ships it must be told so, not quietly
-// handed vNext frames it will fold as if they were the old shape. A far-past date
+// handed current frames it will fold as if they were the old shape. A far-past date
 // alone would not prove that: a minSupported left behind would refuse 1900 and
 // accept the predecessor.
 func TestBindRequestMetaRejectsUnsupportedProtocolVersion(t *testing.T) {
 	for _, version := range []string{
-		"2026-07-19", // the version served before the vNext cutover
+		"2026-07-19", // the version served before the current protocol cutover
 		"2027-01-01", // a client newer than this build
 		"1900-01-01",
-		"vNext", // not a date at all
+		"not-a-date",
 	} {
 		t.Run(version, func(t *testing.T) {
 			req := &transport.Request{

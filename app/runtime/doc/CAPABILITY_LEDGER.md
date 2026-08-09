@@ -184,7 +184,7 @@ P8 production cutover 已用真实 Bootstrap consumer 冻结 root stage/observe/
 | MCP/A2A dynamic tools | Retain | 本 Run deployment assembly 冻结 authority |
 | old agent/core/toolloop imports | Remove | Toolset 最终 Framework-neutral |
 
-完整模型工具面、参数和历史删除裁决仍以 [`TOOL_SYSTEM_VNEXT.md`](TOOL_SYSTEM_VNEXT.md) 为准。
+完整模型工具面、参数和历史删除裁决仍以 [`TOOL_SYSTEM.md`](TOOL_SYSTEM.md) 为准。
 
 ## 7. Persistence 与 recovery
 
@@ -285,5 +285,6 @@ P8 production cutover 已用真实 Bootstrap consumer 冻结 root stage/observe/
 - P8 已将 Agent Framework vertical 原子切为唯一生产 owner；root、managed Delegate child、waiting subtree、termination、unknown 与 recovery 均由真实 Bootstrap consumer 验证；
 - Agent Framework Baseline 15 已提供 P4–P7 所需的全部公共合同并完成 canonical module 身份替换；Runtime standalone 精确绑定 `v0.0.0-20260809043847-2590dbc81a1f`，且 Framework 没有引入任何 Runtime 产品、持久化或 transaction 抽象；
 - Runtime 对原框架 source/test/module dependency 与临时 module path 已归零；唯一 `agent` Framework 仍只拥有中性合同，产品 Run、Store、transaction、WorkingContext composition 与 recovery policy 均留在 Runtime；
-- P11 删除迁移期 execution/port 快照文档；P12 继续删除已完成的架构清洗台账。当前架构、端口与工具接线分别只有 `ARCHITECTURE.md`、真实 consumer code/GoDoc 和 `TOOL_SYSTEM_VNEXT.md` 一个 owner，历史实施事实归 Git，不保留第二套错误现状；
+- P11 删除迁移期 execution/port 快照文档；P12 继续删除已完成的架构清洗台账。当前架构、端口与工具接线分别只有 `ARCHITECTURE.md`、真实 consumer code/GoDoc 和 `TOOL_SYSTEM.md` 一个 owner，历史实施事实归 Git，不保留第二套错误现状；
 - P12 全量静态审计捕获的格式漂移与嵌入字段冗余已在各自源码 owner 治本清除；Runtime 与 Agent Framework 的 tracked production TODO/FIXME/HACK、旧 Framework 路径、旧 replay scope、空文件、空目录和内部死代码均为零。
+- P12 最终行为矩阵证明 Runtime root/child Interaction、authoritative model/tool、waiting、restore、resume、steer、unknown、recovery、rollback 与全部外环能力仍自洽；SQLite epoch 64 现由 baseline consistency test 永久守卫。`interactioninput` 是 pending continuation/prompt/resolution 的唯一 ACL 与 codec owner，原单消费者子包和第二 decoder 已删除；三个 Runtime strict-codec fuzz owner与 Agent Framework 十三个 wire/state fuzz owner均全绿。

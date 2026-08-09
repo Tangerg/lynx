@@ -2,7 +2,7 @@
 
 > **这是什么**：对桌面上 6 个同类生产级 coding agent 的源码级对比分析，用统一方法（源码级自析 → 过 lynx 四道筛子 → 只收可搬点子），产出"哪些能力值得吸纳进 lyra"。每个应用一份独立文档；本文件是**跨应用合并排序 backlog + 总索引 + 刻意不吸总表**。
 >
-> **状态**：历史对比快照，不再作为当前实现状态或命名规范。各家原生术语（包括 Todo/Task）为保真对照而保留；Lynx 当前取舍、删除范围与唯一 Plan/Goal/Delegated Task 词汇以 [`TOOL_SYSTEM_VNEXT.md`](../TOOL_SYSTEM_VNEXT.md) 为准。
+> **状态**：历史对比快照，不再作为当前实现状态或命名规范。各家原生术语（包括 Todo/Task）为保真对照而保留；Lynx 当前取舍、删除范围与唯一 Plan/Goal/Delegated Task 词汇以 [`TOOL_SYSTEM.md`](../TOOL_SYSTEM.md) 为准。
 
 ## 0. 六道对照 + 索引
 

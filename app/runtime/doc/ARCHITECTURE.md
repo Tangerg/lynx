@@ -456,7 +456,7 @@ Runtime Toolset 负责产品工具清单、schema、执行 capability、安全�
 - Tool activity 优先复用领域字段，不建立通用 UI metadata 袋；
 - Plan、Goal、Schedule、Skill Proposal 保持不同领域，不合并为一个通用 task 系统。
 
-现有工具面和历史裁决继续由 [`TOOL_SYSTEM_VNEXT.md`](TOOL_SYSTEM_VNEXT.md) 拥有；本文件只定义它与新 Agent execution 的边界。
+现有工具面和历史裁决继续由 [`TOOL_SYSTEM.md`](TOOL_SYSTEM.md) 拥有；本文件只定义它与 Agent execution 的边界。
 
 ## 10. 持久化与恢复
 

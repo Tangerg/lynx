@@ -6,6 +6,9 @@
 > This document records work deliberately not performed by the Runtime goal. It
 > is not a compatibility promise and does not authorize dual fields or fallback
 > decoding in the server.
+>
+> Last verified against the server contract and in-repository consumer source:
+> 2026-08-09, at Runtime P12 completion.
 
 ## Current server baseline
 

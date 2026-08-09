@@ -1,0 +1,2 @@
+go test fuzz v1
+[]byte("{\"schema_version\":1,\"key\":\"question.ask@@@@@@@@\",\"prompt_digest\":\"sha256:test\",\"prompt\":{\"&000\":\"00000000\"}}")

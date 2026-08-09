@@ -51,9 +51,8 @@ type Runtime interface {
 // §12: date string).
 //
 // Current and minimum supported are deliberately the same date: this build
-// serves vNext and nothing else. A development runtime has no compatibility
-// obligation, and a range wider than one version would advertise a negotiation
-// the code does not perform.
+// serves exactly [ProtocolVersion]. A range wider than one version would
+// advertise a negotiation the code does not perform.
 const (
 	ProtocolVersion    = "2026-08-09"
 	MinProtocolVersion = "2026-08-09"

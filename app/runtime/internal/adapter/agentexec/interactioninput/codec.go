@@ -1,8 +1,4 @@
-// Package interruptcodec owns the strict JSON representation between Runtime
-// product interrupts and executor continuation payloads. Product and Domain
-// values remain transport-free; framework-specific control flow stays outside
-// this package.
-package interruptcodec
+package interactioninput
 
 import (
 	"bytes"
@@ -10,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"reflect"
+	"strings"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
@@ -25,17 +23,18 @@ func EncodePrompt(prompt runs.Interrupt) (json.RawMessage, error) {
 	}
 	encoded, err := json.Marshal(promptWireFrom(prompt))
 	if err != nil {
-		return nil, fmt.Errorf("agentexec interrupt codec: encode prompt: %w", err)
+		return nil, fmt.Errorf("agentexec interaction input codec: encode prompt: %w", err)
 	}
 	return encoded, nil
 }
 
 // DecodePrompt restores an application interrupt from persisted executor input
-// JSON. Unknown fields and trailing values are rejected.
+// JSON. Field names must match exactly; duplicate, unknown, and trailing values
+// are rejected.
 func DecodePrompt(raw []byte) (runs.Interrupt, error) {
 	var wire interruptWire
 	if err := decode(raw, &wire); err != nil {
-		return runs.Interrupt{}, fmt.Errorf("agentexec interrupt codec: decode interrupt: %w", err)
+		return runs.Interrupt{}, fmt.Errorf("agentexec interaction input codec: decode interrupt: %w", err)
 	}
 	interrupt, err := wire.interrupt()
 	if err != nil {
@@ -48,11 +47,12 @@ func DecodePrompt(raw []byte) (runs.Interrupt, error) {
 }
 
 // DecodeResolution restores a typed user decision from persisted agent-process
-// response JSON.
+// response JSON. It applies the same exact-field and single-value contract as
+// [DecodePrompt].
 func DecodeResolution(raw []byte) (interrupt.Resolution, error) {
 	var wire ResolutionPayload
 	if err := decode(raw, &wire); err != nil {
-		return interrupt.Resolution{}, fmt.Errorf("agentexec interrupt codec: decode resolution: %w", err)
+		return interrupt.Resolution{}, fmt.Errorf("agentexec interaction input codec: decode resolution: %w", err)
 	}
 	return wire.Resolution()
 }
@@ -61,19 +61,22 @@ func DecodeResolution(raw []byte) (interrupt.Resolution, error) {
 // validates against its pending-input response schema before continuing.
 func EncodeResolution(resolution interrupt.Resolution) (json.RawMessage, error) {
 	if resolution.RememberScope != "" && !resolution.RememberScope.Valid() {
-		return nil, fmt.Errorf("agentexec interrupt codec: unknown remember scope %q", resolution.RememberScope)
+		return nil, fmt.Errorf("agentexec interaction input codec: unknown remember scope %q", resolution.RememberScope)
 	}
 	encoded, err := json.Marshal(ResolutionPayload{
 		Approved: resolution.Approved, Arguments: resolution.Arguments, Answers: resolution.Answers,
 		Reason: resolution.Reason, RememberScope: rememberScopeWireFrom(resolution.RememberScope),
 	})
 	if err != nil {
-		return nil, fmt.Errorf("agentexec interrupt codec: encode resolution: %w", err)
+		return nil, fmt.Errorf("agentexec interaction input codec: encode resolution: %w", err)
 	}
 	return encoded, nil
 }
 
 func decode(raw []byte, target any) error {
+	if err := validateExactJSONFieldNames(raw, reflect.TypeOf(target)); err != nil {
+		return err
+	}
 	decoder := json.NewDecoder(bytes.NewReader(raw))
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(target); err != nil {
@@ -84,6 +87,114 @@ func decode(raw []byte, target any) error {
 			return errors.New("trailing JSON")
 		}
 		return err
+	}
+	return nil
+}
+
+func validateExactJSONFieldNames(raw []byte, targetType reflect.Type) error {
+	tokenDecoder := json.NewDecoder(bytes.NewReader(raw))
+	tokenDecoder.UseNumber()
+	if err := validateUniqueJSONNames(tokenDecoder, "$"); err != nil {
+		return err
+	}
+	var value any
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.UseNumber()
+	if err := decoder.Decode(&value); err != nil {
+		return err
+	}
+	return validateJSONFieldNames(value, targetType, "$")
+}
+
+func validateUniqueJSONNames(decoder *json.Decoder, path string) error {
+	token, err := decoder.Token()
+	if err != nil {
+		return err
+	}
+	delimiter, structured := token.(json.Delim)
+	if !structured {
+		return nil
+	}
+	switch delimiter {
+	case '{':
+		seen := make(map[string]struct{})
+		for decoder.More() {
+			nameToken, err := decoder.Token()
+			if err != nil {
+				return err
+			}
+			name, ok := nameToken.(string)
+			if !ok {
+				return fmt.Errorf("object member at %s has a non-string name", path)
+			}
+			if _, duplicate := seen[name]; duplicate {
+				return fmt.Errorf("duplicate field %q at %s", name, path)
+			}
+			seen[name] = struct{}{}
+			if err := validateUniqueJSONNames(decoder, path+"."+name); err != nil {
+				return err
+			}
+		}
+	case '[':
+		for index := 0; decoder.More(); index++ {
+			if err := validateUniqueJSONNames(decoder, fmt.Sprintf("%s[%d]", path, index)); err != nil {
+				return err
+			}
+		}
+	default:
+		return fmt.Errorf("unexpected JSON delimiter %q at %s", delimiter, path)
+	}
+	_, err = decoder.Token()
+	return err
+}
+
+func validateJSONFieldNames(value any, targetType reflect.Type, path string) error {
+	for targetType.Kind() == reflect.Pointer {
+		targetType = targetType.Elem()
+	}
+	if value == nil || targetType == reflect.TypeFor[json.RawMessage]() {
+		return nil
+	}
+	switch targetType.Kind() {
+	case reflect.Struct:
+		object, ok := value.(map[string]any)
+		if !ok {
+			return nil
+		}
+		fields := make(map[string]reflect.Type, targetType.NumField())
+		for index := range targetType.NumField() {
+			field := targetType.Field(index)
+			if !field.IsExported() {
+				continue
+			}
+			name, _, _ := strings.Cut(field.Tag.Get("json"), ",")
+			if name == "-" {
+				continue
+			}
+			if name == "" {
+				name = field.Name
+			}
+			fields[name] = field.Type
+		}
+		for name, child := range object {
+			fieldType, found := fields[name]
+			if !found {
+				return fmt.Errorf("field %q at %s does not match the exact JSON contract", name, path)
+			}
+			if err := validateJSONFieldNames(child, fieldType, path+"."+name); err != nil {
+				return err
+			}
+		}
+	case reflect.Slice, reflect.Array:
+		values, ok := value.([]any)
+		if !ok {
+			return nil
+		}
+		for index, child := range values {
+			if err := validateJSONFieldNames(child, targetType.Elem(), fmt.Sprintf("%s[%d]", path, index)); err != nil {
+				return err
+			}
+		}
 	}
 	return nil
 }
@@ -196,7 +307,7 @@ func questionOptionWiresFrom(options []runs.QuestionOptionSpec) []questionOption
 }
 
 func questionFieldSpecsFrom(specs []questionFieldSpecWire) []runs.QuestionFieldSpec {
-	if specs == nil {
+	if len(specs) == 0 {
 		return nil
 	}
 	result := make([]runs.QuestionFieldSpec, len(specs))
@@ -211,7 +322,7 @@ func questionFieldSpecsFrom(specs []questionFieldSpecWire) []runs.QuestionFieldS
 }
 
 func questionOptionsFrom(options []questionOptionWire) []runs.QuestionOptionSpec {
-	if options == nil {
+	if len(options) == 0 {
 		return nil
 	}
 	result := make([]runs.QuestionOptionSpec, len(options))
@@ -238,8 +349,12 @@ func (wire ResolutionPayload) Resolution() (interrupt.Resolution, error) {
 	if err != nil {
 		return interrupt.Resolution{}, err
 	}
+	answers := wire.Answers
+	if len(answers) == 0 {
+		answers = nil
+	}
 	return interrupt.Resolution{
-		Approved: wire.Approved, Arguments: wire.Arguments, Answers: wire.Answers,
+		Approved: wire.Approved, Arguments: wire.Arguments, Answers: answers,
 		Reason: wire.Reason, RememberScope: rememberScope,
 	}, nil
 }
@@ -267,7 +382,7 @@ func (wire interruptKindWire) interruptKind() (interrupt.Kind, error) {
 	case "question":
 		return interrupt.Question, nil
 	default:
-		return 0, fmt.Errorf("agentexec interrupt codec: unknown interrupt kind %q", wire)
+		return 0, fmt.Errorf("agentexec interaction input codec: unknown interrupt kind %q", wire)
 	}
 }
 
@@ -299,7 +414,7 @@ func (wire safetyClassWire) safetyClass() (tool.SafetyClass, error) {
 	case "network":
 		return tool.SafetyClassNetwork, nil
 	default:
-		return "", fmt.Errorf("agentexec interrupt codec: unknown safety class %q", wire)
+		return "", fmt.Errorf("agentexec interaction input codec: unknown safety class %q", wire)
 	}
 }
 
@@ -331,7 +446,7 @@ func (wire riskLevelWire) riskLevel() (tool.RiskLevel, error) {
 	case "high":
 		return tool.RiskHigh, nil
 	default:
-		return "", fmt.Errorf("agentexec interrupt codec: unknown risk level %q", wire)
+		return "", fmt.Errorf("agentexec interaction input codec: unknown risk level %q", wire)
 	}
 }
 
@@ -363,6 +478,6 @@ func (wire rememberScopeWire) scope() (approval.Scope, error) {
 	case "global":
 		return approval.ScopeGlobal, nil
 	default:
-		return "", fmt.Errorf("agentexec interrupt codec: unknown remember scope %q", wire)
+		return "", fmt.Errorf("agentexec interaction input codec: unknown remember scope %q", wire)
 	}
 }
