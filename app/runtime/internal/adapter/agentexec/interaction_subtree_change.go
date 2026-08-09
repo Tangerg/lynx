@@ -73,7 +73,7 @@ func (change *interactionWaitingSubtreeChange) Apply(
 	}
 	change.session.childProjectionMu.Lock()
 	defer change.session.childProjectionMu.Unlock()
-	change.stopExpiration()
+	change.stopExpirationLocked()
 	if err := change.session.beginSubtreeApplication(change); err != nil {
 		return err
 	}
@@ -140,7 +140,7 @@ func (change *interactionWaitingSubtreeChange) Discard() error {
 	if change.state != interactionWaitingSubtreeChangePrepared {
 		return nil
 	}
-	change.stopExpiration()
+	change.stopExpirationLocked()
 	if err := change.prepared.Discard(); err != nil {
 		return fmt.Errorf("agentexec: discard waiting Interaction subtree: %w", err)
 	}
@@ -149,7 +149,19 @@ func (change *interactionWaitingSubtreeChange) Discard() error {
 	return nil
 }
 
-func (change *interactionWaitingSubtreeChange) stopExpiration() {
+func (change *interactionWaitingSubtreeChange) armExpiration(ctx context.Context) {
+	change.mu.Lock()
+	defer change.mu.Unlock()
+	if change.state != interactionWaitingSubtreeChangePrepared {
+		return
+	}
+	change.stopExpiry = context.AfterFunc(ctx, func() {
+		_ = change.Discard()
+	})
+}
+
+// stopExpirationLocked disarms the preparation lease while change.mu is held.
+func (change *interactionWaitingSubtreeChange) stopExpirationLocked() {
 	if change.stopExpiry != nil {
 		change.stopExpiry()
 		change.stopExpiry = nil

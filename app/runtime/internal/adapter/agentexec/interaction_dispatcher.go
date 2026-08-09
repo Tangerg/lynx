@@ -211,7 +211,7 @@ func (model *observedInteractionModel) begin(
 		return interaction.ModelInvocation{}, nil, "", err
 	}
 	member := model.session.executorMember(invocation.Relation())
-	if err := model.session.commitPendingSteers(ctx, member); err != nil {
+	if err := model.session.commitAppliedSteers(ctx, member, invocation.AppliedSteerSignalIDs()); err != nil {
 		return interaction.ModelInvocation{}, nil, "", err
 	}
 	if err := model.session.commitFact(ctx, member, runs.ModelCallStarted{CallID: callID}); err != nil {

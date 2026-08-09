@@ -329,8 +329,12 @@ func (r *reducer) reduceFact(ev ExecutionFact) (factReduction, error) {
 			return factReduction{}, fmt.Errorf("%w: usage report: %w", errExecutorContract, err)
 		}
 		return factReduction{events: events}, nil
-	case SteerMessage:
-		return factReduction{events: r.steerMessage(e)}, nil
+	case SteerMessagesApplied:
+		events, err := r.steerMessagesApplied(e)
+		if err != nil {
+			return factReduction{}, fmt.Errorf("%w: applied steers: %w", errExecutorContract, err)
+		}
+		return factReduction{events: events}, nil
 	case PlanUpdated:
 		return factReduction{events: r.planSnapshot(e)}, nil
 	case CompactionBoundary:

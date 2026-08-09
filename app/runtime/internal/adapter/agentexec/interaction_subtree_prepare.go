@@ -156,9 +156,7 @@ func (session *interactionSession) prepareWaitingSubtreeCancellation(
 	if err := session.completeSubtreePreparation(preparedSignal, change); err != nil {
 		return runs.PreparedWaitingSubtreeCancellation{}, err
 	}
-	change.stopExpiry = context.AfterFunc(ctx, func() {
-		_ = change.Discard()
-	})
+	change.armExpiration(ctx)
 	discard = false
 	return runs.PreparedWaitingSubtreeCancellation{
 		CanceledMemberIDs: canceledMembers, PausedMemberIDs: pausedMembers,

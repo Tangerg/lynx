@@ -45,10 +45,11 @@ type ExecutionReleaser interface {
 	Release(ctx context.Context, ref ExecutorRef) error
 }
 
-// RunningRootCancellationRequester records an accepted product cancellation
-// intent in the live executor before the Application stops observation. It
-// neither commits the product outcome nor releases resources; in-flight effects
-// may settle before the executor reaches its next safe boundary.
+// RunningRootCancellationRequester submits an accepted product cancellation
+// intent to the live executor before the Application stops observation. A nil
+// result only confirms command admission; it neither commits the product outcome
+// nor releases resources, and in-flight effects may settle before the next safe
+// boundary.
 type RunningRootCancellationRequester interface {
 	RequestRootCancellation(ctx context.Context, ref ExecutorRef, reason string) error
 }

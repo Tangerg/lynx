@@ -86,12 +86,12 @@ Artifact、Transcript Item 和 ToolCall timing 的当前机器 shape 仍由 Runt
 
 ## 4. Agent Framework 消费 Baseline
 
-Runtime 使用 Agent Framework [`API_BASELINE.md`](../../../agent/doc/API_BASELINE.md) 的 Baseline 15。P8 已把 P4–P7 验证的 root start/result、authoritative model/tool、waiting/restore/answer/steer、managed Delegate child 和 prepared waiting-subtree合同切为生产 Bootstrap 唯一 owner，P11 完成 canonical module path 替换：
+Runtime 使用 Agent Framework [`API_BASELINE.md`](../../../agent/doc/API_BASELINE.md) 的 Baseline 18。P8 已把 P4–P7 验证的 root start/result、authoritative model/tool、waiting/restore/answer/steer、managed Delegate child 和 prepared waiting-subtree合同切为生产 Bootstrap 唯一 owner，P11 完成 canonical module path 替换：
 
 - root Kernel、Interaction、Planning、Planning/GOAP、Workflow、OTel、Platform 七个 public package 已冻结；
 - Process Snapshot v6、TreeSnapshot v4；
-- Interaction state/protocol v5/v3；
-- context-aware ProcessAdmitter、conclusive ProcessStartOutcome、ModelInvocation/ToolInvocation、DelegateChildKey、ActiveDelegateChild inspector、DeferredTools/AdvertiseTools 与 contextless PreparedWaitingSubtreeCancellation Apply 已存在；
+- Interaction state/protocol v6/v4；
+- context-aware ProcessAdmitter、conclusive ProcessStartOutcome、提交式 `RequestCancellation`、带 exact applied-steer Signal identity 的 ModelInvocation、ToolInvocation、DelegateChildKey、ActiveDelegateChild inspector、DeferredTools/AdvertiseTools 与 contextless PreparedWaitingSubtreeCancellation Apply 已存在；
 - Agent Framework Event 是 Framework 已发生事实，Delta 是 best-effort 临时输出；
 - Strategy payload 和 TreeSnapshot private state 对 Runtime 不透明。
 
@@ -100,6 +100,8 @@ Runtime 只把 Agent Framework public API 当合同。原框架实现、Agent Fr
 P7 的两个前置缺口已经由真实 Runtime consumer 在 Agent Framework 中以 Framework-neutral 合同关闭：accepted admission 通过 prospective identity 的 started/aborted outcome闭合；waiting subtree 通过 one-shot prepared capability 持有同一 safe cut，全部 fallible staging 位于 Prepare，durable commit 后只调用 contextless Apply。Run、Store、transaction、产品 ID 和 private tree wire均未进入 Agent Framework。
 
 `PreparedStepAcknowledger` 仍只回调单 Process Snapshot，Runtime 初版不启用。durable recovery baseline 只有已提交 quiescent complete-tree checkpoint；active-step crash 不伪装为可恢复。
+
+Runtime 的 executor-owned opaque checkpoint envelope 当前 schema 为 v3：除完整 TreeSnapshot、指令上下文和 accounting 外，只在 `adapter/agentexec` 内保存 Agent steer Signal identity 到产品消息内容的精确映射。Application 仍只持有 opaque bytes；Agent Framework 不见 Transcript 内容或 Runtime persistence。旧 envelope 不双读，恢复时确定性 fail closed。
 
 ### 4.1 允许的 import 边界
 

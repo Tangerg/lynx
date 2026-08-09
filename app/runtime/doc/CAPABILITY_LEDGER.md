@@ -21,7 +21,7 @@
 ### 2.1 规模与依赖
 
 - Runtime 源码、测试、`go.mod` 与 `go.sum` 对旧 `github.com/Tangerg/lynx/agent` 的依赖均为零；architecture guard 将其作为永久禁止边，而非迁移数量台账；
-- `go.mod` 精确声明包含 Baseline 15 的 Agent Framework commit；`GOWORK=off` 的 tidy/build/vet/test 已证明 Runtime 不依赖 workspace 隐式替换；
+- `go.mod` 精确声明包含 Baseline 18 的 Agent Framework commit；`GOWORK=off` 的 tidy/build/vet/test 已证明 Runtime 不依赖 workspace 隐式替换；
 - Agent Framework production import 只允许位于 `adapter/agentexec`；Domain、Application、Infra、Delivery、Bootstrap 与通用 Toolset 对 Agent Framework concrete types 为零；
 - P2 已删除 `domain/execution` 及全部 forwarding/alias path；Domain 生产代码与测试对 Application/Adapter/Infra/Delivery/Bootstrap 零 import，context-based I/O port 为零；
 - Run、Accounting、Conversation、Transcript、Interrupt、ToolResult 已成为准确顶层 bounded-context package；executor checkpoint/ref、pending continuation 与 workspace mutation 由 Application consumer 拥有；
@@ -151,14 +151,14 @@ P8 production cutover 已用真实 Bootstrap consumer 冻结 root stage/observe/
 
 ### 5.2 Agent Framework 已提供的合同
 
-| Runtime 需要 | Agent Framework Baseline 15 | Runtime 责任 |
+| Runtime 需要 | Agent Framework Baseline 18 | Runtime 责任 |
 |---|---|---|
 | root execution | Engine/Deployment/Interaction | 组装产品配置并翻译结果 |
 | tree identity | ProcessID/Relation/root/parent/depth | 映射不透明 executor member/child Run |
 | child admission | `ProcessAdmitter` + prospective identity + `ProcessStartOutcomeAcknowledger` conclusive started/aborted | durable Opening reservation、public Running 与 aborted cleanup |
 | waiting | WaitID/Signal + Interaction pending helper | 产品 Interrupt 与事务 |
 | restore | Snapshot/TreeSnapshot + exact resolver | Store、BuildID、Host metadata |
-| steer | Interaction steer signal | 产品命令与内容 projection |
+| steer | Interaction steer signal + `ModelInvocation.AppliedSteerSignalIDs` exact attribution | Signal ID 到产品内容的 adapter-owned opaque checkpoint mapping；首次可见消息整批原子 projection |
 | subtree cancel | `PreparedWaitingSubtreeCancellation` 冻结 source，并提供 prospective result 与 contextless one-shot Apply/Discard | Application write-set 只见 projection + opaque checkpoint；commit 后 apply-or-exact-restore |
 | model/tool attribution | ModelInvocation/ToolInvocation | Transcript/accounting/hooks/pricing |
 | deferred tools | Tools/DeferredTools/AdvertiseTools | Tool catalog、发现语义和权限策略 |
@@ -296,7 +296,7 @@ P8 production cutover 已用真实 Bootstrap consumer 冻结 root stage/observe/
 - Runtime 产品领域、协议、持久化和工具能力大部分保留；
 - 执行 Framework integration 是主要 Rewrite 区；
 - P8 已将 Agent Framework vertical 原子切为唯一生产 owner；root、managed Delegate child、waiting subtree、termination、unknown 与 recovery 均由真实 Bootstrap consumer 验证；
-- Agent Framework Baseline 15 已提供 P4–P7 所需的全部公共合同并完成 canonical module 身份替换；Runtime standalone 精确绑定 `v0.0.0-20260809043847-2590dbc81a1f`，且 Framework 没有引入任何 Runtime 产品、持久化或 transaction 抽象；
+- Agent Framework Baseline 18 已提供 P4–P7 与当前 Runtime consumer 所需的全部公共合同并完成 canonical module 身份替换；Runtime standalone 精确绑定 `v0.0.0-20260809225948-4cce747c1724`，且 Framework 没有引入任何 Runtime 产品、持久化或 transaction 抽象；
 - Runtime 对原框架 source/test/module dependency 与临时 module path 已归零；唯一 `agent` Framework 仍只拥有中性合同，产品 Run、Store、transaction、WorkingContext composition 与 recovery policy 均留在 Runtime；
 - P11 删除迁移期 execution/port 快照文档；P12 继续删除已完成的架构清洗台账。当前架构、端口与工具接线分别只有 `ARCHITECTURE.md`、真实 consumer code/GoDoc 和 `TOOL_SYSTEM.md` 一个 owner，历史实施事实归 Git，不保留第二套错误现状；
 - P12 全量静态审计捕获的格式漂移与嵌入字段冗余已在各自源码 owner 治本清除；Runtime 与 Agent Framework 的 tracked production TODO/FIXME/HACK、旧 Framework 路径、旧 replay scope、空文件、空目录和内部死代码均为零。

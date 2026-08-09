@@ -364,7 +364,10 @@ type PlanUpdated struct {
 	State plan.State
 }
 
-type SteerMessage struct {
+// SteerMessagesApplied reports the ordered user messages first made visible
+// to one executor model call. The reducer commits the complete batch atomically
+// so transcript projection cannot expose a prefix of one model boundary.
+type SteerMessagesApplied struct {
 	executionFactBase
-	Content []transcript.ContentBlock
+	Messages [][]transcript.ContentBlock
 }

@@ -1,6 +1,6 @@
 # Lyra Runtime 重构实施计划
 
-> 状态：P1–P14 已完成；消费者接线仍留给独立专项
+> 状态：P1–P14 已完成；P15 反证式精修进行中；消费者接线仍留给独立专项
 >
 > 工作方式：原模块内治本重构，按可验证纵切分批完成；不创建完整 `runtime2`
 
@@ -10,7 +10,7 @@
 
 当前实施 goal 已授权：
 
-- 严格按本文 P1–P12 的依赖顺序重构 `app/runtime`；
+- 在已完成的 P1–P14 基线上执行 P15 反证式精修；
 - 每完成一个可独立验收批次，同步本计划和 Capability Ledger，统一验证、提交并推送；
 - 允许服务端内部与 Runtime Protocol breaking change，不建立兼容路径；
 - 仓库历史与能力台账中的原框架实现只作为证据；Runtime 对 Framework 只依赖当前 `agent` 公共合同。
@@ -23,7 +23,7 @@
 - breaking change 允许，禁止 alias、shim、dual read/write 和两套长期路径；
 - 每个阶段按依赖方向从内到外推进，但每个提交必须形成可运行纵切，不允许长期红仓；
 - 旧实现可以作为事实证据，不能成为新 API 兼容规范；
-- Agent Framework Baseline 15 是当前 Framework 合同；Runtime 不读取其 private state；
+- Agent Framework Baseline 18 是当前 Framework 合同；Runtime 不读取其 private state；
 - 每批完成后更新本计划和 Capability Ledger，运行对应质量门禁，提交并推送；
 - 如果发现 Agent Framework 缺口，先证明它是中性 Framework 能力且已有真实 Runtime consumer，再单独走 Agent Framework ADR/baseline；禁止在 Runtime 侧补第二套内核；
 - 阶段完成不以文件数量或目录形状判断，只以验收合同和旧 owner 删除判断。
@@ -47,6 +47,7 @@
 | P12 | 全量质量验收与消费者接线移交 | P11 | 已完成 |
 | P13 | 重写后精修与双向边界复审 | P12 | 已完成 |
 | P14 | Runtime 内部职责与全层级命名精修 | P13 | 已完成 |
+| P15 | Agent/Runtime 合同同步与 Runtime 反证式精修 | P14 + Agent Baseline 18 | 进行中 |
 
 ## 4. P0 — 文档、事实和边界基线
 
@@ -274,7 +275,7 @@
 - continuation 使用 `StageContinuation`/`BeginContinuation`：live waiting tree 必须匹配已提交 checkpoint，cold restore 必须匹配 BuildID、Host scope、TreeSnapshot root/status、exact DeploymentRef 与 active WaitID；Application opening commit 早于 Signal；
 - post-claim pre-opening failure 先提交 root `RunLost` 再 release staged tree。RunLost write 失败保持 tree/claim；release 失败与原 cause 一起报告。boot 对任何无 checkpoint 的 claimed-resume tree 都确定收口为 Lost；
 - 真实 Runtime `ask_user`、interactive approval、approval argument/remember resolution、doom-loop HITL 与 deferred advertisement 均复用产品 Interrupt contract。Approval restore 不重跑 pre-hook 或 plan；
-- steer 使用 `RunningExecutionSteerer.SubmitSteer`，Agent Framework 在当前 model call 之后的下一 safe boundary 消费；产品 `SteerMessage` 在首个能看到它的 `ModelCallStarted` 前提交；
+- steer 使用 `RunningExecutionSteerer.SubmitSteer`，Agent Framework 在当前 model call 之后的下一 safe boundary 消费；Runtime 依据 `ModelInvocation.AppliedSteerSignalIDs` 将精确产品消息批次在首个能看到它们的 `ModelCallStarted` 前原子提交；
 - corrupt TreeSnapshot、wrong BuildID/DeploymentRef、missing/isolated workspace、capability mismatch、claim result drift、conversation change、unknown checkpoint prohibition 和 answer/release ordering 均有真实行为或 SQLite transaction test。
 
 ## 11. P7 — Delegate child Run 与 waiting subtree
@@ -472,10 +473,31 @@
 - 不修改前端、TUI、CLI，不引入兼容层；
 - 每个可独立验收批次更新事实、提交并推送。
 
-## 19. 进度记录
+## 19. P15 — Agent/Runtime 合同同步与 Runtime 反证式精修
+
+### 目标
+
+在上一轮零已知残留基线上重新从反例出发审计 Runtime：精确消费 Agent Framework 新合同，继续清除模块内部职责、并发、状态不变量和全层级命名坏味道，同时证明两模块没有互相泄露产品或内核抽象。
+
+### 工作项
+
+- [x] P15-01 同步提交式 cancellation 与 exact applied-steer attribution，消除本地时序猜测、持锁 Engine 调用和 steer 前缀投影；
+- [ ] P15-02 复审并精修 Domain/Application 内部 owner、行为与命名；
+- [ ] P15-03 复审并精修 Adapter/Infra/Delivery/Bootstrap 内部 owner、机制与命名；
+- [ ] P15-04 执行 standalone、race、fuzz、生成物、边界、死代码、复杂度、目录与全层级命名最终复扫。
+
+### 验收
+
+- Agent concrete types 仍只存在于 `adapter/agentexec`，Application 只消费产品 facts 与 opaque checkpoint；
+- Runtime 产品消息、Run、Store、transaction 与 recovery policy 不进入 Agent Framework；
+- 每个新发现以真实反例、唯一 owner、完整行为测试和无兼容纵切收口；
+- 不修改前端、TUI、CLI。
+
+## 20. 进度记录
 
 | 日期 | 阶段 | 完成事实 | 验证 |
 |---|---|---|---|
+| 2026-08-10 | P15-01（exact control and steer bridge） | Runtime standalone 依赖提升到 Agent Framework Baseline 18；root/child cancellation 改用只承诺进入 Engine 单写者队列的 `RequestCancellation`。Steer bridge 删除按到达顺序与 caller 返回时机猜测生效的 `accepted` slice，以及持锁等待 Engine 的死锁窗口；改由 `ModelInvocation.AppliedSteerSignalIDs` 精确选择首次进入当前模型请求的产品消息，并以一个 authoritative fact 原子投影整批。Signal ID→产品内容映射只由 `adapter/agentexec` 持有，并进入 opaque executor checkpoint schema v3，Application 与 Agent Framework 均不见对方抽象。Prepared waiting-subtree expiry 同时改为在 capability 自身 mutex 下装卸 timer，清除发布后无锁写入竞态 | text/image pending steer canonical round-trip、旧 schema 拒绝、重复/乱序/混合 wire 拒绝、malformed Application fact 拒绝与同一 model boundary 双 steer 单批投影均有回归测试；Runtime standalone tidy-diff/build/vet/staticcheck、禁用缓存全量 test、全量 race、完整 golangci-lint、`deadcode -test`、contract drift 与 architecture gates 全绿 |
 | 2026-08-10 | P14-04i（Final naming and hygiene freeze） | 最终命名反证将 Tool `Call` 替换能力统一为 `decorateCall`/`callDecorator` 并以 `call_decorator.go` 承载；HTTP 请求 tracing、response metrics 与 panic containment 统一为 `instrumentRequests` 和 `request_instrumentation.go`，清除名词式方法、含混局部缩写及误称 logging 的注释。JSON-RPC `Router` 的传输消费面统一为 `messageDispatcher.Dispatch`/`DispatchResult`，注册项内部行为命名为 `pipeline`，不再与 `net/http.Handler` 混用 `Handle` 语言。架构守卫按精确 package 封锁 P14 淘汰的 owner/error/dispatch 名称和失真文件路径，不建立全局禁词或误伤 Go 惯用短名 | Runtime standalone tidy-diff、build、vet、staticcheck、完整 lint、精选 naming/duplication/complexity lint、`deadcode -test`、禁用缓存全量 test/race 全绿；contract generator 零漂移，三个 strict continuation codec fuzz owner 各运行 10 秒无失败；当前文档本地链接、跨环/Framework import、旧名称、tracked 空文件、空目录和生产 TODO/FIXME/HACK 复扫零违规。P14 完成，未修改协议、持久化 shape、Agent Framework 或消费者 |
 | 2026-08-10 | P14-04h（Lifecycle, error, and identifier semantics） | Run Application 将含混的 process-local `handle` 治本改为唯一 `runTreeOwner`，文件、registry 字段、publisher/pump 依赖、cancellation arbiter、executor member binding 与测试名称同步使用同一所有权语言；Goal session mutation 的 `driver` 查询改为准确的 `activeLoop`，局部 `handle` 归一为 `loop`。所有具体错误结构统一以 `Error` 结尾，`shutdown.Attempt.Result` 按 Go 惯例返回 `completed, err`。Toolset/Adapter/Infra 的私有 owner 进一步收敛为 `manifestBuilder`、`callDecorator`、`managementTools`、`commandTools`、`searchableTool`/`rankedTool`、`hooksFile`、`cachedCorpus`、`activeDial`、`mutationScope`、`toolListTarget`、`usageAccumulator` 与 `attemptState`；测试 helper 删除从未变化的参数并以固定场景命名，不再伪造未验证的可配置能力 | Runtime `go test ./internal/...` 通过；完整 `golangci-lint`、精选 naming/style/duplication lint、生产/测试 `gocognit`/`gocyclo` 与 `deadcode -test` 均为零问题。未新增端口、wire、持久化 shape、消费者改动或 Agent Framework concrete type；最终 standalone/race/fuzz/generator/边界复扫仍由 P14-04 收口 |
 | 2026-08-10 | P14-04g（Architecture guard ownership and naming） | 架构守卫把 source walk、AST declaration collection、receiver naming、mutable catalog detection、constraint emitter expectation、comment boundary、cursor namespace 和 retired vocabulary 扫描分别收敛到准确 helper；大型测试只陈述不变量与场景，不再同时承担遍历、解析、分类和断言。Value constraint 的 schema keyword/Go helper 映射成为显式 `compiledConstraintExpectation`，不再靠一个 89 分支过程维护三类生成物；共享生产 Go source walker 只提供扫描机制，不承载具体架构策略 | `internal/arch` 禁用缓存测试通过；Runtime 全模块生产与测试 `gocognit`/`gocyclo` 零问题；所有既有 boundary/contract/naming guard 仍通过，未改变任何生产代码、协议、持久化或消费者合同 |
@@ -513,6 +535,6 @@
 | 2026-08-09 | P9.2 | 完成 Adapter/Infra/Application/Delivery 逐包职责审计；workspace physical path identity 收敛到唯一 Infra mechanism；删除空的 temporary architecture 台账并把旧 Agent 禁止与 Domain no-context-I/O 变为永久 framework boundary guard；确认 agentexec 按真实变化原因组织且没有第二 lifecycle owner或虚构子包 | Adapter→Infra 单向图与目标六环 DAG 全绿；Delivery concrete Adapter/Infra import、Infra 反向 import、Application outward import、纯转发 wrapper、package/type 口吃、空目录和 temporary exception 均为零；workspacepath/pathidentity/arch targeted tests 与全量质量门禁通过 |
 | 2026-08-09 | P10 | Runtime Protocol 一次性提升到 `2026-08-09`、Session Artifact 到 v14；删除 wire 中实现泄露的 `processRootSegment`，只保留准确的 `runtimeInstanceRootSegment`；Go registry、validator、manifest、OpenRPC、JSON Schema、TypeScript binding、canonical samples 与人读 API/Transport/Aux 文档同步；新增精确 consumer handoff | canonical artifact samples 中漏存的 v12 与旧 `outcome.error` 被 strict sample gate 暴露并治本修正；生成器零漂移、旧 wire token/版本归零、strict validator/round-trip、HTTP/in-process、全量质量门禁通过；Desktop backlog 已记录但未改消费者 |
 
-## 20. 当前下一步
+## 21. 当前下一步
 
-P1–P14 服务端重构、分环精修、全层级命名和 Runtime/Agent Framework 双向边界冻结已经完成。Runtime 与 Agent Framework 的内部精修没有已知残留；前端、TUI、CLI 继续按独立 consumer handoff 专项接线，不属于本 goal。
+P15 继续按 Domain/Application、Adapter/Infra/Delivery/Bootstrap 的顺序执行反证式精修，最后以完整质量矩阵和双向边界复扫收口。前端、TUI、CLI 继续按独立 consumer handoff 专项接线，不属于本 goal。

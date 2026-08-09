@@ -878,9 +878,10 @@ func (executor *InteractionExecutor) Release(ctx context.Context, ref runs.Execu
 	return err
 }
 
-// RequestRootCancellation records the Application's accepted cancellation in
-// Agent Framework without deciding the product outcome or releasing the tree. Agent Framework
-// lets an in-flight Effect settle, then applies the intent at its safe boundary.
+// RequestRootCancellation submits the Application's accepted cancellation to
+// Agent Framework without deciding the product outcome or releasing the tree.
+// Success means the request entered Engine's queue; an in-flight Effect may
+// still settle before Agent Framework applies the intent at a safe boundary.
 func (executor *InteractionExecutor) RequestRootCancellation(
 	ctx context.Context,
 	ref runs.ExecutorRef,
@@ -894,8 +895,9 @@ func (executor *InteractionExecutor) RequestRootCancellation(
 	if process == nil {
 		return runs.ErrExecutorNotLive
 	}
-	if err := process.Cancel(ctx, reason); err != nil && !errors.Is(err, agent.ErrProcessFinished) {
-		return fmt.Errorf("agentexec: request native Interaction cancellation: %w", err)
+	if err := process.RequestCancellation(ctx, reason); err != nil &&
+		!errors.Is(err, agent.ErrProcessFinished) {
+		return fmt.Errorf("agentexec: submit Interaction cancellation intent: %w", err)
 	}
 	return nil
 }

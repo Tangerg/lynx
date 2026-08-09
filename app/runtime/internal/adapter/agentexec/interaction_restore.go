@@ -58,6 +58,7 @@ func (session *interactionSession) initializeRestoredContinuation(
 	session.carriedUsage = carriedUsage
 	session.delegateCalls = delegateCalls
 	session.delegateChildren = delegateChildren
+	session.pendingSteers = checkpoint.pendingSteers
 	return nil
 }
 

@@ -114,6 +114,45 @@ func TestReducerDoesNotDuplicateModelFinalWhenProcessConfirmsSameMessage(t *test
 	}
 }
 
+func TestReducerProjectsAppliedSteersAsOneOrderedFact(t *testing.T) {
+	reducer := newReducer(testReducerConfig())
+	reduced := mustReduce(t, reducer, SteerMessagesApplied{Messages: [][]transcript.ContentBlock{
+		{{Kind: transcript.TextContent, Text: "first"}},
+		{{Kind: transcript.TextContent, Text: "second"}},
+	}})
+	if len(reduced) != 4 {
+		t.Fatalf("reductions = %d, want two item pairs", len(reduced))
+	}
+	var completed []transcript.Item
+	for _, reduction := range reduced {
+		if event, ok := reduction.Event.(ItemCompleted); ok {
+			completed = append(completed, event.Item)
+		}
+	}
+	if len(completed) != 2 || completed[0].Content[0].Text != "first" ||
+		completed[1].Content[0].Text != "second" || completed[0].ID == completed[1].ID {
+		t.Fatalf("completed steer items = %#v", completed)
+	}
+}
+
+func TestReducerRejectsMalformedAppliedSteerBatch(t *testing.T) {
+	tests := map[string]SteerMessagesApplied{
+		"empty batch":   {},
+		"empty message": {Messages: [][]transcript.ContentBlock{{}}},
+		"invalid content": {Messages: [][]transcript.ContentBlock{{{
+			Kind: transcript.TextContent,
+		}}}},
+	}
+	for name, fact := range tests {
+		t.Run(name, func(t *testing.T) {
+			_, err := newReducer(testReducerConfig()).reduce(fact)
+			if !errors.Is(err, errExecutorContract) {
+				t.Fatalf("reduce error = %v, want executor contract violation", err)
+			}
+		})
+	}
+}
+
 func TestReducerSynthesizesUnsettledModelCallAsAtomicRunLost(t *testing.T) {
 	reducer := newReducer(testReducerConfig())
 	mustReduce(t, reducer, ModelCallStarted{CallID: "model_call_1"})

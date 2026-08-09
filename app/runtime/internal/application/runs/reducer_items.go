@@ -481,18 +481,34 @@ func (r *reducer) openUserMessage() []RunEvent {
 	})
 }
 
-func (r *reducer) steerMessage(e SteerMessage) []RunEvent {
+func (r *reducer) steerMessagesApplied(e SteerMessagesApplied) ([]RunEvent, error) {
+	if len(e.Messages) == 0 {
+		return nil, errors.New("applied steer batch is empty")
+	}
 	out := r.closeStreaming()
-	id, now := r.nextItemID(), r.now()
-	content := transcript.CloneContent(e.Content)
-	events := itemPair(func(status transcript.ItemStatus) transcript.Item {
-		return transcript.Item{
-			ID: id, RunID: r.cfg.RunID, Status: status,
-			Kind: transcript.UserMessage, OccurredAt: now,
-			Content: content,
+	for messageIndex, message := range e.Messages {
+		if len(message) == 0 {
+			return nil, fmt.Errorf("applied steer message %d is empty", messageIndex)
 		}
-	})
-	return append(out, events...)
+		for blockIndex, block := range message {
+			if err := block.Validate(); err != nil {
+				return nil, fmt.Errorf(
+					"applied steer message %d content %d: %w",
+					messageIndex, blockIndex, err,
+				)
+			}
+		}
+		id, now := r.nextItemID(), r.now()
+		content := transcript.CloneContent(message)
+		out = append(out, itemPair(func(status transcript.ItemStatus) transcript.Item {
+			return transcript.Item{
+				ID: id, RunID: r.cfg.RunID, Status: status,
+				Kind: transcript.UserMessage, OccurredAt: now,
+				Content: content,
+			}
+		})...)
+	}
+	return out, nil
 }
 
 func (r *reducer) planSnapshot(e PlanUpdated) []RunEvent {

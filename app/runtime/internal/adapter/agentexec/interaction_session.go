@@ -44,8 +44,7 @@ type interactionSession struct {
 
 	mu                    sync.Mutex
 	childProjectionMu     sync.Mutex
-	steerMu               sync.Mutex
-	pendingSteers         []pendingInteractionSteer
+	pendingSteers         map[agent.SignalID]pendingInteractionSteer
 	process               *agent.Process
 	admittedProcessID     agent.ProcessID
 	observerWasAttached   bool
@@ -83,8 +82,7 @@ type interactionSession struct {
 }
 
 type pendingInteractionSteer struct {
-	content  []transcript.ContentBlock
-	accepted bool
+	content []transcript.ContentBlock
 }
 
 type interactionBoundary uint8
@@ -149,6 +147,7 @@ func newInteractionSession(
 		done: make(chan struct{}), releasing: make(chan struct{}), lifecycle: lifecycle, stopLifecycle: stopLifecycle,
 		unknownWake: make(chan struct{}, 1), usageByProcess: make(map[agent.ProcessID]map[string]accounting.ModelUsage),
 		carriedUsage:          make(map[string]accounting.ModelUsage),
+		pendingSteers:         make(map[agent.SignalID]pendingInteractionSteer),
 		delegateCalls:         make(map[delegateCallIdentity]*managedDelegateCall),
 		delegateChildren:      make(map[agent.ProcessID]*managedDelegateCall),
 		committedModelReplies: make(map[agent.ProcessID]corechat.Message),
@@ -251,6 +250,12 @@ func (session *interactionSession) submitSteer(
 	message corechat.Message,
 	content []transcript.ContentBlock,
 ) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	process := session.processHandle()
 	if process == nil {
 		return runs.ErrExecutorNotLive
@@ -263,44 +268,68 @@ func (session *interactionSession) submitSteer(
 	if err != nil {
 		return fmt.Errorf("agentexec: construct Interaction steer Signal: %w", err)
 	}
-	session.steerMu.Lock()
-	session.pendingSteers = append(session.pendingSteers, pendingInteractionSteer{
+	session.mu.Lock()
+	session.pendingSteers[signalID] = pendingInteractionSteer{
 		content: transcript.CloneContent(content),
-	})
+	}
+	session.mu.Unlock()
 	accepted, deliverErr := process.DeliverSignal(executionctx.WithScope(ctx, session.scope), signal)
-	if deliverErr != nil || !accepted {
-		session.pendingSteers = session.pendingSteers[:len(session.pendingSteers)-1]
-		session.steerMu.Unlock()
-		if deliverErr != nil {
-			return fmt.Errorf("agentexec: deliver Interaction steer Signal: %w", deliverErr)
+	if deliverErr != nil {
+		// A context error only reports that the caller stopped waiting. Engine may
+		// already have accepted the command, so retain its exact product mapping
+		// until ModelInvocation attributes it or the session is released.
+		if !errors.Is(deliverErr, context.Canceled) &&
+			!errors.Is(deliverErr, context.DeadlineExceeded) {
+			session.removePendingSteer(signalID)
 		}
+		return fmt.Errorf("agentexec: deliver Interaction steer Signal: %w", deliverErr)
+	}
+	if !accepted {
+		session.removePendingSteer(signalID)
 		return errors.New("agentexec: Interaction steer Signal was not accepted")
 	}
-	session.pendingSteers[len(session.pendingSteers)-1].accepted = true
-	session.steerMu.Unlock()
 	return nil
 }
 
-func (session *interactionSession) commitPendingSteers(
+func (session *interactionSession) removePendingSteer(signalID agent.SignalID) {
+	session.mu.Lock()
+	delete(session.pendingSteers, signalID)
+	session.mu.Unlock()
+}
+
+func (session *interactionSession) commitAppliedSteers(
 	ctx context.Context,
 	member runs.ExecutorMember,
+	signalIDs []agent.SignalID,
 ) error {
-	session.steerMu.Lock()
-	count := 0
-	for count < len(session.pendingSteers) && session.pendingSteers[count].accepted {
-		count++
+	if len(signalIDs) == 0 {
+		return nil
 	}
-	pending := append([]pendingInteractionSteer(nil), session.pendingSteers[:count]...)
-	session.pendingSteers = session.pendingSteers[count:]
-	session.steerMu.Unlock()
-	for index, steer := range pending {
-		if err := session.commitFact(ctx, member, runs.SteerMessage{Content: steer.content}); err != nil {
-			session.steerMu.Lock()
-			session.pendingSteers = append(pending[index:], session.pendingSteers...)
-			session.steerMu.Unlock()
-			return fmt.Errorf("agentexec: commit accepted Interaction steer: %w", err)
+	session.mu.Lock()
+	messages := make([][]transcript.ContentBlock, len(signalIDs))
+	seen := make(map[agent.SignalID]struct{}, len(signalIDs))
+	for index, signalID := range signalIDs {
+		if _, duplicate := seen[signalID]; duplicate {
+			session.mu.Unlock()
+			return fmt.Errorf("agentexec: model attribution repeats steer Signal %s", signalID)
 		}
+		seen[signalID] = struct{}{}
+		pending, found := session.pendingSteers[signalID]
+		if !found {
+			session.mu.Unlock()
+			return fmt.Errorf("agentexec: model attribution names unknown steer Signal %s", signalID)
+		}
+		messages[index] = transcript.CloneContent(pending.content)
 	}
+	session.mu.Unlock()
+	if err := session.commitFact(ctx, member, runs.SteerMessagesApplied{Messages: messages}); err != nil {
+		return fmt.Errorf("agentexec: commit applied Interaction steers: %w", err)
+	}
+	session.mu.Lock()
+	for _, signalID := range signalIDs {
+		delete(session.pendingSteers, signalID)
+	}
+	session.mu.Unlock()
 	return nil
 }
 
@@ -630,12 +659,16 @@ func (session *interactionSession) interactionCheckpointPayload(
 		usageByProcess[processID] = maps.Clone(byModel)
 	}
 	carried := maps.Clone(session.carriedUsage)
+	pendingSteers := make(map[agent.SignalID]pendingInteractionSteer, len(session.pendingSteers))
+	for signalID, pending := range session.pendingSteers {
+		pendingSteers[signalID] = pendingInteractionSteer{content: transcript.CloneContent(pending.content)}
+	}
 	instructions, err := interactionInstructionContext(session.start.WorkingContext)
 	session.mu.Unlock()
 	if err != nil {
 		return nil, err
 	}
-	return encodeInteractionCheckpointPayload(tree, usageByProcess, carried, instructions)
+	return encodeInteractionCheckpointPayload(tree, usageByProcess, carried, instructions, pendingSteers)
 }
 
 func (session *interactionSession) reportUnknownEffects() bool {

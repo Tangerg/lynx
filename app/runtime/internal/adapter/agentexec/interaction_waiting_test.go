@@ -642,7 +642,12 @@ func TestInteractionExecutorAppliesSteerAtNextModelBoundary(t *testing.T) {
 	}
 	<-model.started
 	if err := executor.SubmitSteer(t.Context(), ref, []transcript.ContentBlock{{
-		Kind: transcript.TextContent, Text: "revise the draft",
+		Kind: transcript.TextContent, Text: "add evidence",
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := executor.SubmitSteer(t.Context(), ref, []transcript.ContentBlock{{
+		Kind: transcript.TextContent, Text: "then shorten it",
 	}}); err != nil {
 		t.Fatal(err)
 	}
@@ -651,15 +656,17 @@ func TestInteractionExecutorAppliesSteerAtNextModelBoundary(t *testing.T) {
 	if err := executor.Release(t.Context(), ref); err != nil {
 		t.Fatal(err)
 	}
-	steers := payloadsOf[runs.SteerMessage](observed)
-	if len(steers) != 1 || len(steers[0].Content) != 1 || steers[0].Content[0].Text != "revise the draft" {
+	steers := payloadsOf[runs.SteerMessagesApplied](observed)
+	if len(steers) != 1 || len(steers[0].Messages) != 2 ||
+		len(steers[0].Messages[0]) != 1 || steers[0].Messages[0][0].Text != "add evidence" ||
+		len(steers[0].Messages[1]) != 1 || steers[0].Messages[1][0].Text != "then shorten it" {
 		t.Fatalf("steer projections = %#v", steers)
 	}
 	steerIndex, secondModelIndex := -1, -1
 	modelStarts := 0
 	for index, event := range observed {
 		switch event.Payload.(type) {
-		case runs.SteerMessage:
+		case runs.SteerMessagesApplied:
 			steerIndex = index
 		case runs.ModelCallStarted:
 			modelStarts++
@@ -702,8 +709,9 @@ func (model *runtimeSteerModel) Call(_ context.Context, request *chat.Request) (
 		<-model.release
 		return interactionUsageTextResponse("draft", 1, 1), nil
 	}
-	if len(request.Messages) != 3 || request.Messages[1].Text() != "draft" ||
-		request.Messages[2].Role != chat.RoleUser || request.Messages[2].Text() != "revise the draft" {
+	if len(request.Messages) != 4 || request.Messages[1].Text() != "draft" ||
+		request.Messages[2].Role != chat.RoleUser || request.Messages[2].Text() != "add evidence" ||
+		request.Messages[3].Role != chat.RoleUser || request.Messages[3].Text() != "then shorten it" {
 		return nil, errors.New("steer was not visible at the next model boundary")
 	}
 	return interactionUsageTextResponse("revised", 1, 1), nil

@@ -50,7 +50,7 @@ func (executor *InteractionExecutor) CancelRunningSubtree(
 	}
 	controlCtx, cancel := session.lifecycleContext(ctx)
 	defer cancel()
-	if err := process.Cancel(executionctx.WithScope(controlCtx, session.scope), reason); err != nil {
+	if err := process.RequestCancellation(executionctx.WithScope(controlCtx, session.scope), reason); err != nil {
 		return fmt.Errorf("agentexec: cancel running Interaction member %s: %w", processID, err)
 	}
 	return nil

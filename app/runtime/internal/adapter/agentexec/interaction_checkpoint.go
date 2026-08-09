@@ -2,6 +2,7 @@ package agentexec
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -13,17 +14,19 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/accounting"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	corechat "github.com/Tangerg/lynx/core/chat"
 )
 
-const interactionCheckpointSchemaVersion uint16 = 2
+const interactionCheckpointSchemaVersion uint16 = 3
 
 type interactionCheckpointPayloadWire struct {
-	SchemaVersion uint16                       `json:"schema_version"`
-	Tree          json.RawMessage              `json:"tree"`
-	Instructions  []corechat.Message           `json:"instructions,omitempty"`
-	Members       []interactionMemberCallsWire `json:"members,omitempty"`
-	Carried       []interactionModelCallsWire  `json:"carried,omitempty"`
+	SchemaVersion uint16                        `json:"schema_version"`
+	Tree          json.RawMessage               `json:"tree"`
+	Instructions  []corechat.Message            `json:"instructions,omitempty"`
+	Members       []interactionMemberCallsWire  `json:"members,omitempty"`
+	Carried       []interactionModelCallsWire   `json:"carried,omitempty"`
+	PendingSteers []interactionPendingSteerWire `json:"pending_steers,omitempty"`
 }
 
 type interactionMemberCallsWire struct {
@@ -36,11 +39,24 @@ type interactionModelCallsWire struct {
 	Calls int    `json:"calls"`
 }
 
+type interactionPendingSteerWire struct {
+	SignalID string                        `json:"signal_id"`
+	Content  []interactionContentBlockWire `json:"content"`
+}
+
+type interactionContentBlockWire struct {
+	Kind      string `json:"kind"`
+	Text      string `json:"text,omitempty"`
+	MediaType string `json:"media_type,omitempty"`
+	Data      string `json:"data,omitempty"`
+}
+
 type interactionCheckpointState struct {
 	tree             agent.TreeSnapshot
 	callsByProcess   map[agent.ProcessID]map[string]int
 	carriedCallCount map[string]int
 	instructions     []corechat.Message
+	pendingSteers    map[agent.SignalID]pendingInteractionSteer
 }
 
 func (session *interactionSession) executorCheckpoint(
@@ -71,6 +87,7 @@ func encodeInteractionCheckpointPayload(
 	usageByProcess map[agent.ProcessID]map[string]accounting.ModelUsage,
 	carriedUsage map[string]accounting.ModelUsage,
 	instructions []corechat.Message,
+	pendingSteers map[agent.SignalID]pendingInteractionSteer,
 ) ([]byte, error) {
 	if !tree.Valid() {
 		return nil, errors.New("agentexec: encode invalid Interaction tree checkpoint")
@@ -103,11 +120,51 @@ func encodeInteractionCheckpointPayload(
 	if err != nil {
 		return nil, fmt.Errorf("agentexec: encode carried Interaction accounting: %w", err)
 	}
+	wire.PendingSteers, err = encodeInteractionPendingSteers(pendingSteers)
+	if err != nil {
+		return nil, fmt.Errorf("agentexec: encode pending Interaction steers: %w", err)
+	}
 	payload, err := json.Marshal(wire)
 	if err != nil {
 		return nil, fmt.Errorf("agentexec: encode Interaction checkpoint: %w", err)
 	}
 	return payload, nil
+}
+
+func encodeInteractionPendingSteers(
+	pending map[agent.SignalID]pendingInteractionSteer,
+) ([]interactionPendingSteerWire, error) {
+	values := make([]interactionPendingSteerWire, 0, len(pending))
+	for signalID, steer := range pending {
+		if !signalID.Valid() {
+			return nil, errors.New("pending steer has an invalid Signal identity")
+		}
+		if len(steer.content) == 0 {
+			return nil, fmt.Errorf("pending steer %s has no product content", signalID)
+		}
+		content := make([]interactionContentBlockWire, len(steer.content))
+		for index, block := range steer.content {
+			if err := block.Validate(); err != nil {
+				return nil, fmt.Errorf("pending steer %s content %d: %w", signalID, index, err)
+			}
+			switch block.Kind {
+			case transcript.TextContent:
+				content[index] = interactionContentBlockWire{Kind: "text", Text: block.Text}
+			case transcript.ImageContent:
+				content[index] = interactionContentBlockWire{
+					Kind: "image", MediaType: block.MediaType,
+					Data: base64.StdEncoding.EncodeToString(block.Bytes),
+				}
+			default:
+				return nil, fmt.Errorf("pending steer %s content %d has unknown kind %d", signalID, index, block.Kind)
+			}
+		}
+		values = append(values, interactionPendingSteerWire{SignalID: signalID.String(), Content: content})
+	}
+	slices.SortFunc(values, func(left, right interactionPendingSteerWire) int {
+		return strings.Compare(left.SignalID, right.SignalID)
+	})
+	return values, nil
 }
 
 func interactionCallCounts(
@@ -163,6 +220,7 @@ func decodeInteractionCheckpointPayload(payload []byte) (interactionCheckpointSt
 		tree: tree, callsByProcess: make(map[agent.ProcessID]map[string]int, len(wire.Members)),
 		carriedCallCount: make(map[string]int, len(wire.Carried)),
 		instructions:     cloneChatMessages(wire.Instructions),
+		pendingSteers:    make(map[agent.SignalID]pendingInteractionSteer, len(wire.PendingSteers)),
 	}
 	canonicalInstructions, err := interactionInstructionContext(state.instructions)
 	if err != nil || len(canonicalInstructions) != len(state.instructions) {
@@ -198,7 +256,57 @@ func decodeInteractionCheckpointPayload(payload []byte) (interactionCheckpointSt
 	if err != nil {
 		return interactionCheckpointState{}, fmt.Errorf("agentexec: Interaction checkpoint carried calls: %w", err)
 	}
+	state.pendingSteers, err = decodeInteractionPendingSteers(wire.PendingSteers)
+	if err != nil {
+		return interactionCheckpointState{}, fmt.Errorf("agentexec: Interaction checkpoint pending steers: %w", err)
+	}
 	return state, nil
+}
+
+func decodeInteractionPendingSteers(
+	values []interactionPendingSteerWire,
+) (map[agent.SignalID]pendingInteractionSteer, error) {
+	pending := make(map[agent.SignalID]pendingInteractionSteer, len(values))
+	previous := ""
+	for index, value := range values {
+		if strings.TrimSpace(value.SignalID) == "" || value.SignalID != strings.TrimSpace(value.SignalID) ||
+			index > 0 && value.SignalID <= previous || len(value.Content) == 0 {
+			return nil, errors.New("pending steers are not canonical")
+		}
+		signalID, err := agent.ParseSignalID(value.SignalID)
+		if err != nil {
+			return nil, fmt.Errorf("pending steer identity: %w", err)
+		}
+		content := make([]transcript.ContentBlock, len(value.Content))
+		for contentIndex, block := range value.Content {
+			switch block.Kind {
+			case "text":
+				if block.Text == "" || block.MediaType != "" || block.Data != "" {
+					return nil, fmt.Errorf("pending steer %s content %d is not canonical text", signalID, contentIndex)
+				}
+				content[contentIndex] = transcript.ContentBlock{Kind: transcript.TextContent, Text: block.Text}
+			case "image":
+				if block.Text != "" || block.MediaType == "" || block.Data == "" {
+					return nil, fmt.Errorf("pending steer %s content %d is not canonical image", signalID, contentIndex)
+				}
+				data, err := base64.StdEncoding.Strict().DecodeString(block.Data)
+				if err != nil {
+					return nil, fmt.Errorf("pending steer %s content %d image data: %w", signalID, contentIndex, err)
+				}
+				content[contentIndex] = transcript.ContentBlock{
+					Kind: transcript.ImageContent, MediaType: block.MediaType, Bytes: data,
+				}
+			default:
+				return nil, fmt.Errorf("pending steer %s content %d has unknown kind %q", signalID, contentIndex, block.Kind)
+			}
+			if err := content[contentIndex].Validate(); err != nil {
+				return nil, fmt.Errorf("pending steer %s content %d: %w", signalID, contentIndex, err)
+			}
+		}
+		pending[signalID] = pendingInteractionSteer{content: content}
+		previous = value.SignalID
+	}
+	return pending, nil
 }
 
 func decodeInteractionCallCounts(values []interactionModelCallsWire) (map[string]int, error) {
