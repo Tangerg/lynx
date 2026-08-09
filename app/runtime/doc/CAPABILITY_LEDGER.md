@@ -116,7 +116,7 @@
 | Resume | `WaitingExecutionContinuer.StageContinuation/BeginContinuation` | Retain | exact BuildID/deployment/scope/capabilities restore；opening commit 后才 Signal |
 | Steer | `RunningExecutionSteerer.SubmitSteer` | Retain | semantic steer 只在下一 model safe boundary 投影 |
 | Child subtree cancel | `MemberID` + `WaitingSubtreeCancellationPreparer` | P7 real consumer 已重推 | Application 只看 member projection、resulting checkpoint 与一次性 Apply/Discard capability |
-| Waiting subtree mutation | `WaitingSubtreeChange` 持有 execution ACL capability | P7 native bridge 已完成 | Application 不见 Agent Framework plan；source 冻结跨过 transaction；contextless Apply 只安装状态，final-boundary Continue 独立激活，失败时 exact restore/terminal 收口 |
+| Waiting subtree mutation | `WaitingSubtreeChange` 持有 execution ACL capability | P7 native bridge 已完成；P14 精修 commit invariant owner | Application 不见 Agent Framework plan；source 冻结跨过 transaction；contextless Apply 只安装状态，final-boundary Continue 独立激活，失败时 exact restore/terminal 收口；`WaitingSubtreeCancellationCommit` 内部按 boundary、disposition envelope、pending-tree topology 和 surviving continuation 分阶段证明同一原子 write-set，不产生第二 validator owner |
 | Run pump | executor event reducer | Retain | 不推进 Agent Framework internal state |
 | Run journal | committed RunEvent | Retain | persist-before-publish |
 

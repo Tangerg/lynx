@@ -53,69 +53,104 @@ func (c WaitingSubtreeCancellationCommit) Validate() error {
 func newWaitingCancellationValidation(
 	c WaitingSubtreeCancellationCommit,
 ) (waitingCancellationValidation, error) {
-	if strings.TrimSpace(c.RootRunID) == "" ||
-		strings.TrimSpace(c.TargetRunID) == "" ||
-		strings.TrimSpace(c.SessionID) == "" {
-		return waitingCancellationValidation{}, errors.New("runs: waiting cancellation identity is incomplete")
+	if err := validateWaitingCancellationBoundary(c); err != nil {
+		return waitingCancellationValidation{}, err
 	}
-	if c.RootRun.ID != c.RootRunID ||
-		c.RootRun.SessionID != c.SessionID ||
-		!c.RootRun.Lineage().IsRoot() ||
-		c.RootRun.State != rundomain.Waiting {
-		return waitingCancellationValidation{}, errors.New("runs: waiting cancellation root snapshot is invalid")
+	if err := validateWaitingCancellationDispositionEnvelope(c); err != nil {
+		return waitingCancellationValidation{}, err
+	}
+	topology, err := buildWaitingCancellationTopology(c)
+	if err != nil {
+		return waitingCancellationValidation{}, err
+	}
+	return waitingCancellationValidation{
+		commit:              c,
+		continuationByRunID: topology.continuationByRunID,
+		canceledRunIDs:      topology.canceledRunIDs,
+		canceledMemberIDs:   topology.canceledMemberIDs,
+		survivingRunIDs:     topology.survivingRunIDs,
+		terminalRunIDs:      make(map[string]struct{}, len(c.TerminalRuns)),
+		finishedAtByRunID:   make(map[string]time.Time, len(c.TerminalRuns)),
+	}, nil
+}
+
+func validateWaitingCancellationBoundary(c WaitingSubtreeCancellationCommit) error {
+	if strings.TrimSpace(c.RootRunID) == "" || strings.TrimSpace(c.TargetRunID) == "" ||
+		strings.TrimSpace(c.SessionID) == "" {
+		return errors.New("runs: waiting cancellation identity is incomplete")
+	}
+	if c.RootRun.ID != c.RootRunID || c.RootRun.SessionID != c.SessionID ||
+		!c.RootRun.Lineage().IsRoot() || c.RootRun.State != rundomain.Waiting {
+		return errors.New("runs: waiting cancellation root snapshot is invalid")
 	}
 	if err := c.ExpectedPending.Validate(); err != nil {
-		return waitingCancellationValidation{}, fmt.Errorf("runs: waiting cancellation expected Pending: %w", err)
+		return fmt.Errorf("runs: waiting cancellation expected Pending: %w", err)
 	}
 	if c.ExpectedPending.RootRunID != c.RootRunID || c.ExpectedPending.SessionID != c.SessionID {
-		return waitingCancellationValidation{}, errors.New("runs: waiting cancellation expected Pending scope mismatch")
+		return errors.New("runs: waiting cancellation expected Pending scope mismatch")
 	}
-	rootContinuation, ok := c.ExpectedPending.RootContinuation()
-	if !ok {
-		return waitingCancellationValidation{}, errors.New("runs: waiting cancellation expected Pending has no root continuation")
+	rootContinuation, found := c.ExpectedPending.RootContinuation()
+	if !found {
+		return errors.New("runs: waiting cancellation expected Pending has no root continuation")
 	}
 	if c.RootRun.GoalLeaseID != c.ExpectedPending.GoalLeaseID {
-		return waitingCancellationValidation{}, errors.New("runs: waiting cancellation root Run goal lease differs from Pending")
+		return errors.New("runs: waiting cancellation root Run goal lease differs from Pending")
 	}
 	if !c.RootRun.Capabilities.Equal(c.ExpectedPending.Capabilities) {
-		return waitingCancellationValidation{}, errors.New("runs: waiting cancellation root Run capabilities differ from Pending")
+		return errors.New("runs: waiting cancellation root Run capabilities differ from Pending")
 	}
 	if err := validateWaitingRunContinuation(c.RootRun, rootContinuation); err != nil {
-		return waitingCancellationValidation{}, fmt.Errorf("runs: waiting cancellation root Run: %w", err)
+		return fmt.Errorf("runs: waiting cancellation root Run: %w", err)
 	}
 	if err := c.Checkpoint.ValidateOwnership(rootContinuation.MemberID, c.SessionID); err != nil {
-		return waitingCancellationValidation{}, fmt.Errorf("runs: waiting cancellation checkpoint ownership: %w", err)
+		return fmt.Errorf("runs: waiting cancellation checkpoint ownership: %w", err)
 	}
 	if c.Checkpoint.Scope.GoalLeaseID != c.ExpectedPending.GoalLeaseID ||
 		c.Checkpoint.ModelSelection != rootContinuation.ModelSelection ||
 		c.Checkpoint.Limits != rootContinuation.Limits {
-		return waitingCancellationValidation{}, fmt.Errorf(
+		return fmt.Errorf(
 			"runs: waiting cancellation checkpoint differs from root continuation: %w",
 			ErrInvalidExecutorCheckpoint,
 		)
 	}
+	return nil
+}
+
+func validateWaitingCancellationDispositionEnvelope(c WaitingSubtreeCancellationCommit) error {
 	if (c.RemainingPending == nil) == (c.Resume == nil) {
-		return waitingCancellationValidation{}, errors.New("runs: waiting cancellation requires exactly one surviving disposition")
+		return errors.New("runs: waiting cancellation requires exactly one surviving disposition")
 	}
-	if c.RemainingPending != nil {
-		if err := c.RemainingPending.Validate(); err != nil {
-			return waitingCancellationValidation{}, fmt.Errorf("runs: waiting cancellation reduced Pending: %w", err)
-		}
-		if c.RemainingPending.RootRunID != c.RootRunID || c.RemainingPending.SessionID != c.SessionID {
-			return waitingCancellationValidation{}, errors.New("runs: waiting cancellation reduced Pending scope mismatch")
-		}
-		if len(c.OpeningEvents) != 0 {
-			return waitingCancellationValidation{}, errors.New("runs: waiting cancellation still parked carries opening events")
-		}
-	} else {
+	if c.RemainingPending == nil {
 		if err := c.Resume.Validate(); err != nil {
-			return waitingCancellationValidation{}, fmt.Errorf("runs: waiting cancellation Resume: %w", err)
+			return fmt.Errorf("runs: waiting cancellation Resume: %w", err)
 		}
 		if c.Resume.RootRunID != c.RootRunID || c.Resume.SessionID != c.SessionID {
-			return waitingCancellationValidation{}, errors.New("runs: waiting cancellation Resume scope mismatch")
+			return errors.New("runs: waiting cancellation Resume scope mismatch")
 		}
+		return nil
 	}
+	if err := c.RemainingPending.Validate(); err != nil {
+		return fmt.Errorf("runs: waiting cancellation reduced Pending: %w", err)
+	}
+	if c.RemainingPending.RootRunID != c.RootRunID || c.RemainingPending.SessionID != c.SessionID {
+		return errors.New("runs: waiting cancellation reduced Pending scope mismatch")
+	}
+	if len(c.OpeningEvents) != 0 {
+		return errors.New("runs: waiting cancellation still parked carries opening events")
+	}
+	return nil
+}
 
+type waitingCancellationTopology struct {
+	continuationByRunID map[string]Continuation
+	canceledRunIDs      []string
+	canceledMemberIDs   map[string]struct{}
+	survivingRunIDs     []string
+}
+
+func buildWaitingCancellationTopology(
+	c WaitingSubtreeCancellationCommit,
+) (waitingCancellationTopology, error) {
 	members := make([]rundomain.TreeMember, 0, len(c.ExpectedPending.Continuations))
 	continuationByRunID := make(map[string]Continuation, len(c.ExpectedPending.Continuations))
 	for _, continuation := range c.ExpectedPending.Continuations {
@@ -124,11 +159,11 @@ func newWaitingCancellationValidation(
 	}
 	tree, err := rundomain.NewTree(c.RootRunID, members)
 	if err != nil {
-		return waitingCancellationValidation{}, fmt.Errorf("runs: waiting cancellation tree: %w", err)
+		return waitingCancellationTopology{}, fmt.Errorf("runs: waiting cancellation tree: %w", err)
 	}
 	canceledRunIDs, found := tree.SubtreePostorder(c.TargetRunID)
 	if !found || c.TargetRunID == c.RootRunID {
-		return waitingCancellationValidation{}, errors.New("runs: waiting cancellation target is not a child in the pending tree")
+		return waitingCancellationTopology{}, errors.New("runs: waiting cancellation target is not a child in the pending tree")
 	}
 	canceledRunSet := make(map[string]struct{}, len(canceledRunIDs))
 	canceledMemberIDs := make(map[string]struct{}, len(canceledRunIDs))
@@ -142,14 +177,11 @@ func newWaitingCancellationValidation(
 			survivingRunIDs = append(survivingRunIDs, runID)
 		}
 	}
-	return waitingCancellationValidation{
-		commit:              c,
+	return waitingCancellationTopology{
 		continuationByRunID: continuationByRunID,
 		canceledRunIDs:      canceledRunIDs,
 		canceledMemberIDs:   canceledMemberIDs,
 		survivingRunIDs:     survivingRunIDs,
-		terminalRunIDs:      make(map[string]struct{}, len(c.TerminalRuns)),
-		finishedAtByRunID:   make(map[string]time.Time, len(c.TerminalRuns)),
 	}, nil
 }
 
@@ -261,49 +293,70 @@ func validateTerminalItemReplacement(
 }
 
 func (v waitingCancellationValidation) validateDisposition() error {
-	c := v.commit
-	var dispositionRunIDs []string
-	if c.RemainingPending != nil {
-		var survivingRequestIndexes []int
-		for index, binding := range c.ExpectedPending.Bindings {
-			if _, canceled := v.canceledMemberIDs[binding.MemberID]; !canceled {
-				survivingRequestIndexes = append(survivingRequestIndexes, index)
-			}
-		}
-		if len(c.RemainingPending.Bindings) != len(survivingRequestIndexes) {
-			return errors.New("runs: waiting cancellation reduced Pending has the wrong input-request set")
-		}
-		for index, expectedIndex := range survivingRequestIndexes {
-			if c.RemainingPending.Bindings[index] != c.ExpectedPending.Bindings[expectedIndex] ||
-				!sameInterruptValue(c.RemainingPending.Interrupts[index], c.ExpectedPending.Interrupts[expectedIndex]) {
-				return fmt.Errorf("runs: waiting cancellation changed surviving input request[%d]", index)
-			}
-		}
-		for _, continuation := range c.RemainingPending.Continuations {
-			dispositionRunIDs = append(dispositionRunIDs, continuation.RunID)
-		}
-		if c.RemainingPending.ExecutorID != c.ExpectedPending.ExecutorID ||
-			c.RemainingPending.GoalLeaseID != c.ExpectedPending.GoalLeaseID ||
-			!c.RemainingPending.CreatedAt.Equal(c.ExpectedPending.CreatedAt) ||
-			!c.RemainingPending.Capabilities.Equal(c.ExpectedPending.Capabilities) {
-			return errors.New("runs: waiting cancellation changed immutable Pending facts")
-		}
-	} else {
-		for _, binding := range c.ExpectedPending.Bindings {
-			if _, canceled := v.canceledMemberIDs[binding.MemberID]; !canceled {
-				return fmt.Errorf("runs: waiting cancellation resumes while input request %q survives", binding.RequestID)
-			}
-		}
-		for _, draft := range c.Resume.Runs {
-			dispositionRunIDs = append(dispositionRunIDs, draft.RunID)
-		}
+	dispositionRunIDs, err := v.validateDispositionAndCollectRunIDs()
+	if err != nil {
+		return err
 	}
 	if !slices.Equal(dispositionRunIDs, v.survivingRunIDs) {
 		return fmt.Errorf("runs: waiting cancellation disposition Runs %v, want %v", dispositionRunIDs, v.survivingRunIDs)
 	}
-	if c.RemainingPending == nil {
+	if v.commit.RemainingPending == nil {
 		return nil
 	}
+	return v.validateSurvivingContinuations()
+}
+
+func (v waitingCancellationValidation) validateDispositionAndCollectRunIDs() ([]string, error) {
+	if v.commit.RemainingPending != nil {
+		return v.validateReducedPendingAndCollectRunIDs()
+	}
+	for _, binding := range v.commit.ExpectedPending.Bindings {
+		if _, canceled := v.canceledMemberIDs[binding.MemberID]; !canceled {
+			return nil, fmt.Errorf(
+				"runs: waiting cancellation resumes while input request %q survives",
+				binding.RequestID,
+			)
+		}
+	}
+	runIDs := make([]string, 0, len(v.commit.Resume.Runs))
+	for _, draft := range v.commit.Resume.Runs {
+		runIDs = append(runIDs, draft.RunID)
+	}
+	return runIDs, nil
+}
+
+func (v waitingCancellationValidation) validateReducedPendingAndCollectRunIDs() ([]string, error) {
+	c := v.commit
+	var survivingRequestIndexes []int
+	for index, binding := range c.ExpectedPending.Bindings {
+		if _, canceled := v.canceledMemberIDs[binding.MemberID]; !canceled {
+			survivingRequestIndexes = append(survivingRequestIndexes, index)
+		}
+	}
+	if len(c.RemainingPending.Bindings) != len(survivingRequestIndexes) {
+		return nil, errors.New("runs: waiting cancellation reduced Pending has the wrong input-request set")
+	}
+	for index, expectedIndex := range survivingRequestIndexes {
+		if c.RemainingPending.Bindings[index] != c.ExpectedPending.Bindings[expectedIndex] ||
+			!sameInterruptValue(c.RemainingPending.Interrupts[index], c.ExpectedPending.Interrupts[expectedIndex]) {
+			return nil, fmt.Errorf("runs: waiting cancellation changed surviving input request[%d]", index)
+		}
+	}
+	if c.RemainingPending.ExecutorID != c.ExpectedPending.ExecutorID ||
+		c.RemainingPending.GoalLeaseID != c.ExpectedPending.GoalLeaseID ||
+		!c.RemainingPending.CreatedAt.Equal(c.ExpectedPending.CreatedAt) ||
+		!c.RemainingPending.Capabilities.Equal(c.ExpectedPending.Capabilities) {
+		return nil, errors.New("runs: waiting cancellation changed immutable Pending facts")
+	}
+	runIDs := make([]string, 0, len(c.RemainingPending.Continuations))
+	for _, continuation := range c.RemainingPending.Continuations {
+		runIDs = append(runIDs, continuation.RunID)
+	}
+	return runIDs, nil
+}
+
+func (v waitingCancellationValidation) validateSurvivingContinuations() error {
+	c := v.commit
 	target := v.continuationByRunID[c.TargetRunID]
 	for _, actual := range c.RemainingPending.Continuations {
 		expected := v.continuationByRunID[actual.RunID]

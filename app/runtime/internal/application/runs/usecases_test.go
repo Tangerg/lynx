@@ -1356,6 +1356,120 @@ func TestCancelChildRunRequiresExplicitAuthority(t *testing.T) {
 	}
 }
 
+func projectAdmittedChildRun(
+	t *testing.T,
+	effects *fakeEffects,
+	projection *fakeRunProjection,
+) transcript.Run {
+	t.Helper()
+	openings := effects.openingSnapshot()
+	if len(openings) != 2 || openings[1].Admit == nil {
+		t.Fatalf("openings = %+v, want root and child", openings)
+	}
+	draft := *openings[1].Admit
+	child := transcript.Run{
+		ID:              draft.RunID,
+		SessionID:       draft.SessionID,
+		SpawnedByItemID: draft.SpawnedByItemID,
+		ParentRunID:     draft.ParentRunID,
+		RootRunID:       draft.RootRunID,
+		State:           run.Running,
+		ActiveSegmentID: draft.SegmentID,
+		ModelSelection:  draft.ModelSelection,
+		Limits:          draft.Limits,
+		Capabilities:    draft.Capabilities,
+		CreatedAt:       draft.CreatedAt,
+		UpdatedAt:       draft.CreatedAt,
+		MessageMark:     transcript.UnknownMessageMark,
+	}
+	projection.runs[child.ID] = child
+	return child
+}
+
+func requireCanceledChildResult(t *testing.T, result CancelResult, child transcript.Run, reason string) {
+	t.Helper()
+	if result.Run.ID != child.ID || result.Run.State != run.Canceled || result.Run.Outcome == nil ||
+		*result.Run.Outcome != run.OutcomeCanceled || result.Run.Detail != reason {
+		t.Fatalf("child result = %+v, want exact canceled terminal", result.Run)
+	}
+	if result.RootRun == nil || result.RootRun.ID != child.RootRunID || result.RootRun.State != run.Running {
+		t.Fatalf("root result = %+v, want still-running %s", result.RootRun, child.RootRunID)
+	}
+}
+
+func requireChildCancellationProjection(
+	t *testing.T,
+	commits []EventCommit,
+	child transcript.Run,
+	reason string,
+) {
+	t.Helper()
+	childTerminalCommits, parentCancellationItems := 0, 0
+	for _, commit := range commits {
+		if commit.State == StateTerminalize && commit.RunID == child.ID {
+			childTerminalCommits++
+		}
+		for _, item := range commit.Items {
+			if item.ID == child.SpawnedByItemID && item.Status == transcript.ItemIncomplete &&
+				item.Error != nil && item.Error.Kind == transcript.ChildRunCanceledProblem &&
+				item.Error.Scope == transcript.ToolProblem && item.Error.Detail == reason {
+				parentCancellationItems++
+			}
+		}
+	}
+	if childTerminalCommits != 1 || parentCancellationItems != 1 {
+		t.Fatalf(
+			"child terminal commits=%d parent child_run_canceled items=%d, want 1/1",
+			childTerminalCommits,
+			parentCancellationItems,
+		)
+	}
+}
+
+func requireLiveJournalHead(t *testing.T, coordinator *Coordinator, runID string) (*journal, string) {
+	t.Helper()
+	entry, live := coordinator.registry.Get(runID)
+	if !live || entry.handle == nil || entry.handle.hub == nil {
+		t.Fatalf("continued Run %q has no event journal", runID)
+	}
+	subscription := entry.handle.hub.tail()
+	cursor := subscription.HeadCursor
+	subscription.Cancel()
+	if cursor == "" {
+		t.Fatalf("Run %q journal has no established cursor", runID)
+	}
+	return entry.handle.hub, cursor
+}
+
+func requireNaturalRootCompletion(t *testing.T, streamDone <-chan []Event, rootRunID string) {
+	t.Helper()
+	select {
+	case events := <-streamDone:
+		for _, event := range events {
+			finished, ok := event.Payload.(SegmentFinished)
+			if ok && event.RunID == rootRunID && finished.Run.State == run.Completed {
+				return
+			}
+		}
+		t.Fatalf("root Run %q did not continue to its natural terminal: %+v", rootRunID, events)
+	case <-time.After(time.Second):
+		t.Fatalf("root Run %q did not finish after child cancellation", rootRunID)
+	}
+}
+
+func requireNoRunEventsAfter(t *testing.T, eventJournal *journal, cursor, runID string) {
+	t.Helper()
+	replayed, err := eventJournal.replay(cursor)
+	if err != nil {
+		t.Fatalf("replay after child cancellation: %v", err)
+	}
+	for _, event := range collectEvents(replayed.Events) {
+		if event.RunID == runID {
+			t.Fatalf("canceled child published event after Cancel returned: %+v", event)
+		}
+	}
+}
+
 func TestCancelRunningChildCommitsExactSubtreeBoundaryAndKeepsRootRunning(t *testing.T) {
 	childRequest, childConfirmation := newNativeChildStartFixture(time.Now().UTC())
 	rootMember := ExecutorMember{MemberID: "member_root"}
@@ -1415,118 +1529,26 @@ func TestCancelRunningChildCommitsExactSubtreeBoundaryAndKeepsRootRunning(t *tes
 		t.Fatal("child opening was not committed")
 	}
 
-	openings := effects.openingSnapshot()
-	if len(openings) != 2 || openings[1].Admit == nil {
-		t.Fatalf("openings = %+v, want root and child", openings)
-	}
-	childDraft := *openings[1].Admit
-	projection.runs[childDraft.RunID] = transcript.Run{
-		ID:              childDraft.RunID,
-		SessionID:       childDraft.SessionID,
-		SpawnedByItemID: childDraft.SpawnedByItemID,
-		ParentRunID:     childDraft.ParentRunID,
-		RootRunID:       childDraft.RootRunID,
-		State:           run.Running,
-		ActiveSegmentID: childDraft.SegmentID,
-		ModelSelection:  childDraft.ModelSelection,
-		Limits:          childDraft.Limits,
-		Capabilities:    childDraft.Capabilities,
-		CreatedAt:       childDraft.CreatedAt,
-		UpdatedAt:       childDraft.CreatedAt,
-		MessageMark:     transcript.UnknownMessageMark,
-	}
+	childRun := projectAdmittedChildRun(t, effects, projection)
 
 	result, err := coordinator.Cancel(t.Context(), CancelCommand{
-		RunID:         childDraft.RunID,
+		RunID:         childRun.ID,
 		Reason:        "stop delegated work",
 		AllowChildRun: true,
 	})
 	if err != nil {
 		t.Fatalf("Cancel child: %v", err)
 	}
-	if result.Run.ID != childDraft.RunID ||
-		result.Run.State != run.Canceled ||
-		result.Run.Outcome == nil ||
-		*result.Run.Outcome != run.OutcomeCanceled ||
-		result.Run.Detail != "stop delegated work" {
-		t.Fatalf("child result = %+v, want exact canceled terminal", result.Run)
-	}
-	if result.RootRun == nil ||
-		result.RootRun.ID != "run_1" ||
-		result.RootRun.State != run.Running {
-		t.Fatalf("root result = %+v, want still-running run_1", result.RootRun)
-	}
-
-	var (
-		childTerminals int
-		parentResults  int
-	)
-	for _, commit := range effects.commitSnapshot() {
-		if commit.State == StateTerminalize && commit.RunID == childDraft.RunID {
-			childTerminals++
-		}
-		for _, item := range commit.Items {
-			if item.ID != childDraft.SpawnedByItemID {
-				continue
-			}
-			if item.Status == transcript.ItemIncomplete &&
-				item.Error != nil &&
-				item.Error.Kind == transcript.ChildRunCanceledProblem &&
-				item.Error.Scope == transcript.ToolProblem &&
-				item.Error.Detail == "stop delegated work" {
-				parentResults++
-			}
-		}
-	}
-	if childTerminals != 1 || parentResults != 1 {
-		t.Fatalf(
-			"child terminal commits=%d parent child_run_canceled results=%d, want 1/1",
-			childTerminals,
-			parentResults,
-		)
-	}
+	requireCanceledChildResult(t, result, childRun, "stop delegated work")
+	requireChildCancellationProjection(t, effects.commitSnapshot(), childRun, "stop delegated work")
 	if _, live := coordinator.registry.Get("run_1"); !live {
 		t.Fatal("child cancellation stopped the root segment")
 	}
-	entry, live := coordinator.registry.Get("run_1")
-	if !live || entry.handle == nil || entry.handle.hub == nil {
-		t.Fatal("continued root has no event journal")
-	}
-	afterCancellation := entry.handle.hub.tail()
-	cursorAfterCancellation := afterCancellation.HeadCursor
-	afterCancellation.Cancel()
-	if cursorAfterCancellation == "" {
-		t.Fatal("child cancellation returned before the journal established a cursor")
-	}
+	eventJournal, cancellationCursor := requireLiveJournalHead(t, coordinator, "run_1")
 
 	close(executor.finishRoot)
-	select {
-	case events := <-streamDone:
-		var rootCompleted bool
-		for _, event := range events {
-			finished, ok := event.Payload.(SegmentFinished)
-			if ok && event.RunID == "run_1" && finished.Run.State == run.Completed {
-				rootCompleted = true
-			}
-		}
-		if !rootCompleted {
-			t.Fatalf("root did not continue to its natural terminal: %+v", events)
-		}
-		replayed, err := entry.handle.hub.replay(cursorAfterCancellation)
-		if err != nil {
-			t.Fatalf("replay after child cancellation: %v", err)
-		}
-		for _, event := range collectEvents(replayed.Events) {
-			if event.RunID == childDraft.RunID {
-				t.Fatalf(
-					"canceled child published event after Cancel returned: %+v",
-					event,
-				)
-			}
-		}
-	case <-time.After(time.Second):
-		t.Fatal("root did not finish after child cancellation")
-	}
+	requireNaturalRootCompletion(t, streamDone, "run_1")
+	requireNoRunEventsAfter(t, eventJournal, cancellationCursor, childRun.ID)
 }
 
 func TestCancelParkedRunReportsExecutorReleaseFailureAfterDurableCommit(t *testing.T) {

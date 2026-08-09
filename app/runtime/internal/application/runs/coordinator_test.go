@@ -1476,6 +1476,98 @@ func TestCoordinatorPublishesNativeChildOnlyAfterConclusiveStart(t *testing.T) {
 	}
 }
 
+type publishedChildLifecycle struct {
+	started   *SegmentStarted
+	completed *ItemCompleted
+	finished  *SegmentFinished
+}
+
+func requirePublishedChildLifecycle(
+	t *testing.T,
+	events []Event,
+	runID string,
+	segmentID string,
+) publishedChildLifecycle {
+	t.Helper()
+	var lifecycle publishedChildLifecycle
+	for index := range events {
+		event := events[index]
+		if event.RunID != runID {
+			continue
+		}
+		if event.SegmentID != segmentID {
+			t.Fatalf("Run %q event[%d] segment = %q, want %q", runID, index, event.SegmentID, segmentID)
+		}
+		switch payload := event.Payload.(type) {
+		case SegmentStarted:
+			lifecycle.started = &payload
+		case ItemCompleted:
+			lifecycle.completed = &payload
+		case SegmentFinished:
+			lifecycle.finished = &payload
+		}
+	}
+	if lifecycle.started == nil || lifecycle.completed == nil || lifecycle.finished == nil {
+		t.Fatalf("Run %q lifecycle = %+v, want started, completed item, and finished events", runID, lifecycle)
+	}
+	return lifecycle
+}
+
+func requireIndependentChildLifecycle(
+	t *testing.T,
+	lifecycle publishedChildLifecycle,
+	spec segmentSpec,
+	lineage run.Lineage,
+	childRunID string,
+	childSegmentID string,
+) {
+	t.Helper()
+	started := lifecycle.started
+	if started.Run.Lineage() != lineage ||
+		started.Run.ActiveSegmentID != childSegmentID ||
+		started.Run.Limits != spec.Limits ||
+		started.Run.Capabilities.String() != spec.Capabilities.String() {
+		t.Fatalf("child opening Run = %+v, want independent inherited segment state", started.Run)
+	}
+	completed := lifecycle.completed
+	if completed.Item.RunID != childRunID ||
+		completed.Item.SessionID != spec.SessionID ||
+		completed.Item.Kind != transcript.AgentMessage {
+		t.Fatalf("child completed item = %+v, want child-owned assistant item", completed)
+	}
+	finished := lifecycle.finished
+	if finished.Run.Lineage() != lineage || finished.Run.Outcome == nil ||
+		*finished.Run.Outcome != run.OutcomeCompleted || finished.Run.Metrics.Usage == nil ||
+		finished.Run.Metrics.Usage.InputTokens != 13 || finished.Run.Metrics.Usage.OutputTokens != 5 {
+		t.Fatalf("child terminal Run = %+v, want child-owned terminal metrics", finished)
+	}
+}
+
+func requireTerminalCommitOrder(t *testing.T, commits []EventCommit, earlierRunID, laterRunID string) {
+	t.Helper()
+	earlierIndex, laterIndex := -1, -1
+	for index, commit := range commits {
+		if commit.State != StateTerminalize {
+			continue
+		}
+		switch commit.RunID {
+		case earlierRunID:
+			earlierIndex = index
+		case laterRunID:
+			laterIndex = index
+		}
+	}
+	if earlierIndex < 0 || laterIndex < 0 || earlierIndex >= laterIndex {
+		t.Fatalf(
+			"terminal commit order %s/%s = %d/%d, want first Run before second",
+			earlierRunID,
+			laterRunID,
+			earlierIndex,
+			laterIndex,
+		)
+	}
+}
+
 func TestCoordinatorPublishesChildSegmentOnItsOwnRunIdentity(t *testing.T) {
 	request, confirmation := newNativeChildStartFixture(time.Date(2026, 7, 13, 1, 2, 4, 0, time.UTC))
 	rootMember := ExecutorMember{MemberID: "member_root"}
@@ -1540,84 +1632,18 @@ func TestCoordinatorPublishesChildSegmentOnItsOwnRunIdentity(t *testing.T) {
 		t.Fatalf("child opening confirmation: %v", err)
 	}
 
-	var (
-		childStarted   *SegmentStarted
-		childCompleted *ItemCompleted
-		childFinished  *SegmentFinished
-	)
-	for index := range events {
-		event := events[index]
-		switch payload := event.Payload.(type) {
-		case SegmentStarted:
-			if event.RunID == "run_child" {
-				childStarted = &payload
-			}
-		case ItemCompleted:
-			if event.RunID == "run_child" {
-				childCompleted = &payload
-			}
-		case SegmentFinished:
-			if event.RunID == "run_child" {
-				childFinished = &payload
-			}
-		}
-		if event.RunID == "run_child" && event.SegmentID != "seg_child" {
-			t.Fatalf("child event[%d] segment = %q, want seg_child", index, event.SegmentID)
-		}
-	}
-	if childStarted == nil {
-		t.Fatal("root journal did not publish child segment.started")
-	}
 	lineage := run.Lineage{
 		SpawnedByItemID: "item_seg_1_1",
 		ParentRunID:     "run_1",
 		RootRunID:       "run_1",
 	}
-	if childStarted.Run.Lineage() != lineage ||
-		childStarted.Run.ActiveSegmentID != "seg_child" ||
-		childStarted.Run.Limits != spec.Limits ||
-		childStarted.Run.Capabilities.String() != spec.Capabilities.String() {
-		t.Fatalf("child opening run = %+v, want independent inherited segment state", childStarted.Run)
-	}
-	if childCompleted == nil ||
-		childCompleted.Item.RunID != "run_child" ||
-		childCompleted.Item.SessionID != spec.SessionID ||
-		childCompleted.Item.Kind != transcript.AgentMessage {
-		t.Fatalf("child completed item = %+v, want child-owned assistant item", childCompleted)
-	}
-	if childFinished == nil ||
-		childFinished.Run.Lineage() != lineage ||
-		childFinished.Run.Outcome == nil ||
-		*childFinished.Run.Outcome != run.OutcomeCompleted ||
-		childFinished.Run.Metrics.Usage == nil ||
-		childFinished.Run.Metrics.Usage.InputTokens != 13 ||
-		childFinished.Run.Metrics.Usage.OutputTokens != 5 {
-		t.Fatalf("child terminal run = %+v, want child-owned terminal metrics", childFinished)
-	}
+	lifecycle := requirePublishedChildLifecycle(t, events, "run_child", "seg_child")
+	requireIndependentChildLifecycle(t, lifecycle, spec, lineage, "run_child", "seg_child")
 	if !effects.terminalized(spec.SessionID, "run_child") ||
 		!effects.terminalized(spec.SessionID, spec.RunID) {
 		t.Fatal("child and root were not independently terminalized")
 	}
-	commits := effects.commitSnapshot()
-	childTerminalAt, rootTerminalAt := -1, -1
-	for index, commit := range commits {
-		if commit.State != StateTerminalize {
-			continue
-		}
-		switch commit.RunID {
-		case "run_child":
-			childTerminalAt = index
-		case spec.RunID:
-			rootTerminalAt = index
-		}
-	}
-	if childTerminalAt < 0 || rootTerminalAt < 0 || childTerminalAt >= rootTerminalAt {
-		t.Fatalf(
-			"terminal commit order child/root = %d/%d, want child before root",
-			childTerminalAt,
-			rootTerminalAt,
-		)
-	}
+	requireTerminalCommitOrder(t, effects.commitSnapshot(), "run_child", spec.RunID)
 }
 
 func TestCoordinatorKeepsConcurrentSiblingSegmentsIsolated(t *testing.T) {
@@ -2262,6 +2288,107 @@ func TestCoordinatorAcknowledgesChildOnlyAfterOpeningCommit(t *testing.T) {
 	}
 }
 
+func requireChildOpeningReceipts(
+	t *testing.T,
+	receipts map[string]nativeChildStartReceipt,
+) {
+	t.Helper()
+	for childName, receipt := range receipts {
+		if _, err := receipt.Await(t.Context()); err != nil {
+			t.Fatalf("%s opening: %v", childName, err)
+		}
+	}
+}
+
+func requireWaitingTreeBarrierPostorder(
+	t *testing.T,
+	barrier TreeBarrierCommit,
+	wantRunIDs []string,
+	directInterruptsByRunID map[string]int,
+) {
+	t.Helper()
+	if len(barrier.Runs) != len(wantRunIDs) ||
+		len(barrier.Pending.Continuations) != len(wantRunIDs) {
+		t.Fatalf(
+			"barrier Runs/continuations = %d/%d, want %d/%d",
+			len(barrier.Runs),
+			len(barrier.Pending.Continuations),
+			len(wantRunIDs),
+			len(wantRunIDs),
+		)
+	}
+	for index, wantRunID := range wantRunIDs {
+		commit := barrier.Runs[index]
+		continuation := barrier.Pending.Continuations[index]
+		if commit.RunID != wantRunID || continuation.RunID != wantRunID {
+			t.Fatalf(
+				"barrier order[%d] = commit %q continuation %q, want %q",
+				index,
+				commit.RunID,
+				continuation.RunID,
+				wantRunID,
+			)
+		}
+		if commit.State != StateSuspend || commit.Run == nil || commit.Run.State != run.Waiting {
+			t.Fatalf("barrier Run[%d] = %+v, want waiting suspend", index, commit)
+		}
+		wantDirectInterrupts := directInterruptsByRunID[wantRunID]
+		if len(commit.Run.Interrupts) != wantDirectInterrupts {
+			t.Fatalf(
+				"barrier Run %q direct interrupts = %d, want %d",
+				wantRunID,
+				len(commit.Run.Interrupts),
+				wantDirectInterrupts,
+			)
+		}
+	}
+}
+
+func requirePendingInterruptOrder(
+	t *testing.T,
+	pending Pending,
+	wantRunIDs []string,
+	wantMemberIDs []string,
+) {
+	t.Helper()
+	if len(pending.Interrupts) != len(wantRunIDs) || len(pending.Bindings) != len(wantMemberIDs) {
+		t.Fatalf(
+			"pending interrupts/bindings = %d/%d, want %d/%d",
+			len(pending.Interrupts),
+			len(pending.Bindings),
+			len(wantRunIDs),
+			len(wantMemberIDs),
+		)
+	}
+	for index := range wantRunIDs {
+		if pending.Interrupts[index].RunID != wantRunIDs[index] ||
+			pending.Bindings[index].MemberID != wantMemberIDs[index] {
+			t.Fatalf(
+				"pending order[%d] = Run %q member %q, want Run %q member %q",
+				index,
+				pending.Interrupts[index].RunID,
+				pending.Bindings[index].MemberID,
+				wantRunIDs[index],
+				wantMemberIDs[index],
+			)
+		}
+	}
+}
+
+func requirePublishedWaitingOrder(t *testing.T, events []Event, wantRunIDs []string) {
+	t.Helper()
+	var actualRunIDs []string
+	for _, event := range events {
+		finished, ok := event.Payload.(SegmentFinished)
+		if ok && finished.Run.State == run.Waiting {
+			actualRunIDs = append(actualRunIDs, finished.Run.ID)
+		}
+	}
+	if !slices.Equal(actualRunIDs, wantRunIDs) {
+		t.Fatalf("published waiting order = %v, want %v", actualRunIDs, wantRunIDs)
+	}
+}
+
 func TestCoordinatorCommitsCompleteTreeBarrierInDeterministicPostorder(t *testing.T) {
 	startedAt := testSegment().CreatedAt
 	requestA, confirmationA := newNativeChildStartFixture(startedAt)
@@ -2328,13 +2455,9 @@ func TestCoordinatorCommitsCompleteTreeBarrierInDeterministicPostorder(t *testin
 		t.Fatalf("openSegment: %v", err)
 	}
 	events := collectEvents(stream)
-	for name, confirmation := range map[string]nativeChildStartReceipt{
+	requireChildOpeningReceipts(t, map[string]nativeChildStartReceipt{
 		"child A": confirmationA, "child B": confirmationB, "grandchild": confirmationGrandchild,
-	} {
-		if _, err := confirmation.Await(t.Context()); err != nil {
-			t.Fatalf("%s opening: %v", name, err)
-		}
-	}
+	})
 
 	barriers := effects.barrierSnapshot()
 	if len(barriers) != 1 {
@@ -2342,72 +2465,17 @@ func TestCoordinatorCommitsCompleteTreeBarrierInDeterministicPostorder(t *testin
 	}
 	barrier := barriers[0]
 	wantOrder := []string{"run_grandchild", "run_child_a", "run_child_b", "run_1"}
-	if len(barrier.Runs) != len(wantOrder) ||
-		len(barrier.Pending.Continuations) != len(wantOrder) {
-		t.Fatalf(
-			"barrier runs/continuations = %d/%d, want %d/%d",
-			len(barrier.Runs),
-			len(barrier.Pending.Continuations),
-			len(wantOrder),
-			len(wantOrder),
-		)
-	}
-	for index, wantRunID := range wantOrder {
-		commit := barrier.Runs[index]
-		continuation := barrier.Pending.Continuations[index]
-		if commit.RunID != wantRunID || continuation.RunID != wantRunID {
-			t.Fatalf(
-				"barrier order[%d] = commit %q continuation %q, want %q",
-				index,
-				commit.RunID,
-				continuation.RunID,
-				wantRunID,
-			)
-		}
-		if commit.State != StateSuspend || commit.Run == nil ||
-			commit.Run.State != run.Waiting {
-			t.Fatalf("barrier Run[%d] = %+v, want waiting suspend", index, commit)
-		}
-		wantDirect := 0
-		if wantRunID == "run_grandchild" || wantRunID == "run_child_b" {
-			wantDirect = 1
-		}
-		if len(commit.Run.Interrupts) != wantDirect {
-			t.Fatalf(
-				"barrier Run %q direct interrupts = %d, want %d",
-				wantRunID,
-				len(commit.Run.Interrupts),
-				wantDirect,
-			)
-		}
-	}
-	if got := []string{
-		barrier.Pending.Interrupts[0].RunID,
-		barrier.Pending.Interrupts[1].RunID,
-	}; got[0] != "run_grandchild" || got[1] != "run_child_b" {
-		t.Fatalf("pending interrupt order = %v, want grandchild then child B", got)
-	}
-	if len(barrier.Pending.Bindings) != 2 ||
-		barrier.Pending.Bindings[0].MemberID != grandchild.MemberID ||
-		barrier.Pending.Bindings[1].MemberID != childB.MemberID {
-		t.Fatalf("pending input-request bindings = %+v", barrier.Pending.Bindings)
-	}
-
-	var finishedOrder []string
-	for _, event := range events {
-		if finished, ok := event.Payload.(SegmentFinished); ok &&
-			finished.Run.State == run.Waiting {
-			finishedOrder = append(finishedOrder, finished.Run.ID)
-		}
-	}
-	if len(finishedOrder) != len(wantOrder) {
-		t.Fatalf("published waiting order = %v, want %v", finishedOrder, wantOrder)
-	}
-	for index := range wantOrder {
-		if finishedOrder[index] != wantOrder[index] {
-			t.Fatalf("published waiting order = %v, want %v", finishedOrder, wantOrder)
-		}
-	}
+	requireWaitingTreeBarrierPostorder(t, barrier, wantOrder, map[string]int{
+		"run_grandchild": 1,
+		"run_child_b":    1,
+	})
+	requirePendingInterruptOrder(
+		t,
+		barrier.Pending,
+		[]string{"run_grandchild", "run_child_b"},
+		[]string{grandchild.MemberID, childB.MemberID},
+	)
+	requirePublishedWaitingOrder(t, events, wantOrder)
 	if executor.releases() != 0 {
 		t.Fatalf("parked tree released executor %d times, want 0", executor.releases())
 	}
