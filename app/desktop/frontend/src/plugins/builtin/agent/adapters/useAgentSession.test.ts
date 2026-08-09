@@ -25,6 +25,7 @@ import { useAgentSession } from "./useAgentSession";
 import { selectCurrentRootRun } from "../application/view/runTree";
 
 const SID = "ses_dbl";
+const SID_B = "ses_next";
 
 function autoPage<T>(data: T[]) {
   return { autoPagingToArray: vi.fn().mockResolvedValue(data) };
@@ -47,9 +48,39 @@ beforeEach(async () => {
 });
 afterEach(() => {
   useAgentStore.getState().dropSession(SID);
+  useAgentStore.getState().dropSession(SID_B);
   useAgentSessionStore.setState({ draftSessionIds: new Set() });
   resetContainer();
   vi.restoreAllMocks();
+});
+
+describe("useAgentSession driver lifecycle", () => {
+  it("uses session identity as the lifecycle key and the latest factory at that boundary", () => {
+    const first = parkedDriver().driver;
+    const second = parkedDriver().driver;
+    const firstFactory = vi.fn(() => first);
+    const secondFactory = vi.fn(() => second);
+    useAgentSessionStore.setState({ draftSessionIds: new Set([SID, SID_B]) });
+
+    type HookProps = {
+      makeDriver: () => AgentDriver;
+      sessionId: string;
+    };
+    const { rerender } = renderHook(
+      ({ makeDriver, sessionId }: HookProps) => useAgentSession(makeDriver, sessionId),
+      { initialProps: { makeDriver: firstFactory, sessionId: SID } },
+    );
+
+    expect(firstFactory).toHaveBeenCalledTimes(1);
+
+    rerender({ makeDriver: secondFactory, sessionId: SID });
+    expect(secondFactory).not.toHaveBeenCalled();
+
+    rerender({ makeDriver: secondFactory, sessionId: SID_B });
+    expect(secondFactory).toHaveBeenCalledTimes(1);
+    expect(useAgentStore.getState().sessions[SID]!.send).toBeNull();
+    expect(useAgentStore.getState().sessions[SID_B]!.send).not.toBeNull();
+  });
 });
 
 describe("useAgentSession send re-entrancy", () => {

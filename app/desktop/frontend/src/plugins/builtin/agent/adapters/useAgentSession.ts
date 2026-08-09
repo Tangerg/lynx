@@ -1,6 +1,6 @@
 import type { AgentDriver, AgentRunStartOptions } from "@/plugins/sdk/types";
 import { asItemId, asRunId, type InterruptResponse } from "@/rpc";
-import { useEffect, useRef } from "react";
+import { useEffect, useEffectEvent } from "react";
 import { queryClient } from "@/lib/queryClient";
 import type { AgentInput } from "@/plugins/builtin/agent/domain/input";
 import type { AgentSession } from "../application/ports/defaultSession";
@@ -20,15 +20,18 @@ import { createRunOpeningController } from "./runOpeningController";
 import { agentProblemFromRpcError } from "./rpcProblem";
 
 export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string): AgentSession {
-  const factoryRef = useRef(makeDriver);
-  factoryRef.current = makeDriver;
+  // Driver construction belongs to the session effect, but the adapter factory
+  // is supplied during render and may change independently. An Effect Event
+  // gives the effect the latest factory without turning factory identity into a
+  // second, accidental lifecycle key.
+  const createDriver = useEffectEvent(makeDriver);
 
   useEffect(() => {
     // Welcome screen (no active session) mounts the kernel chat with an empty
     // id — there is nothing to drive: no slice to seed, and items.list("")
     // would just be a guaranteed-failing RPC on every mount.
     if (!sessionId) return;
-    const driver = factoryRef.current();
+    const driver = createDriver();
     const client = () => getContainer().client();
     const store = () => useAgentStore.getState();
 

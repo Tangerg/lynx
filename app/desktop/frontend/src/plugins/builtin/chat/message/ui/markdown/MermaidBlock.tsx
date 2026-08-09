@@ -24,7 +24,7 @@ interface Props {
 // Resolve token vars to literal hex — beautiful-mermaid bakes the
 // values into stroke/fill on the SVG output and browsers won't honor
 // raw `var(--x)` text there.
-function readThemeColors() {
+function readThemeColors(_tokenRevision: number) {
   const root = document.documentElement;
   const cs = getComputedStyle(root);
   const grab = (name: string, fallback: string) => cs.getPropertyValue(name).trim() || fallback;
@@ -66,14 +66,17 @@ export function MermaidBlock({ code }: Props) {
     };
   }, []);
 
-  // Render swallows errors via the pending pre-block fallback; underscore
-  // tells ESLint the destructure is intentional.
-  const { svg, error: _error } = useMemo(() => {
+  // Rendering errors use the same quiet source fallback as an in-progress
+  // diagram. There is no separate error state because the UI has no separate
+  // error presentation or recovery action.
+  const svg = useMemo(() => {
     if (!renderer || isSettling) {
-      return { svg: null, error: null as Error | null };
+      return null;
     }
     try {
-      const c = readThemeColors();
+      // The revision is an invalidation token for the mutable computed styles
+      // read by this adapter, not a colour value in its own right.
+      const c = readThemeColors(tokenRevision);
       const start = performance.now();
       const out = renderer(debouncedCode, {
         transparent: true,
@@ -88,17 +91,10 @@ export function MermaidBlock({ code }: Props) {
         border: c.border,
       });
       measureMermaidRender(performance.now() - start);
-      return { svg: out, error: null as Error | null };
-    } catch (err) {
-      return {
-        svg: null,
-        error: err instanceof Error ? err : new Error(String(err)),
-      };
+      return out;
+    } catch {
+      return null;
     }
-    // `tokenRevision` reads as "unnecessary" to the static analyser because the
-    // memo doesn't reference it — it is the invalidation key for what
-    // readThemeColors() pulls out of getComputedStyle at call time.
-    // oxlint-disable-next-line react/exhaustive-deps
   }, [debouncedCode, isSettling, tokenRevision, renderer]);
 
   const [zoomed, setZoomed] = useState(false);
