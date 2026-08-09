@@ -4,10 +4,11 @@ import type { ObservabilityTeardown } from "./observabilityLifecycle";
 
 export async function initFrontendObservability(): Promise<ObservabilityTeardown> {
   const { setupObservability, teardownObservability } = await import("@/lib/observability/setup");
+  const configuredEndpoint = getConfig("otel.endpoint");
   await setupObservability({
     serviceName: "lyra-frontend",
     serviceVersion: DESKTOP_CLIENT_INFO.version,
-    otlpEndpoint: getConfig<string>("otel.endpoint") ?? undefined,
+    otlpEndpoint: typeof configuredEndpoint === "string" ? configuredEndpoint : undefined,
   });
   return teardownObservability;
 }

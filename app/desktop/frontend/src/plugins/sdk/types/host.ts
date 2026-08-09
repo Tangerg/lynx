@@ -108,7 +108,7 @@ export interface Host {
   };
   config: {
     /** Read an app-wide config value (with optional fallback). */
-    get: <T = ConfigValue>(key: string, defaultValue?: T) => T | undefined;
+    get: (key: string, defaultValue?: ConfigValue) => ConfigValue | undefined;
     /** Set an app-wide config value. Fires subscribers. */
     set: (key: string, value: ConfigValue) => void;
     /** Does the key have a value (regardless of falsiness)? */
@@ -118,8 +118,9 @@ export interface Host {
   };
   /** Namespaced key-value storage, persisted to localStorage. */
   storage: {
-    get: <T = unknown>(key: string) => T | undefined;
-    set: <T = unknown>(key: string, value: T) => void;
+    /** Values cross a persistence boundary and must be narrowed by the consumer. */
+    get: (key: string) => unknown;
+    set: (key: string, value: unknown) => void;
     remove: (key: string) => void;
     keys: () => string[];
   };

@@ -64,10 +64,10 @@ export const useConfigStore = create<ConfigStoreState & ConfigStoreActions>((set
   },
 }));
 
-/** Imperative read with optional fallback. */
-export function getConfig<T = ConfigValue>(key: string, defaultValue?: T): T | undefined {
+/** Imperative read with optional fallback. Callers narrow dynamic keys at their boundary. */
+export function getConfig(key: string, defaultValue?: ConfigValue): ConfigValue | undefined {
   const v = useConfigStore.getState().values.get(key);
-  return v === undefined ? defaultValue : (v as unknown as T);
+  return v === undefined ? defaultValue : v;
 }
 
 /** Imperative write. */

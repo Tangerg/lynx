@@ -12,12 +12,12 @@ import { installRuntimeEndpointConfiguration } from "../adapters/runtimeEndpoint
 
 const cleanups: Array<() => void> = [];
 
-function connectionHost(initial?: string): {
+function connectionHost(initial?: unknown): {
   host: Pick<Host, "config" | "storage">;
   stored: Map<string, unknown>;
 } {
   const stored = new Map<string, unknown>();
-  if (initial) stored.set("endpoint", initial);
+  if (initial !== undefined) stored.set("endpoint", initial);
   return {
     stored,
     host: {
@@ -28,8 +28,8 @@ function connectionHost(initial?: string): {
         onChange: (key, fn) => useConfigStore.getState().subscribe(key, fn),
       },
       storage: {
-        get: <T>(key: string) => stored.get(key) as T | undefined,
-        set: <T>(key: string, value: T) => {
+        get: (key: string) => stored.get(key),
+        set: (key: string, value: unknown) => {
           stored.set(key, value);
         },
         remove: (key) => {
@@ -50,7 +50,7 @@ afterEach(() => {
   resetContainer();
 });
 
-function installConnection(initial?: string) {
+function installConnection(initial?: unknown) {
   const connection = connectionHost(initial);
   cleanups.push(installRuntimeEndpointConfiguration(connection.host));
   return connection;
@@ -68,6 +68,12 @@ describe("runtime endpoint", () => {
     installConnection("http://127.0.0.1:27171");
 
     expect(currentRuntimeEndpoint()).toBe("http://127.0.0.1:27171");
+  });
+
+  it("ignores a persisted endpoint with the wrong runtime type", () => {
+    installConnection(27171);
+
+    expect(currentRuntimeEndpoint()).toBe(DEFAULT_RUNTIME_ENDPOINT);
   });
 
   it("validates, normalizes, and publishes a changed endpoint", () => {

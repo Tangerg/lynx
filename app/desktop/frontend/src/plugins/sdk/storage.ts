@@ -2,7 +2,8 @@
 //
 //   const storage = createStorage("lyra.builtin.my-plugin");
 //   storage.set("threshold", 0.42);
-//   storage.get<number>("threshold")  // → 0.42
+//   const stored = storage.get("threshold");
+//   const threshold = typeof stored === "number" ? stored : undefined;
 //
 // Keys live under `lyra.plugin.<plugin-name>.<key>` in localStorage so two
 // plugins can never read each other's data and a stale plugin's keys are
@@ -11,8 +12,9 @@
 const ROOT = "lyra.plugin";
 
 export interface KeyValueStore {
-  get: <T = unknown>(key: string) => T | undefined;
-  set: <T = unknown>(key: string, value: T) => void;
+  /** Persistent data is untrusted until the consuming boundary validates it. */
+  get: (key: string) => unknown;
+  set: (key: string, value: unknown) => void;
   remove: (key: string) => void;
   /** Clear *all* keys this plugin has stored. Used on unload by tests. */
   clear: () => void;
@@ -34,20 +36,21 @@ export function createStorage(pluginName: string): KeyValueStore {
   };
 
   return {
-    get<T = unknown>(key: string): T | undefined {
+    get(key: string): unknown {
       const ls = safeStorage();
       if (!ls) return undefined;
       const raw = ls.getItem(prefix + key);
       if (raw == null) return undefined;
       try {
-        return JSON.parse(raw) as T;
+        const parsed: unknown = JSON.parse(raw);
+        return parsed;
       } catch {
         // Stored as opaque string — return as-is.
-        return raw as unknown as T;
+        return raw;
       }
     },
 
-    set<T = unknown>(key: string, value: T): void {
+    set(key: string, value: unknown): void {
       const ls = safeStorage();
       if (!ls) return;
       try {

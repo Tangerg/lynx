@@ -11,13 +11,16 @@ const STORAGE_KEY = "endpoint";
 export function installRuntimeEndpointConfiguration(
   host: Pick<Host, "config" | "storage">,
 ): () => void {
-  const stored = host.storage.get<string>(STORAGE_KEY);
+  const stored = host.storage.get(STORAGE_KEY);
   if (typeof stored === "string" && stored.trim()) {
     host.config.set(CONFIG_KEY, stored);
   }
 
   const disposePort = configureRuntimeEndpoint({
-    read: () => host.config.get<string>(CONFIG_KEY),
+    read: () => {
+      const value = host.config.get(CONFIG_KEY);
+      return typeof value === "string" ? value : undefined;
+    },
     write: (endpoint) => host.config.set(CONFIG_KEY, endpoint),
   });
 

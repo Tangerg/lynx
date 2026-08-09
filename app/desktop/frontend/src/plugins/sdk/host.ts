@@ -145,7 +145,7 @@ export function createHost(
     },
 
     config: {
-      get: <T = ConfigValue>(key: string, defaultValue?: T) => getConfig<T>(key, defaultValue),
+      get: (key: string, defaultValue?: ConfigValue) => getConfig(key, defaultValue),
       set: (key: string, value: ConfigValue) => setConfig(key, value),
       has: (key: string) => hasConfig(key),
       // track() — like every other registering facade — so unload disposes
