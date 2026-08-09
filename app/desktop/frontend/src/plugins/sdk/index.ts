@@ -85,10 +85,6 @@ export {
   patchBlocksWhere,
 } from "./state";
 
-// Shared cross-plugin state slices.
-export { getOrCreateSlice } from "./stateSlice";
-export type { StateSlice } from "./stateSlice";
-
 export type { KeyValueStore } from "./storage";
 
 export type {

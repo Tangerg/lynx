@@ -433,20 +433,6 @@ describe("plugin registry", () => {
     expect(lookupExtensionByKey(TOOL_ACTION, "copy")?.title).toBe("Copy");
   });
 
-  it("state.slice shares store across plugins by name", () => {
-    const sink: Disposable[] = [];
-    const a = createHost("alpha", sink);
-    const b = createHost("beta", sink);
-
-    const sa = a.state.slice<number>("counter", 0);
-    const sb = b.state.slice<number>("counter", 999); // initial ignored
-
-    expect(sa.get()).toBe(0);
-    expect(sb.get()).toBe(0);
-    sa.set(5);
-    expect(sb.get()).toBe(5);
-  });
-
   it("window.setTitle/setBadge updates document.title", () => {
     const sink: Disposable[] = [];
     const host = createHost("alpha", sink);
@@ -503,22 +489,6 @@ describe("plugin registry", () => {
 
     expect(fn).toHaveBeenCalledOnce();
     expect(fn.mock.calls[0]![0]).toBe("beta");
-  });
-
-  it("state.slice subscribers fire on change + can be disposed", () => {
-    const sink: Disposable[] = [];
-    const host = createHost("alpha", sink);
-    const slice = host.state.slice<string>("focused", "");
-    const listener = vi.fn();
-    const d = slice.subscribe(listener);
-
-    slice.set("a.ts");
-    slice.set("b.ts");
-    expect(listener).toHaveBeenCalledTimes(2);
-
-    d.dispose();
-    slice.set("c.ts");
-    expect(listener).toHaveBeenCalledTimes(2);
   });
 
   it("pickAgentSource picks the highest-priority registration", () => {

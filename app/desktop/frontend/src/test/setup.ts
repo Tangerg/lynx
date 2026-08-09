@@ -10,7 +10,6 @@ import { useConfigStore } from "@/plugins/sdk/config";
 import { usePluginErrorStore } from "@/plugins/sdk/errors";
 import { useNotificationStore } from "@/plugins/sdk/notifications";
 import { usePluginStore } from "@/plugins/sdk/registry";
-import { _resetAllSlices } from "@/plugins/sdk/stateSlice";
 import { useContextDockStore } from "@/state/contextDockStore";
 import { configureNavigator } from "@/lib/navigation";
 import { createMemoryNavigator } from "@/lib/navigation.testkit";
@@ -53,7 +52,6 @@ beforeEach(() => {
     selectedToolId: "",
     expandedToolIds: new Set<string>(),
   });
-  _resetAllSlices();
 });
 
 afterEach(() => {

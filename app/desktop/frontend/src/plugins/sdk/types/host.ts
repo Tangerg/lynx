@@ -7,7 +7,6 @@
 // grows for genuinely new imperative capabilities or value-adding thin facades.
 
 import type { ConfigValue } from "../config";
-import type { StateSlice } from "../stateSlice";
 import type { StreamEventHandler, CustomEventHandler } from "./events";
 
 import type { CommandSpec } from "./commands";
@@ -93,18 +92,6 @@ export interface Host {
     onReady: (fn: ReadyHandler) => Disposable;
     /** Fires synchronously on window.beforeunload. */
     onBeforeUnload: (fn: BeforeUnloadHandler) => Disposable;
-  };
-  state: {
-    /**
-     * Get (or create) the shared `StateSlice` for `name`. The first caller's
-     * `initial` wins — subsequent calls receive the same slice and ignore
-     * their `initial` argument.
-     *
-     * Use it to share ephemeral state between plugins without forming a
-     * hard module import: producer + consumer agree on the slice name and
-     * the type.
-     */
-    slice: <T>(name: string, initial: T) => StateSlice<T>;
   };
   config: {
     /** Read an app-wide config value (with optional fallback). */

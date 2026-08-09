@@ -14,7 +14,6 @@ export const CAPABILITY_RISK: Record<HostCapability, CapabilityRisk> = {
   notify: "safe",
   log: "safe",
   i18n: "safe",
-  state: "safe",
   config: "safe",
   storage: "safe",
   theme: "safe",

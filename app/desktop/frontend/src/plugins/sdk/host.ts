@@ -54,7 +54,6 @@ import { pluginOrigin, setPluginOrigin } from "./pluginOrigin";
 import { usePluginStore } from "./registry";
 import { executeCommand } from "./selectors/commands";
 import { lookupExtensionByKey } from "./selectors/extensions";
-import { getOrCreateSlice } from "./stateSlice";
 import { createStorage } from "./storage";
 
 export { setPluginRuntime } from "./hostRuntime";
@@ -149,12 +148,6 @@ export function createHost(
     },
 
     extensions: { contribute },
-
-    state: {
-      slice<T>(name: string, initial: T) {
-        return getOrCreateSlice<T>(name, initial);
-      },
-    },
 
     config: {
       get: (key: string, defaultValue?: ConfigValue) => getConfig(key, defaultValue),

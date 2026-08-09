@@ -50,7 +50,6 @@ export type HostCapability =
   | "commands"
   | "extensions"
   | "lifecycle"
-  | "state"
   | "config"
   | "settings"
   | "storage"

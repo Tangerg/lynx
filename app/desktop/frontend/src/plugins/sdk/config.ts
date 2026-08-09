@@ -1,9 +1,8 @@
 // App-wide configuration store.
 //
-// Distinct from `host.storage` (per-plugin namespaced) and `host.state.slice`
-// (typed sharable state). Config is for *app-level* settings that any
-// plugin can read or change — feature flags, debug toggles, HTTP base URL
-// overrides, etc.
+// Distinct from `host.storage` (per-plugin namespaced). Config is for app-level
+// settings that any plugin can read or change — feature flags, debug toggles,
+// HTTP base URL overrides, etc.
 //
 // In-memory only. Persistence is the plugin's responsibility: a plugin
 // can subscribe to a key and mirror it to localStorage if needed.
