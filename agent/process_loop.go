@@ -84,62 +84,73 @@ func (loop *processLoop) run(ctx context.Context) {
 	hostDone := ctx.Done()
 	for !loop.status.Terminal() {
 		loop.observeHostContext(ctx, &hostDone)
-		if loop.quiescence != nil && loop.prepared == nil {
+		switch {
+		case loop.quiescence != nil && loop.prepared == nil:
 			loop.holdQuiescence(ctx, &hostDone)
-			continue
-		}
-		if loop.prepared != nil {
-			if loop.pendingControl.hasTerminalIntent() && loop.prepared.hasUnknownSettlement() {
-				loop.discardPrepared()
-				loop.commitTermination(stepOutcome{})
-				continue
-			}
-			if !loop.prepared.acknowledged {
-				if !loop.acknowledgePrepared(ctx) {
-					continue
-				}
-			}
-			if loop.prepared.hasUnknownSettlement() {
-				loop.waitForCommand(ctx, &hostDone)
-				continue
-			}
-			if !loop.prepared.allEffectsSettled() {
-				loop.dispatchPrepared(ctx, &hostDone)
-				continue
-			}
-			if err := loop.finalizePrepared(ctx); err != nil {
-				loop.discardPrepared()
-				loop.fail(ctx, FailureKindContract, "engine.finalize.invalid", err)
-			}
-			continue
-		}
-		if loop.pendingControl.hasTerminalIntent() {
-			loop.commitTermination(stepOutcome{})
-			continue
-		}
-		if loop.pendingControl.pauseReason != "" && loop.status == StatusRunning {
-			loop.status = StatusPaused
-			loop.pauseReason = loop.pendingControl.pauseReason
-			loop.pendingControl.pauseReason = ""
-			loop.updateView()
-			loop.publishEvent(ctx, EventProcessPaused, EventPhaseCommitted, 0, EffectID{}, emptyEventPayload())
-			continue
-		}
-		switch loop.status {
-		case StatusWaiting, StatusPaused:
-			loop.waitForCommand(ctx, &hostDone)
-		case StatusRunning:
-			select {
-			case command := <-loop.controller.commands:
-				loop.applyCommand(ctx, command)
-			default:
-				loop.prepareNextStep(ctx)
-			}
+		case loop.prepared != nil:
+			loop.advancePrepared(ctx, &hostDone)
 		default:
-			loop.fail(ctx, FailureKindContract, "engine.status.invalid", fmt.Errorf("unexpected status %s", loop.status))
+			if !loop.applyPendingControl(ctx) {
+				loop.advanceStatus(ctx, &hostDone)
+			}
 		}
 	}
 	loop.finish(ctx)
+}
+
+func (loop *processLoop) advancePrepared(ctx context.Context, hostDone *<-chan struct{}) {
+	if loop.pendingControl.hasTerminalIntent() && loop.prepared.hasUnknownSettlement() {
+		loop.discardPrepared()
+		loop.commitTermination(stepOutcome{})
+		return
+	}
+	if !loop.prepared.acknowledged && !loop.acknowledgePrepared(ctx) {
+		return
+	}
+	if loop.prepared.hasUnknownSettlement() {
+		loop.waitForCommand(ctx, hostDone)
+		return
+	}
+	if !loop.prepared.allEffectsSettled() {
+		loop.dispatchPrepared(ctx, hostDone)
+		return
+	}
+	if err := loop.finalizePrepared(ctx); err != nil {
+		loop.discardPrepared()
+		loop.fail(ctx, FailureKindContract, "engine.finalize.invalid", err)
+	}
+}
+
+func (loop *processLoop) applyPendingControl(ctx context.Context) bool {
+	if loop.pendingControl.hasTerminalIntent() {
+		loop.commitTermination(stepOutcome{})
+		return true
+	}
+	if loop.pendingControl.pauseReason == "" || loop.status != StatusRunning {
+		return false
+	}
+	loop.status = StatusPaused
+	loop.pauseReason = loop.pendingControl.pauseReason
+	loop.pendingControl.pauseReason = ""
+	loop.updateView()
+	loop.publishEvent(ctx, EventProcessPaused, EventPhaseCommitted, 0, EffectID{}, emptyEventPayload())
+	return true
+}
+
+func (loop *processLoop) advanceStatus(ctx context.Context, hostDone *<-chan struct{}) {
+	switch loop.status {
+	case StatusWaiting, StatusPaused:
+		loop.waitForCommand(ctx, hostDone)
+	case StatusRunning:
+		select {
+		case command := <-loop.controller.commands:
+			loop.applyCommand(ctx, command)
+		default:
+			loop.prepareNextStep(ctx)
+		}
+	default:
+		loop.fail(ctx, FailureKindContract, "engine.status.invalid", fmt.Errorf("unexpected status %s", loop.status))
+	}
 }
 
 func (loop *processLoop) waitForCommand(ctx context.Context, hostDone *<-chan struct{}) {

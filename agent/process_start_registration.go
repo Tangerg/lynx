@@ -40,13 +40,25 @@ func (engine *Engine) reserveProcessStart(
 		return ErrProcessAlreadyExists
 	}
 	if relation.IsRoot() {
-		if childRequestDigest.Valid() {
-			return ErrInvalidProcessRelation
-		}
-		engine.startReservations[processID] = reservation
-		return nil
+		return engine.reserveRootStart(reservation)
 	}
-	if !childRequestDigest.Valid() {
+	return engine.reserveChildStart(reservation)
+}
+
+// reserveRootStart requires engine.mu to be held.
+func (engine *Engine) reserveRootStart(reservation processStartReservation) error {
+	if reservation.childRequestDigest.Valid() {
+		return ErrInvalidProcessRelation
+	}
+	engine.startReservations[reservation.relation.ProcessID()] = reservation
+	return nil
+}
+
+// reserveChildStart requires engine.mu to be held.
+func (engine *Engine) reserveChildStart(reservation processStartReservation) error {
+	relation := reservation.relation
+	treeLimits := reservation.treeLimits
+	if !reservation.childRequestDigest.Valid() {
 		return ErrInvalidProcessRelation
 	}
 	parentID, child := relation.ParentID()
@@ -68,9 +80,26 @@ func (engine *Engine) reserveProcessStart(
 	if treeLimits != parent.treeLimits || relation.depth > treeLimits.MaxDepth {
 		return ErrResourceLimitExceeded
 	}
-	var childCount, activeChildCount, treeProcessCount uint32
+	childCount, activeChildCount, treeProcessCount := engine.reservedTreeCounts(relation.rootID, parentID)
+	if childCount >= treeLimits.MaxChildren ||
+		activeChildCount >= treeLimits.MaxActiveChildren ||
+		treeProcessCount >= treeLimits.MaxTreeProcesses {
+		return ErrResourceLimitExceeded
+	}
+	processID := relation.ProcessID()
+	engine.startReservations[processID] = reservation
+	engine.childStartReservations[identity] = processID
+	return nil
+}
+
+// reservedTreeCounts requires engine.mu to be held.
+func (engine *Engine) reservedTreeCounts(rootID, parentID ProcessID) (
+	childCount uint32,
+	activeChildCount uint32,
+	treeProcessCount uint32,
+) {
 	for _, existing := range engine.processes {
-		if existing.relation.rootID == relation.rootID {
+		if existing.relation.rootID == rootID {
 			treeProcessCount++
 		}
 		if existing.relation.parentID == parentID {
@@ -81,7 +110,7 @@ func (engine *Engine) reserveProcessStart(
 		}
 	}
 	for _, pending := range engine.startReservations {
-		if pending.relation.rootID == relation.rootID {
+		if pending.relation.rootID == rootID {
 			treeProcessCount++
 		}
 		if pending.relation.parentID == parentID {
@@ -89,14 +118,7 @@ func (engine *Engine) reserveProcessStart(
 			activeChildCount++
 		}
 	}
-	if childCount >= treeLimits.MaxChildren ||
-		activeChildCount >= treeLimits.MaxActiveChildren ||
-		treeProcessCount >= treeLimits.MaxTreeProcesses {
-		return ErrResourceLimitExceeded
-	}
-	engine.startReservations[processID] = reservation
-	engine.childStartReservations[identity] = processID
-	return nil
+	return childCount, activeChildCount, treeProcessCount
 }
 
 func (engine *Engine) discardProcessStartReservation(processID ProcessID) {

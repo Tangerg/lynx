@@ -121,20 +121,9 @@ func Fork[I, B, O any](config ForkConfig[I, B, O]) (Stage, error) {
 	}
 	reducer := config.Reduce
 	reduce := func(raw []json.RawMessage) (json.RawMessage, error) {
-		values := make([]B, len(raw))
-		for index, encoded := range raw {
-			output, err := agent.ParseOutput(encoded)
-			if err != nil {
-				return nil, fmt.Errorf("Fork %q branch %d output: %w", config.ID, index, err)
-			}
-			if err := branchSchema.ValidateOutput(output); err != nil {
-				return nil, fmt.Errorf("Fork %q branch %d output contract: %w", config.ID, index, err)
-			}
-			decoded, err := agent.DecodeOutput[B](output)
-			if err != nil {
-				return nil, fmt.Errorf("Fork %q branch %d decode output: %w", config.ID, index, err)
-			}
-			values[index] = decoded
+		values, err := decodeFanoutOutputs[B]("Fork", config.ID, "branch", branchSchema, raw)
+		if err != nil {
+			return nil, err
 		}
 		result, err := reducer(values)
 		if err != nil {

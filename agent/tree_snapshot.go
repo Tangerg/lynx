@@ -517,62 +517,97 @@ func (engine *Engine) RestoreTree(
 		return nil, err
 	}
 	defer operation.release()
-	deployments := map[DeploymentRef]Deployment{rootDeployment.DeploymentRef(): rootDeployment}
-	restored := make([]restoredTreeProcess, 0, len(wire.ProcessSnapshots))
-	for _, processSnapshot := range wire.ProcessSnapshots {
-		deployment := deployments[processSnapshot.DeploymentRef()]
-		if !deployment.Valid() {
-			if engine.resolver == nil {
-				return nil, fmt.Errorf(
-					"%w: no resolver for %s", ErrInvalidTreeSnapshot,
-					processSnapshot.DeploymentRef().Name(),
-				)
-			}
-			deployment, err = resolveDeployment(engine.resolver, processSnapshot.DeploymentRef())
-			if err != nil {
-				return nil, fmt.Errorf(
-					"%w: resolve exact Deployment %s: %w",
-					ErrInvalidTreeSnapshot, processSnapshot.DeploymentRef().Name(), err,
-				)
-			}
-			if !deployment.Valid() || deployment.DeploymentRef() != processSnapshot.DeploymentRef() {
-				return nil, fmt.Errorf(
-					"%w: resolver returned a mismatched Deployment for %s",
-					ErrInvalidTreeSnapshot, processSnapshot.DeploymentRef().Name(),
-				)
-			}
-			deployments[processSnapshot.DeploymentRef()] = deployment
+	restoration := treeRestoration{
+		engine:      engine,
+		wire:        wire,
+		deployments: map[DeploymentRef]Deployment{rootDeployment.DeploymentRef(): rootDeployment},
+	}
+	if err := restoration.prepareProcesses(); err != nil {
+		return nil, err
+	}
+	if err := restoration.prepareChildWaits(); err != nil {
+		return nil, err
+	}
+	if err := engine.registerRestoredTree(restoration.processes, restoration.childWaits); err != nil {
+		return nil, err
+	}
+	return engine.startRestoredTree(ctx, &restoration), nil
+}
+
+type treeRestoration struct {
+	engine      *Engine
+	wire        treeSnapshotWire
+	deployments map[DeploymentRef]Deployment
+	processes   []restoredTreeProcess
+	childWaits  []*childWaitRegistration
+}
+
+func (restoration *treeRestoration) prepareProcesses() error {
+	restoration.processes = make([]restoredTreeProcess, 0, len(restoration.wire.ProcessSnapshots))
+	for _, processSnapshot := range restoration.wire.ProcessSnapshots {
+		deployment, err := restoration.deployment(processSnapshot.DeploymentRef())
+		if err != nil {
+			return err
 		}
 		controller, loop, processWire, err := prepareRestoredProcess(
-			engine, deployment, processSnapshot,
+			restoration.engine, deployment, processSnapshot,
 		)
 		if err != nil {
-			return nil, fmt.Errorf(
+			return fmt.Errorf(
 				"%w: restore Process %s: %w", ErrInvalidTreeSnapshot,
 				processSnapshot.ProcessID(), err,
 			)
 		}
-		restored = append(restored, restoredTreeProcess{
+		restoration.processes = append(restoration.processes, restoredTreeProcess{
 			snapshot: processSnapshot, controller: controller, loop: loop, wire: processWire,
 		})
 	}
-	waitRegistrations := make([]*childWaitRegistration, 0, len(wire.ChildWaits))
-	for _, encoded := range wire.ChildWaits {
+	return nil
+}
+
+func (restoration *treeRestoration) deployment(reference DeploymentRef) (Deployment, error) {
+	if deployment := restoration.deployments[reference]; deployment.Valid() {
+		return deployment, nil
+	}
+	if restoration.engine.resolver == nil {
+		return Deployment{}, fmt.Errorf(
+			"%w: no resolver for %s", ErrInvalidTreeSnapshot, reference.Name(),
+		)
+	}
+	deployment, err := resolveDeployment(restoration.engine.resolver, reference)
+	if err != nil {
+		return Deployment{}, fmt.Errorf(
+			"%w: resolve exact Deployment %s: %w", ErrInvalidTreeSnapshot, reference.Name(), err,
+		)
+	}
+	if !deployment.Valid() || deployment.DeploymentRef() != reference {
+		return Deployment{}, fmt.Errorf(
+			"%w: resolver returned a mismatched Deployment for %s", ErrInvalidTreeSnapshot, reference.Name(),
+		)
+	}
+	restoration.deployments[reference] = deployment
+	return deployment, nil
+}
+
+func (restoration *treeRestoration) prepareChildWaits() error {
+	restoration.childWaits = make([]*childWaitRegistration, 0, len(restoration.wire.ChildWaits))
+	for _, encoded := range restoration.wire.ChildWaits {
 		spec, err := encoded.Spec.value()
 		if err != nil {
-			return nil, fmt.Errorf("%w: child wait: %w", ErrInvalidTreeSnapshot, err)
+			return fmt.Errorf("%w: child wait: %w", ErrInvalidTreeSnapshot, err)
 		}
-		waitRegistrations = append(waitRegistrations, &childWaitRegistration{
+		restoration.childWaits = append(restoration.childWaits, &childWaitRegistration{
 			parent: encoded.ParentProcessID, waitID: encoded.WaitID, spec: spec,
 		})
 	}
-	if err := engine.registerRestoredTree(restored, waitRegistrations); err != nil {
-		return nil, err
-	}
+	return nil
+}
+
+func (engine *Engine) startRestoredTree(ctx context.Context, restoration *treeRestoration) *Process {
 	startGate := make(chan struct{})
 	rootContext := contextOrBackground(ctx)
-	for index := range restored {
-		entry := &restored[index]
+	for index := range restoration.processes {
+		entry := &restoration.processes[index]
 		if entry.wire.Status.Terminal() {
 			entry.controller.complete(entry.loop.result(), entry.snapshot, nil)
 			continue
@@ -581,13 +616,13 @@ func (engine *Engine) RestoreTree(
 			command: processCommand{release: startGate},
 		}
 		runContext := context.Background()
-		if entry.controller.processID == wire.RootID {
+		if entry.controller.processID == restoration.wire.RootID {
 			runContext = rootContext
 		}
 		go entry.loop.run(runContext)
 	}
-	for index := len(restored) - 1; index >= 0; index-- {
-		entry := &restored[index]
+	for index := len(restoration.processes) - 1; index >= 0; index-- {
+		entry := &restoration.processes[index]
 		if !entry.wire.Status.Terminal() {
 			continue
 		}
@@ -595,8 +630,8 @@ func (engine *Engine) RestoreTree(
 		entry.controller.markTreeSettled()
 	}
 	close(startGate)
-	root := restoredProcessByID(restored, wire.RootID)
-	return &Process{controller: root.controller}, nil
+	root := restoredProcessByID(restoration.processes, restoration.wire.RootID)
+	return &Process{controller: root.controller}
 }
 
 func (engine *Engine) registerRestoredTree(

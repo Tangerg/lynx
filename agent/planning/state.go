@@ -56,6 +56,22 @@ func (state executionState) validate(definition *Definition) error {
 	if err != nil || definition.descriptor.ValidateInput(input) != nil {
 		return fmt.Errorf("%w: Input", ErrInvalidExecutionState)
 	}
+	if err := state.validateAttemptFacts(definition); err != nil {
+		return err
+	}
+	if err := state.validateCurrentAction(definition); err != nil {
+		return err
+	}
+	if err := state.validateProgress(); err != nil {
+		return err
+	}
+	if err := state.validatePhase(); err != nil {
+		return err
+	}
+	return state.validateCompletion(definition)
+}
+
+func (state executionState) validateAttemptFacts(definition *Definition) error {
 	previouslyExcluded := make(map[string]struct{})
 	for index, attempt := range state.Attempts {
 		if err := attempt.Validate(); err != nil {
@@ -86,32 +102,36 @@ func (state executionState) validate(definition *Definition) error {
 	if !slices.Equal(state.ExcludedActionNames, wantExcluded) {
 		return fmt.Errorf("%w: excluded Actions do not match attempt facts", ErrInvalidExecutionState)
 	}
-	if state.CurrentActionName != "" {
-		binding, found := definition.binding(state.CurrentActionName)
-		if !found {
-			return fmt.Errorf("%w: unknown current Action %q", ErrInvalidExecutionState, state.CurrentActionName)
-		}
-		if slices.Contains(state.ExcludedActionNames, state.CurrentActionName) {
-			return fmt.Errorf("%w: current Action is excluded", ErrInvalidExecutionState)
-		}
-		if state.Phase == phaseAwaitingAction && binding.target != bindingTargetDispatcher ||
-			(state.Phase == phaseAwaitingChildStart || state.Phase == phaseAwaitingChildWaitOpen ||
-				state.Phase == phaseWaitingChild) && binding.target != bindingTargetChild {
-			return fmt.Errorf("%w: current Action does not match the execution phase", ErrInvalidExecutionState)
-		}
-		if binding.target == bindingTargetChild && state.ChildKey != nil {
-			wantKey, err := planningChildKey(state.CurrentActionName, uint32(len(state.Attempts)+1))
-			if err != nil || *state.ChildKey != wantKey {
-				return fmt.Errorf("%w: child key does not match the Action attempt", ErrInvalidExecutionState)
-			}
-		}
+	return nil
+}
+
+func (state executionState) validateCurrentAction(definition *Definition) error {
+	if state.CurrentActionName == "" {
+		return nil
 	}
-	if err := state.validateProgress(); err != nil {
-		return err
+	binding, found := definition.binding(state.CurrentActionName)
+	if !found {
+		return fmt.Errorf("%w: unknown current Action %q", ErrInvalidExecutionState, state.CurrentActionName)
 	}
-	if err := state.validatePhase(); err != nil {
-		return err
+	if slices.Contains(state.ExcludedActionNames, state.CurrentActionName) {
+		return fmt.Errorf("%w: current Action is excluded", ErrInvalidExecutionState)
 	}
+	if state.Phase == phaseAwaitingAction && binding.target != bindingTargetDispatcher ||
+		(state.Phase == phaseAwaitingChildStart || state.Phase == phaseAwaitingChildWaitOpen ||
+			state.Phase == phaseWaitingChild) && binding.target != bindingTargetChild {
+		return fmt.Errorf("%w: current Action does not match the execution phase", ErrInvalidExecutionState)
+	}
+	if binding.target != bindingTargetChild || state.ChildKey == nil {
+		return nil
+	}
+	wantKey, err := planningChildKey(state.CurrentActionName, uint32(len(state.Attempts)+1))
+	if err != nil || *state.ChildKey != wantKey {
+		return fmt.Errorf("%w: child key does not match the Action attempt", ErrInvalidExecutionState)
+	}
+	return nil
+}
+
+func (state executionState) validateCompletion(definition *Definition) error {
 	if state.Phase == phaseCompleted {
 		if state.FinalOutput == nil || state.FinalOutput.Validate() != nil ||
 			state.FinalOutput.WorldState.Key() != state.WorldState.Key() ||

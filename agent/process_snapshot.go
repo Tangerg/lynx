@@ -319,46 +319,64 @@ func validatePreparedStep(processID ProcessID, sequence uint64, lastStable Execu
 		return errors.New("prepared Effect count does not match Transition")
 	}
 	for index, record := range prepared.Effects {
-		wantID := deriveEffectID(processID, sequence, index)
-		if record.ID != wantID || !equalEffect(record.Effect, effects[index]) {
-			return errors.New("prepared Effect identity or payload changed")
+		if err := validatePreparedEffect(processID, sequence, index, effects[index], record); err != nil {
+			return err
 		}
-		if record.Settlement != nil && record.Settlement.EffectID() != record.ID {
-			return errors.New("prepared settlement addresses another Effect")
-		}
-		if record.Effect.Target() == EffectTargetFramework {
-			operation, err := frameworkEffectOperation(record.Effect.Payload())
-			if err != nil {
-				return err
-			}
-			switch operation {
-			case frameworkEffectWait:
-				if record.WaitID != nil && *record.WaitID != deriveWaitID(record.ID) {
-					return errors.New("wait Effect contains a non-derived WaitID")
-				}
-				if (record.WaitID == nil) != (record.Settlement == nil) ||
-					record.Settlement != nil && record.Settlement.Status() == SettlementStatusUnknown {
-					return errors.New("wait Effect has an incomplete or unknown settlement")
-				}
-			case frameworkEffectStartChild:
-				if record.WaitID != nil ||
-					record.Settlement != nil && record.Settlement.Status() == SettlementStatusUnknown {
-					return errors.New("child-start Effect has an invalid settlement")
-				}
-			case frameworkEffectWaitChildren:
-				if record.WaitID != nil && *record.WaitID != deriveWaitID(record.ID) {
-					return errors.New("child-wait Effect contains a non-derived WaitID")
-				}
-				if (record.WaitID == nil) != (record.Settlement == nil) ||
-					record.Settlement != nil && record.Settlement.Status() == SettlementStatusUnknown {
-					return errors.New("child-wait Effect has an incomplete or unknown settlement")
-				}
-			default:
-				return errors.New("unsupported framework Effect")
-			}
-		} else if record.WaitID != nil {
+	}
+	return nil
+}
+
+func validatePreparedEffect(
+	processID ProcessID,
+	sequence uint64,
+	index int,
+	effect Effect,
+	record preparedEffectWire,
+) error {
+	wantID := deriveEffectID(processID, sequence, index)
+	if record.ID != wantID || !equalEffect(record.Effect, effect) {
+		return errors.New("prepared Effect identity or payload changed")
+	}
+	if record.Settlement != nil && record.Settlement.EffectID() != record.ID {
+		return errors.New("prepared settlement addresses another Effect")
+	}
+	if record.Effect.Target() != EffectTargetFramework {
+		if record.WaitID != nil {
 			return errors.New("dispatcher Effect cannot contain WaitID")
 		}
+		return nil
+	}
+	return validatePreparedFrameworkEffect(record)
+}
+
+func validatePreparedFrameworkEffect(record preparedEffectWire) error {
+	operation, err := frameworkEffectOperation(record.Effect.Payload())
+	if err != nil {
+		return err
+	}
+	switch operation {
+	case frameworkEffectWait:
+		return validatePreparedWaitEffect(record, "wait Effect")
+	case frameworkEffectStartChild:
+		if record.WaitID != nil ||
+			record.Settlement != nil && record.Settlement.Status() == SettlementStatusUnknown {
+			return errors.New("child-start Effect has an invalid settlement")
+		}
+		return nil
+	case frameworkEffectWaitChildren:
+		return validatePreparedWaitEffect(record, "child-wait Effect")
+	default:
+		return errors.New("unsupported framework Effect")
+	}
+}
+
+func validatePreparedWaitEffect(record preparedEffectWire, name string) error {
+	if record.WaitID != nil && *record.WaitID != deriveWaitID(record.ID) {
+		return fmt.Errorf("%s contains a non-derived WaitID", name)
+	}
+	if (record.WaitID == nil) != (record.Settlement == nil) ||
+		record.Settlement != nil && record.Settlement.Status() == SettlementStatusUnknown {
+		return fmt.Errorf("%s has an incomplete or unknown settlement", name)
 	}
 	return nil
 }

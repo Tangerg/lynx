@@ -240,127 +240,179 @@ func (dispatcher *Dispatcher) dispatchToolBatch(
 	request agent.EffectRequest,
 	batch *toolBatchCall,
 ) (agent.Settlement, error) {
+	dispatch, err := newToolBatchDispatch(dispatcher, ctx, request, batch)
+	if err != nil {
+		return agent.Settlement{}, err
+	}
+	return dispatch.run()
+}
+
+type toolBatchDispatch struct {
+	dispatcher          *Dispatcher
+	ctx                 context.Context
+	request             agent.EffectRequest
+	batch               *toolBatchCall
+	results             []chat.ToolResult
+	advertisedToolNames []string
+	start               int
+	pauseCount          uint32
+	continuation        *ToolInputContinuation
+	allDirect           bool
+}
+
+func newToolBatchDispatch(
+	dispatcher *Dispatcher,
+	ctx context.Context,
+	request agent.EffectRequest,
+	batch *toolBatchCall,
+) (*toolBatchDispatch, error) {
 	for _, call := range batch.Calls {
 		if _, delegated := dispatcher.delegates[call.Name]; delegated {
-			return agent.Settlement{}, fmt.Errorf(
+			return nil, fmt.Errorf(
 				"interaction: Delegate %q must be executed by the managed Execution boundary",
 				call.Name,
 			)
 		}
 	}
-	results := make([]chat.ToolResult, 0, len(batch.Calls))
-	advertisedToolNames := make([]string, 0)
-	start := 0
-	pauseCount := uint32(0)
-	var continuation *ToolInputContinuation
+	dispatch := &toolBatchDispatch{
+		dispatcher: dispatcher,
+		ctx:        ctx,
+		request:    request,
+		batch:      batch,
+		results:    make([]chat.ToolResult, 0, len(batch.Calls)),
+		allDirect:  dispatcher.allCallsDirect(batch.Calls),
+	}
 	if batch.Checkpoint != nil {
 		checkpoint := batch.Checkpoint
-		results = append(results, checkpoint.CompletedResults...)
-		advertisedToolNames = append(advertisedToolNames, checkpoint.AdvertisedToolNames...)
-		start = int(checkpoint.NextToolCallIndex)
-		pauseCount = checkpoint.PauseCount
-		if pauseCount == ^uint32(0) {
-			return agent.Settlement{}, errors.New("interaction: tool checkpoint pause count exhausted")
+		dispatch.results = append(dispatch.results, checkpoint.CompletedResults...)
+		dispatch.advertisedToolNames = append(dispatch.advertisedToolNames, checkpoint.AdvertisedToolNames...)
+		dispatch.start = int(checkpoint.NextToolCallIndex)
+		dispatch.pauseCount = checkpoint.PauseCount
+		if dispatch.pauseCount == ^uint32(0) {
+			return nil, errors.New("interaction: tool checkpoint pause count exhausted")
 		}
-		continuation = &ToolInputContinuation{
+		dispatch.continuation = &ToolInputContinuation{
 			state:    append(json.RawMessage(nil), checkpoint.InputRequest.ContinuationState...),
 			response: append(json.RawMessage(nil), batch.InputResponse...),
 		}
 	}
-	allDirect := dispatcher.allCallsDirect(batch.Calls)
-	if continuation != nil {
-		callContext := ctx
-		callContext = withToolInputContinuation(callContext, *continuation)
-		result, newlyAdvertised, required, err := dispatcher.callTool(
-			callContext,
-			request,
-			batch.ModelCallSequence,
-			batch.FirstToolCallIndex+uint32(start),
-			batch.Calls[start],
-		)
-		if err != nil {
-			return agent.Settlement{}, fmt.Errorf("interaction: tool call %q: %w", batch.Calls[start].ID, err)
-		}
-		if required != nil {
-			checkpoint := &toolCheckpoint{
-				CompletedResults:    append([]chat.ToolResult(nil), results...),
-				AdvertisedToolNames: append([]string(nil), advertisedToolNames...),
-				NextToolCallIndex:   uint32(start),
-				PauseCount:          pauseCount + 1,
-				InputRequest:        wireInputRequest(*required),
-			}
-			return toolCheckpointSettlement(request.ID(), checkpoint)
-		}
-		results = append(results, result)
-		advertisedToolNames, err = mergeAdvertisedToolNames(advertisedToolNames, newlyAdvertised)
-		if err != nil {
-			return agent.Settlement{}, err
-		}
-		start++
-	}
+	return dispatch, nil
+}
 
-	plans, err := dispatcher.planToolCalls(batch.Calls[start:])
+func (dispatch *toolBatchDispatch) run() (agent.Settlement, error) {
+	if settlement, paused, err := dispatch.resume(); err != nil || paused {
+		return settlement, err
+	}
+	if settlement, paused, err := dispatch.dispatchRemaining(); err != nil || paused {
+		return settlement, err
+	}
+	return dispatch.complete()
+}
+
+func (dispatch *toolBatchDispatch) resume() (agent.Settlement, bool, error) {
+	if dispatch.continuation == nil {
+		return agent.Settlement{}, false, nil
+	}
+	callContext := withToolInputContinuation(dispatch.ctx, *dispatch.continuation)
+	result, newlyAdvertised, required, err := dispatch.dispatcher.callTool(
+		callContext,
+		dispatch.request,
+		dispatch.batch.ModelCallSequence,
+		dispatch.batch.FirstToolCallIndex+uint32(dispatch.start),
+		dispatch.batch.Calls[dispatch.start],
+	)
 	if err != nil {
-		return agent.Settlement{}, err
+		return agent.Settlement{}, false, fmt.Errorf(
+			"interaction: tool call %q: %w", dispatch.batch.Calls[dispatch.start].ID, err,
+		)
+	}
+	if required != nil {
+		settlement, err := dispatch.pause(uint32(dispatch.start), *required)
+		return settlement, true, err
+	}
+	dispatch.results = append(dispatch.results, result)
+	dispatch.advertisedToolNames, err = mergeAdvertisedToolNames(
+		dispatch.advertisedToolNames, newlyAdvertised,
+	)
+	if err != nil {
+		return agent.Settlement{}, false, err
+	}
+	dispatch.start++
+	return agent.Settlement{}, false, nil
+}
+
+func (dispatch *toolBatchDispatch) dispatchRemaining() (agent.Settlement, bool, error) {
+	plans, err := dispatch.dispatcher.planToolCalls(dispatch.batch.Calls[dispatch.start:])
+	if err != nil {
+		return agent.Settlement{}, false, err
 	}
 	for offset := 0; offset < len(plans); {
 		end := offset + 1
-		if dispatcher.maxParallel > 1 {
+		if dispatch.dispatcher.maxParallel > 1 {
 			end = concurrentBatchEnd(plans, offset)
 		}
-		outcomes := dispatcher.callToolBatch(
-			ctx,
-			request,
-			batch.ModelCallSequence,
-			batch.FirstToolCallIndex+uint32(start+offset),
-			batch.Calls[start+offset:start+end],
+		outcomes := dispatch.dispatcher.callToolBatch(
+			dispatch.ctx,
+			dispatch.request,
+			dispatch.batch.ModelCallSequence,
+			dispatch.batch.FirstToolCallIndex+uint32(dispatch.start+offset),
+			dispatch.batch.Calls[dispatch.start+offset:dispatch.start+end],
 		)
 		for index, outcome := range outcomes {
-			call := batch.Calls[start+offset+index]
+			call := dispatch.batch.Calls[dispatch.start+offset+index]
 			if outcome.err != nil {
-				return agent.Settlement{}, fmt.Errorf("interaction: tool call %q: %w", call.ID, outcome.err)
+				return agent.Settlement{}, false, fmt.Errorf("interaction: tool call %q: %w", call.ID, outcome.err)
 			}
 			if outcome.required != nil {
 				if len(outcomes) != 1 {
-					return agent.Settlement{}, fmt.Errorf(
+					return agent.Settlement{}, false, fmt.Errorf(
 						"interaction: concurrently executed tool call %q requested external input",
 						call.ID,
 					)
 				}
-				checkpoint := &toolCheckpoint{
-					CompletedResults:    append([]chat.ToolResult(nil), results...),
-					AdvertisedToolNames: append([]string(nil), advertisedToolNames...),
-					NextToolCallIndex:   uint32(start + offset),
-					PauseCount:          pauseCount + 1,
-					InputRequest:        wireInputRequest(*outcome.required),
-				}
-				return toolCheckpointSettlement(request.ID(), checkpoint)
+				settlement, err := dispatch.pause(uint32(dispatch.start+offset), *outcome.required)
+				return settlement, true, err
 			}
 		}
 		for _, outcome := range outcomes {
-			results = append(results, outcome.result)
-			advertisedToolNames, err = mergeAdvertisedToolNames(
-				advertisedToolNames,
+			dispatch.results = append(dispatch.results, outcome.result)
+			dispatch.advertisedToolNames, err = mergeAdvertisedToolNames(
+				dispatch.advertisedToolNames,
 				outcome.advertisedToolNames,
 			)
 			if err != nil {
-				return agent.Settlement{}, err
+				return agent.Settlement{}, false, err
 			}
 		}
 		offset = end
 	}
+	return agent.Settlement{}, false, nil
+}
+
+func (dispatch *toolBatchDispatch) pause(index uint32, request ToolInputRequest) (agent.Settlement, error) {
+	checkpoint := &toolCheckpoint{
+		CompletedResults:    append([]chat.ToolResult(nil), dispatch.results...),
+		AdvertisedToolNames: append([]string(nil), dispatch.advertisedToolNames...),
+		NextToolCallIndex:   index,
+		PauseCount:          dispatch.pauseCount + 1,
+		InputRequest:        wireInputRequest(request),
+	}
+	return toolCheckpointSettlement(dispatch.request.ID(), checkpoint)
+}
+
+func (dispatch *toolBatchDispatch) complete() (agent.Settlement, error) {
 	payload, err := encodeProtocol(signalEnvelope{
 		SchemaVersion: protocolSchemaVersion,
 		Operation:     operationToolBatch,
 		ToolResult: &toolBatchResult{
-			Results: results, Direct: allDirect,
-			AdvertisedToolNames: advertisedToolNames,
+			Results: dispatch.results, Direct: dispatch.allDirect,
+			AdvertisedToolNames: dispatch.advertisedToolNames,
 		},
 	})
 	if err != nil {
 		return agent.Settlement{}, err
 	}
-	return agent.NewSettlement(request.ID(), agent.SettlementStatusSucceeded, payload)
+	return agent.NewSettlement(dispatch.request.ID(), agent.SettlementStatusSucceeded, payload)
 }
 
 func toolCheckpointSettlement(

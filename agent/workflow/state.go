@@ -70,6 +70,10 @@ func (state executionState) validate(definition *Definition) error {
 			return fmt.Errorf("%w: final value", ErrInvalidExecutionState)
 		}
 	}
+	return state.validatePhaseState(definition)
+}
+
+func (state executionState) validatePhaseState(definition *Definition) error {
 	hasChild := state.ChildProcessID != nil && state.ChildProcessID.Valid()
 	hasWait := state.WaitID != nil && state.WaitID.Valid()
 	switch state.Phase {
@@ -134,27 +138,45 @@ func (state executionState) hasFanoutProgress() bool {
 }
 
 func (state executionState) validateFanout(definition *Definition) error {
+	stage, windowStart, err := state.validateFanoutBoundary(definition)
+	if err != nil {
+		return err
+	}
+	resolved, started, err := state.validateFanoutChildren(windowStart)
+	if err != nil {
+		return err
+	}
+	if err := state.validateFanoutOutputs(stage, windowStart); err != nil {
+		return err
+	}
+	return state.validateFanoutPhase(resolved, started)
+}
+
+func (state executionState) validateFanoutBoundary(definition *Definition) (Stage, uint32, error) {
 	if state.StageIndex >= uint32(len(definition.stages)) {
-		return ErrInvalidExecutionState
+		return Stage{}, 0, ErrInvalidExecutionState
 	}
 	stage := definition.stages[state.StageIndex]
 	count, err := stage.fanoutCount(state.CurrentValue)
 	if err != nil || count == 0 || state.NextFanoutIndex == 0 || state.NextFanoutIndex > count ||
 		len(state.ActiveFanoutWindow) == 0 || uint64(len(state.ActiveFanoutWindow)) > uint64(stage.fanoutWindowSize()) ||
 		uint64(len(state.FanoutOutputs)) != uint64(count) {
-		return ErrInvalidExecutionState
+		return Stage{}, 0, ErrInvalidExecutionState
 	}
-	windowStart := state.NextFanoutIndex - uint32(len(state.ActiveFanoutWindow))
+	return stage, state.NextFanoutIndex - uint32(len(state.ActiveFanoutWindow)), nil
+}
+
+func (state executionState) validateFanoutChildren(windowStart uint32) (int, int, error) {
 	resolved := 0
 	started := 0
 	for offset, child := range state.ActiveFanoutWindow {
 		if child.FanoutIndex != windowStart+uint32(offset) {
-			return ErrInvalidExecutionState
+			return 0, 0, ErrInvalidExecutionState
 		}
 		hasProcess := child.ChildProcessID != nil && child.ChildProcessID.Valid()
 		hasFailure := child.Failure != nil && child.Failure.Valid()
 		if child.ChildProcessID != nil && !hasProcess || child.Failure != nil && !hasFailure {
-			return ErrInvalidExecutionState
+			return 0, 0, ErrInvalidExecutionState
 		}
 		if hasProcess || hasFailure {
 			resolved++
@@ -164,8 +186,12 @@ func (state executionState) validateFanout(definition *Definition) error {
 		}
 	}
 	if resolved != 0 && resolved != len(state.ActiveFanoutWindow) {
-		return ErrInvalidExecutionState
+		return 0, 0, ErrInvalidExecutionState
 	}
+	return resolved, started, nil
+}
+
+func (state executionState) validateFanoutOutputs(stage Stage, windowStart uint32) error {
 	for index, output := range state.FanoutOutputs {
 		if uint32(index) < windowStart {
 			if output == nil {
@@ -182,6 +208,10 @@ func (state executionState) validateFanout(definition *Definition) error {
 			return ErrInvalidExecutionState
 		}
 	}
+	return nil
+}
+
+func (state executionState) validateFanoutPhase(resolved, started int) error {
 	switch state.Phase {
 	case phaseAwaitingFanoutStarts:
 		if state.WaitID != nil || resolved != 0 && started != 0 {

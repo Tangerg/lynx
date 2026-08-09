@@ -30,28 +30,12 @@ func newPreparedProcessStateChanges(
 	pausedProcessIDs []ProcessID,
 	applyGate <-chan struct{},
 ) ([]*preparedProcessStateChange, error) {
-	sourceByID := make(map[ProcessID]Snapshot)
-	for _, snapshot := range source.ProcessSnapshots() {
-		sourceByID[snapshot.ProcessID()] = snapshot
-	}
-	resultByID := make(map[ProcessID]Snapshot)
-	for _, snapshot := range result.ProcessSnapshots() {
-		resultByID[snapshot.ProcessID()] = snapshot
-	}
+	sourceByID := snapshotsByProcessID(source)
+	resultByID := snapshotsByProcessID(result)
 	if len(sourceByID) != len(resultByID) {
 		return nil, ErrInvalidPreparedWaitingSubtreeCancellation
 	}
-	type preparedProcessChange struct {
-		id       ProcessID
-		canceled bool
-	}
-	ordered := make([]preparedProcessChange, 0, len(canceledProcessIDs)+len(pausedProcessIDs))
-	for _, id := range canceledProcessIDs {
-		ordered = append(ordered, preparedProcessChange{id: id, canceled: true})
-	}
-	for _, id := range pausedProcessIDs {
-		ordered = append(ordered, preparedProcessChange{id: id})
-	}
+	ordered := orderedPreparedProcessChanges(canceledProcessIDs, pausedProcessIDs)
 	preparedChanges := make([]*preparedProcessStateChange, 0, len(ordered))
 	for _, change := range ordered {
 		sourceSnapshot := sourceByID[change.id]
@@ -59,56 +43,105 @@ func newPreparedProcessStateChanges(
 		if !sourceSnapshot.Valid() || !resultSnapshot.Valid() {
 			return nil, ErrInvalidPreparedWaitingSubtreeCancellation
 		}
-		sourceWire, err := sourceSnapshot.wire()
+		preparedChange, err := newPreparedProcessStateChange(
+			sourceSnapshot, resultSnapshot, change.canceled, applyGate,
+		)
 		if err != nil {
 			return nil, err
-		}
-		resultWire, err := resultSnapshot.wire()
-		if err != nil {
-			return nil, err
-		}
-		mailbox, err := restoreSignalMailbox(resultWire.Mailbox)
-		if err != nil {
-			return nil, err
-		}
-		control, err := pendingControlFromWire(resultWire.PendingControl)
-		if err != nil {
-			return nil, err
-		}
-		preparedChange := &preparedProcessStateChange{
-			processID: change.id, source: sourceSnapshot, result: resultWire,
-			mailbox: mailbox, control: control, applyGate: applyGate, applied: make(chan struct{}),
-		}
-		if change.canceled {
-			if resultWire.Status != StatusCanceled ||
-				resultWire.ProcessEventSequence != sourceWire.ProcessEventSequence+1 {
-				return nil, ErrInvalidPreparedWaitingSubtreeCancellation
-			}
-		} else {
-			if resultWire.Status != StatusPaused || len(resultWire.Mailbox.Signals) < len(sourceWire.Mailbox.Signals) {
-				return nil, ErrInvalidPreparedWaitingSubtreeCancellation
-			}
-			for _, record := range resultWire.Mailbox.Signals[len(sourceWire.Mailbox.Signals):] {
-				if _, err := ParseChildrenCompleted(record.Signal); err != nil {
-					return nil, ErrInvalidPreparedWaitingSubtreeCancellation
-				}
-				payload, _ := json.Marshal(signalAcceptedEventPayload{
-					SignalID: record.Signal.ID().String(), WaitID: commandSignalWaitID(record.Signal),
-				})
-				preparedChange.events = append(preparedChange.events, preparedProcessEvent{
-					name: EventSignalAccepted, payload: payload,
-				})
-			}
-			preparedChange.events = append(preparedChange.events, preparedProcessEvent{
-				name: EventProcessPaused, payload: emptyEventPayload(),
-			})
-			if resultWire.ProcessEventSequence != sourceWire.ProcessEventSequence+uint64(len(preparedChange.events)) {
-				return nil, ErrInvalidPreparedWaitingSubtreeCancellation
-			}
 		}
 		preparedChanges = append(preparedChanges, preparedChange)
 	}
 	return preparedChanges, nil
+}
+
+type preparedProcessChange struct {
+	id       ProcessID
+	canceled bool
+}
+
+func snapshotsByProcessID(snapshot TreeSnapshot) map[ProcessID]Snapshot {
+	byID := make(map[ProcessID]Snapshot)
+	for _, processSnapshot := range snapshot.ProcessSnapshots() {
+		byID[processSnapshot.ProcessID()] = processSnapshot
+	}
+	return byID
+}
+
+func orderedPreparedProcessChanges(canceled, paused []ProcessID) []preparedProcessChange {
+	ordered := make([]preparedProcessChange, 0, len(canceled)+len(paused))
+	for _, id := range canceled {
+		ordered = append(ordered, preparedProcessChange{id: id, canceled: true})
+	}
+	for _, id := range paused {
+		ordered = append(ordered, preparedProcessChange{id: id})
+	}
+	return ordered
+}
+
+func newPreparedProcessStateChange(
+	source Snapshot,
+	result Snapshot,
+	canceled bool,
+	applyGate <-chan struct{},
+) (*preparedProcessStateChange, error) {
+	sourceWire, err := source.wire()
+	if err != nil {
+		return nil, err
+	}
+	resultWire, err := result.wire()
+	if err != nil {
+		return nil, err
+	}
+	mailbox, err := restoreSignalMailbox(resultWire.Mailbox)
+	if err != nil {
+		return nil, err
+	}
+	control, err := pendingControlFromWire(resultWire.PendingControl)
+	if err != nil {
+		return nil, err
+	}
+	prepared := &preparedProcessStateChange{
+		processID: result.ProcessID(), source: source, result: resultWire,
+		mailbox: mailbox, control: control, applyGate: applyGate, applied: make(chan struct{}),
+	}
+	if canceled {
+		if resultWire.Status != StatusCanceled ||
+			resultWire.ProcessEventSequence != sourceWire.ProcessEventSequence+1 {
+			return nil, ErrInvalidPreparedWaitingSubtreeCancellation
+		}
+		return prepared, nil
+	}
+	if err := prepared.preparePauseEvents(sourceWire, resultWire); err != nil {
+		return nil, err
+	}
+	return prepared, nil
+}
+
+func (prepared *preparedProcessStateChange) preparePauseEvents(
+	source processSnapshotWire,
+	result processSnapshotWire,
+) error {
+	if result.Status != StatusPaused || len(result.Mailbox.Signals) < len(source.Mailbox.Signals) {
+		return ErrInvalidPreparedWaitingSubtreeCancellation
+	}
+	for _, record := range result.Mailbox.Signals[len(source.Mailbox.Signals):] {
+		if _, err := ParseChildrenCompleted(record.Signal); err != nil {
+			return ErrInvalidPreparedWaitingSubtreeCancellation
+		}
+		payload, _ := json.Marshal(signalAcceptedEventPayload{
+			SignalID: record.Signal.ID().String(), WaitID: commandSignalWaitID(record.Signal),
+		})
+		prepared.events = append(prepared.events, preparedProcessEvent{
+			name: EventSignalAccepted, payload: payload,
+		})
+	}
+	prepared.events = append(prepared.events, preparedProcessEvent{
+		name: EventProcessPaused, payload: emptyEventPayload(),
+	})
+	if result.ProcessEventSequence != source.ProcessEventSequence+uint64(len(prepared.events)) {
+		return ErrInvalidPreparedWaitingSubtreeCancellation
+	}
+	return nil
 }
 
 func (preparedChange *preparedProcessStateChange) validateSource(loop *processLoop) error {
