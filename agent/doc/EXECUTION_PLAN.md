@@ -2,8 +2,8 @@
 
 > 状态：持续实施
 > 建立日期：2026-08-06
-> 最后更新：2026-08-09
-> 当前阶段：P1–P11 完成；唯一 `agent` module 已完成发布与最终门禁
+> 最后更新：2026-08-10
+> 当前阶段：P1–P12 完成；P13 模块内部精修进行中
 > 当前实施范围：Framework 重写、消费迁移与 canonical module 替换均已完成；Runtime 最终验收由 `app/runtime` 专项文档拥有
 > 模块路径：`github.com/Tangerg/lynx/agent`
 
@@ -79,7 +79,8 @@ go test ./...
 | P9 独立完整性验收 | 完成 | 6/6 | API/wire/arch/race/fuzz/examples/standalone 全绿 |
 | P10 消费迁移 | 完成 | 8/8 | Runtime 已完成生产纵切并删除应用侧旧 Framework owner |
 | P11 原模块替换 | 完成 | 5/5 | 原实现和临时路径已删除，唯一 canonical module 已发布并通过最终门禁 |
-| P12 重写后精修 | 进行中 | 2/3 | 在不改变公共合同的前提下清除实现复杂度、重复职责和边界门禁盲区 |
+| P12 重写后精修 | 完成 | 3/3 | 在不改变公共合同的前提下清除实现复杂度、重复职责和边界门禁盲区 |
+| P13 模块内部精修 | 进行中 | 1/3 | 继续反证模块内部状态、资源、并发、观察与测试 owner，治本清除新发现的坏味道 |
 
 ---
 
@@ -220,6 +221,12 @@ go test ./...
 - [x] P12-02 继续审计 Strategy protocol、状态推进与 Kernel lifecycle 的高复杂度 owner，区分严格校验与真实职责混杂后治本清理。
 - [x] P12-03 与 Runtime 执行双向抽象泄露复审、完整 race/fuzz/examples/standalone 门禁并冻结最终事实。
 
+### P13：模块内部精修
+
+- [x] P13-01 将 Step、Signal、child reservation 与 Delta 计数的边界算术收回资源 owner，消除合法极值快照下的无符号回绕。
+- [ ] P13-02 继续反证 Kernel、Strategy、Platform、OTel 与测试支持代码的状态所有权、并发时序、错误分类和命名职责，逐项治本清理。
+- [ ] P13-03 完成 standalone build/vet/staticcheck/lint/test/race/fuzz/examples、复杂度与残留复扫，冻结模块内部精修事实。
+
 ---
 
 ## 6. 最终完成定义
@@ -265,6 +272,7 @@ go test ./...
 
 | 日期 | 阶段 | 实际事实 | 验证与结果 |
 |---|---|---|---|
+| 2026-08-10 | P13-01 | 资源预算的权威校验原本在 `Budget` 内使用安全减法，但 Step prepare、外部/child Signal 接收、即时 child completion 与计数提交仍各自拼接 `used + requested + reserved`。合法快照把计数恢复到 `uint64` 边界附近时会回绕，使父 Process 消费已永久划拨给 child 的预算，或让限制判断错误放行。现以单一逐项扣减校验覆盖 Steps/Effects/Signals/pending mailbox 与 Budget allocation，并让无硬上限的 DroppedDeltas 在表示上限处饱和，保持 Usage 单调；没有修改 exported API、wire、schema、package DAG 或 Host 边界 | 新增极值和真实 Step reservation 回归，旧加法实现会把 `MaxUint64-1 + reserved 1 + next 1` 回绕后继续执行，当前确定以 `engine.limit.steps` 失败。standalone 禁用缓存全量 test、vet、staticcheck 与 diff check 全绿；完整 lint/race 随本批提交前门禁执行 |
 | 2026-08-09 | P12-03 | 完成 Framework/Runtime 双向反证审计：Framework 生产代码没有 Lyra、Run、Segment、Session、Conversation、Workspace、Store、Transaction 或 SQLite 抽象；Runtime 的 Framework import 只存在于 `internal/adapter/agentexec` ACL，Domain/Application/Infra/Delivery 均不持有 Framework 类型或解释策略 payload。最终复杂度复核只剩 `quiesceTree` 的单一 tree-barrier convergence loop 超过阈值，拆分会产生第二 scheduler；deadcode 只见两个供外部消费者使用并由 public baseline 锁定的 listener function adapters。没有修改 public API、wire、schema、package DAG 或 Host 合同 | standalone tidy-diff/build/vet/staticcheck/完整 lint/test/race 全绿；13 个 fuzz owner 本轮约 95 万次执行无失败；8 个公开 command examples 全部实际运行；Runtime standalone 同级门禁、3 个 ACL codec fuzz、contract generator 零漂移及 root workspace build/vet/test 共同通过。tracked 空文件/空目录、生产 TODO/FIXME/HACK、旧 module path、应用抽象和非 ACL import 扫描为零 |
 | 2026-08-09 | P12-02 | 完成 Framework production 全量复杂度与重复片段复审。Interaction protocol 按 operation 拥有各自 payload 不变量，tool batch 用私有 dispatch aggregate 收敛 checkpoint continuation、window execution、advertisement 与 settlement；Execution 将 batch completion、Delegate 分段和普通 Tool 分段推进分开。Planning/Workflow state、prepared Effect 与 mailbox restore 分别按 attempt/phase、fan-out、Effect target 和 Signal/wait 重建事实收敛。Kernel 单写者 loop、Process start reservation、Tree restore 与 waiting-subtree prepared change 均把 staging、validation、registration、activation 分回各自私有行为；Workflow Map/Fork 共用的 typed fan-out output codec 提升为同 package 唯一机制。没有新增 service/interface/package，也没有改 exported API、wire、schema、DAG 或 Host 边界 | Agent architecture gate 在中途准确拒绝非 Engine receiver 返回 `*Process` 的 helper，最终构造权保持 Engine 独占。standalone 禁用缓存全量测试、vet、staticcheck、完整 lint 全绿；production cognitive scan 仅剩 quiesce barrier 的单一循环超过 30，审计确认其只表达“树成员稳定前重复到达同一安全边界”的一个并发不变量，不拆成第二 scheduler；production duplicate scan 剩余均为独立 Strategy 的同构窄腰或值对象校验，不跨 owner 提升抽象 |
 | 2026-08-09 | P12-01 | 将 Interaction execution state 的共同 envelope、active Tool/Delegate batch 与具体 phase 不变量收回各自校验行为；TreeSnapshot 将 Process 索引、关系/预算和 child-wait 合法性收敛为一个私有 validation owner；Step finalization 现在先在克隆 mailbox 上完成 settlement、wait registration、transition 与 termination staging，全部可失败步骤通过后才一次安装 live state。审计同时发现多个 immediate child completion Signal 只按“一个”计入 MaxSignals/Budget 的累计遗漏，现按 batch index 精确计数并保留回归测试。没有修改 exported API、wire、schema、package DAG 或 Host/Runtime 边界 | Agent Framework standalone 禁用缓存全量测试、vet、staticcheck 与完整 lint 全绿；新增累计限额反例在旧实现会接收第二个越界 Signal，当前确定返回 `ErrResourceLimitExceeded`；root module 全量测试亦通过 |
@@ -349,4 +357,4 @@ go test ./...
 
 ## 9. 当前下一步
 
-P1–P12 与真实 Runtime consumer 证明的全部 Framework 合同和重写后精修均已完成。原框架实现、临时孵化 module、迁移兼容路径和已知坏味道已经清零；Runtime standalone 绑定 canonical source，双向边界及完整质量矩阵已冻结。除非真实消费再次证明中性 Framework 缺口，否则不修改公共合同，也不得把 Runtime 产品、Store、transaction、Run 或消费者抽象引入 Framework。
+P1–P12 与真实 Runtime consumer 证明的 Framework 合同均已完成。P13 正在只向 `agent` 模块内部继续反证状态、资源、并发、观察和测试 owner；除非真实消费证明中性 Framework 缺口，否则不修改公共合同，也不得把 Runtime 产品、Store、transaction、Run 或消费者抽象引入 Framework。P13 完整门禁通过后才重新冻结“内部坏味道清零”的当前事实。

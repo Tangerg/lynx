@@ -131,29 +131,49 @@ func limitsFromBudget(parent Limits, budget Budget) (Limits, error) {
 }
 
 func (budget Budget) contains(usage Usage, reserved Budget) bool {
-	return usage.CommittedSteps <= budget.Steps && reserved.Steps <= budget.Steps-usage.CommittedSteps &&
-		usage.PreparedEffects <= budget.Effects && reserved.Effects <= budget.Effects-usage.PreparedEffects &&
-		usage.AcceptedSignals <= budget.Signals && reserved.Signals <= budget.Signals-usage.AcceptedSignals
+	return resourceQuantitiesFit(budget.Steps, usage.CommittedSteps, reserved.Steps) &&
+		resourceQuantitiesFit(budget.Effects, usage.PreparedEffects, reserved.Effects) &&
+		resourceQuantitiesFit(budget.Signals, usage.AcceptedSignals, reserved.Signals)
 }
 
 func (budget Budget) canAllocate(usage Usage, reserved, requested Budget) bool {
-	if !requested.Valid() || !budget.contains(usage, reserved) {
-		return false
-	}
-	return requested.Steps <= budget.Steps-usage.CommittedSteps-reserved.Steps &&
-		requested.Effects <= budget.Effects-usage.PreparedEffects-reserved.Effects &&
-		requested.Signals <= budget.Signals-usage.AcceptedSignals-reserved.Signals
+	return requested.Valid() &&
+		resourceQuantitiesFit(budget.Steps, usage.CommittedSteps, reserved.Steps, requested.Steps) &&
+		resourceQuantitiesFit(budget.Effects, usage.PreparedEffects, reserved.Effects, requested.Effects) &&
+		resourceQuantitiesFit(budget.Signals, usage.AcceptedSignals, reserved.Signals, requested.Signals)
 }
 
 func (budget Budget) add(other Budget) (Budget, bool) {
+	const maxUint64 = ^uint64(0)
+	if !resourceQuantitiesFit(maxUint64, budget.Steps, other.Steps) ||
+		!resourceQuantitiesFit(maxUint64, budget.Effects, other.Effects) ||
+		!resourceQuantitiesFit(maxUint64, budget.Signals, other.Signals) {
+		return Budget{}, false
+	}
 	result := Budget{
 		Steps: budget.Steps + other.Steps, Effects: budget.Effects + other.Effects,
 		Signals: budget.Signals + other.Signals,
 	}
-	if result.Steps < budget.Steps || result.Effects < budget.Effects || result.Signals < budget.Signals {
-		return Budget{}, false
-	}
 	return result, true
+}
+
+func resourceQuantitiesFit(limit uint64, quantities ...uint64) bool {
+	remaining := limit
+	for _, quantity := range quantities {
+		if quantity > remaining {
+			return false
+		}
+		remaining -= quantity
+	}
+	return true
+}
+
+func saturatingCountAdd(value, increment uint64) uint64 {
+	const maxUint64 = ^uint64(0)
+	if increment > maxUint64-value {
+		return maxUint64
+	}
+	return value + increment
 }
 
 // TreeLimits bounds structural expansion independently of per-Process work

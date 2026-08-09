@@ -168,7 +168,7 @@ func (loop *processLoop) dispatchStrategyEffect(
 			}
 			record.Settlement = &settlement
 			if count := dropped.Load(); count > 0 {
-				loop.usage.DroppedDeltas += count
+				loop.usage.DroppedDeltas = saturatingCountAdd(loop.usage.DroppedDeltas, count)
 				loop.updateView()
 				payload, _ := json.Marshal(deltaDroppedEventPayload{DroppedDeltaCount: count})
 				loop.publishEvent(ctx, EventDeltaDropped, EventPhaseAttempt, loop.prepared.wire.StepSequence, record.ID, payload)

@@ -8,8 +8,8 @@ import (
 )
 
 func (loop *processLoop) prepareNextStep(ctx context.Context) {
-	if loop.committedSteps >= loop.limits.MaxSteps ||
-		loop.committedSteps+1+loop.reservedBudget.Steps > loop.budget.Steps {
+	if !resourceQuantitiesFit(loop.limits.MaxSteps, loop.committedSteps, 1) ||
+		!resourceQuantitiesFit(loop.budget.Steps, loop.committedSteps, loop.reservedBudget.Steps, 1) {
 		loop.fail(ctx, FailureKindExecution, "engine.limit.steps", ErrResourceLimitExceeded)
 		return
 	}
@@ -45,16 +45,20 @@ func (loop *processLoop) prepareNextStep(ctx context.Context) {
 		}
 	}
 	effectCount := uint64(len(transition.Effects()))
-	if loop.usage.PreparedEffects+effectCount > loop.limits.MaxEffects ||
-		loop.usage.PreparedEffects+effectCount+loop.reservedBudget.Effects > loop.budget.Effects {
+	if !resourceQuantitiesFit(loop.limits.MaxEffects, loop.usage.PreparedEffects, effectCount) ||
+		!resourceQuantitiesFit(
+			loop.budget.Effects, loop.usage.PreparedEffects, loop.reservedBudget.Effects, effectCount,
+		) {
 		loop.discardExecution()
 		loop.fail(ctx, FailureKindExecution, "engine.limit.effects", ErrResourceLimitExceeded)
 		return
 	}
 	remainingPending := loop.mailbox.pendingCount() - uint64(transition.ConsumedSignals())
-	if loop.usage.AcceptedSignals+effectCount > loop.limits.MaxSignals ||
-		remainingPending+effectCount > loop.limits.MaxPendingSignals ||
-		loop.usage.AcceptedSignals+effectCount+loop.reservedBudget.Signals > loop.budget.Signals {
+	if !resourceQuantitiesFit(loop.limits.MaxSignals, loop.usage.AcceptedSignals, effectCount) ||
+		!resourceQuantitiesFit(loop.limits.MaxPendingSignals, remainingPending, effectCount) ||
+		!resourceQuantitiesFit(
+			loop.budget.Signals, loop.usage.AcceptedSignals, loop.reservedBudget.Signals, effectCount,
+		) {
 		loop.discardExecution()
 		loop.fail(ctx, FailureKindExecution, "engine.limit.signals", ErrResourceLimitExceeded)
 		return
@@ -263,10 +267,17 @@ func (finalization *preparedStepFinalization) registerChildWait(record preparedE
 func (finalization *preparedStepFinalization) enqueueImmediateChildSignals() error {
 	preparedSignals := uint64(len(finalization.prepared.wire.Effects))
 	for index, signal := range finalization.immediateChildSignals {
-		acceptedSignals := finalization.loop.usage.AcceptedSignals + preparedSignals + uint64(index) + 1
-		if acceptedSignals > finalization.loop.limits.MaxSignals ||
-			finalization.mailbox.pendingCount()+1 > finalization.loop.limits.MaxPendingSignals ||
-			acceptedSignals+finalization.loop.reservedBudget.Signals > finalization.loop.budget.Signals {
+		acceptedSignals := uint64(index) + 1
+		if !resourceQuantitiesFit(
+			finalization.loop.limits.MaxSignals,
+			finalization.loop.usage.AcceptedSignals, preparedSignals, acceptedSignals,
+		) || !resourceQuantitiesFit(
+			finalization.loop.limits.MaxPendingSignals, finalization.mailbox.pendingCount(), 1,
+		) || !resourceQuantitiesFit(
+			finalization.loop.budget.Signals,
+			finalization.loop.usage.AcceptedSignals, finalization.loop.reservedBudget.Signals,
+			preparedSignals, acceptedSignals,
+		) {
 			return ErrResourceLimitExceeded
 		}
 		accepted, err := finalization.mailbox.enqueueChildCompletion(StatusRunning, signal)

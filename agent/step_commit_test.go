@@ -1,11 +1,48 @@
 package agent
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"testing"
 	"time"
 )
+
+func TestStepCannotConsumeBudgetReservedAtUint64Boundary(t *testing.T) {
+	const maxUint64 = ^uint64(0)
+	processID, err := ParseProcessID("process:resource-boundary")
+	if err != nil {
+		t.Fatal(err)
+	}
+	controller := newProcessController(
+		rootProcessRelation(processID), DeploymentRef{},
+		Budget{Steps: maxUint64, Effects: maxUint64, Signals: maxUint64},
+		CapabilitySet{}, DefaultTreeLimits(), time.Now(), StatusRunning,
+	)
+	loop := &processLoop{
+		engine:         &Engine{},
+		controller:     controller,
+		status:         StatusRunning,
+		committedSteps: maxUint64 - 1,
+		limits: Limits{
+			MaxSteps: maxUint64, MaxEffects: maxUint64,
+			MaxSignals: maxUint64, MaxPendingSignals: maxUint64,
+		},
+		budget:         Budget{Steps: maxUint64, Effects: maxUint64, Signals: maxUint64},
+		reservedBudget: Budget{Steps: 1, Effects: 1, Signals: 1},
+		mailbox:        newSignalMailbox(),
+	}
+
+	loop.prepareNextStep(context.Background())
+
+	if loop.status != StatusFailed {
+		t.Fatalf("status = %s, want %s", loop.status, StatusFailed)
+	}
+	failure, present := loop.termination.Failure()
+	if !present || failure.Code() != "engine.limit.steps" {
+		t.Fatalf("failure = %+v, present = %t", failure, present)
+	}
+}
 
 func TestPreparedStepFinalizationCountsEveryImmediateChildSignal(t *testing.T) {
 	limits := Limits{

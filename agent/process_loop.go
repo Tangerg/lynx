@@ -250,9 +250,11 @@ func (loop *processLoop) recordParentTermination(parent Termination) {
 }
 
 func (loop *processLoop) deliverChildrenCompleted(ctx context.Context, signal Signal) bool {
-	if loop.usage.AcceptedSignals >= loop.limits.MaxSignals ||
-		loop.mailbox.pendingCount() >= loop.limits.MaxPendingSignals ||
-		loop.usage.AcceptedSignals+1+loop.reservedBudget.Signals > loop.budget.Signals {
+	if !resourceQuantitiesFit(loop.limits.MaxSignals, loop.usage.AcceptedSignals, 1) ||
+		!resourceQuantitiesFit(loop.limits.MaxPendingSignals, loop.mailbox.pendingCount(), 1) ||
+		!resourceQuantitiesFit(
+			loop.budget.Signals, loop.usage.AcceptedSignals, loop.reservedBudget.Signals, 1,
+		) {
 		loop.fail(ctx, FailureKindExecution, "engine.limit.child_completion_signal", ErrResourceLimitExceeded)
 		return false
 	}
@@ -342,9 +344,11 @@ func (loop *processLoop) deliver(ctx context.Context, command processCommand) {
 		return
 	}
 	reserved := loop.reservedSettlementSignals()
-	if loop.usage.AcceptedSignals+reserved >= loop.limits.MaxSignals ||
-		loop.mailbox.pendingCount()+reserved >= loop.limits.MaxPendingSignals ||
-		loop.usage.AcceptedSignals+reserved+1+loop.reservedBudget.Signals > loop.budget.Signals {
+	if !resourceQuantitiesFit(loop.limits.MaxSignals, loop.usage.AcceptedSignals, reserved, 1) ||
+		!resourceQuantitiesFit(loop.limits.MaxPendingSignals, loop.mailbox.pendingCount(), reserved, 1) ||
+		!resourceQuantitiesFit(
+			loop.budget.Signals, loop.usage.AcceptedSignals, loop.reservedBudget.Signals, reserved, 1,
+		) {
 		command.reply(processResponse{err: ErrResourceLimitExceeded})
 		return
 	}
