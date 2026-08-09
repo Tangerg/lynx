@@ -45,6 +45,20 @@ func TestConfigurationRegistersEnvironmentOnlyKeysForUnmarshal(t *testing.T) {
 	}
 }
 
+func TestConfigurationAcceptsRepeatablePluginDirectories(t *testing.T) {
+	out, _, err := exec(t, instant(), "", "--plugin-dir", "/plugins/one", "--plugin-dir", "/plugins/two", "config", "show")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got settings.Settings
+	if err := json.Unmarshal([]byte(out), &got); err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Plugins.Directories) != 2 || got.Plugins.Directories[0] != "/plugins/one" || got.Plugins.Directories[1] != "/plugins/two" {
+		t.Fatalf("plugin directories = %v", got.Plugins.Directories)
+	}
+}
+
 func TestConfigurationRejectsInvalidValuesAndMissingExplicitFile(t *testing.T) {
 	if _, _, err := exec(t, instant(), "", "--mode", "magic", "config", "show"); err == nil {
 		t.Fatal("invalid mode was accepted")

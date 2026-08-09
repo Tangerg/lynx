@@ -32,6 +32,7 @@ func configure(v *viper.Viper, root *cobra.Command) {
 	flags.Bool("tool-details", defaults.UI.ToolDetails, "Expand tool output and diffs by default")
 	flags.Int("transcript-retain", defaults.UI.TranscriptRetain, "Finished blocks retained in the live terminal viewport")
 	flags.Int("reconnect-attempts", defaults.UI.ReconnectAttempts, "Times to reconnect a dropped run subscription")
+	flags.StringSlice("plugin-dir", defaults.Plugins.Directories, "Directory containing sideloaded plugins (repeatable)")
 }
 
 func setDefaults(v *viper.Viper, defaults settings.Settings) {
@@ -45,6 +46,7 @@ func setDefaults(v *viper.Viper, defaults settings.Settings) {
 	v.SetDefault("ui.tool-details", defaults.UI.ToolDetails)
 	v.SetDefault("ui.transcript-retain", defaults.UI.TranscriptRetain)
 	v.SetDefault("ui.reconnect-attempts", defaults.UI.ReconnectAttempts)
+	v.SetDefault("plugins.directories", defaults.Plugins.Directories)
 	for action, bindings := range defaults.Keys {
 		v.SetDefault("keys."+action, bindings)
 	}
@@ -88,6 +90,7 @@ func loadConfig(v *viper.Viper, cmd *cobra.Command) error {
 		"ui.mouse": "mouse", "ui.notifications": "notifications",
 		"ui.tool-details":      "tool-details",
 		"ui.transcript-retain": "transcript-retain", "ui.reconnect-attempts": "reconnect-attempts",
+		"plugins.directories": "plugin-dir",
 	} {
 		if found := cmd.Flags().Lookup(flag); found != nil {
 			if err := v.BindPFlag(key, found); err != nil {
@@ -103,6 +106,13 @@ func readSettings(v *viper.Viper) (settings.Settings, error) {
 	var value settings.Settings
 	if err := v.Unmarshal(&value); err != nil {
 		return settings.Settings{}, fmt.Errorf("decode configuration: %w", err)
+	}
+	if len(value.Plugins.Directories) == 0 {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return settings.Settings{}, fmt.Errorf("resolve home directory for plugins: %w", err)
+		}
+		value.Plugins.Directories = []string{filepath.Join(home, ".lyra", "plugins")}
 	}
 	if err := value.Validate(); err != nil {
 		return settings.Settings{}, fmt.Errorf("validate configuration: %w", err)

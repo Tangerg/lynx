@@ -2,6 +2,7 @@ package session
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -201,11 +202,13 @@ func TestSlashCompletionAndTranscriptSearchUseRegisteredCommands(t *testing.T) {
 }
 
 func TestAPluginCanAddACommandWithoutChangingTheShell(t *testing.T) {
-	plugin := extensions.Plugin{ID: "test.greeting", Setup: func(scope *extensions.Scope) error {
+	var loads atomic.Int32
+	plugin := extensions.Plugin{ID: "test.greeting", Version: "1.0.0", APIVersion: extensions.HostAPIVersion, Capabilities: []extensions.Capability{SlashCommands.Capability()}, Setup: func(scope *extensions.Scope) error {
+		loads.Add(1)
 		_, err := extensions.Contribute(scope, SlashCommands, SlashCommand{
 			Name: "hello", Title: "run a contributed command",
 			Run: func(host CommandHost, _ string) error {
-				host.SetStatus("hello from a plugin")
+				host.SetStatus(fmt.Sprintf("hello from plugin load %d", loads.Load()))
 				return nil
 			},
 		}, extensions.Contribution{})
@@ -216,10 +219,86 @@ func TestAPluginCanAddACommandWithoutChangingTheShell(t *testing.T) {
 	host.Type("/hello")
 	host.Press(input.Enter)
 	host.Press(input.Enter)
-	host.Shows(t, "hello from a plugin")
+	host.Shows(t, "hello from plugin load 1")
+	host.Type("/plugins")
+	host.Press(input.Enter)
+	host.Press(input.Enter)
+	host.Shows(t, "loaded   test.greeting@1.0.0")
+	host.Type("/reload test.greeting")
+	host.Press(input.Enter)
+	host.Press(input.Enter)
+	host.Shows(t, "reloaded plugin test.greeting")
+	host.Type("/hello")
+	host.Press(input.Enter)
+	host.Press(input.Enter)
+	host.Shows(t, "hello from plugin load 2")
+	host.Type("/unload test.greeting")
+	host.Press(input.Enter)
+	host.Press(input.Enter)
+	host.Shows(t, "unloaded plugin test.greeting")
+	host.Type("/hello")
+	host.Press(input.Enter)
+	host.Shows(t, "unknown command: /hello")
+	host.Type("/reload test.greeting")
+	host.Press(input.Enter)
+	host.Press(input.Enter)
+	host.Shows(t, "reloaded plugin test.greeting")
+	host.Type("/hello")
+	host.Press(input.Enter)
+	host.Press(input.Enter)
+	host.Shows(t, "hello from plugin load 3")
+	if got := loads.Load(); got != 3 {
+		t.Fatalf("plugin setup ran %d times, want 3", got)
+	}
 
 	host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
 	stop()
+}
+
+func TestAsynchronousPluginCommandKeepsTheTerminalResponsive(t *testing.T) {
+	release := make(chan struct{})
+	plugin := extensions.Plugin{
+		ID: "test.async", Version: "1.0.0", APIVersion: extensions.HostAPIVersion,
+		Capabilities: []extensions.Capability{SlashCommands.Capability()},
+		Setup: func(scope *extensions.Scope) error {
+			_, err := extensions.Contribute(scope, SlashCommands, SlashCommand{
+				Name: "slow", Title: "complete asynchronously",
+				Execute: func(ctx context.Context, _ CommandRequest) (CommandResult, error) {
+					select {
+					case <-release:
+						return CommandResult{Message: "async command complete"}, nil
+					case <-ctx.Done():
+						return CommandResult{}, context.Cause(ctx)
+					}
+				},
+			}, extensions.Contribution{})
+			return err
+		},
+	}
+	host, stop := runUI(t, plugin)
+	host.Shows(t, "Ask lyra")
+	host.Type("/slow")
+	host.Press(input.Enter)
+	host.Press(input.Enter)
+	host.Shows(t, "running /slow")
+	host.Type("/plugins")
+	host.Press(input.Enter)
+	host.Press(input.Enter)
+	host.Shows(t, "test.async@1.0.0")
+	close(release)
+	host.Shows(t, "async command complete")
+	host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
+	stop()
+}
+
+func TestPluginCommandPanicBecomesAnError(t *testing.T) {
+	err := runCommandSafely(SlashCommand{
+		Name: "boom",
+		Run:  func(CommandHost, string) error { panic("command boom") },
+	}, nil, "")
+	if err == nil || !strings.Contains(err.Error(), "command boom") {
+		t.Fatalf("command panic error = %v", err)
+	}
 }
 
 func TestSessionPickerRestoresHistoryAndLifecycleCommandsSwitchCleanly(t *testing.T) {

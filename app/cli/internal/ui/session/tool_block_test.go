@@ -4,11 +4,24 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Tangerg/oolong/components/headless"
 	"github.com/Tangerg/oolong/components/kit"
 	"github.com/Tangerg/oolong/highlight"
 
 	"github.com/Tangerg/lynx/app/cli/internal/client"
 )
+
+func TestPluginPresenterPanicBecomesAnError(t *testing.T) {
+	_, err := presentSafely(BlockPresenter{
+		Kind: client.BlockAssistant,
+		Present: func(Presentation, client.Block) []headless.Block {
+			panic("present boom")
+		},
+	}, Presentation{}, client.Block{Kind: client.BlockAssistant})
+	if err == nil || !strings.Contains(err.Error(), "present boom") {
+		t.Fatalf("presenter panic error = %v", err)
+	}
+}
 
 func TestParseUnifiedDiffCarriesLineKindsAndNumbers(t *testing.T) {
 	hunks := parseUnifiedDiff("--- a/a.go\n+++ b/a.go\n@@ -10,3 +10,3 @@\n keep\n-old\n+new\n")

@@ -25,12 +25,18 @@ const (
 	Multi
 )
 
+// Capability names one permission a plugin may use. Capabilities are attached
+// to extension points, so policy is enforced at the operation rather than by
+// trusting each plugin to police itself.
+type Capability string
+
 // Point is a typed handle shared by contributors and consumers. It holds no
 // state; Registry is the single source of truth.
 type Point[T any] struct {
-	id     string
-	keying Keying
-	keyOf  func(T) string
+	id         string
+	keying     Keying
+	capability Capability
+	keyOf      func(T) string
 }
 
 // NewKeyedPoint defines a point with one contribution per non-empty key.
@@ -43,8 +49,21 @@ func NewMultiPoint[T any](id string) Point[T] {
 	return Point[T]{id: id, keying: Multi}
 }
 
+// NewCapabilityKeyedPoint defines a protected keyed point.
+func NewCapabilityKeyedPoint[T any](id string, capability Capability, keyOf func(T) string) Point[T] {
+	return Point[T]{id: id, keying: Keyed, capability: capability, keyOf: keyOf}
+}
+
+// NewCapabilityMultiPoint defines a protected multi-contribution point.
+func NewCapabilityMultiPoint[T any](id string, capability Capability) Point[T] {
+	return Point[T]{id: id, keying: Multi, capability: capability}
+}
+
 // ID is the stable name of a point.
 func (p Point[T]) ID() string { return p.id }
+
+// Capability reports the permission required to contribute to this point.
+func (p Point[T]) Capability() Capability { return p.capability }
 
 // Registry stores all contributions. Its zero value is ready and safe for
 // concurrent setup, lookup, and disposal.
@@ -96,15 +115,36 @@ func (d *disposal) Dispose() {
 // Scope is the capability a plugin receives during setup. It owns every
 // disposable created through Contribute, enabling exact rollback and unload.
 type Scope struct {
-	plugin      string
-	registry    *Registry
-	disposables []Disposable
+	plugin       string
+	registry     *Registry
+	capabilities map[Capability]struct{}
+	disposables  []Disposable
+}
+
+// OnDispose binds a plugin-owned side effect to rollback, unload, and reload.
+// Cleanups run in reverse registration order.
+func (s *Scope) OnDispose(cleanup func()) error {
+	if s == nil || s.registry == nil {
+		return errors.New("extensions: plugin scope is required")
+	}
+	if cleanup == nil {
+		return errors.New("extensions: cleanup is required")
+	}
+	s.disposables = append(s.disposables, &disposal{do: cleanup})
+	return nil
 }
 
 // Plugin is one cohesive set of contributions.
 type Plugin struct {
-	ID    string
-	Setup func(*Scope) error
+	ID           string
+	Version      string
+	APIVersion   int
+	Requires     []string
+	Capabilities []Capability
+	// Trusted permits an in-process composition root to omit a capability list.
+	// Never derive it from a sideloaded manifest or another external source.
+	Trusted bool
+	Setup   func(*Scope) error
 }
 
 // Loaded is a successfully initialized plugin. Dispose unloads it in reverse
@@ -122,9 +162,14 @@ func (l *Loaded) Dispose() {
 	}
 	l.once.Do(func() {
 		for i := len(l.disposables) - 1; i >= 0; i-- {
-			l.disposables[i].Dispose()
+			disposeSafely(l.disposables[i])
 		}
 	})
+}
+
+func disposeSafely(disposable Disposable) {
+	defer func() { _ = recover() }()
+	disposable.Dispose()
 }
 
 // Load validates and initializes one plugin. Setup is transactional: a failure
@@ -143,13 +188,37 @@ func Load(registry *Registry, plugin Plugin) (*Loaded, error) {
 	if err != nil {
 		return nil, err
 	}
-	scope := &Scope{plugin: plugin.ID, registry: registry, disposables: []Disposable{release}}
-	if err := plugin.Setup(scope); err != nil {
+	scope := &Scope{
+		plugin: plugin.ID, registry: registry,
+		capabilities: capabilitySet(plugin),
+		disposables:  []Disposable{release},
+	}
+	if err := setupSafely(plugin.Setup, scope); err != nil {
 		loaded := &Loaded{disposables: scope.disposables}
 		loaded.Dispose()
 		return nil, fmt.Errorf("load plugin %q: %w", plugin.ID, err)
 	}
 	return &Loaded{disposables: scope.disposables}, nil
+}
+
+func setupSafely(setup func(*Scope) error, scope *Scope) (err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			err = fmt.Errorf("plugin setup panicked: %v", recovered)
+		}
+	}()
+	return setup(scope)
+}
+
+func capabilitySet(plugin Plugin) map[Capability]struct{} {
+	if plugin.Trusted && plugin.Capabilities == nil {
+		return nil
+	}
+	out := make(map[Capability]struct{}, len(plugin.Capabilities))
+	for _, capability := range plugin.Capabilities {
+		out[capability] = struct{}{}
+	}
+	return out
 }
 
 func (r *Registry) claim(plugin string) (Disposable, error) {
@@ -180,6 +249,11 @@ func Contribute[T any](scope *Scope, point Point[T], value T, options Contributi
 	}
 	if strings.TrimSpace(point.id) == "" {
 		return nil, errors.New("extensions: point id is required")
+	}
+	if point.capability != "" && scope.capabilities != nil {
+		if _, allowed := scope.capabilities[point.capability]; !allowed {
+			return nil, fmt.Errorf("extensions: plugin %q needs capability %q to contribute to point %q", scope.plugin, point.capability, point.id)
+		}
 	}
 
 	key := strings.TrimSpace(options.Key)

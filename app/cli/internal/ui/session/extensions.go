@@ -1,6 +1,7 @@
 package session
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -37,6 +38,9 @@ type CommandHost interface {
 	DetachFile(string) error
 	ShowAttachments()
 	ToggleToolDetails()
+	ShowPlugins()
+	ReloadPlugin(string)
+	UnloadPlugin(string)
 }
 
 // SlashCommand is a contributed composer command.
@@ -46,6 +50,21 @@ type SlashCommand struct {
 	Aliases []string
 	Takes   bool
 	Run     func(CommandHost, string) error
+	Execute func(context.Context, CommandRequest) (CommandResult, error)
+}
+
+// CommandRequest is the bounded product context given to an out-of-process
+// slash command.
+type CommandRequest struct {
+	Argument  string
+	Workspace string
+	SessionID string
+}
+
+// CommandResult is what an asynchronous slash command may surface in the
+// terminal chrome.
+type CommandResult struct {
+	Message string
 }
 
 // Presentation is the terminal vocabulary a block presenter receives.
@@ -63,12 +82,12 @@ type BlockPresenter struct {
 }
 
 var (
-	SlashCommands   = extensions.NewKeyedPoint("terminal.slash-command", func(command SlashCommand) string { return command.Name })
-	BlockPresenters = extensions.NewKeyedPoint("terminal.block-presenter", func(presenter BlockPresenter) string { return string(presenter.Kind) })
+	SlashCommands   = extensions.NewCapabilityKeyedPoint("terminal.slash-command", extensions.Capability("terminal.commands"), func(command SlashCommand) string { return command.Name })
+	BlockPresenters = extensions.NewCapabilityKeyedPoint("terminal.block-presenter", extensions.Capability("terminal.presentation"), func(presenter BlockPresenter) string { return string(presenter.Kind) })
 )
 
 func builtinPlugin() extensions.Plugin {
-	return extensions.Plugin{ID: "terminal.core", Setup: func(scope *extensions.Scope) error {
+	return extensions.Plugin{ID: "terminal.core", Version: "1.0.0", APIVersion: extensions.HostAPIVersion, Trusted: true, Setup: func(scope *extensions.Scope) error {
 		commands := []SlashCommand{
 			{Name: "help", Title: "show commands available in this session", Run: func(host CommandHost, _ string) error { host.ShowHelp(); return nil }},
 			{Name: "clear", Title: "release the live transcript", Run: func(host CommandHost, _ string) error { host.Clear(); return nil }},
@@ -90,6 +109,9 @@ func builtinPlugin() extensions.Plugin {
 			{Name: "detach", Title: "remove an attachment by name, number, or all", Takes: true, Run: func(host CommandHost, value string) error { return host.DetachFile(value) }},
 			{Name: "attachments", Title: "show files attached to the next prompt", Aliases: []string{"files"}, Run: func(host CommandHost, _ string) error { host.ShowAttachments(); return nil }},
 			{Name: "details", Title: "expand or collapse tool output and diffs", Run: func(host CommandHost, _ string) error { host.ToggleToolDetails(); return nil }},
+			{Name: "plugins", Title: "show discovered plugins and lifecycle state", Run: func(host CommandHost, _ string) error { host.ShowPlugins(); return nil }},
+			{Name: "reload", Title: "reload a plugin and its dependents", Takes: true, Run: func(host CommandHost, id string) error { host.ReloadPlugin(id); return nil }},
+			{Name: "unload", Title: "unload a sideloaded plugin and its dependents", Takes: true, Run: func(host CommandHost, id string) error { host.UnloadPlugin(id); return nil }},
 		}
 		for i, command := range commands {
 			if _, err := extensions.Contribute(scope, SlashCommands, command, extensions.Contribution{Order: i}); err != nil {
@@ -159,8 +181,10 @@ func validateCommand(command SlashCommand) error {
 		return errors.New("slash command has no name")
 	case strings.ContainsAny(command.Name, " /\t\n"):
 		return fmt.Errorf("slash command %q has an invalid name", command.Name)
-	case command.Run == nil:
+	case command.Run == nil && command.Execute == nil:
 		return fmt.Errorf("slash command %q has no handler", command.Name)
+	case command.Run != nil && command.Execute != nil:
+		return fmt.Errorf("slash command %q has two handlers", command.Name)
 	default:
 		return nil
 	}

@@ -61,13 +61,14 @@ type runtime interface {
 
 // Config describes one interactive session.
 type Config struct {
-	Runtime   runtime
-	Session   string
-	Workspace string
-	Prompt    string
-	Plugins   []extensions.Plugin
-	Host      program.Host
-	Settings  settings.Settings
+	Runtime       runtime
+	Session       string
+	Workspace     string
+	Prompt        string
+	Plugins       []extensions.Plugin
+	PluginSources []extensions.Source
+	Host          program.Host
+	Settings      settings.Settings
 }
 
 // Run opens and owns the terminal interface until the user leaves.
@@ -91,16 +92,32 @@ func Run(ctx context.Context, cfg Config) error {
 	}
 
 	registry := new(extensions.Registry)
-	loaded, err := loadPlugins(registry, append([]extensions.Plugin{builtinPlugin()}, cfg.Plugins...))
+	kernel, err := extensions.NewKernel(registry)
 	if err != nil {
 		return err
 	}
-	defer disposePlugins(loaded)
+	sources := []extensions.Source{extensions.StaticSource{
+		Name: "terminal", Plugins: append([]extensions.Plugin{builtinPlugin()}, cfg.Plugins...),
+	}}
+	sources = append(sources, cfg.PluginSources...)
+	discovered, err := extensions.Discover(ctx, sources...)
+	if err != nil {
+		return err
+	}
+	results, err := kernel.Activate(discovered.Plugins)
+	if err != nil {
+		return err
+	}
+	if err := requirePlugin(results, "terminal.core"); err != nil {
+		kernel.Close()
+		return err
+	}
+	defer kernel.Close()
 
 	var active *app
 	err = program.Run(ctx, program.Config{
 		Inline: func(loop *program.InlineRuntime) program.Component {
-			active = newApp(ctx, loop, cfg.Runtime, opened, registry, cfg.Prompt, cfg.Settings, keys)
+			active = newApp(ctx, loop, cfg.Runtime, opened, registry, kernel, discovered.Issues, cfg.Prompt, cfg.Settings, keys)
 			return headless.NewRoot(active)
 		},
 		Terminal: term.Options{Probe: true, Mouse: cfg.Settings.UI.Mouse, Focus: true, Keyboard: term.KeyboardCompatible},
@@ -110,6 +127,22 @@ func Run(ctx context.Context, cfg Config) error {
 		active.Close()
 	}
 	return err
+}
+
+func requirePlugin(results []extensions.Result, id string) error {
+	for _, result := range results {
+		if result.PluginID != id {
+			continue
+		}
+		if result.Phase == extensions.PluginLoaded {
+			return nil
+		}
+		if result.Err != nil {
+			return fmt.Errorf("session: required plugin %q is %s: %w", id, result.Phase, result.Err)
+		}
+		return fmt.Errorf("session: required plugin %q is %s", id, result.Phase)
+	}
+	return fmt.Errorf("session: required plugin %q was not discovered", id)
 }
 
 func open(ctx context.Context, rt interface {
@@ -126,32 +159,15 @@ func open(ctx context.Context, rt interface {
 	return rt.GetSession(ctx, id)
 }
 
-func loadPlugins(registry *extensions.Registry, plugins []extensions.Plugin) ([]*extensions.Loaded, error) {
-	loaded := make([]*extensions.Loaded, 0, len(plugins))
-	for _, plugin := range plugins {
-		item, err := extensions.Load(registry, plugin)
-		if err != nil {
-			disposePlugins(loaded)
-			return nil, err
-		}
-		loaded = append(loaded, item)
-	}
-	return loaded, nil
-}
-
-func disposePlugins(loaded []*extensions.Loaded) {
-	for i := len(loaded) - 1; i >= 0; i-- {
-		loaded[i].Dispose()
-	}
-}
-
 type app struct {
-	ctx      context.Context
-	loop     *program.InlineRuntime
-	backend  runtime
-	session  client.Session
-	registry *extensions.Registry
-	state    *client.Conversation
+	ctx          context.Context
+	loop         *program.InlineRuntime
+	backend      runtime
+	session      client.Session
+	registry     *extensions.Registry
+	plugins      *extensions.Kernel
+	pluginIssues []extensions.SourceIssue
+	state        *client.Conversation
 
 	transcript *conversationView
 	workflow   workflowView
@@ -200,7 +216,7 @@ type app struct {
 	syntax       highlight.Style
 }
 
-func newApp(ctx context.Context, loop *program.InlineRuntime, backend runtime, opened client.SessionSnapshot, registry *extensions.Registry, prompt string, configured settings.Settings, keys *keymap.Map) *app {
+func newApp(ctx context.Context, loop *program.InlineRuntime, backend runtime, opened client.SessionSnapshot, registry *extensions.Registry, plugins *extensions.Kernel, pluginIssues []extensions.SourceIssue, prompt string, configured settings.Settings, keys *keymap.Map) *app {
 	ground := loop.Environment().Ground()
 	theme := kit.Suited(ground)
 	glyphs := kit.GlyphsFor(os.LookupEnv)
@@ -211,6 +227,7 @@ func newApp(ctx context.Context, loop *program.InlineRuntime, backend runtime, o
 	attachmentResolver, _ := attachment.New(opened.Session.Workspace)
 	a := &app{
 		ctx: ctx, loop: loop, backend: backend, session: opened.Session, registry: registry,
+		plugins: plugins, pluginIssues: pluginIssues,
 		state:              client.NewConversation(),
 		transcript:         newConversationView(theme, glyphs, loop.Environment().Wheel(), syntax, configured.UI.TranscriptRetain, configured.UI.ToolDetails),
 		workflow:           newWorkflowView(theme, glyphs),

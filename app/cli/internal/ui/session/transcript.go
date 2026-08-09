@@ -248,12 +248,21 @@ func (c *conversationView) beginTool(block client.Block, registry *extensions.Re
 func (c *conversationView) present(block client.Block, registry *extensions.Registry) ([]headless.Block, error) {
 	for _, presenter := range extensions.Values(registry, BlockPresenters) {
 		if presenter.Kind == block.Kind {
-			return presenter.Present(Presentation{
+			return presentSafely(presenter, Presentation{
 				Theme: c.theme, Glyphs: c.glyphs, Look: c.look, Syntax: c.syntax,
-			}, block), nil
+			}, block)
 		}
 	}
 	return nil, fmt.Errorf("terminal transcript: no presenter for block kind %q", block.Kind)
+}
+
+func presentSafely(presenter BlockPresenter, presentation Presentation, block client.Block) (rendered []headless.Block, err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			err = fmt.Errorf("terminal transcript: presenter for %q panicked: %v", presenter.Kind, recovered)
+		}
+	}()
+	return presenter.Present(presentation, block), nil
 }
 
 func (c *conversationView) Append(block headless.Block) { c.append(block) }

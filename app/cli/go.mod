@@ -9,7 +9,9 @@ require (
 	github.com/Tangerg/oolong/markdown v0.7.0
 	github.com/Tangerg/oolong/ptytest v0.7.0
 	github.com/spf13/cobra v1.10.2
+	github.com/spf13/pathologize v1.1.0
 	github.com/spf13/viper v1.21.0
+	golang.org/x/mod v0.38.0
 )
 
 require (

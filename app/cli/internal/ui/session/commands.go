@@ -17,6 +17,9 @@ import (
 )
 
 func (a *app) registerCommands() {
+	for _, found := range a.commands.Find("") {
+		a.commands.Remove(found.Command.Name)
+	}
 	for _, contributed := range extensions.Values(a.registry, SlashCommands) {
 		command := contributed
 		if err := validateCommand(command); err != nil {
@@ -26,12 +29,54 @@ func (a *app) registerCommands() {
 		a.commands.Add(headless.Command{
 			Name: command.Name, Title: command.Title, Aliases: command.Aliases, Takes: command.Takes,
 			Run: func(argument string) {
-				if err := command.Run(a, argument); err != nil {
+				if command.Execute != nil {
+					a.executeCommand(command, argument)
+					return
+				}
+				if err := runCommandSafely(command, a, argument); err != nil {
 					a.message(err.Error())
 				}
 			},
 		})
 	}
+}
+
+func (a *app) executeCommand(command SlashCommand, argument string) {
+	a.status.note("running /" + command.Name)
+	request := CommandRequest{Argument: argument, Workspace: a.session.Workspace, SessionID: a.session.ID}
+	dispatcher := a.loop.Dispatcher()
+	go func() {
+		result, err := executeCommandSafely(a.ctx, command, request)
+		_ = post(a.ctx, dispatcher, func() {
+			if err != nil {
+				a.message(err.Error())
+				return
+			}
+			message := strings.TrimSpace(result.Message)
+			if message == "" {
+				message = "completed /" + command.Name
+			}
+			a.message(message)
+		})
+	}()
+}
+
+func executeCommandSafely(ctx context.Context, command SlashCommand, request CommandRequest) (result CommandResult, err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			err = fmt.Errorf("command /%s panicked: %v", command.Name, recovered)
+		}
+	}()
+	return command.Execute(ctx, request)
+}
+
+func runCommandSafely(command SlashCommand, host CommandHost, argument string) (err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			err = fmt.Errorf("command /%s panicked: %v", command.Name, recovered)
+		}
+	}()
+	return command.Run(host, argument)
 }
 
 func (a *app) runCommand(name, argument string) {
@@ -224,6 +269,80 @@ func (a *app) ShowAttachments() { a.showAttachments() }
 func (a *app) ToggleToolDetails() {
 	a.transcript.ToggleDetails()
 	a.message(a.transcript.DetailsLabel())
+}
+
+func (a *app) ShowPlugins() {
+	if a.plugins == nil {
+		a.message("plugin kernel is unavailable")
+		return
+	}
+	lines := make([]string, 0, len(a.plugins.Infos())+len(a.pluginIssues))
+	for _, info := range a.plugins.Infos() {
+		line := fmt.Sprintf("%-8s %s@%s", info.Phase, info.ID, info.Version)
+		switch {
+		case info.Trusted && info.Capabilities == nil:
+			line += " · capabilities unrestricted"
+		case len(info.Capabilities) == 0:
+			line += " · capabilities none"
+		default:
+			capabilities := make([]string, len(info.Capabilities))
+			for i, capability := range info.Capabilities {
+				capabilities[i] = string(capability)
+			}
+			line += " · capabilities " + strings.Join(capabilities, ", ")
+		}
+		if len(info.Requires) > 0 {
+			line += " · requires " + strings.Join(info.Requires, ", ")
+		}
+		if info.Detail != "" {
+			line += " · " + info.Detail
+		}
+		lines = append(lines, line)
+	}
+	for _, issue := range a.pluginIssues {
+		lines = append(lines, fmt.Sprintf("failed   source:%s · %v", issue.Source, issue.Err))
+	}
+	a.transcript.Append(kit.Message{Theme: a.transcript.theme, Speaker: "plugins", Body: strings.Join(lines, "\n")})
+}
+
+func (a *app) ReloadPlugin(id string) {
+	if a.plugins == nil {
+		a.message("plugin kernel is unavailable")
+		return
+	}
+	results, err := a.plugins.Reload(strings.TrimSpace(id))
+	if err != nil {
+		a.message(err.Error())
+		return
+	}
+	a.registerCommands()
+	for _, result := range results {
+		if result.Err != nil {
+			a.message(fmt.Sprintf("plugin %s · %s · %v", result.PluginID, result.Phase, result.Err))
+			return
+		}
+	}
+	a.message("reloaded plugin " + id)
+}
+
+func (a *app) UnloadPlugin(id string) {
+	if a.plugins == nil {
+		a.message("plugin kernel is unavailable")
+		return
+	}
+	id = strings.TrimSpace(id)
+	for _, info := range a.plugins.Infos() {
+		if info.ID == id && info.Trusted {
+			a.message("built-in plugin " + id + " can be reloaded but not unloaded")
+			return
+		}
+	}
+	if err := a.plugins.Unload(id); err != nil {
+		a.message(err.Error())
+		return
+	}
+	a.registerCommands()
+	a.message("unloaded plugin " + id)
 }
 
 func (a *app) ShowSessions() {

@@ -27,6 +27,7 @@ var layers = []struct {
 	name   string
 }{
 	{"internal/client/mock/", "mock"},
+	{"internal/ui/session/sideload/", "sideload"},
 	{"internal/ui/session/", "terminal"},
 	{"internal/attachment/", "attachment"},
 	{"internal/resilience/", "resilience"},
@@ -58,6 +59,10 @@ var forbidden = map[string][]string{
 	// The interactive terminal adapter coordinates domain events and extensions.
 	// Command routing is the composition root above it; headless rendering is a peer.
 	"terminal": {"mock", "render", "cmd"},
+
+	// Sideloading is an outer adapter around the generic extension kernel and the
+	// terminal's public contribution contracts.
+	"sideload": {"client", "mock", "attachment", "resilience", "render", "cmd"},
 
 	// The headless renderers. They share the client with the interface and nothing else:
 	// both turn events into bytes, but one is a contract for a pipe and the other an
@@ -138,11 +143,13 @@ func TestTheRulesWouldActuallyRefuseSomething(t *testing.T) {
 		{"internal/resilience", "internal/cmd", true},
 		{"internal/render", "internal/ui/session", true},
 		{"internal/ui/session", "internal/cmd", true},
+		{"internal/ui/session/sideload", "internal/cmd", true},
 
 		{"internal/client/mock", "internal/client", false},
 		{"internal/ui/session", "internal/client", false},
 		{"internal/ui/session", "internal/extensions", false},
 		{"internal/cmd", "internal/ui/session", false},
+		{"internal/ui/session/sideload", "internal/extensions", false},
 		{"internal/render", "internal/client", false},
 		{"internal/attachment", "internal/client", false},
 		{"internal/resilience", "internal/client", false},

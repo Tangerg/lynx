@@ -34,6 +34,7 @@ type Settings struct {
 	Permission client.PermissionMode `json:"permission" mapstructure:"permission"`
 	Approval   Approval              `json:"approval" mapstructure:"approval"`
 	UI         UI                    `json:"ui" mapstructure:"ui"`
+	Plugins    Plugins               `json:"plugins" mapstructure:"plugins"`
 	Keys       map[string][]string   `json:"keys" mapstructure:"keys"`
 }
 
@@ -47,6 +48,10 @@ type UI struct {
 	ToolDetails       bool `json:"toolDetails" mapstructure:"tool-details"`
 	TranscriptRetain  int  `json:"transcriptRetain" mapstructure:"transcript-retain"`
 	ReconnectAttempts int  `json:"reconnectAttempts" mapstructure:"reconnect-attempts"`
+}
+
+type Plugins struct {
+	Directories []string `json:"directories" mapstructure:"directories"`
 }
 
 func Default() Settings {
@@ -94,6 +99,18 @@ func (s Settings) Validate() error {
 	if s.UI.ReconnectAttempts < 0 || s.UI.ReconnectAttempts > 20 {
 		problems = append(problems, fmt.Errorf("ui.reconnect-attempts must be between 0 and 20, got %d", s.UI.ReconnectAttempts))
 	}
+	pluginDirectories := make(map[string]struct{}, len(s.Plugins.Directories))
+	for _, directory := range s.Plugins.Directories {
+		directory = strings.TrimSpace(directory)
+		if directory == "" {
+			problems = append(problems, errors.New("plugins.directories contains an empty path"))
+			continue
+		}
+		if _, duplicate := pluginDirectories[directory]; duplicate {
+			problems = append(problems, fmt.Errorf("plugins.directories repeats %q", directory))
+		}
+		pluginDirectories[directory] = struct{}{}
+	}
 	knownActions := Default().Keys
 	for action, bindings := range s.Keys {
 		if _, ok := knownActions[action]; !ok {
@@ -117,6 +134,7 @@ func (s Settings) RunOptions() client.RunOptions {
 
 func (s Settings) Clone() Settings {
 	out := s
+	out.Plugins.Directories = slices.Clone(s.Plugins.Directories)
 	out.Keys = make(map[string][]string, len(s.Keys))
 	for action, bindings := range s.Keys {
 		out.Keys[action] = slices.Clone(bindings)

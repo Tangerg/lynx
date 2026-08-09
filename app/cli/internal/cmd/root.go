@@ -20,8 +20,10 @@ import (
 
 	"github.com/Tangerg/lynx/app/cli/internal/client"
 	"github.com/Tangerg/lynx/app/cli/internal/client/mock"
+	"github.com/Tangerg/lynx/app/cli/internal/extensions"
 	"github.com/Tangerg/lynx/app/cli/internal/settings"
 	"github.com/Tangerg/lynx/app/cli/internal/ui/session"
+	"github.com/Tangerg/lynx/app/cli/internal/ui/session/sideload"
 )
 
 // version is overridden at link time via -ldflags "-X ...cmd.version=...".
@@ -135,11 +137,12 @@ func interactive(cmd *cobra.Command, args []string, resolve backend, value setti
 	sessionID, _ := cmd.Flags().GetString("session")
 
 	err = session.Run(cmd.Context(), session.Config{
-		Runtime:   rt,
-		Session:   sessionID,
-		Workspace: ws,
-		Prompt:    strings.TrimSpace(strings.Join(args, " ")),
-		Settings:  value,
+		Runtime:       rt,
+		Session:       sessionID,
+		Workspace:     ws,
+		Prompt:        strings.TrimSpace(strings.Join(args, " ")),
+		Settings:      value,
+		PluginSources: []extensions.Source{sideload.New(value.Plugins.Directories)},
 	})
 	if errors.Is(err, term.ErrNotTerminal) {
 		return errors.New("no terminal to draw on; use `lyra run` for a one-shot run")
