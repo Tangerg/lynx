@@ -914,7 +914,13 @@ func TestPendingAndRecoveryMutationsCarryTheirOwners(t *testing.T) {
 			t.Errorf("parked-tree terminal write-set no longer enforces %q", required)
 		}
 	}
-	terminalUseCasePath := filepath.Join(root, "internal", "application", "sessions", "interrupt.go")
+	terminalUseCasePath := filepath.Join(
+		root,
+		"internal",
+		"application",
+		"sessions",
+		"parked_terminalization.go",
+	)
 	terminalUseCaseSource, err := os.ReadFile(terminalUseCasePath)
 	if err != nil {
 		t.Fatalf("read parked-tree terminal use case: %v", err)
@@ -986,9 +992,9 @@ func TestParkedContinuationFactsAreCrossCheckedAtEveryLifecycleBoundary(t *testi
 			"run.Limits != continuation.Limits",
 			"run.ModelSelection != continuation.ModelSelection",
 		},
-		filepath.Join("internal", "application", "sessions", "interrupt.go"): {
+		filepath.Join("internal", "application", "sessions", "parked_terminalization.go"): {
 			"run.Metrics.Equal(continuation.Metrics)",
-			"run.Limits != continuation.Limits",
+			"run.Limits == continuation.Limits",
 			"pending.Capabilities.Equal(rootAdmission.Capabilities)",
 		},
 	}

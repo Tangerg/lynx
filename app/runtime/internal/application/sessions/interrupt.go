@@ -8,7 +8,6 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/change"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
 	rundomain "github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
@@ -93,157 +92,15 @@ func (c *Coordinator) terminalizeParkedRun(ctx context.Context, sessionID, runID
 	if !found || pending.SessionID != sessionID {
 		return transcript.Run{}, fmt.Errorf("sessions: terminalize parked run %q: open interrupt not found for session %q", runID, sessionID)
 	}
-	if err := pending.Validate(); err != nil {
-		return transcript.Run{}, fmt.Errorf("sessions: terminalize parked Run tree %q: invalid Pending: %w", runID, err)
-	}
 	snapshot, err := c.snapshots.ReadSnapshot(ctx, sessionID)
 	if err != nil {
 		return transcript.Run{}, err
 	}
-	runsByID := make(map[string]transcript.Run, len(snapshot.Runs))
-	for _, run := range snapshot.Runs {
-		if _, duplicate := runsByID[run.ID]; duplicate {
-			return transcript.Run{}, fmt.Errorf("sessions: terminalize parked Run tree %q: duplicate Run %q", runID, run.ID)
-		}
-		runsByID[run.ID] = run
-	}
-	rootAdmission, rootFound := runsByID[runID]
-	if !rootFound || !rootAdmission.Lineage().IsRoot() {
-		return transcript.Run{}, fmt.Errorf("sessions: terminalize parked Run tree %q: root Run is missing", runID)
-	}
-	if !pending.Capabilities.Equal(rootAdmission.Capabilities) {
-		return transcript.Run{}, fmt.Errorf("sessions: terminalize parked Run tree %q: Pending run capabilities differ from root Run admission", runID)
-	}
-	targetRunIDs := make(map[string]struct{}, len(pending.Continuations))
-	for _, continuation := range pending.Continuations {
-		targetRunIDs[continuation.RunID] = struct{}{}
-	}
-	for _, run := range snapshot.Runs {
-		if run.Lineage().TreeRootID(run.ID) != runID || run.State.IsTerminal() {
-			continue
-		}
-		if _, targeted := targetRunIDs[run.ID]; !targeted {
-			return transcript.Run{}, fmt.Errorf(
-				"sessions: terminalize parked Run tree %q: non-terminal Run %q has no Pending continuation",
-				runID,
-				run.ID,
-			)
-		}
-	}
-
-	terminalRuns := make([]transcript.Run, 0, len(pending.Continuations))
-	for _, continuation := range pending.Continuations {
-		run, found := runsByID[continuation.RunID]
-		if !found {
-			return transcript.Run{}, fmt.Errorf("sessions: terminalize parked Run tree %q: Run %q is missing", runID, continuation.RunID)
-		}
-		if run.SessionID != sessionID || run.State != rundomain.Waiting ||
-			run.Lineage() != continuation.Lineage || run.ModelSelection != continuation.ModelSelection ||
-			!run.CreatedAt.Equal(continuation.RunCreatedAt) ||
-			!run.Metrics.Equal(continuation.Metrics) || run.Limits != continuation.Limits ||
-			!run.Capabilities.Equal(rootAdmission.Capabilities) {
-			return transcript.Run{}, fmt.Errorf(
-				"sessions: terminalize parked Run tree %q: Run %q differs from its continuation",
-				runID,
-				run.ID,
-			)
-		}
-		var (
-			state rundomain.RunState
-			ok    bool
-		)
-		switch outcome {
-		case rundomain.OutcomeCanceled:
-			state, ok = run.State.Terminate(outcome)
-		case rundomain.OutcomeLost:
-			state, ok = run.State.RecoverLost()
-		default:
-			return transcript.Run{}, fmt.Errorf("sessions: terminalize parked Run tree %q: unsupported outcome %s", runID, outcome)
-		}
-		if !ok {
-			return transcript.Run{}, fmt.Errorf("sessions: terminalize parked Run %q: cannot apply outcome %s", run.ID, outcome)
-		}
-		run.State = state
-		run.Outcome = &outcome
-		if outcome == rundomain.OutcomeLost {
-			run.Error = &transcript.Problem{
-				Kind:   transcript.RunLostProblem,
-				Scope:  transcript.RunProblem,
-				Detail: "the parked Run tree's executor checkpoint could not be restored",
-			}
-		}
-		run.Detail = detail
-		run.Interrupts = nil
-		run.FinishedAt = finishedAt.UTC()
-		run.UpdatedAt = run.FinishedAt
-		run.MessageMark = len(snapshot.Messages)
-		terminalRuns = append(terminalRuns, run)
-	}
-	rootRun := terminalRuns[len(terminalRuns)-1]
-	if rootRun.ID != runID || rootRun.GoalLeaseID != pending.GoalLeaseID {
-		return transcript.Run{}, fmt.Errorf("sessions: terminalize parked Run tree %q: root admission differs from Pending", runID)
-	}
-
-	interruptItems := make(map[string]string, len(pending.Interrupts))
-	for _, interrupt := range pending.Interrupts {
-		interruptItems[interrupt.ItemID] = interrupt.RunID
-	}
-	items := make([]transcript.Item, 0, len(interruptItems))
-	for _, item := range snapshot.Items {
-		ownerRunID, found := interruptItems[item.ID]
-		if !found {
-			if _, targeted := targetRunIDs[item.RunID]; targeted && item.Status == transcript.ItemRunning {
-				return transcript.Run{}, fmt.Errorf(
-					"sessions: terminalize parked Run tree %q: Running Item %q has no matching interrupt",
-					runID,
-					item.ID,
-				)
-			}
-			continue
-		}
-		if item.SessionID != sessionID || item.RunID != ownerRunID || item.Status != transcript.ItemRunning {
-			return transcript.Run{}, fmt.Errorf("sessions: terminalize parked Run tree %q: interrupt Item %q is not Running in Run %q", runID, item.ID, ownerRunID)
-		}
-		item.Status = transcript.ItemIncomplete
-		if item.Kind == transcript.ToolCall {
-			item.FinishedAt = finishedAt.UTC()
-			if outcome == rundomain.OutcomeLost {
-				item.Error = &transcript.Problem{
-					Kind:  transcript.ToolFailedProblem,
-					Scope: transcript.ToolProblem,
-					// Distinct from a tool that ran and failed, and from one cut off by a
-					// restart: this call was still awaiting its approval or answer when the
-					// run it belonged to was declared unresumable.
-					Detail: "tool call abandoned because its run could not be resumed",
-				}
-			}
-		}
-		items = append(items, item)
-		delete(interruptItems, item.ID)
-	}
-	if len(interruptItems) != 0 {
-		return transcript.Run{}, fmt.Errorf("sessions: terminalize parked Run tree %q: transcript is missing an interrupt Item", runID)
-	}
-	root, ok := pending.RootContinuation()
-	if !ok {
-		return transcript.Run{}, fmt.Errorf("sessions: terminalize parked Run tree %q: root continuation is missing", runID)
-	}
-	plan := TerminalPlan{Runs: terminalRuns, Items: items, CheckpointRootID: root.MemberID}
-	if rootRun.GoalLeaseID != "" {
-		record := goal.RunRecord{
-			SessionID:   rootRun.SessionID,
-			LeaseID:     rootRun.GoalLeaseID,
-			RunID:       rootRun.ID,
-			Outcome:     *rootRun.Outcome,
-			Steps:       rootRun.Metrics.Steps,
-			CompletedAt: rootRun.FinishedAt,
-		}
-		if rootRun.Metrics.Usage != nil && rootRun.Metrics.Usage.CostUSD != nil {
-			record.CostUSD = *rootRun.Metrics.Usage.CostUSD
-		}
-		plan.GoalRun = &record
-	}
-	if err := plan.Validate(); err != nil {
+	plan, rootRun, err := (parkedRunTerminalization{
+		sessionID: sessionID, rootRunID: runID, finishedAt: finishedAt,
+		outcome: outcome, detail: detail, pending: pending, snapshot: snapshot,
+	}).build()
+	if err != nil {
 		return transcript.Run{}, err
 	}
 	if err := c.writes.ApplyTerminal(ctx, plan); err != nil {
@@ -253,8 +110,8 @@ func (c *Coordinator) terminalizeParkedRun(ctx context.Context, sessionID, runID
 	// reports both — for a cancel and for a park declared unresumable alike. The run
 	// command layer deliberately does not publish this again: it would be a second
 	// author for the same commit, and only one of them would ever be updated.
-	runIDs := make([]string, len(terminalRuns))
-	for index, run := range terminalRuns {
+	runIDs := make([]string, len(plan.Runs))
+	for index, run := range plan.Runs {
 		runIDs[index] = run.ID
 	}
 	notices := []change.Notice{

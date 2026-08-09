@@ -112,8 +112,8 @@ type Forgetter interface {
 	ForgetSession(sessionID string)
 }
 
-// Snapshot is one coherent, canonical session read used to produce portable
-// archives.
+// Snapshot is one coherent, canonical Session aggregate read used by use cases
+// that must reason across multiple persisted projections.
 type Snapshot struct {
 	Session     session.Session
 	Messages    []chat.Message
