@@ -22,24 +22,24 @@ type FiringStore interface {
 }
 
 // Firing owns schedule execution after a management operation or worker tick.
-// It is constructed with a complete Runner, so callers cannot observe an
+// It is constructed with a complete ScheduledRunStarter, so callers cannot observe an
 // incompletely wired scheduler.
 type Firing struct {
 	runNowStore RunNowStore
 	workerStore WorkerStore
-	runner      Runner
+	runStarter  ScheduledRunStarter
 	now         func() time.Time
 	enabled     bool
 }
 
 // NewFiring builds the schedule execution use case. A nil store behaves as
 // the unavailable scheduling capability.
-func NewFiring(store FiringStore, runner Runner) *Firing {
+func NewFiring(store FiringStore, runStarter ScheduledRunStarter) *Firing {
 	enabled := store != nil
 	if store == nil {
 		store = disabledFiringStore{}
 	}
-	return &Firing{runNowStore: store, workerStore: store, runner: runner, now: time.Now, enabled: enabled}
+	return &Firing{runNowStore: store, workerStore: store, runStarter: runStarter, now: time.Now, enabled: enabled}
 }
 
 // Available reports whether schedule-firing use cases are wired.
@@ -48,27 +48,27 @@ func (f *Firing) Available() bool { return f != nil && f.enabled }
 // RunNow starts one off-cycle schedule firing and records it without advancing
 // the cron cursor. Once accepted, recording outlives request cancellation so a
 // durable LastRunAt fact cannot be lost after a client disconnect.
-func (f *Firing) RunNow(ctx context.Context, id string) (RunHandle, error) {
-	sc, err := f.runNowStore.Get(ctx, id)
+func (f *Firing) RunNow(ctx context.Context, id string) (StartedRun, error) {
+	scheduled, err := f.runNowStore.Get(ctx, id)
 	if err != nil {
-		return RunHandle{}, err
+		return StartedRun{}, err
 	}
-	handle, err := Fire(ctx, f.runner, schedule.Occurrence{Schedule: sc})
+	startedRun, err := Fire(ctx, f.runStarter, schedule.Occurrence{Schedule: scheduled})
 	if err != nil {
-		return RunHandle{}, err
+		return StartedRun{}, err
 	}
 
 	writeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), manualRunRecordTimeout)
 	defer cancel()
 	if err := f.runNowStore.RecordRun(writeCtx, id, f.now().UTC()); err != nil {
-		return RunHandle{}, fmt.Errorf("schedules: record run-now for %q: %w", id, err)
+		return StartedRun{}, fmt.Errorf("schedules: record run-now for %q: %w", id, err)
 	}
-	return handle, nil
+	return startedRun, nil
 }
 
 // RunWorker starts the due-schedule scanner until ctx is canceled.
 func (f *Firing) RunWorker(ctx context.Context) {
-	NewWorker(f.workerStore, f.runner).Run(ctx)
+	NewWorker(f.workerStore, f.runStarter).Run(ctx)
 }
 
 type disabledFiringStore struct{}

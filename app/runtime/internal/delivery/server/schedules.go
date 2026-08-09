@@ -22,8 +22,8 @@ func (s *Server) ListSchedules(ctx context.Context, query protocol.PageQuery) (*
 		return nil, mapScheduleErr(wirePageError(err), "schedules.list", "")
 	}
 	out := make([]protocol.Schedule, 0, len(page.Rows))
-	for _, sc := range page.Rows {
-		out = append(out, presentSchedule(sc))
+	for _, scheduled := range page.Rows {
+		out = append(out, presentSchedule(scheduled))
 	}
 	return protocol.NewPageWithCursor(out, page.NextCursor), nil
 }
@@ -120,26 +120,26 @@ func mapScheduleErr(err error, method, id string) error {
 
 // presentSchedule maps a domain schedule to its protocol shape, projecting the zero
 // time (never fired / unscheduled) to an omitted field rather than a fake epoch.
-func presentSchedule(sc schedule.Schedule) protocol.Schedule {
-	w := protocol.Schedule{
-		ID:           sc.ID,
-		Title:        sc.Title,
-		Instructions: sc.Instructions,
-		Workspace:    workspaceRefFromPath(sc.CWD),
-		Provider:     sc.ModelSelection.Provider(),
-		Model:        sc.ModelSelection.Model(),
-		Cron:         sc.Cron,
-		Enabled:      sc.Enabled,
-		CreatedAt:    sc.CreatedAt,
-		Revision:     sc.Revision,
+func presentSchedule(scheduled schedule.Schedule) protocol.Schedule {
+	presented := protocol.Schedule{
+		ID:           scheduled.ID,
+		Title:        scheduled.Title,
+		Instructions: scheduled.Instructions,
+		Workspace:    workspaceRefFromPath(scheduled.CWD),
+		Provider:     scheduled.ModelSelection.Provider(),
+		Model:        scheduled.ModelSelection.Model(),
+		Cron:         scheduled.Cron,
+		Enabled:      scheduled.Enabled,
+		CreatedAt:    scheduled.CreatedAt,
+		Revision:     scheduled.Revision,
 	}
-	if !sc.LastRunAt.IsZero() {
-		t := sc.LastRunAt
-		w.LastRunAt = &t
+	if !scheduled.LastRunAt.IsZero() {
+		lastRunAt := scheduled.LastRunAt
+		presented.LastRunAt = &lastRunAt
 	}
-	if !sc.NextRunAt.IsZero() {
-		t := sc.NextRunAt
-		w.NextRunAt = &t
+	if !scheduled.NextRunAt.IsZero() {
+		nextRunAt := scheduled.NextRunAt
+		presented.NextRunAt = &nextRunAt
 	}
-	return w
+	return presented
 }

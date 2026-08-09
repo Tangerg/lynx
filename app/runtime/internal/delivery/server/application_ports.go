@@ -128,7 +128,7 @@ type scheduleManagementUseCases interface {
 
 type scheduleFiringUseCases interface {
 	Available() bool
-	RunNow(ctx context.Context, id string) (schedules.RunHandle, error)
+	RunNow(ctx context.Context, id string) (schedules.StartedRun, error)
 }
 
 type workspaceFileUseCases interface {

@@ -8,8 +8,8 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
-// RunUseCases is schedule firing's narrow view of the complete Run entry point.
-type RunUseCases interface {
+// RunStarter is schedule firing's narrow view of the complete Run entry point.
+type RunStarter interface {
 	Start(ctx context.Context, cmd runs.StartCommand) (runs.StartResult, error)
 }
 
@@ -17,41 +17,41 @@ type RunUseCases interface {
 // schedule-specific defaults; the runs coordinator owns session creation,
 // admission, execution, and lifecycle.
 type RunLauncher struct {
-	runs                 RunUseCases
+	runs                 RunStarter
 	defaultWorkspacePath string
-	fired                func(scheduleID string)
+	notifyFired          func(scheduleID string)
 }
 
-// NewRunLauncher builds the scheduled-run execution strategy. fired is an
+// NewRunLauncher builds the scheduled-run execution strategy. notifyFired is an
 // optional outward notification emitted after the run is accepted.
-func NewRunLauncher(runUseCases RunUseCases, defaultWorkspacePath string, fired func(string)) RunLauncher {
-	return RunLauncher{runs: runUseCases, defaultWorkspacePath: defaultWorkspacePath, fired: fired}
+func NewRunLauncher(runStarter RunStarter, defaultWorkspacePath string, notifyFired func(string)) RunLauncher {
+	return RunLauncher{runs: runStarter, defaultWorkspacePath: defaultWorkspacePath, notifyFired: notifyFired}
 }
 
 // StartScheduledRun starts one schedule through the shared Run entry point, then
 // immediately drops the unused event subscription.
-func (l RunLauncher) StartScheduledRun(ctx context.Context, occurrence schedule.Occurrence) (RunHandle, error) {
-	sc := occurrence.Schedule
-	cwd := sc.CWD
-	if cwd == "" {
-		cwd = l.defaultWorkspacePath
+func (l RunLauncher) StartScheduledRun(ctx context.Context, occurrence schedule.Occurrence) (StartedRun, error) {
+	scheduled := occurrence.Schedule
+	workspacePath := scheduled.CWD
+	if workspacePath == "" {
+		workspacePath = l.defaultWorkspacePath
 	}
-	fireCtx, cancel := context.WithCancel(ctx)
-	result, err := l.runs.Start(fireCtx, runs.StartCommand{
+	startCtx, cancel := context.WithCancel(ctx)
+	result, err := l.runs.Start(startCtx, runs.StartCommand{
 		RunID:                occurrence.RunID,
 		NewSessionID:         occurrence.SessionID,
 		ScheduleFiring:       occurrence.ID,
-		DefaultWorkspacePath: cwd,
-		NewSessionTitle:      sc.Title,
-		ModelSelection:       sc.ModelSelection,
-		Input:                []transcript.ContentBlock{{Kind: transcript.TextContent, Text: sc.Instructions}},
+		DefaultWorkspacePath: workspacePath,
+		NewSessionTitle:      scheduled.Title,
+		ModelSelection:       scheduled.ModelSelection,
+		Input:                []transcript.ContentBlock{{Kind: transcript.TextContent, Text: scheduled.Instructions}},
 	})
 	cancel()
 	if err != nil {
-		return RunHandle{}, err
+		return StartedRun{}, err
 	}
-	if l.fired != nil {
-		l.fired(sc.ID)
+	if l.notifyFired != nil {
+		l.notifyFired(scheduled.ID)
 	}
-	return RunHandle{SessionID: result.SessionID, RunID: result.RunID}, nil
+	return StartedRun{SessionID: result.SessionID, RunID: result.RunID}, nil
 }

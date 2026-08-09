@@ -10,15 +10,15 @@ import (
 )
 
 type workerStore struct {
-	due         []schedule.Schedule
-	dueErr      error
-	markCalls   []markCall
-	markCtxErrs []error
-	pending     []schedule.Occurrence
-	claimed     map[string]bool
+	due                []schedule.Schedule
+	dueErr             error
+	claims             []claimRecord
+	claimContextErrors []error
+	pending            []schedule.Occurrence
+	claimed            map[string]bool
 }
 
-type markCall struct {
+type claimRecord struct {
 	id            string
 	ranAt         time.Time
 	prevNextRunAt time.Time
@@ -47,8 +47,8 @@ func (s *workerStore) Claim(ctx context.Context, occurrence schedule.Occurrence)
 		return false, nil
 	}
 	s.claimed[occurrence.ID] = true
-	s.markCalls = append(s.markCalls, markCall{id: occurrence.Schedule.ID, ranAt: occurrence.FiredAt, prevNextRunAt: occurrence.DueAt, nextRunAt: occurrence.NextRunAt})
-	s.markCtxErrs = append(s.markCtxErrs, ctx.Err())
+	s.claims = append(s.claims, claimRecord{id: occurrence.Schedule.ID, ranAt: occurrence.FiredAt, prevNextRunAt: occurrence.DueAt, nextRunAt: occurrence.NextRunAt})
+	s.claimContextErrors = append(s.claimContextErrors, ctx.Err())
 	s.pending = append(s.pending, occurrence)
 	return true, nil
 }
@@ -57,61 +57,61 @@ func (s *workerStore) Pending(context.Context, int) ([]schedule.Occurrence, erro
 }
 func (s *workerStore) RecordRun(context.Context, string, time.Time) error { return nil }
 
-type workerRunner struct {
-	err   error
-	fired []schedule.Schedule
+type recordingScheduledRunStarter struct {
+	startErr         error
+	startedSchedules []schedule.Schedule
 }
 
-func (r *workerRunner) StartScheduledRun(_ context.Context, occurrence schedule.Occurrence) (RunHandle, error) {
-	r.fired = append(r.fired, occurrence.Schedule)
-	if r.err != nil {
-		return RunHandle{}, r.err
+func (r *recordingScheduledRunStarter) StartScheduledRun(_ context.Context, occurrence schedule.Occurrence) (StartedRun, error) {
+	r.startedSchedules = append(r.startedSchedules, occurrence.Schedule)
+	if r.startErr != nil {
+		return StartedRun{}, r.startErr
 	}
-	return RunHandle{SessionID: "ses_1", RunID: "run_1"}, nil
+	return StartedRun{SessionID: "ses_1", RunID: "run_1"}, nil
 }
 
 func TestWorkerFireDueLeavesFailedOccurrenceDue(t *testing.T) {
 	now := time.Date(2026, 6, 30, 10, 0, 0, 0, time.UTC)
 	prev := now.Add(-time.Minute)
 	store := &workerStore{due: []schedule.Schedule{{ID: "sch_1", Cron: "* * * * *", NextRunAt: prev}}}
-	runner := &workerRunner{err: errors.New("boom")}
+	runner := &recordingScheduledRunStarter{startErr: errors.New("boom")}
 	w := NewWorker(store, runner)
 
 	// The durable due row is intentionally presented again on the next scan: a
 	// rejected run must never be recorded as fired, even after a process restart.
 	w.fireDue(context.Background(), now)
 	w.fireDue(context.Background(), now)
-	if len(runner.fired) != 2 {
-		t.Fatalf("fired = %d, want 2", len(runner.fired))
+	if len(runner.startedSchedules) != 2 {
+		t.Fatalf("started = %d, want 2", len(runner.startedSchedules))
 	}
-	if len(store.markCalls) != 1 {
-		t.Fatalf("claims = %d, want one durable occurrence", len(store.markCalls))
+	if len(store.claims) != 1 {
+		t.Fatalf("claims = %d, want one durable occurrence", len(store.claims))
 	}
 }
 
 func TestWorkerFireDueDisablesCorruptCron(t *testing.T) {
 	now := time.Date(2026, 6, 30, 10, 0, 0, 0, time.UTC)
 	store := &workerStore{due: []schedule.Schedule{{ID: "sch_bad", Cron: "not cron", NextRunAt: now}}}
-	runner := &workerRunner{}
+	runner := &recordingScheduledRunStarter{}
 
 	NewWorker(store, runner).fireDue(context.Background(), now)
 
-	if len(runner.fired) != 1 {
-		t.Fatalf("fired = %d, want 1", len(runner.fired))
+	if len(runner.startedSchedules) != 1 {
+		t.Fatalf("started = %d, want 1", len(runner.startedSchedules))
 	}
-	if len(store.markCalls) != 1 || !store.markCalls[0].nextRunAt.IsZero() {
-		t.Fatalf("mark calls = %+v, want zero nextRunAt", store.markCalls)
+	if len(store.claims) != 1 || !store.claims[0].nextRunAt.IsZero() {
+		t.Fatalf("claims = %+v, want zero nextRunAt", store.claims)
 	}
 }
 
 func TestWorkerFireDueStopsOnDueError(t *testing.T) {
 	store := &workerStore{dueErr: errors.New("db down")}
-	runner := &workerRunner{}
+	runner := &recordingScheduledRunStarter{}
 
 	NewWorker(store, runner).fireDue(context.Background(), time.Now())
 
-	if len(runner.fired) != 0 || len(store.markCalls) != 0 {
-		t.Fatalf("fired=%d marks=%d, want none", len(runner.fired), len(store.markCalls))
+	if len(runner.startedSchedules) != 0 || len(store.claims) != 0 {
+		t.Fatalf("started=%d claims=%d, want none", len(runner.startedSchedules), len(store.claims))
 	}
 }
 
@@ -122,15 +122,15 @@ func TestWorkerFireDueDoesNotConsumeCancellationAbortedFiring(t *testing.T) {
 		{ID: "sch_2", Cron: "* * * * *", NextRunAt: now},
 	}}
 	ctx, cancel := context.WithCancel(context.Background())
-	runner := cancelingWorkerRunner{cancel: cancel, succeed: false}
+	runner := cancelingScheduledRunStarter{cancel: cancel, succeed: false}
 
 	NewWorker(store, &runner).fireDue(ctx, now)
 
-	if len(runner.fired) != 1 || runner.fired[0] != "sch_1" {
-		t.Fatalf("fired = %v, want only sch_1", runner.fired)
+	if len(runner.startedScheduleIDs) != 1 || runner.startedScheduleIDs[0] != "sch_1" {
+		t.Fatalf("started = %v, want only sch_1", runner.startedScheduleIDs)
 	}
-	if len(store.markCalls) != 1 {
-		t.Fatalf("claims = %+v, want only the occurrence dispatched before cancellation", store.markCalls)
+	if len(store.claims) != 1 {
+		t.Fatalf("claims = %+v, want only the occurrence dispatched before cancellation", store.claims)
 	}
 }
 
@@ -141,18 +141,18 @@ func TestWorkerFireDuePersistsAcceptedFiringAfterCancellation(t *testing.T) {
 		{ID: "sch_2", Cron: "* * * * *", NextRunAt: now},
 	}}
 	ctx, cancel := context.WithCancel(context.Background())
-	runner := cancelingWorkerRunner{cancel: cancel, succeed: true}
+	runner := cancelingScheduledRunStarter{cancel: cancel, succeed: true}
 
 	NewWorker(store, &runner).fireDue(ctx, now)
 
-	if len(runner.fired) != 1 || runner.fired[0] != "sch_1" {
-		t.Fatalf("fired = %v, want only sch_1", runner.fired)
+	if len(runner.startedScheduleIDs) != 1 || runner.startedScheduleIDs[0] != "sch_1" {
+		t.Fatalf("started = %v, want only sch_1", runner.startedScheduleIDs)
 	}
-	if len(store.markCalls) != 1 || store.markCalls[0].id != "sch_1" {
-		t.Fatalf("claims = %+v, want only sch_1", store.markCalls)
+	if len(store.claims) != 1 || store.claims[0].id != "sch_1" {
+		t.Fatalf("claims = %+v, want only sch_1", store.claims)
 	}
-	if len(store.markCtxErrs) != 1 || store.markCtxErrs[0] != nil {
-		t.Fatalf("claim context errors = %v, want live context", store.markCtxErrs)
+	if len(store.claimContextErrors) != 1 || store.claimContextErrors[0] != nil {
+		t.Fatalf("claim context errors = %v, want live context", store.claimContextErrors)
 	}
 }
 
@@ -161,7 +161,7 @@ func TestWorkerRunScansImmediately(t *testing.T) {
 	store := &workerStore{due: []schedule.Schedule{{ID: "sch_1", Cron: "* * * * *", NextRunAt: now}}}
 	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
-	runner := cancelingWorkerRunner{cancel: cancel, succeed: true}
+	runner := cancelingScheduledRunStarter{cancel: cancel, succeed: true}
 	worker := NewWorker(store, &runner)
 	worker.now = func() time.Time { return now }
 
@@ -175,22 +175,22 @@ func TestWorkerRunScansImmediately(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("worker did not stop after its initial scan")
 	}
-	if len(runner.fired) != 1 || runner.fired[0] != "sch_1" {
-		t.Fatalf("initial scan fired = %v, want [sch_1]", runner.fired)
+	if len(runner.startedScheduleIDs) != 1 || runner.startedScheduleIDs[0] != "sch_1" {
+		t.Fatalf("initial scan started = %v, want [sch_1]", runner.startedScheduleIDs)
 	}
 }
 
-type cancelingWorkerRunner struct {
-	cancel  context.CancelFunc
-	succeed bool
-	fired   []string
+type cancelingScheduledRunStarter struct {
+	cancel             context.CancelFunc
+	succeed            bool
+	startedScheduleIDs []string
 }
 
-func (r *cancelingWorkerRunner) StartScheduledRun(ctx context.Context, occurrence schedule.Occurrence) (RunHandle, error) {
-	r.fired = append(r.fired, occurrence.Schedule.ID)
+func (r *cancelingScheduledRunStarter) StartScheduledRun(ctx context.Context, occurrence schedule.Occurrence) (StartedRun, error) {
+	r.startedScheduleIDs = append(r.startedScheduleIDs, occurrence.Schedule.ID)
 	r.cancel()
 	if !r.succeed {
-		return RunHandle{}, ctx.Err()
+		return StartedRun{}, ctx.Err()
 	}
-	return RunHandle{SessionID: "ses_1", RunID: "run_1"}, nil
+	return StartedRun{SessionID: "ses_1", RunID: "run_1"}, nil
 }

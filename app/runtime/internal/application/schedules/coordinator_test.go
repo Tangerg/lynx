@@ -34,7 +34,7 @@ func TestRunNowRecordsAcceptedRunAfterRequestCancellation(t *testing.T) {
 	now := time.Date(2026, 7, 19, 12, 0, 0, 0, time.UTC)
 	store := &runNowStore{schedule: schedule.Schedule{ID: "sch_1", Instructions: "review"}}
 	ctx, cancel := context.WithCancel(context.Background())
-	runner := cancelingWorkerRunner{cancel: cancel, succeed: true}
+	runner := cancelingScheduledRunStarter{cancel: cancel, succeed: true}
 	firing := NewFiring(store, &runner)
 	firing.now = func() time.Time { return now }
 
@@ -52,7 +52,7 @@ func TestRunNowRecordsAcceptedRunAfterRequestCancellation(t *testing.T) {
 func TestRunNowDoesNotRecordCancellationAbortedRun(t *testing.T) {
 	store := &runNowStore{schedule: schedule.Schedule{ID: "sch_1", Instructions: "review"}}
 	ctx, cancel := context.WithCancel(context.Background())
-	runner := cancelingWorkerRunner{cancel: cancel, succeed: false}
+	runner := cancelingScheduledRunStarter{cancel: cancel, succeed: false}
 	firing := NewFiring(store, &runner)
 
 	if _, err := firing.RunNow(ctx, "sch_1"); !errors.Is(err, context.Canceled) {
@@ -183,13 +183,13 @@ func (r *runNowStore) List(context.Context) ([]schedule.Schedule, error) { retur
 func (r *runNowStore) Get(context.Context, string) (schedule.Schedule, error) {
 	return r.schedule, nil
 }
-func (r *runNowStore) Create(_ context.Context, sc schedule.Schedule) (schedule.Schedule, error) {
-	r.created = sc
-	return sc, nil
+func (r *runNowStore) Create(_ context.Context, scheduled schedule.Schedule) (schedule.Schedule, error) {
+	r.created = scheduled
+	return scheduled, nil
 }
-func (r *runNowStore) Update(_ context.Context, sc schedule.Schedule, _ uint64) (schedule.Schedule, error) {
-	r.updated = sc
-	return sc, nil
+func (r *runNowStore) Update(_ context.Context, scheduled schedule.Schedule, _ uint64) (schedule.Schedule, error) {
+	r.updated = scheduled
+	return scheduled, nil
 }
 func (r *runNowStore) Delete(context.Context, string) error { return nil }
 func (r *runNowStore) Due(context.Context, time.Time, int) ([]schedule.Schedule, error) {

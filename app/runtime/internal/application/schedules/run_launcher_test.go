@@ -9,38 +9,38 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
 )
 
-type fakeRunUseCases struct {
+type fakeRunStarter struct {
 	cmd      runs.StartCommand
 	canceled chan struct{}
 }
 
-func (f *fakeRunUseCases) Start(ctx context.Context, cmd runs.StartCommand) (runs.StartResult, error) {
+func (f *fakeRunStarter) Start(ctx context.Context, cmd runs.StartCommand) (runs.StartResult, error) {
 	f.cmd = cmd
 	context.AfterFunc(ctx, func() { close(f.canceled) })
 	return runs.StartResult{SessionID: "ses_scheduled", RunID: "run_scheduled"}, nil
 }
 
 func TestRunLauncherUsesApplicationRunEntry(t *testing.T) {
-	useCases := &fakeRunUseCases{canceled: make(chan struct{})}
-	var fired string
-	launcher := NewRunLauncher(useCases, "/default", func(id string) { fired = id })
+	runStarter := &fakeRunStarter{canceled: make(chan struct{})}
+	var firedScheduleID string
+	launcher := NewRunLauncher(runStarter, "/default", func(id string) { firedScheduleID = id })
 
-	handle, err := launcher.StartScheduledRun(context.Background(), schedule.Occurrence{Schedule: schedule.Schedule{
+	startedRun, err := launcher.StartScheduledRun(context.Background(), schedule.Occurrence{Schedule: schedule.Schedule{
 		ID: "sch_1", Instructions: "summarize", ModelSelection: mustScheduleSelection("p", "m"),
 	}})
 	if err != nil {
 		t.Fatalf("StartScheduledRun: %v", err)
 	}
-	if handle.SessionID != "ses_scheduled" || handle.RunID != "run_scheduled" || fired != "sch_1" {
-		t.Fatalf("handle=%+v fired=%q", handle, fired)
+	if startedRun.SessionID != "ses_scheduled" || startedRun.RunID != "run_scheduled" || firedScheduleID != "sch_1" {
+		t.Fatalf("started Run=%+v fired schedule=%q", startedRun, firedScheduleID)
 	}
-	if useCases.cmd.DefaultWorkspacePath != "/default" || useCases.cmd.NewSessionTitle != "" {
-		t.Fatalf("command defaults = %+v", useCases.cmd)
+	if runStarter.cmd.DefaultWorkspacePath != "/default" || runStarter.cmd.NewSessionTitle != "" {
+		t.Fatalf("command defaults = %+v", runStarter.cmd)
 	}
-	if len(useCases.cmd.Input) != 1 || useCases.cmd.Input[0].Text != "summarize" || useCases.cmd.ModelSelection.Provider() != "p" || useCases.cmd.ModelSelection.Model() != "m" {
-		t.Fatalf("command mapping = %+v", useCases.cmd)
+	if len(runStarter.cmd.Input) != 1 || runStarter.cmd.Input[0].Text != "summarize" || runStarter.cmd.ModelSelection.Provider() != "p" || runStarter.cmd.ModelSelection.Model() != "m" {
+		t.Fatalf("command mapping = %+v", runStarter.cmd)
 	}
-	<-useCases.canceled
+	<-runStarter.canceled
 }
 
 func mustScheduleSelection(provider, model string) modelref.Selection {

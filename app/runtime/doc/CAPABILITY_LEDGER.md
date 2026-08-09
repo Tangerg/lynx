@@ -92,9 +92,9 @@
 
 | 能力 | 当前 owner | Verdict | 迁移影响 |
 |---|---|---|---|
-| Goal | domain/application/toolset | Retain | executor port/name 更新；不下沉 Agent Framework |
+| Goal | domain/application/toolset | Retain | autonomous Run admission retry、lease ownership refresh 与 terminal resolution 分属准确私有行为；消费端口名为 `AutonomousRuns`，不下沉 Agent Framework |
 | Plan | domain/application/toolset | Retain | 保持 Plan 唯一术语；不与 Goal/Todo 合并 |
-| Schedule | domain/application/toolset | Retain | 通过 Run use case 启动，不直接调用 Agent Framework |
+| Schedule | domain/application/toolset | Retain | 通过 `RunStarter` 启动并返回 `StartedRun` 事实；有界 `occurrenceBatch` 分别处理 pending dispatch 与 due claim，不直接调用 Agent Framework |
 | Skill/Proposal | domain/application/adapter/toolset | Retain | deferred manifest 接线更新 |
 | Agent memory | domain/application/toolset | Retain | 与 Conversation/Knowledge 分开 |
 | Model/provider catalog | domain/application/adapters | Retain | 每 Run exact model binding 进入 deployment assembly |

@@ -136,45 +136,9 @@ func (d *Driver) driveRun(ctx context.Context, g *goal.Goal) (disposition runDis
 	if err := ctx.Err(); err != nil {
 		return "", nil
 	}
-	var result runs.StartResult
-	if err := d.runs.WaitSessionStartable(ctx, g.SessionID); err != nil {
-		if ctx.Err() != nil {
-			return "", nil
-		}
-		return "", err
-	}
-	for {
-		result, err = d.runs.Start(ctx, d.command(*g))
-		if !errors.Is(err, runs.ErrRunAdmissionBusy) {
-			break
-		}
-		// WaitSessionStartable is intentionally not a reservation. Another Run
-		// or working-tree mutation may win between the observation and Start;
-		// wait for its real boundary and retry without spending a Goal Run.
-		if err := d.runs.WaitSessionStartable(ctx, g.SessionID); err != nil {
-			if ctx.Err() != nil {
-				return "", nil
-			}
-			return "", err
-		}
-	}
+	result, err := d.startGoalRun(ctx, *g)
 	if err != nil {
-		if ctx.Err() != nil {
-			return "", nil // Stop/shutdown — the state is handled by Stop / reconcile
-		}
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "start run")
-		// A start failure is an operational fact already recorded on the span.
-		// Persist only its stable cause so Goal status never stores diagnostic
-		// details that cannot be recovered consistently.
-		disposition, err := d.pauseOwned(ctx, g, goal.ReasonRunStartFailed, "")
-		if err != nil {
-			if ctx.Err() != nil {
-				return "", nil
-			}
-			return "", err
-		}
-		return disposition, nil
+		return d.resolveGoalRunStartError(ctx, g, span, err)
 	}
 
 	finished := drainTerminal(result.Events)
@@ -184,37 +148,17 @@ func (d *Driver) driveRun(ctx context.Context, g *goal.Goal) (disposition runDis
 		}
 		return "", nil
 	}
-	if finished != nil {
-		if outcome, terminalErr := outcomeOf(finished); terminalErr == nil {
-			span.SetAttributes(
-				attribute.String("run.outcome", outcome.String()),
-				attribute.Float64("goal.cost_usd", turnCost(finished)),
-				attribute.Int("goal.steps", turnSteps(finished)),
-			)
-		}
-	}
+	recordTerminalRunAttributes(span, finished)
 
 	// Re-read: the model may have reported completed/blocked mid-Run.
-	reread, ok, err := d.goals.Get(ctx, g.SessionID)
+	owned, err := d.refreshOwnedGoal(ctx, g)
 	if err != nil {
-		if ctx.Err() != nil {
-			return "", nil
-		}
 		span.RecordError(err)
 		return "", err
 	}
-	if !ok {
+	if !owned {
 		return "", nil
 	}
-	// If the lease changed, a Stop/Start/Resume superseded this loop's goal
-	// while the run was in flight. Adopting the re-read (a different incarnation,
-	// maybe a whole new objective) and saving to it would clobber a goal this
-	// loop no longer owns; stop instead. This keeps g at the launch lease, so the
-	// terminal saves below CAS on the incarnation the loop actually drove.
-	if reread.LeaseID != g.LeaseID {
-		return "", nil
-	}
-	*g = reread
 	disposition, err = d.settleOwned(ctx, g)
 	if err != nil {
 		if ctx.Err() != nil {
@@ -225,7 +169,84 @@ func (d *Driver) driveRun(ctx context.Context, g *goal.Goal) (disposition runDis
 	if disposition != dispContinue {
 		return disposition, nil
 	}
+	return d.resolveTerminalRun(ctx, g, span, finished)
+}
 
+func (d *Driver) startGoalRun(ctx context.Context, g goal.Goal) (runs.StartResult, error) {
+	if err := d.runs.WaitSessionStartable(ctx, g.SessionID); err != nil {
+		return runs.StartResult{}, err
+	}
+	for {
+		result, err := d.runs.Start(ctx, d.command(g))
+		if !errors.Is(err, runs.ErrRunAdmissionBusy) {
+			return result, err
+		}
+		// WaitSessionStartable is intentionally not a reservation. Another Run
+		// or working-tree mutation may win between the observation and Start;
+		// wait for its real boundary and retry without spending a Goal Run.
+		if err := d.runs.WaitSessionStartable(ctx, g.SessionID); err != nil {
+			return runs.StartResult{}, err
+		}
+	}
+}
+
+func (d *Driver) resolveGoalRunStartError(
+	ctx context.Context,
+	g *goal.Goal,
+	span trace.Span,
+	startErr error,
+) (runDisposition, error) {
+	if ctx.Err() != nil {
+		return "", nil
+	}
+	span.RecordError(startErr)
+	span.SetStatus(codes.Error, "start run")
+	// A start failure is an operational fact already recorded on the span.
+	// Persist only its stable cause so Goal status never stores diagnostic
+	// details that cannot be recovered consistently.
+	disposition, err := d.pauseOwned(ctx, g, goal.ReasonRunStartFailed, "")
+	if err != nil && ctx.Err() != nil {
+		return "", nil
+	}
+	return disposition, err
+}
+
+func recordTerminalRunAttributes(span trace.Span, finished *transcript.Run) {
+	if finished == nil {
+		return
+	}
+	outcome, err := outcomeOf(finished)
+	if err != nil {
+		return
+	}
+	span.SetAttributes(
+		attribute.String("run.outcome", outcome.String()),
+		attribute.Float64("goal.cost_usd", runCost(finished)),
+		attribute.Int("goal.steps", runSteps(finished)),
+	)
+}
+
+func (d *Driver) refreshOwnedGoal(ctx context.Context, current *goal.Goal) (bool, error) {
+	reread, found, err := d.goals.Get(ctx, current.SessionID)
+	if err != nil {
+		if ctx.Err() != nil {
+			return false, nil
+		}
+		return false, err
+	}
+	if !found || reread.LeaseID != current.LeaseID {
+		return false, nil
+	}
+	*current = reread
+	return true, nil
+}
+
+func (d *Driver) resolveTerminalRun(
+	ctx context.Context,
+	g *goal.Goal,
+	span trace.Span,
+	finished *transcript.Run,
+) (runDisposition, error) {
 	if finished == nil {
 		// The run parked for HITL and produced no terminal (rare — autonomous runs
 		// are headless, so an unanswerable interrupt auto-denies rather than
@@ -240,7 +261,7 @@ func (d *Driver) driveRun(ctx context.Context, g *goal.Goal) (disposition runDis
 		return disposition, nil
 	}
 
-	outcome, err := outcomeOf(finished)
+	_, err := outcomeOf(finished)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "malformed terminal run")
@@ -253,11 +274,6 @@ func (d *Driver) driveRun(ctx context.Context, g *goal.Goal) (disposition runDis
 		}
 		return disposition, nil
 	}
-	span.SetAttributes(
-		attribute.String("run.outcome", outcome.String()),
-		attribute.Float64("goal.cost_usd", turnCost(finished)),
-		attribute.Int("goal.steps", turnSteps(finished)),
-	)
 	// The terminal Run transaction has already recorded this Run's usage (and
 	// derived any pause/block) under the goal lease. Do not reconstruct that
 	// durable fact from the stream: a failed post-hoc checkpoint can otherwise
@@ -310,14 +326,14 @@ func outcomeOf(run *transcript.Run) (run.Outcome, error) {
 	return *run.Outcome, nil
 }
 
-func turnCost(run *transcript.Run) float64 {
+func runCost(run *transcript.Run) float64 {
 	if run.Metrics.Usage != nil && run.Metrics.Usage.CostUSD != nil {
 		return *run.Metrics.Usage.CostUSD
 	}
 	return 0
 }
 
-func turnSteps(run *transcript.Run) int { return run.Metrics.Steps }
+func runSteps(run *transcript.Run) int { return run.Metrics.Steps }
 
 // pauseOwned persists a loop-originated pause against the newest revision of
 // the lease it owns. A CAS miss is resolved from the authoritative row: a

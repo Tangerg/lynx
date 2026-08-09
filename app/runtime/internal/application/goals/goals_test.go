@@ -290,17 +290,17 @@ func (f *fakeRuns) WaitSessionStartable(ctx context.Context, _ string) error {
 	}
 }
 
-// chanSeq preserves the fake's hold-then-yield-terminal timing and the
+// eventSequence preserves the fake's hold-then-yield-terminal timing and the
 // production subscription's caller-cancellation behavior behind its iter.Seq
 // contract.
-func chanSeq(ctx context.Context, ch <-chan runs.Event) iter.Seq[runs.Event] {
+func eventSequence(ctx context.Context, events <-chan runs.Event) iter.Seq[runs.Event] {
 	return func(yield func(runs.Event) bool) {
 		for {
 			select {
 			case <-ctx.Done():
 				return
-			case ev, ok := <-ch:
-				if !ok || !yield(ev) {
+			case event, open := <-events:
+				if !open || !yield(event) {
 					return
 				}
 			}
@@ -308,8 +308,9 @@ func chanSeq(ctx context.Context, ch <-chan runs.Event) iter.Seq[runs.Event] {
 	}
 }
 
-func (f *fakeRuns) Start(ctx context.Context, cmd runs.StartCommand) (runs.StartResult, error) {
+func (f *fakeRuns) nextScriptedRun() (int, error) {
 	f.mu.Lock()
+	defer f.mu.Unlock()
 	attempt := f.calls
 	f.calls++
 	var startErr error
@@ -318,59 +319,76 @@ func (f *fakeRuns) Start(ctx context.Context, cmd runs.StartCommand) (runs.Start
 	} else {
 		startErr = f.startErr
 	}
-	i := f.startedRuns
+	runIndex := f.startedRuns
 	if startErr == nil {
 		f.startedRuns++
 	}
-	f.mu.Unlock()
-	if startErr != nil {
-		return runs.StartResult{}, startErr
-	}
+	return runIndex, startErr
+}
+
+func (f *fakeRuns) notifyRunStarted() {
 	if f.started != nil {
 		select {
 		case f.started <- struct{}{}:
 		default:
 		}
 	}
+}
 
-	events := make(chan runs.Event, 2)
-	if i >= len(f.script) {
-		f.t.Errorf("unexpected extra run (call %d, script has %d)", i, len(f.script))
-		close(events)
-		return runs.StartResult{SessionID: cmd.SessionID, Events: chanSeq(ctx, events)}, nil
-	}
-	tn := f.script[i]
-	if tn.setStatus != "" {
+func (f *fakeRuns) applyScriptedGoalStatus(
+	ctx context.Context,
+	cmd runs.StartCommand,
+	script scriptedRun,
+) {
+	if script.setStatus != "" {
 		// Simulate the model reporting a terminal goal outcome mid-Run: a CAS on
 		// the current version while retaining the loop's lease.
 		g, _, _ := f.store.Get(ctx, cmd.SessionID)
-		g.Status = tn.setStatus
-		if tn.setStatus == goal.StatusBlocked {
-			g.Reason = goal.Reason{Code: goal.ReasonBlockedByModel, Detail: tn.reason}
+		g.Status = script.setStatus
+		if script.setStatus == goal.StatusBlocked {
+			g.Reason = goal.Reason{Code: goal.ReasonBlockedByModel, Detail: script.reason}
 		}
 		expected := g.Version()
 		_, _, _ = f.store.Save(ctx, g, expected)
 	}
-	runID := "run_" + strconv.Itoa(i)
-	cancelRun := make(chan struct{})
-	runDone := make(chan struct{})
+}
+
+func (f *fakeRuns) registerScriptedRun(
+	cmd runs.StartCommand,
+	runID string,
+) (cancelRequested chan struct{}, runFinished chan struct{}) {
+	cancelRequested = make(chan struct{})
+	runFinished = make(chan struct{})
 	f.mu.Lock()
+	defer f.mu.Unlock()
 	if f.cancels == nil {
 		f.cancels = map[string]chan struct{}{}
 		f.runDone = map[string]chan struct{}{}
 		f.runGoals = map[string]goal.RunRecord{}
 	}
-	f.cancels[runID] = cancelRun
-	f.runDone[runID] = runDone
+	f.cancels[runID] = cancelRequested
+	f.runDone[runID] = runFinished
 	f.runGoals[runID] = goal.RunRecord{
 		SessionID: cmd.SessionID,
 		LeaseID:   cmd.GoalLeaseID,
 		RunID:     runID,
 	}
-	f.mu.Unlock()
+	return cancelRequested, runFinished
+}
+
+func (f *fakeRuns) emitScriptedRun(
+	ctx context.Context,
+	cmd runs.StartCommand,
+	runID string,
+	runIndex int,
+	script scriptedRun,
+	cancelRequested <-chan struct{},
+	runFinished chan<- struct{},
+	events chan<- runs.Event,
+) {
 	go func() {
 		defer close(events)
-		defer close(runDone)
+		defer close(runFinished)
 		defer func() {
 			f.mu.Lock()
 			delete(f.cancels, runID)
@@ -378,37 +396,57 @@ func (f *fakeRuns) Start(ctx context.Context, cmd runs.StartCommand) (runs.Start
 			delete(f.runGoals, runID)
 			f.mu.Unlock()
 		}()
-		if f.hold != nil && i == 0 {
+		if f.hold != nil && runIndex == 0 {
 			select {
 			case <-f.hold:
-			case <-cancelRun:
+			case <-cancelRequested:
 				return
 			}
 		}
-		if !tn.park {
-			cost := tn.cost
+		if !script.park {
+			cost := script.cost
 			var outcome *run.Outcome
-			if !tn.missingOutcome {
-				outcome = &tn.outcome
+			if !script.missingOutcome {
+				outcome = &script.outcome
 			}
-			run := transcript.Run{
+			finishedRun := transcript.Run{
 				SessionID: cmd.SessionID,
 				ID:        runID,
 				Outcome:   outcome,
-				Metrics:   transcript.RunMetrics{Steps: tn.steps, Usage: &transcript.Usage{ModelUsage: transcript.ModelUsage{CostUSD: &cost}}},
+				Metrics:   transcript.RunMetrics{Steps: script.steps, Usage: &transcript.Usage{ModelUsage: transcript.ModelUsage{CostUSD: &cost}}},
 			}
 			if outcome != nil && cmd.GoalLeaseID != "" {
 				if err := f.store.RecordRun(context.WithoutCancel(ctx), goal.RunRecord{
 					SessionID: cmd.SessionID, LeaseID: cmd.GoalLeaseID, RunID: runID,
-					Outcome: *outcome, CostUSD: cost, Steps: tn.steps, CompletedAt: time.Now(),
+					Outcome: *outcome, CostUSD: cost, Steps: script.steps, CompletedAt: time.Now(),
 				}); err != nil {
 					f.t.Errorf("record terminal Goal Run: %v", err)
 				}
 			}
-			events <- runs.Event{Payload: runs.SegmentFinished{Run: run}}
+			events <- runs.Event{Payload: runs.SegmentFinished{Run: finishedRun}}
 		}
 	}()
-	return runs.StartResult{RunID: runID, SessionID: cmd.SessionID, Events: chanSeq(ctx, events)}, nil
+}
+
+func (f *fakeRuns) Start(ctx context.Context, cmd runs.StartCommand) (runs.StartResult, error) {
+	runIndex, startErr := f.nextScriptedRun()
+	if startErr != nil {
+		return runs.StartResult{}, startErr
+	}
+	f.notifyRunStarted()
+
+	events := make(chan runs.Event, 2)
+	if runIndex >= len(f.script) {
+		f.t.Errorf("unexpected extra run (call %d, script has %d)", runIndex, len(f.script))
+		close(events)
+		return runs.StartResult{SessionID: cmd.SessionID, Events: eventSequence(ctx, events)}, nil
+	}
+	script := f.script[runIndex]
+	f.applyScriptedGoalStatus(ctx, cmd, script)
+	runID := "run_" + strconv.Itoa(runIndex)
+	cancelRequested, runFinished := f.registerScriptedRun(cmd, runID)
+	f.emitScriptedRun(ctx, cmd, runID, runIndex, script, cancelRequested, runFinished, events)
+	return runs.StartResult{RunID: runID, SessionID: cmd.SessionID, Events: eventSequence(ctx, events)}, nil
 }
 
 func (f *fakeRuns) Cancel(_ context.Context, cmd runs.CancelCommand) (runs.CancelResult, error) {

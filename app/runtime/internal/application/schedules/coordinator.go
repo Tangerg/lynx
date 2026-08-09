@@ -21,8 +21,8 @@ type ManagementStore interface {
 	List(ctx context.Context) ([]schedule.Schedule, error)
 	ListPage(ctx context.Context, afterCreatedAt int64, afterID string, limit int) ([]schedule.Schedule, error)
 	Get(ctx context.Context, id string) (schedule.Schedule, error)
-	Create(ctx context.Context, sc schedule.Schedule) (schedule.Schedule, error)
-	Update(ctx context.Context, sc schedule.Schedule, expectedRevision uint64) (schedule.Schedule, error)
+	Create(ctx context.Context, scheduled schedule.Schedule) (schedule.Schedule, error)
+	Update(ctx context.Context, scheduled schedule.Schedule, expectedRevision uint64) (schedule.Schedule, error)
 	Delete(ctx context.Context, id string) error
 }
 
@@ -122,8 +122,8 @@ func (c *Coordinator) ListPage(ctx context.Context, cursor string, limit int) (p
 	if err != nil {
 		return pagination.Page[schedule.Schedule]{}, err
 	}
-	return pagination.PageOf(rows, size, listPageNamespace, nil, func(sc schedule.Schedule) []string {
-		return []string{strconv.FormatInt(sc.CreatedAt.UnixNano(), 10), sc.ID}
+	return pagination.PageOf(rows, size, listPageNamespace, nil, func(scheduled schedule.Schedule) []string {
+		return []string{strconv.FormatInt(scheduled.CreatedAt.UnixNano(), 10), scheduled.ID}
 	}), nil
 }
 
@@ -132,7 +132,7 @@ func (c *Coordinator) Create(ctx context.Context, cmd CreateCommand) (schedule.S
 	if !c.enabled {
 		return schedule.Schedule{}, schedule.ErrUnavailable
 	}
-	sc, err := (schedule.Schedule{
+	scheduled, err := (schedule.Schedule{
 		Title:          cmd.Title,
 		Instructions:   cmd.Instructions,
 		CWD:            cmd.CWD,
@@ -143,11 +143,11 @@ func (c *Coordinator) Create(ctx context.Context, cmd CreateCommand) (schedule.S
 	if err != nil {
 		return schedule.Schedule{}, err
 	}
-	sc.CWD, err = c.resolveCWD(sc.CWD)
+	scheduled.CWD, err = c.resolveCWD(scheduled.CWD)
 	if err != nil {
 		return schedule.Schedule{}, err
 	}
-	created, err := c.store.Create(ctx, sc)
+	created, err := c.store.Create(ctx, scheduled)
 	if err != nil {
 		return schedule.Schedule{}, fmt.Errorf("schedules: create: %w", err)
 	}

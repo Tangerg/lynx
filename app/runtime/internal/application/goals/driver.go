@@ -55,9 +55,9 @@ var (
 // capability whether it exists must answer, not panic.
 func (d *Driver) Available() bool { return d != nil && d.goals != nil }
 
-// RunUseCases is the goal loop's narrow view of the run entry point — the same
+// AutonomousRuns is the goal loop's narrow view of the run entry point — the same
 // headless start the scheduler uses.
-type RunUseCases interface {
+type AutonomousRuns interface {
 	WaitSessionStartable(ctx context.Context, sessionID string) error
 	Start(ctx context.Context, cmd runs.StartCommand) (runs.StartResult, error)
 	// Cancel returns after the Run has reached its complete terminal boundary.
@@ -93,7 +93,7 @@ type RunInstructionBuilder func(RunInstructionInput) string
 // sessions; loop goroutines and reported outcomes use the store CAS.
 type Driver struct {
 	goals        Store
-	runs         RunUseCases
+	runs         AutonomousRuns
 	sessions     SessionExists
 	tasks        *taskgroup.Group
 	now          func() time.Time
@@ -113,7 +113,7 @@ type loopHandle struct {
 
 // NewDriver builds a Driver sharing one session lifecycle
 // coordinator with the sessions use case.
-func NewDriver(store Store, runUseCases RunUseCases, sessions SessionExists, mutations *SessionMutations, instructions RunInstructionBuilder) *Driver {
+func NewDriver(store Store, autonomousRuns AutonomousRuns, sessions SessionExists, mutations *SessionMutations, instructions RunInstructionBuilder) *Driver {
 	if mutations == nil {
 		mutations = NewSessionMutations()
 	}
@@ -122,7 +122,7 @@ func NewDriver(store Store, runUseCases RunUseCases, sessions SessionExists, mut
 	}
 	return &Driver{
 		goals:        store,
-		runs:         runUseCases,
+		runs:         autonomousRuns,
 		sessions:     sessions,
 		tasks:        &taskgroup.Group{},
 		now:          time.Now,

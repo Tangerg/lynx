@@ -33,27 +33,27 @@ func (r *fakeScheduleRegistry) List(context.Context) ([]schedule.Schedule, error
 }
 
 func (r *fakeScheduleRegistry) Get(_ context.Context, id string) (schedule.Schedule, error) {
-	sc, ok := r.byID[id]
-	if !ok {
+	scheduled, found := r.byID[id]
+	if !found {
 		return schedule.Schedule{}, schedule.ErrNotFound
 	}
-	return sc, nil
+	return scheduled, nil
 }
 
-func (r *fakeScheduleRegistry) Create(_ context.Context, sc schedule.Schedule) (schedule.Schedule, error) {
-	r.created = append(r.created, sc)
-	if sc.ID == "" {
-		sc.ID = "sch_created"
+func (r *fakeScheduleRegistry) Create(_ context.Context, scheduled schedule.Schedule) (schedule.Schedule, error) {
+	r.created = append(r.created, scheduled)
+	if scheduled.ID == "" {
+		scheduled.ID = "sch_created"
 	}
-	if sc.CreatedAt.IsZero() {
-		sc.CreatedAt = time.Date(2026, 7, 5, 9, 0, 0, 0, time.UTC)
+	if scheduled.CreatedAt.IsZero() {
+		scheduled.CreatedAt = time.Date(2026, 7, 5, 9, 0, 0, 0, time.UTC)
 	}
-	return sc, nil
+	return scheduled, nil
 }
 
-func (r *fakeScheduleRegistry) Update(_ context.Context, sc schedule.Schedule, _ uint64) (schedule.Schedule, error) {
-	r.updated = append(r.updated, sc)
-	return sc, nil
+func (r *fakeScheduleRegistry) Update(_ context.Context, scheduled schedule.Schedule, _ uint64) (schedule.Schedule, error) {
+	r.updated = append(r.updated, scheduled)
+	return scheduled, nil
 }
 
 func (r *fakeScheduleRegistry) Delete(_ context.Context, id string) error {
