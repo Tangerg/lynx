@@ -221,6 +221,29 @@ func decodeProcessSnapshot(data []byte) (processSnapshotWire, error) {
 }
 
 func validateProcessSnapshot(wire processSnapshotWire) error {
+	if err := wire.validateContract(); err != nil {
+		return err
+	}
+	if err := wire.validateRelation(); err != nil {
+		return err
+	}
+	mailbox, err := restoreSignalMailbox(wire.Mailbox)
+	if err != nil {
+		return fmt.Errorf("%w: mailbox: %w", ErrInvalidSnapshot, err)
+	}
+	if err := wire.validateProgress(mailbox); err != nil {
+		return err
+	}
+	if err := validateSnapshotLifecycle(wire); err != nil {
+		return err
+	}
+	if err := validatePendingControlWire(wire.PendingControl); err != nil {
+		return fmt.Errorf("%w: pending control: %w", ErrInvalidSnapshot, err)
+	}
+	return nil
+}
+
+func (wire processSnapshotWire) validateContract() error {
 	if wire.SchemaVersion != processSnapshotSchemaVersion {
 		return fmt.Errorf("%w: unsupported schema version %d", ErrInvalidSnapshot, wire.SchemaVersion)
 	}
@@ -235,6 +258,10 @@ func validateProcessSnapshot(wire processSnapshotWire) error {
 		!wire.Budget.contains(wire.Usage, wire.ReservedBudget) {
 		return fmt.Errorf("%w: incomplete Process identity or state", ErrInvalidSnapshot)
 	}
+	return nil
+}
+
+func (wire processSnapshotWire) validateRelation() error {
 	relation, err := processRelationFromWire(wire.ProcessID, wire.Relation)
 	if err != nil {
 		return fmt.Errorf("%w: relation: %w", ErrInvalidSnapshot, err)
@@ -243,10 +270,10 @@ func validateProcessSnapshot(wire processSnapshotWire) error {
 		wire.ChildRequestDigest != nil && !wire.ChildRequestDigest.Valid() {
 		return fmt.Errorf("%w: child request digest does not match relation", ErrInvalidSnapshot)
 	}
-	mailbox, err := restoreSignalMailbox(wire.Mailbox)
-	if err != nil {
-		return fmt.Errorf("%w: mailbox: %w", ErrInvalidSnapshot, err)
-	}
+	return nil
+}
+
+func (wire processSnapshotWire) validateProgress(mailbox signalMailbox) error {
 	if wire.Usage.AcceptedSignals != mailbox.arrivalSequence() {
 		return fmt.Errorf("%w: accepted Signal count does not match mailbox", ErrInvalidSnapshot)
 	}
@@ -263,12 +290,6 @@ func validateProcessSnapshot(wire processSnapshotWire) error {
 		); err != nil {
 			return fmt.Errorf("%w: %w", ErrInvalidSnapshot, err)
 		}
-	}
-	if err := validateSnapshotLifecycle(wire); err != nil {
-		return err
-	}
-	if err := validatePendingControlWire(wire.PendingControl); err != nil {
-		return fmt.Errorf("%w: pending control: %w", ErrInvalidSnapshot, err)
 	}
 	return nil
 }

@@ -224,8 +224,8 @@ go test ./...
 ### P13：模块内部精修
 
 - [x] P13-01 将 Step、Signal、child reservation 与 Delta 计数的边界算术收回资源 owner，消除合法极值快照下的无符号回绕。
-- [ ] P13-02 继续反证 Kernel、Strategy、Platform、OTel 与测试支持代码的状态所有权、并发时序、错误分类和命名职责，逐项治本清理。
-- [ ] P13-03 完成 standalone build/vet/staticcheck/lint/test/race/fuzz/examples、复杂度与残留复扫，冻结模块内部精修事实。
+- [x] P13-02 继续反证 Kernel、Strategy、Platform、OTel 与测试支持代码的状态所有权、并发时序、错误分类和命名职责，逐项治本清理。
+- [x] P13-03 完成 standalone build/vet/staticcheck/lint/test/race/fuzz/examples、复杂度与残留复扫，冻结模块内部精修事实。
 
 ---
 
@@ -272,6 +272,7 @@ go test ./...
 
 | 日期 | 阶段 | 实际事实 | 验证与结果 |
 |---|---|---|---|
+| 2026-08-10 | P13-03 | 完成最终职责与复杂度精修。Workflow `Stage.Valid` 不再为六种 sealed behavior 复制互斥布尔式，而由 Stage 自己判定唯一 active behavior 与 declared kind 一致；Process Snapshot 的总校验拆回 contract/relation/progress/lifecycle/control 各自 owner；覆盖 child recursion、fan-out、wait、budget 与 termination 的测试 Execution 从一个 141 cognitive/77 cyclomatic 的相位巨函数拆为可命名的状态行为；API/GoDoc 与 Workflow sealed-algebra 架构守卫共用各自唯一生产文件枚举和文件级断言。没有新增接口、package、service object 或公共 helper，也没有改变 exported API、wire/schema、DAG、Strategy/Kernel 边界。最终 production complexity 仅保留 `quiesceTree` 的 tree-membership convergence barrier 与 Planning sealed phase validator 两个完整领域不变量，不拆成第二 scheduler 或分散非法状态矩阵 | `GOWORK=off` build/vet、staticcheck、完整 lint（0 issues）、禁用缓存 race、13 个 fuzz owner（首次并行资源竞争触发一次 harness deadline，隔离重跑五个 Planning target 全部通过）、8 个公开 command examples、tidy-diff 与 diff check 全绿。duplicate scan 为 0；生产 TODO/FIXME/HACK、Host 抽象词、空文件/空目录与跨层依赖残留为 0。P13 3/3 完成 |
 | 2026-08-10 | P13-02 | 继续反证恢复与 child coordination 边界：Process Snapshot 现在要求 `Usage.AcceptedSignals` 与完整 mailbox 到达序互相证明，损坏快照不能通过降低 usage 重置 Signal 配额；含 prepared Step 的快照在计算下一序列前显式拒绝 `uint64` 回绕；waiting-subtree 投影复用资源 owner 的减法式容量判断；一个 child completion 同时满足多个 wait 时，Engine 在进入父 Process mailbox 前按稳定 WaitID 排序，map 遍历顺序不再成为 Process-local 输入。没有修改 exported API、wire shape/schema、package DAG 或 Host 边界 | 新增 accepted-Signal 计数篡改、prepared sequence 极值回绕与 child completion 规范顺序反例；standalone 全量 test 通过，完整 vet/staticcheck/lint/race 与残留扫描随本批提交前门禁执行 |
 | 2026-08-10 | P13-01 | 资源预算的权威校验原本在 `Budget` 内使用安全减法，但 Step prepare、外部/child Signal 接收、即时 child completion 与计数提交仍各自拼接 `used + requested + reserved`。合法快照把计数恢复到 `uint64` 边界附近时会回绕，使父 Process 消费已永久划拨给 child 的预算，或让限制判断错误放行。现以单一逐项扣减校验覆盖 Steps/Effects/Signals/pending mailbox 与 Budget allocation，并让无硬上限的 DroppedDeltas 在表示上限处饱和，保持 Usage 单调；没有修改 exported API、wire、schema、package DAG 或 Host 边界 | 新增极值和真实 Step reservation 回归，旧加法实现会把 `MaxUint64-1 + reserved 1 + next 1` 回绕后继续执行，当前确定以 `engine.limit.steps` 失败。standalone 禁用缓存全量 test、vet、staticcheck 与 diff check 全绿；完整 lint/race 随本批提交前门禁执行 |
 | 2026-08-09 | P12-03 | 完成 Framework/Runtime 双向反证审计：Framework 生产代码没有 Lyra、Run、Segment、Session、Conversation、Workspace、Store、Transaction 或 SQLite 抽象；Runtime 的 Framework import 只存在于 `internal/adapter/agentexec` ACL，Domain/Application/Infra/Delivery 均不持有 Framework 类型或解释策略 payload。最终复杂度复核只剩 `quiesceTree` 的单一 tree-barrier convergence loop 超过阈值，拆分会产生第二 scheduler；deadcode 只见两个供外部消费者使用并由 public baseline 锁定的 listener function adapters。没有修改 public API、wire、schema、package DAG 或 Host 合同 | standalone tidy-diff/build/vet/staticcheck/完整 lint/test/race 全绿；13 个 fuzz owner 本轮约 95 万次执行无失败；8 个公开 command examples 全部实际运行；Runtime standalone 同级门禁、3 个 ACL codec fuzz、contract generator 零漂移及 root workspace build/vet/test 共同通过。tracked 空文件/空目录、生产 TODO/FIXME/HACK、旧 module path、应用抽象和非 ACL import 扫描为零 |
@@ -358,4 +359,4 @@ go test ./...
 
 ## 9. 当前下一步
 
-P1–P12 与真实 Runtime consumer 证明的 Framework 合同均已完成。P13 正在只向 `agent` 模块内部继续反证状态、资源、并发、观察和测试 owner；除非真实消费证明中性 Framework 缺口，否则不修改公共合同，也不得把 Runtime 产品、Store、transaction、Run 或消费者抽象引入 Framework。P13 完整门禁通过后才重新冻结“内部坏味道清零”的当前事实。
+P1–P13 与真实 Runtime consumer 证明的 Framework 合同均已完成。`agent` 当前保持唯一 Kernel lifecycle owner、可替换 Strategy、sealed Workflow algebra 与独立 Platform/OTel adapters；公共合同、wire 和 package DAG 未因内部精修漂移。后续只有新的 Framework 能力证据或真实消费者反例才能重开设计，不得以 Runtime 产品、Store、transaction、Run 或消费者术语污染 Framework。

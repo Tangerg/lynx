@@ -35,59 +35,96 @@ var exportedAPIBaselines = []struct {
 	{name: "platform", label: "platform", directory: "platform", want: "5d2140197e3ac09ebf62a156b308b0327197716888974706c338cd14b9b9b21b"},
 }
 
+var frameworkPackageDirectories = []string{
+	".", "interaction", "planning", "planning/goap", "workflow", "otel", "platform",
+}
+
 func TestExportedContractsAreDocumentedAndNamed(t *testing.T) {
-	directories := []string{".", "interaction", "planning", "planning/goap", "workflow", "otel", "platform"}
-	for _, directory := range directories {
+	for _, path := range frameworkProductionGoFiles(t) {
+		assertExportedContractsInFile(t, path)
+	}
+}
+
+func frameworkProductionGoFiles(t *testing.T) []string {
+	t.Helper()
+	var paths []string
+	for _, directory := range frameworkPackageDirectories {
 		entries, err := os.ReadDir(directory)
 		if err != nil {
 			t.Fatal(err)
 		}
 		for _, entry := range entries {
 			name := entry.Name()
-			if entry.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
-				continue
-			}
-			path := filepath.Join(directory, name)
-			file, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.ParseComments)
-			if err != nil {
-				t.Fatal(err)
-			}
-			for _, declaration := range file.Decls {
-				switch declaration := declaration.(type) {
-				case *ast.FuncDecl:
-					publicReceiver := declaration.Recv == nil || token.IsExported(receiverTypeName(declaration.Recv))
-					if declaration.Name.IsExported() && publicReceiver {
-						assertGoDocStartsWithName(t, path, declaration.Name.Name, declaration.Doc)
-						assertParametersAreNamed(t, path, declaration.Name.Name, declaration.Type.Params)
-					}
-				case *ast.GenDecl:
-					for _, specification := range declaration.Specs {
-						switch specification := specification.(type) {
-						case *ast.TypeSpec:
-							if specification.Name.IsExported() {
-								doc := specification.Doc
-								if doc == nil {
-									doc = declaration.Doc
-								}
-								assertGoDocStartsWithName(t, path, specification.Name.Name, doc)
-								assertExportedTypeContract(t, path, specification)
-							}
-						case *ast.ValueSpec:
-							for _, identifier := range specification.Names {
-								if !identifier.IsExported() {
-									continue
-								}
-								doc := specification.Doc
-								if doc == nil {
-									doc = declaration.Doc
-								}
-								assertGoDocStartsWithName(t, path, identifier.Name, doc)
-							}
-						}
-					}
-				}
+			if !entry.IsDir() && strings.HasSuffix(name, ".go") && !strings.HasSuffix(name, "_test.go") {
+				paths = append(paths, filepath.Join(directory, name))
 			}
 		}
+	}
+	return paths
+}
+
+func assertExportedContractsInFile(t *testing.T, path string) {
+	t.Helper()
+	file, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.ParseComments)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, declaration := range file.Decls {
+		switch declaration := declaration.(type) {
+		case *ast.FuncDecl:
+			assertExportedFunctionContract(t, path, declaration)
+		case *ast.GenDecl:
+			assertExportedGeneralContracts(t, path, declaration)
+		}
+	}
+}
+
+func assertExportedFunctionContract(t *testing.T, path string, declaration *ast.FuncDecl) {
+	t.Helper()
+	publicReceiver := declaration.Recv == nil || token.IsExported(receiverTypeName(declaration.Recv))
+	if !declaration.Name.IsExported() || !publicReceiver {
+		return
+	}
+	assertGoDocStartsWithName(t, path, declaration.Name.Name, declaration.Doc)
+	assertParametersAreNamed(t, path, declaration.Name.Name, declaration.Type.Params)
+}
+
+func assertExportedGeneralContracts(t *testing.T, path string, declaration *ast.GenDecl) {
+	t.Helper()
+	for _, specification := range declaration.Specs {
+		switch specification := specification.(type) {
+		case *ast.TypeSpec:
+			if !specification.Name.IsExported() {
+				continue
+			}
+			doc := specification.Doc
+			if doc == nil {
+				doc = declaration.Doc
+			}
+			assertGoDocStartsWithName(t, path, specification.Name.Name, doc)
+			assertExportedTypeContract(t, path, specification)
+		case *ast.ValueSpec:
+			assertExportedValuesDocumented(t, path, declaration.Doc, specification)
+		}
+	}
+}
+
+func assertExportedValuesDocumented(
+	t *testing.T,
+	path string,
+	declarationDoc *ast.CommentGroup,
+	specification *ast.ValueSpec,
+) {
+	t.Helper()
+	for _, identifier := range specification.Names {
+		if !identifier.IsExported() {
+			continue
+		}
+		doc := specification.Doc
+		if doc == nil {
+			doc = declarationDoc
+		}
+		assertGoDocStartsWithName(t, path, identifier.Name, doc)
 	}
 }
 
@@ -197,39 +234,40 @@ func assertGoDocHasNoUndocumentedCallables(t *testing.T, output []byte) {
 }
 
 func TestErrorCausesAreWrapped(t *testing.T) {
-	directories := []string{".", "interaction", "planning", "planning/goap", "workflow", "otel", "platform"}
-	for _, directory := range directories {
-		entries, err := os.ReadDir(directory)
-		if err != nil {
-			t.Fatal(err)
+	for _, path := range frameworkProductionGoFiles(t) {
+		assertErrorCausesWrappedInFile(t, path)
+	}
+}
+
+func assertErrorCausesWrappedInFile(t *testing.T, path string) {
+	t.Helper()
+	file, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ast.Inspect(file, func(node ast.Node) bool {
+		call, ok := node.(*ast.CallExpr)
+		if !ok || len(call.Args) < 2 || !isFmtErrorf(call.Fun) {
+			return true
 		}
-		for _, entry := range entries {
-			name := entry.Name()
-			if entry.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
-				continue
-			}
-			path := filepath.Join(directory, name)
-			file, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
-			if err != nil {
-				t.Fatal(err)
-			}
-			ast.Inspect(file, func(node ast.Node) bool {
-				call, ok := node.(*ast.CallExpr)
-				if !ok || len(call.Args) < 2 || !isFmtErrorf(call.Fun) {
-					return true
-				}
-				format, ok := stringLiteral(call.Args[0])
-				if !ok || !strings.Contains(format, "%v") {
-					return true
-				}
-				for _, argument := range call.Args[1:] {
-					identifier, ok := argument.(*ast.Ident)
-					if ok && isErrorCauseName(identifier.Name) {
-						t.Errorf("%s: fmt.Errorf formats cause %s with %%v; preserve errors.Is/As with %%w", path, identifier.Name)
-					}
-				}
-				return true
-			})
+		format, ok := stringLiteral(call.Args[0])
+		if !ok || !strings.Contains(format, "%v") {
+			return true
+		}
+		assertErrorArgumentsWrapped(t, path, call.Args[1:])
+		return true
+	})
+}
+
+func assertErrorArgumentsWrapped(t *testing.T, path string, arguments []ast.Expr) {
+	t.Helper()
+	for _, argument := range arguments {
+		identifier, ok := argument.(*ast.Ident)
+		if ok && isErrorCauseName(identifier.Name) {
+			t.Errorf(
+				"%s: fmt.Errorf formats cause %s with %%v; preserve errors.Is/As with %%w",
+				path, identifier.Name,
+			)
 		}
 	}
 }

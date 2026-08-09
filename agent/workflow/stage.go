@@ -154,34 +154,33 @@ func (stage Stage) Valid() bool {
 	if !validStageID(stage.id) || !stage.inputSchema.Valid() || !stage.outputSchema.Valid() {
 		return false
 	}
-	switch stage.kind {
-	case stageKindTransform:
-		return stage.transform != nil && !stage.call.deploymentRef.Valid() &&
-			!stage.call.budget.Valid() && stage.call.capabilities.Valid() &&
-			!stage.switcher.valid() && !stage.fork.valid() && !stage.mapper.valid() && !stage.loop.valid()
-	case stageKindCall:
-		return stage.transform == nil && stage.call.deploymentRef.Valid() &&
-			stage.call.budget.Valid() && stage.call.capabilities.Valid() &&
-			!stage.switcher.valid() && !stage.fork.valid() && !stage.mapper.valid() && !stage.loop.valid()
-	case stageKindSwitch:
-		return stage.transform == nil && !stage.call.deploymentRef.Valid() &&
-			!stage.call.budget.Valid() && stage.call.capabilities.Valid() &&
-			stage.switcher.valid() && !stage.fork.valid() && !stage.mapper.valid() && !stage.loop.valid()
-	case stageKindFork:
-		return stage.transform == nil && !stage.call.deploymentRef.Valid() &&
-			!stage.call.budget.Valid() && stage.call.capabilities.Valid() &&
-			!stage.switcher.valid() && stage.fork.valid() && !stage.mapper.valid() && !stage.loop.valid()
-	case stageKindMap:
-		return stage.transform == nil && !stage.call.deploymentRef.Valid() &&
-			!stage.call.budget.Valid() && stage.call.capabilities.Valid() &&
-			!stage.switcher.valid() && !stage.fork.valid() && stage.mapper.valid() && !stage.loop.valid()
-	case stageKindLoop:
-		return stage.transform == nil && !stage.call.deploymentRef.Valid() &&
-			!stage.call.budget.Valid() && stage.call.capabilities.Valid() &&
-			!stage.switcher.valid() && !stage.fork.valid() && !stage.mapper.valid() && stage.loop.valid()
-	default:
-		return false
+	behaviorKind, exclusivelyOwned := stage.behaviorKind()
+	return exclusivelyOwned && behaviorKind == stage.kind
+}
+
+func (stage Stage) behaviorKind() (stageKind, bool) {
+	behaviors := [...]struct {
+		kind   stageKind
+		active bool
+	}{
+		{kind: stageKindTransform, active: stage.transform != nil},
+		{kind: stageKindCall, active: stage.call.valid()},
+		{kind: stageKindSwitch, active: stage.switcher.valid()},
+		{kind: stageKindFork, active: stage.fork.valid()},
+		{kind: stageKindMap, active: stage.mapper.valid()},
+		{kind: stageKindLoop, active: stage.loop.valid()},
 	}
+	selected := stageKindInvalid
+	for _, behavior := range behaviors {
+		if !behavior.active {
+			continue
+		}
+		if selected != stageKindInvalid {
+			return stageKindInvalid, false
+		}
+		selected = behavior.kind
+	}
+	return selected, selected != stageKindInvalid
 }
 
 func (stage Stage) accepts(schema agent.Schema) bool {

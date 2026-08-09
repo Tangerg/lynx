@@ -687,260 +687,319 @@ type childTestExecution struct {
 func (execution *childTestExecution) Step(_ context.Context, signals []Signal) (Transition, error) {
 	switch execution.state.Phase {
 	case "ready":
-		if execution.state.Mode == "leaf" || execution.state.Mode == "recurse:0" ||
-			execution.state.Mode == "binary:0" {
-			execution.state.Phase = "done"
-			output, _ := EncodeOutput(childTestOutput{})
-			return Complete(0, output)
+		return execution.start()
+	case "started":
+		return execution.acceptChildStarts(signals)
+	case "wait_opened":
+		return execution.acceptChildWait(signals)
+	case "waiting":
+		return execution.completeChildren(signals, uint32(len(signals)))
+	case "external_wait_opened":
+		return execution.acceptExternalWait(signals)
+	case "external_waiting":
+		return execution.completeAfterSignal(signals, "external wait response is required")
+	case "leaf_effect":
+		return execution.completeAfterSignal(signals, "leaf Effect settlement is required")
+	case "leaf_paused":
+		return execution.completeEmpty(0)
+	default:
+		return Transition{}, errors.New("child test execution cannot advance")
+	}
+}
+
+func (execution *childTestExecution) start() (Transition, error) {
+	mode := execution.state.Mode
+	switch {
+	case mode == "leaf" || mode == "recurse:0" || mode == "binary:0":
+		return execution.completeEmpty(0)
+	case mode == "leaf_pause":
+		execution.state.Phase = "leaf_paused"
+		return Pause(0, "child paused for tree capture")
+	case mode == "leaf_fail":
+		execution.state.Phase = "done"
+		failure, _ := NewFailure(FailureKindExecution, "test.leaf.failed", "leaf failed as requested")
+		return Fail(0, failure)
+	case mode == "external_wait":
+		return execution.openExternalWait()
+	case strings.HasPrefix(mode, "leaf:"):
+		return execution.startLeafEffect()
+	}
+	execution.state.Phase = "started"
+	switch {
+	case strings.HasPrefix(mode, "wait:"):
+		return execution.startWaitChildren()
+	case strings.HasPrefix(mode, "binary:"):
+		return execution.startBinaryChildren()
+	case mode == "fanout" || mode == "fanout_blocking":
+		return execution.startFanoutChildren()
+	default:
+		return execution.startSingleChild()
+	}
+}
+
+func (execution *childTestExecution) openExternalWait() (Transition, error) {
+	execution.state.Phase = "external_wait_opened"
+	key, _ := ParseWaitKey("external_input")
+	effect, err := RequestWait(key, json.RawMessage(`{"kind":"external_input"}`))
+	if err != nil {
+		return Transition{}, err
+	}
+	return Continue(0, effect)
+}
+
+func (execution *childTestExecution) startLeafEffect() (Transition, error) {
+	payload, _ := json.Marshal(struct {
+		Name string `json:"name"`
+	}{Name: strings.TrimPrefix(execution.state.Mode, "leaf:")})
+	effect, err := NewDispatcherEffect(payload)
+	if err != nil {
+		return Transition{}, err
+	}
+	execution.state.Phase = "leaf_effect"
+	return Continue(0, effect)
+}
+
+func (execution *childTestExecution) startWaitChildren() (Transition, error) {
+	names := []string{"first", "second", "third"}
+	switch execution.state.Mode {
+	case "wait:subtree":
+		names = []string{"target"}
+	case "wait:subtree_all":
+		names = []string{"target", "sibling"}
+	}
+	effects := make([]Effect, 0, len(names))
+	for _, name := range names {
+		effect, err := execution.childEffect(name, execution.waitChildMode(name))
+		if err != nil {
+			return Transition{}, err
 		}
-		if execution.state.Mode == "leaf_pause" {
-			execution.state.Phase = "leaf_paused"
-			return Pause(0, "child paused for tree capture")
+		effects = append(effects, effect)
+	}
+	return Continue(0, effects...)
+}
+
+func (execution *childTestExecution) waitChildMode(name string) string {
+	switch execution.state.Mode {
+	case "wait:subtree":
+		return "nested_wait"
+	case "wait:subtree_all":
+		if name == "target" {
+			return "nested_wait"
 		}
-		if execution.state.Mode == "leaf_fail" {
-			execution.state.Phase = "done"
-			failure, _ := NewFailure(FailureKindExecution, "test.leaf.failed", "leaf failed as requested")
-			return Fail(0, failure)
+		return "leaf_pause"
+	case "wait:paused":
+		return "leaf_pause"
+	case "wait:failure":
+		if name == "first" {
+			return "leaf_fail"
 		}
-		if execution.state.Mode == "external_wait" {
-			execution.state.Phase = "external_wait_opened"
-			key, _ := ParseWaitKey("external_input")
-			effect, err := RequestWait(key, json.RawMessage(`{"kind":"external_input"}`))
-			if err != nil {
-				return Transition{}, err
-			}
-			return Continue(0, effect)
-		}
-		if strings.HasPrefix(execution.state.Mode, "leaf:") {
-			payload, _ := json.Marshal(struct {
-				Name string `json:"name"`
-			}{Name: strings.TrimPrefix(execution.state.Mode, "leaf:")})
-			effect, err := NewDispatcherEffect(payload)
-			if err != nil {
-				return Transition{}, err
-			}
-			execution.state.Phase = "leaf_effect"
-			return Continue(0, effect)
-		}
-		execution.state.Phase = "started"
-		if strings.HasPrefix(execution.state.Mode, "wait:") {
-			var effects []Effect
-			names := []string{"first", "second", "third"}
-			switch execution.state.Mode {
-			case "wait:subtree":
-				names = []string{"target"}
-			case "wait:subtree_all":
-				names = []string{"target", "sibling"}
-			}
-			for _, name := range names {
-				mode := "leaf:" + name
-				if execution.state.Mode == "wait:subtree_all" && name == "sibling" {
-					mode = "leaf_pause"
-				}
-				if execution.state.Mode == "wait:paused" {
-					mode = "leaf_pause"
-				}
-				if execution.state.Mode == "wait:failure" {
-					mode = "leaf"
-					if name == "first" {
-						mode = "leaf_fail"
-					}
-				}
-				if (execution.state.Mode == "wait:subtree" || execution.state.Mode == "wait:subtree_all") &&
-					name == "target" {
-					mode = "nested_wait"
-				}
-				childInput, _ := EncodeInput(childTestInput{Mode: mode})
-				key, _ := ParseChildKey(name)
-				effect, err := StartChild(childTestSpec(key, execution.reference, childInput))
-				if err != nil {
-					return Transition{}, err
-				}
-				effects = append(effects, effect)
-			}
-			return Continue(0, effects...)
-		}
-		if strings.HasPrefix(execution.state.Mode, "binary:") {
-			depth, err := strconv.Atoi(strings.TrimPrefix(execution.state.Mode, "binary:"))
-			if err != nil || depth <= 0 || depth > 16 {
-				return Transition{}, errors.New("invalid binary child depth")
-			}
-			var effects []Effect
-			for _, name := range []string{"left", "right"} {
-				childInput, _ := EncodeInput(childTestInput{Mode: fmt.Sprintf("binary:%d", depth-1)})
-				key, _ := ParseChildKey(name)
-				spec := childTestSpec(key, execution.reference, childInput)
-				units := uint64(20*(1<<uint(depth-1)) - 10)
-				spec.Budget, _ = NewBudget(units, units, units)
-				effect, err := StartChild(spec)
-				if err != nil {
-					return Transition{}, err
-				}
-				effects = append(effects, effect)
-			}
-			return Continue(0, effects...)
-		}
-		if execution.state.Mode == "fanout" || execution.state.Mode == "fanout_blocking" {
-			var effects []Effect
-			for _, name := range []string{"first", "second", "third"} {
-				mode := "leaf"
-				if execution.state.Mode == "fanout_blocking" {
-					mode = "leaf:" + name
-				}
-				childInput, _ := EncodeInput(childTestInput{Mode: mode})
-				key, _ := ParseChildKey(name)
-				effect, err := StartChild(childTestSpec(key, execution.reference, childInput))
-				if err != nil {
-					return Transition{}, err
-				}
-				effects = append(effects, effect)
-			}
-			return Continue(0, effects...)
-		}
-		childMode := "leaf"
-		recursiveDepth := 0
-		if strings.HasPrefix(execution.state.Mode, "recurse:") {
-			depth, err := strconv.Atoi(strings.TrimPrefix(execution.state.Mode, "recurse:"))
-			if err != nil || depth <= 0 {
-				return Transition{}, errors.New("invalid recursive child depth")
-			}
-			recursiveDepth = depth
-			childMode = fmt.Sprintf("recurse:%d", depth-1)
-		}
-		if execution.state.Mode == "nested_wait" {
-			childMode = "external_wait"
-		}
-		childInput, _ := EncodeInput(childTestInput{Mode: childMode})
-		key, _ := ParseChildKey("worker")
+		return "leaf"
+	default:
+		return "leaf:" + name
+	}
+}
+
+func (execution *childTestExecution) childEffect(name, mode string) (Effect, error) {
+	childInput, _ := EncodeInput(childTestInput{Mode: mode})
+	key, _ := ParseChildKey(name)
+	return StartChild(childTestSpec(key, execution.reference, childInput))
+}
+
+func (execution *childTestExecution) startBinaryChildren() (Transition, error) {
+	depth, err := strconv.Atoi(strings.TrimPrefix(execution.state.Mode, "binary:"))
+	if err != nil || depth <= 0 || depth > 16 {
+		return Transition{}, errors.New("invalid binary child depth")
+	}
+	units := uint64(20*(1<<uint(depth-1)) - 10)
+	effects := make([]Effect, 0, 2)
+	for _, name := range []string{"left", "right"} {
+		childInput, _ := EncodeInput(childTestInput{Mode: fmt.Sprintf("binary:%d", depth-1)})
+		key, _ := ParseChildKey(name)
 		spec := childTestSpec(key, execution.reference, childInput)
-		if execution.state.Mode == "nested_wait" {
-			spec.Budget, _ = NewBudget(5, 5, 5)
-		}
-		if recursiveDepth > 0 {
-			units := uint64(recursiveDepth * 50)
-			spec.Budget, _ = NewBudget(units, units, units)
-		}
-		switch execution.state.Mode {
-		case "capability_child":
-			capability, _ := ParseCapability("resource.read")
-			spec.Capabilities, _ = NewCapabilitySet(capability)
-		case "capability_escalation":
-			capability, _ := ParseCapability("resource.write")
-			spec.Capabilities, _ = NewCapabilitySet(capability)
-		case "budget_escalation":
-			spec.Budget, _ = NewBudget(20_000, 20_000, 20_000)
-		}
+		spec.Budget, _ = NewBudget(units, units, units)
 		effect, err := StartChild(spec)
 		if err != nil {
 			return Transition{}, err
 		}
-		if execution.state.Mode == "duplicate" {
-			return Continue(0, effect, effect)
-		}
-		return Continue(0, effect)
-	case "started":
-		if len(signals) == 0 {
-			return Transition{}, errors.New("child start results are required")
-		}
-		output := childTestOutput{}
-		for _, signal := range signals {
-			result, err := ParseChildStartResult(signal)
-			if err != nil {
-				return Transition{}, err
-			}
-			if childID, started := result.ProcessID(); started {
-				output.ChildIDs = append(output.ChildIDs, childID.String())
-			} else if failure, failed := result.Failure(); failed {
-				output.Failures++
-				output.FailureCodes = append(output.FailureCodes, failure.Code())
-			}
-		}
-		needsChildWait := len(output.ChildIDs) > 0 && (strings.HasPrefix(execution.state.Mode, "wait:") ||
-			strings.HasPrefix(execution.state.Mode, "recurse:") ||
-			strings.HasPrefix(execution.state.Mode, "binary:") || execution.state.Mode == "nested_wait")
-		if !needsChildWait {
-			execution.state.Phase = "done"
-			erased, _ := EncodeOutput(output)
-			return Complete(uint32(len(signals)), erased)
-		}
-		execution.state.ChildIDs = slices.Clone(output.ChildIDs)
-		children := make([]ProcessID, len(output.ChildIDs))
-		for index, encoded := range output.ChildIDs {
-			children[index], _ = ParseProcessID(encoded)
-		}
-		condition := AllChildren()
-		switch execution.state.Mode {
-		case "wait:any":
-			condition = AnyChild()
-		case "wait:quorum":
-			condition, _ = ChildQuorum(2)
-		}
-		key, _ := ParseWaitKey("children")
-		effect, err := WaitForChildren(ChildWaitSpec{Key: key, Children: children, Condition: condition})
-		if err != nil {
-			return Transition{}, err
-		}
-		execution.state.Phase = "wait_opened"
-		return Continue(uint32(len(signals)), effect)
-	case "wait_opened":
-		if len(signals) == 0 {
-			return Transition{}, errors.New("child wait-opened Signal is required")
-		}
-		opened, err := ParseChildWaitOpened(signals[0])
-		if err != nil {
-			return Transition{}, err
-		}
-		openedSpec := opened.Spec()
-		if len(openedSpec.Children) != len(execution.state.ChildIDs) {
-			return Transition{}, errors.New("child wait acknowledgement changed the requested children")
-		}
-		if len(openedSpec.Children) > 0 {
-			original := openedSpec.Children[0]
-			openedSpec.Children[0] = ProcessID{}
-			if opened.Spec().Children[0] != original {
-				return Transition{}, errors.New("child wait acknowledgement exposed mutable children")
-			}
-		}
-		execution.state.WaitID = opened.WaitID().String()
-		if len(signals) > 1 {
-			return execution.completeChildren(signals, uint32(len(signals)))
-		}
-		execution.state.Phase = "waiting"
-		return Wait(1, opened.WaitID())
-	case "waiting":
-		return execution.completeChildren(signals, uint32(len(signals)))
-	case "external_wait_opened":
-		if len(signals) != 1 {
-			return Transition{}, errors.New("external wait-opened Signal is required")
-		}
-		waitID, addressed := signals[0].WaitID()
-		if !addressed {
-			return Transition{}, errors.New("external wait-opened Signal has no WaitID")
-		}
-		execution.state.WaitID = waitID.String()
-		execution.state.Phase = "external_waiting"
-		return Wait(1, waitID)
-	case "external_waiting":
-		if len(signals) != 1 {
-			return Transition{}, errors.New("external wait response is required")
-		}
-		execution.state.Phase = "done"
-		output, _ := EncodeOutput(childTestOutput{})
-		return Complete(1, output)
-	case "leaf_effect":
-		if len(signals) != 1 {
-			return Transition{}, errors.New("leaf Effect settlement is required")
-		}
-		execution.state.Phase = "done"
-		output, _ := EncodeOutput(childTestOutput{})
-		return Complete(1, output)
-	case "leaf_paused":
-		execution.state.Phase = "done"
-		output, _ := EncodeOutput(childTestOutput{})
-		return Complete(0, output)
-	default:
-		return Transition{}, errors.New("child test execution cannot advance")
+		effects = append(effects, effect)
 	}
+	return Continue(0, effects...)
+}
+
+func (execution *childTestExecution) startFanoutChildren() (Transition, error) {
+	effects := make([]Effect, 0, 3)
+	for _, name := range []string{"first", "second", "third"} {
+		mode := "leaf"
+		if execution.state.Mode == "fanout_blocking" {
+			mode = "leaf:" + name
+		}
+		effect, err := execution.childEffect(name, mode)
+		if err != nil {
+			return Transition{}, err
+		}
+		effects = append(effects, effect)
+	}
+	return Continue(0, effects...)
+}
+
+func (execution *childTestExecution) startSingleChild() (Transition, error) {
+	childMode := "leaf"
+	recursiveDepth := 0
+	if strings.HasPrefix(execution.state.Mode, "recurse:") {
+		depth, err := strconv.Atoi(strings.TrimPrefix(execution.state.Mode, "recurse:"))
+		if err != nil || depth <= 0 {
+			return Transition{}, errors.New("invalid recursive child depth")
+		}
+		recursiveDepth = depth
+		childMode = fmt.Sprintf("recurse:%d", depth-1)
+	}
+	if execution.state.Mode == "nested_wait" {
+		childMode = "external_wait"
+	}
+	childInput, _ := EncodeInput(childTestInput{Mode: childMode})
+	key, _ := ParseChildKey("worker")
+	spec := childTestSpec(key, execution.reference, childInput)
+	execution.configureSingleChild(&spec, recursiveDepth)
+	effect, err := StartChild(spec)
+	if err != nil {
+		return Transition{}, err
+	}
+	if execution.state.Mode == "duplicate" {
+		return Continue(0, effect, effect)
+	}
+	return Continue(0, effect)
+}
+
+func (execution *childTestExecution) configureSingleChild(spec *ChildSpec, recursiveDepth int) {
+	if execution.state.Mode == "nested_wait" {
+		spec.Budget, _ = NewBudget(5, 5, 5)
+	}
+	if recursiveDepth > 0 {
+		units := uint64(recursiveDepth * 50)
+		spec.Budget, _ = NewBudget(units, units, units)
+	}
+	switch execution.state.Mode {
+	case "capability_child":
+		capability, _ := ParseCapability("resource.read")
+		spec.Capabilities, _ = NewCapabilitySet(capability)
+	case "capability_escalation":
+		capability, _ := ParseCapability("resource.write")
+		spec.Capabilities, _ = NewCapabilitySet(capability)
+	case "budget_escalation":
+		spec.Budget, _ = NewBudget(20_000, 20_000, 20_000)
+	}
+}
+
+func (execution *childTestExecution) acceptChildStarts(signals []Signal) (Transition, error) {
+	if len(signals) == 0 {
+		return Transition{}, errors.New("child start results are required")
+	}
+	output := childTestOutput{}
+	for _, signal := range signals {
+		result, err := ParseChildStartResult(signal)
+		if err != nil {
+			return Transition{}, err
+		}
+		if childID, started := result.ProcessID(); started {
+			output.ChildIDs = append(output.ChildIDs, childID.String())
+		} else if failure, failed := result.Failure(); failed {
+			output.Failures++
+			output.FailureCodes = append(output.FailureCodes, failure.Code())
+		}
+	}
+	if len(output.ChildIDs) == 0 || !execution.requiresChildWait() {
+		execution.state.Phase = "done"
+		erased, _ := EncodeOutput(output)
+		return Complete(uint32(len(signals)), erased)
+	}
+	return execution.openChildWait(signals, output.ChildIDs)
+}
+
+func (execution *childTestExecution) requiresChildWait() bool {
+	mode := execution.state.Mode
+	return strings.HasPrefix(mode, "wait:") || strings.HasPrefix(mode, "recurse:") ||
+		strings.HasPrefix(mode, "binary:") || mode == "nested_wait"
+}
+
+func (execution *childTestExecution) openChildWait(
+	signals []Signal,
+	childIDs []string,
+) (Transition, error) {
+	execution.state.ChildIDs = slices.Clone(childIDs)
+	children := make([]ProcessID, len(childIDs))
+	for index, encoded := range childIDs {
+		children[index], _ = ParseProcessID(encoded)
+	}
+	condition := AllChildren()
+	switch execution.state.Mode {
+	case "wait:any":
+		condition = AnyChild()
+	case "wait:quorum":
+		condition, _ = ChildQuorum(2)
+	}
+	key, _ := ParseWaitKey("children")
+	effect, err := WaitForChildren(ChildWaitSpec{Key: key, Children: children, Condition: condition})
+	if err != nil {
+		return Transition{}, err
+	}
+	execution.state.Phase = "wait_opened"
+	return Continue(uint32(len(signals)), effect)
+}
+
+func (execution *childTestExecution) acceptChildWait(signals []Signal) (Transition, error) {
+	if len(signals) == 0 {
+		return Transition{}, errors.New("child wait-opened Signal is required")
+	}
+	opened, err := ParseChildWaitOpened(signals[0])
+	if err != nil {
+		return Transition{}, err
+	}
+	openedSpec := opened.Spec()
+	if len(openedSpec.Children) != len(execution.state.ChildIDs) {
+		return Transition{}, errors.New("child wait acknowledgement changed the requested children")
+	}
+	if len(openedSpec.Children) > 0 {
+		original := openedSpec.Children[0]
+		openedSpec.Children[0] = ProcessID{}
+		if opened.Spec().Children[0] != original {
+			return Transition{}, errors.New("child wait acknowledgement exposed mutable children")
+		}
+	}
+	execution.state.WaitID = opened.WaitID().String()
+	if len(signals) > 1 {
+		return execution.completeChildren(signals, uint32(len(signals)))
+	}
+	execution.state.Phase = "waiting"
+	return Wait(1, opened.WaitID())
+}
+
+func (execution *childTestExecution) acceptExternalWait(signals []Signal) (Transition, error) {
+	if len(signals) != 1 {
+		return Transition{}, errors.New("external wait-opened Signal is required")
+	}
+	waitID, addressed := signals[0].WaitID()
+	if !addressed {
+		return Transition{}, errors.New("external wait-opened Signal has no WaitID")
+	}
+	execution.state.WaitID = waitID.String()
+	execution.state.Phase = "external_waiting"
+	return Wait(1, waitID)
+}
+
+func (execution *childTestExecution) completeAfterSignal(
+	signals []Signal,
+	missingSignalError string,
+) (Transition, error) {
+	if len(signals) != 1 {
+		return Transition{}, errors.New(missingSignalError)
+	}
+	return execution.completeEmpty(1)
+}
+
+func (execution *childTestExecution) completeEmpty(consumedSignals uint32) (Transition, error) {
+	execution.state.Phase = "done"
+	output, _ := EncodeOutput(childTestOutput{})
+	return Complete(consumedSignals, output)
 }
 
 func (execution *childTestExecution) completeChildren(signals []Signal, consumedSignals uint32) (Transition, error) {
