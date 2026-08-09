@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"syscall"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -91,12 +92,20 @@ func follow(ctx context.Context, rt client.Runtime, out renderer, start client.S
 	var runID atomic.Pointer[string]
 	ctx, stopSignals := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
 	defer stopSignals()
+	finished := make(chan struct{})
+	defer close(finished)
 	go func() {
-		<-ctx.Done()
-		if id := runID.Load(); id != nil {
-			// Detached from ctx on purpose: canceling a run is a request that
-			// must outlive the signal that asked for it.
-			_ = rt.CancelRun(context.WithoutCancel(ctx), *id)
+		select {
+		case <-finished:
+			return
+		case <-ctx.Done():
+			if id := runID.Load(); id != nil {
+				// Detached from the signal but bounded, so the cancellation request
+				// can finish without leaving a goroutine behind indefinitely.
+				cancelCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+				defer cancel()
+				_ = rt.CancelRun(cancelCtx, *id)
+			}
 		}
 	}()
 

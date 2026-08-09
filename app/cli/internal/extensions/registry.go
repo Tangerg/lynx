@@ -1,0 +1,268 @@
+// Package extensions provides the application's typed extension substrate.
+//
+// A point is a typed address, a registry owns contributions, and a plugin owns
+// every contribution it installs. The registry is deliberately independent of
+// Cobra, oolong, and the runtime so each outer adapter can expose only the
+// extension points it actually consumes.
+package extensions
+
+import (
+	"cmp"
+	"errors"
+	"fmt"
+	"reflect"
+	"slices"
+	"strings"
+	"sync"
+)
+
+// Keying says whether a point has one contribution per stable key or permits
+// multiple independent contributions.
+type Keying uint8
+
+const (
+	Keyed Keying = iota
+	Multi
+)
+
+// Point is a typed handle shared by contributors and consumers. It holds no
+// state; Registry is the single source of truth.
+type Point[T any] struct {
+	id     string
+	keying Keying
+	keyOf  func(T) string
+}
+
+// NewKeyedPoint defines a point with one contribution per non-empty key.
+func NewKeyedPoint[T any](id string, keyOf func(T) string) Point[T] {
+	return Point[T]{id: id, keying: Keyed, keyOf: keyOf}
+}
+
+// NewMultiPoint defines a point where every contribution coexists.
+func NewMultiPoint[T any](id string) Point[T] {
+	return Point[T]{id: id, keying: Multi}
+}
+
+// ID is the stable name of a point.
+func (p Point[T]) ID() string { return p.id }
+
+// Registry stores all contributions. Its zero value is ready and safe for
+// concurrent setup, lookup, and disposal.
+type Registry struct {
+	mu      sync.RWMutex
+	points  map[string]pointState
+	plugins map[string]uint64
+	next    uint64
+}
+
+type pointState struct {
+	typeOf  reflect.Type
+	keying  Keying
+	entries map[string]entry
+}
+
+type entry struct {
+	plugin string
+	order  int
+	seq    uint64
+	value  any
+}
+
+// Contribution configures one registration.
+type Contribution struct {
+	// Key is required only when a keyed point has no keyOf function.
+	Key string
+	// Order sorts lower values first; registration order breaks ties.
+	Order int
+}
+
+// Disposable releases an owned registration. Dispose is idempotent.
+type Disposable interface {
+	Dispose()
+}
+
+type disposal struct {
+	once sync.Once
+	do   func()
+}
+
+func (d *disposal) Dispose() {
+	if d == nil {
+		return
+	}
+	d.once.Do(d.do)
+}
+
+// Scope is the capability a plugin receives during setup. It owns every
+// disposable created through Contribute, enabling exact rollback and unload.
+type Scope struct {
+	plugin      string
+	registry    *Registry
+	disposables []Disposable
+}
+
+// Plugin is one cohesive set of contributions.
+type Plugin struct {
+	ID    string
+	Setup func(*Scope) error
+}
+
+// Loaded is a successfully initialized plugin. Dispose unloads it in reverse
+// registration order.
+type Loaded struct {
+	once        sync.Once
+	disposables []Disposable
+}
+
+// Dispose unloads a plugin. A bad cleanup cannot prevent the remaining owned
+// contributions from being released because disposal itself has no error path.
+func (l *Loaded) Dispose() {
+	if l == nil {
+		return
+	}
+	l.once.Do(func() {
+		for i := len(l.disposables) - 1; i >= 0; i-- {
+			l.disposables[i].Dispose()
+		}
+	})
+}
+
+// Load validates and initializes one plugin. Setup is transactional: a failure
+// rolls back everything contributed before the error.
+func Load(registry *Registry, plugin Plugin) (*Loaded, error) {
+	if registry == nil {
+		return nil, errors.New("extensions: registry is required")
+	}
+	if strings.TrimSpace(plugin.ID) == "" {
+		return nil, errors.New("extensions: plugin id is required")
+	}
+	if plugin.Setup == nil {
+		return nil, fmt.Errorf("extensions: plugin %q has no setup", plugin.ID)
+	}
+	release, err := registry.claim(plugin.ID)
+	if err != nil {
+		return nil, err
+	}
+	scope := &Scope{plugin: plugin.ID, registry: registry, disposables: []Disposable{release}}
+	if err := plugin.Setup(scope); err != nil {
+		loaded := &Loaded{disposables: scope.disposables}
+		loaded.Dispose()
+		return nil, fmt.Errorf("load plugin %q: %w", plugin.ID, err)
+	}
+	return &Loaded{disposables: scope.disposables}, nil
+}
+
+func (r *Registry) claim(plugin string) (Disposable, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.plugins == nil {
+		r.plugins = make(map[string]uint64)
+	}
+	if _, exists := r.plugins[plugin]; exists {
+		return nil, fmt.Errorf("extensions: plugin %q is already loaded", plugin)
+	}
+	r.next++
+	token := r.next
+	r.plugins[plugin] = token
+	return &disposal{do: func() {
+		r.mu.Lock()
+		defer r.mu.Unlock()
+		if r.plugins[plugin] == token {
+			delete(r.plugins, plugin)
+		}
+	}}, nil
+}
+
+// Contribute adds a value to a point and makes its lifetime belong to scope.
+func Contribute[T any](scope *Scope, point Point[T], value T, options Contribution) (Disposable, error) {
+	if scope == nil || scope.registry == nil {
+		return nil, errors.New("extensions: plugin scope is required")
+	}
+	if strings.TrimSpace(point.id) == "" {
+		return nil, errors.New("extensions: point id is required")
+	}
+
+	key := strings.TrimSpace(options.Key)
+	if point.keying == Keyed && key == "" && point.keyOf != nil {
+		key = strings.TrimSpace(point.keyOf(value))
+	}
+	if point.keying == Keyed && key == "" {
+		return nil, fmt.Errorf("extensions: keyed point %q requires a stable key", point.id)
+	}
+
+	r := scope.registry
+	r.mu.Lock()
+	if r.points == nil {
+		r.points = make(map[string]pointState)
+	}
+	wantType := reflect.TypeFor[T]()
+	state, exists := r.points[point.id]
+	if exists && (state.typeOf != wantType || state.keying != point.keying) {
+		r.mu.Unlock()
+		return nil, fmt.Errorf("extensions: point %q was defined with an incompatible type or keying", point.id)
+	}
+	if !exists {
+		state = pointState{typeOf: wantType, keying: point.keying, entries: make(map[string]entry)}
+	}
+	r.next++
+	sequence := r.next
+	if point.keying == Multi {
+		key = fmt.Sprintf("%s:%d", scope.plugin, sequence)
+	}
+	if previous, duplicate := state.entries[key]; duplicate {
+		r.mu.Unlock()
+		return nil, fmt.Errorf("extensions: plugin %q cannot contribute key %q to point %q; owned by %q",
+			scope.plugin, key, point.id, previous.plugin)
+	}
+	state.entries[key] = entry{plugin: scope.plugin, order: options.Order, seq: sequence, value: value}
+	r.points[point.id] = state
+	r.mu.Unlock()
+
+	d := &disposal{do: func() {
+		r.mu.Lock()
+		defer r.mu.Unlock()
+		state, ok := r.points[point.id]
+		if !ok {
+			return
+		}
+		current, ok := state.entries[key]
+		if !ok || current.seq != sequence {
+			return
+		}
+		delete(state.entries, key)
+		r.points[point.id] = state
+	}}
+	scope.disposables = append(scope.disposables, d)
+	return d, nil
+}
+
+// Values returns a typed, stable snapshot ordered by Contribution.Order and
+// then by registration order.
+func Values[T any](registry *Registry, point Point[T]) []T {
+	if registry == nil {
+		return nil
+	}
+	registry.mu.RLock()
+	state, ok := registry.points[point.id]
+	if !ok || state.typeOf != reflect.TypeFor[T]() || state.keying != point.keying {
+		registry.mu.RUnlock()
+		return nil
+	}
+	entries := make([]entry, 0, len(state.entries))
+	for _, item := range state.entries {
+		entries = append(entries, item)
+	}
+	registry.mu.RUnlock()
+
+	slices.SortStableFunc(entries, func(a, b entry) int {
+		if order := cmp.Compare(a.order, b.order); order != 0 {
+			return order
+		}
+		return cmp.Compare(a.seq, b.seq)
+	})
+	out := make([]T, 0, len(entries))
+	for _, item := range entries {
+		out = append(out, item.value.(T))
+	}
+	return out
+}

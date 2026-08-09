@@ -26,12 +26,10 @@ var layers = []struct {
 	prefix string
 	name   string
 }{
-	{"internal/ui/store/", "store"},
-	{"internal/ui/parts/", "parts"},
-	{"internal/ui/views/", "views"},
-	{"internal/ui/session/", "session"},
-	{"internal/ui/", "ui"},
+	{"internal/client/mock/", "mock"},
+	{"internal/ui/session/", "terminal"},
 	{"internal/client/", "client"},
+	{"internal/extensions/", "extensions"},
 	{"internal/render/", "render"},
 	{"internal/cmd/", "cmd"},
 	{"internal/arch/", "arch"},
@@ -39,31 +37,26 @@ var layers = []struct {
 
 // forbidden is, for each layer, the layers it may never import.
 var forbidden = map[string][]string{
-	// The fold from a run's events into what a screen shows. It knows the data and
-	// nothing about how it looks.
-	"store": {"parts", "views", "session", "cmd", "render"},
+	// The domain model and consumer-owned runtime ports are the center. They know no
+	// adapter, registry, renderer, or composition root.
+	"client": {"mock", "extensions", "terminal", "render", "cmd"},
 
-	// Widgets that mean something here — a transcript, an approval prompt. They read the
-	// view models; they do not arrange screens or fetch anything.
-	"parts": {"views", "session", "cmd", "render"},
+	// The generic plugin substrate is policy-free and reusable by every outer ring.
+	"extensions": {"client", "mock", "terminal", "render", "cmd"},
 
-	// Screens: a layout, and who gets the keyboard.
-	"views": {"session", "cmd", "render"},
+	// Today's fake runtime is an outbound adapter. It may implement the client ports
+	// but must not reach sideways into another delivery adapter.
+	"mock": {"extensions", "terminal", "render", "cmd"},
 
-	// The seam between the library and this program: it turns what the user does into
-	// calls, and what the runtime says into what the screen shows. The only layer here
-	// that owns a goroutine.
-	"session": {"cmd", "render"},
-
-	// Where the data comes from. Consumed by the interface and by the headless
-	// renderers, and knows about neither.
-	"client": {"ui", "store", "parts", "views", "session", "render", "cmd"},
+	// The interactive terminal adapter coordinates domain events and extensions.
+	// Command routing is the composition root above it; headless rendering is a peer.
+	"terminal": {"mock", "render", "cmd"},
 
 	// The headless renderers. They share the client with the interface and nothing else:
 	// both turn events into bytes, but one is a contract for a pipe and the other an
 	// interface for a person, and they change for different reasons. Merging them would
 	// be a false economy.
-	"render": {"ui", "store", "parts", "views", "session", "cmd"},
+	"render": {"mock", "extensions", "terminal", "cmd"},
 }
 
 func TestLayeringHoldsInTheImports(t *testing.T) {
@@ -108,7 +101,7 @@ func TestTheLibraryStaysALibrary(t *testing.T) {
 	root := moduleRoot(t)
 	fset := token.NewFileSet()
 
-	terminalFree := []string{"client", "render"}
+	terminalFree := []string{"client", "mock", "extensions", "render"}
 	walk(t, root, func(dir, path string) {
 		layer := layerOf(dir)
 		if !slices.Contains(terminalFree, layer) {
@@ -130,17 +123,16 @@ func TestTheRulesWouldActuallyRefuseSomething(t *testing.T) {
 		from, to string
 		refused  bool
 	}{
-		{"internal/ui/parts/x", "internal/ui/views/x", true},
-		{"internal/ui/store", "internal/ui/parts/x", true},
-		{"internal/ui/views/x", "internal/ui/session", true},
-		{"internal/client", "internal/ui/views/x", true},
-		{"internal/render", "internal/ui/parts/x", true},
+		{"internal/client", "internal/client/mock", true},
+		{"internal/client", "internal/ui/session", true},
+		{"internal/extensions", "internal/client", true},
+		{"internal/client/mock", "internal/render", true},
+		{"internal/render", "internal/ui/session", true},
 		{"internal/ui/session", "internal/cmd", true},
 
-		{"internal/ui/parts/x", "internal/ui/store", false},
-		{"internal/ui/views/x", "internal/ui/parts/x", false},
-		{"internal/ui/session", "internal/ui/views/x", false},
+		{"internal/client/mock", "internal/client", false},
 		{"internal/ui/session", "internal/client", false},
+		{"internal/ui/session", "internal/extensions", false},
 		{"internal/cmd", "internal/ui/session", false},
 		{"internal/render", "internal/client", false},
 	} {
