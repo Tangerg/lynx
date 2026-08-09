@@ -14,9 +14,9 @@ import (
 // provider enabled by a stored key is left untouched — runtime edits win over
 // the config file. An environment key is never copied into storage; only a
 // missing configured endpoint is seeded beside it.
-func SeedConfiguredProvider(ctx context.Context, svc models.ProviderRegistry, cfg config.Settings) error {
+func SeedConfiguredProvider(ctx context.Context, registry models.ProviderRegistry, cfg config.Settings) error {
 	id := cfg.Provider
-	existing, ok, err := svc.Get(ctx, id)
+	existing, ok, err := registry.Get(ctx, id)
 	if err != nil {
 		return err
 	}
@@ -24,10 +24,10 @@ func SeedConfiguredProvider(ctx context.Context, svc models.ProviderRegistry, cf
 		if existing.KeySource != provider.KeyEnv || existing.BaseURL != "" || cfg.BaseURL == "" {
 			return nil
 		}
-		_, err = svc.Update(ctx, id, provider.Patch{BaseURL: &cfg.BaseURL})
+		_, err = registry.Update(ctx, id, provider.Patch{BaseURL: &cfg.BaseURL})
 		return err
 	}
-	_, err = svc.Update(ctx, id, provider.Patch{
+	_, err = registry.Update(ctx, id, provider.Patch{
 		APIKey:  &cfg.APIKey,
 		BaseURL: &cfg.BaseURL,
 	})

@@ -6,8 +6,9 @@ import "context"
 type Models interface {
 	ListModels(ctx context.Context, in ListModelsRequest) (*Page[Model], error)
 	// GetUtilityRole reports the (provider, model) the in-house maintenance
-	// work (compaction / extraction / titling) runs on — empty model when
-	// unset (it runs on the main Run model).
+	// work (history compaction, memory consolidation, Skill proposal mining, and
+	// Session title generation) runs on. An empty model means the role is unset
+	// and those calls use the main Run model.
 	GetUtilityRole(ctx context.Context) (*UtilityRole, error)
 	// SetUtilityRole points that maintenance work at a (provider, model),
 	// validated by resolving the client; an empty model clears it back to the

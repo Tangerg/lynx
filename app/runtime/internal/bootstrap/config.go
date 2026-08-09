@@ -26,51 +26,51 @@ func LoadConfig(configDirectories []string) (config.Settings, error) {
 	return resolveProviderConfig(cfg)
 }
 
-func resolveProviderConfig(cfg config.Settings) (config.Settings, error) {
-	provider := llm.Provider(cfg.Provider)
+func resolveProviderConfig(settings config.Settings) (config.Settings, error) {
+	provider := llm.Provider(settings.Provider)
 	if !provider.IsSupported() {
-		return config.Settings{}, fmt.Errorf("config: unknown provider %q (see providers.list for the supported set)", cfg.Provider)
+		return config.Settings{}, fmt.Errorf("config: unknown provider %q (see providers.list for the supported set)", settings.Provider)
 	}
-	if cfg.Model == "" {
-		cfg.Model = provider.DefaultModel()
+	if settings.Model == "" {
+		settings.Model = provider.DefaultModel()
 	}
-	apiKeyEnv := provider.APIKeyEnv()
-	if envKey := os.Getenv(apiKeyEnv); envKey != "" {
-		cfg.APIKey = envKey
+	apiKeyEnvironmentVariable := provider.APIKeyEnv()
+	if apiKey := os.Getenv(apiKeyEnvironmentVariable); apiKey != "" {
+		settings.APIKey = apiKey
 	}
-	if cfg.APIKey == "" {
-		return config.Settings{}, errors.New("config: apiKey is empty — set it in config/config.yaml or " + apiKeyEnv)
+	if settings.APIKey == "" {
+		return config.Settings{}, errors.New("config: apiKey is empty — set it in config/config.yaml or " + apiKeyEnvironmentVariable)
 	}
-	return cfg, nil
+	return settings, nil
 }
 
 // DefaultClient builds the provider/model client used when a Run does not
 // choose a per-run model.
-func DefaultClient(cfg config.Settings) (*chatclient.Client, error) {
+func DefaultClient(settings config.Settings) (*chatclient.Client, error) {
 	return llm.BuildClient(llm.ClientSpec{
-		Provider: llm.Provider(cfg.Provider),
-		Model:    cfg.Model,
-		APIKey:   cfg.APIKey,
-		BaseURL:  cfg.BaseURL,
+		Provider: llm.Provider(settings.Provider),
+		Model:    settings.Model,
+		APIKey:   settings.APIKey,
+		BaseURL:  settings.BaseURL,
 	})
 }
 
 // ProviderRegistry wraps the durable provider registry with env-key fallback.
-func ProviderRegistry(reg models.ProviderRegistry) models.ProviderRegistry {
-	return providerregistry.WithEnvironmentKeys(reg, llm.EnvKeys())
+func ProviderRegistry(registry models.ProviderRegistry) models.ProviderRegistry {
+	return providerregistry.WithEnvironmentKeys(registry, llm.EnvKeys())
 }
 
 // MCPServers projects config-file MCP entries into the runtime registry model.
 // It rejects an unknown transport instead of preserving an invalid string for a
 // later dial attempt; configuration is an input boundary, not a best-effort
 // transport pass-through.
-func MCPServers(in []config.MCPServer) ([]mcpserversvc.Server, error) {
-	if len(in) == 0 {
+func MCPServers(configuredServers []config.MCPServer) ([]mcpserversvc.Server, error) {
+	if len(configuredServers) == 0 {
 		return nil, nil
 	}
-	out := make([]mcpserversvc.Server, len(in))
-	for i, server := range in {
-		transport, err := runtimeMCPTransport(server.Transport)
+	servers := make([]mcpserversvc.Server, len(configuredServers))
+	for index, server := range configuredServers {
+		transport, err := parseMCPTransport(server.Transport)
 		if err != nil {
 			return nil, fmt.Errorf("config: MCP server %q: %w", server.Name, err)
 		}
@@ -86,12 +86,12 @@ func MCPServers(in []config.MCPServer) ([]mcpserversvc.Server, error) {
 		if err := candidate.Validate(); err != nil {
 			return nil, fmt.Errorf("config: MCP server %q: %w", server.Name, err)
 		}
-		out[i] = candidate
+		servers[index] = candidate
 	}
-	return out, nil
+	return servers, nil
 }
 
-func runtimeMCPTransport(transport string) (mcpserversvc.Transport, error) {
+func parseMCPTransport(transport string) (mcpserversvc.Transport, error) {
 	switch transport {
 	case config.MCPTransportStreamableHTTP:
 		return mcpserversvc.TransportStreamableHTTP, nil

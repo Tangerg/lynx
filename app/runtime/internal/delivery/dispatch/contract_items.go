@@ -6,12 +6,12 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 )
 
-func registerItems(r *Registry) {
+func registerItems(registry *Registry) {
 	// Either scope can name something that does not exist, and the client's next move
 	// differs — find the session, or find the run — so both refusals are declared.
 	// Asking a run scope for its subtree needs features.subagents; the scope itself
 	// does not, since a root run is a run.
-	Query(r, MethodMeta{
+	Query(registry, MethodMeta{
 		Name: "items.list",
 		Errors: []string{
 			protocol.ErrSessionNotFound.Error(),
@@ -22,7 +22,7 @@ func registerItems(r *Registry) {
 			Requires: []string{protocol.FeatureSubagents},
 		}},
 		Stability: stable,
-	}, func(d *Router, ctx context.Context, in protocol.ListItemsRequest) (*protocol.ListItemsResponse, error) {
-		return d.api.ListItems(ctx, in)
+	}, func(router *Router, ctx context.Context, request protocol.ListItemsRequest) (*protocol.ListItemsResponse, error) {
+		return router.api.ListItems(ctx, request)
 	})
 }

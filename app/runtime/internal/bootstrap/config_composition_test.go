@@ -16,6 +16,6 @@ func TestComposeConfigInjectsDurableRuntimePolicy(t *testing.T) {
 		t.Fatalf("BuildID = %q, want %q", got.BuildID, buildID)
 	}
 	if got.AgentMemoryStore != agentMemory {
-		t.Fatal("agent memory was not wired to extraction and prompt composition")
+		t.Fatal("agent memory was not wired to consolidation and prompt composition")
 	}
 }

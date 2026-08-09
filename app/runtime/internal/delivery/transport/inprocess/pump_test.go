@@ -41,7 +41,7 @@ func TestPumpStreamStopsWhenCallCanceledUnderBackpressure(t *testing.T) {
 	}()
 	frameReceived := make(chan struct{})
 	go func() {
-		inCh <- dispatch.StreamFrame{Notif: notif}
+		inCh <- dispatch.StreamFrame{Notification: notif}
 		close(frameReceived)
 	}()
 	<-frameReceived

@@ -6,12 +6,12 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 )
 
-func registerRecipes(r *Registry) {
-	Query(r, MethodMeta{
+func registerRecipes(registry *Registry) {
+	Query(registry, MethodMeta{
 		Name:      "recipes.list",
 		Errors:    []string{protocol.ErrWorkspaceUnavailable.Error()},
 		Stability: stable,
-	}, func(d *Router, ctx context.Context, in protocol.WorkspaceQuery) (*protocol.Page[protocol.Recipe], error) {
-		return d.api.ListRecipes(ctx, in)
+	}, func(router *Router, ctx context.Context, request protocol.WorkspaceQuery) (*protocol.Page[protocol.Recipe], error) {
+		return router.api.ListRecipes(ctx, request)
 	})
 }

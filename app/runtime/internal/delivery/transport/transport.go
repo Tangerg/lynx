@@ -38,9 +38,9 @@ type Error = jsonrpc.Error
 
 // EncodeMessage serializes a Message to wire bytes (no trailing
 // newline). Delegates to the SDK.
-func EncodeMessage(msg Message) ([]byte, error) { return jsonrpc.EncodeMessage(msg) }
+func EncodeMessage(message Message) ([]byte, error) { return jsonrpc.EncodeMessage(message) }
 
 // DecodeMessage parses wire bytes into either [*Request] or
 // [*Response]. Delegates to the SDK; SDK's wireCombined struct
 // catches invalid envelopes (wrong version tag, malformed id).
-func DecodeMessage(data []byte) (Message, error) { return jsonrpc.DecodeMessage(data) }
+func DecodeMessage(encoded []byte) (Message, error) { return jsonrpc.DecodeMessage(encoded) }

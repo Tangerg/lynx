@@ -53,17 +53,17 @@ func TestHostCloseOwnsReverseOrderAndIsIdempotentAcrossCopies(t *testing.T) {
 	}
 	host := Host{
 		lifetime: &hostLifetime{
-			goals:        shutdownFunc{stop: recordStop("goals"), wait: recordWait("goals")},
-			mcp:          shutdownFunc{stop: recordStop("mcp"), wait: recordWait("mcp")},
-			codebase:     shutdownFunc{stop: recordStop("codebase"), wait: recordWait("codebase")},
-			coordinator:  shutdownFunc{stop: recordStop("active-runs"), wait: recordWait("active-runs")},
-			execution:    shutdownFunc{stop: recordStop("active-execution-tree"), wait: recordWait("active-execution-tree")},
-			effectsTasks: shutdownFunc{stop: recordStop("effects"), wait: recordWait("effects")},
-			toolClosers: []ShutdownResource{
+			goalDriver:          shutdownFunc{stop: recordStop("goals"), wait: recordWait("goals")},
+			mcpCoordinator:      shutdownFunc{stop: recordStop("mcp"), wait: recordWait("mcp")},
+			codebaseCoordinator: shutdownFunc{stop: recordStop("codebase"), wait: recordWait("codebase")},
+			runCoordinator:      shutdownFunc{stop: recordStop("active-runs"), wait: recordWait("active-runs")},
+			executor:            shutdownFunc{stop: recordStop("active-execution-tree"), wait: recordWait("active-execution-tree")},
+			runEffectTasks:      shutdownFunc{stop: recordStop("effects"), wait: recordWait("effects")},
+			toolResources: []ShutdownResource{
 				closerFunc(record("tool-1", nil)),
 				closerFunc(record("tool-2", nil)),
 			},
-			resources: []ShutdownResource{
+			hostResources: []ShutdownResource{
 				closerFunc(record("resource-1", nil)),
 				closerFunc(record("resource-2", nil)),
 			},
@@ -120,7 +120,7 @@ func TestHostCloseRetriesOnlyUnclosedDependencies(t *testing.T) {
 	resourceErr := errors.New("resource close")
 	var toolCalls, resourceCalls, successfulCalls int
 	host := Host{lifetime: &hostLifetime{
-		toolClosers: []ShutdownResource{
+		toolResources: []ShutdownResource{
 			closerFunc(func() error { successfulCalls++; return nil }),
 			closerFunc(func() error {
 				toolCalls++
@@ -130,7 +130,7 @@ func TestHostCloseRetriesOnlyUnclosedDependencies(t *testing.T) {
 				return nil
 			}),
 		},
-		resources: []ShutdownResource{closerFunc(func() error {
+		hostResources: []ShutdownResource{closerFunc(func() error {
 			resourceCalls++
 			if resourceCalls == 1 {
 				return resourceErr
@@ -162,13 +162,13 @@ func TestHostCloseDoesNotCloseDependenciesAfterComponentJoinTimeout(t *testing.T
 	toolClosed := false
 	host := Host{lifetime: &hostLifetime{
 		shutdownTimeout: time.Millisecond,
-		coordinator: shutdownFunc{
+		runCoordinator: shutdownFunc{
 			wait: func(ctx context.Context) error {
 				<-ctx.Done()
 				return ctx.Err()
 			},
 		},
-		toolClosers: []ShutdownResource{closerFunc(func() error {
+		toolResources: []ShutdownResource{closerFunc(func() error {
 			toolClosed = true
 			return nil
 		})},
@@ -189,7 +189,7 @@ func TestHostCloseRetriesDrainAfterTimeout(t *testing.T) {
 	)
 	host := Host{lifetime: &hostLifetime{
 		shutdownTimeout: time.Millisecond,
-		coordinator: shutdownFunc{
+		runCoordinator: shutdownFunc{
 			stop: func() { stops++ },
 			wait: func(ctx context.Context) error {
 				if ready {
@@ -199,7 +199,7 @@ func TestHostCloseRetriesDrainAfterTimeout(t *testing.T) {
 				return ctx.Err()
 			},
 		},
-		toolClosers: []ShutdownResource{closerFunc(func() error { closed++; return nil })},
+		toolResources: []ShutdownResource{closerFunc(func() error { closed++; return nil })},
 	}}
 	if err := host.Close(); !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("first Close error = %v, want deadline exceeded", err)
@@ -223,7 +223,7 @@ func TestHostCloseBoundsAndRetriesContextAwareResource(t *testing.T) {
 	)
 	host := Host{lifetime: &hostLifetime{
 		shutdownTimeout: time.Millisecond,
-		resources: []ShutdownResource{shutdownResourceFunc(func(ctx context.Context) error {
+		hostResources: []ShutdownResource{shutdownResourceFunc(func(ctx context.Context) error {
 			attempts++
 			if ready {
 				return nil
@@ -253,7 +253,7 @@ func TestHostCloseBoundsNonCooperativeToolCloserWithoutConcurrentRetry(t *testin
 	var calls atomic.Int32
 	host := Host{lifetime: &hostLifetime{
 		shutdownTimeout: time.Millisecond,
-		toolClosers: []ShutdownResource{shutdown.New(func(context.Context) error {
+		toolResources: []ShutdownResource{shutdown.New(func(context.Context) error {
 			calls.Add(1)
 			close(started)
 			<-release // Models a third-party Close with no cancellation support.

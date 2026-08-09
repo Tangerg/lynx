@@ -28,15 +28,15 @@ func buildToolEnvironment(
 	ctx context.Context,
 	cfg Config,
 	approvalPolicy *approvals.RuntimePolicy,
-	mcpEnv mcpEnvironment,
+	mcpConnectionSettings mcpEnvironment,
 	agentMemorySearcher *agentmemory.Searcher,
-	scheduleCoord *schedules.Coordinator,
+	scheduleCoordinator *schedules.Coordinator,
 	goalReader *goals.Reader,
 	goalReporter *goals.OutcomeReporter,
 	skillStore *skillauthoring.Store,
 	skillProposals skill.ProposalSubmitter,
 ) (toolEnvironment, error) {
-	mcpPool, mcpTools, err := mcpconnection.Open(ctx, mcpEnv.servers, cfg.MCPOAuthSessions)
+	mcpPool, mcpTools, err := mcpconnection.Open(ctx, mcpConnectionSettings.servers, cfg.MCPOAuthSessions)
 	if err != nil {
 		return toolEnvironment{}, fmt.Errorf("runtime: open MCP connections: %w", err)
 	}
@@ -44,7 +44,7 @@ func buildToolEnvironment(
 		mcp:     mcpPool,
 		closers: []ShutdownResource{mcpPool},
 	}
-	bc := toolset.BuildConfig{
+	buildConfig := toolset.BuildConfig{
 		DefaultCWD:      cfg.DefaultWorkspacePath,
 		UserHome:        cfg.UserHome,
 		SkillsUserDir:   cfg.SkillsUserDir,
@@ -54,7 +54,7 @@ func buildToolEnvironment(
 		A2AAgents:       cfg.A2AAgents,
 		Plan:            cfg.PlanStore,
 		Interrupt:       interactioninput.Require,
-		MCPToolDisabled: mcpEnv.policy.ToolDisabled,
+		MCPToolDisabled: mcpConnectionSettings.policy.ToolDisabled,
 		// The authoring store records Skill loads for idle-Skill archival; a
 		// disabled store no-ops RecordUse.
 		SkillUsage:     skillStore,
@@ -68,42 +68,42 @@ func buildToolEnvironment(
 	// the mode tools absent in partial test configurations instead of exposing a
 	// capability that can enter but cannot exit.
 	if cfg.PermissionModeStore != nil && cfg.PlanStore != nil {
-		bc.PlanMode = approvalPolicy
+		buildConfig.PlanMode = approvalPolicy
 	}
 	if cfg.ScheduleStore != nil {
-		bc.Schedules = scheduleCoord
+		buildConfig.Schedules = scheduleCoordinator
 	}
 	// Set the read-back store only when concretely present, so a nil store never
 	// reaches the tool builder as a non-nil interface holding a nil pointer.
 	if cfg.ToolResultStore != nil {
-		bc.ToolResults = cfg.ToolResultStore
+		buildConfig.ToolResults = cfg.ToolResultStore
 	}
 	// Goal reads, outcome reports, and the active gate come from separate
 	// application boundaries. create_goal is injected later when the Driver exists.
 	if goalReader != nil {
-		bc.GoalReader = goalReader
+		buildConfig.GoalReader = goalReader
 	}
 	if goalReporter != nil {
-		bc.GoalReporter = goalReporter
+		buildConfig.GoalReporter = goalReporter
 	}
 	// search_memory searches the agent's curated project memory. Set only when a
 	// concrete searcher exists, so a nil *Searcher never reaches the tool builder
 	// as a non-nil interface.
 	if agentMemorySearcher != nil {
-		bc.AgentMemorySearch = agentMemorySearcher
+		buildConfig.AgentMemorySearch = agentMemorySearcher
 	}
 	// search_conversations recalls past conversation transcripts (the durable Item
 	// history). Set only when the concrete store is present, for the same
 	// nil-interface reason.
 	if cfg.TranscriptStore != nil {
-		bc.ConversationSearch = cfg.TranscriptStore
+		buildConfig.ConversationSearch = cfg.TranscriptStore
 	}
-	built, err := toolset.Build(ctx, bc)
+	builtToolset, err := toolset.Build(ctx, buildConfig)
 	if err != nil {
 		return environment, fmt.Errorf("runtime: build tools: %w", err)
 	}
-	mcpPool.SetToolSink(built.Resolver.SetMCPTools)
-	environment.tools = built
-	environment.closers = append(environment.closers, shutdownClosers(built.Closers)...)
+	mcpPool.SetToolSink(builtToolset.Resolver.SetMCPTools)
+	environment.tools = builtToolset
+	environment.closers = append(environment.closers, shutdownClosers(builtToolset.Closers)...)
 	return environment, nil
 }

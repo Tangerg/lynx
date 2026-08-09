@@ -90,7 +90,7 @@ func (s *Server) serveStream(w http.ResponseWriter, r *http.Request, resp *trans
 			// its SSE id (replayable run events carry one; non-replayable run
 			// events and workspace events don't). The transport just writes it.
 			setWriteDeadline()
-			if err := writeSSEMessage(sw, frame.SSEID, frame.Notif); err != nil {
+			if err := writeSSEMessage(sw, frame.SSEID, frame.Notification); err != nil {
 				return // write failed — client gone; the source continues server-side
 			}
 		case <-ticker.C:
@@ -104,11 +104,11 @@ func (s *Server) serveStream(w http.ResponseWriter, r *http.Request, resp *trans
 	}
 }
 
-// writeSSEMessage encodes msg as JSON and emits one SSE frame. eventID is
+// writeSSEMessage encodes message as JSON and emits one SSE frame. eventID is
 // the SSE `id:` line — set for run-event frames (drives Last-Event-Id
 // resume), empty for the one-shot response ack frame.
-func writeSSEMessage(sw *sse.Writer, eventID string, msg transport.Message) error {
-	body, err := transport.EncodeMessage(msg)
+func writeSSEMessage(sw *sse.Writer, eventID string, message transport.Message) error {
+	body, err := transport.EncodeMessage(message)
 	if err != nil {
 		return err
 	}

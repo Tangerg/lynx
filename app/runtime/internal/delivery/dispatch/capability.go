@@ -19,7 +19,7 @@ import (
 // convenience: the contract's own drift gate demands the two be equivalent, and
 // reading one from the other makes them equivalent by construction rather than by
 // a test that has to be remembered.
-func (d *Router) enforceCapabilities(ctx context.Context, meta MethodMeta, params json.RawMessage) *transport.Error {
+func (r *Router) enforceCapabilities(ctx context.Context, meta MethodMeta, params json.RawMessage) *transport.Error {
 	if len(meta.CapabilityRules) == 0 {
 		return nil
 	}
@@ -39,7 +39,7 @@ func (d *Router) enforceCapabilities(ctx context.Context, meta MethodMeta, param
 				continue
 			}
 		}
-		missing, err := d.missingFeatureRequirements(ctx, rule.Requires)
+		missing, err := r.missingFeatureRequirements(ctx, rule.Requires)
 		if err != nil {
 			return errorToRPC(err)
 		}
@@ -54,11 +54,11 @@ func (d *Router) enforceCapabilities(ctx context.Context, meta MethodMeta, param
 // cannot use. Discovery answers server support; request metadata answers opt-in.
 // A discovery failure is reported rather than swallowed: a gate that cannot read
 // the feature set must not decide the call is allowed.
-func (d *Router) missingFeatureRequirements(
+func (r *Router) missingFeatureRequirements(
 	ctx context.Context,
 	required []string,
 ) ([]protocol.CapabilityRequirement, error) {
-	discovered, err := d.api.Discover(ctx)
+	discovered, err := r.api.Discover(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("dispatch: read capabilities: %w", err)
 	}

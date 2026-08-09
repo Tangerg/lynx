@@ -25,7 +25,7 @@ func TestWorkspaceSubscribe_GitWatch(t *testing.T) {
 		t.Fatalf("seed index: %v", err)
 	}
 	s := newWorkspaceServer(dir)
-	s.wsHub = newWorkspaceHub()
+	s.workspaceHub = newWorkspaceHub()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -57,7 +57,7 @@ func TestWorkspaceSubscribe_GitWatch(t *testing.T) {
 func TestWorkspaceSubscribe_NonRepoInert(t *testing.T) {
 	dir := t.TempDir() // no .git
 	s := newWorkspaceServer(dir)
-	s.wsHub = newWorkspaceHub()
+	s.workspaceHub = newWorkspaceHub()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	_, seq, err := s.SubscribeRuntime(ctx, protocol.RuntimeSubscribeRequest{
@@ -69,7 +69,7 @@ func TestWorkspaceSubscribe_NonRepoInert(t *testing.T) {
 	}
 	events := drainSeq(ctx, seq)
 	// Broadcast events still flow on the subscription.
-	s.wsHub.publish(protocol.RuntimeEvent{Type: "skills.changed"})
+	s.workspaceHub.publish(protocol.RuntimeEvent{Type: "skills.changed"})
 	select {
 	case ev := <-events:
 		if ev.Type != "skills.changed" {
@@ -84,8 +84,8 @@ func TestWorkspaceSubscribe_NonRepoInert(t *testing.T) {
 // reaches the workspace event hub. Tool-item-to-nudge decisions belong to and
 // are tested in application/runs.
 func TestRunEffectsNudgePublishesFileChange(t *testing.T) {
-	s := &Server{wsHub: newWorkspaceHub()}
-	events, unsub := s.wsHub.subscribe()
+	s := &Server{workspaceHub: newWorkspaceHub()}
+	events, unsub := s.workspaceHub.subscribe()
 	defer unsub()
 
 	// Wire the production seam: the run effects publish nudges through the
@@ -109,7 +109,7 @@ func TestRunEffectsNudgePublishesFileChange(t *testing.T) {
 // TestWorkspaceSubscribe_MissingWatchID rejects a watch with no id.
 func TestWorkspaceSubscribe_MissingWatchID(t *testing.T) {
 	s := newWorkspaceServer(t.TempDir())
-	s.wsHub = newWorkspaceHub()
+	s.workspaceHub = newWorkspaceHub()
 	if _, _, err := s.SubscribeRuntime(context.Background(), protocol.RuntimeSubscribeRequest{
 		Watches: []protocol.WatchSpec{{}},
 	}); err == nil {

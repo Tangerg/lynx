@@ -38,8 +38,7 @@ type UsageBucket struct {
 // UsageSummary is the cross-session spend report (usage.summary). Every bucket
 // sums whole-run totals, so the breakdowns reconcile with Total. Attribution is
 // at run granularity: a run's spend lands under the model/provider the run ran
-// against — a run's incidental utility-model work (compaction / titling) is
-// folded into that headline model, not split out.
+// against. Request-detached utility-model maintenance is not part of Run usage.
 type UsageSummary struct {
 	Total      ModelUsage    `json:"total"`
 	ByProvider []UsageBucket `json:"byProvider,omitempty"`

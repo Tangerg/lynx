@@ -60,41 +60,41 @@ type HandleResult struct {
 }
 
 // Handle is the entry point — every inbound transport.Message goes through here.
-func (d *Router) Handle(ctx context.Context, msg transport.Message) HandleResult {
-	req, ok := msg.(*transport.Request)
-	if !ok || req == nil {
+func (r *Router) Handle(ctx context.Context, message transport.Message) HandleResult {
+	request, ok := message.(*transport.Request)
+	if !ok || request == nil {
 		return responseError(transport.ID{}, badEnvelope("expected a JSON-RPC request"))
 	}
 
 	// API.md §2.2: all ids are strings. Reject non-string ids at the
 	// boundary. (Absent ids — Notifications — are fine.)
-	if req.ID.IsValid() {
-		if _, ok := req.ID.Raw().(string); !ok {
-			return responseError(req.ID, badEnvelope(
-				fmt.Sprintf("id must be a JSON string, got %T", req.ID.Raw())))
+	if request.ID.IsValid() {
+		if _, ok := request.ID.Raw().(string); !ok {
+			return responseError(request.ID, badEnvelope(
+				fmt.Sprintf("id must be a JSON string, got %T", request.ID.Raw())))
 		}
 	}
 	// Metadata stripping rewrites Params for typed decoding. Work on a shallow
 	// request copy so an in-process caller can safely retain or reuse its message;
 	// Params bytes themselves are read-only and replaced, never mutated in place.
-	requestCopy := *req
-	req = &requestCopy
+	requestCopy := *request
+	request = &requestCopy
 
 	var metaErr *transport.Error
-	ctx, metaErr = bindRequestMeta(ctx, req)
+	ctx, metaErr = bindRequestMeta(ctx, request)
 	if metaErr != nil {
-		if !req.IsCall() {
+		if !request.IsCall() {
 			return HandleResult{}
 		}
-		return responseError(req.ID, metaErr)
+		return responseError(request.ID, metaErr)
 	}
 
 	// Notifications: no response. We still dispatch so cancel-style
 	// notifications take effect.
-	if !req.IsCall() {
-		d.handleNotification(ctx, req)
+	if !request.IsCall() {
+		r.handleNotification(ctx, request)
 		return HandleResult{}
 	}
 
-	return d.dispatchReplayProtected(ctx, req)
+	return r.dispatchReplayProtected(ctx, request)
 }

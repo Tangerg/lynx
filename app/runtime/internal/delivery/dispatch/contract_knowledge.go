@@ -6,25 +6,25 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 )
 
-func registerKnowledge(r *Registry) {
-	Query(r, MethodMeta{
+func registerKnowledge(registry *Registry) {
+	Query(registry, MethodMeta{
 		Name: "knowledge.list", Errors: []string{protocol.ErrWorkspaceUnavailable.Error()},
 		CapabilityRules: requires(protocol.FeatureKnowledge), Stability: stable,
-	}, func(d *Router, ctx context.Context, in protocol.WorkspaceQuery) (*protocol.Page[protocol.KnowledgeEntry], error) {
-		return d.api.ListKnowledge(ctx, in)
+	}, func(router *Router, ctx context.Context, request protocol.WorkspaceQuery) (*protocol.Page[protocol.KnowledgeEntry], error) {
+		return router.api.ListKnowledge(ctx, request)
 	})
 
-	Query(r, MethodMeta{
+	Query(registry, MethodMeta{
 		Name: "knowledge.get", Errors: []string{protocol.ErrWorkspaceUnavailable.Error()},
 		CapabilityRules: requires(protocol.FeatureKnowledge), Stability: stable,
-	}, func(d *Router, ctx context.Context, in protocol.GetKnowledgeRequest) (*protocol.KnowledgeEntry, error) {
-		return d.api.GetKnowledge(ctx, in)
+	}, func(router *Router, ctx context.Context, request protocol.GetKnowledgeRequest) (*protocol.KnowledgeEntry, error) {
+		return router.api.GetKnowledge(ctx, request)
 	})
 
-	CommandAck(r, MethodMeta{
+	CommandAck(registry, MethodMeta{
 		Name: "knowledge.update", Errors: []string{protocol.ErrWorkspaceUnavailable.Error()},
 		CapabilityRules: requires(protocol.FeatureKnowledge), Stability: stable,
-	}, func(d *Router, ctx context.Context, in protocol.UpdateKnowledgeRequest) error {
-		return d.api.UpdateKnowledge(ctx, in)
+	}, func(router *Router, ctx context.Context, request protocol.UpdateKnowledgeRequest) error {
+		return router.api.UpdateKnowledge(ctx, request)
 	})
 }

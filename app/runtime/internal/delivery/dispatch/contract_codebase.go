@@ -6,25 +6,25 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 )
 
-func registerCodebase(r *Registry) {
-	Query(r, MethodMeta{
+func registerCodebase(registry *Registry) {
+	Query(registry, MethodMeta{
 		Name: "codebase.search", Errors: []string{protocol.ErrWorkspaceUnavailable.Error()},
 		CapabilityRules: requires(protocol.FeatureCodebase), Stability: stable,
-	}, func(d *Router, ctx context.Context, in protocol.CodebaseSearchRequest) (*protocol.CodebaseSearchResult, error) {
-		return d.api.CodebaseSearch(ctx, in)
+	}, func(router *Router, ctx context.Context, request protocol.CodebaseSearchRequest) (*protocol.CodebaseSearchResult, error) {
+		return router.api.CodebaseSearch(ctx, request)
 	})
 
-	Query(r, MethodMeta{
+	Query(registry, MethodMeta{
 		Name: "codebase.status", Errors: []string{protocol.ErrWorkspaceUnavailable.Error()},
 		CapabilityRules: requires(protocol.FeatureCodebase), Stability: stable,
-	}, func(d *Router, ctx context.Context, in protocol.CodebaseStatusRequest) (*protocol.CodebaseStatus, error) {
-		return d.api.CodebaseStatus(ctx, in)
+	}, func(router *Router, ctx context.Context, request protocol.CodebaseStatusRequest) (*protocol.CodebaseStatus, error) {
+		return router.api.CodebaseStatus(ctx, request)
 	})
 
-	Command(r, MethodMeta{
+	Command(registry, MethodMeta{
 		Name: "codebase.reindex", Errors: []string{protocol.ErrWorkspaceUnavailable.Error()},
 		CapabilityRules: requires(protocol.FeatureCodebase), Stability: stable,
-	}, func(d *Router, ctx context.Context, in protocol.CodebaseReindexRequest) (*protocol.CodebaseReindexResponse, error) {
-		return d.api.CodebaseReindex(ctx, in)
+	}, func(router *Router, ctx context.Context, request protocol.CodebaseReindexRequest) (*protocol.CodebaseReindexResponse, error) {
+		return router.api.CodebaseReindex(ctx, request)
 	})
 }

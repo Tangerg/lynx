@@ -6,19 +6,19 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 )
 
-func registerHooks(r *Registry) {
-	Query(r, MethodMeta{
+func registerHooks(registry *Registry) {
+	Query(registry, MethodMeta{
 		Name:      "hooks.list",
 		Errors:    []string{protocol.ErrWorkspaceUnavailable.Error()},
 		Stability: stable,
-	}, func(d *Router, ctx context.Context, in protocol.ListHooksRequest) (*protocol.HooksListResult, error) {
-		return d.api.ListHooks(ctx, in)
+	}, func(router *Router, ctx context.Context, request protocol.ListHooksRequest) (*protocol.HooksListResult, error) {
+		return router.api.ListHooks(ctx, request)
 	})
 
-	CommandAck(r, MethodMeta{
+	CommandAck(registry, MethodMeta{
 		Name:      "hooks.setTrust",
 		Stability: stable,
-	}, func(d *Router, ctx context.Context, in protocol.SetHookTrustRequest) error {
-		return d.api.SetHookTrust(ctx, in)
+	}, func(router *Router, ctx context.Context, request protocol.SetHookTrustRequest) error {
+		return router.api.SetHookTrust(ctx, request)
 	})
 }

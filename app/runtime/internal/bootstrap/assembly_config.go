@@ -19,7 +19,7 @@ import (
 	"github.com/Tangerg/lynx/chatclient"
 )
 
-// Config is the construction-time bundle for [Assemble]. It contains host
+// Config is the construction-time bundle for [NewAssembly]. It contains Host
 // capabilities and application adapters only; Bootstrap derives the native
 // Agent Framework executor configuration so no second source of Runtime facts exists.
 type Config struct {
@@ -41,7 +41,7 @@ type Config struct {
 	// state.
 	SkillsUserDir string
 
-	// Maintenance overrides the default post-Interaction housekeeping pipeline.
+	// Maintenance overrides the default post-Run maintenance pipeline.
 	Maintenance agentexec.RunMaintenance
 
 	// AgentMemoryStore is the SQLite fact ledger and its curated memory items,
@@ -51,18 +51,17 @@ type Config struct {
 
 	IdempotencyStore *sqlitestore.IdempotencyStore
 
-	// Resources are process adapters whose ownership transfers to Runtime when
-	// [Assemble] succeeds. When rollback cannot finish, Assemble instead returns
-	// a non-zero Host that takes ownership and must be closed by the caller;
-	// otherwise callers retain ownership after construction fails. Shutdown
-	// releases resources after background tasks and execution/tool capabilities
-	// have stopped under Host's deadline.
+	// Resources are process adapters whose ownership transfers to Assembly when
+	// [NewAssembly] is called. A successful [BuildAssembly] transfers them to Host;
+	// after a failed build, Assembly retains any resource whose rollback did not
+	// finish and [CloseAssembly] retries it. Host releases resources only after
+	// background tasks and execution/tool capabilities have stopped.
 	Resources []ShutdownResource
 
-	// UtilityRoleStore persists the global utility-model role; the (provider,
-	// model) the in-house maintenance services (compaction / extraction /
-	// titling) run on. nil disables persistence: the role stays unset and those
-	// services run on the main Run model. The composition root injects the
+	// UtilityRoleStore persists the global utility-model role used by history
+	// compaction, memory consolidation, Skill proposal mining, and Session title
+	// generation. nil disables persistence: the role stays unset and those calls
+	// use the main Run model. The composition root injects the
 	// sqlite-backed store and seeds it from config on first run.
 	UtilityRoleStore UtilityRoleStore
 
@@ -107,8 +106,9 @@ type Config struct {
 	SessionStore *sqlitestore.SessionStore
 
 	// RunStore is the durable Run table (§8.2): the authoritative "one
-	// non-terminal Run per Session" admission backstop the run coordinator records
-	// admissions/terminals through, the record every Run read is answered from,
+	// non-terminal Run per Session" admission backstop through which the Run
+	// coordinator records admissions and terminal states, the record that answers
+	// every Run read,
 	// and what the boot reconcile sweeps. Required: an in-memory-only fallback
 	// would violate the restart-safe admission invariant.
 	RunStore *sqlitestore.RunStore

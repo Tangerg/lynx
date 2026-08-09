@@ -673,16 +673,18 @@ func validateFieldConstraint(owner string, shape reflect.Type, constraint FieldC
 	if !ok {
 		return fmt.Errorf("%s: no JSON field %q", owner, constraint.Field)
 	}
-	leafType := leaf.Type
-	if leafType.Kind() == reflect.Pointer {
-		leafType = leafType.Elem()
+	if err := validateConstraintLimit(owner, constraint); err != nil {
+		return err
 	}
-	kind := leafType.Kind()
-	bounded := constraint.Kind == ConstraintMinItems ||
+	return validateConstraintTarget(owner, leaf.Type, constraint)
+}
+
+func validateConstraintLimit(owner string, constraint FieldConstraint) error {
+	acceptsLimit := constraint.Kind == ConstraintMinItems ||
 		constraint.Kind == ConstraintMaxLength ||
 		constraint.Kind == ConstraintMinimum ||
 		constraint.Kind == ConstraintMaximum
-	if bounded && constraint.Limit <= 0 {
+	if acceptsLimit && constraint.Limit <= 0 {
 		return fmt.Errorf(
 			"%s.%s constraint %s needs a positive limit",
 			owner,
@@ -690,7 +692,7 @@ func validateFieldConstraint(owner string, shape reflect.Type, constraint FieldC
 			constraint.Kind,
 		)
 	}
-	if !bounded && constraint.Limit != 0 {
+	if !acceptsLimit && constraint.Limit != 0 {
 		return fmt.Errorf(
 			"%s.%s constraint %s does not accept a limit",
 			owner,
@@ -698,6 +700,15 @@ func validateFieldConstraint(owner string, shape reflect.Type, constraint FieldC
 			constraint.Kind,
 		)
 	}
+	return nil
+}
+
+func validateConstraintTarget(owner string, declaredType reflect.Type, constraint FieldConstraint) error {
+	valueType := declaredType
+	if valueType.Kind() == reflect.Pointer {
+		valueType = valueType.Elem()
+	}
+	kind := valueType.Kind()
 	switch constraint.Kind {
 	case ConstraintNonEmpty:
 		if kind != reflect.String {
@@ -712,8 +723,8 @@ func validateFieldConstraint(owner string, shape reflect.Type, constraint FieldC
 			return fmt.Errorf("%s.%s is %s; only a number can be non-negative", owner, constraint.Field, kind)
 		}
 	case ConstraintNonEmptyItems, ConstraintUniqueItems, ConstraintMinItems:
-		if leafType.Kind() != reflect.Slice {
-			return fmt.Errorf("%s.%s is %s; only an array has items", owner, constraint.Field, leaf.Type.Kind())
+		if kind != reflect.Slice {
+			return fmt.Errorf("%s.%s is %s; only an array has items", owner, constraint.Field, declaredType.Kind())
 		}
 	case ConstraintMaxLength:
 		if kind != reflect.String {
@@ -728,8 +739,8 @@ func validateFieldConstraint(owner string, shape reflect.Type, constraint FieldC
 			return fmt.Errorf("%s.%s is %s; only a number can have a maximum", owner, constraint.Field, kind)
 		}
 	case ConstraintNonEmptyProperties:
-		if leafType.Kind() != reflect.Map {
-			return fmt.Errorf("%s.%s is %s; only an object map has properties", owner, constraint.Field, leaf.Type.Kind())
+		if kind != reflect.Map {
+			return fmt.Errorf("%s.%s is %s; only an object map has properties", owner, constraint.Field, declaredType.Kind())
 		}
 	default:
 		return fmt.Errorf(

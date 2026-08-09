@@ -6,34 +6,34 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 )
 
-func registerAgentMemory(r *Registry) {
-	Query(r, MethodMeta{
+func registerAgentMemory(registry *Registry) {
+	Query(registry, MethodMeta{
 		Name: "agentMemory.list", CapabilityRules: requires(protocol.FeatureAgentMemory), Stability: stable,
-	}, func(d *Router, ctx context.Context, in protocol.AgentMemoryListRequest) (*protocol.AgentMemoryList, error) {
-		return d.api.ListAgentMemory(ctx, in)
+	}, func(router *Router, ctx context.Context, request protocol.AgentMemoryListRequest) (*protocol.AgentMemoryList, error) {
+		return router.api.ListAgentMemory(ctx, request)
 	})
 
-	CommandAck(r, MethodMeta{
+	CommandAck(registry, MethodMeta{
 		Name: "agentMemory.review", CapabilityRules: requires(protocol.FeatureAgentMemory), Stability: stable,
-	}, func(d *Router, ctx context.Context, in protocol.AgentMemoryReviewRequest) error {
-		return d.api.ReviewAgentMemory(ctx, in)
+	}, func(router *Router, ctx context.Context, request protocol.AgentMemoryReviewRequest) error {
+		return router.api.ReviewAgentMemory(ctx, request)
 	})
 
-	Command(r, MethodMeta{
+	Command(registry, MethodMeta{
 		Name: "agentMemory.update", CapabilityRules: requires(protocol.FeatureAgentMemory), Stability: stable,
-	}, func(d *Router, ctx context.Context, in protocol.AgentMemoryUpdateRequest) (*protocol.AgentMemoryItem, error) {
-		return d.api.UpdateAgentMemory(ctx, in)
+	}, func(router *Router, ctx context.Context, request protocol.AgentMemoryUpdateRequest) (*protocol.AgentMemoryItem, error) {
+		return router.api.UpdateAgentMemory(ctx, request)
 	})
 
-	CommandAck(r, MethodMeta{
+	CommandAck(registry, MethodMeta{
 		Name: "agentMemory.delete", CapabilityRules: requires(protocol.FeatureAgentMemory), Stability: stable,
-	}, func(d *Router, ctx context.Context, in protocol.AgentMemoryItemRequest) error {
-		return d.api.DeleteAgentMemory(ctx, in)
+	}, func(router *Router, ctx context.Context, request protocol.AgentMemoryItemRequest) error {
+		return router.api.DeleteAgentMemory(ctx, request)
 	})
 
-	Command(r, MethodMeta{
+	Command(registry, MethodMeta{
 		Name: "agentMemory.add", CapabilityRules: requires(protocol.FeatureAgentMemory), Stability: stable,
-	}, func(d *Router, ctx context.Context, in protocol.AgentMemoryAddRequest) (*protocol.AgentMemoryItem, error) {
-		return d.api.AddAgentMemory(ctx, in)
+	}, func(router *Router, ctx context.Context, request protocol.AgentMemoryAddRequest) (*protocol.AgentMemoryItem, error) {
+		return router.api.AddAgentMemory(ctx, request)
 	})
 }

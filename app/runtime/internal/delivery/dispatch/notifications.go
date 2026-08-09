@@ -14,11 +14,11 @@ import (
 // rides this same stream — there is no separate run-closed
 // notification. runId + eventId let the client filter by stream and
 // de-duplicate on reconnect (Last-Event-Id).
-func EncodeRunEvent(ev protocol.RunEvent) (transport.Message, error) {
-	if err := protocol.ValidateWireTree(ev); err != nil {
+func EncodeRunEvent(event protocol.RunEvent) (transport.Message, error) {
+	if err := protocol.ValidateWireTree(event); err != nil {
 		return nil, fmt.Errorf("encode run event: %w", err)
 	}
-	return transport.NewNotification(NotificationRunEvent, ev)
+	return transport.NewNotification(NotificationRunEvent, event)
 }
 
 // EncodeRuntimeEvent wraps one RuntimeEvent into a notifications.runtime.event
@@ -26,18 +26,18 @@ func EncodeRunEvent(ev protocol.RunEvent) (transport.Message, error) {
 // signal in the `event` field; clients branch on event.type. Ephemeral by design — no
 // SSE id, no replay: every frame is "this moved, read it again", and a client that
 // missed one refetches rather than replays.
-func EncodeRuntimeEvent(ev protocol.RuntimeEvent) (transport.Message, error) {
-	if err := protocol.ValidateWireTree(ev); err != nil {
+func EncodeRuntimeEvent(event protocol.RuntimeEvent) (transport.Message, error) {
+	if err := protocol.ValidateWireTree(event); err != nil {
 		return nil, fmt.Errorf("encode runtime event: %w", err)
 	}
 	return transport.NewNotification(NotificationRuntimeEvent, protocol.RuntimeEventNotification{
-		Event: ev,
+		Event: event,
 	})
 }
 
 // Client notifications currently have no public methods. Unknown
 // notifications are intentionally ignored as required by JSON-RPC.
-func (d *Router) handleNotification(context.Context, *transport.Request) {}
+func (r *Router) handleNotification(context.Context, *transport.Request) {}
 
 // runEventToFrameFor returns the per-request encoder for RunEvent stream
 // notifications. Every authoritative event goes out; a client's opt-out only
@@ -45,30 +45,30 @@ func (d *Router) handleNotification(context.Context, *transport.Request) {}
 // alone (§5.2).
 func runEventToFrameFor(ctx context.Context) func(protocol.RunEvent) (StreamFrame, bool) {
 	filter := streamFilterFrom(ctx)
-	return func(ev protocol.RunEvent) (StreamFrame, bool) {
-		if !filter.allow(ev.Event) {
+	return func(event protocol.RunEvent) (StreamFrame, bool) {
+		if !filter.allow(event.Event) {
 			return StreamFrame{}, false
 		}
-		notif, err := EncodeRunEvent(ev)
+		notification, err := EncodeRunEvent(event)
 		if err != nil {
 			return StreamFrame{}, false
 		}
 		sseID := ""
-		if ev.Event.Replayable() {
-			sseID = ev.EventID
+		if event.Event.Replayable() {
+			sseID = event.EventID
 		}
-		return StreamFrame{Notif: notif, SSEID: sseID}, true
+		return StreamFrame{Notification: notification, SSEID: sseID}, true
 	}
 }
 
 // runtimeEventToFrame encodes a RuntimeEvent into an ephemeral StreamFrame (no SSE
 // id — a change signal is not replayable, and does not need to be).
-func runtimeEventToFrame(ev protocol.RuntimeEvent) (StreamFrame, bool) {
-	notif, err := EncodeRuntimeEvent(ev)
+func runtimeEventToFrame(event protocol.RuntimeEvent) (StreamFrame, bool) {
+	notification, err := EncodeRuntimeEvent(event)
 	if err != nil {
 		return StreamFrame{}, false
 	}
-	return StreamFrame{Notif: notif}, true
+	return StreamFrame{Notification: notification}, true
 }
 
 // streamFilter is the client's ephemeral opt-out, and nothing else. There is
@@ -80,11 +80,11 @@ type streamFilter struct {
 }
 
 func streamFilterFrom(ctx context.Context) streamFilter {
-	caps, ok := protocol.ClientCapabilitiesFrom(ctx)
+	capabilities, ok := protocol.ClientCapabilitiesFrom(ctx)
 	if !ok {
 		return streamFilter{}
 	}
-	return streamFilter{optOut: eventSet(caps.ExcludedEphemeralEvents)}
+	return streamFilter{optOut: eventSet(capabilities.ExcludedEphemeralEvents)}
 }
 
 func eventSet(events []protocol.SuppressibleRunEventType) map[protocol.SuppressibleRunEventType]bool {
@@ -92,12 +92,12 @@ func eventSet(events []protocol.SuppressibleRunEventType) map[protocol.Suppressi
 		return nil
 	}
 	set := make(map[protocol.SuppressibleRunEventType]bool, len(events))
-	for _, ev := range events {
-		set[ev] = true
+	for _, eventType := range events {
+		set[eventType] = true
 	}
 	return set
 }
 
-func (f streamFilter) allow(ev protocol.StreamEvent) bool {
-	return f.optOut == nil || !f.optOut[protocol.SuppressibleRunEventType(ev.Type)]
+func (f streamFilter) allow(event protocol.StreamEvent) bool {
+	return f.optOut == nil || !f.optOut[protocol.SuppressibleRunEventType(event.Type)]
 }

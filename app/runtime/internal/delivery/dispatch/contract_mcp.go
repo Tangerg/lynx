@@ -6,83 +6,83 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 )
 
-func registerMCP(r *Registry) {
-	Query(r, MethodMeta{
+func registerMCP(registry *Registry) {
+	Query(registry, MethodMeta{
 		Name:            "mcp.servers.list",
 		CapabilityRules: requires(protocol.FeatureMCP),
 		Stability:       stable,
-	}, func(d *Router, ctx context.Context, _ struct{}) (*protocol.Page[protocol.MCPServer], error) {
-		return d.api.ListMCPServers(ctx)
+	}, func(router *Router, ctx context.Context, _ struct{}) (*protocol.Page[protocol.MCPServer], error) {
+		return router.api.ListMCPServers(ctx)
 	})
 
-	Command(r, MethodMeta{
+	Command(registry, MethodMeta{
 		Name:            "mcp.servers.create",
 		Errors:          []string{protocol.ErrMCPServerAlreadyExists.Error()},
 		CapabilityRules: requires(protocol.FeatureMCP),
 		Stability:       stable,
-	}, func(d *Router, ctx context.Context, in protocol.MCPServerCandidate) (*protocol.MCPServer, error) {
-		return d.api.CreateMCPServer(ctx, in)
+	}, func(router *Router, ctx context.Context, request protocol.MCPServerCandidate) (*protocol.MCPServer, error) {
+		return router.api.CreateMCPServer(ctx, request)
 	})
 
-	Command(r, MethodMeta{
+	Command(registry, MethodMeta{
 		Name:            "mcp.servers.update",
 		Errors:          []string{protocol.ErrMCPServerNotFound.Error()},
 		CapabilityRules: requires(protocol.FeatureMCP),
 		Stability:       stable,
-	}, func(d *Router, ctx context.Context, in protocol.UpdateMCPServerRequest) (*protocol.MCPServer, error) {
-		return d.api.UpdateMCPServer(ctx, in)
+	}, func(router *Router, ctx context.Context, request protocol.UpdateMCPServerRequest) (*protocol.MCPServer, error) {
+		return router.api.UpdateMCPServer(ctx, request)
 	})
 
-	CommandAck(r, MethodMeta{
+	CommandAck(registry, MethodMeta{
 		Name:            "mcp.servers.delete",
 		Errors:          []string{protocol.ErrMCPServerNotFound.Error()},
 		CapabilityRules: requires(protocol.FeatureMCP),
 		Stability:       stable,
-	}, func(d *Router, ctx context.Context, in protocol.MCPServerRequest) error {
-		return d.api.DeleteMCPServer(ctx, in.Server)
+	}, func(router *Router, ctx context.Context, request protocol.MCPServerRequest) error {
+		return router.api.DeleteMCPServer(ctx, request.Server)
 	})
 
 	// A connection probe persists nothing, so a retry is not a replay concern.
-	Query(r, MethodMeta{
+	Query(registry, MethodMeta{
 		Name:            "mcp.servers.test",
 		CapabilityRules: requires(protocol.FeatureMCP),
 		Stability:       stable,
-	}, func(d *Router, ctx context.Context, in protocol.MCPServerCandidate) (*protocol.MCPTestResult, error) {
-		return d.api.TestMCPServer(ctx, in)
+	}, func(router *Router, ctx context.Context, request protocol.MCPServerCandidate) (*protocol.MCPTestResult, error) {
+		return router.api.TestMCPServer(ctx, request)
 	})
 
-	Query(r, MethodMeta{
+	Query(registry, MethodMeta{
 		Name:            "mcp.tools.list",
 		CapabilityRules: requires(protocol.FeatureMCP),
 		Stability:       stable,
-	}, func(d *Router, ctx context.Context, in protocol.MCPListToolsRequest) (*protocol.Page[protocol.MCPTool], error) {
-		return d.api.ListMCPTools(ctx, in)
+	}, func(router *Router, ctx context.Context, request protocol.MCPListToolsRequest) (*protocol.Page[protocol.MCPTool], error) {
+		return router.api.ListMCPTools(ctx, request)
 	})
 
-	CommandAck(r, MethodMeta{
+	CommandAck(registry, MethodMeta{
 		Name:            "mcp.servers.reconnect",
 		Errors:          []string{protocol.ErrMCPServerNotFound.Error(), protocol.ErrMCPServerDisabled.Error()},
 		CapabilityRules: requires(protocol.FeatureMCP),
 		Stability:       stable,
-	}, func(d *Router, ctx context.Context, in protocol.MCPServerRequest) error {
-		return d.api.ReconnectMCPServer(ctx, in.Server)
+	}, func(router *Router, ctx context.Context, request protocol.MCPServerRequest) error {
+		return router.api.ReconnectMCPServer(ctx, request.Server)
 	})
 
-	Command(r, MethodMeta{
+	Command(registry, MethodMeta{
 		Name:            "mcp.authorizationAttempts.create",
 		Errors:          []string{protocol.ErrMCPServerNotFound.Error(), protocol.ErrMCPServerDisabled.Error()},
 		CapabilityRules: requires(protocol.FeatureMCP),
 		Stability:       stable,
-	}, func(d *Router, ctx context.Context, in protocol.CreateMCPAuthorizationAttemptRequest) (*protocol.MCPAuthorizationAttempt, error) {
-		return d.api.CreateMCPAuthorizationAttempt(ctx, in.Server)
+	}, func(router *Router, ctx context.Context, request protocol.CreateMCPAuthorizationAttemptRequest) (*protocol.MCPAuthorizationAttempt, error) {
+		return router.api.CreateMCPAuthorizationAttempt(ctx, request.Server)
 	})
 
-	Query(r, MethodMeta{
+	Query(registry, MethodMeta{
 		Name:            "mcp.authorizationAttempts.get",
 		Errors:          []string{protocol.ErrMCPAuthorizationAttemptNotFound.Error()},
 		CapabilityRules: requires(protocol.FeatureMCP),
 		Stability:       stable,
-	}, func(d *Router, ctx context.Context, in protocol.MCPAuthorizationAttemptRequest) (*protocol.MCPAuthorizationAttempt, error) {
-		return d.api.GetMCPAuthorizationAttempt(ctx, in.AttemptID)
+	}, func(router *Router, ctx context.Context, request protocol.MCPAuthorizationAttemptRequest) (*protocol.MCPAuthorizationAttempt, error) {
+		return router.api.GetMCPAuthorizationAttempt(ctx, request.AttemptID)
 	})
 }

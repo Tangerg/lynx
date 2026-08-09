@@ -33,124 +33,124 @@ func idempotencyOf(method string) IdempotencyPolicy {
 	return registered.Meta.Idempotency
 }
 
-func (d *Router) dispatchReplayProtected(ctx context.Context, req *transport.Request) HandleResult {
+func (r *Router) dispatchReplayProtected(ctx context.Context, request *transport.Request) HandleResult {
 	key := transport.IdempotencyKeyFrom(ctx)
-	policy := idempotencyOf(req.Method)
+	policy := idempotencyOf(request.Method)
 	if key == "" || !policy.Replays() {
-		return d.dispatchRequest(ctx, req)
+		return r.dispatchRequest(ctx, request)
 	}
 	if len(key) > maxIdempotencyKeyBytes {
-		return responseError(req.ID, invalidParams("Idempotency-Key must not exceed 255 bytes"))
+		return responseError(request.ID, invalidParams("Idempotency-Key must not exceed 255 bytes"))
 	}
-	fingerprint, err := requestFingerprint(req)
+	fingerprint, err := requestFingerprint(request)
 	if err != nil {
-		return responseError(req.ID, errorToRPC(fmt.Errorf("idempotency: fingerprint request: %w", err)))
+		return responseError(request.ID, errorToRPC(fmt.Errorf("idempotency: fingerprint request: %w", err)))
 	}
-	lock := d.replayLock(key)
+	lock := r.replayLock(key)
 	lock.Lock()
 	defer lock.Unlock()
-	if pending, ok := d.pendingCompletion(key); ok {
+	if pending, ok := r.pendingCompletion(key); ok {
 		if pending.Fingerprint != fingerprint {
-			return responseError(req.ID, errorToRPC(fmt.Errorf(
+			return responseError(request.ID, errorToRPC(fmt.Errorf(
 				"%w: key is already bound to another request", protocol.ErrIdempotencyConflict,
 			)))
 		}
-		if err := d.completeReplay(ctx, pending); err != nil {
+		if err := r.completeReplay(ctx, pending); err != nil {
 			if errors.Is(err, idempotency.ErrKeyConflict) {
-				return responseError(req.ID, errorToRPC(fmt.Errorf(
+				return responseError(request.ID, errorToRPC(fmt.Errorf(
 					"%w: key is already bound to another request", protocol.ErrIdempotencyConflict,
 				)))
 			}
-			return responseError(req.ID, errorToRPC(fmt.Errorf(
+			return responseError(request.ID, errorToRPC(fmt.Errorf(
 				"%w: response persistence is still pending", protocol.ErrIdempotencyInProgress,
 			)))
 		}
-		d.forgetPendingCompletion(key, fingerprint)
-		return d.replay(ctx, req, pending.Payload)
+		r.forgetPendingCompletion(key, fingerprint)
+		return r.replay(ctx, request, pending.Payload)
 	}
 
-	record, claimed, err := d.store.Claim(ctx, key, fingerprint)
+	record, claimed, err := r.store.Claim(ctx, key, fingerprint)
 	if err != nil {
 		if errors.Is(err, idempotency.ErrKeyConflict) {
 			err = fmt.Errorf("%w: key is already bound to another request", protocol.ErrIdempotencyConflict)
 		} else {
 			err = fmt.Errorf("idempotency: claim replay key: %w", err)
 		}
-		return responseError(req.ID, errorToRPC(err))
+		return responseError(request.ID, errorToRPC(err))
 	}
 	if !claimed {
 		if len(record.Payload) == 0 {
-			return responseError(req.ID, errorToRPC(fmt.Errorf("%w: first execution has not completed", protocol.ErrIdempotencyInProgress)))
+			return responseError(request.ID, errorToRPC(fmt.Errorf("%w: first execution has not completed", protocol.ErrIdempotencyInProgress)))
 		}
-		return d.replay(ctx, req, record.Payload)
+		return r.replay(ctx, request, record.Payload)
 	}
 
-	result := d.dispatchRequest(ctx, req)
+	result := r.dispatchRequest(ctx, request)
 	if result.Response == nil {
 		return result
 	}
 	payload, err := transport.EncodeMessage(result.Response)
 	if err != nil {
-		return responseError(req.ID, errorToRPC(fmt.Errorf("idempotency: encode response: %w", err)))
+		return responseError(request.ID, errorToRPC(fmt.Errorf("idempotency: encode response: %w", err)))
 	}
 	record = idempotency.Record{Key: key, Fingerprint: fingerprint, Payload: payload}
-	if err := d.completeReplay(ctx, record); err != nil {
+	if err := r.completeReplay(ctx, record); err != nil {
 		if errors.Is(err, idempotency.ErrKeyConflict) {
 			err = fmt.Errorf("%w: key is already bound to another request", protocol.ErrIdempotencyConflict)
-			return responseError(req.ID, errorToRPC(err))
+			return responseError(request.ID, errorToRPC(err))
 		}
 		// The business response already exists and must never be executed again.
 		// Retain it until a same-key retry can finish persistence, and surface the
 		// protocol's retry-with-the-same-key outcome instead of a false terminal
 		// internal error.
-		d.rememberPendingCompletion(record)
+		r.rememberPendingCompletion(record)
 		trace.SpanFromContext(ctx).RecordError(fmt.Errorf("idempotency: store replay: %w", err))
-		return responseError(req.ID, errorToRPC(fmt.Errorf(
+		return responseError(request.ID, errorToRPC(fmt.Errorf(
 			"%w: response persistence is pending", protocol.ErrIdempotencyInProgress,
 		)))
 	}
 	return result
 }
 
-func (d *Router) completeReplay(ctx context.Context, record idempotency.Record) error {
-	writeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), idempotencyStoreWriteTimeout)
+func (r *Router) completeReplay(ctx context.Context, record idempotency.Record) error {
+	writeContext, cancel := context.WithTimeout(context.WithoutCancel(ctx), idempotencyStoreWriteTimeout)
 	defer cancel()
-	return d.store.Complete(writeCtx, record)
+	return r.store.Complete(writeContext, record)
 }
 
-func (d *Router) pendingCompletion(key string) (idempotency.Record, bool) {
-	d.pendingMu.Lock()
-	defer d.pendingMu.Unlock()
-	record, ok := d.pending[key]
+func (r *Router) pendingCompletion(key string) (idempotency.Record, bool) {
+	r.pendingMu.Lock()
+	defer r.pendingMu.Unlock()
+	record, ok := r.pending[key]
 	record.Payload = bytes.Clone(record.Payload)
 	return record, ok
 }
 
-func (d *Router) rememberPendingCompletion(record idempotency.Record) {
+func (r *Router) rememberPendingCompletion(record idempotency.Record) {
 	record.Payload = bytes.Clone(record.Payload)
-	d.pendingMu.Lock()
-	if d.pending == nil {
-		d.pending = make(map[string]idempotency.Record)
+	r.pendingMu.Lock()
+	if r.pending == nil {
+		r.pending = make(map[string]idempotency.Record)
 	}
-	d.pending[record.Key] = record
-	d.pendingMu.Unlock()
+	r.pending[record.Key] = record
+	r.pendingMu.Unlock()
 }
 
-func (d *Router) forgetPendingCompletion(key, fingerprint string) {
-	d.pendingMu.Lock()
-	if d.pending[key].Fingerprint == fingerprint {
-		delete(d.pending, key)
+func (r *Router) forgetPendingCompletion(key, fingerprint string) {
+	r.pendingMu.Lock()
+	if r.pending[key].Fingerprint == fingerprint {
+		delete(r.pending, key)
 	}
-	d.pendingMu.Unlock()
+	r.pendingMu.Unlock()
 }
 
-func (d *Router) replayLock(key string) *sync.Mutex {
+func (r *Router) replayLock(key string) *sync.Mutex {
 	sum := sha256.Sum256([]byte(key))
-	return &d.replayLocks[int(sum[0])%len(d.replayLocks)]
+	return &r.replayLocks[int(sum[0])%len(r.replayLocks)]
 }
 
-func requestFingerprint(req *transport.Request) (string, error) {
-	params := req.Params
+func requestFingerprint(request *transport.Request) (string, error) {
+	params := request.Params
 	if len(params) != 0 {
 		decoder := json.NewDecoder(bytes.NewReader(params))
 		decoder.UseNumber()
@@ -165,26 +165,26 @@ func requestFingerprint(req *transport.Request) (string, error) {
 		params = canonical
 	}
 	hash := sha256.New()
-	_, _ = hash.Write([]byte(req.Method))
+	_, _ = hash.Write([]byte(request.Method))
 	_, _ = hash.Write([]byte{0})
 	_, _ = hash.Write(params)
 	return hex.EncodeToString(hash.Sum(nil)), nil
 }
 
-func (d *Router) replay(ctx context.Context, req *transport.Request, payload []byte) HandleResult {
+func (r *Router) replay(ctx context.Context, request *transport.Request, payload []byte) HandleResult {
 	message, err := transport.DecodeMessage(payload)
 	if err != nil {
-		return responseError(req.ID, errorToRPC(fmt.Errorf("idempotency: decode stored response: %w", err)))
+		return responseError(request.ID, errorToRPC(fmt.Errorf("idempotency: decode stored response: %w", err)))
 	}
 	response, ok := message.(*transport.Response)
 	if !ok {
-		return responseError(req.ID, errorToRPC(errors.New("idempotency: stored payload is not a response")))
+		return responseError(request.ID, errorToRPC(errors.New("idempotency: stored payload is not a response")))
 	}
-	response.ID = req.ID
+	response.ID = request.ID
 	// A cached error, or a method that replays by returning its response, is done
 	// here. A run-opening method is not: its ack names a run the caller still has
 	// no stream for, so the retry re-attaches to the run rather than starting one.
-	if response.Error != nil || idempotencyOf(req.Method) != IdempotencyReplayRunStream {
+	if response.Error != nil || idempotencyOf(request.Method) != IdempotencyReplayRunStream {
 		return HandleResult{Response: response}
 	}
 	var opening struct {
@@ -192,9 +192,9 @@ func (d *Router) replay(ctx context.Context, req *transport.Request, payload []b
 		SegmentID string `json:"segmentId"`
 	}
 	if err := json.Unmarshal(response.Result, &opening); err != nil {
-		return responseError(req.ID, errorToRPC(fmt.Errorf("idempotency: decode stored run response: %w", err)))
+		return responseError(request.ID, errorToRPC(fmt.Errorf("idempotency: decode stored run response: %w", err)))
 	}
-	_, events, err := d.api.SubscribeRun(ctx, protocol.SubscribeRunRequest{
+	_, events, err := r.api.SubscribeRun(ctx, protocol.SubscribeRunRequest{
 		RunID: opening.RunID, SegmentID: opening.SegmentID,
 	})
 	switch {
@@ -205,7 +205,7 @@ func (d *Router) replay(ctx context.Context, req *transport.Request, payload []b
 		// recovery.
 		return HandleResult{Response: response, EventStream: emptyStream}
 	case err != nil:
-		return responseError(req.ID, errorToRPC(err))
+		return responseError(request.ID, errorToRPC(err))
 	}
 	// The CACHED ack is the answer, never the subscribe ack: the same key must
 	// return the same result, and a subscribe ack is a different shape that could

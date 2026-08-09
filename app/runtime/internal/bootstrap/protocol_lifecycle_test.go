@@ -26,35 +26,50 @@ import (
 // breaking as a whole: start, structured steer, wait, resume, cancel, process
 // shutdown, startup recovery, and cold reads.
 func TestProtocolLifecycleSurvivesColdRestart(t *testing.T) {
+	fixture := newProtocolLifecycleFixture(t)
+	defer fixture.closeFirstRuntime()
+	question := fixture.startAndPark()
+	fixture.resumeAndCancel(question)
+	fixture.assertColdState()
+}
+
+type protocolLifecycleFixture struct {
+	t         *testing.T
+	home      string
+	ctx       context.Context
+	model     *lifecycleModel
+	host      *Host
+	api       *runtimeserver.Server
+	sessionID string
+	started   *protocol.StartRunResponse
+	closed    bool
+}
+
+func newProtocolLifecycleFixture(t *testing.T) *protocolLifecycleFixture {
+	t.Helper()
 	home := t.TempDir()
 	t.Setenv("LYRA_HOME", home)
-
 	model := newLifecycleModel()
 	host, api := openProtocolRuntime(t, model)
-	firstOpen := true
-	defer func() {
-		if firstOpen {
-			api.Close()
-			if err := host.Close(); err != nil {
-				t.Errorf("close first runtime: %v", err)
-			}
-		}
-	}()
-
 	ctx := protocol.WithRequestMeta(t.Context(), protocol.RequestMeta{
 		ProtocolVersion: protocol.ProtocolVersion,
 		ClientCapabilities: &protocol.ClientCapabilities{
 			InterruptTypes: []protocol.InterruptType{protocol.InterruptQuestion},
 		},
 	})
-	session, err := api.CreateSession(ctx, protocol.CreateSessionRequest{
-		Workspace: &protocol.WorkspaceRef{Path: home}, Title: "protocol lifecycle",
+	return &protocolLifecycleFixture{t: t, home: home, ctx: ctx, model: model, host: host, api: api}
+}
+
+func (f *protocolLifecycleFixture) startAndPark() protocol.Interrupt {
+	f.t.Helper()
+	session, err := f.api.CreateSession(f.ctx, protocol.CreateSessionRequest{
+		Workspace: &protocol.WorkspaceRef{Path: f.home}, Title: "protocol lifecycle",
 	})
 	if err != nil {
-		t.Fatalf("sessions.create: %v", err)
+		f.t.Fatalf("sessions.create: %v", err)
 	}
-
-	started, startEvents, err := api.StartRun(ctx, protocol.StartRunRequest{
+	f.sessionID = session.ID
+	started, startEvents, err := f.api.StartRun(f.ctx, protocol.StartRunRequest{
 		SessionID: session.ID,
 		Input: []protocol.ContentBlock{{
 			Type: protocol.ContentBlockText,
@@ -62,59 +77,63 @@ func TestProtocolLifecycleSurvivesColdRestart(t *testing.T) {
 		}},
 	})
 	if err != nil {
-		t.Fatalf("runs.start: %v", err)
+		f.t.Fatalf("runs.start: %v", err)
 	}
+	f.started = started
 	if started.RunID == "" || started.SegmentID == "" || started.UserItemID == "" {
-		t.Fatalf("runs.start returned incomplete identity: %+v", started)
+		f.t.Fatalf("runs.start returned incomplete identity: %+v", started)
 	}
 	startEventsDone := collectRunEvents(startEvents)
 	select {
-	case <-model.firstCallStarted:
+	case <-f.model.firstCallStarted:
 	case events := <-startEventsDone:
-		ended, _ := api.GetRun(ctx, protocol.GetRunRequest{RunID: started.RunID})
+		ended, _ := f.api.GetRun(f.ctx, protocol.GetRunRequest{RunID: started.RunID})
 		diagnostic, _ := json.Marshal(ended)
-		t.Fatalf("run ended before first model call: run=%s events=%+v", diagnostic, events)
+		f.t.Fatalf("run ended before first model call: run=%s events=%+v", diagnostic, events)
 	case <-time.After(5 * time.Second):
-		t.Fatal("timed out waiting for first model call")
+		f.t.Fatal("timed out waiting for first model call")
 	}
 
-	const steeringText = "Keep the resumed answer concise."
-	if err := api.SteerRun(ctx, protocol.SteerRunRequest{
+	if err := f.api.SteerRun(f.ctx, protocol.SteerRunRequest{
 		RunID:             started.RunID,
 		ExpectedSegmentID: started.SegmentID,
 		Input: []protocol.ContentBlock{{
 			Type: protocol.ContentBlockText,
-			Text: steeringText,
+			Text: protocolLifecycleSteeringText,
 		}},
 	}); err != nil {
-		t.Fatalf("runs.steer: %v", err)
+		f.t.Fatalf("runs.steer: %v", err)
 	}
-	close(model.releaseFirstCall)
-	waitForRunEvents(t, startEventsDone, "waiting segment")
+	close(f.model.releaseFirstCall)
+	waitForRunEvents(f.t, startEventsDone, "waiting segment")
 
-	waiting, err := api.GetRun(ctx, protocol.GetRunRequest{RunID: started.RunID})
+	waiting, err := f.api.GetRun(f.ctx, protocol.GetRunRequest{RunID: started.RunID})
 	if err != nil {
-		t.Fatalf("runs.get waiting run: %v", err)
+		f.t.Fatalf("runs.get waiting run: %v", err)
 	}
 	if waiting.Status != protocol.RunStatusWaiting || waiting.Outcome != nil || waiting.ActiveSegmentID != "" {
-		t.Fatalf("waiting run = %+v, want waiting without outcome or active segment", waiting)
+		f.t.Fatalf("waiting run = %+v, want waiting without outcome or active segment", waiting)
 	}
-	pending, err := api.ListInterrupts(ctx, protocol.ListInterruptsRequest{
+	pending, err := f.api.ListInterrupts(f.ctx, protocol.ListInterruptsRequest{
 		RootRunID: started.RunID,
 	})
 	if err != nil {
-		t.Fatalf("interrupt.list: %v", err)
+		f.t.Fatalf("interrupt.list: %v", err)
 	}
 	if len(pending.Data) != 1 || len(pending.Data[0].Interrupts) != 1 {
-		t.Fatalf("pending interrupts = %+v, want one complete set with one interrupt", pending.Data)
+		f.t.Fatalf("pending interrupts = %+v, want one complete set with one interrupt", pending.Data)
 	}
 	question := pending.Data[0].Interrupts[0]
 	if question.RunID != started.RunID || question.Type != protocol.InterruptQuestion {
-		t.Fatalf("pending interrupt = %+v, want this run's question", question)
+		f.t.Fatalf("pending interrupt = %+v, want this run's question", question)
 	}
+	return question
+}
 
-	resumed, resumeEvents, err := api.ResumeRun(ctx, protocol.ResumeRunRequest{
-		RunID: started.RunID,
+func (f *protocolLifecycleFixture) resumeAndCancel(question protocol.Interrupt) {
+	f.t.Helper()
+	resumed, resumeEvents, err := f.api.ResumeRun(f.ctx, protocol.ResumeRunRequest{
+		RunID: f.started.RunID,
 		Responses: []protocol.InterruptResponse{{
 			ItemID: question.ItemID,
 			Response: protocol.InterruptResponseValue{
@@ -124,16 +143,16 @@ func TestProtocolLifecycleSurvivesColdRestart(t *testing.T) {
 		}},
 	})
 	if err != nil {
-		t.Fatalf("runs.resume: %v", err)
+		f.t.Fatalf("runs.resume: %v", err)
 	}
-	if resumed.RunID != started.RunID || resumed.SegmentID == "" || resumed.SegmentID == started.SegmentID {
-		t.Fatalf("runs.resume identity = %+v, want same run and a fresh segment", resumed)
+	if resumed.RunID != f.started.RunID || resumed.SegmentID == "" || resumed.SegmentID == f.started.SegmentID {
+		f.t.Fatalf("runs.resume identity = %+v, want same run and a fresh segment", resumed)
 	}
 	if resumed.UserItemID != nil {
-		t.Fatalf("runs.resume userItemId = %q without resume input", *resumed.UserItemID)
+		f.t.Fatalf("runs.resume userItemId = %q without resume input", *resumed.UserItemID)
 	}
 	resumeEventsDone := collectRunEvents(resumeEvents)
-	waitForSignal(t, model.resumedCallStarted, "resumed model call")
+	waitForSignal(f.t, f.model.resumedCallStarted, "resumed model call")
 
 	type cancelResult struct {
 		response *protocol.CancelRunResponse
@@ -141,67 +160,80 @@ func TestProtocolLifecycleSurvivesColdRestart(t *testing.T) {
 	}
 	cancelDone := make(chan cancelResult, 1)
 	go func() {
-		response, cancelErr := api.CancelRun(ctx, protocol.CancelRunRequest{
-			RunID: started.RunID, Reason: "conformance smoke complete",
+		response, cancelErr := f.api.CancelRun(f.ctx, protocol.CancelRunRequest{
+			RunID: f.started.RunID, Reason: "conformance smoke complete",
 		})
 		cancelDone <- cancelResult{response: response, err: cancelErr}
 	}()
 	settlementDelay := time.NewTimer(50 * time.Millisecond)
 	<-settlementDelay.C
-	close(model.releaseResumedCall)
+	close(f.model.releaseResumedCall)
 	cancelCall := <-cancelDone
 	canceled, err := cancelCall.response, cancelCall.err
 	if err != nil {
-		t.Fatalf("runs.cancel: %v", err)
+		f.t.Fatalf("runs.cancel: %v", err)
 	}
 	if canceled.Type != protocol.CancelRunRoot ||
-		canceled.Run.ID != started.RunID ||
+		canceled.Run.ID != f.started.RunID ||
 		canceled.Run.Status != protocol.RunStatusFinished ||
 		canceled.Run.Outcome == nil ||
 		canceled.Run.Outcome.Type != protocol.OutcomeCanceled {
-		t.Fatalf("runs.cancel result = %+v, want finished(canceled) root", canceled)
+		f.t.Fatalf("runs.cancel result = %+v, want finished(canceled) root", canceled)
 	}
-	waitForRunEvents(t, resumeEventsDone, "canceled segment")
-	api.Close()
-	if err := host.Close(); err != nil {
-		t.Fatalf("close first runtime: %v", err)
-	}
-	firstOpen = false
+	waitForRunEvents(f.t, resumeEventsDone, "canceled segment")
+	f.closeFirstRuntime()
+}
 
-	restartedHost, restartedAPI := openProtocolRuntime(t, newReplyStub("unused"))
+func (f *protocolLifecycleFixture) assertColdState() {
+	f.t.Helper()
+	restartedHost, restartedAPI := openProtocolRuntime(f.t, newReplyStub("unused"))
 	defer func() {
 		restartedAPI.Close()
 		if err := restartedHost.Close(); err != nil {
-			t.Errorf("close restarted runtime: %v", err)
+			f.t.Errorf("close restarted runtime: %v", err)
 		}
 	}()
 
-	recovered, err := restartedAPI.GetRun(ctx, protocol.GetRunRequest{RunID: started.RunID})
+	recovered, err := restartedAPI.GetRun(f.ctx, protocol.GetRunRequest{RunID: f.started.RunID})
 	if err != nil {
-		t.Fatalf("runs.get after restart: %v", err)
+		f.t.Fatalf("runs.get after restart: %v", err)
 	}
 	if recovered.Status != protocol.RunStatusFinished ||
 		recovered.Outcome == nil ||
 		recovered.Outcome.Type != protocol.OutcomeCanceled ||
 		recovered.ActiveSegmentID != "" {
-		t.Fatalf("cold run = %+v, want finished(canceled) without active segment", recovered)
+		f.t.Fatalf("cold run = %+v, want finished(canceled) without active segment", recovered)
 	}
-	items, err := restartedAPI.ListItems(ctx, protocol.ListItemsRequest{
+	items, err := restartedAPI.ListItems(f.ctx, protocol.ListItemsRequest{
 		Scope: protocol.ItemListScope{
 			Type:      protocol.ItemScopeSession,
-			SessionID: session.ID,
+			SessionID: f.sessionID,
 		},
 	})
 	if err != nil {
-		t.Fatalf("items.list after restart: %v", err)
+		f.t.Fatalf("items.list after restart: %v", err)
 	}
 	if !hasUserText(items.Data, "Start the lifecycle check.") {
-		t.Fatal("cold items do not contain the opening user message")
+		f.t.Fatal("cold items do not contain the opening user message")
 	}
-	if !hasUserText(items.Data, steeringText) {
-		t.Fatal("cold items do not contain the structured steering message")
+	if !hasUserText(items.Data, protocolLifecycleSteeringText) {
+		f.t.Fatal("cold items do not contain the structured steering message")
 	}
 }
+
+func (f *protocolLifecycleFixture) closeFirstRuntime() {
+	f.t.Helper()
+	if f.closed {
+		return
+	}
+	f.api.Close()
+	if err := f.host.Close(); err != nil {
+		f.t.Fatalf("close first runtime: %v", err)
+	}
+	f.closed = true
+}
+
+const protocolLifecycleSteeringText = "Keep the resumed answer concise."
 
 type lifecycleModel struct {
 	calls              atomic.Int32

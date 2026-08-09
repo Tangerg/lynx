@@ -2,13 +2,10 @@ package protocol
 
 import (
 	"go/ast"
-	"go/parser"
 	"go/token"
-	"path/filepath"
 	"reflect"
 	"slices"
 	"strconv"
-	"strings"
 	"testing"
 )
 
@@ -73,24 +70,9 @@ func TestWireEnumReturnsCallerOwnedValues(t *testing.T) {
 // the string constants declared with that type, in source order.
 func constantsByType(t *testing.T) map[string][]string {
 	t.Helper()
-
-	files, err := filepath.Glob("*.go")
-	if err != nil {
-		t.Fatalf("glob package files: %v", err)
-	}
-	slices.Sort(files)
-
+	parsed := parseProtocolSource(t)
 	stringTypes := make(map[string]bool)
-	var parsed []*ast.File
-	for _, file := range files {
-		if strings.HasSuffix(file, "_test.go") {
-			continue
-		}
-		syntax, err := parser.ParseFile(token.NewFileSet(), file, nil, 0)
-		if err != nil {
-			t.Fatalf("parse %s: %v", file, err)
-		}
-		parsed = append(parsed, syntax)
+	for _, syntax := range parsed {
 		for _, spec := range typeSpecs(syntax) {
 			if ident, ok := spec.Type.(*ast.Ident); ok && ident.Name == "string" {
 				stringTypes[spec.Name.Name] = true
@@ -104,59 +86,19 @@ func constantsByType(t *testing.T) map[string][]string {
 	// conversion can be resolved to one, and Go's declaration order does not
 	// promise the source came first.
 	literals := make(map[string]string)
-	type conversion struct{ enum, constant string }
-	var conversions []conversion
+	var conversions []enumConversion
 	out := make(map[string][]string)
 	for _, syntax := range parsed {
-		for _, decl := range syntax.Decls {
-			group, ok := decl.(*ast.GenDecl)
-			if !ok || group.Tok != token.CONST {
+		for _, value := range constantSpecs(syntax) {
+			if len(value.Values) != 1 || len(value.Names) != 1 {
 				continue
 			}
-			for _, spec := range group.Specs {
-				value, ok := spec.(*ast.ValueSpec)
-				if !ok || len(value.Values) != 1 || len(value.Names) != 1 {
-					continue
-				}
-				// Keep every package string constant available as a conversion
-				// source, including untyped vocabularies such as FeatureSubagents.
-				// Only constants whose declared type is a wire enum enter out.
-				if literal, ok := value.Values[0].(*ast.BasicLit); ok && literal.Kind == token.STRING {
-					text, err := strconv.Unquote(literal.Value)
-					if err != nil {
-						t.Fatalf("unquote %s: %v", literal.Value, err)
-					}
-					literals[value.Names[0].Name] = text
-				}
-				if ident, ok := value.Type.(*ast.Ident); ok && stringTypes[ident.Name] {
-					literal, ok := value.Values[0].(*ast.BasicLit)
-					if !ok || literal.Kind != token.STRING {
-						continue
-					}
-					text, err := strconv.Unquote(literal.Value)
-					if err != nil {
-						t.Fatalf("unquote %s: %v", literal.Value, err)
-					}
-					out[ident.Name] = append(out[ident.Name], text)
-					continue
-				}
-				// `X = EnumType(Y)` — the value is Y's, published under EnumType too.
-				if value.Type != nil {
-					continue
-				}
-				call, ok := value.Values[0].(*ast.CallExpr)
-				if !ok || len(call.Args) != 1 {
-					continue
-				}
-				enum, ok := call.Fun.(*ast.Ident)
-				if !ok || !stringTypes[enum.Name] {
-					continue
-				}
-				source, ok := call.Args[0].(*ast.Ident)
-				if !ok {
-					continue
-				}
-				conversions = append(conversions, conversion{enum: enum.Name, constant: source.Name})
+			recordStringLiteral(t, value, literals)
+			if recordTypedEnum(t, value, stringTypes, out) {
+				continue
+			}
+			if conversion, ok := enumConversionFrom(value, stringTypes); ok {
+				conversions = append(conversions, conversion)
 			}
 		}
 	}
@@ -169,6 +111,58 @@ func constantsByType(t *testing.T) map[string][]string {
 		out[converted.enum] = append(out[converted.enum], text)
 	}
 	return out
+}
+
+type enumConversion struct{ enum, constant string }
+
+func recordStringLiteral(t *testing.T, value *ast.ValueSpec, literals map[string]string) {
+	t.Helper()
+	literal, ok := value.Values[0].(*ast.BasicLit)
+	if !ok || literal.Kind != token.STRING {
+		return
+	}
+	text, err := strconv.Unquote(literal.Value)
+	if err != nil {
+		t.Fatalf("unquote %s: %v", literal.Value, err)
+	}
+	literals[value.Names[0].Name] = text
+}
+
+func recordTypedEnum(t *testing.T, value *ast.ValueSpec, stringTypes map[string]bool, out map[string][]string) bool {
+	t.Helper()
+	ident, ok := value.Type.(*ast.Ident)
+	if !ok || !stringTypes[ident.Name] {
+		return false
+	}
+	literal, ok := value.Values[0].(*ast.BasicLit)
+	if !ok || literal.Kind != token.STRING {
+		return true
+	}
+	text, err := strconv.Unquote(literal.Value)
+	if err != nil {
+		t.Fatalf("unquote %s: %v", literal.Value, err)
+	}
+	out[ident.Name] = append(out[ident.Name], text)
+	return true
+}
+
+func enumConversionFrom(value *ast.ValueSpec, stringTypes map[string]bool) (enumConversion, bool) {
+	if value.Type != nil {
+		return enumConversion{}, false
+	}
+	call, ok := value.Values[0].(*ast.CallExpr)
+	if !ok || len(call.Args) != 1 {
+		return enumConversion{}, false
+	}
+	enum, ok := call.Fun.(*ast.Ident)
+	if !ok || !stringTypes[enum.Name] {
+		return enumConversion{}, false
+	}
+	source, ok := call.Args[0].(*ast.Ident)
+	if !ok {
+		return enumConversion{}, false
+	}
+	return enumConversion{enum: enum.Name, constant: source.Name}, true
 }
 
 func typeSpecs(syntax *ast.File) []*ast.TypeSpec {

@@ -104,7 +104,7 @@ func TestReconnectMCPServer(t *testing.T) {
 		tools:    []mcpserver.ToolInfo{{Server: "fs", Name: "read"}},
 	}))
 	defer s.Close()
-	events, unsub := s.wsHub.subscribe()
+	events, unsub := s.workspaceHub.subscribe()
 	defer unsub()
 
 	if err := s.ReconnectMCPServer(context.Background(), "fs"); err != nil {

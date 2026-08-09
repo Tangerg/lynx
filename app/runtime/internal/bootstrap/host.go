@@ -8,9 +8,8 @@ import (
 )
 
 // Host owns the assembled application tier and its process-level close order
-// (§13.2). The Stack is a pure discovery/delivery aggregate (§5.3); the Host holds
-// the process resources, so delivery reaches coordinators through host.Stack while
-// the composition root drives shutdown through Close.
+// (§13.2). Stack exposes application entrypoints to delivery, while Host retains
+// the process resources and drives their shutdown through Close.
 type Host struct {
 	Stack Stack
 
@@ -35,14 +34,14 @@ type hostLifetime struct {
 	closed          bool
 	shutdownTimeout time.Duration
 
-	goals        shutdownComponent
-	mcp          shutdownComponent
-	codebase     shutdownComponent
-	coordinator  shutdownComponent
-	execution    shutdownComponent
-	effectsTasks taskOwner
-	toolClosers  []ShutdownResource
-	resources    []ShutdownResource
+	goalDriver          shutdownComponent
+	mcpCoordinator      shutdownComponent
+	codebaseCoordinator shutdownComponent
+	runCoordinator      shutdownComponent
+	executor            shutdownComponent
+	runEffectTasks      taskOwner
+	toolResources       []ShutdownResource
+	hostResources       []ShutdownResource
 }
 
 type shutdownComponent interface {
@@ -80,10 +79,10 @@ func closeHostLifetime(lifetime *hostLifetime) error {
 		return nil
 	}
 	components := []shutdownComponent{
-		lifetime.goals,
-		lifetime.mcp,
-		lifetime.codebase,
-		lifetime.coordinator,
+		lifetime.goalDriver,
+		lifetime.mcpCoordinator,
+		lifetime.codebaseCoordinator,
+		lifetime.runCoordinator,
 	}
 	if !lifetime.stopping {
 		lifetime.stopping = true
@@ -92,8 +91,8 @@ func closeHostLifetime(lifetime *hostLifetime) error {
 				component.BeginShutdown()
 			}
 		}
-		if lifetime.effectsTasks != nil {
-			lifetime.effectsTasks.Cancel()
+		if lifetime.runEffectTasks != nil {
+			lifetime.runEffectTasks.Cancel()
 		}
 	}
 
@@ -109,28 +108,28 @@ func closeHostLifetime(lifetime *hostLifetime) error {
 			errs = append(errs, component.AwaitShutdown(shutdownCtx))
 		}
 	}
-	if lifetime.effectsTasks != nil {
-		errs = append(errs, lifetime.effectsTasks.Wait(shutdownCtx))
+	if lifetime.runEffectTasks != nil {
+		errs = append(errs, lifetime.runEffectTasks.Wait(shutdownCtx))
 	}
 	if componentErr := errors.Join(errs...); componentErr != nil {
 		return componentErr
 	}
 
-	if lifetime.execution != nil {
-		lifetime.execution.BeginShutdown()
-		if err := lifetime.execution.AwaitShutdown(shutdownCtx); err != nil {
+	if lifetime.executor != nil {
+		lifetime.executor.BeginShutdown()
+		if err := lifetime.executor.AwaitShutdown(shutdownCtx); err != nil {
 			return err
 		}
 	}
 	var err error
-	lifetime.toolClosers, err = closePendingResources(shutdownCtx, lifetime.toolClosers)
+	lifetime.toolResources, err = closePendingResources(shutdownCtx, lifetime.toolResources)
 	if err != nil {
 		// A closer that failed is still owned by this Host. Keep only those
 		// unresolved steps so a later Close retries the real incomplete graph
 		// without closing dependencies below an incomplete step.
 		return err
 	}
-	lifetime.resources, err = closePendingResources(shutdownCtx, lifetime.resources)
+	lifetime.hostResources, err = closePendingResources(shutdownCtx, lifetime.hostResources)
 	if err != nil {
 		return err
 	}

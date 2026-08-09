@@ -7,11 +7,11 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 )
 
-func registerRuns(r *Registry) {
+func registerRuns(registry *Registry) {
 	// runs.start and runs.resume open a run. A same-key retry must land back on
 	// THAT run — replaying the cached ack alone would give the client a runId with
 	// no stream behind it (TRANSPORT §6.2).
-	RunStreamCommand(r, MethodMeta{
+	RunStreamCommand(registry, MethodMeta{
 		Name: "runs.start",
 		Errors: []string{
 			protocol.ErrSessionNotFound.Error(),
@@ -21,11 +21,11 @@ func registerRuns(r *Registry) {
 			protocol.ErrCapabilityNotNeg.Error(),
 		},
 		Stability: stable,
-	}, func(d *Router, ctx context.Context, in protocol.StartRunRequest) (*protocol.StartRunResponse, iter.Seq[protocol.RunEvent], error) {
-		return d.api.StartRun(ctx, in)
+	}, func(router *Router, ctx context.Context, request protocol.StartRunRequest) (*protocol.StartRunResponse, iter.Seq[protocol.RunEvent], error) {
+		return router.api.StartRun(ctx, request)
 	}, runEventFramer)
 
-	RunStreamCommand(r, MethodMeta{
+	RunStreamCommand(registry, MethodMeta{
 		Name: "runs.resume",
 		Errors: []string{
 			protocol.ErrRunNotFound.Error(),
@@ -33,8 +33,8 @@ func registerRuns(r *Registry) {
 			protocol.ErrCapabilityNotNeg.Error(),
 		},
 		Stability: stable,
-	}, func(d *Router, ctx context.Context, in protocol.ResumeRunRequest) (*protocol.ResumeRunResponse, iter.Seq[protocol.RunEvent], error) {
-		return d.api.ResumeRun(ctx, in)
+	}, func(router *Router, ctx context.Context, request protocol.ResumeRunRequest) (*protocol.ResumeRunResponse, iter.Seq[protocol.RunEvent], error) {
+		return router.api.ResumeRun(ctx, request)
 	}, runEventFramer)
 
 	// runs.subscribe opens no run, so a retry is just another subscription.
@@ -44,7 +44,7 @@ func registerRuns(r *Registry) {
 	// cannot be served. Each is declared because each sends the client somewhere
 	// different — rootRunId, interrupt.list, items.list, runs.get, or a cursorless
 	// reattach — and one collapsed run_not_found would send it nowhere.
-	Subscription(r, MethodMeta{
+	Subscription(registry, MethodMeta{
 		Name: "runs.subscribe",
 		Errors: []string{
 			protocol.ErrRunNotFound.Error(),
@@ -57,11 +57,11 @@ func registerRuns(r *Registry) {
 			protocol.ErrCapabilityNotNeg.Error(),
 		},
 		Stability: stable,
-	}, func(d *Router, ctx context.Context, in protocol.SubscribeRunRequest) (*protocol.SubscribeRunResponse, iter.Seq[protocol.RunEvent], error) {
-		return d.api.SubscribeRun(ctx, in)
+	}, func(router *Router, ctx context.Context, request protocol.SubscribeRunRequest) (*protocol.SubscribeRunResponse, iter.Seq[protocol.RunEvent], error) {
+		return router.api.SubscribeRun(ctx, request)
 	}, runEventFramer)
 
-	Command(r, MethodMeta{
+	Command(registry, MethodMeta{
 		Name: "runs.cancel",
 		Errors: []string{
 			protocol.ErrRunNotFound.Error(),
@@ -70,8 +70,8 @@ func registerRuns(r *Registry) {
 			protocol.ErrCapabilityNotNeg.Error(),
 		},
 		Stability: stable,
-	}, func(d *Router, ctx context.Context, in protocol.CancelRunRequest) (*protocol.CancelRunResponse, error) {
-		return d.api.CancelRun(ctx, in)
+	}, func(router *Router, ctx context.Context, request protocol.CancelRunRequest) (*protocol.CancelRunResponse, error) {
+		return router.api.CancelRun(ctx, request)
 	})
 
 	// A steer addresses the same thing a subscribe does — one live segment — so it
@@ -79,7 +79,7 @@ func registerRuns(r *Registry) {
 	// that has parked, finished or moved to another segment says so, and the client
 	// asks the user again rather than delivering an instruction to work they never
 	// saw.
-	CommandAck(r, MethodMeta{
+	CommandAck(registry, MethodMeta{
 		Name: "runs.steer",
 		Errors: []string{
 			protocol.ErrRunNotFound.Error(),
@@ -89,21 +89,21 @@ func registerRuns(r *Registry) {
 			protocol.ErrStaleSegment.Error(),
 		},
 		Stability: stable,
-	}, func(d *Router, ctx context.Context, in protocol.SteerRunRequest) error {
-		return d.api.SteerRun(ctx, in)
+	}, func(router *Router, ctx context.Context, request protocol.SteerRunRequest) error {
+		return router.api.SteerRun(ctx, request)
 	})
 
 	// runs.get answers "what is this run" for a runId a client already holds — from
 	// an event, a page, or a link — without it having to know the session first.
-	Query(r, MethodMeta{
+	Query(registry, MethodMeta{
 		Name: "runs.get",
 		Errors: []string{
 			protocol.ErrRunNotFound.Error(),
 			protocol.ErrCapabilityNotNeg.Error(),
 		},
 		Stability: stable,
-	}, func(d *Router, ctx context.Context, in protocol.GetRunRequest) (*protocol.RunRef, error) {
-		return d.api.GetRun(ctx, in)
+	}, func(router *Router, ctx context.Context, request protocol.GetRunRequest) (*protocol.RunRef, error) {
+		return router.api.GetRun(ctx, request)
 	})
 
 	// Only a request that asks for descendants needs features.subagents; the
@@ -111,14 +111,14 @@ func registerRuns(r *Registry) {
 	// `includeDescendants: false` as "not asking", so an explicit false and an
 	// absent field behave alike — while an explicit true is refused rather than
 	// read as false, which would hand back a page that looks complete and is not.
-	Query(r, MethodMeta{
+	Query(registry, MethodMeta{
 		Name: "runs.list",
 		CapabilityRules: []CapabilityRule{{
 			When:     []FieldCondition{{Field: "includeDescendants", Operator: OperatorPresent}},
 			Requires: []string{protocol.FeatureSubagents},
 		}},
 		Stability: stable,
-	}, func(d *Router, ctx context.Context, in protocol.ListRunsRequest) (*protocol.Page[protocol.RunRef], error) {
-		return d.api.ListRuns(ctx, in)
+	}, func(router *Router, ctx context.Context, request protocol.ListRunsRequest) (*protocol.Page[protocol.RunRef], error) {
+		return router.api.ListRuns(ctx, request)
 	})
 }

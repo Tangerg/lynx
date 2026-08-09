@@ -6,9 +6,9 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 )
 
-func registerFeedback(r *Registry) {
-	CommandAck(r, MethodMeta{Name: "feedback.create", Stability: stable},
-		func(d *Router, ctx context.Context, in protocol.FeedbackRequest) error {
-			return d.api.CreateFeedback(ctx, in)
+func registerFeedback(registry *Registry) {
+	CommandAck(registry, MethodMeta{Name: "feedback.create", Stability: stable},
+		func(router *Router, ctx context.Context, request protocol.FeedbackRequest) error {
+			return router.api.CreateFeedback(ctx, request)
 		})
 }

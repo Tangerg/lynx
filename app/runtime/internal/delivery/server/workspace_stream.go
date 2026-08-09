@@ -13,9 +13,9 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 )
 
-// errServerClosed reports that a request-detached delivery operation could not
-// start because the Server is shutting down (its task group is closed).
-var errServerClosed = errors.New("server: closed")
+// errSubscriptionAdmissionsClosed reports that a runtime subscription could not
+// start because the Server has stopped admitting new streams.
+var errSubscriptionAdmissionsClosed = errors.New("server: runtime subscriptions are closed")
 
 // workspaceHub fans runtime change signals out to the live runtime.subscribe
 // streams (§7.1). It is the non-run, ephemeral counterpart to the per-run hubs:
@@ -31,13 +31,13 @@ var errServerClosed = errors.New("server: closed")
 // read, and inferring loss from a missing number means a client that never notices
 // on a quiet stream.
 type workspaceHub struct {
-	mu     sync.Mutex
-	subs   map[*workspaceSubscription]struct{}
-	closed bool
+	mu            sync.Mutex
+	subscriptions map[*workspaceSubscription]struct{}
+	closed        bool
 }
 
 func newWorkspaceHub() *workspaceHub {
-	return &workspaceHub{subs: make(map[*workspaceSubscription]struct{})}
+	return &workspaceHub{subscriptions: make(map[*workspaceSubscription]struct{})}
 }
 
 type workspaceSubscription struct {
@@ -62,18 +62,18 @@ type workspaceSubscription struct {
 // idempotent unregister. It does NOT close the channel — the owner does, after
 // it has stopped every other writer (the file watcher), so a late broadcast
 // can't send on a closed channel.
-func (h *workspaceHub) register(ch chan protocol.RuntimeEvent, topics map[protocol.RuntimeTopic]bool) (*workspaceSubscription, func(), bool) {
-	sub := &workspaceSubscription{events: ch, topics: topics}
+func (h *workspaceHub) register(events chan protocol.RuntimeEvent, topics map[protocol.RuntimeTopic]bool) (*workspaceSubscription, func(), bool) {
+	subscription := &workspaceSubscription{events: events, topics: topics}
 	h.mu.Lock()
 	if h.closed {
 		h.mu.Unlock()
 		return nil, nil, false
 	}
-	h.subs[sub] = struct{}{}
+	h.subscriptions[subscription] = struct{}{}
 	h.mu.Unlock()
-	return sub, func() {
+	return subscription, func() {
 		h.mu.Lock()
-		delete(h.subs, sub)
+		delete(h.subscriptions, subscription)
 		h.mu.Unlock()
 	}, true
 }
@@ -88,13 +88,13 @@ func (h *workspaceHub) closeAdmissions() {
 	h.mu.Unlock()
 }
 
-// publish fans ev to every subscriber, folding it into a pending resync for any
+// publish fans event to every subscriber, folding it into a pending resync for any
 // whose buffer is full (see the type doc).
-func (h *workspaceHub) publish(ev protocol.RuntimeEvent) {
+func (h *workspaceHub) publish(event protocol.RuntimeEvent) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	for sub := range h.subs {
-		h.sendLocked(sub, ev)
+	for subscription := range h.subscriptions {
+		h.sendLocked(subscription, event)
 	}
 }
 
@@ -102,71 +102,71 @@ func (h *workspaceHub) publish(ev protocol.RuntimeEvent) {
 // took a frame, so the queue has room the publisher did not have. Without this a
 // pending resync would wait for the next unrelated signal, which on a quiet stream
 // is never — the loss would be silent, which is the one outcome this hub forbids.
-func (h *workspaceHub) drained(sub *workspaceSubscription) {
+func (h *workspaceHub) drained(subscription *workspaceSubscription) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	if _, registered := h.subs[sub]; registered {
-		sub.flushStalledLocked()
+	if _, registered := h.subscriptions[subscription]; registered {
+		subscription.flushStalledLocked()
 	}
 }
 
 // publishTo sends a subscription-local event through the same serialization
 // point as broadcasts. This keeps each subscriber's sequence strictly ordered
 // even when its git watcher races a global workspace event.
-func (h *workspaceHub) publishTo(sub *workspaceSubscription, ev protocol.RuntimeEvent) {
+func (h *workspaceHub) publishTo(subscription *workspaceSubscription, event protocol.RuntimeEvent) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	if _, registered := h.subs[sub]; registered {
-		h.sendLocked(sub, ev)
+	if _, registered := h.subscriptions[subscription]; registered {
+		h.sendLocked(subscription, event)
 	}
 }
 
-func (*workspaceHub) sendLocked(sub *workspaceSubscription, ev protocol.RuntimeEvent) {
-	if ev.Type != protocol.RuntimeResync {
-		topic := protocol.RuntimeTopic(ev.Type)
+func (*workspaceHub) sendLocked(subscription *workspaceSubscription, event protocol.RuntimeEvent) {
+	if event.Type != protocol.RuntimeResync {
+		topic := protocol.RuntimeTopic(event.Type)
 		if !slices.Contains(protocol.RuntimeTopics(), topic) {
 			// An invalid producer signal has no trustworthy narrowing scope. Preserve
 			// client correctness by invalidating everything this subscription holds;
 			// the encoder must never silently discard an internal shape violation.
-			ev = sub.resyncEvent()
-		} else if !sub.topics[topic] {
+			event = subscription.resyncEvent()
+		} else if !subscription.topics[topic] {
 			return
 		}
 	}
 	// A pending resync goes first, and while it is pending this signal joins it: the
 	// notice that frames were missed must not arrive after the frames that followed
 	// them.
-	if !sub.flushStalledLocked() || !sub.offerLocked(ev) {
-		sub.stallLocked(ev)
+	if !subscription.flushStalledLocked() || !subscription.offerLocked(event) {
+		subscription.stallLocked(event)
 	}
 }
 
-// offerLocked hands ev to the queue, numbering it only if it fits. Reports whether
+// offerLocked hands event to the queue, numbering it only if it fits. Reports whether
 // the subscriber has it.
-func (sub *workspaceSubscription) offerLocked(ev protocol.RuntimeEvent) bool {
-	ev = cloneRuntimeEvent(ev)
-	clearEmptyRuntimeScopes(&ev)
-	ev.Sequence = sub.sequence + 1
-	if err := protocol.ValidateWireTree(ev); err != nil {
-		ev = sub.resyncEvent()
-		ev.Sequence = sub.sequence + 1
-		if recoveryErr := protocol.ValidateWireTree(ev); recoveryErr != nil {
+func (subscription *workspaceSubscription) offerLocked(event protocol.RuntimeEvent) bool {
+	event = cloneRuntimeEvent(event)
+	clearEmptyRuntimeScopes(&event)
+	event.Sequence = subscription.sequence + 1
+	if err := protocol.ValidateWireTree(event); err != nil {
+		event = subscription.resyncEvent()
+		event.Sequence = subscription.sequence + 1
+		if recoveryErr := protocol.ValidateWireTree(event); recoveryErr != nil {
 			panic("server: invalid runtime resync invariant: " + recoveryErr.Error())
 		}
 	}
 	select {
-	case sub.events <- ev:
-		sub.sequence++
+	case subscription.events <- event:
+		subscription.sequence++
 		return true
 	default:
 		return false
 	}
 }
 
-func (sub *workspaceSubscription) resyncEvent() protocol.RuntimeEvent {
-	topics := make([]protocol.RuntimeTopic, 0, len(sub.topics))
+func (subscription *workspaceSubscription) resyncEvent() protocol.RuntimeEvent {
+	topics := make([]protocol.RuntimeTopic, 0, len(subscription.topics))
 	for _, topic := range protocol.RuntimeTopics() {
-		if sub.topics[topic] {
+		if subscription.topics[topic] {
 			topics = append(topics, topic)
 		}
 	}
@@ -177,57 +177,57 @@ func (sub *workspaceSubscription) resyncEvent() protocol.RuntimeEvent {
 // encoding/json omits every empty `omitempty` slice, so nil is the one in-memory
 // spelling of absence. Required scopes (files paths and resync topics) remain
 // absent and fail their variant rule; optional empty scopes simply disappear.
-func clearEmptyRuntimeScopes(ev *protocol.RuntimeEvent) {
-	if len(ev.Paths) == 0 {
-		ev.Paths = nil
+func clearEmptyRuntimeScopes(event *protocol.RuntimeEvent) {
+	if len(event.Paths) == 0 {
+		event.Paths = nil
 	}
-	if len(ev.Names) == 0 {
-		ev.Names = nil
+	if len(event.Names) == 0 {
+		event.Names = nil
 	}
-	if len(ev.ServerIDs) == 0 {
-		ev.ServerIDs = nil
+	if len(event.ServerIDs) == 0 {
+		event.ServerIDs = nil
 	}
-	if len(ev.ScheduleIDs) == 0 {
-		ev.ScheduleIDs = nil
+	if len(event.ScheduleIDs) == 0 {
+		event.ScheduleIDs = nil
 	}
-	if len(ev.SessionIDs) == 0 {
-		ev.SessionIDs = nil
+	if len(event.SessionIDs) == 0 {
+		event.SessionIDs = nil
 	}
-	if len(ev.RunIDs) == 0 {
-		ev.RunIDs = nil
+	if len(event.RunIDs) == 0 {
+		event.RunIDs = nil
 	}
-	if len(ev.Topics) == 0 {
-		ev.Topics = nil
+	if len(event.Topics) == 0 {
+		event.Topics = nil
 	}
-	if len(ev.WatchIDs) == 0 {
-		ev.WatchIDs = nil
+	if len(event.WatchIDs) == 0 {
+		event.WatchIDs = nil
 	}
 }
 
 // stallLocked folds an undeliverable signal's scope into the pending resync. A
 // resync being stalled contributes its own scope, so a coalesced resync never
 // narrows what an earlier one had already widened.
-func (sub *workspaceSubscription) stallLocked(ev protocol.RuntimeEvent) {
-	if sub.stalledTopics == nil {
-		sub.stalledTopics = make(map[protocol.RuntimeTopic]bool, len(protocol.RuntimeTopics()))
+func (subscription *workspaceSubscription) stallLocked(event protocol.RuntimeEvent) {
+	if subscription.stalledTopics == nil {
+		subscription.stalledTopics = make(map[protocol.RuntimeTopic]bool, len(protocol.RuntimeTopics()))
 	}
-	if ev.Type == protocol.RuntimeResync {
-		for _, topic := range ev.Topics {
-			sub.stalledTopics[topic] = true
+	if event.Type == protocol.RuntimeResync {
+		for _, topic := range event.Topics {
+			subscription.stalledTopics[topic] = true
 		}
-		sub.stallWatchIDsLocked(ev.WatchIDs)
+		subscription.stallWatchIDsLocked(event.WatchIDs)
 		return
 	}
-	sub.stalledTopics[protocol.RuntimeTopic(ev.Type)] = true
-	if ev.WatchID != "" {
-		sub.stallWatchIDsLocked([]string{ev.WatchID})
+	subscription.stalledTopics[protocol.RuntimeTopic(event.Type)] = true
+	if event.WatchID != "" {
+		subscription.stallWatchIDsLocked([]string{event.WatchID})
 	}
 }
 
-func (sub *workspaceSubscription) stallWatchIDsLocked(ids []string) {
+func (subscription *workspaceSubscription) stallWatchIDsLocked(ids []string) {
 	for _, id := range ids {
-		if id != "" && !slices.Contains(sub.stalledWatchIDs, id) {
-			sub.stalledWatchIDs = append(sub.stalledWatchIDs, id)
+		if id != "" && !slices.Contains(subscription.stalledWatchIDs, id) {
+			subscription.stalledWatchIDs = append(subscription.stalledWatchIDs, id)
 		}
 	}
 }
@@ -235,26 +235,26 @@ func (sub *workspaceSubscription) stallWatchIDsLocked(ids []string) {
 // flushStalledLocked delivers the pending resync if there is one. Reports whether
 // the subscription is caught up — false means the queue is still full and the
 // caller's own signal has to fold in too.
-func (sub *workspaceSubscription) flushStalledLocked() bool {
-	if len(sub.stalledTopics) == 0 {
+func (subscription *workspaceSubscription) flushStalledLocked() bool {
+	if len(subscription.stalledTopics) == 0 {
 		return true
 	}
 	// Declaration order, not map order: the topics a client is told to re-read are
 	// part of the wire, and a set that reshuffles per delivery is a fixture nobody
 	// can pin down.
-	topics := make([]protocol.RuntimeTopic, 0, len(sub.stalledTopics))
+	topics := make([]protocol.RuntimeTopic, 0, len(subscription.stalledTopics))
 	for _, topic := range protocol.RuntimeTopics() {
-		if sub.stalledTopics[topic] {
+		if subscription.stalledTopics[topic] {
 			topics = append(topics, topic)
 		}
 	}
-	if !sub.offerLocked(protocol.RuntimeEvent{
-		Type: protocol.RuntimeResync, Topics: topics, WatchIDs: sub.stalledWatchIDs,
+	if !subscription.offerLocked(protocol.RuntimeEvent{
+		Type: protocol.RuntimeResync, Topics: topics, WatchIDs: subscription.stalledWatchIDs,
 	}) {
 		return false
 	}
-	sub.stalledTopics = nil
-	sub.stalledWatchIDs = nil
+	subscription.stalledTopics = nil
+	subscription.stalledWatchIDs = nil
 	return true
 }
 
@@ -265,16 +265,16 @@ func (sub *workspaceSubscription) flushStalledLocked() bool {
 //
 // Every field is now a slice of ids — a change signal carries no payload — so this is
 // a clone of lists and nothing deeper.
-func cloneRuntimeEvent(ev protocol.RuntimeEvent) protocol.RuntimeEvent {
-	ev.Paths = slices.Clone(ev.Paths)
-	ev.Names = slices.Clone(ev.Names)
-	ev.ServerIDs = slices.Clone(ev.ServerIDs)
-	ev.ScheduleIDs = slices.Clone(ev.ScheduleIDs)
-	ev.SessionIDs = slices.Clone(ev.SessionIDs)
-	ev.RunIDs = slices.Clone(ev.RunIDs)
-	ev.Topics = slices.Clone(ev.Topics)
-	ev.WatchIDs = slices.Clone(ev.WatchIDs)
-	return ev
+func cloneRuntimeEvent(event protocol.RuntimeEvent) protocol.RuntimeEvent {
+	event.Paths = slices.Clone(event.Paths)
+	event.Names = slices.Clone(event.Names)
+	event.ServerIDs = slices.Clone(event.ServerIDs)
+	event.ScheduleIDs = slices.Clone(event.ScheduleIDs)
+	event.SessionIDs = slices.Clone(event.SessionIDs)
+	event.RunIDs = slices.Clone(event.RunIDs)
+	event.Topics = slices.Clone(event.Topics)
+	event.WatchIDs = slices.Clone(event.WatchIDs)
+	return event
 }
 
 // SubscribeRuntime opens the change-signal stream (§7.1). The stream's lifetime is
@@ -287,17 +287,18 @@ func cloneRuntimeEvent(ev protocol.RuntimeEvent) protocol.RuntimeEvent {
 // refetch it will not perform. Frames for topics it did not ask for are filtered here
 // rather than at the producer — one hub, many subscriptions, each with its own set.
 //
-// When the request carries watches, the subscription also asks the workspace use case
-// to monitor those cwds' Git state and emits a debounced resync on any change (commit
-// / stage / checkout / merge) — the client then re-reads the diff. (Working-tree file
+// When the request carries watches, the subscription also asks the workspace use
+// case to monitor those working directories' Git state and emits a debounced
+// resync on any change (commit / stage / checkout / merge) — the client then
+// re-reads the diff. (Working-tree file
 // edits aren't watched directly — see gitWatcher; the agent's own edits arrive as
 // files.changed from its tools.)
-func (s *Server) SubscribeRuntime(ctx context.Context, in protocol.RuntimeSubscribeRequest) (*protocol.RuntimeSubscribeResponse, iter.Seq[protocol.RuntimeEvent], error) {
-	topics, err := s.subscribedTopics(in.Topics)
+func (s *Server) SubscribeRuntime(ctx context.Context, request protocol.RuntimeSubscribeRequest) (*protocol.RuntimeSubscribeResponse, iter.Seq[protocol.RuntimeEvent], error) {
+	topics, err := s.subscribedTopics(request.Topics)
 	if err != nil {
 		return nil, nil, err
 	}
-	cwds, watchIDs, err := watchCWDs(in.Watches, topics)
+	workingDirectories, watchIDs, err := validateWorkspaceWatches(request.Watches, topics)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -305,17 +306,17 @@ func (s *Server) SubscribeRuntime(ctx context.Context, in protocol.RuntimeSubscr
 	// SubscribeRuntime owns the channel: the hub broadcasts to it and (when
 	// watches are present) the application-owned watcher emits to it. Closing it
 	// only after that watcher has stopped keeps emit from racing the close.
-	out := make(chan protocol.RuntimeEvent, 64)
-	subscription, unregister, registered := s.wsHub.register(out, topics)
+	events := make(chan protocol.RuntimeEvent, 64)
+	subscription, unregister, registered := s.workspaceHub.register(events, topics)
 	if !registered {
-		close(out)
-		return nil, nil, errServerClosed
+		close(events)
+		return nil, nil, errSubscriptionAdmissionsClosed
 	}
 
-	var watcher io.Closer
-	if len(cwds) > 0 {
-		watcher, err = s.workspaceWatch.Watch(cwds, func() {
-			s.wsHub.publishTo(subscription, protocol.RuntimeEvent{
+	var fileWatcher io.Closer
+	if len(workingDirectories) > 0 {
+		fileWatcher, err = s.workspaceWatch.Watch(workingDirectories, func() {
+			s.workspaceHub.publishTo(subscription, protocol.RuntimeEvent{
 				Type:     protocol.RuntimeResync,
 				Topics:   []protocol.RuntimeTopic{protocol.TopicFilesChanged},
 				WatchIDs: watchIDs,
@@ -323,38 +324,45 @@ func (s *Server) SubscribeRuntime(ctx context.Context, in protocol.RuntimeSubscr
 		})
 		if err != nil {
 			unregister()
-			close(out)
-			return nil, nil, mapWorkspaceSubscribeError(err)
+			close(events)
+			return nil, nil, mapWorkspaceWatchError(err)
 		}
 	}
 
-	release := sync.OnceFunc(func() {
-		if watcher != nil {
-			_ = watcher.Close() // joins callbacks — no emit after this
+	releaseSubscription := sync.OnceFunc(func() {
+		if fileWatcher != nil {
+			_ = fileWatcher.Close() // joins callbacks — no emit after this
 		}
-		unregister() // hub stops broadcasting to out
-		close(out)
+		unregister() // hub stops broadcasting to events
+		close(events)
 	})
-	stopContextRelease := context.AfterFunc(ctx, release)
-	stop := sync.OnceFunc(func() {
+	stopContextRelease := context.AfterFunc(ctx, releaseSubscription)
+	stopSubscription := sync.OnceFunc(func() {
 		stopContextRelease()
-		release()
+		releaseSubscription()
 	})
-	return &protocol.RuntimeSubscribeResponse{}, eventSeq(out, func() { s.wsHub.drained(subscription) }, stop), nil
+	return &protocol.RuntimeSubscribeResponse{}, subscriptionEventSequence(
+		events,
+		func() { s.workspaceHub.drained(subscription) },
+		stopSubscription,
+	), nil
 }
 
-// eventSeq presents a subscription channel as the iter.Seq the wire streaming
-// contract uses. The coalescing fan-out hub keeps its channels internally; only
-// this outer boundary is a sequence. drained tells the hub a frame left the queue,
-// which is when a subscription that fell behind can be handed its resync. stop
-// releases the subscription when the consumer ends the range before its request
-// context does.
-func eventSeq(ch <-chan protocol.RuntimeEvent, drained, stop func()) iter.Seq[protocol.RuntimeEvent] {
+// subscriptionEventSequence presents a subscription channel as the iter.Seq
+// used by the wire streaming contract. The coalescing fan-out hub keeps its
+// channels internally; only this outer boundary is a sequence. queueDrained lets
+// the hub flush a pending resync, and stopSubscription releases an early-ending
+// consumer.
+func subscriptionEventSequence(
+	events <-chan protocol.RuntimeEvent,
+	queueDrained func(),
+	stopSubscription func(),
+) iter.Seq[protocol.RuntimeEvent] {
 	return func(yield func(protocol.RuntimeEvent) bool) {
-		defer stop()
-		for ev := range ch {
-			drained()
-			if !yield(ev) {
+		defer stopSubscription()
+		for event := range events {
+			queueDrained()
+			if !yield(event) {
 				return
 			}
 		}
@@ -382,43 +390,42 @@ func (s *Server) subscribedTopics(requested []protocol.RuntimeTopic) (map[protoc
 	return topics, nil
 }
 
-// watchCWDs validates the wire-only portion of watch specs. Root resolution,
+// validateWorkspaceWatches validates the wire-only portion of workspace watches
+// and returns the working directories and stable watch identities they name. Root resolution,
 // repository layout and filesystem notification are application/adapter concerns;
 // Delivery retains only the protocol's required watch identifier.
 //
 // Watches are legal only with files.changed: the other topics are global, so a watch
 // would narrow nothing — and a caller that registered one expecting it to is holding
 // a belief the runtime would never honor.
-func watchCWDs(specs []protocol.WatchSpec, topics map[protocol.RuntimeTopic]bool) (cwds, watchIDs []string, err error) {
-	if len(specs) == 0 {
+func validateWorkspaceWatches(watches []protocol.WatchSpec, topics map[protocol.RuntimeTopic]bool) (workingDirectories, watchIDs []string, err error) {
+	if len(watches) == 0 {
 		return nil, nil, nil
 	}
 	if !topics[protocol.TopicFilesChanged] {
 		return nil, nil, fmt.Errorf("%w: watches require the %s topic", protocol.ErrInvalidParams, protocol.TopicFilesChanged)
 	}
-	if len(specs) > protocol.MaxSubscriptionWatches {
+	if len(watches) > protocol.MaxSubscriptionWatches {
 		return nil, nil, fmt.Errorf("%w: at most %d watches per subscription", protocol.ErrInvalidParams, protocol.MaxSubscriptionWatches)
 	}
-	cwds = make([]string, 0, len(specs))
-	watchIDs = make([]string, 0, len(specs))
-	for _, spec := range specs {
+	workingDirectories = make([]string, 0, len(watches))
+	watchIDs = make([]string, 0, len(watches))
+	for _, spec := range watches {
 		if spec.WatchID == "" {
 			return nil, nil, fmt.Errorf("%w: watchId is required", protocol.ErrInvalidParams)
 		}
 		if slices.Contains(watchIDs, spec.WatchID) {
 			return nil, nil, fmt.Errorf("%w: watchId %q is registered twice", protocol.ErrInvalidParams, spec.WatchID)
 		}
-		cwds = append(cwds, spec.Workspace.Path)
+		workingDirectories = append(workingDirectories, spec.Workspace.Path)
 		watchIDs = append(watchIDs, spec.WatchID)
 	}
-	return cwds, watchIDs, nil
+	return workingDirectories, watchIDs, nil
 }
 
-// mapWorkspaceSubscribeError refuses a watch this build cannot serve by NAMING the
-// missing capability. It used to name the method instead, which told the client
-// where it was standing rather than what it lacked — and after the method was
-// renamed, it named a method that no longer exists.
-func mapWorkspaceSubscribeError(err error) error {
+// mapWorkspaceWatchError reports an unavailable watcher as the precise missing
+// capability and delegates all other workspace failures to the shared mapper.
+func mapWorkspaceWatchError(err error) error {
 	if errors.Is(err, workspaceapp.ErrFileWatchUnavailable) {
 		return protocol.NewCapabilityGap(protocol.CapabilityRequirement{
 			Type: protocol.RequirementFeature, Name: protocol.FeatureFileWatch,

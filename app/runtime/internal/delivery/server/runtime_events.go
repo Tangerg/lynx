@@ -7,9 +7,9 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 )
 
-func (s *Server) observeFileChanges(source source[workspaceapp.FileChangeNotice]) {
+func (s *Server) observeFileChanges(source notificationSource[workspaceapp.FileChangeNotice]) {
 	source.Observe(func(change workspaceapp.FileChangeNotice) {
-		s.wsHub.publish(protocol.RuntimeEvent{
+		s.workspaceHub.publish(protocol.RuntimeEvent{
 			Type:      protocol.RuntimeFilesChanged,
 			Workspace: workspaceRefFromPath(change.CWD),
 			Paths:     change.Paths,
@@ -17,32 +17,32 @@ func (s *Server) observeFileChanges(source source[workspaceapp.FileChangeNotice]
 	})
 }
 
-func (s *Server) observeMCPStatusChanges(source source[mcpapp.ServerStatus]) {
+func (s *Server) observeMCPStatusChanges(source notificationSource[mcpapp.ServerStatus]) {
 	source.Observe(func(status mcpapp.ServerStatus) {
-		s.wsHub.publish(protocol.RuntimeEvent{
+		s.workspaceHub.publish(protocol.RuntimeEvent{
 			Type: protocol.RuntimeMCPChanged, ServerIDs: []string{status.Name},
 		})
 	})
 }
 
-func (s *Server) observeSkillChanges(source source[struct{}]) {
+func (s *Server) observeSkillChanges(source notificationSource[struct{}]) {
 	source.Observe(func(struct{}) {
-		s.wsHub.publish(protocol.RuntimeEvent{Type: protocol.RuntimeSkillsChanged})
+		s.workspaceHub.publish(protocol.RuntimeEvent{Type: protocol.RuntimeSkillsChanged})
 	})
 }
 
-func (s *Server) observeScheduleFires(source source[string]) {
+func (s *Server) observeScheduleFires(source notificationSource[string]) {
 	source.Observe(func(scheduleID string) {
-		s.wsHub.publish(protocol.RuntimeEvent{
+		s.workspaceHub.publish(protocol.RuntimeEvent{
 			Type: protocol.RuntimeSchedulesChanged, ScheduleIDs: []string{scheduleID},
 		})
 	})
 }
 
-func (s *Server) observeChanges(source source[change.Notice]) {
+func (s *Server) observeChanges(source notificationSource[change.Notice]) {
 	source.Observe(func(notice change.Notice) {
 		if event, ok := runtimeEventFor(notice); ok {
-			s.wsHub.publish(event)
+			s.workspaceHub.publish(event)
 		}
 	})
 }

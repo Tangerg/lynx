@@ -228,23 +228,23 @@ func TestAssemblyFailureReclaimsToolsAndOwnedResources(t *testing.T) {
 		ctx context.Context,
 		cfg Config,
 		policy *approvals.RuntimePolicy,
-		mcpEnv mcpEnvironment,
+		mcpConnectionSettings mcpEnvironment,
 		searcher *agentmemory.Searcher,
-		scheduleCoord *scheduleapp.Coordinator,
+		scheduleCoordinator *scheduleapp.Coordinator,
 		goalReader *goals.Reader,
 		goalReporter *goals.OutcomeReporter,
 		skillStore *skillauthoring.Store,
 		skillProposals skill.ProposalSubmitter,
 	) (toolEnvironment, error) {
-		built, err := buildToolEnvironment(ctx, cfg, policy, mcpEnv, searcher, scheduleCoord, goalReader, goalReporter, skillStore, skillProposals)
+		toolRuntime, err := buildToolEnvironment(ctx, cfg, policy, mcpConnectionSettings, searcher, scheduleCoordinator, goalReader, goalReporter, skillStore, skillProposals)
 		if err != nil {
 			return toolEnvironment{}, err
 		}
-		built.closers = append(built.closers, shutdown.New(func(context.Context) error {
+		toolRuntime.closers = append(toolRuntime.closers, shutdown.New(func(context.Context) error {
 			toolClosed.Add(1)
 			return nil
 		}))
-		return built, nil
+		return toolRuntime, nil
 	})
 	host, err := BuildAssembly(t.Context(), assembly)
 	if err == nil || !strings.Contains(err.Error(), "build ID") {
@@ -314,25 +314,25 @@ func TestAssemblyFailureRetainsRetryableCleanupOwner(t *testing.T) {
 		ctx context.Context,
 		cfg Config,
 		policy *approvals.RuntimePolicy,
-		mcpEnv mcpEnvironment,
+		mcpConnectionSettings mcpEnvironment,
 		searcher *agentmemory.Searcher,
-		scheduleCoord *scheduleapp.Coordinator,
+		scheduleCoordinator *scheduleapp.Coordinator,
 		goalReader *goals.Reader,
 		goalReporter *goals.OutcomeReporter,
 		skillStore *skillauthoring.Store,
 		skillProposals skill.ProposalSubmitter,
 	) (toolEnvironment, error) {
-		built, err := buildToolEnvironment(ctx, cfg, policy, mcpEnv, searcher, scheduleCoord, goalReader, goalReporter, skillStore, skillProposals)
+		toolRuntime, err := buildToolEnvironment(ctx, cfg, policy, mcpConnectionSettings, searcher, scheduleCoordinator, goalReader, goalReporter, skillStore, skillProposals)
 		if err != nil {
 			return toolEnvironment{}, err
 		}
-		built.closers = append(built.closers, shutdown.New(func(context.Context) error {
+		toolRuntime.closers = append(toolRuntime.closers, shutdown.New(func(context.Context) error {
 			if attempts.Add(1) == 1 {
 				return closeErr
 			}
 			return nil
 		}))
-		return built, nil
+		return toolRuntime, nil
 	})
 	failedHost, err := BuildAssembly(t.Context(), assembly)
 	if err == nil || !strings.Contains(err.Error(), "build ID") || !errors.Is(err, closeErr) {
@@ -369,27 +369,27 @@ func TestAssemblyDirectToolsDoNotDependOnAgentResolver(t *testing.T) {
 		ctx context.Context,
 		cfg Config,
 		policy *approvals.RuntimePolicy,
-		mcpEnv mcpEnvironment,
+		mcpConnectionSettings mcpEnvironment,
 		searcher *agentmemory.Searcher,
-		scheduleCoord *scheduleapp.Coordinator,
+		scheduleCoordinator *scheduleapp.Coordinator,
 		goalReader *goals.Reader,
 		goalReporter *goals.OutcomeReporter,
 		skillStore *skillauthoring.Store,
 		skillProposals skill.ProposalSubmitter,
 	) (toolEnvironment, error) {
-		built, err := buildToolEnvironment(ctx, cfg, policy, mcpEnv, searcher, scheduleCoord, goalReader, goalReporter, skillStore, skillProposals)
+		toolRuntime, err := buildToolEnvironment(ctx, cfg, policy, mcpConnectionSettings, searcher, scheduleCoordinator, goalReader, goalReporter, skillStore, skillProposals)
 		if err != nil {
 			return toolEnvironment{}, err
 		}
-		built.closers = append(built.closers, shutdown.New(func(context.Context) error {
+		toolRuntime.closers = append(toolRuntime.closers, shutdown.New(func(context.Context) error {
 			toolClosed.Add(1)
 			return nil
 		}))
 		// The agent resolver is intentionally absent. Direct client-invoked
 		// diagnostics have a separate fixed catalog and must not inherit the
 		// agent's process-bound capability catalog.
-		built.tools.Resolver = nil
-		return built, nil
+		toolRuntime.tools.Resolver = nil
+		return toolRuntime, nil
 	})
 	host, err := BuildAssembly(t.Context(), assembly)
 	if err != nil {

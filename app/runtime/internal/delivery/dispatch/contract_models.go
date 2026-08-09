@@ -6,29 +6,29 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 )
 
-func registerModels(r *Registry) {
-	Query(r, MethodMeta{Name: "models.list", Stability: stable},
-		func(d *Router, ctx context.Context, in protocol.ListModelsRequest) (*protocol.Page[protocol.Model], error) {
-			return d.api.ListModels(ctx, in)
+func registerModels(registry *Registry) {
+	Query(registry, MethodMeta{Name: "models.list", Stability: stable},
+		func(router *Router, ctx context.Context, request protocol.ListModelsRequest) (*protocol.Page[protocol.Model], error) {
+			return router.api.ListModels(ctx, request)
 		})
 
-	Query(r, MethodMeta{Name: "models.getUtilityRole", Stability: stable},
-		func(d *Router, ctx context.Context, _ struct{}) (*protocol.UtilityRole, error) {
-			return d.api.GetUtilityRole(ctx)
+	Query(registry, MethodMeta{Name: "models.getUtilityRole", Stability: stable},
+		func(router *Router, ctx context.Context, _ struct{}) (*protocol.UtilityRole, error) {
+			return router.api.GetUtilityRole(ctx)
 		})
 
-	Command(r, MethodMeta{Name: "models.setUtilityRole", Stability: stable},
-		func(d *Router, ctx context.Context, in protocol.UtilityRole) (*protocol.UtilityRole, error) {
-			return d.api.SetUtilityRole(ctx, in)
+	Command(registry, MethodMeta{Name: "models.setUtilityRole", Stability: stable},
+		func(router *Router, ctx context.Context, request protocol.UtilityRole) (*protocol.UtilityRole, error) {
+			return router.api.SetUtilityRole(ctx, request)
 		})
 
-	Query(r, MethodMeta{Name: "models.getEmbeddingRole", Stability: stable},
-		func(d *Router, ctx context.Context, _ struct{}) (*protocol.EmbeddingRole, error) {
-			return d.api.GetEmbeddingRole(ctx)
+	Query(registry, MethodMeta{Name: "models.getEmbeddingRole", Stability: stable},
+		func(router *Router, ctx context.Context, _ struct{}) (*protocol.EmbeddingRole, error) {
+			return router.api.GetEmbeddingRole(ctx)
 		})
 
-	Command(r, MethodMeta{Name: "models.setEmbeddingRole", Stability: stable},
-		func(d *Router, ctx context.Context, in protocol.EmbeddingRole) (*protocol.EmbeddingRole, error) {
-			return d.api.SetEmbeddingRole(ctx, in)
+	Command(registry, MethodMeta{Name: "models.setEmbeddingRole", Stability: stable},
+		func(router *Router, ctx context.Context, request protocol.EmbeddingRole) (*protocol.EmbeddingRole, error) {
+			return router.api.SetEmbeddingRole(ctx, request)
 		})
 }

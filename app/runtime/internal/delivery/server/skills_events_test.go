@@ -9,7 +9,7 @@ import (
 )
 
 func TestSkillChangeBridgePublishesWorkspaceRefresh(t *testing.T) {
-	s := &Server{wsHub: newWorkspaceHub()}
+	s := &Server{workspaceHub: newWorkspaceHub()}
 	notifier := new(testNotification[struct{}])
 	s.observeSkillChanges(notifier)
 

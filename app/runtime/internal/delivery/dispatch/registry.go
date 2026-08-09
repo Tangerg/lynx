@@ -142,16 +142,16 @@ func registerUnary[Params, Result any](
 		panic(fmt.Sprintf("dispatch: %s has invalid pagination shapes: %v", meta.Name, err))
 	}
 	meta.Pagination = pagination
-	registry.add(meta, func(d *Router, ctx context.Context, msg *transport.Request) HandleResult {
-		in, bad := decode[Params](msg)
-		if bad != nil {
-			return responseError(msg.ID, bad)
+	registry.add(meta, func(router *Router, ctx context.Context, request *transport.Request) HandleResult {
+		parameters, validationError := decode[Params](request)
+		if validationError != nil {
+			return responseError(request.ID, validationError)
 		}
-		if bad := d.enforceCapabilities(ctx, meta, msg.Params); bad != nil {
-			return responseError(msg.ID, bad)
+		if validationError := router.enforceCapabilities(ctx, meta, request.Params); validationError != nil {
+			return responseError(request.ID, validationError)
 		}
-		out, err := call(d, ctx, in)
-		return reply(msg, out, err)
+		result, err := call(router, ctx, parameters)
+		return reply(request, result, err)
 	})
 }
 
@@ -219,15 +219,15 @@ func CommandAck[Params any](
 	meta.Operation = OperationCommand
 	meta.Idempotency = IdempotencyReplayResponse
 	meta.Params = reflect.TypeFor[Params]()
-	registry.add(meta, func(d *Router, ctx context.Context, msg *transport.Request) HandleResult {
-		in, bad := decode[Params](msg)
-		if bad != nil {
-			return responseError(msg.ID, bad)
+	registry.add(meta, func(router *Router, ctx context.Context, request *transport.Request) HandleResult {
+		parameters, validationError := decode[Params](request)
+		if validationError != nil {
+			return responseError(request.ID, validationError)
 		}
-		if bad := d.enforceCapabilities(ctx, meta, msg.Params); bad != nil {
-			return responseError(msg.ID, bad)
+		if validationError := router.enforceCapabilities(ctx, meta, request.Params); validationError != nil {
+			return responseError(request.ID, validationError)
 		}
-		return replyDone(msg, call(d, ctx, in))
+		return replyDone(request, call(router, ctx, parameters))
 	})
 }
 
@@ -274,19 +274,19 @@ func registerStream[Params, Ack, Event any](
 	meta.Params = reflect.TypeFor[Params]()
 	meta.Result = reflect.TypeFor[Ack]()
 	meta.Event = reflect.TypeFor[Event]()
-	registry.add(meta, func(d *Router, ctx context.Context, msg *transport.Request) HandleResult {
-		in, bad := decode[Params](msg)
-		if bad != nil {
-			return responseError(msg.ID, bad)
+	registry.add(meta, func(router *Router, ctx context.Context, request *transport.Request) HandleResult {
+		parameters, validationError := decode[Params](request)
+		if validationError != nil {
+			return responseError(request.ID, validationError)
 		}
-		if bad := d.enforceCapabilities(ctx, meta, msg.Params); bad != nil {
-			return responseError(msg.ID, bad)
+		if validationError := router.enforceCapabilities(ctx, meta, request.Params); validationError != nil {
+			return responseError(request.ID, validationError)
 		}
-		out, events, err := call(d, ctx, in)
+		result, events, err := call(router, ctx, parameters)
 		if err != nil {
-			return responseError(msg.ID, errorToRPC(err))
+			return responseError(request.ID, errorToRPC(err))
 		}
-		return streamingResult(msg.ID, out, adaptStream(events, framer(ctx)))
+		return streamingResult(request.ID, result, adaptStream(events, framer(ctx)))
 	})
 }
 
@@ -303,12 +303,12 @@ func runtimeEventFramer(context.Context) func(protocol.RuntimeEvent) (StreamFram
 }
 
 // dispatchRequest routes the request to its registered method.
-func (d *Router) dispatchRequest(ctx context.Context, msg *transport.Request) HandleResult {
-	method, ok := contract.lookup(msg.Method)
+func (r *Router) dispatchRequest(ctx context.Context, request *transport.Request) HandleResult {
+	method, ok := contract.lookup(request.Method)
 	if !ok {
-		return responseError(msg.ID, methodNotFound(msg.Method))
+		return responseError(request.ID, methodNotFound(request.Method))
 	}
-	return method.handle(d, ctx, msg)
+	return method.handle(r, ctx, request)
 }
 
 // Contract exposes the registered method surface to build-time tooling. The

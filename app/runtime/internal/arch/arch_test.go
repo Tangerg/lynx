@@ -331,6 +331,11 @@ func TestRuntimeResponsibilityFilesStayFocused(t *testing.T) {
 		filepath.Join(root, "internal", "delivery", "protocol", "workspace.go"): {
 			"RuntimeSubscription": "runtime-wide subscriptions belong to runtime_subscription.go",
 		},
+		filepath.Join(root, "internal", "delivery", "protocol", "runtime.go"): {
+			"ProtocolVersion": "wire-version declarations belong to version.go",
+			"ProtocolRange":   "wire-version declarations belong to version.go",
+			"IDPrefixSession": "resource identity declarations belong to identifiers.go",
+		},
 	} {
 		forbidTopLevelNames(t, path, banned)
 	}
@@ -356,12 +361,25 @@ func TestRuntimeResponsibilityFilesStayFocused(t *testing.T) {
 		filepath.Join("internal", "delivery", "protocol", "catalog.go"):                "Skill and instruction-document contracts belong to focused files",
 		filepath.Join("internal", "delivery", "server", "memory.go"):                   "human-authored knowledge belongs to knowledge.go",
 		filepath.Join("internal", "delivery", "server", "catalog.go"):                  "workspace, Skill, Recipe, and instruction-document handlers belong to focused files",
+		filepath.Join("internal", "delivery", "server", "sessionio.go"):                "Session artifact import/export belongs to session_transfer.go",
+		filepath.Join("internal", "delivery", "server", "presenter.go"):                "Run event and Plan projection belongs to presenter_run_event.go",
 		filepath.Join("internal", "delivery", "dispatch", "contract_integrations.go"):  "optional protocol domains belong to focused contract files",
 		filepath.Join("internal", "delivery", "dispatch", "contract_catalog.go"):       "protocol method groups belong to resource-specific contract files",
 		filepath.Join("internal", "delivery", "dispatch", "contract_catalogs.go"):      "protocol method groups belong to resource-specific contract files",
 		filepath.Join("internal", "adapter", "pricing", "catalog.go"):                  "model-catalog pricing belongs to model_catalog.go",
 		filepath.Join("internal", "adapter", "modelclient", "client.go"):               "chat-client resolution belongs to chat_resolver.go",
 		filepath.Join("internal", "config", "config.go"):                               "settings loading belongs to load.go",
+		filepath.Join("internal", "bootstrap", "engine_wiring.go"):                     "Conversation application services belong to conversation_environment.go",
+		filepath.Join("internal", "bootstrap", "embedding_env.go"):                     "model roles and their loaders belong to model_role_loading.go",
+		filepath.Join("internal", "bootstrap", "utility_role.go"):                      "model roles and their loaders belong to model_role_loading.go",
+		filepath.Join("internal", "bootstrap", "seeds.go"):                             "model catalog seed data belongs to model_seeding.go",
+		filepath.Join("internal", "bootstrap", "mcp_seed.go"):                          "MCP seed data belongs to mcp_seeding.go",
+		filepath.Join("internal", "bootstrap", "execution_support.go"):                 "post-Run maintenance composition belongs to run_maintenance.go",
+		filepath.Join("internal", "bootstrap", "toolenv.go"):                           "tool composition belongs to tool_environment.go",
+		filepath.Join("internal", "bootstrap", "mcp_env.go"):                           "MCP composition belongs to mcp_environment.go",
+		filepath.Join("internal", "bootstrap", "notification.go"):                      "application notification sources belong to notification_source.go",
+		filepath.Join("internal", "delivery", "transport", "builders.go"):              "JSON-RPC message constructors belong to messages.go",
+		filepath.Join("internal", "delivery", "dispatch", "reply.go"):                  "request decoding belongs to params.go and response projection belongs to response.go",
 		filepath.Join("internal", "adapter", "toolset", "memorysearch"):                "agent-memory search belongs to toolset/agentmemorysearch",
 		filepath.Join("internal", "adapter", "toolset", "sessionsearch"):               "conversation search belongs to toolset/conversationsearch",
 		filepath.Join("internal", "adapter", "toolset", "goal", "prompt.go"):           "Goal Run wording belongs to run_instructions.go",
@@ -940,13 +958,14 @@ func TestHostOwnsShutdownGraph(t *testing.T) {
 
 	lifetime := structFieldNames(structs["hostLifetime"])
 	for _, required := range []string{
-		"mcp",
-		"codebase",
-		"coordinator",
-		"execution",
-		"effectsTasks",
-		"toolClosers",
-		"resources",
+		"goalDriver",
+		"mcpCoordinator",
+		"codebaseCoordinator",
+		"runCoordinator",
+		"executor",
+		"runEffectTasks",
+		"toolResources",
+		"hostResources",
 	} {
 		if _, ok := lifetime[required]; !ok {
 			t.Errorf("bootstrap.hostLifetime must own %s", required)

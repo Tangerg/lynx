@@ -15,14 +15,14 @@ type mcpServerSeeder interface {
 // registry that aren't already present, mirroring bootstrap.SeedConfiguredProvider: the
 // env is a first-run seed, runtime edits (a persisted resource) win and are
 // left untouched.
-func SeedMCPServers(ctx context.Context, svc mcpServerSeeder, servers []mcpserver.Server) error {
-	for _, srv := range servers {
-		if _, ok, err := svc.Get(ctx, srv.Name); err != nil {
+func SeedMCPServers(ctx context.Context, registry mcpServerSeeder, servers []mcpserver.Server) error {
+	for _, server := range servers {
+		if _, ok, err := registry.Get(ctx, server.Name); err != nil {
 			return err
 		} else if ok {
 			continue
 		}
-		if err := svc.Save(ctx, srv); err != nil {
+		if err := registry.Save(ctx, server); err != nil {
 			return err
 		}
 	}

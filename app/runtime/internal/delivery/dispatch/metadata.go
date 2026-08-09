@@ -11,45 +11,45 @@ import (
 
 const requestMetaField = "_meta"
 
-func bindRequestMeta(ctx context.Context, req *transport.Request) (context.Context, *transport.Error) {
-	if req == nil || len(req.Params) == 0 {
+func bindRequestMeta(ctx context.Context, request *transport.Request) (context.Context, *transport.Error) {
+	if request == nil || len(request.Params) == 0 {
 		return ctx, nil
 	}
 
-	var obj map[string]json.RawMessage
-	if err := json.Unmarshal(req.Params, &obj); err != nil {
+	var parameters map[string]json.RawMessage
+	if err := json.Unmarshal(request.Params, &parameters); err != nil {
 		return ctx, nil
 	}
 
-	raw, ok := obj[requestMetaField]
+	encodedMetadata, ok := parameters[requestMetaField]
 	if !ok {
 		return ctx, nil
 	}
 
-	var meta protocol.RequestMeta
-	if err := decodeParams(raw, &meta); err != nil {
+	var metadata protocol.RequestMeta
+	if err := decodeParams(encodedMetadata, &metadata); err != nil {
 		return ctx, invalidParams(requestMetaField + ": " + err.Error())
 	}
-	if err := protocol.ValidateWireTree(meta); err != nil {
+	if err := protocol.ValidateWireTree(metadata); err != nil {
 		return ctx, invalidRequestShape(err)
 	}
-	if meta.ProtocolVersion != "" && !protocol.SupportsProtocolVersion(meta.ProtocolVersion) {
+	if metadata.ProtocolVersion != "" && !protocol.SupportsProtocolVersion(metadata.ProtocolVersion) {
 		return ctx, problemError(
 			protocol.ErrInvalidProtocolVersion,
-			fmt.Sprintf("protocolVersion %q is unsupported; supported range is %q through %q", meta.ProtocolVersion, protocol.MinProtocolVersion, protocol.ProtocolVersion),
+			fmt.Sprintf("protocolVersion %q is unsupported; supported range is %q through %q", metadata.ProtocolVersion, protocol.MinProtocolVersion, protocol.ProtocolVersion),
 		)
 	}
 
-	delete(obj, requestMetaField)
-	if len(obj) == 0 {
-		req.Params = nil
+	delete(parameters, requestMetaField)
+	if len(parameters) == 0 {
+		request.Params = nil
 	} else {
-		stripped, err := json.Marshal(obj)
+		encodedParameters, err := json.Marshal(parameters)
 		if err != nil {
 			return ctx, invalidParams(requestMetaField + ": " + err.Error())
 		}
-		req.Params = stripped
+		request.Params = encodedParameters
 	}
 
-	return protocol.WithRequestMeta(ctx, meta), nil
+	return protocol.WithRequestMeta(ctx, metadata), nil
 }

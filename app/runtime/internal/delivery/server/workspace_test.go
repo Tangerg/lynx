@@ -316,7 +316,7 @@ func TestListRecipes(t *testing.T) {
 // (mcp/skills) and closes on ctx cancel. The watches path has its own coverage
 // in filewatch_test.go.
 func TestWorkspaceSubscribe(t *testing.T) {
-	s := &Server{wsHub: newWorkspaceHub()}
+	s := &Server{workspaceHub: newWorkspaceHub()}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -327,7 +327,7 @@ func TestWorkspaceSubscribe(t *testing.T) {
 		t.Fatalf("subscribe: %v", err)
 	}
 	events := drainSeq(ctx, seq)
-	s.wsHub.publish(protocol.RuntimeEvent{Type: "skills.changed"})
+	s.workspaceHub.publish(protocol.RuntimeEvent{Type: "skills.changed"})
 	select {
 	case ev := <-events:
 		if ev.Type != "skills.changed" {
@@ -349,7 +349,7 @@ func TestWorkspaceSubscribe(t *testing.T) {
 }
 
 func TestWorkspaceSubscribe_EarlyRangeStopReleasesSubscription(t *testing.T) {
-	s := &Server{wsHub: newWorkspaceHub()}
+	s := &Server{workspaceHub: newWorkspaceHub()}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	_, seq, err := s.SubscribeRuntime(ctx, protocol.RuntimeSubscribeRequest{
@@ -359,14 +359,14 @@ func TestWorkspaceSubscribe_EarlyRangeStopReleasesSubscription(t *testing.T) {
 		t.Fatalf("subscribe: %v", err)
 	}
 
-	s.wsHub.publish(protocol.RuntimeEvent{Type: protocol.RuntimeSkillsChanged})
+	s.workspaceHub.publish(protocol.RuntimeEvent{Type: protocol.RuntimeSkillsChanged})
 	for range seq {
 		break
 	}
 
-	s.wsHub.mu.Lock()
-	subscribers := len(s.wsHub.subs)
-	s.wsHub.mu.Unlock()
+	s.workspaceHub.mu.Lock()
+	subscribers := len(s.workspaceHub.subscriptions)
+	s.workspaceHub.mu.Unlock()
 	if subscribers != 0 {
 		t.Fatalf("subscriptions after range stop = %d, want 0", subscribers)
 	}
@@ -377,7 +377,7 @@ func TestWorkspaceSubscribe_EarlyRangeStopReleasesSubscription(t *testing.T) {
 // by Server.Close — delivery owns no task group (§16 rule 5). Server.Close only
 // gates NEW subscriptions; an in-flight, request-owned stream is left to its ctx.
 func TestWorkspaceSubscribeLifetimeIsTheRequest(t *testing.T) {
-	s := &Server{wsHub: newWorkspaceHub()}
+	s := &Server{workspaceHub: newWorkspaceHub()}
 	reqCtx, cancelReq := context.WithCancel(context.Background())
 	_, seq, err := s.SubscribeRuntime(reqCtx, protocol.RuntimeSubscribeRequest{
 		Topics: []protocol.RuntimeTopic{protocol.TopicSkillsChanged},
@@ -413,8 +413,8 @@ func TestWorkspaceSubscribeLifetimeIsTheRequest(t *testing.T) {
 	// refusal is about the closed server rather than about the request.
 	if _, _, err := s.SubscribeRuntime(context.Background(), protocol.RuntimeSubscribeRequest{
 		Topics: []protocol.RuntimeTopic{protocol.TopicSkillsChanged},
-	}); !errors.Is(err, errServerClosed) {
-		t.Fatalf("subscribe after close err = %v, want errServerClosed", err)
+	}); !errors.Is(err, errSubscriptionAdmissionsClosed) {
+		t.Fatalf("subscribe after close err = %v, want errSubscriptionAdmissionsClosed", err)
 	}
 }
 

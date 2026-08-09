@@ -26,7 +26,7 @@ func (r *streamingLifecycleRuntime) SubscribeRuntime(
 	_ protocol.RuntimeSubscribeRequest,
 ) (*protocol.RuntimeSubscribeResponse, iter.Seq[protocol.RuntimeEvent], error) {
 	close(r.subscribed)
-	return &protocol.RuntimeSubscribeResponse{}, func(yield func(protocol.RuntimeEvent) bool) {
+	return &protocol.RuntimeSubscribeResponse{}, func(_ func(protocol.RuntimeEvent) bool) {
 		<-ctx.Done() // an open, event-less stream bounded by the request context
 	}, nil
 }

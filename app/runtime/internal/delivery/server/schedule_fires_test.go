@@ -8,9 +8,9 @@ import (
 
 func TestScheduleFireNotificationProjectsToARuntimeSignal(t *testing.T) {
 	notifier := &testNotification[string]{}
-	s := &Server{wsHub: newWorkspaceHub()}
+	s := &Server{workspaceHub: newWorkspaceHub()}
 	s.observeScheduleFires(notifier)
-	events, unsubscribe := s.wsHub.subscribe()
+	events, unsubscribe := s.workspaceHub.subscribe()
 	defer unsubscribe()
 
 	notifier.Publish("sch_1")

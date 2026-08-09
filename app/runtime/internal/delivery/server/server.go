@@ -13,7 +13,8 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 )
 
-// Config bundles construction inputs.
+// Config declares the application use cases, notification sources, and contract
+// facts required to construct a Server.
 type Config struct {
 	Sessions  sessionUseCases
 	MCP       mcpUseCases
@@ -25,9 +26,9 @@ type Config struct {
 	Usage     usageUseCases
 	Feedback  feedbackUseCases
 
-	FileChanges      source[workspaceapp.FileChangeNotice]
-	MCPStatusChanges source[mcpapp.ServerStatus]
-	SkillChanges     source[struct{}]
+	FileChanges      notificationSource[workspaceapp.FileChangeNotice]
+	MCPStatusChanges notificationSource[mcpapp.ServerStatus]
+	SkillChanges     notificationSource[struct{}]
 
 	// ServerInfo identifies this runtime on the wire. Name and Version receive
 	// development defaults when absent.
@@ -37,8 +38,8 @@ type Config struct {
 
 	Schedules      scheduleManagementUseCases
 	ScheduleFiring scheduleFiringUseCases
-	Changes        source[change.Notice]
-	ScheduleFires  source[string]
+	Changes        notificationSource[change.Notice]
+	ScheduleFires  notificationSource[string]
 
 	// Goals exposes the autonomous Goal use cases. nil
 	// makes goals.* report capability_not_negotiated.
@@ -97,10 +98,10 @@ type Server struct {
 	idempotency              protocol.IdempotencyLimits
 	mcpAuthorizationAttempts protocol.MCPAuthorizationAttemptLimits
 
-	// wsHub fans non-run change signals (files/skills/mcp/schedule/session) out to
+	// workspaceHub fans non-run change signals (files/skills/mcp/schedule/session) out to
 	// runtime.subscribe streams (AUX_API §3). It is ephemeral, lossy, and scoped
 	// to this process; run streams have their own durable replay contract.
-	wsHub *workspaceHub
+	workspaceHub *workspaceHub
 }
 
 // featureAvailability is the small closed set of optional runtime facts that
@@ -117,7 +118,7 @@ type featureAvailability struct {
 	codebase    bool
 }
 
-type source[T any] interface {
+type notificationSource[T any] interface {
 	Observe(sink func(T))
 }
 
@@ -127,84 +128,106 @@ func (s *Server) Close() {
 	if s == nil {
 		return
 	}
-	if s.wsHub != nil {
-		s.wsHub.closeAdmissions()
+	if s.workspaceHub != nil {
+		s.workspaceHub.closeAdmissions()
 	}
 }
 
 // New builds a Server from its required application use cases.
 func New(cfg Config) (*Server, error) {
-	if cfg.Sessions == nil {
-		return nil, errors.New("server: Sessions is required")
+	if err := cfg.validate(); err != nil {
+		return nil, err
 	}
-	if cfg.MCP == nil {
-		return nil, errors.New("server: MCP is required")
+	cfg = cfg.withServerInfoDefaults()
+	facts, err := deriveContractFacts(cfg)
+	if err != nil {
+		return nil, err
 	}
-	if cfg.Approvals == nil {
-		return nil, errors.New("server: Approvals is required")
+	server := newServer(cfg, facts)
+	server.observeNotificationSources(cfg)
+	return server, nil
+}
+
+func (cfg Config) validate() error {
+	for _, dependency := range []struct {
+		name      string
+		available bool
+	}{
+		{name: "Sessions", available: cfg.Sessions != nil},
+		{name: "MCP", available: cfg.MCP != nil},
+		{name: "Approvals", available: cfg.Approvals != nil},
+		{name: "Models", available: cfg.Models != nil},
+		{name: "Tools", available: cfg.Tools != nil},
+		{name: "Runs", available: cfg.Runs != nil},
+		{name: "Queries", available: cfg.Queries != nil},
+		{name: "Usage", available: cfg.Usage != nil},
+		{name: "Feedback", available: cfg.Feedback != nil},
+		{name: "Schedules", available: cfg.Schedules != nil},
+		{name: "ScheduleFiring", available: cfg.ScheduleFiring != nil},
+		{name: "Codebase", available: cfg.Codebase != nil},
+	} {
+		if !dependency.available {
+			return fmt.Errorf("server: %s is required", dependency.name)
+		}
 	}
-	if cfg.Models == nil {
-		return nil, errors.New("server: Models is required")
+	if cfg.WorkspaceFiles == nil || cfg.WorkspaceVCS == nil ||
+		cfg.WorkspaceDiscovery == nil || cfg.WorkspaceKnowledge == nil || cfg.WorkspaceSkills == nil ||
+		cfg.WorkspaceHooks == nil || cfg.WorkspaceWatch == nil {
+		return errors.New("server: workspace use cases are required")
 	}
-	if cfg.Tools == nil {
-		return nil, errors.New("server: Tools is required")
-	}
+	return nil
+}
+
+func (cfg Config) withServerInfoDefaults() Config {
 	if cfg.ServerInfo.Name == "" {
 		cfg.ServerInfo.Name = "runtime"
 	}
 	if cfg.ServerInfo.Version == "" {
 		cfg.ServerInfo.Version = "0.0.0-dev"
 	}
-	if cfg.Runs == nil {
-		return nil, errors.New("server: Runs is required")
+	return cfg
+}
+
+type contractFacts struct {
+	features                 featureAvailability
+	replay                   protocol.RunReplayLimits
+	mcpAuthorizationAttempts protocol.MCPAuthorizationAttemptLimits
+}
+
+func deriveContractFacts(cfg Config) (contractFacts, error) {
+	facts := contractFacts{
+		features: featureAvailability{
+			knowledge:   cfg.WorkspaceKnowledge.Available(),
+			git:         cfg.GitAvailable,
+			fileWatch:   cfg.WorkspaceWatch.Available(),
+			plan:        cfg.PlanEnabled,
+			goals:       cfg.Goals != nil,
+			agentMemory: cfg.AgentMemory != nil && cfg.AgentMemory.Available(),
+			schedules:   cfg.Schedules.Available() && cfg.ScheduleFiring.Available(),
+			codebase:    cfg.Codebase.Available(),
+		},
+		replay: replayLimitsFrom(cfg.Runs),
+		mcpAuthorizationAttempts: protocol.MCPAuthorizationAttemptLimits{
+			RetentionSeconds: int(cfg.MCP.AuthorizationAttemptRetention().Seconds()),
+		},
 	}
-	if cfg.Queries == nil {
-		return nil, errors.New("server: Queries is required")
+	for _, wireShape := range []struct {
+		label string
+		value any
+	}{
+		{label: "Runs returned invalid replay retention", value: facts.replay},
+		{label: "IdempotencyLimits is invalid", value: cfg.IdempotencyLimits},
+		{label: "MCP returned invalid authorization attempt retention", value: facts.mcpAuthorizationAttempts},
+	} {
+		if err := protocol.ValidateWireTree(wireShape.value); err != nil {
+			return contractFacts{}, fmt.Errorf("server: %s: %w", wireShape.label, err)
+		}
 	}
-	if cfg.Usage == nil {
-		return nil, errors.New("server: Usage is required")
-	}
-	if cfg.Feedback == nil {
-		return nil, errors.New("server: Feedback is required")
-	}
-	if cfg.Schedules == nil {
-		return nil, errors.New("server: Schedules is required")
-	}
-	if cfg.ScheduleFiring == nil {
-		return nil, errors.New("server: ScheduleFiring is required")
-	}
-	if cfg.WorkspaceFiles == nil || cfg.WorkspaceVCS == nil ||
-		cfg.WorkspaceDiscovery == nil || cfg.WorkspaceKnowledge == nil || cfg.WorkspaceSkills == nil ||
-		cfg.WorkspaceHooks == nil || cfg.WorkspaceWatch == nil {
-		return nil, errors.New("server: workspace use cases are required")
-	}
-	if cfg.Codebase == nil {
-		return nil, errors.New("server: Codebase is required")
-	}
-	features := featureAvailability{
-		knowledge:   cfg.WorkspaceKnowledge.Available(),
-		git:         cfg.GitAvailable,
-		fileWatch:   cfg.WorkspaceWatch.Available(),
-		plan:        cfg.PlanEnabled,
-		goals:       cfg.Goals != nil,
-		agentMemory: cfg.AgentMemory != nil && cfg.AgentMemory.Available(),
-		schedules:   cfg.Schedules.Available() && cfg.ScheduleFiring.Available(),
-		codebase:    cfg.Codebase.Available(),
-	}
-	replay := replayLimitsFrom(cfg.Runs)
-	if err := protocol.ValidateWireTree(replay); err != nil {
-		return nil, fmt.Errorf("server: Runs returned invalid replay retention: %w", err)
-	}
-	if err := protocol.ValidateWireTree(cfg.IdempotencyLimits); err != nil {
-		return nil, fmt.Errorf("server: IdempotencyLimits is invalid: %w", err)
-	}
-	mcpAuthorizationAttempts := protocol.MCPAuthorizationAttemptLimits{
-		RetentionSeconds: int(cfg.MCP.AuthorizationAttemptRetention().Seconds()),
-	}
-	if err := protocol.ValidateWireTree(mcpAuthorizationAttempts); err != nil {
-		return nil, fmt.Errorf("server: MCP returned invalid authorization attempt retention: %w", err)
-	}
-	srv := &Server{
+	return facts, nil
+}
+
+func newServer(cfg Config, facts contractFacts) *Server {
+	return &Server{
 		sessions:                 cfg.Sessions,
 		mcp:                      cfg.MCP,
 		approvals:                cfg.Approvals,
@@ -216,7 +239,7 @@ func New(cfg Config) (*Server, error) {
 		usage:                    cfg.Usage,
 		feedback:                 cfg.Feedback,
 		serverInfo:               cfg.ServerInfo,
-		wsHub:                    newWorkspaceHub(),
+		workspaceHub:             newWorkspaceHub(),
 		schedules:                cfg.Schedules,
 		scheduleFiring:           cfg.ScheduleFiring,
 		goals:                    cfg.Goals,
@@ -228,27 +251,29 @@ func New(cfg Config) (*Server, error) {
 		workspaceSkills:          cfg.WorkspaceSkills,
 		workspaceHooks:           cfg.WorkspaceHooks,
 		workspaceWatch:           cfg.WorkspaceWatch,
-		features:                 features,
-		replay:                   replay,
+		features:                 facts.features,
+		replay:                   facts.replay,
 		idempotency:              cfg.IdempotencyLimits,
-		mcpAuthorizationAttempts: mcpAuthorizationAttempts,
+		mcpAuthorizationAttempts: facts.mcpAuthorizationAttempts,
 	}
+}
+
+func (s *Server) observeNotificationSources(cfg Config) {
 	if cfg.FileChanges != nil {
-		srv.observeFileChanges(cfg.FileChanges)
+		s.observeFileChanges(cfg.FileChanges)
 	}
 	if cfg.MCPStatusChanges != nil {
-		srv.observeMCPStatusChanges(cfg.MCPStatusChanges)
+		s.observeMCPStatusChanges(cfg.MCPStatusChanges)
 	}
 	if cfg.SkillChanges != nil {
-		srv.observeSkillChanges(cfg.SkillChanges)
+		s.observeSkillChanges(cfg.SkillChanges)
 	}
 	if cfg.ScheduleFires != nil {
-		srv.observeScheduleFires(cfg.ScheduleFires)
+		s.observeScheduleFires(cfg.ScheduleFires)
 	}
 	if cfg.Changes != nil {
-		srv.observeChanges(cfg.Changes)
+		s.observeChanges(cfg.Changes)
 	}
-	return srv, nil
 }
 
 // capabilities returns this Server's capability snapshot (API.md §9). Its

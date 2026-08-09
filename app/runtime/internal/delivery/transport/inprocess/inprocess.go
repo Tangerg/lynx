@@ -104,7 +104,7 @@ func NewTransport(cfg Config) (*Transport, error) {
 // Send dispatches one outbound message through the dispatch. For
 // streaming methods (runs.start, ...), the resulting events are
 // piped onto the Recv channel as notifications.run.event entries.
-func (t *Transport) Send(ctx context.Context, msg transport.Message) error {
+func (t *Transport) Send(ctx context.Context, message transport.Message) error {
 	callCtx, release, ok := t.calls.AttachLinked(ctx)
 	if !ok {
 		return errTransportClosed
@@ -115,15 +115,15 @@ func (t *Transport) Send(ctx context.Context, msg transport.Message) error {
 			release()
 		}
 	}()
-	res := t.router.Handle(callCtx, msg)
-	if res.Response != nil {
+	result := t.router.Handle(callCtx, message)
+	if result.Response != nil {
 		if !t.reserve() {
 			return errTransportClosed
 		}
 		err := func() error {
 			defer t.sending.Done()
 			select {
-			case t.in <- res.Response:
+			case t.in <- result.Response:
 				return nil
 			case <-ctx.Done():
 				return ctx.Err()
@@ -135,8 +135,8 @@ func (t *Transport) Send(ctx context.Context, msg transport.Message) error {
 			return err
 		}
 	}
-	if res.EventStream != nil {
-		if !t.startPump(callCtx, res.EventStream, release) {
+	if result.EventStream != nil {
+		if !t.startPump(callCtx, result.EventStream, release) {
 			return errTransportClosed
 		}
 		releaseCall = false // the stream pump now owns the attached call
@@ -168,14 +168,14 @@ func (t *Transport) startPump(ctx context.Context, events iter.Seq[dispatch.Stre
 // transport close.
 func (t *Transport) pumpStream(ctx context.Context, events iter.Seq[dispatch.StreamFrame]) {
 	for frame := range events {
-		if !t.tryEmit(ctx, frame.Notif) {
+		if !t.tryEmit(ctx, frame.Notification) {
 			return
 		}
 	}
 }
 
-func (t *Transport) tryEmit(ctx context.Context, msg transport.Message) bool {
-	if msg == nil {
+func (t *Transport) tryEmit(ctx context.Context, message transport.Message) bool {
+	if message == nil {
 		return true
 	}
 	if !t.reserve() {
@@ -183,7 +183,7 @@ func (t *Transport) tryEmit(ctx context.Context, msg transport.Message) bool {
 	}
 	defer t.sending.Done()
 	select {
-	case t.in <- msg:
+	case t.in <- message:
 		return true
 	case <-ctx.Done():
 		return false

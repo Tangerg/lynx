@@ -2,9 +2,7 @@ package protocol
 
 import (
 	"go/ast"
-	"go/parser"
 	"go/token"
-	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -63,46 +61,30 @@ func TestFeatureRegistryRejectsUnknownStability(t *testing.T) {
 // package's non-test files.
 func featureConstants(t *testing.T) []string {
 	t.Helper()
-
-	files, err := filepath.Glob("*.go")
-	if err != nil {
-		t.Fatalf("glob package files: %v", err)
-	}
-	slices.Sort(files)
-
 	var out []string
-	for _, file := range files {
-		if strings.HasSuffix(file, "_test.go") {
-			continue
-		}
-		syntax, err := parser.ParseFile(token.NewFileSet(), file, nil, 0)
-		if err != nil {
-			t.Fatalf("parse %s: %v", file, err)
-		}
-		for _, decl := range syntax.Decls {
-			group, ok := decl.(*ast.GenDecl)
-			if !ok || group.Tok != token.CONST {
-				continue
-			}
-			for _, spec := range group.Specs {
-				value, ok := spec.(*ast.ValueSpec)
-				if !ok || len(value.Names) != 1 || len(value.Values) != 1 {
-					continue
-				}
-				if !strings.HasPrefix(value.Names[0].Name, "Feature") {
-					continue
-				}
-				literal, ok := value.Values[0].(*ast.BasicLit)
-				if !ok || literal.Kind != token.STRING {
-					continue
-				}
-				text, err := strconv.Unquote(literal.Value)
-				if err != nil {
-					t.Fatalf("unquote %s: %v", literal.Value, err)
-				}
+	for _, syntax := range parseProtocolSource(t) {
+		for _, specification := range constantSpecs(syntax) {
+			if text, ok := featureConstant(t, specification); ok {
 				out = append(out, text)
 			}
 		}
 	}
 	return out
+}
+
+func featureConstant(t *testing.T, specification *ast.ValueSpec) (string, bool) {
+	t.Helper()
+	if len(specification.Names) != 1 || len(specification.Values) != 1 ||
+		!strings.HasPrefix(specification.Names[0].Name, "Feature") {
+		return "", false
+	}
+	literal, ok := specification.Values[0].(*ast.BasicLit)
+	if !ok || literal.Kind != token.STRING {
+		return "", false
+	}
+	text, err := strconv.Unquote(literal.Value)
+	if err != nil {
+		t.Fatalf("unquote %s: %v", literal.Value, err)
+	}
+	return text, true
 }

@@ -48,7 +48,7 @@ func (s *Server) serveRPC(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	msg, err := transport.DecodeMessage(body)
+	message, err := transport.DecodeMessage(body)
 	if err != nil {
 		writeProblem(w, http.StatusBadRequest, "invalid_request", "invalid JSON-RPC message: "+err.Error(), false)
 		return
@@ -60,13 +60,13 @@ func (s *Server) serveRPC(w http.ResponseWriter, r *http.Request) {
 	// non-streaming methods (they don't read it).
 	ctx := transport.WithLastEventID(r.Context(), strings.TrimSpace(r.Header.Get("Last-Event-Id")))
 	ctx = transport.WithIdempotencyKey(ctx, strings.TrimSpace(r.Header.Get("Idempotency-Key")))
-	res := s.router.Handle(ctx, msg)
+	result := s.router.Handle(ctx, message)
 
 	// Surface the body's method (if any) for the X-Method header.
 	// Only Request envelopes carry Method; Responses don't.
 	bodyMethod := ""
-	if req, ok := msg.(*transport.Request); ok {
-		bodyMethod = req.Method
+	if request, ok := message.(*transport.Request); ok {
+		bodyMethod = request.Method
 	}
 
 	methodLabel := bodyMethod
@@ -74,7 +74,7 @@ func (s *Server) serveRPC(w http.ResponseWriter, r *http.Request) {
 	// Client notifications are dispatched synchronously and acknowledged
 	// with 204 No Content — no body (TRANSPORT §6.3 explicitly picks 204
 	// over 202, since processing is already complete, not pending).
-	if res.Response == nil {
+	if result.Response == nil {
 		if methodLabel != "" {
 			w.Header().Set("X-Method", methodLabel)
 		}
@@ -86,14 +86,14 @@ func (s *Server) serveRPC(w http.ResponseWriter, r *http.Request) {
 	// event stream (streamable HTTP, TRANSPORT §6.4). A pre-stream failure
 	// (session_not_found / invalid_params …) leaves EventStream nil and
 	// falls through to the single-shot application/json reply below — §6.2.
-	if res.EventStream != nil {
-		s.serveStream(w, r, res.Response, res.EventStream, methodLabel)
+	if result.EventStream != nil {
+		s.serveStream(w, r, result.Response, result.EventStream, methodLabel)
 		return
 	}
 
 	// A decoded JSON-RPC call always returns 200. Its result or error belongs to
 	// the envelope; HTTP status is reserved for failures below this boundary.
-	data, err := transport.EncodeMessage(res.Response)
+	responseBytes, err := transport.EncodeMessage(result.Response)
 	if err != nil {
 		recordError(r.Context(), "rpc.encode-response", err,
 			attribute.String("rpc.method", methodLabel),
@@ -106,7 +106,7 @@ func (s *Server) serveRPC(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Method", methodLabel)
 	}
 	w.WriteHeader(http.StatusOK)
-	if _, err := w.Write(data); err != nil {
+	if _, err := w.Write(responseBytes); err != nil {
 		recordError(r.Context(), "rpc.write-response", err,
 			attribute.String("rpc.method", methodLabel),
 		)

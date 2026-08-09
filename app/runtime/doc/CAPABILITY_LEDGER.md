@@ -205,13 +205,13 @@ P8 production cutover 已用真实 Bootstrap consumer 冻结 root stage/observe/
 
 | 能力 | 当前 owner | Verdict | 说明 |
 |---|---|---|---|
-| Protocol types/errors | `delivery/protocol` + `contract` | Retain | Protocol `2026-08-09`、Artifact v14；机器真相在 contract |
-| Runtime method implementation | `delivery/server` | Retain | Protocol server side 与 projection，不持有 transport listener |
-| JSON-RPC dispatch/registry | `delivery/dispatch` | Retain | method dispatch/router，不与 server 合并 |
+| Protocol types/errors | `delivery/protocol` + `contract` | Retain | Protocol `2026-08-09`、Artifact v14；`doc.go`、`runtime.go`、`version.go`、`identifiers.go` 各自只拥有 package、method surface、version negotiation、resource identity，机器真相仍在 contract |
+| Runtime method implementation | `delivery/server` | Retain | Protocol server side 与 projection；构造按 required use-case validation、defaults、contract facts、instance、notification observation 分阶段，不持有 transport listener |
+| JSON-RPC dispatch/registry | `delivery/dispatch` | Retain | method registry/router/idempotency；typed params decode 与 response projection 分属 `params.go`/`response.go`，不与 server 合并 |
 | HTTP/SSE | transport/http | Retain | envelope I/O、stream/backpressure |
 | In-process | transport/inprocess | Retain | 与 HTTP 共享 Application entrypoint |
-| Server direct domain projections | 当前较多 | Refactor | 优先消费 Application read models |
-| Delivery adapter imports | target 禁止 | Refactor | Delivery 只驱动 Application |
+| Server product-value projections | Application read/write use cases + 必要 immutable Domain values | Retain | 只做 wire validation/error mapping/projection，不读取 repository、不持有 lifecycle owner |
+| Delivery adapter imports | architecture guard 禁止 | Retain | Delivery 只驱动 Application；对 concrete Adapter/Infra/Bootstrap/Agent Framework import 为零 |
 | frontend/TUI/CLI generated consumers | Desktop 仍含旧 `processRootSegment` vendored binding/fixtures；CLI/TUI 当前扫描无该 token | Defer | 精确 backlog 见 `CONSUMER_HANDOFF.md`；本 goal 不改消费者 |
 
 ## 9. 结构清理台账
@@ -244,6 +244,14 @@ P8 production cutover 已用真实 Bootstrap consumer 冻结 root stage/observe/
 - Application consumer-owned ports 均按用例拆分；`Coordinator` 只用于确实协调多个 use-case collaborators 的 package aggregate，不存在 package-name + exported-type 口吃或跨用例胖 executor interface；
 - Delivery `server` 只做 wire validation/projection，`dispatch` 只做 JSON-RPC registry/routing/idempotency，二者对 concrete Adapter/Infra/Bootstrap/Agent Framework import 为零，现名准确且不合包；
 - `internal/component`、temporary exception、空目录、历史 fixture 与一层纯转发 wrapper 均为零；最终 DAG、命名和 shared-capability purity 由永久 architecture tests 守卫。
+
+### 9.3 Delivery/Bootstrap
+
+- Delivery 的 `protocol`、`dispatch`、`server`、`transport` 四层分别拥有 wire vocabulary、method routing、Application projection 和 envelope I/O；StreamFrame 使用完整的 `Notification` 语义，HTTP 与 in-process transport 只消费同一预编码 frame；
+- `server` 的 Session import/export、Run/Plan event presentation、workspace subscription lifecycle 分别归 `session_transfer.go`、`presenter_run_event.go`、`workspace_stream.go`；workspace hub 的 notification coalescing、subscription admission 与 queue drain 仍在同一并发 owner 内，没有拆出第二状态机；
+- Bootstrap 仍是唯一 composition root；conversation、model、MCP、tool 的 composition-time environment 和 post-Run maintenance 各由 focused builder 组装，`Stack` 只暴露 Application entrypoints/notification sources，`Host` 单独拥有 shutdown graph；
+- `hostLifetime` 以 `goalDriver`、`mcpCoordinator`、`codebaseCoordinator`、`runCoordinator`、`executor`、`runEffectTasks`、`toolResources`、`hostResources` 表达真实关闭职责；旧 `goals`/`mcp`/`execution`/`effectsTasks`/`resources` 一类含混字段已删除；
+- `engine_wiring.go`、`embedding_env.go`、`utility_role.go`、`execution_support.go`、`toolenv.go`、`mcp_env.go`、`notification.go`、`reply.go`、`presenter.go`、`sessionio.go`、`builders.go` 等旧职责失真路径由 architecture guard 永久禁止回流。
 
 ## 10. 删除清单
 

@@ -54,7 +54,7 @@ func TestArtifactV14RoundTripsEveryFieldItCarries(t *testing.T) {
 	s, rt := rollbackHarness(t)
 	s.features.plan = true // this composition owns the key, so it may restore it
 	ctx := t.Context()
-	sessionID := seedMaximalSession(t, s, rt)
+	sessionID := seedMaximalSession(t, rt)
 
 	exported, err := s.ExportSession(ctx, protocol.ExportSessionRequest{SessionID: sessionID})
 	if err != nil {
@@ -250,7 +250,7 @@ func assertArtifactFixtureIsComplete(t *testing.T, artifact protocol.SessionArti
 		case populated[field] && excused:
 			t.Errorf("%s is populated AND excused (%q) — one of the two is wrong", field, reason)
 		case !populated[field] && !excused:
-			t.Errorf("%s is part of the v9 document and the round-trip fixture never sets it, "+
+			t.Errorf("%s is part of the current artifact and the round-trip fixture never sets it, "+
 				"so nothing proves it survives an import", field)
 		}
 	}
@@ -327,10 +327,10 @@ func carriesAValue(value reflect.Value) bool {
 	}
 }
 
-// seedMaximalSession writes a session that reaches every corner of the v9 document:
+// seedMaximalSession writes a Session that reaches every corner of the current artifact:
 // two runs (one completed with full accounting, one failed with its problem), one
 // item per transcript kind, an offloaded tool body, and a Plan.
-func seedMaximalSession(t *testing.T, s *Server, rt *stubRuntime) string {
+func seedMaximalSession(t *testing.T, rt *stubRuntime) string {
 	t.Helper()
 	ctx := t.Context()
 	const sessionID = "ses_maximal"

@@ -127,7 +127,7 @@ func serverWithMCP(cfg mcpapp.Config) *Server {
 	}
 	mcpStatus := &testNotification[mcpapp.ServerStatus]{}
 	cfg.StatusChanged = mcpStatus.Publish
-	s := &Server{mcp: mcpapp.New(cfg), wsHub: newWorkspaceHub()}
+	s := &Server{mcp: mcpapp.New(cfg), workspaceHub: newWorkspaceHub()}
 	s.observeMCPStatusChanges(mcpStatus)
 	return s
 }
