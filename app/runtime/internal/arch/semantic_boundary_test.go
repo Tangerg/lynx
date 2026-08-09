@@ -178,6 +178,13 @@ func TestRunCapabilitiesStaySemanticInsideTheProtocolBoundary(t *testing.T) {
 
 func TestExecutorAndGoalVocabularyDoesNotLeakAcrossBoundaries(t *testing.T) {
 	root := moduleRoot(t)
+	assertExecutorIdentityShapes(t, root)
+	assertRetiredExecutorIdentifiersAbsent(t, root)
+	assertRetiredDurableVocabularyAbsent(t, root)
+}
+
+func assertExecutorIdentityShapes(t *testing.T, root string) {
+	t.Helper()
 	executorRefPath := filepath.Join(root, "internal", "application", "runs", "executor_ref.go")
 	executorRefFile, err := parser.ParseFile(token.NewFileSet(), executorRefPath, nil, 0)
 	if err != nil {
@@ -196,7 +203,10 @@ func TestExecutorAndGoalVocabularyDoesNotLeakAcrossBoundaries(t *testing.T) {
 	if fields := structFields(scopeFile, "ExecutionScope"); !slices.Equal(fields, wantScope) {
 		t.Fatalf("ExecutionScope fields = %v, want %v", fields, wantScope)
 	}
+}
 
+func assertRetiredExecutorIdentifiersAbsent(t *testing.T, root string) {
+	t.Helper()
 	forbiddenNames := map[string]struct{}{
 		"TurnRef": {}, "TurnScope": {}, "StartTurn": {}, "RehydrateTurn": {},
 		"TurnControl": {}, "TurnCanceler": {}, "TurnInterrupted": {},
@@ -205,7 +215,7 @@ func TestExecutorAndGoalVocabularyDoesNotLeakAcrossBoundaries(t *testing.T) {
 		"BoundaryMaintenance": {}, "SessionTurnCleanup": {}, "NewSessionTurnCleanup": {},
 	}
 	agentAdapter := filepath.Join(root, "internal", "adapter", "agentexec") + string(filepath.Separator)
-	err = filepath.WalkDir(filepath.Join(root, "internal"), func(path string, entry fs.DirEntry, walkErr error) error {
+	err := filepath.WalkDir(filepath.Join(root, "internal"), func(path string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
 		}
@@ -222,28 +232,41 @@ func TestExecutorAndGoalVocabularyDoesNotLeakAcrossBoundaries(t *testing.T) {
 		if parseErr != nil {
 			return parseErr
 		}
-		ast.Inspect(file, func(node ast.Node) bool {
-			identifier, ok := node.(*ast.Ident)
-			if !ok {
-				return true
-			}
-			if identifier.Name == "TurnID" {
-				t.Errorf("%s leaks adapter-local TurnID", path)
-				return true
-			}
-			if _, forbidden := forbiddenNames[identifier.Name]; forbidden {
-				t.Errorf("%s leaks retired vocabulary %s", path, identifier.Name)
-			}
-			return true
-		})
+		assertNoRetiredExecutorIdentifiers(t, path, file, forbiddenNames)
 		return nil
 	})
 	if err != nil {
 		t.Fatalf("scan executor vocabulary outside Agent adapter: %v", err)
 	}
+}
 
+func assertNoRetiredExecutorIdentifiers(
+	t *testing.T,
+	path string,
+	file *ast.File,
+	forbiddenNames map[string]struct{},
+) {
+	t.Helper()
+	ast.Inspect(file, func(node ast.Node) bool {
+		identifier, isIdentifier := node.(*ast.Ident)
+		if !isIdentifier {
+			return true
+		}
+		if identifier.Name == "TurnID" {
+			t.Errorf("%s leaks adapter-local TurnID", path)
+			return true
+		}
+		if _, forbidden := forbiddenNames[identifier.Name]; forbidden {
+			t.Errorf("%s leaks retired vocabulary %s", path, identifier.Name)
+		}
+		return true
+	})
+}
+
+func assertRetiredDurableVocabularyAbsent(t *testing.T, root string) {
+	t.Helper()
 	sqliteDir := filepath.Join(root, "internal", "infra", "storage", "sqlite")
-	err = filepath.WalkDir(sqliteDir, func(path string, entry fs.DirEntry, walkErr error) error {
+	err := filepath.WalkDir(sqliteDir, func(path string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
 		}

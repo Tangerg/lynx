@@ -682,113 +682,116 @@ func TestValueConstraintsAgreeAcrossArtifacts(t *testing.T) {
 			continue
 		}
 		for _, constraint := range spec.Constraints {
-			keyword, helper := "minLength", "requiredText"
-			switch constraint.Kind {
-			case dispatch.ConstraintNonEmpty:
-				_, leaf, ok := protocol.GoPath(spec.GoType, constraint.Field)
-				if !ok {
-					t.Fatalf("%s has no field %q", shape, constraint.Field)
-				}
-				if leaf.Optional && leaf.Type.Kind() == reflect.Pointer {
-					helper = "optionalText"
-				}
-			case dispatch.ConstraintPositive:
-				keyword, helper = "minimum", "positiveNumber"
-				_, leaf, ok := protocol.GoPath(spec.GoType, constraint.Field)
-				if !ok {
-					t.Fatalf("%s has no field %q", shape, constraint.Field)
-				}
-				if leaf.Type.Kind() == reflect.Pointer {
-					helper = "optionalPositiveNumber"
-				} else if leaf.Optional {
-					helper = "optionalPositiveScalarNumber"
-				}
-			case dispatch.ConstraintNonNegative:
-				keyword, helper = "minimum", "nonNegativeNumber"
-				_, leaf, ok := protocol.GoPath(spec.GoType, constraint.Field)
-				if !ok {
-					t.Fatalf("%s has no field %q", shape, constraint.Field)
-				}
-				if leaf.Type.Kind() == reflect.Pointer {
-					helper = "optionalNonNegativeNumber"
-				}
-			case dispatch.ConstraintNonEmptyItems:
-				keyword = "minItems"
-				_, leaf, ok := protocol.GoPath(spec.GoType, constraint.Field)
-				if !ok {
-					t.Fatalf("%s has no field %q", shape, constraint.Field)
-				}
-				if leaf.Optional {
-					helper = "nonEmptyItems"
-				} else {
-					helper = "requiredItems"
-				}
-			case dispatch.ConstraintNonEmptyProperties:
-				keyword, helper = "minProperties", "nonEmptyProperties"
-			case dispatch.ConstraintUniqueItems:
-				keyword, helper = "uniqueItems", "uniqueItems"
-			case dispatch.ConstraintMinItems:
-				keyword = "minItems"
-				_, leaf, ok := protocol.GoPath(spec.GoType, constraint.Field)
-				if !ok {
-					t.Fatalf("%s has no field %q", shape, constraint.Field)
-				}
-				if leaf.Optional {
-					helper = "optionalMinItems"
-				} else {
-					helper = "requiredMinItems"
-				}
-			case dispatch.ConstraintMaxLength:
-				keyword, helper = "maxLength", "maxLength"
-				_, leaf, ok := protocol.GoPath(spec.GoType, constraint.Field)
-				if !ok {
-					t.Fatalf("%s has no field %q", shape, constraint.Field)
-				}
-				if leaf.Type.Kind() == reflect.Pointer {
-					helper = "optionalMaxLength"
-				}
-			case dispatch.ConstraintMinimum:
-				keyword, helper = "minimum", "minimumNumber"
-				_, leaf, ok := protocol.GoPath(spec.GoType, constraint.Field)
-				if !ok {
-					t.Fatalf("%s has no field %q", shape, constraint.Field)
-				}
-				if leaf.Type.Kind() == reflect.Pointer {
-					helper = "optionalMinimumNumber"
-				}
-			case dispatch.ConstraintMaximum:
-				keyword, helper = "maximum", "maximumNumber"
-				_, leaf, ok := protocol.GoPath(spec.GoType, constraint.Field)
-				if !ok {
-					t.Fatalf("%s has no field %q", shape, constraint.Field)
-				}
-				if leaf.Type.Kind() == reflect.Pointer {
-					helper = "optionalMaximumNumber"
-				}
-			}
-			// The schema states the rule somewhere inside the shape's definition —
-			// on the property for a direct field, in an allOf branch for a nested one.
-			if !constraintInSchema(t, definition, constraint.Field, keyword, constraint.Limit) {
-				t.Errorf("%s.%s is declared %s and schema.json states no %s for it",
-					shape, constraint.Field, constraint, keyword)
-			}
-			if !statesGoConstraint(validator, helper, constraint.Field, constraint.Limit) {
-				t.Errorf("%s.%s is declared %s and the generated validator has no %s call",
-					shape, constraint.Field, constraint, helper)
-			}
-			// The TypeScript checks name the leaf, so a dotted path is read at the
-			// segment the constraint lands on. Looking inside this shape's own entry —
-			// not the whole file — is what pins the rule to the right shape.
-			entry, ok := checks[shape]
-			if !ok {
-				t.Errorf("%s carries value constraints and %s has no check for it", shape, tsWireValidator)
-				continue
-			}
-			if !statesCheck(entry, constraint.Field, keyword, constraint.Limit) {
-				t.Errorf("%s.%s is declared %s and its %s check states no %s",
-					shape, constraint.Field, constraint, tsWireValidator, keyword)
-			}
+			expected := expectedCompiledConstraint(t, shape, spec.GoType, constraint)
+			assertCompiledConstraint(t, shape, constraint, expected, definition, validator, checks)
 		}
+	}
+}
+
+type compiledConstraintExpectation struct {
+	schemaKeyword string
+	goHelper      string
+}
+
+func expectedCompiledConstraint(
+	t *testing.T,
+	shape string,
+	goType reflect.Type,
+	constraint dispatch.FieldConstraint,
+) compiledConstraintExpectation {
+	t.Helper()
+	leaf := func() protocol.WireField {
+		_, field, found := protocol.GoPath(goType, constraint.Field)
+		if !found {
+			t.Fatalf("%s has no field %q", shape, constraint.Field)
+		}
+		return field
+	}
+	switch constraint.Kind {
+	case dispatch.ConstraintNonEmpty:
+		field := leaf()
+		if field.Optional && field.Type.Kind() == reflect.Pointer {
+			return compiledConstraintExpectation{"minLength", "optionalText"}
+		}
+		return compiledConstraintExpectation{"minLength", "requiredText"}
+	case dispatch.ConstraintPositive:
+		field := leaf()
+		switch {
+		case field.Type.Kind() == reflect.Pointer:
+			return compiledConstraintExpectation{"minimum", "optionalPositiveNumber"}
+		case field.Optional:
+			return compiledConstraintExpectation{"minimum", "optionalPositiveScalarNumber"}
+		default:
+			return compiledConstraintExpectation{"minimum", "positiveNumber"}
+		}
+	case dispatch.ConstraintNonNegative:
+		if leaf().Type.Kind() == reflect.Pointer {
+			return compiledConstraintExpectation{"minimum", "optionalNonNegativeNumber"}
+		}
+		return compiledConstraintExpectation{"minimum", "nonNegativeNumber"}
+	case dispatch.ConstraintNonEmptyItems:
+		if leaf().Optional {
+			return compiledConstraintExpectation{"minItems", "nonEmptyItems"}
+		}
+		return compiledConstraintExpectation{"minItems", "requiredItems"}
+	case dispatch.ConstraintNonEmptyProperties:
+		return compiledConstraintExpectation{"minProperties", "nonEmptyProperties"}
+	case dispatch.ConstraintUniqueItems:
+		return compiledConstraintExpectation{"uniqueItems", "uniqueItems"}
+	case dispatch.ConstraintMinItems:
+		if leaf().Optional {
+			return compiledConstraintExpectation{"minItems", "optionalMinItems"}
+		}
+		return compiledConstraintExpectation{"minItems", "requiredMinItems"}
+	case dispatch.ConstraintMaxLength:
+		if leaf().Type.Kind() == reflect.Pointer {
+			return compiledConstraintExpectation{"maxLength", "optionalMaxLength"}
+		}
+		return compiledConstraintExpectation{"maxLength", "maxLength"}
+	case dispatch.ConstraintMinimum:
+		if leaf().Type.Kind() == reflect.Pointer {
+			return compiledConstraintExpectation{"minimum", "optionalMinimumNumber"}
+		}
+		return compiledConstraintExpectation{"minimum", "minimumNumber"}
+	case dispatch.ConstraintMaximum:
+		if leaf().Type.Kind() == reflect.Pointer {
+			return compiledConstraintExpectation{"maximum", "optionalMaximumNumber"}
+		}
+		return compiledConstraintExpectation{"maximum", "maximumNumber"}
+	default:
+		t.Fatalf("%s.%s has unsupported constraint kind %s", shape, constraint.Field, constraint.Kind)
+		return compiledConstraintExpectation{}
+	}
+}
+
+func assertCompiledConstraint(
+	t *testing.T,
+	shape string,
+	constraint dispatch.FieldConstraint,
+	expected compiledConstraintExpectation,
+	definition json.RawMessage,
+	validator string,
+	checks map[string]string,
+) {
+	t.Helper()
+	// The schema states a direct field on its property and a nested field in the
+	// owning shape's allOf branch.
+	if !constraintInSchema(t, definition, constraint.Field, expected.schemaKeyword, constraint.Limit) {
+		t.Errorf("%s.%s is declared %s and schema.json states no %s for it",
+			shape, constraint.Field, constraint, expected.schemaKeyword)
+	}
+	if !statesGoConstraint(validator, expected.goHelper, constraint.Field, constraint.Limit) {
+		t.Errorf("%s.%s is declared %s and the generated validator has no %s call",
+			shape, constraint.Field, constraint, expected.goHelper)
+	}
+	entry, found := checks[shape]
+	if !found {
+		t.Errorf("%s carries value constraints and %s has no check for it", shape, tsWireValidator)
+		return
+	}
+	if !statesCheck(entry, constraint.Field, expected.schemaKeyword, constraint.Limit) {
+		t.Errorf("%s.%s is declared %s and its %s check states no %s",
+			shape, constraint.Field, constraint, tsWireValidator, expected.schemaKeyword)
 	}
 }
 
@@ -862,17 +865,8 @@ func constraintInSchema(t *testing.T, definition json.RawMessage, path, keyword 
 func statesKeyword(node any, property, keyword string, limit int) bool {
 	switch typed := node.(type) {
 	case map[string]any:
-		if properties, ok := typed["properties"].(map[string]any); ok {
-			if constrained, ok := properties[property].(map[string]any); ok {
-				if value, stated := constrained[keyword]; stated {
-					if limit == 0 {
-						return true
-					}
-					if number, ok := value.(float64); ok && number == float64(limit) {
-						return true
-					}
-				}
-			}
+		if mapStatesPropertyConstraint(typed, property, keyword, limit) {
+			return true
 		}
 		for _, value := range typed {
 			if statesKeyword(value, property, keyword, limit) {
@@ -887,4 +881,21 @@ func statesKeyword(node any, property, keyword string, limit int) bool {
 		}
 	}
 	return false
+}
+
+func mapStatesPropertyConstraint(node map[string]any, property, keyword string, limit int) bool {
+	properties, hasProperties := node["properties"].(map[string]any)
+	if !hasProperties {
+		return false
+	}
+	constrained, hasProperty := properties[property].(map[string]any)
+	if !hasProperty {
+		return false
+	}
+	value, stated := constrained[keyword]
+	if !stated || limit == 0 {
+		return stated
+	}
+	number, isNumber := value.(float64)
+	return isNumber && number == float64(limit)
 }

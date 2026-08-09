@@ -20,44 +20,12 @@ func TestInnerQueriesDoNotUseJavaGetterNames(t *testing.T) {
 	for _, ring := range []string{"domain", "application", "adapter", "infra"} {
 		t.Run(ring, func(t *testing.T) {
 			dir := filepath.Join(root, "internal", ring)
-			err := filepath.WalkDir(dir, func(path string, entry fs.DirEntry, err error) error {
-				if err != nil {
-					return err
-				}
-				if entry.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
-					return nil
-				}
-				file, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
-				if err != nil {
-					return err
-				}
-				check := func(name string) {
-					if strings.HasPrefix(name, "Get") && len(name) > len("Get") && ast.IsExported(name[len("Get"):]) {
+			err := walkProductionGoFiles(dir, func(path string, file *ast.File) error {
+				forEachSemanticAPIMethod(file, func(name string) {
+					if isJavaGetterName(name) {
 						t.Errorf("%s declares Java-style query %s; name the value or its lookup semantics", path, name)
 					}
-				}
-				for _, declaration := range file.Decls {
-					switch typed := declaration.(type) {
-					case *ast.FuncDecl:
-						check(typed.Name.Name)
-					case *ast.GenDecl:
-						for _, spec := range typed.Specs {
-							typeSpec, ok := spec.(*ast.TypeSpec)
-							if !ok {
-								continue
-							}
-							contract, ok := typeSpec.Type.(*ast.InterfaceType)
-							if !ok {
-								continue
-							}
-							for _, method := range contract.Methods.List {
-								for _, name := range method.Names {
-									check(name.Name)
-								}
-							}
-						}
-					}
-				}
+				})
 				return nil
 			})
 			if err != nil {
@@ -67,65 +35,47 @@ func TestInnerQueriesDoNotUseJavaGetterNames(t *testing.T) {
 	}
 }
 
+func isJavaGetterName(name string) bool {
+	return strings.HasPrefix(name, "Get") &&
+		len(name) > len("Get") &&
+		ast.IsExported(name[len("Get"):])
+}
+
+func forEachSemanticAPIMethod(file *ast.File, visit func(string)) {
+	for _, declaration := range file.Decls {
+		switch typed := declaration.(type) {
+		case *ast.FuncDecl:
+			visit(typed.Name.Name)
+		case *ast.GenDecl:
+			forEachInterfaceMethod(typed, visit)
+		}
+	}
+}
+
+func forEachInterfaceMethod(declaration *ast.GenDecl, visit func(string)) {
+	for _, spec := range declaration.Specs {
+		typeSpec, isType := spec.(*ast.TypeSpec)
+		if !isType {
+			continue
+		}
+		contract, isInterface := typeSpec.Type.(*ast.InterfaceType)
+		if !isInterface {
+			continue
+		}
+		for _, method := range contract.Methods.List {
+			for _, name := range method.Names {
+				visit(name.Name)
+			}
+		}
+	}
+}
+
 // TestReceiverNamesStayConsistent keeps a receiver's name stable across every
 // production method on the same type. Mixed names make one type read like
 // several unrelated abstractions and commonly expose a partial rename.
 func TestReceiverNamesStayConsistent(t *testing.T) {
 	root := moduleRoot(t)
-	namesByType := make(map[string]map[string][]string)
-
-	walkErr := filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if entry.IsDir() {
-			if entry.Name() == "vendor" || (strings.HasPrefix(entry.Name(), ".") && path != root) {
-				return filepath.SkipDir
-			}
-			return nil
-		}
-		if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
-			return nil
-		}
-
-		file, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
-		if err != nil {
-			return err
-		}
-		for _, declaration := range file.Decls {
-			method, ok := declaration.(*ast.FuncDecl)
-			if !ok || method.Recv == nil || len(method.Recv.List) != 1 {
-				continue
-			}
-			receiver := method.Recv.List[0]
-			if len(receiver.Names) != 1 || receiver.Names[0].Name == "_" {
-				continue
-			}
-			typeName := receiverTypeName(receiver.Type)
-			if typeName == "" {
-				continue
-			}
-
-			relativeDirectory, err := filepath.Rel(root, filepath.Dir(path))
-			if err != nil {
-				return err
-			}
-			typeKey := filepath.ToSlash(filepath.Join(relativeDirectory, typeName))
-			receiverName := receiver.Names[0].Name
-			if namesByType[typeKey] == nil {
-				namesByType[typeKey] = make(map[string][]string)
-			}
-			relativeFile, err := filepath.Rel(root, path)
-			if err != nil {
-				return err
-			}
-			namesByType[typeKey][receiverName] = append(
-				namesByType[typeKey][receiverName],
-				filepath.ToSlash(relativeFile)+":"+method.Name.Name,
-			)
-		}
-		return nil
-	})
+	namesByType, walkErr := collectReceiverNames(root)
 	if walkErr != nil {
 		t.Fatalf("walk module: %v", walkErr)
 	}
@@ -151,6 +101,57 @@ func TestReceiverNamesStayConsistent(t *testing.T) {
 			strings.Join(locations, "; "),
 		)
 	}
+}
+
+func collectReceiverNames(root string) (map[string]map[string][]string, error) {
+	namesByType := make(map[string]map[string][]string)
+	err := walkProductionGoFiles(root, func(path string, file *ast.File) error {
+		for _, declaration := range file.Decls {
+			method, isMethod := declaration.(*ast.FuncDecl)
+			if !isMethod || method.Recv == nil || len(method.Recv.List) != 1 {
+				continue
+			}
+			if err := recordReceiverName(root, path, method, namesByType); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	return namesByType, err
+}
+
+func recordReceiverName(
+	root string,
+	path string,
+	method *ast.FuncDecl,
+	namesByType map[string]map[string][]string,
+) error {
+	receiver := method.Recv.List[0]
+	if len(receiver.Names) != 1 || receiver.Names[0].Name == "_" {
+		return nil
+	}
+	typeName := receiverTypeName(receiver.Type)
+	if typeName == "" {
+		return nil
+	}
+	relativeDirectory, err := filepath.Rel(root, filepath.Dir(path))
+	if err != nil {
+		return err
+	}
+	typeKey := filepath.ToSlash(filepath.Join(relativeDirectory, typeName))
+	if namesByType[typeKey] == nil {
+		namesByType[typeKey] = make(map[string][]string)
+	}
+	relativeFile, err := filepath.Rel(root, path)
+	if err != nil {
+		return err
+	}
+	receiverName := receiver.Names[0].Name
+	namesByType[typeKey][receiverName] = append(
+		namesByType[typeKey][receiverName],
+		filepath.ToSlash(relativeFile)+":"+method.Name.Name,
+	)
+	return nil
 }
 
 // TestCrossRingAdapterConstructorsReturnConcreteImplementations keeps the
@@ -198,49 +199,79 @@ func TestCrossRingAdapterConstructorsReturnConcreteImplementations(t *testing.T)
 // caller may mutate its own snapshot, never the fact another boundary reads.
 func TestExportedCatalogsAreNotMutableGlobals(t *testing.T) {
 	root := moduleRoot(t)
-	walkErr := filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
-		if err != nil {
-			return err
+	walkErr := walkProductionGoFiles(root, func(path string, file *ast.File) error {
+		assertNoMutableExportedVariables(t, root, path, file)
+		return nil
+	})
+	if walkErr != nil {
+		t.Fatalf("walk runtime: %v", walkErr)
+	}
+}
+
+func assertNoMutableExportedVariables(t *testing.T, root, path string, file *ast.File) {
+	t.Helper()
+	for _, declaration := range file.Decls {
+		general, isVariableDeclaration := declaration.(*ast.GenDecl)
+		if !isVariableDeclaration || general.Tok != token.VAR {
+			continue
 		}
-		if entry.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+		for _, spec := range general.Specs {
+			values, isValueSpec := spec.(*ast.ValueSpec)
+			if !isValueSpec {
+				continue
+			}
+			assertValueSpecIsNotMutableGlobal(t, root, path, values)
+		}
+	}
+}
+
+func assertValueSpecIsNotMutableGlobal(t *testing.T, root, path string, values *ast.ValueSpec) {
+	t.Helper()
+	for index, name := range values.Names {
+		if !ast.IsExported(name.Name) || !mutableCatalogEntry(values, index) {
+			continue
+		}
+		relative, _ := filepath.Rel(root, path)
+		t.Errorf(
+			"%s: exported var %s is mutable package state; return a caller-owned value instead",
+			relative,
+			name.Name,
+		)
+	}
+}
+
+func mutableCatalogEntry(values *ast.ValueSpec, index int) bool {
+	mutable := isMutableCatalogType(values.Type)
+	switch {
+	case index < len(values.Values):
+		return mutable || isMutableCatalogValue(values.Values[index])
+	case len(values.Values) == 1:
+		return mutable || isMutableCatalogValue(values.Values[0])
+	default:
+		return mutable
+	}
+}
+
+func walkProductionGoFiles(root string, visit func(path string, file *ast.File) error) error {
+	return filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() {
+			if path != root && (entry.Name() == "vendor" || strings.HasPrefix(entry.Name(), ".")) {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
 			return nil
 		}
 		file, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
 		if err != nil {
 			return err
 		}
-		for _, declaration := range file.Decls {
-			general, ok := declaration.(*ast.GenDecl)
-			if !ok || general.Tok != token.VAR {
-				continue
-			}
-			for _, spec := range general.Specs {
-				values, ok := spec.(*ast.ValueSpec)
-				if !ok {
-					continue
-				}
-				for index, name := range values.Names {
-					if !ast.IsExported(name.Name) {
-						continue
-					}
-					mutable := isMutableCatalogType(values.Type)
-					if index < len(values.Values) {
-						mutable = mutable || isMutableCatalogValue(values.Values[index])
-					} else if len(values.Values) == 1 {
-						mutable = mutable || isMutableCatalogValue(values.Values[0])
-					}
-					if mutable {
-						relative, _ := filepath.Rel(root, path)
-						t.Errorf("%s: exported var %s is mutable package state; return a caller-owned value instead", relative, name.Name)
-					}
-				}
-			}
-		}
-		return nil
+		return visit(path, file)
 	})
-	if walkErr != nil {
-		t.Fatalf("walk runtime: %v", walkErr)
-	}
 }
 
 func isMutableCatalogType(expression ast.Expr) bool {

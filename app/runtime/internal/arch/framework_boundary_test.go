@@ -134,29 +134,7 @@ func TestSQLiteDoesNotDiscardRowsAffectedErrors(t *testing.T) {
 		}
 		ast.Inspect(file, func(node ast.Node) bool {
 			assignment, ok := node.(*ast.AssignStmt)
-			if !ok {
-				return true
-			}
-			callsRowsAffected := false
-			for _, expression := range assignment.Rhs {
-				call, ok := expression.(*ast.CallExpr)
-				if !ok {
-					continue
-				}
-				selector, ok := call.Fun.(*ast.SelectorExpr)
-				if ok && selector.Sel.Name == "RowsAffected" {
-					callsRowsAffected = true
-					break
-				}
-			}
-			if !callsRowsAffected {
-				return true
-			}
-			if len(assignment.Lhs) < 2 {
-				return true
-			}
-			identifier, ok := assignment.Lhs[1].(*ast.Ident)
-			if ok && identifier.Name == "_" {
+			if ok && discardsRowsAffectedError(assignment) {
 				t.Errorf("%s discards a RowsAffected error", path)
 			}
 			return true
@@ -166,6 +144,28 @@ func TestSQLiteDoesNotDiscardRowsAffectedErrors(t *testing.T) {
 	if err != nil {
 		t.Fatalf("scan SQLite sources: %v", err)
 	}
+}
+
+func discardsRowsAffectedError(assignment *ast.AssignStmt) bool {
+	if len(assignment.Lhs) < 2 || !assignmentCallsRowsAffected(assignment) {
+		return false
+	}
+	errorTarget, isIdentifier := assignment.Lhs[1].(*ast.Ident)
+	return isIdentifier && errorTarget.Name == "_"
+}
+
+func assignmentCallsRowsAffected(assignment *ast.AssignStmt) bool {
+	for _, expression := range assignment.Rhs {
+		call, isCall := expression.(*ast.CallExpr)
+		if !isCall {
+			continue
+		}
+		selector, isSelector := call.Fun.(*ast.SelectorExpr)
+		if isSelector && selector.Sel.Name == "RowsAffected" {
+			return true
+		}
+	}
+	return false
 }
 
 // TestExecutorCheckpointRemainsOpaqueOutsideExecutionAdapter prevents the
@@ -208,6 +208,15 @@ func TestExecutorCheckpointRemainsOpaqueOutsideExecutionAdapter(t *testing.T) {
 // per-model-call GenerationParams.MaxTokens option.
 func TestRunLimitsRemainTheSingleApplicationPolicy(t *testing.T) {
 	root := moduleRoot(t)
+	assertCanonicalRunLimits(t, root)
+	assertAccountingHasNoBudgetCarrier(t, root)
+	assertProtocolLimitVocabulary(t, root)
+	assertApplicationLimitCarriers(t, root)
+	assertStorageLimitVocabulary(t, root)
+}
+
+func assertCanonicalRunLimits(t *testing.T, root string) {
+	t.Helper()
 	domainPath := filepath.Join(root, "internal", "domain", "run", "limits.go")
 	domainFile, err := parser.ParseFile(token.NewFileSet(), domainPath, nil, 0)
 	if err != nil {
@@ -217,9 +226,12 @@ func TestRunLimitsRemainTheSingleApplicationPolicy(t *testing.T) {
 	if fields := structFields(domainFile, "Limits"); strings.Join(fields, ",") != strings.Join(wantLimits, ",") {
 		t.Fatalf("Limits fields = %v, want the single policy carrier %v", fields, wantLimits)
 	}
+}
 
+func assertAccountingHasNoBudgetCarrier(t *testing.T, root string) {
+	t.Helper()
 	accountingRoot := filepath.Join(root, "internal", "domain", "accounting")
-	err = filepath.WalkDir(accountingRoot, func(path string, entry os.DirEntry, walkErr error) error {
+	err := filepath.WalkDir(accountingRoot, func(path string, entry os.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
 		}
@@ -238,7 +250,10 @@ func TestRunLimitsRemainTheSingleApplicationPolicy(t *testing.T) {
 	if err != nil {
 		t.Fatalf("scan execution accounting: %v", err)
 	}
+}
 
+func assertProtocolLimitVocabulary(t *testing.T, root string) {
+	t.Helper()
 	protocolPath := filepath.Join(root, "internal", "delivery", "protocol", "runs.go")
 	protocolFile, err := parser.ParseFile(token.NewFileSet(), protocolPath, nil, 0)
 	if err != nil {
@@ -252,7 +267,10 @@ func TestRunLimitsRemainTheSingleApplicationPolicy(t *testing.T) {
 	if !slices.Contains(generationFields, "MaxTokens") || slices.Contains(generationFields, "MaxTotalTokens") {
 		t.Fatalf("GenerationParams fields = %v, want per-call MaxTokens only", generationFields)
 	}
+}
 
+func assertApplicationLimitCarriers(t *testing.T, root string) {
+	t.Helper()
 	for _, carrier := range []struct {
 		path string
 		name string
@@ -275,7 +293,10 @@ func TestRunLimitsRemainTheSingleApplicationPolicy(t *testing.T) {
 			}
 		}
 	}
+}
 
+func assertStorageLimitVocabulary(t *testing.T, root string) {
+	t.Helper()
 	for _, relative := range []string{
 		filepath.Join("internal", "infra", "storage", "sqlite", "db.go"),
 		filepath.Join("internal", "infra", "storage", "sqlite", "runs.go"),
@@ -767,32 +788,38 @@ func TestInnerRingCommentsDoNotNameOuterArchitecture(t *testing.T) {
 	for _, check := range checks {
 		t.Run(check.ring, func(t *testing.T) {
 			dir := filepath.Join(root, check.ring)
-			err := filepath.WalkDir(dir, func(path string, entry os.DirEntry, err error) error {
-				if err != nil {
-					return err
+			err := inspectProductionComments(dir, func(path string, comment string) {
+				if leaked := check.forbidden.FindString(comment); leaked != "" {
+					t.Errorf("%s comment names outer architecture %q", path, leaked)
 				}
-				if entry.IsDir() || filepath.Ext(path) != ".go" || strings.HasSuffix(path, "_test.go") {
-					return nil
+				if leaked := runtimeProtocolReference.FindString(comment); leaked != "" {
+					t.Errorf("%s comment names Runtime protocol surface %q", path, leaked)
 				}
-				file, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.ParseComments)
-				if err != nil {
-					return err
-				}
-				for _, group := range file.Comments {
-					if leaked := check.forbidden.FindString(group.Text()); leaked != "" {
-						t.Errorf("%s comment names outer architecture %q", path, leaked)
-					}
-					if leaked := runtimeProtocolReference.FindString(group.Text()); leaked != "" {
-						t.Errorf("%s comment names Runtime protocol surface %q", path, leaked)
-					}
-				}
-				return nil
 			})
 			if err != nil {
 				t.Fatalf("walk %s comments: %v", check.ring, err)
 			}
 		})
 	}
+}
+
+func inspectProductionComments(root string, inspect func(path string, comment string)) error {
+	return filepath.WalkDir(root, func(path string, entry os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() || filepath.Ext(path) != ".go" || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		file, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.ParseComments)
+		if err != nil {
+			return err
+		}
+		for _, group := range file.Comments {
+			inspect(path, group.Text())
+		}
+		return nil
+	})
 }
 
 // TestStackExposesTheIdempotencyConsumerPort keeps concrete storage ownership

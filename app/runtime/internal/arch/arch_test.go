@@ -913,35 +913,7 @@ func receiverName(recv *ast.FieldList) string {
 func TestHostOwnsShutdownGraph(t *testing.T) {
 	root := moduleRoot(t)
 	dir := filepath.Join(root, "internal", "bootstrap")
-	structs := map[string]*ast.StructType{}
-	walkErr := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
-			return nil
-		}
-		file, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
-		if err != nil {
-			return err
-		}
-		for _, decl := range file.Decls {
-			general, ok := decl.(*ast.GenDecl)
-			if !ok || general.Tok != token.TYPE {
-				continue
-			}
-			for _, spec := range general.Specs {
-				named, ok := spec.(*ast.TypeSpec)
-				if !ok {
-					continue
-				}
-				if value, ok := named.Type.(*ast.StructType); ok {
-					structs[named.Name.Name] = value
-				}
-			}
-		}
-		return nil
-	})
+	structs, walkErr := collectStructDeclarations(dir)
 	if walkErr != nil {
 		t.Fatalf("walk bootstrap: %v", walkErr)
 	}
@@ -974,6 +946,29 @@ func TestHostOwnsShutdownGraph(t *testing.T) {
 	if _, ok := lifetime["engine"]; ok {
 		t.Error("bootstrap.hostLifetime owns engine; Agent execution must not be a resource closer")
 	}
+}
+
+func collectStructDeclarations(root string) (map[string]*ast.StructType, error) {
+	structs := make(map[string]*ast.StructType)
+	err := walkProductionGoFiles(root, func(_ string, file *ast.File) error {
+		for _, declaration := range file.Decls {
+			general, isTypeDeclaration := declaration.(*ast.GenDecl)
+			if !isTypeDeclaration || general.Tok != token.TYPE {
+				continue
+			}
+			for _, spec := range general.Specs {
+				named, isNamedType := spec.(*ast.TypeSpec)
+				if !isNamedType {
+					continue
+				}
+				if structure, isStruct := named.Type.(*ast.StructType); isStruct {
+					structs[named.Name.Name] = structure
+				}
+			}
+		}
+		return nil
+	})
+	return structs, err
 }
 
 // TestDeliveryHoldsNoRunLifecycleState enforces §16 rule 5: the delivery Server
@@ -1458,43 +1453,41 @@ func TestCanonicalExecutionRecordsStayTyped(t *testing.T) {
 		filepath.Join(root, "internal", "domain", "interrupt"),
 	}
 	for _, dir := range dirs {
-		walkErr := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
-			if err != nil {
-				return err
-			}
-			if d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
-				return nil
-			}
-			f, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
-			if err != nil {
-				return err
-			}
-			for _, imp := range f.Imports {
-				if strings.Trim(imp.Path.Value, `"`) == "encoding/json" {
-					rel, _ := filepath.Rel(root, path)
-					t.Errorf("%s: canonical execution records must not depend on JSON", rel)
-				}
-			}
-			ast.Inspect(f, func(node ast.Node) bool {
-				field, ok := node.(*ast.Field)
-				if !ok {
-					return true
-				}
-				for _, name := range field.Names {
-					switch name.Name {
-					case "Blob", "Payload", "JSON":
-						rel, _ := filepath.Rel(root, path)
-						t.Errorf("%s: canonical execution field %s reintroduces an opaque persistence payload", rel, name.Name)
-					}
-				}
-				return true
-			})
+		walkErr := walkProductionGoFiles(dir, func(path string, file *ast.File) error {
+			assertCanonicalExecutionRecordSource(t, root, path, file)
 			return nil
 		})
 		if walkErr != nil {
 			t.Fatalf("walk %s: %v", dir, walkErr)
 		}
 	}
+}
+
+func assertCanonicalExecutionRecordSource(t *testing.T, root, path string, file *ast.File) {
+	t.Helper()
+	relative, _ := filepath.Rel(root, path)
+	for _, imported := range file.Imports {
+		if strings.Trim(imported.Path.Value, `"`) == "encoding/json" {
+			t.Errorf("%s: canonical execution records must not depend on JSON", relative)
+		}
+	}
+	ast.Inspect(file, func(node ast.Node) bool {
+		field, isField := node.(*ast.Field)
+		if !isField {
+			return true
+		}
+		for _, name := range field.Names {
+			switch name.Name {
+			case "Blob", "Payload", "JSON":
+				t.Errorf(
+					"%s: canonical execution field %s reintroduces an opaque persistence payload",
+					relative,
+					name.Name,
+				)
+			}
+		}
+		return true
+	})
 }
 
 // TestRuntimeInterruptValuesStayWireFree keeps the application interrupt plan
@@ -1597,49 +1590,21 @@ func TestRunLifecycleStateStaysConcrete(t *testing.T) {
 // durable side effects from protocol events.
 func TestRunReductionHasNoOuterProjectionSeam(t *testing.T) {
 	root := moduleRoot(t)
-	banned := map[string]struct{}{
-		"Projector": {}, "Projection": {}, "ProjectedEvent": {}, "SegmentView": {},
-		"sideEffectEvent": {}, "newTranslator": {}, "translator": {},
+	banned := map[string]string{
+		"Projector":       "Run reduction belongs to application/runs",
+		"Projection":      "Run reduction belongs to application/runs",
+		"ProjectedEvent":  "Run reduction belongs to application/runs",
+		"SegmentView":     "Run reduction belongs to application/runs",
+		"sideEffectEvent": "durable effects are derived by application/runs",
+		"newTranslator":   "delivery must not recreate a stateful Run translator",
+		"translator":      "delivery must not recreate a stateful Run translator",
 	}
 	dirs := []string{
 		filepath.Join(root, "internal", "application", "runs"),
 		filepath.Join(root, "internal", "delivery", "server"),
 	}
 	for _, dir := range dirs {
-		walkErr := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
-			if err != nil {
-				return err
-			}
-			if d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
-				return nil
-			}
-			f, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
-			if err != nil {
-				return err
-			}
-			for _, decl := range f.Decls {
-				switch decl := decl.(type) {
-				case *ast.FuncDecl:
-					if _, found := banned[decl.Name.Name]; found {
-						rel, _ := filepath.Rel(root, path)
-						t.Errorf("%s: obsolete run projection seam %s", rel, decl.Name.Name)
-					}
-				case *ast.GenDecl:
-					for _, spec := range decl.Specs {
-						if typ, ok := spec.(*ast.TypeSpec); ok {
-							if _, found := banned[typ.Name.Name]; found {
-								rel, _ := filepath.Rel(root, path)
-								t.Errorf("%s: obsolete run projection type %s", rel, typ.Name.Name)
-							}
-						}
-					}
-				}
-			}
-			return nil
-		})
-		if walkErr != nil {
-			t.Fatalf("walk %s: %v", dir, walkErr)
-		}
+		forbidTopLevelNames(t, dir, banned)
 	}
 }
 
@@ -1806,47 +1771,42 @@ func forbidSelectorCalls(t *testing.T, dir string, banned map[string]string) {
 func forbidTopLevelNames(t *testing.T, dir string, banned map[string]string) {
 	t.Helper()
 	root := moduleRoot(t)
-	walkErr := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
-			return nil
-		}
-		f, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
-		if err != nil {
-			return err
-		}
-		for _, decl := range f.Decls {
-			switch decl := decl.(type) {
-			case *ast.FuncDecl:
-				if reason, forbidden := banned[decl.Name.Name]; forbidden {
-					rel, _ := filepath.Rel(root, path)
-					t.Errorf("%s: removed ownership seam %s returned; %s", rel, decl.Name.Name, reason)
-				}
-			case *ast.GenDecl:
-				for _, spec := range decl.Specs {
-					var names []*ast.Ident
-					switch named := spec.(type) {
-					case *ast.TypeSpec:
-						names = []*ast.Ident{named.Name}
-					case *ast.ValueSpec:
-						names = named.Names
-					}
-					for _, name := range names {
-						if reason, forbidden := banned[name.Name]; forbidden {
-							rel, _ := filepath.Rel(root, path)
-							t.Errorf("%s: removed ownership seam %s returned; %s", rel, name.Name, reason)
-						}
-					}
-				}
+	walkErr := walkProductionGoFiles(dir, func(path string, file *ast.File) error {
+		for _, name := range topLevelDeclarationNames(file) {
+			reason, forbidden := banned[name]
+			if !forbidden {
+				continue
 			}
+			relative, _ := filepath.Rel(root, path)
+			t.Errorf("%s: removed ownership seam %s returned; %s", relative, name, reason)
 		}
 		return nil
 	})
 	if walkErr != nil {
 		t.Fatalf("walk %s: %v", dir, walkErr)
 	}
+}
+
+func topLevelDeclarationNames(file *ast.File) []string {
+	var names []string
+	for _, declaration := range file.Decls {
+		switch typed := declaration.(type) {
+		case *ast.FuncDecl:
+			names = append(names, typed.Name.Name)
+		case *ast.GenDecl:
+			for _, spec := range typed.Specs {
+				switch named := spec.(type) {
+				case *ast.TypeSpec:
+					names = append(names, named.Name.Name)
+				case *ast.ValueSpec:
+					for _, name := range named.Names {
+						names = append(names, name.Name)
+					}
+				}
+			}
+		}
+	}
+	return names
 }
 
 // forbidPackageFunctions rejects package functions while allowing a method

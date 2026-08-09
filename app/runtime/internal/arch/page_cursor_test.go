@@ -73,38 +73,48 @@ func pageCursorNamespaces(t *testing.T, root string) map[string]string {
 		if parseErr != nil {
 			t.Fatalf("parse %s: %v", path, parseErr)
 		}
-		for _, decl := range file.Decls {
-			group, ok := decl.(*ast.GenDecl)
-			if !ok || group.Tok != token.CONST {
-				continue
-			}
-			for _, spec := range group.Specs {
-				value, ok := spec.(*ast.ValueSpec)
-				if !ok || len(value.Names) != 1 || len(value.Values) != 1 {
-					continue
-				}
-				name := value.Names[0].Name
-				if !strings.HasSuffix(name, "PageNamespace") {
-					continue
-				}
-				literal, ok := value.Values[0].(*ast.BasicLit)
-				if !ok || literal.Kind != token.STRING {
-					t.Errorf("%s is a page cursor namespace and not a string literal", name)
-					continue
-				}
-				text, unquoteErr := strconv.Unquote(literal.Value)
-				if unquoteErr != nil {
-					t.Fatalf("unquote %s: %v", literal.Value, unquoteErr)
-				}
-				out[name] = text
-			}
-		}
+		collectPageCursorNamespaces(t, file, out)
 		return nil
 	})
 	if err != nil {
 		t.Fatalf("walk internal: %v", err)
 	}
 	return out
+}
+
+func collectPageCursorNamespaces(t *testing.T, file *ast.File, namespaces map[string]string) {
+	t.Helper()
+	for _, declaration := range file.Decls {
+		constants, isConstantDeclaration := declaration.(*ast.GenDecl)
+		if !isConstantDeclaration || constants.Tok != token.CONST {
+			continue
+		}
+		for _, spec := range constants.Specs {
+			collectPageCursorNamespace(t, spec, namespaces)
+		}
+	}
+}
+
+func collectPageCursorNamespace(t *testing.T, spec ast.Spec, namespaces map[string]string) {
+	t.Helper()
+	value, isSingleValue := spec.(*ast.ValueSpec)
+	if !isSingleValue || len(value.Names) != 1 || len(value.Values) != 1 {
+		return
+	}
+	name := value.Names[0].Name
+	if !strings.HasSuffix(name, "PageNamespace") {
+		return
+	}
+	literal, isStringLiteral := value.Values[0].(*ast.BasicLit)
+	if !isStringLiteral || literal.Kind != token.STRING {
+		t.Errorf("%s is a page cursor namespace and not a string literal", name)
+		return
+	}
+	namespace, err := strconv.Unquote(literal.Value)
+	if err != nil {
+		t.Fatalf("unquote %s: %v", literal.Value, err)
+	}
+	namespaces[name] = namespace
 }
 
 // TestEverySeekPagedReadHasQueryFixtures is the behavioral half of gate 11: every
