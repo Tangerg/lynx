@@ -2,6 +2,8 @@ package session
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/Tangerg/oolong/components/headless"
@@ -96,6 +98,17 @@ func (a *app) openReview(approval client.Approval) {
 	a.reviewDialog.Show()
 }
 
+func (a *app) openInteraction(interaction client.Interaction) {
+	switch item := interaction.(type) {
+	case client.Approval:
+		a.openReview(item)
+	case client.Question:
+		a.fail(fmt.Errorf("question interaction %q is not rendered yet", item.Title))
+	default:
+		a.fail(errors.New("runtime returned an unknown interaction"))
+	}
+}
+
 func (a *app) answerReview(approved bool) {
 	approval := a.review
 	if approval == nil {
@@ -103,20 +116,22 @@ func (a *app) answerReview(approved bool) {
 	}
 	a.review = nil
 	a.reviewDialog.Dismiss()
-	if !a.state.Resumed() {
-		a.fail(client.ErrInterruptNotOpen)
-		return
-	}
 	a.status.active("resuming")
 	a.syncAnimation()
-	decision := client.Decision{Approved: approved}
+	decision := client.ApprovalAnswer{Decision: client.ApprovalDeny, Remember: client.RememberNone}
+	if approved {
+		decision.Decision = client.ApprovalAllow
+	}
 	if !approved {
 		decision.Reason = "denied by the user in the terminal"
 	}
 	runID := a.state.RunID()
-	a.follow(func(ctx context.Context) (client.Stream, error) {
-		return a.backend.ResumeRun(ctx, client.ResumeRun{
-			RunID: runID, InterruptID: approval.InterruptID, Decision: decision,
-		})
+	a.follow(func(ctx context.Context) (subscription, error) {
+		if err := a.backend.ResumeRun(ctx, client.ResumeRun{
+			RunID: runID, InterruptID: approval.InterruptID, Answer: decision,
+		}); err != nil {
+			return subscription{}, err
+		}
+		return subscription{runID: runID, after: a.state.Cursor()}, nil
 	})
 }

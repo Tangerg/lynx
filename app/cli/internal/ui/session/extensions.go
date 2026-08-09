@@ -22,6 +22,10 @@ type CommandHost interface {
 	Quit()
 	ShowHelp()
 	SetStatus(string)
+	ShowSessions()
+	NewSession()
+	RenameSession(string)
+	ForkSession(string)
 }
 
 // SlashCommand is a contributed composer command.
@@ -60,6 +64,10 @@ func builtinPlugin() extensions.Plugin {
 			{Name: "next", Title: "step to the next search match", Run: func(host CommandHost, _ string) error { host.NextMatch(); return nil }},
 			{Name: "previous", Title: "step to the previous search match", Aliases: []string{"prev"}, Run: func(host CommandHost, _ string) error { host.PreviousMatch(); return nil }},
 			{Name: "quit", Title: "leave lyra", Aliases: []string{"exit"}, Run: func(host CommandHost, _ string) error { host.Quit(); return nil }},
+			{Name: "sessions", Title: "search and switch sessions", Aliases: []string{"resume"}, Run: func(host CommandHost, _ string) error { host.ShowSessions(); return nil }},
+			{Name: "new", Title: "start a new session", Run: func(host CommandHost, _ string) error { host.NewSession(); return nil }},
+			{Name: "rename", Title: "rename the current session", Takes: true, Run: func(host CommandHost, title string) error { host.RenameSession(title); return nil }},
+			{Name: "fork", Title: "fork the current session at its latest event", Takes: true, Run: func(host CommandHost, title string) error { host.ForkSession(title); return nil }},
 		}
 		for i, command := range commands {
 			if _, err := extensions.Contribute(scope, SlashCommands, command, extensions.Contribution{Order: i}); err != nil {

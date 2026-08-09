@@ -25,18 +25,11 @@ var (
 	ErrSessionNotFound  = errors.New("session not found")
 	ErrRunNotFound      = errors.New("run not found")
 	ErrInterruptNotOpen = errors.New("interrupt not open")
+	ErrSessionBusy      = errors.New("session has an active run")
+	ErrRevisionConflict = errors.New("revision conflict")
+	ErrEventGap         = errors.New("event gap")
+	ErrEventConflict    = errors.New("event identity conflict")
 )
-
-// Session is one conversation a runtime holds.
-type Session struct {
-	ID        string
-	Title     string
-	Workspace string
-	UpdatedAt time.Time
-	// Revision is the session's optimistic-concurrency stamp: an update must
-	// carry the revision it read, or lose to whoever wrote in between.
-	Revision int64
-}
 
 // BlockKind names what a transcript block is. The set is closed: an item a
 // [Runtime] implementation cannot classify becomes a [BlockNotice], never a new
@@ -90,29 +83,6 @@ type ToolCall struct {
 	Duration time.Duration
 }
 
-// Approval is a decision the runtime has parked a run on.
-type Approval struct {
-	// InterruptID identifies the park. Resuming carries it back, so answering a
-	// stale approval is a detectable mistake rather than a silent one.
-	InterruptID string
-	// Title is the one-line ask, already phrased by the runtime.
-	Title  string
-	Detail string
-	// Diff previews the change being asked about, when there is one.
-	Diff string
-}
-
-// Decision answers an [Approval].
-type Decision struct {
-	Approved bool
-	// Remember persists the answer as an approval rule, so the same call stops
-	// asking. Approval rules are global to the installation, not per run.
-	Remember bool
-	// Reason is fed back to the agent on a denial, so it can choose a different
-	// route instead of retrying the one that was refused.
-	Reason string
-}
-
 // PlanStatus is a plan item's state.
 type PlanStatus string
 
@@ -142,13 +112,4 @@ type Outcome struct {
 	Status OutcomeStatus
 	// Error carries the failure when Status is [OutcomeFailed].
 	Error string
-}
-
-// Usage is what a run consumed.
-type Usage struct {
-	InputTokens  int64
-	OutputTokens int64
-	CachedTokens int64
-	CostUSD      float64
-	Duration     time.Duration
 }

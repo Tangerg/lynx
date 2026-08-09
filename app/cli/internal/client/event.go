@@ -1,63 +1,64 @@
 package client
 
-// Event is one thing that happened while a run was streaming.
-//
-// The set is closed — the unexported method is what closes it — so a renderer's
-// switch over events is exhaustive by construction. A [Runtime] implementation
-// folds whatever its backend sends into exactly these; anything it cannot fold
-// is a [BlockNotice], not a new event.
-type Event interface {
-	clientEvent()
+import "time"
+
+// Cursor is a session-local event position. Zero means no event has been
+// accepted yet; real events start at one.
+type Cursor uint64
+
+// Envelope gives an event durable replay identity. ID detects conflicting
+// duplicates while Cursor orders events and makes reconnect resumable.
+type Envelope struct {
+	ID        string
+	Cursor    Cursor
+	RunID     string
+	SessionID string
+	At        time.Time
+	Event     Event
 }
 
-// RunStarted opens a stream. It is the only place a run's id is announced, so a
-// caller that wants to cancel or resume keeps it from here.
+// Event is one closed, presentation-oriented fact from a runtime adapter.
+type Event interface{ clientEvent() }
+
+// RunStarted announces a logical run in the session timeline.
 type RunStarted struct {
 	RunID     string
 	SessionID string
+	Options   RunOptions
 }
 
-// BlockStarted appends a block to the transcript. A block whose body streams
-// arrives with Text empty and grows through [BlockDelta].
-type BlockStarted struct {
-	Block Block
-}
+// RunResumed records that an interrupt answer was accepted.
+type RunResumed struct{ InterruptID string }
 
-// BlockDelta appends to a block already started. Deltas concatenate: the body is
-// the started text plus every delta in order, with nothing in between.
+// BlockStarted appends a block whose body may stream through BlockDelta.
+type BlockStarted struct{ Block Block }
+
+// BlockDelta appends text to a previously started block.
 type BlockDelta struct {
 	BlockID string
 	Text    string
 }
 
-// BlockCompleted replaces a block with its final form. The whole block is
-// carried, not a patch, so a client that missed deltas still ends up correct.
-type BlockCompleted struct {
-	Block Block
-}
+// BlockCompleted replaces a block with its authoritative final projection.
+type BlockCompleted struct{ Block Block }
 
-// PlanChanged carries the run's plan whenever it changes — always in full, for
-// the same reason [BlockCompleted] is.
-type PlanChanged struct {
-	Items []PlanItem
-}
+// PlanChanged carries the whole current plan.
+type PlanChanged struct{ Items []PlanItem }
 
-// RunParked ends a stream without ending the run: the run is waiting on an
-// answer. Resuming with [Runs.ResumeRun] continues it on a new stream.
-type RunParked struct {
-	Approval Approval
-}
+// RunInterrupted ends a subscription while leaving the logical run waiting.
+type RunInterrupted struct{ Interaction Interaction }
 
-// RunFinished ends both the stream and the run.
+// RunFinished ends the logical run.
 type RunFinished struct {
 	Outcome Outcome
 	Usage   Usage
 }
 
 func (RunStarted) clientEvent()     {}
+func (RunResumed) clientEvent()     {}
 func (BlockStarted) clientEvent()   {}
 func (BlockDelta) clientEvent()     {}
 func (BlockCompleted) clientEvent() {}
 func (PlanChanged) clientEvent()    {}
-func (RunParked) clientEvent()      {}
+func (RunInterrupted) clientEvent() {}
 func (RunFinished) clientEvent()    {}

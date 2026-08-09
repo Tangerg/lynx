@@ -22,7 +22,7 @@ import (
 // consumed, so the render package owes the command nothing beyond these two
 // methods.
 type renderer interface {
-	Render(client.Event) error
+	Render(client.Envelope) error
 	Close() error
 }
 
@@ -67,7 +67,7 @@ func newRunCommand(resolve backend) *cobra.Command {
 			}
 			return follow(cmd.Context(), rt, out, client.StartRun{
 				SessionID: session.ID,
-				Prompt:    prompt,
+				Message:   client.Message{Text: prompt},
 			}, approveAll)
 		},
 	}
@@ -82,14 +82,12 @@ func newRunCommand(resolve backend) *cobra.Command {
 // stream the answer opens. A park is not an ending: the run id is stable across
 // it, and only the stream is new.
 func follow(ctx context.Context, rt client.Runtime, out renderer, start client.StartRun, approveAll bool) error {
-	stream, err := rt.StartRun(ctx, start)
+	run, err := rt.StartRun(ctx, start)
 	if err != nil {
 		return err
 	}
-
-	// The run's id is only known once the stream opens, and the signal watcher
-	// below reads it from another goroutine.
 	var runID atomic.Pointer[string]
+	runID.Store(&run.ID)
 	ctx, stopSignals := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
 	defer stopSignals()
 	finished := make(chan struct{})
@@ -109,51 +107,64 @@ func follow(ctx context.Context, rt client.Runtime, out renderer, start client.S
 		}
 	}()
 
-	for stream != nil {
-		var parked *client.Approval
-		for ev, err := range stream {
-			if err != nil {
-				return err
-			}
-			if started, ok := ev.(client.RunStarted); ok {
-				id := started.RunID
-				runID.Store(&id)
-			}
-			if err := out.Render(ev); err != nil {
-				return err
-			}
-			if p, ok := ev.(client.RunParked); ok {
-				parked = &p.Approval
-				break
-			}
-		}
-		if parked == nil {
-			break
-		}
-
-		id := runID.Load()
-		if id == nil {
-			return errors.New("run parked before it reported its id")
-		}
-		stream, err = rt.ResumeRun(ctx, client.ResumeRun{
-			RunID:       *id,
-			InterruptID: parked.InterruptID,
-			Decision:    decide(approveAll),
-		})
+	after := run.StartedAfter
+	for {
+		stream, err := rt.FollowRun(ctx, client.FollowRun{RunID: run.ID, After: after})
 		if err != nil {
 			return err
 		}
+		var interrupted client.Interaction
+		finished := false
+		for envelope, streamErr := range stream {
+			if streamErr != nil {
+				return streamErr
+			}
+			if err := out.Render(envelope); err != nil {
+				return err
+			}
+			after = envelope.Cursor
+			switch event := envelope.Event.(type) {
+			case client.RunInterrupted:
+				interrupted = event.Interaction
+				break
+			case client.RunFinished:
+				finished = true
+			}
+		}
+		if finished {
+			return out.Close()
+		}
+		if interrupted == nil {
+			return errors.New("runtime subscription ended without interrupting or finishing the run")
+		}
+		answer, interruptID, err := unattendedAnswer(interrupted, approveAll)
+		if err != nil {
+			return err
+		}
+		if err := rt.ResumeRun(ctx, client.ResumeRun{RunID: run.ID, InterruptID: interruptID, Answer: answer}); err != nil {
+			return err
+		}
 	}
-	return out.Close()
 }
 
 // decide answers a park. Unattended, a request is refused rather than guessed
 // at, and the refusal says what would have allowed it.
-func decide(approveAll bool) client.Decision {
+func decide(approveAll bool) client.ApprovalAnswer {
 	if approveAll {
-		return client.Decision{Approved: true}
+		return client.ApprovalAnswer{Decision: client.ApprovalAllow, Remember: client.RememberNone}
 	}
-	return client.Decision{Reason: "declined: this run is unattended (rerun with --approve-all to allow it)"}
+	return client.ApprovalAnswer{Decision: client.ApprovalDeny, Reason: "declined: this run is unattended (rerun with --approve-all to allow it)"}
+}
+
+func unattendedAnswer(interaction client.Interaction, approveAll bool) (client.Answer, string, error) {
+	switch item := interaction.(type) {
+	case client.Approval:
+		return decide(approveAll), item.InterruptID, nil
+	case client.Question:
+		return nil, item.InterruptID, fmt.Errorf("run needs answers to %q; continue it interactively with --session %s", item.Title, "<session-id>")
+	default:
+		return nil, "", errors.New("runtime returned an unknown interaction")
+	}
 }
 
 // prompt assembles the prompt from arguments and anything piped in.

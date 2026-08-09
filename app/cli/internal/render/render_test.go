@@ -3,6 +3,7 @@ package render
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -12,8 +13,8 @@ import (
 
 // script is one of each event, small enough that the expected text can be read
 // in full.
-func script() []client.Event {
-	return []client.Event{
+func script() []client.Envelope {
+	events := []client.Event{
 		client.RunStarted{RunID: "run_1", SessionID: "ses_1"},
 		client.BlockCompleted{Block: client.Block{ID: "p", Kind: client.BlockUser, Text: "why?"}},
 		client.PlanChanged{Items: []client.PlanItem{
@@ -37,17 +38,26 @@ func script() []client.Event {
 			Usage:   client.Usage{InputTokens: 12345, OutputTokens: 678, CachedTokens: 900, CostUSD: 0.0412, Duration: 2 * time.Second},
 		},
 	}
+	out := make([]client.Envelope, len(events))
+	for i, event := range events {
+		out[i] = client.Envelope{ID: fmt.Sprintf("event_%d", i+1), Cursor: client.Cursor(i + 1), RunID: "run_1", SessionID: "ses_1", Event: event}
+	}
+	return out
+}
+
+func envelope(event client.Event) client.Envelope {
+	return client.Envelope{ID: "event", Cursor: 1, Event: event}
 }
 
 func renderAll(t *testing.T, r interface {
-	Render(client.Event) error
+	Render(client.Envelope) error
 	Close() error
-}, events []client.Event,
+}, events []client.Envelope,
 ) {
 	t.Helper()
 	for _, ev := range events {
 		if err := r.Render(ev); err != nil {
-			t.Fatalf("Render(%T): %v", ev, err)
+			t.Fatalf("Render(%T): %v", ev.Event, err)
 		}
 	}
 	if err := r.Close(); err != nil {
@@ -87,10 +97,10 @@ func TestTextStreamsAssistantProseAsItArrives(t *testing.T) {
 	var buf bytes.Buffer
 	text := NewText(&buf)
 
-	if err := text.Render(client.BlockStarted{Block: client.Block{ID: "m", Kind: client.BlockAssistant}}); err != nil {
+	if err := text.Render(envelope(client.BlockStarted{Block: client.Block{ID: "m", Kind: client.BlockAssistant}})); err != nil {
 		t.Fatal(err)
 	}
-	if err := text.Render(client.BlockDelta{BlockID: "m", Text: "half"}); err != nil {
+	if err := text.Render(envelope(client.BlockDelta{BlockID: "m", Text: "half"})); err != nil {
 		t.Fatal(err)
 	}
 	// The point of streaming: the words are out before the block completes.
@@ -103,16 +113,16 @@ func TestTextHoldsNonProseUntilItsBlockCompletes(t *testing.T) {
 	var buf bytes.Buffer
 	text := NewText(&buf)
 
-	if err := text.Render(client.BlockStarted{Block: client.Block{ID: "r", Kind: client.BlockReasoning}}); err != nil {
+	if err := text.Render(envelope(client.BlockStarted{Block: client.Block{ID: "r", Kind: client.BlockReasoning}})); err != nil {
 		t.Fatal(err)
 	}
-	if err := text.Render(client.BlockDelta{BlockID: "r", Text: "thinking"}); err != nil {
+	if err := text.Render(envelope(client.BlockDelta{BlockID: "r", Text: "thinking"})); err != nil {
 		t.Fatal(err)
 	}
 	if buf.Len() != 0 {
 		t.Fatalf("reasoning leaked before completing: %q", buf.String())
 	}
-	if err := text.Render(client.BlockCompleted{Block: client.Block{ID: "r", Kind: client.BlockReasoning}}); err != nil {
+	if err := text.Render(envelope(client.BlockCompleted{Block: client.Block{ID: "r", Kind: client.BlockReasoning}})); err != nil {
 		t.Fatal(err)
 	}
 	if got := buf.String(); !strings.Contains(got, "· thinking") {
@@ -123,9 +133,9 @@ func TestTextHoldsNonProseUntilItsBlockCompletes(t *testing.T) {
 func TestTextIndentsContinuationLines(t *testing.T) {
 	var buf bytes.Buffer
 	text := NewText(&buf)
-	if err := text.Render(client.BlockCompleted{Block: client.Block{
+	if err := text.Render(envelope(client.BlockCompleted{Block: client.Block{
 		ID: "r", Kind: client.BlockReasoning, Text: "first\nsecond",
-	}}); err != nil {
+	}})); err != nil {
 		t.Fatal(err)
 	}
 	if got := buf.String(); !strings.Contains(got, "· first\n  second") {
@@ -140,9 +150,9 @@ func TestTextCapsToolOutput(t *testing.T) {
 	}
 	var buf bytes.Buffer
 	text := NewText(&buf)
-	if err := text.Render(client.BlockCompleted{Block: client.Block{ID: "t", Kind: client.BlockTool, Tool: &client.ToolCall{
+	if err := text.Render(envelope(client.BlockCompleted{Block: client.Block{ID: "t", Kind: client.BlockTool, Tool: &client.ToolCall{
 		Name: "shell", Status: client.ToolOK, Output: strings.Join(lines, "\n"),
-	}}}); err != nil {
+	}}})); err != nil {
 		t.Fatal(err)
 	}
 	got := buf.String()
@@ -157,9 +167,9 @@ func TestTextCapsToolOutput(t *testing.T) {
 func TestTextReportsANonCompletedOutcome(t *testing.T) {
 	var buf bytes.Buffer
 	text := NewText(&buf)
-	if err := text.Render(client.RunFinished{Outcome: client.Outcome{
+	if err := text.Render(envelope(client.RunFinished{Outcome: client.Outcome{
 		Status: client.OutcomeFailed, Error: "provider refused",
-	}}); err != nil {
+	}})); err != nil {
 		t.Fatal(err)
 	}
 	if got := buf.String(); !strings.Contains(got, "failed: provider refused") {
@@ -195,9 +205,9 @@ func TestJSONEmitsOneObjectPerEvent(t *testing.T) {
 func TestJSONCarriesTheToolProjection(t *testing.T) {
 	var buf bytes.Buffer
 	j := NewJSON(&buf)
-	if err := j.Render(client.BlockCompleted{Block: client.Block{ID: "t", Kind: client.BlockTool, Tool: &client.ToolCall{
+	if err := j.Render(envelope(client.BlockCompleted{Block: client.Block{ID: "t", Kind: client.BlockTool, Tool: &client.ToolCall{
 		Name: "edit", Summary: "a.go", Status: client.ToolOK, Diff: "--- a\n+++ b", Duration: 250 * time.Millisecond,
-	}}}); err != nil {
+	}}})); err != nil {
 		t.Fatal(err)
 	}
 	var got frame
@@ -216,7 +226,7 @@ func TestJSONCarriesTheToolProjection(t *testing.T) {
 func TestJSONOmitsWhatDidNotHappen(t *testing.T) {
 	var buf bytes.Buffer
 	j := NewJSON(&buf)
-	if err := j.Render(client.BlockDelta{BlockID: "m", Text: "x"}); err != nil {
+	if err := j.Render(envelope(client.BlockDelta{BlockID: "m", Text: "x"})); err != nil {
 		t.Fatal(err)
 	}
 	var got map[string]any

@@ -19,18 +19,22 @@ type Step struct {
 	Event client.Event
 }
 
-// Script is one run's worth of events, in phases. Prelude plays first; if
-// Approval is set the run then parks, and the answer selects Approved or Denied.
-// A Script whose Approval has no interrupt id never parks.
+// Script is one run's worth of events. Prelude plays first; Interaction, when
+// non-nil, parks the run and Continue maps the typed answer to its continuation.
 type Script struct {
-	Prelude  []Step
-	Approval client.Approval
-	Approved []Step
-	Denied   []Step
+	Prelude     []Step
+	Interaction client.Interaction
+	Continue    func(client.Answer) []Step
 }
 
-// parks reports whether the script pauses for an answer.
-func (s Script) parks() bool { return s.Approval.InterruptID != "" }
+func (s Script) interrupts() bool { return interactionID(s.Interaction) != "" }
+
+func (s Script) continueWith(answer client.Answer) []Step {
+	if s.Continue == nil {
+		return nil
+	}
+	return s.Continue(answer)
+}
 
 const (
 	// tick paces one streamed word. Fast enough to feel live, slow enough that
@@ -129,14 +133,19 @@ func Conversation(prompt string) Script {
 
 	return Script{
 		Prelude: prelude,
-		Approval: client.Approval{
+		Interaction: client.Approval{
 			InterruptID: "int_1",
 			Title:       "edit internal/store/cache_test.go",
 			Detail:      "Replace the fixed 50ms sleep with a wait on the janitor's sweep signal.",
 			Diff:        diff,
 		},
-		Approved: approved,
-		Denied:   denied,
+		Continue: func(answer client.Answer) []Step {
+			approval, ok := answer.(client.ApprovalAnswer)
+			if ok && approval.Decision == client.ApprovalAllow {
+				return approved
+			}
+			return denied
+		},
 	}
 }
 

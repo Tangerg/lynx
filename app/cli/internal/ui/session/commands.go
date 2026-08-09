@@ -3,6 +3,7 @@ package session
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/Tangerg/oolong/components/headless"
 	"github.com/Tangerg/oolong/components/kit"
@@ -115,7 +116,7 @@ func (a *app) Clear() {
 		a.status.doing = "the active run owns the transcript"
 		return
 	}
-	a.state.Reset()
+	a.state.ClearPresentation()
 	a.transcript.Reset()
 	a.workflow.Reset()
 	a.status = statusView{theme: a.status.theme, glyphs: a.status.glyphs, doing: "cleared"}
@@ -155,6 +156,165 @@ func (a *app) ShowHelp() {
 }
 
 func (a *app) SetStatus(message string) { a.message(message) }
+
+func (a *app) ShowSessions() {
+	if a.state.Busy() || a.following {
+		a.message("finish or cancel the current run before switching sessions")
+		return
+	}
+	a.message("loading sessions")
+	dispatcher := a.loop.Dispatcher()
+	go func() {
+		page, err := a.backend.ListSessions(a.ctx, client.SessionQuery{Limit: 100})
+		_ = post(a.ctx, dispatcher, func() {
+			if err != nil {
+				a.fail(err)
+				return
+			}
+			a.sessionPicker.Reset()
+			a.sessionPicker.SetItems(page.Items)
+			a.sessionDialog.Show()
+			a.status.note("choose a session")
+		})
+	}()
+}
+
+func (a *app) NewSession() {
+	if a.state.Busy() || a.following {
+		a.message("finish or cancel the current run before creating a session")
+		return
+	}
+	a.switchSeq++
+	sequence := a.switchSeq
+	a.message("creating session")
+	dispatcher := a.loop.Dispatcher()
+	go func() {
+		created, err := a.backend.CreateSession(a.ctx, client.NewSession{Workspace: a.session.Workspace})
+		_ = post(a.ctx, dispatcher, func() {
+			if sequence != a.switchSeq {
+				return
+			}
+			if err != nil {
+				a.fail(err)
+				return
+			}
+			a.installSnapshot(client.SessionSnapshot{Session: created})
+		})
+	}()
+}
+
+func (a *app) RenameSession(title string) {
+	if a.state.Busy() || a.following {
+		a.message("finish or cancel the current run before renaming the session")
+		return
+	}
+	title = strings.TrimSpace(title)
+	if title == "" {
+		a.message("/rename needs a non-empty title")
+		return
+	}
+	session := a.session
+	dispatcher := a.loop.Dispatcher()
+	go func() {
+		latest, err := a.backend.GetSession(a.ctx, session.ID)
+		var updated client.Session
+		if err == nil {
+			updated, err = a.backend.UpdateSession(a.ctx, client.UpdateSession{SessionID: session.ID, Title: title, Revision: latest.Session.Revision})
+		}
+		_ = post(a.ctx, dispatcher, func() {
+			if err != nil {
+				a.fail(err)
+				return
+			}
+			a.session = updated
+			a.loop.Session().SetTitle("lyra — " + displayTitle(updated))
+			a.message("renamed session to " + updated.Title)
+		})
+	}()
+}
+
+func (a *app) ForkSession(title string) {
+	if a.state.Busy() || a.following {
+		a.message("finish or cancel the current run before forking the session")
+		return
+	}
+	a.switchSeq++
+	sequence := a.switchSeq
+	source, at := a.session.ID, a.state.Cursor()
+	dispatcher := a.loop.Dispatcher()
+	go func() {
+		forked, err := a.backend.ForkSession(a.ctx, client.ForkSession{SessionID: source, At: at, Title: strings.TrimSpace(title)})
+		var snapshot client.SessionSnapshot
+		if err == nil {
+			snapshot, err = a.backend.GetSession(a.ctx, forked.ID)
+		}
+		_ = post(a.ctx, dispatcher, func() {
+			if sequence != a.switchSeq {
+				return
+			}
+			if err != nil {
+				a.fail(err)
+				return
+			}
+			a.installSnapshot(snapshot)
+		})
+	}()
+}
+
+func (a *app) switchSession(id string) {
+	if id == a.session.ID {
+		a.message("already in " + displayTitle(a.session))
+		return
+	}
+	a.switchSeq++
+	sequence := a.switchSeq
+	a.message("loading session")
+	dispatcher := a.loop.Dispatcher()
+	go func() {
+		snapshot, err := a.backend.GetSession(a.ctx, id)
+		_ = post(a.ctx, dispatcher, func() {
+			if sequence != a.switchSeq {
+				return
+			}
+			if err != nil {
+				a.fail(err)
+				return
+			}
+			a.installSnapshot(snapshot)
+		})
+	}()
+}
+
+func (a *app) installSnapshot(snapshot client.SessionSnapshot) {
+	a.dropStream()
+	a.session = snapshot.Session
+	a.state = client.NewConversation()
+	a.transcript.Reset()
+	a.workflow.Reset()
+	a.status = statusView{theme: a.status.theme, glyphs: a.status.glyphs, doing: "ready"}
+	a.loop.Session().SetTitle("lyra — " + displayTitle(snapshot.Session))
+	a.restore(snapshot)
+	if a.state.Phase() == client.Idle {
+		a.message("session · " + displayTitle(snapshot.Session))
+	}
+}
+
+func agoShort(at time.Time) string {
+	if at.IsZero() {
+		return "never"
+	}
+	duration := time.Since(at)
+	switch {
+	case duration < time.Minute:
+		return "now"
+	case duration < time.Hour:
+		return fmt.Sprintf("%dm", int(duration.Minutes()))
+	case duration < 24*time.Hour:
+		return fmt.Sprintf("%dh", int(duration.Hours()))
+	default:
+		return fmt.Sprintf("%dd", int(duration.Hours()/24))
+	}
+}
 
 func (a *app) message(label string) {
 	if a.state.Phase() == client.Running {

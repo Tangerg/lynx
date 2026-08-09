@@ -134,20 +134,18 @@ func workspace(cmd *cobra.Command) (string, error) {
 
 // sessionFor finds the session a command should run in: the one named, or a new
 // one in this workspace.
-func sessionFor(ctx context.Context, rt client.Runtime, id, ws string) (client.Session, error) {
+func sessionFor(ctx context.Context, rt interface {
+	client.SessionReader
+	client.SessionWriter
+}, id, ws string) (client.Session, error) {
 	if id == "" {
 		return rt.CreateSession(ctx, client.NewSession{Workspace: ws})
 	}
-	sessions, err := rt.ListSessions(ctx)
+	snapshot, err := rt.GetSession(ctx, id)
 	if err != nil {
-		return client.Session{}, err
+		return client.Session{}, fmt.Errorf("open session: %w", err)
 	}
-	for _, s := range sessions {
-		if s.ID == id {
-			return s, nil
-		}
-	}
-	return client.Session{}, fmt.Errorf("%w: %s", client.ErrSessionNotFound, id)
+	return snapshot.Session, nil
 }
 
 var errNoPrompt = errors.New("no prompt: pass one as an argument, pipe one in, or both")

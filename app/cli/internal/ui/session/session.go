@@ -39,8 +39,11 @@ const (
 // adapter and today's mock satisfy the same interface without either learning
 // about oolong.
 type runtime interface {
-	client.Sessions
+	client.SessionCatalog
+	client.SessionReader
+	client.SessionWriter
 	client.Runs
+	client.Models
 }
 
 // Config describes one interactive session.
@@ -85,20 +88,18 @@ func Run(ctx context.Context, cfg Config) error {
 	return err
 }
 
-func open(ctx context.Context, rt client.Sessions, id, workspace string) (client.Session, error) {
+func open(ctx context.Context, rt interface {
+	client.SessionReader
+	client.SessionWriter
+}, id, workspace string) (client.SessionSnapshot, error) {
 	if id == "" {
-		return rt.CreateSession(ctx, client.NewSession{Workspace: workspace})
-	}
-	sessions, err := rt.ListSessions(ctx)
-	if err != nil {
-		return client.Session{}, err
-	}
-	for _, current := range sessions {
-		if current.ID == id {
-			return current, nil
+		created, err := rt.CreateSession(ctx, client.NewSession{Workspace: workspace})
+		if err != nil {
+			return client.SessionSnapshot{}, err
 		}
+		return client.SessionSnapshot{Session: created}, nil
 	}
-	return client.Session{}, fmt.Errorf("%w: %s", client.ErrSessionNotFound, id)
+	return rt.GetSession(ctx, id)
 }
 
 func loadPlugins(registry *extensions.Registry, plugins []extensions.Plugin) ([]*extensions.Loaded, error) {
@@ -137,15 +138,18 @@ type app struct {
 	body       *headless.Container
 	stack      headless.Stack
 
-	review       *client.Approval
-	reviewAnswer bool
-	confirm      *headless.Confirm
-	reviewForm   *headless.Form
-	reviewPane   reviewPane
-	reviewDialog *kit.Dialog
+	review        *client.Approval
+	reviewAnswer  bool
+	confirm       *headless.Confirm
+	reviewForm    *headless.Form
+	reviewPane    reviewPane
+	reviewDialog  *kit.Dialog
+	sessionPicker *picker[client.Session]
+	sessionDialog *kit.Dialog
 
 	streamCancel context.CancelFunc
 	streamSeq    uint64
+	switchSeq    uint64
 	following    bool
 	stopClock    func()
 	started      time.Time
@@ -153,7 +157,7 @@ type app struct {
 	syntax       highlight.Style
 }
 
-func newApp(ctx context.Context, loop *program.InlineRuntime, backend runtime, opened client.Session, registry *extensions.Registry, prompt string) *app {
+func newApp(ctx context.Context, loop *program.InlineRuntime, backend runtime, opened client.SessionSnapshot, registry *extensions.Registry, prompt string) *app {
 	ground := loop.Environment().Ground()
 	theme := kit.Suited(ground)
 	glyphs := kit.GlyphsFor(os.LookupEnv)
@@ -167,7 +171,7 @@ func newApp(ctx context.Context, loop *program.InlineRuntime, backend runtime, o
 	keys.Bind(quitApp, input.Ctrl.Rune('c'))
 
 	a := &app{
-		ctx: ctx, loop: loop, backend: backend, session: opened, registry: registry,
+		ctx: ctx, loop: loop, backend: backend, session: opened.Session, registry: registry,
 		state:      client.NewConversation(),
 		transcript: newConversationView(theme, glyphs, loop.Environment().Wheel(), syntax),
 		workflow:   newWorkflowView(theme, glyphs),
@@ -204,9 +208,57 @@ func newApp(ctx context.Context, loop *program.InlineRuntime, backend runtime, o
 	a.body.Focus(true)
 	a.stack.SetBase(a.body)
 	a.buildReview(theme, glyphs)
+	a.buildSessionPicker(theme, glyphs)
 	a.listenForSearch()
-	loop.Session().SetTitle("lyra — " + displayTitle(opened))
+	loop.Session().SetTitle("lyra — " + displayTitle(opened.Session))
+	a.restore(opened)
 	return a
+}
+
+func (a *app) buildSessionPicker(theme kit.Theme, glyphs kit.Glyphs) {
+	a.sessionPicker = newPicker(theme, glyphs, "search sessions",
+		func(session client.Session) string { return displayTitle(session) },
+		func(session client.Session) string { return agoShort(session.UpdatedAt) + " · " + session.Workspace },
+		func(session client.Session) {
+			a.sessionDialog.Dismiss()
+			a.switchSession(session.ID)
+		},
+	)
+	a.sessionDialog = kit.NewDialog(&a.stack, theme, glyphs, "Sessions", a.sessionPicker)
+	a.sessionDialog.Panel().Where = layout.Placement{Width: 88, Height: 18, Margin: 1}
+	a.sessionPicker.cancel = a.sessionDialog.Dismiss
+}
+
+func (a *app) restore(snapshot client.SessionSnapshot) {
+	if err := a.state.Restore(snapshot.Events); err != nil {
+		a.fail(err)
+		return
+	}
+	for _, envelope := range snapshot.Events {
+		if err := a.transcript.Apply(envelope.Event, a.registry); err != nil {
+			a.fail(err)
+			return
+		}
+	}
+	a.workflow.Set(a.state.Plan())
+	switch a.state.Phase() {
+	case client.Waiting:
+		a.openInteraction(a.state.Interaction())
+		a.status.note("waiting for your answer")
+	case client.Running:
+		if snapshot.Active == nil {
+			a.fail(errors.New("session snapshot has a running conversation without an active run"))
+			return
+		}
+		a.status.active("reconnecting")
+		a.follow(func(context.Context) (subscription, error) {
+			return subscription{runID: snapshot.Active.ID, after: snapshot.Cursor}, nil
+		})
+	default:
+		if a.state.Outcome().Status != "" {
+			a.status.settled(a.state.Outcome(), a.state.Usage())
+		}
+	}
 }
 
 func displayTitle(session client.Session) string {
@@ -291,12 +343,21 @@ func (a *app) start(prompt string) {
 	a.status.active("starting mock runtime")
 	a.started = time.Now()
 	a.syncAnimation()
-	a.follow(func(ctx context.Context) (client.Stream, error) {
-		return a.backend.StartRun(ctx, client.StartRun{SessionID: a.session.ID, Prompt: prompt})
+	a.follow(func(ctx context.Context) (subscription, error) {
+		run, err := a.backend.StartRun(ctx, client.StartRun{SessionID: a.session.ID, Message: client.Message{Text: prompt}})
+		if err != nil {
+			return subscription{}, err
+		}
+		return subscription{runID: run.ID, after: run.StartedAfter}, nil
 	})
 }
 
-func (a *app) follow(open func(context.Context) (client.Stream, error)) {
+type subscription struct {
+	runID string
+	after client.Cursor
+}
+
+func (a *app) follow(open func(context.Context) (subscription, error)) {
 	a.dropStream()
 	sequence := a.streamSeq
 	ctx, cancel := context.WithCancel(a.ctx)
@@ -306,7 +367,16 @@ func (a *app) follow(open func(context.Context) (client.Stream, error)) {
 
 	go func() {
 		defer cancel()
-		stream, err := open(ctx)
+		sub, err := open(ctx)
+		if err != nil {
+			_ = post(ctx, dispatcher, func() {
+				if a.streamSeq == sequence {
+					a.fail(err)
+				}
+			})
+			return
+		}
+		stream, err := a.backend.FollowRun(ctx, client.FollowRun{RunID: sub.runID, After: sub.after})
 		if err != nil {
 			_ = post(ctx, dispatcher, func() {
 				if a.streamSeq == sequence {
@@ -323,7 +393,7 @@ func (a *app) follow(open func(context.Context) (client.Stream, error)) {
 			})
 			return
 		}
-		for event, streamErr := range stream {
+		for envelope, streamErr := range stream {
 			if streamErr != nil {
 				if !errors.Is(streamErr, context.Canceled) {
 					_ = post(ctx, dispatcher, func() {
@@ -336,7 +406,7 @@ func (a *app) follow(open func(context.Context) (client.Stream, error)) {
 			}
 			if err := post(ctx, dispatcher, func() {
 				if a.streamSeq == sequence {
-					a.apply(event)
+					a.apply(envelope)
 				}
 			}); err != nil {
 				return
@@ -371,11 +441,16 @@ func post(ctx context.Context, dispatcher program.Dispatcher, fn func()) error {
 	}
 }
 
-func (a *app) apply(event client.Event) {
-	if err := a.state.Apply(event); err != nil {
-		a.fail(fmt.Errorf("apply runtime event %T: %w", event, err))
+func (a *app) apply(envelope client.Envelope) {
+	result, err := a.state.ApplyEnvelope(envelope)
+	if err != nil {
+		a.fail(fmt.Errorf("apply runtime event %T at cursor %d: %w", envelope.Event, envelope.Cursor, err))
 		return
 	}
+	if !result.Applied {
+		return
+	}
+	event := envelope.Event
 	if err := a.transcript.Apply(event, a.registry); err != nil {
 		a.fail(err)
 		return
@@ -393,9 +468,9 @@ func (a *app) apply(event client.Event) {
 		}
 	case client.PlanChanged:
 		a.workflow.Set(a.state.Plan())
-	case client.RunParked:
-		a.openReview(a.state.Approval())
-		a.status.note("waiting for your approval")
+	case client.RunInterrupted:
+		a.openInteraction(a.state.Interaction())
+		a.status.note("waiting for your answer")
 	case client.RunFinished:
 		a.following = false
 		a.status.settled(a.state.Outcome(), a.state.Usage())

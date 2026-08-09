@@ -50,10 +50,10 @@ type delayedFirstRuntime struct {
 	starts atomic.Int32
 }
 
-func (r *delayedFirstRuntime) StartRun(ctx context.Context, input client.StartRun) (client.Stream, error) {
+func (r *delayedFirstRuntime) StartRun(ctx context.Context, input client.StartRun) (client.Run, error) {
 	if r.starts.Add(1) == 1 {
 		<-ctx.Done()
-		return nil, context.Cause(ctx)
+		return client.Run{}, context.Cause(ctx)
 	}
 	return r.Runtime.StartRun(ctx, input)
 }
@@ -138,6 +138,37 @@ func TestAPluginCanAddACommandWithoutChangingTheShell(t *testing.T) {
 	host.Press(input.Enter)
 	host.Press(input.Enter)
 	host.Shows(t, "hello from a plugin")
+
+	host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
+	stop()
+}
+
+func TestSessionPickerRestoresHistoryAndLifecycleCommandsSwitchCleanly(t *testing.T) {
+	host, stop := runUI(t)
+	host.Shows(t, "Ask lyra")
+	host.Type("/sessions")
+	host.Press(input.Enter)
+	host.Press(input.Enter)
+	host.Shows(t, "Sessions")
+	host.Type("Flaky cache")
+	host.Shows(t, "Flaky cache expiry test")
+	host.Press(input.Enter)
+	host.Hides(t, "search sessions")
+	host.Shows(t, "The fixed sleep races the janitor")
+
+	host.Type("/rename Restored cache investigation")
+	host.Press(input.Enter)
+	host.Shows(t, "renamed session to Restored cache investigation")
+
+	host.Type("/fork Safe alternative")
+	host.Press(input.Enter)
+	host.Shows(t, "session · Safe alternative")
+	host.Shows(t, "The fixed sleep races the janitor")
+
+	host.Type("/new")
+	host.Press(input.Enter)
+	host.Press(input.Enter)
+	host.Shows(t, "session · Untitled session")
 
 	host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
 	stop()

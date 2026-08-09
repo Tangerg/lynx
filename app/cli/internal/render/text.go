@@ -48,10 +48,11 @@ func NewText(w io.Writer) *Text {
 
 // Render writes one event. The first error is remembered and returned by every
 // later call, so a caller may render a whole run and check once.
-func (t *Text) Render(ev client.Event) error {
+func (t *Text) Render(envelope client.Envelope) error {
 	if t.err != nil {
 		return t.err
 	}
+	ev := envelope.Event
 	switch e := ev.(type) {
 	case client.RunStarted:
 		// A run's identity is machinery, not content.
@@ -63,8 +64,8 @@ func (t *Text) Render(ev client.Event) error {
 		t.finish(e.Block)
 	case client.PlanChanged:
 		t.plan(e.Items)
-	case client.RunParked:
-		t.parked(e.Approval)
+	case client.RunInterrupted:
+		t.interrupted(e.Interaction)
 	case client.RunFinished:
 		t.finished(e)
 	}
@@ -204,14 +205,22 @@ func (t *Text) plan(items []client.PlanItem) {
 	}
 }
 
-func (t *Text) parked(a client.Approval) {
+func (t *Text) interrupted(interaction client.Interaction) {
 	t.blank()
-	t.line("? " + a.Title)
-	if a.Detail != "" {
-		t.block("  ", a.Detail)
-	}
-	if a.Diff != "" {
-		t.diff(a.Diff)
+	switch item := interaction.(type) {
+	case client.Approval:
+		t.line("? " + item.Title)
+		if item.Detail != "" {
+			t.block("  ", item.Detail)
+		}
+		if item.Diff != "" {
+			t.diff(item.Diff)
+		}
+	case client.Question:
+		t.line("? " + item.Title)
+		for _, field := range item.Fields {
+			t.line("  - " + field.Label)
+		}
 	}
 }
 

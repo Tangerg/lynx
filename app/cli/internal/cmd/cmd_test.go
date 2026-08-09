@@ -38,11 +38,11 @@ func instant() *mock.Runtime {
 
 func firstSession(t *testing.T, rt client.Runtime) string {
 	t.Helper()
-	sessions, err := rt.ListSessions(context.Background())
+	sessions, err := rt.ListSessions(context.Background(), client.SessionQuery{})
 	if err != nil {
 		t.Fatalf("ListSessions: %v", err)
 	}
-	return sessions[0].ID
+	return sessions.Items[0].ID
 }
 
 func TestRunDeclinesApprovalWhenUnattended(t *testing.T) {
@@ -151,13 +151,13 @@ func TestRunRejectsAnUnknownSession(t *testing.T) {
 
 func TestRunCreatesASessionWhenNoneIsNamed(t *testing.T) {
 	rt := instant()
-	before, _ := rt.ListSessions(context.Background())
+	before, _ := rt.ListSessions(context.Background(), client.SessionQuery{Limit: 100})
 	if _, _, err := exec(t, rt, "", "run", "--approve-all", "why?"); err != nil {
 		t.Fatalf("run: %v", err)
 	}
-	after, _ := rt.ListSessions(context.Background())
-	if len(after) != len(before)+1 {
-		t.Fatalf("session count went %d -> %d, want one more", len(before), len(after))
+	after, _ := rt.ListSessions(context.Background(), client.SessionQuery{Limit: 100})
+	if len(after.Items) != len(before.Items)+1 {
+		t.Fatalf("session count went %d -> %d, want one more", len(before.Items), len(after.Items))
 	}
 }
 
@@ -183,6 +183,52 @@ func TestSessionsListAliasAndArity(t *testing.T) {
 	}
 	if _, _, err := exec(t, instant(), "", "sessions", "ls", "extra"); err == nil {
 		t.Fatal("sessions ls accepted an argument it has no use for")
+	}
+}
+
+func TestSessionManagementCommands(t *testing.T) {
+	runtime := instant()
+	id := firstSession(t, runtime)
+
+	shown, _, err := exec(t, runtime, "", "sessions", "show", id)
+	if err != nil {
+		t.Fatalf("sessions show: %v", err)
+	}
+	if !strings.Contains(shown, "The fixed sleep races the janitor") {
+		t.Fatalf("saved transcript was not restored:\n%s", shown)
+	}
+
+	renamed, _, err := exec(t, runtime, "", "sessions", "rename", id, "Investigate cache")
+	if err != nil || !strings.Contains(renamed, "Investigate cache") {
+		t.Fatalf("sessions rename = %q, %v", renamed, err)
+	}
+
+	forked, _, err := exec(t, runtime, "", "sessions", "fork", id, "--at", "2", "--title", "Alternative")
+	if err != nil {
+		t.Fatalf("sessions fork: %v", err)
+	}
+	forkID := strings.TrimSpace(forked)
+	snapshot, err := runtime.GetSession(t.Context(), forkID)
+	if err != nil || snapshot.Session.Title != "Alternative" || len(snapshot.Events) != 2 {
+		t.Fatalf("fork snapshot = %+v, %v", snapshot, err)
+	}
+
+	if _, _, err := exec(t, runtime, "", "sessions", "delete", forkID); err == nil {
+		t.Fatal("sessions delete did not require confirmation")
+	}
+	if _, _, err := exec(t, runtime, "", "sessions", "rm", "--yes", forkID); err != nil {
+		t.Fatalf("sessions rm --yes: %v", err)
+	}
+}
+
+func TestSessionsListPaginatesAndSearches(t *testing.T) {
+	runtime := instant()
+	out, errOut, err := exec(t, runtime, "", "sessions", "ls", "--limit", "1", "--search", "store")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(strings.Split(strings.TrimSpace(out), "\n")) != 1 || !strings.Contains(errOut, "more sessions: --cursor") {
+		t.Fatalf("page output=%q stderr=%q", out, errOut)
 	}
 }
 

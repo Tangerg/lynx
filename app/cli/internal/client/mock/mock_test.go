@@ -3,329 +3,291 @@ package mock
 import (
 	"context"
 	"errors"
-	"strings"
+	"slices"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/Tangerg/lynx/app/cli/internal/client"
 )
 
-// instant builds a mock that plays scripts with no delay, and the id of a
-// session to run in.
-func instant(t *testing.T) (*Runtime, string) {
+func newSession(t *testing.T, runtime *Runtime) client.Session {
 	t.Helper()
-	rt := New()
-	rt.Instant = true
-	sessions, err := rt.ListSessions(context.Background())
-	if err != nil {
-		t.Fatalf("ListSessions: %v", err)
-	}
-	if len(sessions) == 0 {
-		t.Fatal("mock seeded no sessions")
-	}
-	return rt, sessions[0].ID
-}
-
-// drain collects a stream, returning the events and the first error.
-func drain(s client.Stream) ([]client.Event, error) {
-	var out []client.Event
-	for ev, err := range s {
-		if err != nil {
-			return out, err
-		}
-		out = append(out, ev)
-	}
-	return out, nil
-}
-
-func kinds(events []client.Event) []string {
-	out := make([]string, 0, len(events))
-	for _, ev := range events {
-		switch e := ev.(type) {
-		case client.RunStarted:
-			out = append(out, "run.started")
-		case client.BlockStarted:
-			out = append(out, "block.started:"+string(e.Block.Kind))
-		case client.BlockDelta:
-			out = append(out, "block.delta")
-		case client.BlockCompleted:
-			out = append(out, "block.completed:"+string(e.Block.Kind))
-		case client.PlanChanged:
-			out = append(out, "plan.changed")
-		case client.RunParked:
-			out = append(out, "run.parked")
-		case client.RunFinished:
-			out = append(out, "run.finished:"+string(e.Outcome.Status))
-		}
-	}
-	return out
-}
-
-func TestStartRunOpensWithIdentityAndParks(t *testing.T) {
-	rt, session := instant(t)
-
-	stream, err := rt.StartRun(context.Background(), client.StartRun{SessionID: session, Prompt: "why?"})
-	if err != nil {
-		t.Fatalf("StartRun: %v", err)
-	}
-	events, err := drain(stream)
-	if err != nil {
-		t.Fatalf("drain: %v", err)
-	}
-
-	if len(events) == 0 {
-		t.Fatal("stream produced nothing")
-	}
-	started, ok := events[0].(client.RunStarted)
-	if !ok {
-		t.Fatalf("first event is %T, want client.RunStarted", events[0])
-	}
-	if started.RunID == "" || started.SessionID != session {
-		t.Fatalf("RunStarted = %+v, want a run id in session %s", started, session)
-	}
-	if _, ok := events[len(events)-1].(client.RunParked); !ok {
-		t.Fatalf("last event is %T, want client.RunParked", events[len(events)-1])
-	}
-	// A parked run has not finished; anything that reports otherwise would send a
-	// caller home early.
-	for _, ev := range events {
-		if _, ok := ev.(client.RunFinished); ok {
-			t.Fatal("prelude reported a finished run before the park was answered")
-		}
-	}
-}
-
-func TestDeltasConcatenateIntoTheCompletedBody(t *testing.T) {
-	rt, session := instant(t)
-
-	stream, _ := rt.StartRun(context.Background(), client.StartRun{SessionID: session, Prompt: "why?"})
-	events, err := drain(stream)
-	if err != nil {
-		t.Fatalf("drain: %v", err)
-	}
-
-	built := map[string]*strings.Builder{}
-	checked := 0
-	for _, ev := range events {
-		switch e := ev.(type) {
-		case client.BlockStarted:
-			b := &strings.Builder{}
-			b.WriteString(e.Block.Text)
-			built[e.Block.ID] = b
-		case client.BlockDelta:
-			if b, ok := built[e.BlockID]; ok {
-				b.WriteString(e.Text)
-			}
-		case client.BlockCompleted:
-			b, ok := built[e.Block.ID]
-			if !ok {
-				continue
-			}
-			if got := b.String(); got != e.Block.Text {
-				t.Fatalf("block %s: deltas built %q, completed body is %q", e.Block.ID, got, e.Block.Text)
-			}
-			checked++
-		}
-	}
-	if checked == 0 {
-		t.Fatal("no streamed block was checked; the script no longer streams anything")
-	}
-}
-
-func TestResumeApprovedAndDeniedBothFinish(t *testing.T) {
-	for _, tc := range []struct {
-		name     string
-		approved bool
-	}{
-		{"approved", true},
-		{"denied", false},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			rt, session := instant(t)
-			stream, _ := rt.StartRun(context.Background(), client.StartRun{SessionID: session, Prompt: "why?"})
-			events, err := drain(stream)
-			if err != nil {
-				t.Fatalf("drain: %v", err)
-			}
-			runID := events[0].(client.RunStarted).RunID
-			parked := events[len(events)-1].(client.RunParked)
-
-			cont, err := rt.ResumeRun(context.Background(), client.ResumeRun{
-				RunID:       runID,
-				InterruptID: parked.Approval.InterruptID,
-				Decision:    client.Decision{Approved: tc.approved},
-			})
-			if err != nil {
-				t.Fatalf("ResumeRun: %v", err)
-			}
-			after, err := drain(cont)
-			if err != nil {
-				t.Fatalf("drain continuation: %v", err)
-			}
-			last, ok := after[len(after)-1].(client.RunFinished)
-			if !ok {
-				t.Fatalf("continuation ends with %T, want client.RunFinished", after[len(after)-1])
-			}
-			if last.Outcome.Status != client.OutcomeCompleted {
-				t.Fatalf("outcome = %s, want completed", last.Outcome.Status)
-			}
-			if last.Usage.InputTokens == 0 {
-				t.Fatal("finished run reported no usage")
-			}
-
-			edited := strings.Contains(strings.Join(kinds(after), " "), "block.completed:tool")
-			if edited != tc.approved {
-				t.Fatalf("tool ran = %v, want %v", edited, tc.approved)
-			}
-		})
-	}
-}
-
-func TestResumeRejectsAnAnswerToTheWrongInterrupt(t *testing.T) {
-	rt, session := instant(t)
-	stream, _ := rt.StartRun(context.Background(), client.StartRun{SessionID: session, Prompt: "why?"})
-	events, _ := drain(stream)
-	runID := events[0].(client.RunStarted).RunID
-
-	if _, err := rt.ResumeRun(context.Background(), client.ResumeRun{
-		RunID:       runID,
-		InterruptID: "int_does_not_exist",
-	}); !errors.Is(err, client.ErrInterruptNotOpen) {
-		t.Fatalf("err = %v, want ErrInterruptNotOpen", err)
-	}
-}
-
-func TestResumeTwiceIsRefused(t *testing.T) {
-	rt, session := instant(t)
-	stream, _ := rt.StartRun(context.Background(), client.StartRun{SessionID: session, Prompt: "why?"})
-	events, _ := drain(stream)
-	runID := events[0].(client.RunStarted).RunID
-	parked := events[len(events)-1].(client.RunParked)
-	resume := client.ResumeRun{RunID: runID, InterruptID: parked.Approval.InterruptID, Decision: client.Decision{Approved: true}}
-
-	first, err := rt.ResumeRun(context.Background(), resume)
-	if err != nil {
-		t.Fatalf("first ResumeRun: %v", err)
-	}
-	if _, err := drain(first); err != nil {
-		t.Fatalf("drain: %v", err)
-	}
-	if _, err := rt.ResumeRun(context.Background(), resume); !errors.Is(err, client.ErrInterruptNotOpen) {
-		t.Fatalf("second ResumeRun err = %v, want ErrInterruptNotOpen", err)
-	}
-}
-
-func TestStartRunRejectsAnUnknownSession(t *testing.T) {
-	rt, _ := instant(t)
-	if _, err := rt.StartRun(context.Background(), client.StartRun{SessionID: "ses_nope", Prompt: "why?"}); !errors.Is(err, client.ErrSessionNotFound) {
-		t.Fatalf("err = %v, want ErrSessionNotFound", err)
-	}
-}
-
-func TestCancelEndsTheRunAsCanceled(t *testing.T) {
-	rt := New()
-	rt.Instant = true
-	sessions, _ := rt.ListSessions(context.Background())
-
-	stream, err := rt.StartRun(context.Background(), client.StartRun{SessionID: sessions[0].ID, Prompt: "why?"})
-	if err != nil {
-		t.Fatalf("StartRun: %v", err)
-	}
-
-	// Cancel after the run has announced itself, mid-stream, the way a Ctrl-C
-	// arrives.
-	var events []client.Event
-	var canceled bool
-	for ev, err := range stream {
-		if err != nil {
-			t.Fatalf("stream: %v", err)
-		}
-		events = append(events, ev)
-		if started, ok := ev.(client.RunStarted); ok && !canceled {
-			canceled = true
-			if err := rt.CancelRun(context.Background(), started.RunID); err != nil {
-				t.Fatalf("CancelRun: %v", err)
-			}
-			// A second cancel must be harmless: a doubled Ctrl-C is not an error.
-			if err := rt.CancelRun(context.Background(), started.RunID); err != nil {
-				t.Fatalf("second CancelRun: %v", err)
-			}
-		}
-	}
-
-	last, ok := events[len(events)-1].(client.RunFinished)
-	if !ok {
-		t.Fatalf("stream ends with %T, want client.RunFinished", events[len(events)-1])
-	}
-	if last.Outcome.Status != client.OutcomeCanceled {
-		t.Fatalf("outcome = %s, want canceled", last.Outcome.Status)
-	}
-}
-
-func TestCancelUnknownRun(t *testing.T) {
-	rt, _ := instant(t)
-	if err := rt.CancelRun(context.Background(), "run_nope"); !errors.Is(err, client.ErrRunNotFound) {
-		t.Fatalf("err = %v, want ErrRunNotFound", err)
-	}
-}
-
-func TestBreakingOutOfAStreamDoesNotWedgeTheMock(t *testing.T) {
-	rt, session := instant(t)
-	stream, _ := rt.StartRun(context.Background(), client.StartRun{SessionID: session, Prompt: "why?"})
-
-	// Abandon the stream immediately. A pull iterator's generator must unwind on
-	// its own; if it did not, the next call would block or panic.
-	for range stream {
-		break
-	}
-	if _, err := rt.ListSessions(context.Background()); err != nil {
-		t.Fatalf("ListSessions after abandoning a stream: %v", err)
-	}
-}
-
-func TestScriptedDelaysAreHonouredWhenNotInstant(t *testing.T) {
-	rt := New()
-	sessions, _ := rt.ListSessions(context.Background())
-	stream, _ := rt.StartRun(context.Background(), client.StartRun{SessionID: sessions[0].ID, Prompt: "why?"})
-
-	start := time.Now()
-	for ev := range stream {
-		if _, ok := ev.(client.BlockStarted); ok {
-			break
-		}
-	}
-	if elapsed := time.Since(start); elapsed < beat {
-		t.Fatalf("reached the first block in %v, want at least one beat (%v)", elapsed, beat)
-	}
-}
-
-func TestCreateSessionAppearsInTheList(t *testing.T) {
-	rt, _ := instant(t)
-	created, err := rt.CreateSession(context.Background(), client.NewSession{Title: "New", Workspace: "/tmp/ws"})
+	session, err := runtime.CreateSession(t.Context(), client.NewSession{Title: "Test", Workspace: "/tmp/mock-test"})
 	if err != nil {
 		t.Fatalf("CreateSession: %v", err)
 	}
-	if created.ID == "" {
-		t.Fatal("created session has no id")
-	}
-	list, _ := rt.ListSessions(context.Background())
-	for _, s := range list {
-		if s.ID == created.ID {
-			return
-		}
-	}
-	t.Fatalf("created session %s is missing from the list", created.ID)
+	return session
 }
 
-func TestListSessionsIsNewestFirst(t *testing.T) {
-	rt, _ := instant(t)
-	list, err := rt.ListSessions(context.Background())
+func followAll(t *testing.T, runtime *Runtime, runID string, after client.Cursor) ([]client.Envelope, error) {
+	t.Helper()
+	stream, err := runtime.FollowRun(t.Context(), client.FollowRun{RunID: runID, After: after})
 	if err != nil {
-		t.Fatalf("ListSessions: %v", err)
+		return nil, err
 	}
-	for i := 1; i < len(list); i++ {
-		if list[i-1].UpdatedAt.Before(list[i].UpdatedAt) {
-			t.Fatalf("session %d is older than %d", i-1, i)
+	var events []client.Envelope
+	for envelope, streamErr := range stream {
+		if streamErr != nil {
+			return events, streamErr
+		}
+		events = append(events, envelope)
+	}
+	return events, nil
+}
+
+func TestSessionCatalogPagesSearchesAndSorts(t *testing.T) {
+	runtime := New()
+	for _, title := range []string{"Alpha", "Beta", "Gamma"} {
+		if _, err := runtime.CreateSession(t.Context(), client.NewSession{Title: title, Workspace: "/tmp/catalog"}); err != nil {
+			t.Fatal(err)
 		}
 	}
+	first, err := runtime.ListSessions(t.Context(), client.SessionQuery{Workspace: "/tmp/catalog", Limit: 2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(first.Items) != 2 || first.NextCursor == "" {
+		t.Fatalf("first page = %+v", first)
+	}
+	second, err := runtime.ListSessions(t.Context(), client.SessionQuery{Workspace: "/tmp/catalog", Cursor: first.NextCursor, Limit: 2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(second.Items) != 1 || second.NextCursor != "" {
+		t.Fatalf("second page = %+v", second)
+	}
+	search, err := runtime.ListSessions(t.Context(), client.SessionQuery{Search: "beta"})
+	if err != nil || len(search.Items) != 1 || search.Items[0].Title != "Beta" {
+		t.Fatalf("search = %+v, %v", search, err)
+	}
+	if _, err := runtime.ListSessions(t.Context(), client.SessionQuery{Cursor: "bogus"}); err == nil {
+		t.Fatal("invalid cursor was accepted")
+	}
+}
+
+func TestSessionLifecycleHonorsRevisionAndForkCursor(t *testing.T) {
+	runtime := New()
+	runtime.Instant = true
+	session := newSession(t, runtime)
+	updated, err := runtime.UpdateSession(t.Context(), client.UpdateSession{SessionID: session.ID, Title: "Renamed", Revision: session.Revision})
+	if err != nil || updated.Title != "Renamed" {
+		t.Fatalf("UpdateSession = %+v, %v", updated, err)
+	}
+	if _, err := runtime.UpdateSession(t.Context(), client.UpdateSession{SessionID: session.ID, Title: "Stale", Revision: session.Revision}); !errors.Is(err, client.ErrRevisionConflict) {
+		t.Fatalf("stale update error = %v", err)
+	}
+
+	run, err := runtime.StartRun(t.Context(), client.StartRun{SessionID: session.ID, Message: client.Message{Text: "why?"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	events, err := followAll(t, runtime, run.ID, run.StartedAfter)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(events) < 3 {
+		t.Fatalf("run produced %d events", len(events))
+	}
+	fork, err := runtime.ForkSession(t.Context(), client.ForkSession{SessionID: session.ID, At: events[1].Cursor, Title: "Forked"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	snapshot, err := runtime.GetSession(t.Context(), fork.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(snapshot.Events) != int(events[1].Cursor) || snapshot.Session.Title != "Forked" {
+		t.Fatalf("fork snapshot = %+v", snapshot)
+	}
+	for _, envelope := range snapshot.Events {
+		if envelope.SessionID != fork.ID {
+			t.Fatalf("fork event retained source session id: %+v", envelope)
+		}
+	}
+	if err := runtime.DeleteSession(t.Context(), client.DeleteSession{SessionID: fork.ID, Revision: fork.Revision}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := runtime.GetSession(t.Context(), fork.ID); !errors.Is(err, client.ErrSessionNotFound) {
+		t.Fatalf("deleted session error = %v", err)
+	}
+}
+
+func TestRunReplaysAndResumesApprovalWithoutDuplicates(t *testing.T) {
+	runtime := New()
+	runtime.Instant = true
+	session := newSession(t, runtime)
+	run, err := runtime.StartRun(t.Context(), client.StartRun{
+		SessionID: session.ID,
+		Message:   client.Message{Text: "why?"},
+		Options:   client.RunOptions{Model: "mock-balanced", Mode: client.ModeBuild, Permission: client.PermissionAsk},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	first, err := followAll(t, runtime, run.ID, run.StartedAfter)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(first) == 0 {
+		t.Fatal("initial subscription was empty")
+	}
+	interrupted, ok := first[len(first)-1].Event.(client.RunInterrupted)
+	if !ok {
+		t.Fatalf("last event = %T, want RunInterrupted", first[len(first)-1].Event)
+	}
+	approval := interrupted.Interaction.(client.Approval)
+
+	// Replaying from the cursor before the last event returns that exact event.
+	replay, err := followAll(t, runtime, run.ID, first[len(first)-2].Cursor)
+	if err != nil || len(replay) != 1 || replay[0].ID != first[len(first)-1].ID {
+		t.Fatalf("replay = %+v, %v", replay, err)
+	}
+	if err := runtime.ResumeRun(t.Context(), client.ResumeRun{
+		RunID: run.ID, InterruptID: approval.InterruptID,
+		Answer: client.ApprovalAnswer{Decision: client.ApprovalAllow, Remember: client.RememberSession},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	second, err := followAll(t, runtime, run.ID, first[len(first)-1].Cursor)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(second) == 0 {
+		t.Fatal("continuation was empty")
+	}
+	if _, ok := second[0].Event.(client.RunResumed); !ok {
+		t.Fatalf("first continuation event = %T, want RunResumed", second[0].Event)
+	}
+	if finished, ok := second[len(second)-1].Event.(client.RunFinished); !ok || finished.Outcome.Status != client.OutcomeCompleted {
+		t.Fatalf("last continuation event = %+v", second[len(second)-1].Event)
+	}
+	seen := make(map[string]bool)
+	for _, envelope := range slices.Concat(first, second) {
+		if seen[envelope.ID] {
+			t.Fatalf("duplicate event id %s", envelope.ID)
+		}
+		seen[envelope.ID] = true
+	}
+}
+
+func TestQuestionRequiresTypedCompleteAnswer(t *testing.T) {
+	runtime := New()
+	runtime.Instant = true
+	runtime.Script = func(string) Script {
+		return Script{
+			Interaction: client.Question{InterruptID: "question_1", Title: "Choose", Fields: []client.QuestionField{{ID: "strategy", Label: "Strategy", Kind: client.QuestionSingle, Required: true}}},
+			Continue: func(client.Answer) []Step {
+				return []Step{{Event: client.RunFinished{Outcome: client.Outcome{Status: client.OutcomeCompleted}}}}
+			},
+		}
+	}
+	session := newSession(t, runtime)
+	run, err := runtime.StartRun(t.Context(), client.StartRun{SessionID: session.ID, Message: client.Message{Text: "ask"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	first, err := followAll(t, runtime, run.ID, run.StartedAfter)
+	if err != nil {
+		t.Fatal(err)
+	}
+	question := first[len(first)-1].Event.(client.RunInterrupted).Interaction.(client.Question)
+	if err := runtime.ResumeRun(t.Context(), client.ResumeRun{RunID: run.ID, InterruptID: question.InterruptID, Answer: client.ApprovalAnswer{Decision: client.ApprovalAllow}}); err == nil {
+		t.Fatal("approval answer was accepted for a question")
+	}
+	if err := runtime.ResumeRun(t.Context(), client.ResumeRun{RunID: run.ID, InterruptID: question.InterruptID, Answer: client.QuestionAnswer{}}); err == nil {
+		t.Fatal("missing required answer was accepted")
+	}
+	if err := runtime.ResumeRun(t.Context(), client.ResumeRun{
+		RunID: run.ID, InterruptID: question.InterruptID,
+		Answer: client.QuestionAnswer{Values: map[string][]string{"strategy": {"safe"}}},
+	}); err != nil {
+		t.Fatalf("complete answer: %v", err)
+	}
+}
+
+func TestCancelWaitingRunFinishesIt(t *testing.T) {
+	runtime := New()
+	runtime.Instant = true
+	session := newSession(t, runtime)
+	run, err := runtime.StartRun(t.Context(), client.StartRun{SessionID: session.ID, Message: client.Message{Text: "why?"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	first, err := followAll(t, runtime, run.ID, run.StartedAfter)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := runtime.CancelRun(t.Context(), run.ID); err != nil {
+		t.Fatal(err)
+	}
+	continued, err := followAll(t, runtime, run.ID, first[len(first)-1].Cursor)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(continued) != 1 {
+		t.Fatalf("cancel continuation = %+v", continued)
+	}
+	finished := continued[0].Event.(client.RunFinished)
+	if finished.Outcome.Status != client.OutcomeCanceled {
+		t.Fatalf("cancel outcome = %+v", finished.Outcome)
+	}
+}
+
+func TestCanceledSubscriptionDoesNotCancelLogicalRun(t *testing.T) {
+	runtime := New()
+	runtime.Script = func(string) Script {
+		return Script{Prelude: []Step{{Delay: 100 * time.Millisecond, Event: client.RunFinished{Outcome: client.Outcome{Status: client.OutcomeCompleted}}}}}
+	}
+	session := newSession(t, runtime)
+	run, err := runtime.StartRun(t.Context(), client.StartRun{SessionID: session.ID, Message: client.Message{Text: "wait"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	stream, err := runtime.FollowRun(ctx, client.FollowRun{RunID: run.ID, After: run.StartedAfter})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for envelope, streamErr := range stream {
+		if streamErr != nil {
+			break
+		}
+		if _, ok := envelope.Event.(client.BlockCompleted); ok {
+			cancel()
+		}
+	}
+	time.Sleep(120 * time.Millisecond)
+	replayed, err := followAll(t, runtime, run.ID, run.StartedAfter)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := replayed[len(replayed)-1].Event.(client.RunFinished); !ok {
+		t.Fatalf("logical run did not finish after subscriber left: %+v", replayed)
+	}
+}
+
+func TestRuntimeSupportsConcurrentCatalogReadsDuringStreaming(t *testing.T) {
+	runtime := New()
+	runtime.Instant = true
+	session := newSession(t, runtime)
+	var wait sync.WaitGroup
+	for range 16 {
+		wait.Go(func() {
+			if _, err := runtime.ListSessions(t.Context(), client.SessionQuery{}); err != nil {
+				t.Errorf("ListSessions: %v", err)
+			}
+		})
+	}
+	run, err := runtime.StartRun(t.Context(), client.StartRun{SessionID: session.ID, Message: client.Message{Text: "why?"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	wait.Go(func() {
+		if _, err := followAll(t, runtime, run.ID, run.StartedAfter); err != nil {
+			t.Errorf("FollowRun: %v", err)
+		}
+	})
+	wait.Wait()
 }

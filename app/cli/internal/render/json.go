@@ -3,6 +3,7 @@ package render
 import (
 	"encoding/json"
 	"io"
+	"time"
 
 	"github.com/Tangerg/lynx/app/cli/internal/client"
 )
@@ -31,16 +32,19 @@ func NewJSON(w io.Writer) *JSON {
 // lets a reader ignore what it does not use. Type is always set and is the only
 // field a consumer must switch on.
 type frame struct {
-	Type      string        `json:"type"`
-	RunID     string        `json:"runId,omitempty"`
-	SessionID string        `json:"sessionId,omitempty"`
-	BlockID   string        `json:"blockId,omitempty"`
-	Text      string        `json:"text,omitempty"`
-	Block     *blockFrame   `json:"block,omitempty"`
-	Plan      []planFrame   `json:"plan,omitempty"`
-	Approval  *approvalJSON `json:"approval,omitempty"`
-	Outcome   *outcomeJSON  `json:"outcome,omitempty"`
-	Usage     *usageJSON    `json:"usage,omitempty"`
+	Type        string           `json:"type"`
+	EventID     string           `json:"eventId"`
+	Cursor      client.Cursor    `json:"cursor"`
+	At          time.Time        `json:"at,omitzero"`
+	RunID       string           `json:"runId,omitempty"`
+	SessionID   string           `json:"sessionId,omitempty"`
+	BlockID     string           `json:"blockId,omitempty"`
+	Text        string           `json:"text,omitempty"`
+	Block       *blockFrame      `json:"block,omitempty"`
+	Plan        []planFrame      `json:"plan,omitempty"`
+	Interaction *interactionJSON `json:"interaction,omitempty"`
+	Outcome     *outcomeJSON     `json:"outcome,omitempty"`
+	Usage       *usageJSON       `json:"usage,omitempty"`
 }
 
 type blockFrame struct {
@@ -64,11 +68,22 @@ type planFrame struct {
 	Status string `json:"status"`
 }
 
-type approvalJSON struct {
-	InterruptID string `json:"interruptId"`
-	Title       string `json:"title"`
-	Detail      string `json:"detail,omitempty"`
-	Diff        string `json:"diff,omitempty"`
+type interactionJSON struct {
+	Kind        string              `json:"kind"`
+	InterruptID string              `json:"interruptId"`
+	Title       string              `json:"title"`
+	Detail      string              `json:"detail,omitempty"`
+	Diff        string              `json:"diff,omitempty"`
+	Risk        string              `json:"risk,omitempty"`
+	Fields      []questionFieldJSON `json:"fields,omitempty"`
+}
+
+type questionFieldJSON struct {
+	ID       string   `json:"id"`
+	Label    string   `json:"label"`
+	Kind     string   `json:"kind"`
+	Required bool     `json:"required,omitempty"`
+	Options  []string `json:"options,omitempty"`
 }
 
 type outcomeJSON struct {
@@ -85,10 +100,11 @@ type usageJSON struct {
 }
 
 // Render writes one line. As with [Text], the first error sticks.
-func (j *JSON) Render(ev client.Event) error {
+func (j *JSON) Render(envelope client.Envelope) error {
 	if j.err != nil {
 		return j.err
 	}
+	ev := envelope.Event
 	var f frame
 	switch e := ev.(type) {
 	case client.RunStarted:
@@ -101,13 +117,10 @@ func (j *JSON) Render(ev client.Event) error {
 		f = frame{Type: "block.completed", Block: encodeBlock(e.Block)}
 	case client.PlanChanged:
 		f = frame{Type: "plan.changed", Plan: encodePlan(e.Items)}
-	case client.RunParked:
-		f = frame{Type: "run.parked", Approval: &approvalJSON{
-			InterruptID: e.Approval.InterruptID,
-			Title:       e.Approval.Title,
-			Detail:      e.Approval.Detail,
-			Diff:        e.Approval.Diff,
-		}}
+	case client.RunResumed:
+		f = frame{Type: "run.resumed", RunID: envelope.RunID}
+	case client.RunInterrupted:
+		f = frame{Type: "run.interrupted", Interaction: encodeInteraction(e.Interaction)}
 	case client.RunFinished:
 		f = frame{
 			Type:    "run.finished",
@@ -121,8 +134,34 @@ func (j *JSON) Render(ev client.Event) error {
 			},
 		}
 	}
+	f.EventID, f.Cursor, f.At = envelope.ID, envelope.Cursor, envelope.At
+	if f.RunID == "" {
+		f.RunID = envelope.RunID
+	}
+	if f.SessionID == "" {
+		f.SessionID = envelope.SessionID
+	}
 	j.err = j.enc.Encode(f)
 	return j.err
+}
+
+func encodeInteraction(interaction client.Interaction) *interactionJSON {
+	switch item := interaction.(type) {
+	case client.Approval:
+		return &interactionJSON{Kind: "approval", InterruptID: item.InterruptID, Title: item.Title, Detail: item.Detail, Diff: item.Diff, Risk: item.Risk}
+	case client.Question:
+		out := &interactionJSON{Kind: "question", InterruptID: item.InterruptID, Title: item.Title, Detail: item.Detail}
+		for _, field := range item.Fields {
+			encoded := questionFieldJSON{ID: field.ID, Label: field.Label, Kind: string(field.Kind), Required: field.Required}
+			for _, option := range field.Options {
+				encoded.Options = append(encoded.Options, option.Value)
+			}
+			out.Fields = append(out.Fields, encoded)
+		}
+		return out
+	default:
+		return nil
+	}
 }
 
 // Close reports the first write error, if any. There is nothing to flush: a line
