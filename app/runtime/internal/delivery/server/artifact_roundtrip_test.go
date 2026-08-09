@@ -103,7 +103,7 @@ func TestExportPreservesRunTreeLineage(t *testing.T) {
 	if err := rt.runs.Restore(ctx, transcript.Run{
 		SessionID: ses.ID, ID: "run_root", State: run.Completed,
 		Outcome:      &outcome,
-		Capabilities: run.RunCapabilities{ChildRuns: true},
+		Capabilities: run.Capabilities{ChildRuns: true},
 		CreatedAt:    time.Unix(1, 0).UTC(),
 		FinishedAt:   time.Unix(1, 0).UTC(),
 		UpdatedAt:    time.Unix(1, 0).UTC(),
@@ -377,7 +377,7 @@ func seedCompletedRun(t *testing.T, rt *stubRuntime, sessionID string) {
 	if err := rt.runs.Restore(t.Context(), transcript.Run{
 		SessionID: sessionID, ID: "run_done", State: run.Completed,
 		ModelSelection: selection, Outcome: &outcome,
-		Limits: run.RunLimits{MaxTotalTokens: 32_768, MaxSteps: 12, MaxBudgetUSD: 3.5},
+		Limits: run.Limits{MaxTotalTokens: 32_768, MaxSteps: 12, MaxBudgetUSD: 3.5},
 		Metrics: transcript.RunMetrics{
 			Usage: &transcript.Usage{
 				ModelUsage: transcript.ModelUsage{
@@ -394,7 +394,7 @@ func seedCompletedRun(t *testing.T, rt *stubRuntime, sessionID string) {
 			Steps:          2,
 			ActiveDuration: 1500 * time.Millisecond,
 		},
-		Capabilities: run.RunCapabilities{
+		Capabilities: run.Capabilities{
 			ChildRuns:      true,
 			InterruptKinds: []interrupt.Kind{interrupt.Approval},
 		},
@@ -439,7 +439,7 @@ func seedFailedRun(t *testing.T, rt *stubRuntime, sessionID string) {
 			RetryAfterSeconds: 30,
 		},
 		Metrics: transcript.RunMetrics{Steps: 1, ActiveDuration: 500 * time.Millisecond},
-		Capabilities: run.RunCapabilities{
+		Capabilities: run.Capabilities{
 			InterruptKinds: []interrupt.Kind{interrupt.Question},
 		},
 		CreatedAt: time.Unix(4, 0).UTC(), FinishedAt: time.Unix(5, 0).UTC(),

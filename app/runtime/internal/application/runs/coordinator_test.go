@@ -1076,7 +1076,7 @@ func TestCoordinatorResumesCompleteRunTreeInOneCanonicalOpening(t *testing.T) {
 	if opening.Resume == nil {
 		t.Fatal("opening has no tree resume draft")
 	}
-	wantRuns := []run.RunResumeDraft{
+	wantRuns := []run.ResumeDraft{
 		{RunID: "run_grandchild", SegmentID: "seg_grandchild"},
 		{RunID: "run_a", SegmentID: "seg_a"},
 		{RunID: "run_b", SegmentID: "seg_b"},
@@ -1137,7 +1137,7 @@ func resumedTreePending(createdAt time.Time) Pending {
 		RootRunID:  "run_1",
 		SessionID:  "ses_1",
 		ExecutorID: "turn_1",
-		Capabilities: run.RunCapabilities{
+		Capabilities: run.Capabilities{
 			ChildRuns:      true,
 			InterruptKinds: []interrupt.Kind{interrupt.Question},
 		},
@@ -1153,7 +1153,7 @@ func resumedTreePending(createdAt time.Time) Pending {
 			{
 				RunID:    "run_grandchild",
 				MemberID: "member_grandchild",
-				Lineage: run.RunLineage{
+				Lineage: run.Lineage{
 					SpawnedByItemID: "item_spawn_grandchild",
 					ParentRunID:     "run_a",
 					RootRunID:       "run_1",
@@ -1164,7 +1164,7 @@ func resumedTreePending(createdAt time.Time) Pending {
 			{
 				RunID:    "run_a",
 				MemberID: "member_a",
-				Lineage: run.RunLineage{
+				Lineage: run.Lineage{
 					SpawnedByItemID: "item_spawn_a",
 					ParentRunID:     "run_1",
 					RootRunID:       "run_1",
@@ -1175,7 +1175,7 @@ func resumedTreePending(createdAt time.Time) Pending {
 			{
 				RunID:    "run_b",
 				MemberID: "member_b",
-				Lineage: run.RunLineage{
+				Lineage: run.Lineage{
 					SpawnedByItemID: "item_spawn_b",
 					ParentRunID:     "run_1",
 					RootRunID:       "run_1",
@@ -1448,7 +1448,7 @@ func TestCoordinatorPublishesNativeChildOnlyAfterConclusiveStart(t *testing.T) {
 	coordinator.newRunID = func() string { return "run_child" }
 	coordinator.newSegmentID = func() string { return "segment_child" }
 	spec := testSegment()
-	spec.Capabilities = run.RunCapabilities{ChildRuns: true}
+	spec.Capabilities = run.Capabilities{ChildRuns: true}
 
 	stream, err := coordinator.openSegment(t.Context(), spec)
 	if err != nil {
@@ -1526,8 +1526,8 @@ func TestCoordinatorPublishesChildSegmentOnItsOwnRunIdentity(t *testing.T) {
 	coordinator.newRunID = func() string { return "run_child" }
 	coordinator.newSegmentID = func() string { return "seg_child" }
 	spec := testSegment()
-	spec.Limits = run.RunLimits{MaxSteps: 20, MaxBudgetUSD: 3}
-	spec.Capabilities = run.RunCapabilities{
+	spec.Limits = run.Limits{MaxSteps: 20, MaxBudgetUSD: 3}
+	spec.Capabilities = run.Capabilities{
 		ChildRuns: true,
 	}
 
@@ -1566,9 +1566,9 @@ func TestCoordinatorPublishesChildSegmentOnItsOwnRunIdentity(t *testing.T) {
 		}
 	}
 	if childStarted == nil {
-		t.Fatal("root Journal did not publish child segment.started")
+		t.Fatal("root journal did not publish child segment.started")
 	}
-	lineage := run.RunLineage{
+	lineage := run.Lineage{
 		SpawnedByItemID: "item_seg_1_1",
 		ParentRunID:     "run_1",
 		RootRunID:       "run_1",
@@ -2319,7 +2319,7 @@ func TestCoordinatorCommitsCompleteTreeBarrierInDeterministicPostorder(t *testin
 	}
 
 	spec := testSegment()
-	spec.Capabilities = run.RunCapabilities{
+	spec.Capabilities = run.Capabilities{
 		ChildRuns:      true,
 		InterruptKinds: []interrupt.Kind{interrupt.Question},
 	}

@@ -25,11 +25,11 @@ func (c *Coordinator) DeleteSession(ctx context.Context, sessionID string) error
 	return c.withGoalMutation(
 		ctx,
 		[]string{sessionID},
-		func(ctx context.Context) error {
+		func(commitCtx context.Context) error {
 			if c.interrupts == nil {
 				return errors.New("sessions: interrupt store is unavailable")
 			}
-			open, err := c.interrupts.List(ctx, sessionID)
+			open, err := c.interrupts.List(commitCtx, sessionID)
 			if err != nil {
 				return err
 			}
@@ -37,7 +37,7 @@ func (c *Coordinator) DeleteSession(ctx context.Context, sessionID string) error
 			if c.writes == nil {
 				return errors.New("sessions: write sets are unavailable")
 			}
-			return c.writes.ApplyDelete(ctx, DeletePlan{SessionID: sessionID})
+			return c.writes.ApplyDelete(commitCtx, DeletePlan{SessionID: sessionID})
 		},
 		func(ctx context.Context) error {
 			// The durable cascade is gone as of here, so the signal cannot outrun it —
@@ -129,7 +129,7 @@ func (c *Coordinator) restoreSession(ctx context.Context, snapshot Snapshot, pre
 			}
 			return c.writes.ApplyRestore(ctx, restorePlan(snapshot))
 		},
-		func(ctx context.Context) error {
+		func(context.Context) error {
 			// Restore replaced the whole history: any isolated working copy
 			// from before the restore is stale, so discard it before exposing
 			// the restored aggregate.

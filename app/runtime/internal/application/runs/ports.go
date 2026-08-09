@@ -223,14 +223,14 @@ type SessionPorts struct {
 }
 
 // RunProjection is the run use cases' durable Run read. Run answers point
-// identity; RunTree resolves any root or child Run to its complete
+// identity; Tree resolves any root or child Run to its complete
 // root/descendant aggregate in one read, so a tree-scoped command does not first
 // race a target lookup against a second tree lookup. The projection returns
 // facts, not cancellation policy: application/domain code owns topology
 // validation and subtree meaning.
 type RunProjection interface {
 	Run(ctx context.Context, runID string) (transcript.Run, bool, error)
-	RunTree(ctx context.Context, runID string) ([]transcript.Run, error)
+	Tree(ctx context.Context, runID string) ([]transcript.Run, error)
 }
 
 // ItemProjection resolves the exact transcript Item a command plans to replace.
@@ -257,7 +257,7 @@ type RootExecutionStart struct {
 	WorkspaceCWD   string
 	Isolated       bool
 	ModelSelection modelref.Selection
-	Limits         run.RunLimits
+	Limits         run.Limits
 	Options        *corechat.Options
 	// WorkingContext is the complete provider-neutral context for a fresh
 	// execution, including the current user message as its final entry. It is a
@@ -295,7 +295,7 @@ type WaitingContinuation struct {
 	RootRunID                string
 	Members                  []WaitingMember
 	Checkpoint               ExecutorCheckpoint
-	Capabilities             run.RunCapabilities
+	Capabilities             run.Capabilities
 	ChildRunAdmissionEnabled bool
 }
 

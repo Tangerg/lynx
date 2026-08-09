@@ -62,8 +62,8 @@ type ExecutorCheckpoint struct {
 	BuildID        string
 	Scope          ExecutionScope
 	ModelSelection modelref.Selection
-	Limits         run.RunLimits
-	Capabilities   run.RunCapabilities
+	Limits         run.Limits
+	Capabilities   run.Capabilities
 	Usage          accounting.Snapshot
 }
 
@@ -79,8 +79,8 @@ type ExecutorCheckpointExpectation struct {
 	Isolated       bool
 	GoalLeaseID    string
 	ModelSelection modelref.Selection
-	Limits         run.RunLimits
-	Capabilities   run.RunCapabilities
+	Limits         run.Limits
+	Capabilities   run.Capabilities
 }
 
 // Clone returns an ownership-independent checkpoint value.

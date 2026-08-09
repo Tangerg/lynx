@@ -32,7 +32,7 @@ func canonicalPending(pending Pending) Pending {
 	return pending
 }
 
-func canonicalPendingCapabilities(capabilities run.RunCapabilities) run.RunCapabilities {
+func canonicalPendingCapabilities(capabilities run.Capabilities) run.Capabilities {
 	capabilities = capabilities.Normalized()
 	capabilities.InterruptKinds = nilIfEmpty(capabilities.InterruptKinds)
 	return capabilities

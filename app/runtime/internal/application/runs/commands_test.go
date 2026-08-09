@@ -60,10 +60,10 @@ func TestStartExecutionValidateRejectsNonCanonicalAdmissionPolicy(t *testing.T) 
 
 	for name, execution := range map[string]RootExecutionStart{
 		"negative token limit": {
-			Message: "hello", Limits: run.RunLimits{MaxTotalTokens: -1},
+			Message: "hello", Limits: run.Limits{MaxTotalTokens: -1},
 		},
 		"non-finite budget": {
-			Message: "hello", Limits: run.RunLimits{MaxBudgetUSD: math.Inf(1)},
+			Message: "hello", Limits: run.Limits{MaxBudgetUSD: math.Inf(1)},
 		},
 		"duplicate interrupt kind": {
 			Message: "hello",

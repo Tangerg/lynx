@@ -52,7 +52,7 @@ type failingWaitingRunWriter struct {
 func (writer failingWaitingRunWriter) Resume(
 	ctx context.Context,
 	sessionID string,
-	draft run.RunResumeDraft,
+	draft run.ResumeDraft,
 	resumedAt time.Time,
 ) error {
 	if writer.resumeErr != nil {
@@ -226,7 +226,7 @@ func TestCommitWaitingSubtreeCancellationRollsBackEveryPreCommitFailure(t *testi
 			operation: "terminalize canceled Run",
 			configure: func(fixture *waitingCancellationSQLiteFixture, injected error) {
 				fixture.replaceEffects(func(config *Config) {
-					config.RunState = failingWaitingRunWriter{
+					config.State = failingWaitingRunWriter{
 						RunWriter:      fixture.runState,
 						terminalizeErr: injected,
 					}
@@ -251,7 +251,7 @@ func TestCommitWaitingSubtreeCancellationRollsBackEveryPreCommitFailure(t *testi
 			operation: "resume surviving Run",
 			configure: func(fixture *waitingCancellationSQLiteFixture, injected error) {
 				fixture.replaceEffects(func(config *Config) {
-					config.RunState = failingWaitingRunWriter{
+					config.State = failingWaitingRunWriter{
 						RunWriter: fixture.runState,
 						resumeErr: injected,
 					}
@@ -345,7 +345,7 @@ func (fixture *waitingCancellationSQLiteFixture) replaceEffects(
 		Interrupts:          fixture.interrupts,
 		Transcript:          fixture.transcript,
 		ItemReplacer:        fixture.transcript,
-		RunState:            fixture.runState,
+		State:               fixture.runState,
 		ExecutorCheckpoints: fixture.checkpoints,
 		Tx: func(ctx context.Context, fn func(context.Context) error) error {
 			return sqlite.RunInTx(ctx, fixture.db, fn)

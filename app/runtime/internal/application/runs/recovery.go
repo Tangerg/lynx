@@ -335,13 +335,13 @@ func groupRecoveryRunTrees(active []transcript.Run) (map[string]recoveryRunTree,
 
 	trees := make(map[string]recoveryRunTree, len(grouped))
 	for rootRunID, runs := range grouped {
-		members := make([]rundomain.RunTreeMember, 0, len(runs))
+		members := make([]rundomain.TreeMember, 0, len(runs))
 		runsByID := make(map[string]transcript.Run, len(runs))
 		for _, run := range runs {
-			members = append(members, rundomain.RunTreeMember{RunID: run.ID, Lineage: run.Lineage()})
+			members = append(members, rundomain.TreeMember{RunID: run.ID, Lineage: run.Lineage()})
 			runsByID[run.ID] = run
 		}
-		topology, err := rundomain.NewRunTree(rootRunID, members)
+		topology, err := rundomain.NewTree(rootRunID, members)
 		if err != nil {
 			return nil, fmt.Errorf("runs: assemble recovery Run tree %q: %w", rootRunID, err)
 		}

@@ -43,10 +43,7 @@ func (c *Coordinator) Resume(ctx context.Context, cmd ResumeCommand) (StartResul
 		return StartResult{}, fmt.Errorf("%w: session %q or working tree %q has a run or mutation in flight", ErrSessionBusy, pending.SessionID, sess.CWD)
 	}
 	defer runAdmission.Release()
-	if c.runs == nil {
-		return StartResult{}, errors.New("runs: run projection is required")
-	}
-	parkedRuns, err := c.runs.RunTree(ctx, pending.RootRunID)
+	parkedRuns, err := c.runs.Tree(ctx, pending.RootRunID)
 	if err != nil {
 		return StartResult{}, err
 	}

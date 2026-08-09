@@ -42,8 +42,8 @@ func newRunProjectionStores(t *testing.T) (*sqlite.RunStore, *persistence.Interr
 // Run started is rejected as an incomplete boundary.
 var runCreatedAt = time.Unix(1, 0).UTC()
 
-func runDraft(runID, sessionID string) run.RunDraft {
-	return run.RunDraft{RunID: runID, SessionID: sessionID, SegmentID: "seg_open", CreatedAt: runCreatedAt}
+func runDraft(runID, sessionID string) run.Draft {
+	return run.Draft{RunID: runID, SessionID: sessionID, SegmentID: "seg_open", CreatedAt: runCreatedAt}
 }
 
 // finishedRun is the terminal record a segment hands to Terminalize: the outcome
@@ -116,8 +116,8 @@ func pendingForRun(
 	}
 }
 
-func capabilitiesForInterrupts(values []transcript.Interrupt) run.RunCapabilities {
-	capabilities := run.RunCapabilities{}
+func capabilitiesForInterrupts(values []transcript.Interrupt) run.Capabilities {
+	capabilities := run.Capabilities{}
 	for _, value := range values {
 		capabilities.InterruptKinds = append(capabilities.InterruptKinds, value.Kind)
 	}
@@ -173,7 +173,7 @@ func TestParkCommitsInterruptAndSuspendAtomically(t *testing.T) {
 		t.Fatalf("interrupt survived a rolled-back park: %+v", open)
 	}
 	// Still running (not waiting): a rolled-back Suspend left the state intact.
-	if err := runStore.Resume(ctx, "ses_A", run.RunResumeDraft{RunID: "run_1", SegmentID: "seg_next"}, time.Now().UTC()); err == nil {
+	if err := runStore.Resume(ctx, "ses_A", run.ResumeDraft{RunID: "run_1", SegmentID: "seg_next"}, time.Now().UTC()); err == nil {
 		t.Fatal("resume after rolled-back park must reject the still-running row")
 	}
 	if err := runStore.Admit(ctx, runDraft("run_x", "ses_A")); !errors.Is(err, run.ErrSessionBusy) {
@@ -226,7 +226,7 @@ func TestRunAdmitEnforcesOneActivePerSession(t *testing.T) {
 func TestRunAdmitSharesOneRootAdmissionAcrossTheTree(t *testing.T) {
 	ctx := t.Context()
 	store, _ := newRunStores(t)
-	capabilities := run.RunCapabilities{ChildRuns: true}
+	capabilities := run.Capabilities{ChildRuns: true}
 
 	root := runDraft("run_root", "ses_A")
 	root.Capabilities = capabilities
@@ -269,7 +269,7 @@ func TestRunAdmitSharesOneRootAdmissionAcrossTheTree(t *testing.T) {
 		}
 	}
 
-	tree, err := store.RunTree(ctx, "run_grandchild")
+	tree, err := store.Tree(ctx, "run_grandchild")
 	if err != nil {
 		t.Fatalf("read tree: %v", err)
 	}
@@ -281,7 +281,7 @@ func TestRunAdmitSharesOneRootAdmissionAcrossTheTree(t *testing.T) {
 	if want := []string{"run_child", "run_grandchild", "run_root"}; !slices.Equal(treeIDs, want) {
 		t.Fatalf("tree Run IDs = %v, want %v", treeIDs, want)
 	}
-	if other, err := store.RunTree(ctx, "run_other_root"); err != nil || len(other) != 0 {
+	if other, err := store.Tree(ctx, "run_other_root"); err != nil || len(other) != 0 {
 		t.Fatalf("unadmitted tree = (%+v, %v), want empty", other, err)
 	}
 }
@@ -298,12 +298,12 @@ func TestRunAdmitRejectsAChildOutsideItsDurableTree(t *testing.T) {
 
 	tests := []struct {
 		name  string
-		draft run.RunDraft
+		draft run.Draft
 		want  string
 	}{
 		{
 			name: "missing parent",
-			draft: run.RunDraft{
+			draft: run.Draft{
 				RunID: "run_child_missing", SessionID: "ses_A", SegmentID: "seg_open",
 				SpawnedByItemID: "item_spawn", ParentRunID: "run_missing", RootRunID: "run_root_a",
 				CreatedAt: runCreatedAt,
@@ -312,7 +312,7 @@ func TestRunAdmitRejectsAChildOutsideItsDurableTree(t *testing.T) {
 		},
 		{
 			name: "cross session root",
-			draft: run.RunDraft{
+			draft: run.Draft{
 				RunID: "run_child_cross", SessionID: "ses_A", SegmentID: "seg_open",
 				SpawnedByItemID: "item_spawn", ParentRunID: "run_root_a", RootRunID: "run_root_b",
 				CreatedAt: runCreatedAt,
@@ -321,10 +321,10 @@ func TestRunAdmitRejectsAChildOutsideItsDurableTree(t *testing.T) {
 		},
 		{
 			name: "child-owned capabilities",
-			draft: run.RunDraft{
+			draft: run.Draft{
 				RunID: "run_child_capabilities", SessionID: "ses_A", SegmentID: "seg_open",
 				SpawnedByItemID: "item_spawn", ParentRunID: "run_root_a", RootRunID: "run_root_a",
-				Capabilities: run.RunCapabilities{ChildRuns: true},
+				Capabilities: run.Capabilities{ChildRuns: true},
 				CreatedAt:    runCreatedAt,
 			},
 			want: "capabilities are owned by root",
@@ -365,7 +365,7 @@ func TestTerminalizeRequiresExactLiveRun(t *testing.T) {
 }
 
 // TestTerminalizeParkedRunRejectsNonCancel proves the store defers to the
-// [run.RunState] machine (§8.2): a parked (waiting) run may terminalize
+// [run.State] machine (§8.2): a parked (waiting) run may terminalize
 // only via cancellation — any other terminal must resume first — so a non-cancel
 // terminalize of a parked run surfaces an error instead of silently overwriting
 // the row, while a cancel of the same parked run succeeds.
@@ -417,7 +417,7 @@ func TestSuspendResumeReusesOneSlot(t *testing.T) {
 		t.Fatalf("admit while suspended = %v, want ErrSessionBusy (row still non-terminal)", err)
 	}
 	// Resume: back to running, no second row admitted.
-	if err := store.Resume(ctx, "ses_A", run.RunResumeDraft{RunID: "run_1", SegmentID: "seg_next"}, time.Now().UTC()); err != nil {
+	if err := store.Resume(ctx, "ses_A", run.ResumeDraft{RunID: "run_1", SegmentID: "seg_next"}, time.Now().UTC()); err != nil {
 		t.Fatalf("resume: %v", err)
 	}
 	if err := store.Admit(ctx, runDraft("run_3", "ses_A")); !errors.Is(err, run.ErrSessionBusy) {
@@ -471,7 +471,7 @@ func TestPageRunsReturnsEveryLifecyclePosition(t *testing.T) {
 	ctx := context.Background()
 	store, ints := newRunStores(t)
 
-	for _, draft := range []run.RunDraft{
+	for _, draft := range []run.Draft{
 		{RunID: "run_live", SessionID: "ses_A", SegmentID: "seg_open", CreatedAt: time.Unix(0, 20)},
 		{RunID: "run_parked", SessionID: "ses_B", SegmentID: "seg_open", CreatedAt: time.Unix(0, 10)},
 		{RunID: "run_done", SessionID: "ses_C", SegmentID: "seg_open", CreatedAt: time.Unix(0, 30)},
@@ -507,13 +507,13 @@ func TestPageRunsReturnsEveryLifecyclePosition(t *testing.T) {
 
 	for _, tt := range []struct {
 		name     string
-		statuses []run.RunStatus
+		statuses []run.Status
 		want     []string
 	}{
-		{"running only", []run.RunStatus{run.StatusRunning}, []string{"run_live"}},
-		{"waiting only", []run.RunStatus{run.StatusWaiting}, []string{"run_parked"}},
-		{"finished only", []run.RunStatus{run.StatusFinished}, []string{"run_done"}},
-		{"recovery pair", []run.RunStatus{run.StatusRunning, run.StatusWaiting}, []string{"run_live", "run_parked"}},
+		{"running only", []run.Status{run.StatusRunning}, []string{"run_live"}},
+		{"waiting only", []run.Status{run.StatusWaiting}, []string{"run_parked"}},
+		{"finished only", []run.Status{run.StatusFinished}, []string{"run_done"}},
+		{"recovery pair", []run.Status{run.StatusRunning, run.StatusWaiting}, []string{"run_live", "run_parked"}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			rows, err := store.PageRuns(ctx, "", tt.statuses, false, 0, "", 0)
@@ -533,7 +533,7 @@ func TestPageRunsReturnsEveryLifecyclePosition(t *testing.T) {
 	if scoped, err := store.PageRuns(ctx, "ses_B", nil, false, 0, "", 0); err != nil || len(scoped) != 1 || scoped[0].ID != "run_parked" {
 		t.Fatalf("ses_B scoped = %+v (err %v), want the parked run", scoped, err)
 	}
-	if _, err := store.PageRuns(ctx, "", []run.RunStatus{run.RunStatus(9)}, false, 0, "", 0); err == nil {
+	if _, err := store.PageRuns(ctx, "", []run.Status{run.Status(9)}, false, 0, "", 0); err == nil {
 		t.Fatal("page runs accepted an unknown status instead of refusing to widen the page")
 	}
 }
@@ -546,7 +546,7 @@ func TestPageRunsOrdersNewestFirst(t *testing.T) {
 	ctx := context.Background()
 	store, _ := newRunStores(t)
 
-	for _, draft := range []run.RunDraft{
+	for _, draft := range []run.Draft{
 		{RunID: "run_c", SessionID: "ses_C", SegmentID: "seg_open", CreatedAt: time.Unix(0, 30)},
 		{RunID: "run_a", SessionID: "ses_A", SegmentID: "seg_open", CreatedAt: time.Unix(0, 10)},
 		{RunID: "run_b", SessionID: "ses_B", SegmentID: "seg_open", CreatedAt: time.Unix(0, 20)},
@@ -571,7 +571,7 @@ func TestPageRunsSeeksBeforeItsAnchor(t *testing.T) {
 	ctx := context.Background()
 	store, _ := newRunStores(t)
 
-	for _, draft := range []run.RunDraft{
+	for _, draft := range []run.Draft{
 		{RunID: "run_a", SessionID: "ses_A", SegmentID: "seg_open", CreatedAt: time.Unix(0, 10)},
 		{RunID: "run_b", SessionID: "ses_B", SegmentID: "seg_open", CreatedAt: time.Unix(0, 20)},
 		{RunID: "run_c", SessionID: "ses_C", SegmentID: "seg_open", CreatedAt: time.Unix(0, 20)},
@@ -745,7 +745,7 @@ func TestRunCapabilitiesAreImmutable(t *testing.T) {
 	ctx := context.Background()
 	store, interruptStore := newRunStores(t)
 
-	admitted := run.RunCapabilities{
+	admitted := run.Capabilities{
 		ChildRuns:      true,
 		InterruptKinds: []interrupt.Kind{interrupt.Approval, interrupt.Question},
 	}
@@ -758,7 +758,7 @@ func TestRunCapabilitiesAreImmutable(t *testing.T) {
 	// A park hands the store a whole Run record, including capabilities — the store
 	// must ignore it rather than let the segment restate the value.
 	parked := parkedRun("run_1", "ses_A")
-	parked.Capabilities = run.RunCapabilities{}
+	parked.Capabilities = run.Capabilities{}
 	pending := pendingForRun(
 		"run_1",
 		"ses_A",
@@ -786,20 +786,20 @@ func TestRunCapabilitiesAreImmutable(t *testing.T) {
 		t.Fatalf("park hand-off capabilities = %v, want %v", pending.Capabilities, admitted)
 	}
 
-	if err := store.Resume(ctx, "ses_A", run.RunResumeDraft{RunID: "run_1", SegmentID: "seg_next"}, time.Now().UTC()); err != nil {
+	if err := store.Resume(ctx, "ses_A", run.ResumeDraft{RunID: "run_1", SegmentID: "seg_next"}, time.Now().UTC()); err != nil {
 		t.Fatalf("resume: %v", err)
 	}
 	assertRunCapabilities(t, store, "run_1", admitted, "after resume")
 
 	finished := finishedRun("run_1", "ses_A", run.OutcomeCompleted)
-	finished.Capabilities = run.RunCapabilities{}
+	finished.Capabilities = run.Capabilities{}
 	if err := store.Terminalize(ctx, finished); err != nil {
 		t.Fatalf("terminalize: %v", err)
 	}
 	assertRunCapabilities(t, store, "run_1", admitted, "after terminal")
 }
 
-func assertRunCapabilities(t *testing.T, store *sqlite.RunStore, runID string, want run.RunCapabilities, when string) {
+func assertRunCapabilities(t *testing.T, store *sqlite.RunStore, runID string, want run.Capabilities, when string) {
 	t.Helper()
 	runs, err := store.ListRuns(context.Background(), "ses_A")
 	if err != nil {

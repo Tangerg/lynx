@@ -368,7 +368,7 @@ func (projection *nativeDelegateProjection) Run(
 	return value, found, nil
 }
 
-func (projection *nativeDelegateProjection) RunTree(
+func (projection *nativeDelegateProjection) Tree(
 	_ context.Context,
 	runID string,
 ) ([]transcript.Run, error) {

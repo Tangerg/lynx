@@ -21,7 +21,7 @@ import (
 // it accepts no new run segments.
 var ErrClosed = errors.New("runs: coordinator closed")
 
-// Coordinator owns the live run segments, the per-run event [Journal], the
+// Coordinator owns the live run segments, the per-run event [journal], the
 // segment pump that drives a run from Start to terminal, and the
 // request-detached task group that keeps runs alive across client disconnects
 // and cancels + joins them during shutdown.
@@ -261,7 +261,7 @@ func (c *Coordinator) openSegment(reqCtx context.Context, spec segmentSpec) (ite
 	}, live)
 	// The opening subscription attaches before any event is appended, so tail-only
 	// and "from the beginning" are the same stream here — there is no beginning yet.
-	opened := hub.Tail()
+	opened := hub.tail()
 	stopUnsubscribe := context.AfterFunc(reqCtx, opened.Cancel)
 	seq := func(yield func(Event) bool) {
 		defer stopUnsubscribe()
@@ -269,7 +269,7 @@ func (c *Coordinator) openSegment(reqCtx context.Context, spec segmentSpec) (ite
 	}
 	for _, opening := range openings {
 		for _, reduced := range opening.batch.events {
-			hub.Append(c.event(opening.route.runID, opening.route.segmentID, reduced))
+			hub.append(c.event(opening.route.runID, opening.route.segmentID, reduced))
 		}
 	}
 	segmentStartedAt := c.now().UTC()
@@ -306,10 +306,10 @@ func (c *Coordinator) commitOpening(ctx context.Context, spec segmentSpec, route
 			RootRunID: spec.RunID,
 			SessionID: spec.SessionID,
 			ResumedAt: c.now().UTC(),
-			Runs:      make([]rundomain.RunResumeDraft, 0, len(ordered)),
+			Runs:      make([]rundomain.ResumeDraft, 0, len(ordered)),
 		}
 	} else {
-		opening.Admit = &rundomain.RunDraft{
+		opening.Admit = &rundomain.Draft{
 			RunID:          spec.RunID,
 			SessionID:      spec.SessionID,
 			SegmentID:      spec.SegmentID,
@@ -347,7 +347,7 @@ func (c *Coordinator) commitOpening(ctx context.Context, spec segmentSpec, route
 			}
 		}
 		if opening.Resume != nil {
-			opening.Resume.Runs = append(opening.Resume.Runs, rundomain.RunResumeDraft{
+			opening.Resume.Runs = append(opening.Resume.Runs, rundomain.ResumeDraft{
 				RunID:     route.runID,
 				SegmentID: route.segmentID,
 			})
@@ -368,7 +368,7 @@ func (c *Coordinator) commitOpening(ctx context.Context, spec segmentSpec, route
 }
 
 // event builds the envelope for one reduced payload. Its stream position is NOT
-// set here — the Journal assigns it while publishing, so sequence order and
+// set here — the journal assigns it while publishing, so sequence order and
 // publication order are the same order by construction.
 func (c *Coordinator) event(runID, segmentID string, reduced reduction) Event {
 	return Event{
@@ -393,7 +393,7 @@ func (c *Coordinator) rejectUnadmittedExecution(ctx context.Context, ref Executo
 	return cause
 }
 
-// Subscribe attaches to the Segment the request names. The record and Journal
+// Subscribe attaches to the Segment the request names. The record and journal
 // are captured from the same registry entry, so a caller cannot receive a
 // Segment id from one entry and subscribe to a replacement or removed entry. The
 // subscription is dropped when ctx ends or the consumer stops ranging.

@@ -25,7 +25,7 @@ var (
 
 // reduction is one canonical output plus the persisted fact and live nudge that
 // arise from the same ExecutionFact decision. The pump commits it before placing
-// Event on the Journal.
+// Event on the journal.
 type reduction struct {
 	Event  RunEvent
 	Commit *EventCommit
@@ -57,7 +57,7 @@ type reducerConfig struct {
 	RunID          string
 	SegmentID      string
 	SessionID      string
-	Lineage        run.RunLineage
+	Lineage        run.Lineage
 	CWD            string
 	ExecutorID     string
 	GoalLeaseID    string
@@ -71,10 +71,10 @@ type reducerConfig struct {
 	Metrics transcript.RunMetrics
 	// Limits is the allowance in force for the whole Run, frozen at admission and
 	// carried unchanged through every continuation.
-	Limits run.RunLimits
+	Limits run.Limits
 	// Capabilities is the Run's frozen optional behavior. Every record this reducer
 	// commits carries the admission value, including continuation records.
-	Capabilities run.RunCapabilities
+	Capabilities run.Capabilities
 	Continuation *treeContinuation
 	Now          func() time.Time
 	CancelReason func() string
@@ -88,7 +88,7 @@ type reducer struct {
 	resume  *resumeBinding
 	itemSeq int
 	// step is the latest cumulative accounted model-call count reported by the
-	// executor. It uses the same unit as RunLimits.MaxSteps; tool events never
+	// executor. It uses the same unit as Limits.MaxSteps; tool events never
 	// infer it.
 	step      int
 	toolOrder int

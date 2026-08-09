@@ -28,15 +28,15 @@ import (
 //
 // Absent capabilities map to the Minimal Profile, not an error — §8.3 makes "send a
 // message, watch the reply, reload the history" a complete client.
-func (s *Server) negotiateCapabilities(ctx context.Context) (run.RunCapabilities, error) {
+func (s *Server) negotiateCapabilities(ctx context.Context) (run.Capabilities, error) {
 	caps, ok := protocol.ClientCapabilitiesFrom(ctx)
 	if !ok {
-		return run.RunCapabilities{}, nil
+		return run.Capabilities{}, nil
 	}
 
 	advertised := s.capabilities().Features
 
-	var capabilities run.RunCapabilities
+	var capabilities run.Capabilities
 	for key, preference := range caps.Features {
 		if !preference.Enabled {
 			// Declining a feature is always honorable, including one this build has
@@ -45,7 +45,7 @@ func (s *Server) negotiateCapabilities(ctx context.Context) (run.RunCapabilities
 		}
 		published, known := protocol.LookupFeature(key)
 		if !known || !advertised[key].Enabled {
-			return run.RunCapabilities{}, protocol.NewCapabilityGap(protocol.CapabilityRequirement{
+			return run.Capabilities{}, protocol.NewCapabilityGap(protocol.CapabilityRequirement{
 				Type: protocol.RequirementFeature, Name: key,
 			})
 		}
@@ -57,7 +57,7 @@ func (s *Server) negotiateCapabilities(ctx context.Context) (run.RunCapabilities
 			case protocol.FeatureSubagents:
 				capabilities.ChildRuns = true
 			default:
-				return run.RunCapabilities{}, fmt.Errorf(
+				return run.Capabilities{}, fmt.Errorf(
 					"server: required Run protocol feature %q has no application policy mapping",
 					key,
 				)
@@ -76,12 +76,12 @@ func (s *Server) negotiateCapabilities(ctx context.Context) (run.RunCapabilities
 			// runtime can only produce it with features.clientTools. Both gaps are named:
 			// the type the caller asked for and the feature that would make it possible,
 			// because fixing only one of them changes nothing.
-			return run.RunCapabilities{}, protocol.NewCapabilityGap(
+			return run.Capabilities{}, protocol.NewCapabilityGap(
 				protocol.CapabilityRequirement{Type: protocol.RequirementInterruptType, Name: string(declared)},
 				protocol.CapabilityRequirement{Type: protocol.RequirementFeature, Name: protocol.FeatureClientTools},
 			)
 		}
-		return run.RunCapabilities{}, fmt.Errorf("%w: unknown interruptTypes value %q", protocol.ErrInvalidParams, declared)
+		return run.Capabilities{}, fmt.Errorf("%w: unknown interruptTypes value %q", protocol.ErrInvalidParams, declared)
 	}
 	return capabilities.Normalized(), nil
 }
@@ -118,7 +118,7 @@ func (s *Server) requestCanUseFeature(ctx context.Context, feature string) bool 
 //
 // Every gap at once, because a caller told about one at a time cannot get itself into
 // a state where the call succeeds.
-func capabilityGap(missing run.RunCapabilities) *protocol.CapabilityGap {
+func capabilityGap(missing run.Capabilities) *protocol.CapabilityGap {
 	requirements := make([]protocol.CapabilityRequirement, 0,
 		1+len(missing.InterruptKinds))
 	if missing.ChildRuns {

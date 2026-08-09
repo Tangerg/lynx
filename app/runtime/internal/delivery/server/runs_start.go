@@ -45,7 +45,7 @@ func (s *Server) StartRun(ctx context.Context, in protocol.StartRunRequest) (*pr
 		SessionID:            in.SessionID,
 		DefaultWorkspacePath: s.serverInfo.DefaultWorkspace.Path,
 		ModelSelection:       selection,
-		Limits: run.RunLimits{
+		Limits: run.Limits{
 			MaxTotalTokens: in.MaxTotalTokens,
 			MaxSteps:       in.MaxSteps,
 			MaxBudgetUSD:   in.MaxBudgetUSD,

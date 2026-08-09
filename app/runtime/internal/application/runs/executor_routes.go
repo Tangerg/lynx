@@ -22,10 +22,10 @@ type executorRoute struct {
 	runID            string
 	segmentID        string
 	rootRunID        string
-	lineage          rundomain.RunLineage
+	lineage          rundomain.Lineage
 	modelSelection   modelref.Selection
-	limits           rundomain.RunLimits
-	capabilities     rundomain.RunCapabilities
+	limits           rundomain.Limits
+	capabilities     rundomain.Capabilities
 	reducer          *reducer
 	segmentStartedAt time.Time
 	segmentFinished  bool
@@ -192,18 +192,18 @@ func (routes *executorRoutes) unfinishedInPostorder() ([]*executorRoute, error) 
 		return nil, errors.New("runs: executor routes have no root")
 	}
 	byRunID := make(map[string]*executorRoute, len(routes.admissionOrder))
-	members := make([]rundomain.RunTreeMember, 0, len(routes.admissionOrder))
+	members := make([]rundomain.TreeMember, 0, len(routes.admissionOrder))
 	for _, route := range routes.admissionOrder {
 		if route == nil {
 			return nil, errors.New("runs: executor routes contain a nil route")
 		}
 		byRunID[route.runID] = route
-		members = append(members, rundomain.RunTreeMember{
+		members = append(members, rundomain.TreeMember{
 			RunID:   route.runID,
 			Lineage: route.lineage,
 		})
 	}
-	tree, err := rundomain.NewRunTree(routes.root.runID, members)
+	tree, err := rundomain.NewTree(routes.root.runID, members)
 	if err != nil {
 		return nil, fmt.Errorf("runs: executor routes: %w", err)
 	}
@@ -373,7 +373,7 @@ func (routes *executorRoutes) abortUnfinished() {
 
 // validateRouteReductionBatch proves that a reducer cannot write or publish
 // another route's facts. The reducer is application-owned, but this boundary is
-// where one root Journal multiplexes many Run/Segment identities; checking the
+// where one root journal multiplexes many Run/Segment identities; checking the
 // complete batch before its first side effect keeps a future routing regression
 // from becoming cross-Run transcript corruption.
 func validateRouteReductionBatch(
@@ -559,7 +559,7 @@ func (c *Coordinator) prepareChildOpening(
 	if childSegmentID == "" {
 		return nil, errors.New("runs: child opening generated an empty segment id")
 	}
-	lineage := rundomain.RunLineage{
+	lineage := rundomain.Lineage{
 		SpawnedByItemID: spawningItem.ID,
 		ParentRunID:     parent.runID,
 		RootRunID:       parent.rootRunID,
@@ -608,7 +608,7 @@ func (c *Coordinator) prepareChildOpening(
 		return nil, fmt.Errorf("runs: child member %q produced an invalid opening batch", member.MemberID)
 	}
 	opening := OpeningCommit{
-		Admit: &rundomain.RunDraft{
+		Admit: &rundomain.Draft{
 			RunID:           child.runID,
 			SessionID:       spec.SessionID,
 			SpawnedByItemID: child.lineage.SpawnedByItemID,

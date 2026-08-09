@@ -93,7 +93,7 @@ func (t *exiter) exit(ctx context.Context, _ exitArgs) (string, error) {
 	}
 	resolution, err := t.interrupt(
 		ctx,
-		interrupt.InterruptKey(interrupt.Question.String(), catalog.ExitPlanMode, arguments),
+		interrupt.Key(interrupt.Question.String(), catalog.ExitPlanMode, arguments),
 		pending,
 	)
 	if err != nil {

@@ -1,6 +1,6 @@
 package run
 
-// RunState is the lifecycle position of a Run and the single authority for its
+// State is the lifecycle position of a Run and the single authority for its
 // legal transitions.
 //
 // The state machine (see the transition methods below):
@@ -15,13 +15,13 @@ package run
 //	Completed / Failed / Canceled
 //
 // A Run reaches exactly one terminal state. Root admission ("one non-terminal
-// root Run per Session") keys on [RunState.IsTerminal]; descendants share their
+// root Run per Session") keys on [State.IsTerminal]; descendants share their
 // root tree's admission.
-type RunState uint8
+type State uint8
 
 const (
 	// Running — a segment is actively executing.
-	Running RunState = iota
+	Running State = iota
 	// Waiting — parked on a HITL interrupt, awaiting Resume or Cancel. NOT
 	// terminal: the run is resumable, its durable interrupt record committed.
 	Waiting
@@ -37,13 +37,13 @@ const (
 // IsTerminal reports whether s is an end state (Completed, Failed, or Canceled)
 // — no further transition is legal, and the run no longer holds a Session's
 // single-writer admission slot.
-func (s RunState) IsTerminal() bool {
+func (s State) IsTerminal() bool {
 	return s == Completed || s == Failed || s == Canceled
 }
 
 // Suspend parks a running run on a HITL interrupt (Running → Waiting). It
 // reports false from any other state.
-func (s RunState) Suspend() (RunState, bool) {
+func (s State) Suspend() (State, bool) {
 	if s == Running {
 		return Waiting, true
 	}
@@ -52,7 +52,7 @@ func (s RunState) Suspend() (RunState, bool) {
 
 // Resume continues a parked run (Waiting → Running). It reports false from
 // any other state.
-func (s RunState) Resume() (RunState, bool) {
+func (s State) Resume() (State, bool) {
 	if s == Waiting {
 		return Running, true
 	}
@@ -64,7 +64,7 @@ func (s RunState) Resume() (RunState, bool) {
 // [OutcomeCanceled] — a parked run can be canceled outright, but reaching any
 // other terminal requires resuming first. It reports false (leaving s unchanged)
 // from any other state or an illegal (Waiting, non-cancel) pair.
-func (s RunState) Terminate(o Outcome) (RunState, bool) {
+func (s State) Terminate(o Outcome) (State, bool) {
 	if !o.valid() {
 		return s, false
 	}
@@ -83,14 +83,14 @@ func (s RunState) Terminate(o Outcome) (RunState, bool) {
 // resumable interrupt. Loss is a recovery transition rather than a normal
 // executor outcome: both Running and an inconsistent orphaned Waiting run
 // become Failed, while terminal states are immutable.
-func (s RunState) RecoverLost() (RunState, bool) {
+func (s State) RecoverLost() (State, bool) {
 	if s == Running || s == Waiting {
 		return Failed, true
 	}
 	return s, false
 }
 
-func (s RunState) String() string {
+func (s State) String() string {
 	switch s {
 	case Running:
 		return "running"
@@ -140,10 +140,10 @@ const (
 	OutcomeLost
 )
 
-// terminalState maps a terminal outcome to the [RunState] it produces: normal
+// terminalState maps a terminal outcome to the [State] it produces: normal
 // completion → Completed, cancellation → Canceled, and every non-success
 // terminal reason → Failed.
-func (o Outcome) terminalState() RunState {
+func (o Outcome) terminalState() State {
 	switch o {
 	case OutcomeCompleted:
 		return Completed

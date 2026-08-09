@@ -125,7 +125,7 @@ func (continuation WaitingContinuation) Validate() error {
 	}
 	runIDs := make(map[string]struct{}, len(continuation.Members))
 	memberIDs := make(map[string]struct{}, len(continuation.Members))
-	treeMembers := make([]run.RunTreeMember, 0, len(continuation.Members))
+	treeMembers := make([]run.TreeMember, 0, len(continuation.Members))
 	rootMemberID := ""
 	for index, member := range continuation.Members {
 		if err := member.Validate(); err != nil {
@@ -139,12 +139,12 @@ func (continuation WaitingContinuation) Validate() error {
 		}
 		runIDs[member.RunID] = struct{}{}
 		memberIDs[member.MemberID] = struct{}{}
-		lineage := run.RunLineage{}
+		lineage := run.Lineage{}
 		if member.RunID != continuation.RootRunID {
 			if member.ParentRunID == "" {
 				return fmt.Errorf("runs: waiting child Run %q has no parent", member.RunID)
 			}
-			lineage = run.RunLineage{
+			lineage = run.Lineage{
 				SpawnedByItemID: member.SpawnedByItemID,
 				ParentRunID:     member.ParentRunID, RootRunID: continuation.RootRunID,
 			}
@@ -154,12 +154,12 @@ func (continuation WaitingContinuation) Validate() error {
 			}
 			rootMemberID = member.MemberID
 		}
-		treeMembers = append(treeMembers, run.RunTreeMember{RunID: member.RunID, Lineage: lineage})
+		treeMembers = append(treeMembers, run.TreeMember{RunID: member.RunID, Lineage: lineage})
 	}
 	if rootMemberID == "" {
 		return errors.New("runs: waiting continuation has no root member")
 	}
-	tree, err := run.NewRunTree(continuation.RootRunID, treeMembers)
+	tree, err := run.NewTree(continuation.RootRunID, treeMembers)
 	if err != nil {
 		return fmt.Errorf("runs: waiting continuation product tree: %w", err)
 	}

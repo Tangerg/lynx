@@ -106,7 +106,7 @@ func artifactRunFromPortable(run sessions.PortableRun) (protocol.ArtifactRun, er
 // published under, and
 // nothing for a child — a child reads its root's, and writing a second copy is how
 // the two come to disagree.
-func presentArtifactProtocolProfile(capabilities *run.RunCapabilities) *protocol.RunProtocolProfile {
+func presentArtifactProtocolProfile(capabilities *run.Capabilities) *protocol.RunProtocolProfile {
 	if capabilities == nil {
 		return nil
 	}
@@ -143,7 +143,7 @@ func artifactMetricsFromDomain(metrics transcript.RunMetrics) protocol.ArtifactR
 	}
 }
 
-func artifactLimitsFromDomain(limits run.RunLimits) *protocol.ArtifactRunLimits {
+func artifactLimitsFromDomain(limits run.Limits) *protocol.ArtifactRunLimits {
 	if limits.IsZero() {
 		return nil
 	}

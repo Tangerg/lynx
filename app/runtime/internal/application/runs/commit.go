@@ -42,7 +42,7 @@ type WaitingSubtreeCancellationResult struct {
 // OpeningCommit is the atomic acceptance write-set for one fresh admission or
 // one continuation.
 type OpeningCommit struct {
-	Admit            *run.RunDraft
+	Admit            *run.Draft
 	Resume           *run.TreeResumeDraft
 	ScheduledSession *session.Session
 	SessionModel     *SessionModelUpdate
@@ -265,6 +265,24 @@ type EventCommit struct {
 // Validate proves that one event projection is owner-bound and that any Goal
 // charge is exactly the accounting fact implied by its terminal Run.
 func (c EventCommit) Validate() error {
+	if err := c.validateEnvelope(); err != nil {
+		return err
+	}
+	if err := c.validateItems(); err != nil {
+		return err
+	}
+	if err := c.validateInvocations(); err != nil {
+		return err
+	}
+	if c.Progress != nil {
+		if err := c.Progress.validate(); err != nil {
+			return err
+		}
+	}
+	return c.validateLifecycle()
+}
+
+func (c EventCommit) validateEnvelope() error {
 	if strings.TrimSpace(c.RunID) == "" || c.RunID != strings.TrimSpace(c.RunID) {
 		return errors.New("runs: event commit Run ID must be non-empty without surrounding whitespace")
 	}
@@ -274,6 +292,10 @@ func (c EventCommit) Validate() error {
 	if c.ObsoleteCheckpointRootID != strings.TrimSpace(c.ObsoleteCheckpointRootID) {
 		return errors.New("runs: event commit checkpoint root ID has surrounding whitespace")
 	}
+	return nil
+}
+
+func (c EventCommit) validateItems() error {
 	seenItems := make(map[string]struct{}, len(c.Items))
 	for index, item := range c.Items {
 		if item.ID == "" || item.RunID != c.RunID || item.SessionID != c.SessionID {
@@ -287,6 +309,10 @@ func (c EventCommit) Validate() error {
 			return fmt.Errorf("runs: event commit Item %q: %w", item.ID, err)
 		}
 	}
+	return nil
+}
+
+func (c EventCommit) validateInvocations() error {
 	seenInvocations := make(map[string]struct{}, len(c.ModelInvocations))
 	for index, invocation := range c.ModelInvocations {
 		if err := invocation.validate(); err != nil {
@@ -312,12 +338,10 @@ func (c EventCommit) Validate() error {
 		seenTools[invocation.CallID] = struct{}{}
 		seenToolItems[invocation.ItemID] = struct{}{}
 	}
-	if c.Progress != nil {
-		if err := c.Progress.validate(); err != nil {
-			return err
-		}
-	}
+	return nil
+}
 
+func (c EventCommit) validateLifecycle() error {
 	switch c.State {
 	case StateUnchanged:
 		if c.Run != nil || c.GoalRun != nil || c.ObsoleteCheckpointRootID != "" {

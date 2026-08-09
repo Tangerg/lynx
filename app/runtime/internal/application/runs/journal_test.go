@@ -18,12 +18,12 @@ const (
 	testSegmentID = "seg_1"
 )
 
-func testJournal() *Journal {
+func testJournal() *journal {
 	return newJournal(streamScope{Epoch: testEpoch, RunID: testRunID, SegmentID: testSegmentID}, DefaultRetention())
 }
 
-// ev builds a payload-only event. The Journal assigns its position, so a test
-// never states a sequence: stating one is exactly the mistake the Journal now
+// ev builds a payload-only event. The journal assigns its position, so a test
+// never states a sequence: stating one is exactly the mistake the journal now
 // makes impossible.
 func ev(replayable bool) Event {
 	if replayable {
@@ -62,13 +62,13 @@ func drain(seq iter.Seq[Event]) []uint64 {
 // and replaying it here would hand the client the same events twice.
 func TestJournal_TailSkipsWhatWasAlreadyPublished(t *testing.T) {
 	j := testJournal()
-	j.Append(ev(true))
-	j.Append(ev(true))
+	j.append(ev(true))
+	j.append(ev(true))
 
-	attached := j.Tail()
+	attached := j.tail()
 	defer attached.Cancel()
-	j.Append(ev(true)) // the only event this subscription may see
-	j.Close()
+	j.append(ev(true)) // the only event this subscription may see
+	j.close()
 
 	if got := drain(attached.Events); len(got) != 1 || got[0] != 3 {
 		t.Fatalf("tail delivered %v, want only the event appended after attaching", got)
@@ -79,13 +79,13 @@ func TestJournal_TailSkipsWhatWasAlreadyPublished(t *testing.T) {
 // published in between would be neither in the ack nor in the stream.
 func TestJournal_TailReportsTheHeadItAttachedAfter(t *testing.T) {
 	j := testJournal()
-	if head := j.Tail().HeadCursor; head != "" {
+	if head := j.tail().HeadCursor; head != "" {
 		t.Fatalf("head of an empty stream = %q, want empty", head)
 	}
-	j.Append(ev(true))
-	j.Append(ev(false)) // non-replayable events still take a position
+	j.append(ev(true))
+	j.append(ev(false)) // non-replayable events still take a position
 
-	attached := j.Tail()
+	attached := j.tail()
 	defer attached.Cancel()
 	if attached.HeadCursor != cursorAt(2) {
 		t.Fatalf("head cursor does not name the last published position")
@@ -108,7 +108,7 @@ func TestJournalTailFirstSnapshotConvergesAcrossTerminalBoundary(t *testing.T) {
 			durableTerminal := false
 			publishTerminal := func() {
 				durableTerminal = true
-				journal.Append(Event{
+				journal.append(Event{
 					RunID: testRunID, SegmentID: testSegmentID,
 					Payload: SegmentFinished{},
 				})
@@ -116,7 +116,7 @@ func TestJournalTailFirstSnapshotConvergesAcrossTerminalBoundary(t *testing.T) {
 			if tt.terminalBeforeTail {
 				publishTerminal()
 			}
-			attached := journal.Tail()
+			attached := journal.tail()
 			defer attached.Cancel()
 			if tt.terminalBeforeRead {
 				publishTerminal()
@@ -126,7 +126,7 @@ func TestJournalTailFirstSnapshotConvergesAcrossTerminalBoundary(t *testing.T) {
 			if !tt.terminalBeforeTail && !tt.terminalBeforeRead {
 				publishTerminal()
 			}
-			journal.Close()
+			journal.close()
 			for event := range attached.Events {
 				if _, ok := event.Payload.(SegmentFinished); ok {
 					foldedTerminal = true
@@ -142,16 +142,16 @@ func TestJournalTailFirstSnapshotConvergesAcrossTerminalBoundary(t *testing.T) {
 func TestJournal_ReplayServesWhatFollowsTheCursorThenTails(t *testing.T) {
 	j := testJournal()
 	for range 3 {
-		j.Append(ev(true))
+		j.append(ev(true))
 	}
 
-	attached, err := j.Replay(cursorAt(2))
+	attached, err := j.replay(cursorAt(2))
 	if err != nil {
 		t.Fatalf("replay: %v", err)
 	}
 	defer attached.Cancel()
-	j.Append(ev(true))
-	j.Close()
+	j.append(ev(true))
+	j.close()
 
 	if got := drain(attached.Events); len(got) != 2 || got[0] != 3 || got[1] != 4 {
 		t.Fatalf("replay delivered %v, want [3 4] (backlog then live)", got)
@@ -162,16 +162,16 @@ func TestJournal_ReplayServesWhatFollowsTheCursorThenTails(t *testing.T) {
 // at one still resumes correctly — everything replayable after it is served.
 func TestJournal_ReplayFromAnEphemeralPositionIsExact(t *testing.T) {
 	j := testJournal()
-	j.Append(ev(true))  // 1
-	j.Append(ev(false)) // 2, not retained
-	j.Append(ev(true))  // 3
+	j.append(ev(true))  // 1
+	j.append(ev(false)) // 2, not retained
+	j.append(ev(true))  // 3
 
-	attached, err := j.Replay(cursorAt(2))
+	attached, err := j.replay(cursorAt(2))
 	if err != nil {
 		t.Fatalf("replay: %v", err)
 	}
 	defer attached.Cancel()
-	j.Close()
+	j.close()
 	if got := drain(attached.Events); len(got) != 1 || got[0] != 3 {
 		t.Fatalf("replay delivered %v, want [3]", got)
 	}
@@ -199,8 +199,8 @@ func TestJournal_ReplayRefusesCursorsItCannotServe(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			j := testJournal()
-			j.Append(ev(true))
-			if _, err := j.Replay(test.cursor); !errors.Is(err, test.want) {
+			j.append(ev(true))
+			if _, err := j.replay(test.cursor); !errors.Is(err, test.want) {
 				t.Fatalf("replay err = %v, want %v", err, test.want)
 			}
 		})
@@ -212,11 +212,11 @@ func TestJournal_ReplayRefusesCursorsItCannotServe(t *testing.T) {
 // and its remedy is a cold recovery rather than a corrected request.
 func TestJournal_ForeignEpochOutranksAForeignScope(t *testing.T) {
 	j := testJournal()
-	j.Append(ev(true))
+	j.append(ev(true))
 	stale := replaycursor.Encode(replaycursor.Position{
 		Epoch: "epoch_previous", RunID: "run_other", SegmentID: "seg_other", Sequence: 1,
 	})
-	if _, err := j.Replay(stale); !errors.Is(err, ErrReplayUnavailable) {
+	if _, err := j.replay(stale); !errors.Is(err, ErrReplayUnavailable) {
 		t.Fatalf("replay err = %v, want ErrReplayUnavailable", err)
 	}
 }
@@ -225,20 +225,20 @@ func TestJournal_EvictionBoundsTheWindowByCount(t *testing.T) {
 	j := newJournal(streamScope{Epoch: testEpoch, RunID: testRunID, SegmentID: testSegmentID},
 		Retention{MaxEvents: 2, MaxBytes: DefaultRetention().MaxBytes})
 	for range 4 {
-		j.Append(ev(true))
+		j.append(ev(true))
 	}
 
 	// Events 1 and 2 are gone, so a cursor before them cannot be served — that is
 	// the difference between "nothing new for you" and "you have missed something".
-	if _, err := j.Replay(cursorAt(1)); !errors.Is(err, ErrReplayUnavailable) {
+	if _, err := j.replay(cursorAt(1)); !errors.Is(err, ErrReplayUnavailable) {
 		t.Fatalf("evicted cursor err = %v, want ErrReplayUnavailable", err)
 	}
-	attached, err := j.Replay(cursorAt(2))
+	attached, err := j.replay(cursorAt(2))
 	if err != nil {
 		t.Fatalf("cursor at the eviction boundary: %v", err)
 	}
 	defer attached.Cancel()
-	j.Close()
+	j.close()
 	if got := drain(attached.Events); len(got) != 2 || got[0] != 3 || got[1] != 4 {
 		t.Fatalf("boundary replay = %v, want [3 4]", got)
 	}
@@ -251,7 +251,7 @@ func TestJournal_EvictionBoundsTheWindowByBytes(t *testing.T) {
 	j := newJournal(streamScope{Epoch: testEpoch, RunID: testRunID, SegmentID: testSegmentID},
 		Retention{MaxEvents: 1024, MaxBytes: payload * 2})
 	for range 4 {
-		j.Append(sized(payload))
+		j.append(sized(payload))
 	}
 
 	j.mu.Lock()
@@ -263,7 +263,7 @@ func TestJournal_EvictionBoundsTheWindowByBytes(t *testing.T) {
 	if bytes > payload*2 {
 		t.Fatalf("retained bytes = %d, want at most %d", bytes, payload*2)
 	}
-	if _, err := j.Replay(cursorAt(1)); !errors.Is(err, ErrReplayUnavailable) {
+	if _, err := j.replay(cursorAt(1)); !errors.Is(err, ErrReplayUnavailable) {
 		t.Fatalf("evicted cursor err = %v, want ErrReplayUnavailable", err)
 	}
 }
@@ -276,18 +276,18 @@ func TestJournal_EvictionBoundsTheWindowByBytes(t *testing.T) {
 // may" is the contract.
 func TestJournalReplayableLosslessLiveLossyUnderOverflow(t *testing.T) {
 	j := testJournal()
-	attached := j.Tail()
+	attached := j.tail()
 	defer attached.Cancel()
 
 	const liveTotal = liveHeadroom * 4
 	for i := 1; i <= liveTotal; i++ {
 		if i == 1 || i == liveTotal/2 {
-			j.Append(ev(true))
+			j.append(ev(true))
 		}
-		j.Append(ev(false))
+		j.append(ev(false))
 	}
-	j.Append(ev(true))
-	j.Close()
+	j.append(ev(true))
+	j.close()
 
 	var gotReplayable []uint64
 	deliveredLive := 0
@@ -318,18 +318,18 @@ func TestJournalReplayableLosslessLiveLossyUnderOverflow(t *testing.T) {
 func TestJournal_StalledAuthoritativeConsumerIsDisconnected(t *testing.T) {
 	j := newJournal(streamScope{Epoch: testEpoch, RunID: testRunID, SegmentID: testSegmentID},
 		Retention{MaxEvents: 3, MaxBytes: DefaultRetention().MaxBytes})
-	attached := j.Tail()
+	attached := j.tail()
 	defer attached.Cancel()
 
 	for range 5 {
-		j.Append(ev(true))
+		j.append(ev(true))
 	}
 	got := drain(attached.Events)
 	if len(got) >= 5 {
 		t.Fatalf("stalled subscriber received %v, want the stream to have ended early", got)
 	}
 	// The run keeps going: a slow client must never stall the agent.
-	j.Append(ev(true))
+	j.append(ev(true))
 	j.mu.Lock()
 	head := j.head
 	j.mu.Unlock()
@@ -342,7 +342,7 @@ func TestJournal_StalledAuthoritativeConsumerIsDisconnected(t *testing.T) {
 // contract: a consumer blocked inside the source cannot stop its own range.
 func TestJournalCancelUnblocksWaitingSubscriber(t *testing.T) {
 	j := testJournal()
-	attached := j.Tail()
+	attached := j.tail()
 
 	done := make(chan struct{})
 	go func() {
@@ -362,12 +362,12 @@ func TestJournalCancelUnblocksWaitingSubscriber(t *testing.T) {
 
 func TestJournal_LiveOnlyIsNeverReplayed(t *testing.T) {
 	j := testJournal()
-	live := j.Tail()
+	live := j.tail()
 	defer live.Cancel()
 	next, stop := iter.Pull(live.Events)
 	defer stop()
-	j.Append(ev(true))
-	j.Append(ev(false))
+	j.append(ev(true))
+	j.append(ev(false))
 	if got, _ := next(); got.Sequence != 1 {
 		t.Fatal("live subscriber missed the replayable event")
 	}
@@ -375,12 +375,12 @@ func TestJournal_LiveOnlyIsNeverReplayed(t *testing.T) {
 		t.Fatal("live subscriber missed the non-replayable event")
 	}
 
-	late, err := j.Replay(cursorAt(1))
+	late, err := j.replay(cursorAt(1))
 	if err != nil {
 		t.Fatalf("replay: %v", err)
 	}
 	defer late.Cancel()
-	j.Close()
+	j.close()
 	if got := drain(late.Events); len(got) != 0 {
 		t.Fatalf("replay = %v, want no non-replayable events", got)
 	}
@@ -388,16 +388,16 @@ func TestJournal_LiveOnlyIsNeverReplayed(t *testing.T) {
 
 func TestJournal_FanOutN(t *testing.T) {
 	j := testJournal()
-	a := j.Tail()
+	a := j.tail()
 	defer a.Cancel()
 	nextA, stopA := iter.Pull(a.Events)
 	defer stopA()
-	b := j.Tail()
+	b := j.tail()
 	defer b.Cancel()
 	nextB, stopB := iter.Pull(b.Events)
 	defer stopB()
 
-	j.Append(ev(true))
+	j.append(ev(true))
 	if got, _ := nextA(); got.Sequence != 1 {
 		t.Fatal("subscriber a must receive the event")
 	}
@@ -408,8 +408,8 @@ func TestJournal_FanOutN(t *testing.T) {
 
 func TestJournal_CloseEndsStream(t *testing.T) {
 	j := testJournal()
-	j.Append(ev(true))
-	attached, err := j.Replay(cursorAt(1))
+	j.append(ev(true))
+	attached, err := j.replay(cursorAt(1))
 	if err != nil {
 		t.Fatalf("replay: %v", err)
 	}
@@ -417,18 +417,18 @@ func TestJournal_CloseEndsStream(t *testing.T) {
 	next, stop := iter.Pull(attached.Events)
 	defer stop()
 
-	j.Append(ev(true))
+	j.append(ev(true))
 	if got, _ := next(); got.Sequence != 2 {
 		t.Fatal("live event was not delivered")
 	}
-	j.Close()
+	j.close()
 	if _, ok := next(); ok {
-		t.Fatal("stream must end on Journal Close")
+		t.Fatal("stream must end on journal Close")
 	}
 
 	// A subscribe that arrives after the segment ended still gets what it missed,
 	// then ends — the window outlives the pump by the width of that race.
-	post, err := j.Replay(cursorAt(1))
+	post, err := j.replay(cursorAt(1))
 	if err != nil {
 		t.Fatalf("post-close replay: %v", err)
 	}
@@ -439,19 +439,19 @@ func TestJournal_CloseEndsStream(t *testing.T) {
 
 func TestJournal_CancelDetaches(t *testing.T) {
 	j := testJournal()
-	attached := j.Tail()
+	attached := j.tail()
 	attached.Cancel()
 	if got := drain(attached.Events); len(got) != 0 {
 		t.Fatalf("cancel must end the stream, got %v", got)
 	}
-	j.Append(ev(true)) // must not panic (sub gone)
-	j.Close()          // must not double-anything
+	j.append(ev(true)) // must not panic (sub gone)
+	j.close()          // must not double-anything
 }
 
 func TestJournal_EarlyRangeStopDetaches(t *testing.T) {
 	j := testJournal()
-	attached := j.Tail()
-	j.Append(ev(true))
+	attached := j.tail()
+	j.append(ev(true))
 
 	for range attached.Events {
 		break
@@ -464,8 +464,8 @@ func TestJournal_EarlyRangeStopDetaches(t *testing.T) {
 		t.Fatalf("subscribers after range stop = %d, want 0", subscribers)
 	}
 
-	j.Append(ev(true)) // must not enqueue into an abandoned subscriber
-	j.Close()
+	j.append(ev(true)) // must not enqueue into an abandoned subscriber
+	j.close()
 }
 
 func TestJournalSubscriber_ReusesRoutineQueueAndReleasesBursts(t *testing.T) {
@@ -516,13 +516,13 @@ func TestJournalSubscriber_AbortReleasesQueuedEvents(t *testing.T) {
 // A backlog within the window is lossless however far behind the consumer is.
 func TestJournal_ReplayableBacklogWithinTheWindowIsLossless(t *testing.T) {
 	j := testJournal()
-	attached := j.Tail()
+	attached := j.tail()
 	defer attached.Cancel()
 	const total = liveHeadroom*3 + 17
 	for range total {
-		j.Append(ev(true))
+		j.append(ev(true))
 	}
-	j.Close()
+	j.close()
 
 	got := drain(attached.Events)
 	if len(got) != total {
@@ -537,18 +537,18 @@ func TestJournal_ReplayableBacklogWithinTheWindowIsLossless(t *testing.T) {
 
 func TestJournalConcurrentAppendCloseAndCancel(t *testing.T) {
 	j := testJournal()
-	attached := j.Tail()
+	attached := j.tail()
 	start := make(chan struct{})
 	var wg sync.WaitGroup
 	wg.Go(func() {
 		<-start
 		for range liveHeadroom * 2 {
-			j.Append(ev(true))
+			j.append(ev(true))
 		}
 	})
 	wg.Go(func() {
 		<-start
-		j.Close()
+		j.close()
 	})
 	wg.Go(func() {
 		<-start
@@ -564,13 +564,13 @@ func TestJournalConcurrentAppendCloseAndCancel(t *testing.T) {
 // cost through one subscriber. Live-only events avoid retention.
 func BenchmarkJournalAppendDrain(b *testing.B) {
 	j := testJournal()
-	attached := j.Tail()
+	attached := j.tail()
 	defer attached.Cancel()
 	next, stop := iter.Pull(attached.Events)
 	defer stop()
 	e := ev(false)
 	for b.Loop() {
-		j.Append(e)
+		j.append(e)
 		next()
 	}
 }

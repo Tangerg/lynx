@@ -525,7 +525,7 @@ func (observed *observedInteractionTool) requestToolApproval(
 	}
 	resolution, err := interactioninput.Require(
 		ctx,
-		interrupt.InterruptKey(interrupt.Approval.String(), request.ToolName, request.Arguments.Canonical()),
+		interrupt.Key(interrupt.Approval.String(), request.ToolName, request.Arguments.Canonical()),
 		pending,
 	)
 	if err != nil {

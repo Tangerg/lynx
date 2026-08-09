@@ -50,7 +50,7 @@ func NewRunStore(db *sql.DB) *RunStore {
 // the session already has a non-terminal Run — and
 // [transcript.ErrIdentityConflict] when the run id is already taken, since the
 // caller may supply one.
-func (s *RunStore) Admit(ctx context.Context, draft rundomain.RunDraft) error {
+func (s *RunStore) Admit(ctx context.Context, draft rundomain.Draft) error {
 	// started_at is what orders every Run read, and a zero time stores as a
 	// nonsense instant rather than an obviously missing one — so it is refused
 	// here instead of quietly sorting Runs by an accident.
@@ -243,7 +243,7 @@ func (s *RunStore) validateChildPlacement(
 }
 
 // Suspend parks the exact running Run (Running → Waiting, kept non-terminal
-// so the session stays durably claimed) by deferring to the [rundomain.RunState]
+// so the session stays durably claimed) by deferring to the [rundomain.State]
 // machine, recording what the Run had consumed up to the park. A missing row,
 // repeated transition, mismatched identity, or any other source state is an
 // ownership error and never succeeds silently.
@@ -297,7 +297,7 @@ func (s *RunStore) Suspend(ctx context.Context, run transcript.Run) error {
 func (s *RunStore) Resume(
 	ctx context.Context,
 	sessionID string,
-	draft rundomain.RunResumeDraft,
+	draft rundomain.ResumeDraft,
 	resumedAt time.Time,
 ) error {
 	if draft.SegmentID == "" {
@@ -456,7 +456,7 @@ func (s *RunStore) Terminalize(ctx context.Context, run transcript.Run) error {
 		return fmt.Errorf("sqlite: terminalize run %q: outcome is required", run.ID)
 	}
 	outcome := *run.Outcome
-	return s.finish(ctx, "terminalize", run, func(cur rundomain.RunState) (rundomain.RunState, bool) {
+	return s.finish(ctx, "terminalize", run, func(cur rundomain.State) (rundomain.State, bool) {
 		return cur.Terminate(outcome)
 	})
 }
@@ -466,7 +466,7 @@ func (s *RunStore) Terminalize(ctx context.Context, run transcript.Run) error {
 // Running or Waiting, because it describes a Run nobody is driving rather
 // than one the executor finished.
 func (s *RunStore) RecoverLost(ctx context.Context, run transcript.Run) error {
-	return s.finish(ctx, "recover lost", run, rundomain.RunState.RecoverLost)
+	return s.finish(ctx, "recover lost", run, rundomain.State.RecoverLost)
 }
 
 // finish ends a non-terminal Run, writing the terminal state, its reason, and the
@@ -479,7 +479,7 @@ func (s *RunStore) finish(
 	ctx context.Context,
 	op string,
 	run transcript.Run,
-	authorize func(rundomain.RunState) (rundomain.RunState, bool),
+	authorize func(rundomain.State) (rundomain.State, bool),
 ) error {
 	if err := run.Validate(); err != nil {
 		return fmt.Errorf("sqlite: %s run %q: %w", op, run.ID, err)
@@ -572,7 +572,7 @@ func (s *RunStore) Restore(ctx context.Context, run transcript.Run) error {
 	if run.Lineage().IsChild() {
 		// A child materializes its root's capabilities on reads but owns no copy
 		// on disk. The root row is the single durable author.
-		capabilitiesOwner = rundomain.RunCapabilities{}
+		capabilitiesOwner = rundomain.Capabilities{}
 	}
 	capabilities, err := encodeRunCapabilities(capabilitiesOwner)
 	if err != nil {
@@ -605,7 +605,7 @@ func (s *RunStore) Restore(ctx context.Context, run transcript.Run) error {
 	return nil
 }
 
-func (s *RunStore) stateForRun(ctx context.Context, sessionID, runID string) (rundomain.RunState, bool, error) {
+func (s *RunStore) stateForRun(ctx context.Context, sessionID, runID string) (rundomain.State, bool, error) {
 	var coarse string
 	err := conn(ctx, s.db).QueryRowContext(ctx,
 		`SELECT state FROM runs WHERE run_id = ? AND session_id = ? AND state != ?`,
@@ -639,7 +639,7 @@ func (s *RunStore) stateForRun(ctx context.Context, sessionID, runID string) (ru
 // answer a caller renders includes what each Run has consumed — and a second Run
 // shape assembled from a subset of the same columns would be a second answer to
 // "what is this Run".
-func (s *RunStore) PageRuns(ctx context.Context, sessionID string, statuses []rundomain.RunStatus, includeDescendants bool, beforeStartedAt int64, beforeRunID string, limit int) ([]transcript.Run, error) {
+func (s *RunStore) PageRuns(ctx context.Context, sessionID string, statuses []rundomain.Status, includeDescendants bool, beforeStartedAt int64, beforeRunID string, limit int) ([]transcript.Run, error) {
 	query := `SELECT ` + runColumns + `
 		 FROM runs AS r
 		 ` + runReadJoins
@@ -713,11 +713,11 @@ func (s *RunStore) Run(ctx context.Context, runID string) (transcript.Run, bool,
 	return run, true, nil
 }
 
-// RunTree resolves runID to its tree root and returns that root plus every
+// Tree resolves runID to its tree root and returns that root plus every
 // descendant in one SQLite read. It deliberately makes no ordering promise:
 // application/domain code validates the complete topology and derives canonical
 // subtree order.
-func (s *RunStore) RunTree(ctx context.Context, runID string) ([]transcript.Run, error) {
+func (s *RunStore) Tree(ctx context.Context, runID string) ([]transcript.Run, error) {
 	rows, err := conn(ctx, s.db).QueryContext(ctx,
 		`WITH target AS (
 		    SELECT CASE WHEN root_run_id = '' THEN run_id ELSE root_run_id END AS tree_root_id
@@ -798,7 +798,7 @@ func (s *RunStore) RunsWithAncestors(ctx context.Context, runIDs []string) ([]tr
 // stateColumns is the durable encoding of a status filter. An unrecognized status
 // is refused rather than skipped: dropping it from the IN list would silently
 // widen the page to statuses the caller did not ask for.
-func stateColumns(statuses []rundomain.RunStatus) ([]any, error) {
+func stateColumns(statuses []rundomain.Status) ([]any, error) {
 	out := make([]any, 0, len(statuses))
 	for _, status := range statuses {
 		if !status.Valid() {
@@ -865,17 +865,17 @@ func (s *RunStore) ListRuns(ctx context.Context, sessionID string) ([]transcript
 // coarseState is the column value a Run in state s is stored under. It routes
 // through the domain's lifecycle position so a row written by Suspend and a query
 // filtering on [rundomain.StatusWaiting] cannot disagree about which value that
-// is — the partial unique index keys on non-terminal, so every terminal RunState
+// is — the partial unique index keys on non-terminal, so every terminal State
 // collapses to the one 'terminal' value (the fine reason lives in runs.outcome).
-func coarseState(s rundomain.RunState) string {
+func coarseState(s rundomain.State) string {
 	return stateColumn(s.Status())
 }
 
 // stateColumn is the durable spelling of a lifecycle position. It stays an
-// explicit table rather than [rundomain.RunStatus.String]: these three strings are
+// explicit table rather than [rundomain.Status.String]: these three strings are
 // on disk and inside the partial unique index's predicate, so a Go rename must not
 // be able to rewrite them.
-func stateColumn(status rundomain.RunStatus) string {
+func stateColumn(status rundomain.Status) string {
 	switch status {
 	case rundomain.StatusWaiting:
 		return runStateWaiting

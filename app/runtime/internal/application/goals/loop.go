@@ -64,7 +64,7 @@ func (d *Driver) ensureDriveLocked(ctx context.Context, sessionID, leaseID strin
 		if handle.leaseID != leaseID {
 			return ErrGoalConflict
 		}
-		if err, finished := handle.outcome(); finished {
+		if finished, err := handle.finishedResult(); finished {
 			if err != nil {
 				return err
 			}

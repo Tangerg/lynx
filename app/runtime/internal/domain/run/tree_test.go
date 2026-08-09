@@ -9,10 +9,10 @@ import (
 )
 
 func TestRunTreeCanonicalPostorderAndSubtree(t *testing.T) {
-	tree, err := run.NewRunTree("run_root", []run.RunTreeMember{
+	tree, err := run.NewTree("run_root", []run.TreeMember{
 		{
 			RunID: "run_b",
-			Lineage: run.RunLineage{
+			Lineage: run.Lineage{
 				SpawnedByItemID: "item_b",
 				ParentRunID:     "run_root",
 				RootRunID:       "run_root",
@@ -21,7 +21,7 @@ func TestRunTreeCanonicalPostorderAndSubtree(t *testing.T) {
 		{RunID: "run_root"},
 		{
 			RunID: "run_a1",
-			Lineage: run.RunLineage{
+			Lineage: run.Lineage{
 				SpawnedByItemID: "item_a1",
 				ParentRunID:     "run_a",
 				RootRunID:       "run_root",
@@ -29,7 +29,7 @@ func TestRunTreeCanonicalPostorderAndSubtree(t *testing.T) {
 		},
 		{
 			RunID: "run_a",
-			Lineage: run.RunLineage{
+			Lineage: run.Lineage{
 				SpawnedByItemID: "item_a",
 				ParentRunID:     "run_root",
 				RootRunID:       "run_root",
@@ -37,7 +37,7 @@ func TestRunTreeCanonicalPostorderAndSubtree(t *testing.T) {
 		},
 		{
 			RunID: "run_a0",
-			Lineage: run.RunLineage{
+			Lineage: run.Lineage{
 				SpawnedByItemID: "item_a0",
 				ParentRunID:     "run_a",
 				RootRunID:       "run_root",
@@ -45,7 +45,7 @@ func TestRunTreeCanonicalPostorderAndSubtree(t *testing.T) {
 		},
 	})
 	if err != nil {
-		t.Fatalf("NewRunTree: %v", err)
+		t.Fatalf("NewTree: %v", err)
 	}
 	wantTree := []string{"run_a0", "run_a1", "run_a", "run_b", "run_root"}
 	if got := tree.Postorder(); !equalStrings(got, wantTree) {
@@ -71,10 +71,10 @@ func TestRunTreeCanonicalPostorderAndSubtree(t *testing.T) {
 }
 
 func TestRunTreeRejectsInvalidTopology(t *testing.T) {
-	child := func(runID, parentRunID, rootRunID string) run.RunTreeMember {
-		return run.RunTreeMember{
+	child := func(runID, parentRunID, rootRunID string) run.TreeMember {
+		return run.TreeMember{
 			RunID: runID,
-			Lineage: run.RunLineage{
+			Lineage: run.Lineage{
 				SpawnedByItemID: "item_" + runID,
 				ParentRunID:     parentRunID,
 				RootRunID:       rootRunID,
@@ -84,45 +84,45 @@ func TestRunTreeRejectsInvalidTopology(t *testing.T) {
 	tests := []struct {
 		name    string
 		root    string
-		members []run.RunTreeMember
+		members []run.TreeMember
 		want    string
 	}{
-		{name: "missing root id", members: []run.RunTreeMember{{RunID: "run_root"}}, want: "root run id is required"},
+		{name: "missing root id", members: []run.TreeMember{{RunID: "run_root"}}, want: "root run id is required"},
 		{name: "no members", root: "run_root", want: "no members"},
 		{
 			name:    "duplicate run",
 			root:    "run_root",
-			members: []run.RunTreeMember{{RunID: "run_root"}, {RunID: "run_root"}},
+			members: []run.TreeMember{{RunID: "run_root"}, {RunID: "run_root"}},
 			want:    "duplicate run",
 		},
 		{
 			name:    "unexpected root lineage",
 			root:    "run_root",
-			members: []run.RunTreeMember{{RunID: "run_root"}, {RunID: "run_other"}},
+			members: []run.TreeMember{{RunID: "run_root"}, {RunID: "run_other"}},
 			want:    "has root lineage",
 		},
 		{
 			name:    "declared root carries child lineage",
 			root:    "run_root",
-			members: []run.RunTreeMember{child("run_root", "run_parent", "run_other")},
+			members: []run.TreeMember{child("run_root", "run_parent", "run_other")},
 			want:    "root run \"run_root\" carries child lineage",
 		},
 		{
 			name:    "wrong tree root",
 			root:    "run_root",
-			members: []run.RunTreeMember{{RunID: "run_root"}, child("run_child", "run_root", "run_other")},
+			members: []run.TreeMember{{RunID: "run_root"}, child("run_child", "run_root", "run_other")},
 			want:    "names root \"run_other\", want \"run_root\"",
 		},
 		{
 			name:    "unknown parent",
 			root:    "run_root",
-			members: []run.RunTreeMember{{RunID: "run_root"}, child("run_child", "run_missing", "run_root")},
+			members: []run.TreeMember{{RunID: "run_root"}, child("run_child", "run_missing", "run_root")},
 			want:    "names unknown parent",
 		},
 		{
 			name: "cycle",
 			root: "run_root",
-			members: []run.RunTreeMember{
+			members: []run.TreeMember{
 				{RunID: "run_root"},
 				child("run_a", "run_b", "run_root"),
 				child("run_b", "run_a", "run_root"),
@@ -132,10 +132,10 @@ func TestRunTreeRejectsInvalidTopology(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			_, err := run.NewRunTree(test.root, test.members)
-			if !errors.Is(err, run.ErrInvalidRunTree) ||
+			_, err := run.NewTree(test.root, test.members)
+			if !errors.Is(err, run.ErrInvalidTree) ||
 				!strings.Contains(err.Error(), test.want) {
-				t.Fatalf("NewRunTree error = %v, want ErrInvalidRunTree containing %q", err, test.want)
+				t.Fatalf("NewTree error = %v, want ErrInvalidTree containing %q", err, test.want)
 			}
 		})
 	}

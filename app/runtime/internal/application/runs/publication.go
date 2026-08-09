@@ -16,7 +16,7 @@ type reductionPublication struct {
 
 // treePublisher owns the batch boundary between source-Run reductions and
 // their persisted and live projections. Every child keeps its own Run/Segment
-// envelope while all events share the root Segment's Journal and replay scope.
+// envelope while all events share the root Segment's journal and replay scope.
 type treePublisher struct {
 	coordinator *Coordinator
 	rootSpec    segmentSpec
@@ -381,7 +381,7 @@ func (p treePublisher) publishTreeBarrier(
 }
 
 func (p treePublisher) append(route *executorRoute, reduced reduction) {
-	p.live.hub.Append(p.coordinator.event(route.runID, route.segmentID, reduced))
+	p.live.hub.append(p.coordinator.event(route.runID, route.segmentID, reduced))
 	if reduced.Nudge != nil {
 		p.coordinator.workspace.Nudge(reduced.Nudge.CWD, reduced.Nudge.Paths)
 	}

@@ -190,7 +190,7 @@ func TestResumeRunRefusesACallerThatCannotFollowTheRun(t *testing.T) {
 		time.Unix(1, 0).UTC(),
 	)
 	pending.Continuations[0].ModelSelection = mustResumeSelection(t, "openai", "gpt")
-	pending.Capabilities = run.RunCapabilities{
+	pending.Capabilities = run.Capabilities{
 		InterruptKinds: []interrupt.Kind{interrupt.Approval, interrupt.Question},
 	}
 	if err := rt.interrupts.Open(ctx, pending); err != nil {

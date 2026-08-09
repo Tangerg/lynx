@@ -45,7 +45,7 @@ type Run struct {
 	// It remains private to autonomous-goal accounting and is deliberately omitted
 	// from portable session snapshots, which cannot resurrect a live goal lease.
 	GoalLeaseID string
-	State       rundomain.RunState
+	State       rundomain.State
 	// ActiveSegmentID is the segment currently executing. It exists exactly while
 	// the Run is Running: it is established, replaced and cleared in the same
 	// transaction as the state, so a Run's position and the segment driving it can
@@ -66,11 +66,11 @@ type Run struct {
 	// admission. It is durable rather than a per-request echo because a resume
 	// and a cross-process rehydrate have to apply the same caps the first segment
 	// did.
-	Limits rundomain.RunLimits
+	Limits rundomain.Limits
 	// Capabilities is the optional behavior enabled at admission and retained for
 	// the Run's whole life. A continuation may exercise the same child-Run and
 	// interrupt behavior; it cannot renegotiate either.
-	Capabilities rundomain.RunCapabilities
+	Capabilities rundomain.Capabilities
 	Interrupts   []Interrupt
 	CreatedAt    time.Time
 	FinishedAt   time.Time
@@ -488,8 +488,8 @@ func (run Run) Validate() error {
 
 // Lineage returns the Run's immutable root/child identity as one value for
 // validation and tree routing.
-func (run Run) Lineage() rundomain.RunLineage {
-	return rundomain.RunLineage{
+func (run Run) Lineage() rundomain.Lineage {
+	return rundomain.Lineage{
 		SpawnedByItemID: run.SpawnedByItemID,
 		ParentRunID:     run.ParentRunID,
 		RootRunID:       run.RootRunID,

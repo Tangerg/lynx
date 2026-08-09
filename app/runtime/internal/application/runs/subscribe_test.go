@@ -25,7 +25,7 @@ func (f *fakeRunProjection) Run(_ context.Context, runID string) (transcript.Run
 	return run, ok, nil
 }
 
-func (f *fakeRunProjection) RunTree(_ context.Context, runID string) ([]transcript.Run, error) {
+func (f *fakeRunProjection) Tree(_ context.Context, runID string) ([]transcript.Run, error) {
 	if f.err != nil {
 		return nil, f.err
 	}
@@ -43,7 +43,7 @@ func (f *fakeRunProjection) RunTree(_ context.Context, runID string) ([]transcri
 	return tree, nil
 }
 
-func runRecord(state run.RunState, activeSegmentID, spawnedBy string) transcript.Run {
+func runRecord(state run.State, activeSegmentID, spawnedBy string) transcript.Run {
 	run := transcript.Run{
 		ID: testRunID, SessionID: "ses_1", State: state,
 		ActiveSegmentID: activeSegmentID, SpawnedByItemID: spawnedBy,
@@ -57,7 +57,7 @@ func runRecord(state run.RunState, activeSegmentID, spawnedBy string) transcript
 
 // liveCoordinator wires a Coordinator whose registry already holds one streaming
 // segment, so a test can address it without driving a whole run.
-func liveCoordinator(t *testing.T, run transcript.Run) (*Coordinator, *Journal) {
+func liveCoordinator(t *testing.T, run transcript.Run) (*Coordinator, *journal) {
 	t.Helper()
 	c := NewCoordinator(Dependencies{
 		Releases: &fakeExecutionPorts{},
@@ -133,7 +133,7 @@ func TestSubscribeReportsAnUnknownRunAsNotFound(t *testing.T) {
 
 func TestSubscribeWithoutACursorTailsAndNamesTheHead(t *testing.T) {
 	c, hub := liveCoordinator(t, runRecord(run.Running, testSegmentID, ""))
-	hub.Append(ev(true)) // already published: history, not this subscription's
+	hub.append(ev(true)) // already published: history, not this subscription's
 
 	attached, err := c.Subscribe(t.Context(), SubscribeRequest{RunID: testRunID, SegmentID: testSegmentID})
 	if err != nil {
@@ -145,8 +145,8 @@ func TestSubscribeWithoutACursorTailsAndNamesTheHead(t *testing.T) {
 	if attached.Record.SegmentID != testSegmentID {
 		t.Fatalf("record segment = %q, want %q", attached.Record.SegmentID, testSegmentID)
 	}
-	hub.Append(ev(true))
-	hub.Close()
+	hub.append(ev(true))
+	hub.close()
 	if got := drain(attached.Events); len(got) != 1 || got[0] != 2 {
 		t.Fatalf("tail delivered %v, want only the event published after attaching", got)
 	}
@@ -156,14 +156,14 @@ func TestSubscribeWithoutACursorTailsAndNamesTheHead(t *testing.T) {
 // trip is the whole reconnect contract.
 func TestSubscribeResumesFromTheHeadItWasHandedEarlier(t *testing.T) {
 	c, hub := liveCoordinator(t, runRecord(run.Running, testSegmentID, ""))
-	hub.Append(ev(true))
+	hub.append(ev(true))
 	connection, drop := context.WithCancel(t.Context())
 	first, err := c.Subscribe(connection, SubscribeRequest{RunID: testRunID, SegmentID: testSegmentID})
 	if err != nil {
 		t.Fatalf("first Subscribe: %v", err)
 	}
 	drop() // the connection goes away without the stream ever being read
-	hub.Append(ev(true))
+	hub.append(ev(true))
 
 	second, err := c.Subscribe(t.Context(), SubscribeRequest{
 		RunID: testRunID, SegmentID: testSegmentID, Cursor: first.HeadCursor,
@@ -171,7 +171,7 @@ func TestSubscribeResumesFromTheHeadItWasHandedEarlier(t *testing.T) {
 	if err != nil {
 		t.Fatalf("reconnect Subscribe: %v", err)
 	}
-	hub.Close()
+	hub.close()
 	if got := drain(second.Events); len(got) != 1 || got[0] != 2 {
 		t.Fatalf("reconnect delivered %v, want the event missed while detached", got)
 	}
@@ -182,10 +182,10 @@ func TestSubscribeResumesFromTheHeadItWasHandedEarlier(t *testing.T) {
 // would hand the client a different execution's events under its own cursor.
 func TestSubscribeRefusesACursorFromAnotherSegment(t *testing.T) {
 	c, hub := liveCoordinator(t, runRecord(run.Running, testSegmentID, ""))
-	hub.Append(ev(true))
+	hub.append(ev(true))
 	other := newJournal(streamScope{Epoch: c.epoch, RunID: testRunID, SegmentID: "seg_previous"}, c.retention)
-	other.Append(ev(true))
-	stale := other.Tail().HeadCursor
+	other.append(ev(true))
+	stale := other.tail().HeadCursor
 
 	_, err := c.Subscribe(t.Context(), SubscribeRequest{
 		RunID: testRunID, SegmentID: testSegmentID, Cursor: stale,
@@ -201,14 +201,14 @@ func TestSubscribeRefusesACursorFromAnotherSegment(t *testing.T) {
 // client combines with a new tail subscription.
 func TestSubscribeRefusesACursorFromAnotherRuntimeInstance(t *testing.T) {
 	previous, previousHub := liveCoordinator(t, runRecord(run.Running, testSegmentID, ""))
-	previousHub.Append(ev(true))
+	previousHub.append(ev(true))
 	before, err := previous.Subscribe(t.Context(), SubscribeRequest{RunID: testRunID, SegmentID: testSegmentID})
 	if err != nil {
 		t.Fatalf("first Subscribe: %v", err)
 	}
 
 	restarted, hub := liveCoordinator(t, runRecord(run.Running, testSegmentID, ""))
-	hub.Append(ev(true))
+	hub.append(ev(true))
 	_, err = restarted.Subscribe(t.Context(), SubscribeRequest{
 		RunID: testRunID, SegmentID: testSegmentID, Cursor: before.HeadCursor,
 	})
@@ -233,7 +233,7 @@ func TestSubscribeRefusesACursorFromAnotherRuntimeInstance(t *testing.T) {
 // subscribe returns run_finished and the cold query exposes the terminal reason.
 func TestSubscribeAfterOrphanRecoveryUsesFinishedStateBeforeOldCursor(t *testing.T) {
 	previous, previousHub := liveCoordinator(t, runRecord(run.Running, testSegmentID, ""))
-	previousHub.Append(ev(true))
+	previousHub.append(ev(true))
 	before, err := previous.Subscribe(t.Context(), SubscribeRequest{
 		RunID: testRunID, SegmentID: testSegmentID,
 	})
@@ -274,7 +274,7 @@ func TestSubscribeRefusesACallerThatCouldNotFollowTheRun(t *testing.T) {
 	c := NewCoordinator(Dependencies{
 		Runs: &fakeRunProjection{runs: map[string]transcript.Run{testRunID: record}},
 	})
-	capabilities := run.RunCapabilities{InterruptKinds: []interrupt.Kind{interrupt.Approval}}
+	capabilities := run.Capabilities{InterruptKinds: []interrupt.Kind{interrupt.Approval}}
 	hub := newJournal(streamScope{Epoch: c.epoch, RunID: testRunID, SegmentID: testSegmentID}, c.retention)
 	c.registry.Open(Record{
 		ID: testRunID, SegmentID: testSegmentID, SessionID: "ses_1", Capabilities: capabilities,

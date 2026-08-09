@@ -110,7 +110,7 @@ func offloadedSnapshot(result string) Snapshot {
 // no presence rule can condition on. So they are checked where the archive
 // becomes a session — before anything is written.
 func TestPortableSnapshotRefusesABrokenRunLineage(t *testing.T) {
-	capabilities := run.RunCapabilities{}
+	capabilities := run.Capabilities{}
 	root := func() PortableRun {
 		return PortableRun{
 			SessionID: "ses_1", ID: "run_root", Outcome: run.OutcomeCompleted,
@@ -156,7 +156,7 @@ func TestPortableSnapshotRefusesABrokenRunLineage(t *testing.T) {
 // A child inherits rather than restating its root's capabilities, so the
 // restored Run must carry the root value rather than an empty set.
 func TestPortableSnapshotChildInheritsRootCapabilities(t *testing.T) {
-	capabilities := run.RunCapabilities{
+	capabilities := run.Capabilities{
 		ChildRuns:      true,
 		InterruptKinds: []interrupt.Kind{interrupt.Approval},
 	}

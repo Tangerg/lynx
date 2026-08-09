@@ -396,7 +396,7 @@ func TestRecoveryRejectsChildProtocolDriftWithoutProbingCheckpoint(t *testing.T)
 	root, pending, item := coherentRecoveryPark(t)
 	root.Capabilities.ChildRuns = true
 	pending.Capabilities.ChildRuns = true
-	lineage := rundomain.RunLineage{
+	lineage := rundomain.Lineage{
 		SpawnedByItemID: "item_spawn",
 		ParentRunID:     root.ID,
 		RootRunID:       root.ID,
@@ -408,7 +408,7 @@ func TestRecoveryRejectsChildProtocolDriftWithoutProbingCheckpoint(t *testing.T)
 		RootRunID:       lineage.RootRunID,
 		ModelSelection:  root.ModelSelection,
 		// This is a valid capabilities in isolation but contradicts the root admission.
-		Capabilities: rundomain.RunCapabilities{
+		Capabilities: rundomain.Capabilities{
 			InterruptKinds: []interruptdomain.Kind{interruptdomain.Question},
 		},
 		CreatedAt: root.CreatedAt, MessageMark: transcript.UnknownMessageMark,
@@ -459,7 +459,7 @@ func coherentRecoveryPark(t *testing.T) (transcript.Run, Pending, transcript.Ite
 	run := transcript.Run{
 		ID: "run_root", SessionID: "session", State: rundomain.Waiting,
 		ModelSelection: selection, Interrupts: []transcript.Interrupt{interrupt},
-		Capabilities: rundomain.RunCapabilities{InterruptKinds: []interruptdomain.Kind{interruptdomain.Question}},
+		Capabilities: rundomain.Capabilities{InterruptKinds: []interruptdomain.Kind{interruptdomain.Question}},
 		CreatedAt:    createdAt, UpdatedAt: createdAt.Add(time.Second), MessageMark: transcript.UnknownMessageMark,
 	}
 	pending := Pending{
@@ -467,7 +467,7 @@ func coherentRecoveryPark(t *testing.T) (transcript.Run, Pending, transcript.Ite
 		SessionID:  run.SessionID,
 		ExecutorID: "turn_root",
 		Interrupts: []transcript.Interrupt{interrupt},
-		Capabilities: rundomain.RunCapabilities{
+		Capabilities: rundomain.Capabilities{
 			InterruptKinds: []interruptdomain.Kind{interruptdomain.Question},
 		},
 		Bindings: []InterruptBinding{{

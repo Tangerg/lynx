@@ -9,7 +9,7 @@ import (
 )
 
 func TestRunCapabilitiesCodecOwnsCanonicalStorageShape(t *testing.T) {
-	want := run.RunCapabilities{
+	want := run.Capabilities{
 		ChildRuns: true,
 		InterruptKinds: []interrupt.Kind{
 			interrupt.Approval,

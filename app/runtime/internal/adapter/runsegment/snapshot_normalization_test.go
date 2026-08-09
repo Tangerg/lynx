@@ -6,7 +6,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 )
 
-func normalizeCapabilities(capabilities run.RunCapabilities) run.RunCapabilities {
+func normalizeCapabilities(capabilities run.Capabilities) run.Capabilities {
 	capabilities = capabilities.Normalized()
 	if len(capabilities.InterruptKinds) == 0 {
 		capabilities.InterruptKinds = nil

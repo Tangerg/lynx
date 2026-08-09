@@ -63,7 +63,7 @@ func singleRunPending(
 		RootRunID:  runID,
 		SessionID:  sessionID,
 		ExecutorID: "turn_" + runID,
-		Capabilities: run.RunCapabilities{
+		Capabilities: run.Capabilities{
 			InterruptKinds: []interrupt.Kind{interrupt.Question},
 		},
 		Interrupts: []transcript.Interrupt{{
@@ -94,7 +94,7 @@ func TestCommitEventPersistsTranscriptAndTerminalizes(t *testing.T) {
 	stores := &fakeStores{transcript: &fakeTranscript{}, mark: 7}
 	runState := &fakeRunState{}
 	tx := &fakeTx{}
-	effects := testEffects(stores, Config{RunState: runState, Tx: tx.run})
+	effects := testEffects(stores, Config{State: runState, Tx: tx.run})
 
 	err := effects.CommitEvent(t.Context(), runs.EventCommit{
 		RunID:     "run_1",
@@ -189,7 +189,7 @@ func TestCommitEventRejectsUnresolvedTerminalMessageWatermark(t *testing.T) {
 	want := errors.New("message count unavailable")
 	stores := &fakeStores{transcript: &fakeTranscript{}, markErr: want}
 	runState := &fakeRunState{}
-	effects := testEffects(stores, Config{RunState: runState, Tx: new(fakeTx).run})
+	effects := testEffects(stores, Config{State: runState, Tx: new(fakeTx).run})
 
 	err := effects.CommitEvent(t.Context(), runs.EventCommit{
 		RunID:     "run_1",
@@ -208,8 +208,8 @@ func TestCommitEventRejectsUnresolvedTerminalMessageWatermark(t *testing.T) {
 
 func TestCommitEventRejectsUnknownStateChange(t *testing.T) {
 	effects := testEffects(&fakeStores{transcript: &fakeTranscript{}}, Config{
-		RunState: &fakeRunState{},
-		Tx:       new(fakeTx).run,
+		State: &fakeRunState{},
+		Tx:    new(fakeTx).run,
 	})
 	err := effects.CommitEvent(t.Context(), runs.EventCommit{
 		RunID: "run_1", SessionID: "ses_1", State: runs.StateChange(255),
@@ -224,8 +224,8 @@ func TestCommitOpeningAdmitsAndProjectsInOneTransaction(t *testing.T) {
 	stores := &fakeStores{transcript: &fakeTranscript{}}
 	runState := &fakeRunState{}
 	tx := &fakeTx{}
-	effects := testEffects(stores, Config{RunState: runState, Tx: tx.run})
-	draft := run.RunDraft{RunID: "run_1", SessionID: "ses_1", SegmentID: "seg_open"}
+	effects := testEffects(stores, Config{State: runState, Tx: tx.run})
+	draft := run.Draft{RunID: "run_1", SessionID: "ses_1", SegmentID: "seg_open"}
 
 	err := effects.CommitOpening(context.Background(), runs.OpeningCommit{
 		Admit: &draft,
@@ -261,7 +261,7 @@ func TestCommitStartedChildRunOwnsOneTransactionBoundary(t *testing.T) {
 		RootRunID:       "run_root",
 		StartedAt:       startedAt,
 	}
-	draft := run.RunDraft{
+	draft := run.Draft{
 		RunID: "run_child", SessionID: "ses_1", SegmentID: "segment_child",
 		SpawnedByItemID: "item_delegate", ParentRunID: "run_root", RootRunID: "run_root",
 		CreatedAt: startedAt,
@@ -270,7 +270,7 @@ func TestCommitStartedChildRunOwnsOneTransactionBoundary(t *testing.T) {
 	childStarts := &fakeChildRunStarts{}
 	runState := &fakeRunState{}
 	effects := testEffects(&fakeStores{transcript: &fakeTranscript{}}, Config{
-		RunState: runState, ChildRunStarts: childStarts, Tx: tx.run,
+		State: runState, ChildRunStarts: childStarts, Tx: tx.run,
 	})
 
 	if err := effects.CommitStartedChildRun(t.Context(), reservation, runs.OpeningCommit{
@@ -297,12 +297,12 @@ func TestCommitOpeningResumesAfterSeparateAnswerClaim(t *testing.T) {
 	stores := &fakeStores{interrupts: ints, transcript: &fakeTranscript{}}
 	runState := &fakeRunState{}
 	tx := &fakeTx{}
-	effects := testEffects(stores, Config{RunState: runState, Tx: tx.run})
+	effects := testEffects(stores, Config{State: runState, Tx: tx.run})
 	resume := run.TreeResumeDraft{
 		RootRunID: "run_1",
 		SessionID: "ses_1",
 		ResumedAt: now,
-		Runs:      []run.RunResumeDraft{{RunID: "run_1", SegmentID: "seg_next"}},
+		Runs:      []run.ResumeDraft{{RunID: "run_1", SegmentID: "seg_next"}},
 	}
 
 	err := effects.CommitOpening(context.Background(), runs.OpeningCommit{
@@ -329,7 +329,7 @@ func TestCommitTreeBarrierRecordsPendingSetAndSuspends(t *testing.T) {
 	stores := &fakeStores{interrupts: &fakeInterrupts{}, transcript: &fakeTranscript{}}
 	runState := &fakeRunState{}
 	tx := &fakeTx{}
-	effects := testEffects(stores, Config{RunState: runState, Tx: tx.run})
+	effects := testEffects(stores, Config{State: runState, Tx: tx.run})
 	runCreatedAt := time.Unix(1, 0).UTC()
 	barrierCreatedAt := time.Unix(2, 0).UTC()
 	pending := singleRunPending(
@@ -395,7 +395,7 @@ func TestCommitTreeBarrierRejectsIncompleteContinuation(t *testing.T) {
 	stores := &fakeStores{interrupts: &fakeInterrupts{}}
 	runState := &fakeRunState{}
 	tx := &fakeTx{}
-	effects := testEffects(stores, Config{RunState: runState, Tx: tx.run})
+	effects := testEffects(stores, Config{State: runState, Tx: tx.run})
 	createdAt := time.Unix(1, 0).UTC()
 	pending := singleRunPending(t, "run_1", "ses_1", "proc_1", "susp_1", "int_1", createdAt, createdAt.Add(time.Second))
 	pending.Continuations[0].MemberID = ""
@@ -448,7 +448,7 @@ func TestCommitTreeBarrierRejectsMismatchedCheckpointBindingBeforeTransaction(t 
 		t.Run(name, func(t *testing.T) {
 			stores := &fakeStores{interrupts: &fakeInterrupts{}}
 			tx := &fakeTx{}
-			effects := testEffects(stores, Config{RunState: &fakeRunState{}, Tx: tx.run})
+			effects := testEffects(stores, Config{State: &fakeRunState{}, Tx: tx.run})
 			checkpoint := testExecutorCheckpoint("proc_1")
 			mutate(&checkpoint)
 			err := effects.CommitTreeBarrier(t.Context(), runs.TreeBarrierCommit{
@@ -522,7 +522,7 @@ func TestCommitTreeBarrierRejectsRunContinuationFactDriftBeforeTransaction(t *te
 			)
 			pending.GoalLeaseID = "goal-lease"
 			pending.Continuations[0].Metrics = transcript.RunMetrics{Steps: 2}
-			pending.Continuations[0].Limits = run.RunLimits{MaxSteps: 5}
+			pending.Continuations[0].Limits = run.Limits{MaxSteps: 5}
 			run := transcript.Run{
 				SessionID:      pending.SessionID,
 				ID:             pending.RootRunID,
@@ -542,7 +542,7 @@ func TestCommitTreeBarrierRejectsRunContinuationFactDriftBeforeTransaction(t *te
 			checkpoint.Limits = pending.Continuations[0].Limits
 			stores := &fakeStores{interrupts: &fakeInterrupts{}}
 			tx := &fakeTx{}
-			effects := testEffects(stores, Config{RunState: &fakeRunState{}, Tx: tx.run})
+			effects := testEffects(stores, Config{State: &fakeRunState{}, Tx: tx.run})
 
 			err := effects.CommitTreeBarrier(t.Context(), runs.TreeBarrierCommit{
 				Pending: pending, Checkpoint: checkpoint,
@@ -768,18 +768,18 @@ func finishedRunRecord(runID, sessionID string, outcome run.Outcome) *transcript
 
 // fakeRunState records the run-state transitions the commit applies.
 type fakeRunState struct {
-	admitted     []run.RunDraft
+	admitted     []run.Draft
 	resumed      []string
 	suspended    []transcript.Run
 	terminalized []transcript.Run
 }
 
-func (r *fakeRunState) Admit(_ context.Context, draft run.RunDraft) error {
+func (r *fakeRunState) Admit(_ context.Context, draft run.Draft) error {
 	r.admitted = append(r.admitted, draft)
 	return nil
 }
 
-func (r *fakeRunState) Resume(_ context.Context, sessionID string, _ run.RunResumeDraft, _ time.Time) error {
+func (r *fakeRunState) Resume(_ context.Context, sessionID string, _ run.ResumeDraft, _ time.Time) error {
 	r.resumed = append(r.resumed, sessionID)
 	return nil
 }

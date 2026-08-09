@@ -130,7 +130,7 @@ func validTreePending() Pending {
 		RootRunID:  "run_root",
 		SessionID:  "session_1",
 		ExecutorID: "turn_1",
-		Capabilities: run.RunCapabilities{
+		Capabilities: run.Capabilities{
 			ChildRuns:      true,
 			InterruptKinds: []interrupt.Kind{interrupt.Approval},
 		},
@@ -160,7 +160,7 @@ func validTreePending() Pending {
 			{
 				RunID:    "run_grandchild",
 				MemberID: "member_grandchild",
-				Lineage: run.RunLineage{
+				Lineage: run.Lineage{
 					SpawnedByItemID: "item_spawn_grandchild",
 					ParentRunID:     "run_a",
 					RootRunID:       "run_root",
@@ -170,7 +170,7 @@ func validTreePending() Pending {
 			{
 				RunID:    "run_a",
 				MemberID: "member_a",
-				Lineage: run.RunLineage{
+				Lineage: run.Lineage{
 					SpawnedByItemID: "item_spawn_a",
 					ParentRunID:     "run_root",
 					RootRunID:       "run_root",
@@ -180,7 +180,7 @@ func validTreePending() Pending {
 			{
 				RunID:    "run_b",
 				MemberID: "member_b",
-				Lineage: run.RunLineage{
+				Lineage: run.Lineage{
 					SpawnedByItemID: "item_spawn_b",
 					ParentRunID:     "run_root",
 					RootRunID:       "run_root",

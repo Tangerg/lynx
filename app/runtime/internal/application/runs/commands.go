@@ -98,12 +98,12 @@ type StartCommand struct {
 	DefaultWorkspacePath string
 	NewSessionTitle      string
 	ModelSelection       modelref.Selection
-	Limits               run.RunLimits
+	Limits               run.Limits
 	Options              *corechat.Options
 	// Capabilities is the optional behavior enabled for this Run, already resolved
 	// by the caller against what this build can execute. The use case freezes it at
 	// admission rather than deriving or renegotiating it later.
-	Capabilities run.RunCapabilities
+	Capabilities run.Capabilities
 	Input        []transcript.ContentBlock
 	// GoalLeaseID stamps a Goal-mode autonomous run with the goal incarnation
 	// that launched it, so the Run's reported outcome only affects that Goal
@@ -208,7 +208,7 @@ type ResumeCommand struct {
 	// CallerCapabilities is what this request can handle. A resume does not
 	// renegotiate the Run's frozen capabilities; a caller missing any of them is
 	// refused rather than served reduced behavior.
-	CallerCapabilities run.RunCapabilities
+	CallerCapabilities run.Capabilities
 }
 
 type ResumeResponseKind string
@@ -297,7 +297,7 @@ type SubscribeRequest struct {
 	Cursor string
 	// CallerCapabilities is what this request can handle. It must cover the Run's
 	// frozen capabilities before the subscriber attaches to the stream.
-	CallerCapabilities run.RunCapabilities
+	CallerCapabilities run.Capabilities
 }
 
 // Subscription is an attached caller's view of a live segment.
@@ -340,7 +340,7 @@ func (r RootExecutionStart) Validate() error {
 	if err := r.ModelSelection.Validate(); err != nil {
 		return fmt.Errorf("runs: model selection: %w", err)
 	}
-	if err := (run.RunCapabilities{
+	if err := (run.Capabilities{
 		ChildRuns:      r.ChildRunAdmissionEnabled,
 		InterruptKinds: r.InterruptKinds,
 	}).Validate(); err != nil {
@@ -375,7 +375,7 @@ func validateOptions(options *corechat.Options) error {
 // sentinel would leave the caller to go find out what blocked it.
 type ActiveRunConflict struct {
 	RunID  string
-	Status run.RunStatus
+	Status run.Status
 }
 
 func (e *ActiveRunConflict) Error() string {

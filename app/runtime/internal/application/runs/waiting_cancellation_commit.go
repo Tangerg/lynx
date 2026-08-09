@@ -116,13 +116,13 @@ func newWaitingCancellationValidation(
 		}
 	}
 
-	members := make([]rundomain.RunTreeMember, 0, len(c.ExpectedPending.Continuations))
+	members := make([]rundomain.TreeMember, 0, len(c.ExpectedPending.Continuations))
 	continuationByRunID := make(map[string]Continuation, len(c.ExpectedPending.Continuations))
 	for _, continuation := range c.ExpectedPending.Continuations {
-		members = append(members, rundomain.RunTreeMember{RunID: continuation.RunID, Lineage: continuation.Lineage})
+		members = append(members, rundomain.TreeMember{RunID: continuation.RunID, Lineage: continuation.Lineage})
 		continuationByRunID[continuation.RunID] = continuation
 	}
-	tree, err := rundomain.NewRunTree(c.RootRunID, members)
+	tree, err := rundomain.NewTree(c.RootRunID, members)
 	if err != nil {
 		return waitingCancellationValidation{}, fmt.Errorf("runs: waiting cancellation tree: %w", err)
 	}

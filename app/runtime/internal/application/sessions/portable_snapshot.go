@@ -61,11 +61,11 @@ type PortableRun struct {
 	Outcome     run.Outcome
 	Error       *transcript.Problem
 	Metrics     transcript.RunMetrics
-	Limits      run.RunLimits
+	Limits      run.Limits
 	// Capabilities is a pointer because an empty set is a known minimal Run while
 	// nil means the archive omitted the root-owned fact. A root must carry it; a
 	// child must not and inherits its root's value.
-	Capabilities *run.RunCapabilities
+	Capabilities *run.Capabilities
 	Detail       string
 	CreatedAt    time.Time
 	FinishedAt   time.Time
@@ -90,7 +90,7 @@ func (p PortableRun) rootID() string {
 // is the ABSENCE of the child edges, which no presence rule can condition on — so
 // they belong to the transaction that turns an archive into a session.
 func (p PortableRun) validateLineage() error {
-	lineage := run.RunLineage{
+	lineage := run.Lineage{
 		SpawnedByItemID: p.SpawnedByItemID,
 		ParentRunID:     p.ParentRunID,
 		RootRunID:       p.RootRunID,
@@ -126,7 +126,7 @@ func (p PortableSnapshot) CanonicalSnapshot() (Snapshot, error) {
 	}
 	// A child reads its root's capabilities, so root values are collected before
 	// any Run is rebuilt. The archive states each value exactly once.
-	capabilitySets := make(map[string]run.RunCapabilities, len(p.Runs))
+	capabilitySets := make(map[string]run.Capabilities, len(p.Runs))
 	for _, portable := range p.Runs {
 		if portable.Capabilities != nil {
 			capabilitySets[portable.ID] = *portable.Capabilities

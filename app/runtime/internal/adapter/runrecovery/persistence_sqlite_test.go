@@ -41,8 +41,8 @@ func TestRecoveryMarksClaimedResumeLostAndRemovesItsHiddenRecord(t *testing.T) {
 		t.Fatalf("seed Session: %v", err)
 	}
 	runStore := sqlite.NewRunStore(db)
-	capabilities := run.RunCapabilities{InterruptKinds: []interrupt.Kind{interrupt.Question}}
-	if err := runStore.Admit(ctx, run.RunDraft{
+	capabilities := run.Capabilities{InterruptKinds: []interrupt.Kind{interrupt.Question}}
+	if err := runStore.Admit(ctx, run.Draft{
 		RunID: "run_claim", SessionID: "session_claim", SegmentID: "segment_claim",
 		Capabilities: capabilities, CreatedAt: createdAt,
 	}); err != nil {
@@ -174,7 +174,7 @@ func TestRecoveryRepairsWholeDurableLifecycle(t *testing.T) {
 	if _, applied, err := goalStore.Save(ctx, goalValue, goal.Version{}); err != nil || !applied {
 		t.Fatalf("Save Goal: applied=%t err=%v", applied, err)
 	}
-	if err := runStore.Admit(ctx, run.RunDraft{
+	if err := runStore.Admit(ctx, run.Draft{
 		RunID: "run_lost", SessionID: "session", SegmentID: "segment", GoalLeaseID: goalValue.LeaseID, CreatedAt: createdAt,
 	}); err != nil {
 		t.Fatalf("Admit: %v", err)
@@ -261,9 +261,9 @@ func TestRecoveryRejectsPartialParkWithoutMutatingIt(t *testing.T) {
 	interruptStore := persistence.NewInterruptStore(sqlite.NewInterruptStore(db))
 	transcriptStore := sqlite.NewTranscriptStore(db)
 	checkpointStore := persistence.NewExecutorCheckpointStore(sqlite.NewExecutorCheckpointStore(db))
-	if err := runStore.Admit(ctx, run.RunDraft{
+	if err := runStore.Admit(ctx, run.Draft{
 		RunID: "run_partial", SessionID: "session", SegmentID: "segment", CreatedAt: createdAt,
-		Capabilities: run.RunCapabilities{
+		Capabilities: run.Capabilities{
 			InterruptKinds: []interrupt.Kind{interrupt.Question},
 		},
 	}); err != nil {
@@ -276,7 +276,7 @@ func TestRecoveryRejectsPartialParkWithoutMutatingIt(t *testing.T) {
 	}
 	if err := runStore.Suspend(ctx, transcript.Run{
 		ID: "run_partial", SessionID: "session", State: run.Waiting,
-		Capabilities: run.RunCapabilities{
+		Capabilities: run.Capabilities{
 			InterruptKinds: []interrupt.Kind{interrupt.Question},
 		},
 		Interrupts: []transcript.Interrupt{pendingInterrupt}, CreatedAt: createdAt,
@@ -286,7 +286,7 @@ func TestRecoveryRejectsPartialParkWithoutMutatingIt(t *testing.T) {
 	}
 	pending := runs.Pending{
 		RootRunID: "run_partial", SessionID: "session", ExecutorID: "turn_partial",
-		Capabilities: run.RunCapabilities{
+		Capabilities: run.Capabilities{
 			InterruptKinds: []interrupt.Kind{interrupt.Question},
 		},
 		Interrupts: []transcript.Interrupt{pendingInterrupt},

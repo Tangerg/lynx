@@ -73,7 +73,7 @@ func bootstrapPending(
 		RootRunID:  runID,
 		SessionID:  sessionID,
 		ExecutorID: "turn_" + runID,
-		Capabilities: run.RunCapabilities{
+		Capabilities: run.Capabilities{
 			InterruptKinds: []interrupt.Kind{interrupt.Question},
 		},
 		Interrupts: []transcript.Interrupt{{
@@ -197,10 +197,10 @@ func parkWithGoalLease(
 	if err := checkpoints.SaveCheckpoint(ctx, checkpoint); err != nil {
 		t.Fatalf("save executor checkpoint: %v", err)
 	}
-	if err := runs.Admit(ctx, run.RunDraft{
+	if err := runs.Admit(ctx, run.Draft{
 		RunID: runID, SessionID: sessionID, SegmentID: "seg_open",
 		GoalLeaseID: goalLeaseID,
-		Capabilities: run.RunCapabilities{
+		Capabilities: run.Capabilities{
 			InterruptKinds: []interrupt.Kind{interrupt.Question},
 		},
 		CreatedAt: parkCreatedAt,
@@ -210,7 +210,7 @@ func parkWithGoalLease(
 	if err := runs.Suspend(ctx, transcript.Run{
 		SessionID: sessionID, ID: runID, State: run.Waiting,
 		GoalLeaseID: goalLeaseID,
-		Capabilities: run.RunCapabilities{
+		Capabilities: run.Capabilities{
 			InterruptKinds: []interrupt.Kind{interrupt.Question},
 		},
 		Interrupts: []transcript.Interrupt{{
@@ -274,7 +274,7 @@ func TestApplyTerminalDropsInterruptAndTerminalizes(t *testing.T) {
 		t.Fatalf("independent child checkpoint after cancel = %v, want not found", err)
 	}
 	// The admission row is terminal, so the session can start a fresh run.
-	if err := runs.Admit(ctx, run.RunDraft{RunID: "run_2", SessionID: "ses_A", SegmentID: "seg_open", CreatedAt: parkCreatedAt.Add(time.Minute)}); err != nil {
+	if err := runs.Admit(ctx, run.Draft{RunID: "run_2", SessionID: "ses_A", SegmentID: "seg_open", CreatedAt: parkCreatedAt.Add(time.Minute)}); err != nil {
 		t.Fatalf("admit after cancel = %v, want the slot freed", err)
 	}
 	storedRuns, err := runs.ListRuns(ctx, "ses_A")
@@ -319,7 +319,7 @@ func TestApplyTerminalRecoversLostParkAtomically(t *testing.T) {
 	if _, err := ss.checkpoints.LoadCheckpoint(ctx, child.ID); !errors.Is(err, runsapp.ErrExecutorCheckpointNotFound) {
 		t.Fatalf("independent child checkpoint after run_lost = %v, want not found", err)
 	}
-	if err := runs.Admit(ctx, run.RunDraft{RunID: "run_2", SessionID: "ses_A", SegmentID: "seg_open", CreatedAt: parkCreatedAt.Add(time.Minute)}); err != nil {
+	if err := runs.Admit(ctx, run.Draft{RunID: "run_2", SessionID: "ses_A", SegmentID: "seg_open", CreatedAt: parkCreatedAt.Add(time.Minute)}); err != nil {
 		t.Fatalf("admit after run_lost = %v, want the slot freed", err)
 	}
 	storedRuns, err := runs.ListRuns(ctx, "ses_A")
@@ -436,7 +436,7 @@ func TestApplyRollbackDropsRunsAndFreesAdmission(t *testing.T) {
 	if _, err := ss.checkpoints.LoadCheckpoint(ctx, processID); !errors.Is(err, runsapp.ErrExecutorCheckpointNotFound) {
 		t.Fatalf("executor checkpoint after rollback = %v, want not found", err)
 	}
-	if err := runs.Admit(ctx, run.RunDraft{RunID: "run_2", SessionID: "ses_A", SegmentID: "seg_open", CreatedAt: parkCreatedAt.Add(time.Minute)}); err != nil {
+	if err := runs.Admit(ctx, run.Draft{RunID: "run_2", SessionID: "ses_A", SegmentID: "seg_open", CreatedAt: parkCreatedAt.Add(time.Minute)}); err != nil {
 		t.Fatalf("admit after rollback = %v, want the slot freed", err)
 	}
 	// The rollback carries no recorded boundary, so the plan is left exactly as it
@@ -620,7 +620,7 @@ func TestApplyDeleteRemovesRunRows(t *testing.T) {
 	}
 	// The non-terminal admission row is gone (not just terminal), so a fresh admit
 	// succeeds — proving the delete cascade dropped the runs rows.
-	if err := runs.Admit(ctx, run.RunDraft{RunID: "run_2", SessionID: "ses_A", SegmentID: "seg_open", CreatedAt: parkCreatedAt.Add(time.Minute)}); err != nil {
+	if err := runs.Admit(ctx, run.Draft{RunID: "run_2", SessionID: "ses_A", SegmentID: "seg_open", CreatedAt: parkCreatedAt.Add(time.Minute)}); err != nil {
 		t.Fatalf("admit after delete = %v, want the slot freed", err)
 	}
 }

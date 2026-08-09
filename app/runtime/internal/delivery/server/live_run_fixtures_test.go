@@ -66,7 +66,7 @@ func (*blockingRunRuntime) BeginRoot(context.Context, runs.ExecutorRef) error { 
 func (r *blockingRunRuntime) RunSegmentEffects(runsegment.Checkpoints, runsegment.FileChangePublisher) *runsegment.Effects {
 	return runsegment.New(runsegment.Config{
 		Transcript: blockingTranscript{},
-		RunState:   r.runs,
+		State:      r.runs,
 		Sessions:   r.sess,
 		Tx:         r.RunInTx,
 	})

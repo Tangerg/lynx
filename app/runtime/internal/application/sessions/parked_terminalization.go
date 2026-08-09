@@ -176,7 +176,7 @@ func waitingRunMatchesContinuation(
 	run transcript.Run,
 	continuation runs.Continuation,
 	sessionID string,
-	capabilities rundomain.RunCapabilities,
+	capabilities rundomain.Capabilities,
 ) bool {
 	return run.SessionID == sessionID &&
 		run.State == rundomain.Waiting &&
@@ -188,7 +188,7 @@ func waitingRunMatchesContinuation(
 		run.Capabilities.Equal(capabilities)
 }
 
-func (terminalization parkedRunTerminalization) terminalState(state rundomain.RunState) (rundomain.RunState, bool) {
+func (terminalization parkedRunTerminalization) terminalState(state rundomain.State) (rundomain.State, bool) {
 	if terminalization.outcome == rundomain.OutcomeLost {
 		return state.RecoverLost()
 	}

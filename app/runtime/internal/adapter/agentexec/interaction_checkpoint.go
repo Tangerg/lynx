@@ -54,7 +54,7 @@ func (session *interactionSession) executorCheckpoint(
 		RootMemberID: tree.RootID().String(), Payload: payload,
 		BuildID: session.buildID, Scope: session.scope,
 		ModelSelection: session.start.ModelSelection, Limits: session.start.Limits,
-		Capabilities: run.RunCapabilities{
+		Capabilities: run.Capabilities{
 			ChildRuns:      session.start.ChildRunAdmissionEnabled,
 			InterruptKinds: slices.Clone(session.start.InterruptKinds),
 		},

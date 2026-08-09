@@ -135,7 +135,7 @@ func TestCancellationRejectsLiveOwnerFactDrift(t *testing.T) {
 	}
 }
 
-func cancellationTree(state run.RunState) []transcript.Run {
+func cancellationTree(state run.State) []transcript.Run {
 	createdAt := time.Date(2026, 7, 30, 1, 2, 3, 0, time.UTC)
 	run := func(id, parent string) transcript.Run {
 		value := transcript.Run{

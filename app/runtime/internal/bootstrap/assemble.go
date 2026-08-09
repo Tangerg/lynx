@@ -404,7 +404,7 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 		ToolInvocations:     cfg.ToolInvocationStore,
 		Messages:            messages.conversation,
 		Titles:              maintenance.NewTitler(utilityClient),
-		RunState:            cfg.RunStore,
+		State:               cfg.RunStore,
 		RunMetrics:          cfg.RunStore,
 		ExecutorCheckpoints: cfg.ExecutorCheckpoints,
 		ChildRunStarts:      cfg.ChildRunStartStore,

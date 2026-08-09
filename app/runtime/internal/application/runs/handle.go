@@ -14,13 +14,13 @@ import (
 const runCleanupTimeout = 5 * time.Second
 
 // handle is the root segment's process-local ownership record. It holds the
-// lifecycle join, event Journal, immutable executor bindings and the root-owned
+// lifecycle join, event journal, immutable executor bindings and the root-owned
 // cancellation arbiter; specialized behavior lives beside those concerns.
 type handle struct {
 	mu              sync.Mutex
 	cancel          context.CancelFunc
 	owner           context.Context
-	hub             *Journal
+	hub             *journal
 	done            chan struct{}
 	completionErr   error
 	terminalRun     *transcript.Run
@@ -59,7 +59,7 @@ func (h *handle) stop() {
 }
 
 // wait joins the complete run boundary: terminal projection, registry removal,
-// synchronous maintenance, admission release, and Journal closure.
+// synchronous maintenance, admission release, and journal closure.
 func (h *handle) wait(ctx context.Context) error {
 	if h == nil || h.done == nil {
 		return nil

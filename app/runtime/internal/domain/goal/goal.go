@@ -4,7 +4,7 @@
 // The use case driving Runs owns the loop; this package holds the entity,
 // its status vocabulary, and the cross-Run budget accounting. A goal is
 // deliberately session-scoped, not run-scoped: it spans the
-// many runs the loop launches, so it lives outside the per-run run.RunState
+// many runs the loop launches, so it lives outside the per-run run.State
 // machine (which has no paused state and terminalizes a lost run on restart).
 package goal
 

@@ -52,7 +52,7 @@ type runAccountingRow struct {
 	MaxBudgetUSD     float64      `json:"maxBudgetUsd,omitzero"`
 }
 
-func runAccountingRowOf(metrics transcript.RunMetrics, limits rundomain.RunLimits) runAccountingRow {
+func runAccountingRowOf(metrics transcript.RunMetrics, limits rundomain.Limits) runAccountingRow {
 	return runAccountingRow{
 		Steps:            metrics.Steps,
 		ActiveDurationNs: int64(metrics.ActiveDuration),
@@ -63,20 +63,20 @@ func runAccountingRowOf(metrics transcript.RunMetrics, limits rundomain.RunLimit
 	}
 }
 
-func (row runAccountingRow) values() (transcript.RunMetrics, rundomain.RunLimits, error) {
+func (row runAccountingRow) values() (transcript.RunMetrics, rundomain.Limits, error) {
 	metrics := transcript.RunMetrics{
 		Usage:          row.Usage.usage(),
 		Steps:          row.Steps,
 		ActiveDuration: time.Duration(row.ActiveDurationNs),
 	}
-	limits := rundomain.RunLimits{
+	limits := rundomain.Limits{
 		MaxTotalTokens: row.MaxTotalTokens, MaxSteps: row.MaxSteps, MaxBudgetUSD: row.MaxBudgetUSD,
 	}
 	if err := metrics.Validate(); err != nil {
-		return transcript.RunMetrics{}, rundomain.RunLimits{}, fmt.Errorf("metrics: %w", err)
+		return transcript.RunMetrics{}, rundomain.Limits{}, fmt.Errorf("metrics: %w", err)
 	}
 	if err := limits.Validate(); err != nil {
-		return transcript.RunMetrics{}, rundomain.RunLimits{}, fmt.Errorf("limits: %w", err)
+		return transcript.RunMetrics{}, rundomain.Limits{}, fmt.Errorf("limits: %w", err)
 	}
 	return metrics, limits, nil
 }
@@ -91,7 +91,7 @@ type runCapabilitiesRow struct {
 
 // encodeRunCapabilities returns the empty string for no optional capabilities,
 // keeping one representation instead of both null and an empty object.
-func encodeRunCapabilities(capabilities rundomain.RunCapabilities) (string, error) {
+func encodeRunCapabilities(capabilities rundomain.Capabilities) (string, error) {
 	if err := capabilities.Validate(); err != nil {
 		return "", fmt.Errorf("encode run capabilities: %w", err)
 	}
@@ -109,34 +109,34 @@ func encodeRunCapabilities(capabilities rundomain.RunCapabilities) (string, erro
 	return string(encoded), nil
 }
 
-func decodeRunCapabilities(encoded string) (rundomain.RunCapabilities, error) {
+func decodeRunCapabilities(encoded string) (rundomain.Capabilities, error) {
 	if encoded == "" {
-		return rundomain.RunCapabilities{}, nil
+		return rundomain.Capabilities{}, nil
 	}
 	var row runCapabilitiesRow
 	decoder := json.NewDecoder(bytes.NewReader([]byte(encoded)))
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(&row); err != nil {
-		return rundomain.RunCapabilities{}, fmt.Errorf("decode run capabilities: %w", err)
+		return rundomain.Capabilities{}, fmt.Errorf("decode run capabilities: %w", err)
 	}
 	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
 		if err == nil {
 			err = errors.New("multiple JSON values")
 		}
-		return rundomain.RunCapabilities{}, fmt.Errorf("decode run capabilities: %w", err)
+		return rundomain.Capabilities{}, fmt.Errorf("decode run capabilities: %w", err)
 	}
-	capabilities := rundomain.RunCapabilities{ChildRuns: row.ChildRuns}
+	capabilities := rundomain.Capabilities{ChildRuns: row.ChildRuns}
 	for _, name := range row.InterruptKinds {
 		kind, ok := interrupt.ParseKind(name)
 		if !ok {
 			// A stored kind this build cannot raise would let the Run park on
 			// something nothing answers. Refusing the row is the honest outcome.
-			return rundomain.RunCapabilities{}, fmt.Errorf("decode run capabilities: unknown interrupt kind %q", name)
+			return rundomain.Capabilities{}, fmt.Errorf("decode run capabilities: unknown interrupt kind %q", name)
 		}
 		capabilities.InterruptKinds = append(capabilities.InterruptKinds, kind)
 	}
 	if err := capabilities.Validate(); err != nil {
-		return rundomain.RunCapabilities{}, fmt.Errorf("decode run capabilities: %w", err)
+		return rundomain.Capabilities{}, fmt.Errorf("decode run capabilities: %w", err)
 	}
 	return capabilities, nil
 }
@@ -238,7 +238,7 @@ const (
 
 // scanRun decodes one complete Run row plus the joined open-interrupt payload.
 //
-// The fine [rundomain.RunState] is rebuilt from the coarse admission state and
+// The fine [rundomain.State] is rebuilt from the coarse admission state and
 // the terminal reason beside it rather than stored a second time, and the
 // terminal facts are materialized exactly when the state says they exist — the
 // equivalence [transcript.Run.Validate] enforces on the way in.

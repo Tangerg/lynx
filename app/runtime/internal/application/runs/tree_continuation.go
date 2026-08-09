@@ -22,7 +22,7 @@ type treeContinuation struct {
 	goalLeaseID   string
 	interrupts    []transcript.Interrupt
 	continuations []Continuation
-	capabilities  run.RunCapabilities
+	capabilities  run.Capabilities
 }
 
 func treeContinuationFromPending(pending Pending) (*treeContinuation, error) {
@@ -63,7 +63,7 @@ func (continuation *treeContinuation) validate() error {
 
 	runIDs := make(map[string]struct{}, len(continuation.continuations))
 	memberOwners := make(map[string]string, len(continuation.continuations))
-	members := make([]run.RunTreeMember, 0, len(continuation.continuations))
+	members := make([]run.TreeMember, 0, len(continuation.continuations))
 	for index, member := range continuation.continuations {
 		if err := member.Validate(); err != nil {
 			return fmt.Errorf("runs: tree continuation Run[%d]: %w", index, err)
@@ -81,12 +81,12 @@ func (continuation *treeContinuation) validate() error {
 		}
 		runIDs[member.RunID] = struct{}{}
 		memberOwners[member.MemberID] = member.RunID
-		members = append(members, run.RunTreeMember{
+		members = append(members, run.TreeMember{
 			RunID:   member.RunID,
 			Lineage: member.Lineage,
 		})
 	}
-	tree, err := run.NewRunTree(continuation.rootRunID, members)
+	tree, err := run.NewTree(continuation.rootRunID, members)
 	if err != nil {
 		return fmt.Errorf("runs: tree continuation topology: %w", err)
 	}

@@ -76,7 +76,7 @@ func serverPending(
 		}
 	}
 	bindings := make([]runs.InterruptBinding, len(open))
-	capabilities := run.RunCapabilities{}
+	capabilities := run.Capabilities{}
 	for index, interrupt := range open {
 		capabilities.InterruptKinds = append(capabilities.InterruptKinds, interrupt.Kind)
 		bindings[index] = runs.InterruptBinding{
@@ -680,7 +680,7 @@ func (s stubRuntime) RunSegmentEffects(checkpoints runsegment.Checkpoints, publi
 		ToolResults:        s.toolResults,
 		Messages:           stubMessageCounter{rt: s},
 		Titles:             stubTitleGenerator{},
-		RunState:           s.runWriter(),
+		State:              s.runWriter(),
 		Tx:                 s.RunInTx,
 		Checkpoints:        checkpoints,
 		PublishFileChanges: publish,
@@ -699,11 +699,11 @@ func (s stubRuntime) runWriter() runsegment.RunWriter {
 
 type stubRunState struct{}
 
-func (stubRunState) Admit(context.Context, run.RunDraft) error { return nil }
+func (stubRunState) Admit(context.Context, run.Draft) error { return nil }
 func (stubRunState) Resume(
 	context.Context,
 	string,
-	run.RunResumeDraft,
+	run.ResumeDraft,
 	time.Time,
 ) error {
 	return nil

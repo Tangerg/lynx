@@ -1074,7 +1074,7 @@ func completedToolNames(reductions []reduction) []string {
 // announcing a minimal capability set would tell it to expect fewer frames than the Run
 // can produce.
 func TestReducerReportsFrozenRunCapabilitiesOnEverySegment(t *testing.T) {
-	frozen := run.RunCapabilities{
+	frozen := run.Capabilities{
 		ChildRuns:      true,
 		InterruptKinds: []interrupt.Kind{interrupt.Approval},
 	}
@@ -1103,7 +1103,7 @@ func TestReducerReportsFrozenRunCapabilitiesOnEverySegment(t *testing.T) {
 	assertFrozenCapabilities(t, batch.parkCommit.Run.Capabilities, frozen, "parked run record")
 }
 
-func assertFrozenCapabilities(t *testing.T, got, want run.RunCapabilities, where string) {
+func assertFrozenCapabilities(t *testing.T, got, want run.Capabilities, where string) {
 	t.Helper()
 	if got.ChildRuns != want.ChildRuns || !slices.Equal(got.InterruptKinds, want.InterruptKinds) {
 		t.Fatalf("%s capabilities = %v, want %v", where, got, want)

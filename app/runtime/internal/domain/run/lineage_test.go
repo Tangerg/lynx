@@ -11,13 +11,13 @@ import (
 func TestRunLineageAcceptsExactlyRootOrCompleteChild(t *testing.T) {
 	tests := []struct {
 		name    string
-		lineage run.RunLineage
+		lineage run.Lineage
 		wantErr string
 	}{
 		{name: "root"},
 		{
 			name: "child",
-			lineage: run.RunLineage{
+			lineage: run.Lineage{
 				SpawnedByItemID: "item_spawn",
 				ParentRunID:     "run_parent",
 				RootRunID:       "run_root",
@@ -25,7 +25,7 @@ func TestRunLineageAcceptsExactlyRootOrCompleteChild(t *testing.T) {
 		},
 		{
 			name: "partial child",
-			lineage: run.RunLineage{
+			lineage: run.Lineage{
 				SpawnedByItemID: "item_spawn",
 				ParentRunID:     "run_parent",
 			},
@@ -33,7 +33,7 @@ func TestRunLineageAcceptsExactlyRootOrCompleteChild(t *testing.T) {
 		},
 		{
 			name: "self parent",
-			lineage: run.RunLineage{
+			lineage: run.Lineage{
 				SpawnedByItemID: "item_spawn",
 				ParentRunID:     "run_child",
 				RootRunID:       "run_root",
@@ -42,7 +42,7 @@ func TestRunLineageAcceptsExactlyRootOrCompleteChild(t *testing.T) {
 		},
 		{
 			name: "self root",
-			lineage: run.RunLineage{
+			lineage: run.Lineage{
 				SpawnedByItemID: "item_spawn",
 				ParentRunID:     "run_parent",
 				RootRunID:       "run_child",
@@ -60,20 +60,20 @@ func TestRunLineageAcceptsExactlyRootOrCompleteChild(t *testing.T) {
 				}
 				return
 			}
-			if !errors.Is(err, run.ErrInvalidRunLineage) ||
+			if !errors.Is(err, run.ErrInvalidLineage) ||
 				!strings.Contains(err.Error(), test.wantErr) {
-				t.Fatalf("Validate error = %v, want ErrInvalidRunLineage containing %q", err, test.wantErr)
+				t.Fatalf("Validate error = %v, want ErrInvalidLineage containing %q", err, test.wantErr)
 			}
 		})
 	}
 }
 
 func TestRunLineageResolvesTreeRootWithoutGuessingFromTheParent(t *testing.T) {
-	root := run.RunLineage{}
+	root := run.Lineage{}
 	if got := root.TreeRootID("run_root"); got != "run_root" {
 		t.Fatalf("root TreeRootID = %q, want run_root", got)
 	}
-	child := run.RunLineage{
+	child := run.Lineage{
 		SpawnedByItemID: "item_spawn",
 		ParentRunID:     "run_parent",
 		RootRunID:       "run_root",

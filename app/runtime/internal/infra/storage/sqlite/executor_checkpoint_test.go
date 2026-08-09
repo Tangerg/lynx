@@ -43,7 +43,7 @@ func storedExecutorCheckpoint(rootMemberID, sessionID, payload string) runs.Exec
 			GoalLeaseID: "lease-" + sessionID,
 		},
 		ModelSelection: selection,
-		Limits: run.RunLimits{
+		Limits: run.Limits{
 			MaxTotalTokens: 8_192,
 			MaxBudgetUSD:   2.5,
 			MaxSteps:       16,

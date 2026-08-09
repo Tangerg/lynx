@@ -127,8 +127,8 @@ func TestRunCapabilitiesStaySemanticInsideTheProtocolBoundary(t *testing.T) {
 		t.Fatalf("parse Run capabilities: %v", err)
 	}
 	wantFields := []string{"ChildRuns", "InterruptKinds"}
-	if fields := structFields(capabilitiesFile, "RunCapabilities"); !slices.Equal(fields, wantFields) {
-		t.Fatalf("RunCapabilities fields = %v, want semantic behavior %v", fields, wantFields)
+	if fields := structFields(capabilitiesFile, "Capabilities"); !slices.Equal(fields, wantFields) {
+		t.Fatalf("Capabilities fields = %v, want semantic behavior %v", fields, wantFields)
 	}
 
 	for _, relative := range []string{

@@ -97,7 +97,7 @@ func (r Rule) specificity() int {
 	case r.Subject == "":
 		score += 0
 	case hasGlob(r.Subject):
-		score += 1
+		score++
 	default:
 		score += 2
 	}

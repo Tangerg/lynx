@@ -24,7 +24,7 @@ func TestChildOpeningAtomicallyCommitsRunAndParentSpawningItem(t *testing.T) {
 
 	runStore := sqlite.NewRunStore(db)
 	transcriptStore := sqlite.NewTranscriptStore(db)
-	root := run.RunDraft{
+	root := run.Draft{
 		RunID: "run_root", SessionID: "session_1", SegmentID: "segment_root",
 		CreatedAt: time.Unix(1, 0),
 	}
@@ -32,7 +32,7 @@ func TestChildOpeningAtomicallyCommitsRunAndParentSpawningItem(t *testing.T) {
 		t.Fatalf("admit root: %v", err)
 	}
 	effects := runsegment.New(runsegment.Config{
-		RunState:   runStore,
+		State:      runStore,
 		Transcript: transcriptStore,
 		Tx: func(ctx context.Context, apply func(context.Context) error) error {
 			return sqlite.RunInTx(ctx, db, apply)
@@ -54,7 +54,7 @@ func TestChildOpeningAtomicallyCommitsRunAndParentSpawningItem(t *testing.T) {
 			Arguments: arguments,
 		},
 	}
-	child := run.RunDraft{
+	child := run.Draft{
 		RunID: "run_child", SessionID: "session_1", SegmentID: "segment_child",
 		SpawnedByItemID: spawningItem.ID, ParentRunID: root.RunID, RootRunID: root.RunID,
 		CreatedAt: time.Unix(3, 0),
@@ -88,7 +88,7 @@ func TestChildOpeningAtomicallyCommitsRunAndParentSpawningItem(t *testing.T) {
 
 	rollbackErr := errors.New("reject parent item projection")
 	failingEffects := runsegment.New(runsegment.Config{
-		RunState: runStore,
+		State: runStore,
 		Transcript: appendThenFail{
 			store: transcriptStore,
 			err:   rollbackErr,

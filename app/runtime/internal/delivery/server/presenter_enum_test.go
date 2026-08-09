@@ -18,7 +18,7 @@ func TestPresentersRejectUnknownDomainEnums(t *testing.T) {
 		presentQuestion(transcript.Question{Fields: []transcript.QuestionField{{Kind: transcript.QuestionFieldKind(99)}}})
 	})
 	mustPanic(t, func() { presentDelta(runs.ItemDelta{Kind: runs.ItemDeltaKind(99)}) })
-	mustPanic(t, func() { presentRun(transcript.Run{State: run.RunState(99)}) })
+	mustPanic(t, func() { presentRun(transcript.Run{State: run.State(99)}) })
 	mustPanic(t, func() { presentOutcome(transcript.Run{State: run.Completed, Outcome: nil}) })
 	mustPanic(t, func() { presentProblem(&transcript.Problem{Kind: transcript.ProblemKind(99)}) })
 	mustPanic(t, func() { presentInterrupts([]transcript.Interrupt{{Kind: interrupt.Kind(99)}}) })

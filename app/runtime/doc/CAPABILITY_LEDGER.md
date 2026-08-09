@@ -2,7 +2,7 @@
 
 > 状态：当前能力事实，随每个实施批次更新
 >
-> 基线日期：2026-08-09
+> 基线日期：2026-08-10
 
 本文记录当前能力事实、目标 owner、迁移 verdict、实施阶段和验收证据。它不重复目标架构和 ADR。代码变化后必须在同一批更新对应条目；不能用“计划保留”冒充“已经迁移”。
 
@@ -51,7 +51,7 @@
 
 | 当前能力 | 当前 owner | 目标 | Verdict | 验收 |
 |---|---|---|---|---|
-| Run identity/state/outcome | `domain/run` | 保持 | Retain | P2 旧 path 归零，状态行为测试全绿 |
+| Run identity/state/outcome | `domain/run` | 保持 | Retain | P2 旧 path 归零；P14 将成员索引校验与 canonical topology traversal 收敛到私有 `run.Tree` builder，并以 `run.State`/`Status`/`Draft`/`Limits`/`Capabilities`/`Lineage`/`Tree` 清除 package stutter，状态与树行为测试全绿 |
 | Segment identity/lifecycle | `domain/run` + `application/runs` | 保持；P3 重推 root port | Retain + Refactor port | resume 保持 RunID、打开新 Segment |
 | Run limits/capabilities | `domain/run` | 保持 | Retain | admission/restore 同值，不能重新谈判 |
 | Terminal outcome taxonomy | Completed/Canceled/TimedOut/Failed/MaxBudget/MaxSteps/Lost | Agent Framework Termination + Application intent 唯一映射 | Retain | P8 完整 matrix 已冻结并覆盖 |
@@ -109,7 +109,7 @@
 
 | 当前能力 | 当前形态 | Verdict | 目标证据 |
 |---|---|---|---|
-| Start admission | `ValidateRootStart` → `StageRoot` → durable opening → `BeginRoot` | P4 real consumer 已验证 | stage 不外呼 model/tool；commit 前失败只 Release |
+| Start admission | `ValidateRootStart` → `StageRoot` → durable opening → `BeginRoot` | P4 real consumer 已验证；P14 内部命名/依赖边界精修 | Start 与 Resume 各自验证 staging dependencies，共享准确的 segment-supervision dependency boundary；stage 不外呼 model/tool，commit 前失败只 Release |
 | Event observation | `ExecutionObserver.Observe` | P4 real consumer 已验证 | 只流 Application-owned executor facts；final 来自 Result |
 | Executor release | `ExecutionReleaser.Release` | Retain | 与产品 Cancel 分离；非 Waiting 终止恰好一次 |
 | Product Cancel | durable control intent → `RunningRootCancellationRequester` → continued observation → release | Retain | request cancel 不提前切断 pump；确定终态后才释放 |

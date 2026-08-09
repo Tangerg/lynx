@@ -79,7 +79,7 @@ func TestCommitOpeningResumePreservesAnswerClaimOnRollback(t *testing.T) {
 	history := sqlite.NewTranscriptStore(db)
 	state := sqlite.NewRunStore(db)
 	ctx := context.Background()
-	if err := state.Admit(ctx, run.RunDraft{RunID: "run_actual", SessionID: "ses_1", SegmentID: "seg_open", CreatedAt: time.Now().UTC()}); err != nil {
+	if err := state.Admit(ctx, run.Draft{RunID: "run_actual", SessionID: "ses_1", SegmentID: "seg_open", CreatedAt: time.Now().UTC()}); err != nil {
 		t.Fatalf("admit: %v", err)
 	}
 	if err := state.Suspend(ctx, parkedRunRecord("run_actual", "ses_1", time.Now().UTC())); err != nil {
@@ -95,14 +95,14 @@ func TestCommitOpeningResumePreservesAnswerClaimOnRollback(t *testing.T) {
 	}
 	claimResumeForTest(t, ints, stalePending)
 	effects := sqliteEffects(sqliteOpeningStores{interrupts: ints, transcript: history}, Config{
-		RunState: state,
-		Tx:       func(ctx context.Context, fn func(context.Context) error) error { return sqlite.RunInTx(ctx, db, fn) },
+		State: state,
+		Tx:    func(ctx context.Context, fn func(context.Context) error) error { return sqlite.RunInTx(ctx, db, fn) },
 	})
 	resume := run.TreeResumeDraft{
 		RootRunID: "run_stale",
 		SessionID: "ses_1",
 		ResumedAt: time.Now().UTC(),
-		Runs:      []run.RunResumeDraft{{RunID: "run_stale", SegmentID: "seg_next"}},
+		Runs:      []run.ResumeDraft{{RunID: "run_stale", SegmentID: "seg_next"}},
 	}
 	err = effects.CommitOpening(ctx, runs.OpeningCommit{Resume: &resume, Events: []runs.EventCommit{{RunID: "run_stale", SessionID: "ses_1"}}})
 	if err == nil {
@@ -127,7 +127,7 @@ func TestCommitOpeningResumeCommitsWholeWriteSet(t *testing.T) {
 	state := sqlite.NewRunStore(db)
 	ctx := context.Background()
 	created := time.Now().UTC()
-	if err := state.Admit(ctx, run.RunDraft{RunID: "run_1", SessionID: "ses_1", SegmentID: "seg_open", CreatedAt: created}); err != nil {
+	if err := state.Admit(ctx, run.Draft{RunID: "run_1", SessionID: "ses_1", SegmentID: "seg_open", CreatedAt: created}); err != nil {
 		t.Fatalf("admit: %v", err)
 	}
 	if err := state.Suspend(ctx, parkedRunRecord("run_1", "ses_1", created)); err != nil {
@@ -143,14 +143,14 @@ func TestCommitOpeningResumeCommitsWholeWriteSet(t *testing.T) {
 	}
 	claimResumeForTest(t, ints, pending)
 	effects := sqliteEffects(sqliteOpeningStores{interrupts: ints, transcript: history}, Config{
-		RunState: state,
-		Tx:       func(ctx context.Context, fn func(context.Context) error) error { return sqlite.RunInTx(ctx, db, fn) },
+		State: state,
+		Tx:    func(ctx context.Context, fn func(context.Context) error) error { return sqlite.RunInTx(ctx, db, fn) },
 	})
 	resume := run.TreeResumeDraft{
 		RootRunID: "run_1",
 		SessionID: "ses_1",
 		ResumedAt: time.Now().UTC(),
-		Runs:      []run.RunResumeDraft{{RunID: "run_1", SegmentID: "seg_next"}},
+		Runs:      []run.ResumeDraft{{RunID: "run_1", SegmentID: "seg_next"}},
 	}
 	opening := runs.OpeningCommit{
 		Resume: &resume,
@@ -205,7 +205,7 @@ func TestCommitEventAtomicallyRecordsModelFinalAndRunAccounting(t *testing.T) {
 	startedAt := time.Date(2026, 8, 8, 1, 2, 3, 0, time.UTC)
 	finishedAt := startedAt.Add(time.Second)
 	runState := sqlite.NewRunStore(db)
-	if err := runState.Admit(ctx, run.RunDraft{
+	if err := runState.Admit(ctx, run.Draft{
 		RunID: "run_model", SessionID: "ses_model", SegmentID: "seg_model", CreatedAt: startedAt,
 	}); err != nil {
 		t.Fatalf("admit: %v", err)
@@ -294,7 +294,7 @@ func TestCommitEventAtomicallyRecordsCanonicalToolBatch(t *testing.T) {
 	startedAt := time.Date(2026, 8, 8, 4, 5, 6, 0, time.UTC)
 	finishedAt := startedAt.Add(time.Second)
 	runState := sqlite.NewRunStore(db)
-	if err := runState.Admit(ctx, run.RunDraft{
+	if err := runState.Admit(ctx, run.Draft{
 		RunID: "run_tools", SessionID: "ses_tools", SegmentID: "seg_tools", CreatedAt: startedAt,
 	}); err != nil {
 		t.Fatalf("admit: %v", err)
@@ -399,17 +399,17 @@ func TestCommitOpeningResumesRunTreeAtomically(t *testing.T) {
 			state := sqlite.NewRunStore(db)
 			ints := persistence.NewInterruptStore(sqlite.NewInterruptStore(db))
 			createdAt := time.Now().UTC()
-			if err := state.Admit(ctx, run.RunDraft{
+			if err := state.Admit(ctx, run.Draft{
 				RunID: "run_root", SessionID: "session_1", SegmentID: "segment_root", CreatedAt: createdAt,
 			}); err != nil {
 				t.Fatalf("admit root: %v", err)
 			}
-			lineage := run.RunLineage{
+			lineage := run.Lineage{
 				SpawnedByItemID: "item_spawn_child",
 				ParentRunID:     "run_root",
 				RootRunID:       "run_root",
 			}
-			if err := state.Admit(ctx, run.RunDraft{
+			if err := state.Admit(ctx, run.Draft{
 				RunID: "run_child", SessionID: "session_1", SegmentID: "segment_child",
 				SpawnedByItemID: lineage.SpawnedByItemID,
 				ParentRunID:     lineage.ParentRunID,
@@ -432,7 +432,7 @@ func TestCommitOpeningResumesRunTreeAtomically(t *testing.T) {
 				rootRun := waitingTreeRun(
 					"run_root",
 					"session_1",
-					run.RunLineage{},
+					run.Lineage{},
 					createdAt,
 					nil,
 				)
@@ -444,7 +444,7 @@ func TestCommitOpeningResumesRunTreeAtomically(t *testing.T) {
 				RootRunID:  "run_root",
 				SessionID:  "session_1",
 				ExecutorID: "turn_1",
-				Capabilities: run.RunCapabilities{
+				Capabilities: run.Capabilities{
 					ChildRuns:      true,
 					InterruptKinds: []interrupt.Kind{interrupt.Question},
 				},
@@ -474,7 +474,7 @@ func TestCommitOpeningResumesRunTreeAtomically(t *testing.T) {
 			}
 			claimResumeForTest(t, ints, pending)
 			effects := sqliteEffects(sqliteOpeningStores{interrupts: ints}, Config{
-				RunState: state,
+				State: state,
 				Tx: func(ctx context.Context, fn func(context.Context) error) error {
 					return sqlite.RunInTx(ctx, db, fn)
 				},
@@ -483,7 +483,7 @@ func TestCommitOpeningResumesRunTreeAtomically(t *testing.T) {
 				RootRunID: "run_root",
 				SessionID: "session_1",
 				ResumedAt: time.Now().UTC(),
-				Runs: []run.RunResumeDraft{
+				Runs: []run.ResumeDraft{
 					{RunID: "run_child", SegmentID: "segment_child_resumed"},
 					{RunID: "run_root", SegmentID: "segment_root_resumed"},
 				},
@@ -533,7 +533,7 @@ func treeQuestion(itemID, runID string) transcript.Interrupt {
 func waitingTreeRun(
 	runID string,
 	sessionID string,
-	lineage run.RunLineage,
+	lineage run.Lineage,
 	createdAt time.Time,
 	open []transcript.Interrupt,
 ) transcript.Run {
@@ -578,11 +578,11 @@ func TestCommitOpeningRollsBackScheduledSession(t *testing.T) {
 	effects := sqliteEffects(sqliteOpeningStores{transcript: history}, Config{
 		Sessions:        sessions,
 		ScheduleFirings: sqlite.NewScheduleStore(db),
-		RunState:        state,
+		State:           state,
 		Tx:              func(ctx context.Context, fn func(context.Context) error) error { return sqlite.RunInTx(ctx, db, fn) },
 	})
 	created := time.Now().UTC()
-	draft := run.RunDraft{RunID: "run_scheduled", SessionID: "ses_scheduled", SegmentID: "seg_open", CreatedAt: created}
+	draft := run.Draft{RunID: "run_scheduled", SessionID: "ses_scheduled", SegmentID: "seg_open", CreatedAt: created}
 	scheduled := session.Session{ID: draft.SessionID, Title: "scheduled", CWD: "/work", StartedAt: created, UpdatedAt: created, Revision: 1}
 	err = effects.CommitOpening(ctx, runs.OpeningCommit{
 		Admit:            &draft,
@@ -631,7 +631,7 @@ func TestCommitEventRecordsGoalRunWithTerminalRun(t *testing.T) {
 		t.Fatalf("seed goal saved=%v err=%v", saved, err)
 	}
 	state := sqlite.NewRunStore(db)
-	draft := run.RunDraft{
+	draft := run.Draft{
 		RunID: "run_goal", SessionID: g.SessionID, SegmentID: "seg_open",
 		GoalLeaseID: g.LeaseID, CreatedAt: created,
 	}
@@ -641,7 +641,7 @@ func TestCommitEventRecordsGoalRunWithTerminalRun(t *testing.T) {
 	history := sqlite.NewTranscriptStore(db)
 	effects := sqliteEffects(sqliteOpeningStores{transcript: history}, Config{
 		GoalRuns: goals,
-		RunState: state,
+		State:    state,
 		Tx:       func(ctx context.Context, fn func(context.Context) error) error { return sqlite.RunInTx(ctx, db, fn) },
 	})
 	// The watermark is already resolved, so this commit needs no message store.
@@ -693,10 +693,10 @@ func TestCommitTreeBarrierProducesDurableTriplet(t *testing.T) {
 	ctx := t.Context()
 	createdAt := time.Unix(1, 0).UTC()
 	parkedAt := time.Unix(2, 0).UTC()
-	if err := state.Admit(ctx, run.RunDraft{
+	if err := state.Admit(ctx, run.Draft{
 		RunID: "run_1", SessionID: "ses_1", SegmentID: "seg_open",
 		ModelSelection: mustEffectSelection(t, "anthropic", "claude"),
-		Capabilities: run.RunCapabilities{
+		Capabilities: run.Capabilities{
 			InterruptKinds: []interrupt.Kind{interrupt.Question},
 		},
 		CreatedAt: createdAt,
@@ -723,7 +723,7 @@ func TestCommitTreeBarrierProducesDurableTriplet(t *testing.T) {
 		Question: question,
 	}}
 	effects := sqliteEffects(sqliteOpeningStores{interrupts: ints, transcript: history}, Config{
-		RunState:            state,
+		State:               state,
 		ExecutorCheckpoints: checkpointStore,
 		Tx:                  func(ctx context.Context, fn func(context.Context) error) error { return sqlite.RunInTx(ctx, db, fn) },
 	})
@@ -756,7 +756,7 @@ func TestCommitTreeBarrierProducesDurableTriplet(t *testing.T) {
 	if stored, err := checkpointStore.LoadCheckpoint(ctx, snapshot.ID); err != nil || stored.RootMemberID != snapshot.ID {
 		t.Fatalf("stored executor checkpoint = (%+v, %v)", stored, err)
 	}
-	if err := state.Admit(ctx, run.RunDraft{RunID: "run_next", SessionID: "ses_1", SegmentID: "seg_open", CreatedAt: parkedAt}); !errors.Is(err, run.ErrSessionBusy) {
+	if err := state.Admit(ctx, run.Draft{RunID: "run_next", SessionID: "ses_1", SegmentID: "seg_open", CreatedAt: parkedAt}); !errors.Is(err, run.ErrSessionBusy) {
 		t.Fatalf("admit after intact park = %v, want ErrSessionBusy", err)
 	}
 }
@@ -786,7 +786,7 @@ func TestCommitTreeBarrierRollsBackCheckpointWhenRunSuspendFails(t *testing.T) {
 		interrupts: interruptStore,
 		transcript: sqlite.NewTranscriptStore(db),
 	}, Config{
-		RunState:            sqlite.NewRunStore(db),
+		State:               sqlite.NewRunStore(db),
 		ExecutorCheckpoints: checkpointStore,
 		Tx: func(ctx context.Context, fn func(context.Context) error) error {
 			return sqlite.RunInTx(ctx, db, fn)
@@ -947,7 +947,7 @@ func TestCommitTerminalOwnsExecutorCheckpointDeletion(t *testing.T) {
 			ctx := t.Context()
 			createdAt := time.Unix(1, 0).UTC()
 			runStore := sqlite.NewRunStore(db)
-			if err := runStore.Admit(ctx, run.RunDraft{
+			if err := runStore.Admit(ctx, run.Draft{
 				RunID: "run_terminal", SessionID: "ses_terminal", SegmentID: "seg_terminal",
 				CreatedAt: createdAt,
 			}); err != nil {
@@ -990,7 +990,7 @@ func TestCommitTerminalOwnsExecutorCheckpointDeletion(t *testing.T) {
 				}
 			}
 			effects := New(Config{
-				RunState:            runStore,
+				State:               runStore,
 				Interrupts:          interruptStore,
 				ExecutorCheckpoints: checkpoints,
 				Tx: func(ctx context.Context, fn func(context.Context) error) error {
@@ -1184,28 +1184,28 @@ func newWaitingCancellationSQLiteFixtureAt(
 	ctx := t.Context()
 	createdAt := time.Date(2026, 7, 30, 1, 2, 3, 0, time.UTC)
 	finishedAt := createdAt.Add(time.Minute)
-	rootLineage := run.RunLineage{}
-	childLineage := run.RunLineage{
+	rootLineage := run.Lineage{}
+	childLineage := run.Lineage{
 		SpawnedByItemID: "item_spawn_child",
 		ParentRunID:     "run_root",
 		RootRunID:       "run_root",
 	}
-	grandchildLineage := run.RunLineage{
+	grandchildLineage := run.Lineage{
 		SpawnedByItemID: "item_spawn_grandchild",
 		ParentRunID:     "run_child",
 		RootRunID:       "run_root",
 	}
-	siblingLineage := run.RunLineage{
+	siblingLineage := run.Lineage{
 		SpawnedByItemID: "item_spawn_sibling",
 		ParentRunID:     "run_root",
 		RootRunID:       "run_root",
 	}
 	state := sqlite.NewRunStore(db)
-	capabilities := run.RunCapabilities{
+	capabilities := run.Capabilities{
 		ChildRuns:      true,
 		InterruptKinds: []interrupt.Kind{interrupt.Question},
 	}
-	if err := state.Admit(ctx, run.RunDraft{
+	if err := state.Admit(ctx, run.Draft{
 		RunID: "run_root", SessionID: "session_1", SegmentID: "segment_root",
 		Capabilities: capabilities,
 		CreatedAt:    createdAt,
@@ -1226,7 +1226,7 @@ func newWaitingCancellationSQLiteFixtureAt(
 	if err := transcriptStore.AppendItem(ctx, parentItem); err != nil {
 		t.Fatalf("seed spawning Item: %v", err)
 	}
-	if err := state.Admit(ctx, run.RunDraft{
+	if err := state.Admit(ctx, run.Draft{
 		RunID:           "run_child",
 		SessionID:       "session_1",
 		SegmentID:       "segment_child",
@@ -1237,7 +1237,7 @@ func newWaitingCancellationSQLiteFixtureAt(
 	}); err != nil {
 		t.Fatalf("admit child: %v", err)
 	}
-	if err := state.Admit(ctx, run.RunDraft{
+	if err := state.Admit(ctx, run.Draft{
 		RunID:           "run_grandchild",
 		SessionID:       "session_1",
 		SegmentID:       "segment_grandchild",
@@ -1249,7 +1249,7 @@ func newWaitingCancellationSQLiteFixtureAt(
 		t.Fatalf("admit grandchild: %v", err)
 	}
 	if survivingBoundary {
-		if err := state.Admit(ctx, run.RunDraft{
+		if err := state.Admit(ctx, run.Draft{
 			RunID:           "run_sibling",
 			SessionID:       "session_1",
 			SegmentID:       "segment_sibling",
@@ -1535,7 +1535,7 @@ func newWaitingCancellationSQLiteFixtureAt(
 			RootRunID: rootRun.ID,
 			SessionID: rootRun.SessionID,
 			ResumedAt: finishedAt,
-			Runs: []run.RunResumeDraft{{
+			Runs: []run.ResumeDraft{{
 				RunID: rootRun.ID, SegmentID: "segment_root_resumed",
 			}},
 		}
@@ -1554,7 +1554,7 @@ func newWaitingCancellationSQLiteFixtureAt(
 		sqliteOpeningStores{interrupts: interruptStore, transcript: transcriptStore},
 		Config{
 			ItemReplacer:        transcriptStore,
-			RunState:            state,
+			State:               state,
 			ExecutorCheckpoints: checkpointStore,
 			Tx: func(ctx context.Context, fn func(context.Context) error) error {
 				return sqlite.RunInTx(ctx, db, fn)
@@ -1681,15 +1681,15 @@ func TestCommitOpeningRefusesASecondOpenRun(t *testing.T) {
 	created := time.Now().UTC()
 	history := sqlite.NewTranscriptStore(db)
 	state := sqlite.NewRunStore(db)
-	if err := state.Admit(ctx, run.RunDraft{RunID: "run_1", SessionID: "ses_1", SegmentID: "seg_open", CreatedAt: created}); err != nil {
+	if err := state.Admit(ctx, run.Draft{RunID: "run_1", SessionID: "ses_1", SegmentID: "seg_open", CreatedAt: created}); err != nil {
 		t.Fatalf("admit the first run: %v", err)
 	}
 
 	effects := sqliteEffects(sqliteOpeningStores{transcript: history}, Config{
-		RunState: state,
-		Tx:       func(ctx context.Context, fn func(context.Context) error) error { return sqlite.RunInTx(ctx, db, fn) },
+		State: state,
+		Tx:    func(ctx context.Context, fn func(context.Context) error) error { return sqlite.RunInTx(ctx, db, fn) },
 	})
-	second := run.RunDraft{RunID: "run_2", SessionID: "ses_1", SegmentID: "seg_open", CreatedAt: created}
+	second := run.Draft{RunID: "run_2", SessionID: "ses_1", SegmentID: "seg_open", CreatedAt: created}
 	err = effects.CommitOpening(ctx, runs.OpeningCommit{
 		Admit: &second,
 		Events: []runs.EventCommit{{
@@ -1735,14 +1735,14 @@ func TestCommitEventPersistsTheTerminalRunsResult(t *testing.T) {
 	ctx := t.Context()
 	history := sqlite.NewTranscriptStore(db)
 	state := sqlite.NewRunStore(db)
-	draft := run.RunDraft{RunID: "run_1", SessionID: "ses_1", SegmentID: "seg_open", CreatedAt: time.Unix(1, 0).UTC()}
+	draft := run.Draft{RunID: "run_1", SessionID: "ses_1", SegmentID: "seg_open", CreatedAt: time.Unix(1, 0).UTC()}
 	if err := state.Admit(ctx, draft); err != nil {
 		t.Fatalf("admit: %v", err)
 	}
 
 	effects := sqliteEffects(sqliteOpeningStores{transcript: history}, Config{
-		RunState: state,
-		Tx:       func(ctx context.Context, fn func(context.Context) error) error { return sqlite.RunInTx(ctx, db, fn) },
+		State: state,
+		Tx:    func(ctx context.Context, fn func(context.Context) error) error { return sqlite.RunInTx(ctx, db, fn) },
 	})
 	finished := finishedRunRecord(draft.RunID, draft.SessionID, run.OutcomeFailed)
 	finished.MessageMark = 0

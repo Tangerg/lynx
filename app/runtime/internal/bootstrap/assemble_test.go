@@ -463,10 +463,10 @@ func TestAssemblyRecoversParkedRunWithIncompatibleDeployment(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("ensure session: %v", err)
 	}
-	profile := run.RunCapabilities{
+	profile := run.Capabilities{
 		InterruptKinds: []interrupt.Kind{interrupt.Question},
 	}
-	if err := cfg.RunStore.Admit(ctx, run.RunDraft{
+	if err := cfg.RunStore.Admit(ctx, run.Draft{
 		RunID: runID, SessionID: sessionID, SegmentID: "seg_open",
 		Capabilities: profile, CreatedAt: createdAt,
 	}); err != nil {

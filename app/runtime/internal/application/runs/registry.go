@@ -19,7 +19,7 @@ type Record struct {
 	ModelSelection modelref.Selection
 	// Capabilities is the Run's frozen optional behavior, carried on the live
 	// record so an insufficient subscriber is refused before attachment.
-	Capabilities run.RunCapabilities
+	Capabilities run.Capabilities
 	CancelReason string
 }
 

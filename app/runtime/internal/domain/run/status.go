@@ -1,18 +1,18 @@
 package run
 
-// RunStatus is where a Run stands, coarsened to the three positions that decide
-// what an observer does next: watch it, answer it, or read it. It is [RunState]
+// Status is where a Run stands, coarsened to the three positions that decide
+// what an observer does next: watch it, answer it, or read it. It is [State]
 // projected — the three terminal reasons are one position, because "why did it
 // end" is the [Outcome] and not the position.
 //
 // Reads filter on this domain value and durable records are keyed by it. Keeping
 // one projection prevents observers and persistence from inventing independent
 // spellings for the same three positions.
-type RunStatus uint8
+type Status uint8
 
 const (
 	// StatusRunning — a segment is executing.
-	StatusRunning RunStatus = iota
+	StatusRunning Status = iota
 	// StatusWaiting — no segment is executing and the Run holds open interrupts,
 	// so it is resumable and has no outcome.
 	StatusWaiting
@@ -30,7 +30,7 @@ const (
 // answer that makes an observer attach to a stream and a session keep its admission
 // slot, so silently choosing it for a value nothing produced would turn a bug into
 // a run nobody can finish.
-func (s RunState) Status() RunStatus {
+func (s State) Status() Status {
 	switch s {
 	case Running:
 		return StatusRunning
@@ -45,11 +45,11 @@ func (s RunState) Status() RunStatus {
 
 // Valid reports whether s is one of the three positions. A decoded or
 // caller-supplied value has to be checked before it selects rows.
-func (s RunStatus) Valid() bool {
+func (s Status) Valid() bool {
 	return s == StatusRunning || s == StatusWaiting || s == StatusFinished
 }
 
-func (s RunStatus) String() string {
+func (s Status) String() string {
 	switch s {
 	case StatusRunning:
 		return "running"

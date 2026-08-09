@@ -45,7 +45,7 @@ func TestRegistryCancelReason(t *testing.T) {
 
 func TestRegistryOwnsRunCapabilities(t *testing.T) {
 	var registry registry
-	capabilities := run.RunCapabilities{
+	capabilities := run.Capabilities{
 		InterruptKinds: []interrupt.Kind{interrupt.Approval},
 	}
 	registry.Open(Record{ID: "run_1", Capabilities: capabilities}, nil)

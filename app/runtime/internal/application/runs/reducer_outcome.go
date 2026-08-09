@@ -50,7 +50,7 @@ func (r *reducer) segmentEnd(e SegmentEnded) ([]RunEvent, error) {
 	return append(out, terminal), nil
 }
 
-func (r *reducer) runRecord(state run.RunState) transcript.Run {
+func (r *reducer) runRecord(state run.State) transcript.Run {
 	// Only a running Run names a segment: the record that parks or ends it clears
 	// the identity in the same commit, so nothing can attach to a stream that
 	// stopped.

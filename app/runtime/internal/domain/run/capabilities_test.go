@@ -9,14 +9,14 @@ import (
 )
 
 func TestRunCapabilitiesHasOneDurableRepresentation(t *testing.T) {
-	canonical := RunCapabilities{
+	canonical := Capabilities{
 		ChildRuns:      true,
 		InterruptKinds: []interrupt.Kind{interrupt.Approval, interrupt.Question},
 	}
 	if err := canonical.Validate(); err != nil {
 		t.Fatalf("Validate canonical capabilities: %v", err)
 	}
-	for name, capabilities := range map[string]RunCapabilities{
+	for name, capabilities := range map[string]Capabilities{
 		"duplicate": {
 			InterruptKinds: []interrupt.Kind{interrupt.Approval, interrupt.Approval},
 		},
@@ -34,7 +34,7 @@ func TestRunCapabilitiesHasOneDurableRepresentation(t *testing.T) {
 		})
 	}
 
-	spelledDifferently := RunCapabilities{
+	spelledDifferently := Capabilities{
 		ChildRuns: true,
 		InterruptKinds: []interrupt.Kind{
 			interrupt.Question,
@@ -45,13 +45,13 @@ func TestRunCapabilitiesHasOneDurableRepresentation(t *testing.T) {
 	if !canonical.Equal(spelledDifferently) {
 		t.Fatal("Equal treated two spellings of the same capability set as different")
 	}
-	if canonical.Equal(RunCapabilities{InterruptKinds: canonical.InterruptKinds}) {
+	if canonical.Equal(Capabilities{InterruptKinds: canonical.InterruptKinds}) {
 		t.Fatal("Equal ignored the child-Run capability")
 	}
 }
 
 func TestRunCapabilitiesCloneOwnsInterruptKinds(t *testing.T) {
-	original := RunCapabilities{InterruptKinds: []interrupt.Kind{interrupt.Approval}}
+	original := Capabilities{InterruptKinds: []interrupt.Kind{interrupt.Approval}}
 	cloned := original.Clone()
 	cloned.InterruptKinds[0] = interrupt.Question
 	if original.InterruptKinds[0] != interrupt.Approval {
@@ -60,11 +60,11 @@ func TestRunCapabilitiesCloneOwnsInterruptKinds(t *testing.T) {
 }
 
 func TestRunCapabilitiesReportsTheCompleteMissingSet(t *testing.T) {
-	required := RunCapabilities{
+	required := Capabilities{
 		ChildRuns:      true,
 		InterruptKinds: []interrupt.Kind{interrupt.Approval, interrupt.Question},
 	}
-	caller := RunCapabilities{InterruptKinds: []interrupt.Kind{interrupt.Approval}}
+	caller := Capabilities{InterruptKinds: []interrupt.Kind{interrupt.Approval}}
 	missing := required.MissingFrom(caller)
 	if !missing.ChildRuns || len(missing.InterruptKinds) != 1 || missing.InterruptKinds[0] != interrupt.Question {
 		t.Fatalf("MissingFrom() = %v, want child runs and question interrupts", missing)

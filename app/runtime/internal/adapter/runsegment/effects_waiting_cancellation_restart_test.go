@@ -83,20 +83,20 @@ func TestWaitingSubtreeCancellationSurvivesSQLiteRestart(t *testing.T) {
 				)
 			}
 
-			treeRuns, err := runStore.RunTree(fixture.ctx, fixture.childRun.ID)
+			treeRuns, err := runStore.Tree(fixture.ctx, fixture.childRun.ID)
 			if err != nil {
 				t.Fatalf("read tree through canceled child ID: %v", err)
 			}
-			members := make([]run.RunTreeMember, 0, len(treeRuns))
+			members := make([]run.TreeMember, 0, len(treeRuns))
 			runsByID := make(map[string]transcript.Run, len(treeRuns))
 			for _, record := range treeRuns {
-				members = append(members, run.RunTreeMember{
+				members = append(members, run.TreeMember{
 					RunID:   record.ID,
 					Lineage: record.Lineage(),
 				})
 				runsByID[record.ID] = record
 			}
-			topology, err := run.NewRunTree(fixture.rootRun.ID, members)
+			topology, err := run.NewTree(fixture.rootRun.ID, members)
 			if err != nil {
 				t.Fatalf("assemble restarted Run tree: %v", err)
 			}

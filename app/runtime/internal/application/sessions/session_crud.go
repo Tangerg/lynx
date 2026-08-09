@@ -65,7 +65,7 @@ func (c *Coordinator) Create(ctx context.Context, title, cwd string) (session.Se
 // durable schedule occurrence without writing it. Run opening persists this
 // snapshot in its own transaction, so a rejected occurrence cannot leave an
 // empty scheduled Session behind.
-func (c *Coordinator) PrepareScheduled(ctx context.Context, id, title, cwd string) (session.Session, error) {
+func (c *Coordinator) PrepareScheduled(_ context.Context, id, title, cwd string) (session.Session, error) {
 	if id == "" {
 		return session.Session{}, errors.New("sessions: scheduled session ID is required")
 	}

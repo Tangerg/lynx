@@ -644,9 +644,9 @@ func (p *segmentPump) finishBoundary() {
 	if maintenanceHeld {
 		releaseMaintenance()
 	}
-	// Closing the Journal is the externally observable completion boundary. The
+	// Closing the journal is the externally observable completion boundary. The
 	// synchronous maintenance fence and admission claim must be gone first.
-	p.live.hub.Close()
+	p.live.hub.close()
 	p.coordinator.registry.Remove(p.spec.RunID)
 }
 

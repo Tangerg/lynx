@@ -9,10 +9,10 @@ import (
 )
 
 // presentRunStatus publishes a lifecycle position. Which state IS which position
-// is the domain's answer ([rundomain.RunState.Status]) — the durable status filter
+// is the domain's answer ([rundomain.State.Status]) — the durable status filter
 // reads the same one, so a run selected as waiting cannot be published as
 // finished; this only spells it for the wire.
-func presentRunStatus(status rundomain.RunStatus) protocol.RunStatus {
+func presentRunStatus(status rundomain.Status) protocol.RunStatus {
 	switch status {
 	case rundomain.StatusRunning:
 		return protocol.RunStatusRunning
@@ -74,7 +74,7 @@ func presentCancelResult(result runs.CancelResult) *protocol.CancelRunResponse {
 // presentRunProtocolProfile maps the Run's capabilities to the external
 // protocol contract. Both sets are allocated even when empty: the Minimal
 // Profile is known, not null.
-func presentRunProtocolProfile(capabilities rundomain.RunCapabilities) protocol.RunProtocolProfile {
+func presentRunProtocolProfile(capabilities rundomain.Capabilities) protocol.RunProtocolProfile {
 	out := protocol.RunProtocolProfile{
 		RequiredFeatures: make([]protocol.RunProtocolFeature, 0, 1),
 		InterruptTypes:   make([]protocol.InterruptType, 0, len(capabilities.InterruptKinds)),
@@ -143,7 +143,7 @@ func presentMetrics(metrics transcript.RunMetrics) protocol.RunMetrics {
 	}
 }
 
-func presentLimits(limits rundomain.RunLimits) *protocol.RunLimits {
+func presentLimits(limits rundomain.Limits) *protocol.RunLimits {
 	if limits.IsZero() {
 		return nil
 	}

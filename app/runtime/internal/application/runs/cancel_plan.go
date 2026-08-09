@@ -30,7 +30,7 @@ type cancellationPlan struct {
 	target               cancellationRun
 	targetSubtree        []cancellationRun
 	survivingTree        []cancellationRun
-	treeState            rundomain.RunState
+	treeState            rundomain.State
 	executor             ExecutorRef
 	pending              Pending
 	hasPending           bool
@@ -55,7 +55,7 @@ type cancellationPlanSource struct {
 }
 
 // cancellationPlanFor resolves either a root or child address to one complete
-// tree snapshot before any executor side effect. The single RunTree read avoids
+// tree snapshot before any executor side effect. The single Tree read avoids
 // racing a target lookup against a second aggregate lookup.
 func (c *Coordinator) cancellationPlanFor(
 	ctx context.Context,
@@ -86,7 +86,7 @@ func (c *Coordinator) readCancellationPlanSource(
 	ctx context.Context,
 	cmd CancelCommand,
 ) (cancellationPlanSource, error) {
-	runs, err := c.runs.RunTree(ctx, cmd.RunID)
+	runs, err := c.runs.Tree(ctx, cmd.RunID)
 	if err != nil {
 		return cancellationPlanSource{}, err
 	}
@@ -162,7 +162,7 @@ func (c *Coordinator) resolveCancellationOwner(
 			)
 		}
 		if !hasLive || live.handle == nil {
-			// The terminal commit may have won after RunTree returned. Refresh
+			// The terminal commit may have won after Tree returned. Refresh
 			// the addressed Run once so that race reports run_finished rather
 			// than a false missing-owner invariant.
 			refreshed, refreshedFound, refreshErr := c.runs.Run(ctx, targetRunID)
@@ -474,7 +474,7 @@ func newCancellationPlan(
 	}
 
 	byRunID := make(map[string]transcript.Run, len(runs))
-	treeMembers := make([]rundomain.RunTreeMember, 0, len(runs))
+	treeMembers := make([]rundomain.TreeMember, 0, len(runs))
 	for index, run := range runs {
 		if err := run.Validate(); err != nil {
 			return cancellationPlan{}, fmt.Errorf(
@@ -502,9 +502,9 @@ func newCancellationPlan(
 			)
 		}
 		byRunID[run.ID] = run
-		treeMembers = append(treeMembers, rundomain.RunTreeMember{RunID: run.ID, Lineage: run.Lineage()})
+		treeMembers = append(treeMembers, rundomain.TreeMember{RunID: run.ID, Lineage: run.Lineage()})
 	}
-	tree, err := rundomain.NewRunTree(rootRunID, treeMembers)
+	tree, err := rundomain.NewTree(rootRunID, treeMembers)
 	if err != nil {
 		return cancellationPlan{}, fmt.Errorf("runs: build cancellation plan: %w", err)
 	}

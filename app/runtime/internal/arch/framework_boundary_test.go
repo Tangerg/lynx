@@ -208,14 +208,14 @@ func TestExecutorCheckpointRemainsOpaqueOutsideExecutionAdapter(t *testing.T) {
 // per-model-call GenerationParams.MaxTokens option.
 func TestRunLimitsRemainTheSingleApplicationPolicy(t *testing.T) {
 	root := moduleRoot(t)
-	domainPath := filepath.Join(root, "internal", "domain", "run", "admission.go")
+	domainPath := filepath.Join(root, "internal", "domain", "run", "limits.go")
 	domainFile, err := parser.ParseFile(token.NewFileSet(), domainPath, nil, 0)
 	if err != nil {
 		t.Fatalf("parse execution admission: %v", err)
 	}
 	wantLimits := []string{"MaxTotalTokens", "MaxSteps", "MaxBudgetUSD"}
-	if fields := structFields(domainFile, "RunLimits"); strings.Join(fields, ",") != strings.Join(wantLimits, ",") {
-		t.Fatalf("RunLimits fields = %v, want the single policy carrier %v", fields, wantLimits)
+	if fields := structFields(domainFile, "Limits"); strings.Join(fields, ",") != strings.Join(wantLimits, ",") {
+		t.Fatalf("Limits fields = %v, want the single policy carrier %v", fields, wantLimits)
 	}
 
 	accountingRoot := filepath.Join(root, "internal", "domain", "accounting")
@@ -267,11 +267,11 @@ func TestRunLimitsRemainTheSingleApplicationPolicy(t *testing.T) {
 		}
 		fields := structFields(file, carrier.name)
 		if !slices.Contains(fields, "Limits") {
-			t.Errorf("%s fields = %v, want the complete RunLimits value", carrier.name, fields)
+			t.Errorf("%s fields = %v, want the complete Limits value", carrier.name, fields)
 		}
 		for _, duplicate := range []string{"MaxTotalTokens", "MaxSteps", "MaxCostUSD", "MaxBudgetUSD"} {
 			if slices.Contains(fields, duplicate) {
-				t.Errorf("%s recreates RunLimits dimension %s as a parallel field", carrier.name, duplicate)
+				t.Errorf("%s recreates Limits dimension %s as a parallel field", carrier.name, duplicate)
 			}
 		}
 	}
@@ -910,7 +910,7 @@ func TestPendingAndRecoveryMutationsCarryTheirOwners(t *testing.T) {
 	}
 	for _, required := range []string{
 		"Runs             []transcript.Run",
-		"rundomain.NewRunTree",
+		"rundomain.NewTree",
 		"tree.Postorder()",
 		"validateTerminalGoalRun",
 	} {

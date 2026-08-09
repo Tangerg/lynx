@@ -84,7 +84,7 @@ func TestInteractionExecutorRunsNativeDelegateAsProductChildRun(t *testing.T) {
 	})
 	started, err := coordinator.Start(t.Context(), runs.StartCommand{
 		SessionID:    "session_1",
-		Capabilities: run.RunCapabilities{ChildRuns: true},
+		Capabilities: run.Capabilities{ChildRuns: true},
 		Input:        []transcript.ContentBlock{{Kind: transcript.TextContent, Text: "please delegate this work"}},
 	})
 	if err != nil {
@@ -214,7 +214,7 @@ func TestInteractionExecutorCancelsRunningDelegateAndKeepsRootRunning(t *testing
 		},
 	})
 	started, err := coordinator.Start(t.Context(), runs.StartCommand{
-		SessionID: "session_1", Capabilities: run.RunCapabilities{ChildRuns: true},
+		SessionID: "session_1", Capabilities: run.Capabilities{ChildRuns: true},
 		Input: []transcript.ContentBlock{{Kind: transcript.TextContent, Text: "delegate cancelable work"}},
 	})
 	if err != nil {
@@ -462,7 +462,7 @@ func runNativeDelegateTree(
 		},
 	})
 	started, err := coordinator.Start(t.Context(), runs.StartCommand{
-		SessionID: "session_tree", Capabilities: run.RunCapabilities{ChildRuns: true},
+		SessionID: "session_tree", Capabilities: run.Capabilities{ChildRuns: true},
 		Input: []transcript.ContentBlock{{Kind: transcript.TextContent, Text: input}},
 	})
 	if err != nil {

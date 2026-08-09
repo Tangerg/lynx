@@ -17,7 +17,7 @@ import (
 // owner-bound before its transaction begins.
 func (commit RecoveryCommit) Validate() error {
 	lostByID := make(map[string]transcript.Run, len(commit.LostRuns))
-	treeMembers := make(map[string][]rundomain.RunTreeMember)
+	treeMembers := make(map[string][]rundomain.TreeMember)
 	actualOrder := make([]string, 0, len(commit.LostRuns))
 	for index, run := range commit.LostRuns {
 		if err := run.Validate(); err != nil {
@@ -32,7 +32,7 @@ func (commit RecoveryCommit) Validate() error {
 		}
 		lostByID[run.ID] = run
 		rootID := run.Lineage().TreeRootID(run.ID)
-		treeMembers[rootID] = append(treeMembers[rootID], rundomain.RunTreeMember{
+		treeMembers[rootID] = append(treeMembers[rootID], rundomain.TreeMember{
 			RunID:   run.ID,
 			Lineage: run.Lineage(),
 		})
@@ -46,7 +46,7 @@ func (commit RecoveryCommit) Validate() error {
 	expectedOrder := make([]string, 0, len(commit.LostRuns))
 	for _, rootID := range rootIDs {
 		members := treeMembers[rootID]
-		tree, err := rundomain.NewRunTree(rootID, members)
+		tree, err := rundomain.NewTree(rootID, members)
 		if err != nil {
 			return fmt.Errorf("runs: recovery commit tree %q: %w", rootID, err)
 		}

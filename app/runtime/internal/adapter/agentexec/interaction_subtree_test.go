@@ -86,7 +86,7 @@ func TestInteractionExecutorAppliesColdWaitingDelegateCancellationWithoutDuplica
 	})
 	started, err := coordinator.Start(t.Context(), runs.StartCommand{
 		SessionID: "session_1",
-		Capabilities: run.RunCapabilities{
+		Capabilities: run.Capabilities{
 			ChildRuns: true, InterruptKinds: []interrupt.Kind{interrupt.Question},
 		},
 		Input: []transcript.ContentBlock{{Kind: transcript.TextContent, Text: "delegate waiting work"}},

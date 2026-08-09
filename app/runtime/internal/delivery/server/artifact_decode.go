@@ -157,11 +157,11 @@ func portableRunFromArtifact(path string, artifact protocol.ArtifactRun) (sessio
 // enforces. An interrupt type this runtime cannot raise is refused rather than
 // dropped: importing the run without it would silently rewrite the contract the
 // archive recorded.
-func portableCapabilitiesFromArtifact(path string, profile *protocol.RunProtocolProfile) (*run.RunCapabilities, error) {
+func portableCapabilitiesFromArtifact(path string, profile *protocol.RunProtocolProfile) (*run.Capabilities, error) {
 	if profile == nil {
 		return nil, nil
 	}
-	var out run.RunCapabilities
+	var out run.Capabilities
 	for _, feature := range profile.RequiredFeatures {
 		switch feature {
 		case protocol.RunProtocolFeatureSubagents:
@@ -210,11 +210,11 @@ func portableMetricsFromArtifact(artifact protocol.ArtifactRunMetrics) transcrip
 	}
 }
 
-func portableLimitsFromArtifact(artifact *protocol.ArtifactRunLimits) run.RunLimits {
+func portableLimitsFromArtifact(artifact *protocol.ArtifactRunLimits) run.Limits {
 	if artifact == nil {
-		return run.RunLimits{}
+		return run.Limits{}
 	}
-	return run.RunLimits{
+	return run.Limits{
 		MaxTotalTokens: artifact.MaxTotalTokens, MaxSteps: artifact.MaxSteps, MaxBudgetUSD: artifact.MaxBudgetUSD,
 	}
 }

@@ -52,7 +52,7 @@ var (
 	ErrReplayUnavailable = errors.New("runs: replay window no longer reaches this cursor")
 )
 
-// streamScope is what one Journal's positions are minted for: the process that
+// streamScope is what one journal's positions are minted for: the process that
 // owns the buffer, and the run and segment whose stream it is. A cursor carries
 // the same three, so one from another process or another segment is refused
 // instead of resolving against a stream that never issued it.
@@ -62,7 +62,7 @@ type streamScope struct {
 	SegmentID string
 }
 
-// subscription is one attached consumer of a Journal.
+// subscription is one attached consumer of a journal.
 type subscription struct {
 	Events iter.Seq[Event]
 	// Cancel detaches idempotently. Stopping an active range detaches too;
@@ -76,15 +76,15 @@ type subscription struct {
 	HeadCursor string
 }
 
-// Journal is one live segment's event stream: the position authority, the replay
+// journal is one live segment's event stream: the position authority, the replay
 // window, and the fan-out. Each subscriber drains a cond-guarded queue on its own
 // goroutine and Append only enqueues, so a slow consumer cannot stall the run.
 //
 // It is created per segment and released with it, which is what makes the
-// advertised replay scope true: a resumed run gets a new Journal, so a cursor
+// advertised replay scope true: a resumed run gets a new journal, so a cursor
 // from the previous segment is refused by scope rather than silently continued
 // against a different stream.
-type Journal struct {
+type journal struct {
 	mu        sync.Mutex
 	scope     streamScope
 	retention Retention
@@ -104,22 +104,22 @@ type Journal struct {
 	closed         bool
 }
 
-// NewJournal builds the stream for one segment. scope binds every position it
+// newJournal builds the stream for one segment. scope binds every position it
 // mints; retention bounds both the replay window and any one subscriber's
 // replayable backlog.
-func newJournal(scope streamScope, retention Retention) *Journal {
-	return &Journal{scope: scope, retention: retention, subs: map[int]*journalSubscriber{}}
+func newJournal(scope streamScope, retention Retention) *journal {
+	return &journal{scope: scope, retention: retention, subs: map[int]*journalSubscriber{}}
 }
 
-// Append assigns ev its position in this stream, retains it if it is
+// append assigns ev its position in this stream, retains it if it is
 // replayable, and enqueues it for every live subscriber.
 //
 // The position is assigned HERE, under the same lock as the fan-out, so
 // sequence order, publication order and replay order are one order rather than
 // three that agree by convention.
-func (j *Journal) Append(ev Event) {
+func (j *journal) append(ev Event) {
 	// Charging walks the event's retained values and needs nothing from this
-	// Journal. Keep it before the lock so position assignment and subscriber
+	// journal. Keep it before the lock so position assignment and subscriber
 	// fan-out never wait behind accounting work.
 	size := 0
 	if ev.Replayable() {
@@ -150,7 +150,7 @@ func (j *Journal) Append(ev Event) {
 // evictLocked drops the oldest replayable events until the window fits both
 // budgets, recording how far the eviction reached so a cursor behind it can be
 // told the difference between "nothing new" and "you missed something".
-func (j *Journal) evictLocked() {
+func (j *journal) evictLocked() {
 	for len(j.retained) > 0 &&
 		(len(j.retained) > j.retention.MaxEvents || j.retainedBytes > j.retention.MaxBytes) {
 		oldest := j.retained[0]
@@ -161,11 +161,11 @@ func (j *Journal) evictLocked() {
 	}
 }
 
-// Close ends the run's stream. Each subscriber drains its already-enqueued
+// close ends the run's stream. Each subscriber drains its already-enqueued
 // events in order and then its sequence returns. Close does not wait, which lets
 // a stream opened by a fast run return to its caller before that caller starts
 // draining.
-func (j *Journal) Close() {
+func (j *journal) close() {
 	j.mu.Lock()
 	if j.closed {
 		j.mu.Unlock()
@@ -184,7 +184,7 @@ func (j *Journal) Close() {
 	}
 }
 
-// Tail attaches from the current head: the subscriber receives only what is
+// tail attaches from the current head: the subscriber receives only what is
 // appended after this call, and HeadCursor names the position it starts after.
 //
 // This is what "no cursor" means. Replaying the whole segment instead would hand
@@ -193,7 +193,7 @@ func (j *Journal) Close() {
 // head and attaching happen under one lock, so nothing is published in between:
 // a client can read the persisted state afterwards and fold this stream on top
 // without a gap.
-func (j *Journal) Tail() subscription {
+func (j *journal) tail() subscription {
 	j.mu.Lock()
 	head := j.headCursorLocked()
 	return j.attachLocked(nil, head)
@@ -206,21 +206,21 @@ func (j *Journal) Tail() subscription {
 // because the alternative reading — "no cursor means replay everything" — is a
 // stream whose start the client must reconcile against the transcript reads it
 // is already making, and folding both is how one event is applied twice.
-func (j *Journal) attach(token string) (subscription, error) {
+func (j *journal) attach(token string) (subscription, error) {
 	if token == "" {
-		return j.Tail(), nil
+		return j.tail(), nil
 	}
-	return j.Replay(token)
+	return j.replay(token)
 }
 
-// Replay attaches after the position token names, delivering the retained events
+// replay attaches after the position token names, delivering the retained events
 // beyond it before the live tail.
 //
 // It reports [ErrReplayCursorInvalid] when the token cannot be read, was minted
 // for another stream, or names a position past this stream's head, and
 // [ErrReplayUnavailable] when it came from a previous process or has been
 // evicted from the window.
-func (j *Journal) Replay(token string) (subscription, error) {
+func (j *journal) replay(token string) (subscription, error) {
 	from, err := replaycursor.Decode(token)
 	if err != nil {
 		return subscription{}, fmt.Errorf("%w: %w", ErrReplayCursorInvalid, err)
@@ -257,7 +257,7 @@ func (j *Journal) Replay(token string) (subscription, error) {
 
 // headCursorLocked is the cursor for the last published position, or "" when the
 // stream has published nothing.
-func (j *Journal) headCursorLocked() string {
+func (j *journal) headCursorLocked() string {
 	if j.head == 0 {
 		return ""
 	}
@@ -270,7 +270,7 @@ func (j *Journal) headCursorLocked() string {
 // attachLocked registers a subscriber primed with backlog and releases the lock.
 // Attaching under the same lock as Append is what makes replay and the first live
 // event one ordered stream.
-func (j *Journal) attachLocked(backlog []chargedEvent, head string) subscription {
+func (j *journal) attachLocked(backlog []chargedEvent, head string) subscription {
 	if j.closed {
 		j.mu.Unlock()
 		subscriber := newJournalSubscriber(backlog, j.retention)

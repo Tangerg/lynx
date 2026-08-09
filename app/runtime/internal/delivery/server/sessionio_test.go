@@ -356,10 +356,10 @@ func TestCancelParkedRunProducesPortableTerminalSnapshot(t *testing.T) {
 	}
 	rt.history[ses.ID] = []chat.Message{chat.NewUserMessage(chat.NewTextPart("hello")), chat.NewAssistantMessage(chat.NewTextPart("waiting"))}
 	parkedAt := time.Unix(1, 0).UTC()
-	capabilities := run.RunCapabilities{
+	capabilities := run.Capabilities{
 		InterruptKinds: []interrupt.Kind{interrupt.Question},
 	}
-	if err := rt.runs.Admit(ctx, run.RunDraft{SegmentID: "seg_open",
+	if err := rt.runs.Admit(ctx, run.Draft{SegmentID: "seg_open",
 		RunID: "run_parked", SessionID: ses.ID, Capabilities: capabilities, CreatedAt: parkedAt,
 	}); err != nil {
 		t.Fatalf("admit parked run: %v", err)

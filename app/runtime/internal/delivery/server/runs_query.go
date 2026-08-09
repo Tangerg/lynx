@@ -67,8 +67,8 @@ func (s *Server) ListRuns(ctx context.Context, in protocol.ListRunsRequest) (*pr
 // decoder puts any string into a named string type, so a value outside the enum
 // arrives here and must be refused rather than dropped — a dropped filter value
 // silently widens the page.
-func runStatusesFromWire(statuses []protocol.RunStatus) ([]run.RunStatus, error) {
-	out := make([]run.RunStatus, 0, len(statuses))
+func runStatusesFromWire(statuses []protocol.RunStatus) ([]run.Status, error) {
+	out := make([]run.Status, 0, len(statuses))
 	for _, status := range statuses {
 		switch status {
 		case protocol.RunStatusRunning:

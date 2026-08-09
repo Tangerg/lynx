@@ -15,7 +15,7 @@ import (
 // tree, stages execution, commits the Run opening, and only then begins the
 // executor behind the package's lifecycle supervisor.
 func (c *Coordinator) Start(ctx context.Context, cmd StartCommand) (StartResult, error) {
-	if err := c.requireUseCaseDependencies(); err != nil {
+	if err := c.requireStartDependencies(); err != nil {
 		return StartResult{}, err
 	}
 	if err := cmd.ValidateScheduledIdentity(); err != nil {

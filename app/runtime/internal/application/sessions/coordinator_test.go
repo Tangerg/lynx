@@ -104,7 +104,7 @@ func TestApplyRunCancelProjectsTerminalTranscript(t *testing.T) {
 		interrupts: &coordinatorInterrupts{pending: map[string]runs.Pending{
 			"run_1": {
 				RootRunID: "run_1", SessionID: "ses_1", ExecutorID: "turn_1",
-				Capabilities: run.RunCapabilities{
+				Capabilities: run.Capabilities{
 					InterruptKinds: []interrupt.Kind{interrupt.Question},
 				},
 				Interrupts: []transcript.Interrupt{{
@@ -124,7 +124,7 @@ func TestApplyRunCancelProjectsTerminalTranscript(t *testing.T) {
 			Messages: []chat.Message{chat.NewUserMessage(chat.NewTextPart("hello")), chat.NewAssistantMessage(chat.NewTextPart("hi"))},
 			Runs: []transcript.Run{{
 				ID: "run_1", SessionID: "ses_1", State: run.Waiting,
-				Capabilities: run.RunCapabilities{
+				Capabilities: run.Capabilities{
 					InterruptKinds: []interrupt.Kind{interrupt.Question},
 				},
 				Interrupts: []transcript.Interrupt{{ItemID: "item_1", ItemOccurredAt: createdAt, Kind: interrupt.Question}},
@@ -177,7 +177,7 @@ func TestApplyRunLostProjectsTerminalTranscript(t *testing.T) {
 		interrupts: &coordinatorInterrupts{pending: map[string]runs.Pending{
 			"run_1": {
 				RootRunID: "run_1", SessionID: "ses_1", ExecutorID: "turn_1", GoalLeaseID: "lease_1",
-				Capabilities: run.RunCapabilities{
+				Capabilities: run.Capabilities{
 					InterruptKinds: []interrupt.Kind{interrupt.Approval},
 				},
 				Interrupts: []transcript.Interrupt{{
@@ -201,7 +201,7 @@ func TestApplyRunLostProjectsTerminalTranscript(t *testing.T) {
 			Runs: []transcript.Run{{
 				ID: "run_1", SessionID: "ses_1", State: run.Waiting,
 				GoalLeaseID: "lease_1",
-				Capabilities: run.RunCapabilities{
+				Capabilities: run.Capabilities{
 					InterruptKinds: []interrupt.Kind{interrupt.Approval},
 				},
 				Metrics: transcript.RunMetrics{Steps: 4, Usage: &transcript.Usage{
@@ -259,12 +259,12 @@ func TestApplyRunLostTerminalizesWholeParkedTreeInPostorder(t *testing.T) {
 	createdAt := time.Date(2026, 7, 17, 2, 0, 0, 0, time.UTC)
 	finishedAt := createdAt.Add(time.Minute)
 	question := &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue child?"}}}
-	childLineage := run.RunLineage{
+	childLineage := run.Lineage{
 		SpawnedByItemID: "item_spawn", ParentRunID: "run_root", RootRunID: "run_root",
 	}
 	pending := runs.Pending{
 		RootRunID: "run_root", SessionID: "ses_1", ExecutorID: "turn_1",
-		Capabilities: run.RunCapabilities{
+		Capabilities: run.Capabilities{
 			ChildRuns: true, InterruptKinds: []interrupt.Kind{interrupt.Question},
 		},
 		Interrupts: []transcript.Interrupt{{
@@ -312,7 +312,7 @@ func TestApplyRunLostTerminalizesWholeParkedTreeInPostorder(t *testing.T) {
 	}
 	corruptSnapshot := stores.snapshot
 	corruptSnapshot.Runs = append([]transcript.Run(nil), stores.snapshot.Runs...)
-	corruptSnapshot.Runs[1].Capabilities = run.RunCapabilities{
+	corruptSnapshot.Runs[1].Capabilities = run.Capabilities{
 		InterruptKinds: []interrupt.Kind{interrupt.Question},
 	}
 	corruptApplied := TerminalPlan{}
@@ -356,7 +356,7 @@ func TestApplyRunLostRejectsContinuationFactDriftBeforeTerminalCommit(t *testing
 		ItemID: "item_question", ItemOccurredAt: createdAt, RunID: "run_root",
 		Kind: interrupt.Question, Question: question,
 	}
-	capabilities := run.RunCapabilities{
+	capabilities := run.Capabilities{
 		InterruptKinds: []interrupt.Kind{interrupt.Question},
 	}
 	pending := runs.Pending{

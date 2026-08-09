@@ -21,7 +21,7 @@ const (
 )
 
 // String names the kind for diagnostics — parity with the package's other
-// enums (RunState / Outcome), so a Failure without an error chain reports a
+// enums (State / Outcome), so a Failure without an error chain reports a
 // legible name instead of a raw integer.
 func (k FailureKind) String() string {
 	switch k {

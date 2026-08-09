@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-var allStates = []RunState{Running, Waiting, Completed, Failed, Canceled}
+var allStates = []State{Running, Waiting, Completed, Failed, Canceled}
 
 var allOutcomes = []Outcome{
 	OutcomeCompleted,
@@ -19,7 +19,7 @@ var allOutcomes = []Outcome{
 
 // TestIsTerminal pins the terminal set: exactly Completed / Failed / Canceled.
 func TestIsTerminal(t *testing.T) {
-	terminal := map[RunState]bool{Completed: true, Failed: true, Canceled: true}
+	terminal := map[State]bool{Completed: true, Failed: true, Canceled: true}
 	for _, s := range allStates {
 		if got := s.IsTerminal(); got != terminal[s] {
 			t.Errorf("%s.IsTerminal() = %v, want %v", s, got, terminal[s])
@@ -63,7 +63,7 @@ func TestTerminate(t *testing.T) {
 	for _, s := range allStates {
 		for _, o := range allOutcomes {
 			got, ok := s.Terminate(o)
-			var wantState RunState
+			var wantState State
 			var wantOK bool
 			switch {
 			case s == Running:
@@ -106,14 +106,14 @@ func TestRecoverLost(t *testing.T) {
 func TestRunLimitsValidate(t *testing.T) {
 	for _, test := range []struct {
 		name   string
-		limits RunLimits
+		limits Limits
 	}{
-		{name: "negative tokens", limits: RunLimits{MaxTotalTokens: -1}},
-		{name: "negative steps", limits: RunLimits{MaxSteps: -1}},
-		{name: "negative budget", limits: RunLimits{MaxBudgetUSD: -1}},
-		{name: "nan budget", limits: RunLimits{MaxBudgetUSD: math.NaN()}},
-		{name: "positive infinite budget", limits: RunLimits{MaxBudgetUSD: math.Inf(1)}},
-		{name: "negative infinite budget", limits: RunLimits{MaxBudgetUSD: math.Inf(-1)}},
+		{name: "negative tokens", limits: Limits{MaxTotalTokens: -1}},
+		{name: "negative steps", limits: Limits{MaxSteps: -1}},
+		{name: "negative budget", limits: Limits{MaxBudgetUSD: -1}},
+		{name: "nan budget", limits: Limits{MaxBudgetUSD: math.NaN()}},
+		{name: "positive infinite budget", limits: Limits{MaxBudgetUSD: math.Inf(1)}},
+		{name: "negative infinite budget", limits: Limits{MaxBudgetUSD: math.Inf(-1)}},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			if err := test.limits.Validate(); err == nil {
@@ -126,7 +126,7 @@ func TestRunLimitsValidate(t *testing.T) {
 // TestOutcomeTerminalState pins the outcome → terminal-state mapping: completion
 // and cancellation get their own states; every failure flavor folds into Failed.
 func TestOutcomeTerminalState(t *testing.T) {
-	want := map[Outcome]RunState{
+	want := map[Outcome]State{
 		OutcomeCompleted: Completed,
 		OutcomeCanceled:  Canceled,
 		OutcomeTimedOut:  Failed,
@@ -156,7 +156,7 @@ func TestOutcomeStringRoundTrip(t *testing.T) {
 
 // TestNoTransitionFromTerminal: once terminal, no operation advances the run.
 func TestNoTransitionFromTerminal(t *testing.T) {
-	for _, s := range []RunState{Completed, Failed, Canceled} {
+	for _, s := range []State{Completed, Failed, Canceled} {
 		if _, ok := s.Suspend(); ok {
 			t.Errorf("%s.Suspend() unexpectedly succeeded", s)
 		}

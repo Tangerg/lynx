@@ -40,7 +40,7 @@ type ExecutorCheckpointRecord struct {
 	BuildID        string
 	Scope          ExecutorScopeRecord
 	ModelSelection modelref.Selection
-	Limits         run.RunLimits
+	Limits         run.Limits
 	Usage          accounting.Snapshot
 }
 
@@ -331,7 +331,7 @@ func decodeExecutorPolicy(data string) (ExecutorCheckpointRecord, error) {
 		Isolated:     wire.Scope.Isolated,
 		GoalLeaseID:  wire.Scope.GoalLeaseID,
 	}
-	limits := run.RunLimits{
+	limits := run.Limits{
 		MaxTotalTokens: wire.Limits.MaxTotalTokens,
 		MaxBudgetUSD:   wire.Limits.MaxBudgetUSD,
 		MaxSteps:       wire.Limits.MaxSteps,

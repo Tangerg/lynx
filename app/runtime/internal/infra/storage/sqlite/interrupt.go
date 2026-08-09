@@ -35,7 +35,7 @@ type InterruptRecord struct {
 	Interrupts    []transcript.Interrupt
 	Bindings      []InterruptBindingRecord
 	Continuations []ContinuationRecord
-	Capabilities  run.RunCapabilities
+	Capabilities  run.Capabilities
 	CreatedAt     time.Time
 }
 
@@ -43,13 +43,13 @@ type InterruptRecord struct {
 type ContinuationRecord struct {
 	RunID          string
 	MemberID       string
-	Lineage        run.RunLineage
+	Lineage        run.Lineage
 	ModelSelection modelref.Selection
 	DrainedTools   []DrainedToolRecord
 	CommittedTools []CommittedToolRecord
 	RunCreatedAt   time.Time
 	Metrics        transcript.RunMetrics
-	Limits         run.RunLimits
+	Limits         run.Limits
 }
 
 // InterruptBindingRecord is the stored item-to-input-request correspondence.
@@ -663,7 +663,7 @@ func continuationsFromRows(rows []continuationRow) ([]ContinuationRecord, error)
 		values[index] = ContinuationRecord{
 			RunID:    row.RunID,
 			MemberID: row.MemberID,
-			Lineage: run.RunLineage{
+			Lineage: run.Lineage{
 				SpawnedByItemID: row.SpawnedByItemID,
 				ParentRunID:     row.ParentRunID,
 				RootRunID:       row.RootRunID,

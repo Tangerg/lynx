@@ -31,7 +31,7 @@ func TestExecutorCheckpointValidatesOnlyApplicationEnvelope(t *testing.T) {
 			GoalLeaseID: "lease-1",
 		},
 		ModelSelection: checkpointSelection(t, "anthropic", "claude"),
-		Limits: run.RunLimits{
+		Limits: run.Limits{
 			MaxTotalTokens: 4_096,
 			MaxBudgetUSD:   1.5,
 			MaxSteps:       8,

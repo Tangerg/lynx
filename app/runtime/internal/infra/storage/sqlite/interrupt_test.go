@@ -36,7 +36,7 @@ func TestInterruptStore_OpenGetListDelete(t *testing.T) {
 		SessionID:   "ses_a",
 		ExecutorID:  "turn_1",
 		GoalLeaseID: "goal-lease-1",
-		Capabilities: run.RunCapabilities{
+		Capabilities: run.Capabilities{
 			InterruptKinds: []interrupt.Kind{interrupt.Question},
 		},
 		Interrupts: []transcript.Interrupt{{
@@ -124,7 +124,7 @@ func TestInterruptStore_ConsumeIsAtomic(t *testing.T) {
 		RootRunID:  "run_1",
 		SessionID:  "ses_a",
 		ExecutorID: "turn_1",
-		Capabilities: run.RunCapabilities{
+		Capabilities: run.Capabilities{
 			InterruptKinds: []interrupt.Kind{interrupt.Approval},
 		},
 		Interrupts: []transcript.Interrupt{{
@@ -172,7 +172,7 @@ func TestInterruptStoreRejectsForeignSessionMutation(t *testing.T) {
 	store := newInterruptStore(t)
 	pending := runs.Pending{
 		RootRunID: "run_1", SessionID: "ses_a", ExecutorID: "turn_1",
-		Capabilities: run.RunCapabilities{
+		Capabilities: run.Capabilities{
 			InterruptKinds: []interrupt.Kind{interrupt.Question},
 		},
 		Interrupts: []transcript.Interrupt{{
@@ -204,7 +204,7 @@ func TestInterruptStoreRejectsForeignSessionMutation(t *testing.T) {
 func TestInterruptStoreRoundTripsAppLineageWithoutExecutorTopology(t *testing.T) {
 	store := newInterruptStore(t)
 	createdAt := time.Unix(10, 0).UTC()
-	lineage := run.RunLineage{
+	lineage := run.Lineage{
 		SpawnedByItemID: "item_spawn_child",
 		ParentRunID:     "run_root",
 		RootRunID:       "run_root",
@@ -213,7 +213,7 @@ func TestInterruptStoreRoundTripsAppLineageWithoutExecutorTopology(t *testing.T)
 		RootRunID:  "run_root",
 		SessionID:  "session_1",
 		ExecutorID: "turn_1",
-		Capabilities: run.RunCapabilities{
+		Capabilities: run.Capabilities{
 			ChildRuns: true, InterruptKinds: []interrupt.Kind{interrupt.Question},
 		},
 		Interrupts: []transcript.Interrupt{{
@@ -283,7 +283,7 @@ func TestInterruptStoreRejectsUnknownExecutorTopologyFields(t *testing.T) {
 	store := persistence.NewInterruptStore(sqlite.NewInterruptStore(database))
 	pending := runs.Pending{
 		RootRunID: "run_root", SessionID: "session_1", ExecutorID: "turn_1",
-		Capabilities: run.RunCapabilities{
+		Capabilities: run.Capabilities{
 			InterruptKinds: []interrupt.Kind{interrupt.Question},
 		},
 		Interrupts: []transcript.Interrupt{{
@@ -337,7 +337,7 @@ func TestInterruptStoreExecutorRootHasOnePendingOwner(t *testing.T) {
 	for _, runID := range []string{"run_1", "run_2"} {
 		err := store.Open(ctx, runs.Pending{
 			RootRunID: runID, SessionID: "ses_" + runID, ExecutorID: "turn_" + runID,
-			Capabilities: run.RunCapabilities{
+			Capabilities: run.Capabilities{
 				InterruptKinds: []interrupt.Kind{interrupt.Question},
 			},
 			Interrupts: []transcript.Interrupt{{

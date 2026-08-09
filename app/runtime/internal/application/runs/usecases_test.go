@@ -375,8 +375,8 @@ func TestStartOwnsCompleteAdmissionSequence(t *testing.T) {
 	result, err := c.Start(context.Background(), StartCommand{
 		SessionID:      "ses_1",
 		ModelSelection: mustUseCaseSelection("provider", "model"),
-		Limits:         run.RunLimits{MaxTotalTokens: 16_384, MaxSteps: 12, MaxBudgetUSD: 3.5},
-		Capabilities:   run.RunCapabilities{ChildRuns: true},
+		Limits:         run.Limits{MaxTotalTokens: 16_384, MaxSteps: 12, MaxBudgetUSD: 3.5},
+		Capabilities:   run.Capabilities{ChildRuns: true},
 		Input:          []transcript.ContentBlock{{Kind: transcript.TextContent, Text: "hello"}},
 	})
 	if err != nil {
@@ -390,7 +390,7 @@ func TestStartOwnsCompleteAdmissionSequence(t *testing.T) {
 	if control.started.SessionID != "ses_1" || control.started.CWD != "/work" || control.started.WorkspaceCWD != "/work" {
 		t.Fatalf("started execution = %+v", control.started)
 	}
-	wantLimits := run.RunLimits{MaxTotalTokens: 16_384, MaxSteps: 12, MaxBudgetUSD: 3.5}
+	wantLimits := run.Limits{MaxTotalTokens: 16_384, MaxSteps: 12, MaxBudgetUSD: 3.5}
 	if control.started.Limits != wantLimits {
 		t.Fatalf("executor limits = %+v, want %+v", control.started.Limits, wantLimits)
 	}
@@ -598,7 +598,7 @@ func TestResumeCommitsOpeningBeforeActivation(t *testing.T) {
 
 	result, err := c.Resume(context.Background(), ResumeCommand{
 		RunID: "run_1",
-		CallerCapabilities: run.RunCapabilities{
+		CallerCapabilities: run.Capabilities{
 			InterruptKinds: []interrupt.Kind{interrupt.Approval},
 		},
 		Responses: []ResumeResponse{{
@@ -694,7 +694,7 @@ func TestResumeAndRootCancelShareOneApplicationAdmissionBoundary(t *testing.T) {
 	go func() {
 		result, err := c.Resume(t.Context(), ResumeCommand{
 			RunID: "run_1",
-			CallerCapabilities: run.RunCapabilities{
+			CallerCapabilities: run.Capabilities{
 				InterruptKinds: []interrupt.Kind{interrupt.Approval},
 			},
 			Responses: []ResumeResponse{{
@@ -764,7 +764,7 @@ func TestResumeWithInputCommitsTheUserItemWithTheContinuation(t *testing.T) {
 	effects, c := newResumeCase()
 	withInput, err := c.Resume(context.Background(), ResumeCommand{
 		RunID: "run_1", Responses: approve,
-		CallerCapabilities: run.RunCapabilities{
+		CallerCapabilities: run.Capabilities{
 			InterruptKinds: []interrupt.Kind{interrupt.Approval},
 		},
 		Input: []transcript.ContentBlock{{Kind: transcript.TextContent, Text: "also skip the tests"}},
@@ -796,7 +796,7 @@ func TestResumeWithInputCommitsTheUserItemWithTheContinuation(t *testing.T) {
 	_, c = newResumeCase()
 	without, err := c.Resume(context.Background(), ResumeCommand{
 		RunID: "run_1", Responses: approve,
-		CallerCapabilities: run.RunCapabilities{
+		CallerCapabilities: run.Capabilities{
 			InterruptKinds: []interrupt.Kind{interrupt.Approval},
 		},
 	})
@@ -827,7 +827,7 @@ func TestResumeRecoversLostExecutorStateBeforeReturning(t *testing.T) {
 
 	_, err := c.Resume(t.Context(), ResumeCommand{
 		RunID: "run_1",
-		CallerCapabilities: run.RunCapabilities{
+		CallerCapabilities: run.Capabilities{
 			InterruptKinds: []interrupt.Kind{interrupt.Approval},
 		},
 		Responses: []ResumeResponse{{
@@ -883,7 +883,7 @@ func TestResumeOpeningFailureMarksClaimedRunLostBeforeReleasingTree(t *testing.T
 
 	_, err := coordinator.Resume(t.Context(), ResumeCommand{
 		RunID: "run_1",
-		CallerCapabilities: run.RunCapabilities{
+		CallerCapabilities: run.Capabilities{
 			InterruptKinds: []interrupt.Kind{interrupt.Approval},
 		},
 		Responses: []ResumeResponse{{
@@ -944,7 +944,7 @@ func TestResumeRejectsClaimResultDriftBeforeStagingAndMarksRunLost(t *testing.T)
 
 			_, err := coordinator.Resume(t.Context(), ResumeCommand{
 				RunID: "run_1",
-				CallerCapabilities: run.RunCapabilities{
+				CallerCapabilities: run.Capabilities{
 					InterruptKinds: []interrupt.Kind{interrupt.Approval},
 				},
 				Responses: []ResumeResponse{{
@@ -990,7 +990,7 @@ func TestResumeOpeningFailureKeepsTreeWhenRunLostCommitFails(t *testing.T) {
 
 	_, err := coordinator.Resume(t.Context(), ResumeCommand{
 		RunID: "run_1",
-		CallerCapabilities: run.RunCapabilities{
+		CallerCapabilities: run.Capabilities{
 			InterruptKinds: []interrupt.Kind{interrupt.Approval},
 		},
 		Responses: []ResumeResponse{{
@@ -1037,7 +1037,7 @@ func TestResumeOpeningFailureReportsReleaseAfterDurableRunLost(t *testing.T) {
 
 	_, err := coordinator.Resume(t.Context(), ResumeCommand{
 		RunID: "run_1",
-		CallerCapabilities: run.RunCapabilities{
+		CallerCapabilities: run.Capabilities{
 			InterruptKinds: []interrupt.Kind{interrupt.Approval},
 		},
 		Responses: []ResumeResponse{{
@@ -1187,7 +1187,7 @@ func TestResumeRefusesIsolatedRunAfterRuntimeRestart(t *testing.T) {
 
 	_, err := c.Resume(t.Context(), ResumeCommand{
 		RunID: "run_1",
-		CallerCapabilities: run.RunCapabilities{
+		CallerCapabilities: run.Capabilities{
 			InterruptKinds: []interrupt.Kind{interrupt.Approval},
 		},
 		Responses: []ResumeResponse{{
@@ -1226,7 +1226,7 @@ func testPendingInterrupt(itemID, memberID string, runCreatedAt time.Time) Pendi
 		SessionID:  "ses_1",
 		ExecutorID: "turn_1",
 		Interrupts: interruptValues,
-		Capabilities: run.RunCapabilities{
+		Capabilities: run.Capabilities{
 			InterruptKinds: []interrupt.Kind{interrupt.Approval},
 		},
 		Bindings: []InterruptBinding{{
@@ -1490,13 +1490,13 @@ func TestCancelRunningChildCommitsExactSubtreeBoundaryAndKeepsRootRunning(t *tes
 	}
 	entry, live := coordinator.registry.Get("run_1")
 	if !live || entry.handle == nil || entry.handle.hub == nil {
-		t.Fatal("continued root has no event Journal")
+		t.Fatal("continued root has no event journal")
 	}
-	afterCancellation := entry.handle.hub.Tail()
+	afterCancellation := entry.handle.hub.tail()
 	cursorAfterCancellation := afterCancellation.HeadCursor
 	afterCancellation.Cancel()
 	if cursorAfterCancellation == "" {
-		t.Fatal("child cancellation returned before the Journal established a cursor")
+		t.Fatal("child cancellation returned before the journal established a cursor")
 	}
 
 	close(executor.finishRoot)
@@ -1512,7 +1512,7 @@ func TestCancelRunningChildCommitsExactSubtreeBoundaryAndKeepsRootRunning(t *tes
 		if !rootCompleted {
 			t.Fatalf("root did not continue to its natural terminal: %+v", events)
 		}
-		replayed, err := entry.handle.hub.Replay(cursorAfterCancellation)
+		replayed, err := entry.handle.hub.replay(cursorAfterCancellation)
 		if err != nil {
 			t.Fatalf("replay after child cancellation: %v", err)
 		}
@@ -1722,7 +1722,7 @@ func TestCancelLetsCommittedInterruptOwnDurableFirstTeardown(t *testing.T) {
 	control := &fakeExecutionPorts{operations: &operations}
 	sessions := &fakeRunSessions{operations: &operations}
 	spec := testSegment()
-	spec.Capabilities = run.RunCapabilities{
+	spec.Capabilities = run.Capabilities{
 		InterruptKinds: []interrupt.Kind{interrupt.Approval},
 	}
 	c := NewCoordinator(Dependencies{
@@ -1838,8 +1838,8 @@ func TestStartRejectsInvalidInputBeforeSessionCreation(t *testing.T) {
 func TestStartRefusesASessionThatAlreadyHasARunAndNamesIt(t *testing.T) {
 	for _, tt := range []struct {
 		name   string
-		state  run.RunState
-		status run.RunStatus
+		state  run.State
+		status run.Status
 	}{
 		{"a running run", run.Running, run.StatusRunning},
 		{"a run waiting on a person", run.Waiting, run.StatusWaiting},

@@ -143,8 +143,8 @@ type ToolInvocationJournal interface {
 // a durable commit, so what the Run had spent by then is committed with it. The
 // sqlite RunStore satisfies it.
 type RunWriter interface {
-	Admit(ctx context.Context, draft run.RunDraft) error
-	Resume(ctx context.Context, sessionID string, draft run.RunResumeDraft, resumedAt time.Time) error
+	Admit(ctx context.Context, draft run.Draft) error
+	Resume(ctx context.Context, sessionID string, draft run.ResumeDraft, resumedAt time.Time) error
 	Suspend(ctx context.Context, run transcript.Run) error
 	Terminalize(ctx context.Context, run transcript.Run) error
 }
@@ -230,7 +230,7 @@ type Config struct {
 	ToolInvocations     ToolInvocationJournal
 	Messages            MessageCounter
 	Titles              TitleGenerator
-	RunState            RunWriter
+	State               RunWriter
 	RunMetrics          RunMetricsWriter
 	ExecutorCheckpoints ExecutorCheckpointStore
 	ChildRunStarts      ChildRunStartReservationStore
@@ -294,7 +294,7 @@ func New(cfg Config) *Effects {
 		toolInvocations:     cfg.ToolInvocations,
 		messages:            cfg.Messages,
 		titles:              cfg.Titles,
-		runState:            cfg.RunState,
+		runState:            cfg.State,
 		runMetrics:          cfg.RunMetrics,
 		executorCheckpoints: cfg.ExecutorCheckpoints,
 		childRunStarts:      cfg.ChildRunStarts,

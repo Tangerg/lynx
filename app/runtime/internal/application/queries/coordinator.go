@@ -76,7 +76,7 @@ type InterruptReader interface {
 type RunReader interface {
 	Run(ctx context.Context, runID string) (transcript.Run, bool, error)
 	RunsWithAncestors(ctx context.Context, runIDs []string) ([]transcript.Run, error)
-	PageRuns(ctx context.Context, sessionID string, statuses []run.RunStatus, includeDescendants bool, beforeCreatedAt int64, beforeRunID string, limit int) ([]transcript.Run, error)
+	PageRuns(ctx context.Context, sessionID string, statuses []run.Status, includeDescendants bool, beforeCreatedAt int64, beforeRunID string, limit int) ([]transcript.Run, error)
 }
 
 // Coordinator serves the session read projections. Stateless beyond its store
@@ -328,7 +328,7 @@ func (c *Coordinator) Run(ctx context.Context, runID string) (transcript.Run, bo
 // identity to bind.
 type RunPageFilter struct {
 	SessionID          string
-	Statuses           []run.RunStatus
+	Statuses           []run.Status
 	IncludeDescendants bool
 }
 
@@ -380,7 +380,7 @@ func (c *Coordinator) ListRunPage(ctx context.Context, filter RunPageFilter, cur
 // two requests asking for the same set mint the same cursor. Sorting is by the
 // domain's own declaration order — the enum IS the order, so there is nothing else
 // to agree with.
-func normalizeStatuses(statuses []run.RunStatus) []run.RunStatus {
+func normalizeStatuses(statuses []run.Status) []run.Status {
 	if len(statuses) == 0 {
 		return nil
 	}
@@ -392,7 +392,7 @@ func normalizeStatuses(statuses []run.RunStatus) []run.RunStatus {
 // statusFilter is the normalized status set as one cursor filter value. The empty
 // set is every status, which is a different collection from any explicit set — and
 // it reads as such, since no status is spelled "".
-func statusFilter(statuses []run.RunStatus) string {
+func statusFilter(statuses []run.Status) string {
 	names := make([]string, 0, len(statuses))
 	for _, status := range statuses {
 		names = append(names, status.String())
@@ -418,7 +418,7 @@ func statusFilter(statuses []run.RunStatus) string {
 //
 // rootRunID must name a root. A child id is [transcript.ErrNotRoot], because the
 // set it belongs to exists — under the root — and an empty page would say otherwise.
-func (c *Coordinator) ListPendingInterruptPage(ctx context.Context, sessionID, rootRunID string, caller run.RunCapabilities, cursor string, limit int) (pagination.Page[runs.Pending], error) {
+func (c *Coordinator) ListPendingInterruptPage(ctx context.Context, sessionID, rootRunID string, caller run.Capabilities, cursor string, limit int) (pagination.Page[runs.Pending], error) {
 	filters := []string{sessionID, rootRunID}
 	afterCreatedAt, afterID, err := timeAndIDAnchor(cursor, interruptPageNamespace, filters)
 	if err != nil {

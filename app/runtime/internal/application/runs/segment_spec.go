@@ -30,8 +30,8 @@ type segmentSpec struct {
 	Input            []transcript.ContentBlock
 	// Limits and Capabilities are admission policy for a fresh Run. A
 	// continuation reads the frozen values carried by Continuation.
-	Limits       run.RunLimits
-	Capabilities run.RunCapabilities
+	Limits       run.Limits
+	Capabilities run.Capabilities
 	Continuation *treeContinuation
 	// admission transfers the pre-commit reservation to the live Run only after
 	// its opening write-set commits.
@@ -55,7 +55,7 @@ func (s segmentSpec) priorMetrics() transcript.RunMetrics {
 	return root.Metrics
 }
 
-func (s segmentSpec) effectiveLimits() run.RunLimits {
+func (s segmentSpec) effectiveLimits() run.Limits {
 	if s.Continuation == nil {
 		return s.Limits
 	}
@@ -63,7 +63,7 @@ func (s segmentSpec) effectiveLimits() run.RunLimits {
 	return root.Limits
 }
 
-func (s segmentSpec) effectiveCapabilities() run.RunCapabilities {
+func (s segmentSpec) effectiveCapabilities() run.Capabilities {
 	if s.Continuation == nil {
 		return s.Capabilities
 	}

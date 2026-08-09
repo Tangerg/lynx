@@ -1535,7 +1535,7 @@ func TestRunLifecycleStateStaysConcrete(t *testing.T) {
 		name string
 	}{
 		{filepath.Join(root, "internal", "application", "runs", "registry.go"), "registry"},
-		{filepath.Join(root, "internal", "application", "runs", "journal.go"), "Journal"},
+		{filepath.Join(root, "internal", "application", "runs", "journal.go"), "journal"},
 	}
 	for _, check := range checks {
 		f, err := parser.ParseFile(token.NewFileSet(), check.path, nil, 0)

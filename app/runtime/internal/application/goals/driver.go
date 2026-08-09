@@ -412,9 +412,9 @@ func (h *loopHandle) finished() bool {
 	}
 }
 
-func (h *loopHandle) outcome() (error, bool) {
+func (h *loopHandle) finishedResult() (bool, error) {
 	if !h.finished() {
-		return nil, false
+		return false, nil
 	}
-	return h.err, true
+	return true, h.err
 }
