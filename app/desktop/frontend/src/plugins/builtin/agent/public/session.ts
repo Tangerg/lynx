@@ -22,10 +22,9 @@ export {
 } from "../application/session/sessionQueries";
 export { AGENT_SESSION_USAGE_KEY, useAgentSessionUsage } from "../application/session/sessionUsage";
 export { createSession, useCreateSession } from "../application/session/createSession";
-export type { CreateSessionOptions } from "../application/session/createSession";
 export { useDeleteSession } from "../application/session/deleteSession";
 export { useToggleFavorite } from "../application/session/favoriteSession";
-export { forkSessionAt, useForkSession } from "../application/session/forkSession";
+export { useForkSession } from "../application/session/forkSession";
 export {
   activeAgentConversation,
   forkAgentSessionAtRun,

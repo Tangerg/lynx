@@ -3,7 +3,6 @@
   "entry": [
     "visual/main.tsx",
     "visual/**/*.visual.spec.ts",
-    "src/plugins/**/public/**/*.{ts,tsx}",
     "src/plugins/builtin/chat/message/ui/index.ts",
     "src/plugins/builtin/theme/kit/defineColorThemePlugin.ts",
     "src/plugins/sdk/host.ts",

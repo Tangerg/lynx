@@ -8,12 +8,7 @@ export {
   toolIntent,
   toolMetaItems,
 } from "../presentation/toolPresentation";
-export type {
-  ToolDetail,
-  ToolIntent,
-  ToolMetaItem,
-  ToolMetaTone,
-} from "../presentation/toolPresentation";
+export type { ToolDetail, ToolIntent, ToolMetaItem } from "../presentation/toolPresentation";
 export {
   approvalReversibilityView,
   approvalRiskView,
@@ -22,13 +17,7 @@ export {
   canSubmitApproval,
   dangerHints,
 } from "../presentation/approvalPresentation";
-export type {
-  ApprovalReversibilityView,
-  ApprovalRisk,
-  ApprovalRiskView,
-  ApprovalScopeView,
-  ApprovalTone,
-} from "../presentation/approvalPresentation";
+export type { ApprovalRisk, ApprovalTone } from "../presentation/approvalPresentation";
 export {
   canSubmitQuestion,
   createQuestionDraft,
@@ -40,8 +29,4 @@ export {
   setQuestionText,
   toggleQuestionOption,
 } from "../presentation/questionPresentation";
-export type {
-  QuestionAnswers,
-  QuestionDraft,
-  QuestionDraftEntry,
-} from "../presentation/questionPresentation";
+export type { QuestionAnswers, QuestionDraft } from "../presentation/questionPresentation";

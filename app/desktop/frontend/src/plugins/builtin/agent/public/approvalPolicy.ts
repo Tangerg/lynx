@@ -9,4 +9,3 @@ export {
 } from "../application/approvalPolicyQueries";
 export type { ApprovalMode } from "../domain/hitl";
 export { APPROVAL_MODES, DEFAULT_APPROVAL_MODE } from "../presentation/approvalModes";
-export type { ApprovalModeOption } from "../presentation/approvalModes";

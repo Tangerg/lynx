@@ -1,4 +1,1 @@
-export {
-  messageContextMenuModel,
-  type MessageContextMenuModel,
-} from "../application/messageContextMenuModel";
+export { messageContextMenuModel } from "../application/messageContextMenuModel";

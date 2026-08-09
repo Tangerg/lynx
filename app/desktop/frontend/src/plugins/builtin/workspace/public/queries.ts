@@ -13,48 +13,26 @@ export {
   WORKSPACE_MANAGED_SKILLS_KEY,
   WORKSPACE_SKILL_PROPOSALS_KEY,
   WORKSPACE_AGENT_MEMORY_KEY,
-  useWorkspaceAgentDocs,
-  useWorkspaceBuiltinTools,
   useWorkspaceDiff,
   useWorkspaceFileChanges,
   useWorkspaceFileHead,
   useWorkspaceGrep,
   useWorkspaceListFiles,
-  useWorkspaceMemory,
   useWorkspaceProjects,
-  useWorkspaceReadFile,
-  useWorkspaceRecipes,
-  useWorkspaceSkills,
-  useManagedSkills,
-  useSkillProposals,
-  useAgentMemory,
 } from "../application/workspaceQueries";
 export {
-  type BuiltinToolSummary,
-  type WorkspaceAgentDoc,
   type WorkspaceDiff,
   type WorkspaceDiffQuery,
-  type WorkspaceDiffRow,
   type WorkspaceFileChange,
   type WorkspaceFileChangesQuery,
-  type WorkspaceFileContent,
-  type WorkspaceFileDiff,
-  type WorkspaceFileEntry,
   type WorkspaceFileHeadQuery,
   type WorkspaceFileLine,
-  type WorkspaceGrepMatch,
   type WorkspaceGrepQuery,
   type WorkspaceGrepResult,
   type WorkspaceListFilesQuery,
-  type WorkspaceMemoryEntry,
   type WorkspaceMemoryQuery,
   type WorkspaceProjectSummary,
   type WorkspaceReadFileQuery,
-  type WorkspaceMemoryScope,
-  type WorkspaceSkill,
-  type ManagedSkill,
-  type SkillProposal,
-  type AgentMemoryEntry,
   type AgentMemoryQuery,
 } from "../application/workspaceQueries";
 
@@ -62,7 +40,4 @@ export {
 // (the chat header's diff readout) has to know whether git is negotiated before
 // it renders a git-backed number, and the facade is the only surface importable
 // across contexts.
-export {
-  useWorkspaceCapability,
-  type WorkspaceCapability,
-} from "../application/workspaceCapabilities";
+export { useWorkspaceCapability } from "../application/workspaceCapabilities";

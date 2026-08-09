@@ -12,7 +12,6 @@ export {
   openWorkspaceDiffForFile,
   openWorkspaceFile,
   openWorkspaceSettingsPane,
-  openWorkspaceView,
   openWorkspaceViewInDock,
   selectWorkspaceDockView,
   selectInitialWorkspaceTool,

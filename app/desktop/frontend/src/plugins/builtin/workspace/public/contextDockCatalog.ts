@@ -1,5 +1,2 @@
 export { useContextDockCatalog } from "../application/useContextDockCatalog";
-export type {
-  ContextDockDestinationGroup,
-  ContextDockItem,
-} from "../application/contextDockDestinationGroups";
+export type { ContextDockDestinationGroup } from "../application/contextDockDestinationGroups";

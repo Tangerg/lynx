@@ -1,7 +1,7 @@
 import { composerState } from "../application/ports/state";
 import type { ComposerDraftInput } from "../domain/draft";
 
-export type { ComposerDraftImage, ComposerDraftInput } from "../domain/draft";
+export type { ComposerDraftInput } from "../domain/draft";
 
 export function useComposerText(): string {
   return composerState().useText();

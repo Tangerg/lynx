@@ -9,10 +9,7 @@ export {
   useEmbeddingRole,
   useModels,
   useProviders,
-  useUtilityRole,
   type CodebaseStatusQuery,
-  type CodebaseStatusReadModel,
   type ProviderConfiguration,
-  type ProviderRoleSelection,
   type SelectableModel,
 } from "../application/providerQueries";

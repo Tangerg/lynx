@@ -1,1 +1,1 @@
-export { messageCopyPayloads, type MessageCopyPayloads } from "../presentation/copyPayloads";
+export { messageCopyPayloads } from "../presentation/copyPayloads";
