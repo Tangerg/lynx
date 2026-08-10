@@ -285,8 +285,10 @@ func (a *app) Clear() {
 	}
 	a.state.ClearPresentation()
 	a.transcript.Reset()
-	a.workflow.Reset()
-	a.status = statusView{theme: a.status.theme, glyphs: a.status.glyphs, doing: "cleared", options: a.options}
+	a.activity.Reset()
+	a.status.Reset(a.options)
+	a.status.note("cleared")
+	a.header.SetUsage(a.state.Usage())
 }
 
 func (a *app) Find(query string) {
@@ -308,21 +310,7 @@ func (a *app) PreviousMatch() {
 
 func (a *app) Quit() { a.loop.Quit() }
 
-func (a *app) ShowHelp() {
-	commands := a.commands.Find("")
-	lines := make([]string, 0, len(commands))
-	for _, found := range commands {
-		command := found.Command
-		argument := ""
-		if command.Takes {
-			argument = " <value>"
-		}
-		lines = append(lines, fmt.Sprintf("/%-10s %s", command.Name+argument, command.Title))
-	}
-	a.transcript.Append(&kit.Message{
-		Theme: a.transcript.theme, Speaker: "commands", Body: strings.Join(lines, "\n"),
-	})
-}
+func (a *app) ShowHelp() { a.showCommandPalette() }
 
 func (a *app) AttachFile(path string) error { return a.addAttachment(path) }
 

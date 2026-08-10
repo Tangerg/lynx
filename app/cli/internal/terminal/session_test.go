@@ -411,7 +411,7 @@ func TestDenyingApprovalIsAProductResult(t *testing.T) {
 	stop()
 }
 
-func TestSlashCompletionAndTranscriptSearchUseRegisteredCommands(t *testing.T) {
+func TestSlashCompletionHelpAndTranscriptSearchUseRegisteredCommands(t *testing.T) {
 	host, stop := runUI(t)
 	host.Shows(t, "Ask lyra")
 	host.Type("/he")
@@ -420,6 +420,8 @@ func TestSlashCompletionAndTranscriptSearchUseRegisteredCommands(t *testing.T) {
 	host.Press(input.Enter)
 	host.Shows(t, "/clear")
 	host.Shows(t, "/find")
+	host.Press(input.Esc)
+	host.Hides(t, "Commands")
 
 	host.Type("/find commands")
 	host.Press(input.Enter)

@@ -2,67 +2,202 @@ package terminal
 
 import (
 	"fmt"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/Tangerg/oolong/components/kit"
 	"github.com/Tangerg/oolong/core/grid"
-	"github.com/Tangerg/oolong/core/layout"
 	"github.com/Tangerg/oolong/core/text"
 
 	"github.com/Tangerg/lynx/app/cli/internal/client"
 )
 
-type workflowView struct {
+const (
+	headerMinWidth   = 32
+	activityMinWidth = 28
+	activityMaxRows  = 6
+)
+
+type sessionHeader struct {
+	theme   kit.Theme
+	glyphs  kit.Glyphs
+	session client.Session
+	usage   client.Usage
+}
+
+func newSessionHeader(theme kit.Theme, glyphs kit.Glyphs, session client.Session) *sessionHeader {
+	return &sessionHeader{theme: theme, glyphs: glyphs, session: session}
+}
+
+func (h *sessionHeader) SetSession(session client.Session) { h.session = session }
+
+func (h *sessionHeader) SetUsage(usage client.Usage) { h.usage = usage }
+
+func (h *sessionHeader) Measure(width int) int {
+	if width < headerMinWidth {
+		return 0
+	}
+	return 2
+}
+
+func (h *sessionHeader) Draw(view grid.View) {
+	width, height := view.Size()
+	if width < headerMinWidth || height <= 0 {
+		return
+	}
+	right := headerUsageLabel(h.usage)
+	rightWidth := text.Width(right)
+	if rightWidth > 0 && rightWidth < width {
+		view.Text(width-rightWidth, 0, right, h.theme.Subtle)
+	} else {
+		rightWidth = 0
+	}
+
+	available := width
+	if rightWidth > 0 {
+		available -= rightWidth + 2
+	}
+	if available <= 0 {
+		return
+	}
+	workspace := displayWorkspace(h.session.Workspace)
+	title := displayTitle(h.session)
+	separator := "  " + h.glyphs.Bullet + "  "
+	workspace = text.Truncate(workspace, available, h.glyphs.Ellipsis)
+	x := view.Text(0, 0, workspace, h.theme.Context)
+	remaining := available - x
+	if remaining > text.Width(separator) {
+		view.Text(x, 0, separator+text.Truncate(title, remaining-text.Width(separator), h.glyphs.Ellipsis), h.theme.Muted)
+	}
+}
+
+func displayWorkspace(path string) string {
+	path = filepath.Clean(strings.TrimSpace(path))
+	if path == "." || path == "" {
+		return "workspace"
+	}
+	return path
+}
+
+func headerUsageLabel(usage client.Usage) string {
+	if usage.InputTokens == 0 && usage.OutputTokens == 0 {
+		return ""
+	}
+	return "↑" + compactTokens(usage.InputTokens) + "  ↓" + compactTokens(usage.OutputTokens)
+}
+
+func compactTokens(tokens int64) string {
+	abs := uint64(tokens)
+	if tokens < 0 {
+		abs = uint64(-(tokens + 1)) + 1
+	}
+	switch {
+	case abs < 1_000:
+		return strconv.FormatInt(tokens, 10)
+	case abs < 10_000:
+		return strconv.FormatFloat(float64(tokens)/1_000, 'f', 1, 64) + "k"
+	case abs < 1_000_000:
+		return strconv.FormatInt(tokens/1_000, 10) + "k"
+	default:
+		return strconv.FormatFloat(float64(tokens)/1_000_000, 'f', 1, 64) + "m"
+	}
+}
+
+type activityView struct {
 	theme  kit.Theme
 	glyphs kit.Glyphs
 	items  []client.PlanItem
 }
 
-func newWorkflowView(theme kit.Theme, glyphs kit.Glyphs) workflowView {
-	return workflowView{theme: theme, glyphs: glyphs}
+func newActivityView(theme kit.Theme, glyphs kit.Glyphs) *activityView {
+	return &activityView{theme: theme, glyphs: glyphs}
 }
 
-func (w *workflowView) Set(items []client.PlanItem) {
-	w.items = append(w.items[:0], items...)
+func (a *activityView) Set(items []client.PlanItem) {
+	a.items = append(a.items[:0], items...)
 }
 
-func (w *workflowView) Reset() { clear(w.items); w.items = w.items[:0] }
+func (a *activityView) Reset() {
+	clear(a.items)
+	a.items = a.items[:0]
+}
 
-func (w *workflowView) Measure(int) int {
-	if len(w.items) == 0 {
+func (a *activityView) Measure(width int) int {
+	if len(a.items) == 0 || width < activityMinWidth {
 		return 0
 	}
-	return len(w.items) + 2
+	maximum := activityMaxRows
+	if width < 60 {
+		maximum = 4
+	}
+	return min(len(a.items)+1, maximum)
 }
 
-func (w *workflowView) Draw(view grid.View) {
-	if len(w.items) == 0 {
+func (a *activityView) Draw(view grid.View) {
+	width, height := view.Size()
+	if len(a.items) == 0 || width < activityMinWidth || height <= 0 {
 		return
 	}
-	box := kit.Box{Theme: w.theme, Glyphs: w.glyphs, Title: "run plan", Padding: layout.Symmetric(0, 1)}
-	inner := box.Draw(view)
-	width, height := inner.Size()
-	for row, item := range w.items {
-		if row >= height {
-			return
-		}
-		mark, label, style := w.glyphs.Free, "pending", w.theme.Subtle
+	done, active := activityProgress(a.items)
+	header := a.glyphs.Expanded + " Plan"
+	view.Text(0, 0, header, a.theme.Heading)
+	progress := fmt.Sprintf("%d/%d", done, len(a.items))
+	if active >= 0 {
+		progress = fmt.Sprintf("step %d/%d", active+1, len(a.items))
+	}
+	if progressWidth := text.Width(progress); progressWidth+text.Width(header)+2 <= width {
+		view.Text(width-progressWidth, 0, progress, a.theme.Subtle)
+	}
+
+	capacity := height - 1
+	start, end := activityWindow(len(a.items), capacity, active)
+	for row, index := 1, start; row < height && index < end; row, index = row+1, index+1 {
+		item := a.items[index]
+		mark, label, style := a.glyphs.Free, "pending", a.theme.Muted
 		switch item.Status {
 		case client.PlanActive:
-			mark, label, style = w.glyphs.Marker, "active", w.theme.Accent
+			mark, label, style = a.glyphs.Marker, "active", a.theme.Accent
 		case client.PlanDone:
-			mark, label, style = w.glyphs.Taken, "done", w.theme.Success
+			mark, label, style = a.glyphs.Taken, "done", a.theme.Success
 		case client.PlanPending:
-			// Pending is the default visual state above.
 		default:
 		}
-		inner.Text(0, row, text.Truncate(mark+" "+item.Title, max(width-len(label)-2, 1), w.glyphs.Ellipsis), style)
-		if len(label)+1 < width {
-			inner.Text(width-len(label), row, label, style)
+		view.Text(0, row, a.glyphs.Vertical, a.theme.Divider)
+		labelWidth := text.Width(label)
+		contentWidth := max(width-labelWidth-4, 1)
+		view.Text(2, row, mark+" "+text.Truncate(item.Title, contentWidth, a.glyphs.Ellipsis), style)
+		if labelWidth+4 < width {
+			view.Text(width-labelWidth, row, label, style)
 		}
 	}
+}
+
+func activityProgress(items []client.PlanItem) (done, active int) {
+	active = -1
+	for index, item := range items {
+		switch item.Status {
+		case client.PlanDone:
+			done++
+		case client.PlanActive:
+			active = index
+		}
+	}
+	return done, active
+}
+
+func activityWindow(total, capacity, active int) (start, end int) {
+	if total <= 0 || capacity <= 0 {
+		return 0, 0
+	}
+	capacity = min(capacity, total)
+	if active < 0 {
+		return 0, capacity
+	}
+	start = active - capacity/2
+	start = min(max(start, 0), total-capacity)
+	return start, start + capacity
 }
 
 type statusView struct {
@@ -75,6 +210,15 @@ type statusView struct {
 	status  kit.Status
 	busy    bool
 	options client.RunOptions
+}
+
+func newStatusView(theme kit.Theme, glyphs kit.Glyphs, options client.RunOptions) *statusView {
+	return &statusView{theme: theme, glyphs: glyphs, doing: "ready", options: options}
+}
+
+func (s *statusView) Reset(options client.RunOptions) {
+	theme, glyphs := s.theme, s.glyphs
+	*s = statusView{theme: theme, glyphs: glyphs, doing: "ready", options: options}
 }
 
 func (s *statusView) Measure(int) int { return 1 }

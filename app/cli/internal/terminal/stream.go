@@ -31,7 +31,9 @@ func (a *app) start(message client.Message) {
 		return
 	}
 	a.transcript.Follow()
-	a.workflow.Reset()
+	a.activity.Reset()
+	a.header.SetUsage(client.Usage{})
+	a.prompt.SetBusy(true)
 	a.status.active("starting run")
 	a.started = time.Now()
 	a.startRequest = requestID
@@ -281,7 +283,7 @@ func (a *app) applyPresentationEvent(event client.Event) {
 			a.status.active("working")
 		}
 	case client.PlanChanged:
-		a.workflow.Set(a.state.Plan())
+		a.activity.Set(a.state.Plan())
 	case client.RunInterrupted:
 		a.openInteraction(a.state.Interaction())
 		a.status.note("waiting for your answer")
@@ -308,6 +310,8 @@ func (a *app) noteRunFinished() {
 	a.pendingCancel = nil
 	a.following = false
 	a.status.settled(a.state.Outcome(), a.state.Usage())
+	a.header.SetUsage(a.state.Usage())
+	a.prompt.SetBusy(false)
 	if a.settings.UI.Notifications {
 		a.loop.Session().Notify("lyra run completed")
 	}
@@ -322,6 +326,8 @@ func (a *app) fail(err error) {
 	a.state.Failed(err)
 	a.transcript.Append(presentError(a.transcript.theme, err.Error()))
 	a.status.settled(a.state.Outcome(), a.state.Usage())
+	a.header.SetUsage(a.state.Usage())
+	a.prompt.SetBusy(false)
 	a.syncAnimation()
 }
 
@@ -355,6 +361,8 @@ func (a *app) cancel() {
 			return
 		}
 		a.status.settled(a.state.Outcome(), a.state.Usage())
+		a.header.SetUsage(a.state.Usage())
+		a.prompt.SetBusy(false)
 		a.syncAnimation()
 		if requestID != "" {
 			a.cancelRuntime(client.CancelRun{SessionID: a.session.ID, RequestID: requestID})

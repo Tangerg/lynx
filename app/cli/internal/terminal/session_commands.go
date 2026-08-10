@@ -6,9 +6,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Tangerg/oolong/components/headless"
-	"github.com/Tangerg/oolong/core/layout"
-
 	"github.com/Tangerg/lynx/app/cli/internal/attachment"
 	"github.com/Tangerg/lynx/app/cli/internal/client"
 )
@@ -68,6 +65,7 @@ func (a *app) RenameSession(title string) {
 		},
 		func(updated client.Session) error {
 			a.session = updated
+			a.header.SetSession(updated)
 			a.loop.Session().SetTitle("lyra — " + displayTitle(updated))
 			a.message("renamed session to " + updated.Title)
 			return nil
@@ -164,14 +162,13 @@ func (a *app) installSnapshot(snapshot client.SessionSnapshot) error {
 	a.attachments = attachments
 	a.transcript = nextTranscript
 	a.restoreComposer(draft)
-	a.workflow.Reset()
-	a.status = statusView{theme: a.status.theme, glyphs: a.status.glyphs, doing: "ready", options: a.options}
-	a.body.Set(
-		headless.Item{Key: "transcript", Size: layout.Flex(1), Of: a.transcript},
-		headless.Item{Key: "plan", Size: layout.Measured(0, 8), Of: headless.Static{Of: &a.workflow}},
-		headless.Item{Key: "status", Size: layout.Fixed(1), Of: headless.Static{Of: &a.status}},
-		headless.Item{Key: "composer", Size: layout.Measured(1, 8), Of: &a.composer},
-	)
+	a.activity.Reset()
+	a.status.Reset(a.options)
+	a.header.SetSession(snapshot.Session)
+	a.header.SetUsage(next.Usage())
+	a.prompt.SetOptions(a.options)
+	a.prompt.SetBusy(next.Busy())
+	a.shell.SetTranscript(nextTranscript)
 	previousTranscript.Close()
 	a.listenForSearch()
 	a.loop.Session().SetTitle("lyra — " + displayTitle(snapshot.Session))

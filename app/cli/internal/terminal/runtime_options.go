@@ -145,6 +145,7 @@ func (a *app) ShowApprovalRules() {
 
 func (a *app) syncOptions(message string) {
 	a.status.setOptions(a.options)
+	a.prompt.SetOptions(a.options)
 	a.message(message)
 }
 

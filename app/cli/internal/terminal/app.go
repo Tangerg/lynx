@@ -53,14 +53,16 @@ type app struct {
 	operations   *operationOwner
 
 	transcript *conversationView
-	workflow   workflowView
-	status     statusView
+	header     *sessionHeader
+	activity   *activityView
+	status     *statusView
 	settings   settings.Config
 	options    client.RunOptions
 	composer   kit.Composer
+	prompt     *promptView
 	commands   headless.Commands
 	completion headless.Completion
-	body       *headless.Container
+	shell      *shellView
 	stack      headless.Stack
 
 	review             *client.Approval
@@ -126,8 +128,9 @@ func newApp(loop *program.InlineRuntime, cfg appConfig) *app {
 		state:              client.NewConversation(),
 		operations:         newOperationOwner(cfg.Context),
 		transcript:         newConversationView(theme, glyphs, loop.Environment().Wheel(), syntax, cfg.Settings.UI.TranscriptRetain, cfg.Settings.UI.ToolDetails),
-		workflow:           newWorkflowView(theme, glyphs),
-		status:             statusView{theme: theme, glyphs: glyphs, doing: "ready", options: cfg.Settings.RunOptions()},
+		header:             newSessionHeader(theme, glyphs, cfg.Snapshot.Session),
+		activity:           newActivityView(theme, glyphs),
+		status:             newStatusView(theme, glyphs, cfg.Settings.RunOptions()),
 		settings:           cfg.Settings.Clone(),
 		options:            cfg.Settings.RunOptions(),
 		syntax:             syntax,
@@ -137,7 +140,7 @@ func newApp(loop *program.InlineRuntime, cfg appConfig) *app {
 	}
 	a.composer = kit.Composer{
 		Theme: theme, Prompt: glyphs.Marker + " ",
-		Hints: []keymap.Action{sendPrompt, insertNewline, cancelRun, showSessions, cycleMode, quitApp}, MaxRows: 6,
+		MaxRows: 6,
 	}
 	a.composer.Editor().Placeholder = "Ask lyra to inspect, explain, or change something"
 	a.composer.Editor().Keys = cfg.Keys
@@ -163,14 +166,10 @@ func newApp(loop *program.InlineRuntime, cfg appConfig) *app {
 	}
 	a.registerCommands()
 
-	a.body = headless.Rows(
-		headless.Item{Key: "transcript", Size: layout.Flex(1), Of: a.transcript},
-		headless.Item{Key: "plan", Size: layout.Measured(0, 8), Of: headless.Static{Of: &a.workflow}},
-		headless.Item{Key: "status", Size: layout.Fixed(1), Of: headless.Static{Of: &a.status}},
-		headless.Item{Key: "composer", Size: layout.Measured(1, 8), Of: &a.composer},
-	)
-	a.body.Focus(true)
-	a.stack.SetBase(a.body)
+	a.prompt = newPromptView(theme, glyphs, cfg.Keys, &a.composer, a.options)
+	a.shell = newShellView(a.header, a.transcript, a.activity, a.status, a.prompt)
+	a.shell.Focus(true)
+	a.stack.SetBase(a.shell)
 	a.buildReview(theme, glyphs)
 	a.buildSessionPicker(theme, glyphs)
 	a.buildRuntimePickers(theme, glyphs)
@@ -218,7 +217,9 @@ func presentSnapshot(view *conversationView, snapshot client.SessionSnapshot, re
 }
 
 func (a *app) restoreActivity(snapshot client.SessionSnapshot) {
-	a.workflow.Set(a.state.Plan())
+	a.activity.Set(a.state.Plan())
+	a.header.SetUsage(a.state.Usage())
+	a.prompt.SetBusy(a.state.Busy())
 	switch a.state.Phase() {
 	case client.Waiting:
 		a.openInteraction(a.state.Interaction())
