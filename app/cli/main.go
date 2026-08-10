@@ -3,6 +3,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/signal"
@@ -18,7 +19,35 @@ func main() {
 func run() int {
 	ctx, stop := processSignalContext(context.Background())
 	defer stop()
-	return cmd.Execute(ctx)
+
+	root := cmd.NewRoot(nil)
+	root.SetIn(os.Stdin)
+	root.SetOut(os.Stdout)
+	root.SetErr(os.Stderr)
+	err := root.ExecuteContext(ctx)
+	if cause := context.Cause(ctx); cause != nil {
+		return exitCode(cause)
+	}
+	if err == nil {
+		return 0
+	}
+	_, _ = fmt.Fprintln(os.Stderr, "Error:", err)
+	return exitCode(err)
+}
+
+type exitCoder interface {
+	error
+	ExitCode() int
+}
+
+func exitCode(err error) int {
+	if coded, ok := errors.AsType[exitCoder](err); ok {
+		return coded.ExitCode()
+	}
+	if errors.Is(err, context.Canceled) {
+		return 130
+	}
+	return 1
 }
 
 type processSignalError struct{ signal os.Signal }

@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"errors"
 	"io"
@@ -146,19 +147,31 @@ func TestHeadlessBinaryReturnsConventionalSignalExitCodes(t *testing.T) {
 			})
 
 			ready := make(chan error, 1)
+			scanned := make(chan error, 1)
+			var diagnostics bytes.Buffer
 			go func() {
 				scanner := bufio.NewScanner(stderr)
+				notified := false
 				for scanner.Scan() {
-					if strings.Contains(scanner.Text(), mockNoticeForTest) {
+					line := scanner.Text()
+					diagnostics.WriteString(line)
+					diagnostics.WriteByte('\n')
+					if !notified && strings.Contains(line, mockNoticeForTest) {
 						ready <- nil
-						return
+						notified = true
 					}
 				}
 				if err := scanner.Err(); err != nil {
-					ready <- err
+					if !notified {
+						ready <- err
+					}
+					scanned <- err
 					return
 				}
-				ready <- errors.New("process exited before opening the mock runtime")
+				if !notified {
+					ready <- errors.New("process exited before opening the mock runtime")
+				}
+				scanned <- nil
 			}()
 			select {
 			case err := <-ready:
@@ -177,9 +190,12 @@ func TestHeadlessBinaryReturnsConventionalSignalExitCodes(t *testing.T) {
 			select {
 			case err := <-waited:
 				waiting = false
+				if scanErr := <-scanned; scanErr != nil {
+					t.Fatalf("read stderr: %v", scanErr)
+				}
 				var exit *exec.ExitError
 				if !errors.As(err, &exit) || exit.ExitCode() != test.want {
-					t.Fatalf("signal exit = %v, want code %d", err, test.want)
+					t.Fatalf("signal exit = %v, want code %d\nstderr:\n%s", err, test.want, diagnostics.String())
 				}
 			case <-time.After(15 * time.Second):
 				t.Fatal("headless run did not stop after signal")
@@ -189,6 +205,23 @@ func TestHeadlessBinaryReturnsConventionalSignalExitCodes(t *testing.T) {
 }
 
 const mockNoticeForTest = "scripted mock runtime"
+
+type testExitError struct{ code int }
+
+func (e testExitError) Error() string { return "coded" }
+func (e testExitError) ExitCode() int { return e.code }
+
+func TestExitCodePreservesSignalsAndClassifiesCancellation(t *testing.T) {
+	if got := exitCode(testExitError{code: 143}); got != 143 {
+		t.Fatalf("coded exit = %d, want 143", got)
+	}
+	if got := exitCode(context.Canceled); got != 130 {
+		t.Fatalf("canceled exit = %d, want 130", got)
+	}
+	if got := exitCode(errors.New("ordinary")); got != 1 {
+		t.Fatalf("ordinary exit = %d, want 1", got)
+	}
+}
 
 func TestProcessSignalExitCodes(t *testing.T) {
 	for _, test := range []struct {

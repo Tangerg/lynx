@@ -36,23 +36,6 @@ func exec(t *testing.T, rt client.Runtime, stdin string, args ...string) (string
 	return out.String(), errb.String(), err
 }
 
-type testExitError struct{ code int }
-
-func (e testExitError) Error() string { return "coded" }
-func (e testExitError) ExitCode() int { return e.code }
-
-func TestExitCodePreservesSignalsAndClassifiesCancellation(t *testing.T) {
-	if got := exitCode(testExitError{code: 143}); got != 143 {
-		t.Fatalf("coded exit = %d, want 143", got)
-	}
-	if got := exitCode(context.Canceled); got != 130 {
-		t.Fatalf("canceled exit = %d, want 130", got)
-	}
-	if got := exitCode(errors.New("ordinary")); got != 1 {
-		t.Fatalf("ordinary exit = %d, want 1", got)
-	}
-}
-
 func instant() *mock.Runtime {
 	rt := mock.New()
 	rt.Instant = true

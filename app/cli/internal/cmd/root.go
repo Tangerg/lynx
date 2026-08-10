@@ -58,37 +58,6 @@ func (p runtimeProvider) Complete(cmd *cobra.Command) (client.Runtime, error) {
 	return p.factory(cmd.Context())
 }
 
-// Execute runs the CLI and reports the process exit code.
-func Execute(ctx context.Context) int {
-	err := NewRoot(nil).ExecuteContext(ctx)
-	if err != nil {
-		// Cobra has already printed the error.
-		if errors.Is(err, context.Canceled) && context.Cause(ctx) != nil {
-			return exitCode(context.Cause(ctx))
-		}
-		return exitCode(err)
-	}
-	if context.Cause(ctx) != nil {
-		return exitCode(context.Cause(ctx))
-	}
-	return 0
-}
-
-type exitCoder interface {
-	error
-	ExitCode() int
-}
-
-func exitCode(err error) int {
-	if coded, ok := errors.AsType[exitCoder](err); ok {
-		return coded.ExitCode()
-	}
-	if errors.Is(err, context.Canceled) {
-		return 130
-	}
-	return 1
-}
-
 // NewRoot builds the command tree. A nil runtime installs the scripted mock,
 // which is what a real build does today; tests pass their own.
 func NewRoot(rt client.Runtime) *cobra.Command {
@@ -126,7 +95,7 @@ func buildRoot(provider runtimeProvider) *cobra.Command {
 			"  lyra sessions ls",
 		Version:       version,
 		SilenceUsage:  true,
-		SilenceErrors: false,
+		SilenceErrors: true,
 		Args:          cobra.ArbitraryArgs,
 		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
 			if cmd.Annotations[configIndependentAnnotation] == "true" {
