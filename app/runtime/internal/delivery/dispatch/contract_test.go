@@ -4,95 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"iter"
-	"slices"
 	"testing"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/operation"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/transport"
 	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
-
-// TestContractIsTheOnlyMethodTable pins what the Registry replaced: every
-// dispatchable method exists exactly once, with metadata that validates.
-func TestContractIsTheOnlyMethodTable(t *testing.T) {
-	t.Parallel()
-
-	metas := contract.Metas()
-	if len(metas) == 0 {
-		t.Fatal("the contract registered no methods")
-	}
-	seen := make(map[string]bool, len(metas))
-	for _, meta := range metas {
-		if seen[meta.Name] {
-			t.Errorf("method %q is registered twice", meta.Name)
-		}
-		seen[meta.Name] = true
-		if err := meta.validate(); err != nil {
-			t.Errorf("%s: %v", meta.Name, err)
-		}
-	}
-}
-
-// TestStreamMethodsAreTheStreamingContract keeps the machine-readable streaming
-// set honest: exactly the methods whose response body is their own event stream
-// (TRANSPORT §6.4). A client reads this instead of hardcoding names, so a new
-// stream method that forgets to register as one would go unnoticed.
-func TestStreamMethodsAreTheStreamingContract(t *testing.T) {
-	t.Parallel()
-
-	want := []string{"runs.start", "runs.resume", "runs.subscribe", "runtime.subscribe"}
-	got := contract.StreamMethods()
-	slices.Sort(got)
-	slices.Sort(want)
-	if !slices.Equal(got, want) {
-		t.Fatalf("stream methods = %v, want %v", got, want)
-	}
-}
-
-// TestCapabilityRulesNameAPublishedFeature keeps the gate and the advertisement
-// speaking one vocabulary.
-//
-// A rule requiring a feature discovery never advertises is a method NO build can
-// call: the gate reads the advertised map, an unknown key reads as disabled, and
-// every request comes back capability_not_negotiated. The constants make that
-// unlikely; this makes it impossible.
-func TestCapabilityRulesNameAPublishedFeature(t *testing.T) {
-	t.Parallel()
-
-	for _, meta := range contract.Metas() {
-		for _, feature := range meta.Features() {
-			if _, published := protocol.LookupFeature(feature); !published {
-				t.Errorf("%s requires %q, which protocol does not publish", meta.Name, feature)
-			}
-		}
-	}
-}
-
-// TestReplayPolicyCoversEveryCommand guards the invariant the deleted
-// replay-protected list used to carry by hand: every command has replay semantics,
-// while reads and subscriptions never acquire mutation semantics by accident.
-func TestReplayPolicyCoversEveryCommand(t *testing.T) {
-	t.Parallel()
-
-	for _, meta := range contract.Metas() {
-		switch meta.Operation {
-		case OperationCommand:
-			if !meta.Idempotency.Replays() {
-				t.Errorf("%s: command has no replay protection", meta.Name)
-			}
-		case OperationQuery, OperationSubscription:
-			if meta.Idempotency.Replays() {
-				t.Errorf("%s: non-command unexpectedly keeps replay state", meta.Name)
-			}
-		}
-	}
-	for _, name := range []string{"runs.start", "runs.resume"} {
-		method, _ := contract.lookup(name)
-		if method.Meta.Idempotency != IdempotencyReplayRunStream {
-			t.Errorf("%s must replay by re-attaching to its run, got %v", name, method.Meta.Idempotency)
-		}
-	}
-}
 
 // capabilityRuntime is a Runtime that only answers discovery — enough to drive
 // the gate, since that is the only thing the gate reads.

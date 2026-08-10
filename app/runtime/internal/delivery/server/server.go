@@ -10,6 +10,7 @@ import (
 	mcpapp "github.com/Tangerg/lynx/app/runtime/internal/application/mcp"
 	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/dispatch"
+	"github.com/Tangerg/lynx/app/runtime/internal/delivery/operation"
 	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
@@ -343,7 +344,7 @@ func capabilitiesFor(
 		// The streaming methods, read from the registry that routes them. A
 		// hand-kept list here would be a second author of "which calls stream" —
 		// and the one clients trust, since this is what discovery advertises (§9).
-		StreamingMethods: dispatch.Contract().StreamMethods(),
+		StreamingMethods: operation.Contract().StreamMethods(),
 		// Open features map (§9): a client treats an absent key as off. This is the
 		// one composition fact per key — whether THIS build offers it — joined with
 		// the feature's own published facts (stability, opt-in, whether it reshapes

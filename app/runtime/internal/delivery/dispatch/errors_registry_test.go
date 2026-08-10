@@ -16,12 +16,12 @@ import (
 func TestEveryDeclarableProblemTypeHasARecoveryAction(t *testing.T) {
 	t.Parallel()
 
-	for _, spec := range rpcErrorSpecs {
-		if !spec.methodDeclarable {
+	for _, problemType := range operation.ProblemTypes() {
+		if !operation.IsMethodProblemType(problemType) {
 			continue
 		}
-		if _, declared := RecoveryFor(spec.sentinel.Error()); !declared {
-			t.Errorf("%s is declarable and has no recovery action", spec.sentinel)
+		if _, declared := operation.RecoveryFor(problemType); !declared {
+			t.Errorf("%s is declarable and has no recovery action", problemType)
 		}
 	}
 }
@@ -29,7 +29,7 @@ func TestEveryDeclarableProblemTypeHasARecoveryAction(t *testing.T) {
 func TestMethodDeclarabilityComesFromTheRPCErrorRegistry(t *testing.T) {
 	t.Parallel()
 
-	if !IsMethodProblemType(protocol.ErrRunNotFound.Error()) {
+	if !operation.IsMethodProblemType(protocol.ErrRunNotFound.Error()) {
 		t.Fatal("run_not_found should be method-declarable")
 	}
 	for _, boundaryProblem := range []string{
@@ -37,7 +37,7 @@ func TestMethodDeclarabilityComesFromTheRPCErrorRegistry(t *testing.T) {
 		protocol.ErrMethodNotFound.Error(),
 		protocol.ErrIdempotencyConflict.Error(),
 	} {
-		if IsMethodProblemType(boundaryProblem) {
+		if operation.IsMethodProblemType(boundaryProblem) {
 			t.Fatalf("%s is a boundary failure, not a method-declarable problem", boundaryProblem)
 		}
 	}
@@ -46,54 +46,35 @@ func TestMethodDeclarabilityComesFromTheRPCErrorRegistry(t *testing.T) {
 func TestRPCErrorRegistryRejectsContradictoryMetadata(t *testing.T) {
 	t.Parallel()
 
-	valid := rpcErrorSpec{
-		sentinel: errors.New("first"),
-		code:     -1,
-		recovery: protocol.RecoveryStop,
-	}
+	valid := rpcCodeSpec{problemType: "first", code: -1}
 	tests := []struct {
 		name  string
-		specs []rpcErrorSpec
+		specs []rpcCodeSpec
 	}{{
 		name: "duplicate problem type",
-		specs: []rpcErrorSpec{
+		specs: []rpcCodeSpec{
 			valid,
-			{sentinel: errors.New("first"), code: -2, recovery: protocol.RecoveryStop},
+			{problemType: "first", code: -2},
 		},
 	}, {
 		name: "duplicate numeric code",
-		specs: []rpcErrorSpec{
+		specs: []rpcCodeSpec{
 			valid,
-			{sentinel: errors.New("second"), code: -1, recovery: protocol.RecoveryStop},
+			{problemType: "second", code: -1},
 		},
 	}, {
-		name: "unknown recovery action",
-		specs: []rpcErrorSpec{{
-			sentinel: errors.New("first"), code: -1,
-			recovery: protocol.RecoveryAction("guess"),
-		}},
-	}, {
-		name: "wait without backoff",
-		specs: []rpcErrorSpec{{
-			sentinel: errors.New("first"), code: -1,
-			recovery: protocol.RecoveryWaitRetryAfter,
-		}},
-	}, {
-		name: "backoff on a non-wait action",
-		specs: []rpcErrorSpec{{
-			sentinel: errors.New("first"), code: -1,
-			recovery: protocol.RecoveryStop, retryAfterSeconds: 1,
-		}},
+		name:  "missing problem type",
+		specs: []rpcCodeSpec{{code: -1}},
 	}}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			defer func() {
 				if recovered := recover(); recovered == nil {
-					t.Fatal("mustRPCErrorSpecs accepted contradictory metadata")
+					t.Fatal("mustRPCCodeSpecs accepted contradictory metadata")
 				}
 			}()
-			mustRPCErrorSpecs(tt.specs)
+			mustRPCCodeSpecs(tt.specs)
 		})
 	}
 }

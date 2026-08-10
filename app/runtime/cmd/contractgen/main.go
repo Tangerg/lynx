@@ -21,6 +21,7 @@ import (
 	"reflect"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/dispatch"
+	"github.com/Tangerg/lynx/app/runtime/internal/delivery/operation"
 	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
@@ -49,7 +50,7 @@ func run(dir, validatorDir, tsDir string) error {
 	}
 	// Built once: every artifact must describe the same registry snapshot, and a
 	// second build would let them disagree if anything about it were not pure.
-	registry, shapes := dispatch.Contract(), dispatch.WireShapes()
+	registry, shapes := operation.Contract(), dispatch.WireShapes()
 	walked := walkWireTypes(registry, shapes)
 	built := build(walked)
 

@@ -4,9 +4,13 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/operation"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/transport"
 	"github.com/Tangerg/lynx/app/runtime/protocol"
+)
+
+const (
+	NotificationRunEvent     = "notifications.run.event"
+	NotificationRuntimeEvent = "notifications.runtime.event"
 )
 
 // EncodeRunEvent wraps one RunEvent into a notifications.run.event
@@ -44,22 +48,16 @@ func (r *Router) handleNotification(context.Context, *transport.Request) {}
 // notifications. Every authoritative event goes out; a client's opt-out only
 // suppresses ephemeral previews, so final state stays recoverable from the stream
 // alone (§5.2).
-func runEventToFrameFor(ctx context.Context) func(protocol.RunEvent) (StreamFrame, bool) {
-	filter := streamFilterFrom(ctx)
-	return func(event protocol.RunEvent) (StreamFrame, bool) {
-		if !filter.allow(event.Event) {
-			return StreamFrame{}, false
-		}
-		notification, err := EncodeRunEvent(event)
-		if err != nil {
-			return StreamFrame{}, false
-		}
-		sseID := ""
-		if event.Event.Replayable() {
-			sseID = event.EventID
-		}
-		return StreamFrame{Notification: notification, SSEID: sseID}, true
+func runEventToFrame(event protocol.RunEvent) (StreamFrame, bool) {
+	notification, err := EncodeRunEvent(event)
+	if err != nil {
+		return StreamFrame{}, false
 	}
+	sseID := ""
+	if event.Event.Replayable() {
+		sseID = event.EventID
+	}
+	return StreamFrame{Notification: notification, SSEID: sseID}, true
 }
 
 // runtimeEventToFrame encodes a RuntimeEvent into an ephemeral StreamFrame (no SSE
@@ -72,33 +70,13 @@ func runtimeEventToFrame(event protocol.RuntimeEvent) (StreamFrame, bool) {
 	return StreamFrame{Notification: notification}, true
 }
 
-// streamFilter is the client's ephemeral opt-out, and nothing else. There is
-// deliberately no "types the client declared" set to intersect with: a client that
-// cannot follow the authoritative stream must be refused the run (§8.1 capability
-// negotiation), not handed a shortened stream it would mistake for the whole one.
-type streamFilter struct {
-	optOut map[protocol.SuppressibleRunEventType]bool
-}
-
-func streamFilterFrom(ctx context.Context) streamFilter {
-	capabilities, ok := operation.ClientCapabilitiesFrom(ctx)
-	if !ok {
-		return streamFilter{}
+func frameOperationEvent(event any) (StreamFrame, bool) {
+	switch typed := event.(type) {
+	case protocol.RunEvent:
+		return runEventToFrame(typed)
+	case protocol.RuntimeEvent:
+		return runtimeEventToFrame(typed)
+	default:
+		return StreamFrame{}, false
 	}
-	return streamFilter{optOut: eventSet(capabilities.ExcludedEphemeralEvents)}
-}
-
-func eventSet(events []protocol.SuppressibleRunEventType) map[protocol.SuppressibleRunEventType]bool {
-	if events == nil {
-		return nil
-	}
-	set := make(map[protocol.SuppressibleRunEventType]bool, len(events))
-	for _, eventType := range events {
-		set[eventType] = true
-	}
-	return set
-}
-
-func (f streamFilter) allow(event protocol.StreamEvent) bool {
-	return f.optOut == nil || !f.optOut[protocol.SuppressibleRunEventType(event.Type)]
 }

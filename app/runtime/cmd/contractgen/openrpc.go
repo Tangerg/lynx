@@ -7,6 +7,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/contractshape"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/dispatch"
+	"github.com/Tangerg/lynx/app/runtime/internal/delivery/operation"
 	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
@@ -89,7 +90,7 @@ type openrpcError struct {
 	Message string `json:"message"`
 }
 
-func newOpenRPC(registry *dispatch.Registry, shapes *dispatch.Shapes, set *schemaSet) openrpcDocument {
+func newOpenRPC(registry *operation.Registry, shapes *dispatch.Shapes, set *schemaSet) openrpcDocument {
 	codes := problemCodes(registry)
 	document := openrpcDocument{
 		OpenRPC: openrpcVersion,
@@ -111,7 +112,7 @@ func newOpenRPC(registry *dispatch.Registry, shapes *dispatch.Shapes, set *schem
 	return document
 }
 
-func openrpcMethodFor(meta dispatch.MethodMeta, set *schemaSet, codes map[string]int) openrpcMethod {
+func openrpcMethodFor(meta operation.MethodMeta, set *schemaSet, codes map[string]int) openrpcMethod {
 	requestFrame := set.walk(meta.Params)
 	method := openrpcMethod{
 		Name:           meta.Name,
@@ -204,7 +205,7 @@ func requestPropertySchema(set *schemaSet, frame *schema, owner reflect.Type, fi
 	return node
 }
 
-func capabilityRowsFor(meta dispatch.MethodMeta) []capabilityRow {
+func capabilityRowsFor(meta operation.MethodMeta) []capabilityRow {
 	if len(meta.CapabilityRules) == 0 {
 		return nil
 	}

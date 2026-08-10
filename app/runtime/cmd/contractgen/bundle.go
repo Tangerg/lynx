@@ -3,6 +3,7 @@ package main
 import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/dispatch"
+	"github.com/Tangerg/lynx/app/runtime/internal/delivery/operation"
 	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
@@ -24,7 +25,7 @@ const schemaDialect = "https://json-schema.org/draft/2020-12/schema"
 // params, its result, and — for a streaming method — its events. Downstream
 // notification params are registered separately because they are not callable
 // methods, but are equally part of the wire surface.
-func walkWireTypes(registry *dispatch.Registry, shapes *dispatch.Shapes) *schemaSet {
+func walkWireTypes(registry *operation.Registry, shapes *dispatch.Shapes) *schemaSet {
 	set := newSchemaSet(shapes)
 	for _, contract := range toolset.PresentationContracts() {
 		for enumType, values := range contract.EnumValues {

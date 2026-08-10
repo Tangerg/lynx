@@ -6,11 +6,12 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/dispatch"
+	"github.com/Tangerg/lynx/app/runtime/internal/delivery/operation"
 	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
 func TestManifestPublishesToolsetPresentationContracts(t *testing.T) {
-	registry, shapes := dispatch.Contract(), dispatch.WireShapes()
+	registry, shapes := operation.Contract(), dispatch.WireShapes()
 	generated := build(walkWireTypes(registry, shapes))
 
 	want := make(map[string]string)

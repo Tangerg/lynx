@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/dispatch"
+	"github.com/Tangerg/lynx/app/runtime/internal/delivery/operation"
 )
 
 // The TypeScript validator is COMPILED FROM THE SCHEMA TREE, for the same reason
@@ -40,7 +41,7 @@ type checkEmitter struct {
 	used map[string]bool
 }
 
-func newWireChecks(registry *dispatch.Registry, shapes *dispatch.Shapes, set *schemaSet) string {
+func newWireChecks(registry *operation.Registry, shapes *dispatch.Shapes, set *schemaSet) string {
 	emitter := &checkEmitter{set: set, used: make(map[string]bool)}
 	names := slices.Sorted(maps.Keys(set.defs))
 
@@ -104,7 +105,7 @@ export function validateWire(type: WireTypeName, value: unknown): WireViolation[
 // methodResults emits the terminal result check for every callable method. Ack-only
 // methods still have one wire result — the empty success object — so every entry is
 // total and a client never needs a "validator missing" fallback.
-func (e *checkEmitter) methodResults(registry *dispatch.Registry) string {
+func (e *checkEmitter) methodResults(registry *operation.Registry) string {
 	var out strings.Builder
 	out.WriteString("\nconst METHOD_RESULTS: Record<WireMethodName, WireCheck> = {\n")
 	for _, meta := range registry.Metas() {

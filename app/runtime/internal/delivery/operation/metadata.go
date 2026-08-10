@@ -9,6 +9,7 @@ import (
 )
 
 type requestMetaKey struct{}
+type afterEventIDKey struct{}
 
 // WithRequestMeta carries validated request metadata across the private
 // operation boundary.
@@ -29,6 +30,21 @@ func ClientCapabilitiesFrom(ctx context.Context) (*protocol.ClientCapabilities, 
 		return nil, false
 	}
 	return meta.ClientCapabilities, true
+}
+
+func withAfterEventID(ctx context.Context, eventID string) context.Context {
+	if eventID == "" {
+		return ctx
+	}
+	return context.WithValue(ctx, afterEventIDKey{}, eventID)
+}
+
+// AfterEventIDFrom returns the stream cursor attached at the operation boundary.
+// Application-facing implementations read this binding-neutral value rather than
+// depending on an HTTP header or transport context key.
+func AfterEventIDFrom(ctx context.Context) string {
+	eventID, _ := ctx.Value(afterEventIDKey{}).(string)
+	return eventID
 }
 
 func cloneRequestMeta(meta protocol.RequestMeta) protocol.RequestMeta {

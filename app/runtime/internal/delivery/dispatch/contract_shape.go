@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/contractshape"
+	"github.com/Tangerg/lynx/app/runtime/internal/delivery/operation"
 	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
@@ -75,7 +76,7 @@ type ObjectConstraintSpec struct {
 // PresenceRule says which fields must (or must not) be there when a condition
 // holds. Required and Forbidden are JSON field names, dotted for a nested frame.
 type PresenceRule struct {
-	When      []FieldCondition
+	When      []operation.FieldCondition
 	Required  []string
 	Forbidden []string
 }
@@ -606,7 +607,7 @@ func (o ObjectConstraintSpec) validate() error {
 					name, index, condition.Field, condition.Operator,
 				)
 			}
-			if err := validateFieldCondition(
+			if err := operation.ValidateFieldCondition(
 				fmt.Sprintf("%s rule %d", name, index),
 				o.GoType,
 				condition,
@@ -823,7 +824,7 @@ func (k StateKeySpec) validate() error {
 			k.Key, k.Feature,
 		)
 	}
-	if _, ok := contract.lookup(k.RecoveryMethod); !ok {
+	if _, ok := operation.Contract().Lookup(k.RecoveryMethod); !ok {
 		return fmt.Errorf("state key %q: recovery method %q is not a registered method", k.Key, k.RecoveryMethod)
 	}
 	return nil

@@ -4,95 +4,114 @@ import (
 	"context"
 	"fmt"
 	"iter"
-	"sync"
+	"reflect"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/operation"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/transport"
 	"github.com/Tangerg/lynx/app/runtime/internal/idempotency"
+	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
-// Router routes inbound JSON-RPC messages to typed Runtime methods and
-// coordinates replay-protected mutations. Request-scoped metadata is carried
-// on ctx; durable replay records live in store.
+// Router adapts JSON-RPC envelopes to the binding-neutral operation endpoint.
+// It owns no validation, capability, idempotency or business invocation policy.
 type Router struct {
-	api         operation.Service
-	store       idempotency.Store
-	replayLocks [64]sync.Mutex
-	pendingMu   sync.Mutex
-	pending     map[string]idempotency.Record
+	endpoint *operation.Endpoint
 }
 
-// Config supplies optional Router dependencies. A nil IdempotencyStore
-// selects the Runtime-instance-local replay store.
+// Config supplies durable dispatch-adjacent mechanisms to the operation owner.
 type Config struct {
 	IdempotencyStore idempotency.Store
 }
 
-// New builds a Router bound to the given Runtime. The returned
-// Router is safe for parallel Dispatch calls.
-func New(api operation.Service, config Config) *Router {
-	store := config.IdempotencyStore
-	if store == nil {
-		store = newMemoryIdempotencyStore()
-	}
-	router := &Router{
-		api: api, store: store, pending: make(map[string]idempotency.Record),
-	}
-	return router
+// New builds a Router over the canonical Runtime operation endpoint.
+func New(service operation.Service, config Config) *Router {
+	return &Router{endpoint: operation.New(service, operation.Config{
+		IdempotencyStore: config.IdempotencyStore,
+	})}
 }
 
-// Result holds what the router returns after dispatching one inbound message.
+// Result holds the JSON-RPC reply and optional stream frames for one envelope.
 type Result struct {
-	// Response is the synchronous JSON-RPC reply. nil when the input
-	// was a notification (no id, no response on the wire).
-	Response *transport.Response
-
-	// EventStream is the sequence of stream frames for a streaming method, ending
-	// when the source is drained. Frames are domain-agnostic (run events,
-	// workspace events): the dispatch encodes each domain event into a
-	// StreamFrame (method + params + optional SSE id) so the transport stays
-	// dumb — it just writes frames. The sequence is synchronous end to end
-	// (Journal → presenter → adaptStream); the transport supplies the single
-	// goroutine that ranges it (streamable HTTP selects it against a heartbeat).
+	Response    *transport.Response
 	EventStream iter.Seq[StreamFrame]
 }
 
-// Dispatch routes one inbound transport message through the registered method pipeline.
+// Dispatch validates the envelope, decodes its typed parameters and delegates
+// the operation itself to the shared endpoint.
 func (r *Router) Dispatch(ctx context.Context, message transport.Message) Result {
 	request, ok := message.(*transport.Request)
 	if !ok || request == nil {
 		return responseError(transport.ID{}, badEnvelope("expected a JSON-RPC request"))
 	}
-
-	// API.md §2.2: all ids are strings. Reject non-string ids at the
-	// boundary. (Absent ids — Notifications — are fine.)
 	if request.ID.IsValid() {
 		if _, ok := request.ID.Raw().(string); !ok {
 			return responseError(request.ID, badEnvelope(
 				fmt.Sprintf("id must be a JSON string, got %T", request.ID.Raw())))
 		}
 	}
-	// Metadata stripping rewrites Params for typed decoding. Work on a shallow
-	// request copy so a caller can safely retain or reuse its message;
-	// Params bytes themselves are read-only and replaced, never mutated in place.
+
 	requestCopy := *request
 	request = &requestCopy
-
-	var metaErr *transport.Error
-	ctx, metaErr = bindRequestMeta(ctx, request)
-	if metaErr != nil {
+	options := operation.Options{
+		IdempotencyKey: transport.IdempotencyKeyFrom(ctx),
+		AfterEventID:   transport.LastEventIDFrom(ctx),
+	}
+	metadata, metadataError := extractRequestMeta(request)
+	if metadataError != nil {
 		if !request.IsCall() {
 			return Result{}
 		}
-		return responseError(request.ID, metaErr)
+		return responseError(request.ID, metadataError)
 	}
+	options.RequestMeta = metadata
 
-	// Notifications: no response. We still dispatch so cancel-style
-	// notifications take effect.
 	if !request.IsCall() {
 		r.handleNotification(ctx, request)
 		return Result{}
 	}
+	meta, found := operation.Contract().Lookup(request.Method)
+	if !found {
+		return responseError(request.ID, errorToRPC(
+			operation.NewFailure(protocol.ErrMethodNotFound, fmt.Sprintf("unknown method %q", request.Method)),
+		))
+	}
+	parameters, decodeError := decodeParameters(request.Params, meta.Params)
+	if decodeError != nil {
+		return responseError(request.ID, errorToRPC(decodeError))
+	}
+	return adaptResult(request.ID, r.endpoint.Invoke(ctx, request.Method, parameters, options))
+}
 
-	return r.dispatchReplayProtected(ctx, request)
+func decodeParameters(raw []byte, parameterType reflect.Type) (any, *operation.Failure) {
+	target := reflect.New(parameterType)
+	if err := decodeParams(raw, target.Interface()); err != nil {
+		return nil, operation.NewFailure(protocol.ErrInvalidParams, err.Error())
+	}
+	return target.Elem().Interface(), nil
+}
+
+func adaptResult(id transport.ID, result operation.Result) Result {
+	if result.Failure != nil {
+		return responseError(id, errorToRPC(result.Failure))
+	}
+	response := responseResult(id, result.Value)
+	if response.Response == nil || response.Response.Error != nil || result.Events == nil {
+		return response
+	}
+	response.EventStream = adaptOperationEvents(result.Events)
+	return response
+}
+
+func adaptOperationEvents(events iter.Seq2[any, error]) iter.Seq[StreamFrame] {
+	return func(yield func(StreamFrame) bool) {
+		for event, err := range events {
+			if err != nil {
+				return
+			}
+			frame, keep := frameOperationEvent(event)
+			if keep && !yield(frame) {
+				return
+			}
+		}
+	}
 }

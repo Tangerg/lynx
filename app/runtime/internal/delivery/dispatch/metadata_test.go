@@ -3,16 +3,16 @@ package dispatch
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/operation"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/transport"
 	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
-func TestBindRequestMetaStripsMetaAndStoresContext(t *testing.T) {
+func TestExtractRequestMetaStripsTransportMember(t *testing.T) {
 	req := &transport.Request{
 		ID:     transport.StringID("1"),
 		Method: "runs.cancel",
@@ -30,14 +30,9 @@ func TestBindRequestMetaStripsMetaAndStoresContext(t *testing.T) {
 		}`, protocol.ProtocolVersion)),
 	}
 
-	ctx, rpcErr := bindRequestMeta(context.Background(), req)
+	meta, rpcErr := extractRequestMeta(req)
 	if rpcErr != nil {
-		t.Fatalf("bindRequestMeta error = %v", rpcErr)
-	}
-
-	meta, ok := operation.RequestMetaFrom(ctx)
-	if !ok {
-		t.Fatalf("request metadata missing from context")
+		t.Fatalf("extractRequestMeta error = %v", rpcErr)
 	}
 	if meta.ProtocolVersion != protocol.ProtocolVersion {
 		t.Fatalf("protocolVersion = %q", meta.ProtocolVersion)
@@ -53,14 +48,14 @@ func TestBindRequestMetaStripsMetaAndStoresContext(t *testing.T) {
 	}
 }
 
-func TestBindRequestMetaRejectsMalformedMeta(t *testing.T) {
+func TestExtractRequestMetaRejectsMalformedMeta(t *testing.T) {
 	req := &transport.Request{
 		ID:     transport.StringID("1"),
 		Method: "runs.cancel",
 		Params: json.RawMessage(`{"_meta":"bad","runId":"run_1"}`),
 	}
 
-	_, rpcErr := bindRequestMeta(context.Background(), req)
+	_, rpcErr := extractRequestMeta(req)
 	if rpcErr == nil {
 		t.Fatalf("expected invalid params error")
 	}
@@ -69,14 +64,14 @@ func TestBindRequestMetaRejectsMalformedMeta(t *testing.T) {
 	}
 }
 
-func TestBindRequestMetaRejectsNullMeta(t *testing.T) {
+func TestExtractRequestMetaRejectsNullMeta(t *testing.T) {
 	req := &transport.Request{
 		ID:     transport.StringID("1"),
 		Method: "runs.cancel",
 		Params: json.RawMessage(`{"_meta":null,"runId":"run_1"}`),
 	}
 
-	_, rpcErr := bindRequestMeta(context.Background(), req)
+	_, rpcErr := extractRequestMeta(req)
 	if rpcErr == nil {
 		t.Fatalf("expected invalid params error")
 	}
@@ -94,7 +89,7 @@ func TestBindRequestMetaRejectsNullMeta(t *testing.T) {
 // handed current frames it will fold as if they were the old shape. A far-past date
 // alone would not prove that: a minSupported left behind would refuse 1900 and
 // accept the predecessor.
-func TestBindRequestMetaRejectsUnsupportedProtocolVersion(t *testing.T) {
+func TestDispatchRejectsUnsupportedProtocolVersion(t *testing.T) {
 	for _, version := range []string{
 		"2026-07-19", // the version served before the current protocol cutover
 		"2027-01-01", // a client newer than this build
@@ -108,9 +103,9 @@ func TestBindRequestMetaRejectsUnsupportedProtocolVersion(t *testing.T) {
 				Params: json.RawMessage(fmt.Sprintf(`{"_meta":{"protocolVersion":%q},"runId":"run_1"}`, version)),
 			}
 
-			_, rpcErr := bindRequestMeta(context.Background(), req)
+			rpcErr := dispatchMetadataFailure(t, req)
 			if rpcErr == nil {
-				t.Fatalf("bindRequestMeta accepted protocolVersion %q", version)
+				t.Fatalf("Dispatch accepted protocolVersion %q", version)
 			}
 			if rpcErr.Code != codeInvalidProtocolVersion {
 				t.Fatalf("code = %d, want %d", rpcErr.Code, codeInvalidProtocolVersion)
@@ -152,7 +147,7 @@ func TestDispatchDoesNotMutateCallerRequestWhenStrippingMeta(t *testing.T) {
 // would leave the client believing it had opted out of a frame it will keep
 // receiving — and a runtime that honored it would break the §5.2 guarantee that
 // discarding every ephemeral event still converges.
-func TestBindRequestMetaRefusesANonSuppressibleEvent(t *testing.T) {
+func TestDispatchRefusesANonSuppressibleEvent(t *testing.T) {
 	req := &transport.Request{
 		ID:     transport.StringID("1"),
 		Method: "runs.cancel",
@@ -164,16 +159,16 @@ func TestBindRequestMetaRefusesANonSuppressibleEvent(t *testing.T) {
 		}`),
 	}
 
-	_, rpcErr := bindRequestMeta(context.Background(), req)
+	rpcErr := dispatchMetadataFailure(t, req)
 	if rpcErr == nil {
-		t.Fatal("bindRequestMeta accepted an event outside the closed opt-out set")
+		t.Fatal("Dispatch accepted an event outside the closed opt-out set")
 	}
 	if rpcErr.Code != codeInvalidParams {
 		t.Fatalf("error code = %d, want invalid_params (%d)", rpcErr.Code, codeInvalidParams)
 	}
 }
 
-func TestBindRequestMetaValidatesItsPublishedWireShape(t *testing.T) {
+func TestDispatchValidatesMetadataWireShape(t *testing.T) {
 	for _, test := range []struct {
 		name  string
 		meta  string
@@ -202,7 +197,7 @@ func TestBindRequestMetaValidatesItsPublishedWireShape(t *testing.T) {
 				Params: json.RawMessage(`{"_meta":` + test.meta + `,"runId":"run_1"}`),
 			}
 
-			_, rpcErr := bindRequestMeta(context.Background(), req)
+			rpcErr := dispatchMetadataFailure(t, req)
 			if rpcErr == nil || rpcErr.Code != codeInvalidParams {
 				t.Fatalf("error = %+v, want invalid_params", rpcErr)
 			}
@@ -220,14 +215,14 @@ func TestBindRequestMetaValidatesItsPublishedWireShape(t *testing.T) {
 	}
 }
 
-func TestBindRequestMetaRejectsUnknownFields(t *testing.T) {
+func TestExtractRequestMetaRejectsUnknownFields(t *testing.T) {
 	req := &transport.Request{
 		ID:     transport.StringID("1"),
 		Method: "runs.cancel",
 		Params: json.RawMessage(`{"_meta":{"capabilities":{}},"runId":"run_1"}`),
 	}
 
-	_, rpcErr := bindRequestMeta(context.Background(), req)
+	_, rpcErr := extractRequestMeta(req)
 	if rpcErr == nil || rpcErr.Code != codeInvalidParams {
 		t.Fatalf("error = %+v, want invalid_params", rpcErr)
 	}
@@ -238,4 +233,14 @@ func TestBindRequestMetaRejectsUnknownFields(t *testing.T) {
 	if !strings.Contains(problem.Detail, `unknown field "capabilities"`) {
 		t.Fatalf("detail = %q, want unknown metadata field", problem.Detail)
 	}
+}
+
+func dispatchMetadataFailure(t *testing.T, request *transport.Request) *transport.Error {
+	t.Helper()
+	result := New(nil, Config{}).Dispatch(t.Context(), request)
+	if result.Response == nil {
+		return nil
+	}
+	rpcError, _ := errors.AsType[*transport.Error](result.Response.Error)
+	return rpcError
 }

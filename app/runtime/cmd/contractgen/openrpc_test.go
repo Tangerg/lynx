@@ -5,12 +5,13 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/dispatch"
+	"github.com/Tangerg/lynx/app/runtime/internal/delivery/operation"
 )
 
 func TestOpenRPCPublishesAckNullableAndNotificationResults(t *testing.T) {
 	t.Parallel()
 
-	registry, shapes := dispatch.Contract(), dispatch.WireShapes()
+	registry, shapes := operation.Contract(), dispatch.WireShapes()
 	document := newOpenRPC(registry, shapes, walkWireTypes(registry, shapes))
 
 	ack := openRPCMethod(t, document, "sessions.delete")
@@ -43,7 +44,7 @@ func TestOpenRPCPublishesAckNullableAndNotificationResults(t *testing.T) {
 func TestOpenRPCRequestFramesAreStrictAndPublishUniversalMetadata(t *testing.T) {
 	t.Parallel()
 
-	document := newOpenRPC(dispatch.Contract(), dispatch.WireShapes(), walkWireTypes(dispatch.Contract(), dispatch.WireShapes()))
+	document := newOpenRPC(operation.Contract(), dispatch.WireShapes(), walkWireTypes(operation.Contract(), dispatch.WireShapes()))
 	for _, method := range document.Methods {
 		if method.RequestFrame == nil || method.RequestFrame.UnevaluatedProps == nil || *method.RequestFrame.UnevaluatedProps {
 			t.Errorf("%s request frame does not reject unknown top-level params", method.Name)
@@ -71,7 +72,7 @@ func TestOpenRPCRequestFramesAreStrictAndPublishUniversalMetadata(t *testing.T) 
 func TestOpenRPCParamsPreserveRequestFieldConstraints(t *testing.T) {
 	t.Parallel()
 
-	document := newOpenRPC(dispatch.Contract(), dispatch.WireShapes(), walkWireTypes(dispatch.Contract(), dispatch.WireShapes()))
+	document := newOpenRPC(operation.Contract(), dispatch.WireShapes(), walkWireTypes(operation.Contract(), dispatch.WireShapes()))
 	for _, test := range []struct {
 		method    string
 		param     string

@@ -6,6 +6,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/dispatch"
+	"github.com/Tangerg/lynx/app/runtime/internal/delivery/operation"
 	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
@@ -174,7 +175,7 @@ type invariantEntry struct {
 }
 
 func build(walked *schemaSet) manifest {
-	registry := dispatch.Contract()
+	registry := operation.Contract()
 	shapes := dispatch.WireShapes()
 	return manifest{
 		Protocol:            protocol.SupportedProtocolRange(),
@@ -206,7 +207,7 @@ func notificationNames(shapes *dispatch.Shapes) []string {
 	return out
 }
 
-func methods(registry *dispatch.Registry) []methodEntry {
+func methods(registry *operation.Registry) []methodEntry {
 	metas := registry.Metas()
 	out := make([]methodEntry, 0, len(metas))
 	for _, meta := range metas {
@@ -224,7 +225,7 @@ func methods(registry *dispatch.Registry) []methodEntry {
 	return out
 }
 
-func errors(registry *dispatch.Registry) errorRegistry {
+func errors(registry *operation.Registry) errorRegistry {
 	// The codes come from the dispatcher's own wire-behavior table: the artifacts
 	// must publish the number the runtime actually sends, and a table here was a
 	// copy of it.
@@ -241,7 +242,7 @@ func errors(registry *dispatch.Registry) errorRegistry {
 	}
 }
 
-func capabilities(registry *dispatch.Registry) []capabilityEntry {
+func capabilities(registry *operation.Registry) []capabilityEntry {
 	var out []capabilityEntry
 	for _, meta := range registry.Metas() {
 		if len(meta.CapabilityRules) == 0 {
@@ -256,7 +257,7 @@ func capabilities(registry *dispatch.Registry) []capabilityEntry {
 	return out
 }
 
-func conditions(in []dispatch.FieldCondition) []conditionRow {
+func conditions(in []operation.FieldCondition) []conditionRow {
 	if len(in) == 0 {
 		return nil
 	}
@@ -405,7 +406,7 @@ func valueConstraints(shapes *dispatch.Shapes) []valueConstraintEntry {
 // errorTypes publishes one entry per business error: its code, the recovery action
 // declared beside its wire behavior, and the methods whose registrations say they
 // return it. Sorted by type so the artifact is stable.
-func errorTypes(registry *dispatch.Registry, codes map[string]int) []errorEntry {
+func errorTypes(registry *operation.Registry, codes map[string]int) []errorEntry {
 	byType := make(map[string][]string, len(codes))
 	for _, meta := range registry.Metas() {
 		for _, problem := range meta.ProblemTypes() {
@@ -414,7 +415,7 @@ func errorTypes(registry *dispatch.Registry, codes map[string]int) []errorEntry 
 	}
 	out := make([]errorEntry, 0, len(codes))
 	for problemType, code := range codes {
-		recovery, declared := dispatch.RecoveryFor(problemType)
+		recovery, declared := operation.RecoveryFor(problemType)
 		if !declared {
 			panic("contractgen: problem type " + problemType + " declares no recovery action")
 		}
@@ -422,7 +423,7 @@ func errorTypes(registry *dispatch.Registry, codes map[string]int) []errorEntry 
 		slices.Sort(methods)
 		out = append(out, errorEntry{
 			Type: problemType, Code: code, Recovery: string(recovery),
-			RetryAfterSeconds: dispatch.RetryAfterFor(problemType),
+			RetryAfterSeconds: operation.RetryAfterFor(problemType),
 			Methods:           methods,
 		})
 	}
@@ -432,7 +433,7 @@ func errorTypes(registry *dispatch.Registry, codes map[string]int) []errorEntry 
 
 // problemCodes is the type→code map, read back from the published registry so the
 // OpenRPC document and the manifest cannot state different numbers.
-func problemCodes(registry *dispatch.Registry) map[string]int {
+func problemCodes(registry *operation.Registry) map[string]int {
 	out := make(map[string]int)
 	for _, entry := range errors(registry).Types {
 		out[entry.Type] = entry.Code

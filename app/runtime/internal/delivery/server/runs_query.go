@@ -9,7 +9,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/queries"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/transport"
+	"github.com/Tangerg/lynx/app/runtime/internal/delivery/operation"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	"github.com/Tangerg/lynx/app/runtime/protocol"
@@ -149,7 +149,7 @@ func (s *Server) SubscribeRun(ctx context.Context, in protocol.SubscribeRunReque
 		SegmentID: in.SegmentID,
 		// The application's cursor is prefix-free; the evt_ framing is this layer's
 		// (§11.2). TrimPrefix leaves an absent id untouched, which is the tail-only case.
-		Cursor:             strings.TrimPrefix(transport.LastEventIDFrom(ctx), protocol.IDPrefixEvent),
+		Cursor:             strings.TrimPrefix(operation.AfterEventIDFrom(ctx), protocol.IDPrefixEvent),
 		CallerCapabilities: caller,
 	})
 	if err != nil {

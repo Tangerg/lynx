@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/dispatch"
+	"github.com/Tangerg/lynx/app/runtime/internal/delivery/operation"
 	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
@@ -39,7 +39,7 @@ type methodsEmitter struct {
 	imported map[string]bool
 }
 
-func newWireMethods(registry *dispatch.Registry, set *schemaSet) string {
+func newWireMethods(registry *operation.Registry, set *schemaSet) string {
 	emitter := &methodsEmitter{tsTypes: tsTypes{set: set}, imported: make(map[string]bool)}
 	metas := registry.Metas()
 
@@ -62,7 +62,7 @@ func newWireMethods(registry *dispatch.Registry, set *schemaSet) string {
 // methodPolicy emits the semantic category and response/replay behavior for every
 // method. The SDK consumes this table to attach idempotency keys to commands by
 // construction; method wrappers never classify themselves.
-func (e *methodsEmitter) methodPolicy(metas []dispatch.MethodMeta) {
+func (e *methodsEmitter) methodPolicy(metas []operation.MethodMeta) {
 	e.line("export type WireOperationKind = \"query\" | \"command\" | \"subscription\";")
 	e.line("export type WireResponseKind = \"unary\" | \"stream\";")
 	e.line("export type WireIdempotencyPolicy = \"none\" | \"replayResponse\" | \"replayRunStream\";")
@@ -117,7 +117,7 @@ func (e *methodsEmitter) methodPolicy(metas []dispatch.MethodMeta) {
 // discovery and the SDK — and forbids any of them keeping a second switch. Typing
 // the table with WireFeature also makes a rule naming an unpublished key a compile
 // error on this side, not only in Go.
-func (e *methodsEmitter) policy(metas []dispatch.MethodMeta) {
+func (e *methodsEmitter) policy(metas []operation.MethodMeta) {
 	e.line("/** One condition on the request that decides whether a rule applies. */")
 	e.line("export interface WireCapabilityCondition {")
 	e.line("  field: string;")
@@ -152,7 +152,7 @@ func (e *methodsEmitter) policy(metas []dispatch.MethodMeta) {
 }
 
 // renderRule writes one capability rule's members.
-func renderRule(rule dispatch.CapabilityRule) string {
+func renderRule(rule operation.CapabilityRule) string {
 	var members []string
 	if len(rule.When) != 0 {
 		conditions := make([]string, 0, len(rule.When))
@@ -210,7 +210,7 @@ func (e *methodsEmitter) features() {
 	e.line("")
 }
 
-func (e *methodsEmitter) names(metas []dispatch.MethodMeta) {
+func (e *methodsEmitter) names(metas []operation.MethodMeta) {
 	e.line("// Every method the runtime routes, in registration order.")
 	e.line("const METHOD_NAMES = [")
 	for _, meta := range metas {
@@ -223,7 +223,7 @@ func (e *methodsEmitter) names(metas []dispatch.MethodMeta) {
 	e.line("")
 }
 
-func (e *methodsEmitter) streamingNames(metas []dispatch.MethodMeta) {
+func (e *methodsEmitter) streamingNames(metas []operation.MethodMeta) {
 	e.line("// Every method whose HTTP response remains open as an event stream.")
 	e.line("export const WIRE_STREAMING_METHOD_NAMES = [")
 	for _, meta := range metas {
@@ -243,7 +243,7 @@ func (e *methodsEmitter) streamingNames(metas []dispatch.MethodMeta) {
 	e.line("")
 }
 
-func (e *methodsEmitter) valueMethodNames(metas []dispatch.MethodMeta) {
+func (e *methodsEmitter) valueMethodNames(metas []operation.MethodMeta) {
 	e.line("// Methods whose validated wire result becomes a value in the ergonomic SDK.")
 	e.line("const VALUE_METHOD_NAMES = [")
 	for _, meta := range metas {
@@ -270,7 +270,7 @@ func (e *methodsEmitter) valueMethodNames(metas []dispatch.MethodMeta) {
 // A stream's events are absent for the same reason its ack is present: the SDK names
 // RunEvent and WorkspaceEvent directly, which are already this contract's types, so
 // a per-method event alias would only add a second way to spell one of two answers.
-func (e *methodsEmitter) shapes(metas []dispatch.MethodMeta) string {
+func (e *methodsEmitter) shapes(metas []operation.MethodMeta) string {
 	var out strings.Builder
 	fmt.Fprintln(&out, "/** The frames each method carries. */")
 	fmt.Fprintln(&out, "export interface WireShapes {")

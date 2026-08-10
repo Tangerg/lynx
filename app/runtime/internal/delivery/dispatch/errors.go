@@ -10,289 +10,123 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
-// rpcErrorSpecs maps each protocol sentinel to its wire behavior (§8.2 / §9.3).
-// The ordered registry makes errors.Is precedence deterministic. The symbolic
-// ProblemData.type is the sentinel's Error string; clients branch on it, not on the
-// numeric code.
-//
-// Every entry declares a recovery action. It replaces the transient/permanent flag
-// the contract rejected: "retryable" made a client guess what to do about a failure,
-// while the action says it. Which METHODS may return a type is not declared here —
-// each registration already lists the errors it returns, and a second list is a second
-// answer.
-type rpcErrorSpec struct {
-	sentinel          error
-	code              int
-	retryAfterSeconds int
-	// methodDeclarable says a method registration may name this problem as a
-	// business refusal. Envelope, metadata and idempotency boundary failures are
-	// still published, but cannot be misattributed to an individual handler.
-	methodDeclarable bool
-	// recovery is the safe default next move. It never overrides a method's
-	// idempotency policy and never authorizes replaying the user's intent.
-	recovery protocol.RecoveryAction
+type rpcCodeSpec struct {
+	problemType string
+	code        int
 }
 
-var rpcErrorSpecs = mustRPCErrorSpecs([]rpcErrorSpec{
-	{sentinel: protocol.ErrInvalidRequest, code: codeInvalidRequest, recovery: protocol.RecoveryStop},
-	{sentinel: protocol.ErrInternalError, code: codeInternalError, recovery: protocol.RecoveryStop},
-	// The request itself is wrong: nothing the client retries changes the answer, and
-	// only a person can decide what it meant to ask.
-	{sentinel: protocol.ErrMethodNotFound, code: codeMethodNotFound, recovery: protocol.RecoveryStop},
-	{sentinel: protocol.ErrInvalidParams, code: codeInvalidParams, recovery: protocol.RecoveryStop},
-	// The subject is gone, moved, or was never there. A client holding a stale id
-	// reads again; what it finds may be that the thing is gone for good.
-	{sentinel: protocol.ErrSessionNotFound, code: codeSessionNotFound, recovery: protocol.RecoveryRefetch, methodDeclarable: true},
-	{sentinel: protocol.ErrRunNotFound, code: codeRunNotFound, recovery: protocol.RecoveryRefetch, methodDeclarable: true},
-	{sentinel: protocol.ErrItemNotFound, code: codeItemNotFound, recovery: protocol.RecoveryRefetch, methodDeclarable: true},
-	{sentinel: protocol.ErrMCPServerNotFound, code: codeMCPServerNotFound, recovery: protocol.RecoveryRefetch, methodDeclarable: true},
-	{sentinel: protocol.ErrMCPServerAlreadyExists, code: codeMCPServerExists, recovery: protocol.RecoveryRefetch, methodDeclarable: true},
-	{sentinel: protocol.ErrMCPServerDisabled, code: codeMCPServerDisabled, recovery: protocol.RecoveryRefetch, methodDeclarable: true},
-	// Authorization attempts are intentionally ephemeral. Once one expires, the
-	// same id can never become readable again; repeating get would only repeat the
-	// refusal, so the safe action is to stop polling it.
-	{sentinel: protocol.ErrMCPAuthorizationAttemptNotFound, code: codeMCPAuthorizationAttemptNotFound, recovery: protocol.RecoveryStop, methodDeclarable: true},
-	{sentinel: protocol.ErrRunNotRoot, code: codeRunNotRoot, recovery: protocol.RecoveryRefetch, methodDeclarable: true},
-	// Something else holds the session or the working tree, or the revision moved.
-	// Reading again is how the client learns whether it still does.
-	{sentinel: protocol.ErrSessionBusy, code: codeSessionBusy, recovery: protocol.RecoveryRefetch, methodDeclarable: true},
-	{sentinel: protocol.ErrRevisionConflict, code: codeRevisionConflict, recovery: protocol.RecoveryRefetch, methodDeclarable: true},
-	// The run moved on while the client was not looking: its STREAM is stale rather
-	// than its ids, so it rebuilds from the durable reads.
-	{sentinel: protocol.ErrInterruptNotOpen, code: codeInterruptNotOpen, recovery: protocol.RecoveryColdRecover, methodDeclarable: true},
-	{sentinel: protocol.ErrReplayUnavailable, code: codeReplayUnavailable, recovery: protocol.RecoveryColdRecover, methodDeclarable: true},
-	{sentinel: protocol.ErrRunWaiting, code: codeRunWaiting, recovery: protocol.RecoveryColdRecover, methodDeclarable: true},
-	{sentinel: protocol.ErrRunFinished, code: codeRunFinished, recovery: protocol.RecoveryColdRecover, methodDeclarable: true},
-	// The run is executing something else, or the client is holding a cursor that
-	// never addressed this stream. Both are answered by reading the run again — and
-	// for the cursor, by dropping it: reattaching with the same one would fail the
-	// same way, so resubscribe means resubscribe WITHOUT it.
-	{sentinel: protocol.ErrStaleSegment, code: codeStaleSegment, recovery: protocol.RecoveryRefetch, methodDeclarable: true},
-	{sentinel: protocol.ErrReplayCursorInvalid, code: codeReplayCursorInvalid, recovery: protocol.RecoveryResubscribe, methodDeclarable: true},
-	// Only a person can choose: which run continues, where to work, whether to
-	// declare a capability, or what to do about a conflicting key.
-	{sentinel: protocol.ErrSessionHasActiveRun, code: codeSessionHasActiveRun, recovery: protocol.RecoveryPromptUser, methodDeclarable: true},
-	{sentinel: protocol.ErrCapabilityNotNeg, code: codeCapabilityNotNeg, recovery: protocol.RecoveryPromptUser, methodDeclarable: true},
-	{sentinel: protocol.ErrWorkspaceUnavailable, code: codeWorkspaceUnavailable, recovery: protocol.RecoveryPromptUser, methodDeclarable: true},
-	{sentinel: protocol.ErrCheckpointUnavailable, code: codeCheckpointUnavail, recovery: protocol.RecoveryPromptUser, methodDeclarable: true},
-	{sentinel: protocol.ErrUnsupportedMime, code: codeUnsupportedMime, recovery: protocol.RecoveryPromptUser, methodDeclarable: true},
-	{sentinel: protocol.ErrPathOutsideRoot, code: codePathOutsideRoot, recovery: protocol.RecoveryPromptUser, methodDeclarable: true},
-	{sentinel: protocol.ErrVcsUnavailable, code: codeVCSUnavailable, recovery: protocol.RecoveryPromptUser, methodDeclarable: true},
-	{sentinel: protocol.ErrInvalidProtocolVersion, code: codeInvalidProtocolVersion, recovery: protocol.RecoveryPromptUser},
-	{sentinel: protocol.ErrIdempotencyConflict, code: codeIdempotencyConflict, recovery: protocol.RecoveryPromptUser},
-	{sentinel: protocol.ErrProviderError, code: codeProviderError, recovery: protocol.RecoveryPromptUser, methodDeclarable: true},
-	// The same key is mid-flight: waiting is the whole remedy, and the hint says how
-	// long. Retrying is safe here precisely because the key makes it the same call.
-	{
-		sentinel: protocol.ErrIdempotencyInProgress,
-		code:     codeIdempotencyInProgress, retryAfterSeconds: 1,
-		recovery: protocol.RecoveryWaitRetryAfter,
-	},
+var rpcCodeSpecs = mustRPCCodeSpecs([]rpcCodeSpec{
+	{protocol.ErrInvalidRequest.Error(), codeInvalidRequest},
+	{protocol.ErrInternalError.Error(), codeInternalError},
+	{protocol.ErrMethodNotFound.Error(), codeMethodNotFound},
+	{protocol.ErrInvalidParams.Error(), codeInvalidParams},
+	{protocol.ErrSessionNotFound.Error(), codeSessionNotFound},
+	{protocol.ErrRunNotFound.Error(), codeRunNotFound},
+	{protocol.ErrItemNotFound.Error(), codeItemNotFound},
+	{protocol.ErrMCPServerNotFound.Error(), codeMCPServerNotFound},
+	{protocol.ErrMCPServerAlreadyExists.Error(), codeMCPServerExists},
+	{protocol.ErrMCPServerDisabled.Error(), codeMCPServerDisabled},
+	{protocol.ErrMCPAuthorizationAttemptNotFound.Error(), codeMCPAuthorizationAttemptNotFound},
+	{protocol.ErrRunNotRoot.Error(), codeRunNotRoot},
+	{protocol.ErrSessionBusy.Error(), codeSessionBusy},
+	{protocol.ErrRevisionConflict.Error(), codeRevisionConflict},
+	{protocol.ErrInterruptNotOpen.Error(), codeInterruptNotOpen},
+	{protocol.ErrReplayUnavailable.Error(), codeReplayUnavailable},
+	{protocol.ErrRunWaiting.Error(), codeRunWaiting},
+	{protocol.ErrRunFinished.Error(), codeRunFinished},
+	{protocol.ErrStaleSegment.Error(), codeStaleSegment},
+	{protocol.ErrReplayCursorInvalid.Error(), codeReplayCursorInvalid},
+	{protocol.ErrSessionHasActiveRun.Error(), codeSessionHasActiveRun},
+	{protocol.ErrCapabilityNotNeg.Error(), codeCapabilityNotNeg},
+	{protocol.ErrWorkspaceUnavailable.Error(), codeWorkspaceUnavailable},
+	{protocol.ErrCheckpointUnavailable.Error(), codeCheckpointUnavail},
+	{protocol.ErrUnsupportedMime.Error(), codeUnsupportedMime},
+	{protocol.ErrPathOutsideRoot.Error(), codePathOutsideRoot},
+	{protocol.ErrVcsUnavailable.Error(), codeVCSUnavailable},
+	{protocol.ErrInvalidProtocolVersion.Error(), codeInvalidProtocolVersion},
+	{protocol.ErrIdempotencyConflict.Error(), codeIdempotencyConflict},
+	{protocol.ErrProviderError.Error(), codeProviderError},
+	{protocol.ErrIdempotencyInProgress.Error(), codeIdempotencyInProgress},
 })
 
-// RecoveryFor returns the declared default recovery action for one problem type, and
-// false for a type no sentinel publishes. The generator reads it, so the published
-// registry and the runtime's own table are one statement.
-func RecoveryFor(problemType string) (protocol.RecoveryAction, bool) {
-	spec, ok := specFor(problemType)
-	return spec.recovery, ok
-}
-
-// IsMethodProblemType reports whether a method registration may declare this
-// first-party problem. The fact lives beside the runtime's code and recovery
-// behavior, so validation and generation cannot drift from a second name list.
-func IsMethodProblemType(problemType string) bool {
-	spec, ok := specFor(problemType)
-	return ok && spec.methodDeclarable
-}
-
-// ProblemCodes is the published business error surface: every problem type this
-// router can send, with the code it is sent with.
-//
-// The generator reads it instead of keeping its own table. That table existed, and
-// it was a verbatim copy — so a new error had to be remembered in two places, and
-// the artifacts could publish a code the runtime does not send. A type reaches the
-// published registry by having wire behavior here, not by being listed twice.
 func ProblemCodes() map[string]int {
-	out := make(map[string]int, len(rpcErrorSpecs))
-	for _, spec := range rpcErrorSpecs {
-		out[spec.sentinel.Error()] = spec.code
+	out := make(map[string]int, len(rpcCodeSpecs))
+	for _, spec := range rpcCodeSpecs {
+		out[spec.problemType] = spec.code
 	}
 	return out
 }
 
-// RetryAfterFor returns the declared backoff hint for one problem type. A hint says
-// waiting may clear the condition; it never says a mutation is safe to repeat.
-func RetryAfterFor(problemType string) int {
-	spec, _ := specFor(problemType)
-	return spec.retryAfterSeconds
-}
-
-func specFor(problemType string) (rpcErrorSpec, bool) {
-	for _, spec := range rpcErrorSpecs {
-		if spec.sentinel.Error() == problemType {
-			return spec, true
+func problemCode(problemType string) (int, bool) {
+	for _, spec := range rpcCodeSpecs {
+		if spec.problemType == problemType {
+			return spec.code, true
 		}
 	}
-	return rpcErrorSpec{}, false
+	return 0, false
 }
 
-func mustRPCErrorSpecs(specs []rpcErrorSpec) []rpcErrorSpec {
-	types := make(map[string]bool, len(specs))
-	codes := make(map[int]bool, len(specs))
-	for index, spec := range specs {
-		switch {
-		case spec.sentinel == nil:
-			panic(fmt.Sprintf("dispatch: RPC error spec %d has no sentinel", index))
-		case spec.sentinel.Error() == "":
-			panic(fmt.Sprintf("dispatch: RPC error spec %d has an empty problem type", index))
-		case types[spec.sentinel.Error()]:
-			panic(fmt.Sprintf(
-				"dispatch: RPC problem type %q is registered twice",
-				spec.sentinel,
-			))
-		case codes[spec.code]:
-			panic(fmt.Sprintf(
-				"dispatch: RPC error code %d is registered twice",
-				spec.code,
-			))
-		case !spec.recovery.Valid():
-			panic(fmt.Sprintf(
-				"dispatch: RPC problem type %q has invalid recovery action %q",
-				spec.sentinel,
-				spec.recovery,
-			))
-		case spec.recovery == protocol.RecoveryWaitRetryAfter &&
-			spec.retryAfterSeconds <= 0:
-			panic(fmt.Sprintf(
-				"dispatch: RPC problem type %q waits without a positive retryAfterSeconds",
-				spec.sentinel,
-			))
-		case spec.recovery != protocol.RecoveryWaitRetryAfter &&
-			spec.retryAfterSeconds != 0:
-			panic(fmt.Sprintf(
-				"dispatch: RPC problem type %q publishes retryAfterSeconds with recovery %q",
-				spec.sentinel,
-				spec.recovery,
-			))
-		}
-		types[spec.sentinel.Error()] = true
-		codes[spec.code] = true
-	}
-	return specs
-}
-
-// errorToRPC maps a Go error returned from Runtime into a JSON-RPC
-// Error envelope. Resolution order:
-//
-//  1. An already-wrapped *transport.Error surfaces verbatim.
-//  2. A sentinel match → its code + ProblemData{type, detail}.
-//  3. Anything else → internal_error + detail.
-//
-// The wire message is the symbolic type so logs/traces read cleanly;
-// clients branch on error.data.type, not the numeric code (API.md §8.2).
 func errorToRPC(err error) *transport.Error {
 	if err == nil {
 		return nil
 	}
-	if rpcErr, ok := errors.AsType[*transport.Error](err); ok {
-		return rpcErr
+	if rpcError, ok := errors.AsType[*transport.Error](err); ok {
+		return rpcError
 	}
-	for _, spec := range rpcErrorSpecs {
-		if errors.Is(err, spec.sentinel) {
-			return problemFrame(spec, err)
-		}
-	}
-	return problemError(protocol.ErrInternalError, "the runtime could not complete the request")
+	return marshalFailure(operation.ProjectError(err))
 }
 
-// problemError builds an Error carrying the registered sentinel's code and
-// ProblemData type. Keeping both on the spec makes an impossible pair
-// unrepresentable at call sites.
-func problemError(sentinel error, detail string) *transport.Error {
-	return problemErrorWithFields(sentinel, detail)
-}
-
-func problemErrorWithFields(sentinel error, detail string, fields ...protocol.FieldError) *transport.Error {
-	if sentinel == nil {
-		return invalidProblemResponse("the runtime could not encode an unregistered error response")
+func marshalFailure(failure *operation.Failure) *transport.Error {
+	if failure == nil {
+		failure = operation.NewFailure(protocol.ErrInternalError, "the runtime could not complete the request")
 	}
-	spec, ok := specFor(sentinel.Error())
-	if !ok {
-		return invalidProblemResponse("the runtime could not encode an unregistered error response")
-	}
-	return marshalProblem(spec, protocol.ProblemData{
-		Type: sentinel.Error(), Detail: detail,
-		RetryAfterSeconds: spec.retryAfterSeconds,
-		Errors:            fields,
-	})
-}
-
-// problemFrame builds the frame for one error, letting the error fill the structured
-// fields its problem type requires ([operation.ProblemDetailed]).
-//
-// The alternative is a switch here that re-derives each type's payload from
-// somewhere else — a second author for a fact the error already carried, and the one
-// place it could go missing.
-func problemFrame(spec rpcErrorSpec, err error) *transport.Error {
-	problem := protocol.ProblemData{
-		Type: spec.sentinel.Error(), Detail: err.Error(),
-		RetryAfterSeconds: spec.retryAfterSeconds,
-	}
-	if detailed, ok := errors.AsType[operation.ProblemDetailed](err); ok {
-		detailed.Enrich(&problem)
-	}
-	return marshalProblem(spec, problem)
-}
-
-func marshalProblem(spec rpcErrorSpec, problem protocol.ProblemData) *transport.Error {
-	if err := protocol.ValidateWireTree(problem); err != nil {
+	problem := failure.Data()
+	code, ok := problemCode(problem.Type)
+	if !ok || protocol.ValidateWireTree(problem) != nil {
 		return invalidProblemResponse("the runtime could not encode a valid error response")
 	}
-	encodedProblem, err := json.Marshal(problem)
+	encoded, err := json.Marshal(problem)
 	if err != nil {
 		return invalidProblemResponse("the runtime could not serialize a valid error response")
 	}
-	return transport.NewError(spec.code, problem.Type, encodedProblem)
+	return transport.NewError(code, problem.Type, encoded)
+}
+
+func problemError(sentinel error, detail string) *transport.Error {
+	return marshalFailure(operation.NewFailure(sentinel, detail))
 }
 
 func invalidProblemResponse(detail string) *transport.Error {
 	fallback := protocol.ProblemData{Type: protocol.ProblemInternalError, Detail: detail}
-	encodedFallback, err := json.Marshal(fallback)
+	encoded, err := json.Marshal(fallback)
 	if err != nil {
 		return transport.NewError(codeInternalError, protocol.ProblemInternalError, nil)
 	}
-	return transport.NewError(
-		codeInternalError,
-		protocol.ProblemInternalError,
-		encodedFallback,
-	)
+	return transport.NewError(codeInternalError, protocol.ProblemInternalError, encoded)
 }
 
-// invalidParams wraps a params-validation failure as invalid_params.
 func invalidParams(reason string) *transport.Error {
 	return problemError(protocol.ErrInvalidParams, reason)
 }
 
-// invalidRequestShape reports a decoded request that broke its own constraints.
-// A [protocol.ConstraintError] names the offending params keys, so this fills
-// ProblemData.errors (API.md §8.3) and the client flags each field instead of
-// parsing one sentence. Anything else only has prose to offer.
-func invalidRequestShape(err error) *transport.Error {
-	if constraint, ok := errors.AsType[*protocol.ConstraintError](err); ok {
-		return problemErrorWithFields(protocol.ErrInvalidParams, constraint.Error(), constraint.Fields...)
-	}
-	return invalidParams(err.Error())
-}
-
-// methodNotFound is the canonical envelope for an unknown method.
-func methodNotFound(method string) *transport.Error {
-	return problemError(protocol.ErrMethodNotFound,
-		fmt.Sprintf("unknown method %q", method))
-}
-
-// badEnvelope is returned for malformed JSON-RPC envelopes (non-string
-// id, wrong shape) at the router boundary.
 func badEnvelope(detail string) *transport.Error {
 	return problemError(protocol.ErrInvalidRequest, detail)
+}
+
+func mustRPCCodeSpecs(specs []rpcCodeSpec) []rpcCodeSpec {
+	types := make(map[string]bool, len(specs))
+	codes := make(map[int]bool, len(specs))
+	for index, spec := range specs {
+		switch {
+		case spec.problemType == "":
+			panic(fmt.Sprintf("dispatch: RPC code spec %d has no problem type", index))
+		case types[spec.problemType]:
+			panic(fmt.Sprintf("dispatch: RPC problem type %q is registered twice", spec.problemType))
+		case codes[spec.code]:
+			panic(fmt.Sprintf("dispatch: RPC error code %d is registered twice", spec.code))
+		}
+		types[spec.problemType] = true
+		codes[spec.code] = true
+	}
+	return specs
 }

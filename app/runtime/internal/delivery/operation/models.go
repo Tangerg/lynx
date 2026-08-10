@@ -1,0 +1,34 @@
+package operation
+
+import (
+	"context"
+
+	"github.com/Tangerg/lynx/app/runtime/protocol"
+)
+
+func registerModels(registry *Registry) {
+	Query(registry, MethodMeta{Name: "models.list", Stability: stable},
+		func(service Service, ctx context.Context, request protocol.ListModelsRequest) (*protocol.Page[protocol.Model], error) {
+			return service.ListModels(ctx, request)
+		})
+
+	Query(registry, MethodMeta{Name: "models.getUtilityRole", Stability: stable},
+		func(service Service, ctx context.Context, _ struct{}) (*protocol.UtilityRole, error) {
+			return service.GetUtilityRole(ctx)
+		})
+
+	Command(registry, MethodMeta{Name: "models.setUtilityRole", Stability: stable},
+		func(service Service, ctx context.Context, request protocol.UtilityRole) (*protocol.UtilityRole, error) {
+			return service.SetUtilityRole(ctx, request)
+		})
+
+	Query(registry, MethodMeta{Name: "models.getEmbeddingRole", Stability: stable},
+		func(service Service, ctx context.Context, _ struct{}) (*protocol.EmbeddingRole, error) {
+			return service.GetEmbeddingRole(ctx)
+		})
+
+	Command(registry, MethodMeta{Name: "models.setEmbeddingRole", Stability: stable},
+		func(service Service, ctx context.Context, request protocol.EmbeddingRole) (*protocol.EmbeddingRole, error) {
+			return service.SetEmbeddingRole(ctx, request)
+		})
+}

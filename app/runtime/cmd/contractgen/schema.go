@@ -11,6 +11,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/contractcatalog"
 	"github.com/Tangerg/lynx/app/runtime/internal/contractshape"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/dispatch"
+	"github.com/Tangerg/lynx/app/runtime/internal/delivery/operation"
 )
 
 // The schema walker turns the registered wire types into JSON Schema.
@@ -362,9 +363,9 @@ func (s *schemaSet) presence(t reflect.Type, rule dispatch.PresenceRule) *schema
 		// An equals condition pins the value; a presence condition only asks that
 		// the field be there, which `required` already says.
 		switch when.Operator {
-		case dispatch.OperatorEquals:
+		case operation.OperatorEquals:
 			parent.Properties[leaf] = &schema{Const: when.Value}
-		case dispatch.OperatorPresent:
+		case operation.OperatorPresent:
 		default:
 			panic(fmt.Sprintf(
 				"contractgen: %s.%s uses unsupported condition operator %s",

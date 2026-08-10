@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"slices"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/delivery/operation"
 	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
@@ -75,9 +76,7 @@ func mustProblemContracts() []ProblemContract {
 		}
 	}
 
-	for _, spec := range rpcErrorSpecs {
-		add(ProblemChannelRPC, spec.sentinel.Error())
-	}
+	add(ProblemChannelRPC, operation.ProblemTypes()...)
 	add(ProblemChannelExecution,
 		protocol.ProblemInternalError,
 		protocol.ProblemRunLost,

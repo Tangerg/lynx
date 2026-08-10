@@ -6,9 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/transport"
-	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
 func decodeParams(raw json.RawMessage, dst any) error {
@@ -28,18 +25,4 @@ func decodeParams(raw json.RawMessage, dst any) error {
 		return errors.New("params must contain exactly one JSON object")
 	}
 	return nil
-}
-
-// decode validates and unmarshals typed request parameters. Empty parameters
-// produce the zero value for methods whose fields are all optional. Present
-// parameters must be one JSON object containing only known fields.
-func decode[Params any](request *transport.Request) (Params, *transport.Error) {
-	var parameters Params
-	if err := decodeParams(request.Params, &parameters); err != nil {
-		return parameters, invalidParams(err.Error())
-	}
-	if err := protocol.ValidateWireTree(&parameters); err != nil {
-		return parameters, invalidRequestShape(err)
-	}
-	return parameters, nil
 }

@@ -2,13 +2,28 @@ package dispatch
 
 import (
 	"encoding/json"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/delivery/operation"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/transport"
 	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
+
+func decodeForTest[Parameters any](request *transport.Request) (Parameters, *transport.Error) {
+	var zero Parameters
+	decoded, failure := decodeParameters(request.Params, reflect.TypeFor[Parameters]())
+	if failure != nil {
+		return zero, errorToRPC(failure)
+	}
+	parameters := decoded.(Parameters)
+	if err := protocol.ValidateWireTree(parameters); err != nil {
+		return zero, errorToRPC(operation.InvalidParameters(err))
+	}
+	return parameters, nil
+}
 
 func TestDecodeParamsRejectsDriftedRequests(t *testing.T) {
 	t.Parallel()
@@ -61,7 +76,7 @@ func TestDecodeReportsFieldLevelConstraintViolations(t *testing.T) {
 	t.Parallel()
 
 	msg := &transport.Request{Method: "sessions.update", Params: json.RawMessage(`{"sessionId":"","expectedRevision":0}`)}
-	_, bad := decode[protocol.UpdateSessionRequest](msg)
+	_, bad := decodeForTest[protocol.UpdateSessionRequest](msg)
 	if bad == nil {
 		t.Fatal("decode accepted a request with an empty id and a zero revision")
 	}
@@ -101,7 +116,7 @@ func TestDecodeRequiredAndOptionalArrayConstraints(t *testing.T) {
 			name:   "required array omitted",
 			params: `{"runId":"run_1","expectedSegmentId":"seg_1"}`,
 			decode: func(msg *transport.Request) *transport.Error {
-				_, bad := decode[protocol.SteerRunRequest](msg)
+				_, bad := decodeForTest[protocol.SteerRunRequest](msg)
 				return bad
 			},
 			wantField:  "input",
@@ -111,7 +126,7 @@ func TestDecodeRequiredAndOptionalArrayConstraints(t *testing.T) {
 			name:   "required array empty",
 			params: `{"runId":"run_1","expectedSegmentId":"seg_1","input":[]}`,
 			decode: func(msg *transport.Request) *transport.Error {
-				_, bad := decode[protocol.SteerRunRequest](msg)
+				_, bad := decodeForTest[protocol.SteerRunRequest](msg)
 				return bad
 			},
 			wantField:  "input",
@@ -121,7 +136,7 @@ func TestDecodeRequiredAndOptionalArrayConstraints(t *testing.T) {
 			name:   "optional array omitted",
 			params: `{"runId":"run_1","responses":[]}`,
 			decode: func(msg *transport.Request) *transport.Error {
-				_, bad := decode[protocol.ResumeRunRequest](msg)
+				_, bad := decodeForTest[protocol.ResumeRunRequest](msg)
 				return bad
 			},
 		},
@@ -129,7 +144,7 @@ func TestDecodeRequiredAndOptionalArrayConstraints(t *testing.T) {
 			name:   "optional array empty",
 			params: `{"runId":"run_1","responses":[],"input":[]}`,
 			decode: func(msg *transport.Request) *transport.Error {
-				_, bad := decode[protocol.ResumeRunRequest](msg)
+				_, bad := decodeForTest[protocol.ResumeRunRequest](msg)
 				return bad
 			},
 			wantField:  "input",
@@ -170,7 +185,7 @@ func TestDecodeAcceptsRequestsWithoutConstraints(t *testing.T) {
 	t.Parallel()
 
 	msg := &transport.Request{Method: "runs.list", Params: json.RawMessage(`{"sessionId":"ses_1"}`)}
-	in, bad := decode[protocol.ListRunsRequest](msg)
+	in, bad := decodeForTest[protocol.ListRunsRequest](msg)
 	if bad != nil {
 		t.Fatalf("decode rejected an unconstrained request: %+v", bad)
 	}

@@ -461,9 +461,9 @@ func TestRuntimeResponsibilityFilesStayFocused(t *testing.T) {
 		filepath.Join(root, "internal", "application", "goals", "driver.go"): {
 			"Get": "current Goal reads use the canonical Current vocabulary",
 		},
-		filepath.Join(root, "internal", "delivery", "dispatch", "contract_skills.go"): {
-			"registerRecipes":   "recipe methods belong to contract_recipes.go",
-			"registerAgentDocs": "instruction-document methods belong to contract_agent_docs.go",
+		filepath.Join(root, "internal", "delivery", "operation", "skills.go"): {
+			"registerRecipes":   "recipe operations belong to recipes.go",
+			"registerAgentDocs": "instruction-document operations belong to agent_docs.go",
 		},
 		filepath.Join(root, "protocol", "items.go"): {
 			"Plan": "the plan method group belongs to plan.go",
