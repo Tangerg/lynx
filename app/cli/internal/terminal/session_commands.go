@@ -146,7 +146,7 @@ func (a *app) installSnapshot(snapshot client.SessionSnapshot) error {
 	draft.Attachments = nil
 	nextTranscript := newConversationView(
 		a.transcript.theme, a.transcript.glyphs, a.transcript.wheel, a.syntax,
-		a.settings.UI.TranscriptRetain, a.transcript.details,
+		a.settings.UI.TranscriptRetain, a.transcript.details, a.transcript.clipboard,
 	)
 	if err := presentSnapshot(nextTranscript, snapshot, a.registry); err != nil {
 		nextTranscript.Close()
@@ -161,6 +161,7 @@ func (a *app) installSnapshot(snapshot client.SessionSnapshot) error {
 	a.state = next
 	a.attachments = attachments
 	a.transcript = nextTranscript
+	a.wireTranscript(nextTranscript)
 	a.restoreComposer(draft)
 	a.activity.Reset()
 	a.status.Reset(a.options)

@@ -65,8 +65,9 @@ type delayedFirstRuntime struct {
 type recordingRuntime struct {
 	*mock.Runtime
 
-	mu   sync.Mutex
-	last client.StartRun
+	mu     sync.Mutex
+	last   client.StartRun
+	starts int
 }
 
 type ambiguousControlRuntime struct {
@@ -187,8 +188,15 @@ func (r *ambiguousControlRuntime) counts() (int, int) {
 func (r *recordingRuntime) StartRun(ctx context.Context, input client.StartRun) (client.Run, error) {
 	r.mu.Lock()
 	r.last = input
+	r.starts++
 	r.mu.Unlock()
 	return r.Runtime.StartRun(ctx, input)
+}
+
+func (r *recordingRuntime) startCount() int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.starts
 }
 
 func (r *recordingRuntime) options() client.RunOptions {
@@ -260,6 +268,45 @@ func TestShiftEnterInsertsANewlineWithoutSubmitting(t *testing.T) {
 
 	if got := backend.startInput().Message.Text; got != "first line\nsecond line" {
 		t.Fatalf("submitted text = %q, want a two-line prompt", got)
+	}
+
+	host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
+	stop()
+}
+
+func TestTranscriptFocusDoesNotSubmitAndTypingReturnsToPrompt(t *testing.T) {
+	backend := &recordingRuntime{Runtime: mock.New()}
+	backend.Instant = true
+	backend.Script = func(prompt string) mock.Script {
+		return mock.Script{Prelude: []mock.Step{
+			{Event: client.BlockCompleted{Block: client.Block{ID: "answer-" + prompt, Kind: client.BlockAssistant, Text: "focused answer · " + prompt}}},
+			{Event: client.RunFinished{Outcome: client.Outcome{Status: client.OutcomeCompleted}}},
+		}}
+	}
+	host, stop := runUIWith(t, backend)
+	host.Shows(t, "Ask lyra")
+	host.Type("first prompt")
+	host.Press(input.Enter)
+	host.Shows(t, "focused answer · first prompt")
+	host.Shows(t, "complete")
+
+	host.Press(input.Tab)
+	host.Shows(t, "select prev")
+	host.Type("?")
+	host.Shows(t, "Commands")
+	host.Press(input.Esc)
+	host.Hides(t, "Commands")
+	host.Press(input.Enter)
+	if got := backend.startCount(); got != 1 {
+		t.Fatalf("Enter with transcript focus started %d runs, want 1", got)
+	}
+
+	host.Type("second prompt")
+	host.Shows(t, "second prompt")
+	host.Press(input.Enter)
+	host.Shows(t, "focused answer · second prompt")
+	if got := backend.startCount(); got != 2 {
+		t.Fatalf("typing from transcript focus started %d runs, want 2", got)
 	}
 
 	host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/Tangerg/oolong/core/program"
@@ -239,18 +240,30 @@ func (a *app) activeCancellation() (client.CancelRun, bool) {
 }
 
 func post(ctx context.Context, dispatcher program.Dispatcher, fn func()) error {
-	done := make(chan struct{}, 1)
+	finished := make(chan struct{})
+	var claimed atomic.Bool
 	dispatcher.Post(func() {
-		fn()
-		done <- struct{}{}
+		if claimed.CompareAndSwap(false, true) {
+			fn()
+		}
+		close(finished)
 	})
+	abort := func(err error) error {
+		if claimed.CompareAndSwap(false, true) {
+			return err
+		}
+		// The UI callback already owns the request. Join it before returning so
+		// stack-owned reply values cannot outlive the caller that reads them.
+		<-finished
+		return err
+	}
 	select {
-	case <-done:
+	case <-finished:
 		return nil
 	case <-ctx.Done():
-		return context.Cause(ctx)
+		return abort(context.Cause(ctx))
 	case <-dispatcher.Done():
-		return program.ErrStopped
+		return abort(program.ErrStopped)
 	}
 }
 

@@ -8,6 +8,7 @@ import (
 	"github.com/Tangerg/oolong/components/headless"
 	"github.com/Tangerg/oolong/components/kit"
 	"github.com/Tangerg/oolong/core/grid"
+	"github.com/Tangerg/oolong/core/input"
 
 	"github.com/Tangerg/lynx/app/cli/internal/client"
 	"github.com/Tangerg/lynx/app/cli/internal/settings"
@@ -132,6 +133,42 @@ func TestShellRendersAtSupportedAndConstrainedTerminalSizes(t *testing.T) {
 				t.Fatalf("%dx%d shell rendered nothing", size.width, size.height)
 			}
 		})
+	}
+}
+
+func TestShellMovesFocusBetweenPromptAndTranscript(t *testing.T) {
+	keys, err := configuredKeys(settings.Default())
+	if err != nil {
+		t.Fatal(err)
+	}
+	theme, glyphs := kit.Dark(), kit.Unicode()
+	transcript := testConversationView(t)
+	appendTestTool(transcript, "focus", "detail")
+	composer := kit.Composer{Theme: theme, Prompt: glyphs.Marker + " ", MaxRows: 6}
+	prompt := newPromptView(theme, glyphs, keys, &composer, settings.Default().RunOptions())
+	shell := newShellView(
+		newSessionHeader(theme, glyphs, client.Session{}), transcript,
+		newActivityView(theme, glyphs), newStatusView(theme, glyphs, settings.Default().RunOptions()), prompt,
+	)
+	prompt.SetTranscriptKeys(transcript.Keys())
+	transcript.OnFocusChange(prompt.SetTranscriptFocused)
+	transcript.OnSelection(prompt.SetTranscriptSelection)
+	shell.Focus(true)
+
+	if !shell.PromptFocused() {
+		t.Fatal("new shell did not start with prompt focus")
+	}
+	if !shell.Handle(input.Key{Code: input.Tab}) || !shell.TranscriptFocused() {
+		t.Fatal("Tab did not move focus to the transcript")
+	}
+	focused := drawRoot(t, shell, 96, 20)
+	for _, want := range []string{"select prev", "select next", "toggle details", "prompt"} {
+		if !strings.Contains(focused, want) {
+			t.Errorf("transcript help does not contain %q:\n%s", want, focused)
+		}
+	}
+	if !shell.Handle(input.Key{Code: input.Character, Rune: ' '}) || !shell.PromptFocused() {
+		t.Fatal("Space did not return focus to the prompt")
 	}
 }
 

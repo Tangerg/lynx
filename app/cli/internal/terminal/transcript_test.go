@@ -58,8 +58,14 @@ func TestClickingAToolHeaderTogglesOnlyThatTool(t *testing.T) {
 	if !root.Handle(input.Mouse{Pos: image.Pt(0, 0), Action: input.MouseDown, Button: input.ButtonLeft}) {
 		t.Fatal("tool header click was not handled")
 	}
+	if first.expanded {
+		t.Fatal("tool expanded before the pointer gesture committed")
+	}
+	if !root.Handle(input.Mouse{Pos: image.Pt(0, 0), Action: input.MouseUp, Button: input.ButtonLeft}) {
+		t.Fatal("tool header release was not handled")
+	}
 	if !first.expanded {
-		t.Fatal("clicked tool did not expand")
+		t.Fatal("committed tool click did not expand")
 	}
 	if second.expanded {
 		t.Fatal("clicking one tool expanded a different tool")
@@ -69,11 +75,39 @@ func TestClickingAToolHeaderTogglesOnlyThatTool(t *testing.T) {
 	}
 
 	root.Draw(surface.View())
-	if !root.Handle(input.Mouse{Pos: image.Pt(0, 0), Action: input.MouseDown, Button: input.ButtonLeft}) {
+	if !root.Handle(input.Mouse{Pos: image.Pt(0, 0), Action: input.MouseDown, Button: input.ButtonLeft}) ||
+		!root.Handle(input.Mouse{Pos: image.Pt(0, 0), Action: input.MouseUp, Button: input.ButtonLeft}) {
 		t.Fatal("expanded tool header click was not handled")
 	}
 	if first.expanded {
 		t.Fatal("second click did not collapse the tool")
+	}
+}
+
+func TestDraggingFromAToolHeaderCopiesWithoutToggling(t *testing.T) {
+	clipboard := new(recordingClipboard)
+	view := newConversationView(kit.Dark(), kit.Unicode(), input.Wheel{}, highlight.Style("github-dark"), 24, false, clipboard)
+	t.Cleanup(view.Close)
+	tool := appendTestTool(view, "drag", "DRAG_DETAIL")
+	root := headless.NewRoot(view)
+	surface := grid.NewSurface(48, 8)
+	root.Draw(surface.View())
+
+	if !root.Handle(input.Mouse{Pos: image.Pt(4, 0), Action: input.MouseDown, Button: input.ButtonLeft}) {
+		t.Fatal("selection press was not handled")
+	}
+	if !view.selection.Dragging() {
+		t.Fatal("entry selection cleared the transcript drag owner")
+	}
+	if !root.Handle(input.Mouse{Pos: image.Pt(9, 0), Action: input.MouseDrag, Button: input.ButtonLeft}) ||
+		!root.Handle(input.Mouse{Pos: image.Pt(9, 0), Action: input.MouseUp, Button: input.ButtonLeft}) {
+		t.Fatal("selection drag was not handled")
+	}
+	if clipboard.text == "" {
+		t.Fatal("drag selection was not copied")
+	}
+	if tool.expanded {
+		t.Fatal("drag selection toggled the tool layout")
 	}
 }
 
@@ -109,9 +143,65 @@ func TestCompletingALiveToolPreservesItsExpandedState(t *testing.T) {
 	}
 }
 
+func TestTranscriptFocusSelectsAndOperatesOnOneEntry(t *testing.T) {
+	view := testConversationView(t)
+	first := appendTestTool(view, "first", "FIRST_DETAIL")
+	second := appendTestTool(view, "second", "SECOND_DETAIL")
+
+	view.Focus(true)
+	if !view.hasSelected || view.selected != view.toolViews[1].id {
+		t.Fatalf("initial selection = %d, want newest entry %d", view.selected, view.toolViews[1].id)
+	}
+	if !view.Handle(input.Key{Code: input.Up}) {
+		t.Fatal("focused transcript did not handle Up")
+	}
+	if view.selected != view.toolViews[0].id {
+		t.Fatalf("Up selected %d, want %d", view.selected, view.toolViews[0].id)
+	}
+	if !view.Handle(input.Key{Code: input.Right}) || !first.expanded {
+		t.Fatal("Right did not expand the selected tool")
+	}
+	if second.expanded {
+		t.Fatal("expanding the selected tool changed another entry")
+	}
+	if !view.Handle(input.Key{Code: input.Enter}) || first.expanded {
+		t.Fatal("Enter did not toggle the selected tool")
+	}
+
+	view.Focus(false)
+	if view.entries[view.selected].focused {
+		t.Fatal("selected entry retained the focused rail after transcript blur")
+	}
+}
+
+func TestFocusedTranscriptCopiesTheSelectedBlock(t *testing.T) {
+	clipboard := new(recordingClipboard)
+	view := newConversationView(kit.Dark(), kit.Unicode(), input.Wheel{}, highlight.Style("github-dark"), 24, false, clipboard)
+	t.Cleanup(view.Close)
+	appendTestTool(view, "copy", "COPY_DETAIL")
+	view.Focus(true)
+	headless.NewRoot(view).Draw(grid.NewSurface(48, 8).View())
+
+	if !view.Handle(input.Key{Code: input.Character, Rune: 'c', Mods: input.Alt}) {
+		t.Fatal("Alt+C was not handled by the focused transcript")
+	}
+	if !strings.Contains(clipboard.text, "echo copy") {
+		t.Fatalf("clipboard = %q, want selected tool content", clipboard.text)
+	}
+}
+
+type recordingClipboard struct{ text string }
+
+func (c *recordingClipboard) Copy(value string) bool {
+	c.text = value
+	return true
+}
+
+func (*recordingClipboard) Paste() bool { return false }
+
 func testConversationView(t *testing.T) *conversationView {
 	t.Helper()
-	view := newConversationView(kit.Dark(), kit.Unicode(), input.Wheel{}, highlight.Style("github-dark"), 24, false)
+	view := newConversationView(kit.Dark(), kit.Unicode(), input.Wheel{}, highlight.Style("github-dark"), 24, false, nil)
 	t.Cleanup(view.Close)
 	return view
 }
@@ -121,8 +211,7 @@ func appendTestTool(view *conversationView, id, output string) *toolBlock {
 	block := newToolBlock(Presentation{Theme: view.theme, Glyphs: view.glyphs, Look: view.look, Syntax: view.syntax}, client.Block{
 		ID: id, Kind: client.BlockTool, Tool: &call,
 	})
-	blockID := view.content.Append(block)
-	view.content.Finish(blockID)
+	blockID := view.place(block, true)
 	view.toolViews = append(view.toolViews, trackedTool{id: blockID, block: block})
 	return block
 }

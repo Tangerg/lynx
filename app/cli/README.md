@@ -22,11 +22,12 @@ The interactive client uses a stable agent shell: session and workspace identity
 Core terminal interactions are available from both the keyboard and mouse:
 
 - `Enter` sends a prompt; `Shift+Enter` or `Alt+Enter` inserts a newline.
+- `Tab` moves keyboard focus from the composer into the transcript. `Up`/`Down` select one retained entry, `Home`/`End` jump to the edges, `Left`/`Right` collapse or expand the selected tool, `Enter` toggles it, and `Alt+C` copies the selected block. `Tab` or `Space` returns to the composer; typing printable text returns there automatically.
 - `PageUp` and `PageDown` move through the live transcript; `Ctrl+Home` and `Ctrl+End` jump to its bounds. Scrolling up suspends bottom-following while output continues.
-- Click a tool-call header to expand or collapse that tool. Its colored rail and right-aligned state remain visible while details are folded; `Ctrl+O` expands or collapses all tool details.
-- `Ctrl+P` opens the searchable command palette. `/help` opens the same surface, so command discovery does not flood the transcript.
+- Click a tool-call header to expand or collapse that tool. The action commits only when press and release land on the same header, so a drag selection cannot accidentally change layout. Its colored rail and right-aligned state remain visible while details are folded; `Ctrl+O` expands or collapses all tool details.
+- `Ctrl+P` opens the searchable command palette. With transcript focus, `?` is the local alternative. `/help` opens the same surface, so command discovery does not flood the transcript.
 
-The shortcut row is contextual: idle runs emphasize send, sessions, and mode; active runs emphasize cancel, multiline input, and tool details. Mouse, selection, transcript scrolling, and command shortcuts remain available while output streams.
+The shortcut row is contextual: idle runs emphasize send, sessions, and mode; active runs emphasize cancel, multiline input, and tool details; transcript focus exposes entry navigation and actions. Mouse, selection, transcript scrolling, and command shortcuts remain available while output streams.
 
 ## Architecture
 

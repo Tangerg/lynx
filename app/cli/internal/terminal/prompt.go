@@ -11,10 +11,15 @@ import (
 )
 
 type promptView struct {
-	theme kit.Theme
-	panel *kit.Panel
-	help  kit.Help
-	rows  *headless.Container
+	theme             kit.Theme
+	panel             *kit.Panel
+	help              kit.Help
+	rows              *headless.Container
+	keys              *keymap.Map
+	busy              bool
+	transcriptFocused bool
+	selection         transcriptSelection
+	transcriptKeys    *keymap.Map
 }
 
 func newPromptView(
@@ -31,6 +36,7 @@ func newPromptView(
 		theme: theme,
 		panel: panel,
 		help:  kit.Help{Theme: theme, Keys: keys, Separator: "  " + glyphs.Vertical + "  "},
+		keys:  keys,
 	}
 	p.rows = headless.Rows(
 		headless.Item{Key: "field", Size: layout.Measured(3, 8), Of: panel},
@@ -61,7 +67,46 @@ func (p *promptView) SetOptions(options client.RunOptions) {
 }
 
 func (p *promptView) SetBusy(busy bool) {
-	if busy {
+	p.busy = busy
+	p.refreshHelp()
+}
+
+func (p *promptView) SetTranscriptFocused(focused bool) {
+	p.transcriptFocused = focused
+	p.refreshHelp()
+}
+
+func (p *promptView) SetTranscriptSelection(selection transcriptSelection) {
+	p.selection = selection
+	p.refreshHelp()
+}
+
+func (p *promptView) SetTranscriptKeys(keys *keymap.Map) {
+	p.transcriptKeys = keys
+	p.refreshHelp()
+}
+
+func (p *promptView) refreshHelp() {
+	if p.transcriptFocused {
+		p.help.Keys = p.transcriptKeys
+		if !p.selection.Present {
+			p.help.Show = []keymap.Action{transcriptPrompt}
+			return
+		}
+		p.help.Show = []keymap.Action{headless.SelectPrev, headless.SelectNext, transcriptPrompt}
+		if p.selection.Expandable {
+			if p.selection.Expanded {
+				p.help.Show = append(p.help.Show, headless.Collapse)
+			} else {
+				p.help.Show = append(p.help.Show, headless.Expand)
+			}
+			p.help.Show = append(p.help.Show, toggleDetails)
+		}
+		p.help.Show = append(p.help.Show, headless.Copy)
+		return
+	}
+	p.help.Keys = p.keys
+	if p.busy {
 		p.help.Show = []keymap.Action{cancelRun, insertNewline, toggleDetails, commandPalette}
 		return
 	}

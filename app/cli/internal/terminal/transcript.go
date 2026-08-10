@@ -35,6 +35,19 @@ type conversationView struct {
 	current        int
 	retain         int
 	details        bool
+	clipboard      headless.Clipboard
+	focused        bool
+	selected       headless.BlockID
+	hasSelected    bool
+	entries        map[headless.BlockID]*transcriptEntry
+	pressed        headless.BlockID
+	pressedHeader  bool
+	dragged        bool
+	onFocusChange  func(bool)
+	onSelection    func(transcriptSelection)
+	onCopy         func(string)
+	keys           *keymap.Map
+	matcher        keymap.Matcher
 	tools          map[string]liveTool
 	toolViews      []trackedTool
 
@@ -44,6 +57,14 @@ type conversationView struct {
 	open     *markdownBlock
 	openID   headless.BlockID
 }
+
+type transcriptSelection struct {
+	Present    bool
+	Expandable bool
+	Expanded   bool
+}
+
+const transcriptPrompt keymap.Action = "prompt"
 
 type liveTool struct {
 	ids    []headless.BlockID
@@ -83,6 +104,7 @@ func (c *conversationView) ToggleDetails() {
 		c.content.Changed(tracked.id)
 	}
 	c.refreshSearch()
+	c.announceSelection()
 }
 
 func (c *conversationView) DetailsLabel() string {
@@ -92,11 +114,21 @@ func (c *conversationView) DetailsLabel() string {
 	return "tool details collapsed"
 }
 
-func newConversationView(theme kit.Theme, glyphs kit.Glyphs, wheel input.Wheel, syntax highlight.Style, retain int, details bool) *conversationView {
+func newConversationView(
+	theme kit.Theme,
+	glyphs kit.Glyphs,
+	wheel input.Wheel,
+	syntax highlight.Style,
+	retain int,
+	details bool,
+	clipboard headless.Clipboard,
+) *conversationView {
 	c := &conversationView{
 		theme: theme, glyphs: glyphs, wheel: wheel,
 		look: markdownLook(theme, glyphs, syntax), syntax: syntax,
-		search: headless.NewSearch(), current: -1, retain: max(retain, 4), details: details, tools: make(map[string]liveTool),
+		search: headless.NewSearch(), current: -1, retain: max(retain, 4), details: details,
+		clipboard: clipboard, entries: make(map[headless.BlockID]*transcriptEntry), tools: make(map[string]liveTool),
+		keys: transcriptKeys(),
 	}
 	c.scroll.Wheel(wheel)
 	c.scroll.ToBottom()
@@ -114,36 +146,282 @@ func (c *conversationView) Draw(frame headless.Frame) {
 }
 
 func (c *conversationView) Handle(event input.Event) bool {
+	if key, ok := event.(input.Key); ok && key.Down() && c.focused {
+		if _, handled := c.matcher.Handle(c.keys, key, c.Do); handled {
+			return true
+		}
+	}
 	handled := c.view.Handle(event)
-	click, ok := event.(input.Mouse)
-	if !handled || !ok || click.Action != input.MouseDown || click.Button != input.ButtonLeft {
+	mouse, ok := event.(input.Mouse)
+	if !handled || !ok {
 		return handled
 	}
-	// Transcript owns the exact screen-to-content mapping, including sticky headers
-	// and the committed scroll frame. An accepted press leaves that canonical row in
-	// Selection; reading it avoids maintaining a second, eventually divergent hit test.
-	point, _ := c.selection.Range()
-	id, offset, onBlock := c.content.At(point.Row)
-	if !onBlock || offset != 0 {
-		return handled
+	c.handleMouse(mouse)
+	return true
+}
+
+func (c *conversationView) Focus(has bool) {
+	if c.focused == has {
+		return
 	}
-	for _, tracked := range c.toolViews {
-		if tracked.id != id {
-			continue
+	c.focused = has
+	if !has {
+		c.matcher.Clear()
+	}
+	if has {
+		c.ensureSelection()
+	}
+	c.syncSelectedEntry()
+	if c.onFocusChange != nil {
+		c.onFocusChange(has)
+	}
+	c.announceSelection()
+}
+
+func (c *conversationView) Focused() bool { return c.focused }
+
+func (c *conversationView) OnFocusChange(change func(bool)) { c.onFocusChange = change }
+
+func (c *conversationView) OnSelection(change func(transcriptSelection)) { c.onSelection = change }
+
+func (c *conversationView) OnCopy(copied func(string)) { c.onCopy = copied }
+
+func (c *conversationView) Keys() *keymap.Map { return c.keys }
+
+func (c *conversationView) Do(action keymap.Action) bool {
+	switch action {
+	case headless.SelectPrev:
+		return c.moveSelection(-1)
+	case headless.SelectNext:
+		return c.moveSelection(1)
+	case headless.SelectFirst:
+		return c.selectEdge(false)
+	case headless.SelectLast:
+		return c.selectEdge(true)
+	case headless.Collapse:
+		return c.setSelectedExpanded(false)
+	case headless.Expand:
+		return c.setSelectedExpanded(true)
+	case toggleDetails:
+		return c.toggleSelected()
+	case headless.Copy:
+		return c.copySelected()
+	}
+	return false
+}
+
+func transcriptKeys() *keymap.Map {
+	keys := &keymap.Map{}
+	keys.Bind(headless.SelectPrev, input.Chord{Code: input.Up})
+	keys.Bind(headless.SelectNext, input.Chord{Code: input.Down})
+	keys.Bind(headless.SelectFirst, input.Chord{Code: input.Home})
+	keys.Bind(headless.SelectLast, input.Chord{Code: input.End})
+	keys.Bind(headless.Expand, input.Chord{Code: input.Right})
+	keys.Bind(headless.Collapse, input.Chord{Code: input.Left})
+	keys.Bind(toggleDetails, input.Chord{Code: input.Enter})
+	keys.Bind(headless.Copy, input.Alt.Rune('c'))
+	keys.Bind(transcriptPrompt, input.Chord{Code: input.Tab})
+	keys.Bind(transcriptPrompt, input.Chord{Code: input.Character, Rune: ' '})
+	return keys
+}
+
+func (c *conversationView) handleMouse(mouse input.Mouse) {
+	if mouse.Button != input.ButtonLeft && mouse.Action != input.MouseUp {
+		return
+	}
+	switch mouse.Action {
+	case input.MouseDown:
+		c.dragged = false
+		point, _ := c.selection.Range()
+		id, offset, ok := c.content.At(point.Row)
+		if !ok {
+			c.pressedHeader = false
+			return
 		}
-		expanded := tracked.block.ToggleExpanded()
-		c.content.Changed(id)
-		c.selection.Clear()
-		if expanded {
-			if top, height, exists := c.content.Extent(id); exists {
-				start := c.content.StartRow()
-				c.scroll.RevealRange(top-start, top-start+height-1)
-			}
+		c.selectPointerEntry(id)
+		c.pressed, c.pressedHeader = id, offset == 0 && c.tool(id) != nil
+	case input.MouseDrag:
+		c.dragged = true
+	case input.MouseUp:
+		start, end := c.selection.Range()
+		id, offset, ok := c.content.At(end.Row)
+		click := !c.dragged && start == end
+		if click {
+			c.selection.Clear()
 		}
-		c.refreshSearch()
+		if click && ok && id == c.pressed && offset == 0 && c.pressedHeader {
+			c.toggleSelected()
+		} else if !click {
+			c.copySelection()
+		}
+		c.pressedHeader, c.dragged = false, false
+	}
+}
+
+func (c *conversationView) ensureSelection() {
+	first := c.content.FirstBlock()
+	if c.hasSelected && c.selected >= first && c.selected < first+headless.BlockID(c.content.Len()) {
+		return
+	}
+	if c.content.Len() == 0 {
+		c.hasSelected = false
+		return
+	}
+	c.selected = first + headless.BlockID(c.content.Len()-1)
+	c.hasSelected = true
+	c.revealSelected()
+}
+
+func (c *conversationView) moveSelection(delta int) bool {
+	if c.content.Len() == 0 || delta == 0 {
+		return false
+	}
+	c.ensureSelection()
+	first := c.content.FirstBlock()
+	last := first + headless.BlockID(c.content.Len()-1)
+	next := c.selected
+	if delta < 0 && next > first {
+		next--
+	} else if delta > 0 && next < last {
+		next++
+	} else {
 		return true
 	}
-	return handled
+	c.selectEntry(next, true)
+	return true
+}
+
+func (c *conversationView) selectEdge(last bool) bool {
+	if c.content.Len() == 0 {
+		return false
+	}
+	id := c.content.FirstBlock()
+	if last {
+		id += headless.BlockID(c.content.Len() - 1)
+	}
+	c.selectEntry(id, true)
+	return true
+}
+
+func (c *conversationView) selectEntry(id headless.BlockID, reveal bool) {
+	c.setSelectedEntry(id, reveal, true)
+}
+
+func (c *conversationView) selectPointerEntry(id headless.BlockID) {
+	c.setSelectedEntry(id, false, false)
+}
+
+func (c *conversationView) setSelectedEntry(id headless.BlockID, reveal, clearTextSelection bool) {
+	if _, ok := c.entries[id]; !ok {
+		return
+	}
+	c.selected, c.hasSelected = id, true
+	if clearTextSelection {
+		c.selection.Clear()
+	}
+	c.syncSelectedEntry()
+	if reveal {
+		c.revealSelected()
+	}
+	c.announceSelection()
+}
+
+func (c *conversationView) syncSelectedEntry() {
+	for id, entry := range c.entries {
+		entry.selected = c.hasSelected && id == c.selected
+		entry.focused = entry.selected && c.focused
+	}
+}
+
+func (c *conversationView) revealSelected() {
+	if !c.hasSelected {
+		return
+	}
+	if top, height, ok := c.content.Extent(c.selected); ok {
+		start := c.content.StartRow()
+		c.scroll.RevealRange(top-start, top-start+height-1)
+	}
+}
+
+func (c *conversationView) tool(id headless.BlockID) mutableToolBlock {
+	for _, tracked := range c.toolViews {
+		if tracked.id == id {
+			return tracked.block
+		}
+	}
+	return nil
+}
+
+func (c *conversationView) toggleSelected() bool {
+	tool := c.tool(c.selected)
+	if !c.hasSelected || tool == nil {
+		return true
+	}
+	expanded := tool.ToggleExpanded()
+	c.content.Changed(c.selected)
+	if expanded {
+		c.revealSelected()
+	}
+	c.refreshSearch()
+	c.announceSelection()
+	return true
+}
+
+func (c *conversationView) setSelectedExpanded(expanded bool) bool {
+	tool := c.tool(c.selected)
+	if !c.hasSelected || tool == nil {
+		return true
+	}
+	if tool.Expanded() != expanded {
+		tool.SetExpanded(expanded)
+		c.content.Changed(c.selected)
+		if expanded {
+			c.revealSelected()
+		}
+		c.refreshSearch()
+	}
+	c.announceSelection()
+	return true
+}
+
+func (c *conversationView) copySelected() bool {
+	if !c.hasSelected {
+		return true
+	}
+	top, height, ok := c.content.Extent(c.selected)
+	if !ok {
+		return true
+	}
+	c.copy(copyableRowsText(c.content.Rows(top, height)))
+	return true
+}
+
+func (c *conversationView) copySelection() {
+	c.copy(c.selection.Text(&c.content))
+}
+
+func (c *conversationView) copy(value string) {
+	if value == "" {
+		return
+	}
+	if c.clipboard == nil || !c.clipboard.Copy(value) {
+		return
+	}
+	if c.onCopy != nil {
+		c.onCopy(value)
+	}
+}
+
+func (c *conversationView) announceSelection() {
+	if c.onSelection == nil {
+		return
+	}
+	selection := transcriptSelection{Present: c.hasSelected}
+	if tool := c.tool(c.selected); tool != nil {
+		selection.Expandable = true
+		selection.Expanded = tool.Expanded()
+	}
+	c.onSelection(selection)
 }
 
 func (c *conversationView) Follow() { c.scroll.ToBottom() }
@@ -186,7 +464,7 @@ func (c *conversationView) begin(block client.Block) error {
 	c.stream.SetLook(c.lookFor(block.Kind))
 	c.stable = c.stable[:0]
 	c.open = &markdownBlock{theme: c.theme, speaker: speaker}
-	c.openID = c.content.Append(c.open)
+	c.openID = c.place(c.open, false)
 	if block.Text != "" {
 		return c.delta(block.ID, block.Text)
 	}
@@ -288,7 +566,7 @@ func (c *conversationView) beginTool(block client.Block, registry *extensions.Re
 		if isMutable {
 			mutable.SetExpanded(c.details)
 		}
-		id := c.content.Append(item)
+		id := c.place(item, false)
 		live.ids = append(live.ids, id)
 		if isMutable {
 			tracked := trackedTool{id: id, block: mutable}
@@ -324,9 +602,18 @@ func presentSafely(presenter BlockPresenter, presentation Presentation, block cl
 func (c *conversationView) Append(block headless.Block) { c.append(block) }
 
 func (c *conversationView) append(block headless.Block) headless.BlockID {
-	id := c.content.Append(block)
-	c.content.Finish(id)
+	id := c.place(block, true)
 	c.refreshSearch()
+	return id
+}
+
+func (c *conversationView) place(block headless.Block, finished bool) headless.BlockID {
+	entry := newTranscriptEntry(c.theme, c.glyphs, block)
+	id := c.content.Append(entry)
+	c.entries[id] = entry
+	if finished {
+		c.content.Finish(id)
+	}
 	return id
 }
 
@@ -347,6 +634,17 @@ func (c *conversationView) Retain(printer kit.Printer) {
 	}
 	first := c.content.FirstBlock()
 	c.toolViews = slices.DeleteFunc(c.toolViews, func(item trackedTool) bool { return item.id < first })
+	for id := range c.entries {
+		if id < first {
+			delete(c.entries, id)
+		}
+	}
+	if c.hasSelected && c.selected < first {
+		c.hasSelected = false
+		c.ensureSelection()
+		c.syncSelectedEntry()
+		c.announceSelection()
+	}
 	c.refreshSearch()
 }
 
@@ -365,6 +663,8 @@ func (c *conversationView) Reset() {
 	c.stable = c.stable[:0]
 	c.query, c.matches, c.current, c.announceSearch = "", nil, -1, false
 	clear(c.tools)
+	clear(c.entries)
+	c.hasSelected, c.pressedHeader, c.dragged = false, false, false
 	c.toolViews = nil
 	c.search.Submit(&c.content, "", false)
 }

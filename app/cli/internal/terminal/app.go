@@ -127,7 +127,7 @@ func newApp(loop *program.InlineRuntime, cfg appConfig) *app {
 		plugins: cfg.Plugins, pluginIssues: cfg.PluginIssues,
 		state:              client.NewConversation(),
 		operations:         newOperationOwner(cfg.Context),
-		transcript:         newConversationView(theme, glyphs, loop.Environment().Wheel(), syntax, cfg.Settings.UI.TranscriptRetain, cfg.Settings.UI.ToolDetails),
+		transcript:         newConversationView(theme, glyphs, loop.Environment().Wheel(), syntax, cfg.Settings.UI.TranscriptRetain, cfg.Settings.UI.ToolDetails, loop.Clipboard()),
 		header:             newSessionHeader(theme, glyphs, cfg.Snapshot.Session),
 		activity:           newActivityView(theme, glyphs),
 		status:             newStatusView(theme, glyphs, cfg.Settings.RunOptions()),
@@ -168,6 +168,7 @@ func newApp(loop *program.InlineRuntime, cfg appConfig) *app {
 
 	a.prompt = newPromptView(theme, glyphs, cfg.Keys, &a.composer, a.options)
 	a.shell = newShellView(a.header, a.transcript, a.activity, a.status, a.prompt)
+	a.wireTranscript(a.transcript)
 	a.shell.Focus(true)
 	a.stack.SetBase(a.shell)
 	a.buildReview(theme, glyphs)
@@ -179,6 +180,17 @@ func newApp(loop *program.InlineRuntime, cfg appConfig) *app {
 	loop.Session().SetTitle("lyra — " + displayTitle(cfg.Snapshot.Session))
 	a.restore(cfg.Snapshot)
 	return a
+}
+
+func (a *app) wireTranscript(transcript *conversationView) {
+	a.prompt.SetTranscriptKeys(transcript.Keys())
+	transcript.OnFocusChange(a.prompt.SetTranscriptFocused)
+	transcript.OnSelection(a.prompt.SetTranscriptSelection)
+	transcript.OnCopy(func(string) {
+		if !a.state.Busy() && !a.following {
+			a.status.note("copied selected transcript text")
+		}
+	})
 }
 
 func (a *app) buildSessionPicker(theme kit.Theme, glyphs kit.Glyphs) {
@@ -267,21 +279,42 @@ func (a *app) Handle(event input.Event) bool {
 	if a.handleSessionAction(action) {
 		return true
 	}
+	if a.shell.TranscriptFocused() && isTranscriptPaletteEvent(event) {
+		a.showCommandPalette()
+		return true
+	}
 	if a.completion.Handle(event) {
 		return true
 	}
-	if a.handleHistoryAction(action) {
+	if a.shell.PromptFocused() && a.handleHistoryAction(action) {
 		return true
 	}
-	if isSubmitEvent(event) {
+	if a.shell.PromptFocused() && isSubmitEvent(event) {
 		a.submit()
 		return true
 	}
 	handled := a.stack.Handle(event)
+	if !handled && a.shell.TranscriptFocused() && isPromptTextEvent(event) {
+		a.shell.FocusPrompt()
+		handled = a.stack.Handle(event)
+	}
 	if handled {
 		a.refreshCompletion()
 	}
 	return handled
+}
+
+func isTranscriptPaletteEvent(event input.Event) bool {
+	key, ok := event.(input.Key)
+	return ok && key.Down() && key.Code == input.Character && key.Rune == '?' && key.Mods == 0
+}
+
+func isPromptTextEvent(event input.Event) bool {
+	key, ok := event.(input.Key)
+	if !ok || !key.Down() || key.Code != input.Character {
+		return false
+	}
+	return key.Mods == 0 || key.Mods == input.Shift
 }
 
 func (a *app) action(event input.Event) keymap.Action {
@@ -315,6 +348,9 @@ func (a *app) handleSessionAction(action keymap.Action) bool {
 		a.ShowSessions()
 		return true
 	case cycleMode:
+		if !a.shell.PromptFocused() {
+			return false
+		}
 		a.CycleMode()
 		return true
 	case searchHistory:
