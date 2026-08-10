@@ -11,7 +11,7 @@ import (
 )
 
 func (a *app) ShowSessions() {
-	if a.state.Busy() || a.following {
+	if a.conversation.Busy() || a.following {
 		a.message("finish or cancel the current run before switching sessions")
 		return
 	}
@@ -44,7 +44,7 @@ func (a *app) NewSession() {
 	workspace := a.session.Workspace
 	runSessionChange(a, "creating session",
 		func(ctx context.Context) (agent.SessionSnapshot, error) {
-			created, err := a.runtime.CreateSession(ctx, agent.NewSession{Workspace: workspace})
+			created, err := a.runtime.CreateSession(ctx, agent.CreateSession{Workspace: workspace})
 			return agent.SessionSnapshot{Session: created}, err
 		},
 		func(snapshot agent.SessionSnapshot) error { return a.installSnapshot(snapshot) },
@@ -52,7 +52,7 @@ func (a *app) NewSession() {
 }
 
 func (a *app) RenameSession(title string) {
-	if a.state.Busy() || a.following {
+	if a.conversation.Busy() || a.following {
 		a.message("finish or cancel the current run before renaming the session")
 		return
 	}
@@ -87,7 +87,7 @@ func (a *app) RenameSession(title string) {
 }
 
 func (a *app) ForkSession(title string) {
-	source, at := a.session.ID, a.state.Cursor()
+	source, at := a.session.ID, a.conversation.Cursor()
 	runSessionChange(a, "forking session",
 		func(ctx context.Context) (agent.SessionSnapshot, error) {
 			forked, err := a.runtime.ForkSession(ctx, agent.ForkSession{SessionID: source, At: at, Title: strings.TrimSpace(title)})
@@ -112,7 +112,7 @@ func (a *app) switchSession(id string) {
 }
 
 func runSessionChange[T any](a *app, label string, work func(context.Context) (T, error), apply func(T) error) {
-	if a.state.Busy() || a.following {
+	if a.conversation.Busy() || a.following {
 		a.message("finish or cancel the current run before changing sessions")
 		return
 	}
@@ -157,7 +157,7 @@ func (a *app) installSnapshot(snapshot agent.SessionSnapshot) error {
 		return err
 	}
 	draft.Attachments = nil
-	nextTranscript := newConversationView(
+	nextTranscript := newTranscriptView(
 		a.transcript.theme, a.transcript.glyphs, a.transcript.wheel, a.syntax,
 		a.settings.UI.TranscriptRetain, a.transcript.details, a.transcript.clipboard,
 	)
@@ -172,7 +172,7 @@ func (a *app) installSnapshot(snapshot agent.SessionSnapshot) error {
 	previousTranscript := a.transcript
 	a.session = snapshot.Session
 	a.dispatchingQueueEntry = 0
-	a.state = next
+	a.conversation = next
 	a.attachments = attachments
 	a.transcript = nextTranscript
 	a.wireTranscript(nextTranscript)
@@ -189,13 +189,13 @@ func (a *app) installSnapshot(snapshot agent.SessionSnapshot) error {
 	a.listenForSearch()
 	a.loop.Session().SetTitle("lyra — " + displayTitle(snapshot.Session))
 	a.restoreActivity(snapshot)
-	if a.state.Phase() == agent.PhaseIdle {
+	if a.conversation.Phase() == agent.ConversationIdle {
 		a.message("session · " + displayTitle(snapshot.Session))
 	}
 	return nil
 }
 
-func agoShort(at time.Time) string {
+func compactRelativeAge(at time.Time) string {
 	if at.IsZero() {
 		return "never"
 	}

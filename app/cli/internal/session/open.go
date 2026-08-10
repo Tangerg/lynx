@@ -9,7 +9,7 @@ import (
 )
 
 type runtime interface {
-	CreateSession(context.Context, agent.NewSession) (agent.Session, error)
+	CreateSession(context.Context, agent.CreateSession) (agent.Session, error)
 	GetSession(context.Context, string) (agent.SessionSnapshot, error)
 }
 
@@ -26,7 +26,7 @@ func Open(ctx context.Context, rt runtime, id, workspace string) (agent.SessionS
 		return snapshot, nil
 	}
 
-	created, err := rt.CreateSession(ctx, agent.NewSession{Workspace: workspace})
+	created, err := rt.CreateSession(ctx, agent.CreateSession{Workspace: workspace})
 	if err != nil {
 		return agent.SessionSnapshot{}, fmt.Errorf("create session: %w", err)
 	}

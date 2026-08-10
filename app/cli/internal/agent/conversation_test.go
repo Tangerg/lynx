@@ -27,7 +27,7 @@ func TestConversationFoldsACompleteRun(t *testing.T) {
 		}
 		cursor++
 	}
-	if c.Phase() != PhaseIdle || c.Cursor() != Cursor(len(events)) {
+	if c.Phase() != ConversationIdle || c.Cursor() != Cursor(len(events)) {
 		t.Fatalf("phase/cursor = %v/%d, want idle/%d", c.Phase(), c.Cursor(), len(events))
 	}
 	if got := c.Blocks(); len(got) != 1 || got[0].Text != "hello world" {
@@ -73,7 +73,7 @@ func TestConversationInterruptAndResumeAreExplicit(t *testing.T) {
 		}
 		cursor++
 	}
-	if c.Phase() != PhaseIdle || c.Interaction() != nil {
+	if c.Phase() != ConversationIdle || c.Interaction() != nil {
 		t.Fatalf("settled conversation = phase %v interaction %+v", c.Phase(), c.Interaction())
 	}
 }
@@ -326,7 +326,7 @@ func TestConversationSettlesTransientStartCancellation(t *testing.T) {
 	if err := c.Starting(); err != nil {
 		t.Fatal(err)
 	}
-	if !c.Busy() || c.Phase() != PhaseRunning || c.RunID() != "" {
+	if !c.Busy() || c.Phase() != ConversationRunning || c.RunID() != "" {
 		t.Fatalf("starting state = busy:%t phase:%v run:%q", c.Busy(), c.Phase(), c.RunID())
 	}
 	if err := c.Starting(); !errors.Is(err, ErrInvalidTransition) {

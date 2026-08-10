@@ -20,7 +20,7 @@ import (
 	"github.com/Tangerg/lynx/app/cli/internal/terminal"
 )
 
-func writePlugin(t *testing.T, root, directory string, declared manifest, executable string) {
+func writePlugin(t *testing.T, root, directory string, declared pluginManifest, executable string) {
 	t.Helper()
 	pluginDirectory := filepath.Join(root, directory)
 	if err := os.MkdirAll(pluginDirectory, 0o750); err != nil {
@@ -48,15 +48,15 @@ func writeExecutable(t *testing.T, path, body string) {
 	}
 }
 
-func validManifest(id string) manifest {
-	return manifest{
-		SchemaVersion: manifestSchema, ID: id, Version: "1.2.3", APIVersion: extensions.HostAPIVersion,
+func validManifest(id string) pluginManifest {
+	return pluginManifest{
+		SchemaVersion: manifestSchemaVersion, ID: id, Version: "1.2.3", APIVersion: extensions.HostAPIVersion,
 		Capabilities: []string{"terminal.commands"}, Entry: "plugin",
-		Contributes: contributions{Commands: []commandManifest{{Name: "hello", Title: "say hello", Takes: true}}},
+		Contributes: manifestContributions{Commands: []commandManifest{{Name: "hello", Title: "say hello", Takes: true}}},
 	}
 }
 
-func TestSourceDiscoversValidPluginsAndIsolatesMalformedNeighbors(t *testing.T) {
+func TestDirectorySourceDiscoversValidPluginsAndIsolatesMalformedNeighbors(t *testing.T) {
 	root := t.TempDir()
 	writePlugin(t, root, "good", validManifest("test.good"), "not executed")
 	broken := filepath.Join(root, "broken")
@@ -79,7 +79,7 @@ func TestSourceDiscoversValidPluginsAndIsolatesMalformedNeighbors(t *testing.T) 
 	}
 }
 
-func TestSourceDeduplicatesCanonicalPluginDirectories(t *testing.T) {
+func TestDirectorySourceDeduplicatesCanonicalPluginDirectories(t *testing.T) {
 	root := t.TempDir()
 	pluginDirectory := filepath.Join(root, "good")
 	writePlugin(t, root, "good", validManifest("test.good"), "not executed")
@@ -119,12 +119,12 @@ func TestSideloadedPluginMustDeclareCommandsCapability(t *testing.T) {
 		t.Fatal(err)
 	}
 	registry := new(extensions.Registry)
-	kernel, err := extensions.NewKernel(registry)
+	extensionHost, err := extensions.NewHost(registry)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer kernel.Close()
-	results, err := kernel.Activate(discovered.Plugins)
+	defer extensionHost.Close()
+	results, err := extensionHost.Activate(discovered.Plugins)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -136,7 +136,7 @@ func TestSideloadedPluginMustDeclareCommandsCapability(t *testing.T) {
 	}
 }
 
-func TestCommandRunnerUsesBoundedJSONProtocol(t *testing.T) {
+func TestExecutableCommandUsesBoundedJSONProtocol(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("shell fixture is Unix-specific")
 	}
@@ -164,27 +164,27 @@ func loadFixtureCommands(t *testing.T, root string) ([]terminal.SlashCommand, fu
 		t.Fatalf("discovery = %+v, %v", discovered, err)
 	}
 	registry := new(extensions.Registry)
-	kernel, err := extensions.NewKernel(registry)
+	extensionHost, err := extensions.NewHost(registry)
 	if err != nil {
 		t.Fatal(err)
 	}
-	results, err := kernel.Activate(discovered.Plugins)
+	results, err := extensionHost.Activate(discovered.Plugins)
 	if err != nil || len(results) != 1 || results[0].Phase != extensions.PluginLoaded {
-		_ = kernel.Close()
+		_ = extensionHost.Close()
 		t.Fatalf("activation = %+v, %v", results, err)
 	}
-	return extensions.Values(registry, terminal.SlashCommands), func() { _ = kernel.Close() }
+	return extensions.Values(registry, terminal.SlashCommands), func() { _ = extensionHost.Close() }
 }
 
-func TestCommandRunnerHonorsCancellation(t *testing.T) {
+func TestExecutableCommandHonorsCancellation(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("shell fixture is Unix-specific")
 	}
 	root := t.TempDir()
 	slow := filepath.Join(root, "slow")
 	writeExecutable(t, slow, "#!/bin/sh\nsleep 2\n")
-	runner := commandRunner{pluginID: "test.slow", command: "slow", executable: slow, directory: root, timeout: 20 * time.Millisecond}
-	_, err := runner.Execute(t.Context(), terminal.CommandRequest{})
+	executor := executableCommand{pluginID: "test.slow", command: "slow", executable: slow, directory: root, timeout: 20 * time.Millisecond}
+	_, err := executor.Execute(t.Context(), terminal.CommandRequest{})
 	if !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("timeout error = %v", err)
 	}
@@ -204,8 +204,8 @@ func TestCommandResponseNamesGenericTrailingJSON(t *testing.T) {
 }
 
 func TestCommandRequestIsBoundedBeforeAProcessStarts(t *testing.T) {
-	runner := commandRunner{pluginID: "test.bounds", command: "large", executable: filepath.Join(t.TempDir(), "missing"), timeout: time.Second}
-	_, err := runner.Execute(t.Context(), terminal.CommandRequest{Argument: strings.Repeat("x", maximumArgument+1)})
+	executor := executableCommand{pluginID: "test.bounds", command: "large", executable: filepath.Join(t.TempDir(), "missing"), timeout: time.Second}
+	_, err := executor.Execute(t.Context(), terminal.CommandRequest{Argument: strings.Repeat("x", maxCommandArgumentBytes+1)})
 	if err == nil || !strings.Contains(err.Error(), "argument exceeds") || strings.Contains(err.Error(), "executable") {
 		t.Fatalf("oversized request error = %v", err)
 	}

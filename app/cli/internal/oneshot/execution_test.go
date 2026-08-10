@@ -80,7 +80,7 @@ func (r *invalidStartRuntime) StartRun(context.Context, agent.StartRun) (agent.R
 	return agent.Run{SessionID: "wrong", Status: agent.RunActive}, nil
 }
 
-func TestRunRejectsEventsThatViolateTheConversationLifecycle(t *testing.T) {
+func TestExecuteRejectsEventsThatViolateTheConversationLifecycle(t *testing.T) {
 	base := mock.New()
 	sessionID := firstSession(t, base)
 	renderer := new(countingRenderer)
@@ -103,7 +103,7 @@ func TestRunRejectsEventsThatViolateTheConversationLifecycle(t *testing.T) {
 	}
 }
 
-func TestRunRequiresItsBoundaryDependencies(t *testing.T) {
+func TestExecuteRequiresItsBoundaryDependencies(t *testing.T) {
 	if err := Execute(t.Context(), Invocation{Renderer: discardRenderer{}}); err == nil || !strings.Contains(err.Error(), "runtime") {
 		t.Fatalf("missing runtime error = %v", err)
 	}
@@ -112,7 +112,7 @@ func TestRunRequiresItsBoundaryDependencies(t *testing.T) {
 	}
 }
 
-func TestRunRejectsAnInvalidStartProjection(t *testing.T) {
+func TestExecuteRejectsAnInvalidStartProjection(t *testing.T) {
 	base := mock.New()
 	err := Execute(t.Context(), Invocation{
 		Runtime:  &invalidStartRuntime{Runtime: base},
@@ -127,7 +127,7 @@ func TestRunRejectsAnInvalidStartProjection(t *testing.T) {
 	}
 }
 
-func TestRunCancellationTargetsAStartWhoseResponseWasLost(t *testing.T) {
+func TestExecuteCancellationTargetsAStartWhoseResponseWasLost(t *testing.T) {
 	base := slowRuntime()
 	sessionID := firstSession(t, base)
 	runtime := &delayedStartResponse{Runtime: base, accepted: make(chan struct{})}
@@ -155,7 +155,7 @@ func TestRunCancellationTargetsAStartWhoseResponseWasLost(t *testing.T) {
 	requireCanceledSession(t, base, sessionID)
 }
 
-func TestRunCancellationTargetsAStartAfterItsRetryBudgetIsExhausted(t *testing.T) {
+func TestExecuteCancellationTargetsAStartAfterItsRetryBudgetIsExhausted(t *testing.T) {
 	base := slowRuntime()
 	sessionID := firstSession(t, base)
 	err := Execute(t.Context(), Invocation{

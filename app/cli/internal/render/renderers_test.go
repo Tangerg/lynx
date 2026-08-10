@@ -215,10 +215,10 @@ func TestTextReportsANonCompletedOutcome(t *testing.T) {
 	}
 }
 
-func TestJSONEmitsOneObjectPerEvent(t *testing.T) {
+func TestNDJSONEmitsOneObjectPerEvent(t *testing.T) {
 	var buf bytes.Buffer
 	events := script()
-	renderAll(t, NewJSON(&buf), events)
+	renderAll(t, NewNDJSON(&buf), events)
 
 	lines := strings.Split(strings.TrimRight(buf.String(), "\n"), "\n")
 	if len(lines) != len(events) {
@@ -230,7 +230,7 @@ func TestJSONEmitsOneObjectPerEvent(t *testing.T) {
 		"block.started", "block.completed", "run.finished",
 	}
 	for i, line := range lines {
-		var got frame
+		var got eventRecord
 		if err := json.Unmarshal([]byte(line), &got); err != nil {
 			t.Fatalf("line %d is not JSON: %v\n%s", i, err, line)
 		}
@@ -321,13 +321,13 @@ func TestResultJSONCanReportAnAcceptedRunBeforeEventsArrive(t *testing.T) {
 	}
 }
 
-func TestJSONCarriesTheToolProjection(t *testing.T) {
-	got := renderJSONFrame(t, agent.BlockCompleted{Block: agent.Block{ID: "t", Kind: agent.BlockTool, Tool: &agent.ToolCall{
+func TestNDJSONCarriesTheToolProjection(t *testing.T) {
+	got := renderEventRecord(t, agent.BlockCompleted{Block: agent.Block{ID: "t", Kind: agent.BlockTool, Tool: &agent.ToolCall{
 		Kind: agent.ToolEdit, Name: "provider.patch", Path: "a.go", Summary: "change a.go",
 		Status: agent.ToolOK, Diff: "--- a\n+++ b", Duration: 250 * time.Millisecond,
 	}}})
 	if got.Block == nil || got.Block.Tool == nil {
-		t.Fatalf("frame = %+v, want a tool projection", got)
+		t.Fatalf("record = %+v, want a tool projection", got)
 	}
 	tool := got.Block.Tool
 	if tool.Kind != "edit" || tool.Name != "provider.patch" || tool.Path != "a.go" || tool.Status != "ok" || tool.Diff == "" || tool.DurationMS != 250 {
@@ -335,20 +335,20 @@ func TestJSONCarriesTheToolProjection(t *testing.T) {
 	}
 }
 
-func renderJSONFrame(t *testing.T, event agent.Event) frame {
+func renderEventRecord(t *testing.T, event agent.Event) eventRecord {
 	t.Helper()
 	var output bytes.Buffer
-	if err := NewJSON(&output).Render(envelope(event)); err != nil {
+	if err := NewNDJSON(&output).Render(envelope(event)); err != nil {
 		t.Fatal(err)
 	}
-	var got frame
+	var got eventRecord
 	if err := json.Unmarshal(output.Bytes(), &got); err != nil {
 		t.Fatalf("not JSON: %v", err)
 	}
 	return got
 }
 
-func TestJSONCarriesControlOptionsAndCompleteInteractionMetadata(t *testing.T) {
+func TestNDJSONCarriesControlOptionsAndCompleteInteractionMetadata(t *testing.T) {
 	events := []agent.Envelope{
 		envelope(agent.RunStarted{
 			RunID: "run_1", SessionID: "session_1",
@@ -371,27 +371,27 @@ func TestJSONCarriesControlOptionsAndCompleteInteractionMetadata(t *testing.T) {
 		}}),
 	}
 	var output bytes.Buffer
-	renderAll(t, NewJSON(&output), events)
+	renderAll(t, NewNDJSON(&output), events)
 	lines := strings.Split(strings.TrimSpace(output.String()), "\n")
-	var started, resumed, approval, question frame
-	decodeFrames(t, lines, &started, &resumed, &approval, &question)
+	var started, resumed, approval, question eventRecord
+	decodeEventRecords(t, lines, &started, &resumed, &approval, &question)
 	requireRunOptions(t, started.Options)
 	if resumed.InterruptID != "approval_1" {
-		t.Fatalf("resume frame = %+v", resumed)
+		t.Fatalf("resume record = %+v", resumed)
 	}
 	if approval.Interaction == nil {
-		t.Fatalf("approval frame = %+v", approval.Interaction)
+		t.Fatalf("approval record = %+v", approval.Interaction)
 	}
 	if approval.Interaction.RuleHint != "edit:a.go" {
-		t.Fatalf("approval frame = %+v", approval.Interaction)
+		t.Fatalf("approval record = %+v", approval.Interaction)
 	}
 	if question.Interaction == nil {
-		t.Fatalf("question frame = %+v", question.Interaction)
+		t.Fatalf("question record = %+v", question.Interaction)
 	}
 	requireQuestionField(t, question.Interaction.Fields)
 }
 
-func decodeFrames(t *testing.T, lines []string, targets ...*frame) {
+func decodeEventRecords(t *testing.T, lines []string, targets ...*eventRecord) {
 	t.Helper()
 	if len(lines) != len(targets) {
 		t.Fatalf("JSON lines = %d, want %d", len(lines), len(targets))
@@ -437,8 +437,8 @@ func TestRenderersRejectInvalidEventsInsteadOfEmittingEmptyOutput(t *testing.T) 
 		Render(agent.Envelope) error
 		Close() error
 	}{
-		"json": NewJSON(&bytes.Buffer{}),
-		"text": NewText(&bytes.Buffer{}),
+		"ndjson": NewNDJSON(&bytes.Buffer{}),
+		"text":   NewText(&bytes.Buffer{}),
 	} {
 		t.Run(name, func(t *testing.T) {
 			if err := renderer.Render(envelope(nil)); err == nil || !strings.Contains(err.Error(), "event is nil") {
@@ -468,10 +468,10 @@ func TestRenderersCarryUserAttachments(t *testing.T) {
 	}
 
 	var jsonOut bytes.Buffer
-	if err := NewJSON(&jsonOut).Render(envelope(agent.BlockCompleted{Block: block})); err != nil {
+	if err := NewNDJSON(&jsonOut).Render(envelope(agent.BlockCompleted{Block: block})); err != nil {
 		t.Fatal(err)
 	}
-	var got frame
+	var got eventRecord
 	if err := json.Unmarshal(jsonOut.Bytes(), &got); err != nil {
 		t.Fatal(err)
 	}
@@ -480,9 +480,9 @@ func TestRenderersCarryUserAttachments(t *testing.T) {
 	}
 }
 
-func TestJSONOmitsWhatDidNotHappen(t *testing.T) {
+func TestNDJSONOmitsWhatDidNotHappen(t *testing.T) {
 	var buf bytes.Buffer
-	j := NewJSON(&buf)
+	j := NewNDJSON(&buf)
 	if err := j.Render(envelope(agent.BlockDelta{BlockID: "m", Text: "x"})); err != nil {
 		t.Fatal(err)
 	}
@@ -492,15 +492,15 @@ func TestJSONOmitsWhatDidNotHappen(t *testing.T) {
 	}
 	for _, absent := range []string{"block", "usage", "outcome", "approval", "plan", "runId"} {
 		if _, ok := got[absent]; ok {
-			t.Fatalf("delta frame carries %q: %v", absent, got)
+			t.Fatalf("delta record carries %q: %v", absent, got)
 		}
 	}
 	if got["blockId"] != "m" || got["text"] != "x" {
-		t.Fatalf("delta frame = %v, want the block id and the text", got)
+		t.Fatalf("delta record = %v, want the block id and the text", got)
 	}
 }
 
-func TestThousands(t *testing.T) {
+func TestFormatThousands(t *testing.T) {
 	for _, tc := range []struct {
 		in   int64
 		want string
@@ -509,13 +509,13 @@ func TestThousands(t *testing.T) {
 		{12345, "12,345"}, {1000000, "1,000,000"}, {-4321, "-4,321"},
 		{-1 << 63, "-9,223,372,036,854,775,808"},
 	} {
-		if got := thousands(tc.in); got != tc.want {
-			t.Errorf("thousands(%d) = %q, want %q", tc.in, got, tc.want)
+		if got := formatThousands(tc.in); got != tc.want {
+			t.Errorf("formatThousands(%d) = %q, want %q", tc.in, got, tc.want)
 		}
 	}
 }
 
-func TestDuration(t *testing.T) {
+func TestFormatDuration(t *testing.T) {
 	for _, tc := range []struct {
 		in   time.Duration
 		want string
@@ -525,8 +525,8 @@ func TestDuration(t *testing.T) {
 		{time.Second, "1.0s"},
 		{2500 * time.Millisecond, "2.5s"},
 	} {
-		if got := duration(tc.in); got != tc.want {
-			t.Errorf("duration(%v) = %q, want %q", tc.in, got, tc.want)
+		if got := formatDuration(tc.in); got != tc.want {
+			t.Errorf("formatDuration(%v) = %q, want %q", tc.in, got, tc.want)
 		}
 	}
 }

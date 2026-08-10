@@ -124,7 +124,7 @@ func (r *lostStartRuntime) startedSession() string {
 	return r.sessionID
 }
 
-func (r *blockingSessionChangeRuntime) CreateSession(ctx context.Context, input agent.NewSession) (agent.Session, error) {
+func (r *blockingSessionChangeRuntime) CreateSession(ctx context.Context, input agent.CreateSession) (agent.Session, error) {
 	if r.creates.Add(1) == 1 {
 		return r.Runtime.CreateSession(ctx, input)
 	}
@@ -238,7 +238,7 @@ func (r *delayedFirstRuntime) StartRun(ctx context.Context, input agent.StartRun
 	return r.Runtime.StartRun(ctx, input)
 }
 
-func TestMockConversationStreamsReviewsAndCompletes(t *testing.T) {
+func TestMockConversationStreamsApprovalAndCompletes(t *testing.T) {
 	host, stop := runUI(t)
 	host.Shows(t, "Ask lyra")
 
@@ -894,7 +894,7 @@ func TestSessionSwitchRebindsWorkspaceAttachmentsAndDropsOldChips(t *testing.T) 
 	}
 	backend := mock.New()
 	backend.Instant = true
-	if _, err := backend.CreateSession(t.Context(), agent.NewSession{Title: "Workspace B", Workspace: secondWorkspace}); err != nil {
+	if _, err := backend.CreateSession(t.Context(), agent.CreateSession{Title: "Workspace B", Workspace: secondWorkspace}); err != nil {
 		t.Fatal(err)
 	}
 	host, stop := runUIWithWorkspace(t, backend, firstWorkspace)
@@ -1017,9 +1017,9 @@ func TestPrepareSessionDistinguishesDefaultsFromExplicitFalseValues(t *testing.T
 	}
 }
 
-func TestStatusFormatsTheMinimumTokenCount(t *testing.T) {
-	if got := thousands(-1 << 63); got != "-9,223,372,036,854,775,808" {
-		t.Fatalf("thousands(MinInt64) = %q", got)
+func TestFormatThousandsHandlesMinimumInt64(t *testing.T) {
+	if got := formatThousands(-1 << 63); got != "-9,223,372,036,854,775,808" {
+		t.Fatalf("formatThousands(MinInt64) = %q", got)
 	}
 }
 

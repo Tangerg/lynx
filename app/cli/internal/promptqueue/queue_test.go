@@ -7,7 +7,7 @@ import (
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
 )
 
-func TestStoreKeepsSessionQueuesIsolatedAndSnapshotsDetached(t *testing.T) {
+func TestQueueKeepsSessionQueuesIsolatedAndSnapshotsDetached(t *testing.T) {
 	queue := New()
 	first, err := queue.Enqueue("one", agent.Message{Text: "first"})
 	if err != nil {
@@ -34,7 +34,7 @@ func TestStoreKeepsSessionQueuesIsolatedAndSnapshotsDetached(t *testing.T) {
 	}
 }
 
-func TestStoreUpdatesMovesRemovesAndClearsByStableIdentity(t *testing.T) {
+func TestQueueUpdatesMovesRemovesAndClearsByStableIdentity(t *testing.T) {
 	queue := New()
 	first, _ := queue.Enqueue("session", agent.Message{Text: "first"})
 	second, _ := queue.Enqueue("session", agent.Message{Text: "second"})
@@ -65,7 +65,7 @@ func TestStoreUpdatesMovesRemovesAndClearsByStableIdentity(t *testing.T) {
 	}
 }
 
-func TestStorePromotesAnEntryWithoutChangingItsIdentity(t *testing.T) {
+func TestQueuePromotesAnEntryWithoutChangingItsIdentity(t *testing.T) {
 	queue := New()
 	first, _ := queue.Enqueue("session", agent.Message{Text: "first"})
 	second, _ := queue.Enqueue("session", agent.Message{Text: "second"})
@@ -87,7 +87,7 @@ func TestStorePromotesAnEntryWithoutChangingItsIdentity(t *testing.T) {
 	}
 }
 
-func TestStoreHoldsTheFrontEntryUntilEditingReleasesIt(t *testing.T) {
+func TestQueueHoldsTheFrontEntryUntilEditingReleasesIt(t *testing.T) {
 	queue := New()
 	first, _ := queue.Enqueue("session", agent.Message{Text: "first"})
 	second, _ := queue.Enqueue("session", agent.Message{Text: "second"})
@@ -115,7 +115,7 @@ func TestStoreHoldsTheFrontEntryUntilEditingReleasesIt(t *testing.T) {
 	}
 }
 
-func TestStoreRejectsInvalidMessagesWithoutMutation(t *testing.T) {
+func TestQueueRejectsInvalidMessagesWithoutMutation(t *testing.T) {
 	queue := New()
 	if _, err := queue.Enqueue("", agent.Message{Text: "valid"}); !errors.Is(err, ErrSessionIDRequired) {
 		t.Fatalf("empty session returned %v", err)

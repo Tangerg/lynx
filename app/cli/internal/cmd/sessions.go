@@ -64,7 +64,7 @@ func newSessionsListCommand(provider runtimeProvider) *cobra.Command {
 				if title == "" {
 					title = "(untitled)"
 				}
-				if _, err := fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", session.ID, ago(session.UpdatedAt), title, session.Workspace); err != nil {
+				if _, err := fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", session.ID, relativeAge(session.UpdatedAt), title, session.Workspace); err != nil {
 					return err
 				}
 			}
@@ -144,7 +144,7 @@ type sessionRenderer interface {
 func writeSessionSnapshot(cmd *cobra.Command, snapshot agent.SessionSnapshot, asJSON bool) (writeErr error) {
 	var output sessionRenderer = render.NewText(cmd.OutOrStdout())
 	if asJSON {
-		output = render.NewJSON(cmd.OutOrStdout())
+		output = render.NewNDJSON(cmd.OutOrStdout())
 	} else if _, err := fmt.Fprintf(cmd.OutOrStdout(), "%s · %s\n", snapshot.Session.Title, snapshot.Session.Workspace); err != nil {
 		return err
 	}
@@ -285,8 +285,8 @@ func completeSessionIDs(provider runtimeProvider) cobra.CompletionFunc {
 	}
 }
 
-// ago phrases a timestamp the way a session list is read.
-func ago(t time.Time) string {
+// relativeAge phrases a timestamp the way a session list is read.
+func relativeAge(t time.Time) string {
 	if t.IsZero() {
 		return "-"
 	}

@@ -11,7 +11,7 @@ import (
 )
 
 // ResultJSON folds a streamed run into one final JSON object. It retains only
-// assistant prose and terminal metadata; callers that need every event use [JSON].
+// assistant prose and terminal metadata; callers that need every event use [NDJSON].
 type ResultJSON struct {
 	enc     *json.Encoder
 	err     error

@@ -12,7 +12,7 @@ import (
 	"github.com/Tangerg/lynx/app/cli/internal/requestid"
 )
 
-const cancelTimeout = 5 * time.Second
+const cancellationTimeout = 5 * time.Second
 
 // Renderer consumes the accepted event prefix of a run and releases its output
 // resources when the run ends or fails.
@@ -115,7 +115,7 @@ func watchCancellation(ctx context.Context, runtime agent.RunLifecycle, policy r
 		if !shouldCancel {
 			return
 		}
-		cancelCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), cancelTimeout)
+		cancelCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), cancellationTimeout)
 		defer cancel()
 		_ = reconnect.Control(cancelCtx, policy, func() error {
 			return runtime.CancelRun(cancelCtx, request)
@@ -162,13 +162,13 @@ func drive(
 		if stream == nil {
 			return abandoned, errors.New("runtime returned a nil event stream")
 		}
-		state := consume(stream, conversation, renderer)
+		followed := consume(stream, conversation, renderer)
 		progressed := conversation.Cursor() > before
-		if state.outcome != nil {
-			return settled, errorForOutcome(*state.outcome)
+		if followed.outcome != nil {
+			return settled, errorForOutcome(*followed.outcome)
 		}
-		if state.interrupted != nil {
-			if err := resume(ctx, runtime, policy, run.ID, start.SessionID, state.interrupted, approveAll); err != nil {
+		if followed.interrupted != nil {
+			if err := resume(ctx, runtime, policy, run.ID, start.SessionID, followed.interrupted, approveAll); err != nil {
 				if _, required := errors.AsType[*interactionRequiredError](err); required {
 					return parked, err
 				}
@@ -177,10 +177,10 @@ func drive(
 			failures = 0
 			continue
 		}
-		if state.err == nil {
-			state.err = fmt.Errorf("%w: runtime subscription ended without interrupting or finishing the run", agent.ErrDisconnected)
+		if followed.err == nil {
+			followed.err = fmt.Errorf("%w: runtime subscription ended without interrupting or finishing the run", agent.ErrDisconnected)
 		}
-		if retryErr := waitToReconnect(ctx, policy, &failures, progressed, state.err); retryErr != nil {
+		if retryErr := waitToReconnect(ctx, policy, &failures, progressed, followed.err); retryErr != nil {
 			return abandoned, retryErr
 		}
 	}
@@ -193,32 +193,32 @@ type followResult struct {
 }
 
 func consume(stream agent.RunStream, conversation *agent.Conversation, renderer Renderer) followResult {
-	var state followResult
+	var followed followResult
 	for envelope, streamErr := range stream {
 		if streamErr != nil {
-			state.err = streamErr
+			followed.err = streamErr
 			break
 		}
 		result, err := conversation.ApplyEnvelope(envelope)
 		if err != nil {
-			state.err = fmt.Errorf("accept runtime event at cursor %d: %w", envelope.Cursor, err)
+			followed.err = fmt.Errorf("accept runtime event at cursor %d: %w", envelope.Cursor, err)
 			break
 		}
 		if !result.Applied {
 			continue
 		}
 		if err := renderer.Render(envelope); err != nil {
-			state.err = err
+			followed.err = err
 			break
 		}
 		switch event := envelope.Event.(type) {
 		case agent.RunInterrupted:
-			state.interrupted = event.Interaction
+			followed.interrupted = event.Interaction
 		case agent.RunFinished:
-			state.outcome = new(event.Outcome)
+			followed.outcome = new(event.Outcome)
 		}
 	}
-	return state
+	return followed
 }
 
 type outcomeError struct{ outcome agent.Outcome }

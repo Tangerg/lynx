@@ -279,16 +279,16 @@ func (a *app) acceptSearchResult(result headless.Result) {
 // Local command actions.
 
 func (a *app) Clear() {
-	if a.state.Busy() || a.following {
+	if a.conversation.Busy() || a.following {
 		a.status.doing = "the active run owns the transcript"
 		return
 	}
-	a.state.ClearPresentation()
+	a.conversation.ClearPresentation()
 	a.transcript.Reset()
 	a.activity.Reset()
 	a.status.Reset(a.options)
 	a.status.note("cleared")
-	a.header.SetUsage(a.state.Usage())
+	a.header.SetUsage(a.conversation.Usage())
 }
 
 func (a *app) Find(query string) {

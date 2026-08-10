@@ -47,8 +47,8 @@ type CommandResult struct {
 	Message string
 }
 
-// Presentation is the terminal vocabulary a block presenter receives.
-type Presentation struct {
+// BlockPresentation is the terminal vocabulary a block presenter receives.
+type BlockPresentation struct {
 	Theme  kit.Theme
 	Glyphs kit.Glyphs
 	Look   markdown.Look
@@ -58,7 +58,7 @@ type Presentation struct {
 // BlockPresenter maps one closed domain block kind to terminal blocks.
 type BlockPresenter struct {
 	Kind    agent.BlockKind
-	Present func(Presentation, agent.Block) []headless.Block
+	Present func(BlockPresentation, agent.Block) []headless.Block
 }
 
 var (
@@ -114,7 +114,7 @@ func builtinCommands() []localCommand {
 	}
 }
 
-func presentUser(p Presentation, block agent.Block) []headless.Block {
+func presentUser(p BlockPresentation, block agent.Block) []headless.Block {
 	body := strings.TrimSpace(block.Text)
 	if len(block.Attachments) > 0 {
 		lines := make([]string, 0, len(block.Attachments))
@@ -129,8 +129,8 @@ func presentUser(p Presentation, block agent.Block) []headless.Block {
 	return []headless.Block{newUserMessageBlock(p.Theme, body)}
 }
 
-func presentMarkdown(speaker string) func(Presentation, agent.Block) []headless.Block {
-	return func(p Presentation, block agent.Block) []headless.Block {
+func presentMarkdown(speaker string) func(BlockPresentation, agent.Block) []headless.Block {
+	return func(p BlockPresentation, block agent.Block) []headless.Block {
 		message := &markdownBlock{theme: p.Theme, speaker: speaker}
 		look := p.Look
 		if block.Kind == agent.BlockReasoning {
@@ -141,15 +141,15 @@ func presentMarkdown(speaker string) func(Presentation, agent.Block) []headless.
 	}
 }
 
-func presentTool(p Presentation, block agent.Block) []headless.Block {
+func presentTool(p BlockPresentation, block agent.Block) []headless.Block {
 	return []headless.Block{newToolBlock(p, block)}
 }
 
-func presentNotice(p Presentation, block agent.Block) []headless.Block {
+func presentNotice(p BlockPresentation, block agent.Block) []headless.Block {
 	return []headless.Block{&kit.Message{Theme: p.Theme, Speaker: "notice", Body: block.Text}}
 }
 
-func presentFailure(p Presentation, block agent.Block) []headless.Block {
+func presentFailure(p BlockPresentation, block agent.Block) []headless.Block {
 	return []headless.Block{presentError(p.Theme, block.Text)}
 }
 

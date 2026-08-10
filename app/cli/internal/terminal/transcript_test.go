@@ -15,7 +15,7 @@ import (
 )
 
 func TestStreamingPreservesAReadersScrollPosition(t *testing.T) {
-	view := testConversationView(t)
+	view := testTranscriptView(t)
 	root := headless.NewRoot(view)
 	surface := grid.NewSurface(32, 5)
 	started := agent.Block{ID: "answer", Kind: agent.BlockAssistant}
@@ -48,7 +48,7 @@ func TestStreamingPreservesAReadersScrollPosition(t *testing.T) {
 }
 
 func TestInterleavedTextBlocksStreamIndependently(t *testing.T) {
-	view := testConversationView(t)
+	view := testTranscriptView(t)
 	for _, event := range []agent.Event{
 		agent.BlockStarted{Block: agent.Block{ID: "answer", Kind: agent.BlockAssistant}},
 		agent.BlockDelta{BlockID: "answer", Text: "assistant provisional"},
@@ -79,7 +79,7 @@ func TestInterleavedTextBlocksStreamIndependently(t *testing.T) {
 }
 
 func TestToolStreamingPreservesAReadersScrollPosition(t *testing.T) {
-	view := testConversationView(t)
+	view := testTranscriptView(t)
 	root := headless.NewRoot(view)
 	surface := grid.NewSurface(40, 5)
 	running := agent.ToolCall{Kind: agent.ToolShell, Command: "long command", Status: agent.ToolRunning}
@@ -111,7 +111,7 @@ func TestToolStreamingPreservesAReadersScrollPosition(t *testing.T) {
 }
 
 func TestLiveToolStreamsInPlaceAndCompletesFromAuthoritativeOutput(t *testing.T) {
-	view := testConversationView(t)
+	view := testTranscriptView(t)
 	running := agent.ToolCall{Kind: agent.ToolShell, Command: "go test ./...", Status: agent.ToolRunning}
 	tool := beginTestTool(view, "tool", running)
 	tool.SetExpanded(true)
@@ -137,11 +137,11 @@ func TestLiveToolStreamsInPlaceAndCompletesFromAuthoritativeOutput(t *testing.T)
 }
 
 func TestDetailFreeCompletedToolIsNotAnnouncedExpandable(t *testing.T) {
-	view := testConversationView(t)
+	view := testTranscriptView(t)
 	var selection transcriptSelection
 	view.OnSelection(func(next transcriptSelection) { selection = next })
 	call := agent.ToolCall{Kind: agent.ToolShell, Command: "true", Status: agent.ToolOK}
-	block := newToolBlock(Presentation{Theme: view.theme, Glyphs: view.glyphs, Look: view.look, Syntax: view.syntax}, agent.Block{
+	block := newToolBlock(BlockPresentation{Theme: view.theme, Glyphs: view.glyphs, Look: view.look, Syntax: view.syntax}, agent.Block{
 		ID: "tool", Kind: agent.BlockTool, Tool: &call,
 	})
 	id := view.place(block, true)
@@ -156,7 +156,7 @@ func TestDetailFreeCompletedToolIsNotAnnouncedExpandable(t *testing.T) {
 }
 
 func TestCompletingASelectedToolWithoutDetailsRemovesItsExpansionAction(t *testing.T) {
-	view := testConversationView(t)
+	view := testTranscriptView(t)
 	var selection transcriptSelection
 	view.OnSelection(func(next transcriptSelection) { selection = next })
 	running := agent.ToolCall{Kind: agent.ToolShell, Command: "true", Status: agent.ToolRunning}
@@ -177,7 +177,7 @@ func TestCompletingASelectedToolWithoutDetailsRemovesItsExpansionAction(t *testi
 }
 
 func TestCanceledRunSettlesEveryLiveTranscriptBlock(t *testing.T) {
-	view := testConversationView(t)
+	view := testTranscriptView(t)
 	if err := view.Apply(agent.BlockStarted{Block: agent.Block{ID: "answer", Kind: agent.BlockAssistant}}, nil); err != nil {
 		t.Fatal(err)
 	}
@@ -215,7 +215,7 @@ func TestCanceledRunSettlesEveryLiveTranscriptBlock(t *testing.T) {
 }
 
 func TestClickingAToolHeaderTogglesOnlyThatTool(t *testing.T) {
-	view := testConversationView(t)
+	view := testTranscriptView(t)
 	first := appendTestTool(view, "first", "FIRST_DETAIL")
 	second := appendTestTool(view, "second", "SECOND_DETAIL")
 	root := headless.NewRoot(view)
@@ -253,7 +253,7 @@ func TestClickingAToolHeaderTogglesOnlyThatTool(t *testing.T) {
 
 func TestDraggingFromAToolHeaderCopiesWithoutToggling(t *testing.T) {
 	clipboard := new(recordingClipboard)
-	view := newConversationView(kit.Dark(), kit.Unicode(), input.Wheel{}, highlight.Style("github-dark"), 24, false, clipboard)
+	view := newTranscriptView(kit.Dark(), kit.Unicode(), input.Wheel{}, highlight.Style("github-dark"), 24, false, clipboard)
 	t.Cleanup(view.Close)
 	tool := appendTestTool(view, "drag", "DRAG_DETAIL")
 	root := headless.NewRoot(view)
@@ -279,7 +279,7 @@ func TestDraggingFromAToolHeaderCopiesWithoutToggling(t *testing.T) {
 }
 
 func TestEscapeClearsATranscriptTextSelectionBeforeOtherActions(t *testing.T) {
-	view := testConversationView(t)
+	view := testTranscriptView(t)
 	appendTestTool(view, "selection", "SELECTION_DETAIL")
 	view.Focus(true)
 	root := headless.NewRoot(view)
@@ -297,7 +297,7 @@ func TestEscapeClearsATranscriptTextSelectionBeforeOtherActions(t *testing.T) {
 }
 
 func TestGlobalToolToggleNormalizesMixedDetailStates(t *testing.T) {
-	view := testConversationView(t)
+	view := testTranscriptView(t)
 	first := appendTestTool(view, "first", "FIRST_DETAIL")
 	second := appendTestTool(view, "second", "SECOND_DETAIL")
 	first.ToggleExpanded()
@@ -313,7 +313,7 @@ func TestGlobalToolToggleNormalizesMixedDetailStates(t *testing.T) {
 }
 
 func TestCompletingALiveToolPreservesItsExpandedState(t *testing.T) {
-	view := testConversationView(t)
+	view := testTranscriptView(t)
 	tool := appendTestTool(view, "tool", "running")
 	tracked := view.toolViews[0]
 	view.tools["tool"] = liveTool{ids: []headless.BlockID{tracked.id}, blocks: []trackedTool{tracked}}
@@ -329,7 +329,7 @@ func TestCompletingALiveToolPreservesItsExpandedState(t *testing.T) {
 }
 
 func TestTranscriptFocusSelectsAndOperatesOnOneEntry(t *testing.T) {
-	view := testConversationView(t)
+	view := testTranscriptView(t)
 	first := appendTestTool(view, "first", "FIRST_DETAIL")
 	second := appendTestTool(view, "second", "SECOND_DETAIL")
 
@@ -361,7 +361,7 @@ func TestTranscriptFocusSelectsAndOperatesOnOneEntry(t *testing.T) {
 
 func TestFocusedTranscriptCopiesTheSelectedBlock(t *testing.T) {
 	clipboard := new(recordingClipboard)
-	view := newConversationView(kit.Dark(), kit.Unicode(), input.Wheel{}, highlight.Style("github-dark"), 24, false, clipboard)
+	view := newTranscriptView(kit.Dark(), kit.Unicode(), input.Wheel{}, highlight.Style("github-dark"), 24, false, clipboard)
 	t.Cleanup(view.Close)
 	appendTestTool(view, "copy", "COPY_DETAIL")
 	view.Focus(true)
@@ -384,16 +384,16 @@ func (c *recordingClipboard) Copy(value string) bool {
 
 func (*recordingClipboard) Paste() bool { return false }
 
-func testConversationView(t *testing.T) *conversationView {
+func testTranscriptView(t *testing.T) *transcriptView {
 	t.Helper()
-	view := newConversationView(kit.Dark(), kit.Unicode(), input.Wheel{}, highlight.Style("github-dark"), 24, false, nil)
+	view := newTranscriptView(kit.Dark(), kit.Unicode(), input.Wheel{}, highlight.Style("github-dark"), 24, false, nil)
 	t.Cleanup(view.Close)
 	return view
 }
 
-func appendTestTool(view *conversationView, id, output string) *toolBlock {
+func appendTestTool(view *transcriptView, id, output string) *toolBlock {
 	call := agent.ToolCall{Kind: agent.ToolShell, Command: "echo " + id, Output: output, Status: agent.ToolOK}
-	block := newToolBlock(Presentation{Theme: view.theme, Glyphs: view.glyphs, Look: view.look, Syntax: view.syntax}, agent.Block{
+	block := newToolBlock(BlockPresentation{Theme: view.theme, Glyphs: view.glyphs, Look: view.look, Syntax: view.syntax}, agent.Block{
 		ID: id, Kind: agent.BlockTool, Tool: &call,
 	})
 	blockID := view.place(block, true)
@@ -401,8 +401,8 @@ func appendTestTool(view *conversationView, id, output string) *toolBlock {
 	return block
 }
 
-func beginTestTool(view *conversationView, id string, call agent.ToolCall) *toolBlock {
-	block := newToolBlock(Presentation{Theme: view.theme, Glyphs: view.glyphs, Look: view.look, Syntax: view.syntax}, agent.Block{
+func beginTestTool(view *transcriptView, id string, call agent.ToolCall) *toolBlock {
+	block := newToolBlock(BlockPresentation{Theme: view.theme, Glyphs: view.glyphs, Look: view.look, Syntax: view.syntax}, agent.Block{
 		ID: id, Kind: agent.BlockTool, Tool: &call,
 	})
 	blockID := view.place(block, false)

@@ -26,9 +26,9 @@ import (
 )
 
 const (
-	DefaultMaxBytes = 20 << 20
-	DefaultLimit    = 50
-	maxVisited      = 100_000
+	DefaultMaxFileBytes    = 20 << 20
+	DefaultCompletionLimit = 50
+	maxVisitedEntries      = 100_000
 )
 
 var (
@@ -44,8 +44,8 @@ type Resolver struct {
 	maxBytes int64
 }
 
-// Match is one workspace-relative file completion.
-type Match struct {
+// PathMatch is one workspace-relative file completion.
+type PathMatch struct {
 	Path    string
 	Detail  string
 	Matched []int
@@ -67,7 +67,7 @@ func New(root string) (*Resolver, error) {
 	} else if !errors.Is(evalErr, os.ErrNotExist) {
 		return nil, fmt.Errorf("attachment: resolve workspace symlinks: %w", evalErr)
 	}
-	return &Resolver{root: abs, maxBytes: DefaultMaxBytes}, nil
+	return &Resolver{root: abs, maxBytes: DefaultMaxFileBytes}, nil
 }
 
 // Resolve validates and classifies one explicit path. Symlinks are resolved so
@@ -120,7 +120,7 @@ func validateAttachmentInfo(info fs.FileInfo, input string, maxBytes int64) erro
 		return fmt.Errorf("%w: %s", ErrNotRegular, input)
 	}
 	if info.Size() > maxBytes {
-		return fmt.Errorf("%w: %s is %s (limit %s)", ErrTooLarge, input, byteSize(info.Size()), byteSize(maxBytes))
+		return fmt.Errorf("%w: %s is %s (limit %s)", ErrTooLarge, input, formatByteSize(info.Size()), formatByteSize(maxBytes))
 	}
 	return nil
 }
@@ -161,19 +161,19 @@ func attachmentKind(mimeType string) agent.AttachmentKind {
 // Complete searches regular files below Root and returns fuzzy-ranked relative
 // paths. It does not follow directory symlinks, skips dependency/VCS internals,
 // and obeys cancellation during the walk.
-func (r *Resolver) Complete(ctx context.Context, query string, limit int) ([]Match, error) {
+func (r *Resolver) Complete(ctx context.Context, query string, limit int) ([]PathMatch, error) {
 	if limit <= 0 {
-		limit = DefaultLimit
+		limit = DefaultCompletionLimit
 	}
 	search := completionSearch{
 		ctx: ctx, root: r.root, maxBytes: r.maxBytes,
-		query: filepath.ToSlash(strings.TrimSpace(query)), matches: make([]Match, 0, limit),
+		query: filepath.ToSlash(strings.TrimSpace(query)), matches: make([]PathMatch, 0, limit),
 	}
 	err := filepath.WalkDir(r.root, search.visit)
 	if err != nil {
 		return nil, fmt.Errorf("attachment: search workspace: %w", err)
 	}
-	slices.SortStableFunc(search.matches, func(a, b Match) int {
+	slices.SortStableFunc(search.matches, func(a, b PathMatch) int {
 		if a.score != b.score {
 			return b.score - a.score
 		}
@@ -191,7 +191,7 @@ type completionSearch struct {
 	query    string
 	maxBytes int64
 	visited  int
-	matches  []Match
+	matches  []PathMatch
 }
 
 func (s *completionSearch) visit(path string, entry os.DirEntry, walkErr error) error {
@@ -223,7 +223,7 @@ func (s *completionSearch) visitDirectory(path string, entry os.DirEntry) error 
 
 func (s *completionSearch) visitFile(path string, entry os.DirEntry) error {
 	s.visited++
-	if s.visited > maxVisited {
+	if s.visited > maxVisitedEntries {
 		return filepath.SkipAll
 	}
 	if entry.Type()&os.ModeSymlink != 0 {
@@ -240,7 +240,7 @@ func (s *completionSearch) visitFile(path string, entry os.DirEntry) error {
 	relative = filepath.ToSlash(relative)
 	score, at, matched := fuzzyPath(s.query, relative)
 	if matched {
-		s.matches = append(s.matches, Match{Path: relative, Detail: byteSize(info.Size()), Matched: at, score: score})
+		s.matches = append(s.matches, PathMatch{Path: relative, Detail: formatByteSize(info.Size()), Matched: at, score: score})
 	}
 	return nil
 }
@@ -374,7 +374,7 @@ func runeEqualFold(a, b rune) bool {
 	return false
 }
 
-func byteSize(value int64) string {
+func formatByteSize(value int64) string {
 	const unit = 1024
 	if value < unit {
 		return strconv.FormatInt(value, 10) + " B"

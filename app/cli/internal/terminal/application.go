@@ -51,12 +51,12 @@ type app struct {
 	runtime      agent.Runtime
 	session      agent.Session
 	registry     *extensions.Registry
-	plugins      *extensions.Kernel
+	pluginHost   *extensions.Host
 	pluginIssues []extensions.SourceIssue
-	state        *agent.Conversation
+	conversation *agent.Conversation
 	operations   *operationOwner
 
-	transcript  *conversationView
+	transcript  *transcriptView
 	header      *sessionHeader
 	activity    *activityView
 	queueView   *queueView
@@ -72,11 +72,11 @@ type app struct {
 	stack       headless.Stack
 	queue       *promptqueue.Queue
 
-	review             *agent.Approval
-	reviewChoice       string
-	reviewForm         *headless.Form
-	reviewPane         reviewPane
-	reviewDialog       *kit.Dialog
+	approval           *agent.Approval
+	approvalChoice     string
+	approvalForm       *headless.Form
+	approvalPane       approvalPane
+	approvalDialog     *kit.Dialog
 	sessionPicker      *picker[agent.Session]
 	sessionDialog      *kit.Dialog
 	modelPicker        *picker[agent.Model]
@@ -116,7 +116,7 @@ type appConfig struct {
 	Runtime       agent.Runtime
 	Snapshot      agent.SessionSnapshot
 	Registry      *extensions.Registry
-	Plugins       *extensions.Kernel
+	PluginHost    *extensions.Host
 	PluginIssues  []extensions.SourceIssue
 	Attachments   *attachment.Resolver
 	InitialPrompt string
@@ -135,10 +135,10 @@ func newApp(loop *program.InlineRuntime, cfg appConfig) *app {
 	}
 	a := &app{
 		ctx: cfg.Context, loop: loop, runtime: cfg.Runtime, session: cfg.Snapshot.Session, registry: cfg.Registry,
-		plugins: cfg.Plugins, pluginIssues: cfg.PluginIssues,
-		state:              agent.NewConversation(),
+		pluginHost: cfg.PluginHost, pluginIssues: cfg.PluginIssues,
+		conversation:       agent.NewConversation(),
 		operations:         newOperationOwner(cfg.Context),
-		transcript:         newConversationView(theme, glyphs, loop.Environment().Wheel(), syntax, cfg.Settings.UI.TranscriptRetain, cfg.Settings.UI.ToolDetails, loop.Clipboard()),
+		transcript:         newTranscriptView(theme, glyphs, loop.Environment().Wheel(), syntax, cfg.Settings.UI.TranscriptRetain, cfg.Settings.UI.ToolDetails, loop.Clipboard()),
 		header:             newSessionHeader(theme, glyphs, cfg.Snapshot.Session),
 		activity:           newActivityView(theme, glyphs),
 		queueView:          newQueueView(theme, glyphs),
@@ -185,7 +185,7 @@ func newApp(loop *program.InlineRuntime, cfg appConfig) *app {
 	a.shell.Focus(true)
 	a.stack.SetBase(a.shell)
 	a.buildQueueDrawer(theme, glyphs, cfg.Keys)
-	a.buildReview(theme, glyphs)
+	a.buildApprovalDialog(theme, glyphs)
 	a.buildSessionPicker(theme, glyphs)
 	a.buildRuntimePickers(theme, glyphs)
 	a.buildCommandPalette(theme, glyphs)
@@ -196,12 +196,12 @@ func newApp(loop *program.InlineRuntime, cfg appConfig) *app {
 	return a
 }
 
-func (a *app) wireTranscript(transcript *conversationView) {
+func (a *app) wireTranscript(transcript *transcriptView) {
 	a.prompt.SetTranscriptKeys(transcript.Keys())
 	transcript.OnFocusChange(a.prompt.SetTranscriptFocused)
 	transcript.OnSelection(a.prompt.SetTranscriptSelection)
 	transcript.OnCopy(func(string) {
-		if !a.state.Busy() && !a.following {
+		if !a.conversation.Busy() && !a.following {
 			a.status.note("copied selected transcript text")
 		}
 	})
@@ -210,7 +210,9 @@ func (a *app) wireTranscript(transcript *conversationView) {
 func (a *app) buildSessionPicker(theme kit.Theme, glyphs kit.Glyphs) {
 	a.sessionPicker = newPicker(theme, glyphs, "search sessions",
 		displayTitle,
-		func(session agent.Session) string { return agoShort(session.UpdatedAt) + " · " + session.Workspace },
+		func(session agent.Session) string {
+			return compactRelativeAge(session.UpdatedAt) + " · " + session.Workspace
+		},
 		func(session agent.Session) {
 			a.sessionDialog.Dismiss()
 			a.switchSession(session.ID)
@@ -222,7 +224,7 @@ func (a *app) buildSessionPicker(theme kit.Theme, glyphs kit.Glyphs) {
 }
 
 func (a *app) restore(snapshot agent.SessionSnapshot) {
-	if err := a.state.RestoreSnapshot(snapshot); err != nil {
+	if err := a.conversation.RestoreSnapshot(snapshot); err != nil {
 		a.fail(err)
 		return
 	}
@@ -233,7 +235,7 @@ func (a *app) restore(snapshot agent.SessionSnapshot) {
 	a.restoreActivity(snapshot)
 }
 
-func presentSnapshot(view *conversationView, snapshot agent.SessionSnapshot, registry *extensions.Registry) error {
+func presentSnapshot(view *transcriptView, snapshot agent.SessionSnapshot, registry *extensions.Registry) error {
 	for _, envelope := range snapshot.Events {
 		if err := view.Apply(envelope.Event, registry); err != nil {
 			return fmt.Errorf("restore transcript at cursor %d: %w", envelope.Cursor, err)
@@ -243,25 +245,25 @@ func presentSnapshot(view *conversationView, snapshot agent.SessionSnapshot, reg
 }
 
 func (a *app) restoreActivity(snapshot agent.SessionSnapshot) {
-	a.activity.Set(a.state.Plan())
-	a.header.SetUsage(a.state.Usage())
-	a.prompt.SetBusy(a.state.Busy())
-	switch a.state.Phase() {
-	case agent.PhaseWaiting:
-		a.openInteraction(a.state.Interaction())
+	a.activity.Set(a.conversation.Plan())
+	a.header.SetUsage(a.conversation.Usage())
+	a.prompt.SetBusy(a.conversation.Busy())
+	switch a.conversation.Phase() {
+	case agent.ConversationWaiting:
+		a.openInteraction(a.conversation.Interaction())
 		a.status.note("waiting for your answer")
-	case agent.PhaseRunning:
+	case agent.ConversationRunning:
 		if snapshot.Active == nil {
 			a.fail(errors.New("session snapshot has a running conversation without an active run"))
 			return
 		}
 		a.status.active("reconnecting")
-		a.follow(func(context.Context) (subscription, error) {
-			return subscription{runID: snapshot.Active.ID, after: snapshot.Cursor}, nil
+		a.follow(func(context.Context) (runSubscription, error) {
+			return runSubscription{runID: snapshot.Active.ID, after: snapshot.Cursor}, nil
 		})
-	case agent.PhaseIdle:
-		if a.state.Outcome().Status != "" {
-			a.status.settled(a.state.Outcome(), a.state.Usage())
+	case agent.ConversationIdle:
+		if a.conversation.Outcome().Status != "" {
+			a.status.settled(a.conversation.Outcome(), a.conversation.Usage())
 		}
 	default:
 		a.fail(errors.New("session snapshot has an unknown conversation phase"))
@@ -312,7 +314,7 @@ func (a *app) submit() {
 		return
 	}
 	if message.Text == "" && len(message.Attachments) == 0 {
-		if a.state.Busy() || a.following || a.pendingCancel != nil {
+		if a.conversation.Busy() || a.following || a.pendingCancel != nil {
 			if entry, ok := a.queue.Next(a.session.ID); ok {
 				if err := a.sendQueuedNow(entry.ID); err != nil {
 					a.message(err.Error())
@@ -331,7 +333,7 @@ func (a *app) submit() {
 		a.runCommand(name, arg)
 		return
 	}
-	if a.state.Busy() || a.following || a.pendingCancel != nil {
+	if a.conversation.Busy() || a.following || a.pendingCancel != nil {
 		a.enqueueFollowUp(message)
 		return
 	}
@@ -350,7 +352,7 @@ func (a *app) submit() {
 }
 
 func (a *app) message(label string) {
-	if a.state.Phase() == agent.PhaseRunning {
+	if a.conversation.Phase() == agent.ConversationRunning {
 		a.status.active(label)
 		return
 	}

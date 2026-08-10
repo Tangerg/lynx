@@ -12,55 +12,55 @@ type ResolutionIssue struct {
 	Err      error
 }
 
-type resolution struct {
+type dependencyResolution struct {
 	plugins []Plugin
 	order   []Plugin
 	issues  []ResolutionIssue
 }
 
-func resolve(plugins []Plugin) resolution {
-	state := newResolver(plugins)
-	state.collectCandidates(plugins)
-	state.rejectUnavailableDependencies()
-	state.propagateSkippedDependencies()
-	degree, dependents := state.dependencyGraph()
-	state.resolveOrder(degree, dependents)
-	state.rejectCycles(degree)
-	state.collectIssues(plugins)
-	return state.result
+func resolve(plugins []Plugin) dependencyResolution {
+	resolver := newDependencyResolver(plugins)
+	resolver.collectCandidates(plugins)
+	resolver.rejectUnavailableDependencies()
+	resolver.propagateSkippedDependencies()
+	degree, dependents := resolver.dependencyGraph()
+	resolver.resolveOrder(degree, dependents)
+	resolver.rejectCycles(degree)
+	resolver.collectIssues(plugins)
+	return resolver.resolution
 }
 
-type resolver struct {
-	counts  map[string]int
-	index   map[string]int
-	byID    map[string]Plugin
-	skipped map[string]error
-	result  resolution
+type dependencyResolver struct {
+	counts     map[string]int
+	index      map[string]int
+	byID       map[string]Plugin
+	skipped    map[string]error
+	resolution dependencyResolution
 }
 
-func newResolver(plugins []Plugin) *resolver {
-	state := &resolver{
+func newDependencyResolver(plugins []Plugin) *dependencyResolver {
+	resolver := &dependencyResolver{
 		counts: make(map[string]int, len(plugins)), index: make(map[string]int, len(plugins)),
 		byID: make(map[string]Plugin, len(plugins)), skipped: make(map[string]error),
 	}
 	for i, plugin := range plugins {
-		state.counts[plugin.ID]++
-		if _, exists := state.index[plugin.ID]; !exists {
-			state.index[plugin.ID] = i
-			state.byID[plugin.ID] = clonePlugin(plugin)
+		resolver.counts[plugin.ID]++
+		if _, exists := resolver.index[plugin.ID]; !exists {
+			resolver.index[plugin.ID] = i
+			resolver.byID[plugin.ID] = clonePlugin(plugin)
 		}
 	}
-	return state
+	return resolver
 }
 
-func (r *resolver) collectCandidates(plugins []Plugin) {
+func (r *dependencyResolver) collectCandidates(plugins []Plugin) {
 	included := make(map[string]struct{}, len(plugins))
 	for _, plugin := range plugins {
 		if _, exists := included[plugin.ID]; exists {
 			continue
 		}
 		included[plugin.ID] = struct{}{}
-		r.result.plugins = append(r.result.plugins, clonePlugin(plugin))
+		r.resolution.plugins = append(r.resolution.plugins, clonePlugin(plugin))
 		if r.counts[plugin.ID] > 1 {
 			r.skipped[plugin.ID] = fmt.Errorf("extensions: plugin id %q is declared %d times", plugin.ID, r.counts[plugin.ID])
 			continue
@@ -71,8 +71,8 @@ func (r *resolver) collectCandidates(plugins []Plugin) {
 	}
 }
 
-func (r *resolver) rejectUnavailableDependencies() {
-	for _, plugin := range r.result.plugins {
+func (r *dependencyResolver) rejectUnavailableDependencies() {
+	for _, plugin := range r.resolution.plugins {
 		if r.skipped[plugin.ID] != nil {
 			continue
 		}
@@ -85,10 +85,10 @@ func (r *resolver) rejectUnavailableDependencies() {
 	}
 }
 
-func (r *resolver) propagateSkippedDependencies() {
+func (r *dependencyResolver) propagateSkippedDependencies() {
 	for changed := true; changed; {
 		changed = false
-		for _, plugin := range r.result.plugins {
+		for _, plugin := range r.resolution.plugins {
 			if r.skipped[plugin.ID] != nil {
 				continue
 			}
@@ -103,15 +103,15 @@ func (r *resolver) propagateSkippedDependencies() {
 	}
 }
 
-func (r *resolver) dependencyGraph() (map[string]int, map[string][]string) {
-	degree := make(map[string]int, len(r.result.plugins))
-	dependents := make(map[string][]string, len(r.result.plugins))
-	for _, plugin := range r.result.plugins {
+func (r *dependencyResolver) dependencyGraph() (map[string]int, map[string][]string) {
+	degree := make(map[string]int, len(r.resolution.plugins))
+	dependents := make(map[string][]string, len(r.resolution.plugins))
+	for _, plugin := range r.resolution.plugins {
 		if r.skipped[plugin.ID] == nil {
 			degree[plugin.ID] = 0
 		}
 	}
-	for _, plugin := range r.result.plugins {
+	for _, plugin := range r.resolution.plugins {
 		if r.skipped[plugin.ID] != nil {
 			continue
 		}
@@ -123,7 +123,7 @@ func (r *resolver) dependencyGraph() (map[string]int, map[string][]string) {
 	return degree, dependents
 }
 
-func (r *resolver) resolveOrder(degree map[string]int, dependents map[string][]string) {
+func (r *dependencyResolver) resolveOrder(degree map[string]int, dependents map[string][]string) {
 	ready := make([]string, 0, len(degree))
 	for id, count := range degree {
 		if count == 0 {
@@ -134,7 +134,7 @@ func (r *resolver) resolveOrder(degree map[string]int, dependents map[string][]s
 		slices.SortStableFunc(ready, func(a, b string) int { return r.index[a] - r.index[b] })
 		id := ready[0]
 		ready = ready[1:]
-		r.result.order = append(r.result.order, clonePlugin(r.byID[id]))
+		r.resolution.order = append(r.resolution.order, clonePlugin(r.byID[id]))
 		for _, dependent := range dependents[id] {
 			degree[dependent]--
 			if degree[dependent] == 0 {
@@ -144,7 +144,7 @@ func (r *resolver) resolveOrder(degree map[string]int, dependents map[string][]s
 	}
 }
 
-func (r *resolver) rejectCycles(degree map[string]int) {
+func (r *dependencyResolver) rejectCycles(degree map[string]int) {
 	for id, count := range degree {
 		if count > 0 {
 			r.skipped[id] = errors.New("extensions: dependency cycle")
@@ -152,10 +152,10 @@ func (r *resolver) rejectCycles(degree map[string]int) {
 	}
 }
 
-func (r *resolver) collectIssues(plugins []Plugin) {
+func (r *dependencyResolver) collectIssues(plugins []Plugin) {
 	for _, plugin := range plugins {
 		if err := r.skipped[plugin.ID]; err != nil {
-			r.result.issues = append(r.result.issues, ResolutionIssue{PluginID: plugin.ID, Err: err})
+			r.resolution.issues = append(r.resolution.issues, ResolutionIssue{PluginID: plugin.ID, Err: err})
 			delete(r.skipped, plugin.ID)
 		}
 	}

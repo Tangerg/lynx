@@ -1,7 +1,6 @@
 package extensions
 
 import (
-	"errors"
 	"fmt"
 	"regexp"
 	"slices"
@@ -16,7 +15,7 @@ var (
 	pluginIDPattern = regexp.MustCompile(`^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$`)
 )
 
-// ValidateManifest checks the metadata the extension kernel relies on before
+// ValidateManifest checks the metadata the extension host relies on before
 // any plugin code runs.
 func ValidateManifest(plugin Plugin) error {
 	id := strings.TrimSpace(plugin.ID)
@@ -78,5 +77,3 @@ func clonePlugin(plugin Plugin) Plugin {
 	plugin.Capabilities = slices.Clone(plugin.Capabilities)
 	return plugin
 }
-
-var errKernelClosed = errors.New("extensions: kernel is closed")

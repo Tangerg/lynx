@@ -2,7 +2,7 @@
 // terminal, or a program on the other end of a pipe.
 //
 // The renderers here are write-only projections. Text remembers only the live
-// block identities needed to route deltas, JSON writes each event directly, and
+// block identities needed to route deltas, NDJSON writes each event directly, and
 // ResultJSON retains only final assistant prose. None keeps a full transcript;
 // holding the whole conversation in memory is the TUI's job.
 package render
@@ -236,7 +236,7 @@ func (t *Text) toolVerdict(call *agent.ToolCall) {
 		status += " exit " + strconv.Itoa(*call.ExitCode)
 	}
 	if call.Duration > 0 {
-		status += " " + duration(call.Duration)
+		status += " " + formatDuration(call.Duration)
 	}
 	t.line(status)
 }
@@ -342,15 +342,15 @@ func (t *Text) finished(e agent.RunFinished) {
 		t.line(msg)
 	}
 	u := e.Usage
-	parts := []string{"↑ " + thousands(u.InputTokens), "↓ " + thousands(u.OutputTokens)}
+	parts := []string{"↑ " + formatThousands(u.InputTokens), "↓ " + formatThousands(u.OutputTokens)}
 	if u.CachedTokens > 0 {
-		parts = append(parts, "cached "+thousands(u.CachedTokens))
+		parts = append(parts, "cached "+formatThousands(u.CachedTokens))
 	}
 	if u.CostUSD > 0 {
 		parts = append(parts, "$"+strconv.FormatFloat(u.CostUSD, 'f', 4, 64))
 	}
 	if u.Duration > 0 {
-		parts = append(parts, duration(u.Duration))
+		parts = append(parts, formatDuration(u.Duration))
 	}
 	t.line(strings.Join(parts, "  "))
 }
@@ -406,17 +406,17 @@ func (t *Text) write(s string) {
 	t.column = !strings.HasSuffix(s, "\n")
 }
 
-// duration prints a span the way a person reads one: sub-second in
+// formatDuration prints a span the way a person reads one: sub-second in
 // milliseconds, otherwise seconds with one decimal.
-func duration(d time.Duration) string {
+func formatDuration(d time.Duration) string {
 	if d < time.Second {
 		return strconv.FormatInt(d.Milliseconds(), 10) + "ms"
 	}
 	return strconv.FormatFloat(d.Seconds(), 'f', 1, 64) + "s"
 }
 
-// thousands groups an integer for reading.
-func thousands(n int64) string {
+// formatThousands groups an integer for reading.
+func formatThousands(n int64) string {
 	s := strconv.FormatInt(n, 10)
 	first := 0
 	if s[0] == '-' {

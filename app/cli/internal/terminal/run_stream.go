@@ -17,8 +17,8 @@ import (
 )
 
 const (
-	animationRate  = 100 * time.Millisecond
-	controlTimeout = 5 * time.Second
+	animationInterval     = 100 * time.Millisecond
+	runtimeControlTimeout = 5 * time.Second
 )
 
 func (a *app) startRun(message agent.Message, status string) bool {
@@ -27,7 +27,7 @@ func (a *app) startRun(message agent.Message, status string) bool {
 		a.fail(err)
 		return false
 	}
-	if err := a.state.Starting(); err != nil {
+	if err := a.conversation.Starting(); err != nil {
 		a.fail(err)
 		return false
 	}
@@ -45,28 +45,28 @@ func (a *app) startRun(message agent.Message, status string) bool {
 		Message:   message.Clone(),
 		Options:   a.options,
 	}
-	a.follow(func(ctx context.Context) (subscription, error) {
+	a.follow(func(ctx context.Context) (runSubscription, error) {
 		run, err := a.runtime.StartRun(ctx, input)
 		if err != nil {
-			return subscription{}, err
+			return runSubscription{}, err
 		}
 		if err := run.Validate(); err != nil {
-			return subscription{}, fmt.Errorf("start run response: %w", err)
+			return runSubscription{}, fmt.Errorf("start run response: %w", err)
 		}
 		if run.SessionID != input.SessionID {
-			return subscription{}, fmt.Errorf("start run response: run belongs to session %s, want %s", run.SessionID, input.SessionID)
+			return runSubscription{}, fmt.Errorf("start run response: run belongs to session %s, want %s", run.SessionID, input.SessionID)
 		}
-		return subscription{runID: run.ID, after: run.StartedAfter}, nil
+		return runSubscription{runID: run.ID, after: run.StartedAfter}, nil
 	})
 	return true
 }
 
-type subscription struct {
+type runSubscription struct {
 	runID string
 	after agent.Cursor
 }
 
-func (a *app) follow(open func(context.Context) (subscription, error)) {
+func (a *app) follow(open func(context.Context) (runSubscription, error)) {
 	a.dropStream()
 	sequence := a.streamSeq
 	a.following = true
@@ -85,7 +85,7 @@ type streamFollower struct {
 	ctx           context.Context
 	dispatcher    program.Dispatcher
 	sequence      uint64
-	open          func(context.Context) (subscription, error)
+	open          func(context.Context) (runSubscription, error)
 	applyEnvelope func(agent.Envelope) error
 	policy        reconnect.Policy
 	after         agent.Cursor
@@ -93,24 +93,24 @@ type streamFollower struct {
 }
 
 func (f *streamFollower) run() {
-	subscription, ok := f.openSubscription()
+	opened, ok := f.openSubscription()
 	if !ok {
 		return
 	}
-	f.after = subscription.after
+	f.after = opened.after
 	f.failures = 0
-	for f.followOnce(subscription.runID) {
+	for f.followOnce(opened.runID) {
 	}
 }
 
-func (f *streamFollower) openSubscription() (subscription, bool) {
+func (f *streamFollower) openSubscription() (runSubscription, bool) {
 	for {
 		opened, err := f.open(f.ctx)
 		if err == nil {
 			return opened, true
 		}
 		if context.Cause(f.ctx) != nil || !f.retry(err, false) {
-			return subscription{}, false
+			return runSubscription{}, false
 		}
 	}
 }
@@ -128,12 +128,12 @@ func (f *streamFollower) followOnce(runID string) bool {
 	if !active {
 		return false
 	}
-	state, err := f.state()
-	if err != nil || !state.active {
+	snapshot, err := f.snapshot()
+	if err != nil || !snapshot.active {
 		return false
 	}
-	f.after = state.after
-	if state.phase != agent.PhaseRunning {
+	f.after = snapshot.after
+	if snapshot.phase != agent.ConversationRunning {
 		f.finish()
 		return false
 	}
@@ -168,28 +168,28 @@ func (f *streamFollower) apply(envelope agent.Envelope) (bool, error) {
 			return
 		}
 		applyErr = f.applyEnvelope(envelope)
-		f.after = f.app.state.Cursor()
+		f.after = f.app.conversation.Cursor()
 	})
 	return active, errors.Join(err, applyErr)
 }
 
-type streamUIState struct {
+type followSnapshot struct {
 	active bool
 	after  agent.Cursor
-	phase  agent.Phase
+	phase  agent.ConversationPhase
 }
 
-func (f *streamFollower) state() (streamUIState, error) {
-	state := streamUIState{active: true}
+func (f *streamFollower) snapshot() (followSnapshot, error) {
+	snapshot := followSnapshot{active: true}
 	err := post(f.ctx, f.dispatcher, func() {
 		if f.app.streamSeq != f.sequence {
-			state.active = false
+			snapshot.active = false
 			return
 		}
-		state.after = f.app.state.Cursor()
-		state.phase = f.app.state.Phase()
+		snapshot.after = f.app.conversation.Cursor()
+		snapshot.phase = f.app.conversation.Phase()
 	})
-	return state, err
+	return snapshot, err
 }
 
 func (f *streamFollower) retry(cause error, progressed bool) bool {
@@ -237,7 +237,7 @@ func (a *app) postStreamFailure(ctx context.Context, dispatcher program.Dispatch
 }
 
 func (a *app) activeCancellation() (agent.CancelRun, bool) {
-	if runID := a.state.RunID(); runID != "" {
+	if runID := a.conversation.RunID(); runID != "" {
 		return agent.CancelRun{RunID: runID}, true
 	}
 	if a.startRequest != "" {
@@ -275,7 +275,7 @@ func post(ctx context.Context, dispatcher program.Dispatcher, fn func()) error {
 }
 
 func (a *app) apply(envelope agent.Envelope) error {
-	result, err := a.state.ApplyEnvelope(envelope)
+	result, err := a.conversation.ApplyEnvelope(envelope)
 	if err != nil {
 		return fmt.Errorf("apply runtime event %T at cursor %d: %w", envelope.Event, envelope.Cursor, err)
 	}
@@ -304,9 +304,9 @@ func (a *app) applyPresentationEvent(event agent.Event) {
 			a.status.active("working")
 		}
 	case agent.PlanChanged:
-		a.activity.Set(a.state.Plan())
+		a.activity.Set(a.conversation.Plan())
 	case agent.RunInterrupted:
-		a.openInteraction(a.state.Interaction())
+		a.openInteraction(a.conversation.Interaction())
 		a.status.note("waiting for your answer")
 	case agent.RunFinished:
 		a.noteRunFinished()
@@ -330,7 +330,7 @@ func (a *app) noteRunFinished() {
 	a.startRequest = ""
 	a.pendingCancel = nil
 	a.status.note("finishing run")
-	a.header.SetUsage(a.state.Usage())
+	a.header.SetUsage(a.conversation.Usage())
 	// The outcome is authoritative, but the stream owner may still be resolving an
 	// ambiguous idempotent control call. It releases the prompt in finishFollowing
 	// only after that transport lifecycle has actually settled.
@@ -338,16 +338,16 @@ func (a *app) noteRunFinished() {
 
 func (a *app) finishFollowing() {
 	a.following = false
-	if a.state.Phase() != agent.PhaseIdle || a.state.Outcome().Status == "" {
+	if a.conversation.Phase() != agent.ConversationIdle || a.conversation.Outcome().Status == "" {
 		return
 	}
-	a.status.settled(a.state.Outcome(), a.state.Usage())
+	a.status.settled(a.conversation.Outcome(), a.conversation.Usage())
 	a.prompt.SetBusy(false)
 	if a.drainQueue() {
 		return
 	}
 	if a.settings.UI.Notifications {
-		a.loop.Session().Notify(outcomeNotification(a.state.Outcome()))
+		a.loop.Session().Notify(outcomeNotification(a.conversation.Outcome()))
 	}
 }
 
@@ -371,18 +371,18 @@ func (a *app) fail(err error) {
 	a.following = false
 	a.startRequest = ""
 	a.releaseQueuedDispatch()
-	a.state.Failed(err)
-	a.transcript.settleLive(a.state.Outcome())
+	a.conversation.Failed(err)
+	a.transcript.settleLive(a.conversation.Outcome())
 	a.transcript.Append(presentError(a.transcript.theme, err.Error()))
-	a.status.settled(a.state.Outcome(), a.state.Usage())
-	a.header.SetUsage(a.state.Usage())
+	a.status.settled(a.conversation.Outcome(), a.conversation.Usage())
+	a.header.SetUsage(a.conversation.Usage())
 	a.prompt.SetBusy(false)
 	a.syncAnimation()
 }
 
 func (a *app) cancel() {
-	if a.review != nil {
-		a.answerReview("deny")
+	if a.approval != nil {
+		a.answerApproval("deny")
 		return
 	}
 	if a.question != nil {
@@ -394,23 +394,23 @@ func (a *app) cancel() {
 		a.cancelRuntime(*a.pendingCancel)
 		return
 	}
-	if !a.state.Busy() && !a.following {
+	if !a.conversation.Busy() && !a.following {
 		return
 	}
 	a.status.doing = "canceling"
-	runID := a.state.RunID()
+	runID := a.conversation.RunID()
 	if runID == "" {
 		requestID := a.startRequest
 		a.discardQueuedDispatch()
 		a.dropStream()
 		a.following = false
 		a.startRequest = ""
-		if err := a.state.CancelStarting(); err != nil {
+		if err := a.conversation.CancelStarting(); err != nil {
 			a.fail(err)
 			return
 		}
-		a.status.settled(a.state.Outcome(), a.state.Usage())
-		a.header.SetUsage(a.state.Usage())
+		a.status.settled(a.conversation.Outcome(), a.conversation.Usage())
+		a.header.SetUsage(a.conversation.Usage())
 		a.prompt.SetBusy(false)
 		a.syncAnimation()
 		if requestID != "" {
@@ -426,7 +426,7 @@ func (a *app) cancelRuntime(target agent.CancelRun) {
 	a.pendingCancel = &targetCopy
 	dispatcher := a.loop.Dispatcher()
 	a.operations.Go(cancelRunOperation, true, func(ownerCtx context.Context, lease operationLease) {
-		ctx, cancel := context.WithTimeout(ownerCtx, controlTimeout)
+		ctx, cancel := context.WithTimeout(ownerCtx, runtimeControlTimeout)
 		defer cancel()
 		policy := reconnect.New(a.settings.UI.ReconnectAttempts)
 		err := reconnect.Control(ctx, policy, func() error { return a.runtime.CancelRun(ctx, target) })
@@ -444,7 +444,7 @@ func (a *app) cancelRuntime(target agent.CancelRun) {
 }
 
 func (a *app) cancelRuntimeNow(ownerCtx context.Context, target agent.CancelRun) {
-	ctx, cancel := context.WithTimeout(context.WithoutCancel(ownerCtx), controlTimeout)
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ownerCtx), runtimeControlTimeout)
 	defer cancel()
 	policy := reconnect.New(a.settings.UI.ReconnectAttempts)
 	_ = reconnect.Control(ctx, policy, func() error { return a.runtime.CancelRun(ctx, target) })
@@ -457,10 +457,10 @@ func (a *app) dropStream() {
 }
 
 func (a *app) syncAnimation() {
-	running := a.state.Phase() == agent.PhaseRunning
+	running := a.conversation.Phase() == agent.ConversationRunning
 	switch {
 	case running && a.stopClock == nil:
-		a.stopClock = a.loop.Every(animationRate, func() {
+		a.stopClock = a.loop.Every(animationInterval, func() {
 			a.status.tick(time.Since(a.started))
 		})
 	case !running && a.stopClock != nil:

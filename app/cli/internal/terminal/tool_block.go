@@ -50,7 +50,7 @@ var (
 	_ mutableToolBlock  = (*toolBlock)(nil)
 )
 
-func newToolBlock(p Presentation, block agent.Block) *toolBlock {
+func newToolBlock(p BlockPresentation, block agent.Block) *toolBlock {
 	t := &toolBlock{theme: p.Theme, glyphs: p.Glyphs, syntax: p.Syntax}
 	t.Update(block)
 	return t
@@ -210,7 +210,7 @@ func (t *toolBlock) header() (toggle, label, status string, statusStyle grid.Sty
 		status += " exit " + strconv.Itoa(*t.call.ExitCode)
 	}
 	if t.call.Duration > 0 {
-		status += " " + compactTime(t.call.Duration)
+		status += " " + formatCompactDuration(t.call.Duration)
 	}
 	return toggle, label, strings.TrimSpace(status), statusStyle
 }

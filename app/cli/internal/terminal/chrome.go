@@ -318,20 +318,20 @@ func usageLabel(usage agent.Usage) string {
 	if usage == (agent.Usage{}) {
 		return ""
 	}
-	parts := []string{"↑" + thousands(usage.InputTokens), "↓" + thousands(usage.OutputTokens)}
+	parts := []string{"↑" + formatThousands(usage.InputTokens), "↓" + formatThousands(usage.OutputTokens)}
 	if usage.CachedTokens > 0 {
-		parts = append(parts, "cached "+thousands(usage.CachedTokens))
+		parts = append(parts, "cached "+formatThousands(usage.CachedTokens))
 	}
 	if usage.CostUSD > 0 {
 		parts = append(parts, "$"+strconv.FormatFloat(usage.CostUSD, 'f', 4, 64))
 	}
 	if usage.Duration > 0 {
-		parts = append(parts, compactTime(usage.Duration))
+		parts = append(parts, formatCompactDuration(usage.Duration))
 	}
 	return strings.Join(parts, "  ")
 }
 
-func thousands(value int64) string {
+func formatThousands(value int64) string {
 	digits := strconv.FormatInt(value, 10)
 	first := 0
 	if digits[0] == '-' {
@@ -343,7 +343,7 @@ func thousands(value int64) string {
 	return digits
 }
 
-func compactTime(duration time.Duration) string {
+func formatCompactDuration(duration time.Duration) string {
 	if duration < time.Second {
 		return strconv.FormatInt(duration.Milliseconds(), 10) + "ms"
 	}

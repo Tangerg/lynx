@@ -15,16 +15,16 @@ import (
 )
 
 const (
-	commandProtocol = 1
-	maximumOutput   = 1 << 20
-	maximumMessage  = 4096
-	maximumArgument = 64 << 10
-	maximumPath     = 32 << 10
-	maximumIdentity = 256
-	maximumRequest  = 128 << 10
+	commandProtocolVersion  = 1
+	maxCommandOutputBytes   = 1 << 20
+	maxCommandMessageBytes  = 4096
+	maxCommandArgumentBytes = 64 << 10
+	maxWorkspaceBytes       = 32 << 10
+	maxSessionIDBytes       = 256
+	maxCommandRequestBytes  = 128 << 10
 )
 
-type commandRunner struct {
+type executableCommand struct {
 	pluginID   string
 	command    string
 	executable string
@@ -46,56 +46,56 @@ type commandResponse struct {
 	Message  string `json:"message"`
 }
 
-func (r commandRunner) Execute(ctx context.Context, request terminal.CommandRequest) (terminal.CommandResult, error) {
+func (c executableCommand) Execute(ctx context.Context, request terminal.CommandRequest) (terminal.CommandResult, error) {
 	if err := validateCommandRequest(request); err != nil {
-		return terminal.CommandResult{}, fmt.Errorf("plugin %s command /%s request: %w", r.pluginID, r.command, err)
+		return terminal.CommandResult{}, fmt.Errorf("plugin %s command /%s request: %w", c.pluginID, c.command, err)
 	}
-	ctx, cancel := context.WithTimeout(ctx, r.timeout)
+	ctx, cancel := context.WithTimeout(ctx, c.timeout)
 	defer cancel()
 	payload, err := json.Marshal(commandRequest{
-		Protocol: commandProtocol, PluginID: r.pluginID, Command: r.command,
+		Protocol: commandProtocolVersion, PluginID: c.pluginID, Command: c.command,
 		Argument: request.Argument, Workspace: request.Workspace, SessionID: request.SessionID,
 	})
 	if err != nil {
 		return terminal.CommandResult{}, fmt.Errorf("encode plugin command request: %w", err)
 	}
-	if len(payload) > maximumRequest {
-		return terminal.CommandResult{}, fmt.Errorf("plugin %s command /%s request exceeds %d bytes", r.pluginID, r.command, maximumRequest)
+	if len(payload) > maxCommandRequestBytes {
+		return terminal.CommandResult{}, fmt.Errorf("plugin %s command /%s request exceeds %d bytes", c.pluginID, c.command, maxCommandRequestBytes)
 	}
 	// #nosec G204 -- discovery canonicalizes the manifest entry, proves that it
 	// remains inside the plugin directory, and requires an executable regular file.
-	command := exec.CommandContext(ctx, r.executable)
-	configureProcess(command)
-	command.Dir = r.directory
-	command.Env = commandEnvironment(r.pluginID, r.command)
-	command.Stdin = bytes.NewReader(append(payload, '\n'))
+	process := exec.CommandContext(ctx, c.executable)
+	configureProcess(process)
+	process.Dir = c.directory
+	process.Env = commandEnvironment(c.pluginID, c.command)
+	process.Stdin = bytes.NewReader(append(payload, '\n'))
 	var stdout, stderr cappedBuffer
-	stdout.limit, stderr.limit = maximumOutput, maximumOutput
-	command.Stdout, command.Stderr = &stdout, &stderr
-	if err := command.Run(); err != nil {
+	stdout.limit, stderr.limit = maxCommandOutputBytes, maxCommandOutputBytes
+	process.Stdout, process.Stderr = &stdout, &stderr
+	if err := process.Run(); err != nil {
 		if cause := context.Cause(ctx); cause != nil {
-			return terminal.CommandResult{}, fmt.Errorf("plugin %s command /%s: %w", r.pluginID, r.command, cause)
+			return terminal.CommandResult{}, fmt.Errorf("plugin %s command /%s: %w", c.pluginID, c.command, cause)
 		}
 		detail := strings.TrimSpace(stderr.String())
 		if detail == "" {
 			detail = err.Error()
 		}
-		return terminal.CommandResult{}, fmt.Errorf("plugin %s command /%s failed: %s", r.pluginID, r.command, detail)
+		return terminal.CommandResult{}, fmt.Errorf("plugin %s command /%s failed: %s", c.pluginID, c.command, detail)
 	}
 	if stdout.overflow || stderr.overflow {
-		return terminal.CommandResult{}, fmt.Errorf("plugin %s command /%s exceeded the %d-byte output limit", r.pluginID, r.command, maximumOutput)
+		return terminal.CommandResult{}, fmt.Errorf("plugin %s command /%s exceeded the %d-byte output limit", c.pluginID, c.command, maxCommandOutputBytes)
 	}
-	return decodeCommandResponse(r.pluginID, r.command, stdout.Bytes())
+	return decodeCommandResponse(c.pluginID, c.command, stdout.Bytes())
 }
 
 func validateCommandRequest(request terminal.CommandRequest) error {
 	switch {
-	case len(request.Argument) > maximumArgument:
-		return fmt.Errorf("argument exceeds %d bytes", maximumArgument)
-	case len(request.Workspace) > maximumPath:
-		return fmt.Errorf("workspace exceeds %d bytes", maximumPath)
-	case len(request.SessionID) > maximumIdentity:
-		return fmt.Errorf("session id exceeds %d bytes", maximumIdentity)
+	case len(request.Argument) > maxCommandArgumentBytes:
+		return fmt.Errorf("argument exceeds %d bytes", maxCommandArgumentBytes)
+	case len(request.Workspace) > maxWorkspaceBytes:
+		return fmt.Errorf("workspace exceeds %d bytes", maxWorkspaceBytes)
+	case len(request.SessionID) > maxSessionIDBytes:
+		return fmt.Errorf("session id exceeds %d bytes", maxSessionIDBytes)
 	default:
 		return nil
 	}
@@ -138,12 +138,12 @@ func decodeCommandResponse(pluginID, command string, output []byte) (terminal.Co
 	if err := rejectTrailingJSON(decoder); err != nil {
 		return terminal.CommandResult{}, fmt.Errorf("decode plugin %s command /%s response: %w", pluginID, command, err)
 	}
-	if response.Protocol != commandProtocol {
-		return terminal.CommandResult{}, fmt.Errorf("plugin %s command /%s responded with protocol %d, want %d", pluginID, command, response.Protocol, commandProtocol)
+	if response.Protocol != commandProtocolVersion {
+		return terminal.CommandResult{}, fmt.Errorf("plugin %s command /%s responded with protocol %d, want %d", pluginID, command, response.Protocol, commandProtocolVersion)
 	}
 	message := strings.TrimSpace(response.Message)
-	if len(message) > maximumMessage {
-		return terminal.CommandResult{}, fmt.Errorf("plugin %s command /%s message exceeds %d bytes", pluginID, command, maximumMessage)
+	if len(message) > maxCommandMessageBytes {
+		return terminal.CommandResult{}, fmt.Errorf("plugin %s command /%s message exceeds %d bytes", pluginID, command, maxCommandMessageBytes)
 	}
 	return terminal.CommandResult{Message: message}, nil
 }

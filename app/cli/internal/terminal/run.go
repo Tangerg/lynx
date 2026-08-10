@@ -41,11 +41,11 @@ func Run(ctx context.Context, cfg Config) (runErr error) {
 	}
 
 	registry := new(extensions.Registry)
-	kernel, err := extensions.NewKernel(registry)
+	extensionHost, err := extensions.NewHost(registry)
 	if err != nil {
 		return err
 	}
-	defer func() { runErr = errors.Join(runErr, kernel.Close()) }()
+	defer func() { runErr = errors.Join(runErr, extensionHost.Close()) }()
 	sources := make([]extensions.Source, 0, 1+len(cfg.PluginSources))
 	sources = append(sources, extensions.StaticSource{
 		Name: "terminal", Plugins: append([]extensions.Plugin{builtinPlugin()}, cfg.Plugins...),
@@ -55,11 +55,11 @@ func Run(ctx context.Context, cfg Config) (runErr error) {
 	if err != nil {
 		return err
 	}
-	results, err := kernel.Activate(discovered.Plugins)
+	results, err := extensionHost.Activate(discovered.Plugins)
 	if err != nil {
 		return err
 	}
-	if err := requirePlugin(results, "terminal.core"); err != nil {
+	if err := requireLoadedPlugin(results, "terminal.core"); err != nil {
 		return err
 	}
 
@@ -69,7 +69,7 @@ func Run(ctx context.Context, cfg Config) (runErr error) {
 		Inline: func(loop *program.InlineRuntime) program.Component {
 			active = newApp(loop, appConfig{
 				Context: ctx, Runtime: cfg.Runtime, Snapshot: prepared.opened,
-				Registry: registry, Plugins: kernel, PluginIssues: discovered.Issues,
+				Registry: registry, PluginHost: extensionHost, PluginIssues: discovered.Issues,
 				Attachments: prepared.attachments, InitialPrompt: cfg.InitialPrompt,
 				Settings: prepared.settings, Keys: prepared.keys, Queue: queue,
 			})
@@ -117,7 +117,7 @@ func prepareSession(ctx context.Context, cfg Config) (preparedSession, error) {
 	return preparedSession{opened: opened, attachments: attachments, keys: keys, settings: configured}, nil
 }
 
-func requirePlugin(results []extensions.Result, id string) error {
+func requireLoadedPlugin(results []extensions.LifecycleResult, id string) error {
 	for _, result := range results {
 		if result.PluginID != id {
 			continue

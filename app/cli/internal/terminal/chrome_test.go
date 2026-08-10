@@ -116,7 +116,7 @@ func TestShellRendersAtSupportedAndConstrainedTerminalSizes(t *testing.T) {
 		t.Fatal(err)
 	}
 	theme, glyphs := kit.Dark(), kit.Unicode()
-	transcript := testConversationView(t)
+	transcript := testTranscriptView(t)
 	header := newSessionHeader(theme, glyphs, agent.Session{Title: "New session", Workspace: "/workspace/lynx"})
 	activity := newActivityView(theme, glyphs)
 	activity.Set([]agent.PlanItem{{Title: "Inspect", Status: agent.PlanActive}})
@@ -144,7 +144,7 @@ func TestShellUsesTwoRowChromeOnTinyTerminals(t *testing.T) {
 		t.Fatal(err)
 	}
 	theme, glyphs := kit.Dark(), kit.Unicode()
-	transcript := testConversationView(t)
+	transcript := testTranscriptView(t)
 	transcript.Append(&kit.Message{Theme: theme, Speaker: "lyra", Body: "VISIBLE_TRANSCRIPT"})
 	header := newSessionHeader(theme, glyphs, agent.Session{Title: "Hidden title", Workspace: "/hidden/workspace"})
 	activity := newActivityView(theme, glyphs)
@@ -188,7 +188,7 @@ func TestResponsiveShellPreservesTranscriptFocusAndDraft(t *testing.T) {
 		t.Fatal(err)
 	}
 	theme, glyphs := kit.Dark(), kit.Unicode()
-	transcript := testConversationView(t)
+	transcript := testTranscriptView(t)
 	appendTestTool(transcript, "focus", "detail")
 	composer := kit.Composer{Theme: theme, Prompt: glyphs.Marker + " ", MaxRows: 6}
 	composer.Editor().Keys = keys
@@ -223,7 +223,7 @@ func TestShellMovesFocusBetweenPromptAndTranscript(t *testing.T) {
 		t.Fatal(err)
 	}
 	theme, glyphs := kit.Dark(), kit.Unicode()
-	transcript := testConversationView(t)
+	transcript := testTranscriptView(t)
 	appendTestTool(transcript, "focus", "detail")
 	composer := kit.Composer{Theme: theme, Prompt: glyphs.Marker + " ", MaxRows: 6}
 	prompt := newPromptView(theme, glyphs, keys, &composer, settings.Default().RunOptions())

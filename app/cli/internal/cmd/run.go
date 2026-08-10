@@ -153,7 +153,7 @@ func newRunRenderer(cmd *cobra.Command, format outputFormat) oneshot.Renderer {
 	case outputJSON:
 		return render.NewResultJSON(cmd.OutOrStdout())
 	case outputStreamingJSON:
-		return render.NewJSON(cmd.OutOrStdout())
+		return render.NewNDJSON(cmd.OutOrStdout())
 	default:
 		return render.NewText(cmd.OutOrStdout())
 	}
@@ -168,7 +168,7 @@ func completeRunFile(cmd *cobra.Command, _ []string, toComplete string) ([]strin
 	if err != nil {
 		return nil, cobra.ShellCompDirectiveError
 	}
-	matches, err := resolver.Complete(cmd.Context(), toComplete, attachment.DefaultLimit)
+	matches, err := resolver.Complete(cmd.Context(), toComplete, attachment.DefaultCompletionLimit)
 	if err != nil {
 		return nil, cobra.ShellCompDirectiveError
 	}

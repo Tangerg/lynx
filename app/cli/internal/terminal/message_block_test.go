@@ -53,7 +53,7 @@ func TestUserMessageBlockDegradesWithoutLosingTextAtMinimalWidth(t *testing.T) {
 }
 
 func TestUserPresenterKeepsAttachmentsInsideTheMessageSurface(t *testing.T) {
-	rendered := presentUser(Presentation{Theme: kit.Dark()}, agent.Block{
+	rendered := presentUser(BlockPresentation{Theme: kit.Dark()}, agent.Block{
 		Kind:        agent.BlockUser,
 		Text:        "review this",
 		Attachments: []agent.Attachment{{Name: "design.md", MimeType: "text/markdown"}},

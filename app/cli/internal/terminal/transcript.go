@@ -16,7 +16,7 @@ import (
 	"github.com/Tangerg/lynx/app/cli/internal/extensions"
 )
 
-type conversationView struct {
+type transcriptView struct {
 	theme  kit.Theme
 	glyphs kit.Glyphs
 	wheel  input.Wheel
@@ -78,7 +78,7 @@ type trackedTool struct {
 	block mutableToolBlock
 }
 
-func (c *conversationView) ToggleDetails() {
+func (c *transcriptView) ToggleDetails() {
 	first := c.content.FirstBlock()
 	// #nosec G115 -- Transcript.Len is non-negative and cannot exceed the
 	// addressable in-memory slice backing the transcript.
@@ -109,14 +109,14 @@ func (c *conversationView) ToggleDetails() {
 	c.announceSelection()
 }
 
-func (c *conversationView) DetailsLabel() string {
+func (c *transcriptView) DetailsLabel() string {
 	if c.details {
 		return "tool details expanded"
 	}
 	return "tool details collapsed"
 }
 
-func newConversationView(
+func newTranscriptView(
 	theme kit.Theme,
 	glyphs kit.Glyphs,
 	wheel input.Wheel,
@@ -124,8 +124,8 @@ func newConversationView(
 	retain int,
 	details bool,
 	clipboard headless.Clipboard,
-) *conversationView {
-	c := &conversationView{
+) *transcriptView {
+	c := &transcriptView{
 		theme: theme, glyphs: glyphs, wheel: wheel,
 		look: markdownLook(theme, glyphs, syntax), syntax: syntax,
 		search: headless.NewSearch(), current: -1, retain: max(retain, 4), details: details,
@@ -143,12 +143,12 @@ func newConversationView(
 	return c
 }
 
-func (c *conversationView) Draw(frame headless.Frame) {
+func (c *transcriptView) Draw(frame headless.Frame) {
 	c.view.Matches, c.view.Current = c.matches, c.current
 	c.view.Draw(frame)
 }
 
-func (c *conversationView) Handle(event input.Event) bool {
+func (c *transcriptView) Handle(event input.Event) bool {
 	if key, ok := event.(input.Key); ok && key.Down() && c.focused {
 		if key.Code == input.Esc && c.selection.Active() {
 			c.selection.Clear()
@@ -167,7 +167,7 @@ func (c *conversationView) Handle(event input.Event) bool {
 	return true
 }
 
-func (c *conversationView) Focus(has bool) {
+func (c *transcriptView) Focus(has bool) {
 	if c.focused == has {
 		return
 	}
@@ -185,17 +185,17 @@ func (c *conversationView) Focus(has bool) {
 	c.announceSelection()
 }
 
-func (c *conversationView) Focused() bool { return c.focused }
+func (c *transcriptView) Focused() bool { return c.focused }
 
-func (c *conversationView) OnFocusChange(change func(bool)) { c.onFocusChange = change }
+func (c *transcriptView) OnFocusChange(change func(bool)) { c.onFocusChange = change }
 
-func (c *conversationView) OnSelection(change func(transcriptSelection)) { c.onSelection = change }
+func (c *transcriptView) OnSelection(change func(transcriptSelection)) { c.onSelection = change }
 
-func (c *conversationView) OnCopy(copied func(string)) { c.onCopy = copied }
+func (c *transcriptView) OnCopy(copied func(string)) { c.onCopy = copied }
 
-func (c *conversationView) Keys() *keymap.Map { return c.keys }
+func (c *transcriptView) Keys() *keymap.Map { return c.keys }
 
-func (c *conversationView) Do(action keymap.Action) bool {
+func (c *transcriptView) Do(action keymap.Action) bool {
 	switch action {
 	case headless.SelectPrev:
 		return c.moveSelection(-1)
@@ -232,7 +232,7 @@ func transcriptKeys() *keymap.Map {
 	return keys
 }
 
-func (c *conversationView) handleMouse(mouse input.Mouse) {
+func (c *transcriptView) handleMouse(mouse input.Mouse) {
 	if mouse.Button != input.ButtonLeft && mouse.Action != input.MouseUp {
 		return
 	}
@@ -265,7 +265,7 @@ func (c *conversationView) handleMouse(mouse input.Mouse) {
 	}
 }
 
-func (c *conversationView) ensureSelection() {
+func (c *transcriptView) ensureSelection() {
 	first := c.content.FirstBlock()
 	if c.hasSelected && c.selected >= first && c.selected < first+headless.BlockID(c.content.Len()) {
 		return
@@ -279,7 +279,7 @@ func (c *conversationView) ensureSelection() {
 	c.revealSelected()
 }
 
-func (c *conversationView) moveSelection(delta int) bool {
+func (c *transcriptView) moveSelection(delta int) bool {
 	if c.content.Len() == 0 || delta == 0 {
 		return false
 	}
@@ -298,7 +298,7 @@ func (c *conversationView) moveSelection(delta int) bool {
 	return true
 }
 
-func (c *conversationView) selectEdge(last bool) bool {
+func (c *transcriptView) selectEdge(last bool) bool {
 	if c.content.Len() == 0 {
 		return false
 	}
@@ -310,15 +310,15 @@ func (c *conversationView) selectEdge(last bool) bool {
 	return true
 }
 
-func (c *conversationView) selectEntry(id headless.BlockID, reveal bool) {
+func (c *transcriptView) selectEntry(id headless.BlockID, reveal bool) {
 	c.setSelectedEntry(id, reveal, true)
 }
 
-func (c *conversationView) selectPointerEntry(id headless.BlockID) {
+func (c *transcriptView) selectPointerEntry(id headless.BlockID) {
 	c.setSelectedEntry(id, false, false)
 }
 
-func (c *conversationView) setSelectedEntry(id headless.BlockID, reveal, clearTextSelection bool) {
+func (c *transcriptView) setSelectedEntry(id headless.BlockID, reveal, clearTextSelection bool) {
 	if _, ok := c.entries[id]; !ok {
 		return
 	}
@@ -333,14 +333,14 @@ func (c *conversationView) setSelectedEntry(id headless.BlockID, reveal, clearTe
 	c.announceSelection()
 }
 
-func (c *conversationView) syncSelectedEntry() {
+func (c *transcriptView) syncSelectedEntry() {
 	for id, entry := range c.entries {
 		entry.selected = c.hasSelected && id == c.selected
 		entry.focused = entry.selected && c.focused
 	}
 }
 
-func (c *conversationView) revealSelected() {
+func (c *transcriptView) revealSelected() {
 	if !c.hasSelected {
 		return
 	}
@@ -350,7 +350,7 @@ func (c *conversationView) revealSelected() {
 	}
 }
 
-func (c *conversationView) tool(id headless.BlockID) mutableToolBlock {
+func (c *transcriptView) tool(id headless.BlockID) mutableToolBlock {
 	for _, tracked := range c.toolViews {
 		if tracked.id == id {
 			return tracked.block
@@ -359,7 +359,7 @@ func (c *conversationView) tool(id headless.BlockID) mutableToolBlock {
 	return nil
 }
 
-func (c *conversationView) toggleSelected() bool {
+func (c *transcriptView) toggleSelected() bool {
 	tool := c.tool(c.selected)
 	if !c.hasSelected || tool == nil || !tool.Expandable() {
 		return true
@@ -374,7 +374,7 @@ func (c *conversationView) toggleSelected() bool {
 	return true
 }
 
-func (c *conversationView) setSelectedExpanded(expanded bool) bool {
+func (c *transcriptView) setSelectedExpanded(expanded bool) bool {
 	tool := c.tool(c.selected)
 	if !c.hasSelected || tool == nil || !tool.Expandable() {
 		return true
@@ -391,7 +391,7 @@ func (c *conversationView) setSelectedExpanded(expanded bool) bool {
 	return true
 }
 
-func (c *conversationView) copySelected() bool {
+func (c *transcriptView) copySelected() bool {
 	if !c.hasSelected {
 		return true
 	}
@@ -403,11 +403,11 @@ func (c *conversationView) copySelected() bool {
 	return true
 }
 
-func (c *conversationView) copySelection() {
+func (c *transcriptView) copySelection() {
 	c.copy(c.selection.Text(&c.content))
 }
 
-func (c *conversationView) copy(value string) {
+func (c *transcriptView) copy(value string) {
 	if value == "" {
 		return
 	}
@@ -419,7 +419,7 @@ func (c *conversationView) copy(value string) {
 	}
 }
 
-func (c *conversationView) announceSelection() {
+func (c *transcriptView) announceSelection() {
 	if c.onSelection == nil {
 		return
 	}
@@ -431,17 +431,17 @@ func (c *conversationView) announceSelection() {
 	c.onSelection(selection)
 }
 
-func (c *conversationView) Follow() { c.scroll.ToBottom() }
+func (c *transcriptView) Follow() { c.scroll.ToBottom() }
 
-func (c *conversationView) Scroll(action keymap.Action) bool { return c.scroll.Do(action) }
+func (c *transcriptView) Scroll(action keymap.Action) bool { return c.scroll.Do(action) }
 
-func (c *conversationView) Close() {
+func (c *transcriptView) Close() {
 	if c != nil && c.search != nil {
 		c.search.Close()
 	}
 }
 
-func (c *conversationView) Apply(event agent.Event, registry *extensions.Registry) error {
+func (c *transcriptView) Apply(event agent.Event, registry *extensions.Registry) error {
 	switch e := event.(type) {
 	case agent.BlockStarted:
 		if e.Block.Kind == agent.BlockAssistant || e.Block.Kind == agent.BlockReasoning {
@@ -463,7 +463,7 @@ func (c *conversationView) Apply(event agent.Event, registry *extensions.Registr
 	return nil
 }
 
-func (c *conversationView) begin(block agent.Block) error {
+func (c *transcriptView) begin(block agent.Block) error {
 	if _, exists := c.textStreams[block.ID]; exists {
 		return fmt.Errorf("terminal transcript: text block %s started twice", block.ID)
 	}
@@ -484,7 +484,7 @@ func (c *conversationView) begin(block agent.Block) error {
 	return nil
 }
 
-func (c *conversationView) delta(id, chunk string) error {
+func (c *transcriptView) delta(id, chunk string) error {
 	live, ok := c.textStreams[id]
 	if !ok {
 		return fmt.Errorf("terminal transcript: delta for inactive text block %s", id)
@@ -498,7 +498,7 @@ func (c *conversationView) delta(id, chunk string) error {
 	return nil
 }
 
-func (c *conversationView) deltaTool(id, chunk string) error {
+func (c *transcriptView) deltaTool(id, chunk string) error {
 	live, ok := c.tools[id]
 	if !ok {
 		return fmt.Errorf("terminal transcript: delta for inactive tool block %s", id)
@@ -512,7 +512,7 @@ func (c *conversationView) deltaTool(id, chunk string) error {
 	return nil
 }
 
-func (c *conversationView) complete(block agent.Block, registry *extensions.Registry) error {
+func (c *transcriptView) complete(block agent.Block, registry *extensions.Registry) error {
 	if _, live := c.textStreams[block.ID]; live {
 		return c.completeStream(block)
 	}
@@ -522,7 +522,7 @@ func (c *conversationView) complete(block agent.Block, registry *extensions.Regi
 	return c.appendCompleted(block, registry)
 }
 
-func (c *conversationView) completeStream(block agent.Block) error {
+func (c *transcriptView) completeStream(block agent.Block) error {
 	live, ok := c.textStreams[block.ID]
 	if !ok {
 		return fmt.Errorf("terminal transcript: completion for inactive text block %s", block.ID)
@@ -538,7 +538,7 @@ func (c *conversationView) completeStream(block agent.Block) error {
 	return nil
 }
 
-func (c *conversationView) completeLiveTool(block agent.Block) bool {
+func (c *transcriptView) completeLiveTool(block agent.Block) bool {
 	live, ok := c.tools[block.ID]
 	if !ok {
 		return false
@@ -559,7 +559,7 @@ func (c *conversationView) completeLiveTool(block agent.Block) bool {
 	return true
 }
 
-func (c *conversationView) settleLive(outcome agent.Outcome) {
+func (c *transcriptView) settleLive(outcome agent.Outcome) {
 	for id, live := range c.textStreams {
 		c.content.Finish(live.id)
 		live.stream.Reset()
@@ -583,7 +583,7 @@ func (c *conversationView) settleLive(outcome agent.Outcome) {
 	c.announceSelection()
 }
 
-func (c *conversationView) appendCompleted(block agent.Block, registry *extensions.Registry) error {
+func (c *transcriptView) appendCompleted(block agent.Block, registry *extensions.Registry) error {
 	rendered, err := c.present(block, registry)
 	if err != nil {
 		return err
@@ -604,7 +604,7 @@ func (c *conversationView) appendCompleted(block agent.Block, registry *extensio
 	return nil
 }
 
-func (c *conversationView) beginTool(block agent.Block, registry *extensions.Registry) error {
+func (c *transcriptView) beginTool(block agent.Block, registry *extensions.Registry) error {
 	if _, exists := c.tools[block.ID]; exists {
 		return fmt.Errorf("terminal transcript: tool block %s started twice", block.ID)
 	}
@@ -634,10 +634,10 @@ func (c *conversationView) beginTool(block agent.Block, registry *extensions.Reg
 	return nil
 }
 
-func (c *conversationView) present(block agent.Block, registry *extensions.Registry) ([]headless.Block, error) {
+func (c *transcriptView) present(block agent.Block, registry *extensions.Registry) ([]headless.Block, error) {
 	for _, presenter := range extensions.Values(registry, BlockPresenters) {
 		if presenter.Kind == block.Kind {
-			return presentSafely(presenter, Presentation{
+			return presentSafely(presenter, BlockPresentation{
 				Theme: c.theme, Glyphs: c.glyphs, Look: c.look, Syntax: c.syntax,
 			}, block)
 		}
@@ -645,7 +645,7 @@ func (c *conversationView) present(block agent.Block, registry *extensions.Regis
 	return nil, fmt.Errorf("terminal transcript: no presenter for block kind %q", block.Kind)
 }
 
-func presentSafely(presenter BlockPresenter, presentation Presentation, block agent.Block) (rendered []headless.Block, err error) {
+func presentSafely(presenter BlockPresenter, presentation BlockPresentation, block agent.Block) (rendered []headless.Block, err error) {
 	defer func() {
 		if recovered := recover(); recovered != nil {
 			err = fmt.Errorf("terminal transcript: presenter for %q panicked: %v", presenter.Kind, recovered)
@@ -654,15 +654,15 @@ func presentSafely(presenter BlockPresenter, presentation Presentation, block ag
 	return presenter.Present(presentation, block), nil
 }
 
-func (c *conversationView) Append(block headless.Block) { c.append(block) }
+func (c *transcriptView) Append(block headless.Block) { c.append(block) }
 
-func (c *conversationView) append(block headless.Block) headless.BlockID {
+func (c *transcriptView) append(block headless.Block) headless.BlockID {
 	id := c.place(block, true)
 	c.refreshSearch()
 	return id
 }
 
-func (c *conversationView) place(block headless.Block, finished bool) headless.BlockID {
+func (c *transcriptView) place(block headless.Block, finished bool) headless.BlockID {
 	entry := newTranscriptEntry(c.theme, c.glyphs, block)
 	id := c.content.Append(entry)
 	c.entries[id] = entry
@@ -672,7 +672,7 @@ func (c *conversationView) place(block headless.Block, finished bool) headless.B
 	return id
 }
 
-func (c *conversationView) Retain(printer kit.Printer) {
+func (c *transcriptView) Retain(printer kit.Printer) {
 	if c.content.Width() <= 0 {
 		return
 	}
@@ -703,7 +703,7 @@ func (c *conversationView) Retain(printer kit.Printer) {
 	c.refreshSearch()
 }
 
-func (c *conversationView) Reset() {
+func (c *transcriptView) Reset() {
 	c.content = headless.Transcript{}
 	c.scroll = headless.Scroll{}
 	c.scroll.Wheel(c.wheel)
@@ -724,22 +724,22 @@ func (c *conversationView) Reset() {
 	c.search.Submit(&c.content, "", false)
 }
 
-func (c *conversationView) Find(query string) {
+func (c *transcriptView) Find(query string) {
 	c.query = strings.TrimSpace(query)
 	c.announceSearch = c.query != ""
 	c.matches, c.current = nil, -1
 	c.search.Submit(&c.content, c.query, false)
 }
 
-func (c *conversationView) refreshSearch() {
+func (c *transcriptView) refreshSearch() {
 	if c.query != "" {
 		c.search.Submit(&c.content, c.query, false)
 	}
 }
 
-func (c *conversationView) SearchResults() <-chan headless.Result { return c.search.Results() }
+func (c *transcriptView) SearchResults() <-chan headless.Result { return c.search.Results() }
 
-func (c *conversationView) AcceptSearch(result headless.Result) (accepted, announce bool) {
+func (c *transcriptView) AcceptSearch(result headless.Result) (accepted, announce bool) {
 	if result.Query != c.query {
 		return false, false
 	}
@@ -753,7 +753,7 @@ func (c *conversationView) AcceptSearch(result headless.Result) (accepted, annou
 	return true, announce
 }
 
-func (c *conversationView) StepMatch(delta int) bool {
+func (c *transcriptView) StepMatch(delta int) bool {
 	if len(c.matches) == 0 {
 		return false
 	}
@@ -764,7 +764,7 @@ func (c *conversationView) StepMatch(delta int) bool {
 	return true
 }
 
-func (c *conversationView) lookFor(kind agent.BlockKind) markdown.Look {
+func (c *transcriptView) lookFor(kind agent.BlockKind) markdown.Look {
 	look := c.look
 	if kind == agent.BlockReasoning {
 		look.Text, look.Strong, look.Code = c.theme.Muted, c.theme.Subtle, c.theme.Info

@@ -65,23 +65,23 @@ func TestManifestValidationRejectsIncompatibleOrAmbiguousMetadata(t *testing.T) 
 	}
 }
 
-func TestKernelRejectsDuplicatePluginIdentity(t *testing.T) {
-	kernel, err := NewKernel(new(Registry))
+func TestHostRejectsDuplicatePluginIdentity(t *testing.T) {
+	host, err := NewHost(new(Registry))
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer kernel.Close()
+	defer host.Close()
 	plugin := manifest("test.duplicate", func(*Scope) error { return nil })
-	results, err := kernel.Activate([]Plugin{plugin, plugin})
+	results, err := host.Activate([]Plugin{plugin, plugin})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(results) != 1 || results[0].Phase != PluginSkipped || results[0].Err == nil {
 		t.Fatalf("results = %+v", results)
 	}
-	infos := kernel.Infos()
-	if len(infos) != 1 || infos[0].ID != plugin.ID || infos[0].Phase != PluginSkipped {
-		t.Fatalf("infos = %+v", infos)
+	statuses := host.Statuses()
+	if len(statuses) != 1 || statuses[0].ID != plugin.ID || statuses[0].Phase != PluginSkipped {
+		t.Fatalf("statuses = %+v", statuses)
 	}
 }
 
@@ -111,16 +111,16 @@ func TestDiscoveryPreservesSourceOrderAndIsolatesFailures(t *testing.T) {
 	}
 }
 
-func TestKernelOrdersDependenciesAndReloadsTheirClosure(t *testing.T) {
+func TestHostOrdersDependenciesAndReloadsTheirClosure(t *testing.T) {
 	registry := new(Registry)
-	kernel, err := NewKernel(registry)
+	host, err := NewHost(registry)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer kernel.Close()
+	defer host.Close()
 	point := NewMultiPoint[string]("test.lifecycle")
 	var lifecycle []string
-	results, err := kernel.Activate([]Plugin{
+	results, err := host.Activate([]Plugin{
 		lifecyclePlugin(point, &lifecycle, "test.dependent", "test.base"),
 		lifecyclePlugin(point, &lifecycle, "test.independent"),
 		lifecyclePlugin(point, &lifecycle, "test.base"),
@@ -132,10 +132,10 @@ func TestKernelOrdersDependenciesAndReloadsTheirClosure(t *testing.T) {
 		t.Fatalf("activation = %+v", results)
 	}
 	requireLifecycle(t, lifecycle, []string{"load:test.independent", "load:test.base", "load:test.dependent"})
-	requireAffected(t, kernel, "test.base", []string{"test.base", "test.dependent"})
+	requireAffected(t, host, "test.base", []string{"test.base", "test.dependent"})
 
 	lifecycle = nil
-	results, err = kernel.Reload("test.base")
+	results, err = host.Reload("test.base")
 	if err != nil || !allLoaded(results) {
 		t.Fatalf("reload = %+v, %v", results, err)
 	}
@@ -155,9 +155,9 @@ func requireLifecycle(t *testing.T, got, want []string) {
 	}
 }
 
-func requireAffected(t *testing.T, kernel *Kernel, pluginID string, want []string) {
+func requireAffected(t *testing.T, host *Host, pluginID string, want []string) {
 	t.Helper()
-	got, err := kernel.Affected(pluginID)
+	got, err := host.Affected(pluginID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -180,7 +180,7 @@ func lifecyclePlugin(point Point[string], lifecycle *[]string, id string, requir
 	return item
 }
 
-func TestKernelSkipsMissingCyclesAndDependentsOfFailedSetup(t *testing.T) {
+func TestHostSkipsMissingCyclesAndDependentsOfFailedSetup(t *testing.T) {
 	broken := manifest("test.broken", func(*Scope) error { return errors.New("boom") })
 	dependent := manifest("test.dependent", func(*Scope) error { return nil })
 	dependent.Requires = []string{"test.broken"}
@@ -191,16 +191,16 @@ func TestKernelSkipsMissingCyclesAndDependentsOfFailedSetup(t *testing.T) {
 	cycleA.Requires = []string{cycleB.ID}
 	cycleB.Requires = []string{cycleA.ID}
 
-	kernel, err := NewKernel(new(Registry))
+	host, err := NewHost(new(Registry))
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer kernel.Close()
-	results, err := kernel.Activate([]Plugin{dependent, broken, missing, cycleA, cycleB})
+	defer host.Close()
+	results, err := host.Activate([]Plugin{dependent, broken, missing, cycleA, cycleB})
 	if err != nil {
 		t.Fatal(err)
 	}
-	phases := make(map[string]Phase)
+	phases := make(map[string]LifecyclePhase)
 	for _, result := range results {
 		phases[result.PluginID] = result.Phase
 	}
@@ -264,40 +264,40 @@ func TestCleanupFailuresAreJoinedAfterEveryCleanupRuns(t *testing.T) {
 	}
 }
 
-func TestKernelUnloadSurfacesCleanupFailureAfterReleasingContributions(t *testing.T) {
+func TestHostUnloadSurfacesCleanupFailureAfterReleasingContributions(t *testing.T) {
 	want := errors.New("cleanup failed")
 	point := NewMultiPoint[string]("test.cleanup-point")
 	registry := new(Registry)
-	kernel, err := NewKernel(registry)
+	host, err := NewHost(registry)
 	if err != nil {
 		t.Fatal(err)
 	}
-	plugin := manifest("test.cleanup-kernel", func(scope *Scope) error {
+	plugin := manifest("test.cleanup-host", func(scope *Scope) error {
 		if _, err := Contribute(scope, point, "owned", Contribution{}); err != nil {
 			return err
 		}
 		return scope.OnDispose(func() error { return want })
 	})
-	if results, err := kernel.Activate([]Plugin{plugin}); err != nil || !allLoaded(results) {
+	if results, err := host.Activate([]Plugin{plugin}); err != nil || !allLoaded(results) {
 		t.Fatalf("Activate = %+v, %v", results, err)
 	}
-	if err := kernel.Unload(plugin.ID); !errors.Is(err, want) {
+	if err := host.Unload(plugin.ID); !errors.Is(err, want) {
 		t.Fatalf("Unload error = %v", err)
 	}
 	if values := Values(registry, point); len(values) != 0 {
 		t.Fatalf("failed cleanup leaked contributions: %v", values)
 	}
-	requireFailedPluginInfo(t, kernel, plugin.ID)
-	if err := kernel.Close(); err != nil {
+	requireFailedPluginInfo(t, host, plugin.ID)
+	if err := host.Close(); err != nil {
 		t.Fatalf("Close repeated an already-released cleanup: %v", err)
 	}
 }
 
-func requireFailedPluginInfo(t *testing.T, kernel *Kernel, pluginID string) {
+func requireFailedPluginInfo(t *testing.T, host *Host, pluginID string) {
 	t.Helper()
-	infos := kernel.Infos()
-	if len(infos) != 1 || infos[0].ID != pluginID || infos[0].Phase != PluginFailed || infos[0].Detail == "" {
-		t.Fatalf("plugin info = %+v", infos)
+	statuses := host.Statuses()
+	if len(statuses) != 1 || statuses[0].ID != pluginID || statuses[0].Phase != PluginFailed || statuses[0].Detail == "" {
+		t.Fatalf("plugin info = %+v", statuses)
 	}
 }
 
@@ -350,20 +350,20 @@ func TestPluginPanicsAreIsolatedDuringSetupAndCleanup(t *testing.T) {
 	}
 }
 
-func TestKernelDoesNotHoldStateLockWhileCallingPluginCode(t *testing.T) {
-	kernel, err := NewKernel(new(Registry))
+func TestHostDoesNotHoldStateLockWhileCallingPluginCode(t *testing.T) {
+	host, err := NewHost(new(Registry))
 	if err != nil {
 		t.Fatal(err)
 	}
 	plugin := manifest("test.introspect", func(scope *Scope) error {
-		_ = kernel.Infos()
-		return scope.OnDispose(func() error { _ = kernel.Infos(); return nil })
+		_ = host.Statuses()
+		return scope.OnDispose(func() error { _ = host.Statuses(); return nil })
 	})
 	done := make(chan error, 1)
 	go func() {
-		_, err := kernel.Activate([]Plugin{plugin})
+		_, err := host.Activate([]Plugin{plugin})
 		if err == nil {
-			kernel.Close()
+			host.Close()
 		}
 		done <- err
 	}()
@@ -373,10 +373,10 @@ func TestKernelDoesNotHoldStateLockWhileCallingPluginCode(t *testing.T) {
 			t.Fatal(err)
 		}
 	case <-time.After(time.Second):
-		t.Fatal("plugin setup or cleanup deadlocked on kernel state")
+		t.Fatal("plugin setup or cleanup deadlocked on host state")
 	}
 }
 
-func allLoaded(results []Result) bool {
-	return len(results) > 0 && !slices.ContainsFunc(results, func(result Result) bool { return result.Phase != PluginLoaded })
+func allLoaded(results []LifecycleResult) bool {
+	return len(results) > 0 && !slices.ContainsFunc(results, func(result LifecycleResult) bool { return result.Phase != PluginLoaded })
 }

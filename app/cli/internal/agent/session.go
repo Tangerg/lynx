@@ -134,7 +134,7 @@ func foldSnapshotEvents(snapshot SessionSnapshot, conversation *Conversation) er
 
 func validateActiveRun(snapshot SessionSnapshot, conversation *Conversation) error {
 	if snapshot.Active == nil {
-		if conversation.Phase() != PhaseIdle {
+		if conversation.Phase() != ConversationIdle {
 			return errors.New("session snapshot: busy conversation has no active run")
 		}
 		return nil
@@ -159,9 +159,9 @@ func validateActiveProjection(active Run, sessionID string, conversation *Conver
 	if conversation.RunID() != active.ID {
 		return fmt.Errorf("session snapshot: aggregate run %s does not match active run %s", conversation.RunID(), active.ID)
 	}
-	wantPhase := PhaseRunning
+	wantPhase := ConversationRunning
 	if active.Status == RunWaiting {
-		wantPhase = PhaseWaiting
+		wantPhase = ConversationWaiting
 	}
 	if conversation.Phase() != wantPhase {
 		return fmt.Errorf("session snapshot: active run status %s conflicts with conversation phase %d", active.Status, conversation.Phase())
@@ -187,7 +187,7 @@ func validateActiveStart(active Run, events []Envelope) error {
 	return fmt.Errorf("session snapshot: active run %s has no start event at cursor %d", active.ID, startedAt)
 }
 
-type NewSession struct {
+type CreateSession struct {
 	Title     string
 	Workspace string
 }

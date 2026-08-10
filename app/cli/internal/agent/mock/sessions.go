@@ -41,7 +41,7 @@ func (r *Runtime) ListSessions(ctx context.Context, query agent.SessionQuery) (a
 	if limit <= 0 {
 		limit = defaultPageSize
 	}
-	limit = min(limit, maximumPageSize)
+	limit = min(limit, maxPageSize)
 	end := min(offset+limit, len(items))
 	page := agent.SessionPage{Items: slices.Clone(items[offset:end])}
 	if end < len(items) {
@@ -86,7 +86,7 @@ func (r *Runtime) GetSession(ctx context.Context, id string) (agent.SessionSnaps
 	return snapshot, nil
 }
 
-func (r *Runtime) CreateSession(ctx context.Context, in agent.NewSession) (agent.Session, error) {
+func (r *Runtime) CreateSession(ctx context.Context, in agent.CreateSession) (agent.Session, error) {
 	if err := context.Cause(ctx); err != nil {
 		return agent.Session{}, err
 	}

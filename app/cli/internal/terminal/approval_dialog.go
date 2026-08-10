@@ -16,7 +16,7 @@ import (
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
 )
 
-type reviewPane struct {
+type approvalPane struct {
 	theme    kit.Theme
 	glyphs   kit.Glyphs
 	title    string
@@ -26,7 +26,7 @@ type reviewPane struct {
 	form     *kit.Form
 }
 
-func (p *reviewPane) Draw(frame headless.Frame) {
+func (p *approvalPane) Draw(frame headless.Frame) {
 	width, height := frame.Size()
 	if width <= 0 || height <= 0 || p.form == nil {
 		return
@@ -45,35 +45,35 @@ func (p *reviewPane) Draw(frame headless.Frame) {
 	p.form.Draw(rows[3])
 }
 
-func (p *reviewPane) Handle(event input.Event) bool {
+func (p *approvalPane) Handle(event input.Event) bool {
 	if p.form != nil && p.form.Handle(event) {
 		return true
 	}
 	return p.viewport.Handle(event)
 }
 
-func (p *reviewPane) Focus(has bool) {
+func (p *approvalPane) Focus(has bool) {
 	if p.form != nil {
 		p.form.Focus(has)
 	}
 }
 
-func (a *app) buildReview(theme kit.Theme, glyphs kit.Glyphs) {
+func (a *app) buildApprovalDialog(theme kit.Theme, glyphs kit.Glyphs) {
 	code := kit.NewCode(nil)
 	code.Gutter = kit.LineNumbers{Style: theme.Subtle, Separator: glyphs.Vertical}
-	a.reviewPane = reviewPane{
+	a.approvalPane = approvalPane{
 		theme: theme, glyphs: glyphs, detail: kit.NewParagraph("", theme.Text), code: code,
 		viewport: headless.NewViewport(headless.Static{Of: code}),
 	}
-	a.setReviewForm("allow-once")
-	a.reviewDialog = kit.NewDialog(&a.stack, theme, glyphs, "Tool approval", &a.reviewPane)
-	a.reviewDialog.Panel().Where = layout.Placement{Width: 88, Height: 24, Margin: 1}
+	a.setApprovalForm("allow-once")
+	a.approvalDialog = kit.NewDialog(&a.stack, theme, glyphs, "Tool approval", &a.approvalPane)
+	a.approvalDialog.Panel().Where = layout.Placement{Width: 88, Height: 24, Margin: 1}
 }
 
-func (a *app) setReviewForm(initial string) {
-	a.reviewChoice = initial
+func (a *app) setApprovalForm(initial string) {
+	a.approvalChoice = initial
 	choice := &headless.Select[string]{
-		Label: "How should lyra proceed?", Value: headless.Bind(&a.reviewChoice), Rows: 5,
+		Label: "How should lyra proceed?", Value: headless.Bind(&a.approvalChoice), Rows: 5,
 	}
 	choice.SetOptions([]headless.Option[string]{
 		{Label: "Allow once", Value: "allow-once"},
@@ -83,21 +83,21 @@ func (a *app) setReviewForm(initial string) {
 		{Label: "Deny", Value: "deny"},
 	})
 	keys := headless.DefaultFormKeys()
-	a.reviewForm = headless.NewForm(choice)
-	a.reviewForm.Keys = keys
-	a.reviewForm.Done = func() { a.answerReview(a.reviewChoice) }
-	a.reviewForm.GaveUp = func() { a.answerReview("deny") }
-	dressed := kit.NewForm(a.reviewPane.theme, a.reviewPane.glyphs, a.reviewForm)
+	a.approvalForm = headless.NewForm(choice)
+	a.approvalForm.Keys = keys
+	a.approvalForm.Done = func() { a.answerApproval(a.approvalChoice) }
+	a.approvalForm.GaveUp = func() { a.answerApproval("deny") }
+	dressed := kit.NewForm(a.approvalPane.theme, a.approvalPane.glyphs, a.approvalForm)
 	dressed.Keys = keys
 	dressed.Hints = []keymap.Action{headless.Submit, headless.Cancel}
-	a.reviewPane.form = dressed
+	a.approvalPane.form = dressed
 }
 
-func (a *app) openReview(approval agent.Approval) {
+func (a *app) openApproval(approval agent.Approval) {
 	cloned := approval
-	a.review = &cloned
-	a.setReviewForm(approvalDefault(a.settings.Approval.Remember))
-	a.reviewPane.title = approval.Title
+	a.approval = &cloned
+	a.setApprovalForm(approvalDefault(a.settings.Approval.Remember))
+	a.approvalPane.title = approval.Title
 	details := []string{approval.Detail}
 	if approval.Risk != "" {
 		details = append(details, "risk: "+approval.Risk)
@@ -105,25 +105,25 @@ func (a *app) openReview(approval agent.Approval) {
 	if approval.RuleHint != "" {
 		details = append(details, "rule: "+approval.RuleHint)
 	}
-	a.reviewPane.detail.SetText([]text.Line{text.Of(strings.Join(nonEmpty(details), "\n"), a.reviewPane.theme.Text)})
+	a.approvalPane.detail.SetText([]text.Line{text.Of(strings.Join(nonEmptyStrings(details), "\n"), a.approvalPane.theme.Text)})
 	diff := strings.TrimSpace(approval.Diff)
 	if diff == "" {
 		diff = "No diff was supplied for this request."
 	}
-	a.reviewPane.code.SetText(highlight.Lines("diff", diff, a.syntax))
-	a.reviewPane.viewport.Scroll().ToTop()
-	a.reviewDialog.Controller().SetDescription(approval.Title)
-	a.reviewDialog.Show()
+	a.approvalPane.code.SetText(highlight.Lines("diff", diff, a.syntax))
+	a.approvalPane.viewport.Scroll().ToTop()
+	a.approvalDialog.Controller().SetDescription(approval.Title)
+	a.approvalDialog.Show()
 }
 
 func (a *app) openInteraction(interaction agent.Interaction) {
-	if a.review != nil || a.question != nil {
+	if a.approval != nil || a.question != nil {
 		a.fail(errors.New("runtime opened a second interaction while one is active"))
 		return
 	}
 	switch item := interaction.(type) {
 	case agent.Approval:
-		a.openReview(item)
+		a.openApproval(item)
 	case agent.Question:
 		a.openQuestion(item)
 	default:
@@ -131,13 +131,13 @@ func (a *app) openInteraction(interaction agent.Interaction) {
 	}
 }
 
-func (a *app) answerReview(choice string) {
-	approval := a.review
+func (a *app) answerApproval(choice string) {
+	approval := a.approval
 	if approval == nil {
 		return
 	}
-	a.review = nil
-	a.reviewDialog.Dismiss()
+	a.approval = nil
+	a.approvalDialog.Dismiss()
 	a.status.active("resuming")
 	a.syncAnimation()
 	decision := approvalAnswer(choice)
@@ -178,17 +178,17 @@ func approvalAnswer(choice string) agent.ApprovalAnswer {
 }
 
 func (a *app) resumeInteraction(interruptID string, answer agent.Answer) {
-	runID := a.state.RunID()
-	after := a.state.Cursor()
-	a.follow(func(ctx context.Context) (subscription, error) {
+	runID := a.conversation.RunID()
+	after := a.conversation.Cursor()
+	a.follow(func(ctx context.Context) (runSubscription, error) {
 		if err := a.runtime.ResumeRun(ctx, agent.ResumeRun{RunID: runID, InterruptID: interruptID, Answer: answer}); err != nil {
-			return subscription{}, err
+			return runSubscription{}, err
 		}
-		return subscription{runID: runID, after: after}, nil
+		return runSubscription{runID: runID, after: after}, nil
 	})
 }
 
-func nonEmpty(values []string) []string {
+func nonEmptyStrings(values []string) []string {
 	out := values[:0]
 	for _, value := range values {
 		if strings.TrimSpace(value) != "" {

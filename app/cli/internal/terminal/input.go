@@ -20,7 +20,7 @@ func (a *app) Handle(event input.Event) bool {
 	// into covered content. Blocking runtime interactions are the exception at
 	// the product-policy layer: their cancel action must resolve the interaction,
 	// not disappear into the modal boundary.
-	if action == cancelRun && (a.review != nil || a.question != nil) {
+	if action == cancelRun && (a.approval != nil || a.question != nil) {
 		a.handleCancelGesture()
 		return true
 	}
@@ -97,7 +97,7 @@ func isEscapeEvent(event input.Event) bool {
 }
 
 func (a *app) handleEscape() bool {
-	if a.state.Busy() || a.following || a.pendingCancel != nil {
+	if a.conversation.Busy() || a.following || a.pendingCancel != nil {
 		a.confirmation.Reset()
 		a.cancel()
 		return true
@@ -174,7 +174,7 @@ func (a *app) handleGlobalAction(action keymap.Action) bool {
 }
 
 func (a *app) handleCancelGesture() {
-	if a.review != nil || a.question != nil {
+	if a.approval != nil || a.question != nil {
 		a.cancel()
 		return
 	}

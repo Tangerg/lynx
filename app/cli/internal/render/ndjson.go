@@ -9,30 +9,30 @@ import (
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
 )
 
-// JSON renders one event per line as a JSON object — newline-delimited JSON, so
+// NDJSON renders one event per line as a JSON object, so
 // a consumer can read a run incrementally without waiting for it to end.
 //
 // The shape is the CLI's own output contract, not the runtime's wire format. A
 // caller here wants what happened, already folded; the wire additionally carries
 // segment identity, replay windows and dedup keys that exist to make a
 // reconnecting consumer correct and would be noise in a pipe.
-type JSON struct {
+type NDJSON struct {
 	enc *json.Encoder
 	err error
 }
 
-// NewJSON builds an NDJSON renderer over w.
-func NewJSON(w io.Writer) *JSON {
-	return &JSON{enc: json.NewEncoder(w)}
+// NewNDJSON builds an event-stream renderer over w.
+func NewNDJSON(w io.Writer) *NDJSON {
+	return &NDJSON{enc: json.NewEncoder(w)}
 }
 
-// frame is one output line.
+// eventRecord is one output line.
 //
 // One struct with optional members, rather than a type per event: this is a wire
 // shape, where a single discriminated object keeps a decoder's job simple and
 // lets a reader ignore what it does not use. Type is always set and is the only
 // field a consumer must switch on.
-type frame struct {
+type eventRecord struct {
 	Type        string           `json:"type"`
 	EventID     string           `json:"eventId"`
 	Cursor      agent.Cursor     `json:"cursor"`
@@ -136,12 +136,12 @@ type usageJSON struct {
 }
 
 // Render writes one line. As with [Text], the first error sticks.
-func (j *JSON) Render(envelope agent.Envelope) error {
+func (j *NDJSON) Render(envelope agent.Envelope) error {
 	if j.err != nil {
 		return j.err
 	}
 	if err := agent.ValidateEvent(envelope.Event); err != nil {
-		j.err = fmt.Errorf("render JSON event: %w", err)
+		j.err = fmt.Errorf("render NDJSON event: %w", err)
 		return j.err
 	}
 	f, err := encodeEventFrame(envelope)
@@ -160,31 +160,31 @@ func (j *JSON) Render(envelope agent.Envelope) error {
 	return j.err
 }
 
-func encodeEventFrame(envelope agent.Envelope) (frame, error) {
+func encodeEventFrame(envelope agent.Envelope) (eventRecord, error) {
 	switch event := envelope.Event.(type) {
 	case agent.RunStarted:
-		return frame{Type: "run.started", RunID: event.RunID, SessionID: event.SessionID, Options: encodeRunOptions(event.Options)}, nil
+		return eventRecord{Type: "run.started", RunID: event.RunID, SessionID: event.SessionID, Options: encodeRunOptions(event.Options)}, nil
 	case agent.BlockStarted:
-		return frame{Type: "block.started", Block: encodeBlock(event.Block)}, nil
+		return eventRecord{Type: "block.started", Block: encodeBlock(event.Block)}, nil
 	case agent.BlockDelta:
-		return frame{Type: "block.delta", BlockID: event.BlockID, Text: event.Text}, nil
+		return eventRecord{Type: "block.delta", BlockID: event.BlockID, Text: event.Text}, nil
 	case agent.BlockCompleted:
-		return frame{Type: "block.completed", Block: encodeBlock(event.Block)}, nil
+		return eventRecord{Type: "block.completed", Block: encodeBlock(event.Block)}, nil
 	case agent.PlanChanged:
-		return frame{Type: "plan.changed", Plan: encodePlan(event.Items)}, nil
+		return eventRecord{Type: "plan.changed", Plan: encodePlan(event.Items)}, nil
 	case agent.RunResumed:
-		return frame{Type: "run.resumed", RunID: envelope.RunID, InterruptID: event.InterruptID}, nil
+		return eventRecord{Type: "run.resumed", RunID: envelope.RunID, InterruptID: event.InterruptID}, nil
 	case agent.RunInterrupted:
-		return frame{Type: "run.interrupted", Interaction: encodeInteraction(event.Interaction)}, nil
+		return eventRecord{Type: "run.interrupted", Interaction: encodeInteraction(event.Interaction)}, nil
 	case agent.RunFinished:
 		return encodeFinishedFrame(event), nil
 	default:
-		return frame{}, fmt.Errorf("render JSON event: unsupported event %T", envelope.Event)
+		return eventRecord{}, fmt.Errorf("render NDJSON event: unsupported event %T", envelope.Event)
 	}
 }
 
-func encodeFinishedFrame(event agent.RunFinished) frame {
-	return frame{
+func encodeFinishedFrame(event agent.RunFinished) eventRecord {
+	return eventRecord{
 		Type:    "run.finished",
 		Outcome: &outcomeJSON{Status: string(event.Outcome.Status), Error: event.Outcome.Error},
 		Usage: &usageJSON{
@@ -234,7 +234,7 @@ func encodeInteraction(interaction agent.Interaction) *interactionJSON {
 
 // Close reports the first write error, if any. There is nothing to flush: a line
 // is encoded per event.
-func (j *JSON) Close() error { return j.err }
+func (j *NDJSON) Close() error { return j.err }
 
 func encodeBlock(b agent.Block) *blockFrame {
 	out := &blockFrame{ID: b.ID, Kind: string(b.Kind), Text: b.Text}

@@ -15,7 +15,7 @@ const (
 
 type shellView struct {
 	rows       *headless.Container
-	transcript *conversationView
+	transcript *transcriptView
 	prompt     *promptView
 	header     *sessionHeader
 	activity   *activityView
@@ -26,7 +26,7 @@ type shellView struct {
 
 func newShellView(
 	header *sessionHeader,
-	transcript *conversationView,
+	transcript *transcriptView,
 	activity *activityView,
 	queue *queueView,
 	status *statusView,
@@ -61,7 +61,7 @@ func (s *shellView) TranscriptFocused() bool { return s.rows.Focused() == s.tran
 
 func (s *shellView) FocusPrompt() bool { return s.focus(promptPaneKey) }
 
-func (s *shellView) SetTranscript(transcript *conversationView) {
+func (s *shellView) SetTranscript(transcript *transcriptView) {
 	s.transcript = transcript
 	s.rows.Set(s.items(s.compact)...)
 }

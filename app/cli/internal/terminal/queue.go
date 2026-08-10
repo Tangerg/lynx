@@ -115,7 +115,7 @@ func (a *app) enqueueFollowUp(message agent.Message) {
 }
 
 func (a *app) drainQueue() bool {
-	if a.dispatchingQueueEntry != 0 || a.state.Busy() || a.following || a.pendingCancel != nil ||
+	if a.dispatchingQueueEntry != 0 || a.conversation.Busy() || a.following || a.pendingCancel != nil ||
 		a.operations.Active(sessionChangeOperation) {
 		return false
 	}
@@ -280,7 +280,7 @@ func (a *app) sendQueuedNow(id uint64) error {
 		return err
 	}
 	a.syncQueue()
-	if a.state.Busy() || a.following || a.pendingCancel != nil {
+	if a.conversation.Busy() || a.following || a.pendingCancel != nil {
 		a.cancel()
 		return nil
 	}

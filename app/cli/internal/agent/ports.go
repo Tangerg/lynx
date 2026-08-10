@@ -33,7 +33,7 @@ type SessionReader interface {
 
 // SessionWriter owns session lifecycle mutations.
 type SessionWriter interface {
-	CreateSession(context.Context, NewSession) (Session, error)
+	CreateSession(context.Context, CreateSession) (Session, error)
 	UpdateSession(context.Context, UpdateSession) (Session, error)
 	ForkSession(context.Context, ForkSession) (Session, error)
 	DeleteSession(context.Context, DeleteSession) error

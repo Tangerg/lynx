@@ -15,7 +15,7 @@ import (
 
 func newSession(t *testing.T, runtime *Runtime) agent.Session {
 	t.Helper()
-	session, err := runtime.CreateSession(t.Context(), agent.NewSession{Title: "Test", Workspace: "/tmp/mock-test"})
+	session, err := runtime.CreateSession(t.Context(), agent.CreateSession{Title: "Test", Workspace: "/tmp/mock-test"})
 	if err != nil {
 		t.Fatalf("CreateSession: %v", err)
 	}
@@ -112,7 +112,7 @@ func TestToolFixtureStreamsTheExactCompletedOutput(t *testing.T) {
 func seedCatalog(t *testing.T, runtime *Runtime, titles ...string) {
 	t.Helper()
 	for _, title := range titles {
-		if _, err := runtime.CreateSession(t.Context(), agent.NewSession{Title: title, Workspace: "/tmp/catalog"}); err != nil {
+		if _, err := runtime.CreateSession(t.Context(), agent.CreateSession{Title: title, Workspace: "/tmp/catalog"}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -143,7 +143,7 @@ func TestSynchronousRuntimeQueriesHonorCancellation(t *testing.T) {
 		}},
 		{"get session", func(ctx context.Context) error { _, err := runtime.GetSession(ctx, session.ID); return err }},
 		{"create session", func(ctx context.Context) error {
-			_, err := runtime.CreateSession(ctx, agent.NewSession{Workspace: "/tmp/canceled"})
+			_, err := runtime.CreateSession(ctx, agent.CreateSession{Workspace: "/tmp/canceled"})
 			return err
 		}},
 		{"update session", func(ctx context.Context) error {

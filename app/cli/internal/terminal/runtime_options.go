@@ -52,7 +52,7 @@ func (a *app) buildRuntimePickers(theme kit.Theme, glyphs kit.Glyphs) {
 }
 
 func (a *app) ChooseModel() {
-	if a.state.Busy() || a.following {
+	if a.conversation.Busy() || a.following {
 		a.message("model changes apply between runs")
 		return
 	}
@@ -77,7 +77,7 @@ func (a *app) ChooseModel() {
 }
 
 func (a *app) CycleMode() {
-	if a.state.Busy() || a.following {
+	if a.conversation.Busy() || a.following {
 		a.message("mode changes apply between runs")
 		return
 	}
@@ -88,7 +88,7 @@ func (a *app) CycleMode() {
 }
 
 func (a *app) ChoosePermission() {
-	if a.state.Busy() || a.following {
+	if a.conversation.Busy() || a.following {
 		a.message("permission changes apply between runs")
 		return
 	}
@@ -98,7 +98,7 @@ func (a *app) ChoosePermission() {
 }
 
 func (a *app) SetEffort(value string) {
-	if a.state.Busy() || a.following {
+	if a.conversation.Busy() || a.following {
 		a.message("effort changes apply between runs")
 		return
 	}

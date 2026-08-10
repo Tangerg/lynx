@@ -10,14 +10,14 @@ import (
 )
 
 func (a *app) ShowPlugins() {
-	if a.plugins == nil {
-		a.message("plugin kernel is unavailable")
+	if a.pluginHost == nil {
+		a.message("plugin host is unavailable")
 		return
 	}
-	infos := a.plugins.Infos()
-	lines := make([]string, 0, len(infos)+len(a.pluginIssues))
-	for _, info := range infos {
-		lines = append(lines, formatPluginInfo(info))
+	statuses := a.pluginHost.Statuses()
+	lines := make([]string, 0, len(statuses)+len(a.pluginIssues))
+	for _, status := range statuses {
+		lines = append(lines, formatPluginStatus(status))
 	}
 	for _, issue := range a.pluginIssues {
 		lines = append(lines, fmt.Sprintf("failed   source:%s · %v", issue.Source, issue.Err))
@@ -25,27 +25,27 @@ func (a *app) ShowPlugins() {
 	a.transcript.Append(&kit.Message{Theme: a.transcript.theme, Speaker: "plugins", Body: strings.Join(lines, "\n")})
 }
 
-func formatPluginInfo(info extensions.Info) string {
-	line := fmt.Sprintf("%-8s %s@%s", info.Phase, info.ID, info.Version)
-	line += " · capabilities " + formatCapabilities(info)
-	if len(info.Requires) > 0 {
-		line += " · requires " + strings.Join(info.Requires, ", ")
+func formatPluginStatus(status extensions.Status) string {
+	line := fmt.Sprintf("%-8s %s@%s", status.Phase, status.ID, status.Version)
+	line += " · capabilities " + formatCapabilities(status)
+	if len(status.Requires) > 0 {
+		line += " · requires " + strings.Join(status.Requires, ", ")
 	}
-	if info.Detail != "" {
-		line += " · " + info.Detail
+	if status.Detail != "" {
+		line += " · " + status.Detail
 	}
 	return line
 }
 
-func formatCapabilities(info extensions.Info) string {
+func formatCapabilities(status extensions.Status) string {
 	switch {
-	case info.Trusted && info.Capabilities == nil:
+	case status.Trusted && status.Capabilities == nil:
 		return "unrestricted"
-	case len(info.Capabilities) == 0:
+	case len(status.Capabilities) == 0:
 		return "none"
 	default:
-		capabilities := make([]string, len(info.Capabilities))
-		for i, capability := range info.Capabilities {
+		capabilities := make([]string, len(status.Capabilities))
+		for i, capability := range status.Capabilities {
 			capabilities[i] = string(capability)
 		}
 		return strings.Join(capabilities, ", ")
@@ -53,18 +53,18 @@ func formatCapabilities(info extensions.Info) string {
 }
 
 func (a *app) ReloadPlugin(id string) {
-	if a.plugins == nil {
-		a.message("plugin kernel is unavailable")
+	if a.pluginHost == nil {
+		a.message("plugin host is unavailable")
 		return
 	}
 	id = strings.TrimSpace(id)
-	affected, err := a.plugins.Affected(id)
+	affected, err := a.pluginHost.Affected(id)
 	if err != nil {
 		a.message(err.Error())
 		return
 	}
 	a.cancelPluginCommands(affected...)
-	results, err := a.plugins.Reload(id)
+	results, err := a.pluginHost.Reload(id)
 	a.registerCommands()
 	if err != nil {
 		a.message(err.Error())
@@ -80,24 +80,24 @@ func (a *app) ReloadPlugin(id string) {
 }
 
 func (a *app) UnloadPlugin(id string) {
-	if a.plugins == nil {
-		a.message("plugin kernel is unavailable")
+	if a.pluginHost == nil {
+		a.message("plugin host is unavailable")
 		return
 	}
 	id = strings.TrimSpace(id)
-	for _, info := range a.plugins.Infos() {
-		if info.ID == id && info.Trusted {
+	for _, status := range a.pluginHost.Statuses() {
+		if status.ID == id && status.Trusted {
 			a.message("built-in plugin " + id + " can be reloaded but not unloaded")
 			return
 		}
 	}
-	affected, err := a.plugins.Affected(id)
+	affected, err := a.pluginHost.Affected(id)
 	if err != nil {
 		a.message(err.Error())
 		return
 	}
 	a.cancelPluginCommands(affected...)
-	err = a.plugins.Unload(id)
+	err = a.pluginHost.Unload(id)
 	a.registerCommands()
 	if err != nil {
 		a.message(err.Error())

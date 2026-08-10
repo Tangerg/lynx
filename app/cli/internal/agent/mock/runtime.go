@@ -13,7 +13,7 @@ var errCanceled = errors.New("mock: run canceled")
 
 const (
 	defaultPageSize = 20
-	maximumPageSize = 100
+	maxPageSize     = 100
 )
 
 // FaultKind identifies one transport fault injected into the next run
