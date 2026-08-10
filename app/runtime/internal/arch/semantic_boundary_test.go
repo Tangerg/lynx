@@ -94,7 +94,7 @@ func TestDomainValuesDoNotOwnJSONPersistenceCodecs(t *testing.T) {
 
 func TestSQLiteOwnsTranscriptAndInterruptPayloadShapes(t *testing.T) {
 	root := moduleRoot(t)
-	transcriptStore := filepath.Join(root, "internal", "infra", "storage", "sqlite", "transcript.go")
+	transcriptStore := filepath.Join(root, "internal", "infra", "sqlite", "transcript.go")
 	transcriptSource, err := os.ReadFile(transcriptStore)
 	if err != nil {
 		t.Fatalf("read transcript store: %v", err)
@@ -103,7 +103,7 @@ func TestSQLiteOwnsTranscriptAndInterruptPayloadShapes(t *testing.T) {
 		t.Error("transcript store serializes the domain aggregate instead of using its explicit adapter codec")
 	}
 
-	interruptStore := filepath.Join(root, "internal", "infra", "storage", "sqlite", "interrupt.go")
+	interruptStore := filepath.Join(root, "internal", "infra", "sqlite", "interrupt.go")
 	interruptSource, err := os.ReadFile(interruptStore)
 	if err != nil {
 		t.Fatalf("read interrupt store: %v", err)
@@ -135,7 +135,7 @@ func TestRunCapabilitiesStaySemanticInsideTheProtocolBoundary(t *testing.T) {
 		filepath.Join("internal", "domain"),
 		filepath.Join("internal", "application"),
 		filepath.Join("internal", "adapter", "runsegment"),
-		filepath.Join("internal", "infra", "storage", "sqlite"),
+		filepath.Join("internal", "infra", "sqlite"),
 	} {
 		err := filepath.WalkDir(filepath.Join(root, relative), func(path string, entry fs.DirEntry, walkErr error) error {
 			if walkErr != nil {
@@ -167,7 +167,7 @@ func TestRunCapabilitiesStaySemanticInsideTheProtocolBoundary(t *testing.T) {
 	if !strings.Contains(string(protocolSource), "type RunProtocolProfile struct") {
 		t.Error("Delivery no longer owns the versioned RunProtocolProfile wire shape")
 	}
-	codecSource, err := os.ReadFile(filepath.Join(root, "internal", "infra", "storage", "sqlite", "run_codec.go"))
+	codecSource, err := os.ReadFile(filepath.Join(root, "internal", "infra", "sqlite", "run_codec.go"))
 	if err != nil {
 		t.Fatalf("read Run capability codec: %v", err)
 	}
@@ -265,7 +265,7 @@ func assertNoRetiredExecutorIdentifiers(
 
 func assertRetiredDurableVocabularyAbsent(t *testing.T, root string) {
 	t.Helper()
-	sqliteDir := filepath.Join(root, "internal", "infra", "storage", "sqlite")
+	sqliteDir := filepath.Join(root, "internal", "infra", "sqlite")
 	err := filepath.WalkDir(sqliteDir, func(path string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr

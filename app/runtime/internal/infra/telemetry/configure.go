@@ -1,5 +1,6 @@
-// Package observability wires process telemetry providers for the runtime app.
-package observability
+// Package telemetry configures process-wide OpenTelemetry tracing, metrics,
+// logging, and propagation for the runtime executable.
+package telemetry
 
 import (
 	"context"
@@ -25,7 +26,10 @@ import (
 // scopeName names the slog→OTel logs bridge's instrumentation scope.
 const scopeName = "lyra"
 
-// Setup wires all three OpenTelemetry signals — Traces,
+// Shutdown releases the configured telemetry providers.
+type Shutdown func(context.Context) error
+
+// Configure wires all three OpenTelemetry signals — Traces,
 // Metrics, Logs — through the global OTel providers onto one dev slog sink.
 // It is the one place providers are set; everything else just uses the
 // package-static otel.Tracer / otel.Meter / slog accessors, no injection.
@@ -48,7 +52,7 @@ const scopeName = "lyra"
 //
 // Returns a shutdown func that flushes + tears down the providers; call it
 // on process exit.
-func Setup(serviceVersion string) func(context.Context) error {
+func Configure(serviceVersion string) Shutdown {
 	level := parseLogLevel(os.Getenv("LYRA_LOG_LEVEL"))
 
 	// The base logger is the actual stderr sink every signal renders into;

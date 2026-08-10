@@ -11,18 +11,18 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/observability"
 	"github.com/Tangerg/lynx/app/runtime/internal/bootstrap"
 	"github.com/Tangerg/lynx/app/runtime/internal/config"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/server"
 	lyrahttp "github.com/Tangerg/lynx/app/runtime/internal/delivery/transport/http"
 	"github.com/Tangerg/lynx/app/runtime/internal/idempotency"
+	"github.com/Tangerg/lynx/app/runtime/internal/infra/telemetry"
 )
 
 func run(ctx context.Context, errw io.Writer) (err error) {
-	shutdownObs := observability.Setup(resolvedVersion())
-	defer func() { err = errors.Join(err, shutdownObs(context.WithoutCancel(ctx))) }()
+	shutdownTelemetry := telemetry.Configure(resolvedVersion())
+	defer func() { err = errors.Join(err, shutdownTelemetry(context.WithoutCancel(ctx))) }()
 
 	host, cfg, paths, err := bootstrapRuntime(ctx)
 	if err != nil {

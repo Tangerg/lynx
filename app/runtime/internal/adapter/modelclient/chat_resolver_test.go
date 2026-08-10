@@ -8,7 +8,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
-	sqlitestore "github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
+	sqlitestore "github.com/Tangerg/lynx/app/runtime/internal/infra/sqlite"
 )
 
 // TestChatResolverRejectsUnconfigured verifies an explicit provider that

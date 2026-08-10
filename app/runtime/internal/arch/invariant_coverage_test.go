@@ -114,7 +114,7 @@ func TestEverySystemInvariantHasAnIntegrationFixture(t *testing.T) {
 // its value — a second table of exactly what this one replaces.
 var invariantFixtures = map[string]map[transactionBoundary]fixtureRef{
 	"session_has_at_most_one_open_run": {
-		boundaryRunAdmission:   {"internal/infra/storage/sqlite", "TestRunAdmitEnforcesOneActivePerSession"},
+		boundaryRunAdmission:   {"internal/infra/sqlite", "TestRunAdmitEnforcesOneActivePerSession"},
 		boundarySegmentOpening: {"internal/adapter/runsegment", "TestCommitOpeningRefusesASecondOpenRun"},
 	},
 	"terminal_run_explains_how_it_ended": {
@@ -125,7 +125,7 @@ var invariantFixtures = map[string]map[transactionBoundary]fixtureRef{
 		},
 	},
 	"run_capabilities_are_immutable": {
-		boundaryRunAdmission: {"internal/infra/storage/sqlite", "TestRunCapabilitiesAreImmutable"},
+		boundaryRunAdmission: {"internal/infra/sqlite", "TestRunCapabilitiesAreImmutable"},
 	},
 	"parked_tree_has_exactly_one_open_interrupt_set": {
 		boundarySegmentEvent: {"internal/adapter/runsegment", "TestCommitTreeBarrierProducesDurableTriplet"},
@@ -158,7 +158,7 @@ var invariantFixtures = map[string]map[transactionBoundary]fixtureRef{
 		boundarySessionImport: {"internal/delivery/server", "TestSessionExportImport_RoundTrip"},
 	},
 	"goal_never_outlives_its_session": {
-		boundaryGoalLifecycle:   {"internal/infra/storage/sqlite", "TestGoalStoreRejectsMissingSession"},
+		boundaryGoalLifecycle:   {"internal/infra/sqlite", "TestGoalStoreRejectsMissingSession"},
 		boundarySessionDelete:   {"internal/bootstrap", "TestApplyDeleteClearsSessionGoal"},
 		boundarySessionRollback: {"internal/bootstrap", "TestApplyRollbackDropsRunsAndFreesAdmission"},
 	},
@@ -272,12 +272,12 @@ func TestEveryStateLifecycleClaimHasAFixture(t *testing.T) {
 // layer alone would leave the other free to leak.
 var stateLifecycleFixtures = map[string][]fixtureRef{
 	"state_revision_never_goes_backwards": {
-		{"internal/infra/storage/sqlite", "TestPlanStateIsOwnedByItsSession"},
+		{"internal/infra/sqlite", "TestPlanStateIsOwnedByItsSession"},
 		{"internal/delivery/server", "TestPlanQueryAnswersWithTheStreamsOwnSnapshot"},
 		{"internal/bootstrap", "TestApplyRollbackRepublishesBoundaryPlan"},
 	},
 	"session_state_is_owned_by_its_session": {
-		{"internal/infra/storage/sqlite", "TestPlanStateIsOwnedByItsSession"},
+		{"internal/infra/sqlite", "TestPlanStateIsOwnedByItsSession"},
 		{"internal/delivery/server", "TestStateChangeNamesItsKeyAndKeepsSessionScope"},
 	},
 	"segment_fences_its_final_state": {

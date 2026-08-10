@@ -15,7 +15,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/accounting"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/mcp"
-	sqlitestore "github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
+	sqlitestore "github.com/Tangerg/lynx/app/runtime/internal/infra/sqlite"
 	"github.com/Tangerg/lynx/chatclient"
 )
 

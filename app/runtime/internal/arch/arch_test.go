@@ -39,7 +39,7 @@ func TestPlanMutationHasOneOwner(t *testing.T) {
 		map[string]string{"Store": "Plan tools consume application use cases, not persistence"},
 	)
 	forbidSelectorCalls(t,
-		filepath.Join(root, "internal", "infra", "storage", "sqlite", "plan.go"),
+		filepath.Join(root, "internal", "infra", "sqlite", "plan.go"),
 		map[string]string{
 			"Now":     "the Plan use case supplies replacement time",
 			"Replace": "the Plan aggregate decides replacements before persistence",
@@ -68,7 +68,7 @@ func TestSessionMutationHasOneOwner(t *testing.T) {
 	}
 
 	root := moduleRoot(t)
-	mutationFile := filepath.Join(root, "internal", "infra", "storage", "sqlite", "session_mutation.go")
+	mutationFile := filepath.Join(root, "internal", "infra", "sqlite", "session_mutation.go")
 	forbidExternalImports(t, mutationFile, []string{"time", "github.com/google/uuid"})
 	forbidSelectorCalls(t, mutationFile, map[string]string{
 		"Apply":                    "Session edits belong to the aggregate before persistence",
@@ -91,8 +91,8 @@ func TestSessionMutationHasOneOwner(t *testing.T) {
 	})
 	for _, retired := range []string{
 		filepath.Join(root, "internal", "domain", "session", "errors.go"),
-		filepath.Join(root, "internal", "infra", "storage", "sqlite", "session_lineage.go"),
-		filepath.Join(root, "internal", "infra", "storage", "sqlite", "session_patch_test.go"),
+		filepath.Join(root, "internal", "infra", "sqlite", "session_lineage.go"),
+		filepath.Join(root, "internal", "infra", "sqlite", "session_patch_test.go"),
 	} {
 		if _, err := os.Stat(retired); err == nil || !errors.Is(err, fs.ErrNotExist) {
 			t.Errorf("retired Session path exists: %s (stat error %v)", retired, err)
@@ -493,12 +493,14 @@ func TestRuntimeResponsibilityFilesStayFocused(t *testing.T) {
 		filepath.Join("internal", "adapter", "runmaintenance", "skillmine.go"):         "Skill proposal mining belongs to skill_proposal_mining.go",
 		filepath.Join("internal", "adapter", "runmaintenance", "skillcurate.go"):       "idle-Skill archival belongs to skill_archiving.go",
 		filepath.Join("internal", "adapter", "sessiontitle", "title.go"):               "Session title generation belongs to generator.go",
+		filepath.Join("internal", "adapter", "observability"):                          "process telemetry is an infrastructure mechanism in infra/telemetry",
 		filepath.Join("internal", "application", "integrations"):                       "MCP application ownership belongs to application/mcp",
 		filepath.Join("internal", "application", "contract"):                           "published invariant metadata belongs to cmd/contractgen",
 		filepath.Join("internal", "application", "invariant"):                          "published invariant metadata belongs to cmd/contractgen, not a production Application package",
 		filepath.Join("internal", "application", "admission"):                          "process-local Session and working-tree admission belongs to application/sessionadmission",
 		filepath.Join("internal", "application", "change"):                             "post-commit read-again notices belong to application/invalidation",
 		filepath.Join("internal", "application", "approvals", "approvaltest"):          "single-consumer test fixtures belong beside their test",
+		filepath.Join("internal", "infra", "storage"):                                  "SQLite and LYRA.md persistence have independent owners in infra/sqlite and infra/knowledgefile",
 		filepath.Join("internal", "adapter", "toolset", "workdir.go"):                  "CWD-bound tool composition belongs to cwd_tools.go",
 		filepath.Join("internal", "adapter", "workspace", "reads.go"):                  "filesystem browsing and Git reads belong to focused adapter files",
 		filepath.Join("internal", "adapter", "toolset", "semantics.go"):                "concrete tool interpretation belongs to interpreter.go",
@@ -1552,8 +1554,8 @@ func TestTranscriptItemSnapshotStaysAtTechnicalBoundaries(t *testing.T) {
 		"internal/application/sessions/portable_snapshot.go":   {},
 		"internal/application/sessions/snapshot_validation.go": {},
 		"internal/delivery/server/artifact_decode.go":          {},
-		"internal/infra/storage/sqlite/transcript.go":          {},
-		"internal/infra/storage/sqlite/transcript_codec.go":    {},
+		"internal/infra/sqlite/transcript.go":                  {},
+		"internal/infra/sqlite/transcript_codec.go":            {},
 		"internal/testsupport/itemfixture/item.go":             {},
 	}
 	walkErr := filepath.WalkDir(filepath.Join(root, "internal"), func(path string, entry fs.DirEntry, err error) error {
@@ -2277,7 +2279,7 @@ const (
 	ringDomain      = "domain"
 )
 
-// layerOf classifies a module-relative package dir (e.g. "internal/infra/storage")
+// layerOf classifies a module-relative package dir (e.g. "internal/infra/sqlite")
 // into its ring, or "" when the path is outside the rings under test.
 func layerOf(rel string) string {
 	switch {

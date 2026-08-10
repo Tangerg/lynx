@@ -14,7 +14,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/toolresult"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
-	sqlitestore "github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
+	sqlitestore "github.com/Tangerg/lynx/app/runtime/internal/infra/sqlite"
 )
 
 // SessionStores is the SQLite-backed adapter for the session lifecycle's

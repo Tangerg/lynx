@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/idempotency"
-	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
+	"github.com/Tangerg/lynx/app/runtime/internal/infra/sqlite"
 )
 
 func TestIdempotencyStoreReplayConflictAndExpiry(t *testing.T) {

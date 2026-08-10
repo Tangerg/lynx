@@ -5,7 +5,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/persistence"
 	"github.com/Tangerg/lynx/app/runtime/internal/config"
-	sqlitestore "github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
+	sqlitestore "github.com/Tangerg/lynx/app/runtime/internal/infra/sqlite"
 )
 
 func TestComposeConfigInjectsDurableRuntimePolicy(t *testing.T) {

@@ -1,4 +1,7 @@
-package storage
+// Package knowledgefile persists the user- and project-scoped LYRA.md
+// documents. It owns filesystem layout and atomic replacement, but no knowledge
+// policy or application workflow.
+package knowledgefile
 
 import (
 	"context"
@@ -16,7 +19,7 @@ import (
 // blob consumed as project or user knowledge.
 const knowledgeFileName = "LYRA.md"
 
-// FileKnowledgeStore persists human-authored knowledge to markdown files:
+// Store persists human-authored knowledge to markdown files:
 //
 //   - <dir>/LYRA.md    — project scope (per-repo knowledge); dir is
 //     supplied per call (a session's cwd), so one store serves
@@ -26,16 +29,16 @@ const knowledgeFileName = "LYRA.md"
 // Files are created lazily on first Update; Get returns "" until that point.
 // Concurrent updates are serialized with last-write-wins semantics. Machine-
 // curated facts never enter these human-owned files.
-type FileKnowledgeStore struct {
+type Store struct {
 	defaultProjectDirectory string
 	userScopeDirectory      string
 
 	mu sync.Mutex // protects the file writes (paths differ but a single mutex is plenty for this volume)
 }
 
-// NewFileKnowledgeStore binds both filesystem roots explicitly and only maps
+// New binds both filesystem roots explicitly and only maps
 // knowledge scopes onto the paths supplied at construction.
-func NewFileKnowledgeStore(userScopeDirectory, defaultProjectDirectory string) (*FileKnowledgeStore, error) {
+func New(userScopeDirectory, defaultProjectDirectory string) (*Store, error) {
 	if userScopeDirectory == "" {
 		return nil, errors.New("knowledge store: user scope directory is required")
 	}
@@ -48,7 +51,7 @@ func NewFileKnowledgeStore(userScopeDirectory, defaultProjectDirectory string) (
 	if !filepath.IsAbs(defaultProjectDirectory) {
 		return nil, errors.New("knowledge store: default project directory must be absolute")
 	}
-	return &FileKnowledgeStore{
+	return &Store{
 		defaultProjectDirectory: defaultProjectDirectory,
 		userScopeDirectory:      userScopeDirectory,
 	}, nil
@@ -58,7 +61,7 @@ func NewFileKnowledgeStore(userScopeDirectory, defaultProjectDirectory string) (
 // Empty dir falls back to the construction-time default. Returns an
 // empty path when the project scope has neither a dir nor a resolvable default,
 // while an unknown scope is rejected rather than reinterpreted as unavailable.
-func (s *FileKnowledgeStore) pathFor(scope knowledge.Scope, dir string) (string, error) {
+func (s *Store) pathFor(scope knowledge.Scope, dir string) (string, error) {
 	switch scope {
 	case knowledge.ScopeProject:
 		if dir == "" {
@@ -75,7 +78,7 @@ func (s *FileKnowledgeStore) pathFor(scope knowledge.Scope, dir string) (string,
 	}
 }
 
-func (s *FileKnowledgeStore) Get(_ context.Context, scope knowledge.Scope, dir string) (string, error) {
+func (s *Store) Get(_ context.Context, scope knowledge.Scope, dir string) (string, error) {
 	path, err := s.pathFor(scope, dir)
 	if err != nil {
 		return "", fmt.Errorf("knowledge store: resolve path: %w", err)
@@ -93,7 +96,7 @@ func (s *FileKnowledgeStore) Get(_ context.Context, scope knowledge.Scope, dir s
 	return string(data), nil
 }
 
-func (s *FileKnowledgeStore) Update(_ context.Context, scope knowledge.Scope, dir string, content string) error {
+func (s *Store) Update(_ context.Context, scope knowledge.Scope, dir string, content string) error {
 	path, err := s.pathFor(scope, dir)
 	if err != nil {
 		return fmt.Errorf("knowledge store: resolve path: %w", err)
@@ -140,7 +143,7 @@ func (s *FileKnowledgeStore) Update(_ context.Context, scope knowledge.Scope, di
 
 // List returns one [knowledge.Entry] per scope that has content. A missing
 // document is absence, so empty scopes are omitted.
-func (s *FileKnowledgeStore) List(ctx context.Context, dir string) ([]knowledge.Entry, error) {
+func (s *Store) List(ctx context.Context, dir string) ([]knowledge.Entry, error) {
 	out := make([]knowledge.Entry, 0, 2)
 	for _, scope := range []knowledge.Scope{knowledge.ScopeProject, knowledge.ScopeUser} {
 		content, err := s.Get(ctx, scope, dir)

@@ -14,7 +14,7 @@ func TestContractBaselineTracksSchemaEpoch(t *testing.T) {
 	if !ok {
 		t.Fatal("locate contract baseline test source")
 	}
-	baselinePath := filepath.Join(filepath.Dir(source), "..", "..", "..", "..", "doc", "CONTRACT_BASELINE.md")
+	baselinePath := filepath.Join(filepath.Dir(source), "..", "..", "..", "doc", "CONTRACT_BASELINE.md")
 	baseline, err := os.ReadFile(baselinePath)
 	if err != nil {
 		t.Fatalf("read contract baseline: %v", err)

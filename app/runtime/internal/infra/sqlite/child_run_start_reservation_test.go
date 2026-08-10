@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	storage "github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
+	storage "github.com/Tangerg/lynx/app/runtime/internal/infra/sqlite"
 )
 
 func TestChildRunStartReservationRetainsIdempotentConclusion(t *testing.T) {

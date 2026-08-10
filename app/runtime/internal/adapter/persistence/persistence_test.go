@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/knowledge"
-	sqlitestore "github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
+	sqlitestore "github.com/Tangerg/lynx/app/runtime/internal/infra/sqlite"
 )
 
 func TestOpenRequiresAndUsesExplicitProcessPaths(t *testing.T) {

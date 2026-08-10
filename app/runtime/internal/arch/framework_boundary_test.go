@@ -120,7 +120,7 @@ func interfaceUsesContext(contract *ast.InterfaceType) bool {
 // TestSQLiteDoesNotDiscardRowsAffectedErrors protects compare-and-swap and
 // mutation outcomes from treating a driver failure as a successful zero count.
 func TestSQLiteDoesNotDiscardRowsAffectedErrors(t *testing.T) {
-	root := filepath.Join(moduleRoot(t), "internal", "infra", "storage", "sqlite")
+	root := filepath.Join(moduleRoot(t), "internal", "infra", "sqlite")
 	err := filepath.WalkDir(root, func(path string, entry os.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
@@ -185,7 +185,7 @@ func TestExecutorCheckpointRemainsOpaqueOutsideExecutionAdapter(t *testing.T) {
 		t.Fatalf("ExecutorCheckpoint fields = %v, want opaque application envelope %v", checkpoint, want)
 	}
 
-	storagePath := filepath.Join(root, "internal", "infra", "storage", "sqlite", "executor_checkpoint.go")
+	storagePath := filepath.Join(root, "internal", "infra", "sqlite", "executor_checkpoint.go")
 	storageSource, err := os.ReadFile(storagePath)
 	if err != nil {
 		t.Fatalf("read executor checkpoint store: %v", err)
@@ -298,8 +298,8 @@ func assertApplicationLimitCarriers(t *testing.T, root string) {
 func assertStorageLimitVocabulary(t *testing.T, root string) {
 	t.Helper()
 	for _, relative := range []string{
-		filepath.Join("internal", "infra", "storage", "sqlite", "db.go"),
-		filepath.Join("internal", "infra", "storage", "sqlite", "runs.go"),
+		filepath.Join("internal", "infra", "sqlite", "db.go"),
+		filepath.Join("internal", "infra", "sqlite", "runs.go"),
 	} {
 		source, readErr := os.ReadFile(filepath.Join(root, relative))
 		if readErr != nil {
@@ -361,7 +361,7 @@ func TestWaitingCheckpointPersistenceBelongsToApplicationTransactions(t *testing
 // Application derives one RecoveryCommit, and the driven adapter applies it.
 func TestBootRecoveryPolicyBelongsToApplication(t *testing.T) {
 	root := moduleRoot(t)
-	sqlitePath := filepath.Join(root, "internal", "infra", "storage", "sqlite", "recovery_projection.go")
+	sqlitePath := filepath.Join(root, "internal", "infra", "sqlite", "recovery_projection.go")
 	sqliteFile, err := parser.ParseFile(token.NewFileSet(), sqlitePath, nil, 0)
 	if err != nil {
 		t.Fatalf("parse SQLite recovery projection: %v", err)
@@ -477,9 +477,9 @@ func TestApplicationExecutionPortsUseApplicationVocabulary(t *testing.T) {
 	}
 
 	for _, relative := range []string{
-		filepath.Join("internal", "infra", "storage", "sqlite", "db.go"),
-		filepath.Join("internal", "infra", "storage", "sqlite", "executor_checkpoint.go"),
-		filepath.Join("internal", "infra", "storage", "sqlite", "interrupt.go"),
+		filepath.Join("internal", "infra", "sqlite", "db.go"),
+		filepath.Join("internal", "infra", "sqlite", "executor_checkpoint.go"),
+		filepath.Join("internal", "infra", "sqlite", "interrupt.go"),
 	} {
 		source, readErr := os.ReadFile(filepath.Join(root, relative))
 		if readErr != nil {
@@ -547,7 +547,7 @@ func TestPendingStoresOnlyOpaqueExecutorBindings(t *testing.T) {
 		t.Fatalf("Continuation fields = %v, want application facts plus one opaque executor binding %v", fields, want)
 	}
 
-	storagePath := filepath.Join(root, "internal", "infra", "storage", "sqlite", "interrupt.go")
+	storagePath := filepath.Join(root, "internal", "infra", "sqlite", "interrupt.go")
 	storageSource, err := os.ReadFile(storagePath)
 	if err != nil {
 		t.Fatalf("read interrupt storage: %v", err)
@@ -867,7 +867,7 @@ func TestExecutorCheckpointBindingIsValidatedAtEveryBoundary(t *testing.T) {
 			"DeleteCheckpoints(ctx, rollback.SessionID",
 			"DeleteCheckpoints(ctx, root.SessionID",
 		},
-		filepath.Join("internal", "infra", "storage", "sqlite", "executor_checkpoint.go"): {
+		filepath.Join("internal", "infra", "sqlite", "executor_checkpoint.go"): {
 			"deleteOwnedCheckpoint(ctx, sessionID",
 			"case owner != checkpoint.Scope.SessionID",
 			"case buildID != checkpoint.BuildID",
@@ -896,7 +896,7 @@ func TestExecutorCheckpointBindingIsValidatedAtEveryBoundary(t *testing.T) {
 // complete write-set before persistence begins.
 func TestPendingAndRecoveryMutationsCarryTheirOwners(t *testing.T) {
 	root := moduleRoot(t)
-	interruptPath := filepath.Join(root, "internal", "infra", "storage", "sqlite", "interrupt.go")
+	interruptPath := filepath.Join(root, "internal", "infra", "sqlite", "interrupt.go")
 	interruptSource, err := os.ReadFile(interruptPath)
 	if err != nil {
 		t.Fatalf("read interrupt store: %v", err)
@@ -976,7 +976,7 @@ func TestPendingAndRecoveryMutationsCarryTheirOwners(t *testing.T) {
 		}
 	}
 
-	runSchemaPath := filepath.Join(root, "internal", "infra", "storage", "sqlite", "db.go")
+	runSchemaPath := filepath.Join(root, "internal", "infra", "sqlite", "db.go")
 	runSchema, err := os.ReadFile(runSchemaPath)
 	if err != nil {
 		t.Fatalf("read SQLite schema: %v", err)

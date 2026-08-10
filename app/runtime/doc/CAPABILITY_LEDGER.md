@@ -238,7 +238,8 @@ P8 production cutover 已用真实 Bootstrap consumer 冻结 root stage/observe/
 
 - 原混合 `adapter/maintenance` 已按真实 owner 物理拆分：`runmaintenance` 只拥有 clean-Run 边界的 history compaction、memory consolidation、Skill proposal mining 与 idle-Skill archival；`sessiontitle` 只生成 Session title；`utilitymodel` 只提供辅助能力共享的 middleware-free 单次模型调用。旧目录、`llm.go`、`extraction.go`、`skillmine.go`、`skillcurate.go` 与 `title.go` 均由架构守卫禁止回流；
 - `codebaseindex`、`codeintel`、`executionctx`、`hooks`、`isolation`、`mcpconnection`、`modelcatalog`、`modelclient`、`persistence`、`providerregistry`、`runrecovery`、`runsegment`、`skillproposal`、`toolname`、`toolset`、`workspace` 与 `workspacepath` 已逐个按调用图审计：均拥有应用值映射、外部错误翻译、跨机制组合、安全策略、稳定模型词汇或 transaction write-set，不是同名 Infra 方法的包装；
-- SQLite、Git、exec、sandbox、LSP、MCP/A2A client、checkpoint、storage 与 path identity 只提供可复用 technical mechanism，保留 Infra；Infra 对 Application/Adapter/Delivery/Bootstrap 反向 import 为零；
+- SQLite、knowledge-file、Git、exec、sandbox、LSP、MCP/A2A client、checkpoint、telemetry 与 path identity 只提供 technical mechanism，保留 Infra；Infra 对 Application/Adapter/Delivery/Bootstrap 反向 import 为零；
+- 原 `infra/storage` 无行为 umbrella 已删除：SQLite 直接归 `infra/sqlite`，LYRA.md 文件布局与原子替换归 `infra/knowledgefile`；原误置于 Adapter 的进程级 OTel global 配置归 `infra/telemetry`。三个 package 分别只因数据库、知识文件和进程遥测而变化，不再共享泛化 storage/observability 目录；
 - MCP live registry 中的已配置服务器状态统一称为 `configuredServer`，从 live projection 移除且等待关闭的连接统一称为 `detachedSession`，按名称过滤的 API 参数称为 `serverName`；进程内连接生命周期不再依赖 `ms`/`old` 等上下文猜测；
 - `workspacepath` 原有第二份 symlink/containment 判定已删除，统一消费 `infra/pathidentity` 的 physical identity；Adapter 只保留 Application path-policy 错误与相对路径投影；
 - `agentexec` 已按 root execution、effect attribution、waiting/restore、Delegate admission/projection、tree mutation 分离变化原因；Delegate 的 model input/description 是 Interaction executor 独占的策略合同，已从单消费者 `toolset/delegation` 回归该 ACL；没有第二 controller、scheduler、mailbox、private wire owner 或为了文件拆分制造的子 package；

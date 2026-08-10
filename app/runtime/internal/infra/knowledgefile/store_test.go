@@ -1,4 +1,4 @@
-package storage_test
+package knowledgefile_test
 
 import (
 	"context"
@@ -9,27 +9,27 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/knowledge"
-	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage"
+	"github.com/Tangerg/lynx/app/runtime/internal/infra/knowledgefile"
 )
 
-func newKnowledgeStore(t *testing.T, userScopeDirectory, defaultProjectDirectory string) *storage.FileKnowledgeStore {
+func newKnowledgeStore(t *testing.T, userScopeDirectory, defaultProjectDirectory string) *knowledgefile.Store {
 	t.Helper()
-	store, err := storage.NewFileKnowledgeStore(userScopeDirectory, defaultProjectDirectory)
+	store, err := knowledgefile.New(userScopeDirectory, defaultProjectDirectory)
 	if err != nil {
-		t.Fatalf("NewFileKnowledgeStore: %v", err)
+		t.Fatalf("knowledgefile.New: %v", err)
 	}
 	return store
 }
 
-func TestFileMemoryService_UpdateAndGet(t *testing.T) {
-	svc := newKnowledgeStore(t, t.TempDir(), t.TempDir())
+func TestStoreUpdateAndGet(t *testing.T) {
+	store := newKnowledgeStore(t, t.TempDir(), t.TempDir())
 	ctx := context.Background()
 
 	const userBody = "# User\nprefer terse output\n"
-	if err := svc.Update(ctx, knowledge.ScopeUser, "", userBody); err != nil {
+	if err := store.Update(ctx, knowledge.ScopeUser, "", userBody); err != nil {
 		t.Fatalf("Update: %v", err)
 	}
-	got, err := svc.Get(ctx, knowledge.ScopeUser, "")
+	got, err := store.Get(ctx, knowledge.ScopeUser, "")
 	if err != nil {
 		t.Fatalf("Get: %v", err)
 	}
@@ -38,9 +38,9 @@ func TestFileMemoryService_UpdateAndGet(t *testing.T) {
 	}
 }
 
-func TestFileMemoryService_GetEmptyOnFreshHome(t *testing.T) {
-	svc := newKnowledgeStore(t, t.TempDir(), t.TempDir())
-	got, err := svc.Get(context.Background(), knowledge.ScopeUser, "")
+func TestStoreGetEmptyOnFreshHome(t *testing.T) {
+	store := newKnowledgeStore(t, t.TempDir(), t.TempDir())
+	got, err := store.Get(context.Background(), knowledge.ScopeUser, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -49,7 +49,7 @@ func TestFileMemoryService_GetEmptyOnFreshHome(t *testing.T) {
 	}
 }
 
-func TestFileMemoryService_PersistsAcrossInstances(t *testing.T) {
+func TestStorePersistsAcrossInstances(t *testing.T) {
 	userScopeDirectory := t.TempDir()
 	defaultProjectDirectory := t.TempDir()
 	first := newKnowledgeStore(t, userScopeDirectory, defaultProjectDirectory)
@@ -62,7 +62,7 @@ func TestFileMemoryService_PersistsAcrossInstances(t *testing.T) {
 	}
 }
 
-func TestFileMemoryService_ConcurrentInstancesUseIndependentTemporaryFiles(t *testing.T) {
+func TestStoreConcurrentInstancesUseIndependentTemporaryFiles(t *testing.T) {
 	home := t.TempDir()
 	defaultProjectDirectory := t.TempDir()
 	first := newKnowledgeStore(t, home, defaultProjectDirectory)
@@ -110,13 +110,13 @@ func TestFileMemoryService_ConcurrentInstancesUseIndependentTemporaryFiles(t *te
 	}
 }
 
-func TestFileMemoryService_List_SkipsEmptyScopes(t *testing.T) {
-	svc := newKnowledgeStore(t, t.TempDir(), t.TempDir())
+func TestStoreList_SkipsEmptyScopes(t *testing.T) {
+	store := newKnowledgeStore(t, t.TempDir(), t.TempDir())
 	ctx := context.Background()
 
-	_ = svc.Update(ctx, knowledge.ScopeUser, "", "only user")
+	_ = store.Update(ctx, knowledge.ScopeUser, "", "only user")
 
-	entries, err := svc.List(ctx, "")
+	entries, err := store.List(ctx, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -133,25 +133,25 @@ func TestFileMemoryService_List_SkipsEmptyScopes(t *testing.T) {
 	}
 }
 
-func TestFileMemoryService_RejectsUnknownScope(t *testing.T) {
-	svc := newKnowledgeStore(t, t.TempDir(), t.TempDir())
+func TestStoreRejectsUnknownScope(t *testing.T) {
+	store := newKnowledgeStore(t, t.TempDir(), t.TempDir())
 	unknown := knowledge.Scope("workspace")
 
-	if _, err := svc.Get(t.Context(), unknown, t.TempDir()); err == nil {
+	if _, err := store.Get(t.Context(), unknown, t.TempDir()); err == nil {
 		t.Fatal("Get accepted an unknown scope")
 	}
-	if err := svc.Update(t.Context(), unknown, t.TempDir(), "notes"); err == nil {
+	if err := store.Update(t.Context(), unknown, t.TempDir(), "notes"); err == nil {
 		t.Fatal("Update accepted an unknown scope")
 	}
 }
 
-// TestFileMemoryService_ProjectScopeUsesConfiguredDefault proves the adapter
+// TestStoreProjectScopeUsesConfiguredDefault proves the adapter
 // uses its explicit fallback and never reads the process working directory.
-func TestFileMemoryService_ProjectScopeUsesConfiguredDefault(t *testing.T) {
+func TestStoreProjectScopeUsesConfiguredDefault(t *testing.T) {
 	projectDir := t.TempDir()
-	svc := newKnowledgeStore(t, t.TempDir(), projectDir)
+	store := newKnowledgeStore(t, t.TempDir(), projectDir)
 	ctx := context.Background()
-	_ = svc.Update(ctx, knowledge.ScopeProject, "", "project body")
+	_ = store.Update(ctx, knowledge.ScopeProject, "", "project body")
 
 	// File should live at <projectDir>/LYRA.md
 	body, err := os.ReadFile(filepath.Join(projectDir, "LYRA.md"))
@@ -163,38 +163,38 @@ func TestFileMemoryService_ProjectScopeUsesConfiguredDefault(t *testing.T) {
 	}
 }
 
-// TestFileMemoryService_ProjectScopeFollowsDir — the project scope is
+// TestStoreProjectScopeFollowsDir — the project scope is
 // addressed by the per-call dir, so one store serves every project;
 // empty dir falls back to the construction-time default.
-func TestFileMemoryService_ProjectScopeFollowsDir(t *testing.T) {
-	svc := newKnowledgeStore(t, t.TempDir(), t.TempDir())
+func TestStoreProjectScopeFollowsDir(t *testing.T) {
+	store := newKnowledgeStore(t, t.TempDir(), t.TempDir())
 
 	dirA, dirB := t.TempDir(), t.TempDir()
 	ctx := context.Background()
-	if err := svc.Update(ctx, knowledge.ScopeProject, dirA, "alpha knowledge"); err != nil {
+	if err := store.Update(ctx, knowledge.ScopeProject, dirA, "alpha knowledge"); err != nil {
 		t.Fatalf("Update dirA: %v", err)
 	}
 
-	got, err := svc.Get(ctx, knowledge.ScopeProject, dirA)
+	got, err := store.Get(ctx, knowledge.ScopeProject, dirA)
 	if err != nil || got != "alpha knowledge" {
 		t.Fatalf("Get dirA = (%q, %v), want alpha knowledge", got, err)
 	}
-	if got, _ := svc.Get(ctx, knowledge.ScopeProject, dirB); got != "" {
+	if got, _ := store.Get(ctx, knowledge.ScopeProject, dirB); got != "" {
 		t.Fatalf("Get dirB = %q, want empty (projects are isolated)", got)
 	}
 }
 
-func TestNewFileKnowledgeStoreRequiresBothCompositionPaths(t *testing.T) {
-	if _, err := storage.NewFileKnowledgeStore("", t.TempDir()); err == nil {
-		t.Fatal("NewFileKnowledgeStore accepted an empty user scope directory")
+func TestNewRequiresBothCompositionPaths(t *testing.T) {
+	if _, err := knowledgefile.New("", t.TempDir()); err == nil {
+		t.Fatal("New accepted an empty user scope directory")
 	}
-	if _, err := storage.NewFileKnowledgeStore(t.TempDir(), ""); err == nil {
-		t.Fatal("NewFileKnowledgeStore accepted an empty default project directory")
+	if _, err := knowledgefile.New(t.TempDir(), ""); err == nil {
+		t.Fatal("New accepted an empty default project directory")
 	}
-	if _, err := storage.NewFileKnowledgeStore("relative-user", t.TempDir()); err == nil {
-		t.Fatal("NewFileKnowledgeStore accepted a relative user scope directory")
+	if _, err := knowledgefile.New("relative-user", t.TempDir()); err == nil {
+		t.Fatal("New accepted a relative user scope directory")
 	}
-	if _, err := storage.NewFileKnowledgeStore(t.TempDir(), "relative-project"); err == nil {
-		t.Fatal("NewFileKnowledgeStore accepted a relative default project directory")
+	if _, err := knowledgefile.New(t.TempDir(), "relative-project"); err == nil {
+		t.Fatal("New accepted a relative default project directory")
 	}
 }

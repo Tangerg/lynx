@@ -12,8 +12,8 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage"
-	sqlitestore "github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
+	"github.com/Tangerg/lynx/app/runtime/internal/infra/knowledgefile"
+	sqlitestore "github.com/Tangerg/lynx/app/runtime/internal/infra/sqlite"
 )
 
 // Bundle holds every persistence backend opened for one runtime process. All
@@ -31,7 +31,7 @@ type Bundle struct {
 	Sessions            *sqlitestore.SessionStore
 	Runs                *sqlitestore.RunStore
 	WorkspaceMutations  *WorkspaceMutationStore
-	Knowledge           *storage.FileKnowledgeStore
+	Knowledge           *knowledgefile.Store
 	AgentMemory         *sqlitestore.AgentMemoryStore
 	ExecutorCheckpoints *ExecutorCheckpointStore
 	Interrupts          *InterruptStore
@@ -85,7 +85,7 @@ func Open(ctx context.Context, config Config) (*Bundle, error) {
 	if err != nil {
 		return nil, err
 	}
-	knowledgeStore, err := storage.NewFileKnowledgeStore(config.DataDirectory, config.DefaultWorkspacePath)
+	knowledgeStore, err := knowledgefile.New(config.DataDirectory, config.DefaultWorkspacePath)
 	if err != nil {
 		return nil, errors.Join(fmt.Errorf("knowledge storage: %w", err), db.Close())
 	}
