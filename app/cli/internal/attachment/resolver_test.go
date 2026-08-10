@@ -14,27 +14,49 @@ import (
 func TestResolveClassifiesAndCanonicalizesWorkspaceFiles(t *testing.T) {
 	root := t.TempDir()
 	path := filepath.Join(root, "docs", "notes.md")
+	writeFixture(t, path, "# notes\n")
+	resolver := newFixtureResolver(t, root)
+	got := resolveFixture(t, resolver, "docs/notes.md")
+	canonical, _ := filepath.EvalSymlinks(path)
+	requireTextAttachment(t, got, canonical)
+	again := resolveFixture(t, resolver, path)
+	if again.ID != got.ID {
+		t.Fatalf("stable identity = %s, want %s", again.ID, got.ID)
+	}
+}
+
+func writeFixture(t *testing.T, path, content string) {
+	t.Helper()
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(path, []byte("# notes\n"), 0o600); err != nil {
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
 		t.Fatal(err)
 	}
+}
+
+func newFixtureResolver(t *testing.T, root string) *Resolver {
+	t.Helper()
 	resolver, err := New(root)
 	if err != nil {
 		t.Fatal(err)
 	}
-	got, err := resolver.Resolve(t.Context(), "docs/notes.md")
+	return resolver
+}
+
+func resolveFixture(t *testing.T, resolver *Resolver, path string) client.Attachment {
+	t.Helper()
+	attachment, err := resolver.Resolve(t.Context(), path)
 	if err != nil {
 		t.Fatal(err)
 	}
-	canonical, _ := filepath.EvalSymlinks(path)
+	return attachment
+}
+
+func requireTextAttachment(t *testing.T, got client.Attachment, canonical string) {
+	t.Helper()
 	if got.ID == "" || got.Kind != client.AttachmentText || got.Name != "docs/notes.md" || got.Path != canonical || got.MimeType != "text/markdown" || got.Size != 8 {
 		t.Fatalf("attachment = %+v", got)
-	}
-	again, err := resolver.Resolve(t.Context(), path)
-	if err != nil || again.ID != got.ID {
-		t.Fatalf("stable identity = %+v, %v; want %s", again, err, got.ID)
 	}
 }
 

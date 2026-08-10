@@ -95,12 +95,26 @@ func TestRunJSONIsOneObjectPerLineEndingWithTheRun(t *testing.T) {
 	if len(lines) < 2 {
 		t.Fatalf("expected a stream of frames, got:\n%s", out)
 	}
-	var last struct {
-		Type    string `json:"type"`
-		Outcome struct {
-			Status string `json:"status"`
-		} `json:"outcome"`
+	requireTypedJSONLines(t, lines)
+	first := decodeRunFrame(t, lines[0])
+	if first.Type != "run.started" {
+		t.Fatalf("first frame = %s, want run.started", lines[0])
 	}
+	last := decodeRunFrame(t, lines[len(lines)-1])
+	if last.Type != "run.finished" || last.Outcome.Status != "completed" {
+		t.Fatalf("last frame = %s, want a completed run.finished", lines[len(lines)-1])
+	}
+}
+
+type runFrame struct {
+	Type    string `json:"type"`
+	Outcome struct {
+		Status string `json:"status"`
+	} `json:"outcome"`
+}
+
+func requireTypedJSONLines(t *testing.T, lines []string) {
+	t.Helper()
 	for i, line := range lines {
 		var probe struct {
 			Type string `json:"type"`
@@ -112,15 +126,20 @@ func TestRunJSONIsOneObjectPerLineEndingWithTheRun(t *testing.T) {
 			t.Fatalf("line %d has no type: %s", i, line)
 		}
 	}
-	if err := json.Unmarshal([]byte(lines[0]), &last); err != nil || last.Type != "run.started" {
-		t.Fatalf("first frame = %s, want run.started", lines[0])
+}
+
+func decodeRunFrame(t *testing.T, line string) runFrame {
+	t.Helper()
+	var last struct {
+		Type    string `json:"type"`
+		Outcome struct {
+			Status string `json:"status"`
+		} `json:"outcome"`
 	}
-	if err := json.Unmarshal([]byte(lines[len(lines)-1]), &last); err != nil {
-		t.Fatalf("last frame is not JSON: %v", err)
+	if err := json.Unmarshal([]byte(line), &last); err != nil {
+		t.Fatalf("frame is not JSON: %v", err)
 	}
-	if last.Type != "run.finished" || last.Outcome.Status != "completed" {
-		t.Fatalf("last frame = %s, want a completed run.finished", lines[len(lines)-1])
-	}
+	return runFrame(last)
 }
 
 func TestRunRecoversTransportFaultsWithoutRenderingDuplicates(t *testing.T) {
@@ -348,6 +367,15 @@ func TestRunRecoversAmbiguousControlResponsesWithoutDuplicatingAControl(t *testi
 		t.Fatalf("run: %v\n%s", err, out)
 	}
 	starts, resumes, requestIDs, interruptIDs := runtime.calls()
+	requireRetriedControlIdentity(t, starts, resumes, requestIDs, interruptIDs)
+	counts := countUniqueFrames(t, out)
+	if counts["run.started"] != 1 || counts["run.resumed"] != 1 || counts["run.finished"] != 1 {
+		t.Fatalf("control event counts = %+v\n%s", counts, out)
+	}
+}
+
+func requireRetriedControlIdentity(t *testing.T, starts, resumes int, requestIDs, interruptIDs []string) {
+	t.Helper()
 	if starts != 2 || resumes != 2 {
 		t.Fatalf("control calls = start %d, resume %d; want one retry each", starts, resumes)
 	}
@@ -357,10 +385,13 @@ func TestRunRecoversAmbiguousControlResponsesWithoutDuplicatingAControl(t *testi
 	if interruptIDs[0] == "" || interruptIDs[0] != interruptIDs[1] {
 		t.Fatalf("resume retries used interrupt identities %q", interruptIDs)
 	}
+}
 
+func countUniqueFrames(t *testing.T, output string) map[string]int {
+	t.Helper()
 	seen := make(map[string]bool)
 	counts := make(map[string]int)
-	for line := range strings.SplitSeq(strings.TrimSpace(out), "\n") {
+	for line := range strings.SplitSeq(strings.TrimSpace(output), "\n") {
 		var frame struct {
 			Type    string `json:"type"`
 			EventID string `json:"eventId"`
@@ -369,14 +400,12 @@ func TestRunRecoversAmbiguousControlResponsesWithoutDuplicatingAControl(t *testi
 			t.Fatal(err)
 		}
 		if seen[frame.EventID] {
-			t.Fatalf("event %s rendered twice:\n%s", frame.EventID, out)
+			t.Fatalf("event %s rendered twice:\n%s", frame.EventID, output)
 		}
 		seen[frame.EventID] = true
 		counts[frame.Type]++
 	}
-	if counts["run.started"] != 1 || counts["run.resumed"] != 1 || counts["run.finished"] != 1 {
-		t.Fatalf("control event counts = %+v\n%s", counts, out)
-	}
+	return counts
 }
 
 func TestRunRejectsConflictingReplay(t *testing.T) {
@@ -447,12 +476,8 @@ func TestRunAttachesRepeatedFilesAndAllowsAttachmentOnlyPrompts(t *testing.T) {
 	workspace := t.TempDir()
 	first := filepath.Join(workspace, "notes.txt")
 	second := filepath.Join(workspace, "diagram.png")
-	if err := os.WriteFile(first, []byte("notes"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(second, append([]byte("\x89PNG\r\n\x1a\n"), make([]byte, 32)...), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	writeCommandFixture(t, first, []byte("notes"))
+	writeCommandFixture(t, second, append([]byte("\x89PNG\r\n\x1a\n"), make([]byte, 32)...))
 	runtime := instant()
 	id := firstSession(t, runtime)
 	if _, _, err := exec(t, runtime, "", "-C", workspace, "run", "--approve-all", "-s", id, "-f", "notes.txt", "-f", "diagram.png"); err != nil {
@@ -462,18 +487,32 @@ func TestRunAttachesRepeatedFilesAndAllowsAttachmentOnlyPrompts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var prompt client.Block
-	for _, envelope := range snapshot.Events {
-		if event, ok := envelope.Event.(client.BlockCompleted); ok && event.Block.Kind == client.BlockUser {
-			prompt = event.Block
-		}
-	}
+	prompt := userPromptBlock(t, snapshot.Events)
 	if prompt.Text != "" || len(prompt.Attachments) != 2 {
 		t.Fatalf("prompt block = %+v", prompt)
 	}
 	if prompt.Attachments[0].Kind != client.AttachmentText || prompt.Attachments[1].Kind != client.AttachmentImage {
 		t.Fatalf("attachment kinds = %+v", prompt.Attachments)
 	}
+}
+
+func writeCommandFixture(t *testing.T, path string, content []byte) {
+	t.Helper()
+	if err := os.WriteFile(path, content, 0o600); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func userPromptBlock(t *testing.T, events []client.Envelope) client.Block {
+	t.Helper()
+	for index := len(events) - 1; index >= 0; index-- {
+		envelope := events[index]
+		if event, ok := envelope.Event.(client.BlockCompleted); ok && event.Block.Kind == client.BlockUser {
+			return event.Block
+		}
+	}
+	t.Fatal("user prompt block was not emitted")
+	return client.Block{}
 }
 
 func TestRunRejectsInvalidAttachmentBeforeCreatingASession(t *testing.T) {
@@ -562,20 +601,30 @@ func TestSessionsListAliasAndArity(t *testing.T) {
 func TestSessionManagementCommands(t *testing.T) {
 	runtime := instant()
 	id := firstSession(t, runtime)
+	requireSessionShow(t, runtime, id)
+	requireSessionRename(t, runtime, id)
+	forkID := forkTestSession(t, runtime, id)
+	requireSessionDelete(t, runtime, forkID)
+}
 
+func requireSessionShow(t *testing.T, runtime client.Runtime, id string) {
+	t.Helper()
 	shown, _, err := exec(t, runtime, "", "sessions", "show", id)
-	if err != nil {
-		t.Fatalf("sessions show: %v", err)
+	if err != nil || !strings.Contains(shown, "The fixed sleep races the janitor") {
+		t.Fatalf("sessions show = %q, %v", shown, err)
 	}
-	if !strings.Contains(shown, "The fixed sleep races the janitor") {
-		t.Fatalf("saved transcript was not restored:\n%s", shown)
-	}
+}
 
+func requireSessionRename(t *testing.T, runtime client.Runtime, id string) {
+	t.Helper()
 	renamed, _, err := exec(t, runtime, "", "sessions", "rename", id, "Investigate cache")
 	if err != nil || !strings.Contains(renamed, "Investigate cache") {
 		t.Fatalf("sessions rename = %q, %v", renamed, err)
 	}
+}
 
+func forkTestSession(t *testing.T, runtime client.Runtime, id string) string {
+	t.Helper()
 	forked, _, err := exec(t, runtime, "", "sessions", "fork", id, "--at", "4", "--title", "Alternative")
 	if err != nil {
 		t.Fatalf("sessions fork: %v", err)
@@ -585,11 +634,15 @@ func TestSessionManagementCommands(t *testing.T) {
 	if err != nil || snapshot.Session.Title != "Alternative" || len(snapshot.Events) != 4 {
 		t.Fatalf("fork snapshot = %+v, %v", snapshot, err)
 	}
+	return forkID
+}
 
-	if _, _, err := exec(t, runtime, "", "sessions", "delete", forkID); err == nil {
+func requireSessionDelete(t *testing.T, runtime client.Runtime, id string) {
+	t.Helper()
+	if _, _, err := exec(t, runtime, "", "sessions", "delete", id); err == nil {
 		t.Fatal("sessions delete did not require confirmation")
 	}
-	if _, _, err := exec(t, runtime, "", "sessions", "rm", "--yes", forkID); err != nil {
+	if _, _, err := exec(t, runtime, "", "sessions", "rm", "--yes", id); err != nil {
 		t.Fatalf("sessions rm --yes: %v", err)
 	}
 }
@@ -608,10 +661,30 @@ func TestSessionsListPaginatesAndSearches(t *testing.T) {
 func TestApprovalRuleCommandsInspectAndForget(t *testing.T) {
 	runtime := instant()
 	sessionID := firstSession(t, runtime)
+	ruleID := createProjectApprovalRule(t, runtime, sessionID)
+	requireApprovalList(t, runtime)
+	if _, _, err := exec(t, runtime, "", "approvals", "forget", ruleID); err == nil {
+		t.Fatal("approvals forget did not require --yes")
+	}
+	if _, _, err := exec(t, runtime, "", "approvals", "forget", "--yes", ruleID); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func createProjectApprovalRule(t *testing.T, runtime client.Runtime, sessionID string) string {
+	t.Helper()
 	run, err := runtime.StartRun(t.Context(), client.StartRun{SessionID: sessionID, Message: client.Message{Text: "remember this"}})
 	if err != nil {
 		t.Fatal(err)
 	}
+	interrupted, after := followApprovalInterrupt(t, runtime, run)
+	resumeProjectApproval(t, runtime, run.ID, interrupted)
+	drainContinuation(t, runtime, run.ID, after)
+	return onlyApprovalRule(t, runtime).ID
+}
+
+func followApprovalInterrupt(t *testing.T, runtime client.Runtime, run client.Run) (client.Approval, client.Cursor) {
+	t.Helper()
 	stream, err := runtime.FollowRun(t.Context(), client.FollowRun{RunID: run.ID, After: run.StartedAfter})
 	if err != nil {
 		t.Fatal(err)
@@ -627,13 +700,25 @@ func TestApprovalRuleCommandsInspectAndForget(t *testing.T) {
 			interrupted = event.Interaction.(client.Approval)
 		}
 	}
+	if interrupted.InterruptID == "" {
+		t.Fatal("run did not request approval")
+	}
+	return interrupted, after
+}
+
+func resumeProjectApproval(t *testing.T, runtime client.Runtime, runID string, interrupted client.Approval) {
+	t.Helper()
 	if err := runtime.ResumeRun(t.Context(), client.ResumeRun{
-		RunID: run.ID, InterruptID: interrupted.InterruptID,
+		RunID: runID, InterruptID: interrupted.InterruptID,
 		Answer: client.ApprovalAnswer{Decision: client.ApprovalAllow, Remember: client.RememberProject},
 	}); err != nil {
 		t.Fatal(err)
 	}
-	continuation, err := runtime.FollowRun(t.Context(), client.FollowRun{RunID: run.ID, After: after})
+}
+
+func drainContinuation(t *testing.T, runtime client.Runtime, runID string, after client.Cursor) {
+	t.Helper()
+	continuation, err := runtime.FollowRun(t.Context(), client.FollowRun{RunID: runID, After: after})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -642,17 +727,25 @@ func TestApprovalRuleCommandsInspectAndForget(t *testing.T) {
 			t.Fatal(streamErr)
 		}
 	}
+}
 
+func onlyApprovalRule(t *testing.T, runtime client.Runtime) client.ApprovalRule {
+	t.Helper()
+	rules, err := runtime.ListApprovalRules(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rules) != 1 {
+		t.Fatalf("approval rules = %+v, want one", rules)
+	}
+	return rules[0]
+}
+
+func requireApprovalList(t *testing.T, runtime client.Runtime) {
+	t.Helper()
 	out, _, err := exec(t, runtime, "", "approvals", "ls")
 	if err != nil || !strings.Contains(out, "edit:internal/store/cache_test.go") || !strings.Contains(out, "project") {
 		t.Fatalf("approvals ls = %q, %v", out, err)
-	}
-	rules, _ := runtime.ListApprovalRules(t.Context())
-	if _, _, err := exec(t, runtime, "", "approvals", "forget", rules[0].ID); err == nil {
-		t.Fatal("approvals forget did not require --yes")
-	}
-	if _, _, err := exec(t, runtime, "", "approvals", "forget", "--yes", rules[0].ID); err != nil {
-		t.Fatal(err)
 	}
 }
 

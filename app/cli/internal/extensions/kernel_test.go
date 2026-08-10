@@ -120,25 +120,10 @@ func TestKernelOrdersDependenciesAndReloadsTheirClosure(t *testing.T) {
 	defer kernel.Close()
 	point := NewMultiPoint[string]("test.lifecycle")
 	var lifecycle []string
-	plugin := func(id string, requires ...string) Plugin {
-		item := manifest(id, func(scope *Scope) error {
-			lifecycle = append(lifecycle, "load:"+id)
-			if err := scope.OnDispose(func() error {
-				lifecycle = append(lifecycle, "unload:"+id)
-				return nil
-			}); err != nil {
-				return err
-			}
-			_, err := Contribute(scope, point, id, Contribution{})
-			return err
-		})
-		item.Requires = requires
-		return item
-	}
 	results, err := kernel.Activate([]Plugin{
-		plugin("test.dependent", "test.base"),
-		plugin("test.independent"),
-		plugin("test.base"),
+		lifecyclePlugin(point, &lifecycle, "test.dependent", "test.base"),
+		lifecyclePlugin(point, &lifecycle, "test.independent"),
+		lifecyclePlugin(point, &lifecycle, "test.base"),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -146,29 +131,53 @@ func TestKernelOrdersDependenciesAndReloadsTheirClosure(t *testing.T) {
 	if !allLoaded(results) {
 		t.Fatalf("activation = %+v", results)
 	}
-	if !slices.Equal(lifecycle, []string{"load:test.independent", "load:test.base", "load:test.dependent"}) {
-		t.Fatalf("activation lifecycle = %v", lifecycle)
-	}
-	affected, err := kernel.Affected("test.base")
-	if err != nil || !slices.Equal(affected, []string{"test.base", "test.dependent"}) {
-		t.Fatalf("affected plugins = %v, %v", affected, err)
-	}
+	requireLifecycle(t, lifecycle, []string{"load:test.independent", "load:test.base", "load:test.dependent"})
+	requireAffected(t, kernel, "test.base", []string{"test.base", "test.dependent"})
 
 	lifecycle = nil
 	results, err = kernel.Reload("test.base")
 	if err != nil || !allLoaded(results) {
 		t.Fatalf("reload = %+v, %v", results, err)
 	}
-	want := []string{
+	requireLifecycle(t, lifecycle, []string{
 		"unload:test.dependent", "unload:test.base",
 		"load:test.base", "load:test.dependent",
-	}
-	if !slices.Equal(lifecycle, want) {
-		t.Fatalf("reload lifecycle = %v, want %v", lifecycle, want)
-	}
+	})
 	if values := Values(registry, point); len(values) != 3 {
 		t.Fatalf("reload left %d contributions, want 3", len(values))
 	}
+}
+
+func requireLifecycle(t *testing.T, got, want []string) {
+	t.Helper()
+	if !slices.Equal(got, want) {
+		t.Fatalf("lifecycle = %v, want %v", got, want)
+	}
+}
+
+func requireAffected(t *testing.T, kernel *Kernel, pluginID string, want []string) {
+	t.Helper()
+	got, err := kernel.Affected(pluginID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	requireLifecycle(t, got, want)
+}
+
+func lifecyclePlugin(point Point[string], lifecycle *[]string, id string, requires ...string) Plugin {
+	item := manifest(id, func(scope *Scope) error {
+		*lifecycle = append(*lifecycle, "load:"+id)
+		if err := scope.OnDispose(func() error {
+			*lifecycle = append(*lifecycle, "unload:"+id)
+			return nil
+		}); err != nil {
+			return err
+		}
+		_, err := Contribute(scope, point, id, Contribution{})
+		return err
+	})
+	item.Requires = requires
+	return item
 }
 
 func TestKernelSkipsMissingCyclesAndDependentsOfFailedSetup(t *testing.T) {

@@ -203,18 +203,10 @@ func TestJSONEmitsOneObjectPerEvent(t *testing.T) {
 }
 
 func TestJSONCarriesTheToolProjection(t *testing.T) {
-	var buf bytes.Buffer
-	j := NewJSON(&buf)
-	if err := j.Render(envelope(client.BlockCompleted{Block: client.Block{ID: "t", Kind: client.BlockTool, Tool: &client.ToolCall{
+	got := renderJSONFrame(t, client.BlockCompleted{Block: client.Block{ID: "t", Kind: client.BlockTool, Tool: &client.ToolCall{
 		Kind: client.ToolEdit, Name: "provider.patch", Path: "a.go", Summary: "change a.go",
 		Status: client.ToolOK, Diff: "--- a\n+++ b", Duration: 250 * time.Millisecond,
-	}}})); err != nil {
-		t.Fatal(err)
-	}
-	var got frame
-	if err := json.Unmarshal(buf.Bytes(), &got); err != nil {
-		t.Fatalf("not JSON: %v", err)
-	}
+	}}})
 	if got.Block == nil || got.Block.Tool == nil {
 		t.Fatalf("frame = %+v, want a tool projection", got)
 	}
@@ -222,6 +214,19 @@ func TestJSONCarriesTheToolProjection(t *testing.T) {
 	if tool.Kind != "edit" || tool.Name != "provider.patch" || tool.Path != "a.go" || tool.Status != "ok" || tool.Diff == "" || tool.DurationMS != 250 {
 		t.Fatalf("tool = %+v, want the call carried through intact", tool)
 	}
+}
+
+func renderJSONFrame(t *testing.T, event client.Event) frame {
+	t.Helper()
+	var output bytes.Buffer
+	if err := NewJSON(&output).Render(envelope(event)); err != nil {
+		t.Fatal(err)
+	}
+	var got frame
+	if err := json.Unmarshal(output.Bytes(), &got); err != nil {
+		t.Fatalf("not JSON: %v", err)
+	}
+	return got
 }
 
 func TestJSONCarriesControlOptionsAndCompleteInteractionMetadata(t *testing.T) {

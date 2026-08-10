@@ -13,13 +13,7 @@ type format struct {
 func TestKeyedContributionsAreTypedOrderedAndDisposable(t *testing.T) {
 	point := NewKeyedPoint("test.format", func(value format) string { return value.ID })
 	registry := new(Registry)
-	loaded, err := Load(registry, manifest("formats", func(scope *Scope) error {
-		if _, err := Contribute(scope, point, format{ID: "json", Label: "JSON"}, Contribution{Order: 20}); err != nil {
-			return err
-		}
-		_, err := Contribute(scope, point, format{ID: "markdown", Label: "Markdown"}, Contribution{Order: 10})
-		return err
-	}))
+	loaded, err := Load(registry, manifest("formats", contributeFormats(point)))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -36,6 +30,16 @@ func TestKeyedContributionsAreTypedOrderedAndDisposable(t *testing.T) {
 	}
 	if values := Values(registry, point); len(values) != 0 {
 		t.Fatalf("values after unload = %+v", values)
+	}
+}
+
+func contributeFormats(point Point[format]) func(*Scope) error {
+	return func(scope *Scope) error {
+		if _, err := Contribute(scope, point, format{ID: "json", Label: "JSON"}, Contribution{Order: 20}); err != nil {
+			return err
+		}
+		_, err := Contribute(scope, point, format{ID: "markdown", Label: "Markdown"}, Contribution{Order: 10})
+		return err
 	}
 }
 

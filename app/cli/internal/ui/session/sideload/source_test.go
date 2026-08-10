@@ -144,21 +144,8 @@ func TestCommandRunnerUsesBoundedJSONProtocol(t *testing.T) {
 	declared := validManifest("test.runner")
 	script := "#!/bin/sh\nread request\nprintf '{\"protocol\":1,\"message\":\"hello from process\"}'\n"
 	writePlugin(t, root, "runner", declared, script)
-	discovered, err := New([]string{root}).Discover(t.Context())
-	if err != nil || len(discovered.Issues) != 0 {
-		t.Fatalf("discovery = %+v, %v", discovered, err)
-	}
-	registry := new(extensions.Registry)
-	kernel, err := extensions.NewKernel(registry)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer kernel.Close()
-	results, err := kernel.Activate(discovered.Plugins)
-	if err != nil || len(results) != 1 || results[0].Phase != extensions.PluginLoaded {
-		t.Fatalf("activation = %+v, %v", results, err)
-	}
-	commands := extensions.Values(registry, session.SlashCommands)
+	commands, closeKernel := loadFixtureCommands(t, root)
+	defer closeKernel()
 	if len(commands) != 1 || commands[0].Execute == nil {
 		t.Fatalf("commands = %+v", commands)
 	}
@@ -168,6 +155,25 @@ func TestCommandRunnerUsesBoundedJSONProtocol(t *testing.T) {
 	if err != nil || response.Message != "hello from process" {
 		t.Fatalf("response = %+v, %v", response, err)
 	}
+}
+
+func loadFixtureCommands(t *testing.T, root string) ([]session.SlashCommand, func()) {
+	t.Helper()
+	discovered, err := New([]string{root}).Discover(t.Context())
+	if err != nil || len(discovered.Issues) != 0 {
+		t.Fatalf("discovery = %+v, %v", discovered, err)
+	}
+	registry := new(extensions.Registry)
+	kernel, err := extensions.NewKernel(registry)
+	if err != nil {
+		t.Fatal(err)
+	}
+	results, err := kernel.Activate(discovered.Plugins)
+	if err != nil || len(results) != 1 || results[0].Phase != extensions.PluginLoaded {
+		_ = kernel.Close()
+		t.Fatalf("activation = %+v, %v", results, err)
+	}
+	return extensions.Values(registry, session.SlashCommands), func() { _ = kernel.Close() }
 }
 
 func TestCommandRunnerHonorsCancellation(t *testing.T) {

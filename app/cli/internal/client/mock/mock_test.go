@@ -38,34 +38,69 @@ func followAll(t *testing.T, runtime *Runtime, runID string, after client.Cursor
 	return events, nil
 }
 
-func TestSessionCatalogPagesSearchesAndSorts(t *testing.T) {
-	runtime := New()
-	for _, title := range []string{"Alpha", "Beta", "Gamma"} {
-		if _, err := runtime.CreateSession(t.Context(), client.NewSession{Title: title, Workspace: "/tmp/catalog"}); err != nil {
-			t.Fatal(err)
-		}
-	}
-	first, err := runtime.ListSessions(t.Context(), client.SessionQuery{Workspace: "/tmp/catalog", Limit: 2})
+func mustStartRun(t *testing.T, runtime *Runtime, input client.StartRun) client.Run {
+	t.Helper()
+	run, err := runtime.StartRun(t.Context(), input)
 	if err != nil {
 		t.Fatal(err)
 	}
+	return run
+}
+
+func mustFollowAll(t *testing.T, runtime *Runtime, runID string, after client.Cursor) []client.Envelope {
+	t.Helper()
+	events, err := followAll(t, runtime, runID, after)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return events
+}
+
+func mustSnapshot(t *testing.T, runtime *Runtime, sessionID string) client.SessionSnapshot {
+	t.Helper()
+	snapshot, err := runtime.GetSession(t.Context(), sessionID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return snapshot
+}
+
+func TestSessionCatalogPagesSearchesAndSorts(t *testing.T) {
+	runtime := New()
+	seedCatalog(t, runtime, "Alpha", "Beta", "Gamma")
+	first := mustListSessions(t, runtime, client.SessionQuery{Workspace: "/tmp/catalog", Limit: 2})
 	if len(first.Items) != 2 || first.NextCursor == "" {
 		t.Fatalf("first page = %+v", first)
 	}
-	second, err := runtime.ListSessions(t.Context(), client.SessionQuery{Workspace: "/tmp/catalog", Cursor: first.NextCursor, Limit: 2})
-	if err != nil {
-		t.Fatal(err)
-	}
+	second := mustListSessions(t, runtime, client.SessionQuery{Workspace: "/tmp/catalog", Cursor: first.NextCursor, Limit: 2})
 	if len(second.Items) != 1 || second.NextCursor != "" {
 		t.Fatalf("second page = %+v", second)
 	}
-	search, err := runtime.ListSessions(t.Context(), client.SessionQuery{Search: "beta"})
-	if err != nil || len(search.Items) != 1 || search.Items[0].Title != "Beta" {
-		t.Fatalf("search = %+v, %v", search, err)
+	search := mustListSessions(t, runtime, client.SessionQuery{Search: "beta"})
+	if len(search.Items) != 1 || search.Items[0].Title != "Beta" {
+		t.Fatalf("search = %+v", search)
 	}
 	if _, err := runtime.ListSessions(t.Context(), client.SessionQuery{Cursor: "bogus"}); err == nil {
 		t.Fatal("invalid cursor was accepted")
 	}
+}
+
+func seedCatalog(t *testing.T, runtime *Runtime, titles ...string) {
+	t.Helper()
+	for _, title := range titles {
+		if _, err := runtime.CreateSession(t.Context(), client.NewSession{Title: title, Workspace: "/tmp/catalog"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func mustListSessions(t *testing.T, runtime *Runtime, query client.SessionQuery) client.SessionPage {
+	t.Helper()
+	page, err := runtime.ListSessions(t.Context(), query)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return page
 }
 
 func TestSessionLifecycleHonorsRevisionAndForkCursor(t *testing.T) {
@@ -83,14 +118,8 @@ func TestSessionLifecycleHonorsRevisionAndForkCursor(t *testing.T) {
 		t.Fatalf("stale update error = %v", err)
 	}
 
-	run, err := runtime.StartRun(t.Context(), client.StartRun{SessionID: session.ID, Message: client.Message{Text: "why?"}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	events, err := followAll(t, runtime, run.ID, run.StartedAfter)
-	if err != nil {
-		t.Fatal(err)
-	}
+	run := mustStartRun(t, runtime, client.StartRun{SessionID: session.ID, Message: client.Message{Text: "why?"}})
+	events := mustFollowAll(t, runtime, run.ID, run.StartedAfter)
 	if len(events) < 3 {
 		t.Fatalf("run produced %d events", len(events))
 	}
@@ -98,18 +127,11 @@ func TestSessionLifecycleHonorsRevisionAndForkCursor(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	snapshot, err := runtime.GetSession(t.Context(), fork.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	snapshot := mustSnapshot(t, runtime, fork.ID)
 	if client.Cursor(len(snapshot.Events)) != events[len(events)-1].Cursor || snapshot.Session.Title != "Forked" {
 		t.Fatalf("fork snapshot = %+v", snapshot)
 	}
-	for _, envelope := range snapshot.Events {
-		if envelope.SessionID != fork.ID {
-			t.Fatalf("fork event retained source session id: %+v", envelope)
-		}
-	}
+	requireEventSession(t, snapshot.Events, fork.ID)
 	if err := runtime.DeleteSession(t.Context(), client.DeleteSession{SessionID: fork.ID, Revision: fork.Revision}); err != nil {
 		t.Fatal(err)
 	}
@@ -118,57 +140,89 @@ func TestSessionLifecycleHonorsRevisionAndForkCursor(t *testing.T) {
 	}
 }
 
+func requireEventSession(t *testing.T, events []client.Envelope, sessionID string) {
+	t.Helper()
+	for _, envelope := range events {
+		if envelope.SessionID != sessionID {
+			t.Fatalf("event retained source session id: %+v", envelope)
+		}
+	}
+}
+
 func TestRunReplaysAndResumesApprovalWithoutDuplicates(t *testing.T) {
 	runtime := New()
 	runtime.Instant = true
 	session := newSession(t, runtime)
-	run, err := runtime.StartRun(t.Context(), client.StartRun{
+	run := mustStartRun(t, runtime, client.StartRun{
 		SessionID: session.ID,
 		Message:   client.Message{Text: "why?"},
 		Options:   client.RunOptions{Model: "mock-balanced", Mode: client.ModeBuild, Permission: client.PermissionAsk},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	first, err := followAll(t, runtime, run.ID, run.StartedAfter)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(first) == 0 {
-		t.Fatal("initial subscription was empty")
-	}
-	interrupted, ok := first[len(first)-1].Event.(client.RunInterrupted)
-	if !ok {
-		t.Fatalf("last event = %T, want RunInterrupted", first[len(first)-1].Event)
-	}
-	approval := interrupted.Interaction.(client.Approval)
+	first := mustFollowAll(t, runtime, run.ID, run.StartedAfter)
+	approval := requireApprovalInterrupt(t, first)
 
 	// Replaying from the cursor before the last event returns that exact event.
-	replay, err := followAll(t, runtime, run.ID, first[len(first)-2].Cursor)
-	if err != nil || len(replay) != 1 || replay[0].ID != first[len(first)-1].ID {
-		t.Fatalf("replay = %+v, %v", replay, err)
-	}
+	requireLastEventReplay(t, runtime, run.ID, first)
 	if err := runtime.ResumeRun(t.Context(), client.ResumeRun{
 		RunID: run.ID, InterruptID: approval.InterruptID,
 		Answer: client.ApprovalAnswer{Decision: client.ApprovalAllow, Remember: client.RememberSession},
 	}); err != nil {
 		t.Fatal(err)
 	}
-	second, err := followAll(t, runtime, run.ID, first[len(first)-1].Cursor)
+	second := mustFollowAll(t, runtime, run.ID, first[len(first)-1].Cursor)
+	requireCompletedContinuation(t, second)
+	requireUniqueEventIDs(t, slices.Concat(first, second))
+}
+
+func requireApprovalInterrupt(t *testing.T, events []client.Envelope) client.Approval {
+	t.Helper()
+	if len(events) == 0 {
+		t.Fatal("initial subscription was empty")
+	}
+	interrupted, ok := events[len(events)-1].Event.(client.RunInterrupted)
+	if !ok {
+		t.Fatalf("last event = %T, want RunInterrupted", events[len(events)-1].Event)
+	}
+	approval, ok := interrupted.Interaction.(client.Approval)
+	if !ok {
+		t.Fatalf("interaction = %T, want Approval", interrupted.Interaction)
+	}
+	return approval
+}
+
+func requireLastEventReplay(t *testing.T, runtime *Runtime, runID string, events []client.Envelope) {
+	t.Helper()
+	last := events[len(events)-1]
+	replay, err := followAll(t, runtime, runID, events[len(events)-2].Cursor)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(second) == 0 {
+	if len(replay) != 1 || replay[0].ID != last.ID {
+		t.Fatalf("replay = %+v, want event %s", replay, last.ID)
+	}
+}
+
+func requireCompletedContinuation(t *testing.T, events []client.Envelope) {
+	t.Helper()
+	if len(events) == 0 {
 		t.Fatal("continuation was empty")
 	}
-	if _, ok := second[0].Event.(client.RunResumed); !ok {
-		t.Fatalf("first continuation event = %T, want RunResumed", second[0].Event)
+	if _, ok := events[0].Event.(client.RunResumed); !ok {
+		t.Fatalf("first continuation event = %T, want RunResumed", events[0].Event)
 	}
-	if finished, ok := second[len(second)-1].Event.(client.RunFinished); !ok || finished.Outcome.Status != client.OutcomeCompleted {
-		t.Fatalf("last continuation event = %+v", second[len(second)-1].Event)
+	finished, ok := events[len(events)-1].Event.(client.RunFinished)
+	if !ok {
+		t.Fatalf("last continuation event = %T, want RunFinished", events[len(events)-1].Event)
 	}
-	seen := make(map[string]bool)
-	for _, envelope := range slices.Concat(first, second) {
+	if finished.Outcome.Status != client.OutcomeCompleted {
+		t.Fatalf("outcome status = %s, want completed", finished.Outcome.Status)
+	}
+}
+
+func requireUniqueEventIDs(t *testing.T, events []client.Envelope) {
+	t.Helper()
+	seen := make(map[string]bool, len(events))
+	for _, envelope := range events {
 		if seen[envelope.ID] {
 			t.Fatalf("duplicate event id %s", envelope.ID)
 		}
@@ -267,69 +321,80 @@ func TestResumeRunIsIdempotentForTheSameAnswer(t *testing.T) {
 }
 
 func TestFollowRunInjectsTransportFaultsWithoutChangingDurableLog(t *testing.T) {
-	tests := []struct {
-		name  string
-		fault SubscriptionFault
-		check func(*testing.T, []client.Envelope, error)
-	}{
-		{
-			name: "disconnect", fault: SubscriptionFault{Kind: FaultDisconnect, After: 1},
-			check: func(t *testing.T, events []client.Envelope, err error) {
-				if len(events) != 1 || !errors.Is(err, client.ErrDisconnected) {
-					t.Fatalf("events = %d, error = %v", len(events), err)
-				}
-			},
-		},
-		{
-			name: "duplicate", fault: SubscriptionFault{Kind: FaultDuplicate, After: 1},
-			check: func(t *testing.T, events []client.Envelope, err error) {
-				if err != nil || len(events) < 2 || events[0].ID != events[1].ID {
-					t.Fatalf("events = %+v, error = %v", events, err)
-				}
-			},
-		},
-		{
-			name: "gap", fault: SubscriptionFault{Kind: FaultGap, After: 1},
-			check: func(t *testing.T, events []client.Envelope, err error) {
-				if err != nil || len(events) == 0 || events[0].Cursor < 2 {
-					t.Fatalf("events = %+v, error = %v", events, err)
-				}
-			},
-		},
-		{
-			name: "conflict", fault: SubscriptionFault{Kind: FaultConflict, After: 1},
-			check: func(t *testing.T, events []client.Envelope, err error) {
-				if err != nil || len(events) != 2 || events[0].Cursor != events[1].Cursor || events[0].ID == events[1].ID {
-					t.Fatalf("events = %+v, error = %v", events, err)
-				}
-			},
-		},
+	for _, kind := range []FaultKind{FaultDisconnect, FaultDuplicate, FaultGap, FaultConflict} {
+		t.Run(string(kind), func(t *testing.T) { exerciseTransportFault(t, kind) })
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			runtime := New()
-			runtime.Instant = true
-			runtime.Faults = []SubscriptionFault{tt.fault}
-			session := newSession(t, runtime)
-			run, err := runtime.StartRun(t.Context(), client.StartRun{SessionID: session.ID, Message: client.Message{Text: "fault"}})
-			if err != nil {
-				t.Fatal(err)
-			}
-			events, streamErr := followAll(t, runtime, run.ID, run.StartedAfter)
-			tt.check(t, events, streamErr)
+}
 
-			replayed, err := followAll(t, runtime, run.ID, run.StartedAfter)
-			if err != nil {
-				t.Fatal(err)
-			}
-			snapshot, err := runtime.GetSession(t.Context(), session.ID)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if len(replayed) != len(snapshot.Events) {
-				t.Fatalf("durable replay = %d events, snapshot = %d", len(replayed), len(snapshot.Events))
-			}
-		})
+func exerciseTransportFault(t *testing.T, kind FaultKind) {
+	t.Helper()
+	runtime := New()
+	runtime.Instant = true
+	runtime.Faults = []SubscriptionFault{{Kind: kind, After: 1}}
+	session := newSession(t, runtime)
+	run := mustStartRun(t, runtime, client.StartRun{SessionID: session.ID, Message: client.Message{Text: "fault"}})
+	events, streamErr := followAll(t, runtime, run.ID, run.StartedAfter)
+	requireInjectedFault(t, kind, events, streamErr)
+	replayed := mustFollowAll(t, runtime, run.ID, run.StartedAfter)
+	snapshot := mustSnapshot(t, runtime, session.ID)
+	if len(replayed) != len(snapshot.Events) {
+		t.Fatalf("durable replay = %d events, snapshot = %d", len(replayed), len(snapshot.Events))
+	}
+}
+
+func requireInjectedFault(t *testing.T, kind FaultKind, events []client.Envelope, err error) {
+	t.Helper()
+	switch kind {
+	case FaultDisconnect:
+		requireDisconnectFault(t, events, err)
+	case FaultDuplicate:
+		requireDuplicateFault(t, events, err)
+	case FaultGap:
+		requireGapFault(t, events, err)
+	case FaultConflict:
+		requireConflictFault(t, events, err)
+	default:
+		t.Fatalf("unsupported fault %q", kind)
+	}
+}
+
+func requireDisconnectFault(t *testing.T, events []client.Envelope, err error) {
+	t.Helper()
+	if len(events) != 1 || !errors.Is(err, client.ErrDisconnected) {
+		t.Fatalf("events = %d, error = %v", len(events), err)
+	}
+}
+
+func requireDuplicateFault(t *testing.T, events []client.Envelope, err error) {
+	t.Helper()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(events) < 2 || events[0].ID != events[1].ID {
+		t.Fatalf("events = %+v, want a duplicate prefix", events)
+	}
+}
+
+func requireGapFault(t *testing.T, events []client.Envelope, err error) {
+	t.Helper()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(events) == 0 || events[0].Cursor < 2 {
+		t.Fatalf("events = %+v, want a leading cursor gap", events)
+	}
+}
+
+func requireConflictFault(t *testing.T, events []client.Envelope, err error) {
+	t.Helper()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(events) != 2 {
+		t.Fatalf("events = %+v, want a two-event conflict", events)
+	}
+	if events[0].Cursor != events[1].Cursor || events[0].ID == events[1].ID {
+		t.Fatalf("events = %+v, want shared cursor with distinct ids", events)
 	}
 }
 
@@ -400,14 +465,8 @@ func TestRememberedApprovalRuleSkipsMatchingInterruptAndCanBeForgotten(t *testin
 	runtime := New()
 	runtime.Instant = true
 	session := newSession(t, runtime)
-	firstRun, err := runtime.StartRun(t.Context(), client.StartRun{SessionID: session.ID, Message: client.Message{Text: "first"}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	first, err := followAll(t, runtime, firstRun.ID, firstRun.StartedAfter)
-	if err != nil {
-		t.Fatal(err)
-	}
+	firstRun := mustStartRun(t, runtime, client.StartRun{SessionID: session.ID, Message: client.Message{Text: "first"}})
+	first := mustFollowAll(t, runtime, firstRun.ID, firstRun.StartedAfter)
 	approval := first[len(first)-1].Event.(client.RunInterrupted).Interaction.(client.Approval)
 	if err := runtime.ResumeRun(t.Context(), client.ResumeRun{
 		RunID: firstRun.ID, InterruptID: approval.InterruptID,
@@ -415,36 +474,33 @@ func TestRememberedApprovalRuleSkipsMatchingInterruptAndCanBeForgotten(t *testin
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := followAll(t, runtime, firstRun.ID, first[len(first)-1].Cursor); err != nil {
-		t.Fatal(err)
-	}
+	_ = mustFollowAll(t, runtime, firstRun.ID, first[len(first)-1].Cursor)
 
 	rules, err := runtime.ListApprovalRules(t.Context())
 	if err != nil || len(rules) != 1 || rules[0].Scope != client.RememberSession {
 		t.Fatalf("rules = %+v, %v", rules, err)
 	}
-	secondRun, err := runtime.StartRun(t.Context(), client.StartRun{SessionID: session.ID, Message: client.Message{Text: "second"}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	second, err := followAll(t, runtime, secondRun.ID, secondRun.StartedAfter)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if slices.ContainsFunc(second, func(envelope client.Envelope) bool {
-		_, interrupted := envelope.Event.(client.RunInterrupted)
-		return interrupted
-	}) {
-		t.Fatalf("remembered rule did not skip approval: %+v", second)
-	}
-	if _, ok := second[len(second)-1].Event.(client.RunFinished); !ok {
-		t.Fatalf("second run did not finish: %+v", second)
-	}
+	secondRun := mustStartRun(t, runtime, client.StartRun{SessionID: session.ID, Message: client.Message{Text: "second"}})
+	second := mustFollowAll(t, runtime, secondRun.ID, secondRun.StartedAfter)
+	requireFinishedWithoutInterrupt(t, second)
 	if err := runtime.DeleteApprovalRule(t.Context(), rules[0].ID); err != nil {
 		t.Fatal(err)
 	}
 	if rules, _ := runtime.ListApprovalRules(t.Context()); len(rules) != 0 {
 		t.Fatalf("deleted rule remains: %+v", rules)
+	}
+}
+
+func requireFinishedWithoutInterrupt(t *testing.T, events []client.Envelope) {
+	t.Helper()
+	if slices.ContainsFunc(events, func(envelope client.Envelope) bool {
+		_, interrupted := envelope.Event.(client.RunInterrupted)
+		return interrupted
+	}) {
+		t.Fatalf("remembered rule did not skip approval: %+v", events)
+	}
+	if _, ok := events[len(events)-1].Event.(client.RunFinished); !ok {
+		t.Fatalf("run did not finish: %+v", events)
 	}
 }
 
