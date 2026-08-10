@@ -34,6 +34,23 @@ func exec(t *testing.T, rt client.Runtime, stdin string, args ...string) (string
 	return out.String(), errb.String(), err
 }
 
+type testExitError struct{ code int }
+
+func (e testExitError) Error() string { return "coded" }
+func (e testExitError) ExitCode() int { return e.code }
+
+func TestExitCodePreservesSignalsAndClassifiesCancellation(t *testing.T) {
+	if got := exitCode(testExitError{code: 143}); got != 143 {
+		t.Fatalf("coded exit = %d, want 143", got)
+	}
+	if got := exitCode(context.Canceled); got != 130 {
+		t.Fatalf("canceled exit = %d, want 130", got)
+	}
+	if got := exitCode(errors.New("ordinary")); got != 1 {
+		t.Fatalf("ordinary exit = %d, want 1", got)
+	}
+}
+
 func instant() *mock.Runtime {
 	rt := mock.New()
 	rt.Instant = true
@@ -218,6 +235,12 @@ type invalidLifecycleRuntime struct {
 	sessionID string
 }
 
+type invalidStartRuntime struct{ *mock.Runtime }
+
+func (r *invalidStartRuntime) StartRun(context.Context, client.StartRun) (client.Run, error) {
+	return client.Run{SessionID: "wrong", Status: client.RunActive}, nil
+}
+
 func (r *invalidLifecycleRuntime) StartRun(_ context.Context, input client.StartRun) (client.Run, error) {
 	return client.Run{ID: "run_invalid", SessionID: input.SessionID, Status: client.RunActive}, nil
 }
@@ -262,6 +285,16 @@ func TestRunRejectsEventsThatViolateTheConversationLifecycle(t *testing.T) {
 	}
 	if renderer.closed != 1 {
 		t.Fatalf("renderer closed %d times, want once", renderer.closed)
+	}
+}
+
+func TestRunRejectsAnInvalidStartProjection(t *testing.T) {
+	base := mock.New()
+	err := follow(t.Context(), &invalidStartRuntime{Runtime: base}, discardRenderer{}, client.StartRun{
+		SessionID: firstSession(t, base), Message: client.Message{Text: "invalid start"},
+	}, false, 0)
+	if err == nil || !strings.Contains(err.Error(), "start run response") {
+		t.Fatalf("follow error = %v", err)
 	}
 }
 
@@ -438,6 +471,51 @@ func TestRunQuestionNamesTheResumableSession(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "--session "+id) || strings.Contains(err.Error(), "<session-id>") {
 		t.Fatalf("question error = %v", err)
 	}
+	snapshot, getErr := rt.GetSession(t.Context(), id)
+	if getErr != nil {
+		t.Fatal(getErr)
+	}
+	if snapshot.Active == nil || snapshot.Active.Status != client.RunWaiting {
+		t.Fatalf("question did not leave a resumable waiting run: %+v", snapshot.Active)
+	}
+	if _, ok := snapshot.Events[len(snapshot.Events)-1].Event.(client.RunInterrupted); !ok {
+		t.Fatalf("question was followed by an unexpected cleanup event: %+v", snapshot.Events[len(snapshot.Events)-1])
+	}
+}
+
+func TestRunReturnsAnErrorForNonCompletedOutcomes(t *testing.T) {
+	for _, test := range []struct {
+		name    string
+		outcome client.Outcome
+		want    string
+	}{
+		{name: "failed", outcome: client.Outcome{Status: client.OutcomeFailed, Error: "provider refused"}, want: "run failed: provider refused"},
+		{name: "canceled", outcome: client.Outcome{Status: client.OutcomeCanceled}, want: "run canceled"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			runtime := instant()
+			runtime.Script = func(string) mock.Script {
+				return mock.Script{Prelude: []mock.Step{{Event: client.RunFinished{Outcome: test.outcome}}}}
+			}
+			id := firstSession(t, runtime)
+			out, _, err := exec(t, runtime, "", "run", "--json", "-s", id, "finish this way")
+			if err == nil || !strings.Contains(err.Error(), test.want) {
+				t.Fatalf("run error = %v, want %q", err, test.want)
+			}
+			lines := strings.Split(strings.TrimSpace(out), "\n")
+			last := decodeRunFrame(t, lines[len(lines)-1])
+			if last.Type != "run.finished" || last.Outcome.Status != string(test.outcome.Status) {
+				t.Fatalf("last frame = %+v", last)
+			}
+			snapshot, getErr := runtime.GetSession(t.Context(), id)
+			if getErr != nil {
+				t.Fatal(getErr)
+			}
+			if snapshot.Active != nil {
+				t.Fatalf("settled outcome left an active run: %+v", snapshot.Active)
+			}
+		})
+	}
 }
 
 type alwaysDisconnected struct{ client.Runtime }
@@ -579,6 +657,30 @@ func TestRunCreatesASessionWhenNoneIsNamed(t *testing.T) {
 	}
 }
 
+func TestWorkspaceFlagIsNormalizedBeforeCreatingASession(t *testing.T) {
+	runtime := instant()
+	want, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	current, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	relative, err := filepath.Rel(current, want)
+	if err != nil {
+		t.Fatal(err)
+	}
+	before, _ := runtime.ListSessions(t.Context(), client.SessionQuery{Limit: 100})
+	if _, _, err := exec(t, runtime, "", "-C", relative, "run", "--approve-all", "normalize workspace"); err != nil {
+		t.Fatal(err)
+	}
+	after, _ := runtime.ListSessions(t.Context(), client.SessionQuery{Limit: 100})
+	if len(after.Items) != len(before.Items)+1 || after.Items[0].Workspace != want {
+		t.Fatalf("newest session workspace = %q, want %q", after.Items[0].Workspace, want)
+	}
+}
+
 func TestSessionsList(t *testing.T) {
 	out, _, err := exec(t, instant(), "", "sessions", "ls")
 	if err != nil {
@@ -664,11 +766,41 @@ func TestSessionsListPaginatesAndSearches(t *testing.T) {
 	}
 }
 
+func TestSessionsListJSONKeepsPaginationOnStdout(t *testing.T) {
+	runtime := instant()
+	out, errOut, err := exec(t, runtime, "", "sessions", "ls", "--limit", "1", "--json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if errOut != "" {
+		t.Fatalf("JSON session list wrote pagination to stderr: %q", errOut)
+	}
+	var page sessionPageJSON
+	if err := json.Unmarshal([]byte(out), &page); err != nil {
+		t.Fatalf("session page is not JSON: %v\n%s", err, out)
+	}
+	if len(page.Items) != 1 || page.Items[0].ID == "" || page.NextCursor == "" {
+		t.Fatalf("session page = %+v", page)
+	}
+}
+
 func TestApprovalRuleCommandsInspectAndForget(t *testing.T) {
 	runtime := instant()
 	sessionID := firstSession(t, runtime)
 	ruleID := createProjectApprovalRule(t, runtime, sessionID)
 	requireApprovalList(t, runtime)
+	jsonOut, _, jsonErr := exec(t, runtime, "", "approvals", "ls", "--json")
+	if jsonErr != nil {
+		t.Fatal(jsonErr)
+	}
+	var rules approvalRulesJSON
+	if err := json.Unmarshal([]byte(jsonOut), &rules); err != nil || len(rules.Rules) != 1 || rules.Rules[0].ID != ruleID {
+		t.Fatalf("approval JSON = %+v, %v", rules, err)
+	}
+	out, _, err := exec(t, runtime, "", "__complete", "approvals", "delete", "")
+	if err != nil || !strings.Contains(out, ruleID) {
+		t.Fatalf("approval completion = %q, %v", out, err)
+	}
 	if _, _, err := exec(t, runtime, "", "approvals", "forget", ruleID); err == nil {
 		t.Fatal("approvals forget did not require --yes")
 	}

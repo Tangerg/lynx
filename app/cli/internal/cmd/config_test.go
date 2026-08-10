@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/Tangerg/lynx/app/cli/internal/settings"
@@ -66,5 +67,36 @@ func TestConfigurationRejectsInvalidValuesAndMissingExplicitFile(t *testing.T) {
 	missing := filepath.Join(t.TempDir(), "missing.yaml")
 	if _, _, err := exec(t, instant(), "", "--config", missing, "config", "show"); err == nil {
 		t.Fatal("missing explicit configuration was ignored")
+	}
+}
+
+func TestConfigurationRejectsUnknownKeys(t *testing.T) {
+	for name, content := range map[string]string{
+		"top level": "unknown-setting: value\n",
+		"nested":    "ui:\n  transcript-retian: 80\n",
+	} {
+		t.Run(name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "config.yaml")
+			if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if _, _, err := exec(t, instant(), "", "--config", path, "config", "show"); err == nil {
+				t.Fatal("unknown configuration key was ignored")
+			}
+		})
+	}
+}
+
+func TestCompletionGenerationDoesNotDependOnConfiguration(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "invalid.yaml")
+	if err := os.WriteFile(path, []byte("unknown: value\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	out, _, err := exec(t, instant(), "", "--config", path, "completion", "bash")
+	if err != nil {
+		t.Fatalf("completion generation read configuration: %v", err)
+	}
+	if !strings.Contains(out, "bash completion") {
+		t.Fatalf("completion output is incomplete:\n%s", out)
 	}
 }

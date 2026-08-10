@@ -16,6 +16,24 @@ type Session struct {
 	Revision  int64
 }
 
+// Validate checks session metadata returned by a runtime before an adapter uses it.
+func (s Session) Validate() error {
+	var problems []error
+	if strings.TrimSpace(s.ID) == "" {
+		problems = append(problems, errors.New("id is empty"))
+	}
+	if strings.TrimSpace(s.Workspace) == "" {
+		problems = append(problems, errors.New("workspace is empty"))
+	}
+	if s.Revision < 0 {
+		problems = append(problems, errors.New("revision is negative"))
+	}
+	if err := errors.Join(problems...); err != nil {
+		return fmt.Errorf("session: %w", err)
+	}
+	return nil
+}
+
 // SessionQuery requests one stable page, newest first.
 type SessionQuery struct {
 	Cursor    string
@@ -28,6 +46,21 @@ type SessionQuery struct {
 type SessionPage struct {
 	Items      []Session
 	NextCursor string
+}
+
+// Validate checks every listed session and rejects duplicate identities.
+func (p SessionPage) Validate() error {
+	seen := make(map[string]struct{}, len(p.Items))
+	for index, session := range p.Items {
+		if err := session.Validate(); err != nil {
+			return fmt.Errorf("session page item %d: %w", index+1, err)
+		}
+		if _, duplicate := seen[session.ID]; duplicate {
+			return fmt.Errorf("session page repeats id %q", session.ID)
+		}
+		seen[session.ID] = struct{}{}
+	}
+	return nil
 }
 
 // SessionSnapshot is sufficient to rebuild the terminal without a second
@@ -74,11 +107,10 @@ func foldSnapshot(snapshot SessionSnapshot) (*Conversation, error) {
 }
 
 func validateSnapshotHeader(snapshot SessionSnapshot) error {
+	if err := snapshot.Session.Validate(); err != nil {
+		return fmt.Errorf("session snapshot: %w", err)
+	}
 	switch {
-	case strings.TrimSpace(snapshot.Session.ID) == "":
-		return errors.New("session snapshot: session id is empty")
-	case strings.TrimSpace(snapshot.Session.Workspace) == "":
-		return errors.New("session snapshot: workspace is empty")
 	case snapshot.Cursor == 0 && len(snapshot.Events) != 0:
 		return errors.New("session snapshot: zero cursor carries events")
 	case snapshot.Cursor != 0 && (len(snapshot.Events) == 0 || snapshot.Events[len(snapshot.Events)-1].Cursor != snapshot.Cursor):

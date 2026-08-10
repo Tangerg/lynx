@@ -109,6 +109,30 @@ func TestTextStreamsAssistantProseAsItArrives(t *testing.T) {
 	}
 }
 
+func TestTextRoutesInterleavedAssistantDeltasWithoutDuplicatingCompletion(t *testing.T) {
+	var buf bytes.Buffer
+	text := NewText(&buf)
+	for _, event := range []client.Event{
+		client.BlockStarted{Block: client.Block{ID: "first", Kind: client.BlockAssistant}},
+		client.BlockDelta{BlockID: "first", Text: "FIRST_PART"},
+		client.BlockStarted{Block: client.Block{ID: "second", Kind: client.BlockAssistant}},
+		client.BlockDelta{BlockID: "second", Text: "SECOND_PART"},
+		client.BlockDelta{BlockID: "first", Text: "FIRST_TAIL"},
+		client.BlockCompleted{Block: client.Block{ID: "first", Kind: client.BlockAssistant, Text: "FIRST_PARTFIRST_TAIL"}},
+		client.BlockCompleted{Block: client.Block{ID: "second", Kind: client.BlockAssistant, Text: "SECOND_PART"}},
+	} {
+		if err := text.Render(envelope(event)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	got := buf.String()
+	for _, fragment := range []string{"FIRST_PART", "FIRST_TAIL", "SECOND_PART"} {
+		if count := strings.Count(got, fragment); count != 1 {
+			t.Fatalf("fragment %q appears %d times in %q", fragment, count, got)
+		}
+	}
+}
+
 func TestTextHoldsNonProseUntilItsBlockCompletes(t *testing.T) {
 	var buf bytes.Buffer
 	text := NewText(&buf)

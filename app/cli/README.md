@@ -14,8 +14,12 @@ go run . run "explain why this test is flaky"
 go run . run --json "summarize the change" > run.ndjson
 go run . run -f internal/client/run.go "review this file"
 go run . sessions ls
+go run . sessions ls --json
+go run . approvals ls --json
 go run . config show
 ```
+
+`run --json` is an incremental NDJSON event stream; stdout stays machine-readable while diagnostics remain on stderr. Completed outcomes exit zero, failed or canceled outcomes exit non-zero, and a question leaves the run parked and prints the exact `--session` command needed to continue interactively. Process interruption uses the conventional exit status 130 for SIGINT and 143 for SIGTERM.
 
 The interactive client uses a stable agent shell: session and workspace identity at the top, selectable transcript content in the center, a compact live plan and run status near the bottom, and a framed multiline composer whose footer always shows the active model, effort, mode, and permission. Optional regions yield their space on constrained terminals; at extreme sizes the shell reduces to transcript, status, and a one-row composer, then restores the full chrome without losing the draft or keyboard focus. It supports session switching, search, attachments, approval questions, runtime-option pickers, tool details, plugin inspection, and plugin reload/unload. `lyra completion <bash|zsh|fish|powershell>` generates shell completion.
 
@@ -91,6 +95,7 @@ plugins:
 ```
 
 Run `lyra config show` to inspect the merged, validated value and `lyra config path` to identify the selected file.
+Configuration decoding is strict: unknown top-level or nested keys are rejected instead of silently falling back to defaults. Completion-script generation is configuration-independent, so a broken local file cannot prevent shell setup or repair.
 
 ## Sideloaded plugins
 

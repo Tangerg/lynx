@@ -21,7 +21,11 @@ type flagBinding struct {
 	flag string
 }
 
-var nestedFlagBindings = [...]flagBinding{
+var settingFlagBindings = [...]flagBinding{
+	{key: "model", flag: "model"},
+	{key: "effort", flag: "effort"},
+	{key: "mode", flag: "mode"},
+	{key: "permission", flag: "permission"},
 	{key: "ui.mouse", flag: "mouse"},
 	{key: "ui.notifications", flag: "notifications"},
 	{key: "ui.tool-details", flag: "tool-details"},
@@ -83,10 +87,7 @@ func loadConfig(v *viper.Viper, cmd *cobra.Command) error {
 			return fmt.Errorf("read configuration: %w", err)
 		}
 	}
-	if err := v.BindPFlags(cmd.Flags()); err != nil {
-		return fmt.Errorf("bind command flags: %w", err)
-	}
-	if err := bindNestedFlags(v, cmd); err != nil {
+	if err := bindSettingFlags(v, cmd); err != nil {
 		return err
 	}
 	_, err = readSettings(v)
@@ -117,8 +118,8 @@ func selectConfigSource(v *viper.Viper, explicitPath string) error {
 	return nil
 }
 
-func bindNestedFlags(v *viper.Viper, cmd *cobra.Command) error {
-	for _, binding := range nestedFlagBindings {
+func bindSettingFlags(v *viper.Viper, cmd *cobra.Command) error {
+	for _, binding := range settingFlagBindings {
 		flag := cmd.Flags().Lookup(binding.flag)
 		if flag == nil {
 			continue
@@ -132,7 +133,7 @@ func bindNestedFlags(v *viper.Viper, cmd *cobra.Command) error {
 
 func readSettings(v *viper.Viper) (settings.Config, error) {
 	var value settings.Config
-	if err := v.Unmarshal(&value); err != nil {
+	if err := v.UnmarshalExact(&value); err != nil {
 		return settings.Config{}, fmt.Errorf("decode configuration: %w", err)
 	}
 	if len(value.Plugins.Directories) == 0 {

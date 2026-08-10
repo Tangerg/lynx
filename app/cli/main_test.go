@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -99,6 +100,20 @@ func TestInteractiveBinaryReturnsTheTerminalIntact(t *testing.T) {
 				Name: "keyboard", On: "\x1b[>5u", Off: "\x1b[<u",
 			})
 		})
+	}
+}
+
+func TestProcessSignalExitCodes(t *testing.T) {
+	for _, test := range []struct {
+		signal os.Signal
+		want   int
+	}{
+		{signal: os.Interrupt, want: 130},
+		{signal: syscall.SIGTERM, want: 143},
+	} {
+		if got := (processSignalError{signal: test.signal}).ExitCode(); got != test.want {
+			t.Errorf("signal %s exit = %d, want %d", test.signal, got, test.want)
+		}
 	}
 }
 

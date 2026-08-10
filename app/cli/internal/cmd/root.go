@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -32,6 +33,8 @@ var version = "dev"
 // mockNotice tells the user, on stderr so stdout stays pipeable, that nothing
 // here talks to a real agent yet.
 const mockNotice = "lyra: scripted mock runtime — no backend is wired in yet"
+
+const configIndependentAnnotation = "lyra/config-independent"
 
 type runtimeFactory func(context.Context) (client.Runtime, error)
 
@@ -57,11 +60,33 @@ func (p runtimeProvider) Complete(cmd *cobra.Command) (client.Runtime, error) {
 
 // Execute runs the CLI and reports the process exit code.
 func Execute(ctx context.Context) int {
-	if err := NewRoot(nil).ExecuteContext(ctx); err != nil {
+	err := NewRoot(nil).ExecuteContext(ctx)
+	if err != nil {
 		// Cobra has already printed the error.
-		return 1
+		if errors.Is(err, context.Canceled) && context.Cause(ctx) != nil {
+			return exitCode(context.Cause(ctx))
+		}
+		return exitCode(err)
+	}
+	if context.Cause(ctx) != nil {
+		return exitCode(context.Cause(ctx))
 	}
 	return 0
+}
+
+type exitCoder interface {
+	error
+	ExitCode() int
+}
+
+func exitCode(err error) int {
+	if coded, ok := errors.AsType[exitCoder](err); ok {
+		return coded.ExitCode()
+	}
+	if errors.Is(err, context.Canceled) {
+		return 130
+	}
+	return 1
 }
 
 // NewRoot builds the command tree. A nil runtime installs the scripted mock,
@@ -83,7 +108,7 @@ func NewRoot(rt client.Runtime) *cobra.Command {
 func buildRoot(provider runtimeProvider) *cobra.Command {
 	v := viper.New()
 	root := &cobra.Command{
-		Use:   "lyra",
+		Use:   "lyra [prompt...]",
 		Short: "Terminal front end for the lyra agent runtime",
 		Long: "lyra drives an agent runtime from the terminal: an interactive session by\n" +
 			"default, and one-shot runs for scripts and pipelines.",
@@ -102,6 +127,9 @@ func buildRoot(provider runtimeProvider) *cobra.Command {
 		SilenceErrors: false,
 		Args:          cobra.ArbitraryArgs,
 		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
+			if cmd.Annotations[configIndependentAnnotation] == "true" {
+				return nil
+			}
 			return loadConfig(v, cmd)
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -171,14 +199,27 @@ func interactive(cmd *cobra.Command, args []string, provider runtimeProvider, va
 
 // workspace resolves the directory a session works in.
 func workspace(cmd *cobra.Command) (string, error) {
-	if cwd, _ := cmd.Flags().GetString("cwd"); cwd != "" {
-		return cwd, nil
+	cwd, _ := cmd.Flags().GetString("cwd")
+	if cwd == "" {
+		var err error
+		cwd, err = os.Getwd()
+		if err != nil {
+			return "", fmt.Errorf("resolve working directory: %w", err)
+		}
 	}
-	cwd, err := os.Getwd()
+	abs, err := filepath.Abs(cwd)
 	if err != nil {
-		return "", fmt.Errorf("resolve working directory: %w", err)
+		return "", fmt.Errorf("resolve workspace: %w", err)
 	}
-	return cwd, nil
+	abs = filepath.Clean(abs)
+	canonical, err := filepath.EvalSymlinks(abs)
+	if err == nil {
+		return canonical, nil
+	}
+	if !errors.Is(err, os.ErrNotExist) {
+		return "", fmt.Errorf("resolve workspace symlinks: %w", err)
+	}
+	return abs, nil
 }
 
 // sessionFor finds the session a command should run in: the one named, or a new
@@ -188,7 +229,14 @@ func sessionFor(ctx context.Context, rt interface {
 	client.SessionWriter
 }, id, ws string) (client.Session, error) {
 	if id == "" {
-		return rt.CreateSession(ctx, client.NewSession{Workspace: ws})
+		created, err := rt.CreateSession(ctx, client.NewSession{Workspace: ws})
+		if err != nil {
+			return client.Session{}, err
+		}
+		if err := created.Validate(); err != nil {
+			return client.Session{}, fmt.Errorf("create session: %w", err)
+		}
+		return created, nil
 	}
 	snapshot, err := rt.GetSession(ctx, id)
 	if err != nil {

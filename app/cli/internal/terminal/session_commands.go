@@ -18,7 +18,14 @@ func (a *app) ShowSessions() {
 	a.message("loading sessions")
 	runOperation(a, pickerCatalogOperation, true,
 		func(ctx context.Context) (client.SessionPage, error) {
-			return a.runtime.ListSessions(ctx, client.SessionQuery{Limit: 100})
+			page, err := a.runtime.ListSessions(ctx, client.SessionQuery{Limit: 100})
+			if err != nil {
+				return client.SessionPage{}, err
+			}
+			if err := page.Validate(); err != nil {
+				return client.SessionPage{}, fmt.Errorf("list sessions: %w", err)
+			}
+			return page, nil
 		},
 		func(page client.SessionPage, err error) {
 			if err != nil {
@@ -64,6 +71,12 @@ func (a *app) RenameSession(title string) {
 			return a.runtime.UpdateSession(ctx, client.UpdateSession{SessionID: sessionID, Title: title, Revision: latest.Session.Revision})
 		},
 		func(updated client.Session) error {
+			if err := updated.Validate(); err != nil {
+				return fmt.Errorf("rename session: %w", err)
+			}
+			if updated.ID != sessionID {
+				return fmt.Errorf("rename session: runtime returned session %s, want %s", updated.ID, sessionID)
+			}
 			a.session = updated
 			a.header.SetSession(updated)
 			a.loop.Session().SetTitle("lyra — " + displayTitle(updated))

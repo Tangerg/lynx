@@ -1,9 +1,9 @@
 // Package render writes a run's events out for a reader — a person at a
 // terminal, or a program on the other end of a pipe.
 //
-// Both renderers here are write-only and stateful in the same narrow way: they
-// remember which block is streaming so a delta can be placed. Neither keeps a
-// transcript. Holding the whole conversation in memory is the TUI's job.
+// Both renderers here are write-only. The text renderer remembers only the live
+// block identities needed to route deltas; neither renderer keeps a transcript.
+// Holding the whole conversation in memory is the TUI's job.
 package render
 
 import (
@@ -32,9 +32,9 @@ type Text struct {
 	w   io.Writer
 	err error
 
-	// streaming is the id of the assistant block currently being written
-	// straight through, empty when none is.
-	streaming string
+	// streaming contains assistant blocks whose deltas are written straight
+	// through. A map preserves correct routing if a runtime interleaves blocks.
+	streaming map[string]struct{}
 	// pending collects the bodies of blocks that print on completion.
 	pending map[string]*strings.Builder
 	// column tracks whether the cursor sits mid-line, so separators can be
@@ -44,7 +44,10 @@ type Text struct {
 
 // NewText builds a plain-text renderer over w.
 func NewText(w io.Writer) *Text {
-	return &Text{w: w, pending: make(map[string]*strings.Builder)}
+	return &Text{
+		w: w, streaming: make(map[string]struct{}),
+		pending: make(map[string]*strings.Builder),
+	}
 }
 
 // Render writes one event. The first error is remembered and returned by every
@@ -94,7 +97,7 @@ func (t *Text) begin(b client.Block) {
 	switch b.Kind {
 	case client.BlockAssistant:
 		t.blank()
-		t.streaming = b.ID
+		t.streaming[b.ID] = struct{}{}
 		t.write(b.Text)
 	case client.BlockReasoning, client.BlockTool, client.BlockUser, client.BlockNotice, client.BlockError:
 		body := &strings.Builder{}
@@ -104,7 +107,7 @@ func (t *Text) begin(b client.Block) {
 }
 
 func (t *Text) delta(d client.BlockDelta) {
-	if d.BlockID == t.streaming {
+	if _, streaming := t.streaming[d.BlockID]; streaming {
 		t.write(d.Text)
 		return
 	}
@@ -114,8 +117,8 @@ func (t *Text) delta(d client.BlockDelta) {
 }
 
 func (t *Text) finish(b client.Block) {
-	if b.ID == t.streaming {
-		t.streaming = ""
+	if _, streaming := t.streaming[b.ID]; streaming {
+		delete(t.streaming, b.ID)
 		t.endLine()
 		delete(t.pending, b.ID)
 		return

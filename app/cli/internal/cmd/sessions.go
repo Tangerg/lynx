@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
@@ -32,7 +33,10 @@ func newSessionsCommand(provider runtimeProvider) *cobra.Command {
 }
 
 func newSessionsListCommand(provider runtimeProvider) *cobra.Command {
-	var query client.SessionQuery
+	var (
+		query  client.SessionQuery
+		asJSON bool
+	)
 	cmd := &cobra.Command{
 		Use:          "ls",
 		Short:        "List sessions, most recently touched first",
@@ -47,6 +51,12 @@ func newSessionsListCommand(provider runtimeProvider) *cobra.Command {
 			page, err := runtime.ListSessions(cmd.Context(), query)
 			if err != nil {
 				return err
+			}
+			if err := page.Validate(); err != nil {
+				return fmt.Errorf("list sessions: %w", err)
+			}
+			if asJSON {
+				return writeSessionPageJSON(cmd, page)
 			}
 			w := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 0, 2, ' ', 0)
 			for _, session := range page.Items {
@@ -71,7 +81,32 @@ func newSessionsListCommand(provider runtimeProvider) *cobra.Command {
 	cmd.Flags().StringVar(&query.Cursor, "cursor", "", "Opaque cursor returned by the previous page")
 	cmd.Flags().StringVarP(&query.Search, "search", "q", "", "Search session titles and workspaces")
 	cmd.Flags().StringVar(&query.Workspace, "workspace", "", "Only sessions in this exact workspace")
+	cmd.Flags().BoolVar(&asJSON, "json", false, "Write the page as JSON")
 	return cmd
+}
+
+type sessionPageJSON struct {
+	Items      []sessionJSON `json:"items"`
+	NextCursor string        `json:"nextCursor,omitempty"`
+}
+
+type sessionJSON struct {
+	ID        string    `json:"id"`
+	Title     string    `json:"title"`
+	Workspace string    `json:"workspace"`
+	UpdatedAt time.Time `json:"updatedAt,omitzero"`
+	Revision  int64     `json:"revision"`
+}
+
+func writeSessionPageJSON(cmd *cobra.Command, page client.SessionPage) error {
+	output := sessionPageJSON{Items: make([]sessionJSON, 0, len(page.Items)), NextCursor: page.NextCursor}
+	for _, session := range page.Items {
+		output.Items = append(output.Items, sessionJSON{
+			ID: session.ID, Title: session.Title, Workspace: session.Workspace,
+			UpdatedAt: session.UpdatedAt, Revision: session.Revision,
+		})
+	}
+	return json.NewEncoder(cmd.OutOrStdout()).Encode(output)
 }
 
 func newSessionsShowCommand(provider runtimeProvider) *cobra.Command {
@@ -93,23 +128,28 @@ func newSessionsShowCommand(provider runtimeProvider) *cobra.Command {
 			if err := snapshot.Validate(); err != nil {
 				return fmt.Errorf("show session: %w", err)
 			}
-			var output renderer = render.NewText(cmd.OutOrStdout())
-			if asJSON {
-				output = render.NewJSON(cmd.OutOrStdout())
-			} else if _, err := fmt.Fprintf(cmd.OutOrStdout(), "%s · %s\n", snapshot.Session.Title, snapshot.Session.Workspace); err != nil {
-				return err
-			}
-			for _, envelope := range snapshot.Events {
-				if err := output.Render(envelope); err != nil {
-					return err
-				}
-			}
-			return output.Close()
+			return writeSessionSnapshot(cmd, snapshot, asJSON)
 		},
 	}
 	cmd.Flags().BoolVar(&asJSON, "json", false, "Write newline-delimited event JSON")
 	cmd.ValidArgsFunction = completeSessionIDs(provider)
 	return cmd
+}
+
+func writeSessionSnapshot(cmd *cobra.Command, snapshot client.SessionSnapshot, asJSON bool) (writeErr error) {
+	var output renderer = render.NewText(cmd.OutOrStdout())
+	if asJSON {
+		output = render.NewJSON(cmd.OutOrStdout())
+	} else if _, err := fmt.Fprintf(cmd.OutOrStdout(), "%s · %s\n", snapshot.Session.Title, snapshot.Session.Workspace); err != nil {
+		return err
+	}
+	defer func() { writeErr = errors.Join(writeErr, output.Close()) }()
+	for _, envelope := range snapshot.Events {
+		if err := output.Render(envelope); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func newSessionsRenameCommand(provider runtimeProvider) *cobra.Command {
@@ -127,6 +167,12 @@ func newSessionsRenameCommand(provider runtimeProvider) *cobra.Command {
 			updated, err := runtime.UpdateSession(cmd.Context(), client.UpdateSession{SessionID: args[0], Title: args[1], Revision: revision})
 			if err != nil {
 				return err
+			}
+			if err := updated.Validate(); err != nil {
+				return fmt.Errorf("rename session: %w", err)
+			}
+			if updated.ID != args[0] {
+				return fmt.Errorf("rename session: runtime returned session %s, want %s", updated.ID, args[0])
 			}
 			_, err = fmt.Fprintf(cmd.OutOrStdout(), "%s\t%d\t%s\n", updated.ID, updated.Revision, updated.Title)
 			return err
@@ -155,6 +201,9 @@ func newSessionsForkCommand(provider runtimeProvider) *cobra.Command {
 			forked, err := runtime.ForkSession(cmd.Context(), client.ForkSession{SessionID: args[0], At: client.Cursor(at), Title: title})
 			if err != nil {
 				return err
+			}
+			if err := forked.Validate(); err != nil {
+				return fmt.Errorf("fork session: %w", err)
 			}
 			_, err = fmt.Fprintln(cmd.OutOrStdout(), forked.ID)
 			return err
@@ -216,6 +265,9 @@ func completeSessionIDs(provider runtimeProvider) cobra.CompletionFunc {
 		}
 		page, err := runtime.ListSessions(cmd.Context(), client.SessionQuery{Limit: 100, Search: toComplete})
 		if err != nil {
+			return nil, cobra.ShellCompDirectiveError
+		}
+		if err := page.Validate(); err != nil {
 			return nil, cobra.ShellCompDirectiveError
 		}
 		items := make([]string, 0, len(page.Items))

@@ -50,6 +50,12 @@ func (a *app) startRun(message client.Message, status string) bool {
 		if err != nil {
 			return subscription{}, err
 		}
+		if err := run.Validate(); err != nil {
+			return subscription{}, fmt.Errorf("start run response: %w", err)
+		}
+		if run.SessionID != input.SessionID {
+			return subscription{}, fmt.Errorf("start run response: run belongs to session %s, want %s", run.SessionID, input.SessionID)
+		}
 		return subscription{runID: run.ID, after: run.StartedAfter}, nil
 	})
 	return true

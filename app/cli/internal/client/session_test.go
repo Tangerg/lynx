@@ -6,6 +6,32 @@ import (
 	"testing"
 )
 
+func TestSessionAndPageValidationRejectMalformedRuntimeProjections(t *testing.T) {
+	valid := Session{ID: "session_1", Workspace: "/workspace", Revision: 2}
+	if err := valid.Validate(); err != nil {
+		t.Fatalf("valid session: %v", err)
+	}
+	for name, session := range map[string]Session{
+		"missing id":        {Workspace: "/workspace"},
+		"missing workspace": {ID: "session_1"},
+		"negative revision": {ID: "session_1", Workspace: "/workspace", Revision: -1},
+	} {
+		t.Run(name, func(t *testing.T) {
+			if err := session.Validate(); err == nil {
+				t.Fatal("malformed session was accepted")
+			}
+		})
+	}
+	if err := (SessionPage{Items: []Session{valid, valid}}).Validate(); err == nil || !strings.Contains(err.Error(), "repeats") {
+		t.Fatalf("duplicate page error = %v", err)
+	}
+	invalid := valid
+	invalid.Workspace = ""
+	if err := (SessionPage{Items: []Session{invalid}}).Validate(); err == nil || !strings.Contains(err.Error(), "item 1") {
+		t.Fatalf("invalid page error = %v", err)
+	}
+}
+
 func TestSessionSnapshotValidatesAggregateAndActiveRunTogether(t *testing.T) {
 	events := []Envelope{
 		snapshotEnvelope(1, RunStarted{RunID: "run_1", SessionID: "session_1"}),

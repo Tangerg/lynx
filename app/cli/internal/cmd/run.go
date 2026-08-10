@@ -36,8 +36,9 @@ func newRunCommand(provider runtimeProvider, v *viper.Viper) *cobra.Command {
 			"writes what happens as it happens, and exits when the run ends.\n\n" +
 			"Anything piped in is appended to the prompt. --file attaches a local file as\n" +
 			"typed context and can be repeated; attachment-only turns are valid.\n\n" +
-			"A run that needs approval stops and says so. --approve-all answers yes to every\n" +
-			"request instead, which is the only way an unattended run gets past one.",
+			"An unattended run denies approval requests by default and continues with that\n" +
+			"answer. --approve-all answers yes instead. Questions leave the run parked and\n" +
+			"name the session to continue interactively.",
 		Args:         cobra.ArbitraryArgs,
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -174,11 +175,24 @@ func follow(ctx context.Context, rt client.Runtime, out renderer, start client.S
 	if err != nil {
 		return err
 	}
-	finished, err := driveRun(ctx, rt, out, start, run, approveAll, policy)
-	if finished {
+	if err := validateStartedRun(run, start.SessionID); err != nil {
+		return err
+	}
+	disposition, err := driveRun(ctx, rt, out, start, run, approveAll, policy)
+	if disposition.preservesRun() {
 		cancelOnExit = false
 	}
 	return err
+}
+
+func validateStartedRun(run client.Run, sessionID string) error {
+	if err := run.Validate(); err != nil {
+		return fmt.Errorf("start run response: %w", err)
+	}
+	if run.SessionID != sessionID {
+		return fmt.Errorf("start run response: run belongs to session %s, want %s", run.SessionID, sessionID)
+	}
+	return nil
 }
 
 func ensureRequestID(start *client.StartRun) error {
@@ -232,6 +246,18 @@ func (g *runCancelGuard) Close(cancel bool) {
 	<-g.done
 }
 
+type driveDisposition uint8
+
+const (
+	driveAbandoned driveDisposition = iota
+	driveSettled
+	driveParked
+)
+
+func (d driveDisposition) preservesRun() bool {
+	return d == driveSettled || d == driveParked
+}
+
 func driveRun(
 	ctx context.Context,
 	rt client.Runtime,
@@ -240,7 +266,7 @@ func driveRun(
 	run client.Run,
 	approveAll bool,
 	policy reconnect.Policy,
-) (bool, error) {
+) (driveDisposition, error) {
 	conversation := client.NewConversationAt(run.StartedAfter)
 	failures := 0
 	for {
@@ -248,21 +274,24 @@ func driveRun(
 		stream, err := rt.FollowRun(ctx, client.FollowRun{RunID: run.ID, After: before})
 		if err != nil {
 			if retryErr := waitToReconnect(ctx, policy, &failures, false, err); retryErr != nil {
-				return false, retryErr
+				return driveAbandoned, retryErr
 			}
 			continue
 		}
 		if stream == nil {
-			return false, errors.New("runtime returned a nil event stream")
+			return driveAbandoned, errors.New("runtime returned a nil event stream")
 		}
 		state := consumeSubscription(stream, conversation, out)
 		progressed := conversation.Cursor() > before
-		if state.finished {
-			return true, nil
+		if state.outcome != nil {
+			return driveSettled, outcomeError(*state.outcome)
 		}
 		if state.interrupted != nil {
 			if err := resumeUnattended(ctx, rt, policy, run.ID, start.SessionID, state.interrupted, approveAll); err != nil {
-				return false, err
+				if _, required := errors.AsType[*interactionRequiredError](err); required {
+					return driveParked, err
+				}
+				return driveAbandoned, err
 			}
 			failures = 0
 			continue
@@ -271,14 +300,14 @@ func driveRun(
 			state.err = fmt.Errorf("%w: runtime subscription ended without interrupting or finishing the run", client.ErrDisconnected)
 		}
 		if retryErr := waitToReconnect(ctx, policy, &failures, progressed, state.err); retryErr != nil {
-			return false, retryErr
+			return driveAbandoned, retryErr
 		}
 	}
 }
 
 type subscriptionState struct {
 	interrupted client.Interaction
-	finished    bool
+	outcome     *client.Outcome
 	err         error
 }
 
@@ -305,11 +334,28 @@ func consumeSubscription(stream client.Stream, conversation *client.Conversation
 		case client.RunInterrupted:
 			state.interrupted = event.Interaction
 		case client.RunFinished:
-			state.finished = true
+			outcome := event.Outcome
+			state.outcome = &outcome
 		default:
 		}
 	}
 	return state
+}
+
+type runOutcomeError struct{ outcome client.Outcome }
+
+func (e *runOutcomeError) Error() string {
+	if e.outcome.Status == client.OutcomeFailed {
+		return "run failed: " + e.outcome.Error
+	}
+	return "run " + string(e.outcome.Status)
+}
+
+func outcomeError(outcome client.Outcome) error {
+	if outcome.Status == client.OutcomeCompleted {
+		return nil
+	}
+	return &runOutcomeError{outcome: outcome}
 }
 
 func resumeUnattended(
@@ -358,10 +404,19 @@ func unattendedAnswer(interaction client.Interaction, approveAll bool, sessionID
 	case client.Approval:
 		return decide(approveAll), item.InterruptID, nil
 	case client.Question:
-		return nil, item.InterruptID, fmt.Errorf("run needs answers to %q; continue it interactively with --session %s", item.Title, sessionID)
+		return nil, item.InterruptID, &interactionRequiredError{title: item.Title, sessionID: sessionID}
 	default:
 		return nil, "", errors.New("runtime returned an unknown interaction")
 	}
+}
+
+type interactionRequiredError struct {
+	title     string
+	sessionID string
+}
+
+func (e *interactionRequiredError) Error() string {
+	return fmt.Sprintf("run needs answers to %q; continue it interactively with --session %s", e.title, e.sessionID)
 }
 
 // prompt assembles the prompt from arguments and anything piped in.

@@ -3,6 +3,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
@@ -15,7 +16,47 @@ func main() {
 }
 
 func run() int {
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	ctx, stop := processSignalContext(context.Background())
 	defer stop()
 	return cmd.Execute(ctx)
+}
+
+type processSignalError struct{ signal os.Signal }
+
+func (e processSignalError) Error() string { return fmt.Sprintf("terminated by %s", e.signal) }
+
+func (e processSignalError) Unwrap() error { return context.Canceled }
+
+func (e processSignalError) ExitCode() int {
+	switch e.signal {
+	case os.Interrupt:
+		return 130
+	case syscall.SIGTERM:
+		return 143
+	default:
+		return 1
+	}
+}
+
+func processSignalContext(parent context.Context) (context.Context, func()) {
+	ctx, cancel := context.WithCancelCause(parent)
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, os.Interrupt, syscall.SIGTERM)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		select {
+		case received := <-signals:
+			// Restore the default handler after the first request so a second signal
+			// can still terminate a process whose graceful shutdown is stuck.
+			signal.Stop(signals)
+			cancel(processSignalError{signal: received})
+		case <-ctx.Done():
+		}
+	}()
+	return ctx, func() {
+		signal.Stop(signals)
+		cancel(context.Canceled)
+		<-done
+	}
 }
