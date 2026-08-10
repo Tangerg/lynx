@@ -67,6 +67,7 @@ type recordingRuntime struct {
 
 	mu     sync.Mutex
 	last   client.StartRun
+	inputs []client.StartRun
 	starts int
 }
 
@@ -187,7 +188,8 @@ func (r *ambiguousControlRuntime) counts() (int, int) {
 
 func (r *recordingRuntime) StartRun(ctx context.Context, input client.StartRun) (client.Run, error) {
 	r.mu.Lock()
-	r.last = input
+	r.last = cloneStartRun(input)
+	r.inputs = append(r.inputs, cloneStartRun(input))
 	r.starts++
 	r.mu.Unlock()
 	return r.Runtime.StartRun(ctx, input)
@@ -209,6 +211,21 @@ func (r *recordingRuntime) startInput() client.StartRun {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	input := r.last
+	input.Message = cloneMessage(input.Message)
+	return input
+}
+
+func (r *recordingRuntime) startInputs() []client.StartRun {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	inputs := make([]client.StartRun, len(r.inputs))
+	for index, input := range r.inputs {
+		inputs[index] = cloneStartRun(input)
+	}
+	return inputs
+}
+
+func cloneStartRun(input client.StartRun) client.StartRun {
 	input.Message = cloneMessage(input.Message)
 	return input
 }

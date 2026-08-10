@@ -21,6 +21,7 @@ func newShellView(
 	header *sessionHeader,
 	transcript *conversationView,
 	activity *activityView,
+	queue *queueView,
 	status *statusView,
 	prompt *promptView,
 ) *shellView {
@@ -28,6 +29,7 @@ func newShellView(
 		headless.Item{Key: "header", Size: layout.Measured(0, 2), Of: headless.Static{Of: header}},
 		headless.Item{Key: transcriptPaneKey, Size: layout.Flex(1), Of: transcript},
 		headless.Item{Key: "activity", Size: layout.Measured(0, activityMaxRows), Of: headless.Static{Of: activity}},
+		headless.Item{Key: "queue", Size: layout.Measured(0, queueMaxRows), Of: headless.Static{Of: queue}},
 		headless.Item{Key: "status", Size: layout.Fixed(1), Of: headless.Static{Of: status}},
 		headless.Item{Key: promptPaneKey, Size: layout.Measured(4, 9), Of: prompt},
 	)

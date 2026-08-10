@@ -18,6 +18,7 @@ import (
 	"github.com/Tangerg/lynx/app/cli/internal/attachment"
 	"github.com/Tangerg/lynx/app/cli/internal/client"
 	"github.com/Tangerg/lynx/app/cli/internal/extensions"
+	"github.com/Tangerg/lynx/app/cli/internal/promptqueue"
 	"github.com/Tangerg/lynx/app/cli/internal/settings"
 )
 
@@ -39,6 +40,7 @@ const (
 	scrollPageDown  keymap.Action = settings.ActionScrollPageDown
 	scrollTop       keymap.Action = settings.ActionScrollTop
 	scrollBottom    keymap.Action = settings.ActionScrollBottom
+	queueFollowUp   keymap.Action = "queue-follow-up"
 )
 
 type app struct {
@@ -55,6 +57,7 @@ type app struct {
 	transcript *conversationView
 	header     *sessionHeader
 	activity   *activityView
+	queueView  *queueView
 	status     *statusView
 	settings   settings.Config
 	options    client.RunOptions
@@ -64,6 +67,7 @@ type app struct {
 	completion headless.Completion
 	shell      *shellView
 	stack      headless.Stack
+	queue      *promptqueue.Store
 
 	review             *client.Approval
 	reviewChoice       string
@@ -92,14 +96,15 @@ type app struct {
 	commandOperations  map[uint64]commandOperation
 	confirmation       pressConfirmation
 
-	streamSeq     uint64
-	startRequest  string
-	pendingCancel *client.CancelRun
-	following     bool
-	stopClock     func()
-	started       time.Time
-	closed        bool
-	syntax        highlight.Style
+	streamSeq             uint64
+	dispatchingQueueEntry uint64
+	startRequest          string
+	pendingCancel         *client.CancelRun
+	following             bool
+	stopClock             func()
+	started               time.Time
+	closed                bool
+	syntax                highlight.Style
 }
 
 type appConfig struct {
@@ -113,6 +118,7 @@ type appConfig struct {
 	InitialPrompt string
 	Settings      settings.Config
 	Keys          *keymap.Map
+	Queue         *promptqueue.Store
 }
 
 func newApp(loop *program.InlineRuntime, cfg appConfig) *app {
@@ -131,7 +137,9 @@ func newApp(loop *program.InlineRuntime, cfg appConfig) *app {
 		transcript:         newConversationView(theme, glyphs, loop.Environment().Wheel(), syntax, cfg.Settings.UI.TranscriptRetain, cfg.Settings.UI.ToolDetails, loop.Clipboard()),
 		header:             newSessionHeader(theme, glyphs, cfg.Snapshot.Session),
 		activity:           newActivityView(theme, glyphs),
+		queueView:          newQueueView(theme, glyphs),
 		status:             newStatusView(theme, glyphs, cfg.Settings.RunOptions()),
+		queue:              cfg.Queue,
 		settings:           cfg.Settings.Clone(),
 		options:            cfg.Settings.RunOptions(),
 		syntax:             syntax,
@@ -168,7 +176,7 @@ func newApp(loop *program.InlineRuntime, cfg appConfig) *app {
 	a.registerCommands()
 
 	a.prompt = newPromptView(theme, glyphs, cfg.Keys, &a.composer, a.options)
-	a.shell = newShellView(a.header, a.transcript, a.activity, a.status, a.prompt)
+	a.shell = newShellView(a.header, a.transcript, a.activity, a.queueView, a.status, a.prompt)
 	a.wireTranscript(a.transcript)
 	a.shell.Focus(true)
 	a.stack.SetBase(a.shell)
@@ -551,12 +559,8 @@ func (a *app) submit() {
 		a.runCommand(name, arg)
 		return
 	}
-	if a.state.Busy() || a.following {
-		a.message("finish or cancel the current run first")
-		return
-	}
-	if a.pendingCancel != nil {
-		a.message("wait for runtime cancellation to finish")
+	if a.state.Busy() || a.following || a.pendingCancel != nil {
+		a.enqueueFollowUp(message)
 		return
 	}
 	if a.operations.Active(sessionChangeOperation) {
@@ -570,7 +574,7 @@ func (a *app) submit() {
 	a.resetComposer()
 	a.operations.Cancel(completionOperation)
 	a.completion.Dismiss()
-	a.start(message)
+	a.startRun(message, "starting run")
 }
 
 func (a *app) message(label string) {

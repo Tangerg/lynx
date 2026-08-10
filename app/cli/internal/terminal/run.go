@@ -16,6 +16,7 @@ import (
 	"github.com/Tangerg/lynx/app/cli/internal/attachment"
 	"github.com/Tangerg/lynx/app/cli/internal/client"
 	"github.com/Tangerg/lynx/app/cli/internal/extensions"
+	"github.com/Tangerg/lynx/app/cli/internal/promptqueue"
 	"github.com/Tangerg/lynx/app/cli/internal/settings"
 )
 
@@ -62,13 +63,14 @@ func Run(ctx context.Context, cfg Config) (runErr error) {
 	}
 
 	var active *app
+	queue := promptqueue.New()
 	err = program.Run(ctx, program.Config{
 		Inline: func(loop *program.InlineRuntime) program.Component {
 			active = newApp(loop, appConfig{
 				Context: ctx, Runtime: cfg.Runtime, Snapshot: prepared.opened,
 				Registry: registry, Plugins: kernel, PluginIssues: discovered.Issues,
 				Attachments: prepared.attachments, InitialPrompt: cfg.InitialPrompt,
-				Settings: prepared.settings, Keys: prepared.keys,
+				Settings: prepared.settings, Keys: prepared.keys, Queue: queue,
 			})
 			return headless.NewRoot(active)
 		},

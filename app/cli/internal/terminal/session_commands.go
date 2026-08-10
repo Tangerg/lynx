@@ -158,6 +158,7 @@ func (a *app) installSnapshot(snapshot client.SessionSnapshot) error {
 	a.completion.Dismiss()
 	previousTranscript := a.transcript
 	a.session = snapshot.Session
+	a.dispatchingQueueEntry = 0
 	a.state = next
 	a.attachments = attachments
 	a.transcript = nextTranscript
@@ -170,6 +171,7 @@ func (a *app) installSnapshot(snapshot client.SessionSnapshot) error {
 	a.prompt.SetOptions(a.options)
 	a.prompt.SetBusy(next.Busy())
 	a.shell.SetTranscript(nextTranscript)
+	a.syncQueue()
 	previousTranscript.Close()
 	a.listenForSearch()
 	a.loop.Session().SetTitle("lyra — " + displayTitle(snapshot.Session))

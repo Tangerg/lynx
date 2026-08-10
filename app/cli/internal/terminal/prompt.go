@@ -16,6 +16,7 @@ type promptView struct {
 	help              kit.Help
 	rows              *headless.Container
 	keys              *keymap.Map
+	busyKeys          *keymap.Map
 	busy              bool
 	transcriptFocused bool
 	selection         transcriptSelection
@@ -33,10 +34,11 @@ func newPromptView(
 	panel.Box.Padding = layout.Symmetric(0, 1)
 	panel.Box.FooterAlign = layout.End
 	p := &promptView{
-		theme: theme,
-		panel: panel,
-		help:  kit.Help{Theme: theme, Keys: keys, Separator: "  " + glyphs.Vertical + "  "},
-		keys:  keys,
+		theme:    theme,
+		panel:    panel,
+		help:     kit.Help{Theme: theme, Keys: keys, Separator: "  " + glyphs.Vertical + "  "},
+		keys:     keys,
+		busyKeys: remapHelpAction(keys, sendPrompt, queueFollowUp),
 	}
 	p.rows = headless.Rows(
 		headless.Item{Key: "field", Size: layout.Measured(3, 8), Of: panel},
@@ -87,6 +89,7 @@ func (p *promptView) SetTranscriptKeys(keys *keymap.Map) {
 }
 
 func (p *promptView) refreshHelp() {
+	p.help.Keys = p.keys
 	if p.transcriptFocused {
 		p.help.Keys = p.transcriptKeys
 		if !p.selection.Present {
@@ -105,10 +108,22 @@ func (p *promptView) refreshHelp() {
 		p.help.Show = append(p.help.Show, headless.Copy)
 		return
 	}
-	p.help.Keys = p.keys
 	if p.busy {
-		p.help.Show = []keymap.Action{cancelRun, insertNewline, toggleDetails, commandPalette}
+		p.help.Keys = p.busyKeys
+		p.help.Show = []keymap.Action{queueFollowUp, cancelRun, insertNewline, toggleDetails}
 		return
 	}
 	p.help.Show = []keymap.Action{sendPrompt, insertNewline, commandPalette, showSessions, cycleMode}
+}
+
+func remapHelpAction(keys *keymap.Map, from, to keymap.Action) *keymap.Map {
+	remapped := &keymap.Map{}
+	for _, binding := range keys.Bindings() {
+		action := binding.Action
+		if action == from {
+			action = to
+		}
+		remapped.Bind(action, binding.Keys...)
+	}
+	return remapped
 }

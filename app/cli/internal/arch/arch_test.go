@@ -31,6 +31,7 @@ var layers = []struct {
 	{"internal/sideload/", "sideload"},
 	{"internal/terminal/", "terminal"},
 	{"internal/attachment/", "attachment"},
+	{"internal/promptqueue/", "promptqueue"},
 	{"internal/reconnect/", "reconnect"},
 	{"internal/requestid/", "requestid"},
 	{"internal/client/", "client"},
@@ -45,10 +46,11 @@ var layers = []struct {
 // dependency fail closed instead of silently weakening the architecture.
 var allowed = map[string][]string{
 	// Domain policy and generic infrastructure are the center.
-	"client":     nil,
-	"settings":   {"client"},
-	"requestid":  nil,
-	"extensions": nil,
+	"client":      nil,
+	"settings":    {"client"},
+	"requestid":   nil,
+	"extensions":  nil,
+	"promptqueue": {"client"},
 
 	// Outbound adapters share domain contracts, not one another.
 	"attachment": {"client"},
@@ -58,7 +60,7 @@ var allowed = map[string][]string{
 
 	// Delivery adapters compose inward abstractions. Sideloading is the outer trust
 	// boundary around terminal contributions; cmd is the application composition root.
-	"terminal": {"attachment", "client", "extensions", "reconnect", "requestid", "settings"},
+	"terminal": {"attachment", "client", "extensions", "promptqueue", "reconnect", "requestid", "settings"},
 	"sideload": {"extensions", "terminal"},
 	"cmd":      {"attachment", "client", "extensions", "mock", "reconnect", "render", "requestid", "settings", "sideload", "terminal"},
 	"arch":     nil,
@@ -120,7 +122,7 @@ func TestTheLibraryStaysALibrary(t *testing.T) {
 	root := moduleRoot(t)
 	fset := token.NewFileSet()
 
-	terminalFree := []string{"client", "settings", "mock", "attachment", "reconnect", "requestid", "extensions", "render"}
+	terminalFree := []string{"client", "settings", "mock", "attachment", "promptqueue", "reconnect", "requestid", "extensions", "render"}
 	walk(t, root, func(dir, path string) {
 		layer := layerOf(dir)
 		if !slices.Contains(terminalFree, layer) {
@@ -150,6 +152,7 @@ func TestTheRulesWouldActuallyRefuseSomething(t *testing.T) {
 		{"internal/reconnect", "internal/cmd", true},
 		{"internal/requestid", "internal/client", true},
 		{"internal/settings", "internal/terminal", true},
+		{"internal/promptqueue", "internal/terminal", true},
 		{"internal/render", "internal/terminal", true},
 		{"internal/terminal", "internal/cmd", true},
 		{"internal/sideload", "internal/cmd", true},
@@ -164,6 +167,7 @@ func TestTheRulesWouldActuallyRefuseSomething(t *testing.T) {
 		{"internal/reconnect", "internal/client", false},
 		{"internal/cmd", "internal/requestid", false},
 		{"internal/settings", "internal/client", false},
+		{"internal/promptqueue", "internal/client", false},
 	} {
 		from, to := layerOf(tc.from), layerOf(tc.to)
 		if from == "" {

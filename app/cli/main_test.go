@@ -44,7 +44,13 @@ func TestInteractiveBinaryReturnsTheTerminalIntact(t *testing.T) {
 	if err := session.Transcript().WaitWithin(settle, "Ask lyra"); err != nil {
 		t.Fatal(err)
 	}
-	if err := session.Type("\x03"); err != nil {
+	if err := session.Type("\x11"); err != nil {
+		t.Fatal(err)
+	}
+	if err := session.Transcript().WaitWithin(settle, "press ctrl+q again to quit"); err != nil {
+		t.Fatal(err)
+	}
+	if err := session.Type("\x11"); err != nil {
 		t.Fatal(err)
 	}
 	ctx, cancel := context.WithTimeout(t.Context(), settle)

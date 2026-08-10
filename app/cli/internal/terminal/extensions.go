@@ -102,6 +102,7 @@ func builtinCommands() []localCommand {
 		{Name: "permissions", Title: "choose the permission mode", Aliases: []string{"permission"}, Run: func(a *app, _ string) error { a.ChoosePermission(); return nil }},
 		{Name: "effort", Title: "set reasoning effort", Takes: true, Run: func(a *app, value string) error { a.SetEffort(value); return nil }},
 		{Name: "status", Title: "show model, mode, permission, and effort", Run: func(a *app, _ string) error { a.ShowRuntimeStatus(); return nil }},
+		{Name: "queue", Title: "show follow-ups waiting behind the current run", Run: func(a *app, _ string) error { a.ShowQueue(); return nil }},
 		{Name: "rules", Title: "show remembered approval rules", Run: func(a *app, _ string) error { a.ShowApprovalRules(); return nil }},
 		{Name: "attach", Title: "attach a local file to the next prompt", Takes: true, Run: func(a *app, path string) error { return a.AttachFile(path) }},
 		{Name: "detach", Title: "remove an attachment by name, number, or all", Takes: true, Run: func(a *app, value string) error { return a.DetachFile(value) }},

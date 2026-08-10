@@ -100,7 +100,7 @@ func TestPromptMovesRunOptionsIntoTheFrameAndChangesContext(t *testing.T) {
 
 	prompt.SetBusy(true)
 	busy := drawRoot(t, prompt, 120, prompt.Measure(120))
-	for _, want := range []string{"ctrl+c", "shift+enter", "ctrl+o", "ctrl+p"} {
+	for _, want := range []string{"enter", "queue follow up", "ctrl+c", "shift+enter", "ctrl+o"} {
 		if !strings.Contains(busy, want) {
 			t.Errorf("busy prompt does not contain %q:\n%s", want, busy)
 		}
@@ -123,7 +123,7 @@ func TestShellRendersAtSupportedAndConstrainedTerminalSizes(t *testing.T) {
 	status := newStatusView(theme, glyphs, settings.Default().RunOptions())
 	composer := kit.Composer{Theme: theme, Prompt: glyphs.Marker + " ", MaxRows: 6}
 	prompt := newPromptView(theme, glyphs, keys, &composer, settings.Default().RunOptions())
-	shell := newShellView(header, transcript, activity, status, prompt)
+	shell := newShellView(header, transcript, activity, newQueueView(theme, glyphs), status, prompt)
 	shell.Focus(true)
 
 	for _, size := range []struct{ width, height int }{{96, 28}, {44, 18}, {20, 8}} {
@@ -148,7 +148,8 @@ func TestShellMovesFocusBetweenPromptAndTranscript(t *testing.T) {
 	prompt := newPromptView(theme, glyphs, keys, &composer, settings.Default().RunOptions())
 	shell := newShellView(
 		newSessionHeader(theme, glyphs, client.Session{}), transcript,
-		newActivityView(theme, glyphs), newStatusView(theme, glyphs, settings.Default().RunOptions()), prompt,
+		newActivityView(theme, glyphs), newQueueView(theme, glyphs),
+		newStatusView(theme, glyphs, settings.Default().RunOptions()), prompt,
 	)
 	prompt.SetTranscriptKeys(transcript.Keys())
 	transcript.OnFocusChange(prompt.SetTranscriptFocused)

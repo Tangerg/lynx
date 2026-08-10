@@ -21,7 +21,7 @@ The interactive client uses a stable agent shell: session and workspace identity
 
 Core terminal interactions are available from both the keyboard and mouse:
 
-- `Enter` sends a prompt; `Shift+Enter` or `Alt+Enter` inserts a newline.
+- `Enter` sends a prompt while idle and queues a follow-up while a run or its cancellation is still settling; queued prompts are session-scoped and drain in FIFO order only after the prior transport lifecycle finishes. The compact queue pane keeps the next item and total visible, and `/queue` writes a detached list into the transcript. `Shift+Enter` or `Alt+Enter` inserts a newline.
 - `Ctrl+C` is stateful: it clears a non-empty draft first and cancels the active run only when the composer is empty. `Esc` cancels an active run immediately without discarding the draft; while idle, two presses within 800ms clear a prompt and save it to history. Press `Ctrl+Q` or `Ctrl+D` twice to quit.
 - `Tab` moves keyboard focus from the composer into the transcript. `Up`/`Down` select one retained entry, `Home`/`End` jump to the edges, `Left`/`Right` collapse or expand the selected tool, `Enter` toggles it, and `Alt+C` copies the selected block. `Tab` or `Space` returns to the composer; typing printable text returns there automatically.
 - `PageUp` and `PageDown` move through the live transcript; `Ctrl+Home` and `Ctrl+End` jump to its bounds. Scrolling up suspends bottom-following while output continues.
@@ -37,7 +37,7 @@ The dependency direction follows clean architecture: product policy points inwar
 | Layer | Packages | Responsibility |
 | --- | --- | --- |
 | Domain and ports | `internal/client`, `internal/settings` | Validated session, run, event, interaction, approval, and configuration contracts. `client.Runtime` is the complete backend port; consumers use its narrower interfaces. |
-| Application orchestration | `internal/cmd`, `internal/reconnect` | Use-case sequencing, idempotent run control, reconnect policy, configuration precedence, and process exit behavior. |
+| Application orchestration | `internal/promptqueue`, `internal/cmd`, `internal/reconnect` | Session-scoped follow-up ownership, use-case sequencing, idempotent run control, reconnect policy, configuration precedence, and process exit behavior. |
 | Adapters | `internal/client/mock`, `internal/attachment`, `internal/render`, `internal/terminal`, `internal/sideload` | Scripted backend, workspace-safe files, text/NDJSON output, oolong terminal UI, and out-of-process plugins. |
 | Extension substrate | `internal/extensions` | Typed extension points, capability checks, dependency ordering, rollback, unload, and reload ownership. |
 | Composition root | `internal/cmd/root.go` | Constructs Cobra, Viper, the runtime adapter, plugin sources, and terminal application. |

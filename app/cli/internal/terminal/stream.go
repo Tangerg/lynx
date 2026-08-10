@@ -21,21 +21,21 @@ const (
 	controlTimeout = 5 * time.Second
 )
 
-func (a *app) start(message client.Message) {
+func (a *app) startRun(message client.Message, status string) bool {
 	requestID, err := requestid.New()
 	if err != nil {
 		a.fail(err)
-		return
+		return false
 	}
 	if err := a.state.Starting(); err != nil {
 		a.fail(err)
-		return
+		return false
 	}
 	a.transcript.Follow()
 	a.activity.Reset()
 	a.header.SetUsage(client.Usage{})
 	a.prompt.SetBusy(true)
-	a.status.active("starting run")
+	a.status.active(status)
 	a.started = time.Now()
 	a.startRequest = requestID
 	a.syncAnimation()
@@ -52,6 +52,7 @@ func (a *app) start(message client.Message) {
 		}
 		return subscription{runID: run.ID, after: run.StartedAfter}, nil
 	})
+	return true
 }
 
 type subscription struct {
@@ -287,6 +288,7 @@ func (a *app) apply(envelope client.Envelope) error {
 func (a *app) applyPresentationEvent(event client.Event) {
 	switch event := event.(type) {
 	case client.RunStarted:
+		a.commitQueuedDispatch()
 		a.startRequest = ""
 		a.status.active("working")
 	case client.BlockStarted:
@@ -335,6 +337,9 @@ func (a *app) finishFollowing() {
 	}
 	a.status.settled(a.state.Outcome(), a.state.Usage())
 	a.prompt.SetBusy(false)
+	if a.drainQueue() {
+		return
+	}
 	if a.settings.UI.Notifications {
 		a.loop.Session().Notify("lyra run completed")
 	}
@@ -346,6 +351,7 @@ func (a *app) fail(err error) {
 	}
 	a.following = false
 	a.startRequest = ""
+	a.releaseQueuedDispatch()
 	a.state.Failed(err)
 	a.transcript.Append(presentError(a.transcript.theme, err.Error()))
 	a.status.settled(a.state.Outcome(), a.state.Usage())
@@ -375,6 +381,7 @@ func (a *app) cancel() {
 	runID := a.state.RunID()
 	if runID == "" {
 		requestID := a.startRequest
+		a.discardQueuedDispatch()
 		a.dropStream()
 		a.following = false
 		a.startRequest = ""
@@ -410,6 +417,7 @@ func (a *app) cancelRuntime(target client.CancelRun) {
 					return
 				}
 				a.pendingCancel = nil
+				a.drainQueue()
 			}
 		})
 	})
