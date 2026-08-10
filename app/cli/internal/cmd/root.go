@@ -117,7 +117,9 @@ func buildRoot(provider runtimeProvider) *cobra.Command {
 			"  # One-shot run, output written for a person\n" +
 			"  lyra run \"why is TestCacheExpiry flaky?\"\n\n" +
 			"  # One-shot run, output written for a program\n" +
-			"  lyra run --json \"why is TestCacheExpiry flaky?\" > run.ndjson\n\n" +
+			"  lyra run --json \"why is TestCacheExpiry flaky?\" > result.json\n\n" +
+			"  # Stream every run event as newline-delimited JSON\n" +
+			"  lyra run --output-format streaming-json \"trace the flaky test\" > run.ndjson\n\n" +
 			"  # Feed a file in as context\n" +
 			"  cat cache_test.go | lyra run \"explain what this test is really waiting for\"\n\n" +
 			"  # List sessions\n" +

@@ -240,6 +240,87 @@ func TestJSONEmitsOneObjectPerEvent(t *testing.T) {
 	}
 }
 
+func TestResultJSONFoldsACompletedRunIntoOneObject(t *testing.T) {
+	var output bytes.Buffer
+	renderAll(t, NewResultJSON(&output), script())
+	var got resultFrame
+	if err := json.Unmarshal(output.Bytes(), &got); err != nil {
+		t.Fatalf("result is not JSON: %v\n%s", err, output.String())
+	}
+	if got.Type != "result" || got.Status != "completed" || got.RunID != "run_1" || got.SessionID != "ses_1" {
+		t.Fatalf("result identity = %+v", got)
+	}
+	if got.Text != "one two" || got.Outcome == nil || got.Outcome.Status != "completed" || got.Usage == nil || got.Usage.InputTokens != 12345 {
+		t.Fatalf("result payload = %+v", got)
+	}
+}
+
+func TestResultJSONFallsBackToStreamedTextAndRepresentsAnInterrupt(t *testing.T) {
+	var output bytes.Buffer
+	result := NewResultJSON(&output)
+	for _, event := range []client.Event{
+		client.RunStarted{RunID: "run_1", SessionID: "session_1"},
+		client.BlockStarted{Block: client.Block{ID: "answer", Kind: client.BlockAssistant}},
+		client.BlockDelta{BlockID: "answer", Text: "streamed answer"},
+		client.BlockCompleted{Block: client.Block{ID: "answer", Kind: client.BlockAssistant}},
+		client.RunInterrupted{Interaction: client.Question{
+			InterruptID: "question_1", Title: "Choose",
+			Fields: []client.QuestionField{{ID: "choice", Label: "Choice", Kind: client.QuestionText}},
+		}},
+	} {
+		if err := result.Render(envelope(event)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := result.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := result.Close(); err != nil {
+		t.Fatalf("second close: %v", err)
+	}
+	var got resultFrame
+	if err := json.Unmarshal(output.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Status != "interrupted" || got.Text != "streamed answer" || got.Interaction == nil || got.Interaction.Kind != "question" {
+		t.Fatalf("interrupted result = %+v", got)
+	}
+	if strings.Count(strings.TrimSpace(output.String()), "\n") != 0 {
+		t.Fatalf("idempotent close emitted more than one record: %q", output.String())
+	}
+}
+
+func TestResultJSONLeavesStdoutEmptyWhenRunNeverStarted(t *testing.T) {
+	var output bytes.Buffer
+	result := NewResultJSON(&output)
+	if err := result.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if output.Len() != 0 {
+		t.Fatalf("empty result wrote %q", output.String())
+	}
+}
+
+func TestResultJSONCanReportAnAcceptedRunBeforeEventsArrive(t *testing.T) {
+	var output bytes.Buffer
+	result := NewResultJSON(&output)
+	if err := result.Begin(client.Run{
+		ID: "run_1", SessionID: "session_1", Status: client.RunActive,
+	}, client.RunOptions{Model: "model_1", Effort: "high"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := result.Close(); err != nil {
+		t.Fatal(err)
+	}
+	var got resultFrame
+	if err := json.Unmarshal(output.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Status != "incomplete" || got.RunID != "run_1" || got.SessionID != "session_1" || got.Options == nil || got.Options.Model != "model_1" {
+		t.Fatalf("accepted result = %+v", got)
+	}
+}
+
 func TestJSONCarriesTheToolProjection(t *testing.T) {
 	got := renderJSONFrame(t, client.BlockCompleted{Block: client.Block{ID: "t", Kind: client.BlockTool, Tool: &client.ToolCall{
 		Kind: client.ToolEdit, Name: "provider.patch", Path: "a.go", Summary: "change a.go",

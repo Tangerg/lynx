@@ -11,7 +11,8 @@ From this directory:
 ```sh
 go run .
 go run . run "explain why this test is flaky"
-go run . run --json "summarize the change" > run.ndjson
+go run . run --json "summarize the change" > result.json
+go run . run --output-format streaming-json "trace the change" > run.ndjson
 go run . run -f internal/client/run.go "review this file"
 go run . sessions ls
 go run . sessions ls --json
@@ -19,7 +20,7 @@ go run . approvals ls --json
 go run . config show
 ```
 
-`run --json` is an incremental NDJSON event stream; stdout stays machine-readable while diagnostics remain on stderr. Completed outcomes exit zero, failed or canceled outcomes exit non-zero, and a question leaves the run parked and prints the exact `--session` command needed to continue interactively. Process interruption uses the conventional exit status 130 for SIGINT and 143 for SIGTERM.
+`run` supports `--output-format text`, `json`, and `streaming-json`; `--json` is the single-result JSON shorthand, while `streaming-json` is an incremental NDJSON event stream. A result object reports `completed`, `failed`, `canceled`, `interrupted`, or `incomplete` and includes authoritative assistant text plus run metadata. Stdout stays machine-readable while diagnostics remain on stderr. Completed outcomes exit zero, failed or canceled outcomes exit non-zero, and a question leaves the run parked and prints the exact `--session` command needed to continue interactively. Process interruption uses the conventional exit status 130 for SIGINT and 143 for SIGTERM.
 
 The interactive client uses a stable agent shell: session and workspace identity at the top, selectable transcript content in the center, a compact live plan and run status near the bottom, and a framed multiline composer whose footer always shows the active model, effort, mode, and permission. Optional regions yield their space on constrained terminals; at extreme sizes the shell reduces to transcript, status, and a one-row composer, then restores the full chrome without losing the draft or keyboard focus. It supports session switching, search, attachments, approval questions, runtime-option pickers, tool details, plugin inspection, and plugin reload/unload. `lyra completion <bash|zsh|fish|powershell>` generates shell completion.
 

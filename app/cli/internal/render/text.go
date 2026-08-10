@@ -1,9 +1,10 @@
 // Package render writes a run's events out for a reader — a person at a
 // terminal, or a program on the other end of a pipe.
 //
-// Both renderers here are write-only. The text renderer remembers only the live
-// block identities needed to route deltas; neither renderer keeps a transcript.
-// Holding the whole conversation in memory is the TUI's job.
+// The renderers here are write-only projections. Text remembers only the live
+// block identities needed to route deltas, JSON writes each event directly, and
+// ResultJSON retains only final assistant prose. None keeps a full transcript;
+// holding the whole conversation in memory is the TUI's job.
 package render
 
 import (

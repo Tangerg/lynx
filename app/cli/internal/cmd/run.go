@@ -27,13 +27,17 @@ type renderer interface {
 	Close() error
 }
 
+type resultInitializer interface {
+	Begin(client.Run, client.RunOptions) error
+}
+
 func newRunCommand(provider runtimeProvider, v *viper.Viper) *cobra.Command {
 	flags := new(runFlags)
 	cmd := &cobra.Command{
-		Use:   "run [prompt]",
+		Use:   "run [prompt...]",
 		Short: "Run one prompt to completion and exit",
 		Long: "run drives a single prompt without an interactive surface: it starts a run,\n" +
-			"writes what happens as it happens, and exits when the run ends.\n\n" +
+			"follows it to a terminal state, writes the selected output format, and exits.\n\n" +
 			"Anything piped in is appended to the prompt. --file attaches a local file as\n" +
 			"typed context and can be repeated; attachment-only turns are valid.\n\n" +
 			"An unattended run denies approval requests by default and continues with that\n" +
@@ -47,10 +51,12 @@ func newRunCommand(provider runtimeProvider, v *viper.Viper) *cobra.Command {
 	}
 	flags.register(cmd)
 	_ = cmd.RegisterFlagCompletionFunc("file", completeRunFile)
+	_ = cmd.RegisterFlagCompletionFunc("output-format", completeOutputFormat)
 	return cmd
 }
 
 type runFlags struct {
+	output     string
 	asJSON     bool
 	approveAll bool
 	sessionID  string
@@ -58,13 +64,18 @@ type runFlags struct {
 }
 
 func (f *runFlags) register(cmd *cobra.Command) {
-	cmd.Flags().BoolVar(&f.asJSON, "json", false, "Write newline-delimited JSON instead of text")
+	cmd.Flags().StringVar(&f.output, "output-format", "text", "Output format: text, json, or streaming-json")
+	cmd.Flags().BoolVar(&f.asJSON, "json", false, "Shorthand for --output-format json")
 	cmd.Flags().BoolVar(&f.approveAll, "approve-all", false, "Approve every request the run makes")
 	cmd.Flags().StringVarP(&f.sessionID, "session", "s", "", "Run inside an existing session instead of a new one")
 	cmd.Flags().StringArrayVarP(&f.files, "file", "f", nil, "Attach a local file (repeatable)")
 }
 
 func (f *runFlags) execute(cmd *cobra.Command, args []string, provider runtimeProvider, v *viper.Viper) error {
+	format, err := f.format(cmd)
+	if err != nil {
+		return err
+	}
 	value, err := readSettings(v)
 	if err != nil {
 		return err
@@ -85,9 +96,49 @@ func (f *runFlags) execute(cmd *cobra.Command, args []string, provider runtimePr
 	if err != nil {
 		return err
 	}
-	return follow(cmd.Context(), runtime, runRenderer(cmd, f.asJSON), client.StartRun{
+	return follow(cmd.Context(), runtime, runRenderer(cmd, format), client.StartRun{
 		SessionID: session.ID, Message: message, Options: value.RunOptions(),
 	}, f.approveAll, value.UI.ReconnectAttempts)
+}
+
+type outputFormat string
+
+const (
+	outputText          outputFormat = "text"
+	outputJSON          outputFormat = "json"
+	outputStreamingJSON outputFormat = "streaming-json"
+)
+
+func (f *runFlags) format(cmd *cobra.Command) (outputFormat, error) {
+	selected := outputFormat(f.output)
+	if f.asJSON {
+		if cmd.Flags().Changed("output-format") && selected != outputJSON {
+			return "", errors.New("--json conflicts with a non-JSON --output-format")
+		}
+		selected = outputJSON
+	}
+	switch selected {
+	case outputText, outputJSON, outputStreamingJSON:
+		return selected, nil
+	default:
+		return "", fmt.Errorf("unsupported output format %q (want text, json, or streaming-json)", selected)
+	}
+}
+
+func completeOutputFormat(_ *cobra.Command, _ []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	candidates := []string{
+		string(outputText) + "\tstream plain text for people",
+		string(outputJSON) + "\twrite one final result object",
+		string(outputStreamingJSON) + "\tstream one event object per line",
+	}
+	matched := candidates[:0]
+	for _, candidate := range candidates {
+		value, _, _ := strings.Cut(candidate, "\t")
+		if strings.HasPrefix(value, toComplete) {
+			matched = append(matched, candidate)
+		}
+	}
+	return matched, cobra.ShellCompDirectiveNoFileComp
 }
 
 func (f *runFlags) message(cmd *cobra.Command, args []string, workspace string) (client.Message, error) {
@@ -102,11 +153,15 @@ func (f *runFlags) message(cmd *cobra.Command, args []string, workspace string) 
 	return client.Message{Text: text, Attachments: attached}, nil
 }
 
-func runRenderer(cmd *cobra.Command, asJSON bool) renderer {
-	if asJSON {
+func runRenderer(cmd *cobra.Command, format outputFormat) renderer {
+	switch format {
+	case outputJSON:
+		return render.NewResultJSON(cmd.OutOrStdout())
+	case outputStreamingJSON:
 		return render.NewJSON(cmd.OutOrStdout())
+	default:
+		return render.NewText(cmd.OutOrStdout())
 	}
-	return render.NewText(cmd.OutOrStdout())
 }
 
 func completeRunFile(cmd *cobra.Command, _ []string, value string) ([]string, cobra.ShellCompDirective) {
@@ -177,6 +232,11 @@ func follow(ctx context.Context, rt client.Runtime, out renderer, start client.S
 	}
 	if err := validateStartedRun(run, start.SessionID); err != nil {
 		return err
+	}
+	if initializer, ok := out.(resultInitializer); ok {
+		if err := initializer.Begin(run, start.Options); err != nil {
+			return err
+		}
 	}
 	disposition, err := driveRun(ctx, rt, out, start, run, approveAll, policy)
 	if disposition.preservesRun() {

@@ -15,6 +15,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/spf13/cobra"
+
 	"github.com/Tangerg/lynx/app/cli/internal/client"
 	"github.com/Tangerg/lynx/app/cli/internal/client/mock"
 )
@@ -100,9 +102,9 @@ func TestRunApproveAllLetsTheRunThrough(t *testing.T) {
 	}
 }
 
-func TestRunJSONIsOneObjectPerLineEndingWithTheRun(t *testing.T) {
+func TestRunStreamingJSONIsOneObjectPerLineEndingWithTheRun(t *testing.T) {
 	rt := instant()
-	out, _, err := exec(t, rt, "", "run", "--json", "--approve-all", "-s", firstSession(t, rt), "why?")
+	out, _, err := exec(t, rt, "", "run", "--output-format", "streaming-json", "--approve-all", "-s", firstSession(t, rt), "why?")
 	if err != nil {
 		t.Fatalf("run: %v\n%s", err, out)
 	}
@@ -119,6 +121,49 @@ func TestRunJSONIsOneObjectPerLineEndingWithTheRun(t *testing.T) {
 	if last.Type != "run.finished" || last.Outcome.Status != "completed" {
 		t.Fatalf("last frame = %s, want a completed run.finished", lines[len(lines)-1])
 	}
+}
+
+func TestRunJSONIsOneFinalResult(t *testing.T) {
+	runtime := instant()
+	out, _, err := exec(t, runtime, "", "run", "--json", "--approve-all", "-s", firstSession(t, runtime), "why?")
+	if err != nil {
+		t.Fatalf("run: %v\n%s", err, out)
+	}
+	if strings.Count(strings.TrimSpace(out), "\n") != 0 {
+		t.Fatalf("result JSON spans multiple records:\n%s", out)
+	}
+	result := decodeResult(t, out)
+	if result.Type != "result" || result.Status != "completed" || result.RunID == "" || result.SessionID == "" {
+		t.Fatalf("result identity = %+v", result)
+	}
+	if result.Outcome.Status != "completed" || !strings.Contains(result.Text, "Replaced the sleep") {
+		t.Fatalf("result payload = %+v", result)
+	}
+}
+
+type commandResult struct {
+	Type      string `json:"type"`
+	Status    string `json:"status"`
+	RunID     string `json:"runId"`
+	SessionID string `json:"sessionId"`
+	Text      string `json:"text"`
+	Outcome   struct {
+		Status string `json:"status"`
+		Error  string `json:"error"`
+	} `json:"outcome"`
+	Interaction struct {
+		Kind  string `json:"kind"`
+		Title string `json:"title"`
+	} `json:"interaction"`
+}
+
+func decodeResult(t *testing.T, output string) commandResult {
+	t.Helper()
+	var result commandResult
+	if err := json.Unmarshal([]byte(output), &result); err != nil {
+		t.Fatalf("result is not JSON: %v\n%s", err, output)
+	}
+	return result
 }
 
 type runFrame struct {
@@ -163,7 +208,7 @@ func TestRunRecoversTransportFaultsWithoutRenderingDuplicates(t *testing.T) {
 			rt := instant()
 			rt.Script = shortCompletedScript
 			rt.Faults = []mock.SubscriptionFault{{Kind: fault, After: 1}}
-			out, _, err := exec(t, rt, "", "run", "--json", "-s", firstSession(t, rt), "recover")
+			out, _, err := exec(t, rt, "", "run", "--output-format", "streaming-json", "-s", firstSession(t, rt), "recover")
 			if err != nil {
 				t.Fatalf("run: %v\n%s", err, out)
 			}
@@ -402,7 +447,7 @@ func (r *ambiguousControls) calls() (int, int, []string, []string) {
 func TestRunRecoversAmbiguousControlResponsesWithoutDuplicatingAControl(t *testing.T) {
 	base := instant()
 	runtime := &ambiguousControls{Runtime: base}
-	out, _, err := exec(t, runtime, "", "run", "--json", "--approve-all", "-s", firstSession(t, runtime), "recover controls")
+	out, _, err := exec(t, runtime, "", "run", "--output-format", "streaming-json", "--approve-all", "-s", firstSession(t, runtime), "recover controls")
 	if err != nil {
 		t.Fatalf("run: %v\n%s", err, out)
 	}
@@ -452,7 +497,7 @@ func TestRunRejectsConflictingReplay(t *testing.T) {
 	rt := instant()
 	rt.Script = shortCompletedScript
 	rt.Faults = []mock.SubscriptionFault{{Kind: mock.FaultConflict, After: 1}}
-	_, _, err := exec(t, rt, "", "run", "--json", "-s", firstSession(t, rt), "conflict")
+	_, _, err := exec(t, rt, "", "run", "--output-format", "streaming-json", "-s", firstSession(t, rt), "conflict")
 	if !errors.Is(err, client.ErrEventConflict) {
 		t.Fatalf("run error = %v, want ErrEventConflict", err)
 	}
@@ -467,9 +512,13 @@ func TestRunQuestionNamesTheResumableSession(t *testing.T) {
 		}}
 	}
 	id := firstSession(t, rt)
-	_, _, err := exec(t, rt, "", "run", "-s", id, "ask me")
+	out, _, err := exec(t, rt, "", "run", "--json", "-s", id, "ask me")
 	if err == nil || !strings.Contains(err.Error(), "--session "+id) || strings.Contains(err.Error(), "<session-id>") {
 		t.Fatalf("question error = %v", err)
+	}
+	result := decodeResult(t, out)
+	if result.Status != "interrupted" || result.Interaction.Kind != "question" || result.Interaction.Title != "Choose a strategy" {
+		t.Fatalf("interrupted result = %+v", result)
 	}
 	snapshot, getErr := rt.GetSession(t.Context(), id)
 	if getErr != nil {
@@ -502,10 +551,9 @@ func TestRunReturnsAnErrorForNonCompletedOutcomes(t *testing.T) {
 			if err == nil || !strings.Contains(err.Error(), test.want) {
 				t.Fatalf("run error = %v, want %q", err, test.want)
 			}
-			lines := strings.Split(strings.TrimSpace(out), "\n")
-			last := decodeRunFrame(t, lines[len(lines)-1])
-			if last.Type != "run.finished" || last.Outcome.Status != string(test.outcome.Status) {
-				t.Fatalf("last frame = %+v", last)
+			result := decodeResult(t, out)
+			if result.Type != "result" || result.Status != string(test.outcome.Status) || result.Outcome.Status != string(test.outcome.Status) {
+				t.Fatalf("result = %+v", result)
 			}
 			snapshot, getErr := runtime.GetSession(t.Context(), id)
 			if getErr != nil {
@@ -518,6 +566,32 @@ func TestRunReturnsAnErrorForNonCompletedOutcomes(t *testing.T) {
 	}
 }
 
+func TestRunRejectsInvalidAndConflictingOutputFormatsBeforeCreatingASession(t *testing.T) {
+	for _, args := range [][]string{
+		{"run", "--output-format", "xml", "prompt"},
+		{"run", "--json", "--output-format", "streaming-json", "prompt"},
+	} {
+		t.Run(strings.Join(args[1:3], " "), func(t *testing.T) {
+			runtime := instant()
+			before, _ := runtime.ListSessions(t.Context(), client.SessionQuery{Limit: 100})
+			if _, _, err := exec(t, runtime, "", args...); err == nil {
+				t.Fatalf("arguments %v were accepted", args)
+			}
+			after, _ := runtime.ListSessions(t.Context(), client.SessionQuery{Limit: 100})
+			if len(after.Items) != len(before.Items) {
+				t.Fatalf("invalid output format created a session: %d -> %d", len(before.Items), len(after.Items))
+			}
+		})
+	}
+}
+
+func TestOutputFormatCompletionFiltersCandidates(t *testing.T) {
+	items, directive := completeOutputFormat(nil, nil, "stream")
+	if directive != cobra.ShellCompDirectiveNoFileComp || len(items) != 1 || !strings.HasPrefix(items[0], "streaming-json\t") {
+		t.Fatalf("output format completion = %v, %v", items, directive)
+	}
+}
+
 type alwaysDisconnected struct{ client.Runtime }
 
 func (alwaysDisconnected) FollowRun(context.Context, client.FollowRun) (client.Stream, error) {
@@ -527,9 +601,13 @@ func (alwaysDisconnected) FollowRun(context.Context, client.FollowRun) (client.S
 func TestRunStopsAfterReconnectBudgetIsExhausted(t *testing.T) {
 	rt := instant()
 	rt.Script = shortCompletedScript
-	_, _, err := exec(t, alwaysDisconnected{Runtime: rt}, "", "--reconnect-attempts", "2", "run", "-s", firstSession(t, rt), "offline")
+	out, _, err := exec(t, alwaysDisconnected{Runtime: rt}, "", "--reconnect-attempts", "2", "run", "--json", "-s", firstSession(t, rt), "offline")
 	if !errors.Is(err, client.ErrDisconnected) {
 		t.Fatalf("run error = %v, want ErrDisconnected", err)
+	}
+	result := decodeResult(t, out)
+	if result.Status != "incomplete" || result.RunID == "" || result.SessionID == "" {
+		t.Fatalf("incomplete result = %+v", result)
 	}
 }
 
