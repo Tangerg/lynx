@@ -28,6 +28,7 @@ func runUI(t *testing.T, plugins ...extensions.Plugin) (*programtest.Host, func(
 }
 
 func runUIWith(t *testing.T, backend client.Runtime, plugins ...extensions.Plugin) (*programtest.Host, func()) {
+	t.Helper()
 	return runUIWithWorkspace(t, backend, "/tmp/lyra-cli-test", plugins...)
 }
 

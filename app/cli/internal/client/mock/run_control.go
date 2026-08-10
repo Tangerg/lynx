@@ -277,14 +277,13 @@ func (r *Runtime) cancelStartLocked(in client.CancelRun) error {
 		r.finishStartLocked(attempt, client.Run{}, fmt.Errorf("%w: request %s", client.ErrRunCanceled, in.RequestID))
 		return nil
 	}
-	if attempt.err != nil {
-		return nil
+	if attempt.err == nil {
+		run := r.runs[attempt.run.ID]
+		if run == nil {
+			return fmt.Errorf("%w: %s", client.ErrRunNotFound, attempt.run.ID)
+		}
+		r.cancelRunLocked(run)
 	}
-	run := r.runs[attempt.run.ID]
-	if run == nil {
-		return fmt.Errorf("%w: %s", client.ErrRunNotFound, attempt.run.ID)
-	}
-	r.cancelRunLocked(run)
 	return nil
 }
 

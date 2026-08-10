@@ -509,8 +509,7 @@ func writeCommandFixture(t *testing.T, path string, content []byte) {
 
 func userPromptBlock(t *testing.T, events []client.Envelope) client.Block {
 	t.Helper()
-	for index := len(events) - 1; index >= 0; index-- {
-		envelope := events[index]
+	for _, envelope := range slices.Backward(events) {
 		if event, ok := envelope.Event.(client.BlockCompleted); ok && event.Block.Kind == client.BlockUser {
 			return event.Block
 		}

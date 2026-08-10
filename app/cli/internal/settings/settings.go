@@ -29,14 +29,14 @@ const (
 )
 
 type Config struct {
-	Model      string                `json:"model" mapstructure:"model"`
-	Effort     string                `json:"effort" mapstructure:"effort"`
-	Mode       client.AgentMode      `json:"mode" mapstructure:"mode"`
+	Model      string                `json:"model"      mapstructure:"model"`
+	Effort     string                `json:"effort"     mapstructure:"effort"`
+	Mode       client.AgentMode      `json:"mode"       mapstructure:"mode"`
 	Permission client.PermissionMode `json:"permission" mapstructure:"permission"`
-	Approval   Approval              `json:"approval" mapstructure:"approval"`
-	UI         UI                    `json:"ui" mapstructure:"ui"`
-	Plugins    Plugins               `json:"plugins" mapstructure:"plugins"`
-	Keys       map[string][]string   `json:"keys" mapstructure:"keys"`
+	Approval   Approval              `json:"approval"   mapstructure:"approval"`
+	UI         UI                    `json:"ui"         mapstructure:"ui"`
+	Plugins    Plugins               `json:"plugins"    mapstructure:"plugins"`
+	Keys       map[string][]string   `json:"keys"       mapstructure:"keys"`
 }
 
 type Approval struct {
@@ -44,10 +44,10 @@ type Approval struct {
 }
 
 type UI struct {
-	Mouse             bool `json:"mouse" mapstructure:"mouse"`
-	Notifications     bool `json:"notifications" mapstructure:"notifications"`
-	ToolDetails       bool `json:"toolDetails" mapstructure:"tool-details"`
-	TranscriptRetain  int  `json:"transcriptRetain" mapstructure:"transcript-retain"`
+	Mouse             bool `json:"mouse"             mapstructure:"mouse"`
+	Notifications     bool `json:"notifications"     mapstructure:"notifications"`
+	ToolDetails       bool `json:"toolDetails"       mapstructure:"tool-details"`
+	TranscriptRetain  int  `json:"transcriptRetain"  mapstructure:"transcript-retain"`
 	ReconnectAttempts int  `json:"reconnectAttempts" mapstructure:"reconnect-attempts"`
 }
 
