@@ -1,3 +1,5 @@
+// Package providerregistry decorates the model-provider registry with
+// process-environment credential fallback and accurate credential provenance.
 package providerregistry
 
 import (

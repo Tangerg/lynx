@@ -1,3 +1,5 @@
+// Package hooks discovers trusted hook configuration and adapts external shell
+// commands to the typed Application hook runner.
 package hooks
 
 import (

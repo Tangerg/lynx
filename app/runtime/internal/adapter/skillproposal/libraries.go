@@ -1,3 +1,5 @@
+// Package skillproposal routes Skill proposal operations to the user or
+// project library while keeping filesystem layout outside Application.
 package skillproposal
 
 import (

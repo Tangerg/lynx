@@ -1,3 +1,5 @@
+// Package sessiontitle generates a best-effort Session title through the
+// utility-model capability without exposing model clients to Application.
 package sessiontitle
 
 import (

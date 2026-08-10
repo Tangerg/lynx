@@ -5,8 +5,8 @@ import (
 	"slices"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/codeintel"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/modelcatalog"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/persistence"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/pricing"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/models"
 	"github.com/Tangerg/lynx/app/runtime/internal/config"
@@ -22,7 +22,7 @@ func ComposeConfig(cfg config.Settings, stores *persistence.Bundle, client *chat
 		BuildID:                buildID,
 		ChatClient:             client,
 		ConversationStore:      stores.ChatHistory,
-		Pricing:                pricing.FromModelCatalog(),
+		Pricing:                modelcatalog.Pricing(),
 		SkillsUserDir:          filepath.Join(stores.DataDirectory, "skills"),
 		AgentMemoryStore:       stores.AgentMemory,
 		IdempotencyStore:       stores.Idempotency,

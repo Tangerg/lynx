@@ -1,4 +1,4 @@
-package pricing
+package modelcatalog
 
 import (
 	"testing"
@@ -7,7 +7,7 @@ import (
 	"github.com/Tangerg/lynx/models/catalog"
 )
 
-func TestFromModelCatalogUsesProviderAndServedModel(t *testing.T) {
+func TestPricingUsesProviderAndServedModel(t *testing.T) {
 	const model = "claude-opus-5"
 	usage := &chat.Usage{InputTokens: 1000, OutputTokens: 250}
 	info, ok := catalog.Lookup("anthropic", model)
@@ -15,16 +15,16 @@ func TestFromModelCatalogUsesProviderAndServedModel(t *testing.T) {
 		t.Fatal("test fixture model missing from catalog")
 	}
 
-	got := FromModelCatalog()("anthropic", model, usage)
+	got := Pricing()("anthropic", model, usage)
 	want := catalog.CostOf(info.Pricing, catalog.Usage{InputTokens: 1000, OutputTokens: 250})
 	if got != want {
-		t.Fatalf("FromModelCatalog = %v, want %v", got, want)
+		t.Fatalf("Pricing = %v, want %v", got, want)
 	}
 }
 
-func TestFromModelCatalogReturnsZeroForUnknownProvider(t *testing.T) {
-	got := FromModelCatalog()("does-not-exist", "claude-opus-5", &chat.Usage{InputTokens: 1000})
+func TestPricingReturnsZeroForUnknownProvider(t *testing.T) {
+	got := Pricing()("does-not-exist", "claude-opus-5", &chat.Usage{InputTokens: 1000})
 	if got != 0 {
-		t.Fatalf("FromModelCatalog for unknown provider = %v, want 0", got)
+		t.Fatalf("Pricing for unknown provider = %v, want 0", got)
 	}
 }

@@ -1,3 +1,5 @@
+// Package dispatch owns the Runtime Protocol method registry, request routing,
+// capability gates, idempotency, and response framing over transport envelopes.
 package dispatch
 
 import (

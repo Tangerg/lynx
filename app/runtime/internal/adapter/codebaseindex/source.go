@@ -1,3 +1,5 @@
+// Package codebaseindex adapts filesystem and Git content into the source and
+// persistence boundaries consumed by codebase indexing use cases.
 package codebaseindex
 
 import (

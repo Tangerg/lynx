@@ -1,3 +1,5 @@
+// Package hooks executes a bound set of trusted hooks and folds their external
+// command outcomes into one typed Application decision.
 package hooks
 
 import (
