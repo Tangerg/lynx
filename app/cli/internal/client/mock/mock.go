@@ -114,7 +114,10 @@ func New() *Runtime {
 
 var _ client.Runtime = (*Runtime)(nil)
 
-func (r *Runtime) ListSessions(_ context.Context, query client.SessionQuery) (client.SessionPage, error) {
+func (r *Runtime) ListSessions(ctx context.Context, query client.SessionQuery) (client.SessionPage, error) {
+	if err := context.Cause(ctx); err != nil {
+		return client.SessionPage{}, err
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -160,7 +163,10 @@ func pageOffset(cursor string, length int) (int, error) {
 	return offset, nil
 }
 
-func (r *Runtime) GetSession(_ context.Context, id string) (client.SessionSnapshot, error) {
+func (r *Runtime) GetSession(ctx context.Context, id string) (client.SessionSnapshot, error) {
+	if err := context.Cause(ctx); err != nil {
+		return client.SessionSnapshot{}, err
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	state, ok := r.sessions[id]
@@ -182,7 +188,10 @@ func (r *Runtime) GetSession(_ context.Context, id string) (client.SessionSnapsh
 	return snapshot, nil
 }
 
-func (r *Runtime) CreateSession(_ context.Context, in client.NewSession) (client.Session, error) {
+func (r *Runtime) CreateSession(ctx context.Context, in client.NewSession) (client.Session, error) {
+	if err := context.Cause(ctx); err != nil {
+		return client.Session{}, err
+	}
 	workspace := strings.TrimSpace(in.Workspace)
 	if workspace == "" {
 		return client.Session{}, errors.New("mock: workspace is required")
@@ -202,7 +211,10 @@ func (r *Runtime) CreateSession(_ context.Context, in client.NewSession) (client
 	return session, nil
 }
 
-func (r *Runtime) UpdateSession(_ context.Context, in client.UpdateSession) (client.Session, error) {
+func (r *Runtime) UpdateSession(ctx context.Context, in client.UpdateSession) (client.Session, error) {
+	if err := context.Cause(ctx); err != nil {
+		return client.Session{}, err
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	state, ok := r.sessions[in.SessionID]
@@ -222,7 +234,10 @@ func (r *Runtime) UpdateSession(_ context.Context, in client.UpdateSession) (cli
 	return state.meta, nil
 }
 
-func (r *Runtime) ForkSession(_ context.Context, in client.ForkSession) (client.Session, error) {
+func (r *Runtime) ForkSession(ctx context.Context, in client.ForkSession) (client.Session, error) {
+	if err := context.Cause(ctx); err != nil {
+		return client.Session{}, err
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	source, ok := r.sessions[in.SessionID]
@@ -269,7 +284,10 @@ func (r *Runtime) ForkSession(_ context.Context, in client.ForkSession) (client.
 	return meta, nil
 }
 
-func (r *Runtime) DeleteSession(_ context.Context, in client.DeleteSession) error {
+func (r *Runtime) DeleteSession(ctx context.Context, in client.DeleteSession) error {
+	if err := context.Cause(ctx); err != nil {
+		return err
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	state, ok := r.sessions[in.SessionID]
@@ -286,7 +304,10 @@ func (r *Runtime) DeleteSession(_ context.Context, in client.DeleteSession) erro
 	return nil
 }
 
-func (r *Runtime) ListModels(context.Context) ([]client.Model, error) {
+func (r *Runtime) ListModels(ctx context.Context) ([]client.Model, error) {
+	if err := context.Cause(ctx); err != nil {
+		return nil, err
+	}
 	return []client.Model{
 		{ID: "mock-balanced", DisplayName: "Mock Balanced", Description: "Synthetic balanced coding model", Default: true, Efforts: []string{"low", "medium", "high"}, Context: 200_000},
 		{ID: "mock-fast", DisplayName: "Mock Fast", Description: "Synthetic low-latency model", Efforts: []string{"low", "medium"}, Context: 128_000},
@@ -294,7 +315,10 @@ func (r *Runtime) ListModels(context.Context) ([]client.Model, error) {
 	}, nil
 }
 
-func (r *Runtime) ListApprovalRules(context.Context) ([]client.ApprovalRule, error) {
+func (r *Runtime) ListApprovalRules(ctx context.Context) ([]client.ApprovalRule, error) {
+	if err := context.Cause(ctx); err != nil {
+		return nil, err
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	out := slices.Clone(r.rules)
@@ -302,7 +326,10 @@ func (r *Runtime) ListApprovalRules(context.Context) ([]client.ApprovalRule, err
 	return out, nil
 }
 
-func (r *Runtime) DeleteApprovalRule(_ context.Context, id string) error {
+func (r *Runtime) DeleteApprovalRule(ctx context.Context, id string) error {
+	if err := context.Cause(ctx); err != nil {
+		return err
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	at := slices.IndexFunc(r.rules, func(rule client.ApprovalRule) bool { return rule.ID == id })

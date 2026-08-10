@@ -103,6 +103,49 @@ func mustListSessions(t *testing.T, runtime *Runtime, query client.SessionQuery)
 	return page
 }
 
+func TestSynchronousRuntimeQueriesHonorCancellation(t *testing.T) {
+	runtime := New()
+	session := newSession(t, runtime)
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	tests := []struct {
+		name string
+		call func(context.Context) error
+	}{
+		{"list sessions", func(ctx context.Context) error {
+			_, err := runtime.ListSessions(ctx, client.SessionQuery{})
+			return err
+		}},
+		{"get session", func(ctx context.Context) error { _, err := runtime.GetSession(ctx, session.ID); return err }},
+		{"create session", func(ctx context.Context) error {
+			_, err := runtime.CreateSession(ctx, client.NewSession{Workspace: "/tmp/canceled"})
+			return err
+		}},
+		{"update session", func(ctx context.Context) error {
+			_, err := runtime.UpdateSession(ctx, client.UpdateSession{SessionID: session.ID, Title: "Canceled"})
+			return err
+		}},
+		{"fork session", func(ctx context.Context) error {
+			_, err := runtime.ForkSession(ctx, client.ForkSession{SessionID: session.ID})
+			return err
+		}},
+		{"delete session", func(ctx context.Context) error {
+			return runtime.DeleteSession(ctx, client.DeleteSession{SessionID: session.ID})
+		}},
+		{"list models", func(ctx context.Context) error { _, err := runtime.ListModels(ctx); return err }},
+		{"list approval rules", func(ctx context.Context) error { _, err := runtime.ListApprovalRules(ctx); return err }},
+		{"delete approval rule", func(ctx context.Context) error { return runtime.DeleteApprovalRule(ctx, "rule_missing") }},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if err := test.call(ctx); !errors.Is(err, context.Canceled) {
+				t.Fatalf("error = %v, want context cancellation", err)
+			}
+		})
+	}
+}
+
 func TestSessionLifecycleHonorsRevisionAndForkCursor(t *testing.T) {
 	runtime := New()
 	runtime.Instant = true

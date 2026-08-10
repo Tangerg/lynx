@@ -65,13 +65,11 @@ func (o *operationOwner) Go(slot operationSlot, replace bool, work func(context.
 	o.next++
 	lease := operationLease{slot: slot, id: o.next}
 	o.active[slot] = ownedOperation{id: lease.id, cancel: cancel}
-	o.wg.Add(1)
-	o.mu.Unlock()
-
-	go func() {
+	o.wg.Go(func() {
 		defer o.release(lease, cancel)
 		work(ctx, lease)
-	}()
+	})
+	o.mu.Unlock()
 	return true
 }
 
@@ -132,7 +130,6 @@ func (o *operationOwner) release(lease operationLease, cancel context.CancelFunc
 		delete(o.active, lease.slot)
 	}
 	o.mu.Unlock()
-	o.wg.Done()
 }
 
 func runOperation[T any](a *app, slot operationSlot, replace bool, work func(context.Context) (T, error), apply func(T, error)) bool {

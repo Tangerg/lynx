@@ -134,7 +134,7 @@ func canonicalDirectory(path string) (string, error) {
 		return "", err
 	}
 	if !info.IsDir() {
-		return "", fmt.Errorf("not a directory")
+		return "", errors.New("not a directory")
 	}
 	return filepath.Clean(real), nil
 }
