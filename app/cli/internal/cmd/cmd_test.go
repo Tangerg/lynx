@@ -236,10 +236,13 @@ func (r *invalidLifecycleRuntime) FollowRun(_ context.Context, input client.Foll
 	}, nil
 }
 
-type countingRenderer struct{ rendered int }
+type countingRenderer struct {
+	rendered int
+	closed   int
+}
 
 func (r *countingRenderer) Render(client.Envelope) error { r.rendered++; return nil }
-func (*countingRenderer) Close() error                   { return nil }
+func (r *countingRenderer) Close() error                 { r.closed++; return nil }
 
 func TestRunRejectsEventsThatViolateTheConversationLifecycle(t *testing.T) {
 	base := mock.New()
@@ -253,6 +256,9 @@ func TestRunRejectsEventsThatViolateTheConversationLifecycle(t *testing.T) {
 	}
 	if renderer.rendered != 1 {
 		t.Fatalf("renderer received %d events, want only the valid prefix", renderer.rendered)
+	}
+	if renderer.closed != 1 {
+		t.Fatalf("renderer closed %d times, want once", renderer.closed)
 	}
 }
 

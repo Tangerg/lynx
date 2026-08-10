@@ -158,7 +158,8 @@ func resolveAttachments(ctx context.Context, workspace string, paths []string) (
 // follow drives a run to its end, answering each park and continuing on the
 // stream the answer opens. A park is not an ending: the run id is stable across
 // it, and only the stream is new.
-func follow(ctx context.Context, rt client.Runtime, out renderer, start client.StartRun, approveAll bool, reconnectAttempts int) error {
+func follow(ctx context.Context, rt client.Runtime, out renderer, start client.StartRun, approveAll bool, reconnectAttempts int) (followErr error) {
+	defer func() { followErr = errors.Join(followErr, out.Close()) }()
 	if err := ensureRequestID(&start); err != nil {
 		return err
 	}
@@ -257,7 +258,7 @@ func driveRun(
 		state := consumeSubscription(stream, conversation, out)
 		progressed := conversation.Cursor() > before
 		if state.finished {
-			return true, out.Close()
+			return true, nil
 		}
 		if state.interrupted != nil {
 			if err := resumeUnattended(ctx, rt, policy, run.ID, start.SessionID, state.interrupted, approveAll); err != nil {
