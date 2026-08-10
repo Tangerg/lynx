@@ -142,7 +142,7 @@ func (r *Runtime) ResumeRun(ctx context.Context, in client.ResumeRun) error {
 	}
 	steps, continuationErr := continueSafely(run.script, in.Answer)
 	r.mu.Lock()
-	err = r.commitResumeLocked(run, attempt, steps, continuationErr)
+	err = r.commitResumeLocked(run, attempt, continuationErr)
 	r.mu.Unlock()
 	if err != nil {
 		return err
@@ -204,7 +204,7 @@ func awaitResume(ctx context.Context, runtime *Runtime, attempt *resumeAttempt) 
 	}
 }
 
-func (r *Runtime) commitResumeLocked(run *runState, attempt *resumeAttempt, steps []Step, continuationErr error) error {
+func (r *Runtime) commitResumeLocked(run *runState, attempt *resumeAttempt, continuationErr error) error {
 	if run.resuming != attempt {
 		return attempt.err
 	}

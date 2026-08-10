@@ -127,18 +127,18 @@ func canonicalDirectory(path string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	real, err := filepath.EvalSymlinks(absolute)
+	canonical, err := filepath.EvalSymlinks(absolute)
 	if err != nil {
 		return "", err
 	}
-	info, err := os.Stat(real)
+	info, err := os.Stat(canonical)
 	if err != nil {
 		return "", err
 	}
 	if !info.IsDir() {
 		return "", errors.New("not a directory")
 	}
-	return filepath.Clean(real), nil
+	return filepath.Clean(canonical), nil
 }
 
 func pathKey(path string) string {

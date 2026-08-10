@@ -32,9 +32,9 @@ func TestParseUnifiedDiffCarriesLineKindsAndNumbers(t *testing.T) {
 	}
 }
 
-func requireSingleHunk(t *testing.T, hunks []coreDiff.Hunk, old, new, lines int) []coreDiff.Line {
+func requireSingleHunk(t *testing.T, hunks []coreDiff.Hunk, oldStart, newStart, lines int) []coreDiff.Line {
 	t.Helper()
-	if len(hunks) != 1 || hunks[0].Old != old || hunks[0].New != new || len(hunks[0].Lines) != lines {
+	if len(hunks) != 1 || hunks[0].Old != oldStart || hunks[0].New != newStart || len(hunks[0].Lines) != lines {
 		t.Fatalf("hunks = %+v", hunks)
 	}
 	return hunks[0].Lines

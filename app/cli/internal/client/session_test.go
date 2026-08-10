@@ -8,8 +8,8 @@ import (
 
 func TestSessionSnapshotValidatesAggregateAndActiveRunTogether(t *testing.T) {
 	events := []Envelope{
-		snapshotEnvelope(1, "run_1", RunStarted{RunID: "run_1", SessionID: "session_1"}),
-		snapshotEnvelope(2, "run_1", RunInterrupted{Interaction: Approval{InterruptID: "approval_1", Title: "Edit"}}),
+		snapshotEnvelope(1, RunStarted{RunID: "run_1", SessionID: "session_1"}),
+		snapshotEnvelope(2, RunInterrupted{Interaction: Approval{InterruptID: "approval_1", Title: "Edit"}}),
 	}
 	snapshot := SessionSnapshot{
 		Session: Session{ID: "session_1", Workspace: "/workspace"},
@@ -46,8 +46,8 @@ func TestRestoreSnapshotIsAtomic(t *testing.T) {
 	valid := SessionSnapshot{
 		Session: Session{ID: "session_1", Workspace: "/workspace"},
 		Events: []Envelope{
-			snapshotEnvelope(1, "run_1", RunStarted{RunID: "run_1", SessionID: "session_1"}),
-			snapshotEnvelope(2, "run_1", RunFinished{Outcome: Outcome{Status: OutcomeCompleted}}),
+			snapshotEnvelope(1, RunStarted{RunID: "run_1", SessionID: "session_1"}),
+			snapshotEnvelope(2, RunFinished{Outcome: Outcome{Status: OutcomeCompleted}}),
 		},
 		Cursor: 2,
 	}
@@ -64,6 +64,6 @@ func TestRestoreSnapshotIsAtomic(t *testing.T) {
 	}
 }
 
-func snapshotEnvelope(cursor Cursor, runID string, event Event) Envelope {
-	return Envelope{ID: "event_" + strconv.FormatUint(uint64(cursor), 10), Cursor: cursor, RunID: runID, SessionID: "session_1", Event: event}
+func snapshotEnvelope(cursor Cursor, event Event) Envelope {
+	return Envelope{ID: "event_" + strconv.FormatUint(uint64(cursor), 10), Cursor: cursor, RunID: "run_1", SessionID: "session_1", Event: event}
 }

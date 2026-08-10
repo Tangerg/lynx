@@ -36,8 +36,8 @@ func (s *EventSequence) Accept(envelope Envelope, apply func() error) (ApplyResu
 	if s.ids == nil {
 		s.ids = make(map[Cursor]string)
 	}
-	if result, replayed, err := s.acceptReplay(envelope); replayed || err != nil {
-		return result, err
+	if replayed, err := s.acceptReplay(envelope); replayed || err != nil {
+		return ApplyResult{}, err
 	}
 	if envelope.Cursor <= s.cursor {
 		return ApplyResult{}, fmt.Errorf("%w at cursor %d: cursor predates guarded window ending at %d", ErrEventConflict, envelope.Cursor, s.cursor)
@@ -66,13 +66,13 @@ func validateSequencedEnvelope(envelope Envelope) error {
 	return nil
 }
 
-func (s *EventSequence) acceptReplay(envelope Envelope) (ApplyResult, bool, error) {
+func (s *EventSequence) acceptReplay(envelope Envelope) (bool, error) {
 	known, replayed := s.ids[envelope.Cursor]
 	if !replayed {
-		return ApplyResult{}, false, nil
+		return false, nil
 	}
 	if known != envelope.ID {
-		return ApplyResult{}, true, fmt.Errorf("%w at cursor %d: have %s, received %s", ErrEventConflict, envelope.Cursor, known, envelope.ID)
+		return true, fmt.Errorf("%w at cursor %d: have %s, received %s", ErrEventConflict, envelope.Cursor, known, envelope.ID)
 	}
-	return ApplyResult{}, true, nil
+	return true, nil
 }
