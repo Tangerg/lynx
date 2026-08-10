@@ -28,12 +28,7 @@ type renderer interface {
 }
 
 func newRunCommand(resolve backend, v *viper.Viper) *cobra.Command {
-	var (
-		asJSON     bool
-		approveAll bool
-		sessionID  string
-		files      []string
-	)
+	flags := new(runFlags)
 	cmd := &cobra.Command{
 		Use:   "run [prompt]",
 		Short: "Run one prompt to completion and exit",
@@ -46,66 +41,91 @@ func newRunCommand(resolve backend, v *viper.Viper) *cobra.Command {
 		Args:         cobra.ArbitraryArgs,
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			value, err := readSettings(v)
-			if err != nil {
-				return err
-			}
-			ws, err := workspace(cmd)
-			if err != nil {
-				return err
-			}
-			prompt, promptErr := prompt(cmd, args)
-			if promptErr != nil && (!errors.Is(promptErr, errNoPrompt) || len(files) == 0) {
-				return promptErr
-			}
-			attached, err := resolveAttachments(cmd.Context(), ws, files)
-			if err != nil {
-				return err
-			}
-			rt, err := resolve.open(cmd)
-			if err != nil {
-				return err
-			}
-			session, err := sessionFor(cmd.Context(), rt, sessionID, ws)
-			if err != nil {
-				return err
-			}
-
-			var out renderer = render.NewText(cmd.OutOrStdout())
-			if asJSON {
-				out = render.NewJSON(cmd.OutOrStdout())
-			}
-			return follow(cmd.Context(), rt, out, client.StartRun{
-				SessionID: session.ID,
-				Message:   client.Message{Text: prompt, Attachments: attached},
-				Options:   value.RunOptions(),
-			}, approveAll, value.UI.ReconnectAttempts)
+			return flags.execute(cmd, args, resolve, v)
 		},
 	}
-	cmd.Flags().BoolVar(&asJSON, "json", false, "Write newline-delimited JSON instead of text")
-	cmd.Flags().BoolVar(&approveAll, "approve-all", false, "Approve every request the run makes")
-	cmd.Flags().StringVarP(&sessionID, "session", "s", "", "Run inside an existing session instead of a new one")
-	cmd.Flags().StringArrayVarP(&files, "file", "f", nil, "Attach a local file (repeatable)")
-	_ = cmd.RegisterFlagCompletionFunc("file", func(cmd *cobra.Command, _ []string, value string) ([]string, cobra.ShellCompDirective) {
-		ws, err := workspace(cmd)
-		if err != nil {
-			return nil, cobra.ShellCompDirectiveError
-		}
-		resolver, err := attachment.New(ws)
-		if err != nil {
-			return nil, cobra.ShellCompDirectiveError
-		}
-		matches, err := resolver.Complete(cmd.Context(), value, attachment.DefaultLimit)
-		if err != nil {
-			return nil, cobra.ShellCompDirectiveError
-		}
-		out := make([]string, 0, len(matches))
-		for _, match := range matches {
-			out = append(out, match.Path+"\t"+match.Detail)
-		}
-		return out, cobra.ShellCompDirectiveNoFileComp
-	})
+	flags.register(cmd)
+	_ = cmd.RegisterFlagCompletionFunc("file", completeRunFile)
 	return cmd
+}
+
+type runFlags struct {
+	asJSON     bool
+	approveAll bool
+	sessionID  string
+	files      []string
+}
+
+func (f *runFlags) register(cmd *cobra.Command) {
+	cmd.Flags().BoolVar(&f.asJSON, "json", false, "Write newline-delimited JSON instead of text")
+	cmd.Flags().BoolVar(&f.approveAll, "approve-all", false, "Approve every request the run makes")
+	cmd.Flags().StringVarP(&f.sessionID, "session", "s", "", "Run inside an existing session instead of a new one")
+	cmd.Flags().StringArrayVarP(&f.files, "file", "f", nil, "Attach a local file (repeatable)")
+}
+
+func (f *runFlags) execute(cmd *cobra.Command, args []string, resolve backend, v *viper.Viper) error {
+	value, err := readSettings(v)
+	if err != nil {
+		return err
+	}
+	workspacePath, err := workspace(cmd)
+	if err != nil {
+		return err
+	}
+	message, err := f.message(cmd, args, workspacePath)
+	if err != nil {
+		return err
+	}
+	runtime, err := resolve.open(cmd)
+	if err != nil {
+		return err
+	}
+	session, err := sessionFor(cmd.Context(), runtime, f.sessionID, workspacePath)
+	if err != nil {
+		return err
+	}
+	return follow(cmd.Context(), runtime, runRenderer(cmd, f.asJSON), client.StartRun{
+		SessionID: session.ID, Message: message, Options: value.RunOptions(),
+	}, f.approveAll, value.UI.ReconnectAttempts)
+}
+
+func (f *runFlags) message(cmd *cobra.Command, args []string, workspace string) (client.Message, error) {
+	text, textErr := prompt(cmd, args)
+	if textErr != nil && (!errors.Is(textErr, errNoPrompt) || len(f.files) == 0) {
+		return client.Message{}, textErr
+	}
+	attached, err := resolveAttachments(cmd.Context(), workspace, f.files)
+	if err != nil {
+		return client.Message{}, err
+	}
+	return client.Message{Text: text, Attachments: attached}, nil
+}
+
+func runRenderer(cmd *cobra.Command, asJSON bool) renderer {
+	if asJSON {
+		return render.NewJSON(cmd.OutOrStdout())
+	}
+	return render.NewText(cmd.OutOrStdout())
+}
+
+func completeRunFile(cmd *cobra.Command, _ []string, value string) ([]string, cobra.ShellCompDirective) {
+	workspacePath, err := workspace(cmd)
+	if err != nil {
+		return nil, cobra.ShellCompDirectiveError
+	}
+	resolver, err := attachment.New(workspacePath)
+	if err != nil {
+		return nil, cobra.ShellCompDirectiveError
+	}
+	matches, err := resolver.Complete(cmd.Context(), value, attachment.DefaultLimit)
+	if err != nil {
+		return nil, cobra.ShellCompDirectiveError
+	}
+	out := make([]string, 0, len(matches))
+	for _, match := range matches {
+		out = append(out, match.Path+"\t"+match.Detail)
+	}
+	return out, cobra.ShellCompDirectiveNoFileComp
 }
 
 func resolveAttachments(ctx context.Context, workspace string, paths []string) ([]client.Attachment, error) {

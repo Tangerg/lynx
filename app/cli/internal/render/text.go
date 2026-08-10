@@ -57,28 +57,31 @@ func (t *Text) Render(envelope client.Envelope) error {
 		t.err = fmt.Errorf("render text event: %w", err)
 		return t.err
 	}
-	ev := envelope.Event
-	switch e := ev.(type) {
+	t.renderEvent(envelope.Event)
+	return t.err
+}
+
+func (t *Text) renderEvent(event client.Event) {
+	switch event := event.(type) {
 	case client.RunStarted:
 		// A run's identity is machinery, not content.
 	case client.BlockStarted:
-		t.begin(e.Block)
+		t.begin(event.Block)
 	case client.BlockDelta:
-		t.delta(e)
+		t.delta(event)
 	case client.BlockCompleted:
-		t.finish(e.Block)
+		t.finish(event.Block)
 	case client.PlanChanged:
-		t.plan(e.Items)
+		t.plan(event.Items)
 	case client.RunResumed:
 		// Control identity is not reader-facing text.
 	case client.RunInterrupted:
-		t.interrupted(e.Interaction)
+		t.interrupted(event.Interaction)
 	case client.RunFinished:
-		t.finished(e)
+		t.finished(event)
 	default:
-		t.err = fmt.Errorf("render text event: unsupported event %T", envelope.Event)
+		t.err = fmt.Errorf("render text event: unsupported event %T", event)
 	}
-	return t.err
 }
 
 // Close ends the output on its own line.
@@ -117,27 +120,27 @@ func (t *Text) finish(b client.Block) {
 		delete(t.pending, b.ID)
 		return
 	}
-	text := b.Text
-	if text == "" {
-		if body, ok := t.pending[b.ID]; ok {
-			text = body.String()
-		}
-	}
+	text := t.completedText(b)
 	delete(t.pending, b.ID)
+	t.renderCompletedBlock(b, text)
+}
 
+func (t *Text) completedText(block client.Block) string {
+	if block.Text != "" {
+		return block.Text
+	}
+	if body, ok := t.pending[block.ID]; ok {
+		return body.String()
+	}
+	return ""
+}
+
+func (t *Text) renderCompletedBlock(b client.Block, text string) {
 	switch b.Kind {
 	case client.BlockUser:
-		t.blank()
-		if text != "" {
-			t.block("› ", text)
-		}
-		for _, attachment := range b.Attachments {
-			t.line("  @ " + attachment.Name + " (" + attachment.MimeType + ", " + strconv.FormatInt(attachment.Size, 10) + " bytes)")
-		}
+		t.userBlock(b, text)
 	case client.BlockAssistant:
-		t.blank()
-		t.write(text)
-		t.endLine()
+		t.proseBlock(text)
 	case client.BlockReasoning:
 		t.blank()
 		t.block("· ", text)
@@ -152,6 +155,22 @@ func (t *Text) finish(b client.Block) {
 	}
 }
 
+func (t *Text) userBlock(block client.Block, text string) {
+	t.blank()
+	if text != "" {
+		t.block("› ", text)
+	}
+	for _, attachment := range block.Attachments {
+		t.line("  @ " + attachment.Name + " (" + attachment.MimeType + ", " + strconv.FormatInt(attachment.Size, 10) + " bytes)")
+	}
+}
+
+func (t *Text) proseBlock(text string) {
+	t.blank()
+	t.write(text)
+	t.endLine()
+}
+
 func (t *Text) tool(b client.Block) {
 	call := b.Tool
 	if call == nil {
@@ -163,6 +182,12 @@ func (t *Text) tool(b client.Block) {
 		return
 	}
 	t.blank()
+	t.toolHeader(call)
+	t.toolBody(call)
+	t.toolVerdict(call)
+}
+
+func (t *Text) toolHeader(call *client.ToolCall) {
 	head := "● " + textToolName(call)
 	primary := textToolPrimary(call)
 	if primary != "" {
@@ -172,7 +197,9 @@ func (t *Text) tool(b client.Block) {
 		head += " · " + call.Summary
 	}
 	t.line(head)
+}
 
+func (t *Text) toolBody(call *client.ToolCall) {
 	if call.Output != "" {
 		lines := strings.Split(strings.TrimRight(call.Output, "\n"), "\n")
 		shown := min(len(lines), maxToolOutputLines)
@@ -186,7 +213,9 @@ func (t *Text) tool(b client.Block) {
 	if call.Diff != "" {
 		t.diff(call.Diff)
 	}
+}
 
+func (t *Text) toolVerdict(call *client.ToolCall) {
 	// The verdict goes last, under what it is a verdict on.
 	mark := "✓"
 	if call.Status == client.ToolError {
@@ -216,10 +245,12 @@ func textToolName(call *client.ToolCall) string {
 		return "web"
 	case client.ToolTask:
 		return "task"
-	default:
+	case client.ToolUnknown:
 		if call.Name != "" {
 			return call.Name
 		}
+		return "tool"
+	default:
 		return "tool"
 	}
 }
@@ -235,6 +266,9 @@ func textToolPrimary(call *client.ToolCall) string {
 		value = call.Query
 	case client.ToolWeb:
 		value = call.URL
+	case client.ToolUnknown, client.ToolTask:
+		// These kinds have no more specific primary field.
+	default:
 	}
 	if value != "" {
 		return value
@@ -261,6 +295,9 @@ func (t *Text) plan(items []client.PlanItem) {
 			mark = "▸"
 		case client.PlanDone:
 			mark = "☑"
+		case client.PlanPending:
+			// The empty checkbox is already selected.
+		default:
 		}
 		t.line("  " + mark + " " + it.Title)
 	}

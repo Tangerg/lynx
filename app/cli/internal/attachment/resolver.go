@@ -79,56 +79,86 @@ func (r *Resolver) Resolve(ctx context.Context, input string) (client.Attachment
 	if err := context.Cause(ctx); err != nil {
 		return client.Attachment{}, err
 	}
-	path, err := r.absolute(input)
+	canonical, info, header, err := r.inspect(input)
 	if err != nil {
 		return client.Attachment{}, err
 	}
+	return r.project(canonical, info, header), nil
+}
+
+func (r *Resolver) inspect(input string) (string, fs.FileInfo, []byte, error) {
+	path, err := r.absolute(input)
+	if err != nil {
+		return "", nil, nil, err
+	}
 	canonical, err := filepath.EvalSymlinks(path)
 	if err != nil {
-		return client.Attachment{}, fmt.Errorf("attachment: resolve %q: %w", input, err)
+		return "", nil, nil, fmt.Errorf("attachment: resolve %q: %w", input, err)
 	}
 	file, err := os.Open(canonical)
 	if err != nil {
-		return client.Attachment{}, fmt.Errorf("attachment: open %q: %w", input, err)
+		return "", nil, nil, fmt.Errorf("attachment: open %q: %w", input, err)
 	}
 	defer file.Close()
 	info, err := file.Stat()
 	if err != nil {
-		return client.Attachment{}, fmt.Errorf("attachment: inspect %q: %w", input, err)
+		return "", nil, nil, fmt.Errorf("attachment: inspect %q: %w", input, err)
 	}
-	if !info.Mode().IsRegular() {
-		return client.Attachment{}, fmt.Errorf("%w: %s", ErrNotRegular, input)
+	if err := validateAttachmentInfo(info, input, r.maxBytes); err != nil {
+		return "", nil, nil, err
 	}
-	if info.Size() > r.maxBytes {
-		return client.Attachment{}, fmt.Errorf("%w: %s is %s (limit %s)", ErrTooLarge, input, byteSize(info.Size()), byteSize(r.maxBytes))
-	}
-
-	header := make([]byte, 512)
-	n, readErr := io.ReadFull(file, header)
-	if readErr != nil && !errors.Is(readErr, io.EOF) && !errors.Is(readErr, io.ErrUnexpectedEOF) {
-		return client.Attachment{}, fmt.Errorf("attachment: inspect content of %q: %w", input, readErr)
-	}
-	mimeType := classifyMIME(canonical, header[:n])
-	kind := client.AttachmentFile
-	switch {
-	case strings.HasPrefix(mimeType, "image/"):
-		kind = client.AttachmentImage
-	case isTextMIME(mimeType):
-		kind = client.AttachmentText
+	header, err := readAttachmentHeader(file, input)
+	if err != nil {
+		return "", nil, nil, err
 	}
 	canonical, err = filepath.Abs(canonical)
 	if err != nil {
-		return client.Attachment{}, fmt.Errorf("attachment: canonical path: %w", err)
+		return "", nil, nil, fmt.Errorf("attachment: canonical path: %w", err)
 	}
+	return canonical, info, header, nil
+}
+
+func validateAttachmentInfo(info fs.FileInfo, input string, maxBytes int64) error {
+	if !info.Mode().IsRegular() {
+		return fmt.Errorf("%w: %s", ErrNotRegular, input)
+	}
+	if info.Size() > maxBytes {
+		return fmt.Errorf("%w: %s is %s (limit %s)", ErrTooLarge, input, byteSize(info.Size()), byteSize(maxBytes))
+	}
+	return nil
+}
+
+func readAttachmentHeader(file io.Reader, input string) ([]byte, error) {
+	header := make([]byte, 512)
+	n, err := io.ReadFull(file, header)
+	if err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, io.ErrUnexpectedEOF) {
+		return nil, fmt.Errorf("attachment: inspect content of %q: %w", input, err)
+	}
+	return header[:n], nil
+}
+
+func (r *Resolver) project(canonical string, info fs.FileInfo, header []byte) client.Attachment {
+	mimeType := classifyMIME(canonical, header)
 	name := filepath.Base(canonical)
 	if relative, ok := r.relative(canonical); ok {
 		name = relative
 	}
 	digest := sha256.Sum256([]byte(canonical + "\x00" + strconv.FormatInt(info.Size(), 10) + "\x00" + strconv.FormatInt(info.ModTime().UnixNano(), 10)))
 	return client.Attachment{
-		ID: "att_" + hex.EncodeToString(digest[:8]), Kind: kind, Name: filepath.ToSlash(name),
+		ID: "att_" + hex.EncodeToString(digest[:8]), Kind: attachmentKind(mimeType), Name: filepath.ToSlash(name),
 		Path: canonical, MimeType: mimeType, Size: info.Size(),
-	}, nil
+	}
+}
+
+func attachmentKind(mimeType string) client.AttachmentKind {
+	switch {
+	case strings.HasPrefix(mimeType, "image/"):
+		return client.AttachmentImage
+	case isTextMIME(mimeType):
+		return client.AttachmentText
+	default:
+		return client.AttachmentFile
+	}
 }
 
 // Complete searches regular files below Root and returns fuzzy-ranked relative
@@ -138,54 +168,15 @@ func (r *Resolver) Complete(ctx context.Context, query string, limit int) ([]Mat
 	if limit <= 0 {
 		limit = DefaultLimit
 	}
-	query = filepath.ToSlash(strings.TrimSpace(query))
-	matches := make([]Match, 0, limit)
-	visited := 0
-	err := filepath.WalkDir(r.root, func(path string, entry os.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			if path != r.root && entry != nil && entry.IsDir() {
-				return filepath.SkipDir
-			}
-			return walkErr
-		}
-		if err := context.Cause(ctx); err != nil {
-			return err
-		}
-		if entry.IsDir() {
-			if path != r.root && ignoredDirectory(entry.Name()) {
-				return filepath.SkipDir
-			}
-			return nil
-		}
-		visited++
-		if visited > maxVisited {
-			return filepath.SkipAll
-		}
-		if entry.Type()&os.ModeSymlink != 0 {
-			return nil
-		}
-		info, ok := completionFileInfo(entry, r.maxBytes)
-		if !ok {
-			return nil
-		}
-		relative, err := filepath.Rel(r.root, path)
-		if err != nil {
-			return err
-		}
-		relative = filepath.ToSlash(relative)
-		score, at, ok := fuzzyPath(query, relative)
-		if !ok {
-			return nil
-		}
-		matches = append(matches, Match{
-			Path: relative, Detail: byteSize(info.Size()), Matched: at, score: score,
-		})
-		return nil
-	})
+	search := completionSearch{
+		ctx: ctx, root: r.root, maxBytes: r.maxBytes,
+		query: filepath.ToSlash(strings.TrimSpace(query)), matches: make([]Match, 0, limit),
+	}
+	err := filepath.WalkDir(r.root, search.visit)
 	if err != nil {
 		return nil, fmt.Errorf("attachment: search workspace: %w", err)
 	}
-	slices.SortStableFunc(matches, func(a, b Match) int {
+	slices.SortStableFunc(search.matches, func(a, b Match) int {
 		if a.score != b.score {
 			return b.score - a.score
 		}
@@ -194,7 +185,67 @@ func (r *Resolver) Complete(ctx context.Context, query string, limit int) ([]Mat
 		}
 		return strings.Compare(a.Path, b.Path)
 	})
-	return slices.Clone(matches[:min(len(matches), limit)]), nil
+	return slices.Clone(search.matches[:min(len(search.matches), limit)]), nil
+}
+
+type completionSearch struct {
+	ctx      context.Context
+	root     string
+	query    string
+	maxBytes int64
+	visited  int
+	matches  []Match
+}
+
+func (s *completionSearch) visit(path string, entry os.DirEntry, walkErr error) error {
+	if walkErr != nil {
+		return s.handleWalkError(path, entry, walkErr)
+	}
+	if err := context.Cause(s.ctx); err != nil {
+		return err
+	}
+	if entry.IsDir() {
+		return s.visitDirectory(path, entry)
+	}
+	return s.visitFile(path, entry)
+}
+
+func (s *completionSearch) handleWalkError(path string, entry os.DirEntry, walkErr error) error {
+	if path != s.root && entry != nil && entry.IsDir() {
+		return filepath.SkipDir
+	}
+	return walkErr
+}
+
+func (s *completionSearch) visitDirectory(path string, entry os.DirEntry) error {
+	if path != s.root && ignoredDirectory(entry.Name()) {
+		return filepath.SkipDir
+	}
+	return nil
+}
+
+func (s *completionSearch) visitFile(path string, entry os.DirEntry) error {
+	s.visited++
+	if s.visited > maxVisited {
+		return filepath.SkipAll
+	}
+	if entry.Type()&os.ModeSymlink != 0 {
+		return nil
+	}
+	info, ok := completionFileInfo(entry, s.maxBytes)
+	if !ok {
+		return nil
+	}
+	relative, err := filepath.Rel(s.root, path)
+	if err != nil {
+		return err
+	}
+	relative = filepath.ToSlash(relative)
+	score, at, matched := fuzzyPath(s.query, relative)
+	if matched {
+		s.matches = append(s.matches, Match{Path: relative, Detail: byteSize(info.Size()), Matched: at, score: score})
+	}
+	return nil
 }
 
 // completionFileInfo makes completion's best-effort policy explicit: a file

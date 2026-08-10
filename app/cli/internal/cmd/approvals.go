@@ -19,31 +19,7 @@ func newApprovalsCommand(resolve backend) *cobra.Command {
 		Args:         cobra.NoArgs,
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			runtime, err := resolve.open(cmd)
-			if err != nil {
-				return err
-			}
-			rules, err := runtime.ListApprovalRules(cmd.Context())
-			if err != nil {
-				return err
-			}
-			if err := client.ValidateApprovalRules(rules); err != nil {
-				return fmt.Errorf("list approval rules: %w", err)
-			}
-			writer := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 0, 2, ' ', 0)
-			for _, rule := range rules {
-				target := rule.Workspace
-				if target == "" {
-					target = rule.SessionID
-				}
-				if target == "" {
-					target = "*"
-				}
-				if _, err := fmt.Fprintf(writer, "%s\t%s\t%s\t%s\t%s\n", rule.ID, rule.Scope, rule.Decision, target, rule.Rule); err != nil {
-					return err
-				}
-			}
-			return writer.Flush()
+			return listApprovalRules(cmd, resolve)
 		},
 	})
 	var yes bool
@@ -71,4 +47,37 @@ func newApprovalsCommand(resolve backend) *cobra.Command {
 	remove.Flags().BoolVarP(&yes, "yes", "y", false, "Confirm forgetting the rule")
 	command.AddCommand(remove)
 	return command
+}
+
+func listApprovalRules(cmd *cobra.Command, resolve backend) error {
+	runtime, err := resolve.open(cmd)
+	if err != nil {
+		return err
+	}
+	rules, err := runtime.ListApprovalRules(cmd.Context())
+	if err != nil {
+		return err
+	}
+	if err := client.ValidateApprovalRules(rules); err != nil {
+		return fmt.Errorf("list approval rules: %w", err)
+	}
+	writer := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 0, 2, ' ', 0)
+	for _, rule := range rules {
+		if err := writeApprovalRule(writer, rule); err != nil {
+			return err
+		}
+	}
+	return writer.Flush()
+}
+
+func writeApprovalRule(writer *tabwriter.Writer, rule client.ApprovalRule) error {
+	target := rule.Workspace
+	if target == "" {
+		target = rule.SessionID
+	}
+	if target == "" {
+		target = "*"
+	}
+	_, err := fmt.Fprintf(writer, "%s\t%s\t%s\t%s\t%s\n", rule.ID, rule.Scope, rule.Decision, target, rule.Rule)
+	return err
 }

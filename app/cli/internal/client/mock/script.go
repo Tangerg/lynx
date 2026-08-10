@@ -164,7 +164,7 @@ func Conversation(_ string) Script {
 		"ok  \tgithub.com/example/store\t0.410s",
 	}, "\n")
 
-	var prelude []Step
+	prelude := make([]Step, 0, 32)
 	prelude = append(prelude, Step{Delay: beat, Event: client.PlanChanged{Items: []client.PlanItem{
 		{Title: "Reproduce the flake", Status: client.PlanActive},
 		{Title: "Find what the test is really waiting for", Status: client.PlanPending},
@@ -195,9 +195,10 @@ func Conversation(_ string) Script {
 		},
 	}})
 
-	denied := []Step{{Delay: beat, Event: client.BlockCompleted{Block: client.Block{
+	denied := make([]Step, 0, 16)
+	denied = append(denied, Step{Delay: beat, Event: client.BlockCompleted{Block: client.Block{
 		ID: "note_1", Kind: client.BlockNotice, Text: "Edit declined — internal/store/cache_test.go left unchanged.",
-	}}}}
+	}}})
 	denied = append(denied, stream("msg_3", client.BlockAssistant, declined)...)
 	denied = append(denied, Step{Delay: beat, Event: client.RunFinished{
 		Outcome: client.Outcome{Status: client.OutcomeCompleted},
@@ -259,6 +260,9 @@ func tool(id string, kind client.ToolKind, name, summary string, status client.T
 		running.Tool.Query, done.Tool.Query = summary, summary
 	case client.ToolWeb:
 		running.Tool.URL, done.Tool.URL = summary, summary
+	case client.ToolUnknown, client.ToolTask:
+		// These kinds do not project a specialized primary field.
+	default:
 	}
 	return []Step{
 		{Delay: beat, Event: client.BlockStarted{Block: running}},

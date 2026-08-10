@@ -43,45 +43,65 @@ func New(directories []string) Source {
 func (Source) ID() string { return "sideload" }
 
 func (s Source) Discover(ctx context.Context) (extensions.SourceResult, error) {
-	var result extensions.SourceResult
-	scannedRoots := make(map[string]struct{}, len(s.directories))
-	seenPlugins := make(map[string]struct{})
+	discovery := sourceDiscovery{
+		scannedRoots: make(map[string]struct{}, len(s.directories)),
+		seenPlugins:  make(map[string]struct{}),
+	}
 	for _, configured := range s.directories {
 		if err := context.Cause(ctx); err != nil {
 			return extensions.SourceResult{}, err
 		}
-		root, err := canonicalDirectory(configured)
-		if errors.Is(err, fs.ErrNotExist) {
-			continue
-		}
-		if err != nil {
-			result.Issues = append(result.Issues, fmt.Errorf("resolve plugin directory %q: %w", configured, err))
-			continue
-		}
-		rootKey := pathKey(root)
-		if _, scanned := scannedRoots[rootKey]; scanned {
-			continue
-		}
-		scannedRoots[rootKey] = struct{}{}
-		entries, err := os.ReadDir(root)
-		if err != nil {
-			result.Issues = append(result.Issues, fmt.Errorf("read plugin directory %q: %w", root, err))
-			continue
-		}
-		discoverDirectory(&result, seenPlugins, root)
-		for _, entry := range entries {
-			if !entry.IsDir() && entry.Type()&os.ModeSymlink == 0 {
-				continue
-			}
-			directory, err := canonicalDirectory(filepath.Join(root, entry.Name()))
-			if err != nil {
-				result.Issues = append(result.Issues, fmt.Errorf("resolve plugin directory %q: %w", filepath.Join(root, entry.Name()), err))
-				continue
-			}
-			discoverDirectory(&result, seenPlugins, directory)
-		}
+		discovery.scanRoot(configured)
 	}
-	return result, nil
+	return discovery.result, nil
+}
+
+type sourceDiscovery struct {
+	result       extensions.SourceResult
+	scannedRoots map[string]struct{}
+	seenPlugins  map[string]struct{}
+}
+
+func (d *sourceDiscovery) scanRoot(configured string) {
+	root, err := canonicalDirectory(configured)
+	if errors.Is(err, fs.ErrNotExist) {
+		return
+	}
+	if err != nil {
+		d.result.Issues = append(d.result.Issues, fmt.Errorf("resolve plugin directory %q: %w", configured, err))
+		return
+	}
+	rootKey := pathKey(root)
+	if _, scanned := d.scannedRoots[rootKey]; scanned {
+		return
+	}
+	d.scannedRoots[rootKey] = struct{}{}
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		d.result.Issues = append(d.result.Issues, fmt.Errorf("read plugin directory %q: %w", root, err))
+		return
+	}
+	d.discover(root)
+	for _, entry := range entries {
+		d.discoverChild(root, entry)
+	}
+}
+
+func (d *sourceDiscovery) discoverChild(root string, entry os.DirEntry) {
+	if !entry.IsDir() && entry.Type()&os.ModeSymlink == 0 {
+		return
+	}
+	path := filepath.Join(root, entry.Name())
+	directory, err := canonicalDirectory(path)
+	if err != nil {
+		d.result.Issues = append(d.result.Issues, fmt.Errorf("resolve plugin directory %q: %w", path, err))
+		return
+	}
+	d.discover(directory)
+}
+
+func (d *sourceDiscovery) discover(directory string) {
+	discoverDirectory(&d.result, d.seenPlugins, directory)
 }
 
 func discoverDirectory(result *extensions.SourceResult, seen map[string]struct{}, directory string) {
@@ -194,14 +214,9 @@ func rejectTrailingJSON(decoder *json.Decoder) error {
 }
 
 func compileManifest(directory string, manifest manifest) (extensions.Plugin, error) {
-	if manifest.SchemaVersion != manifestSchema {
-		return extensions.Plugin{}, fmt.Errorf("schemaVersion is %d, want %d", manifest.SchemaVersion, manifestSchema)
-	}
-	if manifest.ID == "terminal" || strings.HasPrefix(manifest.ID, "terminal.") {
-		return extensions.Plugin{}, fmt.Errorf("plugin id %q uses the reserved terminal namespace", manifest.ID)
-	}
-	if len(manifest.Contributes.Commands) == 0 {
-		return extensions.Plugin{}, errors.New("contributes.commands must contain at least one command")
+	plugin, err := compilePluginMetadata(manifest)
+	if err != nil {
+		return extensions.Plugin{}, err
 	}
 	executable, workingDirectory, err := resolveEntry(directory, manifest.Entry)
 	if err != nil {
@@ -211,6 +226,20 @@ func compileManifest(directory string, manifest manifest) (extensions.Plugin, er
 	if err != nil {
 		return extensions.Plugin{}, err
 	}
+	plugin.Setup = contributeCommands(commands)
+	return plugin, nil
+}
+
+func compilePluginMetadata(manifest manifest) (extensions.Plugin, error) {
+	if manifest.SchemaVersion != manifestSchema {
+		return extensions.Plugin{}, fmt.Errorf("schemaVersion is %d, want %d", manifest.SchemaVersion, manifestSchema)
+	}
+	if manifest.ID == "terminal" || strings.HasPrefix(manifest.ID, "terminal.") {
+		return extensions.Plugin{}, fmt.Errorf("plugin id %q uses the reserved terminal namespace", manifest.ID)
+	}
+	if len(manifest.Contributes.Commands) == 0 {
+		return extensions.Plugin{}, errors.New("contributes.commands must contain at least one command")
+	}
 	capabilities := make([]extensions.Capability, len(manifest.Capabilities))
 	for i, capability := range manifest.Capabilities {
 		capabilities[i] = extensions.Capability(capability)
@@ -218,14 +247,7 @@ func compileManifest(directory string, manifest manifest) (extensions.Plugin, er
 	plugin := extensions.Plugin{
 		ID: manifest.ID, Version: manifest.Version, APIVersion: manifest.APIVersion,
 		Requires: slices.Clone(manifest.Requires), Capabilities: capabilities,
-	}
-	plugin.Setup = func(scope *extensions.Scope) error {
-		for i, command := range commands {
-			if _, err := extensions.Contribute(scope, session.SlashCommands, command, extensions.Contribution{Order: i}); err != nil {
-				return err
-			}
-		}
-		return nil
+		Setup: func(*extensions.Scope) error { return nil },
 	}
 	if err := extensions.ValidateManifest(plugin); err != nil {
 		return extensions.Plugin{}, err
@@ -233,15 +255,21 @@ func compileManifest(directory string, manifest manifest) (extensions.Plugin, er
 	return plugin, nil
 }
 
-func resolveEntry(directory, entry string) (string, string, error) {
-	entry = strings.TrimSpace(entry)
-	if entry == "" || filepath.IsAbs(entry) || strings.Contains(entry, `\`) {
-		return "", "", fmt.Errorf("entry %q must be a relative slash-separated path", entry)
+func contributeCommands(commands []session.SlashCommand) func(*extensions.Scope) error {
+	return func(scope *extensions.Scope) error {
+		for i, command := range commands {
+			if _, err := extensions.Contribute(scope, session.SlashCommands, command, extensions.Contribution{Order: i}); err != nil {
+				return err
+			}
+		}
+		return nil
 	}
-	expected := filepath.Clean(filepath.Join(directory, filepath.FromSlash(entry)))
-	safe := filepath.Clean(pathologize.Join(directory, entry))
-	if safe != expected {
-		return "", "", fmt.Errorf("entry %q contains unsafe path segments", entry)
+}
+
+func resolveEntry(directory, entry string) (string, string, error) {
+	entry, expected, err := validateEntryPath(directory, entry)
+	if err != nil {
+		return "", "", err
 	}
 	realDirectory, err := filepath.EvalSymlinks(directory)
 	if err != nil {
@@ -255,17 +283,37 @@ func resolveEntry(directory, entry string) (string, string, error) {
 	if err != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
 		return "", "", fmt.Errorf("entry %q escapes its plugin directory", entry)
 	}
-	info, err := os.Stat(realExecutable)
-	if err != nil {
-		return "", "", fmt.Errorf("inspect entry %q: %w", entry, err)
-	}
-	if !info.Mode().IsRegular() {
-		return "", "", fmt.Errorf("entry %q is not a regular file", entry)
-	}
-	if runtime.GOOS != "windows" && info.Mode().Perm()&0o111 == 0 {
-		return "", "", fmt.Errorf("entry %q is not executable", entry)
+	if err := validateExecutable(entry, realExecutable); err != nil {
+		return "", "", err
 	}
 	return realExecutable, realDirectory, nil
+}
+
+func validateEntryPath(directory, entry string) (string, string, error) {
+	entry = strings.TrimSpace(entry)
+	if entry == "" || filepath.IsAbs(entry) || strings.Contains(entry, `\`) {
+		return "", "", fmt.Errorf("entry %q must be a relative slash-separated path", entry)
+	}
+	expected := filepath.Clean(filepath.Join(directory, filepath.FromSlash(entry)))
+	safe := filepath.Clean(pathologize.Join(directory, entry))
+	if safe != expected {
+		return "", "", fmt.Errorf("entry %q contains unsafe path segments", entry)
+	}
+	return entry, expected, nil
+}
+
+func validateExecutable(entry, path string) error {
+	info, err := os.Stat(path)
+	if err != nil {
+		return fmt.Errorf("inspect entry %q: %w", entry, err)
+	}
+	if !info.Mode().IsRegular() {
+		return fmt.Errorf("entry %q is not a regular file", entry)
+	}
+	if runtime.GOOS != "windows" && info.Mode().Perm()&0o111 == 0 {
+		return fmt.Errorf("entry %q is not executable", entry)
+	}
+	return nil
 }
 
 func compileCommands(pluginID, executable, directory string, manifests []commandManifest) ([]session.SlashCommand, error) {
@@ -275,53 +323,99 @@ func compileCommands(pluginID, executable, directory string, manifests []command
 	seen := make(map[string]struct{}, len(manifests))
 	commands := make([]session.SlashCommand, 0, len(manifests))
 	for _, declared := range manifests {
-		name := strings.TrimSpace(declared.Name)
-		if name == "" || len(name) > maximumName || strings.ContainsAny(name, " /\t\n") {
-			return nil, fmt.Errorf("command name %q is invalid", declared.Name)
+		command, err := compileCommand(pluginID, executable, directory, declared, seen)
+		if err != nil {
+			return nil, err
 		}
-		if _, duplicate := seen[name]; duplicate {
-			return nil, fmt.Errorf("command %q is declared more than once", name)
-		}
-		seen[name] = struct{}{}
-		title := strings.TrimSpace(declared.Title)
-		if title == "" {
-			return nil, fmt.Errorf("command %q has no title", name)
-		}
-		if len(title) > maximumTitle {
-			return nil, fmt.Errorf("command %q title exceeds %d bytes", name, maximumTitle)
-		}
-		aliases := slices.Clone(declared.Aliases)
-		if len(aliases) > maximumAliases {
-			return nil, fmt.Errorf("command %q exceeds %d aliases", name, maximumAliases)
-		}
-		for i, alias := range aliases {
-			alias = strings.TrimSpace(alias)
-			if alias == "" || len(alias) > maximumName || strings.ContainsAny(alias, " /\t\n") {
-				return nil, fmt.Errorf("command %q alias %q is invalid", name, declared.Aliases[i])
-			}
-			if _, duplicate := seen[alias]; duplicate {
-				return nil, fmt.Errorf("command spelling %q is declared more than once", alias)
-			}
-			seen[alias] = struct{}{}
-			aliases[i] = alias
-		}
-		timeout := defaultTimeout
-		if declared.TimeoutSeconds != 0 {
-			timeout = time.Duration(declared.TimeoutSeconds) * time.Second
-		}
-		if timeout <= 0 || timeout > maximumTimeout {
-			return nil, fmt.Errorf("command %q timeout must be between 1 and %.0f seconds", name, maximumTimeout.Seconds())
-		}
-		runner := commandRunner{
-			pluginID: pluginID, command: name, executable: executable,
-			directory: directory, timeout: timeout,
-		}
-		commands = append(commands, session.SlashCommand{
-			Name: name, Title: title, Aliases: aliases,
-			Takes: declared.Takes, Execute: runner.Execute,
-		})
+		commands = append(commands, command)
 	}
 	return commands, nil
+}
+
+func compileCommand(
+	pluginID, executable, directory string,
+	declared commandManifest,
+	seen map[string]struct{},
+) (session.SlashCommand, error) {
+	name := strings.TrimSpace(declared.Name)
+	if !validCommandSpelling(name) {
+		return session.SlashCommand{}, fmt.Errorf("command name %q is invalid", declared.Name)
+	}
+	if err := claimCommandSpelling(seen, name, fmt.Sprintf("command %q is declared more than once", name)); err != nil {
+		return session.SlashCommand{}, err
+	}
+	title, err := commandTitle(name, declared.Title)
+	if err != nil {
+		return session.SlashCommand{}, err
+	}
+	aliases, err := compileAliases(name, declared.Aliases, seen)
+	if err != nil {
+		return session.SlashCommand{}, err
+	}
+	timeout, err := commandTimeout(name, declared.TimeoutSeconds)
+	if err != nil {
+		return session.SlashCommand{}, err
+	}
+	runner := commandRunner{
+		pluginID: pluginID, command: name, executable: executable,
+		directory: directory, timeout: timeout,
+	}
+	return session.SlashCommand{
+		Name: name, Title: title, Aliases: aliases,
+		Takes: declared.Takes, Execute: runner.Execute,
+	}, nil
+}
+
+func validCommandSpelling(value string) bool {
+	return value != "" && len(value) <= maximumName && !strings.ContainsAny(value, " /\t\n")
+}
+
+func claimCommandSpelling(seen map[string]struct{}, spelling, message string) error {
+	if _, duplicate := seen[spelling]; duplicate {
+		return errors.New(message)
+	}
+	seen[spelling] = struct{}{}
+	return nil
+}
+
+func commandTitle(name, declared string) (string, error) {
+	title := strings.TrimSpace(declared)
+	if title == "" {
+		return "", fmt.Errorf("command %q has no title", name)
+	}
+	if len(title) > maximumTitle {
+		return "", fmt.Errorf("command %q title exceeds %d bytes", name, maximumTitle)
+	}
+	return title, nil
+}
+
+func compileAliases(name string, declared []string, seen map[string]struct{}) ([]string, error) {
+	if len(declared) > maximumAliases {
+		return nil, fmt.Errorf("command %q exceeds %d aliases", name, maximumAliases)
+	}
+	aliases := slices.Clone(declared)
+	for i, alias := range aliases {
+		alias = strings.TrimSpace(alias)
+		if !validCommandSpelling(alias) {
+			return nil, fmt.Errorf("command %q alias %q is invalid", name, declared[i])
+		}
+		if err := claimCommandSpelling(seen, alias, fmt.Sprintf("command spelling %q is declared more than once", alias)); err != nil {
+			return nil, err
+		}
+		aliases[i] = alias
+	}
+	return aliases, nil
+}
+
+func commandTimeout(name string, seconds int) (time.Duration, error) {
+	timeout := defaultTimeout
+	if seconds != 0 {
+		timeout = time.Duration(seconds) * time.Second
+	}
+	if timeout <= 0 || timeout > maximumTimeout {
+		return 0, fmt.Errorf("command %q timeout must be between 1 and %.0f seconds", name, maximumTimeout.Seconds())
+	}
+	return timeout, nil
 }
 
 var _ extensions.Source = Source{}

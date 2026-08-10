@@ -144,37 +144,9 @@ func (j *JSON) Render(envelope client.Envelope) error {
 		j.err = fmt.Errorf("render JSON event: %w", err)
 		return j.err
 	}
-	ev := envelope.Event
-	var f frame
-	switch e := ev.(type) {
-	case client.RunStarted:
-		f = frame{Type: "run.started", RunID: e.RunID, SessionID: e.SessionID, Options: encodeRunOptions(e.Options)}
-	case client.BlockStarted:
-		f = frame{Type: "block.started", Block: encodeBlock(e.Block)}
-	case client.BlockDelta:
-		f = frame{Type: "block.delta", BlockID: e.BlockID, Text: e.Text}
-	case client.BlockCompleted:
-		f = frame{Type: "block.completed", Block: encodeBlock(e.Block)}
-	case client.PlanChanged:
-		f = frame{Type: "plan.changed", Plan: encodePlan(e.Items)}
-	case client.RunResumed:
-		f = frame{Type: "run.resumed", RunID: envelope.RunID, InterruptID: e.InterruptID}
-	case client.RunInterrupted:
-		f = frame{Type: "run.interrupted", Interaction: encodeInteraction(e.Interaction)}
-	case client.RunFinished:
-		f = frame{
-			Type:    "run.finished",
-			Outcome: &outcomeJSON{Status: string(e.Outcome.Status), Error: e.Outcome.Error},
-			Usage: &usageJSON{
-				InputTokens:  e.Usage.InputTokens,
-				OutputTokens: e.Usage.OutputTokens,
-				CachedTokens: e.Usage.CachedTokens,
-				CostUSD:      e.Usage.CostUSD,
-				DurationMS:   float64(e.Usage.Duration.Milliseconds()),
-			},
-		}
-	default:
-		j.err = fmt.Errorf("render JSON event: unsupported event %T", envelope.Event)
+	f, err := encodeEventFrame(envelope)
+	if err != nil {
+		j.err = err
 		return j.err
 	}
 	f.EventID, f.Cursor, f.At = envelope.ID, envelope.Cursor, envelope.At
@@ -186,6 +158,43 @@ func (j *JSON) Render(envelope client.Envelope) error {
 	}
 	j.err = j.enc.Encode(f)
 	return j.err
+}
+
+func encodeEventFrame(envelope client.Envelope) (frame, error) {
+	switch event := envelope.Event.(type) {
+	case client.RunStarted:
+		return frame{Type: "run.started", RunID: event.RunID, SessionID: event.SessionID, Options: encodeRunOptions(event.Options)}, nil
+	case client.BlockStarted:
+		return frame{Type: "block.started", Block: encodeBlock(event.Block)}, nil
+	case client.BlockDelta:
+		return frame{Type: "block.delta", BlockID: event.BlockID, Text: event.Text}, nil
+	case client.BlockCompleted:
+		return frame{Type: "block.completed", Block: encodeBlock(event.Block)}, nil
+	case client.PlanChanged:
+		return frame{Type: "plan.changed", Plan: encodePlan(event.Items)}, nil
+	case client.RunResumed:
+		return frame{Type: "run.resumed", RunID: envelope.RunID, InterruptID: event.InterruptID}, nil
+	case client.RunInterrupted:
+		return frame{Type: "run.interrupted", Interaction: encodeInteraction(event.Interaction)}, nil
+	case client.RunFinished:
+		return encodeFinishedFrame(event), nil
+	default:
+		return frame{}, fmt.Errorf("render JSON event: unsupported event %T", envelope.Event)
+	}
+}
+
+func encodeFinishedFrame(event client.RunFinished) frame {
+	return frame{
+		Type:    "run.finished",
+		Outcome: &outcomeJSON{Status: string(event.Outcome.Status), Error: event.Outcome.Error},
+		Usage: &usageJSON{
+			InputTokens:  event.Usage.InputTokens,
+			OutputTokens: event.Usage.OutputTokens,
+			CachedTokens: event.Usage.CachedTokens,
+			CostUSD:      event.Usage.CostUSD,
+			DurationMS:   float64(event.Usage.Duration.Milliseconds()),
+		},
+	}
 }
 
 func encodeRunOptions(options client.RunOptions) *runOptionsJSON {

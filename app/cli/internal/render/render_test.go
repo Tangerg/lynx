@@ -144,7 +144,7 @@ func TestTextIndentsContinuationLines(t *testing.T) {
 }
 
 func TestTextCapsToolOutput(t *testing.T) {
-	var lines []string
+	lines := make([]string, 0, maxToolOutputLines+5)
 	for i := range maxToolOutputLines + 5 {
 		lines = append(lines, "line"+string(rune('a'+i)))
 	}
