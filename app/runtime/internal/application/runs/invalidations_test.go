@@ -66,16 +66,16 @@ func TestStartAndTerminalPublishRunAndSessionChanges(t *testing.T) {
 	control := &fakeExecutionPorts{startRef: ExecutorRef{SessionID: "ses_1", ExecutorID: "turn_1"}}
 	invalidations := &invalidationRecorder{}
 	c := NewCoordinator(Dependencies{
-		RootStarts:   control,
-		Observations: exec,
-		Releases:     control,
-		Conversation: emptyConversationReader{},
-		Session:      testSessionPorts(sessions),
-		Projection:   testProjectionPorts(effects),
-		Now:          func() time.Time { return time.Date(2026, 7, 29, 1, 2, 3, 0, time.UTC) },
-		NewRunID:     func() string { return "run_new" },
-		NewSegmentID: func() string { return "seg_new" },
-		Admissions:   new(sessionadmission.Gate),
+		RootStarts:    control,
+		Observations:  exec,
+		Releases:      control,
+		Conversation:  emptyConversationReader{},
+		Session:       testSessionPorts(sessions),
+		Projection:    testProjectionPorts(effects),
+		Now:           func() time.Time { return time.Date(2026, 7, 29, 1, 2, 3, 0, time.UTC) },
+		NewRunID:      func() string { return "run_new" },
+		NewSegmentID:  func() string { return "seg_new" },
+		Admissions:    new(sessionadmission.Gate),
 		Invalidations: invalidations.publish,
 	})
 
@@ -119,16 +119,16 @@ func TestPlanSnapshotStaysOnOwningRunStream(t *testing.T) {
 	control := &fakeExecutionPorts{startRef: ExecutorRef{SessionID: "ses_1", ExecutorID: "turn_1"}}
 	sessions := &fakeRunSessions{sess: sessionfixture.MustRestore(session.Snapshot{ID: "ses_1", CWD: "/work"})}
 	c := NewCoordinator(Dependencies{
-		RootStarts:   control,
-		Observations: exec,
-		Releases:     control,
-		Conversation: emptyConversationReader{},
-		Session:      testSessionPorts(sessions),
-		Projection:   testProjectionPorts(&fakeEffects{}),
-		Now:          func() time.Time { return time.Date(2026, 7, 29, 1, 2, 3, 0, time.UTC) },
-		NewRunID:     func() string { return "run_new" },
-		NewSegmentID: func() string { return "seg_new" },
-		Admissions:   new(sessionadmission.Gate),
+		RootStarts:    control,
+		Observations:  exec,
+		Releases:      control,
+		Conversation:  emptyConversationReader{},
+		Session:       testSessionPorts(sessions),
+		Projection:    testProjectionPorts(&fakeEffects{}),
+		Now:           func() time.Time { return time.Date(2026, 7, 29, 1, 2, 3, 0, time.UTC) },
+		NewRunID:      func() string { return "run_new" },
+		NewSegmentID:  func() string { return "seg_new" },
+		Admissions:    new(sessionadmission.Gate),
 		Invalidations: invalidations.publish,
 	})
 
