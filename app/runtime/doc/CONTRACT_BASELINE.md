@@ -210,7 +210,7 @@ P2–P10 已建立：
 - SQLite schema epoch 和 prior-version rejection test；
 - checkpoint envelope strict codec、size、copy、round-trip 和 prior-version rejection（P6 已覆盖 Agent Framework TreeSnapshot parser、copy、corrupt/wrong-build/deployment；P8 随 production owner 收口剩余 envelope guard）；
 - Agent Framework type/name leakage AST guard；
-- no `component/common/core/utils` package guard（P9 已建立准确 shared-capability purity allowlist）；
+- no `component/common/core/utils` package guard（P18 将根级 cross-ring purity allowlist 与 Application mechanism owner guard 分开冻结）；
 - no alias/dual codec/legacy path guard；
 - exported contract GoDoc/parameter/error wrapping guard where the contract is intentionally frozen。
 

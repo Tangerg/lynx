@@ -27,7 +27,7 @@ import (
 func TestPageCursorsHaveUniqueSemanticNamespaces(t *testing.T) {
 	root := moduleRoot(t)
 	namespaces := pageCursorNamespaces(t, root)
-	paginationPath := filepath.Join(root, "internal", "pagination", "pagination.go")
+	paginationPath := filepath.Join(root, "internal", "application", "pagination", "pagination.go")
 	paginationFile, err := parser.ParseFile(token.NewFileSet(), paginationPath, nil, 0)
 	if err != nil {
 		t.Fatalf("parse pagination cursor: %v", err)

@@ -40,6 +40,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/sessionadmission"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/taskgroup"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/tools"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/usage"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
@@ -49,7 +50,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/idempotency"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/skillauthoring"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/teardown"
-	"github.com/Tangerg/lynx/app/runtime/internal/taskgroup"
 )
 
 // Stack is the assembled application surface consumed by delivery. It exposes

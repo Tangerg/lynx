@@ -155,9 +155,9 @@
 
 ## ADR-RT-025：消除 `component` 杂物分类
 
-- 状态：已接受，P9 已实施。
+- 状态：已接受，P9 已实施；其中三个 Application mechanism 的物理 owner 由 ADR-RT-052 收紧。
 - 决策：单一 owner 的原语回归 owner；真正被多个平级消费者复用的中性原语以准确能力名存在于 `internal`，不保留通用 `component/common/core/utils` 收纳层。
-- 后果：Run replay cursor 的业务 shape 回归 `application/runs`，与 pagination 只共享纯 `opaquetoken` framing；completion、HTTP origin、idempotency、pagination、opaque-token、taskgroup 以各自精确能力名存在；teardown/path identity 归 Infra，secret masking 归 Application，notification relay 归 Adapter。`component` 目录和 temporary exception 已删除。
+- 后果：Run replay cursor 的业务 shape 回归 `application/runs`；teardown/path identity 归 Infra，secret masking 归 Application，notification relay 归 Adapter。`component` 目录和 temporary exception 已删除。pagination、opaque-token 与 taskgroup 的准确环内位置见 ADR-RT-052。
 
 ## ADR-RT-026：Protocol 机器制品是外部合同真相源
 
@@ -334,3 +334,10 @@
 - 背景：`interruptcodec` 只有 `interactioninput` 一个生产消费者，却额外形成一个单边 package，并让两个 package 各自维护一套 strict JSON decoder。P12 fuzz 进一步证明标准 `encoding/json` 会把 `Answers` 当作 `answers` 接受，并让空 answers 在第一次与第二次 round-trip 间产生 non-nil/nil 双表示；“拆包保持 framework-neutral”没有换来独立变化轴，反而分裂了同一个 continuation contract。
 - 决策：`interactioninput` 唯一拥有 capability freeze、Tool continuation identity、prompt/resolution wire、pending input 和 response Signal。其 decoder 递归拒绝大小写别名、未知字段和 trailing value，成功值在进入产品 `Interrupt`/`Resolution` 前规范化空集合。删除 `interruptcodec` package、转发函数和第二 decoder；Toolset 仍只依赖 `runs.InterruptFunc`，Domain/Product 值仍不认识 Agent Framework 或 JSON。
 - 后果：一个 package 对一个变化原因负责，pending continuation、prompt 与 resolution 共用同一 strict contract；单元测试和三个 fuzz owner 同时守住 exact field name、canonical round-trip 与任意输入不 panic。这个收敛没有把 Runtime persistence、transaction、Run 或 UI 抽象带入 Agent Framework。
+
+## ADR-RT-052：共享引用不产生跨环所有权
+
+- 状态：已接受，P18 已实施。
+- 背景：P17 把 pagination、opaque-token framing 和 task group 作为根级 shared capability 保留，但完整调用图显示分页策略和后台任务启动都只由 Application use case 决定；Delivery 只消费分页结果/错误，Bootstrap 只构造和关闭 Application task group。opaque-token framing 的两个语义 owner 也都是 Application continuation：paged read 与 Run replay。把引用方误计为行为 owner，会让根级 package 逃避已经明确的环归属。
+- 决策：`pagination`、`taskgroup`、`opaquetoken` 分别归 `application/pagination`、`application/taskgroup`、`application/opaquetoken`。Pagination 继续拥有 keyset anchor、query binding、limit 和 `Page[T]`；Taskgroup 继续拥有 Application component 的 request-detached work；opaque-token 只拥有 Application continuation 的 strict URL-safe framing。标准库 Base64 在这里是 continuation contract 的纯算法，不是媒体内容 transport codec；门禁只为该精确 package 区分二者，不建立宽泛 encoding 例外。
+- 后果：根级 shared capability 只保留真正跨环的 completion、HTTP origin 与 idempotency。Delivery/Bootstrap 可以向内依赖 Application owner，但不能因此把机制提升成无环归属的 `internal` primitive；旧三个根路径永久禁止，不保留 alias、shim、`util` 或 `common`。

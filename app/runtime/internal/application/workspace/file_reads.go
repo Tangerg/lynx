@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/pagination"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/pagination"
 )
 
 // Files owns root-scoped file browser operations.

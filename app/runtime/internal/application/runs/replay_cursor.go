@@ -4,7 +4,7 @@ import (
 	"crypto/rand"
 	"errors"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/opaquetoken"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/opaquetoken"
 )
 
 // replayCursorFormat changes when the token layout changes. A cursor held

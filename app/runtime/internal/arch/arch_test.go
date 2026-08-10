@@ -501,6 +501,9 @@ func TestRuntimeResponsibilityFilesStayFocused(t *testing.T) {
 		filepath.Join("internal", "application", "admission"):                          "process-local Session and working-tree admission belongs to application/sessionadmission",
 		filepath.Join("internal", "application", "change"):                             "post-commit read-again notices belong to application/invalidation",
 		filepath.Join("internal", "application", "approvals", "approvaltest"):          "single-consumer test fixtures belong beside their test",
+		filepath.Join("internal", "opaquetoken"):                                       "application continuation framing belongs to application/opaquetoken",
+		filepath.Join("internal", "pagination"):                                        "query continuation semantics belong to application/pagination",
+		filepath.Join("internal", "taskgroup"):                                         "application-owned background work belongs to application/taskgroup",
 		filepath.Join("internal", "domain", "doc.go"):                                  "domain is a bounded-context namespace, not a zero-behavior umbrella package",
 		filepath.Join("internal", "infra", "storage"):                                  "SQLite and LYRA.md persistence have independent owners in infra/sqlite and infra/knowledgefile",
 		filepath.Join("internal", "adapter", "toolset", "workdir.go"):                  "CWD-bound tool composition belongs to cwd_tools.go",
@@ -588,7 +591,7 @@ func TestDomainHooksStayPure(t *testing.T) {
 func TestDomainStaysFrameworkFree(t *testing.T) {
 	root := moduleRoot(t)
 	forbidExternalImports(t, filepath.Join(root, "internal", "domain"),
-		append(append([]string{"path/filepath"}, sharedCapabilityImports...), frameworkImports...))
+		append(append([]string{"path/filepath"}, crossRingCapabilityImports...), frameworkImports...))
 }
 
 // TestDomainDoesNotRenderAgentOrToolPresentation keeps model/tool text and
@@ -622,17 +625,33 @@ func TestDomainDoesNotRenderAgentOrToolPresentation(t *testing.T) {
 	}
 }
 
-// TestSharedCapabilitiesStayPure keeps the few cross-ring mechanisms free of
-// product and ring ownership. Each package names one proven shared capability;
-// none may become a replacement common/component umbrella.
+// TestSharedCapabilitiesStayPure keeps the few genuinely cross-ring mechanisms
+// free of product and ring ownership. Each package names one proven shared
+// capability; none may become a replacement common/component umbrella.
 func TestSharedCapabilitiesStayPure(t *testing.T) {
 	root := moduleRoot(t)
 	for _, name := range []string{
-		"completion", "httporigin", "idempotency", "opaquetoken", "pagination", "taskgroup",
+		"completion", "httporigin", "idempotency",
 	} {
 		forbidExternalImports(t, filepath.Join(root, "internal", name), []string{
 			domainPkg,
 			"github.com/Tangerg/lynx/app/runtime/internal/application",
+			"github.com/Tangerg/lynx/app/runtime/internal/adapter",
+			"github.com/Tangerg/lynx/app/runtime/internal/infra",
+			"github.com/Tangerg/lynx/app/runtime/internal/delivery",
+			"github.com/Tangerg/lynx/app/runtime/internal/bootstrap",
+		})
+	}
+}
+
+// TestApplicationMechanismsStayApplicationOwned keeps mechanisms shared by
+// multiple use cases inside the Application ring without letting them absorb
+// Domain language or outward implementation concerns.
+func TestApplicationMechanismsStayApplicationOwned(t *testing.T) {
+	root := moduleRoot(t)
+	for _, name := range []string{"opaquetoken", "pagination", "taskgroup"} {
+		forbidExternalImports(t, filepath.Join(root, "internal", "application", name), []string{
+			domainPkg,
 			"github.com/Tangerg/lynx/app/runtime/internal/adapter",
 			"github.com/Tangerg/lynx/app/runtime/internal/infra",
 			"github.com/Tangerg/lynx/app/runtime/internal/delivery",
@@ -762,7 +781,7 @@ func TestDomainStaysPure(t *testing.T) {
 	domain := filepath.Join(root, "internal", "domain")
 	forbidExternalImports(t, domain, append(
 		[]string{"os", "database/sql", "net", "net/http", "go.opentelemetry.io", "github.com/Tangerg/lynx/agent"},
-		sharedCapabilityImports...,
+		crossRingCapabilityImports...,
 	))
 	forbidTestImports(t, domain, []string{
 		"github.com/Tangerg/lynx/app/runtime/internal/application",
@@ -1139,16 +1158,15 @@ func collectStructDeclarations(root string) (map[string]*ast.StructType, error) 
 // (the protocol handler) drives the run coordinator as a use-case surface, but
 // must not itself HOLD the run registry, a cancel func, a task group, or a
 // checkpoint store — the run-lifecycle ownership §20 moved to the application/Host.
-// Scoped to delivery/server: the transport packages legitimately own their own
-// call-lifecycle task groups. Two forms: (a) the task group is import-forbidden
-// outright (a field would need the import; this also catches a held cancel-func
-// group); (b) a struct-field AST walk forbids a held checkpoint store or run
-// registry, whose packages the Server imports for other reasons (adapter/
-// workspace's GitAvailable probe; application/runs' Coordinator + Event).
+// Two forms: (a) the Application task group is import-forbidden outright (a
+// field would need the import; this also catches a held cancel-func group); (b)
+// a struct-field AST walk forbids a held checkpoint store or run registry,
+// whose packages the Server imports for other reasons (adapter/workspace's
+// GitAvailable probe; application/runs' Coordinator + Event).
 func TestDeliveryHoldsNoRunLifecycleState(t *testing.T) {
 	root := moduleRoot(t)
 	dir := filepath.Join(root, "internal", "delivery", "server")
-	forbidExternalImports(t, dir, []string{"github.com/Tangerg/lynx/app/runtime/internal/taskgroup"})
+	forbidExternalImports(t, dir, []string{"github.com/Tangerg/lynx/app/runtime/internal/application/taskgroup"})
 
 	// taskgroup.Group is also import-forbidden above; context.CancelFunc and
 	// runs.Registry cover the rule's "cancel func" + "run registry" clauses so a
@@ -1849,13 +1867,10 @@ func TestRunReductionHasNoOuterProjectionSeam(t *testing.T) {
 	}
 }
 
-var sharedCapabilityImports = []string{
+var crossRingCapabilityImports = []string{
 	"github.com/Tangerg/lynx/app/runtime/internal/completion",
 	"github.com/Tangerg/lynx/app/runtime/internal/httporigin",
 	"github.com/Tangerg/lynx/app/runtime/internal/idempotency",
-	"github.com/Tangerg/lynx/app/runtime/internal/opaquetoken",
-	"github.com/Tangerg/lynx/app/runtime/internal/pagination",
-	"github.com/Tangerg/lynx/app/runtime/internal/taskgroup",
 }
 
 // domainPkg is the bounded-context ring. Prefix-matched.

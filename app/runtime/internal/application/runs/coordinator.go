@@ -11,9 +11,9 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/invalidation"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/sessionadmission"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/taskgroup"
 	rundomain "github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
-	"github.com/Tangerg/lynx/app/runtime/internal/taskgroup"
 )
 
 // ErrClosed is returned by [Coordinator.Start] once the Coordinator is closing:

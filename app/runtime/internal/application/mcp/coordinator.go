@@ -6,8 +6,8 @@ import (
 	"context"
 	"sync"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/application/taskgroup"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
-	"github.com/Tangerg/lynx/app/runtime/internal/taskgroup"
 )
 
 // StatusReader reads the live status projection for configured MCP servers.

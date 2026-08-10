@@ -1,6 +1,6 @@
-// Package opaquetoken frames small structured values as strict, URL-safe
-// tokens. It owns only the transport mechanism: callers own payload versions,
-// invariants, scope checks, and the meaning of malformed input.
+// Package opaquetoken frames small application-owned continuation values as
+// strict, URL-safe tokens. It owns only the framing mechanism: callers own
+// payload versions, invariants, scope checks, and malformed-input semantics.
 //
 // Tokens are opaque by contract, not secret or tamper-proof. Consumers store
 // and return them verbatim; authorities decode and validate their own payload.

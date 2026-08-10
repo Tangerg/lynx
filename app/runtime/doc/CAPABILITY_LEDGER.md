@@ -41,7 +41,7 @@
 | Agent anti-corruption | Agent Framework tree、model/tool Effect、waiting/restore/steer、Delegate child 与 prepared subtree change 均由 `adapter/agentexec` 生产 owner 独占 | Retain | P8 已接管生产；旧 Framework lifecycle 已删除 |
 | Delivery separation | target DAG 禁止 Delivery import 任意 concrete Adapter；protocol/dispatch/server/transport 已按准确职责收口 | Retain | P1/P9/P10 已完成 |
 | Adapter/Infra direction | Adapter 单向使用 Infra；Infra 对 Application/Adapter/Delivery/Bootstrap 反向 import 为零 | Retain | P9 已完成 |
-| Shared capabilities | `component` umbrella 已删除；仅保留七个经多消费者或 codec boundary 证明的准确顶层 capability | Retain exact packages | P9 第一批已完成，永久 purity guard |
+| Shared mechanisms | `component` umbrella 已删除；根级只保留三个真正跨环 capability，Application 共享机制归还 Application | Retain exact owners | P18 所有权纠偏，永久 purity/owner guard |
 | Contract generation | `contract/` 的 manifest/OpenRPC/schema/TypeScript/Go validator 来自唯一 registry；canonical samples 同时经 round-trip 与 strict validator | Retain | P10 已完成 |
 | SQLite exact epoch | epoch 66 单一 shape，无生产 migration chain | Retain | P6/P8 完成；P15-03 收回 child-start durable wire owner；P16-02 收回 Tool failure vocabulary |
 
@@ -216,23 +216,23 @@ P8 production cutover 已用真实 Bootstrap consumer 冻结 root stage/observe/
 
 ## 9. 结构清理台账
 
-### 9.1 Shared capabilities
+### 9.1 Shared mechanism ownership
 
 | 能力 | 最终 owner | 证据 |
 |---|---|---|
-| completion | `internal/completion` | Application、taskgroup 与 Bootstrap teardown 共享同一 completion-first join rule |
+| completion | `internal/completion` | Application run/goal、Application taskgroup 与 Infra teardown 共享同一 completion-first join rule |
 | HTTP origin | `internal/httporigin` | Application MCP policy 与 Infra MCP redirect security 共用纯 normalization |
 | idempotency | `internal/idempotency` | Delivery consumer port 与 SQLite implementation 共享 opaque record/errors |
-| opaque token framing | `internal/opaquetoken` | pagination 与 Run replay 共用 strict URL-safe framing；payload 语义、版本与校验仍归各自 owner |
-| pagination cursor | `internal/pagination` | 多 Application reads 与 Delivery error mapping共用 keyset pagination 语义；content codec 委托纯 framing capability |
+| opaque token framing | `application/opaquetoken` | pagination 与 Run replay 两个 Application continuation owner 共用 strict URL-safe framing；payload 语义、版本与校验仍归各自 owner |
+| pagination cursor | `application/pagination` | 多个 Application read 共用 keyset pagination 语义；Delivery 只消费 Page/error contract，不拥有 cursor policy |
 | replay cursor | `application/runs` 私有实现 | 位置、scope、retention、版本与校验均由 Run journal 独占；只复用 ring 外的 opaque framing |
 | teardown step | `infra/teardown` | non-cooperative close serialization 是 Bootstrap 消费的纯技术机制；组合根只装配与关闭 |
-| task group | `internal/taskgroup` | Application、Delivery transport 与 Bootstrap 共享 request-detached task ownership |
+| task group | `application/taskgroup` | Application coordinator 启动 request-detached work；Bootstrap 只构造、注入和关闭该 Application lifecycle owner，Delivery 不消费 |
 | path identity | `infra/pathidentity` | filesystem/symlink identity 是技术机制，Adapter 单向消费 Infra |
 | secret masking | `application/secrets` | model/MCP 两个 Application consumer 共享 presentation-boundary policy |
 | notification relay | `adapter/notification` | Bootstrap 只组装，producer/Delivery 各见其最小 method set；避免与 Agent Framework Signal 同名 |
 
-`internal/component` 已物理删除；永久架构守卫只允许上表经证明的准确共享 capability，且禁止其反向依赖任何产品 ring。
+`internal/component` 已物理删除；永久架构守卫把根级跨环 capability 与 Application-owned shared mechanism 分开约束。前者不得依赖任何产品 ring，后者不得吸收 Domain 语言或 Adapter/Infra/Delivery/Bootstrap 实现职责。
 
 ### 9.2 Adapter/Infra
 
@@ -316,4 +316,5 @@ P8 production cutover 已用真实 Bootstrap consumer 冻结 root stage/observe/
 - P16-04 已完成 Session aggregate 纵切：`domain/session.Session` 以私有字段独占 fresh/scheduled construction、edit、generated-title arbitration、fork、restore workspace installation、revision 与 time；Application 继续拥有 workspace admission、identity/clock、Run opening、mutation claim 和跨 aggregate write-set。SQLite SessionStore 只保存 Domain/Application 已决定的 exact initial/replacement，旧 Create/Ensure/Patch/Fork/Restore/field-setter owner 已删除；portable restore 保持目标 revision 单调，Protocol、Artifact、SQLite shape/epoch、Agent Framework 和消费者均未改变。
 - P16-05 已逐一冻结 21 个 Domain package 的独立词汇、变化原因、消费者和 import DAG 理由：没有按体量机械合包，也没有保留无 owner 的微包。Live workspace projection 与 CWD admission sentinel 收回 Workspace Application，Schedule availability 收回 Schedules Application；Domain 文件名/GoDoc、Interrupt 零值和 codebase ranking 边界同步精修。新增永久 guard 要求每个 Domain package 的目录名、package 名、边界说明和直接测试共同存在；Protocol、Artifact、SQLite、Agent Framework 和消费者合同均未改变。
 - P16 已完成：Run、Transcript Item、Plan、Session 的单 aggregate 行为均只有一个 Domain mutation owner，Application 继续独占跨 aggregate 和外部 lifecycle。最终 standalone/build/vet/test/race/lint/staticcheck/deadcode/generator、三个 strict codec fuzz、architecture、文档与 hygiene 门禁全绿；没有兼容路径、协议/Artifact/SQLite/Agent Framework 变化或消费者接线项。
-- P17 已完成：package 总数从 115 收敛到 100；shared capability、Toolset、Application、Adapter、Infra 与 Delivery 的伪边界和错层归零。`httporigin`/`taskgroup` 因真实跨 ring 消费且保持纯机制而保留；in-process transport 因零生产消费者且不可越过 Go `internal` 边界而删除。全 internal package GoDoc/目录名/零行为 umbrella 永久门禁、全量 race/lint/staticcheck/deadcode/generator 与空残留扫描共同通过。
+- P17 已完成：package 总数从 115 收敛到 100；shared capability、Toolset、Application、Adapter、Infra 与 Delivery 的伪边界和错层完成当期收敛；in-process transport 因零生产消费者且不可越过 Go `internal` 边界而删除。全 internal package GoDoc/目录名/零行为 umbrella 永久门禁、全量 race/lint/staticcheck/deadcode/generator 与空残留扫描共同通过。
+- P18 进一步以行为 owner 而非 import 数量反证根级 package：pagination 的全部策略调用属于 Application read，taskgroup 的启动者属于 Application coordinator，Bootstrap/Delivery 的引用不产生共同所有权；opaque-token 的两个 payload owner同属 Application continuation。三者已移动到 `application`，旧根路径永久禁止；真正跨环的根级 pure capability 只剩 completion、HTTP origin 与 idempotency。

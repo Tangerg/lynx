@@ -1,6 +1,5 @@
-// Package pagination encodes the page anchors a cursor-paginated read hands
-// back to
-// its caller. A token names the query it was minted for and the sort position it
+// Package pagination owns the shared keyset-paging contract used by application
+// reads. A token names the query it was minted for and the sort position it
 // stopped at, so continuing a page is a bounded seek rather than a scan.
 //
 // The anchor is the previous page's last sort key, never an offset or an element
@@ -22,7 +21,7 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/opaquetoken"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/opaquetoken"
 )
 
 // ErrInvalidCursor reports a cursor that cannot continue this query: damaged,

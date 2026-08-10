@@ -1,7 +1,7 @@
-// Package taskgroup owns cancelable, request-detached work for a process
-// component. It provides the lifecycle boundary a component uses to launch,
-// cancel, and join its own background tasks without knowing what those tasks
-// do.
+// Package taskgroup owns cancelable, request-detached work launched by
+// application components. It provides the lifecycle boundary a component uses
+// to launch, cancel, and join its own background tasks without knowing what
+// those tasks do.
 package taskgroup
 
 import (

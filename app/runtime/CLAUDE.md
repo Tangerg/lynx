@@ -24,7 +24,7 @@
 
 ## 当前状态
 
-P1–P15 服务端重构、合同同步与反证式精修已经完成，P16 Domain 行为所有权纵切正在逐批实施。Protocol `2026-08-10`、Artifact v15、SQLite epoch 66、唯一 `runtimeInstanceRootSegment` replay scope、全部生成物/严格 sample gate 与 Agent Framework Baseline 18 是当前基线；原框架、临时 module、迁移文档和兼容路径均已删除。前端、TUI、CLI 只按 [`doc/CONSUMER_HANDOFF.md`](doc/CONSUMER_HANDOFF.md) 在独立专项接线，Runtime 不为它们恢复旧合同。
+P1–P18 服务端重构、合同同步、领域行为、package 边界与 Application mechanism 所有权精修已经完成。Protocol `2026-08-10`、Artifact v15、SQLite epoch 66、唯一 `runtimeInstanceRootSegment` replay scope、全部生成物/严格 sample gate 与 Agent Framework Baseline 18 是当前基线；原框架、临时 module、迁移文档和兼容路径均已删除。前端、TUI、CLI 只按 [`doc/CONSUMER_HANDOFF.md`](doc/CONSUMER_HANDOFF.md) 在独立专项接线，Runtime 不为它们恢复旧合同。
 
 ## 工作纪律
 

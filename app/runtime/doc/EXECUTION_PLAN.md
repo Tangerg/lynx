@@ -1,6 +1,6 @@
 # Lyra Runtime 重构实施计划
 
-> 状态：P1–P16 已完成；P17 package 边界与目录结构精修实施中；消费者接线仍留给独立专项
+> 状态：P1–P18 已完成；消费者接线仍留给独立专项
 >
 > 工作方式：原模块内治本重构，按可验证纵切分批完成；不创建完整 `runtime2`
 
@@ -10,7 +10,7 @@
 
 当前实施 goal 已授权：
 
-- 在已完成的 P1–P16 基线上，全量反证 Runtime package 的独立词汇、变化原因、消费者和 import DAG，执行 P17 package 边界与目录结构精修；
+- 在已完成的 P1–P17 基线上，依据实际行为 owner 纠正 pagination、taskgroup 与 opaque-token framing 的环内位置；
 - 每完成一个可独立验收批次，同步本计划和 Capability Ledger，统一验证、提交并推送；
 - 允许服务端内部与 Runtime Protocol breaking change，不建立兼容路径；
 - 仓库历史与能力台账中的原框架实现只作为证据；Runtime 对 Framework 只依赖当前 `agent` 公共合同。
@@ -49,7 +49,8 @@
 | P14 | Runtime 内部职责与全层级命名精修 | P13 | 已完成 |
 | P15 | Agent/Runtime 合同同步与 Runtime 反证式精修 | P14 + Agent Baseline 18 | 已完成 |
 | P16 | Domain aggregate 行为所有权纵切 | P15 + Domain Model | 已完成 |
-| P17 | package 边界与目录结构精修 | P16 + 真实 import graph | 实施中 |
+| P17 | package 边界与目录结构精修 | P16 + 真实 import graph | 已完成 |
+| P18 | Application mechanism 所有权纠偏 | P17 + 完整调用图 | 已完成 |
 
 ## 4. P0 — 文档、事实和边界基线
 
@@ -540,10 +541,33 @@
 - Domain/Application 不因收敛反向依赖 Adapter/Infra，Bootstrap 不接收业务/机制行为，Agent Framework ACL 不被打穿；
 - 不修改前端、TUI、CLI，不建立兼容路径；每批记录、验证、提交并推送。
 
-## 22. 进度记录
+## 22. P18 — Application mechanism 所有权纠偏
+
+### 目标
+
+修正 P17 将“被外环引用”误判为“跨环共同拥有”的三个 package，让分页、Application 后台任务与 continuation token framing 回归真实行为 owner，同时保持 Delivery/Bootstrap 只向内消费且不制造 `util`/`common` 收纳层。
+
+### 工作项
+
+- [x] P18-01 将 `internal/pagination` 原子移动为 `internal/application/pagination`，同步 Application/Delivery consumer 与 cursor architecture gate；
+- [x] P18-02 将 `internal/taskgroup` 原子移动为 `internal/application/taskgroup`，同步 Application/Bootstrap consumer 与 Delivery lifecycle 禁令；
+- [x] P18-03 将 `internal/opaquetoken` 原子移动为 `internal/application/opaquetoken`，保持 pagination/Run replay payload 语义分离；
+- [x] P18-04 收紧 shared capability allowlist、永久禁止旧根路径，并区分媒体内容 codec 与 Application continuation framing；
+- [x] P18-05 完成 standalone、race、lint、staticcheck、deadcode、generator、架构、文档与空残留验收，更新事实后提交推送。
+
+### 验收
+
+- 三个旧根 package 路径物理删除，无 alias、shim 或转发；
+- pagination/taskgroup/opaquetoken 只能保留 Application ownership，不反向依赖 Adapter/Infra/Delivery/Bootstrap；
+- Delivery 只消费 Application pagination contract，Bootstrap 只装配 Application task ownership；
+- 根级 pure capability 只保留有真实跨环行为消费者的准确 package；
+- 不修改 Runtime Protocol、SQLite/Artifact shape、Agent Framework、前端、TUI 或 CLI。
+
+## 23. 进度记录
 
 | 日期 | 阶段 | 完成事实 | 验证 |
 |---|---|---|---|
+| 2026-08-10 | P18（Application mechanism ownership） | 完整调用图推翻“外环引用即跨环共同 owner”的旧判断：pagination 的 cursor/query binding/page-width/page-cut 全由 Application read 决定，taskgroup 的任务启动者全是 Application coordinator，Bootstrap 只装配/关闭；opaque-token 的 pagination/Run replay payload owner 也同属 Application。三个 package 原子移动到 `application/{pagination,taskgroup,opaquetoken}`，旧根路径永久禁止；媒体内容 codec 门禁收窄为真实语义，只对精确 continuation framing 允许 URL-safe Base64，未建立宽泛 encoding 例外。package 总数保持 100，无 alias/shim、协议/schema/Framework/消费者变化 | `MODULE=app/runtime FAST=1 scripts/check.sh build vet test tidy lint race` 六项全绿，lint 0 issues；`GOWORK=off staticcheck ./...`、`deadcode -test ./...`、`go generate ./...` 零输出/零漂移；旧 import、旧目录、空目录与 `git diff --check` 扫描全绿 |
 | 2026-08-10 | P17-05（final package-boundary acceptance） | 从 115 个 package 的 P17 起点收敛至 100 个真实 package；逐层完成 shared capability、Toolset、Domain/Application、Adapter/Infra/Delivery/Bootstrap/Testsupport 的消费者与变化轴反证。新增全 internal 生产 package 永久门禁：目录名必须等于 package 名、必须有准确 `Package <name>` GoDoc、禁止只含 `doc.go` 的零行为 umbrella；旧目录/文件、生产 import、空目录、单消费者伪共享、不可消费 transport、package-doc 缺失与生成漂移归零。强验收捕获并修复一个已提交 invalidation test 的 gofmt 对齐漂移，随后对整个 Runtime 格式化并重跑 lint | `MODULE=app/runtime FAST=1 scripts/check.sh build vet test tidy lint race` 中 build/vet/test/tidy/race 全绿，首次 lint 精确捕获 1 个旧 gofmt 漂移，修复后独立完整 lint 0 issues；`GOWORK=off staticcheck ./...`、`deadcode -test ./...`、`go generate ./...` 零输出/零漂移；Continuation/Prompt/Resolution 三个 strict codec fuzz 各 10 秒、合计 987,564 次执行通过；package-doc/import DAG/retired-path/TODO/空目录/diff hygiene 扫描全绿。P17 完成 |
 | 2026-08-10 | P17-04c（Delivery/Bootstrap/Testsupport counterexample） | 按生产消费者和 Go import 可达性复审 Delivery/Bootstrap/Testsupport。删除 `delivery/transport/inprocess`：它只有自测、无任何生产消费者，并位于 Runtime `internal` 下，外部 CLI/TUI 根本不可导入，因此不是可嵌入能力而是伪公共实现；当前唯一 binding 回归真实的 streamable HTTP，transport/dispatch/Architecture/API/README/standards/decision/ledger 同步且旧路径永久禁止。Delivery 的 protocol/server/dispatch/transport、Bootstrap focused builders 与三个多测试消费者 fixture package 均有独立变化轴，保留；`httporigin` 和 `taskgroup` 经多 ring 消费者反证仍是纯 shared capability，不能下沉 Infra 迫使 Application 反向依赖。删除零消费者、零行为的 `domain/doc.go` 伪 umbrella package，Domain 父目录只作为 bounded-context namespace；旧 shutdown/replaycursor 空目录同步物理清除 | 全量消费者扫描证明 inprocess production imports=0；HTTP/dispatch/architecture/docs 与 Runtime test/vet/build 在本批和 P17-05 收口 |
 | 2026-08-10 | P17-04b（Adapter boundary evidence） | 逐个复核 Adapter 的消费者、Application port/SDK boundary 与变化原因；保留 mcpconnection、providerregistry、runrecovery、notification、codebaseindex、sessiontitle、skillproposal、planpresentation、utilitymodel 等虽小但拥有独立防腐或策略边界的 package。删除单消费者且与静态 model catalog 完全同变化轴的 `adapter/pricing`，定价能力收回 `adapter/modelcatalog.Pricing`；为此前缺失 owner 文档的 codebaseindex/hooks/providerregistry/sessiontitle/skillproposal、Application hooks 与 Delivery dispatch 补齐准确 package GoDoc，使内部每个生产 package 的职责能由 `go list` 直接读取。旧 pricing 路径永久禁止，不制造 Adapter umbrella | modelcatalog/Bootstrap、全量 package-doc 扫描与 Runtime test/vet/build 在本批提交前收口 |
@@ -601,6 +625,6 @@
 | 2026-08-09 | P9.2 | 完成 Adapter/Infra/Application/Delivery 逐包职责审计；workspace physical path identity 收敛到唯一 Infra mechanism；删除空的 temporary architecture 台账并把旧 Agent 禁止与 Domain no-context-I/O 变为永久 framework boundary guard；确认 agentexec 按真实变化原因组织且没有第二 lifecycle owner或虚构子包 | Adapter→Infra 单向图与目标六环 DAG 全绿；Delivery concrete Adapter/Infra import、Infra 反向 import、Application outward import、纯转发 wrapper、package/type 口吃、空目录和 temporary exception 均为零；workspacepath/pathidentity/arch targeted tests 与全量质量门禁通过 |
 | 2026-08-09 | P10 | Runtime Protocol 一次性提升到 `2026-08-09`、Session Artifact 到 v14；删除 wire 中实现泄露的 `processRootSegment`，只保留准确的 `runtimeInstanceRootSegment`；Go registry、validator、manifest、OpenRPC、JSON Schema、TypeScript binding、canonical samples 与人读 API/Transport/Aux 文档同步；新增精确 consumer handoff | canonical artifact samples 中漏存的 v12 与旧 `outcome.error` 被 strict sample gate 暴露并治本修正；生成器零漂移、旧 wire token/版本归零、strict validator/round-trip、HTTP/in-process、全量质量门禁通过；Desktop backlog 已记录但未改消费者 |
 
-## 23. 当前下一步
+## 24. 当前下一步
 
-P17 已完成。Runtime 的 100 个 package 均有可证明的 owner、独立变化轴或必要隔离边界；前端、TUI、CLI 不属于本 goal，Runtime 未为消费者恢复旧合同。后续只有出现新的真实反例时才调整边界，不以目录对称或未来复用为由增加 package。
+P18 已完成。Runtime 的 100 个 package 均位于可证明的行为 owner、独立变化轴或必要隔离边界；根级 shared capability 只保留真正跨环的 completion、HTTP origin 与 idempotency。前端、TUI、CLI 不属于本批，Runtime 未为消费者恢复旧合同。后续只有出现新的真实反例时才调整边界，不以目录对称、import 数量或未来复用为由增加 package。

@@ -12,8 +12,9 @@ import (
 	"testing"
 )
 
-func TestContentEncodingStaysAtOuterBoundaries(t *testing.T) {
+func TestMediaContentEncodingStaysAtOuterBoundaries(t *testing.T) {
 	root := moduleRoot(t)
+	applicationTokenFraming := filepath.Join(root, "internal", "application", "opaquetoken")
 	modelPath := filepath.Join(root, "internal", "domain", "transcript", "model.go")
 	model, err := parser.ParseFile(token.NewFileSet(), modelPath, nil, 0)
 	if err != nil {
@@ -38,8 +39,13 @@ func TestContentEncodingStaysAtOuterBoundaries(t *testing.T) {
 			}
 			for _, imported := range file.Imports {
 				name := strings.Trim(imported.Path.Value, `"`)
+				// URL-safe continuation framing is an Application contract, not
+				// media content encoding owned by a transport adapter.
+				if name == "encoding/base64" && filepath.Dir(path) == applicationTokenFraming {
+					continue
+				}
 				if name == "encoding/base64" || name == "mime" {
-					t.Errorf("%s imports transport content codec %q", path, name)
+					t.Errorf("%s imports media content codec %q", path, name)
 				}
 			}
 			return nil

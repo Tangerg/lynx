@@ -300,6 +300,7 @@ Bootstrap 不提供业务 API，不成为 service locator，不让运行时对�
 
 - 单一 owner 的原语移动到 owner package；
 - 多个平级消费者确实共享且无领域语义的原语，可以作为准确命名的 `internal/<capability>` package；
+- Delivery/Bootstrap 对 Application 值或机制的引用不产生新的所有权；行为在哪一环被决定，package 就归哪一环；
 - 迁移只为切断依赖或表达真实所有权，不为目录美观制造 package。
 
 ## 7. Agent Framework 防腐层
