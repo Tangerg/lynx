@@ -20,10 +20,10 @@ func TestArtifactFromPortableRejectsUnknownDomainEnums(t *testing.T) {
 			}}},
 		},
 		{
-			name: "problem",
+			name: "run failure",
 			portable: sessions.PortableSnapshot{Runs: []sessions.PortableRun{{
 				ID: "run_1", Outcome: run.OutcomeFailed,
-				Error: &transcript.Problem{Kind: transcript.ProblemKind(99)},
+				Failure: &run.Failure{Kind: run.FailureKind(99)},
 			}}},
 		},
 		{

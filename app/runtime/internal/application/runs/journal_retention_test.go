@@ -5,14 +5,17 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
+	runfixture "github.com/Tangerg/lynx/app/runtime/internal/testsupport/runfixture"
 )
 
 func TestRetentionChargeTracksEveryVariableReplayPayload(t *testing.T) {
 	const growth = 32 << 10
 	largeText := strings.Repeat("x", growth)
 	largeResult := tool.StringResult(largeText)
+	canceled := run.OutcomeCanceled
 
 	tests := []struct {
 		name  string
@@ -21,8 +24,8 @@ func TestRetentionChargeTracksEveryVariableReplayPayload(t *testing.T) {
 	}{
 		{
 			name:  "run",
-			small: SegmentStarted{Run: transcript.Run{ID: "run"}},
-			large: SegmentStarted{Run: transcript.Run{ID: "run", Detail: largeText}},
+			small: SegmentFinished{Run: runfixture.MustRestore(run.Snapshot{ID: "run", State: run.Canceled, Outcome: &canceled})},
+			large: SegmentFinished{Run: runfixture.MustRestore(run.Snapshot{ID: "run", State: run.Canceled, Outcome: &canceled, Detail: largeText})},
 		},
 		{
 			name:  "item text",

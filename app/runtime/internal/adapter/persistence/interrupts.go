@@ -158,7 +158,7 @@ func interruptRecord(pending runs.Pending) sqlite.InterruptRecord {
 		for toolIndex, tool := range continuation.CommittedTools {
 			committed[toolIndex] = sqlite.CommittedToolRecord{
 				ItemID: tool.ItemID, CallID: tool.CallID, Name: tool.Name,
-				Arguments: tool.Arguments, Problem: tool.Problem,
+				Arguments: tool.Arguments, Failure: tool.Failure,
 			}
 		}
 		continuations[index] = sqlite.ContinuationRecord{
@@ -206,7 +206,7 @@ func pendingValue(record sqlite.InterruptRecord) runs.Pending {
 		for toolIndex, tool := range continuation.CommittedTools {
 			committed[toolIndex] = runs.CommittedTool{
 				ItemID: tool.ItemID, CallID: tool.CallID, Name: tool.Name,
-				Arguments: tool.Arguments, Problem: tool.Problem,
+				Arguments: tool.Arguments, Failure: tool.Failure,
 			}
 		}
 		continuations[index] = runs.Continuation{

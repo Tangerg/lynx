@@ -14,6 +14,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
+	runfixture "github.com/Tangerg/lynx/app/runtime/internal/testsupport/runfixture"
 )
 
 type failingWaitingCheckpointStore struct {
@@ -62,7 +63,7 @@ func (writer failingWaitingRunWriter) Resume(
 
 func (writer failingWaitingRunWriter) Terminalize(
 	ctx context.Context,
-	run transcript.Run,
+	run run.Run,
 ) error {
 	if writer.terminalizeErr != nil {
 		return writer.terminalizeErr
@@ -118,7 +119,7 @@ func TestCommitWaitingSubtreeCancellationRejectsStalePendingWithoutMutation(t *t
 	if !errors.Is(err, runs.ErrSessionBusy) {
 		t.Fatalf("stale Pending error = %v, want ErrSessionBusy", err)
 	}
-	if !strings.Contains(err.Error(), fixture.rootRun.ID) {
+	if !strings.Contains(err.Error(), fixture.rootRun.ID()) {
 		t.Fatalf("stale Pending error = %q, want root Run identity", err)
 	}
 	assertWaitingCancellationUnchanged(t, fixture, changedPending)
@@ -155,13 +156,19 @@ func TestCommitWaitingSubtreeCancellationRejectsMismatchedCheckpointBindingWitho
 func TestCommitWaitingSubtreeCancellationRejectsRunContinuationFactDriftWithoutMutation(t *testing.T) {
 	for name, mutate := range map[string]func(*runs.WaitingSubtreeCancellationCommit){
 		"cumulative metrics": func(commit *runs.WaitingSubtreeCancellationCommit) {
-			commit.TerminalRuns[0].Metrics.Steps++
+			commit.TerminalRuns[0] = mutatedRun(commit.TerminalRuns[0], func(snapshot *run.Snapshot) {
+				snapshot.Metrics = runfixture.MustMetrics(runfixture.MetricsInput{Steps: snapshot.Metrics.Steps() + 1})
+			})
 		},
 		"frozen limits": func(commit *runs.WaitingSubtreeCancellationCommit) {
-			commit.TerminalRuns[0].Limits.MaxSteps++
+			commit.TerminalRuns[0] = mutatedRun(commit.TerminalRuns[0], func(snapshot *run.Snapshot) {
+				snapshot.Limits.MaxSteps++
+			})
 		},
 		"root run capabilities": func(commit *runs.WaitingSubtreeCancellationCommit) {
-			commit.RootRun.Capabilities.ChildRuns = false
+			commit.RootRun = mutatedRun(commit.RootRun, func(snapshot *run.Snapshot) {
+				snapshot.Capabilities.ChildRuns = false
+			})
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -262,15 +269,15 @@ func TestCommitWaitingSubtreeCancellationRollsBackEveryPreCommitFailure(t *testi
 			operation: "persist opening projection",
 			configure: func(fixture *waitingCancellationSQLiteFixture, injected error) {
 				fixture.commit.OpeningEvents = []runs.EventCommit{{
-					RunID:     fixture.rootRun.ID,
-					SessionID: fixture.rootRun.SessionID,
+					RunID:     fixture.rootRun.ID(),
+					SessionID: fixture.rootRun.SessionID(),
 					Items: []transcript.Item{{
 						ID:         "item_root_continuation",
-						SessionID:  fixture.rootRun.SessionID,
-						RunID:      fixture.rootRun.ID,
+						SessionID:  fixture.rootRun.SessionID(),
+						RunID:      fixture.rootRun.ID(),
 						Status:     transcript.ItemCompleted,
 						Kind:       transcript.UserMessage,
-						OccurredAt: fixture.rootRun.UpdatedAt,
+						OccurredAt: fixture.rootRun.UpdatedAt(),
 						Content: []transcript.ContentBlock{{
 							Kind: transcript.TextContent,
 							Text: "continue",
@@ -321,8 +328,8 @@ func TestCommitWaitingSubtreeCancellationRollsBackEveryPreCommitFailure(t *testi
 			}
 			for _, expected := range []string{
 				test.operation,
-				fixture.childRun.ID,
-				fixture.rootRun.ID,
+				fixture.childRun.ID(),
+				fixture.rootRun.ID(),
 			} {
 				if !strings.Contains(err.Error(), expected) {
 					t.Fatalf("commit error = %q, want %q", err, expected)
@@ -360,7 +367,7 @@ func assertWaitingCancellationUnchanged(
 	expectedPending runs.Pending,
 ) {
 	t.Helper()
-	pending, found, err := fixture.interrupts.Get(fixture.ctx, fixture.rootRun.ID)
+	pending, found, err := fixture.interrupts.Get(fixture.ctx, fixture.rootRun.ID())
 	if err != nil || !found || !pending.Equal(expectedPending) {
 		t.Fatalf(
 			"Pending after rollback = found:%t value:%+v err:%v, want %+v",
@@ -371,7 +378,7 @@ func assertWaitingCancellationUnchanged(
 		)
 	}
 
-	items, err := fixture.transcript.List(fixture.ctx, fixture.rootRun.SessionID)
+	items, err := fixture.transcript.List(fixture.ctx, fixture.rootRun.SessionID())
 	if err != nil {
 		t.Fatalf("list transcript after rollback: %v", err)
 	}
@@ -426,7 +433,7 @@ func assertWaitingCancellationUnchanged(
 	if err := fixture.db.QueryRowContext(
 		fixture.ctx,
 		`SELECT count(*) FROM runs WHERE session_id = ? AND state = 'terminal'`,
-		fixture.rootRun.SessionID,
+		fixture.rootRun.SessionID(),
 	).Scan(&terminalRuns); err != nil {
 		t.Fatalf("count terminal Runs after rollback: %v", err)
 	}

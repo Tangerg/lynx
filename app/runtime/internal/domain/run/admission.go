@@ -2,6 +2,8 @@ package run
 
 import (
 	"errors"
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
@@ -43,6 +45,39 @@ type Draft struct {
 	// Run's whole life" is kept by construction rather than by a check.
 	Capabilities Capabilities
 	CreatedAt    time.Time
+}
+
+// Validate checks the complete fresh Run value before it enters the lifecycle.
+func (draft Draft) Validate() error {
+	switch {
+	case strings.TrimSpace(draft.RunID) == "" || draft.RunID != strings.TrimSpace(draft.RunID):
+		return errors.New("run: Run ID is required without surrounding whitespace")
+	case strings.TrimSpace(draft.SessionID) == "" || draft.SessionID != strings.TrimSpace(draft.SessionID):
+		return errors.New("run: Session ID is required without surrounding whitespace")
+	case strings.TrimSpace(draft.SegmentID) == "" || draft.SegmentID != strings.TrimSpace(draft.SegmentID):
+		return errors.New("run: opening Segment ID is required without surrounding whitespace")
+	case draft.CreatedAt.IsZero():
+		return errors.New("run: admission time is required")
+	case draft.GoalLeaseID != strings.TrimSpace(draft.GoalLeaseID):
+		return errors.New("run: Goal lease ID has surrounding whitespace")
+	}
+	lineage := draft.Lineage()
+	if err := lineage.Validate(draft.RunID); err != nil {
+		return err
+	}
+	if err := draft.ModelSelection.Validate(); err != nil {
+		return fmt.Errorf("run: model selection: %w", err)
+	}
+	if err := draft.Limits.Validate(); err != nil {
+		return err
+	}
+	if err := draft.Capabilities.Validate(); err != nil {
+		return err
+	}
+	if lineage.IsChild() && draft.GoalLeaseID != "" {
+		return errors.New("run: child carries a root Goal lease")
+	}
+	return nil
 }
 
 // Lineage returns the draft's immutable root/child identity as one value for

@@ -1,6 +1,9 @@
 package runs
 
 import (
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/accounting"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
@@ -31,26 +34,26 @@ func retainedBytes(event Event) int {
 		event.Payload.retainedBytes()
 }
 
-func retainedRunBytes(run transcript.Run) int {
+func retainedRunBytes(run run.Run) int {
+	snapshot := run.Snapshot()
 	bytes := retainedRunHeaderBytes + stringsBytes(
-		run.SessionID,
-		run.ID,
-		run.SpawnedByItemID,
-		run.ParentRunID,
-		run.RootRunID,
-		run.GoalLeaseID,
-		run.ActiveSegmentID,
-		run.Detail,
-		run.ModelSelection.Provider(),
-		run.ModelSelection.Model(),
+		snapshot.SessionID,
+		snapshot.ID,
+		snapshot.Lineage.SpawnedByItemID,
+		snapshot.Lineage.ParentRunID,
+		snapshot.Lineage.RootRunID,
+		snapshot.GoalLeaseID,
+		snapshot.ActiveSegmentID,
+		snapshot.Detail,
+		snapshot.ModelSelection.Provider(),
+		snapshot.ModelSelection.Model(),
 	)
-	bytes += retainedProblemBytes(run.Error)
-	bytes += retainedUsageBytes(run.Metrics.Usage)
-	bytes += cap(run.Capabilities.InterruptKinds) * retainedSliceEntryBytes
-	bytes += cap(run.Interrupts) * retainedInterruptBytes
-	for _, interrupt := range run.Interrupts {
-		bytes += retainedInterruptPayloadBytes(interrupt)
+	if snapshot.Failure != nil {
+		bytes += len(snapshot.Failure.Detail) + len(snapshot.Failure.DocURL)
 	}
+	usage, _ := snapshot.Metrics.Usage()
+	bytes += retainedUsageBytes(&usage)
+	bytes += cap(snapshot.Capabilities.InterruptKinds) * retainedSliceEntryBytes
 	return bytes
 }
 
@@ -69,7 +72,7 @@ func retainedItemBytes(item transcript.Item) int {
 	}
 	bytes += retainedQuestionBytes(item.Question)
 	bytes += retainedToolInvocationBytes(item.Tool)
-	bytes += retainedProblemBytes(item.Error)
+	bytes += retainedToolFailureBytes(item.Error)
 	return bytes
 }
 
@@ -120,14 +123,14 @@ func retainedToolInvocationBytes(invocation *transcript.ToolInvocation) int {
 	return bytes
 }
 
-func retainedProblemBytes(problem *transcript.Problem) int {
-	if problem == nil {
+func retainedToolFailureBytes(failure *tool.Failure) int {
+	if failure == nil {
 		return 0
 	}
-	return len(problem.Detail) + len(problem.DocURL)
+	return len(failure.Detail) + len(failure.DocURL)
 }
 
-func retainedUsageBytes(usage *transcript.Usage) int {
+func retainedUsageBytes(usage *accounting.Usage) int {
 	if usage == nil {
 		return 0
 	}

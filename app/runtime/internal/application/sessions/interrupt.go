@@ -9,7 +9,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/change"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	rundomain "github.com/Tangerg/lynx/app/runtime/internal/domain/run"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
 const turnCleanupTimeout = 5 * time.Second
@@ -41,17 +40,17 @@ func (c *Coordinator) ListOpenInterrupts(ctx context.Context, sessionID string) 
 // It reads the durable record rather than a live registry: a Run parked on a person,
 // or admitted before a restart, is just as much "the Run this Session already has",
 // and the registry knows neither.
-func (c *Coordinator) ActiveRun(ctx context.Context, sessionID string) (transcript.Run, bool, error) {
+func (c *Coordinator) ActiveRun(ctx context.Context, sessionID string) (rundomain.Run, bool, error) {
 	runs, err := c.runs.ListRuns(ctx, sessionID)
 	if err != nil {
-		return transcript.Run{}, false, err
+		return rundomain.Run{}, false, err
 	}
 	for _, run := range runs {
-		if !run.State.IsTerminal() {
+		if !run.State().IsTerminal() {
 			return run, true, nil
 		}
 	}
-	return transcript.Run{}, false, nil
+	return rundomain.Run{}, false, nil
 }
 
 // LookupOpenInterrupt returns the parked run identified by runID without claiming
@@ -66,7 +65,7 @@ func (c *Coordinator) LookupOpenInterrupt(ctx context.Context, runID string) (ru
 // ApplyRunCancel commits the atomic durable abandon write-set. Executor
 // teardown is owned by application/runs for run commands; session rollback and
 // deletion continue to use the coordinator's narrow cleanup collaborator.
-func (c *Coordinator) ApplyRunCancel(ctx context.Context, sessionID, runID, reason string, finishedAt time.Time) (transcript.Run, error) {
+func (c *Coordinator) ApplyRunCancel(ctx context.Context, sessionID, runID, reason string, finishedAt time.Time) (rundomain.Run, error) {
 	return c.terminalizeParkedRun(ctx, sessionID, runID, finishedAt, rundomain.OutcomeCanceled, reason)
 }
 
@@ -78,33 +77,33 @@ func (c *Coordinator) ApplyRunLost(ctx context.Context, sessionID, runID string,
 	return err
 }
 
-func (c *Coordinator) terminalizeParkedRun(ctx context.Context, sessionID, runID string, finishedAt time.Time, outcome rundomain.Outcome, detail string) (transcript.Run, error) {
+func (c *Coordinator) terminalizeParkedRun(ctx context.Context, sessionID, runID string, finishedAt time.Time, outcome rundomain.Outcome, detail string) (rundomain.Run, error) {
 	if finishedAt.IsZero() {
-		return transcript.Run{}, fmt.Errorf("sessions: terminalize parked run %q: finished time is required", runID)
+		return rundomain.Run{}, fmt.Errorf("sessions: terminalize parked run %q: finished time is required", runID)
 	}
 	if c.interrupts == nil || c.snapshots == nil || c.writes == nil {
-		return transcript.Run{}, errors.New("sessions: interrupt lifecycle persistence is unavailable")
+		return rundomain.Run{}, errors.New("sessions: interrupt lifecycle persistence is unavailable")
 	}
 	pending, found, err := c.interrupts.Get(ctx, runID)
 	if err != nil {
-		return transcript.Run{}, err
+		return rundomain.Run{}, err
 	}
 	if !found || pending.SessionID != sessionID {
-		return transcript.Run{}, fmt.Errorf("sessions: terminalize parked run %q: open interrupt not found for session %q", runID, sessionID)
+		return rundomain.Run{}, fmt.Errorf("sessions: terminalize parked run %q: open interrupt not found for session %q", runID, sessionID)
 	}
 	snapshot, err := c.snapshots.ReadSnapshot(ctx, sessionID)
 	if err != nil {
-		return transcript.Run{}, err
+		return rundomain.Run{}, err
 	}
 	plan, rootRun, err := (parkedRunTerminalization{
 		sessionID: sessionID, rootRunID: runID, finishedAt: finishedAt,
 		outcome: outcome, detail: detail, pending: pending, snapshot: snapshot,
 	}).build()
 	if err != nil {
-		return transcript.Run{}, err
+		return rundomain.Run{}, err
 	}
 	if err := c.writes.ApplyTerminal(ctx, plan); err != nil {
-		return transcript.Run{}, err
+		return rundomain.Run{}, err
 	}
 	// One write-set ended the run and dropped the set it was parked on, so one place
 	// reports both — for a cancel and for a park declared unresumable alike. The run
@@ -112,7 +111,7 @@ func (c *Coordinator) terminalizeParkedRun(ctx context.Context, sessionID, runID
 	// author for the same commit, and only one of them would ever be updated.
 	runIDs := make([]string, len(plan.Runs))
 	for index, run := range plan.Runs {
-		runIDs[index] = run.ID
+		runIDs[index] = run.ID()
 	}
 	notices := []change.Notice{
 		change.InSession(change.Runs, sessionID, runIDs...),

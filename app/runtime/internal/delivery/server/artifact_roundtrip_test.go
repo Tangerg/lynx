@@ -13,6 +13,7 @@ import (
 	"github.com/Tangerg/lynx/core/chat"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/accounting"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
@@ -21,6 +22,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/toolresult"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
+	runfixture "github.com/Tangerg/lynx/app/runtime/internal/testsupport/runfixture"
 )
 
 // TestArtifactVersionMatchesCurrentContractBaseline is half of contract §11.4
@@ -100,14 +102,13 @@ func TestExportPreservesRunTreeLineage(t *testing.T) {
 		t.Fatalf("create: %v", err)
 	}
 	outcome := run.OutcomeCompleted
-	if err := rt.runs.Restore(ctx, transcript.Run{
-		SessionID: ses.ID, ID: "run_root", State: run.Completed,
+	if err := rt.runs.Restore(ctx, runfixture.MustRestore(run.Snapshot{SessionID: ses.ID, ID: "run_root", State: run.Completed,
 		Outcome:      &outcome,
 		Capabilities: run.Capabilities{ChildRuns: true},
 		CreatedAt:    time.Unix(1, 0).UTC(),
 		FinishedAt:   time.Unix(1, 0).UTC(),
-		UpdatedAt:    time.Unix(1, 0).UTC(),
-	}); err != nil {
+		UpdatedAt:    time.Unix(1, 0).UTC()}),
+	); err != nil {
 		t.Fatalf("seed root run: %v", err)
 	}
 	if err := rt.hist.AppendItem(ctx, transcript.Item{
@@ -119,13 +120,13 @@ func TestExportPreservesRunTreeLineage(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("seed spawning item: %v", err)
 	}
-	if err := rt.runs.Restore(ctx, transcript.Run{
-		SessionID: ses.ID, ID: "run_child", SpawnedByItemID: "item_spawn",
-		ParentRunID: "run_root", RootRunID: "run_root",
+	if err := rt.runs.Restore(ctx, runfixture.MustRestore(run.Snapshot{SessionID: ses.ID, ID: "run_child",
+
 		State: run.Completed, Outcome: &outcome,
 		CreatedAt: time.Unix(2, 0).UTC(), FinishedAt: time.Unix(2, 0).UTC(),
-		UpdatedAt: time.Unix(2, 0).UTC(),
-	}); err != nil {
+		UpdatedAt: time.Unix(2, 0).UTC(), Lineage: run.Lineage{SpawnedByItemID: "item_spawn",
+			ParentRunID: "run_root", RootRunID: "run_root"}}),
+	); err != nil {
 		t.Fatalf("seed child run: %v", err)
 	}
 
@@ -374,33 +375,31 @@ func seedCompletedRun(t *testing.T, rt *stubRuntime, sessionID string) {
 	if err != nil {
 		t.Fatalf("model selection: %v", err)
 	}
-	if err := rt.runs.Restore(t.Context(), transcript.Run{
-		SessionID: sessionID, ID: "run_done", State: run.Completed,
+	if err := rt.runs.Restore(t.Context(), runfixture.MustRestore(run.Snapshot{SessionID: sessionID, ID: "run_done", State: run.Completed,
 		ModelSelection: selection, Outcome: &outcome,
 		Limits: run.Limits{MaxTotalTokens: 32_768, MaxSteps: 12, MaxBudgetUSD: 3.5},
-		Metrics: transcript.RunMetrics{
-			Usage: &transcript.Usage{
-				ModelUsage: transcript.ModelUsage{
+		Metrics: runfixture.MustMetrics(runfixture.MetricsInput{Usage: &accounting.Usage{
+			Total: accounting.Totals{
+				InputTokens: 100, OutputTokens: 20, CacheReadTokens: 5,
+				CacheWriteTokens: 3, ReasoningTokens: 7, CostUSD: &cost,
+			},
+			ByModel: map[string]accounting.Totals{
+				"claude-opus-5": {
 					InputTokens: 100, OutputTokens: 20, CacheReadTokens: 5,
 					CacheWriteTokens: 3, ReasoningTokens: 7, CostUSD: &cost,
 				},
-				ByModel: map[string]transcript.ModelUsage{
-					"claude-opus-5": {
-						InputTokens: 100, OutputTokens: 20, CacheReadTokens: 5,
-						CacheWriteTokens: 3, ReasoningTokens: 7, CostUSD: &cost,
-					},
-				},
 			},
-			Steps:          2,
-			ActiveDuration: 1500 * time.Millisecond,
 		},
+			Steps:          2,
+			ActiveDuration: 1500 * time.Millisecond}),
+
 		Capabilities: run.Capabilities{
 			ChildRuns:      true,
 			InterruptKinds: []interrupt.Kind{interrupt.Approval},
 		},
 		CreatedAt: time.Unix(2, 0).UTC(), FinishedAt: time.Unix(3, 0).UTC(),
-		UpdatedAt: time.Unix(3, 0).UTC(), MessageMark: 1,
-	}); err != nil {
+		UpdatedAt: time.Unix(3, 0).UTC(), MessageMark: 1}),
+	); err != nil {
 		t.Fatalf("seed completed run: %v", err)
 	}
 }
@@ -412,16 +411,15 @@ func seedChildRun(t *testing.T, rt *stubRuntime, sessionID string) {
 	if err != nil {
 		t.Fatalf("child model selection: %v", err)
 	}
-	if err := rt.runs.Restore(t.Context(), transcript.Run{
-		SessionID: sessionID, ID: "run_child", State: run.Completed,
-		SpawnedByItemID: "item_tool", ParentRunID: "run_done", RootRunID: "run_done",
+	if err := rt.runs.Restore(t.Context(), runfixture.MustRestore(run.Snapshot{SessionID: sessionID, ID: "run_child", State: run.Completed,
+
 		ModelSelection: selection,
 		Outcome:        &outcome,
 		CreatedAt:      time.Unix(7, 0).UTC(),
 		FinishedAt:     time.Unix(8, 0).UTC(),
 		UpdatedAt:      time.Unix(8, 0).UTC(),
-		MessageMark:    1,
-	}); err != nil {
+		MessageMark:    1, Lineage: run.Lineage{SpawnedByItemID: "item_tool", ParentRunID: "run_done", RootRunID: "run_done"}}),
+	); err != nil {
 		t.Fatalf("seed child run: %v", err)
 	}
 }
@@ -429,22 +427,19 @@ func seedChildRun(t *testing.T, rt *stubRuntime, sessionID string) {
 func seedFailedRun(t *testing.T, rt *stubRuntime, sessionID string) {
 	t.Helper()
 	outcome := run.OutcomeFailed
-	if err := rt.runs.Restore(t.Context(), transcript.Run{
-		SessionID: sessionID, ID: "run_failed", State: run.Failed,
+	if err := rt.runs.Restore(t.Context(), runfixture.MustRestore(run.Snapshot{SessionID: sessionID, ID: "run_failed", State: run.Failed,
 		Outcome: &outcome,
-		Detail:  "the provider gave up",
-		Error: &transcript.Problem{
-			Kind: transcript.RateLimitedProblem, Scope: transcript.RunProblem,
+		Detail:  "the provider gave up", Failure: &run.Failure{
+			Kind:   run.FailureRateLimited,
 			Detail: "slow down", DocURL: "https://example.invalid/rate-limits",
-			RetryAfterSeconds: 30,
-		},
-		Metrics: transcript.RunMetrics{Steps: 1, ActiveDuration: 500 * time.Millisecond},
+			RetryAfter: 30 * time.Second,
+		}, Metrics: runfixture.MustMetrics(runfixture.MetricsInput{Steps: 1, ActiveDuration: 500 * time.Millisecond}),
 		Capabilities: run.Capabilities{
 			InterruptKinds: []interrupt.Kind{interrupt.Question},
 		},
 		CreatedAt: time.Unix(4, 0).UTC(), FinishedAt: time.Unix(5, 0).UTC(),
-		UpdatedAt: time.Unix(5, 0).UTC(), MessageMark: 2,
-	}); err != nil {
+		UpdatedAt: time.Unix(5, 0).UTC(), MessageMark: 2}),
+	); err != nil {
 		t.Fatalf("seed failed run: %v", err)
 	}
 }
@@ -506,8 +501,8 @@ func seedEveryItemKind(t *testing.T, rt *stubRuntime, sessionID string) {
 			ID: "item_failed", RunID: "run_failed", Kind: transcript.ToolCall,
 			Status: transcript.ItemIncomplete, OccurredAt: time.Unix(8, 0).UTC(),
 			FinishedAt: time.UnixMilli(8500).UTC(),
-			Error: &transcript.Problem{
-				Kind: transcript.ToolFailedProblem, Scope: transcript.ToolProblem,
+			Error: &tool.Failure{
+				Kind:   tool.FailureExecution,
 				Detail: "exit 1", DocURL: "https://example.invalid/tools",
 			},
 			Tool: &transcript.ToolInvocation{Name: "shell", Arguments: arguments},

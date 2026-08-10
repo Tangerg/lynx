@@ -219,7 +219,7 @@ func (b *resumeBinding) consumeCommittedTool(event ToolCallFinished) (bool, erro
 	if !exists {
 		return false, nil
 	}
-	if event.Problem == nil {
+	if event.Failure == nil {
 		return true, fmt.Errorf("committed tool call %q published a successful result", event.CallID)
 	}
 	if event.Arguments != "" {

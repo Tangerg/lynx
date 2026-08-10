@@ -1,6 +1,6 @@
 # Lyra Runtime 重构实施计划
 
-> 状态：P1–P15 已完成；消费者接线仍留给独立专项
+> 状态：P1–P15 已完成；P16 Domain 行为所有权精修实施中；消费者接线仍留给独立专项
 >
 > 工作方式：原模块内治本重构，按可验证纵切分批完成；不创建完整 `runtime2`
 
@@ -10,7 +10,7 @@
 
 当前实施 goal 已授权：
 
-- 在已完成的 P1–P14 基线上执行 P15 反证式精修；
+- 严格按 [`DOMAIN_MODEL.md`](DOMAIN_MODEL.md) 在已完成的 P1–P15 基线上执行 P16 Domain 行为所有权精修；
 - 每完成一个可独立验收批次，同步本计划和 Capability Ledger，统一验证、提交并推送；
 - 允许服务端内部与 Runtime Protocol breaking change，不建立兼容路径；
 - 仓库历史与能力台账中的原框架实现只作为证据；Runtime 对 Framework 只依赖当前 `agent` 公共合同。
@@ -48,6 +48,7 @@
 | P13 | 重写后精修与双向边界复审 | P12 | 已完成 |
 | P14 | Runtime 内部职责与全层级命名精修 | P13 | 已完成 |
 | P15 | Agent/Runtime 合同同步与 Runtime 反证式精修 | P14 + Agent Baseline 18 | 已完成 |
+| P16 | Domain aggregate 行为所有权纵切 | P15 + Domain Model | 实施中（Batch 1 已完成） |
 
 ## 4. P0 — 文档、事实和边界基线
 
@@ -493,10 +494,34 @@
 - 每个新发现以真实反例、唯一 owner、完整行为测试和无兼容纵切收口；
 - 不修改前端、TUI、CLI。
 
-## 20. 进度记录
+## 20. P16 — Domain aggregate 行为所有权纵切
+
+### 目标
+
+按 Domain Model 的单一 owner 标尺，依次完成 Run、Transcript Item、Plan、Session 的完整纵切，再复审 Domain package；Domain 只拥有单 aggregate 行为与纯领域决策，Application 继续独占跨 aggregate write-set、事务、并发和外部生命周期。
+
+### 工作项
+
+- [x] P16-01 统一 `run.Run` aggregate、Run/Tool failure taxonomy 与 cumulative accounting，删除 Transcript 的第二 Run carrier，并让 Persistence 只验证、持久化聚合已经决定的迁移；
+- [ ] P16-02 关闭 Transcript Item tagged union 的公开拼装入口，把各 variant 构造与 ToolCall terminal first-wins 收回 `domain/transcript`；
+- [ ] P16-03 让 `plan.State` 独占 replacement/revision/invariant，建立 `application/plans` 用例并删除 Tool Adapter 直连 Store；
+- [ ] P16-04 让 `session.Session` 独占 construct/edit/fork/relocate 行为，Store 只保存已决定的下一 aggregate；
+- [ ] P16-05 按词汇、变化原因、消费者和 import DAG 复审 Domain package，并冻结行为所有权、命名与空残留永久门禁；
+- [ ] P16-06 完成 standalone、race、fuzz、contract generator、architecture、死代码、lint、文档和 hygiene 总验收。
+
+### 验收
+
+- Run、Item、Plan、Session 每种领域状态变化只有一个准确命名的 Domain 入口，外部无直接 mutation；
+- Application 只组织跨 aggregate 行为，不复制单 entity invariant；
+- Persistence 不决定领域迁移，Adapter 不越过 Application 成为用例 owner；
+- Runtime/Agent Framework 边界、opaque checkpoint 和当前消费者隔离保持不变；
+- 每个 batch 独立验证、记录、提交和推送，不修改前端、TUI、CLI。
+
+## 21. 进度记录
 
 | 日期 | 阶段 | 完成事实 | 验证 |
 |---|---|---|---|
+| 2026-08-10 | P16-01（authoritative Run aggregate） | `domain/run.Run` 以私有字段成为 Session/Run identity、lineage、model selection、Goal provenance、lifecycle、active Segment、metrics、limits/capabilities、terminal outcome/failure/detail/time/message watermark 的唯一 aggregate；新增显式 admission/restore、metrics advance、suspend/resume/terminate/waiting cancel/lost recovery、snapshot/equality 行为。Run cumulative usage 收敛到 `domain/accounting`，Run failure 与 Tool failure 按 owner 拆为两个 taxonomy；`domain/transcript` 删除第二 Run carrier 和通用 Problem。Application reducer、waiting/recovery/session write-set、Agent ACL、SQLite、portable artifact 与 Delivery projection 全部改为消费唯一 Run value，Run 不再复制 Pending open Interrupt。SQLite admission 和 lifecycle write 先调用/重放 Run aggregate 行为，再以 exact aggregate equality + CAS 持久化，不再由 Store 的裸 `State` 转换成为第二业务 owner；测试 fixture 也必须从合法 aggregate 转换产生，不再拼装半真终态 | 新增 Run lifecycle、terminal fact matrix、illegal transition、metrics regression/overflow、slice/map ownership 测试；application/runs、sessions、agentexec、runsegment、runrecovery、SQLite、Bootstrap、Delivery 与全量 `go test ./...` 全绿；Protocol、SQLite epoch、Agent Framework 合同和消费者代码均未改变，完整静态/race/generator/hygiene 门禁在本批提交前收口 |
 | 2026-08-10 | P15-04（final counterexample freeze） | 从干净提交点完成 Agent/Runtime 双向抽象、六环 DAG、consumer-owned port、opaque checkpoint、Framework execution vocabulary、全层级命名、文件/目录、生成物和根仓库爆炸半径最终反证。Agent 仍不含 Runtime 产品/持久化抽象；Runtime Framework concrete import 仍唯一收敛在 `adapter/agentexec`；MCP lifecycle 末批改名未改变协议 wire、SQLite shape、Agent Baseline 或消费者。无新坏味道、兼容路径、重复 owner、死代码、复杂度热点、生成漂移、意外空文件/目录或生产 TODO/FIXME/HACK；空的根 `LYRA.md` 仍是有意保留的 workspace knowledge 起点 | Runtime standalone tidy-diff/build/vet/staticcheck、完整及精选 lint、`deadcode -test`、禁缓存全量 test/race 全绿；MCP 高风险 race 20 次稳定；三个 strict codec fuzz 共 613,917 次执行无失败；Agent standalone tidy-diff/build/vet/test 与根仓库 build/vet/test 全绿；gofmt、边界与旧词扫描零违规。P15 完成 |
 | 2026-08-10 | P15-03d（MCP lifecycle naming） | 最终局部变量复扫发现 `infra/mcp` 仍用 `ms` 泛指 configured server state、用 `old` 泛指已从 live projection 脱离且待关闭的 session。按真实生命周期统一为 `configuredServer`、`detachedSession` 和 `serverName`，Reconnect/Configure/Authorize/Detach/Dial/Probe/Statuses/Tools/publish/shutdown 全路径使用同一语言，注释同步且不改变锁、generation、session ledger 或 Tool publication 行为 | MCP Infra、直接 Adapter/Application/Bootstrap 爆炸半径与 architecture 禁用缓存测试、vet 全绿；完整 standalone/race/lint/deadcode/generator/fuzz 和边界复扫由 P15-04 收口 |
 | 2026-08-10 | P15-03c（lifecycle and adapter vocabulary） | Goal 的 process-local active-lease incarnation 从 `loopHandle`/`activeLoop`/`running` 多词漂移收敛为单一 `goalDrive`、`activeDrive` 与 `drives`，类型及完整 lifecycle 行为共同归 `loop.go`；JSON-RPC 调度返回值由口吃式 `dispatch.DispatchResult` 改为 `dispatch.Result`，方法泛型返回值同步命名为 `ResponseValue`，两类 Result 不再遮蔽；caller-defined provider 统一使用完整 `Compatible`，adapter builder 按实际构造行为命名，清除把 compatible endpoint 误称 legacy compat/pass-through、把 direct vendor wire 泛称 native 的注释。Framework Strategy 在权威文档只称 `Interaction`，新增 package-qualified retired-name 与精确文档词汇守卫；Go 1.22 后无效 loop-variable copies 同批删除。高重复 race 进一步证明 faulting-store 测试信号早于 drive completion publication，场景现明确容许 publication 前的 `ErrGoalActive`，并继续证明发布后的失败在 Stop 前可寻址 | 受影响 Goal/LLM/Delivery/architecture 禁用缓存测试与 vet 全绿；`revive`、`copyloopvar`、复杂度、重复、未使用参数及 Go 风格精选 lint 零问题；完整 standalone/race/generator/deadcode/fuzz 与边界复扫在 P15-04 统一收口 |

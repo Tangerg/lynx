@@ -257,7 +257,7 @@ func (d *Driver) resolveGoalRunStartError(
 	return disposition, err
 }
 
-func recordTerminalRunAttributes(span trace.Span, finished *transcript.Run) {
+func recordTerminalRunAttributes(span trace.Span, finished *run.Run) {
 	if finished == nil {
 		return
 	}
@@ -291,7 +291,7 @@ func (d *Driver) resolveTerminalRun(
 	ctx context.Context,
 	g *goal.Goal,
 	span trace.Span,
-	finished *transcript.Run,
+	finished *run.Run,
 ) (runDisposition, error) {
 	if finished == nil {
 		// The run parked for HITL and produced no terminal (rare — autonomous runs
@@ -352,8 +352,8 @@ func (d *Driver) command(g goal.Goal) runs.StartCommand {
 
 // drainTerminal consumes a run's event stream to its close and returns the run's
 // terminal record, or nil when the stream closed without one (the run parked).
-func drainTerminal(events iter.Seq[runs.Event]) *transcript.Run {
-	var finished *transcript.Run
+func drainTerminal(events iter.Seq[runs.Event]) *run.Run {
+	var finished *run.Run
 	for ev := range events {
 		if seg, ok := ev.Payload.(runs.SegmentFinished); ok {
 			run := seg.Run
@@ -365,21 +365,22 @@ func drainTerminal(events iter.Seq[runs.Event]) *transcript.Run {
 
 // outcomeOf reads a terminal run's outcome. A SegmentFinished without one
 // violates the Run contract and must not be treated as a successful Run.
-func outcomeOf(run *transcript.Run) (run.Outcome, error) {
-	if run.Outcome == nil {
+func outcomeOf(run *run.Run) (run.Outcome, error) {
+	outcome, terminal := run.Outcome()
+	if !terminal {
 		return 0, errTerminalOutcomeMissing
 	}
-	return *run.Outcome, nil
+	return outcome, nil
 }
 
-func runCost(run *transcript.Run) float64 {
-	if run.Metrics.Usage != nil && run.Metrics.Usage.CostUSD != nil {
-		return *run.Metrics.Usage.CostUSD
+func runCost(run *run.Run) float64 {
+	if usage, reported := run.Metrics().Usage(); reported && usage.Total.CostUSD != nil {
+		return *usage.Total.CostUSD
 	}
 	return 0
 }
 
-func runSteps(run *transcript.Run) int { return run.Metrics.Steps }
+func runSteps(run *run.Run) int { return run.Metrics().Steps() }
 
 // pauseOwned persists a drive-originated pause against the newest revision of
 // the lease it owns. A CAS miss is resolved from the authoritative row: a

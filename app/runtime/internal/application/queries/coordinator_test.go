@@ -14,6 +14,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/pagination"
+	runfixture "github.com/Tangerg/lynx/app/runtime/internal/testsupport/runfixture"
 )
 
 type fakeTranscript struct {
@@ -88,9 +89,9 @@ func (f *fakeSessions) Exists(_ context.Context, sessionID string) (bool, error)
 // an empty id is no anchor — the first page — and anything else is strictly past
 // the last row of the page before it, which for the history means EARLIER.
 type fakeRuns struct {
-	runs []transcript.Run
+	runs []run.Run
 	// history is newest first, the order the store returns.
-	history []transcript.Run
+	history []run.Run
 
 	session         string
 	requested       []string
@@ -101,27 +102,27 @@ type fakeRuns struct {
 	limit           int
 }
 
-func (f *fakeRuns) Run(_ context.Context, runID string) (transcript.Run, bool, error) {
+func (f *fakeRuns) Run(_ context.Context, runID string) (run.Run, bool, error) {
 	for _, run := range f.history {
-		if run.ID == runID {
+		if run.ID() == runID {
 			return run, true, nil
 		}
 	}
-	return transcript.Run{}, false, nil
+	return run.Run{}, false, nil
 }
 
-func (f *fakeRuns) PageRuns(_ context.Context, sessionID string, statuses []run.Status, includeDescendants bool, beforeCreatedAt int64, beforeRunID string, limit int) ([]transcript.Run, error) {
+func (f *fakeRuns) PageRuns(_ context.Context, sessionID string, statuses []run.Status, includeDescendants bool, beforeCreatedAt int64, beforeRunID string, limit int) ([]run.Run, error) {
 	f.session, f.statuses, f.descendants = sessionID, statuses, includeDescendants
 	f.beforeCreatedAt, f.beforeRunID, f.limit = beforeCreatedAt, beforeRunID, limit
-	var out []transcript.Run
+	var out []run.Run
 	for _, run := range f.history {
 		if !includeDescendants && run.Lineage().IsChild() {
 			continue
 		}
-		if !seeksBefore(run.CreatedAt.UnixNano(), run.ID, beforeCreatedAt, beforeRunID) {
+		if !seeksBefore(run.CreatedAt().UnixNano(), run.ID(), beforeCreatedAt, beforeRunID) {
 			continue
 		}
-		if len(statuses) > 0 && !slices.Contains(statuses, run.State.Status()) {
+		if len(statuses) > 0 && !slices.Contains(statuses, run.State().Status()) {
 			continue
 		}
 		if limit > 0 && len(out) == limit {
@@ -132,19 +133,19 @@ func (f *fakeRuns) PageRuns(_ context.Context, sessionID string, statuses []run.
 	return out, nil
 }
 
-func (f *fakeRuns) RunsWithAncestors(_ context.Context, runIDs []string) ([]transcript.Run, error) {
+func (f *fakeRuns) RunsWithAncestors(_ context.Context, runIDs []string) ([]run.Run, error) {
 	f.requested = runIDs
 	wanted := slices.Clone(runIDs)
 	for index := 0; index < len(wanted); index++ {
 		for _, run := range f.runs {
-			if run.ID == wanted[index] && run.ParentRunID != "" && !slices.Contains(wanted, run.ParentRunID) {
-				wanted = append(wanted, run.ParentRunID)
+			if run.ID() == wanted[index] && run.Lineage().ParentRunID != "" && !slices.Contains(wanted, run.Lineage().ParentRunID) {
+				wanted = append(wanted, run.Lineage().ParentRunID)
 			}
 		}
 	}
-	var out []transcript.Run
+	var out []run.Run
 	for _, run := range f.runs {
-		if slices.Contains(wanted, run.ID) {
+		if slices.Contains(wanted, run.ID()) {
 			out = append(out, run)
 		}
 	}
@@ -212,18 +213,22 @@ func sequencedItems(count int) []transcript.SequencedItem {
 	return out
 }
 
-func queryRunIDs(runs []transcript.Run) []string {
+func queryRunIDs(runs []run.Run) []string {
 	out := make([]string, 0, len(runs))
 	for _, run := range runs {
-		out = append(out, run.ID)
+		out = append(out, run.ID())
 	}
 	return out
+}
+
+func queryRun(id string) run.Run {
+	return runfixture.MustRestore(run.Snapshot{ID: id})
 }
 
 func TestCoordinatorReadsDelegateToProjections(t *testing.T) {
 	ctx := context.Background()
 	tx := &fakeTranscript{items: sequencedItems(1)}
-	runStore := &fakeRuns{runs: []transcript.Run{{ID: "run_1"}}}
+	runStore := &fakeRuns{runs: []run.Run{queryRun("run_1")}}
 	ints := &fakeInterrupts{pending: []runs.Pending{{RootRunID: "run_1"}}}
 	c := New(Dependencies{Transcript: tx, Interrupts: ints, Runs: runStore, Sessions: &fakeSessions{}})
 
@@ -290,7 +295,7 @@ func TestListItemPageRefusesAForeignCursor(t *testing.T) {
 	tx := &fakeTranscript{items: sequencedItems(5)}
 	c := New(Dependencies{
 		Transcript: tx,
-		Runs:       &fakeRuns{history: []transcript.Run{{ID: "run_1"}}},
+		Runs:       &fakeRuns{history: []run.Run{queryRun("run_1")}},
 		Sessions:   &fakeSessions{},
 	})
 
@@ -363,8 +368,8 @@ func TestListItemPageScopedToARunReadsOnlyThatRun(t *testing.T) {
 	items[2].Item.RunID = "run_2"
 	tx := &fakeTranscript{items: items}
 	runs := &fakeRuns{
-		runs:    []transcript.Run{{ID: "run_1"}, {ID: "run_2"}},
-		history: []transcript.Run{{ID: "run_1"}, {ID: "run_2"}},
+		runs:    []run.Run{queryRun("run_1"), queryRun("run_2")},
+		history: []run.Run{queryRun("run_1"), queryRun("run_2")},
 	}
 	c := New(Dependencies{Transcript: tx, Runs: runs, Sessions: &fakeSessions{}})
 
@@ -385,39 +390,36 @@ func TestListItemPageScopedToARunReadsOnlyThatRun(t *testing.T) {
 }
 
 func TestListItemPageScopesASubtreeAndIncludesAncestors(t *testing.T) {
-	root := transcript.Run{ID: "run_root"}
-	child := transcript.Run{
-		ID: "run_child", SpawnedByItemID: "item_spawn_child",
-		ParentRunID: root.ID, RootRunID: root.ID,
-	}
-	grandchild := transcript.Run{
-		ID: "run_grandchild", SpawnedByItemID: "item_spawn_grandchild",
-		ParentRunID: child.ID, RootRunID: root.ID,
-	}
-	sibling := transcript.Run{
-		ID: "run_sibling", SpawnedByItemID: "item_spawn_sibling",
-		ParentRunID: root.ID, RootRunID: root.ID,
-	}
+	root := runfixture.MustRestore(run.Snapshot{ID: "run_root"})
+	child := runfixture.MustRestore(run.Snapshot{ID: "run_child", Lineage: run.Lineage{SpawnedByItemID: "item_spawn_child",
+		ParentRunID: root.ID(), RootRunID: root.ID()}})
+
+	grandchild := runfixture.MustRestore(run.Snapshot{ID: "run_grandchild", Lineage: run.Lineage{SpawnedByItemID: "item_spawn_grandchild",
+		ParentRunID: child.ID(), RootRunID: root.ID()}})
+
+	sibling := runfixture.MustRestore(run.Snapshot{ID: "run_sibling", Lineage: run.Lineage{SpawnedByItemID: "item_spawn_sibling",
+		ParentRunID: root.ID(), RootRunID: root.ID()}})
+
 	tx := &fakeTranscript{
 		items: []transcript.SequencedItem{
-			{Sequence: 1, Item: transcript.Item{ID: "item_root", RunID: root.ID}},
-			{Sequence: 2, Item: transcript.Item{ID: "item_child", RunID: child.ID}},
-			{Sequence: 3, Item: transcript.Item{ID: "item_grandchild", RunID: grandchild.ID}},
-			{Sequence: 4, Item: transcript.Item{ID: "item_sibling", RunID: sibling.ID}},
+			{Sequence: 1, Item: transcript.Item{ID: "item_root", RunID: root.ID()}},
+			{Sequence: 2, Item: transcript.Item{ID: "item_child", RunID: child.ID()}},
+			{Sequence: 3, Item: transcript.Item{ID: "item_grandchild", RunID: grandchild.ID()}},
+			{Sequence: 4, Item: transcript.Item{ID: "item_sibling", RunID: sibling.ID()}},
 		},
-		trees: map[string][]string{child.ID: {grandchild.ID}},
+		trees: map[string][]string{child.ID(): {grandchild.ID()}},
 	}
 	runs := &fakeRuns{
-		runs:    []transcript.Run{grandchild, child, root, sibling},
-		history: []transcript.Run{grandchild, sibling, child, root},
+		runs:    []run.Run{grandchild, child, root, sibling},
+		history: []run.Run{grandchild, sibling, child, root},
 	}
 	c := New(Dependencies{Transcript: tx, Runs: runs, Sessions: &fakeSessions{}})
 
-	page, err := c.ListItemPage(t.Context(), RunTreeItems(child.ID), transcript.OldestFirst, "", 0)
+	page, err := c.ListItemPage(t.Context(), RunTreeItems(child.ID()), transcript.OldestFirst, "", 0)
 	if err != nil {
 		t.Fatalf("subtree page: %v", err)
 	}
-	if tx.runTree != child.ID || tx.run != "" {
+	if tx.runTree != child.ID() || tx.run != "" {
 		t.Fatalf("read subtree=%q exact=%q, want only child subtree", tx.runTree, tx.run)
 	}
 	if len(page.Items) != 2 {
@@ -426,18 +428,18 @@ func TestListItemPageScopesASubtreeAndIncludesAncestors(t *testing.T) {
 	if got := []string{page.Items[0].ID, page.Items[1].ID}; !slices.Equal(got, []string{"item_child", "item_grandchild"}) {
 		t.Fatalf("subtree items = %v, want child and grandchild only", got)
 	}
-	if got := queryRunIDs(page.Runs); !slices.Equal(got, []string{grandchild.ID, child.ID, root.ID}) {
+	if got := queryRunIDs(page.Runs); !slices.Equal(got, []string{grandchild.ID(), child.ID(), root.ID()}) {
 		t.Fatalf("page runs = %v, want direct runs plus ancestor closure", got)
 	}
-	if !slices.Equal(runs.requested, []string{child.ID, grandchild.ID}) {
+	if !slices.Equal(runs.requested, []string{child.ID(), grandchild.ID()}) {
 		t.Fatalf("directly referenced runs = %v, want page item sources only", runs.requested)
 	}
 
-	first, err := c.ListItemPage(t.Context(), RunTreeItems(child.ID), transcript.OldestFirst, "", 1)
+	first, err := c.ListItemPage(t.Context(), RunTreeItems(child.ID()), transcript.OldestFirst, "", 1)
 	if err != nil || first.NextCursor == "" {
 		t.Fatalf("first subtree page = (%+v, %v), want a cursor", first, err)
 	}
-	if _, err := c.ListItemPage(t.Context(), RunItems(child.ID), transcript.OldestFirst, first.NextCursor, 1); !errors.Is(err, pagination.ErrInvalidCursor) {
+	if _, err := c.ListItemPage(t.Context(), RunItems(child.ID()), transcript.OldestFirst, first.NextCursor, 1); !errors.Is(err, pagination.ErrInvalidCursor) {
 		t.Fatalf("subtree cursor on exact-run page = %v, want ErrInvalidCursor", err)
 	}
 }
@@ -450,7 +452,7 @@ func TestListItemPageRefusesAScopeThatNamesNothing(t *testing.T) {
 	ctx := context.Background()
 	c := New(Dependencies{
 		Transcript: &fakeTranscript{items: sequencedItems(3)},
-		Runs:       &fakeRuns{history: []transcript.Run{{ID: "run_1"}}},
+		Runs:       &fakeRuns{history: []run.Run{queryRun("run_1")}},
 		Sessions:   &fakeSessions{missing: []string{"ses_gone"}},
 	})
 
@@ -496,18 +498,18 @@ func TestSequenceAnchorRequiresAPositiveSequence(t *testing.T) {
 // returns them: newest admission first, one nanosecond apart. States cycle
 // through the three lifecycle positions so a status filter has something to
 // exclude.
-func testSessionRunHistory(ids ...string) []transcript.Run {
+func testSessionRunHistory(ids ...string) []run.Run {
 	states := [...]run.State{run.Running, run.Waiting, run.Completed}
-	out := make([]transcript.Run, 0, len(ids))
+	out := make([]run.Run, 0, len(ids))
 	for i, id := range ids {
 		state := states[i%len(states)]
-		record := transcript.Run{
-			ID: id, SessionID: "ses_1", State: state,
-			CreatedAt: time.Unix(0, int64(len(ids)-i)).UTC(),
-		}
+		var outcome *run.Outcome
 		if state.IsTerminal() {
-			record.Outcome = new(run.OutcomeCompleted)
+			value := run.OutcomeCompleted
+			outcome = &value
 		}
+		record := runfixture.MustRestore(run.Snapshot{ID: id, SessionID: "ses_1", State: state,
+			Outcome: outcome, CreatedAt: time.Unix(0, int64(len(ids)-i)).UTC()})
 		out = append(out, record)
 	}
 	return out
@@ -539,7 +541,7 @@ func TestListPendingInterruptPageRefusesACallerThatCannotFollowTheRun(t *testing
 	}
 	c := New(Dependencies{
 		Transcript: &fakeTranscript{},
-		Runs:       &fakeRuns{history: []transcript.Run{{ID: "run_1"}}},
+		Runs:       &fakeRuns{history: []run.Run{queryRun("run_1")}},
 		Interrupts: &fakeInterrupts{pending: waiting},
 		Sessions:   &fakeSessions{},
 	})
@@ -569,12 +571,11 @@ func TestListPendingInterruptPageFiltersByRootAndRefusesAChild(t *testing.T) {
 	ints := &fakeInterrupts{pending: testSessionPendingRuns("run_1", "run_2")}
 	c := New(Dependencies{
 		Transcript: &fakeTranscript{},
-		Runs: &fakeRuns{history: []transcript.Run{
-			{ID: "run_1"},
-			{
-				ID: "run_child", SpawnedByItemID: "it_spawn",
-				ParentRunID: "run_1", RootRunID: "run_1",
-			},
+		Runs: &fakeRuns{history: []run.Run{
+			queryRun("run_1"),
+			runfixture.MustRestore(run.Snapshot{ID: "run_child", Lineage: run.Lineage{
+				SpawnedByItemID: "it_spawn", ParentRunID: "run_1", RootRunID: "run_1",
+			}}),
 		}},
 		Interrupts: ints,
 		Sessions:   &fakeSessions{},
@@ -623,7 +624,7 @@ func TestListRunPageWalksBackwardThroughHistory(t *testing.T) {
 	if runs.limit != 3 {
 		t.Fatalf("store asked for %d rows, want the page plus one", runs.limit)
 	}
-	if len(first.Rows) != 2 || first.Rows[0].ID != "run_3" || first.NextCursor == "" {
+	if len(first.Rows) != 2 || first.Rows[0].ID() != "run_3" || first.NextCursor == "" {
 		t.Fatalf("first page = %+v, want the two newest runs and a cursor", first.Rows)
 	}
 
@@ -634,7 +635,7 @@ func TestListRunPageWalksBackwardThroughHistory(t *testing.T) {
 	if runs.beforeRunID != "run_2" {
 		t.Fatalf("second page sought before %q, want the first page's last row", runs.beforeRunID)
 	}
-	if len(second.Rows) != 1 || second.Rows[0].ID != "run_1" || second.NextCursor != "" {
+	if len(second.Rows) != 1 || second.Rows[0].ID() != "run_1" || second.NextCursor != "" {
 		t.Fatalf("second page = %+v, want the tail and no cursor", second.Rows)
 	}
 }
@@ -673,27 +674,27 @@ func TestListRunPageReturnsEveryStatusUntilFiltered(t *testing.T) {
 }
 
 func TestListRunPageIncludesDescendantsAndBindsTheCursor(t *testing.T) {
-	root := transcript.Run{ID: "run_root", CreatedAt: time.Unix(0, 1).UTC()}
-	child := transcript.Run{
-		ID: "run_child", SpawnedByItemID: "item_spawn_child",
-		ParentRunID: root.ID, RootRunID: root.ID, CreatedAt: time.Unix(0, 2).UTC(),
-	}
-	grandchild := transcript.Run{
-		ID: "run_grandchild", SpawnedByItemID: "item_spawn_grandchild",
-		ParentRunID: child.ID, RootRunID: root.ID, CreatedAt: time.Unix(0, 3).UTC(),
-	}
-	runs := &fakeRuns{history: []transcript.Run{grandchild, child, root}}
+	root := runfixture.MustRestore(run.Snapshot{ID: "run_root", CreatedAt: time.Unix(0, 1).UTC()})
+	child := runfixture.MustRestore(run.Snapshot{ID: "run_child",
+		CreatedAt: time.Unix(0, 2).UTC(), Lineage: run.Lineage{SpawnedByItemID: "item_spawn_child",
+			ParentRunID: root.ID(), RootRunID: root.ID()}})
+
+	grandchild := runfixture.MustRestore(run.Snapshot{ID: "run_grandchild",
+		CreatedAt: time.Unix(0, 3).UTC(), Lineage: run.Lineage{SpawnedByItemID: "item_spawn_grandchild",
+			ParentRunID: child.ID(), RootRunID: root.ID()}})
+
+	runs := &fakeRuns{history: []run.Run{grandchild, child, root}}
 	c := New(Dependencies{Transcript: &fakeTranscript{}, Runs: runs, Sessions: &fakeSessions{}})
 
 	roots, err := c.ListRunPage(t.Context(), RunPageFilter{}, "", 0)
-	if err != nil || !slices.Equal(queryRunIDs(roots.Rows), []string{root.ID}) {
+	if err != nil || !slices.Equal(queryRunIDs(roots.Rows), []string{root.ID()}) {
 		t.Fatalf("root page = (%v, %v), want only root", queryRunIDs(roots.Rows), err)
 	}
 	all, err := c.ListRunPage(t.Context(), RunPageFilter{IncludeDescendants: true}, "", 2)
 	if err != nil {
 		t.Fatalf("descendant page: %v", err)
 	}
-	if !runs.descendants || !slices.Equal(queryRunIDs(all.Rows), []string{grandchild.ID, child.ID}) || all.NextCursor == "" {
+	if !runs.descendants || !slices.Equal(queryRunIDs(all.Rows), []string{grandchild.ID(), child.ID()}) || all.NextCursor == "" {
 		t.Fatalf("descendant page = %+v, include=%t; want newest two and cursor", queryRunIDs(all.Rows), runs.descendants)
 	}
 	if _, err := c.ListRunPage(t.Context(), RunPageFilter{}, all.NextCursor, 2); !errors.Is(err, pagination.ErrInvalidCursor) {

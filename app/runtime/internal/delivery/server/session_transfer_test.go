@@ -16,6 +16,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	resultoffload "github.com/Tangerg/lynx/app/runtime/internal/domain/toolresult"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
+	runfixture "github.com/Tangerg/lynx/app/runtime/internal/testsupport/runfixture"
 	"github.com/Tangerg/lynx/core/chat"
 )
 
@@ -364,16 +365,11 @@ func TestCancelParkedRunProducesPortableTerminalSnapshot(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("admit parked run: %v", err)
 	}
-	if err := rt.runs.Suspend(ctx, transcript.Run{
-		SessionID: ses.ID, ID: "run_parked", State: run.Waiting,
+	if err := rt.runs.Suspend(ctx, runfixture.MustRestore(run.Snapshot{SessionID: ses.ID, ID: "run_parked", State: run.Waiting,
 		Capabilities: capabilities,
-		Interrupts: []transcript.Interrupt{{
-			ItemID: "item_question", ItemOccurredAt: parkedAt,
-			RunID: "run_parked", Kind: interrupt.Question,
-			Question: &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?"}}},
-		}},
-		CreatedAt: parkedAt, MessageMark: transcript.UnknownMessageMark,
-	}); err != nil {
+
+		CreatedAt: parkedAt, MessageMark: run.UnknownMessageMark}),
+	); err != nil {
 		t.Fatalf("suspend parked run: %v", err)
 	}
 	if err := rt.hist.AppendItem(ctx, transcript.Item{

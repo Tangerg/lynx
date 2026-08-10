@@ -10,6 +10,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
@@ -55,7 +56,7 @@ type Continuation struct {
 	// reducer consumes this identity set without appending the Item a second time.
 	CommittedTools []CommittedTool
 	RunCreatedAt   time.Time
-	Metrics        transcript.RunMetrics
+	Metrics        run.Metrics
 	Limits         run.Limits
 }
 
@@ -91,7 +92,7 @@ type DrainedTool struct {
 }
 
 // CommittedTool is the durable hand-off for one tool result already written to
-// the transcript while its executor checkpoint was parked. Problem records the
+// the transcript while its executor checkpoint was parked. Failure records the
 // classification that was committed; it is not reconstructed from
 // the executor's lower-level error when the checkpoint later publishes its
 // model-facing result.
@@ -101,7 +102,7 @@ type CommittedTool struct {
 	Name   string
 	// Arguments is the canonical JSON used to reject a mismatched replay.
 	Arguments string
-	Problem   transcript.Problem
+	Failure   tool.Failure
 }
 
 // RootContinuation returns the root Run's hand-off. A valid Pending always has
@@ -364,8 +365,8 @@ func (c Continuation) Validate() error {
 		if err := validateToolIdentity(tool.ItemID, tool.CallID, tool.Name, tool.Arguments); err != nil {
 			return fmt.Errorf("committed tool[%d]: %w", index, err)
 		}
-		if err := tool.Problem.ValidateFor(transcript.ToolProblem); err != nil {
-			return fmt.Errorf("committed tool[%d] problem: %w", index, err)
+		if err := tool.Failure.Validate(); err != nil {
+			return fmt.Errorf("committed tool[%d] failure: %w", index, err)
 		}
 		if _, duplicate := committedItems[tool.ItemID]; duplicate {
 			return fmt.Errorf("committed tool item %q is duplicated", tool.ItemID)

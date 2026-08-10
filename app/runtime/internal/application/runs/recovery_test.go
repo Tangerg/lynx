@@ -7,16 +7,18 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/accounting"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
 	interruptdomain "github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	rundomain "github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
+	runfixture "github.com/Tangerg/lynx/app/runtime/internal/testsupport/runfixture"
 )
 
 type recoveryStoreStub struct {
-	runs         []transcript.Run
+	runs         []rundomain.Run
 	pending      []Pending
 	transcripts  map[string][]transcript.Item
 	messageMarks map[string]int
@@ -27,8 +29,8 @@ type recoveryStoreStub struct {
 	commitErr error
 }
 
-func (store *recoveryStoreStub) ListNonTerminalRuns(context.Context) ([]transcript.Run, error) {
-	return append([]transcript.Run(nil), store.runs...), nil
+func (store *recoveryStoreStub) ListNonTerminalRuns(context.Context) ([]rundomain.Run, error) {
+	return append([]rundomain.Run(nil), store.runs...), nil
 }
 
 func (store *recoveryStoreStub) ListPendingInterrupts(context.Context) ([]Pending, error) {
@@ -68,24 +70,23 @@ func (validate checkpointResumabilityFunc) CanResumeCheckpoint(
 func TestRecoveryMarksAbandonedRunTreeLostInPostorder(t *testing.T) {
 	createdAt := time.Date(2026, 8, 1, 1, 0, 0, 0, time.UTC)
 	finishedAt := createdAt.Add(time.Minute)
-	root := transcript.Run{
-		ID: "run_root", SessionID: "session", State: rundomain.Running,
-		ActiveSegmentID: "segment_root", CreatedAt: createdAt, MessageMark: transcript.UnknownMessageMark,
-	}
-	child := transcript.Run{
-		ID: "run_child", SessionID: root.SessionID, State: rundomain.Running,
-		ActiveSegmentID: "segment_child", ParentRunID: root.ID, RootRunID: root.ID,
-		SpawnedByItemID: "item_spawn", CreatedAt: createdAt, MessageMark: transcript.UnknownMessageMark,
-	}
+	root := runfixture.MustRestore(rundomain.Snapshot{ID: "run_root", SessionID: "session", State: rundomain.Running,
+		ActiveSegmentID: "segment_root", CreatedAt: createdAt, MessageMark: rundomain.UnknownMessageMark})
+
+	child := runfixture.MustRestore(rundomain.Snapshot{ID: "run_child", SessionID: root.SessionID(), State: rundomain.Running,
+		ActiveSegmentID: "segment_child",
+		CreatedAt:       createdAt, MessageMark: rundomain.UnknownMessageMark, Lineage: rundomain.Lineage{ParentRunID: root.ID(), RootRunID: root.ID(),
+			SpawnedByItemID: "item_spawn"}})
+
 	item := transcript.Item{
-		ID: "item_running", SessionID: root.SessionID, RunID: child.ID,
+		ID: "item_running", SessionID: root.SessionID(), RunID: child.ID(),
 		Kind: transcript.QuestionItem, Status: transcript.ItemRunning, OccurredAt: createdAt,
 		Question: &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?"}}},
 	}
 	store := &recoveryStoreStub{
-		runs:         []transcript.Run{root, child},
-		transcripts:  map[string][]transcript.Item{root.SessionID: {item}},
-		messageMarks: map[string]int{root.SessionID: 7},
+		runs:         []rundomain.Run{root, child},
+		transcripts:  map[string][]transcript.Item{root.SessionID(): {item}},
+		messageMarks: map[string]int{root.SessionID(): 7},
 	}
 	checkpointCalls := 0
 	recovery, err := NewRecovery(store, checkpointResumabilityFunc(func(context.Context, ExecutorCheckpointExpectation) (bool, error) {
@@ -104,14 +105,13 @@ func TestRecoveryMarksAbandonedRunTreeLostInPostorder(t *testing.T) {
 	if recovered != 2 || store.commits != 1 || checkpointCalls != 0 {
 		t.Fatalf("recovered/commits/checkpointCalls = %d/%d/%d, want 2/1/0", recovered, store.commits, checkpointCalls)
 	}
-	if got := []string{store.commit.LostRuns[0].ID, store.commit.LostRuns[1].ID}; !reflect.DeepEqual(got, []string{child.ID, root.ID}) {
+	if got := []string{store.commit.LostRuns[0].ID(), store.commit.LostRuns[1].ID()}; !reflect.DeepEqual(got, []string{child.ID(), root.ID()}) {
 		t.Fatalf("lost Run order = %v, want child-before-parent", got)
 	}
 	for _, lost := range store.commit.LostRuns {
-		if lost.State != rundomain.Failed ||
-			lost.Outcome == nil || *lost.Outcome != rundomain.OutcomeLost ||
-			lost.Error == nil || lost.Error.Kind != transcript.RunLostProblem ||
-			lost.MessageMark != 7 || !lost.FinishedAt.Equal(finishedAt) {
+		if lost.State() != rundomain.Failed || !runHasOutcome(lost, rundomain.OutcomeLost) ||
+			!runHasFailureKind(lost, rundomain.FailureLost) ||
+			lost.MessageMark() != 7 || !lost.FinishedAt().Equal(finishedAt) {
 			t.Fatalf("lost Run = %+v", lost)
 		}
 	}
@@ -129,19 +129,17 @@ func TestRecoveryChargesLostGoalOwnedRootToItsAdmissionLease(t *testing.T) {
 	createdAt := time.Date(2026, 8, 1, 1, 30, 0, 0, time.UTC)
 	finishedAt := createdAt.Add(time.Minute)
 	cost := 1.25
-	run := transcript.Run{
-		ID: "run_goal", SessionID: "session", State: rundomain.Running,
+	run := runfixture.MustRestore(rundomain.Snapshot{ID: "run_goal", SessionID: "session", State: rundomain.Running,
 		ActiveSegmentID: "segment_goal", GoalLeaseID: "lease_goal",
-		Metrics: transcript.RunMetrics{
-			Steps: 3,
-			Usage: &transcript.Usage{ModelUsage: transcript.ModelUsage{CostUSD: &cost}},
-		},
-		CreatedAt: createdAt, MessageMark: transcript.UnknownMessageMark,
-	}
+		Metrics: runfixture.MustMetrics(runfixture.MetricsInput{Steps: 3,
+			Usage: &accounting.Usage{Total: accounting.Totals{CostUSD: &cost}}}),
+
+		CreatedAt: createdAt, MessageMark: rundomain.UnknownMessageMark})
+
 	store := &recoveryStoreStub{
-		runs:         []transcript.Run{run},
-		transcripts:  map[string][]transcript.Item{run.SessionID: nil},
-		messageMarks: map[string]int{run.SessionID: 2},
+		runs:         []rundomain.Run{run},
+		transcripts:  map[string][]transcript.Item{run.SessionID(): nil},
+		messageMarks: map[string]int{run.SessionID(): 2},
 	}
 	recovery, err := NewRecovery(store, checkpointResumabilityFunc(func(context.Context, ExecutorCheckpointExpectation) (bool, error) {
 		return false, nil
@@ -158,9 +156,9 @@ func TestRecoveryChargesLostGoalOwnedRootToItsAdmissionLease(t *testing.T) {
 		t.Fatalf("Goal Runs = %+v, want one", store.commit.GoalRuns)
 	}
 	goalRun := store.commit.GoalRuns[0]
-	if goalRun.SessionID != run.SessionID || goalRun.LeaseID != run.GoalLeaseID ||
-		goalRun.RunID != run.ID || goalRun.Outcome != rundomain.OutcomeLost ||
-		goalRun.CostUSD != cost || goalRun.Steps != run.Metrics.Steps ||
+	if goalRun.SessionID != run.SessionID() || goalRun.LeaseID != run.GoalLeaseID() ||
+		goalRun.RunID != run.ID() || goalRun.Outcome != rundomain.OutcomeLost ||
+		goalRun.CostUSD != cost || goalRun.Steps != run.Metrics().Steps() ||
 		!goalRun.CompletedAt.Equal(finishedAt) {
 		t.Fatalf("Goal Run = %+v", goalRun)
 	}
@@ -192,12 +190,14 @@ func TestRecoveryChargesLostGoalOwnedRootToItsAdmissionLease(t *testing.T) {
 func TestRecoveryPreservesOnlyCoherentInterruptedTree(t *testing.T) {
 	run, pending, item := coherentRecoveryPark(t)
 	pending.GoalLeaseID = "goal-lease-1"
-	run.GoalLeaseID = pending.GoalLeaseID
+	snapshot := run.Snapshot()
+	snapshot.GoalLeaseID = pending.GoalLeaseID
+	run = runfixture.MustRestore(snapshot)
 	store := &recoveryStoreStub{
-		runs:         []transcript.Run{run},
+		runs:         []rundomain.Run{run},
 		pending:      []Pending{pending},
-		transcripts:  map[string][]transcript.Item{run.SessionID: {item}},
-		messageMarks: map[string]int{run.SessionID: 3},
+		transcripts:  map[string][]transcript.Item{run.SessionID(): {item}},
+		messageMarks: map[string]int{run.SessionID(): 3},
 	}
 	var validated ExecutorCheckpointExpectation
 	recovery, err := NewRecovery(store, checkpointResumabilityFunc(func(_ context.Context, expected ExecutorCheckpointExpectation) (bool, error) {
@@ -214,12 +214,12 @@ func TestRecoveryPreservesOnlyCoherentInterruptedTree(t *testing.T) {
 	}
 	wantExpectation := ExecutorCheckpointExpectation{
 		RootMemberID:   "member_root",
-		SessionID:      run.SessionID,
+		SessionID:      run.SessionID(),
 		CWD:            "/workspace",
 		WorkspaceCWD:   "/workspace",
 		GoalLeaseID:    pending.GoalLeaseID,
-		ModelSelection: run.ModelSelection,
-		Limits:         run.Limits,
+		ModelSelection: run.ModelSelection(),
+		Limits:         run.Limits(),
 		Capabilities:   pending.Capabilities,
 	}
 	if recovered != 0 || !reflect.DeepEqual(validated, wantExpectation) || len(store.commit.LostRuns) != 0 {
@@ -234,11 +234,11 @@ func TestRecoveryPreservesOnlyCoherentInterruptedTree(t *testing.T) {
 func TestRecoveryMarksIsolatedParkLostWithoutProbingExecutorCheckpoint(t *testing.T) {
 	run, pending, item := coherentRecoveryPark(t)
 	store := &recoveryStoreStub{
-		runs:        []transcript.Run{run},
+		runs:        []rundomain.Run{run},
 		pending:     []Pending{pending},
-		transcripts: map[string][]transcript.Item{run.SessionID: {item}},
+		transcripts: map[string][]transcript.Item{run.SessionID(): {item}},
 		sessions: map[string]session.Session{
-			run.SessionID: {ID: run.SessionID, CWD: "/workspace", Isolated: true},
+			run.SessionID(): {ID: run.SessionID(), CWD: "/workspace", Isolated: true},
 		},
 	}
 	checkpointCalls := 0
@@ -262,10 +262,10 @@ func TestRecoveryMarksIsolatedParkLostWithoutProbingExecutorCheckpoint(t *testin
 func TestRecoveryTreatsUnavailableExecutorCheckpointAsResourceLoss(t *testing.T) {
 	run, pending, item := coherentRecoveryPark(t)
 	store := &recoveryStoreStub{
-		runs:         []transcript.Run{run},
+		runs:         []rundomain.Run{run},
 		pending:      []Pending{pending},
-		transcripts:  map[string][]transcript.Item{run.SessionID: {item}},
-		messageMarks: map[string]int{run.SessionID: 5},
+		transcripts:  map[string][]transcript.Item{run.SessionID(): {item}},
+		messageMarks: map[string]int{run.SessionID(): 5},
 	}
 	recovery, err := NewRecovery(store, checkpointResumabilityFunc(func(context.Context, ExecutorCheckpointExpectation) (bool, error) {
 		return false, nil
@@ -279,7 +279,7 @@ func TestRecoveryTreatsUnavailableExecutorCheckpointAsResourceLoss(t *testing.T)
 		t.Fatalf("Reconcile: %v", err)
 	}
 	if recovered != 1 || len(store.commit.LostRuns) != 1 ||
-		!reflect.DeepEqual(store.commit.DeleteInterrupts, []InterruptOwner{{SessionID: run.SessionID, RootRunID: run.ID}}) ||
+		!reflect.DeepEqual(store.commit.DeleteInterrupts, []InterruptOwner{{SessionID: run.SessionID(), RootRunID: run.ID()}}) ||
 		len(store.commit.PreservedCheckpointRootIDs) != 0 {
 		t.Fatalf("resource-loss recovery = %d, commit %+v", recovered, store.commit)
 	}
@@ -288,9 +288,9 @@ func TestRecoveryTreatsUnavailableExecutorCheckpointAsResourceLoss(t *testing.T)
 func TestRecoveryValidationFailureDoesNotCommitPartialRepair(t *testing.T) {
 	run, pending, item := coherentRecoveryPark(t)
 	store := &recoveryStoreStub{
-		runs:        []transcript.Run{run},
+		runs:        []rundomain.Run{run},
 		pending:     []Pending{pending},
-		transcripts: map[string][]transcript.Item{run.SessionID: {item}},
+		transcripts: map[string][]transcript.Item{run.SessionID(): {item}},
 	}
 	want := errors.New("checkpoint backend unavailable")
 	recovery, err := NewRecovery(store, checkpointResumabilityFunc(func(context.Context, ExecutorCheckpointExpectation) (bool, error) {
@@ -312,9 +312,9 @@ func TestRecoveryRejectsCrossSessionPendingWithoutCommit(t *testing.T) {
 	run, pending, item := coherentRecoveryPark(t)
 	pending.SessionID = "other-session"
 	store := &recoveryStoreStub{
-		runs:        []transcript.Run{run},
+		runs:        []rundomain.Run{run},
 		pending:     []Pending{pending},
-		transcripts: map[string][]transcript.Item{run.SessionID: {item}},
+		transcripts: map[string][]transcript.Item{run.SessionID(): {item}},
 	}
 	checkpointCalls := 0
 	recovery, err := NewRecovery(store, checkpointResumabilityFunc(func(context.Context, ExecutorCheckpointExpectation) (bool, error) {
@@ -339,24 +339,30 @@ func TestRecoveryRejectsCrossSessionPendingWithoutCommit(t *testing.T) {
 func TestRecoveryRejectsContinuationFactDriftWithoutProbingCheckpoint(t *testing.T) {
 	tests := []struct {
 		name   string
-		mutate func(*transcript.Run, *Pending)
+		mutate func(*rundomain.Run, *Pending)
 	}{
 		{
 			name: "cumulative metrics",
-			mutate: func(_ *transcript.Run, pending *Pending) {
-				pending.Continuations[0].Metrics.Steps++
+			mutate: func(_ *rundomain.Run, pending *Pending) {
+				metrics, err := rundomain.NewMetrics(nil, pending.Continuations[0].Metrics.Steps()+1, pending.Continuations[0].Metrics.ActiveDuration())
+				if err != nil {
+					panic(err)
+				}
+				pending.Continuations[0].Metrics = metrics
 			},
 		},
 		{
 			name: "frozen limits",
-			mutate: func(_ *transcript.Run, pending *Pending) {
+			mutate: func(_ *rundomain.Run, pending *Pending) {
 				pending.Continuations[0].Limits.MaxSteps++
 			},
 		},
 		{
 			name: "frozen run capabilities",
-			mutate: func(run *transcript.Run, _ *Pending) {
-				run.Capabilities.ChildRuns = true
+			mutate: func(run *rundomain.Run, _ *Pending) {
+				snapshot := run.Snapshot()
+				snapshot.Capabilities.ChildRuns = true
+				*run = runfixture.MustRestore(snapshot)
 			},
 		},
 	}
@@ -365,9 +371,9 @@ func TestRecoveryRejectsContinuationFactDriftWithoutProbingCheckpoint(t *testing
 			run, pending, item := coherentRecoveryPark(t)
 			test.mutate(&run, &pending)
 			store := &recoveryStoreStub{
-				runs:        []transcript.Run{run},
+				runs:        []rundomain.Run{run},
 				pending:     []Pending{pending},
-				transcripts: map[string][]transcript.Item{run.SessionID: {item}},
+				transcripts: map[string][]transcript.Item{run.SessionID(): {item}},
 			}
 			checkpointCalls := 0
 			recovery, err := NewRecovery(store, checkpointResumabilityFunc(func(context.Context, ExecutorCheckpointExpectation) (bool, error) {
@@ -394,38 +400,39 @@ func TestRecoveryRejectsContinuationFactDriftWithoutProbingCheckpoint(t *testing
 // that policy as a second source of truth.
 func TestRecoveryRejectsChildProtocolDriftWithoutProbingCheckpoint(t *testing.T) {
 	root, pending, item := coherentRecoveryPark(t)
-	root.Capabilities.ChildRuns = true
+	rootSnapshot := root.Snapshot()
+	rootSnapshot.Capabilities.ChildRuns = true
+	root = runfixture.MustRestore(rootSnapshot)
 	pending.Capabilities.ChildRuns = true
 	lineage := rundomain.Lineage{
 		SpawnedByItemID: "item_spawn",
-		ParentRunID:     root.ID,
-		RootRunID:       root.ID,
+		ParentRunID:     root.ID(),
+		RootRunID:       root.ID(),
 	}
-	child := transcript.Run{
-		ID: "run_child", SessionID: root.SessionID, State: rundomain.Waiting,
-		SpawnedByItemID: lineage.SpawnedByItemID,
-		ParentRunID:     lineage.ParentRunID,
-		RootRunID:       lineage.RootRunID,
-		ModelSelection:  root.ModelSelection,
+	child := runfixture.MustRestore(rundomain.Snapshot{ID: "run_child", SessionID: root.SessionID(), State: rundomain.Waiting,
+
+		ModelSelection: root.ModelSelection(),
 		// This is a valid capabilities in isolation but contradicts the root admission.
 		Capabilities: rundomain.Capabilities{
 			InterruptKinds: []interruptdomain.Kind{interruptdomain.Question},
 		},
-		CreatedAt: root.CreatedAt, MessageMark: transcript.UnknownMessageMark,
-	}
+		CreatedAt: root.CreatedAt(), MessageMark: rundomain.UnknownMessageMark, Lineage: rundomain.Lineage{SpawnedByItemID: lineage.SpawnedByItemID,
+			ParentRunID: lineage.ParentRunID,
+			RootRunID:   lineage.RootRunID}})
+
 	rootContinuation := pending.Continuations[0]
 	pending.Continuations = []Continuation{
 		{
 			RunID: "run_child", MemberID: "member_child",
-			Lineage: lineage, ModelSelection: root.ModelSelection,
-			RunCreatedAt: root.CreatedAt,
+			Lineage: lineage, ModelSelection: root.ModelSelection(),
+			RunCreatedAt: root.CreatedAt(),
 		},
 		rootContinuation,
 	}
 	store := &recoveryStoreStub{
-		runs:        []transcript.Run{root, child},
+		runs:        []rundomain.Run{root, child},
 		pending:     []Pending{pending},
-		transcripts: map[string][]transcript.Item{root.SessionID: {item}},
+		transcripts: map[string][]transcript.Item{root.SessionID(): {item}},
 	}
 	checkpointCalls := 0
 	recovery, err := NewRecovery(store, checkpointResumabilityFunc(func(context.Context, ExecutorCheckpointExpectation) (bool, error) {
@@ -444,7 +451,7 @@ func TestRecoveryRejectsChildProtocolDriftWithoutProbingCheckpoint(t *testing.T)
 	}
 }
 
-func coherentRecoveryPark(t *testing.T) (transcript.Run, Pending, transcript.Item) {
+func coherentRecoveryPark(t *testing.T) (rundomain.Run, Pending, transcript.Item) {
 	t.Helper()
 	createdAt := time.Date(2026, 8, 1, 2, 0, 0, 0, time.UTC)
 	selection, err := modelref.New("anthropic", "claude")
@@ -456,15 +463,14 @@ func coherentRecoveryPark(t *testing.T) (transcript.Run, Pending, transcript.Ite
 		ItemID: "item_question", ItemOccurredAt: createdAt,
 		RunID: "run_root", Kind: interruptdomain.Question, Question: question,
 	}
-	run := transcript.Run{
-		ID: "run_root", SessionID: "session", State: rundomain.Waiting,
-		ModelSelection: selection, Interrupts: []transcript.Interrupt{interrupt},
-		Capabilities: rundomain.Capabilities{InterruptKinds: []interruptdomain.Kind{interruptdomain.Question}},
-		CreatedAt:    createdAt, UpdatedAt: createdAt.Add(time.Second), MessageMark: transcript.UnknownMessageMark,
-	}
+	run := runfixture.MustRestore(rundomain.Snapshot{ID: "run_root", SessionID: "session", State: rundomain.Waiting,
+		ModelSelection: selection,
+		Capabilities:   rundomain.Capabilities{InterruptKinds: []interruptdomain.Kind{interruptdomain.Question}},
+		CreatedAt:      createdAt, UpdatedAt: createdAt.Add(time.Second), MessageMark: rundomain.UnknownMessageMark})
+
 	pending := Pending{
-		RootRunID:  run.ID,
-		SessionID:  run.SessionID,
+		RootRunID:  run.ID(),
+		SessionID:  run.SessionID(),
 		ExecutorID: "turn_root",
 		Interrupts: []transcript.Interrupt{interrupt},
 		Capabilities: rundomain.Capabilities{
@@ -476,7 +482,7 @@ func coherentRecoveryPark(t *testing.T) (transcript.Run, Pending, transcript.Ite
 			RequestID:       "request_root",
 		}},
 		Continuations: []Continuation{{
-			RunID: run.ID, MemberID: "member_root", ModelSelection: selection, RunCreatedAt: createdAt,
+			RunID: run.ID(), MemberID: "member_root", ModelSelection: selection, RunCreatedAt: createdAt,
 		}},
 		CreatedAt: createdAt.Add(time.Second),
 	}
@@ -484,7 +490,7 @@ func coherentRecoveryPark(t *testing.T) (transcript.Run, Pending, transcript.Ite
 		t.Fatalf("Pending fixture: %v", err)
 	}
 	item := transcript.Item{
-		ID: interrupt.ItemID, SessionID: run.SessionID, RunID: run.ID,
+		ID: interrupt.ItemID, SessionID: run.SessionID(), RunID: run.ID(),
 		Kind: transcript.QuestionItem, Status: transcript.ItemRunning,
 		Question: question, OccurredAt: pending.CreatedAt,
 	}

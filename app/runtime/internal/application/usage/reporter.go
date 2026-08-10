@@ -8,13 +8,14 @@ import (
 	"slices"
 	"time"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/accounting"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
 // RunReader reads the durable run history for one session.
 type RunReader interface {
-	ListRuns(ctx context.Context, sessionID string) ([]transcript.Run, error)
+	ListRuns(ctx context.Context, sessionID string) ([]run.Run, error)
 }
 
 // SessionLister lists the user-facing sessions that contribute to aggregate
@@ -27,20 +28,20 @@ type SessionLister interface {
 // Bucket is one named portion of a summary report.
 type Bucket struct {
 	Key   string
-	Usage transcript.ModelUsage
+	Usage accounting.Totals
 	Runs  int
 }
 
 // SessionReport is one session's cumulative metering and per-model split.
 type SessionReport struct {
-	Total   transcript.ModelUsage
-	ByModel map[string]transcript.ModelUsage
+	Total   accounting.Totals
+	ByModel map[string]accounting.Totals
 }
 
 // Summary is a cross-session usage report. Provider and day buckets reconcile
 // with Total because every completed run contributes as one whole run.
 type Summary struct {
-	Total      transcript.ModelUsage
+	Total      accounting.Totals
 	ByProvider []Bucket
 	ByModel    []Bucket
 	ByDay      []Bucket
@@ -50,20 +51,16 @@ type Summary struct {
 
 // Dependencies are the durable projections and model policy a Reporter needs.
 type Dependencies struct {
-	Runs            RunReader
-	Sessions        SessionLister
-	DefaultProvider string
-	DefaultModel    string
-	Now             func() time.Time
+	Runs     RunReader
+	Sessions SessionLister
+	Now      func() time.Time
 }
 
 // Reporter folds durable terminal run records into read-only usage reports.
 type Reporter struct {
-	runs            RunReader
-	sessions        SessionLister
-	defaultProvider string
-	defaultModel    string
-	now             func() time.Time
+	runs     RunReader
+	sessions SessionLister
+	now      func() time.Time
 }
 
 // New constructs a usage Reporter over the supplied projections.
@@ -73,11 +70,7 @@ func New(deps Dependencies) *Reporter {
 		now = time.Now
 	}
 	return &Reporter{
-		runs:            deps.Runs,
-		sessions:        deps.Sessions,
-		defaultProvider: deps.DefaultProvider,
-		defaultModel:    deps.DefaultModel,
-		now:             now,
+		runs: deps.Runs, sessions: deps.Sessions, now: now,
 	}
 }
 
@@ -90,11 +83,11 @@ func (r *Reporter) Session(ctx context.Context, sessionID string) (SessionReport
 	total := usageAccumulator{}
 	byModel := map[string]*usageAccumulator{}
 	for _, run := range runs {
-		foldRun(run, time.Time{}, r.defaultProvider, r.defaultModel, &total, nil, byModel, nil)
+		foldRun(run, time.Time{}, &total, nil, byModel, nil)
 	}
 	report := SessionReport{Total: total.usage()}
 	if len(byModel) > 0 {
-		report.ByModel = make(map[string]transcript.ModelUsage, len(byModel))
+		report.ByModel = make(map[string]accounting.Totals, len(byModel))
 		for name, bucket := range byModel {
 			report.ByModel[name] = bucket.usage()
 		}
@@ -127,7 +120,7 @@ func (r *Reporter) Summary(ctx context.Context, sinceDays int) (Summary, error) 
 		}
 		before := total.runs
 		for _, run := range runs {
-			foldRun(run, since, r.defaultProvider, r.defaultModel, &total, byProvider, byModel, byDay)
+			foldRun(run, since, &total, byProvider, byModel, byDay)
 		}
 		if total.runs > before {
 			sessionCount++
@@ -144,54 +137,54 @@ func (r *Reporter) Summary(ctx context.Context, sinceDays int) (Summary, error) 
 	}, nil
 }
 
-func foldRun(run transcript.Run, since time.Time, defaultProvider, defaultModel string, total *usageAccumulator, byProvider, byModel, byDay map[string]*usageAccumulator) {
-	if !run.State.IsTerminal() || run.Metrics.Usage == nil {
+func foldRun(current run.Run, since time.Time, total *usageAccumulator, byProvider, byModel, byDay map[string]*usageAccumulator) {
+	usage, reported := current.Metrics().Usage()
+	if !current.State().IsTerminal() || !reported {
 		return
 	}
-	if !since.IsZero() && !run.FinishedAt.IsZero() && run.FinishedAt.Before(since) {
+	if !since.IsZero() && !current.FinishedAt().IsZero() && current.FinishedAt().Before(since) {
 		return
 	}
-	usage := run.Metrics.Usage.ModelUsage
 	if total != nil {
-		total.add(usage)
+		total.add(usage.Total)
 		total.runs++
 	}
 	if byProvider != nil {
-		bucket := accumulatorFor(byProvider, cmp.Or(run.ModelSelection.Provider(), defaultProvider, "unknown"))
-		bucket.add(usage)
+		bucket := accumulatorFor(byProvider, current.ModelSelection().Provider())
+		bucket.add(usage.Total)
 		bucket.runs++
 	}
-	if byDay != nil && !run.FinishedAt.IsZero() {
-		bucket := accumulatorFor(byDay, run.FinishedAt.UTC().Format(time.DateOnly))
-		bucket.add(usage)
+	if byDay != nil && !current.FinishedAt().IsZero() {
+		bucket := accumulatorFor(byDay, current.FinishedAt().UTC().Format(time.DateOnly))
+		bucket.add(usage.Total)
 		bucket.runs++
 	}
 	if byModel == nil {
 		return
 	}
-	if len(run.Metrics.Usage.ByModel) > 0 {
-		for name, split := range run.Metrics.Usage.ByModel {
+	if len(usage.ByModel) > 0 {
+		for name, split := range usage.ByModel {
 			bucket := accumulatorFor(byModel, name)
 			bucket.add(split)
 			bucket.runs++
 		}
 		return
 	}
-	bucket := accumulatorFor(byModel, cmp.Or(run.ModelSelection.Model(), defaultModel, "unknown"))
-	bucket.add(usage)
+	bucket := accumulatorFor(byModel, current.ModelSelection().Model())
+	bucket.add(usage.Total)
 	bucket.runs++
 }
 
 // usageAccumulator preserves the metering fields needed while folding Run
 // records into one report bucket.
 type usageAccumulator struct {
-	tokens  transcript.ModelUsage
+	tokens  accounting.Totals
 	cost    float64
 	hasCost bool
 	runs    int
 }
 
-func (a *usageAccumulator) add(usage transcript.ModelUsage) {
+func (a *usageAccumulator) add(usage accounting.Totals) {
 	a.tokens.InputTokens += usage.InputTokens
 	a.tokens.OutputTokens += usage.OutputTokens
 	a.tokens.CacheReadTokens += usage.CacheReadTokens
@@ -203,7 +196,7 @@ func (a *usageAccumulator) add(usage transcript.ModelUsage) {
 	}
 }
 
-func (a usageAccumulator) usage() transcript.ModelUsage {
+func (a usageAccumulator) usage() accounting.Totals {
 	out := a.tokens
 	if a.hasCost {
 		cost := a.cost

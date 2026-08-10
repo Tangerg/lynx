@@ -59,8 +59,8 @@ type PortableRun struct {
 	Provider    string
 	Model       string
 	Outcome     run.Outcome
-	Error       *transcript.Problem
-	Metrics     transcript.RunMetrics
+	Failure     *run.Failure
+	Metrics     run.Metrics
 	Limits      run.Limits
 	// Capabilities is a pointer because an empty set is a known minimal Run while
 	// nil means the archive omitted the root-owned fact. A root must carry it; a
@@ -118,7 +118,7 @@ func (p PortableSnapshot) CanonicalSnapshot() (Snapshot, error) {
 		Messages:    p.Messages,
 		Items:       append([]transcript.Item(nil), p.Items...),
 		ToolResults: append([]toolresult.Blob(nil), p.ToolResults...),
-		Runs:        make([]transcript.Run, 0, len(p.Runs)),
+		Runs:        make([]run.Run, 0, len(p.Runs)),
 		Plan:        append([]plan.Step(nil), p.Plan...),
 	}
 	if err := plan.Validate(snapshot.Plan); err != nil {
@@ -149,25 +149,31 @@ func (p PortableSnapshot) CanonicalSnapshot() (Snapshot, error) {
 			return Snapshot{}, fmt.Errorf("%w: run %q has invalid outcome %s", ErrInvalidPortableSnapshot, portable.ID, portable.Outcome)
 		}
 		outcome := portable.Outcome
-		snapshot.Runs = append(snapshot.Runs, transcript.Run{
-			SessionID:       portable.SessionID,
-			ID:              portable.ID,
-			SpawnedByItemID: portable.SpawnedByItemID,
-			ParentRunID:     portable.ParentRunID,
-			RootRunID:       portable.RootRunID,
-			ModelSelection:  selection,
-			State:           state,
-			Outcome:         &outcome,
-			Error:           portable.Error,
-			Metrics:         portable.Metrics,
-			Limits:          portable.Limits,
-			Capabilities:    capabilitySets[portable.rootID()],
-			Detail:          portable.Detail,
-			CreatedAt:       portable.CreatedAt,
-			FinishedAt:      portable.FinishedAt,
-			UpdatedAt:       portable.UpdatedAt,
-			MessageMark:     portable.MessageMark,
+		restored, err := run.Restore(run.Snapshot{
+			SessionID: portable.SessionID,
+			ID:        portable.ID,
+			Lineage: run.Lineage{
+				SpawnedByItemID: portable.SpawnedByItemID,
+				ParentRunID:     portable.ParentRunID,
+				RootRunID:       portable.RootRunID,
+			},
+			ModelSelection: selection,
+			State:          state,
+			Outcome:        &outcome,
+			Failure:        portable.Failure,
+			Metrics:        portable.Metrics,
+			Limits:         portable.Limits,
+			Capabilities:   capabilitySets[portable.rootID()],
+			Detail:         portable.Detail,
+			CreatedAt:      portable.CreatedAt,
+			FinishedAt:     portable.FinishedAt,
+			UpdatedAt:      portable.UpdatedAt,
+			MessageMark:    portable.MessageMark,
 		})
+		if err != nil {
+			return Snapshot{}, fmt.Errorf("%w: run %q: %w", ErrInvalidPortableSnapshot, portable.ID, err)
+		}
+		snapshot.Runs = append(snapshot.Runs, restored)
 	}
 	if err := bindPortableToolResults(&snapshot); err != nil {
 		return Snapshot{}, fmt.Errorf("%w: %w", ErrInvalidPortableSnapshot, err)
@@ -238,29 +244,33 @@ func (snapshot Snapshot) PortableSnapshot() (PortableSnapshot, error) {
 		Runs:        make([]PortableRun, 0, len(normalized.Runs)),
 	}
 	for _, run := range normalized.Runs {
-		if run.Outcome == nil {
-			return PortableSnapshot{}, fmt.Errorf("sessions: terminal run %q has no outcome", run.ID)
+		outcome, terminal := run.Outcome()
+		if !terminal {
+			return PortableSnapshot{}, fmt.Errorf("sessions: terminal run %q has no outcome", run.ID())
 		}
+		failure, failed := run.Failure()
 		portableRun := PortableRun{
-			SessionID:       run.SessionID,
-			ID:              run.ID,
-			SpawnedByItemID: run.SpawnedByItemID,
-			ParentRunID:     run.ParentRunID,
-			RootRunID:       run.RootRunID,
-			Provider:        run.ModelSelection.Provider(),
-			Model:           run.ModelSelection.Model(),
-			Outcome:         *run.Outcome,
-			Error:           run.Error,
-			Metrics:         run.Metrics,
-			Limits:          run.Limits,
-			Detail:          run.Detail,
-			CreatedAt:       run.CreatedAt,
-			FinishedAt:      run.FinishedAt,
-			UpdatedAt:       run.UpdatedAt,
-			MessageMark:     run.MessageMark,
+			SessionID:       run.SessionID(),
+			ID:              run.ID(),
+			SpawnedByItemID: run.Lineage().SpawnedByItemID,
+			ParentRunID:     run.Lineage().ParentRunID,
+			RootRunID:       run.Lineage().RootRunID,
+			Provider:        run.ModelSelection().Provider(),
+			Model:           run.ModelSelection().Model(),
+			Outcome:         outcome,
+			Metrics:         run.Metrics(),
+			Limits:          run.Limits(),
+			Detail:          run.Detail(),
+			CreatedAt:       run.CreatedAt(),
+			FinishedAt:      run.FinishedAt(),
+			UpdatedAt:       run.UpdatedAt(),
+			MessageMark:     run.MessageMark(),
+		}
+		if failed {
+			portableRun.Failure = &failure
 		}
 		if run.Lineage().IsRoot() {
-			capabilities := run.Capabilities
+			capabilities := run.Capabilities()
 			portableRun.Capabilities = &capabilities
 		}
 		portable.Runs = append(portable.Runs, portableRun)

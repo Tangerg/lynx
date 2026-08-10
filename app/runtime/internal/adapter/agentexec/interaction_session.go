@@ -815,16 +815,16 @@ func (session *interactionSession) publishProjectionFailure(cause error) {
 		member.MemberID = session.admittedProcessID.String()
 	}
 	session.mu.Unlock()
-	problem := transcript.Problem{
-		Kind: transcript.InternalProblem, Scope: transcript.RunProblem,
+	failure := run.Failure{
+		Kind:   run.FailureInternal,
 		Detail: executorDiagnostic(cause),
 	}
-	if problem.Detail == "" {
-		problem.Detail = "executor result could not be projected"
+	if failure.Detail == "" {
+		failure.Detail = "executor result could not be projected"
 	}
 	session.send(runs.ExecutorEvent{
 		Member:  member,
-		Payload: runs.SegmentEnded{Reason: run.OutcomeFailed, Problem: &problem},
+		Payload: runs.SegmentEnded{Reason: run.OutcomeFailed, Failure: &failure},
 	})
 }
 
@@ -904,11 +904,11 @@ func segmentEndFromTermination(termination agent.Termination, duration time.Dura
 		agent.TerminationCauseParentDeadline,
 		agent.TerminationCauseHostDeadline:
 		end.Reason = run.OutcomeTimedOut
-		problem := transcript.Problem{
-			Kind: transcript.TimeoutProblem, Scope: transcript.RunProblem,
+		failure := run.Failure{
+			Kind:   run.FailureTimeout,
 			Detail: "executor deadline reached",
 		}
-		end.Problem = &problem
+		end.Failure = &failure
 	case agent.TerminationCauseParentCancellation, agent.TerminationCauseHostCancellation:
 		end.Reason = run.OutcomeCanceled
 	case agent.TerminationCauseExecutionFailure:
@@ -918,11 +918,11 @@ func segmentEndFromTermination(termination agent.Termination, duration time.Dura
 			break
 		}
 		end.Reason = run.OutcomeFailed
-		problem := transcript.Problem{
-			Kind: transcript.AgentStuckProblem, Scope: transcript.RunProblem,
+		problem := run.Failure{
+			Kind:   run.FailureAgentStuck,
 			Detail: executorDiagnostic(errors.New(failure.Message())),
 		}
-		end.Problem = &problem
+		end.Failure = &problem
 	case agent.TerminationCauseExternalFailure:
 		end.Reason = run.OutcomeFailed
 		failure, _ := termination.Failure()
@@ -930,33 +930,33 @@ func segmentEndFromTermination(termination agent.Termination, duration time.Dura
 		if detail == "" {
 			detail = "model provider failed"
 		}
-		problem := transcript.Problem{
-			Kind: transcript.ProviderUnavailableProblem, Scope: transcript.RunProblem,
+		problem := run.Failure{
+			Kind:   run.FailureProviderUnavailable,
 			Detail: detail,
 		}
-		end.Problem = &problem
+		end.Failure = &problem
 	case agent.TerminationCauseContractFailure, agent.TerminationCausePanic:
 		end.Reason = run.OutcomeFailed
 		failure, _ := termination.Failure()
-		problem := transcript.Problem{
-			Kind: transcript.InternalProblem, Scope: transcript.RunProblem,
+		problem := run.Failure{
+			Kind:   run.FailureInternal,
 			Detail: executorDiagnostic(errors.New(failure.Message())),
 		}
-		end.Problem = &problem
+		end.Failure = &problem
 	case agent.TerminationCauseEngineKill:
 		end.Reason = run.OutcomeFailed
-		problem := transcript.Problem{
-			Kind: transcript.InternalProblem, Scope: transcript.RunProblem,
+		problem := run.Failure{
+			Kind:   run.FailureInternal,
 			Detail: termination.Reason(),
 		}
-		end.Problem = &problem
+		end.Failure = &problem
 	default:
 		end.Reason = run.OutcomeFailed
-		problem := transcript.Problem{
-			Kind: transcript.InternalProblem, Scope: transcript.RunProblem,
+		problem := run.Failure{
+			Kind:   run.FailureInternal,
 			Detail: "executor returned an unknown terminal cause",
 		}
-		end.Problem = &problem
+		end.Failure = &problem
 	}
 	return end
 }

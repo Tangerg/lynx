@@ -47,9 +47,9 @@ func (s segmentSpec) executorRef() ExecutorRef {
 	return ExecutorRef{SessionID: s.SessionID, ExecutorID: s.ExecutorID}
 }
 
-func (s segmentSpec) priorMetrics() transcript.RunMetrics {
+func (s segmentSpec) priorMetrics() run.Metrics {
 	if s.Continuation == nil {
-		return transcript.RunMetrics{}
+		return run.Metrics{}
 	}
 	root, _ := s.Continuation.root()
 	return root.Metrics

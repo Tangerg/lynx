@@ -76,9 +76,11 @@ func (r *reducer) interrupt(e SegmentInterrupted) ([]RunEvent, error) {
 	}
 
 	r.segmentDuration = e.Duration
-	run := r.runRecord(run.Waiting)
-	run.Interrupts = pending
-	return append(out, SegmentFinished{Run: run}), nil
+	waiting, err := r.runRecord(run.Waiting)
+	if err != nil {
+		return nil, err
+	}
+	return append(out, SegmentFinished{Run: waiting, Interrupts: pending}), nil
 }
 
 // suspend closes this Run's Segment because another Run in the same tree raised
@@ -110,7 +112,11 @@ func (r *reducer) suspend(duration time.Duration) ([]RunEvent, error) {
 		out = append(out, incomplete)
 	}
 	r.segmentDuration = duration
-	return append(out, SegmentFinished{Run: r.runRecord(run.Waiting)}), nil
+	waiting, err := r.runRecord(run.Waiting)
+	if err != nil {
+		return nil, err
+	}
+	return append(out, SegmentFinished{Run: waiting}), nil
 }
 
 func (r *reducer) approvalInterrupt(in Interrupt) (transcript.Item, transcript.Interrupt, error) {

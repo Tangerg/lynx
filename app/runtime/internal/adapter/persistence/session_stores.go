@@ -265,7 +265,7 @@ func (s *SessionStores) restorePlanAndHistory(ctx context.Context, sessionID str
 	return s.history.Seed(ctx, sessionID, restore.Messages)
 }
 
-func (s *SessionStores) restoreRuns(ctx context.Context, restored []transcript.Run) error {
+func (s *SessionStores) restoreRuns(ctx context.Context, restored []rundomain.Run) error {
 	for _, run := range restored {
 		if err := s.runs.Restore(ctx, run); err != nil {
 			return err
@@ -361,7 +361,7 @@ func (s *SessionStores) ApplyTerminal(ctx context.Context, terminal sessions.Ter
 		if err := s.terminalizeParkedRuns(ctx, terminal.Runs); err != nil {
 			return err
 		}
-		return s.recordGoalTerminalRun(ctx, root.ID, terminal.GoalRun)
+		return s.recordGoalTerminalRun(ctx, root.ID(), terminal.GoalRun)
 	})
 }
 
@@ -374,23 +374,24 @@ func (s *SessionStores) appendTranscriptItems(ctx context.Context, items []trans
 	return nil
 }
 
-func (s *SessionStores) clearParkedRunState(ctx context.Context, root transcript.Run, checkpointRootID string) error {
+func (s *SessionStores) clearParkedRunState(ctx context.Context, root rundomain.Run, checkpointRootID string) error {
 	if checkpointRootID != "" {
-		if err := s.executorCheckpoints.DeleteCheckpoints(ctx, root.SessionID, []string{checkpointRootID}); err != nil {
+		if err := s.executorCheckpoints.DeleteCheckpoints(ctx, root.SessionID(), []string{checkpointRootID}); err != nil {
 			return err
 		}
 	}
 	// Delete the interrupt before the terminal write: while it exists the Run is
 	// parked on it, and a Run cannot be both finished and waiting.
-	return s.interrupts.Delete(ctx, root.SessionID, root.ID)
+	return s.interrupts.Delete(ctx, root.SessionID(), root.ID())
 }
 
-func (s *SessionStores) terminalizeParkedRuns(ctx context.Context, runs []transcript.Run) error {
+func (s *SessionStores) terminalizeParkedRuns(ctx context.Context, runs []rundomain.Run) error {
 	for _, run := range runs {
-		if run.Outcome == nil {
-			return fmt.Errorf("persistence: terminal Run %q outcome is required", run.ID)
+		outcome, terminal := run.Outcome()
+		if !terminal {
+			return fmt.Errorf("persistence: terminal Run %q outcome is required", run.ID())
 		}
-		switch *run.Outcome {
+		switch outcome {
 		case rundomain.OutcomeCanceled:
 			if err := s.runs.Terminalize(ctx, run); err != nil {
 				return err
@@ -400,7 +401,7 @@ func (s *SessionStores) terminalizeParkedRuns(ctx context.Context, runs []transc
 				return err
 			}
 		default:
-			return fmt.Errorf("persistence: unsupported parked terminal outcome %s", *run.Outcome)
+			return fmt.Errorf("persistence: unsupported parked terminal outcome %s", outcome)
 		}
 	}
 	return nil

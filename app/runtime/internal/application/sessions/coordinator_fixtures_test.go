@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
@@ -74,7 +75,7 @@ func (s coordinatorStores) ApplyTerminal(ctx context.Context, plan TerminalPlan)
 	if !ok {
 		return errors.New("terminal plan has no root Run")
 	}
-	return s.interrupts.Delete(ctx, root.SessionID, root.ID)
+	return s.interrupts.Delete(ctx, root.SessionID(), root.ID())
 }
 
 type coordinatorInterrupts struct {
@@ -208,6 +209,6 @@ func (emptyTranscript) List(context.Context, string) ([]transcript.Item, error) 
 	return nil, nil
 }
 
-func (emptyTranscript) ListRuns(context.Context, string) ([]transcript.Run, error) {
+func (emptyTranscript) ListRuns(context.Context, string) ([]run.Run, error) {
 	return nil, nil
 }

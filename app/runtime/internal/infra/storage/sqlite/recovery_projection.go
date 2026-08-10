@@ -4,13 +4,13 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 )
 
 // ListNonTerminalRuns projects complete durable Run aggregates for application
 // recovery. Storage exposes facts only; it does not decide which Run tree may
 // survive a restart.
-func (s *RunStore) ListNonTerminalRuns(ctx context.Context) ([]transcript.Run, error) {
+func (s *RunStore) ListNonTerminalRuns(ctx context.Context) ([]run.Run, error) {
 	rows, err := conn(ctx, s.db).QueryContext(ctx,
 		`SELECT `+runColumns+`
 		   FROM runs AS r
@@ -23,7 +23,7 @@ func (s *RunStore) ListNonTerminalRuns(ctx context.Context) ([]transcript.Run, e
 	}
 	defer rows.Close()
 
-	var runs []transcript.Run
+	var runs []run.Run
 	for rows.Next() {
 		run, err := scanRunForRecovery(rows)
 		if err != nil {

@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
+	runfixture "github.com/Tangerg/lynx/app/runtime/internal/testsupport/runfixture"
 )
 
 func TestCancellationPlanPartitionsCanonicalSubtree(t *testing.T) {
@@ -23,8 +23,8 @@ func TestCancellationPlanPartitionsCanonicalSubtree(t *testing.T) {
 	if err != nil {
 		t.Fatalf("newCancellationPlan: %v", err)
 	}
-	if plan.root.run.ID != "run_root" || plan.target.run.ID != "run_a" {
-		t.Fatalf("root/target = %q/%q, want run_root/run_a", plan.root.run.ID, plan.target.run.ID)
+	if plan.root.run.ID() != "run_root" || plan.target.run.ID() != "run_a" {
+		t.Fatalf("root/target = %q/%q, want run_root/run_a", plan.root.run.ID(), plan.target.run.ID())
 	}
 	if plan.treeState != run.Running || plan.hasPending {
 		t.Fatalf("tree state/pending = %s/%t, want running/false", plan.treeState, plan.hasPending)
@@ -43,41 +43,46 @@ func TestCancellationPlanPartitionsCanonicalSubtree(t *testing.T) {
 func TestCancellationPlanRejectsInconsistentTreeFacts(t *testing.T) {
 	tests := []struct {
 		name   string
-		mutate func([]transcript.Run, map[string]string)
+		mutate func([]run.Run, map[string]string)
 		want   string
 	}{
 		{
 			name: "cross session member",
-			mutate: func(runs []transcript.Run, _ map[string]string) {
-				runs[0].SessionID = "ses_other"
+			mutate: func(runs []run.Run, _ map[string]string) {
+				snapshot := runs[0].Snapshot()
+				snapshot.SessionID = "ses_other"
+				runs[0] = runfixture.MustRestore(snapshot)
 			},
 			want: "belongs to session",
 		},
 		{
 			name: "mixed live state",
-			mutate: func(runs []transcript.Run, _ map[string]string) {
-				runs[0].State = run.Waiting
-				runs[0].ActiveSegmentID = ""
+			mutate: func(runs []run.Run, _ map[string]string) {
+				waiting, err := runs[0].Suspend(runs[0].UpdatedAt())
+				if err != nil {
+					panic(err)
+				}
+				runs[0] = waiting
 			},
 			want: "while root",
 		},
 		{
 			name: "missing child executor member",
-			mutate: func(_ []transcript.Run, members map[string]string) {
+			mutate: func(_ []run.Run, members map[string]string) {
 				delete(members, "run_a1")
 			},
 			want: "has no executor binding",
 		},
 		{
 			name: "duplicate executor member binding",
-			mutate: func(_ []transcript.Run, members map[string]string) {
+			mutate: func(_ []run.Run, members map[string]string) {
 				members["run_a1"] = members["run_b"]
 			},
 			want: "is bound to Runs",
 		},
 		{
 			name: "unknown bound Run",
-			mutate: func(_ []transcript.Run, members map[string]string) {
+			mutate: func(_ []run.Run, members map[string]string) {
 				members["run_unknown"] = "member_unknown"
 			},
 			want: "names unknown Run",
@@ -135,27 +140,23 @@ func TestCancellationRejectsLiveOwnerFactDrift(t *testing.T) {
 	}
 }
 
-func cancellationTree(state run.State) []transcript.Run {
+func cancellationTree(state run.State) []run.Run {
 	createdAt := time.Date(2026, 7, 30, 1, 2, 3, 0, time.UTC)
-	run := func(id, parent string) transcript.Run {
-		value := transcript.Run{
-			ID: id, SessionID: "ses_1", State: state,
-			ActiveSegmentID: "segment_" + id, CreatedAt: createdAt,
-			UpdatedAt: createdAt, MessageMark: transcript.UnknownMessageMark,
-		}
+	makeRun := func(id, parent string) run.Run {
+		lineage := run.Lineage{}
 		if parent != "" {
-			value.SpawnedByItemID = "item_" + id
-			value.ParentRunID = parent
-			value.RootRunID = "run_root"
+			lineage = run.Lineage{SpawnedByItemID: "item_" + id, ParentRunID: parent, RootRunID: "run_root"}
 		}
-		return value
+		return runfixture.MustRestore(run.Snapshot{ID: id, SessionID: "ses_1", State: state,
+			ActiveSegmentID: "segment_" + id, CreatedAt: createdAt,
+			UpdatedAt: createdAt, MessageMark: run.UnknownMessageMark, Lineage: lineage})
 	}
-	return []transcript.Run{
-		run("run_a0", "run_a"),
-		run("run_b", "run_root"),
-		run("run_root", ""),
-		run("run_a1", "run_a"),
-		run("run_a", "run_root"),
+	return []run.Run{
+		makeRun("run_a0", "run_a"),
+		makeRun("run_b", "run_root"),
+		makeRun("run_root", ""),
+		makeRun("run_a1", "run_a"),
+		makeRun("run_a", "run_root"),
 	}
 }
 
@@ -172,7 +173,7 @@ func cancellationMembers() map[string]string {
 func cancellationRunIDs(runs []cancellationRun) []string {
 	ids := make([]string, len(runs))
 	for index, run := range runs {
-		ids[index] = run.run.ID
+		ids[index] = run.run.ID()
 	}
 	return ids
 }

@@ -16,10 +16,11 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/goals"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/accounting"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
+	runfixture "github.com/Tangerg/lynx/app/runtime/internal/testsupport/runfixture"
 )
 
 // memStore is an in-memory goals.Store.
@@ -410,12 +411,11 @@ func (f *fakeRuns) emitScriptedRun(
 			if !script.missingOutcome {
 				outcome = &script.outcome
 			}
-			finishedRun := transcript.Run{
-				SessionID: cmd.SessionID,
-				ID:        runID,
-				Outcome:   outcome,
-				Metrics:   transcript.RunMetrics{Steps: script.steps, Usage: &transcript.Usage{ModelUsage: transcript.ModelUsage{CostUSD: &cost}}},
-			}
+			finishedRun := runfixture.MustRestore(run.Snapshot{SessionID: cmd.SessionID,
+				ID:      runID,
+				Outcome: outcome,
+				Metrics: runfixture.MustMetrics(runfixture.MetricsInput{Steps: script.steps, Usage: &accounting.Usage{Total: accounting.Totals{CostUSD: &cost}}})})
+
 			if outcome != nil && cmd.GoalLeaseID != "" {
 				if err := f.store.RecordRun(context.WithoutCancel(ctx), goal.RunRecord{
 					SessionID: cmd.SessionID, LeaseID: cmd.GoalLeaseID, RunID: runID,
@@ -480,9 +480,7 @@ func (f *fakeRuns) Cancel(_ context.Context, cmd runs.CancelCommand) (runs.Cance
 		return runs.CancelResult{}, err
 	}
 	outcome := run.OutcomeCanceled
-	return runs.CancelResult{Run: transcript.Run{
-		ID: cmd.RunID, State: run.Canceled, Outcome: &outcome,
-	}}, nil
+	return runs.CancelResult{Run: runfixture.MustRestore(run.Snapshot{ID: cmd.RunID, State: run.Canceled, Outcome: &outcome})}, nil
 }
 
 // fakeSessions is the driver's session-existence check; sessions exist unless

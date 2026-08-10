@@ -3,8 +3,10 @@ package server
 import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/accounting"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
 	rundomain "github.com/Tangerg/lynx/app/runtime/internal/domain/run"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
@@ -27,30 +29,30 @@ func presentRunStatus(status rundomain.Status) protocol.RunStatus {
 
 // presentRunSummary maps the identity and lifecycle half — what a cold read hands
 // back in bulk.
-func presentRunSummary(run transcript.Run) protocol.RunSummary {
+func presentRunSummary(run rundomain.Run) protocol.RunSummary {
 	summary := protocol.RunSummary{
-		ID: run.ID, SessionID: run.SessionID, SpawnedByItemID: run.SpawnedByItemID,
-		ParentRunID: run.ParentRunID, RootRunID: run.RootRunID,
-		Provider: run.ModelSelection.Provider(), Model: run.ModelSelection.Model(),
-		Status:    presentRunStatus(run.State.Status()),
-		CreatedAt: run.CreatedAt, FinishedAt: run.FinishedAt,
+		ID: run.ID(), SessionID: run.SessionID(), SpawnedByItemID: run.Lineage().SpawnedByItemID,
+		ParentRunID: run.Lineage().ParentRunID, RootRunID: run.Lineage().RootRunID,
+		Provider: run.ModelSelection().Provider(), Model: run.ModelSelection().Model(),
+		Status:    presentRunStatus(run.State().Status()),
+		CreatedAt: run.CreatedAt(), FinishedAt: run.FinishedAt(),
 	}
 	// A waiting run has no outcome: what it is waiting on is the answer, and the
 	// interrupts carry that.
-	if run.State.IsTerminal() {
+	if run.State().IsTerminal() {
 		outcome := presentOutcome(run)
 		summary.Outcome = &outcome
 	}
 	return summary
 }
 
-func presentRun(run transcript.Run) protocol.RunRef {
+func presentRun(run rundomain.Run) protocol.RunRef {
 	return protocol.RunRef{
 		RunSummary:      presentRunSummary(run),
-		ActiveSegmentID: run.ActiveSegmentID,
-		Metrics:         presentMetrics(run.Metrics),
-		Limits:          presentLimits(run.Limits),
-		ProtocolProfile: presentRunProtocolProfile(run.Capabilities),
+		ActiveSegmentID: run.ActiveSegmentID(),
+		Metrics:         presentMetrics(run.Metrics()),
+		Limits:          presentLimits(run.Limits()),
+		ProtocolProfile: presentRunProtocolProfile(run.Capabilities()),
 	}
 }
 
@@ -90,15 +92,15 @@ func presentRunProtocolProfile(capabilities rundomain.Capabilities) protocol.Run
 
 // presentSegmentFinished maps the run record a segment ended with onto the pair
 // the event publishes: why the segment stopped, and what the run has consumed.
-func presentSegmentFinished(run transcript.Run) (protocol.SegmentOutcome, protocol.RunMetrics) {
-	metrics := presentMetrics(run.Metrics)
-	if run.State == rundomain.Waiting {
-		if len(run.Interrupts) == 0 {
+func presentSegmentFinished(run rundomain.Run, interrupts []transcript.Interrupt) (protocol.SegmentOutcome, protocol.RunMetrics) {
+	metrics := presentMetrics(run.Metrics())
+	if run.State() == rundomain.Waiting {
+		if len(interrupts) == 0 {
 			return protocol.SegmentOutcome{Type: protocol.SegmentSuspended}, metrics
 		}
 		return protocol.SegmentOutcome{
 			Type:       protocol.SegmentInterrupt,
-			Interrupts: presentInterrupts(run.Interrupts),
+			Interrupts: presentInterrupts(interrupts),
 		}, metrics
 	}
 	terminal := presentOutcome(run)
@@ -109,12 +111,13 @@ func presentSegmentFinished(run transcript.Run) (protocol.SegmentOutcome, protoc
 	}, metrics
 }
 
-func presentOutcome(run transcript.Run) protocol.RunOutcome {
-	if run.Outcome == nil {
+func presentOutcome(run rundomain.Run) protocol.RunOutcome {
+	outcome, terminal := run.Outcome()
+	if !terminal {
 		panic("server: terminal run has no outcome")
 	}
 	var kind protocol.RunOutcomeType
-	switch *run.Outcome {
+	switch outcome {
 	case rundomain.OutcomeCompleted:
 		kind = protocol.OutcomeCompleted
 	case rundomain.OutcomeCanceled:
@@ -132,14 +135,24 @@ func presentOutcome(run transcript.Run) protocol.RunOutcome {
 	default:
 		panic("server: unknown run outcome")
 	}
-	return protocol.RunOutcome{Type: kind, Error: presentProblem(run.Error), Detail: run.Detail}
+	failure, failed := run.Failure()
+	var problem *protocol.ProblemData
+	if failed {
+		problem = presentRunFailure(&failure)
+	}
+	return protocol.RunOutcome{Type: kind, Error: problem, Detail: run.Detail()}
 }
 
-func presentMetrics(metrics transcript.RunMetrics) protocol.RunMetrics {
+func presentMetrics(metrics rundomain.Metrics) protocol.RunMetrics {
+	usage, reported := metrics.Usage()
+	var usageRef *accounting.Usage
+	if reported {
+		usageRef = &usage
+	}
 	return protocol.RunMetrics{
-		Usage:                presentUsage(metrics.Usage),
-		Steps:                metrics.Steps,
-		ActiveDurationMillis: metrics.ActiveDuration.Milliseconds(),
+		Usage:                presentUsage(usageRef),
+		Steps:                metrics.Steps(),
+		ActiveDurationMillis: metrics.ActiveDuration().Milliseconds(),
 	}
 }
 
@@ -160,11 +173,11 @@ func presentProgress(progress runs.RunProgress) protocol.RunProgress {
 	}
 }
 
-func presentUsage(usage *transcript.Usage) *protocol.Usage {
+func presentUsage(usage *accounting.Usage) *protocol.Usage {
 	if usage == nil {
 		return nil
 	}
-	out := &protocol.Usage{ModelUsage: presentModelUsage(usage.ModelUsage)}
+	out := &protocol.Usage{ModelUsage: presentModelUsage(usage.Total)}
 	if len(usage.ByModel) > 0 {
 		out.ByModel = make(map[string]protocol.ModelUsage, len(usage.ByModel))
 		for model, modelUsage := range usage.ByModel {
@@ -174,7 +187,7 @@ func presentUsage(usage *transcript.Usage) *protocol.Usage {
 	return out
 }
 
-func presentModelUsage(usage transcript.ModelUsage) protocol.ModelUsage {
+func presentModelUsage(usage accounting.Totals) protocol.ModelUsage {
 	return protocol.ModelUsage{
 		InputTokens: usage.InputTokens, OutputTokens: usage.OutputTokens,
 		CacheReadTokens: usage.CacheReadTokens, CacheWriteTokens: usage.CacheWriteTokens,
@@ -182,36 +195,30 @@ func presentModelUsage(usage transcript.ModelUsage) protocol.ModelUsage {
 	}
 }
 
-func presentProblem(problem *transcript.Problem) *protocol.ProblemData {
+func presentRunFailure(problem *rundomain.Failure) *protocol.ProblemData {
 	if problem == nil {
 		return nil
 	}
 	var kind string
 	switch problem.Kind {
-	case transcript.InternalProblem:
+	case rundomain.FailureInternal:
 		kind = protocol.ProblemInternalError
-	case transcript.RunLostProblem:
+	case rundomain.FailureLost:
 		kind = protocol.ProblemRunLost
-	case transcript.AgentStuckProblem:
+	case rundomain.FailureAgentStuck:
 		kind = protocol.ProblemAgentStuck
-	case transcript.RateLimitedProblem:
+	case rundomain.FailureRateLimited:
 		kind = protocol.ProblemRateLimited
-	case transcript.InvalidAPIKeyProblem:
+	case rundomain.FailureInvalidCredentials:
 		kind = protocol.ProblemInvalidAPIKey
-	case transcript.TimeoutProblem:
+	case rundomain.FailureTimeout:
 		kind = protocol.ProblemTimeout
-	case transcript.ProviderUnavailableProblem:
+	case rundomain.FailureProviderUnavailable:
 		kind = protocol.ProblemProviderUnavailable
-	case transcript.ProviderRejectedProblem:
+	case rundomain.FailureProviderRejected:
 		kind = protocol.ProblemProviderRejected
-	case transcript.DeniedByUserProblem:
-		kind = protocol.ProblemDeniedByUser
-	case transcript.ToolFailedProblem:
-		kind = protocol.ProblemToolFailed
-	case transcript.ChildRunCanceledProblem:
-		kind = protocol.ProblemChildRunCanceled
 	default:
-		panic("server: unknown transcript problem kind")
+		panic("server: unknown run failure kind")
 	}
 	// The problem's scope is not published: where the frame LANDS already says it —
 	// a run's outcome or a tool call's error — and a field restating that is a second
@@ -219,7 +226,30 @@ func presentProblem(problem *transcript.Problem) *protocol.ProblemData {
 	// scope, which is what stops a run problem being stored in a tool slot.
 	return &protocol.ProblemData{
 		Type: kind, Detail: problem.Detail, DocURL: problem.DocURL,
-		RetryAfterSeconds: problem.RetryAfterSeconds,
+		RetryAfterSeconds: int(problem.RetryAfter.Seconds()),
+	}
+}
+
+func presentToolFailure(failure *tool.Failure) *protocol.ProblemData {
+	if failure == nil {
+		return nil
+	}
+	var kind string
+	switch failure.Kind {
+	case tool.FailureInternal:
+		kind = protocol.ProblemInternalError
+	case tool.FailureDenied:
+		kind = protocol.ProblemDeniedByUser
+	case tool.FailureExecution:
+		kind = protocol.ProblemToolFailed
+	case tool.FailureChildRunCanceled:
+		kind = protocol.ProblemChildRunCanceled
+	default:
+		panic("server: unknown tool failure kind")
+	}
+	return &protocol.ProblemData{
+		Type: kind, Detail: failure.Detail, DocURL: failure.DocURL,
+		RetryAfterSeconds: int(failure.RetryAfter.Seconds()),
 	}
 }
 

@@ -19,6 +19,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/change"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/toolresult"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
@@ -69,7 +70,7 @@ type PlanBoundaries interface {
 // derived from the Run timeline, so it reads the Runs themselves rather than
 // inferring them from the items they produced.
 type RunStore interface {
-	ListRuns(ctx context.Context, sessionID string) ([]transcript.Run, error)
+	ListRuns(ctx context.Context, sessionID string) ([]run.Run, error)
 }
 
 // WriteSets are the atomic durable write-sets the coordinator commits through the
@@ -118,7 +119,7 @@ type Snapshot struct {
 	Session     session.Session
 	Messages    []chat.Message
 	Items       []transcript.Item
-	Runs        []transcript.Run
+	Runs        []run.Run
 	ToolResults []toolresult.Blob
 	// Plan is the session-scoped Plan as a semantic VALUE — items only, no
 	// revision and no update time. Those are this runtime's ordering tokens: a

@@ -9,6 +9,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/accounting"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
@@ -130,7 +131,7 @@ func portableRunFromArtifact(path string, artifact protocol.ArtifactRun) (sessio
 	if err != nil {
 		return sessions.PortableRun{}, err
 	}
-	problem, err := portableProblemFromArtifact(path+".outcome.error", artifact.Outcome.Error, transcript.RunProblem)
+	failure, err := portableRunFailureFromArtifact(path+".outcome.error", artifact.Outcome.Error)
 	if err != nil {
 		return sessions.PortableRun{}, err
 	}
@@ -138,12 +139,16 @@ func portableRunFromArtifact(path string, artifact protocol.ArtifactRun) (sessio
 	if err != nil {
 		return sessions.PortableRun{}, err
 	}
+	metrics, err := portableMetricsFromArtifact(path+".metrics", artifact.Metrics)
+	if err != nil {
+		return sessions.PortableRun{}, err
+	}
 	return sessions.PortableRun{
 		SessionID: artifact.SessionID, ID: artifact.ID, SpawnedByItemID: artifact.SpawnedByItemID,
 		ParentRunID: artifact.ParentRunID, RootRunID: artifact.RootRunID,
 		Provider: artifact.Provider, Model: artifact.Model, Outcome: outcome,
-		Error:        problem,
-		Metrics:      portableMetricsFromArtifact(artifact.Metrics),
+		Failure:      failure,
+		Metrics:      metrics,
 		Limits:       portableLimitsFromArtifact(artifact.Limits),
 		Capabilities: capabilities,
 		Detail:       artifact.Outcome.Detail,
@@ -202,12 +207,16 @@ func portableOutcomeFromArtifact(path string, value protocol.ArtifactOutcomeType
 	}
 }
 
-func portableMetricsFromArtifact(artifact protocol.ArtifactRunMetrics) transcript.RunMetrics {
-	return transcript.RunMetrics{
-		Usage:          portableUsageFromArtifact(artifact.Usage),
-		Steps:          artifact.Steps,
-		ActiveDuration: time.Duration(artifact.ActiveDurationMillis) * time.Millisecond,
+func portableMetricsFromArtifact(path string, artifact protocol.ArtifactRunMetrics) (run.Metrics, error) {
+	metrics, err := run.NewMetrics(
+		portableUsageFromArtifact(artifact.Usage),
+		artifact.Steps,
+		time.Duration(artifact.ActiveDurationMillis)*time.Millisecond,
+	)
+	if err != nil {
+		return run.Metrics{}, invalidArtifact(path, "%v", err)
 	}
+	return metrics, nil
 }
 
 func portableLimitsFromArtifact(artifact *protocol.ArtifactRunLimits) run.Limits {
@@ -219,19 +228,19 @@ func portableLimitsFromArtifact(artifact *protocol.ArtifactRunLimits) run.Limits
 	}
 }
 
-func portableUsageFromArtifact(artifact *protocol.ArtifactUsage) *transcript.Usage {
+func portableUsageFromArtifact(artifact *protocol.ArtifactUsage) *accounting.Usage {
 	if artifact == nil {
 		return nil
 	}
-	out := &transcript.Usage{ModelUsage: transcript.ModelUsage{
+	out := &accounting.Usage{Total: accounting.Totals{
 		InputTokens: artifact.InputTokens, OutputTokens: artifact.OutputTokens,
 		CacheReadTokens: artifact.CacheReadTokens, CacheWriteTokens: artifact.CacheWriteTokens,
 		ReasoningTokens: artifact.ReasoningTokens, CostUSD: artifact.CostUSD,
 	}}
 	if len(artifact.ByModel) != 0 {
-		out.ByModel = make(map[string]transcript.ModelUsage, len(artifact.ByModel))
+		out.ByModel = make(map[string]accounting.Totals, len(artifact.ByModel))
 		for model, values := range artifact.ByModel {
-			out.ByModel[model] = transcript.ModelUsage{
+			out.ByModel[model] = accounting.Totals{
 				InputTokens: values.InputTokens, OutputTokens: values.OutputTokens,
 				CacheReadTokens: values.CacheReadTokens, CacheWriteTokens: values.CacheWriteTokens,
 				ReasoningTokens: values.ReasoningTokens, CostUSD: values.CostUSD,
@@ -253,7 +262,7 @@ func portableItemFromArtifact(sessionID, path string, artifact protocol.Artifact
 	if err != nil {
 		return transcript.Item{}, err
 	}
-	problem, err := portableProblemFromArtifact(path+".error", artifact.Error, transcript.ToolProblem)
+	problem, err := portableToolFailureFromArtifact(path+".error", artifact.Error)
 	if err != nil {
 		return transcript.Item{}, err
 	}
@@ -413,45 +422,62 @@ func portableToolFromArtifact(path string, artifact protocol.ArtifactToolInvocat
 	return transcript.ToolInvocation{Name: artifact.Name, Arguments: arguments, Result: result}, nil
 }
 
-func portableProblemFromArtifact(path string, artifact *protocol.ArtifactProblem, scope transcript.ProblemScope) (*transcript.Problem, error) {
+func portableRunFailureFromArtifact(path string, artifact *protocol.ArtifactProblem) (*run.Failure, error) {
 	if artifact == nil {
 		return nil, nil
 	}
-	kind, err := portableProblemKind(path+".type", artifact.Type)
+	kind, err := portableRunFailureKind(path+".type", artifact.Type)
 	if err != nil {
 		return nil, err
 	}
-	return &transcript.Problem{
-		Kind: kind, Scope: scope, Detail: artifact.Detail, DocURL: artifact.DocURL,
-		RetryAfterSeconds: artifact.RetryAfterSeconds,
+	return &run.Failure{
+		Kind: kind, Detail: artifact.Detail, DocURL: artifact.DocURL,
+		RetryAfter: time.Duration(artifact.RetryAfterSeconds) * time.Second,
 	}, nil
 }
 
-func portableProblemKind(path string, value protocol.ArtifactProblemType) (transcript.ProblemKind, error) {
+func portableRunFailureKind(path string, value protocol.ArtifactProblemType) (run.FailureKind, error) {
 	switch value {
 	case protocol.ArtifactProblemInternalError:
-		return transcript.InternalProblem, nil
+		return run.FailureInternal, nil
 	case protocol.ArtifactProblemRunLost:
-		return transcript.RunLostProblem, nil
+		return run.FailureLost, nil
 	case protocol.ArtifactProblemAgentStuck:
-		return transcript.AgentStuckProblem, nil
+		return run.FailureAgentStuck, nil
 	case protocol.ArtifactProblemRateLimited:
-		return transcript.RateLimitedProblem, nil
+		return run.FailureRateLimited, nil
 	case protocol.ArtifactProblemInvalidAPIKey:
-		return transcript.InvalidAPIKeyProblem, nil
+		return run.FailureInvalidCredentials, nil
 	case protocol.ArtifactProblemTimeout:
-		return transcript.TimeoutProblem, nil
+		return run.FailureTimeout, nil
 	case protocol.ArtifactProblemProviderUnavailable:
-		return transcript.ProviderUnavailableProblem, nil
+		return run.FailureProviderUnavailable, nil
 	case protocol.ArtifactProblemProviderRejected:
-		return transcript.ProviderRejectedProblem, nil
-	case protocol.ArtifactProblemDeniedByUser:
-		return transcript.DeniedByUserProblem, nil
-	case protocol.ArtifactProblemToolFailed:
-		return transcript.ToolFailedProblem, nil
-	case protocol.ArtifactProblemChildRunCanceled:
-		return transcript.ChildRunCanceledProblem, nil
+		return run.FailureProviderRejected, nil
 	default:
 		return 0, invalidArtifact(path, "unknown value %q", value)
 	}
+}
+
+func portableToolFailureFromArtifact(path string, artifact *protocol.ArtifactProblem) (*tool.Failure, error) {
+	if artifact == nil {
+		return nil, nil
+	}
+	var kind tool.FailureKind
+	switch artifact.Type {
+	case protocol.ArtifactProblemInternalError:
+		kind = tool.FailureInternal
+	case protocol.ArtifactProblemDeniedByUser:
+		kind = tool.FailureDenied
+	case protocol.ArtifactProblemToolFailed:
+		kind = tool.FailureExecution
+	case protocol.ArtifactProblemChildRunCanceled:
+		kind = tool.FailureChildRunCanceled
+	default:
+		return nil, invalidArtifact(path+".type", "unknown value %q", artifact.Type)
+	}
+	return &tool.Failure{
+		Kind: kind, Detail: artifact.Detail, DocURL: artifact.DocURL,
+		RetryAfter: time.Duration(artifact.RetryAfterSeconds) * time.Second,
+	}, nil
 }

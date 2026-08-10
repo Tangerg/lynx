@@ -12,6 +12,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/runfixture"
 )
 
 // recordedBoundaries answers for the runs it knows and reports "never recorded"
@@ -113,8 +114,8 @@ func TestForkSeedsTheBoundaryPlanList(t *testing.T) {
 		interrupts: &coordinatorInterrupts{pending: map[string]runs.Pending{}},
 		snapshot: Snapshot{
 			Messages: []chat.Message{chat.NewUserMessage(chat.NewTextPart("one"))},
-			Runs: []transcript.Run{
-				{ID: "run_1", State: run.Completed, CreatedAt: time.Unix(1, 0), MessageMark: 1},
+			Runs: []run.Run{
+				runfixture.MustRestore(run.Snapshot{ID: "run_1", State: run.Completed, CreatedAt: time.Unix(1, 0), MessageMark: 1}),
 			},
 			Plan: []plan.Step{{Description: "work after the boundary", Status: plan.StatusInProgress}},
 		},

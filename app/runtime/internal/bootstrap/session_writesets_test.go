@@ -13,6 +13,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/conversations"
 	runsapp "github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/accounting"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
@@ -22,6 +23,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	sqlite "github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
+	runfixture "github.com/Tangerg/lynx/app/runtime/internal/testsupport/runfixture"
 )
 
 const bootstrapCheckpointBuildID = "test-build"
@@ -126,13 +128,12 @@ var parkCreatedAt = time.Unix(1, 0).UTC()
 // restoredRun is a finished Run as an import carries it — the only shape a
 // restore accepts, since a Run that has not ended cannot be replayed into a
 // session from the outside.
-func restoredRun(sessionID, runID string, at time.Time) transcript.Run {
+func restoredRun(sessionID, runID string, at time.Time) run.Run {
 	outcome := run.OutcomeCompleted
-	return transcript.Run{
-		SessionID: sessionID, ID: runID, State: run.Completed,
+	return runfixture.MustRestore(run.Snapshot{SessionID: sessionID, ID: runID, State: run.Completed,
 		Outcome:   &outcome,
-		CreatedAt: at, FinishedAt: at, UpdatedAt: at, MessageMark: 0,
-	}
+		CreatedAt: at, FinishedAt: at, UpdatedAt: at, MessageMark: 0})
+
 }
 
 func parkSessionARootRun(
@@ -179,20 +180,15 @@ func parkWithGoalLease(
 	}); err != nil {
 		t.Fatalf("admit: %v", err)
 	}
-	if err := runs.Suspend(ctx, transcript.Run{
-		SessionID: sessionID, ID: runID, State: run.Waiting,
+	if err := runs.Suspend(ctx, runfixture.MustRestore(run.Snapshot{SessionID: sessionID, ID: runID, State: run.Waiting,
 		GoalLeaseID: goalLeaseID,
 		Capabilities: run.Capabilities{
 			InterruptKinds: []interrupt.Kind{interrupt.Question},
 		},
-		Interrupts: []transcript.Interrupt{{
-			ItemID: "item_" + runID, ItemOccurredAt: parkCreatedAt,
-			RunID: runID, Kind: interrupt.Question,
-			Question: &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?"}}},
-		}},
+
 		CreatedAt:   parkCreatedAt,
-		MessageMark: transcript.UnknownMessageMark,
-	}); err != nil {
+		MessageMark: run.UnknownMessageMark}),
+	); err != nil {
 		t.Fatalf("suspend: %v", err)
 	}
 	pending := bootstrapPending(
@@ -219,14 +215,17 @@ func TestApplyTerminalDropsInterruptAndTerminalizes(t *testing.T) {
 	if err := ss.checkpoints.SaveCheckpoint(ctx, bootstrapCheckpoint(memberID, "ses_A")); err != nil {
 		t.Fatalf("replace root executor checkpoint: %v", err)
 	}
-	outcome := run.OutcomeCanceled
 	finishedAt := time.Date(2026, 7, 13, 2, 3, 4, 0, time.UTC)
+	parked, found, err := runs.Run(ctx, "run_1")
+	if err != nil || !found {
+		t.Fatalf("read parked Run: found=%t err=%v", found, err)
+	}
+	terminal, err := parked.CancelWaiting("", finishedAt, 0)
+	if err != nil {
+		t.Fatalf("cancel parked Run: %v", err)
+	}
 
-	if err := ss.ApplyTerminal(ctx, sessions.TerminalPlan{CheckpointRootID: memberID, Runs: []transcript.Run{{
-		SessionID: "ses_A", ID: "run_1", State: run.Canceled,
-		Outcome: &outcome, CreatedAt: parkCreatedAt,
-		FinishedAt: finishedAt, UpdatedAt: finishedAt, MessageMark: 0,
-	}}}); err != nil {
+	if err := ss.ApplyTerminal(ctx, sessions.TerminalPlan{CheckpointRootID: memberID, Runs: []run.Run{terminal}}); err != nil {
 		t.Fatalf("ApplyTerminal: %v", err)
 	}
 	if open, _ := ints.List(ctx, "ses_A"); len(open) != 0 {
@@ -240,7 +239,7 @@ func TestApplyTerminalDropsInterruptAndTerminalizes(t *testing.T) {
 		t.Fatalf("admit after cancel = %v, want the slot freed", err)
 	}
 	storedRuns, err := runs.ListRuns(ctx, "ses_A")
-	if err != nil || len(storedRuns) != 2 || storedRuns[0].State != run.Canceled {
+	if err != nil || len(storedRuns) != 2 || storedRuns[0].State() != run.Canceled {
 		t.Fatalf("terminal runs = %+v (err %v), want the canceled run and its successor", storedRuns, err)
 	}
 }
@@ -252,17 +251,17 @@ func TestApplyTerminalRecoversLostParkAtomically(t *testing.T) {
 	if err := ss.checkpoints.SaveCheckpoint(ctx, bootstrapCheckpoint(memberID, "ses_A")); err != nil {
 		t.Fatalf("replace root executor checkpoint: %v", err)
 	}
-	outcome := run.OutcomeLost
 	finishedAt := time.Date(2026, 7, 16, 2, 3, 4, 0, time.UTC)
+	parked, found, err := runs.Run(ctx, "run_1")
+	if err != nil || !found {
+		t.Fatalf("read parked Run: found=%t err=%v", found, err)
+	}
+	terminal, err := parked.RecoverLost(run.Failure{Kind: run.FailureLost}, finishedAt, 0)
+	if err != nil {
+		t.Fatalf("recover parked Run: %v", err)
+	}
 
-	if err := ss.ApplyTerminal(ctx, sessions.TerminalPlan{CheckpointRootID: memberID, Runs: []transcript.Run{{
-		SessionID: "ses_A", ID: "run_1", State: run.Failed,
-		Outcome: &outcome, Error: &transcript.Problem{
-			Kind: transcript.RunLostProblem, Scope: transcript.RunProblem,
-		},
-		CreatedAt:  parkCreatedAt,
-		FinishedAt: finishedAt, UpdatedAt: finishedAt, MessageMark: 0,
-	}}}); err != nil {
+	if err := ss.ApplyTerminal(ctx, sessions.TerminalPlan{CheckpointRootID: memberID, Runs: []run.Run{terminal}}); err != nil {
 		t.Fatalf("ApplyTerminal run_lost: %v", err)
 	}
 	if open, _ := ints.List(ctx, "ses_A"); len(open) != 0 {
@@ -275,8 +274,11 @@ func TestApplyTerminalRecoversLostParkAtomically(t *testing.T) {
 		t.Fatalf("admit after run_lost = %v, want the slot freed", err)
 	}
 	storedRuns, err := runs.ListRuns(ctx, "ses_A")
-	if err != nil || len(storedRuns) != 2 || storedRuns[0].Error == nil ||
-		storedRuns[0].Error.Kind != transcript.RunLostProblem {
+	failure, failed := run.Failure{}, false
+	if len(storedRuns) > 0 {
+		failure, failed = storedRuns[0].Failure()
+	}
+	if err != nil || len(storedRuns) != 2 || !failed || failure.Kind != run.FailureLost {
 		t.Fatalf("terminal runs = %+v (err %v), want run_lost", storedRuns, err)
 	}
 }
@@ -313,27 +315,26 @@ func TestApplyTerminalChargesGoalOwnedParkAtomically(t *testing.T) {
 	costUSD := 0.75
 	outcome := run.OutcomeLost
 	finishedAt := parkCreatedAt.Add(time.Minute)
-	terminal := transcript.Run{
-		SessionID: "ses_A", ID: "run_goal", GoalLeaseID: leaseID,
-		State: run.Failed, Outcome: &outcome,
-		Error: &transcript.Problem{
-			Kind: transcript.RunLostProblem, Scope: transcript.RunProblem,
-		},
-		Metrics: transcript.RunMetrics{
-			Steps: 4,
-			Usage: &transcript.Usage{ModelUsage: transcript.ModelUsage{CostUSD: &costUSD}},
-		},
-		CreatedAt:   parkCreatedAt,
-		FinishedAt:  finishedAt,
-		UpdatedAt:   finishedAt,
-		MessageMark: 0,
+	parked, found, err := runs.Run(ctx, "run_goal")
+	if err != nil || !found {
+		t.Fatalf("read parked Goal Run: found=%t err=%v", found, err)
 	}
+	parked, err = parked.AdvanceMetrics(runfixture.MustMetrics(runfixture.MetricsInput{Steps: 4,
+		Usage: &accounting.Usage{Total: accounting.Totals{CostUSD: &costUSD}}}), finishedAt)
+	if err != nil {
+		t.Fatalf("advance parked Goal Run metrics: %v", err)
+	}
+	terminal, err := parked.RecoverLost(run.Failure{Kind: run.FailureLost}, finishedAt, 0)
+	if err != nil {
+		t.Fatalf("recover parked Goal Run: %v", err)
+	}
+
 	goalRun := goal.RunRecord{
-		SessionID: "ses_A", LeaseID: leaseID, RunID: terminal.ID,
+		SessionID: "ses_A", LeaseID: leaseID, RunID: terminal.ID(),
 		Outcome: outcome, CostUSD: costUSD, Steps: 4, CompletedAt: finishedAt,
 	}
 	if err := ss.ApplyTerminal(ctx, sessions.TerminalPlan{
-		Runs: []transcript.Run{terminal}, CheckpointRootID: memberID, GoalRun: &goalRun,
+		Runs: []run.Run{terminal}, CheckpointRootID: memberID, GoalRun: &goalRun,
 	}); err != nil {
 		t.Fatalf("ApplyTerminal: %v", err)
 	}
@@ -347,8 +348,8 @@ func TestApplyTerminalChargesGoalOwnedParkAtomically(t *testing.T) {
 		storedGoal.Reason.Code != goal.ReasonRunNotCompleted {
 		t.Fatalf("Goal after terminal park = %+v", storedGoal)
 	}
-	storedRun, found, err := runs.Run(ctx, terminal.ID)
-	if err != nil || !found || storedRun.State != run.Failed {
+	storedRun, found, err := runs.Run(ctx, terminal.ID())
+	if err != nil || !found || storedRun.State() != run.Failed {
 		t.Fatalf("Run after terminal park = found:%t value:%+v err:%v", found, storedRun, err)
 	}
 	if open, err := ints.List(ctx, "ses_A"); err != nil || len(open) != 0 {
@@ -650,7 +651,7 @@ func TestApplyRollbackRejectsInvalidCheckpointSetAtomically(t *testing.T) {
 	}
 }
 
-func TestApplyRestoreRollsBackOnTranscriptIdentityConflict(t *testing.T) {
+func TestApplyRestoreRollsBackOnRunIdentityConflict(t *testing.T) {
 	ss, _, _ := newWriteSetFixture(t)
 	ctx := t.Context()
 	for _, ses := range []session.Session{
@@ -680,10 +681,10 @@ func TestApplyRestoreRollsBackOnTranscriptIdentityConflict(t *testing.T) {
 	err := ss.ApplyRestore(ctx, sessions.RestorePlan{
 		Session:  session.Session{ID: "ses_B", Title: "replacement", CWD: "/replacement"},
 		Messages: []chat.Message{chat.NewUserMessage(chat.NewTextPart("after"))},
-		Runs:     []transcript.Run{restoredRun("ses_B", "run_shared", now)},
+		Runs:     []run.Run{restoredRun("ses_B", "run_shared", now)},
 	})
-	if !errors.Is(err, transcript.ErrIdentityConflict) {
-		t.Fatalf("ApplyRestore error = %v, want ErrIdentityConflict", err)
+	if !errors.Is(err, run.ErrIdentityConflict) {
+		t.Fatalf("ApplyRestore error = %v, want run.ErrIdentityConflict", err)
 	}
 
 	target, err := ss.sessions.Get(ctx, "ses_B")
@@ -695,7 +696,7 @@ func TestApplyRestoreRollsBackOnTranscriptIdentityConflict(t *testing.T) {
 		t.Fatalf("target history after rollback = %+v, %v", messages, err)
 	}
 	targetRuns, err := ss.runs.ListRuns(ctx, "ses_B")
-	if err != nil || len(targetRuns) != 1 || targetRuns[0].ID != "run_target" {
+	if err != nil || len(targetRuns) != 1 || targetRuns[0].ID() != "run_target" {
 		t.Fatalf("target runs after rollback = %+v, %v", targetRuns, err)
 	}
 	sourceItems, err := ss.transcript.List(ctx, "ses_A")

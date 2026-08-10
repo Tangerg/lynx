@@ -10,33 +10,35 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
 	rundomain "github.com/Tangerg/lynx/app/runtime/internal/domain/run"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
 // Validate proves that a boot-recovery write-set is self-contained and
 // owner-bound before its transaction begins.
 func (commit RecoveryCommit) Validate() error {
-	lostByID := make(map[string]transcript.Run, len(commit.LostRuns))
+	lostByID := make(map[string]rundomain.Run, len(commit.LostRuns))
 	treeMembers := make(map[string][]rundomain.TreeMember)
 	actualOrder := make([]string, 0, len(commit.LostRuns))
 	for index, run := range commit.LostRuns {
 		if err := run.Validate(); err != nil {
 			return fmt.Errorf("runs: recovery commit lost Run[%d]: %w", index, err)
 		}
-		if run.Outcome == nil || *run.Outcome != rundomain.OutcomeLost ||
-			run.Error == nil || run.Error.Kind != transcript.RunLostProblem {
-			return fmt.Errorf("runs: recovery commit Run %q is not a run-lost terminal", run.ID)
+		outcome, terminal := run.Outcome()
+		failure, failed := run.Failure()
+		if !terminal || outcome != rundomain.OutcomeLost || !failed || failure.Kind != rundomain.FailureLost {
+			return fmt.Errorf("runs: recovery commit Run %q is not a run-lost terminal", run.ID())
 		}
-		if _, duplicate := lostByID[run.ID]; duplicate {
-			return fmt.Errorf("runs: recovery commit repeats lost Run %q", run.ID)
+		if _, duplicate := lostByID[run.ID()]; duplicate {
+			return fmt.Errorf("runs: recovery commit repeats lost Run %q", run.ID())
 		}
-		lostByID[run.ID] = run
-		rootID := run.Lineage().TreeRootID(run.ID)
+		lostByID[run.ID()] = run
+		rootID := run.Lineage().TreeRootID(run.ID())
 		treeMembers[rootID] = append(treeMembers[rootID], rundomain.TreeMember{
-			RunID:   run.ID,
+			RunID:   run.ID(),
 			Lineage: run.Lineage(),
 		})
-		actualOrder = append(actualOrder, run.ID)
+		actualOrder = append(actualOrder, run.ID())
 	}
 	rootIDs := make([]string, 0, len(treeMembers))
 	for rootID := range treeMembers {
@@ -59,13 +61,13 @@ func (commit RecoveryCommit) Validate() error {
 	replacedItems := make(map[string]struct{}, len(commit.ItemReplacements))
 	for index, replacement := range commit.ItemReplacements {
 		owner, found := lostByID[replacement.Expected.RunID]
-		if !found || replacement.Expected.SessionID != owner.SessionID {
+		if !found || replacement.Expected.SessionID != owner.SessionID() {
 			return fmt.Errorf(
 				"runs: recovery commit Item %q is not owned by a lost Run",
 				replacement.Expected.ID,
 			)
 		}
-		if err := validateRecoveryItemReplacement(replacement, owner.FinishedAt); err != nil {
+		if err := validateRecoveryItemReplacement(replacement, owner.FinishedAt()); err != nil {
 			return fmt.Errorf("runs: recovery commit Item replacement[%d]: %w", index, err)
 		}
 		if _, duplicate := replacedItems[replacement.Expected.ID]; duplicate {
@@ -104,9 +106,8 @@ func validateRecoveryItemReplacement(replacement ItemReplacement, finishedAt tim
 	want.Status = transcript.ItemIncomplete
 	if want.Kind == transcript.ToolCall {
 		want.FinishedAt = finishedAt
-		want.Error = &transcript.Problem{
-			Kind:   transcript.ToolFailedProblem,
-			Scope:  transcript.ToolProblem,
+		want.Error = &tool.Failure{
+			Kind:   tool.FailureExecution,
 			Detail: "tool call interrupted because the run was lost on restart",
 		}
 	}
@@ -116,11 +117,11 @@ func validateRecoveryItemReplacement(replacement ItemReplacement, finishedAt tim
 	return nil
 }
 
-func validateRecoveryGoalRuns(records []goal.RunRecord, lostByID map[string]transcript.Run) error {
-	expected := make(map[string]transcript.Run)
+func validateRecoveryGoalRuns(records []goal.RunRecord, lostByID map[string]rundomain.Run) error {
+	expected := make(map[string]rundomain.Run)
 	for _, run := range lostByID {
-		if run.Lineage().IsRoot() && run.GoalLeaseID != "" {
-			expected[run.ID] = run
+		if run.Lineage().IsRoot() && run.GoalLeaseID() != "" {
+			expected[run.ID()] = run
 		}
 	}
 	seen := make(map[string]struct{}, len(records))
@@ -133,17 +134,18 @@ func validateRecoveryGoalRuns(records []goal.RunRecord, lostByID map[string]tran
 		}
 		seen[record.RunID] = struct{}{}
 		run, found := expected[record.RunID]
-		if !found || run.Outcome == nil {
+		outcome, terminal := run.Outcome()
+		if !found || !terminal {
 			return fmt.Errorf("runs: recovery commit Goal Run names unowned Run %q", record.RunID)
 		}
 		cost := 0.0
-		if run.Metrics.Usage != nil && run.Metrics.Usage.CostUSD != nil {
-			cost = *run.Metrics.Usage.CostUSD
+		if usage, reported := run.Metrics().Usage(); reported && usage.Total.CostUSD != nil {
+			cost = *usage.Total.CostUSD
 		}
-		if record.SessionID != run.SessionID || record.LeaseID != run.GoalLeaseID ||
-			record.Outcome != *run.Outcome || record.CostUSD != cost ||
-			record.Steps != run.Metrics.Steps || !record.CompletedAt.Equal(run.FinishedAt) {
-			return fmt.Errorf("runs: recovery commit Goal Run differs from lost Run %q", run.ID)
+		if record.SessionID != run.SessionID() || record.LeaseID != run.GoalLeaseID() ||
+			record.Outcome != outcome || record.CostUSD != cost ||
+			record.Steps != run.Metrics().Steps() || !record.CompletedAt.Equal(run.FinishedAt()) {
+			return fmt.Errorf("runs: recovery commit Goal Run differs from lost Run %q", run.ID())
 		}
 	}
 	if len(seen) != len(expected) {
@@ -154,12 +156,12 @@ func validateRecoveryGoalRuns(records []goal.RunRecord, lostByID map[string]tran
 
 func validateRecoveryInterruptDeletions(
 	values []InterruptOwner,
-	lostByID map[string]transcript.Run,
+	lostByID map[string]rundomain.Run,
 ) error {
-	expected := make(map[string]transcript.Run)
+	expected := make(map[string]rundomain.Run)
 	for _, lost := range lostByID {
 		if lost.Lineage().IsRoot() {
-			expected[lost.ID] = lost
+			expected[lost.ID()] = lost
 		}
 	}
 	seen := make(map[string]struct{}, len(values))
@@ -174,7 +176,7 @@ func validateRecoveryInterruptDeletions(
 		}
 		seen[key] = struct{}{}
 		owner, found := expected[value.RootRunID]
-		if !found || owner.SessionID != value.SessionID {
+		if !found || owner.SessionID() != value.SessionID {
 			return fmt.Errorf(
 				"runs: recovery commit interrupt deletion %q/%q is not owned by a lost root Run",
 				value.SessionID,

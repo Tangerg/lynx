@@ -49,7 +49,7 @@ type RestorePlan struct {
 	Session     session.Session
 	Messages    []chat.Message
 	Items       []transcript.Item
-	Runs        []transcript.Run
+	Runs        []rundomain.Run
 	ToolResults []toolresult.Blob
 	// Plan is the restored Plan's semantic value. It is REPLACED rather than
 	// cleared-and-rewritten: the projection's revision must come out greater than
@@ -68,27 +68,27 @@ func restorePlan(snapshot Snapshot) RestorePlan {
 // runsInParentFirstOrder gives persistence a creation-safe tree order while
 // preserving the archive's order among peers. Snapshot validation has already
 // proved that every parent exists and the graph is acyclic.
-func runsInParentFirstOrder(runs []transcript.Run) []transcript.Run {
-	ordered := append([]transcript.Run(nil), runs...)
-	byID := make(map[string]transcript.Run, len(runs))
+func runsInParentFirstOrder(runs []rundomain.Run) []rundomain.Run {
+	ordered := append([]rundomain.Run(nil), runs...)
+	byID := make(map[string]rundomain.Run, len(runs))
 	for _, run := range runs {
-		byID[run.ID] = run
+		byID[run.ID()] = run
 	}
 	depths := make(map[string]int, len(runs))
-	var depth func(transcript.Run) int
-	depth = func(run transcript.Run) int {
-		if known, ok := depths[run.ID]; ok {
+	var depth func(rundomain.Run) int
+	depth = func(run rundomain.Run) int {
+		if known, ok := depths[run.ID()]; ok {
 			return known
 		}
 		if run.Lineage().IsRoot() {
-			depths[run.ID] = 0
+			depths[run.ID()] = 0
 			return 0
 		}
-		value := depth(byID[run.ParentRunID]) + 1
-		depths[run.ID] = value
+		value := depth(byID[run.Lineage().ParentRunID]) + 1
+		depths[run.ID()] = value
 		return value
 	}
-	slices.SortStableFunc(ordered, func(left, right transcript.Run) int {
+	slices.SortStableFunc(ordered, func(left, right rundomain.Run) int {
 		return cmp.Compare(depth(left), depth(right))
 	})
 	return ordered
@@ -107,7 +107,7 @@ type DeletePlan struct {
 // interrupt Items, root-owned Pending, executor checkpoint, admission, and
 // optional Goal charge all move in one transaction.
 type TerminalPlan struct {
-	Runs             []transcript.Run
+	Runs             []rundomain.Run
 	Items            []transcript.Item
 	CheckpointRootID string
 	// GoalRun is present exactly when the root Run was admitted by an autonomous Goal.
@@ -117,9 +117,9 @@ type TerminalPlan struct {
 }
 
 // RootRun returns the root terminal projection. A valid plan always has one.
-func (plan TerminalPlan) RootRun() (transcript.Run, bool) {
+func (plan TerminalPlan) RootRun() (rundomain.Run, bool) {
 	if len(plan.Runs) == 0 {
-		return transcript.Run{}, false
+		return rundomain.Run{}, false
 	}
 	root := plan.Runs[len(plan.Runs)-1]
 	return root, root.Lineage().IsRoot()
@@ -140,20 +140,22 @@ func (plan TerminalPlan) Validate() error {
 		if err := run.Validate(); err != nil {
 			return fmt.Errorf("sessions: terminal plan Run[%d]: %w", index, err)
 		}
-		if run.SessionID != root.SessionID {
-			return fmt.Errorf("sessions: terminal plan Run %q belongs to Session %q, want %q", run.ID, run.SessionID, root.SessionID)
+		if run.SessionID() != root.SessionID() {
+			return fmt.Errorf("sessions: terminal plan Run %q belongs to Session %q, want %q", run.ID(), run.SessionID(), root.SessionID())
 		}
-		if run.Outcome == nil || root.Outcome == nil || *run.Outcome != *root.Outcome {
-			return fmt.Errorf("sessions: terminal plan Run %q has a different terminal outcome", run.ID)
+		outcome, terminal := run.Outcome()
+		rootOutcome, rootTerminal := root.Outcome()
+		if !terminal || !rootTerminal || outcome != rootOutcome {
+			return fmt.Errorf("sessions: terminal plan Run %q has a different terminal outcome", run.ID())
 		}
-		if _, duplicate := ownedRuns[run.ID]; duplicate {
-			return fmt.Errorf("sessions: terminal plan repeats Run %q", run.ID)
+		if _, duplicate := ownedRuns[run.ID()]; duplicate {
+			return fmt.Errorf("sessions: terminal plan repeats Run %q", run.ID())
 		}
-		ownedRuns[run.ID] = struct{}{}
-		actualOrder = append(actualOrder, run.ID)
-		members = append(members, rundomain.TreeMember{RunID: run.ID, Lineage: run.Lineage()})
+		ownedRuns[run.ID()] = struct{}{}
+		actualOrder = append(actualOrder, run.ID())
+		members = append(members, rundomain.TreeMember{RunID: run.ID(), Lineage: run.Lineage()})
 	}
-	tree, err := rundomain.NewTree(root.ID, members)
+	tree, err := rundomain.NewTree(root.ID(), members)
 	if err != nil {
 		return fmt.Errorf("sessions: terminal plan Run tree: %w", err)
 	}
@@ -166,7 +168,7 @@ func (plan TerminalPlan) Validate() error {
 	seenItems := make(map[string]struct{}, len(plan.Items))
 	for index, item := range plan.Items {
 		_, owned := ownedRuns[item.RunID]
-		if item.ID == "" || item.SessionID != root.SessionID || !owned || item.Status != transcript.ItemIncomplete {
+		if item.ID == "" || item.SessionID != root.SessionID() || !owned || item.Status != transcript.ItemIncomplete {
 			return fmt.Errorf("sessions: terminal plan Item[%d] is not an incomplete Item owned by its Run tree", index)
 		}
 		if _, duplicate := seenItems[item.ID]; duplicate {
@@ -180,27 +182,28 @@ func (plan TerminalPlan) Validate() error {
 	return validateTerminalGoalRun(root, plan.GoalRun)
 }
 
-func validateTerminalGoalRun(run transcript.Run, record *goal.RunRecord) error {
-	if run.GoalLeaseID == "" {
+func validateTerminalGoalRun(run rundomain.Run, record *goal.RunRecord) error {
+	if run.GoalLeaseID() == "" {
 		if record != nil {
-			return fmt.Errorf("sessions: terminal plan non-Goal Run %q carries a Goal Run", run.ID)
+			return fmt.Errorf("sessions: terminal plan non-Goal Run %q carries a Goal Run", run.ID())
 		}
 		return nil
 	}
 	if record == nil {
-		return fmt.Errorf("sessions: terminal plan Goal-owned Run %q has no Goal Run", run.ID)
+		return fmt.Errorf("sessions: terminal plan Goal-owned Run %q has no Goal Run", run.ID())
 	}
 	if err := record.Validate(); err != nil {
 		return fmt.Errorf("sessions: terminal plan Goal Run: %w", err)
 	}
 	costUSD := 0.0
-	if run.Metrics.Usage != nil && run.Metrics.Usage.CostUSD != nil {
-		costUSD = *run.Metrics.Usage.CostUSD
+	if usage, reported := run.Metrics().Usage(); reported && usage.Total.CostUSD != nil {
+		costUSD = *usage.Total.CostUSD
 	}
-	if run.Outcome == nil || record.SessionID != run.SessionID || record.LeaseID != run.GoalLeaseID ||
-		record.RunID != run.ID || record.Outcome != *run.Outcome || record.CostUSD != costUSD ||
-		record.Steps != run.Metrics.Steps || !record.CompletedAt.Equal(run.FinishedAt) {
-		return fmt.Errorf("sessions: terminal plan Goal Run differs from Run %q", run.ID)
+	outcome, terminal := run.Outcome()
+	if !terminal || record.SessionID != run.SessionID() || record.LeaseID != run.GoalLeaseID() ||
+		record.RunID != run.ID() || record.Outcome != outcome || record.CostUSD != costUSD ||
+		record.Steps != run.Metrics().Steps() || !record.CompletedAt.Equal(run.FinishedAt()) {
+		return fmt.Errorf("sessions: terminal plan Goal Run differs from Run %q", run.ID())
 	}
 	return nil
 }

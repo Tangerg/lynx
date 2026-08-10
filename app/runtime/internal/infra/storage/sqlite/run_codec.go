@@ -9,10 +9,10 @@ import (
 	"io"
 	"time"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/accounting"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	rundomain "github.com/Tangerg/lynx/app/runtime/internal/domain/run"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
 // The Run row's JSON columns. Token accounting, a failure classification, and
@@ -52,31 +52,32 @@ type runAccountingRow struct {
 	MaxBudgetUSD     float64      `json:"maxBudgetUsd,omitzero"`
 }
 
-func runAccountingRowOf(metrics transcript.RunMetrics, limits rundomain.Limits) runAccountingRow {
+func runAccountingRowOf(metrics rundomain.Metrics, limits rundomain.Limits) runAccountingRow {
+	usage, reported := metrics.Usage()
+	var usageRef *accounting.Usage
+	if reported {
+		usageRef = &usage
+	}
 	return runAccountingRow{
-		Steps:            metrics.Steps,
-		ActiveDurationNs: int64(metrics.ActiveDuration),
-		Usage:            runUsageRowOf(metrics.Usage),
+		Steps:            metrics.Steps(),
+		ActiveDurationNs: int64(metrics.ActiveDuration()),
+		Usage:            runUsageRowOf(usageRef),
 		MaxTotalTokens:   limits.MaxTotalTokens,
 		MaxSteps:         limits.MaxSteps,
 		MaxBudgetUSD:     limits.MaxBudgetUSD,
 	}
 }
 
-func (row runAccountingRow) values() (transcript.RunMetrics, rundomain.Limits, error) {
-	metrics := transcript.RunMetrics{
-		Usage:          row.Usage.usage(),
-		Steps:          row.Steps,
-		ActiveDuration: time.Duration(row.ActiveDurationNs),
+func (row runAccountingRow) values() (rundomain.Metrics, rundomain.Limits, error) {
+	metrics, err := rundomain.NewMetrics(row.Usage.usage(), row.Steps, time.Duration(row.ActiveDurationNs))
+	if err != nil {
+		return rundomain.Metrics{}, rundomain.Limits{}, fmt.Errorf("metrics: %w", err)
 	}
 	limits := rundomain.Limits{
 		MaxTotalTokens: row.MaxTotalTokens, MaxSteps: row.MaxSteps, MaxBudgetUSD: row.MaxBudgetUSD,
 	}
-	if err := metrics.Validate(); err != nil {
-		return transcript.RunMetrics{}, rundomain.Limits{}, fmt.Errorf("metrics: %w", err)
-	}
 	if err := limits.Validate(); err != nil {
-		return transcript.RunMetrics{}, rundomain.Limits{}, fmt.Errorf("limits: %w", err)
+		return rundomain.Metrics{}, rundomain.Limits{}, fmt.Errorf("limits: %w", err)
 	}
 	return metrics, limits, nil
 }
@@ -156,19 +157,24 @@ type metricsValues struct {
 	usage      string
 }
 
-func runMetricsRow(metrics transcript.RunMetrics) (metricsValues, error) {
-	usage, err := encodeRunUsage(metrics.Usage)
+func runMetricsRow(metrics rundomain.Metrics) (metricsValues, error) {
+	reported, ok := metrics.Usage()
+	var usage *accounting.Usage
+	if ok {
+		usage = &reported
+	}
+	encoded, err := encodeRunUsage(usage)
 	if err != nil {
 		return metricsValues{}, err
 	}
 	return metricsValues{
-		steps:      metrics.Steps,
-		durationNs: int64(metrics.ActiveDuration),
-		usage:      usage,
+		steps:      metrics.Steps(),
+		durationNs: int64(metrics.ActiveDuration()),
+		usage:      encoded,
 	}, nil
 }
 
-func encodeRunUsage(usage *transcript.Usage) (string, error) {
+func encodeRunUsage(usage *accounting.Usage) (string, error) {
 	row := runUsageRowOf(usage)
 	if row == nil {
 		return "", nil
@@ -180,17 +186,17 @@ func encodeRunUsage(usage *transcript.Usage) (string, error) {
 	return string(encoded), nil
 }
 
-func runUsageRowOf(usage *transcript.Usage) *runUsageRow {
+func runUsageRowOf(usage *accounting.Usage) *runUsageRow {
 	if usage == nil {
 		return nil
 	}
 	row := &runUsageRow{
-		InputTokens:      usage.InputTokens,
-		OutputTokens:     usage.OutputTokens,
-		CacheReadTokens:  usage.CacheReadTokens,
-		CacheWriteTokens: usage.CacheWriteTokens,
-		ReasoningTokens:  usage.ReasoningTokens,
-		CostUSD:          usage.CostUSD,
+		InputTokens:      usage.Total.InputTokens,
+		OutputTokens:     usage.Total.OutputTokens,
+		CacheReadTokens:  usage.Total.CacheReadTokens,
+		CacheWriteTokens: usage.Total.CacheWriteTokens,
+		ReasoningTokens:  usage.Total.ReasoningTokens,
+		CostUSD:          usage.Total.CostUSD,
 	}
 	if len(usage.ByModel) > 0 {
 		row.ByModel = make(map[string]runModelRowUse, len(usage.ByModel))
@@ -208,18 +214,21 @@ func runUsageRowOf(usage *transcript.Usage) *runUsageRow {
 	return row
 }
 
-func encodeRunProblem(problem *transcript.Problem) (string, error) {
-	if problem == nil {
+func encodeRunFailure(failure *rundomain.Failure) (string, error) {
+	if failure == nil {
 		return "", nil
 	}
+	if err := failure.Validate(); err != nil {
+		return "", fmt.Errorf("encode run failure: %w", err)
+	}
 	encoded, err := json.Marshal(runProblemRow{
-		Kind:              int(problem.Kind),
-		Detail:            problem.Detail,
-		DocURL:            problem.DocURL,
-		RetryAfterSeconds: problem.RetryAfterSeconds,
+		Kind:              int(failure.Kind),
+		Detail:            failure.Detail,
+		DocURL:            failure.DocURL,
+		RetryAfterSeconds: int(failure.RetryAfter / time.Second),
 	})
 	if err != nil {
-		return "", fmt.Errorf("encode run problem: %w", err)
+		return "", fmt.Errorf("encode run failure: %w", err)
 	}
 	return string(encoded), nil
 }
@@ -241,27 +250,37 @@ const (
 // The fine [rundomain.State] is rebuilt from the coarse admission state and
 // the terminal reason beside it rather than stored a second time, and the
 // terminal facts are materialized exactly when the state says they exist — the
-// equivalence [transcript.Run.Validate] enforces on the way in.
-func scanRun(row scanRow) (transcript.Run, error) {
+// equivalence [rundomain.Run.Validate] enforces on the way in.
+func scanRun(row scanRow) (rundomain.Run, error) {
 	return scanRunRow(row, requirePendingSet)
 }
 
 // scanRunForRecovery uses the same complete durable Run decoder as every normal
 // read, but tolerates the one broken relation reconciliation exists to repair:
 // an Waiting row whose root-owned pending set is missing.
-func scanRunForRecovery(row scanRow) (transcript.Run, error) {
+func scanRunForRecovery(row scanRow) (rundomain.Run, error) {
 	return scanRunRow(row, allowMissingPendingSet)
 }
 
-func scanRunRow(row scanRow, pendingPolicy pendingReadPolicy) (transcript.Run, error) {
+func scanRunRow(row scanRow, pendingPolicy pendingReadPolicy) (rundomain.Run, error) {
 	var (
-		run                 transcript.Run
+		id                  string
+		sessionID           string
+		spawnedByItemID     string
+		parentRunID         string
+		rootRunID           string
 		coarse              string
+		activeSegmentID     string
 		outcome             string
 		provider            string
 		model               string
+		goalLeaseID         string
+		detail              string
+		steps               int
 		usage               string
 		problem             string
+		limits              rundomain.Limits
+		messageMark         int
 		ownCapabilities     string
 		rootCapabilities    sql.NullString
 		durationNs          int64
@@ -271,97 +290,99 @@ func scanRunRow(row scanRow, pendingPolicy pendingReadPolicy) (transcript.Run, e
 		interruptsSuspended sql.NullString
 	)
 	if err := row.Scan(
-		&run.ID, &run.SessionID,
-		&run.SpawnedByItemID, &run.ParentRunID, &run.RootRunID,
-		&coarse, &run.ActiveSegmentID, &outcome,
-		&provider, &model, &run.GoalLeaseID, &run.Detail, &run.Metrics.Steps, &durationNs, &usage, &problem,
-		&run.Limits.MaxTotalTokens, &run.Limits.MaxSteps, &run.Limits.MaxBudgetUSD, &ownCapabilities, &rootCapabilities,
-		&run.MessageMark, &startedAt, &finishedAt, &updatedAt, &interruptsSuspended,
+		&id, &sessionID,
+		&spawnedByItemID, &parentRunID, &rootRunID,
+		&coarse, &activeSegmentID, &outcome,
+		&provider, &model, &goalLeaseID, &detail, &steps, &durationNs, &usage, &problem,
+		&limits.MaxTotalTokens, &limits.MaxSteps, &limits.MaxBudgetUSD, &ownCapabilities, &rootCapabilities,
+		&messageMark, &startedAt, &finishedAt, &updatedAt, &interruptsSuspended,
 	); err != nil {
-		return transcript.Run{}, fmt.Errorf("scan run row: %w", err)
+		return rundomain.Run{}, fmt.Errorf("scan run row: %w", err)
 	}
+	lineage := rundomain.Lineage{SpawnedByItemID: spawnedByItemID, ParentRunID: parentRunID, RootRunID: rootRunID}
 	capabilities := ownCapabilities
-	if run.Lineage().IsChild() {
+	if lineage.IsChild() {
 		if ownCapabilities != "" {
-			return transcript.Run{}, fmt.Errorf("child run %q stores capabilities of its own", run.ID)
+			return rundomain.Run{}, fmt.Errorf("child run %q stores capabilities of its own", id)
 		}
 		if !rootCapabilities.Valid {
-			return transcript.Run{}, fmt.Errorf(
+			return rundomain.Run{}, fmt.Errorf(
 				"child run %q references missing root %q",
-				run.ID,
-				run.RootRunID,
+				id,
+				rootRunID,
 			)
 		}
 		capabilities = rootCapabilities.String
 	}
 	capabilitiesValue, err := decodeRunCapabilities(capabilities)
 	if err != nil {
-		return transcript.Run{}, fmt.Errorf("run %q: %w", run.ID, err)
+		return rundomain.Run{}, fmt.Errorf("run %q: %w", id, err)
 	}
-	run.Capabilities = capabilitiesValue
 	selection, err := modelref.New(provider, model)
 	if err != nil {
-		return transcript.Run{}, fmt.Errorf("decode run %q model selection: %w", run.ID, err)
+		return rundomain.Run{}, fmt.Errorf("decode run %q model selection: %w", id, err)
 	}
-	run.ModelSelection = selection
-	run.CreatedAt = time.Unix(0, startedAt).UTC()
-	run.UpdatedAt = time.Unix(0, updatedAt).UTC()
-	// Consumption is read for every state, not only the terminal one: a running
-	// Run has already spent tokens and a parked one committed what it spent.
-	run.Metrics.ActiveDuration = time.Duration(durationNs)
-	if run.Metrics.Usage, err = decodeRunUsage(usage); err != nil {
-		return transcript.Run{}, fmt.Errorf("decode run %q usage: %w", run.ID, err)
+	decodedUsage, err := decodeRunUsage(usage)
+	if err != nil {
+		return rundomain.Run{}, fmt.Errorf("decode run %q usage: %w", id, err)
+	}
+	metrics, err := rundomain.NewMetrics(decodedUsage, steps, time.Duration(durationNs))
+	if err != nil {
+		return rundomain.Run{}, fmt.Errorf("decode run %q metrics: %w", id, err)
+	}
+	snapshot := rundomain.Snapshot{
+		SessionID: sessionID, ID: id, Lineage: lineage, ModelSelection: selection,
+		GoalLeaseID: goalLeaseID, ActiveSegmentID: activeSegmentID, Detail: detail,
+		Metrics: metrics, Limits: limits, Capabilities: capabilitiesValue,
+		CreatedAt: time.Unix(0, startedAt).UTC(), UpdatedAt: time.Unix(0, updatedAt).UTC(),
+		MessageMark: messageMark,
 	}
 
 	switch coarse {
 	case runStateRunning:
-		run.State = rundomain.Running
+		snapshot.State = rundomain.Running
 	case runStateWaiting:
-		run.State = rundomain.Waiting
+		snapshot.State = rundomain.Waiting
 		// Every suspended Run must join its root-owned pending set. Only interrupts
 		// raised by this Run are projected onto it; an empty filtered result means
 		// the Run was suspended by another source in the tree.
 		if !interruptsSuspended.Valid {
 			if pendingPolicy == requirePendingSet {
-				return transcript.Run{}, fmt.Errorf("run %q is waiting with no root-owned Pending set", run.ID)
+				return rundomain.Run{}, fmt.Errorf("run %q is waiting with no root-owned Pending set", id)
 			}
 			break
 		}
 		treeInterrupts, decodeErr := decodeInterrupts(interruptsSuspended.String)
 		if decodeErr != nil {
-			err = decodeErr
-			return transcript.Run{}, fmt.Errorf("decode run %q interrupts: %w", run.ID, err)
+			return rundomain.Run{}, fmt.Errorf("decode run %q interrupts: %w", id, decodeErr)
 		}
-		for _, interrupt := range treeInterrupts {
-			if interrupt.RunID == run.ID {
-				run.Interrupts = append(run.Interrupts, interrupt)
-			}
-		}
+		_ = treeInterrupts
 	case runStateTerminal:
 		reason, ok := rundomain.ParseOutcome(outcome)
 		if !ok {
-			return transcript.Run{}, fmt.Errorf("run %q has unknown outcome %q", run.ID, outcome)
+			return rundomain.Run{}, fmt.Errorf("run %q has unknown outcome %q", id, outcome)
 		}
 		state, ok := rundomain.Running.Terminate(reason)
 		if !ok {
-			return transcript.Run{}, fmt.Errorf("run %q outcome %s reaches no terminal state", run.ID, reason)
+			return rundomain.Run{}, fmt.Errorf("run %q outcome %s reaches no terminal state", id, reason)
 		}
-		run.State = state
-		run.Outcome = &reason
-		run.FinishedAt = time.Unix(0, finishedAt).UTC()
-		if run.Error, err = decodeRunProblem(problem); err != nil {
-			return transcript.Run{}, fmt.Errorf("decode run %q problem: %w", run.ID, err)
+		snapshot.State = state
+		snapshot.Outcome = &reason
+		snapshot.FinishedAt = time.Unix(0, finishedAt).UTC()
+		if snapshot.Failure, err = decodeRunFailure(problem); err != nil {
+			return rundomain.Run{}, fmt.Errorf("decode run %q failure: %w", id, err)
 		}
 	default:
-		return transcript.Run{}, fmt.Errorf("run %q has unknown state %q", run.ID, coarse)
+		return rundomain.Run{}, fmt.Errorf("run %q has unknown state %q", id, coarse)
 	}
-	if err := run.Validate(); err != nil {
-		return transcript.Run{}, fmt.Errorf("run %q: %w", run.ID, err)
+	value, err := rundomain.Restore(snapshot)
+	if err != nil {
+		return rundomain.Run{}, fmt.Errorf("run %q: %w", id, err)
 	}
-	return run, nil
+	return value, nil
 }
 
-func decodeRunUsage(encoded string) (*transcript.Usage, error) {
+func decodeRunUsage(encoded string) (*accounting.Usage, error) {
 	if encoded == "" {
 		return nil, nil
 	}
@@ -372,11 +393,11 @@ func decodeRunUsage(encoded string) (*transcript.Usage, error) {
 	return row.usage(), nil
 }
 
-func (row *runUsageRow) usage() *transcript.Usage {
+func (row *runUsageRow) usage() *accounting.Usage {
 	if row == nil {
 		return nil
 	}
-	usage := &transcript.Usage{ModelUsage: transcript.ModelUsage{
+	usage := &accounting.Usage{Total: accounting.Totals{
 		InputTokens:      row.InputTokens,
 		OutputTokens:     row.OutputTokens,
 		CacheReadTokens:  row.CacheReadTokens,
@@ -385,9 +406,9 @@ func (row *runUsageRow) usage() *transcript.Usage {
 		CostUSD:          row.CostUSD,
 	}}
 	if len(row.ByModel) > 0 {
-		usage.ByModel = make(map[string]transcript.ModelUsage, len(row.ByModel))
+		usage.ByModel = make(map[string]accounting.Totals, len(row.ByModel))
 		for model, perModel := range row.ByModel {
-			usage.ByModel[model] = transcript.ModelUsage{
+			usage.ByModel[model] = accounting.Totals{
 				InputTokens:      perModel.InputTokens,
 				OutputTokens:     perModel.OutputTokens,
 				CacheReadTokens:  perModel.CacheReadTokens,
@@ -400,7 +421,7 @@ func (row *runUsageRow) usage() *transcript.Usage {
 	return usage
 }
 
-func decodeRunProblem(encoded string) (*transcript.Problem, error) {
+func decodeRunFailure(encoded string) (*rundomain.Failure, error) {
 	if encoded == "" {
 		return nil, nil
 	}
@@ -408,46 +429,37 @@ func decodeRunProblem(encoded string) (*transcript.Problem, error) {
 	if err := json.Unmarshal([]byte(encoded), &row); err != nil {
 		return nil, err
 	}
-	kind, err := decodeRunProblemKind(row.Kind)
+	kind, err := decodeRunFailureKind(row.Kind)
 	if err != nil {
 		return nil, err
 	}
-	// Scope is not stored: a problem in a Run's result slot is a Run problem by
-	// definition, and Validate refuses any other.
-	return &transcript.Problem{
-		Kind:              kind,
-		Scope:             transcript.RunProblem,
-		Detail:            row.Detail,
-		DocURL:            row.DocURL,
-		RetryAfterSeconds: row.RetryAfterSeconds,
+	return &rundomain.Failure{
+		Kind:       kind,
+		Detail:     row.Detail,
+		DocURL:     row.DocURL,
+		RetryAfter: time.Duration(row.RetryAfterSeconds) * time.Second,
 	}, nil
 }
 
-func decodeRunProblemKind(kind int) (transcript.ProblemKind, error) {
+func decodeRunFailureKind(kind int) (rundomain.FailureKind, error) {
 	switch kind {
-	case int(transcript.InternalProblem):
-		return transcript.InternalProblem, nil
-	case int(transcript.RunLostProblem):
-		return transcript.RunLostProblem, nil
-	case int(transcript.AgentStuckProblem):
-		return transcript.AgentStuckProblem, nil
-	case int(transcript.RateLimitedProblem):
-		return transcript.RateLimitedProblem, nil
-	case int(transcript.InvalidAPIKeyProblem):
-		return transcript.InvalidAPIKeyProblem, nil
-	case int(transcript.TimeoutProblem):
-		return transcript.TimeoutProblem, nil
-	case int(transcript.ProviderUnavailableProblem):
-		return transcript.ProviderUnavailableProblem, nil
-	case int(transcript.ProviderRejectedProblem):
-		return transcript.ProviderRejectedProblem, nil
-	case int(transcript.DeniedByUserProblem):
-		return transcript.DeniedByUserProblem, nil
-	case int(transcript.ToolFailedProblem):
-		return transcript.ToolFailedProblem, nil
-	case int(transcript.ChildRunCanceledProblem):
-		return transcript.ChildRunCanceledProblem, nil
+	case int(rundomain.FailureInternal):
+		return rundomain.FailureInternal, nil
+	case int(rundomain.FailureLost):
+		return rundomain.FailureLost, nil
+	case int(rundomain.FailureAgentStuck):
+		return rundomain.FailureAgentStuck, nil
+	case int(rundomain.FailureRateLimited):
+		return rundomain.FailureRateLimited, nil
+	case int(rundomain.FailureInvalidCredentials):
+		return rundomain.FailureInvalidCredentials, nil
+	case int(rundomain.FailureTimeout):
+		return rundomain.FailureTimeout, nil
+	case int(rundomain.FailureProviderUnavailable):
+		return rundomain.FailureProviderUnavailable, nil
+	case int(rundomain.FailureProviderRejected):
+		return rundomain.FailureProviderRejected, nil
 	default:
-		return 0, fmt.Errorf("unknown run problem kind %d", kind)
+		return 0, fmt.Errorf("unknown run failure kind %d", kind)
 	}
 }

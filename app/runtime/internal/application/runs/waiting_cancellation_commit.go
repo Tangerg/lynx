@@ -10,6 +10,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
 	rundomain "github.com/Tangerg/lynx/app/runtime/internal/domain/run"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
@@ -79,8 +80,8 @@ func validateWaitingCancellationBoundary(c WaitingSubtreeCancellationCommit) err
 		strings.TrimSpace(c.SessionID) == "" {
 		return errors.New("runs: waiting cancellation identity is incomplete")
 	}
-	if c.RootRun.ID != c.RootRunID || c.RootRun.SessionID != c.SessionID ||
-		!c.RootRun.Lineage().IsRoot() || c.RootRun.State != rundomain.Waiting {
+	if c.RootRun.ID() != c.RootRunID || c.RootRun.SessionID() != c.SessionID ||
+		!c.RootRun.Lineage().IsRoot() || c.RootRun.State() != rundomain.Waiting {
 		return errors.New("runs: waiting cancellation root snapshot is invalid")
 	}
 	if err := c.ExpectedPending.Validate(); err != nil {
@@ -93,10 +94,10 @@ func validateWaitingCancellationBoundary(c WaitingSubtreeCancellationCommit) err
 	if !found {
 		return errors.New("runs: waiting cancellation expected Pending has no root continuation")
 	}
-	if c.RootRun.GoalLeaseID != c.ExpectedPending.GoalLeaseID {
+	if c.RootRun.GoalLeaseID() != c.ExpectedPending.GoalLeaseID {
 		return errors.New("runs: waiting cancellation root Run goal lease differs from Pending")
 	}
-	if !c.RootRun.Capabilities.Equal(c.ExpectedPending.Capabilities) {
+	if !c.RootRun.Capabilities().Equal(c.ExpectedPending.Capabilities) {
 		return errors.New("runs: waiting cancellation root Run capabilities differ from Pending")
 	}
 	if err := validateWaitingRunContinuation(c.RootRun, rootContinuation); err != nil {
@@ -198,32 +199,36 @@ func (v *waitingCancellationValidation) validateTerminalRuns() error {
 		expectedRunID := v.canceledRunIDs[index]
 		continuation := v.continuationByRunID[expectedRunID]
 		switch {
-		case run.ID != expectedRunID:
-			return fmt.Errorf("runs: waiting cancellation Run[%d] is %q, want %q", index, run.ID, expectedRunID)
-		case run.SessionID != c.SessionID:
+		case run.ID() != expectedRunID:
+			return fmt.Errorf("runs: waiting cancellation Run[%d] is %q, want %q", index, run.ID(), expectedRunID)
+		case run.SessionID() != c.SessionID:
 			return fmt.Errorf("runs: waiting cancellation Run[%d] Session mismatch", index)
 		case run.Lineage() != continuation.Lineage:
 			return fmt.Errorf("runs: waiting cancellation Run[%d] lineage mismatch", index)
-		case run.ModelSelection != continuation.ModelSelection:
+		case run.ModelSelection() != continuation.ModelSelection:
 			return fmt.Errorf("runs: waiting cancellation Run[%d] model mismatch", index)
-		case !run.Metrics.Equal(continuation.Metrics):
+		case !run.Metrics().Equal(continuation.Metrics):
 			return fmt.Errorf("runs: waiting cancellation Run[%d] metrics mismatch", index)
-		case run.Limits != continuation.Limits:
+		case run.Limits() != continuation.Limits:
 			return fmt.Errorf("runs: waiting cancellation Run[%d] limits mismatch", index)
-		case !run.CreatedAt.Equal(continuation.RunCreatedAt):
+		case !run.CreatedAt().Equal(continuation.RunCreatedAt):
 			return fmt.Errorf("runs: waiting cancellation Run[%d] creation time mismatch", index)
-		case !run.Capabilities.Equal(c.ExpectedPending.Capabilities):
+		case !run.Capabilities().Equal(c.ExpectedPending.Capabilities):
 			return fmt.Errorf("runs: waiting cancellation Run[%d] capabilities mismatch", index)
-		case run.GoalLeaseID != "":
+		case run.GoalLeaseID() != "":
 			return fmt.Errorf("runs: waiting cancellation child Run[%d] carries a root Goal lease", index)
-		case run.State != rundomain.Canceled || run.Outcome == nil || *run.Outcome != rundomain.OutcomeCanceled:
+		case run.State() != rundomain.Canceled:
 			return fmt.Errorf("runs: waiting cancellation Run[%d] is not canceled", index)
 		}
-		if _, duplicate := v.terminalRunIDs[run.ID]; duplicate {
-			return fmt.Errorf("runs: waiting cancellation repeats Run %q", run.ID)
+		outcome, terminal := run.Outcome()
+		if !terminal || outcome != rundomain.OutcomeCanceled {
+			return fmt.Errorf("runs: waiting cancellation Run[%d] has no canceled outcome", index)
 		}
-		v.terminalRunIDs[run.ID] = struct{}{}
-		v.finishedAtByRunID[run.ID] = run.FinishedAt
+		if _, duplicate := v.terminalRunIDs[run.ID()]; duplicate {
+			return fmt.Errorf("runs: waiting cancellation repeats Run %q", run.ID())
+		}
+		v.terminalRunIDs[run.ID()] = struct{}{}
+		v.finishedAtByRunID[run.ID()] = run.FinishedAt()
 	}
 	return nil
 }
@@ -282,7 +287,7 @@ func validateTerminalItemReplacement(
 	if expected.Kind == transcript.ToolCall {
 		expected.FinishedAt = finishedAt
 		expected.Error = replacement.Replacement.Error
-		if expected.Error == nil || expected.Error.Kind != transcript.ToolFailedProblem || expected.Error.Scope != transcript.ToolProblem {
+		if expected.Error == nil || expected.Error.Kind != tool.FailureExecution {
 			return errors.New("tool replacement has an invalid problem")
 		}
 	}
@@ -375,7 +380,7 @@ func (v waitingCancellationValidation) validateSurvivingContinuations() error {
 			settled := matched[0]
 			expected.CommittedTools = append(slices.Clone(expected.CommittedTools), CommittedTool{
 				ItemID: settled.ItemID, CallID: settled.CallID, Name: settled.Name,
-				Arguments: settled.Arguments, Problem: *c.ParentItem.Replacement.Error,
+				Arguments: settled.Arguments, Failure: *c.ParentItem.Replacement.Error,
 			})
 		}
 		if !sameContinuationValue(actual, expected) {
@@ -423,25 +428,25 @@ func (v waitingCancellationValidation) validateParentItem() error {
 		return errors.New("runs: waiting cancellation parent replacement changes immutable facts")
 	}
 	if replacement.Status != transcript.ItemIncomplete || replacement.Error == nil ||
-		replacement.Error.Kind != transcript.ChildRunCanceledProblem || replacement.Error.Scope != transcript.ToolProblem {
+		replacement.Error.Kind != tool.FailureChildRunCanceled {
 		return errors.New("runs: waiting cancellation parent Item lacks child_run_canceled")
 	}
 	return nil
 }
 
-func validateWaitingRunContinuation(run transcript.Run, continuation Continuation) error {
+func validateWaitingRunContinuation(run rundomain.Run, continuation Continuation) error {
 	switch {
-	case run.ID != continuation.RunID:
+	case run.ID() != continuation.RunID:
 		return errors.New("identity differs from continuation")
 	case run.Lineage() != continuation.Lineage:
 		return errors.New("lineage differs from continuation")
-	case run.ModelSelection != continuation.ModelSelection:
+	case run.ModelSelection() != continuation.ModelSelection:
 		return errors.New("model selection differs from continuation")
-	case !run.Metrics.Equal(continuation.Metrics):
+	case !run.Metrics().Equal(continuation.Metrics):
 		return errors.New("metrics differ from continuation")
-	case run.Limits != continuation.Limits:
+	case run.Limits() != continuation.Limits:
 		return errors.New("limits differ from continuation")
-	case !run.CreatedAt.Equal(continuation.RunCreatedAt):
+	case !run.CreatedAt().Equal(continuation.RunCreatedAt):
 		return errors.New("creation time differs from continuation")
 	default:
 		return nil
@@ -449,6 +454,11 @@ func validateWaitingRunContinuation(run transcript.Run, continuation Continuatio
 }
 
 func sameContinuationValue(left, right Continuation) bool {
+	if !left.Metrics.Equal(right.Metrics) {
+		return false
+	}
+	left.Metrics = rundomain.Metrics{}
+	right.Metrics = rundomain.Metrics{}
 	return reflect.DeepEqual(normalizeContinuationValue(left), normalizeContinuationValue(right))
 }
 
@@ -463,13 +473,6 @@ func normalizeContinuationValue(value Continuation) Continuation {
 	}
 	if len(value.CommittedTools) == 0 {
 		value.CommittedTools = nil
-	}
-	if value.Metrics.Usage != nil {
-		usage := *value.Metrics.Usage
-		if len(usage.ByModel) == 0 {
-			usage.ByModel = nil
-		}
-		value.Metrics.Usage = &usage
 	}
 	return value
 }

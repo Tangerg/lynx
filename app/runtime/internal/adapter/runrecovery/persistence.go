@@ -10,13 +10,14 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
 type RunStore interface {
-	ListNonTerminalRuns(ctx context.Context) ([]transcript.Run, error)
-	RecoverLost(ctx context.Context, run transcript.Run) error
+	ListNonTerminalRuns(ctx context.Context) ([]run.Run, error)
+	RecoverLost(ctx context.Context, run run.Run) error
 }
 
 type SessionStore interface {
@@ -105,7 +106,7 @@ func (p *Persistence) SessionByID(ctx context.Context, sessionID string) (sessio
 	return p.sessions.Get(ctx, sessionID)
 }
 
-func (p *Persistence) ListNonTerminalRuns(ctx context.Context) ([]transcript.Run, error) {
+func (p *Persistence) ListNonTerminalRuns(ctx context.Context) ([]run.Run, error) {
 	return p.runs.ListNonTerminalRuns(ctx)
 }
 
@@ -136,7 +137,7 @@ func (p *Persistence) CommitRecovery(ctx context.Context, commit runs.RecoveryCo
 		}
 		for _, lost := range commit.LostRuns {
 			if err := p.runs.RecoverLost(ctx, lost); err != nil {
-				return fmt.Errorf("runrecovery: recover lost Run %q: %w", lost.ID, err)
+				return fmt.Errorf("runrecovery: recover lost Run %q: %w", lost.ID(), err)
 			}
 		}
 		for _, record := range commit.GoalRuns {

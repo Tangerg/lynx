@@ -107,7 +107,7 @@ func encodeTranscriptItem(item transcript.Item) ([]byte, error) {
 		payload.Tool = &encoded
 	}
 	if item.Error != nil {
-		encoded, err := encodeProblemPayload(*item.Error)
+		encoded, err := encodeToolFailurePayload(*item.Error)
 		if err != nil {
 			return nil, err
 		}
@@ -170,11 +170,11 @@ func decodeTranscriptItem(data []byte) (transcript.Item, error) {
 		item.Tool = &invocation
 	}
 	if payload.Problem != nil {
-		problem, err := decodeProblemPayload(*payload.Problem)
+		failure, err := decodeToolFailurePayload(*payload.Problem)
 		if err != nil {
 			return transcript.Item{}, err
 		}
-		item.Error = &problem
+		item.Error = &failure
 	}
 	return item, nil
 }
@@ -358,100 +358,57 @@ func decodeToolInvocationPayload(payload toolInvocationPayload) (transcript.Tool
 	return invocation, nil
 }
 
-func encodeProblemPayload(problem transcript.Problem) (problemPayload, error) {
-	kind, err := encodeProblemKind(problem.Kind)
+func encodeToolFailurePayload(failure tool.Failure) (problemPayload, error) {
+	kind, err := encodeToolFailureKind(failure.Kind)
 	if err != nil {
 		return problemPayload{}, err
 	}
-	var scope string
-	switch problem.Scope {
-	case transcript.RunProblem:
-		scope = "run"
-	case transcript.ToolProblem:
-		scope = "tool"
-	default:
-		return problemPayload{}, fmt.Errorf("unknown problem scope %d", problem.Scope)
-	}
 	return problemPayload{
-		Kind: kind, Scope: scope, Detail: problem.Detail, DocURL: problem.DocURL,
-		RetryAfterSeconds: problem.RetryAfterSeconds,
+		Kind: kind, Scope: "tool", Detail: failure.Detail, DocURL: failure.DocURL,
+		RetryAfterSeconds: int(failure.RetryAfter / time.Second),
 	}, nil
 }
 
-func decodeProblemPayload(payload problemPayload) (transcript.Problem, error) {
-	kind, err := decodeProblemKind(payload.Kind)
+func decodeToolFailurePayload(payload problemPayload) (tool.Failure, error) {
+	kind, err := decodeToolFailureKind(payload.Kind)
 	if err != nil {
-		return transcript.Problem{}, err
+		return tool.Failure{}, err
 	}
-	var scope transcript.ProblemScope
-	switch payload.Scope {
-	case "run":
-		scope = transcript.RunProblem
-	case "tool":
-		scope = transcript.ToolProblem
-	default:
-		return transcript.Problem{}, fmt.Errorf("unknown problem scope %q", payload.Scope)
+	if payload.Scope != "tool" {
+		return tool.Failure{}, fmt.Errorf("unknown Tool failure scope %q", payload.Scope)
 	}
-	return transcript.Problem{
-		Kind: kind, Scope: scope, Detail: payload.Detail, DocURL: payload.DocURL,
-		RetryAfterSeconds: payload.RetryAfterSeconds,
+	return tool.Failure{
+		Kind: kind, Detail: payload.Detail, DocURL: payload.DocURL,
+		RetryAfter: time.Duration(payload.RetryAfterSeconds) * time.Second,
 	}, nil
 }
 
-func encodeProblemKind(kind transcript.ProblemKind) (string, error) {
+func encodeToolFailureKind(kind tool.FailureKind) (string, error) {
 	switch kind {
-	case transcript.InternalProblem:
+	case tool.FailureInternal:
 		return "internal", nil
-	case transcript.RunLostProblem:
-		return "run_lost", nil
-	case transcript.AgentStuckProblem:
-		return "agent_stuck", nil
-	case transcript.RateLimitedProblem:
-		return "rate_limited", nil
-	case transcript.InvalidAPIKeyProblem:
-		return "invalid_api_key", nil
-	case transcript.TimeoutProblem:
-		return "timeout", nil
-	case transcript.ProviderUnavailableProblem:
-		return "provider_unavailable", nil
-	case transcript.ProviderRejectedProblem:
-		return "provider_rejected", nil
-	case transcript.DeniedByUserProblem:
+	case tool.FailureDenied:
 		return "denied_by_user", nil
-	case transcript.ToolFailedProblem:
+	case tool.FailureExecution:
 		return "tool_failed", nil
-	case transcript.ChildRunCanceledProblem:
+	case tool.FailureChildRunCanceled:
 		return "child_run_canceled", nil
 	default:
-		return "", fmt.Errorf("unknown problem kind %d", kind)
+		return "", fmt.Errorf("unknown Tool failure kind %d", kind)
 	}
 }
 
-func decodeProblemKind(kind string) (transcript.ProblemKind, error) {
+func decodeToolFailureKind(kind string) (tool.FailureKind, error) {
 	switch kind {
 	case "internal":
-		return transcript.InternalProblem, nil
-	case "run_lost":
-		return transcript.RunLostProblem, nil
-	case "agent_stuck":
-		return transcript.AgentStuckProblem, nil
-	case "rate_limited":
-		return transcript.RateLimitedProblem, nil
-	case "invalid_api_key":
-		return transcript.InvalidAPIKeyProblem, nil
-	case "timeout":
-		return transcript.TimeoutProblem, nil
-	case "provider_unavailable":
-		return transcript.ProviderUnavailableProblem, nil
-	case "provider_rejected":
-		return transcript.ProviderRejectedProblem, nil
+		return tool.FailureInternal, nil
 	case "denied_by_user":
-		return transcript.DeniedByUserProblem, nil
+		return tool.FailureDenied, nil
 	case "tool_failed":
-		return transcript.ToolFailedProblem, nil
+		return tool.FailureExecution, nil
 	case "child_run_canceled":
-		return transcript.ChildRunCanceledProblem, nil
+		return tool.FailureChildRunCanceled, nil
 	default:
-		return 0, fmt.Errorf("unknown problem kind %q", kind)
+		return 0, fmt.Errorf("unknown Tool failure kind %q", kind)
 	}
 }

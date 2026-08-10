@@ -4,15 +4,15 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/accounting"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
 func (r *reducer) segmentEnd(e SegmentEnded) ([]RunEvent, error) {
-	if e.Reason != run.OutcomeFailed && e.Reason != run.OutcomeTimedOut && e.Reason != run.OutcomeLost && e.Problem != nil {
-		return nil, errors.New("outcome does not allow a problem")
+	if e.Reason != run.OutcomeFailed && e.Reason != run.OutcomeTimedOut && e.Reason != run.OutcomeLost && e.Failure != nil {
+		return nil, errors.New("outcome does not allow a failure")
 	}
 	if e.Usage != nil {
 		if err := r.applyUsage(*e.Usage); err != nil {
@@ -20,18 +20,14 @@ func (r *reducer) segmentEnd(e SegmentEnded) ([]RunEvent, error) {
 		}
 	}
 	r.segmentDuration = e.Duration
-	var failure *transcript.Problem
+	var failure *run.Failure
 	detail := ""
 	switch e.Reason {
 	case run.OutcomeFailed, run.OutcomeTimedOut, run.OutcomeLost:
-		if e.Problem == nil {
-			return nil, errors.New("failure outcome is missing a problem")
+		if e.Failure == nil {
+			return nil, errors.New("failure outcome is missing a failure")
 		}
-		var err error
-		failure, err = runResultProblem(*e.Problem)
-		if err != nil {
-			return nil, err
-		}
+		failure = e.Failure
 	case run.OutcomeCanceled:
 		if r.cfg.CancelReason != nil {
 			detail = r.cfg.CancelReason()
@@ -50,45 +46,53 @@ func (r *reducer) segmentEnd(e SegmentEnded) ([]RunEvent, error) {
 	return append(out, terminal), nil
 }
 
-func (r *reducer) runRecord(state run.State) transcript.Run {
-	// Only a running Run names a segment: the record that parks or ends it clears
-	// the identity in the same commit, so nothing can attach to a stream that
-	// stopped.
-	activeSegment := ""
-	if state == run.Running {
-		activeSegment = r.cfg.SegmentID
+func (r *reducer) runRecord(state run.State) (run.Run, error) {
+	if state != run.Running && state != run.Waiting {
+		return run.Run{}, fmt.Errorf("reducer cannot project non-terminal state %s", state)
 	}
-	return transcript.Run{
-		SessionID:       r.cfg.SessionID,
-		ID:              r.cfg.RunID,
-		SpawnedByItemID: r.cfg.Lineage.SpawnedByItemID,
-		ParentRunID:     r.cfg.Lineage.ParentRunID,
-		RootRunID:       r.cfg.Lineage.RootRunID,
-		ModelSelection:  r.cfg.ModelSelection,
-		GoalLeaseID:     r.cfg.GoalLeaseID,
-		State:           state,
-		ActiveSegmentID: activeSegment,
-		Metrics:         r.metrics(),
-		Limits:          r.cfg.Limits,
-		Capabilities:    r.cfg.Capabilities,
-		CreatedAt:       r.cfg.CreatedAt,
-		UpdatedAt:       r.now(),
-		MessageMark:     transcript.UnknownMessageMark,
+	metrics, err := r.metrics()
+	if err != nil {
+		return run.Run{}, err
 	}
+	updatedAt := r.now().UTC()
+	createdAt := r.cfg.CreatedAt.UTC()
+	if createdAt.IsZero() {
+		createdAt = updatedAt
+	}
+	current, err := run.Restore(run.Snapshot{
+		SessionID: r.cfg.SessionID, ID: r.cfg.RunID, Lineage: r.cfg.Lineage,
+		ModelSelection: r.cfg.ModelSelection, GoalLeaseID: r.cfg.GoalLeaseID,
+		State: run.Running, ActiveSegmentID: r.cfg.SegmentID,
+		Metrics: metrics, Limits: r.cfg.Limits, Capabilities: r.cfg.Capabilities,
+		CreatedAt: createdAt, UpdatedAt: updatedAt, MessageMark: run.UnknownMessageMark,
+	})
+	if err != nil {
+		return run.Run{}, fmt.Errorf("project Run: %w", err)
+	}
+	if state == run.Waiting {
+		return current.Suspend(updatedAt)
+	}
+	return current, nil
 }
 
 // metrics is the Run's cumulative consumption as of now: what it brought into
 // this segment plus what this segment has reported. Every committed Run record
 // goes through here, which is what makes the sequence non-decreasing — the seed
 // is fixed for the segment and the segment's own figures only grow.
-func (r *reducer) metrics() transcript.RunMetrics {
-	metrics := r.cfg.Metrics
+func (r *reducer) metrics() (run.Metrics, error) {
+	usage, reported := r.cfg.Metrics.Usage()
 	if r.usage != nil {
-		metrics.Usage = r.usage
+		usage, reported = r.usage.Clone(), true
 	}
-	metrics.Steps = r.step
-	metrics.ActiveDuration += r.segmentDuration
-	return metrics
+	var usageRef *accounting.Usage
+	if reported {
+		usageRef = &usage
+	}
+	activeDuration := r.cfg.Metrics.ActiveDuration()
+	if r.segmentDuration < 0 || (r.segmentDuration > 0 && activeDuration > time.Duration(math.MaxInt64)-r.segmentDuration) {
+		return run.Metrics{}, errors.New("segment active duration is invalid or overflows")
+	}
+	return run.NewMetrics(usageRef, r.step, activeDuration+r.segmentDuration)
 }
 
 func (r *reducer) applyUsage(reported SegmentUsage) error {
@@ -103,7 +107,10 @@ func (r *reducer) applyUsage(reported SegmentUsage) error {
 	if err != nil {
 		return err
 	}
-	previous := r.cfg.Metrics.Usage
+	var previous *accounting.Usage
+	if value, reported := r.cfg.Metrics.Usage(); reported {
+		previous = &value
+	}
 	if r.usage != nil {
 		previous = r.usage
 	}
@@ -115,21 +122,26 @@ func (r *reducer) applyUsage(reported SegmentUsage) error {
 	return nil
 }
 
-func (r *reducer) finishedRun(outcome run.Outcome, failure *transcript.Problem, detail string) (SegmentFinished, error) {
-	state, ok := run.Running.Terminate(outcome)
-	if !ok {
+func (r *reducer) finishedRun(outcome run.Outcome, failure *run.Failure, detail string) (SegmentFinished, error) {
+	if _, ok := run.Running.Terminate(outcome); !ok {
 		return SegmentFinished{}, fmt.Errorf("outcome %d does not terminate a running run", outcome)
 	}
-	run := r.runRecord(state)
-	run.Outcome = &outcome
-	run.Error = failure
-	run.Detail = detail
-	run.FinishedAt = r.now()
-	return SegmentFinished{Run: run}, nil
+	current, err := r.runRecord(run.Running)
+	if err != nil {
+		return SegmentFinished{}, err
+	}
+	terminal, err := current.Terminate(run.Termination{
+		Outcome: outcome, Detail: detail, Failure: failure,
+		FinishedAt: r.now().UTC(), MessageMark: run.UnknownMessageMark,
+	})
+	if err != nil {
+		return SegmentFinished{}, err
+	}
+	return SegmentFinished{Run: terminal}, nil
 }
 
-func transcriptUsage(reported SegmentUsage) *transcript.Usage {
-	usage := &transcript.Usage{ModelUsage: modelUsageFrom(
+func transcriptUsage(reported SegmentUsage) *accounting.Usage {
+	usage := &accounting.Usage{Total: modelUsageFrom(
 		reported.Tokens.PromptTokens,
 		reported.Tokens.CompletionTokens,
 		reported.Tokens.ReasoningTokens,
@@ -138,7 +150,7 @@ func transcriptUsage(reported SegmentUsage) *transcript.Usage {
 		reported.CostUSD,
 	)}
 	if len(reported.ByModel) > 0 {
-		usage.ByModel = make(map[string]transcript.ModelUsage, len(reported.ByModel))
+		usage.ByModel = make(map[string]accounting.Totals, len(reported.ByModel))
 		for _, model := range reported.ByModel {
 			usage.ByModel[model.Model] = modelUsageFrom(
 				model.PromptTokens,
@@ -153,7 +165,7 @@ func transcriptUsage(reported SegmentUsage) *transcript.Usage {
 	return usage
 }
 
-func validatedSegmentUsage(reported SegmentUsage) (*transcript.Usage, error) {
+func validatedSegmentUsage(reported SegmentUsage) (*accounting.Usage, error) {
 	if reported.Steps < 0 {
 		return nil, fmt.Errorf("model-call count %d is negative", reported.Steps)
 	}
@@ -192,14 +204,14 @@ func validatedSegmentUsage(reported SegmentUsage) (*transcript.Usage, error) {
 	return transcriptUsage(reported), nil
 }
 
-func validateUsageMonotonic(previous, next *transcript.Usage) error {
+func validateUsageMonotonic(previous, next *accounting.Usage) error {
 	if previous == nil {
 		return nil
 	}
 	if next == nil {
 		return errors.New("cumulative usage disappeared after it was reported")
 	}
-	if err := validateModelUsageMonotonic("total", previous.ModelUsage, next.ModelUsage); err != nil {
+	if err := validateModelUsageMonotonic("total", previous.Total, next.Total); err != nil {
 		return err
 	}
 	for model, previousModel := range previous.ByModel {
@@ -214,7 +226,7 @@ func validateUsageMonotonic(previous, next *transcript.Usage) error {
 	return nil
 }
 
-func validateModelUsageMonotonic(label string, previous, next transcript.ModelUsage) error {
+func validateModelUsageMonotonic(label string, previous, next accounting.Totals) error {
 	if next.InputTokens < previous.InputTokens ||
 		next.OutputTokens < previous.OutputTokens ||
 		next.ReasoningTokens < previous.ReasoningTokens ||
@@ -243,8 +255,8 @@ func sameUsageCost(left, right float64) bool {
 	return math.Abs(left-right) <= 1e-12*scale
 }
 
-func modelUsageFrom(prompt, completion, reasoning, cacheRead, cacheWrite int64, cost float64) transcript.ModelUsage {
-	return transcript.ModelUsage{
+func modelUsageFrom(prompt, completion, reasoning, cacheRead, cacheWrite int64, cost float64) accounting.Totals {
+	return accounting.Totals{
 		InputTokens: prompt, OutputTokens: completion,
 		ReasoningTokens: reasoning, CacheReadTokens: cacheRead,
 		CacheWriteTokens: cacheWrite, CostUSD: optCostUSD(cost),

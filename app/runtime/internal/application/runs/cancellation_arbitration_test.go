@@ -8,7 +8,9 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
+	runfixture "github.com/Tangerg/lynx/app/runtime/internal/testsupport/runfixture"
 )
 
 type blockingWaitingCancellationEffects struct {
@@ -43,12 +45,12 @@ func (sessions *blockingRootCancellationSessions) ApplyRunCancel(
 	runID string,
 	reason string,
 	finishedAt time.Time,
-) (transcript.Run, error) {
+) (run.Run, error) {
 	sessions.started <- struct{}{}
 	select {
 	case <-sessions.release:
 	case <-ctx.Done():
-		return transcript.Run{}, ctx.Err()
+		return run.Run{}, ctx.Err()
 	}
 	sessions.applied++
 	return sessions.fakeRunSessions.ApplyRunCancel(
@@ -93,7 +95,7 @@ func TestWaitingChildAndRootCancellationHaveOneApplicationOwner(t *testing.T) {
 		childDone := make(chan cancelAttemptOutcome, 1)
 		go func() {
 			result, err := coordinator.Cancel(t.Context(), CancelCommand{
-				RunID:         plan.target.run.ID,
+				RunID:         plan.target.run.ID(),
 				Reason:        "stop child",
 				AllowChildRun: true,
 			})
@@ -102,8 +104,8 @@ func TestWaitingChildAndRootCancellationHaveOneApplicationOwner(t *testing.T) {
 		awaitTestBoundary(t, started, "child cancellation durable transaction")
 
 		for _, command := range []CancelCommand{
-			{RunID: plan.target.run.ID, Reason: "duplicate child", AllowChildRun: true},
-			{RunID: plan.root.run.ID, Reason: "stop root"},
+			{RunID: plan.target.run.ID(), Reason: "duplicate child", AllowChildRun: true},
+			{RunID: plan.root.run.ID(), Reason: "stop root"},
 		} {
 			if _, err := coordinator.Cancel(t.Context(), command); !errors.Is(err, ErrSessionBusy) {
 				t.Fatalf("losing Cancel(%q) error = %v, want ErrSessionBusy", command.RunID, err)
@@ -118,8 +120,8 @@ func TestWaitingChildAndRootCancellationHaveOneApplicationOwner(t *testing.T) {
 		if outcome.err != nil {
 			t.Fatalf("winning child cancellation: %v", outcome.err)
 		}
-		if outcome.result.Run.ID != plan.target.run.ID {
-			t.Fatalf("winning child result = %+v, want %q", outcome.result, plan.target.run.ID)
+		if outcome.result.Run.ID() != plan.target.run.ID() {
+			t.Fatalf("winning child result = %+v, want %q", outcome.result, plan.target.run.ID())
 		}
 		if len(baseEffects.waitingCancels) != 1 || prepared.applied != 1 {
 			t.Fatalf(
@@ -161,7 +163,7 @@ func TestWaitingChildAndRootCancellationHaveOneApplicationOwner(t *testing.T) {
 		rootDone := make(chan cancelAttemptOutcome, 1)
 		go func() {
 			result, err := coordinator.Cancel(t.Context(), CancelCommand{
-				RunID:  plan.root.run.ID,
+				RunID:  plan.root.run.ID(),
 				Reason: "stop root",
 			})
 			rootDone <- cancelAttemptOutcome{result: result, err: err}
@@ -169,8 +171,8 @@ func TestWaitingChildAndRootCancellationHaveOneApplicationOwner(t *testing.T) {
 		awaitTestBoundary(t, started, "root cancellation durable transaction")
 
 		for _, command := range []CancelCommand{
-			{RunID: plan.root.run.ID, Reason: "duplicate root"},
-			{RunID: plan.target.run.ID, Reason: "stop child", AllowChildRun: true},
+			{RunID: plan.root.run.ID(), Reason: "duplicate root"},
+			{RunID: plan.target.run.ID(), Reason: "stop child", AllowChildRun: true},
 		} {
 			if _, err := coordinator.Cancel(t.Context(), command); !errors.Is(err, ErrSessionBusy) {
 				t.Fatalf("losing Cancel(%q) error = %v, want ErrSessionBusy", command.RunID, err)
@@ -189,7 +191,7 @@ func TestWaitingChildAndRootCancellationHaveOneApplicationOwner(t *testing.T) {
 		if outcome.err != nil {
 			t.Fatalf("winning root cancellation: %v", outcome.err)
 		}
-		if outcome.result.Run.ID != plan.root.run.ID || sessions.applied != 1 {
+		if outcome.result.Run.ID() != plan.root.run.ID() || sessions.applied != 1 {
 			t.Fatalf(
 				"winning root result = %+v, durable commits = %d",
 				outcome.result,
@@ -222,7 +224,7 @@ func TestWaitingChildCancellationAndResumeHaveOneApplicationOwner(t *testing.T) 
 		childDone := make(chan cancelAttemptOutcome, 1)
 		go func() {
 			result, err := coordinator.Cancel(t.Context(), CancelCommand{
-				RunID:         plan.target.run.ID,
+				RunID:         plan.target.run.ID(),
 				Reason:        "stop child",
 				AllowChildRun: true,
 			})
@@ -231,7 +233,7 @@ func TestWaitingChildCancellationAndResumeHaveOneApplicationOwner(t *testing.T) 
 		awaitTestBoundary(t, started, "child cancellation durable transaction")
 
 		if _, err := coordinator.Resume(t.Context(), ResumeCommand{
-			RunID:              plan.root.run.ID,
+			RunID:              plan.root.run.ID(),
 			CallerCapabilities: plan.pending.Capabilities,
 			Responses:          waitingQuestionResponses(plan.pending),
 		}); !errors.Is(err, ErrSessionBusy) {
@@ -287,7 +289,7 @@ func TestWaitingChildCancellationAndResumeHaveOneApplicationOwner(t *testing.T) 
 		resumeDone := make(chan resumeAttemptOutcome, 1)
 		go func() {
 			result, err := coordinator.Resume(t.Context(), ResumeCommand{
-				RunID:              plan.root.run.ID,
+				RunID:              plan.root.run.ID(),
 				CallerCapabilities: plan.pending.Capabilities,
 				Responses:          waitingQuestionResponses(plan.pending),
 			})
@@ -296,7 +298,7 @@ func TestWaitingChildCancellationAndResumeHaveOneApplicationOwner(t *testing.T) 
 		awaitTestBoundary(t, started, "resume durable opening")
 
 		if _, err := coordinator.Cancel(t.Context(), CancelCommand{
-			RunID:         plan.target.run.ID,
+			RunID:         plan.target.run.ID(),
 			Reason:        "stop child",
 			AllowChildRun: true,
 		}); !errors.Is(err, ErrSessionBusy) {
@@ -331,10 +333,12 @@ func TestWaitingChildCancellationAndResumeHaveOneApplicationOwner(t *testing.T) 
 
 func TestLiveChildCancellationAndNaturalTerminalHaveOneTreeOwner(t *testing.T) {
 	plan := runningChildCancellationPlan()
-	completed := plan.target.run
-	completed.State = run.Completed
-	outcome := run.OutcomeCompleted
-	completed.Outcome = &outcome
+	completed, err := plan.target.run.Terminate(run.Termination{
+		Outcome: run.OutcomeCompleted, FinishedAt: plan.target.run.UpdatedAt(), MessageMark: run.UnknownMessageMark,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	t.Run("child cancellation commits first", func(t *testing.T) {
 		owner := &runTreeOwner{done: make(chan struct{})}
@@ -342,19 +346,20 @@ func TestLiveChildCancellationAndNaturalTerminalHaveOneTreeOwner(t *testing.T) {
 		if err != nil {
 			t.Fatalf("begin child cancellation: %v", err)
 		}
-		canceled := plan.target.run
-		canceled.State = run.Canceled
-		canceledOutcome := run.OutcomeCanceled
-		canceled.Outcome = &canceledOutcome
+		canceled, err := plan.target.run.Terminate(run.Termination{
+			Outcome: run.OutcomeCanceled, FinishedAt: plan.target.run.UpdatedAt(), MessageMark: run.UnknownMessageMark,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
 		owner.recordTerminalRun(canceled)
 		owner.recordChildCancellationItem(
-			plan.target.run.ParentRunID,
+			plan.target.run.Lineage().ParentRunID,
 			transcript.Item{
-				ID:     plan.target.run.SpawnedByItemID,
+				ID:     plan.target.run.Lineage().SpawnedByItemID,
 				Status: transcript.ItemIncomplete,
-				Error: &transcript.Problem{
-					Kind:  transcript.ChildRunCanceledProblem,
-					Scope: transcript.ToolProblem,
+				Error: &tool.Failure{
+					Kind: tool.FailureChildRunCanceled,
 				},
 			},
 		)
@@ -363,9 +368,9 @@ func TestLiveChildCancellationAndNaturalTerminalHaveOneTreeOwner(t *testing.T) {
 		if err != nil {
 			t.Fatalf("wait child cancellation: %v", err)
 		}
-		if target.ID != plan.target.run.ID ||
-			target.State != run.Canceled ||
-			root.ID != plan.root.run.ID {
+		if target.ID() != plan.target.run.ID() ||
+			target.State() != run.Canceled ||
+			root.ID() != plan.root.run.ID() {
 			t.Fatalf("child cancellation result = target:%+v root:%+v", target, root)
 		}
 	})
@@ -378,7 +383,7 @@ func TestLiveChildCancellationAndNaturalTerminalHaveOneTreeOwner(t *testing.T) {
 		}
 		if _, err := owner.beginChildCancellation(plan, "duplicate child"); !errors.Is(err, ErrSessionBusy) {
 			t.Fatalf("duplicate child cancellation error = %v, want ErrSessionBusy", err)
-		} else if !strings.Contains(err.Error(), plan.target.run.ID) {
+		} else if !strings.Contains(err.Error(), plan.target.run.ID()) {
 			t.Fatalf("duplicate child cancellation error = %q, want target identity", err)
 		}
 
@@ -404,20 +409,18 @@ func TestLiveChildCancellationAndNaturalTerminalHaveOneTreeOwner(t *testing.T) {
 }
 
 func runningChildCancellationPlan() cancellationPlan {
-	child := transcript.Run{
-		ID:              "run_child",
-		SessionID:       "session",
-		SpawnedByItemID: "item_spawn",
-		ParentRunID:     "run_root",
-		RootRunID:       "run_root",
-		State:           run.Running,
-	}
+	child := runfixture.MustRestore(run.Snapshot{ID: "run_child",
+		SessionID: "session",
+
+		State: run.Running, Lineage: run.Lineage{SpawnedByItemID: "item_spawn",
+			ParentRunID: "run_root",
+			RootRunID:   "run_root"}})
+
 	return cancellationPlan{
-		root: cancellationRun{run: transcript.Run{
-			ID:        "run_root",
+		root: cancellationRun{run: runfixture.MustRestore(run.Snapshot{ID: "run_root",
 			SessionID: "session",
-			State:     run.Running,
-		}},
+			State:     run.Running}),
+		},
 		target: cancellationRun{
 			run:       child,
 			memberID:  "member_child",
@@ -440,14 +443,18 @@ func waitingCancellationMutationWithSiblingBoundary() *fakePreparedWaitingCancel
 }
 
 func stopChildWaitingCancellationEffects(plan cancellationPlan) *fakeEffects {
+	target, err := canceledWaitingRun(
+		plan.target.run,
+		"stop child",
+		time.Date(2026, 7, 30, 2, 3, 4, 0, time.UTC),
+	)
+	if err != nil {
+		panic(err)
+	}
 	return &fakeEffects{
 		waitingResult: WaitingSubtreeCancellationResult{
-			TargetRun: canceledWaitingRun(
-				plan.target.run,
-				"stop child",
-				time.Date(2026, 7, 30, 2, 3, 4, 0, time.UTC),
-			),
-			RootRun: plan.root.run,
+			TargetRun: target,
+			RootRun:   plan.root.run,
 		},
 	}
 }

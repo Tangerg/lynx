@@ -3,7 +3,9 @@ package runs
 import (
 	"time"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/accounting"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
@@ -17,9 +19,12 @@ type RunEvent interface {
 	retainedBytes() int
 }
 
-type SegmentStarted struct{ Run transcript.Run }
+type SegmentStarted struct{ Run run.Run }
 type SegmentProgressed struct{ Progress RunProgress }
-type SegmentFinished struct{ Run transcript.Run }
+type SegmentFinished struct {
+	Run        run.Run
+	Interrupts []transcript.Interrupt
+}
 type ItemStarted struct{ Item transcript.Item }
 type ItemChanged struct {
 	ItemID string
@@ -65,17 +70,23 @@ func (ItemChanged) Terminal() bool       { return false }
 func (ItemCompleted) Terminal() bool     { return false }
 func (StateSnapshot) Terminal() bool     { return false }
 
-func (event SegmentStarted) retainedBytes() int  { return retainedRunBytes(event.Run) }
-func (SegmentProgressed) retainedBytes() int     { return 0 }
-func (event SegmentFinished) retainedBytes() int { return retainedRunBytes(event.Run) }
-func (event ItemStarted) retainedBytes() int     { return retainedItemBytes(event.Item) }
-func (ItemChanged) retainedBytes() int           { return 0 }
-func (event ItemCompleted) retainedBytes() int   { return retainedItemBytes(event.Item) }
-func (event StateSnapshot) retainedBytes() int   { return retainedStateSnapshotBytes(event) }
+func (event SegmentStarted) retainedBytes() int { return retainedRunBytes(event.Run) }
+func (SegmentProgressed) retainedBytes() int    { return 0 }
+func (event SegmentFinished) retainedBytes() int {
+	bytes := retainedRunBytes(event.Run) + cap(event.Interrupts)*retainedInterruptBytes
+	for _, pending := range event.Interrupts {
+		bytes += retainedInterruptPayloadBytes(pending)
+	}
+	return bytes
+}
+func (event ItemStarted) retainedBytes() int   { return retainedItemBytes(event.Item) }
+func (ItemChanged) retainedBytes() int         { return 0 }
+func (event ItemCompleted) retainedBytes() int { return retainedItemBytes(event.Item) }
+func (event StateSnapshot) retainedBytes() int { return retainedStateSnapshotBytes(event) }
 
 type RunProgress struct {
 	Step          *int
-	Usage         *transcript.Usage
+	Usage         *accounting.Usage
 	ContextTokens *int64
 	ToolName      string
 	Activity      string

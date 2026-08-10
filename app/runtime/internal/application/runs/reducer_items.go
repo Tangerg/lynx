@@ -255,7 +255,11 @@ func (r *reducer) toolStart(e ToolCallStarted) ([]RunEvent, error) {
 	// The step number previews the Run's accounting, so it counts the same thing
 	// the committed metrics do. Reporting the segment's own count would make a
 	// resumed Run appear to start over at step 1.
-	step := r.metrics().Steps
+	metrics, err := r.metrics()
+	if err != nil {
+		return nil, err
+	}
+	step := metrics.Steps()
 	out = append(out, SegmentProgressed{Progress: RunProgress{
 		Step: &step, ToolName: e.ToolName, Activity: e.Activity,
 	}})
@@ -343,9 +347,9 @@ func (r *reducer) toolEnd(e ToolCallFinished) ([]RunEvent, []ToolInvocationCommi
 		ref := *e.Offload
 		cloned.Offload = &ref
 	}
-	if e.Problem != nil {
-		problem := *e.Problem
-		cloned.Problem = &problem
+	if e.Failure != nil {
+		failure := *e.Failure
+		cloned.Failure = &failure
 	}
 	cloned.MutatedPaths = slices.Clone(e.MutatedPaths)
 	finishedAt := r.now()
@@ -422,13 +426,13 @@ func (r *reducer) completeTool(ref *openTool, e ToolCallFinished) ([]RunEvent, e
 		Tool:        invocation,
 		SafetyClass: ref.safetyClass,
 	}
-	if e.Problem != nil {
-		if err := e.Problem.ValidateFor(transcript.ToolProblem); err != nil {
-			return nil, fmt.Errorf("tool %q problem: %w", ref.name, err)
+	if e.Failure != nil {
+		if err := e.Failure.Validate(); err != nil {
+			return nil, fmt.Errorf("tool %q failure: %w", ref.name, err)
 		}
 		item.Status = transcript.ItemIncomplete
-		problem := *e.Problem
-		item.Error = &problem
+		failure := *e.Failure
+		item.Error = &failure
 	}
 	return append(out, ItemCompleted{Item: item, mutatedPaths: e.MutatedPaths}), nil
 }
@@ -445,7 +449,15 @@ func (r *reducer) usageProgress(e UsageReported) ([]RunEvent, error) {
 	}); err != nil {
 		return nil, err
 	}
-	progress := RunProgress{Usage: r.metrics().Usage}
+	metrics, err := r.metrics()
+	if err != nil {
+		return nil, err
+	}
+	usage, reported := metrics.Usage()
+	progress := RunProgress{}
+	if reported {
+		progress.Usage = &usage
+	}
 	if e.ContextTokens > 0 {
 		contextTokens := e.ContextTokens
 		progress.ContextTokens = &contextTokens

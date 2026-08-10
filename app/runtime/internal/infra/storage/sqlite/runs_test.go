@@ -13,8 +13,10 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
+	runfixture "github.com/Tangerg/lynx/app/runtime/internal/testsupport/runfixture"
 )
 
 func newRunStores(t *testing.T) (*sqlite.RunStore, *persistence.InterruptStore) {
@@ -49,35 +51,66 @@ func runDraft(runID, sessionID string) run.Draft {
 // finishedRun is the terminal record a segment hands to Terminalize: the outcome
 // together with the result that explains it, which is the only shape the Run row
 // accepts.
-func finishedRun(runID, sessionID string, outcome run.Outcome) transcript.Run {
-	state, _ := run.Running.Terminate(outcome)
-	record := transcript.Run{
-		SessionID: sessionID, ID: runID, State: state, Outcome: &outcome,
-		Metrics:   transcript.RunMetrics{Steps: 1},
-		CreatedAt: runCreatedAt, FinishedAt: time.Unix(9, 0).UTC(),
-		UpdatedAt: time.Unix(9, 0).UTC(),
+func finishedRun(runID, sessionID string, outcome run.Outcome) run.Run {
+	return finishedRunFromDraft(runDraft(runID, sessionID), outcome)
+}
+
+func finishedRunFromDraft(draft run.Draft, outcome run.Outcome) run.Run {
+	value, err := run.Admit(draft)
+	if err != nil {
+		panic(err)
 	}
-	if outcome == run.OutcomeFailed {
-		record.Error = &transcript.Problem{Kind: transcript.InternalProblem, Scope: transcript.RunProblem}
+	finishedAt := time.Unix(9, 0).UTC()
+	value, err = value.AdvanceMetrics(runfixture.MustMetrics(runfixture.MetricsInput{Steps: 1}), finishedAt)
+	if err != nil {
+		panic(err)
 	}
-	return record
+	var failure *run.Failure
+	switch outcome {
+	case run.OutcomeFailed:
+		failure = &run.Failure{Kind: run.FailureInternal}
+	case run.OutcomeTimedOut:
+		failure = &run.Failure{Kind: run.FailureTimeout}
+	case run.OutcomeLost:
+		failure = &run.Failure{Kind: run.FailureLost}
+	}
+	value, err = value.Terminate(run.Termination{
+		Outcome: outcome, Failure: failure, FinishedAt: finishedAt, MessageMark: 0,
+	})
+	if err != nil {
+		panic(err)
+	}
+	return value
 }
 
 // parkedRun is the record a park hands to Suspend: the run moving to Waiting,
 // carrying the interrupt it is parked on and what it consumed getting there.
-func parkedRun(runID, sessionID string) transcript.Run {
-	return transcript.Run{
-		SessionID: sessionID, ID: runID, State: run.Waiting,
-		Interrupts: []transcript.Interrupt{{
-			ItemID: "itm_" + runID, ItemOccurredAt: runCreatedAt,
-			RunID: runID, Kind: interrupt.Question,
-			Question: &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "continue?"}}},
-		}},
-		Metrics:     transcript.RunMetrics{Steps: 1},
-		CreatedAt:   runCreatedAt,
-		UpdatedAt:   time.Unix(5, 0).UTC(),
-		MessageMark: transcript.UnknownMessageMark,
+func parkedRun(runID, sessionID string) run.Run {
+	return parkedRunFromDraft(runDraft(runID, sessionID))
+}
+
+func parkedRunFromDraft(draft run.Draft) run.Run {
+	value, err := run.Admit(draft)
+	if err != nil {
+		panic(err)
 	}
+	at := time.Unix(5, 0).UTC()
+	value, err = value.AdvanceMetrics(runfixture.MustMetrics(runfixture.MetricsInput{Steps: 1}), at)
+	if err != nil {
+		panic(err)
+	}
+	value, err = value.Suspend(at)
+	if err != nil {
+		panic(err)
+	}
+	return value
+}
+
+func approvalInterrupts() []transcript.Interrupt {
+	return []transcript.Interrupt{{
+		ItemID: "item_approval", Kind: interrupt.Approval,
+		Approval: &transcript.Approval{Tool: transcript.ToolInvocation{Name: "shell"}, Risk: tool.RiskMedium},
+	}}
 }
 
 func pendingForRun(
@@ -150,7 +183,7 @@ func TestParkCommitsInterruptAndSuspendAtomically(t *testing.T) {
 			"run_1",
 			"ses_A",
 			"member_1",
-			parkedRun("run_1", "ses_A").Interrupts,
+			approvalInterrupts(),
 			time.Unix(2, 0).UTC(),
 		)); err != nil {
 			return err
@@ -258,14 +291,14 @@ func TestRunAdmitSharesOneRootAdmissionAcrossTheTree(t *testing.T) {
 		{id: "run_child", parentID: "run_root"},
 		{id: "run_grandchild", parentID: "run_child"},
 	} {
-		run, found, err := store.Run(ctx, want.id)
+		record, found, err := store.Run(ctx, want.id)
 		if err != nil || !found {
 			t.Fatalf("read %s: found=%v err=%v", want.id, found, err)
 		}
-		if run.ParentRunID != want.parentID ||
-			run.RootRunID != "run_root" ||
-			run.Capabilities.ChildRuns != capabilities.ChildRuns {
-			t.Fatalf("run %s = %+v, want parent %s, root run_root, inherited capabilities", want.id, run, want.parentID)
+		if record.Lineage().ParentRunID != want.parentID ||
+			record.Lineage().RootRunID != "run_root" ||
+			record.Capabilities().ChildRuns != capabilities.ChildRuns {
+			t.Fatalf("run %s = %+v, want parent %s, root run_root, inherited capabilities", want.id, record, want.parentID)
 		}
 	}
 
@@ -274,8 +307,8 @@ func TestRunAdmitSharesOneRootAdmissionAcrossTheTree(t *testing.T) {
 		t.Fatalf("read tree: %v", err)
 	}
 	treeIDs := make([]string, len(tree))
-	for index, run := range tree {
-		treeIDs[index] = run.ID
+	for index, record := range tree {
+		treeIDs[index] = record.ID()
 	}
 	slices.Sort(treeIDs)
 	if want := []string{"run_child", "run_grandchild", "run_root"}; !slices.Equal(treeIDs, want) {
@@ -318,16 +351,6 @@ func TestRunAdmitRejectsAChildOutsideItsDurableTree(t *testing.T) {
 				CreatedAt: runCreatedAt,
 			},
 			want: "belongs to session",
-		},
-		{
-			name: "child-owned capabilities",
-			draft: run.Draft{
-				RunID: "run_child_capabilities", SessionID: "ses_A", SegmentID: "seg_open",
-				SpawnedByItemID: "item_spawn", ParentRunID: "run_root_a", RootRunID: "run_root_a",
-				Capabilities: run.Capabilities{ChildRuns: true},
-				CreatedAt:    runCreatedAt,
-			},
-			want: "capabilities are owned by root",
 		},
 	}
 
@@ -417,7 +440,7 @@ func TestSuspendResumeReusesOneSlot(t *testing.T) {
 		t.Fatalf("admit while suspended = %v, want ErrSessionBusy (row still non-terminal)", err)
 	}
 	// Resume: back to running, no second row admitted.
-	if err := store.Resume(ctx, "ses_A", run.ResumeDraft{RunID: "run_1", SegmentID: "seg_next"}, time.Now().UTC()); err != nil {
+	if err := store.Resume(ctx, "ses_A", run.ResumeDraft{RunID: "run_1", SegmentID: "seg_next"}, time.Unix(6, 0).UTC()); err != nil {
 		t.Fatalf("resume: %v", err)
 	}
 	if err := store.Admit(ctx, runDraft("run_3", "ses_A")); !errors.Is(err, run.ErrSessionBusy) {
@@ -450,14 +473,13 @@ func TestDeleteForSessionFreesSlot(t *testing.T) {
 	}
 }
 
-func TestTerminalizeRejectsUnknownOutcome(t *testing.T) {
-	store, _ := newRunStores(t)
-	ctx := t.Context()
-	if err := store.Admit(ctx, runDraft("run_1", "ses_1")); err != nil {
-		t.Fatalf("admit: %v", err)
-	}
-	if err := store.Terminalize(ctx, finishedRun("run_1", "ses_1", run.Outcome(255))); err == nil {
-		t.Fatal("terminalize accepted an unknown outcome")
+func TestRunRestoreRejectsUnknownOutcome(t *testing.T) {
+	outcome := run.Outcome(255)
+	if _, err := run.Restore(run.Snapshot{
+		ID: "run_1", SessionID: "ses_1", State: run.Failed, Outcome: &outcome,
+		CreatedAt: runCreatedAt, FinishedAt: time.Unix(9, 0).UTC(), UpdatedAt: time.Unix(9, 0).UTC(),
+	}); err == nil {
+		t.Fatal("Run restore accepted an unknown outcome")
 	}
 }
 
@@ -480,12 +502,14 @@ func TestPageRunsReturnsEveryLifecyclePosition(t *testing.T) {
 			t.Fatalf("admit %s: %v", draft.RunID, err)
 		}
 	}
-	parked := parkedRun("run_parked", "ses_B")
+	parked := parkedRunFromDraft(run.Draft{
+		RunID: "run_parked", SessionID: "ses_B", SegmentID: "seg_open", CreatedAt: time.Unix(0, 10),
+	})
 	if err := ints.Open(ctx, pendingForRun(
-		parked.ID,
-		parked.SessionID,
+		parked.ID(),
+		parked.SessionID(),
 		"member_parked",
-		parked.Interrupts,
+		approvalInterrupts(),
 		time.Unix(0, 10).UTC(),
 	)); err != nil {
 		t.Fatalf("open interrupt: %v", err)
@@ -493,7 +517,9 @@ func TestPageRunsReturnsEveryLifecyclePosition(t *testing.T) {
 	if err := store.Suspend(ctx, parked); err != nil {
 		t.Fatalf("suspend: %v", err)
 	}
-	if err := store.Terminalize(ctx, finishedRun("run_done", "ses_C", run.OutcomeCompleted)); err != nil {
+	if err := store.Terminalize(ctx, finishedRunFromDraft(run.Draft{
+		RunID: "run_done", SessionID: "ses_C", SegmentID: "seg_open", CreatedAt: time.Unix(0, 30),
+	}, run.OutcomeCompleted)); err != nil {
 		t.Fatalf("terminalize: %v", err)
 	}
 
@@ -530,7 +556,7 @@ func TestPageRunsReturnsEveryLifecyclePosition(t *testing.T) {
 
 	// The session filter is independent of the status one: scoping to a session that
 	// holds a parked run still finds it.
-	if scoped, err := store.PageRuns(ctx, "ses_B", nil, false, 0, "", 0); err != nil || len(scoped) != 1 || scoped[0].ID != "run_parked" {
+	if scoped, err := store.PageRuns(ctx, "ses_B", nil, false, 0, "", 0); err != nil || len(scoped) != 1 || scoped[0].ID() != "run_parked" {
 		t.Fatalf("ses_B scoped = %+v (err %v), want the parked run", scoped, err)
 	}
 	if _, err := store.PageRuns(ctx, "", []run.Status{run.Status(9)}, false, 0, "", 0); err == nil {
@@ -591,7 +617,7 @@ func TestPageRunsSeeksBeforeItsAnchor(t *testing.T) {
 
 	// run_b shares run_c's admission time, so a time-only bound would drop it or
 	// repeat it; the run id breaks the tie.
-	rest, err := store.PageRuns(ctx, "", nil, false, first[1].CreatedAt.UnixNano(), first[1].ID, 2)
+	rest, err := store.PageRuns(ctx, "", nil, false, first[1].CreatedAt().UnixNano(), first[1].ID(), 2)
 	if err != nil {
 		t.Fatalf("second page: %v", err)
 	}
@@ -611,20 +637,22 @@ func TestPageRunsSelectsRootsOrDescendants(t *testing.T) {
 	store, _ := newRunStores(t)
 
 	root := finishedRun("run_root", "ses_A", run.OutcomeCompleted)
-	root.CreatedAt = time.Unix(0, 10).UTC()
+	root = withRunSnapshot(root, func(snapshot *run.Snapshot) {
+		snapshot.CreatedAt = time.Unix(0, 10).UTC()
+	})
 	child := finishedRun("run_child", "ses_A", run.OutcomeCompleted)
-	child.CreatedAt = time.Unix(0, 20).UTC()
-	child.SpawnedByItemID = "it_spawn"
-	child.ParentRunID = "run_root"
-	child.RootRunID = "run_root"
+	child = withRunSnapshot(child, func(snapshot *run.Snapshot) {
+		snapshot.CreatedAt = time.Unix(0, 20).UTC()
+		snapshot.Lineage = run.Lineage{SpawnedByItemID: "it_spawn", ParentRunID: root.ID(), RootRunID: root.ID()}
+	})
 	grandchild := finishedRun("run_grandchild", "ses_A", run.OutcomeCompleted)
-	grandchild.CreatedAt = time.Unix(0, 30).UTC()
-	grandchild.SpawnedByItemID = "it_spawn_grandchild"
-	grandchild.ParentRunID = child.ID
-	grandchild.RootRunID = root.ID
-	for _, run := range []transcript.Run{root, child, grandchild} {
-		if err := store.Restore(ctx, run); err != nil {
-			t.Fatalf("restore %s: %v", run.ID, err)
+	grandchild = withRunSnapshot(grandchild, func(snapshot *run.Snapshot) {
+		snapshot.CreatedAt = time.Unix(0, 30).UTC()
+		snapshot.Lineage = run.Lineage{SpawnedByItemID: "it_spawn_grandchild", ParentRunID: child.ID(), RootRunID: root.ID()}
+	})
+	for _, record := range []run.Run{root, child, grandchild} {
+		if err := store.Restore(ctx, record); err != nil {
+			t.Fatalf("restore %s: %v", record.ID(), err)
 		}
 	}
 
@@ -647,21 +675,21 @@ func TestPageRunsSelectsRootsOrDescendants(t *testing.T) {
 	if err != nil || !ok {
 		t.Fatalf("read child run: ok=%v err=%v", ok, err)
 	}
-	if found.SpawnedByItemID != "it_spawn" ||
-		found.ParentRunID != "run_root" ||
-		found.RootRunID != "run_root" ||
-		found.SessionID != "ses_A" {
+	if found.Lineage().SpawnedByItemID != "it_spawn" ||
+		found.Lineage().ParentRunID != "run_root" ||
+		found.Lineage().RootRunID != "run_root" ||
+		found.SessionID() != "ses_A" {
 		t.Fatalf("child = %+v, want its complete lineage and session", found)
 	}
 	if _, ok, err := store.Run(ctx, "run_absent"); err != nil || ok {
 		t.Fatalf("absent run: ok=%v err=%v, want a clean miss", ok, err)
 	}
 
-	lineage, err := store.RunsWithAncestors(ctx, []string{grandchild.ID})
+	lineage, err := store.RunsWithAncestors(ctx, []string{grandchild.ID()})
 	if err != nil {
 		t.Fatalf("read grandchild lineage: %v", err)
 	}
-	if got := runIDs(lineage); !slices.Equal(got, []string{grandchild.ID, child.ID, root.ID}) {
+	if got := runIDs(lineage); !slices.Equal(got, []string{grandchild.ID(), child.ID(), root.ID()}) {
 		t.Fatalf("grandchild lineage = %v, want grandchild through root", got)
 	}
 }
@@ -671,25 +699,25 @@ func TestPageRunTreeItemsUsesDurableParentEdges(t *testing.T) {
 	ctx := t.Context()
 	root := finishedRun("run_root", "ses_A", run.OutcomeCompleted)
 	child := finishedRun("run_child", "ses_A", run.OutcomeCompleted)
-	child.SpawnedByItemID = "item_spawn_child"
-	child.ParentRunID = root.ID
-	child.RootRunID = root.ID
+	child = withRunSnapshot(child, func(snapshot *run.Snapshot) {
+		snapshot.Lineage = run.Lineage{SpawnedByItemID: "item_spawn_child", ParentRunID: root.ID(), RootRunID: root.ID()}
+	})
 	grandchild := finishedRun("run_grandchild", "ses_A", run.OutcomeCompleted)
-	grandchild.SpawnedByItemID = "item_spawn_grandchild"
-	grandchild.ParentRunID = child.ID
-	grandchild.RootRunID = root.ID
+	grandchild = withRunSnapshot(grandchild, func(snapshot *run.Snapshot) {
+		snapshot.Lineage = run.Lineage{SpawnedByItemID: "item_spawn_grandchild", ParentRunID: child.ID(), RootRunID: root.ID()}
+	})
 	sibling := finishedRun("run_sibling", "ses_A", run.OutcomeCompleted)
-	sibling.SpawnedByItemID = "item_spawn_sibling"
-	sibling.ParentRunID = root.ID
-	sibling.RootRunID = root.ID
-	for _, run := range []transcript.Run{root, child, grandchild, sibling} {
-		if err := store.Restore(ctx, run); err != nil {
-			t.Fatalf("restore %s: %v", run.ID, err)
+	sibling = withRunSnapshot(sibling, func(snapshot *run.Snapshot) {
+		snapshot.Lineage = run.Lineage{SpawnedByItemID: "item_spawn_sibling", ParentRunID: root.ID(), RootRunID: root.ID()}
+	})
+	for _, record := range []run.Run{root, child, grandchild, sibling} {
+		if err := store.Restore(ctx, record); err != nil {
+			t.Fatalf("restore %s: %v", record.ID(), err)
 		}
 	}
-	for index, runID := range []string{root.ID, child.ID, grandchild.ID, sibling.ID} {
+	for index, runID := range []string{root.ID(), child.ID(), grandchild.ID(), sibling.ID()} {
 		if err := transcripts.AppendItem(ctx, transcript.Item{
-			SessionID:  root.SessionID,
+			SessionID:  root.SessionID(),
 			ID:         "item_" + runID,
 			RunID:      runID,
 			Status:     transcript.ItemCompleted,
@@ -700,7 +728,7 @@ func TestPageRunTreeItemsUsesDurableParentEdges(t *testing.T) {
 		}
 	}
 
-	rows, err := transcripts.PageRunTreeItems(ctx, child.ID, transcript.OldestFirst, 0, 0)
+	rows, err := transcripts.PageRunTreeItems(ctx, child.ID(), transcript.OldestFirst, 0, 0)
 	if err != nil {
 		t.Fatalf("page child subtree items: %v", err)
 	}
@@ -708,11 +736,11 @@ func TestPageRunTreeItemsUsesDurableParentEdges(t *testing.T) {
 	for _, row := range rows {
 		got = append(got, row.Item.RunID)
 	}
-	if !slices.Equal(got, []string{child.ID, grandchild.ID}) {
+	if !slices.Equal(got, []string{child.ID(), grandchild.ID()}) {
 		t.Fatalf("child subtree items = %v, want child and grandchild only", got)
 	}
 
-	tail, err := transcripts.PageRunTreeItems(ctx, root.ID, transcript.NewestFirst, 0, 2)
+	tail, err := transcripts.PageRunTreeItems(ctx, root.ID(), transcript.NewestFirst, 0, 2)
 	if err != nil {
 		t.Fatalf("page root subtree tail: %v", err)
 	}
@@ -720,15 +748,15 @@ func TestPageRunTreeItemsUsesDurableParentEdges(t *testing.T) {
 	for _, row := range tail {
 		got = append(got, row.Item.RunID)
 	}
-	if !slices.Equal(got, []string{sibling.ID, grandchild.ID}) {
+	if !slices.Equal(got, []string{sibling.ID(), grandchild.ID()}) {
 		t.Fatalf("root subtree tail = %v, want newest two items", got)
 	}
 }
 
-func runIDs(runs []transcript.Run) []string {
+func runIDs(runs []run.Run) []string {
 	out := make([]string, 0, len(runs))
-	for _, run := range runs {
-		out = append(out, run.ID)
+	for _, record := range runs {
+		out = append(out, record.ID())
 	}
 	return out
 }
@@ -755,15 +783,14 @@ func TestRunCapabilitiesAreImmutable(t *testing.T) {
 		t.Fatalf("admit: %v", err)
 	}
 
-	// A park hands the store a whole Run record, including capabilities — the store
-	// must ignore it rather than let the segment restate the value.
-	parked := parkedRun("run_1", "ses_A")
-	parked.Capabilities = run.Capabilities{}
+	// A park hands the store the exact aggregate transition, including the frozen
+	// capabilities admitted with the Run.
+	parked := parkedRunFromDraft(draft)
 	pending := pendingForRun(
 		"run_1",
 		"ses_A",
 		"member_1",
-		parked.Interrupts,
+		approvalInterrupts(),
 		time.Unix(5, 0).UTC(),
 	)
 	pending.Capabilities = admitted
@@ -786,13 +813,12 @@ func TestRunCapabilitiesAreImmutable(t *testing.T) {
 		t.Fatalf("park hand-off capabilities = %v, want %v", pending.Capabilities, admitted)
 	}
 
-	if err := store.Resume(ctx, "ses_A", run.ResumeDraft{RunID: "run_1", SegmentID: "seg_next"}, time.Now().UTC()); err != nil {
+	if err := store.Resume(ctx, "ses_A", run.ResumeDraft{RunID: "run_1", SegmentID: "seg_next"}, time.Unix(6, 0).UTC()); err != nil {
 		t.Fatalf("resume: %v", err)
 	}
 	assertRunCapabilities(t, store, "run_1", admitted, "after resume")
 
-	finished := finishedRun("run_1", "ses_A", run.OutcomeCompleted)
-	finished.Capabilities = run.Capabilities{}
+	finished := finishedRunFromDraft(draft, run.OutcomeCompleted)
 	if err := store.Terminalize(ctx, finished); err != nil {
 		t.Fatalf("terminalize: %v", err)
 	}
@@ -805,15 +831,22 @@ func assertRunCapabilities(t *testing.T, store *sqlite.RunStore, runID string, w
 	if err != nil {
 		t.Fatalf("list runs %s: %v", when, err)
 	}
-	for _, run := range runs {
-		if run.ID != runID {
+	for _, record := range runs {
+		if record.ID() != runID {
 			continue
 		}
-		if run.Capabilities.ChildRuns != want.ChildRuns ||
-			!slices.Equal(run.Capabilities.InterruptKinds, want.InterruptKinds) {
-			t.Fatalf("capabilities %s = %v, want %v", when, run.Capabilities, want)
+		capabilities := record.Capabilities()
+		if capabilities.ChildRuns != want.ChildRuns ||
+			!slices.Equal(capabilities.InterruptKinds, want.InterruptKinds) {
+			t.Fatalf("capabilities %s = %v, want %v", when, capabilities, want)
 		}
 		return
 	}
 	t.Fatalf("run %q missing %s", runID, when)
+}
+
+func withRunSnapshot(record run.Run, mutate func(*run.Snapshot)) run.Run {
+	snapshot := record.Snapshot()
+	mutate(&snapshot)
+	return runfixture.MustRestore(snapshot)
 }

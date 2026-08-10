@@ -940,7 +940,7 @@ func TestPendingAndRecoveryMutationsCarryTheirOwners(t *testing.T) {
 		t.Fatalf("read terminal write-set: %v", err)
 	}
 	for _, required := range []string{
-		"Runs             []transcript.Run",
+		"Runs             []rundomain.Run",
 		"rundomain.NewTree",
 		"tree.Postorder()",
 		"validateTerminalGoalRun",
@@ -1002,15 +1002,15 @@ func TestParkedContinuationFactsAreCrossCheckedAtEveryLifecycleBoundary(t *testi
 			"slices.Contains(p.Capabilities.InterruptKinds, interrupt.Kind)",
 		},
 		filepath.Join("internal", "application", "runs", "commit.go"): {
-			"runCommit.Run.Metrics.Equal(continuation.Metrics)",
-			"runCommit.Run.Limits != continuation.Limits",
-			"runCommit.Run.Capabilities.Equal(pending.Capabilities)",
-			"runCommit.Run.GoalLeaseID != pending.GoalLeaseID",
+			"runCommit.Run.Metrics().Equal(continuation.Metrics)",
+			"runCommit.Run.Limits() != continuation.Limits",
+			"runCommit.Run.Capabilities().Equal(pending.Capabilities)",
+			"runCommit.Run.GoalLeaseID() != pending.GoalLeaseID",
 		},
 		filepath.Join("internal", "application", "runs", "waiting_cancellation_commit.go"): {
-			"run.Metrics.Equal(continuation.Metrics)",
-			"run.Limits != continuation.Limits",
-			"c.RootRun.Capabilities.Equal(c.ExpectedPending.Capabilities)",
+			"run.Metrics().Equal(continuation.Metrics)",
+			"run.Limits() != continuation.Limits",
+			"c.RootRun.Capabilities().Equal(c.ExpectedPending.Capabilities)",
 		},
 		filepath.Join("internal", "application", "runs", "cancel_plan.go"): {
 			"validatePendingRunTree(*pending, activeRuns)",
@@ -1019,18 +1019,18 @@ func TestParkedContinuationFactsAreCrossCheckedAtEveryLifecycleBoundary(t *testi
 			"validatePendingRunTree(pending, parkedRuns)",
 		},
 		filepath.Join("internal", "application", "runs", "recovery_validation.go"): {
-			"validateContinuationRunFacts(root.ID, active, continuation)",
-			"pending.Capabilities.Equal(tree.root.Capabilities)",
+			"validateRecoveryContinuation(active, tree.root, continuation)",
+			"pending.Capabilities.Equal(tree.root.Capabilities())",
 		},
 		filepath.Join("internal", "application", "runs", "continuation_validation.go"): {
-			"run.Metrics.Equal(continuation.Metrics)",
-			"run.Limits != continuation.Limits",
-			"run.ModelSelection != continuation.ModelSelection",
+			"value.Metrics().Equal(continuation.Metrics)",
+			"value.Limits() != continuation.Limits",
+			"value.ModelSelection() != continuation.ModelSelection",
 		},
 		filepath.Join("internal", "application", "sessions", "parked_terminalization.go"): {
-			"run.Metrics.Equal(continuation.Metrics)",
-			"run.Limits == continuation.Limits",
-			"pending.Capabilities.Equal(rootAdmission.Capabilities)",
+			"run.Metrics().Equal(continuation.Metrics)",
+			"run.Limits() == continuation.Limits",
+			"terminalization.pending.Capabilities.Equal(rootAdmission.Capabilities())",
 		},
 	}
 	for relative, required := range checks {

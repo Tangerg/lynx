@@ -188,7 +188,7 @@ func (c *Coordinator) activeRunConflict(ctx context.Context, sessionID string) (
 	if err != nil || !found {
 		return nil, err
 	}
-	return &ActiveRunConflictError{RunID: run.ID, Status: run.State.Status()}, nil
+	return &ActiveRunConflictError{RunID: run.ID(), Status: run.State().Status()}, nil
 }
 
 // executionCWD resolves where a Session's tools operate: the sandbox copy

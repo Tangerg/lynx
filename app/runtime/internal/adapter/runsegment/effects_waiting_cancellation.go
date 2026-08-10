@@ -7,7 +7,6 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
 // CommitWaitingSubtreeCancellation claims the prepared Pending snapshot and
@@ -26,7 +25,7 @@ func (e *Effects) CommitWaitingSubtreeCancellation(
 			err,
 		)
 	}
-	var target, root transcript.Run
+	var target, root run.Run
 	err := e.runInTx(ctx, func(ctx context.Context) error {
 		if err := e.claimWaitingCancellation(ctx, commit); err != nil {
 			return err
@@ -126,24 +125,24 @@ func (e *Effects) persistWaitingCancellationProjection(
 
 func (e *Effects) terminalizeWaitingCancellationRuns(
 	ctx context.Context,
-	planned []transcript.Run,
-) (map[string]transcript.Run, error) {
-	terminalByID := make(map[string]transcript.Run, len(planned))
+	planned []run.Run,
+) (map[string]run.Run, error) {
+	terminalByID := make(map[string]run.Run, len(planned))
 	for _, runRecord := range planned {
 		finalized, err := e.finishedRun(ctx, runs.EventCommit{
-			RunID:     runRecord.ID,
-			SessionID: runRecord.SessionID,
+			RunID:     runRecord.ID(),
+			SessionID: runRecord.SessionID(),
 			State:     runs.StateTerminalize,
 			Outcome:   run.OutcomeCanceled,
 			Run:       &runRecord,
 		})
 		if err != nil {
-			return nil, fmt.Errorf("runsegment: finalize canceled Run %q: %w", runRecord.ID, err)
+			return nil, fmt.Errorf("runsegment: finalize canceled Run %q: %w", runRecord.ID(), err)
 		}
 		if err := e.runState.Terminalize(ctx, finalized); err != nil {
-			return nil, fmt.Errorf("runsegment: terminalize canceled Run %q: %w", runRecord.ID, err)
+			return nil, fmt.Errorf("runsegment: terminalize canceled Run %q: %w", runRecord.ID(), err)
 		}
-		terminalByID[runRecord.ID] = finalized
+		terminalByID[runRecord.ID()] = finalized
 	}
 	return terminalByID, nil
 }
@@ -151,7 +150,7 @@ func (e *Effects) terminalizeWaitingCancellationRuns(
 func (e *Effects) persistWaitingCancellationDisposition(
 	ctx context.Context,
 	commit runs.WaitingSubtreeCancellationCommit,
-	root *transcript.Run,
+	root *run.Run,
 ) error {
 	if root == nil {
 		return errors.New("runsegment: waiting cancellation root projection is required")
@@ -164,7 +163,6 @@ func (e *Effects) persistWaitingCancellationDisposition(
 				err,
 			)
 		}
-		root.Interrupts = directInterrupts(*commit.RemainingPending, commit.RootRunID)
 		return nil
 	}
 	for _, draft := range commit.Resume.Runs {
@@ -172,10 +170,11 @@ func (e *Effects) persistWaitingCancellationDisposition(
 			return fmt.Errorf("runsegment: resume surviving Run %q: %w", draft.RunID, err)
 		}
 		if draft.RunID == commit.RootRunID {
-			root.State = run.Running
-			root.ActiveSegmentID = draft.SegmentID
-			root.Interrupts = nil
-			root.UpdatedAt = commit.Resume.ResumedAt.UTC()
+			resumed, err := root.Resume(draft.SegmentID, commit.Resume.ResumedAt)
+			if err != nil {
+				return fmt.Errorf("runsegment: project resumed root Run %q: %w", draft.RunID, err)
+			}
+			*root = resumed
 		}
 	}
 	for _, event := range commit.OpeningEvents {
@@ -205,14 +204,4 @@ func (e *Effects) requireWaitingCancellationStores() error {
 	default:
 		return nil
 	}
-}
-
-func directInterrupts(pending runs.Pending, runID string) []transcript.Interrupt {
-	out := make([]transcript.Interrupt, 0, len(pending.Interrupts))
-	for _, interrupt := range pending.Interrupts {
-		if interrupt.RunID == runID {
-			out = append(out, interrupt)
-		}
-	}
-	return out
 }

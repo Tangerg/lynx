@@ -242,9 +242,8 @@ func TestInterruptStoreRoundTripsAppLineageWithoutExecutorTopology(t *testing.T)
 				RunCreatedAt: createdAt,
 				CommittedTools: []runs.CommittedTool{{
 					ItemID: "item_spawn_child", CallID: "call_child", Name: "delegate_task", Arguments: "{}",
-					Problem: transcript.Problem{
-						Kind:   transcript.ChildRunCanceledProblem,
-						Scope:  transcript.ToolProblem,
+					Failure: tool.Failure{
+						Kind:   tool.FailureChildRunCanceled,
 						Detail: "stop delegated branch",
 					},
 				}},
@@ -269,7 +268,7 @@ func TestInterruptStoreRoundTripsAppLineageWithoutExecutorTopology(t *testing.T)
 		len(root.CommittedTools) != 1 ||
 		root.CommittedTools[0].ItemID != "item_spawn_child" ||
 		root.CommittedTools[0].CallID != "call_child" ||
-		root.CommittedTools[0].Problem.Kind != transcript.ChildRunCanceledProblem {
+		root.CommittedTools[0].Failure.Kind != tool.FailureChildRunCanceled {
 		t.Fatalf("root committed tools = %+v, want canceled child result hand-off", root.CommittedTools)
 	}
 }

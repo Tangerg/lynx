@@ -6,6 +6,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/accounting"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
@@ -82,7 +83,7 @@ func artifactRunFromPortable(run sessions.PortableRun) (protocol.ArtifactRun, er
 	if err != nil {
 		return protocol.ArtifactRun{}, fmt.Errorf("run %q outcome: %w", run.ID, err)
 	}
-	problem, err := artifactProblemFromDomain(run.Error)
+	problem, err := artifactRunFailureFromDomain(run.Failure)
 	if err != nil {
 		return protocol.ArtifactRun{}, fmt.Errorf("run %q failure: %w", run.ID, err)
 	}
@@ -135,11 +136,16 @@ func artifactOutcomeType(outcome run.Outcome) (protocol.ArtifactOutcomeType, err
 	}
 }
 
-func artifactMetricsFromDomain(metrics transcript.RunMetrics) protocol.ArtifactRunMetrics {
+func artifactMetricsFromDomain(metrics run.Metrics) protocol.ArtifactRunMetrics {
+	usage, reported := metrics.Usage()
+	var usageRef *accounting.Usage
+	if reported {
+		usageRef = &usage
+	}
 	return protocol.ArtifactRunMetrics{
-		Usage:                artifactUsageFromDomain(metrics.Usage),
-		Steps:                metrics.Steps,
-		ActiveDurationMillis: metrics.ActiveDuration.Milliseconds(),
+		Usage:                artifactUsageFromDomain(usageRef),
+		Steps:                metrics.Steps(),
+		ActiveDurationMillis: metrics.ActiveDuration().Milliseconds(),
 	}
 }
 
@@ -152,14 +158,14 @@ func artifactLimitsFromDomain(limits run.Limits) *protocol.ArtifactRunLimits {
 	}
 }
 
-func artifactUsageFromDomain(usage *transcript.Usage) *protocol.ArtifactUsage {
+func artifactUsageFromDomain(usage *accounting.Usage) *protocol.ArtifactUsage {
 	if usage == nil {
 		return nil
 	}
 	out := &protocol.ArtifactUsage{
-		InputTokens: usage.InputTokens, OutputTokens: usage.OutputTokens,
-		CacheReadTokens: usage.CacheReadTokens, CacheWriteTokens: usage.CacheWriteTokens,
-		ReasoningTokens: usage.ReasoningTokens, CostUSD: usage.CostUSD,
+		InputTokens: usage.Total.InputTokens, OutputTokens: usage.Total.OutputTokens,
+		CacheReadTokens: usage.Total.CacheReadTokens, CacheWriteTokens: usage.Total.CacheWriteTokens,
+		ReasoningTokens: usage.Total.ReasoningTokens, CostUSD: usage.Total.CostUSD,
 	}
 	if len(usage.ByModel) != 0 {
 		out.ByModel = make(map[string]protocol.ArtifactModelUsage, len(usage.ByModel))
@@ -174,47 +180,64 @@ func artifactUsageFromDomain(usage *transcript.Usage) *protocol.ArtifactUsage {
 	return out
 }
 
-func artifactProblemFromDomain(problem *transcript.Problem) (*protocol.ArtifactProblem, error) {
-	if problem == nil {
+func artifactRunFailureFromDomain(failure *run.Failure) (*protocol.ArtifactProblem, error) {
+	if failure == nil {
 		return nil, nil
 	}
-	kind, err := artifactProblemType(problem.Kind)
+	kind, err := artifactRunFailureType(failure.Kind)
 	if err != nil {
 		return nil, err
 	}
 	return &protocol.ArtifactProblem{
-		Type: kind, Detail: problem.Detail, DocURL: problem.DocURL,
-		RetryAfterSeconds: problem.RetryAfterSeconds,
+		Type: kind, Detail: failure.Detail, DocURL: failure.DocURL,
+		RetryAfterSeconds: int(failure.RetryAfter.Seconds()),
 	}, nil
 }
 
-func artifactProblemType(kind transcript.ProblemKind) (protocol.ArtifactProblemType, error) {
+func artifactRunFailureType(kind run.FailureKind) (protocol.ArtifactProblemType, error) {
 	switch kind {
-	case transcript.InternalProblem:
+	case run.FailureInternal:
 		return protocol.ArtifactProblemInternalError, nil
-	case transcript.RunLostProblem:
+	case run.FailureLost:
 		return protocol.ArtifactProblemRunLost, nil
-	case transcript.AgentStuckProblem:
+	case run.FailureAgentStuck:
 		return protocol.ArtifactProblemAgentStuck, nil
-	case transcript.RateLimitedProblem:
+	case run.FailureRateLimited:
 		return protocol.ArtifactProblemRateLimited, nil
-	case transcript.InvalidAPIKeyProblem:
+	case run.FailureInvalidCredentials:
 		return protocol.ArtifactProblemInvalidAPIKey, nil
-	case transcript.TimeoutProblem:
+	case run.FailureTimeout:
 		return protocol.ArtifactProblemTimeout, nil
-	case transcript.ProviderUnavailableProblem:
+	case run.FailureProviderUnavailable:
 		return protocol.ArtifactProblemProviderUnavailable, nil
-	case transcript.ProviderRejectedProblem:
+	case run.FailureProviderRejected:
 		return protocol.ArtifactProblemProviderRejected, nil
-	case transcript.DeniedByUserProblem:
-		return protocol.ArtifactProblemDeniedByUser, nil
-	case transcript.ToolFailedProblem:
-		return protocol.ArtifactProblemToolFailed, nil
-	case transcript.ChildRunCanceledProblem:
-		return protocol.ArtifactProblemChildRunCanceled, nil
 	default:
 		return "", fmt.Errorf("unknown value %d", kind)
 	}
+}
+
+func artifactToolFailureFromDomain(failure *tool.Failure) (*protocol.ArtifactProblem, error) {
+	if failure == nil {
+		return nil, nil
+	}
+	var kind protocol.ArtifactProblemType
+	switch failure.Kind {
+	case tool.FailureInternal:
+		kind = protocol.ArtifactProblemInternalError
+	case tool.FailureDenied:
+		kind = protocol.ArtifactProblemDeniedByUser
+	case tool.FailureExecution:
+		kind = protocol.ArtifactProblemToolFailed
+	case tool.FailureChildRunCanceled:
+		kind = protocol.ArtifactProblemChildRunCanceled
+	default:
+		return nil, fmt.Errorf("unknown value %d", failure.Kind)
+	}
+	return &protocol.ArtifactProblem{
+		Type: kind, Detail: failure.Detail, DocURL: failure.DocURL,
+		RetryAfterSeconds: int(failure.RetryAfter.Seconds()),
+	}, nil
 }
 
 func artifactItemFromTranscript(item transcript.Item) (protocol.ArtifactItem, error) {
@@ -226,7 +249,7 @@ func artifactItemFromTranscript(item transcript.Item) (protocol.ArtifactItem, er
 	if err != nil {
 		return protocol.ArtifactItem{}, fmt.Errorf("item %q type: %w", item.ID, err)
 	}
-	problem, err := artifactProblemFromDomain(item.Error)
+	problem, err := artifactToolFailureFromDomain(item.Error)
 	if err != nil {
 		return protocol.ArtifactItem{}, fmt.Errorf("item %q error: %w", item.ID, err)
 	}

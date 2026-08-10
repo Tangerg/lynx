@@ -13,6 +13,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/catalog"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/discovery"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/accounting"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	domaintool "github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
@@ -406,29 +407,31 @@ func rootInteractionWaitingContinuation(
 ) runs.WaitingContinuation {
 	const rootRunID = "run_root"
 
-	metrics := transcript.RunMetrics{}
+	metrics := run.Metrics{}
 	if len(checkpoint.Usage.Models) > 0 {
 		total, err := checkpoint.Usage.Total()
 		if err != nil {
 			panic(err)
 		}
-		usage := &transcript.Usage{
-			ModelUsage: transcript.ModelUsage{
+		usage := &accounting.Usage{
+			Total: accounting.Totals{
 				InputTokens: total.PromptTokens, OutputTokens: total.CompletionTokens,
 				ReasoningTokens: total.ReasoningTokens, CacheReadTokens: total.CacheReadTokens,
 				CacheWriteTokens: total.CacheWriteTokens, CostUSD: new(total.CostUSD),
 			},
-			ByModel: make(map[string]transcript.ModelUsage, len(checkpoint.Usage.Models)),
+			ByModel: make(map[string]accounting.Totals, len(checkpoint.Usage.Models)),
 		}
 		for _, model := range checkpoint.Usage.Models {
-			usage.ByModel[model.Model] = transcript.ModelUsage{
+			usage.ByModel[model.Model] = accounting.Totals{
 				InputTokens: model.PromptTokens, OutputTokens: model.CompletionTokens,
 				ReasoningTokens: model.ReasoningTokens, CacheReadTokens: model.CacheReadTokens,
 				CacheWriteTokens: model.CacheWriteTokens, CostUSD: new(model.CostUSD),
 			}
 		}
-		metrics.Usage = usage
-		metrics.Steps = total.Calls
+		metrics, err = run.NewMetrics(usage, total.Calls, 0)
+		if err != nil {
+			panic(err)
+		}
 	}
 	return runs.WaitingContinuation{
 		SessionID: checkpoint.Scope.SessionID, ExecutorID: executorID, RootRunID: rootRunID,

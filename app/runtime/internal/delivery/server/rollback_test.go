@@ -13,6 +13,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
+	runfixture "github.com/Tangerg/lynx/app/runtime/internal/testsupport/runfixture"
 	"github.com/Tangerg/lynx/core/chat"
 )
 
@@ -56,12 +57,11 @@ func putTestSession(t *testing.T, rt *stubRuntime) {
 func putRun(t *testing.T, rt *stubRuntime, sessionID, runID string, atUnix int64, mark int) {
 	t.Helper()
 	outcome := run.OutcomeCompleted
-	if err := rt.runs.Restore(t.Context(), transcript.Run{
-		SessionID: sessionID, ID: runID, State: run.Completed,
+	if err := rt.runs.Restore(t.Context(), runfixture.MustRestore(run.Snapshot{SessionID: sessionID, ID: runID, State: run.Completed,
 		Outcome:   &outcome,
 		CreatedAt: time.Unix(atUnix, 0).UTC(), FinishedAt: time.Unix(atUnix, 0).UTC(),
-		UpdatedAt: time.Unix(atUnix, 0).UTC(), MessageMark: mark,
-	}); err != nil {
+		UpdatedAt: time.Unix(atUnix, 0).UTC(), MessageMark: mark}),
+	); err != nil {
 		t.Fatalf("putRun %s: %v", runID, err)
 	}
 }
@@ -110,7 +110,7 @@ func TestRollbackSession_DropTail(t *testing.T) {
 	}
 	// run_2's durable history is gone; run_1 survives.
 	runs, _ := rt.runs.ListRuns(ctx, sess.ID)
-	if len(runs) != 1 || runs[0].ID != "run_1" {
+	if len(runs) != 1 || runs[0].ID() != "run_1" {
 		t.Fatalf("surviving runs = %+v, want [run_1]", runs)
 	}
 }
@@ -230,13 +230,12 @@ func TestPersistRunCarriesCreatedAt(t *testing.T) {
 	}
 
 	outcome := run.OutcomeCompleted
+	terminal := runfixture.MustRestore(run.Snapshot{ID: "run_1", SessionID: sess.ID, State: run.Completed, Outcome: &outcome,
+		CreatedAt: started, FinishedAt: started.Add(time.Minute),
+		UpdatedAt: started.Add(time.Minute), MessageMark: run.UnknownMessageMark})
 	commit := appRuns.EventCommit{
 		RunID: "run_1", SessionID: sess.ID, State: appRuns.StateTerminalize, Outcome: outcome,
-		Run: &transcript.Run{
-			ID: "run_1", SessionID: sess.ID, State: run.Completed, Outcome: &outcome,
-			CreatedAt: started, FinishedAt: started.Add(time.Minute),
-			UpdatedAt: started.Add(time.Minute), MessageMark: transcript.UnknownMessageMark,
-		},
+		Run: &terminal,
 	}
 	if err := rt.RunSegmentEffects(nil, nil).CommitEvent(ctx, commit); err != nil {
 		t.Fatalf("commit terminal run: %v", err)
@@ -246,11 +245,11 @@ func TestPersistRunCarriesCreatedAt(t *testing.T) {
 	if err != nil || len(runs) != 1 {
 		t.Fatalf("list runs = %d (err %v), want 1", len(runs), err)
 	}
-	if runs[0].CreatedAt.IsZero() {
+	if runs[0].CreatedAt().IsZero() {
 		t.Fatal("terminal run persisted CreatedAt as zero — rollback boundary math would over-purge")
 	}
-	if !runs[0].CreatedAt.Equal(started) {
-		t.Errorf("CreatedAt = %v, want the run's start %v", runs[0].CreatedAt, started)
+	if !runs[0].CreatedAt().Equal(started) {
+		t.Errorf("CreatedAt = %v, want the run's start %v", runs[0].CreatedAt(), started)
 	}
 }
 

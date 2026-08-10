@@ -596,11 +596,11 @@ func (s stubLifecycleStores) ApplyTerminal(ctx context.Context, plan sessions.Te
 			return err
 		}
 	}
-	if err := s.rt.interrupts.Delete(ctx, root.SessionID, root.ID); err != nil {
+	if err := s.rt.interrupts.Delete(ctx, root.SessionID(), root.ID()); err != nil {
 		return err
 	}
 	for _, record := range plan.Runs {
-		if record.Outcome != nil && *record.Outcome == run.OutcomeLost {
+		if outcome, terminal := record.Outcome(); terminal && outcome == run.OutcomeLost {
 			if err := s.rt.runs.RecoverLost(ctx, record); err != nil {
 				return err
 			}
@@ -708,8 +708,8 @@ func (stubRunState) Resume(
 ) error {
 	return nil
 }
-func (stubRunState) Suspend(context.Context, transcript.Run) error     { return nil }
-func (stubRunState) Terminalize(context.Context, transcript.Run) error { return nil }
+func (stubRunState) Suspend(context.Context, run.Run) error     { return nil }
+func (stubRunState) Terminalize(context.Context, run.Run) error { return nil }
 
 // ForgetSession is the no-op the session-delete / rollback / purge cascades call
 // (via the lifecycle coordinator) to release a removed session's process-local

@@ -18,7 +18,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	domaintool "github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	"github.com/Tangerg/lynx/chatclient"
 	"github.com/Tangerg/lynx/core/chat"
 	toolcontract "github.com/Tangerg/lynx/tool"
@@ -66,7 +65,7 @@ func TestInteractionExecutorProjectsAuthoritativeModelToolLifecycleAndAccounting
 	finishes := payloadsOf[runs.ToolCallFinished](events)
 	if len(starts) != 1 || len(finishes) != 1 || starts[0].SourceCallID != "provider_call" ||
 		starts[0].Activity != "Echoing value" || starts[0].SafetyClass != domaintool.SafetyClassSafe ||
-		finishes[0].Result == nil || finishes[0].Problem != nil {
+		finishes[0].Result == nil || finishes[0].Failure != nil {
 		t.Fatalf("Tool lifecycle = starts %#v; finishes %#v", starts, finishes)
 	}
 	if hooks.before != 1 || hooks.after != 1 {
@@ -556,8 +555,8 @@ func TestInteractionExecutorCommitsAutomaticDenialWithoutCallingTool(t *testing.
 		t.Fatalf("Tool calls = %d, want 0", toolCalls)
 	}
 	finished := payloadsOf[runs.ToolCallFinished](events)
-	if len(finished) != 1 || finished[0].Problem == nil ||
-		finished[0].Problem.Kind != transcript.DeniedByUserProblem {
+	if len(finished) != 1 || finished[0].Failure == nil ||
+		finished[0].Failure.Kind != domaintool.FailureDenied {
 		t.Fatalf("denied Tool completion = %#v", finished)
 	}
 }
@@ -584,8 +583,8 @@ func TestInteractionExecutorPreservesNoProgressDoomLoopBrake(t *testing.T) {
 		t.Fatalf("Tool calls = %d, want %d before brake", toolCalls, interactionDoomLoopThreshold)
 	}
 	finished := payloadsOf[runs.ToolCallFinished](events)
-	if len(finished) != interactionDoomLoopThreshold+1 || finished[len(finished)-1].Problem == nil ||
-		finished[len(finished)-1].Problem.Kind != transcript.DeniedByUserProblem {
+	if len(finished) != interactionDoomLoopThreshold+1 || finished[len(finished)-1].Failure == nil ||
+		finished[len(finished)-1].Failure.Kind != domaintool.FailureDenied {
 		t.Fatalf("doom-loop Tool completions = %#v", finished)
 	}
 }

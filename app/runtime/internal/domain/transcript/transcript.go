@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"slices"
 	"time"
+
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 )
 
 // --- run timeline (the rollback / fork boundary invariant) ---
@@ -49,12 +51,13 @@ func (n RunNode) IsRoot() bool { return n.SpawnedByItemID == "" }
 type Timeline []RunNode
 
 // TimelineFromRuns projects durable Runs into their boundary-resolution value.
-func TimelineFromRuns(runs []Run) Timeline {
+func TimelineFromRuns(runs []run.Run) Timeline {
 	nodes := make(Timeline, len(runs))
-	for i, run := range runs {
+	for i, current := range runs {
+		lineage := current.Lineage()
 		nodes[i] = RunNode{
-			ID: run.ID, SpawnedByItemID: run.SpawnedByItemID,
-			CreatedAt: run.CreatedAt, MessageMark: run.MessageMark,
+			ID: current.ID(), SpawnedByItemID: lineage.SpawnedByItemID,
+			CreatedAt: current.CreatedAt(), MessageMark: current.MessageMark(),
 		}
 	}
 	return nodes

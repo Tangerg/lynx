@@ -74,9 +74,9 @@ type InterruptReader interface {
 // threads a page of items onto a connected tree without loading unrelated Runs
 // from a long session.
 type RunReader interface {
-	Run(ctx context.Context, runID string) (transcript.Run, bool, error)
-	RunsWithAncestors(ctx context.Context, runIDs []string) ([]transcript.Run, error)
-	PageRuns(ctx context.Context, sessionID string, statuses []run.Status, includeDescendants bool, beforeCreatedAt int64, beforeRunID string, limit int) ([]transcript.Run, error)
+	Run(ctx context.Context, runID string) (run.Run, bool, error)
+	RunsWithAncestors(ctx context.Context, runIDs []string) ([]run.Run, error)
+	PageRuns(ctx context.Context, sessionID string, statuses []run.Status, includeDescendants bool, beforeCreatedAt int64, beforeRunID string, limit int) ([]run.Run, error)
 }
 
 // Coordinator serves the session read projections. Stateless beyond its store
@@ -114,7 +114,7 @@ func New(deps Dependencies) *Coordinator {
 type ItemPage struct {
 	Items      []transcript.Item
 	NextCursor string
-	Runs       []transcript.Run
+	Runs       []run.Run
 }
 
 type itemScopeKind uint8
@@ -315,9 +315,9 @@ func sequenceAnchor(anchor []string) (int64, error) {
 // Run returns one Run by id, reporting false when no Run has that id. It reads
 // the durable record, so a Run this process never streamed — parked, finished, or
 // admitted before a restart — answers the same as one it is streaming now.
-func (c *Coordinator) Run(ctx context.Context, runID string) (transcript.Run, bool, error) {
+func (c *Coordinator) Run(ctx context.Context, runID string) (run.Run, bool, error) {
 	if runID == "" {
-		return transcript.Run{}, false, nil
+		return run.Run{}, false, nil
 	}
 	return c.runs.Run(ctx, runID)
 }
@@ -344,7 +344,7 @@ type RunPageFilter struct {
 // The cursor is bound to the normalized filter, not just to the method: continuing
 // a page under a different session or status set would seek into a collection the
 // anchor was never a position in.
-func (c *Coordinator) ListRunPage(ctx context.Context, filter RunPageFilter, cursor string, limit int) (pagination.Page[transcript.Run], error) {
+func (c *Coordinator) ListRunPage(ctx context.Context, filter RunPageFilter, cursor string, limit int) (pagination.Page[run.Run], error) {
 	filter.Statuses = normalizeStatuses(filter.Statuses)
 	filters := []string{
 		filter.SessionID,
@@ -353,11 +353,11 @@ func (c *Coordinator) ListRunPage(ctx context.Context, filter RunPageFilter, cur
 	}
 	beforeCreatedAt, beforeID, err := timeAndIDAnchor(cursor, runPageNamespace, filters)
 	if err != nil {
-		return pagination.Page[transcript.Run]{}, err
+		return pagination.Page[run.Run]{}, err
 	}
 	size, err := pagination.Limit(limit, runPageLimit)
 	if err != nil {
-		return pagination.Page[transcript.Run]{}, err
+		return pagination.Page[run.Run]{}, err
 	}
 	rows, err := c.runs.PageRuns(
 		ctx,
@@ -369,10 +369,10 @@ func (c *Coordinator) ListRunPage(ctx context.Context, filter RunPageFilter, cur
 		size+1,
 	)
 	if err != nil {
-		return pagination.Page[transcript.Run]{}, err
+		return pagination.Page[run.Run]{}, err
 	}
-	return pagination.PageOf(rows, size, runPageNamespace, filters, func(run transcript.Run) []string {
-		return []string{strconv.FormatInt(run.CreatedAt.UnixNano(), 10), run.ID}
+	return pagination.PageOf(rows, size, runPageNamespace, filters, func(run run.Run) []string {
+		return []string{strconv.FormatInt(run.CreatedAt().UnixNano(), 10), run.ID()}
 	}), nil
 }
 

@@ -15,6 +15,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
+	runfixture "github.com/Tangerg/lynx/app/runtime/internal/testsupport/runfixture"
 )
 
 type alwaysResumable struct{}
@@ -53,12 +54,11 @@ func TestRecoveryMarksClaimedResumeLostAndRemovesItsHiddenRecord(t *testing.T) {
 		RunID: "run_claim", Kind: interrupt.Question,
 		Question: &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?"}}},
 	}
-	waiting := transcript.Run{
-		ID: "run_claim", SessionID: "session_claim", State: run.Waiting,
-		Capabilities: capabilities, Interrupts: []transcript.Interrupt{request},
-		CreatedAt: createdAt, UpdatedAt: createdAt.Add(time.Second),
-		MessageMark: transcript.UnknownMessageMark,
-	}
+	waiting := runfixture.MustRestore(run.Snapshot{ID: "run_claim", SessionID: "session_claim", State: run.Waiting,
+		Capabilities: capabilities,
+		CreatedAt:    createdAt, UpdatedAt: createdAt.Add(time.Second),
+		MessageMark: run.UnknownMessageMark})
+
 	if err := runStore.Suspend(ctx, waiting); err != nil {
 		t.Fatalf("Suspend: %v", err)
 	}
@@ -121,8 +121,9 @@ func TestRecoveryMarksClaimedResumeLostAndRemovesItsHiddenRecord(t *testing.T) {
 		t.Fatalf("recovered=%d checkpoint probes=%d, want 1/0", recovered, checkpointProbes)
 	}
 	stored, found, err := runStore.Run(ctx, pending.RootRunID)
-	if err != nil || !found || stored.State != run.Failed ||
-		stored.Error == nil || stored.Error.Kind != transcript.RunLostProblem {
+	failure, failed := stored.Failure()
+	if err != nil || !found || stored.State() != run.Failed ||
+		!failed || failure.Kind != run.FailureLost {
 		t.Fatalf("recovered Run = found:%t value:%+v err:%v", found, stored, err)
 	}
 	var remaining int
@@ -224,8 +225,9 @@ func TestRecoveryRepairsWholeDurableLifecycle(t *testing.T) {
 		t.Fatalf("recovered Runs = %d, want 1", recovered)
 	}
 	stored, found, err := runStore.Run(ctx, "run_lost")
-	if err != nil || !found || stored.State != run.Failed ||
-		stored.Error == nil || stored.Error.Kind != transcript.RunLostProblem {
+	failure, failed := stored.Failure()
+	if err != nil || !found || stored.State() != run.Failed ||
+		!failed || failure.Kind != run.FailureLost {
 		t.Fatalf("recovered Run = found:%t value:%+v err:%v", found, stored, err)
 	}
 	storedItem, found, err := transcriptStore.Item(ctx, item.ID)
@@ -274,14 +276,13 @@ func TestRecoveryRejectsPartialParkWithoutMutatingIt(t *testing.T) {
 		ItemID: "item_missing", ItemOccurredAt: createdAt.Add(time.Second),
 		RunID: "run_partial", Kind: interrupt.Question, Question: question,
 	}
-	if err := runStore.Suspend(ctx, transcript.Run{
-		ID: "run_partial", SessionID: "session", State: run.Waiting,
+	if err := runStore.Suspend(ctx, runfixture.MustRestore(run.Snapshot{ID: "run_partial", SessionID: "session", State: run.Waiting,
 		Capabilities: run.Capabilities{
 			InterruptKinds: []interrupt.Kind{interrupt.Question},
 		},
-		Interrupts: []transcript.Interrupt{pendingInterrupt}, CreatedAt: createdAt,
-		UpdatedAt: createdAt.Add(time.Second), MessageMark: transcript.UnknownMessageMark,
-	}); err != nil {
+		CreatedAt: createdAt,
+		UpdatedAt: createdAt.Add(time.Second), MessageMark: run.UnknownMessageMark}),
+	); err != nil {
 		t.Fatalf("Suspend: %v", err)
 	}
 	pending := runs.Pending{
@@ -330,7 +331,7 @@ func TestRecoveryRejectsPartialParkWithoutMutatingIt(t *testing.T) {
 		t.Fatalf("Pending after rejection = found:%t err:%v, want preserved", found, err)
 	}
 	stored, found, err := runStore.Run(ctx, pending.RootRunID)
-	if err != nil || !found || stored.State != run.Waiting {
+	if err != nil || !found || stored.State() != run.Waiting {
 		t.Fatalf("Run after rejection = found:%t value:%+v err:%v", found, stored, err)
 	}
 	if _, err := checkpointStore.LoadCheckpoint(ctx, checkpoint.RootMemberID); err != nil {

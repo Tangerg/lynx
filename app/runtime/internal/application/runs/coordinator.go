@@ -528,7 +528,7 @@ func (c *Coordinator) addressLiveSegment(ctx context.Context, runID, segmentID s
 	if run.Lineage().IsChild() {
 		return liveSegment{}, fmt.Errorf("%w: %q", transcript.ErrNotRoot, runID)
 	}
-	switch status := run.State.Status(); status {
+	switch status := run.State().Status(); status {
 	case rundomain.StatusWaiting:
 		return liveSegment{}, fmt.Errorf("%w: %q", ErrRunWaiting, runID)
 	case rundomain.StatusFinished:
@@ -537,8 +537,8 @@ func (c *Coordinator) addressLiveSegment(ctx context.Context, runID, segmentID s
 	default:
 		return liveSegment{}, fmt.Errorf("runs: run %q has unknown status %d", runID, status)
 	}
-	if run.ActiveSegmentID != segmentID {
-		return liveSegment{}, fmt.Errorf("%w: run %q is executing %q", ErrStaleSegment, runID, run.ActiveSegmentID)
+	if run.ActiveSegmentID() != segmentID {
+		return liveSegment{}, fmt.Errorf("%w: run %q is executing %q", ErrStaleSegment, runID, run.ActiveSegmentID())
 	}
 	live, ok := c.registry.Get(runID)
 	if !ok || live.owner == nil || live.owner.hub == nil {

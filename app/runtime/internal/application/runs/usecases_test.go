@@ -10,11 +10,14 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/admission"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/accounting"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
+	runfixture "github.com/Tangerg/lynx/app/runtime/internal/testsupport/runfixture"
 	corechat "github.com/Tangerg/lynx/core/chat"
 )
 
@@ -22,7 +25,7 @@ type fakeRunSessions struct {
 	sess session.Session
 	// active is the Session's non-terminal Run, when it has one. The zero value is a
 	// Session free to start.
-	active        *transcript.Run
+	active        *run.Run
 	createdTitle  string
 	pending       map[string]Pending
 	canceledRunID string
@@ -56,9 +59,9 @@ func (f *fakeRunSessions) Get(context.Context, string) (session.Session, error) 
 	return f.sess, nil
 }
 
-func (f *fakeRunSessions) ActiveRun(context.Context, string) (transcript.Run, bool, error) {
+func (f *fakeRunSessions) ActiveRun(context.Context, string) (run.Run, bool, error) {
 	if f.active == nil {
-		return transcript.Run{}, false, nil
+		return run.Run{}, false, nil
 	}
 	return *f.active, true, nil
 }
@@ -90,7 +93,7 @@ func (f *fakeRunSessions) LookupOpenInterrupt(_ context.Context, runID string) (
 	return pending, ok, nil
 }
 
-func (f *fakeRunSessions) ApplyRunCancel(_ context.Context, sessionID, runID, reason string, finishedAt time.Time) (transcript.Run, error) {
+func (f *fakeRunSessions) ApplyRunCancel(_ context.Context, sessionID, runID, reason string, finishedAt time.Time) (run.Run, error) {
 	if f.operations != nil {
 		*f.operations = append(*f.operations, "durable.cancel")
 	}
@@ -99,10 +102,8 @@ func (f *fakeRunSessions) ApplyRunCancel(_ context.Context, sessionID, runID, re
 	f.canceledAt = finishedAt
 	delete(f.pending, runID)
 	outcome := run.OutcomeCanceled
-	return transcript.Run{
-		ID: runID, SessionID: sessionID, State: run.Canceled,
-		Outcome: &outcome, Detail: reason, FinishedAt: finishedAt,
-	}, nil
+	return runfixture.MustRestore(run.Snapshot{ID: runID, SessionID: sessionID, State: run.Canceled,
+		Outcome: &outcome, Detail: reason, FinishedAt: finishedAt}), nil
 }
 
 func (f *fakeRunSessions) ApplyRunLost(_ context.Context, _ string, runID string, finishedAt time.Time) error {
@@ -293,7 +294,7 @@ func newUseCaseCoordinator(exec ExecutionObserver, control *fakeExecutionPorts, 
 		control.requestRootCancel = executor.requestRootCancellation
 	}
 	freshCreatedAt := time.Date(2026, 7, 13, 1, 2, 3, 0, time.UTC)
-	projection := &fakeRunProjection{runs: map[string]transcript.Run{
+	projection := &fakeRunProjection{runs: map[string]run.Run{
 		"run_1": runForSegment(testSegment()),
 		"run_new": runForSegment(segmentSpec{
 			RunID: "run_new", SegmentID: "seg_new", SessionID: "ses_1",
@@ -633,8 +634,18 @@ func TestResumeRejectsContinuationFactDriftBeforeExecutorPreparation(t *testing.
 	effects := &fakeEffects{}
 	coordinator := newUseCaseCoordinator(&fakeExecutor{}, control, sessions, effects)
 	contradictory := runForPending(pending)
-	contradictory.Metrics.Steps++
-	coordinator.runs = &fakeRunProjection{runs: map[string]transcript.Run{
+	snapshot := contradictory.Snapshot()
+	usage, reported := snapshot.Metrics.Usage()
+	var usageInput *accounting.Usage
+	if reported {
+		usageInput = &usage
+	}
+	snapshot.Metrics = runfixture.MustMetrics(runfixture.MetricsInput{
+		Usage: usageInput, Steps: snapshot.Metrics.Steps() + 1,
+		ActiveDuration: snapshot.Metrics.ActiveDuration(),
+	})
+	contradictory = runfixture.MustRestore(snapshot)
+	coordinator.runs = &fakeRunProjection{runs: map[string]run.Run{
 		pending.RootRunID: contradictory,
 	}}
 
@@ -677,7 +688,7 @@ func TestResumeAndRootCancelShareOneApplicationAdmissionBoundary(t *testing.T) {
 		release:     releaseOpening,
 	}
 	c := newUseCaseCoordinator(&fakeExecutor{}, control, sessions, effects)
-	c.runs = &fakeRunProjection{runs: map[string]transcript.Run{
+	c.runs = &fakeRunProjection{runs: map[string]run.Run{
 		"run_1": runForPending(pending),
 	}}
 
@@ -1227,15 +1238,16 @@ func testApprovalPending(memberID string, runCreatedAt time.Time) Pending {
 			RequestID:       "request_1",
 		}},
 		Continuations: []Continuation{{
-			RunID:        "run_1",
-			MemberID:     memberID,
-			RunCreatedAt: runCreatedAt,
+			RunID:          "run_1",
+			MemberID:       memberID,
+			ModelSelection: runfixture.Selection(),
+			RunCreatedAt:   runCreatedAt,
 		}},
 		CreatedAt: runCreatedAt.Add(time.Second),
 	}
 }
 
-func runForPending(pending Pending) transcript.Run {
+func runForPending(pending Pending) run.Run {
 	root, _ := pending.RootContinuation()
 	return runForContinuation(pending, root)
 }
@@ -1243,26 +1255,25 @@ func runForPending(pending Pending) transcript.Run {
 func runForContinuation(
 	pending Pending,
 	continuation Continuation,
-) transcript.Run {
+) run.Run {
 	goalLeaseID := ""
 	if continuation.RunID == pending.RootRunID {
 		goalLeaseID = pending.GoalLeaseID
 	}
-	return transcript.Run{
-		ID:              continuation.RunID,
-		SessionID:       pending.SessionID,
-		SpawnedByItemID: continuation.Lineage.SpawnedByItemID,
-		ParentRunID:     continuation.Lineage.ParentRunID,
-		RootRunID:       continuation.Lineage.RootRunID,
-		ModelSelection:  continuation.ModelSelection,
-		GoalLeaseID:     goalLeaseID,
-		State:           run.Waiting,
-		Metrics:         continuation.Metrics,
-		Limits:          continuation.Limits,
-		Capabilities:    pending.Capabilities,
-		CreatedAt:       continuation.RunCreatedAt,
-		MessageMark:     transcript.UnknownMessageMark,
-	}
+	return runfixture.MustRestore(run.Snapshot{ID: continuation.RunID,
+		SessionID: pending.SessionID,
+
+		ModelSelection: continuation.ModelSelection,
+		GoalLeaseID:    goalLeaseID,
+		State:          run.Waiting,
+		Metrics:        continuation.Metrics,
+		Limits:         continuation.Limits,
+		Capabilities:   pending.Capabilities,
+		CreatedAt:      continuation.RunCreatedAt,
+		MessageMark:    run.UnknownMessageMark, Lineage: run.Lineage{SpawnedByItemID: continuation.Lineage.SpawnedByItemID,
+			ParentRunID: continuation.Lineage.ParentRunID,
+			RootRunID:   continuation.Lineage.RootRunID}})
+
 }
 
 func TestCancelParkedRunUsesApplicationAdmission(t *testing.T) {
@@ -1277,7 +1288,7 @@ func TestCancelParkedRunUsesApplicationAdmission(t *testing.T) {
 	control := &fakeExecutionPorts{operations: &operations}
 	c := NewCoordinator(Dependencies{
 		Releases: control, Session: testSessionPorts(sessions),
-		Runs: &fakeRunProjection{runs: map[string]transcript.Run{
+		Runs: &fakeRunProjection{runs: map[string]run.Run{
 			"run_1": runForPending(pending),
 		}},
 		Admissions: new(admission.Gate),
@@ -1287,7 +1298,7 @@ func TestCancelParkedRunUsesApplicationAdmission(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Cancel: %v", err)
 	}
-	if result.Run.ID != "run_1" || result.Run.State != run.Canceled {
+	if result.Run.ID() != "run_1" || result.Run.State() != run.Canceled {
 		t.Fatalf("Cancel result = %+v, want canceled run_1", result)
 	}
 	if sessions.canceledRunID != "run_1" || len(control.released) != 1 {
@@ -1309,7 +1320,7 @@ func TestCancelFinishedRunReportsFinishedInsteadOfNotFound(t *testing.T) {
 	c := NewCoordinator(Dependencies{
 		Releases:   &fakeExecutionPorts{},
 		Session:    testSessionPorts(&fakeRunSessions{}),
-		Runs:       &fakeRunProjection{runs: map[string]transcript.Run{"run_1": finished}},
+		Runs:       &fakeRunProjection{runs: map[string]run.Run{"run_1": finished}},
 		Admissions: new(admission.Gate),
 	})
 
@@ -1338,7 +1349,7 @@ func TestCancelChildRunRequiresExplicitAuthority(t *testing.T) {
 	c := NewCoordinator(Dependencies{
 		Releases:   &fakeExecutionPorts{},
 		Session:    testSessionPorts(&fakeRunSessions{}),
-		Runs:       &fakeRunProjection{runs: map[string]transcript.Run{"run_1": child}},
+		Runs:       &fakeRunProjection{runs: map[string]run.Run{"run_1": child}},
 		Admissions: new(admission.Gate),
 	})
 
@@ -1352,19 +1363,16 @@ func projectAdmittedChildRun(
 	t *testing.T,
 	effects *fakeEffects,
 	projection *fakeRunProjection,
-) transcript.Run {
+) run.Run {
 	t.Helper()
 	openings := effects.openingSnapshot()
 	if len(openings) != 2 || openings[1].Admit == nil {
 		t.Fatalf("openings = %+v, want root and child", openings)
 	}
 	draft := *openings[1].Admit
-	child := transcript.Run{
-		ID:              draft.RunID,
-		SessionID:       draft.SessionID,
-		SpawnedByItemID: draft.SpawnedByItemID,
-		ParentRunID:     draft.ParentRunID,
-		RootRunID:       draft.RootRunID,
+	child := runfixture.MustRestore(run.Snapshot{ID: draft.RunID,
+		SessionID: draft.SessionID,
+
 		State:           run.Running,
 		ActiveSegmentID: draft.SegmentID,
 		ModelSelection:  draft.ModelSelection,
@@ -1372,39 +1380,42 @@ func projectAdmittedChildRun(
 		Capabilities:    draft.Capabilities,
 		CreatedAt:       draft.CreatedAt,
 		UpdatedAt:       draft.CreatedAt,
-		MessageMark:     transcript.UnknownMessageMark,
-	}
-	projection.runs[child.ID] = child
+		MessageMark:     run.UnknownMessageMark, Lineage: run.Lineage{SpawnedByItemID: draft.SpawnedByItemID,
+			ParentRunID: draft.ParentRunID,
+			RootRunID:   draft.RootRunID}})
+
+	projection.runs[child.ID()] = child
 	return child
 }
 
-func requireCanceledChildResult(t *testing.T, result CancelResult, child transcript.Run, reason string) {
+func requireCanceledChildResult(t *testing.T, result CancelResult, child run.Run, reason string) {
 	t.Helper()
-	if result.Run.ID != child.ID || result.Run.State != run.Canceled || result.Run.Outcome == nil ||
-		*result.Run.Outcome != run.OutcomeCanceled || result.Run.Detail != reason {
+	if result.Run.ID() != child.ID() || result.Run.State() != run.Canceled ||
+		!runHasOutcome(result.Run, run.OutcomeCanceled) || result.Run.Detail() != reason {
 		t.Fatalf("child result = %+v, want exact canceled terminal", result.Run)
 	}
-	if result.RootRun == nil || result.RootRun.ID != child.RootRunID || result.RootRun.State != run.Running {
-		t.Fatalf("root result = %+v, want still-running %s", result.RootRun, child.RootRunID)
+	rootRunID := child.Lineage().RootRunID
+	if result.RootRun == nil || result.RootRun.ID() != rootRunID || result.RootRun.State() != run.Running {
+		t.Fatalf("root result = %+v, want still-running %s", result.RootRun, rootRunID)
 	}
 }
 
 func requireChildCancellationProjection(
 	t *testing.T,
 	commits []EventCommit,
-	child transcript.Run,
+	child run.Run,
 	reason string,
 ) {
 	t.Helper()
 	childTerminalCommits, parentCancellationItems := 0, 0
 	for _, commit := range commits {
-		if commit.State == StateTerminalize && commit.RunID == child.ID {
+		if commit.State == StateTerminalize && commit.RunID == child.ID() {
 			childTerminalCommits++
 		}
 		for _, item := range commit.Items {
-			if item.ID == child.SpawnedByItemID && item.Status == transcript.ItemIncomplete &&
-				item.Error != nil && item.Error.Kind == transcript.ChildRunCanceledProblem &&
-				item.Error.Scope == transcript.ToolProblem && item.Error.Detail == reason {
+			if item.ID == child.Lineage().SpawnedByItemID && item.Status == transcript.ItemIncomplete &&
+				item.Error != nil && item.Error.Kind == tool.FailureChildRunCanceled &&
+				item.Error.Detail == reason {
 				parentCancellationItems++
 			}
 		}
@@ -1439,7 +1450,7 @@ func requireNaturalRootCompletion(t *testing.T, streamDone <-chan []Event, rootR
 	case events := <-streamDone:
 		for _, event := range events {
 			finished, ok := event.Payload.(SegmentFinished)
-			if ok && event.RunID == rootRunID && finished.Run.State == run.Completed {
+			if ok && event.RunID == rootRunID && finished.Run.State() == run.Completed {
 				return
 			}
 		}
@@ -1494,7 +1505,7 @@ func TestCancelRunningChildCommitsExactSubtreeBoundaryAndKeepsRootRunning(t *tes
 		return nil
 	}
 	effects := &fakeEffects{}
-	projection := &fakeRunProjection{runs: map[string]transcript.Run{
+	projection := &fakeRunProjection{runs: map[string]run.Run{
 		"run_1": runForSegment(testSegment()),
 	}}
 	coordinator := NewCoordinator(Dependencies{
@@ -1524,7 +1535,7 @@ func TestCancelRunningChildCommitsExactSubtreeBoundaryAndKeepsRootRunning(t *tes
 	childRun := projectAdmittedChildRun(t, effects, projection)
 
 	result, err := coordinator.Cancel(t.Context(), CancelCommand{
-		RunID:         childRun.ID,
+		RunID:         childRun.ID(),
 		Reason:        "stop delegated work",
 		AllowChildRun: true,
 	})
@@ -1540,7 +1551,7 @@ func TestCancelRunningChildCommitsExactSubtreeBoundaryAndKeepsRootRunning(t *tes
 
 	close(executor.finishRoot)
 	requireNaturalRootCompletion(t, streamDone, "run_1")
-	requireNoRunEventsAfter(t, eventJournal, cancellationCursor, childRun.ID)
+	requireNoRunEventsAfter(t, eventJournal, cancellationCursor, childRun.ID())
 }
 
 func TestCancelParkedRunReportsExecutorReleaseFailureAfterDurableCommit(t *testing.T) {
@@ -1552,7 +1563,7 @@ func TestCancelParkedRunReportsExecutorReleaseFailureAfterDurableCommit(t *testi
 	control := &fakeExecutionPorts{releaseErr: cleanupErr}
 	c := NewCoordinator(Dependencies{
 		Releases: control, Session: testSessionPorts(sessions),
-		Runs: &fakeRunProjection{runs: map[string]transcript.Run{
+		Runs: &fakeRunProjection{runs: map[string]run.Run{
 			"run_1": runForPending(pending),
 		}},
 		Admissions: new(admission.Gate),
@@ -1574,7 +1585,7 @@ func TestCancelLiveRunReportsExecutorReleaseFailureAndStillTerminalizes(t *testi
 	control := &fakeExecutionPorts{releaseErr: cleanupErr}
 	c := NewCoordinator(Dependencies{
 		Observations: executor, Releases: control, RootCancellation: executor, Session: testSessionPorts(&fakeRunSessions{}), Projection: testProjectionPorts(effects),
-		Runs: &fakeRunProjection{runs: map[string]transcript.Run{
+		Runs: &fakeRunProjection{runs: map[string]run.Run{
 			"run_1": runForSegment(testSegment()),
 		}},
 		Admissions: new(admission.Gate),
@@ -1624,6 +1635,8 @@ func TestCancelLiveRunJoinsTerminalMaintenance(t *testing.T) {
 	}()
 	select {
 	case <-finishStarted:
+	case outcome := <-cancelDone:
+		t.Fatalf("Cancel returned before terminal maintenance started: result=%+v err=%v", outcome.result, outcome.err)
 	case <-time.After(time.Second):
 		t.Fatal("canceled run did not reach terminal maintenance")
 	}
@@ -1638,11 +1651,10 @@ func TestCancelLiveRunJoinsTerminalMaintenance(t *testing.T) {
 	if outcome.err != nil {
 		t.Fatalf("Cancel: %v", outcome.err)
 	}
-	if outcome.result.Run.ID != result.RunID ||
-		outcome.result.Run.State != run.Canceled ||
-		outcome.result.Run.Outcome == nil ||
-		*outcome.result.Run.Outcome != run.OutcomeCanceled ||
-		outcome.result.Run.Detail != "stop" {
+	if outcome.result.Run.ID() != result.RunID ||
+		outcome.result.Run.State() != run.Canceled ||
+		!runHasOutcome(outcome.result.Run, run.OutcomeCanceled) ||
+		outcome.result.Run.Detail() != "stop" {
 		t.Fatalf("Cancel result = %+v, want exact canceled terminal snapshot", outcome.result)
 	}
 	if hasActiveSession(c, "ses_1") {
@@ -1661,7 +1673,7 @@ func TestCancelLosesToACommittedNaturalTerminal(t *testing.T) {
 	control := &fakeExecutionPorts{}
 	c := NewCoordinator(Dependencies{
 		Observations: executor, Releases: control, RootCancellation: executor, Session: testSessionPorts(&fakeRunSessions{}), Projection: testProjectionPorts(effects),
-		Runs: &fakeRunProjection{runs: map[string]transcript.Run{
+		Runs: &fakeRunProjection{runs: map[string]run.Run{
 			"run_1": runForSegment(testSegment()),
 		}},
 		Admissions: new(admission.Gate),
@@ -1739,7 +1751,7 @@ func TestCancelLetsCommittedInterruptOwnDurableFirstTeardown(t *testing.T) {
 	}
 	c := NewCoordinator(Dependencies{
 		Observations: executor, Releases: control, RootCancellation: executor, Session: testSessionPorts(sessions), Projection: testProjectionPorts(effects),
-		Runs: &fakeRunProjection{runs: map[string]transcript.Run{
+		Runs: &fakeRunProjection{runs: map[string]run.Run{
 			"run_1": runForSegment(spec),
 		}},
 		Admissions: new(admission.Gate),
@@ -1791,7 +1803,7 @@ func TestCancelTreatsAlreadyReleasedExecutorAsIdempotentSuccess(t *testing.T) {
 	control := &fakeExecutionPorts{releaseErr: ErrExecutorNotLive}
 	c := NewCoordinator(Dependencies{
 		Releases: control, Session: testSessionPorts(sessions),
-		Runs: &fakeRunProjection{runs: map[string]transcript.Run{
+		Runs: &fakeRunProjection{runs: map[string]run.Run{
 			"run_1": runForPending(pending),
 		}},
 		Admissions: new(admission.Gate),
@@ -1858,9 +1870,10 @@ func TestStartRefusesASessionThatAlreadyHasARunAndNamesIt(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			effects := &fakeEffects{}
+			active := runfixture.MustRestore(run.Snapshot{ID: "run_active", SessionID: "ses_1", State: tt.state})
 			sessions := &fakeRunSessions{
 				sess:   session.Session{ID: "ses_1", CWD: "/work"},
-				active: &transcript.Run{ID: "run_active", SessionID: "ses_1", State: tt.state},
+				active: &active,
 			}
 			c := newUseCaseCoordinator(&fakeExecutor{}, &fakeExecutionPorts{}, sessions, effects)
 

@@ -11,7 +11,6 @@ import (
 	agent "github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	corechat "github.com/Tangerg/lynx/core/chat"
 )
 
@@ -187,8 +186,8 @@ func (session *interactionSession) finishDelegateTool(
 		CallID: managed.callID, Arguments: managed.arguments.Canonical(), Result: &result,
 	}
 	if cause != nil {
-		fact.Problem = &transcript.Problem{
-			Kind: transcript.ToolFailedProblem, Scope: transcript.ToolProblem,
+		fact.Failure = &tool.Failure{
+			Kind:   tool.FailureExecution,
 			Detail: executorDiagnostic(cause),
 		}
 	}

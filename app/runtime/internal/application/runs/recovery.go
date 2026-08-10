@@ -11,6 +11,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
 	rundomain "github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
@@ -18,7 +19,7 @@ import (
 // recovery plan derived from them. It never validates executor payloads or
 // decides which Run tree survives.
 type RecoveryStore interface {
-	ListNonTerminalRuns(ctx context.Context) ([]transcript.Run, error)
+	ListNonTerminalRuns(ctx context.Context) ([]rundomain.Run, error)
 	ListPendingInterrupts(ctx context.Context) ([]Pending, error)
 	SessionByID(ctx context.Context, sessionID string) (session.Session, error)
 	ListTranscript(ctx context.Context, sessionID string) ([]transcript.Item, error)
@@ -37,7 +38,7 @@ type CheckpointResumability interface {
 // LostRuns are ordered child-before-parent. PreservedCheckpointRootIDs is the
 // exact owner set; every other checkpoint aggregate is deleted.
 type RecoveryCommit struct {
-	LostRuns                   []transcript.Run
+	LostRuns                   []rundomain.Run
 	ItemReplacements           []ItemReplacement
 	GoalRuns                   []goal.RunRecord
 	DeleteInterrupts           []InterruptOwner
@@ -201,13 +202,13 @@ func (planner *recoveryPlanner) plan() (RecoveryCommit, int, error) {
 
 func (planner *recoveryPlanner) planTree(rootRunID string) error {
 	tree := planner.trees[rootRunID]
-	items, err := planner.transcript(tree.root.SessionID)
+	items, err := planner.transcript(tree.root.SessionID())
 	if err != nil {
 		return err
 	}
 	open, hasInterrupt := planner.pendingByRoot[rootRunID]
-	if tree.root.State == rundomain.Waiting && hasInterrupt {
-		sess, err := planner.session(tree.root.SessionID)
+	if tree.root.State() == rundomain.Waiting && hasInterrupt {
+		sess, err := planner.session(tree.root.SessionID())
 		if err != nil {
 			return err
 		}
@@ -227,7 +228,7 @@ func (planner *recoveryPlanner) planTree(rootRunID string) error {
 			return nil
 		}
 	}
-	messageMark, err := planner.messageMark(tree.root.SessionID)
+	messageMark, err := planner.messageMark(tree.root.SessionID())
 	if err != nil {
 		return err
 	}
@@ -238,11 +239,11 @@ func (planner *recoveryPlanner) planTree(rootRunID string) error {
 	planner.commit.LostRuns = append(planner.commit.LostRuns, lostRuns...)
 	planner.commit.ItemReplacements = append(planner.commit.ItemReplacements, replacements...)
 	planner.commit.DeleteInterrupts = append(planner.commit.DeleteInterrupts, InterruptOwner{
-		SessionID: tree.root.SessionID,
-		RootRunID: tree.root.ID,
+		SessionID: tree.root.SessionID(),
+		RootRunID: tree.root.ID(),
 	})
-	if tree.root.GoalLeaseID != "" {
-		record, err := recoveredGoalRun(tree.root.ID, lostRuns)
+	if tree.root.GoalLeaseID() != "" {
+		record, err := recoveredGoalRun(tree.root.ID(), lostRuns)
 		if err != nil {
 			return err
 		}
@@ -295,51 +296,52 @@ func (planner *recoveryPlanner) messageMark(sessionID string) (int, error) {
 	return mark, nil
 }
 
-func recoveredGoalRun(rootRunID string, lostRuns []transcript.Run) (goal.RunRecord, error) {
+func recoveredGoalRun(rootRunID string, lostRuns []rundomain.Run) (goal.RunRecord, error) {
 	if len(lostRuns) == 0 {
 		return goal.RunRecord{}, fmt.Errorf("runs: recovered tree %q has no terminal root", rootRunID)
 	}
 	lostRoot := lostRuns[len(lostRuns)-1]
-	if lostRoot.ID != rootRunID || lostRoot.Outcome == nil {
+	outcome, terminal := lostRoot.Outcome()
+	if lostRoot.ID() != rootRunID || !terminal {
 		return goal.RunRecord{}, fmt.Errorf("runs: recovered tree %q has no terminal root", rootRunID)
 	}
 	record := goal.RunRecord{
-		SessionID:   lostRoot.SessionID,
-		LeaseID:     lostRoot.GoalLeaseID,
-		RunID:       lostRoot.ID,
-		Outcome:     *lostRoot.Outcome,
-		Steps:       lostRoot.Metrics.Steps,
-		CompletedAt: lostRoot.FinishedAt,
+		SessionID:   lostRoot.SessionID(),
+		LeaseID:     lostRoot.GoalLeaseID(),
+		RunID:       lostRoot.ID(),
+		Outcome:     outcome,
+		Steps:       lostRoot.Metrics().Steps(),
+		CompletedAt: lostRoot.FinishedAt(),
 	}
-	if lostRoot.Metrics.Usage != nil && lostRoot.Metrics.Usage.CostUSD != nil {
-		record.CostUSD = *lostRoot.Metrics.Usage.CostUSD
+	if usage, reported := lostRoot.Metrics().Usage(); reported && usage.Total.CostUSD != nil {
+		record.CostUSD = *usage.Total.CostUSD
 	}
 	return record, nil
 }
 
 type recoveryRunTree struct {
-	root      transcript.Run
-	runsByID  map[string]transcript.Run
+	root      rundomain.Run
+	runsByID  map[string]rundomain.Run
 	postorder []string
 }
 
-func groupRecoveryRunTrees(active []transcript.Run) (map[string]recoveryRunTree, error) {
-	grouped := make(map[string][]transcript.Run)
+func groupRecoveryRunTrees(active []rundomain.Run) (map[string]recoveryRunTree, error) {
+	grouped := make(map[string][]rundomain.Run)
 	for index, run := range active {
 		if err := run.Validate(); err != nil {
-			return nil, fmt.Errorf("runs: validate recovery Run[%d] %q: %w", index, run.ID, err)
+			return nil, fmt.Errorf("runs: validate recovery Run[%d] %q: %w", index, run.ID(), err)
 		}
-		rootRunID := run.Lineage().TreeRootID(run.ID)
+		rootRunID := run.Lineage().TreeRootID(run.ID())
 		grouped[rootRunID] = append(grouped[rootRunID], run)
 	}
 
 	trees := make(map[string]recoveryRunTree, len(grouped))
 	for rootRunID, runs := range grouped {
 		members := make([]rundomain.TreeMember, 0, len(runs))
-		runsByID := make(map[string]transcript.Run, len(runs))
+		runsByID := make(map[string]rundomain.Run, len(runs))
 		for _, run := range runs {
-			members = append(members, rundomain.TreeMember{RunID: run.ID, Lineage: run.Lineage()})
-			runsByID[run.ID] = run
+			members = append(members, rundomain.TreeMember{RunID: run.ID(), Lineage: run.Lineage()})
+			runsByID[run.ID()] = run
 		}
 		topology, err := rundomain.NewTree(rootRunID, members)
 		if err != nil {
@@ -350,12 +352,12 @@ func groupRecoveryRunTrees(active []transcript.Run) (map[string]recoveryRunTree,
 			return nil, fmt.Errorf("runs: assemble recovery Run tree %q: root is missing", rootRunID)
 		}
 		for _, run := range runs {
-			if run.SessionID != root.SessionID {
+			if run.SessionID() != root.SessionID() {
 				return nil, fmt.Errorf(
 					"runs: recovery Run %q belongs to Session %q, want tree Session %q",
-					run.ID,
-					run.SessionID,
-					root.SessionID,
+					run.ID(),
+					run.SessionID(),
+					root.SessionID(),
 				)
 			}
 		}
@@ -369,45 +371,34 @@ func recoverLostTree(
 	items []transcript.Item,
 	messageMark int,
 	finishedAt time.Time,
-) ([]transcript.Run, []ItemReplacement, error) {
-	lostRuns := make([]transcript.Run, 0, len(tree.postorder))
+) ([]rundomain.Run, []ItemReplacement, error) {
+	lostRuns := make([]rundomain.Run, 0, len(tree.postorder))
 	var replacements []ItemReplacement
 	for _, runID := range tree.postorder {
 		active := tree.runsByID[runID]
 		for _, item := range items {
-			if item.RunID != active.ID || item.Status != transcript.ItemRunning {
+			if item.RunID != active.ID() || item.Status != transcript.ItemRunning {
 				continue
 			}
 			replacement := item
 			replacement.Status = transcript.ItemIncomplete
 			if replacement.Kind == transcript.ToolCall {
 				replacement.FinishedAt = finishedAt.UTC()
-				replacement.Error = &transcript.Problem{
-					Kind: transcript.ToolFailedProblem, Scope: transcript.ToolProblem,
+				replacement.Error = &tool.Failure{
+					Kind:   tool.FailureExecution,
 					Detail: "tool call interrupted because the run was lost on restart",
 				}
 			}
 			replacements = append(replacements, ItemReplacement{Expected: item, Replacement: replacement})
 		}
 
-		next, ok := active.State.RecoverLost()
-		if !ok {
-			return nil, nil, fmt.Errorf("runs: recover lost Run %q: state %s is not recoverable", active.ID, active.State)
+		lost, err := active.RecoverLost(rundomain.Failure{
+			Kind: rundomain.FailureLost, Detail: "run lost on restart",
+		}, finishedAt, messageMark)
+		if err != nil {
+			return nil, nil, fmt.Errorf("runs: recover lost Run %q: %w", active.ID(), err)
 		}
-		outcome := rundomain.OutcomeLost
-		active.State = next
-		active.ActiveSegmentID = ""
-		active.Outcome = &outcome
-		active.Detail = ""
-		active.Error = &transcript.Problem{
-			Kind: transcript.RunLostProblem, Scope: transcript.RunProblem,
-			Detail: "run lost on restart",
-		}
-		active.Interrupts = nil
-		active.FinishedAt = finishedAt
-		active.UpdatedAt = finishedAt
-		active.MessageMark = messageMark
-		lostRuns = append(lostRuns, active)
+		lostRuns = append(lostRuns, lost)
 	}
 	return lostRuns, replacements, nil
 }

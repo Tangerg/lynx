@@ -363,7 +363,7 @@ func TestTranscriptStoreRejectsIdentityReparenting(t *testing.T) {
 
 	// A run id belongs to one session for its whole lifetime — and the refusal must
 	// say so, not report the innocent session as busy.
-	if err := runs.Admit(ctx, run.Draft{SegmentID: "seg_open", RunID: "run_shared", SessionID: "ses_b", CreatedAt: now}); !errors.Is(err, transcript.ErrIdentityConflict) {
+	if err := runs.Admit(ctx, run.Draft{SegmentID: "seg_open", RunID: "run_shared", SessionID: "ses_b", CreatedAt: now}); !errors.Is(err, run.ErrIdentityConflict) {
 		t.Fatalf("re-parent run error = %v, want ErrIdentityConflict", err)
 	}
 	if err := store.AppendItem(ctx, transcript.Item{
@@ -393,7 +393,7 @@ func TestTranscriptStoreRejectsIdentityReparenting(t *testing.T) {
 	if err != nil {
 		t.Fatalf("list ses_b runs: %v", err)
 	}
-	if len(itemsA) != 1 || itemsA[0].ID != "item_shared" || len(runsA) != 1 || runsA[0].ID != "run_shared" {
+	if len(itemsA) != 1 || itemsA[0].ID != "item_shared" || len(runsA) != 1 || runsA[0].ID() != "run_shared" {
 		t.Fatalf("original transcript changed: items=%+v runs=%+v", itemsA, runsA)
 	}
 	if len(itemsB) != 0 || len(runsB) != 0 {
@@ -423,13 +423,12 @@ func TestTranscriptStoreReplaceItemUsesExactOptimisticSnapshot(t *testing.T) {
 	if err := store.AppendItem(t.Context(), original); err != nil {
 		t.Fatalf("seed Item: %v", err)
 	}
-	problem := transcript.Problem{
-		Kind:   transcript.ChildRunCanceledProblem,
-		Scope:  transcript.ToolProblem,
+	failure := tool.Failure{
+		Kind:   tool.FailureChildRunCanceled,
 		Detail: "stop delegated branch",
 	}
 	replacement := original
-	replacement.Error = &problem
+	replacement.Error = &failure
 	if err := store.ReplaceItem(t.Context(), original, replacement); err != nil {
 		t.Fatalf("ReplaceItem: %v", err)
 	}
@@ -437,14 +436,13 @@ func TestTranscriptStoreReplaceItemUsesExactOptimisticSnapshot(t *testing.T) {
 	if err != nil || !found {
 		t.Fatalf("Item after replacement found=%t err=%v", found, err)
 	}
-	if stored.Error == nil || stored.Error.Kind != transcript.ChildRunCanceledProblem {
+	if stored.Error == nil || stored.Error.Kind != tool.FailureChildRunCanceled {
 		t.Fatalf("replaced Item = %+v, want child_run_canceled", stored)
 	}
 
 	staleReplacement := replacement
-	staleReplacement.Error = &transcript.Problem{
-		Kind:   transcript.ChildRunCanceledProblem,
-		Scope:  transcript.ToolProblem,
+	staleReplacement.Error = &tool.Failure{
+		Kind:   tool.FailureChildRunCanceled,
 		Detail: "overwrite newer result",
 	}
 	err = store.ReplaceItem(t.Context(), original, staleReplacement)
@@ -452,7 +450,7 @@ func TestTranscriptStoreReplaceItemUsesExactOptimisticSnapshot(t *testing.T) {
 		t.Fatalf("stale ReplaceItem error = %v, want ErrIdentityConflict", err)
 	}
 	stored, found, err = store.Item(t.Context(), original.ID)
-	if err != nil || !found || stored.Error == nil || stored.Error.Detail != problem.Detail {
+	if err != nil || !found || stored.Error == nil || stored.Error.Detail != failure.Detail {
 		t.Fatalf("Item after stale replacement = %+v found=%t err=%v", stored, found, err)
 	}
 }

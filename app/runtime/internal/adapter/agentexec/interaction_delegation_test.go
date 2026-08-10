@@ -100,7 +100,7 @@ func TestInteractionExecutorRunsDelegateAsProductChildRun(t *testing.T) {
 	rootFinished := -1
 	childState := run.Running
 	rootState := run.Running
-	var childError, rootError *transcript.Problem
+	var childFailure, rootFailure *run.Failure
 	for index, event := range events {
 		switch payload := event.Payload.(type) {
 		case runs.SegmentStarted:
@@ -110,13 +110,17 @@ func TestInteractionExecutorRunsDelegateAsProductChildRun(t *testing.T) {
 		case runs.SegmentFinished:
 			if event.RunID == "run_child" {
 				childFinished = index
-				childState = payload.Run.State
-				childError = payload.Run.Error
+				childState = payload.Run.State()
+				if failure, failed := payload.Run.Failure(); failed {
+					childFailure = &failure
+				}
 			}
 			if event.RunID == "run_root" {
 				rootFinished = index
-				rootState = payload.Run.State
-				rootError = payload.Run.Error
+				rootState = payload.Run.State()
+				if failure, failed := payload.Run.Failure(); failed {
+					rootFailure = &failure
+				}
 			}
 		case runs.ItemCompleted:
 			if event.RunID == "run_root" && payload.Item.Tool != nil &&
@@ -135,7 +139,7 @@ func TestInteractionExecutorRunsDelegateAsProductChildRun(t *testing.T) {
 	if childState != run.Completed || rootState != run.Completed {
 		t.Fatalf(
 			"Delegate terminal states child=%s error=%+v root=%s error=%+v",
-			childState, childError, rootState, rootError,
+			childState, childFailure, rootState, rootFailure,
 		)
 	}
 	projection.mu.Lock()
@@ -279,14 +283,19 @@ func TestInteractionExecutorCancelsRunningDelegateAndKeepsRootRunning(t *testing
 
 func assertRunningDelegateCancellationResult(t *testing.T, result runs.CancelResult) {
 	t.Helper()
-	if result.Run.ID != "run_child" || result.Run.State != run.Canceled ||
-		result.Run.Outcome == nil || *result.Run.Outcome != run.OutcomeCanceled ||
-		result.Run.Detail != "caller canceled delegated work" {
+	if result.Run.ID() != "run_child" || result.Run.State() != run.Canceled ||
+		!runHasOutcome(result.Run, run.OutcomeCanceled) ||
+		result.Run.Detail() != "caller canceled delegated work" {
 		t.Fatalf("canceled child = %+v", result.Run)
 	}
-	if result.RootRun == nil || result.RootRun.ID != "run_root" || result.RootRun.State != run.Running {
+	if result.RootRun == nil || result.RootRun.ID() != "run_root" || result.RootRun.State() != run.Running {
 		t.Fatalf("root after child cancellation = %+v, want running", result.RootRun)
 	}
+}
+
+func runHasOutcome(record run.Run, expected run.Outcome) bool {
+	outcome, terminal := record.Outcome()
+	return terminal && outcome == expected
 }
 
 func assertRunningDelegateCancellationEvents(t *testing.T, events []runs.Event) {
@@ -298,11 +307,11 @@ func assertRunningDelegateCancellationEvents(t *testing.T, events []runs.Event) 
 			continue
 		}
 		if event.RunID == "run_child" {
-			childFinished = finished.Run.State == run.Canceled &&
-				finished.Run.Detail == "caller canceled delegated work"
+			childFinished = finished.Run.State() == run.Canceled &&
+				finished.Run.Detail() == "caller canceled delegated work"
 		}
 		if event.RunID == "run_root" {
-			rootFinished = finished.Run.State == run.Completed
+			rootFinished = finished.Run.State() == run.Completed
 		}
 	}
 	if !childFinished || !rootFinished {
@@ -510,13 +519,13 @@ func (result delegateTreeResult) assertAllRunsCompleted(t *testing.T) {
 		if !ok {
 			continue
 		}
-		if finished.Run.State != run.Completed {
+		if finished.Run.State() != run.Completed {
 			t.Fatalf(
 				"Run %q finished as %s outcome=%v detail=%q error=%+v",
-				finished.Run.ID, finished.Run.State, finished.Run.Outcome, finished.Run.Detail, finished.Run.Error,
+				finished.Run.ID(), finished.Run.State(), finished.Run.Snapshot().Outcome, finished.Run.Detail(), finished.Run.Snapshot().Failure,
 			)
 		}
-		completed[finished.Run.ID]++
+		completed[finished.Run.ID()]++
 	}
 	if len(completed) != len(result.openings) {
 		t.Fatalf("completed Runs = %v, openings = %d", completed, len(result.openings))

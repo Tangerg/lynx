@@ -13,6 +13,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
+	runfixture "github.com/Tangerg/lynx/app/runtime/internal/testsupport/runfixture"
 	"github.com/Tangerg/lynx/core/chat"
 )
 
@@ -183,8 +184,8 @@ func (store *delegateSessionStore) PrepareScheduled(
 func (*delegateSessionStore) ActiveRun(
 	context.Context,
 	string,
-) (transcript.Run, bool, error) {
-	return transcript.Run{}, false, nil
+) (run.Run, bool, error) {
+	return run.Run{}, false, nil
 }
 
 func (*delegateSessionStore) ListOpenInterrupts(
@@ -207,8 +208,8 @@ func (*delegateSessionStore) ApplyRunCancel(
 	string,
 	string,
 	time.Time,
-) (transcript.Run, error) {
-	return transcript.Run{}, errors.New("unexpected parked Run cancellation")
+) (run.Run, error) {
+	return run.Run{}, errors.New("unexpected parked Run cancellation")
 }
 
 func (*delegateSessionStore) ApplyRunLost(
@@ -226,7 +227,7 @@ type delegateProjection struct {
 	barriers     []runs.TreeBarrierCommit
 	reservations map[string]runs.ChildRunStartReservation
 	outcomes     map[string]runs.ChildRunStartOutcome
-	runs         map[string]transcript.Run
+	runs         map[string]run.Run
 	items        map[string]transcript.Item
 }
 
@@ -234,7 +235,7 @@ func newDelegateProjection() *delegateProjection {
 	return &delegateProjection{
 		reservations: make(map[string]runs.ChildRunStartReservation),
 		outcomes:     make(map[string]runs.ChildRunStartOutcome),
-		runs:         make(map[string]transcript.Run),
+		runs:         make(map[string]run.Run),
 		items:        make(map[string]transcript.Item),
 	}
 }
@@ -361,7 +362,7 @@ func (*delegateProjection) Finish(context.Context, runs.Finish) error { return n
 func (projection *delegateProjection) Run(
 	_ context.Context,
 	runID string,
-) (transcript.Run, bool, error) {
+) (run.Run, bool, error) {
 	projection.mu.Lock()
 	defer projection.mu.Unlock()
 	value, found := projection.runs[runID]
@@ -371,22 +372,22 @@ func (projection *delegateProjection) Run(
 func (projection *delegateProjection) Tree(
 	_ context.Context,
 	runID string,
-) ([]transcript.Run, error) {
+) ([]run.Run, error) {
 	projection.mu.Lock()
 	defer projection.mu.Unlock()
 	target, found := projection.runs[runID]
 	if !found {
 		return nil, nil
 	}
-	rootRunID := target.Lineage().TreeRootID(target.ID)
-	result := make([]transcript.Run, 0, len(projection.runs))
+	rootRunID := target.Lineage().TreeRootID(target.ID())
+	result := make([]run.Run, 0, len(projection.runs))
 	for _, candidate := range projection.runs {
-		if candidate.Lineage().TreeRootID(candidate.ID) == rootRunID {
+		if candidate.Lineage().TreeRootID(candidate.ID()) == rootRunID {
 			result = append(result, candidate)
 		}
 	}
-	slices.SortFunc(result, func(left, right transcript.Run) int {
-		return strings.Compare(left.ID, right.ID)
+	slices.SortFunc(result, func(left, right run.Run) int {
+		return strings.Compare(left.ID(), right.ID())
 	})
 	return result, nil
 }
@@ -404,15 +405,15 @@ func (projection *delegateProjection) Item(
 func (projection *delegateProjection) applyOpening(opening runs.OpeningCommit) {
 	if opening.Admit != nil {
 		draft := opening.Admit
-		projection.runs[draft.RunID] = transcript.Run{
-			ID: draft.RunID, SessionID: draft.SessionID,
-			SpawnedByItemID: draft.SpawnedByItemID, ParentRunID: draft.ParentRunID,
-			RootRunID: draft.RootRunID, State: run.Running, ActiveSegmentID: draft.SegmentID,
+		projection.runs[draft.RunID] = runfixture.MustRestore(run.Snapshot{ID: draft.RunID, SessionID: draft.SessionID,
+
+			State: run.Running, ActiveSegmentID: draft.SegmentID,
 			ModelSelection: draft.ModelSelection, GoalLeaseID: draft.GoalLeaseID,
 			Limits: draft.Limits, Capabilities: draft.Capabilities,
 			CreatedAt: draft.CreatedAt, UpdatedAt: draft.CreatedAt,
-			MessageMark: transcript.UnknownMessageMark,
-		}
+			MessageMark: run.UnknownMessageMark, Lineage: run.Lineage{SpawnedByItemID: draft.SpawnedByItemID, ParentRunID: draft.ParentRunID,
+				RootRunID: draft.RootRunID}})
+
 	}
 	for _, commit := range opening.Events {
 		projection.applyCommit(commit)
@@ -424,15 +425,17 @@ func (projection *delegateProjection) applyCommit(commit runs.EventCommit) {
 		projection.items[item.ID] = item
 	}
 	if commit.Run != nil {
-		projection.runs[commit.Run.ID] = *commit.Run
+		projection.runs[commit.Run.ID()] = *commit.Run
 		return
 	}
 	if commit.Progress != nil {
 		value, found := projection.runs[commit.RunID]
 		if found {
-			value.Metrics = commit.Progress.Metrics
-			value.UpdatedAt = commit.Progress.UpdatedAt
-			projection.runs[commit.RunID] = value
+			advanced, err := value.AdvanceMetrics(commit.Progress.Metrics, commit.Progress.UpdatedAt)
+			if err != nil {
+				panic(err)
+			}
+			projection.runs[commit.RunID] = advanced
 		}
 	}
 }

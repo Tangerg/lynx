@@ -4,48 +4,47 @@ import (
 	"fmt"
 
 	rundomain "github.com/Tangerg/lynx/app/runtime/internal/domain/run"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
 // validatePendingRunTree cross-checks the complete active Run tree before a
 // continuation can drive an executor or a lifecycle transformation. Terminal
 // descendants may remain in the historical tree, but every non-terminal Run is
 // Waiting and represented by exactly one canonical continuation.
-func validatePendingRunTree(pending Pending, values []transcript.Run) error {
+func validatePendingRunTree(pending Pending, values []rundomain.Run) error {
 	if err := pending.Validate(); err != nil {
 		return fmt.Errorf("runs: validate parked Run tree %q: %w", pending.RootRunID, err)
 	}
-	all := make(map[string]transcript.Run, len(values))
-	active := make(map[string]transcript.Run, len(pending.Continuations))
-	for index, run := range values {
-		if err := run.Validate(); err != nil {
+	all := make(map[string]rundomain.Run, len(values))
+	active := make(map[string]rundomain.Run, len(pending.Continuations))
+	for index, value := range values {
+		if err := value.Validate(); err != nil {
 			return fmt.Errorf(
 				"runs: validate parked Run tree %q: Run[%d] %q: %w",
 				pending.RootRunID,
 				index,
-				run.ID,
+				value.ID(),
 				err,
 			)
 		}
-		if _, duplicate := all[run.ID]; duplicate {
-			return fmt.Errorf("runs: validate parked Run tree %q: duplicate Run %q", pending.RootRunID, run.ID)
+		if _, duplicate := all[value.ID()]; duplicate {
+			return fmt.Errorf("runs: validate parked Run tree %q: duplicate Run %q", pending.RootRunID, value.ID())
 		}
-		all[run.ID] = run
-		if !run.State.IsTerminal() {
-			active[run.ID] = run
+		all[value.ID()] = value
+		if !value.State().IsTerminal() {
+			active[value.ID()] = value
 		}
 	}
 	root, found := all[pending.RootRunID]
 	if !found || !root.Lineage().IsRoot() {
 		return fmt.Errorf("runs: validate parked Run tree %q: root Run is missing", pending.RootRunID)
 	}
-	if root.SessionID != pending.SessionID || root.State != rundomain.Waiting {
+	if root.SessionID() != pending.SessionID || root.State() != rundomain.Waiting {
 		return fmt.Errorf("runs: validate parked Run tree %q: root Run scope or state differs from Pending", pending.RootRunID)
 	}
-	if root.GoalLeaseID != pending.GoalLeaseID {
+	if root.GoalLeaseID() != pending.GoalLeaseID {
 		return fmt.Errorf("runs: validate parked Run tree %q: root Run goal lease differs from Pending", pending.RootRunID)
 	}
-	if !root.Capabilities.Equal(pending.Capabilities) {
+	if !root.Capabilities().Equal(pending.Capabilities) {
 		return fmt.Errorf("runs: validate parked Run tree %q: root Run run capabilities differ from Pending", pending.RootRunID)
 	}
 	if len(active) != len(pending.Continuations) {
@@ -57,22 +56,22 @@ func validatePendingRunTree(pending Pending, values []transcript.Run) error {
 		)
 	}
 	for _, continuation := range pending.Continuations {
-		run, found := active[continuation.RunID]
-		if !found || run.SessionID != pending.SessionID || run.State != rundomain.Waiting {
+		value, found := active[continuation.RunID]
+		if !found || value.SessionID() != pending.SessionID || value.State() != rundomain.Waiting {
 			return fmt.Errorf(
 				"runs: validate parked Run tree %q: continuation Run %q is not active and waiting",
 				pending.RootRunID,
 				continuation.RunID,
 			)
 		}
-		if err := validateContinuationRunFacts(pending.RootRunID, run, continuation); err != nil {
+		if err := validateContinuationRunFacts(pending.RootRunID, value, continuation); err != nil {
 			return err
 		}
-		if !run.Capabilities.Equal(root.Capabilities) {
+		if !value.Capabilities().Equal(root.Capabilities()) {
 			return fmt.Errorf(
 				"runs: validate parked Run tree %q: Run %q run capabilities differ from root admission",
 				pending.RootRunID,
-				run.ID,
+				value.ID(),
 			)
 		}
 	}
@@ -85,50 +84,50 @@ func validatePendingRunTree(pending Pending, values []transcript.Run) error {
 // and root-owned capability and Goal facts that do not live on each continuation.
 func validateContinuationRunFacts(
 	rootRunID string,
-	run transcript.Run,
+	value rundomain.Run,
 	continuation Continuation,
 ) error {
 	switch {
-	case run.ID != continuation.RunID:
+	case value.ID() != continuation.RunID:
 		return fmt.Errorf(
 			"runs: validate Run tree %q: Run %q differs from continuation owner %q",
 			rootRunID,
-			run.ID,
+			value.ID(),
 			continuation.RunID,
 		)
-	case run.ModelSelection != continuation.ModelSelection:
+	case value.ModelSelection() != continuation.ModelSelection:
 		return fmt.Errorf(
 			"runs: validate Run tree %q: Run %q admission model %q/%q differs from continuation model %q/%q",
 			rootRunID,
-			run.ID,
-			run.ModelSelection.Provider(),
-			run.ModelSelection.Model(),
+			value.ID(),
+			value.ModelSelection().Provider(),
+			value.ModelSelection().Model(),
 			continuation.ModelSelection.Provider(),
 			continuation.ModelSelection.Model(),
 		)
-	case !run.Metrics.Equal(continuation.Metrics):
+	case !value.Metrics().Equal(continuation.Metrics):
 		return fmt.Errorf(
 			"runs: validate Run tree %q: Run %q cumulative metrics differ from its continuation",
 			rootRunID,
-			run.ID,
+			value.ID(),
 		)
-	case run.Limits != continuation.Limits:
+	case value.Limits() != continuation.Limits:
 		return fmt.Errorf(
 			"runs: validate Run tree %q: Run %q frozen limits differ from its continuation",
 			rootRunID,
-			run.ID,
+			value.ID(),
 		)
-	case !run.CreatedAt.Equal(continuation.RunCreatedAt):
+	case !value.CreatedAt().Equal(continuation.RunCreatedAt):
 		return fmt.Errorf(
 			"runs: validate Run tree %q: Run %q and continuation creation times differ",
 			rootRunID,
-			run.ID,
+			value.ID(),
 		)
-	case run.Lineage() != continuation.Lineage:
+	case value.Lineage() != continuation.Lineage:
 		return fmt.Errorf(
 			"runs: validate Run tree %q: Run %q lineage differs from its continuation",
 			rootRunID,
-			run.ID,
+			value.ID(),
 		)
 	default:
 		return nil

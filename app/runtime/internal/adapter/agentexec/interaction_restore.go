@@ -10,7 +10,7 @@ import (
 	"github.com/Tangerg/lynx/agent/interaction"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/accounting"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 )
 
 func (session *interactionSession) initializeRestoredContinuation(
@@ -259,23 +259,24 @@ func restoreInteractionAccounting(
 }
 
 func accountingFromRunMetrics(
-	metrics transcript.RunMetrics,
+	metrics run.Metrics,
 	callsByModel map[string]int,
 ) (map[string]accounting.ModelUsage, error) {
 	if err := metrics.Validate(); err != nil {
 		return nil, err
 	}
-	if metrics.Steps == 0 {
-		if metrics.Usage != nil || len(callsByModel) != 0 {
+	usage, reported := metrics.Usage()
+	if metrics.Steps() == 0 {
+		if reported || len(callsByModel) != 0 {
 			return nil, errors.New("zero-step member has accounting state")
 		}
 		return map[string]accounting.ModelUsage{}, nil
 	}
-	if metrics.Usage == nil || len(metrics.Usage.ByModel) == 0 {
+	if !reported || len(usage.ByModel) == 0 {
 		return nil, errors.New("model calls have no per-model usage")
 	}
-	result := make(map[string]accounting.ModelUsage, len(metrics.Usage.ByModel))
-	for model, value := range metrics.Usage.ByModel {
+	result := make(map[string]accounting.ModelUsage, len(usage.ByModel))
+	for model, value := range usage.ByModel {
 		calls := callsByModel[model]
 		if calls <= 0 {
 			return nil, fmt.Errorf("model %q has no durable call count", model)
@@ -317,13 +318,13 @@ func accountingFromRunMetrics(
 	if err != nil {
 		return nil, err
 	}
-	if total.Calls != metrics.Steps || !sameTranscriptUsage(total, metrics.Usage.ModelUsage) {
+	if total.Calls != metrics.Steps() || !sameTranscriptUsage(total, usage.Total) {
 		return nil, errors.New("product metrics differ from reconstructed executor accounting")
 	}
 	return result, nil
 }
 
-func sameTranscriptUsage(total accounting.ModelUsage, value transcript.ModelUsage) bool {
+func sameTranscriptUsage(total accounting.ModelUsage, value accounting.Totals) bool {
 	cost := 0.0
 	if value.CostUSD != nil {
 		cost = *value.CostUSD

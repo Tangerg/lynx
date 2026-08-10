@@ -270,8 +270,8 @@ type CancelCommand struct {
 // RootRun is present only when the addressed Run is a child, so callers do not
 // have to query or reconstruct state after the command boundary.
 type CancelResult struct {
-	Run     transcript.Run
-	RootRun *transcript.Run
+	Run     run.Run
+	RootRun *run.Run
 }
 
 // SteerCommand injects structured user content into an actively executing run.

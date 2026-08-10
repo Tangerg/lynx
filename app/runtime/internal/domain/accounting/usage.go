@@ -6,10 +6,159 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"slices"
 	"strings"
 
 	"github.com/Tangerg/lynx/core/chat"
 )
+
+// Totals is the cumulative token and cost fact reported for one scope. CostUSD
+// is absent when pricing was not available; an absent price is intentionally
+// distinct from a reported zero price.
+type Totals struct {
+	InputTokens      int64
+	OutputTokens     int64
+	CacheReadTokens  int64
+	CacheWriteTokens int64
+	ReasoningTokens  int64
+	CostUSD          *float64
+}
+
+// Clone returns an ownership-isolated value.
+func (totals Totals) Clone() Totals {
+	if totals.CostUSD != nil {
+		cost := *totals.CostUSD
+		totals.CostUSD = &cost
+	}
+	return totals
+}
+
+// Validate reports whether the cumulative counters are internally consistent.
+func (totals Totals) Validate() error {
+	if totals.InputTokens < 0 || totals.OutputTokens < 0 || totals.CacheReadTokens < 0 ||
+		totals.CacheWriteTokens < 0 || totals.ReasoningTokens < 0 {
+		return errors.New("accounting: token counts must not be negative")
+	}
+	if totals.CostUSD != nil && (*totals.CostUSD < 0 || math.IsNaN(*totals.CostUSD) || math.IsInf(*totals.CostUSD, 0)) {
+		return errors.New("accounting: cost must be finite and non-negative")
+	}
+	return nil
+}
+
+// ValidateAdvanceFrom proves that totals has not erased previously committed
+// cumulative accounting.
+func (totals Totals) ValidateAdvanceFrom(previous Totals) error {
+	if err := previous.Validate(); err != nil {
+		return fmt.Errorf("previous totals: %w", err)
+	}
+	if err := totals.Validate(); err != nil {
+		return fmt.Errorf("next totals: %w", err)
+	}
+	if totals.InputTokens < previous.InputTokens || totals.OutputTokens < previous.OutputTokens ||
+		totals.CacheReadTokens < previous.CacheReadTokens || totals.CacheWriteTokens < previous.CacheWriteTokens ||
+		totals.ReasoningTokens < previous.ReasoningTokens || totals.cost() < previous.cost() {
+		return errors.New("accounting: cumulative totals regressed")
+	}
+	return nil
+}
+
+func (totals Totals) cost() float64 {
+	if totals.CostUSD == nil {
+		return 0
+	}
+	return *totals.CostUSD
+}
+
+// Equal reports semantic equality, preserving the distinction between absent
+// and reported-zero pricing.
+func (totals Totals) Equal(other Totals) bool {
+	if totals.InputTokens != other.InputTokens || totals.OutputTokens != other.OutputTokens ||
+		totals.CacheReadTokens != other.CacheReadTokens || totals.CacheWriteTokens != other.CacheWriteTokens ||
+		totals.ReasoningTokens != other.ReasoningTokens {
+		return false
+	}
+	if totals.CostUSD == nil || other.CostUSD == nil {
+		return totals.CostUSD == nil && other.CostUSD == nil
+	}
+	return *totals.CostUSD == *other.CostUSD
+}
+
+// Usage is cumulative accounting for a Run. Total remains authoritative when
+// a provider cannot attribute usage to individual models; ByModel is the
+// optional breakdown and never replaces the total.
+type Usage struct {
+	Total   Totals
+	ByModel map[string]Totals
+}
+
+// Clone returns an ownership-isolated usage value.
+func (usage Usage) Clone() Usage {
+	usage.Total = usage.Total.Clone()
+	if usage.ByModel != nil {
+		source := usage.ByModel
+		usage.ByModel = make(map[string]Totals, len(source))
+		for model, totals := range source {
+			usage.ByModel[model] = totals.Clone()
+		}
+	}
+	return usage
+}
+
+// Validate reports whether usage is safe to persist and compare.
+func (usage Usage) Validate() error {
+	if err := usage.Total.Validate(); err != nil {
+		return fmt.Errorf("accounting: total usage: %w", err)
+	}
+	models := make([]string, 0, len(usage.ByModel))
+	for model := range usage.ByModel {
+		models = append(models, model)
+	}
+	slices.Sort(models)
+	for _, model := range models {
+		if strings.TrimSpace(model) == "" || model != strings.TrimSpace(model) {
+			return errors.New("accounting: model identity is required without surrounding whitespace")
+		}
+		if err := usage.ByModel[model].Validate(); err != nil {
+			return fmt.Errorf("accounting: model %q: %w", model, err)
+		}
+	}
+	return nil
+}
+
+// ValidateAdvanceFrom proves that usage is a cumulative continuation of
+// previous. Once a provider reports usage or a per-model key, it cannot vanish.
+func (usage Usage) ValidateAdvanceFrom(previous Usage) error {
+	if err := usage.Validate(); err != nil {
+		return err
+	}
+	if err := usage.Total.ValidateAdvanceFrom(previous.Total); err != nil {
+		return err
+	}
+	for model, before := range previous.ByModel {
+		after, found := usage.ByModel[model]
+		if !found {
+			return fmt.Errorf("accounting: cumulative usage dropped model %q", model)
+		}
+		if err := after.ValidateAdvanceFrom(before); err != nil {
+			return fmt.Errorf("accounting: model %q: %w", model, err)
+		}
+	}
+	return nil
+}
+
+// Equal reports whether two snapshots contain the same cumulative fact. Nil
+// and empty per-model maps are the same set.
+func (usage Usage) Equal(other Usage) bool {
+	if !usage.Total.Equal(other.Total) || len(usage.ByModel) != len(other.ByModel) {
+		return false
+	}
+	for model, totals := range usage.ByModel {
+		if otherTotals, found := other.ByModel[model]; !found || !totals.Equal(otherTotals) {
+			return false
+		}
+	}
+	return true
+}
 
 // TokenUsage is a token roll-up. ReasoningTokens is the chain-of-thought
 // subset of CompletionTokens, so total counts only prompt + completion.

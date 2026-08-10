@@ -23,6 +23,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/skillauthoring"
 	sqlitestore "github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 	"github.com/Tangerg/lynx/app/runtime/internal/shutdown"
+	runfixture "github.com/Tangerg/lynx/app/runtime/internal/testsupport/runfixture"
 	"github.com/Tangerg/lynx/chatclient"
 )
 
@@ -452,11 +453,6 @@ func TestAssemblyRecoversParkedRunWithIncompatibleDeployment(t *testing.T) {
 	createdAt := time.Date(2026, 7, 16, 1, 0, 0, 0, time.UTC)
 	parkedAt := createdAt.Add(time.Second)
 	question := &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?"}}}
-	open := []transcript.Interrupt{{
-		ItemID: "item_park", ItemOccurredAt: parkedAt,
-		RunID: runID, Kind: interrupt.Question, Question: question,
-	}}
-
 	if _, err := cfg.SessionStore.Ensure(ctx, session.Session{
 		ID: sessionID, CWD: t.TempDir(), StartedAt: createdAt, UpdatedAt: createdAt,
 	}); err != nil {
@@ -471,11 +467,10 @@ func TestAssemblyRecoversParkedRunWithIncompatibleDeployment(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("admit: %v", err)
 	}
-	if err := cfg.RunStore.Suspend(ctx, transcript.Run{
-		SessionID: sessionID, ID: runID, State: run.Waiting,
+	if err := cfg.RunStore.Suspend(ctx, runfixture.MustRestore(run.Snapshot{SessionID: sessionID, ID: runID, State: run.Waiting,
 		Capabilities: profile,
-		Interrupts:   open, CreatedAt: createdAt, MessageMark: transcript.UnknownMessageMark,
-	}); err != nil {
+		CreatedAt:    createdAt, MessageMark: run.UnknownMessageMark}),
+	); err != nil {
 		t.Fatalf("suspend: %v", err)
 	}
 	if err := cfg.TranscriptStore.AppendItem(ctx, transcript.Item{
@@ -513,7 +508,11 @@ func TestAssemblyRecoversParkedRunWithIncompatibleDeployment(t *testing.T) {
 		t.Fatalf("executor checkpoint after assemble = %v, want not found", err)
 	}
 	runs, err := cfg.RunStore.ListRuns(ctx, sessionID)
-	if err != nil || len(runs) != 1 || runs[0].Error == nil || runs[0].Error.Kind != transcript.RunLostProblem {
+	failure, failed := run.Failure{}, false
+	if len(runs) == 1 {
+		failure, failed = runs[0].Failure()
+	}
+	if err != nil || len(runs) != 1 || !failed || failure.Kind != run.FailureLost {
 		t.Fatalf("runs after assemble = (%+v, %v), want run_lost", runs, err)
 	}
 }

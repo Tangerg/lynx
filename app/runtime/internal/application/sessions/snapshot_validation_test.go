@@ -190,8 +190,9 @@ func TestPortableSnapshotChildInheritsRootCapabilities(t *testing.T) {
 		t.Fatalf("CanonicalSnapshot: %v", err)
 	}
 	for _, run := range snapshot.Runs {
-		if !run.Capabilities.ChildRuns || len(run.Capabilities.InterruptKinds) != 1 {
-			t.Fatalf("run %q capabilities = %+v, want the root's", run.ID, run.Capabilities)
+		capabilities := run.Capabilities()
+		if !capabilities.ChildRuns || len(capabilities.InterruptKinds) != 1 {
+			t.Fatalf("run %q capabilities = %+v, want the root's", run.ID(), capabilities)
 		}
 	}
 }

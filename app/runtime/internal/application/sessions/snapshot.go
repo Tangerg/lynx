@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
@@ -71,24 +72,24 @@ func (snapshot Snapshot) Validate() error {
 func (snapshot Snapshot) validateRuns() (map[string]struct{}, error) {
 	runs := make(map[string]struct{}, len(snapshot.Runs))
 	for _, run := range snapshot.Runs {
-		if run.ID == "" || run.SessionID != snapshot.Session.ID {
-			return nil, fmt.Errorf("sessions: snapshot run %q belongs to session %q, want %q", run.ID, run.SessionID, snapshot.Session.ID)
+		if run.ID() == "" || run.SessionID() != snapshot.Session.ID {
+			return nil, fmt.Errorf("sessions: snapshot run %q belongs to session %q, want %q", run.ID(), run.SessionID(), snapshot.Session.ID)
 		}
-		if _, exists := runs[run.ID]; exists {
-			return nil, fmt.Errorf("sessions: snapshot contains duplicate run %q", run.ID)
+		if _, exists := runs[run.ID()]; exists {
+			return nil, fmt.Errorf("sessions: snapshot contains duplicate run %q", run.ID())
 		}
 		// A snapshot is a portable record of finished work, so only a terminal Run
 		// belongs in one; whether its facts hold together is the Run's own rule.
-		if !run.State.IsTerminal() {
-			return nil, fmt.Errorf("sessions: snapshot run %q is %s, want terminal", run.ID, run.State)
+		if !run.State().IsTerminal() {
+			return nil, fmt.Errorf("sessions: snapshot run %q is %s, want terminal", run.ID(), run.State())
 		}
 		if err := run.Validate(); err != nil {
-			return nil, fmt.Errorf("sessions: snapshot run %q: %w", run.ID, err)
+			return nil, fmt.Errorf("sessions: snapshot run %q: %w", run.ID(), err)
 		}
-		if run.MessageMark > len(snapshot.Messages) {
-			return nil, fmt.Errorf("sessions: snapshot run %q has invalid message watermark %d", run.ID, run.MessageMark)
+		if run.MessageMark() > len(snapshot.Messages) {
+			return nil, fmt.Errorf("sessions: snapshot run %q has invalid message watermark %d", run.ID(), run.MessageMark())
 		}
-		runs[run.ID] = struct{}{}
+		runs[run.ID()] = struct{}{}
 	}
 	return runs, nil
 }
@@ -123,7 +124,7 @@ func (snapshot Snapshot) validateItems(runs map[string]struct{}) (map[string]tra
 	return items, nil
 }
 
-func validateSnapshotRunTree(runs []transcript.Run, items map[string]transcript.Item) error {
+func validateSnapshotRunTree(runs []run.Run, items map[string]transcript.Item) error {
 	tree, err := newSnapshotRunTree(runs, items)
 	if err != nil {
 		return err
@@ -132,7 +133,7 @@ func validateSnapshotRunTree(runs []transcript.Run, items map[string]transcript.
 }
 
 type snapshotRunTree struct {
-	runByID             map[string]transcript.Run
+	runByID             map[string]run.Run
 	parentByRunID       map[string]string
 	visitStateByRunID   map[string]snapshotRunVisitState
 	resolvedRootByRunID map[string]string
@@ -147,17 +148,17 @@ const (
 )
 
 func newSnapshotRunTree(
-	runs []transcript.Run,
+	runs []run.Run,
 	items map[string]transcript.Item,
 ) (*snapshotRunTree, error) {
 	tree := &snapshotRunTree{
-		runByID:             make(map[string]transcript.Run, len(runs)),
+		runByID:             make(map[string]run.Run, len(runs)),
 		parentByRunID:       make(map[string]string, len(runs)),
 		visitStateByRunID:   make(map[string]snapshotRunVisitState, len(runs)),
 		resolvedRootByRunID: make(map[string]string, len(runs)),
 	}
 	for _, run := range runs {
-		tree.runByID[run.ID] = run
+		tree.runByID[run.ID()] = run
 	}
 	for _, run := range runs {
 		if run.Lineage().IsRoot() {
@@ -171,59 +172,60 @@ func newSnapshotRunTree(
 }
 
 func (tree *snapshotRunTree) indexChild(
-	child transcript.Run,
+	child run.Run,
 	items map[string]transcript.Item,
 ) error {
-	parent, parentFound := tree.runByID[child.ParentRunID]
+	lineage := child.Lineage()
+	parent, parentFound := tree.runByID[lineage.ParentRunID]
 	if !parentFound {
-		return fmt.Errorf("sessions: snapshot child run %q references unknown parent %q", child.ID, child.ParentRunID)
+		return fmt.Errorf("sessions: snapshot child run %q references unknown parent %q", child.ID(), lineage.ParentRunID)
 	}
-	root, rootFound := tree.runByID[child.RootRunID]
+	root, rootFound := tree.runByID[lineage.RootRunID]
 	if !rootFound {
-		return fmt.Errorf("sessions: snapshot child run %q references unknown root %q", child.ID, child.RootRunID)
+		return fmt.Errorf("sessions: snapshot child run %q references unknown root %q", child.ID(), lineage.RootRunID)
 	}
 	if !root.Lineage().IsRoot() {
-		return fmt.Errorf("sessions: snapshot child run %q names child %q as its root", child.ID, child.RootRunID)
+		return fmt.Errorf("sessions: snapshot child run %q names child %q as its root", child.ID(), lineage.RootRunID)
 	}
-	if !root.Capabilities.ChildRuns {
+	if !root.Capabilities().ChildRuns {
 		return fmt.Errorf(
 			"sessions: snapshot child run %q belongs to root %q whose run capabilities disallow child runs",
-			child.ID,
-			root.ID,
+			child.ID(),
+			root.ID(),
 		)
 	}
-	item, found := items[child.SpawnedByItemID]
+	item, found := items[lineage.SpawnedByItemID]
 	if !found {
-		return fmt.Errorf("sessions: snapshot run %q references unknown spawning item %q", child.ID, child.SpawnedByItemID)
+		return fmt.Errorf("sessions: snapshot run %q references unknown spawning item %q", child.ID(), lineage.SpawnedByItemID)
 	}
 	if item.Kind != transcript.ToolCall {
-		return fmt.Errorf("sessions: snapshot run %q spawning item %q is not a tool call", child.ID, child.SpawnedByItemID)
+		return fmt.Errorf("sessions: snapshot run %q spawning item %q is not a tool call", child.ID(), lineage.SpawnedByItemID)
 	}
-	if item.RunID != parent.ID {
+	if item.RunID != parent.ID() {
 		return fmt.Errorf(
 			"sessions: snapshot child run %q spawning item %q belongs to run %q, want parent %q",
-			child.ID,
+			child.ID(),
 			item.ID,
 			item.RunID,
-			parent.ID,
+			parent.ID(),
 		)
 	}
-	tree.parentByRunID[child.ID] = parent.ID
+	tree.parentByRunID[child.ID()] = parent.ID()
 	return nil
 }
 
-func (tree *snapshotRunTree) validateRootLineage(runs []transcript.Run) error {
+func (tree *snapshotRunTree) validateRootLineage(runs []run.Run) error {
 	for _, run := range runs {
-		rootRunID, err := tree.resolveRootRunID(run.ID)
+		rootRunID, err := tree.resolveRootRunID(run.ID())
 		if err != nil {
 			return err
 		}
-		if run.Lineage().IsChild() && rootRunID != run.RootRunID {
+		if run.Lineage().IsChild() && rootRunID != run.Lineage().RootRunID {
 			return fmt.Errorf(
 				"sessions: snapshot child run %q reaches root %q through parents, want %q",
-				run.ID,
+				run.ID(),
 				rootRunID,
-				run.RootRunID,
+				run.Lineage().RootRunID,
 			)
 		}
 	}

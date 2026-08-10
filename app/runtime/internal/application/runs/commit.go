@@ -23,11 +23,11 @@ type WaitingSubtreeCancellationCommit struct {
 	RootRunID        string
 	TargetRunID      string
 	SessionID        string
-	RootRun          transcript.Run
+	RootRun          run.Run
 	ExpectedPending  Pending
 	RemainingPending *Pending
 	Checkpoint       ExecutorCheckpoint
-	TerminalRuns     []transcript.Run
+	TerminalRuns     []run.Run
 	TerminalItems    []ItemReplacement
 	ParentItem       ItemReplacement
 	Resume           *run.TreeResumeDraft
@@ -35,8 +35,8 @@ type WaitingSubtreeCancellationCommit struct {
 }
 
 type WaitingSubtreeCancellationResult struct {
-	TargetRun transcript.Run
-	RootRun   transcript.Run
+	TargetRun run.Run
+	RootRun   run.Run
 }
 
 // OpeningCommit is the atomic acceptance write-set for one fresh admission or
@@ -226,7 +226,7 @@ func (commit ModelInvocationCommit) validate() error {
 // segment; a stale continuation cannot overwrite a newer Run.
 type RunProgressCommit struct {
 	SegmentID string
-	Metrics   transcript.RunMetrics
+	Metrics   run.Metrics
 	UpdatedAt time.Time
 }
 
@@ -255,7 +255,7 @@ type EventCommit struct {
 	ModelInvocations []ModelInvocationCommit
 	ToolInvocations  []ToolInvocationCommit
 	Progress         *RunProgressCommit
-	Run              *transcript.Run
+	Run              *run.Run
 	GoalRun          *goal.RunRecord
 	// ObsoleteCheckpointRootID identifies the executor checkpoint aggregate the
 	// root Run terminal makes obsolete. Child terminal commits leave it empty.
@@ -349,29 +349,37 @@ func (c EventCommit) validateLifecycle() error {
 		}
 		return nil
 	case StateSuspend:
-		if c.Run == nil || c.Run.State != run.Waiting {
+		if c.Run == nil || c.Run.State() != run.Waiting {
 			return errors.New("runs: suspend event commit has no waiting Run")
 		}
 		if c.GoalRun != nil || c.ObsoleteCheckpointRootID != "" {
 			return errors.New("runs: suspend event commit carries terminal facts")
 		}
 	case StateTerminalize:
-		if c.Run == nil || !c.Run.State.IsTerminal() || c.Run.Outcome == nil || *c.Run.Outcome != c.Outcome {
+		if c.Run == nil || !c.Run.State().IsTerminal() {
 			return errors.New("runs: terminal event commit has no matching terminal Run")
+		}
+		outcome, ok := c.Run.Outcome()
+		if !ok || outcome != c.Outcome {
+			return errors.New("runs: terminal event commit has no matching terminal outcome")
 		}
 	default:
 		return fmt.Errorf("runs: event commit has unknown state change %d", c.State)
 	}
 
-	if c.Run.ID != c.RunID || c.Run.SessionID != c.SessionID {
+	if c.Run.ID() != c.RunID || c.Run.SessionID() != c.SessionID {
 		return errors.New("runs: event commit Run ownership differs from its envelope")
 	}
 	validatedRun := *c.Run
-	if c.State == StateTerminalize && validatedRun.MessageMark == transcript.UnknownMessageMark {
+	if c.State == StateTerminalize && validatedRun.MessageMark() == run.UnknownMessageMark {
 		// The reducer cannot know the final conversation watermark. The terminal
 		// transaction resolves it while committing this Run; every other terminal
 		// fact must already satisfy the domain invariant.
-		validatedRun.MessageMark = 0
+		var err error
+		validatedRun, err = validatedRun.WithMessageMark(0)
+		if err != nil {
+			return fmt.Errorf("runs: resolve provisional message watermark: %w", err)
+		}
 	}
 	if err := validatedRun.Validate(); err != nil {
 		return fmt.Errorf("runs: event commit Run: %w", err)
@@ -382,30 +390,31 @@ func (c EventCommit) validateLifecycle() error {
 	return validateTerminalGoalRun(*c.Run, c.GoalRun)
 }
 
-func validateTerminalGoalRun(run transcript.Run, record *goal.RunRecord) error {
-	if run.GoalLeaseID == "" {
+func validateTerminalGoalRun(value run.Run, record *goal.RunRecord) error {
+	if value.GoalLeaseID() == "" {
 		if record != nil {
-			return fmt.Errorf("runs: non-Goal Run %q carries a Goal Run", run.ID)
+			return fmt.Errorf("runs: non-Goal Run %q carries a Goal Run", value.ID())
 		}
 		return nil
 	}
-	if !run.Lineage().IsRoot() {
-		return fmt.Errorf("runs: child Run %q carries a root Goal lease", run.ID)
+	if !value.Lineage().IsRoot() {
+		return fmt.Errorf("runs: child Run %q carries a root Goal lease", value.ID())
 	}
 	if record == nil {
-		return fmt.Errorf("runs: Goal-owned terminal Run %q has no Goal Run", run.ID)
+		return fmt.Errorf("runs: Goal-owned terminal Run %q has no Goal Run", value.ID())
 	}
 	if err := record.Validate(); err != nil {
 		return fmt.Errorf("runs: terminal Goal Run: %w", err)
 	}
 	costUSD := 0.0
-	if run.Metrics.Usage != nil && run.Metrics.Usage.CostUSD != nil {
-		costUSD = *run.Metrics.Usage.CostUSD
+	if usage, ok := value.Metrics().Usage(); ok && usage.Total.CostUSD != nil {
+		costUSD = *usage.Total.CostUSD
 	}
-	if run.Outcome == nil || record.SessionID != run.SessionID || record.LeaseID != run.GoalLeaseID ||
-		record.RunID != run.ID || record.Outcome != *run.Outcome || record.CostUSD != costUSD ||
-		record.Steps != run.Metrics.Steps || !record.CompletedAt.Equal(run.FinishedAt) {
-		return fmt.Errorf("runs: Goal Run differs from terminal Run %q", run.ID)
+	outcome, ok := value.Outcome()
+	if !ok || record.SessionID != value.SessionID() || record.LeaseID != value.GoalLeaseID() ||
+		record.RunID != value.ID() || record.Outcome != outcome || record.CostUSD != costUSD ||
+		record.Steps != value.Metrics().Steps() || !record.CompletedAt.Equal(value.FinishedAt()) {
+		return fmt.Errorf("runs: Goal Run differs from terminal Run %q", value.ID())
 	}
 	return nil
 }
@@ -542,11 +551,11 @@ func (validator treeBarrierValidator) validateRun(index int, runCommit EventComm
 	if err := runCommit.Validate(); err != nil {
 		return fmt.Errorf("runs: tree barrier Run[%d]: %w", index, err)
 	}
-	if runCommit.State != StateSuspend || runCommit.Run == nil || runCommit.Run.State != run.Waiting {
+	if runCommit.State != StateSuspend || runCommit.Run == nil || runCommit.Run.State() != run.Waiting {
 		return fmt.Errorf("runs: tree barrier Run[%d] is not a waiting Run projection", index)
 	}
 	pending := validator.barrier.Pending
-	if runCommit.SessionID != pending.SessionID || runCommit.Run.SessionID != pending.SessionID {
+	if runCommit.SessionID != pending.SessionID || runCommit.Run.SessionID() != pending.SessionID {
 		return fmt.Errorf("runs: tree barrier Run[%d] Session differs from Pending", index)
 	}
 	continuation, exists := validator.continuations[runCommit.RunID]
@@ -554,20 +563,20 @@ func (validator treeBarrierValidator) validateRun(index int, runCommit EventComm
 		return fmt.Errorf("runs: tree barrier Run[%d] has no continuation", index)
 	}
 	if runCommit.Run.Lineage() != continuation.Lineage ||
-		runCommit.Run.ModelSelection != continuation.ModelSelection ||
-		!runCommit.Run.CreatedAt.Equal(continuation.RunCreatedAt) ||
-		!runCommit.Run.Metrics.Equal(continuation.Metrics) ||
-		runCommit.Run.Limits != continuation.Limits {
+		runCommit.Run.ModelSelection() != continuation.ModelSelection ||
+		!runCommit.Run.CreatedAt().Equal(continuation.RunCreatedAt) ||
+		!runCommit.Run.Metrics().Equal(continuation.Metrics) ||
+		runCommit.Run.Limits() != continuation.Limits {
 		return fmt.Errorf("runs: tree barrier Run[%d] differs from its continuation", index)
 	}
-	if !runCommit.Run.Capabilities.Equal(pending.Capabilities) {
+	if !runCommit.Run.Capabilities().Equal(pending.Capabilities) {
 		return fmt.Errorf("runs: tree barrier Run[%d] capabilities differ from Pending", index)
 	}
 	if runCommit.RunID == pending.RootRunID {
-		if runCommit.Run.GoalLeaseID != pending.GoalLeaseID {
+		if runCommit.Run.GoalLeaseID() != pending.GoalLeaseID {
 			return errors.New("runs: tree barrier root Run goal lease differs from Pending")
 		}
-	} else if runCommit.Run.GoalLeaseID != "" {
+	} else if runCommit.Run.GoalLeaseID() != "" {
 		return fmt.Errorf("runs: tree barrier child Run[%d] carries a root Goal lease", index)
 	}
 	if _, duplicate := validator.seenRunIDs[runCommit.RunID]; duplicate {

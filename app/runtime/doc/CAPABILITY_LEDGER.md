@@ -24,7 +24,7 @@
 - `go.mod` 精确声明包含 Baseline 18 的 Agent Framework commit；`GOWORK=off` 的 tidy/build/vet/test 已证明 Runtime 不依赖 workspace 隐式替换；
 - Agent Framework production import 只允许位于 `adapter/agentexec`；Domain、Application、Infra、Delivery、Bootstrap 与通用 Toolset 对 Agent Framework concrete types 为零；
 - P2 已删除 `domain/execution` 及全部 forwarding/alias path；Domain 生产代码与测试对 Application/Adapter/Infra/Delivery/Bootstrap 零 import，context-based I/O port 为零；
-- Run、Accounting、Conversation、Transcript、Interrupt、ToolResult 已成为准确顶层 bounded-context package；executor checkpoint/ref、pending continuation 与 workspace mutation 由 Application consumer 拥有；
+- Run、Accounting、Conversation、Transcript、Interrupt、Tool 与 ToolResult 已成为准确顶层 bounded-context package；P16-01 已由 `run.Run` 接管完整 Run aggregate，Transcript 不再承载第二 Run lifecycle，Run/Tool failure taxonomy 按 owner 分离；executor checkpoint/ref、pending continuation 与 workspace mutation 由 Application consumer 拥有；
 - P3 已删除 Application 的 `ExecutionControl`、`SegmentExecutor`、`SessionLifecycle` 与 `Effects` 胖接口；root start/observe/release、Session reads/termination 与 Run projection write-sets 均由真实 consumer-owned ports 表达；
 - Application executor tree identity 已统一为 `ExecutorMember`/`MemberID`；Framework `ProcessID` 只存在于 `adapter/agentexec` 内部映射，SQLite technical shape 使用 `root_member_id`/`memberId`；
 - 同一 Interaction tree 已在生产 Bootstrap 接通 conclusive child start、durable Delegate child Run attribution、nested/sibling child reconciliation，以及 one-shot prepared waiting-subtree cancellation；
@@ -51,7 +51,7 @@
 
 | 当前能力 | 当前 owner | 目标 | Verdict | 验收 |
 |---|---|---|---|---|
-| Run identity/state/outcome | `domain/run` | 保持 | Retain | P2 旧 path 归零；P14 将成员索引校验与 canonical topology traversal 收敛到私有 `run.Tree` builder，并以 `run.State`/`Status`/`Draft`/`Limits`/`Capabilities`/`Lineage`/`Tree` 清除 package stutter，状态与树行为测试全绿 |
+| Run aggregate | `domain/run.Run` | 保持唯一 aggregate owner | Retain + Refactor | P16-01 已用私有字段统一 identity、lineage、frozen admission facts、lifecycle、active Segment、metrics 与 terminal facts；所有 mutation 经 admission/restore/advance/suspend/resume/terminate/cancel/lost 行为，Application/Persistence/Delivery 只消费完整值 |
 | Segment identity/lifecycle | `domain/run` + `application/runs` | 保持；P3 重推 root port | Retain + Refactor port | resume 保持 RunID、打开新 Segment |
 | Run limits/capabilities | `domain/run` | 保持 | Retain | admission/restore 同值，不能重新谈判 |
 | Terminal outcome taxonomy | Completed/Canceled/TimedOut/Failed/MaxBudget/MaxSteps/Lost | Agent Framework Termination + Application intent 唯一映射 | Retain | P8 完整 matrix 已冻结并覆盖 |
@@ -64,7 +64,7 @@
 | 当前能力 | 当前 owner | 目标 | Verdict | 验收 |
 |---|---|---|---|---|
 | Conversation message log | `domain/conversation` + `application/conversations` I/O | 保持 | Retain | Count/Truncate/Seed 不依赖 Run executor |
-| Transcript Items/Runs | `domain/transcript` | 保持 | Retain | rollback/fork/item timing 保持权威；`Item` 聚合内的 envelope、kind payload、tool-call payload 与 disallowed payload 各有准确的私有 invariant owner |
+| Transcript Items | `domain/transcript` | 保持；P16-02 关闭公开 tagged-union mutation | Retain + Refactor | P16-01 已删除第二 Run carrier 与通用 Problem，Transcript 只拥有用户可见 Item/ordering/boundary；Item 构造与 ToolCall 状态行为留 P16-02 完成 |
 | Offloaded transcript content | `domain/toolresult` | 保持准确独立 capability | Retain | 无泛化 blob service |
 | Knowledge/LYRA.md | `domain/knowledge` | 保持独立 | Retain | 用户编辑与 Agent state 无关 |
 | WorkingContext | Application composer + Agent Framework Interaction private state | 保持 Host composition 与 executor state 分离 | Retain | fresh root 读取产品事实；restore 只用 opaque checkpoint，不从 Conversation 重算 |
@@ -307,3 +307,4 @@ P8 production cutover 已用真实 Bootstrap consumer 冻结 root stage/observe/
 - P14 完成 Runtime 内部职责与全层级命名精修：package、目录、文件、类型、方法、函数、常量、字段和局部变量按 owner/行为逐层反证；淘汰词汇与失真文件路径由精确 package guard 防回流。最终 standalone、race、生成物、文档链接、死代码、空残留、复杂度与完整 lint 门禁全绿，未改变 Runtime/Agent Framework 边界、协议或持久化合同。
 - P15-02 再次反证 Domain/Application 后，将 system-invariant 的说明性 catalog 从生产 Application graph 移至 `cmd/contractgen`，而真实跨聚合不变量继续由对应 write-set 和 integration fixture 独占；无消费者导出链已删除，结果值、水位与 child/executor 语言按真实语义统一。Domain 仍只拥有聚合、值与纯策略合同，Application 仍独占 I/O ports；本批没有新增 Framework concrete type、协议 wire、SQLite shape 或消费者兼容路径。
 - P15-03 反证 Adapter/Infra/Delivery/Bootstrap 后，executor checkpoint 在 `agentexec` 之外重新成为纯 opaque bytes：Bootstrap 与 runsegment 不再复制或解释 TreeSnapshot shape，持久化测试只证明 checkpoint envelope 的原子保存、替换和删除。非 Framework 层的 member/request/child-Run 词汇、LLM catalog/profile 命名、execution scope 文件职责与 SQLite epoch 事实已同步；新增 architecture guard 禁止外环重新拼装 Framework tree wire。本批没有改变协议、SQLite shape 或 Agent Framework 合同。
+- P16-01 已完成完整 Run aggregate 纵切：`domain/run.Run` 是 lifecycle、frozen admission facts、cumulative metrics 和 terminal facts 的唯一 mutation owner；`domain/transcript` 不再定义 Run 或跨 Run/Tool 的通用 Problem。SQLite 只重放并验证 aggregate transition 后执行 CAS，不再以裸 State 形成第二状态机。Application 的 Run tree/Pending/checkpoint/Goal/Conversation/Transcript 原子 write-set 仍留在原 owner，Agent Framework concrete import island、Protocol wire、SQLite epoch 和消费者实现均未改变。

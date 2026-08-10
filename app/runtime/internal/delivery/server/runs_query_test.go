@@ -15,6 +15,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
+	runfixture "github.com/Tangerg/lynx/app/runtime/internal/testsupport/runfixture"
 )
 
 // fakeInterruptReader backs the query coordinator's interrupt read for the
@@ -260,13 +261,13 @@ func assertSubagentCapabilityGap(t *testing.T, operation string, err error) {
 func putChildRun(t *testing.T, rt *stubRuntime, sessionID, runID string, atUnix int64, mark int) {
 	t.Helper()
 	outcome := run.OutcomeCompleted
-	if err := rt.runs.Restore(t.Context(), transcript.Run{
-		SessionID: sessionID, ID: runID, SpawnedByItemID: "item_spawn",
-		ParentRunID: "run_root", RootRunID: "run_root",
+	if err := rt.runs.Restore(t.Context(), runfixture.MustRestore(run.Snapshot{SessionID: sessionID, ID: runID,
+
 		State: run.Completed, Outcome: &outcome,
 		CreatedAt: time.Unix(atUnix, 0).UTC(), FinishedAt: time.Unix(atUnix, 0).UTC(),
-		UpdatedAt: time.Unix(atUnix, 0).UTC(), MessageMark: mark,
-	}); err != nil {
+		UpdatedAt: time.Unix(atUnix, 0).UTC(), MessageMark: mark, Lineage: run.Lineage{SpawnedByItemID: "item_spawn",
+			ParentRunID: "run_root", RootRunID: "run_root"}}),
+	); err != nil {
 		t.Fatalf("put child run %s: %v", runID, err)
 	}
 }

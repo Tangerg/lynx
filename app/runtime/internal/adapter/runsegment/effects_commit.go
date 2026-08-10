@@ -614,23 +614,24 @@ func (e *Effects) applyState(ctx context.Context, commit runs.EventCommit) error
 // transaction so it is consistent with the state it terminalizes (the message log
 // is in its terminal post-compaction shape by the time a terminal event arrives),
 // and the row's touch time.
-func (e *Effects) finishedRun(ctx context.Context, commit runs.EventCommit) (transcript.Run, error) {
+func (e *Effects) finishedRun(ctx context.Context, commit runs.EventCommit) (run.Run, error) {
 	if commit.Run == nil {
-		return transcript.Run{}, errors.New("runsegment: terminal commit carries no run record")
+		return run.Run{}, errors.New("runsegment: terminal commit carries no run record")
 	}
-	run := *commit.Run
-	if run.MessageMark < 0 {
+	record := *commit.Run
+	if record.MessageMark() < 0 {
 		if e.messages == nil {
-			return transcript.Run{}, errors.New("runsegment: message persistence is unavailable")
+			return run.Run{}, errors.New("runsegment: message persistence is unavailable")
 		}
-		mark, err := e.messages.Count(ctx, run.SessionID)
+		mark, err := e.messages.Count(ctx, record.SessionID())
 		if err != nil {
-			return transcript.Run{}, fmt.Errorf("runsegment: resolve terminal message watermark: %w", err)
+			return run.Run{}, fmt.Errorf("runsegment: resolve terminal message watermark: %w", err)
 		}
-		run.MessageMark = mark
+		finalized, err := record.WithMessageMark(mark)
+		if err != nil {
+			return run.Run{}, fmt.Errorf("runsegment: apply terminal message watermark: %w", err)
+		}
+		record = finalized
 	}
-	if run.UpdatedAt.IsZero() {
-		run.UpdatedAt = time.Now().UTC()
-	}
-	return run, nil
+	return record, nil
 }

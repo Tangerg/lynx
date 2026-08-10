@@ -8,6 +8,7 @@ import (
 
 	"github.com/Tangerg/lynx/core/chat"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
@@ -36,14 +37,14 @@ type ForkBoundary struct {
 // change and therefore is not a portable fork boundary. An explicit target
 // must itself be terminal; an implicit whole-conversation fork stops at the
 // latest terminal run.
-func ResolveForkBoundary(msgs []chat.Message, runs []transcript.Run, fromRunID string) (ForkBoundary, error) {
+func ResolveForkBoundary(msgs []chat.Message, runs []run.Run, fromRunID string) (ForkBoundary, error) {
 	ordered := slices.Clone(runs)
-	slices.SortStableFunc(ordered, func(a, b transcript.Run) int {
-		return a.CreatedAt.Compare(b.CreatedAt)
+	slices.SortStableFunc(ordered, func(a, b run.Run) int {
+		return a.CreatedAt().Compare(b.CreatedAt())
 	})
 	for _, run := range ordered {
-		if run.State.IsTerminal() && (run.MessageMark < 0 || run.MessageMark > len(msgs)) {
-			return ForkBoundary{}, fmt.Errorf("sessions: terminal run %q has invalid message watermark %d", run.ID, run.MessageMark)
+		if run.State().IsTerminal() && (run.MessageMark() < 0 || run.MessageMark() > len(msgs)) {
+			return ForkBoundary{}, fmt.Errorf("sessions: terminal run %q has invalid message watermark %d", run.ID(), run.MessageMark())
 		}
 	}
 
@@ -54,7 +55,7 @@ func ResolveForkBoundary(msgs []chat.Message, runs []transcript.Run, fromRunID s
 	targetTerminal := fromRunID == ""
 	for start := 0; start < len(ordered); {
 		if ordered[start].Lineage().IsChild() {
-			return ForkBoundary{}, fmt.Errorf("sessions: run timeline starts a group with child Run %q", ordered[start].ID)
+			return ForkBoundary{}, fmt.Errorf("sessions: run timeline starts a group with child Run %q", ordered[start].ID())
 		}
 		end := start + 1
 		for end < len(ordered) && ordered[end].Lineage().IsChild() {
@@ -62,15 +63,15 @@ func ResolveForkBoundary(msgs []chat.Message, runs []transcript.Run, fromRunID s
 		}
 		stable := true
 		for _, run := range ordered[start:end] {
-			stable = stable && run.State.IsTerminal()
+			stable = stable && run.State().IsTerminal()
 		}
 		if stable {
 			for _, run := range ordered[start:end] {
 				terminal = append(terminal, transcript.RunNode{
-					ID: run.ID, SpawnedByItemID: run.SpawnedByItemID,
-					CreatedAt: run.CreatedAt, MessageMark: run.MessageMark,
+					ID: run.ID(), SpawnedByItemID: run.Lineage().SpawnedByItemID,
+					CreatedAt: run.CreatedAt(), MessageMark: run.MessageMark(),
 				})
-				if run.ID == fromRunID {
+				if run.ID() == fromRunID {
 					targetTerminal = true
 				}
 			}

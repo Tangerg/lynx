@@ -572,10 +572,7 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 				Plan:       cfg.PlanStore,
 			}),
 			Usage: usage.New(usage.Dependencies{
-				Runs:            cfg.RunStore,
-				Sessions:        cfg.SessionStore,
-				DefaultProvider: cfg.Provider,
-				DefaultModel:    cfg.Model,
+				Runs: cfg.RunStore, Sessions: cfg.SessionStore,
 			}),
 			Feedback:           feedbackapp.New(cfg.FeedbackStore),
 			WorkspaceFiles:     workspaceFiles,

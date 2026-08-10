@@ -5,8 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/accounting"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/toolresult"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
@@ -25,43 +24,6 @@ func TestSequenceOrderIsAClosedVocabulary(t *testing.T) {
 		if err := order.Validate(); err == nil {
 			t.Fatalf("Validate(%q) succeeded", order)
 		}
-	}
-}
-
-func TestRunTerminalOutcomeContract(t *testing.T) {
-	selection, err := modelref.New("anthropic", "claude")
-	if err != nil {
-		t.Fatal(err)
-	}
-	finishedAt := time.Unix(2, 0).UTC()
-	tests := []struct {
-		outcome run.Outcome
-		problem *transcript.Problem
-	}{
-		{outcome: run.OutcomeCompleted},
-		{outcome: run.OutcomeCanceled},
-		{outcome: run.OutcomeTimedOut, problem: &transcript.Problem{Scope: transcript.RunProblem, Kind: transcript.TimeoutProblem}},
-		{outcome: run.OutcomeFailed, problem: &transcript.Problem{Scope: transcript.RunProblem, Kind: transcript.InternalProblem}},
-		{outcome: run.OutcomeMaxBudget},
-		{outcome: run.OutcomeMaxSteps},
-		{outcome: run.OutcomeLost, problem: &transcript.Problem{Scope: transcript.RunProblem, Kind: transcript.RunLostProblem}},
-	}
-	for _, test := range tests {
-		t.Run(test.outcome.String(), func(t *testing.T) {
-			state, ok := run.Running.Terminate(test.outcome)
-			if !ok {
-				t.Fatalf("Terminate(%s) rejected", test.outcome)
-			}
-			record := transcript.Run{
-				ID: "run_1", SessionID: "session_1", ModelSelection: selection,
-				State: state, Outcome: &test.outcome, Error: test.problem,
-				CreatedAt: time.Unix(1, 0).UTC(), FinishedAt: finishedAt,
-				UpdatedAt: finishedAt, MessageMark: 0,
-			}
-			if err := record.Validate(); err != nil {
-				t.Fatalf("Validate: %v", err)
-			}
-		})
 	}
 }
 
@@ -165,31 +127,33 @@ func TestToolCallTimingLifecycle(t *testing.T) {
 	}
 }
 
-func TestUsageAndProblemValidate(t *testing.T) {
+func TestUsageAndToolFailureValidate(t *testing.T) {
 	negativeCost := -0.1
 	nanCost := math.NaN()
 	infiniteCost := math.Inf(1)
 	tests := []struct {
 		name    string
-		usage   *transcript.Usage
-		problem *transcript.Problem
+		usage   *accounting.Usage
+		failure *tool.Failure
 		wantErr bool
 	}{
 		{name: "valid"},
-		{name: "negative token", usage: &transcript.Usage{ModelUsage: transcript.ModelUsage{InputTokens: -1}}, wantErr: true},
-		{name: "negative cost", usage: &transcript.Usage{ModelUsage: transcript.ModelUsage{CostUSD: &negativeCost}}, wantErr: true},
-		{name: "nan cost", usage: &transcript.Usage{ModelUsage: transcript.ModelUsage{CostUSD: &nanCost}}, wantErr: true},
-		{name: "infinite cost", usage: &transcript.Usage{ModelUsage: transcript.ModelUsage{CostUSD: &infiniteCost}}, wantErr: true},
-		{name: "unknown problem scope", problem: &transcript.Problem{Scope: transcript.ProblemScope(99)}, wantErr: true},
-		{name: "wrong problem owner", problem: &transcript.Problem{Scope: transcript.RunProblem}, wantErr: true},
-		{name: "retry delay on permanent failure", problem: &transcript.Problem{Scope: transcript.ToolProblem, Kind: transcript.InvalidAPIKeyProblem, RetryAfterSeconds: 1}, wantErr: true},
-		{name: "retry delay on rate limit", problem: &transcript.Problem{Scope: transcript.ToolProblem, Kind: transcript.RateLimitedProblem, RetryAfterSeconds: 1}},
+		{name: "negative token", usage: &accounting.Usage{Total: accounting.Totals{InputTokens: -1}}, wantErr: true},
+		{name: "negative cost", usage: &accounting.Usage{Total: accounting.Totals{CostUSD: &negativeCost}}, wantErr: true},
+		{name: "nan cost", usage: &accounting.Usage{Total: accounting.Totals{CostUSD: &nanCost}}, wantErr: true},
+		{name: "infinite cost", usage: &accounting.Usage{Total: accounting.Totals{CostUSD: &infiniteCost}}, wantErr: true},
+		{name: "unknown failure kind", failure: &tool.Failure{Kind: tool.FailureKind(99)}, wantErr: true},
+		{name: "retry delay on permanent failure", failure: &tool.Failure{Kind: tool.FailureDenied, RetryAfter: time.Second}, wantErr: true},
+		{name: "valid execution failure", failure: &tool.Failure{Kind: tool.FailureExecution}},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			err := test.usage.Validate()
-			if err == nil && test.problem != nil {
-				err = test.problem.ValidateFor(transcript.ToolProblem)
+			var err error
+			if test.usage != nil {
+				err = test.usage.Validate()
+			}
+			if err == nil && test.failure != nil {
+				err = test.failure.Validate()
 			}
 			if (err != nil) != test.wantErr {
 				t.Fatalf("validation error = %v, want error %t", err, test.wantErr)

@@ -196,7 +196,7 @@ type SessionCreator interface {
 
 // ActiveRunReader reports the Session's current non-terminal Run for admission.
 type ActiveRunReader interface {
-	ActiveRun(ctx context.Context, sessionID string) (transcript.Run, bool, error)
+	ActiveRun(ctx context.Context, sessionID string) (run.Run, bool, error)
 }
 
 // PendingInterruptReader projects root-owned waiting boundaries by Session or
@@ -209,7 +209,7 @@ type PendingInterruptReader interface {
 // RunTerminationCommitter owns the atomic application write-sets for canceling
 // a parked Run or declaring its executor state unrecoverable.
 type RunTerminationCommitter interface {
-	ApplyRunCancel(ctx context.Context, sessionID, runID, reason string, finishedAt time.Time) (transcript.Run, error)
+	ApplyRunCancel(ctx context.Context, sessionID, runID, reason string, finishedAt time.Time) (run.Run, error)
 	ApplyRunLost(ctx context.Context, sessionID, runID string, finishedAt time.Time) error
 }
 
@@ -230,8 +230,8 @@ type SessionPorts struct {
 // facts, not cancellation policy: application/domain code owns topology
 // validation and subtree meaning.
 type RunProjection interface {
-	Run(ctx context.Context, runID string) (transcript.Run, bool, error)
-	Tree(ctx context.Context, runID string) ([]transcript.Run, error)
+	Run(ctx context.Context, runID string) (run.Run, bool, error)
+	Tree(ctx context.Context, runID string) ([]run.Run, error)
 }
 
 // ItemProjection resolves the exact transcript Item a command plans to replace.
@@ -284,7 +284,7 @@ type WaitingMember struct {
 	ParentRunID     string
 	SpawnedByItemID string
 	ModelSelection  modelref.Selection
-	Metrics         transcript.RunMetrics
+	Metrics         run.Metrics
 }
 
 // WaitingContinuation is the complete Application-owned input for staging one

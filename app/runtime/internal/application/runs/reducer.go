@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/accounting"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
@@ -68,7 +69,7 @@ type reducerConfig struct {
 	// zero for a first segment, the parked Run's accrual for a continuation. Every
 	// Run record this reducer commits is the sum of this and the current segment,
 	// so a resumed Run reports the Run rather than its latest continuation.
-	Metrics transcript.RunMetrics
+	Metrics run.Metrics
 	// Limits is the allowance in force for the whole Run, frozen at admission and
 	// carried unchanged through every continuation.
 	Limits run.Limits
@@ -95,7 +96,7 @@ type reducer struct {
 	// usage is the latest authoritative cumulative Run accounting reported by
 	// the executor. Nil means this segment has not advanced the committed
 	// snapshot in cfg.Metrics.
-	usage            *transcript.Usage
+	usage            *accounting.Usage
 	segmentDuration  time.Duration
 	userInput        []transcript.ContentBlock
 	text             *openText
@@ -106,7 +107,7 @@ type reducer struct {
 	toolPositions    map[toolPosition]string
 	tools            openTools
 	drained          []DrainedTool
-	errProblem       *transcript.Problem
+	errFailure       *run.Failure
 	// plan is the last state snapshot this segment published, kept so the segment
 	// can fence its final value before finishing. Nil means this segment never
 	// changed the projection, and a segment that changed nothing has nothing to
@@ -156,7 +157,7 @@ func newReducer(cfg reducerConfig) *reducer {
 		resume = resumeBindingFrom(*cfg.Continuation, cfg.RunID)
 	}
 	return &reducer{
-		cfg: cfg, resume: resume, userInput: transcript.CloneContent(cfg.UserInput), step: cfg.Metrics.Steps,
+		cfg: cfg, resume: resume, userInput: transcript.CloneContent(cfg.UserInput), step: cfg.Metrics.Steps(),
 		modelCalls: make(map[string]time.Time), toolCallIDs: make(map[string]struct{}),
 		toolPositions: make(map[toolPosition]string), tools: make(openTools),
 	}
@@ -195,9 +196,9 @@ func (r *reducer) clone() *reducer {
 				offload := *current.end.Offload
 				end.Offload = &offload
 			}
-			if current.end.Problem != nil {
-				problem := *current.end.Problem
-				end.Problem = &problem
+			if current.end.Failure != nil {
+				failure := *current.end.Failure
+				end.Failure = &failure
 			}
 			tool.end = &end
 		}
@@ -211,9 +212,9 @@ func (r *reducer) clone() *reducer {
 		plan.Plan = slices.Clone(r.plan.Plan)
 		cloned.plan = &plan
 	}
-	if r.errProblem != nil {
-		problem := *r.errProblem
-		cloned.errProblem = &problem
+	if r.errFailure != nil {
+		failure := *r.errFailure
+		cloned.errFailure = &failure
 	}
 	if r.lastModelMessage != nil {
 		message := r.lastModelMessage.Clone()
@@ -267,15 +268,13 @@ func (r *reducer) open() (reductionBatch, error) {
 	if r.resume != nil && r.resume.err != nil {
 		return reductionBatch{}, fmt.Errorf("%w: %w", errReducerInvariant, r.resume.err)
 	}
-	createdAt := r.cfg.CreatedAt
-	if createdAt.IsZero() {
-		createdAt = r.now()
-	}
 	// The opening Run record goes through runRecord like every other one, so a
 	// resumed segment announces the Run's accrual and allowance rather than a fresh
 	// Run's zeros. Only the creation stamp differs: an opening may have to mint one.
-	opening := r.runRecord(run.Running)
-	opening.CreatedAt = createdAt
+	opening, err := r.runRecord(run.Running)
+	if err != nil {
+		return reductionBatch{}, err
+	}
 	out := []RunEvent{SegmentStarted{Run: opening}}
 	out = append(out, r.openUserMessage()...)
 	out = append(out, r.resumeQuestionCompletions()...)
@@ -418,6 +417,10 @@ func (r *reducer) completeModelCall(completed ModelCallCompleted) (factReduction
 	if err != nil {
 		return factReduction{}, fmt.Errorf("%w: model call usage: %w", errExecutorContract, err)
 	}
+	metrics, err := r.metrics()
+	if err != nil {
+		return factReduction{}, fmt.Errorf("%w: model call metrics: %w", errExecutorContract, err)
+	}
 	return factReduction{
 		events: append(events, progressEvents...),
 		modelInvocations: []ModelInvocationCommit{{
@@ -425,7 +428,7 @@ func (r *reducer) completeModelCall(completed ModelCallCompleted) (factReduction
 			State: ModelInvocationCompleted, StartedAt: startedAt, FinishedAt: finishedAt,
 		}},
 		progress: &RunProgressCommit{
-			SegmentID: r.cfg.SegmentID, Metrics: r.metrics(), UpdatedAt: finishedAt,
+			SegmentID: r.cfg.SegmentID, Metrics: metrics, UpdatedAt: finishedAt,
 		},
 	}, nil
 }
@@ -583,13 +586,13 @@ func (r *reducer) synthesizeTerminal() (reductionBatch, error) {
 	out = append(out, drained...)
 	// No SegmentEnded arrived, so nothing fresh was reported: the Segment's accrual
 	// stands as last reported and is committed as-is.
-	var failure *transcript.Problem
+	var failure *run.Failure
 	var modelInvocations []ModelInvocationCommit
 	outcome := run.OutcomeCanceled
 	if len(r.modelCalls) > 0 {
 		outcome = run.OutcomeLost
-		failure = &transcript.Problem{
-			Kind: transcript.RunLostProblem, Scope: transcript.RunProblem,
+		failure = &run.Failure{
+			Kind:   run.FailureLost,
 			Detail: "a model invocation ended without a provable durable result",
 		}
 		finishedAt := r.now()
@@ -606,12 +609,9 @@ func (r *reducer) synthesizeTerminal() (reductionBatch, error) {
 			})
 		}
 		clear(r.modelCalls)
-	} else if r.errProblem != nil {
+	} else if r.errFailure != nil {
 		outcome = run.OutcomeFailed
-		failure, err = runResultProblem(*r.errProblem)
-		if err != nil {
-			return reductionBatch{}, fmt.Errorf("%w: synthesize terminal: %w", errReducerInvariant, err)
-		}
+		failure = r.errFailure
 	}
 	detail := ""
 	if outcome == run.OutcomeCanceled && r.cfg.CancelReason != nil {
@@ -644,18 +644,7 @@ func (r *reducer) synthesizeTerminal() (reductionBatch, error) {
 // terminal commit or a contract-violating executor event is otherwise invisible
 // — so every caller records it there before calling this.
 func (r *reducer) abort() {
-	r.errProblem = &transcript.Problem{Kind: transcript.InternalProblem, Scope: transcript.RunProblem}
-}
-
-// runResultProblem checks that a problem belongs in a run's result slot rather
-// than forcing it to fit. Overwriting the scope would silently relabel a
-// tool-scoped problem as run-scoped, and the export-time ValidateFor that would
-// eventually notice can no longer say which segment produced it.
-func runResultProblem(problem transcript.Problem) (*transcript.Problem, error) {
-	if err := problem.ValidateFor(transcript.RunProblem); err != nil {
-		return nil, fmt.Errorf("run result problem: %w", err)
-	}
-	return &problem, nil
+	r.errFailure = &run.Failure{Kind: run.FailureInternal}
 }
 
 func (r *reducer) project(events []RunEvent) (reductionBatch, error) {
@@ -774,13 +763,13 @@ func (r *reducer) projectOne(event RunEvent) (reduction, error) {
 		}
 	case SegmentFinished:
 		commit.Run = &e.Run
-		if e.Run.State == run.Waiting {
+		if e.Run.State() == run.Waiting {
 			commit.State = StateSuspend
 			return reduction{Event: event, Commit: &commit}, nil
 		}
 		commit.State = StateTerminalize
-		if e.Run.Outcome != nil {
-			commit.Outcome = *e.Run.Outcome
+		if outcome, terminal := e.Run.Outcome(); terminal {
+			commit.Outcome = outcome
 			commit.GoalRun = r.goalTurn(e.Run)
 		}
 	case ItemStarted:
@@ -802,23 +791,24 @@ func (r *reducer) projectOne(event RunEvent) (reduction, error) {
 	return reduction{Event: event, Commit: eventCommit, Nudge: nudge}, nil
 }
 
-func (r *reducer) goalTurn(run transcript.Run) *goal.RunRecord {
-	if r.cfg.GoalLeaseID == "" || run.Outcome == nil {
+func (r *reducer) goalTurn(run run.Run) *goal.RunRecord {
+	outcome, terminal := run.Outcome()
+	if r.cfg.GoalLeaseID == "" || !terminal {
 		return nil
 	}
 	record := &goal.RunRecord{
 		SessionID:   r.cfg.SessionID,
 		LeaseID:     r.cfg.GoalLeaseID,
 		RunID:       r.cfg.RunID,
-		Outcome:     *run.Outcome,
-		CompletedAt: run.FinishedAt,
+		Outcome:     outcome,
+		CompletedAt: run.FinishedAt(),
 	}
 	if record.CompletedAt.IsZero() {
 		record.CompletedAt = r.now()
 	}
-	record.Steps = run.Metrics.Steps
-	if run.Metrics.Usage != nil && run.Metrics.Usage.CostUSD != nil {
-		record.CostUSD = *run.Metrics.Usage.CostUSD
+	record.Steps = run.Metrics().Steps()
+	if usage, reported := run.Metrics().Usage(); reported && usage.Total.CostUSD != nil {
+		record.CostUSD = *usage.Total.CostUSD
 	}
 	return record
 }
@@ -914,7 +904,7 @@ func validateParkReductionBatch(batch reductionBatch, terminalAt int) error {
 		return fmt.Errorf("%w: park batch has no projection commit", errReducerInvariant)
 	case commit.State != StateSuspend:
 		return fmt.Errorf("%w: park batch commit does not suspend the run", errReducerInvariant)
-	case commit.Run == nil || commit.Run.State != run.Waiting:
+	case commit.Run == nil || commit.Run.State() != run.Waiting:
 		return fmt.Errorf("%w: park batch commit has no waiting Run", errReducerInvariant)
 	case terminalAt != len(batch.events)-1:
 		return fmt.Errorf("%w: park batch has no terminal boundary event", errReducerInvariant)
@@ -929,10 +919,8 @@ func validateTerminalReduction(reduced reduction) error {
 		return fmt.Errorf("%w: terminal event has no projection commit", errReducerInvariant)
 	case commit.State != StateTerminalize:
 		return fmt.Errorf("%w: terminal event commit does not terminalize the run", errReducerInvariant)
-	case commit.Run == nil || !commit.Run.State.IsTerminal():
+	case commit.Run == nil || !commit.Run.State().IsTerminal():
 		return fmt.Errorf("%w: terminal event commit has no terminal run", errReducerInvariant)
-	case commit.Run.Outcome == nil || *commit.Run.Outcome != commit.Outcome:
-		return fmt.Errorf("%w: terminal event commit has an inconsistent outcome", errReducerInvariant)
 	case commit.GoalRun != nil && (commit.GoalRun.RunID != commit.RunID || commit.GoalRun.SessionID != commit.SessionID || commit.GoalRun.Outcome != commit.Outcome):
 		return fmt.Errorf("%w: terminal event commit has an inconsistent Goal Run", errReducerInvariant)
 	}
@@ -940,10 +928,21 @@ func validateTerminalReduction(reduced reduction) error {
 		return fmt.Errorf("%w: %w", errReducerInvariant, err)
 	}
 	wantState, ok := run.Running.Terminate(commit.Outcome)
-	if !ok || commit.Run.State != wantState {
+	committedOutcome, terminal := commit.Run.Outcome()
+	if !terminal || committedOutcome != commit.Outcome {
+		return fmt.Errorf("%w: terminal event commit has an inconsistent outcome", errReducerInvariant)
+	}
+	if !ok || commit.Run.State() != wantState {
 		return fmt.Errorf("%w: terminal event commit has an invalid lifecycle transition", errReducerInvariant)
 	}
 	return nil
 }
 
-func (r *reducer) now() time.Time { return r.cfg.Now().UTC() }
+func (r *reducer) now() time.Time {
+	now := r.cfg.Now().UTC()
+	createdAt := r.cfg.CreatedAt.UTC()
+	if !createdAt.IsZero() && now.Before(createdAt) {
+		return createdAt
+	}
+	return now
+}

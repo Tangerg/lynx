@@ -12,7 +12,6 @@ import (
 	agent "github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	"github.com/Tangerg/lynx/chatclient"
 	"github.com/Tangerg/lynx/core/chat"
 )
@@ -80,8 +79,8 @@ func TestInteractionExecutorMapsModelFailure(t *testing.T) {
 	executor := newTestInteractionExecutor(t, model)
 	events := runInteractionHarness(context.Background(), t, executor, interactionTestStart(), nil)
 	ended := payloadsOf[runs.SegmentEnded](events)
-	if len(ended) != 1 || ended[0].Reason != run.OutcomeFailed || ended[0].Problem == nil ||
-		ended[0].Problem.Kind != transcript.ProviderUnavailableProblem {
+	if len(ended) != 1 || ended[0].Reason != run.OutcomeFailed || ended[0].Failure == nil ||
+		ended[0].Failure.Kind != run.FailureProviderUnavailable {
 		t.Fatalf("segment end = %#v", ended)
 	}
 }
@@ -132,21 +131,21 @@ func TestInteractionTerminationMappingIsComplete(t *testing.T) {
 		name, status, cause, reason string
 		failureKind, failureCode    string
 		wantOutcome                 run.Outcome
-		wantProblem                 transcript.ProblemKind
-		hasProblem                  bool
+		wantFailure                 run.FailureKind
+		hasFailure                  bool
 	}{
 		{name: "completion", status: "completed", cause: "completion", wantOutcome: run.OutcomeCompleted},
-		{name: "process deadline", status: "timed_out", cause: "process_deadline", reason: "process deadline", wantOutcome: run.OutcomeTimedOut, wantProblem: transcript.TimeoutProblem, hasProblem: true},
-		{name: "parent deadline", status: "timed_out", cause: "parent_deadline", reason: "parent deadline", wantOutcome: run.OutcomeTimedOut, wantProblem: transcript.TimeoutProblem, hasProblem: true},
-		{name: "host deadline", status: "timed_out", cause: "host_deadline", reason: "host deadline", wantOutcome: run.OutcomeTimedOut, wantProblem: transcript.TimeoutProblem, hasProblem: true},
+		{name: "process deadline", status: "timed_out", cause: "process_deadline", reason: "process deadline", wantOutcome: run.OutcomeTimedOut, wantFailure: run.FailureTimeout, hasFailure: true},
+		{name: "parent deadline", status: "timed_out", cause: "parent_deadline", reason: "parent deadline", wantOutcome: run.OutcomeTimedOut, wantFailure: run.FailureTimeout, hasFailure: true},
+		{name: "host deadline", status: "timed_out", cause: "host_deadline", reason: "host deadline", wantOutcome: run.OutcomeTimedOut, wantFailure: run.FailureTimeout, hasFailure: true},
 		{name: "parent cancellation", status: "canceled", cause: "parent_cancellation", reason: "parent canceled", wantOutcome: run.OutcomeCanceled},
 		{name: "host cancellation", status: "canceled", cause: "host_cancellation", reason: "host canceled", wantOutcome: run.OutcomeCanceled},
 		{name: "model call limit", status: "failed", cause: "execution_failure", reason: "model call limit", failureKind: "execution", failureCode: "interaction.limit.model_calls", wantOutcome: run.OutcomeMaxSteps},
-		{name: "strategy failure", status: "failed", cause: "execution_failure", reason: "strategy failed", failureKind: "execution", failureCode: "execution.failed", wantOutcome: run.OutcomeFailed, wantProblem: transcript.AgentStuckProblem, hasProblem: true},
-		{name: "external failure", status: "failed", cause: "external_failure", reason: "provider unavailable", failureKind: "external", failureCode: "provider.failed", wantOutcome: run.OutcomeFailed, wantProblem: transcript.ProviderUnavailableProblem, hasProblem: true},
-		{name: "contract failure", status: "failed", cause: "contract_failure", reason: "contract failed", failureKind: "contract", failureCode: "contract.failed", wantOutcome: run.OutcomeFailed, wantProblem: transcript.InternalProblem, hasProblem: true},
-		{name: "panic", status: "failed", cause: "panic", reason: "execution panicked", failureKind: "panic", failureCode: "execution.panic", wantOutcome: run.OutcomeFailed, wantProblem: transcript.InternalProblem, hasProblem: true},
-		{name: "engine kill", status: "killed", cause: "engine_kill", reason: "engine shutdown", wantOutcome: run.OutcomeFailed, wantProblem: transcript.InternalProblem, hasProblem: true},
+		{name: "strategy failure", status: "failed", cause: "execution_failure", reason: "strategy failed", failureKind: "execution", failureCode: "execution.failed", wantOutcome: run.OutcomeFailed, wantFailure: run.FailureAgentStuck, hasFailure: true},
+		{name: "external failure", status: "failed", cause: "external_failure", reason: "provider unavailable", failureKind: "external", failureCode: "provider.failed", wantOutcome: run.OutcomeFailed, wantFailure: run.FailureProviderUnavailable, hasFailure: true},
+		{name: "contract failure", status: "failed", cause: "contract_failure", reason: "contract failed", failureKind: "contract", failureCode: "contract.failed", wantOutcome: run.OutcomeFailed, wantFailure: run.FailureInternal, hasFailure: true},
+		{name: "panic", status: "failed", cause: "panic", reason: "execution panicked", failureKind: "panic", failureCode: "execution.panic", wantOutcome: run.OutcomeFailed, wantFailure: run.FailureInternal, hasFailure: true},
+		{name: "engine kill", status: "killed", cause: "engine_kill", reason: "engine shutdown", wantOutcome: run.OutcomeFailed, wantFailure: run.FailureInternal, hasFailure: true},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -167,11 +166,11 @@ func TestInteractionTerminationMappingIsComplete(t *testing.T) {
 				t.Fatal(err)
 			}
 			end := segmentEndFromTermination(termination, time.Second)
-			if end.Reason != test.wantOutcome || (end.Problem != nil) != test.hasProblem {
+			if end.Reason != test.wantOutcome || (end.Failure != nil) != test.hasFailure {
 				t.Fatalf("mapping = %#v", end)
 			}
-			if test.hasProblem && end.Problem.Kind != test.wantProblem {
-				t.Fatalf("problem = %#v, want kind %v", end.Problem, test.wantProblem)
+			if test.hasFailure && end.Failure.Kind != test.wantFailure {
+				t.Fatalf("failure = %#v, want kind %v", end.Failure, test.wantFailure)
 			}
 		})
 	}

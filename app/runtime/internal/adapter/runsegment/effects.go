@@ -145,8 +145,8 @@ type ToolInvocationJournal interface {
 type RunWriter interface {
 	Admit(ctx context.Context, draft run.Draft) error
 	Resume(ctx context.Context, sessionID string, draft run.ResumeDraft, resumedAt time.Time) error
-	Suspend(ctx context.Context, run transcript.Run) error
-	Terminalize(ctx context.Context, run transcript.Run) error
+	Suspend(ctx context.Context, run run.Run) error
+	Terminalize(ctx context.Context, run run.Run) error
 }
 
 // RunMetricsWriter updates only cumulative consumption for one exact active
@@ -158,7 +158,7 @@ type RunMetricsWriter interface {
 		sessionID string,
 		runID string,
 		segmentID string,
-		metrics transcript.RunMetrics,
+		metrics run.Metrics,
 		updatedAt time.Time,
 	) error
 }

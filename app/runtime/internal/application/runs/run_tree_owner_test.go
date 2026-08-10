@@ -217,7 +217,7 @@ func TestRunTreeOwnerCancellationArbiterAllowsOnlyOneTreeOwner(t *testing.T) {
 		}
 		if _, err := treeOwner.beginChildCancellation(plan, "stop child"); !errors.Is(err, ErrSessionBusy) {
 			t.Fatalf("child cancellation error = %v, want ErrSessionBusy", err)
-		} else if !strings.Contains(err.Error(), plan.root.run.ID) {
+		} else if !strings.Contains(err.Error(), plan.root.run.ID()) {
 			t.Fatalf("child cancellation error = %q, want root identity", err)
 		}
 	})

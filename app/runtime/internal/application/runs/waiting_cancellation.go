@@ -8,6 +8,7 @@ import (
 	"time"
 
 	rundomain "github.com/Tangerg/lynx/app/runtime/internal/domain/run"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
@@ -72,13 +73,13 @@ func (prepared PreparedWaitingSubtreeCancellation) Validate() error {
 }
 
 type waitingCancellationTransformation struct {
-	terminalRuns   []transcript.Run
+	terminalRuns   []rundomain.Run
 	terminalItems  []ItemReplacement
 	parentItem     ItemReplacement
 	remaining      *Pending
 	continuation   *treeContinuation
 	checkpoint     ExecutorCheckpoint
-	root           transcript.Run
+	root           rundomain.Run
 	targetRunID    string
 	canceledRunIDs []string
 }
@@ -143,7 +144,7 @@ func (builder waitingCancellationBuilder) build() (waitingCancellationTransforma
 		continuation:   continuation,
 		checkpoint:     builder.prepared.Checkpoint.Clone(),
 		root:           builder.plan.root.run,
-		targetRunID:    builder.plan.target.run.ID,
+		targetRunID:    builder.plan.target.run.ID(),
 		canceledRunIDs: canceledRunIDs,
 	}, nil
 }
@@ -208,23 +209,27 @@ func (builder waitingCancellationBuilder) validate() error {
 
 func (builder waitingCancellationBuilder) terminalProjection(
 	canceledMembers map[string]struct{},
-) ([]transcript.Run, []string, error) {
+) ([]rundomain.Run, []string, error) {
 	expectedProcesses := make(map[string]struct{})
-	var terminalRuns []transcript.Run
+	var terminalRuns []rundomain.Run
 	var canceledRunIDs []string
 	for _, member := range builder.plan.targetSubtree {
-		if member.run.State.IsTerminal() {
+		if member.run.State().IsTerminal() {
 			continue
 		}
 		if !member.hasMember {
 			return nil, nil, fmt.Errorf(
 				"runs: waiting cancellation target Run %q has no executor member",
-				member.run.ID,
+				member.run.ID(),
 			)
 		}
 		expectedProcesses[member.memberID] = struct{}{}
-		terminalRuns = append(terminalRuns, canceledWaitingRun(member.run, builder.reason, builder.finishedAt))
-		canceledRunIDs = append(canceledRunIDs, member.run.ID)
+		terminal, err := canceledWaitingRun(member.run, builder.reason, builder.finishedAt)
+		if err != nil {
+			return nil, nil, err
+		}
+		terminalRuns = append(terminalRuns, terminal)
+		canceledRunIDs = append(canceledRunIDs, member.run.ID())
 	}
 	if len(canceledMembers) != len(expectedProcesses) {
 		return nil, nil, fmt.Errorf(
@@ -247,24 +252,22 @@ func (builder waitingCancellationBuilder) terminalProjection(
 func (builder waitingCancellationBuilder) settleWaitingItems(
 	canceledMembers map[string]struct{},
 ) ([]ItemReplacement, ItemReplacement, []Continuation, error) {
-	problem := transcript.Problem{
-		Kind:   transcript.ChildRunCanceledProblem,
-		Scope:  transcript.ToolProblem,
+	failure := tool.Failure{
+		Kind:   tool.FailureChildRunCanceled,
 		Detail: builder.reason,
 	}
 	parentItem := builder.plan.spawningItem
 	replacement := parentItem
 	replacement.Status = transcript.ItemIncomplete
-	replacement.Error = &problem
+	replacement.Error = &failure
 	terminalItems := make([]ItemReplacement, 0, len(builder.plan.targetInterruptItems))
 	for _, item := range builder.plan.targetInterruptItems {
 		settled := item
 		settled.Status = transcript.ItemIncomplete
 		if settled.Kind == transcript.ToolCall {
 			settled.FinishedAt = builder.finishedAt.UTC()
-			settled.Error = &transcript.Problem{
-				Kind:   transcript.ToolFailedProblem,
-				Scope:  transcript.ToolProblem,
+			settled.Error = &tool.Failure{
+				Kind:   tool.FailureExecution,
 				Detail: builder.reason,
 			}
 		}
@@ -283,7 +286,7 @@ func (builder waitingCancellationBuilder) settleWaitingItems(
 		clone := continuation
 		clone.DrainedTools = slices.Clone(continuation.DrainedTools)
 		clone.CommittedTools = slices.Clone(continuation.CommittedTools)
-		if continuation.RunID == builder.plan.target.run.ParentRunID {
+		if continuation.RunID == builder.plan.target.run.Lineage().ParentRunID {
 			var matches []DrainedTool
 			clone.DrainedTools = slices.DeleteFunc(clone.DrainedTools, func(tool DrainedTool) bool {
 				if tool.ItemID != parentItem.ID {
@@ -313,7 +316,7 @@ func (builder waitingCancellationBuilder) settleWaitingItems(
 				CallID:    tool.CallID,
 				Name:      tool.Name,
 				Arguments: tool.Arguments,
-				Problem:   problem,
+				Failure:   failure,
 			})
 			parentToolMoved = true
 		}
@@ -448,18 +451,12 @@ func (builder waitingCancellationBuilder) remainingPending(
 	return &reduced, nil
 }
 
-func canceledWaitingRun(run transcript.Run, reason string, finishedAt time.Time) transcript.Run {
-	outcome := rundomain.OutcomeCanceled
-	run.State = rundomain.Canceled
-	run.ActiveSegmentID = ""
-	run.Outcome = &outcome
-	run.Detail = reason
-	run.Error = nil
-	run.Interrupts = nil
-	run.FinishedAt = finishedAt.UTC()
-	run.UpdatedAt = finishedAt.UTC()
-	run.MessageMark = transcript.UnknownMessageMark
-	return run
+func canceledWaitingRun(run rundomain.Run, reason string, finishedAt time.Time) (rundomain.Run, error) {
+	terminal, err := run.CancelWaiting(reason, finishedAt, rundomain.UnknownMessageMark)
+	if err != nil {
+		return rundomain.Run{}, fmt.Errorf("runs: cancel waiting Run %q: %w", run.ID(), err)
+	}
+	return terminal, nil
 }
 
 func inputRequestIdentity(memberID, requestID string) string {

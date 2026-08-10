@@ -8,24 +8,25 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
+	runfixture "github.com/Tangerg/lynx/app/runtime/internal/testsupport/runfixture"
 )
 
 // fakeRunProjection is the durable answer to "what is this run", which is what a
 // subscribe or a steer resolves through.
 type fakeRunProjection struct {
-	runs map[string]transcript.Run
+	runs map[string]run.Run
 	err  error
 }
 
-func (f *fakeRunProjection) Run(_ context.Context, runID string) (transcript.Run, bool, error) {
+func (f *fakeRunProjection) Run(_ context.Context, runID string) (run.Run, bool, error) {
 	if f.err != nil {
-		return transcript.Run{}, false, f.err
+		return run.Run{}, false, f.err
 	}
 	run, ok := f.runs[runID]
 	return run, ok, nil
 }
 
-func (f *fakeRunProjection) Tree(_ context.Context, runID string) ([]transcript.Run, error) {
+func (f *fakeRunProjection) Tree(_ context.Context, runID string) ([]run.Run, error) {
 	if f.err != nil {
 		return nil, f.err
 	}
@@ -33,35 +34,35 @@ func (f *fakeRunProjection) Tree(_ context.Context, runID string) ([]transcript.
 	if !found {
 		return nil, nil
 	}
-	rootRunID := target.Lineage().TreeRootID(target.ID)
-	var tree []transcript.Run
-	for _, run := range f.runs {
-		if run.ID == rootRunID || run.RootRunID == rootRunID {
-			tree = append(tree, run)
+	rootRunID := target.Lineage().TreeRootID(target.ID())
+	var tree []run.Run
+	for _, record := range f.runs {
+		if record.ID() == rootRunID || record.Lineage().RootRunID == rootRunID {
+			tree = append(tree, record)
 		}
 	}
 	return tree, nil
 }
 
-func runRecord(state run.State, activeSegmentID, spawnedBy string) transcript.Run {
-	run := transcript.Run{
-		ID: testRunID, SessionID: "ses_1", State: state,
-		ActiveSegmentID: activeSegmentID, SpawnedByItemID: spawnedBy,
-	}
+func runRecord(state run.State, activeSegmentID, spawnedBy string) run.Run {
+	lineage := run.Lineage{SpawnedByItemID: spawnedBy}
 	if spawnedBy != "" {
-		run.ParentRunID = "run_parent"
-		run.RootRunID = "run_root"
+		lineage.ParentRunID = "run_parent"
+		lineage.RootRunID = "run_root"
 	}
-	return run
+	return runfixture.MustRestore(run.Snapshot{
+		ID: testRunID, SessionID: "ses_1", State: state,
+		ActiveSegmentID: activeSegmentID, Lineage: lineage,
+	})
 }
 
 // liveCoordinator wires a Coordinator whose registry already holds one streaming
 // segment, so a test can address it without driving a whole run.
-func liveCoordinator(t *testing.T, run transcript.Run) (*Coordinator, *journal) {
+func liveCoordinator(t *testing.T, record run.Run) (*Coordinator, *journal) {
 	t.Helper()
 	c := NewCoordinator(Dependencies{
 		Releases: &fakeExecutionPorts{},
-		Runs:     &fakeRunProjection{runs: map[string]transcript.Run{testRunID: run}},
+		Runs:     &fakeRunProjection{runs: map[string]run.Run{testRunID: record}},
 	})
 	hub := newJournal(streamScope{
 		Epoch: c.epoch, RunID: testRunID, SegmentID: testSegmentID,
@@ -76,7 +77,7 @@ func liveCoordinator(t *testing.T, run transcript.Run) (*Coordinator, *journal) 
 // a client to look for an id that is right there.
 func TestSubscribeRefusesWithTheReasonTheCallerCanActOn(t *testing.T) {
 	for name, test := range map[string]struct {
-		run       transcript.Run
+		run       run.Run
 		segmentID string
 		want      error
 	}{
@@ -217,8 +218,8 @@ func TestSubscribeRefusesACursorFromAnotherRuntimeInstance(t *testing.T) {
 	}
 	cold, found, queryErr := restarted.runs.Run(t.Context(), testRunID)
 	if queryErr != nil || !found ||
-		cold.State != run.Running ||
-		cold.ActiveSegmentID != testSegmentID {
+		cold.State() != run.Running ||
+		cold.ActiveSegmentID() != testSegmentID {
 		t.Fatalf(
 			"durable recovery after unavailable replay = found:%t Run:%+v err:%v",
 			found,
@@ -241,14 +242,12 @@ func TestSubscribeAfterOrphanRecoveryUsesFinishedStateBeforeOldCursor(t *testing
 		t.Fatalf("first Subscribe: %v", err)
 	}
 
-	outcome := run.OutcomeFailed
-	recovered := runRecord(run.Failed, "", "")
-	recovered.Outcome = &outcome
-	recovered.Error = &transcript.Problem{
-		Kind:  transcript.RunLostProblem,
-		Scope: transcript.RunProblem,
-	}
-	projection := &fakeRunProjection{runs: map[string]transcript.Run{testRunID: recovered}}
+	outcome := run.OutcomeLost
+	recovered := runfixture.MustRestore(run.Snapshot{
+		ID: testRunID, SessionID: "ses_1", State: run.Failed,
+		Outcome: &outcome, Failure: &run.Failure{Kind: run.FailureLost},
+	})
+	projection := &fakeRunProjection{runs: map[string]run.Run{testRunID: recovered}}
 	restarted := NewCoordinator(Dependencies{Runs: projection})
 	_, err = restarted.Subscribe(t.Context(), SubscribeRequest{
 		RunID: testRunID, SegmentID: testSegmentID, Cursor: before.HeadCursor,
@@ -257,9 +256,8 @@ func TestSubscribeAfterOrphanRecoveryUsesFinishedStateBeforeOldCursor(t *testing
 		t.Fatalf("Subscribe after orphan recovery = %v, want ErrRunFinished", err)
 	}
 	cold, found, queryErr := projection.Run(t.Context(), testRunID)
-	if queryErr != nil || !found ||
-		cold.Error == nil ||
-		cold.Error.Kind != transcript.RunLostProblem {
+	if failure, failed := cold.Failure(); queryErr != nil || !found ||
+		!failed || failure.Kind != run.FailureLost {
 		t.Fatalf(
 			"cold recovery = found:%t Run:%+v err:%v, want terminal run_lost",
 			found,
@@ -272,7 +270,7 @@ func TestSubscribeAfterOrphanRecoveryUsesFinishedStateBeforeOldCursor(t *testing
 func TestSubscribeRefusesACallerThatCouldNotFollowTheRun(t *testing.T) {
 	record := runRecord(run.Running, testSegmentID, "")
 	c := NewCoordinator(Dependencies{
-		Runs: &fakeRunProjection{runs: map[string]transcript.Run{testRunID: record}},
+		Runs: &fakeRunProjection{runs: map[string]run.Run{testRunID: record}},
 	})
 	capabilities := run.Capabilities{InterruptKinds: []interrupt.Kind{interrupt.Approval}}
 	hub := newJournal(streamScope{Epoch: c.epoch, RunID: testRunID, SegmentID: testSegmentID}, c.retention)
@@ -292,7 +290,7 @@ func TestSubscribeRefusesACallerThatCouldNotFollowTheRun(t *testing.T) {
 // refusal would teach the client something untrue about the run.
 func TestSubscribeReportsAMissingLiveStreamAsAnInternalFault(t *testing.T) {
 	c := NewCoordinator(Dependencies{Runs: &fakeRunProjection{
-		runs: map[string]transcript.Run{testRunID: runRecord(run.Running, testSegmentID, "")},
+		runs: map[string]run.Run{testRunID: runRecord(run.Running, testSegmentID, "")},
 	}})
 	_, err := c.Subscribe(t.Context(), SubscribeRequest{RunID: testRunID, SegmentID: testSegmentID})
 	switch {

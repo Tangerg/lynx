@@ -282,7 +282,7 @@ func TestRetiredRuntimeVocabularyDoesNotReturn(t *testing.T) {
 		filepath.Join(root, "internal", "adapter", "workspace"):            {"Reads", "WatchGitState"},
 		filepath.Join(root, "internal", "domain", "conversation"):          {"AppendUser"},
 		filepath.Join(root, "internal", "domain", "mcpserver"):             {"PublicName", "ToolInfo"},
-		filepath.Join(root, "internal", "domain", "run"):                   {"InsufficientCapabilities", "Failure"},
+		filepath.Join(root, "internal", "domain", "run"):                   {"InsufficientCapabilities"},
 		filepath.Join(root, "internal", "domain", "skills"):                {"ProposalInfo"},
 		filepath.Join(root, "internal", "domain", "transcript"):            {"Plus"},
 		filepath.Join(root, "internal", "infra", "mcp"): {

@@ -11,7 +11,6 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
 // pump starts the single goroutine that owns every mutable route and reducer in
@@ -401,12 +400,12 @@ func (p *segmentPump) handleUnknownEffects(
 	if activeChildren := p.routes.unfinishedCount() - 1; activeChildren > 0 {
 		return fmt.Errorf("runs: unknown Effects detected with %d active child Runs", activeChildren)
 	}
-	problem := transcript.Problem{
-		Kind: transcript.RunLostProblem, Scope: transcript.RunProblem,
+	failure := run.Failure{
+		Kind:   run.FailureLost,
 		Detail: "an external operation completed without a provable durable result",
 	}
 	batch, err := route.reducer.reduce(SegmentEnded{
-		Reason: run.OutcomeLost, Problem: &problem,
+		Reason: run.OutcomeLost, Failure: &failure,
 		Duration: route.activeDuration(p.coordinator.now().UTC()),
 	})
 	if err != nil {

@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"slices"
 	"time"
+
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
 type reductionPublication struct {
@@ -231,8 +233,9 @@ func (p treePublisher) publishTerminalAtomically(
 }
 
 type treeBarrierReduction struct {
-	route *executorRoute
-	batch reductionBatch
+	route      *executorRoute
+	batch      reductionBatch
+	interrupts []transcript.Interrupt
 }
 
 type treeBarrierProjection struct {
@@ -325,10 +328,7 @@ func (p treePublisher) reduceTreeBarrier(
 		if err != nil {
 			return treeBarrierProjection{}, err
 		}
-		projection.pending.Interrupts = append(
-			projection.pending.Interrupts,
-			reduction.batch.parkCommit.Run.Interrupts...,
-		)
+		projection.pending.Interrupts = append(projection.pending.Interrupts, reduction.interrupts...)
 		projection.pending.Bindings = append(projection.pending.Bindings, bindings...)
 		projection.pending.Continuations = append(projection.pending.Continuations, continuation)
 		projection.reductions = append(projection.reductions, reduction)
@@ -405,18 +405,19 @@ func (p treePublisher) reduceInterruptedRoute(
 		)
 	}
 	waitingRun := *batch.parkCommit.Run
-	if len(waitingRun.Interrupts) != len(directInterruptions) {
+	projectedInterrupts := suspendedInterrupts(events)
+	if len(projectedInterrupts) != len(directInterruptions) {
 		return treeBarrierReduction{}, nil, Continuation{}, fmt.Errorf(
 			"runs: run %q projected %d interrupts from %d input requests",
 			route.runID,
-			len(waitingRun.Interrupts),
+			len(projectedInterrupts),
 			len(directInterruptions),
 		)
 	}
 	bindings := make([]InterruptBinding, len(directInterruptions))
 	for index, interruption := range directInterruptions {
 		bindings[index] = InterruptBinding{
-			InterruptItemID: waitingRun.Interrupts[index].ItemID,
+			InterruptItemID: projectedInterrupts[index].ItemID,
 			MemberID:        interruption.MemberID,
 			RequestID:       interruption.RequestID,
 		}
@@ -428,11 +429,20 @@ func (p treePublisher) reduceInterruptedRoute(
 		ModelSelection: route.modelSelection,
 		DrainedTools:   slices.Clone(route.reducer.drained),
 		CommittedTools: route.reducer.resume.remainingCommittedTools(),
-		RunCreatedAt:   waitingRun.CreatedAt,
-		Metrics:        waitingRun.Metrics,
-		Limits:         waitingRun.Limits,
+		RunCreatedAt:   waitingRun.CreatedAt(),
+		Metrics:        waitingRun.Metrics(),
+		Limits:         waitingRun.Limits(),
 	}
-	return treeBarrierReduction{route: route, batch: batch}, bindings, continuation, nil
+	return treeBarrierReduction{route: route, batch: batch, interrupts: projectedInterrupts}, bindings, continuation, nil
+}
+
+func suspendedInterrupts(events []RunEvent) []transcript.Interrupt {
+	for _, event := range events {
+		if finished, ok := event.(SegmentFinished); ok {
+			return slices.Clone(finished.Interrupts)
+		}
+	}
+	return nil
 }
 
 func (p treePublisher) append(route *executorRoute, reduced reduction) {

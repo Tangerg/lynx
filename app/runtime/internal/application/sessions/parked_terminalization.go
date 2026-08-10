@@ -7,6 +7,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
 	rundomain "github.com/Tangerg/lynx/app/runtime/internal/domain/run"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
@@ -23,9 +24,9 @@ type parkedRunTerminalization struct {
 	snapshot   Snapshot
 }
 
-func (terminalization parkedRunTerminalization) build() (TerminalPlan, transcript.Run, error) {
+func (terminalization parkedRunTerminalization) build() (TerminalPlan, rundomain.Run, error) {
 	if err := terminalization.pending.Validate(); err != nil {
-		return TerminalPlan{}, transcript.Run{}, fmt.Errorf(
+		return TerminalPlan{}, rundomain.Run{}, fmt.Errorf(
 			"sessions: terminalize parked Run tree %q: invalid Pending: %w",
 			terminalization.rootRunID,
 			err,
@@ -33,7 +34,7 @@ func (terminalization parkedRunTerminalization) build() (TerminalPlan, transcrip
 	}
 	if terminalization.outcome != rundomain.OutcomeCanceled &&
 		terminalization.outcome != rundomain.OutcomeLost {
-		return TerminalPlan{}, transcript.Run{}, fmt.Errorf(
+		return TerminalPlan{}, rundomain.Run{}, fmt.Errorf(
 			"sessions: terminalize parked Run tree %q: unsupported outcome %s",
 			terminalization.rootRunID,
 			terminalization.outcome,
@@ -41,66 +42,66 @@ func (terminalization parkedRunTerminalization) build() (TerminalPlan, transcrip
 	}
 	runsByID, rootAdmission, err := terminalization.indexRuns()
 	if err != nil {
-		return TerminalPlan{}, transcript.Run{}, err
+		return TerminalPlan{}, rundomain.Run{}, err
 	}
 	terminalRuns, err := terminalization.terminalRuns(runsByID, rootAdmission)
 	if err != nil {
-		return TerminalPlan{}, transcript.Run{}, err
+		return TerminalPlan{}, rundomain.Run{}, err
 	}
 	rootRun := terminalRuns[len(terminalRuns)-1]
-	if rootRun.ID != terminalization.rootRunID || rootRun.GoalLeaseID != terminalization.pending.GoalLeaseID {
-		return TerminalPlan{}, transcript.Run{}, fmt.Errorf(
+	if rootRun.ID() != terminalization.rootRunID || rootRun.GoalLeaseID() != terminalization.pending.GoalLeaseID {
+		return TerminalPlan{}, rundomain.Run{}, fmt.Errorf(
 			"sessions: terminalize parked Run tree %q: root admission differs from Pending",
 			terminalization.rootRunID,
 		)
 	}
 	items, err := terminalization.terminalItems()
 	if err != nil {
-		return TerminalPlan{}, transcript.Run{}, err
+		return TerminalPlan{}, rundomain.Run{}, err
 	}
 	root, ok := terminalization.pending.RootContinuation()
 	if !ok {
-		return TerminalPlan{}, transcript.Run{}, fmt.Errorf(
+		return TerminalPlan{}, rundomain.Run{}, fmt.Errorf(
 			"sessions: terminalize parked Run tree %q: root continuation is missing",
 			terminalization.rootRunID,
 		)
 	}
 	plan := TerminalPlan{Runs: terminalRuns, Items: items, CheckpointRootID: root.MemberID}
-	if rootRun.GoalLeaseID != "" {
+	if rootRun.GoalLeaseID() != "" {
 		record := terminalGoalRun(rootRun)
 		plan.GoalRun = &record
 	}
 	if err := plan.Validate(); err != nil {
-		return TerminalPlan{}, transcript.Run{}, err
+		return TerminalPlan{}, rundomain.Run{}, err
 	}
 	return plan, rootRun, nil
 }
 
 func (terminalization parkedRunTerminalization) indexRuns() (
-	map[string]transcript.Run,
-	transcript.Run,
+	map[string]rundomain.Run,
+	rundomain.Run,
 	error,
 ) {
-	runsByID := make(map[string]transcript.Run, len(terminalization.snapshot.Runs))
+	runsByID := make(map[string]rundomain.Run, len(terminalization.snapshot.Runs))
 	for _, run := range terminalization.snapshot.Runs {
-		if _, duplicate := runsByID[run.ID]; duplicate {
-			return nil, transcript.Run{}, fmt.Errorf(
+		if _, duplicate := runsByID[run.ID()]; duplicate {
+			return nil, rundomain.Run{}, fmt.Errorf(
 				"sessions: terminalize parked Run tree %q: duplicate Run %q",
 				terminalization.rootRunID,
-				run.ID,
+				run.ID(),
 			)
 		}
-		runsByID[run.ID] = run
+		runsByID[run.ID()] = run
 	}
 	rootAdmission, found := runsByID[terminalization.rootRunID]
 	if !found || !rootAdmission.Lineage().IsRoot() {
-		return nil, transcript.Run{}, fmt.Errorf(
+		return nil, rundomain.Run{}, fmt.Errorf(
 			"sessions: terminalize parked Run tree %q: root Run is missing",
 			terminalization.rootRunID,
 		)
 	}
-	if !terminalization.pending.Capabilities.Equal(rootAdmission.Capabilities) {
-		return nil, transcript.Run{}, fmt.Errorf(
+	if !terminalization.pending.Capabilities.Equal(rootAdmission.Capabilities()) {
+		return nil, rundomain.Run{}, fmt.Errorf(
 			"sessions: terminalize parked Run tree %q: Pending run capabilities differ from root Run admission",
 			terminalization.rootRunID,
 		)
@@ -110,14 +111,14 @@ func (terminalization parkedRunTerminalization) indexRuns() (
 		pendingRunIDs[continuation.RunID] = struct{}{}
 	}
 	for _, run := range terminalization.snapshot.Runs {
-		if run.Lineage().TreeRootID(run.ID) != terminalization.rootRunID || run.State.IsTerminal() {
+		if run.Lineage().TreeRootID(run.ID()) != terminalization.rootRunID || run.State().IsTerminal() {
 			continue
 		}
-		if _, covered := pendingRunIDs[run.ID]; !covered {
-			return nil, transcript.Run{}, fmt.Errorf(
+		if _, covered := pendingRunIDs[run.ID()]; !covered {
+			return nil, rundomain.Run{}, fmt.Errorf(
 				"sessions: terminalize parked Run tree %q: non-terminal Run %q has no Pending continuation",
 				terminalization.rootRunID,
-				run.ID,
+				run.ID(),
 			)
 		}
 	}
@@ -125,10 +126,10 @@ func (terminalization parkedRunTerminalization) indexRuns() (
 }
 
 func (terminalization parkedRunTerminalization) terminalRuns(
-	runsByID map[string]transcript.Run,
-	rootAdmission transcript.Run,
-) ([]transcript.Run, error) {
-	terminalRuns := make([]transcript.Run, 0, len(terminalization.pending.Continuations))
+	runsByID map[string]rundomain.Run,
+	rootAdmission rundomain.Run,
+) ([]rundomain.Run, error) {
+	terminalRuns := make([]rundomain.Run, 0, len(terminalization.pending.Continuations))
 	for _, continuation := range terminalization.pending.Continuations {
 		run, found := runsByID[continuation.RunID]
 		if !found {
@@ -138,61 +139,49 @@ func (terminalization parkedRunTerminalization) terminalRuns(
 				continuation.RunID,
 			)
 		}
-		if !waitingRunMatchesContinuation(run, continuation, terminalization.sessionID, rootAdmission.Capabilities) {
+		if !waitingRunMatchesContinuation(run, continuation, terminalization.sessionID, rootAdmission.Capabilities()) {
 			return nil, fmt.Errorf(
 				"sessions: terminalize parked Run tree %q: Run %q differs from its continuation",
 				terminalization.rootRunID,
-				run.ID,
+				run.ID(),
 			)
 		}
-		state, ok := terminalization.terminalState(run.State)
-		if !ok {
-			return nil, fmt.Errorf(
-				"sessions: terminalize parked Run %q: cannot apply outcome %s",
-				run.ID,
-				terminalization.outcome,
-			)
-		}
-		run.State = state
-		run.Outcome = &terminalization.outcome
+		var terminal rundomain.Run
+		var err error
 		if terminalization.outcome == rundomain.OutcomeLost {
-			run.Error = &transcript.Problem{
-				Kind:   transcript.RunLostProblem,
-				Scope:  transcript.RunProblem,
+			terminal, err = run.RecoverLost(rundomain.Failure{
+				Kind:   rundomain.FailureLost,
 				Detail: "the parked Run tree's executor checkpoint could not be restored",
-			}
+			}, terminalization.finishedAt, len(terminalization.snapshot.Messages))
+		} else {
+			terminal, err = run.CancelWaiting(
+				terminalization.detail,
+				terminalization.finishedAt,
+				len(terminalization.snapshot.Messages),
+			)
 		}
-		run.Detail = terminalization.detail
-		run.Interrupts = nil
-		run.FinishedAt = terminalization.finishedAt.UTC()
-		run.UpdatedAt = run.FinishedAt
-		run.MessageMark = len(terminalization.snapshot.Messages)
-		terminalRuns = append(terminalRuns, run)
+		if err != nil {
+			return nil, fmt.Errorf("sessions: terminalize parked Run %q: %w", run.ID(), err)
+		}
+		terminalRuns = append(terminalRuns, terminal)
 	}
 	return terminalRuns, nil
 }
 
 func waitingRunMatchesContinuation(
-	run transcript.Run,
+	run rundomain.Run,
 	continuation runs.Continuation,
 	sessionID string,
 	capabilities rundomain.Capabilities,
 ) bool {
-	return run.SessionID == sessionID &&
-		run.State == rundomain.Waiting &&
+	return run.SessionID() == sessionID &&
+		run.State() == rundomain.Waiting &&
 		run.Lineage() == continuation.Lineage &&
-		run.ModelSelection == continuation.ModelSelection &&
-		run.CreatedAt.Equal(continuation.RunCreatedAt) &&
-		run.Metrics.Equal(continuation.Metrics) &&
-		run.Limits == continuation.Limits &&
-		run.Capabilities.Equal(capabilities)
-}
-
-func (terminalization parkedRunTerminalization) terminalState(state rundomain.State) (rundomain.State, bool) {
-	if terminalization.outcome == rundomain.OutcomeLost {
-		return state.RecoverLost()
-	}
-	return state.Terminate(terminalization.outcome)
+		run.ModelSelection() == continuation.ModelSelection &&
+		run.CreatedAt().Equal(continuation.RunCreatedAt) &&
+		run.Metrics().Equal(continuation.Metrics) &&
+		run.Limits() == continuation.Limits &&
+		run.Capabilities().Equal(capabilities)
 }
 
 func (terminalization parkedRunTerminalization) terminalItems() ([]transcript.Item, error) {
@@ -231,9 +220,8 @@ func (terminalization parkedRunTerminalization) terminalItems() ([]transcript.It
 		if item.Kind == transcript.ToolCall {
 			item.FinishedAt = terminalization.finishedAt.UTC()
 			if terminalization.outcome == rundomain.OutcomeLost {
-				item.Error = &transcript.Problem{
-					Kind:   transcript.ToolFailedProblem,
-					Scope:  transcript.ToolProblem,
+				item.Error = &tool.Failure{
+					Kind:   tool.FailureExecution,
 					Detail: "tool call abandoned because its run could not be resumed",
 				}
 			}
@@ -250,17 +238,18 @@ func (terminalization parkedRunTerminalization) terminalItems() ([]transcript.It
 	return items, nil
 }
 
-func terminalGoalRun(root transcript.Run) goal.RunRecord {
+func terminalGoalRun(root rundomain.Run) goal.RunRecord {
+	outcome, _ := root.Outcome()
 	record := goal.RunRecord{
-		SessionID:   root.SessionID,
-		LeaseID:     root.GoalLeaseID,
-		RunID:       root.ID,
-		Outcome:     *root.Outcome,
-		Steps:       root.Metrics.Steps,
-		CompletedAt: root.FinishedAt,
+		SessionID:   root.SessionID(),
+		LeaseID:     root.GoalLeaseID(),
+		RunID:       root.ID(),
+		Outcome:     outcome,
+		Steps:       root.Metrics().Steps(),
+		CompletedAt: root.FinishedAt(),
 	}
-	if root.Metrics.Usage != nil && root.Metrics.Usage.CostUSD != nil {
-		record.CostUSD = *root.Metrics.Usage.CostUSD
+	if usage, reported := root.Metrics().Usage(); reported && usage.Total.CostUSD != nil {
+		record.CostUSD = *usage.Total.CostUSD
 	}
 	return record
 }

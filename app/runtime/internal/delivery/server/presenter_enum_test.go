@@ -7,7 +7,9 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
+	runfixture "github.com/Tangerg/lynx/app/runtime/internal/testsupport/runfixture"
 )
 
 func TestPresentersRejectUnknownDomainEnums(t *testing.T) {
@@ -18,9 +20,10 @@ func TestPresentersRejectUnknownDomainEnums(t *testing.T) {
 		presentQuestion(transcript.Question{Fields: []transcript.QuestionField{{Kind: transcript.QuestionFieldKind(99)}}})
 	})
 	mustPanic(t, func() { presentDelta(runs.ItemDelta{Kind: runs.ItemDeltaKind(99)}) })
-	mustPanic(t, func() { presentRun(transcript.Run{State: run.State(99)}) })
-	mustPanic(t, func() { presentOutcome(transcript.Run{State: run.Completed, Outcome: nil}) })
-	mustPanic(t, func() { presentProblem(&transcript.Problem{Kind: transcript.ProblemKind(99)}) })
+	mustPanic(t, func() { presentRun(runfixture.MustRestore(run.Snapshot{State: run.State(99)})) })
+	mustPanic(t, func() { presentOutcome(runfixture.MustRestore(run.Snapshot{State: run.Running})) })
+	mustPanic(t, func() { presentRunFailure(&run.Failure{Kind: run.FailureKind(99)}) })
+	mustPanic(t, func() { presentToolFailure(&tool.Failure{Kind: tool.FailureKind(99)}) })
 	mustPanic(t, func() { presentInterrupts([]transcript.Interrupt{{Kind: interrupt.Kind(99)}}) })
 }
 
@@ -41,7 +44,7 @@ func TestRunOutcomeProjectionIsExhaustive(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.domain.String(), func(t *testing.T) {
 			outcome := test.domain
-			if got := presentOutcome(transcript.Run{Outcome: &outcome}); got.Type != test.wire {
+			if got := presentOutcome(runfixture.MustRestore(run.Snapshot{Outcome: &outcome})); got.Type != test.wire {
 				t.Fatalf("presentOutcome type = %q, want %q", got.Type, test.wire)
 			}
 			encoded, err := artifactOutcomeType(test.domain)

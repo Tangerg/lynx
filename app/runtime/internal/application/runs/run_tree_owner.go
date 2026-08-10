@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/completion"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 )
 
 // runCleanupTimeout bounds request-detached Run teardown, so a stuck store or
@@ -23,8 +23,8 @@ type runTreeOwner struct {
 	hub             *journal
 	done            chan struct{}
 	completionErr   error
-	terminalRun     *transcript.Run
-	terminalRuns    map[string]transcript.Run
+	terminalRun     *run.Run
+	terminalRuns    map[string]run.Run
 	executorMembers map[string]string
 	childCancel     *childCancellation
 	cancelRequested bool
@@ -32,14 +32,14 @@ type runTreeOwner struct {
 	interrupt       interruptBoundary
 }
 
-func (owner *runTreeOwner) committedTerminalRun() (transcript.Run, bool) {
+func (owner *runTreeOwner) committedTerminalRun() (run.Run, bool) {
 	if owner == nil {
-		return transcript.Run{}, false
+		return run.Run{}, false
 	}
 	owner.mu.Lock()
 	defer owner.mu.Unlock()
 	if owner.terminalRun == nil {
-		return transcript.Run{}, false
+		return run.Run{}, false
 	}
 	return *owner.terminalRun, true
 }

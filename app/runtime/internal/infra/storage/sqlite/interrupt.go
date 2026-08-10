@@ -48,7 +48,7 @@ type ContinuationRecord struct {
 	DrainedTools   []DrainedToolRecord
 	CommittedTools []CommittedToolRecord
 	RunCreatedAt   time.Time
-	Metrics        transcript.RunMetrics
+	Metrics        run.Metrics
 	Limits         run.Limits
 }
 
@@ -74,7 +74,7 @@ type CommittedToolRecord struct {
 	CallID    string
 	Name      string
 	Arguments string
-	Problem   transcript.Problem
+	Failure   tool.Failure
 }
 
 func (record InterruptRecord) rootContinuation() (ContinuationRecord, bool) {
@@ -588,16 +588,16 @@ func drainedToolsFromRows(rows []drainedToolRow) []DrainedToolRecord {
 func committedToolRows(tools []CommittedToolRecord) ([]committedToolRow, error) {
 	rows := make([]committedToolRow, len(tools))
 	for index, committed := range tools {
-		problem, err := encodeProblemPayload(committed.Problem)
+		failure, err := encodeToolFailurePayload(committed.Failure)
 		if err != nil {
-			return nil, fmt.Errorf("committed tool[%d] problem: %w", index, err)
+			return nil, fmt.Errorf("committed tool[%d] failure: %w", index, err)
 		}
 		rows[index] = committedToolRow{
 			ItemID:    committed.ItemID,
 			CallID:    committed.CallID,
 			Name:      committed.Name,
 			Arguments: committed.Arguments,
-			Problem:   problem,
+			Problem:   failure,
 		}
 	}
 	return rows, nil
@@ -606,16 +606,16 @@ func committedToolRows(tools []CommittedToolRecord) ([]committedToolRow, error) 
 func committedToolsFromRows(rows []committedToolRow) ([]CommittedToolRecord, error) {
 	tools := make([]CommittedToolRecord, len(rows))
 	for index, row := range rows {
-		problem, err := decodeProblemPayload(row.Problem)
+		failure, err := decodeToolFailurePayload(row.Problem)
 		if err != nil {
-			return nil, fmt.Errorf("committed tool[%d] problem: %w", index, err)
+			return nil, fmt.Errorf("committed tool[%d] failure: %w", index, err)
 		}
 		tools[index] = CommittedToolRecord{
 			ItemID:    row.ItemID,
 			CallID:    row.CallID,
 			Name:      row.Name,
 			Arguments: row.Arguments,
-			Problem:   problem,
+			Failure:   failure,
 		}
 	}
 	return tools, nil

@@ -15,6 +15,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
+	runfixture "github.com/Tangerg/lynx/app/runtime/internal/testsupport/runfixture"
 )
 
 type fakeItemProjection struct {
@@ -172,11 +173,10 @@ func TestPrepareWaitingCancellationKeepsSurvivingExternalBoundary(t *testing.T) 
 		t.Fatalf("continuation Runs = %v, want [run_b run_1]", got)
 	}
 	for _, record := range transformation.terminalRuns {
-		if record.State != run.Canceled ||
-			record.Outcome == nil ||
-			*record.Outcome != run.OutcomeCanceled ||
-			record.Detail != "stop delegated branch" ||
-			!record.FinishedAt.Equal(finishedAt) {
+		if record.State() != run.Canceled ||
+			!runHasOutcome(record, run.OutcomeCanceled) ||
+			record.Detail() != "stop delegated branch" ||
+			!record.FinishedAt().Equal(finishedAt) {
 			t.Fatalf("terminal Run = %+v, want exact canceled snapshot", record)
 		}
 	}
@@ -255,7 +255,7 @@ func TestPublishWaitingChildCancellationInvalidatesExactReadSet(t *testing.T) {
 
 			want := []change.Notice{
 				change.InSession(change.Runs, plan.pending.SessionID, test.affectedRunIDs...),
-				change.InSession(change.Interrupts, plan.pending.SessionID, plan.root.run.ID),
+				change.InSession(change.Interrupts, plan.pending.SessionID, plan.root.run.ID()),
 				change.InSession(change.Sessions, plan.pending.SessionID),
 			}
 			if got := changes.snapshot(); !reflect.DeepEqual(got, want) {
@@ -277,7 +277,7 @@ func TestCancelWaitingChildCommitsReducedPendingBeforeRuntimeTransition(t *testi
 	}
 	effects := &fakeEffects{
 		waitingResult: WaitingSubtreeCancellationResult{
-			TargetRun: canceledWaitingRun(
+			TargetRun: mustCanceledWaitingRun(t,
 				plan.target.run,
 				"stop delegated branch",
 				time.Date(2026, 7, 30, 2, 3, 4, 0, time.UTC),
@@ -288,16 +288,16 @@ func TestCancelWaitingChildCommitsReducedPendingBeforeRuntimeTransition(t *testi
 	coordinator, control := waitingCancellationCoordinator(t, plan, prepared, effects, &fakeExecutor{})
 
 	result, err := coordinator.Cancel(t.Context(), CancelCommand{
-		RunID:         plan.target.run.ID,
+		RunID:         plan.target.run.ID(),
 		Reason:        "stop delegated branch",
 		AllowChildRun: true,
 	})
 	if err != nil {
 		t.Fatalf("Cancel waiting child: %v", err)
 	}
-	if result.Run.ID != plan.target.run.ID ||
+	if result.Run.ID() != plan.target.run.ID() ||
 		result.RootRun == nil ||
-		result.RootRun.State != run.Waiting {
+		result.RootRun.State() != run.Waiting {
 		t.Fatalf("Cancel result = %+v, want canceled child and waiting root", result)
 	}
 	if prepared.applied != 1 ||
@@ -332,7 +332,7 @@ func TestCancelWaitingChildRestoresCommittedTreeWhenRuntimeApplyFails(t *testing
 	}
 	effects := &fakeEffects{
 		waitingResult: WaitingSubtreeCancellationResult{
-			TargetRun: canceledWaitingRun(
+			TargetRun: mustCanceledWaitingRun(t,
 				plan.target.run,
 				"stop delegated branch",
 				time.Date(2026, 7, 30, 2, 3, 4, 0, time.UTC),
@@ -347,7 +347,7 @@ func TestCancelWaitingChildRestoresCommittedTreeWhenRuntimeApplyFails(t *testing
 	control.operations = &operations
 
 	result, err := coordinator.Cancel(t.Context(), CancelCommand{
-		RunID:         plan.target.run.ID,
+		RunID:         plan.target.run.ID(),
 		Reason:        "stop delegated branch",
 		AllowChildRun: true,
 	})
@@ -371,7 +371,7 @@ func TestCancelWaitingChildRestoresCommittedTreeWhenRuntimeApplyFails(t *testing
 		control.restoreWaiting[0].Checkpoint.RootMemberID != plan.pending.Continuations[len(plan.pending.Continuations)-1].MemberID {
 		t.Fatalf("restored waiting continuation = %+v, want committed resulting checkpoint", control.restoreWaiting)
 	}
-	if result.Run.ID != plan.target.run.ID || result.RootRun == nil || result.RootRun.ID != plan.root.run.ID {
+	if result.Run.ID() != plan.target.run.ID() || result.RootRun == nil || result.RootRun.ID() != plan.root.run.ID() {
 		t.Fatalf("Cancel result = %+v, want committed child/root result", result)
 	}
 	if !slices.Equal(operations, []string{"executor.release", "executor.restore_waiting"}) {
@@ -391,7 +391,7 @@ func TestCancelWaitingChildMarksRunLostOnlyWhenCommittedCheckpointCannotRestore(
 		}},
 	}
 	effects := &fakeEffects{waitingResult: WaitingSubtreeCancellationResult{
-		TargetRun: canceledWaitingRun(
+		TargetRun: mustCanceledWaitingRun(t,
 			plan.target.run,
 			"stop delegated branch",
 			time.Date(2026, 7, 30, 2, 3, 4, 0, time.UTC),
@@ -406,13 +406,13 @@ func TestCancelWaitingChildMarksRunLostOnlyWhenCommittedCheckpointCannotRestore(
 	control.restoreErr = restoreErr
 
 	_, err := coordinator.Cancel(t.Context(), CancelCommand{
-		RunID: plan.target.run.ID, Reason: "stop delegated branch", AllowChildRun: true,
+		RunID: plan.target.run.ID(), Reason: "stop delegated branch", AllowChildRun: true,
 	})
 	if !errors.Is(err, applyErr) || !errors.Is(err, restoreErr) {
 		t.Fatalf("Cancel error = %v, want apply and restore failures", err)
 	}
-	if sessions.lostRunID != plan.root.run.ID {
-		t.Fatalf("lost Run = %q, want root %q", sessions.lostRunID, plan.root.run.ID)
+	if sessions.lostRunID != plan.root.run.ID() {
+		t.Fatalf("lost Run = %q, want root %q", sessions.lostRunID, plan.root.run.ID())
 	}
 	if !slices.Equal(operations, []string{
 		"executor.release", "executor.restore_waiting", "durable.lost",
@@ -433,7 +433,7 @@ func TestCancelWaitingChildPassesDurableTreeToExecutorAfterRuntimeRestart(t *tes
 	}
 	effects := &fakeEffects{
 		waitingResult: WaitingSubtreeCancellationResult{
-			TargetRun: canceledWaitingRun(
+			TargetRun: mustCanceledWaitingRun(t,
 				plan.target.run,
 				"stop after restart",
 				time.Date(2026, 7, 30, 2, 3, 4, 0, time.UTC),
@@ -452,7 +452,7 @@ func TestCancelWaitingChildPassesDurableTreeToExecutorAfterRuntimeRestart(t *tes
 	}
 
 	if _, err := coordinator.Cancel(t.Context(), CancelCommand{
-		RunID:         plan.target.run.ID,
+		RunID:         plan.target.run.ID(),
 		Reason:        "stop after restart",
 		AllowChildRun: true,
 	}); err != nil {
@@ -483,12 +483,10 @@ func TestCancelWaitingChildOpensContinuationWhenFinalBoundaryIsRemoved(t *testin
 		canceled: []string{"member_a", "member_grandchild"},
 	}
 	rootAfterCommit := plan.root.run
-	rootAfterCommit.State = run.Running
-	rootAfterCommit.ActiveSegmentID = "seg_root_continuation"
-	rootAfterCommit.Interrupts = nil
+	rootAfterCommit = mustResumeWaitingRun(t, rootAfterCommit, "seg_root_continuation")
 	effects := &fakeEffects{
 		waitingResult: WaitingSubtreeCancellationResult{
-			TargetRun: canceledWaitingRun(
+			TargetRun: mustCanceledWaitingRun(t,
 				plan.target.run,
 				"stop final waiting branch",
 				time.Date(2026, 7, 30, 2, 3, 4, 0, time.UTC),
@@ -517,7 +515,7 @@ func TestCancelWaitingChildOpensContinuationWhenFinalBoundaryIsRemoved(t *testin
 	})
 
 	result, err := coordinator.Cancel(t.Context(), CancelCommand{
-		RunID:         plan.target.run.ID,
+		RunID:         plan.target.run.ID(),
 		Reason:        "stop final waiting branch",
 		AllowChildRun: true,
 	})
@@ -525,8 +523,8 @@ func TestCancelWaitingChildOpensContinuationWhenFinalBoundaryIsRemoved(t *testin
 		t.Fatalf("Cancel final waiting child: %v", err)
 	}
 	if result.RootRun == nil ||
-		result.RootRun.State != run.Running ||
-		result.RootRun.ActiveSegmentID != "seg_root_continuation" {
+		result.RootRun.State() != run.Running ||
+		result.RootRun.ActiveSegmentID() != "seg_root_continuation" {
 		t.Fatalf("Cancel result root = %+v, want opened continuation", result.RootRun)
 	}
 	if prepared.applied != 1 ||
@@ -548,7 +546,7 @@ func TestCancelWaitingChildOpensContinuationWhenFinalBoundaryIsRemoved(t *testin
 	if commit.RemainingPending != nil || commit.Resume == nil {
 		t.Fatalf("continuation commit = %+v, want a tree Resume", commit)
 	}
-	if _, live := coordinator.registry.Get(plan.root.run.ID); !live {
+	if _, live := coordinator.registry.Get(plan.root.run.ID()); !live {
 		t.Fatal("continued root has no live segment owner")
 	}
 }
@@ -561,12 +559,10 @@ func TestCancelWaitingChildTerminalizesCommittedTreeWhenActivationFails(t *testi
 		continueErr: continueErr,
 	}
 	rootAfterCommit := plan.root.run
-	rootAfterCommit.State = run.Running
-	rootAfterCommit.ActiveSegmentID = "seg_root_continuation"
-	rootAfterCommit.Interrupts = nil
+	rootAfterCommit = mustResumeWaitingRun(t, rootAfterCommit, "seg_root_continuation")
 	effects := &fakeEffects{
 		waitingResult: WaitingSubtreeCancellationResult{
-			TargetRun: canceledWaitingRun(
+			TargetRun: mustCanceledWaitingRun(t,
 				plan.target.run,
 				"stop final waiting branch",
 				time.Date(2026, 7, 30, 2, 3, 4, 0, time.UTC),
@@ -592,7 +588,7 @@ func TestCancelWaitingChildTerminalizesCommittedTreeWhenActivationFails(t *testi
 	}
 
 	result, err := coordinator.Cancel(t.Context(), CancelCommand{
-		RunID:         plan.target.run.ID,
+		RunID:         plan.target.run.ID(),
 		Reason:        "stop final waiting branch",
 		AllowChildRun: true,
 	})
@@ -600,9 +596,9 @@ func TestCancelWaitingChildTerminalizesCommittedTreeWhenActivationFails(t *testi
 		t.Fatalf("Cancel final waiting child: %v", err)
 	}
 	if result.RootRun == nil ||
-		result.RootRun.ID != plan.root.run.ID ||
-		result.RootRun.State != run.Running ||
-		result.RootRun.ActiveSegmentID != "seg_root_continuation" {
+		result.RootRun.ID() != plan.root.run.ID() ||
+		result.RootRun.State() != run.Running ||
+		result.RootRun.ActiveSegmentID() != "seg_root_continuation" {
 		t.Fatalf("Cancel result root = %+v, want exact committed continuation", result.RootRun)
 	}
 
@@ -628,7 +624,7 @@ func TestCancelWaitingChildTerminalizesCommittedTreeWhenActivationFails(t *testi
 	if len(effects.waitingCancels) != 1 {
 		t.Fatalf("durable waiting commits = %d, want 1", len(effects.waitingCancels))
 	}
-	for _, runID := range []string{"run_b", plan.root.run.ID} {
+	for _, runID := range []string{"run_b", plan.root.run.ID()} {
 		if !effects.terminalized(plan.pending.SessionID, runID) {
 			t.Fatalf("committed continuation failure did not terminalize Run %q", runID)
 		}
@@ -637,17 +633,15 @@ func TestCancelWaitingChildTerminalizesCommittedTreeWhenActivationFails(t *testi
 		if commit.State != StateTerminalize || commit.Run == nil {
 			continue
 		}
-		if commit.Run.ID != "run_b" && commit.Run.ID != plan.root.run.ID {
+		if commit.Run.ID() != "run_b" && commit.Run.ID() != plan.root.run.ID() {
 			continue
 		}
-		if commit.Run.Outcome == nil ||
-			*commit.Run.Outcome != run.OutcomeFailed ||
-			commit.Run.Error == nil ||
-			commit.Run.Error.Kind != transcript.InternalProblem {
+		if !runHasOutcome(*commit.Run, run.OutcomeFailed) ||
+			!runHasFailureKind(*commit.Run, run.FailureInternal) {
 			t.Fatalf("failed continuation terminal = %+v, want internal error outcome", commit.Run)
 		}
 	}
-	if _, live := coordinator.registry.Get(plan.root.run.ID); live {
+	if _, live := coordinator.registry.Get(plan.root.run.ID()); live {
 		t.Fatal("failed continuation retained a live root owner")
 	}
 	if hasActiveSession(coordinator, plan.pending.SessionID) {
@@ -670,7 +664,7 @@ func TestCancelWaitingChildAbortsPreparedOperationWhenDurableCommitFails(t *test
 	coordinator, _ := waitingCancellationCoordinator(t, plan, prepared, effects, &fakeExecutor{})
 
 	_, err := coordinator.Cancel(t.Context(), CancelCommand{
-		RunID:         plan.target.run.ID,
+		RunID:         plan.target.run.ID(),
 		Reason:        "stop delegated branch",
 		AllowChildRun: true,
 	})
@@ -700,9 +694,9 @@ func waitingCancellationCoordinator(
 	},
 ) (*Coordinator, *fakeExecutionPorts) {
 	t.Helper()
-	runsByID := make(map[string]transcript.Run)
+	runsByID := make(map[string]run.Run)
 	for _, member := range append(slices.Clone(plan.targetSubtree), plan.survivingTree...) {
-		runsByID[member.run.ID] = member.run
+		runsByID[member.run.ID()] = member.run
 	}
 	control := &fakeExecutionPorts{prepared: plan.executor}
 	control.prepareWaiting = func(
@@ -764,23 +758,22 @@ func runACancellationPlan(
 		pending.Bindings = slices.Clone(pending.Bindings[:1])
 	}
 
-	runsByID := make(map[string]transcript.Run, len(pending.Continuations))
+	runsByID := make(map[string]run.Run, len(pending.Continuations))
 	members := make(map[string]string, len(pending.Continuations))
 	for index := range pending.Continuations {
 		continuation := &pending.Continuations[index]
-		runsByID[continuation.RunID] = transcript.Run{
-			ID:              continuation.RunID,
-			SessionID:       pending.SessionID,
-			SpawnedByItemID: continuation.Lineage.SpawnedByItemID,
-			ParentRunID:     continuation.Lineage.ParentRunID,
-			RootRunID:       continuation.Lineage.RootRunID,
-			State:           run.Waiting,
-			CreatedAt:       continuation.RunCreatedAt,
-			UpdatedAt:       pending.CreatedAt,
-			ModelSelection:  continuation.ModelSelection,
-			Capabilities:    pending.Capabilities,
-			MessageMark:     transcript.UnknownMessageMark,
-		}
+		runsByID[continuation.RunID] = runfixture.MustRestore(run.Snapshot{ID: continuation.RunID,
+			SessionID: pending.SessionID,
+
+			State:          run.Waiting,
+			CreatedAt:      continuation.RunCreatedAt,
+			UpdatedAt:      pending.CreatedAt,
+			ModelSelection: continuation.ModelSelection,
+			Capabilities:   pending.Capabilities,
+			MessageMark:    run.UnknownMessageMark, Lineage: run.Lineage{SpawnedByItemID: continuation.Lineage.SpawnedByItemID,
+				ParentRunID: continuation.Lineage.ParentRunID,
+				RootRunID:   continuation.Lineage.RootRunID}})
+
 		members[continuation.RunID] = continuation.MemberID
 	}
 	target := runsByID[targetRunID]
@@ -789,13 +782,13 @@ func runACancellationPlan(
 	}
 	callID := "call_" + targetRunID
 	for index := range pending.Continuations {
-		if pending.Continuations[index].RunID != target.ParentRunID {
+		if pending.Continuations[index].RunID != target.Lineage().ParentRunID {
 			continue
 		}
 		pending.Continuations[index].DrainedTools = append(
 			pending.Continuations[index].DrainedTools,
 			DrainedTool{
-				ItemID: target.SpawnedByItemID, ItemOccurredAt: createdAt,
+				ItemID: target.Lineage().SpawnedByItemID, ItemOccurredAt: createdAt,
 				CallID: callID, Name: "delegate_task", Arguments: "{}",
 			},
 		)
@@ -804,7 +797,7 @@ func runACancellationPlan(
 		t.Fatalf("waiting fixture Pending: %v", err)
 	}
 
-	runValues := make([]transcript.Run, 0, len(runsByID))
+	runValues := make([]run.Run, 0, len(runsByID))
 	for _, run := range runsByID {
 		runValues = append(runValues, run)
 	}
@@ -819,9 +812,9 @@ func runACancellationPlan(
 		t.Fatalf("waiting cancellation plan: %v", err)
 	}
 	plan.spawningItem = transcript.Item{
-		ID:         target.SpawnedByItemID,
+		ID:         target.Lineage().SpawnedByItemID,
 		SessionID:  pending.SessionID,
-		RunID:      target.ParentRunID,
+		RunID:      target.Lineage().ParentRunID,
 		Status:     transcript.ItemIncomplete,
 		Kind:       transcript.ToolCall,
 		OccurredAt: createdAt,
@@ -834,7 +827,7 @@ func runACancellationPlan(
 	plan.hasSpawningItem = true
 	targetRunIDs := make(map[string]struct{}, len(plan.targetSubtree))
 	for _, member := range plan.targetSubtree {
-		targetRunIDs[member.run.ID] = struct{}{}
+		targetRunIDs[member.run.ID()] = struct{}{}
 	}
 	for _, pendingInterrupt := range pending.Interrupts {
 		if _, targeted := targetRunIDs[pendingInterrupt.RunID]; !targeted {
@@ -882,8 +875,7 @@ func assertSettledParentTool(
 	if replacement.ID != itemID ||
 		replacement.Status != transcript.ItemIncomplete ||
 		replacement.Error == nil ||
-		replacement.Error.Kind != transcript.ChildRunCanceledProblem ||
-		replacement.Error.Scope != transcript.ToolProblem {
+		replacement.Error.Kind != tool.FailureChildRunCanceled {
 		t.Fatalf("parent Item replacement = %+v, want child_run_canceled", replacement)
 	}
 	root, ok := transformation.continuation.root()
@@ -902,10 +894,10 @@ func assertSettledParentTool(
 	}
 }
 
-func runIDs(runs []transcript.Run) []string {
+func runIDs(runs []run.Run) []string {
 	ids := make([]string, len(runs))
-	for index, run := range runs {
-		ids[index] = run.ID
+	for index, record := range runs {
+		ids[index] = record.ID()
 	}
 	return ids
 }
@@ -916,6 +908,24 @@ func continuationRunIDs(continuations []Continuation) []string {
 		ids[index] = continuation.RunID
 	}
 	return ids
+}
+
+func mustCanceledWaitingRun(t *testing.T, record run.Run, reason string, finishedAt time.Time) run.Run {
+	t.Helper()
+	canceled, err := canceledWaitingRun(record, reason, finishedAt)
+	if err != nil {
+		t.Fatalf("cancel waiting Run: %v", err)
+	}
+	return canceled
+}
+
+func mustResumeWaitingRun(t *testing.T, record run.Run, segmentID string) run.Run {
+	t.Helper()
+	resumed, err := record.Resume(segmentID, record.UpdatedAt())
+	if err != nil {
+		t.Fatalf("resume waiting Run: %v", err)
+	}
+	return resumed
 }
 
 func waitingQuestionPrompt() Interrupt {

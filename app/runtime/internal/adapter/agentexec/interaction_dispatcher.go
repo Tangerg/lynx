@@ -25,7 +25,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/toolresult"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	"github.com/Tangerg/lynx/chatclient"
 	corechat "github.com/Tangerg/lynx/core/chat"
 	toolcontract "github.com/Tangerg/lynx/tool"
@@ -306,8 +305,8 @@ func (observed *observedInteractionTool) Call(ctx context.Context, rawArguments 
 			denialReason = "tool call denied by policy"
 		}
 		end := observed.finishedFact(callID, arguments, denialReason, nil, nil, errors.New(denialReason))
-		end.Problem = &transcript.Problem{
-			Kind: transcript.DeniedByUserProblem, Scope: transcript.ToolProblem,
+		end.Failure = &tool.Failure{
+			Kind: tool.FailureDenied,
 		}
 		if err := observed.session.commitFact(ctx, member, end); err != nil {
 			return "", fmt.Errorf("agentexec: commit denied Tool result: %w", err)
@@ -622,8 +621,8 @@ func (observed *observedInteractionTool) finishedFact(
 		Offload: offload, OutputText: outputText, MutatedPaths: slices.Clone(mutatedPaths),
 	}
 	if callErr != nil {
-		finished.Problem = &transcript.Problem{
-			Kind: transcript.ToolFailedProblem, Scope: transcript.ToolProblem,
+		finished.Failure = &tool.Failure{
+			Kind:   tool.FailureExecution,
 			Detail: callErr.Error(),
 		}
 	}

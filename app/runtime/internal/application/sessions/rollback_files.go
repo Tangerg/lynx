@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
@@ -35,7 +36,7 @@ type RollbackSpec struct {
 }
 
 type DroppedRun struct {
-	Run       transcript.Run
+	Run       run.Run
 	UserInput []transcript.ContentBlock
 }
 
@@ -185,10 +186,10 @@ func (c *Coordinator) restoreRollbackFiles(
 	return errors.Join(err, fmt.Errorf("sessions: clear failed rollback intent: %w", cleanupErr))
 }
 
-func projectDroppedRuns(boundary transcript.Boundary, runs []transcript.Run, inputs map[string][]transcript.ContentBlock) []DroppedRun {
-	byID := make(map[string]transcript.Run, len(runs))
+func projectDroppedRuns(boundary transcript.Boundary, runs []run.Run, inputs map[string][]transcript.ContentBlock) []DroppedRun {
+	byID := make(map[string]run.Run, len(runs))
 	for _, run := range runs {
-		byID[run.ID] = run
+		byID[run.ID()] = run
 	}
 	out := make([]DroppedRun, 0, len(boundary.Dropped))
 	for _, node := range boundary.Dropped {

@@ -18,6 +18,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/replaycursor"
+	runfixture "github.com/Tangerg/lynx/app/runtime/internal/testsupport/runfixture"
 	corechat "github.com/Tangerg/lynx/core/chat"
 )
 
@@ -118,13 +119,13 @@ func yieldChildStart(
 	if err == nil {
 		return true
 	}
-	problem := transcript.Problem{
-		Kind: transcript.InternalProblem, Scope: transcript.RunProblem,
+	failure := run.Failure{
+		Kind:   run.FailureInternal,
 		Detail: "child Run start failed",
 	}
 	yield(ExecutorEvent{
 		Member:  ExecutorMember{MemberID: member.ParentID},
-		Payload: SegmentEnded{Reason: run.OutcomeFailed, Problem: &problem},
+		Payload: SegmentEnded{Reason: run.OutcomeFailed, Failure: &failure},
 	})
 	return false
 }
@@ -239,9 +240,8 @@ func (e *cancellableChildExecutor) Observe(
 			Member: e.rootMember,
 			Payload: ToolCallFinished{
 				CallID: "canonical_child",
-				Problem: &transcript.Problem{
-					Kind:   transcript.ToolFailedProblem,
-					Scope:  transcript.ToolProblem,
+				Failure: &tool.Failure{
+					Kind:   tool.FailureExecution,
 					Detail: "executor was killed",
 				},
 			},
@@ -731,15 +731,14 @@ func testSegment() segmentSpec {
 	}
 }
 
-func runForSegment(spec segmentSpec) transcript.Run {
-	return transcript.Run{
-		ID: spec.RunID, SessionID: spec.SessionID, State: run.Running,
+func runForSegment(spec segmentSpec) run.Run {
+	return runfixture.MustRestore(run.Snapshot{ID: spec.RunID, SessionID: spec.SessionID, State: run.Running,
 		ActiveSegmentID: spec.SegmentID, ModelSelection: spec.ModelSelection,
 		GoalLeaseID: spec.GoalLeaseID, Limits: spec.Limits,
 		Capabilities: spec.Capabilities,
 		CreatedAt:    spec.CreatedAt, UpdatedAt: spec.CreatedAt,
-		MessageMark: transcript.UnknownMessageMark,
-	}
+		MessageMark: run.UnknownMessageMark})
+
 }
 
 func TestResumedExecutorRouteRetainsGoalLeaseForTerminalAccounting(t *testing.T) {
@@ -899,11 +898,11 @@ func TestCoordinatorCommitsCanonicalOpeningAndTerminal(t *testing.T) {
 		t.Fatalf("events = %d, want canonical opening and terminal", len(events))
 	}
 	started, ok := events[0].Payload.(SegmentStarted)
-	if !ok || started.Run.ID != "run_1" || started.Run.SessionID != "ses_1" {
+	if !ok || started.Run.ID() != "run_1" || started.Run.SessionID() != "ses_1" {
 		t.Fatalf("first payload = %#v", events[0].Payload)
 	}
 	finished, ok := events[len(events)-1].Payload.(SegmentFinished)
-	if !ok || finished.Run.Outcome == nil || *finished.Run.Outcome != run.OutcomeCompleted {
+	if !ok || !runHasOutcome(finished.Run, run.OutcomeCompleted) {
 		t.Fatalf("last payload = %#v", events[len(events)-1].Payload)
 	}
 	// The opening's durable projection is the admission plus the user item; the
@@ -975,7 +974,7 @@ func hasActiveSession(c *Coordinator, sessionID string) bool {
 
 func TestCoordinatorCommitsExecutorStartFailureInCanonicalOrder(t *testing.T) {
 	executor := &fakeExecutor{events: []ExecutorPayload{
-		SegmentEnded{Reason: run.OutcomeFailed, Problem: &transcript.Problem{Kind: transcript.InternalProblem, Scope: transcript.RunProblem, Detail: "the run failed due to an internal error"}},
+		SegmentEnded{Reason: run.OutcomeFailed, Failure: &run.Failure{Kind: run.FailureInternal, Detail: "the run failed due to an internal error"}},
 	}}
 	effects := &fakeEffects{}
 	coordinator := testCoordinator(executor, effects)
@@ -995,11 +994,11 @@ func TestCoordinatorCommitsExecutorStartFailureInCanonicalOrder(t *testing.T) {
 	if !ok {
 		t.Fatalf("second payload = %#v, want SegmentFinished", events[1].Payload)
 	}
-	if finished.Run.Outcome == nil || *finished.Run.Outcome != run.OutcomeFailed {
-		t.Fatalf("outcome = %v, want error", finished.Run.Outcome)
+	if !runHasOutcome(finished.Run, run.OutcomeFailed) {
+		t.Fatalf("outcome = %v, want error", finished.Run.Snapshot().Outcome)
 	}
-	if finished.Run.Error == nil || finished.Run.Error.Kind != transcript.InternalProblem {
-		t.Fatalf("run failure = %+v, want canonical internal problem", finished.Run.Error)
+	if !runHasFailureKind(finished.Run, run.FailureInternal) {
+		t.Fatalf("run failure = %+v, want canonical internal problem", finished.Run.Snapshot().Failure)
 	}
 	if events[0].Sequence >= events[1].Sequence {
 		t.Fatalf("event order = %d then %d, want monotonic", events[0].Sequence, events[1].Sequence)
@@ -1091,11 +1090,11 @@ func TestCoordinatorResumesCompleteRunTreeInOneCanonicalOpening(t *testing.T) {
 		switch payload := event.Payload.(type) {
 		case SegmentStarted:
 			started = append(started, event.RunID)
-			if payload.Run.ActiveSegmentID != event.SegmentID {
+			if payload.Run.ActiveSegmentID() != event.SegmentID {
 				t.Fatalf(
 					"Run %q active segment = %q, envelope = %q",
 					event.RunID,
-					payload.Run.ActiveSegmentID,
+					payload.Run.ActiveSegmentID(),
 					event.SegmentID,
 				)
 			}
@@ -1207,10 +1206,10 @@ func TestCoordinatorActivationFailureBecomesErrorTerminal(t *testing.T) {
 	}
 	events := collectEvents(stream)
 	finished, ok := events[len(events)-1].Payload.(SegmentFinished)
-	if !ok || finished.Run.Outcome == nil || *finished.Run.Outcome != run.OutcomeFailed {
+	if !ok || !runHasOutcome(finished.Run, run.OutcomeFailed) {
 		t.Fatalf("last payload = %#v, want error terminal", events[len(events)-1].Payload)
 	}
-	if finished.Run.Error == nil {
+	if _, failed := finished.Run.Failure(); !failed {
 		t.Fatalf("error terminal has no canonical problem: %+v", finished.Run)
 	}
 }
@@ -1243,8 +1242,8 @@ func TestCoordinatorTreeActivationFailureTerminalizesInCanonicalPostorder(t *tes
 			started = append(started, event.RunID)
 		case SegmentFinished:
 			finished = append(finished, event.RunID)
-			if payload.Run.Outcome == nil || *payload.Run.Outcome != run.OutcomeFailed {
-				t.Fatalf("Run %q outcome = %v, want error", event.RunID, payload.Run.Outcome)
+			if !runHasOutcome(payload.Run, run.OutcomeFailed) {
+				t.Fatalf("Run %q outcome = %v, want error", event.RunID, payload.Run.Snapshot().Outcome)
 			}
 		}
 	}
@@ -1268,7 +1267,7 @@ func TestCoordinatorMalformedInterruptAbortsExecutorAndTerminalizes(t *testing.T
 	}
 	events := collectEvents(stream)
 	finished, ok := events[len(events)-1].Payload.(SegmentFinished)
-	if !ok || finished.Run.Outcome == nil || *finished.Run.Outcome != run.OutcomeFailed {
+	if !ok || !runHasOutcome(finished.Run, run.OutcomeFailed) {
 		t.Fatalf("last payload = %#v, want error terminal", events[len(events)-1].Payload)
 	}
 	if executor.releases() != 1 {
@@ -1303,11 +1302,11 @@ func TestCoordinatorProtocolViolationAbortsExecutorAndTerminalizes(t *testing.T)
 				t.Fatalf("journal events = %d, want opening and synthesized terminal", len(events))
 			}
 			finished, ok := events[1].Payload.(SegmentFinished)
-			if !ok || finished.Run.Outcome == nil || *finished.Run.Outcome != run.OutcomeFailed {
+			if !ok || !runHasOutcome(finished.Run, run.OutcomeFailed) {
 				t.Fatalf("last payload = %#v, want error terminal", events[1].Payload)
 			}
-			if finished.Run.Error == nil || finished.Run.Error.Kind != transcript.InternalProblem {
-				t.Fatalf("run failure = %+v, want canonical internal problem", finished.Run.Error)
+			if !runHasFailureKind(finished.Run, run.FailureInternal) {
+				t.Fatalf("run failure = %+v, want canonical internal problem", finished.Run.Snapshot().Failure)
 			}
 			if executor.releases() != 1 {
 				t.Fatalf("Release calls = %d, want 1", executor.releases())
@@ -1340,7 +1339,7 @@ func TestCoordinatorRejectsUnadmittedChildSource(t *testing.T) {
 		t.Fatalf("journal events = %d, want opening and synthesized terminal", len(events))
 	}
 	finished, ok := events[1].Payload.(SegmentFinished)
-	if !ok || finished.Run.Outcome == nil || *finished.Run.Outcome != run.OutcomeFailed {
+	if !ok || !runHasOutcome(finished.Run, run.OutcomeFailed) {
 		t.Fatalf("last payload = %#v, want error terminal", events[1].Payload)
 	}
 	if executor.releases() != 1 {
@@ -1524,9 +1523,9 @@ func requireIndependentChildLifecycle(
 	t.Helper()
 	started := lifecycle.started
 	if started.Run.Lineage() != lineage ||
-		started.Run.ActiveSegmentID != childSegmentID ||
-		started.Run.Limits != spec.Limits ||
-		started.Run.Capabilities.String() != spec.Capabilities.String() {
+		started.Run.ActiveSegmentID() != childSegmentID ||
+		started.Run.Limits() != spec.Limits ||
+		started.Run.Capabilities().String() != spec.Capabilities.String() {
 		t.Fatalf("child opening Run = %+v, want independent inherited segment state", started.Run)
 	}
 	completed := lifecycle.completed
@@ -1536,9 +1535,9 @@ func requireIndependentChildLifecycle(
 		t.Fatalf("child completed item = %+v, want child-owned assistant item", completed)
 	}
 	finished := lifecycle.finished
-	if finished.Run.Lineage() != lineage || finished.Run.Outcome == nil ||
-		*finished.Run.Outcome != run.OutcomeCompleted || finished.Run.Metrics.Usage == nil ||
-		finished.Run.Metrics.Usage.InputTokens != 13 || finished.Run.Metrics.Usage.OutputTokens != 5 {
+	usage, reported := finished.Run.Metrics().Usage()
+	if finished.Run.Lineage() != lineage || !runHasOutcome(finished.Run, run.OutcomeCompleted) || !reported ||
+		usage.Total.InputTokens != 13 || usage.Total.OutputTokens != 5 {
 		t.Fatalf("child terminal Run = %+v, want child-owned terminal metrics", finished)
 	}
 }
@@ -1727,7 +1726,7 @@ func TestCoordinatorKeepsConcurrentSiblingSegmentsIsolated(t *testing.T) {
 	type childProjection struct {
 		text     string
 		segment  string
-		finished *transcript.Run
+		finished *run.Run
 	}
 	children := map[string]*childProjection{
 		"run_child_a": {segment: "seg_child_a"},
@@ -1760,16 +1759,19 @@ func TestCoordinatorKeepsConcurrentSiblingSegmentsIsolated(t *testing.T) {
 		"run_child_b": {text: "beta", prompt: 7, model: "model-b"},
 	} {
 		child := children[runID]
+		if child.finished == nil {
+			t.Fatalf("sibling %q has no terminal Run", runID)
+		}
+		usage, reported := child.finished.Metrics().Usage()
 		if child.text != want.text ||
-			child.finished == nil ||
-			child.finished.Metrics.Steps != 1 ||
-			child.finished.Metrics.Usage == nil ||
-			child.finished.Metrics.Usage.InputTokens != want.prompt ||
-			len(child.finished.Metrics.Usage.ByModel) != 1 {
+			child.finished.Metrics().Steps() != 1 ||
+			!reported ||
+			usage.Total.InputTokens != want.prompt ||
+			len(usage.ByModel) != 1 {
 			t.Fatalf("sibling %q projection = %+v", runID, child)
 		}
-		if _, ok := child.finished.Metrics.Usage.ByModel[want.model]; !ok {
-			t.Fatalf("sibling %q usage = %+v, want model %q", runID, child.finished.Metrics.Usage, want.model)
+		if _, ok := usage.ByModel[want.model]; !ok {
+			t.Fatalf("sibling %q usage = %+v, want model %q", runID, usage, want.model)
 		}
 	}
 }
@@ -1958,7 +1960,7 @@ func TestCoordinatorDrainedStreamClosesNestedChildrenBeforeAncestors(t *testing.
 		t.Fatalf("grandchild opening: %v", err)
 	}
 
-	var terminals []transcript.Run
+	var terminals []run.Run
 	for _, event := range events {
 		if finished, ok := event.Payload.(SegmentFinished); ok {
 			terminals = append(terminals, finished.Run)
@@ -1969,9 +1971,7 @@ func TestCoordinatorDrainedStreamClosesNestedChildrenBeforeAncestors(t *testing.
 		t.Fatalf("terminals = %+v, want %v", terminals, wantOrder)
 	}
 	for index, record := range terminals {
-		if record.ID != wantOrder[index] ||
-			record.Outcome == nil ||
-			*record.Outcome != run.OutcomeCanceled {
+		if record.ID() != wantOrder[index] || !runHasOutcome(record, run.OutcomeCanceled) {
 			t.Fatalf("terminal[%d] = %+v, want canceled %q", index, record, wantOrder[index])
 		}
 	}
@@ -2015,22 +2015,19 @@ func TestCoordinatorClosesActiveChildrenBeforeRejectingRootTerminal(t *testing.T
 		t.Fatalf("child opening confirmation: %v", err)
 	}
 
-	var terminalRuns []transcript.Run
+	var terminalRuns []run.Run
 	for _, event := range events {
 		if finished, ok := event.Payload.(SegmentFinished); ok {
 			terminalRuns = append(terminalRuns, finished.Run)
 		}
 	}
 	if len(terminalRuns) != 2 ||
-		terminalRuns[0].ID != "run_child" ||
-		terminalRuns[1].ID != "run_1" {
+		terminalRuns[0].ID() != "run_child" ||
+		terminalRuns[1].ID() != "run_1" {
 		t.Fatalf("terminal event order = %+v, want child then root", terminalRuns)
 	}
 	for _, record := range terminalRuns {
-		if record.Outcome == nil ||
-			*record.Outcome != run.OutcomeFailed ||
-			record.Error == nil ||
-			record.Error.Kind != transcript.InternalProblem {
+		if !runHasOutcome(record, run.OutcomeFailed) || !runHasFailureKind(record, run.FailureInternal) {
 			t.Fatalf("synthesized terminal = %+v, want internal error", record)
 		}
 	}
@@ -2077,22 +2074,19 @@ func TestCoordinatorRecoversFromChildTerminalCommitFailureBeforeClosingRoot(t *t
 		t.Fatalf("child opening: %v", err)
 	}
 
-	var terminals []transcript.Run
+	var terminals []run.Run
 	for _, event := range events {
 		if finished, ok := event.Payload.(SegmentFinished); ok {
 			terminals = append(terminals, finished.Run)
 		}
 	}
 	if len(terminals) != 2 ||
-		terminals[0].ID != "run_child" ||
-		terminals[1].ID != "run_1" {
+		terminals[0].ID() != "run_child" ||
+		terminals[1].ID() != "run_1" {
 		t.Fatalf("terminal order = %+v, want child then root", terminals)
 	}
 	for _, record := range terminals {
-		if record.Outcome == nil ||
-			*record.Outcome != run.OutcomeFailed ||
-			record.Error == nil ||
-			record.Error.Kind != transcript.InternalProblem {
+		if !runHasOutcome(record, run.OutcomeFailed) || !runHasFailureKind(record, run.FailureInternal) {
 			t.Fatalf("recovered terminal = %+v, want internal error", record)
 		}
 	}
@@ -2103,6 +2097,11 @@ func TestCoordinatorRecoversFromChildTerminalCommitFailureBeforeClosingRoot(t *t
 	if executor.releases() != 1 {
 		t.Fatalf("Release calls = %d, want 1", executor.releases())
 	}
+}
+
+func runHasFailureKind(record run.Run, expected run.FailureKind) bool {
+	failure, failed := record.Failure()
+	return failed && failure.Kind == expected
 }
 
 func TestCoordinatorRejectsChildWhenAtomicOpeningFails(t *testing.T) {
@@ -2143,7 +2142,7 @@ func TestCoordinatorRejectsChildWhenAtomicOpeningFails(t *testing.T) {
 		t.Fatalf("committed openings = %d, want only root", len(openings))
 	}
 	finished, ok := events[len(events)-1].Payload.(SegmentFinished)
-	if !ok || finished.Run.Outcome == nil || *finished.Run.Outcome != run.OutcomeFailed {
+	if !ok || !runHasOutcome(finished.Run, run.OutcomeFailed) {
 		t.Fatalf("last payload = %#v, want root error terminal", events[len(events)-1].Payload)
 	}
 	if !effects.terminalized("ses_1", "run_1") {
@@ -2304,7 +2303,6 @@ func requireWaitingTreeBarrierPostorder(
 	t *testing.T,
 	barrier TreeBarrierCommit,
 	wantRunIDs []string,
-	directInterruptsByRunID map[string]int,
 ) {
 	t.Helper()
 	if len(barrier.Runs) != len(wantRunIDs) ||
@@ -2329,17 +2327,8 @@ func requireWaitingTreeBarrierPostorder(
 				wantRunID,
 			)
 		}
-		if commit.State != StateSuspend || commit.Run == nil || commit.Run.State != run.Waiting {
+		if commit.State != StateSuspend || commit.Run == nil || commit.Run.State() != run.Waiting {
 			t.Fatalf("barrier Run[%d] = %+v, want waiting suspend", index, commit)
-		}
-		wantDirectInterrupts := directInterruptsByRunID[wantRunID]
-		if len(commit.Run.Interrupts) != wantDirectInterrupts {
-			t.Fatalf(
-				"barrier Run %q direct interrupts = %d, want %d",
-				wantRunID,
-				len(commit.Run.Interrupts),
-				wantDirectInterrupts,
-			)
 		}
 	}
 }
@@ -2380,8 +2369,8 @@ func requirePublishedWaitingOrder(t *testing.T, events []Event, wantRunIDs []str
 	var actualRunIDs []string
 	for _, event := range events {
 		finished, ok := event.Payload.(SegmentFinished)
-		if ok && finished.Run.State == run.Waiting {
-			actualRunIDs = append(actualRunIDs, finished.Run.ID)
+		if ok && finished.Run.State() == run.Waiting {
+			actualRunIDs = append(actualRunIDs, finished.Run.ID())
 		}
 	}
 	if !slices.Equal(actualRunIDs, wantRunIDs) {
@@ -2465,10 +2454,7 @@ func TestCoordinatorCommitsCompleteTreeBarrierInDeterministicPostorder(t *testin
 	}
 	barrier := barriers[0]
 	wantOrder := []string{"run_grandchild", "run_child_a", "run_child_b", "run_1"}
-	requireWaitingTreeBarrierPostorder(t, barrier, wantOrder, map[string]int{
-		"run_grandchild": 1,
-		"run_child_b":    1,
-	})
+	requireWaitingTreeBarrierPostorder(t, barrier, wantOrder)
 	requirePendingInterruptOrder(
 		t,
 		barrier.Pending,
@@ -2511,7 +2497,7 @@ func TestCoordinatorTreeBarrierCommitFailurePublishesNoInterruptedFact(t *testin
 				t.Fatalf("uncommitted question was published: %+v", payload.Item)
 			}
 		case SegmentFinished:
-			if payload.Run.State == run.Waiting {
+			if payload.Run.State() == run.Waiting {
 				t.Fatalf("uncommitted waiting Run was published: %+v", payload.Run)
 			}
 		}
@@ -2660,7 +2646,7 @@ func TestCoordinatorCancelContextSurvivesRequestContext(t *testing.T) {
 	coordinator.activeRuns = sessions
 	coordinator.interrupts = sessions
 	coordinator.terminations = sessions
-	coordinator.runs = &fakeRunProjection{runs: map[string]transcript.Run{
+	coordinator.runs = &fakeRunProjection{runs: map[string]run.Run{
 		"run_1": runForSegment(testSegment()),
 	}}
 	requestContext, cancelRequest := context.WithCancel(context.Background())

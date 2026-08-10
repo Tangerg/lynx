@@ -34,7 +34,7 @@ func TestLiveChildCancellationReleasesClaimWhenExecutorTeardownFails(t *testing.
 	_, err := coordinator.cancelLiveChild(
 		t.Context(),
 		CancelCommand{
-			RunID:         plan.target.run.ID,
+			RunID:         plan.target.run.ID(),
 			Reason:        "stop child",
 			AllowChildRun: true,
 		},
@@ -44,7 +44,7 @@ func TestLiveChildCancellationReleasesClaimWhenExecutorTeardownFails(t *testing.
 	if !errors.Is(err, teardownErr) {
 		t.Fatalf("cancel live child error = %v, want teardown cause", err)
 	}
-	for _, identity := range []string{plan.target.run.ID, plan.target.memberID} {
+	for _, identity := range []string{plan.target.run.ID(), plan.target.memberID} {
 		if !strings.Contains(err.Error(), identity) {
 			t.Fatalf("cancel live child error = %q, want identity %q", err, identity)
 		}

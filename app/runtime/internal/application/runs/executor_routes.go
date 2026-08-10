@@ -515,27 +515,27 @@ func validateRoutedEvent(route *executorRoute, sessionID string, routed RunEvent
 	return nil
 }
 
-func validateRouteRun(route *executorRoute, sessionID string, run transcript.Run) error {
-	if run.ID != route.runID ||
-		run.SessionID != sessionID ||
-		run.Lineage() != route.lineage {
+func validateRouteRun(route *executorRoute, sessionID string, value rundomain.Run) error {
+	if value.ID() != route.runID ||
+		value.SessionID() != sessionID ||
+		value.Lineage() != route.lineage {
 		return fmt.Errorf(
 			"%w: route %q carries run %q in session %q with lineage %+v; want session %q and lineage %+v",
 			errReducerInvariant,
 			route.runID,
-			run.ID,
-			run.SessionID,
-			run.Lineage(),
+			value.ID(),
+			value.SessionID(),
+			value.Lineage(),
 			sessionID,
 			route.lineage,
 		)
 	}
-	if run.State == rundomain.Running && run.ActiveSegmentID != route.segmentID {
+	if value.State() == rundomain.Running && value.ActiveSegmentID() != route.segmentID {
 		return fmt.Errorf(
 			"%w: route %q running segment is %q, want %q",
 			errReducerInvariant,
 			route.runID,
-			run.ActiveSegmentID,
+			value.ActiveSegmentID(),
 			route.segmentID,
 		)
 	}

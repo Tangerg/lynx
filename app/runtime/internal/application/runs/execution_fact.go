@@ -197,10 +197,10 @@ type ToolCallFinished struct {
 	Offload      *toolresult.Ref
 	OutputText   string
 	MutatedPaths []string
-	// Problem is the one structured failure channel for a completed tool call.
-	// nil means success; the problem's Tool scope distinguishes it from a Run
-	// failure without parallel error strings or boolean classifications.
-	Problem *transcript.Problem
+	// Failure is the one structured failure channel for a completed Tool call.
+	// nil means success; its Tool taxonomy prevents Run failures from entering
+	// this slot without parallel error strings or boolean classifications.
+	Failure *tool.Failure
 }
 
 type CompactionBoundary struct {
@@ -322,10 +322,10 @@ func (e SegmentInterrupted) validate() error {
 type SegmentEnded struct {
 	executionFactBase
 	Reason run.Outcome
-	// Problem is present exactly when Reason is Failed, TimedOut, or Lost. It is
-	// already a stable, client-safe application problem; executor diagnostics
+	// Failure is present exactly when Reason is Failed, TimedOut, or Lost. It is
+	// already a stable, client-safe classification; executor diagnostics
 	// never enter the event stream.
-	Problem *transcript.Problem
+	Failure *run.Failure
 	// Usage is the segment's final accounting, and is absent only when the
 	// executor cannot produce an authoritative report. Child executors retain
 	// their subtree ledger through cancellation and failure, so those terminals

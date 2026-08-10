@@ -156,7 +156,7 @@ func TestAuthoritativeProjectionFailurePreservesStartUntilAtomicRunLost(t *testi
 	}
 	lost := commits[1]
 	if lost.State != StateTerminalize || lost.Outcome != run.OutcomeLost || lost.Run == nil ||
-		lost.Run.Outcome == nil || *lost.Run.Outcome != run.OutcomeLost {
+		!runHasOutcome(*lost.Run, run.OutcomeLost) {
 		t.Fatalf("lost commit = %#v", lost)
 	}
 	if got := lost.ModelInvocations; len(got) != 1 || got[0].State != ModelInvocationUnknown {
@@ -173,7 +173,7 @@ func TestAuthoritativeProjectionFailurePreservesStartUntilAtomicRunLost(t *testi
 		t.Fatal("Run stream is empty")
 	}
 	finished, ok := events[len(events)-1].Payload.(SegmentFinished)
-	if !ok || finished.Run.Outcome == nil || *finished.Run.Outcome != run.OutcomeLost {
+	if !ok || !runHasOutcome(finished.Run, run.OutcomeLost) {
 		t.Fatalf("last event = %#v, want lost SegmentFinished", events[len(events)-1].Payload)
 	}
 	if executor.releaseCount() != 1 {
@@ -215,9 +215,14 @@ func TestUnknownRunLostRetriesDurableTerminalBeforeExecutorRelease(t *testing.T)
 		t.Fatalf("executor releases after durable RunLost = %d, want 1", executor.releaseCount())
 	}
 	finished, ok := events[len(events)-1].Payload.(SegmentFinished)
-	if !ok || finished.Run.Outcome == nil || *finished.Run.Outcome != run.OutcomeLost {
+	if !ok || !runHasOutcome(finished.Run, run.OutcomeLost) {
 		t.Fatalf("last event = %#v, want durable RunLost", events[len(events)-1].Payload)
 	}
+}
+
+func runHasOutcome(record run.Run, expected run.Outcome) bool {
+	outcome, terminal := record.Outcome()
+	return terminal && outcome == expected
 }
 
 func TestConcurrentToolResultsCommitInModelOrder(t *testing.T) {
