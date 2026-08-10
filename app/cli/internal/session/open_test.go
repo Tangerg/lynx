@@ -4,8 +4,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/Tangerg/lynx/app/cli/internal/client"
-	"github.com/Tangerg/lynx/app/cli/internal/client/mock"
+	"github.com/Tangerg/lynx/app/cli/internal/agent"
+	"github.com/Tangerg/lynx/app/cli/internal/agent/mock"
 )
 
 func TestOpenCreatesOrRestoresAValidatedSnapshot(t *testing.T) {
@@ -30,7 +30,7 @@ func TestOpenCreatesOrRestoresAValidatedSnapshot(t *testing.T) {
 
 func TestOpenPreservesRuntimeErrorIdentity(t *testing.T) {
 	_, err := Open(t.Context(), mock.New(), "missing", "")
-	if !errors.Is(err, client.ErrSessionNotFound) {
+	if !errors.Is(err, agent.ErrSessionNotFound) {
 		t.Fatalf("open error = %v, want session-not-found identity", err)
 	}
 }

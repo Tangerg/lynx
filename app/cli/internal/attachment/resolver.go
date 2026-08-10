@@ -1,7 +1,7 @@
 // Package attachment turns local files into the runtime-neutral attachment
-// values accepted by the client domain. It is a filesystem adapter: callers
+// values accepted by the agent domain. It is a filesystem adapter: callers
 // depend on its small Resolver surface, while runtime implementations receive
-// only client.Attachment values and never learn how the CLI found them.
+// only agent.Attachment values and never learn how the CLI found them.
 package attachment
 
 import (
@@ -22,7 +22,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/Tangerg/lynx/app/cli/internal/client"
+	"github.com/Tangerg/lynx/app/cli/internal/agent"
 )
 
 const (
@@ -72,13 +72,13 @@ func New(root string) (*Resolver, error) {
 
 // Resolve validates and classifies one explicit path. Symlinks are resolved so
 // identity and duplicate detection refer to the same underlying file.
-func (r *Resolver) Resolve(ctx context.Context, input string) (client.Attachment, error) {
+func (r *Resolver) Resolve(ctx context.Context, input string) (agent.Attachment, error) {
 	if err := context.Cause(ctx); err != nil {
-		return client.Attachment{}, err
+		return agent.Attachment{}, err
 	}
 	canonical, info, header, err := r.inspect(input)
 	if err != nil {
-		return client.Attachment{}, err
+		return agent.Attachment{}, err
 	}
 	return r.project(canonical, info, header), nil
 }
@@ -134,27 +134,27 @@ func readAttachmentHeader(file io.Reader, input string) ([]byte, error) {
 	return header[:n], nil
 }
 
-func (r *Resolver) project(canonical string, info fs.FileInfo, header []byte) client.Attachment {
+func (r *Resolver) project(canonical string, info fs.FileInfo, header []byte) agent.Attachment {
 	mimeType := classifyMIME(canonical, header)
 	name := filepath.Base(canonical)
 	if relative, ok := r.relative(canonical); ok {
 		name = relative
 	}
 	digest := sha256.Sum256([]byte(canonical + "\x00" + strconv.FormatInt(info.Size(), 10) + "\x00" + strconv.FormatInt(info.ModTime().UnixNano(), 10)))
-	return client.Attachment{
+	return agent.Attachment{
 		ID: "att_" + hex.EncodeToString(digest[:8]), Kind: attachmentKind(mimeType), Name: filepath.ToSlash(name),
 		Path: canonical, MimeType: mimeType, Size: info.Size(),
 	}
 }
 
-func attachmentKind(mimeType string) client.AttachmentKind {
+func attachmentKind(mimeType string) agent.AttachmentKind {
 	switch {
 	case strings.HasPrefix(mimeType, "image/"):
-		return client.AttachmentImage
+		return agent.AttachmentImage
 	case isTextMIME(mimeType):
-		return client.AttachmentText
+		return agent.AttachmentText
 	default:
-		return client.AttachmentFile
+		return agent.AttachmentFile
 	}
 }
 

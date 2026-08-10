@@ -6,10 +6,10 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/Tangerg/lynx/app/cli/internal/client"
+	"github.com/Tangerg/lynx/app/cli/internal/agent"
 )
 
-func (r *Runtime) ListApprovalRules(ctx context.Context) ([]client.ApprovalRule, error) {
+func (r *Runtime) ListApprovalRules(ctx context.Context) ([]agent.ApprovalRule, error) {
 	if err := context.Cause(ctx); err != nil {
 		return nil, err
 	}
@@ -26,7 +26,7 @@ func (r *Runtime) DeleteApprovalRule(ctx context.Context, id string) error {
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	at := slices.IndexFunc(r.rules, func(rule client.ApprovalRule) bool { return rule.ID == id })
+	at := slices.IndexFunc(r.rules, func(rule agent.ApprovalRule) bool { return rule.ID == id })
 	if at < 0 {
 		return fmt.Errorf("mock: approval rule %s not found", id)
 	}
@@ -34,7 +34,7 @@ func (r *Runtime) DeleteApprovalRule(ctx context.Context, id string) error {
 	return nil
 }
 
-func (r *Runtime) rememberApprovalLocked(run *runState, approval client.Approval, answer client.ApprovalAnswer) {
+func (r *Runtime) rememberApprovalLocked(run *runState, approval agent.Approval, answer agent.ApprovalAnswer) {
 	session := r.sessions[run.sessionID]
 	key := approvalRuleKey(approval)
 	for _, rule := range r.rules {
@@ -43,18 +43,18 @@ func (r *Runtime) rememberApprovalLocked(run *runState, approval client.Approval
 		}
 	}
 	r.next++
-	rule := client.ApprovalRule{
+	rule := agent.ApprovalRule{
 		ID: fmt.Sprintf("rule_mock_%d", r.next), Rule: key, Decision: answer.Decision,
 		Scope: answer.Remember, CreatedAt: r.now(),
 	}
 	switch answer.Remember {
-	case client.RememberSession:
+	case agent.RememberSession:
 		rule.SessionID = run.sessionID
-	case client.RememberProject:
+	case agent.RememberProject:
 		rule.Workspace = session.meta.Workspace
-	case client.RememberGlobal:
+	case agent.RememberGlobal:
 		// Global rules intentionally carry no qualifier.
-	case client.RememberNone:
+	case agent.RememberNone:
 		return
 	default:
 		return
@@ -62,33 +62,33 @@ func (r *Runtime) rememberApprovalLocked(run *runState, approval client.Approval
 	r.rules = append(r.rules, rule)
 }
 
-func (r *Runtime) rememberedAnswerLocked(run *runState, approval client.Approval) (client.ApprovalAnswer, bool) {
+func (r *Runtime) rememberedAnswerLocked(run *runState, approval agent.Approval) (agent.ApprovalAnswer, bool) {
 	workspace := r.sessions[run.sessionID].meta.Workspace
 	key := approvalRuleKey(approval)
 	for _, rule := range slices.Backward(r.rules) {
 		if rule.Rule == key && ruleApplies(rule, run.sessionID, workspace) {
-			return client.ApprovalAnswer{Decision: rule.Decision, Remember: rule.Scope}, true
+			return agent.ApprovalAnswer{Decision: rule.Decision, Remember: rule.Scope}, true
 		}
 	}
-	return client.ApprovalAnswer{}, false
+	return agent.ApprovalAnswer{}, false
 }
 
-func ruleApplies(rule client.ApprovalRule, sessionID, workspace string) bool {
+func ruleApplies(rule agent.ApprovalRule, sessionID, workspace string) bool {
 	switch rule.Scope {
-	case client.RememberSession:
+	case agent.RememberSession:
 		return rule.SessionID == sessionID
-	case client.RememberProject:
+	case agent.RememberProject:
 		return rule.Workspace == workspace
-	case client.RememberGlobal:
+	case agent.RememberGlobal:
 		return true
-	case client.RememberNone:
+	case agent.RememberNone:
 		return false
 	default:
 		return false
 	}
 }
 
-func approvalRuleKey(approval client.Approval) string {
+func approvalRuleKey(approval agent.Approval) string {
 	if key := strings.TrimSpace(approval.RuleHint); key != "" {
 		return key
 	}

@@ -13,8 +13,8 @@ import (
 	"github.com/Tangerg/oolong/core/program"
 	"github.com/Tangerg/oolong/core/term"
 
+	"github.com/Tangerg/lynx/app/cli/internal/agent"
 	"github.com/Tangerg/lynx/app/cli/internal/attachment"
-	"github.com/Tangerg/lynx/app/cli/internal/client"
 	"github.com/Tangerg/lynx/app/cli/internal/extensions"
 	"github.com/Tangerg/lynx/app/cli/internal/promptqueue"
 	"github.com/Tangerg/lynx/app/cli/internal/session"
@@ -23,7 +23,7 @@ import (
 
 // Config describes one terminal application instance.
 type Config struct {
-	Runtime       client.Runtime
+	Runtime       agent.Runtime
 	SessionID     string
 	Workspace     string
 	InitialPrompt string
@@ -85,7 +85,7 @@ func Run(ctx context.Context, cfg Config) (runErr error) {
 }
 
 type preparedSession struct {
-	opened      client.SessionSnapshot
+	opened      agent.SessionSnapshot
 	attachments *attachment.Resolver
 	keys        *keymap.Map
 	settings    settings.Config

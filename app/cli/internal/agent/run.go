@@ -1,4 +1,4 @@
-package client
+package agent
 
 import (
 	"errors"
@@ -120,7 +120,7 @@ type Model struct {
 }
 
 // Interaction is a closed interrupt payload.
-type Interaction interface{ clientInteraction() }
+type Interaction interface{ isInteraction() }
 
 type Approval struct {
 	InterruptID string
@@ -165,11 +165,11 @@ type QuestionOption struct {
 	Recommended bool
 }
 
-func (Approval) clientInteraction() {}
-func (Question) clientInteraction() {}
+func (Approval) isInteraction() {}
+func (Question) isInteraction() {}
 
 // Answer is a closed response payload.
-type Answer interface{ clientAnswer() }
+type Answer interface{ isAnswer() }
 
 type ApprovalDecision string
 
@@ -198,8 +198,8 @@ type QuestionAnswer struct {
 	Canceled bool
 }
 
-func (ApprovalAnswer) clientAnswer() {}
-func (QuestionAnswer) clientAnswer() {}
+func (ApprovalAnswer) isAnswer() {}
+func (QuestionAnswer) isAnswer() {}
 
 // Usage is terminal-facing accounting for one run.
 type Usage struct {

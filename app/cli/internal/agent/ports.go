@@ -1,14 +1,14 @@
-package client
+package agent
 
 import (
 	"context"
 	"iter"
 )
 
-// Stream is a replayable run subscription. Every envelope after the requested
+// RunStream is a replayable run subscription. Every envelope after the requested
 // cursor is delivered in cursor order. A subscription ends when the run
 // finishes or interrupts, or yields one non-nil error and stops.
-type Stream = iter.Seq2[Envelope, error]
+type RunStream = iter.Seq2[Envelope, error]
 
 // Runtime is the complete capability assembled at the application boundary.
 // Consumers depend on the narrower interfaces below.
@@ -16,9 +16,9 @@ type Runtime interface {
 	SessionCatalog
 	SessionReader
 	SessionWriter
-	Runs
-	Models
-	Approvals
+	RunLifecycle
+	ModelCatalog
+	ApprovalRuleCatalog
 }
 
 // SessionCatalog discovers sessions without loading their transcripts.
@@ -39,26 +39,26 @@ type SessionWriter interface {
 	DeleteSession(context.Context, DeleteSession) error
 }
 
-// Runs controls logical runs independently from their transport subscriptions.
+// RunLifecycle controls logical runs independently from their transport subscriptions.
 // A disconnected subscriber can call FollowRun again with the last accepted
 // cursor without restarting or duplicating the run. StartRun is idempotent for
 // a non-empty RequestID, and ResumeRun is idempotent for the same interrupt and
 // answer, so a lost control response can be retried safely.
-type Runs interface {
+type RunLifecycle interface {
 	StartRun(context.Context, StartRun) (Run, error)
-	FollowRun(context.Context, FollowRun) (Stream, error)
+	FollowRun(context.Context, FollowRun) (RunStream, error)
 	ResumeRun(context.Context, ResumeRun) error
 	CancelRun(context.Context, CancelRun) error
 }
 
-// Models exposes the runtime-provided model catalog. Run modes and permission
+// ModelCatalog exposes the runtime-provided model catalog. Run modes and permission
 // modes remain CLI product concepts and are sent back in RunOptions.
-type Models interface {
+type ModelCatalog interface {
 	ListModels(context.Context) ([]Model, error)
 }
 
-// Approvals manages remembered decisions independently from live interrupts.
-type Approvals interface {
+// ApprovalRuleCatalog manages remembered decisions independently from live interrupts.
+type ApprovalRuleCatalog interface {
 	ListApprovalRules(context.Context) ([]ApprovalRule, error)
 	DeleteApprovalRule(context.Context, string) error
 }
@@ -71,7 +71,7 @@ type StartRun struct {
 	Options   RunOptions
 }
 
-// FollowRun subscribes after a cursor previously accepted by the client.
+// FollowRun subscribes after a cursor previously accepted by the agent.
 type FollowRun struct {
 	RunID string
 	After Cursor

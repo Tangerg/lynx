@@ -11,19 +11,19 @@ import (
 	"github.com/Tangerg/oolong/core/input"
 	"github.com/Tangerg/oolong/highlight"
 
-	"github.com/Tangerg/lynx/app/cli/internal/client"
+	"github.com/Tangerg/lynx/app/cli/internal/agent"
 )
 
 func TestStreamingPreservesAReadersScrollPosition(t *testing.T) {
 	view := testConversationView(t)
 	root := headless.NewRoot(view)
 	surface := grid.NewSurface(32, 5)
-	started := client.Block{ID: "answer", Kind: client.BlockAssistant}
-	if err := view.Apply(client.BlockStarted{Block: started}, nil); err != nil {
+	started := agent.Block{ID: "answer", Kind: agent.BlockAssistant}
+	if err := view.Apply(agent.BlockStarted{Block: started}, nil); err != nil {
 		t.Fatal(err)
 	}
 	initial := strings.Repeat("a paragraph long enough to occupy rows\n\n", 12)
-	if err := view.Apply(client.BlockDelta{BlockID: started.ID, Text: initial}, nil); err != nil {
+	if err := view.Apply(agent.BlockDelta{BlockID: started.ID, Text: initial}, nil); err != nil {
 		t.Fatal(err)
 	}
 	root.Draw(surface.View())
@@ -35,7 +35,7 @@ func TestStreamingPreservesAReadersScrollPosition(t *testing.T) {
 	}
 	wantOffset := view.scroll.Offset()
 
-	if err := view.Apply(client.BlockDelta{BlockID: started.ID, Text: "new streamed tail\n\n"}, nil); err != nil {
+	if err := view.Apply(agent.BlockDelta{BlockID: started.ID, Text: "new streamed tail\n\n"}, nil); err != nil {
 		t.Fatal(err)
 	}
 	root.Draw(surface.View())
@@ -49,14 +49,14 @@ func TestStreamingPreservesAReadersScrollPosition(t *testing.T) {
 
 func TestInterleavedTextBlocksStreamIndependently(t *testing.T) {
 	view := testConversationView(t)
-	for _, event := range []client.Event{
-		client.BlockStarted{Block: client.Block{ID: "answer", Kind: client.BlockAssistant}},
-		client.BlockDelta{BlockID: "answer", Text: "assistant provisional"},
-		client.BlockStarted{Block: client.Block{ID: "reasoning", Kind: client.BlockReasoning}},
-		client.BlockDelta{BlockID: "reasoning", Text: "reasoning provisional"},
-		client.BlockCompleted{Block: client.Block{ID: "reasoning", Kind: client.BlockReasoning, Text: "reasoning final"}},
-		client.BlockDelta{BlockID: "answer", Text: " tail"},
-		client.BlockCompleted{Block: client.Block{ID: "answer", Kind: client.BlockAssistant, Text: "assistant final"}},
+	for _, event := range []agent.Event{
+		agent.BlockStarted{Block: agent.Block{ID: "answer", Kind: agent.BlockAssistant}},
+		agent.BlockDelta{BlockID: "answer", Text: "assistant provisional"},
+		agent.BlockStarted{Block: agent.Block{ID: "reasoning", Kind: agent.BlockReasoning}},
+		agent.BlockDelta{BlockID: "reasoning", Text: "reasoning provisional"},
+		agent.BlockCompleted{Block: agent.Block{ID: "reasoning", Kind: agent.BlockReasoning, Text: "reasoning final"}},
+		agent.BlockDelta{BlockID: "answer", Text: " tail"},
+		agent.BlockCompleted{Block: agent.Block{ID: "answer", Kind: agent.BlockAssistant, Text: "assistant final"}},
 	} {
 		if err := view.Apply(event, nil); err != nil {
 			t.Fatalf("apply %T: %v", event, err)
@@ -82,11 +82,11 @@ func TestToolStreamingPreservesAReadersScrollPosition(t *testing.T) {
 	view := testConversationView(t)
 	root := headless.NewRoot(view)
 	surface := grid.NewSurface(40, 5)
-	running := client.ToolCall{Kind: client.ToolShell, Command: "long command", Status: client.ToolRunning}
+	running := agent.ToolCall{Kind: agent.ToolShell, Command: "long command", Status: agent.ToolRunning}
 	tool := beginTestTool(view, "tool", running)
 	tool.SetExpanded(true)
 	initial := strings.Repeat("tool output long enough to occupy rows\n", 20)
-	if err := view.Apply(client.BlockDelta{BlockID: "tool", Text: initial}, nil); err != nil {
+	if err := view.Apply(agent.BlockDelta{BlockID: "tool", Text: initial}, nil); err != nil {
 		t.Fatal(err)
 	}
 	root.Draw(surface.View())
@@ -98,7 +98,7 @@ func TestToolStreamingPreservesAReadersScrollPosition(t *testing.T) {
 	}
 	wantOffset := view.scroll.Offset()
 
-	if err := view.Apply(client.BlockDelta{BlockID: "tool", Text: "new tool tail\n"}, nil); err != nil {
+	if err := view.Apply(agent.BlockDelta{BlockID: "tool", Text: "new tool tail\n"}, nil); err != nil {
 		t.Fatal(err)
 	}
 	root.Draw(surface.View())
@@ -112,19 +112,19 @@ func TestToolStreamingPreservesAReadersScrollPosition(t *testing.T) {
 
 func TestLiveToolStreamsInPlaceAndCompletesFromAuthoritativeOutput(t *testing.T) {
 	view := testConversationView(t)
-	running := client.ToolCall{Kind: client.ToolShell, Command: "go test ./...", Status: client.ToolRunning}
+	running := agent.ToolCall{Kind: agent.ToolShell, Command: "go test ./...", Status: agent.ToolRunning}
 	tool := beginTestTool(view, "tool", running)
 	tool.SetExpanded(true)
 	for _, chunk := range []string{"first\n", "second\n"} {
-		if err := view.Apply(client.BlockDelta{BlockID: "tool", Text: chunk}, nil); err != nil {
+		if err := view.Apply(agent.BlockDelta{BlockID: "tool", Text: chunk}, nil); err != nil {
 			t.Fatal(err)
 		}
 	}
 	if got := copyableRowsText(tool.Rows(48)); !strings.Contains(got, "first") || !strings.Contains(got, "second") {
 		t.Fatalf("live tool rows = %q", got)
 	}
-	completed := client.ToolCall{Kind: client.ToolShell, Command: "go test ./...", Status: client.ToolOK, Output: "final\n"}
-	if err := view.Apply(client.BlockCompleted{Block: client.Block{ID: "tool", Kind: client.BlockTool, Tool: &completed}}, nil); err != nil {
+	completed := agent.ToolCall{Kind: agent.ToolShell, Command: "go test ./...", Status: agent.ToolOK, Output: "final\n"}
+	if err := view.Apply(agent.BlockCompleted{Block: agent.Block{ID: "tool", Kind: agent.BlockTool, Tool: &completed}}, nil); err != nil {
 		t.Fatal(err)
 	}
 	if !tool.Expanded() {
@@ -140,9 +140,9 @@ func TestDetailFreeCompletedToolIsNotAnnouncedExpandable(t *testing.T) {
 	view := testConversationView(t)
 	var selection transcriptSelection
 	view.OnSelection(func(next transcriptSelection) { selection = next })
-	call := client.ToolCall{Kind: client.ToolShell, Command: "true", Status: client.ToolOK}
-	block := newToolBlock(Presentation{Theme: view.theme, Glyphs: view.glyphs, Look: view.look, Syntax: view.syntax}, client.Block{
-		ID: "tool", Kind: client.BlockTool, Tool: &call,
+	call := agent.ToolCall{Kind: agent.ToolShell, Command: "true", Status: agent.ToolOK}
+	block := newToolBlock(Presentation{Theme: view.theme, Glyphs: view.glyphs, Look: view.look, Syntax: view.syntax}, agent.Block{
+		ID: "tool", Kind: agent.BlockTool, Tool: &call,
 	})
 	id := view.place(block, true)
 	view.toolViews = append(view.toolViews, trackedTool{id: id, block: block})
@@ -159,7 +159,7 @@ func TestCompletingASelectedToolWithoutDetailsRemovesItsExpansionAction(t *testi
 	view := testConversationView(t)
 	var selection transcriptSelection
 	view.OnSelection(func(next transcriptSelection) { selection = next })
-	running := client.ToolCall{Kind: client.ToolShell, Command: "true", Status: client.ToolRunning}
+	running := agent.ToolCall{Kind: agent.ToolShell, Command: "true", Status: agent.ToolRunning}
 	tool := beginTestTool(view, "tool", running)
 	view.Focus(true)
 	tool.SetExpanded(true)
@@ -167,8 +167,8 @@ func TestCompletingASelectedToolWithoutDetailsRemovesItsExpansionAction(t *testi
 	if !selection.Expandable || !selection.Expanded {
 		t.Fatalf("running selection = %+v", selection)
 	}
-	completed := client.ToolCall{Kind: client.ToolShell, Command: "true", Status: client.ToolOK}
-	if err := view.Apply(client.BlockCompleted{Block: client.Block{ID: "tool", Kind: client.BlockTool, Tool: &completed}}, nil); err != nil {
+	completed := agent.ToolCall{Kind: agent.ToolShell, Command: "true", Status: agent.ToolOK}
+	if err := view.Apply(agent.BlockCompleted{Block: agent.Block{ID: "tool", Kind: agent.BlockTool, Tool: &completed}}, nil); err != nil {
 		t.Fatal(err)
 	}
 	if selection.Expandable || selection.Expanded || tool.Expanded() {
@@ -178,24 +178,24 @@ func TestCompletingASelectedToolWithoutDetailsRemovesItsExpansionAction(t *testi
 
 func TestCanceledRunSettlesEveryLiveTranscriptBlock(t *testing.T) {
 	view := testConversationView(t)
-	if err := view.Apply(client.BlockStarted{Block: client.Block{ID: "answer", Kind: client.BlockAssistant}}, nil); err != nil {
+	if err := view.Apply(agent.BlockStarted{Block: agent.Block{ID: "answer", Kind: agent.BlockAssistant}}, nil); err != nil {
 		t.Fatal(err)
 	}
-	if err := view.Apply(client.BlockDelta{BlockID: "answer", Text: "partial answer"}, nil); err != nil {
+	if err := view.Apply(agent.BlockDelta{BlockID: "answer", Text: "partial answer"}, nil); err != nil {
 		t.Fatal(err)
 	}
-	tool := beginTestTool(view, "tool", client.ToolCall{Kind: client.ToolShell, Command: "long command", Status: client.ToolRunning})
+	tool := beginTestTool(view, "tool", agent.ToolCall{Kind: agent.ToolShell, Command: "long command", Status: agent.ToolRunning})
 	tool.SetExpanded(true)
-	if err := view.Apply(client.BlockDelta{BlockID: "tool", Text: "partial tool output\n"}, nil); err != nil {
+	if err := view.Apply(agent.BlockDelta{BlockID: "tool", Text: "partial tool output\n"}, nil); err != nil {
 		t.Fatal(err)
 	}
-	if err := view.Apply(client.RunFinished{Outcome: client.Outcome{Status: client.OutcomeCanceled}}, nil); err != nil {
+	if err := view.Apply(agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCanceled}}, nil); err != nil {
 		t.Fatal(err)
 	}
 	if len(view.textStreams) != 0 || len(view.tools) != 0 {
 		t.Fatalf("live projections survived cancellation: text=%d tools=%d", len(view.textStreams), len(view.tools))
 	}
-	if tool.call.Status != client.ToolCanceled {
+	if tool.call.Status != agent.ToolCanceled {
 		t.Fatalf("settled tool status = %q", tool.call.Status)
 	}
 	for index := range view.content.Len() {
@@ -319,8 +319,8 @@ func TestCompletingALiveToolPreservesItsExpandedState(t *testing.T) {
 	view.tools["tool"] = liveTool{ids: []headless.BlockID{tracked.id}, blocks: []trackedTool{tracked}}
 	tool.ToggleExpanded()
 
-	completed := client.ToolCall{Kind: client.ToolShell, Command: "echo tool", Output: "complete", Status: client.ToolOK}
-	if !view.completeLiveTool(client.Block{ID: "tool", Kind: client.BlockTool, Tool: &completed}) {
+	completed := agent.ToolCall{Kind: agent.ToolShell, Command: "echo tool", Output: "complete", Status: agent.ToolOK}
+	if !view.completeLiveTool(agent.Block{ID: "tool", Kind: agent.BlockTool, Tool: &completed}) {
 		t.Fatal("live tool was not completed in place")
 	}
 	if !tool.Expanded() {
@@ -392,18 +392,18 @@ func testConversationView(t *testing.T) *conversationView {
 }
 
 func appendTestTool(view *conversationView, id, output string) *toolBlock {
-	call := client.ToolCall{Kind: client.ToolShell, Command: "echo " + id, Output: output, Status: client.ToolOK}
-	block := newToolBlock(Presentation{Theme: view.theme, Glyphs: view.glyphs, Look: view.look, Syntax: view.syntax}, client.Block{
-		ID: id, Kind: client.BlockTool, Tool: &call,
+	call := agent.ToolCall{Kind: agent.ToolShell, Command: "echo " + id, Output: output, Status: agent.ToolOK}
+	block := newToolBlock(Presentation{Theme: view.theme, Glyphs: view.glyphs, Look: view.look, Syntax: view.syntax}, agent.Block{
+		ID: id, Kind: agent.BlockTool, Tool: &call,
 	})
 	blockID := view.place(block, true)
 	view.toolViews = append(view.toolViews, trackedTool{id: blockID, block: block})
 	return block
 }
 
-func beginTestTool(view *conversationView, id string, call client.ToolCall) *toolBlock {
-	block := newToolBlock(Presentation{Theme: view.theme, Glyphs: view.glyphs, Look: view.look, Syntax: view.syntax}, client.Block{
-		ID: id, Kind: client.BlockTool, Tool: &call,
+func beginTestTool(view *conversationView, id string, call agent.ToolCall) *toolBlock {
+	block := newToolBlock(Presentation{Theme: view.theme, Glyphs: view.glyphs, Look: view.look, Syntax: view.syntax}, agent.Block{
+		ID: id, Kind: agent.BlockTool, Tool: &call,
 	})
 	blockID := view.place(block, false)
 	tracked := trackedTool{id: blockID, block: block}

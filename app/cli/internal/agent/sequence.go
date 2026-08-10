@@ -1,4 +1,4 @@
-package client
+package agent
 
 import (
 	"errors"
@@ -26,34 +26,34 @@ func (s *EventSequence) Cursor() Cursor {
 
 // Accept validates envelope, ignores a known identical replay, and invokes apply
 // exactly once for the next event. A nil callback is a pure sequence guard.
-func (s *EventSequence) Accept(envelope Envelope, apply func() error) (ApplyResult, error) {
+func (s *EventSequence) Accept(envelope Envelope, apply func() error) (EventAcceptance, error) {
 	if s == nil {
-		return ApplyResult{}, errors.New("event sequence is nil")
+		return EventAcceptance{}, errors.New("event sequence is nil")
 	}
 	if err := validateSequencedEnvelope(envelope); err != nil {
-		return ApplyResult{}, err
+		return EventAcceptance{}, err
 	}
 	if s.ids == nil {
 		s.ids = make(map[Cursor]string)
 	}
 	if replayed, err := s.acceptReplay(envelope); replayed || err != nil {
-		return ApplyResult{}, err
+		return EventAcceptance{}, err
 	}
 	if envelope.Cursor <= s.cursor {
-		return ApplyResult{}, fmt.Errorf("%w at cursor %d: cursor predates guarded window ending at %d", ErrEventConflict, envelope.Cursor, s.cursor)
+		return EventAcceptance{}, fmt.Errorf("%w at cursor %d: cursor predates guarded window ending at %d", ErrEventConflict, envelope.Cursor, s.cursor)
 	}
 	want := s.cursor + 1
 	if envelope.Cursor != want {
-		return ApplyResult{}, fmt.Errorf("%w: expected cursor %d, received %d", ErrEventGap, want, envelope.Cursor)
+		return EventAcceptance{}, fmt.Errorf("%w: expected cursor %d, received %d", ErrEventGap, want, envelope.Cursor)
 	}
 	if apply != nil {
 		if err := apply(); err != nil {
-			return ApplyResult{}, err
+			return EventAcceptance{}, err
 		}
 	}
 	s.ids[envelope.Cursor] = envelope.ID
 	s.cursor = envelope.Cursor
-	return ApplyResult{Applied: true}, nil
+	return EventAcceptance{Applied: true}, nil
 }
 
 func validateSequencedEnvelope(envelope Envelope) error {

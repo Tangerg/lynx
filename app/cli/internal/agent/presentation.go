@@ -1,17 +1,11 @@
-// Package client is the CLI's view of a lyra runtime, and the seam every
-// command is written against.
+// Package agent owns the CLI's agent-conversation model and runtime port.
 //
 // The types here are presentation models, deliberately not the runtime's wire
 // contract. A terminal wants a flat, mutable, ordered transcript; the wire is
 // shaped for replay, dedup and pagination. An implementation of [Runtime]
 // translates one into the other — which is also what keeps a second copy of the
 // wire types out of this module.
-//
-// Implementations: mock serves scripted conversations with no backend at all.
-// The real ones — one embedding the runtime in-process, one attaching to an
-// already-running server over HTTP — arrive when the runtime's protocol package
-// moves out of its internal tree.
-package client
+package agent
 
 import (
 	"errors"

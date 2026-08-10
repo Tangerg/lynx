@@ -10,7 +10,7 @@ import (
 	"github.com/Tangerg/oolong/components/headless"
 	"github.com/Tangerg/oolong/components/kit"
 
-	"github.com/Tangerg/lynx/app/cli/internal/client"
+	"github.com/Tangerg/lynx/app/cli/internal/agent"
 )
 
 const fileElement headless.ElementKind = 1
@@ -19,14 +19,14 @@ const fileElement headless.ElementKind = 1
 // recalled prompt therefore restores attachment chips as attachments instead of
 // turning their labels into ordinary @words.
 type promptHistory struct {
-	entries []client.Message
+	entries []agent.Message
 	at      int
-	draft   client.Message
+	draft   agent.Message
 	limit   int
 }
 
-func (h *promptHistory) Add(message client.Message) {
-	h.at, h.draft = 0, client.Message{}
+func (h *promptHistory) Add(message agent.Message) {
+	h.at, h.draft = 0, agent.Message{}
 	message = message.Clone()
 	if strings.TrimSpace(message.Text) == "" && len(message.Attachments) == 0 {
 		return
@@ -46,9 +46,9 @@ func (h *promptHistory) Add(message client.Message) {
 	}
 }
 
-func (h *promptHistory) Back(current client.Message) (client.Message, bool) {
+func (h *promptHistory) Back(current agent.Message) (agent.Message, bool) {
 	if h.at >= len(h.entries) {
-		return client.Message{}, false
+		return agent.Message{}, false
 	}
 	if h.at == 0 {
 		h.draft = current.Clone()
@@ -57,21 +57,21 @@ func (h *promptHistory) Back(current client.Message) (client.Message, bool) {
 	return h.entries[len(h.entries)-h.at].Clone(), true
 }
 
-func (h *promptHistory) Forward() (client.Message, bool) {
+func (h *promptHistory) Forward() (agent.Message, bool) {
 	if h.at == 0 {
-		return client.Message{}, false
+		return agent.Message{}, false
 	}
 	h.at--
 	if h.at == 0 {
 		draft := h.draft.Clone()
-		h.draft = client.Message{}
+		h.draft = agent.Message{}
 		return draft, true
 	}
 	return h.entries[len(h.entries)-h.at].Clone(), true
 }
 
-func equalMessage(a, b client.Message) bool {
-	return a.Text == b.Text && slices.EqualFunc(a.Attachments, b.Attachments, func(a, b client.Attachment) bool { return a.ID == b.ID })
+func equalMessage(a, b agent.Message) bool {
+	return a.Text == b.Text && slices.EqualFunc(a.Attachments, b.Attachments, func(a, b agent.Attachment) bool { return a.ID == b.ID })
 }
 
 func (a *app) addAttachment(path string) error {
@@ -91,15 +91,15 @@ func (a *app) addAttachment(path string) error {
 			return fmt.Errorf("%s is already attached", item.Name)
 		}
 	}
-	if len(current.Attachments) >= client.MaxMessageAttachments {
-		return fmt.Errorf("a prompt accepts at most %d attachments", client.MaxMessageAttachments)
+	if len(current.Attachments) >= agent.MaxMessageAttachments {
+		return fmt.Errorf("a prompt accepts at most %d attachments", agent.MaxMessageAttachments)
 	}
 	element := a.composer.Editor().InsertElement(fileElement, "@"+item.Name)
 	if element.ID == 0 {
 		return errors.New("could not insert attachment into the composer")
 	}
 	a.attachmentElements[element.ID] = item
-	a.message(fmt.Sprintf("attached %s · %s · %d/%d", item.Name, item.MimeType, len(current.Attachments)+1, client.MaxMessageAttachments))
+	a.message(fmt.Sprintf("attached %s · %s · %d/%d", item.Name, item.MimeType, len(current.Attachments)+1, agent.MaxMessageAttachments))
 	return nil
 }
 
@@ -137,7 +137,7 @@ func (a *app) removeAllAttachments(elements []headless.Element) {
 	}
 }
 
-func (a *app) findAttachment(elements []headless.Element, argument string) (headless.Element, client.Attachment, bool) {
+func (a *app) findAttachment(elements []headless.Element, argument string) (headless.Element, agent.Attachment, bool) {
 	position := 0
 	for _, element := range elements {
 		item, ok := a.attachmentElements[element.ID]
@@ -149,10 +149,10 @@ func (a *app) findAttachment(elements []headless.Element, argument string) (head
 			return element, item, true
 		}
 	}
-	return headless.Element{}, client.Attachment{}, false
+	return headless.Element{}, agent.Attachment{}, false
 }
 
-func attachmentMatches(argument string, position int, item client.Attachment) bool {
+func attachmentMatches(argument string, position int, item agent.Attachment) bool {
 	return argument == strconv.Itoa(position) || argument == item.Name || argument == filepathBase(item.Name)
 }
 
@@ -180,22 +180,22 @@ func (a *app) showAttachments() {
 	a.transcript.Append(&kit.Message{Theme: a.transcript.theme, Speaker: "attachments", Body: strings.Join(lines, "\n")})
 }
 
-func (a *app) composerMessage() (client.Message, error) {
+func (a *app) composerMessage() (agent.Message, error) {
 	editor := a.composer.Editor()
 	lines := strings.Split(editor.Text(), "\n")
 	elements := editor.Elements()
 	attachments, err := a.collectAttachments(editor, elements)
 	if err != nil {
-		return client.Message{}, err
+		return agent.Message{}, err
 	}
 	if err := stripAttachmentElements(lines, elements); err != nil {
-		return client.Message{}, err
+		return agent.Message{}, err
 	}
-	return client.Message{Text: strings.TrimSpace(strings.Join(lines, "\n")), Attachments: attachments}, nil
+	return agent.Message{Text: strings.TrimSpace(strings.Join(lines, "\n")), Attachments: attachments}, nil
 }
 
-func (a *app) collectAttachments(editor *headless.Editor, elements []headless.Element) ([]client.Attachment, error) {
-	attachments := make([]client.Attachment, 0, len(elements))
+func (a *app) collectAttachments(editor *headless.Editor, elements []headless.Element) ([]agent.Attachment, error) {
+	attachments := make([]agent.Attachment, 0, len(elements))
 	for _, element := range elements {
 		if element.Kind != fileElement {
 			continue
@@ -233,7 +233,7 @@ func (a *app) resetComposer() {
 	a.confirmation.Reset()
 }
 
-func (a *app) restoreComposer(message client.Message) {
+func (a *app) restoreComposer(message agent.Message) {
 	a.resetComposer()
 	for _, item := range message.Attachments {
 		element := a.composer.Editor().InsertElement(fileElement, "@"+item.Name)

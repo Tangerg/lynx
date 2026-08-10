@@ -9,19 +9,19 @@ import (
 	"github.com/Tangerg/oolong/components/kit"
 	"github.com/Tangerg/oolong/core/layout"
 
-	"github.com/Tangerg/lynx/app/cli/internal/client"
+	"github.com/Tangerg/lynx/app/cli/internal/agent"
 )
 
 func (a *app) buildRuntimePickers(theme kit.Theme, glyphs kit.Glyphs) {
 	a.modelPicker = newPicker(theme, glyphs, "search models",
-		func(model client.Model) string {
+		func(model agent.Model) string {
 			if model.Default {
 				return model.DisplayName + " · default"
 			}
 			return model.DisplayName
 		},
-		func(model client.Model) string { return model.ID },
-		func(model client.Model) {
+		func(model agent.Model) string { return model.ID },
+		func(model agent.Model) {
 			a.modelDialog.Dismiss()
 			a.options.Model = model.ID
 			if !slices.Contains(model.Efforts, a.options.Effort) {
@@ -37,14 +37,14 @@ func (a *app) buildRuntimePickers(theme kit.Theme, glyphs kit.Glyphs) {
 	a.permissionPicker = newPicker(theme, glyphs, "search permission modes",
 		permissionTitle,
 		permissionDetail,
-		func(mode client.PermissionMode) {
+		func(mode agent.PermissionMode) {
 			a.permissionDialog.Dismiss()
 			a.options.Permission = mode
 			a.syncOptions("permissions · " + string(mode))
 		},
 	)
-	a.permissionPicker.SetItems([]client.PermissionMode{
-		client.PermissionAsk, client.PermissionReadOnly, client.PermissionAutoEdit, client.PermissionFull,
+	a.permissionPicker.SetItems([]agent.PermissionMode{
+		agent.PermissionAsk, agent.PermissionReadOnly, agent.PermissionAutoEdit, agent.PermissionFull,
 	})
 	a.permissionDialog = kit.NewDialog(&a.stack, theme, glyphs, "Permissions", a.permissionPicker)
 	a.permissionDialog.Panel().Where = layout.Placement{Width: 88, Height: 10, Margin: 1}
@@ -58,13 +58,13 @@ func (a *app) ChooseModel() {
 	}
 	a.message("loading models")
 	runOperation(a, pickerCatalogOperation, true,
-		func(ctx context.Context) ([]client.Model, error) { return a.runtime.ListModels(ctx) },
-		func(models []client.Model, err error) {
+		func(ctx context.Context) ([]agent.Model, error) { return a.runtime.ListModels(ctx) },
+		func(models []agent.Model, err error) {
 			if err != nil {
 				a.message("could not load models: " + err.Error())
 				return
 			}
-			if err := client.ValidateModels(models); err != nil {
+			if err := agent.ValidateModels(models); err != nil {
 				a.message(fmt.Sprintf("runtime models: %v", err))
 				return
 			}
@@ -81,7 +81,7 @@ func (a *app) CycleMode() {
 		a.message("mode changes apply between runs")
 		return
 	}
-	modes := []client.AgentMode{client.ModeBuild, client.ModePlan, client.ModeReview}
+	modes := []agent.AgentMode{agent.ModeBuild, agent.ModePlan, agent.ModeReview}
 	at := slices.Index(modes, a.options.Mode)
 	a.options.Mode = modes[(at+1)%len(modes)]
 	a.syncOptions("mode · " + string(a.options.Mode))
@@ -120,13 +120,13 @@ func (a *app) ShowRuntimeStatus() {
 
 func (a *app) ShowApprovalRules() {
 	runOperation(a, approvalCatalogOperation, true,
-		func(ctx context.Context) ([]client.ApprovalRule, error) { return a.runtime.ListApprovalRules(ctx) },
-		func(rules []client.ApprovalRule, err error) {
+		func(ctx context.Context) ([]agent.ApprovalRule, error) { return a.runtime.ListApprovalRules(ctx) },
+		func(rules []agent.ApprovalRule, err error) {
 			if err != nil {
 				a.message("could not load approval rules: " + err.Error())
 				return
 			}
-			if err := client.ValidateApprovalRules(rules); err != nil {
+			if err := agent.ValidateApprovalRules(rules); err != nil {
 				a.message(fmt.Sprintf("runtime approval rules: %v", err))
 				return
 			}
@@ -159,30 +159,30 @@ func preferredEffort(efforts []string) string {
 	return "medium"
 }
 
-func permissionTitle(mode client.PermissionMode) string {
+func permissionTitle(mode agent.PermissionMode) string {
 	switch mode {
-	case client.PermissionAsk:
+	case agent.PermissionAsk:
 		return "Ask before consequential work"
-	case client.PermissionReadOnly:
+	case agent.PermissionReadOnly:
 		return "Read only"
-	case client.PermissionAutoEdit:
+	case agent.PermissionAutoEdit:
 		return "Auto-edit workspace files"
-	case client.PermissionFull:
+	case agent.PermissionFull:
 		return "Full access"
 	default:
 		return string(mode)
 	}
 }
 
-func permissionDetail(mode client.PermissionMode) string {
+func permissionDetail(mode agent.PermissionMode) string {
 	switch mode {
-	case client.PermissionAsk:
+	case agent.PermissionAsk:
 		return "review writes and risky commands"
-	case client.PermissionReadOnly:
+	case agent.PermissionReadOnly:
 		return "never mutate the workspace"
-	case client.PermissionAutoEdit:
+	case agent.PermissionAutoEdit:
 		return "writes allowed; risky external actions ask"
-	case client.PermissionFull:
+	case agent.PermissionFull:
 		return "all runtime capabilities allowed"
 	default:
 		return ""

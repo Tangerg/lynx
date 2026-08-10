@@ -19,7 +19,7 @@ import (
 
 	"github.com/Tangerg/oolong/core/term"
 
-	"github.com/Tangerg/lynx/app/cli/internal/client"
+	"github.com/Tangerg/lynx/app/cli/internal/agent"
 	"github.com/Tangerg/lynx/app/cli/internal/extensions"
 	"github.com/Tangerg/lynx/app/cli/internal/settings"
 	"github.com/Tangerg/lynx/app/cli/internal/sideload"
@@ -35,18 +35,18 @@ const configIndependentAnnotation = "lyra/config-independent"
 // Runtime construction stays lazy so help and completion do not open sockets,
 // databases, or other process-owned resources.
 type Dependencies struct {
-	OpenRuntime   func(context.Context) (client.Runtime, error)
+	OpenRuntime   func(context.Context) (agent.Runtime, error)
 	RuntimeNotice string
 }
 
 // runtimeProvider delays construction until a command needs the runtime. It
 // owns delivery-only diagnostics so factories remain independent of Cobra.
 type runtimeProvider struct {
-	open   func(context.Context) (client.Runtime, error)
+	open   func(context.Context) (agent.Runtime, error)
 	notice string
 }
 
-func (p runtimeProvider) Open(cmd *cobra.Command) (client.Runtime, error) {
+func (p runtimeProvider) Open(cmd *cobra.Command) (agent.Runtime, error) {
 	runtime, err := p.resolve(cmd.Context())
 	if err != nil {
 		return nil, err
@@ -59,11 +59,11 @@ func (p runtimeProvider) Open(cmd *cobra.Command) (client.Runtime, error) {
 	return runtime, nil
 }
 
-func (p runtimeProvider) OpenForCompletion(cmd *cobra.Command) (client.Runtime, error) {
+func (p runtimeProvider) OpenForCompletion(cmd *cobra.Command) (agent.Runtime, error) {
 	return p.resolve(cmd.Context())
 }
 
-func (p runtimeProvider) resolve(ctx context.Context) (client.Runtime, error) {
+func (p runtimeProvider) resolve(ctx context.Context) (agent.Runtime, error) {
 	if p.open == nil {
 		return nil, errors.New("runtime factory is required")
 	}

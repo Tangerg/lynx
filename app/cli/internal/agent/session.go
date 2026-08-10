@@ -1,4 +1,4 @@
-package client
+package agent
 
 import (
 	"errors"
@@ -134,7 +134,7 @@ func foldSnapshotEvents(snapshot SessionSnapshot, conversation *Conversation) er
 
 func validateActiveRun(snapshot SessionSnapshot, conversation *Conversation) error {
 	if snapshot.Active == nil {
-		if conversation.Phase() != Idle {
+		if conversation.Phase() != PhaseIdle {
 			return errors.New("session snapshot: busy conversation has no active run")
 		}
 		return nil
@@ -159,9 +159,9 @@ func validateActiveProjection(active Run, sessionID string, conversation *Conver
 	if conversation.RunID() != active.ID {
 		return fmt.Errorf("session snapshot: aggregate run %s does not match active run %s", conversation.RunID(), active.ID)
 	}
-	wantPhase := Running
+	wantPhase := PhaseRunning
 	if active.Status == RunWaiting {
-		wantPhase = Waiting
+		wantPhase = PhaseWaiting
 	}
 	if conversation.Phase() != wantPhase {
 		return fmt.Errorf("session snapshot: active run status %s conflicts with conversation phase %d", active.Status, conversation.Phase())

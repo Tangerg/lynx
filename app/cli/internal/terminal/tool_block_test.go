@@ -10,16 +10,16 @@ import (
 	"github.com/Tangerg/oolong/core/grid"
 	"github.com/Tangerg/oolong/highlight"
 
-	"github.com/Tangerg/lynx/app/cli/internal/client"
+	"github.com/Tangerg/lynx/app/cli/internal/agent"
 )
 
 func TestPluginPresenterPanicBecomesAnError(t *testing.T) {
 	_, err := presentSafely(BlockPresenter{
-		Kind: client.BlockAssistant,
-		Present: func(Presentation, client.Block) []headless.Block {
+		Kind: agent.BlockAssistant,
+		Present: func(Presentation, agent.Block) []headless.Block {
 			panic("present boom")
 		},
-	}, Presentation{}, client.Block{Kind: client.BlockAssistant})
+	}, Presentation{}, agent.Block{Kind: agent.BlockAssistant})
 	if err == nil || !strings.Contains(err.Error(), "present boom") {
 		t.Fatalf("presenter panic error = %v", err)
 	}
@@ -42,11 +42,11 @@ func requireSingleHunk(t *testing.T, hunks []coreDiff.Hunk, oldStart, newStart, 
 }
 
 func TestToolLabelUsesSemanticKindInsteadOfProviderName(t *testing.T) {
-	call := client.ToolCall{Kind: client.ToolShell, Name: "opaque_provider_17", Command: "go test ./...", Summary: "ignored fallback"}
+	call := agent.ToolCall{Kind: agent.ToolShell, Name: "opaque_provider_17", Command: "go test ./...", Summary: "ignored fallback"}
 	if got := toolLabel(call); got != "$ go test ./..." || strings.Contains(got, call.Name) {
 		t.Fatalf("label = %q", got)
 	}
-	call = client.ToolCall{Kind: client.ToolUnknown, Name: "custom", Summary: "do work"}
+	call = agent.ToolCall{Kind: agent.ToolUnknown, Name: "custom", Summary: "do work"}
 	if got := toolLabel(call); got != "custom · do work" {
 		t.Fatalf("unknown label = %q", got)
 	}
@@ -68,19 +68,19 @@ func TestToolKindsBuildSpecializedOolongBlocks(t *testing.T) {
 	diff := "--- a/a.go\n+++ b/a.go\n@@ -1 +1 @@\n-old\n+new\n"
 	tests := []struct {
 		name string
-		call client.ToolCall
+		call agent.ToolCall
 		want string
 	}{
-		{name: "shell", call: client.ToolCall{Kind: client.ToolShell, Status: client.ToolOK, Output: "ok"}, want: "code"},
-		{name: "read", call: client.ToolCall{Kind: client.ToolRead, Status: client.ToolOK, Path: "main.go", Output: "package main"}, want: "numbered-code"},
-		{name: "edit", call: client.ToolCall{Kind: client.ToolEdit, Status: client.ToolOK, Path: "a.go", Diff: diff}, want: "diff"},
-		{name: "search", call: client.ToolCall{Kind: client.ToolSearch, Status: client.ToolOK, Query: "needle", Output: "a.go:1"}, want: "paragraph"},
-		{name: "web", call: client.ToolCall{Kind: client.ToolWeb, Status: client.ToolOK, URL: "https://example.com", Output: "https://example.com/result"}, want: "linked-paragraph"},
-		{name: "task", call: client.ToolCall{Kind: client.ToolTask, Status: client.ToolOK, Summary: "delegate", Output: "done"}, want: "paragraph"},
+		{name: "shell", call: agent.ToolCall{Kind: agent.ToolShell, Status: agent.ToolOK, Output: "ok"}, want: "code"},
+		{name: "read", call: agent.ToolCall{Kind: agent.ToolRead, Status: agent.ToolOK, Path: "main.go", Output: "package main"}, want: "numbered-code"},
+		{name: "edit", call: agent.ToolCall{Kind: agent.ToolEdit, Status: agent.ToolOK, Path: "a.go", Diff: diff}, want: "diff"},
+		{name: "search", call: agent.ToolCall{Kind: agent.ToolSearch, Status: agent.ToolOK, Query: "needle", Output: "a.go:1"}, want: "paragraph"},
+		{name: "web", call: agent.ToolCall{Kind: agent.ToolWeb, Status: agent.ToolOK, URL: "https://example.com", Output: "https://example.com/result"}, want: "linked-paragraph"},
+		{name: "task", call: agent.ToolCall{Kind: agent.ToolTask, Status: agent.ToolOK, Summary: "delegate", Output: "done"}, want: "paragraph"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			block := newToolBlock(presentation, client.Block{ID: test.name, Kind: client.BlockTool, Tool: &test.call})
+			block := newToolBlock(presentation, agent.Block{ID: test.name, Kind: agent.BlockTool, Tool: &test.call})
 			if len(block.body) == 0 {
 				t.Fatal("tool built no detail body")
 			}
@@ -91,14 +91,14 @@ func TestToolKindsBuildSpecializedOolongBlocks(t *testing.T) {
 
 func TestUpdatingARunningToolPreservesItsDetailChoice(t *testing.T) {
 	presentation := Presentation{Theme: kit.Dark(), Glyphs: kit.Unicode(), Syntax: highlight.Style("github-dark")}
-	running := client.ToolCall{Kind: client.ToolShell, Command: "go test ./...", Status: client.ToolRunning}
-	block := newToolBlock(presentation, client.Block{ID: "tool", Kind: client.BlockTool, Tool: &running})
+	running := agent.ToolCall{Kind: agent.ToolShell, Command: "go test ./...", Status: agent.ToolRunning}
+	block := newToolBlock(presentation, agent.Block{ID: "tool", Kind: agent.BlockTool, Tool: &running})
 	block.ToggleExpanded()
 
 	completed := running
-	completed.Status = client.ToolOK
+	completed.Status = agent.ToolOK
 	completed.Output = "ok"
-	block.Update(client.Block{ID: "tool", Kind: client.BlockTool, Tool: &completed})
+	block.Update(agent.Block{ID: "tool", Kind: agent.BlockTool, Tool: &completed})
 	if !block.Expanded() {
 		t.Fatal("tool completion discarded the reader's expanded state")
 	}
@@ -106,8 +106,8 @@ func TestUpdatingARunningToolPreservesItsDetailChoice(t *testing.T) {
 
 func TestToolBlockStreamsOutputWithoutLosingItsDetailChoice(t *testing.T) {
 	presentation := Presentation{Theme: kit.Dark(), Glyphs: kit.Unicode(), Syntax: highlight.Style("github-dark")}
-	running := client.ToolCall{Kind: client.ToolShell, Command: "go test ./...", Status: client.ToolRunning}
-	block := newToolBlock(presentation, client.Block{ID: "tool", Kind: client.BlockTool, Tool: &running})
+	running := agent.ToolCall{Kind: agent.ToolShell, Command: "go test ./...", Status: agent.ToolRunning}
+	block := newToolBlock(presentation, agent.Block{ID: "tool", Kind: agent.BlockTool, Tool: &running})
 	if !block.Expandable() {
 		t.Fatal("running tool was not expandable before its first output")
 	}
@@ -128,8 +128,8 @@ func TestToolBlockStreamsOutputWithoutLosingItsDetailChoice(t *testing.T) {
 
 func TestCompletedToolWithoutDetailsCannotExpand(t *testing.T) {
 	presentation := Presentation{Theme: kit.Dark(), Glyphs: kit.Unicode(), Syntax: highlight.Style("github-dark")}
-	completed := client.ToolCall{Kind: client.ToolShell, Command: "true", Status: client.ToolOK}
-	block := newToolBlock(presentation, client.Block{ID: "tool", Kind: client.BlockTool, Tool: &completed})
+	completed := agent.ToolCall{Kind: agent.ToolShell, Command: "true", Status: agent.ToolOK}
+	block := newToolBlock(presentation, agent.Block{ID: "tool", Kind: agent.BlockTool, Tool: &completed})
 	if block.Expandable() || block.Expanded() {
 		t.Fatal("detail-free completed tool was expandable")
 	}
@@ -148,11 +148,11 @@ func TestCompletedToolWithoutDetailsCannotExpand(t *testing.T) {
 
 func TestToolBlockDrawsALocaleSafeStatusRailThroughExpandedDetails(t *testing.T) {
 	theme, glyphs := kit.Dark(), kit.ASCII()
-	call := client.ToolCall{
-		Kind: client.ToolShell, Command: "go test ./...", Status: client.ToolOK, Output: "all packages passed",
+	call := agent.ToolCall{
+		Kind: agent.ToolShell, Command: "go test ./...", Status: agent.ToolOK, Output: "all packages passed",
 	}
-	block := newToolBlock(Presentation{Theme: theme, Glyphs: glyphs, Syntax: highlight.Style("github-dark")}, client.Block{
-		ID: "test", Kind: client.BlockTool, Tool: &call,
+	block := newToolBlock(Presentation{Theme: theme, Glyphs: glyphs, Syntax: highlight.Style("github-dark")}, agent.Block{
+		ID: "test", Kind: agent.BlockTool, Tool: &call,
 	})
 	block.SetExpanded(true)
 	width, height := 48, block.Measure(48)
@@ -184,16 +184,16 @@ func TestToolBlockDrawsALocaleSafeStatusRailThroughExpandedDetails(t *testing.T)
 func TestToolStatusVocabularyDoesNotCollideWithRunOutcomes(t *testing.T) {
 	presentation := Presentation{Theme: kit.Dark(), Glyphs: kit.Unicode()}
 	for _, test := range []struct {
-		status client.ToolStatus
+		status agent.ToolStatus
 		want   string
 	}{
-		{status: client.ToolOK, want: "done"},
-		{status: client.ToolError, want: "error"},
-		{status: client.ToolCanceled, want: "canceled"},
-		{status: client.ToolRunning, want: "running"},
+		{status: agent.ToolOK, want: "done"},
+		{status: agent.ToolError, want: "error"},
+		{status: agent.ToolCanceled, want: "canceled"},
+		{status: agent.ToolRunning, want: "running"},
 	} {
-		call := client.ToolCall{Kind: client.ToolTask, Status: test.status}
-		block := newToolBlock(presentation, client.Block{Kind: client.BlockTool, Tool: &call})
+		call := agent.ToolCall{Kind: agent.ToolTask, Status: test.status}
+		block := newToolBlock(presentation, agent.Block{Kind: agent.BlockTool, Tool: &call})
 		_, _, status, _ := block.header()
 		if !strings.Contains(status, test.want) || strings.Contains(status, "complete") || strings.Contains(status, "failed") {
 			t.Errorf("tool status %q = %q", test.status, status)

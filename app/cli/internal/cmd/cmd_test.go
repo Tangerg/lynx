@@ -16,19 +16,19 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/Tangerg/lynx/app/cli/internal/client"
-	"github.com/Tangerg/lynx/app/cli/internal/client/mock"
+	"github.com/Tangerg/lynx/app/cli/internal/agent"
+	"github.com/Tangerg/lynx/app/cli/internal/agent/mock"
 )
 
 // exec runs the CLI in memory and returns stdout, stderr and the command error.
 // Nothing here touches the process's own streams, which is what lets the tests
 // run in parallel and assert on exact output.
-func exec(t *testing.T, rt client.Runtime, stdin string, args ...string) (string, string, error) {
+func exec(t *testing.T, rt agent.Runtime, stdin string, args ...string) (string, string, error) {
 	t.Helper()
 	var out, errb bytes.Buffer
-	dependencies := Dependencies{OpenRuntime: func(context.Context) (client.Runtime, error) { return rt, nil }}
+	dependencies := Dependencies{OpenRuntime: func(context.Context) (agent.Runtime, error) { return rt, nil }}
 	if rt == nil {
-		dependencies.OpenRuntime = func(context.Context) (client.Runtime, error) { return mock.New(), nil }
+		dependencies.OpenRuntime = func(context.Context) (agent.Runtime, error) { return mock.New(), nil }
 		dependencies.RuntimeNotice = testRuntimeNotice
 	}
 	root := NewRoot(dependencies)
@@ -46,9 +46,9 @@ func instant() *mock.Runtime {
 	return rt
 }
 
-func firstSession(t *testing.T, rt client.Runtime) string {
+func firstSession(t *testing.T, rt agent.Runtime) string {
 	t.Helper()
-	sessions, err := rt.ListSessions(t.Context(), client.SessionQuery{})
+	sessions, err := rt.ListSessions(t.Context(), agent.SessionQuery{})
 	if err != nil {
 		t.Fatalf("ListSessions: %v", err)
 	}
@@ -232,10 +232,10 @@ type ambiguousControls struct {
 	interruptID []string
 }
 
-func (r *ambiguousControls) StartRun(ctx context.Context, input client.StartRun) (client.Run, error) {
+func (r *ambiguousControls) StartRun(ctx context.Context, input agent.StartRun) (agent.Run, error) {
 	run, err := r.Runtime.StartRun(ctx, input)
 	if err != nil {
-		return client.Run{}, err
+		return agent.Run{}, err
 	}
 	r.mu.Lock()
 	r.starts++
@@ -243,12 +243,12 @@ func (r *ambiguousControls) StartRun(ctx context.Context, input client.StartRun)
 	lost := r.starts == 1
 	r.mu.Unlock()
 	if lost {
-		return client.Run{}, fmt.Errorf("lost start response: %w", client.ErrDisconnected)
+		return agent.Run{}, fmt.Errorf("lost start response: %w", agent.ErrDisconnected)
 	}
 	return run, nil
 }
 
-func (r *ambiguousControls) ResumeRun(ctx context.Context, input client.ResumeRun) error {
+func (r *ambiguousControls) ResumeRun(ctx context.Context, input agent.ResumeRun) error {
 	if err := r.Runtime.ResumeRun(ctx, input); err != nil {
 		return err
 	}
@@ -258,7 +258,7 @@ func (r *ambiguousControls) ResumeRun(ctx context.Context, input client.ResumeRu
 	lost := r.resumes == 1
 	r.mu.Unlock()
 	if lost {
-		return fmt.Errorf("lost resume response: %w", client.ErrDisconnected)
+		return fmt.Errorf("lost resume response: %w", agent.ErrDisconnected)
 	}
 	return nil
 }
@@ -323,7 +323,7 @@ func TestRunRejectsConflictingReplay(t *testing.T) {
 	rt.Script = shortCompletedScript
 	rt.Faults = []mock.SubscriptionFault{{Kind: mock.FaultConflict, After: 1}}
 	_, _, err := exec(t, rt, "", "run", "--output-format", "streaming-json", "-s", firstSession(t, rt), "conflict")
-	if !errors.Is(err, client.ErrEventConflict) {
+	if !errors.Is(err, agent.ErrEventConflict) {
 		t.Fatalf("run error = %v, want ErrEventConflict", err)
 	}
 }
@@ -331,9 +331,9 @@ func TestRunRejectsConflictingReplay(t *testing.T) {
 func TestRunQuestionNamesTheResumableSession(t *testing.T) {
 	rt := instant()
 	rt.Script = func(string) mock.Script {
-		return mock.Script{Interaction: client.Question{
+		return mock.Script{Interaction: agent.Question{
 			InterruptID: "question_1", Title: "Choose a strategy",
-			Fields: []client.QuestionField{{ID: "strategy", Label: "Strategy", Kind: client.QuestionText}},
+			Fields: []agent.QuestionField{{ID: "strategy", Label: "Strategy", Kind: agent.QuestionText}},
 		}}
 	}
 	id := firstSession(t, rt)
@@ -349,10 +349,10 @@ func TestRunQuestionNamesTheResumableSession(t *testing.T) {
 	if getErr != nil {
 		t.Fatal(getErr)
 	}
-	if snapshot.Active == nil || snapshot.Active.Status != client.RunWaiting {
+	if snapshot.Active == nil || snapshot.Active.Status != agent.RunWaiting {
 		t.Fatalf("question did not leave a resumable waiting run: %+v", snapshot.Active)
 	}
-	if _, ok := snapshot.Events[len(snapshot.Events)-1].Event.(client.RunInterrupted); !ok {
+	if _, ok := snapshot.Events[len(snapshot.Events)-1].Event.(agent.RunInterrupted); !ok {
 		t.Fatalf("question was followed by an unexpected cleanup event: %+v", snapshot.Events[len(snapshot.Events)-1])
 	}
 }
@@ -360,16 +360,16 @@ func TestRunQuestionNamesTheResumableSession(t *testing.T) {
 func TestRunReturnsAnErrorForNonCompletedOutcomes(t *testing.T) {
 	for _, test := range []struct {
 		name    string
-		outcome client.Outcome
+		outcome agent.Outcome
 		want    string
 	}{
-		{name: "failed", outcome: client.Outcome{Status: client.OutcomeFailed, Error: "provider refused"}, want: "run failed: provider refused"},
-		{name: "canceled", outcome: client.Outcome{Status: client.OutcomeCanceled}, want: "run canceled"},
+		{name: "failed", outcome: agent.Outcome{Status: agent.OutcomeFailed, Error: "provider refused"}, want: "run failed: provider refused"},
+		{name: "canceled", outcome: agent.Outcome{Status: agent.OutcomeCanceled}, want: "run canceled"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			runtime := instant()
 			runtime.Script = func(string) mock.Script {
-				return mock.Script{Prelude: []mock.Step{{Event: client.RunFinished{Outcome: test.outcome}}}}
+				return mock.Script{Prelude: []mock.Step{{Event: agent.RunFinished{Outcome: test.outcome}}}}
 			}
 			id := firstSession(t, runtime)
 			out, _, err := exec(t, runtime, "", "run", "--json", "-s", id, "finish this way")
@@ -398,11 +398,11 @@ func TestRunRejectsInvalidAndConflictingOutputFormatsBeforeCreatingASession(t *t
 	} {
 		t.Run(strings.Join(args[1:3], " "), func(t *testing.T) {
 			runtime := instant()
-			before, _ := runtime.ListSessions(t.Context(), client.SessionQuery{Limit: 100})
+			before, _ := runtime.ListSessions(t.Context(), agent.SessionQuery{Limit: 100})
 			if _, _, err := exec(t, runtime, "", args...); err == nil {
 				t.Fatalf("arguments %v were accepted", args)
 			}
-			after, _ := runtime.ListSessions(t.Context(), client.SessionQuery{Limit: 100})
+			after, _ := runtime.ListSessions(t.Context(), agent.SessionQuery{Limit: 100})
 			if len(after.Items) != len(before.Items) {
 				t.Fatalf("invalid output format created a session: %d -> %d", len(before.Items), len(after.Items))
 			}
@@ -417,17 +417,17 @@ func TestOutputFormatCompletionFiltersCandidates(t *testing.T) {
 	}
 }
 
-type alwaysDisconnected struct{ client.Runtime }
+type alwaysDisconnected struct{ agent.Runtime }
 
-func (alwaysDisconnected) FollowRun(context.Context, client.FollowRun) (client.Stream, error) {
-	return nil, fmt.Errorf("test transport: %w", client.ErrDisconnected)
+func (alwaysDisconnected) FollowRun(context.Context, agent.FollowRun) (agent.RunStream, error) {
+	return nil, fmt.Errorf("test transport: %w", agent.ErrDisconnected)
 }
 
 func TestRunStopsAfterReconnectBudgetIsExhausted(t *testing.T) {
 	rt := instant()
 	rt.Script = shortCompletedScript
 	out, _, err := exec(t, alwaysDisconnected{Runtime: rt}, "", "--reconnect-attempts", "2", "run", "--json", "-s", firstSession(t, rt), "offline")
-	if !errors.Is(err, client.ErrDisconnected) {
+	if !errors.Is(err, agent.ErrDisconnected) {
 		t.Fatalf("run error = %v, want ErrDisconnected", err)
 	}
 	result := decodeResult(t, out)
@@ -438,8 +438,8 @@ func TestRunStopsAfterReconnectBudgetIsExhausted(t *testing.T) {
 
 func shortCompletedScript(string) mock.Script {
 	return mock.Script{Prelude: []mock.Step{
-		{Event: client.BlockCompleted{Block: client.Block{ID: "answer", Kind: client.BlockAssistant, Text: "done"}}},
-		{Event: client.RunFinished{Outcome: client.Outcome{Status: client.OutcomeCompleted}}},
+		{Event: agent.BlockCompleted{Block: agent.Block{ID: "answer", Kind: agent.BlockAssistant, Text: "done"}}},
+		{Event: agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCompleted}}},
 	}}
 }
 
@@ -448,8 +448,8 @@ func TestRunReadsAPipedPromptAndCombinesItWithTheArgument(t *testing.T) {
 	rt := instant()
 	rt.Script = func(prompt string) mock.Script {
 		captured = prompt
-		return mock.Script{Prelude: []mock.Step{{Event: client.RunFinished{
-			Outcome: client.Outcome{Status: client.OutcomeCompleted},
+		return mock.Script{Prelude: []mock.Step{{Event: agent.RunFinished{
+			Outcome: agent.Outcome{Status: agent.OutcomeCompleted},
 		}}}}
 	}
 	if _, _, err := exec(t, rt, "file contents\n", "run", "-s", firstSession(t, rt), "explain this"); err != nil {
@@ -479,7 +479,7 @@ func TestRunAttachesRepeatedFilesAndAllowsAttachmentOnlyPrompts(t *testing.T) {
 	if prompt.Text != "" || len(prompt.Attachments) != 2 {
 		t.Fatalf("prompt block = %+v", prompt)
 	}
-	if prompt.Attachments[0].Kind != client.AttachmentText || prompt.Attachments[1].Kind != client.AttachmentImage {
+	if prompt.Attachments[0].Kind != agent.AttachmentText || prompt.Attachments[1].Kind != agent.AttachmentImage {
 		t.Fatalf("attachment kinds = %+v", prompt.Attachments)
 	}
 }
@@ -491,25 +491,25 @@ func writeCommandFixture(t *testing.T, path string, content []byte) {
 	}
 }
 
-func userPromptBlock(t *testing.T, events []client.Envelope) client.Block {
+func userPromptBlock(t *testing.T, events []agent.Envelope) agent.Block {
 	t.Helper()
 	for _, envelope := range slices.Backward(events) {
-		if event, ok := envelope.Event.(client.BlockCompleted); ok && event.Block.Kind == client.BlockUser {
+		if event, ok := envelope.Event.(agent.BlockCompleted); ok && event.Block.Kind == agent.BlockUser {
 			return event.Block
 		}
 	}
 	t.Fatal("user prompt block was not emitted")
-	return client.Block{}
+	return agent.Block{}
 }
 
 func TestRunRejectsInvalidAttachmentBeforeCreatingASession(t *testing.T) {
 	runtime := instant()
-	before, _ := runtime.ListSessions(t.Context(), client.SessionQuery{Limit: 100})
+	before, _ := runtime.ListSessions(t.Context(), agent.SessionQuery{Limit: 100})
 	_, _, err := exec(t, runtime, "", "-C", t.TempDir(), "run", "-f", "missing.txt")
 	if err == nil || !strings.Contains(err.Error(), "missing.txt") {
 		t.Fatalf("error = %v", err)
 	}
-	after, _ := runtime.ListSessions(t.Context(), client.SessionQuery{Limit: 100})
+	after, _ := runtime.ListSessions(t.Context(), agent.SessionQuery{Limit: 100})
 	if len(after.Items) != len(before.Items) {
 		t.Fatalf("invalid input created a session: %d -> %d", len(before.Items), len(after.Items))
 	}
@@ -543,18 +543,18 @@ func TestRunWithNothingToSay(t *testing.T) {
 
 func TestRunRejectsAnUnknownSession(t *testing.T) {
 	_, _, err := exec(t, instant(), "", "run", "-s", "ses_nope", "why?")
-	if !errors.Is(err, client.ErrSessionNotFound) {
+	if !errors.Is(err, agent.ErrSessionNotFound) {
 		t.Fatalf("err = %v, want ErrSessionNotFound", err)
 	}
 }
 
 func TestRunCreatesASessionWhenNoneIsNamed(t *testing.T) {
 	rt := instant()
-	before, _ := rt.ListSessions(t.Context(), client.SessionQuery{Limit: 100})
+	before, _ := rt.ListSessions(t.Context(), agent.SessionQuery{Limit: 100})
 	if _, _, err := exec(t, rt, "", "run", "--approve-all", "why?"); err != nil {
 		t.Fatalf("run: %v", err)
 	}
-	after, _ := rt.ListSessions(t.Context(), client.SessionQuery{Limit: 100})
+	after, _ := rt.ListSessions(t.Context(), agent.SessionQuery{Limit: 100})
 	if len(after.Items) != len(before.Items)+1 {
 		t.Fatalf("session count went %d -> %d, want one more", len(before.Items), len(after.Items))
 	}
@@ -574,11 +574,11 @@ func TestWorkspaceFlagIsNormalizedBeforeCreatingASession(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	before, _ := runtime.ListSessions(t.Context(), client.SessionQuery{Limit: 100})
+	before, _ := runtime.ListSessions(t.Context(), agent.SessionQuery{Limit: 100})
 	if _, _, err := exec(t, runtime, "", "-C", relative, "run", "--approve-all", "normalize workspace"); err != nil {
 		t.Fatal(err)
 	}
-	after, _ := runtime.ListSessions(t.Context(), client.SessionQuery{Limit: 100})
+	after, _ := runtime.ListSessions(t.Context(), agent.SessionQuery{Limit: 100})
 	if len(after.Items) != len(before.Items)+1 || after.Items[0].Workspace != want {
 		t.Fatalf("newest session workspace = %q, want %q", after.Items[0].Workspace, want)
 	}
@@ -618,7 +618,7 @@ func TestSessionManagementCommands(t *testing.T) {
 	requireSessionDelete(t, runtime, forkID)
 }
 
-func requireSessionShow(t *testing.T, runtime client.Runtime, id string) {
+func requireSessionShow(t *testing.T, runtime agent.Runtime, id string) {
 	t.Helper()
 	shown, _, err := exec(t, runtime, "", "sessions", "show", id)
 	if err != nil || !strings.Contains(shown, "The fixed sleep races the janitor") {
@@ -626,7 +626,7 @@ func requireSessionShow(t *testing.T, runtime client.Runtime, id string) {
 	}
 }
 
-func requireSessionRename(t *testing.T, runtime client.Runtime, id string) {
+func requireSessionRename(t *testing.T, runtime agent.Runtime, id string) {
 	t.Helper()
 	renamed, _, err := exec(t, runtime, "", "sessions", "rename", id, "Investigate cache")
 	if err != nil || !strings.Contains(renamed, "Investigate cache") {
@@ -634,7 +634,7 @@ func requireSessionRename(t *testing.T, runtime client.Runtime, id string) {
 	}
 }
 
-func forkTestSession(t *testing.T, runtime client.Runtime, id string) string {
+func forkTestSession(t *testing.T, runtime agent.Runtime, id string) string {
 	t.Helper()
 	forked, _, err := exec(t, runtime, "", "sessions", "fork", id, "--at", "4", "--title", "Alternative")
 	if err != nil {
@@ -648,7 +648,7 @@ func forkTestSession(t *testing.T, runtime client.Runtime, id string) string {
 	return forkID
 }
 
-func requireSessionDelete(t *testing.T, runtime client.Runtime, id string) {
+func requireSessionDelete(t *testing.T, runtime agent.Runtime, id string) {
 	t.Helper()
 	if _, _, err := exec(t, runtime, "", "sessions", "delete", id); err == nil {
 		t.Fatal("sessions delete did not require confirmation")
@@ -712,9 +712,9 @@ func TestApprovalRuleCommandsInspectAndForget(t *testing.T) {
 	}
 }
 
-func createProjectApprovalRule(t *testing.T, runtime client.Runtime, sessionID string) string {
+func createProjectApprovalRule(t *testing.T, runtime agent.Runtime, sessionID string) string {
 	t.Helper()
-	run, err := runtime.StartRun(t.Context(), client.StartRun{SessionID: sessionID, Message: client.Message{Text: "remember this"}})
+	run, err := runtime.StartRun(t.Context(), agent.StartRun{SessionID: sessionID, Message: agent.Message{Text: "remember this"}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -724,21 +724,21 @@ func createProjectApprovalRule(t *testing.T, runtime client.Runtime, sessionID s
 	return onlyApprovalRule(t, runtime).ID
 }
 
-func followApprovalInterrupt(t *testing.T, runtime client.Runtime, run client.Run) (client.Approval, client.Cursor) {
+func followApprovalInterrupt(t *testing.T, runtime agent.Runtime, run agent.Run) (agent.Approval, agent.Cursor) {
 	t.Helper()
-	stream, err := runtime.FollowRun(t.Context(), client.FollowRun{RunID: run.ID, After: run.StartedAfter})
+	stream, err := runtime.FollowRun(t.Context(), agent.FollowRun{RunID: run.ID, After: run.StartedAfter})
 	if err != nil {
 		t.Fatal(err)
 	}
-	var interrupted client.Approval
-	var after client.Cursor
+	var interrupted agent.Approval
+	var after agent.Cursor
 	for envelope, streamErr := range stream {
 		if streamErr != nil {
 			t.Fatal(streamErr)
 		}
 		after = envelope.Cursor
-		if event, ok := envelope.Event.(client.RunInterrupted); ok {
-			interrupted = event.Interaction.(client.Approval)
+		if event, ok := envelope.Event.(agent.RunInterrupted); ok {
+			interrupted = event.Interaction.(agent.Approval)
 		}
 	}
 	if interrupted.InterruptID == "" {
@@ -747,19 +747,19 @@ func followApprovalInterrupt(t *testing.T, runtime client.Runtime, run client.Ru
 	return interrupted, after
 }
 
-func resumeProjectApproval(t *testing.T, runtime client.Runtime, runID string, interrupted client.Approval) {
+func resumeProjectApproval(t *testing.T, runtime agent.Runtime, runID string, interrupted agent.Approval) {
 	t.Helper()
-	if err := runtime.ResumeRun(t.Context(), client.ResumeRun{
+	if err := runtime.ResumeRun(t.Context(), agent.ResumeRun{
 		RunID: runID, InterruptID: interrupted.InterruptID,
-		Answer: client.ApprovalAnswer{Decision: client.ApprovalAllow, Remember: client.RememberProject},
+		Answer: agent.ApprovalAnswer{Decision: agent.ApprovalAllow, Remember: agent.RememberProject},
 	}); err != nil {
 		t.Fatal(err)
 	}
 }
 
-func drainContinuation(t *testing.T, runtime client.Runtime, runID string, after client.Cursor) {
+func drainContinuation(t *testing.T, runtime agent.Runtime, runID string, after agent.Cursor) {
 	t.Helper()
-	continuation, err := runtime.FollowRun(t.Context(), client.FollowRun{RunID: runID, After: after})
+	continuation, err := runtime.FollowRun(t.Context(), agent.FollowRun{RunID: runID, After: after})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -770,7 +770,7 @@ func drainContinuation(t *testing.T, runtime client.Runtime, runID string, after
 	}
 }
 
-func onlyApprovalRule(t *testing.T, runtime client.Runtime) client.ApprovalRule {
+func onlyApprovalRule(t *testing.T, runtime agent.Runtime) agent.ApprovalRule {
 	t.Helper()
 	rules, err := runtime.ListApprovalRules(t.Context())
 	if err != nil {
@@ -782,7 +782,7 @@ func onlyApprovalRule(t *testing.T, runtime client.Runtime) client.ApprovalRule 
 	return rules[0]
 }
 
-func requireApprovalList(t *testing.T, runtime client.Runtime) {
+func requireApprovalList(t *testing.T, runtime agent.Runtime) {
 	t.Helper()
 	out, _, err := exec(t, runtime, "", "approvals", "ls")
 	if err != nil || !strings.Contains(out, "edit:internal/store/cache_test.go") || !strings.Contains(out, "project") {
@@ -804,7 +804,7 @@ func TestCompletionCommand(t *testing.T) {
 // database, a socket, or anything else a real runtime needs.
 func TestHelpDoesNotResolveARuntime(t *testing.T) {
 	var resolved bool
-	root := NewRoot(Dependencies{OpenRuntime: func(context.Context) (client.Runtime, error) {
+	root := NewRoot(Dependencies{OpenRuntime: func(context.Context) (agent.Runtime, error) {
 		resolved = true
 		return instant(), nil
 	}})

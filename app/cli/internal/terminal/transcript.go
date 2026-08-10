@@ -12,7 +12,7 @@ import (
 	"github.com/Tangerg/oolong/highlight"
 	"github.com/Tangerg/oolong/markdown"
 
-	"github.com/Tangerg/lynx/app/cli/internal/client"
+	"github.com/Tangerg/lynx/app/cli/internal/agent"
 	"github.com/Tangerg/lynx/app/cli/internal/extensions"
 )
 
@@ -441,29 +441,29 @@ func (c *conversationView) Close() {
 	}
 }
 
-func (c *conversationView) Apply(event client.Event, registry *extensions.Registry) error {
+func (c *conversationView) Apply(event agent.Event, registry *extensions.Registry) error {
 	switch e := event.(type) {
-	case client.BlockStarted:
-		if e.Block.Kind == client.BlockAssistant || e.Block.Kind == client.BlockReasoning {
+	case agent.BlockStarted:
+		if e.Block.Kind == agent.BlockAssistant || e.Block.Kind == agent.BlockReasoning {
 			return c.begin(e.Block)
 		}
-		if e.Block.Kind == client.BlockTool {
+		if e.Block.Kind == agent.BlockTool {
 			return c.beginTool(e.Block, registry)
 		}
-	case client.BlockDelta:
+	case agent.BlockDelta:
 		if _, live := c.tools[e.BlockID]; live {
 			return c.deltaTool(e.BlockID, e.Text)
 		}
 		return c.delta(e.BlockID, e.Text)
-	case client.BlockCompleted:
+	case agent.BlockCompleted:
 		return c.complete(e.Block, registry)
-	case client.RunFinished:
+	case agent.RunFinished:
 		c.settleLive(e.Outcome)
 	}
 	return nil
 }
 
-func (c *conversationView) begin(block client.Block) error {
+func (c *conversationView) begin(block agent.Block) error {
 	if _, exists := c.textStreams[block.ID]; exists {
 		return fmt.Errorf("terminal transcript: text block %s started twice", block.ID)
 	}
@@ -471,7 +471,7 @@ func (c *conversationView) begin(block client.Block) error {
 		return fmt.Errorf("terminal transcript: block %s is already a live tool", block.ID)
 	}
 	speaker := "lyra"
-	if block.Kind == client.BlockReasoning {
+	if block.Kind == agent.BlockReasoning {
 		speaker = "thinking"
 	}
 	live := &liveText{block: &markdownBlock{theme: c.theme, speaker: speaker}}
@@ -512,17 +512,17 @@ func (c *conversationView) deltaTool(id, chunk string) error {
 	return nil
 }
 
-func (c *conversationView) complete(block client.Block, registry *extensions.Registry) error {
+func (c *conversationView) complete(block agent.Block, registry *extensions.Registry) error {
 	if _, live := c.textStreams[block.ID]; live {
 		return c.completeStream(block)
 	}
-	if block.Kind == client.BlockTool && c.completeLiveTool(block) {
+	if block.Kind == agent.BlockTool && c.completeLiveTool(block) {
 		return nil
 	}
 	return c.appendCompleted(block, registry)
 }
 
-func (c *conversationView) completeStream(block client.Block) error {
+func (c *conversationView) completeStream(block agent.Block) error {
 	live, ok := c.textStreams[block.ID]
 	if !ok {
 		return fmt.Errorf("terminal transcript: completion for inactive text block %s", block.ID)
@@ -538,7 +538,7 @@ func (c *conversationView) completeStream(block client.Block) error {
 	return nil
 }
 
-func (c *conversationView) completeLiveTool(block client.Block) bool {
+func (c *conversationView) completeLiveTool(block agent.Block) bool {
 	live, ok := c.tools[block.ID]
 	if !ok {
 		return false
@@ -559,15 +559,15 @@ func (c *conversationView) completeLiveTool(block client.Block) bool {
 	return true
 }
 
-func (c *conversationView) settleLive(outcome client.Outcome) {
+func (c *conversationView) settleLive(outcome agent.Outcome) {
 	for id, live := range c.textStreams {
 		c.content.Finish(live.id)
 		live.stream.Reset()
 		delete(c.textStreams, id)
 	}
-	toolStatus := client.ToolError
-	if outcome.Status == client.OutcomeCanceled {
-		toolStatus = client.ToolCanceled
+	toolStatus := agent.ToolError
+	if outcome.Status == agent.OutcomeCanceled {
+		toolStatus = agent.ToolCanceled
 	}
 	for id, live := range c.tools {
 		for _, tracked := range live.blocks {
@@ -583,7 +583,7 @@ func (c *conversationView) settleLive(outcome client.Outcome) {
 	c.announceSelection()
 }
 
-func (c *conversationView) appendCompleted(block client.Block, registry *extensions.Registry) error {
+func (c *conversationView) appendCompleted(block agent.Block, registry *extensions.Registry) error {
 	rendered, err := c.present(block, registry)
 	if err != nil {
 		return err
@@ -597,14 +597,14 @@ func (c *conversationView) appendCompleted(block client.Block, registry *extensi
 		if isMutable {
 			c.toolViews = append(c.toolViews, trackedTool{id: id, block: mutable})
 		}
-		if block.Kind == client.BlockUser {
+		if block.Kind == agent.BlockUser {
 			c.sticky.Add(id)
 		}
 	}
 	return nil
 }
 
-func (c *conversationView) beginTool(block client.Block, registry *extensions.Registry) error {
+func (c *conversationView) beginTool(block agent.Block, registry *extensions.Registry) error {
 	if _, exists := c.tools[block.ID]; exists {
 		return fmt.Errorf("terminal transcript: tool block %s started twice", block.ID)
 	}
@@ -634,7 +634,7 @@ func (c *conversationView) beginTool(block client.Block, registry *extensions.Re
 	return nil
 }
 
-func (c *conversationView) present(block client.Block, registry *extensions.Registry) ([]headless.Block, error) {
+func (c *conversationView) present(block agent.Block, registry *extensions.Registry) ([]headless.Block, error) {
 	for _, presenter := range extensions.Values(registry, BlockPresenters) {
 		if presenter.Kind == block.Kind {
 			return presentSafely(presenter, Presentation{
@@ -645,7 +645,7 @@ func (c *conversationView) present(block client.Block, registry *extensions.Regi
 	return nil, fmt.Errorf("terminal transcript: no presenter for block kind %q", block.Kind)
 }
 
-func presentSafely(presenter BlockPresenter, presentation Presentation, block client.Block) (rendered []headless.Block, err error) {
+func presentSafely(presenter BlockPresenter, presentation Presentation, block agent.Block) (rendered []headless.Block, err error) {
 	defer func() {
 		if recovered := recover(); recovered != nil {
 			err = fmt.Errorf("terminal transcript: presenter for %q panicked: %v", presenter.Kind, recovered)
@@ -764,9 +764,9 @@ func (c *conversationView) StepMatch(delta int) bool {
 	return true
 }
 
-func (c *conversationView) lookFor(kind client.BlockKind) markdown.Look {
+func (c *conversationView) lookFor(kind agent.BlockKind) markdown.Look {
 	look := c.look
-	if kind == client.BlockReasoning {
+	if kind == agent.BlockReasoning {
 		look.Text, look.Strong, look.Code = c.theme.Muted, c.theme.Subtle, c.theme.Info
 	}
 	return look

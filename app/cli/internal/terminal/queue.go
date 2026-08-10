@@ -11,7 +11,7 @@ import (
 	"github.com/Tangerg/oolong/core/keymap"
 	"github.com/Tangerg/oolong/core/text"
 
-	"github.com/Tangerg/lynx/app/cli/internal/client"
+	"github.com/Tangerg/lynx/app/cli/internal/agent"
 	"github.com/Tangerg/lynx/app/cli/internal/promptqueue"
 )
 
@@ -101,7 +101,7 @@ func countedNoun(count int, noun string) string {
 	return fmt.Sprintf("%d %ss", count, noun)
 }
 
-func (a *app) enqueueFollowUp(message client.Message) {
+func (a *app) enqueueFollowUp(message agent.Message) {
 	if _, err := a.queue.Enqueue(a.session.ID, message); err != nil {
 		a.message(err.Error())
 		return
@@ -214,7 +214,7 @@ func (a *app) holdQueuedPrompt(id uint64) error {
 	return nil
 }
 
-func (a *app) saveQueuedPrompt(id uint64, message client.Message, sendNow bool) error {
+func (a *app) saveQueuedPrompt(id uint64, message agent.Message, sendNow bool) error {
 	if id == a.dispatchingQueueEntry {
 		return errQueuedPromptDispatching
 	}

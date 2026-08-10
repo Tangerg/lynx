@@ -15,8 +15,8 @@ import (
 	"github.com/Tangerg/oolong/core/grid"
 	"github.com/Tangerg/oolong/core/input"
 
-	"github.com/Tangerg/lynx/app/cli/internal/client"
-	"github.com/Tangerg/lynx/app/cli/internal/client/mock"
+	"github.com/Tangerg/lynx/app/cli/internal/agent"
+	"github.com/Tangerg/lynx/app/cli/internal/agent/mock"
 	"github.com/Tangerg/lynx/app/cli/internal/promptqueue"
 	"github.com/Tangerg/lynx/app/cli/internal/settings"
 )
@@ -27,16 +27,16 @@ type finishObservingRuntime struct {
 	once     sync.Once
 }
 
-func (r *finishObservingRuntime) FollowRun(ctx context.Context, request client.FollowRun) (client.Stream, error) {
+func (r *finishObservingRuntime) FollowRun(ctx context.Context, request agent.FollowRun) (agent.RunStream, error) {
 	stream, err := r.recordingRuntime.FollowRun(ctx, request)
 	if err != nil {
 		return nil, err
 	}
-	return func(yield func(client.Envelope, error) bool) {
+	return func(yield func(agent.Envelope, error) bool) {
 		for envelope, streamErr := range stream {
 			continued := yield(envelope, streamErr)
 			if streamErr == nil {
-				if _, finished := envelope.Event.(client.RunFinished); finished {
+				if _, finished := envelope.Event.(agent.RunFinished); finished {
 					r.once.Do(func() { close(r.finished) })
 				}
 			}
@@ -47,7 +47,7 @@ func (r *finishObservingRuntime) FollowRun(ctx context.Context, request client.F
 	}, nil
 }
 
-func testQueueDrawer(t *testing.T, messages ...client.Message) (*queueDrawer, *promptqueue.Store) {
+func testQueueDrawer(t *testing.T, messages ...agent.Message) (*queueDrawer, *promptqueue.Store) {
 	t.Helper()
 	store := promptqueue.New()
 	for _, message := range messages {
@@ -67,7 +67,7 @@ func testQueueDrawer(t *testing.T, messages ...client.Message) (*queueDrawer, *p
 			sync()
 			return err
 		},
-		SaveEdit: func(id uint64, message client.Message, sendNow bool) error {
+		SaveEdit: func(id uint64, message agent.Message, sendNow bool) error {
 			if err := store.Update("session", id, message); err != nil {
 				return err
 			}
@@ -129,10 +129,10 @@ func queueDrawerHit(t *testing.T, drawer *queueDrawer, target queueTarget) queue
 func TestQueueViewKeepsTheNextPromptAndOverflowVisible(t *testing.T) {
 	view := newQueueView(kit.Dark(), kit.Unicode())
 	view.Set(promptqueue.Snapshot{Entries: []promptqueue.Entry{
-		{ID: 1, Message: client.Message{Text: "first follow-up\nwith more detail"}},
-		{ID: 2, Message: client.Message{Text: "second follow-up"}},
-		{ID: 3, Message: client.Message{Text: "third follow-up"}},
-		{ID: 4, Message: client.Message{Text: "fourth follow-up"}},
+		{ID: 1, Message: agent.Message{Text: "first follow-up\nwith more detail"}},
+		{ID: 2, Message: agent.Message{Text: "second follow-up"}},
+		{ID: 3, Message: agent.Message{Text: "third follow-up"}},
+		{ID: 4, Message: agent.Message{Text: "fourth follow-up"}},
 	}})
 	if got := view.Measure(queueMinWidth - 1); got != 0 {
 		t.Fatalf("narrow queue height = %d", got)
@@ -153,8 +153,8 @@ func TestQueueViewKeepsTheNextPromptAndOverflowVisible(t *testing.T) {
 
 func TestQueueDrawerRendersPreviewActionsAndResponsiveFallback(t *testing.T) {
 	drawer, _ := testQueueDrawer(t,
-		client.Message{Text: "first line\nsecond line", Attachments: []client.Attachment{{ID: "a", Kind: client.AttachmentText, Name: "context.txt", Path: "/tmp/context.txt"}}},
-		client.Message{Text: "second prompt"},
+		agent.Message{Text: "first line\nsecond line", Attachments: []agent.Attachment{{ID: "a", Kind: agent.AttachmentText, Name: "context.txt", Path: "/tmp/context.txt"}}},
+		agent.Message{Text: "second prompt"},
 	)
 	_, _, rendered := drawQueueDrawer(t, drawer, 96, 9)
 	for _, want := range []string{
@@ -172,8 +172,8 @@ func TestQueueDrawerRendersPreviewActionsAndResponsiveFallback(t *testing.T) {
 }
 
 func TestQueueDrawerEditsMultilineTextAndKeepsAttachments(t *testing.T) {
-	attachment := client.Attachment{ID: "a", Kind: client.AttachmentText, Name: "context.txt", Path: "/tmp/context.txt"}
-	drawer, store := testQueueDrawer(t, client.Message{Text: "original", Attachments: []client.Attachment{attachment}})
+	attachment := agent.Attachment{ID: "a", Kind: agent.AttachmentText, Name: "context.txt", Path: "/tmp/context.txt"}
+	drawer, store := testQueueDrawer(t, agent.Message{Text: "original", Attachments: []agent.Attachment{attachment}})
 	drawer.Focus(true)
 	drawer.Handle(input.Key{Code: input.Enter})
 	if !drawer.Editing() {
@@ -210,7 +210,7 @@ func TestQueueDrawerEditsMultilineTextAndKeepsAttachments(t *testing.T) {
 }
 
 func TestClosingQueueDrawerReleasesItsEditedEntry(t *testing.T) {
-	drawer, store := testQueueDrawer(t, client.Message{Text: "editable"})
+	drawer, store := testQueueDrawer(t, agent.Message{Text: "editable"})
 	drawer.Focus(true)
 	drawer.Handle(input.Key{Code: input.Enter})
 	if !store.Snapshot("session").Entries[0].Held {
@@ -223,7 +223,7 @@ func TestClosingQueueDrawerReleasesItsEditedEntry(t *testing.T) {
 }
 
 func TestQueueDrawerEditorOwnsPointerPlacement(t *testing.T) {
-	drawer, _ := testQueueDrawer(t, client.Message{Text: "move this cursor"})
+	drawer, _ := testQueueDrawer(t, agent.Message{Text: "move this cursor"})
 	drawer.Focus(true)
 	drawer.Handle(input.Key{Code: input.Enter})
 	root, _, _ := drawQueueDrawer(t, drawer, 72, 8)
@@ -246,7 +246,7 @@ func TestQueueDrawerEditorOwnsPointerPlacement(t *testing.T) {
 
 func TestQueueDrawerReordersAndPromotesTheSelectedEntry(t *testing.T) {
 	drawer, store := testQueueDrawer(t,
-		client.Message{Text: "first"}, client.Message{Text: "second"}, client.Message{Text: "third"},
+		agent.Message{Text: "first"}, agent.Message{Text: "second"}, agent.Message{Text: "third"},
 	)
 	drawer.Handle(input.Key{Code: input.Down})
 	drawer.Handle(input.Key{Code: input.Character, Rune: 'J', Mods: input.Shift})
@@ -262,7 +262,7 @@ func TestQueueDrawerReordersAndPromotesTheSelectedEntry(t *testing.T) {
 }
 
 func TestQueueDrawerMouseActionsCommitOnlyOnAnUndraggedMatchingRelease(t *testing.T) {
-	drawer, store := testQueueDrawer(t, client.Message{Text: "first"}, client.Message{Text: "second"})
+	drawer, store := testQueueDrawer(t, agent.Message{Text: "first"}, agent.Message{Text: "second"})
 	root, surface, _ := drawQueueDrawer(t, drawer, 80, 5)
 	firstID := store.Snapshot("session").Entries[0].ID
 	remove := queueDrawerHit(t, drawer, queueTarget{kind: queueTargetRemove, id: firstID})
@@ -303,12 +303,12 @@ func TestRunningTurnQueuesFollowUpsAndDrainsThemInFIFOOrder(t *testing.T) {
 	base.Script = func(prompt string) mock.Script {
 		if prompt == "PRIMARY_RUN" {
 			return mock.Script{Prelude: []mock.Step{
-				{Delay: 500 * time.Millisecond, Event: client.RunFinished{Outcome: client.Outcome{Status: client.OutcomeCompleted}}},
+				{Delay: 500 * time.Millisecond, Event: agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCompleted}}},
 			}}
 		}
 		return mock.Script{Prelude: []mock.Step{
-			{Event: client.BlockCompleted{Block: client.Block{ID: "answer-" + prompt, Kind: client.BlockAssistant, Text: "RAN_" + prompt}}},
-			{Event: client.RunFinished{Outcome: client.Outcome{Status: client.OutcomeCompleted}}},
+			{Event: agent.BlockCompleted{Block: agent.Block{ID: "answer-" + prompt, Kind: agent.BlockAssistant, Text: "RAN_" + prompt}}},
+			{Event: agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCompleted}}},
 		}}
 	}
 	backend := &recordingRuntime{Runtime: base}
@@ -344,12 +344,12 @@ func TestCancelingARunDrainsItsQueuedFollowUpAfterCancellationSettles(t *testing
 	base.Script = func(prompt string) mock.Script {
 		if prompt == "CANCEL_PRIMARY" {
 			return mock.Script{Prelude: []mock.Step{
-				{Delay: time.Hour, Event: client.RunFinished{Outcome: client.Outcome{Status: client.OutcomeCompleted}}},
+				{Delay: time.Hour, Event: agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCompleted}}},
 			}}
 		}
 		return mock.Script{Prelude: []mock.Step{
-			{Event: client.BlockCompleted{Block: client.Block{ID: "after-cancel", Kind: client.BlockAssistant, Text: "QUEUED_AFTER_CANCEL_RAN"}}},
-			{Event: client.RunFinished{Outcome: client.Outcome{Status: client.OutcomeCompleted}}},
+			{Event: agent.BlockCompleted{Block: agent.Block{ID: "after-cancel", Kind: agent.BlockAssistant, Text: "QUEUED_AFTER_CANCEL_RAN"}}},
+			{Event: agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCompleted}}},
 		}}
 	}
 	backend := &recordingRuntime{Runtime: base}
@@ -377,12 +377,12 @@ func TestQueueDrawerSendsTheSelectedFollowUpBeforeTheRestAndPreservesTheDraft(t 
 	base.Script = func(prompt string) mock.Script {
 		if prompt == "INTERRUPTED_PRIMARY" {
 			return mock.Script{Prelude: []mock.Step{
-				{Delay: time.Hour, Event: client.RunFinished{Outcome: client.Outcome{Status: client.OutcomeCompleted}}},
+				{Delay: time.Hour, Event: agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCompleted}}},
 			}}
 		}
 		return mock.Script{Prelude: []mock.Step{
-			{Event: client.BlockCompleted{Block: client.Block{ID: "answer-" + prompt, Kind: client.BlockAssistant, Text: "RAN_" + prompt}}},
-			{Event: client.RunFinished{Outcome: client.Outcome{Status: client.OutcomeCompleted}}},
+			{Event: agent.BlockCompleted{Block: agent.Block{ID: "answer-" + prompt, Kind: agent.BlockAssistant, Text: "RAN_" + prompt}}},
+			{Event: agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCompleted}}},
 		}}
 	}
 	backend := &recordingRuntime{Runtime: base}
@@ -423,12 +423,12 @@ func TestEmptyEnterPromotesTheNextQueuedFollowUp(t *testing.T) {
 	base.Script = func(prompt string) mock.Script {
 		if prompt == "PRIMARY_FOR_EMPTY_ENTER" {
 			return mock.Script{Prelude: []mock.Step{
-				{Delay: time.Hour, Event: client.RunFinished{Outcome: client.Outcome{Status: client.OutcomeCompleted}}},
+				{Delay: time.Hour, Event: agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCompleted}}},
 			}}
 		}
 		return mock.Script{Prelude: []mock.Step{
-			{Event: client.BlockCompleted{Block: client.Block{ID: "empty-enter-answer", Kind: client.BlockAssistant, Text: "EMPTY_ENTER_SENT_NEXT"}}},
-			{Event: client.RunFinished{Outcome: client.Outcome{Status: client.OutcomeCompleted}}},
+			{Event: agent.BlockCompleted{Block: agent.Block{ID: "empty-enter-answer", Kind: agent.BlockAssistant, Text: "EMPTY_ENTER_SENT_NEXT"}}},
+			{Event: agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCompleted}}},
 		}}
 	}
 	backend := &recordingRuntime{Runtime: base}
@@ -454,7 +454,7 @@ func TestQueueDrawerRemainsUsableOnAConstrainedTerminal(t *testing.T) {
 	base := mock.New()
 	base.Script = func(string) mock.Script {
 		return mock.Script{Prelude: []mock.Step{
-			{Delay: time.Hour, Event: client.RunFinished{Outcome: client.Outcome{Status: client.OutcomeCompleted}}},
+			{Delay: time.Hour, Event: agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCompleted}}},
 		}}
 	}
 	host, stop := runUIWith(t, base)
@@ -483,13 +483,13 @@ func TestEditingTheFrontPromptHoldsAutomaticDispatchUntilSave(t *testing.T) {
 	base.Script = func(prompt string) mock.Script {
 		if prompt == "PRIMARY_BEFORE_QUEUE_EDIT" {
 			return mock.Script{Prelude: []mock.Step{
-				{Delay: 2 * time.Second, Event: client.BlockCompleted{Block: client.Block{ID: "primary-finished-marker", Kind: client.BlockAssistant, Text: "PRIMARY_FINISHED_WHILE_EDITING"}}},
-				{Event: client.RunFinished{Outcome: client.Outcome{Status: client.OutcomeCompleted}}},
+				{Delay: 2 * time.Second, Event: agent.BlockCompleted{Block: agent.Block{ID: "primary-finished-marker", Kind: agent.BlockAssistant, Text: "PRIMARY_FINISHED_WHILE_EDITING"}}},
+				{Event: agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCompleted}}},
 			}}
 		}
 		return mock.Script{Prelude: []mock.Step{
-			{Event: client.BlockCompleted{Block: client.Block{ID: "edited-queue-answer", Kind: client.BlockAssistant, Text: "RAN_" + prompt}}},
-			{Event: client.RunFinished{Outcome: client.Outcome{Status: client.OutcomeCompleted}}},
+			{Event: agent.BlockCompleted{Block: agent.Block{ID: "edited-queue-answer", Kind: agent.BlockAssistant, Text: "RAN_" + prompt}}},
+			{Event: agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCompleted}}},
 		}}
 	}
 	backend := &finishObservingRuntime{
@@ -548,7 +548,7 @@ func TestQueuedFollowUpKeepsItsAttachmentIdentityUntilDispatch(t *testing.T) {
 			delay = 800 * time.Millisecond
 		}
 		return mock.Script{Prelude: []mock.Step{
-			{Delay: delay, Event: client.RunFinished{Outcome: client.Outcome{Status: client.OutcomeCompleted}}},
+			{Delay: delay, Event: agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCompleted}}},
 		}}
 	}
 	backend := &recordingRuntime{Runtime: base}

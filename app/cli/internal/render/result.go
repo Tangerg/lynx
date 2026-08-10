@@ -7,7 +7,7 @@ import (
 	"io"
 	"strings"
 
-	"github.com/Tangerg/lynx/app/cli/internal/client"
+	"github.com/Tangerg/lynx/app/cli/internal/agent"
 )
 
 // ResultJSON folds a streamed run into one final JSON object. It retains only
@@ -41,7 +41,7 @@ func NewResultJSON(w io.Writer) *ResultJSON {
 
 // Begin records the accepted run before its first subscription opens, so a
 // transport failure can still produce a useful incomplete result.
-func (r *ResultJSON) Begin(run client.Run, options client.RunOptions) error {
+func (r *ResultJSON) Begin(run agent.Run, options agent.RunOptions) error {
 	if r.err != nil {
 		return r.err
 	}
@@ -62,7 +62,7 @@ func (r *ResultJSON) Begin(run client.Run, options client.RunOptions) error {
 }
 
 // Render folds one validated event into the final result.
-func (r *ResultJSON) Render(envelope client.Envelope) error {
+func (r *ResultJSON) Render(envelope agent.Envelope) error {
 	if r.err != nil {
 		return r.err
 	}
@@ -70,7 +70,7 @@ func (r *ResultJSON) Render(envelope client.Envelope) error {
 		r.err = errors.New("render result after close")
 		return r.err
 	}
-	if err := client.ValidateEvent(envelope.Event); err != nil {
+	if err := agent.ValidateEvent(envelope.Event); err != nil {
 		r.err = fmt.Errorf("render result event: %w", err)
 		return r.err
 	}
@@ -78,9 +78,9 @@ func (r *ResultJSON) Render(envelope client.Envelope) error {
 	return nil
 }
 
-func (r *ResultJSON) fold(envelope client.Envelope) {
+func (r *ResultJSON) fold(envelope agent.Envelope) {
 	switch event := envelope.Event.(type) {
-	case client.RunStarted:
+	case agent.RunStarted:
 		if !r.started {
 			r.started = true
 			r.frame = resultFrame{Type: "result", Status: "incomplete"}
@@ -93,32 +93,32 @@ func (r *ResultJSON) fold(envelope client.Envelope) {
 		if r.frame.SessionID == "" {
 			r.frame.SessionID = envelope.SessionID
 		}
-	case client.BlockStarted:
+	case agent.BlockStarted:
 		r.begin(event.Block)
-	case client.BlockDelta:
+	case agent.BlockDelta:
 		if body := r.live[event.BlockID]; body != nil {
 			body.WriteString(event.Text)
 		}
-	case client.BlockCompleted:
+	case agent.BlockCompleted:
 		r.complete(event.Block)
-	case client.RunInterrupted:
+	case agent.RunInterrupted:
 		r.frame.Status = "interrupted"
 		r.frame.Interaction = encodeInteraction(event.Interaction)
-	case client.RunResumed:
+	case agent.RunResumed:
 		r.frame.Status = "incomplete"
 		r.frame.Interaction = nil
-	case client.RunFinished:
+	case agent.RunFinished:
 		r.frame.Status = string(event.Outcome.Status)
 		r.frame.Interaction = nil
 		finished := encodeFinishedFrame(event)
 		r.frame.Outcome, r.frame.Usage = finished.Outcome, finished.Usage
-	case client.PlanChanged:
+	case agent.PlanChanged:
 		// A final result intentionally omits incremental plan state.
 	}
 }
 
-func (r *ResultJSON) begin(block client.Block) {
-	if block.Kind != client.BlockAssistant {
+func (r *ResultJSON) begin(block agent.Block) {
+	if block.Kind != agent.BlockAssistant {
 		return
 	}
 	body := new(strings.Builder)
@@ -126,8 +126,8 @@ func (r *ResultJSON) begin(block client.Block) {
 	r.live[block.ID] = body
 }
 
-func (r *ResultJSON) complete(block client.Block) {
-	if block.Kind != client.BlockAssistant {
+func (r *ResultJSON) complete(block agent.Block) {
+	if block.Kind != agent.BlockAssistant {
 		return
 	}
 	text := block.Text

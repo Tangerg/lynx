@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Tangerg/lynx/app/cli/internal/client"
+	"github.com/Tangerg/lynx/app/cli/internal/agent"
 )
 
 func TestResolveClassifiesAndCanonicalizesWorkspaceFiles(t *testing.T) {
@@ -44,7 +44,7 @@ func newFixtureResolver(t *testing.T, root string) *Resolver {
 	return resolver
 }
 
-func resolveFixture(t *testing.T, resolver *Resolver, path string) client.Attachment {
+func resolveFixture(t *testing.T, resolver *Resolver, path string) agent.Attachment {
 	t.Helper()
 	attachment, err := resolver.Resolve(t.Context(), path)
 	if err != nil {
@@ -53,9 +53,9 @@ func resolveFixture(t *testing.T, resolver *Resolver, path string) client.Attach
 	return attachment
 }
 
-func requireTextAttachment(t *testing.T, got client.Attachment, canonical string) {
+func requireTextAttachment(t *testing.T, got agent.Attachment, canonical string) {
 	t.Helper()
-	if got.ID == "" || got.Kind != client.AttachmentText || got.Name != "docs/notes.md" || got.Path != canonical || got.MimeType != "text/markdown" || got.Size != 8 {
+	if got.ID == "" || got.Kind != agent.AttachmentText || got.Name != "docs/notes.md" || got.Path != canonical || got.MimeType != "text/markdown" || got.Size != 8 {
 		t.Fatalf("attachment = %+v", got)
 	}
 }

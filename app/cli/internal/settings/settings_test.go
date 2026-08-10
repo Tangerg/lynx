@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Tangerg/lynx/app/cli/internal/client"
+	"github.com/Tangerg/lynx/app/cli/internal/agent"
 )
 
 func TestDefaultIsValidAndCloned(t *testing.T) {
@@ -23,7 +23,7 @@ func TestDefaultIsValidAndCloned(t *testing.T) {
 	if defaults.Plugins.Directories[0] != "one" {
 		t.Fatal("Clone leaked a plugin directory slice")
 	}
-	if options := defaults.RunOptions(); options.Model != "" || options.Mode != client.ModeBuild {
+	if options := defaults.RunOptions(); options.Model != "" || options.Mode != agent.ModeBuild {
 		t.Fatalf("RunOptions = %+v", options)
 	}
 	if got := defaults.Keys[ActionManageQueue]; len(got) != 2 || got[0] != "ctrl+;" || got[1] != "ctrl+g" {

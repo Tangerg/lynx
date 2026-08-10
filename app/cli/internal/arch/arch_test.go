@@ -27,7 +27,7 @@ var layers = []struct {
 	prefix string
 	name   string
 }{
-	{"internal/client/mock/", "mock"},
+	{"internal/agent/mock/", "mock"},
 	{"internal/sideload/", "sideload"},
 	{"internal/terminal/", "terminal"},
 	{"internal/attachment/", "attachment"},
@@ -36,7 +36,7 @@ var layers = []struct {
 	{"internal/requestid/", "requestid"},
 	{"internal/session/", "session"},
 	{"internal/oneshot/", "oneshot"},
-	{"internal/client/", "client"},
+	{"internal/agent/", "agent"},
 	{"internal/settings/", "settings"},
 	{"internal/extensions/", "extensions"},
 	{"internal/render/", "render"},
@@ -48,25 +48,25 @@ var layers = []struct {
 // dependency fail closed instead of silently weakening the architecture.
 var allowed = map[string][]string{
 	// Domain policy and generic infrastructure are the center.
-	"client":      nil,
-	"settings":    {"client"},
+	"agent":       nil,
+	"settings":    {"agent"},
 	"requestid":   nil,
-	"session":     {"client"},
-	"oneshot":     {"client", "reconnect", "requestid"},
+	"session":     {"agent"},
+	"oneshot":     {"agent", "reconnect", "requestid"},
 	"extensions":  nil,
-	"promptqueue": {"client"},
+	"promptqueue": {"agent"},
 
 	// Outbound adapters share domain contracts, not one another.
-	"attachment": {"client"},
-	"reconnect":  {"client"},
-	"mock":       {"client"},
-	"render":     {"client"},
+	"attachment": {"agent"},
+	"reconnect":  {"agent"},
+	"mock":       {"agent"},
+	"render":     {"agent"},
 
 	// Delivery adapters compose inward abstractions. Sideloading is the outer trust
 	// boundary around terminal contributions; cmd is the application composition root.
-	"terminal": {"attachment", "client", "extensions", "promptqueue", "reconnect", "requestid", "session", "settings"},
+	"terminal": {"agent", "attachment", "extensions", "promptqueue", "reconnect", "requestid", "session", "settings"},
 	"sideload": {"extensions", "terminal"},
-	"cmd":      {"attachment", "client", "extensions", "oneshot", "render", "session", "settings", "sideload", "terminal"},
+	"cmd":      {"agent", "attachment", "extensions", "oneshot", "render", "session", "settings", "sideload", "terminal"},
 	"arch":     nil,
 }
 
@@ -126,7 +126,7 @@ func TestTheLibraryStaysALibrary(t *testing.T) {
 	root := moduleRoot(t)
 	fset := token.NewFileSet()
 
-	terminalFree := []string{"client", "settings", "mock", "attachment", "promptqueue", "reconnect", "requestid", "session", "oneshot", "extensions", "render"}
+	terminalFree := []string{"agent", "settings", "mock", "attachment", "promptqueue", "reconnect", "requestid", "session", "oneshot", "extensions", "render"}
 	walk(t, root, func(dir, path string) {
 		layer := layerOf(dir)
 		if !slices.Contains(terminalFree, layer) {
@@ -148,13 +148,13 @@ func TestTheRulesWouldActuallyRefuseSomething(t *testing.T) {
 		from, to string
 		refused  bool
 	}{
-		{"internal/client", "internal/client/mock", true},
-		{"internal/client", "internal/terminal", true},
-		{"internal/extensions", "internal/client", true},
-		{"internal/client/mock", "internal/render", true},
+		{"internal/agent", "internal/agent/mock", true},
+		{"internal/agent", "internal/terminal", true},
+		{"internal/extensions", "internal/agent", true},
+		{"internal/agent/mock", "internal/render", true},
 		{"internal/attachment", "internal/terminal", true},
 		{"internal/reconnect", "internal/cmd", true},
-		{"internal/requestid", "internal/client", true},
+		{"internal/requestid", "internal/agent", true},
 		{"internal/session", "internal/terminal", true},
 		{"internal/oneshot", "internal/cmd", true},
 		{"internal/settings", "internal/terminal", true},
@@ -163,21 +163,21 @@ func TestTheRulesWouldActuallyRefuseSomething(t *testing.T) {
 		{"internal/terminal", "internal/cmd", true},
 		{"internal/sideload", "internal/cmd", true},
 
-		{"internal/client/mock", "internal/client", false},
-		{"internal/terminal", "internal/client", false},
+		{"internal/agent/mock", "internal/agent", false},
+		{"internal/terminal", "internal/agent", false},
 		{"internal/terminal", "internal/extensions", false},
 		{"internal/cmd", "internal/terminal", false},
 		{"internal/sideload", "internal/extensions", false},
-		{"internal/render", "internal/client", false},
-		{"internal/attachment", "internal/client", false},
-		{"internal/reconnect", "internal/client", false},
+		{"internal/render", "internal/agent", false},
+		{"internal/attachment", "internal/agent", false},
+		{"internal/reconnect", "internal/agent", false},
 		{"internal/cmd", "internal/requestid", true},
 		{"internal/cmd", "internal/session", false},
 		{"internal/cmd", "internal/oneshot", false},
-		{"internal/settings", "internal/client", false},
-		{"internal/session", "internal/client", false},
-		{"internal/oneshot", "internal/client", false},
-		{"internal/promptqueue", "internal/client", false},
+		{"internal/settings", "internal/agent", false},
+		{"internal/session", "internal/agent", false},
+		{"internal/oneshot", "internal/agent", false},
+		{"internal/promptqueue", "internal/agent", false},
 	} {
 		from, to := layerOf(tc.from), layerOf(tc.to)
 		if from == "" {

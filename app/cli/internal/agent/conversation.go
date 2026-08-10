@@ -1,4 +1,4 @@
-package client
+package agent
 
 import (
 	"errors"
@@ -16,16 +16,16 @@ var (
 	ErrInvalidTransition = errors.New("invalid conversation transition")
 )
 
-// ApplyResult distinguishes a replayed duplicate from newly folded state.
-type ApplyResult struct{ Applied bool }
+// EventAcceptance distinguishes a replayed duplicate from newly folded state.
+type EventAcceptance struct{ Applied bool }
 
 // Phase is what a conversation is doing.
 type Phase uint8
 
 const (
-	Idle Phase = iota
-	Running
-	Waiting
+	PhaseIdle Phase = iota
+	PhaseRunning
+	PhaseWaiting
 )
 
 // Conversation is the aggregate produced by folding a run's ordered events.
@@ -78,14 +78,14 @@ func (c *Conversation) Cursor() Cursor {
 	}
 	return c.sequence.Cursor()
 }
-func (c *Conversation) Busy() bool { return c.phase != Idle }
+func (c *Conversation) Busy() bool { return c.phase != PhaseIdle }
 
 // ApplyEnvelope folds one durable event exactly once. Replayed duplicates are
 // accepted without changing presentation state; gaps and conflicting cursor
 // identities are rejected so callers can resnapshot instead of hiding loss.
-func (c *Conversation) ApplyEnvelope(envelope Envelope) (ApplyResult, error) {
+func (c *Conversation) ApplyEnvelope(envelope Envelope) (EventAcceptance, error) {
 	if err := validateConversationEnvelope(envelope); err != nil {
-		return ApplyResult{}, err
+		return EventAcceptance{}, err
 	}
 	if c.sequence == nil {
 		c.sequence = NewEventSequence(0)
@@ -225,11 +225,11 @@ func (c *Conversation) applyPlanChanged(event PlanChanged) error {
 }
 
 func (c *Conversation) applyStarted(event RunStarted) error {
-	if c.phase == Waiting || (c.phase == Running && c.runID != "") {
+	if c.phase == PhaseWaiting || (c.phase == PhaseRunning && c.runID != "") {
 		return fmt.Errorf("%w: cannot start %s while %s is active", ErrInvalidTransition, event.RunID, c.runID)
 	}
 	c.runID = event.RunID
-	c.phase = Running
+	c.phase = PhaseRunning
 	c.plan = nil
 	c.usage = Usage{}
 	c.outcome = Outcome{}
@@ -240,31 +240,31 @@ func (c *Conversation) applyStarted(event RunStarted) error {
 }
 
 func (c *Conversation) applyResumed(event RunResumed) error {
-	if c.phase != Waiting || c.runID == "" {
+	if c.phase != PhaseWaiting || c.runID == "" {
 		return fmt.Errorf("%w: cannot resume a run that is not waiting", ErrInvalidTransition)
 	}
 	if InteractionID(c.interrupt) != event.InterruptID {
 		return fmt.Errorf("%w: interrupt %s is not active", ErrInvalidTransition, event.InterruptID)
 	}
-	c.phase = Running
+	c.phase = PhaseRunning
 	c.interrupt = nil
 	return nil
 }
 
 func (c *Conversation) applyInterrupted(event RunInterrupted) error {
-	if c.phase != Running || c.runID == "" {
+	if c.phase != PhaseRunning || c.runID == "" {
 		return fmt.Errorf("%w: cannot park a run that has not started", ErrInvalidTransition)
 	}
-	c.phase = Waiting
+	c.phase = PhaseWaiting
 	c.interrupt = CloneInteraction(event.Interaction)
 	return nil
 }
 
 func (c *Conversation) applyFinished(event RunFinished) error {
-	if c.phase == Idle || c.runID == "" {
+	if c.phase == PhaseIdle || c.runID == "" {
 		return fmt.Errorf("%w: cannot finish a run that has not started", ErrInvalidTransition)
 	}
-	if c.phase == Waiting && event.Outcome.Status != OutcomeCanceled {
+	if c.phase == PhaseWaiting && event.Outcome.Status != OutcomeCanceled {
 		return fmt.Errorf("%w: a waiting run can only finish by cancellation", ErrInvalidTransition)
 	}
 	if event.Outcome.Status == OutcomeCompleted && c.hasOpenBlocks() {
@@ -275,7 +275,7 @@ func (c *Conversation) applyFinished(event RunFinished) error {
 		toolStatus = ToolCanceled
 	}
 	c.settleOpenBlocks(toolStatus)
-	c.phase = Idle
+	c.phase = PhaseIdle
 	c.interrupt = nil
 	c.outcome = event.Outcome
 	c.usage = event.Usage
@@ -296,7 +296,7 @@ func (c *Conversation) Starting() error {
 	if c.Busy() {
 		return fmt.Errorf("%w: conversation is already busy", ErrInvalidTransition)
 	}
-	c.phase = Running
+	c.phase = PhaseRunning
 	c.runID = ""
 	c.plan = nil
 	c.usage = Usage{}
@@ -309,10 +309,10 @@ func (c *Conversation) Starting() error {
 // CancelStarting settles the request-to-first-event window without inventing a
 // durable runtime event.
 func (c *Conversation) CancelStarting() error {
-	if c.phase != Running || c.runID != "" {
+	if c.phase != PhaseRunning || c.runID != "" {
 		return fmt.Errorf("%w: conversation is not starting", ErrInvalidTransition)
 	}
-	c.phase = Idle
+	c.phase = PhaseIdle
 	c.outcome = Outcome{Status: OutcomeCanceled}
 	c.revision++
 	return nil
@@ -323,7 +323,7 @@ func (c *Conversation) Failed(err error) {
 	if err == nil {
 		return
 	}
-	c.phase = Idle
+	c.phase = PhaseIdle
 	c.interrupt = nil
 	c.outcome = Outcome{Status: OutcomeFailed, Error: err.Error()}
 	c.settleOpenBlocks(ToolError)
@@ -405,7 +405,7 @@ func (c *Conversation) settleOpenBlocks(toolStatus ToolStatus) {
 }
 
 func (c *Conversation) requireRunning(action string) error {
-	if c.phase != Running || c.runID == "" {
+	if c.phase != PhaseRunning || c.runID == "" {
 		return fmt.Errorf("%w: cannot %s without an active run", ErrInvalidTransition, action)
 	}
 	return nil

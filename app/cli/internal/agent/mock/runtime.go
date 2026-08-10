@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Tangerg/lynx/app/cli/internal/client"
+	"github.com/Tangerg/lynx/app/cli/internal/agent"
 )
 
 var errCanceled = errors.New("mock: run canceled")
@@ -49,24 +49,24 @@ type Runtime struct {
 	runs     map[string]*runState
 	starts   map[string]*startAttempt
 	canceled map[string]struct{}
-	rules    []client.ApprovalRule
+	rules    []agent.ApprovalRule
 	fault    int
 	next     uint64
 	now      func() time.Time
 }
 
 type sessionState struct {
-	meta     client.Session
-	events   []client.Envelope
+	meta     agent.Session
+	events   []agent.Envelope
 	active   string
 	starting *startAttempt
 	changed  chan struct{}
 }
 
 type startAttempt struct {
-	input    client.StartRun
+	input    agent.StartRun
 	ready    chan struct{}
-	run      client.Run
+	run      agent.Run
 	err      error
 	finished bool
 }
@@ -74,12 +74,12 @@ type startAttempt struct {
 type runState struct {
 	id           string
 	sessionID    string
-	startedAfter client.Cursor
-	status       client.RunStatus
+	startedAfter agent.Cursor
+	status       agent.RunStatus
 	script       Script
-	interaction  client.Interaction
-	start        client.StartRun
-	answers      map[string]client.Answer
+	interaction  agent.Interaction
+	start        agent.StartRun
+	answers      map[string]agent.Answer
 	resuming     *resumeAttempt
 	cancel       chan struct{}
 	cancelOnce   sync.Once
@@ -88,7 +88,7 @@ type runState struct {
 
 type resumeAttempt struct {
 	interruptID string
-	answer      client.Answer
+	answer      agent.Answer
 	ready       chan struct{}
 	err         error
 }
@@ -108,13 +108,13 @@ func New() *Runtime {
 	return r
 }
 
-var _ client.Runtime = (*Runtime)(nil)
+var _ agent.Runtime = (*Runtime)(nil)
 
-func (r *Runtime) ListModels(ctx context.Context) ([]client.Model, error) {
+func (r *Runtime) ListModels(ctx context.Context) ([]agent.Model, error) {
 	if err := context.Cause(ctx); err != nil {
 		return nil, err
 	}
-	return []client.Model{
+	return []agent.Model{
 		{ID: "mock-balanced", DisplayName: "Mock Balanced", Description: "Synthetic balanced coding model", Default: true, Efforts: []string{"low", "medium", "high"}, Context: 200_000},
 		{ID: "mock-fast", DisplayName: "Mock Fast", Description: "Synthetic low-latency model", Efforts: []string{"low", "medium"}, Context: 128_000},
 		{ID: "mock-deep", DisplayName: "Mock Deep", Description: "Synthetic deep-reasoning model", Efforts: []string{"medium", "high", "max"}, Context: 400_000},

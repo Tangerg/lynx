@@ -15,8 +15,8 @@ import (
 	"github.com/Tangerg/oolong/core/program"
 	"github.com/Tangerg/oolong/highlight"
 
+	"github.com/Tangerg/lynx/app/cli/internal/agent"
 	"github.com/Tangerg/lynx/app/cli/internal/attachment"
-	"github.com/Tangerg/lynx/app/cli/internal/client"
 	"github.com/Tangerg/lynx/app/cli/internal/extensions"
 	"github.com/Tangerg/lynx/app/cli/internal/promptqueue"
 	"github.com/Tangerg/lynx/app/cli/internal/settings"
@@ -48,12 +48,12 @@ const (
 type app struct {
 	ctx          context.Context
 	loop         *program.InlineRuntime
-	runtime      client.Runtime
-	session      client.Session
+	runtime      agent.Runtime
+	session      agent.Session
 	registry     *extensions.Registry
 	plugins      *extensions.Kernel
 	pluginIssues []extensions.SourceIssue
-	state        *client.Conversation
+	state        *agent.Conversation
 	operations   *operationOwner
 
 	transcript  *conversationView
@@ -63,7 +63,7 @@ type app struct {
 	queueDrawer *queueDrawer
 	status      *statusView
 	settings    settings.Config
-	options     client.RunOptions
+	options     agent.RunOptions
 	composer    kit.Composer
 	prompt      *promptView
 	commands    headless.Commands
@@ -72,18 +72,18 @@ type app struct {
 	stack       headless.Stack
 	queue       *promptqueue.Store
 
-	review             *client.Approval
+	review             *agent.Approval
 	reviewChoice       string
 	reviewForm         *headless.Form
 	reviewPane         reviewPane
 	reviewDialog       *kit.Dialog
-	sessionPicker      *picker[client.Session]
+	sessionPicker      *picker[agent.Session]
 	sessionDialog      *kit.Dialog
-	modelPicker        *picker[client.Model]
+	modelPicker        *picker[agent.Model]
 	modelDialog        *kit.Dialog
-	permissionPicker   *picker[client.PermissionMode]
+	permissionPicker   *picker[agent.PermissionMode]
 	permissionDialog   *kit.Dialog
-	question           *client.Question
+	question           *agent.Question
 	questionDialog     *kit.Dialog
 	questionText       map[string]*string
 	questionMulti      map[string]*[]string
@@ -94,7 +94,7 @@ type app struct {
 	queueDialog        *headless.Dialog
 	searchQuery        string
 	attachments        *attachment.Resolver
-	attachmentElements map[uint64]client.Attachment
+	attachmentElements map[uint64]agent.Attachment
 	history            promptHistory
 	commandSeq         uint64
 	commandOperations  map[uint64]commandOperation
@@ -103,7 +103,7 @@ type app struct {
 	streamSeq             uint64
 	dispatchingQueueEntry uint64
 	startRequest          string
-	pendingCancel         *client.CancelRun
+	pendingCancel         *agent.CancelRun
 	following             bool
 	stopClock             func()
 	started               time.Time
@@ -113,8 +113,8 @@ type app struct {
 
 type appConfig struct {
 	Context       context.Context
-	Runtime       client.Runtime
-	Snapshot      client.SessionSnapshot
+	Runtime       agent.Runtime
+	Snapshot      agent.SessionSnapshot
 	Registry      *extensions.Registry
 	Plugins       *extensions.Kernel
 	PluginIssues  []extensions.SourceIssue
@@ -136,7 +136,7 @@ func newApp(loop *program.InlineRuntime, cfg appConfig) *app {
 	a := &app{
 		ctx: cfg.Context, loop: loop, runtime: cfg.Runtime, session: cfg.Snapshot.Session, registry: cfg.Registry,
 		plugins: cfg.Plugins, pluginIssues: cfg.PluginIssues,
-		state:              client.NewConversation(),
+		state:              agent.NewConversation(),
 		operations:         newOperationOwner(cfg.Context),
 		transcript:         newConversationView(theme, glyphs, loop.Environment().Wheel(), syntax, cfg.Settings.UI.TranscriptRetain, cfg.Settings.UI.ToolDetails, loop.Clipboard()),
 		header:             newSessionHeader(theme, glyphs, cfg.Snapshot.Session),
@@ -148,7 +148,7 @@ func newApp(loop *program.InlineRuntime, cfg appConfig) *app {
 		options:            cfg.Settings.RunOptions(),
 		syntax:             syntax,
 		attachments:        cfg.Attachments,
-		attachmentElements: make(map[uint64]client.Attachment),
+		attachmentElements: make(map[uint64]agent.Attachment),
 		commandOperations:  make(map[uint64]commandOperation),
 	}
 	a.composer = kit.Composer{
@@ -210,8 +210,8 @@ func (a *app) wireTranscript(transcript *conversationView) {
 func (a *app) buildSessionPicker(theme kit.Theme, glyphs kit.Glyphs) {
 	a.sessionPicker = newPicker(theme, glyphs, "search sessions",
 		displayTitle,
-		func(session client.Session) string { return agoShort(session.UpdatedAt) + " · " + session.Workspace },
-		func(session client.Session) {
+		func(session agent.Session) string { return agoShort(session.UpdatedAt) + " · " + session.Workspace },
+		func(session agent.Session) {
 			a.sessionDialog.Dismiss()
 			a.switchSession(session.ID)
 		},
@@ -221,7 +221,7 @@ func (a *app) buildSessionPicker(theme kit.Theme, glyphs kit.Glyphs) {
 	a.sessionPicker.cancel = a.sessionDialog.Dismiss
 }
 
-func (a *app) restore(snapshot client.SessionSnapshot) {
+func (a *app) restore(snapshot agent.SessionSnapshot) {
 	if err := a.state.RestoreSnapshot(snapshot); err != nil {
 		a.fail(err)
 		return
@@ -233,7 +233,7 @@ func (a *app) restore(snapshot client.SessionSnapshot) {
 	a.restoreActivity(snapshot)
 }
 
-func presentSnapshot(view *conversationView, snapshot client.SessionSnapshot, registry *extensions.Registry) error {
+func presentSnapshot(view *conversationView, snapshot agent.SessionSnapshot, registry *extensions.Registry) error {
 	for _, envelope := range snapshot.Events {
 		if err := view.Apply(envelope.Event, registry); err != nil {
 			return fmt.Errorf("restore transcript at cursor %d: %w", envelope.Cursor, err)
@@ -242,15 +242,15 @@ func presentSnapshot(view *conversationView, snapshot client.SessionSnapshot, re
 	return nil
 }
 
-func (a *app) restoreActivity(snapshot client.SessionSnapshot) {
+func (a *app) restoreActivity(snapshot agent.SessionSnapshot) {
 	a.activity.Set(a.state.Plan())
 	a.header.SetUsage(a.state.Usage())
 	a.prompt.SetBusy(a.state.Busy())
 	switch a.state.Phase() {
-	case client.Waiting:
+	case agent.PhaseWaiting:
 		a.openInteraction(a.state.Interaction())
 		a.status.note("waiting for your answer")
-	case client.Running:
+	case agent.PhaseRunning:
 		if snapshot.Active == nil {
 			a.fail(errors.New("session snapshot has a running conversation without an active run"))
 			return
@@ -259,7 +259,7 @@ func (a *app) restoreActivity(snapshot client.SessionSnapshot) {
 		a.follow(func(context.Context) (subscription, error) {
 			return subscription{runID: snapshot.Active.ID, after: snapshot.Cursor}, nil
 		})
-	case client.Idle:
+	case agent.PhaseIdle:
 		if a.state.Outcome().Status != "" {
 			a.status.settled(a.state.Outcome(), a.state.Usage())
 		}
@@ -268,7 +268,7 @@ func (a *app) restoreActivity(snapshot client.SessionSnapshot) {
 	}
 }
 
-func displayTitle(session client.Session) string {
+func displayTitle(session agent.Session) string {
 	if strings.TrimSpace(session.Title) == "" {
 		return "untitled"
 	}
@@ -325,7 +325,7 @@ func (a *app) submit() {
 		// A command acts on the staged composer context. Clear its command text but
 		// put attachment elements back so /attachments and /detach can inspect or
 		// mutate them without accidentally sending a user turn.
-		a.restoreComposer(client.Message{Attachments: message.Attachments})
+		a.restoreComposer(agent.Message{Attachments: message.Attachments})
 		a.operations.Cancel(completionOperation)
 		a.completion.Dismiss()
 		a.runCommand(name, arg)
@@ -350,7 +350,7 @@ func (a *app) submit() {
 }
 
 func (a *app) message(label string) {
-	if a.state.Phase() == client.Running {
+	if a.state.Phase() == agent.PhaseRunning {
 		a.status.active(label)
 		return
 	}

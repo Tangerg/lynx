@@ -5,34 +5,34 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/Tangerg/lynx/app/cli/internal/client"
+	"github.com/Tangerg/lynx/app/cli/internal/agent"
 )
 
 type runtime interface {
-	CreateSession(context.Context, client.NewSession) (client.Session, error)
-	GetSession(context.Context, string) (client.SessionSnapshot, error)
+	CreateSession(context.Context, agent.NewSession) (agent.Session, error)
+	GetSession(context.Context, string) (agent.SessionSnapshot, error)
 }
 
 // Open restores the selected session or creates a new one in workspace.
-func Open(ctx context.Context, rt runtime, id, workspace string) (client.SessionSnapshot, error) {
+func Open(ctx context.Context, rt runtime, id, workspace string) (agent.SessionSnapshot, error) {
 	if id != "" {
 		snapshot, err := rt.GetSession(ctx, id)
 		if err != nil {
-			return client.SessionSnapshot{}, fmt.Errorf("open session: %w", err)
+			return agent.SessionSnapshot{}, fmt.Errorf("open session: %w", err)
 		}
 		if err := snapshot.Validate(); err != nil {
-			return client.SessionSnapshot{}, fmt.Errorf("open session: %w", err)
+			return agent.SessionSnapshot{}, fmt.Errorf("open session: %w", err)
 		}
 		return snapshot, nil
 	}
 
-	created, err := rt.CreateSession(ctx, client.NewSession{Workspace: workspace})
+	created, err := rt.CreateSession(ctx, agent.NewSession{Workspace: workspace})
 	if err != nil {
-		return client.SessionSnapshot{}, fmt.Errorf("create session: %w", err)
+		return agent.SessionSnapshot{}, fmt.Errorf("create session: %w", err)
 	}
-	snapshot := client.SessionSnapshot{Session: created}
+	snapshot := agent.SessionSnapshot{Session: created}
 	if err := snapshot.Validate(); err != nil {
-		return client.SessionSnapshot{}, fmt.Errorf("create session: %w", err)
+		return agent.SessionSnapshot{}, fmt.Errorf("create session: %w", err)
 	}
 	return snapshot, nil
 }

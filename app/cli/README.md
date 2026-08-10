@@ -1,6 +1,6 @@
 # Lyra CLI
 
-`app/cli` is Lyra's terminal client. It provides an interactive oolong TUI and a deterministic one-shot command for scripts and pipelines.
+`app/cli` is Lyra's terminal agent. It provides an interactive oolong TUI and a deterministic one-shot command for scripts and pipelines.
 
 The application currently runs against a scripted mock runtime. It prints that fact to stderr whenever a command opens the runtime; stdout therefore remains safe for pipes. No production agent, account, or remote service is contacted yet.
 
@@ -13,7 +13,7 @@ go run .
 go run . run "explain why this test is flaky"
 go run . run --json "summarize the change" > result.json
 go run . run --output-format streaming-json "trace the change" > run.ndjson
-go run . run -f internal/client/run.go "review this file"
+go run . run -f internal/agent/run.go "review this file"
 go run . sessions ls
 go run . sessions ls --json
 go run . approvals ls --json
@@ -43,10 +43,10 @@ The dependency direction follows clean architecture: product policy points inwar
 
 | Layer | Packages | Responsibility |
 | --- | --- | --- |
-| Domain and ports | `internal/client`, `internal/settings` | Validated session, run, event, interaction, approval, and configuration contracts. `client.Runtime` is the complete backend port; consumers use its narrower interfaces. |
+| Domain and ports | `internal/agent`, `internal/settings` | Validated session, run, event, interaction, approval, and configuration contracts. `agent.Runtime` is the complete backend port; consumers use its narrower interfaces. |
 | Application use cases | `internal/oneshot`, `internal/session`, `internal/promptqueue`, `internal/reconnect` | Unattended run lifecycle, session opening, session-scoped follow-up ownership, idempotent controls, and reconnect policy. |
 | Delivery adapters | `internal/cmd`, `internal/render`, `internal/terminal` | Cobra/Viper routing, text/JSON projections, and the oolong terminal UI. |
-| Infrastructure adapters | `internal/client/mock`, `internal/attachment`, `internal/sideload` | Scripted runtime, workspace-safe files, and out-of-process plugins. |
+| Infrastructure adapters | `internal/agent/mock`, `internal/attachment`, `internal/sideload` | Scripted runtime, workspace-safe files, and out-of-process plugins. |
 | Extension substrate | `internal/extensions` | Typed extension points, capability checks, dependency ordering, rollback, unload, and reload ownership. |
 | Composition root | `main.go` | Selects the runtime implementation, binds process streams and signals, and constructs the command tree. |
 
@@ -54,7 +54,7 @@ Architecture tests prevent the domain from importing Cobra, Viper, oolong, rende
 
 ### Replacing the mock runtime
 
-The mock is isolated behind [`client.Runtime`](internal/client/client.go). A real adapter must implement that port and preserve its documented contracts:
+The mock is isolated behind [`agent.Runtime`](internal/agent/ports.go). A real adapter must implement that port and preserve its documented contracts:
 
 - validate returned snapshots and envelopes;
 - make a non-empty `StartRun.RequestID` idempotent;

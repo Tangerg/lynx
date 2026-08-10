@@ -6,7 +6,7 @@ import (
 	"io"
 	"time"
 
-	"github.com/Tangerg/lynx/app/cli/internal/client"
+	"github.com/Tangerg/lynx/app/cli/internal/agent"
 )
 
 // JSON renders one event per line as a JSON object — newline-delimited JSON, so
@@ -15,7 +15,7 @@ import (
 // The shape is the CLI's own output contract, not the runtime's wire format. A
 // caller here wants what happened, already folded; the wire additionally carries
 // segment identity, replay windows and dedup keys that exist to make a
-// reconnecting client correct and would be noise in a pipe.
+// reconnecting consumer correct and would be noise in a pipe.
 type JSON struct {
 	enc *json.Encoder
 	err error
@@ -35,7 +35,7 @@ func NewJSON(w io.Writer) *JSON {
 type frame struct {
 	Type        string           `json:"type"`
 	EventID     string           `json:"eventId"`
-	Cursor      client.Cursor    `json:"cursor"`
+	Cursor      agent.Cursor     `json:"cursor"`
 	At          time.Time        `json:"at,omitzero"`
 	RunID       string           `json:"runId,omitzero"`
 	SessionID   string           `json:"sessionId,omitzero"`
@@ -136,11 +136,11 @@ type usageJSON struct {
 }
 
 // Render writes one line. As with [Text], the first error sticks.
-func (j *JSON) Render(envelope client.Envelope) error {
+func (j *JSON) Render(envelope agent.Envelope) error {
 	if j.err != nil {
 		return j.err
 	}
-	if err := client.ValidateEvent(envelope.Event); err != nil {
+	if err := agent.ValidateEvent(envelope.Event); err != nil {
 		j.err = fmt.Errorf("render JSON event: %w", err)
 		return j.err
 	}
@@ -160,30 +160,30 @@ func (j *JSON) Render(envelope client.Envelope) error {
 	return j.err
 }
 
-func encodeEventFrame(envelope client.Envelope) (frame, error) {
+func encodeEventFrame(envelope agent.Envelope) (frame, error) {
 	switch event := envelope.Event.(type) {
-	case client.RunStarted:
+	case agent.RunStarted:
 		return frame{Type: "run.started", RunID: event.RunID, SessionID: event.SessionID, Options: encodeRunOptions(event.Options)}, nil
-	case client.BlockStarted:
+	case agent.BlockStarted:
 		return frame{Type: "block.started", Block: encodeBlock(event.Block)}, nil
-	case client.BlockDelta:
+	case agent.BlockDelta:
 		return frame{Type: "block.delta", BlockID: event.BlockID, Text: event.Text}, nil
-	case client.BlockCompleted:
+	case agent.BlockCompleted:
 		return frame{Type: "block.completed", Block: encodeBlock(event.Block)}, nil
-	case client.PlanChanged:
+	case agent.PlanChanged:
 		return frame{Type: "plan.changed", Plan: encodePlan(event.Items)}, nil
-	case client.RunResumed:
+	case agent.RunResumed:
 		return frame{Type: "run.resumed", RunID: envelope.RunID, InterruptID: event.InterruptID}, nil
-	case client.RunInterrupted:
+	case agent.RunInterrupted:
 		return frame{Type: "run.interrupted", Interaction: encodeInteraction(event.Interaction)}, nil
-	case client.RunFinished:
+	case agent.RunFinished:
 		return encodeFinishedFrame(event), nil
 	default:
 		return frame{}, fmt.Errorf("render JSON event: unsupported event %T", envelope.Event)
 	}
 }
 
-func encodeFinishedFrame(event client.RunFinished) frame {
+func encodeFinishedFrame(event agent.RunFinished) frame {
 	return frame{
 		Type:    "run.finished",
 		Outcome: &outcomeJSON{Status: string(event.Outcome.Status), Error: event.Outcome.Error},
@@ -197,21 +197,21 @@ func encodeFinishedFrame(event client.RunFinished) frame {
 	}
 }
 
-func encodeRunOptions(options client.RunOptions) *runOptionsJSON {
+func encodeRunOptions(options agent.RunOptions) *runOptionsJSON {
 	return &runOptionsJSON{
 		Model: options.Model, Mode: string(options.Mode),
 		Permission: string(options.Permission), Effort: options.Effort,
 	}
 }
 
-func encodeInteraction(interaction client.Interaction) *interactionJSON {
+func encodeInteraction(interaction agent.Interaction) *interactionJSON {
 	switch item := interaction.(type) {
-	case client.Approval:
+	case agent.Approval:
 		return &interactionJSON{
 			Kind: "approval", InterruptID: item.InterruptID, Title: item.Title,
 			Detail: item.Detail, Diff: item.Diff, Risk: item.Risk, RuleHint: item.RuleHint,
 		}
-	case client.Question:
+	case agent.Question:
 		out := &interactionJSON{Kind: "question", InterruptID: item.InterruptID, Title: item.Title, Detail: item.Detail}
 		for _, field := range item.Fields {
 			encoded := questionFieldJSON{
@@ -236,7 +236,7 @@ func encodeInteraction(interaction client.Interaction) *interactionJSON {
 // is encoded per event.
 func (j *JSON) Close() error { return j.err }
 
-func encodeBlock(b client.Block) *blockFrame {
+func encodeBlock(b agent.Block) *blockFrame {
 	out := &blockFrame{ID: b.ID, Kind: string(b.Kind), Text: b.Text}
 	for _, attachment := range b.Attachments {
 		out.Attachments = append(out.Attachments, attachmentFrame{
@@ -263,7 +263,7 @@ func encodeBlock(b client.Block) *blockFrame {
 	return out
 }
 
-func encodePlan(items []client.PlanItem) []planFrame {
+func encodePlan(items []agent.PlanItem) []planFrame {
 	out := make([]planFrame, 0, len(items))
 	for _, it := range items {
 		out = append(out, planFrame{Title: it.Title, Status: string(it.Status)})

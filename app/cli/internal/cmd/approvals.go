@@ -9,7 +9,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/Tangerg/lynx/app/cli/internal/client"
+	"github.com/Tangerg/lynx/app/cli/internal/agent"
 )
 
 func newApprovalsCommand(provider runtimeProvider) *cobra.Command {
@@ -65,7 +65,7 @@ func completeApprovalRuleIDs(provider runtimeProvider) cobra.CompletionFunc {
 			return nil, cobra.ShellCompDirectiveError
 		}
 		rules, err := runtime.ListApprovalRules(cmd.Context())
-		if err != nil || client.ValidateApprovalRules(rules) != nil {
+		if err != nil || agent.ValidateApprovalRules(rules) != nil {
 			return nil, cobra.ShellCompDirectiveError
 		}
 		items := make([]string, 0, len(rules))
@@ -89,7 +89,7 @@ func listApprovalRules(cmd *cobra.Command, provider runtimeProvider, asJSON bool
 	if err != nil {
 		return err
 	}
-	if err := client.ValidateApprovalRules(rules); err != nil {
+	if err := agent.ValidateApprovalRules(rules); err != nil {
 		return fmt.Errorf("list approval rules: %w", err)
 	}
 	if asJSON {
@@ -117,7 +117,7 @@ type approvalRuleJSON struct {
 	Rule      string `json:"rule"`
 }
 
-func writeApprovalRulesJSON(cmd *cobra.Command, rules []client.ApprovalRule) error {
+func writeApprovalRulesJSON(cmd *cobra.Command, rules []agent.ApprovalRule) error {
 	output := approvalRulesJSON{Rules: make([]approvalRuleJSON, 0, len(rules))}
 	for _, rule := range rules {
 		output.Rules = append(output.Rules, approvalRuleJSON{
@@ -128,7 +128,7 @@ func writeApprovalRulesJSON(cmd *cobra.Command, rules []client.ApprovalRule) err
 	return json.NewEncoder(cmd.OutOrStdout()).Encode(output)
 }
 
-func writeApprovalRule(writer *tabwriter.Writer, rule client.ApprovalRule) error {
+func writeApprovalRule(writer *tabwriter.Writer, rule agent.ApprovalRule) error {
 	target := rule.Workspace
 	if target == "" {
 		target = rule.SessionID

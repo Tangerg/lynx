@@ -7,7 +7,7 @@ import (
 	"github.com/Tangerg/oolong/components/kit"
 	"github.com/Tangerg/oolong/core/grid"
 
-	"github.com/Tangerg/lynx/app/cli/internal/client"
+	"github.com/Tangerg/lynx/app/cli/internal/agent"
 )
 
 func TestUserMessageBlockUsesAQuietSurfaceWithoutChangingCopiedText(t *testing.T) {
@@ -53,10 +53,10 @@ func TestUserMessageBlockDegradesWithoutLosingTextAtMinimalWidth(t *testing.T) {
 }
 
 func TestUserPresenterKeepsAttachmentsInsideTheMessageSurface(t *testing.T) {
-	rendered := presentUser(Presentation{Theme: kit.Dark()}, client.Block{
-		Kind:        client.BlockUser,
+	rendered := presentUser(Presentation{Theme: kit.Dark()}, agent.Block{
+		Kind:        agent.BlockUser,
 		Text:        "review this",
-		Attachments: []client.Attachment{{Name: "design.md", MimeType: "text/markdown"}},
+		Attachments: []agent.Attachment{{Name: "design.md", MimeType: "text/markdown"}},
 	})
 	if len(rendered) != 1 {
 		t.Fatalf("presented blocks = %d, want 1", len(rendered))

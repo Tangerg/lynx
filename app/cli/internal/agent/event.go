@@ -1,4 +1,4 @@
-package client
+package agent
 
 import (
 	"slices"
@@ -27,7 +27,7 @@ func (e Envelope) Clone() Envelope {
 }
 
 // Event is one closed, presentation-oriented fact from a runtime adapter.
-type Event interface{ clientEvent() }
+type Event interface{ isEvent() }
 
 // RunStarted announces a logical run in the session timeline.
 type RunStarted struct {
@@ -64,14 +64,14 @@ type RunFinished struct {
 	Usage   Usage
 }
 
-func (RunStarted) clientEvent()     {}
-func (RunResumed) clientEvent()     {}
-func (BlockStarted) clientEvent()   {}
-func (BlockDelta) clientEvent()     {}
-func (BlockCompleted) clientEvent() {}
-func (PlanChanged) clientEvent()    {}
-func (RunInterrupted) clientEvent() {}
-func (RunFinished) clientEvent()    {}
+func (RunStarted) isEvent()     {}
+func (RunResumed) isEvent()     {}
+func (BlockStarted) isEvent()   {}
+func (BlockDelta) isEvent()     {}
+func (BlockCompleted) isEvent() {}
+func (PlanChanged) isEvent()    {}
+func (RunInterrupted) isEvent() {}
+func (RunFinished) isEvent()    {}
 
 // CloneEvent returns a detached copy of a known event payload.
 func CloneEvent(event Event) Event {

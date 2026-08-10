@@ -9,8 +9,8 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/Tangerg/lynx/app/cli/internal/client"
-	"github.com/Tangerg/lynx/app/cli/internal/client/mock"
+	"github.com/Tangerg/lynx/app/cli/internal/agent"
+	"github.com/Tangerg/lynx/app/cli/internal/agent/mock"
 	"github.com/Tangerg/lynx/app/cli/internal/cmd"
 )
 
@@ -25,7 +25,7 @@ func run() int {
 	defer stop()
 
 	root := cmd.NewRoot(cmd.Dependencies{
-		OpenRuntime: func(context.Context) (client.Runtime, error) {
+		OpenRuntime: func(context.Context) (agent.Runtime, error) {
 			return mock.New(), nil
 		},
 		RuntimeNotice: mockRuntimeNotice,

@@ -13,7 +13,7 @@ import (
 	"github.com/Tangerg/oolong/core/text"
 	"github.com/Tangerg/oolong/highlight"
 
-	"github.com/Tangerg/lynx/app/cli/internal/client"
+	"github.com/Tangerg/lynx/app/cli/internal/agent"
 )
 
 type reviewPane struct {
@@ -93,7 +93,7 @@ func (a *app) setReviewForm(initial string) {
 	a.reviewPane.form = dressed
 }
 
-func (a *app) openReview(approval client.Approval) {
+func (a *app) openReview(approval agent.Approval) {
 	cloned := approval
 	a.review = &cloned
 	a.setReviewForm(approvalDefault(a.settings.Approval.Remember))
@@ -116,15 +116,15 @@ func (a *app) openReview(approval client.Approval) {
 	a.reviewDialog.Show()
 }
 
-func (a *app) openInteraction(interaction client.Interaction) {
+func (a *app) openInteraction(interaction agent.Interaction) {
 	if a.review != nil || a.question != nil {
 		a.fail(errors.New("runtime opened a second interaction while one is active"))
 		return
 	}
 	switch item := interaction.(type) {
-	case client.Approval:
+	case agent.Approval:
 		a.openReview(item)
-	case client.Question:
+	case agent.Question:
 		a.openQuestion(item)
 	default:
 		a.fail(errors.New("runtime returned an unknown interaction"))
@@ -141,47 +141,47 @@ func (a *app) answerReview(choice string) {
 	a.status.active("resuming")
 	a.syncAnimation()
 	decision := approvalAnswer(choice)
-	if decision.Decision == client.ApprovalDeny {
+	if decision.Decision == agent.ApprovalDeny {
 		decision.Reason = "denied by the user in the terminal"
 	}
 	a.resumeInteraction(approval.InterruptID, decision)
 }
 
-func approvalDefault(scope client.RememberScope) string {
+func approvalDefault(scope agent.RememberScope) string {
 	switch scope {
-	case client.RememberSession:
+	case agent.RememberSession:
 		return "allow-session"
-	case client.RememberProject:
+	case agent.RememberProject:
 		return "allow-project"
-	case client.RememberGlobal:
+	case agent.RememberGlobal:
 		return "allow-global"
-	case client.RememberNone:
+	case agent.RememberNone:
 		return "allow-once"
 	default:
 		return "allow-once"
 	}
 }
 
-func approvalAnswer(choice string) client.ApprovalAnswer {
+func approvalAnswer(choice string) agent.ApprovalAnswer {
 	switch choice {
 	case "allow-session":
-		return client.ApprovalAnswer{Decision: client.ApprovalAllow, Remember: client.RememberSession}
+		return agent.ApprovalAnswer{Decision: agent.ApprovalAllow, Remember: agent.RememberSession}
 	case "allow-project":
-		return client.ApprovalAnswer{Decision: client.ApprovalAllow, Remember: client.RememberProject}
+		return agent.ApprovalAnswer{Decision: agent.ApprovalAllow, Remember: agent.RememberProject}
 	case "allow-global":
-		return client.ApprovalAnswer{Decision: client.ApprovalAllow, Remember: client.RememberGlobal}
+		return agent.ApprovalAnswer{Decision: agent.ApprovalAllow, Remember: agent.RememberGlobal}
 	case "allow-once":
-		return client.ApprovalAnswer{Decision: client.ApprovalAllow, Remember: client.RememberNone}
+		return agent.ApprovalAnswer{Decision: agent.ApprovalAllow, Remember: agent.RememberNone}
 	default:
-		return client.ApprovalAnswer{Decision: client.ApprovalDeny, Remember: client.RememberNone}
+		return agent.ApprovalAnswer{Decision: agent.ApprovalDeny, Remember: agent.RememberNone}
 	}
 }
 
-func (a *app) resumeInteraction(interruptID string, answer client.Answer) {
+func (a *app) resumeInteraction(interruptID string, answer agent.Answer) {
 	runID := a.state.RunID()
 	after := a.state.Cursor()
 	a.follow(func(ctx context.Context) (subscription, error) {
-		if err := a.runtime.ResumeRun(ctx, client.ResumeRun{RunID: runID, InterruptID: interruptID, Answer: answer}); err != nil {
+		if err := a.runtime.ResumeRun(ctx, agent.ResumeRun{RunID: runID, InterruptID: interruptID, Answer: answer}); err != nil {
 			return subscription{}, err
 		}
 		return subscription{runID: runID, after: after}, nil

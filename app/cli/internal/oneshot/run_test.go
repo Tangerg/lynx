@@ -8,44 +8,44 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/app/cli/internal/client"
-	"github.com/Tangerg/lynx/app/cli/internal/client/mock"
+	"github.com/Tangerg/lynx/app/cli/internal/agent"
+	"github.com/Tangerg/lynx/app/cli/internal/agent/mock"
 )
 
 type discardRenderer struct{}
 
-func (discardRenderer) Render(client.Envelope) error { return nil }
-func (discardRenderer) Close() error                 { return nil }
+func (discardRenderer) Render(agent.Envelope) error { return nil }
+func (discardRenderer) Close() error                { return nil }
 
 type countingRenderer struct {
 	rendered int
 	closed   int
 }
 
-func (r *countingRenderer) Render(client.Envelope) error { r.rendered++; return nil }
-func (r *countingRenderer) Close() error                 { r.closed++; return nil }
+func (r *countingRenderer) Render(agent.Envelope) error { r.rendered++; return nil }
+func (r *countingRenderer) Close() error                { r.closed++; return nil }
 
 type delayedStartResponse struct {
 	*mock.Runtime
 	accepted chan struct{}
 }
 
-func (r *delayedStartResponse) StartRun(ctx context.Context, input client.StartRun) (client.Run, error) {
+func (r *delayedStartResponse) StartRun(ctx context.Context, input agent.StartRun) (agent.Run, error) {
 	if _, err := r.Runtime.StartRun(ctx, input); err != nil {
-		return client.Run{}, err
+		return agent.Run{}, err
 	}
 	close(r.accepted)
 	<-ctx.Done()
-	return client.Run{}, context.Cause(ctx)
+	return agent.Run{}, context.Cause(ctx)
 }
 
 type lostStartResponses struct{ *mock.Runtime }
 
-func (r *lostStartResponses) StartRun(ctx context.Context, input client.StartRun) (client.Run, error) {
+func (r *lostStartResponses) StartRun(ctx context.Context, input agent.StartRun) (agent.Run, error) {
 	if _, err := r.Runtime.StartRun(ctx, input); err != nil {
-		return client.Run{}, err
+		return agent.Run{}, err
 	}
-	return client.Run{}, fmt.Errorf("start response lost: %w", client.ErrDisconnected)
+	return agent.Run{}, fmt.Errorf("start response lost: %w", agent.ErrDisconnected)
 }
 
 type invalidLifecycleRuntime struct {
@@ -53,31 +53,31 @@ type invalidLifecycleRuntime struct {
 	sessionID string
 }
 
-func (r *invalidLifecycleRuntime) StartRun(_ context.Context, input client.StartRun) (client.Run, error) {
-	return client.Run{ID: "run_invalid", SessionID: input.SessionID, Status: client.RunActive}, nil
+func (r *invalidLifecycleRuntime) StartRun(_ context.Context, input agent.StartRun) (agent.Run, error) {
+	return agent.Run{ID: "run_invalid", SessionID: input.SessionID, Status: agent.RunActive}, nil
 }
 
-func (r *invalidLifecycleRuntime) FollowRun(_ context.Context, input client.FollowRun) (client.Stream, error) {
-	return func(yield func(client.Envelope, error) bool) {
-		if !yield(client.Envelope{
+func (r *invalidLifecycleRuntime) FollowRun(_ context.Context, input agent.FollowRun) (agent.RunStream, error) {
+	return func(yield func(agent.Envelope, error) bool) {
+		if !yield(agent.Envelope{
 			ID: "event_started", Cursor: input.After + 1,
 			RunID: input.RunID, SessionID: r.sessionID,
-			Event: client.RunStarted{RunID: input.RunID, SessionID: r.sessionID},
+			Event: agent.RunStarted{RunID: input.RunID, SessionID: r.sessionID},
 		}, nil) {
 			return
 		}
-		yield(client.Envelope{
+		yield(agent.Envelope{
 			ID: "event_invalid", Cursor: input.After + 2,
 			RunID: input.RunID, SessionID: r.sessionID,
-			Event: client.RunStarted{RunID: input.RunID, SessionID: r.sessionID},
+			Event: agent.RunStarted{RunID: input.RunID, SessionID: r.sessionID},
 		}, nil)
 	}, nil
 }
 
 type invalidStartRuntime struct{ *mock.Runtime }
 
-func (r *invalidStartRuntime) StartRun(context.Context, client.StartRun) (client.Run, error) {
-	return client.Run{SessionID: "wrong", Status: client.RunActive}, nil
+func (r *invalidStartRuntime) StartRun(context.Context, agent.StartRun) (agent.Run, error) {
+	return agent.Run{SessionID: "wrong", Status: agent.RunActive}, nil
 }
 
 func TestRunRejectsEventsThatViolateTheConversationLifecycle(t *testing.T) {
@@ -87,12 +87,12 @@ func TestRunRejectsEventsThatViolateTheConversationLifecycle(t *testing.T) {
 	err := Run(t.Context(), Config{
 		Runtime:  &invalidLifecycleRuntime{Runtime: base, sessionID: sessionID},
 		Renderer: renderer,
-		Start: client.StartRun{
+		Start: agent.StartRun{
 			SessionID: sessionID,
-			Message:   client.Message{Text: "invalid lifecycle"},
+			Message:   agent.Message{Text: "invalid lifecycle"},
 		},
 	})
-	if !errors.Is(err, client.ErrInvalidTransition) {
+	if !errors.Is(err, agent.ErrInvalidTransition) {
 		t.Fatalf("run error = %v, want invalid transition", err)
 	}
 	if renderer.rendered != 1 {
@@ -117,9 +117,9 @@ func TestRunRejectsAnInvalidStartProjection(t *testing.T) {
 	err := Run(t.Context(), Config{
 		Runtime:  &invalidStartRuntime{Runtime: base},
 		Renderer: discardRenderer{},
-		Start: client.StartRun{
+		Start: agent.StartRun{
 			SessionID: firstSession(t, base),
-			Message:   client.Message{Text: "invalid start"},
+			Message:   agent.Message{Text: "invalid start"},
 		},
 	})
 	if err == nil || !strings.Contains(err.Error(), "start run response") {
@@ -136,9 +136,9 @@ func TestRunCancellationTargetsAStartWhoseResponseWasLost(t *testing.T) {
 	go func() {
 		result <- Run(ctx, Config{
 			Runtime: runtime, Renderer: discardRenderer{},
-			Start: client.StartRun{
+			Start: agent.StartRun{
 				SessionID: sessionID,
-				Message:   client.Message{Text: "cancel after acceptance"},
+				Message:   agent.Message{Text: "cancel after acceptance"},
 			},
 		})
 	}()
@@ -160,13 +160,13 @@ func TestRunCancellationTargetsAStartAfterItsRetryBudgetIsExhausted(t *testing.T
 	sessionID := firstSession(t, base)
 	err := Run(t.Context(), Config{
 		Runtime: &lostStartResponses{Runtime: base}, Renderer: discardRenderer{},
-		Start: client.StartRun{
+		Start: agent.StartRun{
 			SessionID: sessionID,
-			Message:   client.Message{Text: "lose every response"},
+			Message:   agent.Message{Text: "lose every response"},
 		},
 		ReconnectAttempts: 1,
 	})
-	if !errors.Is(err, client.ErrDisconnected) {
+	if !errors.Is(err, agent.ErrDisconnected) {
 		t.Fatalf("run error = %v, want exhausted transport failure", err)
 	}
 	requireCanceledSession(t, base, sessionID)
@@ -177,22 +177,22 @@ func slowRuntime() *mock.Runtime {
 	runtime.Script = func(string) mock.Script {
 		return mock.Script{Prelude: []mock.Step{{
 			Delay: time.Hour,
-			Event: client.RunFinished{Outcome: client.Outcome{Status: client.OutcomeCompleted}},
+			Event: agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCompleted}},
 		}}}
 	}
 	return runtime
 }
 
-func firstSession(t *testing.T, runtime client.SessionCatalog) string {
+func firstSession(t *testing.T, runtime agent.SessionCatalog) string {
 	t.Helper()
-	page, err := runtime.ListSessions(t.Context(), client.SessionQuery{})
+	page, err := runtime.ListSessions(t.Context(), agent.SessionQuery{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	return page.Items[0].ID
 }
 
-func requireCanceledSession(t *testing.T, runtime client.SessionReader, sessionID string) {
+func requireCanceledSession(t *testing.T, runtime agent.SessionReader, sessionID string) {
 	t.Helper()
 	snapshot, err := runtime.GetSession(t.Context(), sessionID)
 	if err != nil {
@@ -201,8 +201,8 @@ func requireCanceledSession(t *testing.T, runtime client.SessionReader, sessionI
 	if snapshot.Active != nil {
 		t.Fatalf("canceled start left an active run: %+v", snapshot.Active)
 	}
-	finished, ok := snapshot.Events[len(snapshot.Events)-1].Event.(client.RunFinished)
-	if !ok || finished.Outcome.Status != client.OutcomeCanceled {
+	finished, ok := snapshot.Events[len(snapshot.Events)-1].Event.(agent.RunFinished)
+	if !ok || finished.Outcome.Status != agent.OutcomeCanceled {
 		t.Fatalf("last event = %+v, want canceled run", snapshot.Events[len(snapshot.Events)-1])
 	}
 }

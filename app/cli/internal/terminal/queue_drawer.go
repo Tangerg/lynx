@@ -11,7 +11,7 @@ import (
 	"github.com/Tangerg/oolong/core/input"
 	"github.com/Tangerg/oolong/core/keymap"
 
-	"github.com/Tangerg/lynx/app/cli/internal/client"
+	"github.com/Tangerg/lynx/app/cli/internal/agent"
 	"github.com/Tangerg/lynx/app/cli/internal/promptqueue"
 )
 
@@ -45,7 +45,7 @@ type queuePresentation struct {
 
 type queueDrawerActions struct {
 	BeginEdit  func(uint64) error
-	SaveEdit   func(uint64, client.Message, bool) error
+	SaveEdit   func(uint64, agent.Message, bool) error
 	CancelEdit func(uint64) error
 	Remove     func(uint64) error
 	Move       func(uint64, int) error
@@ -68,7 +68,7 @@ type queueDrawer struct {
 	viewport   int
 
 	editingID      uint64
-	editingMessage client.Message
+	editingMessage agent.Message
 	editor         kit.Composer
 	focused        bool
 
@@ -331,7 +331,7 @@ func (q *queueDrawer) cancelEdit() {
 
 func (q *queueDrawer) cancelEditState() {
 	q.editingID = 0
-	q.editingMessage = client.Message{}
+	q.editingMessage = agent.Message{}
 	q.editor.Reset()
 	q.editor.Focus(false)
 }

@@ -9,10 +9,10 @@ import (
 	"github.com/Tangerg/oolong/core/keymap"
 	"github.com/Tangerg/oolong/core/layout"
 
-	"github.com/Tangerg/lynx/app/cli/internal/client"
+	"github.com/Tangerg/lynx/app/cli/internal/agent"
 )
 
-func (a *app) openQuestion(question client.Question) {
+func (a *app) openQuestion(question agent.Question) {
 	a.prepareQuestion(question)
 	fields, err := a.buildQuestionFields(question.Fields)
 	if err != nil {
@@ -22,15 +22,15 @@ func (a *app) openQuestion(question client.Question) {
 	a.showQuestionDialog(question, fields)
 }
 
-func (a *app) prepareQuestion(question client.Question) {
-	cloned := client.CloneInteraction(question).(client.Question)
+func (a *app) prepareQuestion(question agent.Question) {
+	cloned := agent.CloneInteraction(question).(agent.Question)
 	a.question = &cloned
 	a.questionText = make(map[string]*string)
 	a.questionMulti = make(map[string]*[]string)
 	a.questionBool = make(map[string]*bool)
 }
 
-func (a *app) buildQuestionFields(specifications []client.QuestionField) ([]headless.Field, error) {
+func (a *app) buildQuestionFields(specifications []agent.QuestionField) ([]headless.Field, error) {
 	fields := make([]headless.Field, 0, len(specifications))
 	for _, specification := range specifications {
 		field, err := a.buildQuestionField(specification)
@@ -45,16 +45,16 @@ func (a *app) buildQuestionFields(specifications []client.QuestionField) ([]head
 	return fields, nil
 }
 
-func (a *app) buildQuestionField(specification client.QuestionField) (headless.Field, error) {
+func (a *app) buildQuestionField(specification agent.QuestionField) (headless.Field, error) {
 	label := questionFieldLabel(specification)
 	switch specification.Kind {
-	case client.QuestionText:
+	case agent.QuestionText:
 		return a.buildQuestionText(specification, label), nil
-	case client.QuestionSingle:
+	case agent.QuestionSingle:
 		return a.buildQuestionSingle(specification, label), nil
-	case client.QuestionMulti:
+	case agent.QuestionMulti:
 		return a.buildQuestionMulti(specification, label), nil
-	case client.QuestionBool:
+	case agent.QuestionBool:
 		value := new(bool)
 		a.questionBool[specification.ID] = value
 		return &headless.Confirm{Label: label, Value: headless.Bind(value), Yes: "yes", No: "no"}, nil
@@ -63,7 +63,7 @@ func (a *app) buildQuestionField(specification client.QuestionField) (headless.F
 	}
 }
 
-func (a *app) buildQuestionText(specification client.QuestionField, label string) headless.Field {
+func (a *app) buildQuestionText(specification agent.QuestionField, label string) headless.Field {
 	value := new(string)
 	a.questionText[specification.ID] = value
 	field := &headless.Text{Label: label, Placeholder: specification.Placeholder, Value: headless.Bind(value)}
@@ -74,7 +74,7 @@ func (a *app) buildQuestionText(specification client.QuestionField, label string
 	return field
 }
 
-func (a *app) buildQuestionSingle(specification client.QuestionField, label string) headless.Field {
+func (a *app) buildQuestionSingle(specification agent.QuestionField, label string) headless.Field {
 	value := new(string)
 	options := questionOptions(specification.Options)
 	*value = defaultQuestionOption(specification.Options)
@@ -87,7 +87,7 @@ func (a *app) buildQuestionSingle(specification client.QuestionField, label stri
 	return field
 }
 
-func (a *app) buildQuestionMulti(specification client.QuestionField, label string) headless.Field {
+func (a *app) buildQuestionMulti(specification agent.QuestionField, label string) headless.Field {
 	value := new([]string)
 	a.questionMulti[specification.ID] = value
 	field := &headless.MultiSelect[string]{Label: label, Value: headless.Bind(value), Rows: min(len(specification.Options), 5)}
@@ -98,14 +98,14 @@ func (a *app) buildQuestionMulti(specification client.QuestionField, label strin
 	return field
 }
 
-func questionFieldLabel(specification client.QuestionField) string {
+func questionFieldLabel(specification agent.QuestionField) string {
 	if specification.Description == "" {
 		return specification.Label
 	}
 	return specification.Label + " — " + specification.Description
 }
 
-func defaultQuestionOption(options []client.QuestionOption) string {
+func defaultQuestionOption(options []agent.QuestionOption) string {
 	for _, option := range options {
 		if option.Recommended {
 			return option.Value
@@ -117,7 +117,7 @@ func defaultQuestionOption(options []client.QuestionOption) string {
 	return ""
 }
 
-func (a *app) showQuestionDialog(question client.Question, fields []headless.Field) {
+func (a *app) showQuestionDialog(question agent.Question, fields []headless.Field) {
 	keys := headless.DefaultFormKeys()
 	form := headless.NewForm(fields...)
 	form.Keys = keys
@@ -146,8 +146,8 @@ func (a *app) answerQuestion(canceled bool) {
 	a.resumeInteraction(question.InterruptID, answer)
 }
 
-func (a *app) questionAnswer(question client.Question, canceled bool) client.QuestionAnswer {
-	answer := client.QuestionAnswer{Canceled: canceled}
+func (a *app) questionAnswer(question agent.Question, canceled bool) agent.QuestionAnswer {
+	answer := agent.QuestionAnswer{Canceled: canceled}
 	if canceled {
 		return answer
 	}
@@ -158,17 +158,17 @@ func (a *app) questionAnswer(question client.Question, canceled bool) client.Que
 	return answer
 }
 
-func (a *app) questionValues(field client.QuestionField) []string {
+func (a *app) questionValues(field agent.QuestionField) []string {
 	switch field.Kind {
-	case client.QuestionText, client.QuestionSingle:
+	case agent.QuestionText, agent.QuestionSingle:
 		if value := a.questionText[field.ID]; value != nil {
 			return []string{*value}
 		}
-	case client.QuestionMulti:
+	case agent.QuestionMulti:
 		if value := a.questionMulti[field.ID]; value != nil {
 			return append([]string(nil), (*value)...)
 		}
-	case client.QuestionBool:
+	case agent.QuestionBool:
 		if value := a.questionBool[field.ID]; value != nil && *value {
 			return []string{"true"}
 		}
@@ -178,7 +178,7 @@ func (a *app) questionValues(field client.QuestionField) []string {
 	return nil
 }
 
-func questionOptions(options []client.QuestionOption) []headless.Option[string] {
+func questionOptions(options []agent.QuestionOption) []headless.Option[string] {
 	out := make([]headless.Option[string], 0, len(options))
 	for _, option := range options {
 		label := option.Label

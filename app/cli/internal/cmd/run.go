@@ -11,8 +11,8 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
+	"github.com/Tangerg/lynx/app/cli/internal/agent"
 	"github.com/Tangerg/lynx/app/cli/internal/attachment"
-	"github.com/Tangerg/lynx/app/cli/internal/client"
 	"github.com/Tangerg/lynx/app/cli/internal/oneshot"
 	"github.com/Tangerg/lynx/app/cli/internal/render"
 	"github.com/Tangerg/lynx/app/cli/internal/session"
@@ -86,7 +86,7 @@ func (f *runFlags) execute(cmd *cobra.Command, args []string, provider runtimePr
 	return oneshot.Run(cmd.Context(), oneshot.Config{
 		Runtime:  runtime,
 		Renderer: runRenderer(cmd, format),
-		Start: client.StartRun{
+		Start: agent.StartRun{
 			SessionID: opened.Session.ID,
 			Message:   message,
 			Options:   value.RunOptions(),
@@ -136,16 +136,16 @@ func completeOutputFormat(_ *cobra.Command, _ []string, toComplete string) ([]st
 	return matched, cobra.ShellCompDirectiveNoFileComp
 }
 
-func (f *runFlags) message(cmd *cobra.Command, args []string, workspace string) (client.Message, error) {
+func (f *runFlags) message(cmd *cobra.Command, args []string, workspace string) (agent.Message, error) {
 	text, textErr := prompt(cmd, args)
 	if textErr != nil && (!errors.Is(textErr, errNoPrompt) || len(f.files) == 0) {
-		return client.Message{}, textErr
+		return agent.Message{}, textErr
 	}
 	attached, err := resolveAttachments(cmd.Context(), workspace, f.files)
 	if err != nil {
-		return client.Message{}, err
+		return agent.Message{}, err
 	}
-	return client.Message{Text: text, Attachments: attached}, nil
+	return agent.Message{Text: text, Attachments: attached}, nil
 }
 
 func runRenderer(cmd *cobra.Command, format outputFormat) oneshot.Renderer {
@@ -179,7 +179,7 @@ func completeRunFile(cmd *cobra.Command, _ []string, value string) ([]string, co
 	return out, cobra.ShellCompDirectiveNoFileComp
 }
 
-func resolveAttachments(ctx context.Context, workspace string, paths []string) ([]client.Attachment, error) {
+func resolveAttachments(ctx context.Context, workspace string, paths []string) ([]agent.Attachment, error) {
 	if len(paths) == 0 {
 		return nil, nil
 	}
@@ -188,7 +188,7 @@ func resolveAttachments(ctx context.Context, workspace string, paths []string) (
 		return nil, err
 	}
 	seen := make(map[string]struct{}, len(paths))
-	out := make([]client.Attachment, 0, len(paths))
+	out := make([]agent.Attachment, 0, len(paths))
 	for _, path := range paths {
 		item, err := resolver.Resolve(ctx, path)
 		if err != nil {
@@ -197,8 +197,8 @@ func resolveAttachments(ctx context.Context, workspace string, paths []string) (
 		if _, duplicate := seen[item.Path]; duplicate {
 			continue
 		}
-		if len(out) >= client.MaxMessageAttachments {
-			return nil, fmt.Errorf("at most %d unique attachments are allowed", client.MaxMessageAttachments)
+		if len(out) >= agent.MaxMessageAttachments {
+			return nil, fmt.Errorf("at most %d unique attachments are allowed", agent.MaxMessageAttachments)
 		}
 		seen[item.Path] = struct{}{}
 		out = append(out, item)

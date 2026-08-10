@@ -1,5 +1,5 @@
 // Package reconnect owns transport retry policy shared by interactive and
-// headless delivery adapters. It classifies symbolic client errors, never error
+// headless delivery adapters. It classifies symbolic agent-port errors, never error
 // strings, and contains no runtime or terminal implementation.
 package reconnect
 
@@ -8,7 +8,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/Tangerg/lynx/app/cli/internal/client"
+	"github.com/Tangerg/lynx/app/cli/internal/agent"
 )
 
 type Policy struct {
@@ -73,7 +73,7 @@ func ControlValue[T any](ctx context.Context, policy Policy, operation func() (T
 		if err == nil {
 			return value, nil
 		}
-		if !errors.Is(err, client.ErrDisconnected) {
+		if !errors.Is(err, agent.ErrDisconnected) {
 			return zero, err
 		}
 		delay, retry := policy.Next(failure, err)
@@ -87,5 +87,5 @@ func ControlValue[T any](ctx context.Context, policy Policy, operation func() (T
 }
 
 func retryable(err error) bool {
-	return errors.Is(err, client.ErrDisconnected) || errors.Is(err, client.ErrEventGap)
+	return errors.Is(err, agent.ErrDisconnected) || errors.Is(err, agent.ErrEventGap)
 }

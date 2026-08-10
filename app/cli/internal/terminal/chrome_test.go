@@ -10,16 +10,16 @@ import (
 	"github.com/Tangerg/oolong/core/grid"
 	"github.com/Tangerg/oolong/core/input"
 
-	"github.com/Tangerg/lynx/app/cli/internal/client"
+	"github.com/Tangerg/lynx/app/cli/internal/agent"
 	"github.com/Tangerg/lynx/app/cli/internal/settings"
 )
 
 func TestSessionHeaderUsesSpaceProgressively(t *testing.T) {
-	header := newSessionHeader(kit.Dark(), kit.Unicode(), client.Session{
+	header := newSessionHeader(kit.Dark(), kit.Unicode(), agent.Session{
 		Title:     "Architecture review",
 		Workspace: "/workspace/lynx",
 	})
-	header.SetUsage(client.Usage{InputTokens: 1_234, OutputTokens: 56_789})
+	header.SetUsage(agent.Usage{InputTokens: 1_234, OutputTokens: 56_789})
 
 	if got := header.Measure(headerMinWidth - 1); got != 0 {
 		t.Fatalf("narrow header height = %d, want 0", got)
@@ -43,13 +43,13 @@ func TestSessionHeaderUsesSpaceProgressively(t *testing.T) {
 
 func TestActivityViewCentersACompactWindowOnTheActiveStep(t *testing.T) {
 	activity := newActivityView(kit.Dark(), kit.Unicode())
-	activity.Set([]client.PlanItem{
-		{Title: "Inspect references", Status: client.PlanDone},
-		{Title: "Define shell", Status: client.PlanDone},
-		{Title: "Build prompt", Status: client.PlanPending},
-		{Title: "Refine tools", Status: client.PlanActive},
-		{Title: "Add responsive tests", Status: client.PlanPending},
-		{Title: "Run quality gates", Status: client.PlanPending},
+	activity.Set([]agent.PlanItem{
+		{Title: "Inspect references", Status: agent.PlanDone},
+		{Title: "Define shell", Status: agent.PlanDone},
+		{Title: "Build prompt", Status: agent.PlanPending},
+		{Title: "Refine tools", Status: agent.PlanActive},
+		{Title: "Add responsive tests", Status: agent.PlanPending},
+		{Title: "Run quality gates", Status: agent.PlanPending},
 	})
 
 	got := drawStatic(t, activity, 44, activity.Measure(44))
@@ -117,9 +117,9 @@ func TestShellRendersAtSupportedAndConstrainedTerminalSizes(t *testing.T) {
 	}
 	theme, glyphs := kit.Dark(), kit.Unicode()
 	transcript := testConversationView(t)
-	header := newSessionHeader(theme, glyphs, client.Session{Title: "New session", Workspace: "/workspace/lynx"})
+	header := newSessionHeader(theme, glyphs, agent.Session{Title: "New session", Workspace: "/workspace/lynx"})
 	activity := newActivityView(theme, glyphs)
-	activity.Set([]client.PlanItem{{Title: "Inspect", Status: client.PlanActive}})
+	activity.Set([]agent.PlanItem{{Title: "Inspect", Status: agent.PlanActive}})
 	status := newStatusView(theme, glyphs, settings.Default().RunOptions())
 	composer := kit.Composer{Theme: theme, Prompt: glyphs.Marker + " ", MaxRows: 6}
 	prompt := newPromptView(theme, glyphs, keys, &composer, settings.Default().RunOptions())
@@ -146,9 +146,9 @@ func TestShellUsesTwoRowChromeOnTinyTerminals(t *testing.T) {
 	theme, glyphs := kit.Dark(), kit.Unicode()
 	transcript := testConversationView(t)
 	transcript.Append(&kit.Message{Theme: theme, Speaker: "lyra", Body: "VISIBLE_TRANSCRIPT"})
-	header := newSessionHeader(theme, glyphs, client.Session{Title: "Hidden title", Workspace: "/hidden/workspace"})
+	header := newSessionHeader(theme, glyphs, agent.Session{Title: "Hidden title", Workspace: "/hidden/workspace"})
 	activity := newActivityView(theme, glyphs)
-	activity.Set([]client.PlanItem{{Title: "HIDDEN_PLAN", Status: client.PlanActive}})
+	activity.Set([]agent.PlanItem{{Title: "HIDDEN_PLAN", Status: agent.PlanActive}})
 	composer := kit.Composer{Theme: theme, Prompt: glyphs.Marker + " ", MaxRows: 6}
 	composer.Editor().Keys = keys
 	composer.Editor().SetText("TINY_DRAFT")
@@ -195,7 +195,7 @@ func TestResponsiveShellPreservesTranscriptFocusAndDraft(t *testing.T) {
 	composer.Editor().SetText("PRESERVED_DRAFT")
 	prompt := newPromptView(theme, glyphs, keys, &composer, settings.Default().RunOptions())
 	shell := newShellView(
-		newSessionHeader(theme, glyphs, client.Session{}), transcript,
+		newSessionHeader(theme, glyphs, agent.Session{}), transcript,
 		newActivityView(theme, glyphs), newQueueView(theme, glyphs),
 		newStatusView(theme, glyphs, settings.Default().RunOptions()), prompt,
 	)
@@ -228,7 +228,7 @@ func TestShellMovesFocusBetweenPromptAndTranscript(t *testing.T) {
 	composer := kit.Composer{Theme: theme, Prompt: glyphs.Marker + " ", MaxRows: 6}
 	prompt := newPromptView(theme, glyphs, keys, &composer, settings.Default().RunOptions())
 	shell := newShellView(
-		newSessionHeader(theme, glyphs, client.Session{}), transcript,
+		newSessionHeader(theme, glyphs, agent.Session{}), transcript,
 		newActivityView(theme, glyphs), newQueueView(theme, glyphs),
 		newStatusView(theme, glyphs, settings.Default().RunOptions()), prompt,
 	)

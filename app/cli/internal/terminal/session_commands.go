@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Tangerg/lynx/app/cli/internal/agent"
 	"github.com/Tangerg/lynx/app/cli/internal/attachment"
-	"github.com/Tangerg/lynx/app/cli/internal/client"
 )
 
 func (a *app) ShowSessions() {
@@ -17,17 +17,17 @@ func (a *app) ShowSessions() {
 	}
 	a.message("loading sessions")
 	runOperation(a, pickerCatalogOperation, true,
-		func(ctx context.Context) (client.SessionPage, error) {
-			page, err := a.runtime.ListSessions(ctx, client.SessionQuery{Limit: 100})
+		func(ctx context.Context) (agent.SessionPage, error) {
+			page, err := a.runtime.ListSessions(ctx, agent.SessionQuery{Limit: 100})
 			if err != nil {
-				return client.SessionPage{}, err
+				return agent.SessionPage{}, err
 			}
 			if err := page.Validate(); err != nil {
-				return client.SessionPage{}, fmt.Errorf("list sessions: %w", err)
+				return agent.SessionPage{}, fmt.Errorf("list sessions: %w", err)
 			}
 			return page, nil
 		},
-		func(page client.SessionPage, err error) {
+		func(page agent.SessionPage, err error) {
 			if err != nil {
 				a.message("could not load sessions: " + err.Error())
 				return
@@ -43,11 +43,11 @@ func (a *app) ShowSessions() {
 func (a *app) NewSession() {
 	workspace := a.session.Workspace
 	runSessionChange(a, "creating session",
-		func(ctx context.Context) (client.SessionSnapshot, error) {
-			created, err := a.runtime.CreateSession(ctx, client.NewSession{Workspace: workspace})
-			return client.SessionSnapshot{Session: created}, err
+		func(ctx context.Context) (agent.SessionSnapshot, error) {
+			created, err := a.runtime.CreateSession(ctx, agent.NewSession{Workspace: workspace})
+			return agent.SessionSnapshot{Session: created}, err
 		},
-		func(snapshot client.SessionSnapshot) error { return a.installSnapshot(snapshot) },
+		func(snapshot agent.SessionSnapshot) error { return a.installSnapshot(snapshot) },
 	)
 }
 
@@ -63,14 +63,14 @@ func (a *app) RenameSession(title string) {
 	}
 	sessionID := a.session.ID
 	runSessionChange(a, "renaming session",
-		func(ctx context.Context) (client.Session, error) {
+		func(ctx context.Context) (agent.Session, error) {
 			latest, err := a.runtime.GetSession(ctx, sessionID)
 			if err != nil {
-				return client.Session{}, err
+				return agent.Session{}, err
 			}
-			return a.runtime.UpdateSession(ctx, client.UpdateSession{SessionID: sessionID, Title: title, Revision: latest.Session.Revision})
+			return a.runtime.UpdateSession(ctx, agent.UpdateSession{SessionID: sessionID, Title: title, Revision: latest.Session.Revision})
 		},
-		func(updated client.Session) error {
+		func(updated agent.Session) error {
 			if err := updated.Validate(); err != nil {
 				return fmt.Errorf("rename session: %w", err)
 			}
@@ -89,14 +89,14 @@ func (a *app) RenameSession(title string) {
 func (a *app) ForkSession(title string) {
 	source, at := a.session.ID, a.state.Cursor()
 	runSessionChange(a, "forking session",
-		func(ctx context.Context) (client.SessionSnapshot, error) {
-			forked, err := a.runtime.ForkSession(ctx, client.ForkSession{SessionID: source, At: at, Title: strings.TrimSpace(title)})
+		func(ctx context.Context) (agent.SessionSnapshot, error) {
+			forked, err := a.runtime.ForkSession(ctx, agent.ForkSession{SessionID: source, At: at, Title: strings.TrimSpace(title)})
 			if err != nil {
-				return client.SessionSnapshot{}, err
+				return agent.SessionSnapshot{}, err
 			}
 			return a.runtime.GetSession(ctx, forked.ID)
 		},
-		func(snapshot client.SessionSnapshot) error { return a.installSnapshot(snapshot) },
+		func(snapshot agent.SessionSnapshot) error { return a.installSnapshot(snapshot) },
 	)
 }
 
@@ -106,8 +106,8 @@ func (a *app) switchSession(id string) {
 		return
 	}
 	runSessionChange(a, "loading session",
-		func(ctx context.Context) (client.SessionSnapshot, error) { return a.runtime.GetSession(ctx, id) },
-		func(snapshot client.SessionSnapshot) error { return a.installSnapshot(snapshot) },
+		func(ctx context.Context) (agent.SessionSnapshot, error) { return a.runtime.GetSession(ctx, id) },
+		func(snapshot agent.SessionSnapshot) error { return a.installSnapshot(snapshot) },
 	)
 }
 
@@ -140,7 +140,7 @@ func runSessionChange[T any](a *app, label string, work func(context.Context) (T
 	}
 }
 
-func (a *app) installSnapshot(snapshot client.SessionSnapshot) error {
+func (a *app) installSnapshot(snapshot agent.SessionSnapshot) error {
 	if err := snapshot.Validate(); err != nil {
 		return fmt.Errorf("install session: %w", err)
 	}
@@ -148,7 +148,7 @@ func (a *app) installSnapshot(snapshot client.SessionSnapshot) error {
 	if err != nil {
 		return fmt.Errorf("session attachments: %w", err)
 	}
-	next := client.NewConversation()
+	next := agent.NewConversation()
 	if err := next.RestoreSnapshot(snapshot); err != nil {
 		return fmt.Errorf("install session: %w", err)
 	}
@@ -189,7 +189,7 @@ func (a *app) installSnapshot(snapshot client.SessionSnapshot) error {
 	a.listenForSearch()
 	a.loop.Session().SetTitle("lyra — " + displayTitle(snapshot.Session))
 	a.restoreActivity(snapshot)
-	if a.state.Phase() == client.Idle {
+	if a.state.Phase() == agent.PhaseIdle {
 		a.message("session · " + displayTitle(snapshot.Session))
 	}
 	return nil

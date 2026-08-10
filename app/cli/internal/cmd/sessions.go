@@ -11,7 +11,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/Tangerg/lynx/app/cli/internal/client"
+	"github.com/Tangerg/lynx/app/cli/internal/agent"
 	"github.com/Tangerg/lynx/app/cli/internal/render"
 )
 
@@ -34,7 +34,7 @@ func newSessionsCommand(provider runtimeProvider) *cobra.Command {
 
 func newSessionsListCommand(provider runtimeProvider) *cobra.Command {
 	var (
-		query  client.SessionQuery
+		query  agent.SessionQuery
 		asJSON bool
 	)
 	cmd := &cobra.Command{
@@ -98,7 +98,7 @@ type sessionJSON struct {
 	Revision  int64     `json:"revision"`
 }
 
-func writeSessionPageJSON(cmd *cobra.Command, page client.SessionPage) error {
+func writeSessionPageJSON(cmd *cobra.Command, page agent.SessionPage) error {
 	output := sessionPageJSON{Items: make([]sessionJSON, 0, len(page.Items)), NextCursor: page.NextCursor}
 	for _, session := range page.Items {
 		output.Items = append(output.Items, sessionJSON{
@@ -137,11 +137,11 @@ func newSessionsShowCommand(provider runtimeProvider) *cobra.Command {
 }
 
 type sessionRenderer interface {
-	Render(client.Envelope) error
+	Render(agent.Envelope) error
 	Close() error
 }
 
-func writeSessionSnapshot(cmd *cobra.Command, snapshot client.SessionSnapshot, asJSON bool) (writeErr error) {
+func writeSessionSnapshot(cmd *cobra.Command, snapshot agent.SessionSnapshot, asJSON bool) (writeErr error) {
 	var output sessionRenderer = render.NewText(cmd.OutOrStdout())
 	if asJSON {
 		output = render.NewJSON(cmd.OutOrStdout())
@@ -169,7 +169,7 @@ func newSessionsRenameCommand(provider runtimeProvider) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			updated, err := runtime.UpdateSession(cmd.Context(), client.UpdateSession{SessionID: args[0], Title: args[1], Revision: revision})
+			updated, err := runtime.UpdateSession(cmd.Context(), agent.UpdateSession{SessionID: args[0], Title: args[1], Revision: revision})
 			if err != nil {
 				return err
 			}
@@ -203,7 +203,7 @@ func newSessionsForkCommand(provider runtimeProvider) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			forked, err := runtime.ForkSession(cmd.Context(), client.ForkSession{SessionID: args[0], At: client.Cursor(at), Title: title})
+			forked, err := runtime.ForkSession(cmd.Context(), agent.ForkSession{SessionID: args[0], At: agent.Cursor(at), Title: title})
 			if err != nil {
 				return err
 			}
@@ -239,7 +239,7 @@ func newSessionsDeleteCommand(provider runtimeProvider) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if err := runtime.DeleteSession(cmd.Context(), client.DeleteSession{SessionID: args[0], Revision: revision}); err != nil {
+			if err := runtime.DeleteSession(cmd.Context(), agent.DeleteSession{SessionID: args[0], Revision: revision}); err != nil {
 				return err
 			}
 			_, err = fmt.Fprintln(cmd.OutOrStdout(), args[0])
@@ -268,7 +268,7 @@ func completeSessionIDs(provider runtimeProvider) cobra.CompletionFunc {
 		if err != nil {
 			return nil, cobra.ShellCompDirectiveError
 		}
-		page, err := runtime.ListSessions(cmd.Context(), client.SessionQuery{Limit: 100, Search: toComplete})
+		page, err := runtime.ListSessions(cmd.Context(), agent.SessionQuery{Limit: 100, Search: toComplete})
 		if err != nil {
 			return nil, cobra.ShellCompDirectiveError
 		}

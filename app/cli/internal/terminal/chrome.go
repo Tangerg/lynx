@@ -11,7 +11,7 @@ import (
 	"github.com/Tangerg/oolong/core/grid"
 	"github.com/Tangerg/oolong/core/text"
 
-	"github.com/Tangerg/lynx/app/cli/internal/client"
+	"github.com/Tangerg/lynx/app/cli/internal/agent"
 )
 
 const (
@@ -23,17 +23,17 @@ const (
 type sessionHeader struct {
 	theme   kit.Theme
 	glyphs  kit.Glyphs
-	session client.Session
-	usage   client.Usage
+	session agent.Session
+	usage   agent.Usage
 }
 
-func newSessionHeader(theme kit.Theme, glyphs kit.Glyphs, session client.Session) *sessionHeader {
+func newSessionHeader(theme kit.Theme, glyphs kit.Glyphs, session agent.Session) *sessionHeader {
 	return &sessionHeader{theme: theme, glyphs: glyphs, session: session}
 }
 
-func (h *sessionHeader) SetSession(session client.Session) { h.session = session }
+func (h *sessionHeader) SetSession(session agent.Session) { h.session = session }
 
-func (h *sessionHeader) SetUsage(usage client.Usage) { h.usage = usage }
+func (h *sessionHeader) SetUsage(usage agent.Usage) { h.usage = usage }
 
 func (h *sessionHeader) Measure(width int) int {
 	if width < headerMinWidth {
@@ -81,7 +81,7 @@ func displayWorkspace(path string) string {
 	return path
 }
 
-func headerUsageLabel(usage client.Usage) string {
+func headerUsageLabel(usage agent.Usage) string {
 	if usage.InputTokens == 0 && usage.OutputTokens == 0 {
 		return ""
 	}
@@ -108,14 +108,14 @@ func compactTokens(tokens int64) string {
 type activityView struct {
 	theme  kit.Theme
 	glyphs kit.Glyphs
-	items  []client.PlanItem
+	items  []agent.PlanItem
 }
 
 func newActivityView(theme kit.Theme, glyphs kit.Glyphs) *activityView {
 	return &activityView{theme: theme, glyphs: glyphs}
 }
 
-func (a *activityView) Set(items []client.PlanItem) {
+func (a *activityView) Set(items []agent.PlanItem) {
 	a.items = append(a.items[:0], items...)
 }
 
@@ -157,11 +157,11 @@ func (a *activityView) Draw(view grid.View) {
 		item := a.items[index]
 		mark, label, style := a.glyphs.Free, "pending", a.theme.Muted
 		switch item.Status {
-		case client.PlanActive:
+		case agent.PlanActive:
 			mark, label, style = a.glyphs.Marker, "active", a.theme.Accent
-		case client.PlanDone:
+		case agent.PlanDone:
 			mark, label, style = a.glyphs.Taken, "done", a.theme.Success
-		case client.PlanPending:
+		case agent.PlanPending:
 		default:
 		}
 		view.Text(0, row, a.glyphs.Vertical, a.theme.Divider)
@@ -174,13 +174,13 @@ func (a *activityView) Draw(view grid.View) {
 	}
 }
 
-func activityProgress(items []client.PlanItem) (done, active int) {
+func activityProgress(items []agent.PlanItem) (done, active int) {
 	active = -1
 	for index, item := range items {
 		switch item.Status {
-		case client.PlanDone:
+		case agent.PlanDone:
 			done++
-		case client.PlanActive:
+		case agent.PlanActive:
 			active = index
 		}
 	}
@@ -205,18 +205,18 @@ type statusView struct {
 	glyphs  kit.Glyphs
 	doing   string
 	elapsed string
-	usage   client.Usage
-	outcome client.Outcome
+	usage   agent.Usage
+	outcome agent.Outcome
 	status  kit.Status
 	busy    bool
-	options client.RunOptions
+	options agent.RunOptions
 }
 
-func newStatusView(theme kit.Theme, glyphs kit.Glyphs, options client.RunOptions) *statusView {
+func newStatusView(theme kit.Theme, glyphs kit.Glyphs, options agent.RunOptions) *statusView {
 	return &statusView{theme: theme, glyphs: glyphs, doing: "ready", options: options}
 }
 
-func (s *statusView) Reset(options client.RunOptions) {
+func (s *statusView) Reset(options agent.RunOptions) {
 	theme, glyphs := s.theme, s.glyphs
 	*s = statusView{theme: theme, glyphs: glyphs, doing: "ready", options: options}
 }
@@ -240,11 +240,11 @@ func (s *statusView) Draw(view grid.View) {
 	}
 	style := s.theme.Muted
 	switch s.outcome.Status {
-	case client.OutcomeCompleted:
+	case agent.OutcomeCompleted:
 		style = s.theme.Success
-	case client.OutcomeCanceled:
+	case agent.OutcomeCanceled:
 		style = s.theme.Warning
-	case client.OutcomeFailed:
+	case agent.OutcomeFailed:
 		style = s.theme.Danger
 	}
 	left := s.doing
@@ -257,9 +257,9 @@ func (s *statusView) Draw(view grid.View) {
 	view.Text(width-rightWidth, 0, right, s.theme.Subtle)
 }
 
-func (s *statusView) setOptions(options client.RunOptions) { s.options = options }
+func (s *statusView) setOptions(options agent.RunOptions) { s.options = options }
 
-func optionsLabel(options client.RunOptions) string {
+func optionsLabel(options agent.RunOptions) string {
 	parts := make([]string, 0, 4)
 	parts = append(parts, modelLabel(options.Model))
 	if options.Effort != "" {
@@ -286,15 +286,15 @@ func (s *statusView) tick(elapsed time.Duration) {
 	s.elapsed = fmt.Sprintf("%4.1fs", elapsed.Seconds())
 }
 
-func (s *statusView) settled(outcome client.Outcome, usage client.Usage) {
+func (s *statusView) settled(outcome agent.Outcome, usage agent.Usage) {
 	s.outcome, s.usage, s.elapsed = outcome, usage, ""
 	s.busy = false
 	switch outcome.Status {
-	case client.OutcomeCompleted:
+	case agent.OutcomeCompleted:
 		s.doing = "complete"
-	case client.OutcomeCanceled:
+	case agent.OutcomeCanceled:
 		s.doing = "canceled"
-	case client.OutcomeFailed:
+	case agent.OutcomeFailed:
 		s.doing = "failed: " + outcome.Error
 	default:
 		s.doing = "ready"
@@ -303,19 +303,19 @@ func (s *statusView) settled(outcome client.Outcome, usage client.Usage) {
 
 func (s *statusView) active(label string) {
 	s.doing = label
-	s.outcome = client.Outcome{}
+	s.outcome = agent.Outcome{}
 	s.elapsed = ""
 	s.busy = true
 }
 
 func (s *statusView) note(label string) {
 	s.doing = label
-	s.outcome = client.Outcome{}
+	s.outcome = agent.Outcome{}
 	s.busy = false
 }
 
-func usageLabel(usage client.Usage) string {
-	if usage == (client.Usage{}) {
+func usageLabel(usage agent.Usage) string {
+	if usage == (agent.Usage{}) {
 		return ""
 	}
 	parts := []string{"↑" + thousands(usage.InputTokens), "↓" + thousands(usage.OutputTokens)}

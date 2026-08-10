@@ -15,7 +15,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/Tangerg/lynx/app/cli/internal/client"
+	"github.com/Tangerg/lynx/app/cli/internal/agent"
 )
 
 // maxToolOutputLines caps how much of a tool's output is shown. A test run that
@@ -53,11 +53,11 @@ func NewText(w io.Writer) *Text {
 
 // Render writes one event. The first error is remembered and returned by every
 // later call, so a caller may render a whole run and check once.
-func (t *Text) Render(envelope client.Envelope) error {
+func (t *Text) Render(envelope agent.Envelope) error {
 	if t.err != nil {
 		return t.err
 	}
-	if err := client.ValidateEvent(envelope.Event); err != nil {
+	if err := agent.ValidateEvent(envelope.Event); err != nil {
 		t.err = fmt.Errorf("render text event: %w", err)
 		return t.err
 	}
@@ -65,23 +65,23 @@ func (t *Text) Render(envelope client.Envelope) error {
 	return t.err
 }
 
-func (t *Text) renderEvent(event client.Event) {
+func (t *Text) renderEvent(event agent.Event) {
 	switch event := event.(type) {
-	case client.RunStarted:
+	case agent.RunStarted:
 		// A run's identity is machinery, not content.
-	case client.BlockStarted:
+	case agent.BlockStarted:
 		t.begin(event.Block)
-	case client.BlockDelta:
+	case agent.BlockDelta:
 		t.delta(event)
-	case client.BlockCompleted:
+	case agent.BlockCompleted:
 		t.finish(event.Block)
-	case client.PlanChanged:
+	case agent.PlanChanged:
 		t.plan(event.Items)
-	case client.RunResumed:
+	case agent.RunResumed:
 		// Control identity is not reader-facing text.
-	case client.RunInterrupted:
+	case agent.RunInterrupted:
 		t.interrupted(event.Interaction)
-	case client.RunFinished:
+	case agent.RunFinished:
 		t.finished(event)
 	default:
 		t.err = fmt.Errorf("render text event: unsupported event %T", event)
@@ -94,20 +94,20 @@ func (t *Text) Close() error {
 	return t.err
 }
 
-func (t *Text) begin(b client.Block) {
+func (t *Text) begin(b agent.Block) {
 	switch b.Kind {
-	case client.BlockAssistant:
+	case agent.BlockAssistant:
 		t.blank()
 		t.streaming[b.ID] = struct{}{}
 		t.write(b.Text)
-	case client.BlockReasoning, client.BlockTool, client.BlockUser, client.BlockNotice, client.BlockError:
+	case agent.BlockReasoning, agent.BlockTool, agent.BlockUser, agent.BlockNotice, agent.BlockError:
 		body := &strings.Builder{}
 		body.WriteString(b.Text)
 		t.pending[b.ID] = body
 	}
 }
 
-func (t *Text) delta(d client.BlockDelta) {
+func (t *Text) delta(d agent.BlockDelta) {
 	if _, streaming := t.streaming[d.BlockID]; streaming {
 		t.write(d.Text)
 		return
@@ -117,7 +117,7 @@ func (t *Text) delta(d client.BlockDelta) {
 	}
 }
 
-func (t *Text) finish(b client.Block) {
+func (t *Text) finish(b agent.Block) {
 	if _, streaming := t.streaming[b.ID]; streaming {
 		delete(t.streaming, b.ID)
 		t.endLine()
@@ -129,7 +129,7 @@ func (t *Text) finish(b client.Block) {
 	t.renderCompletedBlock(b, text)
 }
 
-func (t *Text) completedText(block client.Block) string {
+func (t *Text) completedText(block agent.Block) string {
 	if block.Text != "" {
 		return block.Text
 	}
@@ -139,27 +139,27 @@ func (t *Text) completedText(block client.Block) string {
 	return ""
 }
 
-func (t *Text) renderCompletedBlock(b client.Block, text string) {
+func (t *Text) renderCompletedBlock(b agent.Block, text string) {
 	switch b.Kind {
-	case client.BlockUser:
+	case agent.BlockUser:
 		t.userBlock(b, text)
-	case client.BlockAssistant:
+	case agent.BlockAssistant:
 		t.proseBlock(text)
-	case client.BlockReasoning:
+	case agent.BlockReasoning:
 		t.blank()
 		t.block("· ", text)
-	case client.BlockTool:
+	case agent.BlockTool:
 		t.tool(b)
-	case client.BlockNotice:
+	case agent.BlockNotice:
 		t.blank()
 		t.block("! ", text)
-	case client.BlockError:
+	case agent.BlockError:
 		t.blank()
 		t.block("× ", text)
 	}
 }
 
-func (t *Text) userBlock(block client.Block, text string) {
+func (t *Text) userBlock(block agent.Block, text string) {
 	t.blank()
 	if text != "" {
 		t.block("› ", text)
@@ -175,14 +175,14 @@ func (t *Text) proseBlock(text string) {
 	t.endLine()
 }
 
-func (t *Text) tool(b client.Block) {
+func (t *Text) tool(b agent.Block) {
 	call := b.Tool
 	if call == nil {
 		return
 	}
 	// A running tool announces itself only once its result is in: printing a
 	// header, then a body arriving later, reads as two events rather than one.
-	if call.Status == client.ToolRunning {
+	if call.Status == agent.ToolRunning {
 		return
 	}
 	t.blank()
@@ -191,7 +191,7 @@ func (t *Text) tool(b client.Block) {
 	t.toolVerdict(call)
 }
 
-func (t *Text) toolHeader(call *client.ToolCall) {
+func (t *Text) toolHeader(call *agent.ToolCall) {
 	head := "● " + textToolName(call)
 	primary := textToolPrimary(call)
 	if primary != "" {
@@ -203,7 +203,7 @@ func (t *Text) toolHeader(call *client.ToolCall) {
 	t.line(head)
 }
 
-func (t *Text) toolBody(call *client.ToolCall) {
+func (t *Text) toolBody(call *agent.ToolCall) {
 	if call.Output != "" {
 		lines := strings.Split(strings.TrimRight(call.Output, "\n"), "\n")
 		shown := min(len(lines), maxToolOutputLines)
@@ -219,17 +219,17 @@ func (t *Text) toolBody(call *client.ToolCall) {
 	}
 }
 
-func (t *Text) toolVerdict(call *client.ToolCall) {
+func (t *Text) toolVerdict(call *agent.ToolCall) {
 	// The verdict goes last, under what it is a verdict on.
 	mark := "✓"
 	switch call.Status {
-	case client.ToolError:
+	case agent.ToolError:
 		mark = "✗"
-	case client.ToolCanceled:
+	case agent.ToolCanceled:
 		mark = "−"
 	}
 	status := "  " + mark
-	if call.Status == client.ToolCanceled {
+	if call.Status == agent.ToolCanceled {
 		status += " canceled"
 	}
 	if call.ExitCode != nil && *call.ExitCode != 0 {
@@ -241,21 +241,21 @@ func (t *Text) toolVerdict(call *client.ToolCall) {
 	t.line(status)
 }
 
-func textToolName(call *client.ToolCall) string {
+func textToolName(call *agent.ToolCall) string {
 	switch call.Kind {
-	case client.ToolShell:
+	case agent.ToolShell:
 		return "shell"
-	case client.ToolEdit:
+	case agent.ToolEdit:
 		return "edit"
-	case client.ToolRead:
+	case agent.ToolRead:
 		return "read"
-	case client.ToolSearch:
+	case agent.ToolSearch:
 		return "search"
-	case client.ToolWeb:
+	case agent.ToolWeb:
 		return "web"
-	case client.ToolTask:
+	case agent.ToolTask:
 		return "task"
-	case client.ToolUnknown:
+	case agent.ToolUnknown:
 		if call.Name != "" {
 			return call.Name
 		}
@@ -265,18 +265,18 @@ func textToolName(call *client.ToolCall) string {
 	}
 }
 
-func textToolPrimary(call *client.ToolCall) string {
+func textToolPrimary(call *agent.ToolCall) string {
 	var value string
 	switch call.Kind {
-	case client.ToolShell:
+	case agent.ToolShell:
 		value = call.Command
-	case client.ToolEdit, client.ToolRead:
+	case agent.ToolEdit, agent.ToolRead:
 		value = call.Path
-	case client.ToolSearch:
+	case agent.ToolSearch:
 		value = call.Query
-	case client.ToolWeb:
+	case agent.ToolWeb:
 		value = call.URL
-	case client.ToolUnknown, client.ToolTask:
+	case agent.ToolUnknown, agent.ToolTask:
 		// These kinds have no more specific primary field.
 	default:
 	}
@@ -292,7 +292,7 @@ func (t *Text) diff(d string) {
 	}
 }
 
-func (t *Text) plan(items []client.PlanItem) {
+func (t *Text) plan(items []agent.PlanItem) {
 	if len(items) == 0 {
 		return
 	}
@@ -301,11 +301,11 @@ func (t *Text) plan(items []client.PlanItem) {
 	for _, it := range items {
 		mark := "☐"
 		switch it.Status {
-		case client.PlanActive:
+		case agent.PlanActive:
 			mark = "▸"
-		case client.PlanDone:
+		case agent.PlanDone:
 			mark = "☑"
-		case client.PlanPending:
+		case agent.PlanPending:
 			// The empty checkbox is already selected.
 		default:
 		}
@@ -313,10 +313,10 @@ func (t *Text) plan(items []client.PlanItem) {
 	}
 }
 
-func (t *Text) interrupted(interaction client.Interaction) {
+func (t *Text) interrupted(interaction agent.Interaction) {
 	t.blank()
 	switch item := interaction.(type) {
-	case client.Approval:
+	case agent.Approval:
 		t.line("? " + item.Title)
 		if item.Detail != "" {
 			t.block("  ", item.Detail)
@@ -324,7 +324,7 @@ func (t *Text) interrupted(interaction client.Interaction) {
 		if item.Diff != "" {
 			t.diff(item.Diff)
 		}
-	case client.Question:
+	case agent.Question:
 		t.line("? " + item.Title)
 		for _, field := range item.Fields {
 			t.line("  - " + field.Label)
@@ -332,9 +332,9 @@ func (t *Text) interrupted(interaction client.Interaction) {
 	}
 }
 
-func (t *Text) finished(e client.RunFinished) {
+func (t *Text) finished(e agent.RunFinished) {
 	t.blank()
-	if e.Outcome.Status != client.OutcomeCompleted {
+	if e.Outcome.Status != agent.OutcomeCompleted {
 		msg := string(e.Outcome.Status)
 		if e.Outcome.Error != "" {
 			msg += ": " + e.Outcome.Error

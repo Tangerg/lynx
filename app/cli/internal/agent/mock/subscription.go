@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/Tangerg/lynx/app/cli/internal/client"
+	"github.com/Tangerg/lynx/app/cli/internal/agent"
 )
 
-func (r *Runtime) FollowRun(ctx context.Context, in client.FollowRun) (client.Stream, error) {
+func (r *Runtime) FollowRun(ctx context.Context, in agent.FollowRun) (agent.RunStream, error) {
 	if err := in.Validate(); err != nil {
 		return nil, fmt.Errorf("mock: %w", err)
 	}
@@ -19,18 +19,18 @@ func (r *Runtime) FollowRun(ctx context.Context, in client.FollowRun) (client.St
 	return subscription.stream, nil
 }
 
-func (r *Runtime) openSubscription(in client.FollowRun) (*runState, SubscriptionFault, error) {
+func (r *Runtime) openSubscription(in agent.FollowRun) (*runState, SubscriptionFault, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	run, ok := r.runs[in.RunID]
 	if !ok {
-		return nil, SubscriptionFault{}, fmt.Errorf("%w: %s", client.ErrRunNotFound, in.RunID)
+		return nil, SubscriptionFault{}, fmt.Errorf("%w: %s", agent.ErrRunNotFound, in.RunID)
 	}
 	if in.After < run.startedAfter {
 		return nil, SubscriptionFault{}, fmt.Errorf("mock: cursor %d predates run start cursor %d", in.After, run.startedAfter)
 	}
 	session := r.sessions[run.sessionID]
-	latest := client.Cursor(len(session.events))
+	latest := agent.Cursor(len(session.events))
 	if in.After > latest {
 		return nil, SubscriptionFault{}, fmt.Errorf("mock: cursor %d is after session cursor %d", in.After, latest)
 	}
@@ -42,12 +42,12 @@ type runSubscription struct {
 	runtime  *Runtime
 	ctx      context.Context
 	run      *runState
-	after    client.Cursor
+	after    agent.Cursor
 	fault    SubscriptionFault
 	position int
 }
 
-func (s *runSubscription) stream(yield func(client.Envelope, error) bool) {
+func (s *runSubscription) stream(yield func(agent.Envelope, error) bool) {
 	for {
 		next, active, changed := s.next()
 		if next != nil {
@@ -62,7 +62,7 @@ func (s *runSubscription) stream(yield func(client.Envelope, error) bool) {
 	}
 }
 
-func (s *runSubscription) next() (*client.Envelope, bool, <-chan struct{}) {
+func (s *runSubscription) next() (*agent.Envelope, bool, <-chan struct{}) {
 	s.runtime.mu.Lock()
 	defer s.runtime.mu.Unlock()
 	session := s.runtime.sessions[s.run.sessionID]
@@ -71,12 +71,12 @@ func (s *runSubscription) next() (*client.Envelope, bool, <-chan struct{}) {
 			continue
 		}
 		cloned := cloneEnvelope(envelope)
-		return &cloned, s.run.status == client.RunActive, session.changed
+		return &cloned, s.run.status == agent.RunActive, session.changed
 	}
-	return nil, s.run.status == client.RunActive, session.changed
+	return nil, s.run.status == agent.RunActive, session.changed
 }
 
-func (s *runSubscription) deliver(next client.Envelope, yield func(client.Envelope, error) bool) bool {
+func (s *runSubscription) deliver(next agent.Envelope, yield func(agent.Envelope, error) bool) bool {
 	s.position++
 	if s.fault.Kind == FaultGap && s.position == s.fault.After {
 		s.after = next.Cursor
@@ -87,18 +87,18 @@ func (s *runSubscription) deliver(next client.Envelope, yield func(client.Envelo
 		return false
 	}
 	switch next.Event.(type) {
-	case client.RunInterrupted, client.RunFinished:
+	case agent.RunInterrupted, agent.RunFinished:
 		return false
 	default:
 	}
 	if s.fault.Kind == FaultDisconnect && s.position == s.fault.After {
-		yield(client.Envelope{}, fmt.Errorf("%w after cursor %d", client.ErrDisconnected, s.after))
+		yield(agent.Envelope{}, fmt.Errorf("%w after cursor %d", agent.ErrDisconnected, s.after))
 		return false
 	}
 	return true
 }
 
-func (s *runSubscription) injectDeliveredFault(next client.Envelope, yield func(client.Envelope, error) bool) bool {
+func (s *runSubscription) injectDeliveredFault(next agent.Envelope, yield func(agent.Envelope, error) bool) bool {
 	if s.position != s.fault.After {
 		return true
 	}
@@ -117,12 +117,12 @@ func (s *runSubscription) injectDeliveredFault(next client.Envelope, yield func(
 	}
 }
 
-func (s *runSubscription) awaitChange(changed <-chan struct{}, yield func(client.Envelope, error) bool) bool {
+func (s *runSubscription) awaitChange(changed <-chan struct{}, yield func(agent.Envelope, error) bool) bool {
 	select {
 	case <-changed:
 		return true
 	case <-s.ctx.Done():
-		yield(client.Envelope{}, context.Cause(s.ctx))
+		yield(agent.Envelope{}, context.Cause(s.ctx))
 		return false
 	}
 }

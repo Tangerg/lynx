@@ -8,51 +8,51 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/app/cli/internal/client"
+	"github.com/Tangerg/lynx/app/cli/internal/agent"
 )
 
 // script is one of each event, small enough that the expected text can be read
 // in full.
-func script() []client.Envelope {
-	events := []client.Event{
-		client.RunStarted{RunID: "run_1", SessionID: "ses_1"},
-		client.BlockCompleted{Block: client.Block{ID: "p", Kind: client.BlockUser, Text: "why?"}},
-		client.PlanChanged{Items: []client.PlanItem{
-			{Title: "Look", Status: client.PlanDone},
-			{Title: "Fix", Status: client.PlanActive},
-			{Title: "Verify", Status: client.PlanPending},
+func script() []agent.Envelope {
+	events := []agent.Event{
+		agent.RunStarted{RunID: "run_1", SessionID: "ses_1"},
+		agent.BlockCompleted{Block: agent.Block{ID: "p", Kind: agent.BlockUser, Text: "why?"}},
+		agent.PlanChanged{Items: []agent.PlanItem{
+			{Title: "Look", Status: agent.PlanDone},
+			{Title: "Fix", Status: agent.PlanActive},
+			{Title: "Verify", Status: agent.PlanPending},
 		}},
-		client.BlockStarted{Block: client.Block{ID: "m", Kind: client.BlockAssistant}},
-		client.BlockDelta{BlockID: "m", Text: "one "},
-		client.BlockDelta{BlockID: "m", Text: "two"},
-		client.BlockCompleted{Block: client.Block{ID: "m", Kind: client.BlockAssistant, Text: "one two"}},
-		client.BlockStarted{Block: client.Block{ID: "t", Kind: client.BlockTool, Tool: &client.ToolCall{
-			Kind: client.ToolShell, Name: "shell", Summary: "go test ./...", Status: client.ToolRunning,
+		agent.BlockStarted{Block: agent.Block{ID: "m", Kind: agent.BlockAssistant}},
+		agent.BlockDelta{BlockID: "m", Text: "one "},
+		agent.BlockDelta{BlockID: "m", Text: "two"},
+		agent.BlockCompleted{Block: agent.Block{ID: "m", Kind: agent.BlockAssistant, Text: "one two"}},
+		agent.BlockStarted{Block: agent.Block{ID: "t", Kind: agent.BlockTool, Tool: &agent.ToolCall{
+			Kind: agent.ToolShell, Name: "shell", Summary: "go test ./...", Status: agent.ToolRunning,
 		}}},
-		client.BlockCompleted{Block: client.Block{ID: "t", Kind: client.BlockTool, Tool: &client.ToolCall{
-			Kind: client.ToolShell, Name: "shell", Summary: "go test ./...", Status: client.ToolOK,
+		agent.BlockCompleted{Block: agent.Block{ID: "t", Kind: agent.BlockTool, Tool: &agent.ToolCall{
+			Kind: agent.ToolShell, Name: "shell", Summary: "go test ./...", Status: agent.ToolOK,
 			Output: "ok\nFAIL", Duration: 1500 * time.Millisecond,
 		}}},
-		client.RunFinished{
-			Outcome: client.Outcome{Status: client.OutcomeCompleted},
-			Usage:   client.Usage{InputTokens: 12345, OutputTokens: 678, CachedTokens: 900, CostUSD: 0.0412, Duration: 2 * time.Second},
+		agent.RunFinished{
+			Outcome: agent.Outcome{Status: agent.OutcomeCompleted},
+			Usage:   agent.Usage{InputTokens: 12345, OutputTokens: 678, CachedTokens: 900, CostUSD: 0.0412, Duration: 2 * time.Second},
 		},
 	}
-	out := make([]client.Envelope, len(events))
+	out := make([]agent.Envelope, len(events))
 	for i, event := range events {
-		out[i] = client.Envelope{ID: fmt.Sprintf("event_%d", i+1), Cursor: client.Cursor(i + 1), RunID: "run_1", SessionID: "ses_1", Event: event}
+		out[i] = agent.Envelope{ID: fmt.Sprintf("event_%d", i+1), Cursor: agent.Cursor(i + 1), RunID: "run_1", SessionID: "ses_1", Event: event}
 	}
 	return out
 }
 
-func envelope(event client.Event) client.Envelope {
-	return client.Envelope{ID: "event", Cursor: 1, Event: event}
+func envelope(event agent.Event) agent.Envelope {
+	return agent.Envelope{ID: "event", Cursor: 1, Event: event}
 }
 
 func renderAll(t *testing.T, r interface {
-	Render(client.Envelope) error
+	Render(agent.Envelope) error
 	Close() error
-}, events []client.Envelope,
+}, events []agent.Envelope,
 ) {
 	t.Helper()
 	for _, ev := range events {
@@ -97,10 +97,10 @@ func TestTextStreamsAssistantProseAsItArrives(t *testing.T) {
 	var buf bytes.Buffer
 	text := NewText(&buf)
 
-	if err := text.Render(envelope(client.BlockStarted{Block: client.Block{ID: "m", Kind: client.BlockAssistant}})); err != nil {
+	if err := text.Render(envelope(agent.BlockStarted{Block: agent.Block{ID: "m", Kind: agent.BlockAssistant}})); err != nil {
 		t.Fatal(err)
 	}
-	if err := text.Render(envelope(client.BlockDelta{BlockID: "m", Text: "half"})); err != nil {
+	if err := text.Render(envelope(agent.BlockDelta{BlockID: "m", Text: "half"})); err != nil {
 		t.Fatal(err)
 	}
 	// The point of streaming: the words are out before the block completes.
@@ -112,14 +112,14 @@ func TestTextStreamsAssistantProseAsItArrives(t *testing.T) {
 func TestTextRoutesInterleavedAssistantDeltasWithoutDuplicatingCompletion(t *testing.T) {
 	var buf bytes.Buffer
 	text := NewText(&buf)
-	for _, event := range []client.Event{
-		client.BlockStarted{Block: client.Block{ID: "first", Kind: client.BlockAssistant}},
-		client.BlockDelta{BlockID: "first", Text: "FIRST_PART"},
-		client.BlockStarted{Block: client.Block{ID: "second", Kind: client.BlockAssistant}},
-		client.BlockDelta{BlockID: "second", Text: "SECOND_PART"},
-		client.BlockDelta{BlockID: "first", Text: "FIRST_TAIL"},
-		client.BlockCompleted{Block: client.Block{ID: "first", Kind: client.BlockAssistant, Text: "FIRST_PARTFIRST_TAIL"}},
-		client.BlockCompleted{Block: client.Block{ID: "second", Kind: client.BlockAssistant, Text: "SECOND_PART"}},
+	for _, event := range []agent.Event{
+		agent.BlockStarted{Block: agent.Block{ID: "first", Kind: agent.BlockAssistant}},
+		agent.BlockDelta{BlockID: "first", Text: "FIRST_PART"},
+		agent.BlockStarted{Block: agent.Block{ID: "second", Kind: agent.BlockAssistant}},
+		agent.BlockDelta{BlockID: "second", Text: "SECOND_PART"},
+		agent.BlockDelta{BlockID: "first", Text: "FIRST_TAIL"},
+		agent.BlockCompleted{Block: agent.Block{ID: "first", Kind: agent.BlockAssistant, Text: "FIRST_PARTFIRST_TAIL"}},
+		agent.BlockCompleted{Block: agent.Block{ID: "second", Kind: agent.BlockAssistant, Text: "SECOND_PART"}},
 	} {
 		if err := text.Render(envelope(event)); err != nil {
 			t.Fatal(err)
@@ -137,16 +137,16 @@ func TestTextHoldsNonProseUntilItsBlockCompletes(t *testing.T) {
 	var buf bytes.Buffer
 	text := NewText(&buf)
 
-	if err := text.Render(envelope(client.BlockStarted{Block: client.Block{ID: "r", Kind: client.BlockReasoning}})); err != nil {
+	if err := text.Render(envelope(agent.BlockStarted{Block: agent.Block{ID: "r", Kind: agent.BlockReasoning}})); err != nil {
 		t.Fatal(err)
 	}
-	if err := text.Render(envelope(client.BlockDelta{BlockID: "r", Text: "thinking"})); err != nil {
+	if err := text.Render(envelope(agent.BlockDelta{BlockID: "r", Text: "thinking"})); err != nil {
 		t.Fatal(err)
 	}
 	if buf.Len() != 0 {
 		t.Fatalf("reasoning leaked before completing: %q", buf.String())
 	}
-	if err := text.Render(envelope(client.BlockCompleted{Block: client.Block{ID: "r", Kind: client.BlockReasoning}})); err != nil {
+	if err := text.Render(envelope(agent.BlockCompleted{Block: agent.Block{ID: "r", Kind: agent.BlockReasoning}})); err != nil {
 		t.Fatal(err)
 	}
 	if got := buf.String(); !strings.Contains(got, "· thinking") {
@@ -157,8 +157,8 @@ func TestTextHoldsNonProseUntilItsBlockCompletes(t *testing.T) {
 func TestTextIndentsContinuationLines(t *testing.T) {
 	var buf bytes.Buffer
 	text := NewText(&buf)
-	if err := text.Render(envelope(client.BlockCompleted{Block: client.Block{
-		ID: "r", Kind: client.BlockReasoning, Text: "first\nsecond",
+	if err := text.Render(envelope(agent.BlockCompleted{Block: agent.Block{
+		ID: "r", Kind: agent.BlockReasoning, Text: "first\nsecond",
 	}})); err != nil {
 		t.Fatal(err)
 	}
@@ -174,8 +174,8 @@ func TestTextCapsToolOutput(t *testing.T) {
 	}
 	var buf bytes.Buffer
 	text := NewText(&buf)
-	if err := text.Render(envelope(client.BlockCompleted{Block: client.Block{ID: "t", Kind: client.BlockTool, Tool: &client.ToolCall{
-		Kind: client.ToolShell, Name: "shell", Status: client.ToolOK, Output: strings.Join(lines, "\n"),
+	if err := text.Render(envelope(agent.BlockCompleted{Block: agent.Block{ID: "t", Kind: agent.BlockTool, Tool: &agent.ToolCall{
+		Kind: agent.ToolShell, Name: "shell", Status: agent.ToolOK, Output: strings.Join(lines, "\n"),
 	}}})); err != nil {
 		t.Fatal(err)
 	}
@@ -191,8 +191,8 @@ func TestTextCapsToolOutput(t *testing.T) {
 func TestTextDistinguishesCanceledToolsFromErrors(t *testing.T) {
 	var buf bytes.Buffer
 	text := NewText(&buf)
-	if err := text.Render(envelope(client.BlockCompleted{Block: client.Block{ID: "t", Kind: client.BlockTool, Tool: &client.ToolCall{
-		Kind: client.ToolShell, Command: "long command", Status: client.ToolCanceled, Output: "partial output",
+	if err := text.Render(envelope(agent.BlockCompleted{Block: agent.Block{ID: "t", Kind: agent.BlockTool, Tool: &agent.ToolCall{
+		Kind: agent.ToolShell, Command: "long command", Status: agent.ToolCanceled, Output: "partial output",
 	}}})); err != nil {
 		t.Fatal(err)
 	}
@@ -205,8 +205,8 @@ func TestTextDistinguishesCanceledToolsFromErrors(t *testing.T) {
 func TestTextReportsANonCompletedOutcome(t *testing.T) {
 	var buf bytes.Buffer
 	text := NewText(&buf)
-	if err := text.Render(envelope(client.RunFinished{Outcome: client.Outcome{
-		Status: client.OutcomeFailed, Error: "provider refused",
+	if err := text.Render(envelope(agent.RunFinished{Outcome: agent.Outcome{
+		Status: agent.OutcomeFailed, Error: "provider refused",
 	}})); err != nil {
 		t.Fatal(err)
 	}
@@ -258,14 +258,14 @@ func TestResultJSONFoldsACompletedRunIntoOneObject(t *testing.T) {
 func TestResultJSONFallsBackToStreamedTextAndRepresentsAnInterrupt(t *testing.T) {
 	var output bytes.Buffer
 	result := NewResultJSON(&output)
-	for _, event := range []client.Event{
-		client.RunStarted{RunID: "run_1", SessionID: "session_1"},
-		client.BlockStarted{Block: client.Block{ID: "answer", Kind: client.BlockAssistant}},
-		client.BlockDelta{BlockID: "answer", Text: "streamed answer"},
-		client.BlockCompleted{Block: client.Block{ID: "answer", Kind: client.BlockAssistant}},
-		client.RunInterrupted{Interaction: client.Question{
+	for _, event := range []agent.Event{
+		agent.RunStarted{RunID: "run_1", SessionID: "session_1"},
+		agent.BlockStarted{Block: agent.Block{ID: "answer", Kind: agent.BlockAssistant}},
+		agent.BlockDelta{BlockID: "answer", Text: "streamed answer"},
+		agent.BlockCompleted{Block: agent.Block{ID: "answer", Kind: agent.BlockAssistant}},
+		agent.RunInterrupted{Interaction: agent.Question{
 			InterruptID: "question_1", Title: "Choose",
-			Fields: []client.QuestionField{{ID: "choice", Label: "Choice", Kind: client.QuestionText}},
+			Fields: []agent.QuestionField{{ID: "choice", Label: "Choice", Kind: agent.QuestionText}},
 		}},
 	} {
 		if err := result.Render(envelope(event)); err != nil {
@@ -304,9 +304,9 @@ func TestResultJSONLeavesStdoutEmptyWhenRunNeverStarted(t *testing.T) {
 func TestResultJSONCanReportAnAcceptedRunBeforeEventsArrive(t *testing.T) {
 	var output bytes.Buffer
 	result := NewResultJSON(&output)
-	if err := result.Begin(client.Run{
-		ID: "run_1", SessionID: "session_1", Status: client.RunActive,
-	}, client.RunOptions{Model: "model_1", Effort: "high"}); err != nil {
+	if err := result.Begin(agent.Run{
+		ID: "run_1", SessionID: "session_1", Status: agent.RunActive,
+	}, agent.RunOptions{Model: "model_1", Effort: "high"}); err != nil {
 		t.Fatal(err)
 	}
 	if err := result.Close(); err != nil {
@@ -322,9 +322,9 @@ func TestResultJSONCanReportAnAcceptedRunBeforeEventsArrive(t *testing.T) {
 }
 
 func TestJSONCarriesTheToolProjection(t *testing.T) {
-	got := renderJSONFrame(t, client.BlockCompleted{Block: client.Block{ID: "t", Kind: client.BlockTool, Tool: &client.ToolCall{
-		Kind: client.ToolEdit, Name: "provider.patch", Path: "a.go", Summary: "change a.go",
-		Status: client.ToolOK, Diff: "--- a\n+++ b", Duration: 250 * time.Millisecond,
+	got := renderJSONFrame(t, agent.BlockCompleted{Block: agent.Block{ID: "t", Kind: agent.BlockTool, Tool: &agent.ToolCall{
+		Kind: agent.ToolEdit, Name: "provider.patch", Path: "a.go", Summary: "change a.go",
+		Status: agent.ToolOK, Diff: "--- a\n+++ b", Duration: 250 * time.Millisecond,
 	}}})
 	if got.Block == nil || got.Block.Tool == nil {
 		t.Fatalf("frame = %+v, want a tool projection", got)
@@ -335,7 +335,7 @@ func TestJSONCarriesTheToolProjection(t *testing.T) {
 	}
 }
 
-func renderJSONFrame(t *testing.T, event client.Event) frame {
+func renderJSONFrame(t *testing.T, event agent.Event) frame {
 	t.Helper()
 	var output bytes.Buffer
 	if err := NewJSON(&output).Render(envelope(event)); err != nil {
@@ -349,22 +349,22 @@ func renderJSONFrame(t *testing.T, event client.Event) frame {
 }
 
 func TestJSONCarriesControlOptionsAndCompleteInteractionMetadata(t *testing.T) {
-	events := []client.Envelope{
-		envelope(client.RunStarted{
+	events := []agent.Envelope{
+		envelope(agent.RunStarted{
 			RunID: "run_1", SessionID: "session_1",
-			Options: client.RunOptions{Model: "deep", Mode: client.ModeReview, Permission: client.PermissionReadOnly, Effort: "high"},
+			Options: agent.RunOptions{Model: "deep", Mode: agent.ModeReview, Permission: agent.PermissionReadOnly, Effort: "high"},
 		}),
-		envelope(client.RunResumed{InterruptID: "approval_1"}),
-		envelope(client.RunInterrupted{Interaction: client.Approval{
+		envelope(agent.RunResumed{InterruptID: "approval_1"}),
+		envelope(agent.RunInterrupted{Interaction: agent.Approval{
 			InterruptID: "approval_2", Title: "Allow edit", Detail: "change file",
 			Risk: "writes", Diff: "--- a\n+++ b", RuleHint: "edit:a.go",
 		}}),
-		envelope(client.RunInterrupted{Interaction: client.Question{
+		envelope(agent.RunInterrupted{Interaction: agent.Question{
 			InterruptID: "question_1", Title: "Choose", Detail: "select strategy",
-			Fields: []client.QuestionField{{
+			Fields: []agent.QuestionField{{
 				ID: "strategy", Label: "Strategy", Description: "How to proceed",
-				Kind: client.QuestionSingle, Required: true, Placeholder: "pick one",
-				Options: []client.QuestionOption{{
+				Kind: agent.QuestionSingle, Required: true, Placeholder: "pick one",
+				Options: []agent.QuestionOption{{
 					Value: "safe", Label: "Safe", Description: "Prefer safety", Recommended: true,
 				}},
 			}},
@@ -434,7 +434,7 @@ func requireQuestionField(t *testing.T, fields []questionFieldJSON) {
 
 func TestRenderersRejectInvalidEventsInsteadOfEmittingEmptyOutput(t *testing.T) {
 	for name, renderer := range map[string]interface {
-		Render(client.Envelope) error
+		Render(agent.Envelope) error
 		Close() error
 	}{
 		"json": NewJSON(&bytes.Buffer{}),
@@ -444,7 +444,7 @@ func TestRenderersRejectInvalidEventsInsteadOfEmittingEmptyOutput(t *testing.T) 
 			if err := renderer.Render(envelope(nil)); err == nil || !strings.Contains(err.Error(), "event is nil") {
 				t.Fatalf("Render error = %v", err)
 			}
-			if err := renderer.Render(envelope(client.RunResumed{InterruptID: "later"})); err == nil || !strings.Contains(err.Error(), "event is nil") {
+			if err := renderer.Render(envelope(agent.RunResumed{InterruptID: "later"})); err == nil || !strings.Contains(err.Error(), "event is nil") {
 				t.Fatalf("sticky Render error = %v", err)
 			}
 		})
@@ -452,15 +452,15 @@ func TestRenderersRejectInvalidEventsInsteadOfEmittingEmptyOutput(t *testing.T) 
 }
 
 func TestRenderersCarryUserAttachments(t *testing.T) {
-	block := client.Block{
-		ID: "u", Kind: client.BlockUser, Text: "inspect",
-		Attachments: []client.Attachment{{
-			ID: "att_1", Kind: client.AttachmentText, Name: "notes.txt",
+	block := agent.Block{
+		ID: "u", Kind: agent.BlockUser, Text: "inspect",
+		Attachments: []agent.Attachment{{
+			ID: "att_1", Kind: agent.AttachmentText, Name: "notes.txt",
 			Path: "/tmp/notes.txt", MimeType: "text/plain", Size: 5,
 		}},
 	}
 	var textOut bytes.Buffer
-	if err := NewText(&textOut).Render(envelope(client.BlockCompleted{Block: block})); err != nil {
+	if err := NewText(&textOut).Render(envelope(agent.BlockCompleted{Block: block})); err != nil {
 		t.Fatal(err)
 	}
 	if got := textOut.String(); !strings.Contains(got, "@ notes.txt (text/plain, 5 bytes)") {
@@ -468,7 +468,7 @@ func TestRenderersCarryUserAttachments(t *testing.T) {
 	}
 
 	var jsonOut bytes.Buffer
-	if err := NewJSON(&jsonOut).Render(envelope(client.BlockCompleted{Block: block})); err != nil {
+	if err := NewJSON(&jsonOut).Render(envelope(agent.BlockCompleted{Block: block})); err != nil {
 		t.Fatal(err)
 	}
 	var got frame
@@ -483,7 +483,7 @@ func TestRenderersCarryUserAttachments(t *testing.T) {
 func TestJSONOmitsWhatDidNotHappen(t *testing.T) {
 	var buf bytes.Buffer
 	j := NewJSON(&buf)
-	if err := j.Render(envelope(client.BlockDelta{BlockID: "m", Text: "x"})); err != nil {
+	if err := j.Render(envelope(agent.BlockDelta{BlockID: "m", Text: "x"})); err != nil {
 		t.Fatal(err)
 	}
 	var got map[string]any

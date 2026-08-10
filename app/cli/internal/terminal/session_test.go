@@ -14,8 +14,8 @@ import (
 	"github.com/Tangerg/oolong/core/input"
 	"github.com/Tangerg/oolong/core/programtest"
 
-	"github.com/Tangerg/lynx/app/cli/internal/client"
-	"github.com/Tangerg/lynx/app/cli/internal/client/mock"
+	"github.com/Tangerg/lynx/app/cli/internal/agent"
+	"github.com/Tangerg/lynx/app/cli/internal/agent/mock"
 	"github.com/Tangerg/lynx/app/cli/internal/extensions"
 	"github.com/Tangerg/lynx/app/cli/internal/settings"
 )
@@ -27,12 +27,12 @@ func runUI(t *testing.T, plugins ...extensions.Plugin) (*programtest.Host, func(
 	return runUIWith(t, backend, plugins...)
 }
 
-func runUIWith(t *testing.T, backend client.Runtime, plugins ...extensions.Plugin) (*programtest.Host, func()) {
+func runUIWith(t *testing.T, backend agent.Runtime, plugins ...extensions.Plugin) (*programtest.Host, func()) {
 	t.Helper()
 	return runUIWithWorkspace(t, backend, "/tmp/lyra-cli-test", plugins...)
 }
 
-func runUIWithWorkspace(t *testing.T, backend client.Runtime, workspace string, plugins ...extensions.Plugin) (*programtest.Host, func()) {
+func runUIWithWorkspace(t *testing.T, backend agent.Runtime, workspace string, plugins ...extensions.Plugin) (*programtest.Host, func()) {
 	t.Helper()
 	host := programtest.New(t, 96, 28)
 	ctx, cancel := context.WithCancel(t.Context())
@@ -66,8 +66,8 @@ type recordingRuntime struct {
 	*mock.Runtime
 
 	mu     sync.Mutex
-	last   client.StartRun
-	inputs []client.StartRun
+	last   agent.StartRun
+	inputs []agent.StartRun
 	starts int
 }
 
@@ -100,17 +100,17 @@ type lostStartRuntime struct {
 	canceledOnce sync.Once
 }
 
-func (r *lostStartRuntime) StartRun(ctx context.Context, input client.StartRun) (client.Run, error) {
+func (r *lostStartRuntime) StartRun(ctx context.Context, input agent.StartRun) (agent.Run, error) {
 	if _, err := r.Runtime.StartRun(ctx, input); err != nil {
-		return client.Run{}, err
+		return agent.Run{}, err
 	}
 	r.mu.Lock()
 	r.sessionID = input.SessionID
 	r.mu.Unlock()
-	return client.Run{}, fmt.Errorf("start response lost: %w", client.ErrDisconnected)
+	return agent.Run{}, fmt.Errorf("start response lost: %w", agent.ErrDisconnected)
 }
 
-func (r *lostStartRuntime) CancelRun(ctx context.Context, input client.CancelRun) error {
+func (r *lostStartRuntime) CancelRun(ctx context.Context, input agent.CancelRun) error {
 	if err := r.Runtime.CancelRun(ctx, input); err != nil {
 		return err
 	}
@@ -124,7 +124,7 @@ func (r *lostStartRuntime) startedSession() string {
 	return r.sessionID
 }
 
-func (r *blockingSessionChangeRuntime) CreateSession(ctx context.Context, input client.NewSession) (client.Session, error) {
+func (r *blockingSessionChangeRuntime) CreateSession(ctx context.Context, input agent.NewSession) (agent.Session, error) {
 	if r.creates.Add(1) == 1 {
 		return r.Runtime.CreateSession(ctx, input)
 	}
@@ -133,11 +133,11 @@ func (r *blockingSessionChangeRuntime) CreateSession(ctx context.Context, input 
 	case <-r.releaseChange:
 		return r.Runtime.CreateSession(ctx, input)
 	case <-ctx.Done():
-		return client.Session{}, context.Cause(ctx)
+		return agent.Session{}, context.Cause(ctx)
 	}
 }
 
-func (r *blockingSessionChangeRuntime) StartRun(ctx context.Context, input client.StartRun) (client.Run, error) {
+func (r *blockingSessionChangeRuntime) StartRun(ctx context.Context, input agent.StartRun) (agent.Run, error) {
 	r.starts.Add(1)
 	r.mu.Lock()
 	r.startedIn = input.SessionID
@@ -151,22 +151,22 @@ func (r *blockingSessionChangeRuntime) startedSession() string {
 	return r.startedIn
 }
 
-func (r *ambiguousControlRuntime) StartRun(ctx context.Context, input client.StartRun) (client.Run, error) {
+func (r *ambiguousControlRuntime) StartRun(ctx context.Context, input agent.StartRun) (agent.Run, error) {
 	run, err := r.Runtime.StartRun(ctx, input)
 	if err != nil {
-		return client.Run{}, err
+		return agent.Run{}, err
 	}
 	r.mu.Lock()
 	r.starts++
 	lost := r.starts == 1
 	r.mu.Unlock()
 	if lost {
-		return client.Run{}, fmt.Errorf("lost start response: %w", client.ErrDisconnected)
+		return agent.Run{}, fmt.Errorf("lost start response: %w", agent.ErrDisconnected)
 	}
 	return run, nil
 }
 
-func (r *ambiguousControlRuntime) ResumeRun(ctx context.Context, input client.ResumeRun) error {
+func (r *ambiguousControlRuntime) ResumeRun(ctx context.Context, input agent.ResumeRun) error {
 	if err := r.Runtime.ResumeRun(ctx, input); err != nil {
 		return err
 	}
@@ -175,7 +175,7 @@ func (r *ambiguousControlRuntime) ResumeRun(ctx context.Context, input client.Re
 	lost := r.resumes == 1
 	r.mu.Unlock()
 	if lost {
-		return fmt.Errorf("lost resume response: %w", client.ErrDisconnected)
+		return fmt.Errorf("lost resume response: %w", agent.ErrDisconnected)
 	}
 	return nil
 }
@@ -186,7 +186,7 @@ func (r *ambiguousControlRuntime) counts() (int, int) {
 	return r.starts, r.resumes
 }
 
-func (r *recordingRuntime) StartRun(ctx context.Context, input client.StartRun) (client.Run, error) {
+func (r *recordingRuntime) StartRun(ctx context.Context, input agent.StartRun) (agent.Run, error) {
 	r.mu.Lock()
 	r.last = cloneStartRun(input)
 	r.inputs = append(r.inputs, cloneStartRun(input))
@@ -201,13 +201,13 @@ func (r *recordingRuntime) startCount() int {
 	return r.starts
 }
 
-func (r *recordingRuntime) options() client.RunOptions {
+func (r *recordingRuntime) options() agent.RunOptions {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return r.last.Options
 }
 
-func (r *recordingRuntime) startInput() client.StartRun {
+func (r *recordingRuntime) startInput() agent.StartRun {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	input := r.last
@@ -215,25 +215,25 @@ func (r *recordingRuntime) startInput() client.StartRun {
 	return input
 }
 
-func (r *recordingRuntime) startInputs() []client.StartRun {
+func (r *recordingRuntime) startInputs() []agent.StartRun {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	inputs := make([]client.StartRun, len(r.inputs))
+	inputs := make([]agent.StartRun, len(r.inputs))
 	for index, input := range r.inputs {
 		inputs[index] = cloneStartRun(input)
 	}
 	return inputs
 }
 
-func cloneStartRun(input client.StartRun) client.StartRun {
+func cloneStartRun(input agent.StartRun) agent.StartRun {
 	input.Message = input.Message.Clone()
 	return input
 }
 
-func (r *delayedFirstRuntime) StartRun(ctx context.Context, input client.StartRun) (client.Run, error) {
+func (r *delayedFirstRuntime) StartRun(ctx context.Context, input agent.StartRun) (agent.Run, error) {
 	if r.starts.Add(1) == 1 {
 		<-ctx.Done()
-		return client.Run{}, context.Cause(ctx)
+		return agent.Run{}, context.Cause(ctx)
 	}
 	return r.Runtime.StartRun(ctx, input)
 }
@@ -272,7 +272,7 @@ func TestShiftEnterInsertsANewlineWithoutSubmitting(t *testing.T) {
 	backend := &recordingRuntime{Runtime: mock.New()}
 	backend.Instant = true
 	backend.Script = func(string) mock.Script {
-		return mock.Script{Prelude: []mock.Step{{Event: client.RunFinished{Outcome: client.Outcome{Status: client.OutcomeCompleted}}}}}
+		return mock.Script{Prelude: []mock.Step{{Event: agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCompleted}}}}}
 	}
 	host, stop := runUIWith(t, backend)
 	host.Shows(t, "Ask lyra")
@@ -296,8 +296,8 @@ func TestTranscriptFocusDoesNotSubmitAndTypingReturnsToPrompt(t *testing.T) {
 	backend.Instant = true
 	backend.Script = func(prompt string) mock.Script {
 		return mock.Script{Prelude: []mock.Step{
-			{Event: client.BlockCompleted{Block: client.Block{ID: "answer-" + prompt, Kind: client.BlockAssistant, Text: "focused answer · " + prompt}}},
-			{Event: client.RunFinished{Outcome: client.Outcome{Status: client.OutcomeCompleted}}},
+			{Event: agent.BlockCompleted{Block: agent.Block{ID: "answer-" + prompt, Kind: agent.BlockAssistant, Text: "focused answer · " + prompt}}},
+			{Event: agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCompleted}}},
 		}}
 	}
 	host, stop := runUIWith(t, backend)
@@ -334,7 +334,7 @@ func TestCtrlCClearsTheDraftBeforeCancelingAnActiveRun(t *testing.T) {
 	base := mock.New()
 	base.Script = func(string) mock.Script {
 		return mock.Script{Prelude: []mock.Step{
-			{Delay: time.Hour, Event: client.RunFinished{Outcome: client.Outcome{Status: client.OutcomeCompleted}}},
+			{Delay: time.Hour, Event: agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCompleted}}},
 		}}
 	}
 	backend := &recordingRuntime{Runtime: base}
@@ -367,7 +367,7 @@ func TestEscapeCancelsAnActiveRunWithoutDiscardingTheDraft(t *testing.T) {
 	base := mock.New()
 	base.Script = func(string) mock.Script {
 		return mock.Script{Prelude: []mock.Step{
-			{Delay: time.Hour, Event: client.RunFinished{Outcome: client.Outcome{Status: client.OutcomeCompleted}}},
+			{Delay: time.Hour, Event: agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCompleted}}},
 		}}
 	}
 	host, stop := runUIWith(t, base)
@@ -482,7 +482,7 @@ func TestClosingTheTerminalCancelsTheOwnedRuntimeRun(t *testing.T) {
 	base := mock.New()
 	base.Script = func(string) mock.Script {
 		return mock.Script{Prelude: []mock.Step{
-			{Delay: time.Hour, Event: client.RunFinished{Outcome: client.Outcome{Status: client.OutcomeCompleted}}},
+			{Delay: time.Hour, Event: agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCompleted}}},
 		}}
 	}
 	backend := &recordingRuntime{Runtime: base}
@@ -504,8 +504,8 @@ func TestClosingTheTerminalCancelsTheOwnedRuntimeRun(t *testing.T) {
 	if snapshot.Active != nil {
 		t.Fatalf("terminal close left an active run: %+v", snapshot.Active)
 	}
-	finished, ok := snapshot.Events[len(snapshot.Events)-1].Event.(client.RunFinished)
-	if !ok || finished.Outcome.Status != client.OutcomeCanceled {
+	finished, ok := snapshot.Events[len(snapshot.Events)-1].Event.(agent.RunFinished)
+	if !ok || finished.Outcome.Status != agent.OutcomeCanceled {
 		t.Fatalf("last event = %+v, want canceled run", snapshot.Events[len(snapshot.Events)-1])
 	}
 }
@@ -514,7 +514,7 @@ func TestExhaustedInteractiveStartRetriesCancelTheAcceptedRequest(t *testing.T) 
 	base := mock.New()
 	base.Script = func(string) mock.Script {
 		return mock.Script{Prelude: []mock.Step{
-			{Delay: time.Hour, Event: client.RunFinished{Outcome: client.Outcome{Status: client.OutcomeCompleted}}},
+			{Delay: time.Hour, Event: agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCompleted}}},
 		}}
 	}
 	backend := &lostStartRuntime{Runtime: base, canceled: make(chan struct{})}
@@ -557,8 +557,8 @@ func TestInteractiveRunRejectsConflictingReplay(t *testing.T) {
 
 func stableCompletedScript(string) mock.Script {
 	return mock.Script{Prelude: []mock.Step{
-		{Event: client.BlockCompleted{Block: client.Block{ID: "answer", Kind: client.BlockAssistant, Text: "stable answer"}}},
-		{Event: client.RunFinished{Outcome: client.Outcome{Status: client.OutcomeCompleted}}},
+		{Event: agent.BlockCompleted{Block: agent.Block{ID: "answer", Kind: agent.BlockAssistant, Text: "stable answer"}}},
+		{Event: agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCompleted}}},
 	}}
 }
 
@@ -894,7 +894,7 @@ func TestSessionSwitchRebindsWorkspaceAttachmentsAndDropsOldChips(t *testing.T) 
 	}
 	backend := mock.New()
 	backend.Instant = true
-	if _, err := backend.CreateSession(t.Context(), client.NewSession{Title: "Workspace B", Workspace: secondWorkspace}); err != nil {
+	if _, err := backend.CreateSession(t.Context(), agent.NewSession{Title: "Workspace B", Workspace: secondWorkspace}); err != nil {
 		t.Fatal(err)
 	}
 	host, stop := runUIWithWorkspace(t, backend, firstWorkspace)
@@ -923,9 +923,9 @@ func TestSessionSwitchRebindsWorkspaceAttachmentsAndDropsOldChips(t *testing.T) 
 	stop()
 }
 
-func firstRuntimeSession(t *testing.T, runtime client.SessionCatalog) string {
+func firstRuntimeSession(t *testing.T, runtime agent.SessionCatalog) string {
 	t.Helper()
-	page, err := runtime.ListSessions(t.Context(), client.SessionQuery{Limit: 1})
+	page, err := runtime.ListSessions(t.Context(), agent.SessionQuery{Limit: 1})
 	if err != nil || len(page.Items) != 1 {
 		t.Fatalf("latest session = %+v, %v", page, err)
 	}
@@ -970,7 +970,7 @@ func TestModelModePermissionAndEffortApplyToTheNextRun(t *testing.T) {
 	host.Shows(t, "How should lyra proceed?")
 	host.Press(input.Esc)
 	host.Shows(t, "complete")
-	if got := backend.options(); got.Model != "mock-deep" || got.Mode != client.ModePlan || got.Permission != client.PermissionReadOnly || got.Effort != "max" {
+	if got := backend.options(); got.Model != "mock-deep" || got.Mode != agent.ModePlan || got.Permission != agent.PermissionReadOnly || got.Effort != "max" {
 		t.Fatalf("StartRun options = %+v", got)
 	}
 
@@ -1026,19 +1026,19 @@ func TestStatusFormatsTheMinimumTokenCount(t *testing.T) {
 func TestQuestionFormSubmitsTypedAnswerAndCanCancel(t *testing.T) {
 	backend := mock.New()
 	backend.Instant = true
-	answers := make(chan client.QuestionAnswer, 2)
+	answers := make(chan agent.QuestionAnswer, 2)
 	backend.Script = func(string) mock.Script {
 		return mock.Script{
-			Interaction: client.Question{
+			Interaction: agent.Question{
 				InterruptID: "question_1", Title: "Choose a strategy", Detail: "One short decision",
-				Fields: []client.QuestionField{{
-					ID: "strategy", Label: "Strategy", Kind: client.QuestionSingle, Required: true,
-					Options: []client.QuestionOption{{Value: "safe", Label: "Safe", Recommended: true}, {Value: "fast", Label: "Fast"}},
+				Fields: []agent.QuestionField{{
+					ID: "strategy", Label: "Strategy", Kind: agent.QuestionSingle, Required: true,
+					Options: []agent.QuestionOption{{Value: "safe", Label: "Safe", Recommended: true}, {Value: "fast", Label: "Fast"}},
 				}},
 			},
-			Continue: func(answer client.Answer) []mock.Step {
-				answers <- answer.(client.QuestionAnswer)
-				return []mock.Step{{Event: client.RunFinished{Outcome: client.Outcome{Status: client.OutcomeCompleted}}}}
+			Continue: func(answer agent.Answer) []mock.Step {
+				answers <- answer.(agent.QuestionAnswer)
+				return []mock.Step{{Event: agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCompleted}}}}
 			},
 		}
 	}
@@ -1085,7 +1085,7 @@ func TestApprovalRememberScopeAppliesToLaterRuns(t *testing.T) {
 	host.Shows(t, "complete")
 	host.Hides(t, "How should lyra proceed?")
 	rules, err := backend.ListApprovalRules(t.Context())
-	if err != nil || len(rules) != 1 || rules[0].Scope != client.RememberSession {
+	if err != nil || len(rules) != 1 || rules[0].Scope != agent.RememberSession {
 		t.Fatalf("remembered rules = %+v, %v", rules, err)
 	}
 
@@ -1127,7 +1127,7 @@ func TestWorkspaceFileCompletionCreatesAtomicAttachments(t *testing.T) {
 	backend := &recordingRuntime{Runtime: mock.New()}
 	backend.Instant = true
 	backend.Script = func(string) mock.Script {
-		return mock.Script{Prelude: []mock.Step{{Event: client.RunFinished{Outcome: client.Outcome{Status: client.OutcomeCompleted}}}}}
+		return mock.Script{Prelude: []mock.Step{{Event: agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCompleted}}}}}
 	}
 	host, stop := runUIWithWorkspace(t, backend, workspace)
 	host.Shows(t, "Ask lyra")
@@ -1156,7 +1156,7 @@ func TestWorkspaceFileCompletionCreatesAtomicAttachments(t *testing.T) {
 		t.Fatalf("start message = %+v", started.Message)
 	}
 	canonical, _ := filepath.EvalSymlinks(path)
-	if got := started.Message.Attachments[0]; got.Path != canonical || got.Kind != client.AttachmentText {
+	if got := started.Message.Attachments[0]; got.Path != canonical || got.Kind != agent.AttachmentText {
 		t.Fatalf("attachment = %+v", got)
 	}
 
@@ -1175,24 +1175,24 @@ func TestToolKindsRenderLiveAndDetailToggleChangesTheTranscript(t *testing.T) {
 	backend.Script = func(string) mock.Script {
 		zero := 0
 		return mock.Script{Prelude: []mock.Step{
-			{Event: client.BlockStarted{Block: client.Block{ID: "shell", Kind: client.BlockTool, Tool: &client.ToolCall{
-				Kind: client.ToolShell, Name: "provider.exec", Command: "go test ./...", Summary: "run tests", Status: client.ToolRunning,
+			{Event: agent.BlockStarted{Block: agent.Block{ID: "shell", Kind: agent.BlockTool, Tool: &agent.ToolCall{
+				Kind: agent.ToolShell, Name: "provider.exec", Command: "go test ./...", Summary: "run tests", Status: agent.ToolRunning,
 			}}}},
-			{Event: client.BlockDelta{BlockID: "shell", Text: "SHELL_DETAIL_"}},
-			{Event: client.BlockDelta{BlockID: "shell", Text: "OK\nsecond line"}},
-			{Event: client.BlockCompleted{Block: client.Block{ID: "shell", Kind: client.BlockTool, Tool: &client.ToolCall{
-				Kind: client.ToolShell, Name: "provider.exec", Command: "go test ./...", Summary: "run tests", Status: client.ToolOK,
+			{Event: agent.BlockDelta{BlockID: "shell", Text: "SHELL_DETAIL_"}},
+			{Event: agent.BlockDelta{BlockID: "shell", Text: "OK\nsecond line"}},
+			{Event: agent.BlockCompleted{Block: agent.Block{ID: "shell", Kind: agent.BlockTool, Tool: &agent.ToolCall{
+				Kind: agent.ToolShell, Name: "provider.exec", Command: "go test ./...", Summary: "run tests", Status: agent.ToolOK,
 				Output: "SHELL_DETAIL_OK\nsecond line", ExitCode: &zero,
 			}}}},
-			{Event: client.BlockCompleted{Block: client.Block{ID: "edit", Kind: client.BlockTool, Tool: &client.ToolCall{
-				Kind: client.ToolEdit, Name: "provider.patch", Path: "internal/cache.go", Summary: "update cache", Status: client.ToolOK,
+			{Event: agent.BlockCompleted{Block: agent.Block{ID: "edit", Kind: agent.BlockTool, Tool: &agent.ToolCall{
+				Kind: agent.ToolEdit, Name: "provider.patch", Path: "internal/cache.go", Summary: "update cache", Status: agent.ToolOK,
 				Diff: "--- a/internal/cache.go\n+++ b/internal/cache.go\n@@ -1,2 +1,2 @@\n package cache\n-oldTicker()\n+newSweepSignal()\n",
 			}}}},
-			{Event: client.BlockCompleted{Block: client.Block{ID: "search", Kind: client.BlockTool, Tool: &client.ToolCall{
-				Kind: client.ToolSearch, Name: "provider.grep", Query: "cache expiry", Summary: "find expiry", Status: client.ToolOK,
+			{Event: agent.BlockCompleted{Block: agent.Block{ID: "search", Kind: agent.BlockTool, Tool: &agent.ToolCall{
+				Kind: agent.ToolSearch, Name: "provider.grep", Query: "cache expiry", Summary: "find expiry", Status: agent.ToolOK,
 				Output: "internal/cache.go:22\ninternal/cache_test.go:18",
 			}}}},
-			{Event: client.RunFinished{Outcome: client.Outcome{Status: client.OutcomeCompleted}}},
+			{Event: agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCompleted}}},
 		},
 		}
 	}
@@ -1224,16 +1224,16 @@ func TestRunningToolOutputStreamsIntoAnExpandedTranscript(t *testing.T) {
 	backend.Script = func(string) mock.Script {
 		zero := 0
 		return mock.Script{Prelude: []mock.Step{
-			{Event: client.BlockStarted{Block: client.Block{ID: "shell", Kind: client.BlockTool, Tool: &client.ToolCall{
-				Kind: client.ToolShell, Command: "go test ./...", Status: client.ToolRunning,
+			{Event: agent.BlockStarted{Block: agent.Block{ID: "shell", Kind: agent.BlockTool, Tool: &agent.ToolCall{
+				Kind: agent.ToolShell, Command: "go test ./...", Status: agent.ToolRunning,
 			}}}},
-			{Delay: 100 * time.Millisecond, Event: client.BlockDelta{BlockID: "shell", Text: "LIVE_TOOL_FIRST\n"}},
-			{Delay: 400 * time.Millisecond, Event: client.BlockDelta{BlockID: "shell", Text: "LIVE_TOOL_SECOND\n"}},
-			{Delay: 400 * time.Millisecond, Event: client.BlockCompleted{Block: client.Block{ID: "shell", Kind: client.BlockTool, Tool: &client.ToolCall{
-				Kind: client.ToolShell, Command: "go test ./...", Status: client.ToolOK,
+			{Delay: 100 * time.Millisecond, Event: agent.BlockDelta{BlockID: "shell", Text: "LIVE_TOOL_FIRST\n"}},
+			{Delay: 400 * time.Millisecond, Event: agent.BlockDelta{BlockID: "shell", Text: "LIVE_TOOL_SECOND\n"}},
+			{Delay: 400 * time.Millisecond, Event: agent.BlockCompleted{Block: agent.Block{ID: "shell", Kind: agent.BlockTool, Tool: &agent.ToolCall{
+				Kind: agent.ToolShell, Command: "go test ./...", Status: agent.ToolOK,
 				Output: "LIVE_TOOL_FIRST\nLIVE_TOOL_SECOND\n", ExitCode: &zero,
 			}}}},
-			{Event: client.RunFinished{Outcome: client.Outcome{Status: client.OutcomeCompleted}}},
+			{Event: agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCompleted}}},
 		}}
 	}
 	host, stop := runUIWith(t, backend)
@@ -1254,14 +1254,14 @@ func TestCancelingARunSettlesItsLiveToolProjection(t *testing.T) {
 	backend := mock.New()
 	backend.Script = func(string) mock.Script {
 		return mock.Script{Prelude: []mock.Step{
-			{Event: client.BlockStarted{Block: client.Block{ID: "shell", Kind: client.BlockTool, Tool: &client.ToolCall{
-				Kind: client.ToolShell, Command: "long command", Status: client.ToolRunning,
+			{Event: agent.BlockStarted{Block: agent.Block{ID: "shell", Kind: agent.BlockTool, Tool: &agent.ToolCall{
+				Kind: agent.ToolShell, Command: "long command", Status: agent.ToolRunning,
 			}}}},
-			{Event: client.BlockDelta{BlockID: "shell", Text: "PARTIAL_TOOL_OUTPUT\n"}},
-			{Delay: time.Hour, Event: client.BlockCompleted{Block: client.Block{ID: "shell", Kind: client.BlockTool, Tool: &client.ToolCall{
-				Kind: client.ToolShell, Command: "long command", Status: client.ToolOK, Output: "never reached",
+			{Event: agent.BlockDelta{BlockID: "shell", Text: "PARTIAL_TOOL_OUTPUT\n"}},
+			{Delay: time.Hour, Event: agent.BlockCompleted{Block: agent.Block{ID: "shell", Kind: agent.BlockTool, Tool: &agent.ToolCall{
+				Kind: agent.ToolShell, Command: "long command", Status: agent.ToolOK, Output: "never reached",
 			}}}},
-			{Event: client.RunFinished{Outcome: client.Outcome{Status: client.OutcomeCompleted}}},
+			{Event: agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCompleted}}},
 		}}
 	}
 	host, stop := runUIWith(t, backend)
@@ -1354,20 +1354,20 @@ func TestTerminalSurvivesExtremeResizeAndRemainsInteractive(t *testing.T) {
 func TestStreamingRemainsResponsiveThroughAResizeStorm(t *testing.T) {
 	runtime := mock.New()
 	runtime.Script = func(string) mock.Script {
-		steps := []mock.Step{{Event: client.BlockStarted{Block: client.Block{
-			ID: "stream", Kind: client.BlockAssistant,
+		steps := []mock.Step{{Event: agent.BlockStarted{Block: agent.Block{
+			ID: "stream", Kind: agent.BlockAssistant,
 		}}}}
 		for range 64 {
 			steps = append(steps, mock.Step{
 				Delay: 2 * time.Millisecond,
-				Event: client.BlockDelta{BlockID: "stream", Text: "x"},
+				Event: agent.BlockDelta{BlockID: "stream", Text: "x"},
 			})
 		}
 		steps = append(steps,
-			mock.Step{Event: client.BlockCompleted{Block: client.Block{
-				ID: "stream", Kind: client.BlockAssistant, Text: "RESIZE_STREAM_COMPLETE",
+			mock.Step{Event: agent.BlockCompleted{Block: agent.Block{
+				ID: "stream", Kind: agent.BlockAssistant, Text: "RESIZE_STREAM_COMPLETE",
 			}}},
-			mock.Step{Event: client.RunFinished{Outcome: client.Outcome{Status: client.OutcomeCompleted}}},
+			mock.Step{Event: agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCompleted}}},
 		)
 		return mock.Script{Prelude: steps}
 	}
@@ -1401,13 +1401,13 @@ func TestStreamingRemainsResponsiveThroughAResizeStorm(t *testing.T) {
 func TestOutcomeNotificationMatchesTheRunVerdict(t *testing.T) {
 	for _, test := range []struct {
 		name    string
-		outcome client.Outcome
+		outcome agent.Outcome
 		want    string
 	}{
-		{name: "completed", outcome: client.Outcome{Status: client.OutcomeCompleted}, want: "lyra run completed"},
-		{name: "canceled", outcome: client.Outcome{Status: client.OutcomeCanceled}, want: "lyra run canceled"},
-		{name: "failed", outcome: client.Outcome{Status: client.OutcomeFailed, Error: "boom"}, want: "lyra run failed"},
-		{name: "unsettled", outcome: client.Outcome{}, want: ""},
+		{name: "completed", outcome: agent.Outcome{Status: agent.OutcomeCompleted}, want: "lyra run completed"},
+		{name: "canceled", outcome: agent.Outcome{Status: agent.OutcomeCanceled}, want: "lyra run canceled"},
+		{name: "failed", outcome: agent.Outcome{Status: agent.OutcomeFailed, Error: "boom"}, want: "lyra run failed"},
+		{name: "unsettled", outcome: agent.Outcome{}, want: ""},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			if got := outcomeNotification(test.outcome); got != test.want {

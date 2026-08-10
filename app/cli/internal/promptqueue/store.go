@@ -10,7 +10,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/Tangerg/lynx/app/cli/internal/client"
+	"github.com/Tangerg/lynx/app/cli/internal/agent"
 )
 
 var (
@@ -25,7 +25,7 @@ var (
 type Entry struct {
 	ID        uint64
 	SessionID string
-	Message   client.Message
+	Message   agent.Message
 	Held      bool
 }
 
@@ -49,7 +49,7 @@ func New() *Store {
 	return &Store{entries: make(map[string][]Entry)}
 }
 
-func (s *Store) Enqueue(sessionID string, message client.Message) (Entry, error) {
+func (s *Store) Enqueue(sessionID string, message agent.Message) (Entry, error) {
 	if err := validate(sessionID, message); err != nil {
 		return Entry{}, err
 	}
@@ -122,7 +122,7 @@ func (s *Store) Release(sessionID string, id uint64) error {
 	return nil
 }
 
-func (s *Store) Update(sessionID string, id uint64, message client.Message) error {
+func (s *Store) Update(sessionID string, id uint64, message agent.Message) error {
 	if err := validate(sessionID, message); err != nil {
 		return err
 	}
@@ -219,7 +219,7 @@ func (s *Store) ensure() {
 	}
 }
 
-func validate(sessionID string, message client.Message) error {
+func validate(sessionID string, message agent.Message) error {
 	if strings.TrimSpace(sessionID) == "" {
 		return ErrSessionIDRequired
 	}

@@ -13,7 +13,7 @@ import (
 	"github.com/Tangerg/oolong/core/text"
 	"github.com/Tangerg/oolong/highlight"
 
-	"github.com/Tangerg/lynx/app/cli/internal/client"
+	"github.com/Tangerg/lynx/app/cli/internal/agent"
 )
 
 const (
@@ -26,9 +26,9 @@ const (
 // It remains a terminal-only protocol; the domain only knows ToolCall values.
 type mutableToolBlock interface {
 	headless.Block
-	Update(client.Block)
+	Update(agent.Block)
 	AppendOutput(string)
-	Finish(client.ToolStatus)
+	Finish(agent.ToolStatus)
 	SetExpanded(bool)
 	Expandable() bool
 	Expanded() bool
@@ -39,7 +39,7 @@ type toolBlock struct {
 	theme    kit.Theme
 	glyphs   kit.Glyphs
 	syntax   highlight.Style
-	call     client.ToolCall
+	call     agent.ToolCall
 	expanded bool
 	body     []headless.Block
 }
@@ -50,15 +50,15 @@ var (
 	_ mutableToolBlock  = (*toolBlock)(nil)
 )
 
-func newToolBlock(p Presentation, block client.Block) *toolBlock {
+func newToolBlock(p Presentation, block agent.Block) *toolBlock {
 	t := &toolBlock{theme: p.Theme, glyphs: p.Glyphs, syntax: p.Syntax}
 	t.Update(block)
 	return t
 }
 
-func (t *toolBlock) Update(block client.Block) {
+func (t *toolBlock) Update(block agent.Block) {
 	if block.Tool == nil {
-		t.call = client.ToolCall{Kind: client.ToolUnknown, Name: "invalid tool", Summary: "runtime omitted the tool projection", Status: client.ToolError}
+		t.call = agent.ToolCall{Kind: agent.ToolUnknown, Name: "invalid tool", Summary: "runtime omitted the tool projection", Status: agent.ToolError}
 	} else {
 		t.call = *block.Tool
 		if block.Tool.ExitCode != nil {
@@ -77,8 +77,8 @@ func (t *toolBlock) AppendOutput(chunk string) {
 	t.rebuild()
 }
 
-func (t *toolBlock) Finish(status client.ToolStatus) {
-	if t.call.Status != client.ToolRunning {
+func (t *toolBlock) Finish(status agent.ToolStatus) {
+	if t.call.Status != agent.ToolRunning {
 		return
 	}
 	t.call.Status = status
@@ -87,7 +87,7 @@ func (t *toolBlock) Finish(status client.ToolStatus) {
 
 func (t *toolBlock) SetExpanded(expanded bool) { t.expanded = expanded && t.Expandable() }
 
-func (t *toolBlock) Expandable() bool { return t.call.Status == client.ToolRunning || len(t.body) > 0 }
+func (t *toolBlock) Expandable() bool { return t.call.Status == agent.ToolRunning || len(t.body) > 0 }
 
 func (t *toolBlock) Expanded() bool { return t.expanded && t.Expandable() }
 
@@ -191,16 +191,16 @@ func (t *toolBlock) header() (toggle, label, status string, statusStyle grid.Sty
 	label = toolLabel(t.call)
 	statusStyle = t.theme.Muted
 	switch t.call.Status {
-	case client.ToolRunning:
+	case agent.ToolRunning:
 		status = t.glyphs.Marker + " running"
 		statusStyle = t.theme.Info
-	case client.ToolOK:
+	case agent.ToolOK:
 		status = t.glyphs.Taken + " done"
 		statusStyle = t.theme.Success
-	case client.ToolError:
+	case agent.ToolError:
 		status = t.glyphs.Taken + " error"
 		statusStyle = t.theme.Danger
-	case client.ToolCanceled:
+	case agent.ToolCanceled:
 		status = t.glyphs.Bullet + " canceled"
 		statusStyle = t.theme.Warning
 	default:
@@ -215,28 +215,28 @@ func (t *toolBlock) header() (toggle, label, status string, statusStyle grid.Sty
 	return toggle, label, strings.TrimSpace(status), statusStyle
 }
 
-func toolLabel(call client.ToolCall) string {
+func toolLabel(call agent.ToolCall) string {
 	switch call.Kind {
-	case client.ToolShell:
+	case agent.ToolShell:
 		return shellToolLabel(call)
-	case client.ToolEdit:
+	case agent.ToolEdit:
 		return toolKindLabel("edit", toolPrimary(call.Path, call.Summary))
-	case client.ToolRead:
+	case agent.ToolRead:
 		return toolKindLabel("read", toolPrimary(call.Path, call.Summary))
-	case client.ToolSearch:
+	case agent.ToolSearch:
 		return toolKindLabel("search", toolPrimary(call.Query, call.Summary))
-	case client.ToolWeb:
+	case agent.ToolWeb:
 		return toolKindLabel("web", toolPrimary(call.URL, call.Summary))
-	case client.ToolTask:
+	case agent.ToolTask:
 		return toolKindLabel("task", strings.TrimSpace(call.Summary))
-	case client.ToolUnknown:
+	case agent.ToolUnknown:
 		return unknownToolLabel(call)
 	default:
 		return unknownToolLabel(call)
 	}
 }
 
-func shellToolLabel(call client.ToolCall) string {
+func shellToolLabel(call agent.ToolCall) string {
 	primary := toolPrimary(call.Command, call.Summary)
 	if primary == "" {
 		return "shell"
@@ -244,7 +244,7 @@ func shellToolLabel(call client.ToolCall) string {
 	return "$ " + primary
 }
 
-func unknownToolLabel(call client.ToolCall) string {
+func unknownToolLabel(call agent.ToolCall) string {
 	name := strings.TrimSpace(call.Name)
 	if name == "" {
 		name = "tool"
@@ -282,15 +282,15 @@ func (t *toolBlock) rebuild() {
 		return
 	}
 	switch t.call.Kind {
-	case client.ToolRead:
+	case agent.ToolRead:
 		code := kit.NewCode(highlight.Lines(languageForPath(t.call.Path), output, t.syntax))
 		code.Gutter = kit.LineNumbers{Style: t.theme.Subtle, Separator: t.glyphs.Vertical}
 		t.body = append(t.body, code)
-	case client.ToolSearch, client.ToolWeb, client.ToolTask:
+	case agent.ToolSearch, agent.ToolWeb, agent.ToolTask:
 		paragraph := kit.NewParagraph(output, t.theme.Text)
-		paragraph.Links = t.call.Kind == client.ToolWeb
+		paragraph.Links = t.call.Kind == agent.ToolWeb
 		t.body = append(t.body, paragraph)
-	case client.ToolUnknown, client.ToolShell, client.ToolEdit:
+	case agent.ToolUnknown, agent.ToolShell, agent.ToolEdit:
 		t.body = append(t.body, kit.NewCode(highlight.Lines("text", output, t.syntax)))
 	default:
 		t.body = append(t.body, kit.NewCode(highlight.Lines("text", output, t.syntax)))

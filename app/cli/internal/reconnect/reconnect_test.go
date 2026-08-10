@@ -6,24 +6,24 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/app/cli/internal/client"
+	"github.com/Tangerg/lynx/app/cli/internal/agent"
 )
 
 func TestReconnectRetriesOnlyTransientErrorsWithinBudget(t *testing.T) {
 	policy := Policy{Attempts: 3, Base: 10 * time.Millisecond, Maximum: 25 * time.Millisecond}
 	for failure, want := range []time.Duration{10 * time.Millisecond, 20 * time.Millisecond, 25 * time.Millisecond} {
-		got, ok := policy.Next(failure+1, client.ErrDisconnected)
+		got, ok := policy.Next(failure+1, agent.ErrDisconnected)
 		if !ok || got != want {
 			t.Fatalf("failure %d = %s, %v; want %s", failure+1, got, ok, want)
 		}
 	}
-	if _, ok := policy.Next(4, client.ErrDisconnected); ok {
+	if _, ok := policy.Next(4, agent.ErrDisconnected); ok {
 		t.Fatal("retry budget was exceeded")
 	}
-	if _, ok := policy.Next(1, client.ErrEventConflict); ok {
+	if _, ok := policy.Next(1, agent.ErrEventConflict); ok {
 		t.Fatal("identity conflict was treated as transient")
 	}
-	if _, ok := policy.Next(1, client.ErrEventGap); !ok {
+	if _, ok := policy.Next(1, agent.ErrEventGap); !ok {
 		t.Fatal("replayable gap was not treated as transient")
 	}
 }
@@ -41,7 +41,7 @@ func TestControlValueRetriesOnlyAmbiguousTransportFailures(t *testing.T) {
 	value, err := ControlValue(t.Context(), Policy{Attempts: 2}, func() (string, error) {
 		attempts++
 		if attempts < 3 {
-			return "", errors.Join(errors.New("response lost"), client.ErrDisconnected)
+			return "", errors.Join(errors.New("response lost"), agent.ErrDisconnected)
 		}
 		return "stable", nil
 	})

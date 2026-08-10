@@ -6,7 +6,7 @@ import (
 	"github.com/Tangerg/oolong/core/input"
 	"github.com/Tangerg/oolong/core/keymap"
 
-	"github.com/Tangerg/lynx/app/cli/internal/client"
+	"github.com/Tangerg/lynx/app/cli/internal/agent"
 )
 
 func (a *app) Handle(event input.Event) bool {
@@ -131,14 +131,14 @@ func (a *app) handleQuit(event input.Event) {
 	a.loop.Quit()
 }
 
-func (a *app) currentDraft() (client.Message, bool, error) {
+func (a *app) currentDraft() (agent.Message, bool, error) {
 	editor := a.composer.Editor()
 	if editor.Empty() && len(editor.Elements()) == 0 {
-		return client.Message{}, false, nil
+		return agent.Message{}, false, nil
 	}
 	message, err := a.composerMessage()
 	if err != nil {
-		return client.Message{}, false, err
+		return agent.Message{}, false, err
 	}
 	return message, true, nil
 }

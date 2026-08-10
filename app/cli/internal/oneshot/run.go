@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/Tangerg/lynx/app/cli/internal/client"
+	"github.com/Tangerg/lynx/app/cli/internal/agent"
 	"github.com/Tangerg/lynx/app/cli/internal/reconnect"
 	"github.com/Tangerg/lynx/app/cli/internal/requestid"
 )
@@ -17,25 +17,25 @@ const cancelTimeout = 5 * time.Second
 // Renderer consumes the accepted event prefix of a run and releases its output
 // resources when the run ends or fails.
 type Renderer interface {
-	Render(client.Envelope) error
+	Render(agent.Envelope) error
 	Close() error
 }
 
 type resultInitializer interface {
-	Begin(client.Run, client.RunOptions) error
+	Begin(agent.Run, agent.RunOptions) error
 }
 
 // Config contains the dependencies and product policy for one unattended run.
 type Config struct {
-	Runtime           client.Runs
+	Runtime           agent.RunLifecycle
 	Renderer          Renderer
-	Start             client.StartRun
+	Start             agent.StartRun
 	ApproveAll        bool
 	ReconnectAttempts int
 }
 
 // Run starts, follows, and settles one unattended run. Approvals are denied
-// unless ApproveAll is set; questions remain parked for an interactive client.
+// unless ApproveAll is set; questions remain parked for an interactive agent.
 func Run(ctx context.Context, config Config) (runErr error) {
 	if config.Runtime == nil {
 		return errors.New("one-shot run requires a runtime")
@@ -48,14 +48,14 @@ func Run(ctx context.Context, config Config) (runErr error) {
 		return err
 	}
 	policy := reconnect.New(config.ReconnectAttempts)
-	guard := watchCancellation(ctx, config.Runtime, policy, client.CancelRun{
+	guard := watchCancellation(ctx, config.Runtime, policy, agent.CancelRun{
 		SessionID: config.Start.SessionID,
 		RequestID: config.Start.RequestID,
 	})
 	cancelOnExit := true
 	defer func() { guard.Close(cancelOnExit) }()
 
-	run, err := reconnect.ControlValue(ctx, policy, func() (client.Run, error) {
+	run, err := reconnect.ControlValue(ctx, policy, func() (agent.Run, error) {
 		return config.Runtime.StartRun(ctx, config.Start)
 	})
 	if err != nil {
@@ -76,7 +76,7 @@ func Run(ctx context.Context, config Config) (runErr error) {
 	return err
 }
 
-func validateStartedRun(run client.Run, sessionID string) error {
+func validateStartedRun(run agent.Run, sessionID string) error {
 	if err := run.Validate(); err != nil {
 		return fmt.Errorf("start run response: %w", err)
 	}
@@ -86,7 +86,7 @@ func validateStartedRun(run client.Run, sessionID string) error {
 	return nil
 }
 
-func ensureRequestID(start *client.StartRun) error {
+func ensureRequestID(start *agent.StartRun) error {
 	if start.RequestID != "" {
 		return nil
 	}
@@ -103,7 +103,7 @@ type cancellationGuard struct {
 	done chan struct{}
 }
 
-func watchCancellation(ctx context.Context, runtime client.Runs, policy reconnect.Policy, request client.CancelRun) *cancellationGuard {
+func watchCancellation(ctx context.Context, runtime agent.RunLifecycle, policy reconnect.Policy, request agent.CancelRun) *cancellationGuard {
 	guard := &cancellationGuard{exit: make(chan bool, 1), done: make(chan struct{})}
 	go func() {
 		defer close(guard.done)
@@ -141,18 +141,18 @@ func (d disposition) preservesRun() bool { return d == settled || d == parked }
 
 func drive(
 	ctx context.Context,
-	runtime client.Runs,
+	runtime agent.RunLifecycle,
 	renderer Renderer,
-	start client.StartRun,
-	run client.Run,
+	start agent.StartRun,
+	run agent.Run,
 	approveAll bool,
 	policy reconnect.Policy,
 ) (disposition, error) {
-	conversation := client.NewConversationAt(run.StartedAfter)
+	conversation := agent.NewConversationAt(run.StartedAfter)
 	failures := 0
 	for {
 		before := conversation.Cursor()
-		stream, err := runtime.FollowRun(ctx, client.FollowRun{RunID: run.ID, After: before})
+		stream, err := runtime.FollowRun(ctx, agent.FollowRun{RunID: run.ID, After: before})
 		if err != nil {
 			if retryErr := waitToReconnect(ctx, policy, &failures, false, err); retryErr != nil {
 				return abandoned, retryErr
@@ -178,7 +178,7 @@ func drive(
 			continue
 		}
 		if state.err == nil {
-			state.err = fmt.Errorf("%w: runtime subscription ended without interrupting or finishing the run", client.ErrDisconnected)
+			state.err = fmt.Errorf("%w: runtime subscription ended without interrupting or finishing the run", agent.ErrDisconnected)
 		}
 		if retryErr := waitToReconnect(ctx, policy, &failures, progressed, state.err); retryErr != nil {
 			return abandoned, retryErr
@@ -187,12 +187,12 @@ func drive(
 }
 
 type subscriptionState struct {
-	interrupted client.Interaction
-	outcome     *client.Outcome
+	interrupted agent.Interaction
+	outcome     *agent.Outcome
 	err         error
 }
 
-func consume(stream client.Stream, conversation *client.Conversation, renderer Renderer) subscriptionState {
+func consume(stream agent.RunStream, conversation *agent.Conversation, renderer Renderer) subscriptionState {
 	var state subscriptionState
 	for envelope, streamErr := range stream {
 		if streamErr != nil {
@@ -212,26 +212,26 @@ func consume(stream client.Stream, conversation *client.Conversation, renderer R
 			break
 		}
 		switch event := envelope.Event.(type) {
-		case client.RunInterrupted:
+		case agent.RunInterrupted:
 			state.interrupted = event.Interaction
-		case client.RunFinished:
+		case agent.RunFinished:
 			state.outcome = new(event.Outcome)
 		}
 	}
 	return state
 }
 
-type unsuccessfulOutcome struct{ outcome client.Outcome }
+type unsuccessfulOutcome struct{ outcome agent.Outcome }
 
 func (e *unsuccessfulOutcome) Error() string {
-	if e.outcome.Status == client.OutcomeFailed {
+	if e.outcome.Status == agent.OutcomeFailed {
 		return "run failed: " + e.outcome.Error
 	}
 	return "run " + string(e.outcome.Status)
 }
 
-func outcomeError(outcome client.Outcome) error {
-	if outcome.Status == client.OutcomeCompleted {
+func outcomeError(outcome agent.Outcome) error {
+	if outcome.Status == agent.OutcomeCompleted {
 		return nil
 	}
 	return &unsuccessfulOutcome{outcome: outcome}
@@ -239,18 +239,18 @@ func outcomeError(outcome client.Outcome) error {
 
 func resume(
 	ctx context.Context,
-	runtime client.Runs,
+	runtime agent.RunLifecycle,
 	policy reconnect.Policy,
 	runID string,
 	sessionID string,
-	interaction client.Interaction,
+	interaction agent.Interaction,
 	approveAll bool,
 ) error {
 	answer, interruptID, err := unattendedAnswer(interaction, approveAll, sessionID)
 	if err != nil {
 		return err
 	}
-	request := client.ResumeRun{RunID: runID, InterruptID: interruptID, Answer: answer}
+	request := agent.ResumeRun{RunID: runID, InterruptID: interruptID, Answer: answer}
 	return reconnect.Control(ctx, policy, func() error { return runtime.ResumeRun(ctx, request) })
 }
 
@@ -266,23 +266,23 @@ func waitToReconnect(ctx context.Context, policy reconnect.Policy, failures *int
 	return reconnect.Wait(ctx, delay)
 }
 
-func unattendedAnswer(interaction client.Interaction, approveAll bool, sessionID string) (client.Answer, string, error) {
+func unattendedAnswer(interaction agent.Interaction, approveAll bool, sessionID string) (agent.Answer, string, error) {
 	switch item := interaction.(type) {
-	case client.Approval:
+	case agent.Approval:
 		return approvalAnswer(approveAll), item.InterruptID, nil
-	case client.Question:
+	case agent.Question:
 		return nil, item.InterruptID, &interactionRequiredError{title: item.Title, sessionID: sessionID}
 	default:
 		return nil, "", errors.New("runtime returned an unknown interaction")
 	}
 }
 
-func approvalAnswer(approveAll bool) client.ApprovalAnswer {
+func approvalAnswer(approveAll bool) agent.ApprovalAnswer {
 	if approveAll {
-		return client.ApprovalAnswer{Decision: client.ApprovalAllow, Remember: client.RememberNone}
+		return agent.ApprovalAnswer{Decision: agent.ApprovalAllow, Remember: agent.RememberNone}
 	}
-	return client.ApprovalAnswer{
-		Decision: client.ApprovalDeny,
+	return agent.ApprovalAnswer{
+		Decision: agent.ApprovalDeny,
 		Reason:   "declined: this run is unattended (rerun with --approve-all to allow it)",
 	}
 }

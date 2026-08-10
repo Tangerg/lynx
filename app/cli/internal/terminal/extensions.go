@@ -11,7 +11,7 @@ import (
 	"github.com/Tangerg/oolong/highlight"
 	"github.com/Tangerg/oolong/markdown"
 
-	"github.com/Tangerg/lynx/app/cli/internal/client"
+	"github.com/Tangerg/lynx/app/cli/internal/agent"
 	"github.com/Tangerg/lynx/app/cli/internal/extensions"
 )
 
@@ -57,8 +57,8 @@ type Presentation struct {
 
 // BlockPresenter maps one closed domain block kind to terminal blocks.
 type BlockPresenter struct {
-	Kind    client.BlockKind
-	Present func(Presentation, client.Block) []headless.Block
+	Kind    agent.BlockKind
+	Present func(Presentation, agent.Block) []headless.Block
 }
 
 var (
@@ -69,12 +69,12 @@ var (
 func builtinPlugin() extensions.Plugin {
 	return extensions.Plugin{ID: "terminal.core", Version: "1.0.0", APIVersion: extensions.HostAPIVersion, Trusted: true, Setup: func(scope *extensions.Scope) error {
 		presenters := []BlockPresenter{
-			{Kind: client.BlockUser, Present: presentUser},
-			{Kind: client.BlockAssistant, Present: presentMarkdown("lyra")},
-			{Kind: client.BlockReasoning, Present: presentMarkdown("thinking")},
-			{Kind: client.BlockTool, Present: presentTool},
-			{Kind: client.BlockNotice, Present: presentNotice},
-			{Kind: client.BlockError, Present: presentFailure},
+			{Kind: agent.BlockUser, Present: presentUser},
+			{Kind: agent.BlockAssistant, Present: presentMarkdown("lyra")},
+			{Kind: agent.BlockReasoning, Present: presentMarkdown("thinking")},
+			{Kind: agent.BlockTool, Present: presentTool},
+			{Kind: agent.BlockNotice, Present: presentNotice},
+			{Kind: agent.BlockError, Present: presentFailure},
 		}
 		for i, presenter := range presenters {
 			if _, err := extensions.Contribute(scope, BlockPresenters, presenter, extensions.Contribution{Order: i}); err != nil {
@@ -114,7 +114,7 @@ func builtinCommands() []localCommand {
 	}
 }
 
-func presentUser(p Presentation, block client.Block) []headless.Block {
+func presentUser(p Presentation, block agent.Block) []headless.Block {
 	body := strings.TrimSpace(block.Text)
 	if len(block.Attachments) > 0 {
 		lines := make([]string, 0, len(block.Attachments))
@@ -129,11 +129,11 @@ func presentUser(p Presentation, block client.Block) []headless.Block {
 	return []headless.Block{newUserMessageBlock(p.Theme, body)}
 }
 
-func presentMarkdown(speaker string) func(Presentation, client.Block) []headless.Block {
-	return func(p Presentation, block client.Block) []headless.Block {
+func presentMarkdown(speaker string) func(Presentation, agent.Block) []headless.Block {
+	return func(p Presentation, block agent.Block) []headless.Block {
 		message := &markdownBlock{theme: p.Theme, speaker: speaker}
 		look := p.Look
-		if block.Kind == client.BlockReasoning {
+		if block.Kind == agent.BlockReasoning {
 			look.Text, look.Strong = p.Theme.Muted, p.Theme.Subtle
 		}
 		message.doc.SetBlocks(markdown.Render(block.Text, look))
@@ -141,15 +141,15 @@ func presentMarkdown(speaker string) func(Presentation, client.Block) []headless
 	}
 }
 
-func presentTool(p Presentation, block client.Block) []headless.Block {
+func presentTool(p Presentation, block agent.Block) []headless.Block {
 	return []headless.Block{newToolBlock(p, block)}
 }
 
-func presentNotice(p Presentation, block client.Block) []headless.Block {
+func presentNotice(p Presentation, block agent.Block) []headless.Block {
 	return []headless.Block{&kit.Message{Theme: p.Theme, Speaker: "notice", Body: block.Text}}
 }
 
-func presentFailure(p Presentation, block client.Block) []headless.Block {
+func presentFailure(p Presentation, block agent.Block) []headless.Block {
 	return []headless.Block{presentError(p.Theme, block.Text)}
 }
 

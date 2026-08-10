@@ -11,7 +11,7 @@ import (
 	"github.com/Tangerg/oolong/core/program"
 	"github.com/Tangerg/oolong/core/term"
 
-	"github.com/Tangerg/lynx/app/cli/internal/client"
+	"github.com/Tangerg/lynx/app/cli/internal/agent"
 	"github.com/Tangerg/lynx/app/cli/internal/reconnect"
 	"github.com/Tangerg/lynx/app/cli/internal/requestid"
 )
@@ -21,7 +21,7 @@ const (
 	controlTimeout = 5 * time.Second
 )
 
-func (a *app) startRun(message client.Message, status string) bool {
+func (a *app) startRun(message agent.Message, status string) bool {
 	requestID, err := requestid.New()
 	if err != nil {
 		a.fail(err)
@@ -33,13 +33,13 @@ func (a *app) startRun(message client.Message, status string) bool {
 	}
 	a.transcript.Follow()
 	a.activity.Reset()
-	a.header.SetUsage(client.Usage{})
+	a.header.SetUsage(agent.Usage{})
 	a.prompt.SetBusy(true)
 	a.status.active(status)
 	a.started = time.Now()
 	a.startRequest = requestID
 	a.syncAnimation()
-	input := client.StartRun{
+	input := agent.StartRun{
 		RequestID: requestID,
 		SessionID: a.session.ID,
 		Message:   message.Clone(),
@@ -63,7 +63,7 @@ func (a *app) startRun(message client.Message, status string) bool {
 
 type subscription struct {
 	runID string
-	after client.Cursor
+	after agent.Cursor
 }
 
 func (a *app) follow(open func(context.Context) (subscription, error)) {
@@ -86,9 +86,9 @@ type streamFollower struct {
 	dispatcher    program.Dispatcher
 	sequence      uint64
 	open          func(context.Context) (subscription, error)
-	applyEnvelope func(client.Envelope) error
+	applyEnvelope func(agent.Envelope) error
 	policy        reconnect.Policy
-	after         client.Cursor
+	after         agent.Cursor
 	failures      int
 }
 
@@ -117,7 +117,7 @@ func (f *streamFollower) openSubscription() (subscription, bool) {
 
 func (f *streamFollower) followOnce(runID string) bool {
 	before := f.after
-	stream, followErr := f.app.runtime.FollowRun(f.ctx, client.FollowRun{RunID: runID, After: f.after})
+	stream, followErr := f.app.runtime.FollowRun(f.ctx, agent.FollowRun{RunID: runID, After: f.after})
 	if followErr == nil && stream == nil {
 		followErr = errors.New("runtime returned a nil event stream")
 	}
@@ -133,12 +133,12 @@ func (f *streamFollower) followOnce(runID string) bool {
 		return false
 	}
 	f.after = state.after
-	if state.phase != client.Running {
+	if state.phase != agent.PhaseRunning {
 		f.finish()
 		return false
 	}
 	if followErr == nil {
-		followErr = fmt.Errorf("%w: runtime stream ended without parking or finishing the run", client.ErrDisconnected)
+		followErr = fmt.Errorf("%w: runtime stream ended without parking or finishing the run", agent.ErrDisconnected)
 	}
 	if context.Cause(f.ctx) != nil {
 		return false
@@ -146,7 +146,7 @@ func (f *streamFollower) followOnce(runID string) bool {
 	return f.retry(followErr, f.after > before)
 }
 
-func (f *streamFollower) consume(stream client.Stream) (bool, error) {
+func (f *streamFollower) consume(stream agent.RunStream) (bool, error) {
 	for envelope, streamErr := range stream {
 		if streamErr != nil {
 			return true, streamErr
@@ -159,7 +159,7 @@ func (f *streamFollower) consume(stream client.Stream) (bool, error) {
 	return true, nil
 }
 
-func (f *streamFollower) apply(envelope client.Envelope) (bool, error) {
+func (f *streamFollower) apply(envelope agent.Envelope) (bool, error) {
 	active := true
 	var applyErr error
 	err := post(f.ctx, f.dispatcher, func() {
@@ -175,8 +175,8 @@ func (f *streamFollower) apply(envelope client.Envelope) (bool, error) {
 
 type streamUIState struct {
 	active bool
-	after  client.Cursor
-	phase  client.Phase
+	after  agent.Cursor
+	phase  agent.Phase
 }
 
 func (f *streamFollower) state() (streamUIState, error) {
@@ -236,14 +236,14 @@ func (a *app) postStreamFailure(ctx context.Context, dispatcher program.Dispatch
 	})
 }
 
-func (a *app) activeCancellation() (client.CancelRun, bool) {
+func (a *app) activeCancellation() (agent.CancelRun, bool) {
 	if runID := a.state.RunID(); runID != "" {
-		return client.CancelRun{RunID: runID}, true
+		return agent.CancelRun{RunID: runID}, true
 	}
 	if a.startRequest != "" {
-		return client.CancelRun{SessionID: a.session.ID, RequestID: a.startRequest}, true
+		return agent.CancelRun{SessionID: a.session.ID, RequestID: a.startRequest}, true
 	}
-	return client.CancelRun{}, false
+	return agent.CancelRun{}, false
 }
 
 func post(ctx context.Context, dispatcher program.Dispatcher, fn func()) error {
@@ -274,7 +274,7 @@ func post(ctx context.Context, dispatcher program.Dispatcher, fn func()) error {
 	}
 }
 
-func (a *app) apply(envelope client.Envelope) error {
+func (a *app) apply(envelope agent.Envelope) error {
 	result, err := a.state.ApplyEnvelope(envelope)
 	if err != nil {
 		return fmt.Errorf("apply runtime event %T at cursor %d: %w", envelope.Event, envelope.Cursor, err)
@@ -291,33 +291,33 @@ func (a *app) apply(envelope client.Envelope) error {
 	return nil
 }
 
-func (a *app) applyPresentationEvent(event client.Event) {
+func (a *app) applyPresentationEvent(event agent.Event) {
 	switch event := event.(type) {
-	case client.RunStarted:
+	case agent.RunStarted:
 		a.commitQueuedDispatch()
 		a.startRequest = ""
 		a.status.active("working")
-	case client.BlockStarted:
+	case agent.BlockStarted:
 		a.noteBlockStarted(event.Block)
-	case client.BlockCompleted:
-		if event.Block.Kind == client.BlockTool {
+	case agent.BlockCompleted:
+		if event.Block.Kind == agent.BlockTool {
 			a.status.active("working")
 		}
-	case client.PlanChanged:
+	case agent.PlanChanged:
 		a.activity.Set(a.state.Plan())
-	case client.RunInterrupted:
+	case agent.RunInterrupted:
 		a.openInteraction(a.state.Interaction())
 		a.status.note("waiting for your answer")
-	case client.RunFinished:
+	case agent.RunFinished:
 		a.noteRunFinished()
-	case client.BlockDelta, client.RunResumed:
+	case agent.BlockDelta, agent.RunResumed:
 		// Their visible state is already represented by the transcript.
 	default:
 	}
 }
 
-func (a *app) noteBlockStarted(block client.Block) {
-	if block.Kind == client.BlockTool && block.Tool != nil {
+func (a *app) noteBlockStarted(block agent.Block) {
+	if block.Kind == agent.BlockTool && block.Tool != nil {
 		label := strings.TrimSpace(block.Tool.Summary)
 		if label == "" {
 			label = "using " + toolLabel(*block.Tool)
@@ -338,7 +338,7 @@ func (a *app) noteRunFinished() {
 
 func (a *app) finishFollowing() {
 	a.following = false
-	if a.state.Phase() != client.Idle || a.state.Outcome().Status == "" {
+	if a.state.Phase() != agent.PhaseIdle || a.state.Outcome().Status == "" {
 		return
 	}
 	a.status.settled(a.state.Outcome(), a.state.Usage())
@@ -351,13 +351,13 @@ func (a *app) finishFollowing() {
 	}
 }
 
-func outcomeNotification(outcome client.Outcome) string {
+func outcomeNotification(outcome agent.Outcome) string {
 	switch outcome.Status {
-	case client.OutcomeCompleted:
+	case agent.OutcomeCompleted:
 		return "lyra run completed"
-	case client.OutcomeCanceled:
+	case agent.OutcomeCanceled:
 		return "lyra run canceled"
-	case client.OutcomeFailed:
+	case agent.OutcomeFailed:
 		return "lyra run failed"
 	default:
 		return ""
@@ -414,14 +414,14 @@ func (a *app) cancel() {
 		a.prompt.SetBusy(false)
 		a.syncAnimation()
 		if requestID != "" {
-			a.cancelRuntime(client.CancelRun{SessionID: a.session.ID, RequestID: requestID})
+			a.cancelRuntime(agent.CancelRun{SessionID: a.session.ID, RequestID: requestID})
 		}
 		return
 	}
-	a.cancelRuntime(client.CancelRun{RunID: runID})
+	a.cancelRuntime(agent.CancelRun{RunID: runID})
 }
 
-func (a *app) cancelRuntime(target client.CancelRun) {
+func (a *app) cancelRuntime(target agent.CancelRun) {
 	targetCopy := target
 	a.pendingCancel = &targetCopy
 	dispatcher := a.loop.Dispatcher()
@@ -443,7 +443,7 @@ func (a *app) cancelRuntime(target client.CancelRun) {
 	})
 }
 
-func (a *app) cancelRuntimeNow(ownerCtx context.Context, target client.CancelRun) {
+func (a *app) cancelRuntimeNow(ownerCtx context.Context, target agent.CancelRun) {
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ownerCtx), controlTimeout)
 	defer cancel()
 	policy := reconnect.New(a.settings.UI.ReconnectAttempts)
@@ -457,7 +457,7 @@ func (a *app) dropStream() {
 }
 
 func (a *app) syncAnimation() {
-	running := a.state.Phase() == client.Running
+	running := a.state.Phase() == agent.PhaseRunning
 	switch {
 	case running && a.stopClock == nil:
 		a.stopClock = a.loop.Every(animationRate, func() {

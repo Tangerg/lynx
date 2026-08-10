@@ -13,21 +13,21 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Tangerg/lynx/app/cli/internal/client"
+	"github.com/Tangerg/lynx/app/cli/internal/agent"
 )
 
 // Step is one scripted emission: wait, then send.
 type Step struct {
 	Delay time.Duration
-	Event client.Event
+	Event agent.Event
 }
 
 // Script is one run's worth of events. Prelude plays first; Interaction, when
 // non-nil, parks the run and Continue maps the typed answer to its continuation.
 type Script struct {
 	Prelude     []Step
-	Interaction client.Interaction
-	Continue    func(client.Answer) []Step
+	Interaction agent.Interaction
+	Continue    func(agent.Answer) []Step
 }
 
 func buildScriptSafely(build func(string) Script, prompt string) (script Script, err error) {
@@ -46,7 +46,7 @@ func buildScriptSafely(build func(string) Script, prompt string) (script Script,
 func (s Script) validate() error {
 	interrupted := s.interrupts()
 	if interrupted {
-		if err := client.ValidateInteraction(s.Interaction); err != nil {
+		if err := agent.ValidateInteraction(s.Interaction); err != nil {
 			return err
 		}
 	} else if s.Continue != nil {
@@ -55,7 +55,7 @@ func (s Script) validate() error {
 	return validateSteps(s.Prelude, !interrupted)
 }
 
-func continueSafely(script Script, answer client.Answer) (steps []Step, err error) {
+func continueSafely(script Script, answer agent.Answer) (steps []Step, err error) {
 	defer func() {
 		if recovered := recover(); recovered != nil {
 			err = fmt.Errorf("script continuation panicked: %v", recovered)
@@ -64,7 +64,7 @@ func continueSafely(script Script, answer client.Answer) (steps []Step, err erro
 	if script.Continue == nil {
 		return nil, errors.New("script interaction has no continuation")
 	}
-	steps = cloneSteps(script.Continue(client.CloneAnswer(answer)))
+	steps = cloneSteps(script.Continue(agent.CloneAnswer(answer)))
 	if err := validateSteps(steps, true); err != nil {
 		return nil, err
 	}
@@ -77,13 +77,13 @@ func validateSteps(steps []Step, requireFinish bool) error {
 		if step.Delay < 0 {
 			return fmt.Errorf("step %d has a negative delay", i+1)
 		}
-		if err := client.ValidateEvent(step.Event); err != nil {
+		if err := agent.ValidateEvent(step.Event); err != nil {
 			return fmt.Errorf("step %d: %w", i+1, err)
 		}
 		switch step.Event.(type) {
-		case client.RunStarted, client.RunResumed, client.RunInterrupted:
+		case agent.RunStarted, agent.RunResumed, agent.RunInterrupted:
 			return fmt.Errorf("step %d contains a runtime-owned control event", i+1)
-		case client.RunFinished:
+		case agent.RunFinished:
 			if i != len(steps)-1 {
 				return fmt.Errorf("step %d finishes before the script ends", i+1)
 			}
@@ -98,7 +98,7 @@ func validateSteps(steps []Step, requireFinish bool) error {
 
 func cloneScript(script Script) Script {
 	script.Prelude = cloneSteps(script.Prelude)
-	script.Interaction = client.CloneInteraction(script.Interaction)
+	script.Interaction = agent.CloneInteraction(script.Interaction)
 	return script
 }
 
@@ -119,9 +119,9 @@ const (
 	beat = 260 * time.Millisecond
 )
 
-// Conversation is the default script: think, run a command, explain, ask to edit
+// DefaultScript is the default script: think, run a command, explain, ask to edit
 // a file, then either edit it or say why it did not.
-func Conversation(_ string) Script {
+func DefaultScript(_ string) Script {
 	reasoning := "The failure is intermittent, roughly one run in five, which points at timing rather than logic. " +
 		"Let me run the test several times and read what the failing run actually reports."
 
@@ -165,44 +165,44 @@ func Conversation(_ string) Script {
 	}, "\n")
 
 	prelude := make([]Step, 0, 32)
-	prelude = append(prelude, Step{Delay: beat, Event: client.PlanChanged{Items: []client.PlanItem{
-		{Title: "Reproduce the flake", Status: client.PlanActive},
-		{Title: "Find what the test is really waiting for", Status: client.PlanPending},
-		{Title: "Replace the sleep and re-run", Status: client.PlanPending},
+	prelude = append(prelude, Step{Delay: beat, Event: agent.PlanChanged{Items: []agent.PlanItem{
+		{Title: "Reproduce the flake", Status: agent.PlanActive},
+		{Title: "Find what the test is really waiting for", Status: agent.PlanPending},
+		{Title: "Replace the sleep and re-run", Status: agent.PlanPending},
 	}}})
-	prelude = append(prelude, stream("rsn_1", client.BlockReasoning, reasoning)...)
-	prelude = append(prelude, tool("tool_1", client.ToolShell, "shell",
+	prelude = append(prelude, stream("rsn_1", agent.BlockReasoning, reasoning)...)
+	prelude = append(prelude, tool("tool_1", agent.ToolShell, "shell",
 		"go test ./internal/store -run TestCacheExpiry -count=5",
-		client.ToolOK, testOutput, "", 3*time.Second+412*time.Millisecond)...)
-	prelude = append(prelude, Step{Delay: beat, Event: client.PlanChanged{Items: []client.PlanItem{
-		{Title: "Reproduce the flake", Status: client.PlanDone},
-		{Title: "Find what the test is really waiting for", Status: client.PlanDone},
-		{Title: "Replace the sleep and re-run", Status: client.PlanActive},
+		agent.ToolOK, testOutput, "", 3*time.Second+412*time.Millisecond)...)
+	prelude = append(prelude, Step{Delay: beat, Event: agent.PlanChanged{Items: []agent.PlanItem{
+		{Title: "Reproduce the flake", Status: agent.PlanDone},
+		{Title: "Find what the test is really waiting for", Status: agent.PlanDone},
+		{Title: "Replace the sleep and re-run", Status: agent.PlanActive},
 	}}})
-	prelude = append(prelude, stream("msg_1", client.BlockAssistant, explain)...)
+	prelude = append(prelude, stream("msg_1", agent.BlockAssistant, explain)...)
 
-	approved := tool("tool_2", client.ToolEdit, "edit", "internal/store/cache_test.go",
-		client.ToolOK, "", diff, 118*time.Millisecond)
-	approved = append(approved, tool("tool_3", client.ToolShell, "shell",
+	approved := tool("tool_2", agent.ToolEdit, "edit", "internal/store/cache_test.go",
+		agent.ToolOK, "", diff, 118*time.Millisecond)
+	approved = append(approved, tool("tool_3", agent.ToolShell, "shell",
 		"go test ./internal/store -run TestCacheExpiry -count=50",
-		client.ToolOK, "ok  \tgithub.com/example/store\t2.104s", "", 2*time.Second+104*time.Millisecond)...)
-	approved = append(approved, stream("msg_2", client.BlockAssistant, summary)...)
-	approved = append(approved, Step{Delay: beat, Event: client.RunFinished{
-		Outcome: client.Outcome{Status: client.OutcomeCompleted},
-		Usage: client.Usage{
+		agent.ToolOK, "ok  \tgithub.com/example/store\t2.104s", "", 2*time.Second+104*time.Millisecond)...)
+	approved = append(approved, stream("msg_2", agent.BlockAssistant, summary)...)
+	approved = append(approved, Step{Delay: beat, Event: agent.RunFinished{
+		Outcome: agent.Outcome{Status: agent.OutcomeCompleted},
+		Usage: agent.Usage{
 			InputTokens: 18422, OutputTokens: 1163, CachedTokens: 12800,
 			CostUSD: 0.0412, Duration: 21 * time.Second,
 		},
 	}})
 
 	denied := make([]Step, 0, 16)
-	denied = append(denied, Step{Delay: beat, Event: client.BlockCompleted{Block: client.Block{
-		ID: "note_1", Kind: client.BlockNotice, Text: "Edit declined — internal/store/cache_test.go left unchanged.",
+	denied = append(denied, Step{Delay: beat, Event: agent.BlockCompleted{Block: agent.Block{
+		ID: "note_1", Kind: agent.BlockNotice, Text: "Edit declined — internal/store/cache_test.go left unchanged.",
 	}}})
-	denied = append(denied, stream("msg_3", client.BlockAssistant, declined)...)
-	denied = append(denied, Step{Delay: beat, Event: client.RunFinished{
-		Outcome: client.Outcome{Status: client.OutcomeCompleted},
-		Usage: client.Usage{
+	denied = append(denied, stream("msg_3", agent.BlockAssistant, declined)...)
+	denied = append(denied, Step{Delay: beat, Event: agent.RunFinished{
+		Outcome: agent.Outcome{Status: agent.OutcomeCompleted},
+		Usage: agent.Usage{
 			InputTokens: 14180, OutputTokens: 742, CachedTokens: 12800,
 			CostUSD: 0.0291, Duration: 14 * time.Second,
 		},
@@ -210,7 +210,7 @@ func Conversation(_ string) Script {
 
 	return Script{
 		Prelude: prelude,
-		Interaction: client.Approval{
+		Interaction: agent.Approval{
 			InterruptID: "int_1",
 			Title:       "edit internal/store/cache_test.go",
 			Detail:      "Replace the fixed 50ms sleep with a wait on the janitor's sweep signal.",
@@ -218,9 +218,9 @@ func Conversation(_ string) Script {
 			Risk:        "writes one workspace test file",
 			RuleHint:    "edit:internal/store/cache_test.go",
 		},
-		Continue: func(answer client.Answer) []Step {
-			approval, ok := answer.(client.ApprovalAnswer)
-			if ok && approval.Decision == client.ApprovalAllow {
+		Continue: func(answer agent.Answer) []Step {
+			approval, ok := answer.(agent.ApprovalAnswer)
+			if ok && approval.Decision == agent.ApprovalAllow {
 				return approved
 			}
 			return denied
@@ -230,51 +230,51 @@ func Conversation(_ string) Script {
 
 // stream renders one body as a started block, a delta per word, and a completed
 // block — the shape a real streaming item takes.
-func stream(id string, kind client.BlockKind, text string) []Step {
-	steps := []Step{{Delay: beat, Event: client.BlockStarted{Block: client.Block{ID: id, Kind: kind}}}}
+func stream(id string, kind agent.BlockKind, text string) []Step {
+	steps := []Step{{Delay: beat, Event: agent.BlockStarted{Block: agent.Block{ID: id, Kind: kind}}}}
 	for _, w := range words(text) {
-		steps = append(steps, Step{Delay: tick, Event: client.BlockDelta{BlockID: id, Text: w}})
+		steps = append(steps, Step{Delay: tick, Event: agent.BlockDelta{BlockID: id, Text: w}})
 	}
-	return append(steps, Step{Event: client.BlockCompleted{Block: client.Block{ID: id, Kind: kind, Text: text}}})
+	return append(steps, Step{Event: agent.BlockCompleted{Block: agent.Block{ID: id, Kind: kind, Text: text}}})
 }
 
 // tool renders one call as running, then finished with its result.
-func tool(id string, kind client.ToolKind, name, summary string, status client.ToolStatus, output, patch string, d time.Duration) []Step {
-	running := client.Block{ID: id, Kind: client.BlockTool, Tool: &client.ToolCall{
-		Kind: kind, Name: name, Summary: summary, Status: client.ToolRunning,
+func tool(id string, kind agent.ToolKind, name, summary string, status agent.ToolStatus, output, patch string, d time.Duration) []Step {
+	running := agent.Block{ID: id, Kind: agent.BlockTool, Tool: &agent.ToolCall{
+		Kind: kind, Name: name, Summary: summary, Status: agent.ToolRunning,
 	}}
-	done := client.Block{ID: id, Kind: client.BlockTool, Tool: &client.ToolCall{
+	done := agent.Block{ID: id, Kind: agent.BlockTool, Tool: &agent.ToolCall{
 		Kind: kind, Name: name, Summary: summary, Status: status, Output: output, Diff: patch, Duration: d,
 	}}
 	switch kind {
-	case client.ToolShell:
+	case agent.ToolShell:
 		running.Tool.Command, done.Tool.Command = summary, summary
 		code := 0
-		if status == client.ToolError {
+		if status == agent.ToolError {
 			code = 1
 		}
 		done.Tool.ExitCode = &code
-	case client.ToolEdit, client.ToolRead:
+	case agent.ToolEdit, agent.ToolRead:
 		running.Tool.Path, done.Tool.Path = summary, summary
-	case client.ToolSearch:
+	case agent.ToolSearch:
 		running.Tool.Query, done.Tool.Query = summary, summary
-	case client.ToolWeb:
+	case agent.ToolWeb:
 		running.Tool.URL, done.Tool.URL = summary, summary
-	case client.ToolUnknown, client.ToolTask:
+	case agent.ToolUnknown, agent.ToolTask:
 		// These kinds do not project a specialized primary field.
 	default:
 	}
-	steps := []Step{{Delay: beat, Event: client.BlockStarted{Block: running}}}
+	steps := []Step{{Delay: beat, Event: agent.BlockStarted{Block: running}}}
 	for _, chunk := range strings.SplitAfter(output, "\n") {
 		if chunk != "" {
-			steps = append(steps, Step{Delay: 3 * tick, Event: client.BlockDelta{BlockID: id, Text: chunk}})
+			steps = append(steps, Step{Delay: 3 * tick, Event: agent.BlockDelta{BlockID: id, Text: chunk}})
 		}
 	}
 	completionDelay := 3 * beat
 	if output != "" {
 		completionDelay = beat
 	}
-	return append(steps, Step{Delay: completionDelay, Event: client.BlockCompleted{Block: done}})
+	return append(steps, Step{Delay: completionDelay, Event: agent.BlockCompleted{Block: done}})
 }
 
 // words splits text so that concatenating the pieces reproduces it exactly.
@@ -292,9 +292,9 @@ func words(text string) []string {
 }
 
 // demoSessions seeds the catalog with plainly fake history.
-func demoSessions() []client.Session {
+func demoSessions() []agent.Session {
 	now := time.Date(2026, 8, 4, 11, 30, 0, 0, time.UTC)
-	return []client.Session{
+	return []agent.Session{
 		{ID: "ses_demo_1", Title: "Flaky cache expiry test", Workspace: "/tmp/demo/store", UpdatedAt: now, Revision: 7},
 		{ID: "ses_demo_2", Title: "Rename the shell tool family", Workspace: "/tmp/demo/store", UpdatedAt: now.Add(-90 * time.Minute), Revision: 3},
 		{ID: "ses_demo_3", Title: "Draft the release notes", Workspace: "/tmp/demo/docs", UpdatedAt: now.Add(-26 * time.Hour), Revision: 12},

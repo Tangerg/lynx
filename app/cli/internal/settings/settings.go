@@ -10,7 +10,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/Tangerg/lynx/app/cli/internal/client"
+	"github.com/Tangerg/lynx/app/cli/internal/agent"
 )
 
 const (
@@ -35,18 +35,18 @@ const (
 )
 
 type Config struct {
-	Model      string                `json:"model"      mapstructure:"model"`
-	Effort     string                `json:"effort"     mapstructure:"effort"`
-	Mode       client.AgentMode      `json:"mode"       mapstructure:"mode"`
-	Permission client.PermissionMode `json:"permission" mapstructure:"permission"`
-	Approval   Approval              `json:"approval"   mapstructure:"approval"`
-	UI         UI                    `json:"ui"         mapstructure:"ui"`
-	Plugins    Plugins               `json:"plugins"    mapstructure:"plugins"`
-	Keys       map[string][]string   `json:"keys"       mapstructure:"keys"`
+	Model      string               `json:"model"      mapstructure:"model"`
+	Effort     string               `json:"effort"     mapstructure:"effort"`
+	Mode       agent.AgentMode      `json:"mode"       mapstructure:"mode"`
+	Permission agent.PermissionMode `json:"permission" mapstructure:"permission"`
+	Approval   Approval             `json:"approval"   mapstructure:"approval"`
+	UI         UI                   `json:"ui"         mapstructure:"ui"`
+	Plugins    Plugins              `json:"plugins"    mapstructure:"plugins"`
+	Keys       map[string][]string  `json:"keys"       mapstructure:"keys"`
 }
 
 type Approval struct {
-	Remember client.RememberScope `json:"remember" mapstructure:"remember"`
+	Remember agent.RememberScope `json:"remember" mapstructure:"remember"`
 }
 
 type UI struct {
@@ -63,8 +63,8 @@ type Plugins struct {
 
 func Default() Config {
 	return Config{
-		Effort: "medium", Mode: client.ModeBuild, Permission: client.PermissionAsk,
-		Approval: Approval{Remember: client.RememberNone},
+		Effort: "medium", Mode: agent.ModeBuild, Permission: agent.PermissionAsk,
+		Approval: Approval{Remember: agent.RememberNone},
 		UI:       UI{Mouse: true, Notifications: true, ToolDetails: false, TranscriptRetain: 24, ReconnectAttempts: 4},
 		Keys: map[string][]string{
 			ActionSend:            {"enter"},
@@ -102,7 +102,7 @@ func (s Config) Validate() error {
 }
 
 func validateApproval(approval Approval) []error {
-	if !slices.Contains([]client.RememberScope{client.RememberNone, client.RememberSession, client.RememberProject, client.RememberGlobal}, approval.Remember) {
+	if !slices.Contains([]agent.RememberScope{agent.RememberNone, agent.RememberSession, agent.RememberProject, agent.RememberGlobal}, approval.Remember) {
 		return []error{fmt.Errorf("approval remember scope %q is invalid", approval.Remember)}
 	}
 	return nil
@@ -156,8 +156,8 @@ func validateKeys(keys map[string][]string) []error {
 	return problems
 }
 
-func (s Config) RunOptions() client.RunOptions {
-	return client.RunOptions{Model: s.Model, Effort: s.Effort, Mode: s.Mode, Permission: s.Permission}
+func (s Config) RunOptions() agent.RunOptions {
+	return agent.RunOptions{Model: s.Model, Effort: s.Effort, Mode: s.Mode, Permission: s.Permission}
 }
 
 func (s Config) Clone() Config {
