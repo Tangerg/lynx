@@ -11,6 +11,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/sessionfixture"
 )
 
 // changeRecorder collects notices from the pump goroutine as well as the request
@@ -61,7 +62,7 @@ func (r *changeRecorder) count(resource change.Resource) int {
 func TestStartAndTerminalPublishRunAndSessionChanges(t *testing.T) {
 	exec := &fakeExecutor{}
 	effects := &fakeEffects{}
-	sessions := &fakeRunSessions{sess: session.Session{ID: "ses_1", CWD: "/work"}}
+	sessions := &fakeRunSessions{sess: sessionfixture.MustRestore(session.Snapshot{ID: "ses_1", CWD: "/work"})}
 	control := &fakeExecutionPorts{startRef: ExecutorRef{SessionID: "ses_1", ExecutorID: "turn_1"}}
 	changes := &changeRecorder{}
 	c := NewCoordinator(Dependencies{
@@ -116,7 +117,7 @@ func TestPlanSnapshotStaysOnOwningRunStream(t *testing.T) {
 	})}}}
 	changes := &changeRecorder{}
 	control := &fakeExecutionPorts{startRef: ExecutorRef{SessionID: "ses_1", ExecutorID: "turn_1"}}
-	sessions := &fakeRunSessions{sess: session.Session{ID: "ses_1", CWD: "/work"}}
+	sessions := &fakeRunSessions{sess: sessionfixture.MustRestore(session.Snapshot{ID: "ses_1", CWD: "/work"})}
 	c := NewCoordinator(Dependencies{
 		RootStarts:   control,
 		Observations: exec,

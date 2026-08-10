@@ -114,7 +114,7 @@ func (r *Reporter) Summary(ctx context.Context, sinceDays int) (Summary, error) 
 	byDay := map[string]*usageAccumulator{}
 	sessionCount := 0
 	for _, sess := range sessions {
-		runs, err := r.runs.ListRuns(ctx, sess.ID)
+		runs, err := r.runs.ListRuns(ctx, sess.ID())
 		if err != nil {
 			return Summary{}, err
 		}

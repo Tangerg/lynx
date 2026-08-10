@@ -135,37 +135,37 @@ func (s *SessionStores) ReadSnapshot(ctx context.Context, sessionID string) (ses
 	return snapshot, err
 }
 
-// ApplyFork branches a child session, seeds its history prefix, and applies its
-// title in one transaction.
+// ApplyFork persists the Domain-derived child Session and its history/Plan
+// boundary in one transaction.
 func (s *SessionStores) ApplyFork(ctx context.Context, fork sessions.ForkPlan) (session.Session, error) {
-	var child session.Session
+	if err := fork.Child.Validate(); err != nil {
+		return session.Session{}, fmt.Errorf("persistence: invalid child Session: %w", err)
+	}
+	if fork.Child.ParentID() != fork.ParentID || fork.Child.Revision() != 1 {
+		return session.Session{}, errors.New("persistence: child Session differs from fork parent or initial revision")
+	}
 	err := s.tx(ctx, func(ctx context.Context) error {
-		ch, err := s.sessions.Fork(ctx, fork.ParentID)
-		if err != nil {
+		if _, err := s.sessions.Get(ctx, fork.ParentID); err != nil {
 			return err
 		}
-		if err := s.history.Seed(ctx, ch.ID, fork.Messages); err != nil {
+		if err := s.sessions.Insert(ctx, fork.Child); err != nil {
+			return err
+		}
+		if err := s.history.Seed(ctx, fork.Child.ID(), fork.Messages); err != nil {
 			return err
 		}
 		// A branch that copies the conversation copies the plan it was following. Only
 		// a non-empty list is written: a fresh child with no row already reads as a
 		// session with no list, and writing one would publish an empty list as news.
-		if err := s.savePlanReplacement(ctx, ch.ID, fork.PlanReplacement); err != nil {
+		if err := s.savePlanReplacement(ctx, fork.Child.ID(), fork.PlanReplacement); err != nil {
 			return err
 		}
-		if fork.Title != "" {
-			if err := s.sessions.Rename(ctx, ch.ID, fork.Title); err != nil {
-				return err
-			}
-			ch.Title = fork.Title
-		}
-		child = ch
 		return nil
 	})
 	if err != nil {
 		return session.Session{}, err
 	}
-	return child, nil
+	return fork.Child, nil
 }
 
 // ApplyRollback persists one resolved rollback plan atomically.
@@ -227,8 +227,12 @@ func (s *SessionStores) ApplyRestore(ctx context.Context, restore sessions.Resto
 		return errors.New("persistence: cannot restore tool results without blob persistence")
 	}
 	return s.tx(ctx, func(ctx context.Context) error {
-		sessionID := restore.Session.ID
-		if err := s.sessions.Restore(ctx, restore.Session); err != nil {
+		if err := restore.Session.Validate(); err != nil {
+			return fmt.Errorf("persistence: invalid Session restore replacement: %w", err)
+		}
+		restoredSession := restore.Session.State()
+		sessionID := restoredSession.ID()
+		if err := s.saveSessionReplacement(ctx, restore.Session); err != nil {
 			return err
 		}
 		// Keep the live Plan row when a replacement was prepared: deleting it would
@@ -251,6 +255,16 @@ func (s *SessionStores) ApplyRestore(ctx context.Context, restore sessions.Resto
 		}
 		return s.restoreToolResults(ctx, restore.ToolResults)
 	})
+}
+
+func (s *SessionStores) saveSessionReplacement(
+	ctx context.Context,
+	replacement sessions.SessionReplacement,
+) error {
+	if replacement.ExpectedRevision() == 0 {
+		return s.sessions.Insert(ctx, replacement.State())
+	}
+	return s.sessions.Save(ctx, replacement.ExpectedRevision(), replacement.State())
 }
 
 func (s *SessionStores) restorePlanAndHistory(ctx context.Context, sessionID string, restore sessions.RestorePlan) error {

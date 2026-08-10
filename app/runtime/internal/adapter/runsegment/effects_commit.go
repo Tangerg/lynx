@@ -258,27 +258,26 @@ func (e *Effects) admitOpening(ctx context.Context, opening runs.OpeningCommit) 
 	if e.runState == nil {
 		return errors.New("runsegment: run-state persistence is unavailable")
 	}
-	if opening.ScheduledSession != nil {
+	if opening.InitialSession != nil {
 		if e.sessions == nil {
 			return errors.New("runsegment: session persistence is unavailable")
 		}
-		if _, err := e.sessions.Ensure(ctx, *opening.ScheduledSession); err != nil {
-			return fmt.Errorf("runsegment: persist opening scheduled session: %w", err)
+		if err := e.sessions.Insert(ctx, *opening.InitialSession); err != nil {
+			return fmt.Errorf("runsegment: persist opening initial Session: %w", err)
 		}
 	}
 	if err := e.runState.Admit(ctx, *opening.Admit); err != nil {
 		return err
 	}
-	if opening.SessionModel != nil {
+	if opening.SessionReplacement != nil {
 		if e.sessions == nil {
 			return errors.New("runsegment: session persistence is unavailable")
 		}
-		if err := e.sessions.SetModel(
-			ctx,
-			opening.SessionModel.SessionID,
-			opening.SessionModel.Model,
+		if err := e.sessions.Save(
+			ctx, opening.SessionReplacement.ExpectedRevision,
+			opening.SessionReplacement.State,
 		); err != nil {
-			return fmt.Errorf("runsegment: persist opening session model: %w", err)
+			return fmt.Errorf("runsegment: persist opening Session replacement: %w", err)
 		}
 	}
 	if opening.ScheduleFiring == "" {

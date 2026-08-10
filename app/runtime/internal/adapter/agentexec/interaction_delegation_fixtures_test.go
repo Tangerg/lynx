@@ -158,7 +158,7 @@ func (delegateConversation) Read(context.Context, string) ([]chat.Message, error
 type delegateSessionStore struct{ value session.Session }
 
 func (store *delegateSessionStore) Get(_ context.Context, id string) (session.Session, error) {
-	if id != store.value.ID {
+	if id != store.value.ID() {
 		return session.Session{}, errors.New("session not found")
 	}
 	return store.value, nil
@@ -177,8 +177,9 @@ func (store *delegateSessionStore) PrepareScheduled(
 	string,
 	string,
 	string,
-) (session.Session, error) {
-	return store.value, nil
+	string,
+) (session.Session, *session.Session, error) {
+	return store.value, nil, nil
 }
 
 func (*delegateSessionStore) ActiveRun(

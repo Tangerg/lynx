@@ -17,6 +17,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/sessionfixture"
 	"github.com/Tangerg/lynx/chatclient"
 	"github.com/Tangerg/lynx/core/chat"
 )
@@ -55,10 +56,9 @@ func TestInteractionExecutorRunsDelegateAsProductChildRun(t *testing.T) {
 		t.Fatal(err)
 	}
 	workspace := t.TempDir()
-	sessions := &delegateSessionStore{value: session.Session{
+	sessions := &delegateSessionStore{value: sessionfixture.MustRestore(session.Snapshot{
 		ID: "session_1", Title: "delegate", CWD: workspace,
-		StartedAt: time.Unix(1, 0).UTC(), UpdatedAt: time.Unix(1, 0).UTC(), Revision: 1,
-	}}
+	})}
 	projection := newDelegateProjection()
 	runIDs := []string{"run_root", "run_child"}
 	segmentIDs := []string{"segment_root", "segment_child"}
@@ -179,10 +179,9 @@ func TestInteractionExecutorCancelsRunningDelegateAndKeepsRootRunning(t *testing
 		t.Fatal(err)
 	}
 	workspace := t.TempDir()
-	sessions := &delegateSessionStore{value: session.Session{
+	sessions := &delegateSessionStore{value: sessionfixture.MustRestore(session.Snapshot{
 		ID: "session_1", Title: "running cancellation", CWD: workspace,
-		StartedAt: time.Unix(1, 0).UTC(), UpdatedAt: time.Unix(1, 0).UTC(), Revision: 1,
-	}}
+	})}
 	projection := newDelegateProjection()
 	runIDs := []string{"run_root", "run_child"}
 	segmentIDs := []string{"segment_root", "segment_child"}
@@ -450,10 +449,9 @@ func runDelegateTree(
 		t.Fatal(err)
 	}
 	workspace := t.TempDir()
-	sessions := &delegateSessionStore{value: session.Session{
+	sessions := &delegateSessionStore{value: sessionfixture.MustRestore(session.Snapshot{
 		ID: "session_tree", Title: "delegate tree", CWD: workspace,
-		StartedAt: time.Unix(1, 0).UTC(), UpdatedAt: time.Unix(1, 0).UTC(), Revision: 1,
-	}}
+	})}
 	projection := newDelegateProjection()
 	var identityMu sync.Mutex
 	runSequence, segmentSequence := 0, 0

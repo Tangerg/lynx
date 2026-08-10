@@ -22,6 +22,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/itemfixture"
 	runfixture "github.com/Tangerg/lynx/app/runtime/internal/testsupport/runfixture"
+	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/sessionfixture"
 )
 
 const checkpointBuildID = "test-build"
@@ -570,11 +571,14 @@ func TestCommitOpeningRollsBackScheduledSession(t *testing.T) {
 	})
 	created := time.Now().UTC()
 	draft := run.Draft{RunID: "run_scheduled", SessionID: "ses_scheduled", SegmentID: "seg_open", CreatedAt: created}
-	scheduled := session.Session{ID: draft.SessionID, Title: "scheduled", CWD: "/work", StartedAt: created, UpdatedAt: created, Revision: 1}
+	scheduled := sessionfixture.MustRestore(session.Snapshot{
+		ID: draft.SessionID, Title: "scheduled", CWD: "/work",
+		StartedAt: created, UpdatedAt: created, Revision: 1,
+	})
 	err = effects.CommitOpening(ctx, runs.OpeningCommit{
-		Admit:            &draft,
-		ScheduledSession: &scheduled,
-		// No firing is seeded: Accept fails after Ensure and Admit, so the
+		Admit:          &draft,
+		InitialSession: &scheduled,
+		// No firing is seeded: Accept fails after Insert and Admit, so the
 		// test exercises rollback rather than a preflight rejection.
 		ScheduleFiring: "fire_missing",
 		Events: []runs.EventCommit{{
@@ -606,7 +610,10 @@ func TestCommitEventRecordsGoalRunWithTerminalRun(t *testing.T) {
 	created := time.Now().UTC()
 	goals := sqlite.NewGoalStore(db)
 	sessions := sqlite.NewSessionStore(db)
-	if err := sessions.Restore(ctx, session.Session{ID: "ses_goal", StartedAt: created, UpdatedAt: created, Revision: 1}); err != nil {
+	goalSession := sessionfixture.MustRestore(session.Snapshot{
+		ID: "ses_goal", CWD: "/work", StartedAt: created, UpdatedAt: created, Revision: 1,
+	})
+	if err := sessions.Insert(ctx, goalSession); err != nil {
 		t.Fatalf("seed goal session: %v", err)
 	}
 	selection := mustEffectSelection(t, "provider", "model")

@@ -20,8 +20,8 @@ func (snapshot Snapshot) ValidateToolResults() error {
 		if err := blob.Validate(); err != nil {
 			return fmt.Errorf("sessions: tool result %d: %w", index, err)
 		}
-		if blob.SessionID != snapshot.Session.ID {
-			return fmt.Errorf("sessions: tool result %q belongs to session %q, want %q", blob.ID, blob.SessionID, snapshot.Session.ID)
+		if blob.SessionID != snapshot.Session.ID() {
+			return fmt.Errorf("sessions: tool result %q belongs to session %q, want %q", blob.ID, blob.SessionID, snapshot.Session.ID())
 		}
 		if _, duplicate := byItem[blob.ItemID]; duplicate {
 			return fmt.Errorf("sessions: multiple tool results are bound to item %q", blob.ItemID)

@@ -81,18 +81,18 @@ func (e *Effects) snapshot(ctx context.Context, sessionID, cwd, runID string) er
 }
 
 func (e *Effects) title(ctx context.Context, sessionID, prompt string) error {
-	if e.sessions == nil {
-		return errors.New("runsegment: session persistence is unavailable for title generation")
+	if e.sessionTitles == nil {
+		return errors.New("runsegment: Session title use cases are unavailable")
 	}
 	prompt = strings.TrimSpace(prompt)
 	if prompt == "" {
 		return nil
 	}
-	sess, err := e.sessions.Get(ctx, sessionID)
+	needed, err := e.sessionTitles.NeedsGeneratedTitle(ctx, sessionID)
 	if err != nil {
-		return fmt.Errorf("runsegment: load session %q for title generation: %w", sessionID, err)
+		return fmt.Errorf("runsegment: inspect Session %q for title generation: %w", sessionID, err)
 	}
-	if strings.TrimSpace(sess.Title) != "" {
+	if !needed {
 		return nil
 	}
 	if e.titles == nil {
@@ -106,8 +106,8 @@ func (e *Effects) title(ctx context.Context, sessionID, prompt string) error {
 	if title == "" {
 		return fmt.Errorf("runsegment: generated title for session %q is empty", sessionID)
 	}
-	if err := e.sessions.RenameIfUntitled(ctx, sessionID, title); err != nil {
-		return fmt.Errorf("runsegment: rename untitled session %q: %w", sessionID, err)
+	if err := e.sessionTitles.ApplyGeneratedTitle(ctx, sessionID, title); err != nil {
+		return fmt.Errorf("runsegment: apply generated title to Session %q: %w", sessionID, err)
 	}
 	return nil
 }

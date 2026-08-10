@@ -58,11 +58,11 @@ func checkpointHarness(t *testing.T) (*Server, *stubRuntime, *workspace.Checkpoi
 	if out, err := exec.Command("git", "-C", cwd, "init", "-q").CombinedOutput(); err != nil {
 		t.Fatalf("git init cwd: %v: %s", err, out)
 	}
-	ses, err := rt.sess.Create(context.Background(), "ckpt", cwd)
+	ses, err := insertSessionFixture(context.Background(), rt.sess, "ckpt", cwd)
 	if err != nil {
 		t.Fatalf("create session: %v", err)
 	}
-	return s, rt, cp, ses.ID, cwd
+	return s, rt, cp, ses.ID(), cwd
 }
 
 func writeCheckpointFile(t *testing.T, cwd, body string) {
@@ -288,9 +288,9 @@ func TestRollback_FilesRequiresToRunID(t *testing.T) {
 func TestRollbackRejectsUnknownRestoreType(t *testing.T) {
 	s, rt := rollbackHarness(t)
 	ctx := context.Background()
-	ses, _ := rt.sess.Create(ctx, "t", t.TempDir())
+	ses, _ := insertSessionFixture(ctx, rt.sess, "t", t.TempDir())
 	_, err := s.RollbackSession(ctx, protocol.RollbackSessionRequest{
-		SessionID:   ses.ID,
+		SessionID:   ses.ID(),
 		RestoreType: protocol.RestoreType("timeline"),
 	})
 	if !errors.Is(err, protocol.ErrInvalidParams) {
@@ -303,18 +303,18 @@ func TestRollbackRejectsUnknownRestoreType(t *testing.T) {
 func TestRollback_NoCheckpointStore(t *testing.T) {
 	s, rt := rollbackHarness(t)
 	ctx := context.Background()
-	ses, _ := rt.sess.Create(ctx, "t", t.TempDir())
-	putRun(t, rt, ses.ID, "run1", 1, 1)
-	putRun(t, rt, ses.ID, "run2", 2, 2)
+	ses, _ := insertSessionFixture(ctx, rt.sess, "t", t.TempDir())
+	putRun(t, rt, ses.ID(), "run1", 1, 1)
+	putRun(t, rt, ses.ID(), "run2", 2, 2)
 
 	_, err := s.RollbackSession(ctx, protocol.RollbackSessionRequest{
-		SessionID: ses.ID, ToRunID: "run1", RestoreType: protocol.RestoreBoth,
+		SessionID: ses.ID(), ToRunID: "run1", RestoreType: protocol.RestoreBoth,
 	})
 	if !errors.Is(err, protocol.ErrCheckpointUnavailable) {
 		t.Fatalf("err = %v, want ErrCheckpointUnavailable", err)
 	}
 	// Atomic "both": the files step failed first, so run2 must still be present.
-	runs, _ := rt.runs.ListRuns(ctx, ses.ID)
+	runs, _ := rt.runs.ListRuns(ctx, ses.ID())
 	if len(runs) != 2 {
 		t.Errorf("runs = %d, want 2 (history untouched after files failure)", len(runs))
 	}
@@ -334,16 +334,16 @@ func (incompleteCheckpointRestorer) DropSession(string) error { return nil }
 func TestRollback_IncompleteRestoreKeepsRecoveryIntent(t *testing.T) {
 	s, rt := rollbackHarness(t)
 	ctx := context.Background()
-	ses, err := rt.sess.Create(ctx, "restore failure", t.TempDir())
+	ses, err := insertSessionFixture(ctx, rt.sess, "restore failure", t.TempDir())
 	if err != nil {
 		t.Fatalf("create session: %v", err)
 	}
-	putRun(t, rt, ses.ID, "run1", 1, 1)
-	putRun(t, rt, ses.ID, "run2", 2, 2)
+	putRun(t, rt, ses.ID(), "run1", 1, 1)
+	putRun(t, rt, ses.ID(), "run2", 2, 2)
 	s.sessions = rt.sessionsCoordinatorWithRestorer(incompleteCheckpointRestorer{})
 
 	_, err = s.RollbackSession(ctx, protocol.RollbackSessionRequest{
-		SessionID: ses.ID, ToRunID: "run1", RestoreType: protocol.RestoreBoth,
+		SessionID: ses.ID(), ToRunID: "run1", RestoreType: protocol.RestoreBoth,
 	})
 	if !errors.Is(err, sessions.ErrCheckpointRestoreIncomplete) {
 		t.Fatalf("rollback error = %v, want incomplete-restore sentinel", err)
@@ -352,10 +352,10 @@ func TestRollback_IncompleteRestoreKeepsRecoveryIntent(t *testing.T) {
 	if listErr != nil {
 		t.Fatalf("list pending: %v", listErr)
 	}
-	if len(pending) != 1 || pending[0].SessionID != ses.ID || !pending[0].RestoreHistory {
+	if len(pending) != 1 || pending[0].SessionID != ses.ID() || !pending[0].RestoreHistory {
 		t.Fatalf("pending = %+v, want recoverable files+history intent", pending)
 	}
-	runs, _ := rt.runs.ListRuns(ctx, ses.ID)
+	runs, _ := rt.runs.ListRuns(ctx, ses.ID())
 	if len(runs) != 2 {
 		t.Fatalf("incomplete file restore mutated history: %+v", runs)
 	}

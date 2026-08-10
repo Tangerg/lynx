@@ -52,7 +52,7 @@ func (c *Coordinator) ExportSession(ctx context.Context, sessionID string) (Expo
 // Validate checks a snapshot's referential integrity — the session id is present
 // and every run/item belongs to it — before the coordinator hands it out.
 func (snapshot Snapshot) Validate() error {
-	if snapshot.Session.ID == "" {
+	if snapshot.Session.ID() == "" {
 		return errors.New("sessions: snapshot session id is required")
 	}
 	runs, err := snapshot.validateRuns()
@@ -72,8 +72,8 @@ func (snapshot Snapshot) Validate() error {
 func (snapshot Snapshot) validateRuns() (map[string]struct{}, error) {
 	runs := make(map[string]struct{}, len(snapshot.Runs))
 	for _, run := range snapshot.Runs {
-		if run.ID() == "" || run.SessionID() != snapshot.Session.ID {
-			return nil, fmt.Errorf("sessions: snapshot run %q belongs to session %q, want %q", run.ID(), run.SessionID(), snapshot.Session.ID)
+		if run.ID() == "" || run.SessionID() != snapshot.Session.ID() {
+			return nil, fmt.Errorf("sessions: snapshot run %q belongs to session %q, want %q", run.ID(), run.SessionID(), snapshot.Session.ID())
 		}
 		if _, exists := runs[run.ID()]; exists {
 			return nil, fmt.Errorf("sessions: snapshot contains duplicate run %q", run.ID())
@@ -97,8 +97,8 @@ func (snapshot Snapshot) validateRuns() (map[string]struct{}, error) {
 func (snapshot Snapshot) validateItems(runs map[string]struct{}) (map[string]transcript.Item, error) {
 	items := make(map[string]transcript.Item, len(snapshot.Items))
 	for _, item := range snapshot.Items {
-		if item.ID() == "" || item.SessionID() != snapshot.Session.ID {
-			return nil, fmt.Errorf("sessions: snapshot item %q belongs to session %q, want %q", item.ID(), item.SessionID(), snapshot.Session.ID)
+		if item.ID() == "" || item.SessionID() != snapshot.Session.ID() {
+			return nil, fmt.Errorf("sessions: snapshot item %q belongs to session %q, want %q", item.ID(), item.SessionID(), snapshot.Session.ID())
 		}
 		if _, exists := items[item.ID()]; exists {
 			return nil, fmt.Errorf("sessions: snapshot contains duplicate item %q", item.ID())

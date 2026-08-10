@@ -47,7 +47,10 @@ func (c *Coordinator) Start(ctx context.Context, cmd StartCommand) (StartResult,
 		return StartResult{}, err
 	}
 
-	sess, scheduled, err := c.resolveSession(ctx, cmd.SessionID, cmd.NewSessionID, cmd.DefaultWorkspacePath, cmd.NewSessionTitle)
+	sess, initialSession, err := c.resolveSession(
+		ctx, cmd.SessionID, cmd.NewSessionID, cmd.DefaultWorkspacePath,
+		cmd.NewSessionTitle, cmd.ModelSelection.Model(),
+	)
 	if err != nil {
 		return StartResult{}, err
 	}
@@ -57,10 +60,10 @@ func (c *Coordinator) Start(ctx context.Context, cmd StartCommand) (StartResult,
 	}
 	defer runAdmission.Release()
 
-	draft.SessionID = sess.ID
-	workingContext, err := c.conversation.Read(ctx, sess.ID)
+	draft.SessionID = sess.ID()
+	workingContext, err := c.conversation.Read(ctx, sess.ID())
 	if err != nil {
-		return StartResult{}, fmt.Errorf("runs: read conversation for session %q: %w", sess.ID, err)
+		return StartResult{}, fmt.Errorf("runs: read conversation for session %q: %w", sess.ID(), err)
 	}
 	workingContext = append(workingContext, currentMessage.Clone())
 	draft.WorkingContext = workingContext
@@ -69,11 +72,11 @@ func (c *Coordinator) Start(ctx context.Context, cmd StartCommand) (StartResult,
 		return StartResult{}, err
 	}
 	draft.CWD = execCWD
-	draft.WorkspaceCWD = sess.CWD
+	draft.WorkspaceCWD = sess.CWD()
 	draft.Isolated = isolated
 	if c.workingContexts != nil {
 		draft.WorkingContext, err = c.workingContexts.ComposeWorkingContext(ctx, WorkingContextInput{
-			SessionID:  sess.ID,
+			SessionID:  sess.ID(),
 			CWD:        execCWD,
 			PromptText: message,
 			Seed:       draft.WorkingContext,
@@ -86,7 +89,7 @@ func (c *Coordinator) Start(ctx context.Context, cmd StartCommand) (StartResult,
 	if err != nil {
 		return StartResult{}, err
 	}
-	if err := c.validatePreparedExecution(ctx, ref, sess.ID); err != nil {
+	if err := c.validatePreparedExecution(ctx, ref, sess.ID()); err != nil {
 		return StartResult{}, err
 	}
 
@@ -96,27 +99,36 @@ func (c *Coordinator) Start(ctx context.Context, cmd StartCommand) (StartResult,
 	}
 	segmentID := c.newSegmentID()
 	createdAt := c.now().UTC()
-	var sessionModel *SessionModelUpdate
-	if cmd.ModelSelection.Configured() {
-		sessionModel = &SessionModelUpdate{SessionID: sess.ID, Model: cmd.ModelSelection.Model()}
+	var sessionReplacement *SessionReplacement
+	if initialSession == nil && cmd.ModelSelection.Configured() {
+		model := cmd.ModelSelection.Model()
+		next, changed, err := sess.Apply(session.Patch{Model: &model}, createdAt)
+		if err != nil {
+			return StartResult{}, fmt.Errorf("runs: prepare Session model replacement: %w", err)
+		}
+		if changed {
+			sessionReplacement = &SessionReplacement{
+				ExpectedRevision: sess.Revision(), State: next,
+			}
+		}
 	}
 	events, err := c.openSegment(ctx, segmentSpec{
-		RunID:            runID,
-		SegmentID:        segmentID,
-		SessionID:        sess.ID,
-		CWD:              sess.CWD,
-		ExecutorID:       ref.ExecutorID,
-		ModelSelection:   cmd.ModelSelection,
-		GoalLeaseID:      cmd.GoalLeaseID,
-		ScheduledSession: scheduled,
-		SessionModel:     sessionModel,
-		ScheduleFiring:   cmd.ScheduleFiring,
-		CreatedAt:        createdAt,
-		OpeningUserText:  openingUserText,
-		Input:            cmd.Input,
-		Limits:           cmd.Limits,
-		Capabilities:     cmd.Capabilities,
-		admission:        &runAdmission,
+		RunID:              runID,
+		SegmentID:          segmentID,
+		SessionID:          sess.ID(),
+		CWD:                sess.CWD(),
+		ExecutorID:         ref.ExecutorID,
+		ModelSelection:     cmd.ModelSelection,
+		GoalLeaseID:        cmd.GoalLeaseID,
+		InitialSession:     initialSession,
+		SessionReplacement: sessionReplacement,
+		ScheduleFiring:     cmd.ScheduleFiring,
+		CreatedAt:          createdAt,
+		OpeningUserText:    openingUserText,
+		Input:              cmd.Input,
+		Limits:             cmd.Limits,
+		Capabilities:       cmd.Capabilities,
+		admission:          &runAdmission,
 		BeginExecution: func(beginCtx context.Context) error {
 			return c.rootStarts.BeginRoot(beginCtx, ref)
 		},
@@ -126,27 +138,26 @@ func (c *Coordinator) Start(ctx context.Context, cmd StartCommand) (StartResult,
 		// there first. Naming that Run is the same answer the pre-admission check gives:
 		// what changed is only who noticed.
 		if errors.Is(err, run.ErrSessionBusy) {
-			if active, lookupErr := c.activeRunConflict(ctx, sess.ID); lookupErr == nil && active != nil {
+			if active, lookupErr := c.activeRunConflict(ctx, sess.ID()); lookupErr == nil && active != nil {
 				return StartResult{}, active
 			}
 			return StartResult{}, fmt.Errorf("%w: %w", ErrSessionBusy, err)
 		}
 		return StartResult{}, err
 	}
-	c.publishRunMoved(sess.ID, runID)
+	c.publishRunMoved(sess.ID(), runID)
 	return StartResult{
-		RunID: runID, SegmentID: segmentID, SessionID: sess.ID,
+		RunID: runID, SegmentID: segmentID, SessionID: sess.ID(),
 		UserItemID: userMessageItemID(segmentID), Events: events,
 	}, nil
 }
 
-func (c *Coordinator) resolveSession(ctx context.Context, id, newID, defaultWorkspacePath, title string) (session.Session, *session.Session, error) {
+func (c *Coordinator) resolveSession(
+	ctx context.Context,
+	id, newID, defaultWorkspacePath, title, model string,
+) (session.Session, *session.Session, error) {
 	if newID != "" {
-		sess, err := c.sessionCreator.PrepareScheduled(ctx, newID, title, defaultWorkspacePath)
-		if err != nil {
-			return session.Session{}, nil, err
-		}
-		return sess, &sess, nil
+		return c.sessionCreator.PrepareScheduled(ctx, newID, title, defaultWorkspacePath, model)
 	}
 	if id == "" {
 		sess, err := c.sessionCreator.Create(ctx, title, defaultWorkspacePath)
@@ -157,7 +168,7 @@ func (c *Coordinator) resolveSession(ctx context.Context, id, newID, defaultWork
 }
 
 func (c *Coordinator) claimFreshRun(ctx context.Context, sess session.Session) (admission.RunAdmission, error) {
-	runAdmission, ok := c.admission.AcquireRun(sess.ID, sess.CWD)
+	runAdmission, ok := c.admission.AcquireRun(sess.ID(), sess.CWD())
 	if !ok {
 		// The in-process gate also guards working-tree mutations, so what it refuses is
 		// not always a Run and cannot always be named.
@@ -167,7 +178,7 @@ func (c *Coordinator) claimFreshRun(ctx context.Context, sess session.Session) (
 	// choose between steering it, answering it and canceling it, and it cannot choose
 	// without knowing which run and what state. Waiting counts — a Run parked on a
 	// person is still the Session's Run.
-	active, err := c.activeRunConflict(ctx, sess.ID)
+	active, err := c.activeRunConflict(ctx, sess.ID())
 	if err != nil {
 		runAdmission.Release()
 		return admission.RunAdmission{}, err
@@ -196,13 +207,13 @@ func (c *Coordinator) activeRunConflict(ctx context.Context, sessionID string) (
 // It fails closed when isolation is requested but unavailable — an isolated run
 // must never fall back to the real tree.
 func (c *Coordinator) executionCWD(ctx context.Context, sess session.Session) (cwd string, isolated bool, err error) {
-	if !sess.Isolated {
-		return sess.CWD, false, nil
+	if !sess.Isolated() {
+		return sess.CWD(), false, nil
 	}
 	if c.isolation == nil {
 		return "", false, fmt.Errorf("%w: isolation is not configured", ErrIsolationUnavailable)
 	}
-	copyDir, err := c.isolation.Workspace(ctx, sess.ID, sess.CWD)
+	copyDir, err := c.isolation.Workspace(ctx, sess.ID(), sess.CWD())
 	if err != nil {
 		return "", false, fmt.Errorf("%w: %w", ErrIsolationUnavailable, err)
 	}

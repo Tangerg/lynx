@@ -17,6 +17,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/itemfixture"
 	runfixture "github.com/Tangerg/lynx/app/runtime/internal/testsupport/runfixture"
+	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/sessionfixture"
 )
 
 type fakeItemProjection struct {
@@ -709,7 +710,7 @@ func waitingCancellationCoordinator(
 		return prepared.value(), nil
 	}
 	sessions := &fakeRunSessions{
-		sess: session.Session{ID: plan.pending.SessionID, CWD: "/work"},
+		sess: sessionfixture.MustRestore(session.Snapshot{ID: plan.pending.SessionID, CWD: "/work"}),
 		pending: map[string]Pending{
 			plan.pending.RootRunID: plan.pending,
 		},

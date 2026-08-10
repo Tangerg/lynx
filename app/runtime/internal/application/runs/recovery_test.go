@@ -16,6 +16,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/itemfixture"
 	runfixture "github.com/Tangerg/lynx/app/runtime/internal/testsupport/runfixture"
+	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/sessionfixture"
 )
 
 type recoveryStoreStub struct {
@@ -42,7 +43,7 @@ func (store *recoveryStoreStub) SessionByID(_ context.Context, sessionID string)
 	if sess, ok := store.sessions[sessionID]; ok {
 		return sess, nil
 	}
-	return session.Session{ID: sessionID, CWD: "/workspace"}, nil
+	return sessionfixture.MustRestore(session.Snapshot{ID: sessionID, CWD: "/workspace"}), nil
 }
 
 func (store *recoveryStoreStub) ListTranscript(_ context.Context, sessionID string) ([]transcript.Item, error) {
@@ -237,7 +238,9 @@ func TestRecoveryMarksIsolatedParkLostWithoutProbingExecutorCheckpoint(t *testin
 		pending:     []Pending{pending},
 		transcripts: map[string][]transcript.Item{run.SessionID(): {item}},
 		sessions: map[string]session.Session{
-			run.SessionID(): {ID: run.SessionID(), CWD: "/workspace", Isolated: true},
+			run.SessionID(): sessionfixture.MustRestore(session.Snapshot{
+				ID: run.SessionID(), CWD: "/workspace", Isolated: true,
+			}),
 		},
 	}
 	checkpointCalls := 0

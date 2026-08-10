@@ -102,14 +102,14 @@ func validateRecoveryParkedTree(
 	// Isolated workspaces are process-local scratch copies and are deliberately
 	// never snapshotted. A host restart therefore destroys the world this tree
 	// was parked in even when its executor payload remains decodable.
-	if sess.Isolated {
+	if sess.Isolated() {
 		return false, nil
 	}
 	resumable, err := checkpoints.CanResumeCheckpoint(ctx, ExecutorCheckpointExpectation{
 		RootMemberID:   rootContinuation.MemberID,
 		SessionID:      pending.SessionID,
-		CWD:            sess.CWD,
-		WorkspaceCWD:   sess.CWD,
+		CWD:            sess.CWD(),
+		WorkspaceCWD:   sess.CWD(),
 		Isolated:       false,
 		GoalLeaseID:    pending.GoalLeaseID,
 		ModelSelection: rootContinuation.ModelSelection,

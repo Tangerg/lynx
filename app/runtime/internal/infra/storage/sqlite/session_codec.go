@@ -15,21 +15,26 @@ func rowToSession(scanner interface {
 	Scan(dest ...any) error
 }) (session.Session, error) {
 	var (
-		s              session.Session
+		snapshot       session.Snapshot
 		startedAtNanos int64
 		updatedAtNanos int64
 		favoriteInt    int64
 		isolatedInt    int64
 	)
 	if err := scanner.Scan(
-		&s.ID, &s.Title, &s.CWD, &s.ParentID,
-		&startedAtNanos, &updatedAtNanos, &s.Model, &favoriteInt, &isolatedInt, &s.Revision,
+		&snapshot.ID, &snapshot.Title, &snapshot.CWD, &snapshot.ParentID,
+		&startedAtNanos, &updatedAtNanos, &snapshot.Model,
+		&favoriteInt, &isolatedInt, &snapshot.Revision,
 	); err != nil {
 		return session.Session{}, err
 	}
-	s.StartedAt = time.Unix(0, startedAtNanos).UTC()
-	s.UpdatedAt = time.Unix(0, updatedAtNanos).UTC()
-	s.Favorite = favoriteInt != 0
-	s.Isolated = isolatedInt != 0
-	return s, nil
+	snapshot.StartedAt = time.Unix(0, startedAtNanos).UTC()
+	snapshot.UpdatedAt = time.Unix(0, updatedAtNanos).UTC()
+	snapshot.Favorite = favoriteInt != 0
+	snapshot.Isolated = isolatedInt != 0
+	value, err := session.Restore(snapshot)
+	if err != nil {
+		return session.Session{}, err
+	}
+	return value, nil
 }

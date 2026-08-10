@@ -15,6 +15,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/sessionfixture"
 	"github.com/Tangerg/lynx/chatclient"
 	toolcontract "github.com/Tangerg/lynx/tool"
 )
@@ -57,10 +58,9 @@ func newWaitingDelegateFixture(t *testing.T, identity string) *waitingDelegateFi
 	}
 
 	workspace := t.TempDir()
-	sessions := &delegateSessionStore{value: session.Session{
+	sessions := &delegateSessionStore{value: sessionfixture.MustRestore(session.Snapshot{
 		ID: "session_1", Title: "waiting delegate", CWD: workspace,
-		StartedAt: time.Unix(1, 0).UTC(), UpdatedAt: time.Unix(1, 0).UTC(), Revision: 1,
-	}}
+	})}
 	projection := newDelegateProjection()
 	runIDs := []string{"run_root", "run_child"}
 	segmentIDs := []string{"segment_root", "segment_child"}

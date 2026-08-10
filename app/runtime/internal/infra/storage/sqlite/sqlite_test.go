@@ -17,6 +17,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/itemfixture"
+	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/sessionfixture"
 	"github.com/Tangerg/lynx/core/chat"
 )
 
@@ -42,7 +43,7 @@ func newTempDB(t *testing.T) *sqlite.SessionStore {
 	return sqlite.NewSessionStore(db)
 }
 
-// TestSessionCRUD exercises the full mutate / read cycle of session.Store
+// TestSessionCRUD exercises the exact aggregate persistence lifecycle
 // against the SQLite backend.
 func TestSessionCRUD(t *testing.T) {
 	ctx := context.Background()
@@ -57,25 +58,23 @@ func TestSessionCRUD(t *testing.T) {
 		t.Fatalf("List on empty DB = %d entries", len(list))
 	}
 
-	// create
-	created, err := svc.Create(ctx, "first session", "")
-	if err != nil {
-		t.Fatalf("Create: %v", err)
-	}
-	if created.ID == "" {
-		t.Fatalf("Create returned empty ID")
+	created := sessionfixture.MustRestore(session.Snapshot{
+		ID: "ses_first", Title: "first session", CWD: "/work",
+	})
+	if err := svc.Insert(ctx, created); err != nil {
+		t.Fatalf("Insert: %v", err)
 	}
 
 	// get
-	got, err := svc.Get(ctx, created.ID)
+	got, err := svc.Get(ctx, created.ID())
 	if err != nil {
 		t.Fatalf("Get: %v", err)
 	}
-	if got.Title != "first session" {
-		t.Fatalf("Get title = %q", got.Title)
+	if got.Title() != "first session" {
+		t.Fatalf("Get title = %q", got.Title())
 	}
-	if !got.UpdatedAt.Equal(created.UpdatedAt) {
-		t.Fatalf("UpdatedAt round-trip mismatch: got %v want %v", got.UpdatedAt, created.UpdatedAt)
+	if !got.UpdatedAt().Equal(created.UpdatedAt()) {
+		t.Fatalf("UpdatedAt round-trip mismatch: got %v want %v", got.UpdatedAt(), created.UpdatedAt())
 	}
 
 	// list now has one
@@ -83,138 +82,23 @@ func TestSessionCRUD(t *testing.T) {
 	if err != nil {
 		t.Fatalf("List: %v", err)
 	}
-	if len(list) != 1 || list[0].ID != created.ID {
+	if len(list) != 1 || list[0].ID() != created.ID() {
 		t.Fatalf("List = %+v", list)
 	}
 
 	// delete
-	if err := svc.Delete(ctx, created.ID); err != nil {
+	if err := svc.Delete(ctx, created.ID()); err != nil {
 		t.Fatalf("Delete: %v", err)
 	}
 
 	// idempotent delete
-	if err := svc.Delete(ctx, created.ID); err != nil {
+	if err := svc.Delete(ctx, created.ID()); err != nil {
 		t.Fatalf("Delete idempotent: %v", err)
 	}
 
 	// get after delete
-	if _, err := svc.Get(ctx, created.ID); !errors.Is(err, session.ErrNotFound) {
+	if _, err := svc.Get(ctx, created.ID()); !errors.Is(err, session.ErrNotFound) {
 		t.Fatalf("Get after delete = %v, want ErrNotFound", err)
-	}
-}
-
-// TestSessionFork confirms a child session is linked to its parent without
-// inheriting unrelated parent state.
-func TestSessionFork(t *testing.T) {
-	ctx := context.Background()
-	svc := newTempDB(t)
-
-	parent, _ := svc.Create(ctx, "parent", "")
-
-	child, err := svc.Fork(ctx, parent.ID)
-	if err != nil {
-		t.Fatalf("Fork: %v", err)
-	}
-	if child.ParentID != parent.ID {
-		t.Fatalf("child.ParentID = %q, want %q", child.ParentID, parent.ID)
-	}
-	if child.Title != "parent (fork)" {
-		t.Fatalf("child title = %q", child.Title)
-	}
-
-	// fork of unknown parent → ErrNotFound
-	_, err = svc.Fork(ctx, "nope")
-	if !errors.Is(err, session.ErrNotFound) {
-		t.Fatalf("Fork unknown parent = %v, want ErrNotFound", err)
-	}
-
-	// Child round-trips through Get as a pure product Session projection.
-	if _, err := svc.Get(ctx, child.ID); err != nil {
-		t.Fatalf("Get child: %v", err)
-	}
-}
-
-// TestSessionRename confirms Rename updates the title + refreshes UpdatedAt
-// and returns ErrNotFound for unknown ids.
-func TestSessionRename(t *testing.T) {
-	ctx := context.Background()
-	svc := newTempDB(t)
-
-	created, _ := svc.Create(ctx, "before", "")
-
-	if err := svc.Rename(ctx, created.ID, "after"); err != nil {
-		t.Fatalf("Rename: %v", err)
-	}
-	got, _ := svc.Get(ctx, created.ID)
-	if got.Title != "after" {
-		t.Fatalf("Title = %q, want after", got.Title)
-	}
-	if got.UpdatedAt.Before(created.UpdatedAt) {
-		t.Fatalf("UpdatedAt = %v, before %v", got.UpdatedAt, created.UpdatedAt)
-	}
-
-	if err := svc.Rename(ctx, "nope", "x"); !errors.Is(err, session.ErrNotFound) {
-		t.Fatalf("Rename unknown = %v, want ErrNotFound", err)
-	}
-}
-
-// TestSessionRenameIfUntitled confirms the auto-titler's atomic write only
-// lands on a still-untitled session and is a no-op (nil) otherwise — the
-// clobber protection against a concurrent user rename.
-func TestSessionRenameIfUntitled(t *testing.T) {
-	ctx := context.Background()
-	svc := newTempDB(t)
-
-	// Untitled → sets.
-	untitled, _ := svc.Create(ctx, "", "")
-	if err := svc.RenameIfUntitled(ctx, untitled.ID, "auto"); err != nil {
-		t.Fatalf("RenameIfUntitled: %v", err)
-	}
-	if got, _ := svc.Get(ctx, untitled.ID); got.Title != "auto" {
-		t.Fatalf("Title = %q, want auto", got.Title)
-	}
-
-	// Already titled (the user renamed during generation) → no-op, keeps the
-	// user's title, no error.
-	titled, _ := svc.Create(ctx, "mine", "")
-	if err := svc.RenameIfUntitled(ctx, titled.ID, "auto"); err != nil {
-		t.Fatalf("RenameIfUntitled titled = %v, want nil", err)
-	}
-	if got, _ := svc.Get(ctx, titled.ID); got.Title != "mine" {
-		t.Fatalf("Title = %q, want the user's title preserved", got.Title)
-	}
-
-	// Unknown id → no-op nil (best-effort, not ErrNotFound).
-	if err := svc.RenameIfUntitled(ctx, "nope", "x"); err != nil {
-		t.Fatalf("RenameIfUntitled unknown = %v, want nil", err)
-	}
-}
-
-func TestSessionFavorite(t *testing.T) {
-	ctx := context.Background()
-	svc := newTempDB(t)
-
-	created, _ := svc.Create(ctx, "s", "")
-	if created.Favorite {
-		t.Fatal("new session must not be favorited")
-	}
-
-	if err := svc.SetFavorite(ctx, created.ID, true); err != nil {
-		t.Fatalf("SetFavorite: %v", err)
-	}
-	if got, _ := svc.Get(ctx, created.ID); !got.Favorite {
-		t.Fatal("Favorite = false after SetFavorite(true)")
-	}
-
-	if err := svc.SetFavorite(ctx, created.ID, false); err != nil {
-		t.Fatalf("SetFavorite(false): %v", err)
-	}
-	if got, _ := svc.Get(ctx, created.ID); got.Favorite {
-		t.Fatal("Favorite = true after SetFavorite(false)")
-	}
-
-	if err := svc.SetFavorite(ctx, "nope", true); !errors.Is(err, session.ErrNotFound) {
-		t.Fatalf("SetFavorite unknown = %v, want ErrNotFound", err)
 	}
 }
 
@@ -230,7 +114,12 @@ func TestSessionPersistAcrossReopen(t *testing.T) {
 		t.Fatalf("Open 1: %v", err)
 	}
 	svc1 := sqlite.NewSessionStore(db1)
-	created, _ := svc1.Create(ctx, "persistent", "")
+	created := sessionfixture.MustRestore(session.Snapshot{
+		ID: "ses_persistent", Title: "persistent", CWD: "/work",
+	})
+	if err := svc1.Insert(ctx, created); err != nil {
+		t.Fatalf("Insert: %v", err)
+	}
 	_ = db1.Close()
 
 	db2, err := sqlite.Open(t.Context(), path)
@@ -240,12 +129,12 @@ func TestSessionPersistAcrossReopen(t *testing.T) {
 	defer db2.Close()
 	svc2 := sqlite.NewSessionStore(db2)
 
-	got, err := svc2.Get(ctx, created.ID)
+	got, err := svc2.Get(ctx, created.ID())
 	if err != nil {
 		t.Fatalf("Get after reopen: %v", err)
 	}
-	if got.Title != "persistent" {
-		t.Fatalf("title = %q", got.Title)
+	if got.Title() != "persistent" {
+		t.Fatalf("title = %q", got.Title())
 	}
 }
 

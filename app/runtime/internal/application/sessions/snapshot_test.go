@@ -10,11 +10,12 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/itemfixture"
 	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/runfixture"
+	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/sessionfixture"
 )
 
 func portableSnapshot() Snapshot {
 	return Snapshot{
-		Session: session.Session{ID: "ses_1"},
+		Session: sessionfixture.MustRestore(session.Snapshot{ID: "ses_1"}),
 		Runs: []run.Run{runfixture.MustRestore(run.Snapshot{
 			SessionID: "ses_1", ID: "run_1", State: run.Completed,
 			Capabilities: run.Capabilities{ChildRuns: true},
@@ -101,7 +102,11 @@ func TestRestorePlanOrdersRunTreeParentsBeforeChildren(t *testing.T) {
 	grandchild := runfixture.MustRestore(grandchildSnapshot)
 	snapshot.Runs = []run.Run{grandchild, child, root}
 
-	plan := restorePlan(snapshot, nil)
+	replacement, err := InitialSessionReplacement(snapshot.Session)
+	if err != nil {
+		t.Fatalf("initial Session replacement: %v", err)
+	}
+	plan := restorePlan(snapshot, replacement, nil)
 	got := make([]string, 0, len(plan.Runs))
 	for _, run := range plan.Runs {
 		got = append(got, run.ID())

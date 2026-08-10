@@ -25,6 +25,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/itemfixture"
 	runfixture "github.com/Tangerg/lynx/app/runtime/internal/testsupport/runfixture"
+	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/sessionfixture"
 )
 
 var (
@@ -618,7 +619,7 @@ func TestFinishRunsTerminalMaintenanceOnlyForTerminalRuns(t *testing.T) {
 	snapshotted := make(chan string, 1)
 	stores := &fakeStores{
 		session: &fakeSession{
-			sess:    session.Session{ID: "ses_1", CWD: "/repo"},
+			sess:    sessionfixture.MustRestore(session.Snapshot{ID: "ses_1", CWD: "/repo"}),
 			renamed: renamed,
 		},
 		title: "Generated title",
@@ -652,7 +653,7 @@ func TestFinishOrdersMaintenanceAndReportsEveryFailure(t *testing.T) {
 	var operations []string
 	stores := &fakeStores{
 		session: &fakeSession{
-			sess:       session.Session{ID: "ses_1"},
+			sess:       sessionfixture.MustRestore(session.Snapshot{ID: "ses_1"}),
 			operations: &operations,
 			renameErr:  renameErr,
 		},
@@ -714,7 +715,7 @@ func TestFinishRecordsAcceptedBackgroundFailureOnSpan(t *testing.T) {
 	provider, exporter := installRunsegmentTraceCapture(t)
 	ctx, span := provider.Tracer("test/runsegment").Start(t.Context(), "run")
 	effects := testEffects(&fakeStores{
-		session:  &fakeSession{sess: session.Session{ID: "ses_1"}},
+		session:  &fakeSession{sess: sessionfixture.MustRestore(session.Snapshot{ID: "ses_1"})},
 		titleErr: titleErr,
 	}, Config{
 		Tasks: inlineTaskLauncher{},
@@ -764,6 +765,7 @@ func testEffects(stores *fakeStores, cfg Config) *Effects {
 	cfg.Interrupts = stores.interrupts
 	cfg.ResumeClaims = stores.interrupts
 	cfg.Sessions = stores.session
+	cfg.SessionTitles = stores.session
 	cfg.Transcript = stores.transcript
 	cfg.ToolResults = stores.toolResults
 	cfg.Messages = stores
@@ -992,44 +994,68 @@ func (s *fakeSession) Get(_ context.Context, id string) (session.Session, error)
 	if s.getErr != nil {
 		return session.Session{}, s.getErr
 	}
-	if id != s.sess.ID {
+	if id != s.sess.ID() {
 		return session.Session{}, session.ErrNotFound
 	}
 	return s.sess, nil
 }
 
-func (s *fakeSession) Ensure(_ context.Context, sess session.Session) (session.Session, error) {
-	if s.sess.ID == "" {
-		s.sess = sess
+func (s *fakeSession) Insert(_ context.Context, value session.Session) error {
+	if s.sess.ID() != "" {
+		return session.ErrRevisionConflict
 	}
-	if s.sess.ID != sess.ID {
-		return session.Session{}, session.ErrNotFound
-	}
-	return s.sess, nil
+	s.sess = value
+	return nil
 }
 
-func (s *fakeSession) SetModel(_ context.Context, id, model string) error {
-	if id != s.sess.ID {
+func (s *fakeSession) Save(_ context.Context, expected uint64, replacement session.Session) error {
+	if replacement.ID() != s.sess.ID() {
 		return session.ErrNotFound
+	}
+	if s.sess.Revision() != expected {
+		return session.ErrRevisionConflict
 	}
 	if s.modelErr != nil {
 		return s.modelErr
 	}
-	s.sess.Model = model
+	s.sess = replacement
 	return nil
 }
 
-func (s *fakeSession) RenameIfUntitled(_ context.Context, id, title string) error {
+func (s *fakeSession) NeedsGeneratedTitle(_ context.Context, id string) (bool, error) {
+	if s.operations != nil {
+		*s.operations = append(*s.operations, "session.get")
+	}
+	if s.getErr != nil {
+		return false, s.getErr
+	}
+	if id != s.sess.ID() {
+		return false, session.ErrNotFound
+	}
+	return s.sess.Title() == "", nil
+}
+
+func (s *fakeSession) ApplyGeneratedTitle(_ context.Context, id, title string) error {
 	if s.operations != nil {
 		*s.operations = append(*s.operations, "session.rename")
 	}
-	if id != s.sess.ID {
+	if id != s.sess.ID() {
 		return session.ErrNotFound
 	}
 	if s.renamed != nil {
 		s.renamed <- title
 	}
-	return s.renameErr
+	if s.renameErr != nil {
+		return s.renameErr
+	}
+	replacement, changed, err := s.sess.NameIfUntitled(title, time.Now().UTC())
+	if err != nil {
+		return err
+	}
+	if changed {
+		s.sess = replacement
+	}
+	return nil
 }
 
 type fakeCheckpoints struct {

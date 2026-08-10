@@ -11,6 +11,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/sessionfixture"
 )
 
 // TestDeleteSessionAppliesThenReleasesExecutors: DeleteSession reads the open
@@ -217,14 +218,14 @@ func TestRestoreSessionAppliesPlan(t *testing.T) {
 	_, err := newCoordinator(stores, mutationExecutions{operations: &stores.operations}).restoreSession(
 		t.Context(),
 		Snapshot{
-			Session:  session.Session{ID: "ses_1", CWD: "/workspace"},
+			Session:  sessionfixture.MustRestore(session.Snapshot{ID: "ses_1", CWD: "/workspace"}),
 			Messages: []chat.Message{chat.NewUserMessage(chat.NewTextPart("hi"))},
 		}, false,
 	)
 	if err != nil {
 		t.Fatalf("RestoreSession: %v", err)
 	}
-	if len(stores.restored) != 1 || stores.restored[0].Session.ID != "ses_1" || len(stores.restored[0].Messages) != 1 {
+	if len(stores.restored) != 1 || stores.restored[0].Session.State().ID() != "ses_1" || len(stores.restored[0].Messages) != 1 {
 		t.Fatalf("restored = %+v, want one plan for ses_1 with 1 message", stores.restored)
 	}
 }
@@ -238,7 +239,7 @@ func TestRestoreSessionRejectsUnresolvableCWDBeforeMutation(t *testing.T) {
 		Paths:             testCWDResolver{err: want},
 	}))
 
-	_, err := coordinator.restoreSession(t.Context(), Snapshot{Session: session.Session{ID: "ses_1", CWD: "relative"}}, false)
+	_, err := coordinator.restoreSession(t.Context(), Snapshot{Session: sessionfixture.MustRestore(session.Snapshot{ID: "ses_1", CWD: "relative"})}, false)
 	if !errors.Is(err, session.ErrCWDUnavailable) || !errors.Is(err, want) {
 		t.Fatalf("RestoreSession error = %v, want cwd unavailable + cause", err)
 	}
@@ -340,14 +341,11 @@ func (*mutationStores) List(context.Context) ([]session.Session, error) { panic(
 func (*mutationStores) ListPage(context.Context, bool, int64, string, int) ([]session.Session, error) {
 	panic("unused")
 }
-func (*mutationStores) Get(context.Context, string) (session.Session, error) { panic("unused") }
-func (*mutationStores) Create(context.Context, string, string) (session.Session, error) {
-	panic("unused")
+func (*mutationStores) Get(context.Context, string) (session.Session, error) {
+	return session.Session{}, session.ErrNotFound
 }
-func (*mutationStores) Ensure(context.Context, session.Session) (session.Session, error) {
-	panic("unused")
-}
-func (*mutationStores) Patch(context.Context, string, session.Patch) (session.Session, error) {
+func (*mutationStores) Insert(context.Context, session.Session) error { panic("unused") }
+func (*mutationStores) Save(context.Context, uint64, session.Session) error {
 	panic("unused")
 }
 

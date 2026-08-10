@@ -8,8 +8,9 @@
 > decoding in the server.
 >
 > Last verified against the server contract and in-repository consumer source:
-> 2026-08-10, at Runtime P16-03 completion. P16-03 changed only server-internal
-> Plan ownership and CAS semantics; the consumer contract below is unchanged.
+> 2026-08-10, at Runtime P16-04 completion. P16-04 changed only server-internal
+> Session aggregate ownership and exact persistence semantics; the consumer
+> contract below is unchanged.
 
 ## Current server baseline
 

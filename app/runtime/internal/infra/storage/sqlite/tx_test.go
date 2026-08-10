@@ -14,6 +14,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
+	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/sessionfixture"
 )
 
 // TestRunInTx_AtomicAcrossStores is the guarantee sessions.import / rollback
@@ -36,7 +37,8 @@ func TestRunInTx_AtomicAcrossStores(t *testing.T) {
 	// A multi-store write-set that fails mid-way must leave NO partial state.
 	boom := errors.New("boom")
 	err = sqlite.RunInTx(ctx, db, func(ctx context.Context) error {
-		if err := sess.Restore(ctx, session.Session{ID: "s1", Title: "t"}); err != nil {
+		value := sessionfixture.MustRestore(session.Snapshot{ID: "s1", Title: "t"})
+		if err := sess.Insert(ctx, value); err != nil {
 			return err
 		}
 		if err := msg.Write(ctx, "s1", chat.NewUserMessage(chat.NewTextPart("hi"))); err != nil {
@@ -56,7 +58,8 @@ func TestRunInTx_AtomicAcrossStores(t *testing.T) {
 
 	// A successful write-set commits both stores.
 	if err := sqlite.RunInTx(ctx, db, func(ctx context.Context) error {
-		if err := sess.Restore(ctx, session.Session{ID: "s2", Title: "t"}); err != nil {
+		value := sessionfixture.MustRestore(session.Snapshot{ID: "s2", Title: "t"})
+		if err := sess.Insert(ctx, value); err != nil {
 			return err
 		}
 		return msg.Write(ctx, "s2", chat.NewUserMessage(chat.NewTextPart("hi")))

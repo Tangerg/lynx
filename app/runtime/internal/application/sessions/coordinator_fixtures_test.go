@@ -3,6 +3,7 @@ package sessions
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
@@ -44,7 +45,7 @@ func (s coordinatorStores) ApplyFork(_ context.Context, plan ForkPlan) (session.
 	if s.forked != nil {
 		*s.forked = plan
 	}
-	return session.Session{ID: "ses_fork"}, nil
+	return plan.Child, nil
 }
 
 // The atomic write-sets delegate their interrupt drops to the interrupt fake so
@@ -167,6 +168,12 @@ func newCoordinatorWithAdmissions(stores testStores, executions ExecutionRelease
 func testDependencies(stores testStores, deps Dependencies) Dependencies {
 	if deps.Admissions == nil {
 		deps.Admissions = new(testClaimer)
+	}
+	if deps.Now == nil {
+		deps.Now = func() time.Time { return time.Unix(2, 0).UTC() }
+	}
+	if deps.NewID == nil {
+		deps.NewID = func() string { return "ses_fork" }
 	}
 	deps.Sessions = stores.Session()
 	deps.Interrupts = stores.Interrupts()

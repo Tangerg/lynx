@@ -38,9 +38,9 @@ func (c *Coordinator) Resume(ctx context.Context, cmd ResumeCommand) (StartResul
 	if err != nil {
 		return StartResult{}, err
 	}
-	runAdmission, ok := c.admission.AcquireRun(pending.SessionID, sess.CWD)
+	runAdmission, ok := c.admission.AcquireRun(pending.SessionID, sess.CWD())
 	if !ok {
-		return StartResult{}, fmt.Errorf("%w: session %q or working tree %q has a run or mutation in flight", ErrSessionBusy, pending.SessionID, sess.CWD)
+		return StartResult{}, fmt.Errorf("%w: session %q or working tree %q has a run or mutation in flight", ErrSessionBusy, pending.SessionID, sess.CWD())
 	}
 	defer runAdmission.Release()
 	parkedRuns, err := c.runs.Tree(ctx, pending.RootRunID)
@@ -92,7 +92,7 @@ func (c *Coordinator) Resume(ctx context.Context, cmd ResumeCommand) (StartResul
 		RunID:          cmd.RunID,
 		SegmentID:      segmentID,
 		SessionID:      pending.SessionID,
-		CWD:            sess.CWD,
+		CWD:            sess.CWD(),
 		ExecutorID:     ref.ExecutorID,
 		ModelSelection: rootContinuation.ModelSelection,
 		GoalLeaseID:    pending.GoalLeaseID,

@@ -113,8 +113,12 @@ func (p PortableRun) validateLineage() error {
 // CanonicalSnapshot rebuilds and validates the canonical aggregate from a
 // portable archive. The restore use case owns this normalization.
 func (p PortableSnapshot) CanonicalSnapshot() (Snapshot, error) {
+	restoredSession, err := p.Session.session()
+	if err != nil {
+		return Snapshot{}, fmt.Errorf("%w: Session: %w", ErrInvalidPortableSnapshot, err)
+	}
 	snapshot := Snapshot{
-		Session:     p.Session.session(),
+		Session:     restoredSession,
 		Messages:    p.Messages,
 		Items:       append([]transcript.Item(nil), p.Items...),
 		ToolResults: append([]toolresult.Blob(nil), p.ToolResults...),
@@ -184,16 +188,12 @@ func (p PortableSnapshot) CanonicalSnapshot() (Snapshot, error) {
 	return snapshot, nil
 }
 
-func (p PortableSession) session() session.Session {
-	return session.Session{
-		ID:        p.ID,
-		Title:     p.Title,
-		CWD:       p.CWD,
-		Model:     p.Model,
-		StartedAt: p.CreatedAt,
-		UpdatedAt: p.UpdatedAt,
-		Favorite:  p.Favorite,
-	}
+func (p PortableSession) session() (session.Session, error) {
+	return session.Restore(session.Snapshot{
+		ID: p.ID, Title: p.Title, CWD: p.CWD, Model: p.Model,
+		StartedAt: p.CreatedAt, UpdatedAt: p.UpdatedAt,
+		Favorite: p.Favorite, Revision: 1,
+	})
 }
 
 func bindPortableToolResults(snapshot *Snapshot) error {
@@ -233,13 +233,13 @@ func (snapshot Snapshot) PortableSnapshot() (PortableSnapshot, error) {
 	}
 	portable := PortableSnapshot{
 		Session: PortableSession{
-			ID:        normalized.Session.ID,
-			Title:     normalized.Session.Title,
-			CWD:       normalized.Session.CWD,
-			Model:     normalized.Session.Model,
-			CreatedAt: normalized.Session.StartedAt,
-			UpdatedAt: normalized.Session.UpdatedAt,
-			Favorite:  normalized.Session.Favorite,
+			ID:        normalized.Session.ID(),
+			Title:     normalized.Session.Title(),
+			CWD:       normalized.Session.CWD(),
+			Model:     normalized.Session.Model(),
+			CreatedAt: normalized.Session.StartedAt(),
+			UpdatedAt: normalized.Session.UpdatedAt(),
+			Favorite:  normalized.Session.Favorite(),
 		},
 		Messages:    normalized.Messages,
 		Items:       normalized.Items,

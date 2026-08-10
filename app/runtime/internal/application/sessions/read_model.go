@@ -119,10 +119,10 @@ func (c *Coordinator) ListViewPage(ctx context.Context, cursor string, limit int
 	}
 	bounded := pagination.PageOf(values, size, viewPageNamespace, nil, func(value session.Session) []string {
 		favorite := "0"
-		if value.Favorite {
+		if value.Favorite() {
 			favorite = "1"
 		}
-		return []string{favorite, strconv.FormatInt(value.UpdatedAt.UnixNano(), 10), value.ID}
+		return []string{favorite, strconv.FormatInt(value.UpdatedAt().UnixNano(), 10), value.ID()}
 	})
 	views, err := c.views(ctx, bounded.Rows)
 	if err != nil {
@@ -162,11 +162,11 @@ func (c *Coordinator) UpdateView(ctx context.Context, id string, patch session.P
 	if err != nil {
 		return View{}, err
 	}
-	activities, err := c.Activities(ctx, []string{value.ID})
+	activities, err := c.Activities(ctx, []string{value.ID()})
 	if err != nil {
 		return View{}, err
 	}
-	return c.view(value, activities[value.ID])
+	return c.view(value, activities[value.ID()])
 }
 
 // ForkView branches a session and returns the child session's fully resolved
@@ -182,7 +182,7 @@ func (c *Coordinator) ForkView(ctx context.Context, spec ForkSpec) (View, error)
 func (c *Coordinator) views(ctx context.Context, values []session.Session) ([]View, error) {
 	ids := make([]string, len(values))
 	for index, value := range values {
-		ids[index] = value.ID
+		ids[index] = value.ID()
 	}
 	activities, err := c.Activities(ctx, ids)
 	if err != nil {
@@ -190,7 +190,7 @@ func (c *Coordinator) views(ctx context.Context, values []session.Session) ([]Vi
 	}
 	views := make([]View, 0, len(values))
 	for _, value := range values {
-		view, err := c.view(value, activities[value.ID])
+		view, err := c.view(value, activities[value.ID()])
 		if err != nil {
 			return nil, err
 		}
@@ -203,25 +203,25 @@ func (c *Coordinator) view(value session.Session, activity Activity) (View, erro
 	if c.paths == nil {
 		return View{}, errors.New("sessions: workspace inspector is unavailable")
 	}
-	workspace, err := c.paths.Inspect(value.CWD)
+	workspace, err := c.paths.Inspect(value.CWD())
 	if err != nil {
-		return View{}, fmt.Errorf("sessions: inspect workspace %q: %w", value.CWD, err)
+		return View{}, fmt.Errorf("sessions: inspect workspace %q: %w", value.CWD(), err)
 	}
-	model := value.Model
+	model := value.Model()
 	if model == "" {
 		model = c.defaultModel
 	}
 	return View{
-		ID:          value.ID,
-		Title:       value.Title,
+		ID:          value.ID(),
+		Title:       value.Title(),
 		CWD:         workspace.CWD,
 		ProjectRoot: workspace.ProjectRoot,
 		CWDMissing:  workspace.Missing,
 		Model:       model,
 		Activity:    activity,
-		CreatedAt:   value.StartedAt,
-		UpdatedAt:   value.UpdatedAt,
-		Favorite:    value.Favorite,
-		Revision:    value.Revision,
+		CreatedAt:   value.StartedAt(),
+		UpdatedAt:   value.UpdatedAt(),
+		Favorite:    value.Favorite(),
+		Revision:    value.Revision(),
 	}, nil
 }

@@ -33,18 +33,18 @@ func TestSessionExportImport_RoundTrip(t *testing.T) {
 	cwd := t.TempDir()
 	canonicalCWD := canonicalWorkspacePath(t, cwd)
 
-	ses, err := rt.sess.Create(ctx, "My Session", cwd)
+	ses, err := insertSessionFixture(ctx, rt.sess, "My Session", cwd)
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
-	if err := rt.SeedHistory(ctx, ses.ID, []chat.Message{
+	if err := rt.SeedHistory(ctx, ses.ID(), []chat.Message{
 		chat.NewUserMessage(chat.NewTextPart("hello")),
 		chat.NewAssistantMessage(chat.NewTextPart("hi there")),
 	}); err != nil {
 		t.Fatalf("seed: %v", err)
 	}
-	putRun(t, rt, ses.ID, "run1", 1, 2)
-	putUserItem(t, rt, ses.ID, "run1", "item1", "hello")
+	putRun(t, rt, ses.ID(), "run1", 1, 2)
+	putUserItem(t, rt, ses.ID(), "run1", "item1", "hello")
 	arguments, err := tool.ArgumentsFromMap(map[string]any{"command": "ls", "description": "List workspace files"})
 	if err != nil {
 		t.Fatalf("tool arguments: %v", err)
@@ -56,7 +56,7 @@ func TestSessionExportImport_RoundTrip(t *testing.T) {
 		t.Fatalf("tool result: %v", err)
 	}
 	if err := rt.hist.AppendItem(ctx, itemfixture.MustRestore(itemfixture.Input{
-		SessionID: ses.ID, RunID: "run1", ID: "item2",
+		SessionID: ses.ID(), RunID: "run1", ID: "item2",
 		OccurredAt: time.Unix(2, 0).UTC(),
 		FinishedAt: time.Unix(3, 0).UTC(),
 		Status:     transcript.ItemCompleted,
@@ -71,7 +71,7 @@ func TestSessionExportImport_RoundTrip(t *testing.T) {
 	}
 
 	// Export (json).
-	exp, err := s.ExportSession(ctx, protocol.ExportSessionRequest{SessionID: ses.ID})
+	exp, err := s.ExportSession(ctx, protocol.ExportSessionRequest{SessionID: ses.ID()})
 	if err != nil {
 		t.Fatalf("export: %v", err)
 	}
@@ -79,7 +79,7 @@ func TestSessionExportImport_RoundTrip(t *testing.T) {
 		t.Fatalf("export = %+v, want a json artifact", exp)
 	}
 	art := exp.Artifact
-	if art.Session.Title != "My Session" || art.Session.Workspace.Path != ses.CWD {
+	if art.Session.Title != "My Session" || art.Session.Workspace.Path != ses.CWD() {
 		t.Errorf("artifact session = %+v, want title/workspace preserved", art.Session)
 	}
 	if len(art.Messages) != 2 || len(art.Items) != 2 || len(art.Runs) != 1 {
@@ -89,14 +89,14 @@ func TestSessionExportImport_RoundTrip(t *testing.T) {
 	assertArtifactToolResult(t, art.Items, "item2", wantToolResult)
 
 	// Wipe the session entirely.
-	if err := rt.sess.Delete(ctx, ses.ID); err != nil {
+	if err := rt.sess.Delete(ctx, ses.ID()); err != nil {
 		t.Fatalf("delete: %v", err)
 	}
-	if err := rt.Transcript().DeleteSession(ctx, ses.ID); err != nil {
+	if err := rt.Transcript().DeleteSession(ctx, ses.ID()); err != nil {
 		t.Fatalf("delete history: %v", err)
 	}
-	_ = rt.TruncateMessages(ctx, ses.ID, 0)
-	if _, err := rt.sess.Get(ctx, ses.ID); err == nil {
+	_ = rt.TruncateMessages(ctx, ses.ID(), 0)
+	if _, err := rt.sess.Get(ctx, ses.ID()); err == nil {
 		t.Fatal("session should be gone before import")
 	}
 
@@ -105,17 +105,17 @@ func TestSessionExportImport_RoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("import: %v", err)
 	}
-	if imp.Session == nil || imp.Session.ID != ses.ID || imp.Session.Title != "My Session" || imp.Session.Workspace.Ref.Path != canonicalCWD {
+	if imp.Session == nil || imp.Session.ID != ses.ID() || imp.Session.Title != "My Session" || imp.Session.Workspace.Ref.Path != canonicalCWD {
 		t.Fatalf("imported session = %+v, want id/title/workspace restored", imp.Session)
 	}
 
 	// Chat history restored.
-	msgs, _ := rt.ReadHistory(ctx, ses.ID)
+	msgs, _ := rt.ReadHistory(ctx, ses.ID())
 	if len(msgs) != 2 {
 		t.Errorf("restored messages = %d, want 2", len(msgs))
 	}
 	// Items + runs restored (items.list).
-	items, err := s.ListItems(ctx, protocol.ListItemsRequest{Scope: protocol.ItemListScope{Type: protocol.ItemScopeSession, SessionID: ses.ID}})
+	items, err := s.ListItems(ctx, protocol.ListItemsRequest{Scope: protocol.ItemListScope{Type: protocol.ItemScopeSession, SessionID: ses.ID()}})
 	if err != nil {
 		t.Fatalf("items.list: %v", err)
 	}
@@ -125,7 +125,7 @@ func TestSessionExportImport_RoundTrip(t *testing.T) {
 
 	// Exporting the restored canonical data preserves the original tool result;
 	// archive encoding never runs the client-facing tool presenter.
-	reexported, err := s.ExportSession(ctx, protocol.ExportSessionRequest{SessionID: ses.ID})
+	reexported, err := s.ExportSession(ctx, protocol.ExportSessionRequest{SessionID: ses.ID()})
 	if err != nil {
 		t.Fatalf("re-export: %v", err)
 	}
@@ -138,15 +138,15 @@ func TestSessionExportImportCarriesOffloadedToolResultsAcrossDatabases(t *testin
 	ctx := t.Context()
 	cwd := t.TempDir()
 
-	ses, err := sourceRuntime.sess.Create(ctx, "Portable offload", cwd)
+	ses, err := insertSessionFixture(ctx, sourceRuntime.sess, "Portable offload", cwd)
 	if err != nil {
 		t.Fatalf("create source session: %v", err)
 	}
-	putRun(t, sourceRuntime, ses.ID, "run_offload", 1, 1)
+	putRun(t, sourceRuntime, ses.ID(), "run_offload", 1, 1)
 	body := strings.Repeat("portable-result-", 100)
 	id := resultoffload.NewID()
 	if err := sourceRuntime.toolResults.Stage(ctx, resultoffload.Stage{
-		ID: id, SessionID: ses.ID, ToolName: "vendor_tool", Body: body,
+		ID: id, SessionID: ses.ID(), ToolName: "vendor_tool", Body: body,
 	}); err != nil {
 		t.Fatalf("stage source result: %v", err)
 	}
@@ -154,7 +154,7 @@ func TestSessionExportImportCarriesOffloadedToolResultsAcrossDatabases(t *testin
 	ref := &resultoffload.Ref{ID: id}
 	previewValue := tool.StringResult(preview)
 	item := itemfixture.MustRestore(itemfixture.Input{
-		SessionID: ses.ID, RunID: "run_offload", ID: "item_offload",
+		SessionID: ses.ID(), RunID: "run_offload", ID: "item_offload",
 		OccurredAt: time.Unix(2, 0).UTC(), FinishedAt: time.Unix(3, 0).UTC(),
 		Status: transcript.ItemCompleted, Kind: transcript.ToolCall,
 		Tool: &transcript.ToolInvocation{Name: "vendor_tool", Result: &previewValue, Offload: ref},
@@ -162,16 +162,16 @@ func TestSessionExportImportCarriesOffloadedToolResultsAcrossDatabases(t *testin
 	if err := sourceRuntime.hist.AppendItem(ctx, item); err != nil {
 		t.Fatalf("append source item: %v", err)
 	}
-	if err := sourceRuntime.toolResults.Bind(ctx, ses.ID, item.ID(), preview, *ref); err != nil {
+	if err := sourceRuntime.toolResults.Bind(ctx, ses.ID(), item.ID(), preview, *ref); err != nil {
 		t.Fatalf("bind source result: %v", err)
 	}
-	if err := sourceRuntime.SeedHistory(ctx, ses.ID, []chat.Message{
+	if err := sourceRuntime.SeedHistory(ctx, ses.ID(), []chat.Message{
 		chat.NewToolMessage(chat.ToolResult{ID: "call_offload", Name: "vendor_tool", Result: preview}),
 	}); err != nil {
 		t.Fatalf("seed source history: %v", err)
 	}
 
-	exported, err := source.ExportSession(ctx, protocol.ExportSessionRequest{SessionID: ses.ID})
+	exported, err := source.ExportSession(ctx, protocol.ExportSessionRequest{SessionID: ses.ID()})
 	if err != nil {
 		t.Fatalf("export source: %v", err)
 	}
@@ -188,11 +188,11 @@ func TestSessionExportImportCarriesOffloadedToolResultsAcrossDatabases(t *testin
 	if _, err := destination.ImportSession(ctx, protocol.ImportSessionRequest{Artifact: *exported.Artifact}); err != nil {
 		t.Fatalf("import destination: %v", err)
 	}
-	restored, found, err := destinationRuntime.toolResults.Fetch(ctx, ses.ID, id)
+	restored, found, err := destinationRuntime.toolResults.Fetch(ctx, ses.ID(), id)
 	if err != nil || !found || restored != body {
 		t.Fatalf("destination read-back = (found %v, bytes %d, err %v), want full body", found, len(restored), err)
 	}
-	items, err := destinationRuntime.hist.List(ctx, ses.ID)
+	items, err := destinationRuntime.hist.List(ctx, ses.ID())
 	if err != nil {
 		t.Fatalf("list destination transcript: %v", err)
 	}
@@ -206,7 +206,7 @@ func TestSessionExportImportCarriesOffloadedToolResultsAcrossDatabases(t *testin
 	if got, ok := invocation.Result.String(); !ok || got != body {
 		t.Fatalf("destination transcript result = %q, want rehydrated tool result", got)
 	}
-	messages, err := destinationRuntime.ReadHistory(ctx, ses.ID)
+	messages, err := destinationRuntime.ReadHistory(ctx, ses.ID())
 	if err != nil {
 		t.Fatalf("read destination history: %v", err)
 	}
@@ -244,11 +244,11 @@ func TestSessionImportRejectsActiveSession(t *testing.T) {
 	s, rt := rollbackHarness(t)
 	ctx := context.Background()
 
-	ses, err := rt.sess.Create(ctx, "Live", "/proj")
+	ses, err := insertSessionFixture(ctx, rt.sess, "Live", "/proj")
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
-	releaseSession, ok := rt.admissions.AcquireSession(ses.ID)
+	releaseSession, ok := rt.admissions.AcquireSession(ses.ID())
 	if !ok {
 		t.Fatal("claim session")
 	}
@@ -258,20 +258,22 @@ func TestSessionImportRejectsActiveSession(t *testing.T) {
 		Artifact: protocol.SessionArtifact{
 			Version: protocol.SessionArtifactVersion,
 			Session: protocol.ArtifactSession{
-				ID:        ses.ID,
+				ID:        ses.ID(),
 				Title:     "Restored",
 				Workspace: protocol.WorkspaceRef{Path: "/restore"},
+				CreatedAt: time.Unix(1, 0).UTC(),
+				UpdatedAt: time.Unix(1, 0).UTC(),
 			},
 		},
 	})
 	if !errors.Is(err, protocol.ErrSessionBusy) {
 		t.Fatalf("import err = %v, want ErrSessionBusy", err)
 	}
-	got, err := rt.sess.Get(ctx, ses.ID)
+	got, err := rt.sess.Get(ctx, ses.ID())
 	if err != nil {
 		t.Fatalf("get session: %v", err)
 	}
-	if got.Title != "Live" || got.CWD != "/proj" {
+	if got.Title() != "Live" || got.CWD() != "/proj" {
 		t.Fatalf("session mutated under active run: %+v", got)
 	}
 }
@@ -279,17 +281,17 @@ func TestSessionImportRejectsActiveSession(t *testing.T) {
 func TestSessionExportRejectsActiveSession(t *testing.T) {
 	s, rt := rollbackHarness(t)
 	ctx := t.Context()
-	ses, err := rt.sess.Create(ctx, "Live", t.TempDir())
+	ses, err := insertSessionFixture(ctx, rt.sess, "Live", t.TempDir())
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
-	releaseSession, ok := rt.admissions.AcquireSession(ses.ID)
+	releaseSession, ok := rt.admissions.AcquireSession(ses.ID())
 	if !ok {
 		t.Fatal("claim session")
 	}
 	t.Cleanup(releaseSession)
 
-	_, err = s.ExportSession(ctx, protocol.ExportSessionRequest{SessionID: ses.ID})
+	_, err = s.ExportSession(ctx, protocol.ExportSessionRequest{SessionID: ses.ID()})
 	if !errors.Is(err, protocol.ErrSessionBusy) {
 		t.Fatalf("export err = %v, want ErrSessionBusy", err)
 	}
@@ -299,13 +301,13 @@ func TestSessionImportRejectsOpenInterrupt(t *testing.T) {
 	s, rt := rollbackHarness(t)
 	ctx := context.Background()
 
-	ses, err := rt.sess.Create(ctx, "Parked", "/proj")
+	ses, err := insertSessionFixture(ctx, rt.sess, "Parked", "/proj")
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
 	if err := rt.interrupts.Open(ctx, serverPending(
 		"run_parked",
-		ses.ID,
+		ses.ID(),
 		"",
 		"",
 		nil,
@@ -318,9 +320,11 @@ func TestSessionImportRejectsOpenInterrupt(t *testing.T) {
 		Artifact: protocol.SessionArtifact{
 			Version: protocol.SessionArtifactVersion,
 			Session: protocol.ArtifactSession{
-				ID:        ses.ID,
+				ID:        ses.ID(),
 				Title:     "Restored",
 				Workspace: protocol.WorkspaceRef{Path: "/restore"},
+				CreatedAt: time.Unix(1, 0).UTC(),
+				UpdatedAt: time.Unix(1, 0).UTC(),
 			},
 		},
 	})
@@ -332,13 +336,13 @@ func TestSessionImportRejectsOpenInterrupt(t *testing.T) {
 func TestSessionExportRejectsOpenInterrupt(t *testing.T) {
 	s, rt := rollbackHarness(t)
 	ctx := t.Context()
-	ses, err := rt.sess.Create(ctx, "Parked", t.TempDir())
+	ses, err := insertSessionFixture(ctx, rt.sess, "Parked", t.TempDir())
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
 	if err := rt.interrupts.Open(ctx, serverPending(
 		"run_parked",
-		ses.ID,
+		ses.ID(),
 		"",
 		"",
 		nil,
@@ -347,7 +351,7 @@ func TestSessionExportRejectsOpenInterrupt(t *testing.T) {
 		t.Fatalf("seed interrupt: %v", err)
 	}
 
-	_, err = s.ExportSession(ctx, protocol.ExportSessionRequest{SessionID: ses.ID})
+	_, err = s.ExportSession(ctx, protocol.ExportSessionRequest{SessionID: ses.ID()})
 	if !errors.Is(err, protocol.ErrSessionBusy) {
 		t.Fatalf("export err = %v, want ErrSessionBusy", err)
 	}
@@ -356,21 +360,21 @@ func TestSessionExportRejectsOpenInterrupt(t *testing.T) {
 func TestCancelParkedRunProducesPortableTerminalSnapshot(t *testing.T) {
 	s, rt := rollbackHarness(t)
 	ctx := t.Context()
-	ses, err := rt.sess.Create(ctx, "Parked", t.TempDir())
+	ses, err := insertSessionFixture(ctx, rt.sess, "Parked", t.TempDir())
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
-	rt.history[ses.ID] = []chat.Message{chat.NewUserMessage(chat.NewTextPart("hello")), chat.NewAssistantMessage(chat.NewTextPart("waiting"))}
+	rt.history[ses.ID()] = []chat.Message{chat.NewUserMessage(chat.NewTextPart("hello")), chat.NewAssistantMessage(chat.NewTextPart("waiting"))}
 	parkedAt := time.Unix(1, 0).UTC()
 	capabilities := run.Capabilities{
 		InterruptKinds: []interrupt.Kind{interrupt.Question},
 	}
 	if err := rt.runs.Admit(ctx, run.Draft{SegmentID: "seg_open",
-		RunID: "run_parked", SessionID: ses.ID, Capabilities: capabilities, CreatedAt: parkedAt,
+		RunID: "run_parked", SessionID: ses.ID(), Capabilities: capabilities, CreatedAt: parkedAt,
 	}); err != nil {
 		t.Fatalf("admit parked run: %v", err)
 	}
-	if err := rt.runs.Suspend(ctx, runfixture.MustRestore(run.Snapshot{SessionID: ses.ID, ID: "run_parked", State: run.Waiting,
+	if err := rt.runs.Suspend(ctx, runfixture.MustRestore(run.Snapshot{SessionID: ses.ID(), ID: "run_parked", State: run.Waiting,
 		Capabilities: capabilities,
 
 		CreatedAt: parkedAt, MessageMark: run.UnknownMessageMark}),
@@ -378,7 +382,7 @@ func TestCancelParkedRunProducesPortableTerminalSnapshot(t *testing.T) {
 		t.Fatalf("suspend parked run: %v", err)
 	}
 	if err := rt.hist.AppendItem(ctx, itemfixture.MustRestore(itemfixture.Input{
-		ID: "item_question", RunID: "run_parked", SessionID: ses.ID,
+		ID: "item_question", RunID: "run_parked", SessionID: ses.ID(),
 		Kind:       transcript.QuestionItem,
 		OccurredAt: parkedAt,
 		Question:   &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?"}}},
@@ -387,7 +391,7 @@ func TestCancelParkedRunProducesPortableTerminalSnapshot(t *testing.T) {
 	}
 	if err := rt.interrupts.Open(ctx, serverPending(
 		"run_parked",
-		ses.ID,
+		ses.ID(),
 		"exec_parked",
 		"member_parked",
 		[]transcript.Interrupt{{
@@ -409,7 +413,7 @@ func TestCancelParkedRunProducesPortableTerminalSnapshot(t *testing.T) {
 		cancelResult.Run.Status != protocol.RunStatusFinished {
 		t.Fatalf("cancel result = %+v, want finished root run_parked", cancelResult)
 	}
-	exported, err := s.ExportSession(ctx, protocol.ExportSessionRequest{SessionID: ses.ID})
+	exported, err := s.ExportSession(ctx, protocol.ExportSessionRequest{SessionID: ses.ID()})
 	if err != nil {
 		t.Fatalf("export canceled session: %v", err)
 	}
@@ -430,13 +434,13 @@ func TestRestoreSessionApplicationBoundaryRejectsOpenInterrupts(t *testing.T) {
 	ctx := t.Context()
 	restoreCWD := t.TempDir()
 
-	ses, err := rt.sess.Create(ctx, "Old", "/proj")
+	ses, err := insertSessionFixture(ctx, rt.sess, "Old", "/proj")
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
 	if err := rt.interrupts.Open(ctx, serverPending(
 		"run_old",
-		ses.ID,
+		ses.ID(),
 		"",
 		"",
 		nil,
@@ -447,12 +451,12 @@ func TestRestoreSessionApplicationBoundaryRejectsOpenInterrupts(t *testing.T) {
 
 	now := time.Now().UTC()
 	_, err = s.sessions.RestorePortableSession(ctx, sessions.PortableSnapshot{Session: sessions.PortableSession{
-		ID: ses.ID, Title: "Restored", CWD: restoreCWD, CreatedAt: now, UpdatedAt: now,
+		ID: ses.ID(), Title: "Restored", CWD: restoreCWD, CreatedAt: now, UpdatedAt: now,
 	}})
 	if !errors.Is(err, sessions.ErrSessionBusy) {
 		t.Fatalf("restore = %v, want ErrSessionBusy", err)
 	}
-	pending, err := rt.interrupts.List(ctx, ses.ID)
+	pending, err := rt.interrupts.List(ctx, ses.ID())
 	if err != nil {
 		t.Fatalf("list interrupts: %v", err)
 	}
@@ -465,11 +469,11 @@ func TestRestoreSessionApplicationBoundaryRejectsOpenInterrupts(t *testing.T) {
 func TestSessionExport_Markdown(t *testing.T) {
 	s, rt := rollbackHarness(t)
 	ctx := context.Background()
-	ses, _ := rt.sess.Create(ctx, "Doc", "/proj")
-	putRun(t, rt, ses.ID, "run1", 1, 0)
-	putUserItem(t, rt, ses.ID, "run1", "item1", "explain this")
+	ses, _ := insertSessionFixture(ctx, rt.sess, "Doc", "/proj")
+	putRun(t, rt, ses.ID(), "run1", 1, 0)
+	putUserItem(t, rt, ses.ID(), "run1", "item1", "explain this")
 
-	exp, err := s.ExportSession(ctx, protocol.ExportSessionRequest{SessionID: ses.ID, Format: protocol.ExportFormatMarkdown})
+	exp, err := s.ExportSession(ctx, protocol.ExportSessionRequest{SessionID: ses.ID(), Format: protocol.ExportFormatMarkdown})
 	if err != nil {
 		t.Fatalf("export md: %v", err)
 	}
@@ -484,12 +488,12 @@ func TestSessionExport_Markdown(t *testing.T) {
 func TestSessionExportRejectsUnknownFormat(t *testing.T) {
 	s, rt := rollbackHarness(t)
 	ctx := context.Background()
-	ses, err := rt.sess.Create(ctx, "Doc", "/proj")
+	ses, err := insertSessionFixture(ctx, rt.sess, "Doc", "/proj")
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
 
-	_, err = s.ExportSession(ctx, protocol.ExportSessionRequest{SessionID: ses.ID, Format: "yaml"})
+	_, err = s.ExportSession(ctx, protocol.ExportSessionRequest{SessionID: ses.ID(), Format: "yaml"})
 	if !errors.Is(err, protocol.ErrInvalidParams) {
 		t.Fatalf("export err = %v, want ErrInvalidParams", err)
 	}
@@ -516,6 +520,7 @@ func TestSessionImportRejectsUnavailableCWD(t *testing.T) {
 			Version: protocol.SessionArtifactVersion,
 			Session: protocol.ArtifactSession{
 				ID: "ses_missing_cwd", Workspace: protocol.WorkspaceRef{Path: missing},
+				CreatedAt: time.Unix(1, 0).UTC(), UpdatedAt: time.Unix(1, 0).UTC(),
 			},
 		},
 	})
@@ -569,19 +574,19 @@ func TestSessionExportImportCarriesThePlanForward(t *testing.T) {
 	s, rt := rollbackHarness(t)
 	s.features.plan = true // this composition owns the key, so it may restore it
 	ctx := t.Context()
-	ses, err := rt.sess.Create(ctx, "planned", t.TempDir())
+	ses, err := insertSessionFixture(ctx, rt.sess, "planned", t.TempDir())
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
-	putRun(t, rt, ses.ID, "run1", 1, 0)
-	if err := saveTestPlan(ctx, rt.plan, ses.ID, []plan.Step{
+	putRun(t, rt, ses.ID(), "run1", 1, 0)
+	if err := saveTestPlan(ctx, rt.plan, ses.ID(), []plan.Step{
 		{Description: "split the outcome", Status: plan.StatusCompleted},
 		{Description: "carry the list", Status: plan.StatusInProgress},
 	}); err != nil {
 		t.Fatalf("seed plan: %v", err)
 	}
 
-	exported, err := s.ExportSession(ctx, protocol.ExportSessionRequest{SessionID: ses.ID})
+	exported, err := s.ExportSession(ctx, protocol.ExportSessionRequest{SessionID: ses.ID()})
 	if err != nil {
 		t.Fatalf("export: %v", err)
 	}
@@ -594,10 +599,10 @@ func TestSessionExportImportCarriesThePlanForward(t *testing.T) {
 	}
 
 	// The live projection moves on, so the import has something to be newer than.
-	if err := saveTestPlan(ctx, rt.plan, ses.ID, []plan.Step{{Description: "something else", Status: plan.StatusPending}}); err != nil {
+	if err := saveTestPlan(ctx, rt.plan, ses.ID(), []plan.Step{{Description: "something else", Status: plan.StatusPending}}); err != nil {
 		t.Fatalf("advance plan: %v", err)
 	}
-	before, err := rt.plan.State(ctx, ses.ID)
+	before, err := rt.plan.State(ctx, ses.ID())
 	if err != nil {
 		t.Fatalf("read plan: %v", err)
 	}
@@ -605,7 +610,7 @@ func TestSessionExportImportCarriesThePlanForward(t *testing.T) {
 	if _, err := s.ImportSession(ctx, protocol.ImportSessionRequest{Artifact: *exported.Artifact}); err != nil {
 		t.Fatalf("import: %v", err)
 	}
-	after, err := rt.plan.State(ctx, ses.ID)
+	after, err := rt.plan.State(ctx, ses.ID())
 	if err != nil {
 		t.Fatalf("read plan after import: %v", err)
 	}
@@ -618,6 +623,42 @@ func TestSessionExportImportCarriesThePlanForward(t *testing.T) {
 	}
 }
 
+func TestSessionImportAdvancesTargetRevision(t *testing.T) {
+	server, runtime := rollbackHarness(t)
+	ctx := t.Context()
+	created, err := insertSessionFixture(ctx, runtime.sess, "Archived", t.TempDir())
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	exported, err := server.ExportSession(ctx, protocol.ExportSessionRequest{SessionID: created.ID()})
+	if err != nil {
+		t.Fatalf("export: %v", err)
+	}
+
+	liveTitle := "Changed after export"
+	if _, err := server.UpdateSession(ctx, protocol.UpdateSessionRequest{
+		SessionID: created.ID(), Title: &liveTitle,
+	}); err != nil {
+		t.Fatalf("advance live Session: %v", err)
+	}
+	before, err := runtime.sess.Get(ctx, created.ID())
+	if err != nil {
+		t.Fatalf("read live Session: %v", err)
+	}
+
+	if _, err := server.ImportSession(ctx, protocol.ImportSessionRequest{Artifact: *exported.Artifact}); err != nil {
+		t.Fatalf("import: %v", err)
+	}
+	after, err := runtime.sess.Get(ctx, created.ID())
+	if err != nil {
+		t.Fatalf("read restored Session: %v", err)
+	}
+	if after.Title() != "Archived" || after.Revision() != before.Revision()+1 ||
+		!after.UpdatedAt().After(before.UpdatedAt()) {
+		t.Fatalf("restored Session before=%+v after=%+v", before.Snapshot(), after.Snapshot())
+	}
+}
+
 // A build that does not own a state key cannot restore it, and importing the
 // conversation while dropping the key would restore a session the archive does not
 // describe. The refusal names the KEY, so the caller learns which one.
@@ -625,7 +666,7 @@ func TestSessionImportRefusesAnUnadvertisedStateKey(t *testing.T) {
 	s, rt := rollbackHarness(t)
 	ctx := t.Context()
 	s.features.plan = false
-	ses, err := rt.sess.Create(ctx, "planned", t.TempDir())
+	ses, err := insertSessionFixture(ctx, rt.sess, "planned", t.TempDir())
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
@@ -633,7 +674,7 @@ func TestSessionImportRefusesAnUnadvertisedStateKey(t *testing.T) {
 	artifact := protocol.SessionArtifact{
 		Version: protocol.SessionArtifactVersion,
 		Session: protocol.ArtifactSession{
-			ID: ses.ID, Title: "planned", Workspace: protocol.WorkspaceRef{Path: ses.CWD},
+			ID: ses.ID(), Title: "planned", Workspace: protocol.WorkspaceRef{Path: ses.CWD()},
 		},
 		States: []protocol.ArtifactState{{
 			Type: protocol.ArtifactStatePlan,

@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 )
 
 // DeleteSession atomically removes all durable session state (the atomic
@@ -109,38 +110,46 @@ func (c *Coordinator) restoreSession(ctx context.Context, snapshot Snapshot, pre
 		return View{}, err
 	}
 	snapshot = normalized
-	admission, err := c.ClaimIdleSession(ctx, snapshot.Session.ID)
+	sessionID := snapshot.Session.ID()
+	admission, err := c.ClaimIdleSession(ctx, sessionID)
 	if err != nil {
 		return View{}, err
 	}
 	defer admission.Release()
-	cwd, err := c.resolveSessionCWD(snapshot.Session.CWD)
+	cwd, err := c.resolveSessionCWD(snapshot.Session.CWD())
 	if err != nil {
 		return View{}, err
 	}
-	snapshot.Session.CWD = cwd
-	planReplacement, err := c.prepareRestoredPlanReplacement(ctx, snapshot.Session.ID, snapshot.Plan)
+	snapshot.Session, err = snapshot.Session.InstallRestoredWorkspace(cwd)
+	if err != nil {
+		return View{}, err
+	}
+	sessionReplacement, err := c.prepareSessionRestore(ctx, snapshot.Session)
+	if err != nil {
+		return View{}, err
+	}
+	planReplacement, err := c.prepareRestoredPlanReplacement(ctx, sessionID, snapshot.Plan)
 	if err != nil {
 		return View{}, err
 	}
 	var view View
 	err = c.withGoalMutation(
 		ctx,
-		[]string{snapshot.Session.ID},
+		[]string{sessionID},
 		func(ctx context.Context) error {
 			if c.writes == nil {
 				return errors.New("sessions: write sets are unavailable")
 			}
-			return c.writes.ApplyRestore(ctx, restorePlan(snapshot, planReplacement))
+			return c.writes.ApplyRestore(ctx, restorePlan(snapshot, sessionReplacement, planReplacement))
 		},
 		func(context.Context) error {
 			// Restore replaced the whole history: any isolated working copy
 			// from before the restore is stale, so discard it before exposing
 			// the restored aggregate.
-			c.publishAggregateMoved([]string{snapshot.Session.ID}, nil)
+			c.publishAggregateMoved([]string{sessionID}, nil)
 			var postCommitErrs []error
 			if c.sandbox != nil {
-				if discardErr := c.sandbox.Discard(snapshot.Session.ID); discardErr != nil {
+				if discardErr := c.sandbox.Discard(sessionID); discardErr != nil {
 					postCommitErrs = append(postCommitErrs, fmt.Errorf("sessions: discard stale sandbox copy on restore: %w", discardErr))
 				}
 			}
@@ -153,6 +162,27 @@ func (c *Coordinator) restoreSession(ctx context.Context, snapshot Snapshot, pre
 		},
 	)
 	return view, err
+}
+
+func (c *Coordinator) prepareSessionRestore(
+	ctx context.Context,
+	restored session.Session,
+) (SessionReplacement, error) {
+	if c.sessions == nil {
+		return SessionReplacement{}, errors.New("sessions: Session store is unavailable")
+	}
+	current, err := c.sessions.Get(ctx, restored.ID())
+	if errors.Is(err, session.ErrNotFound) {
+		return InitialSessionReplacement(restored)
+	}
+	if err != nil {
+		return SessionReplacement{}, err
+	}
+	next, err := current.ReplaceWithRestore(restored, c.now())
+	if err != nil {
+		return SessionReplacement{}, err
+	}
+	return NextSessionReplacement(current, next)
 }
 
 // RestorePortableSession rebuilds and restores one transport-neutral archive.

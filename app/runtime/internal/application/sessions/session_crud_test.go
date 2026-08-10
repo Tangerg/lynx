@@ -9,21 +9,18 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/pagination"
+	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/sessionfixture"
 )
 
 type crudSessionStore struct {
-	sessions      []session.Session
-	getID         string
-	createTitle   string
-	createCWD     string
-	renamed       [2]string
-	model         [2]string
-	modelErr      error
-	cwd           [2]string
-	favoriteID    string
-	favoriteValue bool
-	isolated      *bool
-	patched       bool
+	sessions []session.Session
+	current  session.Session
+	getErr   error
+	getID    string
+	inserted session.Session
+	saved    session.Session
+	expected uint64
+	saveErr  error
 }
 
 func (s *crudSessionStore) ListPage(ctx context.Context, _ bool, _ int64, _ string, _ int) ([]session.Session, error) {
@@ -34,48 +31,54 @@ func (s *crudSessionStore) List(context.Context) ([]session.Session, error) { re
 
 func (s *crudSessionStore) Get(_ context.Context, id string) (session.Session, error) {
 	s.getID = id
-	return session.Session{ID: id, CWD: "/repo"}, nil
+	if s.getErr != nil {
+		return session.Session{}, s.getErr
+	}
+	if s.current.ID() == "" {
+		s.current = sessionfixture.MustRestore(session.Snapshot{ID: id, CWD: "/repo"})
+	}
+	return s.current, nil
 }
 
-func (s *crudSessionStore) Create(_ context.Context, title, cwd string) (session.Session, error) {
-	s.createTitle = title
-	s.createCWD = cwd
-	return session.Session{ID: "ses_created", Title: title, CWD: cwd}, nil
+type generatedTitleRaceStore struct {
+	*crudSessionStore
+	saveCalls int
+	candidate session.Session
 }
 
-func (s *crudSessionStore) Ensure(_ context.Context, sess session.Session) (session.Session, error) {
-	return sess, nil
+func (s *generatedTitleRaceStore) Save(
+	_ context.Context,
+	_ uint64,
+	replacement session.Session,
+) error {
+	s.saveCalls++
+	s.candidate = replacement
+	userTitle := "User title"
+	committed, changed, err := s.current.Apply(
+		session.Patch{Title: &userTitle},
+		time.Unix(2, 0).UTC(),
+	)
+	if err != nil || !changed {
+		return errors.New("test: could not install concurrent user title")
+	}
+	s.current = committed
+	return session.ErrRevisionConflict
 }
 
-func (*crudSessionStore) Children(context.Context, string) ([]session.Session, error) {
-	return nil, nil
+func (s *crudSessionStore) Insert(_ context.Context, value session.Session) error {
+	s.inserted = value
+	s.current = value
+	return nil
 }
 
-// Patch applies the normalized patch — recording each set field — as the
-// aggregate atomic write-set the coordinator's Update drives.
-func (s *crudSessionStore) Patch(_ context.Context, id string, patch session.Patch) (session.Session, error) {
-	s.patched = true
-	if patch.Title != nil {
-		s.renamed = [2]string{id, *patch.Title}
+func (s *crudSessionStore) Save(_ context.Context, expected uint64, replacement session.Session) error {
+	s.expected = expected
+	s.saved = replacement
+	if s.saveErr != nil {
+		return s.saveErr
 	}
-	if patch.Model != nil {
-		s.model = [2]string{id, *patch.Model}
-	}
-	if patch.CWD != nil {
-		s.cwd = [2]string{id, *patch.CWD}
-	}
-	if patch.Favorite != nil {
-		s.favoriteID = id
-		s.favoriteValue = *patch.Favorite
-	}
-	if patch.Isolated != nil {
-		isolated := *patch.Isolated
-		s.isolated = &isolated
-	}
-	if s.modelErr != nil {
-		return session.Session{}, s.modelErr
-	}
-	return session.Session{ID: id}, nil
+	s.current = replacement
+	return nil
 }
 
 type crudStores struct {
@@ -105,16 +108,22 @@ func (*crudStores) ApplyDelete(context.Context, DeletePlan) error     { return n
 func (*crudStores) ApplyTerminal(context.Context, TerminalPlan) error { return nil }
 
 func TestCoordinatorSessionCRUD(t *testing.T) {
-	store := &crudSessionStore{sessions: []session.Session{{ID: "ses_1"}}}
+	store := &crudSessionStore{sessions: []session.Session{
+		sessionfixture.MustRestore(session.Snapshot{ID: "ses_1"}),
+	}}
 	stores := &crudStores{session: store}
-	c := New(testDependencies(stores, Dependencies{Paths: testCWDResolver{resolved: "/resolved/project"}}))
+	c := New(testDependencies(stores, Dependencies{
+		Paths: testCWDResolver{resolved: "/resolved/project"},
+		Now:   func() time.Time { return time.Unix(2, 0).UTC() },
+		NewID: func() string { return "ses_created" },
+	}))
 	ctx := context.Background()
 
 	listed, err := c.List(ctx)
 	if err != nil {
 		t.Fatalf("list sessions: %v", err)
 	}
-	if len(listed) != 1 || listed[0].ID != "ses_1" {
+	if len(listed) != 1 || listed[0].ID() != "ses_1" {
 		t.Fatalf("listed = %+v", listed)
 	}
 
@@ -122,7 +131,7 @@ func TestCoordinatorSessionCRUD(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get session: %v", err)
 	}
-	if store.getID != "ses_2" || got.CWD != "/repo" {
+	if store.getID != "ses_2" || got.CWD() != "/repo" {
 		t.Fatalf("getID=%q got=%+v", store.getID, got)
 	}
 
@@ -130,15 +139,82 @@ func TestCoordinatorSessionCRUD(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create session: %v", err)
 	}
-	if created.ID != "ses_created" || store.createTitle != "New" || store.createCWD != "/resolved/project" {
-		t.Fatalf("created=%+v title=%q cwd=%q", created, store.createTitle, store.createCWD)
+	if created.ID() != "ses_created" || store.inserted.Title() != "New" || store.inserted.CWD() != "/resolved/project" {
+		t.Fatalf("created=%+v inserted=%+v", created.Snapshot(), store.inserted.Snapshot())
+	}
+}
+
+func TestPrepareScheduledBuildsOneUnpersistedInitialAggregate(t *testing.T) {
+	store := &crudSessionStore{getErr: session.ErrNotFound}
+	createdAt := time.Unix(9, 0).UTC()
+	coordinator := New(testDependencies(&crudStores{session: store}, Dependencies{
+		Paths: testCWDResolver{resolved: "/resolved/scheduled"},
+		Now:   func() time.Time { return createdAt },
+	}))
+
+	current, initial, err := coordinator.PrepareScheduled(
+		t.Context(), "ses_scheduled", " Scheduled ", "/requested", " model ",
+	)
+	if err != nil {
+		t.Fatalf("PrepareScheduled: %v", err)
+	}
+	if initial == nil || current.Snapshot() != initial.Snapshot() {
+		t.Fatalf("scheduled current=%+v initial=%+v", current.Snapshot(), initial)
+	}
+	if current.ID() != "ses_scheduled" || current.Title() != "Scheduled" ||
+		current.CWD() != "/resolved/scheduled" || current.Model() != "model" ||
+		current.Revision() != 1 || !current.StartedAt().Equal(createdAt) {
+		t.Fatalf("scheduled aggregate = %+v", current.Snapshot())
+	}
+	if store.inserted.ID() != "" {
+		t.Fatalf("PrepareScheduled persisted before Run opening: %+v", store.inserted.Snapshot())
+	}
+}
+
+func TestPrepareScheduledReusesCommittedAggregateWithoutWorkspaceAdmission(t *testing.T) {
+	existing := sessionfixture.MustRestore(session.Snapshot{
+		ID: "ses_scheduled", Title: "Existing", CWD: "/existing", Model: "existing-model",
+	})
+	store := &crudSessionStore{current: existing}
+	coordinator := New(testDependencies(&crudStores{session: store}, Dependencies{
+		Paths: testCWDResolver{err: errors.New("must not inspect workspace")},
+	}))
+
+	current, initial, err := coordinator.PrepareScheduled(
+		t.Context(), existing.ID(), "Ignored", "/unavailable", "ignored-model",
+	)
+	if err != nil {
+		t.Fatalf("PrepareScheduled existing: %v", err)
+	}
+	if initial != nil || current.Snapshot() != existing.Snapshot() {
+		t.Fatalf("existing current=%+v initial=%+v", current.Snapshot(), initial)
+	}
+}
+
+func TestGeneratedTitleLosesToConcurrentUserTitle(t *testing.T) {
+	current := sessionfixture.MustRestore(session.Snapshot{
+		ID: "ses_1", CWD: "/repo", StartedAt: time.Unix(1, 0), UpdatedAt: time.Unix(1, 0),
+	})
+	store := &generatedTitleRaceStore{crudSessionStore: &crudSessionStore{current: current}}
+	coordinator := New(testDependencies(&crudStores{session: store}, Dependencies{
+		Now: func() time.Time { return time.Unix(3, 0).UTC() },
+	}))
+
+	if err := coordinator.ApplyGeneratedTitle(t.Context(), current.ID(), "Generated title"); err != nil {
+		t.Fatalf("ApplyGeneratedTitle: %v", err)
+	}
+	if store.saveCalls != 1 || store.candidate.Title() != "Generated title" {
+		t.Fatalf("generated attempt calls=%d candidate=%+v", store.saveCalls, store.candidate.Snapshot())
+	}
+	if store.current.Title() != "User title" || store.current.Revision() != 2 {
+		t.Fatalf("concurrent user title lost: %+v", store.current.Snapshot())
 	}
 }
 
 func TestViewUsesConfiguredDefaultModel(t *testing.T) {
 	c := New(Dependencies{Paths: testCWDResolver{}, DefaultModel: "claude-opus-4-8"})
 
-	view, err := c.view(session.Session{ID: "ses_1", CWD: "/repo"}, ActivityIdle)
+	view, err := c.view(sessionfixture.MustRestore(session.Snapshot{ID: "ses_1", CWD: "/repo"}), ActivityIdle)
 	if err != nil {
 		t.Fatalf("view: %v", err)
 	}
@@ -168,20 +244,20 @@ func TestCoordinatorUpdateAppliesPatch(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Update: %v", err)
 	}
-	if !store.patched {
-		t.Fatal("Update did not apply the atomic patch write-set")
+	if store.saved.ID() == "" {
+		t.Fatal("Update did not save the decided replacement")
 	}
-	if got.ID != "ses_1" || store.renamed != ([2]string{"ses_1", "Renamed"}) {
-		t.Fatalf("updated=%+v renamed=%v", got, store.renamed)
+	if got.ID() != "ses_1" || store.saved.Title() != "Renamed" {
+		t.Fatalf("updated=%+v saved=%+v", got.Snapshot(), store.saved.Snapshot())
 	}
-	if store.model != ([2]string{"ses_1", model}) {
-		t.Fatalf("model = %v", store.model)
+	if store.saved.Model() != model {
+		t.Fatalf("model = %q", store.saved.Model())
 	}
-	if store.cwd != ([2]string{"ses_1", "/resolved/project"}) {
-		t.Fatalf("cwd = %v", store.cwd)
+	if store.saved.CWD() != "/resolved/project" {
+		t.Fatalf("cwd = %q", store.saved.CWD())
 	}
-	if store.favoriteID != "ses_1" || !store.favoriteValue {
-		t.Fatalf("favorite id=%q value=%v", store.favoriteID, store.favoriteValue)
+	if !store.saved.Favorite() || store.expected != 1 || store.saved.Revision() != 2 {
+		t.Fatalf("saved lifecycle = %+v, expected=%d", store.saved.Snapshot(), store.expected)
 	}
 	if len(claims.released) != 1 || claims.released[0] != "ses_1" {
 		t.Fatalf("relocation admission releases = %v, want [ses_1]", claims.released)
@@ -199,7 +275,7 @@ func TestCoordinatorUpdateRejectsRelocationDuringRun(t *testing.T) {
 	if !errors.Is(err, ErrSessionBusy) {
 		t.Fatalf("Update relocation error = %v, want ErrSessionBusy", err)
 	}
-	if store.patched {
+	if store.saved.ID() != "" {
 		t.Fatal("busy relocation mutated the session")
 	}
 }
@@ -232,7 +308,7 @@ func TestCoordinatorUpdateRejectsExecutionPolicyChangeWhileParked(t *testing.T) 
 			if !errors.Is(err, ErrSessionBusy) {
 				t.Fatalf("Update error = %v, want ErrSessionBusy", err)
 			}
-			if store.patched {
+			if store.saved.ID() != "" {
 				t.Fatal("parked execution policy change mutated the Session")
 			}
 		})
@@ -248,32 +324,32 @@ func TestCoordinatorUpdateRejectsInvalidPatch(t *testing.T) {
 	if _, err := c.Update(t.Context(), "ses_1", session.Patch{Title: &blank}); !errors.Is(err, session.ErrTitleRequired) {
 		t.Fatalf("blank title err = %v, want ErrTitleRequired", err)
 	}
-	if store.renamed != ([2]string{}) {
-		t.Fatalf("blank title renamed session: %v", store.renamed)
+	if store.saved.ID() != "" {
+		t.Fatalf("blank title saved Session: %+v", store.saved.Snapshot())
 	}
 
 	ghost := "/no/such/dir"
 	if _, err := c.Update(t.Context(), "ses_1", session.Patch{CWD: &ghost}); !errors.Is(err, session.ErrCWDUnavailable) {
 		t.Fatalf("ghost cwd err = %v, want ErrCWDUnavailable", err)
 	}
-	if store.cwd != ([2]string{}) {
-		t.Fatalf("ghost cwd updated session: %v", store.cwd)
+	if store.saved.ID() != "" {
+		t.Fatalf("ghost cwd saved Session: %+v", store.saved.Snapshot())
 	}
 
 	title := "Renamed"
 	if _, err := c.Update(t.Context(), "ses_1", session.Patch{Title: &title, CWD: &ghost}); !errors.Is(err, session.ErrCWDUnavailable) {
 		t.Fatalf("mixed patch err = %v, want ErrCWDUnavailable", err)
 	}
-	if store.renamed != ([2]string{}) {
-		t.Fatalf("invalid mixed patch renamed session: %v", store.renamed)
+	if store.saved.ID() != "" {
+		t.Fatalf("invalid mixed patch saved Session: %+v", store.saved.Snapshot())
 	}
 
 	missing := "/missing/project"
 	if _, err := c.Create(context.Background(), "New", missing); !errors.Is(err, session.ErrCWDUnavailable) {
 		t.Fatalf("missing create cwd err = %v, want ErrCWDUnavailable", err)
 	}
-	if store.createCWD != "" {
-		t.Fatalf("missing create cwd wrote session: %q", store.createCWD)
+	if store.inserted.ID() != "" {
+		t.Fatalf("missing create cwd inserted Session: %+v", store.inserted.Snapshot())
 	}
 }
 
@@ -293,8 +369,8 @@ func (s *pagedSessionStore) ListPage(_ context.Context, afterFavorite bool, afte
 	var out []session.Session
 	for _, row := range s.rows {
 		if afterUpdatedAt != 0 || afterID != "" {
-			position := row.UpdatedAt.UnixNano()
-			if row.Favorite != afterFavorite || position > afterUpdatedAt || (position == afterUpdatedAt && row.ID <= afterID) {
+			position := row.UpdatedAt().UnixNano()
+			if row.Favorite() != afterFavorite || position > afterUpdatedAt || (position == afterUpdatedAt && row.ID() <= afterID) {
 				continue
 			}
 		}
@@ -309,9 +385,10 @@ func (s *pagedSessionStore) ListPage(_ context.Context, afterFavorite bool, afte
 func sessionRows(ids ...string) []session.Session {
 	out := make([]session.Session, 0, len(ids))
 	for i, id := range ids {
-		out = append(out, session.Session{
-			ID: id, CWD: "/repo", UpdatedAt: time.Unix(0, int64(len(ids)-i)).UTC(),
-		})
+		updatedAt := time.Unix(0, int64(len(ids)-i)).UTC()
+		out = append(out, sessionfixture.MustRestore(session.Snapshot{
+			ID: id, CWD: "/repo", StartedAt: updatedAt, UpdatedAt: updatedAt,
+		}))
 	}
 	return out
 }

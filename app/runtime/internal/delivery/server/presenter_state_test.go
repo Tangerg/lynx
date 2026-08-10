@@ -84,24 +84,24 @@ func declaredStatePayload(t *testing.T, key string) reflect.Type {
 func TestPlanQueryAnswersWithTheStreamsOwnSnapshot(t *testing.T) {
 	s, rt := rollbackHarness(t)
 	ctx := t.Context()
-	ses, err := rt.sess.Create(ctx, "recovering", t.TempDir())
+	ses, err := insertSessionFixture(ctx, rt.sess, "recovering", t.TempDir())
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
-	if err := saveTestPlan(ctx, rt.plan, ses.ID, []plan.Step{{Description: "first", Status: plan.StatusCompleted}}); err != nil {
+	if err := saveTestPlan(ctx, rt.plan, ses.ID(), []plan.Step{{Description: "first", Status: plan.StatusCompleted}}); err != nil {
 		t.Fatalf("seed plan: %v", err)
 	}
 
-	first, err := s.GetPlan(ctx, protocol.GetPlanRequest{SessionID: ses.ID})
+	first, err := s.GetPlan(ctx, protocol.GetPlanRequest{SessionID: ses.ID()})
 	if err != nil {
 		t.Fatalf("plan.get: %v", err)
 	}
-	stored, err := rt.plan.State(ctx, ses.ID)
+	stored, err := rt.plan.State(ctx, ses.ID())
 	if err != nil {
 		t.Fatalf("read state: %v", err)
 	}
-	if first.Type != protocol.StatePlan || first.SessionID != ses.ID {
-		t.Fatalf("cold read = %+v, want the plan key for %s", first, ses.ID)
+	if first.Type != protocol.StatePlan || first.SessionID != ses.ID() {
+		t.Fatalf("cold read = %+v, want the plan key for %s", first, ses.ID())
 	}
 	if first.Revision != stored.Revision() || first.Revision == 0 {
 		t.Fatalf("cold read revision = %d, want the store's %d", first.Revision, stored.Revision())
@@ -110,10 +110,10 @@ func TestPlanQueryAnswersWithTheStreamsOwnSnapshot(t *testing.T) {
 		t.Fatalf("cold read list = %+v, want the stored list", first.Plan)
 	}
 
-	if err := saveTestPlan(ctx, rt.plan, ses.ID, []plan.Step{{Description: "second", Status: plan.StatusInProgress}}); err != nil {
+	if err := saveTestPlan(ctx, rt.plan, ses.ID(), []plan.Step{{Description: "second", Status: plan.StatusInProgress}}); err != nil {
 		t.Fatalf("advance plan: %v", err)
 	}
-	second, err := s.GetPlan(ctx, protocol.GetPlanRequest{SessionID: ses.ID})
+	second, err := s.GetPlan(ctx, protocol.GetPlanRequest{SessionID: ses.ID()})
 	if err != nil {
 		t.Fatalf("plan.get again: %v", err)
 	}

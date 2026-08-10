@@ -187,11 +187,14 @@ type SessionReader interface {
 }
 
 // SessionCreator owns the two Session creation paths consumed by Run start.
-// PrepareScheduled returns the caller-identified Session value whose durable
-// creation belongs to the opening write-set.
+// PrepareScheduled returns the caller-identified Session and, only when it does
+// not already exist, the exact initial aggregate owned by the opening write-set.
 type SessionCreator interface {
 	Create(ctx context.Context, title, cwd string) (session.Session, error)
-	PrepareScheduled(ctx context.Context, id, title, cwd string) (session.Session, error)
+	PrepareScheduled(
+		ctx context.Context,
+		id, title, cwd, model string,
+	) (session.Session, *session.Session, error)
 }
 
 // ActiveRunReader reports the Session's current non-terminal Run for admission.

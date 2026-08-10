@@ -22,9 +22,9 @@ func withClientCapabilities(caps protocol.ClientCapabilities) context.Context {
 // requires instead of a silent downgrade.
 func TestStartRunRefusesCapabilitiesThisBuildDoesNotHave(t *testing.T) {
 	s, rt := rollbackHarness(t)
-	sess, _ := rt.sess.Create(context.Background(), "s", "/w")
+	sess, _ := insertSessionFixture(context.Background(), rt.sess, "s", "/w")
 	request := protocol.StartRunRequest{
-		SessionID: sess.ID,
+		SessionID: sess.ID(),
 		Input:     []protocol.ContentBlock{{Type: protocol.ContentBlockText, Text: "hi"}},
 	}
 
@@ -175,11 +175,11 @@ func TestResumeRunRefusesACallerThatCannotFollowTheRun(t *testing.T) {
 	s, rt := rollbackHarness(t)
 	rt.execution = resumeOKExecution{}
 	ctx := context.Background()
-	sess, _ := rt.sess.Create(ctx, "s", "/w")
+	sess, _ := insertSessionFixture(ctx, rt.sess, "s", "/w")
 
 	pending := serverPending(
 		"run_1",
-		sess.ID,
+		sess.ID(),
 		"exec_parked",
 		"member_parked",
 		[]transcript.Interrupt{{

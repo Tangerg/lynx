@@ -75,7 +75,7 @@ func (c *Coordinator) Rollback(ctx context.Context, spec RollbackSpec) (Rollback
 
 	var cwd string
 	if spec.RestoreFiles {
-		cwd = currentSession.CWD
+		cwd = currentSession.CWD()
 		if cwd == "" {
 			return result, ErrCheckpointUnavailable
 		}

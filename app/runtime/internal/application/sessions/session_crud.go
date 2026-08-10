@@ -3,12 +3,12 @@ package sessions
 import (
 	"context"
 	"errors"
-	"time"
+	"fmt"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 )
 
-// CWDResolver is the filesystem boundary needed when a session is created or
+// CWDResolver is the filesystem boundary needed when a Session is created or
 // relocated. Session.CWD is canonical after admission, so downstream use cases
 // treat it as an invariant instead of repeatedly touching the filesystem.
 type CWDResolver interface {
@@ -16,18 +16,18 @@ type CWDResolver interface {
 	Inspect(path string) (session.WorkspaceIdentity, error)
 }
 
-// List returns every user-facing session, newest-updated first.
+// List returns every user-facing Session, newest-updated first.
 func (c *Coordinator) List(ctx context.Context) ([]session.Session, error) {
 	if c.sessions == nil {
-		return nil, errors.New("sessions: session store is unavailable")
+		return nil, errors.New("sessions: Session store is unavailable")
 	}
 	return c.sessions.List(ctx)
 }
 
-// Get returns one saved session by id.
+// Get returns one saved Session by identity.
 func (c *Coordinator) Get(ctx context.Context, id string) (session.Session, error) {
 	if c.sessions == nil {
-		return session.Session{}, errors.New("sessions: session store is unavailable")
+		return session.Session{}, errors.New("sessions: Session store is unavailable")
 	}
 	return c.sessions.Get(ctx, id)
 }
@@ -43,67 +43,67 @@ func (c *Coordinator) InspectWorkspace(cwd string) (session.WorkspaceIdentity, e
 	return c.paths.Inspect(cwd)
 }
 
-// Create starts a fresh session in cwd, resolving cwd to an existing directory
-// (an unavailable cwd is [session.ErrCWDUnavailable]).
+// Create starts and persists a fresh root Session in an admitted workspace.
 func (c *Coordinator) Create(ctx context.Context, title, cwd string) (session.Session, error) {
+	if c.sessions == nil {
+		return session.Session{}, errors.New("sessions: Session store is unavailable")
+	}
+	if c.newID == nil {
+		return session.Session{}, errors.New("sessions: Session identity generator is unavailable")
+	}
 	cwd, err := c.resolveSessionCWD(cwd)
 	if err != nil {
 		return session.Session{}, err
 	}
-	if c.sessions == nil {
-		return session.Session{}, errors.New("sessions: session store is unavailable")
-	}
-	created, err := c.sessions.Create(ctx, title, cwd)
+	created, err := session.New(session.Draft{
+		ID: c.newID(), Title: title, CWD: cwd, StartedAt: c.now(),
+	})
 	if err != nil {
 		return session.Session{}, err
 	}
-	c.publishSessionMoved(created.ID)
+	if err := c.sessions.Insert(ctx, created); err != nil {
+		return session.Session{}, err
+	}
+	c.publishSessionMoved(created.ID())
 	return created, nil
 }
 
-// PrepareScheduled validates and materializes the session snapshot owned by a
-// durable schedule occurrence without writing it. Run opening persists this
-// snapshot in its own transaction, so a rejected occurrence cannot leave an
-// empty scheduled Session behind.
-func (c *Coordinator) PrepareScheduled(_ context.Context, id, title, cwd string) (session.Session, error) {
-	if id == "" {
-		return session.Session{}, errors.New("sessions: scheduled session ID is required")
-	}
-	cwd, err := c.resolveSessionCWD(cwd)
-	if err != nil {
-		return session.Session{}, err
-	}
-	now := time.Now().UTC()
-	return session.Session{
-		ID:        id,
-		Title:     title,
-		CWD:       cwd,
-		StartedAt: now,
-		UpdatedAt: now,
-		Revision:  1,
-	}, nil
-}
-
-// SetModel records the model explicitly selected for a run. It is the narrow
-// mutation consumed by application/runs; callers that need the full editable
-// session surface use Update.
-func (c *Coordinator) SetModel(ctx context.Context, id, model string) error {
+// PrepareScheduled resolves a schedule-owned Session without writing it. When
+// the identity already exists, it returns that durable aggregate and no initial
+// value. Otherwise it returns one initial aggregate for the Run opening write-set.
+// This makes a retried occurrence reuse its Session without asking persistence
+// to derive or normalize product state.
+func (c *Coordinator) PrepareScheduled(
+	ctx context.Context,
+	id, title, cwd, model string,
+) (current session.Session, initial *session.Session, err error) {
 	if c.sessions == nil {
-		return errors.New("sessions: session store is unavailable")
+		return session.Session{}, nil, errors.New("sessions: Session store is unavailable")
 	}
-	_, err := c.sessions.Patch(ctx, id, session.Patch{Model: &model})
-	return err
+	existing, err := c.sessions.Get(ctx, id)
+	if err == nil {
+		return existing, nil, nil
+	}
+	if !errors.Is(err, session.ErrNotFound) {
+		return session.Session{}, nil, err
+	}
+	cwd, err = c.resolveSessionCWD(cwd)
+	if err != nil {
+		return session.Session{}, nil, err
+	}
+	created, err := session.New(session.Draft{
+		ID: id, Title: title, CWD: cwd, Model: model, StartedAt: c.now(),
+	})
+	if err != nil {
+		return session.Session{}, nil, err
+	}
+	return created, &created, nil
 }
 
-// Update applies a session edit and returns the updated aggregate. Title (rename),
-// model, cwd (relocate), isolation, and favorite are each optional;
-// nil fields are left alone. The whole patch commits as one transaction so a
-// mid-sequence failure leaves the session unmodified.
+// Update applies one complete Session edit. External workspace admission and
+// process-local mutation claims occur before Domain behavior; persistence only
+// saves the resulting aggregate with CAS.
 func (c *Coordinator) Update(ctx context.Context, id string, patch session.Patch) (session.Session, error) {
-	patch, err := patch.Normalize()
-	if err != nil {
-		return session.Session{}, err
-	}
 	if patch.CWD != nil {
 		cwd, err := c.resolveSessionCWD(*patch.CWD)
 		if err != nil {
@@ -118,16 +118,67 @@ func (c *Coordinator) Update(ctx context.Context, id string, patch session.Patch
 		}
 		defer admission.Release()
 	}
-
 	if c.sessions == nil {
-		return session.Session{}, errors.New("sessions: session store is unavailable")
+		return session.Session{}, errors.New("sessions: Session store is unavailable")
 	}
-	updated, err := c.sessions.Patch(ctx, id, patch)
+	current, err := c.sessions.Get(ctx, id)
 	if err != nil {
+		return session.Session{}, err
+	}
+	updated, changed, err := current.Apply(patch, c.now())
+	if err != nil {
+		return session.Session{}, err
+	}
+	if !changed {
+		return current, nil
+	}
+	if err := c.sessions.Save(ctx, current.Revision(), updated); err != nil {
 		return session.Session{}, err
 	}
 	c.publishSessionMoved(id)
 	return updated, nil
+}
+
+// NeedsGeneratedTitle reports whether title generation can still contribute a
+// value. The later write rechecks this condition, so a user rename between the
+// query and generated result always wins.
+func (c *Coordinator) NeedsGeneratedTitle(ctx context.Context, id string) (bool, error) {
+	value, err := c.Get(ctx, id)
+	if err != nil {
+		return false, err
+	}
+	return value.Title() == "", nil
+}
+
+// ApplyGeneratedTitle installs a generated title using Domain first-writer
+// semantics. Concurrent Session edits are retried from their committed value;
+// once a user title exists, the generated title becomes a successful no-op.
+func (c *Coordinator) ApplyGeneratedTitle(ctx context.Context, id, title string) error {
+	if c.sessions == nil {
+		return errors.New("sessions: Session store is unavailable")
+	}
+	for {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		current, err := c.sessions.Get(ctx, id)
+		if err != nil {
+			return err
+		}
+		updated, changed, err := current.NameIfUntitled(title, c.now())
+		if err != nil {
+			return err
+		}
+		if !changed {
+			return nil
+		}
+		if err := c.sessions.Save(ctx, current.Revision(), updated); err == nil {
+			c.publishSessionMoved(id)
+			return nil
+		} else if !errors.Is(err, session.ErrRevisionConflict) {
+			return fmt.Errorf("sessions: save generated title: %w", err)
+		}
+	}
 }
 
 // resolveSessionCWD canonicalizes cwd and requires it to be an existing

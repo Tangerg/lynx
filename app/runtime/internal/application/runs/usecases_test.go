@@ -18,6 +18,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	runfixture "github.com/Tangerg/lynx/app/runtime/internal/testsupport/runfixture"
+	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/sessionfixture"
 	corechat "github.com/Tangerg/lynx/core/chat"
 )
 
@@ -68,14 +69,17 @@ func (f *fakeRunSessions) ActiveRun(context.Context, string) (run.Run, bool, err
 
 func (f *fakeRunSessions) Create(_ context.Context, title, cwd string) (session.Session, error) {
 	f.createdTitle = title
-	f.sess = session.Session{ID: "ses_created", CWD: cwd}
+	f.sess = sessionfixture.MustRestore(session.Snapshot{ID: "ses_created", CWD: cwd})
 	return f.sess, nil
 }
 
-func (f *fakeRunSessions) PrepareScheduled(_ context.Context, id, title, cwd string) (session.Session, error) {
+func (f *fakeRunSessions) PrepareScheduled(
+	_ context.Context,
+	id, title, cwd, model string,
+) (session.Session, *session.Session, error) {
 	f.createdTitle = title
-	f.sess = session.Session{ID: id, CWD: cwd}
-	return f.sess, nil
+	f.sess = sessionfixture.MustRestore(session.Snapshot{ID: id, Title: title, CWD: cwd, Model: model})
+	return f.sess, &f.sess, nil
 }
 
 func (f *fakeRunSessions) ListOpenInterrupts(_ context.Context, sessionID string) ([]Pending, error) {
@@ -339,7 +343,7 @@ func mustUseCaseSelection(provider, model string) modelref.Selection {
 }
 
 func TestWaitSessionStartableResolvesWorkingTreeBoundary(t *testing.T) {
-	sessions := &fakeRunSessions{sess: session.Session{ID: "ses_1", CWD: "/work"}}
+	sessions := &fakeRunSessions{sess: sessionfixture.MustRestore(session.Snapshot{ID: "ses_1", CWD: "/work"})}
 	c := newUseCaseCoordinator(&fakeExecutor{}, &fakeExecutionPorts{}, sessions, &fakeEffects{})
 	release, ok := c.admission.AcquireWorkingTreeMutation("/work")
 	if !ok {
@@ -367,7 +371,7 @@ func TestWaitSessionStartableResolvesWorkingTreeBoundary(t *testing.T) {
 func TestStartOwnsCompleteAdmissionSequence(t *testing.T) {
 	exec := &fakeExecutor{}
 	effects := &fakeEffects{}
-	sessions := &fakeRunSessions{sess: session.Session{ID: "ses_1", CWD: "/work"}}
+	sessions := &fakeRunSessions{sess: sessionfixture.MustRestore(session.Snapshot{ID: "ses_1", CWD: "/work"})}
 	control := &fakeExecutionPorts{startRef: ExecutorRef{SessionID: "ses_1", ExecutorID: "turn_1"}}
 	activatedAfterOpening := false
 	control.activateCheck = func() { activatedAfterOpening = effects.opening().Admit != nil }
@@ -404,15 +408,45 @@ func TestStartOwnsCompleteAdmissionSequence(t *testing.T) {
 		t.Fatalf("opening = %+v, want fresh run admission", opening)
 	} else if opening.Admit.Limits != wantLimits {
 		t.Fatalf("opening limits = %+v, want %+v", opening.Admit.Limits, wantLimits)
-	} else if opening.SessionModel == nil || opening.SessionModel.SessionID != "ses_1" || opening.SessionModel.Model != "model" {
-		t.Fatalf("opening session model = %+v, want ses_1/model", opening.SessionModel)
+	} else if opening.SessionReplacement == nil ||
+		opening.SessionReplacement.State.ID() != "ses_1" ||
+		opening.SessionReplacement.State.Model() != "model" {
+		t.Fatalf("opening Session replacement = %+v, want ses_1/model", opening.SessionReplacement)
+	}
+}
+
+func TestScheduledStartCarriesExactInitialSessionInOpening(t *testing.T) {
+	executor := &fakeExecutor{}
+	effects := &fakeEffects{}
+	sessions := new(fakeRunSessions)
+	control := &fakeExecutionPorts{startRef: ExecutorRef{SessionID: "ses_1", ExecutorID: "turn_1"}}
+	coordinator := newUseCaseCoordinator(executor, control, sessions, effects)
+
+	result, err := coordinator.Start(t.Context(), StartCommand{
+		RunID: "run_new", NewSessionID: "ses_1", ScheduleFiring: "fire_1",
+		NewSessionTitle: "Scheduled", DefaultWorkspacePath: "/work",
+		ModelSelection: mustUseCaseSelection("provider", "model"),
+		Input:          []transcript.ContentBlock{{Kind: transcript.TextContent, Text: "scheduled work"}},
+	})
+	if err != nil {
+		t.Fatalf("Start scheduled: %v", err)
+	}
+	consumeEvents(result.Events)
+	opening := effects.opening()
+	if opening.InitialSession == nil || opening.SessionReplacement != nil {
+		t.Fatalf("scheduled opening = %+v", opening)
+	}
+	initial := *opening.InitialSession
+	if initial.ID() != "ses_1" || initial.Title() != "Scheduled" ||
+		initial.CWD() != "/work" || initial.Model() != "model" || initial.Revision() != 1 {
+		t.Fatalf("opening initial Session = %+v", initial.Snapshot())
 	}
 }
 
 func TestStartSeedsExecutorFromConversationAndCurrentUserMessage(t *testing.T) {
 	exec := &fakeExecutor{}
 	effects := &fakeEffects{}
-	sessions := &fakeRunSessions{sess: session.Session{ID: "ses_1", CWD: "/work"}}
+	sessions := &fakeRunSessions{sess: sessionfixture.MustRestore(session.Snapshot{ID: "ses_1", CWD: "/work"})}
 	control := &fakeExecutionPorts{startRef: ExecutorRef{SessionID: "ses_1", ExecutorID: "turn_1"}}
 	c := newUseCaseCoordinator(exec, control, sessions, effects)
 	c.conversation = staticConversationReader{messages: []corechat.Message{
@@ -449,7 +483,7 @@ func (reader staticConversationReader) Read(context.Context, string) ([]corechat
 func TestStartSeparatesIsolatedExecutionDirFromPersistentWorkspace(t *testing.T) {
 	exec := &fakeExecutor{}
 	effects := &fakeEffects{}
-	sessions := &fakeRunSessions{sess: session.Session{ID: "ses_1", CWD: "/work", Isolated: true}}
+	sessions := &fakeRunSessions{sess: sessionfixture.MustRestore(session.Snapshot{ID: "ses_1", CWD: "/work", Isolated: true})}
 	control := &fakeExecutionPorts{startRef: ExecutorRef{SessionID: "ses_1", ExecutorID: "turn_1"}}
 	c := newUseCaseCoordinator(exec, control, sessions, effects)
 	c.isolation = &stubIsolation{path: "/sandbox/copy"}
@@ -471,7 +505,7 @@ func TestStartDoesNotActivateRejectedAdmission(t *testing.T) {
 	exec := &fakeExecutor{}
 	openingErr := errors.New("opening commit failed")
 	effects := &fakeEffects{openingErr: openingErr}
-	sessions := &fakeRunSessions{sess: session.Session{ID: "ses_1", CWD: "/work"}}
+	sessions := &fakeRunSessions{sess: sessionfixture.MustRestore(session.Snapshot{ID: "ses_1", CWD: "/work"})}
 	control := &fakeExecutionPorts{startRef: ExecutorRef{SessionID: "ses_1", ExecutorID: "turn_1"}}
 	c := newUseCaseCoordinator(exec, control, sessions, effects)
 
@@ -498,7 +532,7 @@ func TestStartRejectsPartialScheduledIdentityBeforeSideEffects(t *testing.T) {
 			exec := &fakeExecutor{}
 			control := &fakeExecutionPorts{}
 			effects := &fakeEffects{}
-			sessions := &fakeRunSessions{sess: session.Session{ID: "ses_existing", CWD: "/work"}}
+			sessions := &fakeRunSessions{sess: sessionfixture.MustRestore(session.Snapshot{ID: "ses_existing", CWD: "/work"})}
 			command.Input = []transcript.ContentBlock{{Kind: transcript.TextContent, Text: "hello"}}
 			_, err := newUseCaseCoordinator(exec, control, sessions, effects).Start(t.Context(), command)
 			if !errors.Is(err, ErrInvalidScheduledStart) {
@@ -515,7 +549,7 @@ func TestFastStartReleaseCannotCrossTerminalMaintenance(t *testing.T) {
 	finishStarted := make(chan struct{}, 1)
 	releaseFinish := make(chan struct{})
 	sessions := &fakeRunSessions{
-		sess: session.Session{ID: "ses_1", CWD: "/work"},
+		sess: sessionfixture.MustRestore(session.Snapshot{ID: "ses_1", CWD: "/work"}),
 	}
 	effects := &fakeEffects{finishStarted: finishStarted, finishRelease: releaseFinish}
 	c := newUseCaseCoordinator(
@@ -563,7 +597,7 @@ func TestFastStartReleaseCannotCrossTerminalMaintenance(t *testing.T) {
 func TestStartRejectsForeignExecutorIdentityAndReleasesIt(t *testing.T) {
 	exec := &fakeExecutor{}
 	effects := &fakeEffects{}
-	sessions := &fakeRunSessions{sess: session.Session{ID: "ses_1", CWD: "/work"}}
+	sessions := &fakeRunSessions{sess: sessionfixture.MustRestore(session.Snapshot{ID: "ses_1", CWD: "/work"})}
 	control := &fakeExecutionPorts{startRef: ExecutorRef{SessionID: "ses_foreign", ExecutorID: "turn_1"}}
 	c := newUseCaseCoordinator(exec, control, sessions, effects)
 
@@ -583,7 +617,7 @@ func TestResumeCommitsOpeningBeforeActivation(t *testing.T) {
 	createdAt := time.Date(2025, 1, 2, 3, 4, 5, 0, time.UTC)
 	effects := &fakeEffects{}
 	sessions := &fakeRunSessions{
-		sess: session.Session{ID: "ses_1", CWD: "/work"},
+		sess: sessionfixture.MustRestore(session.Snapshot{ID: "ses_1", CWD: "/work"}),
 		pending: map[string]Pending{
 			"run_1": testApprovalPending("member_1", createdAt),
 		},
@@ -622,7 +656,7 @@ func TestResumeRejectsContinuationFactDriftBeforeExecutorPreparation(t *testing.
 	createdAt := time.Date(2026, 7, 30, 11, 0, 0, 0, time.UTC)
 	pending := testApprovalPending("member_root", createdAt)
 	sessions := &fakeRunSessions{
-		sess: session.Session{ID: pending.SessionID, CWD: "/work"},
+		sess: sessionfixture.MustRestore(session.Snapshot{ID: pending.SessionID, CWD: "/work"}),
 		pending: map[string]Pending{
 			pending.RootRunID: pending,
 		},
@@ -672,7 +706,7 @@ func TestResumeAndRootCancelShareOneApplicationAdmissionBoundary(t *testing.T) {
 	createdAt := time.Date(2026, 7, 30, 12, 0, 0, 0, time.UTC)
 	pending := testApprovalPending("member_1", createdAt)
 	sessions := &fakeRunSessions{
-		sess: session.Session{ID: "ses_1", CWD: "/work"},
+		sess: sessionfixture.MustRestore(session.Snapshot{ID: "ses_1", CWD: "/work"}),
 		pending: map[string]Pending{
 			"run_1": pending,
 		},
@@ -753,7 +787,7 @@ func TestResumeWithInputCommitsTheUserItemWithTheContinuation(t *testing.T) {
 	newResumeCase := func() (*fakeEffects, *Coordinator) {
 		effects := &fakeEffects{}
 		sessions := &fakeRunSessions{
-			sess: session.Session{ID: "ses_1", CWD: "/work"},
+			sess: sessionfixture.MustRestore(session.Snapshot{ID: "ses_1", CWD: "/work"}),
 			pending: map[string]Pending{
 				"run_1": testApprovalPending("member_1", createdAt),
 			},
@@ -816,7 +850,7 @@ func TestResumeWithInputCommitsTheUserItemWithTheContinuation(t *testing.T) {
 func TestResumeRecoversLostExecutorStateBeforeReturning(t *testing.T) {
 	var operations []string
 	sessions := &fakeRunSessions{
-		sess: session.Session{ID: "ses_1", CWD: "/work"},
+		sess: sessionfixture.MustRestore(session.Snapshot{ID: "ses_1", CWD: "/work"}),
 		pending: map[string]Pending{
 			"run_1": testApprovalPending("member_1", time.Now().UTC()),
 		},
@@ -867,7 +901,7 @@ func TestResumeOpeningFailureMarksClaimedRunLostBeforeReleasingTree(t *testing.T
 	var operations []string
 	openingErr := errors.New("opening commit failed")
 	sessions := &fakeRunSessions{
-		sess: session.Session{ID: "ses_1", CWD: "/work"},
+		sess: sessionfixture.MustRestore(session.Snapshot{ID: "ses_1", CWD: "/work"}),
 		pending: map[string]Pending{
 			"run_1": testApprovalPending("member_1", time.Now().UTC()),
 		},
@@ -929,7 +963,7 @@ func TestResumeRejectsClaimResultDriftBeforeStagingAndMarksRunLost(t *testing.T)
 		t.Run(test.name, func(t *testing.T) {
 			var operations []string
 			sessions := &fakeRunSessions{
-				sess: session.Session{ID: "ses_1", CWD: "/work"},
+				sess: sessionfixture.MustRestore(session.Snapshot{ID: "ses_1", CWD: "/work"}),
 				pending: map[string]Pending{
 					"run_1": testApprovalPending("member_1", time.Now().UTC()),
 				},
@@ -973,7 +1007,7 @@ func TestResumeOpeningFailureKeepsTreeWhenRunLostCommitFails(t *testing.T) {
 	openingErr := errors.New("opening commit failed")
 	lostErr := errors.New("RunLost commit failed")
 	sessions := &fakeRunSessions{
-		sess: session.Session{ID: "ses_1", CWD: "/work"},
+		sess: sessionfixture.MustRestore(session.Snapshot{ID: "ses_1", CWD: "/work"}),
 		pending: map[string]Pending{
 			"run_1": testApprovalPending("member_1", time.Now().UTC()),
 		},
@@ -1020,7 +1054,7 @@ func TestResumeOpeningFailureReportsReleaseAfterDurableRunLost(t *testing.T) {
 	openingErr := errors.New("opening commit failed")
 	releaseErr := errors.New("tree release failed")
 	sessions := &fakeRunSessions{
-		sess: session.Session{ID: "ses_1", CWD: "/work"},
+		sess: sessionfixture.MustRestore(session.Snapshot{ID: "ses_1", CWD: "/work"}),
 		pending: map[string]Pending{
 			"run_1": testApprovalPending("member_1", time.Now().UTC()),
 		},
@@ -1065,7 +1099,7 @@ func TestResumeRehydrateRestoresChildSourceProjection(t *testing.T) {
 	pending.Capabilities.ChildRuns = true
 	pending.GoalLeaseID = "goal-lease-1"
 	sessions := &fakeRunSessions{
-		sess: session.Session{ID: pending.SessionID, CWD: "/work"},
+		sess: sessionfixture.MustRestore(session.Snapshot{ID: pending.SessionID, CWD: "/work"}),
 		pending: map[string]Pending{
 			pending.RootRunID: pending,
 		},
@@ -1135,7 +1169,7 @@ func TestResumeRehydrateRestoresChildAdmissionBeforeAnyChildExists(t *testing.T)
 	pending.Capabilities.ChildRuns = true
 	pending.Continuations[0].ModelSelection = mustUseCaseSelection("openai", "model")
 	sessions := &fakeRunSessions{
-		sess: session.Session{ID: pending.SessionID, CWD: "/work"},
+		sess: sessionfixture.MustRestore(session.Snapshot{ID: pending.SessionID, CWD: "/work"}),
 		pending: map[string]Pending{
 			pending.RootRunID: pending,
 		},
@@ -1175,7 +1209,7 @@ func TestResumeRehydrateRestoresChildAdmissionBeforeAnyChildExists(t *testing.T)
 func TestResumeRefusesIsolatedRunAfterRuntimeRestart(t *testing.T) {
 	var operations []string
 	sessions := &fakeRunSessions{
-		sess: session.Session{ID: "ses_1", CWD: "/work", Isolated: true},
+		sess: sessionfixture.MustRestore(session.Snapshot{ID: "ses_1", CWD: "/work", Isolated: true}),
 		pending: map[string]Pending{
 			"run_1": testApprovalPending("member_1", time.Now().UTC()),
 		},
@@ -1614,7 +1648,7 @@ func TestCancelLiveRunJoinsTerminalMaintenance(t *testing.T) {
 	executor := &fakeExecutor{block: true}
 	effects := &fakeEffects{finishStarted: finishStarted, finishRelease: releaseFinish}
 	control := &fakeExecutionPorts{startRef: ExecutorRef{SessionID: "ses_1", ExecutorID: "turn_1"}}
-	sessions := &fakeRunSessions{sess: session.Session{ID: "ses_1", CWD: "/work"}}
+	sessions := &fakeRunSessions{sess: sessionfixture.MustRestore(session.Snapshot{ID: "ses_1", CWD: "/work"})}
 	c := newUseCaseCoordinator(executor, control, sessions, effects)
 	result, err := c.Start(t.Context(), StartCommand{
 		SessionID: "ses_1",
@@ -1847,7 +1881,7 @@ func TestStartRejectsInvalidInputBeforeSessionCreation(t *testing.T) {
 	if !errors.Is(err, ErrInputRequired) {
 		t.Fatalf("err = %v, want ErrInputRequired", err)
 	}
-	if sessions.sess.ID != "" {
+	if sessions.sess.ID() != "" {
 		t.Fatalf("invalid input created session %+v", sessions.sess)
 	}
 }
@@ -1872,7 +1906,7 @@ func TestStartRefusesASessionThatAlreadyHasARunAndNamesIt(t *testing.T) {
 			effects := &fakeEffects{}
 			active := runfixture.MustRestore(run.Snapshot{ID: "run_active", SessionID: "ses_1", State: tt.state})
 			sessions := &fakeRunSessions{
-				sess:   session.Session{ID: "ses_1", CWD: "/work"},
+				sess:   sessionfixture.MustRestore(session.Snapshot{ID: "ses_1", CWD: "/work"}),
 				active: &active,
 			}
 			c := newUseCaseCoordinator(&fakeExecutor{}, &fakeExecutionPorts{}, sessions, effects)

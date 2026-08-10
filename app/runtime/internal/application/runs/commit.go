@@ -42,12 +42,12 @@ type WaitingSubtreeCancellationResult struct {
 // OpeningCommit is the atomic acceptance write-set for one fresh admission or
 // one continuation.
 type OpeningCommit struct {
-	Admit            *run.Draft
-	Resume           *run.TreeResumeDraft
-	ScheduledSession *session.Session
-	SessionModel     *SessionModelUpdate
-	ScheduleFiring   string
-	Events           []EventCommit
+	Admit              *run.Draft
+	Resume             *run.TreeResumeDraft
+	InitialSession     *session.Session
+	SessionReplacement *SessionReplacement
+	ScheduleFiring     string
+	Events             []EventCommit
 }
 
 // ResumeClaimCommit is the answer linearization write-set. Its transaction
@@ -94,10 +94,26 @@ func (claim ResumeClaimCommit) Validate() error {
 	return nil
 }
 
-// SessionModelUpdate is committed with the Run admission that established it.
-type SessionModelUpdate struct {
-	SessionID string
-	Model     string
+// SessionReplacement is the exact Session aggregate replacement committed with
+// the Run admission whose configured model produced it.
+type SessionReplacement struct {
+	ExpectedRevision uint64
+	State            session.Session
+}
+
+// Validate proves that the replacement advances the same Session once.
+func (r SessionReplacement) Validate(sessionID string) error {
+	if err := r.State.Validate(); err != nil {
+		return fmt.Errorf("runs: invalid Session replacement: %w", err)
+	}
+	if r.State.ID() != sessionID {
+		return errors.New("runs: opening Session replacement differs from admitted Run")
+	}
+	if r.ExpectedRevision == 0 || r.ExpectedRevision == ^uint64(0) ||
+		r.State.Revision() != r.ExpectedRevision+1 {
+		return errors.New("runs: opening Session replacement does not advance one revision")
+	}
+	return nil
 }
 
 type StateChange uint8
@@ -439,21 +455,26 @@ func (c OpeningCommit) Validate() error {
 		return errors.New("runs: opening requires exactly one admission action")
 	}
 	if c.Admit != nil {
-		if c.ScheduledSession != nil && c.ScheduledSession.ID != c.Admit.SessionID {
-			return errors.New("runs: opening scheduled Session differs from admitted Run")
+		if c.InitialSession != nil {
+			if err := c.InitialSession.Validate(); err != nil {
+				return fmt.Errorf("runs: opening initial Session: %w", err)
+			}
+			if c.InitialSession.ID() != c.Admit.SessionID || c.InitialSession.Revision() != 1 {
+				return errors.New("runs: opening initial Session differs from admitted Run")
+			}
 		}
-		if c.SessionModel != nil {
-			if c.SessionModel.SessionID != c.Admit.SessionID {
-				return errors.New("runs: opening Session model differs from admitted Run")
+		if c.SessionReplacement != nil {
+			if err := c.SessionReplacement.Validate(c.Admit.SessionID); err != nil {
+				return err
 			}
-			if strings.TrimSpace(c.SessionModel.Model) == "" || c.SessionModel.Model != strings.TrimSpace(c.SessionModel.Model) {
-				return errors.New("runs: opening Session model must be non-empty without surrounding whitespace")
-			}
+		}
+		if c.InitialSession != nil && c.SessionReplacement != nil {
+			return errors.New("runs: opening cannot insert and replace the same Session")
 		}
 		if c.ScheduleFiring != strings.TrimSpace(c.ScheduleFiring) {
 			return errors.New("runs: opening schedule firing has surrounding whitespace")
 		}
-	} else if c.ScheduledSession != nil || c.SessionModel != nil || c.ScheduleFiring != "" {
+	} else if c.InitialSession != nil || c.SessionReplacement != nil || c.ScheduleFiring != "" {
 		return errors.New("runs: resumed opening carries fresh-run facts")
 	}
 	for index, commit := range c.Events {

@@ -18,6 +18,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/itemfixture"
 	runfixture "github.com/Tangerg/lynx/app/runtime/internal/testsupport/runfixture"
+	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/sessionfixture"
 )
 
 type alwaysResumable struct{}
@@ -38,9 +39,9 @@ func TestRecoveryMarksClaimedResumeLostAndRemovesItsHiddenRecord(t *testing.T) {
 	ctx := t.Context()
 	createdAt := time.Date(2026, 8, 1, 2, 0, 0, 0, time.UTC)
 	sessionStore := sqlite.NewSessionStore(db)
-	if err := sessionStore.Restore(ctx, session.Session{
+	if err := sessionStore.Insert(ctx, sessionfixture.MustRestore(session.Snapshot{
 		ID: "session_claim", CWD: "/workspace", StartedAt: createdAt, UpdatedAt: createdAt,
-	}); err != nil {
+	})); err != nil {
 		t.Fatalf("seed Session: %v", err)
 	}
 	runStore := sqlite.NewRunStore(db)
@@ -160,9 +161,9 @@ func TestRecoveryRepairsWholeDurableLifecycle(t *testing.T) {
 	createdAt := time.Date(2026, 8, 1, 3, 0, 0, 0, time.UTC)
 	runStore := sqlite.NewRunStore(db)
 	sessionStore := sqlite.NewSessionStore(db)
-	if err := sessionStore.Restore(ctx, session.Session{
+	if err := sessionStore.Insert(ctx, sessionfixture.MustRestore(session.Snapshot{
 		ID: "session", CWD: "/workspace", StartedAt: createdAt, UpdatedAt: createdAt,
-	}); err != nil {
+	})); err != nil {
 		t.Fatalf("seed Session: %v", err)
 	}
 	interruptStore := persistence.NewInterruptStore(sqlite.NewInterruptStore(db))
@@ -258,9 +259,9 @@ func TestRecoveryRejectsPartialParkWithoutMutatingIt(t *testing.T) {
 	createdAt := time.Date(2026, 8, 1, 4, 0, 0, 0, time.UTC)
 	runStore := sqlite.NewRunStore(db)
 	sessionStore := sqlite.NewSessionStore(db)
-	if err := sessionStore.Restore(ctx, session.Session{
+	if err := sessionStore.Insert(ctx, sessionfixture.MustRestore(session.Snapshot{
 		ID: "session", CWD: "/workspace", StartedAt: createdAt, UpdatedAt: createdAt,
-	}); err != nil {
+	})); err != nil {
 		t.Fatalf("seed Session: %v", err)
 	}
 	interruptStore := persistence.NewInterruptStore(sqlite.NewInterruptStore(db))

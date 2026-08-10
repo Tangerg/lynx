@@ -26,9 +26,38 @@ import (
 	sqlite "github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/itemfixture"
 	runfixture "github.com/Tangerg/lynx/app/runtime/internal/testsupport/runfixture"
+	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/sessionfixture"
 )
 
 const bootstrapCheckpointBuildID = "test-build"
+
+func bootstrapSession(id, title, cwd string) session.Session {
+	return sessionfixture.MustRestore(session.Snapshot{ID: id, Title: title, CWD: cwd})
+}
+
+func insertBootstrapSession(t *testing.T, store *sqlite.SessionStore, value session.Session) {
+	t.Helper()
+	if err := store.Insert(t.Context(), value); err != nil {
+		t.Fatalf("insert Session %q: %v", value.ID(), err)
+	}
+}
+
+func bootstrapRestoreReplacement(
+	t *testing.T,
+	current session.Session,
+	restored session.Session,
+) sessions.SessionReplacement {
+	t.Helper()
+	next, err := current.ReplaceWithRestore(restored, time.Now().UTC())
+	if err != nil {
+		t.Fatalf("derive restored Session replacement: %v", err)
+	}
+	replacement, err := sessions.NextSessionReplacement(current, next)
+	if err != nil {
+		t.Fatalf("prepare restored Session replacement: %v", err)
+	}
+	return replacement
+}
 
 // bootstrapCheckpoint deliberately treats the executor payload as opaque. These
 // Bootstrap fixtures verify Application write-sets, not Agent Framework wire;
@@ -177,12 +206,11 @@ func parkWithGoalLease(
 	t.Helper()
 	ctx := context.Background()
 	startedAt := time.Unix(0, 0).UTC()
-	if _, err := sessions.Ensure(ctx, session.Session{
-		ID:        sessionID,
-		StartedAt: startedAt,
-		UpdatedAt: startedAt,
-	}); err != nil {
-		t.Fatalf("ensure session: %v", err)
+	value := sessionfixture.MustRestore(session.Snapshot{
+		ID: sessionID, CWD: "/work", StartedAt: startedAt, UpdatedAt: startedAt,
+	})
+	if err := sessions.Insert(ctx, value); err != nil {
+		t.Fatalf("insert Session: %v", err)
 	}
 	memberID := "member_" + runID
 	checkpoint := bootstrapCheckpoint(memberID, sessionID)
@@ -503,9 +531,11 @@ func TestApplyRollbackClearsToARecordedEmptyBoundary(t *testing.T) {
 func TestApplyForkBranchesAndSeeds(t *testing.T) {
 	ss, _, _ := newWriteSetFixture(t)
 	ctx := context.Background()
-	parent, err := ss.sessions.Create(ctx, "parent", "/repo")
+	parent := bootstrapSession("ses_parent", "parent", "/repo")
+	insertBootstrapSession(t, ss.sessions, parent)
+	childState, err := parent.Fork("ses_child", "Child", time.Now().UTC())
 	if err != nil {
-		t.Fatalf("create parent: %v", err)
+		t.Fatalf("derive child: %v", err)
 	}
 
 	initial, err := planapp.New(planapp.Dependencies{Store: ss.plan, Now: time.Now}).PrepareInitial([]plan.Step{{Description: "inherited plan", Status: plan.StatusInProgress}})
@@ -513,31 +543,31 @@ func TestApplyForkBranchesAndSeeds(t *testing.T) {
 		t.Fatalf("prepare child Plan: %v", err)
 	}
 	child, err := ss.ApplyFork(ctx, sessions.ForkPlan{
-		ParentID:        parent.ID,
+		ParentID:        parent.ID(),
+		Child:           childState,
 		Messages:        []chat.Message{chat.NewUserMessage(chat.NewTextPart("hello"))},
 		PlanReplacement: &initial,
-		Title:           "Child",
 	})
 	if err != nil {
 		t.Fatalf("ApplyFork: %v", err)
 	}
-	if child.ID == "" || child.ID == parent.ID {
-		t.Fatalf("child id = %q (parent %q)", child.ID, parent.ID)
+	if child.ID() == "" || child.ID() == parent.ID() {
+		t.Fatalf("child id = %q (parent %q)", child.ID(), parent.ID())
 	}
-	if child.Title != "Child" {
-		t.Fatalf("child title = %q, want Child", child.Title)
+	if child.Title() != "Child" {
+		t.Fatalf("child title = %q, want Child", child.Title())
 	}
-	msgs, err := ss.history.Read(ctx, child.ID)
+	msgs, err := ss.history.Read(ctx, child.ID())
 	if err != nil || len(msgs) != 1 {
 		t.Fatalf("child history = %d (err %v), want 1 seeded message", len(msgs), err)
 	}
 	// The branch inherits the plan the copied conversation was following, and the
 	// parent's own list is untouched by its child being created.
-	got, err := ss.plan.List(ctx, child.ID)
+	got, err := ss.plan.List(ctx, child.ID())
 	if err != nil || len(got) != 1 || got[0].Description != "inherited plan" {
 		t.Fatalf("child plan = %+v (err %v), want the boundary list", got, err)
 	}
-	if got, err := ss.plan.List(ctx, parent.ID); err != nil || len(got) != 0 {
+	if got, err := ss.plan.List(ctx, parent.ID()); err != nil || len(got) != 0 {
 		t.Fatalf("parent plan = %+v (err %v), want none written by the fork", got, err)
 	}
 }
@@ -550,9 +580,6 @@ func TestApplyForkBranchesAndSeeds(t *testing.T) {
 func TestApplyDeleteRemovesRunRows(t *testing.T) {
 	ss, runs, ints := newWriteSetFixture(t)
 	ctx := context.Background()
-	if err := ss.sessions.Restore(ctx, session.Session{ID: "ses_A"}); err != nil {
-		t.Fatalf("seed session: %v", err)
-	}
 	memberID := parkSessionARootRun(t, ss.sessions, runs, ints, ss.checkpoints)
 	orphanMemberID := "member_orphan"
 	if err := ss.checkpoints.SaveCheckpoint(ctx, bootstrapCheckpoint(orphanMemberID, "ses_A")); err != nil {
@@ -594,9 +621,8 @@ func TestApplyDeleteRemovesRunRows(t *testing.T) {
 func TestApplyRestoreClearsSessionOwnedProjections(t *testing.T) {
 	ss, _, _ := newWriteSetFixture(t)
 	ctx := t.Context()
-	if err := ss.sessions.Restore(ctx, session.Session{ID: "ses_A", CWD: "/repo"}); err != nil {
-		t.Fatalf("seed session: %v", err)
-	}
+	currentSession := bootstrapSession("ses_A", "", "/repo")
+	insertBootstrapSession(t, ss.sessions, currentSession)
 	before := replaceFixturePlan(t, ctx, ss.plan, "ses_A", []plan.Step{{Description: "stale", Status: plan.StatusPending}})
 	seedGoal(t, ss, "ses_A")
 	sessionRule := testAllowRule(t, approval.ScopeSession, "ses_A", "shell")
@@ -609,7 +635,9 @@ func TestApplyRestoreClearsSessionOwnedProjections(t *testing.T) {
 	}
 
 	if err := ss.ApplyRestore(ctx, sessions.RestorePlan{
-		Session:         session.Session{ID: "ses_A", CWD: "/repo"},
+		Session: bootstrapRestoreReplacement(
+			t, currentSession, bootstrapSession("ses_A", "", "/repo"),
+		),
 		PlanReplacement: prepareFixturePlan(t, ctx, ss.plan, "ses_A", nil),
 	}); err != nil {
 		t.Fatalf("ApplyRestore: %v", err)
@@ -649,23 +677,21 @@ func testAllowRule(t *testing.T, scope approval.Scope, scopeKey, toolName string
 func TestApplyRollbackRejectsInvalidCheckpointSetAtomically(t *testing.T) {
 	ss, _, _ := newWriteSetFixture(t)
 	ctx := t.Context()
-	parent, err := ss.sessions.Create(ctx, "parent", "/repo")
-	if err != nil {
-		t.Fatalf("create parent: %v", err)
-	}
-	seedGoal(t, ss, parent.ID)
-	if err := ss.checkpoints.SaveCheckpoint(ctx, bootstrapCheckpoint("member_preserve", parent.ID)); err != nil {
+	parent := bootstrapSession("ses_parent", "parent", "/repo")
+	insertBootstrapSession(t, ss.sessions, parent)
+	seedGoal(t, ss, parent.ID())
+	if err := ss.checkpoints.SaveCheckpoint(ctx, bootstrapCheckpoint("member_preserve", parent.ID())); err != nil {
 		t.Fatalf("seed executor checkpoint: %v", err)
 	}
 
-	err = ss.ApplyRollback(ctx, sessions.RollbackPlan{
-		SessionID: parent.ID, KeepMessageMark: -1,
+	err := ss.ApplyRollback(ctx, sessions.RollbackPlan{
+		SessionID: parent.ID(), KeepMessageMark: -1,
 		CheckpointRootIDs: []string{"member_preserve", ""},
 	})
 	if err == nil {
 		t.Fatal("ApplyRollback unexpectedly accepted an invalid checkpoint root member ID")
 	}
-	if _, ok, err := ss.goals.Get(ctx, parent.ID); err != nil || !ok {
+	if _, ok, err := ss.goals.Get(ctx, parent.ID()); err != nil || !ok {
 		t.Fatalf("goal clear was not rolled back: ok=%v err=%v", ok, err)
 	}
 	if _, err := ss.checkpoints.LoadCheckpoint(ctx, "member_preserve"); err != nil {
@@ -676,12 +702,14 @@ func TestApplyRollbackRejectsInvalidCheckpointSetAtomically(t *testing.T) {
 func TestApplyRestoreRollsBackOnRunIdentityConflict(t *testing.T) {
 	ss, _, _ := newWriteSetFixture(t)
 	ctx := t.Context()
-	for _, ses := range []session.Session{
-		{ID: "ses_A", Title: "source", CWD: "/source"},
-		{ID: "ses_B", Title: "target", CWD: "/target"},
+	var targetSession session.Session
+	for _, value := range []session.Session{
+		bootstrapSession("ses_A", "source", "/source"),
+		bootstrapSession("ses_B", "target", "/target"),
 	} {
-		if err := ss.sessions.Restore(ctx, ses); err != nil {
-			t.Fatalf("seed session %s: %v", ses.ID, err)
+		insertBootstrapSession(t, ss.sessions, value)
+		if value.ID() == "ses_B" {
+			targetSession = value
 		}
 	}
 	now := time.Now().UTC()
@@ -701,7 +729,9 @@ func TestApplyRestoreRollsBackOnRunIdentityConflict(t *testing.T) {
 	}
 
 	err := ss.ApplyRestore(ctx, sessions.RestorePlan{
-		Session:  session.Session{ID: "ses_B", Title: "replacement", CWD: "/replacement"},
+		Session: bootstrapRestoreReplacement(
+			t, targetSession, bootstrapSession("ses_B", "replacement", "/replacement"),
+		),
 		Messages: []chat.Message{chat.NewUserMessage(chat.NewTextPart("after"))},
 		Runs:     []run.Run{restoredRun("ses_B", "run_shared", now)},
 	})
@@ -710,8 +740,8 @@ func TestApplyRestoreRollsBackOnRunIdentityConflict(t *testing.T) {
 	}
 
 	target, err := ss.sessions.Get(ctx, "ses_B")
-	if err != nil || target.Title != "target" || target.CWD != "/target" {
-		t.Fatalf("target session after rollback = %+v, %v", target, err)
+	if err != nil || target.Title() != "target" || target.CWD() != "/target" {
+		t.Fatalf("target Session after rollback = %+v, %v", target.Snapshot(), err)
 	}
 	messages, err := ss.history.Read(ctx, "ses_B")
 	if err != nil || len(messages) != 1 {
@@ -736,9 +766,7 @@ func TestApplyRestoreRollsBackOnRunIdentityConflict(t *testing.T) {
 func seedGoal(t *testing.T, ss sessionStores, sessionID string) {
 	t.Helper()
 	if _, err := ss.sessions.Get(t.Context(), sessionID); errors.Is(err, session.ErrNotFound) {
-		if err := ss.sessions.Restore(t.Context(), session.Session{ID: sessionID, StartedAt: time.Unix(0, 0), UpdatedAt: time.Unix(0, 0), Revision: 1}); err != nil {
-			t.Fatalf("seed goal session %q: %v", sessionID, err)
-		}
+		insertBootstrapSession(t, ss.sessions, bootstrapSession(sessionID, "", "/work"))
 	} else if err != nil {
 		t.Fatalf("get goal session %q: %v", sessionID, err)
 	}

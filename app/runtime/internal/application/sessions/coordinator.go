@@ -13,6 +13,7 @@ package sessions
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/Tangerg/lynx/core/chat"
 
@@ -26,18 +27,15 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
-// Store is the coordinator's consumer view of session persistence: the
-// session-aggregate reads/create and the atomic multi-field Patch. Patch is
-// single-domain (all on the session row), so it stays an
-// aggregate store method; the multi-store write-sets (fork, rollback, restore,
-// delete) go through [WriteSets].
+// Store is the coordinator's consumer-owned Session persistence port. Domain
+// behavior decides every initial or replacement aggregate; the Store only
+// inserts that initial value or saves an exact replacement with CAS.
 type Store interface {
 	List(ctx context.Context) ([]session.Session, error)
 	ListPage(ctx context.Context, afterFavorite bool, afterUpdatedAt int64, afterID string, limit int) ([]session.Session, error)
 	Get(ctx context.Context, id string) (session.Session, error)
-	Create(ctx context.Context, title, cwd string) (session.Session, error)
-	Ensure(ctx context.Context, sess session.Session) (session.Session, error)
-	Patch(ctx context.Context, id string, patch session.Patch) (session.Session, error)
+	Insert(ctx context.Context, value session.Session) error
+	Save(ctx context.Context, expectedRevision uint64, replacement session.Session) error
 }
 
 // InterruptStore is the lifecycle coordinator's read view of open HITL
@@ -89,8 +87,8 @@ type RunStore interface {
 // the plan; the implementation executes it atomically, enriching nothing.
 type WriteSets interface {
 	// ApplyFork branches a child session off the plan's parent, seeds its chat log
-	// with the resolved history prefix and its Plan with the boundary value,
-	// and titles it — atomically — returning the created child.
+	// with the resolved history prefix and its Plan with the boundary value —
+	// atomically — returning the already-decided child aggregate.
 	ApplyFork(ctx context.Context, plan ForkPlan) (session.Session, error)
 	// ApplyRollback truncates the chat log to the boundary, drops each
 	// past-boundary run, republishes the boundary's plan projection, and
@@ -239,6 +237,8 @@ type Coordinator struct {
 	// itself: a signal for a transaction that then rolled back would send every
 	// listener to re-read state that never changed. nil publishes nothing.
 	changed change.Publish
+	now     func() time.Time
+	newID   func() string
 }
 
 // Dependencies is the collaborator set [New] wires into a Coordinator. Durable
@@ -265,6 +265,10 @@ type Dependencies struct {
 	// Changed publishes post-commit invalidations for the session projections a
 	// mutation moved. nil disables them (no runtime change stream wired).
 	Changed change.Publish
+	// Now supplies Session construction and replacement time.
+	Now func() time.Time
+	// NewID returns one complete Session identity, including its type prefix.
+	NewID func() string
 }
 
 // ErrSessionBusy reports that a session already has an active or parked run.
@@ -272,6 +276,9 @@ var ErrSessionBusy = errors.New("sessions: session busy")
 
 // New returns a Coordinator over deps.
 func New(deps Dependencies) *Coordinator {
+	if deps.Now == nil {
+		deps.Now = time.Now
+	}
 	return &Coordinator{
 		sessions:          deps.Sessions,
 		interrupts:        deps.Interrupts,
@@ -291,6 +298,8 @@ func New(deps Dependencies) *Coordinator {
 		mutations:         deps.Mutations,
 		admissions:        deps.Admissions,
 		changed:           deps.Changed,
+		now:               deps.Now,
+		newID:             deps.NewID,
 	}
 }
 

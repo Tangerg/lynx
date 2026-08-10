@@ -13,6 +13,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
+	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/sessionfixture"
 )
 
 // blockingRunRuntime is a stub whose execution never emits or finishes, so a Run
@@ -41,7 +42,7 @@ func newBlockingServer(t *testing.T) *Server {
 }
 
 func (*blockingRunRuntime) SessionByID(context.Context, string) (session.Session, error) {
-	return session.Session{ID: "ses_1", CWD: "/work"}, nil
+	return sessionfixture.MustRestore(session.Snapshot{ID: "ses_1", CWD: "/work"}), nil
 }
 
 func (*blockingRunRuntime) Observe(ctx context.Context, _ runs.ExecutorRef) (iter.Seq[runs.ExecutorEvent], error) {

@@ -45,6 +45,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/usage"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/skills"
 	"github.com/Tangerg/lynx/app/runtime/internal/idempotency"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/skillauthoring"
@@ -354,37 +355,7 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 		}))
 	}
 
-	// The Run coordinator owns the Run lifecycle (§20). It commits durable effects
-	// through the Run-segment adapter and publishes file-change nudges through the
-	// workspace signal. Agent execution is driven through the same semantic
-	// execution-control adapter consumed by application/runs.
 	fileChanges := &notification.Relay[workspace.FileChangeNotice]{}
-	// runEffectTasks owns title generation after the synchronous checkpoint
-	// boundary; the Host joins accepted title tasks after the pumps.
-	runEffectTasks := &taskgroup.Group{}
-	lifetime.runEffectTasks = runEffectTasks
-	runSegmentEffects := runsegment.New(runsegment.Config{
-		Interrupts:          cfg.InterruptStore,
-		ResumeClaims:        cfg.InterruptStore,
-		Sessions:            cfg.SessionStore,
-		ScheduleFirings:     cfg.ScheduleStore,
-		GoalRuns:            cfg.GoalStore,
-		Transcript:          cfg.TranscriptStore,
-		ItemReplacer:        cfg.TranscriptStore,
-		ToolResults:         cfg.ToolResultStore,
-		ModelInvocations:    cfg.ModelInvocationStore,
-		ToolInvocations:     cfg.ToolInvocationStore,
-		Messages:            conversationServices.messages,
-		Titles:              sessiontitle.NewGenerator(modelServices.utilityClient),
-		State:               cfg.RunStore,
-		RunMetrics:          cfg.RunStore,
-		ExecutorCheckpoints: cfg.ExecutorCheckpoints,
-		ChildRunStarts:      cfg.ChildRunStartStore,
-		Tx:                  runsegment.Transactor(cfg.Transactor),
-		Checkpoints:         workspaceCheckpoints,
-		Tasks:               runEffectTasks,
-		PublishFileChanges:  fileChanges.Publish,
-	})
 	// mcpStatusChanges bridges the MCP coordinator's reconnect/authorize
 	// transitions to the delivery workspace stream the Server observes.
 	mcpStatusChanges := &notification.Relay[mcpapp.ServerStatus]{}
@@ -432,6 +403,10 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 		Mutations:         cfg.WorkspaceMutationStore,
 		Admissions:        admissionGate,
 		Changed:           applicationChanges.Publish,
+		Now:               time.Now,
+		NewID: func() string {
+			return session.IDPrefix + uuid.NewString()
+		},
 	}
 	// Set only when present so a nil *Isolator never reaches the coordinator as a
 	// non-nil interface (which would defeat its own nil check).
@@ -447,6 +422,34 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 		sessionDependencies.Goals = goalMutations
 	}
 	sessionCoordinator := sessions.New(sessionDependencies)
+	// The Run coordinator owns the Run lifecycle (§20). Its driven persistence
+	// adapter receives only Domain/Application-decided Session values; generated
+	// title maintenance returns through the Session Application capability.
+	runEffectTasks := &taskgroup.Group{}
+	lifetime.runEffectTasks = runEffectTasks
+	runSegmentEffects := runsegment.New(runsegment.Config{
+		Interrupts:          cfg.InterruptStore,
+		ResumeClaims:        cfg.InterruptStore,
+		Sessions:            cfg.SessionStore,
+		SessionTitles:       sessionCoordinator,
+		ScheduleFirings:     cfg.ScheduleStore,
+		GoalRuns:            cfg.GoalStore,
+		Transcript:          cfg.TranscriptStore,
+		ItemReplacer:        cfg.TranscriptStore,
+		ToolResults:         cfg.ToolResultStore,
+		ModelInvocations:    cfg.ModelInvocationStore,
+		ToolInvocations:     cfg.ToolInvocationStore,
+		Messages:            conversationServices.messages,
+		Titles:              sessiontitle.NewGenerator(modelServices.utilityClient),
+		State:               cfg.RunStore,
+		RunMetrics:          cfg.RunStore,
+		ExecutorCheckpoints: cfg.ExecutorCheckpoints,
+		ChildRunStarts:      cfg.ChildRunStartStore,
+		Tx:                  runsegment.Transactor(cfg.Transactor),
+		Checkpoints:         workspaceCheckpoints,
+		Tasks:               runEffectTasks,
+		PublishFileChanges:  fileChanges.Publish,
+	})
 	runDependencies := runs.Dependencies{
 		RootStarts:                         interactionExecutor,
 		Observations:                       interactionExecutor,

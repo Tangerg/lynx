@@ -98,12 +98,12 @@ func TestArtifactV15RoundTripsEveryFieldItCarries(t *testing.T) {
 func TestExportPreservesRunTreeLineage(t *testing.T) {
 	s, rt := rollbackHarness(t)
 	ctx := t.Context()
-	ses, err := rt.sess.Create(ctx, "spawned", t.TempDir())
+	ses, err := insertSessionFixture(ctx, rt.sess, "spawned", t.TempDir())
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
 	outcome := run.OutcomeCompleted
-	if err := rt.runs.Restore(ctx, runfixture.MustRestore(run.Snapshot{SessionID: ses.ID, ID: "run_root", State: run.Completed,
+	if err := rt.runs.Restore(ctx, runfixture.MustRestore(run.Snapshot{SessionID: ses.ID(), ID: "run_root", State: run.Completed,
 		Outcome:      &outcome,
 		Capabilities: run.Capabilities{ChildRuns: true},
 		CreatedAt:    time.Unix(1, 0).UTC(),
@@ -113,7 +113,7 @@ func TestExportPreservesRunTreeLineage(t *testing.T) {
 		t.Fatalf("seed root run: %v", err)
 	}
 	if err := rt.hist.AppendItem(ctx, itemfixture.MustRestore(itemfixture.Input{
-		SessionID: ses.ID, RunID: "run_root", ID: "item_spawn",
+		SessionID: ses.ID(), RunID: "run_root", ID: "item_spawn",
 		OccurredAt: time.Unix(1, 0).UTC(), FinishedAt: time.Unix(1, 0).UTC(),
 		Status: transcript.ItemCompleted,
 		Kind:   transcript.ToolCall,
@@ -121,7 +121,7 @@ func TestExportPreservesRunTreeLineage(t *testing.T) {
 	})); err != nil {
 		t.Fatalf("seed spawning item: %v", err)
 	}
-	if err := rt.runs.Restore(ctx, runfixture.MustRestore(run.Snapshot{SessionID: ses.ID, ID: "run_child",
+	if err := rt.runs.Restore(ctx, runfixture.MustRestore(run.Snapshot{SessionID: ses.ID(), ID: "run_child",
 
 		State: run.Completed, Outcome: &outcome,
 		CreatedAt: time.Unix(2, 0).UTC(), FinishedAt: time.Unix(2, 0).UTC(),
@@ -131,7 +131,7 @@ func TestExportPreservesRunTreeLineage(t *testing.T) {
 		t.Fatalf("seed child run: %v", err)
 	}
 
-	exported, err := s.ExportSession(ctx, protocol.ExportSessionRequest{SessionID: ses.ID})
+	exported, err := s.ExportSession(ctx, protocol.ExportSessionRequest{SessionID: ses.ID()})
 	if err != nil {
 		t.Fatalf("export: %v", err)
 	}
@@ -340,10 +340,10 @@ func seedMaximalSession(t *testing.T, rt *stubRuntime) string {
 	// path would make the two exports differ by macOS's /private prefix rather than
 	// by anything the archive carries.
 	cwd := canonicalWorkspacePath(t, t.TempDir())
-	if err := rt.sess.Restore(ctx, session.Session{
+	if _, err := insertSessionSnapshot(ctx, rt.sess, session.Snapshot{
 		ID: sessionID, Title: "Everything", CWD: cwd, Model: "claude-opus-5",
 		StartedAt: time.Unix(1, 0).UTC(), UpdatedAt: time.Unix(9, 0).UTC(),
-		Favorite: true,
+		Favorite: true, Revision: 1,
 	}); err != nil {
 		t.Fatalf("seed session: %v", err)
 	}

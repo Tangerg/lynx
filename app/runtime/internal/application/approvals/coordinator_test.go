@@ -7,6 +7,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
+	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/sessionfixture"
 )
 
 type approvalStore struct {
@@ -77,7 +78,9 @@ func TestDefaultModeUsesModePorts(t *testing.T) {
 
 func TestListRulesResolvesSessionProject(t *testing.T) {
 	store := &approvalStore{}
-	c := New(store, fakeSessionLookup{sess: session.Session{ID: "ses_1", CWD: "/repo"}})
+	c := New(store, fakeSessionLookup{sess: sessionfixture.MustRestore(session.Snapshot{
+		ID: "ses_1", CWD: "/repo",
+	})})
 
 	if _, err := c.ListRules(context.Background(), "ses_1"); err != nil {
 		t.Fatalf("list rules: %v", err)

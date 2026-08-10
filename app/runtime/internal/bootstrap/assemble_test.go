@@ -26,6 +26,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/shutdown"
 	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/itemfixture"
 	runfixture "github.com/Tangerg/lynx/app/runtime/internal/testsupport/runfixture"
+	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/sessionfixture"
 	"github.com/Tangerg/lynx/chatclient"
 )
 
@@ -459,10 +460,11 @@ func TestAssemblyRecoversParkedRunWithIncompatibleDeployment(t *testing.T) {
 	createdAt := time.Date(2026, 7, 16, 1, 0, 0, 0, time.UTC)
 	parkedAt := createdAt.Add(time.Second)
 	question := &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?"}}}
-	if _, err := cfg.SessionStore.Ensure(ctx, session.Session{
+	value := sessionfixture.MustRestore(session.Snapshot{
 		ID: sessionID, CWD: t.TempDir(), StartedAt: createdAt, UpdatedAt: createdAt,
-	}); err != nil {
-		t.Fatalf("ensure session: %v", err)
+	})
+	if err := cfg.SessionStore.Insert(ctx, value); err != nil {
+		t.Fatalf("insert Session: %v", err)
 	}
 	profile := run.Capabilities{
 		InterruptKinds: []interrupt.Kind{interrupt.Question},

@@ -29,6 +29,60 @@ import (
 	"github.com/Tangerg/lynx/core/chat"
 )
 
+var sessionFixtureSequence atomic.Uint64
+
+func insertSessionFixture(
+	ctx context.Context,
+	store *sqlite.SessionStore,
+	title, cwd string,
+) (session.Session, error) {
+	value, err := session.New(session.Draft{
+		ID:    fmt.Sprintf("ses_fixture_%d", sessionFixtureSequence.Add(1)),
+		Title: title, CWD: cwd, StartedAt: time.Now(),
+	})
+	if err != nil {
+		return session.Session{}, err
+	}
+	if err := store.Insert(ctx, value); err != nil {
+		return session.Session{}, err
+	}
+	return value, nil
+}
+
+func insertSessionSnapshot(
+	ctx context.Context,
+	store *sqlite.SessionStore,
+	snapshot session.Snapshot,
+) (session.Session, error) {
+	value, err := session.Restore(snapshot)
+	if err != nil {
+		return session.Session{}, err
+	}
+	if err := store.Insert(ctx, value); err != nil {
+		return session.Session{}, err
+	}
+	return value, nil
+}
+
+func forkSessionFixture(
+	ctx context.Context,
+	store *sqlite.SessionStore,
+	parent session.Session,
+) (session.Session, error) {
+	child, err := parent.Fork(
+		fmt.Sprintf("ses_fixture_%d", sessionFixtureSequence.Add(1)),
+		"",
+		time.Now(),
+	)
+	if err != nil {
+		return session.Session{}, err
+	}
+	if err := store.Insert(ctx, child); err != nil {
+		return session.Session{}, err
+	}
+	return child, nil
+}
+
 // testRuntime is the Delivery test seam newTestServer uses to build the Run
 // coordinator: semantic execution plus a Run-segment effects factory. The test
 // double stays on application-owned ports so handler fixtures do not depend on
@@ -471,23 +525,26 @@ func (s stubLifecycleStores) ReadSnapshot(ctx context.Context, id string) (sessi
 }
 
 func (s stubLifecycleStores) ApplyFork(ctx context.Context, plan sessions.ForkPlan) (session.Session, error) {
-	child, err := s.rt.sess.Fork(ctx, plan.ParentID)
-	if err != nil {
+	child := plan.Child
+	if err := child.Validate(); err != nil {
 		return session.Session{}, err
 	}
-	if err := s.rt.SeedHistory(ctx, child.ID, plan.Messages); err != nil {
+	if child.ParentID() != plan.ParentID || child.Revision() != 1 {
+		return session.Session{}, errors.New("test persistence: invalid fork child")
+	}
+	if _, err := s.rt.sess.Get(ctx, plan.ParentID); err != nil {
+		return session.Session{}, err
+	}
+	if err := s.rt.sess.Insert(ctx, child); err != nil {
+		return session.Session{}, err
+	}
+	if err := s.rt.SeedHistory(ctx, child.ID(), plan.Messages); err != nil {
 		return session.Session{}, err
 	}
 	if s.rt.plan != nil && plan.PlanReplacement != nil {
-		if err := s.rt.plan.Save(ctx, child.ID, plan.PlanReplacement.ExpectedRevision(), plan.PlanReplacement.State()); err != nil {
+		if err := s.rt.plan.Save(ctx, child.ID(), plan.PlanReplacement.ExpectedRevision(), plan.PlanReplacement.State()); err != nil {
 			return session.Session{}, err
 		}
-	}
-	if plan.Title != "" {
-		if err := s.rt.sess.Rename(ctx, child.ID, plan.Title); err != nil {
-			return session.Session{}, err
-		}
-		child.Title = plan.Title
 	}
 	return child, nil
 }
@@ -520,8 +577,16 @@ func (s stubLifecycleStores) ApplyRollback(ctx context.Context, plan sessions.Ro
 }
 
 func (s stubLifecycleStores) ApplyRestore(ctx context.Context, plan sessions.RestorePlan) error {
-	id := plan.Session.ID
-	if err := s.rt.sess.Restore(ctx, plan.Session); err != nil {
+	if err := plan.Session.Validate(); err != nil {
+		return err
+	}
+	restored := plan.Session.State()
+	id := restored.ID()
+	if plan.Session.ExpectedRevision() == 0 {
+		if err := s.rt.sess.Insert(ctx, restored); err != nil {
+			return err
+		}
+	} else if err := s.rt.sess.Save(ctx, plan.Session.ExpectedRevision(), restored); err != nil {
 		return err
 	}
 	if err := s.deleteInterrupts(ctx, id); err != nil {
@@ -682,6 +747,10 @@ func (s *stubRuntime) sessionsCoordinatorWithRestorer(checkpoints sessions.Works
 		Checkpoints:       checkpoints,
 		Mutations:         s.muts,
 		Admissions:        admissions,
+		Now:               time.Now,
+		NewID: func() string {
+			return fmt.Sprintf("ses_fixture_%d", sessionFixtureSequence.Add(1))
+		},
 	})
 }
 

@@ -273,11 +273,11 @@ func (planner *recoveryPlanner) session(sessionID string) (session.Session, erro
 	if err != nil {
 		return session.Session{}, fmt.Errorf("runs: load recovery Session %q: %w", sessionID, err)
 	}
-	if sess.ID != sessionID {
+	if sess.ID() != sessionID {
 		return session.Session{}, fmt.Errorf(
 			"runs: recovery Session lookup for %q returned %q",
 			sessionID,
-			sess.ID,
+			sess.ID(),
 		)
 	}
 	planner.sessions[sessionID] = sess

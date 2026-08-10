@@ -13,7 +13,7 @@ func TestStartRunRejectsWorkingTreeMutation(t *testing.T) {
 	s, rt := rollbackHarness(t)
 	ctx := context.Background()
 	cwd := t.TempDir()
-	ses, err := rt.sess.Create(ctx, "s", cwd)
+	ses, err := insertSessionFixture(ctx, rt.sess, "s", cwd)
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
@@ -24,7 +24,7 @@ func TestStartRunRejectsWorkingTreeMutation(t *testing.T) {
 	defer mutationAdmission.Release()
 
 	_, _, err = s.StartRun(ctx, protocol.StartRunRequest{
-		SessionID: ses.ID,
+		SessionID: ses.ID(),
 		Input: []protocol.ContentBlock{{
 			Type: protocol.ContentBlockText,
 			Text: "hello",
@@ -33,7 +33,7 @@ func TestStartRunRejectsWorkingTreeMutation(t *testing.T) {
 	if !errors.Is(err, protocol.ErrSessionBusy) {
 		t.Fatalf("start under working-tree mutation = %v, want ErrSessionBusy", err)
 	}
-	if rt.admissions.ActiveSessions()[ses.ID] {
+	if rt.admissions.ActiveSessions()[ses.ID()] {
 		t.Fatal("rejected start leaked the session admission claim")
 	}
 }
@@ -42,7 +42,7 @@ func TestRollbackFilesRejectsWorkingTreeRunAdmission(t *testing.T) {
 	s, rt := rollbackHarness(t)
 	ctx := context.Background()
 	cwd := t.TempDir()
-	ses, err := rt.sess.Create(ctx, "s", cwd)
+	ses, err := insertSessionFixture(ctx, rt.sess, "s", cwd)
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
@@ -53,14 +53,14 @@ func TestRollbackFilesRejectsWorkingTreeRunAdmission(t *testing.T) {
 	defer runAdmission.Release()
 
 	_, err = s.RollbackSession(ctx, protocol.RollbackSessionRequest{
-		SessionID:   ses.ID,
+		SessionID:   ses.ID(),
 		ToRunID:     "run_1",
 		RestoreType: protocol.RestoreFiles,
 	})
 	if !errors.Is(err, protocol.ErrSessionBusy) {
 		t.Fatalf("file rollback under run admission = %v, want ErrSessionBusy", err)
 	}
-	if rt.admissions.ActiveSessions()[ses.ID] {
+	if rt.admissions.ActiveSessions()[ses.ID()] {
 		t.Fatal("rejected rollback leaked the session mutation claim")
 	}
 }

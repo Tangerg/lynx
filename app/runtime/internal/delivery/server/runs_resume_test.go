@@ -30,11 +30,11 @@ func TestResumeRun_KeepsInterruptOpenWhenStartFails(t *testing.T) {
 	s, rt := rollbackHarness(t)
 	rt.execution = resumeOKExecution{}
 	ctx := context.Background()
-	sess, _ := rt.sess.Create(ctx, "s", "/w")
+	sess, _ := insertSessionFixture(ctx, rt.sess, "s", "/w")
 
 	pending := serverPending(
 		"run_1",
-		sess.ID,
+		sess.ID(),
 		"exec_parked",
 		"member_parked",
 		[]transcript.Interrupt{{
@@ -96,10 +96,10 @@ func TestResumeRunRejectsMissingAndUnknownItemCoverage(t *testing.T) {
 	ctx := withClientCapabilities(protocol.ClientCapabilities{
 		InterruptTypes: []protocol.InterruptType{protocol.InterruptApproval},
 	})
-	sess, _ := rt.sess.Create(ctx, "s", "/w")
+	sess, _ := insertSessionFixture(ctx, rt.sess, "s", "/w")
 	pending := serverPending(
 		"run_coverage",
-		sess.ID,
+		sess.ID(),
 		"exec_parked",
 		"member_parked",
 		[]transcript.Interrupt{{

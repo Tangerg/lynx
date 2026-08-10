@@ -19,6 +19,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	deliveryserver "github.com/Tangerg/lynx/app/runtime/internal/delivery/server"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 )
 
 // TestPlanMutationHasOneOwner freezes the P16 Plan vertical: aggregate fields
@@ -50,6 +51,51 @@ func TestPlanMutationHasOneOwner(t *testing.T) {
 	} {
 		if _, err := os.Stat(retired); err == nil || !errors.Is(err, fs.ErrNotExist) {
 			t.Errorf("retired Plan path exists: %s (stat error %v)", retired, err)
+		}
+	}
+}
+
+// TestSessionMutationHasOneOwner freezes the P16 Session vertical: aggregate
+// fields stay closed and SQLite persists exact values without constructing,
+// editing, forking, naming, or restoring product state itself.
+func TestSessionMutationHasOneOwner(t *testing.T) {
+	sessionType := reflect.TypeFor[session.Session]()
+	for index := range sessionType.NumField() {
+		field := sessionType.Field(index)
+		if field.IsExported() {
+			t.Errorf("session.Session field %s is exported; changes must enter through domain behavior", field.Name)
+		}
+	}
+
+	root := moduleRoot(t)
+	mutationFile := filepath.Join(root, "internal", "infra", "storage", "sqlite", "session_mutation.go")
+	forbidExternalImports(t, mutationFile, []string{"time", "github.com/google/uuid"})
+	forbidSelectorCalls(t, mutationFile, map[string]string{
+		"Apply":                    "Session edits belong to the aggregate before persistence",
+		"Fork":                     "Session forks belong to the aggregate before persistence",
+		"NameIfUntitled":           "generated-title arbitration belongs to the aggregate and use case",
+		"InstallRestoredWorkspace": "workspace admission belongs outside persistence",
+		"ReplaceWithRestore":       "Session restore replacement belongs to the aggregate and use case",
+	})
+	forbidTopLevelNames(t, mutationFile, map[string]string{
+		"Create":           "Session construction belongs to Domain/Application",
+		"Ensure":           "opening idempotency must not derive Session state in persistence",
+		"Restore":          "restore persists an application-decided exact replacement",
+		"Patch":            "Session edits belong to Domain/Application",
+		"Fork":             "Session lineage belongs to Domain/Application",
+		"SetModel":         "field setters create a second mutation owner",
+		"Rename":           "field setters create a second mutation owner",
+		"RenameIfUntitled": "title arbitration belongs to Domain/Application",
+		"SetCWD":           "workspace edits belong to Domain/Application",
+		"SetFavorite":      "field setters create a second mutation owner",
+	})
+	for _, retired := range []string{
+		filepath.Join(root, "internal", "domain", "session", "errors.go"),
+		filepath.Join(root, "internal", "infra", "storage", "sqlite", "session_lineage.go"),
+		filepath.Join(root, "internal", "infra", "storage", "sqlite", "session_patch_test.go"),
+	} {
+		if _, err := os.Stat(retired); err == nil || !errors.Is(err, fs.ErrNotExist) {
+			t.Errorf("retired Session path exists: %s (stat error %v)", retired, err)
 		}
 	}
 }

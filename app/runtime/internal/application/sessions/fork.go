@@ -102,6 +102,9 @@ func (c *Coordinator) Fork(ctx context.Context, spec ForkSpec) (session.Session,
 	if c.snapshots == nil || c.writes == nil {
 		return session.Session{}, errors.New("sessions: fork persistence is unavailable")
 	}
+	if c.newID == nil {
+		return session.Session{}, errors.New("sessions: Session identity generator is unavailable")
+	}
 	snapshot, err := c.snapshots.ReadSnapshot(ctx, spec.ParentID)
 	if err != nil {
 		return session.Session{}, err
@@ -120,18 +123,21 @@ func (c *Coordinator) Fork(ctx context.Context, spec ForkSpec) (session.Session,
 	if err != nil {
 		return session.Session{}, err
 	}
-	child, err := c.writes.ApplyFork(ctx, ForkPlan{
-		ParentID:        spec.ParentID,
-		Messages:        boundary.Messages,
-		PlanReplacement: planReplacement,
-		Title:           spec.Title,
-	})
+	child, err := snapshot.Session.Fork(c.newID(), spec.Title, c.now())
 	if err != nil {
 		return session.Session{}, err
 	}
-	c.publishSessionMoved(child.ID)
+	if _, err := c.writes.ApplyFork(ctx, ForkPlan{
+		ParentID:        spec.ParentID,
+		Child:           child,
+		Messages:        boundary.Messages,
+		PlanReplacement: planReplacement,
+	}); err != nil {
+		return session.Session{}, err
+	}
+	c.publishSessionMoved(child.ID())
 	if planReplacement != nil {
-		c.publishStateMoved(child.ID)
+		c.publishStateMoved(child.ID())
 	}
 	return child, nil
 }

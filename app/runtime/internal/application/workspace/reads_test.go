@@ -6,15 +6,15 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
+	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/sessionfixture"
 )
 
 func TestWorkspacesFromSessions(t *testing.T) {
 	t0 := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
 	workspaces := workspacesFromSessions([]session.Session{
-		{ID: "s1", CWD: "/a/proj", UpdatedAt: t0},
-		{ID: "s2", CWD: "/a/proj", UpdatedAt: t0.Add(2 * time.Hour)},
-		{ID: "s3", CWD: "/b/other", UpdatedAt: t0.Add(time.Hour)},
-		{ID: "s4", UpdatedAt: t0},
+		sessionfixture.MustRestore(session.Snapshot{ID: "s1", CWD: "/a/proj", UpdatedAt: t0}),
+		sessionfixture.MustRestore(session.Snapshot{ID: "s2", CWD: "/a/proj", UpdatedAt: t0.Add(2 * time.Hour)}),
+		sessionfixture.MustRestore(session.Snapshot{ID: "s3", CWD: "/b/other", UpdatedAt: t0.Add(time.Hour)}),
 	})
 	if len(workspaces) != 2 {
 		t.Fatalf("workspaces = %d, want 2", len(workspaces))

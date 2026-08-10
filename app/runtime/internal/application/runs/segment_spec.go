@@ -16,18 +16,18 @@ type segmentSpec struct {
 	// RunID is stable across every resumed Segment of the same logical Run.
 	RunID string
 	// SegmentID changes for every start or resume and scopes replay.
-	SegmentID        string
-	SessionID        string
-	CWD              string
-	ExecutorID       string
-	ModelSelection   modelref.Selection
-	GoalLeaseID      string
-	ScheduledSession *session.Session
-	SessionModel     *SessionModelUpdate
-	ScheduleFiring   string
-	CreatedAt        time.Time
-	OpeningUserText  string
-	Input            []transcript.ContentBlock
+	SegmentID          string
+	SessionID          string
+	CWD                string
+	ExecutorID         string
+	ModelSelection     modelref.Selection
+	GoalLeaseID        string
+	InitialSession     *session.Session
+	SessionReplacement *SessionReplacement
+	ScheduleFiring     string
+	CreatedAt          time.Time
+	OpeningUserText    string
+	Input              []transcript.ContentBlock
 	// Limits and Capabilities are admission policy for a fresh Run. A
 	// continuation reads the frozen values carried by Continuation.
 	Limits       run.Limits

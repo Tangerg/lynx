@@ -14,6 +14,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
+	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/sessionfixture"
 )
 
 func newGoalStore(t *testing.T) (*sqlite.GoalStore, *sqlite.SessionStore) {
@@ -94,7 +95,8 @@ func TestGoalSchemaUsesSemanticReasonCode(t *testing.T) {
 
 func seedSession(t *testing.T, store *sqlite.SessionStore, id string) {
 	t.Helper()
-	if err := store.Restore(t.Context(), session.Session{ID: id, StartedAt: time.Unix(0, 0), UpdatedAt: time.Unix(0, 0), Revision: 1}); err != nil {
+	value := sessionfixture.MustRestore(session.Snapshot{ID: id, CWD: "/work"})
+	if err := store.Insert(t.Context(), value); err != nil {
 		t.Fatalf("seed session %q: %v", id, err)
 	}
 }

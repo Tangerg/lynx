@@ -178,7 +178,7 @@ func (c *Coordinator) WaitSessionStartable(ctx context.Context, sessionID string
 	if err != nil {
 		return err
 	}
-	return c.admission.WaitRunStartable(ctx, sess.ID, sess.CWD)
+	return c.admission.WaitRunStartable(ctx, sess.ID(), sess.CWD())
 }
 
 // openSegment attaches an already-staged executor stream, atomically commits
@@ -395,8 +395,8 @@ func (c *Coordinator) commitOpening(ctx context.Context, spec segmentSpec, route
 			Capabilities:   spec.Capabilities,
 			CreatedAt:      spec.CreatedAt,
 		}
-		opening.ScheduledSession = spec.ScheduledSession
-		opening.SessionModel = spec.SessionModel
+		opening.InitialSession = spec.InitialSession
+		opening.SessionReplacement = spec.SessionReplacement
 		opening.ScheduleFiring = spec.ScheduleFiring
 	}
 	openings := make([]routeOpening, 0, len(ordered))

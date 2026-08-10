@@ -2,225 +2,91 @@ package sqlite
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"time"
-
-	"github.com/google/uuid"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 )
 
-func (s *SessionStore) Create(ctx context.Context, title, cwd string) (session.Session, error) {
-	now := time.Now().UTC()
-	sess := session.Session{
-		ID:        session.IDPrefix + uuid.NewString(),
-		Title:     title,
-		CWD:       cwd,
-		StartedAt: now,
-		UpdatedAt: now,
-		Revision:  1,
+// Insert persists one already-decided initial Session. Identity, timestamps,
+// lineage, editable values, and revision all belong to the aggregate.
+func (s *SessionStore) Insert(ctx context.Context, value session.Session) error {
+	if err := value.Validate(); err != nil {
+		return fmt.Errorf("sqlite: validate initial Session: %w", err)
 	}
-	if err := s.insert(ctx, sess); err != nil {
-		return session.Session{}, err
+	if value.Revision() != 1 {
+		return fmt.Errorf("sqlite: initial Session revision is %d, want 1: %w", value.Revision(), session.ErrInvalid)
 	}
-	return sess, nil
-}
-
-// Ensure inserts sess under its caller-owned identity, or returns the existing
-// row when an interrupted durable operation resumes. The generated schedule
-// occurrence id is globally unique, so an existing row is the same operation,
-// not a request to overwrite editable session state.
-func (s *SessionStore) Ensure(ctx context.Context, sess session.Session) (session.Session, error) {
-	_, err := conn(ctx, s.db).ExecContext(ctx,
-		`INSERT INTO sessions(`+sessionColumns+`)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-		 ON CONFLICT(id) DO NOTHING`,
-		sess.ID, sess.Title, sess.CWD, sess.ParentID,
-		sess.StartedAt.UnixNano(), sess.UpdatedAt.UnixNano(),
-		sess.Model, sess.Favorite, sess.Isolated, max(sess.Revision, 1),
-	)
-	if err != nil {
-		return session.Session{}, fmt.Errorf("sqlite: ensure session: %w", err)
-	}
-	return s.Get(ctx, sess.ID)
-}
-
-// Restore upserts a session row verbatim (INSERT OR REPLACE) — the write side
-// of portable session restore. It preserves the supplied id and all fields, overwriting
-// any existing row with that id (restore semantics).
-func (s *SessionStore) Restore(ctx context.Context, sess session.Session) error {
-	_, err := conn(ctx, s.db).ExecContext(ctx,
-		`INSERT OR REPLACE INTO sessions(`+sessionColumns+`)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		sess.ID, sess.Title, sess.CWD, sess.ParentID,
-		sess.StartedAt.UnixNano(), sess.UpdatedAt.UnixNano(),
-		sess.Model, sess.Favorite, sess.Isolated, max(sess.Revision, 1),
-	)
-	if err != nil {
-		return fmt.Errorf("sqlite: restore session: %w", err)
-	}
-	return nil
-}
-
-// Delete is idempotent — deleting an unknown id is not an error. Uses conn(ctx)
-// so it joins the delete-cascade transaction rather than opening a second
-// connection (which deadlocks under the single-connection pool).
-func (s *SessionStore) Delete(ctx context.Context, id string) error {
-	if _, err := conn(ctx, s.db).ExecContext(ctx,
-		`DELETE FROM sessions WHERE id = ?`, id,
-	); err != nil {
-		return fmt.Errorf("sqlite: delete session: %w", err)
-	}
-	return nil
-}
-
-// Patch applies a (normalized) session patch — each set field — and returns the
-// updated aggregate, as ONE transaction (§8.1). nil fields are left untouched;
-// patching an unknown session is [session.ErrNotFound]. The caller normalizes +
-// resolves the patch (title/cwd) before calling; this only commits it.
-func (s *SessionStore) Patch(ctx context.Context, id string, patch session.Patch) (session.Session, error) {
-	if patch.Empty() {
-		current, err := s.Get(ctx, id)
-		if err != nil {
-			return session.Session{}, err
-		}
-		if patch.ExpectedRevision != 0 && current.Revision != patch.ExpectedRevision {
-			return session.Session{}, session.ErrRevisionConflict
-		}
-		return current, nil
-	}
-
-	var updated session.Session
-	err := RunInTx(ctx, s.db, func(ctx context.Context) error {
-		res, err := conn(ctx, s.db).ExecContext(ctx, `UPDATE sessions SET
-			title = COALESCE(?, title), model = COALESCE(?, model),
-			cwd = COALESCE(?, cwd), favorite = COALESCE(?, favorite),
-			isolated = COALESCE(?, isolated),
-			updated_at = ?, revision = revision + 1
-			WHERE id = ? AND (? = 0 OR revision = ?)`,
-			nullableString(patch.Title), nullableString(patch.Model),
-			nullableString(patch.CWD), nullableBool(patch.Favorite), nullableBool(patch.Isolated),
-			time.Now().UTC().UnixNano(), id, patch.ExpectedRevision, patch.ExpectedRevision)
-		if err != nil {
-			return fmt.Errorf("sqlite: patch session: %w", err)
-		}
-		n, err := res.RowsAffected()
-		if err != nil {
-			return fmt.Errorf("sqlite: patch session: %w", err)
-		}
-		if n == 0 {
-			if _, err := s.Get(ctx, id); err != nil {
-				return err
-			}
-			return session.ErrRevisionConflict
-		}
-		updated, err = s.Get(ctx, id)
+	if err := s.execInsert(ctx, conn(ctx, s.db), value); err != nil {
 		return err
-	})
-	if err != nil {
-		return session.Session{}, err
-	}
-	return updated, nil
-}
-
-// SetModel records the session's current model + refreshes UpdatedAt in a
-// single UPDATE. ErrNotFound for unknown id.
-func (s *SessionStore) SetModel(ctx context.Context, id, model string) error {
-	return s.updateByID(ctx, "set session model",
-		`UPDATE sessions SET model = ?, updated_at = ?, revision = revision + 1 WHERE id = ?`,
-		model, time.Now().UTC().UnixNano(), id)
-}
-
-// Rename updates the session's title + refreshes UpdatedAt in a single UPDATE.
-// ErrNotFound for unknown id.
-func (s *SessionStore) Rename(ctx context.Context, id, title string) error {
-	return s.updateByID(ctx, "rename session",
-		`UPDATE sessions SET title = ?, updated_at = ?, revision = revision + 1 WHERE id = ?`,
-		title, time.Now().UTC().UnixNano(), id)
-}
-
-// RenameIfUntitled sets the title only on a session that has none, atomically.
-// The WHERE guard collapses the titler's check-and-set into one statement so a
-// concurrent user rename can't be clobbered across the async title generation.
-// 0 rows affected (already titled or unknown id) is a no-op success, NOT
-// ErrNotFound — so it can't use updateByID.
-func (s *SessionStore) RenameIfUntitled(ctx context.Context, id, title string) error {
-	_, err := conn(ctx, s.db).ExecContext(ctx,
-		`UPDATE sessions SET title = ?, updated_at = ?, revision = revision + 1 WHERE id = ? AND title = ''`,
-		title, time.Now().UTC().UnixNano(), id)
-	if err != nil {
-		return fmt.Errorf("sqlite: rename-if-untitled session: %w", err)
 	}
 	return nil
 }
 
-// SetCWD relocates the session + refreshes UpdatedAt in a single UPDATE.
-// ErrNotFound for unknown id.
-func (s *SessionStore) SetCWD(ctx context.Context, id, cwd string) error {
-	return s.updateByID(ctx, "relocate session",
-		`UPDATE sessions SET cwd = ?, updated_at = ?, revision = revision + 1 WHERE id = ?`,
-		cwd, time.Now().UTC().UnixNano(), id)
-}
-
-// SetFavorite pins / unpins the session + refreshes UpdatedAt. ErrNotFound for
-// unknown id.
-func (s *SessionStore) SetFavorite(ctx context.Context, id string, favorite bool) error {
-	return s.updateByID(ctx, "set session favorite",
-		`UPDATE sessions SET favorite = ?, updated_at = ?, revision = revision + 1 WHERE id = ?`,
-		favorite, time.Now().UTC().UnixNano(), id)
-}
-
-// updateByID runs a single-row UPDATE keyed on session id and maps "no row
-// matched" to session.ErrNotFound. op labels the operation for error wrapping
-// (e.g. "rename session"). Shared by the SetModel / Rename field writes, which
-// differ only in their SET clause and bound args.
-func (s *SessionStore) updateByID(ctx context.Context, op, query string, args ...any) error {
-	res, err := conn(ctx, s.db).ExecContext(ctx, query, args...)
-	if err != nil {
-		return fmt.Errorf("sqlite: %s: %w", op, err)
+// Save persists an application-decided replacement iff expectedRevision is
+// still current. It never normalizes fields, reads a clock, applies a Patch, or
+// assigns the next revision.
+func (s *SessionStore) Save(
+	ctx context.Context,
+	expectedRevision uint64,
+	replacement session.Session,
+) error {
+	if err := replacement.Validate(); err != nil {
+		return fmt.Errorf("sqlite: validate Session replacement: %w", err)
 	}
-	n, err := res.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("sqlite: %s: %w", op, err)
+	if expectedRevision == 0 || replacement.Revision() != expectedRevision+1 {
+		return fmt.Errorf(
+			"sqlite: Session replacement revision %d does not follow expected revision %d: %w",
+			replacement.Revision(), expectedRevision, session.ErrInvalid,
+		)
 	}
-	if n == 0 {
-		return session.ErrNotFound
-	}
-	return nil
-}
-
-// insert is the one-shot path used by Create; conn(ctx) lets it join an ambient
-// transaction (else it uses the pool directly). Fork goes through execInsert too.
-func (s *SessionStore) insert(ctx context.Context, sess session.Session) error {
-	return s.execInsert(ctx, conn(ctx, s.db), sess)
-}
-
-// execInsert is shared by Create and Fork; the shared [execer] (see tx.go)
-// accepts either *sql.DB or *sql.Tx.
-func (s *SessionStore) execInsert(ctx context.Context, ex execer, sess session.Session) error {
-	_, err := ex.ExecContext(ctx,
-		`INSERT INTO sessions(`+sessionColumns+`)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		sess.ID, sess.Title, sess.CWD, sess.ParentID,
-		sess.StartedAt.UnixNano(), sess.UpdatedAt.UnixNano(),
-		sess.Model, sess.Favorite, sess.Isolated, max(sess.Revision, 1),
+	snapshot := replacement.Snapshot()
+	result, err := conn(ctx, s.db).ExecContext(ctx, `UPDATE sessions SET
+		title = ?, cwd = ?, parent_id = ?, started_at = ?, updated_at = ?,
+		model = ?, favorite = ?, isolated = ?, revision = ?
+		WHERE id = ? AND revision = ?`,
+		snapshot.Title, snapshot.CWD, snapshot.ParentID,
+		snapshot.StartedAt.UnixNano(), snapshot.UpdatedAt.UnixNano(),
+		snapshot.Model, boolToInt(snapshot.Favorite), boolToInt(snapshot.Isolated),
+		snapshot.Revision, snapshot.ID, expectedRevision,
 	)
 	if err != nil {
-		return fmt.Errorf("sqlite: insert session: %w", err)
+		return fmt.Errorf("sqlite: save Session: %w", err)
+	}
+	written, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("sqlite: inspect Session save: %w", err)
+	}
+	if written == 1 {
+		return nil
+	}
+	if _, err := s.Get(ctx, snapshot.ID); errors.Is(err, session.ErrNotFound) {
+		return session.ErrNotFound
+	} else if err != nil {
+		return err
+	}
+	return session.ErrRevisionConflict
+}
+
+// Delete is idempotent. It joins an ambient transaction through conn(ctx).
+func (s *SessionStore) Delete(ctx context.Context, id string) error {
+	if _, err := conn(ctx, s.db).ExecContext(ctx, `DELETE FROM sessions WHERE id = ?`, id); err != nil {
+		return fmt.Errorf("sqlite: delete Session: %w", err)
 	}
 	return nil
 }
 
-func nullableString(value *string) any {
-	if value == nil {
-		return nil
+func (s *SessionStore) execInsert(ctx context.Context, executor execer, value session.Session) error {
+	snapshot := value.Snapshot()
+	_, err := executor.ExecContext(ctx,
+		`INSERT INTO sessions(`+sessionColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		snapshot.ID, snapshot.Title, snapshot.CWD, snapshot.ParentID,
+		snapshot.StartedAt.UnixNano(), snapshot.UpdatedAt.UnixNano(),
+		snapshot.Model, boolToInt(snapshot.Favorite), boolToInt(snapshot.Isolated),
+		snapshot.Revision,
+	)
+	if err != nil {
+		return fmt.Errorf("sqlite: insert Session: %w", err)
 	}
-	return *value
-}
-
-func nullableBool(value *bool) any {
-	if value == nil {
-		return nil
-	}
-	return boolToInt(*value)
+	return nil
 }

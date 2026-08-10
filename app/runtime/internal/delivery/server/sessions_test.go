@@ -19,10 +19,10 @@ import (
 func TestUpdateSession(t *testing.T) {
 	s, svc, rt := newSessionServer(t)
 	ctx := context.Background()
-	created, _ := svc.Create(ctx, "old", "/w")
+	created, _ := insertSessionFixture(ctx, svc, "old", "/w")
 
 	title := "new title"
-	out, err := s.UpdateSession(ctx, protocol.UpdateSessionRequest{SessionID: created.ID, Title: &title})
+	out, err := s.UpdateSession(ctx, protocol.UpdateSessionRequest{SessionID: created.ID(), Title: &title})
 	if err != nil {
 		t.Fatalf("rename: %v", err)
 	}
@@ -30,9 +30,9 @@ func TestUpdateSession(t *testing.T) {
 		t.Errorf("Title = %q, want %q", out.Title, "new title")
 	}
 
-	// model edit routes to SetModel and surfaces on the wire
+	// The aggregate model edit surfaces on the wire.
 	model := "claude-opus-4-8"
-	out, err = s.UpdateSession(ctx, protocol.UpdateSessionRequest{SessionID: created.ID, Model: &model})
+	out, err = s.UpdateSession(ctx, protocol.UpdateSessionRequest{SessionID: created.ID(), Model: &model})
 	if err != nil {
 		t.Fatalf("set model: %v", err)
 	}
@@ -42,7 +42,7 @@ func TestUpdateSession(t *testing.T) {
 
 	// whitespace-only title → invalid_params (a session title must be non-empty)
 	blank := "   "
-	if _, err := s.UpdateSession(ctx, protocol.UpdateSessionRequest{SessionID: created.ID, Title: &blank}); !errors.Is(err, protocol.ErrInvalidParams) {
+	if _, err := s.UpdateSession(ctx, protocol.UpdateSessionRequest{SessionID: created.ID(), Title: &blank}); !errors.Is(err, protocol.ErrInvalidParams) {
 		t.Errorf("blank title err = %v, want ErrInvalidParams", err)
 	}
 
@@ -55,7 +55,7 @@ func TestUpdateSession(t *testing.T) {
 	// silently break later runs)
 	ghost := "/no/such/dir"
 	if _, err := s.UpdateSession(ctx, protocol.UpdateSessionRequest{
-		SessionID: created.ID, Workspace: &protocol.WorkspaceRef{Path: ghost},
+		SessionID: created.ID(), Workspace: &protocol.WorkspaceRef{Path: ghost},
 	}); !errors.Is(err, protocol.ErrWorkspaceUnavailable) {
 		t.Errorf("relocate to ghost err = %v, want ErrWorkspaceUnavailable", err)
 	}
@@ -63,7 +63,7 @@ func TestUpdateSession(t *testing.T) {
 	// relocate to a real dir → cwd surfaces on the wire
 	newCWD := t.TempDir()
 	out, err = s.UpdateSession(ctx, protocol.UpdateSessionRequest{
-		SessionID: created.ID, Workspace: &protocol.WorkspaceRef{Path: newCWD},
+		SessionID: created.ID(), Workspace: &protocol.WorkspaceRef{Path: newCWD},
 	})
 	if err != nil {
 		t.Fatalf("relocate: %v", err)
@@ -71,13 +71,13 @@ func TestUpdateSession(t *testing.T) {
 	if out.Workspace.Ref.Path != canonicalWorkspacePath(t, newCWD) {
 		t.Errorf("workspace = %q, want relocated %q", out.Workspace.Ref.Path, canonicalWorkspacePath(t, newCWD))
 	}
-	releaseSession, ok := rt.admissions.AcquireSession(created.ID)
+	releaseSession, ok := rt.admissions.AcquireSession(created.ID())
 	if !ok {
 		t.Fatal("claim active session")
 	}
 	busyCWD := t.TempDir()
 	if _, err := s.UpdateSession(ctx, protocol.UpdateSessionRequest{
-		SessionID: created.ID, Workspace: &protocol.WorkspaceRef{Path: busyCWD},
+		SessionID: created.ID(), Workspace: &protocol.WorkspaceRef{Path: busyCWD},
 	}); !errors.Is(err, protocol.ErrSessionBusy) {
 		t.Fatalf("relocate under active run = %v, want ErrSessionBusy", err)
 	}
@@ -86,7 +86,7 @@ func TestUpdateSession(t *testing.T) {
 	if err := os.RemoveAll(newCWD); err != nil {
 		t.Fatalf("remove cwd: %v", err)
 	}
-	out, err = s.GetSession(ctx, created.ID)
+	out, err = s.GetSession(ctx, created.ID())
 	if err != nil {
 		t.Fatalf("get session with missing cwd: %v", err)
 	}
@@ -112,10 +112,10 @@ func TestDeleteSession_Cascade(t *testing.T) {
 	hist := sqlite.NewTranscriptStore(db)
 	runStore := sqlite.NewRunStore(db)
 	ints := persistence.NewInterruptStore(sqlite.NewInterruptStore(db))
-	created, _ := svc.Create(ctx, "doomed", "/w")
-	id := created.ID
+	created, _ := insertSessionFixture(ctx, svc, "doomed", "/w")
+	id := created.ID()
 	now := time.Now().UTC()
-	fork, err := svc.Fork(ctx, id)
+	fork, err := forkSessionFixture(ctx, svc, created)
 	if err != nil {
 		t.Fatalf("seed user fork: %v", err)
 	}
@@ -141,7 +141,7 @@ func TestDeleteSession_Cascade(t *testing.T) {
 	if _, err := svc.Get(ctx, id); !errors.Is(err, session.ErrNotFound) {
 		t.Errorf("session still present after delete: err = %v", err)
 	}
-	if _, err := svc.Get(ctx, fork.ID); err != nil {
+	if _, err := svc.Get(ctx, fork.ID()); err != nil {
 		t.Errorf("independent user fork was deleted with its parent: %v", err)
 	}
 	runsLeft, _ := runtime.runs.ListRuns(ctx, id)
@@ -162,20 +162,20 @@ func TestDeleteSession_Cascade(t *testing.T) {
 func TestDeleteSession_RejectsActiveSession(t *testing.T) {
 	s, svc, rt := newSessionServer(t)
 	ctx := context.Background()
-	created, err := svc.Create(ctx, "live", "/w")
+	created, err := insertSessionFixture(ctx, svc, "live", "/w")
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
-	releaseSession, ok := rt.admissions.AcquireSession(created.ID)
+	releaseSession, ok := rt.admissions.AcquireSession(created.ID())
 	if !ok {
 		t.Fatal("claim session")
 	}
 	t.Cleanup(releaseSession)
 
-	if err := s.DeleteSession(ctx, created.ID); !errors.Is(err, protocol.ErrSessionBusy) {
+	if err := s.DeleteSession(ctx, created.ID()); !errors.Is(err, protocol.ErrSessionBusy) {
 		t.Fatalf("delete under active claim = %v, want ErrSessionBusy", err)
 	}
-	if _, err := svc.Get(ctx, created.ID); err != nil {
+	if _, err := svc.Get(ctx, created.ID()); err != nil {
 		t.Fatalf("session mutated under active claim: %v", err)
 	}
 }
@@ -191,8 +191,8 @@ func TestDeleteSession_CancelsParkedTurn(t *testing.T) {
 	svc := sqlite.NewSessionStore(db)
 	hist := sqlite.NewTranscriptStore(db)
 	ints := persistence.NewInterruptStore(sqlite.NewInterruptStore(db))
-	created, _ := svc.Create(ctx, "parked", "/w")
-	id := created.ID
+	created, _ := insertSessionFixture(ctx, svc, "parked", "/w")
+	id := created.ID()
 	if err := ints.Open(ctx, serverPending(
 		"run_parked",
 		id,
@@ -232,12 +232,12 @@ func TestForkSession(t *testing.T) {
 	t.Cleanup(func() { _ = db.Close() })
 	svc := sqlite.NewSessionStore(db)
 	ctx := context.Background()
-	parent, _ := svc.Create(ctx, "research", "/work/proj")
+	parent, _ := insertSessionFixture(ctx, svc, "research", "/work/proj")
 
-	hist := map[string][]chat.Message{parent.ID: {chat.NewUserMessage(chat.NewTextPart("hello")), chat.NewAssistantMessage(chat.NewTextPart("hi"))}}
+	hist := map[string][]chat.Message{parent.ID(): {chat.NewUserMessage(chat.NewTextPart("hello")), chat.NewAssistantMessage(chat.NewTextPart("hi"))}}
 	s := newTestServer(&stubRuntime{sess: svc, history: hist, hist: sqlite.NewTranscriptStore(db), runs: sqlite.NewRunStore(db)})
 
-	child, err := s.ForkSession(ctx, protocol.ForkSessionRequest{SessionID: parent.ID, Title: "branch A"})
+	child, err := s.ForkSession(ctx, protocol.ForkSessionRequest{SessionID: parent.ID(), Title: "branch A"})
 	if err != nil {
 		t.Fatalf("fork: %v", err)
 	}
@@ -252,7 +252,7 @@ func TestForkSession(t *testing.T) {
 	}
 
 	// run-boundary fork against a run that doesn't exist → run_not_found
-	if _, err := s.ForkSession(ctx, protocol.ForkSessionRequest{SessionID: parent.ID, FromRunID: "run_x"}); !errors.Is(err, protocol.ErrRunNotFound) {
+	if _, err := s.ForkSession(ctx, protocol.ForkSessionRequest{SessionID: parent.ID(), FromRunID: "run_x"}); !errors.Is(err, protocol.ErrRunNotFound) {
 		t.Errorf("fromRunId fork err = %v, want ErrRunNotFound", err)
 	}
 

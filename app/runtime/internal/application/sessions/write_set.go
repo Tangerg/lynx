@@ -34,11 +34,66 @@ type RollbackPlan struct {
 
 type ForkPlan struct {
 	ParentID string
+	// Child is the complete Domain-derived child Session. Persistence verifies
+	// the parent still exists and inserts this exact aggregate.
+	Child    session.Session
 	Messages []chat.Message
 	// PlanReplacement is the initial child Plan decided from the parent's fork
 	// boundary. nil means the boundary held no value worth publishing.
 	PlanReplacement *planapp.Replacement
-	Title           string
+}
+
+// SessionReplacement is an immutable Application decision to insert a restored
+// Session at revision one or replace the target's current revision exactly.
+type SessionReplacement struct {
+	expectedRevision uint64
+	state            session.Session
+}
+
+// InitialSessionReplacement prepares an initial restored Session write.
+func InitialSessionReplacement(state session.Session) (SessionReplacement, error) {
+	replacement := SessionReplacement{state: state}
+	if err := replacement.Validate(); err != nil {
+		return SessionReplacement{}, err
+	}
+	return replacement, nil
+}
+
+// NextSessionReplacement prepares an exact replacement of current.
+func NextSessionReplacement(current, state session.Session) (SessionReplacement, error) {
+	replacement := SessionReplacement{expectedRevision: current.Revision(), state: state}
+	if err := replacement.Validate(); err != nil {
+		return SessionReplacement{}, err
+	}
+	return replacement, nil
+}
+
+// ExpectedRevision returns zero for an initial insert or the target revision
+// an exact replacement was based on.
+func (r SessionReplacement) ExpectedRevision() uint64 { return r.expectedRevision }
+
+// State returns the complete already-decided Session aggregate.
+func (r SessionReplacement) State() session.Session { return r.state }
+
+// Validate proves that r is either one initial aggregate or one monotonic
+// replacement of an existing aggregate.
+func (r SessionReplacement) Validate() error {
+	if err := r.state.Validate(); err != nil {
+		return fmt.Errorf("sessions: invalid Session replacement: %w", err)
+	}
+	if r.expectedRevision == 0 {
+		if r.state.Revision() != 1 {
+			return fmt.Errorf("sessions: initial Session revision is %d, want 1", r.state.Revision())
+		}
+		return nil
+	}
+	if r.expectedRevision == ^uint64(0) || r.state.Revision() != r.expectedRevision+1 {
+		return fmt.Errorf(
+			"sessions: Session replacement revision %d does not follow expected revision %d",
+			r.state.Revision(), r.expectedRevision,
+		)
+	}
+	return nil
 }
 
 // RestorePlan is the atomic durable command for replacing a session aggregate.
@@ -46,7 +101,7 @@ type ForkPlan struct {
 // explicit command makes the persistence boundary's destructive operation
 // visible instead of silently accepting every snapshot-shaped value.
 type RestorePlan struct {
-	Session     session.Session
+	Session     SessionReplacement
 	Messages    []chat.Message
 	Items       []transcript.Item
 	Runs        []rundomain.Run
@@ -56,11 +111,15 @@ type RestorePlan struct {
 	PlanReplacement *planapp.Replacement
 }
 
-func restorePlan(snapshot Snapshot, replacement *planapp.Replacement) RestorePlan {
+func restorePlan(
+	snapshot Snapshot,
+	sessionReplacement SessionReplacement,
+	planReplacement *planapp.Replacement,
+) RestorePlan {
 	return RestorePlan{
-		Session: snapshot.Session, Messages: snapshot.Messages, Items: snapshot.Items,
+		Session: sessionReplacement, Messages: snapshot.Messages, Items: snapshot.Items,
 		Runs: runsInParentFirstOrder(snapshot.Runs), ToolResults: snapshot.ToolResults,
-		PlanReplacement: replacement,
+		PlanReplacement: planReplacement,
 	}
 }
 

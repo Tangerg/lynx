@@ -47,9 +47,9 @@ func putTestSession(t *testing.T, rt *stubRuntime) {
 	t.Helper()
 	const sessionID = "ses_1"
 
-	if err := rt.sess.Restore(t.Context(), session.Session{
+	if _, err := insertSessionSnapshot(t.Context(), rt.sess, session.Snapshot{
 		ID: sessionID, Title: sessionID, CWD: t.TempDir(),
-		StartedAt: time.Unix(1, 0).UTC(), UpdatedAt: time.Unix(1, 0).UTC(),
+		StartedAt: time.Unix(1, 0).UTC(), UpdatedAt: time.Unix(1, 0).UTC(), Revision: 1,
 	}); err != nil {
 		t.Fatalf("putSession %s: %v", sessionID, err)
 	}
@@ -84,23 +84,23 @@ func putUserItem(t *testing.T, rt *stubRuntime, sessionID, runID, itemID, text s
 func TestRollbackSession_DropTail(t *testing.T) {
 	s, rt := rollbackHarness(t)
 	ctx := context.Background()
-	sess, _ := rt.sess.Create(ctx, "s", "/w")
+	sess, _ := insertSessionFixture(ctx, rt.sess, "s", "/w")
 
 	// Two completed executions: R1 left 3 messages, R2 left 6.
-	rt.history[sess.ID] = []chat.Message{
+	rt.history[sess.ID()] = []chat.Message{
 		chat.NewUserMessage(chat.NewTextPart("u1")), chat.NewAssistantMessage(chat.NewTextPart("a1")), chat.NewUserMessage(chat.NewTextPart("u1b")),
 		chat.NewUserMessage(chat.NewTextPart("u2")), chat.NewAssistantMessage(chat.NewTextPart("a2")), chat.NewUserMessage(chat.NewTextPart("u2b")),
 	}
-	putRun(t, rt, sess.ID, "run_1", 100, 3)
-	putRun(t, rt, sess.ID, "run_2", 200, 6)
-	putUserItem(t, rt, sess.ID, "run_1", "item_u1", "first prompt")
-	putUserItem(t, rt, sess.ID, "run_2", "item_u2", "second prompt")
+	putRun(t, rt, sess.ID(), "run_1", 100, 3)
+	putRun(t, rt, sess.ID(), "run_2", 200, 6)
+	putUserItem(t, rt, sess.ID(), "run_1", "item_u1", "first prompt")
+	putUserItem(t, rt, sess.ID(), "run_2", "item_u2", "second prompt")
 
-	out, err := s.RollbackSession(ctx, protocol.RollbackSessionRequest{SessionID: sess.ID, ToRunID: "run_1"})
+	out, err := s.RollbackSession(ctx, protocol.RollbackSessionRequest{SessionID: sess.ID(), ToRunID: "run_1"})
 	if err != nil {
 		t.Fatalf("rollback: %v", err)
 	}
-	if n := len(rt.history[sess.ID]); n != 3 {
+	if n := len(rt.history[sess.ID()]); n != 3 {
 		t.Fatalf("messages = %d, want truncated to 3 (run_1 watermark)", n)
 	}
 	if len(out.DroppedRuns) != 1 || out.DroppedRuns[0].Run.ID != "run_2" {
@@ -110,7 +110,7 @@ func TestRollbackSession_DropTail(t *testing.T) {
 		t.Fatalf("dropped userInput = %+v, want 'second prompt'", ui)
 	}
 	// run_2's durable history is gone; run_1 survives.
-	runs, _ := rt.runs.ListRuns(ctx, sess.ID)
+	runs, _ := rt.runs.ListRuns(ctx, sess.ID())
 	if len(runs) != 1 || runs[0].ID() != "run_1" {
 		t.Fatalf("surviving runs = %+v, want [run_1]", runs)
 	}
@@ -119,18 +119,18 @@ func TestRollbackSession_DropTail(t *testing.T) {
 func TestRollbackSession_CancelsDroppedParkedRun(t *testing.T) {
 	s, rt := rollbackHarness(t)
 	ctx := context.Background()
-	sess, _ := rt.sess.Create(ctx, "s", "/w")
+	sess, _ := insertSessionFixture(ctx, rt.sess, "s", "/w")
 
-	rt.history[sess.ID] = []chat.Message{
+	rt.history[sess.ID()] = []chat.Message{
 		chat.NewUserMessage(chat.NewTextPart("u1")), chat.NewAssistantMessage(chat.NewTextPart("a1")),
 		chat.NewUserMessage(chat.NewTextPart("u2")), chat.NewAssistantMessage(chat.NewTextPart("a2")),
 	}
-	putRun(t, rt, sess.ID, "run_1", 100, 2)
-	putRun(t, rt, sess.ID, "run_2", 200, 4)
-	putUserItem(t, rt, sess.ID, "run_2", "item_u2", "second prompt")
+	putRun(t, rt, sess.ID(), "run_1", 100, 2)
+	putRun(t, rt, sess.ID(), "run_2", 200, 4)
+	putUserItem(t, rt, sess.ID(), "run_2", "item_u2", "second prompt")
 	if err := rt.interrupts.Open(ctx, serverPending(
 		"run_2",
-		sess.ID,
+		sess.ID(),
 		"exec_parked",
 		"member_run_2",
 		nil,
@@ -141,7 +141,7 @@ func TestRollbackSession_CancelsDroppedParkedRun(t *testing.T) {
 	executions := &recordingExecutions{}
 	rt.execution = executions
 
-	out, err := s.RollbackSession(ctx, protocol.RollbackSessionRequest{SessionID: sess.ID, ToRunID: "run_1"})
+	out, err := s.RollbackSession(ctx, protocol.RollbackSessionRequest{SessionID: sess.ID(), ToRunID: "run_1"})
 	if err != nil {
 		t.Fatalf("rollback: %v", err)
 	}
@@ -151,10 +151,10 @@ func TestRollbackSession_CancelsDroppedParkedRun(t *testing.T) {
 	if len(executions.canceled) != 1 {
 		t.Fatalf("canceled = %+v, want one parked execution", executions.canceled)
 	}
-	if got := executions.canceled[0]; got.SessionID != sess.ID || got.ExecutorID != "exec_parked" {
-		t.Fatalf("canceled execution = %+v, want %s/exec_parked", got, sess.ID)
+	if got := executions.canceled[0]; got.SessionID != sess.ID() || got.ExecutorID != "exec_parked" {
+		t.Fatalf("canceled execution = %+v, want %s/exec_parked", got, sess.ID())
 	}
-	if pending, _ := rt.interrupts.List(ctx, sess.ID); len(pending) != 0 {
+	if pending, _ := rt.interrupts.List(ctx, sess.ID()); len(pending) != 0 {
 		t.Fatalf("pending interrupts = %+v, want cleared", pending)
 	}
 }
@@ -165,18 +165,18 @@ func TestRollbackSession_CancelsDroppedParkedRun(t *testing.T) {
 func TestRollbackSession_DropAll(t *testing.T) {
 	s, rt := rollbackHarness(t)
 	ctx := context.Background()
-	sess, _ := rt.sess.Create(ctx, "s", "/w")
-	rt.history[sess.ID] = []chat.Message{chat.NewUserMessage(chat.NewTextPart("u1")), chat.NewAssistantMessage(chat.NewTextPart("a1"))}
-	putRun(t, rt, sess.ID, "run_1", 100, 2)
+	sess, _ := insertSessionFixture(ctx, rt.sess, "s", "/w")
+	rt.history[sess.ID()] = []chat.Message{chat.NewUserMessage(chat.NewTextPart("u1")), chat.NewAssistantMessage(chat.NewTextPart("a1"))}
+	putRun(t, rt, sess.ID(), "run_1", 100, 2)
 
-	out, err := s.RollbackSession(ctx, protocol.RollbackSessionRequest{SessionID: sess.ID})
+	out, err := s.RollbackSession(ctx, protocol.RollbackSessionRequest{SessionID: sess.ID()})
 	if err != nil {
 		t.Fatalf("rollback all: %v", err)
 	}
 	if len(out.DroppedRuns) != 1 {
 		t.Fatalf("droppedRuns = %d, want 1", len(out.DroppedRuns))
 	}
-	if _, ok := rt.history[sess.ID]; ok {
+	if _, ok := rt.history[sess.ID()]; ok {
 		t.Fatal("session messages must be cleared on drop-all")
 	}
 }
@@ -184,25 +184,25 @@ func TestRollbackSession_DropAll(t *testing.T) {
 func TestRollbackSessionPreservesUserForks(t *testing.T) {
 	s, rt := rollbackHarness(t)
 	ctx := t.Context()
-	parent, err := rt.sess.Create(ctx, "parent", t.TempDir())
+	parent, err := insertSessionFixture(ctx, rt.sess, "parent", t.TempDir())
 	if err != nil {
 		t.Fatalf("create parent: %v", err)
 	}
-	fork, err := rt.sess.Fork(ctx, parent.ID)
+	fork, err := forkSessionFixture(ctx, rt.sess, parent)
 	if err != nil {
 		t.Fatalf("create fork: %v", err)
 	}
-	rt.history[fork.ID] = []chat.Message{chat.NewUserMessage(chat.NewTextPart("keep me"))}
-	putRun(t, rt, parent.ID, "run_1", 100, 0)
+	rt.history[fork.ID()] = []chat.Message{chat.NewUserMessage(chat.NewTextPart("keep me"))}
+	putRun(t, rt, parent.ID(), "run_1", 100, 0)
 
-	if _, err := s.RollbackSession(ctx, protocol.RollbackSessionRequest{SessionID: parent.ID}); err != nil {
+	if _, err := s.RollbackSession(ctx, protocol.RollbackSessionRequest{SessionID: parent.ID()}); err != nil {
 		t.Fatalf("rollback all: %v", err)
 	}
-	if _, err := rt.sess.Get(ctx, fork.ID); err != nil {
+	if _, err := rt.sess.Get(ctx, fork.ID()); err != nil {
 		t.Fatalf("user fork was deleted by parent rollback: %v", err)
 	}
-	if len(rt.history[fork.ID]) != 1 {
-		t.Fatalf("fork history = %+v, want preserved", rt.history[fork.ID])
+	if len(rt.history[fork.ID()]) != 1 {
+		t.Fatalf("fork history = %+v, want preserved", rt.history[fork.ID()])
 	}
 }
 
@@ -210,10 +210,10 @@ func TestRollbackSessionPreservesUserForks(t *testing.T) {
 func TestRollbackSession_Busy(t *testing.T) {
 	s, rt := rollbackHarness(t)
 	ctx := context.Background()
-	sess, _ := rt.sess.Create(ctx, "s", "/w")
-	_, _ = rt.admissions.AcquireSession(sess.ID) // simulate a run in flight (admission slot held)
+	sess, _ := insertSessionFixture(ctx, rt.sess, "s", "/w")
+	_, _ = rt.admissions.AcquireSession(sess.ID()) // simulate a run in flight (admission slot held)
 
-	if _, err := s.RollbackSession(ctx, protocol.RollbackSessionRequest{SessionID: sess.ID}); !errors.Is(err, protocol.ErrSessionBusy) {
+	if _, err := s.RollbackSession(ctx, protocol.RollbackSessionRequest{SessionID: sess.ID()}); !errors.Is(err, protocol.ErrSessionBusy) {
 		t.Fatalf("rollback under live run = %v, want ErrSessionBusy", err)
 	}
 }
@@ -223,26 +223,26 @@ func TestRollbackSession_Busy(t *testing.T) {
 func TestPersistRunCarriesCreatedAt(t *testing.T) {
 	_, rt := rollbackHarness(t)
 	ctx := context.Background()
-	sess, _ := rt.sess.Create(ctx, "s", "/w")
+	sess, _ := insertSessionFixture(ctx, rt.sess, "s", "/w")
 
 	started := time.Now().Add(-time.Minute).UTC().Truncate(time.Second)
-	if err := rt.runs.Admit(ctx, run.Draft{SegmentID: "seg_open", RunID: "run_1", SessionID: sess.ID, CreatedAt: started}); err != nil {
+	if err := rt.runs.Admit(ctx, run.Draft{SegmentID: "seg_open", RunID: "run_1", SessionID: sess.ID(), CreatedAt: started}); err != nil {
 		t.Fatalf("admit run: %v", err)
 	}
 
 	outcome := run.OutcomeCompleted
-	terminal := runfixture.MustRestore(run.Snapshot{ID: "run_1", SessionID: sess.ID, State: run.Completed, Outcome: &outcome,
+	terminal := runfixture.MustRestore(run.Snapshot{ID: "run_1", SessionID: sess.ID(), State: run.Completed, Outcome: &outcome,
 		CreatedAt: started, FinishedAt: started.Add(time.Minute),
 		UpdatedAt: started.Add(time.Minute), MessageMark: run.UnknownMessageMark})
 	commit := appRuns.EventCommit{
-		RunID: "run_1", SessionID: sess.ID, State: appRuns.StateTerminalize, Outcome: outcome,
+		RunID: "run_1", SessionID: sess.ID(), State: appRuns.StateTerminalize, Outcome: outcome,
 		Run: &terminal,
 	}
 	if err := rt.RunSegmentEffects(nil, nil).CommitEvent(ctx, commit); err != nil {
 		t.Fatalf("commit terminal run: %v", err)
 	}
 
-	runs, err := rt.runs.ListRuns(ctx, sess.ID)
+	runs, err := rt.runs.ListRuns(ctx, sess.ID())
 	if err != nil || len(runs) != 1 {
 		t.Fatalf("list runs = %d (err %v), want 1", len(runs), err)
 	}
@@ -288,15 +288,15 @@ func TestAcquireSession(t *testing.T) {
 func TestForkSession_FromRun(t *testing.T) {
 	s, rt := rollbackHarness(t)
 	ctx := context.Background()
-	parent, _ := rt.sess.Create(ctx, "p", "/w")
-	rt.history[parent.ID] = []chat.Message{
+	parent, _ := insertSessionFixture(ctx, rt.sess, "p", "/w")
+	rt.history[parent.ID()] = []chat.Message{
 		chat.NewUserMessage(chat.NewTextPart("u1")), chat.NewAssistantMessage(chat.NewTextPart("a1")),
 		chat.NewUserMessage(chat.NewTextPart("u2")), chat.NewAssistantMessage(chat.NewTextPart("a2")),
 	}
-	putRun(t, rt, parent.ID, "run_1", 100, 2)
-	putRun(t, rt, parent.ID, "run_2", 200, 4)
+	putRun(t, rt, parent.ID(), "run_1", 100, 2)
+	putRun(t, rt, parent.ID(), "run_2", 200, 4)
 
-	child, err := s.ForkSession(ctx, protocol.ForkSessionRequest{SessionID: parent.ID, FromRunID: "run_1"})
+	child, err := s.ForkSession(ctx, protocol.ForkSessionRequest{SessionID: parent.ID(), FromRunID: "run_1"})
 	if err != nil {
 		t.Fatalf("fork fromRun: %v", err)
 	}

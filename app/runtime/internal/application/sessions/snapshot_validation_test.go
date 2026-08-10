@@ -13,6 +13,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/toolresult"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/itemfixture"
+	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/sessionfixture"
 )
 
 func TestSnapshotNormalizeForRestoreProjectsPreviewWithoutMutatingSource(t *testing.T) {
@@ -103,7 +104,7 @@ func offloadedSnapshot(result string) Snapshot {
 	ref := &toolresult.Ref{ID: "BLOB234"}
 	value := tool.StringResult(result)
 	return Snapshot{
-		Session: session.Session{ID: "ses_1"},
+		Session: sessionfixture.MustRestore(session.Snapshot{ID: "ses_1"}),
 		Items: []transcript.Item{itemfixture.MustRestore(itemfixture.Input{
 			SessionID: "ses_1", ID: "item_1", Kind: transcript.ToolCall,
 			Status: transcript.ItemCompleted,

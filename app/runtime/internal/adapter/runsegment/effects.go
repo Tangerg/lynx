@@ -27,15 +27,18 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 )
 
-// SessionStore is the run-segment side-effect view of session persistence.
-// Opening and terminal maintenance only need the session's cwd, accepted-model
-// fact, and atomic untitled-title update; it should not depend on the full
-// domain Store.
+// SessionStore is the exact persistence surface used inside an opening
+// transaction. Application and Domain have already decided each aggregate.
 type SessionStore interface {
-	Get(ctx context.Context, id string) (session.Session, error)
-	Ensure(ctx context.Context, sess session.Session) (session.Session, error)
-	SetModel(ctx context.Context, id, model string) error
-	RenameIfUntitled(ctx context.Context, id, title string) error
+	Insert(ctx context.Context, value session.Session) error
+	Save(ctx context.Context, expectedRevision uint64, replacement session.Session) error
+}
+
+// SessionTitles is the Application capability for best-effort initial title
+// generation. It rechecks first-writer semantics through Session behavior.
+type SessionTitles interface {
+	NeedsGeneratedTitle(ctx context.Context, id string) (bool, error)
+	ApplyGeneratedTitle(ctx context.Context, id, title string) error
 }
 
 // ScheduleFiringStore confirms the durable occurrence that owns a scheduled
@@ -221,6 +224,7 @@ type Config struct {
 	Interrupts          InterruptStore
 	ResumeClaims        ResumeClaimStore
 	Sessions            SessionStore
+	SessionTitles       SessionTitles
 	ScheduleFirings     ScheduleFiringStore
 	GoalRuns            GoalRunRecorder
 	Transcript          TranscriptStore
@@ -246,6 +250,7 @@ type Effects struct {
 	interrupts          InterruptStore
 	resumeClaims        ResumeClaimStore
 	sessions            SessionStore
+	sessionTitles       SessionTitles
 	scheduleFirings     ScheduleFiringStore
 	goalRuns            GoalRunRecorder
 	transcript          TranscriptStore
@@ -285,6 +290,7 @@ func New(cfg Config) *Effects {
 		interrupts:          cfg.Interrupts,
 		resumeClaims:        cfg.ResumeClaims,
 		sessions:            cfg.Sessions,
+		sessionTitles:       cfg.SessionTitles,
 		scheduleFirings:     cfg.ScheduleFirings,
 		goalRuns:            cfg.GoalRuns,
 		transcript:          cfg.Transcript,
