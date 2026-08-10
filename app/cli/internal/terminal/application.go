@@ -23,26 +23,27 @@ import (
 )
 
 const (
-	sendPrompt      keymap.Action = settings.ActionSend
-	insertNewline   keymap.Action = settings.ActionNewline
-	cancelRun       keymap.Action = settings.ActionCancelRun
-	quitApp         keymap.Action = settings.ActionQuit
-	commandPalette  keymap.Action = settings.ActionCommandPalette
-	showSessions    keymap.Action = settings.ActionSessions
-	searchHistory   keymap.Action = settings.ActionSearch
-	manageQueue     keymap.Action = settings.ActionManageQueue
-	cycleMode       keymap.Action = settings.ActionCycleMode
-	toggleDetails   keymap.Action = settings.ActionToggleDetails
-	historyPrevious keymap.Action = settings.ActionHistoryPrevious
-	historyNext     keymap.Action = settings.ActionHistoryNext
-	nextMatch       keymap.Action = settings.ActionNextMatch
-	previousMatch   keymap.Action = settings.ActionPreviousMatch
-	scrollPageUp    keymap.Action = settings.ActionScrollPageUp
-	scrollPageDown  keymap.Action = settings.ActionScrollPageDown
-	scrollTop       keymap.Action = settings.ActionScrollTop
-	scrollBottom    keymap.Action = settings.ActionScrollBottom
-	queueFollowUp   keymap.Action = "queue-follow-up"
-	queueOrSendNext keymap.Action = "queue-or-send-next"
+	sendPrompt       keymap.Action = settings.ActionSend
+	insertNewline    keymap.Action = settings.ActionNewline
+	cancelRun        keymap.Action = settings.ActionCancelRun
+	quitApp          keymap.Action = settings.ActionQuit
+	commandPalette   keymap.Action = settings.ActionCommandPalette
+	showShortcuts    keymap.Action = settings.ActionShortcuts
+	showSessions     keymap.Action = settings.ActionSessions
+	searchTranscript keymap.Action = settings.ActionSearch
+	manageQueue      keymap.Action = settings.ActionManageQueue
+	cycleMode        keymap.Action = settings.ActionCycleMode
+	toggleDetails    keymap.Action = settings.ActionToggleDetails
+	historyPrevious  keymap.Action = settings.ActionHistoryPrevious
+	historyNext      keymap.Action = settings.ActionHistoryNext
+	nextMatch        keymap.Action = settings.ActionNextMatch
+	previousMatch    keymap.Action = settings.ActionPreviousMatch
+	scrollPageUp     keymap.Action = settings.ActionScrollPageUp
+	scrollPageDown   keymap.Action = settings.ActionScrollPageDown
+	scrollTop        keymap.Action = settings.ActionScrollTop
+	scrollBottom     keymap.Action = settings.ActionScrollBottom
+	queueFollowUp    keymap.Action = "queue-follow-up"
+	queueOrSendNext  keymap.Action = "queue-or-send-next"
 )
 
 type app struct {
@@ -90,6 +91,7 @@ type app struct {
 	questionBool       map[string]*bool
 	commandPicker      *picker[headless.Command]
 	commandDialog      *kit.Dialog
+	shortcutDialog     *kit.Dialog
 	searchDialog       *kit.Dialog
 	queueDialog        *headless.Dialog
 	searchQuery        string
@@ -189,6 +191,7 @@ func newApp(loop *program.InlineRuntime, cfg appConfig) *app {
 	a.buildSessionPicker(theme, glyphs)
 	a.buildRuntimePickers(theme, glyphs)
 	a.buildCommandPalette(theme, glyphs)
+	a.buildShortcutDialog(theme, glyphs, cfg.Keys)
 	a.buildSearchDialog(theme, glyphs)
 	a.listenForSearch()
 	loop.Session().SetTitle("lyra — " + displayTitle(cfg.Snapshot.Session))

@@ -40,7 +40,7 @@ func (a *app) Handle(event input.Event) bool {
 	if a.handleSessionAction(action) {
 		return true
 	}
-	if a.shell.TranscriptFocused() && isTranscriptPaletteEvent(event) {
+	if a.shell.TranscriptFocused() && a.transcript.action(event) == commandPalette {
 		a.showCommandPalette()
 		return true
 	}
@@ -143,11 +143,6 @@ func (a *app) currentDraft() (agent.Message, bool, error) {
 	return message, true, nil
 }
 
-func isTranscriptPaletteEvent(event input.Event) bool {
-	key, ok := event.(input.Key)
-	return ok && key.Down() && key.Code == input.Character && key.Rune == '?' && key.Mods == 0
-}
-
 func isPromptTextEvent(event input.Event) bool {
 	key, ok := event.(input.Key)
 	if !ok || !key.Down() || key.Code != input.Character {
@@ -198,6 +193,9 @@ func (a *app) handleSessionAction(action keymap.Action) bool {
 	case commandPalette:
 		a.showCommandPalette()
 		return true
+	case showShortcuts:
+		a.showShortcutDialog()
+		return true
 	case showSessions:
 		a.ShowSessions()
 		return true
@@ -207,7 +205,7 @@ func (a *app) handleSessionAction(action keymap.Action) bool {
 		}
 		a.CycleMode()
 		return true
-	case searchHistory:
+	case searchTranscript:
 		a.showSearchDialog()
 		return true
 	case manageQueue:

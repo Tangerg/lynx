@@ -88,6 +88,7 @@ func builtinPlugin() extensions.Plugin {
 func builtinCommands() []localCommand {
 	return []localCommand{
 		{Name: "help", Title: "show commands available in this session", Run: func(a *app, _ string) error { a.ShowHelp(); return nil }},
+		{Name: "shortcuts", Title: "show all keyboard shortcuts", Run: func(a *app, _ string) error { a.ShowShortcuts(); return nil }},
 		{Name: "clear", Title: "release the live transcript", Run: func(a *app, _ string) error { a.Clear(); return nil }},
 		{Name: "find", Title: "find text in the live transcript", Takes: true, Run: func(a *app, query string) error { a.Find(query); return nil }},
 		{Name: "next", Title: "step to the next search match", Run: func(a *app, _ string) error { a.NextMatch(); return nil }},

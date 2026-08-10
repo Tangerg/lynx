@@ -1118,6 +1118,27 @@ func TestCommandPaletteSearchAndDetailShortcutsAreReachable(t *testing.T) {
 	stop()
 }
 
+func TestShortcutGuideReflectsActiveBindings(t *testing.T) {
+	host, stop := runUI(t)
+	host.Shows(t, "Ask lyra")
+	host.Send(input.Key{Code: input.Character, Rune: 'x', Mods: input.Ctrl})
+	host.Shows(t, "Shortcuts")
+	host.Shows(t, "ctrl+x")
+	host.Shows(t, "open this shortcut guide")
+	host.Shows(t, "shift+enter / alt+enter")
+	host.Shows(t, "insert a newline")
+	host.Press(input.Esc)
+	host.Hides(t, "open this shortcut guide")
+
+	host.Type("/shortcuts")
+	host.Press(input.Enter)
+	host.Press(input.Enter)
+	host.Shows(t, "Shortcuts")
+	host.Press(input.Esc)
+	host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
+	stop()
+}
+
 func TestWorkspaceFileCompletionCreatesAtomicAttachments(t *testing.T) {
 	workspace := t.TempDir()
 	path := workspace + "/cache_test.go"
@@ -1287,7 +1308,7 @@ func TestCancelBeforeRunIdentityDoesNotBlockTheNextRun(t *testing.T) {
 	host.Type("first request waits before returning a stream")
 	host.Press(input.Enter)
 	host.Shows(t, "starting run")
-	host.Send(input.Key{Code: input.Character, Rune: 'x', Mods: input.Ctrl})
+	host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
 	host.Shows(t, "canceled")
 
 	host.Type("second request can start")

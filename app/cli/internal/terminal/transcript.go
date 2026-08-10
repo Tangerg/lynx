@@ -195,6 +195,15 @@ func (c *transcriptView) OnCopy(copied func(string)) { c.onCopy = copied }
 
 func (c *transcriptView) Keys() *keymap.Map { return c.keys }
 
+func (c *transcriptView) action(event input.Event) keymap.Action {
+	key, ok := event.(input.Key)
+	if !ok || !key.Down() {
+		return ""
+	}
+	action, _ := c.keys.Action(key.Chord())
+	return action
+}
+
 func (c *transcriptView) Do(action keymap.Action) bool {
 	switch action {
 	case headless.SelectPrev:
@@ -229,6 +238,7 @@ func transcriptKeys() *keymap.Map {
 	keys.Bind(headless.Copy, input.Alt.Rune('c'))
 	keys.Bind(transcriptPrompt, input.Chord{Code: input.Tab})
 	keys.Bind(transcriptPrompt, input.Chord{Code: input.Character, Rune: ' '})
+	keys.Bind(commandPalette, input.Chord{Code: input.Character, Rune: '?'})
 	return keys
 }
 

@@ -29,6 +29,12 @@ func TestDefaultIsValidAndCloned(t *testing.T) {
 	if got := defaults.Keys[ActionManageQueue]; len(got) != 2 || got[0] != "ctrl+;" || got[1] != "ctrl+g" {
 		t.Fatalf("manage queue bindings = %v", got)
 	}
+	if got := defaults.Keys[ActionShortcuts]; len(got) != 1 || got[0] != "ctrl+x" {
+		t.Fatalf("shortcut bindings = %v", got)
+	}
+	if got := defaults.Keys[ActionCancelRun]; len(got) != 1 || got[0] != "ctrl+c" {
+		t.Fatalf("cancel bindings = %v", got)
+	}
 }
 
 func TestValidationReportsAllIndependentProblems(t *testing.T) {

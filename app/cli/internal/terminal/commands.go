@@ -312,6 +312,8 @@ func (a *app) Quit() { a.loop.Quit() }
 
 func (a *app) ShowHelp() { a.showCommandPalette() }
 
+func (a *app) ShowShortcuts() { a.showShortcutDialog() }
+
 func (a *app) AttachFile(path string) error { return a.addAttachment(path) }
 
 func (a *app) DetachFile(value string) error { return a.removeAttachment(value) }

@@ -19,6 +19,7 @@ const (
 	ActionCancelRun       = "cancel-run"
 	ActionQuit            = "quit"
 	ActionCommandPalette  = "command-palette"
+	ActionShortcuts       = "shortcuts"
 	ActionSessions        = "sessions"
 	ActionSearch          = "search"
 	ActionManageQueue     = "manage-queue"
@@ -69,9 +70,10 @@ func Default() Config {
 		Keys: map[string][]string{
 			ActionSend:            {"enter"},
 			ActionNewline:         {"shift+enter", "alt+enter"},
-			ActionCancelRun:       {"ctrl+c", "ctrl+x"},
+			ActionCancelRun:       {"ctrl+c"},
 			ActionQuit:            {"ctrl+q", "ctrl+d"},
 			ActionCommandPalette:  {"ctrl+p"},
+			ActionShortcuts:       {"ctrl+x"},
 			ActionSessions:        {"ctrl+r"},
 			ActionSearch:          {"ctrl+f"},
 			ActionManageQueue:     {"ctrl+;", "ctrl+g"},
