@@ -7,8 +7,8 @@ import (
 	"time"
 
 	modelapp "github.com/Tangerg/lynx/app/runtime/internal/application/models"
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
+	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
 // ListModels projects the application-owned model-discovery result onto the

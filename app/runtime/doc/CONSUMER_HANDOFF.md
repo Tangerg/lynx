@@ -8,8 +8,9 @@
 > decoding in the server.
 >
 > Last verified against the server contract and in-repository consumer source:
-> 2026-08-10, at Runtime P16 completion. P16-06 added only final server-internal
-> validation and completion records; the consumer contract below is unchanged.
+> 2026-08-11, at Runtime P19-02 completion. Consumer modules remain intentionally
+> untouched; the Runtime now publishes the canonical Go values at
+> `github.com/Tangerg/lynx/app/runtime/protocol`.
 
 ## Current server baseline
 
@@ -18,6 +19,8 @@
   any import write.
 - Machine truth: [`../contract/`](../contract/) generated from the Go contract
   registry with `go generate ./...`.
+- Go truth: the public `runtime/protocol` package. The retired
+  `internal/delivery/protocol` path no longer exists and has no forwarding shim.
 - Product execution vocabulary is exclusively Run, Segment, Item, and
   Interrupt. Agent Framework Process/Execution/Member identity is not a wire concept.
 

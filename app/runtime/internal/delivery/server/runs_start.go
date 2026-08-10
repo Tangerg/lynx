@@ -10,11 +10,12 @@ import (
 	corechat "github.com/Tangerg/lynx/core/chat"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/app/runtime/internal/delivery/operation"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
+	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
 // StartRun translates runs.start into in-process execution
@@ -87,7 +88,7 @@ func wireRunStartErr(err error) error {
 	// A session that already has a run is refused WITH that run: the client offers
 	// steer / resume / cancel, and the runtime cancels nothing on its own.
 	if conflict, ok := errors.AsType[*runs.ActiveRunConflictError](err); ok {
-		return &protocol.ActiveRunConflictError{ActiveRun: protocol.ActiveRunRef{
+		return &operation.ActiveRunConflictError{ActiveRun: protocol.ActiveRunRef{
 			RunID: conflict.RunID, Status: presentRunStatus(conflict.Status),
 		}}
 	}

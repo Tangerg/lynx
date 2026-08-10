@@ -4,8 +4,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
+	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
 func TestGoalPtrProjectsMachineReadableReason(t *testing.T) {

@@ -6,8 +6,8 @@ import (
 	"testing"
 
 	feedbackapp "github.com/Tangerg/lynx/app/runtime/internal/application/feedback"
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	feedbackdomain "github.com/Tangerg/lynx/app/runtime/internal/domain/feedback"
+	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
 type feedbackRecorderFake struct {

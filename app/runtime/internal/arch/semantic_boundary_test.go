@@ -166,7 +166,7 @@ func TestRunCapabilitiesStaySemanticInsideTheProtocolBoundary(t *testing.T) {
 		}
 	}
 
-	protocolSource, err := os.ReadFile(filepath.Join(root, "internal", "delivery", "protocol", "runs.go"))
+	protocolSource, err := os.ReadFile(filepath.Join(root, "protocol", "runs.go"))
 	if err != nil {
 		t.Fatalf("read Run protocol: %v", err)
 	}

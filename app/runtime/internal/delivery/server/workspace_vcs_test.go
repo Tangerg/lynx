@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspace"
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
 func TestWorkspaceVcsUnavailable(t *testing.T) {

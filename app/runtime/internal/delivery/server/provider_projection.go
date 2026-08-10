@@ -4,8 +4,8 @@ import (
 	"fmt"
 
 	modelapp "github.com/Tangerg/lynx/app/runtime/internal/application/models"
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
+	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
 func presentProvider(info modelapp.ProviderSummary) (protocol.Provider, error) {

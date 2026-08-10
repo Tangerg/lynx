@@ -5,8 +5,9 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/app/runtime/internal/delivery/operation"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/transport"
+	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
 // rpcErrorSpecs maps each protocol sentinel to its wire behavior (§8.2 / §9.3).
@@ -33,58 +34,58 @@ type rpcErrorSpec struct {
 }
 
 var rpcErrorSpecs = mustRPCErrorSpecs([]rpcErrorSpec{
-	{sentinel: protocol.ErrInvalidRequest, code: protocol.CodeInvalidRequest, recovery: protocol.RecoveryStop},
-	{sentinel: protocol.ErrInternalError, code: protocol.CodeInternalError, recovery: protocol.RecoveryStop},
+	{sentinel: protocol.ErrInvalidRequest, code: codeInvalidRequest, recovery: protocol.RecoveryStop},
+	{sentinel: protocol.ErrInternalError, code: codeInternalError, recovery: protocol.RecoveryStop},
 	// The request itself is wrong: nothing the client retries changes the answer, and
 	// only a person can decide what it meant to ask.
-	{sentinel: protocol.ErrMethodNotFound, code: protocol.CodeMethodNotFound, recovery: protocol.RecoveryStop},
-	{sentinel: protocol.ErrInvalidParams, code: protocol.CodeInvalidParams, recovery: protocol.RecoveryStop},
+	{sentinel: protocol.ErrMethodNotFound, code: codeMethodNotFound, recovery: protocol.RecoveryStop},
+	{sentinel: protocol.ErrInvalidParams, code: codeInvalidParams, recovery: protocol.RecoveryStop},
 	// The subject is gone, moved, or was never there. A client holding a stale id
 	// reads again; what it finds may be that the thing is gone for good.
-	{sentinel: protocol.ErrSessionNotFound, code: protocol.CodeSessionNotFound, recovery: protocol.RecoveryRefetch, methodDeclarable: true},
-	{sentinel: protocol.ErrRunNotFound, code: protocol.CodeRunNotFound, recovery: protocol.RecoveryRefetch, methodDeclarable: true},
-	{sentinel: protocol.ErrItemNotFound, code: protocol.CodeItemNotFound, recovery: protocol.RecoveryRefetch, methodDeclarable: true},
-	{sentinel: protocol.ErrMCPServerNotFound, code: protocol.CodeMCPServerNotFound, recovery: protocol.RecoveryRefetch, methodDeclarable: true},
-	{sentinel: protocol.ErrMCPServerAlreadyExists, code: protocol.CodeMCPServerExists, recovery: protocol.RecoveryRefetch, methodDeclarable: true},
-	{sentinel: protocol.ErrMCPServerDisabled, code: protocol.CodeMCPServerDisabled, recovery: protocol.RecoveryRefetch, methodDeclarable: true},
+	{sentinel: protocol.ErrSessionNotFound, code: codeSessionNotFound, recovery: protocol.RecoveryRefetch, methodDeclarable: true},
+	{sentinel: protocol.ErrRunNotFound, code: codeRunNotFound, recovery: protocol.RecoveryRefetch, methodDeclarable: true},
+	{sentinel: protocol.ErrItemNotFound, code: codeItemNotFound, recovery: protocol.RecoveryRefetch, methodDeclarable: true},
+	{sentinel: protocol.ErrMCPServerNotFound, code: codeMCPServerNotFound, recovery: protocol.RecoveryRefetch, methodDeclarable: true},
+	{sentinel: protocol.ErrMCPServerAlreadyExists, code: codeMCPServerExists, recovery: protocol.RecoveryRefetch, methodDeclarable: true},
+	{sentinel: protocol.ErrMCPServerDisabled, code: codeMCPServerDisabled, recovery: protocol.RecoveryRefetch, methodDeclarable: true},
 	// Authorization attempts are intentionally ephemeral. Once one expires, the
 	// same id can never become readable again; repeating get would only repeat the
 	// refusal, so the safe action is to stop polling it.
-	{sentinel: protocol.ErrMCPAuthorizationAttemptNotFound, code: protocol.CodeMCPAuthorizationAttemptNotFound, recovery: protocol.RecoveryStop, methodDeclarable: true},
-	{sentinel: protocol.ErrRunNotRoot, code: protocol.CodeRunNotRoot, recovery: protocol.RecoveryRefetch, methodDeclarable: true},
+	{sentinel: protocol.ErrMCPAuthorizationAttemptNotFound, code: codeMCPAuthorizationAttemptNotFound, recovery: protocol.RecoveryStop, methodDeclarable: true},
+	{sentinel: protocol.ErrRunNotRoot, code: codeRunNotRoot, recovery: protocol.RecoveryRefetch, methodDeclarable: true},
 	// Something else holds the session or the working tree, or the revision moved.
 	// Reading again is how the client learns whether it still does.
-	{sentinel: protocol.ErrSessionBusy, code: protocol.CodeSessionBusy, recovery: protocol.RecoveryRefetch, methodDeclarable: true},
-	{sentinel: protocol.ErrRevisionConflict, code: protocol.CodeRevisionConflict, recovery: protocol.RecoveryRefetch, methodDeclarable: true},
+	{sentinel: protocol.ErrSessionBusy, code: codeSessionBusy, recovery: protocol.RecoveryRefetch, methodDeclarable: true},
+	{sentinel: protocol.ErrRevisionConflict, code: codeRevisionConflict, recovery: protocol.RecoveryRefetch, methodDeclarable: true},
 	// The run moved on while the client was not looking: its STREAM is stale rather
 	// than its ids, so it rebuilds from the durable reads.
-	{sentinel: protocol.ErrInterruptNotOpen, code: protocol.CodeInterruptNotOpen, recovery: protocol.RecoveryColdRecover, methodDeclarable: true},
-	{sentinel: protocol.ErrReplayUnavailable, code: protocol.CodeReplayUnavailable, recovery: protocol.RecoveryColdRecover, methodDeclarable: true},
-	{sentinel: protocol.ErrRunWaiting, code: protocol.CodeRunWaiting, recovery: protocol.RecoveryColdRecover, methodDeclarable: true},
-	{sentinel: protocol.ErrRunFinished, code: protocol.CodeRunFinished, recovery: protocol.RecoveryColdRecover, methodDeclarable: true},
+	{sentinel: protocol.ErrInterruptNotOpen, code: codeInterruptNotOpen, recovery: protocol.RecoveryColdRecover, methodDeclarable: true},
+	{sentinel: protocol.ErrReplayUnavailable, code: codeReplayUnavailable, recovery: protocol.RecoveryColdRecover, methodDeclarable: true},
+	{sentinel: protocol.ErrRunWaiting, code: codeRunWaiting, recovery: protocol.RecoveryColdRecover, methodDeclarable: true},
+	{sentinel: protocol.ErrRunFinished, code: codeRunFinished, recovery: protocol.RecoveryColdRecover, methodDeclarable: true},
 	// The run is executing something else, or the client is holding a cursor that
 	// never addressed this stream. Both are answered by reading the run again — and
 	// for the cursor, by dropping it: reattaching with the same one would fail the
 	// same way, so resubscribe means resubscribe WITHOUT it.
-	{sentinel: protocol.ErrStaleSegment, code: protocol.CodeStaleSegment, recovery: protocol.RecoveryRefetch, methodDeclarable: true},
-	{sentinel: protocol.ErrReplayCursorInvalid, code: protocol.CodeReplayCursorInvalid, recovery: protocol.RecoveryResubscribe, methodDeclarable: true},
+	{sentinel: protocol.ErrStaleSegment, code: codeStaleSegment, recovery: protocol.RecoveryRefetch, methodDeclarable: true},
+	{sentinel: protocol.ErrReplayCursorInvalid, code: codeReplayCursorInvalid, recovery: protocol.RecoveryResubscribe, methodDeclarable: true},
 	// Only a person can choose: which run continues, where to work, whether to
 	// declare a capability, or what to do about a conflicting key.
-	{sentinel: protocol.ErrSessionHasActiveRun, code: protocol.CodeSessionHasActiveRun, recovery: protocol.RecoveryPromptUser, methodDeclarable: true},
-	{sentinel: protocol.ErrCapabilityNotNeg, code: protocol.CodeCapabilityNotNeg, recovery: protocol.RecoveryPromptUser, methodDeclarable: true},
-	{sentinel: protocol.ErrWorkspaceUnavailable, code: protocol.CodeWorkspaceUnavailable, recovery: protocol.RecoveryPromptUser, methodDeclarable: true},
-	{sentinel: protocol.ErrCheckpointUnavailable, code: protocol.CodeCheckpointUnavail, recovery: protocol.RecoveryPromptUser, methodDeclarable: true},
-	{sentinel: protocol.ErrUnsupportedMime, code: protocol.CodeUnsupportedMime, recovery: protocol.RecoveryPromptUser, methodDeclarable: true},
-	{sentinel: protocol.ErrPathOutsideRoot, code: protocol.CodePathOutsideRoot, recovery: protocol.RecoveryPromptUser, methodDeclarable: true},
-	{sentinel: protocol.ErrVcsUnavailable, code: protocol.CodeVcsUnavailable, recovery: protocol.RecoveryPromptUser, methodDeclarable: true},
-	{sentinel: protocol.ErrInvalidProtocolVersion, code: protocol.CodeInvalidProtocolVersion, recovery: protocol.RecoveryPromptUser},
-	{sentinel: protocol.ErrIdempotencyConflict, code: protocol.CodeIdempotencyConflict, recovery: protocol.RecoveryPromptUser},
-	{sentinel: protocol.ErrProviderError, code: protocol.CodeProviderError, recovery: protocol.RecoveryPromptUser, methodDeclarable: true},
+	{sentinel: protocol.ErrSessionHasActiveRun, code: codeSessionHasActiveRun, recovery: protocol.RecoveryPromptUser, methodDeclarable: true},
+	{sentinel: protocol.ErrCapabilityNotNeg, code: codeCapabilityNotNeg, recovery: protocol.RecoveryPromptUser, methodDeclarable: true},
+	{sentinel: protocol.ErrWorkspaceUnavailable, code: codeWorkspaceUnavailable, recovery: protocol.RecoveryPromptUser, methodDeclarable: true},
+	{sentinel: protocol.ErrCheckpointUnavailable, code: codeCheckpointUnavail, recovery: protocol.RecoveryPromptUser, methodDeclarable: true},
+	{sentinel: protocol.ErrUnsupportedMime, code: codeUnsupportedMime, recovery: protocol.RecoveryPromptUser, methodDeclarable: true},
+	{sentinel: protocol.ErrPathOutsideRoot, code: codePathOutsideRoot, recovery: protocol.RecoveryPromptUser, methodDeclarable: true},
+	{sentinel: protocol.ErrVcsUnavailable, code: codeVCSUnavailable, recovery: protocol.RecoveryPromptUser, methodDeclarable: true},
+	{sentinel: protocol.ErrInvalidProtocolVersion, code: codeInvalidProtocolVersion, recovery: protocol.RecoveryPromptUser},
+	{sentinel: protocol.ErrIdempotencyConflict, code: codeIdempotencyConflict, recovery: protocol.RecoveryPromptUser},
+	{sentinel: protocol.ErrProviderError, code: codeProviderError, recovery: protocol.RecoveryPromptUser, methodDeclarable: true},
 	// The same key is mid-flight: waiting is the whole remedy, and the hint says how
 	// long. Retrying is safe here precisely because the key makes it the same call.
 	{
 		sentinel: protocol.ErrIdempotencyInProgress,
-		code:     protocol.CodeIdempotencyInProgress, retryAfterSeconds: 1,
+		code:     codeIdempotencyInProgress, retryAfterSeconds: 1,
 		recovery: protocol.RecoveryWaitRetryAfter,
 	},
 })
@@ -228,7 +229,7 @@ func problemErrorWithFields(sentinel error, detail string, fields ...protocol.Fi
 }
 
 // problemFrame builds the frame for one error, letting the error fill the structured
-// fields its problem type requires ([protocol.ProblemDetailed]).
+// fields its problem type requires ([operation.ProblemDetailed]).
 //
 // The alternative is a switch here that re-derives each type's payload from
 // somewhere else — a second author for a fact the error already carried, and the one
@@ -238,7 +239,7 @@ func problemFrame(spec rpcErrorSpec, err error) *transport.Error {
 		Type: spec.sentinel.Error(), Detail: err.Error(),
 		RetryAfterSeconds: spec.retryAfterSeconds,
 	}
-	if detailed, ok := errors.AsType[protocol.ProblemDetailed](err); ok {
+	if detailed, ok := errors.AsType[operation.ProblemDetailed](err); ok {
 		detailed.Enrich(&problem)
 	}
 	return marshalProblem(spec, problem)
@@ -259,10 +260,10 @@ func invalidProblemResponse(detail string) *transport.Error {
 	fallback := protocol.ProblemData{Type: protocol.ProblemInternalError, Detail: detail}
 	encodedFallback, err := json.Marshal(fallback)
 	if err != nil {
-		return transport.NewError(protocol.CodeInternalError, protocol.ProblemInternalError, nil)
+		return transport.NewError(codeInternalError, protocol.ProblemInternalError, nil)
 	}
 	return transport.NewError(
-		protocol.CodeInternalError,
+		codeInternalError,
 		protocol.ProblemInternalError,
 		encodedFallback,
 	)

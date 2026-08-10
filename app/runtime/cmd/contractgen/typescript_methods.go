@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/dispatch"
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
 // The method surface, as TypeScript reads it: which methods exist, what each one

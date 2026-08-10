@@ -13,9 +13,10 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/persistence"
 	"github.com/Tangerg/lynx/app/runtime/internal/config"
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/app/runtime/internal/delivery/operation"
 	runtimeserver "github.com/Tangerg/lynx/app/runtime/internal/delivery/server"
 	"github.com/Tangerg/lynx/app/runtime/internal/idempotency"
+	"github.com/Tangerg/lynx/app/runtime/protocol"
 	"github.com/Tangerg/lynx/chatclient"
 	"github.com/Tangerg/lynx/core/chat"
 )
@@ -51,7 +52,7 @@ func newProtocolLifecycleFixture(t *testing.T) *protocolLifecycleFixture {
 	t.Setenv("LYRA_HOME", home)
 	model := newLifecycleModel()
 	host, api := openProtocolRuntime(t, model)
-	ctx := protocol.WithRequestMeta(t.Context(), protocol.RequestMeta{
+	ctx := operation.WithRequestMeta(t.Context(), protocol.RequestMeta{
 		ProtocolVersion: protocol.ProtocolVersion,
 		ClientCapabilities: &protocol.ClientCapabilities{
 			InterruptTypes: []protocol.InterruptType{protocol.InterruptQuestion},

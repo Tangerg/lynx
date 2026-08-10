@@ -16,8 +16,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/contractshape"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/dispatch"
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
 // TestGeneratedContractHasNoDrift is contract §11.4 gate 1: rerun the generator
@@ -75,7 +76,7 @@ func TestGeneratedContractHasNoDrift(t *testing.T) {
 const (
 	tsWireDir       = "contract/typescript"
 	tsWireValidator = "wire.validate.generated.ts"
-	validatorDir    = "internal/delivery/protocol"
+	validatorDir    = "protocol"
 	validatorFile   = "wire_constraints.generated.go"
 )
 
@@ -170,7 +171,8 @@ func TestGeneratedContractIsSubstantive(t *testing.T) {
 }
 
 // TestWireConstraintsStayPure is contract §11.4 gate 7: a DTO validator's
-// dependency graph contains no store, dispatcher or executor.
+// dependency graph contains no store, dispatcher or executor. The private,
+// reflection-only contractshape helper is the sole permitted internal import.
 //
 // A shape constraint is safe on either wire direction precisely because checking
 // it costs nothing and cannot fail for an environmental reason. Give ValidateWire
@@ -193,7 +195,7 @@ func assertConstraintsArePure(t *testing.T, path string) {
 	}
 	for _, spec := range file.Imports {
 		imported := strings.Trim(spec.Path.Value, `"`)
-		if strings.Contains(imported, "/internal/") {
+		if strings.Contains(imported, "/internal/") && !strings.HasSuffix(imported, "/internal/contractshape") {
 			t.Errorf("wire constraints import %q; a shape constraint may only read the value it validates", imported)
 		}
 	}
@@ -566,12 +568,8 @@ func collectRefs(node any) []string {
 // it, the way a shape goes unpublished is silently: nobody notices that no method
 // reaches it.
 var notOnTheWire = map[string]string{
-	"ActiveRunConflictError": "the Go error that carries session_has_active_run's payload; its wire projection is ProblemData.activeRun",
-	"CapabilityGapError":     "the Go error that carries capability_not_negotiated's payload; its wire projection is ProblemData.requiredCapabilities",
-	"CanonicalSample":        "binds a hand-written fixture to a wire type; it is about the wire, not on it",
-	"Feature":                "the published capability vocabulary's registry entry; its wire projection is FeatureCapability",
-	"ConstraintError":        "the Go validator's error carrier; its wire projection is ProblemData.errors",
-	"WireField":              "reflection over the wire types, not a wire type",
+	"Feature":         "the published capability vocabulary's registry entry; its wire projection is FeatureCapability",
+	"ConstraintError": "the Go validator's error carrier; its wire projection is ProblemData.errors",
 }
 
 // TestEveryWireStructIsPublished checks the bundle against the protocol package.
@@ -600,7 +598,7 @@ func TestEveryWireStructIsPublished(t *testing.T) {
 		}
 	}
 
-	for _, name := range exportedStructs(t, filepath.Join(root, "internal", "delivery", "protocol")) {
+	for _, name := range exportedStructs(t, filepath.Join(root, "protocol")) {
 		reason, excused := notOnTheWire[name]
 		switch {
 		case published[name] && excused:
@@ -610,7 +608,7 @@ func TestEveryWireStructIsPublished(t *testing.T) {
 		}
 	}
 	for name := range notOnTheWire {
-		if !slices.Contains(exportedStructs(t, filepath.Join(root, "internal", "delivery", "protocol")), name) {
+		if !slices.Contains(exportedStructs(t, filepath.Join(root, "protocol")), name) {
 			t.Errorf("%s is excused from the bundle and no longer exists", name)
 		}
 	}
@@ -700,8 +698,8 @@ func expectedCompiledConstraint(
 	constraint dispatch.FieldConstraint,
 ) compiledConstraintExpectation {
 	t.Helper()
-	leaf := func() protocol.WireField {
-		_, field, found := protocol.GoPath(goType, constraint.Field)
+	leaf := func() contractshape.Field {
+		_, field, found := contractshape.GoPath(goType, constraint.Field)
 		if !found {
 			t.Fatalf("%s has no field %q", shape, constraint.Field)
 		}

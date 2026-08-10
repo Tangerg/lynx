@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
 // The symbol says the first execution is still running; the backoff says how
@@ -14,8 +14,8 @@ import (
 // "unclassified" anyway.
 func TestIdempotencyInProgressErrorCarriesItsBackoff(t *testing.T) {
 	rpcErr := errorToRPC(fmt.Errorf("%w: first execution has not completed", protocol.ErrIdempotencyInProgress))
-	if rpcErr.Code != protocol.CodeIdempotencyInProgress {
-		t.Fatalf("code = %d, want %d", rpcErr.Code, protocol.CodeIdempotencyInProgress)
+	if rpcErr.Code != codeIdempotencyInProgress {
+		t.Fatalf("code = %d, want %d", rpcErr.Code, codeIdempotencyInProgress)
 	}
 	var problem protocol.ProblemData
 	if err := json.Unmarshal(rpcErr.Data, &problem); err != nil {
@@ -36,7 +36,7 @@ func TestMalformedStructuredProblemFailsClosedAsInternalError(t *testing.T) {
 		protocol.ErrCapabilityNotNeg,
 		"missing structured requirements",
 	)
-	if rpcErr.Code != protocol.CodeInternalError || rpcErr.Message != protocol.ProblemInternalError {
+	if rpcErr.Code != codeInternalError || rpcErr.Message != protocol.ProblemInternalError {
 		t.Fatalf("fallback error = %+v, want internal_error", rpcErr)
 	}
 	var problem protocol.ProblemData

@@ -3,7 +3,7 @@ package server
 import (
 	"context"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
 // ResolveWorkspace projects the application's current filesystem identity onto

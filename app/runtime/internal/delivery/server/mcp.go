@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	mcpapp "github.com/Tangerg/lynx/app/runtime/internal/application/mcp"
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
 // mcp.* is runtime-global, so these methods take no workspace reference.

@@ -16,10 +16,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/app/runtime/internal/delivery/operation"
 	deliveryserver "github.com/Tangerg/lynx/app/runtime/internal/delivery/server"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
+	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
 // TestPlanMutationHasOneOwner freezes the P16 Plan vertical: aggregate fields
@@ -110,7 +111,8 @@ func TestSessionMutationHasOneOwner(t *testing.T) {
 //	composition    internal/bootstrap/**,        the "main" component: config load, assembly, host
 //	               internal/config, cmd/**       lifecycle. Wires every ring, so it imports anything —
 //	                                             but nothing imports IT.
-//	delivery       internal/delivery/**          HTTP+SSE transport, dispatch, protocol
+//	protocol       protocol/**                   public binding-neutral values and strict validation
+//	delivery       internal/delivery/**          operation, HTTP+SSE dispatch and transport
 //	adapter        internal/adapter/**           capability adapters, incl. adapter/agentexec (the
 //	                                              agent-execution adapter over the agent SDK)
 //	application    internal/application/**        use-case coordinators (runs / sessions / capabilities /
@@ -339,7 +341,7 @@ func TestRetiredRuntimeVocabularyDoesNotReturn(t *testing.T) {
 		filepath.Join(root, "internal", "delivery", "dispatch"): {
 			"Dispatcher", "registerIntegrationValues", "Handle", "HandleResult", "DispatchResult",
 		},
-		filepath.Join(root, "internal", "delivery", "protocol"): {
+		filepath.Join(root, "protocol"): {
 			"Memory", "MemoryScope", "MemoryScopeCwd", "MemoryScopeProjectRoot", "MemoryScopeHome",
 			"MemoryEntry", "GetMemoryRequest", "UpdateMemoryRequest", "FeatureMemory",
 			"ListMemory", "GetMemory", "UpdateMemory",
@@ -463,19 +465,14 @@ func TestRuntimeResponsibilityFilesStayFocused(t *testing.T) {
 			"registerRecipes":   "recipe methods belong to contract_recipes.go",
 			"registerAgentDocs": "instruction-document methods belong to contract_agent_docs.go",
 		},
-		filepath.Join(root, "internal", "delivery", "protocol", "items.go"): {
+		filepath.Join(root, "protocol", "items.go"): {
 			"Plan": "the plan method group belongs to plan.go",
 		},
-		filepath.Join(root, "internal", "delivery", "protocol", "providers.go"): {
+		filepath.Join(root, "protocol", "providers.go"): {
 			"Models": "the models method group belongs to models.go",
 		},
-		filepath.Join(root, "internal", "delivery", "protocol", "workspace.go"): {
+		filepath.Join(root, "protocol", "workspace.go"): {
 			"RuntimeSubscription": "runtime-wide subscriptions belong to runtime_subscription.go",
-		},
-		filepath.Join(root, "internal", "delivery", "protocol", "runtime.go"): {
-			"ProtocolVersion": "wire-version declarations belong to version.go",
-			"ProtocolRange":   "wire-version declarations belong to version.go",
-			"IDPrefixSession": "resource identity declarations belong to identifiers.go",
 		},
 	} {
 		forbidTopLevelNames(t, path, banned)
@@ -510,8 +507,9 @@ func TestRuntimeResponsibilityFilesStayFocused(t *testing.T) {
 		filepath.Join("internal", "adapter", "workspace", "reads.go"):                  "filesystem browsing and Git reads belong to focused adapter files",
 		filepath.Join("internal", "adapter", "toolset", "semantics.go"):                "concrete tool interpretation belongs to interpreter.go",
 		filepath.Join("internal", "adapter", "agentexec", "turn", "tool_semantics.go"): "concrete tool interpretation belongs to tool_interpreter.go",
-		filepath.Join("internal", "delivery", "protocol", "memory.go"):                 "human-authored knowledge belongs to knowledge.go",
-		filepath.Join("internal", "delivery", "protocol", "catalog.go"):                "Skill and instruction-document contracts belong to focused files",
+		filepath.Join("protocol", "memory.go"):                                         "human-authored knowledge belongs to knowledge.go",
+		filepath.Join("protocol", "catalog.go"):                                        "Skill and instruction-document contracts belong to focused files",
+		filepath.Join("internal", "delivery", "protocol"):                              "protocol values are public; the retired internal owner must not return",
 		filepath.Join("internal", "delivery", "server", "memory.go"):                   "human-authored knowledge belongs to knowledge.go",
 		filepath.Join("internal", "delivery", "server", "catalog.go"):                  "workspace, Skill, Recipe, and instruction-document handlers belong to focused files",
 		filepath.Join("internal", "delivery", "server", "sessionio.go"):                "Session artifact import/export belongs to session_transfer.go",
@@ -1254,7 +1252,7 @@ func TestApplicationEventFreeOfProtocol(t *testing.T) {
 // domain/application to drive them; this constrains only the protocol subpackage.)
 func TestProtocolStaysWireOnly(t *testing.T) {
 	root := moduleRoot(t)
-	forbidExternalImports(t, filepath.Join(root, "internal", "delivery", "protocol"),
+	forbidExternalImports(t, filepath.Join(root, "protocol"),
 		[]string{
 			"github.com/Tangerg/lynx/app/runtime/internal/domain",
 			"github.com/Tangerg/lynx/app/runtime/internal/application",
@@ -1495,12 +1493,12 @@ func TestDeliveryDoesNotDeriveSessionActivity(t *testing.T) {
 
 // TestDeliveryServerExportsOnlyItsContract keeps internal event ingress and
 // orchestration seams off the concrete Server API. Composition may close the
-// Server; every other exported method must belong to protocol.Runtime.
+// Server; every other exported method must belong to operation.Service.
 func TestDeliveryServerExportsOnlyItsContract(t *testing.T) {
 	serverType := reflect.TypeFor[*deliveryserver.Server]()
-	runtimeType := reflect.TypeFor[protocol.Runtime]()
+	runtimeType := reflect.TypeFor[operation.Service]()
 	if !serverType.Implements(runtimeType) {
-		t.Fatal("delivery Server no longer implements protocol.Runtime")
+		t.Fatal("delivery Server no longer implements operation.Service")
 	}
 	allowed := map[string]struct{}{"Close": {}}
 	for method := range runtimeType.Methods() {
@@ -1878,7 +1876,7 @@ const domainPkg = "github.com/Tangerg/lynx/app/runtime/internal/domain"
 
 // protocolPkg is the wire-type package; it must stay pure wire (no domain /
 // application import) so protocol types never leak inward (§16 rule 10).
-const protocolPkg = "github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+const protocolPkg = "github.com/Tangerg/lynx/app/runtime/protocol"
 
 // externalSDKs are the external agent-SDK / driver / framework libraries the
 // inner + delivery rings must never import directly (the internal infra edges are

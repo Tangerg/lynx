@@ -12,7 +12,6 @@ import (
 
 	"github.com/Tangerg/lynx/core/chat"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/accounting"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
@@ -24,6 +23,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/itemfixture"
 	runfixture "github.com/Tangerg/lynx/app/runtime/internal/testsupport/runfixture"
+	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
 // TestArtifactVersionMatchesCurrentContractBaseline is half of contract §11.4

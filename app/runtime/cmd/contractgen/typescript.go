@@ -9,7 +9,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/app/runtime/internal/contractcatalog"
+	"github.com/Tangerg/lynx/app/runtime/internal/contractshape"
+	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
 // The TypeScript wire types are emitted from the SCHEMA tree, not from a second
@@ -125,7 +127,7 @@ func (e *tsEmitter) enumValues(names []string) {
 }
 
 func (e *tsEmitter) runEventReliability() {
-	values, ok := protocol.WireEnum(reflect.TypeFor[protocol.StreamEventType]())
+	values, ok := contractcatalog.EnumValues(reflect.TypeFor[protocol.StreamEventType]())
 	if !ok {
 		panic("contractgen: StreamEventType is not a registered wire enum")
 	}
@@ -439,8 +441,8 @@ func typeArgumentOf(t reflect.Type) reflect.Type {
 	if index := strings.LastIndex(wanted, "."); index >= 0 {
 		wanted = wanted[index+1:]
 	}
-	for _, field := range protocol.WireFields(t) {
-		if candidate := protocol.Deref(field.Type); candidate.Name() == wanted {
+	for _, field := range contractshape.Fields(t) {
+		if candidate := contractshape.Deref(field.Type); candidate.Name() == wanted {
 			return candidate
 		}
 	}

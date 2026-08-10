@@ -4,12 +4,12 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	runfixture "github.com/Tangerg/lynx/app/runtime/internal/testsupport/runfixture"
+	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
 func TestPresentersRejectUnknownDomainEnums(t *testing.T) {

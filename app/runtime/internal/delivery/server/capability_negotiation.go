@@ -4,9 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/app/runtime/internal/delivery/operation"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
+	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
 // Capability negotiation: what a request is entitled to, resolved once.
@@ -29,7 +30,7 @@ import (
 // Absent capabilities map to the Minimal Profile, not an error — §8.3 makes "send a
 // message, watch the reply, reload the history" a complete client.
 func (s *Server) negotiateCapabilities(ctx context.Context) (run.Capabilities, error) {
-	caps, ok := protocol.ClientCapabilitiesFrom(ctx)
+	caps, ok := operation.ClientCapabilitiesFrom(ctx)
 	if !ok {
 		return run.Capabilities{}, nil
 	}
@@ -45,7 +46,7 @@ func (s *Server) negotiateCapabilities(ctx context.Context) (run.Capabilities, e
 		}
 		published, known := protocol.LookupFeature(key)
 		if !known || !advertised[key].Enabled {
-			return run.Capabilities{}, protocol.NewCapabilityGapError(protocol.CapabilityRequirement{
+			return run.Capabilities{}, operation.NewCapabilityGapError(protocol.CapabilityRequirement{
 				Type: protocol.RequirementFeature, Name: key,
 			})
 		}
@@ -76,7 +77,7 @@ func (s *Server) negotiateCapabilities(ctx context.Context) (run.Capabilities, e
 			// runtime can only produce it with features.clientTools. Both gaps are named:
 			// the type the caller asked for and the feature that would make it possible,
 			// because fixing only one of them changes nothing.
-			return run.Capabilities{}, protocol.NewCapabilityGapError(
+			return run.Capabilities{}, operation.NewCapabilityGapError(
 				protocol.CapabilityRequirement{Type: protocol.RequirementInterruptType, Name: string(declared)},
 				protocol.CapabilityRequirement{Type: protocol.RequirementFeature, Name: protocol.FeatureClientTools},
 			)
@@ -94,7 +95,7 @@ func (s *Server) missingFeatureRequirements(
 	required ...string,
 ) []protocol.CapabilityRequirement {
 	var client *protocol.ClientCapabilities
-	if declared, ok := protocol.ClientCapabilitiesFrom(ctx); ok {
+	if declared, ok := operation.ClientCapabilitiesFrom(ctx); ok {
 		client = declared
 	}
 	return protocol.MissingFeatureRequirements(
@@ -107,7 +108,7 @@ func (s *Server) requireFeature(ctx context.Context, feature string) error {
 	if len(missing) == 0 {
 		return nil
 	}
-	return protocol.NewCapabilityGapError(missing...)
+	return operation.NewCapabilityGapError(missing...)
 }
 
 func (s *Server) requestCanUseFeature(ctx context.Context, feature string) bool {
@@ -118,7 +119,7 @@ func (s *Server) requestCanUseFeature(ctx context.Context, feature string) bool 
 //
 // Every gap at once, because a caller told about one at a time cannot get itself into
 // a state where the call succeeds.
-func capabilityGap(missing run.Capabilities) *protocol.CapabilityGapError {
+func capabilityGap(missing run.Capabilities) *operation.CapabilityGapError {
 	requirements := make([]protocol.CapabilityRequirement, 0,
 		1+len(missing.InterruptKinds))
 	if missing.ChildRuns {
@@ -131,7 +132,7 @@ func capabilityGap(missing run.Capabilities) *protocol.CapabilityGapError {
 			Type: protocol.RequirementInterruptType, Name: string(presentInterruptType(kind)),
 		})
 	}
-	return protocol.NewCapabilityGapError(requirements...)
+	return operation.NewCapabilityGapError(requirements...)
 }
 
 // interruptKindFromWire maps a declared interrupt type onto the durable kind the

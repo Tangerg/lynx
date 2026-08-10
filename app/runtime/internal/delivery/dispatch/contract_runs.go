@@ -4,7 +4,7 @@ import (
 	"context"
 	"iter"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
 func registerRuns(registry *Registry) {

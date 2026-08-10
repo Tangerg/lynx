@@ -8,8 +8,8 @@ import (
 
 	apphooks "github.com/Tangerg/lynx/app/runtime/internal/application/hooks"
 	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	domainhooks "github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
+	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
 // fakeHookTrust records the workspace coordinator's trust calls (Trust/Untrust)

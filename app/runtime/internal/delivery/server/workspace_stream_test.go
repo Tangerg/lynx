@@ -4,7 +4,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
 // subscribe is a broadcast-only convenience used by the workspace-hub tests: a

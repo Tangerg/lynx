@@ -2,9 +2,9 @@ package server
 
 import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
+	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
 func presentItem(item transcript.Item) protocol.Item {

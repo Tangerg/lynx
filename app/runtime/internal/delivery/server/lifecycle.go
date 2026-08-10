@@ -3,7 +3,7 @@ package server
 import (
 	"context"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
 // Discover handles runtime.discover. It is a stateless capability query, not a

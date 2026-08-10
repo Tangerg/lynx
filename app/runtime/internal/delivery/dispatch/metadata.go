@@ -5,8 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/app/runtime/internal/delivery/operation"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/transport"
+	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
 const requestMetaField = "_meta"
@@ -51,5 +52,5 @@ func bindRequestMeta(ctx context.Context, request *transport.Request) (context.C
 		request.Params = encodedParameters
 	}
 
-	return protocol.WithRequestMeta(ctx, metadata), nil
+	return operation.WithRequestMeta(ctx, metadata), nil
 }

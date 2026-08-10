@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/usage"
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
 // SessionUsage projects the application-owned session usage report onto the

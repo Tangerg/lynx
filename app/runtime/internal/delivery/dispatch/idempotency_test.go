@@ -9,13 +9,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/app/runtime/internal/delivery/operation"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/transport"
 	"github.com/Tangerg/lynx/app/runtime/internal/idempotency"
+	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
 type blockingCancelRuntime struct {
-	protocol.Runtime
+	operation.Service
 	calls   atomic.Int32
 	started chan struct{}
 	release chan struct{}
@@ -30,12 +31,12 @@ func (r *blockingCancelRuntime) CancelRun(_ context.Context, in protocol.CancelR
 }
 
 type replayRuntime struct {
-	protocol.Runtime
+	operation.Service
 	subscribeErr error
 }
 
 type countingCancelRuntime struct {
-	protocol.Runtime
+	operation.Service
 	calls atomic.Int32
 }
 
@@ -189,7 +190,7 @@ func TestCompletionFailureRetriesPersistenceWithoutRepeatingMutation(t *testing.
 		firstErr, _ = errors.AsType[*transport.Error](first.Response.Error)
 	}
 	if first.Response == nil || firstErr == nil ||
-		firstErr.Code != protocol.CodeIdempotencyInProgress {
+		firstErr.Code != codeIdempotencyInProgress {
 		t.Fatalf("first response = %+v, want idempotency_in_progress", first.Response)
 	}
 	second := router.Dispatch(ctx, request("second", "run_1"))
@@ -219,7 +220,7 @@ func TestPendingCompletionStillRejectsKeyReuse(t *testing.T) {
 		conflictErr, _ = errors.AsType[*transport.Error](result.Response.Error)
 	}
 	if result.Response == nil || conflictErr == nil ||
-		conflictErr.Code != protocol.CodeIdempotencyConflict {
+		conflictErr.Code != codeIdempotencyConflict {
 		t.Fatalf("conflict response = %+v, want idempotency_conflict", result.Response)
 	}
 }

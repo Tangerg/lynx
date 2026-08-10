@@ -10,8 +10,9 @@ import (
 	"reflect"
 	"slices"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/app/runtime/internal/contractshape"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/transport"
+	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
 // Registry is the one place a method exists.
@@ -164,15 +165,15 @@ func paginationOf(params, result reflect.Type) (PaginationKind, error) {
 	if params == nil {
 		return PaginationNone, errors.New("params type is required")
 	}
-	params = protocol.Deref(params)
-	cursor, hasCursor := protocol.LookupWireField(params, "cursor")
-	limit, hasLimit := protocol.LookupWireField(params, "limit")
-	var data, nextCursor protocol.WireField
+	params = contractshape.Deref(params)
+	cursor, hasCursor := contractshape.LookupField(params, "cursor")
+	limit, hasLimit := contractshape.LookupField(params, "limit")
+	var data, nextCursor contractshape.Field
 	var hasData, hasNextCursor bool
 	if result != nil {
-		result = protocol.Deref(result)
-		data, hasData = protocol.LookupWireField(result, "data")
-		nextCursor, hasNextCursor = protocol.LookupWireField(result, "nextCursor")
+		result = contractshape.Deref(result)
+		data, hasData = contractshape.LookupField(result, "data")
+		nextCursor, hasNextCursor = contractshape.LookupField(result, "nextCursor")
 	}
 
 	if !hasData && !hasNextCursor {

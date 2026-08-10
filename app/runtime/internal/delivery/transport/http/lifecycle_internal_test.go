@@ -11,13 +11,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/app/runtime/internal/delivery/operation"
+	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
-type lifecycleRuntime struct{ protocol.Runtime }
+type lifecycleRuntime struct{ operation.Service }
 
 type streamingLifecycleRuntime struct {
-	protocol.Runtime
+	operation.Service
 	subscribed chan struct{}
 }
 

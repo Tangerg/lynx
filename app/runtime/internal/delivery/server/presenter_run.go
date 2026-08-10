@@ -2,12 +2,12 @@ package server
 
 import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/accounting"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
 	rundomain "github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
+	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
 // presentRunStatus publishes a lifecycle position. Which state IS which position

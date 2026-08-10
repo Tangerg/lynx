@@ -8,9 +8,10 @@ import (
 	"strings"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/app/runtime/internal/delivery/operation"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/toolresult"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
+	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
 // ExportSession serializes a session to a portable artifact (AUX_API §4.3).
@@ -76,7 +77,7 @@ func (s *Server) validateArtifactStateCapabilities(states []protocol.ArtifactSta
 	if len(gaps) == 0 {
 		return nil
 	}
-	return protocol.NewCapabilityGapError(gaps...)
+	return operation.NewCapabilityGapError(gaps...)
 }
 
 // ImportSession recreates a Session from a SessionArtifact under its original

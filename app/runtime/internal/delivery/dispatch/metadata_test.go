@@ -7,8 +7,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/app/runtime/internal/delivery/operation"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/transport"
+	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
 func TestBindRequestMetaStripsMetaAndStoresContext(t *testing.T) {
@@ -34,7 +35,7 @@ func TestBindRequestMetaStripsMetaAndStoresContext(t *testing.T) {
 		t.Fatalf("bindRequestMeta error = %v", rpcErr)
 	}
 
-	meta, ok := protocol.RequestMetaFrom(ctx)
+	meta, ok := operation.RequestMetaFrom(ctx)
 	if !ok {
 		t.Fatalf("request metadata missing from context")
 	}
@@ -63,8 +64,8 @@ func TestBindRequestMetaRejectsMalformedMeta(t *testing.T) {
 	if rpcErr == nil {
 		t.Fatalf("expected invalid params error")
 	}
-	if rpcErr.Code != protocol.CodeInvalidParams {
-		t.Fatalf("code = %d, want %d", rpcErr.Code, protocol.CodeInvalidParams)
+	if rpcErr.Code != codeInvalidParams {
+		t.Fatalf("code = %d, want %d", rpcErr.Code, codeInvalidParams)
 	}
 }
 
@@ -79,8 +80,8 @@ func TestBindRequestMetaRejectsNullMeta(t *testing.T) {
 	if rpcErr == nil {
 		t.Fatalf("expected invalid params error")
 	}
-	if rpcErr.Code != protocol.CodeInvalidParams {
-		t.Fatalf("code = %d, want %d", rpcErr.Code, protocol.CodeInvalidParams)
+	if rpcErr.Code != codeInvalidParams {
+		t.Fatalf("code = %d, want %d", rpcErr.Code, codeInvalidParams)
 	}
 }
 
@@ -111,8 +112,8 @@ func TestBindRequestMetaRejectsUnsupportedProtocolVersion(t *testing.T) {
 			if rpcErr == nil {
 				t.Fatalf("bindRequestMeta accepted protocolVersion %q", version)
 			}
-			if rpcErr.Code != protocol.CodeInvalidProtocolVersion {
-				t.Fatalf("code = %d, want %d", rpcErr.Code, protocol.CodeInvalidProtocolVersion)
+			if rpcErr.Code != codeInvalidProtocolVersion {
+				t.Fatalf("code = %d, want %d", rpcErr.Code, codeInvalidProtocolVersion)
 			}
 			// The refusal has to name the range: a client that only learns "no" cannot
 			// tell an unsupported version from a malformed request.
@@ -167,8 +168,8 @@ func TestBindRequestMetaRefusesANonSuppressibleEvent(t *testing.T) {
 	if rpcErr == nil {
 		t.Fatal("bindRequestMeta accepted an event outside the closed opt-out set")
 	}
-	if rpcErr.Code != protocol.CodeInvalidParams {
-		t.Fatalf("error code = %d, want invalid_params (%d)", rpcErr.Code, protocol.CodeInvalidParams)
+	if rpcErr.Code != codeInvalidParams {
+		t.Fatalf("error code = %d, want invalid_params (%d)", rpcErr.Code, codeInvalidParams)
 	}
 }
 
@@ -202,7 +203,7 @@ func TestBindRequestMetaValidatesItsPublishedWireShape(t *testing.T) {
 			}
 
 			_, rpcErr := bindRequestMeta(context.Background(), req)
-			if rpcErr == nil || rpcErr.Code != protocol.CodeInvalidParams {
+			if rpcErr == nil || rpcErr.Code != codeInvalidParams {
 				t.Fatalf("error = %+v, want invalid_params", rpcErr)
 			}
 			var problem protocol.ProblemData
@@ -227,7 +228,7 @@ func TestBindRequestMetaRejectsUnknownFields(t *testing.T) {
 	}
 
 	_, rpcErr := bindRequestMeta(context.Background(), req)
-	if rpcErr == nil || rpcErr.Code != protocol.CodeInvalidParams {
+	if rpcErr == nil || rpcErr.Code != codeInvalidParams {
 		t.Fatalf("error = %+v, want invalid_params", rpcErr)
 	}
 	var problem protocol.ProblemData

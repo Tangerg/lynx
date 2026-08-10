@@ -9,10 +9,10 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/queries"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/transport"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
+	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
 // GetRun returns one run by id, in whatever state the durable record has it. The

@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	lyratransport "github.com/Tangerg/lynx/app/runtime/internal/delivery/transport"
+	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
 // StartRun lets the fake drive the streamable path: it returns a runId ack plus

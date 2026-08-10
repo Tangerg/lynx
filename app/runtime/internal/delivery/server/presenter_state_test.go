@@ -8,8 +8,8 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/dispatch"
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
+	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
 // TestStateSnapshotCarriesItsDeclaredPlanPayload is the shape fixture for the

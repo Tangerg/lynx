@@ -10,7 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/app/runtime/internal/delivery/operation"
+	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
 // What one streaming connection occupies (Batch D4, the half that does not need a
@@ -35,7 +36,7 @@ import (
 // sequence would let the bridge exit on its own and prove nothing about
 // disconnect.
 type blockingRuntime struct {
-	protocol.Runtime
+	operation.Service
 	released chan struct{}
 }
 

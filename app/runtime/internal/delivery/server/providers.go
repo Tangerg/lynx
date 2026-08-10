@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	modelapp "github.com/Tangerg/lynx/app/runtime/internal/application/models"
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
 // ListProviders projects the application-owned supported-provider set onto the

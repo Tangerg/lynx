@@ -8,7 +8,8 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/app/runtime/internal/contractshape"
+	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
 // This file holds the shape half of the contract: which wire types are closed
@@ -275,7 +276,7 @@ func (s *Shapes) Constraints() []ObjectConstraintSpec {
 	out := make([]ObjectConstraintSpec, 0, len(s.constraints))
 	for _, stored := range s.constraints {
 		spec := cloneObjectConstraintSpec(stored)
-		for _, embedded := range protocol.WireEmbeds(spec.GoType) {
+		for _, embedded := range contractshape.Embeds(spec.GoType) {
 			inherited, ok := byType[embedded]
 			if !ok {
 				continue
@@ -455,7 +456,7 @@ func (validation *unionValidation) validateDiscriminator() error {
 			u.Discriminator,
 		)
 	}
-	if err := protocol.HasWirePath(u.GoType, u.Discriminator); err != nil {
+	if err := contractshape.HasPath(u.GoType, u.Discriminator); err != nil {
 		return fmt.Errorf("%s: %w", validation.name, err)
 	}
 	if len(u.Variants) == 0 {
@@ -478,7 +479,7 @@ func (validation *unionValidation) validateForbiddenFields() error {
 			)
 		case slices.Contains(u.Forbidden[:index], field):
 			return fmt.Errorf("%s: forbidden field %q is declared twice", validation.name, field)
-		case slices.Contains(protocol.WireFieldNames(u.GoType), field):
+		case slices.Contains(contractshape.FieldNames(u.GoType), field):
 			return fmt.Errorf(
 				"%s: forbidden field %q still exists on the Go wire shape",
 				validation.name,
@@ -558,7 +559,7 @@ func (validation *unionValidation) claimFields(
 		}
 	}
 	for _, field := range slices.Concat(required, optional) {
-		if err := protocol.HasWirePath(validation.spec.GoType, field); err != nil {
+		if err := contractshape.HasPath(validation.spec.GoType, field); err != nil {
 			return fmt.Errorf("%s: %w", owner, err)
 		}
 		// A nested declaration accounts for the frame that holds it: claiming
@@ -574,7 +575,7 @@ func (validation *unionValidation) claimFields(
 func (validation *unionValidation) validateCoverage() error {
 	// The drift that actually happens: a field is added to the struct and no
 	// variant claims it, so the generated schema would allow it under every tag.
-	for _, field := range protocol.WireFieldNames(validation.spec.GoType) {
+	for _, field := range contractshape.FieldNames(validation.spec.GoType) {
 		if !slices.Contains(validation.accounted, field) {
 			return fmt.Errorf(
 				"%s: field %q belongs to no variant — every union field must name its tag",
@@ -636,7 +637,7 @@ func (o ObjectConstraintSpec) validate() error {
 			}
 		}
 		for _, field := range slices.Concat(rule.Required, rule.Forbidden) {
-			if err := protocol.HasWirePath(o.GoType, field); err != nil {
+			if err := contractshape.HasPath(o.GoType, field); err != nil {
 				return fmt.Errorf("%s rule %d: %w", name, index, err)
 			}
 		}
@@ -669,7 +670,7 @@ func (f FieldConstraintSpec) validate() error {
 }
 
 func validateFieldConstraint(owner string, shape reflect.Type, constraint FieldConstraint) error {
-	_, leaf, ok := protocol.GoPath(shape, constraint.Field)
+	_, leaf, ok := contractshape.GoPath(shape, constraint.Field)
 	if !ok {
 		return fmt.Errorf("%s: no JSON field %q", owner, constraint.Field)
 	}

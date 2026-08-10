@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/codebase"
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
+	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
 // fakeCodebaseIndex is the semantic-index capability the codebase coordinator

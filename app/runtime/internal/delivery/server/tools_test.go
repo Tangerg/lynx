@@ -6,8 +6,8 @@ import (
 	"testing"
 
 	toolapp "github.com/Tangerg/lynx/app/runtime/internal/application/tools"
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
+	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
 // toolRegistryFake is the diagnostic tool registry the tools coordinator drives.

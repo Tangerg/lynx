@@ -7,15 +7,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/app/runtime/internal/delivery/operation"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
+	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
 // withClientCapabilities builds the request context a client's `_meta` produces.
 func withClientCapabilities(caps protocol.ClientCapabilities) context.Context {
-	return protocol.WithRequestMeta(context.Background(), protocol.RequestMeta{ClientCapabilities: &caps})
+	return operation.WithRequestMeta(context.Background(), protocol.RequestMeta{ClientCapabilities: &caps})
 }
 
 // TestStartRunRefusesCapabilitiesThisBuildDoesNotHave covers the refusals §8.1

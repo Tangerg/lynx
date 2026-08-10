@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	lyrahttp "github.com/Tangerg/lynx/app/runtime/internal/delivery/transport/http"
+	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
 func TestDefaultCORSOriginsReturnsCallerOwnedConfiguration(t *testing.T) {

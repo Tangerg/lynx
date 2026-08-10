@@ -9,8 +9,8 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
+	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
 func presentRunEvent(event runs.RunEvent) protocol.StreamEvent {

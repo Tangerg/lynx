@@ -6,7 +6,8 @@ import (
 	"fmt"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/app/runtime/internal/delivery/operation"
+	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
 // CancelRun hard-stops a running run (outcome:canceled, API.md §7.3).
@@ -29,7 +30,7 @@ func (s *Server) CancelRun(ctx context.Context, in protocol.CancelRunRequest) (*
 	case errors.Is(err, runs.ErrSessionBusy):
 		return nil, protocol.ErrSessionBusy
 	case errors.Is(err, runs.ErrChildRunNotAllowed):
-		return nil, protocol.NewCapabilityGapError(protocol.CapabilityRequirement{
+		return nil, operation.NewCapabilityGapError(protocol.CapabilityRequirement{
 			Type: protocol.RequirementFeature,
 			Name: protocol.FeatureSubagents,
 		})

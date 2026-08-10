@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/transport"
+	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
 func decodeParams(raw json.RawMessage, dst any) error {

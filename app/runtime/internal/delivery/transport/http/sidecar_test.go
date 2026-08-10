@@ -8,8 +8,8 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	lyrahttp "github.com/Tangerg/lynx/app/runtime/internal/delivery/transport/http"
+	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
 func newProbeServer(t *testing.T, probes ...lyrahttp.HealthProbe) *httptest.Server {

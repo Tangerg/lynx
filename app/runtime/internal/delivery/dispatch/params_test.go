@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/transport"
+	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
 func TestDecodeParamsRejectsDriftedRequests(t *testing.T) {
@@ -65,8 +65,8 @@ func TestDecodeReportsFieldLevelConstraintViolations(t *testing.T) {
 	if bad == nil {
 		t.Fatal("decode accepted a request with an empty id and a zero revision")
 	}
-	if bad.Code != protocol.CodeInvalidParams {
-		t.Fatalf("code = %d, want %d", bad.Code, protocol.CodeInvalidParams)
+	if bad.Code != codeInvalidParams {
+		t.Fatalf("code = %d, want %d", bad.Code, codeInvalidParams)
 	}
 	var problem protocol.ProblemData
 	if err := json.Unmarshal(bad.Data, &problem); err != nil {

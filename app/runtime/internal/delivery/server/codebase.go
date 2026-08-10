@@ -7,8 +7,8 @@ import (
 	"time"
 
 	codebaseapp "github.com/Tangerg/lynx/app/runtime/internal/application/codebase"
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
+	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
 // codebase.* (API.md §7.10) — the @codebase semantic index for clients: the

@@ -51,6 +51,8 @@ TypeScript generated files 是派生制品，不单独定义语义。它们必�
 
 当前协议版本为 `2026-08-10`，只服务同值的 `minSupported`。唯一 replay scope 是 `runtimeInstanceRootSegment`：它准确表达一个 Runtime instance 内的一条 root Segment replay buffer；旧 `processRootSegment` 已直接删除。消费者 breaking surface 与未接线事实由 [`CONSUMER_HANDOFF.md`](CONSUMER_HANDOFF.md) 唯一记录。
 
+公共 Go 协议值的唯一 owner 是 `runtime/protocol`。该包只公开 binding-neutral values、strict validation、版本与 client-visible problem identity；服务端 method interface、request context plumbing、numeric JSON-RPC code、reflection shape walker 和 artifact catalogue 均属于 `internal`，不构成公共 Go surface。
+
 ## 3. 持久化 Baseline 1
 
 ### 3.1 SQLite

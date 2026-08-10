@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
 // ListRecipes maps application recipe discovery to the protocol shape.

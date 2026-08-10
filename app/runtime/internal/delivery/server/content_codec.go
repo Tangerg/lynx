@@ -6,8 +6,8 @@ import (
 	"mime"
 	"strings"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
+	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
 type encodedContent struct {

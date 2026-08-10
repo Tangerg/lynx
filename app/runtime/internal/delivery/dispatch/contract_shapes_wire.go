@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"slices"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
 // shapes is the registered union / constraint / state-key contract.

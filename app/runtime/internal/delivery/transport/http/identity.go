@@ -4,7 +4,7 @@ import (
 	"runtime/debug"
 	"sync"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
 // ServerInfoOrDefault returns a ServerInfo populated from the

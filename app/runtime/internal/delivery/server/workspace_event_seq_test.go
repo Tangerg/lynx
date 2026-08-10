@@ -4,7 +4,7 @@ import (
 	"context"
 	"iter"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
 // drainSeq bridges a workspace subscription's iter.Seq back to a channel so a

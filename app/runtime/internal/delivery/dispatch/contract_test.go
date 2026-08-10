@@ -7,8 +7,9 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/app/runtime/internal/delivery/operation"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/transport"
+	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
 // TestContractIsTheOnlyMethodTable pins what the Registry replaced: every
@@ -96,7 +97,7 @@ func TestReplayPolicyCoversEveryCommand(t *testing.T) {
 // capabilityRuntime is a Runtime that only answers discovery — enough to drive
 // the gate, since that is the only thing the gate reads.
 type capabilityRuntime struct {
-	protocol.Runtime
+	operation.Service
 	features map[string]bool
 }
 

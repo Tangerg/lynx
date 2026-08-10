@@ -6,9 +6,10 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/app/runtime/internal/delivery/operation"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	runfixture "github.com/Tangerg/lynx/app/runtime/internal/testsupport/runfixture"
+	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
 type cancelRunUseCaseStub struct {
@@ -83,7 +84,7 @@ func TestCancelRunNamesTheCapabilityNeededForAChild(t *testing.T) {
 	if result != nil || !errors.Is(err, protocol.ErrCapabilityNotNeg) {
 		t.Fatalf("CancelRun = (%+v, %v), want nil/capability_not_negotiated", result, err)
 	}
-	gap, ok := errors.AsType[*protocol.CapabilityGapError](err)
+	gap, ok := errors.AsType[*operation.CapabilityGapError](err)
 	if !ok || len(gap.Requirements) != 1 ||
 		gap.Requirements[0].Type != protocol.RequirementFeature ||
 		gap.Requirements[0].Name != protocol.FeatureSubagents {

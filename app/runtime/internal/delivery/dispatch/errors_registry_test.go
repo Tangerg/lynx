@@ -5,7 +5,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/app/runtime/internal/delivery/operation"
+	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
 // TestEveryDeclarableProblemTypeHasARecoveryAction is the Error Registry's own
@@ -104,11 +105,11 @@ func TestRPCErrorResolutionUsesRegistryOrder(t *testing.T) {
 		protocol.ErrSessionNotFound,
 		protocol.ErrRunNotFound,
 	))
-	if rpcErr.Code != protocol.CodeSessionNotFound {
+	if rpcErr.Code != codeSessionNotFound {
 		t.Fatalf(
 			"joined problem resolved to code %d, want first registry match %d",
 			rpcErr.Code,
-			protocol.CodeSessionNotFound,
+			codeSessionNotFound,
 		)
 	}
 }
@@ -120,7 +121,7 @@ func TestRPCErrorResolutionUsesRegistryOrder(t *testing.T) {
 func TestAStructuredProblemCarriesItsPayload(t *testing.T) {
 	t.Parallel()
 
-	conflict := problemOf(t, &protocol.ActiveRunConflictError{ActiveRun: protocol.ActiveRunRef{
+	conflict := problemOf(t, &operation.ActiveRunConflictError{ActiveRun: protocol.ActiveRunRef{
 		RunID: "run_1", Status: protocol.RunStatusWaiting,
 	}})
 	if conflict.Type != protocol.ErrSessionHasActiveRun.Error() {
@@ -135,7 +136,7 @@ func TestAStructuredProblemCarriesItsPayload(t *testing.T) {
 
 	// Deduplicated and ordered by (registry, name), so two refusals for the same gap
 	// are the same frame instead of two transcripts of it.
-	gap := problemOf(t, protocol.NewCapabilityGapError(
+	gap := problemOf(t, operation.NewCapabilityGapError(
 		protocol.CapabilityRequirement{Type: protocol.RequirementInterruptType, Name: "toolResult"},
 		protocol.CapabilityRequirement{Type: protocol.RequirementFeature, Name: "subagents"},
 		protocol.CapabilityRequirement{Type: protocol.RequirementFeature, Name: "subagents"},

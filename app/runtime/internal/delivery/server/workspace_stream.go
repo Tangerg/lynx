@@ -10,7 +10,8 @@ import (
 	"sync"
 
 	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/app/runtime/internal/delivery/operation"
+	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
 // errSubscriptionAdmissionsClosed reports that a runtime subscription could not
@@ -381,7 +382,7 @@ func (s *Server) subscribedTopics(requested []protocol.RuntimeTopic) (map[protoc
 	topics := make(map[protocol.RuntimeTopic]bool, len(requested))
 	for _, topic := range requested {
 		if !slices.Contains(advertised, topic) {
-			return nil, protocol.NewCapabilityGapError(protocol.CapabilityRequirement{
+			return nil, operation.NewCapabilityGapError(protocol.CapabilityRequirement{
 				Type: protocol.RequirementRuntimeTopic, Name: string(topic),
 			})
 		}
@@ -427,7 +428,7 @@ func validateWorkspaceWatches(watches []protocol.WatchSpec, topics map[protocol.
 // capability and delegates all other workspace failures to the shared mapper.
 func mapWorkspaceWatchError(err error) error {
 	if errors.Is(err, workspaceapp.ErrFileWatchUnavailable) {
-		return protocol.NewCapabilityGapError(protocol.CapabilityRequirement{
+		return operation.NewCapabilityGapError(protocol.CapabilityRequirement{
 			Type: protocol.RequirementFeature, Name: protocol.FeatureFileWatch,
 		})
 	}

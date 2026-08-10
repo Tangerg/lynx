@@ -6,7 +6,7 @@ import (
 	"iter"
 	"sync"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/app/runtime/internal/delivery/operation"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/transport"
 	"github.com/Tangerg/lynx/app/runtime/internal/idempotency"
 )
@@ -15,7 +15,7 @@ import (
 // coordinates replay-protected mutations. Request-scoped metadata is carried
 // on ctx; durable replay records live in store.
 type Router struct {
-	api         protocol.Runtime
+	api         operation.Service
 	store       idempotency.Store
 	replayLocks [64]sync.Mutex
 	pendingMu   sync.Mutex
@@ -30,7 +30,7 @@ type Config struct {
 
 // New builds a Router bound to the given Runtime. The returned
 // Router is safe for parallel Dispatch calls.
-func New(api protocol.Runtime, config Config) *Router {
+func New(api operation.Service, config Config) *Router {
 	store := config.IdempotencyStore
 	if store == nil {
 		store = newMemoryIdempotencyStore()

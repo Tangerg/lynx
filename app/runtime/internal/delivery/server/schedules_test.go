@@ -8,8 +8,8 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspacepath"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
+	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
 // fakeScheduleRegistry is the combined test store that records the

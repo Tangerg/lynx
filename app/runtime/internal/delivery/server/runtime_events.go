@@ -4,7 +4,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/invalidation"
 	mcpapp "github.com/Tangerg/lynx/app/runtime/internal/application/mcp"
 	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
 func (s *Server) observeFileChanges(source notificationSource[workspaceapp.FileChangeNotice]) {

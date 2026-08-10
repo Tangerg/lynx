@@ -3,7 +3,7 @@ package dispatch
 import (
 	"reflect"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
 // The value constraints of wire shapes.

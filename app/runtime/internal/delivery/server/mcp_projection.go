@@ -5,8 +5,8 @@ import (
 	"time"
 
 	mcpapp "github.com/Tangerg/lynx/app/runtime/internal/application/mcp"
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
+	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
 func presentMCPServer(server mcpapp.Server) (protocol.MCPServer, error) {

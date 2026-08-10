@@ -7,8 +7,8 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
 	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
+	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
 // wireSessionErr maps the session domain's not-found sentinel onto the wire

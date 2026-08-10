@@ -12,7 +12,7 @@ import (
 	workspaceadapter "github.com/Tangerg/lynx/app/runtime/internal/adapter/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspacepath"
 	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
 type workspaceTestConfig struct {

@@ -5,8 +5,9 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/contractshape"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/dispatch"
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
 // The OpenRPC document is the method surface: what a client may call, what it
@@ -125,7 +126,7 @@ func openrpcMethodFor(meta dispatch.MethodMeta, set *schemaSet, codes map[string
 		Capabilities:   capabilityRowsFor(meta),
 		RequestFrame:   strictRequestFrame(set, requestFrame),
 	}
-	for _, field := range protocol.WireFields(meta.Params) {
+	for _, field := range contractshape.Fields(meta.Params) {
 		method.Params = append(method.Params, openrpcParam{
 			Name:     field.Name,
 			Required: !field.Optional,

@@ -3,7 +3,7 @@ package dispatch
 import (
 	"context"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
 func registerWorkspace(registry *Registry) {

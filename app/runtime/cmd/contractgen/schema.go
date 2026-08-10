@@ -8,8 +8,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/contractcatalog"
+	"github.com/Tangerg/lynx/app/runtime/internal/contractshape"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/dispatch"
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 )
 
 // The schema walker turns the registered wire types into JSON Schema.
@@ -158,7 +159,7 @@ func (s *schemaSet) walk(t reflect.Type) *schema {
 		if values, ok := s.enums[t]; ok {
 			return s.define(t, &schema{Type: schemaTypeString, Enum: slices.Clone(values)})
 		}
-		if values, ok := protocol.WireEnum(t); ok {
+		if values, ok := contractcatalog.EnumValues(t); ok {
 			return s.define(t, &schema{Type: schemaTypeString, Enum: values})
 		}
 		return &schema{Type: schemaTypeString}
@@ -211,7 +212,7 @@ func (s *schemaSet) define(t reflect.Type, body *schema) *schema {
 // encoder is the only authority on whether a field can be absent.
 func (s *schemaSet) object(t reflect.Type) *schema {
 	out := &schema{Type: schemaTypeObject, Properties: make(map[string]any)}
-	for _, field := range protocol.WireFields(t) {
+	for _, field := range contractshape.Fields(t) {
 		node := s.walk(field.Type)
 		// A value constraint on a directly-owned field narrows it in place; the
 		// declared constraint and the generated Go check read the same statement.
@@ -259,7 +260,7 @@ func (s *schemaSet) object(t reflect.Type) *schema {
 // belonging to another branch.
 func (s *schemaSet) variants(t reflect.Type, union dispatch.UnionSpec) []*schema {
 	tagValues := s.discriminatorValues(t, union)
-	roots := protocol.WireFieldNames(t)
+	roots := contractshape.FieldNames(t)
 
 	out := make([]*schema, 0, len(union.Variants)+1)
 	for _, variant := range union.Variants {
@@ -297,11 +298,11 @@ func (s *schemaSet) variants(t reflect.Type, union dispatch.UnionSpec) []*schema
 // type, so a variant tag that is not one of them fails generation rather than
 // producing a branch nothing can satisfy.
 func (s *schemaSet) discriminatorValues(t reflect.Type, union dispatch.UnionSpec) []string {
-	field, ok := protocol.LookupWireField(t, union.Discriminator)
+	field, ok := contractshape.LookupField(t, union.Discriminator)
 	if !ok {
 		return nil
 	}
-	values, ok := protocol.WireEnum(field.Type)
+	values, ok := contractcatalog.EnumValues(field.Type)
 	if !ok {
 		return nil
 	}
@@ -329,11 +330,11 @@ func forbidden(t reflect.Type, discriminator string, roots, claimed []string) []
 		}
 	}
 	for root, names := range nested {
-		field, ok := protocol.LookupWireField(t, root)
+		field, ok := contractshape.LookupField(t, root)
 		if !ok {
 			continue
 		}
-		for _, name := range protocol.WireFieldNames(protocol.Deref(field.Type)) {
+		for _, name := range contractshape.FieldNames(contractshape.Deref(field.Type)) {
 			if !slices.Contains(names, name) {
 				out = append(out, root+"."+name)
 			}
@@ -402,11 +403,11 @@ func descend(node *schema, owner reflect.Type, path string, markIntermediate boo
 	segments := strings.Split(path, ".")
 	current := node
 	for _, segment := range segments[:len(segments)-1] {
-		field, ok := protocol.LookupWireField(owner, segment)
+		field, ok := contractshape.LookupField(owner, segment)
 		if !ok {
 			panic(fmt.Sprintf("contractgen: no JSON field %q on %s", segment, owner))
 		}
-		owner = protocol.Deref(field.Type)
+		owner = contractshape.Deref(field.Type)
 		if current.Properties == nil {
 			current.Properties = make(map[string]any)
 		}

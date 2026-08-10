@@ -3,7 +3,7 @@ package server
 import (
 	"fmt"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
 type rollbackIntent struct {

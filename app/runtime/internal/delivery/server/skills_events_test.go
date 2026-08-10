@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
 func TestSkillChangeBridgePublishesWorkspaceRefresh(t *testing.T) {

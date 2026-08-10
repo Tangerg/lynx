@@ -1,4 +1,4 @@
-// Package server implements protocol.Runtime by translating wire requests into
+// Package server implements operation.Service by translating wire requests into
 // application use cases and projecting their results back to protocol values.
 package server
 
@@ -10,7 +10,7 @@ import (
 	mcpapp "github.com/Tangerg/lynx/app/runtime/internal/application/mcp"
 	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/dispatch"
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
 // Config declares the application use cases, notification sources, and contract
@@ -64,7 +64,7 @@ type Config struct {
 	PlanEnabled  bool
 }
 
-// Server is the protocol.Runtime implementation exposed via [New].
+// Server is the operation.Service implementation exposed via [New].
 type Server struct {
 	serverInfo protocol.ServerInfo
 

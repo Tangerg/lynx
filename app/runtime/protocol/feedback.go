@@ -1,0 +1,18 @@
+package protocol
+
+// FeedbackRating is the quality signal on feedback.create (API.md §7.7).
+type FeedbackRating string
+
+const (
+	FeedbackPositive FeedbackRating = "positive"
+	FeedbackNegative FeedbackRating = "negative"
+)
+
+// FeedbackRequest — feedback.create body (API.md §7.7).
+type FeedbackRequest struct {
+	SessionID string         `json:"sessionId,omitempty"`
+	RunID     string         `json:"runId,omitempty"`
+	ItemID    string         `json:"itemId,omitempty"`
+	Rating    FeedbackRating `json:"rating,omitempty"` // "positive" | "negative"
+	Text      string         `json:"text,omitempty"`
+}

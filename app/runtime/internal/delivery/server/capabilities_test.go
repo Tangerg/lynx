@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
 func TestCapabilitiesAdvertiseOnlyProducedRunEvents(t *testing.T) {

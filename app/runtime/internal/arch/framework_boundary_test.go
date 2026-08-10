@@ -254,7 +254,7 @@ func assertAccountingHasNoBudgetCarrier(t *testing.T, root string) {
 
 func assertProtocolLimitVocabulary(t *testing.T, root string) {
 	t.Helper()
-	protocolPath := filepath.Join(root, "internal", "delivery", "protocol", "runs.go")
+	protocolPath := filepath.Join(root, "protocol", "runs.go")
 	protocolFile, err := parser.ParseFile(token.NewFileSet(), protocolPath, nil, 0)
 	if err != nil {
 		t.Fatalf("parse run protocol: %v", err)
@@ -499,7 +499,7 @@ func TestApplicationExecutionPortsUseApplicationVocabulary(t *testing.T) {
 // lifetime boundary.
 func TestProtocolHidesExecutorVocabulary(t *testing.T) {
 	root := moduleRoot(t)
-	protocolRoot := filepath.Join(root, "internal", "delivery", "protocol")
+	protocolRoot := filepath.Join(root, "protocol")
 	forbidden := []string{
 		`json:"process`, `json:"turn`, `json:"execution`, `json:"executor`,
 		`json:"member`, `json:"suspension`, `"processRootSegment"`,

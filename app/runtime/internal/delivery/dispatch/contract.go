@@ -7,7 +7,8 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/app/runtime/internal/contractshape"
+	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
 // MethodKind separates the two response shapes a method can have: one JSON-RPC
@@ -453,7 +454,7 @@ func validateFieldCondition(owner string, shape reflect.Type, condition FieldCon
 	if condition.Field == "" {
 		return fmt.Errorf("%s: condition must name a field", owner)
 	}
-	if err := protocol.HasWirePath(shape, condition.Field); err != nil {
+	if err := contractshape.HasPath(shape, condition.Field); err != nil {
 		return fmt.Errorf("%s condition field %q: %w", owner, condition.Field, err)
 	}
 	switch condition.Operator {

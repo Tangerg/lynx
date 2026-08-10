@@ -8,8 +8,8 @@ import (
 	"iter"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
+	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
 // ResumeRun answers an open interrupt by opening a NEW segment of the SAME run

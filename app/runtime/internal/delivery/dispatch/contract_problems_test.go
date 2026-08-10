@@ -4,7 +4,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
 func TestProblemCatalogOwnsEveryFirstPartyUnionVariant(t *testing.T) {

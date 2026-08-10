@@ -3,7 +3,7 @@ package server
 import (
 	"testing"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
 func TestScheduleFireNotificationProjectsToARuntimeSignal(t *testing.T) {

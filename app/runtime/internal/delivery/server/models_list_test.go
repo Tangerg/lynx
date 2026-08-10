@@ -6,8 +6,8 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/models"
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
+	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
 // stubCatalog reports a single provider's metadata (only ProbeModels matters to

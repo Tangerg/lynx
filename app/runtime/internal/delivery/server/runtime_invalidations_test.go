@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/invalidation"
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
 // TestEveryInvalidationResourceIsPublishable: the application's resource set and the wire

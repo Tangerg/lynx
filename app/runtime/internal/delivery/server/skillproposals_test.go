@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/skills"
+	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
 type stubSkillProposals struct {

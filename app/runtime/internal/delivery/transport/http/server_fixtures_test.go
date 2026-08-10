@@ -9,15 +9,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/app/runtime/internal/delivery/operation"
 	lyrahttp "github.com/Tangerg/lynx/app/runtime/internal/delivery/transport/http"
+	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
 // fakeRuntime is the smallest Runtime we can pass to NewServer for
-// smoke-testing the transport layer. The embedded nil protocol.Runtime
+// smoke-testing the transport layer. The embedded nil operation.Service
 // supplies the methods the tests don't exercise; they panic if hit.
 type fakeRuntime struct {
-	protocol.Runtime
+	operation.Service
 	canceledRuns   []string
 	gotLastEventID string
 }
@@ -72,7 +73,7 @@ func newTestServer(t *testing.T) (*httptest.Server, *fakeRuntime) {
 
 // newTestServerFor serves a caller-supplied Runtime through the same config, so a
 // test that needs a different fake still exercises one server setup.
-func newTestServerFor(t *testing.T, api protocol.Runtime) *httptest.Server {
+func newTestServerFor(t *testing.T, api operation.Service) *httptest.Server {
 	t.Helper()
 	srv, err := lyrahttp.NewServer(lyrahttp.Config{
 		Runtime:         api,

@@ -3,8 +3,8 @@ package server
 import (
 	"testing"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
+	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
 func TestPresentSafetyValues(t *testing.T) {

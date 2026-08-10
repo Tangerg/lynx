@@ -9,7 +9,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/runsegment"
 	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
 // TestWorkspaceSubscribe_GitWatch verifies the cross-platform git-state watch:

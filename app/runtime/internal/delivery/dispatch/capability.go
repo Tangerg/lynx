@@ -7,8 +7,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/app/runtime/internal/delivery/operation"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/transport"
+	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
 // enforceCapabilities refuses a call whose required features this build did not
@@ -44,7 +45,7 @@ func (r *Router) enforceCapabilities(ctx context.Context, meta MethodMeta, param
 			return errorToRPC(err)
 		}
 		if len(missing) != 0 {
-			return errorToRPC(protocol.NewCapabilityGapError(missing...))
+			return errorToRPC(operation.NewCapabilityGapError(missing...))
 		}
 	}
 	return nil
@@ -66,7 +67,7 @@ func (r *Router) missingFeatureRequirements(
 		return nil, errors.New("dispatch: the runtime reported no capabilities")
 	}
 	var client *protocol.ClientCapabilities
-	if declared, ok := protocol.ClientCapabilitiesFrom(ctx); ok {
+	if declared, ok := operation.ClientCapabilitiesFrom(ctx); ok {
 		client = declared
 	}
 	return protocol.MissingFeatureRequirements(

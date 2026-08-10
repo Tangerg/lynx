@@ -4,8 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/app/runtime/internal/delivery/operation"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/transport"
+	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
 // EncodeRunEvent wraps one RunEvent into a notifications.run.event
@@ -80,7 +81,7 @@ type streamFilter struct {
 }
 
 func streamFilterFrom(ctx context.Context) streamFilter {
-	capabilities, ok := protocol.ClientCapabilitiesFrom(ctx)
+	capabilities, ok := operation.ClientCapabilitiesFrom(ctx)
 	if !ok {
 		return streamFilter{}
 	}

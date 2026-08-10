@@ -6,8 +6,8 @@ import (
 	"fmt"
 
 	agentmemoryapp "github.com/Tangerg/lynx/app/runtime/internal/application/agentmemory"
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/agentmemory"
+	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
 // agentMemory.* (API.md §7.x) — HITL review of the agent's self-maintained

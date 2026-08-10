@@ -29,9 +29,10 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/dispatch"
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/app/runtime/internal/delivery/operation"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/transport"
 	"github.com/Tangerg/lynx/app/runtime/internal/idempotency"
+	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
 // messageDispatcher is the dispatch surface this transport needs: route
@@ -70,7 +71,7 @@ type Server struct {
 // Config bundles construction inputs.
 type Config struct {
 	// Runtime is the Runtime implementation. Required.
-	Runtime protocol.Runtime
+	Runtime operation.Service
 
 	// Addr is the listen address (":8080", "127.0.0.1:0", ...). Required.
 	Addr string

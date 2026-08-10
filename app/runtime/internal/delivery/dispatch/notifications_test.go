@@ -6,8 +6,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/app/runtime/internal/delivery/operation"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/transport"
+	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
 func TestEncodeRuntimeEventRejectsAnInvalidOutputShape(t *testing.T) {
@@ -47,7 +48,7 @@ func TestStreamFilterOnlyDropsOptedOutEphemerals(t *testing.T) {
 	}
 
 	silent := protocol.ClientCapabilities{}
-	ctx := protocol.WithRequestMeta(context.Background(), protocol.RequestMeta{ClientCapabilities: &silent})
+	ctx := operation.WithRequestMeta(context.Background(), protocol.RequestMeta{ClientCapabilities: &silent})
 	filter := streamFilterFrom(ctx)
 	if !filter.allow(segmentStarted) || !filter.allow(itemDelta) {
 		t.Fatalf("declaring no exclusions should suppress nothing")
@@ -56,7 +57,7 @@ func TestStreamFilterOnlyDropsOptedOutEphemerals(t *testing.T) {
 	opted := protocol.ClientCapabilities{
 		ExcludedEphemeralEvents: []protocol.SuppressibleRunEventType{protocol.SuppressibleRunItemDelta},
 	}
-	ctx = protocol.WithRequestMeta(context.Background(), protocol.RequestMeta{ClientCapabilities: &opted})
+	ctx = operation.WithRequestMeta(context.Background(), protocol.RequestMeta{ClientCapabilities: &opted})
 	filter = streamFilterFrom(ctx)
 	if !filter.allow(segmentStarted) {
 		t.Fatalf("authoritative event should pass")

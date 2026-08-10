@@ -8,8 +8,8 @@ import (
 	"time"
 
 	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/knowledge"
+	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
 // fakeKnowledgeStore is a workspace knowledge store recording the coordinator's

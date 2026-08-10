@@ -7,9 +7,9 @@ import (
 
 	scheduleapp "github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
 	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
+	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
 // schedules.* (API.md §7.9) — manage the cron-triggered headless runs the

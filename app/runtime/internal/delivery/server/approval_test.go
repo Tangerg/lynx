@@ -6,9 +6,9 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/approvals"
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
+	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
 // serverWithApprovals builds a Server whose only wired coordinator is the

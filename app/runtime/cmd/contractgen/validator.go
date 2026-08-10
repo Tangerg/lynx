@@ -7,8 +7,9 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/contractcatalog"
+	"github.com/Tangerg/lynx/app/runtime/internal/contractshape"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/dispatch"
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 )
 
 // The authoritative Go wire validator: the Go half of contract §11.3's
@@ -117,7 +118,7 @@ func validatorChecks(
 }
 
 func constraintCheck(shape reflect.Type, constraint dispatch.FieldConstraint) string {
-	selector, leaf, found := protocol.GoPath(shape, constraint.Field)
+	selector, leaf, found := contractshape.GoPath(shape, constraint.Field)
 	if !found {
 		panic(fmt.Sprintf("contractgen: %s has no field %q", shape.Name(), constraint.Field))
 	}
@@ -199,14 +200,14 @@ func constraintCheck(shape reflect.Type, constraint dispatch.FieldConstraint) st
 
 func enumChecks(shape reflect.Type) []string {
 	var checks []string
-	for _, field := range protocol.WireFields(shape) {
-		if values, found := protocol.WireEnum(field.Type); found {
+	for _, field := range contractshape.Fields(shape) {
+		if values, found := contractcatalog.EnumValues(field.Type); found {
 			checks = append(checks, fmt.Sprintf("closedEnum(%s, string(value.%s), %s, %t)",
 				strconv.Quote(field.Name), field.GoName, valueList(values), field.Optional))
 			continue
 		}
 		if field.Type.Kind() == reflect.Slice {
-			if values, found := protocol.WireEnum(field.Type.Elem()); found {
+			if values, found := contractcatalog.EnumValues(field.Type.Elem()); found {
 				checks = append(checks, fmt.Sprintf("closedEnumItems(%s, value.%s, %s)",
 					strconv.Quote(field.Name), field.GoName, valueList(values)))
 			}
@@ -222,7 +223,7 @@ func unionChecks(union dispatch.UnionSpec) []string {
 	paths := unionPaths(union)
 	var checks []string
 	if pattern := union.PatternVariant; pattern != nil {
-		field, ok := protocol.LookupWireField(union.GoType, union.Discriminator)
+		field, ok := contractshape.LookupField(union.GoType, union.Discriminator)
 		if !ok {
 			panic(fmt.Sprintf("contractgen: %s has no discriminator %q", union.GoType.Name(), union.Discriminator))
 		}
@@ -346,7 +347,7 @@ func valueList(values []string) string {
 // so the schema walk can state the same rule with its corresponding keyword.
 func (s *schemaSet) valueConstraintsFor(owner reflect.Type, field string) []dispatch.FieldConstraint {
 	var out []dispatch.FieldConstraint
-	owners := append([]reflect.Type{owner}, protocol.WireEmbeds(owner)...)
+	owners := append([]reflect.Type{owner}, contractshape.Embeds(owner)...)
 	for _, candidate := range owners {
 		for _, constraint := range s.values[candidate] {
 			if constraint.Field == field && !slices.Contains(out, constraint) {

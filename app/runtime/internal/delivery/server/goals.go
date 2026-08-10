@@ -6,9 +6,9 @@ import (
 	"fmt"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/goals"
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
+	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
 // goals.* (API.md §7.14) — Goal mode: an autonomous loop that drives runs toward

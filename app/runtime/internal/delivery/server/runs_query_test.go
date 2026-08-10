@@ -10,12 +10,13 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/sessionadmission"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/app/runtime/internal/delivery/operation"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	runfixture "github.com/Tangerg/lynx/app/runtime/internal/testsupport/runfixture"
+	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
 // fakeInterruptReader backs the query coordinator's interrupt read for the
@@ -243,18 +244,18 @@ func TestChildRunCannotBecomeAnIndependentSubscriptionRoot(t *testing.T) {
 	}
 }
 
-func assertSubagentCapabilityGap(t *testing.T, operation string, err error) {
+func assertSubagentCapabilityGap(t *testing.T, operationName string, err error) {
 	t.Helper()
-	var gap *protocol.CapabilityGapError
+	var gap *operation.CapabilityGapError
 	if !errors.As(err, &gap) {
-		t.Fatalf("%s = %v, want typed capability gap", operation, err)
+		t.Fatalf("%s = %v, want typed capability gap", operationName, err)
 	}
 	want := protocol.CapabilityRequirement{
 		Type: protocol.RequirementFeature,
 		Name: protocol.FeatureSubagents,
 	}
 	if len(gap.Requirements) != 1 || gap.Requirements[0] != want {
-		t.Fatalf("%s requirements = %+v, want [%+v]", operation, gap.Requirements, want)
+		t.Fatalf("%s requirements = %+v, want [%+v]", operationName, gap.Requirements, want)
 	}
 }
 

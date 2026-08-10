@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
 // ProblemChannel names where a first-party ProblemData type may ride. RPC

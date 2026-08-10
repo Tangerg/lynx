@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/app/runtime/internal/delivery/operation"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
@@ -18,6 +18,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/itemfixture"
 	runfixture "github.com/Tangerg/lynx/app/runtime/internal/testsupport/runfixture"
+	"github.com/Tangerg/lynx/app/runtime/protocol"
 	"github.com/Tangerg/lynx/core/chat"
 )
 
@@ -685,7 +686,7 @@ func TestSessionImportRefusesAnUnadvertisedStateKey(t *testing.T) {
 	if !errors.Is(err, protocol.ErrCapabilityNotNeg) {
 		t.Fatalf("import err = %v, want capability_not_negotiated", err)
 	}
-	gap, ok := errors.AsType[*protocol.CapabilityGapError](err)
+	gap, ok := errors.AsType[*operation.CapabilityGapError](err)
 	if !ok || len(gap.Requirements) != 1 {
 		t.Fatalf("gap = %+v, want one requirement", gap)
 	}
