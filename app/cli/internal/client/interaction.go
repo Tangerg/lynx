@@ -85,6 +85,10 @@ func validateQuestionField(field QuestionField, seen map[string]struct{}) error 
 	if strings.TrimSpace(field.Label) == "" {
 		return fmt.Errorf("%q has no label", id)
 	}
+	return validateQuestionFieldShape(field, id)
+}
+
+func validateQuestionFieldShape(field QuestionField, id string) error {
 	switch field.Kind {
 	case QuestionText, QuestionBool:
 		if len(field.Options) != 0 {
@@ -94,26 +98,31 @@ func validateQuestionField(field QuestionField, seen map[string]struct{}) error 
 		if len(field.Options) == 0 {
 			return fmt.Errorf("%q of kind %q has no options", id, field.Kind)
 		}
-		values := make(map[string]struct{}, len(field.Options))
-		recommended := 0
-		for i, option := range field.Options {
-			value := strings.TrimSpace(option.Value)
-			if value == "" {
-				return fmt.Errorf("%q option %d has no value", id, i+1)
-			}
-			if _, duplicate := values[value]; duplicate {
-				return fmt.Errorf("%q repeats option %q", id, value)
-			}
-			values[value] = struct{}{}
-			if option.Recommended {
-				recommended++
-			}
-		}
-		if field.Kind == QuestionSingle && recommended > 1 {
-			return fmt.Errorf("%q has more than one recommended option", id)
-		}
+		return validateQuestionOptions(field, id)
 	default:
 		return fmt.Errorf("%q has invalid kind %q", id, field.Kind)
+	}
+	return nil
+}
+
+func validateQuestionOptions(field QuestionField, id string) error {
+	values := make(map[string]struct{}, len(field.Options))
+	recommended := 0
+	for i, option := range field.Options {
+		value := strings.TrimSpace(option.Value)
+		if value == "" {
+			return fmt.Errorf("%q option %d has no value", id, i+1)
+		}
+		if _, duplicate := values[value]; duplicate {
+			return fmt.Errorf("%q repeats option %q", id, value)
+		}
+		values[value] = struct{}{}
+		if option.Recommended {
+			recommended++
+		}
+	}
+	if field.Kind == QuestionSingle && recommended > 1 {
+		return fmt.Errorf("%q has more than one recommended option", id)
 	}
 	return nil
 }
@@ -189,36 +198,55 @@ func validateQuestionValues(field QuestionField, values []string) error {
 	}
 	switch field.Kind {
 	case QuestionText:
-		if len(values) != 1 {
-			return errors.New("text accepts one value")
-		}
-		if field.Required && strings.TrimSpace(values[0]) == "" {
-			return errors.New("an answer is required")
-		}
+		return validateTextValue(field.Required, values)
 	case QuestionBool:
-		if len(values) != 1 || (values[0] != "true" && values[0] != "false") {
-			return errors.New("boolean requires exactly true or false")
-		}
+		return validateBooleanValue(values)
 	case QuestionSingle:
-		if len(values) != 1 {
-			return errors.New("single choice accepts one value")
-		}
-		if !questionOffers(field, values[0]) {
-			return fmt.Errorf("option %q is not offered", values[0])
-		}
+		return validateSingleValue(field, values)
 	case QuestionMulti:
-		seen := make(map[string]struct{}, len(values))
-		for _, value := range values {
-			if !questionOffers(field, value) {
-				return fmt.Errorf("option %q is not offered", value)
-			}
-			if _, duplicate := seen[value]; duplicate {
-				return fmt.Errorf("option %q is duplicated", value)
-			}
-			seen[value] = struct{}{}
-		}
+		return validateMultipleValues(field, values)
 	default:
 		return fmt.Errorf("kind %q is invalid", field.Kind)
+	}
+}
+
+func validateTextValue(required bool, values []string) error {
+	if len(values) != 1 {
+		return errors.New("text accepts one value")
+	}
+	if required && strings.TrimSpace(values[0]) == "" {
+		return errors.New("an answer is required")
+	}
+	return nil
+}
+
+func validateBooleanValue(values []string) error {
+	if len(values) != 1 || (values[0] != "true" && values[0] != "false") {
+		return errors.New("boolean requires exactly true or false")
+	}
+	return nil
+}
+
+func validateSingleValue(field QuestionField, values []string) error {
+	if len(values) != 1 {
+		return errors.New("single choice accepts one value")
+	}
+	if !questionOffers(field, values[0]) {
+		return fmt.Errorf("option %q is not offered", values[0])
+	}
+	return nil
+}
+
+func validateMultipleValues(field QuestionField, values []string) error {
+	seen := make(map[string]struct{}, len(values))
+	for _, value := range values {
+		if !questionOffers(field, value) {
+			return fmt.Errorf("option %q is not offered", value)
+		}
+		if _, duplicate := seen[value]; duplicate {
+			return fmt.Errorf("option %q is duplicated", value)
+		}
+		seen[value] = struct{}{}
 	}
 	return nil
 }
@@ -274,17 +302,21 @@ func EqualAnswers(a, b Answer) bool {
 		return ok && first == second
 	case QuestionAnswer:
 		second, ok := b.(QuestionAnswer)
-		if !ok || first.Canceled != second.Canceled || len(first.Values) != len(second.Values) {
-			return false
-		}
-		for id, values := range first.Values {
-			other, exists := second.Values[id]
-			if !exists || !slices.Equal(values, other) {
-				return false
-			}
-		}
-		return true
+		return ok && equalQuestionAnswers(first, second)
 	default:
 		return false
 	}
+}
+
+func equalQuestionAnswers(first, second QuestionAnswer) bool {
+	if first.Canceled != second.Canceled || len(first.Values) != len(second.Values) {
+		return false
+	}
+	for id, values := range first.Values {
+		other, exists := second.Values[id]
+		if !exists || !slices.Equal(values, other) {
+			return false
+		}
+	}
+	return true
 }

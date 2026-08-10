@@ -139,27 +139,56 @@ func resolveAttachments(ctx context.Context, workspace string, paths []string) (
 // stream the answer opens. A park is not an ending: the run id is stable across
 // it, and only the stream is new.
 func follow(ctx context.Context, rt client.Runtime, out renderer, start client.StartRun, approveAll bool, reconnectAttempts int) error {
-	if start.RequestID == "" {
-		requestID, err := identity.New("req")
-		if err != nil {
-			return err
-		}
-		start.RequestID = requestID
+	if err := ensureRequestID(&start); err != nil {
+		return err
 	}
 	policy := resilience.Standard(reconnectAttempts)
-	exit := make(chan bool, 1)
-	cancelDone := make(chan struct{})
+	guard := watchRunCancellation(ctx, rt, policy, client.CancelRun{SessionID: start.SessionID, RequestID: start.RequestID})
 	cancelOnExit := true
-	defer func() {
-		exit <- cancelOnExit
-		<-cancelDone
-	}()
-	cancelRequest := client.CancelRun{SessionID: start.SessionID, RequestID: start.RequestID}
+	defer func() { guard.Close(cancelOnExit) }()
+
+	run, err := resilience.ControlValue(ctx, policy, func() (client.Run, error) {
+		return rt.StartRun(ctx, start)
+	})
+	if err != nil {
+		return err
+	}
+	finished, err := driveRun(ctx, rt, out, start, run, approveAll, policy)
+	if finished {
+		cancelOnExit = false
+	}
+	return err
+}
+
+func ensureRequestID(start *client.StartRun) error {
+	if start.RequestID != "" {
+		return nil
+	}
+	requestID, err := identity.New("req")
+	if err != nil {
+		return err
+	}
+	start.RequestID = requestID
+	return nil
+}
+
+type runCancelGuard struct {
+	exit chan bool
+	done chan struct{}
+}
+
+func watchRunCancellation(
+	ctx context.Context,
+	rt client.Runtime,
+	policy resilience.Reconnect,
+	request client.CancelRun,
+) *runCancelGuard {
+	guard := &runCancelGuard{exit: make(chan bool, 1), done: make(chan struct{})}
 	go func() {
-		defer close(cancelDone)
+		defer close(guard.done)
 		shouldCancel := true
 		select {
-		case shouldCancel = <-exit:
+		case shouldCancel = <-guard.exit:
 		case <-ctx.Done():
 		}
 		if !shouldCancel {
@@ -168,17 +197,29 @@ func follow(ctx context.Context, rt client.Runtime, out renderer, start client.S
 		cancelCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 		defer cancel()
 		_ = resilience.Control(cancelCtx, policy, func() error {
-			return rt.CancelRun(cancelCtx, cancelRequest)
+			return rt.CancelRun(cancelCtx, request)
 		})
 	}()
+	return guard
+}
 
-	run, err := resilience.ControlValue(ctx, policy, func() (client.Run, error) {
-		return rt.StartRun(ctx, start)
-	})
-	if err != nil {
-		return err
+func (g *runCancelGuard) Close(cancel bool) {
+	if g == nil {
+		return
 	}
+	g.exit <- cancel
+	<-g.done
+}
 
+func driveRun(
+	ctx context.Context,
+	rt client.Runtime,
+	out renderer,
+	start client.StartRun,
+	run client.Run,
+	approveAll bool,
+	policy resilience.Reconnect,
+) (bool, error) {
 	conversation := client.NewConversationAt(run.StartedAfter)
 	failures := 0
 	for {
@@ -186,64 +227,85 @@ func follow(ctx context.Context, rt client.Runtime, out renderer, start client.S
 		stream, err := rt.FollowRun(ctx, client.FollowRun{RunID: run.ID, After: before})
 		if err != nil {
 			if retryErr := waitToReconnect(ctx, policy, &failures, false, err); retryErr != nil {
-				return retryErr
+				return false, retryErr
 			}
 			continue
 		}
 		if stream == nil {
-			return errors.New("runtime returned a nil event stream")
+			return false, errors.New("runtime returned a nil event stream")
 		}
-		var interrupted client.Interaction
-		finished := false
-		var subscriptionErr error
-		for envelope, streamErr := range stream {
-			if streamErr != nil {
-				subscriptionErr = streamErr
-				break
-			}
-			result, err := conversation.ApplyEnvelope(envelope)
-			if err != nil {
-				subscriptionErr = fmt.Errorf("accept runtime event at cursor %d: %w", envelope.Cursor, err)
-				break
-			}
-			if !result.Applied {
-				continue
-			}
-			if err := out.Render(envelope); err != nil {
-				subscriptionErr = err
-				break
-			}
-			switch event := envelope.Event.(type) {
-			case client.RunInterrupted:
-				interrupted = event.Interaction
-			case client.RunFinished:
-				finished = true
-			}
-		}
+		state := consumeSubscription(stream, conversation, out)
 		progressed := conversation.Cursor() > before
-		if finished {
-			cancelOnExit = false
-			return out.Close()
+		if state.finished {
+			return true, out.Close()
 		}
-		if interrupted != nil {
-			answer, interruptID, err := unattendedAnswer(interrupted, approveAll, start.SessionID)
-			if err != nil {
-				return err
-			}
-			resume := client.ResumeRun{RunID: run.ID, InterruptID: interruptID, Answer: answer}
-			if err := resilience.Control(ctx, policy, func() error { return rt.ResumeRun(ctx, resume) }); err != nil {
-				return err
+		if state.interrupted != nil {
+			if err := resumeUnattended(ctx, rt, policy, run.ID, start.SessionID, state.interrupted, approveAll); err != nil {
+				return false, err
 			}
 			failures = 0
 			continue
 		}
-		if subscriptionErr == nil {
-			subscriptionErr = fmt.Errorf("%w: runtime subscription ended without interrupting or finishing the run", client.ErrDisconnected)
+		if state.err == nil {
+			state.err = fmt.Errorf("%w: runtime subscription ended without interrupting or finishing the run", client.ErrDisconnected)
 		}
-		if retryErr := waitToReconnect(ctx, policy, &failures, progressed, subscriptionErr); retryErr != nil {
-			return retryErr
+		if retryErr := waitToReconnect(ctx, policy, &failures, progressed, state.err); retryErr != nil {
+			return false, retryErr
 		}
 	}
+}
+
+type subscriptionState struct {
+	interrupted client.Interaction
+	finished    bool
+	err         error
+}
+
+func consumeSubscription(stream client.Stream, conversation *client.Conversation, out renderer) subscriptionState {
+	var state subscriptionState
+	for envelope, streamErr := range stream {
+		if streamErr != nil {
+			state.err = streamErr
+			break
+		}
+		result, err := conversation.ApplyEnvelope(envelope)
+		if err != nil {
+			state.err = fmt.Errorf("accept runtime event at cursor %d: %w", envelope.Cursor, err)
+			break
+		}
+		if !result.Applied {
+			continue
+		}
+		if err := out.Render(envelope); err != nil {
+			state.err = err
+			break
+		}
+		switch event := envelope.Event.(type) {
+		case client.RunInterrupted:
+			state.interrupted = event.Interaction
+		case client.RunFinished:
+			state.finished = true
+		default:
+		}
+	}
+	return state
+}
+
+func resumeUnattended(
+	ctx context.Context,
+	rt client.Runtime,
+	policy resilience.Reconnect,
+	runID string,
+	sessionID string,
+	interaction client.Interaction,
+	approveAll bool,
+) error {
+	answer, interruptID, err := unattendedAnswer(interaction, approveAll, sessionID)
+	if err != nil {
+		return err
+	}
+	resume := client.ResumeRun{RunID: runID, InterruptID: interruptID, Answer: answer}
+	return resilience.Control(ctx, policy, func() error { return rt.ResumeRun(ctx, resume) })
 }
 
 func waitToReconnect(ctx context.Context, policy resilience.Reconnect, failures *int, progressed bool, cause error) error {

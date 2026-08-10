@@ -69,19 +69,41 @@ func (r ApprovalRule) Validate() error {
 	if !slices.Contains([]RememberScope{RememberSession, RememberProject, RememberGlobal}, r.Scope) {
 		return fmt.Errorf("approval rule: scope %q is invalid", r.Scope)
 	}
+	return r.validateQualifier()
+}
+
+func (r ApprovalRule) validateQualifier() error {
 	switch r.Scope {
 	case RememberSession:
-		if strings.TrimSpace(r.SessionID) == "" || r.Workspace != "" {
-			return errors.New("approval rule: session scope requires only a session id")
-		}
+		return r.validateSessionQualifier()
 	case RememberProject:
-		if strings.TrimSpace(r.Workspace) == "" || r.SessionID != "" {
-			return errors.New("approval rule: project scope requires only a workspace")
-		}
+		return r.validateProjectQualifier()
 	case RememberGlobal:
-		if r.SessionID != "" || r.Workspace != "" {
-			return errors.New("approval rule: global scope cannot carry a qualifier")
-		}
+		return r.validateGlobalQualifier()
+	case RememberNone:
+		return errors.New("approval rule: none is not a persisted scope")
+	default:
+		return fmt.Errorf("approval rule: scope %q is invalid", r.Scope)
+	}
+}
+
+func (r ApprovalRule) validateSessionQualifier() error {
+	if strings.TrimSpace(r.SessionID) == "" || r.Workspace != "" {
+		return errors.New("approval rule: session scope requires only a session id")
+	}
+	return nil
+}
+
+func (r ApprovalRule) validateProjectQualifier() error {
+	if strings.TrimSpace(r.Workspace) == "" || r.SessionID != "" {
+		return errors.New("approval rule: project scope requires only a workspace")
+	}
+	return nil
+}
+
+func (r ApprovalRule) validateGlobalQualifier() error {
+	if r.SessionID != "" || r.Workspace != "" {
+		return errors.New("approval rule: global scope cannot carry a qualifier")
 	}
 	return nil
 }

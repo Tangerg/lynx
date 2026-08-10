@@ -6,6 +6,7 @@ package settings
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 
@@ -81,30 +82,54 @@ func (s Settings) Validate() error {
 	if err := s.RunOptions().Validate(); err != nil {
 		problems = append(problems, err)
 	}
-	if !slices.Contains([]client.RememberScope{client.RememberNone, client.RememberSession, client.RememberProject, client.RememberGlobal}, s.Approval.Remember) {
-		problems = append(problems, fmt.Errorf("approval remember scope %q is invalid", s.Approval.Remember))
+	problems = append(problems, validateApproval(s.Approval)...)
+	problems = append(problems, validateUI(s.UI)...)
+	problems = append(problems, validatePluginDirectories(s.Plugins.Directories)...)
+	problems = append(problems, validateKeys(s.Keys)...)
+	return errors.Join(problems...)
+}
+
+func validateApproval(approval Approval) []error {
+	if !slices.Contains([]client.RememberScope{client.RememberNone, client.RememberSession, client.RememberProject, client.RememberGlobal}, approval.Remember) {
+		return []error{fmt.Errorf("approval remember scope %q is invalid", approval.Remember)}
 	}
-	if s.UI.TranscriptRetain < 4 || s.UI.TranscriptRetain > 500 {
-		problems = append(problems, fmt.Errorf("ui.transcript-retain must be between 4 and 500, got %d", s.UI.TranscriptRetain))
+	return nil
+}
+
+func validateUI(ui UI) []error {
+	var problems []error
+	if ui.TranscriptRetain < 4 || ui.TranscriptRetain > 500 {
+		problems = append(problems, fmt.Errorf("ui.transcript-retain must be between 4 and 500, got %d", ui.TranscriptRetain))
 	}
-	if s.UI.ReconnectAttempts < 0 || s.UI.ReconnectAttempts > 20 {
-		problems = append(problems, fmt.Errorf("ui.reconnect-attempts must be between 0 and 20, got %d", s.UI.ReconnectAttempts))
+	if ui.ReconnectAttempts < 0 || ui.ReconnectAttempts > 20 {
+		problems = append(problems, fmt.Errorf("ui.reconnect-attempts must be between 0 and 20, got %d", ui.ReconnectAttempts))
 	}
-	pluginDirectories := make(map[string]struct{}, len(s.Plugins.Directories))
-	for _, directory := range s.Plugins.Directories {
+	return problems
+}
+
+func validatePluginDirectories(directories []string) []error {
+	var problems []error
+	seen := make(map[string]struct{}, len(directories))
+	for _, directory := range directories {
 		directory = strings.TrimSpace(directory)
 		if directory == "" {
 			problems = append(problems, errors.New("plugins.directories contains an empty path"))
 			continue
 		}
-		if _, duplicate := pluginDirectories[directory]; duplicate {
+		if _, duplicate := seen[directory]; duplicate {
 			problems = append(problems, fmt.Errorf("plugins.directories repeats %q", directory))
 		}
-		pluginDirectories[directory] = struct{}{}
+		seen[directory] = struct{}{}
 	}
-	knownActions := Default().Keys
-	for action, bindings := range s.Keys {
-		if _, ok := knownActions[action]; !ok {
+	return problems
+}
+
+func validateKeys(keys map[string][]string) []error {
+	known := Default().Keys
+	var problems []error
+	for _, action := range slices.Sorted(maps.Keys(keys)) {
+		bindings := keys[action]
+		if _, ok := known[action]; !ok {
 			problems = append(problems, fmt.Errorf("keys.%s is not a known action", action))
 		}
 		if len(bindings) == 0 {
@@ -116,7 +141,7 @@ func (s Settings) Validate() error {
 			}
 		}
 	}
-	return errors.Join(problems...)
+	return problems
 }
 
 func (s Settings) RunOptions() client.RunOptions {

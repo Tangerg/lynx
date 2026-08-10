@@ -142,12 +142,26 @@ func validateRunFinished(event RunFinished) error {
 }
 
 func validateBlock(block Block, completed bool) error {
+	if err := validateBlockIdentity(block); err != nil {
+		return err
+	}
+	if err := validateBlockAttachments(block); err != nil {
+		return err
+	}
+	return validateBlockTool(block, completed)
+}
+
+func validateBlockIdentity(block Block) error {
 	if strings.TrimSpace(block.ID) == "" {
 		return errors.New("transcript block has no id")
 	}
 	if !slices.Contains([]BlockKind{BlockUser, BlockAssistant, BlockReasoning, BlockTool, BlockNotice, BlockError}, block.Kind) {
 		return fmt.Errorf("block %s has invalid kind %q", block.ID, block.Kind)
 	}
+	return nil
+}
+
+func validateBlockAttachments(block Block) error {
 	if block.Kind != BlockUser && len(block.Attachments) != 0 {
 		return fmt.Errorf("%s block %s carries attachments", block.Kind, block.ID)
 	}
@@ -156,21 +170,27 @@ func validateBlock(block Block, completed bool) error {
 			return fmt.Errorf("block %s attachment %d: %w", block.ID, i+1, err)
 		}
 	}
-	if block.Kind == BlockTool {
-		if block.Tool == nil {
-			return fmt.Errorf("tool block %s has no tool projection", block.ID)
+	return nil
+}
+
+func validateBlockTool(block Block, completed bool) error {
+	if block.Kind != BlockTool {
+		if block.Tool != nil {
+			return fmt.Errorf("%s block %s carries a tool projection", block.Kind, block.ID)
 		}
-		if err := block.Tool.Validate(); err != nil {
-			return fmt.Errorf("block %s: %w", block.ID, err)
-		}
-		if !completed && block.Tool.Status != ToolRunning {
-			return fmt.Errorf("block %s started with tool status %q", block.ID, block.Tool.Status)
-		}
-		if completed && block.Tool.Status == ToolRunning {
-			return fmt.Errorf("block %s completed while tool is still running", block.ID)
-		}
-	} else if block.Tool != nil {
-		return fmt.Errorf("%s block %s carries a tool projection", block.Kind, block.ID)
+		return nil
+	}
+	if block.Tool == nil {
+		return fmt.Errorf("tool block %s has no tool projection", block.ID)
+	}
+	if err := block.Tool.Validate(); err != nil {
+		return fmt.Errorf("block %s: %w", block.ID, err)
+	}
+	if !completed && block.Tool.Status != ToolRunning {
+		return fmt.Errorf("block %s started with tool status %q", block.ID, block.Tool.Status)
+	}
+	if completed && block.Tool.Status == ToolRunning {
+		return fmt.Errorf("block %s completed while tool is still running", block.ID)
 	}
 	return nil
 }

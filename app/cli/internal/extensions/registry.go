@@ -259,71 +259,108 @@ func (r *Registry) claim(plugin string) (Disposable, error) {
 
 // Contribute adds a value to a point and makes its lifetime belong to scope.
 func Contribute[T any](scope *Scope, point Point[T], value T, options Contribution) (Disposable, error) {
-	if scope == nil || scope.registry == nil {
-		return nil, errors.New("extensions: plugin scope is required")
+	if err := validateContributionScope(scope, point); err != nil {
+		return nil, err
 	}
-	if strings.TrimSpace(point.id) == "" {
-		return nil, errors.New("extensions: point id is required")
+	key, err := contributionKey(point, value, options.Key)
+	if err != nil {
+		return nil, err
 	}
-	if point.capability != "" && scope.capabilities != nil {
-		if _, allowed := scope.capabilities[point.capability]; !allowed {
-			return nil, fmt.Errorf("extensions: plugin %q needs capability %q to contribute to point %q", scope.plugin, point.capability, point.id)
-		}
+	key, sequence, err := insertContribution(scope.registry, scope.plugin, point, key, value, options.Order)
+	if err != nil {
+		return nil, err
 	}
-
-	key := strings.TrimSpace(options.Key)
-	if point.keying == Keyed && key == "" && point.keyOf != nil {
-		key = strings.TrimSpace(point.keyOf(value))
-	}
-	if point.keying == Keyed && key == "" {
-		return nil, fmt.Errorf("extensions: keyed point %q requires a stable key", point.id)
-	}
-
-	r := scope.registry
-	r.mu.Lock()
-	if r.points == nil {
-		r.points = make(map[string]pointState)
-	}
-	wantType := reflect.TypeFor[T]()
-	state, exists := r.points[point.id]
-	if exists && (state.typeOf != wantType || state.keying != point.keying) {
-		r.mu.Unlock()
-		return nil, fmt.Errorf("extensions: point %q was defined with an incompatible type or keying", point.id)
-	}
-	if !exists {
-		state = pointState{typeOf: wantType, keying: point.keying, entries: make(map[string]entry)}
-	}
-	r.next++
-	sequence := r.next
-	if point.keying == Multi {
-		key = fmt.Sprintf("%s:%d", scope.plugin, sequence)
-	}
-	if previous, duplicate := state.entries[key]; duplicate {
-		r.mu.Unlock()
-		return nil, fmt.Errorf("extensions: plugin %q cannot contribute key %q to point %q; owned by %q",
-			scope.plugin, key, point.id, previous.plugin)
-	}
-	state.entries[key] = entry{plugin: scope.plugin, order: options.Order, seq: sequence, value: value}
-	r.points[point.id] = state
-	r.mu.Unlock()
-
 	d := &disposal{do: func() error {
-		r.mu.Lock()
-		defer r.mu.Unlock()
-		state, ok := r.points[point.id]
-		if !ok {
-			return nil
-		}
-		current, ok := state.entries[key]
-		if !ok || current.seq != sequence {
-			return nil
-		}
-		delete(state.entries, key)
-		r.points[point.id] = state
+		scope.registry.removeContribution(point.id, key, sequence)
 		return nil
 	}}
 	scope.disposables = append(scope.disposables, d)
 	return d, nil
+}
+
+func validateContributionScope[T any](scope *Scope, point Point[T]) error {
+	if scope == nil || scope.registry == nil {
+		return errors.New("extensions: plugin scope is required")
+	}
+	if strings.TrimSpace(point.id) == "" {
+		return errors.New("extensions: point id is required")
+	}
+	if point.capability == "" || scope.capabilities == nil {
+		return nil
+	}
+	if _, allowed := scope.capabilities[point.capability]; !allowed {
+		return fmt.Errorf("extensions: plugin %q needs capability %q to contribute to point %q", scope.plugin, point.capability, point.id)
+	}
+	return nil
+}
+
+func contributionKey[T any](point Point[T], value T, configured string) (string, error) {
+	key := strings.TrimSpace(configured)
+	if point.keying == Keyed && key == "" && point.keyOf != nil {
+		key = strings.TrimSpace(point.keyOf(value))
+	}
+	if point.keying == Keyed && key == "" {
+		return "", fmt.Errorf("extensions: keyed point %q requires a stable key", point.id)
+	}
+	return key, nil
+}
+
+func insertContribution[T any](
+	registry *Registry,
+	plugin string,
+	point Point[T],
+	key string,
+	value T,
+	order int,
+) (string, uint64, error) {
+	registry.mu.Lock()
+	defer registry.mu.Unlock()
+	if registry.points == nil {
+		registry.points = make(map[string]pointState)
+	}
+	state, err := pointStateFor(registry, point)
+	if err != nil {
+		return "", 0, err
+	}
+	registry.next++
+	sequence := registry.next
+	if point.keying == Multi {
+		key = fmt.Sprintf("%s:%d", plugin, sequence)
+	}
+	if previous, duplicate := state.entries[key]; duplicate {
+		return "", 0, fmt.Errorf("extensions: plugin %q cannot contribute key %q to point %q; owned by %q",
+			plugin, key, point.id, previous.plugin)
+	}
+	state.entries[key] = entry{plugin: plugin, order: order, seq: sequence, value: value}
+	registry.points[point.id] = state
+	return key, sequence, nil
+}
+
+func pointStateFor[T any](registry *Registry, point Point[T]) (pointState, error) {
+	wantType := reflect.TypeFor[T]()
+	state, exists := registry.points[point.id]
+	if exists && (state.typeOf != wantType || state.keying != point.keying) {
+		return pointState{}, fmt.Errorf("extensions: point %q was defined with an incompatible type or keying", point.id)
+	}
+	if !exists {
+		state = pointState{typeOf: wantType, keying: point.keying, entries: make(map[string]entry)}
+	}
+	return state, nil
+}
+
+func (r *Registry) removeContribution(pointID, key string, sequence uint64) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	state, ok := r.points[pointID]
+	if !ok {
+		return
+	}
+	current, ok := state.entries[key]
+	if !ok || current.seq != sequence {
+		return
+	}
+	delete(state.entries, key)
+	r.points[pointID] = state
 }
 
 // OwnedValue keeps contribution ownership attached to a typed value so an

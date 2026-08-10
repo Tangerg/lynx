@@ -4,8 +4,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -13,6 +15,20 @@ import (
 
 	"github.com/Tangerg/lynx/app/cli/internal/settings"
 )
+
+type flagBinding struct {
+	key  string
+	flag string
+}
+
+var nestedFlagBindings = [...]flagBinding{
+	{key: "ui.mouse", flag: "mouse"},
+	{key: "ui.notifications", flag: "notifications"},
+	{key: "ui.tool-details", flag: "tool-details"},
+	{key: "ui.transcript-retain", flag: "transcript-retain"},
+	{key: "ui.reconnect-attempts", flag: "reconnect-attempts"},
+	{key: "plugins.directories", flag: "plugin-dir"},
+}
 
 func configure(v *viper.Viper, root *cobra.Command) {
 	defaults := settings.Default()
@@ -47,7 +63,8 @@ func setDefaults(v *viper.Viper, defaults settings.Settings) {
 	v.SetDefault("ui.transcript-retain", defaults.UI.TranscriptRetain)
 	v.SetDefault("ui.reconnect-attempts", defaults.UI.ReconnectAttempts)
 	v.SetDefault("plugins.directories", defaults.Plugins.Directories)
-	for action, bindings := range defaults.Keys {
+	for _, action := range slices.Sorted(maps.Keys(defaults.Keys)) {
+		bindings := defaults.Keys[action]
 		v.SetDefault("keys."+action, bindings)
 	}
 }
@@ -57,25 +74,8 @@ func loadConfig(v *viper.Viper, cmd *cobra.Command) error {
 	if err != nil {
 		return err
 	}
-	if path != "" {
-		v.SetConfigFile(path)
-	} else {
-		projectConfig := ".lyra.yaml"
-		_, projectErr := os.Stat(projectConfig)
-		if projectErr == nil {
-			v.SetConfigFile(projectConfig)
-		} else if !errors.Is(projectErr, os.ErrNotExist) {
-			return fmt.Errorf("inspect project configuration: %w", projectErr)
-		}
-		if errors.Is(projectErr, os.ErrNotExist) {
-			configDir, err := os.UserConfigDir()
-			if err != nil {
-				return fmt.Errorf("resolve user config directory: %w", err)
-			}
-			v.SetConfigName("config")
-			v.SetConfigType("yaml")
-			v.AddConfigPath(filepath.Join(configDir, "lyra"))
-		}
+	if err := selectConfigSource(v, path); err != nil {
+		return err
 	}
 	if err := v.ReadInConfig(); err != nil {
 		_, notFound := errors.AsType[viper.ConfigFileNotFoundError](err)
@@ -86,20 +86,48 @@ func loadConfig(v *viper.Viper, cmd *cobra.Command) error {
 	if err := v.BindPFlags(cmd.Flags()); err != nil {
 		return fmt.Errorf("bind command flags: %w", err)
 	}
-	for key, flag := range map[string]string{
-		"ui.mouse": "mouse", "ui.notifications": "notifications",
-		"ui.tool-details":      "tool-details",
-		"ui.transcript-retain": "transcript-retain", "ui.reconnect-attempts": "reconnect-attempts",
-		"plugins.directories": "plugin-dir",
-	} {
-		if found := cmd.Flags().Lookup(flag); found != nil {
-			if err := v.BindPFlag(key, found); err != nil {
-				return fmt.Errorf("bind --%s: %w", flag, err)
-			}
-		}
+	if err := bindNestedFlags(v, cmd); err != nil {
+		return err
 	}
 	_, err = readSettings(v)
 	return err
+}
+
+func selectConfigSource(v *viper.Viper, explicitPath string) error {
+	if explicitPath != "" {
+		v.SetConfigFile(explicitPath)
+		return nil
+	}
+	const projectConfig = ".lyra.yaml"
+	_, err := os.Stat(projectConfig)
+	switch {
+	case err == nil:
+		v.SetConfigFile(projectConfig)
+		return nil
+	case !errors.Is(err, os.ErrNotExist):
+		return fmt.Errorf("inspect project configuration: %w", err)
+	}
+	configDir, err := os.UserConfigDir()
+	if err != nil {
+		return fmt.Errorf("resolve user config directory: %w", err)
+	}
+	v.SetConfigName("config")
+	v.SetConfigType("yaml")
+	v.AddConfigPath(filepath.Join(configDir, "lyra"))
+	return nil
+}
+
+func bindNestedFlags(v *viper.Viper, cmd *cobra.Command) error {
+	for _, binding := range nestedFlagBindings {
+		flag := cmd.Flags().Lookup(binding.flag)
+		if flag == nil {
+			continue
+		}
+		if err := v.BindPFlag(binding.key, flag); err != nil {
+			return fmt.Errorf("bind --%s: %w", binding.flag, err)
+		}
+	}
+	return nil
 }
 
 func readSettings(v *viper.Viper) (settings.Settings, error) {

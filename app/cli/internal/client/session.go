@@ -57,27 +57,12 @@ func (c *Conversation) RestoreSnapshot(snapshot SessionSnapshot) error {
 }
 
 func foldSnapshot(snapshot SessionSnapshot) (*Conversation, error) {
-	if strings.TrimSpace(snapshot.Session.ID) == "" {
-		return nil, errors.New("session snapshot: session id is empty")
+	if err := validateSnapshotHeader(snapshot); err != nil {
+		return nil, err
 	}
-	if strings.TrimSpace(snapshot.Session.Workspace) == "" {
-		return nil, errors.New("session snapshot: workspace is empty")
-	}
-	if snapshot.Cursor == 0 && len(snapshot.Events) != 0 {
-		return nil, errors.New("session snapshot: zero cursor carries events")
-	}
-	if snapshot.Cursor != 0 && (len(snapshot.Events) == 0 || snapshot.Events[len(snapshot.Events)-1].Cursor != snapshot.Cursor) {
-		return nil, fmt.Errorf("session snapshot: cursor %d does not match event history", snapshot.Cursor)
-	}
-
 	conversation := NewConversation()
-	for _, envelope := range snapshot.Events {
-		if envelope.SessionID != snapshot.Session.ID {
-			return nil, fmt.Errorf("session snapshot: event %s belongs to session %s", envelope.ID, envelope.SessionID)
-		}
-		if _, err := conversation.ApplyEnvelope(envelope); err != nil {
-			return nil, fmt.Errorf("session snapshot: cursor %d: %w", envelope.Cursor, err)
-		}
+	if err := foldSnapshotEvents(snapshot, conversation); err != nil {
+		return nil, err
 	}
 	if conversation.Cursor() != snapshot.Cursor {
 		return nil, fmt.Errorf("session snapshot: folded cursor %d does not match %d", conversation.Cursor(), snapshot.Cursor)
@@ -88,6 +73,33 @@ func foldSnapshot(snapshot SessionSnapshot) (*Conversation, error) {
 	return conversation, nil
 }
 
+func validateSnapshotHeader(snapshot SessionSnapshot) error {
+	switch {
+	case strings.TrimSpace(snapshot.Session.ID) == "":
+		return errors.New("session snapshot: session id is empty")
+	case strings.TrimSpace(snapshot.Session.Workspace) == "":
+		return errors.New("session snapshot: workspace is empty")
+	case snapshot.Cursor == 0 && len(snapshot.Events) != 0:
+		return errors.New("session snapshot: zero cursor carries events")
+	case snapshot.Cursor != 0 && (len(snapshot.Events) == 0 || snapshot.Events[len(snapshot.Events)-1].Cursor != snapshot.Cursor):
+		return fmt.Errorf("session snapshot: cursor %d does not match event history", snapshot.Cursor)
+	default:
+		return nil
+	}
+}
+
+func foldSnapshotEvents(snapshot SessionSnapshot, conversation *Conversation) error {
+	for _, envelope := range snapshot.Events {
+		if envelope.SessionID != snapshot.Session.ID {
+			return fmt.Errorf("session snapshot: event %s belongs to session %s", envelope.ID, envelope.SessionID)
+		}
+		if _, err := conversation.ApplyEnvelope(envelope); err != nil {
+			return fmt.Errorf("session snapshot: cursor %d: %w", envelope.Cursor, err)
+		}
+	}
+	return nil
+}
+
 func validateActiveRun(snapshot SessionSnapshot, conversation *Conversation) error {
 	if snapshot.Active == nil {
 		if conversation.Phase() != Idle {
@@ -96,13 +108,20 @@ func validateActiveRun(snapshot SessionSnapshot, conversation *Conversation) err
 		return nil
 	}
 	active := *snapshot.Active
+	if err := validateActiveProjection(active, snapshot.Session.ID, conversation); err != nil {
+		return err
+	}
+	return validateActiveStart(active, snapshot.Events)
+}
+
+func validateActiveProjection(active Run, sessionID string, conversation *Conversation) error {
 	if err := active.Validate(); err != nil {
 		return fmt.Errorf("session snapshot: %w", err)
 	}
 	if active.Status == RunComplete {
 		return errors.New("session snapshot: completed run is marked active")
 	}
-	if active.SessionID != snapshot.Session.ID {
+	if active.SessionID != sessionID {
 		return fmt.Errorf("session snapshot: active run belongs to session %s", active.SessionID)
 	}
 	if conversation.RunID() != active.ID {
@@ -115,23 +134,25 @@ func validateActiveRun(snapshot SessionSnapshot, conversation *Conversation) err
 	if conversation.Phase() != wantPhase {
 		return fmt.Errorf("session snapshot: active run status %s conflicts with conversation phase %d", active.Status, conversation.Phase())
 	}
+	return nil
+}
+
+func validateActiveStart(active Run, events []Envelope) error {
 	if active.StartedAfter == ^Cursor(0) {
 		return errors.New("session snapshot: active run start cursor overflows")
 	}
 	startedAt := active.StartedAfter + 1
-	found := false
-	for _, envelope := range snapshot.Events {
+	for _, envelope := range events {
 		if envelope.Cursor != startedAt || envelope.RunID != active.ID {
 			continue
 		}
 		started, ok := envelope.Event.(RunStarted)
-		found = ok && started.RunID == active.ID
+		if ok && started.RunID == active.ID {
+			return nil
+		}
 		break
 	}
-	if !found {
-		return fmt.Errorf("session snapshot: active run %s has no start event at cursor %d", active.ID, startedAt)
-	}
-	return nil
+	return fmt.Errorf("session snapshot: active run %s has no start event at cursor %d", active.ID, startedAt)
 }
 
 type NewSession struct {

@@ -437,93 +437,120 @@ func (r *Runtime) FollowRun(ctx context.Context, in client.FollowRun) (client.St
 	if err := in.Validate(); err != nil {
 		return nil, fmt.Errorf("mock: %w", err)
 	}
+	run, fault, err := r.openSubscription(in)
+	if err != nil {
+		return nil, err
+	}
+	subscription := &runSubscription{runtime: r, ctx: ctx, run: run, after: in.After, fault: fault}
+	return subscription.stream, nil
+}
+
+func (r *Runtime) openSubscription(in client.FollowRun) (*runState, SubscriptionFault, error) {
 	r.mu.Lock()
+	defer r.mu.Unlock()
 	run, ok := r.runs[in.RunID]
 	if !ok {
-		r.mu.Unlock()
-		return nil, fmt.Errorf("%w: %s", client.ErrRunNotFound, in.RunID)
+		return nil, SubscriptionFault{}, fmt.Errorf("%w: %s", client.ErrRunNotFound, in.RunID)
 	}
 	if in.After < run.startedAfter {
-		r.mu.Unlock()
-		return nil, fmt.Errorf("mock: cursor %d predates run start cursor %d", in.After, run.startedAfter)
+		return nil, SubscriptionFault{}, fmt.Errorf("mock: cursor %d predates run start cursor %d", in.After, run.startedAfter)
 	}
 	session := r.sessions[run.sessionID]
 	latest := client.Cursor(len(session.events))
 	if in.After > latest {
-		r.mu.Unlock()
-		return nil, fmt.Errorf("mock: cursor %d is after session cursor %d", in.After, latest)
+		return nil, SubscriptionFault{}, fmt.Errorf("mock: cursor %d is after session cursor %d", in.After, latest)
 	}
 	fault, err := r.takeFaultLocked()
-	r.mu.Unlock()
-	if err != nil {
-		return nil, err
-	}
+	return run, fault, err
+}
 
-	return func(yield func(client.Envelope, error) bool) {
-		after := in.After
-		position := 0
-		for {
-			r.mu.Lock()
-			session := r.sessions[run.sessionID]
-			var next *client.Envelope
-			for _, envelope := range session.events {
-				if envelope.Cursor <= after || envelope.RunID != run.id {
-					continue
-				}
-				cloned := cloneEnvelope(envelope)
-				next = &cloned
-				break
-			}
-			status := run.status
-			changed := session.changed
-			r.mu.Unlock()
+type runSubscription struct {
+	runtime  *Runtime
+	ctx      context.Context
+	run      *runState
+	after    client.Cursor
+	fault    SubscriptionFault
+	position int
+}
 
-			if next != nil {
-				position++
-				if fault.Kind == FaultGap && position == fault.After {
-					after = next.Cursor
-					continue
-				}
-				after = next.Cursor
-				if !yield(*next, nil) {
-					return
-				}
-				if position == fault.After {
-					switch fault.Kind {
-					case FaultDuplicate:
-						if !yield(*next, nil) {
-							return
-						}
-					case FaultConflict:
-						conflict := cloneEnvelope(*next)
-						conflict.ID += "_conflict"
-						yield(conflict, nil)
-						return
-					}
-				}
-				switch next.Event.(type) {
-				case client.RunInterrupted, client.RunFinished:
-					return
-				}
-				if fault.Kind == FaultDisconnect && position == fault.After {
-					yield(client.Envelope{}, fmt.Errorf("%w after cursor %d", client.ErrDisconnected, after))
-					return
-				}
-				continue
-			}
-			if status != client.RunActive {
+func (s *runSubscription) stream(yield func(client.Envelope, error) bool) {
+	for {
+		next, active, changed := s.next()
+		if next != nil {
+			if !s.deliver(*next, yield) {
 				return
 			}
-			select {
-			case <-changed:
-			case <-ctx.Done():
-				if !yield(client.Envelope{}, context.Canceled) {
-					return
-				}
-				return
-			}
+			continue
 		}
-	}, nil
+		if !active || !s.awaitChange(changed, yield) {
+			return
+		}
+	}
+}
+
+func (s *runSubscription) next() (*client.Envelope, bool, <-chan struct{}) {
+	s.runtime.mu.Lock()
+	defer s.runtime.mu.Unlock()
+	session := s.runtime.sessions[s.run.sessionID]
+	for _, envelope := range session.events {
+		if envelope.Cursor <= s.after || envelope.RunID != s.run.id {
+			continue
+		}
+		cloned := cloneEnvelope(envelope)
+		return &cloned, s.run.status == client.RunActive, session.changed
+	}
+	return nil, s.run.status == client.RunActive, session.changed
+}
+
+func (s *runSubscription) deliver(next client.Envelope, yield func(client.Envelope, error) bool) bool {
+	s.position++
+	if s.fault.Kind == FaultGap && s.position == s.fault.After {
+		s.after = next.Cursor
+		return true
+	}
+	s.after = next.Cursor
+	if !yield(next, nil) || !s.injectDeliveredFault(next, yield) {
+		return false
+	}
+	switch next.Event.(type) {
+	case client.RunInterrupted, client.RunFinished:
+		return false
+	default:
+	}
+	if s.fault.Kind == FaultDisconnect && s.position == s.fault.After {
+		yield(client.Envelope{}, fmt.Errorf("%w after cursor %d", client.ErrDisconnected, s.after))
+		return false
+	}
+	return true
+}
+
+func (s *runSubscription) injectDeliveredFault(next client.Envelope, yield func(client.Envelope, error) bool) bool {
+	if s.position != s.fault.After {
+		return true
+	}
+	switch s.fault.Kind {
+	case FaultDuplicate:
+		return yield(next, nil)
+	case FaultConflict:
+		conflict := cloneEnvelope(next)
+		conflict.ID += "_conflict"
+		yield(conflict, nil)
+		return false
+	case FaultDisconnect, FaultGap, "":
+		return true
+	default:
+		return true
+	}
+}
+
+func (s *runSubscription) awaitChange(changed <-chan struct{}, yield func(client.Envelope, error) bool) bool {
+	select {
+	case <-changed:
+		return true
+	case <-s.ctx.Done():
+		yield(client.Envelope{}, context.Cause(s.ctx))
+		return false
+	}
 }
 
 func (r *Runtime) takeFaultLocked() (SubscriptionFault, error) {
@@ -796,6 +823,12 @@ func (r *Runtime) rememberApprovalLocked(run *runState, approval client.Approval
 		rule.SessionID = run.sessionID
 	case client.RememberProject:
 		rule.Workspace = session.meta.Workspace
+	case client.RememberGlobal:
+		// Global rules intentionally carry no qualifier.
+	case client.RememberNone:
+		return
+	default:
+		return
 	}
 	r.rules = append(r.rules, rule)
 }
@@ -819,6 +852,8 @@ func ruleApplies(rule client.ApprovalRule, sessionID, workspace string) bool {
 		return rule.Workspace == workspace
 	case client.RememberGlobal:
 		return true
+	case client.RememberNone:
+		return false
 	default:
 		return false
 	}

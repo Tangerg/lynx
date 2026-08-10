@@ -30,20 +30,14 @@ func (s *EventSequence) Accept(envelope Envelope, apply func() error) (ApplyResu
 	if s == nil {
 		return ApplyResult{}, errors.New("event sequence is nil")
 	}
-	if envelope.Cursor == 0 {
-		return ApplyResult{}, errors.New("event cursor is zero")
-	}
-	if envelope.ID == "" {
-		return ApplyResult{}, errors.New("event id is empty")
+	if err := validateSequencedEnvelope(envelope); err != nil {
+		return ApplyResult{}, err
 	}
 	if s.ids == nil {
 		s.ids = make(map[Cursor]string)
 	}
-	if known, ok := s.ids[envelope.Cursor]; ok {
-		if known != envelope.ID {
-			return ApplyResult{}, fmt.Errorf("%w at cursor %d: have %s, received %s", ErrEventConflict, envelope.Cursor, known, envelope.ID)
-		}
-		return ApplyResult{}, nil
+	if result, replayed, err := s.acceptReplay(envelope); replayed || err != nil {
+		return result, err
 	}
 	if envelope.Cursor <= s.cursor {
 		return ApplyResult{}, fmt.Errorf("%w at cursor %d: cursor predates guarded window ending at %d", ErrEventConflict, envelope.Cursor, s.cursor)
@@ -60,4 +54,25 @@ func (s *EventSequence) Accept(envelope Envelope, apply func() error) (ApplyResu
 	s.ids[envelope.Cursor] = envelope.ID
 	s.cursor = envelope.Cursor
 	return ApplyResult{Applied: true}, nil
+}
+
+func validateSequencedEnvelope(envelope Envelope) error {
+	if envelope.Cursor == 0 {
+		return errors.New("event cursor is zero")
+	}
+	if envelope.ID == "" {
+		return errors.New("event id is empty")
+	}
+	return nil
+}
+
+func (s *EventSequence) acceptReplay(envelope Envelope) (ApplyResult, bool, error) {
+	known, replayed := s.ids[envelope.Cursor]
+	if !replayed {
+		return ApplyResult{}, false, nil
+	}
+	if known != envelope.ID {
+		return ApplyResult{}, true, fmt.Errorf("%w at cursor %d: have %s, received %s", ErrEventConflict, envelope.Cursor, known, envelope.ID)
+	}
+	return ApplyResult{}, true, nil
 }

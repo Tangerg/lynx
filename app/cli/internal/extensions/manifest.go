@@ -32,30 +32,41 @@ func ValidateManifest(plugin Plugin) error {
 	if plugin.Setup == nil {
 		return fmt.Errorf("extensions: plugin %q has no setup", id)
 	}
-	seenDependencies := make(map[string]struct{}, len(plugin.Requires))
-	for _, dependency := range plugin.Requires {
+	if err := validateDependencies(id, plugin.Requires); err != nil {
+		return err
+	}
+	return validateCapabilities(id, plugin.Capabilities)
+}
+
+func validateDependencies(pluginID string, dependencies []string) error {
+	seen := make(map[string]struct{}, len(dependencies))
+	for _, dependency := range dependencies {
 		dependency = strings.TrimSpace(dependency)
 		switch {
 		case !pluginIDPattern.MatchString(dependency):
-			return fmt.Errorf("extensions: plugin %q has invalid dependency %q", id, dependency)
-		case dependency == id:
-			return fmt.Errorf("extensions: plugin %q depends on itself", id)
+			return fmt.Errorf("extensions: plugin %q has invalid dependency %q", pluginID, dependency)
+		case dependency == pluginID:
+			return fmt.Errorf("extensions: plugin %q depends on itself", pluginID)
 		}
-		if _, duplicate := seenDependencies[dependency]; duplicate {
-			return fmt.Errorf("extensions: plugin %q repeats dependency %q", id, dependency)
+		if _, duplicate := seen[dependency]; duplicate {
+			return fmt.Errorf("extensions: plugin %q repeats dependency %q", pluginID, dependency)
 		}
-		seenDependencies[dependency] = struct{}{}
+		seen[dependency] = struct{}{}
 	}
-	seenCapabilities := make(map[Capability]struct{}, len(plugin.Capabilities))
-	for _, capability := range plugin.Capabilities {
+	return nil
+}
+
+func validateCapabilities(pluginID string, capabilities []Capability) error {
+	seen := make(map[Capability]struct{}, len(capabilities))
+	for _, capability := range capabilities {
 		name := string(capability)
 		if !pluginIDPattern.MatchString(name) {
-			return fmt.Errorf("extensions: plugin %q has invalid capability %q", id, capability)
+			return fmt.Errorf("extensions: plugin %q has invalid capability %q", pluginID, capability)
 		}
-		if _, duplicate := seenCapabilities[capability]; duplicate {
-			return fmt.Errorf("extensions: plugin %q repeats capability %q", id, capability)
+		if _, duplicate := seen[capability]; duplicate {
+			return fmt.Errorf("extensions: plugin %q repeats capability %q", pluginID, capability)
 		}
-		seenCapabilities[capability] = struct{}{}
+		seen[capability] = struct{}{}
 	}
 	return nil
 }
