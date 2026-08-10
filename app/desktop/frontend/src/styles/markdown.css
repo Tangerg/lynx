@@ -35,11 +35,12 @@
 }
 
 /* Headings — a percentage of the body they sit in, which is what both references
-   do (ChatGPT 150/125/115%, weight 600). Ours is compressed to 125/112.5/100
-   because this is a tool window and theirs is a document: at their ratios an LLM
-   that opens with `#` plants a 24px headline in the middle of a transcript. Two
-   real size steps and then weight carries the rest, so the ladder still reads at
-   a glance without any of it becoming display type. */
+   do: a section heading inside an answer runs 1.36em (JetBrains, 19 on 14) and
+   1.33em (Nova, 20 on 15), weight 600. Ours stops at 1.3 so an LLM that opens with
+   `#` cannot plant display type mid-transcript, and h2/h3 take the ratio's real
+   steps — those are the two levels a model actually emits, and at 1.125/1.0 the
+   deeper one was the same size as the paragraph under it and only weight said
+   otherwise. */
 .md h1,
 .md h2,
 .md h3,
@@ -52,15 +53,15 @@
   color: var(--color-text);
 }
 .md h1 {
-  font-size: 1.25em;
+  font-size: 1.3em;
   margin: 24px 0 10px;
 }
 .md h2 {
-  font-size: 1.125em;
+  font-size: 1.18em;
   margin: 20px 0 8px;
 }
 .md h3 {
-  font-size: 1em;
+  font-size: 1.06em;
   margin: 16px 0 8px;
 }
 .md h4 {

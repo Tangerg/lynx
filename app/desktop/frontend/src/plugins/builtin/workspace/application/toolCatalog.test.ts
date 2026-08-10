@@ -43,28 +43,74 @@ describe("toolCatalogViewModel", () => {
 });
 
 describe("builtinToolCatalogViewModel", () => {
-  it("projects runtime tools into stable rows", () => {
+  // A name the local table places goes to its family with its glyph; one it has
+  // never heard of still lists, under the trailing family and with the generic
+  // glyph. The alternative — enumerating the table — advertises tools the connected
+  // runtime cannot call.
+  it("groups runtime tools by family and keeps unplaced ones", () => {
     expect(
       builtinToolCatalogViewModel([
         { name: "read", description: "Read files", safetyClass: "safe" },
         { name: "think", description: "Think" },
+        { name: "shell", description: "Run a command", safetyClass: "exec" },
       ]),
     ).toEqual({
-      rows: [
+      families: [
         {
-          id: "read",
-          name: "read",
-          description: "Read files",
-          safety: { label: "safe", tone: "accent" },
+          id: "shell",
+          titleKey: "tools.family.shell",
+          rows: [
+            {
+              id: "shell",
+              name: "shell",
+              description: "Run a command",
+              icon: "terminal",
+              safety: { label: "exec", tone: "negative" },
+            },
+          ],
         },
-        { id: "think", name: "think", description: "Think", safety: undefined },
+        {
+          id: "files",
+          titleKey: "tools.family.files",
+          rows: [
+            {
+              id: "read",
+              name: "read",
+              description: "Read files",
+              icon: "eye",
+              safety: { label: "safe", tone: "accent" },
+            },
+          ],
+        },
+        {
+          id: "other",
+          titleKey: "tools.family.other",
+          rows: [
+            {
+              id: "think",
+              name: "think",
+              description: "Think",
+              icon: "tool",
+              safety: undefined,
+            },
+          ],
+        },
       ],
       isEmpty: false,
     });
   });
 
+  // Families the runtime shipped nothing for are absent, not empty: a heading with
+  // no rows under it reads as a catalog that failed to load.
+  it("omits families the runtime reported no tools for", () => {
+    const view = builtinToolCatalogViewModel([
+      { name: "grep", description: "Search", safetyClass: "safe" },
+    ]);
+    expect(view.families.map((family) => family.id)).toEqual(["search"]);
+  });
+
   it("projects an empty runtime tool catalog", () => {
-    expect(builtinToolCatalogViewModel([])).toEqual({ rows: [], isEmpty: true });
+    expect(builtinToolCatalogViewModel([])).toEqual({ families: [], isEmpty: true });
   });
 });
 

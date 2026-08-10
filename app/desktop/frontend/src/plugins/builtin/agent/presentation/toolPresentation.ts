@@ -71,16 +71,21 @@ export function toolIntent(t: Translate, tool: ToolCall): ToolIntent {
   // condition rather than on `fn` matching a name in the table, which is the same
   // thing by coincidence until a shell command happens to be spelled `grep`.
   const labelKey = tool.fn === tool.name ? TOOL_LABEL_KEYS[tool.name] : undefined;
-  return {
-    label: labelKey
-      ? { kind: "text", value: t(labelKey) }
-      : { kind: tool.fnKind ?? "text", value: tool.fn },
-    // In order of how directly each answers "what did this do": the command a
-    // shell ran, the step a plan is on, else whatever identifying argument the
-    // call's arg text carries. The first two are facts the fold lifted out of the
-    // arguments; only the last has to be looked for.
-    detail: text(tool.command) ?? text(tool.step) ?? (parsed ? toolDetail(parsed) : undefined),
-  };
+  const label: ToolDetail = labelKey
+    ? { kind: "text", value: t(labelKey) }
+    : { kind: tool.fnKind ?? "text", value: tool.fn };
+  // In order of how directly each answers "what did this do": the command a
+  // shell ran, the step a plan is on, else whatever identifying argument the
+  // call's arg text carries. The first two are facts the fold lifted out of the
+  // arguments; only the last has to be looked for.
+  const detail = text(tool.command) ?? text(tool.step) ?? (parsed ? toolDetail(parsed) : undefined);
+  // A row has two slots for one subject, and where the title already IS the
+  // subject the second one has nothing left to say. The fold titles a command
+  // with its `description` and keeps the command line for this slot, but
+  // `description` is the tool's contract rather than the wire's guarantee — with
+  // it absent the title falls back to the command, and both slots then printed the
+  // same shell line, the first of them truncated at a different width.
+  return detail && detail.value === label.value ? { label } : { label, detail };
 }
 
 export function toolMetaItems(t: Translate, tool: ToolCall): ToolMetaItem[] {
@@ -184,20 +189,45 @@ export function toolGroupNeedsAttention(tools: readonly ToolCall[]): boolean {
   return tools.some((tool) => tool.status === "running" || tool.status === "err");
 }
 
-export function summarizeToolGroup(t: Translate, tools: readonly ToolCall[]): string {
-  let read = 0;
-  let search = 0;
-  let lookup = 0;
+/**
+ * What a run of calls DID, counted per kind of act.
+ *
+ * The families below are the runtime's own safety classes plus the two reads worth
+ * telling apart (a file and a symbol), so a tool added or renamed on the backend
+ * lands in the right one with no table here to update. Order is fixed rather than
+ * by-count: a row that reorders itself as counts change is a row a reader has to
+ * re-read every time.
+ *
+ * Both callers show it in the LABEL and keep a total in the meta column — the
+ * summary says what happened, the total says how much is behind the row. A
+ * breakdown alone used to be the whole row and undercounted, because a folded
+ * round holds conclusions as well as calls and only calls can be classified.
+ */
+const ACTIVITY_FAMILIES = ["read", "search", "lookup", "write", "run", "fetch"] as const;
+
+type ActivityFamily = (typeof ACTIVITY_FAMILIES)[number];
+
+function activityFamily(tool: ToolCall): ActivityFamily {
+  if (tool.name === "read") return "read";
+  if (tool.name === "lsp") return "lookup";
+  if (tool.safetyClass === "write") return "write";
+  if (tool.safetyClass === "exec") return "run";
+  if (tool.safetyClass === "network") return "fetch";
+  return "search";
+}
+
+export function summarizeActivity(t: Translate, tools: readonly ToolCall[]): string {
+  const counts = new Map<ActivityFamily, number>();
   for (const tool of tools) {
-    if (tool.name === "read") read++;
-    else if (tool.name === "lsp") lookup++;
-    else search++;
+    const family = activityFamily(tool);
+    counts.set(family, (counts.get(family) ?? 0) + 1);
   }
 
   const parts: string[] = [];
-  if (read) parts.push(t("tool.group.read", { count: read }));
-  if (search) parts.push(t("tool.group.search", { count: search }));
-  if (lookup) parts.push(t("tool.group.lookup", { count: lookup }));
+  for (const family of ACTIVITY_FAMILIES) {
+    const count = counts.get(family);
+    if (count) parts.push(t(`tool.group.${family}`, { count }));
+  }
   return parts.join(" · ");
 }
 

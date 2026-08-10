@@ -1,7 +1,7 @@
-export { planRenderUnits, waveStepCount } from "../presentation/messageRenderUnits";
+export { planRenderUnits, waveStepCount, waveToolCalls } from "../presentation/messageRenderUnits";
 export type { MessageRenderUnit } from "../presentation/messageRenderUnits";
 export {
-  summarizeToolGroup,
+  summarizeActivity,
   toolActivityShell,
   toolDiffStat,
   toolGroupNeedsAttention,

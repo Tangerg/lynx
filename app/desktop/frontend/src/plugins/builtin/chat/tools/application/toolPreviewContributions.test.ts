@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_TOOL_ICONS } from "./toolIconContributions";
+import { TOOL_ICON_BY_NAME } from "@/lib/toolFamilies";
 import {
   askUserToolPreview,
   diffToolPreviews,
@@ -108,7 +108,7 @@ describe("tool preview contributions", () => {
       "report_goal_outcome",
     ]);
 
-    const undecided = Object.keys(DEFAULT_TOOL_ICONS).filter(
+    const undecided = Object.keys(TOOL_ICON_BY_NAME).filter(
       (name) => !specialised.has(name) && !genericByDesign.has(name),
     );
     expect(undecided).toEqual([]);

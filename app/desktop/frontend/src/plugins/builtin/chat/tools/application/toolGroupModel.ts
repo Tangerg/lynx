@@ -1,7 +1,7 @@
 import type { Translate } from "@/lib/i18n";
 import type { ToolCall } from "@/plugins/builtin/agent/public/viewState";
 import {
-  summarizeToolGroup,
+  summarizeActivity,
   toolGroupNeedsAttention,
 } from "@/plugins/builtin/agent/public/messagePresentation";
 
@@ -38,7 +38,7 @@ export function toolGroupModel(
   const needsAttention = toolGroupNeedsAttention(tools);
   const expanded = pinned ?? (needsAttention && !superseded);
   return {
-    summary: summarizeToolGroup(t, tools),
+    summary: summarizeActivity(t, tools),
     dominantTool: dominantTool(tools),
     count: tools.length,
     needsAttention,

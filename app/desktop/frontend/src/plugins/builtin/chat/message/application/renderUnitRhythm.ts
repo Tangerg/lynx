@@ -35,14 +35,21 @@ export function unitVoice(unit: MessageRenderUnit): UnitVoice {
  * to meet, with no rule anywhere. That is not one flat rhythm, it is noise, and
  * noise reads as flat.
  *
- * Three distances, and the ratio is the point: consecutive process rows nearly
- * touch (they are one act), a change of voice opens up, and a panel keeps its own
- * air. Cards no longer set outer margins at all — this table is the only owner.
+ * Three distances, and the ratio is the point: consecutive process rows stay close
+ * (they are one act), a change of voice opens up, and a panel keeps its own air.
+ * Cards no longer set outer margins at all — this table is the only owner.
+ *
+ * The absolute values are both references' measured answer: 20px where the voice
+ * changes (JetBrains sets 20 between an assistant turn's blocks, Nova 18–26), and
+ * 6px between adjacent activity rows (JetBrains 7 between tool rows). They used to
+ * be 14 and 2 — which packed the account of the work against the answer it led to
+ * tightly enough that the two read as one block of text, and put two adjacent
+ * CARDS 2px apart, where the fills touch and stop reading as two objects.
  */
 const SEAM: Record<UnitVoice, Record<UnitVoice, string>> = {
-  process: { process: "mt-0.5", prose: "mt-3.5", panel: "mt-3" },
-  prose: { process: "mt-3.5", prose: "mt-3", panel: "mt-3" },
-  panel: { process: "mt-3", prose: "mt-3.5", panel: "mt-2" },
+  process: { process: "mt-1.5", prose: "mt-5", panel: "mt-4" },
+  prose: { process: "mt-5", prose: "mt-3", panel: "mt-4" },
+  panel: { process: "mt-4", prose: "mt-5", panel: "mt-3" },
 };
 
 export function unitSeamClass(

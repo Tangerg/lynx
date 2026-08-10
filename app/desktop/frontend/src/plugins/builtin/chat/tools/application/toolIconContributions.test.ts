@@ -1,10 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { ICON_NAMES, type IconName } from "@/ui/icons";
-import {
-  DEFAULT_TOOL_ICONS,
-  defaultToolIconContributions,
-  defaultToolIconFor,
-} from "./toolIconContributions";
+import { TOOL_ICON_BY_NAME } from "@/lib/toolFamilies";
+import { defaultToolIconContributions, defaultToolIconFor } from "./toolIconContributions";
 
 const entries = (items: { key: string; icon: string }[]) =>
   Object.fromEntries(items.map((item) => [item.key, item.icon]));
@@ -18,27 +15,27 @@ describe("tool icon contributions", () => {
   // build up unnoticed.
   it("gives every built-in tool a glyph of its own", () => {
     const byGlyph = new Map<string, string[]>();
-    for (const [tool, glyph] of Object.entries(DEFAULT_TOOL_ICONS)) {
+    for (const [tool, glyph] of Object.entries(TOOL_ICON_BY_NAME)) {
       byGlyph.set(glyph, [...(byGlyph.get(glyph) ?? []), tool]);
     }
     const shared = [...byGlyph].filter(([, tools]) => tools.length > 1);
 
     expect(shared).toEqual([]);
-    expect(byGlyph.size).toBe(Object.keys(DEFAULT_TOOL_ICONS).length);
+    expect(byGlyph.size).toBe(Object.keys(TOOL_ICON_BY_NAME).length);
   });
 
   // A glyph the vocabulary does not have renders as nothing at all, and the table
   // is a plain Record of strings — so this is the only thing standing between a
   // typo here and an invisible icon in the transcript.
   it("names glyphs the icon vocabulary actually has", () => {
-    const unknown = Object.values(DEFAULT_TOOL_ICONS).filter(
+    const unknown = Object.values(TOOL_ICON_BY_NAME).filter(
       (glyph) => !ICON_NAMES.has(glyph as IconName),
     );
     expect(unknown).toEqual([]);
   });
 
   it("turns the default icon table into registry contributions", () => {
-    expect(entries(defaultToolIconContributions())).toEqual(DEFAULT_TOOL_ICONS);
+    expect(entries(defaultToolIconContributions())).toEqual(TOOL_ICON_BY_NAME);
   });
 
   it("falls back to the generic tool glyph for a name it does not know", () => {

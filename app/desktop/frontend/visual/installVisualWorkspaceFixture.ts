@@ -11,13 +11,19 @@ import {
   UTILITY_ROLE_KEY,
   type ProviderConfiguration,
 } from "@/plugins/builtin/settings/providers/public/queries";
+import {
+  MCP_SERVERS_KEY,
+  type MCPServerSettings,
+} from "@/plugins/builtin/settings/mcp-servers/public/queries";
 import { localeEn } from "@/plugins/builtin/i18n/locales/en";
 import { installWorkspaceErrorClassifier } from "@/plugins/builtin/workspace/adapters/runtimeWorkspaceErrorClassifier";
 import {
+  WORKSPACE_BUILTIN_TOOLS_KEY,
   WORKSPACE_DIFF_KEY,
   WORKSPACE_FILES_CHANGED_KEY,
   WORKSPACE_LIST_FILES_KEY,
   WORKSPACE_READ_FILE_KEY,
+  type BuiltinToolSummary,
   type WorkspaceDiff,
   type WorkspaceFileChange,
   type WorkspaceFileContent,
@@ -32,6 +38,7 @@ import {
   terminalView,
   timelineView,
   toolStatsView,
+  toolsView,
 } from "@/plugins/builtin/workspace/workspace-views";
 import { builtinContextDockDestinations } from "@/plugins/builtin/workspace/application/contextDockDestinations";
 import { PENDING_WORK_KEY, type PendingWorkItem } from "@/plugins/builtin/agent/public/hitl";
@@ -225,6 +232,30 @@ function workspaceDataPlugin(state: VisualWorkspaceState): PluginSpec {
           ] satisfies WorkspaceFileChange[];
         },
       });
+      // The catalog the Tools view groups. A subset, but a subset that spans the
+      // shapes: every safety class, a family with one member and a family with
+      // several, and a name the local family table has never heard of — which is
+      // what proves an unplaced tool still lists instead of vanishing.
+      host.extensions.contribute(DATA_PROVIDER, {
+        key: WORKSPACE_BUILTIN_TOOLS_KEY,
+        fetcher: async () =>
+          [
+            { name: "shell", description: "Run a shell command", safetyClass: "exec" },
+            { name: "read_shell_output", description: "Read command output", safetyClass: "safe" },
+            { name: "read", description: "Read a file", safetyClass: "safe" },
+            { name: "apply_patch", description: "Apply a patch to files", safetyClass: "write" },
+            { name: "grep", description: "Search file contents", safetyClass: "safe" },
+            { name: "glob", description: "Find files by name", safetyClass: "safe" },
+            { name: "web_fetch", description: "Fetch a page", safetyClass: "network" },
+            { name: "set_plan", description: "Update the Plan", safetyClass: "safe" },
+            { name: "search_memory", description: "Search project memory", safetyClass: "safe" },
+            { name: "acme_deploy", description: "Ship it (unplaced, from a plugin)" },
+          ] satisfies BuiltinToolSummary[],
+      });
+      host.extensions.contribute(DATA_PROVIDER, {
+        key: MCP_SERVERS_KEY,
+        fetcher: async () => [] satisfies MCPServerSettings[],
+      });
       host.extensions.contribute(DATA_PROVIDER, {
         key: WORKSPACE_LIST_FILES_KEY,
         fetcher: async () =>
@@ -351,6 +382,7 @@ const DOCK_VIEW_BY_STATE: Partial<Record<VisualWorkspaceState, string>> = {
   "dock-light": "plan",
   "dock-inbox": "inbox",
   "dock-stats": "tool-stats",
+  "dock-tools": "tools",
   "dock-file": "file",
 };
 
@@ -388,6 +420,7 @@ export async function installVisualWorkspaceFixture(
     dockViewIds: [
       ...(DOCK_VIEW_BY_STATE[state] === "inbox" ? ["inbox"] : []),
       ...(DOCK_VIEW_BY_STATE[state] === "tool-stats" ? ["tool-stats"] : []),
+      ...(DOCK_VIEW_BY_STATE[state] === "tools" ? ["tools"] : []),
       "explorer",
       "file",
       "diff",
@@ -430,6 +463,7 @@ export async function installVisualWorkspaceFixture(
     inboxView,
     terminalView,
     toolStatsView,
+    toolsView,
     planView,
     timelineView,
     kernelSettings,

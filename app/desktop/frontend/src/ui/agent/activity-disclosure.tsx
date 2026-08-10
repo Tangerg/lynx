@@ -4,6 +4,7 @@ import type { ActivityShell } from "@/lib/activityShell";
 import { cn } from "@/lib/classNames";
 import { Collapsible } from "@/ui/atoms/collapsible";
 import { Pressable } from "@/ui/atoms/pressable";
+import { ProgressBar } from "@/ui/atoms/progress-bar";
 import { Icon, type IconName } from "@/ui/icons";
 
 type ActivityTone = "neutral" | "warning" | "negative";
@@ -50,6 +51,16 @@ type AgentActivityDisclosureProps = Omit<ComponentPropsWithoutRef<"div">, "child
      *  disclosure that can hold more rows than fit — a tool group — where losing
      *  the header means losing what the rows below it belong to. */
     stickyHeader?: boolean;
+    /** How far along the thing this row stands for is, drawn as a hairline across
+     *  the row's full width rather than as a bar in the meta column.
+     *
+     *  Both references spend the whole width on it and no content columns: at that
+     *  length "how much is left" is read from the fill's edge without reading a
+     *  number, which is the one thing a standing bar has to do while being scrolled
+     *  past. A 40px bar wedged between the label and the count could not — it was
+     *  short enough that its own two states looked alike. `label` names it for
+     *  assistive tech, which a bare percentage does not (see ProgressBar). */
+    progress?: { value: number; label: string };
     toggleLabel?: string;
     tone?: ActivityTone;
     shell?: ActivityShell;
@@ -101,6 +112,7 @@ export function AgentActivityDisclosure({
   open,
   onToggle,
   stickyHeader,
+  progress,
   toggleLabel,
   tone = "neutral",
   shell = "card",
@@ -243,6 +255,18 @@ export function AgentActivityDisclosure({
           <div className="flex shrink-0 items-center gap-0.5 pl-0.5 pr-2">{actions}</div>
         )}
       </div>
+      {/* Between the summary and the body, corner to corner: the card clips it, so
+          on a closed row it reads as the card's own bottom edge and on an open one
+          as the seam between what the row says and what it holds. Not `rounded-pill`
+          — a 2px capsule inset from two rounded corners is three radii arguing. */}
+      {progress && (
+        <ProgressBar
+          value={progress.value}
+          label={progress.label}
+          className="h-0.5 rounded-none"
+          indicatorClassName="rounded-none"
+        />
+      )}
       <Collapsible open={open}>
         <div
           id={panelId}

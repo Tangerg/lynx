@@ -186,3 +186,29 @@ export function waveStepCount(units: readonly MessageRenderUnit[]): number {
   }
   return steps;
 }
+
+/**
+ * The calls a folded wave holds, in the order it made them.
+ *
+ * So the row can say what it DID rather than only how many steps it took. Kept
+ * beside the count for the same reason the count is here: both are questions about
+ * a planned unit, and the planner is the only thing that knows a wave's members
+ * without walking blocks a second time. The thinking a wave also holds cannot be
+ * classified into an act, which is exactly why the count stays.
+ */
+export function waveToolCalls(
+  units: readonly MessageRenderUnit[],
+  toolCalls: Record<string, ToolCall>,
+): ToolCall[] {
+  const tools: ToolCall[] = [];
+  for (const unit of units) {
+    if (unit.kind === "toolGroup") {
+      tools.push(...unit.tools);
+      continue;
+    }
+    if (unit.kind !== "block" || unit.block.kind !== "tool") continue;
+    const tool = toolCalls[unit.block.toolCallId];
+    if (tool) tools.push(tool);
+  }
+  return tools;
+}

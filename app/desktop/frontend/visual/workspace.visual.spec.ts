@@ -60,6 +60,21 @@ async function waitForWorkspaceState(page: Page, state: VisualWorkspaceState): P
     expect(listing.indexOf("shell")).toBeLessThan(listing.indexOf("read"));
     return;
   }
+  if (state === "dock-tools") {
+    const view = page.locator(".agent-workspace-view:visible");
+    // The families, in the table's order and not the runtime's listing order — the
+    // fixture reports `shell` first and `search_memory` last, and grouping is the
+    // whole feature.
+    const listing = await view.innerText();
+    expect(listing.indexOf("Shell")).toBeLessThan(listing.indexOf("Files"));
+    expect(listing.indexOf("Files")).toBeLessThan(listing.indexOf("Search"));
+    // A tool the local family table has never heard of still lists, under the
+    // trailing family — the alternative is a call the agent can make that the
+    // catalog denies exists.
+    await expect(view).toContainText("acme_deploy");
+    expect(listing.indexOf("Other")).toBeGreaterThan(listing.indexOf("Recall"));
+    return;
+  }
   if (state === "dock-empty") {
     await expect(page.getByText("Nothing to compare", { exact: true })).toBeVisible();
     return;

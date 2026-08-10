@@ -4,7 +4,7 @@ import type { ToolCall } from "@/plugins/sdk/types/agentSessionView";
 import {
   toolDiffStat,
   isReadOnlyTool,
-  summarizeToolGroup,
+  summarizeActivity,
   toolGroupNeedsAttention,
   toolIntent,
   toolMetaItems,
@@ -32,6 +32,22 @@ describe("toolPresentation", () => {
       // A path says so, because only the projection that chose it knows which
       // case this is — the row truncates a path from the other end.
       detail: { kind: "path", value: "src/App.tsx" },
+    });
+  });
+
+  // The fold titles a command with its `description` and keeps the command line for
+  // the detail slot. `description` is the tool's contract, not the wire's guarantee:
+  // without one the title falls back to the command, and both slots then printed the
+  // same shell line at two different truncations.
+  it("drops a detail that repeats the label", () => {
+    expect(toolIntent(t, tool({ name: "shell", fn: "pnpm test", command: "pnpm test" }))).toEqual({
+      label: { kind: "text", value: "pnpm test" },
+    });
+    expect(
+      toolIntent(t, tool({ name: "shell", fn: "Run the unit tests", command: "pnpm test" })),
+    ).toEqual({
+      label: { kind: "text", value: "Run the unit tests" },
+      detail: { kind: "text", value: "pnpm test" },
     });
   });
 
@@ -130,7 +146,34 @@ describe("toolPresentation", () => {
       tool({ id: "glob", name: "glob" }),
       tool({ id: "lsp", name: "lsp" }),
     ];
-    expect(summarizeToolGroup(t, tools)).toBe("1 read · 2 search · 1 lookup");
+    expect(summarizeActivity(t, tools)).toBe("1 read · 2 search · 1 lookup");
+  });
+
+  // A folded round is not all reads: it is where a command or an edit hides, which
+  // is the one thing its closed row has to be able to say. The families past `safe`
+  // read the runtime's own class, so a renamed backend tool still lands right.
+  it("tells acts apart by the runtime's safety class", () => {
+    const tools = [
+      tool({ id: "read", name: "read", safetyClass: "safe" }),
+      tool({ id: "patch", name: "apply_patch", safetyClass: "write" }),
+      tool({ id: "sh", name: "shell", safetyClass: "exec" }),
+      tool({ id: "web", name: "web_fetch", safetyClass: "network" }),
+    ];
+    expect(summarizeActivity(t, tools)).toBe("1 read · 1 write · 1 run · 1 fetch");
+  });
+
+  // Order is the table's, so the same round reads the same way whatever order the
+  // calls happened to arrive in.
+  it("keeps a fixed family order regardless of call order", () => {
+    const reversed = [
+      tool({ id: "sh", name: "shell", safetyClass: "exec" }),
+      tool({ id: "read", name: "read", safetyClass: "safe" }),
+    ];
+    expect(summarizeActivity(t, reversed)).toBe("1 read · 1 run");
+  });
+
+  it("has nothing to summarize for a round that only thought", () => {
+    expect(summarizeActivity(t, [])).toBe("");
   });
 
   it("marks groups needing attention only while running or failed", () => {

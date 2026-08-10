@@ -7,47 +7,32 @@ import { toolIconFor, toolRoutingKey } from "@/plugins/builtin/chat/tools/public
 // `toolIconFor` reads the icon registry, so this is presentation glue — the same
 // reason `tools/public/toolIcon` sits where it does rather than in a model.
 
-/** Past five marks the strip stops being a shape and starts being a queue. */
-const MAX_GLYPHS = 5;
-
 /**
- * The marks of what a folded wave holds, in the order it happened.
+ * The mark of a folded wave: what it opened with.
  *
- * A count alone says how much is inside; these say what KIND — looked, then ran,
- * then changed a file — which is the question a reader actually has before deciding
- * whether to open a row. Free information: every mark is the icon that member would
- * have rendered inline anyway.
- *
- * Runs of the same mark collapse, and that is the whole trick. Four reads in a row
- * as four identical glyphs is a texture, not a fact; one read glyph followed by a
- * command glyph is a story. The count beside the strip is what carries "how many".
+ * One mark, because the row has one slot for it (see AgentActivityDisclosure's
+ * gutter). This used to return the strip of every KIND the wave held, collapsing
+ * runs of the same one — good information, and the row could only ever draw the
+ * first of it. What the wave DID now rides in the label as words, which is a slot
+ * that can hold a tally without pushing anything sideways.
  */
-export function waveGlyphs(
+export function waveGlyph(
   units: readonly MessageRenderUnit[],
   toolCalls: Record<string, ToolCall>,
-): IconName[] {
-  const glyphs: IconName[] = [];
-  const push = (icon: IconName) => {
-    if (glyphs.length >= MAX_GLYPHS) return;
-    if (glyphs[glyphs.length - 1] === icon) return;
-    glyphs.push(icon);
-  };
-
+): IconName | undefined {
   for (const unit of units) {
     if (unit.kind === "toolGroup") {
-      for (const tool of unit.tools) push(toolIconFor(toolRoutingKey(tool)));
+      const first = unit.tools[0];
+      if (first) return toolIconFor(toolRoutingKey(first));
       continue;
     }
     if (unit.kind !== "block") continue;
-    if (unit.block.kind === "reasoning") {
-      push("sparkle");
-      continue;
-    }
+    if (unit.block.kind === "reasoning") return "sparkle";
     if (unit.block.kind === "tool") {
       const tool = toolCalls[unit.block.toolCallId];
-      if (tool) push(toolIconFor(toolRoutingKey(tool)));
+      if (tool) return toolIconFor(toolRoutingKey(tool));
     }
   }
 
-  return glyphs;
+  return undefined;
 }

@@ -198,7 +198,14 @@ const SHELL_COMMAND: Item = {
   // at all, so the panel that holds it appeared in no screenshot.
   tool: {
     name: "shell",
-    arguments: { command: "go test ./internal/session/..." },
+    // `description` as well as `command`, because the shell tool requires it and a
+    // row titles itself with it: without one the title falls back to the command
+    // line, which is a shape production never sends and which this fixture is here
+    // to keep out of the goldens.
+    arguments: {
+      description: "Run the session suite",
+      command: "go test ./internal/session/...",
+    },
     result: {
       exitCode: 1,
       output: [
@@ -389,7 +396,13 @@ const WAVE_LIVE_TOOL: Item = {
   runId: ROOT_RUN_ID,
   status: "running",
   startedAt: CREATED_AT,
-  tool: { name: "shell", arguments: { command: "go test ./internal/session/..." } },
+  tool: {
+    name: "shell",
+    arguments: {
+      description: "Run the session suite",
+      command: "go test ./internal/session/...",
+    },
+  },
 };
 
 function tailEvent(index: number, event: StreamEvent): RunEvent {

@@ -31,13 +31,14 @@ describe("unitSeamClass", () => {
     expect(unitSeamClass(undefined, block("text"))).toBe("");
   });
 
-  // The ratio is the whole feature: work that belongs together nearly touches,
-  // and a change of voice opens up.
+  // The ratio is the whole feature: work that belongs together stays close, and a
+  // change of voice opens up. Both distances are also both references' measured
+  // answer — 6px between activity rows, 20px where the voice changes.
   it("keeps consecutive process rows tight and opens up at a change of voice", () => {
     const tight = unitSeamClass(block("tool"), block("reasoning"));
     const open = unitSeamClass(block("tool"), block("text"));
-    expect(tight).toBe("mt-0.5");
-    expect(open).toBe("mt-3.5");
+    expect(tight).toBe("mt-1.5");
+    expect(open).toBe("mt-5");
   });
 
   it("is symmetric across the prose seam", () => {

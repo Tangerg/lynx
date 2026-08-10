@@ -11,13 +11,17 @@
 
 import { useState, type ReactNode } from "react";
 import type { MessageRenderUnit } from "@/plugins/builtin/agent/public/messagePresentation";
-import { waveStepCount } from "@/plugins/builtin/agent/public/messagePresentation";
+import {
+  summarizeActivity,
+  waveStepCount,
+  waveToolCalls,
+} from "@/plugins/builtin/agent/public/messagePresentation";
 import { AgentActivityDisclosure } from "@/ui/agent";
 import { useT } from "@/lib/i18n";
 import type { TurnFacts } from "@/plugins/builtin/agent/public/conversation";
 import { unitSeamClass } from "../application/renderUnitRhythm";
 import type { BlockCtx } from "./blockContext";
-import { waveGlyphs } from "./narrativeWaveGlyphs";
+import { waveGlyph } from "./narrativeWaveGlyphs";
 
 interface Props {
   units: MessageRenderUnit[];
@@ -32,15 +36,23 @@ interface Props {
 export function NarrativeWave({ units, facts, ctx, renderUnit }: Props) {
   const t = useT();
   const [open, setOpen] = useState(false);
-  const glyphs = waveGlyphs(units, facts.toolCalls);
+  const tools = waveToolCalls(units, facts.toolCalls);
+  // What the round DID, in the same tally a tool group uses, with the total behind
+  // the row in the meta column. A row that only counted its steps ("6 steps") asked
+  // the reader to open it to learn whether anything had been changed or run — which
+  // is the one thing a folded account of past work has to be able to say closed.
+  // A round of pure thinking has no acts to tally, so the count carries it alone.
+  const summary = summarizeActivity(t, tools);
+  const steps = t("agent.steps", { count: waveStepCount(units) });
 
   return (
     <AgentActivityDisclosure
       shell="line"
-      // What kind of round this was — the work that dominated it. One glyph, because
+      // What kind of round this was — the act it opened with. One glyph, because
       // the gutter is one slot wide for every row in the transcript.
-      icon={glyphs[0] ?? "sparkle"}
-      label={t("agent.steps", { count: waveStepCount(units) })}
+      icon={waveGlyph(units, facts.toolCalls) ?? "sparkle"}
+      label={summary || steps}
+      trailing={summary ? steps : undefined}
       open={open}
       onToggle={() => setOpen((value) => !value)}
       // A wave holds a whole round of work — reasoning plus every tool call in
