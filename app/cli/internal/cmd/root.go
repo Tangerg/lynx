@@ -22,8 +22,8 @@ import (
 	"github.com/Tangerg/lynx/app/cli/internal/client/mock"
 	"github.com/Tangerg/lynx/app/cli/internal/extensions"
 	"github.com/Tangerg/lynx/app/cli/internal/settings"
-	"github.com/Tangerg/lynx/app/cli/internal/ui/session"
-	"github.com/Tangerg/lynx/app/cli/internal/ui/session/sideload"
+	"github.com/Tangerg/lynx/app/cli/internal/sideload"
+	terminalui "github.com/Tangerg/lynx/app/cli/internal/terminal"
 )
 
 // version is overridden at link time via -ldflags "-X ...cmd.version=...".
@@ -156,7 +156,7 @@ func interactive(cmd *cobra.Command, args []string, resolve backend, value setti
 	// stays reachable by its own name.
 	sessionID, _ := cmd.Flags().GetString("session")
 
-	err = session.Run(cmd.Context(), session.Config{
+	err = terminalui.Run(cmd.Context(), terminalui.Config{
 		Runtime:       rt,
 		Session:       sessionID,
 		Workspace:     ws,

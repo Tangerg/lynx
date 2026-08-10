@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Tangerg/lynx/app/cli/internal/ui/session"
+	"github.com/Tangerg/lynx/app/cli/internal/terminal"
 )
 
 const (
@@ -46,9 +46,9 @@ type commandResponse struct {
 	Message  string `json:"message"`
 }
 
-func (r commandRunner) Execute(ctx context.Context, request session.CommandRequest) (session.CommandResult, error) {
+func (r commandRunner) Execute(ctx context.Context, request terminal.CommandRequest) (terminal.CommandResult, error) {
 	if err := validateCommandRequest(request); err != nil {
-		return session.CommandResult{}, fmt.Errorf("plugin %s command /%s request: %w", r.pluginID, r.command, err)
+		return terminal.CommandResult{}, fmt.Errorf("plugin %s command /%s request: %w", r.pluginID, r.command, err)
 	}
 	ctx, cancel := context.WithTimeout(ctx, r.timeout)
 	defer cancel()
@@ -57,10 +57,10 @@ func (r commandRunner) Execute(ctx context.Context, request session.CommandReque
 		Argument: request.Argument, Workspace: request.Workspace, SessionID: request.SessionID,
 	})
 	if err != nil {
-		return session.CommandResult{}, fmt.Errorf("encode plugin command request: %w", err)
+		return terminal.CommandResult{}, fmt.Errorf("encode plugin command request: %w", err)
 	}
 	if len(payload) > maximumRequest {
-		return session.CommandResult{}, fmt.Errorf("plugin %s command /%s request exceeds %d bytes", r.pluginID, r.command, maximumRequest)
+		return terminal.CommandResult{}, fmt.Errorf("plugin %s command /%s request exceeds %d bytes", r.pluginID, r.command, maximumRequest)
 	}
 	// #nosec G204 -- discovery canonicalizes the manifest entry, proves that it
 	// remains inside the plugin directory, and requires an executable regular file.
@@ -74,21 +74,21 @@ func (r commandRunner) Execute(ctx context.Context, request session.CommandReque
 	command.Stdout, command.Stderr = &stdout, &stderr
 	if err := command.Run(); err != nil {
 		if cause := context.Cause(ctx); cause != nil {
-			return session.CommandResult{}, fmt.Errorf("plugin %s command /%s: %w", r.pluginID, r.command, cause)
+			return terminal.CommandResult{}, fmt.Errorf("plugin %s command /%s: %w", r.pluginID, r.command, cause)
 		}
 		detail := strings.TrimSpace(stderr.String())
 		if detail == "" {
 			detail = err.Error()
 		}
-		return session.CommandResult{}, fmt.Errorf("plugin %s command /%s failed: %s", r.pluginID, r.command, detail)
+		return terminal.CommandResult{}, fmt.Errorf("plugin %s command /%s failed: %s", r.pluginID, r.command, detail)
 	}
 	if stdout.overflow || stderr.overflow {
-		return session.CommandResult{}, fmt.Errorf("plugin %s command /%s exceeded the %d-byte output limit", r.pluginID, r.command, maximumOutput)
+		return terminal.CommandResult{}, fmt.Errorf("plugin %s command /%s exceeded the %d-byte output limit", r.pluginID, r.command, maximumOutput)
 	}
 	return decodeCommandResponse(r.pluginID, r.command, stdout.Bytes())
 }
 
-func validateCommandRequest(request session.CommandRequest) error {
+func validateCommandRequest(request terminal.CommandRequest) error {
 	switch {
 	case len(request.Argument) > maximumArgument:
 		return fmt.Errorf("argument exceeds %d bytes", maximumArgument)
@@ -128,24 +128,24 @@ func commandEnvironment(pluginID, command string) []string {
 	)
 }
 
-func decodeCommandResponse(pluginID, command string, output []byte) (session.CommandResult, error) {
+func decodeCommandResponse(pluginID, command string, output []byte) (terminal.CommandResult, error) {
 	decoder := json.NewDecoder(bytes.NewReader(output))
 	decoder.DisallowUnknownFields()
 	var response commandResponse
 	if err := decoder.Decode(&response); err != nil {
-		return session.CommandResult{}, fmt.Errorf("decode plugin %s command /%s response: %w", pluginID, command, err)
+		return terminal.CommandResult{}, fmt.Errorf("decode plugin %s command /%s response: %w", pluginID, command, err)
 	}
 	if err := rejectTrailingJSON(decoder); err != nil {
-		return session.CommandResult{}, fmt.Errorf("decode plugin %s command /%s response: %w", pluginID, command, err)
+		return terminal.CommandResult{}, fmt.Errorf("decode plugin %s command /%s response: %w", pluginID, command, err)
 	}
 	if response.Protocol != commandProtocol {
-		return session.CommandResult{}, fmt.Errorf("plugin %s command /%s responded with protocol %d, want %d", pluginID, command, response.Protocol, commandProtocol)
+		return terminal.CommandResult{}, fmt.Errorf("plugin %s command /%s responded with protocol %d, want %d", pluginID, command, response.Protocol, commandProtocol)
 	}
 	message := strings.TrimSpace(response.Message)
 	if len(message) > maximumMessage {
-		return session.CommandResult{}, fmt.Errorf("plugin %s command /%s message exceeds %d bytes", pluginID, command, maximumMessage)
+		return terminal.CommandResult{}, fmt.Errorf("plugin %s command /%s message exceeds %d bytes", pluginID, command, maximumMessage)
 	}
-	return session.CommandResult{Message: message}, nil
+	return terminal.CommandResult{Message: message}, nil
 }
 
 type cappedBuffer struct {

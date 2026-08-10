@@ -17,7 +17,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/cli/internal/client/mock"
 	"github.com/Tangerg/lynx/app/cli/internal/extensions"
-	"github.com/Tangerg/lynx/app/cli/internal/ui/session"
+	"github.com/Tangerg/lynx/app/cli/internal/terminal"
 )
 
 func writePlugin(t *testing.T, root, directory string, declared manifest, executable string) {
@@ -131,7 +131,7 @@ func TestSideloadedPluginMustDeclareCommandsCapability(t *testing.T) {
 	if len(results) != 1 || results[0].Phase != extensions.PluginFailed || !strings.Contains(results[0].Err.Error(), "terminal.commands") {
 		t.Fatalf("activation = %+v", results)
 	}
-	if commands := extensions.Values(registry, session.SlashCommands); len(commands) != 0 {
+	if commands := extensions.Values(registry, terminal.SlashCommands); len(commands) != 0 {
 		t.Fatalf("denied plugin registered commands: %+v", commands)
 	}
 }
@@ -149,7 +149,7 @@ func TestCommandRunnerUsesBoundedJSONProtocol(t *testing.T) {
 	if len(commands) != 1 || commands[0].Execute == nil {
 		t.Fatalf("commands = %+v", commands)
 	}
-	response, err := commands[0].Execute(t.Context(), session.CommandRequest{
+	response, err := commands[0].Execute(t.Context(), terminal.CommandRequest{
 		Argument: "world", Workspace: "/tmp/work", SessionID: "session-1",
 	})
 	if err != nil || response.Message != "hello from process" {
@@ -157,7 +157,7 @@ func TestCommandRunnerUsesBoundedJSONProtocol(t *testing.T) {
 	}
 }
 
-func loadFixtureCommands(t *testing.T, root string) ([]session.SlashCommand, func()) {
+func loadFixtureCommands(t *testing.T, root string) ([]terminal.SlashCommand, func()) {
 	t.Helper()
 	discovered, err := New([]string{root}).Discover(t.Context())
 	if err != nil || len(discovered.Issues) != 0 {
@@ -173,7 +173,7 @@ func loadFixtureCommands(t *testing.T, root string) ([]session.SlashCommand, fun
 		_ = kernel.Close()
 		t.Fatalf("activation = %+v, %v", results, err)
 	}
-	return extensions.Values(registry, session.SlashCommands), func() { _ = kernel.Close() }
+	return extensions.Values(registry, terminal.SlashCommands), func() { _ = kernel.Close() }
 }
 
 func TestCommandRunnerHonorsCancellation(t *testing.T) {
@@ -184,7 +184,7 @@ func TestCommandRunnerHonorsCancellation(t *testing.T) {
 	slow := filepath.Join(root, "slow")
 	writeExecutable(t, slow, "#!/bin/sh\nsleep 2\n")
 	runner := commandRunner{pluginID: "test.slow", command: "slow", executable: slow, directory: root, timeout: 20 * time.Millisecond}
-	_, err := runner.Execute(t.Context(), session.CommandRequest{})
+	_, err := runner.Execute(t.Context(), terminal.CommandRequest{})
 	if !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("timeout error = %v", err)
 	}
@@ -205,7 +205,7 @@ func TestCommandResponseNamesGenericTrailingJSON(t *testing.T) {
 
 func TestCommandRequestIsBoundedBeforeAProcessStarts(t *testing.T) {
 	runner := commandRunner{pluginID: "test.bounds", command: "large", executable: filepath.Join(t.TempDir(), "missing"), timeout: time.Second}
-	_, err := runner.Execute(t.Context(), session.CommandRequest{Argument: strings.Repeat("x", maximumArgument+1)})
+	_, err := runner.Execute(t.Context(), terminal.CommandRequest{Argument: strings.Repeat("x", maximumArgument+1)})
 	if err == nil || !strings.Contains(err.Error(), "argument exceeds") || strings.Contains(err.Error(), "executable") {
 		t.Fatalf("oversized request error = %v", err)
 	}
@@ -239,7 +239,7 @@ func TestSideloadedCommandRunsEndToEndInTheTerminal(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	done := make(chan error, 1)
 	go func() {
-		done <- session.Run(ctx, session.Config{
+		done <- terminal.Run(ctx, terminal.Config{
 			Runtime: backend, Workspace: workspace, Host: host,
 			PluginSources: []extensions.Source{New([]string{root})},
 		})

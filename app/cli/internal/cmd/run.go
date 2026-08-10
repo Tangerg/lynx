@@ -15,8 +15,8 @@ import (
 	"github.com/Tangerg/lynx/app/cli/internal/attachment"
 	"github.com/Tangerg/lynx/app/cli/internal/client"
 	"github.com/Tangerg/lynx/app/cli/internal/identity"
+	"github.com/Tangerg/lynx/app/cli/internal/reconnect"
 	"github.com/Tangerg/lynx/app/cli/internal/render"
-	"github.com/Tangerg/lynx/app/cli/internal/resilience"
 )
 
 // renderer is what `run` needs to write a run out. Declared here, where it is
@@ -162,12 +162,12 @@ func follow(ctx context.Context, rt client.Runtime, out renderer, start client.S
 	if err := ensureRequestID(&start); err != nil {
 		return err
 	}
-	policy := resilience.Standard(reconnectAttempts)
+	policy := reconnect.New(reconnectAttempts)
 	guard := watchRunCancellation(ctx, rt, policy, client.CancelRun{SessionID: start.SessionID, RequestID: start.RequestID})
 	cancelOnExit := true
 	defer func() { guard.Close(cancelOnExit) }()
 
-	run, err := resilience.ControlValue(ctx, policy, func() (client.Run, error) {
+	run, err := reconnect.ControlValue(ctx, policy, func() (client.Run, error) {
 		return rt.StartRun(ctx, start)
 	})
 	if err != nil {
@@ -200,7 +200,7 @@ type runCancelGuard struct {
 func watchRunCancellation(
 	ctx context.Context,
 	rt client.Runtime,
-	policy resilience.Reconnect,
+	policy reconnect.Policy,
 	request client.CancelRun,
 ) *runCancelGuard {
 	guard := &runCancelGuard{exit: make(chan bool, 1), done: make(chan struct{})}
@@ -216,7 +216,7 @@ func watchRunCancellation(
 		}
 		cancelCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 		defer cancel()
-		_ = resilience.Control(cancelCtx, policy, func() error {
+		_ = reconnect.Control(cancelCtx, policy, func() error {
 			return rt.CancelRun(cancelCtx, request)
 		})
 	}()
@@ -238,7 +238,7 @@ func driveRun(
 	start client.StartRun,
 	run client.Run,
 	approveAll bool,
-	policy resilience.Reconnect,
+	policy reconnect.Policy,
 ) (bool, error) {
 	conversation := client.NewConversationAt(run.StartedAfter)
 	failures := 0
@@ -314,7 +314,7 @@ func consumeSubscription(stream client.Stream, conversation *client.Conversation
 func resumeUnattended(
 	ctx context.Context,
 	rt client.Runtime,
-	policy resilience.Reconnect,
+	policy reconnect.Policy,
 	runID string,
 	sessionID string,
 	interaction client.Interaction,
@@ -325,10 +325,10 @@ func resumeUnattended(
 		return err
 	}
 	resume := client.ResumeRun{RunID: runID, InterruptID: interruptID, Answer: answer}
-	return resilience.Control(ctx, policy, func() error { return rt.ResumeRun(ctx, resume) })
+	return reconnect.Control(ctx, policy, func() error { return rt.ResumeRun(ctx, resume) })
 }
 
-func waitToReconnect(ctx context.Context, policy resilience.Reconnect, failures *int, progressed bool, cause error) error {
+func waitToReconnect(ctx context.Context, policy reconnect.Policy, failures *int, progressed bool, cause error) error {
 	if progressed {
 		*failures = 0
 	}
@@ -337,7 +337,7 @@ func waitToReconnect(ctx context.Context, policy resilience.Reconnect, failures 
 	if !ok {
 		return cause
 	}
-	if err := resilience.Wait(ctx, delay); err != nil {
+	if err := reconnect.Wait(ctx, delay); err != nil {
 		return err
 	}
 	return nil

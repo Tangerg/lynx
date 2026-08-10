@@ -17,7 +17,7 @@ import (
 	"github.com/spf13/pathologize"
 
 	"github.com/Tangerg/lynx/app/cli/internal/extensions"
-	"github.com/Tangerg/lynx/app/cli/internal/ui/session"
+	"github.com/Tangerg/lynx/app/cli/internal/terminal"
 )
 
 const (
@@ -255,10 +255,10 @@ func compilePluginMetadata(manifest manifest) (extensions.Plugin, error) {
 	return plugin, nil
 }
 
-func contributeCommands(commands []session.SlashCommand) func(*extensions.Scope) error {
+func contributeCommands(commands []terminal.SlashCommand) func(*extensions.Scope) error {
 	return func(scope *extensions.Scope) error {
 		for i, command := range commands {
-			if _, err := extensions.Contribute(scope, session.SlashCommands, command, extensions.Contribution{Order: i}); err != nil {
+			if _, err := extensions.Contribute(scope, terminal.SlashCommands, command, extensions.Contribution{Order: i}); err != nil {
 				return err
 			}
 		}
@@ -316,12 +316,12 @@ func validateExecutable(entry, path string) error {
 	return nil
 }
 
-func compileCommands(pluginID, executable, directory string, manifests []commandManifest) ([]session.SlashCommand, error) {
+func compileCommands(pluginID, executable, directory string, manifests []commandManifest) ([]terminal.SlashCommand, error) {
 	if len(manifests) > maximumCommands {
 		return nil, fmt.Errorf("contributes.commands exceeds %d entries", maximumCommands)
 	}
 	seen := make(map[string]struct{}, len(manifests))
-	commands := make([]session.SlashCommand, 0, len(manifests))
+	commands := make([]terminal.SlashCommand, 0, len(manifests))
 	for _, declared := range manifests {
 		command, err := compileCommand(pluginID, executable, directory, declared, seen)
 		if err != nil {
@@ -336,31 +336,31 @@ func compileCommand(
 	pluginID, executable, directory string,
 	declared commandManifest,
 	seen map[string]struct{},
-) (session.SlashCommand, error) {
+) (terminal.SlashCommand, error) {
 	name := strings.TrimSpace(declared.Name)
 	if !validCommandSpelling(name) {
-		return session.SlashCommand{}, fmt.Errorf("command name %q is invalid", declared.Name)
+		return terminal.SlashCommand{}, fmt.Errorf("command name %q is invalid", declared.Name)
 	}
 	if err := claimCommandSpelling(seen, name, fmt.Sprintf("command %q is declared more than once", name)); err != nil {
-		return session.SlashCommand{}, err
+		return terminal.SlashCommand{}, err
 	}
 	title, err := commandTitle(name, declared.Title)
 	if err != nil {
-		return session.SlashCommand{}, err
+		return terminal.SlashCommand{}, err
 	}
 	aliases, err := compileAliases(name, declared.Aliases, seen)
 	if err != nil {
-		return session.SlashCommand{}, err
+		return terminal.SlashCommand{}, err
 	}
 	timeout, err := commandTimeout(name, declared.TimeoutSeconds)
 	if err != nil {
-		return session.SlashCommand{}, err
+		return terminal.SlashCommand{}, err
 	}
 	runner := commandRunner{
 		pluginID: pluginID, command: name, executable: executable,
 		directory: directory, timeout: timeout,
 	}
-	return session.SlashCommand{
+	return terminal.SlashCommand{
 		Name: name, Title: title, Aliases: aliases,
 		Takes: declared.Takes, Execute: runner.Execute,
 	}, nil

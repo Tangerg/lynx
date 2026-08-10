@@ -26,8 +26,8 @@ The dependency direction follows clean architecture: product policy points inwar
 | Layer | Packages | Responsibility |
 | --- | --- | --- |
 | Domain and ports | `internal/client`, `internal/settings` | Validated session, run, event, interaction, approval, and configuration contracts. `client.Runtime` is the complete backend port; consumers use its narrower interfaces. |
-| Application orchestration | `internal/cmd`, `internal/resilience` | Use-case sequencing, idempotent run control, reconnect policy, configuration precedence, and process exit behavior. |
-| Adapters | `internal/client/mock`, `internal/attachment`, `internal/render`, `internal/ui/session`, `internal/ui/session/sideload` | Scripted backend, workspace-safe files, text/NDJSON output, oolong terminal UI, and out-of-process plugins. |
+| Application orchestration | `internal/cmd`, `internal/reconnect` | Use-case sequencing, idempotent run control, reconnect policy, configuration precedence, and process exit behavior. |
+| Adapters | `internal/client/mock`, `internal/attachment`, `internal/render`, `internal/terminal`, `internal/sideload` | Scripted backend, workspace-safe files, text/NDJSON output, oolong terminal UI, and out-of-process plugins. |
 | Extension substrate | `internal/extensions` | Typed extension points, capability checks, dependency ordering, rollback, unload, and reload ownership. |
 | Composition root | `internal/cmd/root.go` | Constructs Cobra, Viper, the runtime adapter, plugin sources, and terminal application. |
 

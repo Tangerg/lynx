@@ -1,4 +1,4 @@
-package resilience
+package reconnect
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 )
 
 func TestReconnectRetriesOnlyTransientErrorsWithinBudget(t *testing.T) {
-	policy := Reconnect{Attempts: 3, Base: 10 * time.Millisecond, Maximum: 25 * time.Millisecond}
+	policy := Policy{Attempts: 3, Base: 10 * time.Millisecond, Maximum: 25 * time.Millisecond}
 	for failure, want := range []time.Duration{10 * time.Millisecond, 20 * time.Millisecond, 25 * time.Millisecond} {
 		got, ok := policy.Next(failure+1, client.ErrDisconnected)
 		if !ok || got != want {
@@ -38,7 +38,7 @@ func TestWaitHonorsCancellation(t *testing.T) {
 
 func TestControlValueRetriesOnlyAmbiguousTransportFailures(t *testing.T) {
 	attempts := 0
-	value, err := ControlValue(t.Context(), Reconnect{Attempts: 2}, func() (string, error) {
+	value, err := ControlValue(t.Context(), Policy{Attempts: 2}, func() (string, error) {
 		attempts++
 		if attempts < 3 {
 			return "", errors.Join(errors.New("response lost"), client.ErrDisconnected)
@@ -51,7 +51,7 @@ func TestControlValueRetriesOnlyAmbiguousTransportFailures(t *testing.T) {
 
 	want := errors.New("rejected")
 	attempts = 0
-	_, err = ControlValue(t.Context(), Reconnect{Attempts: 10}, func() (string, error) {
+	_, err = ControlValue(t.Context(), Policy{Attempts: 10}, func() (string, error) {
 		attempts++
 		return "", want
 	})

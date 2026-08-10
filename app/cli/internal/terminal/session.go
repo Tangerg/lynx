@@ -1,7 +1,7 @@
 // Package session is the interactive terminal adapter for one conversation.
 // It owns oolong state and translates user intent into the CLI's runtime port;
 // neither the domain model nor a runtime adapter imports this package.
-package session
+package terminal
 
 import (
 	"context"

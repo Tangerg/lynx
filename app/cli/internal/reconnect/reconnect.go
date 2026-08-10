@@ -1,7 +1,7 @@
-// Package resilience owns transport retry policy shared by interactive and
+// Package reconnect owns transport retry policy shared by interactive and
 // headless delivery adapters. It classifies symbolic client errors, never error
 // strings, and contains no runtime or terminal implementation.
-package resilience
+package reconnect
 
 import (
 	"context"
@@ -11,18 +11,18 @@ import (
 	"github.com/Tangerg/lynx/app/cli/internal/client"
 )
 
-type Reconnect struct {
+type Policy struct {
 	Attempts int
 	Base     time.Duration
 	Maximum  time.Duration
 }
 
-func Standard(attempts int) Reconnect {
-	return Reconnect{Attempts: max(attempts, 0), Base: 50 * time.Millisecond, Maximum: time.Second}
+func New(attempts int) Policy {
+	return Policy{Attempts: max(attempts, 0), Base: 50 * time.Millisecond, Maximum: time.Second}
 }
 
 // Next reports the delay before retrying failure number n, counted from one.
-func (r Reconnect) Next(n int, err error) (time.Duration, bool) {
+func (r Policy) Next(n int, err error) (time.Duration, bool) {
 	if n <= 0 || n > r.Attempts || !retryable(err) {
 		return 0, false
 	}
@@ -58,7 +58,7 @@ func Wait(ctx context.Context, delay time.Duration) error {
 
 // Control retries an idempotent control operation after ambiguous transport
 // failures using the same bounded policy as stream reconnects.
-func Control(ctx context.Context, policy Reconnect, operation func() error) error {
+func Control(ctx context.Context, policy Policy, operation func() error) error {
 	_, err := ControlValue(ctx, policy, func() (struct{}, error) {
 		return struct{}{}, operation()
 	})
@@ -66,7 +66,7 @@ func Control(ctx context.Context, policy Reconnect, operation func() error) erro
 }
 
 // ControlValue is Control for an idempotent operation that returns a value.
-func ControlValue[T any](ctx context.Context, policy Reconnect, operation func() (T, error)) (T, error) {
+func ControlValue[T any](ctx context.Context, policy Policy, operation func() (T, error)) (T, error) {
 	var zero T
 	for failure := 1; ; failure++ {
 		value, err := operation()

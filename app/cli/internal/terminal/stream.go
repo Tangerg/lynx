@@ -1,4 +1,4 @@
-package session
+package terminal
 
 import (
 	"context"
@@ -12,7 +12,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/cli/internal/client"
 	"github.com/Tangerg/lynx/app/cli/internal/identity"
-	"github.com/Tangerg/lynx/app/cli/internal/resilience"
+	"github.com/Tangerg/lynx/app/cli/internal/reconnect"
 )
 
 const (
@@ -63,7 +63,7 @@ func (a *app) follow(open func(context.Context) (subscription, error)) {
 		follower := streamFollower{
 			app: a, ctx: ctx, dispatcher: a.loop.Dispatcher(), sequence: sequence,
 			open: open, applyEnvelope: a.apply,
-			policy: resilience.Standard(a.settings.UI.ReconnectAttempts),
+			policy: reconnect.New(a.settings.UI.ReconnectAttempts),
 		}
 		follower.run()
 	})
@@ -76,7 +76,7 @@ type streamFollower struct {
 	sequence      uint64
 	open          func(context.Context) (subscription, error)
 	applyEnvelope func(client.Envelope) error
-	policy        resilience.Reconnect
+	policy        reconnect.Policy
 	after         client.Cursor
 	failures      int
 }
@@ -199,7 +199,7 @@ func (f *streamFollower) retry(cause error, progressed bool) bool {
 	}); err != nil {
 		return false
 	}
-	return resilience.Wait(f.ctx, delay) == nil
+	return reconnect.Wait(f.ctx, delay) == nil
 }
 
 func (f *streamFollower) finish() {
@@ -370,8 +370,8 @@ func (a *app) cancelRuntime(target client.CancelRun) {
 	a.operations.Go(cancelRunOperation, true, func(ownerCtx context.Context, lease operationLease) {
 		ctx, cancel := context.WithTimeout(ownerCtx, controlTimeout)
 		defer cancel()
-		policy := resilience.Standard(a.settings.UI.ReconnectAttempts)
-		err := resilience.Control(ctx, policy, func() error { return a.backend.CancelRun(ctx, target) })
+		policy := reconnect.New(a.settings.UI.ReconnectAttempts)
+		err := reconnect.Control(ctx, policy, func() error { return a.backend.CancelRun(ctx, target) })
 		_ = post(ctx, dispatcher, func() {
 			if a.operations.Current(lease) && !a.closed {
 				if err != nil {
@@ -387,8 +387,8 @@ func (a *app) cancelRuntime(target client.CancelRun) {
 func (a *app) cancelRuntimeNow(ownerCtx context.Context, target client.CancelRun) {
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ownerCtx), controlTimeout)
 	defer cancel()
-	policy := resilience.Standard(a.settings.UI.ReconnectAttempts)
-	_ = resilience.Control(ctx, policy, func() error { return a.backend.CancelRun(ctx, target) })
+	policy := reconnect.New(a.settings.UI.ReconnectAttempts)
+	_ = reconnect.Control(ctx, policy, func() error { return a.backend.CancelRun(ctx, target) })
 }
 
 func (a *app) dropStream() {
