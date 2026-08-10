@@ -186,11 +186,11 @@ func assertRestartedTerminalItems(
 ) {
 	t.Helper()
 	for _, replacement := range fixture.commit.TerminalItems {
-		item, found, err := transcriptStore.Item(fixture.ctx, replacement.Expected.ID)
+		item, found, err := transcriptStore.Item(fixture.ctx, replacement.Expected.ID())
 		if err != nil || !found || !sameItemSnapshot(item, replacement.Replacement) {
 			t.Fatalf(
 				"restarted terminal Item %q = found:%t value:%+v err:%v, want %+v",
-				replacement.Expected.ID, found, item, err, replacement.Replacement,
+				replacement.Expected.ID(), found, item, err, replacement.Replacement,
 			)
 		}
 	}
@@ -273,7 +273,7 @@ func assertRestartedWaitingBoundary(
 	}
 	siblingQuestion := pending.Interrupts[0]
 	item, found, err := transcriptStore.Item(fixture.ctx, siblingQuestion.ItemID)
-	if err != nil || !found || item.Status != transcript.ItemRunning {
+	if err != nil || !found || item.Status() != transcript.ItemCompleted {
 		t.Fatalf(
 			"surviving interrupt Item after restart = found:%t value:%+v err:%v, want Running",
 			found,

@@ -241,58 +241,63 @@ func artifactToolFailureFromDomain(failure *tool.Failure) (*protocol.ArtifactPro
 }
 
 func artifactItemFromTranscript(item transcript.Item) (protocol.ArtifactItem, error) {
-	status, err := artifactItemStatus(item.Status)
+	status, err := artifactItemStatus(item.Status())
 	if err != nil {
-		return protocol.ArtifactItem{}, fmt.Errorf("item %q status: %w", item.ID, err)
+		return protocol.ArtifactItem{}, fmt.Errorf("item %q status: %w", item.ID(), err)
 	}
-	kind, err := artifactItemType(item.Kind)
+	kind, err := artifactItemType(item.Kind())
 	if err != nil {
-		return protocol.ArtifactItem{}, fmt.Errorf("item %q type: %w", item.ID, err)
+		return protocol.ArtifactItem{}, fmt.Errorf("item %q type: %w", item.ID(), err)
 	}
-	problem, err := artifactToolFailureFromDomain(item.Error)
-	if err != nil {
-		return protocol.ArtifactItem{}, fmt.Errorf("item %q error: %w", item.ID, err)
+	var failureRef *tool.Failure
+	if failure, present := item.Failure(); present {
+		failureRef = &failure
 	}
-	safetyClass, err := artifactSafetyClass(item.SafetyClass)
+	problem, err := artifactToolFailureFromDomain(failureRef)
 	if err != nil {
-		return protocol.ArtifactItem{}, fmt.Errorf("item %q safety class: %w", item.ID, err)
+		return protocol.ArtifactItem{}, fmt.Errorf("item %q error: %w", item.ID(), err)
+	}
+	safetyClass, err := artifactSafetyClass(item.SafetyClass())
+	if err != nil {
+		return protocol.ArtifactItem{}, fmt.Errorf("item %q safety class: %w", item.ID(), err)
 	}
 	out := protocol.ArtifactItem{
-		ID: item.ID, RunID: item.RunID, Status: status,
-		Type: kind, Text: item.Text, Redacted: item.Redacted,
+		ID: item.ID(), RunID: item.RunID(), Status: status,
+		Type: kind, Text: item.Text(), Redacted: item.Redacted(),
 		SafetyClass: safetyClass, Error: problem,
-		Summary: item.Summary, DroppedMessages: item.DroppedMessages,
+		Summary: item.Summary(), DroppedMessages: item.DroppedMessages(),
 	}
-	if len(item.Content) != 0 {
-		out.Content = make([]protocol.ArtifactContentBlock, len(item.Content))
-		for index, block := range item.Content {
+	content := item.Content()
+	if len(content) != 0 {
+		out.Content = make([]protocol.ArtifactContentBlock, len(content))
+		for index, block := range content {
 			encoded, err := encodeContent(block)
 			if err != nil {
-				return protocol.ArtifactItem{}, fmt.Errorf("item %q content %d: %w", item.ID, index, err)
+				return protocol.ArtifactItem{}, fmt.Errorf("item %q content %d: %w", item.ID(), index, err)
 			}
 			out.Content[index] = protocol.ArtifactContentBlock{Type: encoded.kind, Text: encoded.text, Mime: encoded.mime, Data: encoded.data}
 		}
 	}
-	if item.Question != nil {
-		question, err := artifactQuestionFromDomain(*item.Question)
+	if value, present := item.Question(); present {
+		question, err := artifactQuestionFromDomain(value)
 		if err != nil {
-			return protocol.ArtifactItem{}, fmt.Errorf("item %q question: %w", item.ID, err)
+			return protocol.ArtifactItem{}, fmt.Errorf("item %q question: %w", item.ID(), err)
 		}
 		out.Question = question
 	}
-	if item.Tool != nil {
-		tool := protocol.ArtifactToolInvocation{Name: item.Tool.Name, Arguments: item.Tool.Arguments.Map()}
-		if item.Tool.Result != nil {
-			tool.Result = item.Tool.Result.Any()
+	if invocation, present := item.ToolInvocation(); present {
+		tool := protocol.ArtifactToolInvocation{Name: invocation.Name, Arguments: invocation.Arguments.Map()}
+		if invocation.Result != nil {
+			tool.Result = invocation.Result.Any()
 		}
 		out.Tool = &tool
 	}
-	if item.Kind == transcript.ToolCall {
-		out.StartedAt = item.OccurredAt
-		out.FinishedAt = item.FinishedAt
+	if item.Kind() == transcript.ToolCall {
+		out.StartedAt = item.OccurredAt()
+		out.FinishedAt = item.FinishedAt()
 		out.DurationMillis = presentToolDurationMillis(item)
 	} else {
-		out.CreatedAt = item.OccurredAt
+		out.CreatedAt = item.OccurredAt()
 	}
 	return out, nil
 }

@@ -422,7 +422,7 @@ func (projection *delegateProjection) applyOpening(opening runs.OpeningCommit) {
 
 func (projection *delegateProjection) applyCommit(commit runs.EventCommit) {
 	for _, item := range commit.Items {
-		projection.items[item.ID] = item
+		projection.items[item.ID()] = item
 	}
 	if commit.Run != nil {
 		projection.runs[commit.Run.ID()] = *commit.Run

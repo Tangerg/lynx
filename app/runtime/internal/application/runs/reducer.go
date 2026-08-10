@@ -240,17 +240,6 @@ func cloneResumeBinding(value *resumeBinding) *resumeBinding {
 	cloned.callItems = maps.Clone(value.callItems)
 	cloned.toolItems = maps.Clone(value.toolItems)
 	cloned.byName = maps.Clone(value.byName)
-	cloned.questions = slices.Clone(value.questions)
-	for index := range cloned.questions {
-		if cloned.questions[index].question != nil {
-			question := *cloned.questions[index].question
-			question.Fields = slices.Clone(question.Fields)
-			for fieldIndex := range question.Fields {
-				question.Fields[fieldIndex].Options = slices.Clone(question.Fields[fieldIndex].Options)
-			}
-			cloned.questions[index].question = &question
-		}
-	}
 	cloned.drained = slices.Clone(value.drained)
 	cloned.committed = maps.Clone(value.committed)
 	cloned.consumed = maps.Clone(value.consumed)
@@ -276,8 +265,11 @@ func (r *reducer) open() (reductionBatch, error) {
 		return reductionBatch{}, err
 	}
 	out := []RunEvent{SegmentStarted{Run: opening}}
-	out = append(out, r.openUserMessage()...)
-	out = append(out, r.resumeQuestionCompletions()...)
+	userMessage, err := r.openUserMessage()
+	if err != nil {
+		return reductionBatch{}, err
+	}
+	out = append(out, userMessage...)
 	return r.project(out)
 }
 
@@ -305,11 +297,25 @@ func (r *reducer) reduce(ev ExecutionFact) (reductionBatch, error) {
 func (r *reducer) reduceFact(ev ExecutionFact) (factReduction, error) {
 	switch e := ev.(type) {
 	case MessageDelta:
-		events := r.closeReasoning()
-		return factReduction{events: append(events, r.appendText(e.Text)...)}, nil
+		events, err := r.closeReasoning()
+		if err != nil {
+			return factReduction{}, fmt.Errorf("%w: close reasoning: %w", errReducerInvariant, err)
+		}
+		appended, err := r.appendText(e.Text)
+		if err != nil {
+			return factReduction{}, fmt.Errorf("%w: append text: %w", errReducerInvariant, err)
+		}
+		return factReduction{events: append(events, appended...)}, nil
 	case ReasoningDelta:
-		events := r.closeText()
-		return factReduction{events: append(events, r.appendReasoning(e.Text)...)}, nil
+		events, err := r.closeText()
+		if err != nil {
+			return factReduction{}, fmt.Errorf("%w: close text: %w", errReducerInvariant, err)
+		}
+		appended, err := r.appendReasoning(e.Text)
+		if err != nil {
+			return factReduction{}, fmt.Errorf("%w: append reasoning: %w", errReducerInvariant, err)
+		}
+		return factReduction{events: append(events, appended...)}, nil
 	case AssistantMessageCompleted:
 		return r.reduceAssistantMessage(e)
 	case ModelCallStarted:
@@ -337,7 +343,11 @@ func (r *reducer) reduceFact(ev ExecutionFact) (factReduction, error) {
 	case PlanUpdated:
 		return factReduction{events: r.planSnapshot(e)}, nil
 	case CompactionBoundary:
-		return factReduction{events: r.compaction(e)}, nil
+		events, err := r.compaction(e)
+		if err != nil {
+			return factReduction{}, fmt.Errorf("%w: compaction: %w", errReducerInvariant, err)
+		}
+		return factReduction{events: events}, nil
 	case SegmentInterrupted:
 		events, err := r.interrupt(e)
 		if err != nil {
@@ -577,7 +587,10 @@ func closedToolInvocationCommits(segmentID string, tools []*openTool) []ToolInvo
 }
 
 func (r *reducer) synthesizeTerminal() (reductionBatch, error) {
-	out := r.closeStreaming()
+	out, err := r.closeStreaming()
+	if err != nil {
+		return reductionBatch{}, fmt.Errorf("%w: close streaming: %w", errReducerInvariant, err)
+	}
 	openTools := r.tools.ordered()
 	drained, err := r.drainTools()
 	if err != nil {
@@ -709,7 +722,9 @@ func parkReductionBatch(reductions []reduction, parkBoundary int) (reductionBatc
 			items = append(items, reduced.Commit.Items...)
 		}
 		if itemStarted, isItemStarted := reduced.Event.(ItemStarted); isItemStarted {
-			items = append(items, itemStarted.Item)
+			if item, durable := itemStarted.Item.durableItem(); durable {
+				items = append(items, item)
+			}
 		}
 		reductions[index].Commit = nil
 	}
@@ -755,10 +770,9 @@ func (r *reducer) projectOne(event RunEvent) (reduction, error) {
 	var nudge *Nudge
 	switch e := event.(type) {
 	case ItemCompleted:
-		e.Item.SessionID = r.cfg.SessionID
-		event = e
 		commit.Items = []transcript.Item{e.Item}
-		if e.Item.Status == transcript.ItemCompleted && e.Item.Error == nil && len(e.mutatedPaths) > 0 {
+		_, failed := e.Item.Failure()
+		if e.Item.Status() == transcript.ItemCompleted && !failed && len(e.mutatedPaths) > 0 {
 			nudge = &Nudge{CWD: r.cfg.CWD, Paths: slices.Clone(e.mutatedPaths)}
 		}
 	case SegmentFinished:
@@ -773,8 +787,9 @@ func (r *reducer) projectOne(event RunEvent) (reduction, error) {
 			commit.GoalRun = r.goalTurn(e.Run)
 		}
 	case ItemStarted:
-		e.Item.SessionID = r.cfg.SessionID
-		event = e
+		if err := e.Item.validate(); err != nil {
+			return reduction{}, fmt.Errorf("%w: Item start: %v", errReducerInvariant, err)
+		}
 	case SegmentStarted, SegmentProgressed, ItemChanged, StateSnapshot:
 		// These events have no standalone EventCommit. SegmentStarted carries a Run
 		// for the stream, but the Run's durable opening IS its admission (or its

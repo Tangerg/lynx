@@ -1,8 +1,8 @@
-# Lyra Runtime Transport（定稿 `2026-08-09`）
+# Lyra Runtime Transport（定稿 `2026-08-10`）
 
 > **状态：正式契约（canonical）。** 本文定义同目录 [`API.md`](./API.md)（Lyra Runtime Protocol）如何在具体 transport
 > 上承载，并且是 **binding 层的唯一作者**：端点、POST 契约、HTTP status、SSE 帧、续流、门禁 token、sidecar、CORS、
-> 背压 —— 这些在别处都没有第二份定义。`protocolVersion`: **`2026-08-09`**。
+> 背压 —— 这些在别处都没有第二份定义。`protocolVersion`: **`2026-08-10`**。
 
 ## 0. 目的
 
@@ -149,7 +149,7 @@ body：
   "method": "runs.start",
   "params": {
     "_meta": {
-      "protocolVersion": "2026-08-09",
+      "protocolVersion": "2026-08-10",
       "clientInfo": { "name": "lyra-desktop", "version": "0.1.0" },
       "clientCapabilities": {
         "features": {},
@@ -420,7 +420,7 @@ live 只返回 200；ready 在依赖异常时返回 503，并携带 `checks`。
 
 ```json
 {
-  "protocol": { "current": "2026-08-09", "minSupported": "2026-08-09" },
+  "protocol": { "current": "2026-08-10", "minSupported": "2026-08-10" },
   "server": { "name": "lyra-runtime", "version": "0.0.0" },
   "transport": "http",
   "endpoints": {

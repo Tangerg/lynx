@@ -292,8 +292,8 @@ func (scope ItemScope) cursorFilters(order transcript.SequenceOrder) ([]string, 
 func referencedRuns(items []transcript.Item) []string {
 	var out []string
 	for _, item := range items {
-		if item.RunID != "" && !slices.Contains(out, item.RunID) {
-			out = append(out, item.RunID)
+		if item.RunID() != "" && !slices.Contains(out, item.RunID()) {
+			out = append(out, item.RunID())
 		}
 	}
 	return out

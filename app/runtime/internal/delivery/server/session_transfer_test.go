@@ -16,6 +16,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	resultoffload "github.com/Tangerg/lynx/app/runtime/internal/domain/toolresult"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/itemfixture"
 	runfixture "github.com/Tangerg/lynx/app/runtime/internal/testsupport/runfixture"
 	"github.com/Tangerg/lynx/core/chat"
 )
@@ -54,7 +55,7 @@ func TestSessionExportImport_RoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("tool result: %v", err)
 	}
-	if err := rt.hist.AppendItem(ctx, transcript.Item{
+	if err := rt.hist.AppendItem(ctx, itemfixture.MustRestore(itemfixture.Input{
 		SessionID: ses.ID, RunID: "run1", ID: "item2",
 		OccurredAt: time.Unix(2, 0).UTC(),
 		FinishedAt: time.Unix(3, 0).UTC(),
@@ -65,7 +66,7 @@ func TestSessionExportImport_RoundTrip(t *testing.T) {
 			Arguments: arguments,
 			Result:    &result,
 		},
-	}); err != nil {
+	})); err != nil {
 		t.Fatalf("seed tool item: %v", err)
 	}
 
@@ -152,16 +153,16 @@ func TestSessionExportImportCarriesOffloadedToolResultsAcrossDatabases(t *testin
 	preview := "offloaded preview " + id.String()
 	ref := &resultoffload.Ref{ID: id}
 	previewValue := tool.StringResult(preview)
-	item := transcript.Item{
+	item := itemfixture.MustRestore(itemfixture.Input{
 		SessionID: ses.ID, RunID: "run_offload", ID: "item_offload",
 		OccurredAt: time.Unix(2, 0).UTC(), FinishedAt: time.Unix(3, 0).UTC(),
 		Status: transcript.ItemCompleted, Kind: transcript.ToolCall,
 		Tool: &transcript.ToolInvocation{Name: "vendor_tool", Result: &previewValue, Offload: ref},
-	}
+	})
 	if err := sourceRuntime.hist.AppendItem(ctx, item); err != nil {
 		t.Fatalf("append source item: %v", err)
 	}
-	if err := sourceRuntime.toolResults.Bind(ctx, ses.ID, item.ID, preview, *ref); err != nil {
+	if err := sourceRuntime.toolResults.Bind(ctx, ses.ID, item.ID(), preview, *ref); err != nil {
 		t.Fatalf("bind source result: %v", err)
 	}
 	if err := sourceRuntime.SeedHistory(ctx, ses.ID, []chat.Message{
@@ -195,10 +196,14 @@ func TestSessionExportImportCarriesOffloadedToolResultsAcrossDatabases(t *testin
 	if err != nil {
 		t.Fatalf("list destination transcript: %v", err)
 	}
-	if len(items) != 1 || items[0].Tool == nil || items[0].Tool.Result == nil {
+	if len(items) != 1 {
+		t.Fatalf("destination transcript = %+v, want one rehydrated tool result", items)
+	}
+	invocation, present := items[0].ToolInvocation()
+	if !present || invocation.Result == nil {
 		t.Fatalf("destination transcript = %+v, want rehydrated tool result", items)
 	}
-	if got, ok := items[0].Tool.Result.String(); !ok || got != body {
+	if got, ok := invocation.Result.String(); !ok || got != body {
 		t.Fatalf("destination transcript result = %q, want rehydrated tool result", got)
 	}
 	messages, err := destinationRuntime.ReadHistory(ctx, ses.ID)
@@ -372,12 +377,12 @@ func TestCancelParkedRunProducesPortableTerminalSnapshot(t *testing.T) {
 	); err != nil {
 		t.Fatalf("suspend parked run: %v", err)
 	}
-	if err := rt.hist.AppendItem(ctx, transcript.Item{
+	if err := rt.hist.AppendItem(ctx, itemfixture.MustRestore(itemfixture.Input{
 		ID: "item_question", RunID: "run_parked", SessionID: ses.ID,
-		Kind: transcript.QuestionItem, Status: transcript.ItemRunning,
+		Kind:       transcript.QuestionItem,
 		OccurredAt: parkedAt,
 		Question:   &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?"}}},
-	}); err != nil {
+	})); err != nil {
 		t.Fatalf("open interrupt item: %v", err)
 	}
 	if err := rt.interrupts.Open(ctx, serverPending(
@@ -415,8 +420,8 @@ func TestCancelParkedRunProducesPortableTerminalSnapshot(t *testing.T) {
 	if run.MessageMark != 2 || run.Outcome.Detail != "user stopped" {
 		t.Fatalf("exported mark/detail = %d/%q, want 2/user stopped", run.MessageMark, run.Outcome.Detail)
 	}
-	if got := exported.Artifact.Items[0].Status; got != "incomplete" {
-		t.Fatalf("interrupt item status = %q, want incomplete", got)
+	if got := exported.Artifact.Items[0].Status; got != "completed" {
+		t.Fatalf("question prompt status = %q, want completed", got)
 	}
 }
 

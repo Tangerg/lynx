@@ -167,16 +167,16 @@ func (plan TerminalPlan) Validate() error {
 	}
 	seenItems := make(map[string]struct{}, len(plan.Items))
 	for index, item := range plan.Items {
-		_, owned := ownedRuns[item.RunID]
-		if item.ID == "" || item.SessionID != root.SessionID() || !owned || item.Status != transcript.ItemIncomplete {
+		_, owned := ownedRuns[item.RunID()]
+		if item.ID() == "" || item.SessionID() != root.SessionID() || !owned || item.Status() != transcript.ItemIncomplete {
 			return fmt.Errorf("sessions: terminal plan Item[%d] is not an incomplete Item owned by its Run tree", index)
 		}
-		if _, duplicate := seenItems[item.ID]; duplicate {
-			return fmt.Errorf("sessions: terminal plan repeats Item %q", item.ID)
+		if _, duplicate := seenItems[item.ID()]; duplicate {
+			return fmt.Errorf("sessions: terminal plan repeats Item %q", item.ID())
 		}
-		seenItems[item.ID] = struct{}{}
+		seenItems[item.ID()] = struct{}{}
 		if err := item.Validate(); err != nil {
-			return fmt.Errorf("sessions: terminal plan Item %q: %w", item.ID, err)
+			return fmt.Errorf("sessions: terminal plan Item %q: %w", item.ID(), err)
 		}
 	}
 	return validateTerminalGoalRun(root, plan.GoalRun)

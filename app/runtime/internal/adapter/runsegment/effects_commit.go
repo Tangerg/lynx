@@ -388,11 +388,12 @@ func (e *Effects) compensateFailedCommit(ctx context.Context, commit runs.EventC
 	defer cancel()
 	var cleanupErrs []error
 	for _, item := range commit.Items {
-		if item.Tool == nil || item.Tool.Offload == nil {
+		invocation, present := item.ToolInvocation()
+		if !present || invocation.Offload == nil {
 			continue
 		}
-		if err := e.toolResults.Discard(cleanupCtx, item.SessionID, *item.Tool.Offload); err != nil {
-			cleanupErrs = append(cleanupErrs, fmt.Errorf("runsegment: discard staged tool result %q: %w", item.Tool.Offload.ID, err))
+		if err := e.toolResults.Discard(cleanupCtx, item.SessionID(), *invocation.Offload); err != nil {
+			cleanupErrs = append(cleanupErrs, fmt.Errorf("runsegment: discard staged tool result %q: %w", invocation.Offload.ID, err))
 		}
 	}
 	return errors.Join(commitErr, errors.Join(cleanupErrs...))
@@ -566,20 +567,21 @@ func (e *Effects) appendItem(ctx context.Context, item transcript.Item) error {
 	if err := e.transcript.AppendItem(ctx, item); err != nil {
 		return err
 	}
-	if item.Tool == nil || item.Tool.Offload == nil {
+	invocation, present := item.ToolInvocation()
+	if !present || invocation.Offload == nil {
 		return nil
 	}
-	if item.Tool.Result == nil {
+	if invocation.Result == nil {
 		return errors.New("runsegment: offloaded tool result is absent")
 	}
-	preview, ok := item.Tool.Result.String()
+	preview, ok := invocation.Result.String()
 	if !ok {
 		return errors.New("runsegment: offloaded tool result has no preview string")
 	}
 	if e.toolResults == nil {
 		return errors.New("runsegment: tool-result persistence is unavailable")
 	}
-	if err := e.toolResults.Bind(ctx, item.SessionID, item.ID, preview, *item.Tool.Offload); err != nil {
+	if err := e.toolResults.Bind(ctx, item.SessionID(), item.ID(), preview, *invocation.Offload); err != nil {
 		return fmt.Errorf("runsegment: bind offloaded tool result: %w", err)
 	}
 	return nil

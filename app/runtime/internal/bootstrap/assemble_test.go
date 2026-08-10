@@ -23,6 +23,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/skillauthoring"
 	sqlitestore "github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 	"github.com/Tangerg/lynx/app/runtime/internal/shutdown"
+	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/itemfixture"
 	runfixture "github.com/Tangerg/lynx/app/runtime/internal/testsupport/runfixture"
 	"github.com/Tangerg/lynx/chatclient"
 )
@@ -473,11 +474,11 @@ func TestAssemblyRecoversParkedRunWithIncompatibleDeployment(t *testing.T) {
 	); err != nil {
 		t.Fatalf("suspend: %v", err)
 	}
-	if err := cfg.TranscriptStore.AppendItem(ctx, transcript.Item{
+	if err := cfg.TranscriptStore.AppendItem(ctx, itemfixture.MustRestore(itemfixture.Input{
 		ID: "item_park", RunID: runID, SessionID: sessionID,
-		Kind: transcript.QuestionItem, Status: transcript.ItemRunning,
+		Kind:     transcript.QuestionItem,
 		Question: question, OccurredAt: parkedAt,
-	}); err != nil {
+	})); err != nil {
 		t.Fatalf("put transcript item: %v", err)
 	}
 	if err := cfg.InterruptStore.Open(ctx, bootstrapPending(

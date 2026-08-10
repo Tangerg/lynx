@@ -317,59 +317,55 @@ func validateWaitingCancellationInterruptItem(
 	item transcript.Item,
 ) error {
 	switch {
-	case item.ID != request.ItemID:
+	case item.ID() != request.ItemID:
 		return fmt.Errorf(
 			"runs: waiting interrupt for Run %q resolved Item %q, want %q",
 			request.RunID,
-			item.ID,
+			item.ID(),
 			request.ItemID,
 		)
-	case item.SessionID != plan.root.run.SessionID():
+	case item.SessionID() != plan.root.run.SessionID():
 		return fmt.Errorf(
 			"runs: waiting interrupt Item %q belongs to Session %q, want %q",
-			item.ID,
-			item.SessionID,
+			item.ID(),
+			item.SessionID(),
 			plan.root.run.SessionID(),
 		)
-	case item.RunID != request.RunID:
+	case item.RunID() != request.RunID:
 		return fmt.Errorf(
 			"runs: waiting interrupt Item %q belongs to Run %q, want %q",
-			item.ID,
-			item.RunID,
+			item.ID(),
+			item.RunID(),
 			request.RunID,
-		)
-	case item.Status != transcript.ItemRunning:
-		return fmt.Errorf(
-			"runs: waiting interrupt Item %q is in status %d, want running",
-			item.ID,
-			item.Status,
 		)
 	}
 	switch request.Kind {
 	case interrupt.Question:
-		if item.Kind != transcript.QuestionItem ||
-			item.Question == nil ||
+		question, present := item.Question()
+		if item.Kind() != transcript.QuestionItem || item.Status() != transcript.ItemCompleted ||
+			!present ||
 			request.Question == nil ||
-			!reflect.DeepEqual(item.Question, request.Question) {
+			!reflect.DeepEqual(question, *request.Question) {
 			return fmt.Errorf(
 				"runs: waiting question Item %q differs from its interrupt",
-				item.ID,
+				item.ID(),
 			)
 		}
 	case interrupt.Approval:
-		if item.Kind != transcript.ToolCall ||
-			item.Tool == nil ||
+		invocation, present := item.ToolInvocation()
+		if item.Kind() != transcript.ToolCall || item.Status() != transcript.ItemRunning ||
+			!present ||
 			request.Approval == nil ||
-			!reflect.DeepEqual(*item.Tool, request.Approval.Tool) {
+			!reflect.DeepEqual(invocation, request.Approval.Tool) {
 			return fmt.Errorf(
 				"runs: waiting approval Item %q differs from its interrupt",
-				item.ID,
+				item.ID(),
 			)
 		}
 	default:
 		return fmt.Errorf(
 			"runs: waiting interrupt Item %q has unsupported kind %s",
-			item.ID,
+			item.ID(),
 			request.Kind,
 		)
 	}
@@ -378,40 +374,43 @@ func validateWaitingCancellationInterruptItem(
 
 func validateWaitingCancellationSpawningItem(plan cancellationPlan, item transcript.Item) error {
 	switch {
-	case item.ID != plan.target.run.Lineage().SpawnedByItemID:
+	case item.ID() != plan.target.run.Lineage().SpawnedByItemID:
 		return fmt.Errorf(
 			"runs: waiting child Run %q resolved spawning Item %q, want %q",
 			plan.target.run.ID(),
-			item.ID,
+			item.ID(),
 			plan.target.run.Lineage().SpawnedByItemID,
 		)
-	case item.SessionID != plan.root.run.SessionID():
+	case item.SessionID() != plan.root.run.SessionID():
 		return fmt.Errorf(
 			"runs: spawning Item %q belongs to Session %q, want %q",
-			item.ID,
-			item.SessionID,
+			item.ID(),
+			item.SessionID(),
 			plan.root.run.SessionID(),
 		)
-	case item.RunID != plan.target.run.Lineage().ParentRunID:
+	case item.RunID() != plan.target.run.Lineage().ParentRunID:
 		return fmt.Errorf(
 			"runs: spawning Item %q belongs to Run %q, want parent Run %q",
-			item.ID,
-			item.RunID,
+			item.ID(),
+			item.RunID(),
 			plan.target.run.Lineage().ParentRunID,
 		)
-	case item.Kind != transcript.ToolCall || item.Tool == nil:
-		return fmt.Errorf("runs: spawning Item %q is not a tool call", item.ID)
-	case item.Status != transcript.ItemIncomplete:
+	case item.Kind() != transcript.ToolCall:
+		return fmt.Errorf("runs: spawning Item %q is not a tool call", item.ID())
+	case item.Status() != transcript.ItemIncomplete:
 		return fmt.Errorf(
-			"runs: spawning Item %q is in status %d, want incomplete",
-			item.ID,
-			item.Status,
+			"runs: spawning Item %q is in status %s, want incomplete",
+			item.ID(),
+			item.Status(),
 		)
-	case item.Error != nil:
-		return fmt.Errorf("runs: spawning Item %q already carries a problem", item.ID)
-	default:
-		return nil
 	}
+	if _, present := item.ToolInvocation(); !present {
+		return fmt.Errorf("runs: spawning Item %q has no tool invocation", item.ID())
+	}
+	if _, failed := item.Failure(); failed {
+		return fmt.Errorf("runs: spawning Item %q already carries a failure", item.ID())
+	}
+	return nil
 }
 
 func validateCancellationLiveRoot(live liveSegment, root rundomain.Run) error {

@@ -14,6 +14,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
+	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/itemfixture"
 	runfixture "github.com/Tangerg/lynx/app/runtime/internal/testsupport/runfixture"
 )
 
@@ -37,7 +38,7 @@ func (replacer failingWaitingItemReplacer) ReplaceItem(
 	expected transcript.Item,
 	replacement transcript.Item,
 ) error {
-	if replacer.failItemID == "" || replacer.failItemID == expected.ID {
+	if replacer.failItemID == "" || replacer.failItemID == expected.ID() {
 		return replacer.err
 	}
 	return replacer.ItemReplacer.ReplaceItem(ctx, expected, replacement)
@@ -215,19 +216,6 @@ func TestCommitWaitingSubtreeCancellationRollsBackEveryPreCommitFailure(t *testi
 			},
 		},
 		{
-			name:      "terminal interrupt Item",
-			operation: "settle interrupted Item",
-			configure: func(fixture *waitingCancellationSQLiteFixture, injected error) {
-				fixture.replaceEffects(func(config *Config) {
-					config.ItemReplacer = failingWaitingItemReplacer{
-						ItemReplacer: fixture.transcript,
-						failItemID:   fixture.commit.TerminalItems[0].Expected.ID,
-						err:          injected,
-					}
-				})
-			},
-		},
-		{
 			name:      "terminal Run",
 			operation: "terminalize canceled Run",
 			configure: func(fixture *waitingCancellationSQLiteFixture, injected error) {
@@ -271,7 +259,7 @@ func TestCommitWaitingSubtreeCancellationRollsBackEveryPreCommitFailure(t *testi
 				fixture.commit.OpeningEvents = []runs.EventCommit{{
 					RunID:     fixture.rootRun.ID(),
 					SessionID: fixture.rootRun.SessionID(),
-					Items: []transcript.Item{{
+					Items: []transcript.Item{itemfixture.MustRestore(itemfixture.Input{
 						ID:         "item_root_continuation",
 						SessionID:  fixture.rootRun.SessionID(),
 						RunID:      fixture.rootRun.ID(),
@@ -282,7 +270,7 @@ func TestCommitWaitingSubtreeCancellationRollsBackEveryPreCommitFailure(t *testi
 							Kind: transcript.TextContent,
 							Text: "continue",
 						}},
-					}},
+					})},
 				}}
 				fixture.replaceEffects(func(config *Config) {
 					config.Transcript = failingWaitingTranscriptStore{
@@ -392,14 +380,14 @@ func assertWaitingCancellationUnchanged(
 	}
 	itemsByID := make(map[string]transcript.Item, len(items))
 	for _, item := range items {
-		itemsByID[item.ID] = item
+		itemsByID[item.ID()] = item
 	}
 	for _, expected := range fixture.originalItems {
-		item, found := itemsByID[expected.ID]
+		item, found := itemsByID[expected.ID()]
 		if !found || !sameItemSnapshot(item, expected) {
 			t.Fatalf(
 				"Item %q after rollback = found:%t value:%+v, want %+v",
-				expected.ID,
+				expected.ID(),
 				found,
 				item,
 				expected,

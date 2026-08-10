@@ -199,10 +199,10 @@ func (p PortableSession) session() session.Session {
 func bindPortableToolResults(snapshot *Snapshot) error {
 	items := make(map[string]int, len(snapshot.Items))
 	for index, item := range snapshot.Items {
-		if _, duplicate := items[item.ID]; duplicate {
-			return fmt.Errorf("sessions: portable snapshot contains duplicate item %q", item.ID)
+		if _, duplicate := items[item.ID()]; duplicate {
+			return fmt.Errorf("sessions: portable snapshot contains duplicate item %q", item.ID())
 		}
-		items[item.ID] = index
+		items[item.ID()] = index
 	}
 	for _, blob := range snapshot.ToolResults {
 		index, found := items[blob.ItemID]
@@ -210,12 +210,16 @@ func bindPortableToolResults(snapshot *Snapshot) error {
 			return fmt.Errorf("sessions: portable tool result %q references unknown item %q", blob.ID, blob.ItemID)
 		}
 		item := &snapshot.Items[index]
-		if item.Tool == nil {
-			return fmt.Errorf("sessions: portable tool result %q references non-tool item %q", blob.ID, item.ID)
+		itemSnapshot := item.Snapshot()
+		if itemSnapshot.Tool == nil {
+			return fmt.Errorf("sessions: portable tool result %q references non-tool item %q", blob.ID, item.ID())
 		}
-		invocation := *item.Tool
-		invocation.Offload = &toolresult.Ref{ID: blob.ID}
-		item.Tool = &invocation
+		itemSnapshot.Tool.Offload = &toolresult.Ref{ID: blob.ID}
+		restored, err := transcript.RestoreItem(itemSnapshot)
+		if err != nil {
+			return fmt.Errorf("sessions: bind portable tool result %q: %w", blob.ID, err)
+		}
+		*item = restored
 	}
 	return nil
 }

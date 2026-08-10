@@ -498,7 +498,7 @@ func validateRoutedEvent(route *executorRoute, sessionID string, routed RunEvent
 	case SegmentFinished:
 		return validateRouteRun(route, sessionID, event.Run)
 	case ItemStarted:
-		return validateRouteItem(route, sessionID, event.Item)
+		return validateRouteItemStart(route, sessionID, event.Item)
 	case ItemCompleted:
 		return validateRouteItem(route, sessionID, event.Item)
 	case StateSnapshot:
@@ -513,6 +513,20 @@ func validateRoutedEvent(route *executorRoute, sessionID string, routed RunEvent
 		}
 	}
 	return nil
+}
+
+func validateRouteItemStart(route *executorRoute, sessionID string, item ItemStart) error {
+	if item.RunID != route.runID || item.SessionID != sessionID {
+		return fmt.Errorf(
+			"%w: route %q carries Item start %q for run %q in session %q",
+			errReducerInvariant,
+			route.runID,
+			item.ItemID,
+			item.RunID,
+			item.SessionID,
+		)
+	}
+	return item.validate()
 }
 
 func validateRouteRun(route *executorRoute, sessionID string, value rundomain.Run) error {
@@ -543,14 +557,14 @@ func validateRouteRun(route *executorRoute, sessionID string, value rundomain.Ru
 }
 
 func validateRouteItem(route *executorRoute, sessionID string, item transcript.Item) error {
-	if item.RunID != route.runID || item.SessionID != sessionID {
+	if item.RunID() != route.runID || item.SessionID() != sessionID {
 		return fmt.Errorf(
 			"%w: route %q carries item %q for run %q in session %q",
 			errReducerInvariant,
 			route.runID,
-			item.ID,
-			item.RunID,
-			item.SessionID,
+			item.ID(),
+			item.RunID(),
+			item.SessionID(),
 		)
 	}
 	return nil
@@ -597,7 +611,14 @@ func (c *Coordinator) prepareChildOpening(
 			err,
 		)
 	}
-	spawningItem.SessionID = spec.SessionID
+	if spawningItem.SessionID() != spec.SessionID {
+		return nil, fmt.Errorf(
+			"runs: open child member %q spawning item belongs to session %q, want %q",
+			member.MemberID,
+			spawningItem.SessionID(),
+			spec.SessionID,
+		)
+	}
 	if err := spawningItem.Validate(); err != nil {
 		return nil, fmt.Errorf("runs: open child member %q spawning item: %w", member.MemberID, err)
 	}
@@ -613,7 +634,7 @@ func (c *Coordinator) prepareChildOpening(
 		return nil, errors.New("runs: child opening generated an empty segment id")
 	}
 	lineage := rundomain.Lineage{
-		SpawnedByItemID: spawningItem.ID,
+		SpawnedByItemID: spawningItem.ID(),
 		ParentRunID:     parent.runID,
 		RootRunID:       parent.rootRunID,
 	}
@@ -695,7 +716,7 @@ func (c *Coordinator) prepareChildOpening(
 		Binding: ChildRunBinding{
 			MemberID: member.MemberID, RunID: child.runID, ParentRunID: child.lineage.ParentRunID,
 		},
-		SegmentID: child.segmentID, SpawnedByItemID: spawningItem.ID,
+		SegmentID: child.segmentID, SpawnedByItemID: spawningItem.ID(),
 		RootRunID: child.rootRunID, StartedAt: startedAt,
 	}
 	if err := reservation.Validate(); err != nil {

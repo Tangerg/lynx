@@ -92,7 +92,11 @@ func TestPortableArtifactDecoderPreservesCanonicalToolResult(t *testing.T) {
 	if err != nil {
 		t.Fatalf("portableArtifactFromWire: %v", err)
 	}
-	result := portable.Items[0].Tool.Result.Any()
+	invocation, present := portable.Items[0].ToolInvocation()
+	if !present {
+		t.Fatal("decoded ToolCall has no invocation")
+	}
+	result := invocation.Result.Any()
 	value, ok := result.(map[string]any)
 	if !ok || value["stdout"] != "raw" {
 		t.Fatalf("tool result = %#v, want the unpresented canonical result", result)
@@ -127,6 +131,55 @@ func TestPortableArtifactDecoderRejectsInconsistentToolTiming(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			artifact := valid()
 			test.mutate(&artifact.Items[0])
+			_, err := portableArtifactFromWire(artifact)
+			if !errors.Is(err, protocol.ErrInvalidParams) {
+				t.Fatalf("portableArtifactFromWire error = %v, want invalid_params", err)
+			}
+		})
+	}
+}
+
+func TestArtifactV15RejectsSyntheticLifecyclesForCompleteFacts(t *testing.T) {
+	question := &protocol.ArtifactQuestion{Fields: []protocol.ArtifactQuestionField{{
+		Type: protocol.QuestionFieldText, Prompt: "Continue?",
+	}}}
+	tests := []struct {
+		name string
+		item protocol.ArtifactItem
+	}{
+		{
+			name: "running user message",
+			item: protocol.ArtifactItem{
+				Status: protocol.ItemStatusRunning, Type: protocol.ItemTypeUserMessage,
+				Content: []protocol.ArtifactContentBlock{{Type: protocol.ContentBlockText, Text: "hello"}},
+			},
+		},
+		{
+			name: "running question",
+			item: protocol.ArtifactItem{
+				Status: protocol.ItemStatusRunning, Type: protocol.ItemTypeQuestion, Question: question,
+			},
+		},
+		{
+			name: "incomplete reasoning",
+			item: protocol.ArtifactItem{
+				Status: protocol.ItemStatusIncomplete, Type: protocol.ItemTypeReasoning, Text: "thought",
+			},
+		},
+		{
+			name: "running compaction",
+			item: protocol.ArtifactItem{
+				Status: protocol.ItemStatusRunning, Type: protocol.ItemTypeCompaction,
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			artifact := validArtifact()
+			test.item.ID = "item_1"
+			test.item.RunID = "run_1"
+			test.item.CreatedAt = time.Unix(1, 0).UTC()
+			artifact.Items[0] = test.item
 			_, err := portableArtifactFromWire(artifact)
 			if !errors.Is(err, protocol.ErrInvalidParams) {
 				t.Fatalf("portableArtifactFromWire error = %v, want invalid_params", err)

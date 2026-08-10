@@ -163,7 +163,7 @@
 
 - 状态：已接受，P10 已实施。
 - 决策：方法、字段、错误和 union 的机器真相在 `contract/`；`API.md`、`TRANSPORT.md` 和 `AUX_API.md` 解释语义，不复制 generated catalog。
-- 后果：breaking change 只产生一个新 shape；服务端 `2026-08-09` / Artifact v14 已直接替换旧版本，replay scope 只保留 `runtimeInstanceRootSegment`。canonical samples 必须同时通过 Go round-trip 与同类型 strict validator。服务端和消费者可以分阶段接线，但不保留双字段/双方法兼容。
+- 后果：breaking change 只产生一个新 shape；服务端 `2026-08-10` / Artifact v15 已直接替换旧版本，replay scope 只保留 `runtimeInstanceRootSegment`。canonical samples 必须同时通过 Go round-trip 与同类型 strict validator。服务端和消费者可以分阶段接线，但不保留双字段/双方法兼容。
 
 ## ADR-RT-027：SQLite 只有当前精确 schema epoch
 

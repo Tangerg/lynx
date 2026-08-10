@@ -37,7 +37,10 @@ func (r *reducer) segmentEnd(e SegmentEnded) ([]RunEvent, error) {
 	if err != nil {
 		return nil, err
 	}
-	out := r.closeStreaming()
+	out, err := r.closeStreaming()
+	if err != nil {
+		return nil, err
+	}
 	drained, err := r.drainTools()
 	if err != nil {
 		return nil, err

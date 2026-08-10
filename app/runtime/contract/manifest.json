@@ -1,7 +1,7 @@
 {
   "protocol": {
-    "current": "2026-08-09",
-    "minSupported": "2026-08-09"
+    "current": "2026-08-10",
+    "minSupported": "2026-08-10"
   },
   "features": [
     "reasoning",
@@ -4169,11 +4169,11 @@
       "rules": [
         {
           "field": "version",
-          "constraint": "minimum(14)"
+          "constraint": "minimum(15)"
         },
         {
           "field": "version",
-          "constraint": "maximum(14)"
+          "constraint": "maximum(15)"
         }
       ]
     },

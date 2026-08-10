@@ -26,6 +26,19 @@ const (
 	ItemIncomplete
 )
 
+func (status ItemStatus) String() string {
+	switch status {
+	case ItemRunning:
+		return "running"
+	case ItemCompleted:
+		return "completed"
+	case ItemIncomplete:
+		return "incomplete"
+	default:
+		return "unknown"
+	}
+}
+
 type ItemKind uint8
 
 const (
@@ -39,27 +52,23 @@ const (
 	Compaction   ItemKind = 6
 )
 
-type Item struct {
-	SessionID  string
-	ID         string
-	RunID      string
-	Status     ItemStatus
-	OccurredAt time.Time
-	// FinishedAt is the terminal boundary of a ToolCall. Tool execution starts
-	// at OccurredAt; other Item kinds do not use this field.
-	FinishedAt time.Time
-	Kind       ItemKind
-
-	Content     []ContentBlock
-	Text        string
-	Redacted    bool
-	Question    *Question
-	Tool        *ToolInvocation
-	SafetyClass tool.SafetyClass
-	Error       *tool.Failure
-
-	Summary         string
-	DroppedMessages int
+func (kind ItemKind) String() string {
+	switch kind {
+	case UserMessage:
+		return "userMessage"
+	case AgentMessage:
+		return "agentMessage"
+	case Reasoning:
+		return "reasoning"
+	case QuestionItem:
+		return "question"
+	case ToolCall:
+		return "toolCall"
+	case Compaction:
+		return "compaction"
+	default:
+		return "unknown"
+	}
 }
 
 // SequencedItem pairs a history Item with its position in the session's durable
@@ -172,9 +181,10 @@ type ToolInvocation struct {
 // Interrupt is one thing a person has to answer before execution continues.
 type Interrupt struct {
 	ItemID string
-	// ItemOccurredAt preserves the identity timestamp of the Running Item this
-	// interrupt references. A continuation completes or reopens that same Item;
-	// it must not manufacture a new occurrence when the Run resumes.
+	// ItemOccurredAt preserves the identity timestamp of the Item this interrupt
+	// references. An approval eventually settles that same ToolCall; a Question is
+	// already a complete prompt fact. Neither path may manufacture a new occurrence
+	// when the Run resumes.
 	ItemOccurredAt time.Time
 	// RunID is the Run that RAISED this interrupt — not the Run that owns the set
 	// it belongs to. The two are the same only while a tree is a single Run: a set
@@ -275,134 +285,6 @@ func (question Question) Validate() error {
 				return fmt.Errorf("question field %d repeats option %q", index, label)
 			}
 			seenOptions[label] = struct{}{}
-		}
-	}
-	return nil
-}
-
-// Validate reports whether the item has exactly the payload allowed by its kind.
-func (item Item) Validate() error {
-	if err := item.validateEnvelope(); err != nil {
-		return err
-	}
-	return item.validateKindPayload()
-}
-
-func (item Item) validateEnvelope() error {
-	switch item.Status {
-	case ItemRunning, ItemCompleted, ItemIncomplete:
-	default:
-		return fmt.Errorf("unknown status %d", item.Status)
-	}
-	if item.DroppedMessages < 0 {
-		return errors.New("dropped messages must not be negative")
-	}
-	if item.OccurredAt.IsZero() {
-		return errors.New("occurred at is required")
-	}
-	if item.Error != nil {
-		if err := item.Error.Validate(); err != nil {
-			return fmt.Errorf("tool failure: %w", err)
-		}
-	}
-	for index, block := range item.Content {
-		if err := block.Validate(); err != nil {
-			return fmt.Errorf("content %d: %w", index, err)
-		}
-	}
-	if item.Question != nil {
-		if err := item.Question.Validate(); err != nil {
-			return err
-		}
-	}
-	if item.Tool != nil && item.Tool.Name == "" {
-		return errors.New("tool name is required")
-	}
-	if item.Kind != ToolCall && !item.FinishedAt.IsZero() {
-		return errors.New("finished at is only valid for tool calls")
-	}
-	return nil
-}
-
-func (item Item) validateKindPayload() error {
-	switch item.Kind {
-	case UserMessage, AgentMessage:
-		return item.rejectDisallowedPayload(
-			itemPayloadField{"text", item.Text != ""}, itemPayloadField{"redacted", item.Redacted},
-			itemPayloadField{"question", item.Question != nil},
-			itemPayloadField{"tool", item.Tool != nil}, itemPayloadField{"safetyClass", item.SafetyClass != ""},
-			itemPayloadField{"error", item.Error != nil}, itemPayloadField{"summary", item.Summary != ""},
-			itemPayloadField{"droppedMessages", item.DroppedMessages != 0},
-		)
-	case Reasoning:
-		return item.rejectDisallowedPayload(
-			itemPayloadField{"content", len(item.Content) != 0},
-			itemPayloadField{"question", item.Question != nil}, itemPayloadField{"tool", item.Tool != nil},
-			itemPayloadField{"safetyClass", item.SafetyClass != ""}, itemPayloadField{"error", item.Error != nil},
-			itemPayloadField{"summary", item.Summary != ""}, itemPayloadField{"droppedMessages", item.DroppedMessages != 0},
-		)
-	case QuestionItem:
-		if item.Question == nil {
-			return errors.New("question is required")
-		}
-		return item.rejectDisallowedPayload(
-			itemPayloadField{"content", len(item.Content) != 0}, itemPayloadField{"text", item.Text != ""},
-			itemPayloadField{"redacted", item.Redacted},
-			itemPayloadField{"tool", item.Tool != nil}, itemPayloadField{"safetyClass", item.SafetyClass != ""},
-			itemPayloadField{"error", item.Error != nil}, itemPayloadField{"summary", item.Summary != ""},
-			itemPayloadField{"droppedMessages", item.DroppedMessages != 0},
-		)
-	case ToolCall:
-		return item.validateToolCallPayload()
-	case Compaction:
-		return item.rejectDisallowedPayload(
-			itemPayloadField{"content", len(item.Content) != 0}, itemPayloadField{"text", item.Text != ""},
-			itemPayloadField{"redacted", item.Redacted},
-			itemPayloadField{"question", item.Question != nil}, itemPayloadField{"tool", item.Tool != nil},
-			itemPayloadField{"safetyClass", item.SafetyClass != ""}, itemPayloadField{"error", item.Error != nil},
-		)
-	default:
-		return fmt.Errorf("unknown kind %d", item.Kind)
-	}
-}
-
-func (item Item) validateToolCallPayload() error {
-	if item.Tool == nil {
-		return errors.New("tool invocation is required")
-	}
-	switch item.Status {
-	case ItemRunning:
-		if !item.FinishedAt.IsZero() {
-			return errors.New("running tool call must not have a finish time")
-		}
-	case ItemCompleted, ItemIncomplete:
-		if item.FinishedAt.IsZero() {
-			return errors.New("terminal tool call finish time is required")
-		}
-		if item.FinishedAt.Before(item.OccurredAt) {
-			return errors.New("tool call finish time precedes start time")
-		}
-	}
-	if item.SafetyClass != "" && !item.SafetyClass.Valid() {
-		return fmt.Errorf("unknown safety class %q", item.SafetyClass)
-	}
-	return item.rejectDisallowedPayload(
-		itemPayloadField{"content", len(item.Content) != 0}, itemPayloadField{"text", item.Text != ""},
-		itemPayloadField{"redacted", item.Redacted},
-		itemPayloadField{"question", item.Question != nil}, itemPayloadField{"summary", item.Summary != ""},
-		itemPayloadField{"droppedMessages", item.DroppedMessages != 0},
-	)
-}
-
-type itemPayloadField struct {
-	name    string
-	present bool
-}
-
-func (item Item) rejectDisallowedPayload(fields ...itemPayloadField) error {
-	for _, field := range fields {
-		if field.present {
-			return fmt.Errorf("%s is not valid for item kind %d", field.name, item.Kind)
 		}
 	}
 	return nil

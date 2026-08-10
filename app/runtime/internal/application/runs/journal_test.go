@@ -10,6 +10,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/replaycursor"
+	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/itemfixture"
 )
 
 const (
@@ -37,10 +38,10 @@ func ev(replayable bool) Event {
 func sized(n int) Event {
 	return Event{
 		RunID: testRunID, SegmentID: testSegmentID,
-		Payload: ItemCompleted{Item: transcript.Item{
+		Payload: ItemCompleted{Item: itemfixture.MustRestore(itemfixture.Input{
 			ID:      "item_1",
 			Content: []transcript.ContentBlock{{Kind: transcript.TextContent, Text: strings.Repeat("x", n)}},
-		}},
+		})},
 	}
 }
 

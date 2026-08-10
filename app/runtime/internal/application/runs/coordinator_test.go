@@ -1419,14 +1419,14 @@ func TestCoordinatorAtomicallyAdmitsChildRunFromSpawningItem(t *testing.T) {
 	}
 	parentCommit := child.Events[0]
 	spawningItem := parentCommit.Items[0]
+	invocation, present := spawningItem.ToolInvocation()
 	if parentCommit.RunID != "run_1" ||
 		parentCommit.SessionID != "ses_1" ||
-		spawningItem.ID != draft.SpawnedByItemID ||
-		spawningItem.RunID != "run_1" ||
-		spawningItem.SessionID != "ses_1" ||
-		spawningItem.Status != transcript.ItemRunning ||
-		spawningItem.Tool == nil ||
-		spawningItem.Tool.Name != "delegate_task" {
+		spawningItem.ID() != draft.SpawnedByItemID ||
+		spawningItem.RunID() != "run_1" ||
+		spawningItem.SessionID() != "ses_1" ||
+		spawningItem.Status() != transcript.ItemRunning ||
+		!present || invocation.Name != "delegate_task" {
 		t.Fatalf("parent spawning-item commit = %+v", parentCommit)
 	}
 }
@@ -1529,9 +1529,9 @@ func requireIndependentChildLifecycle(
 		t.Fatalf("child opening Run = %+v, want independent inherited segment state", started.Run)
 	}
 	completed := lifecycle.completed
-	if completed.Item.RunID != childRunID ||
-		completed.Item.SessionID != spec.SessionID ||
-		completed.Item.Kind != transcript.AgentMessage {
+	if completed.Item.RunID() != childRunID ||
+		completed.Item.SessionID() != spec.SessionID ||
+		completed.Item.Kind() != transcript.AgentMessage {
 		t.Fatalf("child completed item = %+v, want child-owned assistant item", completed)
 	}
 	finished := lifecycle.finished
@@ -1742,8 +1742,8 @@ func TestCoordinatorKeepsConcurrentSiblingSegmentsIsolated(t *testing.T) {
 		}
 		switch payload := event.Payload.(type) {
 		case ItemCompleted:
-			if payload.Item.Kind == transcript.AgentMessage {
-				child.text = payload.Item.Content[0].Text
+			if payload.Item.Kind() == transcript.AgentMessage {
+				child.text = payload.Item.Content()[0].Text
 			}
 		case SegmentFinished:
 			run := payload.Run

@@ -10,6 +10,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/itemfixture"
 	runfixture "github.com/Tangerg/lynx/app/runtime/internal/testsupport/runfixture"
 )
 
@@ -354,14 +355,13 @@ func TestLiveChildCancellationAndNaturalTerminalHaveOneTreeOwner(t *testing.T) {
 		}
 		owner.recordTerminalRun(canceled)
 		owner.recordChildCancellationItem(
-			plan.target.run.Lineage().ParentRunID,
-			transcript.Item{
-				ID:     plan.target.run.Lineage().SpawnedByItemID,
-				Status: transcript.ItemIncomplete,
-				Error: &tool.Failure{
+			plan.target.run.Lineage().ParentRunID, itemfixture.MustRestore(itemfixture.Input{
+				ID:   plan.target.run.Lineage().SpawnedByItemID,
+				Kind: transcript.ToolCall, Status: transcript.ItemIncomplete,
+				Failure: &tool.Failure{
 					Kind: tool.FailureChildRunCanceled,
 				},
-			},
+			}),
 		)
 
 		target, root, err := owner.waitChildCancellation(t.Context(), attempt)

@@ -25,7 +25,7 @@ func presentRunEvent(event runs.RunEvent) protocol.StreamEvent {
 		outcome, metrics := presentSegmentFinished(event.Run, event.Interrupts)
 		return protocol.StreamEvent{Type: protocol.StreamSegmentFinished, Outcome: &outcome, Metrics: &metrics}
 	case runs.ItemStarted:
-		item := presentItem(event.Item)
+		item := presentItemStart(event.Item)
 		return protocol.StreamEvent{Type: protocol.StreamItemStarted, Item: &item}
 	case runs.ItemChanged:
 		delta := presentDelta(event.Delta)

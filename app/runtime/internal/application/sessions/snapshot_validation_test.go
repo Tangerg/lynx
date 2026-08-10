@@ -12,6 +12,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/toolresult"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/itemfixture"
 )
 
 func TestSnapshotNormalizeForRestoreProjectsPreviewWithoutMutatingSource(t *testing.T) {
@@ -21,14 +22,13 @@ func TestSnapshotNormalizeForRestoreProjectsPreviewWithoutMutatingSource(t *test
 	if err != nil {
 		t.Fatalf("NormalizeForRestore: %v", err)
 	}
-	if got, _ := normalized.Items[0].Tool.Result.String(); got != "bounded preview" {
+	normalizedTool, _ := normalized.Items[0].ToolInvocation()
+	if got, _ := normalizedTool.Result.String(); got != "bounded preview" {
 		t.Fatalf("normalized result = %q, want bounded preview", got)
 	}
-	if got, _ := snapshot.Items[0].Tool.Result.String(); got != "full body" {
+	sourceTool, _ := snapshot.Items[0].ToolInvocation()
+	if got, _ := sourceTool.Result.String(); got != "full body" {
 		t.Fatalf("source result mutated to %q", got)
-	}
-	if normalized.Items[0].Tool == snapshot.Items[0].Tool {
-		t.Fatal("normalization reused the source tool invocation pointer")
 	}
 }
 
@@ -48,7 +48,7 @@ func TestSnapshotValidateToolResultsRejectsBrokenRelationships(t *testing.T) {
 		{
 			name: "detached blob",
 			mutate: func(snapshot *Snapshot) {
-				snapshot.Items[0].Tool.Offload = nil
+				mutateSnapshotItem(snapshot, func(item *transcript.ItemSnapshot) { item.Tool.Offload = nil })
 			},
 			want: "references missing transcript item",
 		},
@@ -63,7 +63,7 @@ func TestSnapshotValidateToolResultsRejectsBrokenRelationships(t *testing.T) {
 			name: "unrelated result",
 			mutate: func(snapshot *Snapshot) {
 				result := tool.StringResult("neither preview nor body")
-				snapshot.Items[0].Tool.Result = &result
+				mutateSnapshotItem(snapshot, func(item *transcript.ItemSnapshot) { item.Tool.Result = &result })
 			},
 			want: "matches neither",
 		},
@@ -89,15 +89,26 @@ func TestSnapshotValidateToolResultsRejectsBrokenRelationships(t *testing.T) {
 	}
 }
 
+func mutateSnapshotItem(snapshot *Snapshot, mutate func(*transcript.ItemSnapshot)) {
+	item := snapshot.Items[0].Snapshot()
+	mutate(&item)
+	restored, err := transcript.RestoreItem(item)
+	if err != nil {
+		panic(err)
+	}
+	snapshot.Items[0] = restored
+}
+
 func offloadedSnapshot(result string) Snapshot {
 	ref := &toolresult.Ref{ID: "BLOB234"}
 	value := tool.StringResult(result)
 	return Snapshot{
 		Session: session.Session{ID: "ses_1"},
-		Items: []transcript.Item{{
+		Items: []transcript.Item{itemfixture.MustRestore(itemfixture.Input{
 			SessionID: "ses_1", ID: "item_1", Kind: transcript.ToolCall,
-			Tool: &transcript.ToolInvocation{Name: "shell", Result: &value, Offload: ref},
-		}},
+			Status: transcript.ItemCompleted,
+			Tool:   &transcript.ToolInvocation{Name: "shell", Result: &value, Offload: ref},
+		})},
 		ToolResults: []toolresult.Blob{{
 			ID: "BLOB234", SessionID: "ses_1", ItemID: "item_1", ToolName: "shell",
 			Preview: "bounded preview", Body: "full body", CreatedAt: time.Unix(1, 0).UTC(),
@@ -166,12 +177,12 @@ func TestPortableSnapshotChildInheritsRootCapabilities(t *testing.T) {
 		// The spawning item has to exist: a child run is spawned BY something, and an
 		// archive naming an item it does not contain is a tree that cannot be walked.
 		// The spawning item is a TOOL CALL: a child run is the execution of one.
-		Items: []transcript.Item{{
+		Items: []transcript.Item{itemfixture.MustRestore(itemfixture.Input{
 			SessionID: "ses_1", RunID: "run_root", ID: "item_1", OccurredAt: at,
 			FinishedAt: at,
 			Status:     transcript.ItemCompleted, Kind: transcript.ToolCall,
 			Tool: &transcript.ToolInvocation{Name: "delegate_task"},
-		}},
+		})},
 		Runs: []PortableRun{
 			{
 				SessionID: "ses_1", ID: "run_root", Outcome: run.OutcomeCompleted,

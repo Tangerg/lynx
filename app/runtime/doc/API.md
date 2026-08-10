@@ -1,4 +1,4 @@
-# Lyra Runtime Protocol（定稿 `2026-08-09`）
+# Lyra Runtime Protocol（定稿 `2026-08-10`）
 
 > **状态：正式契约（canonical）。** 本文是 Lyra 客户端 ↔ Lyra Runtime 的 wire 契约真相源之一。物理传输见同目录
 > [`TRANSPORT.md`](./TRANSPORT.md)，旁路能力见 [`AUX_API.md`](./AUX_API.md)。
@@ -13,7 +13,7 @@
 > **本文写的是生成物写不出来的东西**：语义、不变量、"为什么不能是另一种形状"、以及跨方法的走查。一个事实一个作者
 > —— 本文一旦重述字段表，它就成了第二份会腐烂的真相。
 >
-> `protocolVersion`: **`2026-08-09`**（`minSupported` 同值：本 build 只服务这一个版本，旧版本请求确定性返回
+> `protocolVersion`: **`2026-08-10`**（`minSupported` 同值：本 build 只服务这一个版本，旧版本请求确定性返回
 > `invalid_protocol_version`，见 §12）。
 
 ---
@@ -340,10 +340,14 @@ profile，会被**拒绝**而不是降级投递——降级等于给同一个 Ru
 
 ### 4.3 Item
 
-七个变体：`userMessage` / `agentMessage` / `reasoning` / `plan` / `question` / `toolCall` / `compaction`，判别
+六个变体：`userMessage` / `agentMessage` / `reasoning` / `question` / `toolCall` / `compaction`，判别
 字段 `type`，`status ∈ {running, completed, incomplete}`。
 
-- `question` 是一等 Item：一个提问可能成为持久化 interrupt，之后由 `runs.resume` 应答。它不是另一套 Form
+- **只有 ToolCall 拥有持久 lifecycle**：它从 `running` 进入 `completed` 或 `incomplete`。user message、Question、
+  compaction，以及落入 Transcript 的完整 agent message/reasoning 都以 `completed` 形成。流式 agent message/reasoning
+  的 `item.started` 只是客户端渲染锚点，不是可以持久化或恢复的 running Domain Item。
+- `question` 是一等 complete Item：它记录“问题已经提出”；是否仍待回答只由同一个 park write-set 中的
+  `PendingInterruptSet` 表达，之后由 `runs.resume` 应答。它不是另一套 Form
   子系统：`fields` 是有序、非空、**全部必答**的闭合联合，仅有 `text` 与 `choice`。因此没有与实际行为冲突的
   `required:false`，也没有 number/date/conditional/external 等配置表单词汇。
 - Question 不携带可从顺序推导的字段 id，也不重复一份顶层 prompt；每个 field 自带 `prompt`。`choice` 至少有两个
@@ -449,10 +453,10 @@ process、session、审批或模型循环的只读诊断能力。
 
 - **`runId` 是"谁提出的"，不是"谁在等"**：一棵 run 树里，interrupt 集挂在 root 上，但每条 interrupt 记的是提出它的
   那个 Run。
-- **payload 自包含**：`OpenInterrupt` 的语义是"什么在等我处理"——它本就该是个自足的待办快照。让 question 也带
-  `payload.question`，三类一致、去掉对 `items.list` 的二次 join，也根除"进程重启后 `running` 态的 question 还没进
-  持久化历史、join 落空、待答问题渲染不出来"的坑。interrupt 上的 question 与（completed 后的）question Item 上
-  各存一份不算虚假 DRY：前者是待办快照、后者是历史，生命周期不同。
+- **payload 自包含**：`OpenInterrupt` 的语义是"什么在等我处理"——它本就该是个自足的待办快照。question 的
+  `payload.question` 与 complete Question Item 在同一个 park write-set 内持久化，因此既不需要对 `items.list` 二次 join，
+  也不会在重启后丢失渲染事实。两处各存一份不算虚假 DRY：前者是尚待回答的待办快照，后者是已经提出问题的历史事实；
+  是否仍在等待只属于 Pending interrupt，不属于 Transcript Item 的第二套 lifecycle。
 - **分页单位是"一个 waiting Run 的完整 interrupt 集"**（`PendingInterruptSet`）：半个集合无法应答，按条分页会
   发明出不可用的页（§7.3）；`interrupts` 必填且非空，空集合不是一个可恢复的 Waiting 状态。
 
@@ -701,7 +705,7 @@ Run 创建时把这份声明冻进 `RunProtocolProfile.interruptTypes`（§3.2�
   `restoreType` 可选还原文件（`features.checkpoints`），并把**边界那一刻的会话 state 作为一次新写入重新发布**
   （§5.3）。返回 `droppedRuns: DroppedRun[]`（每条带 `run: RunSummary` + 触发它的 `userInput`），所以客户端能
   告诉人"回退丢了哪些回合"。session 有 run 在飞时拒绝（`session_busy`），不去和正在 append 的历史赛跑。
-- **`export` / `import` 是同一份 `SessionArtifact`（v13）的两端**（AUX_API §4.3）：终态 run + 完整 Item 历史 +
+- **`export` / `import` 是同一份 `SessionArtifact`（v15）的两端**（AUX_API §4.3）：终态 run + 完整 Item 历史 +
   chat 消息 + offload 的工具正文 + 会话级 state 的**语义值**（不带 revision / updatedAt —— 那是源 runtime 的排序
   凭证，带过去会让导入值声称一个目标 runtime 从未发出的位置）。import 是**替换语义**（同 id 覆盖），版本不认识就
   确定性拒绝、**不迁移**；未广告的 state key 在任何写入之前拒绝。
@@ -1003,7 +1007,7 @@ dispatcher、discovery 与客户端 preflight 读的是同一份）。
 
 ## 12. 版本规则
 
-- `protocolVersion` 是日期串（本定稿 `2026-08-09`），`minSupported` 与之同值：**本 build 只服务一个版本**。
+- `protocolVersion` 是日期串（本定稿 `2026-08-10`），`minSupported` 与之同值：**本 build 只服务一个版本**。
   一个更宽的范围会宣称一次代码并不执行的协商。
 - 版本不兼容以 request 级 `invalid_protocol_version` 返回（带上本 build 服务的范围），**不存在连接级硬断开**。
 - **加什么不用 bump**：加 method / 加可选响应字段 / 加 `features` map key / 加开放枚举值 → 同版本号。
@@ -1011,7 +1015,7 @@ dispatcher、discovery 与客户端 preflight 读的是同一份）。
   exhaustive switch，§2.3）、加 state key、改语义 / 删字段 / 改字段类型。
 - **判据不是"加还是改"，而是"老客户端会不会做错事"**。这条规则由 CI 强制：compatibility differ 拿本次产物与
   上一版基线对比，判定 breaking 就要求同批 bump（§14）。
-- `SessionArtifactVersion` 与 `protocolVersion` 各自独立编号（本定稿 artifact = **14**）：一份归档可能被一个更新的
+- `SessionArtifactVersion` 与 `protocolVersion` 各自独立编号（本定稿 artifact = **15**）：一份归档可能被一个更新的
   runtime 读到。不认识的版本确定性拒绝，**dev 阶段不写 migration**。
 - HTTP URL 里的 `/v2/`（wire major epoch）与日期 `protocolVersion`（epoch 内请求版本）是两个层级
   （见 TRANSPORT §6.1）。

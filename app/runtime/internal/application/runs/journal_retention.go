@@ -59,20 +59,38 @@ func retainedRunBytes(run run.Run) int {
 
 func retainedItemBytes(item transcript.Item) int {
 	bytes := retainedItemHeaderBytes + stringsBytes(
-		item.SessionID,
-		item.ID,
-		item.RunID,
-		item.Text,
-		item.Summary,
-		string(item.SafetyClass),
+		item.SessionID(),
+		item.ID(),
+		item.RunID(),
+		item.Text(),
+		item.Summary(),
+		string(item.SafetyClass()),
 	)
-	bytes += cap(item.Content) * retainedSliceEntryBytes
-	for _, block := range item.Content {
+	content := item.Content()
+	bytes += cap(content) * retainedSliceEntryBytes
+	for _, block := range content {
 		bytes += len(block.Text) + len(block.MediaType) + cap(block.Bytes)
 	}
-	bytes += retainedQuestionBytes(item.Question)
-	bytes += retainedToolInvocationBytes(item.Tool)
-	bytes += retainedToolFailureBytes(item.Error)
+	if question, ok := item.Question(); ok {
+		bytes += retainedQuestionBytes(&question)
+	}
+	if invocation, ok := item.ToolInvocation(); ok {
+		bytes += retainedToolInvocationBytes(&invocation)
+	}
+	if failure, ok := item.Failure(); ok {
+		bytes += retainedToolFailureBytes(&failure)
+	}
+	return bytes
+}
+
+func retainedItemStartBytes(item ItemStart) int {
+	bytes := retainedItemHeaderBytes + stringsBytes(
+		item.SessionID,
+		item.RunID,
+		item.ItemID,
+		string(item.SafetyClass),
+	)
+	bytes += retainedToolInvocationBytes(item.ToolInvocation)
 	return bytes
 }
 

@@ -132,7 +132,7 @@ func (p *Persistence) CommitRecovery(ctx context.Context, commit runs.RecoveryCo
 	return p.tx(ctx, func(ctx context.Context) error {
 		for _, replacement := range commit.ItemReplacements {
 			if err := p.transcript.ReplaceItem(ctx, replacement.Expected, replacement.Replacement); err != nil {
-				return fmt.Errorf("runrecovery: replace transcript Item %q: %w", replacement.Expected.ID, err)
+				return fmt.Errorf("runrecovery: replace transcript Item %q: %w", replacement.Expected.ID(), err)
 			}
 		}
 		for _, lost := range commit.LostRuns {

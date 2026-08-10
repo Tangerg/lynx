@@ -16,6 +16,7 @@ import (
 	resultoffload "github.com/Tangerg/lynx/app/runtime/internal/domain/toolresult"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
+	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/itemfixture"
 	"github.com/Tangerg/lynx/core/chat"
 )
 
@@ -321,21 +322,17 @@ func TestTranscriptStore_RoundTrip(t *testing.T) {
 	ctx := context.Background()
 	now := time.Now().UTC()
 
-	for _, it := range []transcript.Item{
-		{SessionID: "ses_a", RunID: "run_1", ID: "i1", OccurredAt: now, Status: transcript.ItemCompleted, Kind: transcript.UserMessage, Content: []transcript.ContentBlock{{Kind: transcript.TextContent, Text: "one"}}},
-		{SessionID: "ses_a", RunID: "run_1", ID: "i2", OccurredAt: now, Status: transcript.ItemCompleted, Kind: transcript.AgentMessage, Content: []transcript.ContentBlock{{Kind: transcript.TextContent, Text: "two"}}},
-		{SessionID: "ses_b", RunID: "run_9", ID: "i9", OccurredAt: now, Status: transcript.ItemCompleted, Kind: transcript.Reasoning, Text: "other"},
-	} {
+	for _, it := range []transcript.Item{itemfixture.MustRestore(itemfixture.Input{SessionID: "ses_a", RunID: "run_1", ID: "i1", OccurredAt: now, Status: transcript.ItemCompleted, Kind: transcript.UserMessage, Content: []transcript.ContentBlock{{Kind: transcript.TextContent, Text: "one"}}}), itemfixture.MustRestore(itemfixture.Input{SessionID: "ses_a", RunID: "run_1", ID: "i2", OccurredAt: now, Status: transcript.ItemCompleted, Kind: transcript.AgentMessage, Content: []transcript.ContentBlock{{Kind: transcript.TextContent, Text: "two"}}}), itemfixture.MustRestore(itemfixture.Input{SessionID: "ses_b", RunID: "run_9", ID: "i9", OccurredAt: now, Status: transcript.ItemCompleted, Kind: transcript.Reasoning, Text: "other"})} {
 		err = store.AppendItem(ctx, it)
 		if err != nil {
-			t.Fatalf("append %s: %v", it.ID, err)
+			t.Fatalf("append %s: %v", it.ID(), err)
 		}
 	}
 	items, err := store.List(ctx, "ses_a")
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
-	if len(items) != 2 || items[0].ID != "i1" || items[1].ID != "i2" || items[1].Content[0].Text != "two" {
+	if len(items) != 2 || items[0].ID() != "i1" || items[1].ID() != "i2" || items[1].Content()[0].Text != "two" {
 		t.Fatalf("items = %+v, want [i1 i2]", items)
 	}
 }
@@ -355,9 +352,9 @@ func TestTranscriptStoreRejectsIdentityReparenting(t *testing.T) {
 	if err := runs.Admit(ctx, run.Draft{SegmentID: "seg_open", RunID: "run_shared", SessionID: "ses_a", CreatedAt: now}); err != nil {
 		t.Fatalf("seed run: %v", err)
 	}
-	if err := store.AppendItem(ctx, transcript.Item{
+	if err := store.AppendItem(ctx, itemfixture.MustRestore(itemfixture.Input{
 		SessionID: "ses_a", RunID: "run_shared", ID: "item_shared", OccurredAt: now,
-	}); err != nil {
+	})); err != nil {
 		t.Fatalf("seed item: %v", err)
 	}
 
@@ -366,14 +363,14 @@ func TestTranscriptStoreRejectsIdentityReparenting(t *testing.T) {
 	if err := runs.Admit(ctx, run.Draft{SegmentID: "seg_open", RunID: "run_shared", SessionID: "ses_b", CreatedAt: now}); !errors.Is(err, run.ErrIdentityConflict) {
 		t.Fatalf("re-parent run error = %v, want ErrIdentityConflict", err)
 	}
-	if err := store.AppendItem(ctx, transcript.Item{
+	if err := store.AppendItem(ctx, itemfixture.MustRestore(itemfixture.Input{
 		SessionID: "ses_b", RunID: "run_other", ID: "item_shared", OccurredAt: now,
-	}); !errors.Is(err, transcript.ErrIdentityConflict) {
+	})); !errors.Is(err, transcript.ErrIdentityConflict) {
 		t.Fatalf("re-parent item error = %v, want ErrIdentityConflict", err)
 	}
-	if err := store.AppendItem(ctx, transcript.Item{
+	if err := store.AppendItem(ctx, itemfixture.MustRestore(itemfixture.Input{
 		SessionID: "ses_a", RunID: "run_shared", ID: "item_shared", OccurredAt: now.Add(time.Second),
-	}); !errors.Is(err, transcript.ErrIdentityConflict) {
+	})); !errors.Is(err, transcript.ErrIdentityConflict) {
 		t.Fatalf("move item occurrence error = %v, want ErrIdentityConflict", err)
 	}
 
@@ -393,7 +390,7 @@ func TestTranscriptStoreRejectsIdentityReparenting(t *testing.T) {
 	if err != nil {
 		t.Fatalf("list ses_b runs: %v", err)
 	}
-	if len(itemsA) != 1 || itemsA[0].ID != "item_shared" || len(runsA) != 1 || runsA[0].ID() != "run_shared" {
+	if len(itemsA) != 1 || itemsA[0].ID() != "item_shared" || len(runsA) != 1 || runsA[0].ID() != "run_shared" {
 		t.Fatalf("original transcript changed: items=%+v runs=%+v", itemsA, runsA)
 	}
 	if len(itemsB) != 0 || len(runsB) != 0 {
@@ -410,7 +407,7 @@ func TestTranscriptStoreReplaceItemUsesExactOptimisticSnapshot(t *testing.T) {
 	t.Cleanup(func() { _ = db.Close() })
 	store := sqlite.NewTranscriptStore(db)
 	now := time.Date(2026, 7, 30, 1, 2, 3, 0, time.UTC)
-	original := transcript.Item{
+	original := itemfixture.MustRestore(itemfixture.Input{
 		SessionID:  "ses_a",
 		RunID:      "run_1",
 		ID:         "item_child",
@@ -419,7 +416,7 @@ func TestTranscriptStoreReplaceItemUsesExactOptimisticSnapshot(t *testing.T) {
 		Status:     transcript.ItemIncomplete,
 		Kind:       transcript.ToolCall,
 		Tool:       &transcript.ToolInvocation{Name: "delegate_task", Arguments: tool.Arguments{}},
-	}
+	})
 	if err := store.AppendItem(t.Context(), original); err != nil {
 		t.Fatalf("seed Item: %v", err)
 	}
@@ -427,30 +424,37 @@ func TestTranscriptStoreReplaceItemUsesExactOptimisticSnapshot(t *testing.T) {
 		Kind:   tool.FailureChildRunCanceled,
 		Detail: "stop delegated branch",
 	}
-	replacement := original
-	replacement.Error = &failure
+	replacement, err := original.ClassifyAbandonedToolCall(failure)
+	if err != nil {
+		t.Fatalf("classify Item: %v", err)
+	}
 	if err := store.ReplaceItem(t.Context(), original, replacement); err != nil {
 		t.Fatalf("ReplaceItem: %v", err)
 	}
-	stored, found, err := store.Item(t.Context(), original.ID)
+	stored, found, err := store.Item(t.Context(), original.ID())
 	if err != nil || !found {
 		t.Fatalf("Item after replacement found=%t err=%v", found, err)
 	}
-	if stored.Error == nil || stored.Error.Kind != tool.FailureChildRunCanceled {
+	storedFailure, failed := stored.Failure()
+	if !failed || storedFailure.Kind != tool.FailureChildRunCanceled {
 		t.Fatalf("replaced Item = %+v, want child_run_canceled", stored)
 	}
 
-	staleReplacement := replacement
-	staleReplacement.Error = &tool.Failure{
+	staleFailure := tool.Failure{
 		Kind:   tool.FailureChildRunCanceled,
 		Detail: "overwrite newer result",
+	}
+	staleReplacement, err := original.ClassifyAbandonedToolCall(staleFailure)
+	if err != nil {
+		t.Fatalf("classify stale Item: %v", err)
 	}
 	err = store.ReplaceItem(t.Context(), original, staleReplacement)
 	if !errors.Is(err, transcript.ErrIdentityConflict) {
 		t.Fatalf("stale ReplaceItem error = %v, want ErrIdentityConflict", err)
 	}
-	stored, found, err = store.Item(t.Context(), original.ID)
-	if err != nil || !found || stored.Error == nil || stored.Error.Detail != failure.Detail {
+	stored, found, err = store.Item(t.Context(), original.ID())
+	storedFailure, failed = stored.Failure()
+	if err != nil || !found || !failed || storedFailure.Detail != failure.Detail {
 		t.Fatalf("Item after stale replacement = %+v found=%t err=%v", stored, found, err)
 	}
 }
@@ -465,28 +469,37 @@ func TestTranscriptStoreKeepsOffloadRelationshipsImmutableAndOneToOne(t *testing
 	store := sqlite.NewTranscriptStore(db)
 	now := time.Now().UTC()
 	preview := tool.StringResult("preview")
-	original := transcript.Item{
+	original := itemfixture.MustRestore(itemfixture.Input{
 		SessionID: "ses_a", RunID: "run_1", ID: "item_1", OccurredAt: now,
+		FinishedAt: now, Status: transcript.ItemCompleted,
 		Kind: transcript.ToolCall,
 		Tool: &transcript.ToolInvocation{
 			Name: "shell", Result: &preview, Offload: &resultoffload.Ref{ID: "BLOB234"},
 		},
-	}
+	})
 	if err := store.AppendItem(t.Context(), original); err != nil {
 		t.Fatalf("seed item: %v", err)
 	}
 
-	changed := original
+	changedSnapshot := original.Snapshot()
 	otherPreview := tool.StringResult("other preview")
-	changed.Tool = &transcript.ToolInvocation{
+	changedSnapshot.Tool = &transcript.ToolInvocation{
 		Name: "shell", Result: &otherPreview, Offload: &resultoffload.Ref{ID: "OTHER234"},
+	}
+	changed, err := transcript.RestoreItem(changedSnapshot)
+	if err != nil {
+		t.Fatalf("restore changed item: %v", err)
 	}
 	if err := store.AppendItem(t.Context(), changed); !errors.Is(err, transcript.ErrIdentityConflict) {
 		t.Fatalf("replace offload error = %v, want ErrIdentityConflict", err)
 	}
 
-	duplicate := original
-	duplicate.ID = "item_2"
+	duplicateSnapshot := original.Snapshot()
+	duplicateSnapshot.Identity.ItemID = "item_2"
+	duplicate, err := transcript.RestoreItem(duplicateSnapshot)
+	if err != nil {
+		t.Fatalf("restore duplicate item: %v", err)
+	}
 	if err := store.AppendItem(t.Context(), duplicate); !errors.Is(err, transcript.ErrIdentityConflict) {
 		t.Fatalf("reuse offload error = %v, want ErrIdentityConflict", err)
 	}

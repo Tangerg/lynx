@@ -97,28 +97,28 @@ func (snapshot Snapshot) validateRuns() (map[string]struct{}, error) {
 func (snapshot Snapshot) validateItems(runs map[string]struct{}) (map[string]transcript.Item, error) {
 	items := make(map[string]transcript.Item, len(snapshot.Items))
 	for _, item := range snapshot.Items {
-		if item.ID == "" || item.SessionID != snapshot.Session.ID {
-			return nil, fmt.Errorf("sessions: snapshot item %q belongs to session %q, want %q", item.ID, item.SessionID, snapshot.Session.ID)
+		if item.ID() == "" || item.SessionID() != snapshot.Session.ID {
+			return nil, fmt.Errorf("sessions: snapshot item %q belongs to session %q, want %q", item.ID(), item.SessionID(), snapshot.Session.ID)
 		}
-		if _, exists := items[item.ID]; exists {
-			return nil, fmt.Errorf("sessions: snapshot contains duplicate item %q", item.ID)
+		if _, exists := items[item.ID()]; exists {
+			return nil, fmt.Errorf("sessions: snapshot contains duplicate item %q", item.ID())
 		}
-		items[item.ID] = item
-		if _, found := runs[item.RunID]; !found {
-			return nil, fmt.Errorf("sessions: snapshot item %q references unknown run %q", item.ID, item.RunID)
+		items[item.ID()] = item
+		if _, found := runs[item.RunID()]; !found {
+			return nil, fmt.Errorf("sessions: snapshot item %q references unknown run %q", item.ID(), item.RunID())
 		}
-		switch item.Status {
+		switch item.Status() {
 		case transcript.ItemCompleted, transcript.ItemIncomplete:
 		case transcript.ItemRunning:
-			return nil, fmt.Errorf("sessions: snapshot terminal run item %q is still running", item.ID)
+			return nil, fmt.Errorf("sessions: snapshot terminal run item %q is still running", item.ID())
 		default:
-			return nil, fmt.Errorf("sessions: snapshot item %q has unknown status %d", item.ID, item.Status)
+			return nil, fmt.Errorf("sessions: snapshot item %q has unknown status %d", item.ID(), item.Status())
 		}
-		if item.Error != nil && (item.Kind != transcript.ToolCall || item.Status != transcript.ItemIncomplete) {
-			return nil, fmt.Errorf("sessions: snapshot item %q has an invalid tool error", item.ID)
+		if _, failed := item.Failure(); failed && (item.Kind() != transcript.ToolCall || item.Status() != transcript.ItemIncomplete) {
+			return nil, fmt.Errorf("sessions: snapshot item %q has an invalid tool failure", item.ID())
 		}
 		if err := item.Validate(); err != nil {
-			return nil, fmt.Errorf("sessions: snapshot item %q: %w", item.ID, err)
+			return nil, fmt.Errorf("sessions: snapshot item %q: %w", item.ID(), err)
 		}
 	}
 	return items, nil
@@ -198,15 +198,15 @@ func (tree *snapshotRunTree) indexChild(
 	if !found {
 		return fmt.Errorf("sessions: snapshot run %q references unknown spawning item %q", child.ID(), lineage.SpawnedByItemID)
 	}
-	if item.Kind != transcript.ToolCall {
+	if item.Kind() != transcript.ToolCall {
 		return fmt.Errorf("sessions: snapshot run %q spawning item %q is not a tool call", child.ID(), lineage.SpawnedByItemID)
 	}
-	if item.RunID != parent.ID() {
+	if item.RunID() != parent.ID() {
 		return fmt.Errorf(
 			"sessions: snapshot child run %q spawning item %q belongs to run %q, want parent %q",
 			child.ID(),
-			item.ID,
-			item.RunID,
+			item.ID(),
+			item.RunID(),
 			parent.ID(),
 		)
 	}

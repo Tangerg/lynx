@@ -160,7 +160,7 @@ func validateRecoveryContinuation(
 func indexRecoveryItems(items []transcript.Item) map[string]transcript.Item {
 	indexed := make(map[string]transcript.Item, len(items))
 	for _, item := range items {
-		indexed[item.ID] = item
+		indexed[item.ID()] = item
 	}
 	return indexed
 }
@@ -190,11 +190,10 @@ func validateRecoveryInterruptItems(
 		}
 		item, found := itemsByID[request.ItemID]
 		if !found ||
-			item.SessionID != tree.root.SessionID() ||
-			item.RunID != request.RunID ||
-			item.Status != transcript.ItemRunning {
+			item.SessionID() != tree.root.SessionID() ||
+			item.RunID() != request.RunID {
 			return nil, fmt.Errorf(
-				"runs: validate recovery Run tree %q: interrupt Item %q is not Running in Run %q",
+				"runs: validate recovery Run tree %q: interrupt Item %q is not owned by Run %q",
 				tree.root.ID(),
 				request.ItemID,
 				request.RunID,
@@ -202,11 +201,13 @@ func validateRecoveryInterruptItems(
 		}
 		switch request.Kind {
 		case interrupt.Approval:
+			invocation, present := item.ToolInvocation()
 			if request.Approval == nil ||
 				request.Question != nil ||
-				item.Kind != transcript.ToolCall ||
-				item.Tool == nil ||
-				!reflect.DeepEqual(*item.Tool, request.Approval.Tool) {
+				item.Kind() != transcript.ToolCall ||
+				item.Status() != transcript.ItemRunning ||
+				!present ||
+				!reflect.DeepEqual(invocation, request.Approval.Tool) {
 				return nil, fmt.Errorf(
 					"runs: validate recovery Run tree %q: malformed approval Item %q",
 					tree.root.ID(),
@@ -214,11 +215,13 @@ func validateRecoveryInterruptItems(
 				)
 			}
 		case interrupt.Question:
+			question, present := item.Question()
 			if request.Question == nil ||
 				request.Approval != nil ||
-				item.Kind != transcript.QuestionItem ||
-				item.Question == nil ||
-				!reflect.DeepEqual(item.Question, request.Question) {
+				item.Kind() != transcript.QuestionItem ||
+				item.Status() != transcript.ItemCompleted ||
+				!present ||
+				!reflect.DeepEqual(question, *request.Question) {
 				return nil, fmt.Errorf(
 					"runs: validate recovery Run tree %q: malformed question Item %q",
 					tree.root.ID(),
@@ -243,15 +246,15 @@ func validateRecoveryRunningItems(
 	interruptItems map[string]struct{},
 ) error {
 	for _, item := range items {
-		if _, active := tree.runsByID[item.RunID]; !active || item.Status != transcript.ItemRunning {
+		if _, active := tree.runsByID[item.RunID()]; !active || item.Status() != transcript.ItemRunning {
 			continue
 		}
-		if _, belongsToInterrupt := interruptItems[item.ID]; !belongsToInterrupt {
+		if _, belongsToInterrupt := interruptItems[item.ID()]; !belongsToInterrupt {
 			return fmt.Errorf(
 				"runs: validate recovery Run tree %q: Running Item %q in Run %q has no matching interrupt",
 				tree.root.ID(),
-				item.ID,
-				item.RunID,
+				item.ID(),
+				item.RunID(),
 			)
 		}
 	}
@@ -269,14 +272,16 @@ func validateRecoveryContinuationTools(
 			return err
 		}
 		item, found := itemsByID[drained.ItemID]
+		invocation, hasInvocation := item.ToolInvocation()
+		_, hasFailure := item.Failure()
 		if !found ||
-			item.RunID != continuation.RunID ||
-			item.Kind != transcript.ToolCall ||
-			item.Status != transcript.ItemIncomplete ||
-			item.Tool == nil ||
-			item.Tool.Name != drained.Name ||
-			item.Tool.Arguments.Canonical() != drained.Arguments ||
-			item.Error != nil {
+			item.RunID() != continuation.RunID ||
+			item.Kind() != transcript.ToolCall ||
+			item.Status() != transcript.ItemIncomplete ||
+			!hasInvocation ||
+			invocation.Name != drained.Name ||
+			invocation.Arguments.Canonical() != drained.Arguments ||
+			hasFailure {
 			return fmt.Errorf(
 				"runs: validate recovery Run tree %q: malformed drained tool Item %q in Run %q",
 				rootRunID,
@@ -290,15 +295,17 @@ func validateRecoveryContinuationTools(
 			return err
 		}
 		item, found := itemsByID[committed.ItemID]
+		invocation, hasInvocation := item.ToolInvocation()
+		failure, hasFailure := item.Failure()
 		if !found ||
-			item.RunID != continuation.RunID ||
-			item.Kind != transcript.ToolCall ||
-			item.Status != transcript.ItemIncomplete ||
-			item.Tool == nil ||
-			item.Tool.Name != committed.Name ||
-			item.Tool.Arguments.Canonical() != committed.Arguments ||
-			item.Error == nil ||
-			!reflect.DeepEqual(*item.Error, committed.Failure) {
+			item.RunID() != continuation.RunID ||
+			item.Kind() != transcript.ToolCall ||
+			item.Status() != transcript.ItemIncomplete ||
+			!hasInvocation ||
+			invocation.Name != committed.Name ||
+			invocation.Arguments.Canonical() != committed.Arguments ||
+			!hasFailure ||
+			!reflect.DeepEqual(failure, committed.Failure) {
 			return fmt.Errorf(
 				"runs: validate recovery Run tree %q: malformed committed tool Item %q in Run %q",
 				rootRunID,

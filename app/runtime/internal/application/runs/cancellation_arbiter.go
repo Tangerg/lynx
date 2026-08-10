@@ -151,21 +151,22 @@ func (owner *runTreeOwner) recordChildCancellationItem(parentRunID string, item 
 	if attempt == nil ||
 		attempt.targetTerminal == nil ||
 		attempt.parentRunID != parentRunID ||
-		attempt.spawningItemID != item.ID {
+		attempt.spawningItemID != item.ID() {
 		return
 	}
-	if item.Error == nil || item.Error.Kind != tool.FailureChildRunCanceled {
+	failure, failed := item.Failure()
+	if !failed || failure.Kind != tool.FailureChildRunCanceled {
 		attempt.err = fmt.Errorf(
 			"runs: canceled child Run %q parent item %q committed without child_run_canceled",
 			attempt.targetRunID,
-			item.ID,
+			item.ID(),
 		)
-	} else if item.Status != transcript.ItemIncomplete {
+	} else if item.Status() != transcript.ItemIncomplete {
 		attempt.err = fmt.Errorf(
-			"runs: canceled child Run %q parent item %q committed in status %d",
+			"runs: canceled child Run %q parent item %q committed in status %s",
 			attempt.targetRunID,
-			item.ID,
-			item.Status,
+			item.ID(),
+			item.Status(),
 		)
 	}
 	owner.finishChildCancellationLocked(attempt)

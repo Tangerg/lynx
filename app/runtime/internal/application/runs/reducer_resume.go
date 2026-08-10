@@ -16,17 +16,10 @@ type resumeBinding struct {
 	callItems map[string]resumableItem
 	toolItems map[string]resumableItem
 	byName    map[string]resumableItem
-	questions []resumedQuestion
 	drained   []DrainedTool
 	committed map[string]CommittedTool
 	consumed  map[string]struct{}
 	err       error
-}
-
-type resumedQuestion struct {
-	itemID     string
-	occurredAt time.Time
-	question   *transcript.Question
 }
 
 type resumableItem struct {
@@ -95,9 +88,9 @@ func (builder *resumeBindingBuilder) addInterrupts(interrupts []transcript.Inter
 				)
 			}
 		case interrupt.Question:
-			builder.binding.questions = append(builder.binding.questions, resumedQuestion{
-				itemID: pending.ItemID, occurredAt: pending.ItemOccurredAt, question: pending.Question,
-			})
+			// Question Items are complete prompt facts when the tree parks. Pending
+			// owns whether an answer is still outstanding, so resume has no Item
+			// lifecycle to settle.
 		}
 	}
 }
@@ -134,7 +127,7 @@ func (builder *resumeBindingBuilder) addTools(member Continuation) error {
 func (builder *resumeBindingBuilder) build() *resumeBinding {
 	binding := &builder.binding
 	if len(binding.callItems) == 0 && len(binding.toolItems) == 0 &&
-		len(binding.questions) == 0 && len(binding.committed) == 0 {
+		len(binding.committed) == 0 {
 		return nil
 	}
 	return binding
@@ -251,20 +244,5 @@ func (b *resumeBinding) remainingCommittedTools() []CommittedTool {
 	slices.SortFunc(out, func(left, right CommittedTool) int {
 		return strings.Compare(left.CallID, right.CallID)
 	})
-	return out
-}
-
-func (r *reducer) resumeQuestionCompletions() []RunEvent {
-	if r.resume == nil || len(r.resume.questions) == 0 {
-		return nil
-	}
-	out := make([]RunEvent, 0, len(r.resume.questions))
-	for _, question := range r.resume.questions {
-		out = append(out, ItemCompleted{Item: transcript.Item{
-			ID: question.itemID, RunID: r.cfg.RunID, Status: transcript.ItemCompleted,
-			Kind: transcript.QuestionItem, OccurredAt: question.occurredAt, Question: question.question,
-		}})
-	}
-	r.resume.questions = nil
 	return out
 }

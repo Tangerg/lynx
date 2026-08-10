@@ -257,19 +257,22 @@ func (builder waitingCancellationBuilder) settleWaitingItems(
 		Detail: builder.reason,
 	}
 	parentItem := builder.plan.spawningItem
-	replacement := parentItem
-	replacement.Status = transcript.ItemIncomplete
-	replacement.Error = &failure
+	replacement, err := parentItem.ClassifyAbandonedToolCall(failure)
+	if err != nil {
+		return nil, ItemReplacement{}, nil, fmt.Errorf("runs: classify spawning Item: %w", err)
+	}
 	terminalItems := make([]ItemReplacement, 0, len(builder.plan.targetInterruptItems))
 	for _, item := range builder.plan.targetInterruptItems {
-		settled := item
-		settled.Status = transcript.ItemIncomplete
-		if settled.Kind == transcript.ToolCall {
-			settled.FinishedAt = builder.finishedAt.UTC()
-			settled.Error = &tool.Failure{
-				Kind:   tool.FailureExecution,
-				Detail: builder.reason,
-			}
+		if item.Kind() == transcript.QuestionItem {
+			continue
+		}
+		itemFailure := tool.Failure{
+			Kind:   tool.FailureExecution,
+			Detail: builder.reason,
+		}
+		settled, err := item.AbandonToolCall(&itemFailure, builder.finishedAt)
+		if err != nil {
+			return nil, ItemReplacement{}, nil, fmt.Errorf("runs: settle waiting Item %q: %w", item.ID(), err)
 		}
 		terminalItems = append(terminalItems, ItemReplacement{
 			Expected:    item,
@@ -287,9 +290,13 @@ func (builder waitingCancellationBuilder) settleWaitingItems(
 		clone.DrainedTools = slices.Clone(continuation.DrainedTools)
 		clone.CommittedTools = slices.Clone(continuation.CommittedTools)
 		if continuation.RunID == builder.plan.target.run.Lineage().ParentRunID {
+			parentInvocation, present := parentItem.ToolInvocation()
+			if !present {
+				return nil, ItemReplacement{}, nil, fmt.Errorf("runs: spawning Item %q has no invocation", parentItem.ID())
+			}
 			var matches []DrainedTool
 			clone.DrainedTools = slices.DeleteFunc(clone.DrainedTools, func(tool DrainedTool) bool {
-				if tool.ItemID != parentItem.ID {
+				if tool.ItemID != parentItem.ID() {
 					return false
 				}
 				matches = append(matches, tool)
@@ -300,15 +307,15 @@ func (builder waitingCancellationBuilder) settleWaitingItems(
 					"runs: parent Run %q continuation has %d drained tools for spawning Item %q",
 					continuation.RunID,
 					len(matches),
-					parentItem.ID,
+					parentItem.ID(),
 				)
 			}
 			tool := matches[0]
-			if tool.Name != parentItem.Tool.Name ||
-				tool.Arguments != parentItem.Tool.Arguments.Canonical() {
+			if tool.Name != parentInvocation.Name ||
+				tool.Arguments != parentInvocation.Arguments.Canonical() {
 				return nil, ItemReplacement{}, nil, fmt.Errorf(
 					"runs: spawning Item %q differs from its drained tool identity",
-					parentItem.ID,
+					parentItem.ID(),
 				)
 			}
 			clone.CommittedTools = append(clone.CommittedTools, CommittedTool{
@@ -325,7 +332,7 @@ func (builder waitingCancellationBuilder) settleWaitingItems(
 	if !parentToolMoved {
 		return nil, ItemReplacement{}, nil, fmt.Errorf(
 			"runs: waiting cancellation did not settle spawning Item %q",
-			parentItem.ID,
+			parentItem.ID(),
 		)
 	}
 	return terminalItems, ItemReplacement{Expected: parentItem, Replacement: replacement}, continuations, nil

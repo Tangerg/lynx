@@ -13,6 +13,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
+	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/itemfixture"
 )
 
 func TestChildOpeningAtomicallyCommitsRunAndParentSpawningItem(t *testing.T) {
@@ -42,7 +43,7 @@ func TestChildOpeningAtomicallyCommitsRunAndParentSpawningItem(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parse arguments: %v", err)
 	}
-	spawningItem := transcript.Item{
+	spawningItem := itemfixture.MustRestore(itemfixture.Input{
 		SessionID:  "session_1",
 		RunID:      "run_root",
 		ID:         "item_delegate",
@@ -53,10 +54,10 @@ func TestChildOpeningAtomicallyCommitsRunAndParentSpawningItem(t *testing.T) {
 			Name:      "delegate_task",
 			Arguments: arguments,
 		},
-	}
+	})
 	child := run.Draft{
 		RunID: "run_child", SessionID: "session_1", SegmentID: "segment_child",
-		SpawnedByItemID: spawningItem.ID, ParentRunID: root.RunID, RootRunID: root.RunID,
+		SpawnedByItemID: spawningItem.ID(), ParentRunID: root.RunID, RootRunID: root.RunID,
 		CreatedAt: time.Unix(3, 0),
 	}
 	if err := effects.CommitOpening(t.Context(), runs.OpeningCommit{
@@ -73,7 +74,7 @@ func TestChildOpeningAtomicallyCommitsRunAndParentSpawningItem(t *testing.T) {
 	if err != nil || !found {
 		t.Fatalf("read child: found=%v error=%v", found, err)
 	}
-	if persistedChild.Lineage().SpawnedByItemID != spawningItem.ID ||
+	if persistedChild.Lineage().SpawnedByItemID != spawningItem.ID() ||
 		persistedChild.Lineage().ParentRunID != root.RunID ||
 		persistedChild.Lineage().RootRunID != root.RunID {
 		t.Fatalf("persisted child = %+v, want complete lineage", persistedChild)
@@ -82,7 +83,7 @@ func TestChildOpeningAtomicallyCommitsRunAndParentSpawningItem(t *testing.T) {
 	if err != nil {
 		t.Fatalf("list transcript: %v", err)
 	}
-	if len(items) != 1 || items[0].ID != spawningItem.ID || items[0].Status != transcript.ItemRunning {
+	if len(items) != 1 || items[0].ID() != spawningItem.ID() || items[0].Status() != transcript.ItemRunning {
 		t.Fatalf("persisted parent items = %+v, want running spawning item", items)
 	}
 
@@ -97,13 +98,15 @@ func TestChildOpeningAtomicallyCommitsRunAndParentSpawningItem(t *testing.T) {
 			return sqlite.RunInTx(ctx, db, apply)
 		},
 	})
-	rolledBackItem := spawningItem
-	rolledBackItem.ID = "item_rollback"
-	rolledBackItem.OccurredAt = time.Unix(4, 0)
+	rolledBackItem := itemfixture.MustRestore(itemfixture.Input{
+		SessionID: "session_1", RunID: "run_root", ID: "item_rollback",
+		Status: transcript.ItemRunning, Kind: transcript.ToolCall, OccurredAt: time.Unix(4, 0),
+		Tool: &transcript.ToolInvocation{Name: "delegate_task", Arguments: arguments},
+	})
 	rolledBackChild := child
 	rolledBackChild.RunID = "run_rollback"
 	rolledBackChild.SegmentID = "segment_rollback"
-	rolledBackChild.SpawnedByItemID = rolledBackItem.ID
+	rolledBackChild.SpawnedByItemID = rolledBackItem.ID()
 	rolledBackChild.CreatedAt = time.Unix(5, 0)
 	err = failingEffects.CommitOpening(t.Context(), runs.OpeningCommit{
 		Admit: &rolledBackChild,
@@ -122,7 +125,7 @@ func TestChildOpeningAtomicallyCommitsRunAndParentSpawningItem(t *testing.T) {
 	if err != nil {
 		t.Fatalf("list transcript after rollback: %v", err)
 	}
-	if len(items) != 1 || items[0].ID != spawningItem.ID {
+	if len(items) != 1 || items[0].ID() != spawningItem.ID() {
 		t.Fatalf("items after rollback = %+v, want only committed spawning item", items)
 	}
 }

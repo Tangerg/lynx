@@ -23,6 +23,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/toolresult"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
+	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/itemfixture"
 	runfixture "github.com/Tangerg/lynx/app/runtime/internal/testsupport/runfixture"
 )
 
@@ -102,16 +103,16 @@ func TestCommitEventPersistsTranscriptAndTerminalizes(t *testing.T) {
 		SessionID: "ses_1",
 		State:     runs.StateTerminalize,
 		Outcome:   run.OutcomeCompleted,
-		Items: []transcript.Item{{
+		Items: []transcript.Item{itemfixture.MustRestore(itemfixture.Input{
 			SessionID: "ses_1", RunID: "run_1", ID: "item_1", OccurredAt: time.Unix(1, 0).UTC(),
-		}},
+		})},
 		Run: finishedRunRecord("run_1", "ses_1", run.OutcomeCompleted),
 	})
 	if err != nil {
 		t.Fatalf("CommitEvent: %v", err)
 	}
 
-	if len(stores.transcript.items) != 1 || stores.transcript.items[0].ID != "item_1" {
+	if len(stores.transcript.items) != 1 || stores.transcript.items[0].ID() != "item_1" {
 		t.Fatalf("items = %+v, want item_1", stores.transcript.items)
 	}
 	if len(runState.terminalized) != 1 {
@@ -138,12 +139,12 @@ func TestCommitEventBindsOffloadedResultWithTranscriptItem(t *testing.T) {
 
 	err := effects.CommitEvent(t.Context(), runs.EventCommit{
 		RunID: "run_1", SessionID: "ses_1",
-		Items: []transcript.Item{{
+		Items: []transcript.Item{itemfixture.MustRestore(itemfixture.Input{
 			SessionID: "ses_1", RunID: "run_1", ID: "item_1",
 			Kind: transcript.ToolCall, Status: transcript.ItemCompleted,
 			OccurredAt: time.Unix(1, 0).UTC(), FinishedAt: time.Unix(2, 0).UTC(),
 			Tool: &transcript.ToolInvocation{Name: "shell", Result: &preview, Offload: ref},
-		}},
+		})},
 	})
 	if err != nil {
 		t.Fatalf("CommitEvent: %v", err)
@@ -171,12 +172,12 @@ func TestCommitEventDiscardsStagedOffloadAfterCommitFailure(t *testing.T) {
 
 	err := effects.CommitEvent(t.Context(), runs.EventCommit{
 		RunID: "run_1", SessionID: "ses_1",
-		Items: []transcript.Item{{
+		Items: []transcript.Item{itemfixture.MustRestore(itemfixture.Input{
 			SessionID: "ses_1", RunID: "run_1", ID: "item_1",
 			Kind: transcript.ToolCall, Status: transcript.ItemCompleted,
 			OccurredAt: time.Unix(1, 0).UTC(), FinishedAt: time.Unix(2, 0).UTC(),
 			Tool: &transcript.ToolInvocation{Name: "shell", Result: &preview, Offload: ref},
-		}},
+		})},
 	})
 	if !errors.Is(err, want) {
 		t.Fatalf("CommitEvent error = %v, want %v", err, want)
@@ -233,9 +234,9 @@ func TestCommitOpeningAdmitsAndProjectsInOneTransaction(t *testing.T) {
 		Events: []runs.EventCommit{{
 			RunID:     "run_1",
 			SessionID: "ses_1",
-			Items: []transcript.Item{{
+			Items: []transcript.Item{itemfixture.MustRestore(itemfixture.Input{
 				SessionID: "ses_1", RunID: "run_1", ID: "item_1", OccurredAt: time.Unix(1, 0).UTC(),
-			}},
+			})},
 		}},
 	})
 	if err != nil {
@@ -340,9 +341,9 @@ func TestCommitOpeningResumesAfterSeparateAnswerClaim(t *testing.T) {
 		Events: []runs.EventCommit{{
 			RunID:     "run_1",
 			SessionID: "ses_1",
-			Items: []transcript.Item{{
+			Items: []transcript.Item{itemfixture.MustRestore(itemfixture.Input{
 				SessionID: "ses_1", RunID: "run_1", ID: "item_1", OccurredAt: now,
-			}},
+			})},
 		}},
 	})
 	if err != nil {
@@ -389,11 +390,11 @@ func TestCommitTreeBarrierRecordsPendingSetAndSuspends(t *testing.T) {
 				UpdatedAt:    barrierCreatedAt,
 				MessageMark:  run.UnknownMessageMark})),
 
-			Items: []transcript.Item{{
+			Items: []transcript.Item{itemfixture.MustRestore(itemfixture.Input{
 				SessionID: "ses_1", RunID: "run_1", ID: "int_1",
-				Kind: transcript.QuestionItem, Status: transcript.ItemRunning,
+				Kind:       transcript.QuestionItem,
 				OccurredAt: barrierCreatedAt, Question: pending.Interrupts[0].Question,
-			}},
+			})},
 		}},
 	})
 	if err != nil {
@@ -412,7 +413,7 @@ func TestCommitTreeBarrierRecordsPendingSetAndSuspends(t *testing.T) {
 	if len(runState.suspended) != 1 || runState.suspended[0].ID() != "run_1" || runState.suspended[0].Metrics().Steps() != 2 {
 		t.Fatalf("suspended = %+v, want run_1 with the accrual the park froze", runState.suspended)
 	}
-	if len(stores.transcript.items) != 1 || stores.transcript.items[0].ID != "int_1" {
+	if len(stores.transcript.items) != 1 || stores.transcript.items[0].ID() != "int_1" {
 		t.Fatalf("park transcript = items:%+v, want one running interrupt item", stores.transcript.items)
 	}
 }

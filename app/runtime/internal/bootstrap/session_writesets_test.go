@@ -23,6 +23,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	sqlite "github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
+	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/itemfixture"
 	runfixture "github.com/Tangerg/lynx/app/runtime/internal/testsupport/runfixture"
 )
 
@@ -666,9 +667,9 @@ func TestApplyRestoreRollsBackOnRunIdentityConflict(t *testing.T) {
 	if err := ss.runs.Restore(ctx, restoredRun("ses_A", "run_shared", now)); err != nil {
 		t.Fatalf("seed source run: %v", err)
 	}
-	if err := ss.transcript.AppendItem(ctx, transcript.Item{
+	if err := ss.transcript.AppendItem(ctx, itemfixture.MustRestore(itemfixture.Input{
 		SessionID: "ses_A", RunID: "run_shared", ID: "item_shared", OccurredAt: now,
-	}); err != nil {
+	})); err != nil {
 		t.Fatalf("seed source item: %v", err)
 	}
 	if err := ss.runs.Restore(ctx, restoredRun("ses_B", "run_target", now)); err != nil {

@@ -15,6 +15,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/itemfixture"
 	runfixture "github.com/Tangerg/lynx/app/runtime/internal/testsupport/runfixture"
 )
 
@@ -150,18 +151,8 @@ func TestPrepareWaitingCancellationKeepsSurvivingExternalBoundary(t *testing.T) 
 	if got, want := runIDs(transformation.terminalRuns), []string{"run_grandchild", "run_a"}; !slices.Equal(got, want) {
 		t.Fatalf("terminal Runs = %v, want canonical postorder %v", got, want)
 	}
-	if len(transformation.terminalItems) != 1 {
-		t.Fatalf("terminal interrupt Items = %+v, want one", transformation.terminalItems)
-	}
-	terminalItem := transformation.terminalItems[0]
-	if terminalItem.Expected.ID != "item_grandchild" ||
-		terminalItem.Expected.Status != transcript.ItemRunning ||
-		terminalItem.Replacement.Status != transcript.ItemIncomplete ||
-		terminalItem.Replacement.Error != nil {
-		t.Fatalf(
-			"terminal interrupt Item = %+v, want Running question settled Incomplete",
-			terminalItem,
-		)
+	if len(transformation.terminalItems) != 0 {
+		t.Fatalf("terminal interrupt Items = %+v, complete Questions must remain unchanged", transformation.terminalItems)
 	}
 	if transformation.remaining == nil ||
 		len(transformation.remaining.Interrupts) != 1 ||
@@ -811,7 +802,7 @@ func runACancellationPlan(
 	if err != nil {
 		t.Fatalf("waiting cancellation plan: %v", err)
 	}
-	plan.spawningItem = transcript.Item{
+	plan.spawningItem = itemfixture.MustRestore(itemfixture.Input{
 		ID:         target.Lineage().SpawnedByItemID,
 		SessionID:  pending.SessionID,
 		RunID:      target.Lineage().ParentRunID,
@@ -823,7 +814,7 @@ func runACancellationPlan(
 			Name:      "delegate_task",
 			Arguments: tool.Arguments{},
 		},
-	}
+	})
 	plan.hasSpawningItem = true
 	targetRunIDs := make(map[string]struct{}, len(plan.targetSubtree))
 	for _, member := range plan.targetSubtree {
@@ -833,23 +824,23 @@ func runACancellationPlan(
 		if _, targeted := targetRunIDs[pendingInterrupt.RunID]; !targeted {
 			continue
 		}
-		item := transcript.Item{
-			ID:         pendingInterrupt.ItemID,
-			SessionID:  pending.SessionID,
-			RunID:      pendingInterrupt.RunID,
-			Status:     transcript.ItemRunning,
-			OccurredAt: createdAt,
+		input := itemfixture.Input{
+			ID: pendingInterrupt.ItemID, SessionID: pending.SessionID,
+			RunID: pendingInterrupt.RunID, OccurredAt: createdAt,
 		}
 		switch pendingInterrupt.Kind {
 		case interrupt.Question:
-			item.Kind = transcript.QuestionItem
-			item.Question = pendingInterrupt.Question
+			input.Kind = transcript.QuestionItem
+			input.Status = transcript.ItemCompleted
+			input.Question = pendingInterrupt.Question
 		case interrupt.Approval:
-			item.Kind = transcript.ToolCall
-			item.Tool = &pendingInterrupt.Approval.Tool
+			input.Kind = transcript.ToolCall
+			input.Status = transcript.ItemRunning
+			input.Tool = &pendingInterrupt.Approval.Tool
 		default:
 			t.Fatalf("unsupported fixture interrupt kind %s", pendingInterrupt.Kind)
 		}
+		item := itemfixture.MustRestore(input)
 		plan.targetInterruptItems = append(plan.targetInterruptItems, item)
 	}
 	return plan
@@ -857,9 +848,9 @@ func runACancellationPlan(
 
 func waitingCancellationItems(plan cancellationPlan) map[string]transcript.Item {
 	items := make(map[string]transcript.Item, len(plan.targetInterruptItems)+1)
-	items[plan.spawningItem.ID] = plan.spawningItem
+	items[plan.spawningItem.ID()] = plan.spawningItem
 	for _, item := range plan.targetInterruptItems {
-		items[item.ID] = item
+		items[item.ID()] = item
 	}
 	return items
 }
@@ -872,10 +863,9 @@ func assertSettledParentTool(
 ) {
 	t.Helper()
 	replacement := transformation.parentItem.Replacement
-	if replacement.ID != itemID ||
-		replacement.Status != transcript.ItemIncomplete ||
-		replacement.Error == nil ||
-		replacement.Error.Kind != tool.FailureChildRunCanceled {
+	failure, failed := replacement.Failure()
+	if replacement.ID() != itemID || replacement.Status() != transcript.ItemIncomplete ||
+		!failed || failure.Kind != tool.FailureChildRunCanceled {
 		t.Fatalf("parent Item replacement = %+v, want child_run_canceled", replacement)
 	}
 	root, ok := transformation.continuation.root()

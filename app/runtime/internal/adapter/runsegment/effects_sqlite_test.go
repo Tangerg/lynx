@@ -20,6 +20,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
+	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/itemfixture"
 	runfixture "github.com/Tangerg/lynx/app/runtime/internal/testsupport/runfixture"
 )
 
@@ -140,11 +141,11 @@ func TestCommitOpeningResumeCommitsWholeWriteSet(t *testing.T) {
 		Events: []runs.EventCommit{{
 			RunID:     "run_1",
 			SessionID: "ses_1",
-			Items: []transcript.Item{{
+			Items: []transcript.Item{itemfixture.MustRestore(itemfixture.Input{
 				SessionID: "ses_1", RunID: "run_1", ID: "item_resumed", OccurredAt: created,
 				Status: transcript.ItemCompleted, Kind: transcript.UserMessage,
 				Content: []transcript.ContentBlock{{Kind: transcript.TextContent, Text: "go on"}},
-			}},
+			})},
 		}},
 	}
 	err = effects.CommitOpening(ctx, opening)
@@ -213,11 +214,11 @@ func TestCommitEventAtomicallyRecordsModelFinalAndRunAccounting(t *testing.T) {
 		t.Fatalf("commit start: %v", err)
 	}
 
-	item := transcript.Item{
+	item := itemfixture.MustRestore(itemfixture.Input{
 		SessionID: "ses_model", RunID: "run_model", ID: "item_final",
 		OccurredAt: finishedAt, Status: transcript.ItemCompleted, Kind: transcript.AgentMessage,
 		Content: []transcript.ContentBlock{{Kind: transcript.TextContent, Text: "answer"}},
-	}
+	})
 	completion := runs.ModelInvocationCommit{
 		CallID: "model_call_1", SegmentID: "seg_model", State: runs.ModelInvocationCompleted,
 		StartedAt: startedAt, FinishedAt: finishedAt,
@@ -257,7 +258,7 @@ func TestCommitEventAtomicallyRecordsModelFinalAndRunAccounting(t *testing.T) {
 		t.Fatalf("invocation after commit = %q err=%v, want completed", invocationState, err)
 	}
 	recorded, err := history.List(ctx, "ses_model")
-	if err != nil || len(recorded) != 1 || recorded[0].ID != item.ID {
+	if err != nil || len(recorded) != 1 || recorded[0].ID() != item.ID() {
 		t.Fatalf("history after commit = %#v err=%v", recorded, err)
 	}
 	persistedRun, found, err := runState.Run(ctx, "run_model")
@@ -308,13 +309,13 @@ func TestCommitEventAtomicallyRecordsCanonicalToolBatch(t *testing.T) {
 	for index, start := range starts {
 		name := []string{"first", "second"}[index]
 		result := tool.StringResult(name + "-result")
-		items = append(items, transcript.Item{
+		items = append(items, itemfixture.MustRestore(itemfixture.Input{
 			SessionID: "ses_tools", RunID: "run_tools", ID: start.ItemID,
 			OccurredAt: startedAt, FinishedAt: finishedAt,
 			Status: transcript.ItemCompleted, Kind: transcript.ToolCall,
 			Tool:        &transcript.ToolInvocation{Name: name, Arguments: tool.Arguments{}, Result: &result},
 			SafetyClass: tool.SafetyClassSafe,
-		})
+		}))
 		terminals = append(terminals, runs.ToolInvocationCommit{
 			CallID: start.CallID, ItemID: start.ItemID, SegmentID: start.SegmentID,
 			State: runs.ToolInvocationCompleted, StartedAt: startedAt, FinishedAt: finishedAt,
@@ -351,7 +352,7 @@ func TestCommitEventAtomicallyRecordsCanonicalToolBatch(t *testing.T) {
 		t.Fatalf("commit canonical Tool batch: %v", err)
 	}
 	recorded, err := history.List(ctx, "ses_tools")
-	if err != nil || len(recorded) != 2 || recorded[0].ID != "item_first" || recorded[1].ID != "item_second" {
+	if err != nil || len(recorded) != 2 || recorded[0].ID() != "item_first" || recorded[1].ID() != "item_second" {
 		t.Fatalf("canonical history = %#v err=%v", recorded, err)
 	}
 	for _, callID := range []string{"tool_first", "tool_second"} {
@@ -723,11 +724,11 @@ func TestCommitTreeBarrierProducesDurableTriplet(t *testing.T) {
 		Checkpoint: checkpoint,
 		Runs: []runs.EventCommit{{
 			RunID: "run_1", SessionID: "ses_1", State: runs.StateSuspend,
-			Items: []transcript.Item{{
+			Items: []transcript.Item{itemfixture.MustRestore(itemfixture.Input{
 				SessionID: "ses_1", ID: "item_question", RunID: "run_1",
-				Status: transcript.ItemRunning, Kind: transcript.QuestionItem,
+				Status: transcript.ItemCompleted, Kind: transcript.QuestionItem,
 				Question: question, OccurredAt: parkedAt,
-			}},
+			})},
 			Run: runPointer(runfixture.MustRestore(run.Snapshot{SessionID: "ses_1", ID: "run_1", State: run.Waiting,
 				ModelSelection: pending.Continuations[0].ModelSelection,
 				Capabilities:   pending.Capabilities,
@@ -1084,20 +1085,20 @@ func TestCommitWaitingSubtreeCancellationCommitsCompleteWriteSet(t *testing.T) {
 	if _, found, err := fixture.interrupts.Get(fixture.ctx, fixture.rootRun.ID()); err != nil || found {
 		t.Fatalf("open Pending after commit found=%t err=%v, want consumed", found, err)
 	}
-	storedItem, found, err := fixture.transcript.Item(fixture.ctx, fixture.parentItem.ID)
+	storedItem, found, err := fixture.transcript.Item(fixture.ctx, fixture.parentItem.ID())
 	if err != nil || !found {
 		t.Fatalf("parent Item after commit found=%t err=%v", found, err)
 	}
-	if storedItem.Error == nil ||
-		storedItem.Error.Kind != tool.FailureChildRunCanceled {
+	failure, failed := storedItem.Failure()
+	if !failed || failure.Kind != tool.FailureChildRunCanceled {
 		t.Fatalf("parent Item = %+v, want child_run_canceled", storedItem)
 	}
 	for _, terminal := range fixture.commit.TerminalItems {
-		item, found, err := fixture.transcript.Item(fixture.ctx, terminal.Expected.ID)
+		item, found, err := fixture.transcript.Item(fixture.ctx, terminal.Expected.ID())
 		if err != nil || !found || !sameItemSnapshot(item, terminal.Replacement) {
 			t.Fatalf(
 				"terminal interrupt Item %q = found:%t value:%+v err:%v, want %+v",
-				terminal.Expected.ID,
+				terminal.Expected.ID(),
 				found,
 				item,
 				err,
@@ -1122,7 +1123,13 @@ func TestCommitWaitingSubtreeCancellationCommitsCompleteWriteSet(t *testing.T) {
 
 func TestCommitWaitingSubtreeCancellationRollsBackCheckpointAndApplicationFacts(t *testing.T) {
 	fixture := newWaitingCancellationSQLiteFixture(t)
-	fixture.commit.ParentItem.Expected.OccurredAt = fixture.parentItem.OccurredAt.Add(time.Second)
+	staleSnapshot := fixture.commit.ParentItem.Expected.Snapshot()
+	staleSnapshot.Identity.OccurredAt = fixture.parentItem.OccurredAt().Add(-time.Second)
+	stale, err := transcript.RestoreItem(staleSnapshot)
+	if err != nil {
+		t.Fatalf("restore stale parent Item: %v", err)
+	}
+	fixture.commit.ParentItem.Expected = stale
 
 	if _, err := fixture.effects.CommitWaitingSubtreeCancellation(
 		fixture.ctx,
@@ -1133,8 +1140,9 @@ func TestCommitWaitingSubtreeCancellationRollsBackCheckpointAndApplicationFacts(
 	if _, found, err := fixture.interrupts.Get(fixture.ctx, fixture.rootRun.ID()); err != nil || !found {
 		t.Fatalf("open Pending after rollback found=%t err=%v, want retained", found, err)
 	}
-	storedItem, found, err := fixture.transcript.Item(fixture.ctx, fixture.parentItem.ID)
-	if err != nil || !found || storedItem.Error != nil {
+	storedItem, found, err := fixture.transcript.Item(fixture.ctx, fixture.parentItem.ID())
+	_, hasFailure := storedItem.Failure()
+	if err != nil || !found || hasFailure {
 		t.Fatalf("parent Item after rollback found=%t item=%+v err=%v", found, storedItem, err)
 	}
 	assertStoredRunState(t, fixture.db, fixture.childRun.ID(), "waiting")
@@ -1226,7 +1234,7 @@ func newWaitingCancellationSQLiteFixtureAt(
 		t.Fatalf("admit root: %v", err)
 	}
 	transcriptStore := sqlite.NewTranscriptStore(db)
-	parentItem := transcript.Item{
+	parentItem := itemfixture.MustRestore(itemfixture.Input{
 		SessionID:  "session_1",
 		ID:         childLineage.SpawnedByItemID,
 		RunID:      childLineage.ParentRunID,
@@ -1235,7 +1243,7 @@ func newWaitingCancellationSQLiteFixtureAt(
 		OccurredAt: createdAt,
 		FinishedAt: createdAt,
 		Tool:       &transcript.ToolInvocation{Name: "delegate_task", Arguments: tool.Arguments{}},
-	}
+	})
 	if err := transcriptStore.AppendItem(ctx, parentItem); err != nil {
 		t.Fatalf("seed spawning Item: %v", err)
 	}
@@ -1321,7 +1329,7 @@ func newWaitingCancellationSQLiteFixtureAt(
 		snapshot.Capabilities = capabilities
 		snapshot.UpdatedAt = finishedAt
 	})
-	grandchildQuestionItem := transcript.Item{
+	grandchildQuestionItem := itemfixture.MustRestore(itemfixture.Input{
 		SessionID:  rootRun.SessionID(),
 		ID:         grandchildQuestion.ItemID,
 		RunID:      grandchildQuestion.RunID,
@@ -1329,8 +1337,8 @@ func newWaitingCancellationSQLiteFixtureAt(
 		OccurredAt: createdAt,
 		Kind:       transcript.QuestionItem,
 		Question:   grandchildQuestion.Question,
-	}
-	childQuestionItem := transcript.Item{
+	})
+	childQuestionItem := itemfixture.MustRestore(itemfixture.Input{
 		SessionID:  rootRun.SessionID(),
 		ID:         childQuestion.ItemID,
 		RunID:      childQuestion.RunID,
@@ -1338,14 +1346,14 @@ func newWaitingCancellationSQLiteFixtureAt(
 		OccurredAt: createdAt,
 		Kind:       transcript.QuestionItem,
 		Question:   childQuestion.Question,
-	}
+	})
 	originalItems := []transcript.Item{
 		parentItem,
 		grandchildQuestionItem,
 		childQuestionItem,
 	}
 	if survivingBoundary {
-		originalItems = append(originalItems, transcript.Item{
+		originalItems = append(originalItems, itemfixture.MustRestore(itemfixture.Input{
 			SessionID:  rootRun.SessionID(),
 			ID:         siblingQuestion.ItemID,
 			RunID:      siblingQuestion.RunID,
@@ -1353,11 +1361,11 @@ func newWaitingCancellationSQLiteFixtureAt(
 			OccurredAt: createdAt,
 			Kind:       transcript.QuestionItem,
 			Question:   siblingQuestion.Question,
-		})
+		}))
 	}
 	for _, item := range originalItems[1:] {
 		if err := transcriptStore.AppendItem(ctx, item); err != nil {
-			t.Fatalf("seed interrupt Item %q: %v", item.ID, err)
+			t.Fatalf("seed interrupt Item %q: %v", item.ID(), err)
 		}
 	}
 	if err := state.Suspend(ctx, grandchildRun); err != nil {
@@ -1421,7 +1429,7 @@ func newWaitingCancellationSQLiteFixtureAt(
 		MemberID:     "member_root",
 		RunCreatedAt: createdAt,
 		DrainedTools: []runs.DrainedTool{{
-			ItemID: parentItem.ID, ItemOccurredAt: parentItem.OccurredAt,
+			ItemID: parentItem.ID(), ItemOccurredAt: parentItem.OccurredAt(),
 			CallID: "call_child", Name: "delegate_task", Arguments: "{}",
 		}},
 	})
@@ -1470,17 +1478,11 @@ func newWaitingCancellationSQLiteFixtureAt(
 		Kind:   tool.FailureChildRunCanceled,
 		Detail: terminalChild.Detail(),
 	}
-	replacementItem := parentItem
-	replacementItem.Error = &failure
-	terminalItems := make([]runs.ItemReplacement, 0, 2)
-	for _, item := range []transcript.Item{grandchildQuestionItem, childQuestionItem} {
-		replacement := item
-		replacement.Status = transcript.ItemIncomplete
-		terminalItems = append(terminalItems, runs.ItemReplacement{
-			Expected:    item,
-			Replacement: replacement,
-		})
+	replacementItem, err := parentItem.ClassifyAbandonedToolCall(failure)
+	if err != nil {
+		t.Fatalf("classify parent Item: %v", err)
 	}
+	var terminalItems []runs.ItemReplacement
 	var (
 		remainingPending *runs.Pending
 		resume           *run.TreeResumeDraft
@@ -1492,7 +1494,7 @@ func newWaitingCancellationSQLiteFixtureAt(
 		rootContinuation := pending.Continuations[len(pending.Continuations)-1]
 		rootContinuation.DrainedTools = nil
 		rootContinuation.CommittedTools = []runs.CommittedTool{{
-			ItemID:    parentItem.ID,
+			ItemID:    parentItem.ID(),
 			CallID:    "call_child",
 			Name:      "delegate_task",
 			Arguments: "{}",
@@ -1629,11 +1631,11 @@ func TestCommitOpeningRefusesASecondOpenRun(t *testing.T) {
 		Events: []runs.EventCommit{{
 			RunID:     "run_2",
 			SessionID: "ses_1",
-			Items: []transcript.Item{{
+			Items: []transcript.Item{itemfixture.MustRestore(itemfixture.Input{
 				SessionID: "ses_1", RunID: "run_2", ID: "item_second", OccurredAt: created,
 				Status: transcript.ItemCompleted, Kind: transcript.UserMessage,
 				Content: []transcript.ContentBlock{{Kind: transcript.TextContent, Text: "me too"}},
-			}},
+			})},
 		}},
 	})
 	if !errors.Is(err, run.ErrSessionBusy) {

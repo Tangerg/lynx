@@ -2,7 +2,7 @@
 
 > 状态：Runtime Protocol Baseline 1
 >
-> 基线日期：2026-08-09
+> 基线日期：2026-08-10
 >
 > 适用范围：Runtime Protocol 制品、持久化 shape、Agent Framework 消费边界和重构期间的内部防腐合同
 
@@ -35,9 +35,9 @@ Digest 只用于发现未审计漂移，不能替代语义测试。
 
 | 制品 | SHA-256 |
 |---|---|
-| `contract/manifest.json` | `31f3413e85bf1f1c92b3a8b9e2340619e8921b019b65b368f8557ef97b764b28` |
-| `contract/openrpc.json` | `aa32dc1abfe9b18f6c01302f2187e8a1be08047ea14d52c980678f58eee49349` |
-| `contract/schema.json` | `4afbb27666354a95644b416da143412fff8074930ce150dcc07b5cce40074630` |
+| `contract/manifest.json` | `9425d26052572d3cf87076dab3f60bdba267b5169a34e6c016f9d767e23975fb` |
+| `contract/openrpc.json` | `7eac002e34a636f21653c639318669374e2795cae9907986d591e427634b0a06` |
+| `contract/schema.json` | `56b608ff48dca53b4b924f0634f56d37bd347581207fe71fd307e1a568b57be8` |
 
 TypeScript generated files 是派生制品，不单独定义语义。它们必须由同一个 contract generator 产生且 diff-free；当前前端/TUI/CLI 是否已经消费最新 shape，由 P10/P12 的 consumer handoff 记录，不通过兼容字段掩盖。
 
@@ -49,13 +49,13 @@ TypeScript generated files 是派生制品，不单独定义语义。它们必�
 
 本文件不复制 method、field、error 或 example catalog。
 
-当前协议版本为 `2026-08-09`，只服务同值的 `minSupported`。唯一 replay scope 是 `runtimeInstanceRootSegment`：它准确表达一个 Runtime instance 内的一条 root Segment replay buffer；旧 `processRootSegment` 已直接删除。消费者 breaking surface 与未接线事实由 [`CONSUMER_HANDOFF.md`](CONSUMER_HANDOFF.md) 唯一记录。
+当前协议版本为 `2026-08-10`，只服务同值的 `minSupported`。唯一 replay scope 是 `runtimeInstanceRootSegment`：它准确表达一个 Runtime instance 内的一条 root Segment replay buffer；旧 `processRootSegment` 已直接删除。消费者 breaking surface 与未接线事实由 [`CONSUMER_HANDOFF.md`](CONSUMER_HANDOFF.md) 唯一记录。
 
 ## 3. 持久化 Baseline 1
 
 ### 3.1 SQLite
 
-- 当前 `schemaEpoch = 65`；
+- 当前 `schemaEpoch = 66`；
 - executor checkpoint 与 pending interrupt 的技术身份列为 `root_member_id`，continuation/input-request binding JSON 使用 `memberId`/`requestId`；
 - `model_invocations` 与 `tool_invocations` 是 operational attempt journals，只保存 exact Run/Segment/call identity、state 与 started/finished time；semantic assistant final、Tool result 和 usage 仍只由 Transcript/Run owners 保存；
 - `interrupts.state` 只有 `open`/`resuming`：`open` 不得携带 answer/claimedAt，`resuming` 必须携带两者；普通列表/读取只返回 `open`，continuation opening 必须在事务内证明 exact root 的 `resuming` claim；

@@ -262,39 +262,41 @@ func portableItemFromArtifact(sessionID, path string, artifact protocol.Artifact
 	if err != nil {
 		return transcript.Item{}, err
 	}
-	problem, err := portableToolFailureFromArtifact(path+".error", artifact.Error)
+	failure, err := portableToolFailureFromArtifact(path+".error", artifact.Error)
 	if err != nil {
 		return transcript.Item{}, err
 	}
-	out := transcript.Item{
-		SessionID: sessionID, ID: artifact.ID, RunID: artifact.RunID, Status: status, Kind: kind,
-		OccurredAt: artifact.CreatedAt, Text: artifact.Text, Redacted: artifact.Redacted,
-		Error:   problem,
-		Summary: artifact.Summary, DroppedMessages: artifact.DroppedMessages,
+	snapshot := transcript.ItemSnapshot{
+		Identity: transcript.ItemIdentity{
+			SessionID: sessionID, ItemID: artifact.ID, RunID: artifact.RunID,
+			OccurredAt: artifact.CreatedAt,
+		},
+		Status: status, Kind: kind, Text: artifact.Text, Redacted: artifact.Redacted,
+		Failure: failure, Summary: artifact.Summary, DroppedMessages: artifact.DroppedMessages,
 	}
 	if kind == transcript.ToolCall {
-		out.OccurredAt = artifact.StartedAt
+		snapshot.Identity.OccurredAt = artifact.StartedAt
 		if status != transcript.ItemRunning {
 			expectedDuration := artifact.FinishedAt.Sub(artifact.StartedAt).Milliseconds()
 			if artifact.DurationMillis == nil || *artifact.DurationMillis != expectedDuration {
 				return transcript.Item{}, invalidArtifact(path+".durationMillis", "must equal finishedAt minus startedAt in milliseconds")
 			}
-			out.FinishedAt = artifact.FinishedAt
+			snapshot.FinishedAt = artifact.FinishedAt
 		}
 	}
 	safetyClass, err := portableSafetyClass(path+".safetyClass", artifact.SafetyClass)
 	if err != nil {
 		return transcript.Item{}, err
 	}
-	out.SafetyClass = safetyClass
+	snapshot.SafetyClass = safetyClass
 	if len(artifact.Content) != 0 {
-		out.Content = make([]transcript.ContentBlock, len(artifact.Content))
+		snapshot.Content = make([]transcript.ContentBlock, len(artifact.Content))
 		for index, block := range artifact.Content {
 			content, err := portableContentFromArtifact(fmt.Sprintf("%s.content[%d]", path, index), block)
 			if err != nil {
 				return transcript.Item{}, err
 			}
-			out.Content[index] = content
+			snapshot.Content[index] = content
 		}
 	}
 	if artifact.Question != nil {
@@ -302,16 +304,20 @@ func portableItemFromArtifact(sessionID, path string, artifact protocol.Artifact
 		if err != nil {
 			return transcript.Item{}, err
 		}
-		out.Question = &question
+		snapshot.Question = &question
 	}
 	if artifact.Tool != nil {
 		invocation, err := portableToolFromArtifact(path+".tool", *artifact.Tool)
 		if err != nil {
 			return transcript.Item{}, err
 		}
-		out.Tool = &invocation
+		snapshot.Tool = &invocation
 	}
-	return out, nil
+	item, err := transcript.RestoreItem(snapshot)
+	if err != nil {
+		return transcript.Item{}, invalidArtifact(path, "%v", err)
+	}
+	return item, nil
 }
 
 func portableItemStatus(path string, value protocol.ItemStatus) (transcript.ItemStatus, error) {

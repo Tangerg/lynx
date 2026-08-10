@@ -298,15 +298,15 @@ func (c EventCommit) validateEnvelope() error {
 func (c EventCommit) validateItems() error {
 	seenItems := make(map[string]struct{}, len(c.Items))
 	for index, item := range c.Items {
-		if item.ID == "" || item.RunID != c.RunID || item.SessionID != c.SessionID {
+		if item.ID() == "" || item.RunID() != c.RunID || item.SessionID() != c.SessionID {
 			return fmt.Errorf("runs: event commit Item[%d] is not owned by Run %q", index, c.RunID)
 		}
-		if _, duplicate := seenItems[item.ID]; duplicate {
-			return fmt.Errorf("runs: event commit repeats Item %q", item.ID)
+		if _, duplicate := seenItems[item.ID()]; duplicate {
+			return fmt.Errorf("runs: event commit repeats Item %q", item.ID())
 		}
-		seenItems[item.ID] = struct{}{}
+		seenItems[item.ID()] = struct{}{}
 		if err := item.Validate(); err != nil {
-			return fmt.Errorf("runs: event commit Item %q: %w", item.ID, err)
+			return fmt.Errorf("runs: event commit Item %q: %w", item.ID(), err)
 		}
 	}
 	return nil

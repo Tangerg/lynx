@@ -1,6 +1,6 @@
 # Lyra Runtime Domain 模型精修设计
 
-> 状态：实施前专项设计；后续实施必须由 [`EXECUTION_PLAN.md`](EXECUTION_PLAN.md) 单独授权和记录进度
+> 状态：已接受专项设计；实施授权与完成事实由 [`EXECUTION_PLAN.md`](EXECUTION_PLAN.md) 和 [`CAPABILITY_LEDGER.md`](CAPABILITY_LEDGER.md) 唯一记录
 >
 > 适用范围：`app/runtime/internal/domain` 及为归还领域行为所有权所必需的 Application、Adapter、Persistence、Delivery 服务端爆炸半径
 
@@ -10,16 +10,16 @@
 
 ## 1. 结论
 
-当前问题不是 Domain package 数量多，也不是单文件 package 天然错误。真实问题是行为分布不均：
+专项启动时的问题不是 Domain package 数量多，也不是单文件 package 天然错误。真实问题是行为分布不均：
 
 - `run`、`goal`、`approval`、`agentmemory`、`accounting`、`schedule`、`conversation`、`tool` 已拥有真实状态机、决策或纯算法；
 - `modelref`、`knowledge`、`feedback`、`interrupt`、`provider`、`toolresult` 等主要表达稳定值，保持精简是正确形态；
-- `run` 与 `transcript` 的 Run 所有权尚未在实现中彻底统一；
-- `transcript.Item` 仍允许外部先拼装任意字段组合，再靠事后校验拒绝非法状态；
+- `run` 与 `transcript` 的 Run 所有权曾在实现中分裂；
+- `transcript.Item` 曾允许外部先拼装任意字段组合，再靠事后校验拒绝非法状态；
 - `plan` 主要是数据结构和包级校验，完整用例落到了 Tool Adapter；
 - `session` 只有局部行为，创建、编辑和恢复后的状态变化仍有一部分由 Store 或 Application 直接拼装。
 
-因此，Runtime 当前存在的是**局部贫血模型**，不是“整个 Domain 都应当变大”。优化目标也不是提高 Domain 行数占比，而是让每条领域不变量和状态修改只有一个真实 owner。
+因此，Runtime 要解决的是**局部贫血模型**，不是“整个 Domain 都应当变大”。优化目标也不是提高 Domain 行数占比，而是让每条领域不变量和状态修改只有一个真实 owner。已完成纵切不会在本设计里改写成另一套进度台账；当前事实以 Execution Plan 和 Capability Ledger 为准。
 
 ## 2. 判断行为归属的规则
 

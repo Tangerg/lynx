@@ -8,6 +8,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/itemfixture"
 	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/runfixture"
 )
 
@@ -19,10 +20,10 @@ func portableSnapshot() Snapshot {
 			Capabilities: run.Capabilities{ChildRuns: true},
 			CreatedAt:    time.Unix(1, 0), FinishedAt: time.Unix(2, 0), MessageMark: 0,
 		})},
-		Items: []transcript.Item{{
+		Items: []transcript.Item{itemfixture.MustRestore(itemfixture.Input{
 			SessionID: "ses_1", ID: "item_1", RunID: "run_1",
 			Status: transcript.ItemCompleted, Kind: transcript.UserMessage, OccurredAt: time.Unix(1, 0),
-		}},
+		})},
 	}
 }
 
@@ -32,9 +33,16 @@ func TestValidateSnapshotRejectsInconsistentPortableState(t *testing.T) {
 		mutate func(*Snapshot)
 	}{
 		{"duplicate run", func(s *Snapshot) { s.Runs = append(s.Runs, s.Runs[0]) }},
-		{"wrong item session", func(s *Snapshot) { s.Items[0].SessionID = "ses_other" }},
+		{"wrong item session", func(s *Snapshot) {
+			item := s.Items[0].Snapshot()
+			item.Identity.SessionID = "ses_other"
+			restored, err := transcript.RestoreItem(item)
+			if err != nil {
+				panic(err)
+			}
+			s.Items[0] = restored
+		}},
 		{"duplicate item", func(s *Snapshot) { s.Items = append(s.Items, s.Items[0]) }},
-		{"unknown item status", func(s *Snapshot) { s.Items[0].Status = transcript.ItemStatus(255) }},
 		{"unknown spawning item", func(s *Snapshot) {
 			appendRootedSnapshotRun(s, "run_2", "run_1", "item_missing")
 		}},
@@ -44,15 +52,13 @@ func TestValidateSnapshotRejectsInconsistentPortableState(t *testing.T) {
 		{"run tree cycle", func(s *Snapshot) {
 			appendRootedSnapshotRun(s, "run_2", "run_3", "item_2")
 			appendRootedSnapshotRun(s, "run_3", "run_2", "item_3")
-			s.Items = append(s.Items,
-				transcript.Item{
-					SessionID: "ses_1", ID: "item_2", RunID: "run_3",
-					Status: transcript.ItemCompleted, Kind: transcript.ToolCall,
-				},
-				transcript.Item{
-					SessionID: "ses_1", ID: "item_3", RunID: "run_2",
-					Status: transcript.ItemCompleted, Kind: transcript.ToolCall,
-				},
+			s.Items = append(s.Items, itemfixture.MustRestore(itemfixture.Input{
+				SessionID: "ses_1", ID: "item_2", RunID: "run_3",
+				Status: transcript.ItemCompleted, Kind: transcript.ToolCall,
+			}), itemfixture.MustRestore(itemfixture.Input{
+				SessionID: "ses_1", ID: "item_3", RunID: "run_2",
+				Status: transcript.ItemCompleted, Kind: transcript.ToolCall,
+			}),
 			)
 		}},
 	}

@@ -165,9 +165,10 @@ type ExportSessionResponse struct {
 // artifact it doesn't recognize; development builds do not migrate old
 // artifacts.
 //
-// Version 14 admits only the current Run/Segment/Interrupt vocabulary and
-// rejects unsupported artifact schemas before any write.
-const SessionArtifactVersion = 14
+// Version 15 admits only complete message/reasoning/question/compaction facts
+// and the current ToolCall lifecycle, and rejects unsupported artifact schemas
+// before any write.
+const SessionArtifactVersion = 15
 
 // SessionArtifact is the portable, round-trippable form of a session: its
 // identity plus the full conversation — chat messages (the model's context),

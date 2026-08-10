@@ -34,31 +34,32 @@ func (snapshot Snapshot) ValidateToolResults() error {
 	}
 
 	for _, item := range snapshot.Items {
-		if item.Tool == nil || item.Tool.Offload == nil {
+		invocation, present := item.ToolInvocation()
+		if !present || invocation.Offload == nil {
 			continue
 		}
-		ref := *item.Tool.Offload
+		ref := *invocation.Offload
 		if err := ref.Validate(); err != nil {
-			return fmt.Errorf("sessions: item %q offload: %w", item.ID, err)
+			return fmt.Errorf("sessions: item %q offload: %w", item.ID(), err)
 		}
-		if item.Tool.Result == nil {
-			return fmt.Errorf("sessions: item %q offloaded result is absent", item.ID)
+		if invocation.Result == nil {
+			return fmt.Errorf("sessions: item %q offloaded result is absent", item.ID())
 		}
-		result, ok := item.Tool.Result.String()
+		result, ok := invocation.Result.String()
 		if !ok {
-			return fmt.Errorf("sessions: item %q offloaded result is not a string", item.ID)
+			return fmt.Errorf("sessions: item %q offloaded result is not a string", item.ID())
 		}
-		blob, exists := byItem[item.ID]
+		blob, exists := byItem[item.ID()]
 		if !exists {
-			return fmt.Errorf("sessions: item %q references missing tool result %q", item.ID, ref.ID)
+			return fmt.Errorf("sessions: item %q references missing tool result %q", item.ID(), ref.ID)
 		}
-		if blob.ID != ref.ID || blob.ToolName != item.Tool.Name {
-			return fmt.Errorf("sessions: item %q and tool result %q disagree on identity or tool", item.ID, blob.ID)
+		if blob.ID != ref.ID || blob.ToolName != invocation.Name {
+			return fmt.Errorf("sessions: item %q and tool result %q disagree on identity or tool", item.ID(), blob.ID)
 		}
 		if result != blob.Preview && result != blob.Body {
-			return fmt.Errorf("sessions: item %q result matches neither tool result %q preview nor body", item.ID, blob.ID)
+			return fmt.Errorf("sessions: item %q result matches neither tool result %q preview nor body", item.ID(), blob.ID)
 		}
-		delete(byItem, item.ID)
+		delete(byItem, item.ID())
 	}
 	for itemID, blob := range byItem {
 		return fmt.Errorf("sessions: tool result %q references missing transcript item %q", blob.ID, itemID)
@@ -87,15 +88,19 @@ func (snapshot Snapshot) NormalizeForRestore() (Snapshot, error) {
 	normalized.Items = append([]transcript.Item(nil), snapshot.Items...)
 	for i := range normalized.Items {
 		item := &normalized.Items[i]
-		if item.Tool == nil || item.Tool.Offload == nil {
+		itemSnapshot := item.Snapshot()
+		if itemSnapshot.Tool == nil || itemSnapshot.Tool.Offload == nil {
 			continue
 		}
-		blob := byItem[item.ID]
-		invocation := *item.Tool
+		blob := byItem[item.ID()]
 		preview := tool.StringResult(blob.Preview)
-		invocation.Result = &preview
-		invocation.Offload = &toolresult.Ref{ID: blob.ID}
-		item.Tool = &invocation
+		itemSnapshot.Tool.Result = &preview
+		itemSnapshot.Tool.Offload = &toolresult.Ref{ID: blob.ID}
+		restored, err := transcript.RestoreItem(itemSnapshot)
+		if err != nil {
+			return Snapshot{}, fmt.Errorf("sessions: normalize item %q: %w", item.ID(), err)
+		}
+		*item = restored
 	}
 	return normalized, nil
 }

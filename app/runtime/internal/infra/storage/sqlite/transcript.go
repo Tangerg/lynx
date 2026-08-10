@@ -22,14 +22,14 @@ type TranscriptStore struct{ db *sql.DB }
 func NewTranscriptStore(db *sql.DB) *TranscriptStore { return &TranscriptStore{db: db} }
 
 func (s *TranscriptStore) AppendItem(ctx context.Context, item transcript.Item) error {
-	if item.SessionID == "" {
+	if item.SessionID() == "" {
 		return errors.New("sqlite: history item sessionId is required")
 	}
-	if item.ID == "" {
+	if item.ID() == "" {
 		return errors.New("sqlite: history item id is required")
 	}
 	if err := item.Validate(); err != nil {
-		return fmt.Errorf("sqlite: history item %q: %w", item.ID, err)
+		return fmt.Errorf("sqlite: history item %q: %w", item.ID(), err)
 	}
 	offloadID, err := transcriptOffloadID(item)
 	if err != nil {
@@ -55,19 +55,20 @@ func (s *TranscriptStore) AppendItem(ctx context.Context, item transcript.Item) 
 }
 
 func transcriptOffloadID(item transcript.Item) (toolresult.ID, error) {
-	if item.Tool == nil || item.Tool.Offload == nil {
+	invocation, present := item.ToolInvocation()
+	if !present || invocation.Offload == nil {
 		return "", nil
 	}
-	if err := item.Tool.Offload.Validate(); err != nil {
+	if err := invocation.Offload.Validate(); err != nil {
 		return "", fmt.Errorf("sqlite: history item offload: %w", err)
 	}
-	if item.Tool.Result == nil {
+	if invocation.Result == nil {
 		return "", errors.New("sqlite: offloaded history item result is absent")
 	}
-	if _, ok := item.Tool.Result.String(); !ok {
+	if _, ok := invocation.Result.String(); !ok {
 		return "", errors.New("sqlite: offloaded history item result must be a preview string")
 	}
-	return item.Tool.Offload.ID, nil
+	return invocation.Offload.ID, nil
 }
 
 func (s *TranscriptStore) appendItemRecord(
@@ -87,17 +88,17 @@ func (s *TranscriptStore) appendItemRecord(
 		   AND history_items.run_id = excluded.run_id
 		   AND history_items.occurred_at = excluded.occurred_at
 		   AND (history_items.offload_id = '' OR history_items.offload_id = excluded.offload_id)`,
-		item.SessionID, item.RunID, item.ID, item.OccurredAt.UnixNano(), string(payload), offloadID,
+		item.SessionID(), item.RunID(), item.ID(), item.OccurredAt().UnixNano(), string(payload), offloadID,
 	)
 	if err != nil {
-		return s.explainItemAppendError(ctx, item.ID, offloadID, err)
+		return s.explainItemAppendError(ctx, item.ID(), offloadID, err)
 	}
 	changed, err := result.RowsAffected()
 	if err != nil {
 		return fmt.Errorf("sqlite: inspect history item write: %w", err)
 	}
 	if changed != 1 {
-		return fmt.Errorf("%w: item %q already belongs to another session, run, occurrence, or offload identity", transcript.ErrIdentityConflict, item.ID)
+		return fmt.Errorf("%w: item %q already belongs to another session, run, occurrence, or offload identity", transcript.ErrIdentityConflict, item.ID())
 	}
 	return nil
 }
@@ -158,37 +159,39 @@ func (s *TranscriptStore) ReplaceItem(
 	expected transcript.Item,
 	replacement transcript.Item,
 ) error {
-	if expected.ID == "" || replacement.ID == "" {
+	if expected.ID() == "" || replacement.ID() == "" {
 		return errors.New("sqlite: replace history item requires both item ids")
 	}
-	if expected.ID != replacement.ID ||
-		expected.SessionID != replacement.SessionID ||
-		expected.RunID != replacement.RunID {
-		return fmt.Errorf("%w: replacement changes item %q ownership", transcript.ErrIdentityConflict, expected.ID)
+	if expected.ID() != replacement.ID() ||
+		expected.SessionID() != replacement.SessionID() ||
+		expected.RunID() != replacement.RunID() {
+		return fmt.Errorf("%w: replacement changes item %q ownership", transcript.ErrIdentityConflict, expected.ID())
 	}
-	if (expected.Tool != nil && expected.Tool.Offload != nil) ||
-		(replacement.Tool != nil && replacement.Tool.Offload != nil) {
+	expectedTool, expectedHasTool := expected.ToolInvocation()
+	replacementTool, replacementHasTool := replacement.ToolInvocation()
+	if (expectedHasTool && expectedTool.Offload != nil) ||
+		(replacementHasTool && replacementTool.Offload != nil) {
 		return errors.New("sqlite: replace history item does not support offloaded tool results")
 	}
 	if err := expected.Validate(); err != nil {
-		return fmt.Errorf("sqlite: replace history item %q expected value: %w", expected.ID, err)
+		return fmt.Errorf("sqlite: replace history item %q expected value: %w", expected.ID(), err)
 	}
 	if err := replacement.Validate(); err != nil {
-		return fmt.Errorf("sqlite: replace history item %q replacement: %w", replacement.ID, err)
+		return fmt.Errorf("sqlite: replace history item %q replacement: %w", replacement.ID(), err)
 	}
 	return RunInTx(ctx, s.db, func(ctx context.Context) error {
-		current, found, err := s.Item(ctx, expected.ID)
+		current, found, err := s.Item(ctx, expected.ID())
 		if err != nil {
 			return err
 		}
 		if !found {
-			return fmt.Errorf("sqlite: replace history item %q: not found", expected.ID)
+			return fmt.Errorf("sqlite: replace history item %q: not found", expected.ID())
 		}
-		if !reflect.DeepEqual(current, expected) {
+		if !reflect.DeepEqual(current.Snapshot(), expected.Snapshot()) {
 			return fmt.Errorf(
 				"%w: item %q changed after the application prepared its replacement",
 				transcript.ErrIdentityConflict,
-				expected.ID,
+				expected.ID(),
 			)
 		}
 		return s.AppendItem(ctx, replacement)
@@ -225,16 +228,17 @@ func materializeTranscriptItem(
 	payload, rawOffloadID string,
 	offloaded sql.NullString,
 ) (transcript.Item, error) {
-	item, err := decodeTranscriptItem([]byte(payload))
+	snapshot, err := decodeTranscriptItem([]byte(payload))
 	if err != nil {
 		return transcript.Item{}, fmt.Errorf("sqlite: decode history item %q: %w", itemID, err)
 	}
-	item.SessionID = sessionID
-	item.RunID = runID
-	item.ID = itemID
-	item.OccurredAt = time.Unix(0, occurredAt).UTC()
+	snapshot.Identity = transcript.ItemIdentity{
+		SessionID: sessionID, RunID: runID, ItemID: itemID,
+		OccurredAt: time.Unix(0, occurredAt).UTC(),
+	}
 	if rawOffloadID == "" {
-		if err := item.Validate(); err != nil {
+		item, err := transcript.RestoreItem(snapshot)
+		if err != nil {
 			return transcript.Item{}, fmt.Errorf("sqlite: decoded history item %q: %w", itemID, err)
 		}
 		return item, nil
@@ -243,22 +247,23 @@ func materializeTranscriptItem(
 	if err != nil {
 		return transcript.Item{}, fmt.Errorf("sqlite: decode history item %q offload: %w", itemID, err)
 	}
-	if item.Tool == nil {
+	if snapshot.Tool == nil {
 		return transcript.Item{}, fmt.Errorf("sqlite: history item %q has an offload identity but no tool invocation", itemID)
 	}
-	if item.Tool.Result == nil {
+	if snapshot.Tool.Result == nil {
 		return transcript.Item{}, fmt.Errorf("sqlite: history item %q has an offload identity but no preview", itemID)
 	}
-	if _, ok := item.Tool.Result.String(); !ok {
+	if _, ok := snapshot.Tool.Result.String(); !ok {
 		return transcript.Item{}, fmt.Errorf("sqlite: history item %q has an offload identity but no preview string", itemID)
 	}
 	if !offloaded.Valid {
 		return transcript.Item{}, fmt.Errorf("sqlite: history item %q references missing tool result %q", itemID, id)
 	}
-	item.Tool.Offload = &toolresult.Ref{ID: id}
+	snapshot.Tool.Offload = &toolresult.Ref{ID: id}
 	body := tool.StringResult(offloaded.String)
-	item.Tool.Result = &body
-	if err := item.Validate(); err != nil {
+	snapshot.Tool.Result = &body
+	item, err := transcript.RestoreItem(snapshot)
+	if err != nil {
 		return transcript.Item{}, fmt.Errorf("sqlite: decoded history item %q: %w", itemID, err)
 	}
 	return item, nil
@@ -272,7 +277,7 @@ func materializeTranscriptItem(
 func (s *TranscriptStore) indexForSearch(ctx context.Context, item transcript.Item, text string) error {
 	q := conn(ctx, s.db)
 	var seq int64
-	if err := q.QueryRowContext(ctx, `SELECT seq FROM history_items WHERE item_id = ?`, item.ID).Scan(&seq); err != nil {
+	if err := q.QueryRowContext(ctx, `SELECT seq FROM history_items WHERE item_id = ?`, item.ID()).Scan(&seq); err != nil {
 		return fmt.Errorf("sqlite: locate history item for search index: %w", err)
 	}
 	if _, err := q.ExecContext(ctx, `DELETE FROM transcript_search WHERE rowid = ?`, seq); err != nil {
@@ -281,7 +286,7 @@ func (s *TranscriptStore) indexForSearch(ctx context.Context, item transcript.It
 	if _, err := q.ExecContext(ctx,
 		`INSERT INTO transcript_search(rowid, text, session_id, run_id, item_id, kind, created_at)
 		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		seq, text, item.SessionID, item.RunID, item.ID, int(item.Kind), item.OccurredAt.UnixNano(),
+		seq, text, item.SessionID(), item.RunID(), item.ID(), int(item.Kind()), item.OccurredAt().UnixNano(),
 	); err != nil {
 		return fmt.Errorf("sqlite: index history item for search: %w", err)
 	}

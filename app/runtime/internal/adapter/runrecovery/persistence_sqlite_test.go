@@ -3,6 +3,7 @@ package runrecovery
 import (
 	"context"
 	"errors"
+	"reflect"
 	"testing"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
+	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/itemfixture"
 	runfixture "github.com/Tangerg/lynx/app/runtime/internal/testsupport/runfixture"
 )
 
@@ -180,11 +182,11 @@ func TestRecoveryRepairsWholeDurableLifecycle(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("Admit: %v", err)
 	}
-	item := transcript.Item{
+	item := itemfixture.MustRestore(itemfixture.Input{
 		ID: "item_running", SessionID: "session", RunID: "run_lost",
-		Kind: transcript.QuestionItem, Status: transcript.ItemRunning, OccurredAt: createdAt,
+		Kind: transcript.QuestionItem, OccurredAt: createdAt,
 		Question: &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?"}}},
-	}
+	})
 	if err := transcriptStore.AppendItem(ctx, item); err != nil {
 		t.Fatalf("AppendItem: %v", err)
 	}
@@ -230,8 +232,9 @@ func TestRecoveryRepairsWholeDurableLifecycle(t *testing.T) {
 		!failed || failure.Kind != run.FailureLost {
 		t.Fatalf("recovered Run = found:%t value:%+v err:%v", found, stored, err)
 	}
-	storedItem, found, err := transcriptStore.Item(ctx, item.ID)
-	if err != nil || !found || storedItem.Status != transcript.ItemIncomplete {
+	storedItem, found, err := transcriptStore.Item(ctx, item.ID())
+	if err != nil || !found || storedItem.Status() != transcript.ItemCompleted ||
+		!reflect.DeepEqual(storedItem.Snapshot(), item.Snapshot()) {
 		t.Fatalf("recovered Item = found:%t value:%+v err:%v", found, storedItem, err)
 	}
 	if _, err := checkpointStore.LoadCheckpoint(ctx, checkpoint.RootMemberID); !errors.Is(err, runs.ErrExecutorCheckpointNotFound) {

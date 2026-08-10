@@ -14,6 +14,7 @@ import (
 	rundomain "github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/itemfixture"
 	runfixture "github.com/Tangerg/lynx/app/runtime/internal/testsupport/runfixture"
 )
 
@@ -78,11 +79,11 @@ func TestRecoveryMarksAbandonedRunTreeLostInPostorder(t *testing.T) {
 		CreatedAt:       createdAt, MessageMark: rundomain.UnknownMessageMark, Lineage: rundomain.Lineage{ParentRunID: root.ID(), RootRunID: root.ID(),
 			SpawnedByItemID: "item_spawn"}})
 
-	item := transcript.Item{
+	item := itemfixture.MustRestore(itemfixture.Input{
 		ID: "item_running", SessionID: root.SessionID(), RunID: child.ID(),
-		Kind: transcript.QuestionItem, Status: transcript.ItemRunning, OccurredAt: createdAt,
+		Kind: transcript.QuestionItem, OccurredAt: createdAt,
 		Question: &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?"}}},
-	}
+	})
 	store := &recoveryStoreStub{
 		runs:         []rundomain.Run{root, child},
 		transcripts:  map[string][]transcript.Item{root.SessionID(): {item}},
@@ -115,10 +116,8 @@ func TestRecoveryMarksAbandonedRunTreeLostInPostorder(t *testing.T) {
 			t.Fatalf("lost Run = %+v", lost)
 		}
 	}
-	if len(store.commit.ItemReplacements) != 1 ||
-		!reflect.DeepEqual(store.commit.ItemReplacements[0].Expected, item) ||
-		store.commit.ItemReplacements[0].Replacement.Status != transcript.ItemIncomplete {
-		t.Fatalf("Item replacements = %+v", store.commit.ItemReplacements)
+	if len(store.commit.ItemReplacements) != 0 {
+		t.Fatalf("Item replacements = %+v, complete Question prompt must remain unchanged", store.commit.ItemReplacements)
 	}
 	if len(store.commit.PreservedCheckpointRootIDs) != 0 {
 		t.Fatalf("preserved checkpoints = %v, want none", store.commit.PreservedCheckpointRootIDs)
@@ -489,10 +488,10 @@ func coherentRecoveryPark(t *testing.T) (rundomain.Run, Pending, transcript.Item
 	if err := pending.Validate(); err != nil {
 		t.Fatalf("Pending fixture: %v", err)
 	}
-	item := transcript.Item{
+	item := itemfixture.MustRestore(itemfixture.Input{
 		ID: interrupt.ItemID, SessionID: run.SessionID(), RunID: run.ID(),
-		Kind: transcript.QuestionItem, Status: transcript.ItemRunning,
+		Kind:     transcript.QuestionItem,
 		Question: question, OccurredAt: pending.CreatedAt,
-	}
+	})
 	return run, pending, item
 }

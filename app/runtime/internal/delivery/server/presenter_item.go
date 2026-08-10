@@ -3,47 +3,70 @@ package server
 import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
 func presentItem(item transcript.Item) protocol.Item {
-	out := protocol.Item{
-		ID: item.ID, RunID: item.RunID, Status: presentItemStatus(item.Status),
-		Type: presentItemKind(item.Kind),
-		Text: item.Text, Redacted: item.Redacted,
-		SafetyClass: presentSafetyClass(item.SafetyClass), Error: presentToolFailure(item.Error),
-		Summary: item.Summary, DroppedMessages: item.DroppedMessages,
+	var failureRef *tool.Failure
+	if failure, present := item.Failure(); present {
+		failureRef = &failure
 	}
-	if len(item.Content) > 0 {
-		out.Content = make([]protocol.ContentBlock, len(item.Content))
-		for i, block := range item.Content {
+	out := protocol.Item{
+		ID: item.ID(), RunID: item.RunID(), Status: presentItemStatus(item.Status()),
+		Type: presentItemKind(item.Kind()),
+		Text: item.Text(), Redacted: item.Redacted(),
+		SafetyClass: presentSafetyClass(item.SafetyClass()), Error: presentToolFailure(failureRef),
+		Summary: item.Summary(), DroppedMessages: item.DroppedMessages(),
+	}
+	content := item.Content()
+	if len(content) > 0 {
+		out.Content = make([]protocol.ContentBlock, len(content))
+		for i, block := range content {
 			out.Content[i] = presentContent(block)
 		}
 	}
-	if item.Question != nil {
-		question := presentQuestion(*item.Question)
+	if value, present := item.Question(); present {
+		question := presentQuestion(value)
 		out.Question = &question
 	}
-	if item.Tool != nil {
-		tool := presentTool(*item.Tool)
+	if value, present := item.ToolInvocation(); present {
+		tool := presentTool(value)
 		out.Tool = &tool
 	}
-	if item.Kind == transcript.ToolCall {
-		out.StartedAt = item.OccurredAt
-		out.FinishedAt = item.FinishedAt
+	if item.Kind() == transcript.ToolCall {
+		out.StartedAt = item.OccurredAt()
+		out.FinishedAt = item.FinishedAt()
 		out.DurationMillis = presentToolDurationMillis(item)
 	} else {
-		out.CreatedAt = item.OccurredAt
+		out.CreatedAt = item.OccurredAt()
 	}
 	return out
 }
 
 func presentToolDurationMillis(item transcript.Item) *int64 {
-	if item.FinishedAt.IsZero() {
+	if item.FinishedAt().IsZero() {
 		return nil
 	}
-	duration := item.FinishedAt.Sub(item.OccurredAt).Milliseconds()
+	duration := item.FinishedAt().Sub(item.OccurredAt()).Milliseconds()
 	return &duration
+}
+
+func presentItemStart(item runs.ItemStart) protocol.Item {
+	out := protocol.Item{
+		ID: item.ItemID, RunID: item.RunID, Status: protocol.ItemStatusRunning,
+		Type: presentItemKind(item.Kind), SafetyClass: presentSafetyClass(item.SafetyClass),
+	}
+	if item.Kind == transcript.ToolCall {
+		out.StartedAt = item.OccurredAt
+		if item.ToolInvocation != nil {
+			tool := presentTool(*item.ToolInvocation)
+			out.Tool = &tool
+		}
+	} else {
+		out.CreatedAt = item.OccurredAt
+	}
+	return out
 }
 
 func presentItemStatus(status transcript.ItemStatus) protocol.ItemStatus {

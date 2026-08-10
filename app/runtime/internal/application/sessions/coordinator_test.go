@@ -13,6 +13,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/itemfixture"
 	runfixture "github.com/Tangerg/lynx/app/runtime/internal/testsupport/runfixture"
 )
 
@@ -133,11 +134,11 @@ func TestApplyRunCancelProjectsTerminalTranscript(t *testing.T) {
 				},
 				CreatedAt: createdAt, MessageMark: -1,
 			})},
-			Items: []transcript.Item{{
+			Items: []transcript.Item{itemfixture.MustRestore(itemfixture.Input{
 				ID: "item_1", RunID: "run_1", SessionID: "ses_1",
-				Kind: transcript.QuestionItem, Status: transcript.ItemRunning, OccurredAt: createdAt,
+				Kind: transcript.QuestionItem, OccurredAt: createdAt,
 				Question: question,
-			}},
+			})},
 		},
 		terminal: &applied,
 	}
@@ -163,8 +164,8 @@ func TestApplyRunCancelProjectsTerminalTranscript(t *testing.T) {
 	if appliedRoot.MessageMark() != 2 {
 		t.Fatalf("terminal mark = %d, want 2", appliedRoot.MessageMark())
 	}
-	if len(applied.Items) != 1 || applied.Items[0].Status != transcript.ItemIncomplete {
-		t.Fatalf("interrupt items = %+v, want one incomplete item", applied.Items)
+	if len(applied.Items) != 0 {
+		t.Fatalf("interrupt items = %+v, want complete Question prompt left unchanged", applied.Items)
 	}
 	if applied.CheckpointRootID != "member_1" {
 		t.Fatalf("checkpoint root = %q, want member_1 in cancel write-set", applied.CheckpointRootID)
@@ -216,11 +217,11 @@ func TestApplyRunLostProjectsTerminalTranscript(t *testing.T) {
 				}}),
 				CreatedAt: createdAt, MessageMark: -1,
 			})},
-			Items: []transcript.Item{{
+			Items: []transcript.Item{itemfixture.MustRestore(itemfixture.Input{
 				ID: "item_1", RunID: "run_1", SessionID: "ses_1",
 				Kind: transcript.ToolCall, Status: transcript.ItemRunning, OccurredAt: createdAt,
 				Tool: &transcript.ToolInvocation{Name: "shell"},
-			}},
+			})},
 		},
 		terminal: &applied,
 	}
@@ -246,9 +247,12 @@ func TestApplyRunLostProjectsTerminalTranscript(t *testing.T) {
 		failure.Detail != "the parked Run tree's executor checkpoint could not be restored" {
 		t.Fatalf("terminal failure = %+v, want run_lost naming its cause", failure)
 	}
-	if len(applied.Items) != 1 || applied.Items[0].Status != transcript.ItemIncomplete ||
-		applied.Items[0].Error == nil ||
-		applied.Items[0].Error.Detail != "tool call abandoned because its run could not be resumed" {
+	if len(applied.Items) != 1 {
+		t.Fatalf("terminal items = %+v, want one incomplete ToolCall", applied.Items)
+	}
+	toolFailure, toolFailed := applied.Items[0].Failure()
+	if applied.Items[0].Status() != transcript.ItemIncomplete || !toolFailed ||
+		toolFailure.Detail != "tool call abandoned because its run could not be resumed" {
 		t.Fatalf("terminal items = %+v, want incomplete failed tool naming its cause", applied.Items)
 	}
 	if applied.CheckpointRootID != "member_1" || !appliedRoot.FinishedAt().Equal(finishedAt) || appliedRoot.MessageMark() != 1 {
@@ -311,11 +315,11 @@ func TestApplyRunLostTerminalizesWholeParkedTreeInPostorder(t *testing.T) {
 					CreatedAt:      createdAt, MessageMark: run.UnknownMessageMark,
 				}),
 			},
-			Items: []transcript.Item{{
+			Items: []transcript.Item{itemfixture.MustRestore(itemfixture.Input{
 				ID: "item_question", SessionID: "ses_1", RunID: "run_child",
-				Kind: transcript.QuestionItem, Status: transcript.ItemRunning,
+				Kind:     transcript.QuestionItem,
 				Question: question, OccurredAt: createdAt,
-			}},
+			})},
 		},
 		terminal: &applied,
 	}
@@ -353,9 +357,8 @@ func TestApplyRunLostTerminalizesWholeParkedTreeInPostorder(t *testing.T) {
 			t.Fatalf("terminal Run = %+v", record)
 		}
 	}
-	if len(applied.Items) != 1 || applied.Items[0].RunID != "run_child" ||
-		applied.Items[0].Status != transcript.ItemIncomplete {
-		t.Fatalf("terminal Items = %+v", applied.Items)
+	if len(applied.Items) != 0 {
+		t.Fatalf("terminal Items = %+v, want complete Question prompt left unchanged", applied.Items)
 	}
 }
 
@@ -396,11 +399,11 @@ func TestApplyRunLostRejectsContinuationFactDriftBeforeTerminalCommit(t *testing
 				Metrics: runfixture.MustMetrics(runfixture.MetricsInput{Steps: 1}), Capabilities: capabilities,
 				CreatedAt: createdAt, MessageMark: run.UnknownMessageMark,
 			})},
-			Items: []transcript.Item{{
+			Items: []transcript.Item{itemfixture.MustRestore(itemfixture.Input{
 				ID: pendingInterrupt.ItemID, SessionID: "ses_1", RunID: "run_root",
-				Kind: transcript.QuestionItem, Status: transcript.ItemRunning,
+				Kind:     transcript.QuestionItem,
 				Question: question, OccurredAt: createdAt,
-			}},
+			})},
 		},
 		terminal: &applied,
 	}

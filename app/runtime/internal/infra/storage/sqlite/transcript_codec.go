@@ -23,7 +23,7 @@ type transcriptItemPayload struct {
 	Question        *questionPayload       `json:"question,omitempty"`
 	Tool            *toolInvocationPayload `json:"tool,omitempty"`
 	SafetyClass     string                 `json:"safetyClass,omitempty"`
-	Problem         *problemPayload        `json:"problem,omitempty"`
+	Failure         *toolFailurePayload    `json:"failure,omitempty"`
 	Summary         string                 `json:"summary,omitempty"`
 	DroppedMessages int                    `json:"droppedMessages,omitempty"`
 }
@@ -60,7 +60,7 @@ type toolInvocationPayload struct {
 	Result    json.RawMessage `json:"result,omitempty"`
 }
 
-type problemPayload struct {
+type toolFailurePayload struct {
 	Kind              string `json:"kind"`
 	Scope             string `json:"scope"`
 	Detail            string `json:"detail,omitempty"`
@@ -69,25 +69,26 @@ type problemPayload struct {
 }
 
 func encodeTranscriptItem(item transcript.Item) ([]byte, error) {
-	status, err := encodeItemStatus(item.Status)
+	status, err := encodeItemStatus(item.Status())
 	if err != nil {
 		return nil, err
 	}
-	kind, err := encodeItemKind(item.Kind)
+	kind, err := encodeItemKind(item.Kind())
 	if err != nil {
 		return nil, err
 	}
 	payload := transcriptItemPayload{
-		Status: status, Kind: kind, Text: item.Text, Redacted: item.Redacted,
-		SafetyClass: string(item.SafetyClass), Summary: item.Summary,
-		DroppedMessages: item.DroppedMessages,
+		Status: status, Kind: kind, Text: item.Text(), Redacted: item.Redacted(),
+		SafetyClass: string(item.SafetyClass()), Summary: item.Summary(),
+		DroppedMessages: item.DroppedMessages(),
 	}
-	if !item.FinishedAt.IsZero() {
-		payload.FinishedAt = item.FinishedAt.UnixNano()
+	if !item.FinishedAt().IsZero() {
+		payload.FinishedAt = item.FinishedAt().UnixNano()
 	}
-	if len(item.Content) > 0 {
-		payload.Content = make([]contentPayload, len(item.Content))
-		for index, block := range item.Content {
+	content := item.Content()
+	if len(content) > 0 {
+		payload.Content = make([]contentPayload, len(content))
+		for index, block := range content {
 			encoded, err := encodeContentPayload(block)
 			if err != nil {
 				return nil, fmt.Errorf("content %d: %w", index, err)
@@ -95,88 +96,88 @@ func encodeTranscriptItem(item transcript.Item) ([]byte, error) {
 			payload.Content[index] = encoded
 		}
 	}
-	if item.Question != nil {
-		encoded, err := encodeQuestionPayload(*item.Question)
+	if question, present := item.Question(); present {
+		encoded, err := encodeQuestionPayload(question)
 		if err != nil {
 			return nil, err
 		}
 		payload.Question = &encoded
 	}
-	if item.Tool != nil {
-		encoded := encodeToolInvocationPayload(*item.Tool)
+	if invocation, present := item.ToolInvocation(); present {
+		encoded := encodeToolInvocationPayload(invocation)
 		payload.Tool = &encoded
 	}
-	if item.Error != nil {
-		encoded, err := encodeToolFailurePayload(*item.Error)
+	if failure, present := item.Failure(); present {
+		encoded, err := encodeToolFailurePayload(failure)
 		if err != nil {
 			return nil, err
 		}
-		payload.Problem = &encoded
+		payload.Failure = &encoded
 	}
 	return json.Marshal(payload)
 }
 
-func decodeTranscriptItem(data []byte) (transcript.Item, error) {
+func decodeTranscriptItem(data []byte) (transcript.ItemSnapshot, error) {
 	var payload transcriptItemPayload
 	decoder := json.NewDecoder(bytes.NewReader(data))
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(&payload); err != nil {
-		return transcript.Item{}, err
+		return transcript.ItemSnapshot{}, err
 	}
 	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
 		if err == nil {
 			err = errors.New("multiple JSON values")
 		}
-		return transcript.Item{}, err
+		return transcript.ItemSnapshot{}, err
 	}
 	status, err := decodeItemStatus(payload.Status)
 	if err != nil {
-		return transcript.Item{}, err
+		return transcript.ItemSnapshot{}, err
 	}
 	kind, err := decodeItemKind(payload.Kind)
 	if err != nil {
-		return transcript.Item{}, err
+		return transcript.ItemSnapshot{}, err
 	}
-	item := transcript.Item{
+	snapshot := transcript.ItemSnapshot{
 		Status: status, Kind: kind, Text: payload.Text, Redacted: payload.Redacted,
 		SafetyClass: tool.SafetyClass(payload.SafetyClass), Summary: payload.Summary,
 		DroppedMessages: payload.DroppedMessages,
 	}
 	if payload.FinishedAt != 0 {
-		item.FinishedAt = time.Unix(0, payload.FinishedAt).UTC()
+		snapshot.FinishedAt = time.Unix(0, payload.FinishedAt).UTC()
 	}
 	if len(payload.Content) > 0 {
-		item.Content = make([]transcript.ContentBlock, len(payload.Content))
+		snapshot.Content = make([]transcript.ContentBlock, len(payload.Content))
 		for index, encoded := range payload.Content {
 			block, err := decodeContentPayload(encoded)
 			if err != nil {
-				return transcript.Item{}, fmt.Errorf("content %d: %w", index, err)
+				return transcript.ItemSnapshot{}, fmt.Errorf("content %d: %w", index, err)
 			}
-			item.Content[index] = block
+			snapshot.Content[index] = block
 		}
 	}
 	if payload.Question != nil {
 		question, err := decodeQuestionPayload(*payload.Question)
 		if err != nil {
-			return transcript.Item{}, err
+			return transcript.ItemSnapshot{}, err
 		}
-		item.Question = &question
+		snapshot.Question = &question
 	}
 	if payload.Tool != nil {
 		invocation, err := decodeToolInvocationPayload(*payload.Tool)
 		if err != nil {
-			return transcript.Item{}, err
+			return transcript.ItemSnapshot{}, err
 		}
-		item.Tool = &invocation
+		snapshot.Tool = &invocation
 	}
-	if payload.Problem != nil {
-		failure, err := decodeToolFailurePayload(*payload.Problem)
+	if payload.Failure != nil {
+		failure, err := decodeToolFailurePayload(*payload.Failure)
 		if err != nil {
-			return transcript.Item{}, err
+			return transcript.ItemSnapshot{}, err
 		}
-		item.Error = &failure
+		snapshot.Failure = &failure
 	}
-	return item, nil
+	return snapshot, nil
 }
 
 func encodeItemStatus(status transcript.ItemStatus) (string, error) {
@@ -358,18 +359,18 @@ func decodeToolInvocationPayload(payload toolInvocationPayload) (transcript.Tool
 	return invocation, nil
 }
 
-func encodeToolFailurePayload(failure tool.Failure) (problemPayload, error) {
+func encodeToolFailurePayload(failure tool.Failure) (toolFailurePayload, error) {
 	kind, err := encodeToolFailureKind(failure.Kind)
 	if err != nil {
-		return problemPayload{}, err
+		return toolFailurePayload{}, err
 	}
-	return problemPayload{
+	return toolFailurePayload{
 		Kind: kind, Scope: "tool", Detail: failure.Detail, DocURL: failure.DocURL,
 		RetryAfterSeconds: int(failure.RetryAfter / time.Second),
 	}, nil
 }
 
-func decodeToolFailurePayload(payload problemPayload) (tool.Failure, error) {
+func decodeToolFailurePayload(payload toolFailurePayload) (tool.Failure, error) {
 	kind, err := decodeToolFailureKind(payload.Kind)
 	if err != nil {
 		return tool.Failure{}, err

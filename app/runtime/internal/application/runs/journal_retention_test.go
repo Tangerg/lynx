@@ -3,11 +3,13 @@ package runs
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/itemfixture"
 	runfixture "github.com/Tangerg/lynx/app/runtime/internal/testsupport/runfixture"
 )
 
@@ -28,19 +30,31 @@ func TestRetentionChargeTracksEveryVariableReplayPayload(t *testing.T) {
 			large: SegmentFinished{Run: runfixture.MustRestore(run.Snapshot{ID: "run", State: run.Canceled, Outcome: &canceled, Detail: largeText})},
 		},
 		{
-			name:  "item text",
-			small: ItemStarted{Item: transcript.Item{ID: "item"}},
-			large: ItemStarted{Item: transcript.Item{ID: "item", Text: largeText}},
+			name: "item start identity",
+			small: ItemStarted{Item: ItemStart{
+				SessionID: "session", RunID: "run", ItemID: "item",
+				Kind: transcript.Reasoning, OccurredAt: time.Unix(1, 0),
+			}},
+			large: ItemStarted{Item: ItemStart{
+				SessionID: "session", RunID: "run", ItemID: "item" + largeText,
+				Kind: transcript.Reasoning, OccurredAt: time.Unix(1, 0),
+			}},
 		},
 		{
 			name:  "item media",
-			small: ItemCompleted{Item: transcript.Item{ID: "item"}},
-			large: ItemCompleted{Item: transcript.Item{ID: "item", Content: []transcript.ContentBlock{{Kind: transcript.ImageContent, MediaType: "image/png", Bytes: make([]byte, growth)}}}},
+			small: ItemCompleted{Item: itemfixture.MustRestore(itemfixture.Input{ID: "item"})},
+			large: ItemCompleted{Item: itemfixture.MustRestore(itemfixture.Input{ID: "item", Content: []transcript.ContentBlock{{Kind: transcript.ImageContent, MediaType: "image/png", Bytes: make([]byte, growth)}}})},
 		},
 		{
-			name:  "tool result",
-			small: ItemCompleted{Item: transcript.Item{Tool: &transcript.ToolInvocation{Name: "shell"}}},
-			large: ItemCompleted{Item: transcript.Item{Tool: &transcript.ToolInvocation{Name: "shell", Result: &largeResult}}},
+			name: "tool result",
+			small: ItemCompleted{Item: itemfixture.MustRestore(itemfixture.Input{
+				Kind: transcript.ToolCall, Status: transcript.ItemCompleted,
+				Tool: &transcript.ToolInvocation{Name: "shell"},
+			})},
+			large: ItemCompleted{Item: itemfixture.MustRestore(itemfixture.Input{
+				Kind: transcript.ToolCall, Status: transcript.ItemCompleted,
+				Tool: &transcript.ToolInvocation{Name: "shell", Result: &largeResult},
+			})},
 		},
 		{
 			name:  "state snapshot",

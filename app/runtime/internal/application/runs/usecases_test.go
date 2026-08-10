@@ -788,7 +788,7 @@ func TestResumeWithInputCommitsTheUserItemWithTheContinuation(t *testing.T) {
 	committed := false
 	for _, event := range opening.Events {
 		for _, item := range event.Items {
-			if item.ID == withInput.UserItemID && item.Kind == transcript.UserMessage {
+			if item.ID() == withInput.UserItemID && item.Kind() == transcript.UserMessage {
 				committed = true
 			}
 		}
@@ -1413,9 +1413,9 @@ func requireChildCancellationProjection(
 			childTerminalCommits++
 		}
 		for _, item := range commit.Items {
-			if item.ID == child.Lineage().SpawnedByItemID && item.Status == transcript.ItemIncomplete &&
-				item.Error != nil && item.Error.Kind == tool.FailureChildRunCanceled &&
-				item.Error.Detail == reason {
+			failure, failed := item.Failure()
+			if item.ID() == child.Lineage().SpawnedByItemID && item.Status() == transcript.ItemIncomplete &&
+				failed && failure.Kind == tool.FailureChildRunCanceled && failure.Detail == reason {
 				parentCancellationItems++
 			}
 		}

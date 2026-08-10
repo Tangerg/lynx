@@ -22,6 +22,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/toolresult"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/itemfixture"
 	runfixture "github.com/Tangerg/lynx/app/runtime/internal/testsupport/runfixture"
 )
 
@@ -33,13 +34,13 @@ import (
 // is that the document this build writes is the version the contract named. Bumping
 // it is a breaking act, so it should cost a deliberate edit here.
 func TestArtifactVersionMatchesCurrentContractBaseline(t *testing.T) {
-	if protocol.SessionArtifactVersion != 14 {
-		t.Fatalf("SessionArtifactVersion = %d; current Runtime contract requires artifact v14",
+	if protocol.SessionArtifactVersion != 15 {
+		t.Fatalf("SessionArtifactVersion = %d; current Runtime contract requires artifact v15",
 			protocol.SessionArtifactVersion)
 	}
 }
 
-// TestArtifactV14RoundTripsEveryFieldItCarries is the rest of gate 15.
+// TestArtifactV15RoundTripsEveryFieldItCarries is the rest of gate 15.
 //
 // The failure mode a version bump actually has is a field the encoder writes and
 // the decoder drops — the archive still imports, still looks right, and the value is
@@ -52,7 +53,7 @@ func TestArtifactVersionMatchesCurrentContractBaseline(t *testing.T) {
 //   - the archive survives the trip WHOLE — export, wipe, import, export again, and
 //     the two documents must be identical byte for byte. Any field the decoder
 //     forgets is missing from the second document.
-func TestArtifactV14RoundTripsEveryFieldItCarries(t *testing.T) {
+func TestArtifactV15RoundTripsEveryFieldItCarries(t *testing.T) {
 	s, rt := rollbackHarness(t)
 	s.features.plan = true // this composition owns the key, so it may restore it
 	ctx := t.Context()
@@ -111,13 +112,13 @@ func TestExportPreservesRunTreeLineage(t *testing.T) {
 	); err != nil {
 		t.Fatalf("seed root run: %v", err)
 	}
-	if err := rt.hist.AppendItem(ctx, transcript.Item{
+	if err := rt.hist.AppendItem(ctx, itemfixture.MustRestore(itemfixture.Input{
 		SessionID: ses.ID, RunID: "run_root", ID: "item_spawn",
 		OccurredAt: time.Unix(1, 0).UTC(), FinishedAt: time.Unix(1, 0).UTC(),
 		Status: transcript.ItemCompleted,
 		Kind:   transcript.ToolCall,
 		Tool:   &transcript.ToolInvocation{Name: "delegate_task"},
-	}); err != nil {
+	})); err != nil {
 		t.Fatalf("seed spawning item: %v", err)
 	}
 	if err := rt.runs.Restore(ctx, runfixture.MustRestore(run.Snapshot{SessionID: ses.ID, ID: "run_child",
@@ -457,66 +458,64 @@ func seedEveryItemKind(t *testing.T, rt *stubRuntime, sessionID string) {
 	if err != nil {
 		t.Fatalf("tool result: %v", err)
 	}
-	items := []transcript.Item{
-		{
-			ID: "item_user", RunID: "run_done", Kind: transcript.UserMessage,
-			Status: transcript.ItemCompleted, OccurredAt: time.Unix(2, 0).UTC(),
-			Content: []transcript.ContentBlock{
-				{Kind: transcript.TextContent, Text: "do everything"},
-				{Kind: transcript.ImageContent, MediaType: "image/png", Bytes: []byte("hello")},
-			},
+	items := []transcript.Item{itemfixture.MustRestore(itemfixture.Input{
+		ID: "item_user", RunID: "run_done", Kind: transcript.UserMessage,
+		Status: transcript.ItemCompleted, OccurredAt: time.Unix(2, 0).UTC(),
+		Content: []transcript.ContentBlock{
+			{Kind: transcript.TextContent, Text: "do everything"},
+			{Kind: transcript.ImageContent, MediaType: "image/png", Bytes: []byte("hello")},
 		},
-		{
-			ID: "item_agent", RunID: "run_done", Kind: transcript.AgentMessage,
-			Status: transcript.ItemCompleted, OccurredAt: time.Unix(3, 0).UTC(),
-			Content: []transcript.ContentBlock{{Kind: transcript.TextContent, Text: "on it"}},
+	}), itemfixture.MustRestore(itemfixture.Input{
+		ID: "item_agent", RunID: "run_done", Kind: transcript.AgentMessage,
+		Status: transcript.ItemCompleted, OccurredAt: time.Unix(3, 0).UTC(),
+		Content: []transcript.ContentBlock{{Kind: transcript.TextContent, Text: "on it"}},
+	}), itemfixture.MustRestore(itemfixture.Input{
+		ID: "item_reasoning", RunID: "run_done", Kind: transcript.Reasoning,
+		Status: transcript.ItemIncomplete, OccurredAt: time.Unix(4, 0).UTC(),
+		Text: "thinking about it", Redacted: true,
+	}), itemfixture.MustRestore(itemfixture.Input{
+		ID: "item_question", RunID: "run_done", Kind: transcript.QuestionItem,
+		Status: transcript.ItemCompleted, OccurredAt: time.Unix(6, 0).UTC(),
+		Question: &transcript.Question{
+			Fields: []transcript.QuestionField{{
+				Prompt: "Which route?", Header: "Pick one",
+				Kind: transcript.QuestionChoice, Multiple: true, AllowCustom: true,
+				Options: []transcript.QuestionOption{
+					{Label: "left", Description: "the short way", Preview: "◀"},
+					{Label: "right", Description: "the scenic way", Preview: "▶"},
+				},
+			}},
 		},
-		{
-			ID: "item_reasoning", RunID: "run_done", Kind: transcript.Reasoning,
-			Status: transcript.ItemIncomplete, OccurredAt: time.Unix(4, 0).UTC(),
-			Text: "thinking about it", Redacted: true,
+	}), itemfixture.MustRestore(itemfixture.Input{
+		ID: "item_tool", RunID: "run_done", Kind: transcript.ToolCall,
+		Status: transcript.ItemCompleted, OccurredAt: time.Unix(7, 0).UTC(),
+		FinishedAt:  time.UnixMilli(7250).UTC(),
+		SafetyClass: tool.SafetyClassExec,
+		Tool:        &transcript.ToolInvocation{Name: "shell", Arguments: arguments, Result: &result},
+	}), itemfixture.MustRestore(itemfixture.Input{
+		ID: "item_failed", RunID: "run_failed", Kind: transcript.ToolCall,
+		Status: transcript.ItemIncomplete, OccurredAt: time.Unix(8, 0).UTC(),
+		FinishedAt: time.UnixMilli(8500).UTC(),
+		Failure: &tool.Failure{
+			Kind:   tool.FailureExecution,
+			Detail: "exit 1", DocURL: "https://example.invalid/tools",
 		},
-		{
-			ID: "item_question", RunID: "run_done", Kind: transcript.QuestionItem,
-			Status: transcript.ItemCompleted, OccurredAt: time.Unix(6, 0).UTC(),
-			Question: &transcript.Question{
-				Fields: []transcript.QuestionField{{
-					Prompt: "Which route?", Header: "Pick one",
-					Kind: transcript.QuestionChoice, Multiple: true, AllowCustom: true,
-					Options: []transcript.QuestionOption{
-						{Label: "left", Description: "the short way", Preview: "◀"},
-						{Label: "right", Description: "the scenic way", Preview: "▶"},
-					},
-				}},
-			},
-		},
-		{
-			ID: "item_tool", RunID: "run_done", Kind: transcript.ToolCall,
-			Status: transcript.ItemCompleted, OccurredAt: time.Unix(7, 0).UTC(),
-			FinishedAt:  time.UnixMilli(7250).UTC(),
-			SafetyClass: tool.SafetyClassExec,
-			Tool:        &transcript.ToolInvocation{Name: "shell", Arguments: arguments, Result: &result},
-		},
-		{
-			ID: "item_failed", RunID: "run_failed", Kind: transcript.ToolCall,
-			Status: transcript.ItemIncomplete, OccurredAt: time.Unix(8, 0).UTC(),
-			FinishedAt: time.UnixMilli(8500).UTC(),
-			Error: &tool.Failure{
-				Kind:   tool.FailureExecution,
-				Detail: "exit 1", DocURL: "https://example.invalid/tools",
-			},
-			Tool: &transcript.ToolInvocation{Name: "shell", Arguments: arguments},
-		},
-		{
-			ID: "item_compaction", RunID: "run_failed", Kind: transcript.Compaction,
-			Status: transcript.ItemCompleted, OccurredAt: time.Unix(9, 0).UTC(),
-			Summary: "folded the earlier messages", DroppedMessages: 4,
-		},
+		Tool: &transcript.ToolInvocation{Name: "shell", Arguments: arguments},
+	}), itemfixture.MustRestore(itemfixture.Input{
+		ID: "item_compaction", RunID: "run_failed", Kind: transcript.Compaction,
+		Status: transcript.ItemCompleted, OccurredAt: time.Unix(9, 0).UTC(),
+		Summary: "folded the earlier messages", DroppedMessages: 4,
+	}),
 	}
 	for _, item := range items {
-		item.SessionID = sessionID
+		snapshot := item.Snapshot()
+		snapshot.Identity.SessionID = sessionID
+		item, err := transcript.RestoreItem(snapshot)
+		if err != nil {
+			t.Fatalf("restore item %s: %v", snapshot.Identity.ItemID, err)
+		}
 		if err := rt.hist.AppendItem(t.Context(), item); err != nil {
-			t.Fatalf("seed item %s: %v", item.ID, err)
+			t.Fatalf("seed item %s: %v", item.ID(), err)
 		}
 	}
 }
@@ -535,14 +534,14 @@ func seedOffloadedToolResult(t *testing.T, rt *stubRuntime, sessionID string) {
 	}
 	preview := "offloaded preview " + id.String()
 	previewValue := tool.StringResult(preview)
-	if err := rt.hist.AppendItem(ctx, transcript.Item{
+	if err := rt.hist.AppendItem(ctx, itemfixture.MustRestore(itemfixture.Input{
 		SessionID: sessionID, RunID: "run_done", ID: "item_offload",
 		Kind: transcript.ToolCall, Status: transcript.ItemCompleted,
 		OccurredAt: time.Unix(10, 0).UTC(), FinishedAt: time.Unix(11, 0).UTC(),
 		Tool: &transcript.ToolInvocation{
 			Name: "vendor_tool", Result: &previewValue, Offload: &toolresult.Ref{ID: id},
 		},
-	}); err != nil {
+	})); err != nil {
 		t.Fatalf("seed offloaded item: %v", err)
 	}
 	if err := rt.toolResults.Bind(ctx, sessionID, "item_offload", preview, toolresult.Ref{ID: id}); err != nil {

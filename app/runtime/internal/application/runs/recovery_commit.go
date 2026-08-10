@@ -60,20 +60,20 @@ func (commit RecoveryCommit) Validate() error {
 
 	replacedItems := make(map[string]struct{}, len(commit.ItemReplacements))
 	for index, replacement := range commit.ItemReplacements {
-		owner, found := lostByID[replacement.Expected.RunID]
-		if !found || replacement.Expected.SessionID != owner.SessionID() {
+		owner, found := lostByID[replacement.Expected.RunID()]
+		if !found || replacement.Expected.SessionID() != owner.SessionID() {
 			return fmt.Errorf(
 				"runs: recovery commit Item %q is not owned by a lost Run",
-				replacement.Expected.ID,
+				replacement.Expected.ID(),
 			)
 		}
 		if err := validateRecoveryItemReplacement(replacement, owner.FinishedAt()); err != nil {
 			return fmt.Errorf("runs: recovery commit Item replacement[%d]: %w", index, err)
 		}
-		if _, duplicate := replacedItems[replacement.Expected.ID]; duplicate {
-			return fmt.Errorf("runs: recovery commit repeats Item replacement %q", replacement.Expected.ID)
+		if _, duplicate := replacedItems[replacement.Expected.ID()]; duplicate {
+			return fmt.Errorf("runs: recovery commit repeats Item replacement %q", replacement.Expected.ID())
 		}
-		replacedItems[replacement.Expected.ID] = struct{}{}
+		replacedItems[replacement.Expected.ID()] = struct{}{}
 	}
 	if err := validateRecoveryGoalRuns(commit.GoalRuns, lostByID); err != nil {
 		return err
@@ -96,23 +96,22 @@ func validateRecoveryItemReplacement(replacement ItemReplacement, finishedAt tim
 	if err := actual.Validate(); err != nil {
 		return fmt.Errorf("replacement Item: %w", err)
 	}
-	if expected.ID == "" || expected.SessionID == "" || expected.RunID == "" {
+	if expected.ID() == "" || expected.SessionID() == "" || expected.RunID() == "" {
 		return errors.New("expected Item identity is incomplete")
 	}
-	if expected.Status != transcript.ItemRunning || actual.Status != transcript.ItemIncomplete {
+	if expected.Status() != transcript.ItemRunning || actual.Status() != transcript.ItemIncomplete {
 		return errors.New("replacement must move a Running Item to Incomplete")
 	}
-	want := expected
-	want.Status = transcript.ItemIncomplete
-	if want.Kind == transcript.ToolCall {
-		want.FinishedAt = finishedAt
-		want.Error = &tool.Failure{
-			Kind:   tool.FailureExecution,
-			Detail: "tool call interrupted because the run was lost on restart",
-		}
+	failure := tool.Failure{
+		Kind:   tool.FailureExecution,
+		Detail: "tool call interrupted because the run was lost on restart",
 	}
-	if !reflect.DeepEqual(actual, want) {
-		return fmt.Errorf("replacement rewrites facts other than recovery status for Item %q", expected.ID)
+	want, err := expected.AbandonToolCall(&failure, finishedAt)
+	if err != nil {
+		return fmt.Errorf("expected recovery transition: %w", err)
+	}
+	if !reflect.DeepEqual(actual.Snapshot(), want.Snapshot()) {
+		return fmt.Errorf("replacement rewrites facts other than recovery status for Item %q", expected.ID())
 	}
 	return nil
 }

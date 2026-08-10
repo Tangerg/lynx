@@ -24,13 +24,13 @@ type SearchHit struct {
 // the item's content blocks, where message text lives (the runs reducer stores
 // finished user/agent messages as TextContent blocks, not the Text field).
 func SearchableText(item Item) (string, bool) {
-	switch item.Kind {
+	switch item.Kind() {
 	case UserMessage, AgentMessage:
 	default:
 		return "", false
 	}
 	var b strings.Builder
-	for _, block := range item.Content {
+	for _, block := range item.Content() {
 		if block.Kind != TextContent {
 			continue
 		}

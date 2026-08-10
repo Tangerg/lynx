@@ -1,0 +1,414 @@
+package transcript
+
+import (
+	"errors"
+	"fmt"
+	"strings"
+	"time"
+
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
+)
+
+// ItemIdentity is the immutable ownership and occurrence identity shared by
+// every transcript Item variant.
+type ItemIdentity struct {
+	SessionID  string
+	RunID      string
+	ItemID     string
+	OccurredAt time.Time
+}
+
+// Validate reports whether the identity is complete and canonical.
+func (identity ItemIdentity) Validate() error {
+	for _, field := range []struct {
+		name  string
+		value string
+	}{
+		{name: "Session ID", value: identity.SessionID},
+		{name: "Run ID", value: identity.RunID},
+		{name: "Item ID", value: identity.ItemID},
+	} {
+		if strings.TrimSpace(field.value) == "" || field.value != strings.TrimSpace(field.value) {
+			return fmt.Errorf("transcript: %s is required without surrounding whitespace", field.name)
+		}
+	}
+	if identity.OccurredAt.IsZero() {
+		return errors.New("transcript: occurrence time is required")
+	}
+	return nil
+}
+
+// Item is one immutable, user-visible transcript fact. Only ToolCall has an
+// internal lifecycle: every other variant is complete when constructed.
+type Item struct {
+	identity        ItemIdentity
+	status          ItemStatus
+	finishedAt      time.Time
+	kind            ItemKind
+	content         []ContentBlock
+	text            string
+	redacted        bool
+	question        *Question
+	tool            *ToolInvocation
+	safetyClass     tool.SafetyClass
+	failure         *tool.Failure
+	summary         string
+	droppedMessages int
+}
+
+// ItemSnapshot is the complete representation consumed by strict technical
+// codecs. [RestoreItem] validates it; it is not a second mutation surface.
+type ItemSnapshot struct {
+	Identity        ItemIdentity
+	Status          ItemStatus
+	FinishedAt      time.Time
+	Kind            ItemKind
+	Content         []ContentBlock
+	Text            string
+	Redacted        bool
+	Question        *Question
+	Tool            *ToolInvocation
+	SafetyClass     tool.SafetyClass
+	Failure         *tool.Failure
+	Summary         string
+	DroppedMessages int
+}
+
+// NewUserMessage constructs a complete user message.
+func NewUserMessage(identity ItemIdentity, content []ContentBlock) (Item, error) {
+	return newMessage(identity, UserMessage, content)
+}
+
+// NewAgentMessage constructs a complete agent message.
+func NewAgentMessage(identity ItemIdentity, content []ContentBlock) (Item, error) {
+	return newMessage(identity, AgentMessage, content)
+}
+
+func newMessage(identity ItemIdentity, kind ItemKind, content []ContentBlock) (Item, error) {
+	return RestoreItem(ItemSnapshot{
+		Identity: identity, Status: ItemCompleted, Kind: kind, Content: content,
+	})
+}
+
+// NewReasoning constructs a complete reasoning record.
+func NewReasoning(identity ItemIdentity, text string, redacted bool) (Item, error) {
+	return RestoreItem(ItemSnapshot{
+		Identity: identity, Status: ItemCompleted, Kind: Reasoning,
+		Text: text, Redacted: redacted,
+	})
+}
+
+// NewQuestion constructs the complete prompt fact for one pending question.
+// Whether it still awaits an answer belongs to the root-owned Pending set, not
+// to a second lifecycle on the transcript Item.
+func NewQuestion(identity ItemIdentity, question Question) (Item, error) {
+	return RestoreItem(ItemSnapshot{
+		Identity: identity, Status: ItemCompleted, Kind: QuestionItem, Question: &question,
+	})
+}
+
+// NewToolCall constructs a running ToolCall. Its invocation must not already
+// carry a result or offload reference.
+func NewToolCall(identity ItemIdentity, invocation ToolInvocation, safetyClass tool.SafetyClass) (Item, error) {
+	return RestoreItem(ItemSnapshot{
+		Identity: identity, Status: ItemRunning, Kind: ToolCall,
+		Tool: &invocation, SafetyClass: safetyClass,
+	})
+}
+
+// NewCompaction constructs a complete compaction boundary.
+func NewCompaction(identity ItemIdentity, summary string, droppedMessages int) (Item, error) {
+	return RestoreItem(ItemSnapshot{
+		Identity: identity, Status: ItemCompleted, Kind: Compaction,
+		Summary: summary, DroppedMessages: droppedMessages,
+	})
+}
+
+// RestoreItem rebuilds a complete Item from a technical record.
+func RestoreItem(snapshot ItemSnapshot) (Item, error) {
+	snapshot.Identity.OccurredAt = snapshot.Identity.OccurredAt.UTC()
+	item := Item{
+		identity: snapshot.Identity, status: snapshot.Status, finishedAt: snapshot.FinishedAt.UTC(),
+		kind: snapshot.Kind, content: CloneContent(snapshot.Content), text: snapshot.Text,
+		redacted: snapshot.Redacted, question: cloneQuestion(snapshot.Question),
+		tool: cloneToolInvocation(snapshot.Tool), safetyClass: snapshot.SafetyClass,
+		failure: cloneToolFailure(snapshot.Failure), summary: snapshot.Summary,
+		droppedMessages: snapshot.DroppedMessages,
+	}
+	if err := item.Validate(); err != nil {
+		return Item{}, err
+	}
+	return item, nil
+}
+
+// Snapshot returns a complete ownership-isolated representation.
+func (item Item) Snapshot() ItemSnapshot {
+	return ItemSnapshot{
+		Identity: item.identity, Status: item.status, FinishedAt: item.finishedAt,
+		Kind: item.kind, Content: CloneContent(item.content), Text: item.text,
+		Redacted: item.redacted, Question: cloneQuestion(item.question),
+		Tool: cloneToolInvocation(item.tool), SafetyClass: item.safetyClass,
+		Failure: cloneToolFailure(item.failure), Summary: item.summary,
+		DroppedMessages: item.droppedMessages,
+	}
+}
+
+// CompleteToolCall settles a running ToolCall successfully.
+func (item Item) CompleteToolCall(invocation ToolInvocation, finishedAt time.Time) (Item, error) {
+	return item.settleToolCall(invocation, nil, ItemCompleted, finishedAt)
+}
+
+// FailToolCall settles a running ToolCall with a classified failure.
+func (item Item) FailToolCall(invocation ToolInvocation, failure tool.Failure, finishedAt time.Time) (Item, error) {
+	return item.settleToolCall(invocation, &failure, ItemIncomplete, finishedAt)
+}
+
+// AbandonToolCall records that a running ToolCall never reached a conclusive
+// result. Failure may be absent when only executor loss is known.
+func (item Item) AbandonToolCall(failure *tool.Failure, finishedAt time.Time) (Item, error) {
+	if item.tool == nil {
+		return Item{}, errors.New("transcript: ToolCall invocation is absent")
+	}
+	return item.settleToolCall(*item.tool, failure, ItemIncomplete, finishedAt)
+}
+
+// ClassifyAbandonedToolCall attaches the causal failure that became known after
+// an already-incomplete ToolCall was recorded. It is intentionally narrower
+// than settlement: identity, invocation, status, and timing remain unchanged.
+func (item Item) ClassifyAbandonedToolCall(failure tool.Failure) (Item, error) {
+	if item.kind != ToolCall || item.status != ItemIncomplete {
+		return Item{}, errors.New("transcript: only an incomplete ToolCall can be classified")
+	}
+	if item.failure != nil {
+		return Item{}, errors.New("transcript: incomplete ToolCall already has a failure")
+	}
+	item.failure = cloneToolFailure(&failure)
+	if err := item.Validate(); err != nil {
+		return Item{}, err
+	}
+	return item, nil
+}
+
+func (item Item) settleToolCall(
+	invocation ToolInvocation,
+	failure *tool.Failure,
+	status ItemStatus,
+	finishedAt time.Time,
+) (Item, error) {
+	if item.kind != ToolCall || item.status != ItemRunning {
+		return Item{}, errors.New("transcript: only a running ToolCall can settle")
+	}
+	if item.tool == nil || invocation.Name != item.tool.Name {
+		return Item{}, errors.New("transcript: ToolCall settlement changes tool identity")
+	}
+	if finishedAt.IsZero() || finishedAt.Before(item.identity.OccurredAt) {
+		return Item{}, errors.New("transcript: ToolCall finish time precedes its start")
+	}
+	item.status, item.finishedAt = status, finishedAt.UTC()
+	item.tool, item.failure = cloneToolInvocation(&invocation), cloneToolFailure(failure)
+	if err := item.Validate(); err != nil {
+		return Item{}, err
+	}
+	return item, nil
+}
+
+// Validate reports whether the Item is one legal variant.
+func (item Item) Validate() error {
+	if err := item.identity.Validate(); err != nil {
+		return err
+	}
+	if item.droppedMessages < 0 {
+		return errors.New("transcript: dropped messages must not be negative")
+	}
+	for index, block := range item.content {
+		if err := block.Validate(); err != nil {
+			return fmt.Errorf("transcript: content %d: %w", index, err)
+		}
+	}
+	switch item.kind {
+	case UserMessage, AgentMessage:
+		if item.status != ItemCompleted || len(item.content) == 0 {
+			return errors.New("transcript: message must be complete with content")
+		}
+	case Reasoning:
+		if item.status != ItemCompleted || item.text == "" {
+			return errors.New("transcript: reasoning must be complete with text")
+		}
+	case QuestionItem:
+		if item.status != ItemCompleted || item.question == nil {
+			return errors.New("transcript: question must be a complete prompt")
+		}
+		if err := item.question.Validate(); err != nil {
+			return err
+		}
+	case ToolCall:
+		if err := item.validateToolCall(); err != nil {
+			return err
+		}
+	case Compaction:
+		if item.status != ItemCompleted {
+			return errors.New("transcript: compaction must be complete")
+		}
+	default:
+		return fmt.Errorf("transcript: unknown Item kind %d", item.kind)
+	}
+	return item.rejectDisallowedPayload()
+}
+
+func (item Item) validateToolCall() error {
+	if item.tool == nil {
+		return errors.New("transcript: ToolCall invocation is required")
+	}
+	if err := item.tool.Validate(item.status == ItemRunning); err != nil {
+		return err
+	}
+	if item.safetyClass != "" && !item.safetyClass.Valid() {
+		return fmt.Errorf("transcript: unknown Tool safety class %q", item.safetyClass)
+	}
+	switch item.status {
+	case ItemRunning:
+		if !item.finishedAt.IsZero() || item.failure != nil {
+			return errors.New("transcript: running ToolCall carries terminal facts")
+		}
+	case ItemCompleted:
+		if item.finishedAt.IsZero() || item.failure != nil {
+			return errors.New("transcript: completed ToolCall has invalid terminal facts")
+		}
+	case ItemIncomplete:
+		if item.finishedAt.IsZero() {
+			return errors.New("transcript: incomplete ToolCall has no finish time")
+		}
+	default:
+		return fmt.Errorf("transcript: unknown Item status %d", item.status)
+	}
+	if !item.finishedAt.IsZero() && item.finishedAt.Before(item.identity.OccurredAt) {
+		return errors.New("transcript: ToolCall finish time precedes its start")
+	}
+	if item.failure != nil {
+		if err := item.failure.Validate(); err != nil {
+			return fmt.Errorf("transcript: Tool failure: %w", err)
+		}
+	}
+	return nil
+}
+
+func (item Item) rejectDisallowedPayload() error {
+	present := func(value bool, name string) error {
+		if value {
+			return fmt.Errorf("transcript: %s is not valid for Item kind %s", name, item.kind)
+		}
+		return nil
+	}
+	checks := []struct {
+		value bool
+		name  string
+	}{
+		{item.kind != UserMessage && item.kind != AgentMessage && len(item.content) != 0, "content"},
+		{item.kind != Reasoning && item.text != "", "text"},
+		{item.kind != Reasoning && item.redacted, "redacted"},
+		{item.kind != QuestionItem && item.question != nil, "question"},
+		{item.kind != ToolCall && item.tool != nil, "Tool invocation"},
+		{item.kind != ToolCall && item.safetyClass != "", "Tool safety class"},
+		{item.kind != ToolCall && item.failure != nil, "Tool failure"},
+		{item.kind != ToolCall && !item.finishedAt.IsZero(), "finish time"},
+		{item.kind != Compaction && item.summary != "", "summary"},
+		{item.kind != Compaction && item.droppedMessages != 0, "dropped messages"},
+	}
+	for _, check := range checks {
+		if err := present(check.value, check.name); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// Validate reports whether an invocation has a canonical identity and result
+// shape. pending requires the result and offload reference to be absent.
+func (invocation ToolInvocation) Validate(pending bool) error {
+	if strings.TrimSpace(invocation.Name) == "" || invocation.Name != strings.TrimSpace(invocation.Name) {
+		return errors.New("transcript: Tool name is required without surrounding whitespace")
+	}
+	if pending && (invocation.Result != nil || invocation.Offload != nil) {
+		return errors.New("transcript: pending Tool invocation carries a result")
+	}
+	if invocation.Offload != nil {
+		if err := invocation.Offload.Validate(); err != nil {
+			return fmt.Errorf("transcript: Tool offload: %w", err)
+		}
+		if invocation.Result == nil {
+			return errors.New("transcript: offloaded Tool result has no preview")
+		}
+		if _, textual := invocation.Result.String(); !textual {
+			return errors.New("transcript: offloaded Tool result preview is not text")
+		}
+	}
+	return nil
+}
+
+func cloneToolInvocation(invocation *ToolInvocation) *ToolInvocation {
+	if invocation == nil {
+		return nil
+	}
+	copy := *invocation
+	if invocation.Result != nil {
+		result := *invocation.Result
+		copy.Result = &result
+	}
+	if invocation.Offload != nil {
+		offload := *invocation.Offload
+		copy.Offload = &offload
+	}
+	return &copy
+}
+
+func cloneToolFailure(failure *tool.Failure) *tool.Failure {
+	if failure == nil {
+		return nil
+	}
+	copy := *failure
+	return &copy
+}
+
+func cloneQuestion(question *Question) *Question {
+	if question == nil {
+		return nil
+	}
+	copy := Question{Fields: make([]QuestionField, len(question.Fields))}
+	for index, field := range question.Fields {
+		copy.Fields[index] = field
+		copy.Fields[index].Options = append([]QuestionOption(nil), field.Options...)
+	}
+	return &copy
+}
+
+func (item Item) SessionID() string             { return item.identity.SessionID }
+func (item Item) RunID() string                 { return item.identity.RunID }
+func (item Item) ID() string                    { return item.identity.ItemID }
+func (item Item) Status() ItemStatus            { return item.status }
+func (item Item) OccurredAt() time.Time         { return item.identity.OccurredAt }
+func (item Item) FinishedAt() time.Time         { return item.finishedAt }
+func (item Item) Kind() ItemKind                { return item.kind }
+func (item Item) Content() []ContentBlock       { return CloneContent(item.content) }
+func (item Item) Text() string                  { return item.text }
+func (item Item) Redacted() bool                { return item.redacted }
+func (item Item) SafetyClass() tool.SafetyClass { return item.safetyClass }
+func (item Item) Summary() string               { return item.summary }
+func (item Item) DroppedMessages() int          { return item.droppedMessages }
+func (item Item) Question() (Question, bool) {
+	if item.question == nil {
+		return Question{}, false
+	}
+	return *cloneQuestion(item.question), true
+}
+func (item Item) ToolInvocation() (ToolInvocation, bool) {
+	if item.tool == nil {
+		return ToolInvocation{}, false
+	}
+	return *cloneToolInvocation(item.tool), true
+}
+func (item Item) Failure() (tool.Failure, bool) {
+	if item.failure == nil {
+		return tool.Failure{}, false
+	}
+	return *cloneToolFailure(item.failure), true
+}

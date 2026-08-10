@@ -8,17 +8,18 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
+	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/itemfixture"
 )
 
 func msgItem(sessionID, id string, kind transcript.ItemKind, text string) transcript.Item {
-	return transcript.Item{
+	return itemfixture.MustRestore(itemfixture.Input{
 		SessionID:  sessionID,
 		ID:         id,
 		RunID:      "run-1",
 		Kind:       kind,
 		OccurredAt: time.Unix(1, 0).UTC(),
 		Content:    []transcript.ContentBlock{{Kind: transcript.TextContent, Text: text}},
-	}
+	})
 }
 
 func TestTranscriptSearchIndexesConversationAndExcludesNoise(t *testing.T) {

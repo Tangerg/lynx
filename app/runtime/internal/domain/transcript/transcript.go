@@ -67,13 +67,13 @@ func TimelineFromRuns(runs []run.Run) Timeline {
 func OpeningUserMessagesByRun(items []Item) map[string][]ContentBlock {
 	out := make(map[string][]ContentBlock)
 	for _, item := range items {
-		if item.Kind != UserMessage {
+		if item.Kind() != UserMessage {
 			continue
 		}
-		if _, exists := out[item.RunID]; exists {
+		if _, exists := out[item.RunID()]; exists {
 			continue
 		}
-		out[item.RunID] = CloneContent(item.Content)
+		out[item.RunID()] = item.Content()
 	}
 	return out
 }

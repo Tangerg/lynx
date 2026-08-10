@@ -1428,12 +1428,89 @@ func TestStartCommandHasOneInputRepresentation(t *testing.T) {
 // call a ToolCall start a creation time.
 func TestTranscriptItemUsesOneNeutralDomainTimestamp(t *testing.T) {
 	root := moduleRoot(t)
-	path := filepath.Join(root, "internal", "domain", "transcript", "model.go")
-	if got := namedStructFieldTypeOptional(t, path, "Item", "OccurredAt"); got != "time.Time" {
-		t.Errorf("transcript.Item.OccurredAt = %q, want time.Time", got)
+	path := filepath.Join(root, "internal", "domain", "transcript", "item.go")
+	if got := namedStructFieldTypeOptional(t, path, "ItemIdentity", "OccurredAt"); got != "time.Time" {
+		t.Errorf("transcript.ItemIdentity.OccurredAt = %q, want time.Time", got)
 	}
-	if got := namedStructFieldTypeOptional(t, path, "Item", "CreatedAt"); got != "" {
-		t.Errorf("transcript.Item.CreatedAt = %q; variant-specific time belongs to Delivery", got)
+	if got := namedStructFieldTypeOptional(t, path, "ItemIdentity", "CreatedAt"); got != "" {
+		t.Errorf("transcript.ItemIdentity.CreatedAt = %q; variant-specific time belongs to Delivery", got)
+	}
+}
+
+// TestTranscriptItemHasNoExternalMutationSurface prevents the closed Item
+// union from becoming an exported field bag again. Technical codecs may use
+// ItemSnapshot, but every production Item transition must enter through a
+// semantic constructor or ToolCall behavior.
+func TestTranscriptItemHasNoExternalMutationSurface(t *testing.T) {
+	root := moduleRoot(t)
+	path := filepath.Join(root, "internal", "domain", "transcript", "item.go")
+	if fields := namedStructExportedFields(t, path, "Item"); len(fields) != 0 {
+		t.Errorf("transcript.Item exports mutable fields %v; use semantic behavior and accessors", fields)
+	}
+}
+
+// TestTranscriptItemSnapshotStaysAtTechnicalBoundaries keeps RestoreItem and
+// ItemSnapshot from becoming a convenient second mutation API in Application
+// or ordinary adapters. Only strict persistence/archive codecs and test support
+// may translate the complete technical representation.
+func TestTranscriptItemSnapshotStaysAtTechnicalBoundaries(t *testing.T) {
+	root := moduleRoot(t)
+	allowed := map[string]struct{}{
+		"internal/application/sessions/portable_snapshot.go":   {},
+		"internal/application/sessions/snapshot_validation.go": {},
+		"internal/delivery/server/artifact_decode.go":          {},
+		"internal/infra/storage/sqlite/transcript.go":          {},
+		"internal/infra/storage/sqlite/transcript_codec.go":    {},
+		"internal/testsupport/itemfixture/item.go":             {},
+	}
+	walkErr := filepath.WalkDir(filepath.Join(root, "internal"), func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if entry.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		relative, err := filepath.Rel(root, path)
+		if err != nil {
+			return err
+		}
+		if _, accepted := allowed[filepath.ToSlash(relative)]; accepted {
+			return nil
+		}
+		file, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
+		if err != nil {
+			return err
+		}
+		aliases := make(map[string]struct{})
+		for _, imported := range file.Imports {
+			importPath, err := strconv.Unquote(imported.Path.Value)
+			if err != nil || importPath != "github.com/Tangerg/lynx/app/runtime/internal/domain/transcript" {
+				continue
+			}
+			alias := "transcript"
+			if imported.Name != nil {
+				alias = imported.Name.Name
+			}
+			aliases[alias] = struct{}{}
+		}
+		ast.Inspect(file, func(node ast.Node) bool {
+			selector, ok := node.(*ast.SelectorExpr)
+			if !ok || (selector.Sel.Name != "ItemSnapshot" && selector.Sel.Name != "RestoreItem") {
+				return true
+			}
+			identifier, ok := selector.X.(*ast.Ident)
+			if !ok {
+				return true
+			}
+			if _, imported := aliases[identifier.Name]; imported {
+				t.Errorf("%s uses transcript.%s outside a strict technical codec", relative, selector.Sel.Name)
+			}
+			return true
+		})
+		return nil
+	})
+	if walkErr != nil {
+		t.Fatalf("scan transcript Item snapshot boundary: %v", walkErr)
 	}
 }
 
@@ -2052,6 +2129,51 @@ func namedStructFieldTypeOptional(t *testing.T, path, structName, fieldName stri
 	}
 	t.Fatalf("%s: type %s not found", path, structName)
 	return ""
+}
+
+// namedStructExportedFields returns the exported fields declared directly on a
+// named struct. Embedded exported fields count because they expose the same
+// external mutation surface.
+func namedStructExportedFields(t *testing.T, path, structName string) []string {
+	t.Helper()
+	file, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
+	if err != nil {
+		t.Fatalf("parse %s: %v", path, err)
+	}
+	for _, declaration := range file.Decls {
+		general, ok := declaration.(*ast.GenDecl)
+		if !ok || general.Tok != token.TYPE {
+			continue
+		}
+		for _, specification := range general.Specs {
+			named, ok := specification.(*ast.TypeSpec)
+			if !ok || named.Name.Name != structName {
+				continue
+			}
+			value, ok := named.Type.(*ast.StructType)
+			if !ok || value.Fields == nil {
+				t.Fatalf("%s: %s is not a struct", path, structName)
+			}
+			var exported []string
+			for _, field := range value.Fields.List {
+				if len(field.Names) == 0 {
+					name := exprString(field.Type)
+					if ast.IsExported(strings.TrimPrefix(name, "*")) {
+						exported = append(exported, name)
+					}
+					continue
+				}
+				for _, name := range field.Names {
+					if name.IsExported() {
+						exported = append(exported, name.Name)
+					}
+				}
+			}
+			return exported
+		}
+	}
+	t.Fatalf("%s: type %s not found", path, structName)
+	return nil
 }
 
 const (

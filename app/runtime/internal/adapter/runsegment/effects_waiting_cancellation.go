@@ -105,7 +105,7 @@ func (e *Effects) persistWaitingCancellationProjection(
 	); err != nil {
 		return fmt.Errorf(
 			"runsegment: replace spawning Item %q for waiting child Run %q: %w",
-			commit.ParentItem.Expected.ID,
+			commit.ParentItem.Expected.ID(),
 			commit.TargetRunID,
 			err,
 		)
@@ -114,8 +114,8 @@ func (e *Effects) persistWaitingCancellationProjection(
 		if err := e.itemReplacer.ReplaceItem(ctx, item.Expected, item.Replacement); err != nil {
 			return fmt.Errorf(
 				"runsegment: settle interrupted Item %q for canceled Run %q: %w",
-				item.Expected.ID,
-				item.Expected.RunID,
+				item.Expected.ID(),
+				item.Expected.RunID(),
 				err,
 			)
 		}

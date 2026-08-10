@@ -10,6 +10,7 @@ import (
 	resultoffload "github.com/Tangerg/lynx/app/runtime/internal/domain/toolresult"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
+	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/itemfixture"
 )
 
 func openTranscriptAndBlobs(t *testing.T) (*sqlite.TranscriptStore, *sqlite.ToolResultStore) {
@@ -22,21 +23,10 @@ func openTranscriptAndBlobs(t *testing.T) (*sqlite.TranscriptStore, *sqlite.Tool
 	return sqlite.NewTranscriptStore(db), sqlite.NewToolResultStore(db)
 }
 
-func TestTranscriptStoreRejectsMissingOccurrenceTime(t *testing.T) {
-	store, _ := openTranscriptAndBlobs(t)
-	err := store.AppendItem(t.Context(), transcript.Item{
-		SessionID: "ses_1", RunID: "run_1", ID: "item_1",
-		Kind: transcript.UserMessage, Status: transcript.ItemCompleted,
-	})
-	if err == nil || !strings.Contains(err.Error(), "occurred at is required") {
-		t.Fatalf("AppendItem error = %v, want missing occurrence time", err)
-	}
-}
-
 func toolItem(sessionID, id, result string, ref *resultoffload.Ref) transcript.Item {
 	value := tool.StringResult(result)
 	at := time.Unix(1, 0).UTC()
-	return transcript.Item{
+	return itemfixture.MustRestore(itemfixture.Input{
 		SessionID:  sessionID,
 		ID:         id,
 		RunID:      "run-1",
@@ -45,7 +35,7 @@ func toolItem(sessionID, id, result string, ref *resultoffload.Ref) transcript.I
 		OccurredAt: at,
 		FinishedAt: at,
 		Tool:       &transcript.ToolInvocation{Name: "shell", Result: &value, Offload: ref},
-	}
+	})
 }
 
 func TestTranscriptPaginationRejectsInvalidControls(t *testing.T) {
@@ -87,7 +77,11 @@ func TestTranscriptRehydratesOffloadedToolResult(t *testing.T) {
 	if len(items) != 1 {
 		t.Fatalf("got %d items, want 1", len(items))
 	}
-	if got, ok := items[0].Tool.Result.String(); !ok || got != full {
+	invocation, present := items[0].ToolInvocation()
+	if !present {
+		t.Fatal("rehydrated Item has no Tool invocation")
+	}
+	if got, ok := invocation.Result.String(); !ok || got != full {
 		t.Fatalf("tool result not rehydrated: got %q, want the full %d-byte body", got, len(full))
 	}
 }
@@ -117,7 +111,11 @@ func TestTranscriptLeavesOrdinaryToolResultUntouched(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got, _ := items[0].Tool.Result.String(); got != plain {
+	invocation, present := items[0].ToolInvocation()
+	if !present {
+		t.Fatal("stored Item has no Tool invocation")
+	}
+	if got, _ := invocation.Result.String(); got != plain {
 		t.Fatalf("ordinary result altered: %q", got)
 	}
 }

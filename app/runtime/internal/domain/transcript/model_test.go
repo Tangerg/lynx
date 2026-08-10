@@ -44,37 +44,46 @@ func TestCloneContentOwnsImageBytes(t *testing.T) {
 }
 
 func TestItemValidateOwnsPayloadInvariants(t *testing.T) {
+	identity := transcript.ItemIdentity{
+		SessionID: "session-1", RunID: "run-1", ItemID: "item-1",
+		OccurredAt: time.Unix(1, 0).UTC(),
+	}
 	tests := []struct {
-		name    string
-		item    transcript.Item
-		wantErr bool
+		name     string
+		snapshot transcript.ItemSnapshot
+		wantErr  bool
 	}{
 		{
 			name: "tool data on user message",
-			item: transcript.Item{
-				Kind: transcript.UserMessage,
-				Tool: &transcript.ToolInvocation{Name: "shell"},
+			snapshot: transcript.ItemSnapshot{
+				Identity: identity, Kind: transcript.UserMessage, Status: transcript.ItemCompleted,
+				Content: []transcript.ContentBlock{{Kind: transcript.TextContent, Text: "hello"}},
+				Tool:    &transcript.ToolInvocation{Name: "shell"},
 			},
 			wantErr: true,
 		},
 		{
-			name:    "missing occurrence time",
-			item:    transcript.Item{Kind: transcript.UserMessage, Status: transcript.ItemCompleted},
+			name: "missing occurrence time",
+			snapshot: transcript.ItemSnapshot{
+				Identity: transcript.ItemIdentity{SessionID: "session-1", RunID: "run-1", ItemID: "item-1"},
+				Kind:     transcript.UserMessage, Status: transcript.ItemCompleted,
+				Content: []transcript.ContentBlock{{Kind: transcript.TextContent, Text: "hello"}},
+			},
 			wantErr: true,
 		},
 		{
-			name: "message has occurrence time",
-			item: transcript.Item{
-				Kind: transcript.UserMessage, Status: transcript.ItemCompleted,
-				OccurredAt: time.Unix(1, 0).UTC(),
+			name: "valid message",
+			snapshot: transcript.ItemSnapshot{
+				Identity: identity, Kind: transcript.UserMessage, Status: transcript.ItemCompleted,
+				Content: []transcript.ContentBlock{{Kind: transcript.TextContent, Text: "hello"}},
 			},
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			err := test.item.Validate()
+			_, err := transcript.RestoreItem(test.snapshot)
 			if (err != nil) != test.wantErr {
-				t.Fatalf("Validate() error = %v, want error %t", err, test.wantErr)
+				t.Fatalf("RestoreItem() error = %v, want error %t", err, test.wantErr)
 			}
 		})
 	}
@@ -83,47 +92,36 @@ func TestItemValidateOwnsPayloadInvariants(t *testing.T) {
 func TestToolCallTimingLifecycle(t *testing.T) {
 	startedAt := time.Date(2026, 8, 4, 10, 0, 0, 0, time.UTC)
 	finishedAt := startedAt.Add(1500 * time.Millisecond)
-	toolCall := func(status transcript.ItemStatus) transcript.Item {
-		return transcript.Item{
-			Kind: transcript.ToolCall, Status: status, OccurredAt: startedAt,
-			Tool: &transcript.ToolInvocation{Name: "shell"},
-		}
+	identity := transcript.ItemIdentity{
+		SessionID: "session-1", RunID: "run-1", ItemID: "item-1", OccurredAt: startedAt,
 	}
-
-	tests := []struct {
-		name    string
-		item    transcript.Item
-		wantErr bool
-	}{
-		{name: "running has only start", item: toolCall(transcript.ItemRunning)},
-		{name: "completed has finish", item: func() transcript.Item {
-			item := toolCall(transcript.ItemCompleted)
-			item.FinishedAt = finishedAt
-			return item
-		}()},
-		{name: "terminal missing finish", item: toolCall(transcript.ItemIncomplete), wantErr: true},
-		{name: "running has finish", item: func() transcript.Item {
-			item := toolCall(transcript.ItemRunning)
-			item.FinishedAt = finishedAt
-			return item
-		}(), wantErr: true},
-		{name: "finish precedes start", item: func() transcript.Item {
-			item := toolCall(transcript.ItemCompleted)
-			item.FinishedAt = startedAt.Add(-time.Millisecond)
-			return item
-		}(), wantErr: true},
-		{name: "non-tool has finish", item: transcript.Item{
-			Kind: transcript.AgentMessage, Status: transcript.ItemCompleted,
-			OccurredAt: startedAt, FinishedAt: finishedAt,
-		}, wantErr: true},
+	invocation := transcript.ToolInvocation{Name: "shell"}
+	running, err := transcript.NewToolCall(identity, invocation, tool.SafetyClass(""))
+	if err != nil {
+		t.Fatalf("NewToolCall(): %v", err)
 	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			if err := test.item.Validate(); (err != nil) != test.wantErr {
-				t.Fatalf("Validate() error = %v, want error %t", err, test.wantErr)
-			}
-		})
+	if running.Status() != transcript.ItemRunning || !running.FinishedAt().IsZero() {
+		t.Fatalf("running timing = (%v, %v)", running.Status(), running.FinishedAt())
+	}
+	completed, err := running.CompleteToolCall(invocation, finishedAt)
+	if err != nil {
+		t.Fatalf("CompleteToolCall(): %v", err)
+	}
+	if completed.Status() != transcript.ItemCompleted || !completed.FinishedAt().Equal(finishedAt) {
+		t.Fatalf("completed timing = (%v, %v)", completed.Status(), completed.FinishedAt())
+	}
+	if _, err := completed.CompleteToolCall(invocation, finishedAt.Add(time.Second)); err == nil {
+		t.Fatal("second CompleteToolCall() succeeded")
+	}
+	if _, err := running.CompleteToolCall(invocation, startedAt.Add(-time.Millisecond)); err == nil {
+		t.Fatal("CompleteToolCall() accepted a finish before start")
+	}
+	abandoned, err := running.AbandonToolCall(nil, finishedAt)
+	if err != nil {
+		t.Fatalf("AbandonToolCall(): %v", err)
+	}
+	if abandoned.Status() != transcript.ItemIncomplete {
+		t.Fatalf("abandoned status = %v", abandoned.Status())
 	}
 }
 

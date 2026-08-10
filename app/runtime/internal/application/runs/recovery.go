@@ -377,17 +377,16 @@ func recoverLostTree(
 	for _, runID := range tree.postorder {
 		active := tree.runsByID[runID]
 		for _, item := range items {
-			if item.RunID != active.ID() || item.Status != transcript.ItemRunning {
+			if item.RunID() != active.ID() || item.Status() != transcript.ItemRunning {
 				continue
 			}
-			replacement := item
-			replacement.Status = transcript.ItemIncomplete
-			if replacement.Kind == transcript.ToolCall {
-				replacement.FinishedAt = finishedAt.UTC()
-				replacement.Error = &tool.Failure{
-					Kind:   tool.FailureExecution,
-					Detail: "tool call interrupted because the run was lost on restart",
-				}
+			failure := tool.Failure{
+				Kind:   tool.FailureExecution,
+				Detail: "tool call interrupted because the run was lost on restart",
+			}
+			replacement, err := item.AbandonToolCall(&failure, finishedAt)
+			if err != nil {
+				return nil, nil, fmt.Errorf("runs: recover lost Item %q: %w", item.ID(), err)
 			}
 			replacements = append(replacements, ItemReplacement{Expected: item, Replacement: replacement})
 		}

@@ -14,74 +14,91 @@ import (
 	"github.com/Tangerg/lynx/core/media"
 )
 
-func itemPair(build func(transcript.ItemStatus) transcript.Item) []RunEvent {
-	return []RunEvent{
-		ItemStarted{Item: build(transcript.ItemRunning)},
-		ItemCompleted{Item: build(transcript.ItemCompleted)},
+func (r *reducer) itemIdentity(id string, occurredAt time.Time) transcript.ItemIdentity {
+	return transcript.ItemIdentity{
+		SessionID:  r.cfg.SessionID,
+		RunID:      r.cfg.RunID,
+		ItemID:     id,
+		OccurredAt: occurredAt,
 	}
 }
 
-func (r *reducer) appendText(text string) []RunEvent {
+func (r *reducer) appendText(text string) ([]RunEvent, error) {
 	var out []RunEvent
 	if r.text == nil {
 		r.text = &openText{id: r.nextItemID(), createdAt: r.now()}
-		out = append(out, ItemStarted{Item: transcript.Item{
-			ID: r.text.id, RunID: r.cfg.RunID, Status: transcript.ItemRunning,
-			Kind: transcript.AgentMessage, OccurredAt: r.text.createdAt,
-		}})
+		start, err := newTransientItemStart(r.itemIdentity(r.text.id, r.text.createdAt), transcript.AgentMessage)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, ItemStarted{Item: start})
 	}
 	r.text.buf.WriteString(text)
 	index := 0
 	return append(out, ItemChanged{
 		ItemID: r.text.id,
 		Delta:  ItemDelta{Kind: ContentDelta, Index: &index, Text: text},
-	})
+	}), nil
 }
 
-func (r *reducer) appendReasoning(text string) []RunEvent {
+func (r *reducer) appendReasoning(text string) ([]RunEvent, error) {
 	var out []RunEvent
 	if r.reasoning == nil {
 		r.reasoning = &openText{id: r.nextItemID(), createdAt: r.now()}
-		out = append(out, ItemStarted{Item: transcript.Item{
-			ID: r.reasoning.id, RunID: r.cfg.RunID, Status: transcript.ItemRunning,
-			Kind: transcript.Reasoning, OccurredAt: r.reasoning.createdAt,
-		}})
+		start, err := newTransientItemStart(r.itemIdentity(r.reasoning.id, r.reasoning.createdAt), transcript.Reasoning)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, ItemStarted{Item: start})
 	}
 	r.reasoning.buf.WriteString(text)
 	return append(out, ItemChanged{
 		ItemID: r.reasoning.id,
 		Delta:  ItemDelta{Kind: ReasoningDeltaKind, Text: text},
-	})
+	}), nil
 }
 
-func (r *reducer) closeText() []RunEvent {
+func (r *reducer) closeText() ([]RunEvent, error) {
 	if r.text == nil {
-		return nil
+		return nil, nil
 	}
-	event := ItemCompleted{Item: transcript.Item{
-		ID: r.text.id, RunID: r.cfg.RunID, Status: transcript.ItemCompleted,
-		Kind: transcript.AgentMessage, OccurredAt: r.text.createdAt,
-		Content: []transcript.ContentBlock{{Kind: transcript.TextContent, Text: r.text.buf.String()}},
-	}}
+	item, err := transcript.NewAgentMessage(
+		r.itemIdentity(r.text.id, r.text.createdAt),
+		[]transcript.ContentBlock{{Kind: transcript.TextContent, Text: r.text.buf.String()}},
+	)
+	if err != nil {
+		return nil, err
+	}
 	r.text = nil
-	return []RunEvent{event}
+	return []RunEvent{ItemCompleted{Item: item}}, nil
 }
 
-func (r *reducer) closeReasoning() []RunEvent {
+func (r *reducer) closeReasoning() ([]RunEvent, error) {
 	if r.reasoning == nil {
-		return nil
+		return nil, nil
 	}
-	event := ItemCompleted{Item: transcript.Item{
-		ID: r.reasoning.id, RunID: r.cfg.RunID, Status: transcript.ItemCompleted,
-		Kind: transcript.Reasoning, OccurredAt: r.reasoning.createdAt,
-		Text: r.reasoning.buf.String(),
-	}}
+	item, err := transcript.NewReasoning(
+		r.itemIdentity(r.reasoning.id, r.reasoning.createdAt),
+		r.reasoning.buf.String(),
+		false,
+	)
+	if err != nil {
+		return nil, err
+	}
 	r.reasoning = nil
-	return []RunEvent{event}
+	return []RunEvent{ItemCompleted{Item: item}}, nil
 }
 
-func (r *reducer) closeStreaming() []RunEvent {
-	return append(r.closeReasoning(), r.closeText()...)
+func (r *reducer) closeStreaming() ([]RunEvent, error) {
+	reasoning, err := r.closeReasoning()
+	if err != nil {
+		return nil, err
+	}
+	message, err := r.closeText()
+	if err != nil {
+		return nil, err
+	}
+	return append(reasoning, message...), nil
 }
 
 func (r *reducer) completeAssistantMessage(message corechat.Message) ([]RunEvent, error) {
@@ -113,8 +130,15 @@ func (r *reducer) completeAssistantMessage(message corechat.Message) ([]RunEvent
 		}
 	}
 
-	out := r.completeReasoning(reasoning.String())
-	out = append(out, r.completeMessageContent(content)...)
+	out, err := r.completeReasoning(reasoning.String())
+	if err != nil {
+		return nil, err
+	}
+	messageEvents, err := r.completeMessageContent(content)
+	if err != nil {
+		return nil, err
+	}
+	out = append(out, messageEvents...)
 	return out, nil
 }
 
@@ -132,7 +156,7 @@ func (r *reducer) completeModelMessage(message corechat.Message) ([]RunEvent, er
 		}
 	}
 	if len(semantic.Parts) == 0 {
-		return r.closeStreaming(), nil
+		return r.closeStreaming()
 	}
 	return r.completeAssistantMessage(semantic)
 }
@@ -151,7 +175,7 @@ func assistantMediaBlock(value *media.Media) (transcript.ContentBlock, error) {
 	return transcript.ContentBlock{Kind: transcript.ImageContent, MediaType: value.MIME, Bytes: data}, nil
 }
 
-func (r *reducer) completeReasoning(text string) []RunEvent {
+func (r *reducer) completeReasoning(text string) ([]RunEvent, error) {
 	if text == "" {
 		return r.closeReasoning()
 	}
@@ -166,19 +190,21 @@ func (r *reducer) completeReasoning(text string) []RunEvent {
 	r.reasoning = nil
 	out := make([]RunEvent, 0, 2)
 	if started {
-		out = append(out, ItemStarted{Item: transcript.Item{
-			ID: id, RunID: r.cfg.RunID, Status: transcript.ItemRunning,
-			Kind: transcript.Reasoning, OccurredAt: createdAt,
-		}})
+		start, err := newTransientItemStart(r.itemIdentity(id, createdAt), transcript.Reasoning)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, ItemStarted{Item: start})
 	}
-	out = append(out, ItemCompleted{Item: transcript.Item{
-		ID: id, RunID: r.cfg.RunID, Status: transcript.ItemCompleted,
-		Kind: transcript.Reasoning, OccurredAt: createdAt, Text: text,
-	}})
-	return out
+	item, err := transcript.NewReasoning(r.itemIdentity(id, createdAt), text, false)
+	if err != nil {
+		return nil, err
+	}
+	out = append(out, ItemCompleted{Item: item})
+	return out, nil
 }
 
-func (r *reducer) completeMessageContent(content []transcript.ContentBlock) []RunEvent {
+func (r *reducer) completeMessageContent(content []transcript.ContentBlock) ([]RunEvent, error) {
 	if len(content) == 0 {
 		return r.closeText()
 	}
@@ -193,17 +219,18 @@ func (r *reducer) completeMessageContent(content []transcript.ContentBlock) []Ru
 	r.text = nil
 	out := make([]RunEvent, 0, 2)
 	if started {
-		out = append(out, ItemStarted{Item: transcript.Item{
-			ID: id, RunID: r.cfg.RunID, Status: transcript.ItemRunning,
-			Kind: transcript.AgentMessage, OccurredAt: createdAt,
-		}})
+		start, err := newTransientItemStart(r.itemIdentity(id, createdAt), transcript.AgentMessage)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, ItemStarted{Item: start})
 	}
-	out = append(out, ItemCompleted{Item: transcript.Item{
-		ID: id, RunID: r.cfg.RunID, Status: transcript.ItemCompleted,
-		Kind: transcript.AgentMessage, OccurredAt: createdAt,
-		Content: transcript.CloneContent(content),
-	}})
-	return out
+	item, err := transcript.NewAgentMessage(r.itemIdentity(id, createdAt), content)
+	if err != nil {
+		return nil, err
+	}
+	out = append(out, ItemCompleted{Item: item})
+	return out, nil
 }
 
 func (r *reducer) toolStart(e ToolCallStarted) ([]RunEvent, error) {
@@ -250,7 +277,10 @@ func (r *reducer) toolStart(e ToolCallStarted) ([]RunEvent, error) {
 	if err := r.resume.rejectCommittedToolStart(e.CallID, e.ToolName, arguments); err != nil {
 		return nil, err
 	}
-	out := r.closeStreaming()
+	out, err := r.closeStreaming()
+	if err != nil {
+		return nil, err
+	}
 	r.toolOrder++
 	// The step number previews the Run's accounting, so it counts the same thing
 	// the committed metrics do. Reporting the segment's own count would make a
@@ -278,7 +308,15 @@ func (r *reducer) toolStart(e ToolCallStarted) ([]RunEvent, error) {
 		}] = e.CallID
 	}
 	r.tools.add(ref)
-	out = append(out, ItemStarted{Item: r.runningToolItem(ref)})
+	running, err := r.runningToolItem(ref)
+	if err != nil {
+		return nil, err
+	}
+	start, err := newToolItemStart(running)
+	if err != nil {
+		return nil, err
+	}
+	out = append(out, ItemStarted{Item: start})
 	if e.Arguments != "" {
 		out = append(out, ItemChanged{
 			ItemID: ref.id,
@@ -288,13 +326,12 @@ func (r *reducer) toolStart(e ToolCallStarted) ([]RunEvent, error) {
 	return out, nil
 }
 
-func (r *reducer) runningToolItem(ref *openTool) transcript.Item {
-	return transcript.Item{
-		ID: ref.id, RunID: r.cfg.RunID, Status: transcript.ItemRunning,
-		Kind: transcript.ToolCall, OccurredAt: ref.occurredAt,
-		Tool:        newToolInvocation(ref.name, ref.arguments, nil),
-		SafetyClass: ref.safetyClass,
-	}
+func (r *reducer) runningToolItem(ref *openTool) (transcript.Item, error) {
+	return transcript.NewToolCall(
+		r.itemIdentity(ref.id, ref.occurredAt),
+		*newToolInvocation(ref.name, ref.arguments, nil),
+		ref.safetyClass,
+	)
 }
 
 func (r *reducer) openToolItemID(callID string) (string, bool) {
@@ -328,7 +365,7 @@ func (r *reducer) spawningItem(sourceCallID string) (transcript.Item, error) {
 	if match == nil {
 		return transcript.Item{}, fmt.Errorf("source call %q has no open tool item", sourceCallID)
 	}
-	return r.runningToolItem(match), nil
+	return r.runningToolItem(match)
 }
 
 func (r *reducer) toolEnd(e ToolCallFinished) ([]RunEvent, []ToolInvocationCommit, error) {
@@ -420,19 +457,24 @@ func (r *reducer) completeTool(ref *openTool, e ToolCallFinished) ([]RunEvent, e
 	}
 	invocation := newToolInvocation(ref.name, arguments, e.Result)
 	invocation.Offload = e.Offload
-	item := transcript.Item{
-		ID: ref.id, RunID: r.cfg.RunID, Status: transcript.ItemCompleted,
-		Kind: transcript.ToolCall, OccurredAt: ref.occurredAt, FinishedAt: ref.finishedAt,
-		Tool:        invocation,
-		SafetyClass: ref.safetyClass,
+	item, err := transcript.NewToolCall(
+		r.itemIdentity(ref.id, ref.occurredAt),
+		*newToolInvocation(ref.name, ref.arguments, nil),
+		ref.safetyClass,
+	)
+	if err != nil {
+		return nil, err
 	}
 	if e.Failure != nil {
 		if err := e.Failure.Validate(); err != nil {
 			return nil, fmt.Errorf("tool %q failure: %w", ref.name, err)
 		}
-		item.Status = transcript.ItemIncomplete
-		failure := *e.Failure
-		item.Error = &failure
+		item, err = item.FailToolCall(*invocation, *e.Failure, ref.finishedAt)
+	} else {
+		item, err = item.CompleteToolCall(*invocation, ref.finishedAt)
+	}
+	if err != nil {
+		return nil, err
 	}
 	return append(out, ItemCompleted{Item: item, mutatedPaths: e.MutatedPaths}), nil
 }
@@ -467,37 +509,38 @@ func (r *reducer) usageProgress(e UsageReported) ([]RunEvent, error) {
 	return []RunEvent{SegmentProgressed{Progress: progress}}, nil
 }
 
-func (r *reducer) compaction(e CompactionBoundary) []RunEvent {
+func (r *reducer) compaction(e CompactionBoundary) ([]RunEvent, error) {
 	dropped := max(e.MessagesBefore-e.MessagesAfter, 0)
 	id, now := r.nextItemID(), r.now()
-	return itemPair(func(status transcript.ItemStatus) transcript.Item {
-		return transcript.Item{
-			ID: id, RunID: r.cfg.RunID, Status: status,
-			Kind: transcript.Compaction, OccurredAt: now, DroppedMessages: dropped,
-		}
-	})
+	item, err := transcript.NewCompaction(r.itemIdentity(id, now), "", dropped)
+	if err != nil {
+		return nil, err
+	}
+	return []RunEvent{ItemCompleted{Item: item}}, nil
 }
 
-func (r *reducer) openUserMessage() []RunEvent {
+func (r *reducer) openUserMessage() ([]RunEvent, error) {
 	if len(r.userInput) == 0 {
-		return nil
+		return nil, nil
 	}
 	input := r.userInput
 	r.userInput = nil
 	id, now := userMessageItemID(r.cfg.SegmentID), r.now()
-	return itemPair(func(status transcript.ItemStatus) transcript.Item {
-		return transcript.Item{
-			ID: id, RunID: r.cfg.RunID, Status: status,
-			Kind: transcript.UserMessage, OccurredAt: now, Content: input,
-		}
-	})
+	item, err := transcript.NewUserMessage(r.itemIdentity(id, now), input)
+	if err != nil {
+		return nil, err
+	}
+	return []RunEvent{ItemCompleted{Item: item}}, nil
 }
 
 func (r *reducer) steerMessagesApplied(e SteerMessagesApplied) ([]RunEvent, error) {
 	if len(e.Messages) == 0 {
 		return nil, errors.New("applied steer batch is empty")
 	}
-	out := r.closeStreaming()
+	out, err := r.closeStreaming()
+	if err != nil {
+		return nil, err
+	}
 	for messageIndex, message := range e.Messages {
 		if len(message) == 0 {
 			return nil, fmt.Errorf("applied steer message %d is empty", messageIndex)
@@ -512,13 +555,11 @@ func (r *reducer) steerMessagesApplied(e SteerMessagesApplied) ([]RunEvent, erro
 		}
 		id, now := r.nextItemID(), r.now()
 		content := transcript.CloneContent(message)
-		out = append(out, itemPair(func(status transcript.ItemStatus) transcript.Item {
-			return transcript.Item{
-				ID: id, RunID: r.cfg.RunID, Status: status,
-				Kind: transcript.UserMessage, OccurredAt: now,
-				Content: content,
-			}
-		})...)
+		item, err := transcript.NewUserMessage(r.itemIdentity(id, now), content)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, ItemCompleted{Item: item})
 	}
 	return out, nil
 }

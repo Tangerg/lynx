@@ -121,11 +121,11 @@ type drainedToolRow struct {
 }
 
 type committedToolRow struct {
-	ItemID    string         `json:"itemId"`
-	CallID    string         `json:"callId"`
-	Name      string         `json:"name"`
-	Arguments string         `json:"arguments"`
-	Problem   problemPayload `json:"problem"`
+	ItemID    string             `json:"itemId"`
+	CallID    string             `json:"callId"`
+	Name      string             `json:"name"`
+	Arguments string             `json:"arguments"`
+	Failure   toolFailurePayload `json:"failure"`
 }
 
 type interruptPayload struct {
@@ -597,7 +597,7 @@ func committedToolRows(tools []CommittedToolRecord) ([]committedToolRow, error) 
 			CallID:    committed.CallID,
 			Name:      committed.Name,
 			Arguments: committed.Arguments,
-			Problem:   failure,
+			Failure:   failure,
 		}
 	}
 	return rows, nil
@@ -606,7 +606,7 @@ func committedToolRows(tools []CommittedToolRecord) ([]committedToolRow, error) 
 func committedToolsFromRows(rows []committedToolRow) ([]CommittedToolRecord, error) {
 	tools := make([]CommittedToolRecord, len(rows))
 	for index, row := range rows {
-		failure, err := decodeToolFailurePayload(row.Problem)
+		failure, err := decodeToolFailurePayload(row.Failure)
 		if err != nil {
 			return nil, fmt.Errorf("committed tool[%d] failure: %w", index, err)
 		}

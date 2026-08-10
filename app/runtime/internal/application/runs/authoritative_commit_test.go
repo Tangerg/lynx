@@ -164,7 +164,7 @@ func TestAuthoritativeProjectionFailurePreservesStartUntilAtomicRunLost(t *testi
 	}
 	for _, commit := range commits {
 		for _, item := range commit.Items {
-			if item.Kind == transcript.AgentMessage && len(item.Content) > 0 {
+			if item.Kind() == transcript.AgentMessage && len(item.Content()) > 0 {
 				t.Fatalf("failed final projection leaked a completed assistant item: %#v", item)
 			}
 		}
@@ -250,8 +250,9 @@ func TestConcurrentToolResultsCommitInModelOrder(t *testing.T) {
 	if final == nil {
 		t.Fatalf("no canonical Tool batch in commits: %#v", effects.commitSnapshot())
 	}
-	if final.Items[0].Tool == nil || final.Items[0].Tool.Name != "first" ||
-		final.Items[1].Tool == nil || final.Items[1].Tool.Name != "second" {
+	first, firstPresent := final.Items[0].ToolInvocation()
+	second, secondPresent := final.Items[1].ToolInvocation()
+	if !firstPresent || first.Name != "first" || !secondPresent || second.Name != "second" {
 		t.Fatalf("Tool Item order = %#v, want first then second", final.Items)
 	}
 	if final.ToolInvocations[0].CallID != "tool_first" ||
@@ -287,8 +288,9 @@ func TestConcurrentToolBatchFailurePublishesOnlyIncompleteRunLost(t *testing.T) 
 		t.Fatalf("lost Tool projection = items %#v invocations %#v", lost.Items, lost.ToolInvocations)
 	}
 	for index := range lost.Items {
-		if lost.Items[index].Status != transcript.ItemIncomplete || lost.Items[index].Tool == nil ||
-			lost.Items[index].Tool.Result != nil || lost.ToolInvocations[index].State != ToolInvocationIncomplete {
+		invocation, present := lost.Items[index].ToolInvocation()
+		if lost.Items[index].Status() != transcript.ItemIncomplete || !present ||
+			invocation.Result != nil || lost.ToolInvocations[index].State != ToolInvocationIncomplete {
 			t.Fatalf("lost Tool[%d] leaked a result: item %#v invocation %#v", index, lost.Items[index], lost.ToolInvocations[index])
 		}
 	}

@@ -16,6 +16,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
+	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/itemfixture"
 	runfixture "github.com/Tangerg/lynx/app/runtime/internal/testsupport/runfixture"
 )
 
@@ -716,14 +717,14 @@ func TestPageRunTreeItemsUsesDurableParentEdges(t *testing.T) {
 		}
 	}
 	for index, runID := range []string{root.ID(), child.ID(), grandchild.ID(), sibling.ID()} {
-		if err := transcripts.AppendItem(ctx, transcript.Item{
+		if err := transcripts.AppendItem(ctx, itemfixture.MustRestore(itemfixture.Input{
 			SessionID:  root.SessionID(),
 			ID:         "item_" + runID,
 			RunID:      runID,
 			Status:     transcript.ItemCompleted,
 			Kind:       transcript.UserMessage,
 			OccurredAt: time.Unix(0, int64(index+1)).UTC(),
-		}); err != nil {
+		})); err != nil {
 			t.Fatalf("append %s item: %v", runID, err)
 		}
 	}
@@ -734,7 +735,7 @@ func TestPageRunTreeItemsUsesDurableParentEdges(t *testing.T) {
 	}
 	var got []string
 	for _, row := range rows {
-		got = append(got, row.Item.RunID)
+		got = append(got, row.Item.RunID())
 	}
 	if !slices.Equal(got, []string{child.ID(), grandchild.ID()}) {
 		t.Fatalf("child subtree items = %v, want child and grandchild only", got)
@@ -746,7 +747,7 @@ func TestPageRunTreeItemsUsesDurableParentEdges(t *testing.T) {
 	}
 	got = got[:0]
 	for _, row := range tail {
-		got = append(got, row.Item.RunID)
+		got = append(got, row.Item.RunID())
 	}
 	if !slices.Equal(got, []string{sibling.ID(), grandchild.ID()}) {
 		t.Fatalf("root subtree tail = %v, want newest two items", got)

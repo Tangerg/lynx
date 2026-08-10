@@ -84,11 +84,11 @@ func TestReducerFinalAssistantMessageSupersedesPartialStreamingObservation(t *te
 	if len(completed) != 2 {
 		t.Fatalf("completed items = %#v", completed)
 	}
-	if completed[0].Kind != transcript.Reasoning || completed[0].Text != "authoritative reasoning" {
+	if completed[0].Kind() != transcript.Reasoning || completed[0].Text() != "authoritative reasoning" {
 		t.Fatalf("reasoning completion = %#v", completed[0])
 	}
-	if completed[1].Kind != transcript.AgentMessage || len(completed[1].Content) != 1 ||
-		completed[1].Content[0].Text != "authoritative answer" {
+	if completed[1].Kind() != transcript.AgentMessage || len(completed[1].Content()) != 1 ||
+		completed[1].Content()[0].Text != "authoritative answer" {
 		t.Fatalf("assistant completion = %#v", completed[1])
 	}
 }
@@ -121,8 +121,8 @@ func TestReducerProjectsAppliedSteersAsOneOrderedFact(t *testing.T) {
 		{{Kind: transcript.TextContent, Text: "first"}},
 		{{Kind: transcript.TextContent, Text: "second"}},
 	}})
-	if len(reduced) != 4 {
-		t.Fatalf("reductions = %d, want two item pairs", len(reduced))
+	if len(reduced) != 2 {
+		t.Fatalf("reductions = %d, want two complete Items", len(reduced))
 	}
 	var completed []transcript.Item
 	for _, reduction := range reduced {
@@ -130,8 +130,8 @@ func TestReducerProjectsAppliedSteersAsOneOrderedFact(t *testing.T) {
 			completed = append(completed, event.Item)
 		}
 	}
-	if len(completed) != 2 || completed[0].Content[0].Text != "first" ||
-		completed[1].Content[0].Text != "second" || completed[0].ID == completed[1].ID {
+	if len(completed) != 2 || completed[0].Content()[0].Text != "first" ||
+		completed[1].Content()[0].Text != "second" || completed[0].ID() == completed[1].ID() {
 		t.Fatalf("completed steer items = %#v", completed)
 	}
 }
@@ -293,22 +293,19 @@ func TestReducerOpeningCreatesCanonicalRunAndUserItem(t *testing.T) {
 	reducer := newReducer(config)
 
 	opening := mustOpen(t, reducer)
-	if len(opening) != 3 {
-		t.Fatalf("opening reductions = %d, want segment + user item pair", len(opening))
+	if len(opening) != 2 {
+		t.Fatalf("opening reductions = %d, want segment + complete user Item", len(opening))
 	}
 	started, ok := opening[0].Event.(SegmentStarted)
 	if !ok || started.Run.ID() != "run_1" || started.Run.SessionID() != "ses_1" || started.Run.ModelSelection().Model() != "claude" {
 		t.Fatalf("opening run = %#v", opening[0].Event)
 	}
-	itemStarted, ok := opening[1].Event.(ItemStarted)
-	if !ok || itemStarted.Item.Kind != transcript.UserMessage || itemStarted.Item.Status != transcript.ItemRunning {
-		t.Fatalf("user item start = %#v", opening[1].Event)
+	itemCompleted, ok := opening[1].Event.(ItemCompleted)
+	if !ok || itemCompleted.Item.Kind() != transcript.UserMessage ||
+		itemCompleted.Item.SessionID() != "ses_1" || itemCompleted.Item.Content()[0].Text != "hello" {
+		t.Fatalf("user item completion = %#v", opening[1].Event)
 	}
-	itemCompleted, ok := opening[2].Event.(ItemCompleted)
-	if !ok || itemCompleted.Item.ID != itemStarted.Item.ID || itemCompleted.Item.SessionID != "ses_1" || itemCompleted.Item.Content[0].Text != "hello" {
-		t.Fatalf("user item completion = %#v", opening[2].Event)
-	}
-	if opening[2].Commit == nil || len(opening[2].Commit.Items) != 1 {
+	if opening[1].Commit == nil || len(opening[1].Commit.Items) != 1 {
 		t.Fatal("completed user item has no canonical durable fact")
 	}
 	if again := mustOpen(t, reducer); len(again) != 1 {
@@ -335,13 +332,13 @@ func TestReducerResolvesSpawningItemByExecutorCallIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatalf("spawningItem: %v", err)
 	}
-	if got.ID != want ||
-		got.RunID != "run_1" ||
-		got.Status != transcript.ItemRunning ||
-		got.Kind != transcript.ToolCall ||
-		got.Tool == nil ||
-		got.Tool.Name != "delegate_task" ||
-		got.SafetyClass != tool.SafetyClassExec {
+	invocation, present := got.ToolInvocation()
+	if got.ID() != want ||
+		got.RunID() != "run_1" ||
+		got.Status() != transcript.ItemRunning ||
+		got.Kind() != transcript.ToolCall ||
+		!present || invocation.Name != "delegate_task" ||
+		got.SafetyClass() != tool.SafetyClassExec {
 		t.Fatalf("spawningItem = %+v, want the canonical running tool item %q", got, want)
 	}
 
@@ -365,9 +362,9 @@ func TestReducerOwnsOpeningUserInput(t *testing.T) {
 
 	config.UserInput[0].Text = "reused by caller"
 	opening := mustOpen(t, reducer)
-	completed, ok := opening[2].Event.(ItemCompleted)
-	if !ok || len(completed.Item.Content) != 1 || completed.Item.Content[0].Text != "original" {
-		t.Fatalf("opening user item = %#v, want owned original input", opening[2].Event)
+	completed, ok := opening[1].Event.(ItemCompleted)
+	if !ok || len(completed.Item.Content()) != 1 || completed.Item.Content()[0].Text != "original" {
+		t.Fatalf("opening user item = %#v, want owned original input", opening[1].Event)
 	}
 }
 
@@ -379,12 +376,13 @@ func TestReducerPreservesRawToolResultsAndExplicitFileNudges(t *testing.T) {
 		CallID: "shell_1", Result: testToolResult(t, raw), OutputText: "hi\n\noops",
 	})
 	completed := completedItem(t, reduced)
-	if completed.Tool == nil {
+	invocation, present := completed.ToolInvocation()
+	if !present {
 		t.Fatal("completed tool is nil")
 	}
-	result, ok := completed.Tool.Result.Any().(map[string]any)
+	result, ok := invocation.Result.Any().(map[string]any)
 	if !ok || result["stdout"] != "hi\n" || result["stderr"] != "oops" || result["exit_code"] != json.Number("0") {
-		t.Fatalf("raw command result = %#v", completed.Tool.Result)
+		t.Fatalf("raw command result = %#v", invocation.Result)
 	}
 
 	mustReduce(t, reducer, ToolCallStarted{CallID: "write_1", ToolName: "write", Arguments: `{"path":"src/a.go"}`})
@@ -406,7 +404,8 @@ func TestReducerPreservesRawToolResultsAndExplicitFileNudges(t *testing.T) {
 		CallID:  "denied_1",
 		Failure: &tool.Failure{Kind: tool.FailureDenied},
 	}))
-	if denied.Status != transcript.ItemIncomplete || denied.Error == nil || denied.Error.Kind != tool.FailureDenied {
+	failure, failed := denied.Failure()
+	if denied.Status() != transcript.ItemIncomplete || !failed || failure.Kind != tool.FailureDenied {
 		t.Fatalf("denied item = %+v", denied)
 	}
 }
@@ -443,8 +442,9 @@ func TestReducerCommitsConcurrentToolCompletionsInModelOrder(t *testing.T) {
 		t.Fatalf("released completion batch = %v, want [second third]", got)
 	}
 	second := completedItem(t, remaining)
-	if second.Tool.Arguments.Map()["value"] != json.Number("20") {
-		t.Fatalf("effective arguments = %#v, want value 20", second.Tool.Arguments)
+	secondInvocation, _ := second.ToolInvocation()
+	if secondInvocation.Arguments.Map()["value"] != json.Number("20") {
+		t.Fatalf("effective arguments = %#v, want value 20", secondInvocation.Arguments)
 	}
 	var terminalTools []transcript.Item
 	for _, event := range remaining {
@@ -452,7 +452,7 @@ func TestReducerCommitsConcurrentToolCompletionsInModelOrder(t *testing.T) {
 			terminalTools = append(terminalTools, completed.Item)
 		}
 	}
-	if len(terminalTools) != 2 || terminalTools[0].FinishedAt != secondFinishedAt || terminalTools[1].FinishedAt != thirdFinishedAt {
+	if len(terminalTools) != 2 || !terminalTools[0].FinishedAt().Equal(secondFinishedAt) || !terminalTools[1].FinishedAt().Equal(thirdFinishedAt) {
 		t.Fatalf("completion times = %+v, want second=%s third=%s", terminalTools, secondFinishedAt, thirdFinishedAt)
 	}
 }
@@ -464,7 +464,7 @@ func TestReducerParksConcurrentToolsWithoutLosingCompletedResults(t *testing.T) 
 	})
 	firstID := startedItemID(t, firstStart)
 	mustReduce(t, reducer, ToolCallStarted{
-		CallID: "call-2", ToolName: "lookup", Arguments: `{"path":"b"}`, SafetyClass: "read",
+		CallID: "call-2", ToolName: "lookup", Arguments: `{"path":"b"}`, SafetyClass: tool.SafetyClassSafe,
 	})
 	if reduced := mustReduce(t, reducer, ToolCallFinished{CallID: "call-2", Result: testToolResult(t, "found")}); len(reduced) != 0 {
 		t.Fatalf("later completion escaped paused prefix: %+v", reduced)
@@ -480,15 +480,16 @@ func TestReducerParksConcurrentToolsWithoutLosingCompletedResults(t *testing.T) 
 	if commit == nil || commit.Run == nil || len(commit.Items) != 2 {
 		t.Fatalf("park commit = %+v, want two ordered tool items", commit)
 	}
-	if commit.Items[0].ID != firstID || commit.Items[0].Status != transcript.ItemRunning {
+	if commit.Items[0].ID() != firstID || commit.Items[0].Status() != transcript.ItemRunning {
 		t.Fatalf("active approval item = %+v, want original running item %q", commit.Items[0], firstID)
 	}
-	if commit.Items[1].Tool == nil || commit.Items[1].Tool.Result == nil {
+	siblingInvocation, present := commit.Items[1].ToolInvocation()
+	if !present || siblingInvocation.Result == nil {
 		t.Fatalf("completed sibling item = %+v", commit.Items[1])
 	}
-	result, ok := commit.Items[1].Tool.Result.String()
-	if commit.Items[1].Tool.Name != "lookup" ||
-		commit.Items[1].Status != transcript.ItemCompleted || !ok || result != "found" {
+	result, ok := siblingInvocation.Result.String()
+	if siblingInvocation.Name != "lookup" ||
+		commit.Items[1].Status() != transcript.ItemCompleted || !ok || result != "found" {
 		t.Fatalf("completed sibling item = %+v", commit.Items[1])
 	}
 	interrupted := parked[len(parked)-1].Event.(SegmentFinished)
@@ -586,7 +587,7 @@ func TestReducerCanonicalProgressSnapshotsAndOutcomes(t *testing.T) {
 	}
 
 	compaction := mustReduce(t, reducer, CompactionBoundary{MessagesBefore: 20, MessagesAfter: 6})
-	if item := completedItem(t, compaction); item.Kind != transcript.Compaction || item.DroppedMessages != 14 {
+	if item := completedItem(t, compaction); item.Kind() != transcript.Compaction || item.DroppedMessages() != 14 {
 		t.Fatalf("compaction item = %+v", item)
 	}
 
@@ -671,20 +672,18 @@ func TestReducerResumeReusesInterruptedItems(t *testing.T) {
 	})
 	reducer := newReducer(config)
 	opening := mustOpen(t, reducer)
-	completed, ok := opening[len(opening)-1].Event.(ItemCompleted)
-	if !ok || completed.Item.ID != "item_question" || completed.Item.Question != question ||
-		!completed.Item.OccurredAt.Equal(questionAt) {
-		t.Fatalf("resumed question completion = %#v", opening[len(opening)-1].Event)
+	if len(opening) != 1 {
+		t.Fatalf("resume opening = %#v, Question prompt must not complete twice", opening)
 	}
 
 	started := mustReduce(t, reducer, ToolCallStarted{CallID: "call_1", ToolName: "shell", Arguments: `{"command":"go test","description":"Run tests"}`})
-	var startedItem transcript.Item
+	var startedItem ItemStart
 	for _, reduction := range started {
 		if event, ok := reduction.Event.(ItemStarted); ok {
 			startedItem = event.Item
 		}
 	}
-	if startedItem.ID != "item_approval" || !startedItem.OccurredAt.Equal(approvalAt) {
+	if startedItem.ItemID != "item_approval" || !startedItem.OccurredAt.Equal(approvalAt) {
 		t.Fatalf("resumed tool item = %+v, want original identity and occurrence", startedItem)
 	}
 	mustReduce(t, reducer, ToolCallFinished{CallID: "call_1", Result: testToolResult(t, "ok")})
@@ -693,7 +692,7 @@ func TestReducerResumeReusesInterruptedItems(t *testing.T) {
 	var secondID string
 	for _, reduction := range second {
 		if event, ok := reduction.Event.(ItemStarted); ok {
-			secondID = event.Item.ID
+			secondID = event.Item.ItemID
 		}
 	}
 	if secondID == "" || secondID == "item_approval" {
@@ -728,7 +727,11 @@ func TestReducerProjectsParkAsOneAtomicWriteSetBeforeFirstInterruptEvent(t *test
 		t.Fatalf("park commit = %+v, want items + run + suspend", commit)
 	}
 	for _, item := range commit.Items {
-		if item.SessionID != "ses_1" || item.RunID != "run_1" || item.Status != transcript.ItemRunning {
+		wantStatus := transcript.ItemRunning
+		if item.Kind() == transcript.QuestionItem {
+			wantStatus = transcript.ItemCompleted
+		}
+		if item.SessionID() != "ses_1" || item.RunID() != "run_1" || item.Status() != wantStatus {
 			t.Fatalf("persisted interrupt item = %+v", item)
 		}
 	}
@@ -1039,7 +1042,8 @@ func TestReducerDrainsToolsInStartOrder(t *testing.T) {
 	}
 	got := make([]string, 0, len(completed))
 	for _, event := range completed {
-		got = append(got, event.(ItemCompleted).Item.Tool.Name)
+		invocation, _ := event.(ItemCompleted).Item.ToolInvocation()
+		got = append(got, invocation.Name)
 	}
 	if !slices.Equal(got, []string{"first", "second", "third"}) {
 		t.Fatalf("completed tools = %v, want start order", got)
@@ -1082,7 +1086,7 @@ func startedItemID(t *testing.T, reductions []reduction) string {
 	t.Helper()
 	for _, reduction := range reductions {
 		if event, ok := reduction.Event.(ItemStarted); ok {
-			return event.Item.ID
+			return event.Item.ItemID
 		}
 	}
 	t.Fatalf("no ItemStarted in %+v", reductions)
@@ -1092,8 +1096,10 @@ func startedItemID(t *testing.T, reductions []reduction) string {
 func completedToolNames(reductions []reduction) []string {
 	var names []string
 	for _, reduction := range reductions {
-		if event, ok := reduction.Event.(ItemCompleted); ok && event.Item.Tool != nil {
-			names = append(names, event.Item.Tool.Name)
+		if event, ok := reduction.Event.(ItemCompleted); ok {
+			if invocation, present := event.Item.ToolInvocation(); present {
+				names = append(names, invocation.Name)
+			}
 		}
 	}
 	return names

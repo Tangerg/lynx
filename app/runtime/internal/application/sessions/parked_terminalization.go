@@ -6,6 +6,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
 	rundomain "github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
@@ -185,9 +186,9 @@ func waitingRunMatchesContinuation(
 }
 
 func (terminalization parkedRunTerminalization) terminalItems() ([]transcript.Item, error) {
-	interruptItems := make(map[string]string, len(terminalization.pending.Interrupts))
+	interruptItems := make(map[string]transcript.Interrupt, len(terminalization.pending.Interrupts))
 	for _, interruption := range terminalization.pending.Interrupts {
-		interruptItems[interruption.ItemID] = interruption.RunID
+		interruptItems[interruption.ItemID] = interruption
 	}
 	pendingRunIDs := make(map[string]struct{}, len(terminalization.pending.Continuations))
 	for _, continuation := range terminalization.pending.Continuations {
@@ -195,39 +196,47 @@ func (terminalization parkedRunTerminalization) terminalItems() ([]transcript.It
 	}
 	items := make([]transcript.Item, 0, len(interruptItems))
 	for _, item := range terminalization.snapshot.Items {
-		ownerRunID, found := interruptItems[item.ID]
+		request, found := interruptItems[item.ID()]
 		if !found {
-			if _, pending := pendingRunIDs[item.RunID]; pending && item.Status == transcript.ItemRunning {
+			if _, pending := pendingRunIDs[item.RunID()]; pending && item.Status() == transcript.ItemRunning {
 				return nil, fmt.Errorf(
 					"sessions: terminalize parked Run tree %q: Running Item %q has no matching interrupt",
 					terminalization.rootRunID,
-					item.ID,
+					item.ID(),
 				)
 			}
 			continue
 		}
-		if item.SessionID != terminalization.sessionID ||
-			item.RunID != ownerRunID ||
-			item.Status != transcript.ItemRunning {
+		if item.SessionID() != terminalization.sessionID || item.RunID() != request.RunID {
 			return nil, fmt.Errorf(
-				"sessions: terminalize parked Run tree %q: interrupt Item %q is not Running in Run %q",
+				"sessions: terminalize parked Run tree %q: interrupt Item %q is not owned by Run %q",
 				terminalization.rootRunID,
-				item.ID,
-				ownerRunID,
+				item.ID(),
+				request.RunID,
 			)
 		}
-		item.Status = transcript.ItemIncomplete
-		if item.Kind == transcript.ToolCall {
-			item.FinishedAt = terminalization.finishedAt.UTC()
+		switch request.Kind {
+		case interrupt.Question:
+			if item.Kind() != transcript.QuestionItem || item.Status() != transcript.ItemCompleted {
+				return nil, fmt.Errorf("sessions: parked question Item %q is not a complete prompt", item.ID())
+			}
+		case interrupt.Approval:
+			var failure *tool.Failure
 			if terminalization.outcome == rundomain.OutcomeLost {
-				item.Error = &tool.Failure{
+				failure = &tool.Failure{
 					Kind:   tool.FailureExecution,
 					Detail: "tool call abandoned because its run could not be resumed",
 				}
 			}
+			settled, err := item.AbandonToolCall(failure, terminalization.finishedAt)
+			if err != nil {
+				return nil, fmt.Errorf("sessions: terminalize parked ToolCall %q: %w", item.ID(), err)
+			}
+			items = append(items, settled)
+		default:
+			return nil, fmt.Errorf("sessions: parked interrupt Item %q has unknown kind %s", item.ID(), request.Kind)
 		}
-		items = append(items, item)
-		delete(interruptItems, item.ID)
+		delete(interruptItems, item.ID())
 	}
 	if len(interruptItems) != 0 {
 		return nil, fmt.Errorf(

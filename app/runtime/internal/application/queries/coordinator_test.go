@@ -14,6 +14,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/pagination"
+	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/itemfixture"
 	runfixture "github.com/Tangerg/lynx/app/runtime/internal/testsupport/runfixture"
 )
 
@@ -36,14 +37,14 @@ func (f *fakeTranscript) PageSessionItems(_ context.Context, sessionID string, o
 
 func (f *fakeTranscript) PageRunItems(_ context.Context, runID string, order transcript.SequenceOrder, fromSequence int64, limit int) ([]transcript.SequencedItem, error) {
 	f.run = runID
-	return f.page(order, fromSequence, limit, func(item transcript.Item) bool { return item.RunID == runID })
+	return f.page(order, fromSequence, limit, func(item transcript.Item) bool { return item.RunID() == runID })
 }
 
 func (f *fakeTranscript) PageRunTreeItems(_ context.Context, runID string, order transcript.SequenceOrder, fromSequence int64, limit int) ([]transcript.SequencedItem, error) {
 	f.runTree = runID
 	runIDs := append([]string{runID}, f.trees[runID]...)
 	return f.page(order, fromSequence, limit, func(item transcript.Item) bool {
-		return slices.Contains(runIDs, item.RunID)
+		return slices.Contains(runIDs, item.RunID())
 	})
 }
 
@@ -207,7 +208,7 @@ func sequencedItems(count int) []transcript.SequencedItem {
 	for i := 1; i <= count; i++ {
 		out = append(out, transcript.SequencedItem{
 			Sequence: int64(i),
-			Item:     transcript.Item{ID: "it_" + strconv.Itoa(i), RunID: "run_1"},
+			Item:     itemfixture.MustRestore(itemfixture.Input{ID: "it_" + strconv.Itoa(i), RunID: "run_1"}),
 		})
 	}
 	return out
@@ -262,7 +263,7 @@ func TestListItemPageBoundsTheQueryAndSeeksPastTheAnchor(t *testing.T) {
 	if tx.limit != 3 {
 		t.Fatalf("store asked for %d rows, want the page plus one", tx.limit)
 	}
-	if len(first.Items) != 2 || first.Items[0].ID != "it_1" || first.NextCursor == "" {
+	if len(first.Items) != 2 || first.Items[0].ID() != "it_1" || first.NextCursor == "" {
 		t.Fatalf("first page = %+v, want two items and a cursor", first)
 	}
 
@@ -273,7 +274,7 @@ func TestListItemPageBoundsTheQueryAndSeeksPastTheAnchor(t *testing.T) {
 	if tx.afterSequence != 2 {
 		t.Fatalf("second page sought past %d, want the first page's last position", tx.afterSequence)
 	}
-	if len(second.Items) != 2 || second.Items[0].ID != "it_3" {
+	if len(second.Items) != 2 || second.Items[0].ID() != "it_3" {
 		t.Fatalf("second page = %+v, want it_3 onward", second)
 	}
 
@@ -343,7 +344,7 @@ func TestListItemPageWalksBackwardFromTheTail(t *testing.T) {
 	if err != nil {
 		t.Fatalf("first page: %v", err)
 	}
-	if len(first.Items) != 2 || first.Items[0].ID != "it_5" || first.Items[1].ID != "it_4" {
+	if len(first.Items) != 2 || first.Items[0].ID() != "it_5" || first.Items[1].ID() != "it_4" {
 		t.Fatalf("first page = %+v, want the last two items newest first", first.Items)
 	}
 
@@ -354,7 +355,7 @@ func TestListItemPageWalksBackwardFromTheTail(t *testing.T) {
 	if tx.afterSequence != 4 {
 		t.Fatalf("second page sought from %d, want the first page's last position", tx.afterSequence)
 	}
-	if len(second.Items) != 2 || second.Items[0].ID != "it_3" {
+	if len(second.Items) != 2 || second.Items[0].ID() != "it_3" {
 		t.Fatalf("second page = %+v, want it_3 backwards", second.Items)
 	}
 }
@@ -365,7 +366,13 @@ func TestListItemPageWalksBackwardFromTheTail(t *testing.T) {
 func TestListItemPageScopedToARunReadsOnlyThatRun(t *testing.T) {
 	ctx := context.Background()
 	items := sequencedItems(3)
-	items[2].Item.RunID = "run_2"
+	snapshot := items[2].Item.Snapshot()
+	snapshot.Identity.RunID = "run_2"
+	items[2].Item = itemfixture.MustRestore(itemfixture.Input{
+		SessionID: snapshot.Identity.SessionID, RunID: snapshot.Identity.RunID,
+		ID: snapshot.Identity.ItemID, OccurredAt: snapshot.Identity.OccurredAt,
+		Status: snapshot.Status, Kind: snapshot.Kind, Content: snapshot.Content,
+	})
 	tx := &fakeTranscript{items: items}
 	runs := &fakeRuns{
 		runs:    []run.Run{queryRun("run_1"), queryRun("run_2")},
@@ -380,7 +387,7 @@ func TestListItemPageScopedToARunReadsOnlyThatRun(t *testing.T) {
 	if tx.run != "run_2" || tx.session != "" {
 		t.Fatalf("read run=%q session=%q, want only the run scope", tx.run, tx.session)
 	}
-	if len(page.Items) != 1 || page.Items[0].ID != "it_3" {
+	if len(page.Items) != 1 || page.Items[0].ID() != "it_3" {
 		t.Fatalf("page = %+v, want only run_2's item", page.Items)
 	}
 	// The page carries the runs its own items reference — not the session's list.
@@ -402,10 +409,10 @@ func TestListItemPageScopesASubtreeAndIncludesAncestors(t *testing.T) {
 
 	tx := &fakeTranscript{
 		items: []transcript.SequencedItem{
-			{Sequence: 1, Item: transcript.Item{ID: "item_root", RunID: root.ID()}},
-			{Sequence: 2, Item: transcript.Item{ID: "item_child", RunID: child.ID()}},
-			{Sequence: 3, Item: transcript.Item{ID: "item_grandchild", RunID: grandchild.ID()}},
-			{Sequence: 4, Item: transcript.Item{ID: "item_sibling", RunID: sibling.ID()}},
+			{Sequence: 1, Item: itemfixture.MustRestore(itemfixture.Input{ID: "item_root", RunID: root.ID()})},
+			{Sequence: 2, Item: itemfixture.MustRestore(itemfixture.Input{ID: "item_child", RunID: child.ID()})},
+			{Sequence: 3, Item: itemfixture.MustRestore(itemfixture.Input{ID: "item_grandchild", RunID: grandchild.ID()})},
+			{Sequence: 4, Item: itemfixture.MustRestore(itemfixture.Input{ID: "item_sibling", RunID: sibling.ID()})},
 		},
 		trees: map[string][]string{child.ID(): {grandchild.ID()}},
 	}
@@ -425,7 +432,7 @@ func TestListItemPageScopesASubtreeAndIncludesAncestors(t *testing.T) {
 	if len(page.Items) != 2 {
 		t.Fatalf("subtree items = %+v, want child and grandchild only", page.Items)
 	}
-	if got := []string{page.Items[0].ID, page.Items[1].ID}; !slices.Equal(got, []string{"item_child", "item_grandchild"}) {
+	if got := []string{page.Items[0].ID(), page.Items[1].ID()}; !slices.Equal(got, []string{"item_child", "item_grandchild"}) {
 		t.Fatalf("subtree items = %v, want child and grandchild only", got)
 	}
 	if got := queryRunIDs(page.Runs); !slices.Equal(got, []string{grandchild.ID(), child.ID(), root.ID()}) {

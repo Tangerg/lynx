@@ -146,8 +146,11 @@ const (
 	DiffRowDeleted DiffRowType = "deleted"
 )
 
-// Item is one durable unit of work inside a run (API.md §4.3). A
-// tag-discriminated union: Type selects which optional fields apply.
+// Item is one wire projection in a Run stream or transcript read (API.md §4.3).
+// A tag-discriminated union: Type selects which optional fields apply. Durable
+// user/message/reasoning/question/compaction facts are complete; a provisional
+// AgentMessage/Reasoning start exists only as a stream rendering anchor, while
+// ToolCall is the only variant with a durable running lifecycle.
 //
 //	userMessage / agentMessage → Content
 //	reasoning                  → Text, Redacted
