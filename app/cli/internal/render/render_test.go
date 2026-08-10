@@ -27,10 +27,10 @@ func script() []client.Envelope {
 		client.BlockDelta{BlockID: "m", Text: "two"},
 		client.BlockCompleted{Block: client.Block{ID: "m", Kind: client.BlockAssistant, Text: "one two"}},
 		client.BlockStarted{Block: client.Block{ID: "t", Kind: client.BlockTool, Tool: &client.ToolCall{
-			Name: "shell", Summary: "go test ./...", Status: client.ToolRunning,
+			Kind: client.ToolShell, Name: "shell", Summary: "go test ./...", Status: client.ToolRunning,
 		}}},
 		client.BlockCompleted{Block: client.Block{ID: "t", Kind: client.BlockTool, Tool: &client.ToolCall{
-			Name: "shell", Summary: "go test ./...", Status: client.ToolOK,
+			Kind: client.ToolShell, Name: "shell", Summary: "go test ./...", Status: client.ToolOK,
 			Output: "ok\nFAIL", Duration: 1500 * time.Millisecond,
 		}}},
 		client.RunFinished{
@@ -151,7 +151,7 @@ func TestTextCapsToolOutput(t *testing.T) {
 	var buf bytes.Buffer
 	text := NewText(&buf)
 	if err := text.Render(envelope(client.BlockCompleted{Block: client.Block{ID: "t", Kind: client.BlockTool, Tool: &client.ToolCall{
-		Name: "shell", Status: client.ToolOK, Output: strings.Join(lines, "\n"),
+		Kind: client.ToolShell, Name: "shell", Status: client.ToolOK, Output: strings.Join(lines, "\n"),
 	}}})); err != nil {
 		t.Fatal(err)
 	}
@@ -221,6 +221,109 @@ func TestJSONCarriesTheToolProjection(t *testing.T) {
 	tool := got.Block.Tool
 	if tool.Kind != "edit" || tool.Name != "provider.patch" || tool.Path != "a.go" || tool.Status != "ok" || tool.Diff == "" || tool.DurationMS != 250 {
 		t.Fatalf("tool = %+v, want the call carried through intact", tool)
+	}
+}
+
+func TestJSONCarriesControlOptionsAndCompleteInteractionMetadata(t *testing.T) {
+	events := []client.Envelope{
+		envelope(client.RunStarted{
+			RunID: "run_1", SessionID: "session_1",
+			Options: client.RunOptions{Model: "deep", Mode: client.ModeReview, Permission: client.PermissionReadOnly, Effort: "high"},
+		}),
+		envelope(client.RunResumed{InterruptID: "approval_1"}),
+		envelope(client.RunInterrupted{Interaction: client.Approval{
+			InterruptID: "approval_2", Title: "Allow edit", Detail: "change file",
+			Risk: "writes", Diff: "--- a\n+++ b", RuleHint: "edit:a.go",
+		}}),
+		envelope(client.RunInterrupted{Interaction: client.Question{
+			InterruptID: "question_1", Title: "Choose", Detail: "select strategy",
+			Fields: []client.QuestionField{{
+				ID: "strategy", Label: "Strategy", Description: "How to proceed",
+				Kind: client.QuestionSingle, Required: true, Placeholder: "pick one",
+				Options: []client.QuestionOption{{
+					Value: "safe", Label: "Safe", Description: "Prefer safety", Recommended: true,
+				}},
+			}},
+		}}),
+	}
+	var output bytes.Buffer
+	renderAll(t, NewJSON(&output), events)
+	lines := strings.Split(strings.TrimSpace(output.String()), "\n")
+	var started, resumed, approval, question frame
+	decodeFrames(t, lines, &started, &resumed, &approval, &question)
+	requireRunOptions(t, started.Options)
+	if resumed.InterruptID != "approval_1" {
+		t.Fatalf("resume frame = %+v", resumed)
+	}
+	if approval.Interaction == nil {
+		t.Fatalf("approval frame = %+v", approval.Interaction)
+	}
+	if approval.Interaction.RuleHint != "edit:a.go" {
+		t.Fatalf("approval frame = %+v", approval.Interaction)
+	}
+	if question.Interaction == nil {
+		t.Fatalf("question frame = %+v", question.Interaction)
+	}
+	requireQuestionField(t, question.Interaction.Fields)
+}
+
+func decodeFrames(t *testing.T, lines []string, targets ...*frame) {
+	t.Helper()
+	if len(lines) != len(targets) {
+		t.Fatalf("JSON lines = %d, want %d", len(lines), len(targets))
+	}
+	for index, target := range targets {
+		if err := json.Unmarshal([]byte(lines[index]), target); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func requireRunOptions(t *testing.T, options *runOptionsJSON) {
+	t.Helper()
+	if options == nil {
+		t.Fatal("run options are absent")
+	}
+	want := runOptionsJSON{Model: "deep", Mode: "review", Permission: "read-only", Effort: "high"}
+	if *options != want {
+		t.Fatalf("run options = %+v, want %+v", options, want)
+	}
+}
+
+func requireQuestionField(t *testing.T, fields []questionFieldJSON) {
+	t.Helper()
+	if len(fields) != 1 {
+		t.Fatalf("question fields = %+v", fields)
+	}
+	field := fields[0]
+	if field.Description != "How to proceed" || field.Placeholder != "pick one" {
+		t.Fatalf("question field = %+v", field)
+	}
+	if len(field.Options) != 1 {
+		t.Fatalf("question options = %+v", field.Options)
+	}
+	option := field.Options[0]
+	if !option.Recommended || option.Description != "Prefer safety" {
+		t.Fatalf("question option = %+v", option)
+	}
+}
+
+func TestRenderersRejectInvalidEventsInsteadOfEmittingEmptyOutput(t *testing.T) {
+	for name, renderer := range map[string]interface {
+		Render(client.Envelope) error
+		Close() error
+	}{
+		"json": NewJSON(&bytes.Buffer{}),
+		"text": NewText(&bytes.Buffer{}),
+	} {
+		t.Run(name, func(t *testing.T) {
+			if err := renderer.Render(envelope(nil)); err == nil || !strings.Contains(err.Error(), "event is nil") {
+				t.Fatalf("Render error = %v", err)
+			}
+			if err := renderer.Render(envelope(client.RunResumed{InterruptID: "later"})); err == nil || !strings.Contains(err.Error(), "event is nil") {
+				t.Fatalf("sticky Render error = %v", err)
+			}
+		})
 	}
 }
 

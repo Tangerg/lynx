@@ -26,6 +26,10 @@ const (
 	maximumManifest = 1 << 20
 	defaultTimeout  = 10 * time.Second
 	maximumTimeout  = 60 * time.Second
+	maximumCommands = 128
+	maximumAliases  = 16
+	maximumName     = 64
+	maximumTitle    = 256
 )
 
 type Source struct {
@@ -40,44 +44,87 @@ func (Source) ID() string { return "sideload" }
 
 func (s Source) Discover(ctx context.Context) (extensions.SourceResult, error) {
 	var result extensions.SourceResult
+	scannedRoots := make(map[string]struct{}, len(s.directories))
+	seenPlugins := make(map[string]struct{})
 	for _, configured := range s.directories {
 		if err := context.Cause(ctx); err != nil {
 			return extensions.SourceResult{}, err
 		}
-		root, err := filepath.Abs(configured)
-		if err != nil {
-			result.Issues = append(result.Issues, fmt.Errorf("resolve plugin directory %q: %w", configured, err))
-			continue
-		}
-		entries, err := os.ReadDir(root)
+		root, err := canonicalDirectory(configured)
 		if errors.Is(err, fs.ErrNotExist) {
 			continue
 		}
 		if err != nil {
+			result.Issues = append(result.Issues, fmt.Errorf("resolve plugin directory %q: %w", configured, err))
+			continue
+		}
+		rootKey := pathKey(root)
+		if _, scanned := scannedRoots[rootKey]; scanned {
+			continue
+		}
+		scannedRoots[rootKey] = struct{}{}
+		entries, err := os.ReadDir(root)
+		if err != nil {
 			result.Issues = append(result.Issues, fmt.Errorf("read plugin directory %q: %w", root, err))
 			continue
 		}
-		if plugin, ok, err := readPlugin(root); err != nil {
-			result.Issues = append(result.Issues, err)
-		} else if ok {
-			result.Plugins = append(result.Plugins, plugin)
-		}
+		discoverDirectory(&result, seenPlugins, root)
 		for _, entry := range entries {
-			if !entry.IsDir() {
+			if !entry.IsDir() && entry.Type()&os.ModeSymlink == 0 {
 				continue
 			}
-			directory := filepath.Join(root, entry.Name())
-			plugin, ok, err := readPlugin(directory)
+			directory, err := canonicalDirectory(filepath.Join(root, entry.Name()))
 			if err != nil {
-				result.Issues = append(result.Issues, err)
+				result.Issues = append(result.Issues, fmt.Errorf("resolve plugin directory %q: %w", filepath.Join(root, entry.Name()), err))
 				continue
 			}
-			if ok {
-				result.Plugins = append(result.Plugins, plugin)
-			}
+			discoverDirectory(&result, seenPlugins, directory)
 		}
 	}
 	return result, nil
+}
+
+func discoverDirectory(result *extensions.SourceResult, seen map[string]struct{}, directory string) {
+	key := pathKey(directory)
+	if _, duplicate := seen[key]; duplicate {
+		return
+	}
+	seen[key] = struct{}{}
+	plugin, ok, err := readPlugin(directory)
+	if err != nil {
+		result.Issues = append(result.Issues, err)
+		return
+	}
+	if ok {
+		result.Plugins = append(result.Plugins, plugin)
+	}
+}
+
+func canonicalDirectory(path string) (string, error) {
+	absolute, err := filepath.Abs(path)
+	if err != nil {
+		return "", err
+	}
+	real, err := filepath.EvalSymlinks(absolute)
+	if err != nil {
+		return "", err
+	}
+	info, err := os.Stat(real)
+	if err != nil {
+		return "", err
+	}
+	if !info.IsDir() {
+		return "", fmt.Errorf("not a directory")
+	}
+	return filepath.Clean(real), nil
+}
+
+func pathKey(path string) string {
+	path = filepath.Clean(path)
+	if runtime.GOOS == "windows" {
+		return strings.ToLower(path)
+	}
+	return path
 }
 
 type manifest struct {
@@ -143,14 +190,14 @@ func rejectTrailingJSON(decoder *json.Decoder) error {
 	} else if err != nil {
 		return err
 	}
-	return errors.New("manifest contains multiple JSON values")
+	return errors.New("input contains multiple JSON values")
 }
 
 func compileManifest(directory string, manifest manifest) (extensions.Plugin, error) {
 	if manifest.SchemaVersion != manifestSchema {
 		return extensions.Plugin{}, fmt.Errorf("schemaVersion is %d, want %d", manifest.SchemaVersion, manifestSchema)
 	}
-	if strings.HasPrefix(manifest.ID, "terminal.") {
+	if manifest.ID == "terminal" || strings.HasPrefix(manifest.ID, "terminal.") {
 		return extensions.Plugin{}, fmt.Errorf("plugin id %q uses the reserved terminal namespace", manifest.ID)
 	}
 	if len(manifest.Contributes.Commands) == 0 {
@@ -179,6 +226,9 @@ func compileManifest(directory string, manifest manifest) (extensions.Plugin, er
 			}
 		}
 		return nil
+	}
+	if err := extensions.ValidateManifest(plugin); err != nil {
+		return extensions.Plugin{}, err
 	}
 	return plugin, nil
 }
@@ -219,11 +269,14 @@ func resolveEntry(directory, entry string) (string, string, error) {
 }
 
 func compileCommands(pluginID, executable, directory string, manifests []commandManifest) ([]session.SlashCommand, error) {
+	if len(manifests) > maximumCommands {
+		return nil, fmt.Errorf("contributes.commands exceeds %d entries", maximumCommands)
+	}
 	seen := make(map[string]struct{}, len(manifests))
 	commands := make([]session.SlashCommand, 0, len(manifests))
 	for _, declared := range manifests {
 		name := strings.TrimSpace(declared.Name)
-		if name == "" || strings.ContainsAny(name, " /\t\n") {
+		if name == "" || len(name) > maximumName || strings.ContainsAny(name, " /\t\n") {
 			return nil, fmt.Errorf("command name %q is invalid", declared.Name)
 		}
 		if _, duplicate := seen[name]; duplicate {
@@ -234,10 +287,16 @@ func compileCommands(pluginID, executable, directory string, manifests []command
 		if title == "" {
 			return nil, fmt.Errorf("command %q has no title", name)
 		}
+		if len(title) > maximumTitle {
+			return nil, fmt.Errorf("command %q title exceeds %d bytes", name, maximumTitle)
+		}
 		aliases := slices.Clone(declared.Aliases)
+		if len(aliases) > maximumAliases {
+			return nil, fmt.Errorf("command %q exceeds %d aliases", name, maximumAliases)
+		}
 		for i, alias := range aliases {
 			alias = strings.TrimSpace(alias)
-			if alias == "" || strings.ContainsAny(alias, " /\t\n") {
+			if alias == "" || len(alias) > maximumName || strings.ContainsAny(alias, " /\t\n") {
 				return nil, fmt.Errorf("command %q alias %q is invalid", name, declared.Aliases[i])
 			}
 			if _, duplicate := seen[alias]; duplicate {

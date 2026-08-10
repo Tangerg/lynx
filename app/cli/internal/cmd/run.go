@@ -179,10 +179,10 @@ func follow(ctx context.Context, rt client.Runtime, out renderer, start client.S
 		return err
 	}
 
-	sequence := client.NewEventSequence(run.StartedAfter)
+	conversation := client.NewConversationAt(run.StartedAfter)
 	failures := 0
 	for {
-		before := sequence.Cursor()
+		before := conversation.Cursor()
 		stream, err := rt.FollowRun(ctx, client.FollowRun{RunID: run.ID, After: before})
 		if err != nil {
 			if retryErr := waitToReconnect(ctx, policy, &failures, false, err); retryErr != nil {
@@ -201,13 +201,17 @@ func follow(ctx context.Context, rt client.Runtime, out renderer, start client.S
 				subscriptionErr = streamErr
 				break
 			}
-			result, err := sequence.Accept(envelope, func() error { return out.Render(envelope) })
+			result, err := conversation.ApplyEnvelope(envelope)
 			if err != nil {
 				subscriptionErr = fmt.Errorf("accept runtime event at cursor %d: %w", envelope.Cursor, err)
 				break
 			}
 			if !result.Applied {
 				continue
+			}
+			if err := out.Render(envelope); err != nil {
+				subscriptionErr = err
+				break
 			}
 			switch event := envelope.Event.(type) {
 			case client.RunInterrupted:
@@ -216,7 +220,7 @@ func follow(ctx context.Context, rt client.Runtime, out renderer, start client.S
 				finished = true
 			}
 		}
-		progressed := sequence.Cursor() > before
+		progressed := conversation.Cursor() > before
 		if finished {
 			cancelOnExit = false
 			return out.Close()

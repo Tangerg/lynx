@@ -5,7 +5,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"os/exec"
+	"runtime"
 	"strings"
 	"time"
 
@@ -16,6 +18,10 @@ const (
 	commandProtocol = 1
 	maximumOutput   = 1 << 20
 	maximumMessage  = 4096
+	maximumArgument = 64 << 10
+	maximumPath     = 32 << 10
+	maximumIdentity = 256
+	maximumRequest  = 128 << 10
 )
 
 type commandRunner struct {
@@ -41,6 +47,9 @@ type commandResponse struct {
 }
 
 func (r commandRunner) Execute(ctx context.Context, request session.CommandRequest) (session.CommandResult, error) {
+	if err := validateCommandRequest(request); err != nil {
+		return session.CommandResult{}, fmt.Errorf("plugin %s command /%s request: %w", r.pluginID, r.command, err)
+	}
 	ctx, cancel := context.WithTimeout(ctx, r.timeout)
 	defer cancel()
 	payload, err := json.Marshal(commandRequest{
@@ -50,11 +59,15 @@ func (r commandRunner) Execute(ctx context.Context, request session.CommandReque
 	if err != nil {
 		return session.CommandResult{}, fmt.Errorf("encode plugin command request: %w", err)
 	}
+	if len(payload) > maximumRequest {
+		return session.CommandResult{}, fmt.Errorf("plugin %s command /%s request exceeds %d bytes", r.pluginID, r.command, maximumRequest)
+	}
 	// #nosec G204 -- discovery canonicalizes the manifest entry, proves that it
 	// remains inside the plugin directory, and requires an executable regular file.
 	command := exec.CommandContext(ctx, r.executable)
 	configureProcess(command)
 	command.Dir = r.directory
+	command.Env = commandEnvironment(r.pluginID, r.command)
 	command.Stdin = bytes.NewReader(append(payload, '\n'))
 	var stdout, stderr cappedBuffer
 	stdout.limit, stderr.limit = maximumOutput, maximumOutput
@@ -73,6 +86,46 @@ func (r commandRunner) Execute(ctx context.Context, request session.CommandReque
 		return session.CommandResult{}, fmt.Errorf("plugin %s command /%s exceeded the %d-byte output limit", r.pluginID, r.command, maximumOutput)
 	}
 	return decodeCommandResponse(r.pluginID, r.command, stdout.Bytes())
+}
+
+func validateCommandRequest(request session.CommandRequest) error {
+	switch {
+	case len(request.Argument) > maximumArgument:
+		return fmt.Errorf("argument exceeds %d bytes", maximumArgument)
+	case len(request.Workspace) > maximumPath:
+		return fmt.Errorf("workspace exceeds %d bytes", maximumPath)
+	case len(request.SessionID) > maximumIdentity:
+		return fmt.Errorf("session id exceeds %d bytes", maximumIdentity)
+	default:
+		return nil
+	}
+}
+
+func commandEnvironment(pluginID, command string) []string {
+	keys := []string{"PATH", "LANG", "LC_ALL", "LC_CTYPE", "TMPDIR", "TMP", "TEMP"}
+	if runtime.GOOS == "windows" {
+		keys = append(keys, "SystemRoot", "ComSpec", "PATHEXT", "USERPROFILE")
+	}
+	environment := make([]string, 0, len(keys)+3)
+	seen := make(map[string]struct{}, len(keys))
+	for _, key := range keys {
+		lookup := key
+		if runtime.GOOS == "windows" {
+			lookup = strings.ToUpper(key)
+		}
+		if _, duplicate := seen[lookup]; duplicate {
+			continue
+		}
+		seen[lookup] = struct{}{}
+		if value, ok := os.LookupEnv(key); ok {
+			environment = append(environment, key+"="+value)
+		}
+	}
+	return append(environment,
+		"LYRA_PLUGIN_PROTOCOL=1",
+		"LYRA_PLUGIN_ID="+pluginID,
+		"LYRA_PLUGIN_COMMAND="+command,
+	)
 }
 
 func decodeCommandResponse(pluginID, command string, output []byte) (session.CommandResult, error) {

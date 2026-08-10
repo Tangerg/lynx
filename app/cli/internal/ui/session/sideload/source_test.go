@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -75,6 +76,19 @@ func TestSourceDiscoversValidPluginsAndIsolatesMalformedNeighbors(t *testing.T) 
 	}
 	if len(discovered.Issues) != 1 || !strings.Contains(discovered.Issues[0].Error(), "broken") {
 		t.Fatalf("issues = %+v", discovered.Issues)
+	}
+}
+
+func TestSourceDeduplicatesCanonicalPluginDirectories(t *testing.T) {
+	root := t.TempDir()
+	pluginDirectory := filepath.Join(root, "good")
+	writePlugin(t, root, "good", validManifest("test.good"), "not executed")
+	discovered, err := New([]string{root, filepath.Join(root, "."), pluginDirectory, pluginDirectory}).Discover(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(discovered.Issues) != 0 || len(discovered.Plugins) != 1 || discovered.Plugins[0].ID != "test.good" {
+		t.Fatalf("discovery = %+v", discovered)
 	}
 }
 
@@ -173,6 +187,33 @@ func TestCommandRunnerHonorsCancellation(t *testing.T) {
 func TestCommandResponseRejectsMalformedProtocolWithoutProcessTiming(t *testing.T) {
 	if _, err := decodeCommandResponse("test.bad", "bad", []byte("not json")); err == nil || !strings.Contains(err.Error(), "decode plugin") {
 		t.Fatalf("malformed response error = %v", err)
+	}
+}
+
+func TestCommandResponseNamesGenericTrailingJSON(t *testing.T) {
+	_, err := decodeCommandResponse("test.bad", "bad", []byte(`{"protocol":1,"message":"ok"} {}`))
+	if err == nil || !strings.Contains(err.Error(), "input contains multiple JSON values") || strings.Contains(err.Error(), "manifest") {
+		t.Fatalf("trailing response error = %v", err)
+	}
+}
+
+func TestCommandRequestIsBoundedBeforeAProcessStarts(t *testing.T) {
+	runner := commandRunner{pluginID: "test.bounds", command: "large", executable: filepath.Join(t.TempDir(), "missing"), timeout: time.Second}
+	_, err := runner.Execute(t.Context(), session.CommandRequest{Argument: strings.Repeat("x", maximumArgument+1)})
+	if err == nil || !strings.Contains(err.Error(), "argument exceeds") || strings.Contains(err.Error(), "executable") {
+		t.Fatalf("oversized request error = %v", err)
+	}
+}
+
+func TestCommandEnvironmentUsesAnExplicitAllowlist(t *testing.T) {
+	t.Setenv("LYRA_TEST_SECRET", "must-not-leak")
+	t.Setenv("PATH", "/safe/bin")
+	environment := commandEnvironment("test.safe", "hello")
+	if !slices.Contains(environment, "PATH=/safe/bin") || !slices.Contains(environment, "LYRA_PLUGIN_ID=test.safe") || !slices.Contains(environment, "LYRA_PLUGIN_COMMAND=hello") {
+		t.Fatalf("command environment = %v", environment)
+	}
+	if slices.ContainsFunc(environment, func(value string) bool { return strings.HasPrefix(value, "LYRA_TEST_SECRET=") }) {
+		t.Fatalf("secret leaked into command environment: %v", environment)
 	}
 }
 

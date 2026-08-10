@@ -2,6 +2,7 @@ package render
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"time"
 
@@ -36,23 +37,32 @@ type frame struct {
 	EventID     string           `json:"eventId"`
 	Cursor      client.Cursor    `json:"cursor"`
 	At          time.Time        `json:"at,omitzero"`
-	RunID       string           `json:"runId,omitempty"`
-	SessionID   string           `json:"sessionId,omitempty"`
-	BlockID     string           `json:"blockId,omitempty"`
-	Text        string           `json:"text,omitempty"`
-	Block       *blockFrame      `json:"block,omitempty"`
-	Plan        []planFrame      `json:"plan,omitempty"`
-	Interaction *interactionJSON `json:"interaction,omitempty"`
-	Outcome     *outcomeJSON     `json:"outcome,omitempty"`
-	Usage       *usageJSON       `json:"usage,omitempty"`
+	RunID       string           `json:"runId,omitzero"`
+	SessionID   string           `json:"sessionId,omitzero"`
+	InterruptID string           `json:"interruptId,omitzero"`
+	Options     *runOptionsJSON  `json:"options,omitzero"`
+	BlockID     string           `json:"blockId,omitzero"`
+	Text        string           `json:"text,omitzero"`
+	Block       *blockFrame      `json:"block,omitzero"`
+	Plan        []planFrame      `json:"plan,omitzero"`
+	Interaction *interactionJSON `json:"interaction,omitzero"`
+	Outcome     *outcomeJSON     `json:"outcome,omitzero"`
+	Usage       *usageJSON       `json:"usage,omitzero"`
+}
+
+type runOptionsJSON struct {
+	Model      string `json:"model"`
+	Mode       string `json:"mode"`
+	Permission string `json:"permission"`
+	Effort     string `json:"effort"`
 }
 
 type blockFrame struct {
 	ID          string            `json:"id"`
 	Kind        string            `json:"kind"`
-	Text        string            `json:"text,omitempty"`
-	Attachments []attachmentFrame `json:"attachments,omitempty"`
-	Tool        *toolFrame        `json:"tool,omitempty"`
+	Text        string            `json:"text,omitzero"`
+	Attachments []attachmentFrame `json:"attachments,omitzero"`
+	Tool        *toolFrame        `json:"tool,omitzero"`
 }
 
 type attachmentFrame struct {
@@ -60,23 +70,23 @@ type attachmentFrame struct {
 	Kind     string `json:"kind"`
 	Name     string `json:"name"`
 	Path     string `json:"path"`
-	MimeType string `json:"mimeType,omitempty"`
+	MimeType string `json:"mimeType,omitzero"`
 	Size     int64  `json:"size"`
 }
 
 type toolFrame struct {
 	Kind       string  `json:"kind"`
 	Name       string  `json:"name"`
-	Summary    string  `json:"summary,omitempty"`
+	Summary    string  `json:"summary,omitzero"`
 	Status     string  `json:"status"`
-	Command    string  `json:"command,omitempty"`
-	Path       string  `json:"path,omitempty"`
-	Query      string  `json:"query,omitempty"`
-	URL        string  `json:"url,omitempty"`
-	Output     string  `json:"output,omitempty"`
-	Diff       string  `json:"diff,omitempty"`
-	ExitCode   *int    `json:"exitCode,omitempty"`
-	DurationMS float64 `json:"durationMs,omitempty"`
+	Command    string  `json:"command,omitzero"`
+	Path       string  `json:"path,omitzero"`
+	Query      string  `json:"query,omitzero"`
+	URL        string  `json:"url,omitzero"`
+	Output     string  `json:"output,omitzero"`
+	Diff       string  `json:"diff,omitzero"`
+	ExitCode   *int    `json:"exitCode,omitzero"`
+	DurationMS float64 `json:"durationMs,omitzero"`
 }
 
 type planFrame struct {
@@ -88,31 +98,41 @@ type interactionJSON struct {
 	Kind        string              `json:"kind"`
 	InterruptID string              `json:"interruptId"`
 	Title       string              `json:"title"`
-	Detail      string              `json:"detail,omitempty"`
-	Diff        string              `json:"diff,omitempty"`
-	Risk        string              `json:"risk,omitempty"`
-	Fields      []questionFieldJSON `json:"fields,omitempty"`
+	Detail      string              `json:"detail,omitzero"`
+	Diff        string              `json:"diff,omitzero"`
+	Risk        string              `json:"risk,omitzero"`
+	RuleHint    string              `json:"ruleHint,omitzero"`
+	Fields      []questionFieldJSON `json:"fields,omitzero"`
 }
 
 type questionFieldJSON struct {
-	ID       string   `json:"id"`
-	Label    string   `json:"label"`
-	Kind     string   `json:"kind"`
-	Required bool     `json:"required,omitempty"`
-	Options  []string `json:"options,omitempty"`
+	ID          string               `json:"id"`
+	Label       string               `json:"label"`
+	Description string               `json:"description,omitzero"`
+	Kind        string               `json:"kind"`
+	Required    bool                 `json:"required,omitzero"`
+	Placeholder string               `json:"placeholder,omitzero"`
+	Options     []questionOptionJSON `json:"options,omitzero"`
+}
+
+type questionOptionJSON struct {
+	Value       string `json:"value"`
+	Label       string `json:"label"`
+	Description string `json:"description,omitzero"`
+	Recommended bool   `json:"recommended,omitzero"`
 }
 
 type outcomeJSON struct {
 	Status string `json:"status"`
-	Error  string `json:"error,omitempty"`
+	Error  string `json:"error,omitzero"`
 }
 
 type usageJSON struct {
 	InputTokens  int64   `json:"inputTokens"`
 	OutputTokens int64   `json:"outputTokens"`
-	CachedTokens int64   `json:"cachedTokens,omitempty"`
-	CostUSD      float64 `json:"costUsd,omitempty"`
-	DurationMS   float64 `json:"durationMs,omitempty"`
+	CachedTokens int64   `json:"cachedTokens,omitzero"`
+	CostUSD      float64 `json:"costUsd,omitzero"`
+	DurationMS   float64 `json:"durationMs,omitzero"`
 }
 
 // Render writes one line. As with [Text], the first error sticks.
@@ -120,11 +140,15 @@ func (j *JSON) Render(envelope client.Envelope) error {
 	if j.err != nil {
 		return j.err
 	}
+	if err := client.ValidateEvent(envelope.Event); err != nil {
+		j.err = fmt.Errorf("render JSON event: %w", err)
+		return j.err
+	}
 	ev := envelope.Event
 	var f frame
 	switch e := ev.(type) {
 	case client.RunStarted:
-		f = frame{Type: "run.started", RunID: e.RunID, SessionID: e.SessionID}
+		f = frame{Type: "run.started", RunID: e.RunID, SessionID: e.SessionID, Options: encodeRunOptions(e.Options)}
 	case client.BlockStarted:
 		f = frame{Type: "block.started", Block: encodeBlock(e.Block)}
 	case client.BlockDelta:
@@ -134,7 +158,7 @@ func (j *JSON) Render(envelope client.Envelope) error {
 	case client.PlanChanged:
 		f = frame{Type: "plan.changed", Plan: encodePlan(e.Items)}
 	case client.RunResumed:
-		f = frame{Type: "run.resumed", RunID: envelope.RunID}
+		f = frame{Type: "run.resumed", RunID: envelope.RunID, InterruptID: e.InterruptID}
 	case client.RunInterrupted:
 		f = frame{Type: "run.interrupted", Interaction: encodeInteraction(e.Interaction)}
 	case client.RunFinished:
@@ -149,6 +173,9 @@ func (j *JSON) Render(envelope client.Envelope) error {
 				DurationMS:   float64(e.Usage.Duration.Milliseconds()),
 			},
 		}
+	default:
+		j.err = fmt.Errorf("render JSON event: unsupported event %T", envelope.Event)
+		return j.err
 	}
 	f.EventID, f.Cursor, f.At = envelope.ID, envelope.Cursor, envelope.At
 	if f.RunID == "" {
@@ -161,16 +188,32 @@ func (j *JSON) Render(envelope client.Envelope) error {
 	return j.err
 }
 
+func encodeRunOptions(options client.RunOptions) *runOptionsJSON {
+	return &runOptionsJSON{
+		Model: options.Model, Mode: string(options.Mode),
+		Permission: string(options.Permission), Effort: options.Effort,
+	}
+}
+
 func encodeInteraction(interaction client.Interaction) *interactionJSON {
 	switch item := interaction.(type) {
 	case client.Approval:
-		return &interactionJSON{Kind: "approval", InterruptID: item.InterruptID, Title: item.Title, Detail: item.Detail, Diff: item.Diff, Risk: item.Risk}
+		return &interactionJSON{
+			Kind: "approval", InterruptID: item.InterruptID, Title: item.Title,
+			Detail: item.Detail, Diff: item.Diff, Risk: item.Risk, RuleHint: item.RuleHint,
+		}
 	case client.Question:
 		out := &interactionJSON{Kind: "question", InterruptID: item.InterruptID, Title: item.Title, Detail: item.Detail}
 		for _, field := range item.Fields {
-			encoded := questionFieldJSON{ID: field.ID, Label: field.Label, Kind: string(field.Kind), Required: field.Required}
+			encoded := questionFieldJSON{
+				ID: field.ID, Label: field.Label, Description: field.Description,
+				Kind: string(field.Kind), Required: field.Required, Placeholder: field.Placeholder,
+			}
 			for _, option := range field.Options {
-				encoded.Options = append(encoded.Options, option.Value)
+				encoded.Options = append(encoded.Options, questionOptionJSON{
+					Value: option.Value, Label: option.Label,
+					Description: option.Description, Recommended: option.Recommended,
+				})
 			}
 			out.Fields = append(out.Fields, encoded)
 		}

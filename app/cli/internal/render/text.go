@@ -7,6 +7,7 @@
 package render
 
 import (
+	"fmt"
 	"io"
 	"strconv"
 	"strings"
@@ -52,6 +53,10 @@ func (t *Text) Render(envelope client.Envelope) error {
 	if t.err != nil {
 		return t.err
 	}
+	if err := client.ValidateEvent(envelope.Event); err != nil {
+		t.err = fmt.Errorf("render text event: %w", err)
+		return t.err
+	}
 	ev := envelope.Event
 	switch e := ev.(type) {
 	case client.RunStarted:
@@ -64,10 +69,14 @@ func (t *Text) Render(envelope client.Envelope) error {
 		t.finish(e.Block)
 	case client.PlanChanged:
 		t.plan(e.Items)
+	case client.RunResumed:
+		// Control identity is not reader-facing text.
 	case client.RunInterrupted:
 		t.interrupted(e.Interaction)
 	case client.RunFinished:
 		t.finished(e)
+	default:
+		t.err = fmt.Errorf("render text event: unsupported event %T", envelope.Event)
 	}
 	return t.err
 }

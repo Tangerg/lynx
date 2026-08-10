@@ -49,7 +49,14 @@ type Conversation struct {
 
 // NewConversation returns an empty aggregate.
 func NewConversation() *Conversation {
-	return &Conversation{index: make(map[string]int), open: make(map[string]bool), sequence: NewEventSequence(0)}
+	return NewConversationAt(0)
+}
+
+// NewConversationAt returns an empty aggregate whose next event follows after.
+// Delivery adapters use it for a run-scoped replay window that begins inside a
+// longer session transcript.
+func NewConversationAt(after Cursor) *Conversation {
+	return &Conversation{index: make(map[string]int), open: make(map[string]bool), sequence: NewEventSequence(after)}
 }
 
 func (c *Conversation) Blocks() []Block {

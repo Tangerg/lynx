@@ -193,6 +193,52 @@ func (r *lostStartResponses) StartRun(ctx context.Context, input client.StartRun
 	return client.Run{}, fmt.Errorf("start response lost: %w", client.ErrDisconnected)
 }
 
+type invalidLifecycleRuntime struct {
+	*mock.Runtime
+	sessionID string
+}
+
+func (r *invalidLifecycleRuntime) StartRun(_ context.Context, input client.StartRun) (client.Run, error) {
+	return client.Run{ID: "run_invalid", SessionID: input.SessionID, Status: client.RunActive}, nil
+}
+
+func (r *invalidLifecycleRuntime) FollowRun(_ context.Context, input client.FollowRun) (client.Stream, error) {
+	return func(yield func(client.Envelope, error) bool) {
+		if !yield(client.Envelope{
+			ID: "event_started", Cursor: input.After + 1,
+			RunID: input.RunID, SessionID: r.sessionID,
+			Event: client.RunStarted{RunID: input.RunID, SessionID: r.sessionID},
+		}, nil) {
+			return
+		}
+		yield(client.Envelope{
+			ID: "event_invalid", Cursor: input.After + 2,
+			RunID: input.RunID, SessionID: r.sessionID,
+			Event: client.RunStarted{RunID: input.RunID, SessionID: r.sessionID},
+		}, nil)
+	}, nil
+}
+
+type countingRenderer struct{ rendered int }
+
+func (r *countingRenderer) Render(client.Envelope) error { r.rendered++; return nil }
+func (*countingRenderer) Close() error                   { return nil }
+
+func TestRunRejectsEventsThatViolateTheConversationLifecycle(t *testing.T) {
+	base := mock.New()
+	sessionID := firstSession(t, base)
+	renderer := new(countingRenderer)
+	err := follow(t.Context(), &invalidLifecycleRuntime{Runtime: base, sessionID: sessionID}, renderer, client.StartRun{
+		SessionID: sessionID, Message: client.Message{Text: "invalid lifecycle"},
+	}, false, 0)
+	if !errors.Is(err, client.ErrInvalidTransition) {
+		t.Fatalf("follow error = %v, want invalid transition", err)
+	}
+	if renderer.rendered != 1 {
+		t.Fatalf("renderer received %d events, want only the valid prefix", renderer.rendered)
+	}
+}
+
 func TestRunCancellationTargetsAStartWhoseResponseWasLost(t *testing.T) {
 	base := mock.New()
 	base.Script = func(string) mock.Script {
