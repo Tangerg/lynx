@@ -229,7 +229,7 @@ type app struct {
 	attachmentElements map[uint64]client.Attachment
 	history            promptHistory
 	commandSeq         uint64
-	commandOperations  map[uint64]operationSlot
+	commandOperations  map[uint64]commandOperation
 
 	streamSeq     uint64
 	startRequest  string
@@ -262,7 +262,7 @@ func newApp(ctx context.Context, loop *program.InlineRuntime, backend runtime, o
 		syntax:             syntax,
 		attachments:        attachments,
 		attachmentElements: make(map[uint64]client.Attachment),
-		commandOperations:  make(map[uint64]operationSlot),
+		commandOperations:  make(map[uint64]commandOperation),
 	}
 	a.composer = kit.Composer{
 		Theme: theme, Prompt: glyphs.Marker + " ",

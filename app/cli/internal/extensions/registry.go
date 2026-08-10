@@ -326,9 +326,16 @@ func Contribute[T any](scope *Scope, point Point[T], value T, options Contributi
 	return d, nil
 }
 
-// Values returns a typed, stable snapshot ordered by Contribution.Order and
-// then by registration order.
-func Values[T any](registry *Registry, point Point[T]) []T {
+// OwnedValue keeps contribution ownership attached to a typed value so an
+// adapter can cancel in-flight work before unloading its provider.
+type OwnedValue[T any] struct {
+	PluginID string
+	Value    T
+}
+
+// OwnedValues returns a typed, stable snapshot ordered by Contribution.Order
+// and then by registration order.
+func OwnedValues[T any](registry *Registry, point Point[T]) []OwnedValue[T] {
 	if registry == nil {
 		return nil
 	}
@@ -350,9 +357,19 @@ func Values[T any](registry *Registry, point Point[T]) []T {
 		}
 		return cmp.Compare(a.seq, b.seq)
 	})
-	out := make([]T, 0, len(entries))
+	out := make([]OwnedValue[T], 0, len(entries))
 	for _, item := range entries {
-		out = append(out, item.value.(T))
+		out = append(out, OwnedValue[T]{PluginID: item.plugin, Value: item.value.(T)})
+	}
+	return out
+}
+
+// Values is OwnedValues with ownership metadata intentionally projected away.
+func Values[T any](registry *Registry, point Point[T]) []T {
+	owned := OwnedValues(registry, point)
+	out := make([]T, 0, len(owned))
+	for _, item := range owned {
+		out = append(out, item.Value)
 	}
 	return out
 }

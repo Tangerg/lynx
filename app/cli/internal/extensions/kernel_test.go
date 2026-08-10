@@ -149,6 +149,10 @@ func TestKernelOrdersDependenciesAndReloadsTheirClosure(t *testing.T) {
 	if !slices.Equal(lifecycle, []string{"load:test.independent", "load:test.base", "load:test.dependent"}) {
 		t.Fatalf("activation lifecycle = %v", lifecycle)
 	}
+	affected, err := kernel.Affected("test.base")
+	if err != nil || !slices.Equal(affected, []string{"test.base", "test.dependent"}) {
+		t.Fatalf("affected plugins = %v, %v", affected, err)
+	}
 
 	lifecycle = nil
 	results, err = kernel.Reload("test.base")

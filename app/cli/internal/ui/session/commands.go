@@ -21,35 +21,63 @@ func (a *app) registerCommands() {
 	for _, found := range a.commands.Find("") {
 		a.commands.Remove(found.Command.Name)
 	}
-	for _, contributed := range extensions.Values(a.registry, SlashCommands) {
-		command := contributed
-		if err := validateCommand(command); err != nil {
+	for _, local := range builtinCommands() {
+		command := local
+		if err := validateLocalCommand(command); err != nil {
 			a.message(err.Error())
 			continue
 		}
-		a.commands.Add(headless.Command{
+		if err := a.addCommand("terminal", headless.Command{
 			Name: command.Name, Title: command.Title, Aliases: command.Aliases, Takes: command.Takes,
 			Run: func(argument string) {
-				if command.Execute != nil {
-					a.executeCommand(command, argument)
-					return
-				}
-				if err := runCommandSafely(command, a, argument); err != nil {
+				if err := runLocalCommandSafely(command, a, argument); err != nil {
 					a.message(err.Error())
 				}
 			},
-		})
+		}); err != nil {
+			a.message(err.Error())
+		}
+	}
+	for _, contributed := range extensions.OwnedValues(a.registry, SlashCommands) {
+		command := contributed.Value
+		pluginID := contributed.PluginID
+		if err := validateCommand(command); err != nil {
+			a.message("plugin " + pluginID + ": " + err.Error())
+			continue
+		}
+		if err := a.addCommand(pluginID, headless.Command{
+			Name: command.Name, Title: command.Title, Aliases: command.Aliases, Takes: command.Takes,
+			Run: func(argument string) { a.executeCommand(pluginID, command, argument) },
+		}); err != nil {
+			a.message(err.Error())
+		}
 	}
 }
 
-func (a *app) executeCommand(command SlashCommand, argument string) {
+func (a *app) addCommand(owner string, command headless.Command) error {
+	identities := append([]string{command.Name}, command.Aliases...)
+	for _, identity := range identities {
+		if existing, found := a.commands.Lookup(identity); found {
+			return fmt.Errorf("plugin %s command /%s conflicts with /%s", owner, command.Name, existing.Name)
+		}
+	}
+	a.commands.Add(command)
+	return nil
+}
+
+type commandOperation struct {
+	pluginID string
+	slot     operationSlot
+}
+
+func (a *app) executeCommand(pluginID string, command SlashCommand, argument string) {
 	a.status.note("running /" + command.Name)
 	request := CommandRequest{Argument: argument, Workspace: a.session.Workspace, SessionID: a.session.ID}
 	dispatcher := a.loop.Dispatcher()
 	a.commandSeq++
 	sequence := a.commandSeq
 	slot := operationSlot(fmt.Sprintf("command:%d", sequence))
-	a.commandOperations[sequence] = slot
+	a.commandOperations[sequence] = commandOperation{pluginID: pluginID, slot: slot}
 	started := a.operations.Go(slot, false, func(ctx context.Context, lease operationLease) {
 		result, err := executeCommandSafely(ctx, command, request)
 		_ = post(ctx, dispatcher, func() {
@@ -77,9 +105,18 @@ func (a *app) executeCommand(command SlashCommand, argument string) {
 	}
 }
 
-func (a *app) cancelPluginCommands() {
-	for sequence, slot := range a.commandOperations {
-		a.operations.Cancel(slot)
+func (a *app) cancelPluginCommands(pluginIDs ...string) {
+	selected := make(map[string]struct{}, len(pluginIDs))
+	for _, pluginID := range pluginIDs {
+		selected[pluginID] = struct{}{}
+	}
+	for sequence, operation := range a.commandOperations {
+		if len(selected) > 0 {
+			if _, cancel := selected[operation.pluginID]; !cancel {
+				continue
+			}
+		}
+		a.operations.Cancel(operation.slot)
 		delete(a.commandOperations, sequence)
 	}
 }
@@ -93,7 +130,7 @@ func executeCommandSafely(ctx context.Context, command SlashCommand, request Com
 	return command.Execute(ctx, request)
 }
 
-func runCommandSafely(command SlashCommand, host CommandHost, argument string) (err error) {
+func runLocalCommandSafely(command localCommand, host *app, argument string) (err error) {
 	defer func() {
 		if recovered := recover(); recovered != nil {
 			err = fmt.Errorf("command /%s panicked: %v", command.Name, recovered)
@@ -233,7 +270,7 @@ func (a *app) listenForSearch() {
 	})
 }
 
-// CommandHost implementation.
+// Local command actions.
 
 func (a *app) Clear() {
 	if a.state.Busy() || a.following {
@@ -266,8 +303,10 @@ func (a *app) PreviousMatch() {
 func (a *app) Quit() { a.loop.Quit() }
 
 func (a *app) ShowHelp() {
-	var lines []string
-	for _, command := range extensions.Values(a.registry, SlashCommands) {
+	commands := a.commands.Find("")
+	lines := make([]string, 0, len(commands))
+	for _, found := range commands {
+		command := found.Command
 		argument := ""
 		if command.Takes {
 			argument = " <value>"
@@ -278,8 +317,6 @@ func (a *app) ShowHelp() {
 		Theme: a.transcript.theme, Speaker: "commands", Body: strings.Join(lines, "\n"),
 	})
 }
-
-func (a *app) SetStatus(message string) { a.message(message) }
 
 func (a *app) AttachFile(path string) error { return a.addAttachment(path) }
 
@@ -331,13 +368,19 @@ func (a *app) ReloadPlugin(id string) {
 		a.message("plugin kernel is unavailable")
 		return
 	}
-	a.cancelPluginCommands()
-	results, err := a.plugins.Reload(strings.TrimSpace(id))
+	id = strings.TrimSpace(id)
+	affected, err := a.plugins.Affected(id)
 	if err != nil {
 		a.message(err.Error())
 		return
 	}
+	a.cancelPluginCommands(affected...)
+	results, err := a.plugins.Reload(id)
 	a.registerCommands()
+	if err != nil {
+		a.message(err.Error())
+		return
+	}
 	for _, result := range results {
 		if result.Err != nil {
 			a.message(fmt.Sprintf("plugin %s · %s · %v", result.PluginID, result.Phase, result.Err))
@@ -359,12 +402,18 @@ func (a *app) UnloadPlugin(id string) {
 			return
 		}
 	}
-	a.cancelPluginCommands()
-	if err := a.plugins.Unload(id); err != nil {
+	affected, err := a.plugins.Affected(id)
+	if err != nil {
 		a.message(err.Error())
 		return
 	}
+	a.cancelPluginCommands(affected...)
+	err = a.plugins.Unload(id)
 	a.registerCommands()
+	if err != nil {
+		a.message(err.Error())
+		return
+	}
 	a.message("unloaded plugin " + id)
 }
 

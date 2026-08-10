@@ -15,42 +15,22 @@ import (
 	"github.com/Tangerg/lynx/app/cli/internal/extensions"
 )
 
-// CommandHost is the product-level surface available to slash commands.
-type CommandHost interface {
-	Clear()
-	Find(string)
-	NextMatch()
-	PreviousMatch()
-	Quit()
-	ShowHelp()
-	SetStatus(string)
-	ShowSessions()
-	NewSession()
-	RenameSession(string)
-	ForkSession(string)
-	ChooseModel()
-	CycleMode()
-	ChoosePermission()
-	SetEffort(string)
-	ShowRuntimeStatus()
-	ShowApprovalRules()
-	AttachFile(string) error
-	DetachFile(string) error
-	ShowAttachments()
-	ToggleToolDetails()
-	ShowPlugins()
-	ReloadPlugin(string)
-	UnloadPlugin(string)
-}
-
-// SlashCommand is a contributed composer command.
+// SlashCommand is a contributed composer command. Extensions receive a
+// bounded request snapshot rather than the terminal application itself.
 type SlashCommand struct {
 	Name    string
 	Title   string
 	Aliases []string
 	Takes   bool
-	Run     func(CommandHost, string) error
 	Execute func(context.Context, CommandRequest) (CommandResult, error)
+}
+
+type localCommand struct {
+	Name    string
+	Title   string
+	Aliases []string
+	Takes   bool
+	Run     func(*app, string) error
 }
 
 // CommandRequest is the bounded product context given to an out-of-process
@@ -88,37 +68,6 @@ var (
 
 func builtinPlugin() extensions.Plugin {
 	return extensions.Plugin{ID: "terminal.core", Version: "1.0.0", APIVersion: extensions.HostAPIVersion, Trusted: true, Setup: func(scope *extensions.Scope) error {
-		commands := []SlashCommand{
-			{Name: "help", Title: "show commands available in this session", Run: func(host CommandHost, _ string) error { host.ShowHelp(); return nil }},
-			{Name: "clear", Title: "release the live transcript", Run: func(host CommandHost, _ string) error { host.Clear(); return nil }},
-			{Name: "find", Title: "find text in the live transcript", Takes: true, Run: func(host CommandHost, query string) error { host.Find(query); return nil }},
-			{Name: "next", Title: "step to the next search match", Run: func(host CommandHost, _ string) error { host.NextMatch(); return nil }},
-			{Name: "previous", Title: "step to the previous search match", Aliases: []string{"prev"}, Run: func(host CommandHost, _ string) error { host.PreviousMatch(); return nil }},
-			{Name: "quit", Title: "leave lyra", Aliases: []string{"exit"}, Run: func(host CommandHost, _ string) error { host.Quit(); return nil }},
-			{Name: "sessions", Title: "search and switch sessions", Aliases: []string{"resume"}, Run: func(host CommandHost, _ string) error { host.ShowSessions(); return nil }},
-			{Name: "new", Title: "start a new session", Run: func(host CommandHost, _ string) error { host.NewSession(); return nil }},
-			{Name: "rename", Title: "rename the current session", Takes: true, Run: func(host CommandHost, title string) error { host.RenameSession(title); return nil }},
-			{Name: "fork", Title: "fork the current session at its latest event", Takes: true, Run: func(host CommandHost, title string) error { host.ForkSession(title); return nil }},
-			{Name: "model", Title: "choose the model for new runs", Run: func(host CommandHost, _ string) error { host.ChooseModel(); return nil }},
-			{Name: "mode", Title: "cycle build, plan, and review modes", Run: func(host CommandHost, _ string) error { host.CycleMode(); return nil }},
-			{Name: "permissions", Title: "choose the permission mode", Aliases: []string{"permission"}, Run: func(host CommandHost, _ string) error { host.ChoosePermission(); return nil }},
-			{Name: "effort", Title: "set reasoning effort", Takes: true, Run: func(host CommandHost, value string) error { host.SetEffort(value); return nil }},
-			{Name: "status", Title: "show model, mode, permission, and effort", Run: func(host CommandHost, _ string) error { host.ShowRuntimeStatus(); return nil }},
-			{Name: "rules", Title: "show remembered approval rules", Run: func(host CommandHost, _ string) error { host.ShowApprovalRules(); return nil }},
-			{Name: "attach", Title: "attach a local file to the next prompt", Takes: true, Run: func(host CommandHost, path string) error { return host.AttachFile(path) }},
-			{Name: "detach", Title: "remove an attachment by name, number, or all", Takes: true, Run: func(host CommandHost, value string) error { return host.DetachFile(value) }},
-			{Name: "attachments", Title: "show files attached to the next prompt", Aliases: []string{"files"}, Run: func(host CommandHost, _ string) error { host.ShowAttachments(); return nil }},
-			{Name: "details", Title: "expand or collapse tool output and diffs", Run: func(host CommandHost, _ string) error { host.ToggleToolDetails(); return nil }},
-			{Name: "plugins", Title: "show discovered plugins and lifecycle state", Run: func(host CommandHost, _ string) error { host.ShowPlugins(); return nil }},
-			{Name: "reload", Title: "reload a plugin and its dependents", Takes: true, Run: func(host CommandHost, id string) error { host.ReloadPlugin(id); return nil }},
-			{Name: "unload", Title: "unload a sideloaded plugin and its dependents", Takes: true, Run: func(host CommandHost, id string) error { host.UnloadPlugin(id); return nil }},
-		}
-		for i, command := range commands {
-			if _, err := extensions.Contribute(scope, SlashCommands, command, extensions.Contribution{Order: i}); err != nil {
-				return err
-			}
-		}
-
 		presenters := []BlockPresenter{
 			{Kind: client.BlockUser, Present: presentUser},
 			{Kind: client.BlockAssistant, Present: presentMarkdown("lyra")},
@@ -134,6 +83,34 @@ func builtinPlugin() extensions.Plugin {
 		}
 		return nil
 	}}
+}
+
+func builtinCommands() []localCommand {
+	return []localCommand{
+		{Name: "help", Title: "show commands available in this session", Run: func(a *app, _ string) error { a.ShowHelp(); return nil }},
+		{Name: "clear", Title: "release the live transcript", Run: func(a *app, _ string) error { a.Clear(); return nil }},
+		{Name: "find", Title: "find text in the live transcript", Takes: true, Run: func(a *app, query string) error { a.Find(query); return nil }},
+		{Name: "next", Title: "step to the next search match", Run: func(a *app, _ string) error { a.NextMatch(); return nil }},
+		{Name: "previous", Title: "step to the previous search match", Aliases: []string{"prev"}, Run: func(a *app, _ string) error { a.PreviousMatch(); return nil }},
+		{Name: "quit", Title: "leave lyra", Aliases: []string{"exit"}, Run: func(a *app, _ string) error { a.Quit(); return nil }},
+		{Name: "sessions", Title: "search and switch sessions", Aliases: []string{"resume"}, Run: func(a *app, _ string) error { a.ShowSessions(); return nil }},
+		{Name: "new", Title: "start a new session", Run: func(a *app, _ string) error { a.NewSession(); return nil }},
+		{Name: "rename", Title: "rename the current session", Takes: true, Run: func(a *app, title string) error { a.RenameSession(title); return nil }},
+		{Name: "fork", Title: "fork the current session at its latest event", Takes: true, Run: func(a *app, title string) error { a.ForkSession(title); return nil }},
+		{Name: "model", Title: "choose the model for new runs", Run: func(a *app, _ string) error { a.ChooseModel(); return nil }},
+		{Name: "mode", Title: "cycle build, plan, and review modes", Run: func(a *app, _ string) error { a.CycleMode(); return nil }},
+		{Name: "permissions", Title: "choose the permission mode", Aliases: []string{"permission"}, Run: func(a *app, _ string) error { a.ChoosePermission(); return nil }},
+		{Name: "effort", Title: "set reasoning effort", Takes: true, Run: func(a *app, value string) error { a.SetEffort(value); return nil }},
+		{Name: "status", Title: "show model, mode, permission, and effort", Run: func(a *app, _ string) error { a.ShowRuntimeStatus(); return nil }},
+		{Name: "rules", Title: "show remembered approval rules", Run: func(a *app, _ string) error { a.ShowApprovalRules(); return nil }},
+		{Name: "attach", Title: "attach a local file to the next prompt", Takes: true, Run: func(a *app, path string) error { return a.AttachFile(path) }},
+		{Name: "detach", Title: "remove an attachment by name, number, or all", Takes: true, Run: func(a *app, value string) error { return a.DetachFile(value) }},
+		{Name: "attachments", Title: "show files attached to the next prompt", Aliases: []string{"files"}, Run: func(a *app, _ string) error { a.ShowAttachments(); return nil }},
+		{Name: "details", Title: "expand or collapse tool output and diffs", Run: func(a *app, _ string) error { a.ToggleToolDetails(); return nil }},
+		{Name: "plugins", Title: "show discovered plugins and lifecycle state", Run: func(a *app, _ string) error { a.ShowPlugins(); return nil }},
+		{Name: "reload", Title: "reload a plugin and its dependents", Takes: true, Run: func(a *app, id string) error { a.ReloadPlugin(id); return nil }},
+		{Name: "unload", Title: "unload a sideloaded plugin and its dependents", Takes: true, Run: func(a *app, id string) error { a.UnloadPlugin(id); return nil }},
+	}
 }
 
 func presentUser(p Presentation, block client.Block) []headless.Block {
@@ -176,16 +153,48 @@ func presentFailure(p Presentation, block client.Block) []headless.Block {
 }
 
 func validateCommand(command SlashCommand) error {
-	switch {
-	case strings.TrimSpace(command.Name) == "":
-		return errors.New("slash command has no name")
-	case strings.ContainsAny(command.Name, " /\t\n"):
-		return fmt.Errorf("slash command %q has an invalid name", command.Name)
-	case command.Run == nil && command.Execute == nil:
-		return fmt.Errorf("slash command %q has no handler", command.Name)
-	case command.Run != nil && command.Execute != nil:
-		return fmt.Errorf("slash command %q has two handlers", command.Name)
-	default:
-		return nil
+	if err := validateCommandMetadata(command.Name, command.Title, command.Aliases); err != nil {
+		return err
 	}
+	if command.Execute == nil {
+		return fmt.Errorf("slash command %q has no handler", command.Name)
+	}
+	return nil
+}
+
+func validateLocalCommand(command localCommand) error {
+	if err := validateCommandMetadata(command.Name, command.Title, command.Aliases); err != nil {
+		return err
+	}
+	if command.Run == nil {
+		return fmt.Errorf("slash command %q has no handler", command.Name)
+	}
+	return nil
+}
+
+func validateCommandMetadata(name, title string, aliases []string) error {
+	switch {
+	case strings.TrimSpace(name) == "":
+		return errors.New("slash command has no name")
+	case strings.ContainsAny(name, " /\t\n"):
+		return fmt.Errorf("slash command %q has an invalid name", name)
+	case strings.TrimSpace(title) == "":
+		return fmt.Errorf("slash command %q has no title", name)
+	default:
+		return validateCommandAliases(name, aliases)
+	}
+}
+
+func validateCommandAliases(name string, aliases []string) error {
+	seen := map[string]struct{}{name: {}}
+	for _, alias := range aliases {
+		if strings.TrimSpace(alias) == "" || strings.ContainsAny(alias, " /\t\n") {
+			return fmt.Errorf("slash command %q has invalid alias %q", name, alias)
+		}
+		if _, duplicate := seen[alias]; duplicate {
+			return fmt.Errorf("slash command %q repeats name or alias %q", name, alias)
+		}
+		seen[alias] = struct{}{}
+	}
+	return nil
 }

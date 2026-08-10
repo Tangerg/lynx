@@ -27,6 +27,10 @@ func TestKeyedContributionsAreTypedOrderedAndDisposable(t *testing.T) {
 	if len(values) != 2 || values[0].ID != "markdown" || values[1].ID != "json" {
 		t.Fatalf("values = %+v", values)
 	}
+	owned := OwnedValues(registry, point)
+	if len(owned) != 2 || owned[0].PluginID != "formats" || owned[1].PluginID != "formats" {
+		t.Fatalf("owned values = %+v", owned)
+	}
 	if err := loaded.Dispose(); err != nil {
 		t.Fatal(err)
 	}

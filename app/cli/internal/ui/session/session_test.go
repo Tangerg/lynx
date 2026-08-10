@@ -406,9 +406,8 @@ func TestAPluginCanAddACommandWithoutChangingTheShell(t *testing.T) {
 		loads.Add(1)
 		_, err := extensions.Contribute(scope, SlashCommands, SlashCommand{
 			Name: "hello", Title: "run a contributed command",
-			Run: func(host CommandHost, _ string) error {
-				host.SetStatus(fmt.Sprintf("hello from plugin load %d", loads.Load()))
-				return nil
+			Execute: func(context.Context, CommandRequest) (CommandResult, error) {
+				return CommandResult{Message: fmt.Sprintf("hello from plugin load %d", loads.Load())}, nil
 			},
 		}, extensions.Contribution{})
 		return err
@@ -491,10 +490,10 @@ func TestAsynchronousPluginCommandKeepsTheTerminalResponsive(t *testing.T) {
 }
 
 func TestPluginCommandPanicBecomesAnError(t *testing.T) {
-	err := runCommandSafely(SlashCommand{
-		Name: "boom",
-		Run:  func(CommandHost, string) error { panic("command boom") },
-	}, nil, "")
+	_, err := executeCommandSafely(t.Context(), SlashCommand{
+		Name:    "boom",
+		Execute: func(context.Context, CommandRequest) (CommandResult, error) { panic("command boom") },
+	}, CommandRequest{})
 	if err == nil || !strings.Contains(err.Error(), "command boom") {
 		t.Fatalf("command panic error = %v", err)
 	}
@@ -532,6 +531,86 @@ func TestUnloadingPluginCancelsItsInFlightCommand(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("plugin command was not canceled on unload")
 	}
+	host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
+	stop()
+}
+
+func TestUnloadingAPluginLeavesIndependentCommandsRunning(t *testing.T) {
+	canceledA := make(chan struct{}, 1)
+	canceledB := make(chan struct{}, 1)
+	releaseB := make(chan struct{})
+	commandPlugin := func(id, name string, canceled chan<- struct{}, release <-chan struct{}) extensions.Plugin {
+		return extensions.Plugin{
+			ID: id, Version: "1.0.0", APIVersion: extensions.HostAPIVersion,
+			Capabilities: []extensions.Capability{SlashCommands.Capability()},
+			Setup: func(scope *extensions.Scope) error {
+				_, err := extensions.Contribute(scope, SlashCommands, SlashCommand{
+					Name: name, Title: "wait for completion",
+					Execute: func(ctx context.Context, _ CommandRequest) (CommandResult, error) {
+						select {
+						case <-release:
+							return CommandResult{Message: name + " complete"}, nil
+						case <-ctx.Done():
+							canceled <- struct{}{}
+							return CommandResult{}, context.Cause(ctx)
+						}
+					},
+				}, extensions.Contribution{})
+				return err
+			},
+		}
+	}
+	pluginA := commandPlugin("test.cancel-a", "wait-a", canceledA, nil)
+	pluginB := commandPlugin("test.cancel-b", "wait-b", canceledB, releaseB)
+	host, stop := runUI(t, pluginA, pluginB)
+	host.Shows(t, "Ask lyra")
+	for _, command := range []string{"/wait-a", "/wait-b"} {
+		host.Type(command)
+		host.Press(input.Enter)
+		host.Press(input.Enter)
+		host.Shows(t, "running "+command)
+	}
+	host.Type("/unload test.cancel-a")
+	host.Press(input.Enter)
+	host.Press(input.Enter)
+	host.Shows(t, "unloaded plugin test.cancel-a")
+	select {
+	case <-canceledA:
+	case <-time.After(time.Second):
+		t.Fatal("unloaded plugin command was not canceled")
+	}
+	select {
+	case <-canceledB:
+		t.Fatal("independent plugin command was canceled")
+	default:
+	}
+	close(releaseB)
+	host.Shows(t, "wait-b complete")
+	host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
+	stop()
+}
+
+func TestPluginCommandCannotShadowABuiltin(t *testing.T) {
+	plugin := extensions.Plugin{
+		ID: "test.shadow", Version: "1.0.0", APIVersion: extensions.HostAPIVersion,
+		Capabilities: []extensions.Capability{SlashCommands.Capability()},
+		Setup: func(scope *extensions.Scope) error {
+			_, err := extensions.Contribute(scope, SlashCommands, SlashCommand{
+				Name: "help", Title: "shadow help",
+				Execute: func(context.Context, CommandRequest) (CommandResult, error) {
+					return CommandResult{Message: "shadowed builtin"}, nil
+				},
+			}, extensions.Contribution{})
+			return err
+		},
+	}
+	host, stop := runUI(t, plugin)
+	host.Shows(t, "Ask lyra")
+	host.Type("/help")
+	host.Press(input.Enter)
+	host.Press(input.Enter)
+	host.Shows(t, "/clear")
+	host.Hides(t, "shadowed builtin")
 	host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
 	stop()
 }

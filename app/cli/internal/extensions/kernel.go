@@ -140,6 +140,36 @@ func (k *Kernel) infoLocked(id string) Info {
 	}
 }
 
+// Affected returns id and its transitive dependents in stable load order. An
+// adapter uses it to retire provider-owned work before reload or unload.
+func (k *Kernel) Affected(id string) ([]string, error) {
+	if k == nil {
+		return nil, errors.New("extensions: kernel is required")
+	}
+	k.mu.RLock()
+	defer k.mu.RUnlock()
+	if k.closed {
+		return nil, errKernelClosed
+	}
+	if _, exists := k.plugins[id]; !exists {
+		return nil, fmt.Errorf("%w: %s", ErrPluginNotFound, id)
+	}
+	closure := k.dependentClosureLocked(id)
+	affected := make([]string, 0, len(closure))
+	for _, candidate := range k.order {
+		if closure[candidate] {
+			affected = append(affected, candidate)
+			delete(closure, candidate)
+		}
+	}
+	remaining := make([]string, 0, len(closure))
+	for candidate := range closure {
+		remaining = append(remaining, candidate)
+	}
+	slices.Sort(remaining)
+	return append(affected, remaining...), nil
+}
+
 // Reload unloads a plugin and every transitive dependent, then reactivates the
 // closure in dependency order so no dependent retains stale registrations.
 func (k *Kernel) Reload(id string) ([]Result, error) {
