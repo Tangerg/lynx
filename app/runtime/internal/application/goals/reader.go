@@ -28,7 +28,7 @@ func (r *Reader) Current(ctx context.Context, sessionID string) (goal.Goal, bool
 	return r.goals.Get(ctx, sessionID)
 }
 
-// Active reports whether sessionID currently has a loop-driving Goal.
+// Active reports whether sessionID currently has an actively driven Goal.
 func (r *Reader) Active(ctx context.Context, sessionID string) (bool, error) {
 	if r == nil || r.goals == nil {
 		return false, nil

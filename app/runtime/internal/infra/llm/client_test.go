@@ -14,7 +14,7 @@ import (
 
 // TestChatProviderCatalogSatisfiesConstructionContract holds the static catalog to its contract:
 // every row builds, names a key env var, and the no-built-in-endpoint rows
-// (the generic passthroughs + Azure) are flagged requiresBaseURL.
+// (the compatible endpoint providers and Azure) are flagged requiresBaseURL.
 func TestChatProviderCatalogSatisfiesConstructionContract(t *testing.T) {
 	for provider, profile := range chatProviderCatalog {
 		if profile.build == nil {
@@ -25,8 +25,8 @@ func TestChatProviderCatalogSatisfiesConstructionContract(t *testing.T) {
 		}
 	}
 
-	// The generic passthroughs + Azure carry no built-in endpoint.
-	for _, p := range []Provider{ProviderOpenAICompat, ProviderAnthropicCompat, ProviderAzureOpenAI} {
+	// The compatible endpoint providers and Azure carry no built-in endpoint.
+	for _, p := range []Provider{ProviderOpenAICompatible, ProviderAnthropicCompatible, ProviderAzureOpenAI} {
 		if !p.RequiresBaseURL() {
 			t.Errorf("provider %q must require a base URL", p)
 		}
@@ -120,8 +120,8 @@ func TestQueries(t *testing.T) {
 	if ProviderAnthropic.DefaultModel() == "" {
 		t.Error("anthropic should have a default model")
 	}
-	// A generic passthrough has no catalog default — the model id is user-supplied.
-	if ProviderOpenAICompat.DefaultModel() != "" {
+	// A generic compatible endpoint has no catalog default — the model id is user-supplied.
+	if ProviderOpenAICompatible.DefaultModel() != "" {
 		t.Error("openai-compatible should have no default model")
 	}
 	if ProviderOpenAI.APIKeyEnv() != "OPENAI_API_KEY" {
@@ -138,7 +138,7 @@ func TestBuildClient(t *testing.T) {
 		t.Error("unknown provider must error")
 	}
 	// A requiresBaseURL provider without a base URL → error naming the gap.
-	if _, err := BuildClient(ClientSpec{Provider: ProviderOpenAICompat, Model: "x", APIKey: "k"}); err == nil {
+	if _, err := BuildClient(ClientSpec{Provider: ProviderOpenAICompatible, Model: "x", APIKey: "k"}); err == nil {
 		t.Error("openai-compatible without base URL must error")
 	} else if !strings.Contains(err.Error(), "base URL") {
 		t.Errorf("error should mention the base URL: %v", err)
@@ -149,7 +149,7 @@ func TestBuildClient(t *testing.T) {
 		t.Fatalf("build anthropic: client=%v err=%v", c, err)
 	}
 	// A requiresBaseURL provider WITH a base URL builds.
-	if _, err := BuildClient(ClientSpec{Provider: ProviderOpenAICompat, Model: "x", APIKey: "k", BaseURL: "https://gateway.example.com/v1"}); err != nil {
+	if _, err := BuildClient(ClientSpec{Provider: ProviderOpenAICompatible, Model: "x", APIKey: "k", BaseURL: "https://gateway.example.com/v1"}); err != nil {
 		t.Errorf("openai-compatible with base URL: %v", err)
 	}
 }

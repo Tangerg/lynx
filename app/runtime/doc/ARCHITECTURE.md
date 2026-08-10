@@ -312,7 +312,7 @@ Bootstrap 不提供业务 API，不成为 service locator，不让运行时对�
 
 ### 7.2 Root chat
 
-普通根聊天直接部署原生 `interaction.Definition`。不得再用 GOAP 单 Action 包裹完整 Interaction；没有 world state、预测 Action 和 replan 语义时，不得引入 Planning。
+普通根聊天直接部署 `interaction.Definition`。不得再用 GOAP 单 Action 包裹完整 Interaction；没有 world state、预测 Action 和 replan 语义时，不得引入 Planning。
 
 每棵 root Run tree 使用独立 Engine、精确 root/child Deployment 集和 caller-owned resolver。当前迁移不需要 Agent Framework Platform；只有产品出现真实的多 Deployment 发布、版本选择和治理用例时才引入。
 
@@ -541,7 +541,7 @@ Runtime 重构只有同时满足以下条件才算完成：
 
 - `domain/execution` 已被准确的 `domain/run` 及独立上下文取代；
 - Domain、Application、Delivery、Infra 和通用 Toolset 对 Agent Framework 零 import；
-- `adapter/agentexec` 使用原生 Interaction，旧 GOAP chat wrapper 和 Turn lifecycle 全部删除；
+- `adapter/agentexec` 使用 Interaction，旧 GOAP chat wrapper 和 Turn lifecycle 全部删除；
 - Runtime 没有第二 Process loop、Tool loop、tree scheduler 或 snapshot parser；
 - child admission、waiting/resume/steer、subtree cancellation 和 authoritative observation 有真实纵切测试；
 - Conversation、Transcript、WorkingContext 和 checkpoint 不互为隐式真相源；

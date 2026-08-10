@@ -105,7 +105,7 @@ func newMemStore() *memStore {
 }
 
 // lock observes cancellation before and after waiting for the fake's mutex. The
-// second check matters: a loop can be canceled while blocked on a concurrent
+// second check matters: a drive can be canceled while blocked on a concurrent
 // store operation, and must not mutate state after it finally acquires the lock.
 func (s *memStore) lock(ctx context.Context) error {
 	if err := ctx.Err(); err != nil {
@@ -123,7 +123,7 @@ func (s *memStore) lock(ctx context.Context) error {
 }
 
 // The store methods honor ctx cancellation to model the production sqlite store.
-// This is load-bearing for the goal loop: a superseded straggler whose ctx was
+// This is load-bearing for the Goal drive: a superseded straggler whose ctx was
 // canceled by Stop bails at its next store operation instead of racing recovery.
 func (s *memStore) Get(ctx context.Context, id string) (goal.Goal, bool, error) {
 	if err := s.lock(ctx); err != nil {
@@ -206,7 +206,7 @@ func (s *memStore) List(ctx context.Context) ([]goal.Goal, error) {
 }
 
 // RecordRun models the terminal Run transaction: its idempotency identity and
-// the Goal aggregate mutation appear together before the loop sees the event.
+// the Goal aggregate mutation appear together before the drive sees the event.
 func (s *memStore) RecordRun(ctx context.Context, record goal.RunRecord) error {
 	if err := s.lock(ctx); err != nil {
 		return err
@@ -343,7 +343,7 @@ func (f *fakeRuns) applyScriptedGoalStatus(
 ) {
 	if script.setStatus != "" {
 		// Simulate the model reporting a terminal goal outcome mid-Run: a CAS on
-		// the current version while retaining the loop's lease.
+		// the current version while retaining the drive's lease.
 		g, _, _ := f.store.Get(ctx, cmd.SessionID)
 		g.Status = script.setStatus
 		if script.setStatus == goal.StatusBlocked {
@@ -740,7 +740,7 @@ func TestDriverRefusesConcurrentStart(t *testing.T) {
 	// Refusing also restores the in-process drive for the active row it found, so
 	// the fake has to have a Run to serve. Scripting none asserted the opposite
 	// — that adoption never happens — and passed only when the assertion outran
-	// the loop the refusal had just launched.
+	// the drive the refusal had just launched.
 	started := make(chan struct{}, 1)
 	fake := &fakeRuns{
 		t: t, store: store, script: []scriptedRun{{outcome: run.OutcomeCompleted}},
@@ -760,7 +760,7 @@ func TestDriverRefusesConcurrentStart(t *testing.T) {
 }
 
 // TestDriverStopPausesRunningGoal stops a goal while a run is in flight and
-// asserts it settles on paused without launching another run — the loop must
+// asserts it settles on paused without launching another run — the drive must
 // honor the pause, never re-affirm active over it (the checkpoint-vs-Stop race).
 func TestDriverStopPausesRunningGoal(t *testing.T) {
 	store := newMemStore()
@@ -774,7 +774,7 @@ func TestDriverStopPausesRunningGoal(t *testing.T) {
 		t.Fatalf("Start: %v", err)
 	}
 	select {
-	case <-started: // the loop launched the run and is draining its terminal
+	case <-started: // the drive launched the run and is draining its terminal
 	case <-time.After(2 * time.Second):
 		t.Fatal("goal driver did not launch its first run")
 	}
@@ -883,8 +883,22 @@ func TestDriverStoreFailureRemainsAddressableUntilStop(t *testing.T) {
 		t.Fatal("goal supervisor did not encounter the store failure")
 	}
 
-	if _, err := d.Start(t.Context(), "s1", "replacement", testGoalModelSelection(), goal.Budget{}); !errors.Is(err, storeErr) {
-		t.Fatalf("Start while supervisor is faulted = %v, want store error", err)
+	// The store signal marks the failed read, not the later goalDrive completion
+	// publication. A Start racing that publication may still observe the drive as
+	// active; once published, the failure must remain addressable until Stop.
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		_, err := d.Start(t.Context(), "s1", "replacement", testGoalModelSelection(), goal.Budget{})
+		if errors.Is(err, storeErr) {
+			break
+		}
+		if !errors.Is(err, goals.ErrGoalActive) {
+			t.Fatalf("Start while supervisor is faulted = %v, want active transition or store error", err)
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("goal supervisor failure did not become addressable")
+		}
+		time.Sleep(time.Millisecond)
 	}
 	stopped, err := d.Stop(t.Context(), "s1")
 	if !errors.Is(err, storeErr) {
@@ -1175,7 +1189,7 @@ func TestReconcileSweepsOrphanGoal(t *testing.T) {
 
 // TestStopThenStartRejectsStragglerWrite is the race-#4 keystone: a run whose
 // goal was stopped and replaced by a fresh Start (a new lease) must not
-// clobber the new goal when its straggler loop finally drains. The loop's launch
+// clobber the new Goal when its straggler drive finally drains. The drive's launch
 // lease no longer matches, so it stops without writing.
 func TestStopThenStartRejectsStragglerWrite(t *testing.T) {
 	store := newMemStore()
@@ -1193,9 +1207,9 @@ func TestStopThenStartRejectsStragglerWrite(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("goal driver did not launch its first run")
 	}
-	// User stops the goal (paused, lease revoked, loop canceled) then starts a
+	// User stops the Goal (paused, lease revoked, drive canceled) then starts a
 	// fresh objective. Save the new goal with a new lease exactly as Start would
-	// (no second loop launched, to keep the straggler the only writer under test).
+	// (no second drive launched, to keep the straggler the only writer under test).
 	stopped, err := d.Stop(context.Background(), "s1")
 	if err != nil {
 		t.Fatalf("Stop: %v", err)
@@ -1205,7 +1219,7 @@ func TestStopThenStartRejectsStragglerWrite(t *testing.T) {
 		t.Fatalf("seed replacement goal: applied=%v err=%v", applied, err)
 	}
 
-	close(hold) // release the straggler run; its loop drains and re-reads the goal
+	close(hold) // release the straggler Run; its drive drains and re-reads the Goal
 	if err := shutdownDriver(d); err != nil {
 		t.Fatalf("Close: %v", err)
 	}
@@ -1218,7 +1232,7 @@ func TestStopThenStartRejectsStragglerWrite(t *testing.T) {
 
 // TestStopResumeRaceNeverWedgesActive runs Stop and Resume concurrently on a
 // paused goal. The command mutex must serialize them so the goal never ends up
-// active with no loop driving it — a wedge would leave it active forever, and
+// active with no drive owning it — a wedge would leave it active forever, and
 // waitGoal would time out. Run under -race to also catch memory races.
 func TestStopResumeRaceNeverWedgesActive(t *testing.T) {
 	for i := 0; i < 50; i++ {
@@ -1236,8 +1250,8 @@ func TestStopResumeRaceNeverWedgesActive(t *testing.T) {
 		wg.Go(func() { _, _ = d.Resume(context.Background(), "s1") })
 		wg.Wait()
 
-		// Settles non-active: paused (Stop won) or blocked (Resume's loop ran its one
-		// budgeted Run). Active-with-no-loop would never leave active.
+		// Settles non-active: paused (Stop won) or blocked (Resume's drive ran its one
+		// budgeted Run). Active-with-no-drive would never leave active.
 		waitTestSessionGoal(t, store, func(g goal.Goal, ok bool) bool {
 			return ok && g.Status != goal.StatusActive
 		})

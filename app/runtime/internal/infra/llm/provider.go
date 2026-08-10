@@ -17,9 +17,8 @@ import (
 type Provider string
 
 const (
-	// Native + OpenAI-/Anthropic-compatible vendors with a model catalog. Each
-	// routes through its own adapter, which encodes
-	// the vendor endpoint. IAM-only vendors (amazonbedrock, vertexai) are
+	// Named vendors with a model catalog. Each routes through its own adapter,
+	// which encodes the vendor endpoint. IAM-only vendors (amazonbedrock, vertexai) are
 	// intentionally absent — they don't fit the "paste an API key" model.
 	ProviderAnthropic   Provider = "anthropic"
 	ProviderOpenAI      Provider = "openai"
@@ -45,8 +44,8 @@ const (
 	// URL + key + model id, and the Run executes through the OpenAI- / Anthropic-
 	// wire adapter. They cover any compatible gateway not named above (and have
 	// no catalog — the model id is user-supplied).
-	ProviderOpenAICompat    Provider = "openai-compatible"
-	ProviderAnthropicCompat Provider = "anthropic-compatible"
+	ProviderOpenAICompatible    Provider = "openai-compatible"
+	ProviderAnthropicCompatible Provider = "anthropic-compatible"
 )
 
 // SupportedProviders lists every provider with a static catalog entry,
@@ -68,7 +67,7 @@ func (p Provider) IsSupported() bool {
 
 // DefaultModel returns a provider's catalog default model id (used when the
 // caller doesn't pick one). Empty for an unknown provider or one whose model id
-// is always user-supplied (Azure deployment, Ollama, the generic passthroughs).
+// is always user-supplied (Azure deployment, Ollama, or a compatible endpoint).
 func (p Provider) DefaultModel() string {
 	return chatProviderCatalog[p].defaultModel
 }
@@ -80,7 +79,7 @@ func (p Provider) APIKeyEnv() string {
 }
 
 // RequiresBaseURL reports whether p has no built-in endpoint and needs a
-// caller-supplied base URL (the generic passthroughs + Azure).
+// caller-supplied base URL (the compatible endpoint providers and Azure).
 func (p Provider) RequiresBaseURL() bool {
 	return chatProviderCatalog[p].requiresBaseURL
 }
@@ -88,7 +87,7 @@ func (p Provider) RequiresBaseURL() bool {
 // DefaultBaseURL returns a provider's built-in endpoint used for live model
 // discovery when the caller configured none — non-empty only for the local
 // Ollama daemon (hosted vendors encode their endpoint inside the adapter, and
-// the generic passthroughs have no default at all).
+// the compatible endpoint providers have no default at all).
 func (p Provider) DefaultBaseURL() string {
 	return chatProviderCatalog[p].defaultBaseURL
 }
@@ -96,7 +95,7 @@ func (p Provider) DefaultBaseURL() string {
 // ProbeModels reports whether p's available models are defined by its live
 // endpoint rather than the static catalog — true exactly for the providers
 // whose model id is user-supplied (no catalog default): Ollama, Azure, and the
-// generic OpenAI-/Anthropic-compatible passthroughs. Dynamic discovery probes their
+// generic OpenAI-/Anthropic-compatible endpoints. Dynamic discovery probes their
 // /v1/models instead of serving the embedded catalog for these.
 func (p Provider) ProbeModels() bool {
 	profile, ok := chatProviderCatalog[p]
@@ -109,8 +108,8 @@ func (p Provider) ProbeModels() bool {
 // with ANTHROPIC_API_KEY / OPENAI_API_KEY / … in their shell gets those
 // providers enabled out of the box).
 //
-// Providers that require a caller-supplied base URL (Azure, the generic
-// compat passthroughs) are excluded: an env key alone can't reach their
+// Providers that require a caller-supplied base URL (Azure and the compatible
+// endpoint providers) are excluded: an env key alone can't reach their
 // endpoint, so surfacing them as "enabled from env" would be a lie. The
 // environment is process-static, so callers read this once at startup.
 func EnvKeys() map[string]string {

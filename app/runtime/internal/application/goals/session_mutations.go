@@ -8,7 +8,7 @@ import (
 )
 
 // SessionMutations serializes session lifecycle write-sets with Goal commands
-// and owns the in-process registry of active Goal loops. It is created before
+// and owns the in-process registry of active Goal drives. It is created before
 // either coordinator so both use cases share one stable lifecycle boundary
 // without late-bound references.
 type SessionMutations struct {
@@ -16,7 +16,7 @@ type SessionMutations struct {
 
 	mu           sync.Mutex
 	commandLocks map[string]*sessionCommandLock
-	running      map[string]*loopHandle
+	drives       map[string]*goalDrive
 }
 
 type sessionCommandLock struct {
@@ -26,12 +26,12 @@ type sessionCommandLock struct {
 
 // NewSessionMutations returns the shared lifecycle coordinator for one runtime.
 func NewSessionMutations() *SessionMutations {
-	return &SessionMutations{running: map[string]*loopHandle{}}
+	return &SessionMutations{drives: map[string]*goalDrive{}}
 }
 
 // acquire serializes lifecycle commands only for the sessions they mutate.
 // Session locks are taken before admission so a command waiting behind internal
-// loop reconciliation does not prevent shutdown from closing task admission.
+// Goal drive reconciliation does not prevent shutdown from closing task admission.
 // Once the read side is held, shutdown cannot cross the command's launch
 // boundary.
 func (m *SessionMutations) acquire(sessionIDs ...string) func() {
@@ -95,8 +95,8 @@ func (m *SessionMutations) acquireAll() func() {
 }
 
 // WithSessionMutation owns both phases of a session mutation. A failed commit
-// leaves the authoritative Goal loop intact. Once commit succeeds, affected
-// loops are quiesced and afterCommit is always attempted; failures from either
+// leaves the authoritative Goal drive intact. Once commit succeeds, affected
+// drives are quiesced and afterCommit is always attempted; failures from either
 // post-commit phase are reported together.
 func (m *SessionMutations) WithSessionMutation(
 	ctx context.Context,
@@ -110,60 +110,60 @@ func (m *SessionMutations) WithSessionMutation(
 	if err := commit(ctx); err != nil {
 		return err
 	}
-	type ownedLoop struct {
+	type ownedDrive struct {
 		sessionID string
-		loop      *loopHandle
+		drive     *goalDrive
 	}
-	loops := make([]ownedLoop, 0, len(sessionIDs))
+	drives := make([]ownedDrive, 0, len(sessionIDs))
 	for _, sessionID := range sessionIDs {
-		if loop := m.quiesce(sessionID); loop != nil {
-			loops = append(loops, ownedLoop{sessionID: sessionID, loop: loop})
+		if drive := m.quiesce(sessionID); drive != nil {
+			drives = append(drives, ownedDrive{sessionID: sessionID, drive: drive})
 		}
 	}
 	var errs []error
-	for _, owned := range loops {
-		errs = append(errs, owned.loop.wait(ctx))
-		if owned.loop.finished() {
-			m.forget(owned.sessionID, owned.loop)
+	for _, owned := range drives {
+		errs = append(errs, owned.drive.await(ctx))
+		if owned.drive.completed() {
+			m.forget(owned.sessionID, owned.drive)
 		}
 	}
 	errs = append(errs, afterCommit(ctx))
 	return errors.Join(errs...)
 }
 
-func (m *SessionMutations) launch(sessionID string, loop *loopHandle) {
+func (m *SessionMutations) launch(sessionID string, drive *goalDrive) {
 	m.mu.Lock()
-	if m.running == nil {
-		m.running = map[string]*loopHandle{}
+	if m.drives == nil {
+		m.drives = map[string]*goalDrive{}
 	}
-	if m.running[sessionID] != nil {
+	if m.drives[sessionID] != nil {
 		m.mu.Unlock()
-		panic("goals: launch attempted before the prior session driver was joined")
+		panic("goals: launch attempted before the prior Goal drive was joined")
 	}
-	m.running[sessionID] = loop
+	m.drives[sessionID] = drive
 	m.mu.Unlock()
 }
 
-func (m *SessionMutations) forget(sessionID string, loop *loopHandle) {
+func (m *SessionMutations) forget(sessionID string, drive *goalDrive) {
 	m.mu.Lock()
-	if m.running[sessionID] == loop {
-		delete(m.running, sessionID)
+	if m.drives[sessionID] == drive {
+		delete(m.drives, sessionID)
 	}
 	m.mu.Unlock()
 }
 
-func (m *SessionMutations) quiesce(sessionID string) *loopHandle {
+func (m *SessionMutations) quiesce(sessionID string) *goalDrive {
 	m.mu.Lock()
-	loop := m.running[sessionID]
+	drive := m.drives[sessionID]
 	m.mu.Unlock()
-	if loop != nil {
-		loop.quiesce()
+	if drive != nil {
+		drive.quiesce()
 	}
-	return loop
+	return drive
 }
 
-func (m *SessionMutations) activeLoop(sessionID string) *loopHandle {
+func (m *SessionMutations) activeDrive(sessionID string) *goalDrive {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	return m.running[sessionID]
+	return m.drives[sessionID]
 }

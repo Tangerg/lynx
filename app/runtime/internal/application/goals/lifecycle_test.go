@@ -58,16 +58,16 @@ func TestSessionCommandLocksDoNotCoupleUnrelatedSessions(t *testing.T) {
 
 func TestSessionMutationQuiescesEveryGoalBeforeJoining(t *testing.T) {
 	firstErr := errors.New("first goal cleanup failed")
-	first := completedLoopHandle(firstErr)
-	second := completedLoopHandle(nil)
+	first := completedGoalDrive(firstErr)
+	second := completedGoalDrive(nil)
 	var firstCanceled atomic.Bool
 	var secondCanceled atomic.Bool
 	first.cancel = func() { firstCanceled.Store(true) }
 	second.cancel = func() { secondCanceled.Store(true) }
 
 	mutations := NewSessionMutations()
-	mutations.running["ses_1"] = first
-	mutations.running["ses_2"] = second
+	mutations.drives["ses_1"] = first
+	mutations.drives["ses_2"] = second
 
 	err := mutations.WithSessionMutation(
 		t.Context(),
@@ -81,7 +81,7 @@ func TestSessionMutationQuiescesEveryGoalBeforeJoining(t *testing.T) {
 	if !firstCanceled.Load() || !secondCanceled.Load() {
 		t.Fatalf("quiesced goals = first:%v second:%v, want both", firstCanceled.Load(), secondCanceled.Load())
 	}
-	if mutations.activeLoop("ses_1") != nil || mutations.activeLoop("ses_2") != nil {
+	if mutations.activeDrive("ses_1") != nil || mutations.activeDrive("ses_2") != nil {
 		t.Fatal("successful session mutation retained a goal driver")
 	}
 }
@@ -89,12 +89,12 @@ func TestSessionMutationQuiescesEveryGoalBeforeJoining(t *testing.T) {
 func TestQuiesceRetainsJoinIdentityUntilDriverExits(t *testing.T) {
 	mutations := NewSessionMutations()
 	var canceled atomic.Bool
-	handle := &loopHandle{
-		leaseID:  "lease_1",
-		cancel:   func() { canceled.Store(true) },
-		released: make(chan struct{}),
+	drive := &goalDrive{
+		leaseID: "lease_1",
+		cancel:  func() { canceled.Store(true) },
+		done:    make(chan struct{}),
 	}
-	mutations.running["ses_1"] = handle
+	mutations.drives["ses_1"] = drive
 	driver := &Driver{mutations: mutations}
 
 	ctx, cancel := context.WithCancel(t.Context())
@@ -105,34 +105,34 @@ func TestQuiesceRetainsJoinIdentityUntilDriverExits(t *testing.T) {
 	if !canceled.Load() {
 		t.Fatal("quiesce did not cancel the driver")
 	}
-	if got := mutations.activeLoop("ses_1"); got != handle {
-		t.Fatalf("driver after timed-out join = %p, want retained handle %p", got, handle)
+	if got := mutations.activeDrive("ses_1"); got != drive {
+		t.Fatalf("drive after timed-out join = %p, want retained drive %p", got, drive)
 	}
 
-	mutations.forget("ses_1", handle)
-	close(handle.released)
-	if got := mutations.activeLoop("ses_1"); got != nil {
-		t.Fatalf("driver after owner exit = %p, want released", got)
+	mutations.forget("ses_1", drive)
+	close(drive.done)
+	if got := mutations.activeDrive("ses_1"); got != nil {
+		t.Fatalf("drive after owner exit = %p, want released", got)
 	}
 }
 
-func TestLoopHandleWaitReturnsCompletedOutcomeAfterCallerCancellation(t *testing.T) {
+func TestGoalDriveAwaitReturnsCompletedOutcomeAfterCallerCancellation(t *testing.T) {
 	want := errors.New("driver failed")
-	handle := completedLoopHandle(want)
+	drive := completedGoalDrive(want)
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
-	if err := handle.wait(ctx); !errors.Is(err, want) {
-		t.Fatalf("wait() = %v, want completed outcome", err)
+	if err := drive.await(ctx); !errors.Is(err, want) {
+		t.Fatalf("await() = %v, want completed outcome", err)
 	}
 }
 
-func completedLoopHandle(err error) *loopHandle {
-	released := make(chan struct{})
-	close(released)
-	return &loopHandle{
-		released: released,
-		err:      err,
-		cancel:   func() {},
+func completedGoalDrive(err error) *goalDrive {
+	done := make(chan struct{})
+	close(done)
+	return &goalDrive{
+		done:   done,
+		err:    err,
+		cancel: func() {},
 	}
 }

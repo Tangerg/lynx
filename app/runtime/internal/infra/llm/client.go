@@ -51,8 +51,8 @@ type chatProviderProfile struct {
 	defaultModel string // catalog default model; "" when the model id is user-supplied
 	apiKeyEnv    string
 	build        buildFunc
-	// requiresBaseURL marks providers with no built-in endpoint (the generic
-	// compat passthroughs + Azure's per-resource URL): a base URL is mandatory,
+	// requiresBaseURL marks providers with no built-in endpoint (the compatible
+	// endpoint providers and Azure's per-resource URL): a base URL is mandatory,
 	// validated at client build.
 	requiresBaseURL bool
 	// defaultBaseURL is a built-in endpoint used for live model discovery
@@ -66,11 +66,11 @@ type chatProviderProfile struct {
 // "known" iff it has a row here; the supported / default-model / key-env /
 // dispatch lookups all read this map. Most rows route through a vendor's
 // OpenAI-compatible adapter (which encodes its own endpoint); the two generic
-// passthroughs reuse the native OpenAI / Anthropic adapters with a caller URL.
+// compatible providers reuse the direct OpenAI / Anthropic adapters with a caller URL.
 var chatProviderCatalog = map[Provider]chatProviderProfile{
-	// Native wire adapters (base URL optional — defaults to the vendor endpoint).
-	ProviderAnthropic: {defaultModel: defaultAnthropicModel, apiKeyEnv: "ANTHROPIC_API_KEY", build: anthropicNative},
-	ProviderOpenAI:    {defaultModel: defaultOpenAIModel, apiKeyEnv: "OPENAI_API_KEY", build: openaiNative},
+	// Direct vendor wire adapters (base URL optional — defaults to the vendor endpoint).
+	ProviderAnthropic: {defaultModel: defaultAnthropicModel, apiKeyEnv: "ANTHROPIC_API_KEY", build: buildAnthropicModel},
+	ProviderOpenAI:    {defaultModel: defaultOpenAIModel, apiKeyEnv: "OPENAI_API_KEY", build: buildOpenAIModel},
 	ProviderGoogle: {defaultModel: google.ModelGemini36Flash, apiKeyEnv: "GOOGLE_API_KEY", build: func(s ClientSpec, o chat.Options) (chat.Model, error) {
 		return google.NewChat(google.ChatConfig{APIKey: s.APIKey, DefaultOptions: o})
 	}},
@@ -131,14 +131,14 @@ var chatProviderCatalog = map[Provider]chatProviderProfile{
 		return azureopenai.NewChat(azureopenai.ChatConfig{APIKey: s.APIKey, BaseURL: s.BaseURL, DefaultOptions: o})
 	}},
 
-	// Generic bring-your-own-endpoint passthroughs: native adapter + caller URL.
-	ProviderOpenAICompat:    {apiKeyEnv: "OPENAI_COMPATIBLE_API_KEY", requiresBaseURL: true, build: openaiNative},
-	ProviderAnthropicCompat: {apiKeyEnv: "ANTHROPIC_COMPATIBLE_API_KEY", requiresBaseURL: true, build: anthropicNative},
+	// Generic bring-your-own-endpoint providers: direct adapter + caller URL.
+	ProviderOpenAICompatible:    {apiKeyEnv: "OPENAI_COMPATIBLE_API_KEY", requiresBaseURL: true, build: buildOpenAIModel},
+	ProviderAnthropicCompatible: {apiKeyEnv: "ANTHROPIC_COMPATIBLE_API_KEY", requiresBaseURL: true, build: buildAnthropicModel},
 }
 
-// anthropicNative builds the native Anthropic adapter, threading an optional
-// base URL (set for the anthropic-compatible passthrough).
-func anthropicNative(spec ClientSpec, opts chat.Options) (chat.Model, error) {
+// buildAnthropicModel builds the Anthropic wire adapter, threading an optional
+// base URL for a caller-defined compatible endpoint.
+func buildAnthropicModel(spec ClientSpec, opts chat.Options) (chat.Model, error) {
 	return anthropic.NewChat(anthropic.ChatConfig{
 		APIKey:         spec.APIKey,
 		DefaultOptions: opts,
@@ -146,9 +146,9 @@ func anthropicNative(spec ClientSpec, opts chat.Options) (chat.Model, error) {
 	})
 }
 
-// openaiNative builds the native OpenAI adapter, threading an optional base URL
-// (set for the openai-compatible passthrough).
-func openaiNative(spec ClientSpec, opts chat.Options) (chat.Model, error) {
+// buildOpenAIModel builds the OpenAI wire adapter, threading an optional base
+// URL for a caller-defined compatible endpoint.
+func buildOpenAIModel(spec ClientSpec, opts chat.Options) (chat.Model, error) {
 	return openai.NewChat(openai.ChatConfig{
 		APIKey:         spec.APIKey,
 		DefaultOptions: opts,
@@ -158,7 +158,7 @@ func openaiNative(spec ClientSpec, opts chat.Options) (chat.Model, error) {
 
 // BuildClient wires a *chatclient.Client for one provider+model from [chatProviderCatalog]:
 // it picks the model adapter, plugs in the model id, api key, and optional base
-// URL. A provider that requires a base URL (the generic passthroughs, Azure)
+// URL. A provider that requires a base URL (a compatible endpoint provider or Azure)
 // errors when one isn't supplied. Pricing is a separate accounting concern, so
 // the constructed client carries no pricing hook.
 func BuildClient(spec ClientSpec) (*chatclient.Client, error) {

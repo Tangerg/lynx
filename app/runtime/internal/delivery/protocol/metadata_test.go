@@ -51,7 +51,6 @@ func TestClientCapabilitiesWireValidationRejectsUnknownEphemeralEvents(t *testin
 	}
 
 	for _, event := range []SuppressibleRunEventType{"custom", "item.completed", "vendor.preview"} {
-		event := event
 		t.Run(string(event), func(t *testing.T) {
 			t.Parallel()
 

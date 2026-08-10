@@ -1,4 +1,4 @@
-// Package goals owns the autonomous-execution loop (Goal mode): given a
+// Package goals owns autonomous Goal execution: given a
 // session's objective, it launches runs back-to-back until the model signals the
 // goal complete or blocked (through terminal outcome reporting), an opt-in cross-Run
 // budget is spent, or the user stops it. It mirrors application/schedules — a
@@ -6,9 +6,9 @@
 // event-driven per goal rather than cron-timed, and consumes each run's terminal
 // to decide whether to continue.
 //
-// The loop lives here, NOT in the run pump: the pump holds the session's single
+// Goal driving lives here, NOT in the run pump: the pump holds the session's single
 // admission slot across its teardown, so re-entering the coordinator from inside
-// it would deadlock. The driver launches the next run only after the previous
+// it would deadlock. The Driver launches the next run only after the previous
 // run's stream has fully drained.
 package goals
 
@@ -21,7 +21,6 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
-	"github.com/Tangerg/lynx/app/runtime/internal/completion"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/lynx/app/runtime/internal/taskgroup"
@@ -40,7 +39,7 @@ var (
 	// compare-and-swap; the caller read a version that was already superseded.
 	ErrGoalConflict = errors.New("goals: goal changed concurrently")
 	// ErrClosed reports a lifecycle command after the driver has stopped accepting
-	// work. A caller must never be told an active goal was accepted when no loop
+	// work. A caller must never be told an active Goal was accepted when no drive
 	// can be attached to drive it.
 	ErrClosed = errors.New("goals: driver closed")
 	// ErrUnavailable reports that this runtime assembled no goal store, so goal
@@ -55,7 +54,7 @@ var (
 // capability whether it exists must answer, not panic.
 func (d *Driver) Available() bool { return d != nil && d.goals != nil }
 
-// AutonomousRuns is the goal loop's narrow view of the run entry point — the same
+// AutonomousRuns is the Goal driver's narrow view of the Run entry point — the same
 // headless start the scheduler uses.
 type AutonomousRuns interface {
 	WaitSessionStartable(ctx context.Context, sessionID string) error
@@ -83,14 +82,14 @@ type RunInstructionInput struct {
 // RunInstructionBuilder renders the instruction for an autonomous Run.
 type RunInstructionBuilder func(RunInstructionInput) string
 
-// Driver owns the per-session autonomous loops. Each active goal has at most one
-// loop goroutine, spawned into a task group so shutdown cancels and joins them.
+// Driver owns the per-session autonomous drives. Each active Goal has at most one
+// drive goroutine, spawned into a task group so shutdown cancels and joins them.
 //
 // Every durable goal write is a compare-and-swap on [goal.Version]. An opaque
-// lease distinguishes loop ownership across clears, and the revision protects
+// lease distinguishes drive ownership across clears, and the revision protects
 // mutations inside one lease. Per-session command locks serialize explicit
 // lifecycle commands with session write-sets without coupling unrelated
-// sessions; loop goroutines and reported outcomes use the store CAS.
+// sessions; drive goroutines and reported outcomes use the store CAS.
 type Driver struct {
 	goals        Store
 	runs         AutonomousRuns
@@ -102,13 +101,6 @@ type Driver struct {
 
 	mutations *SessionMutations
 	closed    atomic.Bool
-}
-
-type loopHandle struct {
-	leaseID  string
-	cancel   context.CancelFunc
-	released chan struct{}
-	err      error
 }
 
 // NewDriver builds a Driver sharing one session lifecycle
@@ -166,7 +158,7 @@ func (d *Driver) Start(ctx context.Context, sessionID, objective string, selecti
 	if err := d.quiesceDrive(ctx, sessionID); err != nil {
 		return goal.Goal{}, err
 	}
-	// A terminating loop may have committed its final accounting after the
+	// A terminating drive may have committed its final accounting after the
 	// first read. Re-read after the ownership boundary so the replacement CAS
 	// is based on the complete prior incarnation, never a pre-quiesce snapshot.
 	existing, ok, err = d.goals.Get(ctx, sessionID)
@@ -202,7 +194,7 @@ func (d *Driver) Start(ctx context.Context, sessionID, objective string, selecti
 
 // Resume returns a paused or blocked goal to active and drives it again. It is
 // idempotent on an already-active goal. The resume renews the lease so
-// the fresh loop owns the goal and any straggler cannot write.
+// the fresh drive owns the Goal and any straggler cannot write.
 func (d *Driver) Resume(ctx context.Context, sessionID string) (goal.Goal, error) {
 	if !d.Available() {
 		return goal.Goal{}, ErrUnavailable
@@ -276,14 +268,14 @@ func (d *Driver) Stop(ctx context.Context, sessionID string) (goal.Goal, error) 
 		return goal.Goal{}, err
 	}
 	wasActive := initiallyPresent && initial.Status == goal.StatusActive
-	loop := d.mutations.quiesce(sessionID)
+	drive := d.mutations.quiesce(sessionID)
 	var quiesceErr error
-	if loop != nil {
-		quiesceErr = loop.wait(ctx)
-		if !loop.finished() {
+	if drive != nil {
+		quiesceErr = drive.await(ctx)
+		if !drive.completed() {
 			return goal.Goal{}, quiesceErr
 		}
-		d.mutations.forget(sessionID, loop)
+		d.mutations.forget(sessionID, drive)
 	}
 	current, ok, err := d.goals.Get(ctx, sessionID)
 	if err != nil {
@@ -316,25 +308,25 @@ func (d *Driver) Current(ctx context.Context, sessionID string) (goal.Goal, bool
 	return d.goals.Get(ctx, sessionID)
 }
 
-// quiesceDrive joins a lingering driver before a new goal incarnation is
-// written. The handle stays registered until its goroutine actually exits, so
+// quiesceDrive joins a lingering drive before a new Goal incarnation is
+// written. The drive stays registered until its goroutine actually exits, so
 // a timed-out caller cannot lose the only join point and a later command cannot
 // overlap the old Run's admission with a replacement.
 func (d *Driver) quiesceDrive(ctx context.Context, sessionID string) error {
-	loop := d.mutations.quiesce(sessionID)
-	if loop == nil {
+	drive := d.mutations.quiesce(sessionID)
+	if drive == nil {
 		return nil
 	}
-	err := loop.wait(ctx)
-	if loop.finished() {
-		d.mutations.forget(sessionID, loop)
+	err := drive.await(ctx)
+	if drive.completed() {
+		d.mutations.forget(sessionID, drive)
 	}
 	return err
 }
 
 // Reconcile degrades goals left mid-flight by a previous process. A goal whose
 // session no longer exists (deleted while the runtime was down) is cleared — the
-// orphan sweep. A live loop cannot survive a restart, so an active goal becomes
+// orphan sweep. A live drive cannot survive a restart, so an active Goal becomes
 // paused (resume to continue) rather than being silently resumed and left to
 // burn budget; a goal caught at the transient complete status is cleared. Run
 // once at startup, before any goal can be started, so it needs no CAS.
@@ -371,7 +363,7 @@ func (d *Driver) Reconcile(ctx context.Context) error {
 	return nil
 }
 
-// BeginShutdown cancels every running goal loop.
+// BeginShutdown cancels every running Goal drive.
 func (d *Driver) BeginShutdown() {
 	if d == nil {
 		return
@@ -382,39 +374,10 @@ func (d *Driver) BeginShutdown() {
 	d.tasks.Cancel()
 }
 
-// AwaitShutdown joins every running goal loop after [BeginShutdown].
+// AwaitShutdown joins every running Goal drive after [BeginShutdown].
 func (d *Driver) AwaitShutdown(ctx context.Context) error {
 	if d == nil {
 		return nil
 	}
 	return d.tasks.Wait(ctx)
-}
-
-func (h *loopHandle) wait(ctx context.Context) error {
-	if h == nil {
-		return nil
-	}
-	if err := completion.Wait(ctx, h.released); err != nil {
-		return err
-	}
-	return h.err
-}
-
-func (h *loopHandle) finished() bool {
-	if h == nil {
-		return true
-	}
-	select {
-	case <-h.released:
-		return true
-	default:
-		return false
-	}
-}
-
-func (h *loopHandle) finishedResult() (bool, error) {
-	if !h.finished() {
-		return false, nil
-	}
-	return true, h.err
 }

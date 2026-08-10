@@ -22,7 +22,7 @@ type Store interface {
 }
 
 // RunRecorder records one terminal goal-owned Run exactly once. It joins the
-// terminal Run transaction, rather than asking the loop to reconstruct durable
+// terminal Run transaction, rather than asking the drive to reconstruct durable
 // accounting after it has observed a streamed terminal event.
 type RunRecorder interface {
 	RecordRun(ctx context.Context, record goal.RunRecord) error

@@ -13,7 +13,7 @@
 | `Retain` | 所有权和抽象正确，保留实现，只做必要接线/命名同步 |
 | `Refactor` | 产品语义保留，但 API、package、职责或依赖需要治本调整 |
 | `Rewrite` | 能力保留，但当前实现建立在旧执行模型上，按新合同从零实现 |
-| `Remove` | 能力重复、owner 错误或已经由 Agent Framework 原生拥有，完成阶段必须删除 |
+| `Remove` | 能力重复、owner 错误或已经由 Agent Framework 拥有，完成阶段必须删除 |
 | `Defer` | 不是当前服务端重构前置条件，有真实需求后单独设计 |
 
 ## 2. 当前基线事实
@@ -240,7 +240,8 @@ P8 production cutover 已用真实 Bootstrap consumer 冻结 root stage/observe/
 - SQLite、Git、exec、sandbox、LSP、MCP/A2A client、checkpoint、storage 与 path identity 只提供可复用 technical mechanism，保留 Infra；Infra 对 Application/Adapter/Delivery/Bootstrap 反向 import 为零；
 - `workspacepath` 原有第二份 symlink/containment 判定已删除，统一消费 `infra/pathidentity` 的 physical identity；Adapter 只保留 Application path-policy 错误与相对路径投影；
 - `agentexec` 已按 root execution、effect attribution、waiting/restore、Delegate admission/projection、tree mutation 分离变化原因；没有第二 controller、scheduler、mailbox、private wire owner 或为了文件拆分制造的子 package；
-- Run Application 的 process-local lifecycle owner 统一命名为 `runTreeOwner`，registry、pump、publisher、cancellation arbiter 与 executor binding 不再以泛化 `handle` 指代不同职责；Goal session mutation 以 `activeLoop` 精确查询当前 autonomous loop。Toolset 的 manifest assembly、Call decorator、schedule/shell command group 与 deferred search ranking 分别由 `manifestBuilder`、`callDecorator`、`managementTools`、`commandTools`、`searchableTool`/`rankedTool` 表意；这些全是 Runtime 私有 owner，不进入 Agent Framework；
+- Run Application 的 process-local lifecycle owner 统一命名为 `runTreeOwner`，registry、pump、publisher、cancellation arbiter 与 executor binding 不再以泛化 `handle` 指代不同职责；Goal session mutation 以 `activeDrive` 精确查询当前 `goalDrive`。Toolset 的 manifest assembly、Call decorator、schedule/shell command group 与 deferred search ranking 分别由 `manifestBuilder`、`callDecorator`、`managementTools`、`commandTools`、`searchableTool`/`rankedTool` 表意；这些全是 Runtime 私有 owner，不进入 Agent Framework；
+- Chat provider catalog 以 `ProviderOpenAICompatible`/`ProviderAnthropicCompatible` 准确表达 caller-defined compatible endpoint，以 `buildOpenAIModel`/`buildAnthropicModel` 表达模型 adapter 构造；`Compat` 不再伪装成兼容层，`Native` 不再混称厂商 wire、宿主平台或 Framework 执行能力；
 - Hook wire root、codebase in-memory corpus、MCP current dial/mutation scope/tool-list snapshot、usage fold bucket 与 shutdown attempt backing state 分别使用 `hooksFile`、`cachedCorpus`、`activeDial`、`mutationScope`、`toolListTarget`、`usageAccumulator`、`attemptState`，不再依赖 `config`/`loaded`/`dial`/`mutation`/`target`/`accumulator`/`attempt` 的上下文猜测；具体错误结构统一使用 `Error` 后缀，注释与测试同步，不保留旧别名；
 - `persistence.SessionStores` 仍是 Session aggregate 原子 write-set 的单一 Adapter，但 rollback boundary/drop projection、workspace restore intent/cleanup、restore projection rebuild、parked terminal cleanup/terminalize/Goal record 已各归准确私有行为；portable snapshot 的 Run/parent index、cycle detection 与 resolved-root lineage 由单一 `snapshotRunTree` 拥有，不存在只转发 `Transactor` 的伪抽象；
 - Application consumer-owned ports 均按用例拆分；`Coordinator` 只用于确实协调多个 use-case collaborators 的 package aggregate，不存在 package-name + exported-type 口吃或跨用例胖 executor interface；
@@ -254,7 +255,8 @@ P8 production cutover 已用真实 Bootstrap consumer 冻结 root stage/observe/
 - Bootstrap 仍是唯一 composition root；conversation、model、MCP、tool 的 composition-time environment 和 post-Run maintenance 各由 focused builder 组装，`Stack` 只暴露 Application entrypoints/notification sources，`Host` 单独拥有 shutdown graph；
 - `hostLifetime` 以 `goalDriver`、`mcpCoordinator`、`codebaseCoordinator`、`runCoordinator`、`executor`、`runEffectTasks`、`toolResources`、`hostResources` 表达真实关闭职责；旧 `goals`/`mcp`/`execution`/`effectsTasks`/`resources` 一类含混字段已删除；
 - `engine_wiring.go`、`embedding_env.go`、`utility_role.go`、`execution_support.go`、`toolenv.go`、`mcp_env.go`、`notification.go`、`reply.go`、`presenter.go`、`sessionio.go`、`builders.go` 等旧职责失真路径由 architecture guard 永久禁止回流。
-- Tool `Call` 装饰只由 `call_decorator.go` 的 `decorateCall`/`callDecorator` 表达；HTTP transport 的请求级 tracing、response metrics 与 panic containment 只由 `request_instrumentation.go` 的 `instrumentRequests` 表达。JSON-RPC 路由消费面统一使用 `messageDispatcher.Dispatch`/`DispatchResult`，注册项的完整解码—调用—编码行为统一称为 `pipeline`；这些名称分别对应 Tool capability、HTTP instrumentation 与 RPC dispatch，不再共享含混的 `decorate`、`observability`、`messageHandler` 或 `HandleResult`。
+- Tool `Call` 装饰只由 `call_decorator.go` 的 `decorateCall`/`callDecorator` 表达；HTTP transport 的请求级 tracing、response metrics 与 panic containment 只由 `request_instrumentation.go` 的 `instrumentRequests` 表达。JSON-RPC 路由消费面统一使用 `messageDispatcher.Dispatch`/`dispatch.Result`，注册项的完整解码—调用—编码行为统一称为 `pipeline`；这些名称分别对应 Tool capability、HTTP instrumentation 与 RPC dispatch，不再共享含混的 `decorate`、`observability`、`messageHandler` 或 `HandleResult`。
+- 六份权威 Runtime 文档统一使用 `Interaction` 表达 Framework Strategy，只有存在真实对照维度时才使用额外限定词；精确文档守卫禁止把 Interaction 与含混的原生/native 限定组合，不误伤 provider wire、OS path 等确有区分对象的 native 语义。
 
 ## 10. 删除清单
 

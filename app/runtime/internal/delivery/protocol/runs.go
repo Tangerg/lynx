@@ -93,8 +93,8 @@ type RunSummary struct {
 	// Provider is the provider id this run ran against (Provider.id), paired
 	// with Model. Empty means the runtime default. Stamped so a finished run is
 	// self-describing — usage.summary attributes spend by provider without
-	// re-deriving the model→provider mapping (which isn't 1:1 across compat
-	// providers).
+	// re-deriving the model→provider mapping (which isn't 1:1 across
+	// compatible-endpoint providers).
 	Provider   string      `json:"provider,omitempty"`
 	Status     RunStatus   `json:"status,omitempty"`
 	Outcome    *RunOutcome `json:"outcome,omitempty"`

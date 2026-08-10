@@ -28,7 +28,6 @@ func TestGoalPtrProjectsMachineReadableReason(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(string(test.domain), func(t *testing.T) {
 			t.Parallel()
 			presented, err := presentGoal(goal.Goal{

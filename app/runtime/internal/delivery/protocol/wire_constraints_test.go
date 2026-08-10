@@ -59,7 +59,6 @@ func TestRuntimeEventWireConstraints(t *testing.T) {
 	}}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -424,7 +423,6 @@ func TestRequestBoundsAreWireConstraints(t *testing.T) {
 		{shape: "CodebaseSearchRequest", field: "limit", value: CodebaseSearchRequest{Query: "symbol", Limit: -1}},
 		{shape: "UsageSummaryRequest", field: "sinceDays", value: UsageSummaryRequest{SinceDays: -1}},
 	} {
-		test := test
 		t.Run(test.shape+"."+test.field, func(t *testing.T) {
 			t.Parallel()
 			assertConstraintField(t, test.value.ValidateWire(), test.shape, test.field)

@@ -26,11 +26,11 @@ type remoteModelList struct {
 	} `json:"data"`
 }
 
-// ListRemoteModels probes an OpenAI-compatible provider's model endpoint
+// ListRemoteModels probes a compatible provider endpoint for its models
 // (GET {baseURL}/models) and returns the advertised model ids, sorted and
 // de-duplicated. It backs live model discovery for local / bring-your-own-
 // endpoint providers whose model set is user-defined rather than in the static
-// catalog (Ollama, the compat passthroughs). apiKey rides as a bearer token when
+// catalog (Ollama and the compatible endpoint providers). apiKey rides as a bearer token when
 // non-empty (a local daemon needs none). The call is bounded (timeout + response
 // cap); a non-200 or unparseable body is returned as an error the caller treats
 // as "no discovery" and falls back to the static catalog.

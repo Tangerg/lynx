@@ -39,14 +39,14 @@ type Method struct {
 	// typed call, and the reply. Built by the query, command, and subscription
 	// registration factories so no registration can assemble the steps in the
 	// wrong order or skip one.
-	pipeline func(*Router, context.Context, *transport.Request) DispatchResult
+	pipeline func(*Router, context.Context, *transport.Request) Result
 }
 
 func newRegistry() *Registry {
 	return &Registry{byName: make(map[string]*Method)}
 }
 
-func (r *Registry) add(meta MethodMeta, pipeline func(*Router, context.Context, *transport.Request) DispatchResult) {
+func (r *Registry) add(meta MethodMeta, pipeline func(*Router, context.Context, *transport.Request) Result) {
 	if err := meta.validate(); err != nil {
 		panic("dispatch: invalid method registration: " + err.Error())
 	}
@@ -106,10 +106,10 @@ func (r *Registry) StreamMethods() []string {
 // The pipeline is fixed here, once: decode the params (and their declared
 // constraints), refuse the call if a required feature is off, invoke, encode. A
 // registration supplies only what is method-specific.
-func Query[Params, Result any](
+func Query[Params, ResponseValue any](
 	registry *Registry,
 	meta MethodMeta,
-	call func(*Router, context.Context, Params) (Result, error),
+	call func(*Router, context.Context, Params) (ResponseValue, error),
 ) {
 	meta.Kind = KindUnary
 	meta.Operation = OperationQuery
@@ -119,10 +119,10 @@ func Query[Params, Result any](
 
 // Command registers a replay-protected method that may change state or cause an
 // external effect and returns its canonical result.
-func Command[Params, Result any](
+func Command[Params, ResponseValue any](
 	registry *Registry,
 	meta MethodMeta,
-	call func(*Router, context.Context, Params) (Result, error),
+	call func(*Router, context.Context, Params) (ResponseValue, error),
 ) {
 	meta.Kind = KindUnary
 	meta.Operation = OperationCommand
@@ -130,19 +130,19 @@ func Command[Params, Result any](
 	registerUnary(registry, meta, call)
 }
 
-func registerUnary[Params, Result any](
+func registerUnary[Params, ResponseValue any](
 	registry *Registry,
 	meta MethodMeta,
-	call func(*Router, context.Context, Params) (Result, error),
+	call func(*Router, context.Context, Params) (ResponseValue, error),
 ) {
 	meta.Params = reflect.TypeFor[Params]()
-	meta.Result = reflect.TypeFor[Result]()
+	meta.Result = reflect.TypeFor[ResponseValue]()
 	pagination, err := paginationOf(meta.Params, meta.Result)
 	if err != nil {
 		panic(fmt.Sprintf("dispatch: %s has invalid pagination shapes: %v", meta.Name, err))
 	}
 	meta.Pagination = pagination
-	registry.add(meta, func(router *Router, ctx context.Context, request *transport.Request) DispatchResult {
+	registry.add(meta, func(router *Router, ctx context.Context, request *transport.Request) Result {
 		parameters, validationError := decode[Params](request)
 		if validationError != nil {
 			return responseError(request.ID, validationError)
@@ -219,7 +219,7 @@ func CommandAck[Params any](
 	meta.Operation = OperationCommand
 	meta.Idempotency = IdempotencyReplayResponse
 	meta.Params = reflect.TypeFor[Params]()
-	registry.add(meta, func(router *Router, ctx context.Context, request *transport.Request) DispatchResult {
+	registry.add(meta, func(router *Router, ctx context.Context, request *transport.Request) Result {
 		parameters, validationError := decode[Params](request)
 		if validationError != nil {
 			return responseError(request.ID, validationError)
@@ -274,7 +274,7 @@ func registerStream[Params, Ack, Event any](
 	meta.Params = reflect.TypeFor[Params]()
 	meta.Result = reflect.TypeFor[Ack]()
 	meta.Event = reflect.TypeFor[Event]()
-	registry.add(meta, func(router *Router, ctx context.Context, request *transport.Request) DispatchResult {
+	registry.add(meta, func(router *Router, ctx context.Context, request *transport.Request) Result {
 		parameters, validationError := decode[Params](request)
 		if validationError != nil {
 			return responseError(request.ID, validationError)
@@ -303,7 +303,7 @@ func runtimeEventFramer(context.Context) func(protocol.RuntimeEvent) (StreamFram
 }
 
 // dispatchRequest routes the request to its registered method.
-func (r *Router) dispatchRequest(ctx context.Context, request *transport.Request) DispatchResult {
+func (r *Router) dispatchRequest(ctx context.Context, request *transport.Request) Result {
 	method, ok := contract.lookup(request.Method)
 	if !ok {
 		return responseError(request.ID, methodNotFound(request.Method))

@@ -9,8 +9,8 @@ import (
 	"go.opentelemetry.io/otel/metric"
 )
 
-// The autonomous loop is a request-detached background driver — without a span
-// per Run and a disposition metric it runs blind. The loop's ctx keeps the
+// The autonomous drive is request-detached — without a span per Run and a
+// disposition metric it runs blind. The drive's ctx keeps the
 // starting request's trace values (taskgroup.Attach → context.WithoutCancel), so
 // each Goal-run span nests under the root Goal trace. No-op until
 // a TracerProvider / MeterProvider is installed.
@@ -19,7 +19,7 @@ const observeScope = "lynx/lyra/goal"
 var driverTracer = otel.Tracer(observeScope)
 
 // runDisposition labels how one autonomous Run ended — the span attribute and
-// metric dimension. dispContinue means the loop launches another Run; the other
+// metric dimension. dispContinue means the drive launches another Run; the other
 // three are terminal. The zero value means the Run never completed and is not
 // metered.
 type runDisposition string

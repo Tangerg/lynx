@@ -59,6 +59,30 @@ func TestRuntimeDocumentationFactsHaveOneVersionOwner(t *testing.T) {
 	)
 }
 
+func TestFrameworkExecutionVocabularyIsUnambiguous(t *testing.T) {
+	root := moduleRoot(t)
+	for _, name := range []string{
+		"ARCHITECTURE.md",
+		"DECISIONS.md",
+		"ENGINEERING_STANDARDS.md",
+		"EXECUTION_PLAN.md",
+		"CAPABILITY_LEDGER.md",
+		"CONTRACT_BASELINE.md",
+	} {
+		content := readRuntimeDocument(t, root, name)
+		for _, forbidden := range []string{
+			"原生 Interaction",
+			"原生 `interaction.Definition`",
+			"Agent Framework 原生",
+			"native Interaction",
+		} {
+			if regexp.MustCompile(regexp.QuoteMeta(forbidden)).Match(content) {
+				t.Errorf("%s uses ambiguous Framework execution vocabulary %q", name, forbidden)
+			}
+		}
+	}
+}
+
 func readRuntimeDocument(t *testing.T, root, name string) []byte {
 	t.Helper()
 	content, err := os.ReadFile(filepath.Join(root, "doc", name))

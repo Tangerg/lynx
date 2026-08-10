@@ -68,7 +68,7 @@
 - 决策：Agent Framework import 收敛到 `adapter/agentexec` 及明确的 framework-integration 叶子；Domain、Application、Delivery、Infra 和通用 Toolset 不认识 Agent Framework。
 - 后果：Process、Signal、Effect、Deployment、TreeSnapshot concrete type 和 Strategy payload 不越过防腐层。
 
-## ADR-RT-011：根聊天使用原生 Interaction
+## ADR-RT-011：根聊天使用 Interaction
 
 - 状态：已接受。
 - 背景：普通聊天没有 Planning world state、预测 Action 或 replan 语义。

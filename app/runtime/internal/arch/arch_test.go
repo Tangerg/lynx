@@ -240,7 +240,9 @@ func TestRetiredRuntimeVocabularyDoesNotReturn(t *testing.T) {
 			"InspectHooks", "SetProjectHookTrust", "HasFileWatch", "WatchGitState", "SkillInfo",
 		},
 		filepath.Join(root, "internal", "application", "codebase"): {"loaded"},
-		filepath.Join(root, "internal", "application", "goals"):    {"State", "NewState", "PromptInput", "PromptBuilder", "driver"},
+		filepath.Join(root, "internal", "application", "goals"): {
+			"State", "NewState", "PromptInput", "PromptBuilder", "driver", "loopHandle", "activeLoop",
+		},
 		filepath.Join(root, "internal", "application", "mcp"): {
 			"MCPServer", "MCPConnection", "MCPServerState", "MCPTestResult",
 			"MCPAuthorizationAttempt", "MCPPolicy", "ConnectionCommands", "RegistryCommands",
@@ -254,7 +256,9 @@ func TestRetiredRuntimeVocabularyDoesNotReturn(t *testing.T) {
 		filepath.Join(root, "internal", "config"): {
 			"Config", "ServerConfig", "OnlineConfig", "MCPServerConfig", "LSPServerConfig", "A2AAgentConfig",
 		},
-		filepath.Join(root, "internal", "delivery", "dispatch"): {"Dispatcher", "registerIntegrationValues", "Handle", "HandleResult"},
+		filepath.Join(root, "internal", "delivery", "dispatch"): {
+			"Dispatcher", "registerIntegrationValues", "Handle", "HandleResult", "DispatchResult",
+		},
 		filepath.Join(root, "internal", "delivery", "protocol"): {
 			"Memory", "MemoryScope", "MemoryScopeCwd", "MemoryScopeProjectRoot", "MemoryScopeHome",
 			"MemoryEntry", "GetMemoryRequest", "UpdateMemoryRequest", "FeatureMemory",
@@ -286,6 +290,7 @@ func TestRetiredRuntimeVocabularyDoesNotReturn(t *testing.T) {
 		},
 		filepath.Join(root, "internal", "infra", "llm"): {
 			"providerInfo", "providerEntry", "embeddingProviderInfo", "embeddingEntry",
+			"ProviderOpenAICompat", "ProviderAnthropicCompat", "openaiNative", "anthropicNative",
 		},
 		filepath.Join(root, "internal", "delivery", "transport", "http"):      {"observability", "messageHandler"},
 		filepath.Join(root, "internal", "delivery", "transport", "inprocess"): {"messageHandler"},

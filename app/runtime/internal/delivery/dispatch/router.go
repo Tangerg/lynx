@@ -41,9 +41,8 @@ func New(api protocol.Runtime, config Config) *Router {
 	return router
 }
 
-// DispatchResult holds what the router returns after dispatching one
-// inbound message.
-type DispatchResult struct {
+// Result holds what the router returns after dispatching one inbound message.
+type Result struct {
 	// Response is the synchronous JSON-RPC reply. nil when the input
 	// was a notification (no id, no response on the wire).
 	Response *transport.Response
@@ -60,7 +59,7 @@ type DispatchResult struct {
 }
 
 // Dispatch routes one inbound transport message through the registered method pipeline.
-func (r *Router) Dispatch(ctx context.Context, message transport.Message) DispatchResult {
+func (r *Router) Dispatch(ctx context.Context, message transport.Message) Result {
 	request, ok := message.(*transport.Request)
 	if !ok || request == nil {
 		return responseError(transport.ID{}, badEnvelope("expected a JSON-RPC request"))
@@ -84,7 +83,7 @@ func (r *Router) Dispatch(ctx context.Context, message transport.Message) Dispat
 	ctx, metaErr = bindRequestMeta(ctx, request)
 	if metaErr != nil {
 		if !request.IsCall() {
-			return DispatchResult{}
+			return Result{}
 		}
 		return responseError(request.ID, metaErr)
 	}
@@ -93,7 +92,7 @@ func (r *Router) Dispatch(ctx context.Context, message transport.Message) Dispat
 	// notifications take effect.
 	if !request.IsCall() {
 		r.handleNotification(ctx, request)
-		return DispatchResult{}
+		return Result{}
 	}
 
 	return r.dispatchReplayProtected(ctx, request)

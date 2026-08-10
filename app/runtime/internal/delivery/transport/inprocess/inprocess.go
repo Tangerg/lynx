@@ -35,7 +35,7 @@ var errTransportClosed = errors.New("inprocess: transport closed")
 // Defined here (consumer side) so the transport depends on the single
 // method it calls rather than the concrete *dispatch.Router.
 type messageDispatcher interface {
-	Dispatch(ctx context.Context, message transport.Message) dispatch.DispatchResult
+	Dispatch(ctx context.Context, message transport.Message) dispatch.Result
 }
 
 // Transport routes in-process JSON-RPC messages through a dispatch.Router;

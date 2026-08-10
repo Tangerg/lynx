@@ -140,7 +140,7 @@ func TestReplayClaimSerializesConcurrentMutation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("build second request: %v", err)
 	}
-	results := make(chan DispatchResult, 2)
+	results := make(chan Result, 2)
 	go func() { results <- router.Dispatch(ctx, first) }()
 	<-runtime.started
 	go func() { results <- router.Dispatch(ctx, second) }()

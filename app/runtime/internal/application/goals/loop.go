@@ -12,6 +12,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
+	"github.com/Tangerg/lynx/app/runtime/internal/completion"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
@@ -23,7 +24,52 @@ const (
 	goalRunCleanupTimeout = 5 * time.Second
 )
 
-// launchLocked attaches exactly one loop to an already-accepted active goal.
+// goalDrive is one process-local incarnation of an active Goal lease. The
+// durable Goal remains authoritative; this value owns only its goroutine,
+// cancellation boundary, and completion result.
+type goalDrive struct {
+	leaseID string
+	cancel  context.CancelFunc
+	done    chan struct{}
+	err     error
+}
+
+func (d *goalDrive) await(ctx context.Context) error {
+	if d == nil {
+		return nil
+	}
+	if err := completion.Wait(ctx, d.done); err != nil {
+		return err
+	}
+	return d.err
+}
+
+func (d *goalDrive) completed() bool {
+	if d == nil {
+		return true
+	}
+	select {
+	case <-d.done:
+		return true
+	default:
+		return false
+	}
+}
+
+func (d *goalDrive) resultIfCompleted() (bool, error) {
+	if !d.completed() {
+		return false, nil
+	}
+	return true, d.err
+}
+
+func (d *goalDrive) quiesce() {
+	if d != nil && d.cancel != nil {
+		d.cancel()
+	}
+}
+
+// launchLocked attaches exactly one drive to an already-accepted active Goal.
 // Callers hold this session's mutation lock; BeginShutdown holds the admission
 // write lock, which linearizes the durable active transition with task-group
 // admission.
@@ -33,20 +79,20 @@ func (d *Driver) launchLocked(parent context.Context, sessionID, leaseID string)
 		return false
 	}
 	ctx, cancel := context.WithCancel(owner)
-	loop := &loopHandle{
-		leaseID:  leaseID,
-		cancel:   cancel,
-		released: make(chan struct{}),
+	drive := &goalDrive{
+		leaseID: leaseID,
+		cancel:  cancel,
+		done:    make(chan struct{}),
 	}
 
-	d.mutations.launch(sessionID, loop)
+	d.mutations.launch(sessionID, drive)
 
 	go func() {
 		defer release()
-		loop.err = d.drive(ctx, sessionID, leaseID)
-		close(loop.released)
-		if loop.err == nil {
-			d.mutations.forget(sessionID, loop)
+		drive.err = d.drive(ctx, sessionID, leaseID)
+		close(drive.done)
+		if drive.err == nil {
+			d.mutations.forget(sessionID, drive)
 		}
 	}()
 	return true
@@ -60,15 +106,15 @@ func (d *Driver) ensureDriveLocked(ctx context.Context, sessionID, leaseID strin
 	if d.closed.Load() {
 		return ErrClosed
 	}
-	if loop := d.mutations.activeLoop(sessionID); loop != nil {
-		if loop.leaseID != leaseID {
+	if drive := d.mutations.activeDrive(sessionID); drive != nil {
+		if drive.leaseID != leaseID {
 			return ErrGoalConflict
 		}
-		if finished, err := loop.finishedResult(); finished {
+		if completed, err := drive.resultIfCompleted(); completed {
 			if err != nil {
 				return err
 			}
-			d.mutations.forget(sessionID, loop)
+			d.mutations.forget(sessionID, drive)
 		} else {
 			return nil
 		}
@@ -98,7 +144,7 @@ func (d *Driver) drive(ctx context.Context, sessionID, leaseID string) error {
 		// Stop when the goal is gone or no longer active. The lease check is a
 		// cheap backstop — a supersession (Stop/Start/Resume) is already caught above
 		// by ctx cancellation or by the status leaving active — that guards a future
-		// regression where a transition stops canceling the loop. The load-bearing
+		// regression where a transition stops canceling the drive. The load-bearing
 		// lease guard is the re-read in driveRun: it prevents adopting and
 		// clobbering a foreign incarnation mid-Run.
 		if !ok || g.Status != goal.StatusActive || g.LeaseID != leaseID {
@@ -283,7 +329,7 @@ func (d *Driver) resolveTerminalRun(
 
 // command builds the next autonomous run. It is headless: no InterruptKinds, so a
 // tool that would need approval is auto-denied by the run rather than parking a
-// loop no client is watching (the user's chosen global approval stance still
+// drive no client is watching (the user's chosen global approval stance still
 // gates tools — yolo runs everything, a stricter stance keeps the agent read-only).
 func (d *Driver) command(g goal.Goal) runs.StartCommand {
 	return runs.StartCommand{
@@ -335,7 +381,7 @@ func runCost(run *transcript.Run) float64 {
 
 func runSteps(run *transcript.Run) int { return run.Metrics.Steps }
 
-// pauseOwned persists a loop-originated pause against the newest revision of
+// pauseOwned persists a drive-originated pause against the newest revision of
 // the lease it owns. A CAS miss is resolved from the authoritative row: a
 // concurrent complete/blocked transition determines the Run disposition
 // instead of being mislabeled as paused.
@@ -369,7 +415,7 @@ func (d *Driver) pauseOwned(
 	return d.settleOwned(ctx, current)
 }
 
-// settleOwned maps the authoritative state of the current lease to the loop
+// settleOwned maps the authoritative state of the current lease to the drive
 // outcome. Complete is transient, so this method also owns its conditional
 // clear and resolves any CAS miss before returning.
 func (d *Driver) settleOwned(ctx context.Context, current *goal.Goal) (runDisposition, error) {
@@ -417,8 +463,4 @@ func (d *Driver) cancelRun(ctx context.Context, runID string) error {
 		return nil
 	}
 	return err
-}
-
-func (h *loopHandle) quiesce() {
-	h.cancel()
 }

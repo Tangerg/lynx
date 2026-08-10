@@ -41,7 +41,7 @@ import (
 // router's per-conn state stays its own concern, and tests can
 // inject a fake without standing up a Runtime.
 type messageDispatcher interface {
-	Dispatch(ctx context.Context, message transport.Message) dispatch.DispatchResult
+	Dispatch(ctx context.Context, message transport.Message) dispatch.Result
 }
 
 // Server is the HTTP transport. One instance per process — a thin
