@@ -72,4 +72,4 @@ A consumer migration is complete only when it:
    range instead of guessing compatibility;
 3. accepts only `runtimeInstanceRootSegment` for `RunReplayScope`;
 4. imports/exports Session artifact v15 without rewriting prior documents;
-5. passes its strict fixture validation and HTTP/in-process integration suite.
+5. passes its strict fixture validation and HTTP integration suite.

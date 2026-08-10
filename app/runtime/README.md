@@ -1,6 +1,6 @@
 # Lyra
 
-**Lyra Runtime — 产品级通用 agent 运行时后端（Go）。** 实现 Lyra Runtime Protocol（JSON-RPC 2.0，MCP-inspired），通过 streamable HTTP 服务桌面、Web 与独立进程客户端，并为同进程 CLI/TUI 提供 inprocess transport。
+**Lyra Runtime — 产品级通用 agent 运行时后端（Go）。** 实现 Lyra Runtime Protocol（JSON-RPC 2.0，MCP-inspired），通过 streamable HTTP 服务桌面、Web、CLI 与 TUI 客户端。
 
 > 模块级上下文见 [`CLAUDE.md`](./CLAUDE.md)；重构目标架构见 [`doc/ARCHITECTURE.md`](./doc/ARCHITECTURE.md)；阶段、当前事实和全部文档入口见 [`doc/README.md`](./doc/README.md)。
 
@@ -43,4 +43,4 @@ ANTHROPIC_API_KEY=xxx ./lyra                           # 默认 127.0.0.1:17171�
 
 ## 不做（刻意）
 
-不写 client（各客户端独立消费协议制品）· 不做 stdio/gRPC transport（streamable HTTP + inprocess）· 不做用户鉴权/多租户（协议层零 user 概念）· 不向 lynx 反向贡献抽象（除非沉淀过 3+ 用例）。
+不写 client（各客户端独立消费协议制品）· 不做内部伪 in-process/stdio/gRPC transport（当前唯一 binding 是 streamable HTTP；未来公共 Go SDK 另行设计）· 不做用户鉴权/多租户（协议层零 user 概念）· 不向 lynx 反向贡献抽象（除非沉淀过 3+ 用例）。

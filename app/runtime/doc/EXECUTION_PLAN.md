@@ -397,7 +397,7 @@
 
 - contract generator 零漂移；
 - strict validator、canonical samples、artifact round-trip 全绿；
-- HTTP 与 in-process 行为一致；
+- HTTP/SSE binding 与 Application 语义一致；
 - server 无旧字段/method/event；
 - consumer backlog 精确列出，不伪装为整体完成。
 
@@ -434,7 +434,7 @@
 - [x] root/Agent Framework/Runtime 受影响后端 module 的 workspace build/vet/test；Agent Framework 与 Runtime standalone staticcheck、完整 lint；
 - [x] Runtime 禁用缓存普通测试、完整 race 和 continuation/prompt/resolution 三个 strict-codec fuzz owner；
 - [x] Agent Framework standalone 禁用缓存普通测试、完整 race、13 个 fuzz owner和 8 个真实 command examples；
-- [x] SQLite fresh schema、HTTP/SSE、in-process、waiting/restore/recovery/rollback 高风险矩阵在 race 下重复验证；
+- [x] SQLite fresh schema、HTTP/SSE、waiting/restore/recovery/rollback 高风险矩阵在 race 下重复验证；
 - [x] architecture DAG、Agent API/wire baseline、Runtime protocol/contract/schema digest 和 generator 零漂移；
 - [x] 旧名称、旧 import、compat codec、空目录、tracked 空文件、TODO/FIXME/HACK、死代码、漂移注释与失效本地文档链接扫描；
 - [x] 前端/TUI/CLI breaking surface 由 [`CONSUMER_HANDOFF.md`](CONSUMER_HANDOFF.md) 精确移交，未修改消费者实现。
@@ -529,7 +529,7 @@
 - [x] P17-01 裁决并收敛顶层共享 capability：业务语义归还真实 owner，纯 framing/mechanism 只在具有多个真实消费者时共享；
 - [x] P17-02 收敛 Toolset 的单工具目录爆炸、cycle workaround 和只为转发存在的子包；
 - [x] P17-03 复审 Domain/Application package 的 bounded-context 语言、用例 owner、I/O port 与共享策略边界；
-- [ ] P17-04 复审 Adapter/Infra/Delivery/Bootstrap/Testsupport package 的 SDK 隔离、技术机制、组合职责与命名；
+- [x] P17-04 复审 Adapter/Infra/Delivery/Bootstrap/Testsupport package 的 SDK 隔离、技术机制、组合职责与命名；
 - [ ] P17-05 执行全量 import graph、standalone、race、fuzz、generator、lint、deadcode、文档与空残留验收，并冻结 package-boundary guard。
 
 ### 验收
@@ -544,6 +544,7 @@
 
 | 日期 | 阶段 | 完成事实 | 验证 |
 |---|---|---|---|
+| 2026-08-10 | P17-04c（Delivery/Bootstrap/Testsupport counterexample） | 按生产消费者和 Go import 可达性复审 Delivery/Bootstrap/Testsupport。删除 `delivery/transport/inprocess`：它只有自测、无任何生产消费者，并位于 Runtime `internal` 下，外部 CLI/TUI 根本不可导入，因此不是可嵌入能力而是伪公共实现；当前唯一 binding 回归真实的 streamable HTTP，transport/dispatch/Architecture/API/README/standards/decision/ledger 同步且旧路径永久禁止。Delivery 的 protocol/server/dispatch/transport、Bootstrap focused builders 与三个多测试消费者 fixture package 均有独立变化轴，保留；`httporigin` 和 `taskgroup` 经多 ring 消费者反证仍是纯 shared capability，不能下沉 Infra 迫使 Application 反向依赖。删除零消费者、零行为的 `domain/doc.go` 伪 umbrella package，Domain 父目录只作为 bounded-context namespace；旧 shutdown/replaycursor 空目录同步物理清除 | 全量消费者扫描证明 inprocess production imports=0；HTTP/dispatch/architecture/docs 与 Runtime test/vet/build 在本批和 P17-05 收口 |
 | 2026-08-10 | P17-04b（Adapter boundary evidence） | 逐个复核 Adapter 的消费者、Application port/SDK boundary 与变化原因；保留 mcpconnection、providerregistry、runrecovery、notification、codebaseindex、sessiontitle、skillproposal、planpresentation、utilitymodel 等虽小但拥有独立防腐或策略边界的 package。删除单消费者且与静态 model catalog 完全同变化轴的 `adapter/pricing`，定价能力收回 `adapter/modelcatalog.Pricing`；为此前缺失 owner 文档的 codebaseindex/hooks/providerregistry/sessiontitle/skillproposal、Application hooks 与 Delivery dispatch 补齐准确 package GoDoc，使内部每个生产 package 的职责能由 `go list` 直接读取。旧 pricing 路径永久禁止，不制造 Adapter umbrella | modelcatalog/Bootstrap、全量 package-doc 扫描与 Runtime test/vet/build 在本批提交前收口 |
 | 2026-08-10 | P17-04a（Infra package topology） | 删除没有行为 owner 的 `infra/storage` umbrella：SQLite technical mechanism 直接归 `infra/sqlite`，人类可编辑 LYRA.md 的路径布局、原子替换与 mtime 投影独立归 `infra/knowledgefile.Store`，不再以泛化 `storage.FileKnowledgeStore` 暴露实现。将完全不适配 Application port、只注册进程级 OpenTelemetry globals 的 `adapter/observability` 纠正到 `infra/telemetry`，入口从含混 `Setup` 改为 `Configure` 并以 `Shutdown` 表达返回能力。旧路径由 architecture guard 永久禁止，不保留目录 namespace、alias 或 shim | knowledgefile、sqlite、telemetry、Persistence、Bootstrap、Delivery 与 architecture targeted tests 在本批提交前收口；完整 Runtime test/vet/build 同批验证 |
 | 2026-08-10 | P17-03（Domain/Application package boundary） | 复核 P16 已冻结的 21 个 Domain bounded context，确认其虽有小包但分别拥有独立词汇、行为/invariant、变化原因和直接测试，不按体量机械合并。Application 删除含混 `change`，以 `invalidation.Notice` 准确表达“提交后通知读者重新读取”的无值信号，并将 Bootstrap/Delivery/Goals/Plans/Runs/Sessions 的 `Changes`/`Changed`/`WithChangeNotices` 全链路统一为 `Invalidations`/`WithInvalidations`；原泛化 `admission` 按实际 process-local Session/working-tree gate 改为 `sessionadmission`；只有一个黑盒测试消费者的 `approvals/approvaltest` 回收到测试文件。旧三个路径由 architecture guard 永久禁止，不保留 alias/shim | Runtime `GOWORK=off go test ./...` 全绿；Application/Bootstrap/Delivery/agentexec targeted tests 全绿；完整 vet/build 与架构/命名/空残留门禁在本批提交前收口 |

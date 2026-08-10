@@ -151,13 +151,13 @@
 
 - 状态：已接受。
 - 决策：协议方法实现/projection 与通用 JSON-RPC registry/router 保持不同 package；保留准确的 `server` 和 `dispatch` 名称，不为目录对称改成语义更宽的 `api`/`rpc`，也不合包。
-- 后果：HTTP 和 in-process transport 复用 RPC dispatch，业务入口只驱动 Application。
+- 后果：HTTP transport 复用 RPC dispatch，业务入口只驱动 Application。已删除无生产消费者且位于 `internal`、无法充当公共 SDK 的 in-process 原型；未来新增公共 binding 仍必须复用同一 dispatch/Application 路径。
 
 ## ADR-RT-025：消除 `component` 杂物分类
 
 - 状态：已接受，P9 已实施。
 - 决策：单一 owner 的原语回归 owner；真正被多个平级消费者复用的中性原语以准确能力名存在于 `internal`，不保留通用 `component/common/core/utils` 收纳层。
-- 后果：pagination/replay cursor 保持准确 codec capability；completion、HTTP origin、idempotency、shutdown、taskgroup 以各自精确能力名存在；path identity 归 Infra，secret masking 归 Application，notification relay 归 Adapter。`component` 目录和 temporary exception 已删除。
+- 后果：Run replay cursor 的业务 shape 回归 `application/runs`，与 pagination 只共享纯 `opaquetoken` framing；completion、HTTP origin、idempotency、pagination、opaque-token、taskgroup 以各自精确能力名存在；teardown/path identity 归 Infra，secret masking 归 Application，notification relay 归 Adapter。`component` 目录和 temporary exception 已删除。
 
 ## ADR-RT-026：Protocol 机器制品是外部合同真相源
 

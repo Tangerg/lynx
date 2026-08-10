@@ -1,6 +1,5 @@
-// Package transport is the Lyra Runtime Protocol's transport layer: a
-// bidirectional pipe for JSON-RPC 2.0 messages. The runtime server uses HTTP;
-// inprocess serves clients that embed the runtime in the same process.
+// Package transport owns the JSON-RPC 2.0 envelope vocabulary and encoding
+// shared by the Runtime's streamable-HTTP binding and method dispatcher.
 //
 // Wire envelope types and encode/decode are re-exported from the MCP
 // Go SDK's `jsonrpc` package — same vendor we use for our MCP

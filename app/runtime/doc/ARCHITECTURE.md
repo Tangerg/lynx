@@ -10,7 +10,7 @@
 
 Lyra Runtime 是产品应用后端，不是第二个 Agent Framework。
 
-它面向桌面、Web、CLI、TUI 和同进程消费者，负责把用户意图、产品状态、Agent 执行、工具能力、持久化和 Runtime Protocol 组织为一套可恢复、可观察、可替换传输的应用生命周期。
+它面向桌面、Web、CLI 和 TUI 客户端，负责把用户意图、产品状态、Agent 执行、工具能力、持久化和 Runtime Protocol 组织为一套可恢复、可观察的应用生命周期。
 
 Runtime 的中心是用户能够理解和持久追踪的 `Run`，不是某一种模型循环、规划策略、Agent Process 或网络连接。
 
@@ -21,7 +21,7 @@ Runtime 必须同时满足：
 - Agent Framework、SQLite、模型 Provider、Git、Shell、MCP、LSP 和网络都停留在外环；
 - Delivery 只把协议请求投影为应用命令，把应用事实投影为协议响应；
 - Bootstrap 是唯一组合根，不承载业务行为；
-- HTTP 与 in-process transport 可替换，且不改变应用语义；
+- streamable HTTP 只承载协议，且不改变应用语义；未来新增公共 binding 必须复用同一 Application 用例；
 - Agent Framework 是唯一托管执行内核，Runtime 不复制它的 Process loop、tree scheduler 或 snapshot 解释器。
 
 ## 2. 设计原则
@@ -282,7 +282,7 @@ Delivery 包含四个职责：
 - `protocol`：Runtime wire 类型、方法、错误与 contract metadata；
 - `server`：协议服务端实现和 request/response projection；它不拥有网络 listener，仍准确表示 Runtime Protocol 的 server side；
 - `dispatch`：JSON-RPC registry、routing、idempotency envelope 和流式 method dispatch；
-- `transport`：HTTP/SSE 与 in-process envelope I/O。
+- `transport`：JSON-RPC envelope vocabulary 与 HTTP/SSE I/O。
 
 `server` 与 `dispatch` 有不同变化原因，不合并。当前名称与职责一致，不为目录美观改成更宽泛的 `api`/`rpc`。
 
@@ -495,7 +495,7 @@ Runtime Protocol 是外部语义契约，机器真相源在 `contract/`。重构
 - API semantic、transport binding 和 auxiliary capability 分别由现有三份规范拥有；
 - HTTP status 只表示 transport，业务失败使用协议 error；
 - transport metadata 不进入 JSON-RPC body；
-- HTTP/SSE 与 in-process 必须共享同一 Application use case。
+- 当前 HTTP/SSE 只驱动 Application use case；未来新增 binding 也必须复用同一入口，不得复制业务路径。
 
 ## 13. 目标目录
 

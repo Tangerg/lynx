@@ -127,7 +127,7 @@ Entity 自己保护状态迁移和不变量。Application 不得通过一串 set
 - 不直接读 Store、调用 agentexec 或修改 Domain entity；
 - Server/API 不持有 active Run map、pump、executor tree 或 connection registry；
 - RPC dispatch 不解释业务字段；Transport 不解释 RPC method；
-- HTTP/SSE 与 in-process 使用同一个 application entrypoint；
+- HTTP/SSE 使用 Application entrypoint；未来新增 binding 必须复用它；
 - 协议类型只在 delivery/contract 边界，Application 不返回 wire DTO。
 
 ### 3.6 Bootstrap
@@ -285,7 +285,7 @@ Entity 自己保护状态迁移和不变量。Application 不得通过一串 set
 1. Domain table-driven invariant tests；
 2. Application use-case tests，使用最小 handwritten fakes；
 3. Adapter contract/translation tests；
-4. SQLite/HTTP/in-process integration tests；
+4. SQLite/HTTP integration tests；
 5. Agent Framework 真实 Engine 纵切 consumer tests；
 6. architecture/static baseline tests；
 7. concurrency race tests；

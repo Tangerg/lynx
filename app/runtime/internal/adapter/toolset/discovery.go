@@ -1,3 +1,6 @@
+// Package toolset composes Runtime-owned and integrated tools, applies their
+// execution/path/presentation policies, and resolves model-facing manifests.
+//
 // Tool discovery exposes the model-facing search_tools meta-tool: a
 // progressive-disclosure surface over a set of tools deliberately withheld from
 // the initial manifest. The withheld

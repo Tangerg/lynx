@@ -53,8 +53,7 @@ type Result struct {
 	// StreamFrame (method + params + optional SSE id) so the transport stays
 	// dumb — it just writes frames. The sequence is synchronous end to end
 	// (Journal → presenter → adaptStream); the transport supplies the single
-	// goroutine that ranges it (streamable HTTP selects it against a heartbeat;
-	// in-process ranges it straight onto Recv).
+	// goroutine that ranges it (streamable HTTP selects it against a heartbeat).
 	EventStream iter.Seq[StreamFrame]
 }
 
@@ -74,7 +73,7 @@ func (r *Router) Dispatch(ctx context.Context, message transport.Message) Result
 		}
 	}
 	// Metadata stripping rewrites Params for typed decoding. Work on a shallow
-	// request copy so an in-process caller can safely retain or reuse its message;
+	// request copy so a caller can safely retain or reuse its message;
 	// Params bytes themselves are read-only and replaced, never mutated in place.
 	requestCopy := *request
 	request = &requestCopy

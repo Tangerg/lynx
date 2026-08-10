@@ -43,7 +43,7 @@
 ## 0. 模型与概念
 
 Lyra Runtime 是一个**本地、领域中立的 agent runtime**。客户端可以是 web UI、桌面外壳、TUI 或另一个本地进程。协议是
-**JSON-RPC 2.0**，跑在多种 transport（InProcess / HTTP）上，语义在所有 transport 上一致。
+**JSON-RPC 2.0**，当前通过 streamable HTTP 承载。协议语义不依赖 HTTP 实现细节。
 
 **"领域中立"是核心设计立场**：协议核心只懂 Session / Run / Item / 通用工具调用这套**通用原语**；"某个工具长什么样、
 该怎么富渲染"是**领域知识**，不焊进 wire（见 §4.4）。换个领域（客服 / 数据分析 / 运营）协议核心一字不改。

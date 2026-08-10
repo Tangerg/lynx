@@ -209,7 +209,7 @@ P8 production cutover 已用真实 Bootstrap consumer 冻结 root stage/observe/
 | Runtime method implementation | `delivery/server` | Retain | Protocol server side 与 projection；构造按 required use-case validation、defaults、contract facts、instance、notification observation 分阶段，不持有 transport listener |
 | JSON-RPC dispatch/registry | `delivery/dispatch` | Retain | method registry/router/idempotency；typed params decode 与 response projection 分属 `params.go`/`response.go`，不与 server 合并 |
 | HTTP/SSE | transport/http | Retain | envelope I/O、stream/backpressure |
-| In-process | transport/inprocess | Retain | 与 HTTP 共享 Application entrypoint |
+| In-process | 已删除的 internal prototype | Remove | 无生产消费者，且 Go `internal` 边界使外部 CLI/TUI 不可导入；未来公共 SDK 必须专项设计 |
 | Server product-value projections | Application read/write use cases + 必要 immutable Domain values | Retain | 只做 wire validation/error mapping/projection，不读取 repository、不持有 lifecycle owner |
 | Delivery adapter imports | architecture guard 禁止 | Retain | Delivery 只驱动 Application；对 concrete Adapter/Infra/Bootstrap/Agent Framework import 为零 |
 | frontend/TUI/CLI generated consumers | Desktop 仍含旧 `processRootSegment` vendored binding/fixtures；CLI/TUI 当前扫描无该 token | Defer | 精确 backlog 见 `CONSUMER_HANDOFF.md`；本 goal 不改消费者 |
@@ -255,7 +255,7 @@ P8 production cutover 已用真实 Bootstrap consumer 冻结 root stage/observe/
 
 ### 9.3 Delivery/Bootstrap
 
-- Delivery 的 `protocol`、`dispatch`、`server`、`transport` 四层分别拥有 wire vocabulary、method routing、Application projection 和 envelope I/O；StreamFrame 使用完整的 `Notification` 语义，HTTP 与 in-process transport 只消费同一预编码 frame；
+- Delivery 的 `protocol`、`dispatch`、`server`、`transport` 四层分别拥有 wire vocabulary、method routing、Application projection 和 envelope I/O；StreamFrame 使用完整的 `Notification` 语义，HTTP transport 只消费预编码 frame；无消费者且不可能成为公共客户端 API 的 internal in-process prototype 已删除；
 - `server` 的 Session import/export、Run/Plan event presentation、workspace subscription lifecycle 分别归 `session_transfer.go`、`presenter_run_event.go`、`workspace_stream.go`；workspace hub 的 notification coalescing、subscription admission 与 queue drain 仍在同一并发 owner 内，没有拆出第二状态机；
 - Bootstrap 仍是唯一 composition root；conversation、model、MCP、tool 的 composition-time environment 和 post-Run maintenance 各由 focused builder 组装，`Stack` 只暴露 Application entrypoints/notification sources，`Host` 单独拥有 shutdown graph；
 - `hostLifetime` 以 `goalDriver`、`mcpCoordinator`、`codebaseCoordinator`、`runCoordinator`、`executor`、`runEffectTasks`、`toolResources`、`hostResources` 表达真实关闭职责；旧 `goals`/`mcp`/`execution`/`effectsTasks`/`resources` 一类含混字段已删除；

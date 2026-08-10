@@ -110,7 +110,7 @@ func TestSessionMutationHasOneOwner(t *testing.T) {
 //	composition    internal/bootstrap/**,        the "main" component: config load, assembly, host
 //	               internal/config, cmd/**       lifecycle. Wires every ring, so it imports anything —
 //	                                             but nothing imports IT.
-//	delivery       internal/delivery/**          HTTP+SSE / inprocess transport, dispatch, protocol
+//	delivery       internal/delivery/**          HTTP+SSE transport, dispatch, protocol
 //	adapter        internal/adapter/**           capability adapters, incl. adapter/agentexec (the
 //	                                              agent-execution adapter over the agent SDK)
 //	application    internal/application/**        use-case coordinators (runs / sessions / capabilities /
@@ -370,9 +370,8 @@ func TestRetiredRuntimeVocabularyDoesNotReturn(t *testing.T) {
 			"providerInfo", "providerEntry", "embeddingProviderInfo", "embeddingEntry",
 			"ProviderOpenAICompat", "ProviderAnthropicCompat", "openaiNative", "anthropicNative",
 		},
-		filepath.Join(root, "internal", "delivery", "transport", "http"):      {"observability", "messageHandler"},
-		filepath.Join(root, "internal", "delivery", "transport", "inprocess"): {"messageHandler"},
-		filepath.Join(root, "internal", "infra", "teardown"):                  {"attempt"},
+		filepath.Join(root, "internal", "delivery", "transport", "http"): {"observability", "messageHandler"},
+		filepath.Join(root, "internal", "infra", "teardown"):             {"attempt"},
 	} {
 		banned := make(map[string]string, len(names))
 		for _, name := range names {
@@ -495,12 +494,14 @@ func TestRuntimeResponsibilityFilesStayFocused(t *testing.T) {
 		filepath.Join("internal", "adapter", "sessiontitle", "title.go"):               "Session title generation belongs to generator.go",
 		filepath.Join("internal", "adapter", "observability"):                          "process telemetry is an infrastructure mechanism in infra/telemetry",
 		filepath.Join("internal", "adapter", "pricing"):                                "model-catalog pricing belongs to adapter/modelcatalog",
+		filepath.Join("internal", "delivery", "transport", "inprocess"):                "the internal prototype had no production consumer and was not importable by external clients",
 		filepath.Join("internal", "application", "integrations"):                       "MCP application ownership belongs to application/mcp",
 		filepath.Join("internal", "application", "contract"):                           "published invariant metadata belongs to cmd/contractgen",
 		filepath.Join("internal", "application", "invariant"):                          "published invariant metadata belongs to cmd/contractgen, not a production Application package",
 		filepath.Join("internal", "application", "admission"):                          "process-local Session and working-tree admission belongs to application/sessionadmission",
 		filepath.Join("internal", "application", "change"):                             "post-commit read-again notices belong to application/invalidation",
 		filepath.Join("internal", "application", "approvals", "approvaltest"):          "single-consumer test fixtures belong beside their test",
+		filepath.Join("internal", "domain", "doc.go"):                                  "domain is a bounded-context namespace, not a zero-behavior umbrella package",
 		filepath.Join("internal", "infra", "storage"):                                  "SQLite and LYRA.md persistence have independent owners in infra/sqlite and infra/knowledgefile",
 		filepath.Join("internal", "adapter", "toolset", "workdir.go"):                  "CWD-bound tool composition belongs to cwd_tools.go",
 		filepath.Join("internal", "adapter", "workspace", "reads.go"):                  "filesystem browsing and Git reads belong to focused adapter files",

@@ -12,14 +12,12 @@ API 定义 JSON-RPC 方法、资源、事件语义；transport 定义 message �
 
 ## 1. Transport 矩阵
 
-| 客户端形态      | runtime 位置      | transport     | 状态       |
-| --------------- | ----------------- | ------------- | ---------- |
-| Go CLI / TUI    | 同进程            | InProcess     | 已实现     |
-| 桌面外壳 / 浏览器 UI | 本地 runtime 进程 | HTTP loopback | 已实现     |
-| 未来远程 facade | facade 之后       | HTTP          | 同上，无需新 transport |
+| 客户端形态           | runtime 位置       | transport     | 状态                   |
+| -------------------- | ------------------ | ------------- | ---------------------- |
+| 桌面 / Web / CLI / TUI | 本地 runtime 进程 | HTTP loopback | 已实现                 |
+| 未来远程 facade      | facade 之后        | HTTP          | 同上，无需新 transport |
 
-**只有这两个 transport**。两者暴露相同协议语义：request/response JSON-RPC；server→client 通知；显式取消；用
-event id 做流重连。桌面外壳走的是 loopback HTTP，不是宿主 IPC（理由见 §5）。
+当前唯一 binding 是 streamable HTTP，暴露 request/response JSON-RPC、server→client 通知、显式取消和基于 event id 的流重连。没有一个可供外部客户端导入的 Go in-process transport；此前的 `internal` 原型没有生产消费者，也不可能作为公共 SDK。若未来需要同进程嵌入，必须专项设计稳定的公共 Go API，而不是泄露内部 protocol/dispatch 类型。桌面外壳走 loopback HTTP，不是宿主 IPC（理由见 §5）。
 
 ## 2. 元数据划分 —— 业务与请求自描述进 params，纯传输才走带外
 
@@ -68,28 +66,15 @@ interface Transport {
 
 transport **不**配对 request/response id —— 那是上层 RPC client 的事。
 
-> `receive()` 的入站消息**从哪来**是各 transport 自己的事，抽象层不规定：InProcess 走同进程 push
-> channel / callback；HTTP **streamable** 则来自各 POST 的响应（`application/json` 单条，或
+> `receive()` 的入站消息来自 HTTP **streamable** POST 响应（`application/json` 单条，或
 > `text/event-stream` 多帧，§6.4）汇入同一条可迭代流。**没有"常开的 server→client 通道"这一前提** —— 响应
 > 与通知都依附于某次调用。
 
-## 4. InProcess Transport
+## 4. Go 同进程接入边界
 
-InProcess 用于与 runtime 链接在同一二进制里的 Go 客户端。
+当前不提供 Go in-process binding。Runtime 的全部 protocol/server/dispatch 类型均为服务端内部实现，不能作为客户端 SDK 合同。Go CLI/TUI 与其他客户端一样使用 loopback HTTP 和发布的 contract 制品。
 
-推荐实现：
-
-- 直接暴露类型化 runtime interface；
-- 跳过 JSON 序列化；
-- 保持相同的方法名、params、result 类型、流式语义；
-- 通知走 Go channel 或 callback。
-
-InProcess 没有 HTTP header，元数据走 `context.Context`。
-
-| 元数据       | InProcess 来源         |
-| ------------ | ---------------------- |
-| Trace 上下文 | context value          |
-| 协议版本     | 编译期或 context value |
+未来只有在出现真实嵌入式消费者后，才可新增位于 `internal` 之外的公共 API；该 API 必须自行定义稳定的类型化 surface、流生命周期、取消、背压和版本协商，并复用 Application 用例，不能简单导出内部 JSON-RPC envelope 或 Router。
 
 ## 5. 为什么没有 IPC transport（设计裁决）
 
@@ -394,18 +379,15 @@ sidecar 端点不走 JSON-RPC（扁平 JSON、无需 discovery、无鉴权）。
 
 **它们只在 HTTP transport 存在**，因为只有 HTTP 才有这种运维场景：`curl` / oncall 探活、k8s
 liveness/readiness、反代 upstream 健康检查 —— 这些要的是"不套 envelope、无鉴权"的端点。
-InProcess 没有 HTTP 运维探针；宿主直接管理对象生命周期与依赖检查：
-
-| 需求                                            | HTTP                     | InProcess                                       |
-| ----------------------------------------------- | ------------------------ | ----------------------------------------------- |
-| 运行信息（serverInfo / version / capabilities） | sidecar `GET /v2/info`   | `runtime.discover` 响应（本就携带同样内容）     |
-| 存活探测                                        | `GET /v2/health/live`    | 宿主进程状态                                    |
-| 就绪探测                                        | `GET /v2/health/ready`   | 宿主依赖检查                                    |
+| 需求                                            | HTTP                   |
+| ----------------------------------------------- | ---------------------- |
+| 运行信息（serverInfo / version / capabilities） | sidecar `GET /v2/info` |
+| 存活探测                                        | `GET /v2/health/live`  |
+| 就绪探测                                        | `GET /v2/health/ready` |
 
 `/v2/info` 只公开接入所需信息，不泄露 workspace path、home、能力快照或内部依赖。
 
-> **规律：非 JSON-RPC 的旁路通道各 transport 用自己的原生形态实现；场景不适用的 transport 由协议内
-> 方法替代。**（图片输入不属于此类——它内联在 `runs.start.input` 的 image ContentBlock 里走常规 JSON-RPC，
+> **规律：非 JSON-RPC 的 HTTP 旁路只承载 HTTP 运维场景。**（图片输入不属于此类——它内联在 `runs.start.input` 的 image ContentBlock 里走常规 JSON-RPC，
 > 无独立二进制上传通道。）
 
 ### 12.1 `GET /v2/health/live` 与 `GET /v2/health/ready`

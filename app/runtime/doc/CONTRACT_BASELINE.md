@@ -44,7 +44,7 @@ TypeScript generated files 是派生制品，不单独定义语义。它们必�
 人读语义 owner：
 
 - [`API.md`](API.md)：业务方法、Run/Item/Event 语义与跨方法不变量；
-- [`TRANSPORT.md`](TRANSPORT.md)：HTTP/SSE 与 in-process binding、流、重放和安全；
+- [`TRANSPORT.md`](TRANSPORT.md)：HTTP/SSE binding、流、重放和安全；
 - [`AUX_API.md`](AUX_API.md)：VCS、MCP、审批等旁路能力。
 
 本文件不复制 method、field、error 或 example catalog。
