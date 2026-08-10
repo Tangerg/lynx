@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/application/admission"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/sessionadmission"
 	rundomain "github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 )
@@ -373,7 +373,7 @@ func (c *Coordinator) resumeAfterWaitingChildCancellation(
 	plan cancellationPlan,
 	transformation waitingCancellationTransformation,
 	change WaitingSubtreeChange,
-	runAdmission *admission.RunAdmission,
+	runAdmission *sessionadmission.RunAdmission,
 ) (CancelResult, error) {
 	rootContinuation, ok := transformation.continuation.root()
 	if !ok {

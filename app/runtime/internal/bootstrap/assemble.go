@@ -26,19 +26,19 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/builtin"
 	checkpointstore "github.com/Tangerg/lynx/app/runtime/internal/adapter/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspacepath"
-	"github.com/Tangerg/lynx/app/runtime/internal/application/admission"
 	agentmemoryapp "github.com/Tangerg/lynx/app/runtime/internal/application/agentmemory"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/approvals"
-	"github.com/Tangerg/lynx/app/runtime/internal/application/change"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/codebase"
 	feedbackapp "github.com/Tangerg/lynx/app/runtime/internal/application/feedback"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/goals"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/invalidation"
 	mcpapp "github.com/Tangerg/lynx/app/runtime/internal/application/mcp"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/models"
 	planapp "github.com/Tangerg/lynx/app/runtime/internal/application/plans"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/queries"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/sessionadmission"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/tools"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/usage"
@@ -91,10 +91,10 @@ type Stack struct {
 	// ScheduleFires bridges accepted scheduled-run notifications to the delivery
 	// workspace hub. Bootstrap owns the runner; delivery only observes this nudge.
 	ScheduleFires NotificationSource[string]
-	// Changes bridges every committed session / run / interrupt / goal / state change
+	// Invalidations bridges every committed session / run / interrupt / goal / state change
 	// to the delivery hub, which names each one's topic. Same seam as the nudges
 	// above; the producers are the use cases that committed the write.
-	Changes          NotificationSource[change.Notice]
+	Invalidations    NotificationSource[invalidation.Notice]
 	ScheduleFiring   *schedules.Firing
 	IdempotencyStore idempotency.Store
 	GitAvailable     bool
@@ -224,15 +224,15 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 	// hub that names its topic. It is one channel rather than five because the
 	// producers publish the same shape (a resource plus the ids that moved), and the
 	// wire vocabulary belongs to delivery either way.
-	applicationChanges := &notification.Relay[change.Notice]{}
+	applicationInvalidations := &notification.Relay[invalidation.Notice]{}
 	// Goal reads and terminal outcome reporting cross into the tool environment
 	// before the loop driver can be constructed. They remain separate application
 	// boundaries over the same change-publishing store.
-	goalStore := goals.WithChangeNotices(cfg.GoalStore, applicationChanges.Publish)
+	goalStore := goals.WithInvalidations(cfg.GoalStore, applicationInvalidations.Publish)
 	goalReader := goals.NewReader(goalStore)
 	goalReporter := goals.NewOutcomeReporter(goalStore)
 	planCoordinator := planapp.New(planapp.Dependencies{
-		Store: cfg.PlanStore, Now: time.Now, Changed: applicationChanges.Publish,
+		Store: cfg.PlanStore, Now: time.Now, Invalidations: applicationInvalidations.Publish,
 	})
 
 	mcpConnectionSettings, err := buildMCPEnvironment(ctx, cfg.MCPRegistry)
@@ -358,7 +358,7 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 	// mcpStatusChanges bridges the MCP coordinator's reconnect/authorize
 	// transitions to the delivery workspace stream the Server observes.
 	mcpStatusChanges := &notification.Relay[mcpapp.ServerStatus]{}
-	admissionGate := &admission.Gate{}
+	admissionGate := &sessionadmission.Gate{}
 	sessionStores := persistence.NewSessionStores(persistence.SessionStoresConfig{
 		Sessions:            cfg.SessionStore,
 		Transcript:          cfg.TranscriptStore,
@@ -401,7 +401,7 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 		Checkpoints:       checkpointstore.NewSessionCheckpoints(workspaceCheckpoints),
 		Mutations:         cfg.WorkspaceMutationStore,
 		Admissions:        admissionGate,
-		Changed:           applicationChanges.Publish,
+		Invalidations:     applicationInvalidations.Publish,
 		Now:               time.Now,
 		NewID: func() string {
 			return session.IDPrefix + uuid.NewString()
@@ -488,7 +488,7 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 		NewSegmentID: func() string {
 			return runs.NewSegmentID(uuid.NewString())
 		},
-		Changed: applicationChanges.Publish,
+		Invalidations: applicationInvalidations.Publish,
 	}
 	// Set only when present so a nil *Isolator never reaches the coordinator as a
 	// non-nil interface (which would defeat its own nil check).
@@ -569,7 +569,7 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 			MCPStatusChanges: mcpStatusChanges,
 			SkillChanges:     skillChanges,
 			ScheduleFires:    scheduleFires,
-			Changes:          applicationChanges,
+			Invalidations:    applicationInvalidations,
 			ScheduleFiring:   scheduleFiring,
 			IdempotencyStore: cfg.IdempotencyStore,
 			Queries: queries.New(queries.Dependencies{

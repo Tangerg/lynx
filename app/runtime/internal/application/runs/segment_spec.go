@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/application/admission"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/sessionadmission"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
@@ -35,7 +35,7 @@ type segmentSpec struct {
 	Continuation *treeContinuation
 	// admission transfers the pre-commit reservation to the live Run only after
 	// its opening write-set commits.
-	admission *admission.RunAdmission
+	admission *sessionadmission.RunAdmission
 	// BeginExecution crosses the executor side-effect boundary after opening commits.
 	BeginExecution func(context.Context) error
 	// CommitOpening is set only when a larger application transaction owns the

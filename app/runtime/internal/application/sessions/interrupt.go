@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/application/change"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/invalidation"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	rundomain "github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 )
@@ -113,15 +113,15 @@ func (c *Coordinator) terminalizeParkedRun(ctx context.Context, sessionID, runID
 	for index, run := range plan.Runs {
 		runIDs[index] = run.ID()
 	}
-	notices := []change.Notice{
-		change.InSession(change.Runs, sessionID, runIDs...),
-		change.InSession(change.Interrupts, sessionID, runID),
-		change.InSession(change.Sessions, sessionID),
+	notices := []invalidation.Notice{
+		invalidation.InSession(invalidation.Runs, sessionID, runIDs...),
+		invalidation.InSession(invalidation.Interrupts, sessionID, runID),
+		invalidation.InSession(invalidation.Sessions, sessionID),
 	}
 	if plan.GoalRun != nil {
-		notices = append(notices, change.InSession(change.Goals, sessionID))
+		notices = append(notices, invalidation.InSession(invalidation.Goals, sessionID))
 	}
-	c.changed.Notify(notices...)
+	c.invalidations.Notify(notices...)
 	return rootRun, nil
 }
 

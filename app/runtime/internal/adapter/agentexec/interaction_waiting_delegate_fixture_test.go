@@ -9,8 +9,8 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/interactioninput"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
-	"github.com/Tangerg/lynx/app/runtime/internal/application/admission"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/sessionadmission"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
@@ -72,7 +72,7 @@ func newWaitingDelegateFixture(t *testing.T, identity string) *waitingDelegateFi
 			Openings: projection, ChildStarts: projection, Events: projection,
 			Barriers: projection, Checkpoints: projection, Workspace: projection, Finalizer: projection,
 		},
-		Admissions: new(admission.Gate), Now: time.Now,
+		Admissions: new(sessionadmission.Gate), Now: time.Now,
 		NewRunID:     func() string { return takeFirstIdentifier(&runIDs) },
 		NewSegmentID: func() string { return takeFirstIdentifier(&segmentIDs) },
 	})

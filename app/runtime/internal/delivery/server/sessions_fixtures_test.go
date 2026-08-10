@@ -12,12 +12,12 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/persistence"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/runsegment"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspacepath"
-	"github.com/Tangerg/lynx/app/runtime/internal/application/admission"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/models"
 	planapp "github.com/Tangerg/lynx/app/runtime/internal/application/plans"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/queries"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/sessionadmission"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
@@ -183,7 +183,7 @@ type stubRuntime struct {
 	interrupts  *persistence.InterruptStore         // open-interrupt registry (rollback clears dropped)
 	muts        *persistence.WorkspaceMutationStore // §8.5 recoverable file-rollback log
 	execution   executionRuntime
-	admissions  *admission.Gate
+	admissions  *sessionadmission.Gate
 }
 
 // sessionsCoordinatorProvider is the optional test seam newTestServer uses to
@@ -251,7 +251,7 @@ func (s stubRuntime) queriesCoordinator() *queries.Coordinator {
 
 func newTestServer(rt testRuntime) *Server {
 	s := &Server{}
-	admissions := &admission.Gate{}
+	admissions := &sessionadmission.Gate{}
 	var sessionPorts runs.SessionPorts
 	// Wire the session/run lifecycle coordinator over the fake's in-memory stores
 	// when the fake provides one, mirroring the composition root.
@@ -718,16 +718,16 @@ func (stubTitleGenerator) Generate(context.Context, string) (string, error) { re
 // File restore stays disabled (nil restorer); the checkpoint tests rebuild it
 // with a real restorer via [stubRuntime.sessionsCoordinatorWithRestorer].
 func (s *stubRuntime) sessionsCoordinator(admissions sessions.Admissions) *sessions.Coordinator {
-	gate, ok := admissions.(*admission.Gate)
+	gate, ok := admissions.(*sessionadmission.Gate)
 	if !ok {
-		panic("test runtime requires admission.Gate")
+		panic("test runtime requires sessionadmission.Gate")
 	}
 	s.admissions = gate
 	return s.sessionsCoordinatorWithRestorer(nil, admissions)
 }
 
 func (s *stubRuntime) sessionsCoordinatorWithRestorer(checkpoints sessions.WorkspaceCheckpoints, shared ...sessions.Admissions) *sessions.Coordinator {
-	admissions := sessions.Admissions(&admission.Gate{})
+	admissions := sessions.Admissions(&sessionadmission.Gate{})
 	if len(shared) > 0 && shared[0] != nil {
 		admissions = shared[0]
 	}

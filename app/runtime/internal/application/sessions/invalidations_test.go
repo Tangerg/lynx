@@ -5,16 +5,18 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/application/change"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/invalidation"
 )
 
-// recorder collects notices in publish order.
-type recorder struct{ notices []change.Notice }
+// invalidationRecorder collects notices in publish order.
+type invalidationRecorder struct{ notices []invalidation.Notice }
 
-func (r *recorder) publish(notice change.Notice) { r.notices = append(r.notices, notice) }
+func (r *invalidationRecorder) publish(notice invalidation.Notice) {
+	r.notices = append(r.notices, notice)
+}
 
-func (r *recorder) resources() []change.Resource {
-	out := make([]change.Resource, 0, len(r.notices))
+func (r *invalidationRecorder) resources() []invalidation.Resource {
+	out := make([]invalidation.Resource, 0, len(r.notices))
 	for _, notice := range r.notices {
 		out = append(out, notice.Resource)
 	}
@@ -27,22 +29,22 @@ func (r *recorder) resources() []change.Resource {
 // names all of them.
 func TestDeleteSessionPublishesEveryProjectionItRemoved(t *testing.T) {
 	stores := newMutationStores("")
-	changes := &recorder{}
+	invalidations := &invalidationRecorder{}
 	coordinator := New(testDependencies(stores, Dependencies{
 		ExecutionReleaser: mutationExecutions{operations: &stores.operations},
 		Paths:             testCWDResolver{},
-		Changed:           changes.publish,
+		Invalidations:     invalidations.publish,
 	}))
 
 	if err := coordinator.DeleteSession(t.Context(), "ses_1"); err != nil {
 		t.Fatalf("DeleteSession: %v", err)
 	}
 
-	want := []change.Resource{change.Sessions, change.Runs, change.Interrupts, change.Goals, change.PlanState}
-	if !slices.Equal(changes.resources(), want) {
-		t.Fatalf("published = %v, want every projection the cascade removed (%v)", changes.resources(), want)
+	want := []invalidation.Resource{invalidation.Sessions, invalidation.Runs, invalidation.Interrupts, invalidation.Goals, invalidation.PlanState}
+	if !slices.Equal(invalidations.resources(), want) {
+		t.Fatalf("published = %v, want every projection the cascade removed (%v)", invalidations.resources(), want)
 	}
-	for _, notice := range changes.notices {
+	for _, notice := range invalidations.notices {
 		if !slices.Equal(notice.SessionIDs, []string{"ses_1"}) {
 			t.Fatalf("notice %d session ids = %v, want [ses_1]", notice.Resource, notice.SessionIDs)
 		}
@@ -54,17 +56,17 @@ func TestDeleteSessionPublishesEveryProjectionItRemoved(t *testing.T) {
 // delete, to conclude a session is gone while it is still there.
 func TestFailedDeleteSessionPublishesNothing(t *testing.T) {
 	stores := newMutationStores("apply.delete")
-	changes := &recorder{}
+	invalidations := &invalidationRecorder{}
 	coordinator := New(testDependencies(stores, Dependencies{
 		ExecutionReleaser: mutationExecutions{operations: &stores.operations},
 		Paths:             testCWDResolver{},
-		Changed:           changes.publish,
+		Invalidations:     invalidations.publish,
 	}))
 
 	if err := coordinator.DeleteSession(t.Context(), "ses_1"); !errors.Is(err, errMutationStage) {
 		t.Fatalf("DeleteSession error = %v, want %v", err, errMutationStage)
 	}
-	if len(changes.notices) != 0 {
-		t.Fatalf("published %v after a failed commit, want nothing", changes.resources())
+	if len(invalidations.notices) != 0 {
+		t.Fatalf("published %v after a failed commit, want nothing", invalidations.resources())
 	}
 }

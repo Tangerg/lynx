@@ -1,7 +1,7 @@
 package server
 
 import (
-	"github.com/Tangerg/lynx/app/runtime/internal/application/change"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/invalidation"
 	mcpapp "github.com/Tangerg/lynx/app/runtime/internal/application/mcp"
 	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
@@ -39,33 +39,33 @@ func (s *Server) observeScheduleFires(source notificationSource[string]) {
 	})
 }
 
-func (s *Server) observeChanges(source notificationSource[change.Notice]) {
-	source.Observe(func(notice change.Notice) {
+func (s *Server) observeInvalidations(source notificationSource[invalidation.Notice]) {
+	source.Observe(func(notice invalidation.Notice) {
 		if event, ok := runtimeEventFor(notice); ok {
 			s.workspaceHub.publish(event)
 		}
 	})
 }
 
-func runtimeEventFor(notice change.Notice) (protocol.RuntimeEvent, bool) {
+func runtimeEventFor(notice invalidation.Notice) (protocol.RuntimeEvent, bool) {
 	switch notice.Resource {
-	case change.Sessions:
+	case invalidation.Sessions:
 		return protocol.RuntimeEvent{
 			Type: protocol.RuntimeSessionsChanged, SessionIDs: notice.SessionIDs,
 		}, true
-	case change.Runs:
+	case invalidation.Runs:
 		return protocol.RuntimeEvent{
 			Type: protocol.RuntimeRunsChanged, SessionIDs: notice.SessionIDs, RunIDs: notice.RunIDs,
 		}, true
-	case change.Interrupts:
+	case invalidation.Interrupts:
 		return protocol.RuntimeEvent{
 			Type: protocol.RuntimeInterruptsChanged, SessionIDs: notice.SessionIDs, RunIDs: notice.RunIDs,
 		}, true
-	case change.Goals:
+	case invalidation.Goals:
 		return protocol.RuntimeEvent{
 			Type: protocol.RuntimeGoalsChanged, SessionIDs: notice.SessionIDs,
 		}, true
-	case change.PlanState:
+	case invalidation.PlanState:
 		return protocol.RuntimeEvent{
 			Type: protocol.RuntimeStateChanged, Key: protocol.StatePlan, SessionIDs: notice.SessionIDs,
 		}, true

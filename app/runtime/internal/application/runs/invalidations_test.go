@@ -6,44 +6,44 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/application/admission"
-	"github.com/Tangerg/lynx/app/runtime/internal/application/change"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/invalidation"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/sessionadmission"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/sessionfixture"
 )
 
-// changeRecorder collects notices from the pump goroutine as well as the request
+// invalidationRecorder collects notices from the pump goroutine as well as the request
 // goroutine, so it is guarded.
-type changeRecorder struct {
+type invalidationRecorder struct {
 	mu      sync.Mutex
-	notices []change.Notice
+	notices []invalidation.Notice
 }
 
-func (r *changeRecorder) publish(notice change.Notice) {
+func (r *invalidationRecorder) publish(notice invalidation.Notice) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.notices = append(r.notices, notice)
 }
 
-func (r *changeRecorder) snapshot() []change.Notice {
+func (r *invalidationRecorder) snapshot() []invalidation.Notice {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return slices.Clone(r.notices)
 }
 
-func (r *changeRecorder) resources() []change.Resource {
+func (r *invalidationRecorder) resources() []invalidation.Resource {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	out := make([]change.Resource, 0, len(r.notices))
+	out := make([]invalidation.Resource, 0, len(r.notices))
 	for _, notice := range r.notices {
 		out = append(out, notice.Resource)
 	}
 	return out
 }
 
-func (r *changeRecorder) count(resource change.Resource) int {
+func (r *invalidationRecorder) count(resource invalidation.Resource) int {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	n := 0
@@ -64,7 +64,7 @@ func TestStartAndTerminalPublishRunAndSessionChanges(t *testing.T) {
 	effects := &fakeEffects{}
 	sessions := &fakeRunSessions{sess: sessionfixture.MustRestore(session.Snapshot{ID: "ses_1", CWD: "/work"})}
 	control := &fakeExecutionPorts{startRef: ExecutorRef{SessionID: "ses_1", ExecutorID: "turn_1"}}
-	changes := &changeRecorder{}
+	invalidations := &invalidationRecorder{}
 	c := NewCoordinator(Dependencies{
 		RootStarts:   control,
 		Observations: exec,
@@ -75,8 +75,8 @@ func TestStartAndTerminalPublishRunAndSessionChanges(t *testing.T) {
 		Now:          func() time.Time { return time.Date(2026, 7, 29, 1, 2, 3, 0, time.UTC) },
 		NewRunID:     func() string { return "run_new" },
 		NewSegmentID: func() string { return "seg_new" },
-		Admissions:   new(admission.Gate),
-		Changed:      changes.publish,
+		Admissions:   new(sessionadmission.Gate),
+		Invalidations: invalidations.publish,
 	})
 
 	result, err := c.Start(t.Context(), StartCommand{
@@ -87,20 +87,20 @@ func TestStartAndTerminalPublishRunAndSessionChanges(t *testing.T) {
 		t.Fatalf("Start: %v", err)
 	}
 	// The admission notice goes out with Start, before anything is consumed.
-	if got := changes.resources(); !slices.Equal(got, []change.Resource{change.Runs, change.Sessions}) {
+	if got := invalidations.resources(); !slices.Equal(got, []invalidation.Resource{invalidation.Runs, invalidation.Sessions}) {
 		t.Fatalf("published on start = %v, want the run and its session", got)
 	}
 	consumeEvents(result.Events)
 	// Draining the stream ends the segment, and the synthesized terminal commits
 	// before the journal closes — so by here the run is durably finished.
-	if got := changes.count(change.Runs); got != 2 {
+	if got := invalidations.count(invalidation.Runs); got != 2 {
 		t.Fatalf("run notices = %d, want one for the start and one for the terminal", got)
 	}
-	if got := changes.count(change.Sessions); got != 2 {
+	if got := invalidations.count(invalidation.Sessions); got != 2 {
 		t.Fatalf("session notices = %d, want one per run transition", got)
 	}
-	for _, notice := range changes.notices {
-		if notice.Resource == change.Runs && !slices.Equal(notice.RunIDs, []string{"run_new"}) {
+	for _, notice := range invalidations.notices {
+		if notice.Resource == invalidation.Runs && !slices.Equal(notice.RunIDs, []string{"run_new"}) {
 			t.Fatalf("run notice scope = %v, want [run_new]", notice.RunIDs)
 		}
 	}
@@ -115,7 +115,7 @@ func TestPlanSnapshotStaysOnOwningRunStream(t *testing.T) {
 		Steps:    []plan.Step{{Description: "tell the other window", Status: plan.StatusInProgress}},
 		Revision: 2, UpdatedAt: time.Date(2026, 7, 29, 1, 2, 3, 0, time.UTC),
 	})}}}
-	changes := &changeRecorder{}
+	invalidations := &invalidationRecorder{}
 	control := &fakeExecutionPorts{startRef: ExecutorRef{SessionID: "ses_1", ExecutorID: "turn_1"}}
 	sessions := &fakeRunSessions{sess: sessionfixture.MustRestore(session.Snapshot{ID: "ses_1", CWD: "/work"})}
 	c := NewCoordinator(Dependencies{
@@ -128,8 +128,8 @@ func TestPlanSnapshotStaysOnOwningRunStream(t *testing.T) {
 		Now:          func() time.Time { return time.Date(2026, 7, 29, 1, 2, 3, 0, time.UTC) },
 		NewRunID:     func() string { return "run_new" },
 		NewSegmentID: func() string { return "seg_new" },
-		Admissions:   new(admission.Gate),
-		Changed:      changes.publish,
+		Admissions:   new(sessionadmission.Gate),
+		Invalidations: invalidations.publish,
 	})
 
 	result, err := c.Start(t.Context(), StartCommand{
@@ -148,7 +148,7 @@ func TestPlanSnapshotStaysOnOwningRunStream(t *testing.T) {
 	if !sawSnapshot {
 		t.Fatal("the run stream carried no state snapshot; the fixture proves nothing about the notice beside it")
 	}
-	if got := changes.count(change.PlanState); got != 0 {
+	if got := invalidations.count(invalidation.PlanState); got != 0 {
 		t.Fatalf("run projection published %d Plan notices; application/plans owns them", got)
 	}
 }

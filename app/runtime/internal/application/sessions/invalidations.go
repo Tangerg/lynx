@@ -1,6 +1,6 @@
 package sessions
 
-import "github.com/Tangerg/lynx/app/runtime/internal/application/change"
+import "github.com/Tangerg/lynx/app/runtime/internal/application/invalidation"
 
 // The session lifecycle's invalidations. Each is published from a post-commit
 // boundary — for the write-sets, the afterCommit half of [Coordinator.withGoalMutation],
@@ -10,13 +10,13 @@ import "github.com/Tangerg/lynx/app/runtime/internal/application/change"
 // renamed, relocated, favorited, or branched into existence. Its projections are
 // untouched, so nothing else is invalidated.
 func (c *Coordinator) publishSessionMoved(sessionID string) {
-	c.changed.Notify(change.InSession(change.Sessions, sessionID))
+	c.invalidations.Notify(invalidation.InSession(invalidation.Sessions, sessionID))
 }
 
 // publishStateMoved reports a committed session-scoped state projection — the value
 // a fork seeded, or the one a rollback republished.
 func (c *Coordinator) publishStateMoved(sessionIDs ...string) {
-	c.changed.Notify(change.InSessions(change.PlanState, sessionIDs...))
+	c.invalidations.Notify(invalidation.InSessions(invalidation.PlanState, sessionIDs...))
 }
 
 // publishAggregateMoved reports a write-set that replaced or removed everything a
@@ -29,11 +29,11 @@ func (c *Coordinator) publishStateMoved(sessionIDs ...string) {
 // runIDs narrows the run signal when the caller knows which runs went (a rollback
 // boundary does); empty means every run of these sessions may have moved.
 func (c *Coordinator) publishAggregateMoved(sessionIDs []string, runIDs []string) {
-	c.changed.Notify(
-		change.InSessions(change.Sessions, sessionIDs...),
-		change.Notice{Resource: change.Runs, SessionIDs: sessionIDs, RunIDs: runIDs},
-		change.InSessions(change.Interrupts, sessionIDs...),
-		change.InSessions(change.Goals, sessionIDs...),
-		change.InSessions(change.PlanState, sessionIDs...),
+	c.invalidations.Notify(
+		invalidation.InSessions(invalidation.Sessions, sessionIDs...),
+		invalidation.Notice{Resource: invalidation.Runs, SessionIDs: sessionIDs, RunIDs: runIDs},
+		invalidation.InSessions(invalidation.Interrupts, sessionIDs...),
+		invalidation.InSessions(invalidation.Goals, sessionIDs...),
+		invalidation.InSessions(invalidation.PlanState, sessionIDs...),
 	)
 }

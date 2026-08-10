@@ -4,23 +4,23 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/application/change"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/invalidation"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 )
 
-// TestEveryChangeResourceIsPublishable: the application's resource set and the wire
+// TestEveryInvalidationResourceIsPublishable: the application's resource set and the wire
 // topics are two spellings of one vocabulary, and the projection between them is
-// hand-written. A resource with no mapping would be a committed change no client is
+// hand-written. A resource with no mapping would be a committed invalidation no client is
 // ever told about — silent, and invisible to every other test.
-func TestEveryChangeResourceIsPublishable(t *testing.T) {
-	for _, resource := range []change.Resource{
-		change.Sessions,
-		change.Runs,
-		change.Interrupts,
-		change.Goals,
-		change.PlanState,
+func TestEveryInvalidationResourceIsPublishable(t *testing.T) {
+	for _, resource := range []invalidation.Resource{
+		invalidation.Sessions,
+		invalidation.Runs,
+		invalidation.Interrupts,
+		invalidation.Goals,
+		invalidation.PlanState,
 	} {
-		ev, ok := runtimeEventFor(change.Notice{Resource: resource, SessionIDs: []string{"ses_1"}})
+		ev, ok := runtimeEventFor(invalidation.Notice{Resource: resource, SessionIDs: []string{"ses_1"}})
 		if !ok {
 			t.Fatalf("resource %d has no runtime event", resource)
 		}
@@ -42,8 +42,8 @@ func TestEveryChangeResourceIsPublishable(t *testing.T) {
 // committed_state_change_reaches_other_windows: the store keeps one value per
 // session, and this is where that scope survives being published.
 func TestStateChangeNamesItsKeyAndKeepsSessionScope(t *testing.T) {
-	ev, ok := runtimeEventFor(change.Notice{
-		Resource: change.PlanState, SessionIDs: []string{"ses_1"}, RunIDs: []string{"run_1"},
+	ev, ok := runtimeEventFor(invalidation.Notice{
+		Resource: invalidation.PlanState, SessionIDs: []string{"ses_1"}, RunIDs: []string{"run_1"},
 	})
 	if !ok {
 		t.Fatal("plan state has no runtime event")

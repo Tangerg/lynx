@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/application/admission"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/sessionadmission"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	corechat "github.com/Tangerg/lynx/core/chat"
@@ -167,12 +167,12 @@ func (c *Coordinator) resolveSession(
 	return sess, nil, err
 }
 
-func (c *Coordinator) claimFreshRun(ctx context.Context, sess session.Session) (admission.RunAdmission, error) {
+func (c *Coordinator) claimFreshRun(ctx context.Context, sess session.Session) (sessionadmission.RunAdmission, error) {
 	runAdmission, ok := c.admission.AcquireRun(sess.ID(), sess.CWD())
 	if !ok {
 		// The in-process gate also guards working-tree mutations, so what it refuses is
 		// not always a Run and cannot always be named.
-		return admission.RunAdmission{}, ErrRunAdmissionBusy
+		return sessionadmission.RunAdmission{}, ErrRunAdmissionBusy
 	}
 	// A Run the Session already holds is reported WITH its identity: the caller has to
 	// choose between steering it, answering it and canceling it, and it cannot choose
@@ -181,11 +181,11 @@ func (c *Coordinator) claimFreshRun(ctx context.Context, sess session.Session) (
 	active, err := c.activeRunConflict(ctx, sess.ID())
 	if err != nil {
 		runAdmission.Release()
-		return admission.RunAdmission{}, err
+		return sessionadmission.RunAdmission{}, err
 	}
 	if active != nil {
 		runAdmission.Release()
-		return admission.RunAdmission{}, active
+		return sessionadmission.RunAdmission{}, active
 	}
 	return runAdmission, nil
 }

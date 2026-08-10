@@ -12,8 +12,8 @@ import (
 	"time"
 
 	agent "github.com/Tangerg/lynx/agent"
-	"github.com/Tangerg/lynx/app/runtime/internal/application/admission"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/sessionadmission"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
@@ -70,7 +70,7 @@ func TestInteractionExecutorRunsDelegateAsProductChildRun(t *testing.T) {
 			Openings: projection, ChildStarts: projection, Events: projection,
 			Barriers: projection, Checkpoints: projection, Workspace: projection, Finalizer: projection,
 		},
-		Admissions: new(admission.Gate), Now: time.Now,
+		Admissions: new(sessionadmission.Gate), Now: time.Now,
 		NewRunID: func() string {
 			id := runIDs[0]
 			runIDs = runIDs[1:]
@@ -204,7 +204,7 @@ func TestInteractionExecutorCancelsRunningDelegateAndKeepsRootRunning(t *testing
 			Barriers: projection, Checkpoints: projection, Workspace: projection, Finalizer: projection,
 		},
 		Runs: projection, Items: projection,
-		Admissions: new(admission.Gate), Now: time.Now,
+		Admissions: new(sessionadmission.Gate), Now: time.Now,
 		NewRunID: func() string {
 			id := runIDs[0]
 			runIDs = runIDs[1:]
@@ -463,7 +463,7 @@ func runDelegateTree(
 			Openings: projection, ChildStarts: projection, Events: projection,
 			Barriers: projection, Checkpoints: projection, Workspace: projection, Finalizer: projection,
 		},
-		Admissions: new(admission.Gate), Now: time.Now,
+		Admissions: new(sessionadmission.Gate), Now: time.Now,
 		NewRunID: func() string {
 			identityMu.Lock()
 			defer identityMu.Unlock()

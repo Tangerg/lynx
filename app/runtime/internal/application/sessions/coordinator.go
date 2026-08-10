@@ -17,7 +17,7 @@ import (
 
 	"github.com/Tangerg/lynx/core/chat"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/application/change"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/invalidation"
 	planapp "github.com/Tangerg/lynx/app/runtime/internal/application/plans"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
@@ -232,13 +232,13 @@ type Coordinator struct {
 	// admissions is shared with Runs and owns the process-local session and
 	// working-tree facts.
 	admissions Admissions
-	// changed tells clients a committed session mutation moved something they hold.
+	// invalidations tell clients a committed session mutation moved something they hold.
 	// Every notice is published from a post-commit boundary, never from the commit
 	// itself: a signal for a transaction that then rolled back would send every
 	// listener to re-read state that never changed. nil publishes nothing.
-	changed change.Publish
-	now     func() time.Time
-	newID   func() string
+	invalidations invalidation.Publish
+	now           func() time.Time
+	newID         func() string
 }
 
 // Dependencies is the collaborator set [New] wires into a Coordinator. Durable
@@ -262,9 +262,9 @@ type Dependencies struct {
 	Goals             GoalMutationGuard
 	Mutations         WorkspaceMutations
 	Admissions        Admissions
-	// Changed publishes post-commit invalidations for the session projections a
+	// Invalidations publishes post-commit invalidations for the session projections a
 	// mutation moved. nil disables them (no runtime change stream wired).
-	Changed change.Publish
+	Invalidations invalidation.Publish
 	// Now supplies Session construction and replacement time.
 	Now func() time.Time
 	// NewID returns one complete Session identity, including its type prefix.
@@ -297,7 +297,7 @@ func New(deps Dependencies) *Coordinator {
 		goals:             deps.Goals,
 		mutations:         deps.Mutations,
 		admissions:        deps.Admissions,
-		changed:           deps.Changed,
+		invalidations:     deps.Invalidations,
 		now:               deps.Now,
 		newID:             deps.NewID,
 	}

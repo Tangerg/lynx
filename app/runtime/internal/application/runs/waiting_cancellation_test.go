@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/application/admission"
-	"github.com/Tangerg/lynx/app/runtime/internal/application/change"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/invalidation"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/sessionadmission"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
@@ -240,17 +240,17 @@ func TestPublishWaitingChildCancellationInvalidatesExactReadSet(t *testing.T) {
 			if err != nil {
 				t.Fatalf("prepare waiting cancellation: %v", err)
 			}
-			changes := &changeRecorder{}
-			coordinator := &Coordinator{changed: changes.publish}
+			invalidations := &invalidationRecorder{}
+			coordinator := &Coordinator{invalidations: invalidations.publish}
 
 			coordinator.publishWaitingChildCancellation(plan, transformation)
 
-			want := []change.Notice{
-				change.InSession(change.Runs, plan.pending.SessionID, test.affectedRunIDs...),
-				change.InSession(change.Interrupts, plan.pending.SessionID, plan.root.run.ID()),
-				change.InSession(change.Sessions, plan.pending.SessionID),
+			want := []invalidation.Notice{
+				invalidation.InSession(invalidation.Runs, plan.pending.SessionID, test.affectedRunIDs...),
+				invalidation.InSession(invalidation.Interrupts, plan.pending.SessionID, plan.root.run.ID()),
+				invalidation.InSession(invalidation.Sessions, plan.pending.SessionID),
 			}
-			if got := changes.snapshot(); !reflect.DeepEqual(got, want) {
+			if got := invalidations.snapshot(); !reflect.DeepEqual(got, want) {
 				t.Fatalf("published notices = %+v, want %+v", got, want)
 			}
 		})
@@ -726,7 +726,7 @@ func waitingCancellationCoordinator(
 		Projection:                         testProjectionPorts(effects),
 		Runs:                               &fakeRunProjection{runs: runsByID},
 		Items:                              &fakeItemProjection{items: waitingCancellationItems(plan)},
-		Admissions:                         new(admission.Gate),
+		Admissions:                         new(sessionadmission.Gate),
 		Now: func() time.Time {
 			return time.Date(2026, 7, 30, 2, 3, 4, 0, time.UTC)
 		},

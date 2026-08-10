@@ -1,4 +1,4 @@
-// Package change carries the "this moved, read it again" notices a use case
+// Package invalidation carries the "this moved, read it again" notices a use case
 // publishes after its durable mutation commits.
 //
 // The facts are application-owned: which resource a committed write moved, and
@@ -9,7 +9,7 @@
 // truth for something a query already answers, and the two would disagree the
 // moment one notice was coalesced or dropped — which this channel is explicitly
 // allowed to do.
-package change
+package invalidation
 
 // Resource is what moved. It is a closed set projected exhaustively at the
 // publication boundary.

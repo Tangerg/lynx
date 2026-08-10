@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/application/admission"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/queries"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/sessionadmission"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
@@ -391,7 +391,7 @@ func TestListItemsReadsBackwardWhenAsked(t *testing.T) {
 func TestSessionStatesPreservesInterruptReadFailure(t *testing.T) {
 	want := errors.New("interrupt store unavailable")
 	reader := &fakeInterruptReader{err: want}
-	coordinator := sessions.New(sessions.Dependencies{Interrupts: reader, Admissions: new(admission.Gate)})
+	coordinator := sessions.New(sessions.Dependencies{Interrupts: reader, Admissions: new(sessionadmission.Gate)})
 	if _, err := coordinator.Activities(t.Context(), []string{"ses_1", "ses_2"}); !errors.Is(err, want) {
 		t.Fatalf("Activities error = %v, want interrupt read failure", err)
 	}
@@ -399,7 +399,7 @@ func TestSessionStatesPreservesInterruptReadFailure(t *testing.T) {
 
 func TestSessionStatesDoNotQueryInterruptsForActiveRun(t *testing.T) {
 	reader := &fakeInterruptReader{err: errors.New("must not be read")}
-	gate := &admission.Gate{}
+	gate := &sessionadmission.Gate{}
 	if _, ok := gate.AcquireSession("ses_1"); !ok {
 		t.Fatal("AcquireSession rejected an empty registry")
 	}

@@ -9,8 +9,8 @@ import (
 
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/application/admission"
-	"github.com/Tangerg/lynx/app/runtime/internal/application/change"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/invalidation"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/sessionadmission"
 	rundomain "github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/taskgroup"
@@ -74,12 +74,12 @@ type Coordinator struct {
 	retention Retention
 	tasks     taskgroup.Group
 	registry  registry
-	admission *admission.Gate
-	// changed tells clients that are NOT following this run that its lifecycle
+	admission *sessionadmission.Gate
+	// invalidations tell clients that are NOT following this run that its lifecycle
 	// moved. The run's own stream carries the events themselves; this is the
 	// invalidation for everyone else, published only after the durable commit the
 	// event stands on. nil publishes nothing.
-	changed change.Publish
+	invalidations invalidation.Publish
 }
 
 // Dependencies is the complete collaborator set for the user-visible run use
@@ -100,7 +100,7 @@ type Dependencies struct {
 	Projection                         ProjectionPorts
 	Runs                               RunProjection
 	Items                              ItemProjection
-	Admissions                         *admission.Gate
+	Admissions                         *sessionadmission.Gate
 	Isolation                          IsolationProvider // nil disables isolated sessions (their start is refused)
 	Now                                func() time.Time
 	// Retention bounds every segment's replay window. Zero takes
@@ -108,9 +108,9 @@ type Dependencies struct {
 	Retention    Retention
 	NewRunID     func() string
 	NewSegmentID func() string
-	// Changed publishes run/session/interrupt/state invalidations for clients that
+	// Invalidations publishes run/session/interrupt/state invalidations for clients that
 	// are not following the run. nil disables them (no runtime change stream wired).
-	Changed change.Publish
+	Invalidations invalidation.Publish
 }
 
 // NewCoordinator builds the single owner of run use cases and live segments.
@@ -156,7 +156,7 @@ func NewCoordinator(deps Dependencies) *Coordinator {
 		epoch:                              newReplayEpoch(),
 		retention:                          deps.Retention,
 		admission:                          deps.Admissions,
-		changed:                            deps.Changed,
+		invalidations:                      deps.Invalidations,
 	}
 }
 

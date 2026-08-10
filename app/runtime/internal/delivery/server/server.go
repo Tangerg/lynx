@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/application/change"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/invalidation"
 	mcpapp "github.com/Tangerg/lynx/app/runtime/internal/application/mcp"
 	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/dispatch"
@@ -38,7 +38,7 @@ type Config struct {
 
 	Schedules      scheduleManagementUseCases
 	ScheduleFiring scheduleFiringUseCases
-	Changes        notificationSource[change.Notice]
+	Invalidations  notificationSource[invalidation.Notice]
 	ScheduleFires  notificationSource[string]
 
 	// Goals exposes the autonomous Goal use cases. nil
@@ -271,8 +271,8 @@ func (s *Server) observeNotificationSources(cfg Config) {
 	if cfg.ScheduleFires != nil {
 		s.observeScheduleFires(cfg.ScheduleFires)
 	}
-	if cfg.Changes != nil {
-		s.observeChanges(cfg.Changes)
+	if cfg.Invalidations != nil {
+		s.observeInvalidations(cfg.Invalidations)
 	}
 }
 

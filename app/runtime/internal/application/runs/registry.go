@@ -32,7 +32,7 @@ type liveSegment struct {
 }
 
 // registry is the process-local registry of live run segments. Session
-// admission is owned separately by application/admission because Sessions and
+// admission is owned separately by application/sessionadmission because Sessions and
 // Runs share that invariant; durable run history lives in transcript.
 //
 // Its zero value is usable.

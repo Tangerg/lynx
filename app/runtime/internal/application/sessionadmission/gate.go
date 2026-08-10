@@ -1,6 +1,6 @@
-// Package admission owns the process-local session admission facts shared by
+// Package sessionadmission owns the process-local session admission facts shared by
 // Run execution and destructive Session lifecycle operations.
-package admission
+package sessionadmission
 
 import (
 	"context"

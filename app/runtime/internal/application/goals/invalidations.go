@@ -3,11 +3,11 @@ package goals
 import (
 	"context"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/application/change"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/invalidation"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
 )
 
-// WithChangeNotices returns store wrapped so that every goal write that actually
+// WithInvalidations returns store wrapped so that every goal write that actually
 // landed publishes its session's goal invalidation.
 //
 // The wrapper exists because a goal changes from many places — the lifecycle
@@ -23,16 +23,16 @@ import (
 // double signal.
 //
 // A nil publisher returns store unchanged: nothing to notify, nothing to wrap.
-func WithChangeNotices(store Store, changed change.Publish) Store {
-	if store == nil || changed == nil {
+func WithInvalidations(store Store, invalidations invalidation.Publish) Store {
+	if store == nil || invalidations == nil {
 		return store
 	}
-	return notifyingStore{Store: store, changed: changed}
+	return notifyingStore{Store: store, invalidations: invalidations}
 }
 
 type notifyingStore struct {
 	Store
-	changed change.Publish
+	invalidations invalidation.Publish
 }
 
 func (s notifyingStore) Save(ctx context.Context, g goal.Goal, expected goal.Version) (goal.Goal, bool, error) {
@@ -60,5 +60,5 @@ func (s notifyingStore) ClearIf(ctx context.Context, sessionID string, expected 
 }
 
 func (s notifyingStore) publish(sessionID string) {
-	s.changed.Notify(change.InSession(change.Goals, sessionID))
+	s.invalidations.Notify(invalidation.InSession(invalidation.Goals, sessionID))
 }

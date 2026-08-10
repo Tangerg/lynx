@@ -526,9 +526,9 @@
 
 ### 工作项
 
-- [ ] P17-01 裁决并收敛顶层共享 capability：业务语义归还真实 owner，纯 framing/mechanism 只在具有多个真实消费者时共享；
-- [ ] P17-02 收敛 Toolset 的单工具目录爆炸、cycle workaround 和只为转发存在的子包；
-- [ ] P17-03 复审 Domain/Application package 的 bounded-context 语言、用例 owner、I/O port 与共享策略边界；
+- [x] P17-01 裁决并收敛顶层共享 capability：业务语义归还真实 owner，纯 framing/mechanism 只在具有多个真实消费者时共享；
+- [x] P17-02 收敛 Toolset 的单工具目录爆炸、cycle workaround 和只为转发存在的子包；
+- [x] P17-03 复审 Domain/Application package 的 bounded-context 语言、用例 owner、I/O port 与共享策略边界；
 - [ ] P17-04 复审 Adapter/Infra/Delivery/Bootstrap/Testsupport package 的 SDK 隔离、技术机制、组合职责与命名；
 - [ ] P17-05 执行全量 import graph、standalone、race、fuzz、generator、lint、deadcode、文档与空残留验收，并冻结 package-boundary guard。
 
@@ -544,6 +544,7 @@
 
 | 日期 | 阶段 | 完成事实 | 验证 |
 |---|---|---|---|
+| 2026-08-10 | P17-03（Domain/Application package boundary） | 复核 P16 已冻结的 21 个 Domain bounded context，确认其虽有小包但分别拥有独立词汇、行为/invariant、变化原因和直接测试，不按体量机械合并。Application 删除含混 `change`，以 `invalidation.Notice` 准确表达“提交后通知读者重新读取”的无值信号，并将 Bootstrap/Delivery/Goals/Plans/Runs/Sessions 的 `Changes`/`Changed`/`WithChangeNotices` 全链路统一为 `Invalidations`/`WithInvalidations`；原泛化 `admission` 按实际 process-local Session/working-tree gate 改为 `sessionadmission`；只有一个黑盒测试消费者的 `approvals/approvaltest` 回收到测试文件。旧三个路径由 architecture guard 永久禁止，不保留 alias/shim | Runtime `GOWORK=off go test ./...` 全绿；Application/Bootstrap/Delivery/agentexec targeted tests 全绿；完整 vet/build 与架构/命名/空残留门禁在本批提交前收口 |
 | 2026-08-10 | P17-02（Toolset package convergence） | 将每个 model tool 一个目录的 `toolset/{agentmemorysearch,askuser,conversationsearch,goal,lsp,offload,plan,schedule,shell,skill}` 治本收敛为 `toolset/builtin`：一个 package 拥有 Runtime built-in tool 的共同变化轴，文件仍按能力族分责，所有原含混 `New`/`Build`/`Search`/`Reader`/`Store` API 改为 `NewAskUser`、`BuildPlan`、`AgentMemorySearch`、`GoalReader`、`ToolResultStore` 等准确词汇。deferred discovery 从子包归回 Resolver owner；单消费者 delegation contract 归回 `agentexec` Interaction ACL；稳定 model-facing identity 从误称 `toolset/catalog` 的 cycle-workaround package 改为 25 个真实消费者共享的 `adapter/toolname`。旧 12 个子目录物理删除并由架构 guard 禁止回流，package 总数从 115 降至 104，不保留 alias/shim | Runtime `GOWORK=off go test ./...`、`go vet ./...`、`go build ./...` 全绿；toolname/toolset/builtin/agentexec/Bootstrap/architecture targeted tests 全绿；Tool descriptor parity、strict schemas、Role manifests、deferred advertisement、HITL restore、Delegate deployment 与全部原工具行为测试保持通过；`git diff --check` 通过 |
 | 2026-08-10 | P17-01a（shared capability ownership） | 删除单消费者顶层 `internal/replaycursor`：Run replay 的 position、epoch、scope、format/version 与 validation 全部回归 `application/runs` 私有 journal 行为，不再暴露可拼装的 `Position`；抽取 pagination/replay 两个真实消费者共同使用的 `internal/opaquetoken`，只负责 strict URL-safe framing，unknown/trailing JSON 一律拒绝且不理解任何业务 payload。删除单消费者顶层 `internal/shutdown`，将 non-cooperative close serialization 下沉为 `infra/teardown` 技术机制，Bootstrap 继续只组装/关闭；`httporigin.Origin` 关闭字段，外部无法构造不合法 security origin。shared-capability 架构白名单与 Capability Ledger 同步，不保留 alias/shim | Runtime `GOWORK=off go test ./...`、`go vet ./...`、`go build ./...` 全绿；runs/pagination/opaque-token/teardown/Bootstrap/HTTP-origin/architecture 直接行为与严格 codec tests 全绿；旧 package import 与旧目录生产引用为零，`git diff --check` 通过 |
 | 2026-08-10 | P16-06（final Domain ownership acceptance） | 从已推送的 P16-05 干净 Runtime 基线完成 Domain ownership 专项最终反证；Run、Transcript Item、Plan、Session 四条纵切与 21 个 Domain package 的 package/文件/类型/方法/错误/注释/测试边界共同自洽。Domain 不含 context I/O port、Framework/Storage/Protocol/Workspace live projection 或 Runtime capability availability；Application 继续独占 workspace admission、跨 aggregate write-set、事务、并发、publish、cleanup 与 executor lifecycle。无 compatibility path、重复 mutation owner、透明 alias、forwarding layer、收纳 package、tracked 空文件/目录、生产 TODO/FIXME/HACK、生成漂移或消费者接线项；根 `LYRA.md` 仍是有意保留的空 knowledge 起点 | 仓库标准 `MODULE=app/runtime FAST=1 scripts/check.sh build vet test tidy lint race` 六项全绿；standalone make、staticcheck、`deadcode -test`、完整 golangci-lint 与 generator diff 全绿；Continuation/Prompt/Resolution 三个 strict codec fuzz 各 10 秒、合计 739,740 次执行无失败；architecture/contract/doc facts、文档本地链接、边界/空残留/hygiene 扫描全绿。P16 完成 |
@@ -598,4 +599,4 @@
 
 ## 23. 当前下一步
 
-P17 正在执行。当前先完成顶层共享 capability 收敛，再处理 Toolset 目录爆炸，随后按依赖方向复审各 ring；前端、TUI、CLI 不属于本 goal，Runtime 不为消费者恢复旧合同。
+P17 正在执行。Shared capability、Toolset、Domain/Application 已完成；下一批复审 Adapter/Infra/Delivery/Bootstrap/Testsupport，再执行全量反证验收。前端、TUI、CLI 不属于本 goal，Runtime 不为消费者恢复旧合同。

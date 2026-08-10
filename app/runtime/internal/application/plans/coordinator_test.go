@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/application/change"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/invalidation"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
 )
 
@@ -35,10 +35,10 @@ func TestCommittedStateChangeReachesOtherWindows(t *testing.T) {
 		t.Fatal(err)
 	}
 	store := &fakeStore{state: current}
-	var notices []change.Notice
+	var notices []invalidation.Notice
 	coordinator := New(Dependencies{
 		Store: store, Now: func() time.Time { return now },
-		Changed: func(notice change.Notice) { notices = append(notices, notice) },
+		Invalidations: func(notice invalidation.Notice) { notices = append(notices, notice) },
 	})
 	got, err := coordinator.Replace(t.Context(), "ses_1", []plan.Step{{Description: "ship", Status: plan.StatusInProgress}})
 	if err != nil {
@@ -47,7 +47,7 @@ func TestCommittedStateChangeReachesOtherWindows(t *testing.T) {
 	if store.expectedRevision != 3 || store.saved.Revision() != 4 || got.Revision() != 4 || !got.UpdatedAt().Equal(now) {
 		t.Fatalf("saved = %+v expected=%d got=%+v", store.saved.Snapshot(), store.expectedRevision, got.Snapshot())
 	}
-	if len(notices) != 1 || notices[0].Resource != change.PlanState || len(notices[0].SessionIDs) != 1 || notices[0].SessionIDs[0] != "ses_1" {
+	if len(notices) != 1 || notices[0].Resource != invalidation.PlanState || len(notices[0].SessionIDs) != 1 || notices[0].SessionIDs[0] != "ses_1" {
 		t.Fatalf("notices = %+v, want the committed Plan state", notices)
 	}
 }
@@ -69,7 +69,7 @@ func TestReplacePropagatesRevisionConflict(t *testing.T) {
 	var published bool
 	coordinator := New(Dependencies{
 		Store: store, Now: time.Now,
-		Changed: func(change.Notice) { published = true },
+		Invalidations: func(invalidation.Notice) { published = true },
 	})
 	_, err := coordinator.Replace(t.Context(), "ses_1", nil)
 	if !errors.Is(err, plan.ErrRevisionConflict) {

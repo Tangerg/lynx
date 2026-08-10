@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/application/change"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/invalidation"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
 )
 
@@ -25,16 +25,16 @@ type Clock func() time.Time
 
 // Coordinator executes Plan use cases over one canonical store.
 type Coordinator struct {
-	store   Store
-	now     Clock
-	changed change.Publish
+	store         Store
+	now           Clock
+	invalidations invalidation.Publish
 }
 
 // Dependencies is the collaborator set [New] wires into a Coordinator.
 type Dependencies struct {
-	Store   Store
-	Now     Clock
-	Changed change.Publish
+	Store         Store
+	Now           Clock
+	Invalidations invalidation.Publish
 }
 
 // New returns a Plan Coordinator. A nil Store means the optional capability is
@@ -46,7 +46,7 @@ func New(deps Dependencies) *Coordinator {
 	if deps.Now == nil {
 		deps.Now = time.Now
 	}
-	return &Coordinator{store: deps.Store, now: deps.Now, changed: deps.Changed}
+	return &Coordinator{store: deps.Store, now: deps.Now, invalidations: deps.Invalidations}
 }
 
 // State returns the canonical Plan aggregate for one session.
@@ -77,7 +77,7 @@ func (c *Coordinator) Replace(ctx context.Context, sessionID string, steps []pla
 	if err := c.store.Save(ctx, sessionID, replacement.ExpectedRevision(), replacement.State()); err != nil {
 		return plan.State{}, err
 	}
-	c.changed.Notify(change.InSession(change.PlanState, sessionID))
+	c.invalidations.Notify(invalidation.InSession(invalidation.PlanState, sessionID))
 	return replacement.State(), nil
 }
 

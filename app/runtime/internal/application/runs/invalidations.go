@@ -1,6 +1,6 @@
 package runs
 
-import "github.com/Tangerg/lynx/app/runtime/internal/application/change"
+import "github.com/Tangerg/lynx/app/runtime/internal/application/invalidation"
 
 // The run lifecycle's invalidations for clients that are not following this run.
 // They are published AFTER the durable transition they describe, from the same
@@ -15,19 +15,19 @@ import "github.com/Tangerg/lynx/app/runtime/internal/application/change"
 // publishRunMoved reports a run whose lifecycle position changed without touching
 // what it is waiting on: a run that started, or one that ended.
 func (c *Coordinator) publishRunMoved(sessionID, runID string) {
-	c.changed.Notify(
-		change.InSession(change.Runs, sessionID, runID),
-		change.InSession(change.Sessions, sessionID),
+	c.invalidations.Notify(
+		invalidation.InSession(invalidation.Runs, sessionID, runID),
+		invalidation.InSession(invalidation.Sessions, sessionID),
 	)
 }
 
 // publishWaitingMoved reports a transition that also opened, answered or dropped
 // the session's open-interrupt set — a park, a resume, or a canceled park.
 func (c *Coordinator) publishWaitingMoved(sessionID, runID string) {
-	c.changed.Notify(
-		change.InSession(change.Runs, sessionID, runID),
-		change.InSession(change.Interrupts, sessionID, runID),
-		change.InSession(change.Sessions, sessionID),
+	c.invalidations.Notify(
+		invalidation.InSession(invalidation.Runs, sessionID, runID),
+		invalidation.InSession(invalidation.Interrupts, sessionID, runID),
+		invalidation.InSession(invalidation.Sessions, sessionID),
 	)
 }
 
@@ -41,10 +41,10 @@ func (c *Coordinator) publishWaitingSubtreeCanceled(
 	rootRunID string,
 	affectedRunIDs []string,
 ) {
-	c.changed.Notify(
-		change.InSession(change.Runs, sessionID, affectedRunIDs...),
-		change.InSession(change.Interrupts, sessionID, rootRunID),
-		change.InSession(change.Sessions, sessionID),
+	c.invalidations.Notify(
+		invalidation.InSession(invalidation.Runs, sessionID, affectedRunIDs...),
+		invalidation.InSession(invalidation.Interrupts, sessionID, rootRunID),
+		invalidation.InSession(invalidation.Sessions, sessionID),
 	)
 }
 
@@ -53,5 +53,5 @@ func (c *Coordinator) publishWaitingSubtreeCanceled(
 // sees this write — without a notice here, a client would watch a goal spend its
 // budget in silence.
 func (c *Coordinator) publishGoalMoved(sessionID string) {
-	c.changed.Notify(change.InSession(change.Goals, sessionID))
+	c.invalidations.Notify(invalidation.InSession(invalidation.Goals, sessionID))
 }

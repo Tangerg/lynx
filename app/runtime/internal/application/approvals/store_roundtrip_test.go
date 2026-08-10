@@ -3,10 +3,10 @@ package approvals_test
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/approvals"
-	"github.com/Tangerg/lynx/app/runtime/internal/application/approvals/approvaltest"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 )
 
@@ -104,9 +104,73 @@ func TestRememberRejectsUnkeyable(t *testing.T) {
 
 func newPolicy(t *testing.T) *approvals.RuntimePolicy {
 	t.Helper()
-	policy, err := approvals.NewRuntimePolicy(approval.ModeSafe, approvaltest.NewMemoryStore(), nil)
+	policy, err := approvals.NewRuntimePolicy(approval.ModeSafe, newMemoryRuleStore(), nil)
 	if err != nil {
 		t.Fatalf("new policy: %v", err)
 	}
 	return policy
+}
+
+// memoryRuleStore is this black-box test's in-process [approvals.RuleStore]. It
+// stays beside its only consumer rather than creating a production-shaped
+// package for one test fixture.
+type memoryRuleStore struct {
+	mu    sync.Mutex
+	rules map[string]approval.Rule
+}
+
+func newMemoryRuleStore() *memoryRuleStore {
+	return &memoryRuleStore{rules: make(map[string]approval.Rule)}
+}
+
+var _ approvals.RuleStore = (*memoryRuleStore)(nil)
+
+func (s *memoryRuleStore) Put(_ context.Context, rule approval.Rule) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.rules[rule.ID] = rule
+	return nil
+}
+
+func (s *memoryRuleStore) Visible(_ context.Context, sessionID, projectDir string) ([]approval.Rule, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var rules []approval.Rule
+	for _, rule := range s.rules {
+		if ruleVisibleFrom(rule, sessionID, projectDir) {
+			rules = append(rules, rule)
+		}
+	}
+	return rules, nil
+}
+
+func (s *memoryRuleStore) Delete(_ context.Context, id string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.rules, id)
+	return nil
+}
+
+func (s *memoryRuleStore) DeleteSession(_ context.Context, sessionID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for id, rule := range s.rules {
+		if rule.Scope == approval.ScopeSession && rule.ScopeKey == sessionID {
+			delete(s.rules, id)
+		}
+	}
+	return nil
+}
+
+func ruleVisibleFrom(rule approval.Rule, sessionID, projectDir string) bool {
+	switch rule.Scope {
+	case approval.ScopeSession:
+		return rule.ScopeKey == sessionID
+	case approval.ScopeProject:
+		return projectDir != "" && rule.ScopeKey == projectDir
+	case approval.ScopeGlobal:
+		return true
+	default:
+		return false
+	}
 }
