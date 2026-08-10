@@ -1351,6 +1351,53 @@ func TestTerminalSurvivesExtremeResizeAndRemainsInteractive(t *testing.T) {
 	stop()
 }
 
+func TestStreamingRemainsResponsiveThroughAResizeStorm(t *testing.T) {
+	runtime := mock.New()
+	runtime.Script = func(string) mock.Script {
+		steps := []mock.Step{{Event: client.BlockStarted{Block: client.Block{
+			ID: "stream", Kind: client.BlockAssistant,
+		}}}}
+		for range 64 {
+			steps = append(steps, mock.Step{
+				Delay: 2 * time.Millisecond,
+				Event: client.BlockDelta{BlockID: "stream", Text: "x"},
+			})
+		}
+		steps = append(steps,
+			mock.Step{Event: client.BlockCompleted{Block: client.Block{
+				ID: "stream", Kind: client.BlockAssistant, Text: "RESIZE_STREAM_COMPLETE",
+			}}},
+			mock.Step{Event: client.RunFinished{Outcome: client.Outcome{Status: client.OutcomeCompleted}}},
+		)
+		return mock.Script{Prelude: steps}
+	}
+	host, stop := runUIWith(t, runtime)
+	host.Shows(t, "Ask lyra")
+	host.Type("stress the viewport")
+	host.Press(input.Enter)
+
+	sizes := []struct{ width, height int }{
+		{1, 1}, {120, 40}, {8, 3}, {96, 28}, {11, 20}, {200, 60}, {20, 7}, {80, 24},
+	}
+	for iteration := range 8 {
+		for _, size := range sizes {
+			if !host.Resize(size.width, size.height) || !host.Repaint() {
+				t.Fatalf("resize storm stopped at iteration %d size %dx%d", iteration, size.width, size.height)
+			}
+		}
+	}
+	if !host.Resize(96, 28) {
+		t.Fatal("could not restore the normal viewport")
+	}
+	host.Shows(t, "RESIZE_STREAM_COMPLETE")
+	host.Shows(t, "complete")
+	host.Type("/plugins")
+	host.Press(input.Enter)
+	host.Press(input.Enter)
+	host.Shows(t, "terminal.core")
+	stop()
+}
+
 func TestOutcomeNotificationMatchesTheRunVerdict(t *testing.T) {
 	for _, test := range []struct {
 		name    string

@@ -1,11 +1,14 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"errors"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"syscall"
 	"testing"
@@ -18,14 +21,7 @@ func TestInteractiveBinaryReturnsTheTerminalIntact(t *testing.T) {
 	if !ptytest.Supported() {
 		t.Skip("no pty on this platform")
 	}
-	binary := filepath.Join(t.TempDir(), "lyra")
-	if os.PathSeparator == '\\' {
-		binary += ".exe"
-	}
-	build := exec.CommandContext(t.Context(), "go", "build", "-o", binary, ".")
-	if output, err := build.CombinedOutput(); err != nil {
-		t.Fatalf("build lyra: %v\n%s", err, output)
-	}
+	binary := buildTestBinary(t)
 
 	for _, test := range []struct {
 		name         string
@@ -102,6 +98,97 @@ func TestInteractiveBinaryReturnsTheTerminalIntact(t *testing.T) {
 		})
 	}
 }
+
+func buildTestBinary(t *testing.T) string {
+	t.Helper()
+	binary := filepath.Join(t.TempDir(), "lyra")
+	if os.PathSeparator == '\\' {
+		binary += ".exe"
+	}
+	build := exec.CommandContext(t.Context(), "go", "build", "-o", binary, ".")
+	if output, err := build.CombinedOutput(); err != nil {
+		t.Fatalf("build lyra: %v\n%s", err, output)
+	}
+	return binary
+}
+
+func TestHeadlessBinaryReturnsConventionalSignalExitCodes(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows does not expose Unix signal exit semantics")
+	}
+	binary := buildTestBinary(t)
+	for _, test := range []struct {
+		name   string
+		signal os.Signal
+		want   int
+	}{
+		{name: "SIGINT", signal: os.Interrupt, want: 130},
+		{name: "SIGTERM", signal: syscall.SIGTERM, want: 143},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			command := exec.CommandContext(t.Context(), binary, "run", "--json", "--approve-all", "wait for signal")
+			command.Stdout = io.Discard
+			stderr, err := command.StderrPipe()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := command.Start(); err != nil {
+				t.Fatal(err)
+			}
+			waiting := false
+			t.Cleanup(func() {
+				if command.ProcessState == nil {
+					_ = command.Process.Kill()
+					if !waiting {
+						_ = command.Wait()
+					}
+				}
+			})
+
+			ready := make(chan error, 1)
+			go func() {
+				scanner := bufio.NewScanner(stderr)
+				for scanner.Scan() {
+					if strings.Contains(scanner.Text(), mockNoticeForTest) {
+						ready <- nil
+						return
+					}
+				}
+				if err := scanner.Err(); err != nil {
+					ready <- err
+					return
+				}
+				ready <- errors.New("process exited before opening the mock runtime")
+			}()
+			select {
+			case err := <-ready:
+				if err != nil {
+					t.Fatal(err)
+				}
+			case <-time.After(10 * time.Second):
+				t.Fatal("timed out waiting for headless run to start")
+			}
+			if err := command.Process.Signal(test.signal); err != nil {
+				t.Fatal(err)
+			}
+			waited := make(chan error, 1)
+			waiting = true
+			go func() { waited <- command.Wait() }()
+			select {
+			case err := <-waited:
+				waiting = false
+				var exit *exec.ExitError
+				if !errors.As(err, &exit) || exit.ExitCode() != test.want {
+					t.Fatalf("signal exit = %v, want code %d", err, test.want)
+				}
+			case <-time.After(15 * time.Second):
+				t.Fatal("headless run did not stop after signal")
+			}
+		})
+	}
+}
+
+const mockNoticeForTest = "scripted mock runtime"
 
 func TestProcessSignalExitCodes(t *testing.T) {
 	for _, test := range []struct {
