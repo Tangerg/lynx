@@ -17,13 +17,16 @@ go run . sessions ls
 go run . config show
 ```
 
-The interactive client supports session switching, search, attachments, approval questions, runtime-option pickers, tool details, plugin inspection, and plugin reload/unload. `lyra completion <bash|zsh|fish|powershell>` generates shell completion.
+The interactive client uses a stable agent shell: session and workspace identity at the top, selectable transcript content in the center, a compact live plan and run status near the bottom, and a framed multiline composer whose footer always shows the active model, effort, mode, and permission. Optional regions yield their space on constrained terminals instead of squeezing the conversation. It supports session switching, search, attachments, approval questions, runtime-option pickers, tool details, plugin inspection, and plugin reload/unload. `lyra completion <bash|zsh|fish|powershell>` generates shell completion.
 
 Core terminal interactions are available from both the keyboard and mouse:
 
 - `Enter` sends a prompt; `Shift+Enter` or `Alt+Enter` inserts a newline.
 - `PageUp` and `PageDown` move through the live transcript; `Ctrl+Home` and `Ctrl+End` jump to its bounds. Scrolling up suspends bottom-following while output continues.
-- Click a tool-call header to expand or collapse that tool. `Ctrl+O` expands or collapses all tool details.
+- Click a tool-call header to expand or collapse that tool. Its colored rail and right-aligned state remain visible while details are folded; `Ctrl+O` expands or collapses all tool details.
+- `Ctrl+P` opens the searchable command palette. `/help` opens the same surface, so command discovery does not flood the transcript.
+
+The shortcut row is contextual: idle runs emphasize send, sessions, and mode; active runs emphasize cancel, multiline input, and tool details. Mouse, selection, transcript scrolling, and command shortcuts remain available while output streams.
 
 ## Architecture
 

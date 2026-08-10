@@ -7,6 +7,7 @@ import (
 	"github.com/Tangerg/oolong/components/headless"
 	"github.com/Tangerg/oolong/components/kit"
 	coreDiff "github.com/Tangerg/oolong/core/diff"
+	"github.com/Tangerg/oolong/core/grid"
 	"github.com/Tangerg/oolong/highlight"
 
 	"github.com/Tangerg/lynx/app/cli/internal/client"
@@ -100,6 +101,60 @@ func TestUpdatingARunningToolPreservesItsDetailChoice(t *testing.T) {
 	block.Update(client.Block{ID: "tool", Kind: client.BlockTool, Tool: &completed})
 	if !block.Expanded() {
 		t.Fatal("tool completion discarded the reader's expanded state")
+	}
+}
+
+func TestToolBlockDrawsALocaleSafeStatusRailThroughExpandedDetails(t *testing.T) {
+	theme, glyphs := kit.Dark(), kit.ASCII()
+	call := client.ToolCall{
+		Kind: client.ToolShell, Command: "go test ./...", Status: client.ToolOK, Output: "all packages passed",
+	}
+	block := newToolBlock(Presentation{Theme: theme, Glyphs: glyphs, Syntax: highlight.Style("github-dark")}, client.Block{
+		ID: "test", Kind: client.BlockTool, Tool: &call,
+	})
+	block.SetExpanded(true)
+	width, height := 48, block.Measure(48)
+	surface := grid.NewSurface(width, height)
+	block.Draw(surface.View())
+
+	drawn := strings.Join(surface.Rows(), "\n")
+	for _, want := range []string{"- $ go test ./...", "x done", "all packages passed"} {
+		if !strings.Contains(drawn, want) {
+			t.Errorf("tool block does not contain %q:\n%s", want, drawn)
+		}
+	}
+	for row := 0; row < height-1; row++ {
+		cell, ok := surface.CellAt(0, row)
+		if !ok || cell.Content != glyphs.Vertical || cell.Style != theme.Success {
+			t.Fatalf("status rail row %d = %+v, want %q with success style", row, cell, glyphs.Vertical)
+		}
+	}
+	if strings.Contains(drawn, "✓") || strings.Contains(drawn, "…") {
+		t.Fatalf("ASCII tool block contains a Unicode-only status glyph:\n%s", drawn)
+	}
+
+	rows := block.Rows(width)
+	if len(rows) != height || strings.HasPrefix(rows[0].Text, glyphs.Vertical) {
+		t.Fatalf("copied rows include visual rail or have wrong height: %+v", rows)
+	}
+}
+
+func TestToolStatusVocabularyDoesNotCollideWithRunOutcomes(t *testing.T) {
+	presentation := Presentation{Theme: kit.Dark(), Glyphs: kit.Unicode()}
+	for _, test := range []struct {
+		status client.ToolStatus
+		want   string
+	}{
+		{status: client.ToolOK, want: "done"},
+		{status: client.ToolError, want: "error"},
+		{status: client.ToolRunning, want: "running"},
+	} {
+		call := client.ToolCall{Kind: client.ToolTask, Status: test.status}
+		block := newToolBlock(presentation, client.Block{Kind: client.BlockTool, Tool: &call})
+		_, _, status, _ := block.header()
+		if !strings.Contains(status, test.want) || strings.Contains(status, "complete") || strings.Contains(status, "failed") {
+			t.Errorf("tool status %q = %q", test.status, status)
+		}
 	}
 }
 

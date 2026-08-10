@@ -16,7 +16,10 @@ import (
 	"github.com/Tangerg/lynx/app/cli/internal/client"
 )
 
-const maxToolDetailLines = 200
+const (
+	maxToolDetailLines = 200
+	toolContentInset   = 2
+)
 
 // mutableToolBlock is the optional lifecycle a block presenter may implement to
 // update a running tool in place and participate in the global detail toggle.
@@ -76,7 +79,7 @@ func (t *toolBlock) Measure(width int) int {
 	rows := 1
 	if t.expanded {
 		for _, block := range t.body {
-			rows = layout.Sum(rows, block.Measure(max(width-2, 1)))
+			rows = layout.Sum(rows, block.Measure(max(width-toolContentInset, 1)))
 		}
 	}
 	return layout.Sum(rows, 1)
@@ -87,41 +90,58 @@ func (t *toolBlock) Draw(view grid.View) {
 	if width <= 0 || height <= 0 {
 		return
 	}
-	left, right, style := t.header()
-	if right != "" && text.Width(right)+2 < width {
-		rightWidth := text.Width(right)
-		view.Text(width-rightWidth, 0, right, style)
-		left = text.Truncate(left, width-rightWidth-1, t.glyphs.Ellipsis)
-	} else {
-		left = text.Truncate(left, width, t.glyphs.Ellipsis)
+	toggle, label, right, statusStyle := t.header()
+	contentRows := min(t.Measure(width)-1, height)
+	for row := range contentRows {
+		view.Text(0, row, t.glyphs.Vertical, statusStyle)
 	}
-	view.Text(0, 0, left, t.theme.Text)
+
+	contentWidth := max(width-toolContentInset, 0)
+	if contentWidth <= 0 {
+		return
+	}
+	toggleStyle := t.theme.Muted
+	if t.expanded {
+		toggleStyle = t.theme.Accent
+	}
+	view.Text(toolContentInset, 0, toggle, toggleStyle)
+	labelX := toolContentInset + text.Width(toggle) + 1
+	labelLimit := width
+	if right != "" && text.Width(right)+text.Width(toggle)+2 < contentWidth {
+		rightWidth := text.Width(right)
+		view.Text(width-rightWidth, 0, right, statusStyle)
+		labelLimit = width - rightWidth - 1
+	}
+	if labelWidth := labelLimit - labelX; labelWidth > 0 {
+		view.Text(labelX, 0, text.Truncate(label, labelWidth, t.glyphs.Ellipsis), t.theme.Text)
+	}
 	if !t.expanded {
 		return
 	}
-	y, bodyWidth := 1, max(width-2, 0)
+	y, bodyWidth := 1, max(width-toolContentInset, 0)
 	for _, block := range t.body {
 		rows := block.Measure(max(bodyWidth, 1))
 		if y >= height {
 			return
 		}
-		block.Draw(view.Sub(grid.Rect(2, y, bodyWidth, min(rows, height-y))))
+		block.Draw(view.Sub(grid.Rect(toolContentInset, y, bodyWidth, min(rows, height-y))))
 		y += rows
 	}
 }
 
 func (t *toolBlock) Rows(width int) []text.Row {
-	left, right, _ := t.header()
+	toggle, label, right, _ := t.header()
+	left := toggle + " " + label
 	header := strings.TrimSpace(left + " " + right)
 	rows := []text.Row{{Text: header}}
 	if t.expanded {
-		bodyWidth := max(width-2, 1)
+		bodyWidth := max(width-toolContentInset, 1)
 		for _, block := range t.body {
 			height := block.Measure(bodyWidth)
 			if copyable, ok := block.(headless.Copyable); ok {
 				copied := copyable.Rows(bodyWidth)
 				for i := range min(len(copied), height) {
-					copied[i].Offset += 2
+					copied[i].Offset += toolContentInset
 				}
 				rows = append(rows, copied[:min(len(copied), height)]...)
 				for range height - min(len(copied), height) {
@@ -135,33 +155,33 @@ func (t *toolBlock) Rows(width int) []text.Row {
 	return append(rows, text.Row{})
 }
 
-func (t *toolBlock) header() (left, right string, statusStyle grid.Style) {
-	toggle := t.glyphs.Collapsed
+func (t *toolBlock) header() (toggle, label, status string, statusStyle grid.Style) {
+	toggle = t.glyphs.Collapsed
 	if t.expanded {
 		toggle = t.glyphs.Expanded
 	}
-	left = toggle + " " + toolLabel(t.call)
+	label = toolLabel(t.call)
 	statusStyle = t.theme.Muted
 	switch t.call.Status {
 	case client.ToolRunning:
-		right = "… running"
+		status = t.glyphs.Marker + " running"
 		statusStyle = t.theme.Info
 	case client.ToolOK:
-		right = "✓"
+		status = t.glyphs.Taken + " done"
 		statusStyle = t.theme.Success
 	case client.ToolError:
-		right = "✗"
+		status = t.glyphs.Taken + " error"
 		statusStyle = t.theme.Danger
 	default:
-		right = string(t.call.Status)
+		status = string(t.call.Status)
 	}
 	if t.call.ExitCode != nil && *t.call.ExitCode != 0 {
-		right += " exit " + strconv.Itoa(*t.call.ExitCode)
+		status += " exit " + strconv.Itoa(*t.call.ExitCode)
 	}
 	if t.call.Duration > 0 {
-		right += " " + compactTime(t.call.Duration)
+		status += " " + compactTime(t.call.Duration)
 	}
-	return left, strings.TrimSpace(right), statusStyle
+	return toggle, label, strings.TrimSpace(status), statusStyle
 }
 
 func toolLabel(call client.ToolCall) string {

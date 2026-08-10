@@ -208,7 +208,7 @@ func (f *streamFollower) retry(cause error, progressed bool) bool {
 func (f *streamFollower) finish() {
 	_ = post(f.ctx, f.dispatcher, func() {
 		if f.app.streamSeq == f.sequence {
-			f.app.following = false
+			f.app.finishFollowing()
 		}
 	})
 }
@@ -308,9 +308,19 @@ func (a *app) noteBlockStarted(block client.Block) {
 func (a *app) noteRunFinished() {
 	a.startRequest = ""
 	a.pendingCancel = nil
-	a.following = false
-	a.status.settled(a.state.Outcome(), a.state.Usage())
+	a.status.note("finishing run")
 	a.header.SetUsage(a.state.Usage())
+	// The outcome is authoritative, but the stream owner may still be resolving an
+	// ambiguous idempotent control call. It releases the prompt in finishFollowing
+	// only after that transport lifecycle has actually settled.
+}
+
+func (a *app) finishFollowing() {
+	a.following = false
+	if a.state.Phase() != client.Idle || a.state.Outcome().Status == "" {
+		return
+	}
+	a.status.settled(a.state.Outcome(), a.state.Usage())
 	a.prompt.SetBusy(false)
 	if a.settings.UI.Notifications {
 		a.loop.Session().Notify("lyra run completed")

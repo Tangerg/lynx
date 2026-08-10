@@ -125,12 +125,12 @@ func presentUser(p Presentation, block client.Block) []headless.Block {
 		}
 		body += strings.Join(lines, "\n")
 	}
-	return []headless.Block{&kit.Message{Theme: p.Theme, Speaker: "you", Body: body, Own: true}}
+	return []headless.Block{newUserMessageBlock(p.Theme, body)}
 }
 
 func presentMarkdown(speaker string) func(Presentation, client.Block) []headless.Block {
 	return func(p Presentation, block client.Block) []headless.Block {
-		message := &markdownMessage{theme: p.Theme, speaker: speaker}
+		message := &markdownBlock{theme: p.Theme, speaker: speaker}
 		look := p.Look
 		if block.Kind == client.BlockReasoning {
 			look.Text, look.Strong = p.Theme.Muted, p.Theme.Subtle

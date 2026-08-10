@@ -7,11 +7,8 @@ import (
 
 	"github.com/Tangerg/oolong/components/headless"
 	"github.com/Tangerg/oolong/components/kit"
-	"github.com/Tangerg/oolong/core/grid"
 	"github.com/Tangerg/oolong/core/input"
 	"github.com/Tangerg/oolong/core/keymap"
-	"github.com/Tangerg/oolong/core/layout"
-	"github.com/Tangerg/oolong/core/text"
 	"github.com/Tangerg/oolong/highlight"
 	"github.com/Tangerg/oolong/markdown"
 
@@ -44,7 +41,7 @@ type conversationView struct {
 	streamID string
 	stream   markdown.Stream
 	stable   []markdown.Block
-	open     *markdownMessage
+	open     *markdownBlock
 	openID   headless.BlockID
 }
 
@@ -188,7 +185,7 @@ func (c *conversationView) begin(block client.Block) error {
 	c.stream.Reset()
 	c.stream.SetLook(c.lookFor(block.Kind))
 	c.stable = c.stable[:0]
-	c.open = &markdownMessage{theme: c.theme, speaker: speaker}
+	c.open = &markdownBlock{theme: c.theme, speaker: speaker}
 	c.openID = c.content.Append(c.open)
 	if block.Text != "" {
 		return c.delta(block.ID, block.Text)
@@ -418,61 +415,4 @@ func (c *conversationView) lookFor(kind client.BlockKind) markdown.Look {
 		look.Text, look.Strong, look.Code = c.theme.Muted, c.theme.Subtle, c.theme.Info
 	}
 	return look
-}
-
-type markdownMessage struct {
-	theme   kit.Theme
-	speaker string
-	doc     markdown.Doc
-}
-
-func (m *markdownMessage) Measure(width int) int {
-	if m == nil {
-		return 0
-	}
-	return layout.Sum(1, m.doc.Measure(max(width-2, 1)), 1)
-}
-
-func (m *markdownMessage) Draw(view grid.View) {
-	if m == nil {
-		return
-	}
-	width, height := view.Size()
-	if width <= 0 || height <= 0 {
-		return
-	}
-	view.Text(0, 0, m.speaker, m.theme.Muted)
-	m.doc.Draw(view.Sub(grid.Rect(2, 1, max(width-2, 0), max(height-2, 0))))
-}
-
-func (m *markdownMessage) Rows(width int) []text.Row {
-	if m == nil {
-		return nil
-	}
-	rows := []text.Row{{Text: m.speaker}}
-	for _, row := range m.doc.Rows(max(width-2, 1)) {
-		row.Offset += 2
-		rows = append(rows, row)
-	}
-	return append(rows, text.Row{})
-}
-
-func markdownLook(theme kit.Theme, glyphs kit.Glyphs, style highlight.Style) markdown.Look {
-	return markdown.Look{
-		Text: theme.Text, Headings: []grid.Style{theme.Heading, theme.Strong},
-		Strong: theme.Strong, Emphasis: grid.Style{Attr: grid.Italic},
-		Struck: theme.Muted, Code: theme.Info, Block: theme.Sunken,
-		Link: theme.Accent, Quote: theme.Muted, Rail: theme.Subtle,
-		Marker: theme.Accent, Rule: theme.Divider, Highlight: highlight.Of(style),
-		Glyphs: markdown.Glyphs{
-			Bullet: glyphs.Bullet, Bar: glyphs.Vertical, Divider: glyphs.Horizontal,
-			Checked: glyphs.Taken, Unchecked: glyphs.Free,
-		},
-	}
-}
-
-func presentError(theme kit.Theme, message string) headless.Block {
-	danger := theme
-	danger.Text = theme.Danger
-	return &kit.Message{Theme: danger, Speaker: "runtime", Body: message}
 }
