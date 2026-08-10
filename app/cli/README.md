@@ -17,7 +17,7 @@ go run . sessions ls
 go run . config show
 ```
 
-The interactive client uses a stable agent shell: session and workspace identity at the top, selectable transcript content in the center, a compact live plan and run status near the bottom, and a framed multiline composer whose footer always shows the active model, effort, mode, and permission. Optional regions yield their space on constrained terminals instead of squeezing the conversation. It supports session switching, search, attachments, approval questions, runtime-option pickers, tool details, plugin inspection, and plugin reload/unload. `lyra completion <bash|zsh|fish|powershell>` generates shell completion.
+The interactive client uses a stable agent shell: session and workspace identity at the top, selectable transcript content in the center, a compact live plan and run status near the bottom, and a framed multiline composer whose footer always shows the active model, effort, mode, and permission. Optional regions yield their space on constrained terminals; at extreme sizes the shell reduces to transcript, status, and a one-row composer, then restores the full chrome without losing the draft or keyboard focus. It supports session switching, search, attachments, approval questions, runtime-option pickers, tool details, plugin inspection, and plugin reload/unload. `lyra completion <bash|zsh|fish|powershell>` generates shell completion.
 
 Core terminal interactions are available from both the keyboard and mouse:
 
@@ -28,6 +28,7 @@ Core terminal interactions are available from both the keyboard and mouse:
 - `PageUp` and `PageDown` move through the live transcript; `Ctrl+Home` and `Ctrl+End` jump to its bounds. Scrolling up suspends bottom-following while output continues.
 - Click a tool-call header to expand or collapse that tool. Running output streams into the same block, completion replaces provisional output with the runtime's authoritative result, and scrolling up never resumes bottom-following. Tools without output or a diff use a non-interactive marker instead of opening an empty panel. The action commits only when press and release land on the same header, so a drag selection cannot accidentally change layout. Its colored rail and right-aligned state remain visible while details are folded; `Ctrl+O` expands or collapses all available tool details.
 - `Ctrl+P` opens the searchable command palette. With transcript focus, `?` is the local alternative. `/help` opens the same surface, so command discovery does not flood the transcript.
+- Searchable session, command, model, mode, and permission pickers support both keyboard selection and click-to-activate. A click commits on release over the same row; dragging only moves the selection.
 
 The shortcut row is contextual: idle runs emphasize send, sessions, and mode; active runs emphasize cancel, multiline input, and tool details; transcript focus exposes entry navigation and actions. Mouse, selection, transcript scrolling, and command shortcuts remain available while output streams.
 
@@ -145,4 +146,4 @@ go test -race ./...
 golangci-lint run ./...
 ```
 
-The test suite includes domain invariant tests, in-memory Cobra tests, replay and fault-injection tests, architecture dependency checks, plugin lifecycle tests, NDJSON contract tests, and oolong PTY interaction/resize tests.
+The test suite includes domain invariant tests, in-memory Cobra tests, replay and fault-injection tests, architecture dependency checks, plugin lifecycle tests, NDJSON contract tests, extreme-resize recovery, and an oolong PTY matrix covering xterm, screen/tmux-compatible, mouse-disabled, ASCII-locale, and VS Code on WSL terminal behavior.

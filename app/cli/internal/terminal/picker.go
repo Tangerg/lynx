@@ -26,12 +26,15 @@ type picker[T any] struct {
 	pick   func(T)
 	cancel func()
 	areas  headless.Snapshot[pickerAreas]
+
+	pressed int
+	dragged bool
 }
 
 type pickerAreas struct{ query, list image.Rectangle }
 
 func newPicker[T any](theme kit.Theme, glyphs kit.Glyphs, placeholder string, label, detail func(T) string, pick func(T)) *picker[T] {
-	p := &picker[T]{theme: theme, glyphs: glyphs, label: label, detail: detail, pick: pick}
+	p := &picker[T]{theme: theme, glyphs: glyphs, label: label, detail: detail, pick: pick, pressed: -1}
 	p.query = kit.Composer{Theme: theme, Prompt: glyphs.Marker + " ", MaxRows: 1}
 	p.query.Editor().Placeholder = placeholder
 	p.items = &headless.Filter[T]{Row: p.row}
@@ -48,6 +51,7 @@ func (p *picker[T]) Reset() {
 	p.query.Reset()
 	p.items.SetPattern("")
 	p.items.Select(0)
+	p.pressed, p.dragged = -1, false
 }
 
 func (p *picker[T]) Draw(frame headless.Frame) {
@@ -104,8 +108,13 @@ func (p *picker[T]) handleKey(key input.Key, event input.Event) bool {
 
 func (p *picker[T]) handleMouse(mouse input.Mouse) bool {
 	areas := p.areas.Value()
+	if p.pressed >= 0 && (mouse.Action == input.MouseDrag || mouse.Action == input.MouseUp) {
+		mouse.Pos = mouse.Pos.Sub(areas.list.Min)
+		return p.handleListMouse(mouse)
+	}
 	switch {
 	case mouse.Pos.In(areas.query):
+		p.pressed, p.dragged = -1, false
 		mouse.Pos = mouse.Pos.Sub(areas.query.Min)
 		if p.query.Handle(mouse) {
 			p.items.SetPattern(p.query.Text())
@@ -113,9 +122,52 @@ func (p *picker[T]) handleMouse(mouse input.Mouse) bool {
 		}
 	case mouse.Pos.In(areas.list):
 		mouse.Pos = mouse.Pos.Sub(areas.list.Min)
-		return p.items.Handle(mouse)
+		return p.handleListMouse(mouse)
 	}
 	return false
+}
+
+func (p *picker[T]) handleListMouse(mouse input.Mouse) bool {
+	switch mouse.Action {
+	case input.MouseDown:
+		if mouse.Button != input.ButtonLeft || !p.items.Handle(mouse) {
+			return false
+		}
+		p.pressed, p.dragged = p.items.Selected(), false
+		return true
+	case input.MouseDrag:
+		if p.pressed < 0 {
+			return false
+		}
+		p.dragged = true
+		p.items.Handle(mouse)
+		return true
+	case input.MouseUp:
+		if mouse.Button != input.ButtonLeft || p.pressed < 0 {
+			return false
+		}
+		pressed, commit := p.pressed, !p.dragged && p.listIndexAt(mouse.Pos.Y) == p.pressed
+		p.pressed, p.dragged = -1, false
+		if commit && p.items.Selected() == pressed {
+			if item, ok := p.items.Current(); ok && p.pick != nil {
+				p.pick(item)
+			}
+		}
+		return true
+	default:
+		return p.items.Handle(mouse)
+	}
+}
+
+func (p *picker[T]) listIndexAt(row int) int {
+	if row < 0 {
+		return -1
+	}
+	index := p.items.Scroll().Offset() + row
+	if index >= p.items.Matched() {
+		return -1
+	}
+	return index
 }
 
 func (p *picker[T]) Focus(has bool) { p.query.Focus(has) }

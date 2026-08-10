@@ -7,14 +7,21 @@ import (
 )
 
 const (
-	transcriptPaneKey = "transcript"
-	promptPaneKey     = "prompt"
+	transcriptPaneKey  = "transcript"
+	promptPaneKey      = "prompt"
+	compactShellHeight = 8
+	compactShellWidth  = 12
 )
 
 type shellView struct {
 	rows       *headless.Container
 	transcript *conversationView
 	prompt     *promptView
+	header     *sessionHeader
+	activity   *activityView
+	queue      *queueView
+	status     *statusView
+	compact    bool
 }
 
 func newShellView(
@@ -25,23 +32,24 @@ func newShellView(
 	status *statusView,
 	prompt *promptView,
 ) *shellView {
-	rows := headless.Rows(
-		headless.Item{Key: "header", Size: layout.Measured(0, 2), Of: headless.Static{Of: header}},
-		headless.Item{Key: transcriptPaneKey, Size: layout.Flex(1), Of: transcript},
-		headless.Item{Key: "activity", Size: layout.Measured(0, activityMaxRows), Of: headless.Static{Of: activity}},
-		headless.Item{Key: "queue", Size: layout.Measured(0, queueMaxRows), Of: headless.Static{Of: queue}},
-		headless.Item{Key: "status", Size: layout.Fixed(1), Of: headless.Static{Of: status}},
-		headless.Item{Key: promptPaneKey, Size: layout.Measured(4, 9), Of: prompt},
-	)
+	shell := &shellView{
+		transcript: transcript, prompt: prompt, header: header,
+		activity: activity, queue: queue, status: status,
+	}
+	rows := headless.Rows(shell.items(false)...)
 	keys := headless.DefaultContainerKeys()
 	keys.Bind(headless.FocusNext, input.Chord{Code: input.Character, Rune: ' '})
 	rows.Keys = keys
-	shell := &shellView{rows: rows, transcript: transcript, prompt: prompt}
+	shell.rows = rows
 	shell.focus(promptPaneKey)
 	return shell
 }
 
-func (s *shellView) Draw(frame headless.Frame) { s.rows.Draw(frame) }
+func (s *shellView) Draw(frame headless.Frame) {
+	width, height := frame.Size()
+	s.setCompact(height < compactShellHeight || width < compactShellWidth)
+	s.rows.Draw(frame)
+}
 
 func (s *shellView) Handle(event input.Event) bool { return s.rows.Handle(event) }
 
@@ -54,15 +62,36 @@ func (s *shellView) TranscriptFocused() bool { return s.rows.Focused() == s.tran
 func (s *shellView) FocusPrompt() bool { return s.focus(promptPaneKey) }
 
 func (s *shellView) SetTranscript(transcript *conversationView) {
-	items := s.rows.Items()
-	for index := range items {
-		if items[index].Key == transcriptPaneKey {
-			items[index].Of = transcript
-			break
-		}
-	}
 	s.transcript = transcript
-	s.rows.Set(items...)
+	s.rows.Set(s.items(s.compact)...)
+}
+
+func (s *shellView) setCompact(compact bool) {
+	if s.compact == compact {
+		return
+	}
+	s.compact = compact
+	s.prompt.SetCompact(compact)
+	s.rows.Set(s.items(compact)...)
+}
+
+func (s *shellView) items(compact bool) []headless.Item {
+	headerSize := layout.Measured(0, 2)
+	activitySize := layout.Measured(0, activityMaxRows)
+	queueSize := layout.Measured(0, queueMaxRows)
+	promptSize := layout.Measured(4, 9)
+	if compact {
+		headerSize, activitySize, queueSize = layout.Fixed(0), layout.Fixed(0), layout.Fixed(0)
+		promptSize = layout.Fixed(1)
+	}
+	return []headless.Item{
+		{Key: "header", Size: headerSize, Of: headless.Static{Of: s.header}},
+		{Key: transcriptPaneKey, Size: layout.Flex(1), Of: s.transcript},
+		{Key: "activity", Size: activitySize, Of: headless.Static{Of: s.activity}},
+		{Key: "queue", Size: queueSize, Of: headless.Static{Of: s.queue}},
+		{Key: "status", Size: layout.Fixed(1), Of: headless.Static{Of: s.status}},
+		{Key: promptPaneKey, Size: promptSize, Of: s.prompt},
+	}
 }
 
 func (s *shellView) focus(key string) bool {

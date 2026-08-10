@@ -126,13 +126,94 @@ func TestShellRendersAtSupportedAndConstrainedTerminalSizes(t *testing.T) {
 	shell := newShellView(header, transcript, activity, newQueueView(theme, glyphs), status, prompt)
 	shell.Focus(true)
 
-	for _, size := range []struct{ width, height int }{{96, 28}, {44, 18}, {20, 8}} {
+	for _, size := range []struct{ width, height int }{
+		{96, 28}, {44, 18}, {20, 8}, {11, 20}, {6, 2}, {1, 1},
+	} {
 		t.Run(fmt.Sprintf("%dx%d", size.width, size.height), func(t *testing.T) {
 			got := drawRoot(t, shell, size.width, size.height)
 			if strings.TrimSpace(got) == "" {
 				t.Fatalf("%dx%d shell rendered nothing", size.width, size.height)
 			}
 		})
+	}
+}
+
+func TestShellUsesTwoRowChromeOnTinyTerminals(t *testing.T) {
+	keys, err := configuredKeys(settings.Default())
+	if err != nil {
+		t.Fatal(err)
+	}
+	theme, glyphs := kit.Dark(), kit.Unicode()
+	transcript := testConversationView(t)
+	transcript.Append(&kit.Message{Theme: theme, Speaker: "lyra", Body: "VISIBLE_TRANSCRIPT"})
+	header := newSessionHeader(theme, glyphs, client.Session{Title: "Hidden title", Workspace: "/hidden/workspace"})
+	activity := newActivityView(theme, glyphs)
+	activity.Set([]client.PlanItem{{Title: "HIDDEN_PLAN", Status: client.PlanActive}})
+	composer := kit.Composer{Theme: theme, Prompt: glyphs.Marker + " ", MaxRows: 6}
+	composer.Editor().Keys = keys
+	composer.Editor().SetText("TINY_DRAFT")
+	prompt := newPromptView(theme, glyphs, keys, &composer, settings.Default().RunOptions())
+	shell := newShellView(header, transcript, activity, newQueueView(theme, glyphs), newStatusView(theme, glyphs, settings.Default().RunOptions()), prompt)
+	shell.Focus(true)
+
+	tiny := drawRoot(t, shell, 20, compactShellHeight-1)
+	if !shell.compact || !prompt.compact {
+		t.Fatal("tiny shell did not enter compact layout")
+	}
+	for _, want := range []string{"VISIBLE", "TINY_DRAFT", "ready"} {
+		if !strings.Contains(tiny, want) {
+			t.Errorf("tiny shell does not contain %q:\n%s", want, tiny)
+		}
+	}
+	for _, hidden := range []string{"/hidden/workspace", "HIDDEN_PLAN", "shift+enter"} {
+		if strings.Contains(tiny, hidden) {
+			t.Errorf("tiny shell retained %q:\n%s", hidden, tiny)
+		}
+	}
+
+	normal := drawRoot(t, shell, 96, 28)
+	if shell.compact || prompt.compact {
+		t.Fatal("resized shell did not leave compact layout")
+	}
+	for _, want := range []string{"/hidden/workspace", "HIDDEN_PLAN", "TINY_DRAFT", "shift+enter"} {
+		if !strings.Contains(normal, want) {
+			t.Errorf("restored shell does not contain %q:\n%s", want, normal)
+		}
+	}
+}
+
+func TestResponsiveShellPreservesTranscriptFocusAndDraft(t *testing.T) {
+	keys, err := configuredKeys(settings.Default())
+	if err != nil {
+		t.Fatal(err)
+	}
+	theme, glyphs := kit.Dark(), kit.Unicode()
+	transcript := testConversationView(t)
+	appendTestTool(transcript, "focus", "detail")
+	composer := kit.Composer{Theme: theme, Prompt: glyphs.Marker + " ", MaxRows: 6}
+	composer.Editor().Keys = keys
+	composer.Editor().SetText("PRESERVED_DRAFT")
+	prompt := newPromptView(theme, glyphs, keys, &composer, settings.Default().RunOptions())
+	shell := newShellView(
+		newSessionHeader(theme, glyphs, client.Session{}), transcript,
+		newActivityView(theme, glyphs), newQueueView(theme, glyphs),
+		newStatusView(theme, glyphs, settings.Default().RunOptions()), prompt,
+	)
+	shell.Focus(true)
+	if !shell.Handle(input.Key{Code: input.Tab}) || !shell.TranscriptFocused() {
+		t.Fatal("test could not focus the transcript")
+	}
+
+	drawRoot(t, shell, 20, compactShellHeight-1)
+	if !shell.TranscriptFocused() {
+		t.Fatal("entering compact layout moved focus away from the transcript")
+	}
+	drawRoot(t, shell, 96, 28)
+	if !shell.TranscriptFocused() {
+		t.Fatal("leaving compact layout moved focus away from the transcript")
+	}
+	if got := composer.Editor().Text(); got != "PRESERVED_DRAFT" {
+		t.Fatalf("resize changed draft to %q", got)
 	}
 }
 

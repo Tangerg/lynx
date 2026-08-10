@@ -341,7 +341,20 @@ func (a *app) finishFollowing() {
 		return
 	}
 	if a.settings.UI.Notifications {
-		a.loop.Session().Notify("lyra run completed")
+		a.loop.Session().Notify(outcomeNotification(a.state.Outcome()))
+	}
+}
+
+func outcomeNotification(outcome client.Outcome) string {
+	switch outcome.Status {
+	case client.OutcomeCompleted:
+		return "lyra run completed"
+	case client.OutcomeCanceled:
+		return "lyra run canceled"
+	case client.OutcomeFailed:
+		return "lyra run failed"
+	default:
+		return ""
 	}
 }
 

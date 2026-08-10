@@ -1331,7 +1331,8 @@ func TestApprovalRemainsUsableAtRepresentativeWidths(t *testing.T) {
 func TestTerminalSurvivesExtremeResizeAndRemainsInteractive(t *testing.T) {
 	host, stop := runUI(t)
 	host.Shows(t, "Ask lyra")
-	for _, size := range []struct{ width, height int }{{20, 8}, {200, 60}, {32, 10}, {96, 28}} {
+	host.Type("resize draft")
+	for _, size := range []struct{ width, height int }{{20, 7}, {10, 7}, {200, 60}, {32, 10}, {96, 28}} {
 		if !host.Resize(size.width, size.height) {
 			t.Fatalf("resize to %dx%d was refused", size.width, size.height)
 		}
@@ -1339,10 +1340,32 @@ func TestTerminalSurvivesExtremeResizeAndRemainsInteractive(t *testing.T) {
 			t.Fatalf("repaint at %dx%d was refused", size.width, size.height)
 		}
 	}
+	host.Shows(t, "resize draft")
+	host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
+	host.Hides(t, "resize draft")
 	host.Type("/plugins")
 	host.Press(input.Enter)
 	host.Press(input.Enter)
 	host.Shows(t, "terminal.core@1.0.0")
 	host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
 	stop()
+}
+
+func TestOutcomeNotificationMatchesTheRunVerdict(t *testing.T) {
+	for _, test := range []struct {
+		name    string
+		outcome client.Outcome
+		want    string
+	}{
+		{name: "completed", outcome: client.Outcome{Status: client.OutcomeCompleted}, want: "lyra run completed"},
+		{name: "canceled", outcome: client.Outcome{Status: client.OutcomeCanceled}, want: "lyra run canceled"},
+		{name: "failed", outcome: client.Outcome{Status: client.OutcomeFailed, Error: "boom"}, want: "lyra run failed"},
+		{name: "unsettled", outcome: client.Outcome{}, want: ""},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			if got := outcomeNotification(test.outcome); got != test.want {
+				t.Fatalf("outcomeNotification(%+v) = %q, want %q", test.outcome, got, test.want)
+			}
+		})
+	}
 }

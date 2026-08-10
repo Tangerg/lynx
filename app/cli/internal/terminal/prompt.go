@@ -13,6 +13,7 @@ import (
 type promptView struct {
 	theme             kit.Theme
 	panel             *kit.Panel
+	composer          *kit.Composer
 	help              kit.Help
 	rows              *headless.Container
 	keys              *keymap.Map
@@ -23,6 +24,8 @@ type promptView struct {
 	transcriptFocused bool
 	selection         transcriptSelection
 	transcriptKeys    *keymap.Map
+	focused           bool
+	compact           bool
 }
 
 func newPromptView(
@@ -38,6 +41,7 @@ func newPromptView(
 	p := &promptView{
 		theme:          theme,
 		panel:          panel,
+		composer:       composer,
 		help:           kit.Help{Theme: theme, Keys: keys, Separator: "  " + glyphs.Vertical + "  "},
 		keys:           keys,
 		busyKeys:       remapHelpAction(keys, sendPrompt, queueFollowUp),
@@ -47,25 +51,60 @@ func newPromptView(
 		headless.Item{Key: "field", Size: layout.Measured(3, 8), Of: panel},
 		headless.Item{Key: "help", Size: layout.Fixed(1), Of: headless.Static{Of: &p.help}},
 	)
-	p.rows.Focus(true)
+	p.rows.Focus(false)
 	p.SetOptions(options)
 	p.SetBusy(false)
 	return p
 }
 
-func (p *promptView) Draw(frame headless.Frame) { p.rows.Draw(frame) }
+func (p *promptView) Draw(frame headless.Frame) {
+	if p.compact {
+		p.composer.Draw(frame)
+		return
+	}
+	p.rows.Draw(frame)
+}
 
-func (p *promptView) Handle(event input.Event) bool { return p.rows.Handle(event) }
+func (p *promptView) Handle(event input.Event) bool {
+	if p.compact {
+		return p.composer.Handle(event)
+	}
+	return p.rows.Handle(event)
+}
 
 func (p *promptView) Focus(has bool) {
+	p.focused = has
 	p.panel.Box.Theme = p.theme
 	if has {
 		p.panel.Box.Theme.Border = p.theme.Accent
 	}
-	p.rows.Focus(has)
+	p.syncFocus()
 }
 
-func (p *promptView) Measure(width int) int { return p.rows.Measure(width) }
+func (p *promptView) Measure(width int) int {
+	if p.compact {
+		return 1
+	}
+	return p.rows.Measure(width)
+}
+
+func (p *promptView) SetCompact(compact bool) {
+	if p.compact == compact {
+		return
+	}
+	p.compact = compact
+	p.syncFocus()
+}
+
+func (p *promptView) syncFocus() {
+	if p.compact {
+		p.rows.Focus(false)
+		p.composer.Focus(p.focused)
+		return
+	}
+	p.composer.Focus(false)
+	p.rows.Focus(p.focused)
+}
 
 func (p *promptView) SetOptions(options client.RunOptions) {
 	p.panel.Box.Footer = optionsLabel(options)
