@@ -18,11 +18,11 @@
 package pagination
 
 import (
-	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
+
+	"github.com/Tangerg/lynx/app/runtime/internal/opaquetoken"
 )
 
 // ErrInvalidCursor reports a cursor that cannot continue this query: damaged,
@@ -65,7 +65,7 @@ func Encode(namespace string, filters []string, key []string) string {
 	if namespace == "" {
 		panic("pagination: encode cursor: namespace is required")
 	}
-	payload, err := json.Marshal(token{
+	encoded, err := opaquetoken.Encode(token{
 		Version: formatVersion, Namespace: namespace,
 		Filters: slices.Clone(filters), Key: key,
 	})
@@ -74,7 +74,7 @@ func Encode(namespace string, filters []string, key []string) string {
 		// cannot fail; a nil cursor would read as "no more pages" and truncate.
 		panic("pagination: encode cursor: " + err.Error())
 	}
-	return base64.RawURLEncoding.EncodeToString(payload)
+	return encoded
 }
 
 // Decode returns the sort position cursor stopped at, for the same namespace and
@@ -87,12 +87,8 @@ func Decode(cursor, namespace string, filters []string) ([]string, error) {
 	if cursor == "" {
 		return nil, nil
 	}
-	payload, err := base64.RawURLEncoding.DecodeString(cursor)
-	if err != nil {
-		return nil, ErrInvalidCursor
-	}
 	var decoded token
-	if err := json.Unmarshal(payload, &decoded); err != nil {
+	if err := opaquetoken.Decode(cursor, &decoded); err != nil {
 		return nil, ErrInvalidCursor
 	}
 	if decoded.Version != formatVersion || decoded.Namespace != namespace ||

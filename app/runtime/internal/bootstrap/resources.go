@@ -4,7 +4,7 @@ import (
 	"context"
 	"slices"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/shutdown"
+	"github.com/Tangerg/lynx/app/runtime/internal/infra/teardown"
 )
 
 func shutdownResources(resources []ShutdownResource) []ShutdownResource {
@@ -13,7 +13,7 @@ func shutdownResources(resources []ShutdownResource) []ShutdownResource {
 		if resource == nil {
 			continue
 		}
-		steps = append(steps, shutdown.New(resource.Shutdown))
+		steps = append(steps, teardown.New(resource.Shutdown))
 	}
 	return steps
 }
@@ -24,7 +24,7 @@ func shutdownClosers(closers []func() error) []ShutdownResource {
 		if closeFn == nil {
 			continue
 		}
-		steps = append(steps, shutdown.New(func(context.Context) error {
+		steps = append(steps, teardown.New(func(context.Context) error {
 			return closeFn()
 		}))
 	}

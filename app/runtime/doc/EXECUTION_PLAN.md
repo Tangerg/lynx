@@ -1,6 +1,6 @@
 # Lyra Runtime 重构实施计划
 
-> 状态：P1–P15 已完成；P16 Domain 行为所有权精修实施中；消费者接线仍留给独立专项
+> 状态：P1–P16 已完成；P17 package 边界与目录结构精修实施中；消费者接线仍留给独立专项
 >
 > 工作方式：原模块内治本重构，按可验证纵切分批完成；不创建完整 `runtime2`
 
@@ -10,7 +10,7 @@
 
 当前实施 goal 已授权：
 
-- 严格按 [`DOMAIN_MODEL.md`](DOMAIN_MODEL.md) 在已完成的 P1–P15 基线上执行 P16 Domain 行为所有权精修；
+- 在已完成的 P1–P16 基线上，全量反证 Runtime package 的独立词汇、变化原因、消费者和 import DAG，执行 P17 package 边界与目录结构精修；
 - 每完成一个可独立验收批次，同步本计划和 Capability Ledger，统一验证、提交并推送；
 - 允许服务端内部与 Runtime Protocol breaking change，不建立兼容路径；
 - 仓库历史与能力台账中的原框架实现只作为证据；Runtime 对 Framework 只依赖当前 `agent` 公共合同。
@@ -49,6 +49,7 @@
 | P14 | Runtime 内部职责与全层级命名精修 | P13 | 已完成 |
 | P15 | Agent/Runtime 合同同步与 Runtime 反证式精修 | P14 + Agent Baseline 18 | 已完成 |
 | P16 | Domain aggregate 行为所有权纵切 | P15 + Domain Model | 已完成 |
+| P17 | package 边界与目录结构精修 | P16 + 真实 import graph | 实施中 |
 
 ## 4. P0 — 文档、事实和边界基线
 
@@ -517,10 +518,33 @@
 - Runtime/Agent Framework 边界、opaque checkpoint 和当前消费者隔离保持不变；
 - 每个 batch 独立验证、记录、提交和推送，不修改前端、TUI、CLI。
 
-## 21. 进度记录
+## 21. P17 — package 边界与目录结构精修
+
+### 目标
+
+按真实 owner、独立变化轴、消费者集合与依赖方向重新裁决全部 Runtime package；删除单消费者伪共享、错误分层、仅为目录对称存在的子包与含混 package 名，同时保留具有独立安全边界、SDK 隔离、bounded-context 语言或多消费者纯机制的小包。
+
+### 工作项
+
+- [ ] P17-01 裁决并收敛顶层共享 capability：业务语义归还真实 owner，纯 framing/mechanism 只在具有多个真实消费者时共享；
+- [ ] P17-02 收敛 Toolset 的单工具目录爆炸、cycle workaround 和只为转发存在的子包；
+- [ ] P17-03 复审 Domain/Application package 的 bounded-context 语言、用例 owner、I/O port 与共享策略边界；
+- [ ] P17-04 复审 Adapter/Infra/Delivery/Bootstrap/Testsupport package 的 SDK 隔离、技术机制、组合职责与命名；
+- [ ] P17-05 执行全量 import graph、standalone、race、fuzz、generator、lint、deadcode、文档与空残留验收，并冻结 package-boundary guard。
+
+### 验收
+
+- 不以文件数机械合并：每个保留 package 都能说明独立词汇、独立变化原因和禁止泄露的边界；
+- 单消费者且没有 ring/SDK/security 隔离理由的伪共享 package 为零；
+- package、目录、文件和公开/私有标识符使用同一准确语言，无 stutter、cycle-workaround package 或 umbrella；
+- Domain/Application 不因收敛反向依赖 Adapter/Infra，Bootstrap 不接收业务/机制行为，Agent Framework ACL 不被打穿；
+- 不修改前端、TUI、CLI，不建立兼容路径；每批记录、验证、提交并推送。
+
+## 22. 进度记录
 
 | 日期 | 阶段 | 完成事实 | 验证 |
 |---|---|---|---|
+| 2026-08-10 | P17-01a（shared capability ownership） | 删除单消费者顶层 `internal/replaycursor`：Run replay 的 position、epoch、scope、format/version 与 validation 全部回归 `application/runs` 私有 journal 行为，不再暴露可拼装的 `Position`；抽取 pagination/replay 两个真实消费者共同使用的 `internal/opaquetoken`，只负责 strict URL-safe framing，unknown/trailing JSON 一律拒绝且不理解任何业务 payload。删除单消费者顶层 `internal/shutdown`，将 non-cooperative close serialization 下沉为 `infra/teardown` 技术机制，Bootstrap 继续只组装/关闭；`httporigin.Origin` 关闭字段，外部无法构造不合法 security origin。shared-capability 架构白名单与 Capability Ledger 同步，不保留 alias/shim | Runtime `GOWORK=off go test ./...`、`go vet ./...`、`go build ./...` 全绿；runs/pagination/opaque-token/teardown/Bootstrap/HTTP-origin/architecture 直接行为与严格 codec tests 全绿；旧 package import 与旧目录生产引用为零，`git diff --check` 通过 |
 | 2026-08-10 | P16-06（final Domain ownership acceptance） | 从已推送的 P16-05 干净 Runtime 基线完成 Domain ownership 专项最终反证；Run、Transcript Item、Plan、Session 四条纵切与 21 个 Domain package 的 package/文件/类型/方法/错误/注释/测试边界共同自洽。Domain 不含 context I/O port、Framework/Storage/Protocol/Workspace live projection 或 Runtime capability availability；Application 继续独占 workspace admission、跨 aggregate write-set、事务、并发、publish、cleanup 与 executor lifecycle。无 compatibility path、重复 mutation owner、透明 alias、forwarding layer、收纳 package、tracked 空文件/目录、生产 TODO/FIXME/HACK、生成漂移或消费者接线项；根 `LYRA.md` 仍是有意保留的空 knowledge 起点 | 仓库标准 `MODULE=app/runtime FAST=1 scripts/check.sh build vet test tidy lint race` 六项全绿；standalone make、staticcheck、`deadcode -test`、完整 golangci-lint 与 generator diff 全绿；Continuation/Prompt/Resolution 三个 strict codec fuzz 各 10 秒、合计 739,740 次执行无失败；architecture/contract/doc facts、文档本地链接、边界/空残留/hygiene 扫描全绿。P16 完成 |
 | 2026-08-10 | P16-05（Domain package boundary freeze） | 对全部 21 个 Domain 子包逐一按独立词汇、变化原因、真实消费者与 import DAG 裁决，未按文件数机械合包：aggregate/policy 与精简 value package 均有一句准确 owner。删除 `session.WorkspaceIdentity` 这份 live filesystem projection，统一复用 `application/workspace.Resolved`；Session/Schedule 重复的 `ErrCWDUnavailable` 收敛为 Workspace Application 唯一 sentinel，Runtime scheduling availability 收回 `application/schedules`。`agentmemory/codebaseindex/hooks/mcpserver/provider/toolresult` 的失真或口吃文件名按实际内容改正，package owner 注释与实现同步；Interrupt kind 零值改为无效，codebase ranking 明确拒绝非正 limit，消除误判和 panic。所有 Domain package 现在均有 package boundary GoDoc 和直接测试，architecture guard 永久拒绝目录名/package 名漂移、nested context、缺失职责说明或无直接验证；无空目录、forwarding layer、透明 alias 或新收纳包。Protocol、Artifact、SQLite shape/epoch、Agent Framework 与消费者合同均未改变 | 逐包 package-doc/test guard，Domain 全包、Session/Schedule/Workspace、workspacepath、Tool schedule、Delivery 与 architecture targeted tests 全绿；完整 standalone/race/lint/deadcode/generator/hygiene 门禁在本批提交前收口 |
 | 2026-08-10 | P16-04（authoritative Session behavior） | `domain/session.Session` 关闭全部字段并独占 fresh/scheduled construction、完整 edit、generated-title first-writer、fork inheritance、restore workspace installation、target revision advance、time/revision invariant 与 immutable identity/lineage；`Snapshot` 只承担严格 technical rehydrate。Application 解析 workspace、生成 identity/time、持有 mutation admission 和跨聚合 write-set，创建、更新、fork、restore 与 Run opening 均携带 Domain 已决定的完整 aggregate；scheduled opening 在 Run admission transaction 内精确 Insert，既有 Session 的 configured model 通过同一 Domain Apply 形成 CAS replacement。SQLite SessionStore 删除 Create/Ensure/Patch/Fork/Restore/逐字段 setter、clock 与 UUID，只保留 exact Insert/Save CAS/Delete；portable restore 不再 replace row 并重置 revision，异步标题通过 Application capability 重读/重试且并发用户标题必胜。Protocol、Artifact、SQLite column/epoch 与 Agent Framework 边界均未改变，不产生消费者接线项或兼容路径 | Domain construct/apply/no-op/conflict/fork/title/restore/overflow，Application workspace rejection/scheduled initial/reuse/generated-title race，Run opening initial/replacement，SQLite exact round-trip/stale/invalid shape，fork/restore write-set、Session import monotonic revision、Delivery/Bootstrap 与 architecture single-owner guard 全绿；完整 standalone/race/lint/deadcode/generator/hygiene 门禁在本批提交前收口 |
@@ -571,6 +595,6 @@
 | 2026-08-09 | P9.2 | 完成 Adapter/Infra/Application/Delivery 逐包职责审计；workspace physical path identity 收敛到唯一 Infra mechanism；删除空的 temporary architecture 台账并把旧 Agent 禁止与 Domain no-context-I/O 变为永久 framework boundary guard；确认 agentexec 按真实变化原因组织且没有第二 lifecycle owner或虚构子包 | Adapter→Infra 单向图与目标六环 DAG 全绿；Delivery concrete Adapter/Infra import、Infra 反向 import、Application outward import、纯转发 wrapper、package/type 口吃、空目录和 temporary exception 均为零；workspacepath/pathidentity/arch targeted tests 与全量质量门禁通过 |
 | 2026-08-09 | P10 | Runtime Protocol 一次性提升到 `2026-08-09`、Session Artifact 到 v14；删除 wire 中实现泄露的 `processRootSegment`，只保留准确的 `runtimeInstanceRootSegment`；Go registry、validator、manifest、OpenRPC、JSON Schema、TypeScript binding、canonical samples 与人读 API/Transport/Aux 文档同步；新增精确 consumer handoff | canonical artifact samples 中漏存的 v12 与旧 `outcome.error` 被 strict sample gate 暴露并治本修正；生成器零漂移、旧 wire token/版本归零、strict validator/round-trip、HTTP/in-process、全量质量门禁通过；Desktop backlog 已记录但未改消费者 |
 
-## 21. 当前下一步
+## 23. 当前下一步
 
-P15 服务端精修已完成。前端、TUI、CLI 继续按独立 consumer handoff 专项接线，不属于本 goal；Runtime 不为消费者恢复旧合同。
+P17 正在执行。当前先完成顶层共享 capability 收敛，再处理 Toolset 目录爆炸，随后按依赖方向复审各 ring；前端、TUI、CLI 不属于本 goal，Runtime 不为消费者恢复旧合同。

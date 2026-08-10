@@ -49,7 +49,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/skills"
 	"github.com/Tangerg/lynx/app/runtime/internal/idempotency"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/skillauthoring"
-	"github.com/Tangerg/lynx/app/runtime/internal/shutdown"
+	"github.com/Tangerg/lynx/app/runtime/internal/infra/teardown"
 	"github.com/Tangerg/lynx/app/runtime/internal/taskgroup"
 )
 
@@ -350,7 +350,7 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 		if err != nil {
 			return nil, fmt.Errorf("runtime: build isolated workspace manager: %w", err)
 		}
-		lifetime.toolResources = append(lifetime.toolResources, shutdown.New(func(context.Context) error {
+		lifetime.toolResources = append(lifetime.toolResources, teardown.New(func(context.Context) error {
 			return isolator.Close()
 		}))
 	}

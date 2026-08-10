@@ -611,7 +611,7 @@ func TestDomainDoesNotRenderAgentOrToolPresentation(t *testing.T) {
 func TestSharedCapabilitiesStayPure(t *testing.T) {
 	root := moduleRoot(t)
 	for _, name := range []string{
-		"completion", "httporigin", "idempotency", "pagination", "replaycursor", "shutdown", "taskgroup",
+		"completion", "httporigin", "idempotency", "opaquetoken", "pagination", "taskgroup",
 	} {
 		forbidExternalImports(t, filepath.Join(root, "internal", name), []string{
 			domainPkg,
@@ -1836,9 +1836,8 @@ var sharedCapabilityImports = []string{
 	"github.com/Tangerg/lynx/app/runtime/internal/completion",
 	"github.com/Tangerg/lynx/app/runtime/internal/httporigin",
 	"github.com/Tangerg/lynx/app/runtime/internal/idempotency",
+	"github.com/Tangerg/lynx/app/runtime/internal/opaquetoken",
 	"github.com/Tangerg/lynx/app/runtime/internal/pagination",
-	"github.com/Tangerg/lynx/app/runtime/internal/replaycursor",
-	"github.com/Tangerg/lynx/app/runtime/internal/shutdown",
 	"github.com/Tangerg/lynx/app/runtime/internal/taskgroup",
 }
 

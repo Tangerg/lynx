@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/shutdown"
+	"github.com/Tangerg/lynx/app/runtime/internal/infra/teardown"
 )
 
 func TestClosePendingResourcesPreservesDependenciesAfterFailure(t *testing.T) {
@@ -253,7 +253,7 @@ func TestHostCloseBoundsNonCooperativeToolCloserWithoutConcurrentRetry(t *testin
 	var calls atomic.Int32
 	host := Host{lifetime: &hostLifetime{
 		shutdownTimeout: time.Millisecond,
-		toolResources: []ShutdownResource{shutdown.New(func(context.Context) error {
+		toolResources: []ShutdownResource{teardown.New(func(context.Context) error {
 			calls.Add(1)
 			close(started)
 			<-release // Models a third-party Close with no cancellation support.

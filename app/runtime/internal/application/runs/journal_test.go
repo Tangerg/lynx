@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
-	"github.com/Tangerg/lynx/app/runtime/internal/replaycursor"
 	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/itemfixture"
 )
 
@@ -46,8 +45,8 @@ func sized(n int) Event {
 }
 
 func cursorAt(sequence uint64) string {
-	return replaycursor.Encode(replaycursor.Position{
-		Epoch: testEpoch, RunID: testRunID, SegmentID: testSegmentID, Sequence: sequence,
+	return encodeReplayCursor(replayPosition{
+		epoch: testEpoch, runID: testRunID, segmentID: testSegmentID, sequence: sequence,
 	})
 }
 
@@ -179,23 +178,23 @@ func TestJournal_ReplayFromAnEphemeralPositionIsExact(t *testing.T) {
 }
 
 func TestJournal_ReplayRefusesCursorsItCannotServe(t *testing.T) {
-	other := replaycursor.Encode
+	other := encodeReplayCursor
 	for name, test := range map[string]struct {
 		cursor string
 		want   error
 	}{
 		"damaged": {cursor: "!!!", want: ErrReplayCursorInvalid},
-		"another run": {cursor: other(replaycursor.Position{
-			Epoch: testEpoch, RunID: "run_other", SegmentID: testSegmentID, Sequence: 1,
+		"another run": {cursor: other(replayPosition{
+			epoch: testEpoch, runID: "run_other", segmentID: testSegmentID, sequence: 1,
 		}), want: ErrReplayCursorInvalid},
 		// The previous segment of the SAME run: the case a resume creates, and the one
 		// a client is most likely to hold.
-		"another segment": {cursor: other(replaycursor.Position{
-			Epoch: testEpoch, RunID: testRunID, SegmentID: "seg_previous", Sequence: 1,
+		"another segment": {cursor: other(replayPosition{
+			epoch: testEpoch, runID: testRunID, segmentID: "seg_previous", sequence: 1,
 		}), want: ErrReplayCursorInvalid},
 		"ahead of the head": {cursor: cursorAt(99), want: ErrReplayCursorInvalid},
-		"another process": {cursor: other(replaycursor.Position{
-			Epoch: "epoch_previous", RunID: testRunID, SegmentID: testSegmentID, Sequence: 1,
+		"another process": {cursor: other(replayPosition{
+			epoch: "epoch_previous", runID: testRunID, segmentID: testSegmentID, sequence: 1,
 		}), want: ErrReplayUnavailable},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -214,8 +213,8 @@ func TestJournal_ReplayRefusesCursorsItCannotServe(t *testing.T) {
 func TestJournal_ForeignEpochOutranksAForeignScope(t *testing.T) {
 	j := testJournal()
 	j.append(ev(true))
-	stale := replaycursor.Encode(replaycursor.Position{
-		Epoch: "epoch_previous", RunID: "run_other", SegmentID: "seg_other", Sequence: 1,
+	stale := encodeReplayCursor(replayPosition{
+		epoch: "epoch_previous", runID: "run_other", segmentID: "seg_other", sequence: 1,
 	})
 	if _, err := j.replay(stale); !errors.Is(err, ErrReplayUnavailable) {
 		t.Fatalf("replay err = %v, want ErrReplayUnavailable", err)

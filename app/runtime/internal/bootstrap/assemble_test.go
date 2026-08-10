@@ -23,7 +23,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/skillauthoring"
 	sqlitestore "github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
-	"github.com/Tangerg/lynx/app/runtime/internal/shutdown"
+	"github.com/Tangerg/lynx/app/runtime/internal/infra/teardown"
 	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/itemfixture"
 	runfixture "github.com/Tangerg/lynx/app/runtime/internal/testsupport/runfixture"
 	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/sessionfixture"
@@ -244,7 +244,7 @@ func TestAssemblyFailureReclaimsToolsAndOwnedResources(t *testing.T) {
 		if err != nil {
 			return toolEnvironment{}, err
 		}
-		toolRuntime.closers = append(toolRuntime.closers, shutdown.New(func(context.Context) error {
+		toolRuntime.closers = append(toolRuntime.closers, teardown.New(func(context.Context) error {
 			toolClosed.Add(1)
 			return nil
 		}))
@@ -284,7 +284,7 @@ func TestAssemblyBuilderFailureReclaimsReturnedAcquisitions(t *testing.T) {
 		skill.ProposalSubmitter,
 	) (toolEnvironment, error) {
 		return toolEnvironment{
-			closers: []ShutdownResource{shutdown.New(func(context.Context) error {
+			closers: []ShutdownResource{teardown.New(func(context.Context) error {
 				closed.Add(1)
 				return nil
 			})},
@@ -332,7 +332,7 @@ func TestAssemblyFailureRetainsRetryableCleanupOwner(t *testing.T) {
 		if err != nil {
 			return toolEnvironment{}, err
 		}
-		toolRuntime.closers = append(toolRuntime.closers, shutdown.New(func(context.Context) error {
+		toolRuntime.closers = append(toolRuntime.closers, teardown.New(func(context.Context) error {
 			if attempts.Add(1) == 1 {
 				return closeErr
 			}
@@ -388,7 +388,7 @@ func TestAssemblyDirectToolsDoNotDependOnAgentResolver(t *testing.T) {
 		if err != nil {
 			return toolEnvironment{}, err
 		}
-		toolRuntime.closers = append(toolRuntime.closers, shutdown.New(func(context.Context) error {
+		toolRuntime.closers = append(toolRuntime.closers, teardown.New(func(context.Context) error {
 			toolClosed.Add(1)
 			return nil
 		}))

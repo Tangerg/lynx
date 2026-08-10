@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"iter"
 	"sync"
-
-	"github.com/Tangerg/lynx/app/runtime/internal/replaycursor"
 )
 
 // liveHeadroom bounds queued live-only events per subscriber. Replayable events
@@ -133,9 +131,9 @@ func (j *journal) append(ev Event) {
 	}
 	j.head++
 	ev.Sequence = j.head
-	ev.Cursor = replaycursor.Encode(replaycursor.Position{
-		Epoch: j.scope.Epoch, RunID: j.scope.RunID,
-		SegmentID: j.scope.SegmentID, Sequence: j.head,
+	ev.Cursor = encodeReplayCursor(replayPosition{
+		epoch: j.scope.Epoch, runID: j.scope.RunID,
+		segmentID: j.scope.SegmentID, sequence: j.head,
 	})
 	if ev.Replayable() {
 		j.retained = append(j.retained, chargedEvent{event: ev, bytes: size})
@@ -221,7 +219,7 @@ func (j *journal) attach(token string) (subscription, error) {
 // [ErrReplayUnavailable] when it came from a previous process or has been
 // evicted from the window.
 func (j *journal) replay(token string) (subscription, error) {
-	from, err := replaycursor.Decode(token)
+	from, err := decodeReplayCursor(token)
 	if err != nil {
 		return subscription{}, fmt.Errorf("%w: %w", ErrReplayCursorInvalid, err)
 	}
@@ -229,26 +227,26 @@ func (j *journal) replay(token string) (subscription, error) {
 	// Epoch before scope: a cursor from a previous process cannot be expected to
 	// name a run this process knows, so blaming its scope would report the client's
 	// second problem instead of its first.
-	if from.Epoch != j.scope.Epoch {
+	if from.epoch != j.scope.Epoch {
 		j.mu.Unlock()
 		return subscription{}, fmt.Errorf("%w: cursor was minted by another runtime process", ErrReplayUnavailable)
 	}
-	if from.RunID != j.scope.RunID || from.SegmentID != j.scope.SegmentID {
+	if from.runID != j.scope.RunID || from.segmentID != j.scope.SegmentID {
 		j.mu.Unlock()
 		return subscription{}, fmt.Errorf("%w: cursor belongs to run %s segment %s",
-			ErrReplayCursorInvalid, from.RunID, from.SegmentID)
+			ErrReplayCursorInvalid, from.runID, from.segmentID)
 	}
-	if from.Sequence > j.head {
+	if from.sequence > j.head {
 		j.mu.Unlock()
 		return subscription{}, fmt.Errorf("%w: cursor is ahead of the stream", ErrReplayCursorInvalid)
 	}
-	if from.Sequence < j.evictedThrough {
+	if from.sequence < j.evictedThrough {
 		j.mu.Unlock()
 		return subscription{}, fmt.Errorf("%w: cursor precedes the retained window", ErrReplayUnavailable)
 	}
 	backlog := make([]chargedEvent, 0, len(j.retained))
 	for _, retained := range j.retained {
-		if retained.event.Sequence > from.Sequence {
+		if retained.event.Sequence > from.sequence {
 			backlog = append(backlog, retained)
 		}
 	}
@@ -261,9 +259,9 @@ func (j *journal) headCursorLocked() string {
 	if j.head == 0 {
 		return ""
 	}
-	return replaycursor.Encode(replaycursor.Position{
-		Epoch: j.scope.Epoch, RunID: j.scope.RunID,
-		SegmentID: j.scope.SegmentID, Sequence: j.head,
+	return encodeReplayCursor(replayPosition{
+		epoch: j.scope.Epoch, runID: j.scope.RunID,
+		segmentID: j.scope.SegmentID, sequence: j.head,
 	})
 }
 

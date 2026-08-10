@@ -220,12 +220,13 @@ P8 production cutover 已用真实 Bootstrap consumer 冻结 root stage/observe/
 
 | 能力 | 最终 owner | 证据 |
 |---|---|---|
-| completion | `internal/completion` | Application、taskgroup、shutdown 共享同一 completion-first join rule |
+| completion | `internal/completion` | Application、taskgroup 与 Bootstrap teardown 共享同一 completion-first join rule |
 | HTTP origin | `internal/httporigin` | Application MCP policy 与 Infra MCP redirect security 共用纯 normalization |
 | idempotency | `internal/idempotency` | Delivery consumer port 与 SQLite implementation 共享 opaque record/errors |
-| pagination cursor | `internal/pagination` | 多 Application reads 与 Delivery error mapping 共用；base64/JSON codec 不进入 Application ring |
-| replay cursor | `internal/replaycursor` | Run journal 拥有位置语义；opaque base64/JSON codec 保持在 ring 外的准确 capability |
-| shutdown | `internal/shutdown` | Bootstrap 只装配/调用；deadline-aware teardown mechanism 不藏进 composition root |
+| opaque token framing | `internal/opaquetoken` | pagination 与 Run replay 共用 strict URL-safe framing；payload 语义、版本与校验仍归各自 owner |
+| pagination cursor | `internal/pagination` | 多 Application reads 与 Delivery error mapping共用 keyset pagination 语义；content codec 委托纯 framing capability |
+| replay cursor | `application/runs` 私有实现 | 位置、scope、retention、版本与校验均由 Run journal 独占；只复用 ring 外的 opaque framing |
+| teardown step | `infra/teardown` | non-cooperative close serialization 是 Bootstrap 消费的纯技术机制；组合根只装配与关闭 |
 | task group | `internal/taskgroup` | Application、Delivery transport 与 Bootstrap 共享 request-detached task ownership |
 | path identity | `infra/pathidentity` | filesystem/symlink identity 是技术机制，Adapter 单向消费 Infra |
 | secret masking | `application/secrets` | model/MCP 两个 Application consumer 共享 presentation-boundary policy |

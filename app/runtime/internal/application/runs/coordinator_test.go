@@ -17,7 +17,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
-	"github.com/Tangerg/lynx/app/runtime/internal/replaycursor"
 	runfixture "github.com/Tangerg/lynx/app/runtime/internal/testsupport/runfixture"
 	corechat "github.com/Tangerg/lynx/core/chat"
 )
@@ -1862,14 +1861,14 @@ func TestCoordinatorProjectsNestedChildrenWithExactLineageAndPostorderTerminal(t
 		if event.Sequence != wantSequence {
 			t.Fatalf("event[%d] sequence = %d, want %d", index, event.Sequence, wantSequence)
 		}
-		position, err := replaycursor.Decode(event.Cursor)
+		position, err := decodeReplayCursor(event.Cursor)
 		if err != nil {
 			t.Fatalf("event[%d] cursor: %v", index, err)
 		}
-		if position.Epoch != coordinator.epoch ||
-			position.RunID != testRunID ||
-			position.SegmentID != testSegmentID ||
-			position.Sequence != wantSequence {
+		if position.epoch != coordinator.epoch ||
+			position.runID != testRunID ||
+			position.segmentID != testSegmentID ||
+			position.sequence != wantSequence {
 			t.Fatalf(
 				"event[%d] cursor = %+v, want root stream %s/%s at %d",
 				index,

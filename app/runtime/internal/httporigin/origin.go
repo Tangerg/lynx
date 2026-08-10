@@ -14,12 +14,12 @@ import (
 // host with the effective default port filled in, so two origins are equal iff
 // they are the same security origin. The zero value is not a valid origin.
 type Origin struct {
-	Scheme string // "http" or "https", lowercased
-	Host   string // host:port, host lowercased, default port materialized
+	scheme string // "http" or "https", lowercased
+	host   string // host:port, host lowercased, default port materialized
 }
 
 // String renders the origin as "scheme://host:port".
-func (o Origin) String() string { return o.Scheme + "://" + o.Host }
+func (o Origin) String() string { return o.scheme + "://" + o.host }
 
 // Parse normalizes a raw HTTP(S) URL into an [Origin], failing closed on an
 // unparseable URL, a non-HTTP(S) scheme, or a missing host.
@@ -53,7 +53,7 @@ func FromURL(u *url.URL) (Origin, error) {
 			port = "80"
 		}
 	}
-	return Origin{Scheme: scheme, Host: net.JoinHostPort(host, port)}, nil
+	return Origin{scheme: scheme, host: net.JoinHostPort(host, port)}, nil
 }
 
 // Same reports whether two endpoints share the same origin. Invalid or

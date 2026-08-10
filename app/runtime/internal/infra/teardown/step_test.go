@@ -1,4 +1,4 @@
-package shutdown
+package teardown
 
 import (
 	"context"
@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-func TestBeginStartsOnceAndSharesAttempt(t *testing.T) {
+func TestStepSharesActiveAttempt(t *testing.T) {
 	release := make(chan struct{})
 	var calls atomic.Int32
 	step := New(func(context.Context) error {
@@ -33,7 +33,7 @@ func TestBeginStartsOnceAndSharesAttempt(t *testing.T) {
 	}
 }
 
-func TestFailedAttemptIsRetryable(t *testing.T) {
+func TestStepRetriesCompletedFailure(t *testing.T) {
 	want := errors.New("close failed")
 	var calls atomic.Int32
 	step := New(func(context.Context) error {
@@ -54,7 +54,7 @@ func TestFailedAttemptIsRetryable(t *testing.T) {
 	}
 }
 
-func TestCallerJoiningFailedAttemptObservesSameGeneration(t *testing.T) {
+func TestStepJoinersObserveSameFailure(t *testing.T) {
 	entered := make(chan struct{})
 	release := make(chan struct{})
 	want := errors.New("first close failed")
@@ -77,26 +77,23 @@ func TestCallerJoiningFailedAttemptObservesSameGeneration(t *testing.T) {
 		t.Fatalf("first attempt = %v, want failure", err)
 	}
 	if err := second.Wait(t.Context()); !errors.Is(err, want) {
-		t.Fatalf("joining caller attempt = %v, want same failure", err)
-	}
-	if got := calls.Load(); got != 1 {
-		t.Fatalf("action calls = %d, want 1", got)
+		t.Fatalf("joining attempt = %v, want same failure", err)
 	}
 	if err := step.Begin(t.Context()).Wait(t.Context()); err != nil {
 		t.Fatalf("explicit retry = %v", err)
 	}
 	if got := calls.Load(); got != 2 {
-		t.Fatalf("action calls after explicit retry = %d, want 2", got)
+		t.Fatalf("action calls after retry = %d, want 2", got)
 	}
 }
 
-func TestAttemptWaitReturnsCompletedOutcomeAfterCallerCancellation(t *testing.T) {
+func TestAttemptReturnsCompletedResultAfterCallerCancellation(t *testing.T) {
 	want := errors.New("close failed")
 	attempt := completedAttempt(want)
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
 	if err := attempt.Wait(ctx); !errors.Is(err, want) {
-		t.Fatalf("Wait() = %v, want completed outcome", err)
+		t.Fatalf("wait = %v, want completed result", err)
 	}
 }

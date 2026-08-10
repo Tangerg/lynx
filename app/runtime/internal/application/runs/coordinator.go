@@ -13,7 +13,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/change"
 	rundomain "github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
-	"github.com/Tangerg/lynx/app/runtime/internal/replaycursor"
 	"github.com/Tangerg/lynx/app/runtime/internal/taskgroup"
 )
 
@@ -154,7 +153,7 @@ func NewCoordinator(deps Dependencies) *Coordinator {
 		now:                                deps.Now,
 		newRunID:                           deps.NewRunID,
 		newSegmentID:                       deps.NewSegmentID,
-		epoch:                              replaycursor.NewEpoch(),
+		epoch:                              newReplayEpoch(),
 		retention:                          deps.Retention,
 		admission:                          deps.Admissions,
 		changed:                            deps.Changed,
