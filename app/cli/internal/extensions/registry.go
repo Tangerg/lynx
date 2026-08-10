@@ -97,19 +97,21 @@ type Contribution struct {
 
 // Disposable releases an owned registration. Dispose is idempotent.
 type Disposable interface {
-	Dispose()
+	Dispose() error
 }
 
 type disposal struct {
 	once sync.Once
-	do   func()
+	do   func() error
+	err  error
 }
 
-func (d *disposal) Dispose() {
+func (d *disposal) Dispose() error {
 	if d == nil {
-		return
+		return nil
 	}
-	d.once.Do(d.do)
+	d.once.Do(func() { d.err = d.do() })
+	return d.err
 }
 
 // Scope is the capability a plugin receives during setup. It owns every
@@ -123,7 +125,7 @@ type Scope struct {
 
 // OnDispose binds a plugin-owned side effect to rollback, unload, and reload.
 // Cleanups run in reverse registration order.
-func (s *Scope) OnDispose(cleanup func()) error {
+func (s *Scope) OnDispose(cleanup func() error) error {
 	if s == nil || s.registry == nil {
 		return errors.New("extensions: plugin scope is required")
 	}
@@ -152,24 +154,37 @@ type Plugin struct {
 type Loaded struct {
 	once        sync.Once
 	disposables []Disposable
+	err         error
 }
 
-// Dispose unloads a plugin. A bad cleanup cannot prevent the remaining owned
-// contributions from being released because disposal itself has no error path.
-func (l *Loaded) Dispose() {
+// Dispose unloads a plugin. Every cleanup runs even when another returns an
+// error or panics; the joined result is stable across repeated calls.
+func (l *Loaded) Dispose() error {
 	if l == nil {
-		return
+		return nil
 	}
 	l.once.Do(func() {
+		var failures []error
 		for _, disposable := range slices.Backward(l.disposables) {
-			disposeSafely(disposable)
+			if err := disposeSafely(disposable); err != nil {
+				failures = append(failures, err)
+			}
 		}
+		l.err = errors.Join(failures...)
 	})
+	return l.err
 }
 
-func disposeSafely(disposable Disposable) {
-	defer func() { _ = recover() }()
-	disposable.Dispose()
+func disposeSafely(disposable Disposable) (err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			err = fmt.Errorf("plugin cleanup panicked: %v", recovered)
+		}
+	}()
+	if disposable == nil {
+		return nil
+	}
+	return disposable.Dispose()
 }
 
 // Load validates and initializes one plugin. Setup is transactional: a failure
@@ -178,11 +193,8 @@ func Load(registry *Registry, plugin Plugin) (*Loaded, error) {
 	if registry == nil {
 		return nil, errors.New("extensions: registry is required")
 	}
-	if strings.TrimSpace(plugin.ID) == "" {
-		return nil, errors.New("extensions: plugin id is required")
-	}
-	if plugin.Setup == nil {
-		return nil, fmt.Errorf("extensions: plugin %q has no setup", plugin.ID)
+	if err := ValidateManifest(plugin); err != nil {
+		return nil, err
 	}
 	release, err := registry.claim(plugin.ID)
 	if err != nil {
@@ -195,7 +207,9 @@ func Load(registry *Registry, plugin Plugin) (*Loaded, error) {
 	}
 	if err := setupSafely(plugin.Setup, scope); err != nil {
 		loaded := &Loaded{disposables: scope.disposables}
-		loaded.Dispose()
+		if rollbackErr := loaded.Dispose(); rollbackErr != nil {
+			err = errors.Join(err, fmt.Errorf("rollback plugin %q: %w", plugin.ID, rollbackErr))
+		}
 		return nil, fmt.Errorf("load plugin %q: %w", plugin.ID, err)
 	}
 	return &Loaded{disposables: scope.disposables}, nil
@@ -233,12 +247,13 @@ func (r *Registry) claim(plugin string) (Disposable, error) {
 	r.next++
 	token := r.next
 	r.plugins[plugin] = token
-	return &disposal{do: func() {
+	return &disposal{do: func() error {
 		r.mu.Lock()
 		defer r.mu.Unlock()
 		if r.plugins[plugin] == token {
 			delete(r.plugins, plugin)
 		}
+		return nil
 	}}, nil
 }
 
@@ -292,19 +307,20 @@ func Contribute[T any](scope *Scope, point Point[T], value T, options Contributi
 	r.points[point.id] = state
 	r.mu.Unlock()
 
-	d := &disposal{do: func() {
+	d := &disposal{do: func() error {
 		r.mu.Lock()
 		defer r.mu.Unlock()
 		state, ok := r.points[point.id]
 		if !ok {
-			return
+			return nil
 		}
 		current, ok := state.entries[key]
 		if !ok || current.seq != sequence {
-			return
+			return nil
 		}
 		delete(state.entries, key)
 		r.points[point.id] = state
+		return nil
 	}}
 	scope.disposables = append(scope.disposables, d)
 	return d, nil

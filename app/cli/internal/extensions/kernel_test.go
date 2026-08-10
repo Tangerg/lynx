@@ -59,6 +59,10 @@ func TestManifestValidationRejectsIncompatibleOrAmbiguousMetadata(t *testing.T) 
 			}
 		})
 	}
+	invalid := Plugin{ID: "test.partial", Setup: func(*Scope) error { return nil }}
+	if _, err := Load(new(Registry), invalid); err == nil {
+		t.Fatal("Load bypassed full manifest validation")
+	}
 }
 
 func TestKernelRejectsDuplicatePluginIdentity(t *testing.T) {
@@ -119,7 +123,10 @@ func TestKernelOrdersDependenciesAndReloadsTheirClosure(t *testing.T) {
 	plugin := func(id string, requires ...string) Plugin {
 		item := manifest(id, func(scope *Scope) error {
 			lifecycle = append(lifecycle, "load:"+id)
-			if err := scope.OnDispose(func() { lifecycle = append(lifecycle, "unload:"+id) }); err != nil {
+			if err := scope.OnDispose(func() error {
+				lifecycle = append(lifecycle, "unload:"+id)
+				return nil
+			}); err != nil {
 				return err
 			}
 			_, err := Contribute(scope, point, id, Contribution{})
@@ -193,7 +200,7 @@ func TestSetupRollbackRunsOwnedCleanup(t *testing.T) {
 	registry := new(Registry)
 	cleaned := false
 	plugin := manifest("test.rollback", func(scope *Scope) error {
-		if err := scope.OnDispose(func() { cleaned = true }); err != nil {
+		if err := scope.OnDispose(func() error { cleaned = true; return nil }); err != nil {
 			return err
 		}
 		return errors.New("setup failed")
@@ -206,6 +213,104 @@ func TestSetupRollbackRunsOwnedCleanup(t *testing.T) {
 	}
 }
 
+func TestCleanupFailuresAreJoinedAfterEveryCleanupRuns(t *testing.T) {
+	firstFailure := errors.New("first cleanup failed")
+	lastFailure := errors.New("last cleanup failed")
+	var order []string
+	plugin := manifest("test.cleanup-errors", func(scope *Scope) error {
+		for _, cleanup := range []struct {
+			name string
+			err  error
+		}{
+			{name: "first", err: firstFailure},
+			{name: "middle"},
+			{name: "last", err: lastFailure},
+		} {
+			if err := scope.OnDispose(func() error {
+				order = append(order, cleanup.name)
+				return cleanup.err
+			}); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	loaded, err := Load(new(Registry), plugin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	disposeErr := loaded.Dispose()
+	if !errors.Is(disposeErr, firstFailure) || !errors.Is(disposeErr, lastFailure) {
+		t.Fatalf("Dispose error = %v", disposeErr)
+	}
+	if !slices.Equal(order, []string{"last", "middle", "first"}) {
+		t.Fatalf("cleanup order = %v", order)
+	}
+	if repeated := loaded.Dispose(); !errors.Is(repeated, firstFailure) || !errors.Is(repeated, lastFailure) || repeated.Error() != disposeErr.Error() {
+		t.Fatalf("repeated Dispose returned %v, want stable %v", repeated, disposeErr)
+	}
+}
+
+func TestKernelUnloadSurfacesCleanupFailureAfterReleasingContributions(t *testing.T) {
+	want := errors.New("cleanup failed")
+	point := NewMultiPoint[string]("test.cleanup-point")
+	registry := new(Registry)
+	kernel, err := NewKernel(registry)
+	if err != nil {
+		t.Fatal(err)
+	}
+	plugin := manifest("test.cleanup-kernel", func(scope *Scope) error {
+		if _, err := Contribute(scope, point, "owned", Contribution{}); err != nil {
+			return err
+		}
+		return scope.OnDispose(func() error { return want })
+	})
+	if results, err := kernel.Activate([]Plugin{plugin}); err != nil || !allLoaded(results) {
+		t.Fatalf("Activate = %+v, %v", results, err)
+	}
+	if err := kernel.Unload(plugin.ID); !errors.Is(err, want) {
+		t.Fatalf("Unload error = %v", err)
+	}
+	if values := Values(registry, point); len(values) != 0 {
+		t.Fatalf("failed cleanup leaked contributions: %v", values)
+	}
+	requireFailedPluginInfo(t, kernel, plugin.ID)
+	if err := kernel.Close(); err != nil {
+		t.Fatalf("Close repeated an already-released cleanup: %v", err)
+	}
+}
+
+func requireFailedPluginInfo(t *testing.T, kernel *Kernel, pluginID string) {
+	t.Helper()
+	infos := kernel.Infos()
+	if len(infos) != 1 || infos[0].ID != pluginID || infos[0].Phase != PluginFailed || infos[0].Detail == "" {
+		t.Fatalf("plugin info = %+v", infos)
+	}
+}
+
+func TestSetupFailureReportsRollbackFailureWithoutLeakingOwnership(t *testing.T) {
+	setupFailure := errors.New("setup failed")
+	rollbackFailure := errors.New("rollback failed")
+	registry := new(Registry)
+	plugin := manifest("test.rollback-errors", func(scope *Scope) error {
+		if err := scope.OnDispose(func() error { return rollbackFailure }); err != nil {
+			return err
+		}
+		return setupFailure
+	})
+	_, err := Load(registry, plugin)
+	if !errors.Is(err, setupFailure) || !errors.Is(err, rollbackFailure) {
+		t.Fatalf("Load error = %v", err)
+	}
+	loaded, err := Load(registry, manifest(plugin.ID, func(*Scope) error { return nil }))
+	if err != nil {
+		t.Fatalf("rollback leaked the plugin claim: %v", err)
+	}
+	if err := loaded.Dispose(); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestPluginPanicsAreIsolatedDuringSetupAndCleanup(t *testing.T) {
 	registry := new(Registry)
 	setupPanic := manifest("test.setup-panic", func(*Scope) error { panic("setup boom") })
@@ -215,16 +320,18 @@ func TestPluginPanicsAreIsolatedDuringSetupAndCleanup(t *testing.T) {
 
 	var cleaned bool
 	cleanupPanic := manifest("test.cleanup-panic", func(scope *Scope) error {
-		if err := scope.OnDispose(func() { cleaned = true }); err != nil {
+		if err := scope.OnDispose(func() error { cleaned = true; return nil }); err != nil {
 			return err
 		}
-		return scope.OnDispose(func() { panic("cleanup boom") })
+		return scope.OnDispose(func() error { panic("cleanup boom") })
 	})
 	loaded, err := Load(registry, cleanupPanic)
 	if err != nil {
 		t.Fatal(err)
 	}
-	loaded.Dispose()
+	if err := loaded.Dispose(); err == nil {
+		t.Fatal("cleanup panic was not surfaced")
+	}
 	if !cleaned {
 		t.Fatal("one cleanup panic prevented the remaining cleanup")
 	}
@@ -237,7 +344,7 @@ func TestKernelDoesNotHoldStateLockWhileCallingPluginCode(t *testing.T) {
 	}
 	plugin := manifest("test.introspect", func(scope *Scope) error {
 		_ = kernel.Infos()
-		return scope.OnDispose(func() { _ = kernel.Infos() })
+		return scope.OnDispose(func() error { _ = kernel.Infos(); return nil })
 	})
 	done := make(chan error, 1)
 	go func() {

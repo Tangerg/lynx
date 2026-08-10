@@ -66,34 +66,19 @@ type Config struct {
 }
 
 // Run opens and owns the terminal interface until the user leaves.
-func Run(ctx context.Context, cfg Config) error {
-	if cfg.Runtime == nil {
-		return errors.New("session: a runtime is required")
-	}
-	if cfg.Settings.Keys == nil {
-		cfg.Settings = settings.Default()
-	}
-	if err := cfg.Settings.Validate(); err != nil {
-		return fmt.Errorf("session settings: %w", err)
-	}
-	keys, err := configuredKeys(cfg.Settings)
+func Run(ctx context.Context, cfg Config) (runErr error) {
+	prepared, err := prepareSession(ctx, cfg)
 	if err != nil {
 		return err
 	}
-	opened, err := open(ctx, cfg.Runtime, cfg.Session, cfg.Workspace)
-	if err != nil {
-		return err
-	}
-	attachments, err := attachment.New(opened.Session.Workspace)
-	if err != nil {
-		return fmt.Errorf("session attachments: %w", err)
-	}
+	cfg = prepared.config
 
 	registry := new(extensions.Registry)
 	kernel, err := extensions.NewKernel(registry)
 	if err != nil {
 		return err
 	}
+	defer func() { runErr = errors.Join(runErr, kernel.Close()) }()
 	sources := []extensions.Source{extensions.StaticSource{
 		Name: "terminal", Plugins: append([]extensions.Plugin{builtinPlugin()}, cfg.Plugins...),
 	}}
@@ -107,15 +92,13 @@ func Run(ctx context.Context, cfg Config) error {
 		return err
 	}
 	if err := requirePlugin(results, "terminal.core"); err != nil {
-		kernel.Close()
 		return err
 	}
-	defer kernel.Close()
 
 	var active *app
 	err = program.Run(ctx, program.Config{
 		Inline: func(loop *program.InlineRuntime) program.Component {
-			active = newApp(ctx, loop, cfg.Runtime, opened, registry, kernel, discovered.Issues, attachments, cfg.Prompt, cfg.Settings, keys)
+			active = newApp(ctx, loop, cfg.Runtime, prepared.opened, registry, kernel, discovered.Issues, prepared.attachments, cfg.Prompt, cfg.Settings, prepared.keys)
 			return headless.NewRoot(active)
 		},
 		Terminal: term.Options{Probe: true, Mouse: cfg.Settings.UI.Mouse, Focus: true, Keyboard: term.KeyboardCompatible},
@@ -125,6 +108,38 @@ func Run(ctx context.Context, cfg Config) error {
 		active.Close()
 	}
 	return err
+}
+
+type preparedSession struct {
+	config      Config
+	opened      client.SessionSnapshot
+	attachments *attachment.Resolver
+	keys        *keymap.Map
+}
+
+func prepareSession(ctx context.Context, cfg Config) (preparedSession, error) {
+	if cfg.Runtime == nil {
+		return preparedSession{}, errors.New("session: a runtime is required")
+	}
+	if cfg.Settings.Keys == nil {
+		cfg.Settings = settings.Default()
+	}
+	if err := cfg.Settings.Validate(); err != nil {
+		return preparedSession{}, fmt.Errorf("session settings: %w", err)
+	}
+	keys, err := configuredKeys(cfg.Settings)
+	if err != nil {
+		return preparedSession{}, err
+	}
+	opened, err := open(ctx, cfg.Runtime, cfg.Session, cfg.Workspace)
+	if err != nil {
+		return preparedSession{}, err
+	}
+	attachments, err := attachment.New(opened.Session.Workspace)
+	if err != nil {
+		return preparedSession{}, fmt.Errorf("session attachments: %w", err)
+	}
+	return preparedSession{config: cfg, opened: opened, attachments: attachments, keys: keys}, nil
 }
 
 func requirePlugin(results []extensions.Result, id string) error {

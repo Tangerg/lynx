@@ -50,6 +50,7 @@ type Kernel struct {
 	order     []string
 	activated bool
 	closed    bool
+	closeErr  error
 }
 
 func NewKernel(registry *Registry) (*Kernel, error) {
@@ -156,7 +157,9 @@ func (k *Kernel) Reload(id string) ([]Result, error) {
 	closure := k.dependentClosureLocked(id)
 	order := slices.Clone(k.order)
 	k.mu.Unlock()
-	k.unloadSet(closure)
+	if err := k.unloadSet(closure); err != nil {
+		return nil, fmt.Errorf("reload plugin %q: %w", id, err)
+	}
 	results := make([]Result, 0, len(closure))
 	for _, candidate := range order {
 		if closure[candidate] {
@@ -190,8 +193,7 @@ func (k *Kernel) Unload(id string) error {
 	}
 	closure := k.dependentClosureLocked(id)
 	k.mu.Unlock()
-	k.unloadSet(closure)
-	return nil
+	return k.unloadSet(closure)
 }
 
 func (k *Kernel) dependentClosureLocked(id string) map[string]bool {
@@ -211,23 +213,36 @@ func (k *Kernel) dependentClosureLocked(id string) map[string]bool {
 	return closure
 }
 
-func (k *Kernel) unloadSet(ids map[string]bool) {
+type pluginDisposal struct {
+	id     string
+	loaded *Loaded
+}
+
+func (k *Kernel) unloadSet(ids map[string]bool) error {
 	k.mu.Lock()
-	var disposables []*Loaded
+	var disposables []pluginDisposal
 	for _, id := range slices.Backward(k.order) {
 		if !ids[id] {
 			continue
 		}
 		if loaded := k.loaded[id]; loaded != nil {
-			disposables = append(disposables, loaded)
+			disposables = append(disposables, pluginDisposal{id: id, loaded: loaded})
 			delete(k.loaded, id)
 		}
 		k.states[id] = Result{PluginID: id, Phase: PluginAvailable}
 	}
 	k.mu.Unlock()
-	for _, loaded := range disposables {
-		loaded.Dispose()
+	var failures []error
+	for _, disposable := range disposables {
+		if err := disposable.loaded.Dispose(); err != nil {
+			failure := fmt.Errorf("unload plugin %q: %w", disposable.id, err)
+			failures = append(failures, failure)
+			k.mu.Lock()
+			k.states[disposable.id] = Result{PluginID: disposable.id, Phase: PluginFailed, Err: failure}
+			k.mu.Unlock()
+		}
 	}
+	return errors.Join(failures...)
 }
 
 func (k *Kernel) load(id string) Result {
@@ -269,17 +284,19 @@ func (k *Kernel) load(id string) Result {
 	return result
 }
 
-// Close unloads every plugin in reverse dependency order. It is idempotent.
-func (k *Kernel) Close() {
+// Close unloads every plugin in reverse dependency order. It is idempotent and
+// returns the same joined cleanup error to every caller.
+func (k *Kernel) Close() error {
 	if k == nil {
-		return
+		return nil
 	}
 	k.lifecycle.Lock()
 	defer k.lifecycle.Unlock()
 	k.mu.Lock()
 	if k.closed {
+		err := k.closeErr
 		k.mu.Unlock()
-		return
+		return err
 	}
 	all := make(map[string]bool, len(k.plugins))
 	for id := range k.plugins {
@@ -287,5 +304,9 @@ func (k *Kernel) Close() {
 	}
 	k.closed = true
 	k.mu.Unlock()
-	k.unloadSet(all)
+	err := k.unloadSet(all)
+	k.mu.Lock()
+	k.closeErr = err
+	k.mu.Unlock()
+	return err
 }
