@@ -21,7 +21,7 @@ Runtime 必须同时满足：
 - Agent Framework、SQLite、模型 Provider、Git、Shell、MCP、LSP 和网络都停留在外环；
 - Delivery 只把协议请求投影为应用命令，把应用事实投影为协议响应；
 - Bootstrap 是唯一组合根，不承载业务行为；
-- streamable HTTP 只承载协议，且不改变应用语义；未来新增公共 binding 必须复用同一 Application 用例；
+- streamable HTTP 与公共 embedded binding 只承载协议，且不改变应用语义；二者必须复用同一 binding-neutral operation 入口与 Application 用例；
 - Agent Framework 是唯一托管执行内核，Runtime 不复制它的 Process loop、tree scheduler 或 snapshot 解释器。
 
 ## 2. 设计原则
@@ -275,24 +275,26 @@ Infra：
 
 `adapter` 与 `infra` 不整体合并。每个包按以上规则裁决；纯转发包装删除，真实的技术 mechanism 保留。
 
-### 6.5 Delivery
+### 6.5 Protocol 与 Delivery
 
-Delivery 包含四个职责：
+公共 `protocol` 只包含 binding-neutral Runtime 合同：DTO、枚举、请求/响应、事件、客户端可见 problem、版本与严格验证。它不包含服务端 method-group interface、context key、Router、numeric JSON-RPC code、HTTP status、reflection registry 或生成器实现细节。
 
-- `protocol`：Runtime wire 类型、方法、错误与 contract metadata；
-- `server`：协议服务端实现和 request/response projection；它不拥有网络 listener，仍准确表示 Runtime Protocol 的 server side；
-- `dispatch`：JSON-RPC registry、routing、idempotency envelope 和流式 method dispatch；
+内部 Delivery 包含四个职责：
+
+- `operation`：类型化 operation catalog、validation、capability、idempotency、problem projection 与 stream replay attachment；
+- `server`：Application use case 与 protocol value 的双向 projection；它不拥有 listener、connection 或 Runtime lifecycle；
+- `dispatch`：JSON-RPC envelope routing、numeric error mapping 与 stream frame encoding；
 - `transport`：JSON-RPC envelope vocabulary 与 HTTP/SSE I/O。
 
-`server` 与 `dispatch` 有不同变化原因，不合并。当前名称与职责一致，不为目录美观改成更宽泛的 `api`/`rpc`。
+`server`、`operation` 与 `dispatch` 有不同变化原因，不合并。HTTP 和 embedded 都从 operation 进入，任何 binding 都不能直接绕过 validation、capability、idempotency、problem projection 或 replay 规则。
 
-Delivery 只依赖 Protocol、Application 和必要的 Domain projection values；不得导入 Agent Framework、Infra、具体 persistence、agentexec 或持有 Run lifecycle state。
+Delivery 只依赖公共 Protocol、Application 和必要的 Domain projection values；不得导入 Agent Framework、Infra、具体 persistence、agentexec 或持有 Run lifecycle state。
 
-### 6.6 Bootstrap、Config 与 Cmd
+### 6.6 Bootstrap、Config、Embedded 与 Cmd
 
-Bootstrap 是唯一组合根：创建 concrete dependency、组装 consumer port、启动有 owner 的后台任务并按逆序关闭资源。
+私有 Runtime instance builder 是唯一组合根：创建 concrete dependency、组装 consumer port、取得数据目录独占权、执行恢复、启动有 owner 的后台任务并按逆序关闭资源。HTTP executable 和公共 `embedded.Open` 都只能调用它，不得各自复制装配图。
 
-Bootstrap 不提供业务 API，不成为 service locator，不让运行时对象反向取得完整 Stack。Config 只解析外部设置和完成静态验证，不执行业务选择。Cmd 只负责进程参数、BuildID、信号和 Host 生命周期。
+Bootstrap 不提供业务 API，不成为 service locator，不让运行时对象反向取得完整 Stack。公共 `embedded.Runtime` 只持有私有 instance 与 operation endpoint，提供完整 `Open/Close` 和类型化方法，不泄露内部资源。Config 只解析外部设置和完成静态验证，不执行业务选择。Cmd 只负责进程参数、BuildID、信号、HTTP listener 与 Runtime 生命周期。
 
 ### 6.7 共享原语
 
@@ -487,7 +489,7 @@ Runtime Toolset 负责产品工具清单、schema、执行 capability、安全�
 
 Agent Framework Event/Delta listener 都是 observation/wake-up 边界，不是 Application durable commit callback。listener failure/panic 不会回滚 Framework 状态，因此 Application 不能仅因“收到一个 Event”就假定产品事实已经可靠提交。per-Run pump 必须通过 Agent Framework public Process status/result、Strategy public helper 和 quiescent complete-tree capture 对账 waiting/terminal；Event 丢失后仍能在下一次 wake、control 或 recovery reconciliation 收敛。terminal truth 最终来自 `Process.Await`/`Result`，不是 Event payload。
 
-## 12. 协议与传输
+## 12. 协议与 binding
 
 Runtime Protocol 是外部语义契约，机器真相源在 `contract/`。重构可以 breaking，但一次变更只能有一个新 shape：
 
@@ -496,12 +498,16 @@ Runtime Protocol 是外部语义契约，机器真相源在 `contract/`。重构
 - API semantic、transport binding 和 auxiliary capability 分别由现有三份规范拥有；
 - HTTP status 只表示 transport，业务失败使用协议 error；
 - transport metadata 不进入 JSON-RPC body；
-- 当前 HTTP/SSE 只驱动 Application use case；未来新增 binding 也必须复用同一入口，不得复制业务路径。
+- HTTP/SSE 与 embedded 都驱动同一 binding-neutral operation 和 Application use case；binding 只投影 metadata、options 与结果流，不得复制业务路径。
+- embedded 不经过 JSON-RPC/SSE 编解码，但必须遵守同一严格验证、capability、idempotency、replay cursor 与 problem 语义。
+- 同一 data directory 只有一个 Runtime owner；独占锁早于 store/recovery，成功关闭时最后释放。
 
 ## 13. 目标目录
 
 ```text
 app/runtime/
+├── protocol/
+├── embedded/
 ├── cmd/
 ├── config/
 ├── contract/
@@ -525,7 +531,7 @@ app/runtime/
     ├── infra/
     │   └── <technical mechanisms>/
     ├── delivery/
-    │   ├── protocol/
+    │   ├── operation/
     │   ├── server/
     │   ├── dispatch/
     │   └── transport/

@@ -1,6 +1,6 @@
 # Lyra
 
-**Lyra Runtime — 产品级通用 agent 运行时后端（Go）。** 实现 Lyra Runtime Protocol（JSON-RPC 2.0，MCP-inspired），通过 streamable HTTP 服务桌面、Web、CLI 与 TUI 客户端。
+**Lyra Runtime — 产品级通用 agent 运行时后端（Go）。** 实现 Lyra Runtime Protocol（JSON-RPC 2.0，MCP-inspired），通过 streamable HTTP 服务桌面/Web 客户端，并为 Go CLI/TUI/宿主程序提供公共 embedded binding。
 
 > 模块级上下文见 [`CLAUDE.md`](./CLAUDE.md)；重构目标架构见 [`doc/ARCHITECTURE.md`](./doc/ARCHITECTURE.md)；阶段、当前事实和全部文档入口见 [`doc/README.md`](./doc/README.md)。
 
@@ -8,7 +8,7 @@
 
 ## 这是什么
 
-以 **Run 生命周期**（而非 agent loop）为中心的 Agent 应用后端。**协议层薄、业务层厚、传输层可换**：`internal/delivery` 是 wire 边界，`internal/application/*` 驱动 Run/Session/能力生命周期，`internal/adapter/agentexec` 隔离 Agent Framework，`internal/domain/*` 按限界上下文表达产品规则，`internal/infra/*` 提供技术机制。客户端独立消费 Runtime 发布的 JSON-RPC / contract 制品，不共享服务端实现类型。
+以 **Run 生命周期**（而非 agent loop）为中心的 Agent 应用后端。**协议层薄、业务层厚、binding 同源**：公共 `protocol` 是唯一合同，HTTP 与公共 `embedded.Runtime` 共用 binding-neutral operation；`internal/application/*` 驱动 Run/Session/能力生命周期，`internal/adapter/agentexec` 隔离 Agent Framework，`internal/domain/*` 按限界上下文表达产品规则，`internal/infra/*` 提供技术机制。
 
 当前生产执行只消费唯一的 [`agent`](../../agent) Framework Baseline 18，并通过 `internal/adapter/agentexec` 完成防腐翻译。Runtime 不解析 Framework private state，也不复制 Process loop、tree scheduler 或 Tool loop。
 
@@ -43,4 +43,4 @@ ANTHROPIC_API_KEY=xxx ./lyra                           # 默认 127.0.0.1:17171�
 
 ## 不做（刻意）
 
-不写 client（各客户端独立消费协议制品）· 不做内部伪 in-process/stdio/gRPC transport（当前唯一 binding 是 streamable HTTP；未来公共 Go SDK 另行设计）· 不做用户鉴权/多租户（协议层零 user 概念）· 不向 lynx 反向贡献抽象（除非沉淀过 3+ 用例）。
+不复制 HTTP 与 embedded 业务入口 · 不复活 JSON-RPC channel 式伪 in-process transport · 不公开 Host/Store/Engine/Application concrete · 不做 stdio/gRPC binding · 不做用户鉴权/多租户（协议层零 user 概念）· 不向 lynx 反向贡献抽象（除非沉淀过 3+ 用例）。

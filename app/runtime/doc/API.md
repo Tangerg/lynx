@@ -1040,7 +1040,7 @@ dispatcher、discovery 与客户端 preflight 读的是同一份）。
 
 ## 14. 机器可读制品 / 漂移闸
 
-后端 Go `runtime/internal/delivery/protocol` + Contract Registry 是**机械 SSOT**。`go generate ./...` 从它导出
+公共 Go `runtime/protocol` + 私有 binding-neutral Operation Registry 是**机械 SSOT**。`go generate ./...` 从它们导出
 `runtime/contract/`（manifest / JSON Schema / OpenRPC / 人读索引 / 错误注册表 / 能力门禁 / 事件与 state 策略 /
 canonical 样本）以及前端消费的 TS 类型、校验器与 client stub。
 

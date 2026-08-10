@@ -45,6 +45,16 @@
 | Contract generation | `contract/` 的 manifest/OpenRPC/schema/TypeScript/Go validator 来自唯一 registry；canonical samples 同时经 round-trip 与 strict validator | Retain | P10 已完成 |
 | SQLite exact epoch | epoch 66 单一 shape，无生产 migration chain | Retain | P6/P8 完成；P15-03 收回 child-start durable wire owner；P16-02 收回 Tool failure vocabulary |
 
+### 2.3 P19 公共 Go binding 事实
+
+| 能力 | 当前事实 | Verdict | 阶段 |
+|---|---|---|---|
+| 公共 protocol | 目标为唯一 binding-neutral DTO/validation/version owner；旧 internal path 待 P19-02 原子删除 | Rewrite ownership | P19-01 合同冻结，P19-02 待实施 |
+| Typed operation | 当前 validation/capability/idempotency/problem/replay 混在 JSON-RPC dispatch；将抽为 HTTP/embedded 共用私有 owner | Refactor | P19-03 |
+| Embedded Runtime | 真实 CLI consumer 已成立；公共 concrete binding 尚未实现 | Rewrite | P19-04/P19-05 |
+| Runtime instance lifecycle | 当前 cmd 与 Bootstrap 分担装配、恢复和 worker；尚无 data-directory lock | Refactor | P19-04 |
+| Consumer wiring | CLI/前端/TUI 均不在本阶段修改；Runtime 不提供旧接口适配 | Defer | P19 完成后专项 |
+
 ## 3. 产品领域能力
 
 ### 3.1 Run、Segment 与 execution package
@@ -209,7 +219,7 @@ P8 production cutover 已用真实 Bootstrap consumer 冻结 root stage/observe/
 | Runtime method implementation | `delivery/server` | Retain | Protocol server side 与 projection；构造按 required use-case validation、defaults、contract facts、instance、notification observation 分阶段，不持有 transport listener |
 | JSON-RPC dispatch/registry | `delivery/dispatch` | Retain | method registry/router/idempotency；typed params decode 与 response projection 分属 `params.go`/`response.go`，不与 server 合并 |
 | HTTP/SSE | transport/http | Retain | envelope I/O、stream/backpressure |
-| In-process | 已删除的 internal prototype | Remove | 无生产消费者，且 Go `internal` 边界使外部 CLI/TUI 不可导入；未来公共 SDK 必须专项设计 |
+| Embedded Go | 旧 internal channel prototype 已删除；P19 新建类型化公共 binding | Rewrite, do not revive transport | CLI 已成为真实消费者；复用 operation/Application，不导出 envelope/Router |
 | Server product-value projections | Application read/write use cases + 必要 immutable Domain values | Retain | 只做 wire validation/error mapping/projection，不读取 repository、不持有 lifecycle owner |
 | Delivery adapter imports | architecture guard 禁止 | Retain | Delivery 只驱动 Application；对 concrete Adapter/Infra/Bootstrap/Agent Framework import 为零 |
 | frontend/TUI/CLI generated consumers | Desktop 仍含旧 `processRootSegment` vendored binding/fixtures；CLI/TUI 当前扫描无该 token | Defer | 精确 backlog 见 `CONSUMER_HANDOFF.md`；本 goal 不改消费者 |

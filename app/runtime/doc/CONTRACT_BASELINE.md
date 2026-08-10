@@ -10,9 +10,9 @@
 
 ## 1. 基线含义
 
-Runtime 是应用而不是公开 Go library。`internal` exported identifiers 主要服务模块内组合，不构成外部兼容 API。因此本基线不冻结全部内部 `go doc`，而冻结四类真实合同：
+Runtime 是应用后端，同时提供公共 Go binding。只有 `protocol` 与 `embedded` 的 exported surface 构成 Go API；`internal` exported identifiers 仍只服务模块内组合。因此本基线不冻结全部内部 `go doc`，而冻结四类真实合同：
 
-1. 外部 Runtime Protocol 和生成制品；
+1. 外部 Runtime Protocol、公共 Go protocol/embedded surface 和生成制品；
 2. SQLite/artifact/checkpoint 等持久 shape；
 3. Application 与 Agent adapter 的防腐边界；
 4. Clean Architecture import DAG 和外部 SDK isolation。

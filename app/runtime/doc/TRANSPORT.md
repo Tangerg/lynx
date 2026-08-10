@@ -15,9 +15,10 @@ API 定义 JSON-RPC 方法、资源、事件语义；transport 定义 message �
 | 客户端形态           | runtime 位置       | transport     | 状态                   |
 | -------------------- | ------------------ | ------------- | ---------------------- |
 | 桌面 / Web / CLI / TUI | 本地 runtime 进程 | HTTP loopback | 已实现                 |
+| Go host / CLI          | 同一进程           | public embedded binding | P19 实施中           |
 | 未来远程 facade      | facade 之后        | HTTP          | 同上，无需新 transport |
 
-当前唯一 binding 是 streamable HTTP，暴露 request/response JSON-RPC、server→client 通知、显式取消和基于 event id 的流重连。没有一个可供外部客户端导入的 Go in-process transport；此前的 `internal` 原型没有生产消费者，也不可能作为公共 SDK。若未来需要同进程嵌入，必须专项设计稳定的公共 Go API，而不是泄露内部 protocol/dispatch 类型。桌面外壳走 loopback HTTP，不是宿主 IPC（理由见 §5）。
+网络 binding 是 streamable HTTP，暴露 request/response JSON-RPC、server→client 通知、显式取消和基于 event id 的流重连。P19 新增公共类型化 embedded binding；它不是 Transport 的第三种 envelope 实现，不搬运 JSON-RPC message，而是直接调用 HTTP 同源的 operation pipeline。此前的 `internal` in-process channel 原型继续保持删除。桌面外壳仍走 loopback HTTP；CLI 等真实 Go host 可以直接嵌入 Runtime。
 
 ## 2. 元数据划分 —— 业务与请求自描述进 params，纯传输才走带外
 
@@ -72,9 +73,13 @@ transport **不**配对 request/response id —— 那是上层 RPC client 的�
 
 ## 4. Go 同进程接入边界
 
-当前不提供 Go in-process binding。Runtime 的全部 protocol/server/dispatch 类型均为服务端内部实现，不能作为客户端 SDK 合同。Go CLI/TUI 与其他客户端一样使用 loopback HTTP 和发布的 contract 制品。
+公共 `protocol` 是 HTTP 与 embedded 共用的唯一语义合同；公共 `embedded.Open` 返回 concrete Runtime。embedded 直接调用 binding-neutral operation pipeline，不启动 listener、不要求本地 token、不做 JSON-RPC/SSE 编解码。
 
-未来只有在出现真实嵌入式消费者后，才可新增位于 `internal` 之外的公共 API；该 API 必须自行定义稳定的类型化 surface、流生命周期、取消、背压和版本协商，并复用 Application 用例，不能简单导出内部 JSON-RPC envelope 或 Router。
+`RequestMeta` 仍表达协议版本与客户端能力。写调用通过 `CommandOptions.IdempotencyKey` 提交稳定幂等身份；run 续流通过 `RunSubscriptionOptions.AfterEventID` 表达同一 replay cursor 语义。两者是语义准确的 Go option，不复用 HTTP header 名。请求 context 只约束当前调用/订阅，已接受 Run 由 Runtime lifecycle 继续拥有。
+
+embedded 不公开 protocol method-group interface、Router、Host、Store、Engine、Application concrete、context private key、JSON-RPC numeric code 或 transport problem。消费方在自身边界定义所需窄接口。
+
+同一 data directory 只允许一个 Runtime owner。HTTP executable 与 embedded 共用同一 advisory lock、recovery、workers 和 reverse-order shutdown；若需要多个进程/客户端同时共享同一 Runtime，应由一个独立宿主进程持有目录并通过 HTTP/IPC 服务，而不是同时 embedded 打开。
 
 ## 5. 为什么没有 IPC transport（设计裁决）
 

@@ -1,6 +1,6 @@
 # Lyra Runtime 重构实施计划
 
-> 状态：P1–P18 已完成；消费者接线仍留给独立专项
+> 状态：P1–P18 已完成；P19 公共 protocol 与 embedded Runtime 实施中
 >
 > 工作方式：原模块内治本重构，按可验证纵切分批完成；不创建完整 `runtime2`
 
@@ -10,10 +10,11 @@
 
 当前实施 goal 已授权：
 
-- 在已完成的 P1–P17 基线上，依据实际行为 owner 纠正 pagination、taskgroup 与 opaque-token framing 的环内位置；
+- 在已完成的 P1–P18 基线上公开唯一 `protocol` 与 concrete `embedded.Runtime`；
+- 抽取 HTTP/embedded 共用的 binding-neutral operation pipeline，统一 validation、capability、idempotency、problem 与 replay；
+- 建立 HTTP host 与 embedded 共用的 Runtime instance builder、完整 Open/Close、后台任务 join 和数据目录独占；
 - 每完成一个可独立验收批次，同步本计划和 Capability Ledger，统一验证、提交并推送；
-- 允许服务端内部与 Runtime Protocol breaking change，不建立兼容路径；
-- 仓库历史与能力台账中的原框架实现只作为证据；Runtime 对 Framework 只依赖当前 `agent` 公共合同。
+- 允许服务端内部与公共 Go API breaking change，不建立兼容路径。
 
 本 goal 不修改前端、TUI、CLI，也不为它们保留兼容字段；消费端接线在服务端完成后专项处理。跨出 `app/runtime` 的 Framework 合同变化仍需单独满足 P7 的证据与授权约束，不能在 Runtime 内伪造替代合同。
 
@@ -51,6 +52,7 @@
 | P16 | Domain aggregate 行为所有权纵切 | P15 + Domain Model | 已完成 |
 | P17 | package 边界与目录结构精修 | P16 + 真实 import graph | 已完成 |
 | P18 | Application mechanism 所有权纠偏 | P17 + 完整调用图 | 已完成 |
+| P19 | 公共 protocol 与 embedded Runtime | P18 + 真实 CLI 嵌入消费者 | 实施中 |
 
 ## 4. P0 — 文档、事实和边界基线
 
@@ -563,10 +565,45 @@
 - 根级 pure capability 只保留有真实跨环行为消费者的准确 package；
 - 不修改 Runtime Protocol、SQLite/Artifact shape、Agent Framework、前端、TUI 或 CLI。
 
-## 23. 进度记录
+## 23. P19 — 公共 protocol 与 embedded Runtime
+
+### 目标
+
+让外部 Go 程序在同一进程内直接拥有完整 Runtime，同时保证 HTTP 与 embedded 只存在一套协议类型、一套 operation 语义和一套 Runtime 生命周期；不把内部 Application、Host、Store、Agent Framework 或 transport envelope 公开。
+
+### 工作项
+
+- [x] P19-01 冻结 ADR、目标结构、公共/私有边界、生命周期、独占锁与批次验收；
+- [ ] P19-02 原子移动公共 protocol values/validation/version，收回服务端 method interfaces、context plumbing、numeric JSON-RPC code 与 generator internals，删除旧 internal protocol path；
+- [ ] P19-03 建立 binding-neutral typed operation catalog/pipeline，让 HTTP dispatch 与 embedded 共用 validation、capability、idempotency、safe problem projection 和 run-stream replay；
+- [ ] P19-04 建立单一 Runtime instance builder、data-directory advisory lock、recovery/workers ownership 与完整 retryable Close；
+- [ ] P19-05 实现公共 concrete `embedded.Runtime`、Config、command/subscription options 和外部 module import/stream/lifecycle 行为测试；
+- [ ] P19-06 更新 contract generator、架构门禁、公共 Go surface baseline、README 示例和 consumer handoff，执行全量质量与坏味道复扫。
+
+### 强制顺序
+
+1. `protocol` 先成为唯一公共值 owner，旧 path 同批删除；
+2. operation 先让现有 HTTP 通过，再接 embedded，避免第二业务入口；
+3. shared instance builder 先证明 HTTP 行为无回归，再由 `embedded.Open` 消费；
+4. 每批只提交自洽、全绿的唯一路径，不保留 alias、shim、双 registry 或 JSON-RPC round-trip；
+5. 本阶段不修改 `app/cli`、前端或 TUI，它们只作为后续 consumer backlog。
+
+### 行为验收
+
+- 外部测试 module 可以导入 `runtime/protocol` 与 `runtime/embedded`，不能导入任何 `internal`；
+- HTTP 与 embedded 对同一请求得到等价的 validation、capability、idempotency、problem 和 replay 结果；
+- embedded 不启动 listener、不要求 token、不做 JSON-RPC/SSE 编解码；
+- `AfterEventID` 精确保持 tail/replay/cold-recovery 语义，`IdempotencyKey` 对 unary 与 run-stream command 均复用 durable record；
+- 请求取消不取消已接受 Run；订阅取消只释放该订阅；Runtime Close 停止 admission、结束订阅、join workers 并逆序关闭资源；
+- 同一路径、符号链接别名和第二进程均不能同时打开同一数据目录；Open 失败回滚锁，Close 未完成时不提前释放锁；
+- 公共 surface 无胖 interface、context key、numeric RPC code、Router、Host、Store、Engine、Application concrete 或 transport type；
+- generator 零漂移，standalone build/vet/test/race/staticcheck/lint/deadcode/fuzz 与架构门禁全绿。
+
+## 24. 进度记录
 
 | 日期 | 阶段 | 完成事实 | 验证 |
 |---|---|---|---|
+| 2026-08-11 | P19-01（public binding contract） | 真实 CLI 嵌入消费者推翻“无公共 Go binding 需求”的旧前提；ADR-RT-053 冻结唯一公共 `protocol`、concrete `embedded.Runtime`、binding-neutral `operation`、HTTP/embedded 共享 instance builder、data-directory 独占与完整 lifecycle。旧 internal in-process channel transport 不复活，不建立 JSON-RPC round-trip、胖 public interface 或消费者兼容层 | 六份核心文档与 API/Transport/README owner 同步；本批仅文档，`git diff --check` 与文档链接/术语门禁在提交前验证 |
 | 2026-08-10 | P18（Application mechanism ownership） | 完整调用图推翻“外环引用即跨环共同 owner”的旧判断：pagination 的 cursor/query binding/page-width/page-cut 全由 Application read 决定，taskgroup 的任务启动者全是 Application coordinator，Bootstrap 只装配/关闭；opaque-token 的 pagination/Run replay payload owner 也同属 Application。三个 package 原子移动到 `application/{pagination,taskgroup,opaquetoken}`，旧根路径永久禁止；媒体内容 codec 门禁收窄为真实语义，只对精确 continuation framing 允许 URL-safe Base64，未建立宽泛 encoding 例外。package 总数保持 100，无 alias/shim、协议/schema/Framework/消费者变化 | `MODULE=app/runtime FAST=1 scripts/check.sh build vet test tidy lint race` 六项全绿，lint 0 issues；`GOWORK=off staticcheck ./...`、`deadcode -test ./...`、`go generate ./...` 零输出/零漂移；旧 import、旧目录、空目录与 `git diff --check` 扫描全绿 |
 | 2026-08-10 | P17-05（final package-boundary acceptance） | 从 115 个 package 的 P17 起点收敛至 100 个真实 package；逐层完成 shared capability、Toolset、Domain/Application、Adapter/Infra/Delivery/Bootstrap/Testsupport 的消费者与变化轴反证。新增全 internal 生产 package 永久门禁：目录名必须等于 package 名、必须有准确 `Package <name>` GoDoc、禁止只含 `doc.go` 的零行为 umbrella；旧目录/文件、生产 import、空目录、单消费者伪共享、不可消费 transport、package-doc 缺失与生成漂移归零。强验收捕获并修复一个已提交 invalidation test 的 gofmt 对齐漂移，随后对整个 Runtime 格式化并重跑 lint | `MODULE=app/runtime FAST=1 scripts/check.sh build vet test tidy lint race` 中 build/vet/test/tidy/race 全绿，首次 lint 精确捕获 1 个旧 gofmt 漂移，修复后独立完整 lint 0 issues；`GOWORK=off staticcheck ./...`、`deadcode -test ./...`、`go generate ./...` 零输出/零漂移；Continuation/Prompt/Resolution 三个 strict codec fuzz 各 10 秒、合计 987,564 次执行通过；package-doc/import DAG/retired-path/TODO/空目录/diff hygiene 扫描全绿。P17 完成 |
 | 2026-08-10 | P17-04c（Delivery/Bootstrap/Testsupport counterexample） | 按生产消费者和 Go import 可达性复审 Delivery/Bootstrap/Testsupport。删除 `delivery/transport/inprocess`：它只有自测、无任何生产消费者，并位于 Runtime `internal` 下，外部 CLI/TUI 根本不可导入，因此不是可嵌入能力而是伪公共实现；当前唯一 binding 回归真实的 streamable HTTP，transport/dispatch/Architecture/API/README/standards/decision/ledger 同步且旧路径永久禁止。Delivery 的 protocol/server/dispatch/transport、Bootstrap focused builders 与三个多测试消费者 fixture package 均有独立变化轴，保留；`httporigin` 和 `taskgroup` 经多 ring 消费者反证仍是纯 shared capability，不能下沉 Infra 迫使 Application 反向依赖。删除零消费者、零行为的 `domain/doc.go` 伪 umbrella package，Domain 父目录只作为 bounded-context namespace；旧 shutdown/replaycursor 空目录同步物理清除 | 全量消费者扫描证明 inprocess production imports=0；HTTP/dispatch/architecture/docs 与 Runtime test/vet/build 在本批和 P17-05 收口 |
@@ -625,6 +662,6 @@
 | 2026-08-09 | P9.2 | 完成 Adapter/Infra/Application/Delivery 逐包职责审计；workspace physical path identity 收敛到唯一 Infra mechanism；删除空的 temporary architecture 台账并把旧 Agent 禁止与 Domain no-context-I/O 变为永久 framework boundary guard；确认 agentexec 按真实变化原因组织且没有第二 lifecycle owner或虚构子包 | Adapter→Infra 单向图与目标六环 DAG 全绿；Delivery concrete Adapter/Infra import、Infra 反向 import、Application outward import、纯转发 wrapper、package/type 口吃、空目录和 temporary exception 均为零；workspacepath/pathidentity/arch targeted tests 与全量质量门禁通过 |
 | 2026-08-09 | P10 | Runtime Protocol 一次性提升到 `2026-08-09`、Session Artifact 到 v14；删除 wire 中实现泄露的 `processRootSegment`，只保留准确的 `runtimeInstanceRootSegment`；Go registry、validator、manifest、OpenRPC、JSON Schema、TypeScript binding、canonical samples 与人读 API/Transport/Aux 文档同步；新增精确 consumer handoff | canonical artifact samples 中漏存的 v12 与旧 `outcome.error` 被 strict sample gate 暴露并治本修正；生成器零漂移、旧 wire token/版本归零、strict validator/round-trip、HTTP/in-process、全量质量门禁通过；Desktop backlog 已记录但未改消费者 |
 
-## 24. 当前下一步
+## 25. 当前下一步
 
-P18 已完成。Runtime 的 100 个 package 均位于可证明的行为 owner、独立变化轴或必要隔离边界；根级 shared capability 只保留真正跨环的 completion、HTTP origin 与 idempotency。前端、TUI、CLI 不属于本批，Runtime 未为消费者恢复旧合同。后续只有出现新的真实反例时才调整边界，不以目录对称、import 数量或未来复用为由增加 package。
+P19-01 已冻结公共 Go binding 的边界。下一批原子移动公共 `protocol`，同时收回内部接口与 context/transport 机制并删除旧 path；前端、TUI、CLI 不属于本阶段，Runtime 不为它们保留旧合同。

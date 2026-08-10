@@ -341,3 +341,14 @@
 - 背景：P17 把 pagination、opaque-token framing 和 task group 作为根级 shared capability 保留，但完整调用图显示分页策略和后台任务启动都只由 Application use case 决定；Delivery 只消费分页结果/错误，Bootstrap 只构造和关闭 Application task group。opaque-token framing 的两个语义 owner 也都是 Application continuation：paged read 与 Run replay。把引用方误计为行为 owner，会让根级 package 逃避已经明确的环归属。
 - 决策：`pagination`、`taskgroup`、`opaquetoken` 分别归 `application/pagination`、`application/taskgroup`、`application/opaquetoken`。Pagination 继续拥有 keyset anchor、query binding、limit 和 `Page[T]`；Taskgroup 继续拥有 Application component 的 request-detached work；opaque-token 只拥有 Application continuation 的 strict URL-safe framing。标准库 Base64 在这里是 continuation contract 的纯算法，不是媒体内容 transport codec；门禁只为该精确 package 区分二者，不建立宽泛 encoding 例外。
 - 后果：根级 shared capability 只保留真正跨环的 completion、HTTP origin 与 idempotency。Delivery/Bootstrap 可以向内依赖 Application owner，但不能因此把机制提升成无环归属的 `internal` primitive；旧三个根路径永久禁止，不保留 alias、shim、`util` 或 `common`。
+
+## ADR-RT-053：公开类型化 `protocol` 与嵌入式 Runtime binding
+
+- 状态：已接受；取代 ADR-RT-024 中“当前没有公共同进程 binding”的现状结论，不改变 `server` 与 HTTP envelope dispatch 分责。
+- 背景：`app/cli` 已成为真实的同进程消费者。让它经 loopback HTTP 使用同一进程会额外引入 listener、鉴权 token、JSON 编解码和 SSE framing；复制 Session、Run、Event、Interrupt DTO 又会形成第二协议真相。此前删除的 `internal/delivery/transport/inprocess` 只是 JSON-RPC envelope 的 channel transport，既不能被外部 module 导入，也不是稳定的类型化 Runtime API。
+- 决策：把 binding-neutral 的 DTO、枚举、请求/响应、事件、客户端可见错误、版本和严格验证原子移动到公共 `runtime/protocol`。HTTP 与公共 `runtime/embedded` 只消费这一份合同；旧 `internal/delivery/protocol` 物理删除，不保留 alias、forwarding package 或双份类型。
+- 决策：公共 `embedded.Open` 返回 concrete `*embedded.Runtime`。它公开 Runtime 的完整类型化能力与显式 command/subscription options，不导出胖 `Runtime` interface，也不暴露 Application concrete type、Host、Store、Engine、Router、context private key 或 JSON-RPC envelope。消费方按需要自行定义窄接口。
+- 决策：新增私有 binding-neutral `internal/delivery/operation`，唯一拥有 operation catalog、严格 request validation、静态/动态 capability gate、幂等 claim/fingerprint/complete/replay、transport-neutral problem projection 与 run-stream replay attachment。HTTP `dispatch` 只负责 JSON-RPC envelope、method routing、numeric error code 和 frame encoding；embedded 直接调用同一 typed operation，不经过 HTTP、JSON-RPC 或 SSE。
+- 决策：`RequestMeta` 是公共请求自描述值，但其 context 传播属于私有 operation 实现。`AfterEventID` 与 `IdempotencyKey` 在 embedded options 中显式表达；HTTP adapter 分别从 `Last-Event-Id` 与 `Idempotency-Key` 投影到同一 operation options。numeric JSON-RPC error code、HTTP status 与 transport problem 不进入公共 protocol。
+- 决策：HTTP 进程宿主与 embedded binding 共用同一个 Runtime instance builder。该 owner 在打开 SQLite/recovery 前取得 canonical data directory 的进程级独占锁，按顺序组装 stores、Host、恢复器、operation endpoint 和 Runtime workers；`Close` 停止新请求、解除订阅、取消并 join 后台任务、逆序关闭资源，最后释放锁。请求 context 只约束当前调用/订阅，已接受 Run 继续由 Runtime lifecycle 拥有。
+- 后果：Runtime 是唯一服务端合同；CLI、前端和 TUI 后续按新公共面 breaking 接线，Runtime 不迁就旧消费者接口。一个数据目录同一时间只能由一个 HTTP 或 embedded Runtime owner 打开；需要多进程共享时必须使用单独宿主进程或其他 IPC，不能绕过独占锁。

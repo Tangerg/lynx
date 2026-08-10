@@ -126,8 +126,9 @@ Entity 自己保护状态迁移和不变量。Application 不得通过一串 set
 - request decode、protocol validation、application command、application error projection、response encode 五步清晰；
 - 不直接读 Store、调用 agentexec 或修改 Domain entity；
 - Server/API 不持有 active Run map、pump、executor tree 或 connection registry；
+- operation 是严格验证、能力门禁、幂等、problem 投影和 replay attachment 的唯一 binding-neutral owner；
 - RPC dispatch 不解释业务字段；Transport 不解释 RPC method；
-- HTTP/SSE 使用 Application entrypoint；未来新增 binding 必须复用它；
+- HTTP/SSE 与 embedded 使用同一 operation/Application entrypoint；binding 不复制业务或可靠性规则；
 - 协议类型只在 delivery/contract 边界，Application 不返回 wire DTO。
 
 ### 3.6 Bootstrap
@@ -137,6 +138,17 @@ Entity 自己保护状态迁移和不变量。Application 不得通过一串 set
 - 所有 closers 只有一个 owner，逆序、幂等关闭；
 - 后台任务加入明确 task group，Host shutdown 等待它们结束；
 - optional capability 只在真实配置关闭时为 nil/absent，不通过半可用对象推迟错误。
+- HTTP host 与 embedded 共用同一 Runtime instance builder；数据目录独占、恢复、后台任务与资源关闭不能各装配一套。
+- 数据目录锁必须早于 Store/recovery，且在全部资源成功关闭后最后释放；失败 Open 要逆序回滚，失败 Close 保留所有权并允许重试。
+
+### 3.7 公共 Go binding
+
+- `protocol` 只公开 binding-neutral values、strict validation 与客户端可见 problem，不公开服务端接口、context key、numeric JSON-RPC code 或 generator internals；
+- `embedded.Open` 返回 concrete `*embedded.Runtime`，不导出胖 interface；消费方在自己一侧定义窄接口；
+- embedded command/subscription metadata 使用准确 option 类型，不用 header 名、`map[string]any` 或 bool bag；
+- 已接受 Run 脱离请求取消并归 Runtime lifecycle 所有；subscription context 只结束该订阅；
+- stream 必须显式定义终止、错误、背压和 Close 行为，不用 goroutine 泄漏换取看似异步的 API；
+- 公共 API 的参数、返回值、GoDoc、零值和 error 分支必须可从调用点直接理解，不暴露内部 composition object。
 
 ## 4. Agent Framework 接线标准
 
