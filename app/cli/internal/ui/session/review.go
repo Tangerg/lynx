@@ -155,6 +155,8 @@ func approvalDefault(scope client.RememberScope) string {
 		return "allow-project"
 	case client.RememberGlobal:
 		return "allow-global"
+	case client.RememberNone:
+		return "allow-once"
 	default:
 		return "allow-once"
 	}
@@ -177,11 +179,12 @@ func approvalAnswer(choice string) client.ApprovalAnswer {
 
 func (a *app) resumeInteraction(interruptID string, answer client.Answer) {
 	runID := a.state.RunID()
+	after := a.state.Cursor()
 	a.follow(func(ctx context.Context) (subscription, error) {
 		if err := a.backend.ResumeRun(ctx, client.ResumeRun{RunID: runID, InterruptID: interruptID, Answer: answer}); err != nil {
 			return subscription{}, err
 		}
-		return subscription{runID: runID, after: a.state.Cursor()}, nil
+		return subscription{runID: runID, after: after}, nil
 	})
 }
 

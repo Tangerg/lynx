@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/Tangerg/oolong/core/program"
@@ -58,116 +59,153 @@ func (a *app) follow(open func(context.Context) (subscription, error)) {
 	a.dropStream()
 	sequence := a.streamSeq
 	a.following = true
-	dispatcher := a.loop.Dispatcher()
-
 	a.operations.Go(streamOperation, true, func(ctx context.Context, _ operationLease) {
-		policy := resilience.Standard(a.settings.UI.ReconnectAttempts)
-		failures := 0
-		var sub subscription
-		for {
-			var err error
-			sub, err = open(ctx)
-			if err == nil {
-				break
-			}
-			if ctx.Err() != nil {
-				return
-			}
-			failures++
-			delay, retry := policy.Next(failures, err)
-			if !retry {
-				a.postStreamFailure(ctx, dispatcher, sequence, err)
-				return
-			}
-			if err := post(ctx, dispatcher, func() {
-				if a.streamSeq == sequence {
-					a.status.note(fmt.Sprintf("reconnecting %d/%d", failures, policy.Attempts))
-					a.syncAnimation()
-				}
-			}); err != nil {
-				return
-			}
-			if err := resilience.Wait(ctx, delay); err != nil {
-				return
-			}
+		follower := streamFollower{
+			app: a, ctx: ctx, dispatcher: a.loop.Dispatcher(), sequence: sequence,
+			open: open, applyEnvelope: a.apply,
+			policy: resilience.Standard(a.settings.UI.ReconnectAttempts),
 		}
+		follower.run()
+	})
+}
 
-		after := sub.after
-		failures = 0
-		for {
-			before := after
-			stream, followErr := a.backend.FollowRun(ctx, client.FollowRun{RunID: sub.runID, After: after})
-			if followErr == nil && stream == nil {
-				followErr = errors.New("runtime returned a nil event stream")
-			}
+type streamFollower struct {
+	app           *app
+	ctx           context.Context
+	dispatcher    program.Dispatcher
+	sequence      uint64
+	open          func(context.Context) (subscription, error)
+	applyEnvelope func(client.Envelope) error
+	policy        resilience.Reconnect
+	after         client.Cursor
+	failures      int
+}
 
-			active := true
-			phase := client.Running
-			if followErr == nil {
-				for envelope, streamErr := range stream {
-					if streamErr != nil {
-						followErr = streamErr
-						break
-					}
-					var applyErr error
-					if err := post(ctx, dispatcher, func() {
-						if a.streamSeq != sequence {
-							active = false
-							return
-						}
-						applyErr = a.apply(envelope)
-						after = a.state.Cursor()
-						phase = a.state.Phase()
-					}); err != nil || !active {
-						return
-					}
-					if applyErr != nil {
-						followErr = applyErr
-						break
-					}
-				}
-			}
+func (f *streamFollower) run() {
+	subscription, ok := f.openSubscription()
+	if !ok {
+		return
+	}
+	f.after = subscription.after
+	f.failures = 0
+	for f.followOnce(subscription.runID) {
+	}
+}
 
-			if err := post(ctx, dispatcher, func() {
-				if a.streamSeq != sequence {
-					active = false
-					return
-				}
-				after = a.state.Cursor()
-				phase = a.state.Phase()
-			}); err != nil || !active {
-				return
-			}
-			if phase != client.Running {
-				a.finishFollowing(dispatcher, sequence)
-				return
-			}
-			if followErr == nil {
-				followErr = fmt.Errorf("%w: runtime stream ended without parking or finishing the run", client.ErrDisconnected)
-			}
-			if ctx.Err() != nil {
-				return
-			}
-			if after > before {
-				failures = 0
-			}
-			failures++
-			delay, retry := policy.Next(failures, followErr)
-			if !retry {
-				a.postStreamFailure(ctx, dispatcher, sequence, followErr)
-				return
-			}
-			if err := post(ctx, dispatcher, func() {
-				if a.streamSeq == sequence {
-					a.status.note(fmt.Sprintf("reconnecting %d/%d", failures, policy.Attempts))
-					a.syncAnimation()
-				}
-			}); err != nil {
-				return
-			}
-			if err := resilience.Wait(ctx, delay); err != nil {
-				return
-			}
+func (f *streamFollower) openSubscription() (subscription, bool) {
+	for {
+		opened, err := f.open(f.ctx)
+		if err == nil {
+			return opened, true
+		}
+		if context.Cause(f.ctx) != nil || !f.retry(err, false) {
+			return subscription{}, false
+		}
+	}
+}
+
+func (f *streamFollower) followOnce(runID string) bool {
+	before := f.after
+	stream, followErr := f.app.backend.FollowRun(f.ctx, client.FollowRun{RunID: runID, After: f.after})
+	if followErr == nil && stream == nil {
+		followErr = errors.New("runtime returned a nil event stream")
+	}
+	active := true
+	if followErr == nil {
+		active, followErr = f.consume(stream)
+	}
+	if !active {
+		return false
+	}
+	state, err := f.state()
+	if err != nil || !state.active {
+		return false
+	}
+	f.after = state.after
+	if state.phase != client.Running {
+		f.finish()
+		return false
+	}
+	if followErr == nil {
+		followErr = fmt.Errorf("%w: runtime stream ended without parking or finishing the run", client.ErrDisconnected)
+	}
+	if context.Cause(f.ctx) != nil {
+		return false
+	}
+	return f.retry(followErr, f.after > before)
+}
+
+func (f *streamFollower) consume(stream client.Stream) (bool, error) {
+	for envelope, streamErr := range stream {
+		if streamErr != nil {
+			return true, streamErr
+		}
+		active, err := f.apply(envelope)
+		if !active || err != nil {
+			return active, err
+		}
+	}
+	return true, nil
+}
+
+func (f *streamFollower) apply(envelope client.Envelope) (bool, error) {
+	active := true
+	var applyErr error
+	err := post(f.ctx, f.dispatcher, func() {
+		if f.app.streamSeq != f.sequence {
+			active = false
+			return
+		}
+		applyErr = f.applyEnvelope(envelope)
+		f.after = f.app.state.Cursor()
+	})
+	return active, errors.Join(err, applyErr)
+}
+
+type streamUIState struct {
+	active bool
+	after  client.Cursor
+	phase  client.Phase
+}
+
+func (f *streamFollower) state() (streamUIState, error) {
+	state := streamUIState{active: true}
+	err := post(f.ctx, f.dispatcher, func() {
+		if f.app.streamSeq != f.sequence {
+			state.active = false
+			return
+		}
+		state.after = f.app.state.Cursor()
+		state.phase = f.app.state.Phase()
+	})
+	return state, err
+}
+
+func (f *streamFollower) retry(cause error, progressed bool) bool {
+	if progressed {
+		f.failures = 0
+	}
+	f.failures++
+	delay, retry := f.policy.Next(f.failures, cause)
+	if !retry {
+		f.app.postStreamFailure(f.ctx, f.dispatcher, f.sequence, cause)
+		return false
+	}
+	if err := post(f.ctx, f.dispatcher, func() {
+		if f.app.streamSeq == f.sequence {
+			f.app.status.note(fmt.Sprintf("reconnecting %d/%d", f.failures, f.policy.Attempts))
+			f.app.syncAnimation()
+		}
+	}); err != nil {
+		return false
+	}
+	return resilience.Wait(f.ctx, delay) == nil
+}
+
+func (f *streamFollower) finish() {
+	_ = post(f.ctx, f.dispatcher, func() {
+		if f.app.streamSeq == f.sequence {
+			f.app.following = false
 		}
 	})
 }
@@ -197,14 +235,6 @@ func (a *app) activeCancellation() (client.CancelRun, bool) {
 	return client.CancelRun{}, false
 }
 
-func (a *app) finishFollowing(dispatcher program.Dispatcher, sequence uint64) {
-	_ = post(context.WithoutCancel(a.ctx), dispatcher, func() {
-		if a.streamSeq == sequence {
-			a.following = false
-		}
-	})
-}
-
 func post(ctx context.Context, dispatcher program.Dispatcher, fn func()) error {
 	done := make(chan struct{}, 1)
 	dispatcher.Post(func() {
@@ -229,18 +259,22 @@ func (a *app) apply(envelope client.Envelope) error {
 	if !result.Applied {
 		return nil
 	}
-	event := envelope.Event
-	if err := a.transcript.Apply(event, a.registry); err != nil {
+	if err := a.transcript.Apply(envelope.Event, a.registry); err != nil {
 		return err
 	}
+	a.applyPresentationEvent(envelope.Event)
+	a.transcript.Retain(a.loop)
+	a.syncAnimation()
+	return nil
+}
+
+func (a *app) applyPresentationEvent(event client.Event) {
 	switch event := event.(type) {
 	case client.RunStarted:
 		a.startRequest = ""
 		a.status.active("working")
 	case client.BlockStarted:
-		if event.Block.Kind == client.BlockTool && event.Block.Tool != nil {
-			a.status.active(event.Block.Tool.Summary)
-		}
+		a.noteBlockStarted(event.Block)
 	case client.BlockCompleted:
 		if event.Block.Kind == client.BlockTool {
 			a.status.active("working")
@@ -251,17 +285,31 @@ func (a *app) apply(envelope client.Envelope) error {
 		a.openInteraction(a.state.Interaction())
 		a.status.note("waiting for your answer")
 	case client.RunFinished:
-		a.startRequest = ""
-		a.pendingCancel = nil
-		a.following = false
-		a.status.settled(a.state.Outcome(), a.state.Usage())
-		if a.settings.UI.Notifications {
-			a.loop.Session().Notify("lyra run completed")
-		}
+		a.noteRunFinished()
+	case client.BlockDelta, client.RunResumed:
+		// Their visible state is already represented by the transcript.
+	default:
 	}
-	a.transcript.Retain(a.loop)
-	a.syncAnimation()
-	return nil
+}
+
+func (a *app) noteBlockStarted(block client.Block) {
+	if block.Kind == client.BlockTool && block.Tool != nil {
+		label := strings.TrimSpace(block.Tool.Summary)
+		if label == "" {
+			label = "using " + toolLabel(*block.Tool)
+		}
+		a.status.active(label)
+	}
+}
+
+func (a *app) noteRunFinished() {
+	a.startRequest = ""
+	a.pendingCancel = nil
+	a.following = false
+	a.status.settled(a.state.Outcome(), a.state.Usage())
+	if a.settings.UI.Notifications {
+		a.loop.Session().Notify("lyra run completed")
+	}
 }
 
 func (a *app) fail(err error) {
@@ -336,8 +384,8 @@ func (a *app) cancelRuntime(target client.CancelRun) {
 	})
 }
 
-func (a *app) cancelRuntimeNow(target client.CancelRun) {
-	ctx, cancel := context.WithTimeout(context.WithoutCancel(a.ctx), controlTimeout)
+func (a *app) cancelRuntimeNow(ownerCtx context.Context, target client.CancelRun) {
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ownerCtx), controlTimeout)
 	defer cancel()
 	policy := resilience.Standard(a.settings.UI.ReconnectAttempts)
 	_ = resilience.Control(ctx, policy, func() error { return a.backend.CancelRun(ctx, target) })

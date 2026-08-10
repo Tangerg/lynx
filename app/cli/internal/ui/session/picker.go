@@ -61,41 +61,18 @@ func (p *picker[T]) Draw(frame headless.Frame) {
 	p.areas.Stage(frame, pickerAreas{query: rects[0], list: rects[1]})
 	p.query.Draw(rows[0])
 	p.items.Draw(rows[1])
-	footer := fmt.Sprintf("%d of %d", p.items.Matched(), p.items.Len())
-	kit.Label{Text: footer, Style: p.theme.Subtle, Align: layout.End}.Draw(rows[2].View)
+	footer := fmt.Sprintf("%d/%d · ↑↓ move · enter select · esc close", p.items.Matched(), p.items.Len())
+	kit.Label{Text: footer, Style: p.theme.Subtle, Align: layout.End, Ellipsis: p.glyphs.Ellipsis}.Draw(rows[2].View)
 }
 
 func (p *picker[T]) Handle(event input.Event) bool {
 	if key, ok := event.(input.Key); ok && key.Down() {
-		switch key.Code {
-		case input.Enter:
-			if item, ok := p.items.Current(); ok && p.pick != nil {
-				p.pick(item)
-			}
+		if p.handleKey(key, event) {
 			return true
-		case input.Esc:
-			if p.cancel != nil {
-				p.cancel()
-			}
-			return true
-		case input.Up, input.Down, input.PageUp, input.PageDown, input.Home, input.End:
-			return p.items.Handle(event)
 		}
 	}
 	if mouse, ok := event.(input.Mouse); ok {
-		areas := p.areas.Value()
-		switch {
-		case mouse.Pos.In(areas.query):
-			mouse.Pos = mouse.Pos.Sub(areas.query.Min)
-			if p.query.Handle(mouse) {
-				p.items.SetPattern(p.query.Text())
-				return true
-			}
-		case mouse.Pos.In(areas.list):
-			mouse.Pos = mouse.Pos.Sub(areas.list.Min)
-			return p.items.Handle(mouse)
-		}
-		return false
+		return p.handleMouse(mouse)
 	}
 	if p.query.Handle(event) {
 		p.items.SetPattern(p.query.Text())
@@ -104,23 +81,67 @@ func (p *picker[T]) Handle(event input.Event) bool {
 	return false
 }
 
+func (p *picker[T]) handleKey(key input.Key, event input.Event) bool {
+	if key.Code == input.Enter {
+		if item, ok := p.items.Current(); ok && p.pick != nil {
+			p.pick(item)
+		}
+		return true
+	}
+	if key.Code == input.Esc {
+		if p.cancel != nil {
+			p.cancel()
+		}
+		return true
+	}
+	for _, code := range [...]input.Code{input.Up, input.Down, input.PageUp, input.PageDown, input.Home, input.End} {
+		if key.Code == code {
+			return p.items.Handle(event)
+		}
+	}
+	return false
+}
+
+func (p *picker[T]) handleMouse(mouse input.Mouse) bool {
+	areas := p.areas.Value()
+	switch {
+	case mouse.Pos.In(areas.query):
+		mouse.Pos = mouse.Pos.Sub(areas.query.Min)
+		if p.query.Handle(mouse) {
+			p.items.SetPattern(p.query.Text())
+			return true
+		}
+	case mouse.Pos.In(areas.list):
+		mouse.Pos = mouse.Pos.Sub(areas.list.Min)
+		return p.items.Handle(mouse)
+	}
+	return false
+}
+
 func (p *picker[T]) Focus(has bool) { p.query.Focus(has) }
 
 func (p *picker[T]) row(view grid.View, _ int, item T, _ fuzzy.Match, selected bool) {
 	width, _ := view.Size()
+	if width <= 0 {
+		return
+	}
 	base := p.theme.Text
+	prefix := "  "
 	if selected {
 		base = base.Merge(p.theme.Selection)
 		view.Fill(view.Bounds(), p.theme.Selection)
+		prefix = p.glyphs.Marker + " "
 	}
 	label := p.label(item)
 	detail := strings.TrimSpace(p.detail(item))
 	detailWidth := text.Width(detail)
-	labelWidth := width
-	if detail != "" && detailWidth+3 < width {
-		labelWidth = width - detailWidth - 3
+	prefixWidth := text.Width(prefix)
+	labelWidth := max(width-prefixWidth, 1)
+	if detail != "" && detailWidth+prefixWidth+3 < width {
+		labelWidth = width - detailWidth - prefixWidth - 3
 		view.Text(width-detailWidth, 0, detail, base.Merge(p.theme.Subtle))
 	}
 	shown := text.Truncate(label, max(labelWidth, 1), p.glyphs.Ellipsis)
-	view.Text(0, 0, shown, base)
+	view.Text(0, 0, prefix, base.Merge(p.theme.Accent))
+	view.Text(prefixWidth, 0, shown, base)
 }

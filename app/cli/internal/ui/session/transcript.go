@@ -161,45 +161,55 @@ func (c *conversationView) delta(id, chunk string) error {
 
 func (c *conversationView) complete(block client.Block, registry *extensions.Registry) error {
 	if block.ID == c.streamID {
-		// The completed value is authoritative. Re-rendering it once also repairs a
-		// transport that intentionally replaced an earlier provisional tail.
-		c.open.doc.SetBlocks(markdown.Render(block.Text, c.lookFor(block.Kind)))
-		c.content.Changed(c.openID)
-		c.content.Finish(c.openID)
-		c.streamID, c.open = "", nil
-		c.stream.Reset()
-		clear(c.stable)
-		c.stable = c.stable[:0]
-		c.scroll.ToBottom()
-		c.refreshSearch()
-		return nil
+		return c.completeStream(block)
 	}
 	if c.streamID != "" {
 		return fmt.Errorf("terminal transcript: block %s completed while %s is streaming", block.ID, c.streamID)
 	}
-	if block.Kind == client.BlockTool {
-		if live, ok := c.tools[block.ID]; ok {
-			if len(live.blocks) > 0 {
-				for _, tracked := range live.blocks {
-					tracked.block.Update(block)
-					tracked.block.SetExpanded(c.details)
-					c.content.Changed(tracked.id)
-				}
-				for _, id := range live.ids {
-					c.content.Finish(id)
-				}
-				delete(c.tools, block.ID)
-				c.scroll.ToBottom()
-				c.refreshSearch()
-				return nil
-			}
-			for _, id := range live.ids {
-				c.content.Finish(id)
-			}
-			delete(c.tools, block.ID)
-		}
+	if block.Kind == client.BlockTool && c.completeLiveTool(block) {
+		return nil
 	}
+	return c.appendCompleted(block, registry)
+}
 
+func (c *conversationView) completeStream(block client.Block) error {
+	// The completed value is authoritative. Re-rendering it once also repairs a
+	// transport that intentionally replaced an earlier provisional tail.
+	c.open.doc.SetBlocks(markdown.Render(block.Text, c.lookFor(block.Kind)))
+	c.content.Changed(c.openID)
+	c.content.Finish(c.openID)
+	c.streamID, c.open = "", nil
+	c.stream.Reset()
+	clear(c.stable)
+	c.stable = c.stable[:0]
+	c.scroll.ToBottom()
+	c.refreshSearch()
+	return nil
+}
+
+func (c *conversationView) completeLiveTool(block client.Block) bool {
+	live, ok := c.tools[block.ID]
+	if !ok {
+		return false
+	}
+	for _, tracked := range live.blocks {
+		tracked.block.Update(block)
+		tracked.block.SetExpanded(c.details)
+		c.content.Changed(tracked.id)
+	}
+	for _, id := range live.ids {
+		c.content.Finish(id)
+	}
+	delete(c.tools, block.ID)
+	if len(live.blocks) == 0 {
+		return false
+	}
+	c.scroll.ToBottom()
+	c.refreshSearch()
+	return true
+}
+
+func (c *conversationView) appendCompleted(block client.Block, registry *extensions.Registry) error {
 	rendered, err := c.present(block, registry)
 	if err != nil {
 		return err

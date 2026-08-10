@@ -13,74 +13,111 @@ import (
 )
 
 func (a *app) openQuestion(question client.Question) {
-	cloned := question
+	a.prepareQuestion(question)
+	fields, err := a.buildQuestionFields(question.Fields)
+	if err != nil {
+		a.fail(err)
+		return
+	}
+	a.showQuestionDialog(question, fields)
+}
+
+func (a *app) prepareQuestion(question client.Question) {
+	cloned := client.CloneInteraction(question).(client.Question)
 	a.question = &cloned
 	a.questionText = make(map[string]*string)
 	a.questionMulti = make(map[string]*[]string)
 	a.questionBool = make(map[string]*bool)
+}
 
-	fields := make([]headless.Field, 0, len(question.Fields))
-	for _, specification := range question.Fields {
-		label := specification.Label
-		if specification.Description != "" {
-			label += " — " + specification.Description
+func (a *app) buildQuestionFields(specifications []client.QuestionField) ([]headless.Field, error) {
+	fields := make([]headless.Field, 0, len(specifications))
+	for _, specification := range specifications {
+		field, err := a.buildQuestionField(specification)
+		if err != nil {
+			return nil, err
 		}
-		switch specification.Kind {
-		case client.QuestionText:
-			value := new(string)
-			a.questionText[specification.ID] = value
-			field := &headless.Text{Label: label, Placeholder: specification.Placeholder, Value: headless.Bind(value)}
-			if specification.Required {
-				field.Check = requiredText
-			}
-			field.Editor().Clipboard = a.loop.Clipboard()
-			fields = append(fields, field)
-		case client.QuestionSingle:
-			value := new(string)
-			options := questionOptions(specification.Options)
-			for _, option := range specification.Options {
-				if option.Recommended {
-					*value = option.Value
-					break
-				}
-			}
-			if *value == "" && len(options) > 0 {
-				*value = options[0].Value
-			}
-			a.questionText[specification.ID] = value
-			field := &headless.Select[string]{Label: label, Value: headless.Bind(value), Rows: min(len(options), 5)}
-			field.SetOptions(options)
-			if specification.Required {
-				field.Check = requiredText
-			}
-			fields = append(fields, field)
-		case client.QuestionMulti:
-			value := new([]string)
-			a.questionMulti[specification.ID] = value
-			field := &headless.MultiSelect[string]{Label: label, Value: headless.Bind(value), Rows: min(len(specification.Options), 5)}
-			field.SetOptions(questionOptions(specification.Options))
-			if specification.Required {
-				field.Check = func(values []string) error {
-					if len(values) == 0 {
-						return errors.New("choose at least one option")
-					}
-					return nil
-				}
-			}
-			fields = append(fields, field)
-		case client.QuestionBool:
-			value := new(bool)
-			a.questionBool[specification.ID] = value
-			fields = append(fields, &headless.Confirm{Label: label, Value: headless.Bind(value), Yes: "yes", No: "no"})
-		default:
-			a.fail(errors.New("runtime returned an unsupported question field kind"))
-			return
-		}
+		fields = append(fields, field)
 	}
 	if len(fields) == 0 {
-		a.fail(errors.New("runtime returned a question without fields"))
-		return
+		return nil, errors.New("runtime returned a question without fields")
 	}
+	return fields, nil
+}
+
+func (a *app) buildQuestionField(specification client.QuestionField) (headless.Field, error) {
+	label := questionFieldLabel(specification)
+	switch specification.Kind {
+	case client.QuestionText:
+		return a.buildQuestionText(specification, label), nil
+	case client.QuestionSingle:
+		return a.buildQuestionSingle(specification, label), nil
+	case client.QuestionMulti:
+		return a.buildQuestionMulti(specification, label), nil
+	case client.QuestionBool:
+		value := new(bool)
+		a.questionBool[specification.ID] = value
+		return &headless.Confirm{Label: label, Value: headless.Bind(value), Yes: "yes", No: "no"}, nil
+	default:
+		return nil, errors.New("runtime returned an unsupported question field kind")
+	}
+}
+
+func (a *app) buildQuestionText(specification client.QuestionField, label string) headless.Field {
+	value := new(string)
+	a.questionText[specification.ID] = value
+	field := &headless.Text{Label: label, Placeholder: specification.Placeholder, Value: headless.Bind(value)}
+	if specification.Required {
+		field.Check = requiredText
+	}
+	field.Editor().Clipboard = a.loop.Clipboard()
+	return field
+}
+
+func (a *app) buildQuestionSingle(specification client.QuestionField, label string) headless.Field {
+	value := new(string)
+	options := questionOptions(specification.Options)
+	*value = defaultQuestionOption(specification.Options)
+	a.questionText[specification.ID] = value
+	field := &headless.Select[string]{Label: label, Value: headless.Bind(value), Rows: min(len(options), 5)}
+	field.SetOptions(options)
+	if specification.Required {
+		field.Check = requiredText
+	}
+	return field
+}
+
+func (a *app) buildQuestionMulti(specification client.QuestionField, label string) headless.Field {
+	value := new([]string)
+	a.questionMulti[specification.ID] = value
+	field := &headless.MultiSelect[string]{Label: label, Value: headless.Bind(value), Rows: min(len(specification.Options), 5)}
+	field.SetOptions(questionOptions(specification.Options))
+	if specification.Required {
+		field.Check = requiredChoices
+	}
+	return field
+}
+
+func questionFieldLabel(specification client.QuestionField) string {
+	if specification.Description == "" {
+		return specification.Label
+	}
+	return specification.Label + " — " + specification.Description
+}
+
+func defaultQuestionOption(options []client.QuestionOption) string {
+	for _, option := range options {
+		if option.Recommended {
+			return option.Value
+		}
+	}
+	if len(options) > 0 {
+		return options[0].Value
+	}
+	return ""
+}
+
+func (a *app) showQuestionDialog(question client.Question, fields []headless.Field) {
 	keys := headless.DefaultFormKeys()
 	form := headless.NewForm(fields...)
 	form.Keys = keys
@@ -101,33 +138,44 @@ func (a *app) answerQuestion(canceled bool) {
 	if question == nil {
 		return
 	}
-	answer := client.QuestionAnswer{Canceled: canceled}
-	if !canceled {
-		answer.Values = make(map[string][]string, len(question.Fields))
-		for _, field := range question.Fields {
-			switch field.Kind {
-			case client.QuestionText, client.QuestionSingle:
-				if value := a.questionText[field.ID]; value != nil {
-					answer.Values[field.ID] = []string{*value}
-				}
-			case client.QuestionMulti:
-				if value := a.questionMulti[field.ID]; value != nil {
-					answer.Values[field.ID] = append([]string(nil), (*value)...)
-				}
-			case client.QuestionBool:
-				if value := a.questionBool[field.ID]; value != nil && *value {
-					answer.Values[field.ID] = []string{"true"}
-				} else {
-					answer.Values[field.ID] = []string{"false"}
-				}
-			}
-		}
-	}
+	answer := a.questionAnswer(*question, canceled)
 	a.question = nil
 	a.questionDialog.Dismiss()
 	a.status.active("resuming")
 	a.syncAnimation()
 	a.resumeInteraction(question.InterruptID, answer)
+}
+
+func (a *app) questionAnswer(question client.Question, canceled bool) client.QuestionAnswer {
+	answer := client.QuestionAnswer{Canceled: canceled}
+	if canceled {
+		return answer
+	}
+	answer.Values = make(map[string][]string, len(question.Fields))
+	for _, field := range question.Fields {
+		answer.Values[field.ID] = a.questionValues(field)
+	}
+	return answer
+}
+
+func (a *app) questionValues(field client.QuestionField) []string {
+	switch field.Kind {
+	case client.QuestionText, client.QuestionSingle:
+		if value := a.questionText[field.ID]; value != nil {
+			return []string{*value}
+		}
+	case client.QuestionMulti:
+		if value := a.questionMulti[field.ID]; value != nil {
+			return append([]string(nil), (*value)...)
+		}
+	case client.QuestionBool:
+		if value := a.questionBool[field.ID]; value != nil && *value {
+			return []string{"true"}
+		}
+		return []string{"false"}
+	default:
+	}
+	return nil
 }
 
 func questionOptions(options []client.QuestionOption) []headless.Option[string] {
@@ -140,9 +188,19 @@ func questionOptions(options []client.QuestionOption) []headless.Option[string] 
 		if option.Recommended {
 			label += " (recommended)"
 		}
+		if option.Description != "" {
+			label += " — " + option.Description
+		}
 		out = append(out, headless.Option[string]{Label: label, Value: option.Value})
 	}
 	return out
+}
+
+func requiredChoices(values []string) error {
+	if len(values) == 0 {
+		return errors.New("choose at least one option")
+	}
+	return nil
 }
 
 func requiredText(value string) error {

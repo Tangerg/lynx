@@ -79,9 +79,10 @@ func Run(ctx context.Context, cfg Config) (runErr error) {
 		return err
 	}
 	defer func() { runErr = errors.Join(runErr, kernel.Close()) }()
-	sources := []extensions.Source{extensions.StaticSource{
+	sources := make([]extensions.Source, 0, 1+len(cfg.PluginSources))
+	sources = append(sources, extensions.StaticSource{
 		Name: "terminal", Plugins: append([]extensions.Plugin{builtinPlugin()}, cfg.Plugins...),
-	}}
+	})
 	sources = append(sources, cfg.PluginSources...)
 	discovered, err := extensions.Discover(ctx, sources...)
 	if err != nil {
@@ -105,7 +106,7 @@ func Run(ctx context.Context, cfg Config) (runErr error) {
 		Host:     cfg.Host,
 	})
 	if active != nil {
-		active.Close()
+		active.Close(ctx)
 	}
 	return err
 }
@@ -361,10 +362,12 @@ func (a *app) restoreActivity(snapshot client.SessionSnapshot) {
 		a.follow(func(context.Context) (subscription, error) {
 			return subscription{runID: snapshot.Active.ID, after: snapshot.Cursor}, nil
 		})
-	default:
+	case client.Idle:
 		if a.state.Outcome().Status != "" {
 			a.status.settled(a.state.Outcome(), a.state.Usage())
 		}
+	default:
+		a.fail(errors.New("session snapshot has an unknown conversation phase"))
 	}
 }
 
@@ -383,21 +386,56 @@ func (a *app) Draw(frame headless.Frame) {
 }
 
 func (a *app) Handle(event input.Event) bool {
-	var action keymap.Action
-	if key, ok := event.(input.Key); ok && key.Down() {
-		action, _ = a.composer.Editor().Keys.Action(key.Chord())
-		switch action {
-		case quitApp:
-			a.loop.Quit()
-			return true
-		case cancelRun:
-			a.cancel()
-			return true
-		}
+	action := a.action(event)
+	if a.handleGlobalAction(action) {
+		return true
 	}
 	if !a.stack.Empty() {
 		return a.stack.Handle(event)
 	}
+	if a.handleSessionAction(action) {
+		return true
+	}
+	if a.completion.Handle(event) {
+		return true
+	}
+	if a.handleHistoryAction(action) {
+		return true
+	}
+	if isSubmitEvent(event) {
+		a.submit()
+		return true
+	}
+	handled := a.stack.Handle(event)
+	if handled {
+		a.refreshCompletion()
+	}
+	return handled
+}
+
+func (a *app) action(event input.Event) keymap.Action {
+	key, ok := event.(input.Key)
+	if !ok || !key.Down() {
+		return ""
+	}
+	action, _ := a.composer.Editor().Keys.Action(key.Chord())
+	return action
+}
+
+func (a *app) handleGlobalAction(action keymap.Action) bool {
+	switch action {
+	case quitApp:
+		a.loop.Quit()
+		return true
+	case cancelRun:
+		a.cancel()
+		return true
+	default:
+		return false
+	}
+}
+
+func (a *app) handleSessionAction(action keymap.Action) bool {
 	switch action {
 	case commandPalette:
 		a.showCommandPalette()
@@ -420,10 +458,12 @@ func (a *app) Handle(event input.Event) bool {
 	case previousMatch:
 		a.PreviousMatch()
 		return true
+	default:
+		return false
 	}
-	if a.completion.Handle(event) {
-		return true
-	}
+}
+
+func (a *app) handleHistoryAction(action keymap.Action) bool {
 	switch action {
 	case historyPrevious:
 		if !a.recallPrevious() {
@@ -435,19 +475,17 @@ func (a *app) Handle(event input.Event) bool {
 			a.composer.Editor().MoveDown()
 		}
 		return true
+	default:
+		return false
 	}
-	if key, ok := event.(input.Key); ok && key.Down() && key.Code == input.Enter && key.Mods == 0 {
-		a.submit()
-		return true
-	}
-	handled := a.stack.Handle(event)
-	if handled {
-		a.refreshCompletion()
-	}
-	return handled
 }
 
-func (a *app) Close() {
+func isSubmitEvent(event input.Event) bool {
+	key, ok := event.(input.Key)
+	return ok && key.Down() && key.Code == input.Enter && key.Mods == 0
+}
+
+func (a *app) Close(ctx context.Context) {
 	if a == nil || a.closed {
 		return
 	}
@@ -461,7 +499,7 @@ func (a *app) Close() {
 	a.cancelPluginCommands()
 	a.operations.Close()
 	if cancelRuntime {
-		a.cancelRuntimeNow(target)
+		a.cancelRuntimeNow(ctx, target)
 	}
 	a.transcript.Close()
 	if a.stopClock != nil {

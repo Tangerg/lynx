@@ -119,28 +119,47 @@ func (a *app) removeAttachment(argument string) error {
 		return errors.New("the composer has no attachments")
 	}
 	if strings.EqualFold(argument, "all") {
-		for _, element := range elements {
-			if element.Kind == fileElement {
-				a.composer.Editor().RemoveElement(element.ID)
-				delete(a.attachmentElements, element.ID)
-			}
-		}
+		a.removeAllAttachments(elements)
 		a.message("removed all attachments")
 		return nil
 	}
-	for index, element := range elements {
+	element, item, found := a.findAttachment(elements, argument)
+	if !found {
+		return fmt.Errorf("attachment %q is not in the composer", argument)
+	}
+	a.composer.Editor().RemoveElement(element.ID)
+	delete(a.attachmentElements, element.ID)
+	a.message("detached " + item.Name)
+	return nil
+}
+
+func (a *app) removeAllAttachments(elements []headless.Element) {
+	for _, element := range elements {
+		if element.Kind != fileElement {
+			continue
+		}
+		a.composer.Editor().RemoveElement(element.ID)
+		delete(a.attachmentElements, element.ID)
+	}
+}
+
+func (a *app) findAttachment(elements []headless.Element, argument string) (headless.Element, client.Attachment, bool) {
+	position := 0
+	for _, element := range elements {
 		item, ok := a.attachmentElements[element.ID]
 		if !ok || element.Kind != fileElement {
 			continue
 		}
-		if argument == strconv.Itoa(index+1) || argument == item.Name || argument == filepathBase(item.Name) {
-			a.composer.Editor().RemoveElement(element.ID)
-			delete(a.attachmentElements, element.ID)
-			a.message("detached " + item.Name)
-			return nil
+		position++
+		if attachmentMatches(argument, position, item) {
+			return element, item, true
 		}
 	}
-	return fmt.Errorf("attachment %q is not in the composer", argument)
+	return headless.Element{}, client.Attachment{}, false
+}
+
+func attachmentMatches(argument string, position int, item client.Attachment) bool {
+	return argument == strconv.Itoa(position) || argument == item.Name || argument == filepathBase(item.Name)
 }
 
 func filepathBase(path string) string {
@@ -171,6 +190,17 @@ func (a *app) composerMessage() (client.Message, error) {
 	editor := a.composer.Editor()
 	lines := strings.Split(editor.Text(), "\n")
 	elements := editor.Elements()
+	attachments, err := a.collectAttachments(editor, elements)
+	if err != nil {
+		return client.Message{}, err
+	}
+	if err := stripAttachmentElements(lines, elements); err != nil {
+		return client.Message{}, err
+	}
+	return client.Message{Text: strings.TrimSpace(strings.Join(lines, "\n")), Attachments: attachments}, nil
+}
+
+func (a *app) collectAttachments(editor *headless.Editor, elements []headless.Element) ([]client.Attachment, error) {
 	attachments := make([]client.Attachment, 0, len(elements))
 	for _, element := range elements {
 		if element.Kind != fileElement {
@@ -178,17 +208,21 @@ func (a *app) composerMessage() (client.Message, error) {
 		}
 		item, ok := a.attachmentElements[element.ID]
 		if !ok {
-			return client.Message{}, fmt.Errorf("attachment chip %q lost its backing value", element.Text(editor))
+			return nil, fmt.Errorf("attachment chip %q lost its backing value", element.Text(editor))
 		}
 		attachments = append(attachments, item)
 	}
+	return attachments, nil
+}
+
+func stripAttachmentElements(lines []string, elements []headless.Element) error {
 	for _, element := range slices.Backward(elements) {
 		if element.Kind != fileElement || element.Line < 0 || element.Line >= len(lines) {
 			continue
 		}
 		line := lines[element.Line]
 		if element.Start < 0 || element.End > len(line) || element.Start >= element.End {
-			return client.Message{}, errors.New("attachment chip has an invalid editor range")
+			return errors.New("attachment chip has an invalid editor range")
 		}
 		end := element.End
 		if end < len(line) && line[end] == ' ' {
@@ -196,7 +230,7 @@ func (a *app) composerMessage() (client.Message, error) {
 		}
 		lines[element.Line] = line[:element.Start] + line[end:]
 	}
-	return client.Message{Text: strings.TrimSpace(strings.Join(lines, "\n")), Attachments: attachments}, nil
+	return nil
 }
 
 func (a *app) resetComposer() {

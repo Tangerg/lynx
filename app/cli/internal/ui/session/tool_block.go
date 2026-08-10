@@ -156,48 +156,47 @@ func (t *toolBlock) header() (left, right string, statusStyle grid.Style) {
 }
 
 func toolLabel(call client.ToolCall) string {
-	primary := strings.TrimSpace(call.Summary)
 	switch call.Kind {
 	case client.ToolShell:
-		if call.Command != "" {
-			primary = call.Command
-		}
-		if primary == "" {
-			return "shell"
-		}
-		return "$ " + primary
+		return shellToolLabel(call)
 	case client.ToolEdit:
-		if call.Path != "" {
-			primary = call.Path
-		}
-		return toolKindLabel("edit", primary)
+		return toolKindLabel("edit", toolPrimary(call.Path, call.Summary))
 	case client.ToolRead:
-		if call.Path != "" {
-			primary = call.Path
-		}
-		return toolKindLabel("read", primary)
+		return toolKindLabel("read", toolPrimary(call.Path, call.Summary))
 	case client.ToolSearch:
-		if call.Query != "" {
-			primary = call.Query
-		}
-		return toolKindLabel("search", primary)
+		return toolKindLabel("search", toolPrimary(call.Query, call.Summary))
 	case client.ToolWeb:
-		if call.URL != "" {
-			primary = call.URL
-		}
-		return toolKindLabel("web", primary)
+		return toolKindLabel("web", toolPrimary(call.URL, call.Summary))
 	case client.ToolTask:
-		return toolKindLabel("task", primary)
+		return toolKindLabel("task", strings.TrimSpace(call.Summary))
+	case client.ToolUnknown:
+		return unknownToolLabel(call)
 	default:
-		name := strings.TrimSpace(call.Name)
-		if name == "" {
-			name = "tool"
-		}
-		if primary != "" {
-			return name + " · " + primary
-		}
-		return name
+		return unknownToolLabel(call)
 	}
+}
+
+func shellToolLabel(call client.ToolCall) string {
+	primary := toolPrimary(call.Command, call.Summary)
+	if primary == "" {
+		return "shell"
+	}
+	return "$ " + primary
+}
+
+func unknownToolLabel(call client.ToolCall) string {
+	name := strings.TrimSpace(call.Name)
+	if name == "" {
+		name = "tool"
+	}
+	return toolKindLabel(name, strings.TrimSpace(call.Summary))
+}
+
+func toolPrimary(specific, fallback string) string {
+	if specific = strings.TrimSpace(specific); specific != "" {
+		return specific
+	}
+	return strings.TrimSpace(fallback)
 }
 
 func toolKindLabel(kind, primary string) string {
@@ -229,6 +228,8 @@ func (t *toolBlock) rebuild() {
 		paragraph := kit.NewParagraph(output, t.theme.Text)
 		paragraph.Links = t.call.Kind == client.ToolWeb
 		t.body = append(t.body, paragraph)
+	case client.ToolUnknown, client.ToolShell, client.ToolEdit:
+		t.body = append(t.body, kit.NewCode(highlight.Lines("text", output, t.syntax)))
 	default:
 		t.body = append(t.body, kit.NewCode(highlight.Lines("text", output, t.syntax)))
 	}

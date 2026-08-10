@@ -54,6 +54,9 @@ func (w *workflowView) Draw(view grid.View) {
 			mark, label, style = w.glyphs.Marker, "active", w.theme.Accent
 		case client.PlanDone:
 			mark, label, style = w.glyphs.Taken, "done", w.theme.Success
+		case client.PlanPending:
+			// Pending is the default visual state above.
+		default:
 		}
 		inner.Text(0, row, text.Truncate(mark+" "+item.Title, max(width-len(label)-2, 1), w.glyphs.Ellipsis), style)
 		if len(label)+1 < width {

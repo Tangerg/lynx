@@ -11,6 +11,7 @@ import (
 	"github.com/Tangerg/oolong/components/kit"
 	"github.com/Tangerg/oolong/core/grid"
 	"github.com/Tangerg/oolong/core/layout"
+	"github.com/Tangerg/oolong/core/program"
 
 	"github.com/Tangerg/lynx/app/cli/internal/attachment"
 	"github.com/Tangerg/lynx/app/cli/internal/client"
@@ -248,19 +249,7 @@ func (a *app) listenForSearch() {
 				if !ok {
 					return
 				}
-				if err := post(ctx, dispatcher, func() {
-					if !a.operations.Current(lease) || a.closed {
-						return
-					}
-					if result.Err != nil {
-						a.message(fmt.Sprintf("search failed: %v", result.Err))
-						return
-					}
-					accepted, announce := a.transcript.AcceptSearch(result)
-					if accepted && announce {
-						a.message(fmt.Sprintf("%d match(es) for %q", len(result.Matches), result.Query))
-					}
-				}); err != nil {
+				if err := a.postSearchResult(ctx, dispatcher, lease, result); err != nil {
 					return
 				}
 			case <-ctx.Done():
@@ -268,6 +257,26 @@ func (a *app) listenForSearch() {
 			}
 		}
 	})
+}
+
+func (a *app) postSearchResult(ctx context.Context, dispatcher program.Dispatcher, lease operationLease, result headless.Result) error {
+	return post(ctx, dispatcher, func() {
+		if !a.operations.Current(lease) || a.closed {
+			return
+		}
+		a.acceptSearchResult(result)
+	})
+}
+
+func (a *app) acceptSearchResult(result headless.Result) {
+	if result.Err != nil {
+		a.message(fmt.Sprintf("search failed: %v", result.Err))
+		return
+	}
+	accepted, announce := a.transcript.AcceptSearch(result)
+	if accepted && announce {
+		a.message(fmt.Sprintf("%d match(es) for %q", len(result.Matches), result.Query))
+	}
 }
 
 // Local command actions.
@@ -334,33 +343,42 @@ func (a *app) ShowPlugins() {
 		a.message("plugin kernel is unavailable")
 		return
 	}
-	lines := make([]string, 0, len(a.plugins.Infos())+len(a.pluginIssues))
-	for _, info := range a.plugins.Infos() {
-		line := fmt.Sprintf("%-8s %s@%s", info.Phase, info.ID, info.Version)
-		switch {
-		case info.Trusted && info.Capabilities == nil:
-			line += " · capabilities unrestricted"
-		case len(info.Capabilities) == 0:
-			line += " · capabilities none"
-		default:
-			capabilities := make([]string, len(info.Capabilities))
-			for i, capability := range info.Capabilities {
-				capabilities[i] = string(capability)
-			}
-			line += " · capabilities " + strings.Join(capabilities, ", ")
-		}
-		if len(info.Requires) > 0 {
-			line += " · requires " + strings.Join(info.Requires, ", ")
-		}
-		if info.Detail != "" {
-			line += " · " + info.Detail
-		}
-		lines = append(lines, line)
+	infos := a.plugins.Infos()
+	lines := make([]string, 0, len(infos)+len(a.pluginIssues))
+	for _, info := range infos {
+		lines = append(lines, formatPluginInfo(info))
 	}
 	for _, issue := range a.pluginIssues {
 		lines = append(lines, fmt.Sprintf("failed   source:%s · %v", issue.Source, issue.Err))
 	}
 	a.transcript.Append(kit.Message{Theme: a.transcript.theme, Speaker: "plugins", Body: strings.Join(lines, "\n")})
+}
+
+func formatPluginInfo(info extensions.Info) string {
+	line := fmt.Sprintf("%-8s %s@%s", info.Phase, info.ID, info.Version)
+	line += " · capabilities " + formatCapabilities(info)
+	if len(info.Requires) > 0 {
+		line += " · requires " + strings.Join(info.Requires, ", ")
+	}
+	if info.Detail != "" {
+		line += " · " + info.Detail
+	}
+	return line
+}
+
+func formatCapabilities(info extensions.Info) string {
+	switch {
+	case info.Trusted && info.Capabilities == nil:
+		return "unrestricted"
+	case len(info.Capabilities) == 0:
+		return "none"
+	default:
+		capabilities := make([]string, len(info.Capabilities))
+		for i, capability := range info.Capabilities {
+			capabilities[i] = string(capability)
+		}
+		return strings.Join(capabilities, ", ")
+	}
 }
 
 func (a *app) ReloadPlugin(id string) {
