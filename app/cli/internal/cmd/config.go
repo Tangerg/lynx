@@ -34,7 +34,7 @@ var settingFlagBindings = [...]flagBinding{
 	{key: "plugins.directories", flag: "plugin-dir"},
 }
 
-func configure(v *viper.Viper, root *cobra.Command) {
+func configureRoot(v *viper.Viper, root *cobra.Command) {
 	defaults := settings.Default()
 	setDefaults(v, defaults)
 	v.SetEnvPrefix("LYRA")
@@ -132,21 +132,21 @@ func bindSettingFlags(v *viper.Viper, cmd *cobra.Command) error {
 }
 
 func readSettings(v *viper.Viper) (settings.Config, error) {
-	var value settings.Config
-	if err := v.UnmarshalExact(&value); err != nil {
+	var config settings.Config
+	if err := v.UnmarshalExact(&config); err != nil {
 		return settings.Config{}, fmt.Errorf("decode configuration: %w", err)
 	}
-	if len(value.Plugins.Directories) == 0 {
+	if len(config.Plugins.Directories) == 0 {
 		home, err := os.UserHomeDir()
 		if err != nil {
 			return settings.Config{}, fmt.Errorf("resolve home directory for plugins: %w", err)
 		}
-		value.Plugins.Directories = []string{filepath.Join(home, ".lyra", "plugins")}
+		config.Plugins.Directories = []string{filepath.Join(home, ".lyra", "plugins")}
 	}
-	if err := value.Validate(); err != nil {
+	if err := config.Validate(); err != nil {
 		return settings.Config{}, fmt.Errorf("validate configuration: %w", err)
 	}
-	return value.Clone(), nil
+	return config.Clone(), nil
 }
 
 func newConfigCommand(v *viper.Viper) *cobra.Command {
@@ -157,13 +157,13 @@ func newConfigCommand(v *viper.Viper) *cobra.Command {
 		Args:         cobra.NoArgs,
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			value, err := readSettings(v)
+			config, err := readSettings(v)
 			if err != nil {
 				return err
 			}
 			encoder := json.NewEncoder(cmd.OutOrStdout())
 			encoder.SetIndent("", "  ")
-			return encoder.Encode(value)
+			return encoder.Encode(config)
 		},
 	})
 	config.AddCommand(&cobra.Command{

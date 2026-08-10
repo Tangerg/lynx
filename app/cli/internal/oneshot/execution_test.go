@@ -84,7 +84,7 @@ func TestRunRejectsEventsThatViolateTheConversationLifecycle(t *testing.T) {
 	base := mock.New()
 	sessionID := firstSession(t, base)
 	renderer := new(countingRenderer)
-	err := Run(t.Context(), Config{
+	err := Execute(t.Context(), Invocation{
 		Runtime:  &invalidLifecycleRuntime{Runtime: base, sessionID: sessionID},
 		Renderer: renderer,
 		Start: agent.StartRun{
@@ -104,17 +104,17 @@ func TestRunRejectsEventsThatViolateTheConversationLifecycle(t *testing.T) {
 }
 
 func TestRunRequiresItsBoundaryDependencies(t *testing.T) {
-	if err := Run(t.Context(), Config{Renderer: discardRenderer{}}); err == nil || !strings.Contains(err.Error(), "runtime") {
+	if err := Execute(t.Context(), Invocation{Renderer: discardRenderer{}}); err == nil || !strings.Contains(err.Error(), "runtime") {
 		t.Fatalf("missing runtime error = %v", err)
 	}
-	if err := Run(t.Context(), Config{Runtime: mock.New()}); err == nil || !strings.Contains(err.Error(), "renderer") {
+	if err := Execute(t.Context(), Invocation{Runtime: mock.New()}); err == nil || !strings.Contains(err.Error(), "renderer") {
 		t.Fatalf("missing renderer error = %v", err)
 	}
 }
 
 func TestRunRejectsAnInvalidStartProjection(t *testing.T) {
 	base := mock.New()
-	err := Run(t.Context(), Config{
+	err := Execute(t.Context(), Invocation{
 		Runtime:  &invalidStartRuntime{Runtime: base},
 		Renderer: discardRenderer{},
 		Start: agent.StartRun{
@@ -134,7 +134,7 @@ func TestRunCancellationTargetsAStartWhoseResponseWasLost(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	result := make(chan error, 1)
 	go func() {
-		result <- Run(ctx, Config{
+		result <- Execute(ctx, Invocation{
 			Runtime: runtime, Renderer: discardRenderer{},
 			Start: agent.StartRun{
 				SessionID: sessionID,
@@ -158,7 +158,7 @@ func TestRunCancellationTargetsAStartWhoseResponseWasLost(t *testing.T) {
 func TestRunCancellationTargetsAStartAfterItsRetryBudgetIsExhausted(t *testing.T) {
 	base := slowRuntime()
 	sessionID := firstSession(t, base)
-	err := Run(t.Context(), Config{
+	err := Execute(t.Context(), Invocation{
 		Runtime: &lostStartResponses{Runtime: base}, Renderer: discardRenderer{},
 		Start: agent.StartRun{
 			SessionID: sessionID,

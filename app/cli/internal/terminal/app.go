@@ -70,7 +70,7 @@ type app struct {
 	completion  headless.Completion
 	shell       *shellView
 	stack       headless.Stack
-	queue       *promptqueue.Store
+	queue       *promptqueue.Queue
 
 	review             *agent.Approval
 	reviewChoice       string
@@ -122,7 +122,7 @@ type appConfig struct {
 	InitialPrompt string
 	Settings      settings.Config
 	Keys          *keymap.Map
-	Queue         *promptqueue.Store
+	Queue         *promptqueue.Queue
 }
 
 func newApp(loop *program.InlineRuntime, cfg appConfig) *app {

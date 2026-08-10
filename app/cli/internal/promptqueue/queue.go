@@ -21,7 +21,7 @@ var (
 )
 
 // Entry is one immutable queue projection. Message owns a detached attachment
-// slice, so callers cannot mutate the store through a snapshot.
+// slice, so callers cannot mutate the queue through a snapshot.
 type Entry struct {
 	ID        uint64
 	SessionID string
@@ -35,49 +35,49 @@ type Snapshot struct {
 	Revision uint64
 }
 
-// Store keeps independent FIFO queues for every session visited by the app.
+// Queue keeps independent FIFO sequences for every session visited by the app.
 // This prevents a failed follow-up from moving to another session when the
 // user switches away and later comes back.
-type Store struct {
+type Queue struct {
 	mu       sync.RWMutex
 	nextID   uint64
 	revision uint64
 	entries  map[string][]Entry
 }
 
-func New() *Store {
-	return &Store{entries: make(map[string][]Entry)}
+func New() *Queue {
+	return &Queue{entries: make(map[string][]Entry)}
 }
 
-func (s *Store) Enqueue(sessionID string, message agent.Message) (Entry, error) {
-	if err := validate(sessionID, message); err != nil {
+func (q *Queue) Enqueue(sessionID string, message agent.Message) (Entry, error) {
+	if err := validateEntry(sessionID, message); err != nil {
 		return Entry{}, err
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.ensure()
-	s.nextID++
-	entry := Entry{ID: s.nextID, SessionID: strings.Clone(sessionID), Message: message.Clone()}
-	s.entries[sessionID] = append(s.entries[sessionID], entry)
-	s.revision++
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	q.ensureEntries()
+	q.nextID++
+	entry := Entry{ID: q.nextID, SessionID: strings.Clone(sessionID), Message: message.Clone()}
+	q.entries[sessionID] = append(q.entries[sessionID], entry)
+	q.revision++
 	return cloneEntry(entry), nil
 }
 
-func (s *Store) Snapshot(sessionID string) Snapshot {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	entries := s.entries[sessionID]
+func (q *Queue) Snapshot(sessionID string) Snapshot {
+	q.mu.RLock()
+	defer q.mu.RUnlock()
+	entries := q.entries[sessionID]
 	out := make([]Entry, len(entries))
 	for index, entry := range entries {
 		out[index] = cloneEntry(entry)
 	}
-	return Snapshot{Entries: out, Revision: s.revision}
+	return Snapshot{Entries: out, Revision: q.revision}
 }
 
-func (s *Store) Next(sessionID string) (Entry, bool) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	entries := s.entries[sessionID]
+func (q *Queue) Next(sessionID string) (Entry, bool) {
+	q.mu.RLock()
+	defer q.mu.RUnlock()
+	entries := q.entries[sessionID]
 	if len(entries) == 0 || entries[0].Held {
 		return Entry{}, false
 	}
@@ -86,11 +86,11 @@ func (s *Store) Next(sessionID string) (Entry, bool) {
 
 // Hold prevents the FIFO consumer from dispatching an entry while an editor
 // owns it. A held entry remains visible and keeps its position in the queue.
-func (s *Store) Hold(sessionID string, id uint64) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	entries := s.entries[sessionID]
-	index := find(entries, id)
+func (q *Queue) Hold(sessionID string, id uint64) error {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	entries := q.entries[sessionID]
+	index := entryIndex(entries, id)
 	if index < 0 {
 		return ErrEntryNotFound
 	}
@@ -98,18 +98,18 @@ func (s *Store) Hold(sessionID string, id uint64) error {
 		return ErrEntryHeld
 	}
 	entries[index].Held = true
-	s.entries[sessionID] = entries
-	s.revision++
+	q.entries[sessionID] = entries
+	q.revision++
 	return nil
 }
 
 // Release makes a held entry dispatchable again. It is idempotent so dialog
 // teardown can safely release ownership after any close path.
-func (s *Store) Release(sessionID string, id uint64) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	entries := s.entries[sessionID]
-	index := find(entries, id)
+func (q *Queue) Release(sessionID string, id uint64) error {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	entries := q.entries[sessionID]
+	index := entryIndex(entries, id)
 	if index < 0 {
 		return ErrEntryNotFound
 	}
@@ -117,31 +117,31 @@ func (s *Store) Release(sessionID string, id uint64) error {
 		return nil
 	}
 	entries[index].Held = false
-	s.entries[sessionID] = entries
-	s.revision++
+	q.entries[sessionID] = entries
+	q.revision++
 	return nil
 }
 
-func (s *Store) Update(sessionID string, id uint64, message agent.Message) error {
-	if err := validate(sessionID, message); err != nil {
+func (q *Queue) Update(sessionID string, id uint64, message agent.Message) error {
+	if err := validateEntry(sessionID, message); err != nil {
 		return err
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	index := find(s.entries[sessionID], id)
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	index := entryIndex(q.entries[sessionID], id)
 	if index < 0 {
 		return ErrEntryNotFound
 	}
-	s.entries[sessionID][index].Message = message.Clone()
-	s.revision++
+	q.entries[sessionID][index].Message = message.Clone()
+	q.revision++
 	return nil
 }
 
-func (s *Store) Remove(sessionID string, id uint64) (Entry, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	entries := s.entries[sessionID]
-	index := find(entries, id)
+func (q *Queue) Remove(sessionID string, id uint64) (Entry, error) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	entries := q.entries[sessionID]
+	index := entryIndex(entries, id)
 	if index < 0 {
 		return Entry{}, ErrEntryNotFound
 	}
@@ -149,19 +149,19 @@ func (s *Store) Remove(sessionID string, id uint64) (Entry, error) {
 	clear(entries[index : index+1])
 	entries = slices.Delete(entries, index, index+1)
 	if len(entries) == 0 {
-		delete(s.entries, sessionID)
+		delete(q.entries, sessionID)
 	} else {
-		s.entries[sessionID] = entries
+		q.entries[sessionID] = entries
 	}
-	s.revision++
+	q.revision++
 	return removed, nil
 }
 
-func (s *Store) Move(sessionID string, id uint64, offset int) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	entries := s.entries[sessionID]
-	from := find(entries, id)
+func (q *Queue) Move(sessionID string, id uint64, offset int) error {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	entries := q.entries[sessionID]
+	from := entryIndex(entries, id)
 	if from < 0 {
 		return ErrEntryNotFound
 	}
@@ -172,19 +172,19 @@ func (s *Store) Move(sessionID string, id uint64, offset int) error {
 	entry := entries[from]
 	entries = slices.Delete(entries, from, from+1)
 	entries = slices.Insert(entries, to, entry)
-	s.entries[sessionID] = entries
-	s.revision++
+	q.entries[sessionID] = entries
+	q.revision++
 	return nil
 }
 
 // Promote moves an entry to the front without changing its stable identity.
 // It is the queue-level half of "send now": orchestration decides whether a
 // running turn must be canceled before the promoted entry can be dispatched.
-func (s *Store) Promote(sessionID string, id uint64) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	entries := s.entries[sessionID]
-	from := find(entries, id)
+func (q *Queue) Promote(sessionID string, id uint64) error {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	entries := q.entries[sessionID]
+	from := entryIndex(entries, id)
 	if from < 0 {
 		return ErrEntryNotFound
 	}
@@ -194,32 +194,32 @@ func (s *Store) Promote(sessionID string, id uint64) error {
 	entry := entries[from]
 	entries = slices.Delete(entries, from, from+1)
 	entries = slices.Insert(entries, 0, entry)
-	s.entries[sessionID] = entries
-	s.revision++
+	q.entries[sessionID] = entries
+	q.revision++
 	return nil
 }
 
-func (s *Store) Clear(sessionID string) int {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	entries := s.entries[sessionID]
+func (q *Queue) Clear(sessionID string) int {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	entries := q.entries[sessionID]
 	if len(entries) == 0 {
 		return 0
 	}
 	count := len(entries)
 	clear(entries)
-	delete(s.entries, sessionID)
-	s.revision++
+	delete(q.entries, sessionID)
+	q.revision++
 	return count
 }
 
-func (s *Store) ensure() {
-	if s.entries == nil {
-		s.entries = make(map[string][]Entry)
+func (q *Queue) ensureEntries() {
+	if q.entries == nil {
+		q.entries = make(map[string][]Entry)
 	}
 }
 
-func validate(sessionID string, message agent.Message) error {
+func validateEntry(sessionID string, message agent.Message) error {
 	if strings.TrimSpace(sessionID) == "" {
 		return ErrSessionIDRequired
 	}
@@ -229,7 +229,7 @@ func validate(sessionID string, message agent.Message) error {
 	return nil
 }
 
-func find(entries []Entry, id uint64) int {
+func entryIndex(entries []Entry, id uint64) int {
 	return slices.IndexFunc(entries, func(entry Entry) bool { return entry.ID == id })
 }
 

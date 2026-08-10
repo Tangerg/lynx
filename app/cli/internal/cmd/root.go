@@ -59,7 +59,7 @@ func (p runtimeProvider) Open(cmd *cobra.Command) (agent.Runtime, error) {
 	return runtime, nil
 }
 
-func (p runtimeProvider) OpenForCompletion(cmd *cobra.Command) (agent.Runtime, error) {
+func (p runtimeProvider) OpenQuietly(cmd *cobra.Command) (agent.Runtime, error) {
 	return p.resolve(cmd.Context())
 }
 
@@ -105,14 +105,14 @@ func NewRoot(dependencies Dependencies) *cobra.Command {
 			return loadConfig(v, cmd)
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			value, err := readSettings(v)
+			config, err := readSettings(v)
 			if err != nil {
 				return err
 			}
-			return interactive(cmd, args, provider, value)
+			return runInteractive(cmd, args, provider, config)
 		},
 	}
-	configure(v, root)
+	configureRoot(v, root)
 	root.Flags().StringP("session", "s", "", "Open an existing session instead of a new one")
 	root.PersistentFlags().StringP("cwd", "C", "", "Workspace directory for a new session (default: current directory)")
 	root.AddGroup(
@@ -134,18 +134,18 @@ func NewRoot(dependencies Dependencies) *cobra.Command {
 	return root
 }
 
-// interactive opens the terminal interface, seeding the field with whatever was typed
+// runInteractive opens the terminal interface, seeding the field with whatever was typed
 // on the command line.
 //
 // With no terminal to take over it says so and points at the command that does not
 // need one, rather than failing with something about file descriptors: a program whose
 // output is being piped wants text, not frames.
-func interactive(cmd *cobra.Command, args []string, provider runtimeProvider, value settings.Config) error {
+func runInteractive(cmd *cobra.Command, args []string, provider runtimeProvider, config settings.Config) error {
 	rt, err := provider.Open(cmd)
 	if err != nil {
 		return err
 	}
-	ws, err := workspace(cmd)
+	workspacePath, err := resolveWorkspace(cmd)
 	if err != nil {
 		return err
 	}
@@ -156,10 +156,10 @@ func interactive(cmd *cobra.Command, args []string, provider runtimeProvider, va
 	err = terminalui.Run(cmd.Context(), terminalui.Config{
 		Runtime:       rt,
 		SessionID:     sessionID,
-		Workspace:     ws,
+		Workspace:     workspacePath,
 		InitialPrompt: strings.TrimSpace(strings.Join(args, " ")),
-		Settings:      new(value),
-		PluginSources: []extensions.Source{sideload.New(value.Plugins.Directories)},
+		Settings:      new(config),
+		PluginSources: []extensions.Source{sideload.New(config.Plugins.Directories)},
 	})
 	if errors.Is(err, term.ErrNotTerminal) {
 		return errors.New("no terminal to draw on; use `lyra run` for a one-shot run")
@@ -167,8 +167,8 @@ func interactive(cmd *cobra.Command, args []string, provider runtimeProvider, va
 	return err
 }
 
-// workspace resolves the directory a session works in.
-func workspace(cmd *cobra.Command) (string, error) {
+// resolveWorkspace resolves the directory a session works in.
+func resolveWorkspace(cmd *cobra.Command) (string, error) {
 	cwd, _ := cmd.Flags().GetString("cwd")
 	if cwd == "" {
 		var err error

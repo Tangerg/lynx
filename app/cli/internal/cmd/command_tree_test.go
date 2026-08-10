@@ -20,10 +20,10 @@ import (
 	"github.com/Tangerg/lynx/app/cli/internal/agent/mock"
 )
 
-// exec runs the CLI in memory and returns stdout, stderr and the command error.
+// executeCommand runs the CLI in memory and returns stdout, stderr and the command error.
 // Nothing here touches the process's own streams, which is what lets the tests
 // run in parallel and assert on exact output.
-func exec(t *testing.T, rt agent.Runtime, stdin string, args ...string) (string, string, error) {
+func executeCommand(t *testing.T, rt agent.Runtime, stdin string, args ...string) (string, string, error) {
 	t.Helper()
 	var out, errb bytes.Buffer
 	dependencies := Dependencies{OpenRuntime: func(context.Context) (agent.Runtime, error) { return rt, nil }}
@@ -40,7 +40,7 @@ func exec(t *testing.T, rt agent.Runtime, stdin string, args ...string) (string,
 	return out.String(), errb.String(), err
 }
 
-func instant() *mock.Runtime {
+func instantRuntime() *mock.Runtime {
 	rt := mock.New()
 	rt.Instant = true
 	return rt
@@ -56,8 +56,8 @@ func firstSession(t *testing.T, rt agent.Runtime) string {
 }
 
 func TestRunDeclinesApprovalWhenUnattended(t *testing.T) {
-	rt := instant()
-	out, _, err := exec(t, rt, "", "run", "-s", firstSession(t, rt), "why?")
+	rt := instantRuntime()
+	out, _, err := executeCommand(t, rt, "", "run", "-s", firstSession(t, rt), "why?")
 	if err != nil {
 		t.Fatalf("run: %v\n%s", err, out)
 	}
@@ -76,8 +76,8 @@ func TestRunDeclinesApprovalWhenUnattended(t *testing.T) {
 }
 
 func TestRunApproveAllLetsTheRunThrough(t *testing.T) {
-	rt := instant()
-	out, _, err := exec(t, rt, "", "run", "--approve-all", "-s", firstSession(t, rt), "why?")
+	rt := instantRuntime()
+	out, _, err := executeCommand(t, rt, "", "run", "--approve-all", "-s", firstSession(t, rt), "why?")
 	if err != nil {
 		t.Fatalf("run: %v\n%s", err, out)
 	}
@@ -90,8 +90,8 @@ func TestRunApproveAllLetsTheRunThrough(t *testing.T) {
 }
 
 func TestRunStreamingJSONIsOneObjectPerLineEndingWithTheRun(t *testing.T) {
-	rt := instant()
-	out, _, err := exec(t, rt, "", "run", "--output-format", "streaming-json", "--approve-all", "-s", firstSession(t, rt), "why?")
+	rt := instantRuntime()
+	out, _, err := executeCommand(t, rt, "", "run", "--output-format", "streaming-json", "--approve-all", "-s", firstSession(t, rt), "why?")
 	if err != nil {
 		t.Fatalf("run: %v\n%s", err, out)
 	}
@@ -111,8 +111,8 @@ func TestRunStreamingJSONIsOneObjectPerLineEndingWithTheRun(t *testing.T) {
 }
 
 func TestRunJSONIsOneFinalResult(t *testing.T) {
-	runtime := instant()
-	out, _, err := exec(t, runtime, "", "run", "--json", "--approve-all", "-s", firstSession(t, runtime), "why?")
+	runtime := instantRuntime()
+	out, _, err := executeCommand(t, runtime, "", "run", "--json", "--approve-all", "-s", firstSession(t, runtime), "why?")
 	if err != nil {
 		t.Fatalf("run: %v\n%s", err, out)
 	}
@@ -192,10 +192,10 @@ func decodeRunFrame(t *testing.T, line string) runFrame {
 func TestRunRecoversTransportFaultsWithoutRenderingDuplicates(t *testing.T) {
 	for _, fault := range []mock.FaultKind{mock.FaultDisconnect, mock.FaultDuplicate, mock.FaultGap} {
 		t.Run(string(fault), func(t *testing.T) {
-			rt := instant()
+			rt := instantRuntime()
 			rt.Script = shortCompletedScript
 			rt.Faults = []mock.SubscriptionFault{{Kind: fault, After: 1}}
-			out, _, err := exec(t, rt, "", "run", "--output-format", "streaming-json", "-s", firstSession(t, rt), "recover")
+			out, _, err := executeCommand(t, rt, "", "run", "--output-format", "streaming-json", "-s", firstSession(t, rt), "recover")
 			if err != nil {
 				t.Fatalf("run: %v\n%s", err, out)
 			}
@@ -270,9 +270,9 @@ func (r *ambiguousControls) calls() (int, int, []string, []string) {
 }
 
 func TestRunRecoversAmbiguousControlResponsesWithoutDuplicatingAControl(t *testing.T) {
-	base := instant()
+	base := instantRuntime()
 	runtime := &ambiguousControls{Runtime: base}
-	out, _, err := exec(t, runtime, "", "run", "--output-format", "streaming-json", "--approve-all", "-s", firstSession(t, runtime), "recover controls")
+	out, _, err := executeCommand(t, runtime, "", "run", "--output-format", "streaming-json", "--approve-all", "-s", firstSession(t, runtime), "recover controls")
 	if err != nil {
 		t.Fatalf("run: %v\n%s", err, out)
 	}
@@ -319,17 +319,17 @@ func countUniqueFrames(t *testing.T, output string) map[string]int {
 }
 
 func TestRunRejectsConflictingReplay(t *testing.T) {
-	rt := instant()
+	rt := instantRuntime()
 	rt.Script = shortCompletedScript
 	rt.Faults = []mock.SubscriptionFault{{Kind: mock.FaultConflict, After: 1}}
-	_, _, err := exec(t, rt, "", "run", "--output-format", "streaming-json", "-s", firstSession(t, rt), "conflict")
+	_, _, err := executeCommand(t, rt, "", "run", "--output-format", "streaming-json", "-s", firstSession(t, rt), "conflict")
 	if !errors.Is(err, agent.ErrEventConflict) {
 		t.Fatalf("run error = %v, want ErrEventConflict", err)
 	}
 }
 
 func TestRunQuestionNamesTheResumableSession(t *testing.T) {
-	rt := instant()
+	rt := instantRuntime()
 	rt.Script = func(string) mock.Script {
 		return mock.Script{Interaction: agent.Question{
 			InterruptID: "question_1", Title: "Choose a strategy",
@@ -337,7 +337,7 @@ func TestRunQuestionNamesTheResumableSession(t *testing.T) {
 		}}
 	}
 	id := firstSession(t, rt)
-	out, _, err := exec(t, rt, "", "run", "--json", "-s", id, "ask me")
+	out, _, err := executeCommand(t, rt, "", "run", "--json", "-s", id, "ask me")
 	if err == nil || !strings.Contains(err.Error(), "--session "+id) || strings.Contains(err.Error(), "<session-id>") {
 		t.Fatalf("question error = %v", err)
 	}
@@ -367,12 +367,12 @@ func TestRunReturnsAnErrorForNonCompletedOutcomes(t *testing.T) {
 		{name: "canceled", outcome: agent.Outcome{Status: agent.OutcomeCanceled}, want: "run canceled"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			runtime := instant()
+			runtime := instantRuntime()
 			runtime.Script = func(string) mock.Script {
 				return mock.Script{Prelude: []mock.Step{{Event: agent.RunFinished{Outcome: test.outcome}}}}
 			}
 			id := firstSession(t, runtime)
-			out, _, err := exec(t, runtime, "", "run", "--json", "-s", id, "finish this way")
+			out, _, err := executeCommand(t, runtime, "", "run", "--json", "-s", id, "finish this way")
 			if err == nil || !strings.Contains(err.Error(), test.want) {
 				t.Fatalf("run error = %v, want %q", err, test.want)
 			}
@@ -397,9 +397,9 @@ func TestRunRejectsInvalidAndConflictingOutputFormatsBeforeCreatingASession(t *t
 		{"run", "--json", "--output-format", "streaming-json", "prompt"},
 	} {
 		t.Run(strings.Join(args[1:3], " "), func(t *testing.T) {
-			runtime := instant()
+			runtime := instantRuntime()
 			before, _ := runtime.ListSessions(t.Context(), agent.SessionQuery{Limit: 100})
-			if _, _, err := exec(t, runtime, "", args...); err == nil {
+			if _, _, err := executeCommand(t, runtime, "", args...); err == nil {
 				t.Fatalf("arguments %v were accepted", args)
 			}
 			after, _ := runtime.ListSessions(t.Context(), agent.SessionQuery{Limit: 100})
@@ -424,9 +424,9 @@ func (alwaysDisconnected) FollowRun(context.Context, agent.FollowRun) (agent.Run
 }
 
 func TestRunStopsAfterReconnectBudgetIsExhausted(t *testing.T) {
-	rt := instant()
+	rt := instantRuntime()
 	rt.Script = shortCompletedScript
-	out, _, err := exec(t, alwaysDisconnected{Runtime: rt}, "", "--reconnect-attempts", "2", "run", "--json", "-s", firstSession(t, rt), "offline")
+	out, _, err := executeCommand(t, alwaysDisconnected{Runtime: rt}, "", "--reconnect-attempts", "2", "run", "--json", "-s", firstSession(t, rt), "offline")
 	if !errors.Is(err, agent.ErrDisconnected) {
 		t.Fatalf("run error = %v, want ErrDisconnected", err)
 	}
@@ -445,14 +445,14 @@ func shortCompletedScript(string) mock.Script {
 
 func TestRunReadsAPipedPromptAndCombinesItWithTheArgument(t *testing.T) {
 	var captured string
-	rt := instant()
+	rt := instantRuntime()
 	rt.Script = func(prompt string) mock.Script {
 		captured = prompt
 		return mock.Script{Prelude: []mock.Step{{Event: agent.RunFinished{
 			Outcome: agent.Outcome{Status: agent.OutcomeCompleted},
 		}}}}
 	}
-	if _, _, err := exec(t, rt, "file contents\n", "run", "-s", firstSession(t, rt), "explain this"); err != nil {
+	if _, _, err := executeCommand(t, rt, "file contents\n", "run", "-s", firstSession(t, rt), "explain this"); err != nil {
 		t.Fatalf("run: %v", err)
 	}
 	if captured != "explain this\n\nfile contents" {
@@ -466,9 +466,9 @@ func TestRunAttachesRepeatedFilesAndAllowsAttachmentOnlyPrompts(t *testing.T) {
 	second := filepath.Join(workspace, "diagram.png")
 	writeCommandFixture(t, first, []byte("notes"))
 	writeCommandFixture(t, second, append([]byte("\x89PNG\r\n\x1a\n"), make([]byte, 32)...))
-	runtime := instant()
+	runtime := instantRuntime()
 	id := firstSession(t, runtime)
-	if _, _, err := exec(t, runtime, "", "-C", workspace, "run", "--approve-all", "-s", id, "-f", "notes.txt", "-f", "diagram.png"); err != nil {
+	if _, _, err := executeCommand(t, runtime, "", "-C", workspace, "run", "--approve-all", "-s", id, "-f", "notes.txt", "-f", "diagram.png"); err != nil {
 		t.Fatalf("attachment-only run: %v", err)
 	}
 	snapshot, err := runtime.GetSession(t.Context(), id)
@@ -503,9 +503,9 @@ func userPromptBlock(t *testing.T, events []agent.Envelope) agent.Block {
 }
 
 func TestRunRejectsInvalidAttachmentBeforeCreatingASession(t *testing.T) {
-	runtime := instant()
+	runtime := instantRuntime()
 	before, _ := runtime.ListSessions(t.Context(), agent.SessionQuery{Limit: 100})
-	_, _, err := exec(t, runtime, "", "-C", t.TempDir(), "run", "-f", "missing.txt")
+	_, _, err := executeCommand(t, runtime, "", "-C", t.TempDir(), "run", "-f", "missing.txt")
 	if err == nil || !strings.Contains(err.Error(), "missing.txt") {
 		t.Fatalf("error = %v", err)
 	}
@@ -534,24 +534,24 @@ func TestResolveAttachmentsDeduplicatesCanonicalPathsBeforeApplyingTheLimit(t *t
 }
 
 func TestRunWithNothingToSay(t *testing.T) {
-	rt := instant()
-	_, _, err := exec(t, rt, "", "run", "-s", firstSession(t, rt))
+	rt := instantRuntime()
+	_, _, err := executeCommand(t, rt, "", "run", "-s", firstSession(t, rt))
 	if !errors.Is(err, errNoPrompt) {
 		t.Fatalf("err = %v, want errNoPrompt", err)
 	}
 }
 
 func TestRunRejectsAnUnknownSession(t *testing.T) {
-	_, _, err := exec(t, instant(), "", "run", "-s", "ses_nope", "why?")
+	_, _, err := executeCommand(t, instantRuntime(), "", "run", "-s", "ses_nope", "why?")
 	if !errors.Is(err, agent.ErrSessionNotFound) {
 		t.Fatalf("err = %v, want ErrSessionNotFound", err)
 	}
 }
 
 func TestRunCreatesASessionWhenNoneIsNamed(t *testing.T) {
-	rt := instant()
+	rt := instantRuntime()
 	before, _ := rt.ListSessions(t.Context(), agent.SessionQuery{Limit: 100})
-	if _, _, err := exec(t, rt, "", "run", "--approve-all", "why?"); err != nil {
+	if _, _, err := executeCommand(t, rt, "", "run", "--approve-all", "why?"); err != nil {
 		t.Fatalf("run: %v", err)
 	}
 	after, _ := rt.ListSessions(t.Context(), agent.SessionQuery{Limit: 100})
@@ -561,7 +561,7 @@ func TestRunCreatesASessionWhenNoneIsNamed(t *testing.T) {
 }
 
 func TestWorkspaceFlagIsNormalizedBeforeCreatingASession(t *testing.T) {
-	runtime := instant()
+	runtime := instantRuntime()
 	want, err := filepath.EvalSymlinks(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -575,7 +575,7 @@ func TestWorkspaceFlagIsNormalizedBeforeCreatingASession(t *testing.T) {
 		t.Fatal(err)
 	}
 	before, _ := runtime.ListSessions(t.Context(), agent.SessionQuery{Limit: 100})
-	if _, _, err := exec(t, runtime, "", "-C", relative, "run", "--approve-all", "normalize workspace"); err != nil {
+	if _, _, err := executeCommand(t, runtime, "", "-C", relative, "run", "--approve-all", "normalize workspace"); err != nil {
 		t.Fatal(err)
 	}
 	after, _ := runtime.ListSessions(t.Context(), agent.SessionQuery{Limit: 100})
@@ -585,7 +585,7 @@ func TestWorkspaceFlagIsNormalizedBeforeCreatingASession(t *testing.T) {
 }
 
 func TestSessionsList(t *testing.T) {
-	out, _, err := exec(t, instant(), "", "sessions", "ls")
+	out, _, err := executeCommand(t, instantRuntime(), "", "sessions", "ls")
 	if err != nil {
 		t.Fatalf("sessions ls: %v", err)
 	}
@@ -601,16 +601,16 @@ func TestSessionsList(t *testing.T) {
 }
 
 func TestSessionsListAliasAndArity(t *testing.T) {
-	if _, _, err := exec(t, instant(), "", "session", "list"); err != nil {
+	if _, _, err := executeCommand(t, instantRuntime(), "", "session", "list"); err != nil {
 		t.Fatalf("aliases should reach the same command: %v", err)
 	}
-	if _, _, err := exec(t, instant(), "", "sessions", "ls", "extra"); err == nil {
+	if _, _, err := executeCommand(t, instantRuntime(), "", "sessions", "ls", "extra"); err == nil {
 		t.Fatal("sessions ls accepted an argument it has no use for")
 	}
 }
 
 func TestSessionManagementCommands(t *testing.T) {
-	runtime := instant()
+	runtime := instantRuntime()
 	id := firstSession(t, runtime)
 	requireSessionShow(t, runtime, id)
 	requireSessionRename(t, runtime, id)
@@ -620,7 +620,7 @@ func TestSessionManagementCommands(t *testing.T) {
 
 func requireSessionShow(t *testing.T, runtime agent.Runtime, id string) {
 	t.Helper()
-	shown, _, err := exec(t, runtime, "", "sessions", "show", id)
+	shown, _, err := executeCommand(t, runtime, "", "sessions", "show", id)
 	if err != nil || !strings.Contains(shown, "The fixed sleep races the janitor") {
 		t.Fatalf("sessions show = %q, %v", shown, err)
 	}
@@ -628,7 +628,7 @@ func requireSessionShow(t *testing.T, runtime agent.Runtime, id string) {
 
 func requireSessionRename(t *testing.T, runtime agent.Runtime, id string) {
 	t.Helper()
-	renamed, _, err := exec(t, runtime, "", "sessions", "rename", id, "Investigate cache")
+	renamed, _, err := executeCommand(t, runtime, "", "sessions", "rename", id, "Investigate cache")
 	if err != nil || !strings.Contains(renamed, "Investigate cache") {
 		t.Fatalf("sessions rename = %q, %v", renamed, err)
 	}
@@ -636,7 +636,7 @@ func requireSessionRename(t *testing.T, runtime agent.Runtime, id string) {
 
 func forkTestSession(t *testing.T, runtime agent.Runtime, id string) string {
 	t.Helper()
-	forked, _, err := exec(t, runtime, "", "sessions", "fork", id, "--at", "4", "--title", "Alternative")
+	forked, _, err := executeCommand(t, runtime, "", "sessions", "fork", id, "--at", "4", "--title", "Alternative")
 	if err != nil {
 		t.Fatalf("sessions fork: %v", err)
 	}
@@ -650,17 +650,17 @@ func forkTestSession(t *testing.T, runtime agent.Runtime, id string) string {
 
 func requireSessionDelete(t *testing.T, runtime agent.Runtime, id string) {
 	t.Helper()
-	if _, _, err := exec(t, runtime, "", "sessions", "delete", id); err == nil {
+	if _, _, err := executeCommand(t, runtime, "", "sessions", "delete", id); err == nil {
 		t.Fatal("sessions delete did not require confirmation")
 	}
-	if _, _, err := exec(t, runtime, "", "sessions", "rm", "--yes", id); err != nil {
+	if _, _, err := executeCommand(t, runtime, "", "sessions", "rm", "--yes", id); err != nil {
 		t.Fatalf("sessions rm --yes: %v", err)
 	}
 }
 
 func TestSessionsListPaginatesAndSearches(t *testing.T) {
-	runtime := instant()
-	out, errOut, err := exec(t, runtime, "", "sessions", "ls", "--limit", "1", "--search", "store")
+	runtime := instantRuntime()
+	out, errOut, err := executeCommand(t, runtime, "", "sessions", "ls", "--limit", "1", "--search", "store")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -670,8 +670,8 @@ func TestSessionsListPaginatesAndSearches(t *testing.T) {
 }
 
 func TestSessionsListJSONKeepsPaginationOnStdout(t *testing.T) {
-	runtime := instant()
-	out, errOut, err := exec(t, runtime, "", "sessions", "ls", "--limit", "1", "--json")
+	runtime := instantRuntime()
+	out, errOut, err := executeCommand(t, runtime, "", "sessions", "ls", "--limit", "1", "--json")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -688,11 +688,11 @@ func TestSessionsListJSONKeepsPaginationOnStdout(t *testing.T) {
 }
 
 func TestApprovalRuleCommandsInspectAndForget(t *testing.T) {
-	runtime := instant()
+	runtime := instantRuntime()
 	sessionID := firstSession(t, runtime)
 	ruleID := createProjectApprovalRule(t, runtime, sessionID)
 	requireApprovalList(t, runtime)
-	jsonOut, _, jsonErr := exec(t, runtime, "", "approvals", "ls", "--json")
+	jsonOut, _, jsonErr := executeCommand(t, runtime, "", "approvals", "ls", "--json")
 	if jsonErr != nil {
 		t.Fatal(jsonErr)
 	}
@@ -700,14 +700,14 @@ func TestApprovalRuleCommandsInspectAndForget(t *testing.T) {
 	if err := json.Unmarshal([]byte(jsonOut), &rules); err != nil || len(rules.Rules) != 1 || rules.Rules[0].ID != ruleID {
 		t.Fatalf("approval JSON = %+v, %v", rules, err)
 	}
-	out, _, err := exec(t, runtime, "", "__complete", "approvals", "delete", "")
+	out, _, err := executeCommand(t, runtime, "", "__complete", "approvals", "delete", "")
 	if err != nil || !strings.Contains(out, ruleID) {
 		t.Fatalf("approval completion = %q, %v", out, err)
 	}
-	if _, _, err := exec(t, runtime, "", "approvals", "forget", ruleID); err == nil {
+	if _, _, err := executeCommand(t, runtime, "", "approvals", "forget", ruleID); err == nil {
 		t.Fatal("approvals forget did not require --yes")
 	}
-	if _, _, err := exec(t, runtime, "", "approvals", "forget", "--yes", ruleID); err != nil {
+	if _, _, err := executeCommand(t, runtime, "", "approvals", "forget", "--yes", ruleID); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -784,14 +784,14 @@ func onlyApprovalRule(t *testing.T, runtime agent.Runtime) agent.ApprovalRule {
 
 func requireApprovalList(t *testing.T, runtime agent.Runtime) {
 	t.Helper()
-	out, _, err := exec(t, runtime, "", "approvals", "ls")
+	out, _, err := executeCommand(t, runtime, "", "approvals", "ls")
 	if err != nil || !strings.Contains(out, "edit:internal/store/cache_test.go") || !strings.Contains(out, "project") {
 		t.Fatalf("approvals ls = %q, %v", out, err)
 	}
 }
 
 func TestCompletionCommand(t *testing.T) {
-	out, _, err := exec(t, instant(), "", "completion", "zsh")
+	out, _, err := executeCommand(t, instantRuntime(), "", "completion", "zsh")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -806,7 +806,7 @@ func TestHelpDoesNotResolveARuntime(t *testing.T) {
 	var resolved bool
 	root := NewRoot(Dependencies{OpenRuntime: func(context.Context) (agent.Runtime, error) {
 		resolved = true
-		return instant(), nil
+		return instantRuntime(), nil
 	}})
 	root.SetOut(io.Discard)
 	root.SetErr(io.Discard)
@@ -824,7 +824,7 @@ const testRuntimeNotice = "lyra: scripted mock runtime — no backend is wired i
 func TestRuntimeNoticeGoesToStderrNotStdout(t *testing.T) {
 	// A nil runtime is what a real build gets, and the notice must not land in a
 	// pipe that is being parsed.
-	out, errb, err := exec(t, nil, "", "sessions", "ls")
+	out, errb, err := executeCommand(t, nil, "", "sessions", "ls")
 	if err != nil {
 		t.Fatalf("sessions ls: %v", err)
 	}
@@ -837,7 +837,7 @@ func TestRuntimeNoticeGoesToStderrNotStdout(t *testing.T) {
 }
 
 func TestCompletionDoesNotPrintRuntimeNotice(t *testing.T) {
-	out, errb, err := exec(t, nil, "", "__complete", "sessions", "show", "")
+	out, errb, err := executeCommand(t, nil, "", "__complete", "sessions", "show", "")
 	if err != nil {
 		t.Fatalf("complete sessions: %v", err)
 	}

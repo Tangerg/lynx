@@ -47,11 +47,11 @@ func (r *finishObservingRuntime) FollowRun(ctx context.Context, request agent.Fo
 	}, nil
 }
 
-func testQueueDrawer(t *testing.T, messages ...agent.Message) (*queueDrawer, *promptqueue.Store) {
+func testQueueDrawer(t *testing.T, messages ...agent.Message) (*queueDrawer, *promptqueue.Queue) {
 	t.Helper()
-	store := promptqueue.New()
+	queue := promptqueue.New()
 	for _, message := range messages {
-		if _, err := store.Enqueue("session", message); err != nil {
+		if _, err := queue.Enqueue("session", message); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -60,22 +60,22 @@ func testQueueDrawer(t *testing.T, messages ...agent.Message) (*queueDrawer, *pr
 		t.Fatal(err)
 	}
 	drawer := newQueueDrawer(kit.Dark(), kit.Unicode(), keys, nil)
-	sync := func() { drawer.Set(store.Snapshot("session")) }
+	sync := func() { drawer.Set(queue.Snapshot("session")) }
 	drawer.SetActions(queueDrawerActions{
 		BeginEdit: func(id uint64) error {
-			err := store.Hold("session", id)
+			err := queue.Hold("session", id)
 			sync()
 			return err
 		},
 		SaveEdit: func(id uint64, message agent.Message, sendNow bool) error {
-			if err := store.Update("session", id, message); err != nil {
+			if err := queue.Update("session", id, message); err != nil {
 				return err
 			}
-			if err := store.Release("session", id); err != nil {
+			if err := queue.Release("session", id); err != nil {
 				return err
 			}
 			if sendNow {
-				if err := store.Promote("session", id); err != nil {
+				if err := queue.Promote("session", id); err != nil {
 					return err
 				}
 			}
@@ -83,28 +83,28 @@ func testQueueDrawer(t *testing.T, messages ...agent.Message) (*queueDrawer, *pr
 			return nil
 		},
 		CancelEdit: func(id uint64) error {
-			err := store.Release("session", id)
+			err := queue.Release("session", id)
 			sync()
 			return err
 		},
 		Remove: func(id uint64) error {
-			_, err := store.Remove("session", id)
+			_, err := queue.Remove("session", id)
 			sync()
 			return err
 		},
 		Move: func(id uint64, offset int) error {
-			err := store.Move("session", id, offset)
+			err := queue.Move("session", id, offset)
 			sync()
 			return err
 		},
 		SendNow: func(id uint64) error {
-			err := store.Promote("session", id)
+			err := queue.Promote("session", id)
 			sync()
 			return err
 		},
 	})
 	sync()
-	return drawer, store
+	return drawer, queue
 }
 
 func drawQueueDrawer(t *testing.T, drawer *queueDrawer, width, height int) (*headless.Root, *grid.Surface, string) {
@@ -173,13 +173,13 @@ func TestQueueDrawerRendersPreviewActionsAndResponsiveFallback(t *testing.T) {
 
 func TestQueueDrawerEditsMultilineTextAndKeepsAttachments(t *testing.T) {
 	attachment := agent.Attachment{ID: "a", Kind: agent.AttachmentText, Name: "context.txt", Path: "/tmp/context.txt"}
-	drawer, store := testQueueDrawer(t, agent.Message{Text: "original", Attachments: []agent.Attachment{attachment}})
+	drawer, queue := testQueueDrawer(t, agent.Message{Text: "original", Attachments: []agent.Attachment{attachment}})
 	drawer.Focus(true)
 	drawer.Handle(input.Key{Code: input.Enter})
 	if !drawer.Editing() {
 		t.Fatal("Enter did not begin queue editing")
 	}
-	if held := store.Snapshot("session").Entries[0].Held; !held {
+	if held := queue.Snapshot("session").Entries[0].Held; !held {
 		t.Fatal("queue editor did not hold its entry")
 	}
 	drawer.Handle(input.Key{Code: input.Character, Rune: 'u', Mods: input.Ctrl})
@@ -190,7 +190,7 @@ func TestQueueDrawerEditsMultilineTextAndKeepsAttachments(t *testing.T) {
 	if drawer.Editing() {
 		t.Fatal("Enter did not save queue editing")
 	}
-	entry, ok := store.Next("session")
+	entry, ok := queue.Next("session")
 	if !ok || entry.Message.Text != "edited\nsecond line" || len(entry.Message.Attachments) != 1 || entry.Message.Attachments[0].ID != attachment.ID {
 		t.Fatalf("saved queued message = %+v, %v", entry.Message, ok)
 	}
@@ -203,22 +203,22 @@ func TestQueueDrawerEditsMultilineTextAndKeepsAttachments(t *testing.T) {
 	if drawer.Handle(input.Key{Code: input.Esc}) {
 		t.Fatal("browse-mode Esc should be left for the dialog controller")
 	}
-	entry, _ = store.Next("session")
+	entry, _ = queue.Next("session")
 	if entry.Message.Text != "edited\nsecond line" {
 		t.Fatalf("discard changed queued text to %q", entry.Message.Text)
 	}
 }
 
 func TestClosingQueueDrawerReleasesItsEditedEntry(t *testing.T) {
-	drawer, store := testQueueDrawer(t, agent.Message{Text: "editable"})
+	drawer, queue := testQueueDrawer(t, agent.Message{Text: "editable"})
 	drawer.Focus(true)
 	drawer.Handle(input.Key{Code: input.Enter})
-	if !store.Snapshot("session").Entries[0].Held {
+	if !queue.Snapshot("session").Entries[0].Held {
 		t.Fatal("test did not hold the edited entry")
 	}
 	drawer.Closed()
-	if drawer.Editing() || store.Snapshot("session").Entries[0].Held {
-		t.Fatalf("closed queue drawer left editing=%v snapshot=%+v", drawer.Editing(), store.Snapshot("session"))
+	if drawer.Editing() || queue.Snapshot("session").Entries[0].Held {
+		t.Fatalf("closed queue drawer left editing=%v snapshot=%+v", drawer.Editing(), queue.Snapshot("session"))
 	}
 }
 
@@ -245,26 +245,26 @@ func TestQueueDrawerEditorOwnsPointerPlacement(t *testing.T) {
 }
 
 func TestQueueDrawerReordersAndPromotesTheSelectedEntry(t *testing.T) {
-	drawer, store := testQueueDrawer(t,
+	drawer, queue := testQueueDrawer(t,
 		agent.Message{Text: "first"}, agent.Message{Text: "second"}, agent.Message{Text: "third"},
 	)
 	drawer.Handle(input.Key{Code: input.Down})
 	drawer.Handle(input.Key{Code: input.Character, Rune: 'J', Mods: input.Shift})
-	got := store.Snapshot("session").Entries
+	got := queue.Snapshot("session").Entries
 	if got[0].Message.Text != "first" || got[1].Message.Text != "third" || got[2].Message.Text != "second" {
 		t.Fatalf("reordered queue = %+v", got)
 	}
 	drawer.Handle(input.Key{Code: input.Character, Rune: 's'})
-	got = store.Snapshot("session").Entries
+	got = queue.Snapshot("session").Entries
 	if got[0].Message.Text != "second" {
 		t.Fatalf("send-now promotion = %+v", got)
 	}
 }
 
 func TestQueueDrawerMouseActionsCommitOnlyOnAnUndraggedMatchingRelease(t *testing.T) {
-	drawer, store := testQueueDrawer(t, agent.Message{Text: "first"}, agent.Message{Text: "second"})
+	drawer, queue := testQueueDrawer(t, agent.Message{Text: "first"}, agent.Message{Text: "second"})
 	root, surface, _ := drawQueueDrawer(t, drawer, 80, 5)
-	firstID := store.Snapshot("session").Entries[0].ID
+	firstID := queue.Snapshot("session").Entries[0].ID
 	remove := queueDrawerHit(t, drawer, queueTarget{kind: queueTargetRemove, id: firstID})
 	edit := queueDrawerHit(t, drawer, queueTarget{kind: queueTargetEdit, id: firstID})
 
@@ -276,7 +276,7 @@ func TestQueueDrawerMouseActionsCommitOnlyOnAnUndraggedMatchingRelease(t *testin
 		t.Fatalf("pressed queue action has no pressed visual: %+v, %v", pressed, ok)
 	}
 	root.Handle(input.Mouse{Pos: edit.area.Min, Action: input.MouseUp, Button: input.ButtonLeft})
-	if got := len(store.Snapshot("session").Entries); got != 2 {
+	if got := len(queue.Snapshot("session").Entries); got != 2 {
 		t.Fatalf("mismatched release removed an entry: %d", got)
 	}
 
@@ -285,7 +285,7 @@ func TestQueueDrawerMouseActionsCommitOnlyOnAnUndraggedMatchingRelease(t *testin
 	root.Handle(input.Mouse{Pos: remove.area.Min, Action: input.MouseDown, Button: input.ButtonLeft})
 	root.Handle(input.Mouse{Pos: image.Pt(0, 0), Action: input.MouseDrag, Button: input.ButtonLeft})
 	root.Handle(input.Mouse{Pos: remove.area.Min, Action: input.MouseUp, Button: input.ButtonLeft})
-	if got := len(store.Snapshot("session").Entries); got != 2 {
+	if got := len(queue.Snapshot("session").Entries); got != 2 {
 		t.Fatalf("dragged release removed an entry: %d", got)
 	}
 
@@ -293,7 +293,7 @@ func TestQueueDrawerMouseActionsCommitOnlyOnAnUndraggedMatchingRelease(t *testin
 	remove = queueDrawerHit(t, drawer, queueTarget{kind: queueTargetRemove, id: firstID})
 	root.Handle(input.Mouse{Pos: remove.area.Min, Action: input.MouseDown, Button: input.ButtonLeft})
 	root.Handle(input.Mouse{Pos: remove.area.Min, Action: input.MouseUp, Button: input.ButtonLeft})
-	if got := len(store.Snapshot("session").Entries); got != 1 {
+	if got := len(queue.Snapshot("session").Entries); got != 1 {
 		t.Fatalf("matching release left %d entries", got)
 	}
 }

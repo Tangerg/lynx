@@ -59,19 +59,19 @@ func (f *runFlags) register(cmd *cobra.Command) {
 }
 
 func (f *runFlags) execute(cmd *cobra.Command, args []string, provider runtimeProvider, v *viper.Viper) error {
-	format, err := f.format(cmd)
+	format, err := f.selectedOutputFormat(cmd)
 	if err != nil {
 		return err
 	}
-	value, err := readSettings(v)
+	config, err := readSettings(v)
 	if err != nil {
 		return err
 	}
-	workspacePath, err := workspace(cmd)
+	workspacePath, err := resolveWorkspace(cmd)
 	if err != nil {
 		return err
 	}
-	message, err := f.message(cmd, args, workspacePath)
+	message, err := f.buildMessage(cmd, args, workspacePath)
 	if err != nil {
 		return err
 	}
@@ -83,16 +83,16 @@ func (f *runFlags) execute(cmd *cobra.Command, args []string, provider runtimePr
 	if err != nil {
 		return err
 	}
-	return oneshot.Run(cmd.Context(), oneshot.Config{
+	return oneshot.Execute(cmd.Context(), oneshot.Invocation{
 		Runtime:  runtime,
-		Renderer: runRenderer(cmd, format),
+		Renderer: newRunRenderer(cmd, format),
 		Start: agent.StartRun{
 			SessionID: opened.Session.ID,
 			Message:   message,
-			Options:   value.RunOptions(),
+			Options:   config.RunOptions(),
 		},
 		ApproveAll:        f.approveAll,
-		ReconnectAttempts: value.UI.ReconnectAttempts,
+		ReconnectAttempts: config.UI.ReconnectAttempts,
 	})
 }
 
@@ -104,7 +104,7 @@ const (
 	outputStreamingJSON outputFormat = "streaming-json"
 )
 
-func (f *runFlags) format(cmd *cobra.Command) (outputFormat, error) {
+func (f *runFlags) selectedOutputFormat(cmd *cobra.Command) (outputFormat, error) {
 	selected := outputFormat(f.output)
 	if f.asJSON {
 		if cmd.Flags().Changed("output-format") && selected != outputJSON {
@@ -128,16 +128,16 @@ func completeOutputFormat(_ *cobra.Command, _ []string, toComplete string) ([]st
 	}
 	matched := candidates[:0]
 	for _, candidate := range candidates {
-		value, _, _ := strings.Cut(candidate, "\t")
-		if strings.HasPrefix(value, toComplete) {
+		formatName, _, _ := strings.Cut(candidate, "\t")
+		if strings.HasPrefix(formatName, toComplete) {
 			matched = append(matched, candidate)
 		}
 	}
 	return matched, cobra.ShellCompDirectiveNoFileComp
 }
 
-func (f *runFlags) message(cmd *cobra.Command, args []string, workspace string) (agent.Message, error) {
-	text, textErr := prompt(cmd, args)
+func (f *runFlags) buildMessage(cmd *cobra.Command, args []string, workspace string) (agent.Message, error) {
+	text, textErr := readPrompt(cmd, args)
 	if textErr != nil && (!errors.Is(textErr, errNoPrompt) || len(f.files) == 0) {
 		return agent.Message{}, textErr
 	}
@@ -148,7 +148,7 @@ func (f *runFlags) message(cmd *cobra.Command, args []string, workspace string) 
 	return agent.Message{Text: text, Attachments: attached}, nil
 }
 
-func runRenderer(cmd *cobra.Command, format outputFormat) oneshot.Renderer {
+func newRunRenderer(cmd *cobra.Command, format outputFormat) oneshot.Renderer {
 	switch format {
 	case outputJSON:
 		return render.NewResultJSON(cmd.OutOrStdout())
@@ -159,8 +159,8 @@ func runRenderer(cmd *cobra.Command, format outputFormat) oneshot.Renderer {
 	}
 }
 
-func completeRunFile(cmd *cobra.Command, _ []string, value string) ([]string, cobra.ShellCompDirective) {
-	workspacePath, err := workspace(cmd)
+func completeRunFile(cmd *cobra.Command, _ []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	workspacePath, err := resolveWorkspace(cmd)
 	if err != nil {
 		return nil, cobra.ShellCompDirectiveError
 	}
@@ -168,7 +168,7 @@ func completeRunFile(cmd *cobra.Command, _ []string, value string) ([]string, co
 	if err != nil {
 		return nil, cobra.ShellCompDirectiveError
 	}
-	matches, err := resolver.Complete(cmd.Context(), value, attachment.DefaultLimit)
+	matches, err := resolver.Complete(cmd.Context(), toComplete, attachment.DefaultLimit)
 	if err != nil {
 		return nil, cobra.ShellCompDirectiveError
 	}
@@ -206,13 +206,13 @@ func resolveAttachments(ctx context.Context, workspace string, paths []string) (
 	return out, nil
 }
 
-// prompt assembles the prompt from arguments and anything piped in.
-func prompt(cmd *cobra.Command, args []string) (string, error) {
+// readPrompt assembles the prompt from arguments and anything piped in.
+func readPrompt(cmd *cobra.Command, args []string) (string, error) {
 	parts := make([]string, 0, 2)
 	if given := strings.TrimSpace(strings.Join(args, " ")); given != "" {
 		parts = append(parts, given)
 	}
-	piped, err := piped(cmd.InOrStdin())
+	piped, err := readPipedPrompt(cmd.InOrStdin())
 	if err != nil {
 		return "", err
 	}
@@ -225,9 +225,9 @@ func prompt(cmd *cobra.Command, args []string) (string, error) {
 	return strings.Join(parts, "\n\n"), nil
 }
 
-// piped reads stdin when it is not a terminal. A terminal is left alone: a
+// readPipedPrompt reads stdin when it is not a terminal. A terminal is left alone: a
 // prompt-less `lyra run` should say so, not sit there looking hung.
-func piped(in io.Reader) (string, error) {
+func readPipedPrompt(in io.Reader) (string, error) {
 	if f, ok := in.(*os.File); ok {
 		info, err := f.Stat()
 		if err != nil {

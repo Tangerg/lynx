@@ -21,12 +21,12 @@ type Renderer interface {
 	Close() error
 }
 
-type resultInitializer interface {
+type runInitializer interface {
 	Begin(agent.Run, agent.RunOptions) error
 }
 
-// Config contains the dependencies and product policy for one unattended run.
-type Config struct {
+// Invocation contains the dependencies and product policy for one unattended run.
+type Invocation struct {
 	Runtime           agent.RunLifecycle
 	Renderer          Renderer
 	Start             agent.StartRun
@@ -34,42 +34,42 @@ type Config struct {
 	ReconnectAttempts int
 }
 
-// Run starts, follows, and settles one unattended run. Approvals are denied
+// Execute starts, follows, and settles one unattended run. Approvals are denied
 // unless ApproveAll is set; questions remain parked for an interactive agent.
-func Run(ctx context.Context, config Config) (runErr error) {
-	if config.Runtime == nil {
+func Execute(ctx context.Context, invocation Invocation) (runErr error) {
+	if invocation.Runtime == nil {
 		return errors.New("one-shot run requires a runtime")
 	}
-	if config.Renderer == nil {
+	if invocation.Renderer == nil {
 		return errors.New("one-shot run requires a renderer")
 	}
-	defer func() { runErr = errors.Join(runErr, config.Renderer.Close()) }()
-	if err := ensureRequestID(&config.Start); err != nil {
+	defer func() { runErr = errors.Join(runErr, invocation.Renderer.Close()) }()
+	if err := ensureRequestID(&invocation.Start); err != nil {
 		return err
 	}
-	policy := reconnect.New(config.ReconnectAttempts)
-	guard := watchCancellation(ctx, config.Runtime, policy, agent.CancelRun{
-		SessionID: config.Start.SessionID,
-		RequestID: config.Start.RequestID,
+	policy := reconnect.New(invocation.ReconnectAttempts)
+	watcher := watchCancellation(ctx, invocation.Runtime, policy, agent.CancelRun{
+		SessionID: invocation.Start.SessionID,
+		RequestID: invocation.Start.RequestID,
 	})
 	cancelOnExit := true
-	defer func() { guard.Close(cancelOnExit) }()
+	defer func() { watcher.Finish(cancelOnExit) }()
 
 	run, err := reconnect.ControlValue(ctx, policy, func() (agent.Run, error) {
-		return config.Runtime.StartRun(ctx, config.Start)
+		return invocation.Runtime.StartRun(ctx, invocation.Start)
 	})
 	if err != nil {
 		return err
 	}
-	if err := validateStartedRun(run, config.Start.SessionID); err != nil {
+	if err := validateStartedRun(run, invocation.Start.SessionID); err != nil {
 		return err
 	}
-	if initializer, ok := config.Renderer.(resultInitializer); ok {
-		if err := initializer.Begin(run, config.Start.Options); err != nil {
+	if initializer, ok := invocation.Renderer.(runInitializer); ok {
+		if err := initializer.Begin(run, invocation.Start.Options); err != nil {
 			return err
 		}
 	}
-	disposition, err := drive(ctx, config.Runtime, config.Renderer, config.Start, run, config.ApproveAll, policy)
+	disposition, err := drive(ctx, invocation.Runtime, invocation.Renderer, invocation.Start, run, invocation.ApproveAll, policy)
 	if disposition.preservesRun() {
 		cancelOnExit = false
 	}
@@ -98,18 +98,18 @@ func ensureRequestID(start *agent.StartRun) error {
 	return nil
 }
 
-type cancellationGuard struct {
+type cancellationWatcher struct {
 	exit chan bool
 	done chan struct{}
 }
 
-func watchCancellation(ctx context.Context, runtime agent.RunLifecycle, policy reconnect.Policy, request agent.CancelRun) *cancellationGuard {
-	guard := &cancellationGuard{exit: make(chan bool, 1), done: make(chan struct{})}
+func watchCancellation(ctx context.Context, runtime agent.RunLifecycle, policy reconnect.Policy, request agent.CancelRun) *cancellationWatcher {
+	watcher := &cancellationWatcher{exit: make(chan bool, 1), done: make(chan struct{})}
 	go func() {
-		defer close(guard.done)
+		defer close(watcher.done)
 		shouldCancel := true
 		select {
-		case shouldCancel = <-guard.exit:
+		case shouldCancel = <-watcher.exit:
 		case <-ctx.Done():
 		}
 		if !shouldCancel {
@@ -121,12 +121,12 @@ func watchCancellation(ctx context.Context, runtime agent.RunLifecycle, policy r
 			return runtime.CancelRun(cancelCtx, request)
 		})
 	}()
-	return guard
+	return watcher
 }
 
-func (g *cancellationGuard) Close(cancel bool) {
-	g.exit <- cancel
-	<-g.done
+func (w *cancellationWatcher) Finish(cancelRun bool) {
+	w.exit <- cancelRun
+	<-w.done
 }
 
 type disposition uint8
@@ -165,7 +165,7 @@ func drive(
 		state := consume(stream, conversation, renderer)
 		progressed := conversation.Cursor() > before
 		if state.outcome != nil {
-			return settled, outcomeError(*state.outcome)
+			return settled, errorForOutcome(*state.outcome)
 		}
 		if state.interrupted != nil {
 			if err := resume(ctx, runtime, policy, run.ID, start.SessionID, state.interrupted, approveAll); err != nil {
@@ -186,14 +186,14 @@ func drive(
 	}
 }
 
-type subscriptionState struct {
+type followResult struct {
 	interrupted agent.Interaction
 	outcome     *agent.Outcome
 	err         error
 }
 
-func consume(stream agent.RunStream, conversation *agent.Conversation, renderer Renderer) subscriptionState {
-	var state subscriptionState
+func consume(stream agent.RunStream, conversation *agent.Conversation, renderer Renderer) followResult {
+	var state followResult
 	for envelope, streamErr := range stream {
 		if streamErr != nil {
 			state.err = streamErr
@@ -221,20 +221,20 @@ func consume(stream agent.RunStream, conversation *agent.Conversation, renderer 
 	return state
 }
 
-type unsuccessfulOutcome struct{ outcome agent.Outcome }
+type outcomeError struct{ outcome agent.Outcome }
 
-func (e *unsuccessfulOutcome) Error() string {
+func (e *outcomeError) Error() string {
 	if e.outcome.Status == agent.OutcomeFailed {
 		return "run failed: " + e.outcome.Error
 	}
 	return "run " + string(e.outcome.Status)
 }
 
-func outcomeError(outcome agent.Outcome) error {
+func errorForOutcome(outcome agent.Outcome) error {
 	if outcome.Status == agent.OutcomeCompleted {
 		return nil
 	}
-	return &unsuccessfulOutcome{outcome: outcome}
+	return &outcomeError{outcome: outcome}
 }
 
 func resume(

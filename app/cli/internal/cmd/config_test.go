@@ -16,7 +16,7 @@ func TestConfigurationPrecedenceFileEnvironmentFlag(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Setenv("LYRA_MODEL", "environment-model")
-	out, _, err := exec(t, instant(), "", "--config", path, "--mode", "review", "config", "show")
+	out, _, err := executeCommand(t, instantRuntime(), "", "--config", path, "--mode", "review", "config", "show")
 	if err != nil {
 		t.Fatalf("config show: %v", err)
 	}
@@ -33,7 +33,7 @@ func TestConfigurationRegistersEnvironmentOnlyKeysForUnmarshal(t *testing.T) {
 	t.Setenv("LYRA_UI_TRANSCRIPT_RETAIN", "77")
 	t.Setenv("LYRA_UI_TOOL_DETAILS", "true")
 	t.Setenv("LYRA_APPROVAL_REMEMBER", "project")
-	out, _, err := exec(t, instant(), "", "config", "show")
+	out, _, err := executeCommand(t, instantRuntime(), "", "config", "show")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -47,7 +47,7 @@ func TestConfigurationRegistersEnvironmentOnlyKeysForUnmarshal(t *testing.T) {
 }
 
 func TestConfigurationAcceptsRepeatablePluginDirectories(t *testing.T) {
-	out, _, err := exec(t, instant(), "", "--plugin-dir", "/plugins/one", "--plugin-dir", "/plugins/two", "config", "show")
+	out, _, err := executeCommand(t, instantRuntime(), "", "--plugin-dir", "/plugins/one", "--plugin-dir", "/plugins/two", "config", "show")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -61,11 +61,11 @@ func TestConfigurationAcceptsRepeatablePluginDirectories(t *testing.T) {
 }
 
 func TestConfigurationRejectsInvalidValuesAndMissingExplicitFile(t *testing.T) {
-	if _, _, err := exec(t, instant(), "", "--mode", "magic", "config", "show"); err == nil {
+	if _, _, err := executeCommand(t, instantRuntime(), "", "--mode", "magic", "config", "show"); err == nil {
 		t.Fatal("invalid mode was accepted")
 	}
 	missing := filepath.Join(t.TempDir(), "missing.yaml")
-	if _, _, err := exec(t, instant(), "", "--config", missing, "config", "show"); err == nil {
+	if _, _, err := executeCommand(t, instantRuntime(), "", "--config", missing, "config", "show"); err == nil {
 		t.Fatal("missing explicit configuration was ignored")
 	}
 }
@@ -80,7 +80,7 @@ func TestConfigurationRejectsUnknownKeys(t *testing.T) {
 			if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
 				t.Fatal(err)
 			}
-			if _, _, err := exec(t, instant(), "", "--config", path, "config", "show"); err == nil {
+			if _, _, err := executeCommand(t, instantRuntime(), "", "--config", path, "config", "show"); err == nil {
 				t.Fatal("unknown configuration key was ignored")
 			}
 		})
@@ -92,7 +92,7 @@ func TestCompletionGenerationDoesNotDependOnConfiguration(t *testing.T) {
 	if err := os.WriteFile(path, []byte("unknown: value\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	out, _, err := exec(t, instant(), "", "--config", path, "completion", "bash")
+	out, _, err := executeCommand(t, instantRuntime(), "", "--config", path, "completion", "bash")
 	if err != nil {
 		t.Fatalf("completion generation read configuration: %v", err)
 	}

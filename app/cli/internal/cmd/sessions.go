@@ -264,7 +264,7 @@ func completeFirstSessionArgument(provider runtimeProvider) cobra.CompletionFunc
 
 func completeSessionIDs(provider runtimeProvider) cobra.CompletionFunc {
 	return func(cmd *cobra.Command, _ []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-		runtime, err := provider.OpenForCompletion(cmd)
+		runtime, err := provider.OpenQuietly(cmd)
 		if err != nil {
 			return nil, cobra.ShellCompDirectiveError
 		}
