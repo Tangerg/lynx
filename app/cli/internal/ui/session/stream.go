@@ -34,13 +34,14 @@ func (a *app) start(message client.Message) {
 	a.started = time.Now()
 	a.startRequest = requestID
 	a.syncAnimation()
+	input := client.StartRun{
+		RequestID: requestID,
+		SessionID: a.session.ID,
+		Message:   cloneMessage(message),
+		Options:   a.options,
+	}
 	a.follow(func(ctx context.Context) (subscription, error) {
-		run, err := a.backend.StartRun(ctx, client.StartRun{
-			RequestID: requestID,
-			SessionID: a.session.ID,
-			Message:   cloneMessage(message),
-			Options:   a.options,
-		})
+		run, err := a.backend.StartRun(ctx, input)
 		if err != nil {
 			return subscription{}, err
 		}
@@ -56,13 +57,10 @@ type subscription struct {
 func (a *app) follow(open func(context.Context) (subscription, error)) {
 	a.dropStream()
 	sequence := a.streamSeq
-	ctx, cancel := context.WithCancel(a.ctx)
-	a.streamCancel = cancel
 	a.following = true
 	dispatcher := a.loop.Dispatcher()
 
-	go func() {
-		defer cancel()
+	a.operations.Go(streamOperation, true, func(ctx context.Context, _ operationLease) {
 		policy := resilience.Standard(a.settings.UI.ReconnectAttempts)
 		failures := 0
 		var sub subscription
@@ -171,7 +169,7 @@ func (a *app) follow(open func(context.Context) (subscription, error)) {
 				return
 			}
 		}
-	}()
+	})
 }
 
 func (a *app) postStreamFailure(ctx context.Context, dispatcher program.Dispatcher, sequence uint64, err error) {
@@ -180,16 +178,28 @@ func (a *app) postStreamFailure(ctx context.Context, dispatcher program.Dispatch
 	}
 	_ = post(ctx, dispatcher, func() {
 		if a.streamSeq == sequence {
-			a.streamCancel = nil
+			target, cancel := a.activeCancellation()
 			a.fail(err)
+			if cancel {
+				a.cancelRuntime(target)
+			}
 		}
 	})
+}
+
+func (a *app) activeCancellation() (client.CancelRun, bool) {
+	if runID := a.state.RunID(); runID != "" {
+		return client.CancelRun{RunID: runID}, true
+	}
+	if a.startRequest != "" {
+		return client.CancelRun{SessionID: a.session.ID, RequestID: a.startRequest}, true
+	}
+	return client.CancelRun{}, false
 }
 
 func (a *app) finishFollowing(dispatcher program.Dispatcher, sequence uint64) {
 	_ = post(context.WithoutCancel(a.ctx), dispatcher, func() {
 		if a.streamSeq == sequence {
-			a.streamCancel = nil
 			a.following = false
 		}
 	})
@@ -242,6 +252,7 @@ func (a *app) apply(envelope client.Envelope) error {
 		a.status.note("waiting for your answer")
 	case client.RunFinished:
 		a.startRequest = ""
+		a.pendingCancel = nil
 		a.following = false
 		a.status.settled(a.state.Outcome(), a.state.Usage())
 		if a.settings.UI.Notifications {
@@ -274,6 +285,11 @@ func (a *app) cancel() {
 		a.answerQuestion(true)
 		return
 	}
+	if a.pendingCancel != nil {
+		a.status.doing = "retrying cancellation"
+		a.cancelRuntime(*a.pendingCancel)
+		return
+	}
 	if !a.state.Busy() && !a.following {
 		a.loop.Quit()
 		return
@@ -300,22 +316,37 @@ func (a *app) cancel() {
 }
 
 func (a *app) cancelRuntime(target client.CancelRun) {
-	go func() {
-		ctx, cancel := context.WithTimeout(context.WithoutCancel(a.ctx), controlTimeout)
+	targetCopy := target
+	a.pendingCancel = &targetCopy
+	dispatcher := a.loop.Dispatcher()
+	a.operations.Go(cancelRunOperation, true, func(ownerCtx context.Context, lease operationLease) {
+		ctx, cancel := context.WithTimeout(ownerCtx, controlTimeout)
 		defer cancel()
 		policy := resilience.Standard(a.settings.UI.ReconnectAttempts)
-		if err := resilience.Control(ctx, policy, func() error { return a.backend.CancelRun(ctx, target) }); err != nil {
-			a.loop.Dispatcher().Post(func() { a.fail(err) })
-		}
-	}()
+		err := resilience.Control(ctx, policy, func() error { return a.backend.CancelRun(ctx, target) })
+		_ = post(ctx, dispatcher, func() {
+			if a.operations.Current(lease) && !a.closed {
+				if err != nil {
+					a.fail(err)
+					return
+				}
+				a.pendingCancel = nil
+			}
+		})
+	})
+}
+
+func (a *app) cancelRuntimeNow(target client.CancelRun) {
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(a.ctx), controlTimeout)
+	defer cancel()
+	policy := resilience.Standard(a.settings.UI.ReconnectAttempts)
+	_ = resilience.Control(ctx, policy, func() error { return a.backend.CancelRun(ctx, target) })
 }
 
 func (a *app) dropStream() {
 	a.streamSeq++
-	if a.streamCancel != nil {
-		a.streamCancel()
-		a.streamCancel = nil
-	}
+	a.operations.Cancel(streamOperation)
+	a.following = false
 }
 
 func (a *app) syncAnimation() {

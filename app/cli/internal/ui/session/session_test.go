@@ -73,6 +73,76 @@ type ambiguousControlRuntime struct {
 	resumes int
 }
 
+type blockingSessionChangeRuntime struct {
+	*mock.Runtime
+	creates atomic.Int32
+	starts  atomic.Int32
+
+	changeStarted chan struct{}
+	releaseChange chan struct{}
+	mu            sync.Mutex
+	startedIn     string
+}
+
+type lostStartRuntime struct {
+	*mock.Runtime
+	mu           sync.Mutex
+	sessionID    string
+	canceled     chan struct{}
+	canceledOnce sync.Once
+}
+
+func (r *lostStartRuntime) StartRun(ctx context.Context, input client.StartRun) (client.Run, error) {
+	if _, err := r.Runtime.StartRun(ctx, input); err != nil {
+		return client.Run{}, err
+	}
+	r.mu.Lock()
+	r.sessionID = input.SessionID
+	r.mu.Unlock()
+	return client.Run{}, fmt.Errorf("start response lost: %w", client.ErrDisconnected)
+}
+
+func (r *lostStartRuntime) CancelRun(ctx context.Context, input client.CancelRun) error {
+	if err := r.Runtime.CancelRun(ctx, input); err != nil {
+		return err
+	}
+	r.canceledOnce.Do(func() { close(r.canceled) })
+	return nil
+}
+
+func (r *lostStartRuntime) startedSession() string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.sessionID
+}
+
+func (r *blockingSessionChangeRuntime) CreateSession(ctx context.Context, input client.NewSession) (client.Session, error) {
+	if r.creates.Add(1) == 1 {
+		return r.Runtime.CreateSession(ctx, input)
+	}
+	close(r.changeStarted)
+	select {
+	case <-r.releaseChange:
+		return r.Runtime.CreateSession(ctx, input)
+	case <-ctx.Done():
+		return client.Session{}, context.Cause(ctx)
+	}
+}
+
+func (r *blockingSessionChangeRuntime) StartRun(ctx context.Context, input client.StartRun) (client.Run, error) {
+	r.starts.Add(1)
+	r.mu.Lock()
+	r.startedIn = input.SessionID
+	r.mu.Unlock()
+	return r.Runtime.StartRun(ctx, input)
+}
+
+func (r *blockingSessionChangeRuntime) startedSession() string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.startedIn
+}
+
 func (r *ambiguousControlRuntime) StartRun(ctx context.Context, input client.StartRun) (client.Run, error) {
 	run, err := r.Runtime.StartRun(ctx, input)
 	if err != nil {
@@ -208,6 +278,68 @@ func TestInteractiveRunRecoversAmbiguousControlResponses(t *testing.T) {
 	}
 	if count := strings.Count(host.Frame(), "Replaced the sleep"); count != 1 {
 		t.Fatalf("assistant result appears %d times:\n%s", count, host.Frame())
+	}
+	host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
+	stop()
+}
+
+func TestClosingTheTerminalCancelsTheOwnedRuntimeRun(t *testing.T) {
+	base := mock.New()
+	base.Script = func(string) mock.Script {
+		return mock.Script{Prelude: []mock.Step{
+			{Delay: time.Hour, Event: client.RunFinished{Outcome: client.Outcome{Status: client.OutcomeCompleted}}},
+		}}
+	}
+	backend := &recordingRuntime{Runtime: base}
+	host, stop := runUIWith(t, backend)
+	host.Shows(t, "Ask lyra")
+	host.Type("keep running until the terminal closes")
+	host.Press(input.Enter)
+	host.Shows(t, "keep running until")
+	started := backend.startInput()
+	if started.SessionID == "" {
+		t.Fatal("run did not start")
+	}
+	stop()
+
+	snapshot, err := base.GetSession(t.Context(), started.SessionID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if snapshot.Active != nil {
+		t.Fatalf("terminal close left an active run: %+v", snapshot.Active)
+	}
+	finished, ok := snapshot.Events[len(snapshot.Events)-1].Event.(client.RunFinished)
+	if !ok || finished.Outcome.Status != client.OutcomeCanceled {
+		t.Fatalf("last event = %+v, want canceled run", snapshot.Events[len(snapshot.Events)-1])
+	}
+}
+
+func TestExhaustedInteractiveStartRetriesCancelTheAcceptedRequest(t *testing.T) {
+	base := mock.New()
+	base.Script = func(string) mock.Script {
+		return mock.Script{Prelude: []mock.Step{
+			{Delay: time.Hour, Event: client.RunFinished{Outcome: client.Outcome{Status: client.OutcomeCompleted}}},
+		}}
+	}
+	backend := &lostStartRuntime{Runtime: base, canceled: make(chan struct{})}
+	host, stop := runUIWith(t, backend)
+	host.Shows(t, "Ask lyra")
+	host.Type("lose all start responses")
+	host.Press(input.Enter)
+	host.Shows(t, "failed:")
+	select {
+	case <-backend.canceled:
+	case <-time.After(3 * time.Second):
+		t.Fatal("accepted start was not canceled after retry exhaustion")
+	}
+
+	snapshot, err := base.GetSession(t.Context(), backend.startedSession())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if snapshot.Active != nil {
+		t.Fatalf("retry exhaustion left an active run: %+v", snapshot.Active)
 	}
 	host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
 	stop()
@@ -407,9 +539,7 @@ func TestUnloadingPluginCancelsItsInFlightCommand(t *testing.T) {
 func TestSessionPickerRestoresHistoryAndLifecycleCommandsSwitchCleanly(t *testing.T) {
 	host, stop := runUI(t)
 	host.Shows(t, "Ask lyra")
-	host.Type("/sessions")
-	host.Press(input.Enter)
-	host.Press(input.Enter)
+	host.Send(input.Key{Code: input.Character, Rune: 'r', Mods: input.Ctrl})
 	host.Shows(t, "Sessions")
 	host.Type("Flaky cache")
 	host.Shows(t, "Flaky cache expiry test")
@@ -433,6 +563,97 @@ func TestSessionPickerRestoresHistoryAndLifecycleCommandsSwitchCleanly(t *testin
 
 	host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
 	stop()
+}
+
+func TestSessionChangeOwnsTheComposerUntilItsSnapshotIsInstalled(t *testing.T) {
+	base := mock.New()
+	base.Instant = true
+	base.Script = stableCompletedScript
+	backend := &blockingSessionChangeRuntime{
+		Runtime:       base,
+		changeStarted: make(chan struct{}),
+		releaseChange: make(chan struct{}),
+	}
+	host, stop := runUIWith(t, backend)
+	host.Shows(t, "Ask lyra")
+	host.Type("/new")
+	host.Press(input.Enter)
+	host.Press(input.Enter)
+	select {
+	case <-backend.changeStarted:
+	case <-time.After(time.Second):
+		t.Fatal("session creation did not start")
+	}
+
+	host.Type("do not orphan this prompt")
+	host.Press(input.Enter)
+	host.Shows(t, "wait for the current session change")
+	if calls := backend.starts.Load(); calls != 0 {
+		t.Fatalf("prompt started %d run(s) before the session change settled", calls)
+	}
+	close(backend.releaseChange)
+	host.Shows(t, "session · Untitled session")
+	newSession := firstRuntimeSession(t, base)
+
+	host.Press(input.Enter)
+	host.Shows(t, "stable answer")
+	if calls := backend.starts.Load(); calls != 1 {
+		t.Fatalf("prompt started %d runs after the session change", calls)
+	}
+	if got := backend.startedSession(); got != newSession {
+		t.Fatalf("prompt started in %q, want newly installed session %q", got, newSession)
+	}
+	host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
+	stop()
+}
+
+func TestSessionSwitchRebindsWorkspaceAttachmentsAndDropsOldChips(t *testing.T) {
+	firstWorkspace := t.TempDir()
+	secondWorkspace := t.TempDir()
+	if err := os.WriteFile(filepath.Join(firstWorkspace, "old.txt"), []byte("old"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(secondWorkspace, "special.txt"), []byte("new"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	backend := mock.New()
+	backend.Instant = true
+	if _, err := backend.CreateSession(t.Context(), client.NewSession{Title: "Workspace B", Workspace: secondWorkspace}); err != nil {
+		t.Fatal(err)
+	}
+	host, stop := runUIWithWorkspace(t, backend, firstWorkspace)
+	host.Shows(t, "Ask lyra")
+	host.Type("@old")
+	host.Shows(t, "workspace files")
+	host.Press(input.Enter)
+	host.Shows(t, "attached old.txt")
+
+	host.Send(input.Key{Code: input.Character, Rune: 'r', Mods: input.Ctrl})
+	host.Shows(t, "Sessions")
+	host.Type("Workspace B")
+	host.Shows(t, "Workspace B")
+	host.Press(input.Enter)
+	host.Shows(t, "session · Workspace B")
+
+	host.Type("/attachments")
+	host.Press(input.Enter)
+	host.Press(input.Enter)
+	host.Shows(t, "the composer has no attachments")
+	host.Type("@special")
+	host.Shows(t, "workspace files")
+	host.Press(input.Enter)
+	host.Shows(t, "attached special.txt")
+	host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
+	stop()
+}
+
+func firstRuntimeSession(t *testing.T, runtime client.SessionCatalog) string {
+	t.Helper()
+	page, err := runtime.ListSessions(t.Context(), client.SessionQuery{Limit: 1})
+	if err != nil || len(page.Items) != 1 {
+		t.Fatalf("latest session = %+v, %v", page, err)
+	}
+	return page.Items[0].ID
 }
 
 func TestModelModePermissionAndEffortApplyToTheNextRun(t *testing.T) {

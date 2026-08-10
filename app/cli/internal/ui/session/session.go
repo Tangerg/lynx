@@ -177,6 +177,7 @@ type app struct {
 	plugins      *extensions.Kernel
 	pluginIssues []extensions.SourceIssue
 	state        *client.Conversation
+	operations   *operationOwner
 
 	transcript *conversationView
 	workflow   workflowView
@@ -212,20 +213,17 @@ type app struct {
 	attachments        *attachment.Resolver
 	attachmentElements map[uint64]client.Attachment
 	history            promptHistory
-	completionSeq      uint64
-	completionCancel   context.CancelFunc
 	commandSeq         uint64
-	commandCancels     map[uint64]context.CancelFunc
+	commandOperations  map[uint64]operationSlot
 
-	streamCancel context.CancelFunc
-	streamSeq    uint64
-	startRequest string
-	switchSeq    uint64
-	following    bool
-	stopClock    func()
-	started      time.Time
-	closed       bool
-	syntax       highlight.Style
+	streamSeq     uint64
+	startRequest  string
+	pendingCancel *client.CancelRun
+	following     bool
+	stopClock     func()
+	started       time.Time
+	closed        bool
+	syntax        highlight.Style
 }
 
 func newApp(ctx context.Context, loop *program.InlineRuntime, backend runtime, opened client.SessionSnapshot, registry *extensions.Registry, plugins *extensions.Kernel, pluginIssues []extensions.SourceIssue, attachments *attachment.Resolver, prompt string, configured settings.Settings, keys *keymap.Map) *app {
@@ -240,6 +238,7 @@ func newApp(ctx context.Context, loop *program.InlineRuntime, backend runtime, o
 		ctx: ctx, loop: loop, backend: backend, session: opened.Session, registry: registry,
 		plugins: plugins, pluginIssues: pluginIssues,
 		state:              client.NewConversation(),
+		operations:         newOperationOwner(ctx),
 		transcript:         newConversationView(theme, glyphs, loop.Environment().Wheel(), syntax, configured.UI.TranscriptRetain, configured.UI.ToolDetails),
 		workflow:           newWorkflowView(theme, glyphs),
 		status:             statusView{theme: theme, glyphs: glyphs, doing: "ready", options: configured.RunOptions()},
@@ -248,7 +247,7 @@ func newApp(ctx context.Context, loop *program.InlineRuntime, backend runtime, o
 		syntax:             syntax,
 		attachments:        attachments,
 		attachmentElements: make(map[uint64]client.Attachment),
-		commandCancels:     make(map[uint64]context.CancelFunc),
+		commandOperations:  make(map[uint64]operationSlot),
 	}
 	a.composer = kit.Composer{
 		Theme: theme, Prompt: glyphs.Marker + " ",
@@ -316,12 +315,23 @@ func (a *app) restore(snapshot client.SessionSnapshot) {
 		a.fail(err)
 		return
 	}
+	if err := presentSnapshot(a.transcript, snapshot, a.registry); err != nil {
+		a.fail(err)
+		return
+	}
+	a.restoreActivity(snapshot)
+}
+
+func presentSnapshot(view *conversationView, snapshot client.SessionSnapshot, registry *extensions.Registry) error {
 	for _, envelope := range snapshot.Events {
-		if err := a.transcript.Apply(envelope.Event, a.registry); err != nil {
-			a.fail(err)
-			return
+		if err := view.Apply(envelope.Event, registry); err != nil {
+			return fmt.Errorf("restore transcript at cursor %d: %w", envelope.Cursor, err)
 		}
 	}
+	return nil
+}
+
+func (a *app) restoreActivity(snapshot client.SessionSnapshot) {
 	a.workflow.Set(a.state.Plan())
 	switch a.state.Phase() {
 	case client.Waiting:
@@ -427,12 +437,17 @@ func (a *app) Close() {
 		return
 	}
 	a.closed = true
-	a.dropStream()
-	if a.completionCancel != nil {
-		a.completionCancel()
-		a.completionCancel = nil
+	target, cancelRuntime := a.activeCancellation()
+	if !cancelRuntime && a.pendingCancel != nil {
+		target, cancelRuntime = *a.pendingCancel, true
 	}
+	a.dropStream()
+	a.operations.Cancel(completionOperation)
 	a.cancelPluginCommands()
+	a.operations.Close()
+	if cancelRuntime {
+		a.cancelRuntimeNow(target)
+	}
 	a.transcript.Close()
 	if a.stopClock != nil {
 		a.stopClock()
@@ -454,6 +469,7 @@ func (a *app) submit() {
 		// put attachment elements back so /attachments and /detach can inspect or
 		// mutate them without accidentally sending a user turn.
 		a.restoreComposer(client.Message{Attachments: message.Attachments})
+		a.operations.Cancel(completionOperation)
 		a.completion.Dismiss()
 		a.runCommand(name, arg)
 		return
@@ -462,8 +478,20 @@ func (a *app) submit() {
 		a.message("finish or cancel the current run first")
 		return
 	}
+	if a.pendingCancel != nil {
+		a.message("wait for runtime cancellation to finish")
+		return
+	}
+	if a.operations.Active(sessionChangeOperation) {
+		a.message("wait for the current session change to finish")
+		return
+	}
+	a.operations.Cancel(pickerCatalogOperation)
+	a.sessionDialog.Dismiss()
+	a.modelDialog.Dismiss()
 	a.history.Add(message)
 	a.resetComposer()
+	a.operations.Cancel(completionOperation)
 	a.completion.Dismiss()
 	a.start(message)
 }

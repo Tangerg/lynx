@@ -12,6 +12,7 @@ import (
 	"github.com/Tangerg/oolong/core/grid"
 	"github.com/Tangerg/oolong/core/layout"
 
+	"github.com/Tangerg/lynx/app/cli/internal/attachment"
 	"github.com/Tangerg/lynx/app/cli/internal/client"
 	"github.com/Tangerg/lynx/app/cli/internal/extensions"
 )
@@ -45,18 +46,17 @@ func (a *app) executeCommand(command SlashCommand, argument string) {
 	a.status.note("running /" + command.Name)
 	request := CommandRequest{Argument: argument, Workspace: a.session.Workspace, SessionID: a.session.ID}
 	dispatcher := a.loop.Dispatcher()
-	ctx, cancel := context.WithCancel(a.ctx)
 	a.commandSeq++
 	sequence := a.commandSeq
-	a.commandCancels[sequence] = cancel
-	go func() {
-		defer cancel()
+	slot := operationSlot(fmt.Sprintf("command:%d", sequence))
+	a.commandOperations[sequence] = slot
+	started := a.operations.Go(slot, false, func(ctx context.Context, lease operationLease) {
 		result, err := executeCommandSafely(ctx, command, request)
-		_ = post(a.ctx, dispatcher, func() {
-			if _, active := a.commandCancels[sequence]; !active {
+		_ = post(ctx, dispatcher, func() {
+			if !a.operations.Current(lease) || a.closed {
 				return
 			}
-			delete(a.commandCancels, sequence)
+			delete(a.commandOperations, sequence)
 			if errors.Is(err, context.Canceled) {
 				return
 			}
@@ -70,13 +70,17 @@ func (a *app) executeCommand(command SlashCommand, argument string) {
 			}
 			a.message(message)
 		})
-	}()
+	})
+	if !started {
+		delete(a.commandOperations, sequence)
+		a.message("could not start /" + command.Name)
+	}
 }
 
 func (a *app) cancelPluginCommands() {
-	for sequence, cancel := range a.commandCancels {
-		cancel()
-		delete(a.commandCancels, sequence)
+	for sequence, slot := range a.commandOperations {
+		a.operations.Cancel(slot)
+		delete(a.commandOperations, sequence)
 	}
 }
 
@@ -113,12 +117,7 @@ func (a *app) runCommand(name, argument string) {
 }
 
 func (a *app) refreshCompletion() {
-	a.completionSeq++
-	sequence := a.completionSeq
-	if a.completionCancel != nil {
-		a.completionCancel()
-		a.completionCancel = nil
-	}
+	a.operations.Cancel(completionOperation)
 	lines := strings.Split(a.composer.Text(), "\n")
 	line, column := a.composer.Editor().Cursor()
 	if line < 0 || line >= len(lines) {
@@ -134,7 +133,7 @@ func (a *app) refreshCompletion() {
 		return
 	}
 	if token.Trigger.Prefix == "@" {
-		a.completeFiles(sequence, token)
+		a.completeFiles(token)
 		return
 	}
 	found := a.commands.Find(token.Query)
@@ -148,38 +147,32 @@ func (a *app) refreshCompletion() {
 	a.completion.Offer(token, candidates)
 }
 
-func (a *app) completeFiles(sequence uint64, token headless.Token) {
+func (a *app) completeFiles(token headless.Token) {
 	if a.attachments == nil {
 		a.completion.Dismiss()
 		return
 	}
-	ctx, cancel := context.WithCancel(a.ctx)
-	a.completionCancel = cancel
-	dispatcher := a.loop.Dispatcher()
-	go func() {
-		matches, err := a.attachments.Complete(ctx, token.Query, 50)
-		if errors.Is(err, context.Canceled) {
-			return
-		}
-		candidates := make([]headless.Candidate, 0, len(matches))
-		for _, match := range matches {
-			candidates = append(candidates, headless.Candidate{
-				Text: match.Path, Label: match.Path, Detail: match.Detail, Matched: match.Matched,
-			})
-		}
-		dispatcher.Post(func() {
-			if a.completionSeq != sequence || a.closed {
-				return
+	resolver := a.attachments
+	runOperation(a, completionOperation, true,
+		func(ctx context.Context) ([]headless.Candidate, error) {
+			matches, err := resolver.Complete(ctx, token.Query, 50)
+			candidates := make([]headless.Candidate, 0, len(matches))
+			for _, match := range matches {
+				candidates = append(candidates, headless.Candidate{
+					Text: match.Path, Label: match.Path, Detail: match.Detail, Matched: match.Matched,
+				})
 			}
-			a.completionCancel = nil
+			return candidates, err
+		},
+		func(candidates []headless.Candidate, err error) {
 			if err != nil {
 				a.completion.Dismiss()
 				a.message(err.Error())
 				return
 			}
 			a.completion.Offer(token, candidates)
-		})
-	}()
+		},
+	)
 }
 
 func (a *app) drawCompletion(frame headless.Frame) {
@@ -211,23 +204,33 @@ func (a *app) drawCompletion(frame headless.Frame) {
 func (a *app) listenForSearch() {
 	results := a.transcript.SearchResults()
 	dispatcher := a.loop.Dispatcher()
-	go func() {
-		for result := range results {
-			dispatcher.Post(func() {
-				if result.Err != nil {
-					a.message(fmt.Sprintf("search failed: %v", result.Err))
+	a.operations.Go(searchOperation, true, func(ctx context.Context, lease operationLease) {
+		for {
+			select {
+			case result, ok := <-results:
+				if !ok {
 					return
 				}
-				accepted, announce := a.transcript.AcceptSearch(result)
-				if !accepted {
+				if err := post(ctx, dispatcher, func() {
+					if !a.operations.Current(lease) || a.closed {
+						return
+					}
+					if result.Err != nil {
+						a.message(fmt.Sprintf("search failed: %v", result.Err))
+						return
+					}
+					accepted, announce := a.transcript.AcceptSearch(result)
+					if accepted && announce {
+						a.message(fmt.Sprintf("%d match(es) for %q", len(result.Matches), result.Query))
+					}
+				}); err != nil {
 					return
 				}
-				if announce {
-					a.message(fmt.Sprintf("%d match(es) for %q", len(result.Matches), result.Query))
-				}
-			})
+			case <-ctx.Done():
+				return
+			}
 		}
-	}()
+	})
 }
 
 // CommandHost implementation.
@@ -371,44 +374,32 @@ func (a *app) ShowSessions() {
 		return
 	}
 	a.message("loading sessions")
-	dispatcher := a.loop.Dispatcher()
-	go func() {
-		page, err := a.backend.ListSessions(a.ctx, client.SessionQuery{Limit: 100})
-		_ = post(a.ctx, dispatcher, func() {
+	runOperation(a, pickerCatalogOperation, true,
+		func(ctx context.Context) (client.SessionPage, error) {
+			return a.backend.ListSessions(ctx, client.SessionQuery{Limit: 100})
+		},
+		func(page client.SessionPage, err error) {
 			if err != nil {
-				a.fail(err)
+				a.message("could not load sessions: " + err.Error())
 				return
 			}
 			a.sessionPicker.Reset()
 			a.sessionPicker.SetItems(page.Items)
 			a.sessionDialog.Show()
 			a.status.note("choose a session")
-		})
-	}()
+		},
+	)
 }
 
 func (a *app) NewSession() {
-	if a.state.Busy() || a.following {
-		a.message("finish or cancel the current run before creating a session")
-		return
-	}
-	a.switchSeq++
-	sequence := a.switchSeq
-	a.message("creating session")
-	dispatcher := a.loop.Dispatcher()
-	go func() {
-		created, err := a.backend.CreateSession(a.ctx, client.NewSession{Workspace: a.session.Workspace})
-		_ = post(a.ctx, dispatcher, func() {
-			if sequence != a.switchSeq {
-				return
-			}
-			if err != nil {
-				a.fail(err)
-				return
-			}
-			a.installSnapshot(client.SessionSnapshot{Session: created})
-		})
-	}()
+	workspace := a.session.Workspace
+	runSessionChange(a, "creating session",
+		func(ctx context.Context) (client.SessionSnapshot, error) {
+			created, err := a.backend.CreateSession(ctx, client.NewSession{Workspace: workspace})
+			return client.SessionSnapshot{Session: created}, err
+		},
+		func(snapshot client.SessionSnapshot) error { return a.installSnapshot(snapshot) },
+	)
 }
 
 func (a *app) RenameSession(title string) {
@@ -421,52 +412,36 @@ func (a *app) RenameSession(title string) {
 		a.message("/rename needs a non-empty title")
 		return
 	}
-	session := a.session
-	dispatcher := a.loop.Dispatcher()
-	go func() {
-		latest, err := a.backend.GetSession(a.ctx, session.ID)
-		var updated client.Session
-		if err == nil {
-			updated, err = a.backend.UpdateSession(a.ctx, client.UpdateSession{SessionID: session.ID, Title: title, Revision: latest.Session.Revision})
-		}
-		_ = post(a.ctx, dispatcher, func() {
+	sessionID := a.session.ID
+	runSessionChange(a, "renaming session",
+		func(ctx context.Context) (client.Session, error) {
+			latest, err := a.backend.GetSession(ctx, sessionID)
 			if err != nil {
-				a.fail(err)
-				return
+				return client.Session{}, err
 			}
+			return a.backend.UpdateSession(ctx, client.UpdateSession{SessionID: sessionID, Title: title, Revision: latest.Session.Revision})
+		},
+		func(updated client.Session) error {
 			a.session = updated
 			a.loop.Session().SetTitle("lyra — " + displayTitle(updated))
 			a.message("renamed session to " + updated.Title)
-		})
-	}()
+			return nil
+		},
+	)
 }
 
 func (a *app) ForkSession(title string) {
-	if a.state.Busy() || a.following {
-		a.message("finish or cancel the current run before forking the session")
-		return
-	}
-	a.switchSeq++
-	sequence := a.switchSeq
 	source, at := a.session.ID, a.state.Cursor()
-	dispatcher := a.loop.Dispatcher()
-	go func() {
-		forked, err := a.backend.ForkSession(a.ctx, client.ForkSession{SessionID: source, At: at, Title: strings.TrimSpace(title)})
-		var snapshot client.SessionSnapshot
-		if err == nil {
-			snapshot, err = a.backend.GetSession(a.ctx, forked.ID)
-		}
-		_ = post(a.ctx, dispatcher, func() {
-			if sequence != a.switchSeq {
-				return
-			}
+	runSessionChange(a, "forking session",
+		func(ctx context.Context) (client.SessionSnapshot, error) {
+			forked, err := a.backend.ForkSession(ctx, client.ForkSession{SessionID: source, At: at, Title: strings.TrimSpace(title)})
 			if err != nil {
-				a.fail(err)
-				return
+				return client.SessionSnapshot{}, err
 			}
-			a.installSnapshot(snapshot)
-		})
-	}()
+			return a.backend.GetSession(ctx, forked.ID)
+		},
+		func(snapshot client.SessionSnapshot) error { return a.installSnapshot(snapshot) },
+	)
 }
 
 func (a *app) switchSession(id string) {
@@ -474,37 +449,92 @@ func (a *app) switchSession(id string) {
 		a.message("already in " + displayTitle(a.session))
 		return
 	}
-	a.switchSeq++
-	sequence := a.switchSeq
-	a.message("loading session")
-	dispatcher := a.loop.Dispatcher()
-	go func() {
-		snapshot, err := a.backend.GetSession(a.ctx, id)
-		_ = post(a.ctx, dispatcher, func() {
-			if sequence != a.switchSeq {
-				return
-			}
-			if err != nil {
-				a.fail(err)
-				return
-			}
-			a.installSnapshot(snapshot)
-		})
-	}()
+	runSessionChange(a, "loading session",
+		func(ctx context.Context) (client.SessionSnapshot, error) { return a.backend.GetSession(ctx, id) },
+		func(snapshot client.SessionSnapshot) error { return a.installSnapshot(snapshot) },
+	)
 }
 
-func (a *app) installSnapshot(snapshot client.SessionSnapshot) {
+func runSessionChange[T any](a *app, label string, work func(context.Context) (T, error), apply func(T) error) {
+	if a.state.Busy() || a.following {
+		a.message("finish or cancel the current run before changing sessions")
+		return
+	}
+	if a.pendingCancel != nil {
+		a.message("wait for runtime cancellation to finish")
+		return
+	}
+	if a.operations.Active(sessionChangeOperation) {
+		a.message("wait for the current session change to finish")
+		return
+	}
+	a.operations.Cancel(pickerCatalogOperation)
+	a.sessionDialog.Dismiss()
+	a.message(label)
+	if !runOperation(a, sessionChangeOperation, false, work, func(result T, err error) {
+		if err != nil {
+			a.message(label + " failed: " + err.Error())
+			return
+		}
+		if err := apply(result); err != nil {
+			a.message(label + " failed: " + err.Error())
+		}
+	}) {
+		a.message("wait for the current session change to finish")
+	}
+}
+
+func (a *app) installSnapshot(snapshot client.SessionSnapshot) error {
+	if err := snapshot.Validate(); err != nil {
+		return fmt.Errorf("install session: %w", err)
+	}
+	attachments, err := attachment.New(snapshot.Session.Workspace)
+	if err != nil {
+		return fmt.Errorf("session attachments: %w", err)
+	}
+	next := client.NewConversation()
+	if err := next.RestoreSnapshot(snapshot); err != nil {
+		return fmt.Errorf("install session: %w", err)
+	}
+	draft, err := a.composerMessage()
+	if err != nil {
+		return err
+	}
+	draft.Attachments = nil
+	nextTranscript := newConversationView(
+		a.transcript.theme, a.transcript.glyphs, a.transcript.wheel, a.syntax,
+		a.settings.UI.TranscriptRetain, a.transcript.details,
+	)
+	if err := presentSnapshot(nextTranscript, snapshot, a.registry); err != nil {
+		nextTranscript.Close()
+		return err
+	}
+
 	a.dropStream()
+	a.operations.Cancel(completionOperation)
+	a.completion.Dismiss()
+	previousTranscript := a.transcript
 	a.session = snapshot.Session
-	a.state = client.NewConversation()
-	a.transcript.Reset()
+	a.state = next
+	a.attachments = attachments
+	a.transcript = nextTranscript
+	a.restoreComposer(draft)
 	a.workflow.Reset()
 	a.status = statusView{theme: a.status.theme, glyphs: a.status.glyphs, doing: "ready", options: a.options}
+	a.body.Set(
+		headless.Item{Key: "transcript", Size: layout.Flex(1), Of: a.transcript},
+		headless.Item{Key: "plan", Size: layout.Measured(0, 8), Of: headless.Static{Of: &a.workflow}},
+		headless.Item{Key: "status", Size: layout.Fixed(1), Of: headless.Static{Of: &a.status}},
+		headless.Item{Key: "composer", Size: layout.Measured(1, 8), Of: &a.composer},
+	)
+	previousTranscript.Close()
+	a.listenForSearch()
 	a.loop.Session().SetTitle("lyra — " + displayTitle(snapshot.Session))
-	a.restore(snapshot)
+	a.restoreActivity(snapshot)
 	if a.state.Phase() == client.Idle {
 		a.message("session · " + displayTitle(snapshot.Session))
 	}
+	return nil
 }
 
 func agoShort(at time.Time) string {

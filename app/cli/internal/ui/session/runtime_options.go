@@ -1,6 +1,7 @@
 package session
 
 import (
+	"context"
 	"fmt"
 	"slices"
 	"strings"
@@ -56,24 +57,23 @@ func (a *app) ChooseModel() {
 		return
 	}
 	a.message("loading models")
-	dispatcher := a.loop.Dispatcher()
-	go func() {
-		models, err := a.backend.ListModels(a.ctx)
-		_ = post(a.ctx, dispatcher, func() {
+	runOperation(a, pickerCatalogOperation, true,
+		func(ctx context.Context) ([]client.Model, error) { return a.backend.ListModels(ctx) },
+		func(models []client.Model, err error) {
 			if err != nil {
-				a.fail(err)
+				a.message("could not load models: " + err.Error())
 				return
 			}
 			if err := client.ValidateModels(models); err != nil {
-				a.fail(fmt.Errorf("runtime models: %w", err))
+				a.message(fmt.Sprintf("runtime models: %v", err))
 				return
 			}
 			a.modelPicker.Reset()
 			a.modelPicker.SetItems(models)
 			a.modelDialog.Show()
 			a.status.note("choose a model")
-		})
-	}()
+		},
+	)
 }
 
 func (a *app) CycleMode() {
@@ -119,16 +119,15 @@ func (a *app) ShowRuntimeStatus() {
 }
 
 func (a *app) ShowApprovalRules() {
-	dispatcher := a.loop.Dispatcher()
-	go func() {
-		rules, err := a.backend.ListApprovalRules(a.ctx)
-		_ = post(a.ctx, dispatcher, func() {
+	runOperation(a, approvalCatalogOperation, true,
+		func(ctx context.Context) ([]client.ApprovalRule, error) { return a.backend.ListApprovalRules(ctx) },
+		func(rules []client.ApprovalRule, err error) {
 			if err != nil {
-				a.fail(err)
+				a.message("could not load approval rules: " + err.Error())
 				return
 			}
 			if err := client.ValidateApprovalRules(rules); err != nil {
-				a.fail(fmt.Errorf("runtime approval rules: %w", err))
+				a.message(fmt.Sprintf("runtime approval rules: %v", err))
 				return
 			}
 			if len(rules) == 0 {
@@ -140,8 +139,8 @@ func (a *app) ShowApprovalRules() {
 				lines = append(lines, fmt.Sprintf("%s  %s  %s  %s", rule.ID, rule.Scope, rule.Decision, rule.Rule))
 			}
 			a.transcript.Append(kit.Message{Theme: a.transcript.theme, Speaker: "approval rules", Body: strings.Join(lines, "\n")})
-		})
-	}()
+		},
+	)
 }
 
 func (a *app) syncOptions(message string) {
