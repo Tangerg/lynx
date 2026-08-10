@@ -58,7 +58,7 @@ func (a *app) ChooseModel() {
 	}
 	a.message("loading models")
 	runOperation(a, pickerCatalogOperation, true,
-		func(ctx context.Context) ([]client.Model, error) { return a.backend.ListModels(ctx) },
+		func(ctx context.Context) ([]client.Model, error) { return a.runtime.ListModels(ctx) },
 		func(models []client.Model, err error) {
 			if err != nil {
 				a.message("could not load models: " + err.Error())
@@ -120,7 +120,7 @@ func (a *app) ShowRuntimeStatus() {
 
 func (a *app) ShowApprovalRules() {
 	runOperation(a, approvalCatalogOperation, true,
-		func(ctx context.Context) ([]client.ApprovalRule, error) { return a.backend.ListApprovalRules(ctx) },
+		func(ctx context.Context) ([]client.ApprovalRule, error) { return a.runtime.ListApprovalRules(ctx) },
 		func(rules []client.ApprovalRule, err error) {
 			if err != nil {
 				a.message("could not load approval rules: " + err.Error())

@@ -42,7 +42,7 @@ func (a *app) start(message client.Message) {
 		Options:   a.options,
 	}
 	a.follow(func(ctx context.Context) (subscription, error) {
-		run, err := a.backend.StartRun(ctx, input)
+		run, err := a.runtime.StartRun(ctx, input)
 		if err != nil {
 			return subscription{}, err
 		}
@@ -106,7 +106,7 @@ func (f *streamFollower) openSubscription() (subscription, bool) {
 
 func (f *streamFollower) followOnce(runID string) bool {
 	before := f.after
-	stream, followErr := f.app.backend.FollowRun(f.ctx, client.FollowRun{RunID: runID, After: f.after})
+	stream, followErr := f.app.runtime.FollowRun(f.ctx, client.FollowRun{RunID: runID, After: f.after})
 	if followErr == nil && stream == nil {
 		followErr = errors.New("runtime returned a nil event stream")
 	}
@@ -371,7 +371,7 @@ func (a *app) cancelRuntime(target client.CancelRun) {
 		ctx, cancel := context.WithTimeout(ownerCtx, controlTimeout)
 		defer cancel()
 		policy := reconnect.New(a.settings.UI.ReconnectAttempts)
-		err := reconnect.Control(ctx, policy, func() error { return a.backend.CancelRun(ctx, target) })
+		err := reconnect.Control(ctx, policy, func() error { return a.runtime.CancelRun(ctx, target) })
 		_ = post(ctx, dispatcher, func() {
 			if a.operations.Current(lease) && !a.closed {
 				if err != nil {
@@ -388,7 +388,7 @@ func (a *app) cancelRuntimeNow(ownerCtx context.Context, target client.CancelRun
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ownerCtx), controlTimeout)
 	defer cancel()
 	policy := reconnect.New(a.settings.UI.ReconnectAttempts)
-	_ = reconnect.Control(ctx, policy, func() error { return a.backend.CancelRun(ctx, target) })
+	_ = reconnect.Control(ctx, policy, func() error { return a.runtime.CancelRun(ctx, target) })
 }
 
 func (a *app) dropStream() {

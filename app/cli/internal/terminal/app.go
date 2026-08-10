@@ -1,6 +1,3 @@
-// Package session is the interactive terminal adapter for one conversation.
-// It owns oolong state and translates user intent into the CLI's runtime port;
-// neither the domain model nor a runtime adapter imports this package.
 package terminal
 
 import (
@@ -17,7 +14,6 @@ import (
 	"github.com/Tangerg/oolong/core/keymap"
 	"github.com/Tangerg/oolong/core/layout"
 	"github.com/Tangerg/oolong/core/program"
-	"github.com/Tangerg/oolong/core/term"
 	"github.com/Tangerg/oolong/highlight"
 
 	"github.com/Tangerg/lynx/app/cli/internal/attachment"
@@ -41,153 +37,10 @@ const (
 	previousMatch   keymap.Action = settings.ActionPreviousMatch
 )
 
-// runtime is the product capability this adapter consumes. A future real
-// adapter and today's mock satisfy the same interface without either learning
-// about oolong.
-type runtime interface {
-	client.SessionCatalog
-	client.SessionReader
-	client.SessionWriter
-	client.Runs
-	client.Models
-	client.Approvals
-}
-
-// Config describes one interactive session.
-type Config struct {
-	Runtime       runtime
-	Session       string
-	Workspace     string
-	Prompt        string
-	Plugins       []extensions.Plugin
-	PluginSources []extensions.Source
-	Host          program.Host
-	Settings      settings.Settings
-}
-
-// Run opens and owns the terminal interface until the user leaves.
-func Run(ctx context.Context, cfg Config) (runErr error) {
-	prepared, err := prepareSession(ctx, cfg)
-	if err != nil {
-		return err
-	}
-	cfg = prepared.config
-
-	registry := new(extensions.Registry)
-	kernel, err := extensions.NewKernel(registry)
-	if err != nil {
-		return err
-	}
-	defer func() { runErr = errors.Join(runErr, kernel.Close()) }()
-	sources := make([]extensions.Source, 0, 1+len(cfg.PluginSources))
-	sources = append(sources, extensions.StaticSource{
-		Name: "terminal", Plugins: append([]extensions.Plugin{builtinPlugin()}, cfg.Plugins...),
-	})
-	sources = append(sources, cfg.PluginSources...)
-	discovered, err := extensions.Discover(ctx, sources...)
-	if err != nil {
-		return err
-	}
-	results, err := kernel.Activate(discovered.Plugins)
-	if err != nil {
-		return err
-	}
-	if err := requirePlugin(results, "terminal.core"); err != nil {
-		return err
-	}
-
-	var active *app
-	err = program.Run(ctx, program.Config{
-		Inline: func(loop *program.InlineRuntime) program.Component {
-			active = newApp(ctx, loop, cfg.Runtime, prepared.opened, registry, kernel, discovered.Issues, prepared.attachments, cfg.Prompt, cfg.Settings, prepared.keys)
-			return headless.NewRoot(active)
-		},
-		Terminal: term.Options{Probe: true, Mouse: cfg.Settings.UI.Mouse, Focus: true, Keyboard: term.KeyboardCompatible},
-		Host:     cfg.Host,
-	})
-	if active != nil {
-		active.Close(ctx)
-	}
-	return err
-}
-
-type preparedSession struct {
-	config      Config
-	opened      client.SessionSnapshot
-	attachments *attachment.Resolver
-	keys        *keymap.Map
-}
-
-func prepareSession(ctx context.Context, cfg Config) (preparedSession, error) {
-	if cfg.Runtime == nil {
-		return preparedSession{}, errors.New("session: a runtime is required")
-	}
-	if cfg.Settings.Keys == nil {
-		cfg.Settings = settings.Default()
-	}
-	if err := cfg.Settings.Validate(); err != nil {
-		return preparedSession{}, fmt.Errorf("session settings: %w", err)
-	}
-	keys, err := configuredKeys(cfg.Settings)
-	if err != nil {
-		return preparedSession{}, err
-	}
-	opened, err := open(ctx, cfg.Runtime, cfg.Session, cfg.Workspace)
-	if err != nil {
-		return preparedSession{}, err
-	}
-	attachments, err := attachment.New(opened.Session.Workspace)
-	if err != nil {
-		return preparedSession{}, fmt.Errorf("session attachments: %w", err)
-	}
-	return preparedSession{config: cfg, opened: opened, attachments: attachments, keys: keys}, nil
-}
-
-func requirePlugin(results []extensions.Result, id string) error {
-	for _, result := range results {
-		if result.PluginID != id {
-			continue
-		}
-		if result.Phase == extensions.PluginLoaded {
-			return nil
-		}
-		if result.Err != nil {
-			return fmt.Errorf("session: required plugin %q is %s: %w", id, result.Phase, result.Err)
-		}
-		return fmt.Errorf("session: required plugin %q is %s", id, result.Phase)
-	}
-	return fmt.Errorf("session: required plugin %q was not discovered", id)
-}
-
-func open(ctx context.Context, rt interface {
-	client.SessionReader
-	client.SessionWriter
-}, id, workspace string) (client.SessionSnapshot, error) {
-	if id == "" {
-		created, err := rt.CreateSession(ctx, client.NewSession{Workspace: workspace})
-		if err != nil {
-			return client.SessionSnapshot{}, err
-		}
-		snapshot := client.SessionSnapshot{Session: created}
-		if err := snapshot.Validate(); err != nil {
-			return client.SessionSnapshot{}, fmt.Errorf("open session: %w", err)
-		}
-		return snapshot, nil
-	}
-	snapshot, err := rt.GetSession(ctx, id)
-	if err != nil {
-		return client.SessionSnapshot{}, err
-	}
-	if err := snapshot.Validate(); err != nil {
-		return client.SessionSnapshot{}, fmt.Errorf("open session: %w", err)
-	}
-	return snapshot, nil
-}
-
 type app struct {
 	ctx          context.Context
 	loop         *program.InlineRuntime
-	backend      runtime
+	runtime      client.Runtime
 	session      client.Session
 	registry     *extensions.Registry
 	plugins      *extensions.Kernel
@@ -242,7 +95,20 @@ type app struct {
 	syntax        highlight.Style
 }
 
-func newApp(ctx context.Context, loop *program.InlineRuntime, backend runtime, opened client.SessionSnapshot, registry *extensions.Registry, plugins *extensions.Kernel, pluginIssues []extensions.SourceIssue, attachments *attachment.Resolver, prompt string, configured settings.Settings, keys *keymap.Map) *app {
+type appConfig struct {
+	Context       context.Context
+	Runtime       client.Runtime
+	Snapshot      client.SessionSnapshot
+	Registry      *extensions.Registry
+	Plugins       *extensions.Kernel
+	PluginIssues  []extensions.SourceIssue
+	Attachments   *attachment.Resolver
+	InitialPrompt string
+	Settings      settings.Settings
+	Keys          *keymap.Map
+}
+
+func newApp(loop *program.InlineRuntime, cfg appConfig) *app {
 	ground := loop.Environment().Ground()
 	theme := kit.Suited(ground)
 	glyphs := kit.GlyphsFor(os.LookupEnv)
@@ -251,17 +117,17 @@ func newApp(ctx context.Context, loop *program.InlineRuntime, backend runtime, o
 		syntax = "github"
 	}
 	a := &app{
-		ctx: ctx, loop: loop, backend: backend, session: opened.Session, registry: registry,
-		plugins: plugins, pluginIssues: pluginIssues,
+		ctx: cfg.Context, loop: loop, runtime: cfg.Runtime, session: cfg.Snapshot.Session, registry: cfg.Registry,
+		plugins: cfg.Plugins, pluginIssues: cfg.PluginIssues,
 		state:              client.NewConversation(),
-		operations:         newOperationOwner(ctx),
-		transcript:         newConversationView(theme, glyphs, loop.Environment().Wheel(), syntax, configured.UI.TranscriptRetain, configured.UI.ToolDetails),
+		operations:         newOperationOwner(cfg.Context),
+		transcript:         newConversationView(theme, glyphs, loop.Environment().Wheel(), syntax, cfg.Settings.UI.TranscriptRetain, cfg.Settings.UI.ToolDetails),
 		workflow:           newWorkflowView(theme, glyphs),
-		status:             statusView{theme: theme, glyphs: glyphs, doing: "ready", options: configured.RunOptions()},
-		settings:           configured.Clone(),
-		options:            configured.RunOptions(),
+		status:             statusView{theme: theme, glyphs: glyphs, doing: "ready", options: cfg.Settings.RunOptions()},
+		settings:           cfg.Settings.Clone(),
+		options:            cfg.Settings.RunOptions(),
 		syntax:             syntax,
-		attachments:        attachments,
+		attachments:        cfg.Attachments,
 		attachmentElements: make(map[uint64]client.Attachment),
 		commandOperations:  make(map[uint64]commandOperation),
 	}
@@ -270,10 +136,10 @@ func newApp(ctx context.Context, loop *program.InlineRuntime, backend runtime, o
 		Hints: []keymap.Action{sendPrompt, cancelRun, showSessions, cycleMode, quitApp}, MaxRows: 6,
 	}
 	a.composer.Editor().Placeholder = "Ask lyra to inspect, explain, or change something"
-	a.composer.Editor().Keys = keys
+	a.composer.Editor().Keys = cfg.Keys
 	a.composer.Editor().Clipboard = loop.Clipboard()
-	if prompt != "" {
-		a.composer.Editor().SetText(prompt)
+	if cfg.InitialPrompt != "" {
+		a.composer.Editor().SetText(cfg.InitialPrompt)
 	}
 
 	completionKeys := headless.DefaultCompletionKeys()
@@ -307,8 +173,8 @@ func newApp(ctx context.Context, loop *program.InlineRuntime, backend runtime, o
 	a.buildCommandPalette(theme, glyphs)
 	a.buildSearchDialog(theme, glyphs)
 	a.listenForSearch()
-	loop.Session().SetTitle("lyra — " + displayTitle(opened.Session))
-	a.restore(opened)
+	loop.Session().SetTitle("lyra — " + displayTitle(cfg.Snapshot.Session))
+	a.restore(cfg.Snapshot)
 	return a
 }
 

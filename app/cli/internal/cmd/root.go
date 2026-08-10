@@ -157,9 +157,9 @@ func interactive(cmd *cobra.Command, args []string, provider runtimeProvider, va
 
 	err = terminalui.Run(cmd.Context(), terminalui.Config{
 		Runtime:       rt,
-		Session:       sessionID,
+		SessionID:     sessionID,
 		Workspace:     ws,
-		Prompt:        strings.TrimSpace(strings.Join(args, " ")),
+		InitialPrompt: strings.TrimSpace(strings.Join(args, " ")),
 		Settings:      value,
 		PluginSources: []extensions.Source{sideload.New(value.Plugins.Directories)},
 	})

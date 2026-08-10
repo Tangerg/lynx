@@ -443,7 +443,7 @@ func (a *app) ShowSessions() {
 	a.message("loading sessions")
 	runOperation(a, pickerCatalogOperation, true,
 		func(ctx context.Context) (client.SessionPage, error) {
-			return a.backend.ListSessions(ctx, client.SessionQuery{Limit: 100})
+			return a.runtime.ListSessions(ctx, client.SessionQuery{Limit: 100})
 		},
 		func(page client.SessionPage, err error) {
 			if err != nil {
@@ -462,7 +462,7 @@ func (a *app) NewSession() {
 	workspace := a.session.Workspace
 	runSessionChange(a, "creating session",
 		func(ctx context.Context) (client.SessionSnapshot, error) {
-			created, err := a.backend.CreateSession(ctx, client.NewSession{Workspace: workspace})
+			created, err := a.runtime.CreateSession(ctx, client.NewSession{Workspace: workspace})
 			return client.SessionSnapshot{Session: created}, err
 		},
 		func(snapshot client.SessionSnapshot) error { return a.installSnapshot(snapshot) },
@@ -482,11 +482,11 @@ func (a *app) RenameSession(title string) {
 	sessionID := a.session.ID
 	runSessionChange(a, "renaming session",
 		func(ctx context.Context) (client.Session, error) {
-			latest, err := a.backend.GetSession(ctx, sessionID)
+			latest, err := a.runtime.GetSession(ctx, sessionID)
 			if err != nil {
 				return client.Session{}, err
 			}
-			return a.backend.UpdateSession(ctx, client.UpdateSession{SessionID: sessionID, Title: title, Revision: latest.Session.Revision})
+			return a.runtime.UpdateSession(ctx, client.UpdateSession{SessionID: sessionID, Title: title, Revision: latest.Session.Revision})
 		},
 		func(updated client.Session) error {
 			a.session = updated
@@ -501,11 +501,11 @@ func (a *app) ForkSession(title string) {
 	source, at := a.session.ID, a.state.Cursor()
 	runSessionChange(a, "forking session",
 		func(ctx context.Context) (client.SessionSnapshot, error) {
-			forked, err := a.backend.ForkSession(ctx, client.ForkSession{SessionID: source, At: at, Title: strings.TrimSpace(title)})
+			forked, err := a.runtime.ForkSession(ctx, client.ForkSession{SessionID: source, At: at, Title: strings.TrimSpace(title)})
 			if err != nil {
 				return client.SessionSnapshot{}, err
 			}
-			return a.backend.GetSession(ctx, forked.ID)
+			return a.runtime.GetSession(ctx, forked.ID)
 		},
 		func(snapshot client.SessionSnapshot) error { return a.installSnapshot(snapshot) },
 	)
@@ -517,7 +517,7 @@ func (a *app) switchSession(id string) {
 		return
 	}
 	runSessionChange(a, "loading session",
-		func(ctx context.Context) (client.SessionSnapshot, error) { return a.backend.GetSession(ctx, id) },
+		func(ctx context.Context) (client.SessionSnapshot, error) { return a.runtime.GetSession(ctx, id) },
 		func(snapshot client.SessionSnapshot) error { return a.installSnapshot(snapshot) },
 	)
 }

@@ -27,11 +27,11 @@ func runUI(t *testing.T, plugins ...extensions.Plugin) (*programtest.Host, func(
 	return runUIWith(t, backend, plugins...)
 }
 
-func runUIWith(t *testing.T, backend runtime, plugins ...extensions.Plugin) (*programtest.Host, func()) {
+func runUIWith(t *testing.T, backend client.Runtime, plugins ...extensions.Plugin) (*programtest.Host, func()) {
 	return runUIWithWorkspace(t, backend, "/tmp/lyra-cli-test", plugins...)
 }
 
-func runUIWithWorkspace(t *testing.T, backend runtime, workspace string, plugins ...extensions.Plugin) (*programtest.Host, func()) {
+func runUIWithWorkspace(t *testing.T, backend client.Runtime, workspace string, plugins ...extensions.Plugin) (*programtest.Host, func()) {
 	t.Helper()
 	host := programtest.New(t, 96, 28)
 	ctx, cancel := context.WithCancel(t.Context())
