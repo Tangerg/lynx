@@ -152,9 +152,20 @@ func open(ctx context.Context, rt interface {
 		if err != nil {
 			return client.SessionSnapshot{}, err
 		}
-		return client.SessionSnapshot{Session: created}, nil
+		snapshot := client.SessionSnapshot{Session: created}
+		if err := snapshot.Validate(); err != nil {
+			return client.SessionSnapshot{}, fmt.Errorf("open session: %w", err)
+		}
+		return snapshot, nil
 	}
-	return rt.GetSession(ctx, id)
+	snapshot, err := rt.GetSession(ctx, id)
+	if err != nil {
+		return client.SessionSnapshot{}, err
+	}
+	if err := snapshot.Validate(); err != nil {
+		return client.SessionSnapshot{}, fmt.Errorf("open session: %w", err)
+	}
+	return snapshot, nil
 }
 
 type app struct {
@@ -300,7 +311,7 @@ func (a *app) buildSessionPicker(theme kit.Theme, glyphs kit.Glyphs) {
 }
 
 func (a *app) restore(snapshot client.SessionSnapshot) {
-	if err := a.state.Restore(snapshot.Events); err != nil {
+	if err := a.state.RestoreSnapshot(snapshot); err != nil {
 		a.fail(err)
 		return
 	}

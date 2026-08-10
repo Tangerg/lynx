@@ -69,6 +69,9 @@ func TestSessionCatalogPagesSearchesAndSorts(t *testing.T) {
 func TestSessionLifecycleHonorsRevisionAndForkCursor(t *testing.T) {
 	runtime := New()
 	runtime.Instant = true
+	runtime.Script = func(string) Script {
+		return Script{Prelude: []Step{{Event: client.RunFinished{Outcome: client.Outcome{Status: client.OutcomeCompleted}}}}}
+	}
 	session := newSession(t, runtime)
 	updated, err := runtime.UpdateSession(t.Context(), client.UpdateSession{SessionID: session.ID, Title: "Renamed", Revision: session.Revision})
 	if err != nil || updated.Title != "Renamed" {
@@ -89,7 +92,7 @@ func TestSessionLifecycleHonorsRevisionAndForkCursor(t *testing.T) {
 	if len(events) < 3 {
 		t.Fatalf("run produced %d events", len(events))
 	}
-	fork, err := runtime.ForkSession(t.Context(), client.ForkSession{SessionID: session.ID, At: events[1].Cursor, Title: "Forked"})
+	fork, err := runtime.ForkSession(t.Context(), client.ForkSession{SessionID: session.ID, At: events[len(events)-1].Cursor, Title: "Forked"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -97,7 +100,7 @@ func TestSessionLifecycleHonorsRevisionAndForkCursor(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if client.Cursor(len(snapshot.Events)) != events[1].Cursor || snapshot.Session.Title != "Forked" {
+	if client.Cursor(len(snapshot.Events)) != events[len(events)-1].Cursor || snapshot.Session.Title != "Forked" {
 		t.Fatalf("fork snapshot = %+v", snapshot)
 	}
 	for _, envelope := range snapshot.Events {

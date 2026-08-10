@@ -64,6 +64,10 @@ func (a *app) ChooseModel() {
 				a.fail(err)
 				return
 			}
+			if err := client.ValidateModels(models); err != nil {
+				a.fail(fmt.Errorf("runtime models: %w", err))
+				return
+			}
 			a.modelPicker.Reset()
 			a.modelPicker.SetItems(models)
 			a.modelDialog.Show()
@@ -121,6 +125,10 @@ func (a *app) ShowApprovalRules() {
 		_ = post(a.ctx, dispatcher, func() {
 			if err != nil {
 				a.fail(err)
+				return
+			}
+			if err := client.ValidateApprovalRules(rules); err != nil {
+				a.fail(fmt.Errorf("runtime approval rules: %w", err))
 				return
 			}
 			if len(rules) == 0 {

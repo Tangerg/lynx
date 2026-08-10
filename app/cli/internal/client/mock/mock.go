@@ -9,7 +9,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-	"unicode"
 
 	"github.com/Tangerg/lynx/app/cli/internal/client"
 )
@@ -158,6 +157,9 @@ func (r *Runtime) GetSession(_ context.Context, id string) (client.SessionSnapsh
 		run := projectRun(active)
 		snapshot.Active = &run
 	}
+	if err := snapshot.Validate(); err != nil {
+		return client.SessionSnapshot{}, fmt.Errorf("mock: invalid session snapshot: %w", err)
+	}
 	return snapshot, nil
 }
 
@@ -214,6 +216,10 @@ func (r *Runtime) ForkSession(_ context.Context, in client.ForkSession) (client.
 	}
 	if at > client.Cursor(len(source.events)) {
 		return client.Session{}, fmt.Errorf("mock: fork cursor %d is beyond session cursor %d", at, len(source.events))
+	}
+	prefix := client.SessionSnapshot{Session: source.meta, Events: cloneEnvelopes(source.events[:at]), Cursor: at}
+	if err := prefix.Validate(); err != nil {
+		return client.Session{}, fmt.Errorf("mock: fork cursor %d is not a settled run boundary: %w", at, err)
 	}
 	r.next++
 	id := fmt.Sprintf("ses_mock_%d", r.next)
@@ -286,21 +292,10 @@ func (r *Runtime) DeleteApprovalRule(_ context.Context, id string) error {
 }
 
 func (r *Runtime) StartRun(_ context.Context, in client.StartRun) (client.Run, error) {
-	if err := validateRequestID(in.RequestID); err != nil {
-		return client.Run{}, err
+	if err := in.Validate(); err != nil {
+		return client.Run{}, fmt.Errorf("mock: %w", err)
 	}
 	prompt := strings.TrimSpace(in.Message.Text)
-	if prompt == "" && len(in.Message.Attachments) == 0 {
-		return client.Run{}, errors.New("mock: prompt and attachments are empty")
-	}
-	if len(in.Message.Attachments) > 16 {
-		return client.Run{}, errors.New("mock: a message accepts at most 16 attachments")
-	}
-	for i, attachment := range in.Message.Attachments {
-		if err := attachment.Validate(); err != nil {
-			return client.Run{}, fmt.Errorf("mock: attachment %d: %w", i+1, err)
-		}
-	}
 	attachments := slices.Clone(in.Message.Attachments)
 	build := r.Script
 	if build == nil {
@@ -353,6 +348,9 @@ func (r *Runtime) StartRun(_ context.Context, in client.StartRun) (client.Run, e
 }
 
 func (r *Runtime) FollowRun(ctx context.Context, in client.FollowRun) (client.Stream, error) {
+	if err := in.Validate(); err != nil {
+		return nil, fmt.Errorf("mock: %w", err)
+	}
 	r.mu.Lock()
 	run, ok := r.runs[in.RunID]
 	if !ok {
@@ -460,8 +458,8 @@ func (r *Runtime) takeFaultLocked() (SubscriptionFault, error) {
 }
 
 func (r *Runtime) ResumeRun(_ context.Context, in client.ResumeRun) error {
-	if in.Answer == nil {
-		return errors.New("mock: interrupt answer is required")
+	if err := in.Validate(); err != nil {
+		return fmt.Errorf("mock: %w", err)
 	}
 	r.mu.Lock()
 	run, ok := r.runs[in.RunID]
@@ -470,24 +468,24 @@ func (r *Runtime) ResumeRun(_ context.Context, in client.ResumeRun) error {
 		return fmt.Errorf("%w: %s", client.ErrRunNotFound, in.RunID)
 	}
 	if answered, exists := run.answers[in.InterruptID]; exists {
-		if sameAnswer(answered, in.Answer) {
+		if client.EqualAnswers(answered, in.Answer) {
 			r.mu.Unlock()
 			return nil
 		}
 		r.mu.Unlock()
 		return fmt.Errorf("%w: interrupt %s", client.ErrRequestConflict, in.InterruptID)
 	}
-	if run.status != client.RunWaiting || interactionID(run.interaction) != in.InterruptID {
+	if run.status != client.RunWaiting || client.InteractionID(run.interaction) != in.InterruptID {
 		r.mu.Unlock()
 		return fmt.Errorf("%w: %s", client.ErrInterruptNotOpen, in.InterruptID)
 	}
-	if err := validateAnswer(run.interaction, in.Answer); err != nil {
+	if err := client.ValidateAnswer(run.interaction, in.Answer); err != nil {
 		r.mu.Unlock()
-		return err
+		return fmt.Errorf("mock: %w", err)
 	}
-	run.answers[in.InterruptID] = cloneAnswer(in.Answer)
+	run.answers[in.InterruptID] = client.CloneAnswer(in.Answer)
 	if approval, ok := run.interaction.(client.Approval); ok {
-		if answer, ok := in.Answer.(client.ApprovalAnswer); ok && answer.Remember != client.RememberNone {
+		if answer, ok := in.Answer.(client.ApprovalAnswer); ok && answer.Remember != "" && answer.Remember != client.RememberNone {
 			r.rememberApprovalLocked(run, approval, answer)
 		}
 	}
@@ -550,8 +548,8 @@ func (r *Runtime) play(run *runState, steps []Step, interrupt bool) {
 		}
 	}
 	run.status = client.RunWaiting
-	run.interaction = cloneInteraction(run.script.Interaction)
-	r.emitLocked(run, client.RunInterrupted{Interaction: cloneInteraction(run.interaction)})
+	run.interaction = client.CloneInteraction(run.script.Interaction)
+	r.emitLocked(run, client.RunInterrupted{Interaction: client.CloneInteraction(run.interaction)})
 	r.mu.Unlock()
 }
 
@@ -659,16 +657,6 @@ func projectRun(run *runState) client.Run {
 	return client.Run{ID: run.id, SessionID: run.sessionID, Status: run.status, StartedAfter: run.startedAfter}
 }
 
-func validateRequestID(id string) error {
-	if id == "" {
-		return nil
-	}
-	if len(id) > 128 || strings.IndexFunc(id, unicode.IsSpace) >= 0 {
-		return fmt.Errorf("mock: request id %q is invalid", id)
-	}
-	return nil
-}
-
 func requestKey(sessionID, requestID string) string {
 	return sessionID + "\x00" + requestID
 }
@@ -685,111 +673,6 @@ func sameStart(a, b client.StartRun) bool {
 		a.Message.Text == b.Message.Text &&
 		a.Options == b.Options &&
 		slices.Equal(a.Message.Attachments, b.Message.Attachments)
-}
-
-func interactionID(interaction client.Interaction) string {
-	switch item := interaction.(type) {
-	case client.Approval:
-		return item.InterruptID
-	case client.Question:
-		return item.InterruptID
-	default:
-		return ""
-	}
-}
-
-func validateAnswer(interaction client.Interaction, answer client.Answer) error {
-	switch question := interaction.(type) {
-	case client.Approval:
-		approval, ok := answer.(client.ApprovalAnswer)
-		if !ok || (approval.Decision != client.ApprovalAllow && approval.Decision != client.ApprovalDeny) {
-			return errors.New("mock: approval requires an allow or deny answer")
-		}
-		return nil
-	case client.Question:
-		provided, ok := answer.(client.QuestionAnswer)
-		if !ok {
-			return errors.New("mock: question requires field answers")
-		}
-		if provided.Canceled {
-			return nil
-		}
-		fields := make(map[string]client.QuestionField, len(question.Fields))
-		for _, field := range question.Fields {
-			fields[field.ID] = field
-		}
-		for id := range provided.Values {
-			if _, ok := fields[id]; !ok {
-				return fmt.Errorf("mock: answer contains unknown question field %q", id)
-			}
-		}
-		for _, field := range question.Fields {
-			values := provided.Values[field.ID]
-			if field.Required && (len(values) == 0 || (field.Kind != client.QuestionMulti && strings.TrimSpace(values[0]) == "")) {
-				return fmt.Errorf("mock: question field %q is required", field.ID)
-			}
-			if field.Kind == client.QuestionSingle && len(values) > 1 {
-				return fmt.Errorf("mock: question field %q accepts one value", field.ID)
-			}
-			if field.Kind == client.QuestionBool && len(values) > 0 && values[0] != "true" && values[0] != "false" {
-				return fmt.Errorf("mock: question field %q requires true or false", field.ID)
-			}
-			if field.Kind == client.QuestionSingle || field.Kind == client.QuestionMulti {
-				allowed := make([]string, 0, len(field.Options))
-				for _, option := range field.Options {
-					allowed = append(allowed, option.Value)
-				}
-				for _, value := range values {
-					if !slices.Contains(allowed, value) {
-						return fmt.Errorf("mock: question field %q does not offer %q", field.ID, value)
-					}
-				}
-			}
-		}
-		return nil
-	default:
-		return errors.New("mock: unsupported interaction")
-	}
-}
-
-func cloneAnswer(answer client.Answer) client.Answer {
-	switch item := answer.(type) {
-	case client.ApprovalAnswer:
-		return item
-	case client.QuestionAnswer:
-		cloned := client.QuestionAnswer{Canceled: item.Canceled}
-		if item.Values != nil {
-			cloned.Values = make(map[string][]string, len(item.Values))
-			for id, values := range item.Values {
-				cloned.Values[id] = slices.Clone(values)
-			}
-		}
-		return cloned
-	default:
-		return nil
-	}
-}
-
-func sameAnswer(a, b client.Answer) bool {
-	switch first := a.(type) {
-	case client.ApprovalAnswer:
-		second, ok := b.(client.ApprovalAnswer)
-		return ok && first == second
-	case client.QuestionAnswer:
-		second, ok := b.(client.QuestionAnswer)
-		if !ok || first.Canceled != second.Canceled || len(first.Values) != len(second.Values) {
-			return false
-		}
-		for id, values := range first.Values {
-			other, exists := second.Values[id]
-			if !exists || !slices.Equal(values, other) {
-				return false
-			}
-		}
-		return true
-	default:
-		return false
-	}
 }
 
 func cloneEnvelopes(events []client.Envelope) []client.Envelope {
@@ -823,7 +706,7 @@ func cloneEvent(event client.Event) client.Event {
 		item.Items = slices.Clone(item.Items)
 		return item
 	case client.RunInterrupted:
-		item.Interaction = cloneInteraction(item.Interaction)
+		item.Interaction = client.CloneInteraction(item.Interaction)
 		return item
 	case client.RunFinished:
 		return item
@@ -843,23 +726,6 @@ func cloneBlock(block client.Block) client.Block {
 		block.Tool = &tool
 	}
 	return block
-}
-
-func cloneInteraction(interaction client.Interaction) client.Interaction {
-	switch item := interaction.(type) {
-	case client.Approval:
-		return item
-	case client.Question:
-		cloned := item
-		cloned.Fields = make([]client.QuestionField, len(item.Fields))
-		for i, field := range item.Fields {
-			cloned.Fields[i] = field
-			cloned.Fields[i].Options = slices.Clone(field.Options)
-		}
-		return cloned
-	default:
-		return nil
-	}
 }
 
 func (r *Runtime) seedHistory() {

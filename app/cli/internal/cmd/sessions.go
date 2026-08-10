@@ -90,6 +90,9 @@ func newSessionsShowCommand(resolve backend) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			if err := snapshot.Validate(); err != nil {
+				return fmt.Errorf("show session: %w", err)
+			}
 			var output renderer = render.NewText(cmd.OutOrStdout())
 			if asJSON {
 				output = render.NewJSON(cmd.OutOrStdout())
@@ -157,7 +160,7 @@ func newSessionsForkCommand(resolve backend) *cobra.Command {
 			return err
 		},
 	}
-	cmd.Flags().Uint64Var(&at, "at", 0, "Fork through this event cursor (default: latest)")
+	cmd.Flags().Uint64Var(&at, "at", 0, "Fork through a settled run cursor (default: latest)")
 	cmd.Flags().StringVar(&title, "title", "", "Title for the fork")
 	cmd.ValidArgsFunction = completeSessionIDs(resolve)
 	return cmd

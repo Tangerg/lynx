@@ -28,7 +28,6 @@ import (
 const (
 	DefaultMaxBytes = 20 << 20
 	DefaultLimit    = 50
-	MaxAttachments  = 16
 	maxVisited      = 100_000
 )
 

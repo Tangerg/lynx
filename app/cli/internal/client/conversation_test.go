@@ -9,7 +9,7 @@ import (
 func TestConversationFoldsACompleteRun(t *testing.T) {
 	c := NewConversation()
 	events := []Event{
-		RunStarted{RunID: "run_1", SessionID: "session_1"},
+		RunStarted{RunID: "run", SessionID: "session"},
 		BlockStarted{Block: Block{ID: "answer", Kind: BlockAssistant}},
 		BlockDelta{BlockID: "answer", Text: "hello "},
 		BlockCompleted{Block: Block{ID: "answer", Kind: BlockAssistant, Text: "hello world"}},
@@ -40,7 +40,7 @@ func TestConversationFoldsACompleteRun(t *testing.T) {
 
 func TestConversationDeduplicatesReplayAndRejectsConflict(t *testing.T) {
 	c := NewConversation()
-	original := testEnvelope(1, RunStarted{RunID: "run_1"})
+	original := testEnvelope(1, RunStarted{RunID: "run", SessionID: "session"})
 	if _, err := c.ApplyEnvelope(original); err != nil {
 		t.Fatal(err)
 	}
@@ -58,29 +58,12 @@ func TestConversationDeduplicatesReplayAndRejectsConflict(t *testing.T) {
 	}
 }
 
-func TestConversationRestoresAtomically(t *testing.T) {
-	c := NewConversation()
-	if _, err := c.ApplyEnvelope(testEnvelope(1, RunStarted{RunID: "kept"})); err != nil {
-		t.Fatal(err)
-	}
-	bad := []Envelope{
-		testEnvelope(1, RunStarted{RunID: "replacement"}),
-		testEnvelope(3, RunFinished{}),
-	}
-	if err := c.Restore(bad); !errors.Is(err, ErrEventGap) {
-		t.Fatalf("Restore error = %v, want ErrEventGap", err)
-	}
-	if c.RunID() != "kept" || c.Cursor() != 1 {
-		t.Fatalf("failed restore mutated aggregate: run=%q cursor=%d", c.RunID(), c.Cursor())
-	}
-}
-
 func TestConversationInterruptAndResumeAreExplicit(t *testing.T) {
 	c := NewConversation()
 	approval := Approval{InterruptID: "approval_1", Title: "edit file"}
 	cursor := Cursor(1)
 	for _, event := range []Event{
-		RunStarted{RunID: "run_1"},
+		RunStarted{RunID: "run", SessionID: "session"},
 		RunInterrupted{Interaction: approval},
 		RunResumed{InterruptID: approval.InterruptID},
 		RunFinished{Outcome: Outcome{Status: OutcomeCompleted}},
@@ -99,7 +82,10 @@ func TestConversationClonesNestedState(t *testing.T) {
 	c := NewConversation()
 	exit := 0
 	tool := &ToolCall{Kind: ToolUnknown, Name: "shell", Status: ToolOK, Output: "safe", ExitCode: &exit}
-	if err := c.Apply(BlockCompleted{Block: Block{ID: "tool", Kind: BlockTool, Tool: tool}}); err != nil {
+	if err := c.apply(RunStarted{RunID: "run", SessionID: "session"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.apply(BlockCompleted{Block: Block{ID: "tool", Kind: BlockTool, Tool: tool}}); err != nil {
 		t.Fatal(err)
 	}
 	tool.Output = "mutated"
@@ -113,11 +99,8 @@ func TestConversationClonesNestedState(t *testing.T) {
 		t.Fatalf("aggregate leaked exit code pointer: %d", got)
 	}
 
-	question := Question{InterruptID: "q", Fields: []QuestionField{{ID: "choice", Options: []QuestionOption{{Value: "a"}}}}}
-	if err := c.Apply(RunStarted{RunID: "run"}); err != nil {
-		t.Fatal(err)
-	}
-	if err := c.Apply(RunInterrupted{Interaction: question}); err != nil {
+	question := Question{InterruptID: "q", Title: "Choose", Fields: []QuestionField{{ID: "choice", Label: "Choice", Kind: QuestionSingle, Options: []QuestionOption{{Value: "a"}}}}}
+	if err := c.apply(RunInterrupted{Interaction: question}); err != nil {
 		t.Fatal(err)
 	}
 	cloned := c.Interaction().(Question)
@@ -129,16 +112,27 @@ func TestConversationClonesNestedState(t *testing.T) {
 
 func TestConversationRejectsImpossibleTransitions(t *testing.T) {
 	c := NewConversation()
-	if err := c.Apply(BlockDelta{BlockID: "missing", Text: "x"}); !errors.Is(err, ErrUnknownBlock) {
-		t.Fatalf("unknown delta error = %v", err)
-	}
-	if err := c.Apply(RunInterrupted{Interaction: Approval{InterruptID: "a"}}); !errors.Is(err, ErrInvalidTransition) {
-		t.Fatalf("early interrupt error = %v", err)
-	}
-	if err := c.Apply(RunStarted{RunID: "first"}); err != nil {
+	if err := c.apply(RunStarted{RunID: "run", SessionID: "session"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := c.Apply(RunStarted{RunID: "second"}); !errors.Is(err, ErrInvalidTransition) {
+	if err := c.apply(BlockDelta{BlockID: "missing", Text: "x"}); !errors.Is(err, ErrUnknownBlock) {
+		t.Fatalf("unknown delta error = %v", err)
+	}
+	if err := c.apply(BlockCompleted{Block: Block{ID: "done", Kind: BlockAssistant, Text: "done"}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.apply(BlockDelta{BlockID: "done", Text: "late"}); !errors.Is(err, ErrInvalidTransition) {
+		t.Fatalf("late delta error = %v", err)
+	}
+	idle := NewConversation()
+	if err := idle.apply(RunInterrupted{Interaction: Approval{InterruptID: "a", Title: "Approve"}}); !errors.Is(err, ErrInvalidTransition) {
+		t.Fatalf("early interrupt error = %v", err)
+	}
+	overlap := NewConversation()
+	if err := overlap.apply(RunStarted{RunID: "first", SessionID: "session"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := overlap.apply(RunStarted{RunID: "second", SessionID: "session"}); !errors.Is(err, ErrInvalidTransition) {
 		t.Fatalf("overlapping run error = %v", err)
 	}
 }
@@ -146,7 +140,7 @@ func TestConversationRejectsImpossibleTransitions(t *testing.T) {
 func TestClearPresentationPreservesReplayCursor(t *testing.T) {
 	c := NewConversation()
 	cursor := Cursor(1)
-	for _, event := range []Event{RunStarted{RunID: "run"}, BlockCompleted{Block: Block{ID: "x", Kind: BlockUser, Text: "x"}}, RunFinished{}} {
+	for _, event := range []Event{RunStarted{RunID: "run", SessionID: "session"}, BlockCompleted{Block: Block{ID: "x", Kind: BlockUser, Text: "x"}}, RunFinished{Outcome: Outcome{Status: OutcomeCompleted}}} {
 		if _, err := c.ApplyEnvelope(testEnvelope(cursor, event)); err != nil {
 			t.Fatal(err)
 		}
@@ -156,11 +150,15 @@ func TestClearPresentationPreservesReplayCursor(t *testing.T) {
 	if len(c.Blocks()) != 0 || c.Cursor() != 3 {
 		t.Fatalf("clear left blocks=%d cursor=%d", len(c.Blocks()), c.Cursor())
 	}
-	if _, err := c.ApplyEnvelope(testEnvelope(4, RunStarted{RunID: "next"})); err != nil {
+	if _, err := c.ApplyEnvelope(testEnvelope(4, RunStarted{RunID: "next", SessionID: "session"})); err != nil {
 		t.Fatalf("next event after clear: %v", err)
 	}
 }
 
 func testEnvelope(cursor Cursor, event Event) Envelope {
-	return Envelope{ID: "event_" + strconv.FormatUint(uint64(cursor), 10), Cursor: cursor, RunID: "run", SessionID: "session", Event: event}
+	runID := "run"
+	if started, ok := event.(RunStarted); ok {
+		runID = started.RunID
+	}
+	return Envelope{ID: "event_" + strconv.FormatUint(uint64(cursor), 10), Cursor: cursor, RunID: runID, SessionID: "session", Event: event}
 }

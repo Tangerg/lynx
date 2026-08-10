@@ -6,6 +6,8 @@ import (
 	"text/tabwriter"
 
 	"github.com/spf13/cobra"
+
+	"github.com/Tangerg/lynx/app/cli/internal/client"
 )
 
 func newApprovalsCommand(resolve backend) *cobra.Command {
@@ -24,6 +26,9 @@ func newApprovalsCommand(resolve backend) *cobra.Command {
 			rules, err := runtime.ListApprovalRules(cmd.Context())
 			if err != nil {
 				return err
+			}
+			if err := client.ValidateApprovalRules(rules); err != nil {
+				return fmt.Errorf("list approval rules: %w", err)
 			}
 			writer := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 0, 2, ' ', 0)
 			for _, rule := range rules {

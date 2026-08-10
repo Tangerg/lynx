@@ -25,7 +25,10 @@ func (a *app) start(message client.Message) {
 		a.fail(err)
 		return
 	}
-	a.state.Starting()
+	if err := a.state.Starting(); err != nil {
+		a.fail(err)
+		return
+	}
 	a.workflow.Reset()
 	a.status.active("starting run")
 	a.started = time.Now()
@@ -276,7 +279,10 @@ func (a *app) cancel() {
 	if runID == "" {
 		a.dropStream()
 		a.following = false
-		_ = a.state.Apply(client.RunFinished{Outcome: client.Outcome{Status: client.OutcomeCanceled}})
+		if err := a.state.CancelStarting(); err != nil {
+			a.fail(err)
+			return
+		}
 		a.status.settled(a.state.Outcome(), a.state.Usage())
 		a.syncAnimation()
 		return

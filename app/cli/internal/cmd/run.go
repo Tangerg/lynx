@@ -129,8 +129,8 @@ func resolveAttachments(ctx context.Context, workspace string, paths []string) (
 		if _, duplicate := seen[item.Path]; duplicate {
 			continue
 		}
-		if len(out) >= attachment.MaxAttachments {
-			return nil, fmt.Errorf("at most %d unique attachments are allowed", attachment.MaxAttachments)
+		if len(out) >= client.MaxMessageAttachments {
+			return nil, fmt.Errorf("at most %d unique attachments are allowed", client.MaxMessageAttachments)
 		}
 		seen[item.Path] = struct{}{}
 		out = append(out, item)

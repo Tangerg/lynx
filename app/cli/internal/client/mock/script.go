@@ -27,7 +27,7 @@ type Script struct {
 	Continue    func(client.Answer) []Step
 }
 
-func (s Script) interrupts() bool { return interactionID(s.Interaction) != "" }
+func (s Script) interrupts() bool { return client.InteractionID(s.Interaction) != "" }
 
 func (s Script) continueWith(answer client.Answer) []Step {
 	if s.Continue == nil {

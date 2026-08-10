@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 )
 
 var (
@@ -37,16 +38,18 @@ type Conversation struct {
 	interrupt Interaction
 	outcome   Outcome
 
-	phase    Phase
-	runID    string
-	index    map[string]int
-	sequence *EventSequence
-	revision uint64
+	phase     Phase
+	runID     string
+	sessionID string
+	index     map[string]int
+	open      map[string]bool
+	sequence  *EventSequence
+	revision  uint64
 }
 
 // NewConversation returns an empty aggregate.
 func NewConversation() *Conversation {
-	return &Conversation{index: make(map[string]int), sequence: NewEventSequence(0)}
+	return &Conversation{index: make(map[string]int), open: make(map[string]bool), sequence: NewEventSequence(0)}
 }
 
 func (c *Conversation) Blocks() []Block {
@@ -58,11 +61,10 @@ func (c *Conversation) Blocks() []Block {
 }
 func (c *Conversation) Plan() []PlanItem         { return slices.Clone(c.plan) }
 func (c *Conversation) Usage() Usage             { return c.usage }
-func (c *Conversation) Interaction() Interaction { return cloneInteraction(c.interrupt) }
+func (c *Conversation) Interaction() Interaction { return CloneInteraction(c.interrupt) }
 func (c *Conversation) Outcome() Outcome         { return c.outcome }
 func (c *Conversation) Phase() Phase             { return c.phase }
 func (c *Conversation) RunID() string            { return c.runID }
-func (c *Conversation) Revision() uint64         { return c.revision }
 func (c *Conversation) Cursor() Cursor {
 	if c.sequence == nil {
 		return 0
@@ -78,39 +80,48 @@ func (c *Conversation) ApplyEnvelope(envelope Envelope) (ApplyResult, error) {
 	if envelope.Event == nil {
 		return ApplyResult{}, errors.New("conversation: envelope has no event")
 	}
+	if strings.TrimSpace(envelope.RunID) == "" {
+		return ApplyResult{}, errors.New("conversation: envelope has no run id")
+	}
+	if strings.TrimSpace(envelope.SessionID) == "" {
+		return ApplyResult{}, errors.New("conversation: envelope has no session id")
+	}
 	if c.sequence == nil {
 		c.sequence = NewEventSequence(0)
 	}
-	return c.sequence.Accept(envelope, func() error { return c.Apply(envelope.Event) })
-}
-
-// Restore atomically rebuilds a conversation from an authoritative snapshot.
-func (c *Conversation) Restore(events []Envelope) error {
-	next := NewConversation()
-	for _, envelope := range events {
-		if _, err := next.ApplyEnvelope(envelope); err != nil {
-			return fmt.Errorf("restore conversation at cursor %d: %w", envelope.Cursor, err)
+	return c.sequence.Accept(envelope, func() error {
+		if c.sessionID != "" && envelope.SessionID != c.sessionID {
+			return fmt.Errorf("conversation: event session %s does not match %s", envelope.SessionID, c.sessionID)
 		}
-	}
-	*c = *next
-	return nil
+		if started, ok := envelope.Event.(RunStarted); ok {
+			if started.RunID != envelope.RunID || started.SessionID != envelope.SessionID {
+				return errors.New("conversation: run-start identity does not match its envelope")
+			}
+		} else if c.runID == "" || envelope.RunID != c.runID {
+			return fmt.Errorf("conversation: event run %s does not match active run %s", envelope.RunID, c.runID)
+		}
+		if err := c.apply(envelope.Event); err != nil {
+			return err
+		}
+		c.sessionID = envelope.SessionID
+		return nil
+	})
 }
 
-// Apply folds one event and rejects any transition that would hide a broken
-// event stream.
-func (c *Conversation) Apply(event Event) error {
-	if event == nil {
-		return errors.New("conversation: nil event")
+// apply folds one event after ApplyEnvelope has checked its replay identity.
+func (c *Conversation) apply(event Event) error {
+	if err := validateEvent(event); err != nil {
+		return fmt.Errorf("conversation: %w", err)
 	}
 	if c.index == nil {
 		c.index = make(map[string]int)
 	}
+	if c.open == nil {
+		c.open = make(map[string]bool)
+	}
 	changed := true
 	switch e := event.(type) {
 	case RunStarted:
-		if e.RunID == "" {
-			return errors.New("conversation: run started without an id")
-		}
 		if c.phase == Waiting || (c.phase == Running && c.runID != "") {
 			return fmt.Errorf("%w: cannot start %s while %s is active", ErrInvalidTransition, e.RunID, c.runID)
 		}
@@ -120,47 +131,67 @@ func (c *Conversation) Apply(event Event) error {
 		c.usage = Usage{}
 		c.outcome = Outcome{}
 		c.interrupt = nil
+		c.index = make(map[string]int)
+		c.open = make(map[string]bool)
 	case RunResumed:
 		if c.phase != Waiting || c.runID == "" {
 			return fmt.Errorf("%w: cannot resume a run that is not waiting", ErrInvalidTransition)
 		}
-		if e.InterruptID == "" || interactionID(c.interrupt) != e.InterruptID {
+		if InteractionID(c.interrupt) != e.InterruptID {
 			return fmt.Errorf("%w: interrupt %s is not active", ErrInvalidTransition, e.InterruptID)
 		}
 		c.phase = Running
 		c.interrupt = nil
 	case BlockStarted:
+		if err := c.requireRunning("start a block"); err != nil {
+			return err
+		}
 		if err := c.put(e.Block, false); err != nil {
 			return err
 		}
 	case BlockDelta:
+		if err := c.requireRunning("append a block delta"); err != nil {
+			return err
+		}
 		at, ok := c.index[e.BlockID]
 		if !ok {
 			return fmt.Errorf("%w: %s", ErrUnknownBlock, e.BlockID)
 		}
+		if !c.open[e.BlockID] {
+			return fmt.Errorf("%w: block %s is already complete", ErrInvalidTransition, e.BlockID)
+		}
 		c.blocks[at].Text += e.Text
 	case BlockCompleted:
+		if err := c.requireRunning("complete a block"); err != nil {
+			return err
+		}
 		if err := c.put(e.Block, true); err != nil {
 			return err
 		}
 	case PlanChanged:
+		if err := c.requireRunning("change the plan"); err != nil {
+			return err
+		}
 		c.plan = slices.Clone(e.Items)
 	case RunInterrupted:
-		if e.Interaction == nil || interactionID(e.Interaction) == "" {
-			return errors.New("conversation: run parked without an interrupt id")
-		}
 		if c.phase != Running || c.runID == "" {
 			return fmt.Errorf("%w: cannot park a run that has not started", ErrInvalidTransition)
 		}
 		c.phase = Waiting
-		c.interrupt = cloneInteraction(e.Interaction)
+		c.interrupt = CloneInteraction(e.Interaction)
 	case RunFinished:
+		if c.phase == Idle || c.runID == "" {
+			return fmt.Errorf("%w: cannot finish a run that has not started", ErrInvalidTransition)
+		}
+		if c.phase == Waiting && e.Outcome.Status != OutcomeCanceled {
+			return fmt.Errorf("%w: a waiting run can only finish by cancellation", ErrInvalidTransition)
+		}
 		c.phase = Idle
 		c.interrupt = nil
 		c.outcome = e.Outcome
 		c.usage = e.Usage
 	default:
-		changed = false
+		return fmt.Errorf("conversation: event %T is unsupported", event)
 	}
 	if changed {
 		c.revision++
@@ -169,7 +200,10 @@ func (c *Conversation) Apply(event Event) error {
 }
 
 // Starting records the request-to-first-event window as busy.
-func (c *Conversation) Starting() {
+func (c *Conversation) Starting() error {
+	if c.Busy() {
+		return fmt.Errorf("%w: conversation is already busy", ErrInvalidTransition)
+	}
 	c.phase = Running
 	c.runID = ""
 	c.plan = nil
@@ -177,6 +211,19 @@ func (c *Conversation) Starting() {
 	c.outcome = Outcome{}
 	c.interrupt = nil
 	c.revision++
+	return nil
+}
+
+// CancelStarting settles the request-to-first-event window without inventing a
+// durable runtime event.
+func (c *Conversation) CancelStarting() error {
+	if c.phase != Running || c.runID != "" {
+		return fmt.Errorf("%w: conversation is not starting", ErrInvalidTransition)
+	}
+	c.phase = Idle
+	c.outcome = Outcome{Status: OutcomeCanceled}
+	c.revision++
+	return nil
 }
 
 // Failed settles a run whose stream ended without a RunFinished event.
@@ -191,12 +238,6 @@ func (c *Conversation) Failed(err error) {
 	c.revision++
 }
 
-// Reset releases the conversation while preserving a monotonic revision.
-func (c *Conversation) Reset() {
-	revision := c.revision + 1
-	*c = Conversation{index: make(map[string]int), sequence: NewEventSequence(0), revision: revision}
-}
-
 // ClearPresentation releases transcript and settled run details while keeping
 // replay identity. The next event in the same session must still follow Cursor.
 func (c *Conversation) ClearPresentation() {
@@ -205,69 +246,42 @@ func (c *Conversation) ClearPresentation() {
 	c.usage = Usage{}
 	c.outcome = Outcome{}
 	c.index = make(map[string]int)
+	c.open = make(map[string]bool)
 	c.revision++
 }
 
-func interactionID(interaction Interaction) string {
-	switch item := interaction.(type) {
-	case Approval:
-		return item.InterruptID
-	case Question:
-		return item.InterruptID
-	default:
-		return ""
-	}
-}
-
-func cloneInteraction(interaction Interaction) Interaction {
-	switch item := interaction.(type) {
-	case Approval:
-		return item
-	case Question:
-		cloned := item
-		cloned.Fields = make([]QuestionField, len(item.Fields))
-		for i, field := range item.Fields {
-			cloned.Fields[i] = field
-			cloned.Fields[i].Options = slices.Clone(field.Options)
-		}
-		return cloned
-	default:
-		return nil
-	}
-}
-
 func (c *Conversation) put(block Block, completed bool) error {
-	if block.ID == "" {
-		return errors.New("conversation: transcript block has no id")
+	if c.index == nil {
+		c.index = make(map[string]int)
 	}
-	if block.Kind == BlockTool {
-		if block.Tool == nil {
-			return errors.New("conversation: tool block has no tool projection")
-		}
-		if err := block.Tool.Validate(); err != nil {
-			return fmt.Errorf("conversation: block %s: %w", block.ID, err)
-		}
-		if !completed && block.Tool.Status != ToolRunning {
-			return fmt.Errorf("conversation: block %s started with tool status %q", block.ID, block.Tool.Status)
-		}
-		if completed && block.Tool.Status == ToolRunning {
-			return fmt.Errorf("conversation: block %s completed while tool is still running", block.ID)
-		}
-	} else if block.Tool != nil {
-		return fmt.Errorf("conversation: %s block %s carries a tool projection", block.Kind, block.ID)
+	if c.open == nil {
+		c.open = make(map[string]bool)
 	}
 	if at, ok := c.index[block.ID]; ok {
+		if !completed {
+			return fmt.Errorf("%w: block %s started twice", ErrInvalidTransition, block.ID)
+		}
 		c.blocks[at] = cloneBlock(block)
+		c.open[block.ID] = false
 		return nil
 	}
 	if !completed {
 		c.index[block.ID] = len(c.blocks)
 		c.blocks = append(c.blocks, cloneBlock(block))
+		c.open[block.ID] = true
 		return nil
 	}
 	// A complete non-streamed block legitimately arrives without BlockStarted.
 	c.index[block.ID] = len(c.blocks)
 	c.blocks = append(c.blocks, cloneBlock(block))
+	c.open[block.ID] = false
+	return nil
+}
+
+func (c *Conversation) requireRunning(action string) error {
+	if c.phase != Running || c.runID == "" {
+		return fmt.Errorf("%w: cannot %s without an active run", ErrInvalidTransition, action)
+	}
 	return nil
 }
 

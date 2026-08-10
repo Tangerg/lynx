@@ -195,6 +195,9 @@ func sessionFor(ctx context.Context, rt interface {
 	if err != nil {
 		return client.Session{}, fmt.Errorf("open session: %w", err)
 	}
+	if err := snapshot.Validate(); err != nil {
+		return client.Session{}, fmt.Errorf("open session: %w", err)
+	}
 	return snapshot.Session, nil
 }
 

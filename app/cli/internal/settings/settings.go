@@ -78,14 +78,8 @@ func Default() Settings {
 
 func (s Settings) Validate() error {
 	var problems []error
-	if !slices.Contains([]string{"low", "medium", "high", "max", "ultra"}, s.Effort) {
-		problems = append(problems, fmt.Errorf("effort %q is not one of low, medium, high, max, ultra", s.Effort))
-	}
-	if !slices.Contains([]client.AgentMode{client.ModeBuild, client.ModePlan, client.ModeReview}, s.Mode) {
-		problems = append(problems, fmt.Errorf("mode %q is not one of build, plan, review", s.Mode))
-	}
-	if !slices.Contains([]client.PermissionMode{client.PermissionAsk, client.PermissionReadOnly, client.PermissionAutoEdit, client.PermissionFull}, s.Permission) {
-		problems = append(problems, fmt.Errorf("permission %q is not one of ask, read-only, auto-edit, full-access", s.Permission))
+	if err := s.RunOptions().Validate(); err != nil {
+		problems = append(problems, err)
 	}
 	if !slices.Contains([]client.RememberScope{client.RememberNone, client.RememberSession, client.RememberProject, client.RememberGlobal}, s.Approval.Remember) {
 		problems = append(problems, fmt.Errorf("approval remember scope %q is invalid", s.Approval.Remember))

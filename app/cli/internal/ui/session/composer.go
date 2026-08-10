@@ -10,7 +10,6 @@ import (
 	"github.com/Tangerg/oolong/components/headless"
 	"github.com/Tangerg/oolong/components/kit"
 
-	"github.com/Tangerg/lynx/app/cli/internal/attachment"
 	"github.com/Tangerg/lynx/app/cli/internal/client"
 )
 
@@ -98,15 +97,15 @@ func (a *app) addAttachment(path string) error {
 			return fmt.Errorf("%s is already attached", item.Name)
 		}
 	}
-	if len(current.Attachments) >= attachment.MaxAttachments {
-		return fmt.Errorf("a prompt accepts at most %d attachments", attachment.MaxAttachments)
+	if len(current.Attachments) >= client.MaxMessageAttachments {
+		return fmt.Errorf("a prompt accepts at most %d attachments", client.MaxMessageAttachments)
 	}
 	element := a.composer.Editor().InsertElement(fileElement, "@"+item.Name)
 	if element.ID == 0 {
 		return errors.New("could not insert attachment into the composer")
 	}
 	a.attachmentElements[element.ID] = item
-	a.message(fmt.Sprintf("attached %s · %s · %d/%d", item.Name, item.MimeType, len(current.Attachments)+1, attachment.MaxAttachments))
+	a.message(fmt.Sprintf("attached %s · %s · %d/%d", item.Name, item.MimeType, len(current.Attachments)+1, client.MaxMessageAttachments))
 	return nil
 }
 

@@ -437,13 +437,13 @@ func TestSessionManagementCommands(t *testing.T) {
 		t.Fatalf("sessions rename = %q, %v", renamed, err)
 	}
 
-	forked, _, err := exec(t, runtime, "", "sessions", "fork", id, "--at", "2", "--title", "Alternative")
+	forked, _, err := exec(t, runtime, "", "sessions", "fork", id, "--at", "4", "--title", "Alternative")
 	if err != nil {
 		t.Fatalf("sessions fork: %v", err)
 	}
 	forkID := strings.TrimSpace(forked)
 	snapshot, err := runtime.GetSession(t.Context(), forkID)
-	if err != nil || snapshot.Session.Title != "Alternative" || len(snapshot.Events) != 2 {
+	if err != nil || snapshot.Session.Title != "Alternative" || len(snapshot.Events) != 4 {
 		t.Fatalf("fork snapshot = %+v, %v", snapshot, err)
 	}
 
