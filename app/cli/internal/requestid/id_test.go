@@ -1,4 +1,4 @@
-package identity
+package requestid
 
 import (
 	"strings"
@@ -6,11 +6,11 @@ import (
 )
 
 func TestNewReturnsPrefixedDistinctIdentities(t *testing.T) {
-	first, err := New("req")
+	first, err := New()
 	if err != nil {
 		t.Fatal(err)
 	}
-	second, err := New("req")
+	second, err := New()
 	if err != nil {
 		t.Fatal(err)
 	}

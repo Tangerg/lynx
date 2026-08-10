@@ -11,8 +11,8 @@ import (
 	"github.com/Tangerg/oolong/core/term"
 
 	"github.com/Tangerg/lynx/app/cli/internal/client"
-	"github.com/Tangerg/lynx/app/cli/internal/identity"
 	"github.com/Tangerg/lynx/app/cli/internal/reconnect"
+	"github.com/Tangerg/lynx/app/cli/internal/requestid"
 )
 
 const (
@@ -21,7 +21,7 @@ const (
 )
 
 func (a *app) start(message client.Message) {
-	requestID, err := identity.New("req")
+	requestID, err := requestid.New()
 	if err != nil {
 		a.fail(err)
 		return

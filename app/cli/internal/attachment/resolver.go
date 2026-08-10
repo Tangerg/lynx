@@ -70,9 +70,6 @@ func New(root string) (*Resolver, error) {
 	return &Resolver{root: abs, maxBytes: DefaultMaxBytes}, nil
 }
 
-// Root is the absolute workspace used for relative paths and completion.
-func (r *Resolver) Root() string { return r.root }
-
 // Resolve validates and classifies one explicit path. Symlinks are resolved so
 // identity and duplicate detection refer to the same underlying file.
 func (r *Resolver) Resolve(ctx context.Context, input string) (client.Attachment, error) {

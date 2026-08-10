@@ -14,9 +14,9 @@ import (
 
 	"github.com/Tangerg/lynx/app/cli/internal/attachment"
 	"github.com/Tangerg/lynx/app/cli/internal/client"
-	"github.com/Tangerg/lynx/app/cli/internal/identity"
 	"github.com/Tangerg/lynx/app/cli/internal/reconnect"
 	"github.com/Tangerg/lynx/app/cli/internal/render"
+	"github.com/Tangerg/lynx/app/cli/internal/requestid"
 )
 
 // renderer is what `run` needs to write a run out. Declared here, where it is
@@ -184,7 +184,7 @@ func ensureRequestID(start *client.StartRun) error {
 	if start.RequestID != "" {
 		return nil
 	}
-	requestID, err := identity.New("req")
+	requestID, err := requestid.New()
 	if err != nil {
 		return err
 	}

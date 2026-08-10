@@ -1,3 +1,5 @@
+// Package sideload discovers and adapts executable plugins installed outside
+// the CLI binary.
 package sideload
 
 import (

@@ -54,14 +54,6 @@ func NewCapabilityKeyedPoint[T any](id string, capability Capability, keyOf func
 	return Point[T]{id: id, keying: Keyed, capability: capability, keyOf: keyOf}
 }
 
-// NewCapabilityMultiPoint defines a protected multi-contribution point.
-func NewCapabilityMultiPoint[T any](id string, capability Capability) Point[T] {
-	return Point[T]{id: id, keying: Multi, capability: capability}
-}
-
-// ID is the stable name of a point.
-func (p Point[T]) ID() string { return p.id }
-
 // Capability reports the permission required to contribute to this point.
 func (p Point[T]) Capability() Capability { return p.capability }
 
