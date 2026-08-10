@@ -136,8 +136,13 @@ func newSessionsShowCommand(provider runtimeProvider) *cobra.Command {
 	return cmd
 }
 
+type sessionRenderer interface {
+	Render(client.Envelope) error
+	Close() error
+}
+
 func writeSessionSnapshot(cmd *cobra.Command, snapshot client.SessionSnapshot, asJSON bool) (writeErr error) {
-	var output renderer = render.NewText(cmd.OutOrStdout())
+	var output sessionRenderer = render.NewText(cmd.OutOrStdout())
 	if asJSON {
 		output = render.NewJSON(cmd.OutOrStdout())
 	} else if _, err := fmt.Fprintf(cmd.OutOrStdout(), "%s · %s\n", snapshot.Session.Title, snapshot.Session.Workspace); err != nil {

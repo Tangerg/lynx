@@ -7,30 +7,16 @@ import (
 	"io"
 	"os"
 	"strings"
-	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
 	"github.com/Tangerg/lynx/app/cli/internal/attachment"
 	"github.com/Tangerg/lynx/app/cli/internal/client"
-	"github.com/Tangerg/lynx/app/cli/internal/reconnect"
+	"github.com/Tangerg/lynx/app/cli/internal/oneshot"
 	"github.com/Tangerg/lynx/app/cli/internal/render"
-	"github.com/Tangerg/lynx/app/cli/internal/requestid"
 	"github.com/Tangerg/lynx/app/cli/internal/session"
 )
-
-// renderer is what `run` needs to write a run out. Declared here, where it is
-// consumed, so the render package owes the command nothing beyond these two
-// methods.
-type renderer interface {
-	Render(client.Envelope) error
-	Close() error
-}
-
-type resultInitializer interface {
-	Begin(client.Run, client.RunOptions) error
-}
 
 func newRunCommand(provider runtimeProvider, v *viper.Viper) *cobra.Command {
 	flags := new(runFlags)
@@ -97,9 +83,17 @@ func (f *runFlags) execute(cmd *cobra.Command, args []string, provider runtimePr
 	if err != nil {
 		return err
 	}
-	return follow(cmd.Context(), runtime, runRenderer(cmd, format), client.StartRun{
-		SessionID: opened.Session.ID, Message: message, Options: value.RunOptions(),
-	}, f.approveAll, value.UI.ReconnectAttempts)
+	return oneshot.Run(cmd.Context(), oneshot.Config{
+		Runtime:  runtime,
+		Renderer: runRenderer(cmd, format),
+		Start: client.StartRun{
+			SessionID: opened.Session.ID,
+			Message:   message,
+			Options:   value.RunOptions(),
+		},
+		ApproveAll:        f.approveAll,
+		ReconnectAttempts: value.UI.ReconnectAttempts,
+	})
 }
 
 type outputFormat string
@@ -154,7 +148,7 @@ func (f *runFlags) message(cmd *cobra.Command, args []string, workspace string) 
 	return client.Message{Text: text, Attachments: attached}, nil
 }
 
-func runRenderer(cmd *cobra.Command, format outputFormat) renderer {
+func runRenderer(cmd *cobra.Command, format outputFormat) oneshot.Renderer {
 	switch format {
 	case outputJSON:
 		return render.NewResultJSON(cmd.OutOrStdout())
@@ -210,274 +204,6 @@ func resolveAttachments(ctx context.Context, workspace string, paths []string) (
 		out = append(out, item)
 	}
 	return out, nil
-}
-
-// follow drives a run to its end, answering each park and continuing on the
-// stream the answer opens. A park is not an ending: the run id is stable across
-// it, and only the stream is new.
-func follow(ctx context.Context, rt client.Runtime, out renderer, start client.StartRun, approveAll bool, reconnectAttempts int) (followErr error) {
-	defer func() { followErr = errors.Join(followErr, out.Close()) }()
-	if err := ensureRequestID(&start); err != nil {
-		return err
-	}
-	policy := reconnect.New(reconnectAttempts)
-	guard := watchRunCancellation(ctx, rt, policy, client.CancelRun{SessionID: start.SessionID, RequestID: start.RequestID})
-	cancelOnExit := true
-	defer func() { guard.Close(cancelOnExit) }()
-
-	run, err := reconnect.ControlValue(ctx, policy, func() (client.Run, error) {
-		return rt.StartRun(ctx, start)
-	})
-	if err != nil {
-		return err
-	}
-	if err := validateStartedRun(run, start.SessionID); err != nil {
-		return err
-	}
-	if initializer, ok := out.(resultInitializer); ok {
-		if err := initializer.Begin(run, start.Options); err != nil {
-			return err
-		}
-	}
-	disposition, err := driveRun(ctx, rt, out, start, run, approveAll, policy)
-	if disposition.preservesRun() {
-		cancelOnExit = false
-	}
-	return err
-}
-
-func validateStartedRun(run client.Run, sessionID string) error {
-	if err := run.Validate(); err != nil {
-		return fmt.Errorf("start run response: %w", err)
-	}
-	if run.SessionID != sessionID {
-		return fmt.Errorf("start run response: run belongs to session %s, want %s", run.SessionID, sessionID)
-	}
-	return nil
-}
-
-func ensureRequestID(start *client.StartRun) error {
-	if start.RequestID != "" {
-		return nil
-	}
-	requestID, err := requestid.New()
-	if err != nil {
-		return err
-	}
-	start.RequestID = requestID
-	return nil
-}
-
-type runCancelGuard struct {
-	exit chan bool
-	done chan struct{}
-}
-
-func watchRunCancellation(
-	ctx context.Context,
-	rt client.Runtime,
-	policy reconnect.Policy,
-	request client.CancelRun,
-) *runCancelGuard {
-	guard := &runCancelGuard{exit: make(chan bool, 1), done: make(chan struct{})}
-	go func() {
-		defer close(guard.done)
-		shouldCancel := true
-		select {
-		case shouldCancel = <-guard.exit:
-		case <-ctx.Done():
-		}
-		if !shouldCancel {
-			return
-		}
-		cancelCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
-		defer cancel()
-		_ = reconnect.Control(cancelCtx, policy, func() error {
-			return rt.CancelRun(cancelCtx, request)
-		})
-	}()
-	return guard
-}
-
-func (g *runCancelGuard) Close(cancel bool) {
-	if g == nil {
-		return
-	}
-	g.exit <- cancel
-	<-g.done
-}
-
-type driveDisposition uint8
-
-const (
-	driveAbandoned driveDisposition = iota
-	driveSettled
-	driveParked
-)
-
-func (d driveDisposition) preservesRun() bool {
-	return d == driveSettled || d == driveParked
-}
-
-func driveRun(
-	ctx context.Context,
-	rt client.Runtime,
-	out renderer,
-	start client.StartRun,
-	run client.Run,
-	approveAll bool,
-	policy reconnect.Policy,
-) (driveDisposition, error) {
-	conversation := client.NewConversationAt(run.StartedAfter)
-	failures := 0
-	for {
-		before := conversation.Cursor()
-		stream, err := rt.FollowRun(ctx, client.FollowRun{RunID: run.ID, After: before})
-		if err != nil {
-			if retryErr := waitToReconnect(ctx, policy, &failures, false, err); retryErr != nil {
-				return driveAbandoned, retryErr
-			}
-			continue
-		}
-		if stream == nil {
-			return driveAbandoned, errors.New("runtime returned a nil event stream")
-		}
-		state := consumeSubscription(stream, conversation, out)
-		progressed := conversation.Cursor() > before
-		if state.outcome != nil {
-			return driveSettled, outcomeError(*state.outcome)
-		}
-		if state.interrupted != nil {
-			if err := resumeUnattended(ctx, rt, policy, run.ID, start.SessionID, state.interrupted, approveAll); err != nil {
-				if _, required := errors.AsType[*interactionRequiredError](err); required {
-					return driveParked, err
-				}
-				return driveAbandoned, err
-			}
-			failures = 0
-			continue
-		}
-		if state.err == nil {
-			state.err = fmt.Errorf("%w: runtime subscription ended without interrupting or finishing the run", client.ErrDisconnected)
-		}
-		if retryErr := waitToReconnect(ctx, policy, &failures, progressed, state.err); retryErr != nil {
-			return driveAbandoned, retryErr
-		}
-	}
-}
-
-type subscriptionState struct {
-	interrupted client.Interaction
-	outcome     *client.Outcome
-	err         error
-}
-
-func consumeSubscription(stream client.Stream, conversation *client.Conversation, out renderer) subscriptionState {
-	var state subscriptionState
-	for envelope, streamErr := range stream {
-		if streamErr != nil {
-			state.err = streamErr
-			break
-		}
-		result, err := conversation.ApplyEnvelope(envelope)
-		if err != nil {
-			state.err = fmt.Errorf("accept runtime event at cursor %d: %w", envelope.Cursor, err)
-			break
-		}
-		if !result.Applied {
-			continue
-		}
-		if err := out.Render(envelope); err != nil {
-			state.err = err
-			break
-		}
-		switch event := envelope.Event.(type) {
-		case client.RunInterrupted:
-			state.interrupted = event.Interaction
-		case client.RunFinished:
-			outcome := event.Outcome
-			state.outcome = &outcome
-		default:
-		}
-	}
-	return state
-}
-
-type runOutcomeError struct{ outcome client.Outcome }
-
-func (e *runOutcomeError) Error() string {
-	if e.outcome.Status == client.OutcomeFailed {
-		return "run failed: " + e.outcome.Error
-	}
-	return "run " + string(e.outcome.Status)
-}
-
-func outcomeError(outcome client.Outcome) error {
-	if outcome.Status == client.OutcomeCompleted {
-		return nil
-	}
-	return &runOutcomeError{outcome: outcome}
-}
-
-func resumeUnattended(
-	ctx context.Context,
-	rt client.Runtime,
-	policy reconnect.Policy,
-	runID string,
-	sessionID string,
-	interaction client.Interaction,
-	approveAll bool,
-) error {
-	answer, interruptID, err := unattendedAnswer(interaction, approveAll, sessionID)
-	if err != nil {
-		return err
-	}
-	resume := client.ResumeRun{RunID: runID, InterruptID: interruptID, Answer: answer}
-	return reconnect.Control(ctx, policy, func() error { return rt.ResumeRun(ctx, resume) })
-}
-
-func waitToReconnect(ctx context.Context, policy reconnect.Policy, failures *int, progressed bool, cause error) error {
-	if progressed {
-		*failures = 0
-	}
-	*failures++
-	delay, ok := policy.Next(*failures, cause)
-	if !ok {
-		return cause
-	}
-	if err := reconnect.Wait(ctx, delay); err != nil {
-		return err
-	}
-	return nil
-}
-
-// decide answers a park. Unattended, a request is refused rather than guessed
-// at, and the refusal says what would have allowed it.
-func decide(approveAll bool) client.ApprovalAnswer {
-	if approveAll {
-		return client.ApprovalAnswer{Decision: client.ApprovalAllow, Remember: client.RememberNone}
-	}
-	return client.ApprovalAnswer{Decision: client.ApprovalDeny, Reason: "declined: this run is unattended (rerun with --approve-all to allow it)"}
-}
-
-func unattendedAnswer(interaction client.Interaction, approveAll bool, sessionID string) (client.Answer, string, error) {
-	switch item := interaction.(type) {
-	case client.Approval:
-		return decide(approveAll), item.InterruptID, nil
-	case client.Question:
-		return nil, item.InterruptID, &interactionRequiredError{title: item.Title, sessionID: sessionID}
-	default:
-		return nil, "", errors.New("runtime returned an unknown interaction")
-	}
-}
-
-type interactionRequiredError struct {
-	title     string
-	sessionID string
-}
-
-func (e *interactionRequiredError) Error() string {
-	return fmt.Sprintf("run needs answers to %q; continue it interactively with --session %s", e.title, e.sessionID)
 }
 
 // prompt assembles the prompt from arguments and anything piped in.
