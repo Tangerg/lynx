@@ -7,10 +7,10 @@
 > is not a compatibility promise and does not authorize dual fields or fallback
 > decoding in the server.
 >
-> Last verified against the server contract and in-repository consumer source:
-> 2026-08-11, at Runtime P19-02 completion. Consumer modules remain intentionally
-> untouched; the Runtime now publishes the canonical Go values at
-> `github.com/Tangerg/lynx/app/runtime/protocol`.
+> Last verified against the Runtime-owned server and public Go contracts:
+> 2026-08-11, at Runtime P19 completion. Consumer modules remain intentionally
+> untouched by this goal; their concurrent or later migrations do not change
+> the Runtime contract.
 
 ## Current server baseline
 
@@ -18,8 +18,9 @@
 - Session artifact version: `15`; versions 14 and earlier are rejected before
   any import write.
 - Machine truth: [`../contract/`](../contract/) generated from the Go contract
-  registry with `go generate ./...`.
-- Go truth: the public `runtime/protocol` package. The retired
+  registry with `go generate ./...`; `go-api.json` freezes the complete public
+  `protocol + embedded` Go surface.
+- Go truth: the public `runtime/protocol` and `runtime/embedded` packages. The retired
   `internal/delivery/protocol` path no longer exists and has no forwarding shim.
 - Product execution vocabulary is exclusively Run, Segment, Item, and
   Interrupt. Agent Framework Process/Execution/Member identity is not a wire concept.
@@ -60,11 +61,28 @@ No desktop source was changed by this Runtime goal.
 
 ## CLI and TUI follow-up
 
-The current repository scan found no direct copy of the removed replay-scope
-value in `app/cli`, and no standalone TUI protocol binding in this checkout.
-Those consumers must still negotiate `2026-08-10` and regenerate or vendor the
-current machine contract when their dedicated consumer-wiring work begins. Absence from this
-list is not evidence that an out-of-tree consumer is compatible.
+The CLI may directly own a concrete `*embedded.Runtime`; it must open it once,
+keep it alive above individual commands, and complete `Close` before process
+exit. Its adapter should import `runtime/embedded` and `runtime/protocol`, while
+the command/terminal consumers define the narrow interfaces they need. It must
+not copy Session/Run/Item/Event/Interrupt DTOs, expose Runtime internals, or
+route an embedded call through JSON-RPC.
+
+`CallOptions`, `CommandOptions`, `RunCommandOptions`,
+`RunSubscriptionOptions`, and `SubscriptionOptions` are deliberately distinct.
+The consumer maps its request identity, replay cursor, and negotiated metadata
+into the matching option; it does not create a generic header bag. Stable
+operation failures support `errors.Is` against protocol sentinels and
+`errors.As` to `protocol.ProblemError`.
+
+Only one HTTP or embedded owner may open a canonical data directory. If CLI,
+desktop, or another process must operate the same durable Runtime concurrently,
+they must share one host over IPC rather than bypassing the lease. TUI code may
+consume the CLI-owned narrow port and protocol values; it does not open a second
+Runtime.
+
+No CLI or TUI source is changed by P19. Absence from this list is not evidence
+that an in-tree or out-of-tree consumer is compatible.
 
 ## Consumer acceptance
 
@@ -76,3 +94,7 @@ A consumer migration is complete only when it:
 3. accepts only `runtimeInstanceRootSegment` for `RunReplayScope`;
 4. imports/exports Session artifact v15 without rewriting prior documents;
 5. passes its strict fixture validation and HTTP integration suite.
+
+An embedded Go consumer additionally passes an external-module compile test,
+uses the concrete Runtime lifecycle exactly once, and verifies stream replay,
+idempotency, structured errors, cancellation, and shutdown without a listener.

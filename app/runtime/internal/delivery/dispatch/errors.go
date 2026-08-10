@@ -80,7 +80,7 @@ func marshalFailure(failure *operation.Failure) *transport.Error {
 	if failure == nil {
 		failure = operation.NewFailure(protocol.ErrInternalError, "the runtime could not complete the request")
 	}
-	problem := failure.Data()
+	problem := failure.Problem()
 	code, ok := problemCode(problem.Type)
 	if !ok || protocol.ValidateWireTree(problem) != nil {
 		return invalidProblemResponse("the runtime could not encode a valid error response")

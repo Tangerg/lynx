@@ -476,6 +476,7 @@ func TestInteractionExecutorMakesWholeConcurrentEffectUnknownWhenOneResultWriteF
 		Value string `json:"value"`
 	}
 	allowFirst := make(chan struct{})
+	allCallsStarted := make(chan struct{})
 	var calls int
 	var mu sync.Mutex
 	inner, err := toolcontract.NewFunc(toolcontract.FuncConfig{
@@ -483,7 +484,14 @@ func TestInteractionExecutorMakesWholeConcurrentEffectUnknownWhenOneResultWriteF
 	}, func(_ context.Context, value input) (string, error) {
 		mu.Lock()
 		calls++
+		if calls == 2 {
+			close(allCallsStarted)
+		}
 		mu.Unlock()
+		// This test exercises a projection failure after every member of the
+		// concurrent batch crossed the external boundary. Without this barrier,
+		// scheduler order may correctly stop a sibling that never started.
+		<-allCallsStarted
 		if value.Value == "first" {
 			<-allowFirst
 		}

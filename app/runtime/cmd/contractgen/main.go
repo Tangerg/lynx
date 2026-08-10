@@ -53,6 +53,10 @@ func run(dir, validatorDir, tsDir string) error {
 	registry, shapes := operation.Contract(), dispatch.WireShapes()
 	walked := walkWireTypes(registry, shapes)
 	built := build(walked)
+	goAPI, err := loadPublicGoAPI()
+	if err != nil {
+		return err
+	}
 
 	for _, artifact := range []struct {
 		name    string
@@ -61,6 +65,7 @@ func run(dir, validatorDir, tsDir string) error {
 		{"manifest.json", built},
 		{"schema.json", newBundle(walked)},
 		{"openrpc.json", newOpenRPC(registry, shapes, walked)},
+		{"go-api.json", goAPI},
 	} {
 		if err := writeJSON(filepath.Join(dir, artifact.name), artifact.content); err != nil {
 			return err

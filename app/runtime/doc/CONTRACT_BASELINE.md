@@ -38,6 +38,7 @@ Digest 只用于发现未审计漂移，不能替代语义测试。
 | `contract/manifest.json` | `9425d26052572d3cf87076dab3f60bdba267b5169a34e6c016f9d767e23975fb` |
 | `contract/openrpc.json` | `7eac002e34a636f21653c639318669374e2795cae9907986d591e427634b0a06` |
 | `contract/schema.json` | `56b608ff48dca53b4b924f0634f56d37bd347581207fe71fd307e1a568b57be8` |
+| `contract/go-api.json` | `f79d3007a5fbdc011c4d6e6b05104b6ed915ae81c84d4bea99a6f97597354cda` |
 
 TypeScript generated files 是派生制品，不单独定义语义。它们必须由同一个 contract generator 产生且 diff-free；当前前端/TUI/CLI 是否已经消费最新 shape，由 P10/P12 的 consumer handoff 记录，不通过兼容字段掩盖。
 
@@ -51,7 +52,7 @@ TypeScript generated files 是派生制品，不单独定义语义。它们必�
 
 当前协议版本为 `2026-08-10`，只服务同值的 `minSupported`。唯一 replay scope 是 `runtimeInstanceRootSegment`：它准确表达一个 Runtime instance 内的一条 root Segment replay buffer；旧 `processRootSegment` 已直接删除。消费者 breaking surface 与未接线事实由 [`CONSUMER_HANDOFF.md`](CONSUMER_HANDOFF.md) 唯一记录。
 
-公共 Go 协议值的唯一 owner 是 `runtime/protocol`。该包只公开 binding-neutral values、strict validation、版本与 client-visible problem identity；服务端 method interface、request context plumbing、numeric JSON-RPC code、reflection shape walker 和 artifact catalogue 均属于 `internal`，不构成公共 Go surface。
+公共 Go surface 只有 `runtime/protocol` 与 `runtime/embedded`，由生成的 `contract/go-api.json` 完整冻结。`protocol` 只公开 binding-neutral values、strict validation、版本、稳定错误 identity 与 `ProblemError`；`embedded` 只公开 concrete Runtime lifecycle、准确 options 和类型化 operation methods。服务端 method interface、request context plumbing、numeric JSON-RPC code、reflection shape walker、artifact catalogue、Host、Store、Engine 和 Router 均属于 `internal`，不构成公共 Go surface。
 
 ## 3. 持久化 Baseline 1
 
@@ -85,7 +86,7 @@ P7 延续的 continuation payload baseline 是 Agent Framework TreeSnapshot v4 �
 
 ### 3.3 Artifact 与 Transcript
 
-Artifact、Transcript Item 和 ToolCall timing 的当前机器 shape 仍由 Runtime contract/store codec 拥有。Session Artifact 当前唯一版本为 14；v13 及更早版本在任何写入前确定性拒绝，不从旧 artifact 猜测缺失事实或改写版本号。
+Artifact、Transcript Item 和 ToolCall timing 的当前机器 shape 仍由 Runtime contract/store codec 拥有。Session Artifact 当前唯一版本为 15；v14 及更早版本在任何写入前确定性拒绝，不从旧 artifact 猜测缺失事实或改写版本号。
 
 ## 4. Agent Framework 消费 Baseline
 

@@ -143,7 +143,7 @@ func (r *replayStore) replay(ctx context.Context, method *Method, payload []byte
 func encodeStoredOutcome(result Result) ([]byte, error) {
 	stored := storedOutcome{Version: storedOutcomeVersion}
 	if result.Failure != nil {
-		problem := result.Failure.Data()
+		problem := result.Failure.Problem()
 		stored.Problem = &problem
 	} else {
 		encoded, err := json.Marshal(result.Value)

@@ -42,7 +42,7 @@
 | Delivery separation | target DAG 禁止 Delivery import 任意 concrete Adapter；protocol/dispatch/server/transport 已按准确职责收口 | Retain | P1/P9/P10 已完成 |
 | Adapter/Infra direction | Adapter 单向使用 Infra；Infra 对 Application/Adapter/Delivery/Bootstrap 反向 import 为零 | Retain | P9 已完成 |
 | Shared mechanisms | `component` umbrella 已删除；根级只保留三个真正跨环 capability，Application 共享机制归还 Application | Retain exact owners | P18 所有权纠偏，永久 purity/owner guard |
-| Contract generation | `contract/` 的 manifest/OpenRPC/schema/TypeScript/Go validator 来自唯一 registry；canonical samples 同时经 round-trip 与 strict validator | Retain | P10 已完成 |
+| Contract generation | `contract/` 的 manifest/OpenRPC/schema/TypeScript/Go validator 来自唯一 registry；public Go API baseline 来自真实 type information；canonical samples 同时经 round-trip 与 strict validator | Retain | P10/P19-06 已完成 |
 | SQLite exact epoch | epoch 66 单一 shape，无生产 migration chain | Retain | P6/P8 完成；P15-03 收回 child-start durable wire owner；P16-02 收回 Tool failure vocabulary |
 
 ### 2.3 P19 公共 Go binding 事实
@@ -50,7 +50,7 @@
 | 能力 | 当前事实 | Verdict | 阶段 |
 |---|---|---|---|
 | 公共 protocol | 唯一 binding-neutral DTO/validation/version owner；旧 internal path 已物理删除 | Retain exact owner | P19-02 完成 |
-| Typed operation | 唯一私有 catalog/invocation/policy owner；HTTP 已纵切，embedded 将直接复用 | Retain exact owner | P19-03 完成 |
+| Typed operation | 唯一私有 catalog/invocation/policy owner；HTTP 与 embedded 已直接复用 | Retain exact owner | P19-03/P19-05 完成 |
 | Embedded Runtime | 公共 concrete binding 完整覆盖唯一 operation catalog；直接复用严格验证、能力、幂等、problem 与 replay，不建立 transport round-trip | Retain exact owner | P19-05 完成 |
 | Runtime instance lifecycle | `bootstrap.Instance` 唯一拥有装配、恢复、operation、worker、retryable Close 与 canonical data-directory lease；HTTP 只消费同一 Endpoint | Retain exact owner | P19-04 完成 |
 | Consumer wiring | CLI/前端/TUI 均不在本阶段修改；Runtime 不提供旧接口适配 | Defer | P19 完成后专项 |
@@ -332,3 +332,4 @@ P8 production cutover 已用真实 Bootstrap consumer 冻结 root stage/observe/
 - P19-03 已建立唯一私有 typed operation pipeline：method catalog、strict request/result/event validation、capability gate、safe problem projection、durable idempotency 与 run-stream reattach 由 `delivery/operation` 独占；HTTP dispatch 只适配 JSON-RPC envelope/numeric code/frame。幂等 replay payload 具有显式版本且未知形状 fail closed；旧 dispatch registry、capability、idempotency owner 与 catalog forwarding 均已删除。
 - P19-04 已建立唯一私有 Runtime instance owner：canonical data-directory advisory lease 早于 SQLite/recovery，`bootstrap.Instance` 统一拥有 Host、operation endpoint、Server projection、scheduler 与 reverse-order retryable Close。HTTP cmd 不再组装 Server/recovery/worker，HTTP transport 只消费 instance-owned Endpoint；同路径、symlink alias 和第二进程争锁均被拒绝，未完成 Close 不释放 lease。
 - P19-05 已建立公共 concrete `embedded.Runtime`：全量 operation 以类型化 Go 方法直接消费唯一 operation pipeline，公开面只含 `protocol` values、精确 options、`iter.Seq2` streams 与完整 Open/Close lifecycle。外部 module 无需且不能依赖 Runtime internal；AST+reflection 门禁保证 operation 覆盖和签名不漂移，真实集成保证 protocol、idempotency、notification、stream close、directory lease 与 reopen 行为。
+- P19-06 已冻结完整公共 Go 合同：生成的 `contract/go-api.json` 来自真实 Go type information，架构门禁同时守住唯一 public package 集合、visible import、operation/method parity、external-module compilation 与 artifact digest。稳定失败由 protocol sentinel + `ProblemError` 提供准确的 `errors.Is`/`errors.As` 语义；README/consumer handoff、准确 capability 文件和最终质量矩阵均已收口，P19 不留下 consumer shim 或 transport duplicate。

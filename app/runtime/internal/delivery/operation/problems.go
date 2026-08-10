@@ -65,12 +65,14 @@ func retryingProblem(sentinel error, retryAfterSeconds int) problemSpec {
 	}
 }
 
-// Failure is a safely projected operation failure. Bindings expose Data while
+// Failure is a safely projected operation failure. Bindings expose Problem while
 // errors.Is still reaches the stable protocol sentinel through Cause.
 type Failure struct {
 	cause error
 	data  protocol.ProblemData
 }
+
+var _ protocol.ProblemError = (*Failure)(nil)
 
 func (f *Failure) Error() string {
 	if f == nil {
@@ -89,8 +91,8 @@ func (f *Failure) Unwrap() error {
 	return f.cause
 }
 
-// Data returns a defensive copy of the client-visible problem.
-func (f *Failure) Data() protocol.ProblemData {
+// Problem returns a defensive copy of the client-visible problem.
+func (f *Failure) Problem() protocol.ProblemData {
 	if f == nil {
 		return protocol.ProblemData{}
 	}

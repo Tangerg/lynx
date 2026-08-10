@@ -2,11 +2,71 @@ package arch
 
 import (
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
+	"strings"
 	"testing"
 )
+
+func TestPublicPackageSetIsExact(t *testing.T) {
+	root := moduleRoot(t)
+	want := []string{"embedded", "protocol"}
+	var got []string
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		t.Fatalf("read Runtime module root: %v", err)
+	}
+	rootPackageFound := false
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			if !rootPackageFound && strings.HasSuffix(entry.Name(), ".go") && !strings.HasSuffix(entry.Name(), "_test.go") {
+				got = append(got, ".")
+				rootPackageFound = true
+			}
+			continue
+		}
+		if entry.Name() == "cmd" || entry.Name() == "internal" {
+			continue
+		}
+		hasProductionGo, err := directoryHasProductionGo(filepath.Join(root, entry.Name()))
+		if err != nil {
+			t.Fatalf("inspect %s: %v", entry.Name(), err)
+		}
+		if hasProductionGo {
+			got = append(got, entry.Name())
+		}
+	}
+	slices.Sort(got)
+	if !slices.Equal(got, want) {
+		t.Fatalf("public Runtime packages = %v, want %v; change the public Go baseline deliberately", got, want)
+	}
+}
+
+func directoryHasProductionGo(directory string) (bool, error) {
+	errFound := fmt.Errorf("production Go file found")
+	err := filepath.WalkDir(directory, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if entry.IsDir() {
+			if path != directory && (entry.Name() == "testdata" || strings.HasPrefix(entry.Name(), ".")) {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if strings.HasSuffix(entry.Name(), ".go") && !strings.HasSuffix(entry.Name(), "_test.go") {
+			return errFound
+		}
+		return nil
+	})
+	if err == errFound {
+		return true, nil
+	}
+	return false, err
+}
 
 // TestEmbeddedBindingCompilesForAnExternalModule proves the public Go binding
 // is usable without the Runtime module's internal-package privilege. Exact

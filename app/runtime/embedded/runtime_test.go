@@ -67,6 +67,11 @@ func TestRuntimeOpenCallIdempotencyStreamAndClose(t *testing.T) {
 		ProtocolVersion: "1900-01-01",
 	}}); !errors.Is(err, protocol.ErrInvalidProtocolVersion) {
 		t.Fatalf("unsupported protocol error = %v", err)
+	} else {
+		var problem protocol.ProblemError
+		if !errors.As(err, &problem) || problem.Problem().Type != protocol.ErrInvalidProtocolVersion.Error() {
+			t.Fatalf("structured unsupported protocol error = %T %v", err, err)
+		}
 	}
 
 	create := protocol.CreateSessionRequest{

@@ -1,10 +1,15 @@
 package arch
 
 import (
+	"crypto/sha256"
+	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"testing"
+
+	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
 func TestRuntimeDocumentationFactsHaveOneVersionOwner(t *testing.T) {
@@ -57,6 +62,41 @@ func TestRuntimeDocumentationFactsHaveOneVersionOwner(t *testing.T) {
 		schemaEpoch,
 		"SQLite schema epoch",
 	)
+
+	artifactVersion := captureDocumentFact(
+		t,
+		baseline,
+		regexp.MustCompile(`Session Artifact 当前唯一版本为 ([0-9]+)`),
+		"Session artifact version",
+	)
+	parsedArtifactVersion, err := strconv.Atoi(artifactVersion)
+	if err != nil {
+		t.Fatalf("parse Session artifact version %q: %v", artifactVersion, err)
+	}
+	if parsedArtifactVersion != protocol.SessionArtifactVersion {
+		t.Errorf("documented Session artifact version = %d, runtime = %d", parsedArtifactVersion, protocol.SessionArtifactVersion)
+	}
+}
+
+func TestContractBaselineDigestsMatchGeneratedArtifacts(t *testing.T) {
+	root := moduleRoot(t)
+	baseline := readRuntimeDocument(t, root, "CONTRACT_BASELINE.md")
+	pattern := regexp.MustCompile("(?m)^\\| `contract/([^`]+)` \\| `([0-9a-f]{64})` \\|$")
+	matches := pattern.FindAllSubmatch(baseline, -1)
+	if len(matches) != 4 {
+		t.Fatalf("contract baseline contains %d generated artifact digests, want 4", len(matches))
+	}
+	for _, match := range matches {
+		name, want := string(match[1]), string(match[2])
+		content, err := os.ReadFile(filepath.Join(root, "contract", name))
+		if err != nil {
+			t.Fatalf("read generated contract artifact %s: %v", name, err)
+		}
+		got := fmt.Sprintf("%x", sha256.Sum256(content))
+		if got != want {
+			t.Errorf("contract/%s digest = %s, baseline = %s", name, got, want)
+		}
+	}
 }
 
 func TestFrameworkExecutionVocabularyIsUnambiguous(t *testing.T) {

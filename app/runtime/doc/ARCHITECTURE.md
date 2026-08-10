@@ -509,10 +509,10 @@ app/runtime/
 ├── protocol/
 ├── embedded/
 ├── cmd/
-├── config/
 ├── contract/
 ├── doc/
 └── internal/
+    ├── config/
     ├── domain/
     │   ├── run/
     │   ├── session/

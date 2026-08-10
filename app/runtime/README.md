@@ -16,7 +16,9 @@
 
 ```
 composition (internal/{bootstrap,config}, cmd)  唯一装配与 Host 生命周期 owner
-delivery    (internal/delivery)      protocol / server / dispatch / transport
+embedded    (embedded)              公共同进程 binding；只持有 concrete Runtime lifecycle
+protocol    (protocol)              公共 binding-neutral values / validation / errors
+delivery    (internal/delivery)     operation / server / dispatch / HTTP transport
 adapter     (internal/adapter/*)     应用能力与外部 SDK 的防腐/翻译
 application (internal/application/*) Run / Session / capability use cases 与 consumer ports
 infra       (internal/infra/*)       sqlite / git / lsp / mcp / a2a / exec 等技术 mechanism
@@ -40,6 +42,49 @@ cd app/runtime                                         # 从仓库根进入 runt
 go build ./... && go vet ./... && go test ./...        # 全绿
 ANTHROPIC_API_KEY=xxx ./lyra                           # 默认 127.0.0.1:17171（匹配前端默认 base），SQLite at $LYRA_HOME/lyra.db
 ```
+
+## 嵌入 Go 程序
+
+外部宿主只导入公共 [`protocol`](./protocol) 与 [`embedded`](./embedded)，不经过 HTTP、JSON-RPC 或 SSE：
+
+```go
+rt, err := embedded.Open(ctx, embedded.Config{
+    DataDirectory:        dataDirectory,
+    DefaultWorkspacePath: workspace,
+})
+if err != nil {
+    return err
+}
+defer rt.Close()
+
+session, err := rt.CreateSession(ctx, protocol.CreateSessionRequest{
+    Workspace: &protocol.WorkspaceRef{Path: workspace},
+}, embedded.CommandOptions{IdempotencyKey: requestID + ":session"})
+if err != nil {
+    return err
+}
+
+started, events, err := rt.StartRun(ctx, protocol.StartRunRequest{
+    SessionID: session.ID,
+    Input: []protocol.ContentBlock{{
+        Type: protocol.ContentBlockText,
+        Text: prompt,
+    }},
+}, embedded.RunCommandOptions{IdempotencyKey: requestID + ":run"})
+if err != nil {
+    return err
+}
+for event, streamErr := range events {
+    // Fold protocol.RunEvent into the host's own presentation model.
+    _ = event
+    if streamErr != nil {
+        return streamErr
+    }
+}
+_ = started
+```
+
+`Runtime` 是数据目录、恢复器与后台任务的唯一 owner；同一 canonical 数据目录同一时刻只能由一个进程打开，宿主必须完成 `Close`。调用错误支持 `errors.Is(err, protocol.Err…)`；需要结构化恢复信息时，可用 `errors.As` 取得 `protocol.ProblemError`。CLI/TUI 应在消费侧定义自己真正需要的窄接口，不复制协议 DTO，也不要求 Runtime 导出胖接口。
 
 ## 不做（刻意）
 

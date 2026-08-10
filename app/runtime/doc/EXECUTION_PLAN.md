@@ -1,6 +1,6 @@
 # Lyra Runtime 重构实施计划
 
-> 状态：P1–P18 已完成；P19 公共 protocol 与 embedded Runtime 实施中
+> 状态：P1–P19 已完成；Runtime 公共 protocol 与 embedded binding 已冻结
 >
 > 工作方式：原模块内治本重构，按可验证纵切分批完成；不创建完整 `runtime2`
 
@@ -52,7 +52,7 @@
 | P16 | Domain aggregate 行为所有权纵切 | P15 + Domain Model | 已完成 |
 | P17 | package 边界与目录结构精修 | P16 + 真实 import graph | 已完成 |
 | P18 | Application mechanism 所有权纠偏 | P17 + 完整调用图 | 已完成 |
-| P19 | 公共 protocol 与 embedded Runtime | P18 + 真实 CLI 嵌入消费者 | 实施中 |
+| P19 | 公共 protocol 与 embedded Runtime | P18 + 真实 CLI 嵌入消费者 | 已完成 |
 
 ## 4. P0 — 文档、事实和边界基线
 
@@ -578,7 +578,7 @@
 - [x] P19-03 建立 binding-neutral typed operation catalog/pipeline，让 HTTP dispatch 与 embedded 共用 validation、capability、idempotency、safe problem projection 和 run-stream replay；
 - [x] P19-04 建立单一 Runtime instance builder、data-directory advisory lock、recovery/workers ownership 与完整 retryable Close；
 - [x] P19-05 实现公共 concrete `embedded.Runtime`、Config、command/subscription options 和外部 module import/stream/lifecycle 行为测试；
-- [ ] P19-06 更新 contract generator、架构门禁、公共 Go surface baseline、README 示例和 consumer handoff，执行全量质量与坏味道复扫。
+- [x] P19-06 更新 contract generator、架构门禁、公共 Go surface baseline、README 示例和 consumer handoff，执行全量质量与坏味道复扫。
 
 ### 强制顺序
 
@@ -603,6 +603,7 @@
 
 | 日期 | 阶段 | 完成事实 | 验证 |
 |---|---|---|---|
+| 2026-08-11 | P19-06（public contract freeze and final audit） | contract generator 从 `protocol + embedded` 的真实 Go type information 派生完整 `go-api.json`，冻结 public package/import/constant/variable/function/type/field/method；架构门禁拒绝第三个公共 package、模块根 package、public signature 的 internal type、operation/method 漂移、generated artifact/digest 和 Session Artifact version 漂移。新增窄 `protocol.ProblemError`，保留 `errors.Is` sentinel 并为 `errors.As` 提供结构化恢复事实；README 与 consumer handoff 给出真实嵌入用法及唯一 owner 约束。embedded 的伞状 `automation`/`integrations` 文件和错位方法按准确 capability 文件彻底收敛，不增加子包；最终 race 发现的并发 Tool 测试缺少“全部跨过外部边界”线性化前提，以显式 barrier 治本，不更改正确的 production stop-unstarted 语义 | generator/drift/digest/public external-module/operation parity/structured-error tests 全绿；Runtime standalone build/vet/test/tidy/lint/race 六项全绿，lint 0 issues；GOWORK=off staticcheck 与 deadcode -test 零输出；3 个 continuation fuzz owner 约 52.9 万次执行全绿；并发 unknown-effect race 目标 50 次及全模块 race 复跑全绿；空目录/空文件、旧 public/internal protocol/inprocess、伞状文件、兼容残留和 public abstraction leak 复扫零新增违规 |
 | 2026-08-11 | P19-05（public embedded Runtime） | 新增公共 concrete `embedded.Runtime`，以准确的 `CallOptions`、`CommandOptions`、`RunCommandOptions`、`RunSubscriptionOptions`、`SubscriptionOptions` 暴露全部 operation；方法直接进入 P19-03 的唯一类型化 pipeline，不启动 listener、不经过 JSON-RPC/SSE、也不公开 Host/Store/Engine/Router/context key。`Config` 冻结显式绝对 host path，默认 workspace 只取一次 user-home snapshot，默认 config search 只限 data directory；`Close` 停止新调用并由 instance owner 结束流、join worker、逆序关闭资源及释放独占 lease，失败保持可重试 | AST+reflection 门禁逐项证明每个 catalog operation 恰有一个公开方法且 request/options/result/event 类型精确一致；真实 embedded 集成覆盖 discovery/protocol reject、durable idempotency replay/conflict、Runtime notification、流随 Close 结束、closed rejection、同目录拒绝与 reopen；独立临时 Go module 仅导入 `protocol + embedded` 编译通过；embedded/operation/bootstrap/arch/cmd targeted test/vet 全绿 |
 | 2026-08-11 | P19-04（single Runtime instance owner） | `bootstrap.Instance` 成为 HTTP/embedded 共用的唯一完整 Runtime owner：canonical data-directory lease 早于 SQLite/recovery，统一完成 config/client/store/seeding/Assembly/Host/recovery/server/operation 组装并启动 scheduler；operation endpoint 绑定 instance lifetime，Close 先停止 admission 与流、取消并 join worker，再关闭 Host/resources，最后释放 lease，失败可重试且不提前放锁。HTTP 改为接收 instance-owned Endpoint，不再自行构造第二 registry/idempotency pipeline；cmd 不再拥有 recovery、scheduler 或 Server 组装 | 同路径、symlink alias、真实 child process 争锁与 release/reopen tests；Close 未 join 保持 lease、retry 后释放；真实 Open→discover→第二 Open 拒绝→Close→reopen 集成通过；Windows lock path cross-compile、operation/HTTP/cmd/bootstrap/architecture targeted tests 与全 Runtime tests 全绿 |
 | 2026-08-11 | P19-03（single typed operation pipeline） | method catalog、类型化 invocation、严格 request/metadata/result/event validation、capability gate、binding-neutral problem projection、durable idempotency claim/complete/replay 与 run-stream reattach 全部收敛到私有 `delivery/operation`；幂等 payload 具有显式 version，未知旧形状 fail closed。HTTP `dispatch` 只保留 JSON-RPC envelope、numeric code 与 frame encoding，Application server 从 operation context 读取 binding-neutral replay cursor；旧 dispatch registry/capability/idempotency owner 和 forwarding catalog 物理删除 | operation/dispatch/server/contractgen targeted tests、全 Runtime tests 与 architecture package-boundary guard 全绿；`go generate ./...` 成功且公开 contract 制品零语义 diff；完整静态、race 与 hygiene 门禁在本批提交前收口 |
@@ -668,4 +669,4 @@
 
 ## 25. 当前下一步
 
-P19-05 已完成公共 concrete `embedded.Runtime` 及全量类型化方法。最后一批冻结公共 Go surface baseline、更新 generator/架构门禁/README/consumer handoff，执行全量质量矩阵与两个模块边界坏味道复扫；前端、TUI、CLI 不属于本阶段，Runtime 不为它们保留旧合同。
+P19 已完成：`protocol + embedded.Runtime` 是唯一公共 Go 合同，HTTP 与 embedded 共用唯一 operation/instance owner，旧 internal protocol 与 in-process channel transport 无兼容残留。下一步是独立 consumer 接线阶段；前端、TUI、CLI 不属于本计划，Runtime 不为它们保留旧合同。

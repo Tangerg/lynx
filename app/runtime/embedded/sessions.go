@@ -6,11 +6,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
-// Discover returns the protocol range and capabilities of this Runtime.
-func (r *Runtime) Discover(ctx context.Context, options CallOptions) (*protocol.DiscoverResponse, error) {
-	return invoke[struct{}, *protocol.DiscoverResponse](ctx, r, "runtime.discover", struct{}{}, callOptions(options))
-}
-
 // ListSessions returns one cursor page of Sessions.
 func (r *Runtime) ListSessions(ctx context.Context, request protocol.PageQuery, options CallOptions) (*protocol.Page[protocol.Session], error) {
 	return invoke[protocol.PageQuery, *protocol.Page[protocol.Session]](ctx, r, "sessions.list", request, callOptions(options))

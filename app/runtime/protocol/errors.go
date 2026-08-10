@@ -33,6 +33,14 @@ type ProblemData struct {
 	Errors []FieldError `json:"errors,omitempty"`
 }
 
+// ProblemError is the binding-neutral structured error returned by Runtime
+// operations. Use errors.Is with the stable sentinels in this package for
+// control flow and errors.As to ProblemError when recovery metadata is needed.
+type ProblemError interface {
+	error
+	Problem() ProblemData
+}
+
 // RecoveryAction is the default next move a client can safely make for one problem
 // type (§9.3). It is a closed set so an SDK branches exhaustively, and it is a
 // DEFAULT rather than a policy: it never overrides a method's idempotency rules and

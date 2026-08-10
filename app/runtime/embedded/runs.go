@@ -41,18 +41,3 @@ func (r *Runtime) GetRun(ctx context.Context, request protocol.GetRunRequest, op
 func (r *Runtime) ListRuns(ctx context.Context, request protocol.ListRunsRequest, options CallOptions) (*protocol.Page[protocol.RunRef], error) {
 	return invoke[protocol.ListRunsRequest, *protocol.Page[protocol.RunRef]](ctx, r, "runs.list", request, callOptions(options))
 }
-
-// ListInterrupts returns waiting interrupt sets for Run trees.
-func (r *Runtime) ListInterrupts(ctx context.Context, request protocol.ListInterruptsRequest, options CallOptions) (*protocol.Page[protocol.PendingInterruptSet], error) {
-	return invoke[protocol.ListInterruptsRequest, *protocol.Page[protocol.PendingInterruptSet]](ctx, r, "interrupts.list", request, callOptions(options))
-}
-
-// ListItems returns the authoritative transcript Items for a Session or Run scope.
-func (r *Runtime) ListItems(ctx context.Context, request protocol.ListItemsRequest, options CallOptions) (*protocol.ListItemsResponse, error) {
-	return invoke[protocol.ListItemsRequest, *protocol.ListItemsResponse](ctx, r, "items.list", request, callOptions(options))
-}
-
-// GetPlan returns the current Plan state snapshot for a Session.
-func (r *Runtime) GetPlan(ctx context.Context, request protocol.GetPlanRequest, options CallOptions) (*protocol.StateSnapshot, error) {
-	return invoke[protocol.GetPlanRequest, *protocol.StateSnapshot](ctx, r, "plan.get", request, callOptions(options))
-}
