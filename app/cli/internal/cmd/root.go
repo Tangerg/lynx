@@ -20,7 +20,6 @@ import (
 	"github.com/Tangerg/oolong/core/term"
 
 	"github.com/Tangerg/lynx/app/cli/internal/client"
-	"github.com/Tangerg/lynx/app/cli/internal/client/mock"
 	"github.com/Tangerg/lynx/app/cli/internal/extensions"
 	"github.com/Tangerg/lynx/app/cli/internal/settings"
 	"github.com/Tangerg/lynx/app/cli/internal/sideload"
@@ -30,13 +29,17 @@ import (
 // version is overridden at link time via -ldflags "-X ...cmd.version=...".
 var version = "dev"
 
-// mockNotice tells the user, on stderr so stdout stays pipeable, that nothing
-// here talks to a real agent yet.
-const mockNotice = "lyra: scripted mock runtime — no backend is wired in yet"
-
 const configIndependentAnnotation = "lyra/config-independent"
 
 type runtimeFactory func(context.Context) (client.Runtime, error)
+
+// Dependencies are the outer implementations available to the command tree.
+// Runtime construction stays lazy so help and completion do not open sockets,
+// databases, or other process-owned resources.
+type Dependencies struct {
+	OpenRuntime   func(context.Context) (client.Runtime, error)
+	RuntimeNotice string
+}
 
 // runtimeProvider delays construction until a command needs the runtime. It
 // owns delivery-only diagnostics so factories remain independent of Cobra.
@@ -46,29 +49,34 @@ type runtimeProvider struct {
 }
 
 func (p runtimeProvider) Open(cmd *cobra.Command) (client.Runtime, error) {
+	runtime, err := p.runtime(cmd.Context())
+	if err != nil {
+		return nil, err
+	}
 	if p.notice != "" {
 		if _, err := fmt.Fprintln(cmd.ErrOrStderr(), p.notice); err != nil {
 			return nil, fmt.Errorf("announce runtime: %w", err)
 		}
 	}
-	return p.factory(cmd.Context())
+	return runtime, nil
 }
 
 func (p runtimeProvider) Complete(cmd *cobra.Command) (client.Runtime, error) {
-	return p.factory(cmd.Context())
+	return p.runtime(cmd.Context())
 }
 
-// NewRoot builds the command tree. A nil runtime installs the scripted mock,
-// which is what a real build does today; tests pass their own.
-func NewRoot(rt client.Runtime) *cobra.Command {
-	provider := runtimeProvider{factory: func(context.Context) (client.Runtime, error) {
-		if rt != nil {
-			return rt, nil
-		}
-		return mock.New(), nil
-	}}
-	if rt == nil {
-		provider.notice = mockNotice
+func (p runtimeProvider) runtime(ctx context.Context) (client.Runtime, error) {
+	if p.factory == nil {
+		return nil, errors.New("runtime factory is required")
+	}
+	return p.factory(ctx)
+}
+
+// NewRoot builds an isolated command tree from process-owned dependencies.
+func NewRoot(dependencies Dependencies) *cobra.Command {
+	provider := runtimeProvider{
+		factory: dependencies.OpenRuntime,
+		notice:  dependencies.RuntimeNotice,
 	}
 	return buildRoot(provider)
 }
@@ -191,32 +199,6 @@ func workspace(cmd *cobra.Command) (string, error) {
 		return "", fmt.Errorf("resolve workspace symlinks: %w", err)
 	}
 	return abs, nil
-}
-
-// sessionFor finds the session a command should run in: the one named, or a new
-// one in this workspace.
-func sessionFor(ctx context.Context, rt interface {
-	client.SessionReader
-	client.SessionWriter
-}, id, ws string) (client.Session, error) {
-	if id == "" {
-		created, err := rt.CreateSession(ctx, client.NewSession{Workspace: ws})
-		if err != nil {
-			return client.Session{}, err
-		}
-		if err := created.Validate(); err != nil {
-			return client.Session{}, fmt.Errorf("create session: %w", err)
-		}
-		return created, nil
-	}
-	snapshot, err := rt.GetSession(ctx, id)
-	if err != nil {
-		return client.Session{}, fmt.Errorf("open session: %w", err)
-	}
-	if err := snapshot.Validate(); err != nil {
-		return client.Session{}, fmt.Errorf("open session: %w", err)
-	}
-	return snapshot.Session, nil
 }
 
 var errNoPrompt = errors.New("no prompt: pass one as an argument, pipe one in, or both")

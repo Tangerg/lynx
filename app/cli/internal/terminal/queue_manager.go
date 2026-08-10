@@ -312,7 +312,7 @@ func (q *queueManager) beginEdit() {
 		}
 	}
 	q.editingID = entry.ID
-	q.editingMessage = cloneMessage(entry.Message)
+	q.editingMessage = entry.Message.Clone()
 	q.editor.SetText(entry.Message.Text)
 	q.editor.Focus(q.focused)
 	q.notice = ""
@@ -341,7 +341,7 @@ func (q *queueManager) saveEdit(sendNow bool) {
 		return
 	}
 	id := q.editingID
-	message := cloneMessage(q.editingMessage)
+	message := q.editingMessage.Clone()
 	message.Text = strings.TrimSpace(q.editor.Text())
 	if err := q.actions.SaveEdit(id, message, sendNow); err != nil {
 		q.notice = err.Error()

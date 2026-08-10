@@ -211,7 +211,7 @@ func (r *recordingRuntime) startInput() client.StartRun {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	input := r.last
-	input.Message = cloneMessage(input.Message)
+	input.Message = input.Message.Clone()
 	return input
 }
 
@@ -226,7 +226,7 @@ func (r *recordingRuntime) startInputs() []client.StartRun {
 }
 
 func cloneStartRun(input client.StartRun) client.StartRun {
-	input.Message = cloneMessage(input.Message)
+	input.Message = input.Message.Clone()
 	return input
 }
 

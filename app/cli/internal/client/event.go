@@ -1,6 +1,9 @@
 package client
 
-import "time"
+import (
+	"slices"
+	"time"
+)
 
 // Cursor is a session-local event position. Zero means no event has been
 // accepted yet; real events start at one.
@@ -15,6 +18,12 @@ type Envelope struct {
 	SessionID string
 	At        time.Time
 	Event     Event
+}
+
+// Clone returns an envelope whose event owns its mutable projections.
+func (e Envelope) Clone() Envelope {
+	e.Event = CloneEvent(e.Event)
+	return e
 }
 
 // Event is one closed, presentation-oriented fact from a runtime adapter.
@@ -63,3 +72,31 @@ func (BlockCompleted) clientEvent() {}
 func (PlanChanged) clientEvent()    {}
 func (RunInterrupted) clientEvent() {}
 func (RunFinished) clientEvent()    {}
+
+// CloneEvent returns a detached copy of a known event payload.
+func CloneEvent(event Event) Event {
+	switch item := event.(type) {
+	case RunStarted:
+		return item
+	case RunResumed:
+		return item
+	case BlockStarted:
+		item.Block = item.Block.Clone()
+		return item
+	case BlockDelta:
+		return item
+	case BlockCompleted:
+		item.Block = item.Block.Clone()
+		return item
+	case PlanChanged:
+		item.Items = slices.Clone(item.Items)
+		return item
+	case RunInterrupted:
+		item.Interaction = CloneInteraction(item.Interaction)
+		return item
+	case RunFinished:
+		return item
+	default:
+		return nil
+	}
+}

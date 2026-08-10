@@ -27,7 +27,12 @@ import (
 func exec(t *testing.T, rt client.Runtime, stdin string, args ...string) (string, string, error) {
 	t.Helper()
 	var out, errb bytes.Buffer
-	root := NewRoot(rt)
+	dependencies := Dependencies{OpenRuntime: func(context.Context) (client.Runtime, error) { return rt, nil }}
+	if rt == nil {
+		dependencies.OpenRuntime = func(context.Context) (client.Runtime, error) { return mock.New(), nil }
+		dependencies.RuntimeNotice = testRuntimeNotice
+	}
+	root := NewRoot(dependencies)
 	root.SetOut(&out)
 	root.SetErr(&errb)
 	root.SetIn(strings.NewReader(stdin))
@@ -962,7 +967,7 @@ func TestCompletionCommand(t *testing.T) {
 // database, a socket, or anything else a real runtime needs.
 func TestHelpDoesNotResolveARuntime(t *testing.T) {
 	var resolved bool
-	root := buildRoot(runtimeProvider{factory: func(context.Context) (client.Runtime, error) {
+	root := NewRoot(Dependencies{OpenRuntime: func(context.Context) (client.Runtime, error) {
 		resolved = true
 		return instant(), nil
 	}})
@@ -977,7 +982,9 @@ func TestHelpDoesNotResolveARuntime(t *testing.T) {
 	}
 }
 
-func TestMockNoticeGoesToStderrNotStdout(t *testing.T) {
+const testRuntimeNotice = "lyra: scripted mock runtime — no backend is wired in yet"
+
+func TestRuntimeNoticeGoesToStderrNotStdout(t *testing.T) {
 	// A nil runtime is what a real build gets, and the notice must not land in a
 	// pipe that is being parsed.
 	out, errb, err := exec(t, nil, "", "sessions", "ls")
@@ -987,12 +994,12 @@ func TestMockNoticeGoesToStderrNotStdout(t *testing.T) {
 	if strings.Contains(out, "mock") {
 		t.Fatalf("the mock notice leaked into stdout:\n%s", out)
 	}
-	if !strings.Contains(errb, mockNotice) {
+	if !strings.Contains(errb, testRuntimeNotice) {
 		t.Fatalf("stderr = %q, want the mock notice", errb)
 	}
 }
 
-func TestMockCompletionDoesNotPrintRuntimeNotice(t *testing.T) {
+func TestCompletionDoesNotPrintRuntimeNotice(t *testing.T) {
 	out, errb, err := exec(t, nil, "", "__complete", "sessions", "show", "")
 	if err != nil {
 		t.Fatalf("complete sessions: %v", err)
@@ -1000,7 +1007,7 @@ func TestMockCompletionDoesNotPrintRuntimeNotice(t *testing.T) {
 	if !strings.Contains(out, "ses_demo_") {
 		t.Fatalf("completion output has no session ids:\n%s", out)
 	}
-	if strings.Contains(errb, mockNotice) {
+	if strings.Contains(errb, testRuntimeNotice) {
 		t.Fatalf("completion stderr contains runtime notice: %q", errb)
 	}
 }

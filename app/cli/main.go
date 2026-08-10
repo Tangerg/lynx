@@ -9,8 +9,12 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/Tangerg/lynx/app/cli/internal/client"
+	"github.com/Tangerg/lynx/app/cli/internal/client/mock"
 	"github.com/Tangerg/lynx/app/cli/internal/cmd"
 )
+
+const mockRuntimeNotice = "lyra: scripted mock runtime — no backend is wired in yet"
 
 func main() {
 	os.Exit(run())
@@ -20,7 +24,12 @@ func run() int {
 	ctx, stop := processSignalContext(context.Background())
 	defer stop()
 
-	root := cmd.NewRoot(nil)
+	root := cmd.NewRoot(cmd.Dependencies{
+		OpenRuntime: func(context.Context) (client.Runtime, error) {
+			return mock.New(), nil
+		},
+		RuntimeNotice: mockRuntimeNotice,
+	})
 	root.SetIn(os.Stdin)
 	root.SetOut(os.Stdout)
 	root.SetErr(os.Stderr)

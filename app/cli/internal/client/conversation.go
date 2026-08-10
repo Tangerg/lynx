@@ -62,7 +62,7 @@ func NewConversationAt(after Cursor) *Conversation {
 func (c *Conversation) Blocks() []Block {
 	out := make([]Block, len(c.blocks))
 	for i, block := range c.blocks {
-		out[i] = cloneBlock(block)
+		out[i] = block.Clone()
 	}
 	return out
 }
@@ -355,19 +355,19 @@ func (c *Conversation) put(block Block, completed bool) error {
 		if err := validateBlockCompletion(c.blocks[at], block); err != nil {
 			return err
 		}
-		c.blocks[at] = cloneBlock(block)
+		c.blocks[at] = block.Clone()
 		c.open[block.ID] = false
 		return nil
 	}
 	if !completed {
 		c.index[block.ID] = len(c.blocks)
-		c.blocks = append(c.blocks, cloneBlock(block))
+		c.blocks = append(c.blocks, block.Clone())
 		c.open[block.ID] = true
 		return nil
 	}
 	// A complete non-streamed block legitimately arrives without BlockStarted.
 	c.index[block.ID] = len(c.blocks)
-	c.blocks = append(c.blocks, cloneBlock(block))
+	c.blocks = append(c.blocks, block.Clone())
 	c.open[block.ID] = false
 	return nil
 }
@@ -409,17 +409,4 @@ func (c *Conversation) requireRunning(action string) error {
 		return fmt.Errorf("%w: cannot %s without an active run", ErrInvalidTransition, action)
 	}
 	return nil
-}
-
-func cloneBlock(block Block) Block {
-	block.Attachments = slices.Clone(block.Attachments)
-	if block.Tool != nil {
-		tool := *block.Tool
-		if block.Tool.ExitCode != nil {
-			code := *block.Tool.ExitCode
-			tool.ExitCode = &code
-		}
-		block.Tool = &tool
-	}
-	return block
 }

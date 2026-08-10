@@ -42,7 +42,7 @@ func (a *app) startRun(message client.Message, status string) bool {
 	input := client.StartRun{
 		RequestID: requestID,
 		SessionID: a.session.ID,
-		Message:   cloneMessage(message),
+		Message:   message.Clone(),
 		Options:   a.options,
 	}
 	a.follow(func(ctx context.Context) (subscription, error) {

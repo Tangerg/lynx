@@ -17,6 +17,7 @@ import (
 	"github.com/Tangerg/lynx/app/cli/internal/client"
 	"github.com/Tangerg/lynx/app/cli/internal/extensions"
 	"github.com/Tangerg/lynx/app/cli/internal/promptqueue"
+	"github.com/Tangerg/lynx/app/cli/internal/session"
 	"github.com/Tangerg/lynx/app/cli/internal/settings"
 )
 
@@ -105,7 +106,7 @@ func prepareSession(ctx context.Context, cfg Config) (preparedSession, error) {
 	if err != nil {
 		return preparedSession{}, err
 	}
-	opened, err := open(ctx, cfg.Runtime, cfg.SessionID, cfg.Workspace)
+	opened, err := session.Open(ctx, cfg.Runtime, cfg.SessionID, cfg.Workspace)
 	if err != nil {
 		return preparedSession{}, err
 	}
@@ -130,29 +131,4 @@ func requirePlugin(results []extensions.Result, id string) error {
 		return fmt.Errorf("session: required plugin %q is %s", id, result.Phase)
 	}
 	return fmt.Errorf("session: required plugin %q was not discovered", id)
-}
-
-func open(ctx context.Context, rt interface {
-	client.SessionReader
-	client.SessionWriter
-}, id, workspace string) (client.SessionSnapshot, error) {
-	if id == "" {
-		created, err := rt.CreateSession(ctx, client.NewSession{Workspace: workspace})
-		if err != nil {
-			return client.SessionSnapshot{}, err
-		}
-		snapshot := client.SessionSnapshot{Session: created}
-		if err := snapshot.Validate(); err != nil {
-			return client.SessionSnapshot{}, fmt.Errorf("open session: %w", err)
-		}
-		return snapshot, nil
-	}
-	snapshot, err := rt.GetSession(ctx, id)
-	if err != nil {
-		return client.SessionSnapshot{}, err
-	}
-	if err := snapshot.Validate(); err != nil {
-		return client.SessionSnapshot{}, fmt.Errorf("open session: %w", err)
-	}
-	return snapshot, nil
 }

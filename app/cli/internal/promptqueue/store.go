@@ -57,7 +57,7 @@ func (s *Store) Enqueue(sessionID string, message client.Message) (Entry, error)
 	defer s.mu.Unlock()
 	s.ensure()
 	s.nextID++
-	entry := Entry{ID: s.nextID, SessionID: strings.Clone(sessionID), Message: cloneMessage(message)}
+	entry := Entry{ID: s.nextID, SessionID: strings.Clone(sessionID), Message: message.Clone()}
 	s.entries[sessionID] = append(s.entries[sessionID], entry)
 	s.revision++
 	return cloneEntry(entry), nil
@@ -132,7 +132,7 @@ func (s *Store) Update(sessionID string, id uint64, message client.Message) erro
 	if index < 0 {
 		return ErrEntryNotFound
 	}
-	s.entries[sessionID][index].Message = cloneMessage(message)
+	s.entries[sessionID][index].Message = message.Clone()
 	s.revision++
 	return nil
 }
@@ -235,12 +235,6 @@ func find(entries []Entry, id uint64) int {
 
 func cloneEntry(entry Entry) Entry {
 	entry.SessionID = strings.Clone(entry.SessionID)
-	entry.Message = cloneMessage(entry.Message)
+	entry.Message = entry.Message.Clone()
 	return entry
-}
-
-func cloneMessage(message client.Message) client.Message {
-	message.Text = strings.Clone(message.Text)
-	message.Attachments = slices.Clone(message.Attachments)
-	return message
 }

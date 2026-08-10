@@ -32,6 +32,13 @@ type Message struct {
 	Attachments []Attachment
 }
 
+// Clone returns a message with detached text and attachment storage.
+func (m Message) Clone() Message {
+	m.Text = strings.Clone(m.Text)
+	m.Attachments = slices.Clone(m.Attachments)
+	return m
+}
+
 // AttachmentKind is deliberately small; adapters can project richer backend
 // media into these terminal-relevant forms.
 type AttachmentKind string

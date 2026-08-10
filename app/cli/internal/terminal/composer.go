@@ -27,7 +27,7 @@ type promptHistory struct {
 
 func (h *promptHistory) Add(message client.Message) {
 	h.at, h.draft = 0, client.Message{}
-	message = cloneMessage(message)
+	message = message.Clone()
 	if strings.TrimSpace(message.Text) == "" && len(message.Attachments) == 0 {
 		return
 	}
@@ -51,10 +51,10 @@ func (h *promptHistory) Back(current client.Message) (client.Message, bool) {
 		return client.Message{}, false
 	}
 	if h.at == 0 {
-		h.draft = cloneMessage(current)
+		h.draft = current.Clone()
 	}
 	h.at++
-	return cloneMessage(h.entries[len(h.entries)-h.at]), true
+	return h.entries[len(h.entries)-h.at].Clone(), true
 }
 
 func (h *promptHistory) Forward() (client.Message, bool) {
@@ -63,17 +63,11 @@ func (h *promptHistory) Forward() (client.Message, bool) {
 	}
 	h.at--
 	if h.at == 0 {
-		draft := cloneMessage(h.draft)
+		draft := h.draft.Clone()
 		h.draft = client.Message{}
 		return draft, true
 	}
-	return cloneMessage(h.entries[len(h.entries)-h.at]), true
-}
-
-func cloneMessage(message client.Message) client.Message {
-	message.Text = strings.Clone(message.Text)
-	message.Attachments = slices.Clone(message.Attachments)
-	return message
+	return h.entries[len(h.entries)-h.at].Clone(), true
 }
 
 func equalMessage(a, b client.Message) bool {

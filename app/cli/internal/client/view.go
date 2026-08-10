@@ -16,6 +16,7 @@ package client
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 )
@@ -62,6 +63,19 @@ type Block struct {
 	Text string
 	// Tool carries the call's projection when Kind is [BlockTool].
 	Tool *ToolCall
+}
+
+// Clone returns a block with no mutable storage shared with the caller.
+func (b Block) Clone() Block {
+	b.Attachments = slices.Clone(b.Attachments)
+	if b.Tool != nil {
+		tool := *b.Tool
+		if b.Tool.ExitCode != nil {
+			tool.ExitCode = new(*b.Tool.ExitCode)
+		}
+		b.Tool = &tool
+	}
+	return b
 }
 
 // ToolStatus is where a tool call is in its life.

@@ -17,6 +17,7 @@ import (
 	"github.com/Tangerg/lynx/app/cli/internal/reconnect"
 	"github.com/Tangerg/lynx/app/cli/internal/render"
 	"github.com/Tangerg/lynx/app/cli/internal/requestid"
+	"github.com/Tangerg/lynx/app/cli/internal/session"
 )
 
 // renderer is what `run` needs to write a run out. Declared here, where it is
@@ -92,12 +93,12 @@ func (f *runFlags) execute(cmd *cobra.Command, args []string, provider runtimePr
 	if err != nil {
 		return err
 	}
-	session, err := sessionFor(cmd.Context(), runtime, f.sessionID, workspacePath)
+	opened, err := session.Open(cmd.Context(), runtime, f.sessionID, workspacePath)
 	if err != nil {
 		return err
 	}
 	return follow(cmd.Context(), runtime, runRenderer(cmd, format), client.StartRun{
-		SessionID: session.ID, Message: message, Options: value.RunOptions(),
+		SessionID: opened.Session.ID, Message: message, Options: value.RunOptions(),
 	}, f.approveAll, value.UI.ReconnectAttempts)
 }
 
