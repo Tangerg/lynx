@@ -9,6 +9,7 @@ import (
 	"go/parser"
 	"go/token"
 	"io/fs"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -31,46 +32,36 @@ var layers = []struct {
 	{"internal/terminal/", "terminal"},
 	{"internal/attachment/", "attachment"},
 	{"internal/reconnect/", "reconnect"},
-	{"internal/identity/", "identity"},
+	{"internal/requestid/", "requestid"},
 	{"internal/client/", "client"},
+	{"internal/settings/", "settings"},
 	{"internal/extensions/", "extensions"},
 	{"internal/render/", "render"},
 	{"internal/cmd/", "cmd"},
 	{"internal/arch/", "arch"},
 }
 
-// forbidden is, for each layer, the layers it may never import.
-var forbidden = map[string][]string{
-	// The domain model and consumer-owned runtime ports are the center. They know no
-	// adapter, registry, renderer, or composition root.
-	"client": {"mock", "extensions", "terminal", "render", "cmd"},
+// allowed names every inward or same-ring dependency. An allowlist makes a new
+// dependency fail closed instead of silently weakening the architecture.
+var allowed = map[string][]string{
+	// Domain policy and generic infrastructure are the center.
+	"client":     nil,
+	"settings":   {"client"},
+	"requestid":  nil,
+	"extensions": nil,
 
-	// Local file discovery is an outbound adapter around the client attachment
-	// value. It must not reach into delivery mechanisms or the mock backend.
-	"attachment": {"mock", "extensions", "terminal", "render", "cmd"},
-	"reconnect":  {"mock", "extensions", "terminal", "render", "cmd", "attachment"},
-	"identity":   {"client", "mock", "attachment", "reconnect", "extensions", "terminal", "render", "cmd"},
+	// Outbound adapters share domain contracts, not one another.
+	"attachment": {"client"},
+	"reconnect":  {"client"},
+	"mock":       {"client"},
+	"render":     {"client"},
 
-	// The generic plugin substrate is policy-free and reusable by every outer ring.
-	"extensions": {"client", "mock", "terminal", "render", "cmd"},
-
-	// Today's fake runtime is an outbound adapter. It may implement the client ports
-	// but must not reach sideways into another delivery adapter.
-	"mock": {"extensions", "terminal", "render", "cmd"},
-
-	// The interactive terminal adapter coordinates domain events and extensions.
-	// Command routing is the composition root above it; headless rendering is a peer.
-	"terminal": {"mock", "render", "cmd"},
-
-	// Sideloading is an outer adapter around the generic extension kernel and the
-	// terminal's public contribution contracts.
-	"sideload": {"client", "mock", "attachment", "reconnect", "render", "cmd"},
-
-	// The headless renderers. They share the client with the interface and nothing else:
-	// both turn events into bytes, but one is a contract for a pipe and the other an
-	// interface for a person, and they change for different reasons. Merging them would
-	// be a false economy.
-	"render": {"mock", "extensions", "terminal", "cmd"},
+	// Delivery adapters compose inward abstractions. Sideloading is the outer trust
+	// boundary around terminal contributions; cmd is the application composition root.
+	"terminal": {"attachment", "client", "extensions", "reconnect", "requestid", "settings"},
+	"sideload": {"extensions", "terminal"},
+	"cmd":      {"attachment", "client", "extensions", "mock", "reconnect", "render", "requestid", "settings", "sideload", "terminal"},
+	"arch":     nil,
 }
 
 func TestLayeringHoldsInTheImports(t *testing.T) {
@@ -93,7 +84,7 @@ func TestLayeringHoldsInTheImports(t *testing.T) {
 			if to == "" || to == from {
 				continue
 			}
-			if slices.Contains(forbidden[from], to) {
+			if !slices.Contains(allowed[from], to) {
 				t.Errorf("%s (%s) imports %s (%s): %s must never depend on %s",
 					dir, from, rest, to, from, to)
 			}
@@ -101,6 +92,20 @@ func TestLayeringHoldsInTheImports(t *testing.T) {
 	})
 	if checked == 0 {
 		t.Fatal("no files were checked, so this test proves nothing")
+	}
+}
+
+func TestEveryInternalPackageBelongsToALayer(t *testing.T) {
+	root := moduleRoot(t)
+	seen := make(map[string]struct{})
+	walk(t, root, func(dir, _ string) {
+		if !strings.HasPrefix(dir, "internal/") || layerOf(dir) != "" {
+			return
+		}
+		seen[dir] = struct{}{}
+	})
+	for _, dir := range slices.Sorted(maps.Keys(seen)) {
+		t.Errorf("%s belongs to no architecture layer", dir)
 	}
 }
 
@@ -115,7 +120,7 @@ func TestTheLibraryStaysALibrary(t *testing.T) {
 	root := moduleRoot(t)
 	fset := token.NewFileSet()
 
-	terminalFree := []string{"client", "mock", "attachment", "reconnect", "identity", "extensions", "render"}
+	terminalFree := []string{"client", "settings", "mock", "attachment", "reconnect", "requestid", "extensions", "render"}
 	walk(t, root, func(dir, path string) {
 		layer := layerOf(dir)
 		if !slices.Contains(terminalFree, layer) {
@@ -143,7 +148,8 @@ func TestTheRulesWouldActuallyRefuseSomething(t *testing.T) {
 		{"internal/client/mock", "internal/render", true},
 		{"internal/attachment", "internal/terminal", true},
 		{"internal/reconnect", "internal/cmd", true},
-		{"internal/identity", "internal/client", true},
+		{"internal/requestid", "internal/client", true},
+		{"internal/settings", "internal/terminal", true},
 		{"internal/render", "internal/terminal", true},
 		{"internal/terminal", "internal/cmd", true},
 		{"internal/sideload", "internal/cmd", true},
@@ -156,7 +162,8 @@ func TestTheRulesWouldActuallyRefuseSomething(t *testing.T) {
 		{"internal/render", "internal/client", false},
 		{"internal/attachment", "internal/client", false},
 		{"internal/reconnect", "internal/client", false},
-		{"internal/cmd", "internal/identity", false},
+		{"internal/cmd", "internal/requestid", false},
+		{"internal/settings", "internal/client", false},
 	} {
 		from, to := layerOf(tc.from), layerOf(tc.to)
 		if from == "" {
@@ -165,7 +172,8 @@ func TestTheRulesWouldActuallyRefuseSomething(t *testing.T) {
 		if to == "" {
 			t.Fatalf("%s belongs to no layer, so importing it is unguarded", tc.to)
 		}
-		if got := slices.Contains(forbidden[from], to); got != tc.refused {
+		got := from != to && !slices.Contains(allowed[from], to)
+		if got != tc.refused {
 			verb := map[bool]string{true: "refused", false: "allowed"}
 			t.Errorf("%s -> %s is %s, want it %s", from, to, verb[got], verb[tc.refused])
 		}
