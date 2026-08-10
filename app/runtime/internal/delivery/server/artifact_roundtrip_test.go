@@ -360,7 +360,7 @@ func seedMaximalSession(t *testing.T, rt *stubRuntime) string {
 	seedChildRun(t, rt, sessionID)
 	seedOffloadedToolResult(t, rt, sessionID)
 
-	if err := rt.plan.Replace(ctx, sessionID, []plan.Step{
+	if err := saveTestPlan(ctx, rt.plan, sessionID, []plan.Step{
 		{Description: "carry every field", Status: plan.StatusInProgress},
 	}); err != nil {
 		t.Fatalf("seed plan: %v", err)

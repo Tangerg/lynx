@@ -8,6 +8,7 @@ import (
 
 	"github.com/Tangerg/lynx/core/chat"
 
+	planapp "github.com/Tangerg/lynx/app/runtime/internal/application/plans"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
@@ -35,7 +36,22 @@ func (refusingBoundaries) Boundary(context.Context, string) ([]plan.Step, bool, 
 func boundaryCoordinator(stores testStores, boundaries PlanBoundaries) *Coordinator {
 	deps := testDependencies(stores, Dependencies{Paths: testCWDResolver{}})
 	deps.Boundaries = boundaries
+	deps.PlanReplacements = planapp.New(planapp.Dependencies{
+		Store: boundaryPlanStore{}, Now: func() time.Time { return time.Unix(100, 0) },
+	})
 	return New(deps)
+}
+
+type boundaryPlanStore struct{}
+
+func (boundaryPlanStore) State(context.Context, string) (plan.State, error)      { return plan.State{}, nil }
+func (boundaryPlanStore) Save(context.Context, string, uint64, plan.State) error { return nil }
+
+func replacementSteps(replacement *planapp.Replacement) []plan.Step {
+	if replacement == nil {
+		return nil
+	}
+	return replacement.State().Steps()
 }
 
 func idleStores(rolledBack *RollbackPlan) coordinatorStores {
@@ -65,11 +81,9 @@ func TestRollbackPublishesTheBoundaryPlanList(t *testing.T) {
 	if err := c.applyRollback(t.Context(), "ses_A", droppedBoundary("run_keep", 4)); err != nil {
 		t.Fatalf("applyRollback: %v", err)
 	}
-	if !applied.Plan.Recorded {
-		t.Fatal("rollback plan reports no recorded boundary, want the kept run's list")
-	}
-	if len(applied.Plan.Steps) != 1 || applied.Plan.Steps[0].Description != "the plan as of the boundary" {
-		t.Fatalf("rollback plan plan = %+v, want the boundary list", applied.Plan.Steps)
+	steps := replacementSteps(applied.PlanReplacement)
+	if len(steps) != 1 || steps[0].Description != "the plan as of the boundary" {
+		t.Fatalf("rollback Plan replacement = %+v, want the boundary list", steps)
 	}
 }
 
@@ -83,8 +97,8 @@ func TestRollbackLeavesAnUnrecordedBoundaryAlone(t *testing.T) {
 	if err := c.applyRollback(t.Context(), "ses_A", droppedBoundary("run_imported", 4)); err != nil {
 		t.Fatalf("applyRollback: %v", err)
 	}
-	if applied.Plan.Recorded || applied.Plan.Steps != nil {
-		t.Fatalf("rollback plan plan = %+v (recorded %v), want nothing to apply", applied.Plan.Steps, applied.Plan.Recorded)
+	if applied.PlanReplacement != nil {
+		t.Fatalf("rollback Plan replacement = %+v, want nothing to apply", replacementSteps(applied.PlanReplacement))
 	}
 }
 
@@ -100,8 +114,8 @@ func TestRollbackToBeforeEveryRunClearsWithoutALookup(t *testing.T) {
 	if err := c.applyRollback(t.Context(), "ses_A", boundary); err != nil {
 		t.Fatalf("applyRollback: %v", err)
 	}
-	if !applied.Plan.Recorded || len(applied.Plan.Steps) != 0 {
-		t.Fatalf("rollback plan plan = %+v (recorded %v), want a known empty list", applied.Plan.Steps, applied.Plan.Recorded)
+	if applied.PlanReplacement == nil || len(replacementSteps(applied.PlanReplacement)) != 0 {
+		t.Fatalf("rollback Plan replacement = %+v, want a known empty list", replacementSteps(applied.PlanReplacement))
 	}
 }
 
@@ -128,7 +142,8 @@ func TestForkSeedsTheBoundaryPlanList(t *testing.T) {
 	if _, err := c.Fork(t.Context(), ForkSpec{ParentID: "ses_A"}); err != nil {
 		t.Fatalf("Fork: %v", err)
 	}
-	if len(applied.Plan) != 1 || applied.Plan[0].Description != "the plan at the boundary" {
-		t.Fatalf("fork plan plan = %+v, want the boundary list, not the parent's live one", applied.Plan)
+	steps := replacementSteps(applied.PlanReplacement)
+	if len(steps) != 1 || steps[0].Description != "the plan at the boundary" {
+		t.Fatalf("fork Plan replacement = %+v, want the boundary list, not the parent's live one", steps)
 	}
 }

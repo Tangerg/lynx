@@ -101,7 +101,7 @@ func TestRestorePlanOrdersRunTreeParentsBeforeChildren(t *testing.T) {
 	grandchild := runfixture.MustRestore(grandchildSnapshot)
 	snapshot.Runs = []run.Run{grandchild, child, root}
 
-	plan := restorePlan(snapshot)
+	plan := restorePlan(snapshot, nil)
 	got := make([]string, 0, len(plan.Runs))
 	for _, run := range plan.Runs {
 		got = append(got, run.ID())

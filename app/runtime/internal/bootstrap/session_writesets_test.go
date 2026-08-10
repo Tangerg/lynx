@@ -11,6 +11,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/persistence"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/conversations"
+	planapp "github.com/Tangerg/lynx/app/runtime/internal/application/plans"
 	runsapp "github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/accounting"
@@ -121,6 +122,24 @@ func newWriteSetFixture(t *testing.T) (sessionStores, *sqlite.RunStore, *persist
 		},
 	})
 	return ss, runs, ints
+}
+
+func replaceFixturePlan(t *testing.T, ctx context.Context, store *sqlite.PlanStore, sessionID string, steps []plan.Step) plan.State {
+	t.Helper()
+	state, err := planapp.New(planapp.Dependencies{Store: store, Now: time.Now}).Replace(ctx, sessionID, steps)
+	if err != nil {
+		t.Fatalf("replace fixture Plan: %v", err)
+	}
+	return state
+}
+
+func prepareFixturePlan(t *testing.T, ctx context.Context, store *sqlite.PlanStore, sessionID string, steps []plan.Step) *planapp.Replacement {
+	t.Helper()
+	replacement, err := planapp.New(planapp.Dependencies{Store: store, Now: time.Now}).PrepareReplacement(ctx, sessionID, steps)
+	if err != nil {
+		t.Fatalf("prepare fixture Plan: %v", err)
+	}
+	return &replacement
 }
 
 // parkCreatedAt is when the fixture's parked Run was admitted.
@@ -368,9 +387,7 @@ func TestApplyRollbackDropsRunsAndFreesAdmission(t *testing.T) {
 	ss, runs, ints := newWriteSetFixture(t)
 	ctx := context.Background()
 	memberID := parkSessionARootRun(t, ss.sessions, runs, ints, ss.checkpoints)
-	if err := ss.plan.Replace(ctx, "ses_A", []plan.Step{{Description: "future work", Status: plan.StatusPending}}); err != nil {
-		t.Fatalf("seed plan: %v", err)
-	}
+	replaceFixturePlan(t, ctx, ss.plan, "ses_A", []plan.Step{{Description: "future work", Status: plan.StatusPending}})
 	seedGoal(t, ss, "ses_A")
 
 	if err := ss.ApplyRollback(ctx, sessions.RollbackPlan{
@@ -413,11 +430,9 @@ func TestApplyRollbackRepublishesBoundaryPlan(t *testing.T) {
 	ss, runs, ints := newWriteSetFixture(t)
 	ctx := t.Context()
 	memberID := parkSessionARootRun(t, ss.sessions, runs, ints, ss.checkpoints)
-	if err := ss.plan.Replace(ctx, "ses_A", []plan.Step{
+	replaceFixturePlan(t, ctx, ss.plan, "ses_A", []plan.Step{
 		{Description: "work the rollback discards", Status: plan.StatusInProgress},
-	}); err != nil {
-		t.Fatalf("seed plan: %v", err)
-	}
+	})
 	before, err := ss.plan.State(ctx, "ses_A")
 	if err != nil {
 		t.Fatalf("read plan: %v", err)
@@ -429,7 +444,7 @@ func TestApplyRollbackRepublishesBoundaryPlan(t *testing.T) {
 		KeepMessageMark:   -1,
 		DropRunIDs:        []string{"run_1"},
 		CheckpointRootIDs: []string{memberID},
-		Plan:              sessions.PlanBoundary{Steps: boundary, Recorded: true},
+		PlanReplacement:   prepareFixturePlan(t, ctx, ss.plan, "ses_A", boundary),
 	}); err != nil {
 		t.Fatalf("ApplyRollback: %v", err)
 	}
@@ -438,11 +453,12 @@ func TestApplyRollbackRepublishesBoundaryPlan(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read plan: %v", err)
 	}
-	if len(after.Steps) != 1 || after.Steps[0].Description != "the plan at the boundary" {
-		t.Fatalf("plan after rollback = %+v, want the boundary plan", after.Steps)
+	afterSteps := after.Steps()
+	if len(afterSteps) != 1 || afterSteps[0].Description != "the plan at the boundary" {
+		t.Fatalf("plan after rollback = %+v, want the boundary plan", afterSteps)
 	}
-	if after.Revision <= before.Revision {
-		t.Fatalf("revision after rollback = %d, want greater than %d", after.Revision, before.Revision)
+	if after.Revision() <= before.Revision() {
+		t.Fatalf("revision after rollback = %d, want greater than %d", after.Revision(), before.Revision())
 	}
 }
 
@@ -453,9 +469,7 @@ func TestApplyRollbackClearsToARecordedEmptyBoundary(t *testing.T) {
 	ss, runs, ints := newWriteSetFixture(t)
 	ctx := t.Context()
 	memberID := parkSessionARootRun(t, ss.sessions, runs, ints, ss.checkpoints)
-	if err := ss.plan.Replace(ctx, "ses_A", []plan.Step{{Description: "later work", Status: plan.StatusPending}}); err != nil {
-		t.Fatalf("seed plan: %v", err)
-	}
+	replaceFixturePlan(t, ctx, ss.plan, "ses_A", []plan.Step{{Description: "later work", Status: plan.StatusPending}})
 	before, err := ss.plan.State(ctx, "ses_A")
 	if err != nil {
 		t.Fatalf("read plan: %v", err)
@@ -466,7 +480,7 @@ func TestApplyRollbackClearsToARecordedEmptyBoundary(t *testing.T) {
 		KeepMessageMark:   -1,
 		DropRunIDs:        []string{"run_1"},
 		CheckpointRootIDs: []string{memberID},
-		Plan:              sessions.PlanBoundary{Recorded: true},
+		PlanReplacement:   prepareFixturePlan(t, ctx, ss.plan, "ses_A", nil),
 	}); err != nil {
 		t.Fatalf("ApplyRollback: %v", err)
 	}
@@ -475,11 +489,11 @@ func TestApplyRollbackClearsToARecordedEmptyBoundary(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read plan: %v", err)
 	}
-	if len(after.Steps) != 0 {
-		t.Fatalf("plan after rollback = %+v, want cleared to the recorded empty boundary", after.Steps)
+	if len(after.Steps()) != 0 {
+		t.Fatalf("plan after rollback = %+v, want cleared to the recorded empty boundary", after.Steps())
 	}
-	if after.Revision <= before.Revision {
-		t.Fatalf("revision after rollback = %d, want greater than %d", after.Revision, before.Revision)
+	if after.Revision() <= before.Revision() {
+		t.Fatalf("revision after rollback = %d, want greater than %d", after.Revision(), before.Revision())
 	}
 }
 
@@ -494,11 +508,15 @@ func TestApplyForkBranchesAndSeeds(t *testing.T) {
 		t.Fatalf("create parent: %v", err)
 	}
 
+	initial, err := planapp.New(planapp.Dependencies{Store: ss.plan, Now: time.Now}).PrepareInitial([]plan.Step{{Description: "inherited plan", Status: plan.StatusInProgress}})
+	if err != nil {
+		t.Fatalf("prepare child Plan: %v", err)
+	}
 	child, err := ss.ApplyFork(ctx, sessions.ForkPlan{
-		ParentID: parent.ID,
-		Messages: []chat.Message{chat.NewUserMessage(chat.NewTextPart("hello"))},
-		Plan:     []plan.Step{{Description: "inherited plan", Status: plan.StatusInProgress}},
-		Title:    "Child",
+		ParentID:        parent.ID,
+		Messages:        []chat.Message{chat.NewUserMessage(chat.NewTextPart("hello"))},
+		PlanReplacement: &initial,
+		Title:           "Child",
 	})
 	if err != nil {
 		t.Fatalf("ApplyFork: %v", err)
@@ -540,9 +558,7 @@ func TestApplyDeleteRemovesRunRows(t *testing.T) {
 	if err := ss.checkpoints.SaveCheckpoint(ctx, bootstrapCheckpoint(orphanMemberID, "ses_A")); err != nil {
 		t.Fatalf("seed orphan checkpoint: %v", err)
 	}
-	if err := ss.plan.Replace(ctx, "ses_A", []plan.Step{{Description: "owned", Status: plan.StatusPending}}); err != nil {
-		t.Fatalf("seed plan: %v", err)
-	}
+	replaceFixturePlan(t, ctx, ss.plan, "ses_A", []plan.Step{{Description: "owned", Status: plan.StatusPending}})
 	if err := ss.approvals.Put(ctx, testAllowRule(t, approval.ScopeSession, "ses_A", "shell")); err != nil {
 		t.Fatalf("seed approval: %v", err)
 	}
@@ -581,9 +597,7 @@ func TestApplyRestoreClearsSessionOwnedProjections(t *testing.T) {
 	if err := ss.sessions.Restore(ctx, session.Session{ID: "ses_A", CWD: "/repo"}); err != nil {
 		t.Fatalf("seed session: %v", err)
 	}
-	if err := ss.plan.Replace(ctx, "ses_A", []plan.Step{{Description: "stale", Status: plan.StatusPending}}); err != nil {
-		t.Fatalf("seed plan: %v", err)
-	}
+	before := replaceFixturePlan(t, ctx, ss.plan, "ses_A", []plan.Step{{Description: "stale", Status: plan.StatusPending}})
 	seedGoal(t, ss, "ses_A")
 	sessionRule := testAllowRule(t, approval.ScopeSession, "ses_A", "shell")
 	projectRule := testAllowRule(t, approval.ScopeProject, "/repo", "write")
@@ -594,11 +608,18 @@ func TestApplyRestoreClearsSessionOwnedProjections(t *testing.T) {
 		}
 	}
 
-	if err := ss.ApplyRestore(ctx, sessions.RestorePlan{Session: session.Session{ID: "ses_A", CWD: "/repo"}}); err != nil {
+	if err := ss.ApplyRestore(ctx, sessions.RestorePlan{
+		Session:         session.Session{ID: "ses_A", CWD: "/repo"},
+		PlanReplacement: prepareFixturePlan(t, ctx, ss.plan, "ses_A", nil),
+	}); err != nil {
 		t.Fatalf("ApplyRestore: %v", err)
 	}
 	if got, err := ss.plan.List(ctx, "ses_A"); err != nil || len(got) != 0 {
 		t.Fatalf("plan after restore = %+v, %v, want cleared", got, err)
+	}
+	after, err := ss.plan.State(ctx, "ses_A")
+	if err != nil || after.Revision() <= before.Revision() {
+		t.Fatalf("Plan revision after restore = %d err=%v, want greater than %d", after.Revision(), err, before.Revision())
 	}
 	if _, ok, err := ss.goals.Get(ctx, "ses_A"); err != nil || ok {
 		t.Fatalf("goal survived the restore: ok=%v err=%v", ok, err)

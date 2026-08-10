@@ -20,7 +20,7 @@ type ShutdownResource interface {
 	Shutdown(ctx context.Context) error
 }
 
-// PlanStore is the composition-root union shared by prompt assembly, set_plan,
+// PlanStore is the composition-root union shared by prompt assembly, Plan use cases,
 // the state.snapshot projection, the plan.get read, and session lifecycle
 // cleanup. Boundary is the run-boundary history rollback and fork restore from;
 // capturing a boundary is not here, because no consumer asks for it — a Run
@@ -28,7 +28,7 @@ type ShutdownResource interface {
 type PlanStore interface {
 	List(ctx context.Context, sessionID string) ([]plan.Step, error)
 	State(ctx context.Context, sessionID string) (plan.State, error)
-	Replace(ctx context.Context, sessionID string, items []plan.Step) error
+	Save(ctx context.Context, sessionID string, expectedRevision uint64, replacement plan.State) error
 	Boundary(ctx context.Context, runID string) ([]plan.Step, bool, error)
 	DeleteSession(ctx context.Context, sessionID string) error
 }

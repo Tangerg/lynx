@@ -38,15 +38,15 @@ func (a setArgs) steps() []plandomain.Step {
 	return steps
 }
 
-type setter struct{ store writer }
+type setter struct{ plans replacer }
 
-func newSet(store writer) (toolcontract.Tool, error) {
-	if store == nil {
+func newSet(plans replacer) (toolcontract.Tool, error) {
+	if plans == nil {
 		return nil, nil
 	}
 	return toolcontract.NewFunc[setArgs, string](
 		toolcontract.FuncConfig{Name: catalog.SetPlan, Description: setDescription},
-		(&setter{store: store}).set,
+		(&setter{plans: plans}).set,
 	)
 }
 
@@ -55,13 +55,11 @@ func (s *setter) set(ctx context.Context, args setArgs) (string, error) {
 	if sessionID == "" {
 		return "", errors.New("set_plan: no active session")
 	}
-	steps := args.steps()
-	if err := plandomain.Validate(steps); err != nil {
+	state, err := s.plans.Replace(ctx, sessionID, args.steps())
+	if err != nil {
 		return "", err
 	}
-	if err := s.store.Replace(ctx, sessionID, steps); err != nil {
-		return "", err
-	}
+	steps := state.Steps()
 	if rendered := planpresentation.Render(steps); rendered != "" {
 		return "Plan updated:\n" + rendered, nil
 	}

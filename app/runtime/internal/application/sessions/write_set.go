@@ -9,8 +9,8 @@ import (
 
 	"github.com/Tangerg/lynx/core/chat"
 
+	planapp "github.com/Tangerg/lynx/app/runtime/internal/application/plans"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
 	rundomain "github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/toolresult"
@@ -25,20 +25,20 @@ type RollbackPlan struct {
 	KeepMessageMark   int
 	DropRunIDs        []string
 	CheckpointRootIDs []string
-	// Plan is the Plan the boundary held. Applying it is a NEW state commit
+	// PlanReplacement is the application-decided replacement for the Plan the
+	// boundary held. Applying it is a NEW state commit
 	// (Replace, never delete-and-rewrite): the live revision has to move forward or a
 	// client holding a higher one discards the rolled-back list as stale.
-	Plan PlanBoundary
+	PlanReplacement *planapp.Replacement
 }
 
 type ForkPlan struct {
 	ParentID string
 	Messages []chat.Message
-	// Plan is the parent's Plan as of the fork boundary, seeded into the child
-	// so the branch starts from the plan the conversation it copies was following.
-	// Empty seeds nothing: a child with no list is a child whose list was empty.
-	Plan  []plan.Step
-	Title string
+	// PlanReplacement is the initial child Plan decided from the parent's fork
+	// boundary. nil means the boundary held no value worth publishing.
+	PlanReplacement *planapp.Replacement
+	Title           string
 }
 
 // RestorePlan is the atomic durable command for replacing a session aggregate.
@@ -51,18 +51,17 @@ type RestorePlan struct {
 	Items       []transcript.Item
 	Runs        []rundomain.Run
 	ToolResults []toolresult.Blob
-	// Plan is the restored Plan's semantic value. It is REPLACED rather than
-	// cleared-and-rewritten: the projection's revision must come out greater than
-	// whatever the target session already published, and a delete would restart the
-	// revision space at one — leaving a client that holds a higher revision ignoring
-	// the imported value as stale.
-	Plan []plan.Step
+	// PlanReplacement is the already-decided restored Plan transition. It updates
+	// the live row in place so the target session's revision space never restarts.
+	PlanReplacement *planapp.Replacement
 }
 
-func restorePlan(snapshot Snapshot) RestorePlan {
-	plan := RestorePlan(snapshot)
-	plan.Runs = runsInParentFirstOrder(snapshot.Runs)
-	return plan
+func restorePlan(snapshot Snapshot, replacement *planapp.Replacement) RestorePlan {
+	return RestorePlan{
+		Session: snapshot.Session, Messages: snapshot.Messages, Items: snapshot.Items,
+		Runs: runsInParentFirstOrder(snapshot.Runs), ToolResults: snapshot.ToolResults,
+		PlanReplacement: replacement,
+	}
 }
 
 // runsInParentFirstOrder gives persistence a creation-safe tree order while

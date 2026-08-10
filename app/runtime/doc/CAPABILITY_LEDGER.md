@@ -93,7 +93,7 @@
 | 能力 | 当前 owner | Verdict | 迁移影响 |
 |---|---|---|---|
 | Goal | domain/application/toolset | Retain | autonomous Run admission retry、lease ownership refresh 与 terminal resolution 分属准确私有行为；消费端口名为 `AutonomousRuns`，不下沉 Agent Framework |
-| Plan | domain/application/toolset | Retain | 保持 Plan 唯一术语；不与 Goal/Todo 合并 |
+| Plan | `domain/plan` + `application/plans` | Retain + Refactor complete | P16-03 已由私有 `plan.State` 独占 replacement/invariant/revision/time；Application 形成 CAS replacement 并在成功保存后发布 invalidation，Tool 只消费用例，SQLite 不决定 transition；保持 Plan 唯一术语且不与 Goal/Todo 合并 |
 | Schedule | domain/application/toolset | Retain | 通过 `RunStarter` 启动并返回 `StartedRun` 事实；有界 `occurrenceBatch` 分别处理 pending dispatch 与 due claim，不直接调用 Agent Framework |
 | Skill/Proposal | domain/application/adapter/toolset | Retain | deferred manifest 接线更新 |
 | Agent memory | domain/application/toolset | Retain | 与 Conversation/Knowledge 分开 |
@@ -308,3 +308,4 @@ P8 production cutover 已用真实 Bootstrap consumer 冻结 root stage/observe/
 - P15-02 再次反证 Domain/Application 后，将 system-invariant 的说明性 catalog 从生产 Application graph 移至 `cmd/contractgen`，而真实跨聚合不变量继续由对应 write-set 和 integration fixture 独占；无消费者导出链已删除，结果值、水位与 child/executor 语言按真实语义统一。Domain 仍只拥有聚合、值与纯策略合同，Application 仍独占 I/O ports；本批没有新增 Framework concrete type、协议 wire、SQLite shape 或消费者兼容路径。
 - P15-03 反证 Adapter/Infra/Delivery/Bootstrap 后，executor checkpoint 在 `agentexec` 之外重新成为纯 opaque bytes：Bootstrap 与 runsegment 不再复制或解释 TreeSnapshot shape，持久化测试只证明 checkpoint envelope 的原子保存、替换和删除。非 Framework 层的 member/request/child-Run 词汇、LLM catalog/profile 命名、execution scope 文件职责与 SQLite epoch 事实已同步；新增 architecture guard 禁止外环重新拼装 Framework tree wire。本批没有改变协议、SQLite shape 或 Agent Framework 合同。
 - P16-01 已完成完整 Run aggregate 纵切：`domain/run.Run` 是 lifecycle、frozen admission facts、cumulative metrics 和 terminal facts 的唯一 mutation owner；`domain/transcript` 不再定义 Run 或跨 Run/Tool 的通用 Problem。SQLite 只重放并验证 aggregate transition 后执行 CAS，不再以裸 State 形成第二状态机。Application 的 Run tree/Pending/checkpoint/Goal/Conversation/Transcript 原子 write-set 仍留在原 owner，Agent Framework concrete import island、Protocol wire、SQLite epoch 和消费者实现均未改变。
+- P16-03 已完成 Plan aggregate 纵切：`domain/plan.State` 是 Steps、replacement、revision 与 updated time 的唯一 mutation owner；`application/plans` 读取当前状态并形成 immutable CAS replacement，Tool Adapter 只调用该用例，SQLite 保存上层已决定的精确状态。Session fork/rollback/restore 继续由 Application 组织跨聚合原子 write-set，restore 不再删除 Plan row 后重置 revision；Protocol、Artifact、SQLite shape 与 Agent Framework 边界均未改变。

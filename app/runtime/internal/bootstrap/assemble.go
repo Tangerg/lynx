@@ -36,6 +36,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/goals"
 	mcpapp "github.com/Tangerg/lynx/app/runtime/internal/application/mcp"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/models"
+	planapp "github.com/Tangerg/lynx/app/runtime/internal/application/plans"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/queries"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
@@ -109,6 +110,7 @@ type toolEnvironmentBuilder func(
 	*schedules.Coordinator,
 	*goals.Reader,
 	*goals.OutcomeReporter,
+	*planapp.Coordinator,
 	*skillauthoring.Store,
 	skill.ProposalSubmitter,
 ) (toolEnvironment, error)
@@ -229,6 +231,9 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 	goalStore := goals.WithChangeNotices(cfg.GoalStore, applicationChanges.Publish)
 	goalReader := goals.NewReader(goalStore)
 	goalReporter := goals.NewOutcomeReporter(goalStore)
+	planCoordinator := planapp.New(planapp.Dependencies{
+		Store: cfg.PlanStore, Now: time.Now, Changed: applicationChanges.Publish,
+	})
 
 	mcpConnectionSettings, err := buildMCPEnvironment(ctx, cfg.MCPRegistry)
 	if err != nil {
@@ -255,7 +260,7 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 		skillproposal.NewLibraries(skillStore),
 		skillChanges.Publish,
 	)
-	toolRuntime, err := buildTools(ctx, cfg, approvalPolicy, mcpConnectionSettings, modelServices.agentMemorySearch, scheduleCoordinator, goalReader, goalReporter, skillStore, workspaceSkills)
+	toolRuntime, err := buildTools(ctx, cfg, approvalPolicy, mcpConnectionSettings, modelServices.agentMemorySearch, scheduleCoordinator, goalReader, goalReporter, planCoordinator, skillStore, workspaceSkills)
 	lifetime.toolResources = slices.Clone(toolRuntime.closers)
 	if err != nil {
 		return nil, err
@@ -281,7 +286,7 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 		ConfigurationIdentity:  "lyra.runtime.interaction.v1",
 		StreamModelResponses:   true,
 		MaxConcurrentToolCalls: 8,
-		ToolInterpreter:        toolset.NewInterpreter(cfg.PlanStore),
+		ToolInterpreter:        toolset.NewInterpreter(planCoordinator),
 		ToolPresenter:          toolset.Presenter{},
 		ToolAuthorizer:         toolAuthorizer,
 		ToolHooks:              workingContexts,
@@ -416,6 +421,7 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 		Transcript:        cfg.TranscriptStore,
 		Runs:              cfg.RunStore,
 		Boundaries:        cfg.PlanStore,
+		PlanReplacements:  planCoordinator,
 		Snapshots:         sessionStores,
 		Writes:            sessionStores,
 		Forgetter:         workingContexts,

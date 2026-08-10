@@ -33,6 +33,10 @@ func (c *Coordinator) applyRollback(ctx context.Context, sessionID string, bound
 	if err != nil {
 		return err
 	}
+	planReplacement, err := c.prepareBoundaryPlanReplacement(ctx, sessionID, plan)
+	if err != nil {
+		return err
+	}
 	// A dropped parked run held the session's durable admission slot; dropping its
 	// record releases the slot, so the session can start a fresh run afterward.
 	return c.withGoalMutation(
@@ -47,7 +51,7 @@ func (c *Coordinator) applyRollback(ctx context.Context, sessionID string, bound
 				KeepMessageMark:   boundary.KeepMessageMark,
 				DropRunIDs:        dropRunIDs,
 				CheckpointRootIDs: parkedCheckpointRootIDs(parked),
-				Plan:              plan,
+				PlanReplacement:   planReplacement,
 			})
 		},
 		func(ctx context.Context) error {

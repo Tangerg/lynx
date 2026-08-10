@@ -18,7 +18,41 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	deliveryserver "github.com/Tangerg/lynx/app/runtime/internal/delivery/server"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
 )
+
+// TestPlanMutationHasOneOwner freezes the P16 Plan vertical: aggregate fields
+// are closed, Tool adapters cannot regain a Store-shaped inbound boundary, and
+// SQLite cannot assign time or invoke the aggregate transition itself.
+func TestPlanMutationHasOneOwner(t *testing.T) {
+	stateType := reflect.TypeFor[plan.State]()
+	for index := range stateType.NumField() {
+		field := stateType.Field(index)
+		if field.IsExported() {
+			t.Errorf("plan.State field %s is exported; replacements must enter through domain behavior", field.Name)
+		}
+	}
+	root := moduleRoot(t)
+	forbidTopLevelNames(t,
+		filepath.Join(root, "internal", "adapter", "toolset", "plan"),
+		map[string]string{"Store": "Plan tools consume application use cases, not persistence"},
+	)
+	forbidSelectorCalls(t,
+		filepath.Join(root, "internal", "infra", "storage", "sqlite", "plan.go"),
+		map[string]string{
+			"Now":     "the Plan use case supplies replacement time",
+			"Replace": "the Plan aggregate decides replacements before persistence",
+		},
+	)
+	for _, retired := range []string{
+		filepath.Join(root, "internal", "domain", "plan", "store.go"),
+		filepath.Join(root, "internal", "domain", "plan", "store_test.go"),
+	} {
+		if _, err := os.Stat(retired); err == nil || !errors.Is(err, fs.ErrNotExist) {
+			t.Errorf("retired Plan path exists: %s (stat error %v)", retired, err)
+		}
+	}
+}
 
 // TestDependencyRule enforces Clean Architecture's Dependency Rule for Runtime:
 // source dependencies point INWARD, toward Domain and Application. Outer rings may

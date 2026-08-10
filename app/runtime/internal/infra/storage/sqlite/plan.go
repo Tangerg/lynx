@@ -29,7 +29,7 @@ func (s *PlanStore) List(ctx context.Context, sessionID string) ([]plan.Step, er
 	if err != nil {
 		return nil, err
 	}
-	return state.Steps, nil
+	return state.Steps(), nil
 }
 
 // State returns the zero state when no Plan has been set for the session.
@@ -52,9 +52,13 @@ func (s *PlanStore) State(ctx context.Context, sessionID string) (plan.State, er
 	if err != nil {
 		return plan.State{}, err
 	}
-	return plan.State{
+	state, err := plan.Restore(plan.Snapshot{
 		Steps: steps, Revision: revision, UpdatedAt: time.Unix(0, updatedNs).UTC(),
-	}, nil
+	})
+	if err != nil {
+		return plan.State{}, fmt.Errorf("sqlite: restore Plan: %w", err)
+	}
+	return state, nil
 }
 
 func decodePlanSteps(stepsJSON string) ([]plan.Step, error) {
@@ -69,19 +73,23 @@ func decodePlanSteps(stepsJSON string) ([]plan.Step, error) {
 	for index, row := range rows {
 		steps[index] = plan.Step{Description: row.Description, Status: row.Status}
 	}
-	if err := plan.Validate(steps); err != nil {
+	if err := plan.ValidateSteps(steps); err != nil {
 		return nil, fmt.Errorf("sqlite: validate Plan: %w", err)
 	}
 	return steps, nil
 }
 
-func (s *PlanStore) Replace(ctx context.Context, sessionID string, steps []plan.Step) error {
-	if steps == nil {
-		steps = []plan.Step{}
+// Save persists one application-decided replacement iff expectedRevision is
+// still current. It assigns neither time nor revision; both belong to the Plan
+// aggregate and its application use case.
+func (s *PlanStore) Save(ctx context.Context, sessionID string, expectedRevision uint64, replacement plan.State) error {
+	if err := replacement.Validate(); err != nil {
+		return fmt.Errorf("sqlite: validate Plan replacement: %w", err)
 	}
-	if err := plan.Validate(steps); err != nil {
-		return fmt.Errorf("sqlite: validate Plan: %w", err)
+	if expectedRevision == ^uint64(0) || replacement.Revision() != expectedRevision+1 {
+		return fmt.Errorf("sqlite: Plan replacement revision %d does not follow expected revision %d: %w", replacement.Revision(), expectedRevision, plan.ErrInvalid)
 	}
+	steps := replacement.Steps()
 	rows := make([]planStepRow, len(steps))
 	for index, step := range steps {
 		rows[index] = planStepRow{Description: step.Description, Status: step.Status}
@@ -90,16 +98,29 @@ func (s *PlanStore) Replace(ctx context.Context, sessionID string, steps []plan.
 	if err != nil {
 		return fmt.Errorf("sqlite: encode Plan: %w", err)
 	}
-	_, err = conn(ctx, s.db).ExecContext(ctx,
-		`INSERT INTO session_plans(session_id, steps, revision, updated_at) VALUES (?, ?, 1, ?)
-		 ON CONFLICT(session_id) DO UPDATE SET
-		   steps = excluded.steps,
-		   revision = session_plans.revision + 1,
-		   updated_at = excluded.updated_at`,
-		sessionID, string(data), time.Now().UTC().UnixNano(),
-	)
+	var result sql.Result
+	if expectedRevision == 0 {
+		result, err = conn(ctx, s.db).ExecContext(ctx,
+			`INSERT INTO session_plans(session_id, steps, revision, updated_at)
+			 VALUES (?, ?, ?, ?) ON CONFLICT(session_id) DO NOTHING`,
+			sessionID, string(data), replacement.Revision(), replacement.UpdatedAt().UnixNano(),
+		)
+	} else {
+		result, err = conn(ctx, s.db).ExecContext(ctx,
+			`UPDATE session_plans SET steps = ?, revision = ?, updated_at = ?
+			 WHERE session_id = ? AND revision = ?`,
+			string(data), replacement.Revision(), replacement.UpdatedAt().UnixNano(), sessionID, expectedRevision,
+		)
+	}
 	if err != nil {
-		return fmt.Errorf("sqlite: replace Plan: %w", err)
+		return fmt.Errorf("sqlite: save Plan: %w", err)
+	}
+	written, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("sqlite: inspect Plan save: %w", err)
+	}
+	if written != 1 {
+		return fmt.Errorf("sqlite: expected Plan revision %d: %w", expectedRevision, plan.ErrRevisionConflict)
 	}
 	return nil
 }

@@ -572,12 +572,12 @@ func TestReducerCanonicalProgressSnapshotsAndOutcomes(t *testing.T) {
 		t.Fatal("usage progress must stay ephemeral")
 	}
 
-	snapshot := mustReduce(t, reducer, PlanUpdated{State: plan.State{
+	snapshot := mustReduce(t, reducer, PlanUpdated{State: testPlanState(t, plan.Snapshot{
 		Steps: []plan.Step{{
 			Description: "write tests", Status: plan.StatusInProgress,
 		}},
 		Revision: 3, UpdatedAt: time.Unix(7, 0).UTC(),
-	}})
+	})})
 	state, ok := snapshot[0].Event.(StateSnapshot)
 	if !ok || len(state.Plan) != 1 || state.Plan[0].Description != "write tests" || state.Plan[0].Status != plan.StatusInProgress {
 		t.Fatalf("plan snapshot = %#v", snapshot[0].Event)
@@ -1166,10 +1166,10 @@ func assertFrozenCapabilities(t *testing.T, got, want run.Capabilities, where st
 // that folds by revision — it reads as "the list was cleared".
 func TestSegmentFencesItsFinalStateBeforeFinishing(t *testing.T) {
 	reducer := newReducer(testReducerConfig())
-	mustReduce(t, reducer, PlanUpdated{State: plan.State{
+	mustReduce(t, reducer, PlanUpdated{State: testPlanState(t, plan.Snapshot{
 		Steps:    []plan.Step{{Description: "fence this", Status: plan.StatusInProgress}},
 		Revision: 4, UpdatedAt: time.Unix(11, 0).UTC(),
-	}})
+	})})
 
 	terminal := mustReduce(t, reducer, SegmentEnded{Reason: run.OutcomeCompleted})
 	if len(terminal) < 2 {

@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/conversations"
+	planapp "github.com/Tangerg/lynx/app/runtime/internal/application/plans"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
@@ -53,13 +54,12 @@ type Transactor func(context.Context, func(context.Context) error) error
 
 // planProjection is the session-scoped Plan this write-set has to move with
 // the session through its whole lifecycle: read for an archive, replaced by a
-// restore, seeded into a fork, republished at a rollback boundary, dropped with a
-// delete. Replace rather than write-then-set-revision, because the store owns the
-// revision — it is assigned by the write itself, so no caller can hand out two
-// values under one number.
+// restore, seeded into a fork, republished at a rollback boundary, dropped with
+// a delete. Save applies an application-decided aggregate transition with CAS;
+// this adapter assigns neither revision nor update time.
 type planProjection interface {
 	List(ctx context.Context, sessionID string) ([]plan.Step, error)
-	Replace(ctx context.Context, sessionID string, items []plan.Step) error
+	Save(ctx context.Context, sessionID string, expectedRevision uint64, replacement plan.State) error
 	DeleteSession(ctx context.Context, sessionID string) error
 }
 
@@ -150,10 +150,8 @@ func (s *SessionStores) ApplyFork(ctx context.Context, fork sessions.ForkPlan) (
 		// A branch that copies the conversation copies the plan it was following. Only
 		// a non-empty list is written: a fresh child with no row already reads as a
 		// session with no list, and writing one would publish an empty list as news.
-		if s.plan != nil && len(fork.Plan) > 0 {
-			if err := s.plan.Replace(ctx, ch.ID, fork.Plan); err != nil {
-				return err
-			}
+		if err := s.savePlanReplacement(ctx, ch.ID, fork.PlanReplacement); err != nil {
+			return err
 		}
 		if fork.Title != "" {
 			if err := s.sessions.Rename(ctx, ch.ID, fork.Title); err != nil {
@@ -189,14 +187,10 @@ func (s *SessionStores) ApplyRollback(ctx context.Context, rollback sessions.Rol
 }
 
 func (s *SessionStores) republishRollbackState(ctx context.Context, rollback sessions.RollbackPlan) error {
-	// The boundary's list is republished, not cleared: rollback is a new state
-	// commit, so its value must arrive under a higher revision than the session's
-	// prior value. Deleting the row would restart that revision space at one. An
-	// unrecorded boundary is left alone; see sessions.PlanBoundary.
-	if s.plan != nil && rollback.Plan.Recorded {
-		if err := s.plan.Replace(ctx, rollback.SessionID, rollback.Plan.Steps); err != nil {
-			return err
-		}
+	// The application has already decided whether this boundary was recorded and,
+	// if so, computed its new aggregate revision. The adapter only applies it.
+	if err := s.savePlanReplacement(ctx, rollback.SessionID, rollback.PlanReplacement); err != nil {
+		return err
 	}
 	if s.goals != nil {
 		if err := s.goals.Clear(ctx, rollback.SessionID); err != nil {
@@ -237,7 +231,13 @@ func (s *SessionStores) ApplyRestore(ctx context.Context, restore sessions.Resto
 		if err := s.sessions.Restore(ctx, restore.Session); err != nil {
 			return err
 		}
-		if err := s.clearSessionOwnedState(ctx, sessionID); err != nil {
+		// Keep the live Plan row when a replacement was prepared: deleting it would
+		// reset the session's revision space before the CAS update.
+		if restore.PlanReplacement == nil {
+			if err := s.clearSessionOwnedState(ctx, sessionID); err != nil {
+				return err
+			}
+		} else if err := s.clearSessionOwnedStateExceptPlan(ctx, sessionID); err != nil {
 			return err
 		}
 		if err := s.restorePlanAndHistory(ctx, sessionID, restore); err != nil {
@@ -254,15 +254,23 @@ func (s *SessionStores) ApplyRestore(ctx context.Context, restore sessions.Resto
 }
 
 func (s *SessionStores) restorePlanAndHistory(ctx context.Context, sessionID string, restore sessions.RestorePlan) error {
-	// Replace after the clear so the Plan revision advances past the value that
-	// clients may already hold. Recreating a deleted row at revision one would be
-	// ignored as stale.
-	if s.plan != nil {
-		if err := s.plan.Replace(ctx, sessionID, restore.Plan); err != nil {
-			return err
-		}
+	if err := s.savePlanReplacement(ctx, sessionID, restore.PlanReplacement); err != nil {
+		return err
 	}
 	return s.history.Seed(ctx, sessionID, restore.Messages)
+}
+
+func (s *SessionStores) savePlanReplacement(ctx context.Context, sessionID string, replacement *planapp.Replacement) error {
+	if replacement == nil {
+		return nil
+	}
+	if s.plan == nil {
+		return errors.New("persistence: Plan replacement has no store")
+	}
+	if err := replacement.Validate(); err != nil {
+		return fmt.Errorf("persistence: invalid Plan replacement: %w", err)
+	}
+	return s.plan.Save(ctx, sessionID, replacement.ExpectedRevision(), replacement.State())
 }
 
 func (s *SessionStores) restoreRuns(ctx context.Context, restored []rundomain.Run) error {
@@ -304,6 +312,16 @@ func (s *SessionStores) deleteSession(ctx context.Context, sessionID string) err
 }
 
 func (s *SessionStores) clearSessionOwnedState(ctx context.Context, sessionID string) error {
+	if err := s.clearSessionOwnedStateExceptPlan(ctx, sessionID); err != nil {
+		return err
+	}
+	if s.plan != nil {
+		return s.plan.DeleteSession(ctx, sessionID)
+	}
+	return nil
+}
+
+func (s *SessionStores) clearSessionOwnedStateExceptPlan(ctx context.Context, sessionID string) error {
 	if err := s.transcript.DeleteSession(ctx, sessionID); err != nil {
 		return err
 	}
@@ -320,11 +338,6 @@ func (s *SessionStores) clearSessionOwnedState(ctx context.Context, sessionID st
 	}
 	if err := s.runs.DeleteForSession(ctx, sessionID); err != nil {
 		return err
-	}
-	if s.plan != nil {
-		if err := s.plan.DeleteSession(ctx, sessionID); err != nil {
-			return err
-		}
 	}
 	if s.approvals != nil {
 		if err := s.approvals.DeleteSession(ctx, sessionID); err != nil {

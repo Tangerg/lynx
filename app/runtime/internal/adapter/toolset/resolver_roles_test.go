@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/approvals"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/goals"
@@ -21,9 +22,11 @@ type roleGoalStub struct{ active bool }
 
 type rolePlanStore struct{}
 
-func (rolePlanStore) Replace(context.Context, string, []plan.Step) error { return nil }
-func (rolePlanStore) List(context.Context, string) ([]plan.Step, error) {
-	return []plan.Step{{Description: "implement", Status: plan.StatusPending}}, nil
+func (rolePlanStore) Replace(_ context.Context, _ string, steps []plan.Step) (plan.State, error) {
+	return (plan.State{}).Replace(steps, time.Now())
+}
+func (rolePlanStore) State(context.Context, string) (plan.State, error) {
+	return (plan.State{}).Replace([]plan.Step{{Description: "implement", Status: plan.StatusPending}}, time.Now())
 }
 
 func (failingGoalStub) Current(context.Context, string) (goal.Goal, bool, error) {

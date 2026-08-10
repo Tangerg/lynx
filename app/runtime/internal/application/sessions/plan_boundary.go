@@ -2,7 +2,9 @@ package sessions
 
 import (
 	"context"
+	"errors"
 
+	planapp "github.com/Tangerg/lynx/app/runtime/internal/application/plans"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
 )
 
@@ -22,15 +24,65 @@ type PlanBoundary struct {
 // which the caller must not turn into emptiness (an imported run's boundaries were
 // never captured; see [PlanBoundaries]).
 func (c *Coordinator) planBoundary(ctx context.Context, runID string) (PlanBoundary, error) {
-	if runID == "" {
-		return PlanBoundary{Recorded: true}, nil
-	}
 	if c.boundaries == nil {
 		return PlanBoundary{}, nil
+	}
+	if runID == "" {
+		return PlanBoundary{Recorded: true}, nil
 	}
 	steps, recorded, err := c.boundaries.Boundary(ctx, runID)
 	if err != nil {
 		return PlanBoundary{}, err
 	}
 	return PlanBoundary{Steps: steps, Recorded: recorded}, nil
+}
+
+func (c *Coordinator) prepareBoundaryPlanReplacement(
+	ctx context.Context,
+	sessionID string,
+	boundary PlanBoundary,
+) (*planapp.Replacement, error) {
+	if !boundary.Recorded {
+		return nil, nil
+	}
+	if c.planReplacements == nil {
+		return nil, errors.New("sessions: Plan boundaries are enabled without Plan replacement use cases")
+	}
+	replacement, err := c.planReplacements.PrepareReplacement(ctx, sessionID, boundary.Steps)
+	if err != nil {
+		return nil, err
+	}
+	return &replacement, nil
+}
+
+func (c *Coordinator) prepareInitialPlanReplacement(steps []plan.Step) (*planapp.Replacement, error) {
+	if len(steps) == 0 {
+		return nil, nil
+	}
+	if c.planReplacements == nil {
+		return nil, errors.New("sessions: cannot seed a Plan without Plan replacement use cases")
+	}
+	replacement, err := c.planReplacements.PrepareInitial(steps)
+	if err != nil {
+		return nil, err
+	}
+	return &replacement, nil
+}
+
+func (c *Coordinator) prepareRestoredPlanReplacement(
+	ctx context.Context,
+	sessionID string,
+	steps []plan.Step,
+) (*planapp.Replacement, error) {
+	if c.planReplacements == nil {
+		if len(steps) > 0 {
+			return nil, errors.New("sessions: cannot restore a Plan without Plan replacement use cases")
+		}
+		return nil, nil
+	}
+	replacement, err := c.planReplacements.PrepareReplacement(ctx, sessionID, steps)
+	if err != nil {
+		return nil, err
+	}
+	return &replacement, nil
 }

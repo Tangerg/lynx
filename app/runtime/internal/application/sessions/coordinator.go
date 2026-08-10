@@ -17,6 +17,7 @@ import (
 	"github.com/Tangerg/lynx/core/chat"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/change"
+	planapp "github.com/Tangerg/lynx/app/runtime/internal/application/plans"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
@@ -65,6 +66,14 @@ type PlanBoundaries interface {
 	Boundary(ctx context.Context, runID string) ([]plan.Step, bool, error)
 }
 
+// PlanReplacements decides Plan aggregate transitions for cross-aggregate
+// session write sets. Persistence receives the decided replacement and may only
+// apply its CAS; it never assigns a revision or update time itself.
+type PlanReplacements interface {
+	PrepareReplacement(ctx context.Context, sessionID string, steps []plan.Step) (planapp.Replacement, error)
+	PrepareInitial(steps []plan.Step) (planapp.Replacement, error)
+}
+
 // RunStore is the lifecycle coordinator's read view of a session's Runs. Every
 // boundary it computes — a rollback target, a fork point, an abandoned park — is
 // derived from the Run timeline, so it reads the Runs themselves rather than
@@ -90,7 +99,7 @@ type WriteSets interface {
 	ApplyRollback(ctx context.Context, plan RollbackPlan) error
 	// ApplyRestore recreates a session under its original id and replaces its
 	// whole history (clear old session-owned projections + seed decoded
-	// messages/runs/items) — atomically.
+	// messages/runs/items), while applying any predecided Plan CAS — atomically.
 	ApplyRestore(ctx context.Context, plan RestorePlan) error
 	// ApplyDelete removes all durable state for the addressed session —
 	// transcript, chat log, plan, session approval rules, interrupts, admission
@@ -202,6 +211,7 @@ type Coordinator struct {
 	transcript        TranscriptStore
 	runs              RunStore
 	boundaries        PlanBoundaries
+	planReplacements  PlanReplacements
 	snapshots         SnapshotReader
 	writes            WriteSets
 	forgetter         Forgetter
@@ -240,6 +250,7 @@ type Dependencies struct {
 	Transcript        TranscriptStore
 	Runs              RunStore
 	Boundaries        PlanBoundaries
+	PlanReplacements  PlanReplacements
 	Snapshots         SnapshotReader
 	Writes            WriteSets
 	Forgetter         Forgetter
@@ -267,6 +278,7 @@ func New(deps Dependencies) *Coordinator {
 		transcript:        deps.Transcript,
 		runs:              deps.Runs,
 		boundaries:        deps.Boundaries,
+		planReplacements:  deps.PlanReplacements,
 		snapshots:         deps.Snapshots,
 		writes:            deps.Writes,
 		forgetter:         deps.Forgetter,

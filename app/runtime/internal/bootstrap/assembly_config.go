@@ -150,9 +150,9 @@ type Config struct {
 	// sqlite-backed registry and seeds the configured provider into it.
 	ProviderRegistry models.ProviderRegistry
 
-	// PlanStore persists per-session plan lists for the set_plan tool.
-	// Optional; nil disables the feature (no tool, no prompt injection). The
-	// composition root injects the sqlite-backed store.
+	// PlanStore persists per-session Plan aggregates through application-owned
+	// optimistic replacements. Optional; nil disables the feature (no tool, no
+	// prompt injection). The composition root injects the sqlite-backed store.
 	PlanStore PlanStore
 
 	// PermissionModeStore persists session-scoped Plan-mode entry and the exact

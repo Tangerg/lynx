@@ -61,8 +61,8 @@ func presentStateSnapshot(event runs.StateSnapshot) protocol.StateSnapshot {
 // shape so the two cannot describe the list differently: one presenter, one answer.
 func presentPlanState(sessionID string, state plan.State) protocol.StateSnapshot {
 	return presentStateSnapshot(runs.StateSnapshot{
-		SessionID: sessionID, Revision: state.Revision, UpdatedAt: state.UpdatedAt,
-		Plan: planSnapshots(state.Steps),
+		SessionID: sessionID, Revision: state.Revision(), UpdatedAt: state.UpdatedAt(),
+		Plan: planSnapshots(state.Steps()),
 	})
 }
 

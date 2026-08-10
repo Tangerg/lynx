@@ -450,7 +450,4 @@ func (p treePublisher) append(route *executorRoute, reduced reduction) {
 	if reduced.Nudge != nil {
 		p.coordinator.workspace.Nudge(reduced.Nudge.CWD, reduced.Nudge.Paths)
 	}
-	if _, ok := reduced.Event.(StateSnapshot); ok {
-		p.coordinator.publishStateMoved(p.rootSpec.SessionID)
-	}
 }

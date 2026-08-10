@@ -14,6 +14,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/agentmemory"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/approvals"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/goals"
+	planapp "github.com/Tangerg/lynx/app/runtime/internal/application/plans"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	scheduleapp "github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
@@ -234,10 +235,11 @@ func TestAssemblyFailureReclaimsToolsAndOwnedResources(t *testing.T) {
 		scheduleCoordinator *scheduleapp.Coordinator,
 		goalReader *goals.Reader,
 		goalReporter *goals.OutcomeReporter,
+		planCoordinator *planapp.Coordinator,
 		skillStore *skillauthoring.Store,
 		skillProposals skill.ProposalSubmitter,
 	) (toolEnvironment, error) {
-		toolRuntime, err := buildToolEnvironment(ctx, cfg, policy, mcpConnectionSettings, searcher, scheduleCoordinator, goalReader, goalReporter, skillStore, skillProposals)
+		toolRuntime, err := buildToolEnvironment(ctx, cfg, policy, mcpConnectionSettings, searcher, scheduleCoordinator, goalReader, goalReporter, planCoordinator, skillStore, skillProposals)
 		if err != nil {
 			return toolEnvironment{}, err
 		}
@@ -276,6 +278,7 @@ func TestAssemblyBuilderFailureReclaimsReturnedAcquisitions(t *testing.T) {
 		*scheduleapp.Coordinator,
 		*goals.Reader,
 		*goals.OutcomeReporter,
+		*planapp.Coordinator,
 		*skillauthoring.Store,
 		skill.ProposalSubmitter,
 	) (toolEnvironment, error) {
@@ -320,10 +323,11 @@ func TestAssemblyFailureRetainsRetryableCleanupOwner(t *testing.T) {
 		scheduleCoordinator *scheduleapp.Coordinator,
 		goalReader *goals.Reader,
 		goalReporter *goals.OutcomeReporter,
+		planCoordinator *planapp.Coordinator,
 		skillStore *skillauthoring.Store,
 		skillProposals skill.ProposalSubmitter,
 	) (toolEnvironment, error) {
-		toolRuntime, err := buildToolEnvironment(ctx, cfg, policy, mcpConnectionSettings, searcher, scheduleCoordinator, goalReader, goalReporter, skillStore, skillProposals)
+		toolRuntime, err := buildToolEnvironment(ctx, cfg, policy, mcpConnectionSettings, searcher, scheduleCoordinator, goalReader, goalReporter, planCoordinator, skillStore, skillProposals)
 		if err != nil {
 			return toolEnvironment{}, err
 		}
@@ -375,10 +379,11 @@ func TestAssemblyDirectToolsDoNotDependOnAgentResolver(t *testing.T) {
 		scheduleCoordinator *scheduleapp.Coordinator,
 		goalReader *goals.Reader,
 		goalReporter *goals.OutcomeReporter,
+		planCoordinator *planapp.Coordinator,
 		skillStore *skillauthoring.Store,
 		skillProposals skill.ProposalSubmitter,
 	) (toolEnvironment, error) {
-		toolRuntime, err := buildToolEnvironment(ctx, cfg, policy, mcpConnectionSettings, searcher, scheduleCoordinator, goalReader, goalReporter, skillStore, skillProposals)
+		toolRuntime, err := buildToolEnvironment(ctx, cfg, policy, mcpConnectionSettings, searcher, scheduleCoordinator, goalReader, goalReporter, planCoordinator, skillStore, skillProposals)
 		if err != nil {
 			return toolEnvironment{}, err
 		}

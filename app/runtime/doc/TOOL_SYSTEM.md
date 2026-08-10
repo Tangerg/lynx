@@ -63,6 +63,7 @@
 
 - `steps` 是必填的完整有序 Plan；每次调用替换原值；
 - 空数组清空 Plan；
+- Tool Adapter 只把参数翻译为领域 Step 并调用 `application/plans`；Plan aggregate 负责 invariant/revision/time，SQLite 只执行 CAS 保存；
 - `description` 是非空步骤描述；
 - `status` 只允许 `pending | in_progress | completed`；
 - 最多一个 Step 为 `in_progress`；
@@ -493,7 +494,7 @@
 
 ### 批次 9b
 
-- 将 `enterplan / plantool / exitplan` 合并为 `plan` 包和一个 `Build` 入口；三工具继续拥有独立 schema，但共享同一 `Store` 和 `ModePolicy`，从结构上保证退出审批读取的就是 `set_plan` 维护的 canonical Plan；
+- 将 `enterplan / plantool / exitplan` 合并为 `plan` 包和一个 `Build` 入口；三工具继续拥有独立 schema。P16-03 后 set/exit 共享同一 Application Plan capability，ModePolicy 继续独立拥有 permission overlay，从结构上保证退出审批读取的就是 `set_plan` 已提交的 canonical Plan；
 - 将 `proposeskill` 合入 `skill` 包，读取工具与 Proposal 写入口按 `BuildReaders / NewProposal` 表达不同构造时机；同一 Skill 能力不再分散在两个相邻包；
 - 将根包中的 Schedule schema 和 list/create/delete 实现整体迁入 `schedule` 能力包，以单一 `Build(Management)` 入口返回完整工具族；根 `toolset` 不再承载该领域的模型契约；
 - 将仅由父包使用的 `editguardstate` 折回 `toolset`，`Tracker / Fingerprint / Result` 全部私有化为 read-tracker invariant，删除为绕包边界产生的导出面；

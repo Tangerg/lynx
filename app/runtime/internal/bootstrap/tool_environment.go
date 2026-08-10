@@ -11,6 +11,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/agentmemory"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/approvals"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/goals"
+	planapp "github.com/Tangerg/lynx/app/runtime/internal/application/plans"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/skillauthoring"
 )
@@ -33,6 +34,7 @@ func buildToolEnvironment(
 	scheduleCoordinator *schedules.Coordinator,
 	goalReader *goals.Reader,
 	goalReporter *goals.OutcomeReporter,
+	planCoordinator *planapp.Coordinator,
 	skillStore *skillauthoring.Store,
 	skillProposals skill.ProposalSubmitter,
 ) (toolEnvironment, error) {
@@ -52,7 +54,7 @@ func buildToolEnvironment(
 		LSPServers:      cfg.LSPServers,
 		MCPTools:        mcpTools,
 		A2AAgents:       cfg.A2AAgents,
-		Plan:            cfg.PlanStore,
+		Plan:            planCoordinator,
 		Interrupt:       interactioninput.Require,
 		MCPToolDisabled: mcpConnectionSettings.policy.ToolDisabled,
 		// The authoring store records Skill loads for idle-Skill archival; a

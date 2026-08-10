@@ -121,7 +121,7 @@ func (p PortableSnapshot) CanonicalSnapshot() (Snapshot, error) {
 		Runs:        make([]run.Run, 0, len(p.Runs)),
 		Plan:        append([]plan.Step(nil), p.Plan...),
 	}
-	if err := plan.Validate(snapshot.Plan); err != nil {
+	if err := plan.ValidateSteps(snapshot.Plan); err != nil {
 		return Snapshot{}, fmt.Errorf("%w: plan: %w", ErrInvalidPortableSnapshot, err)
 	}
 	// A child reads its root's capabilities, so root values are collected before

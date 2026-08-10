@@ -21,7 +21,7 @@ type planStateReader interface {
 	State(ctx context.Context, sessionID string) (plan.State, error)
 }
 
-// NewInterpreter binds projections that require canonical tool-owned state. A
+// NewInterpreter binds projections that require canonical application state. A
 // nil Plan reader disables only the successful Plan replacement projection;
 // safety, approval, and hook policy remain available.
 func NewInterpreter(plans planStateReader) Interpreter {

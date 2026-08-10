@@ -14,6 +14,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspacepath"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/admission"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/models"
+	planapp "github.com/Tangerg/lynx/app/runtime/internal/application/plans"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/queries"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
@@ -477,6 +478,11 @@ func (s stubLifecycleStores) ApplyFork(ctx context.Context, plan sessions.ForkPl
 	if err := s.rt.SeedHistory(ctx, child.ID, plan.Messages); err != nil {
 		return session.Session{}, err
 	}
+	if s.rt.plan != nil && plan.PlanReplacement != nil {
+		if err := s.rt.plan.Save(ctx, child.ID, plan.PlanReplacement.ExpectedRevision(), plan.PlanReplacement.State()); err != nil {
+			return session.Session{}, err
+		}
+	}
 	if plan.Title != "" {
 		if err := s.rt.sess.Rename(ctx, child.ID, plan.Title); err != nil {
 			return session.Session{}, err
@@ -489,6 +495,11 @@ func (s stubLifecycleStores) ApplyFork(ctx context.Context, plan sessions.ForkPl
 // The atomic write-sets over the stub's in-memory chat log + real sqlite
 // transcript/run/interrupt/session stores, mirroring the persistence adapter.
 func (s stubLifecycleStores) ApplyRollback(ctx context.Context, plan sessions.RollbackPlan) error {
+	if s.rt.plan != nil && plan.PlanReplacement != nil {
+		if err := s.rt.plan.Save(ctx, plan.SessionID, plan.PlanReplacement.ExpectedRevision(), plan.PlanReplacement.State()); err != nil {
+			return err
+		}
+	}
 	if plan.KeepMessageMark >= 0 {
 		if err := s.rt.TruncateMessages(ctx, plan.SessionID, plan.KeepMessageMark); err != nil {
 			return err
@@ -553,8 +564,8 @@ func (s stubLifecycleStores) ApplyRestore(ctx context.Context, plan sessions.Res
 	}
 	// Replaced, never deleted-and-reinserted: the revision has to come out greater
 	// than what this session already published.
-	if s.rt.plan != nil {
-		if err := s.rt.plan.Replace(ctx, id, plan.Plan); err != nil {
+	if s.rt.plan != nil && plan.PlanReplacement != nil {
+		if err := s.rt.plan.Save(ctx, id, plan.PlanReplacement.ExpectedRevision(), plan.PlanReplacement.State()); err != nil {
 			return err
 		}
 	}
@@ -661,6 +672,8 @@ func (s *stubRuntime) sessionsCoordinatorWithRestorer(checkpoints sessions.Works
 		Interrupts:        s.interrupts,
 		Transcript:        s.hist,
 		Runs:              s.runs,
+		Boundaries:        s.plan,
+		PlanReplacements:  planapp.New(planapp.Dependencies{Store: s.plan, Now: time.Now}),
 		Snapshots:         stores,
 		Writes:            stores,
 		Forgetter:         s,

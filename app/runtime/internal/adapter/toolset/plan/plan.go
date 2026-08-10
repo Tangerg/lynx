@@ -14,18 +14,18 @@ import (
 
 // reader supplies the canonical session Plan approved by exit_plan_mode.
 type reader interface {
-	List(ctx context.Context, sessionID string) ([]plandomain.Step, error)
+	State(ctx context.Context, sessionID string) (plandomain.State, error)
 }
 
-// writer replaces the canonical session Plan maintained by set_plan.
-type writer interface {
-	Replace(ctx context.Context, sessionID string, steps []plandomain.Step) error
+// replacer executes the application use case behind set_plan.
+type replacer interface {
+	Replace(ctx context.Context, sessionID string, steps []plandomain.Step) (plandomain.State, error)
 }
 
-// Store binds Plan reads and replacements to one source of truth.
-type Store interface {
-	List(ctx context.Context, sessionID string) ([]plandomain.Step, error)
-	Replace(ctx context.Context, sessionID string, steps []plandomain.Step) error
+// UseCases is the Plan application surface consumed by this tool family.
+type UseCases interface {
+	State(ctx context.Context, sessionID string) (plandomain.State, error)
+	Replace(ctx context.Context, sessionID string, steps []plandomain.Step) (plandomain.State, error)
 }
 
 // enterPolicy narrows one session into Plan mode.
@@ -54,17 +54,18 @@ type Family struct {
 }
 
 // Build constructs every available Plan tool while preserving the family
-// invariant that exit_plan_mode approves the same Store maintained by set_plan.
-func Build(modes ModePolicy, store Store, interrupt runs.InterruptFunc) (Family, error) {
+// invariant that exit_plan_mode approves the same application state replaced by
+// set_plan.
+func Build(modes ModePolicy, plans UseCases, interrupt runs.InterruptFunc) (Family, error) {
 	enter, err := newEnter(modes)
 	if err != nil {
 		return Family{}, fmt.Errorf("plan: build enter_plan_mode: %w", err)
 	}
-	set, err := newSet(store)
+	set, err := newSet(plans)
 	if err != nil {
 		return Family{}, fmt.Errorf("plan: build set_plan: %w", err)
 	}
-	exit, err := newExit(modes, store, interrupt)
+	exit, err := newExit(modes, plans, interrupt)
 	if err != nil {
 		return Family{}, fmt.Errorf("plan: build exit_plan_mode: %w", err)
 	}

@@ -4,17 +4,25 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/executionctx"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	plandomain "github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
 )
 
-type stubStore struct{ steps []plandomain.Step }
+type stubStore struct {
+	steps []plandomain.Step
+	state plandomain.State
+}
 
-func (s *stubStore) Replace(_ context.Context, _ string, steps []plandomain.Step) error {
+func (s *stubStore) Replace(_ context.Context, _ string, steps []plandomain.Step) (plandomain.State, error) {
 	s.steps = steps
-	return nil
+	next, err := s.state.Replace(steps, time.Now())
+	if err == nil {
+		s.state = next
+	}
+	return next, err
 }
 
 func TestNewNilStoreOmitsTool(t *testing.T) {

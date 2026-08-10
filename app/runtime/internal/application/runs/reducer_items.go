@@ -574,14 +574,15 @@ func (r *reducer) planSnapshot(e PlanUpdated) []RunEvent {
 }
 
 func (r *reducer) planState(state plan.State) StateSnapshot {
-	current := make([]PlanSnapshot, len(state.Steps))
-	for i, step := range state.Steps {
+	steps := state.Steps()
+	current := make([]PlanSnapshot, len(steps))
+	for i, step := range steps {
 		current[i] = PlanSnapshot{
 			ID: strconv.Itoa(i), Description: step.Description, Status: step.Status,
 		}
 	}
 	return StateSnapshot{
 		SessionID: r.cfg.SessionID, Plan: current,
-		Revision: state.Revision, UpdatedAt: state.UpdatedAt,
+		Revision: state.Revision(), UpdatedAt: state.UpdatedAt(),
 	}
 }

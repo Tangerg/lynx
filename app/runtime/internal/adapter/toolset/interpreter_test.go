@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/catalog"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
@@ -89,14 +90,20 @@ func TestSemanticsDelegationUsesChildLifecyclePolicy(t *testing.T) {
 }
 
 func TestSemanticsProjectsSuccessfulPlanReplacement(t *testing.T) {
-	want := plan.State{Revision: 7, Steps: []plan.Step{{Description: "verify", Status: plan.StatusInProgress}}}
+	want, err := plan.Restore(plan.Snapshot{
+		Revision: 7, UpdatedAt: time.Now(),
+		Steps: []plan.Step{{Description: "verify", Status: plan.StatusInProgress}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
 	interpreter := NewInterpreter(fixedPlanState{state: want})
 	event, err := interpreter.ProjectOutcome(t.Context(), "session_1", catalog.SetPlan, true)
 	if err != nil {
 		t.Fatal(err)
 	}
 	updated, ok := event.(runs.PlanUpdated)
-	if !ok || updated.State.Revision != want.Revision || len(updated.State.Steps) != 1 {
+	if !ok || updated.State.Revision() != want.Revision() || len(updated.State.Steps()) != 1 {
 		t.Fatalf("projected event = %#v, want PlanUpdated %#v", event, want)
 	}
 	for _, test := range []struct {

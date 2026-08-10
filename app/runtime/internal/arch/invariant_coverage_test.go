@@ -285,6 +285,6 @@ var stateLifecycleFixtures = map[string][]fixtureRef{
 	},
 	"committed_state_change_reaches_other_windows": {
 		{"internal/delivery/server", "TestStateChangeNamesItsKeyAndKeepsSessionScope"},
-		{"internal/application/runs", "TestCommittedStateChangeReachesOtherWindows"},
+		{"internal/application/plans", "TestCommittedStateChangeReachesOtherWindows"},
 	},
 }

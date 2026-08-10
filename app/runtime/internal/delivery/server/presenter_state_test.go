@@ -88,7 +88,7 @@ func TestPlanQueryAnswersWithTheStreamsOwnSnapshot(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
-	if err := rt.plan.Replace(ctx, ses.ID, []plan.Step{{Description: "first", Status: plan.StatusCompleted}}); err != nil {
+	if err := saveTestPlan(ctx, rt.plan, ses.ID, []plan.Step{{Description: "first", Status: plan.StatusCompleted}}); err != nil {
 		t.Fatalf("seed plan: %v", err)
 	}
 
@@ -103,14 +103,14 @@ func TestPlanQueryAnswersWithTheStreamsOwnSnapshot(t *testing.T) {
 	if first.Type != protocol.StatePlan || first.SessionID != ses.ID {
 		t.Fatalf("cold read = %+v, want the plan key for %s", first, ses.ID)
 	}
-	if first.Revision != stored.Revision || first.Revision == 0 {
-		t.Fatalf("cold read revision = %d, want the store's %d", first.Revision, stored.Revision)
+	if first.Revision != stored.Revision() || first.Revision == 0 {
+		t.Fatalf("cold read revision = %d, want the store's %d", first.Revision, stored.Revision())
 	}
 	if len(first.Plan) != 1 || first.Plan[0].Description != "first" {
 		t.Fatalf("cold read list = %+v, want the stored list", first.Plan)
 	}
 
-	if err := rt.plan.Replace(ctx, ses.ID, []plan.Step{{Description: "second", Status: plan.StatusInProgress}}); err != nil {
+	if err := saveTestPlan(ctx, rt.plan, ses.ID, []plan.Step{{Description: "second", Status: plan.StatusInProgress}}); err != nil {
 		t.Fatalf("advance plan: %v", err)
 	}
 	second, err := s.GetPlan(ctx, protocol.GetPlanRequest{SessionID: ses.ID})

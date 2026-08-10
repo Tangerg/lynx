@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/executionctx"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/approvals"
@@ -29,7 +30,12 @@ func (s *modeStore) PutMode(_ context.Context, sessionID string, state approval.
 
 type planReader struct{ steps []plandomain.Step }
 
-func (r planReader) List(context.Context, string) ([]plandomain.Step, error) { return r.steps, nil }
+func (r planReader) State(context.Context, string) (plandomain.State, error) {
+	if len(r.steps) == 0 {
+		return plandomain.State{}, nil
+	}
+	return plandomain.Restore(plandomain.Snapshot{Steps: r.steps, Revision: 1, UpdatedAt: time.Now()})
+}
 
 func planContext(t *testing.T, sessionID string) context.Context {
 	t.Helper()

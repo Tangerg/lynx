@@ -574,7 +574,7 @@ func TestSessionExportImportCarriesThePlanForward(t *testing.T) {
 		t.Fatalf("create: %v", err)
 	}
 	putRun(t, rt, ses.ID, "run1", 1, 0)
-	if err := rt.plan.Replace(ctx, ses.ID, []plan.Step{
+	if err := saveTestPlan(ctx, rt.plan, ses.ID, []plan.Step{
 		{Description: "split the outcome", Status: plan.StatusCompleted},
 		{Description: "carry the list", Status: plan.StatusInProgress},
 	}); err != nil {
@@ -594,7 +594,7 @@ func TestSessionExportImportCarriesThePlanForward(t *testing.T) {
 	}
 
 	// The live projection moves on, so the import has something to be newer than.
-	if err := rt.plan.Replace(ctx, ses.ID, []plan.Step{{Description: "something else", Status: plan.StatusPending}}); err != nil {
+	if err := saveTestPlan(ctx, rt.plan, ses.ID, []plan.Step{{Description: "something else", Status: plan.StatusPending}}); err != nil {
 		t.Fatalf("advance plan: %v", err)
 	}
 	before, err := rt.plan.State(ctx, ses.ID)
@@ -609,11 +609,12 @@ func TestSessionExportImportCarriesThePlanForward(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read plan after import: %v", err)
 	}
-	if len(after.Steps) != 2 || after.Steps[0].Description != "split the outcome" {
-		t.Fatalf("restored plan = %+v, want the archived plan", after.Steps)
+	afterSteps := after.Steps()
+	if len(afterSteps) != 2 || afterSteps[0].Description != "split the outcome" {
+		t.Fatalf("restored plan = %+v, want the archived plan", afterSteps)
 	}
-	if after.Revision <= before.Revision {
-		t.Fatalf("restored revision = %d, want greater than the %d it replaced", after.Revision, before.Revision)
+	if after.Revision() <= before.Revision() {
+		t.Fatalf("restored revision = %d, want greater than the %d it replaced", after.Revision(), before.Revision())
 	}
 }
 

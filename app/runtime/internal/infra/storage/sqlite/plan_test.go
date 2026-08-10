@@ -2,9 +2,11 @@ package sqlite_test
 
 import (
 	"context"
+	"errors"
 	"path/filepath"
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
@@ -19,6 +21,22 @@ func newPlanStore(t *testing.T) *sqlite.PlanStore {
 	}
 	t.Cleanup(func() { _ = db.Close() })
 	return sqlite.NewPlanStore(db)
+}
+
+func savePlan(t *testing.T, ctx context.Context, store *sqlite.PlanStore, sessionID string, steps []plan.Step) plan.State {
+	t.Helper()
+	current, err := store.State(ctx, sessionID)
+	if err != nil {
+		t.Fatalf("read current Plan: %v", err)
+	}
+	replacement, err := current.Replace(steps, time.Unix(int64(current.Revision()+1), 0).UTC())
+	if err != nil {
+		t.Fatalf("decide Plan replacement: %v", err)
+	}
+	if err := store.Save(ctx, sessionID, current.Revision(), replacement); err != nil {
+		t.Fatalf("save Plan replacement: %v", err)
+	}
+	return replacement
 }
 
 func TestPlanStore_RoundTrip(t *testing.T) {
@@ -40,9 +58,7 @@ func TestPlanStore_RoundTrip(t *testing.T) {
 		{Description: "build", Status: plan.StatusInProgress},
 		{Description: "ship", Status: plan.StatusPending},
 	}
-	if err := store.Replace(ctx, sess, want); err != nil {
-		t.Fatalf("Replace: %v", err)
-	}
+	savePlan(t, ctx, store, sess, want)
 	got, err = store.List(ctx, sess)
 	if err != nil {
 		t.Fatalf("List: %v", err)
@@ -57,18 +73,14 @@ func TestPlanStore_RoundTrip(t *testing.T) {
 	}
 
 	// Replace is a full overwrite, not a merge.
-	if err := store.Replace(ctx, sess, []plan.Step{{Description: "done", Status: plan.StatusCompleted}}); err != nil {
-		t.Fatalf("Replace(shrink): %v", err)
-	}
+	savePlan(t, ctx, store, sess, []plan.Step{{Description: "done", Status: plan.StatusCompleted}})
 	got, _ = store.List(ctx, sess)
 	if len(got) != 1 || got[0].Description != "done" {
 		t.Fatalf("after shrink = %v, want single 'done'", got)
 	}
 
 	// Clearing to empty round-trips as empty (not NULL).
-	if err := store.Replace(ctx, sess, nil); err != nil {
-		t.Fatalf("Replace(clear): %v", err)
-	}
+	savePlan(t, ctx, store, sess, nil)
 	got, err = store.List(ctx, sess)
 	if err != nil {
 		t.Fatalf("List(after clear): %v", err)
@@ -78,9 +90,7 @@ func TestPlanStore_RoundTrip(t *testing.T) {
 	}
 
 	// Lists are per-session.
-	if err := store.Replace(ctx, "other", []plan.Step{{Description: "x", Status: plan.StatusPending}}); err != nil {
-		t.Fatalf("Replace(other): %v", err)
-	}
+	savePlan(t, ctx, store, "other", []plan.Step{{Description: "x", Status: plan.StatusPending}})
 	if got, _ := store.List(ctx, sess); len(got) != 0 {
 		t.Fatalf("session bleed: %v", got)
 	}
@@ -114,9 +124,7 @@ func TestPlanBoundaryIsRecordedByTheRunThatEnds(t *testing.T) {
 	plans, runs := newPlanBoundaryStores(t)
 
 	first := []plan.Step{{Description: "survey the code", Status: plan.StatusCompleted}}
-	if err := plans.Replace(ctx, "ses_A", first); err != nil {
-		t.Fatalf("Replace: %v", err)
-	}
+	savePlan(t, ctx, plans, "ses_A", first)
 	if err := runs.Admit(ctx, runDraft("run_1", "ses_A")); err != nil {
 		t.Fatalf("admit run_1: %v", err)
 	}
@@ -125,9 +133,7 @@ func TestPlanBoundaryIsRecordedByTheRunThatEnds(t *testing.T) {
 	}
 
 	second := append(slices.Clone(first), plan.Step{Description: "write the fix", Status: plan.StatusInProgress})
-	if err := plans.Replace(ctx, "ses_A", second); err != nil {
-		t.Fatalf("Replace(grow): %v", err)
-	}
+	savePlan(t, ctx, plans, "ses_A", second)
 	if err := runs.Admit(ctx, runDraft("run_2", "ses_A")); err != nil {
 		t.Fatalf("admit run_2: %v", err)
 	}
@@ -189,9 +195,7 @@ func TestPlanBoundaryDiesWithItsRun(t *testing.T) {
 	ctx := t.Context()
 	plans, runs := newPlanBoundaryStores(t)
 
-	if err := plans.Replace(ctx, "ses_A", []plan.Step{{Description: "dropped work", Status: plan.StatusPending}}); err != nil {
-		t.Fatalf("Replace: %v", err)
-	}
+	savePlan(t, ctx, plans, "ses_A", []plan.Step{{Description: "dropped work", Status: plan.StatusPending}})
 	if err := runs.Admit(ctx, runDraft("run_1", "ses_A")); err != nil {
 		t.Fatalf("admit: %v", err)
 	}
@@ -228,12 +232,8 @@ func TestPlanStateIsOwnedByItsSession(t *testing.T) {
 	store := newPlanStore(t)
 
 	first := []plan.Step{{Description: "mine", Status: plan.StatusInProgress}}
-	if err := store.Replace(ctx, "ses_a", first); err != nil {
-		t.Fatalf("replace a: %v", err)
-	}
-	if err := store.Replace(ctx, "ses_b", []plan.Step{{Description: "theirs", Status: plan.StatusPending}}); err != nil {
-		t.Fatalf("replace b: %v", err)
-	}
+	savePlan(t, ctx, store, "ses_a", first)
+	savePlan(t, ctx, store, "ses_b", []plan.Step{{Description: "theirs", Status: plan.StatusPending}})
 
 	a, err := store.State(ctx, "ses_a")
 	if err != nil {
@@ -243,41 +243,61 @@ func TestPlanStateIsOwnedByItsSession(t *testing.T) {
 	if err != nil {
 		t.Fatalf("state b: %v", err)
 	}
-	if len(a.Steps) != 1 || a.Steps[0].Description != "mine" {
-		t.Fatalf("session a's list = %+v, want only its own item", a.Steps)
+	aSteps := a.Steps()
+	bSteps := b.Steps()
+	if len(aSteps) != 1 || aSteps[0].Description != "mine" {
+		t.Fatalf("session a's list = %+v, want only its own item", aSteps)
 	}
-	if len(b.Steps) != 1 || b.Steps[0].Description != "theirs" {
-		t.Fatalf("session b's list = %+v, want only its own item", b.Steps)
+	if len(bSteps) != 1 || bSteps[0].Description != "theirs" {
+		t.Fatalf("session b's list = %+v, want only its own item", bSteps)
 	}
-	if a.Revision != b.Revision {
+	if a.Revision() != b.Revision() {
 		t.Fatalf("revisions = %d and %d; each session counts its own writes, so one write each is the same number",
-			a.Revision, b.Revision)
+			a.Revision(), b.Revision())
 	}
 
 	// Writing in b again must not move a at all.
-	if err := store.Replace(ctx, "ses_b", []plan.Step{{Description: "theirs, again", Status: plan.StatusCompleted}}); err != nil {
-		t.Fatalf("replace b again: %v", err)
-	}
+	savePlan(t, ctx, store, "ses_b", []plan.Step{{Description: "theirs, again", Status: plan.StatusCompleted}})
 	unmoved, err := store.State(ctx, "ses_a")
 	if err != nil {
 		t.Fatalf("re-read a: %v", err)
 	}
-	if unmoved.Revision != a.Revision || len(unmoved.Steps) != 1 || unmoved.Steps[0].Description != "mine" {
+	unmovedSteps := unmoved.Steps()
+	if unmoved.Revision() != a.Revision() || len(unmovedSteps) != 1 || unmovedSteps[0].Description != "mine" {
 		t.Fatalf("session a moved to %+v because session b was written", unmoved)
 	}
 
 	// Restoring an earlier value is a new write, not a return to an old revision.
-	if err := store.Replace(ctx, "ses_a", first); err != nil {
-		t.Fatalf("restore a: %v", err)
-	}
+	savePlan(t, ctx, store, "ses_a", first)
 	restored, err := store.State(ctx, "ses_a")
 	if err != nil {
 		t.Fatalf("read restored a: %v", err)
 	}
-	if restored.Revision <= a.Revision {
-		t.Fatalf("restored revision = %d, want greater than the %d it replaced", restored.Revision, a.Revision)
+	if restored.Revision() <= a.Revision() {
+		t.Fatalf("restored revision = %d, want greater than the %d it replaced", restored.Revision(), a.Revision())
 	}
-	if !restored.UpdatedAt.After(a.UpdatedAt) && !restored.UpdatedAt.Equal(a.UpdatedAt) {
-		t.Fatalf("restored updatedAt = %s, want no earlier than %s", restored.UpdatedAt, a.UpdatedAt)
+	if !restored.UpdatedAt().After(a.UpdatedAt()) && !restored.UpdatedAt().Equal(a.UpdatedAt()) {
+		t.Fatalf("restored updatedAt = %s, want no earlier than %s", restored.UpdatedAt(), a.UpdatedAt())
+	}
+}
+
+func TestPlanStoreRejectsStaleReplacement(t *testing.T) {
+	store := newPlanStore(t)
+	ctx := t.Context()
+	first := savePlan(t, ctx, store, "ses_A", []plan.Step{{Description: "first", Status: plan.StatusPending}})
+	stale, err := first.Replace([]plan.Step{{Description: "stale", Status: plan.StatusCompleted}}, first.UpdatedAt().Add(time.Second))
+	if err != nil {
+		t.Fatal(err)
+	}
+	savePlan(t, ctx, store, "ses_A", []plan.Step{{Description: "winner", Status: plan.StatusInProgress}})
+	if err := store.Save(ctx, "ses_A", first.Revision(), stale); !errors.Is(err, plan.ErrRevisionConflict) {
+		t.Fatalf("stale Save error = %v, want ErrRevisionConflict", err)
+	}
+	current, err := store.State(ctx, "ses_A")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := current.Steps(); len(got) != 1 || got[0].Description != "winner" {
+		t.Fatalf("current Plan = %+v, stale replacement was applied", got)
 	}
 }

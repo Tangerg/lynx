@@ -45,7 +45,7 @@ type BuildConfig struct {
 	// after reconnects; toolset deliberately does not own MCP connections.
 	MCPTools       []toolcontract.Tool
 	A2AAgents      []A2AAgentConfig
-	Plan           plan.Store      // backs set_plan + exit_plan_mode; nil → both are omitted
+	Plan           plan.UseCases   // backs set_plan + exit_plan_mode; nil → both are omitted
 	PlanMode       plan.ModePolicy // session-scoped Plan mode; nil → enter/exit are omitted
 	Interrupt      runs.InterruptFunc
 	Schedules      schedule.Management     // backs schedule management tools; nil → omitted

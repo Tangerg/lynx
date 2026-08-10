@@ -119,6 +119,10 @@ func (c *Coordinator) restoreSession(ctx context.Context, snapshot Snapshot, pre
 		return View{}, err
 	}
 	snapshot.Session.CWD = cwd
+	planReplacement, err := c.prepareRestoredPlanReplacement(ctx, snapshot.Session.ID, snapshot.Plan)
+	if err != nil {
+		return View{}, err
+	}
 	var view View
 	err = c.withGoalMutation(
 		ctx,
@@ -127,7 +131,7 @@ func (c *Coordinator) restoreSession(ctx context.Context, snapshot Snapshot, pre
 			if c.writes == nil {
 				return errors.New("sessions: write sets are unavailable")
 			}
-			return c.writes.ApplyRestore(ctx, restorePlan(snapshot))
+			return c.writes.ApplyRestore(ctx, restorePlan(snapshot, planReplacement))
 		},
 		func(context.Context) error {
 			// Restore replaced the whole history: any isolated working copy

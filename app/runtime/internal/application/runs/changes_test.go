@@ -105,20 +105,15 @@ func TestStartAndTerminalPublishRunAndSessionChanges(t *testing.T) {
 	}
 }
 
-// TestCommittedStateChangeReachesOtherWindows proves
-// committed_state_change_reaches_other_windows: the run stream carries the snapshot
-// itself, and a second window is told to re-read the key.
-//
-// Only subscribers of THIS run see the snapshot event. Everyone else — a second
-// window, a Plan panel on another screen — learns nothing from it, so without
-// the notice their list stays whatever it was when they last read, with no way to
-// notice they are behind. The notice is scoped to the session because the key is:
-// naming the run would invite a refetch keyed on something the value is not keyed on.
-func TestCommittedStateChangeReachesOtherWindows(t *testing.T) {
-	exec := &fakeExecutor{events: []ExecutorPayload{PlanUpdated{State: plan.State{
+// TestPlanSnapshotStaysOnOwningRunStream proves the run projection carries the
+// committed value but does not claim ownership of its invalidation. The Plan
+// use case publishes that notice immediately after its own durable CAS; this
+// reducer only projects the resulting Tool fact onto the owning run stream.
+func TestPlanSnapshotStaysOnOwningRunStream(t *testing.T) {
+	exec := &fakeExecutor{events: []ExecutorPayload{PlanUpdated{State: testPlanState(t, plan.Snapshot{
 		Steps:    []plan.Step{{Description: "tell the other window", Status: plan.StatusInProgress}},
 		Revision: 2, UpdatedAt: time.Date(2026, 7, 29, 1, 2, 3, 0, time.UTC),
-	}}}}
+	})}}}
 	changes := &changeRecorder{}
 	control := &fakeExecutionPorts{startRef: ExecutorRef{SessionID: "ses_1", ExecutorID: "turn_1"}}
 	sessions := &fakeRunSessions{sess: session.Session{ID: "ses_1", CWD: "/work"}}
@@ -152,18 +147,7 @@ func TestCommittedStateChangeReachesOtherWindows(t *testing.T) {
 	if !sawSnapshot {
 		t.Fatal("the run stream carried no state snapshot; the fixture proves nothing about the notice beside it")
 	}
-	if got := changes.count(change.PlanState); got == 0 {
-		t.Fatalf("state notices = %d, want the committed projection announced", got)
-	}
-	for _, notice := range changes.notices {
-		if notice.Resource != change.PlanState {
-			continue
-		}
-		if !slices.Equal(notice.SessionIDs, []string{"ses_1"}) {
-			t.Fatalf("state notice scope = %v, want the session that owns the key", notice.SessionIDs)
-		}
-		if len(notice.RunIDs) != 0 {
-			t.Fatalf("state notice named runs %v; the key is session-scoped", notice.RunIDs)
-		}
+	if got := changes.count(change.PlanState); got != 0 {
+		t.Fatalf("run projection published %d Plan notices; application/plans owns them", got)
 	}
 }

@@ -13,7 +13,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
-	plandomain "github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
 )
 
 const (
@@ -61,15 +60,13 @@ func (t *exiter) exit(ctx context.Context, _ exitArgs) (string, error) {
 	if mode != approval.ModePlan {
 		return "", errors.New("exit_plan_mode: current session is not in Plan mode")
 	}
-	steps, err := t.plan.List(ctx, sessionID)
+	state, err := t.plan.State(ctx, sessionID)
 	if err != nil {
 		return "", err
 	}
+	steps := state.Steps()
 	if len(steps) == 0 {
 		return "", errors.New("exit_plan_mode: current Plan is empty; call set_plan before requesting approval")
-	}
-	if err := plandomain.Validate(steps); err != nil {
-		return "", fmt.Errorf("exit_plan_mode: stored Plan is invalid: %w", err)
 	}
 
 	arguments := `{}`
