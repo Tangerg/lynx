@@ -36,7 +36,7 @@ func TestResumeRun_KeepsInterruptOpenWhenStartFails(t *testing.T) {
 		"run_1",
 		sess.ID,
 		"exec_parked",
-		"process_parked",
+		"member_parked",
 		[]transcript.Interrupt{{
 			ItemID: "item_1",
 			Kind:   interrupt.Approval,
@@ -101,7 +101,7 @@ func TestResumeRunRejectsMissingAndUnknownItemCoverage(t *testing.T) {
 		"run_coverage",
 		sess.ID,
 		"exec_parked",
-		"process_parked",
+		"member_parked",
 		[]transcript.Interrupt{{
 			ItemID: "item_open",
 			Kind:   interrupt.Approval,

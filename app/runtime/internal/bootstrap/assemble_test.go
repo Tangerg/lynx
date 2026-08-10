@@ -386,7 +386,7 @@ func TestAssemblyDirectToolsDoNotDependOnAgentResolver(t *testing.T) {
 		}))
 		// The agent resolver is intentionally absent. Direct client-invoked
 		// diagnostics have a separate fixed catalog and must not inherit the
-		// agent's process-bound capability catalog.
+		// model-driven Run's capability catalog.
 		toolRuntime.tools.Resolver = nil
 		return toolRuntime, nil
 	})
@@ -447,7 +447,7 @@ func TestAssemblyRecoversParkedRunWithIncompatibleDeployment(t *testing.T) {
 	const (
 		runID     = "run_park"
 		sessionID = "ses_park"
-		processID = "proc_park"
+		memberID  = "member_park"
 	)
 	createdAt := time.Date(2026, 7, 16, 1, 0, 0, 0, time.UTC)
 	parkedAt := createdAt.Add(time.Second)
@@ -488,15 +488,14 @@ func TestAssemblyRecoversParkedRunWithIncompatibleDeployment(t *testing.T) {
 	if err := cfg.InterruptStore.Open(ctx, bootstrapPending(
 		runID,
 		sessionID,
-		processID,
+		memberID,
 		"item_park",
 		createdAt,
 		parkedAt,
 	)); err != nil {
 		t.Fatalf("open interrupt: %v", err)
 	}
-	tree := bootstrapSnapshotTree(processID, bootstrapWaitingSnapshot(processID))
-	if err := cfg.ExecutorCheckpoints.SaveCheckpoint(ctx, bootstrapCheckpoint(tree, sessionID)); err != nil {
+	if err := cfg.ExecutorCheckpoints.SaveCheckpoint(ctx, bootstrapCheckpoint(memberID, sessionID)); err != nil {
 		t.Fatalf("save executor checkpoint: %v", err)
 	}
 
@@ -510,7 +509,7 @@ func TestAssemblyRecoversParkedRunWithIncompatibleDeployment(t *testing.T) {
 	if pending, err := cfg.InterruptStore.List(ctx, sessionID); err != nil || len(pending) != 0 {
 		t.Fatalf("pending after assemble = (%+v, %v), want none", pending, err)
 	}
-	if _, err := cfg.ExecutorCheckpoints.LoadCheckpoint(ctx, processID); !errors.Is(err, runs.ErrExecutorCheckpointNotFound) {
+	if _, err := cfg.ExecutorCheckpoints.LoadCheckpoint(ctx, memberID); !errors.Is(err, runs.ErrExecutorCheckpointNotFound) {
 		t.Fatalf("executor checkpoint after assemble = %v, want not found", err)
 	}
 	runs, err := cfg.RunStore.ListRuns(ctx, sessionID)

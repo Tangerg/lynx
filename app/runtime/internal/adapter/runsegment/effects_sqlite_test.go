@@ -3,7 +3,6 @@ package runsegment
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"reflect"
 	"slices"
@@ -24,24 +23,6 @@ import (
 )
 
 const checkpointBuildID = "test-build"
-
-// executorTreeFixture is deliberately local and opaque to Runtime production
-// code. Persistence tests need stable bytes and member identities, not an
-// execution framework's private snapshot model.
-type executorTreeFixture struct {
-	RootID  string                  `json:"root_id"`
-	Members []executorMemberFixture `json:"members"`
-}
-
-type executorMemberFixture struct {
-	ID         string `json:"id"`
-	ParentID   string `json:"parent_id,omitempty"`
-	WaitPrompt string `json:"wait_prompt,omitempty"`
-}
-
-func waitingExecutorMember(id, prompt string) executorMemberFixture {
-	return executorMemberFixture{ID: id, WaitPrompt: prompt}
-}
 
 func claimResumeForTest(
 	t *testing.T,
@@ -87,7 +68,7 @@ func TestCommitOpeningResumePreservesAnswerClaimOnRollback(t *testing.T) {
 	}
 	stalePending := singleRunPending(
 		t,
-		"run_stale", "ses_1", "proc_stale", "susp_stale", "item_stale",
+		"run_stale", "ses_1", "member_stale", "request_stale", "item_stale",
 		time.Now().UTC(), time.Now().UTC(),
 	)
 	if err := ints.Open(ctx, stalePending); err != nil {
@@ -135,7 +116,7 @@ func TestCommitOpeningResumeCommitsWholeWriteSet(t *testing.T) {
 	}
 	pending := singleRunPending(
 		t,
-		"run_1", "ses_1", "proc_1", "susp_1", "item_question",
+		"run_1", "ses_1", "member_1", "request_1", "item_question",
 		created, time.Now().UTC(),
 	)
 	if err := ints.Open(ctx, pending); err != nil {
@@ -461,11 +442,11 @@ func newOpeningResumeFixture(t *testing.T, suspendRoot bool) openingResumeFixtur
 		},
 		Interrupts: childRun.Interrupts,
 		Bindings: []runs.InterruptBinding{{
-			InterruptItemID: "item_child", MemberID: "process_child", RequestID: "suspension_child",
+			InterruptItemID: "item_child", MemberID: "member_child", RequestID: "request_child",
 		}},
 		Continuations: []runs.Continuation{
-			{RunID: "run_child", MemberID: "process_child", Lineage: lineage, RunCreatedAt: createdAt},
-			{RunID: "run_root", MemberID: "process_root", RunCreatedAt: createdAt},
+			{RunID: "run_child", MemberID: "member_child", Lineage: lineage, RunCreatedAt: createdAt},
+			{RunID: "run_root", MemberID: "member_root", RunCreatedAt: createdAt},
 		},
 		CreatedAt: createdAt.Add(time.Second),
 	}
@@ -705,13 +686,9 @@ func TestCommitTreeBarrierProducesDurableTriplet(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("admit: %v", err)
 	}
-	snapshot := waitingExecutorMember("proc_1", "continue?")
-	tree := executorTreeFixture{
-		RootID:  snapshot.ID,
-		Members: []executorMemberFixture{snapshot},
-	}
+	const rootMemberID = "member_1"
 	checkpointStore := persistence.NewExecutorCheckpointStore(sqlite.NewExecutorCheckpointStore(db))
-	checkpoint := executorCheckpoint(t, tree, runs.ExecutorCheckpoint{
+	checkpoint := executorCheckpoint(t, rootMemberID, "opaque waiting checkpoint", runs.ExecutorCheckpoint{
 		BuildID:        checkpointBuildID,
 		Scope:          runs.ExecutionScope{SessionID: "ses_1"},
 		ModelSelection: mustEffectSelection(t, "anthropic", "claude"),
@@ -731,7 +708,7 @@ func TestCommitTreeBarrierProducesDurableTriplet(t *testing.T) {
 	})
 	pending := singleRunPending(
 		t,
-		"run_1", "ses_1", "proc_1", "request-proc_1", "item_question",
+		"run_1", "ses_1", rootMemberID, "request-member_1", "item_question",
 		createdAt, parkedAt,
 	)
 	if err := effects.CommitTreeBarrier(ctx, runs.TreeBarrierCommit{
@@ -755,7 +732,7 @@ func TestCommitTreeBarrierProducesDurableTriplet(t *testing.T) {
 		t.Fatalf("park: %v", err)
 	}
 
-	if stored, err := checkpointStore.LoadCheckpoint(ctx, snapshot.ID); err != nil || stored.RootMemberID != snapshot.ID {
+	if stored, err := checkpointStore.LoadCheckpoint(ctx, rootMemberID); err != nil || stored.RootMemberID != rootMemberID {
 		t.Fatalf("stored executor checkpoint = (%+v, %v)", stored, err)
 	}
 	if err := state.Admit(ctx, run.Draft{RunID: "run_next", SessionID: "ses_1", SegmentID: "seg_open", CreatedAt: parkedAt}); !errors.Is(err, run.ErrSessionBusy) {
@@ -773,11 +750,9 @@ func TestCommitTreeBarrierRollsBackCheckpointWhenRunSuspendFails(t *testing.T) {
 	ctx := t.Context()
 	createdAt := time.Unix(1, 0).UTC()
 	parkedAt := time.Unix(2, 0).UTC()
-	snapshot := waitingExecutorMember("proc_rollback", "continue?")
+	const rootMemberID = "member_rollback"
 	checkpointStore := persistence.NewExecutorCheckpointStore(sqlite.NewExecutorCheckpointStore(db))
-	checkpoint := executorCheckpoint(t, executorTreeFixture{
-		RootID: snapshot.ID, Members: []executorMemberFixture{snapshot},
-	}, runs.ExecutorCheckpoint{
+	checkpoint := executorCheckpoint(t, rootMemberID, "opaque rollback checkpoint", runs.ExecutorCheckpoint{
 		BuildID:        checkpointBuildID,
 		Scope:          runs.ExecutionScope{SessionID: "ses_rollback"},
 		ModelSelection: mustEffectSelection(t, "anthropic", "claude"),
@@ -796,7 +771,7 @@ func TestCommitTreeBarrierRollsBackCheckpointWhenRunSuspendFails(t *testing.T) {
 	})
 	pending := singleRunPending(
 		t,
-		"run_missing", "ses_rollback", snapshot.ID, "request-"+snapshot.ID, "item_question",
+		"run_missing", "ses_rollback", rootMemberID, "request-"+rootMemberID, "item_question",
 		createdAt, parkedAt,
 	)
 	parkedRun := parkedRunRecord("run_missing", "ses_rollback", createdAt)
@@ -811,7 +786,7 @@ func TestCommitTreeBarrierRollsBackCheckpointWhenRunSuspendFails(t *testing.T) {
 	if err == nil {
 		t.Fatal("CommitTreeBarrier succeeded without an admitted Run")
 	}
-	if _, loadErr := checkpointStore.LoadCheckpoint(ctx, snapshot.ID); !errors.Is(loadErr, runs.ErrExecutorCheckpointNotFound) {
+	if _, loadErr := checkpointStore.LoadCheckpoint(ctx, rootMemberID); !errors.Is(loadErr, runs.ErrExecutorCheckpointNotFound) {
 		t.Fatalf("checkpoint survived failed tree barrier: %v", loadErr)
 	}
 	if _, found, getErr := interruptStore.Get(ctx, pending.RootRunID); getErr != nil || found {
@@ -947,7 +922,7 @@ func TestCommitTerminalOwnsExecutorCheckpointDeletion(t *testing.T) {
 			err := fixture.effects.CommitEvent(fixture.ctx, runs.EventCommit{
 				RunID: "run_terminal", SessionID: "ses_terminal", State: runs.StateTerminalize,
 				Outcome: run.OutcomeCompleted, Run: finished,
-				ObsoleteCheckpointRootID: fixture.snapshot.ID,
+				ObsoleteCheckpointRootID: fixture.rootMemberID,
 			})
 			if test.deleteFail {
 				assertTerminalCheckpointRollback(t, fixture, err)
@@ -959,13 +934,13 @@ func TestCommitTerminalOwnsExecutorCheckpointDeletion(t *testing.T) {
 }
 
 type terminalCheckpointFixture struct {
-	ctx         context.Context
-	database    *sql.DB
-	runStore    *sqlite.RunStore
-	checkpoints *persistence.ExecutorCheckpointStore
-	pending     runs.Pending
-	snapshot    executorMemberFixture
-	effects     *Effects
+	ctx          context.Context
+	database     *sql.DB
+	runStore     *sqlite.RunStore
+	checkpoints  *persistence.ExecutorCheckpointStore
+	pending      runs.Pending
+	rootMemberID string
+	effects      *Effects
 }
 
 func newTerminalCheckpointFixture(t *testing.T, failCheckpointDeletion bool) terminalCheckpointFixture {
@@ -985,10 +960,8 @@ func newTerminalCheckpointFixture(t *testing.T, failCheckpointDeletion bool) ter
 		t.Fatalf("admit: %v", err)
 	}
 	checkpointStore := persistence.NewExecutorCheckpointStore(sqlite.NewExecutorCheckpointStore(database))
-	snapshot := waitingExecutorMember("proc_terminal", "continue?")
-	if err := checkpointStore.SaveCheckpoint(ctx, executorCheckpoint(t, executorTreeFixture{
-		RootID: snapshot.ID, Members: []executorMemberFixture{snapshot},
-	}, runs.ExecutorCheckpoint{
+	const rootMemberID = "member_terminal"
+	if err := checkpointStore.SaveCheckpoint(ctx, executorCheckpoint(t, rootMemberID, "opaque terminal checkpoint", runs.ExecutorCheckpoint{
 		BuildID: checkpointBuildID,
 		Scope:   runs.ExecutionScope{SessionID: "ses_terminal"},
 		Usage:   accounting.Snapshot{},
@@ -998,7 +971,7 @@ func newTerminalCheckpointFixture(t *testing.T, failCheckpointDeletion bool) ter
 	interruptStore := persistence.NewInterruptStore(sqlite.NewInterruptStore(database))
 	pending := singleRunPending(
 		t,
-		"run_terminal", "ses_terminal", snapshot.ID, "request_terminal", "item_terminal",
+		"run_terminal", "ses_terminal", rootMemberID, "request_terminal", "item_terminal",
 		createdAt, createdAt.Add(time.Second),
 	)
 	if err := interruptStore.Open(ctx, pending); err != nil {
@@ -1033,7 +1006,7 @@ func newTerminalCheckpointFixture(t *testing.T, failCheckpointDeletion bool) ter
 	})
 	return terminalCheckpointFixture{
 		ctx: ctx, database: database, runStore: runStore, checkpoints: checkpointStore,
-		pending: pending, snapshot: snapshot, effects: effects,
+		pending: pending, rootMemberID: rootMemberID, effects: effects,
 	}
 }
 
@@ -1046,7 +1019,7 @@ func assertTerminalCheckpointRollback(t *testing.T, fixture terminalCheckpointFi
 	if err != nil || len(runsAfter) != 1 || runsAfter[0].State != run.Running {
 		t.Fatalf("Run after rollback = %+v, %v; want running", runsAfter, err)
 	}
-	if _, err := fixture.checkpoints.LoadCheckpoint(fixture.ctx, fixture.snapshot.ID); err != nil {
+	if _, err := fixture.checkpoints.LoadCheckpoint(fixture.ctx, fixture.rootMemberID); err != nil {
 		t.Fatalf("checkpoint lost after terminal rollback: %v", err)
 	}
 	var state string
@@ -1064,7 +1037,7 @@ func assertTerminalCheckpointCommit(t *testing.T, fixture terminalCheckpointFixt
 	if commitError != nil {
 		t.Fatalf("CommitEvent: %v", commitError)
 	}
-	if _, err := fixture.checkpoints.LoadCheckpoint(fixture.ctx, fixture.snapshot.ID); !errors.Is(err, runs.ErrExecutorCheckpointNotFound) {
+	if _, err := fixture.checkpoints.LoadCheckpoint(fixture.ctx, fixture.rootMemberID); !errors.Is(err, runs.ErrExecutorCheckpointNotFound) {
 		t.Fatalf("terminal checkpoint survived: %v", err)
 	}
 	var remaining int
@@ -1130,15 +1103,15 @@ func TestCommitWaitingSubtreeCancellationCommitsCompleteWriteSet(t *testing.T) {
 	assertStoredRunState(t, fixture.db, fixture.childRun.ID, "terminal")
 	assertStoredRunState(t, fixture.db, fixture.grandchildRun.ID, "terminal")
 	assertStoredRunState(t, fixture.db, fixture.rootRun.ID, "running")
-	checkpoint, err := fixture.checkpoints.LoadCheckpoint(fixture.ctx, "process_root")
+	checkpoint, err := fixture.checkpoints.LoadCheckpoint(fixture.ctx, "member_root")
 	if err != nil {
-		t.Fatalf("load replacement process tree: %v", err)
+		t.Fatalf("load replacement executor checkpoint: %v", err)
 	}
-	tree := restoredExecutorTree(t, checkpoint)
-	if len(tree.Members) != 1 ||
-		tree.Members[0].WaitPrompt != "after-cancel" ||
-		checkpoint.BuildID != "original-build" {
-		t.Fatalf("replacement process tree = %+v checkpoint=%+v", tree, checkpoint)
+	if !reflect.DeepEqual(
+		normalizedExecutorCheckpoint(checkpoint),
+		normalizedExecutorCheckpoint(fixture.replacementCheckpoint),
+	) {
+		t.Fatalf("replacement executor checkpoint = %+v, want %+v", checkpoint, fixture.replacementCheckpoint)
 	}
 }
 
@@ -1162,17 +1135,15 @@ func TestCommitWaitingSubtreeCancellationRollsBackCheckpointAndApplicationFacts(
 	assertStoredRunState(t, fixture.db, fixture.childRun.ID, "waiting")
 	assertStoredRunState(t, fixture.db, fixture.grandchildRun.ID, "waiting")
 	assertStoredRunState(t, fixture.db, fixture.rootRun.ID, "waiting")
-	checkpoint, err := fixture.checkpoints.LoadCheckpoint(fixture.ctx, "process_root")
+	checkpoint, err := fixture.checkpoints.LoadCheckpoint(fixture.ctx, "member_root")
 	if err != nil {
-		t.Fatalf("load rolled-back process tree: %v", err)
+		t.Fatalf("load rolled-back executor checkpoint: %v", err)
 	}
-	tree := restoredExecutorTree(t, checkpoint)
-	rootSnapshot, found := executorMemberByID(tree, "process_root")
-	if len(tree.Members) != 3 ||
-		!found ||
-		rootSnapshot.WaitPrompt != "before-cancel" ||
-		checkpoint.BuildID != "original-build" {
-		t.Fatalf("rolled-back process tree = %+v checkpoint=%+v", tree, checkpoint)
+	if !reflect.DeepEqual(
+		normalizedExecutorCheckpoint(checkpoint),
+		normalizedExecutorCheckpoint(fixture.originalCheckpoint),
+	) {
+		t.Fatalf("rolled-back executor checkpoint = %+v, want %+v", checkpoint, fixture.originalCheckpoint)
 	}
 }
 
@@ -1189,9 +1160,7 @@ type waitingCancellationSQLiteFixture struct {
 	grandchildRun         transcript.Run
 	parentItem            transcript.Item
 	originalItems         []transcript.Item
-	originalTree          executorTreeFixture
 	originalCheckpoint    runs.ExecutorCheckpoint
-	replacementTree       executorTreeFixture
 	replacementCheckpoint runs.ExecutorCheckpoint
 	commit                runs.WaitingSubtreeCancellationCommit
 }
@@ -1398,28 +1367,28 @@ func newWaitingCancellationSQLiteFixtureAt(
 	}
 
 	pendingInterrupts := []transcript.Interrupt{grandchildQuestion, childQuestion}
-	pendingSuspensions := []runs.InterruptBinding{
+	pendingBindings := []runs.InterruptBinding{
 		{
 			InterruptItemID: grandchildQuestion.ItemID,
-			MemberID:        "process_grandchild",
-			RequestID:       "request-process_grandchild",
+			MemberID:        "member_grandchild",
+			RequestID:       "request-member_grandchild",
 		},
 		{
 			InterruptItemID: childQuestion.ItemID,
-			MemberID:        "process_child",
-			RequestID:       "request-process_child",
+			MemberID:        "member_child",
+			RequestID:       "request-member_child",
 		},
 	}
 	pendingContinuations := []runs.Continuation{
 		{
 			RunID:        grandchildRun.ID,
-			MemberID:     "process_grandchild",
+			MemberID:     "member_grandchild",
 			Lineage:      grandchildLineage,
 			RunCreatedAt: createdAt,
 		},
 		{
 			RunID:        childRun.ID,
-			MemberID:     "process_child",
+			MemberID:     "member_child",
 			Lineage:      childLineage,
 			RunCreatedAt: createdAt,
 		},
@@ -1427,21 +1396,21 @@ func newWaitingCancellationSQLiteFixtureAt(
 	if survivingBoundary {
 		siblingQuestion := siblingRun.Interrupts[0]
 		pendingInterrupts = append(pendingInterrupts, siblingQuestion)
-		pendingSuspensions = append(pendingSuspensions, runs.InterruptBinding{
+		pendingBindings = append(pendingBindings, runs.InterruptBinding{
 			InterruptItemID: siblingQuestion.ItemID,
-			MemberID:        "process_sibling",
-			RequestID:       "request-process_sibling",
+			MemberID:        "member_sibling",
+			RequestID:       "request-member_sibling",
 		})
 		pendingContinuations = append(pendingContinuations, runs.Continuation{
 			RunID:        siblingRun.ID,
-			MemberID:     "process_sibling",
+			MemberID:     "member_sibling",
 			Lineage:      siblingLineage,
 			RunCreatedAt: createdAt,
 		})
 	}
 	pendingContinuations = append(pendingContinuations, runs.Continuation{
 		RunID:        rootRun.ID,
-		MemberID:     "process_root",
+		MemberID:     "member_root",
 		RunCreatedAt: createdAt,
 		DrainedTools: []runs.DrainedTool{{
 			ItemID: parentItem.ID, ItemOccurredAt: parentItem.OccurredAt,
@@ -1454,7 +1423,7 @@ func newWaitingCancellationSQLiteFixtureAt(
 		ExecutorID:    "turn_1",
 		Capabilities:  capabilities,
 		Interrupts:    pendingInterrupts,
-		Bindings:      pendingSuspensions,
+		Bindings:      pendingBindings,
 		Continuations: pendingContinuations,
 		CreatedAt:     finishedAt,
 	}
@@ -1467,27 +1436,8 @@ func newWaitingCancellationSQLiteFixtureAt(
 	}
 
 	checkpointStore := persistence.NewExecutorCheckpointStore(sqlite.NewExecutorCheckpointStore(db))
-	originalRoot := waitingExecutorMember("process_root", "before-cancel")
-	originalChild := waitingExecutorMember("process_child", "continue?")
-	originalChild.ParentID = originalRoot.ID
-	originalGrandchild := waitingExecutorMember("process_grandchild", "continue?")
-	originalGrandchild.ParentID = originalChild.ID
-	originalMembers := []executorMemberFixture{
-		originalRoot,
-		originalChild,
-		originalGrandchild,
-	}
-	var originalSibling executorMemberFixture
-	if survivingBoundary {
-		originalSibling = waitingExecutorMember("process_sibling", "continue?")
-		originalSibling.ParentID = originalRoot.ID
-		originalMembers = append(originalMembers, originalSibling)
-	}
-	originalTree := executorTreeFixture{
-		RootID:  originalRoot.ID,
-		Members: originalMembers,
-	}
-	originalCheckpoint := executorCheckpoint(t, originalTree, runs.ExecutorCheckpoint{
+	const rootMemberID = "member_root"
+	originalCheckpoint := executorCheckpoint(t, rootMemberID, "opaque checkpoint before cancellation", runs.ExecutorCheckpoint{
 		BuildID: "original-build",
 		Scope:   runs.ExecutionScope{SessionID: rootRun.SessionID},
 		Usage: accounting.Snapshot{Models: []accounting.ModelUsage{{
@@ -1498,19 +1448,8 @@ func newWaitingCancellationSQLiteFixtureAt(
 		}}},
 	})
 	if err := checkpointStore.SaveCheckpoint(ctx, originalCheckpoint); err != nil {
-		t.Fatalf("seed process tree: %v", err)
+		t.Fatalf("seed executor checkpoint: %v", err)
 	}
-	replacementRoot := originalRoot
-	replacementRoot.WaitPrompt = "after-cancel"
-	replacementMembers := []executorMemberFixture{replacementRoot}
-	if survivingBoundary {
-		replacementMembers = append(replacementMembers, originalSibling)
-	}
-	replacementTree := executorTreeFixture{
-		RootID:  replacementRoot.ID,
-		Members: replacementMembers,
-	}
-
 	outcome := run.OutcomeCanceled
 	terminalChild := childRun
 	terminalChild.State = run.Canceled
@@ -1579,7 +1518,7 @@ func newWaitingCancellationSQLiteFixtureAt(
 			}},
 		}
 	}
-	replacementCheckpoint := executorCheckpoint(t, replacementTree, runs.ExecutorCheckpoint{
+	replacementCheckpoint := executorCheckpoint(t, rootMemberID, "opaque checkpoint after cancellation", runs.ExecutorCheckpoint{
 		BuildID: "original-build",
 		Scope:   runs.ExecutionScope{SessionID: rootRun.SessionID},
 		Usage: accounting.Snapshot{Models: []accounting.ModelUsage{{
@@ -1613,9 +1552,7 @@ func newWaitingCancellationSQLiteFixtureAt(
 		grandchildRun:         grandchildRun,
 		parentItem:            parentItem,
 		originalItems:         originalItems,
-		originalTree:          originalTree,
 		originalCheckpoint:    originalCheckpoint,
-		replacementTree:       replacementTree,
 		replacementCheckpoint: replacementCheckpoint,
 		commit: runs.WaitingSubtreeCancellationCommit{
 			RootRunID:        rootRun.ID,
@@ -1635,59 +1572,19 @@ func newWaitingCancellationSQLiteFixtureAt(
 	}
 }
 
-func executorMemberByID(
-	tree executorTreeFixture,
-	memberID string,
-) (executorMemberFixture, bool) {
-	for _, member := range tree.Members {
-		if member.ID == memberID {
-			return member, true
-		}
-	}
-	return executorMemberFixture{}, false
-}
-
 func executorCheckpoint(
 	t *testing.T,
-	tree executorTreeFixture,
+	rootMemberID string,
+	payload string,
 	checkpoint runs.ExecutorCheckpoint,
 ) runs.ExecutorCheckpoint {
 	t.Helper()
-	payload, err := json.Marshal(tree)
-	if err != nil {
-		t.Fatalf("encode executor process tree %q: %v", tree.RootID, err)
-	}
-	checkpoint.RootMemberID = tree.RootID
-	checkpoint.Payload = payload
+	checkpoint.RootMemberID = rootMemberID
+	checkpoint.Payload = []byte(payload)
 	if err := checkpoint.Validate(); err != nil {
 		t.Fatalf("executor checkpoint: %v", err)
 	}
 	return checkpoint
-}
-
-func restoredExecutorTree(t *testing.T, checkpoint runs.ExecutorCheckpoint) executorTreeFixture {
-	t.Helper()
-	var tree executorTreeFixture
-	if err := json.Unmarshal(checkpoint.Payload, &tree); err != nil {
-		t.Fatalf("decode executor tree fixture %q: %v", checkpoint.RootMemberID, err)
-	}
-	if tree.RootID == "" || len(tree.Members) == 0 {
-		t.Fatalf("decode executor tree fixture: invalid tree %+v", tree)
-	}
-	seen := make(map[string]struct{}, len(tree.Members))
-	for _, member := range tree.Members {
-		if member.ID == "" {
-			t.Fatalf("decode executor tree fixture: empty member in %+v", tree)
-		}
-		if _, duplicate := seen[member.ID]; duplicate {
-			t.Fatalf("decode executor tree fixture: duplicate member %q", member.ID)
-		}
-		seen[member.ID] = struct{}{}
-	}
-	if _, found := seen[tree.RootID]; !found {
-		t.Fatalf("decode executor tree fixture: root %q is absent", tree.RootID)
-	}
-	return tree
 }
 
 type sqliteOpeningStores struct {

@@ -11,7 +11,7 @@ import (
 )
 
 func TestInteractionExecutorRestoresWaitingDelegateChildWithoutReadmission(t *testing.T) {
-	fixture := newWaitingDelegateFixture(t, "native-waiting-delegate-test")
+	fixture := newWaitingDelegateFixture(t, "interaction-waiting-delegate-test")
 	started := fixture.start(t)
 	initialEventsReady := make(chan []runs.Event, 1)
 	go func() { initialEventsReady <- slices.Collect(started.Events) }()

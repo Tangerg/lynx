@@ -370,7 +370,7 @@ Application transaction records the exact answer claim
 
 answer claim 是不可逆的恢复线性化点，不是普通“读取并删除”。claim 成功后，旧 checkpoint 已不存在，`resuming` row 只保留答案审计与 crash diagnosis，普通 waiting 查询看不到它；continuation opening 必须在同一事务中先证明该 claim 存在，再把 Run tree 改回 Running。下一次 quiescent barrier 只能由相同 Session/executor/root-member owner 原子替换该 row，terminal/recovery 则原子删除。claim 后任何校验、restore、observe 或 opening 失败都先提交根 Run `RunLost`，成功后才 release live tree；若 `RunLost` 自身无法持久化，tree 与 hidden claim 都保持，不伪造已清理状态。进程在 claim 后、RestoreTree 后或 Signal accepted 后到下一 checkpoint 前崩溃，boot recovery 一律 `RunLost`，绝不再次投递旧答案。
 
-Native Interaction 只通过 public pending-input helper 读取 prompt/WaitID，通过 public `TreeSnapshot`/`RestoreTree` 恢复，通过 typed answer/steer constructor 产生 Signal。产品 Interrupt 与 response 的 strict codec 位于独立防腐包；旧 private suspension adapter 已删除。Ask-user 使用真实 Runtime Tool 注入 native pending-input capability；interactive approval 的 plan/hook 只在首次调用执行，restore 只解析持久 prompt 并应用答案。deferred advertisement 属于 Interaction snapshot，恢复后无需 Runtime 重建影子清单。
+Interaction 只通过 public pending-input helper 读取 prompt/WaitID，通过 public `TreeSnapshot`/`RestoreTree` 恢复，通过 typed answer/steer constructor 产生 Signal。产品 Interrupt 与 response 的 strict codec 位于独立防腐包；旧 private suspension adapter 已删除。Ask-user 使用真实 Runtime Tool 注入 pending-input capability；interactive approval 的 plan/hook 只在首次调用执行，restore 只解析持久 prompt 并应用答案。deferred advertisement 属于 Interaction snapshot，恢复后无需 Runtime 重建影子清单。
 
 ### 7.4 Child Process 与 child Run
 

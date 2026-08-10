@@ -6,7 +6,7 @@
 // so a crash never leaves a parked run with no admission mark or a terminal
 // transcript with a still-running row. It also runs the non-durable live
 // workspace nudge and terminal boundary maintenance (checkpoint snapshot,
-// title). The fields only the runtime can resolve — an interrupt's process id
+// title). The fields only the runtime can resolve — an interrupt's executor member ID
 // from live execution, a terminal Run's message watermark — it fills in itself.
 package runsegment
 

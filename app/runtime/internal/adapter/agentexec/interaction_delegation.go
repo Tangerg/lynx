@@ -24,7 +24,7 @@ const (
 	defaultDelegateSignals        = 2048
 )
 
-// InteractionDelegationConfig bounds native managed children independently of
+// InteractionDelegationConfig bounds managed children independently of
 // model/token product limits. Zero fields inherit conservative defaults. The
 // values translate only into Agent Framework structural limits and a minimum per-Process
 // work allocation. A delegated Process receives one allocation unit for itself
@@ -72,11 +72,11 @@ func effectiveDelegation(config InteractionDelegationConfig) (effectiveInteracti
 		MaxActiveChildren: config.MaxActiveChildren, MaxTreeProcesses: config.MaxTreeProcesses,
 	}
 	if !treeLimits.Valid() {
-		return effectiveInteractionDelegation{}, errors.New("agentexec: native Interaction delegation tree limits are invalid")
+		return effectiveInteractionDelegation{}, errors.New("agentexec: Interaction delegation tree limits are invalid")
 	}
 	budget, err := agent.NewBudget(config.ChildSteps, config.ChildEffects, config.ChildSignals)
 	if err != nil {
-		return effectiveInteractionDelegation{}, fmt.Errorf("agentexec: native Interaction delegation budget: %w", err)
+		return effectiveInteractionDelegation{}, fmt.Errorf("agentexec: Interaction delegation budget: %w", err)
 	}
 	return effectiveInteractionDelegation{treeLimits: treeLimits, processBudget: budget}, nil
 }
@@ -106,7 +106,7 @@ type delegatedTaskOutput struct {
 }
 
 // delegatedInteractionDefinition is an ACL Definition: models execute an
-// ordinary native Interaction, while the managed Delegate boundary exposes the
+// ordinary Interaction, while the managed Delegate boundary exposes the
 // stable delegate_task input/output contract instead of Interaction's Host chat
 // envelope. Snapshot interpretation remains exclusively Interaction-owned.
 type delegatedInteractionDefinition struct {

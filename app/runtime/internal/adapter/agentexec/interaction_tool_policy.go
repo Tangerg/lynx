@@ -16,7 +16,7 @@ import (
 )
 
 // InteractionApprovalPolicy is the exact product policy view required at the
-// native Interaction Tool boundary.
+// Interaction Tool boundary.
 type InteractionApprovalPolicy interface {
 	Mode(ctx context.Context, sessionID string) (approval.Mode, error)
 	Decide(ctx context.Context, query approval.Query) (approval.Decision, bool, error)

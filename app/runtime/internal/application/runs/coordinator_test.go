@@ -58,16 +58,16 @@ type fakeExecutor struct {
 	cancelOnce     sync.Once
 }
 
-// nativeChildStartFixture is test scenario syntax. fake executors translate it
+// childStartFixture is test scenario syntax. fake executors translate it
 // into the production reservation → conclusive-start protocol before the Run
 // pump sees any event.
-type nativeChildStartFixture struct {
+type childStartFixture struct {
 	executorPayloadBase
 	StartedAt time.Time
 	result    chan childStartFixtureResult
 }
 
-type nativeChildStartReceipt struct {
+type childStartReceipt struct {
 	result <-chan childStartFixtureResult
 }
 
@@ -76,16 +76,16 @@ type childStartFixtureResult struct {
 	err     error
 }
 
-func newNativeChildStartFixture(startedAt time.Time) (nativeChildStartFixture, nativeChildStartReceipt) {
+func newChildStartFixture(startedAt time.Time) (childStartFixture, childStartReceipt) {
 	result := make(chan childStartFixtureResult, 1)
-	return nativeChildStartFixture{StartedAt: startedAt, result: result}, nativeChildStartReceipt{result: result}
+	return childStartFixture{StartedAt: startedAt, result: result}, childStartReceipt{result: result}
 }
 
-func (fixture nativeChildStartFixture) complete(binding ChildRunBinding, err error) {
+func (fixture childStartFixture) complete(binding ChildRunBinding, err error) {
 	fixture.result <- childStartFixtureResult{binding: binding, err: err}
 }
 
-func (receipt nativeChildStartReceipt) Await(ctx context.Context) (ChildRunBinding, error) {
+func (receipt childStartReceipt) Await(ctx context.Context) (ChildRunBinding, error) {
 	select {
 	case result := <-receipt.result:
 		return result.binding, result.err
@@ -94,11 +94,11 @@ func (receipt nativeChildStartReceipt) Await(ctx context.Context) (ChildRunBindi
 	}
 }
 
-func yieldNativeChildStart(
+func yieldChildStart(
 	ctx context.Context,
 	yield func(ExecutorEvent) bool,
 	member ExecutorMember,
-	fixture nativeChildStartFixture,
+	fixture childStartFixture,
 ) bool {
 	reservation, reservationReceipt := NewChildRunReservationRequest(fixture.StartedAt)
 	if !yield(ExecutorEvent{Member: member, Payload: reservation}) {
@@ -132,8 +132,8 @@ func yieldNativeChildStart(
 type acknowledgedChildExecutor struct {
 	rootMember   ExecutorMember
 	childMember  ExecutorMember
-	request      nativeChildStartFixture
-	confirmation nativeChildStartReceipt
+	request      childStartFixture
+	confirmation childStartReceipt
 	childStarted chan struct{}
 }
 
@@ -197,8 +197,8 @@ func (*acknowledgedNativeChildExecutor) Release(context.Context, ExecutorRef) er
 type cancellableChildExecutor struct {
 	rootMember      ExecutorMember
 	childMember     ExecutorMember
-	request         nativeChildStartFixture
-	confirmation    nativeChildStartReceipt
+	request         childStartFixture
+	confirmation    childStartReceipt
 	childOpened     chan struct{}
 	cancelRequested chan struct{}
 	finishRoot      chan struct{}
@@ -220,7 +220,7 @@ func (e *cancellableChildExecutor) Observe(
 		}) {
 			return
 		}
-		if !yieldNativeChildStart(ctx, yield, e.childMember, e.request) {
+		if !yieldChildStart(ctx, yield, e.childMember, e.request) {
 			return
 		}
 		close(e.childOpened)
@@ -242,7 +242,7 @@ func (e *cancellableChildExecutor) Observe(
 				Problem: &transcript.Problem{
 					Kind:   transcript.ToolFailedProblem,
 					Scope:  transcript.ToolProblem,
-					Detail: "executor process was killed",
+					Detail: "executor was killed",
 				},
 			},
 		}) {
@@ -277,7 +277,7 @@ func (e *acknowledgedChildExecutor) Observe(ctx context.Context, _ ExecutorRef) 
 		}) {
 			return
 		}
-		if !yieldNativeChildStart(ctx, yield, e.childMember, e.request) {
+		if !yieldChildStart(ctx, yield, e.childMember, e.request) {
 			return
 		}
 		close(e.childStarted)
@@ -325,8 +325,8 @@ func (f *fakeExecutor) Observe(ctx context.Context, _ ExecutorRef) (iter.Seq[Exe
 			}
 		}
 		for _, event := range events {
-			if fixture, ok := event.Payload.(nativeChildStartFixture); ok {
-				if !yieldNativeChildStart(ctx, yield, event.Member, fixture) {
+			if fixture, ok := event.Payload.(childStartFixture); ok {
+				if !yieldChildStart(ctx, yield, event.Member, fixture) {
 					return
 				}
 				continue
@@ -1353,7 +1353,7 @@ func TestCoordinatorRejectsUnadmittedChildSource(t *testing.T) {
 
 func TestCoordinatorAtomicallyAdmitsChildRunFromSpawningItem(t *testing.T) {
 	startedAt := time.Date(2026, 7, 13, 1, 2, 4, 0, time.FixedZone("test", 8*60*60))
-	request, confirmation := newNativeChildStartFixture(startedAt)
+	request, confirmation := newChildStartFixture(startedAt)
 	rootMember := ExecutorMember{MemberID: "member_root"}
 	childMember := ExecutorMember{
 		MemberID:    "member_child",
@@ -1569,7 +1569,7 @@ func requireTerminalCommitOrder(t *testing.T, commits []EventCommit, earlierRunI
 }
 
 func TestCoordinatorPublishesChildSegmentOnItsOwnRunIdentity(t *testing.T) {
-	request, confirmation := newNativeChildStartFixture(time.Date(2026, 7, 13, 1, 2, 4, 0, time.UTC))
+	request, confirmation := newChildStartFixture(time.Date(2026, 7, 13, 1, 2, 4, 0, time.UTC))
 	rootMember := ExecutorMember{MemberID: "member_root"}
 	childMember := ExecutorMember{
 		MemberID:    "member_child",
@@ -1647,8 +1647,8 @@ func TestCoordinatorPublishesChildSegmentOnItsOwnRunIdentity(t *testing.T) {
 }
 
 func TestCoordinatorKeepsConcurrentSiblingSegmentsIsolated(t *testing.T) {
-	requestA, confirmationA := newNativeChildStartFixture(time.Now())
-	requestB, confirmationB := newNativeChildStartFixture(time.Now())
+	requestA, confirmationA := newChildStartFixture(time.Now())
+	requestB, confirmationB := newChildStartFixture(time.Now())
 	rootMember := ExecutorMember{MemberID: "member_root"}
 	childA := ExecutorMember{
 		MemberID:    "member_child_a",
@@ -1775,8 +1775,8 @@ func TestCoordinatorKeepsConcurrentSiblingSegmentsIsolated(t *testing.T) {
 }
 
 func TestCoordinatorProjectsNestedChildrenWithExactLineageAndPostorderTerminal(t *testing.T) {
-	childRequest, childConfirmation := newNativeChildStartFixture(time.Now())
-	grandchildRequest, grandchildConfirmation := newNativeChildStartFixture(time.Now())
+	childRequest, childConfirmation := newChildStartFixture(time.Now())
+	grandchildRequest, grandchildConfirmation := newChildStartFixture(time.Now())
 	rootMember := ExecutorMember{MemberID: "member_root"}
 	childMember := ExecutorMember{
 		MemberID:    "member_child",
@@ -1911,8 +1911,8 @@ func TestCoordinatorProjectsNestedChildrenWithExactLineageAndPostorderTerminal(t
 }
 
 func TestCoordinatorDrainedStreamClosesNestedChildrenBeforeAncestors(t *testing.T) {
-	childRequest, childConfirmation := newNativeChildStartFixture(time.Now())
-	grandchildRequest, grandchildConfirmation := newNativeChildStartFixture(time.Now())
+	childRequest, childConfirmation := newChildStartFixture(time.Now())
+	grandchildRequest, grandchildConfirmation := newChildStartFixture(time.Now())
 	rootMember := ExecutorMember{MemberID: "member_root"}
 	childMember := ExecutorMember{
 		MemberID: "member_child", ParentID: rootMember.MemberID, SpawnCallID: "spawn_child",
@@ -1978,7 +1978,7 @@ func TestCoordinatorDrainedStreamClosesNestedChildrenBeforeAncestors(t *testing.
 }
 
 func TestCoordinatorClosesActiveChildrenBeforeRejectingRootTerminal(t *testing.T) {
-	request, confirmation := newNativeChildStartFixture(time.Now())
+	request, confirmation := newChildStartFixture(time.Now())
 	rootMember := ExecutorMember{MemberID: "member_root"}
 	childMember := ExecutorMember{
 		MemberID:    "member_child",
@@ -2045,7 +2045,7 @@ func TestCoordinatorClosesActiveChildrenBeforeRejectingRootTerminal(t *testing.T
 
 func TestCoordinatorRecoversFromChildTerminalCommitFailureBeforeClosingRoot(t *testing.T) {
 	commitErr := errors.New("child terminal commit failed")
-	request, confirmation := newNativeChildStartFixture(time.Now())
+	request, confirmation := newChildStartFixture(time.Now())
 	rootMember := ExecutorMember{MemberID: "member_root"}
 	childMember := ExecutorMember{
 		MemberID:    "member_child",
@@ -2107,7 +2107,7 @@ func TestCoordinatorRecoversFromChildTerminalCommitFailureBeforeClosingRoot(t *t
 
 func TestCoordinatorRejectsChildWhenAtomicOpeningFails(t *testing.T) {
 	commitErr := errors.New("child opening transaction failed")
-	request, confirmation := newNativeChildStartFixture(time.Now())
+	request, confirmation := newChildStartFixture(time.Now())
 	rootMember := ExecutorMember{MemberID: "member_root"}
 	childMember := ExecutorMember{
 		MemberID:    "member_child",
@@ -2156,8 +2156,8 @@ func TestCoordinatorRejectsChildWhenAtomicOpeningFails(t *testing.T) {
 
 func TestCoordinatorClosesAdmittedSiblingWhenNextOpeningRollsBack(t *testing.T) {
 	commitErr := errors.New("second child opening failed")
-	requestA, confirmationA := newNativeChildStartFixture(time.Now())
-	requestB, confirmationB := newNativeChildStartFixture(time.Now())
+	requestA, confirmationA := newChildStartFixture(time.Now())
+	requestB, confirmationB := newChildStartFixture(time.Now())
 	rootMember := ExecutorMember{MemberID: "member_root"}
 	childA := ExecutorMember{
 		MemberID: "member_child_a", ParentID: rootMember.MemberID, SpawnCallID: "spawn_a",
@@ -2226,7 +2226,7 @@ func TestCoordinatorClosesAdmittedSiblingWhenNextOpeningRollsBack(t *testing.T) 
 }
 
 func TestCoordinatorAcknowledgesChildOnlyAfterOpeningCommit(t *testing.T) {
-	request, confirmation := newNativeChildStartFixture(time.Now())
+	request, confirmation := newChildStartFixture(time.Now())
 	rootMember := ExecutorMember{MemberID: "member_root"}
 	childMember := ExecutorMember{
 		MemberID:    "member_child",
@@ -2290,7 +2290,7 @@ func TestCoordinatorAcknowledgesChildOnlyAfterOpeningCommit(t *testing.T) {
 
 func requireChildOpeningReceipts(
 	t *testing.T,
-	receipts map[string]nativeChildStartReceipt,
+	receipts map[string]childStartReceipt,
 ) {
 	t.Helper()
 	for childName, receipt := range receipts {
@@ -2391,9 +2391,9 @@ func requirePublishedWaitingOrder(t *testing.T, events []Event, wantRunIDs []str
 
 func TestCoordinatorCommitsCompleteTreeBarrierInDeterministicPostorder(t *testing.T) {
 	startedAt := testSegment().CreatedAt
-	requestA, confirmationA := newNativeChildStartFixture(startedAt)
-	requestB, confirmationB := newNativeChildStartFixture(startedAt)
-	requestGrandchild, confirmationGrandchild := newNativeChildStartFixture(startedAt)
+	requestA, confirmationA := newChildStartFixture(startedAt)
+	requestB, confirmationB := newChildStartFixture(startedAt)
+	requestGrandchild, confirmationGrandchild := newChildStartFixture(startedAt)
 	root := ExecutorMember{MemberID: "member_root"}
 	childA := ExecutorMember{
 		MemberID: "member_child_a", ParentID: root.MemberID, SpawnCallID: "spawn_a",
@@ -2455,7 +2455,7 @@ func TestCoordinatorCommitsCompleteTreeBarrierInDeterministicPostorder(t *testin
 		t.Fatalf("openSegment: %v", err)
 	}
 	events := collectEvents(stream)
-	requireChildOpeningReceipts(t, map[string]nativeChildStartReceipt{
+	requireChildOpeningReceipts(t, map[string]childStartReceipt{
 		"child A": confirmationA, "child B": confirmationB, "grandchild": confirmationGrandchild,
 	})
 

@@ -291,10 +291,10 @@ func TestRecoveryRejectsPartialParkWithoutMutatingIt(t *testing.T) {
 		},
 		Interrupts: []transcript.Interrupt{pendingInterrupt},
 		Bindings: []runs.InterruptBinding{{
-			InterruptItemID: pendingInterrupt.ItemID, MemberID: "process_root", RequestID: "suspension_root",
+			InterruptItemID: pendingInterrupt.ItemID, MemberID: "member_root", RequestID: "request_root",
 		}},
 		Continuations: []runs.Continuation{{
-			RunID: "run_partial", MemberID: "process_root", RunCreatedAt: createdAt,
+			RunID: "run_partial", MemberID: "member_root", RunCreatedAt: createdAt,
 		}},
 		CreatedAt: createdAt.Add(time.Second),
 	}
@@ -302,7 +302,7 @@ func TestRecoveryRejectsPartialParkWithoutMutatingIt(t *testing.T) {
 		t.Fatalf("Open Pending: %v", err)
 	}
 	checkpoint := runs.ExecutorCheckpoint{
-		RootMemberID: "process_root", Payload: []byte(`{"opaque":true}`), BuildID: "build",
+		RootMemberID: "member_root", Payload: []byte(`{"opaque":true}`), BuildID: "build",
 		Scope: runs.ExecutionScope{SessionID: "session"},
 	}
 	if err := checkpointStore.SaveCheckpoint(ctx, checkpoint); err != nil {

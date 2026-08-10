@@ -64,8 +64,8 @@ func TestExecutorMemberValidate(t *testing.T) {
 		{
 			name: "self-parent",
 			member: ExecutorMember{
-				MemberID: "process_1",
-				ParentID: "process_1",
+				MemberID: "member_1",
+				ParentID: "member_1",
 			},
 			wantErr: "runs: executor member cannot parent itself",
 		},

@@ -44,7 +44,7 @@ type managedDelegateCall struct {
 
 func (session *interactionSession) installDeployments(deployments *interactionDeploymentSet) error {
 	if deployments == nil || !deployments.root.Valid() {
-		return errors.New("agentexec: install invalid native Interaction deployments")
+		return errors.New("agentexec: install invalid Interaction deployments")
 	}
 	session.mu.Lock()
 	session.deployments = deployments
@@ -67,7 +67,7 @@ func (session *interactionSession) registerDelegateCalls(
 	deployments := session.deployments
 	session.mu.Unlock()
 	if deployments == nil {
-		return errors.New("agentexec: native Interaction deployments are unavailable")
+		return errors.New("agentexec: Interaction deployments are unavailable")
 	}
 	toolCallIndex := uint32(0)
 	for _, part := range message.Parts {

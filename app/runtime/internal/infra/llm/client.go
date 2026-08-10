@@ -44,10 +44,10 @@ type ClientSpec struct {
 
 // buildFunc constructs the lynx chat adapter for one (key, model, baseURL).
 // One per provider — it's the only provider-specific code; everything else
-// (validate / default-model / key-env) is data in [providerInfo].
+// (validate / default-model / key-env) is data in [chatProviderCatalog].
 type buildFunc func(spec ClientSpec, opts chat.Options) (chat.Model, error)
 
-type providerEntry struct {
+type chatProviderProfile struct {
 	defaultModel string // catalog default model; "" when the model id is user-supplied
 	apiKeyEnv    string
 	build        buildFunc
@@ -61,13 +61,13 @@ type providerEntry struct {
 	defaultBaseURL string
 }
 
-// providerInfo is the data-driven provider table — the single place that knows
+// chatProviderCatalog is the data-driven provider table — the single place that knows
 // each provider's adapter, default model, and key env var. A provider is
 // "known" iff it has a row here; the supported / default-model / key-env /
 // dispatch lookups all read this map. Most rows route through a vendor's
 // OpenAI-compatible adapter (which encodes its own endpoint); the two generic
 // passthroughs reuse the native OpenAI / Anthropic adapters with a caller URL.
-var providerInfo = map[Provider]providerEntry{
+var chatProviderCatalog = map[Provider]chatProviderProfile{
 	// Native wire adapters (base URL optional — defaults to the vendor endpoint).
 	ProviderAnthropic: {defaultModel: defaultAnthropicModel, apiKeyEnv: "ANTHROPIC_API_KEY", build: anthropicNative},
 	ProviderOpenAI:    {defaultModel: defaultOpenAIModel, apiKeyEnv: "OPENAI_API_KEY", build: openaiNative},
@@ -156,17 +156,17 @@ func openaiNative(spec ClientSpec, opts chat.Options) (chat.Model, error) {
 	})
 }
 
-// BuildClient wires a *chatclient.Client for one provider+model from [providerInfo]:
+// BuildClient wires a *chatclient.Client for one provider+model from [chatProviderCatalog]:
 // it picks the model adapter, plugs in the model id, api key, and optional base
 // URL. A provider that requires a base URL (the generic passthroughs, Azure)
 // errors when one isn't supplied. Pricing is a separate accounting concern, so
 // the constructed client carries no pricing hook.
 func BuildClient(spec ClientSpec) (*chatclient.Client, error) {
-	entry, ok := providerInfo[spec.Provider]
+	profile, ok := chatProviderCatalog[spec.Provider]
 	if !ok {
 		return nil, fmt.Errorf("llm: unsupported provider %q", spec.Provider)
 	}
-	if entry.requiresBaseURL && spec.BaseURL == "" {
+	if profile.requiresBaseURL && spec.BaseURL == "" {
 		return nil, fmt.Errorf("llm: provider %q requires a base URL", spec.Provider)
 	}
 
@@ -175,12 +175,12 @@ func BuildClient(spec ClientSpec) (*chatclient.Client, error) {
 		return nil, fmt.Errorf("llm: chat options for %q: %w", spec.Model, err)
 	}
 
-	m, err := entry.build(spec, opts)
+	model, err := profile.build(spec, opts)
 	if err != nil {
 		return nil, fmt.Errorf("llm: build %s model: %w", spec.Provider, err)
 	}
 
-	client, err := chatclient.New(classifyModelFailures(m), chatclient.Config{})
+	client, err := chatclient.New(classifyModelFailures(model), chatclient.Config{})
 	if err != nil {
 		return nil, fmt.Errorf("llm: chat client: %w", err)
 	}

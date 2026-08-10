@@ -14,7 +14,7 @@ import (
 // session in place at a run granularity (AUX_API §4.1). Destructive: it
 // truncates the conversation message log to the kept watermark, deletes the
 // dropped runs' durable items + records, clears their dangling interrupts, and
-// purges the subagent child sessions they spawned. ToRunID is inclusive-keep
+// purges the child-Run sessions they spawned. ToRunID is inclusive-keep
 // (omit = clear to empty). Rejected with session_busy while a run is in flight.
 //
 // The whole guarded operation — single-writer + working-tree admission, working

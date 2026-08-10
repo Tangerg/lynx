@@ -161,7 +161,7 @@ func (composer *WorkingContextComposer) ForgetSession(sessionID string) {
 	composer.mu.Unlock()
 }
 
-// BeforeToolUse projects the trusted Runtime hook decision onto the native
+// BeforeToolUse projects the trusted Runtime hook decision onto the Interaction
 // executor's framework-neutral Tool boundary. A hook's ASK remains a product
 // approval escalation; it is not encoded as an Agent Framework Signal here.
 func (composer *WorkingContextComposer) BeforeToolUse(

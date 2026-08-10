@@ -157,7 +157,7 @@ func (builder *interactionDeploymentBuilder) buildAtDepth(depth int, next agent.
 		Delegates: delegates,
 	})
 	if err != nil {
-		return agent.Deployment{}, fmt.Errorf("agentexec: build native Interaction definition at depth %d: %w", depth, err)
+		return agent.Deployment{}, fmt.Errorf("agentexec: build Interaction definition at depth %d: %w", depth, err)
 	}
 	visible, deferred := wrapInteractionTools(manifest, builder.session, builder.executor.config, builder.start)
 	dispatcher, err := interaction.NewDispatcher(definition, interaction.DispatcherConfig{
@@ -166,7 +166,7 @@ func (builder *interactionDeploymentBuilder) buildAtDepth(depth int, next agent.
 		StreamModelResponses:   builder.executor.config.StreamModelResponses,
 	})
 	if err != nil {
-		return agent.Deployment{}, fmt.Errorf("agentexec: build native Interaction dispatcher at depth %d: %w", depth, err)
+		return agent.Deployment{}, fmt.Errorf("agentexec: build Interaction dispatcher at depth %d: %w", depth, err)
 	}
 	deploymentDefinition, err := builder.deploymentDefinition(depth, definition)
 	if err != nil {
@@ -190,7 +190,7 @@ func (builder *interactionDeploymentBuilder) buildAtDepth(depth int, next agent.
 		ConfigurationDigest:  agent.ComputeDigest(configuration),
 	})
 	if err != nil {
-		return agent.Deployment{}, fmt.Errorf("agentexec: build native Interaction deployment at depth %d: %w", depth, err)
+		return agent.Deployment{}, fmt.Errorf("agentexec: build Interaction deployment at depth %d: %w", depth, err)
 	}
 	return deployment, nil
 }
@@ -214,14 +214,14 @@ func (builder *interactionDeploymentBuilder) delegateLayer(
 	}
 	budget, err := delegateSubtreeBudget(builder.delegation.processBudget, builder.maxDepth-uint32(depth))
 	if err != nil {
-		return nil, agent.Budget{}, fmt.Errorf("agentexec: allocate native Delegate at depth %d: %w", depth, err)
+		return nil, agent.Budget{}, fmt.Errorf("agentexec: allocate Delegate at depth %d: %w", depth, err)
 	}
 	delegate, err := interaction.NewDelegate(interaction.DelegateConfig{
 		Name: catalog.DelegateTask, Description: delegation.Description,
 		Deployment: next, Budget: budget,
 	})
 	if err != nil {
-		return nil, agent.Budget{}, fmt.Errorf("agentexec: build native Delegate at depth %d: %w", depth, err)
+		return nil, agent.Budget{}, fmt.Errorf("agentexec: build Delegate at depth %d: %w", depth, err)
 	}
 	return []interaction.Delegate{delegate}, budget, nil
 }
@@ -247,7 +247,7 @@ func (executor *InteractionExecutor) resolveInteractionManifest(
 	}
 	manifest, err := executor.config.ToolResolver.Manifest(ctx, group)
 	if err != nil {
-		return toolset.Manifest{}, fmt.Errorf("agentexec: resolve native Interaction %s Tools: %w", group, err)
+		return toolset.Manifest{}, fmt.Errorf("agentexec: resolve Interaction %s Tools: %w", group, err)
 	}
 	manifest = manifest.Clone()
 	if err := validateToolManifest(manifest); err != nil {

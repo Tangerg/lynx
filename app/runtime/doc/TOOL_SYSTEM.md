@@ -1,6 +1,6 @@
 # Tool System
 
-> 状态：当前模型工具合同与已完成专项台账。工具名称、描述、参数、schema、可见性和删除裁决仍由本文拥有；执行接线已经由 Runtime native Interaction 完成，Agent Framework 只消费通用 Tool 合同。
+> 状态：当前模型工具合同与已完成专项台账。工具名称、描述、参数、schema、可见性和删除裁决仍由本文拥有；执行接线已经由 Runtime Interaction 完成，Agent Framework 只消费通用 Tool 合同。
 
 本文是 `app/runtime` 新工具体系的活文档，也是分批实施台账。代码、协议、提示词、持久化和桌面 UI 必须使用同一套领域词汇；不保留旧名称、别名字段或双路径兼容。
 

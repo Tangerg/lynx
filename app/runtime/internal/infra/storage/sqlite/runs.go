@@ -903,7 +903,7 @@ func (s *RunStore) Delete(ctx context.Context, sessionID, runID string) error {
 
 // DeleteForSession drops every Run row of a session whose durable state is being
 // removed or replaced wholesale — the session-delete cascade, the import/restore
-// replace, and the subagent subtree purge. Freeing the admission slot by deletion
+// replace, and the child-Run subtree purge. Freeing the admission slot by deletion
 // (not terminalization) keeps the runs table from accumulating dead rows for
 // sessions that no longer exist. Joins the caller's transaction via the context.
 func (s *RunStore) DeleteForSession(ctx context.Context, sessionID string) error {

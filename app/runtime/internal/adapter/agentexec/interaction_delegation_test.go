@@ -40,31 +40,31 @@ func TestDelegateSubtreeBudgetReservesEveryRemainingProcessLevel(t *testing.T) {
 	}
 }
 
-func TestInteractionExecutorRunsNativeDelegateAsProductChildRun(t *testing.T) {
+func TestInteractionExecutorRunsDelegateAsProductChildRun(t *testing.T) {
 	model := newDelegatingStubModel()
 	client, err := chatclient.New(model, chatclient.Config{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	executor, err := NewInteractionExecutor(InteractionExecutorConfig{
-		DefaultClient: client, ImplementationIdentity: "native-delegate-test-build",
-		ConfigurationIdentity: "native-delegate-test-config", DefaultMaxModelCalls: 4,
+		DefaultClient: client, ImplementationIdentity: "interaction-delegate-test-build",
+		ConfigurationIdentity: "interaction-delegate-test-config", DefaultMaxModelCalls: 4,
 		BuildID: interactionTestBuildID,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	workspace := t.TempDir()
-	sessions := &nativeDelegateSessionStore{value: session.Session{
+	sessions := &delegateSessionStore{value: session.Session{
 		ID: "session_1", Title: "delegate", CWD: workspace,
 		StartedAt: time.Unix(1, 0).UTC(), UpdatedAt: time.Unix(1, 0).UTC(), Revision: 1,
 	}}
-	projection := newNativeDelegateProjection()
+	projection := newDelegateProjection()
 	runIDs := []string{"run_root", "run_child"}
 	segmentIDs := []string{"segment_root", "segment_child"}
 	coordinator := runs.NewCoordinator(runs.Dependencies{
 		RootStarts: executor, Observations: executor, Releases: executor,
-		Conversation: nativeDelegateConversation{},
+		Conversation: delegateConversation{},
 		Session:      runs.SessionPorts{Reader: sessions, Creator: sessions, ActiveRuns: sessions},
 		Projection: runs.ProjectionPorts{
 			Openings: projection, ChildStarts: projection, Events: projection,
@@ -92,7 +92,7 @@ func TestInteractionExecutorRunsNativeDelegateAsProductChildRun(t *testing.T) {
 	}
 	events := slices.Collect(started.Events)
 	if len(events) == 0 {
-		t.Fatal("native Delegate produced no Run events")
+		t.Fatal("Delegate produced no Run events")
 	}
 	childStarted := -1
 	childFinished := -1
@@ -128,13 +128,13 @@ func TestInteractionExecutorRunsNativeDelegateAsProductChildRun(t *testing.T) {
 	if childStarted < 0 || childFinished <= childStarted || parentToolFinished <= childFinished ||
 		rootFinished <= parentToolFinished {
 		t.Fatalf(
-			"native Delegate order child-start=%d child-finish=%d parent-tool=%d root-finish=%d events=%#v",
+			"Delegate order child-start=%d child-finish=%d parent-tool=%d root-finish=%d events=%#v",
 			childStarted, childFinished, parentToolFinished, rootFinished, events,
 		)
 	}
 	if childState != run.Completed || rootState != run.Completed {
 		t.Fatalf(
-			"native Delegate terminal states child=%s error=%+v root=%s error=%+v",
+			"Delegate terminal states child=%s error=%+v root=%s error=%+v",
 			childState, childError, rootState, rootError,
 		)
 	}
@@ -145,14 +145,14 @@ func TestInteractionExecutorRunsNativeDelegateAsProductChildRun(t *testing.T) {
 	projection.mu.Unlock()
 	if len(reservation) != 1 || len(outcomes) != 1 || len(openings) != 2 {
 		t.Fatalf(
-			"native Delegate durability reservations=%d outcomes=%d openings=%d",
+			"Delegate durability reservations=%d outcomes=%d openings=%d",
 			len(reservation), len(outcomes), len(openings),
 		)
 	}
 	if openings[1].Admit == nil || openings[1].Admit.RunID != "run_child" ||
 		openings[1].Admit.ParentRunID != "run_root" ||
 		openings[1].Admit.SpawnedByItemID == "" {
-		t.Fatalf("native child opening = %#v", openings[1])
+		t.Fatalf("managed child opening = %#v", openings[1])
 	}
 	coordinator.BeginShutdown()
 	if err := coordinator.AwaitShutdown(t.Context()); err != nil {
@@ -167,19 +167,19 @@ func TestInteractionExecutorCancelsRunningDelegateAndKeepsRootRunning(t *testing
 		t.Fatal(err)
 	}
 	executor, err := NewInteractionExecutor(InteractionExecutorConfig{
-		DefaultClient: client, ImplementationIdentity: "native-running-cancel-test-build",
-		ConfigurationIdentity: "native-running-cancel-test-config", DefaultMaxModelCalls: 4,
+		DefaultClient: client, ImplementationIdentity: "interaction-running-cancel-test-build",
+		ConfigurationIdentity: "interaction-running-cancel-test-config", DefaultMaxModelCalls: 4,
 		BuildID: interactionTestBuildID,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	workspace := t.TempDir()
-	sessions := &nativeDelegateSessionStore{value: session.Session{
+	sessions := &delegateSessionStore{value: session.Session{
 		ID: "session_1", Title: "running cancellation", CWD: workspace,
 		StartedAt: time.Unix(1, 0).UTC(), UpdatedAt: time.Unix(1, 0).UTC(), Revision: 1,
 	}}
-	projection := newNativeDelegateProjection()
+	projection := newDelegateProjection()
 	runIDs := []string{"run_root", "run_child"}
 	segmentIDs := []string{"segment_root", "segment_child"}
 	cancelAccepted := make(chan struct{})
@@ -191,7 +191,7 @@ func TestInteractionExecutorCancelsRunningDelegateAndKeepsRootRunning(t *testing
 	}
 	coordinator := runs.NewCoordinator(runs.Dependencies{
 		RootStarts: executor, Observations: executor, Releases: executor,
-		Conversation: nativeDelegateConversation{}, RunningSubtreeCanceler: runningSubtreeCanceler,
+		Conversation: delegateConversation{}, RunningSubtreeCanceler: runningSubtreeCanceler,
 		Session: runs.SessionPorts{
 			Reader: sessions, Creator: sessions, ActiveRuns: sessions,
 			Interrupts: sessions, Terminations: sessions,
@@ -311,7 +311,7 @@ func assertRunningDelegateCancellationEvents(t *testing.T, events []runs.Event) 
 }
 
 func TestInteractionExecutorProjectsConcurrentDelegateSiblingsExactlyOnce(t *testing.T) {
-	result := runNativeDelegateTree(t, newOrderedSiblingDelegateModel(), "run siblings", 3)
+	result := runDelegateTree(t, newOrderedSiblingDelegateModel(), "run siblings", 3)
 	rootID := result.rootRunID(t)
 	directChildren := 0
 	for _, opening := range result.openings {
@@ -380,7 +380,7 @@ func (model *orderedSiblingDelegateModel) Stream(
 }
 
 func TestInteractionExecutorProjectsNestedDelegateLineageExactlyOnce(t *testing.T) {
-	result := runNativeDelegateTree(t, newNestedDelegatingStub(), "nested root", 3)
+	result := runDelegateTree(t, newNestedDelegatingStub(), "nested root", 3)
 	rootID := result.rootRunID(t)
 	children := make(map[string]string)
 	for _, opening := range result.openings {
@@ -416,41 +416,41 @@ func TestInteractionExecutorProjectsNestedDelegateLineageExactlyOnce(t *testing.
 	result.assertAllRunsCompleted(t)
 }
 
-type nativeDelegateTreeResult struct {
+type delegateTreeResult struct {
 	events   []runs.Event
 	openings []runs.OpeningCommit
 }
 
-func runNativeDelegateTree(
+func runDelegateTree(
 	t *testing.T,
 	model chat.Model,
 	input string,
 	wantProcesses int,
-) nativeDelegateTreeResult {
+) delegateTreeResult {
 	t.Helper()
 	client, err := chatclient.New(model, chatclient.Config{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	executor, err := NewInteractionExecutor(InteractionExecutorConfig{
-		DefaultClient: client, ImplementationIdentity: "native-delegate-tree-test-build",
-		ConfigurationIdentity: "native-delegate-tree-test-config", DefaultMaxModelCalls: 6,
+		DefaultClient: client, ImplementationIdentity: "interaction-delegate-tree-test-build",
+		ConfigurationIdentity: "interaction-delegate-tree-test-config", DefaultMaxModelCalls: 6,
 		MaxConcurrentToolCalls: 4, BuildID: interactionTestBuildID,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	workspace := t.TempDir()
-	sessions := &nativeDelegateSessionStore{value: session.Session{
+	sessions := &delegateSessionStore{value: session.Session{
 		ID: "session_tree", Title: "delegate tree", CWD: workspace,
 		StartedAt: time.Unix(1, 0).UTC(), UpdatedAt: time.Unix(1, 0).UTC(), Revision: 1,
 	}}
-	projection := newNativeDelegateProjection()
+	projection := newDelegateProjection()
 	var identityMu sync.Mutex
 	runSequence, segmentSequence := 0, 0
 	coordinator := runs.NewCoordinator(runs.Dependencies{
 		RootStarts: executor, Observations: executor, Releases: executor,
-		Conversation: nativeDelegateConversation{},
+		Conversation: delegateConversation{},
 		Session:      runs.SessionPorts{Reader: sessions, Creator: sessions, ActiveRuns: sessions},
 		Projection: runs.ProjectionPorts{
 			Openings: projection, ChildStarts: projection, Events: projection,
@@ -488,10 +488,10 @@ func runNativeDelegateTree(
 	if len(openings) != wantProcesses {
 		t.Fatalf("delegate tree openings = %d, want %d", len(openings), wantProcesses)
 	}
-	return nativeDelegateTreeResult{events: events, openings: openings}
+	return delegateTreeResult{events: events, openings: openings}
 }
 
-func (result nativeDelegateTreeResult) rootRunID(t *testing.T) string {
+func (result delegateTreeResult) rootRunID(t *testing.T) string {
 	t.Helper()
 	for _, opening := range result.openings {
 		if opening.Admit != nil && opening.Admit.ParentRunID == "" {
@@ -502,7 +502,7 @@ func (result nativeDelegateTreeResult) rootRunID(t *testing.T) string {
 	return ""
 }
 
-func (result nativeDelegateTreeResult) assertAllRunsCompleted(t *testing.T) {
+func (result delegateTreeResult) assertAllRunsCompleted(t *testing.T) {
 	t.Helper()
 	completed := make(map[string]int, len(result.openings))
 	for _, event := range result.events {

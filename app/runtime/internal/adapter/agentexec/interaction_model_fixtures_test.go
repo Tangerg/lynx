@@ -8,8 +8,8 @@ import (
 	"github.com/Tangerg/lynx/core/chat"
 )
 
-// delegatingStubModel drives one root-to-child interaction through the native
-// Agent Framework Delegate effect through the production execution boundary.
+// delegatingStubModel drives one root-to-child execution through the Agent
+// Framework Delegate effect and the production execution boundary.
 type delegatingStubModel struct{ defaults *chat.Options }
 
 func newDelegatingStubModel() *delegatingStubModel {

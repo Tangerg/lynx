@@ -83,7 +83,7 @@ func parkedRun(runID, sessionID string) transcript.Run {
 func pendingForRun(
 	runID string,
 	sessionID string,
-	processID string,
+	memberID string,
 	values []transcript.Interrupt,
 	createdAt time.Time,
 ) runs.Pending {
@@ -96,7 +96,7 @@ func pendingForRun(
 		}
 		bindings[index] = runs.InterruptBinding{
 			InterruptItemID: copied[index].ItemID,
-			MemberID:        processID,
+			MemberID:        memberID,
 			RequestID:       "request_" + copied[index].ItemID,
 		}
 	}
@@ -109,7 +109,7 @@ func pendingForRun(
 		Capabilities: capabilitiesForInterrupts(copied),
 		Continuations: []runs.Continuation{{
 			RunID:        runID,
-			MemberID:     processID,
+			MemberID:     memberID,
 			RunCreatedAt: runCreatedAt,
 		}},
 		CreatedAt: createdAt,

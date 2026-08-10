@@ -59,10 +59,10 @@ type RestoreScopeValidator interface {
 // CheckpointReader is the executor's read-only durable continuation boundary.
 // Payload interpretation remains private to the concrete executor.
 type CheckpointReader interface {
-	LoadCheckpoint(ctx context.Context, rootProcessID string) (runs.ExecutorCheckpoint, error)
+	LoadCheckpoint(ctx context.Context, rootMemberID string) (runs.ExecutorCheckpoint, error)
 }
 
-// InteractionExecutorConfig freezes the host-owned inputs shared by native
+// InteractionExecutorConfig freezes the host-owned inputs shared by
 // Interaction root executions. Identity strings must change whenever the
 // executable Interaction adapter or behavior-affecting dispatcher configuration
 // changes, so Agent Framework Deployment references remain honest.
@@ -96,7 +96,7 @@ type InteractionExecutorConfig struct {
 	Delegation                InteractionDelegationConfig
 }
 
-// InteractionExecutor is the native Agent Framework root execution adapter. Each staged
+// InteractionExecutor is the Agent Framework root execution adapter. Each staged
 // root owns an independent Engine and exactly one Interaction Process; the
 // Application owns durable Run state and consumes only [runs.ExecutorEvent].
 type InteractionExecutor struct {
@@ -113,7 +113,7 @@ type InteractionExecutor struct {
 // root execution.
 func NewInteractionExecutor(config InteractionExecutorConfig) (*InteractionExecutor, error) {
 	if config.DefaultClient == nil && isNilInteractionCapability(config.ChatResolver) {
-		return nil, errors.New("agentexec: native Interaction requires a chat client or resolver")
+		return nil, errors.New("agentexec: Interaction requires a chat client or resolver")
 	}
 	for _, capability := range []struct {
 		name  string
@@ -132,43 +132,43 @@ func NewInteractionExecutor(config InteractionExecutorConfig) (*InteractionExecu
 		{name: "Tool-result store", value: config.ToolResultStore},
 	} {
 		if capability.value != nil && isNilInteractionCapability(capability.value) {
-			return nil, fmt.Errorf("agentexec: native Interaction %s is typed nil", capability.name)
+			return nil, fmt.Errorf("agentexec: Interaction %s is typed nil", capability.name)
 		}
 	}
 	if strings.TrimSpace(config.ImplementationIdentity) == "" ||
 		config.ImplementationIdentity != strings.TrimSpace(config.ImplementationIdentity) {
-		return nil, errors.New("agentexec: native Interaction implementation identity is required without surrounding whitespace")
+		return nil, errors.New("agentexec: Interaction implementation identity is required without surrounding whitespace")
 	}
 	if !validInteractionBuildID(config.BuildID) {
-		return nil, errors.New("agentexec: native Interaction build ID must use sha256:<64 lowercase hexadecimal characters>")
+		return nil, errors.New("agentexec: Interaction build ID must use sha256:<64 lowercase hexadecimal characters>")
 	}
 	if strings.TrimSpace(config.ConfigurationIdentity) == "" ||
 		config.ConfigurationIdentity != strings.TrimSpace(config.ConfigurationIdentity) {
-		return nil, errors.New("agentexec: native Interaction configuration identity is required without surrounding whitespace")
+		return nil, errors.New("agentexec: Interaction configuration identity is required without surrounding whitespace")
 	}
 	if config.DeltaBufferCapacity < 0 {
-		return nil, errors.New("agentexec: native Interaction delta buffer capacity must not be negative")
+		return nil, errors.New("agentexec: Interaction delta buffer capacity must not be negative")
 	}
 	if config.MaxConcurrentToolCalls < 0 {
-		return nil, errors.New("agentexec: native Interaction Tool concurrency must not be negative")
+		return nil, errors.New("agentexec: Interaction Tool concurrency must not be negative")
 	}
 	if config.ToolResultThreshold < 0 {
-		return nil, errors.New("agentexec: native Interaction Tool-result threshold must not be negative")
+		return nil, errors.New("agentexec: Interaction Tool-result threshold must not be negative")
 	}
 	if !isNilInteractionCapability(config.ToolResultStore) && config.ToolResultThreshold > 0 {
 		if strings.TrimSpace(config.ToolResultReaderName) == "" ||
 			config.ToolResultReaderName != strings.TrimSpace(config.ToolResultReaderName) {
-			return nil, errors.New("agentexec: native Interaction Tool-result reader name is required without surrounding whitespace when offload is enabled")
+			return nil, errors.New("agentexec: Interaction Tool-result reader name is required without surrounding whitespace when offload is enabled")
 		}
 	}
 	if config.UnknownEffectPollInterval < 0 {
-		return nil, errors.New("agentexec: native Interaction unknown-Effect poll interval must not be negative")
+		return nil, errors.New("agentexec: Interaction unknown-Effect poll interval must not be negative")
 	}
 	if config.StatePollInterval < 0 {
-		return nil, errors.New("agentexec: native Interaction state poll interval must not be negative")
+		return nil, errors.New("agentexec: Interaction state poll interval must not be negative")
 	}
 	if config.Provider != strings.TrimSpace(config.Provider) {
-		return nil, errors.New("agentexec: native Interaction provider has surrounding whitespace")
+		return nil, errors.New("agentexec: Interaction provider has surrounding whitespace")
 	}
 	if _, err := effectiveDelegation(config.Delegation); err != nil {
 		return nil, err
@@ -185,13 +185,13 @@ func NewInteractionExecutor(config InteractionExecutorConfig) (*InteractionExecu
 	return &InteractionExecutor{config: config, sessions: make(map[string]*interactionSession)}, nil
 }
 
-// ValidateRootStart rejects inputs the native Interaction cannot represent.
+// ValidateRootStart rejects inputs the Interaction cannot represent.
 func (executor *InteractionExecutor) ValidateRootStart(start runs.RootExecutionStart) error {
 	if err := start.Validate(); err != nil {
 		return err
 	}
 	if len(start.WorkingContext) == 0 {
-		return errors.New("agentexec: native Interaction requires a complete working context")
+		return errors.New("agentexec: Interaction requires a complete working context")
 	}
 	_, err := executor.maxModelCalls(start)
 	return err
@@ -204,10 +204,10 @@ func (executor *InteractionExecutor) StageRoot(
 	start runs.RootExecutionStart,
 ) (runs.ExecutorRef, error) {
 	if executor == nil {
-		return runs.ExecutorRef{}, errors.New("agentexec: native Interaction executor is nil")
+		return runs.ExecutorRef{}, errors.New("agentexec: Interaction executor is nil")
 	}
 	if strings.TrimSpace(start.SessionID) == "" || start.SessionID != strings.TrimSpace(start.SessionID) {
-		return runs.ExecutorRef{}, errors.New("agentexec: native Interaction session ID is required without surrounding whitespace")
+		return runs.ExecutorRef{}, errors.New("agentexec: Interaction session ID is required without surrounding whitespace")
 	}
 	if err := executor.ValidateRootStart(start); err != nil {
 		return runs.ExecutorRef{}, err
@@ -222,7 +222,7 @@ func (executor *InteractionExecutor) StageRoot(
 	})
 	if err != nil {
 		_ = session.engine.Close()
-		return runs.ExecutorRef{}, fmt.Errorf("agentexec: encode native Interaction input: %w", err)
+		return runs.ExecutorRef{}, fmt.Errorf("agentexec: encode Interaction input: %w", err)
 	}
 	session.input = input
 	if err := executor.registerSession(session); err != nil {
@@ -248,7 +248,7 @@ func (executor *InteractionExecutor) assembleInteraction(
 	session := newInteractionSession(ref, start, executor.config)
 	observedClient, err := newObservedInteractionClient(client, session)
 	if err != nil {
-		return nil, fmt.Errorf("agentexec: observe native Interaction client: %w", err)
+		return nil, fmt.Errorf("agentexec: observe Interaction client: %w", err)
 	}
 	deployments, err := executor.buildInteractionDeployments(
 		executionctx.WithScope(ctx, rootExecutionScope(start)), session, start, observedClient, maxModelCalls,
@@ -270,7 +270,7 @@ func (executor *InteractionExecutor) assembleInteraction(
 		TreeLimits:                      deployments.treeLimits,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("agentexec: build native Interaction engine: %w", err)
+		return nil, fmt.Errorf("agentexec: build Interaction engine: %w", err)
 	}
 	session.engine = engine
 	return session, nil
@@ -281,17 +281,17 @@ func (executor *InteractionExecutor) validateInteractionTools(manifest toolset.M
 		return nil
 	}
 	if executor.config.ToolInterpreter == nil {
-		return errors.New("agentexec: native Interaction Tools require a Tool interpreter")
+		return errors.New("agentexec: Interaction Tools require a Tool interpreter")
 	}
 	if executor.config.ToolAuthorizer == nil {
-		return errors.New("agentexec: native Interaction Tools require a Tool authorizer")
+		return errors.New("agentexec: Interaction Tools require a Tool authorizer")
 	}
 	for _, tools := range [][]toolcontract.Tool{manifest.Visible, manifest.Deferred} {
 		for _, executable := range tools {
 			name := executable.Definition().Name
 			if class := executor.config.ToolInterpreter.SafetyClass(name); !class.Valid() {
 				return fmt.Errorf(
-					"agentexec: native Interaction Tool %q has invalid safety class %q",
+					"agentexec: Interaction Tool %q has invalid safety class %q",
 					name,
 					class,
 				)
@@ -342,7 +342,7 @@ func (executor *InteractionExecutor) interactionConfiguration(
 		Instructions: cloneChatMessages(instructions),
 	})
 	if err != nil {
-		return nil, fmt.Errorf("agentexec: encode native Interaction configuration identity: %w", err)
+		return nil, fmt.Errorf("agentexec: encode Interaction configuration identity: %w", err)
 	}
 	return configuration, nil
 }
@@ -352,11 +352,11 @@ func (executor *InteractionExecutor) registerSession(session *interactionSession
 	defer executor.mu.Unlock()
 	if executor.closed {
 		_ = session.engine.Close()
-		return errors.New("agentexec: native Interaction executor is shutting down")
+		return errors.New("agentexec: Interaction executor is shutting down")
 	}
 	if _, duplicate := executor.sessions[session.ref.ExecutorID]; duplicate {
 		_ = session.engine.Close()
-		return errors.New("agentexec: duplicate native Interaction executor identity")
+		return errors.New("agentexec: duplicate Interaction executor identity")
 	}
 	executor.sessions[session.ref.ExecutorID] = session
 	return nil
@@ -389,7 +389,7 @@ func (executor *InteractionExecutor) BeginShutdown() {
 // later attempt.
 func (executor *InteractionExecutor) AwaitShutdown(ctx context.Context) error {
 	if ctx == nil {
-		return errors.New("agentexec: native Interaction shutdown context is required")
+		return errors.New("agentexec: Interaction shutdown context is required")
 	}
 	executor.BeginShutdown()
 	executor.mu.Lock()
@@ -399,7 +399,7 @@ func (executor *InteractionExecutor) AwaitShutdown(ctx context.Context) error {
 	for _, session := range targets {
 		if err := session.release(ctx); err != nil {
 			failures = append(failures, fmt.Errorf(
-				"agentexec: release native Interaction %q: %w",
+				"agentexec: release Interaction %q: %w",
 				session.ref.ExecutorID,
 				err,
 			))
@@ -449,7 +449,7 @@ func (executor *InteractionExecutor) Observe(
 		return nil, err
 	}
 	if !session.attachObserver() {
-		return nil, errors.New("agentexec: native Interaction execution already has an observer")
+		return nil, errors.New("agentexec: Interaction execution already has an observer")
 	}
 	stopDetach := context.AfterFunc(ctx, session.detachObserver)
 	return func(yield func(runs.ExecutorEvent) bool) {
@@ -480,11 +480,11 @@ func (executor *InteractionExecutor) BeginRoot(_ context.Context, ref runs.Execu
 		return err
 	}
 	if !session.begin() {
-		return errors.New("agentexec: native Interaction execution was already begun")
+		return errors.New("agentexec: Interaction execution was already begun")
 	}
 	if !session.observerAttached() {
 		session.failStart()
-		return errors.New("agentexec: native Interaction execution must be observed before begin")
+		return errors.New("agentexec: Interaction execution must be observed before begin")
 	}
 	process, err := session.engine.Start(
 		executionctx.WithScope(session.lifecycle, session.scope),
@@ -493,7 +493,7 @@ func (executor *InteractionExecutor) BeginRoot(_ context.Context, ref runs.Execu
 	)
 	if err != nil {
 		session.failStart()
-		return fmt.Errorf("agentexec: start native Interaction: %w", err)
+		return fmt.Errorf("agentexec: start Interaction: %w", err)
 	}
 	session.setProcess(process)
 	session.startWorkers()
@@ -908,19 +908,19 @@ func (executor *InteractionExecutor) resolveClient(
 ) (*chatclient.Client, error) {
 	if selection.Configured() {
 		if executor.config.ChatResolver == nil {
-			return nil, errors.New("agentexec: explicit native Interaction model selection requires a chat resolver")
+			return nil, errors.New("agentexec: explicit Interaction model selection requires a chat resolver")
 		}
 		client, err := executor.config.ChatResolver.ResolveChat(ctx, selection)
 		if err != nil {
-			return nil, fmt.Errorf("agentexec: resolve native Interaction chat client: %w", err)
+			return nil, fmt.Errorf("agentexec: resolve Interaction chat client: %w", err)
 		}
 		if client == nil {
-			return nil, errors.New("agentexec: native Interaction chat resolver returned nil")
+			return nil, errors.New("agentexec: Interaction chat resolver returned nil")
 		}
 		return client, nil
 	}
 	if executor.config.DefaultClient == nil {
-		return nil, errors.New("agentexec: native Interaction has no default chat client")
+		return nil, errors.New("agentexec: Interaction has no default chat client")
 	}
 	return executor.config.DefaultClient, nil
 }
@@ -937,7 +937,7 @@ func (executor *InteractionExecutor) maxModelCalls(start runs.RootExecutionStart
 
 func (executor *InteractionExecutor) session(ref runs.ExecutorRef) (*interactionSession, error) {
 	if executor == nil {
-		return nil, errors.New("agentexec: native Interaction executor is nil")
+		return nil, errors.New("agentexec: Interaction executor is nil")
 	}
 	if err := ref.ValidateFor(ref.SessionID); err != nil {
 		return nil, err
@@ -946,7 +946,7 @@ func (executor *InteractionExecutor) session(ref runs.ExecutorRef) (*interaction
 	session := executor.sessions[ref.ExecutorID]
 	executor.mu.Unlock()
 	if session == nil || session.ref.SessionID != ref.SessionID {
-		return nil, fmt.Errorf("%w: native Interaction execution %q", runs.ErrExecutorNotLive, ref.ExecutorID)
+		return nil, fmt.Errorf("%w: Interaction execution %q", runs.ErrExecutorNotLive, ref.ExecutorID)
 	}
 	return session, nil
 }

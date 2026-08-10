@@ -388,7 +388,7 @@ func TestCancelParkedRunProducesPortableTerminalSnapshot(t *testing.T) {
 		"run_parked",
 		ses.ID,
 		"exec_parked",
-		"process_parked",
+		"member_parked",
 		[]transcript.Interrupt{{
 			ItemID:   "item_question",
 			Kind:     interrupt.Question,

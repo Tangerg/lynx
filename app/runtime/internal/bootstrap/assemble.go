@@ -303,7 +303,7 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 	}
 	interactionExecutor, err := agentexec.NewInteractionExecutor(interactionConfig)
 	if err != nil {
-		return nil, fmt.Errorf("runtime: native Interaction executor: %w", err)
+		return nil, fmt.Errorf("runtime: Interaction executor: %w", err)
 	}
 	recoveryPersistence, err := runrecovery.New(runrecovery.Config{
 		Sessions:            cfg.SessionStore,

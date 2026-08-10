@@ -1,7 +1,6 @@
 package runsegment
 
 import (
-	"cmp"
 	"context"
 	"errors"
 	"reflect"
@@ -405,16 +404,12 @@ func assertWaitingCancellationUnchanged(
 		assertStoredRunState(t, fixture.db, continuation.RunID, "waiting")
 	}
 
-	checkpoint, err := fixture.checkpoints.LoadCheckpoint(fixture.ctx, fixture.originalTree.RootID)
+	checkpoint, err := fixture.checkpoints.LoadCheckpoint(
+		fixture.ctx,
+		fixture.originalCheckpoint.RootMemberID,
+	)
 	if err != nil {
-		t.Fatalf("load process tree after rollback: %v", err)
-	}
-	tree := restoredExecutorTree(t, checkpoint)
-	if !reflect.DeepEqual(
-		normalizedExecutorTree(tree),
-		normalizedExecutorTree(fixture.originalTree),
-	) {
-		t.Fatalf("process tree changed after rollback:\ngot  %+v\nwant %+v", tree, fixture.originalTree)
+		t.Fatalf("load executor checkpoint after rollback: %v", err)
 	}
 	if !reflect.DeepEqual(
 		normalizedExecutorCheckpoint(checkpoint),
@@ -438,14 +433,6 @@ func assertWaitingCancellationUnchanged(
 	if terminalRuns != 0 {
 		t.Fatalf("terminal Runs after rollback = %d, want 0", terminalRuns)
 	}
-}
-
-func normalizedExecutorTree(tree executorTreeFixture) executorTreeFixture {
-	tree.Members = slices.Clone(tree.Members)
-	slices.SortFunc(tree.Members, func(left, right executorMemberFixture) int {
-		return cmp.Compare(left.ID, right.ID)
-	})
-	return tree
 }
 
 func normalizedExecutorCheckpoint(

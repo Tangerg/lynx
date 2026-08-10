@@ -19,7 +19,7 @@ import (
 
 const interactionTestBuildID = "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 
-func TestInteractionExecutorRunsNativeRootFromCompleteWorkingContext(t *testing.T) {
+func TestInteractionExecutorRunsRootFromCompleteWorkingContext(t *testing.T) {
 	var captured []chat.Message
 	model := chat.ModelFunc(func(_ context.Context, request *chat.Request) (*chat.Response, error) {
 		captured = cloneChatMessages(request.Messages)

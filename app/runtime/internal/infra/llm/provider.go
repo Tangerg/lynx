@@ -52,9 +52,9 @@ const (
 // SupportedProviders lists every provider with a static catalog entry,
 // regardless of which are configured. The result has deterministic order.
 func SupportedProviders() []Provider {
-	out := make([]Provider, 0, len(providerInfo))
-	for p := range providerInfo {
-		out = append(out, p)
+	out := make([]Provider, 0, len(chatProviderCatalog))
+	for provider := range chatProviderCatalog {
+		out = append(out, provider)
 	}
 	slices.Sort(out)
 	return out
@@ -62,7 +62,7 @@ func SupportedProviders() []Provider {
 
 // IsSupported reports whether p is a known provider (has a table row).
 func (p Provider) IsSupported() bool {
-	_, ok := providerInfo[p]
+	_, ok := chatProviderCatalog[p]
 	return ok
 }
 
@@ -70,19 +70,19 @@ func (p Provider) IsSupported() bool {
 // caller doesn't pick one). Empty for an unknown provider or one whose model id
 // is always user-supplied (Azure deployment, Ollama, the generic passthroughs).
 func (p Provider) DefaultModel() string {
-	return providerInfo[p].defaultModel
+	return chatProviderCatalog[p].defaultModel
 }
 
 // APIKeyEnv returns the environment variable a provider's key is read from,
 // or "" for an unknown provider.
 func (p Provider) APIKeyEnv() string {
-	return providerInfo[p].apiKeyEnv
+	return chatProviderCatalog[p].apiKeyEnv
 }
 
 // RequiresBaseURL reports whether p has no built-in endpoint and needs a
 // caller-supplied base URL (the generic passthroughs + Azure).
 func (p Provider) RequiresBaseURL() bool {
-	return providerInfo[p].requiresBaseURL
+	return chatProviderCatalog[p].requiresBaseURL
 }
 
 // DefaultBaseURL returns a provider's built-in endpoint used for live model
@@ -90,7 +90,7 @@ func (p Provider) RequiresBaseURL() bool {
 // Ollama daemon (hosted vendors encode their endpoint inside the adapter, and
 // the generic passthroughs have no default at all).
 func (p Provider) DefaultBaseURL() string {
-	return providerInfo[p].defaultBaseURL
+	return chatProviderCatalog[p].defaultBaseURL
 }
 
 // ProbeModels reports whether p's available models are defined by its live
@@ -99,8 +99,8 @@ func (p Provider) DefaultBaseURL() string {
 // generic OpenAI-/Anthropic-compatible passthroughs. Dynamic discovery probes their
 // /v1/models instead of serving the embedded catalog for these.
 func (p Provider) ProbeModels() bool {
-	entry, ok := providerInfo[p]
-	return ok && entry.defaultModel == ""
+	profile, ok := chatProviderCatalog[p]
+	return ok && profile.defaultModel == ""
 }
 
 // EnvKeys reads the environment once and returns the API keys present for the
@@ -115,12 +115,12 @@ func (p Provider) ProbeModels() bool {
 // environment is process-static, so callers read this once at startup.
 func EnvKeys() map[string]string {
 	out := make(map[string]string)
-	for p, entry := range providerInfo {
-		if entry.requiresBaseURL || entry.apiKeyEnv == "" {
+	for provider, profile := range chatProviderCatalog {
+		if profile.requiresBaseURL || profile.apiKeyEnv == "" {
 			continue
 		}
-		if v := os.Getenv(entry.apiKeyEnv); v != "" {
-			out[string(p)] = v
+		if key := os.Getenv(profile.apiKeyEnv); key != "" {
+			out[string(provider)] = key
 		}
 	}
 	return out

@@ -27,7 +27,7 @@
 - Run、Accounting、Conversation、Transcript、Interrupt、ToolResult 已成为准确顶层 bounded-context package；executor checkpoint/ref、pending continuation 与 workspace mutation 由 Application consumer 拥有；
 - P3 已删除 Application 的 `ExecutionControl`、`SegmentExecutor`、`SessionLifecycle` 与 `Effects` 胖接口；root start/observe/release、Session reads/termination 与 Run projection write-sets 均由真实 consumer-owned ports 表达；
 - Application executor tree identity 已统一为 `ExecutorMember`/`MemberID`；Framework `ProcessID` 只存在于 `adapter/agentexec` 内部映射，SQLite technical shape 使用 `root_member_id`/`memberId`；
-- 同一 native Interaction tree 已在生产 Bootstrap 接通 conclusive child start、durable Delegate child Run attribution、nested/sibling child reconciliation，以及 one-shot prepared waiting-subtree cancellation；
+- 同一 Interaction tree 已在生产 Bootstrap 接通 conclusive child start、durable Delegate child Run attribution、nested/sibling child reconciliation，以及 one-shot prepared waiting-subtree cancellation；
 - SQLite 当前唯一 shape 为 epoch 65：model/tool invocation operational journal 与 Transcript semantic final 分离，interrupt row 具有 `open`/`resuming` answer-claim 状态，child-start reservation payload 由 `runsegment` 显式编码；Run pump 是唯一 reducer/persistence writer；
 - Agent Framework production dependency 只存在于执行防腐层；Runtime 其他 ring 对 Framework concrete type 为零。
 
@@ -38,7 +38,7 @@
 | Run lifecycle | `application/runs` 拥有 start、pump、waiting、resume、cancel、terminal ordering；child opening reservation、conclusive start 与 waiting-subtree transaction ordering 已在生产冻结 | Retain | P3–P8 已完成 |
 | Session lifecycle | 独立 application/domain，拥有 workspace/admission 产品语义；Rollback boundary、workspace restore intent/cleanup 与 portable snapshot Run-tree integrity 各有准确内部 owner | Retain | P2/P8；P14 内部职责精修 |
 | Domain framework isolation | P2 已删除十个 context-based Domain I/O port，生产与测试均由机器守卫禁止向外依赖 | Retain + strengthen | P2 已完成；例外为零 |
-| Agent anti-corruption | Agent Framework native tree、model/tool Effect、waiting/restore/steer、Delegate child 与 prepared subtree change 均由 `adapter/agentexec` 生产 owner 独占 | Retain | P8 已接管生产；旧 Framework lifecycle 已删除 |
+| Agent anti-corruption | Agent Framework tree、model/tool Effect、waiting/restore/steer、Delegate child 与 prepared subtree change 均由 `adapter/agentexec` 生产 owner 独占 | Retain | P8 已接管生产；旧 Framework lifecycle 已删除 |
 | Delivery separation | target DAG 禁止 Delivery import 任意 concrete Adapter；protocol/dispatch/server/transport 已按准确职责收口 | Retain | P1/P9/P10 已完成 |
 | Adapter/Infra direction | Adapter 单向使用 Infra；Infra 对 Application/Adapter/Delivery/Bootstrap 反向 import 为零 | Retain | P9 已完成 |
 | Shared capabilities | `component` umbrella 已删除；仅保留七个经多消费者或 codec boundary 证明的准确顶层 capability | Retain exact packages | P9 第一批已完成，永久 purity guard |
@@ -77,13 +77,13 @@
 | Pending continuation | `application/runs.Pending` + `adapter/persistence` mapping | 已保持 owner 并接入 Agent Framework public pending input | Retain | 一个 root tree 一个 pending hand-off；Infra 只见 technical record；claim 后普通读取不可见 |
 | Approval domain | `domain/approval` | 保持产品策略 | Retain + remove I/O ports | 不进入 Agent Framework |
 | Ask-user/approval tool input | Toolset product Interrupt + `agentexec/interactioninput` | public Interaction helper → product Interrupt | Retain | 不解析 private Framework payload；旧 adapter 已删除 |
-| Answer/resolution | runs + native interaction input adapter | semantic Application command → WaitID-addressed Signal | P6 native bridge 已完成；P14 内部职责精修 | 无任意 Signal API；text/choice answer 各自验证其语义，answer claim/segment opening/Signal 顺序受测试 |
+| Answer/resolution | runs + Interaction input adapter | semantic Application command → WaitID-addressed Signal | P6 Agent Framework bridge 已完成；P14 内部职责精修 | 无任意 Signal API；text/choice answer 各自验证其语义，answer claim/segment opening/Signal 顺序受测试 |
 
 ### 3.4 Accounting
 
 | 当前能力 | 当前 owner | 目标 | Verdict | 验收 |
 |---|---|---|---|---|
-| Token/model-call accounting | `domain/accounting` + native authoritative model decorator | final/usage/pricing/Run progress 同一事务 | Refactor bridge | P5 已完成；Delta drop 不丢 final 或 usage |
+| Token/model-call accounting | `domain/accounting` + authoritative model decorator | final/usage/pricing/Run progress 同一事务 | Refactor bridge | P5 已完成；Delta drop 不丢 final 或 usage |
 | Pricing/USD | adapter/pricing + observer | Runtime adapter/domain value | Retain | Agent Framework Usage 无价格字段 |
 | Framework resource usage | old Agent aggregate | Agent Framework Usage | Replace | 只翻译需要的中性事实 |
 | Goal budget attribution | goals/runs | 保持 Application | Retain | child/root、resume、lost 归属准确 |
@@ -116,7 +116,7 @@
 | Resume | `WaitingExecutionContinuer.StageContinuation/BeginContinuation` | Retain | exact BuildID/deployment/scope/capabilities restore；waiting continuation 的 envelope/topology/order 与 resume binding 各有准确内部 owner；per-Run reducer、Segment identity 和 deterministic preorder 由私有 resumed-route builder 原子重建；opening commit 后才 Signal |
 | Steer | `RunningExecutionSteerer.SubmitSteer` | Retain | semantic steer 只在下一 model safe boundary 投影 |
 | Child subtree cancel | `MemberID` + `WaitingSubtreeCancellationPreparer` | P7 real consumer 已重推 | Application 只看 member projection、resulting checkpoint 与一次性 Apply/Discard capability |
-| Waiting subtree mutation | `WaitingSubtreeChange` 持有 execution ACL capability | P7 native bridge 已完成；P14 精修 commit invariant owner | Application 不见 Agent Framework plan；source 冻结跨过 transaction；contextless Apply 只安装状态，final-boundary Continue 独立激活，失败时 exact restore/terminal 收口；`WaitingSubtreeCancellationCommit` 内部按 boundary、disposition envelope、pending-tree topology 和 surviving continuation 分阶段证明同一原子 write-set，不产生第二 validator owner |
+| Waiting subtree mutation | `WaitingSubtreeChange` 持有 execution ACL capability | P7 Agent Framework bridge 已完成；P14 精修 commit invariant owner | Application 不见 Agent Framework plan；source 冻结跨过 transaction；contextless Apply 只安装状态，final-boundary Continue 独立激活，失败时 exact restore/terminal 收口；`WaitingSubtreeCancellationCommit` 内部按 boundary、disposition envelope、pending-tree topology 和 surviving continuation 分阶段证明同一原子 write-set，不产生第二 validator owner |
 | Run pump | executor event reducer | Retain；P14 内部职责精修 | `segmentStartup` 只拥有 durable opening 前可回滚资源，commit 后转交 pump；ItemStarted projection 与 park-boundary write-set 各有准确 owner；不推进 Agent Framework internal state |
 | Run journal | committed RunEvent | Retain | persist-before-publish |
 
@@ -127,10 +127,10 @@ P8 production cutover 已用真实 Bootstrap consumer 冻结 root stage/observe/
 | 写集合 | 当前事实 | Verdict | 阶段 |
 |---|---|---|---|
 | Run admission | Session + Run/Transcript | Retain/refactor types | P3 |
-| Waiting tree barrier | Run + Pending + checkpoint + Items | Retain semantics；P6 native 已验证 | P6 已完成 |
-| Waiting child cancellation | Run tree + Pending + checkpoint + Items | P7 native Agent boundary 已完成，保留 Application transaction | P7 已完成 |
+| Waiting tree barrier | Run + Pending + checkpoint + Items | Retain semantics；P6 Interaction 已验证 | P6 已完成 |
+| Waiting child cancellation | Run tree + Pending + checkpoint + Items | P7 Agent Framework boundary 已完成，保留 Application transaction | P7 已完成 |
 | Terminal tree | Runs + Pending + checkpoint + transcript + Goal | Retain | P8 已统一 write-set/first-wins/release ordering |
-| Boot recovery | stored facts + opaque checkpoint probe | Retain | P8 已由 native Agent Framework production probe 接管 |
+| Boot recovery | stored facts + opaque checkpoint probe | Retain | P8 已由 Agent Framework production probe 接管 |
 | Rollback/fork cleanup | Conversation + Transcript + active/waiting Run | Retain | P8 已保持 cleanup intent 与 live release 分相 |
 
 ## 5. Agent execution 能力
@@ -139,15 +139,15 @@ P8 production cutover 已用真实 Bootstrap consumer 冻结 root stage/observe/
 
 | 当前实现 | 作用 | Verdict | Agent Framework replacement |
 |---|---|---|---|
-| `InteractionExecutor` | 唯一生产 tree owner | Retain | per-Run Agent Framework Engine + native Interaction；P4–P8 完整纵切 |
+| `InteractionExecutor` | 唯一生产 tree owner | Retain | per-Run Agent Framework Engine + Interaction；P4–P8 完整纵切 |
 | old Engine/GOAP/TurnProcess/turn controller | 已删除 | Remove complete | Agent Framework Process/Engine public lifecycle + Application Run pump |
 | private process-tree/suspension codec | 已删除 | Remove complete | opaque public TreeSnapshot + Interaction pending-input ACL |
 | child execution/configuration | 传播 model/hooks/budget | Rewrite | exact child Deployments + ProcessAdmitter |
-| authoritative projection | model/tool/usage/final 同步 receipt | Retain | P5 native decorators；旧 observer 已删除 |
+| authoritative projection | model/tool/usage/final 同步 receipt | Retain | P5 authoritative decorators；旧 observer 已删除 |
 | tool decorator | approval/hooks/presentation | Retain semantics, Rewrite attribution | P5 ToolInvocation context + P6 interactive HITL 已完成 |
 | usage accounting | subtree token/cost | Retain | cumulative accounting/pricing、child attribution 与 terminal tree 已收口 |
 | deferred manifest glue | old toolloop promotion | Rewrite | P5 唯一 `toolset.Manifest` + Interaction DeferredTools/AdvertiseTools 已完成 |
-| maintenance/restore checks | per-run native session + checkpoint probe | Retain | exact Deployment/BuildID/scope/capabilities 与 tree-wide boot owner 已收口 |
+| maintenance/restore checks | per-Run Interaction session + checkpoint probe | Retain | exact Deployment/BuildID/scope/capabilities 与 tree-wide boot owner 已收口 |
 
 ### 5.2 Agent Framework 已提供的合同
 
@@ -194,11 +194,11 @@ P8 production cutover 已用真实 Bootstrap consumer 冻结 root stage/observe/
 | executor checkpoint | Host metadata + Agent Framework public complete-tree snapshot | Retain opaque payload owner | Application/Store 完全 opaque；exact capabilities 纳入 expectation |
 | checkpoint transaction | runsegment/persistence 组合 | Retain semantics | waiting facts 同事务 |
 | BuildID | Host-owned | Retain | 不进入 Agent Framework deployment/snapshot |
-| boot recovery | Application policy + agentexec native probe | Retain | P8 production recovery wiring 已收口 |
-| unknown Effect live/recovery | native tree-wide reconciliation | Retain | wake 丢失由 public polling 收敛；RunLost 写失败重试且 release 不提前 |
+| boot recovery | Application policy + agentexec framework probe | Retain | P8 production recovery wiring 已收口 |
+| unknown Effect live/recovery | tree-wide reconciliation | Retain | wake 丢失由 public polling 收敛；RunLost 写失败重试且 release 不提前 |
 | isolated recovery | fail closed | Retain | 不猜测重建 scratch world |
 | terminal deletion | root aggregate transaction | Retain/converge | terminal 与 delete 原子 |
-| waiting subtree persistence | Application transaction + execution-owned prepared change | P7 native boundary 已完成 | one-shot prepared change + opaque resulting TreeSnapshot + exact restore fallback |
+| waiting subtree persistence | Application transaction + execution-owned prepared change | P7 Agent Framework boundary 已完成 | one-shot prepared change + opaque resulting TreeSnapshot + exact restore fallback |
 | active-step crash durability | 旧路径能力不作为新合同 | Defer | 不启用 PreparedStepAcknowledger；无 committed quiescent TreeSnapshot 时 RunLost |
 
 ## 8. Delivery 与协议
@@ -303,3 +303,4 @@ P8 production cutover 已用真实 Bootstrap consumer 冻结 root stage/observe/
 - P12 最终行为矩阵证明 Runtime root/child Interaction、authoritative model/tool、waiting、restore、resume、steer、unknown、recovery、rollback 与全部外环能力仍自洽；SQLite 当前 epoch 65 由 baseline consistency test 永久守卫。`interactioninput` 是 pending continuation/prompt/resolution 的唯一 ACL 与 codec owner，原单消费者子包和第二 decoder 已删除；三个 Runtime strict-codec fuzz owner与 Agent Framework 十三个 wire/state fuzz owner均全绿。
 - P14 完成 Runtime 内部职责与全层级命名精修：package、目录、文件、类型、方法、函数、常量、字段和局部变量按 owner/行为逐层反证；淘汰词汇与失真文件路径由精确 package guard 防回流。最终 standalone、race、生成物、文档链接、死代码、空残留、复杂度与完整 lint 门禁全绿，未改变 Runtime/Agent Framework 边界、协议或持久化合同。
 - P15-02 再次反证 Domain/Application 后，将 system-invariant 的说明性 catalog 从生产 Application graph 移至 `cmd/contractgen`，而真实跨聚合不变量继续由对应 write-set 和 integration fixture 独占；无消费者导出链已删除，结果值、水位与 child/executor 语言按真实语义统一。Domain 仍只拥有聚合、值与纯策略合同，Application 仍独占 I/O ports；本批没有新增 Framework concrete type、协议 wire、SQLite shape 或消费者兼容路径。
+- P15-03 反证 Adapter/Infra/Delivery/Bootstrap 后，executor checkpoint 在 `agentexec` 之外重新成为纯 opaque bytes：Bootstrap 与 runsegment 不再复制或解释 TreeSnapshot shape，持久化测试只证明 checkpoint envelope 的原子保存、替换和删除。非 Framework 层的 member/request/child-Run 词汇、LLM catalog/profile 命名、execution scope 文件职责与 SQLite epoch 事实已同步；新增 architecture guard 禁止外环重新拼装 Framework tree wire。本批没有改变协议、SQLite shape 或 Agent Framework 合同。

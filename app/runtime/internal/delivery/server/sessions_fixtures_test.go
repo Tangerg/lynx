@@ -44,15 +44,15 @@ type testRuntime interface {
 }
 
 func serverPending(
-	runID, sessionID, executorID, processID string,
+	runID, sessionID, executorID, memberID string,
 	open []transcript.Interrupt,
 	createdAt time.Time,
 ) runs.Pending {
 	if executorID == "" {
 		executorID = "exec_" + runID
 	}
-	if processID == "" {
-		processID = "process_" + runID
+	if memberID == "" {
+		memberID = "member_" + runID
 	}
 	if createdAt.IsZero() {
 		createdAt = time.Unix(1, 0).UTC()
@@ -81,8 +81,8 @@ func serverPending(
 		capabilities.InterruptKinds = append(capabilities.InterruptKinds, interrupt.Kind)
 		bindings[index] = runs.InterruptBinding{
 			InterruptItemID: interrupt.ItemID,
-			MemberID:        processID,
-			RequestID:       fmt.Sprintf("suspension_%s_%d", processID, index),
+			MemberID:        memberID,
+			RequestID:       fmt.Sprintf("request_%s_%d", memberID, index),
 		}
 	}
 	return runs.Pending{
@@ -94,7 +94,7 @@ func serverPending(
 		Capabilities: capabilities.Normalized(),
 		Continuations: []runs.Continuation{{
 			RunID:        runID,
-			MemberID:     processID,
+			MemberID:     memberID,
 			RunCreatedAt: createdAt,
 		}},
 		CreatedAt: createdAt,
@@ -388,10 +388,10 @@ func (s stubRuntime) Cancel(ctx context.Context, ref runs.ExecutorRef) error {
 func (s stubRuntime) CancelRunningSubtree(
 	ctx context.Context,
 	ref runs.ExecutorRef,
-	processID string,
+	memberID string,
 	reason string,
 ) error {
-	return s.executionController().CancelRunningSubtree(ctx, ref, processID, reason)
+	return s.executionController().CancelRunningSubtree(ctx, ref, memberID, reason)
 }
 
 func (s stubRuntime) PrepareWaitingSubtreeCancellation(

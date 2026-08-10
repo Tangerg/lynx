@@ -8,15 +8,15 @@ import (
 )
 
 func testRootExecutorCheckpoint() runs.ExecutorCheckpoint {
-	const rootProcessID = "proc_1"
+	const rootMemberID = "member_1"
 
 	selection, err := modelref.New("anthropic", "claude")
 	if err != nil {
 		panic(err)
 	}
 	return runs.ExecutorCheckpoint{
-		RootMemberID:   rootProcessID,
-		Payload:        []byte(`{"root":"` + rootProcessID + `"}`),
+		RootMemberID:   rootMemberID,
+		Payload:        []byte("opaque root checkpoint"),
 		BuildID:        "build",
 		Scope:          runs.ExecutionScope{SessionID: "ses_1"},
 		ModelSelection: selection,

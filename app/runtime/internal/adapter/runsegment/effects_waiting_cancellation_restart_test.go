@@ -58,7 +58,7 @@ func TestWaitingSubtreeCancellationSurvivesSQLiteRestart(t *testing.T) {
 			stores := reopenWaitingCancellationStores(t, path)
 			assertRestartedCancellationResult(t, fixture, stores.query, result)
 			assertRestartedRunTopology(t, fixture, stores.runs, test.wantPostorder)
-			assertRestartedProcessTree(t, fixture, stores.checkpoints)
+			assertRestartedExecutorCheckpoint(t, fixture, stores.checkpoints)
 			assertRestartedTerminalItems(t, fixture, stores.transcript)
 
 			if test.survivingBoundary {
@@ -162,23 +162,20 @@ func assertRestartedRunTopology(
 	}
 }
 
-func assertRestartedProcessTree(
+func assertRestartedExecutorCheckpoint(
 	t *testing.T,
 	fixture waitingCancellationSQLiteFixture,
 	checkpointStore *persistence.ExecutorCheckpointStore,
 ) {
 	t.Helper()
-	checkpoint, err := checkpointStore.LoadCheckpoint(fixture.ctx, fixture.replacementTree.RootID)
+	checkpoint, err := checkpointStore.LoadCheckpoint(
+		fixture.ctx,
+		fixture.replacementCheckpoint.RootMemberID,
+	)
 	if err != nil {
-		t.Fatalf("load restarted process tree: %v", err)
+		t.Fatalf("load restarted executor checkpoint: %v", err)
 	}
-	processTree := restoredExecutorTree(t, checkpoint)
-	assertReplacementCheckpoint(t, processTree, checkpoint, fixture)
-	for _, processID := range []string{"process_child", "process_grandchild"} {
-		if _, found := executorMemberByID(processTree, processID); found {
-			t.Fatalf("restarted process tree resurrected canceled process %q", processID)
-		}
-	}
+	assertReplacementCheckpoint(t, checkpoint, fixture)
 }
 
 func assertRestartedTerminalItems(
@@ -236,21 +233,10 @@ func queryRun(
 
 func assertReplacementCheckpoint(
 	t *testing.T,
-	tree executorTreeFixture,
 	checkpoint runs.ExecutorCheckpoint,
 	fixture waitingCancellationSQLiteFixture,
 ) {
 	t.Helper()
-	if !reflect.DeepEqual(
-		normalizedExecutorTree(tree),
-		normalizedExecutorTree(fixture.replacementTree),
-	) {
-		t.Fatalf(
-			"restarted process tree differs from committed replacement:\ngot  %+v\nwant %+v",
-			tree,
-			fixture.replacementTree,
-		)
-	}
 	if !reflect.DeepEqual(
 		normalizedExecutorCheckpoint(checkpoint),
 		normalizedExecutorCheckpoint(fixture.replacementCheckpoint),
@@ -296,7 +282,10 @@ func assertRestartedWaitingBoundary(
 		)
 	}
 
-	checkpoint, err := checkpointStore.LoadCheckpoint(fixture.ctx, fixture.replacementTree.RootID)
+	checkpoint, err := checkpointStore.LoadCheckpoint(
+		fixture.ctx,
+		fixture.replacementCheckpoint.RootMemberID,
+	)
 	if err != nil || !reflect.DeepEqual(
 		normalizedExecutorCheckpoint(checkpoint),
 		normalizedExecutorCheckpoint(fixture.replacementCheckpoint),

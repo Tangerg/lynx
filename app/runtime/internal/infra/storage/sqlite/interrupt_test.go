@@ -105,7 +105,7 @@ func TestInterruptStore_OpenGetListDelete(t *testing.T) {
 // TestInterruptStore_ConsumeIsAtomic pins the resume-idempotency fix: Consume
 // reads AND deletes the pending interrupt in one statement, so two concurrent
 // resumes can't both claim it (the second gets ok=false and backs off, instead
-// of both rebuilding the parked process and re-firing the approved tool). Also
+// of both rebuilding the parked executor tree and re-firing the approved tool). Also
 // exercises that modernc SQLite supports DELETE ... RETURNING.
 func TestInterruptStore_ConsumeIsAtomic(t *testing.T) {
 	ctx := context.Background()

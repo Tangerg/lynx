@@ -524,7 +524,7 @@ func scanPending(row scanRow) (InterruptRecord, error) {
 	root, _ := p.rootContinuation()
 	if root.MemberID != rootMemberID {
 		return InterruptRecord{}, fmt.Errorf(
-			"sqlite: decode interrupt %q: root process index %q does not match continuation %q",
+			"sqlite: decode interrupt %q: root member index %q does not match continuation %q",
 			p.RootRunID,
 			rootMemberID,
 			root.MemberID,

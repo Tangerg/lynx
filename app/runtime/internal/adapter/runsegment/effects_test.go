@@ -54,7 +54,7 @@ func mustEffectSelection(t testing.TB, provider, model string) modelref.Selectio
 
 func singleRunPending(
 	t testing.TB,
-	runID, sessionID, processID, suspensionID, itemID string,
+	runID, sessionID, memberID, requestID, itemID string,
 	runCreatedAt, barrierCreatedAt time.Time,
 ) runs.Pending {
 	t.Helper()
@@ -74,12 +74,12 @@ func singleRunPending(
 		}},
 		Bindings: []runs.InterruptBinding{{
 			InterruptItemID: itemID,
-			MemberID:        processID,
-			RequestID:       suspensionID,
+			MemberID:        memberID,
+			RequestID:       requestID,
 		}},
 		Continuations: []runs.Continuation{{
 			RunID:          runID,
-			MemberID:       processID,
+			MemberID:       memberID,
 			ModelSelection: mustEffectSelection(t, "anthropic", "claude"),
 			RunCreatedAt:   runCreatedAt,
 		}},
@@ -321,7 +321,7 @@ func TestChildRunStartReservationUsesAdapterOwnedCanonicalPayload(t *testing.T) 
 func TestCommitOpeningResumesAfterSeparateAnswerClaim(t *testing.T) {
 	now := time.Now().UTC()
 	ints := &fakeInterrupts{pending: singleRunPending(
-		t, "run_1", "ses_1", "process_1", "suspension_1", "item_1", now, now,
+		t, "run_1", "ses_1", "member_1", "request_1", "item_1", now, now,
 	), resumeClaimed: true}
 	stores := &fakeStores{interrupts: ints, transcript: &fakeTranscript{}}
 	runState := &fakeRunState{}
@@ -363,7 +363,7 @@ func TestCommitTreeBarrierRecordsPendingSetAndSuspends(t *testing.T) {
 	barrierCreatedAt := time.Unix(2, 0).UTC()
 	pending := singleRunPending(
 		t,
-		"run_1", "ses_1", "proc_1", "susp_1", "int_1",
+		"run_1", "ses_1", "member_1", "request_1", "int_1",
 		runCreatedAt, barrierCreatedAt,
 	)
 	pending.Continuations[0].DrainedTools = []runs.DrainedTool{{
@@ -402,7 +402,7 @@ func TestCommitTreeBarrierRecordsPendingSetAndSuspends(t *testing.T) {
 
 	got := stores.interrupts.pending
 	root, ok := got.RootContinuation()
-	if got.RootRunID != "run_1" || !ok || root.MemberID != "proc_1" ||
+	if got.RootRunID != "run_1" || !ok || root.MemberID != "member_1" ||
 		root.ModelSelection.Provider() != "anthropic" || root.ModelSelection.Model() != "claude" {
 		t.Fatalf("pending = %+v", got)
 	}
@@ -426,7 +426,7 @@ func TestCommitTreeBarrierRejectsIncompleteContinuation(t *testing.T) {
 	tx := &fakeTx{}
 	effects := testEffects(stores, Config{State: runState, Tx: tx.run})
 	createdAt := time.Unix(1, 0).UTC()
-	pending := singleRunPending(t, "run_1", "ses_1", "proc_1", "susp_1", "int_1", createdAt, createdAt.Add(time.Second))
+	pending := singleRunPending(t, "run_1", "ses_1", "member_1", "request_1", "int_1", createdAt, createdAt.Add(time.Second))
 	pending.Continuations[0].MemberID = ""
 
 	err := effects.CommitTreeBarrier(context.Background(), runs.TreeBarrierCommit{
@@ -459,7 +459,7 @@ func TestCommitTreeBarrierRejectsMismatchedCheckpointBindingBeforeTransaction(t 
 	createdAt := time.Unix(1, 0).UTC()
 	pending := singleRunPending(
 		t,
-		"run_1", "ses_1", "proc_1", "susp_1", "int_1",
+		"run_1", "ses_1", "member_1", "request_1", "int_1",
 		createdAt, createdAt.Add(time.Second),
 	)
 	for name, mutate := range map[string]func(*runs.ExecutorCheckpoint){
@@ -546,7 +546,7 @@ func TestCommitTreeBarrierRejectsRunContinuationFactDriftBeforeTransaction(t *te
 			createdAt := time.Unix(1, 0).UTC()
 			pending := singleRunPending(
 				t,
-				"run_1", "ses_1", "proc_1", "susp_1", "int_1",
+				"run_1", "ses_1", "member_1", "request_1", "int_1",
 				createdAt, createdAt.Add(time.Second),
 			)
 			pending.GoalLeaseID = "goal-lease"

@@ -19,18 +19,18 @@ const defaultOpenAIEmbeddingModel = "text-embedding-3-small"
 // embeddingBuildFunc constructs an embedding adapter for one (key, model, baseURL).
 type embeddingBuildFunc func(spec ClientSpec, opts embedding.Options) (embedding.Model, error)
 
-type embeddingEntry struct {
+type embeddingProviderProfile struct {
 	defaultModel string
 	build        embeddingBuildFunc
 }
 
-// embeddingProviderInfo is the embedding counterpart of [providerInfo] — the
+// embeddingProviderCatalog is the embedding counterpart of [chatProviderCatalog] — the
 // providers Lyra already imports that ALSO offer an embeddings endpoint.
 // Anthropic is intentionally absent (it has no embeddings API); local Ollama
 // gives a key-free embedding path for anyone, including Anthropic-only users.
 // The credential (key + base URL) comes from the same provider registry the
 // chat clients use — an embedding role names a (provider, model), nothing more.
-var embeddingProviderInfo = map[Provider]embeddingEntry{
+var embeddingProviderCatalog = map[Provider]embeddingProviderProfile{
 	ProviderOpenAI: {defaultModel: defaultOpenAIEmbeddingModel, build: func(s ClientSpec, o embedding.Options) (embedding.Model, error) {
 		return openaimodel.NewEmbeddingModel(openaimodel.EmbeddingModelConfig{APIKey: s.APIKey, DefaultOptions: o, BaseURL: s.BaseURL})
 	}},
@@ -57,21 +57,21 @@ var embeddingProviderInfo = map[Provider]embeddingEntry{
 
 // EmbeddingCapable reports whether p has an embeddings adapter.
 func (p Provider) EmbeddingCapable() bool {
-	_, ok := embeddingProviderInfo[p]
+	_, ok := embeddingProviderCatalog[p]
 	return ok
 }
 
 // DefaultEmbeddingModel returns p's default embedding model id, or "" when the
 // id is always user-supplied (Azure deployment names).
 func (p Provider) DefaultEmbeddingModel() string {
-	return embeddingProviderInfo[p].defaultModel
+	return embeddingProviderCatalog[p].defaultModel
 }
 
 // BuildEmbeddingModel wires an embedding.Model for one provider+model from
-// [embeddingProviderInfo], threading the api key + optional base URL (Azure's
+// [embeddingProviderCatalog], threading the api key + optional base URL (Azure's
 // per-resource endpoint, Ollama's localhost, an OpenAI-compatible gateway).
 func BuildEmbeddingModel(spec ClientSpec) (embedding.Model, error) {
-	entry, ok := embeddingProviderInfo[spec.Provider]
+	profile, ok := embeddingProviderCatalog[spec.Provider]
 	if !ok {
 		return nil, fmt.Errorf("llm: provider %q has no embeddings adapter", spec.Provider)
 	}
@@ -79,9 +79,9 @@ func BuildEmbeddingModel(spec ClientSpec) (embedding.Model, error) {
 	if err != nil {
 		return nil, fmt.Errorf("llm: embedding options for %q: %w", spec.Model, err)
 	}
-	m, err := entry.build(spec, opts)
+	model, err := profile.build(spec, opts)
 	if err != nil {
 		return nil, fmt.Errorf("llm: build %s embedding model: %w", spec.Provider, err)
 	}
-	return m, nil
+	return model, nil
 }

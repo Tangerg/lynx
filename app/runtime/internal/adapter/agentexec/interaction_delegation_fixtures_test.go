@@ -148,22 +148,22 @@ func (model *waitingDelegateModel) Calls() int {
 	return model.calls
 }
 
-type nativeDelegateConversation struct{}
+type delegateConversation struct{}
 
-func (nativeDelegateConversation) Read(context.Context, string) ([]chat.Message, error) {
+func (delegateConversation) Read(context.Context, string) ([]chat.Message, error) {
 	return nil, nil
 }
 
-type nativeDelegateSessionStore struct{ value session.Session }
+type delegateSessionStore struct{ value session.Session }
 
-func (store *nativeDelegateSessionStore) Get(_ context.Context, id string) (session.Session, error) {
+func (store *delegateSessionStore) Get(_ context.Context, id string) (session.Session, error) {
 	if id != store.value.ID {
 		return session.Session{}, errors.New("session not found")
 	}
 	return store.value, nil
 }
 
-func (store *nativeDelegateSessionStore) Create(
+func (store *delegateSessionStore) Create(
 	context.Context,
 	string,
 	string,
@@ -171,7 +171,7 @@ func (store *nativeDelegateSessionStore) Create(
 	return store.value, nil
 }
 
-func (store *nativeDelegateSessionStore) PrepareScheduled(
+func (store *delegateSessionStore) PrepareScheduled(
 	context.Context,
 	string,
 	string,
@@ -180,28 +180,28 @@ func (store *nativeDelegateSessionStore) PrepareScheduled(
 	return store.value, nil
 }
 
-func (*nativeDelegateSessionStore) ActiveRun(
+func (*delegateSessionStore) ActiveRun(
 	context.Context,
 	string,
 ) (transcript.Run, bool, error) {
 	return transcript.Run{}, false, nil
 }
 
-func (*nativeDelegateSessionStore) ListOpenInterrupts(
+func (*delegateSessionStore) ListOpenInterrupts(
 	context.Context,
 	string,
 ) ([]runs.Pending, error) {
 	return nil, nil
 }
 
-func (*nativeDelegateSessionStore) LookupOpenInterrupt(
+func (*delegateSessionStore) LookupOpenInterrupt(
 	context.Context,
 	string,
 ) (runs.Pending, bool, error) {
 	return runs.Pending{}, false, nil
 }
 
-func (*nativeDelegateSessionStore) ApplyRunCancel(
+func (*delegateSessionStore) ApplyRunCancel(
 	context.Context,
 	string,
 	string,
@@ -211,7 +211,7 @@ func (*nativeDelegateSessionStore) ApplyRunCancel(
 	return transcript.Run{}, errors.New("unexpected parked Run cancellation")
 }
 
-func (*nativeDelegateSessionStore) ApplyRunLost(
+func (*delegateSessionStore) ApplyRunLost(
 	context.Context,
 	string,
 	string,
@@ -220,7 +220,7 @@ func (*nativeDelegateSessionStore) ApplyRunLost(
 	return errors.New("unexpected Run loss")
 }
 
-type nativeDelegateProjection struct {
+type delegateProjection struct {
 	mu           sync.Mutex
 	openings     []runs.OpeningCommit
 	barriers     []runs.TreeBarrierCommit
@@ -230,8 +230,8 @@ type nativeDelegateProjection struct {
 	items        map[string]transcript.Item
 }
 
-func newNativeDelegateProjection() *nativeDelegateProjection {
-	return &nativeDelegateProjection{
+func newDelegateProjection() *delegateProjection {
+	return &delegateProjection{
 		reservations: make(map[string]runs.ChildRunStartReservation),
 		outcomes:     make(map[string]runs.ChildRunStartOutcome),
 		runs:         make(map[string]transcript.Run),
@@ -239,7 +239,7 @@ func newNativeDelegateProjection() *nativeDelegateProjection {
 	}
 }
 
-func (projection *nativeDelegateProjection) CommitOpening(
+func (projection *delegateProjection) CommitOpening(
 	_ context.Context,
 	opening runs.OpeningCommit,
 ) error {
@@ -253,7 +253,7 @@ func (projection *nativeDelegateProjection) CommitOpening(
 	return nil
 }
 
-func (projection *nativeDelegateProjection) ReserveChildRunStart(
+func (projection *delegateProjection) ReserveChildRunStart(
 	_ context.Context,
 	reservation runs.ChildRunStartReservation,
 ) error {
@@ -270,7 +270,7 @@ func (projection *nativeDelegateProjection) ReserveChildRunStart(
 	return nil
 }
 
-func (projection *nativeDelegateProjection) CommitStartedChildRun(
+func (projection *delegateProjection) CommitStartedChildRun(
 	_ context.Context,
 	reservation runs.ChildRunStartReservation,
 	opening runs.OpeningCommit,
@@ -293,7 +293,7 @@ func (projection *nativeDelegateProjection) CommitStartedChildRun(
 	return nil
 }
 
-func (projection *nativeDelegateProjection) AbortChildRunStart(
+func (projection *delegateProjection) AbortChildRunStart(
 	_ context.Context,
 	reservation runs.ChildRunStartReservation,
 ) error {
@@ -310,7 +310,7 @@ func (projection *nativeDelegateProjection) AbortChildRunStart(
 	return nil
 }
 
-func (projection *nativeDelegateProjection) CommitEvent(
+func (projection *delegateProjection) CommitEvent(
 	_ context.Context,
 	commit runs.EventCommit,
 ) error {
@@ -323,7 +323,7 @@ func (projection *nativeDelegateProjection) CommitEvent(
 	return nil
 }
 
-func (projection *nativeDelegateProjection) CommitTreeBarrier(
+func (projection *delegateProjection) CommitTreeBarrier(
 	_ context.Context,
 	barrier runs.TreeBarrierCommit,
 ) error {
@@ -339,7 +339,7 @@ func (projection *nativeDelegateProjection) CommitTreeBarrier(
 	return nil
 }
 
-func (projection *nativeDelegateProjection) ReadWaitingCheckpoint(
+func (projection *delegateProjection) ReadWaitingCheckpoint(
 	_ context.Context,
 	rootMemberID string,
 ) (runs.ExecutorCheckpoint, error) {
@@ -354,11 +354,11 @@ func (projection *nativeDelegateProjection) ReadWaitingCheckpoint(
 	return runs.ExecutorCheckpoint{}, runs.ErrExecutorCheckpointNotFound
 }
 
-func (*nativeDelegateProjection) Nudge(string, []string) {}
+func (*delegateProjection) Nudge(string, []string) {}
 
-func (*nativeDelegateProjection) Finish(context.Context, runs.Finish) error { return nil }
+func (*delegateProjection) Finish(context.Context, runs.Finish) error { return nil }
 
-func (projection *nativeDelegateProjection) Run(
+func (projection *delegateProjection) Run(
 	_ context.Context,
 	runID string,
 ) (transcript.Run, bool, error) {
@@ -368,7 +368,7 @@ func (projection *nativeDelegateProjection) Run(
 	return value, found, nil
 }
 
-func (projection *nativeDelegateProjection) Tree(
+func (projection *delegateProjection) Tree(
 	_ context.Context,
 	runID string,
 ) ([]transcript.Run, error) {
@@ -391,7 +391,7 @@ func (projection *nativeDelegateProjection) Tree(
 	return result, nil
 }
 
-func (projection *nativeDelegateProjection) Item(
+func (projection *delegateProjection) Item(
 	_ context.Context,
 	itemID string,
 ) (transcript.Item, bool, error) {
@@ -401,7 +401,7 @@ func (projection *nativeDelegateProjection) Item(
 	return value, found, nil
 }
 
-func (projection *nativeDelegateProjection) applyOpening(opening runs.OpeningCommit) {
+func (projection *delegateProjection) applyOpening(opening runs.OpeningCommit) {
 	if opening.Admit != nil {
 		draft := opening.Admit
 		projection.runs[draft.RunID] = transcript.Run{
@@ -419,7 +419,7 @@ func (projection *nativeDelegateProjection) applyOpening(opening runs.OpeningCom
 	}
 }
 
-func (projection *nativeDelegateProjection) applyCommit(commit runs.EventCommit) {
+func (projection *delegateProjection) applyCommit(commit runs.EventCommit) {
 	for _, item := range commit.Items {
 		projection.items[item.ID] = item
 	}

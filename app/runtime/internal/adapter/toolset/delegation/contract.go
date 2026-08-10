@@ -6,8 +6,8 @@ import (
 )
 
 // Description is the one model-facing meaning of delegate_task across executor
-// strategies. Keeping it with Input prevents old and native adapters from
-// teaching the model different semantics for the same Tool name.
+// strategies. Keeping it with Input prevents execution adapters from teaching
+// the model different semantics for the same Tool name.
 const Description = "Delegate one self-contained task to a fresh Agent with coding tools and bounded delegation. " +
 	"Use it for focused, separable work so the current context stays uncluttered. " +
 	"The delegated Agent starts with clean context and cannot see its parent conversation, so include everything it needs in instructions. " +

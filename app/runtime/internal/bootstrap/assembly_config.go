@@ -20,7 +20,7 @@ import (
 )
 
 // Config is the construction-time bundle for [NewAssembly]. It contains Host
-// capabilities and application adapters only; Bootstrap derives the native
+// capabilities and application adapters only; Bootstrap derives the
 // Agent Framework executor configuration so no second source of Runtime facts exists.
 type Config struct {
 	// BuildID identifies the running executable at durable executor boundaries.
@@ -100,7 +100,7 @@ type Config struct {
 	// SessionStore persists Lyra sessions. Required; the composition root injects
 	// the sqlite-backed store (tests use a sqlite :memory: DB) and threads it to
 	// the consumers that each hold their own narrow session port — the sessions
-	// coordinator, the Session title generator, and the sub-agent spawn adapter. The
+	// coordinator, the Session title generator, and the child-Run admission adapter. The
 	// concrete type is named here because persistence is single-backend and this
 	// is the composition ring (see doc/ARCHITECTURE.md).
 	SessionStore *sqlitestore.SessionStore
@@ -113,7 +113,7 @@ type Config struct {
 	// would violate the restart-safe admission invariant.
 	RunStore *sqlitestore.RunStore
 
-	// Invocation journals and child-start reservations close the native
+	// Invocation journals and child-start reservations close the
 	// executor's durable side-effect and admission boundaries. Required.
 	ModelInvocationStore *sqlitestore.ModelInvocationStore
 	ToolInvocationStore  *sqlitestore.ToolInvocationStore

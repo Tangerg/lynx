@@ -590,7 +590,7 @@ func (session *interactionSession) beginContinuation(allowedInterrupts []interru
 	}
 	if session.boundary != interactionBoundaryContinuationStaged || !session.observerWasAttached ||
 		!isInteractionWaitingBoundary(session.process.Status()) {
-		return errors.New("agentexec: native Interaction continuation was not staged and observed")
+		return errors.New("agentexec: Interaction continuation was not staged and observed")
 	}
 	if !slices.Equal(session.start.InterruptKinds, allowedInterrupts) {
 		return errors.New("agentexec: continuation capabilities differ from the staged Interaction")
@@ -778,18 +778,18 @@ func (session *interactionSession) publishResult(result agent.Result) error {
 	if result.Status() == agent.StatusCompleted {
 		erased, ok := result.Output()
 		if !ok {
-			return errors.New("completed native Interaction has no output")
+			return errors.New("agentexec: completed Interaction has no output")
 		}
 		output, err := agent.DecodeOutput[interaction.Output](erased)
 		if err != nil {
-			return fmt.Errorf("decode native Interaction output: %w", err)
+			return fmt.Errorf("decode Interaction output: %w", err)
 		}
 		if output.Source != interaction.CompletionSourceModelResponse || output.ModelResponse == nil {
-			return fmt.Errorf("unsupported native Interaction completion source %q", output.Source)
+			return fmt.Errorf("unsupported Interaction completion source %q", output.Source)
 		}
 		choice := output.ModelResponse.First()
 		if choice == nil || choice.Message == nil {
-			return errors.New("native Interaction output has no assistant message")
+			return errors.New("agentexec: Interaction output has no assistant message")
 		}
 		if !session.send(runs.ExecutorEvent{
 			Member: member, Payload: runs.AssistantMessageCompleted{Message: choice.Message.Clone()},
@@ -856,7 +856,7 @@ func (session *interactionSession) release(ctx context.Context) error {
 	}
 	if process != nil && !finished {
 		if err := process.Kill(ctx, interactionReleaseReason); err != nil && !errors.Is(err, agent.ErrProcessFinished) {
-			return fmt.Errorf("agentexec: kill native Interaction execution: %w", err)
+			return fmt.Errorf("agentexec: kill Interaction execution: %w", err)
 		}
 	}
 	select {

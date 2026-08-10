@@ -197,7 +197,7 @@ func TestDeleteSession_CancelsParkedTurn(t *testing.T) {
 		"run_parked",
 		id,
 		"exec_parked",
-		"process_parked",
+		"member_parked",
 		nil,
 		time.Now().UTC(),
 	)); err != nil {

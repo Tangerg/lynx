@@ -4,7 +4,7 @@ import "database/sql"
 
 // SessionStore is the SQLite-backed session persistence surface — the single
 // implementation each consumer's narrow session port (the sessions coordinator's
-// lifecycle surface, the run-segment titler, the sub-agent spawn store) binds to.
+// lifecycle surface, the run-segment titler, the child-Run admission store) binds to.
 // Mutations are single-row INSERT / UPDATE / DELETE, so each operation is
 // atomic on its own — no multi-step rollback handling needed.
 //

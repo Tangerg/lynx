@@ -79,7 +79,7 @@ TypeScript generated files 是派生制品，不单独定义语义。它们必�
 - checkpoint replacement 只能推进 frozen identity/limits 和 monotonic usage；
 - terminalization 与 checkpoint deletion 由 Application write-set 原子决定。
 
-P7 延续的 native payload baseline 是 Agent Framework TreeSnapshot v4 本身，不再包一层 Runtime 自创 payload version。Agent Framework public parser 校验 snapshot version/shape，exact DeploymentRef 校验策略实现与配置，Host BuildID 校验当前二进制/adapter expectation；任一不一致都 fail closed。Host envelope 的技术 codec 仍由 Runtime 当前唯一 SQLite epoch 拥有。
+P7 延续的 continuation payload baseline 是 Agent Framework TreeSnapshot v4 本身，不再包一层 Runtime 自创 payload version。Agent Framework public parser 校验 snapshot version/shape，exact DeploymentRef 校验策略实现与配置，Host BuildID 校验当前二进制/adapter expectation；任一不一致都 fail closed。Host envelope 的技术 codec 仍由 Runtime 当前唯一 SQLite epoch 拥有。
 
 ### 3.3 Artifact 与 Transcript
 
@@ -154,7 +154,7 @@ P8 已冻结 authoritative model/tool 合同：executor producer 只能通过同
 
 P8 已冻结 continuation 合同：`WaitingExecutionContinuer.StageContinuation` 只 stage 一棵 exact live waiting tree，或按 opaque TreeSnapshot + exact Deployment/BuildID/Host scope 恢复；它不读取 Conversation，也不重算 WorkingContext。Application 先原子记录 exact answers、隐藏 interrupt row 并删除旧 checkpoint，再 stage/restore；next-Segment opening transaction 必须证明 durable `resuming` claim，成功后 `BeginContinuation` 才投递 WaitID-addressed semantic Signal。claim 后到下一 quiescent checkpoint 前没有 fallback recovery point，crash/boot recovery 一律 `RunLost`。
 
-Product Interrupt/prompt/answer 使用 framework-neutral strict codec；native `interactioninput` ACL 是唯一把它映射到 Agent Framework pending-input/Signal 的 owner。旧 private suspension adapter 已删除。真实 Runtime `ask_user`、interactive approval、deferred advertisement restore 与 steer 均走唯一生产路径。
+Product Interrupt/prompt/answer 使用 framework-neutral strict codec；`interactioninput` ACL 是唯一把它映射到 Agent Framework pending-input/Signal 的 owner。旧 private suspension adapter 已删除。真实 Runtime `ask_user`、interactive approval、deferred advertisement restore 与 steer 均走唯一生产路径。
 
 P8 已冻结 child/subtree 合同：Delegate ToolCall authoritative commit 先于不可见 child start reservation；Agent Framework conclusive started 后才公开 child Run，aborted 只闭合 reservation。多 child、嵌套 child与乱序 sibling completion 使用稳定 parent/model-call/tool-index 因果顺序；恢复归因只调用 Interaction owner 的 typed inspector。waiting child cancellation 执行 prepare → application transaction → contextless Apply/Discard；移除最后边界时，Apply 只安装 resulting state，独立 Continue 才激活已提交 Segment。Apply 异常先释放旧 owner并由 `WaitingExecutionRestorer` 从 committed resulting checkpoint 精确恢复，恢复失败才 RunLost。
 
@@ -208,7 +208,7 @@ P2–P10 已建立：
 
 - protocol artifact digest/drift test，以及 canonical sample 同类型 strict `ValidateWire` gate；
 - SQLite schema epoch 和 prior-version rejection test；
-- checkpoint envelope strict codec、size、copy、round-trip 和 prior-version rejection（P6 已覆盖 native TreeSnapshot parser、copy、corrupt/wrong-build/deployment；P8 随 production owner 收口剩余 envelope guard）；
+- checkpoint envelope strict codec、size、copy、round-trip 和 prior-version rejection（P6 已覆盖 Agent Framework TreeSnapshot parser、copy、corrupt/wrong-build/deployment；P8 随 production owner 收口剩余 envelope guard）；
 - Agent Framework type/name leakage AST guard；
 - no `component/common/core/utils` package guard（P9 已建立准确 shared-capability purity allowlist）；
 - no alias/dual codec/legacy path guard；

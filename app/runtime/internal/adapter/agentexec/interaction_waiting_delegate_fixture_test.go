@@ -23,7 +23,7 @@ type waitingDelegateFixture struct {
 	model       *waitingDelegateModel
 	executor    *InteractionExecutor
 	coordinator *runs.Coordinator
-	projection  *nativeDelegateProjection
+	projection  *delegateProjection
 }
 
 func newWaitingDelegateFixture(t *testing.T, identity string) *waitingDelegateFixture {
@@ -57,16 +57,16 @@ func newWaitingDelegateFixture(t *testing.T, identity string) *waitingDelegateFi
 	}
 
 	workspace := t.TempDir()
-	sessions := &nativeDelegateSessionStore{value: session.Session{
+	sessions := &delegateSessionStore{value: session.Session{
 		ID: "session_1", Title: "waiting delegate", CWD: workspace,
 		StartedAt: time.Unix(1, 0).UTC(), UpdatedAt: time.Unix(1, 0).UTC(), Revision: 1,
 	}}
-	projection := newNativeDelegateProjection()
+	projection := newDelegateProjection()
 	runIDs := []string{"run_root", "run_child"}
 	segmentIDs := []string{"segment_root", "segment_child"}
 	coordinator := runs.NewCoordinator(runs.Dependencies{
 		RootStarts: executor, Observations: executor, Releases: executor,
-		Conversation: nativeDelegateConversation{},
+		Conversation: delegateConversation{},
 		Session:      runs.SessionPorts{Reader: sessions, Creator: sessions, ActiveRuns: sessions},
 		Projection: runs.ProjectionPorts{
 			Openings: projection, ChildStarts: projection, Events: projection,

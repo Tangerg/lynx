@@ -162,11 +162,11 @@ Entity 自己保护状态迁移和不变量。Application 不得通过一串 set
 - restore 必须重建 exact Deployment 集并验证 ref/digest；
 - snapshot 损坏、BuildID 不匹配或外部事实失效按明确产品 policy 失败，不猜测修复。
 - 初版不配置只接收单 Process Snapshot 的 `PreparedStepAcknowledger`；只有完整 quiescent TreeSnapshot 可以成为 durable recovery point；
-- native payload 直接使用 Agent Framework public TreeSnapshot，不创建 Runtime private tree wire、拼装 Process Snapshot 或第二 payload version；
+- continuation payload 直接使用 Agent Framework public TreeSnapshot，不创建 Runtime private tree wire、拼装 Process Snapshot 或第二 payload version；
 - answer claim 必须原子记录 exact answer、隐藏 `resuming` row 并删除旧 waiting recovery point。next-Segment opening 必须在同一事务中证明 durable claim，commit 后才允许提交 semantic Signal；
 - 进入 `resuming` 后直到新 quiescent checkpoint 提交，任何 crash 都不能回退旧 snapshot。pre-opening failure 必须先 durable `RunLost` 再 release；若 terminal write 失败，tree/claim 保持供 recovery 收口；
 - 下一 barrier 只能由同一 Session/executor/root-member owner 替换 `resuming` row；terminal/recovery 负责删除，普通查询不得把 answer audit 当 open input；
-- native input ACL 不 import、探测或 fallback 到旧 suspension。Product prompt/resolution codec 可以复用，Framework continuation/Signal owner 不可复用。
+- Interaction input ACL 不 import、探测或 fallback 到旧 suspension。Product prompt/resolution codec 可以复用，Framework continuation/Signal owner 不可复用。
 
 ### 4.4 Observation
 

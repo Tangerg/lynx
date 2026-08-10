@@ -118,7 +118,7 @@ func (session *interactionSession) restoreDelegateCalls(
 	deployments := session.deployments
 	session.mu.Unlock()
 	if deployments == nil {
-		return nil, nil, errors.New("native Interaction deployments are unavailable")
+		return nil, nil, errors.New("agentexec: Interaction deployments are unavailable")
 	}
 	calls := make(map[delegateCallIdentity]*managedDelegateCall)
 	children := make(map[agent.ProcessID]*managedDelegateCall)

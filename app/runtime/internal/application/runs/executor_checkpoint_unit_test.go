@@ -82,7 +82,7 @@ func TestExecutorCheckpointCloneOwnsMutableData(t *testing.T) {
 
 func TestExecutorCheckpointValidatesCrossAggregateOwnership(t *testing.T) {
 	checkpoint := ExecutorCheckpoint{
-		RootMemberID: "process-root",
+		RootMemberID: "member-root",
 		Payload:      []byte("opaque"),
 		BuildID:      "build",
 		Scope: ExecutionScope{
@@ -93,7 +93,7 @@ func TestExecutorCheckpointValidatesCrossAggregateOwnership(t *testing.T) {
 		ModelSelection: checkpointSelection(t, "anthropic", "claude"),
 	}
 	expected := ExecutorCheckpointExpectation{
-		RootMemberID:   "process-root",
+		RootMemberID:   "member-root",
 		SessionID:      "session-1",
 		CWD:            "/scratch/project",
 		WorkspaceCWD:   "/workspace/project",

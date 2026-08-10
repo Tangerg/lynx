@@ -18,10 +18,10 @@ func (executor *InteractionExecutor) CanResumeCheckpoint(
 	expected runs.ExecutorCheckpointExpectation,
 ) (bool, error) {
 	if executor == nil {
-		return false, errors.New("agentexec: native Interaction executor is nil")
+		return false, errors.New("agentexec: Interaction executor is nil")
 	}
 	if executor.config.Checkpoints == nil {
-		return false, errors.New("agentexec: native Interaction checkpoint reader is unavailable")
+		return false, errors.New("agentexec: Interaction checkpoint reader is unavailable")
 	}
 	checkpoint, err := executor.config.Checkpoints.LoadCheckpoint(ctx, expected.RootMemberID)
 	if err != nil {

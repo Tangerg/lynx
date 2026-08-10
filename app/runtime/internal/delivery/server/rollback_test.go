@@ -131,7 +131,7 @@ func TestRollbackSession_CancelsDroppedParkedRun(t *testing.T) {
 		"run_2",
 		sess.ID,
 		"exec_parked",
-		"process_run_2",
+		"member_run_2",
 		nil,
 		time.Now().UTC(),
 	)); err != nil {

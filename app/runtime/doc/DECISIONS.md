@@ -306,11 +306,11 @@
 - 决策：canonical Tool batch 任一写失败，speculative completion 全部丢弃，started journal 保留；outer Dispatcher 将整个 Effect 标为 unknown，Application 原子提交 incomplete Items 与 `RunLost`。稳定 Runtime call identity、provider source-call identity和模型位置分别保存，不能互相解析或替代。
 - 后果：Transcript insertion order 重新只表达产品语义；并发 Tool 不需要全局串行化。SQLite shape 直接提升到 epoch 61，无 migration、dual journal 或兼容列；P8 已冻结相关 consumer port，不能重新合并 operational 与 semantic truth。
 
-## ADR-RT-048：Native waiting 只经 Interaction pending-input ACL，不兼容解释旧 suspension
+## ADR-RT-048：Interaction waiting 只经 pending-input ACL，不兼容解释旧 suspension
 
 - 状态：已接受，P6 已实施；codec 的物理拆包决定由 ADR-RT-051 取代。
-- 背景：产品 ask-user、approval 和 plan-exit 共享 `runs.Interrupt` 语义，但旧生产 owner 使用 old Agent suspension。若 native Interaction 复用旧 package、双读 old private JSON，或让 Toolset import Agent Framework，就会把迁移兼容性变成新的永久边界。
-- 决策：framework-neutral `interruptcodec` 只编码产品 prompt/resolution；`interactioninput` 是唯一 Agent Framework ACL，负责 capability freeze、Tool continuation state digest、public pending input 和 response Signal。旧 private suspension adapter 已在 P8 删除；Toolset 通过 `runs.InterruptFunc` 注入 native capability，保持对 Framework 零依赖。
+- 背景：产品 ask-user、approval 和 plan-exit 共享 `runs.Interrupt` 语义，但旧生产 owner 使用 old Agent suspension。若 Interaction 复用旧 package、双读 old private JSON，或让 Toolset import Agent Framework，就会把迁移兼容性变成新的永久边界。
+- 决策：framework-neutral `interruptcodec` 只编码产品 prompt/resolution；`interactioninput` 是唯一 Agent Framework ACL，负责 capability freeze、Tool continuation state digest、public pending input 和 response Signal。旧 private suspension adapter 已在 P8 删除；Toolset 通过 `runs.InterruptFunc` 注入 pending-input capability，保持对 Framework 零依赖。
 - 决策：Interactive approval 首次进入时冻结 effective arguments、policy prompt 与 logical call identity；restore 直接解析该 prompt 并 resolve，不能重跑 pre-hook/authorization plan。Interaction 自己的 deferred advertisement 留在 TreeSnapshot 内，Runtime 不建第二份 advertised-tool 状态。
 - 后果：真实 `ask_user`、approval restore、deferred advertisement、corrupt prompt/state 与 capability mismatch 可分别测试；生产切换未迁移产品 Interrupt 或 Tool schema。
 

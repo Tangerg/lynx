@@ -15,23 +15,23 @@ func (session *interactionSession) admitProcess(
 	admission agent.ProcessAdmission,
 ) error {
 	if !admission.Valid() {
-		return errors.New("agentexec: native Interaction received an invalid Process admission")
+		return errors.New("agentexec: Interaction received an invalid Process admission")
 	}
 	relation := admission.Relation()
 	session.mu.Lock()
 	deployments := session.deployments
 	session.mu.Unlock()
 	if deployments == nil {
-		return errors.New("agentexec: native Interaction deployments are unavailable")
+		return errors.New("agentexec: Interaction deployments are unavailable")
 	}
 	if relation.IsRoot() {
 		if admission.DeploymentRef() != deployments.root.DeploymentRef() {
-			return errors.New("agentexec: native Interaction root admission changed Deployment")
+			return errors.New("agentexec: Interaction root admission changed Deployment")
 		}
 		session.mu.Lock()
 		defer session.mu.Unlock()
 		if session.admittedProcessID.Valid() && session.admittedProcessID != relation.ProcessID() {
-			return errors.New("agentexec: native Interaction root admission identity changed")
+			return errors.New("agentexec: Interaction root admission identity changed")
 		}
 		session.admittedProcessID = relation.ProcessID()
 		return nil
@@ -116,13 +116,13 @@ func (session *interactionSession) acknowledgeProcessStartOutcome(
 	outcome agent.ProcessStartOutcome,
 ) error {
 	if !outcome.Valid() {
-		return errors.New("agentexec: native Interaction received an invalid Process start outcome")
+		return errors.New("agentexec: Interaction received an invalid Process start outcome")
 	}
 	admission := outcome.Admission()
 	relation := admission.Relation()
 	if relation.IsRoot() {
 		if outcome.Status() != agent.ProcessStartOutcomeStatusStarted {
-			return errors.New("agentexec: accepted native Interaction root aborted during initialization")
+			return errors.New("agentexec: accepted Interaction root aborted during initialization")
 		}
 		return nil
 	}

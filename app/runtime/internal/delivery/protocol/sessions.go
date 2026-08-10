@@ -91,7 +91,7 @@ type ForkSessionRequest struct {
 
 // RollbackSessionRequest — sessions.rollback body (AUX_API §4.1). ToRunID is
 // inclusive-keep: the last ROOT run to keep, everything after it is dropped
-// (its continuation chain + subagent subtree + dangling interrupts go too).
+// (its continuation chain + child-Run subtree + dangling interrupts go too).
 // Omit ToRunID to drop every run and return to an empty session ("edit the
 // first message"). A non-root / continuation ToRunID is invalid_params.
 type RollbackSessionRequest struct {

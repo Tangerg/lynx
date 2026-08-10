@@ -284,6 +284,9 @@ func TestRetiredRuntimeVocabularyDoesNotReturn(t *testing.T) {
 		filepath.Join(root, "internal", "infra", "mcp"): {
 			"target", "dialFailure", "dialFailureKind", "dialFailureNeedsAuth",
 		},
+		filepath.Join(root, "internal", "infra", "llm"): {
+			"providerInfo", "providerEntry", "embeddingProviderInfo", "embeddingEntry",
+		},
 		filepath.Join(root, "internal", "delivery", "transport", "http"):      {"observability", "messageHandler"},
 		filepath.Join(root, "internal", "delivery", "transport", "inprocess"): {"messageHandler"},
 		filepath.Join(root, "internal", "shutdown"):                           {"attempt"},
@@ -293,6 +296,44 @@ func TestRetiredRuntimeVocabularyDoesNotReturn(t *testing.T) {
 			banned[name] = reason
 		}
 		forbidTopLevelNames(t, path, banned)
+	}
+}
+
+// TestOpaqueExecutorCheckpointConsumersDoNotModelFrameworkTrees keeps every
+// checkpoint consumer outside agentexec byte-oriented. Runsegment and Bootstrap
+// may bind, save, replace, or delete the opaque envelope, but tree shape and
+// snapshot parsing remain exclusively in the Agent Framework ACL.
+func TestOpaqueExecutorCheckpointConsumersDoNotModelFrameworkTrees(t *testing.T) {
+	root := moduleRoot(t)
+	for _, dir := range []string{
+		filepath.Join(root, "internal", "adapter", "runsegment"),
+		filepath.Join(root, "internal", "bootstrap"),
+	} {
+		walkErr := filepath.WalkDir(dir, func(path string, entry fs.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+			if entry.IsDir() || !strings.HasSuffix(path, ".go") {
+				return nil
+			}
+			source, err := os.ReadFile(path)
+			if err != nil {
+				return err
+			}
+			for _, forbidden := range []string{
+				"TreeSnapshot", "ProcessSnapshot", "ProcessSnapshots(", "ParseTreeSnapshot(",
+				`json:"root_id"`, `json:"snapshots"`,
+			} {
+				if strings.Contains(string(source), forbidden) {
+					relative, _ := filepath.Rel(root, path)
+					t.Errorf("%s models opaque Agent Framework checkpoint state with %q", relative, forbidden)
+				}
+			}
+			return nil
+		})
+		if walkErr != nil {
+			t.Fatalf("scan opaque executor checkpoint consumers: %v", walkErr)
+		}
 	}
 }
 
@@ -1512,9 +1553,9 @@ func assertCanonicalExecutionRecordSource(t *testing.T, root, path string, file 
 }
 
 // TestRuntimeInterruptValuesStayWireFree keeps the application interrupt plan
-// and the domain resume decision free of the JSON shape used by persisted agent
-// suspensions. The agent adapter owns that codec; these values retain only
-// business vocabulary.
+// and the domain resume decision free of Agent Framework pending-input and
+// Signal wire. The interactioninput ACL owns that translation; these values
+// retain only product vocabulary.
 func TestRuntimeInterruptValuesStayWireFree(t *testing.T) {
 	root := moduleRoot(t)
 	paths := []string{

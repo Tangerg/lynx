@@ -23,7 +23,7 @@ import (
 // TestProtocolLifecycleSurvivesColdRestart is the protocol conformance smoke
 // test over the real composition root and a fresh SQLite store. It deliberately
 // crosses every control boundary that is easy to make locally correct while
-// breaking as a whole: start, structured steer, wait, resume, cancel, process
+// breaking as a whole: start, structured steer, wait, resume, cancel, runtime
 // shutdown, startup recovery, and cold reads.
 func TestProtocolLifecycleSurvivesColdRestart(t *testing.T) {
 	fixture := newProtocolLifecycleFixture(t)

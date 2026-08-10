@@ -1463,7 +1463,7 @@ func requireNoRunEventsAfter(t *testing.T, eventJournal *journal, cursor, runID 
 }
 
 func TestCancelRunningChildCommitsExactSubtreeBoundaryAndKeepsRootRunning(t *testing.T) {
-	childRequest, childConfirmation := newNativeChildStartFixture(time.Now().UTC())
+	childRequest, childConfirmation := newChildStartFixture(time.Now().UTC())
 	rootMember := ExecutorMember{MemberID: "member_root"}
 	childMember := ExecutorMember{
 		MemberID:    "member_child",

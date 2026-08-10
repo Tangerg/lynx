@@ -181,7 +181,7 @@ func TestResumeRunRefusesACallerThatCannotFollowTheRun(t *testing.T) {
 		"run_1",
 		sess.ID,
 		"exec_parked",
-		"process_parked",
+		"member_parked",
 		[]transcript.Interrupt{{
 			ItemID:   "item_1",
 			Kind:     interrupt.Approval,

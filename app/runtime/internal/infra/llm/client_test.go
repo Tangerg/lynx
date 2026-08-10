@@ -12,16 +12,16 @@ import (
 	"github.com/Tangerg/lynx/models/deepseek"
 )
 
-// TestProviderTable_Invariants holds the data-driven table to its contract:
+// TestChatProviderCatalogSatisfiesConstructionContract holds the static catalog to its contract:
 // every row builds, names a key env var, and the no-built-in-endpoint rows
 // (the generic passthroughs + Azure) are flagged requiresBaseURL.
-func TestProviderTable_Invariants(t *testing.T) {
-	for p, e := range providerInfo {
-		if e.build == nil {
-			t.Errorf("provider %q: nil build func", p)
+func TestChatProviderCatalogSatisfiesConstructionContract(t *testing.T) {
+	for provider, profile := range chatProviderCatalog {
+		if profile.build == nil {
+			t.Errorf("provider %q: nil build func", provider)
 		}
-		if e.apiKeyEnv == "" {
-			t.Errorf("provider %q: empty apiKeyEnv", p)
+		if profile.apiKeyEnv == "" {
+			t.Errorf("provider %q: empty apiKeyEnv", provider)
 		}
 	}
 
