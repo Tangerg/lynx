@@ -16,6 +16,8 @@ import (
 	"sync"
 )
 
+var errScopeClosed = errors.New("extensions: plugin scope is closed")
+
 // Keying says whether a point has one contribution per stable key or permits
 // multiple independent contributions.
 type Keying uint8
@@ -108,11 +110,15 @@ func (d *disposal) Dispose() error {
 
 // Scope is the capability a plugin receives during setup. It owns every
 // disposable created through Contribute, enabling exact rollback and unload.
+// The scope is sealed when setup returns; plugins cannot attach ownership to a
+// completed or rolling-back installation transaction.
 type Scope struct {
+	mu           sync.Mutex
 	plugin       string
 	registry     *Registry
 	capabilities map[Capability]struct{}
 	disposables  []Disposable
+	open         bool
 }
 
 // OnDispose binds a plugin-owned side effect to rollback, unload, and reload.
@@ -124,8 +130,20 @@ func (s *Scope) OnDispose(cleanup func() error) error {
 	if cleanup == nil {
 		return errors.New("extensions: cleanup is required")
 	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if !s.open {
+		return errScopeClosed
+	}
 	s.disposables = append(s.disposables, &disposal{do: cleanup})
 	return nil
+}
+
+func (s *Scope) seal() []Disposable {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.open = false
+	return slices.Clone(s.disposables)
 }
 
 // Plugin is one cohesive set of contributions.
@@ -196,15 +214,18 @@ func Load(registry *Registry, plugin Plugin) (*Loaded, error) {
 		plugin: plugin.ID, registry: registry,
 		capabilities: capabilitySet(plugin),
 		disposables:  []Disposable{release},
+		open:         true,
 	}
-	if err := setupSafely(plugin.Setup, scope); err != nil {
-		loaded := &Loaded{disposables: scope.disposables}
+	setupErr := setupSafely(plugin.Setup, scope)
+	disposables := scope.seal()
+	if setupErr != nil {
+		loaded := &Loaded{disposables: disposables}
 		if rollbackErr := loaded.Dispose(); rollbackErr != nil {
-			err = errors.Join(err, fmt.Errorf("rollback plugin %q: %w", plugin.ID, rollbackErr))
+			setupErr = errors.Join(setupErr, fmt.Errorf("rollback plugin %q: %w", plugin.ID, rollbackErr))
 		}
-		return nil, fmt.Errorf("load plugin %q: %w", plugin.ID, err)
+		return nil, fmt.Errorf("load plugin %q: %w", plugin.ID, setupErr)
 	}
-	return &Loaded{disposables: scope.disposables}, nil
+	return &Loaded{disposables: disposables}, nil
 }
 
 func setupSafely(setup func(*Scope) error, scope *Scope) (err error) {
@@ -251,11 +272,24 @@ func (r *Registry) claim(plugin string) (Disposable, error) {
 
 // Contribute adds a value to a point and makes its lifetime belong to scope.
 func Contribute[T any](scope *Scope, point Point[T], value T, options Contribution) (Disposable, error) {
-	if err := validateContributionScope(scope, point); err != nil {
+	if scope == nil || scope.registry == nil {
+		return nil, errors.New("extensions: plugin scope is required")
+	}
+	scope.mu.Lock()
+	err := validateContributionScope(scope, point)
+	scope.mu.Unlock()
+	if err != nil {
 		return nil, err
 	}
+	// keyOf belongs to the point owner and may execute arbitrary code. Run it
+	// without the scope lock, then recheck the transaction before committing.
 	key, err := contributionKey(point, value, options.Key)
 	if err != nil {
+		return nil, err
+	}
+	scope.mu.Lock()
+	defer scope.mu.Unlock()
+	if err := validateContributionScope(scope, point); err != nil {
 		return nil, err
 	}
 	key, sequence, err := insertContribution(scope.registry, scope.plugin, point, key, value, options.Order)
@@ -271,8 +305,8 @@ func Contribute[T any](scope *Scope, point Point[T], value T, options Contributi
 }
 
 func validateContributionScope[T any](scope *Scope, point Point[T]) error {
-	if scope == nil || scope.registry == nil {
-		return errors.New("extensions: plugin scope is required")
+	if !scope.open {
+		return errScopeClosed
 	}
 	if strings.TrimSpace(point.id) == "" {
 		return errors.New("extensions: point id is required")

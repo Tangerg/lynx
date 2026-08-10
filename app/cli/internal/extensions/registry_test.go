@@ -123,3 +123,27 @@ func TestPluginMustUnloadBeforeItCanReload(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestScopeRejectsOwnershipAfterSetupReturns(t *testing.T) {
+	point := NewMultiPoint[string]("test.late")
+	registry := new(Registry)
+	var retained *Scope
+	loaded, err := Load(registry, manifest("late", func(scope *Scope) error {
+		retained = scope
+		return nil
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer loaded.Dispose()
+
+	if _, err := Contribute(retained, point, "late", Contribution{}); !errors.Is(err, errScopeClosed) {
+		t.Fatalf("late contribution error = %v, want scope closed", err)
+	}
+	if err := retained.OnDispose(func() error { return nil }); !errors.Is(err, errScopeClosed) {
+		t.Fatalf("late cleanup error = %v, want scope closed", err)
+	}
+	if values := Values(registry, point); len(values) != 0 {
+		t.Fatalf("closed scope registered values: %v", values)
+	}
+}
