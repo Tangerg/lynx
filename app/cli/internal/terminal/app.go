@@ -414,3 +414,11 @@ func (a *app) submit() {
 	a.completion.Dismiss()
 	a.start(message)
 }
+
+func (a *app) message(label string) {
+	if a.state.Phase() == client.Running {
+		a.status.active(label)
+		return
+	}
+	a.status.note(label)
+}
