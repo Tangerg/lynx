@@ -58,17 +58,20 @@ func runUIWithWorkspace(t *testing.T, backend client.Runtime, workspace string, 
 
 type delayedFirstRuntime struct {
 	*mock.Runtime
+
 	starts atomic.Int32
 }
 
 type recordingRuntime struct {
 	*mock.Runtime
+
 	mu   sync.Mutex
 	last client.StartRun
 }
 
 type ambiguousControlRuntime struct {
 	*mock.Runtime
+
 	mu      sync.Mutex
 	starts  int
 	resumes int
@@ -76,6 +79,7 @@ type ambiguousControlRuntime struct {
 
 type blockingSessionChangeRuntime struct {
 	*mock.Runtime
+
 	creates atomic.Int32
 	starts  atomic.Int32
 
@@ -87,6 +91,7 @@ type blockingSessionChangeRuntime struct {
 
 type lostStartRuntime struct {
 	*mock.Runtime
+
 	mu           sync.Mutex
 	sessionID    string
 	canceled     chan struct{}

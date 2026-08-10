@@ -175,6 +175,7 @@ func TestRunRecoversTransportFaultsWithoutRenderingDuplicates(t *testing.T) {
 
 type ambiguousControls struct {
 	*mock.Runtime
+
 	mu          sync.Mutex
 	starts      int
 	resumes     int
@@ -184,6 +185,7 @@ type ambiguousControls struct {
 
 type delayedStartResponse struct {
 	*mock.Runtime
+
 	accepted chan struct{}
 }
 
@@ -212,6 +214,7 @@ func (r *lostStartResponses) StartRun(ctx context.Context, input client.StartRun
 
 type invalidLifecycleRuntime struct {
 	*mock.Runtime
+
 	sessionID string
 }
 

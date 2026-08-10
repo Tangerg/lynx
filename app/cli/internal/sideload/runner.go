@@ -150,6 +150,7 @@ func decodeCommandResponse(pluginID, command string, output []byte) (terminal.Co
 
 type cappedBuffer struct {
 	bytes.Buffer
+
 	limit    int
 	overflow bool
 }
