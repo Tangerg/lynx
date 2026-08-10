@@ -34,6 +34,7 @@
 
 | 文档 | 地位 |
 |---|---|
+| [DOMAIN_MODEL.md](DOMAIN_MODEL.md) | Domain 行为所有权专项设计：贫血模型诊断、Run/Transcript/Plan/Session 目标边界、实施顺序与验收；实施进度仍只进入 Execution Plan |
 | [TOOL_SYSTEM.md](TOOL_SYSTEM.md) | 当前工具体系的唯一模型工具词汇、schema、能力删除和工具专项实施事实；架构文档只引用其 Tool/Agent 边界，不复制工具目录 |
 
 ## D. 外部参考

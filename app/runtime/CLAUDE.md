@@ -13,6 +13,8 @@
 
 六份文档各有唯一 owner。不要把进度写进架构、把目标复制到能力台账、把当前内部 API 冒充已冻结基线，或在没有 superseding ADR 时静默改写既有裁决。
 
+涉及 Domain 行为所有权、Run/Transcript 边界、Plan 或 Session 充血模型的专项设计与实施，还必须阅读 [`doc/DOMAIN_MODEL.md`](doc/DOMAIN_MODEL.md)。该文档不替代六份 owner；实施授权和进度仍只进入 Execution Plan。
+
 协议改动还必须阅读：
 
 - [`doc/API.md`](doc/API.md)；
