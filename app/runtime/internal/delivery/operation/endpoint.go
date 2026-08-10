@@ -215,3 +215,48 @@ func Call[Params, Response any](
 	}
 	return value, nil
 }
+
+// CallStream restores the typed acknowledgement and event sequence declared by
+// a streaming catalog entry.
+func CallStream[Params, Ack, Event any](
+	ctx context.Context,
+	endpoint *Endpoint,
+	name string,
+	parameters Params,
+	options Options,
+) (Ack, iter.Seq2[Event, error], error) {
+	var zero Ack
+	result := endpoint.Invoke(ctx, name, parameters, options)
+	if result.Failure != nil {
+		return zero, nil, result.Failure
+	}
+	ack, ok := result.Value.(Ack)
+	if !ok {
+		return zero, nil, NewFailure(protocol.ErrInternalError, "the runtime produced an acknowledgement with an invalid type")
+	}
+	return ack, restoreEventType[Event](result.Events), nil
+}
+
+func restoreEventType[Event any](events iter.Seq2[any, error]) iter.Seq2[Event, error] {
+	if events == nil {
+		return nil
+	}
+	return func(yield func(Event, error) bool) {
+		for value, err := range events {
+			if err != nil {
+				var zero Event
+				yield(zero, err)
+				return
+			}
+			event, ok := value.(Event)
+			if !ok {
+				var zero Event
+				yield(zero, NewFailure(protocol.ErrInternalError, "the runtime produced an event with an invalid type"))
+				return
+			}
+			if !yield(event, nil) {
+				return
+			}
+		}
+	}
+}

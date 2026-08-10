@@ -15,7 +15,7 @@ API 定义 JSON-RPC 方法、资源、事件语义；transport 定义 message �
 | 客户端形态           | runtime 位置       | transport     | 状态                   |
 | -------------------- | ------------------ | ------------- | ---------------------- |
 | 桌面 / Web / CLI / TUI | 本地 runtime 进程 | HTTP loopback | 已实现                 |
-| Go host / CLI          | 同一进程           | public embedded binding | P19 实施中           |
+| Go host / CLI          | 同一进程           | public embedded binding | P19-05 已实现        |
 | 未来远程 facade      | facade 之后        | HTTP          | 同上，无需新 transport |
 
 网络 binding 是 streamable HTTP，暴露 request/response JSON-RPC、server→client 通知、显式取消和基于 event id 的流重连。P19 新增公共类型化 embedded binding；它不是 Transport 的第三种 envelope 实现，不搬运 JSON-RPC message，而是直接调用 HTTP 同源的 operation pipeline。此前的 `internal` in-process channel 原型继续保持删除。桌面外壳仍走 loopback HTTP；CLI 等真实 Go host 可以直接嵌入 Runtime。
