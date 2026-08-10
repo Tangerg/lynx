@@ -88,6 +88,21 @@ func TestToolKindsBuildSpecializedOolongBlocks(t *testing.T) {
 	}
 }
 
+func TestUpdatingARunningToolPreservesItsDetailChoice(t *testing.T) {
+	presentation := Presentation{Theme: kit.Dark(), Glyphs: kit.Unicode(), Syntax: highlight.Style("github-dark")}
+	running := client.ToolCall{Kind: client.ToolShell, Command: "go test ./...", Status: client.ToolRunning}
+	block := newToolBlock(presentation, client.Block{ID: "tool", Kind: client.BlockTool, Tool: &running})
+	block.ToggleExpanded()
+
+	completed := running
+	completed.Status = client.ToolOK
+	completed.Output = "ok"
+	block.Update(client.Block{ID: "tool", Kind: client.BlockTool, Tool: &completed})
+	if !block.Expanded() {
+		t.Fatal("tool completion discarded the reader's expanded state")
+	}
+}
+
 func requireToolBody(t *testing.T, body headless.Block, want string) {
 	t.Helper()
 	switch want {

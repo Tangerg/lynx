@@ -243,6 +243,29 @@ func TestMockConversationStreamsReviewsAndCompletes(t *testing.T) {
 	stop()
 }
 
+func TestShiftEnterInsertsANewlineWithoutSubmitting(t *testing.T) {
+	backend := &recordingRuntime{Runtime: mock.New()}
+	backend.Instant = true
+	backend.Script = func(string) mock.Script {
+		return mock.Script{Prelude: []mock.Step{{Event: client.RunFinished{Outcome: client.Outcome{Status: client.OutcomeCompleted}}}}}
+	}
+	host, stop := runUIWith(t, backend)
+	host.Shows(t, "Ask lyra")
+	host.Shows(t, "shift+enter")
+	host.Type("first line")
+	host.Send(input.Key{Code: input.Enter, Mods: input.Shift})
+	host.Type("second line")
+	host.Press(input.Enter)
+	host.Shows(t, "complete")
+
+	if got := backend.startInput().Message.Text; got != "first line\nsecond line" {
+		t.Fatalf("submitted text = %q, want a two-line prompt", got)
+	}
+
+	host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
+	stop()
+}
+
 func TestInteractiveRunRecoversTransportFaultsWithoutDuplicatingTranscript(t *testing.T) {
 	for _, fault := range []mock.FaultKind{mock.FaultDisconnect, mock.FaultDuplicate, mock.FaultGap} {
 		t.Run(string(fault), func(t *testing.T) {

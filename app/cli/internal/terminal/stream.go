@@ -30,6 +30,7 @@ func (a *app) start(message client.Message) {
 		a.fail(err)
 		return
 	}
+	a.transcript.Follow()
 	a.workflow.Reset()
 	a.status.active("starting run")
 	a.started = time.Now()

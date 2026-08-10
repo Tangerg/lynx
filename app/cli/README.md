@@ -19,6 +19,12 @@ go run . config show
 
 The interactive client supports session switching, search, attachments, approval questions, runtime-option pickers, tool details, plugin inspection, and plugin reload/unload. `lyra completion <bash|zsh|fish|powershell>` generates shell completion.
 
+Core terminal interactions are available from both the keyboard and mouse:
+
+- `Enter` sends a prompt; `Shift+Enter` or `Alt+Enter` inserts a newline.
+- `PageUp` and `PageDown` move through the live transcript; `Ctrl+Home` and `Ctrl+End` jump to its bounds. Scrolling up suspends bottom-following while output continues.
+- Click a tool-call header to expand or collapse that tool. `Ctrl+O` expands or collapses all tool details.
+
 ## Architecture
 
 The dependency direction follows clean architecture: product policy points inward; frameworks and transports stay at the edge.

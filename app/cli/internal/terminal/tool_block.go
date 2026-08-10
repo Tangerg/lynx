@@ -25,6 +25,8 @@ type mutableToolBlock interface {
 	headless.Block
 	Update(client.Block)
 	SetExpanded(bool)
+	Expanded() bool
+	ToggleExpanded() bool
 }
 
 type toolBlock struct {
@@ -62,6 +64,13 @@ func (t *toolBlock) Update(block client.Block) {
 }
 
 func (t *toolBlock) SetExpanded(expanded bool) { t.expanded = expanded }
+
+func (t *toolBlock) Expanded() bool { return t.expanded }
+
+func (t *toolBlock) ToggleExpanded() bool {
+	t.expanded = !t.expanded
+	return t.expanded
+}
 
 func (t *toolBlock) Measure(width int) int {
 	rows := 1

@@ -15,6 +15,7 @@ import (
 
 const (
 	ActionSend            = "send"
+	ActionNewline         = "newline"
 	ActionCancelRun       = "cancel-run"
 	ActionQuit            = "quit"
 	ActionCommandPalette  = "command-palette"
@@ -26,6 +27,10 @@ const (
 	ActionHistoryNext     = "history-next"
 	ActionNextMatch       = "next-match"
 	ActionPreviousMatch   = "previous-match"
+	ActionScrollPageUp    = "scroll-page-up"
+	ActionScrollPageDown  = "scroll-page-down"
+	ActionScrollTop       = "scroll-top"
+	ActionScrollBottom    = "scroll-bottom"
 )
 
 type Config struct {
@@ -62,6 +67,7 @@ func Default() Config {
 		UI:       UI{Mouse: true, Notifications: true, ToolDetails: false, TranscriptRetain: 24, ReconnectAttempts: 4},
 		Keys: map[string][]string{
 			ActionSend:            {"enter"},
+			ActionNewline:         {"shift+enter", "alt+enter"},
 			ActionCancelRun:       {"ctrl+x"},
 			ActionQuit:            {"ctrl+c"},
 			ActionCommandPalette:  {"ctrl+p"},
@@ -73,6 +79,10 @@ func Default() Config {
 			ActionHistoryNext:     {"alt+down"},
 			ActionNextMatch:       {"f3"},
 			ActionPreviousMatch:   {"shift+f3"},
+			ActionScrollPageUp:    {"pageup"},
+			ActionScrollPageDown:  {"pagedown"},
+			ActionScrollTop:       {"ctrl+home"},
+			ActionScrollBottom:    {"ctrl+end"},
 		},
 	}
 }

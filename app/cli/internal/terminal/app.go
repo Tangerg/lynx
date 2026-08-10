@@ -24,6 +24,7 @@ import (
 
 const (
 	sendPrompt      keymap.Action = settings.ActionSend
+	insertNewline   keymap.Action = settings.ActionNewline
 	cancelRun       keymap.Action = settings.ActionCancelRun
 	quitApp         keymap.Action = settings.ActionQuit
 	commandPalette  keymap.Action = settings.ActionCommandPalette
@@ -35,6 +36,10 @@ const (
 	historyNext     keymap.Action = settings.ActionHistoryNext
 	nextMatch       keymap.Action = settings.ActionNextMatch
 	previousMatch   keymap.Action = settings.ActionPreviousMatch
+	scrollPageUp    keymap.Action = settings.ActionScrollPageUp
+	scrollPageDown  keymap.Action = settings.ActionScrollPageDown
+	scrollTop       keymap.Action = settings.ActionScrollTop
+	scrollBottom    keymap.Action = settings.ActionScrollBottom
 )
 
 type app struct {
@@ -133,7 +138,7 @@ func newApp(loop *program.InlineRuntime, cfg appConfig) *app {
 	}
 	a.composer = kit.Composer{
 		Theme: theme, Prompt: glyphs.Marker + " ",
-		Hints: []keymap.Action{sendPrompt, cancelRun, showSessions, cycleMode, quitApp}, MaxRows: 6,
+		Hints: []keymap.Action{sendPrompt, insertNewline, cancelRun, showSessions, cycleMode, quitApp}, MaxRows: 6,
 	}
 	a.composer.Editor().Placeholder = "Ask lyra to inspect, explain, or change something"
 	a.composer.Editor().Keys = cfg.Keys
@@ -324,6 +329,11 @@ func (a *app) handleSessionAction(action keymap.Action) bool {
 	case previousMatch:
 		a.PreviousMatch()
 		return true
+	case scrollPageUp, scrollPageDown, scrollTop, scrollBottom:
+		if a.completion.Open() {
+			return false
+		}
+		return a.transcript.Scroll(action)
 	default:
 		return false
 	}

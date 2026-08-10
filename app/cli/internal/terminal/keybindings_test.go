@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Tangerg/oolong/components/headless"
 	"github.com/Tangerg/oolong/core/input"
 	"github.com/Tangerg/oolong/core/keymap"
 
@@ -27,6 +28,29 @@ func TestConfiguredKeysBindProductActions(t *testing.T) {
 	}
 	if got != showSessions {
 		t.Fatalf("sequence resolved to %q, want %q", got, showSessions)
+	}
+}
+
+func TestConfiguredKeysExposeMultilineAndTranscriptNavigation(t *testing.T) {
+	keys, err := configuredKeys(settings.Default())
+	if err != nil {
+		t.Fatal(err)
+	}
+	tests := []struct {
+		chord input.Chord
+		want  keymap.Action
+	}{
+		{chord: input.Chord{Code: input.Enter, Mods: input.Shift}, want: headless.InsertNewline},
+		{chord: input.Chord{Code: input.PageUp}, want: scrollPageUp},
+		{chord: input.Chord{Code: input.PageDown}, want: scrollPageDown},
+		{chord: input.Chord{Code: input.Home, Mods: input.Ctrl}, want: scrollTop},
+		{chord: input.Chord{Code: input.End, Mods: input.Ctrl}, want: scrollBottom},
+	}
+	for _, test := range tests {
+		got, ok := keys.Action(test.chord)
+		if !ok || got != test.want {
+			t.Errorf("binding %s = %q, %v; want %q", test.chord, got, ok, test.want)
+		}
 	}
 }
 

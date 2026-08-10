@@ -9,6 +9,7 @@ import (
 	"github.com/Tangerg/oolong/components/kit"
 	"github.com/Tangerg/oolong/core/grid"
 	"github.com/Tangerg/oolong/core/input"
+	"github.com/Tangerg/oolong/core/keymap"
 	"github.com/Tangerg/oolong/core/layout"
 	"github.com/Tangerg/oolong/core/text"
 	"github.com/Tangerg/oolong/highlight"
@@ -58,18 +59,32 @@ type trackedTool struct {
 }
 
 func (c *conversationView) ToggleDetails() {
-	c.details = !c.details
 	first := c.content.FirstBlock()
 	// #nosec G115 -- Transcript.Len is non-negative and cannot exceed the
 	// addressable in-memory slice backing the transcript.
 	end := first + headless.BlockID(c.content.Len())
+	expand, hasTool := false, false
 	for _, tracked := range c.toolViews {
-		tracked.block.SetExpanded(c.details)
-		if tracked.id >= first && tracked.id < end {
-			c.content.Changed(tracked.id)
+		if tracked.id < first || tracked.id >= end {
+			continue
+		}
+		hasTool = true
+		if !tracked.block.Expanded() {
+			expand = true
+			break
 		}
 	}
-	c.scroll.ToBottom()
+	if !hasTool {
+		expand = !c.details
+	}
+	c.details = expand
+	for _, tracked := range c.toolViews {
+		if tracked.id < first || tracked.id >= end {
+			continue
+		}
+		tracked.block.SetExpanded(c.details)
+		c.content.Changed(tracked.id)
+	}
 	c.refreshSearch()
 }
 
@@ -87,6 +102,7 @@ func newConversationView(theme kit.Theme, glyphs kit.Glyphs, wheel input.Wheel, 
 		search: headless.NewSearch(), current: -1, retain: max(retain, 4), details: details, tools: make(map[string]liveTool),
 	}
 	c.scroll.Wheel(wheel)
+	c.scroll.ToBottom()
 	c.sticky.MinHeight, c.sticky.Gap = 1, 1
 	c.view = kit.Transcript{
 		Content: &c.content, Scroll: &c.scroll, Selection: &c.selection,
@@ -100,7 +116,42 @@ func (c *conversationView) Draw(frame headless.Frame) {
 	c.view.Draw(frame)
 }
 
-func (c *conversationView) Handle(event input.Event) bool { return c.view.Handle(event) }
+func (c *conversationView) Handle(event input.Event) bool {
+	handled := c.view.Handle(event)
+	click, ok := event.(input.Mouse)
+	if !handled || !ok || click.Action != input.MouseDown || click.Button != input.ButtonLeft {
+		return handled
+	}
+	// Transcript owns the exact screen-to-content mapping, including sticky headers
+	// and the committed scroll frame. An accepted press leaves that canonical row in
+	// Selection; reading it avoids maintaining a second, eventually divergent hit test.
+	point, _ := c.selection.Range()
+	id, offset, onBlock := c.content.At(point.Row)
+	if !onBlock || offset != 0 {
+		return handled
+	}
+	for _, tracked := range c.toolViews {
+		if tracked.id != id {
+			continue
+		}
+		expanded := tracked.block.ToggleExpanded()
+		c.content.Changed(id)
+		c.selection.Clear()
+		if expanded {
+			if top, height, exists := c.content.Extent(id); exists {
+				start := c.content.StartRow()
+				c.scroll.RevealRange(top-start, top-start+height-1)
+			}
+		}
+		c.refreshSearch()
+		return true
+	}
+	return handled
+}
+
+func (c *conversationView) Follow() { c.scroll.ToBottom() }
+
+func (c *conversationView) Scroll(action keymap.Action) bool { return c.scroll.Do(action) }
 
 func (c *conversationView) Close() {
 	if c != nil && c.search != nil {
@@ -154,7 +205,6 @@ func (c *conversationView) delta(id, chunk string) error {
 	blocks = append(blocks, c.stream.Open()...)
 	c.open.doc.SetBlocks(blocks)
 	c.content.Changed(c.openID)
-	c.scroll.ToBottom()
 	c.refreshSearch()
 	return nil
 }
@@ -182,7 +232,6 @@ func (c *conversationView) completeStream(block client.Block) error {
 	c.stream.Reset()
 	clear(c.stable)
 	c.stable = c.stable[:0]
-	c.scroll.ToBottom()
 	c.refreshSearch()
 	return nil
 }
@@ -194,7 +243,6 @@ func (c *conversationView) completeLiveTool(block client.Block) bool {
 	}
 	for _, tracked := range live.blocks {
 		tracked.block.Update(block)
-		tracked.block.SetExpanded(c.details)
 		c.content.Changed(tracked.id)
 	}
 	for _, id := range live.ids {
@@ -204,7 +252,6 @@ func (c *conversationView) completeLiveTool(block client.Block) bool {
 	if len(live.blocks) == 0 {
 		return false
 	}
-	c.scroll.ToBottom()
 	c.refreshSearch()
 	return true
 }
@@ -253,7 +300,6 @@ func (c *conversationView) beginTool(block client.Block, registry *extensions.Re
 		}
 	}
 	c.tools[block.ID] = live
-	c.scroll.ToBottom()
 	c.refreshSearch()
 	return nil
 }
@@ -283,7 +329,6 @@ func (c *conversationView) Append(block headless.Block) { c.append(block) }
 func (c *conversationView) append(block headless.Block) headless.BlockID {
 	id := c.content.Append(block)
 	c.content.Finish(id)
-	c.scroll.ToBottom()
 	c.refreshSearch()
 	return id
 }
@@ -305,7 +350,6 @@ func (c *conversationView) Retain(printer kit.Printer) {
 	}
 	first := c.content.FirstBlock()
 	c.toolViews = slices.DeleteFunc(c.toolViews, func(item trackedTool) bool { return item.id < first })
-	c.scroll.ToBottom()
 	c.refreshSearch()
 }
 
@@ -313,6 +357,7 @@ func (c *conversationView) Reset() {
 	c.content = headless.Transcript{}
 	c.scroll = headless.Scroll{}
 	c.scroll.Wheel(c.wheel)
+	c.scroll.ToBottom()
 	c.selection = headless.Selection{}
 	c.sticky = headless.Sticky{MinHeight: 1, Gap: 1}
 	c.view.Content, c.view.Scroll = &c.content, &c.scroll
