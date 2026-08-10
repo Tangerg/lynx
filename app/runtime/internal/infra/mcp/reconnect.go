@@ -26,18 +26,18 @@ func (c *Connections) Reconnect(ctx context.Context, name string) error {
 		c.mu.Unlock()
 		return ErrConnectionsClosed
 	}
-	ms := c.find(name)
-	if ms == nil {
+	configuredServer := c.find(name)
+	if configuredServer == nil {
 		c.mu.Unlock()
 		return fmt.Errorf("%w: %q", ErrUnknownServer, name)
 	}
-	old := ms.session
-	ms.session = nil
-	ms.tools = nil
-	ms.state = mcpserver.ConnectionConnecting
-	cfg := ms.config
-	cfg.OAuthHandler = ms.oauth // reuse this session's sign-in (nil for non-OAuth)
-	attempt := c.beginAttempt(ctx, ms)
+	detachedSession := configuredServer.session
+	configuredServer.session = nil
+	configuredServer.tools = nil
+	configuredServer.state = mcpserver.ConnectionConnecting
+	cfg := configuredServer.config
+	cfg.OAuthHandler = configuredServer.oauth // reuse this session's sign-in (nil for non-OAuth)
+	attempt := c.beginAttempt(ctx, configuredServer)
 	c.mu.Unlock()
 	defer c.finishAttempt(attempt)
 
@@ -45,7 +45,7 @@ func (c *Connections) Reconnect(ctx context.Context, name string) error {
 	// resolving wrappers backed by the session we are about to close.
 	c.publishTools()
 
-	closeErr := c.closeSession(ctx, old)
+	closeErr := c.closeSession(ctx, detachedSession)
 	return errors.Join(closeErr, c.dialAndSwap(attempt, cfg, false))
 }
 
@@ -74,30 +74,30 @@ func (c *Connections) Configure(ctx context.Context, cfg ServerConfig) error {
 		c.mu.Unlock()
 		return ErrConnectionsClosed
 	}
-	ms := c.find(cfg.Name)
-	if ms == nil {
-		ms = &server{config: cfg}
-		c.servers = append(c.servers, ms)
+	configuredServer := c.find(cfg.Name)
+	if configuredServer == nil {
+		configuredServer = &server{config: cfg}
+		c.servers = append(c.servers, configuredServer)
 	}
-	oauth := reusableOAuth(ms.config, cfg, ms.oauth)
+	oauth := reusableOAuth(configuredServer.config, cfg, configuredServer.oauth)
 	if oauth == nil {
 		oauth = restored
 	}
-	ms.oauth = oauth
-	old := ms.session
-	ms.config = cfg
-	ms.config.OAuthHandler = nil
-	ms.session = nil
-	ms.tools = nil
-	ms.state = mcpserver.ConnectionConnecting
+	configuredServer.oauth = oauth
+	detachedSession := configuredServer.session
+	configuredServer.config = cfg
+	configuredServer.config.OAuthHandler = nil
+	configuredServer.session = nil
+	configuredServer.tools = nil
+	configuredServer.state = mcpserver.ConnectionConnecting
 	cfg.OAuthHandler = oauth // only reusable while the configured origin is unchanged
-	attempt := c.beginAttempt(ctx, ms)
+	attempt := c.beginAttempt(ctx, configuredServer)
 	c.mu.Unlock()
 	defer c.finishAttempt(attempt)
 
 	c.publishTools()
 
-	closeErr := c.closeSession(ctx, old)
+	closeErr := c.closeSession(ctx, detachedSession)
 	return errors.Join(closeErr, c.dialAndSwap(attempt, cfg, false))
 }
 
@@ -127,31 +127,31 @@ func (c *Connections) Authorize(ctx context.Context, name string) error {
 		c.mu.Unlock()
 		return ErrConnectionsClosed
 	}
-	ms := c.find(name)
-	if ms == nil {
+	configuredServer := c.find(name)
+	if configuredServer == nil {
 		c.mu.Unlock()
 		return fmt.Errorf("%w: %q", ErrUnknownServer, name)
 	}
-	if ms.config.Transport != TransportHTTP {
+	if configuredServer.config.Transport != TransportHTTP {
 		c.mu.Unlock()
 		return errors.New("mcp: OAuth applies to HTTP servers only")
 	}
-	if ms.config.hasStaticAuthorization() {
+	if configuredServer.config.hasStaticAuthorization() {
 		c.mu.Unlock()
 		return errors.New("mcp: clear static Authorization before starting OAuth")
 	}
-	old := ms.session
-	ms.session = nil
-	ms.tools = nil
-	ms.state = mcpserver.ConnectionConnecting
-	cfg := ms.config
-	attempt := c.beginAttempt(ctx, ms)
+	detachedSession := configuredServer.session
+	configuredServer.session = nil
+	configuredServer.tools = nil
+	configuredServer.state = mcpserver.ConnectionConnecting
+	cfg := configuredServer.config
+	attempt := c.beginAttempt(ctx, configuredServer)
 	c.mu.Unlock()
 	defer c.finishAttempt(attempt)
 
 	c.publishTools()
 
-	closeErr := c.closeSession(ctx, old)
+	closeErr := c.closeSession(ctx, detachedSession)
 
 	// Bound the human-in-the-loop flow here; clear the per-server handshake
 	// timeout so it can't abort the browser wait mid-sign-in.
@@ -177,11 +177,11 @@ func (c *Connections) Authorize(ctx context.Context, name string) error {
 }
 
 // dialAndSwap dials cfg, proves the session with a tools/list, then publishes it
-// on ms under the lock — the shared tail of [Connections.Reconnect] /
+// on the configured server under the lock — the shared tail of [Connections.Reconnect] /
 // [Connections.Configure] / [Connections.Authorize]. The per-server generation
 // rejects a stale completion after a newer configure/remove/reconnect. c.mu is
 // not held while dialing. keepHandler stores
-// cfg.OAuthHandler on ms after a successful connect (Authorize keeps the
+// cfg.OAuthHandler on that server after a successful connect (Authorize keeps the
 // just-authorized handler for this session's later reconnects; the plain dials
 // reuse an existing one and pass false).
 func (c *Connections) dialAndSwap(attempt connectionAttempt, cfg ServerConfig, keepHandler bool) error {
@@ -198,7 +198,7 @@ func (c *Connections) dialAndSwap(attempt connectionAttempt, cfg ServerConfig, k
 	closed := c.closed
 	if closed || !current {
 		// Shutdown ran while we were dialing outside the lock: it niled c.servers
-		// (so this ms is detached) and closed every session. Storing the fresh
+		// (so this server is detached) and closed every session. Storing the fresh
 		// session here would strand it past Shutdown's sweep — a connection leak.
 		// Drop it instead. Mirrors lsp.Servers.clientFor's closed re-check.
 		c.mu.Unlock()

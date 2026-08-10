@@ -94,9 +94,9 @@ func newClient() *sdkmcp.Client {
 
 // find returns the server with the given name, or nil. Caller holds mu.
 func (c *Connections) find(name string) *server {
-	for _, ms := range c.servers {
-		if ms.name() == name {
-			return ms
+	for _, configuredServer := range c.servers {
+		if configuredServer.name() == name {
+			return configuredServer
 		}
 	}
 	return nil

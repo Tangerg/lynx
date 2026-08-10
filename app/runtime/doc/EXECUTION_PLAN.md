@@ -1,6 +1,6 @@
 # Lyra Runtime 重构实施计划
 
-> 状态：P1–P14 已完成；P15 反证式精修进行中；消费者接线仍留给独立专项
+> 状态：P1–P15 已完成；消费者接线仍留给独立专项
 >
 > 工作方式：原模块内治本重构，按可验证纵切分批完成；不创建完整 `runtime2`
 
@@ -47,7 +47,7 @@
 | P12 | 全量质量验收与消费者接线移交 | P11 | 已完成 |
 | P13 | 重写后精修与双向边界复审 | P12 | 已完成 |
 | P14 | Runtime 内部职责与全层级命名精修 | P13 | 已完成 |
-| P15 | Agent/Runtime 合同同步与 Runtime 反证式精修 | P14 + Agent Baseline 18 | 进行中 |
+| P15 | Agent/Runtime 合同同步与 Runtime 反证式精修 | P14 + Agent Baseline 18 | 已完成 |
 
 ## 4. P0 — 文档、事实和边界基线
 
@@ -484,7 +484,7 @@
 - [x] P15-01 同步提交式 cancellation 与 exact applied-steer attribution，消除本地时序猜测、持锁 Engine 调用和 steer 前缀投影；
 - [x] P15-02 复审并精修 Domain/Application 内部 owner、行为与命名；
 - [x] P15-03 复审并精修 Adapter/Infra/Delivery/Bootstrap 内部 owner、机制与命名；
-- [ ] P15-04 执行 standalone、race、fuzz、生成物、边界、死代码、复杂度、目录与全层级命名最终复扫。
+- [x] P15-04 执行 standalone、race、fuzz、生成物、边界、死代码、复杂度、目录与全层级命名最终复扫。
 
 ### 验收
 
@@ -497,6 +497,8 @@
 
 | 日期 | 阶段 | 完成事实 | 验证 |
 |---|---|---|---|
+| 2026-08-10 | P15-04（final counterexample freeze） | 从干净提交点完成 Agent/Runtime 双向抽象、六环 DAG、consumer-owned port、opaque checkpoint、Framework execution vocabulary、全层级命名、文件/目录、生成物和根仓库爆炸半径最终反证。Agent 仍不含 Runtime 产品/持久化抽象；Runtime Framework concrete import 仍唯一收敛在 `adapter/agentexec`；MCP lifecycle 末批改名未改变协议 wire、SQLite shape、Agent Baseline 或消费者。无新坏味道、兼容路径、重复 owner、死代码、复杂度热点、生成漂移、意外空文件/目录或生产 TODO/FIXME/HACK；空的根 `LYRA.md` 仍是有意保留的 workspace knowledge 起点 | Runtime standalone tidy-diff/build/vet/staticcheck、完整及精选 lint、`deadcode -test`、禁缓存全量 test/race 全绿；MCP 高风险 race 20 次稳定；三个 strict codec fuzz 共 613,917 次执行无失败；Agent standalone tidy-diff/build/vet/test 与根仓库 build/vet/test 全绿；gofmt、边界与旧词扫描零违规。P15 完成 |
+| 2026-08-10 | P15-03d（MCP lifecycle naming） | 最终局部变量复扫发现 `infra/mcp` 仍用 `ms` 泛指 configured server state、用 `old` 泛指已从 live projection 脱离且待关闭的 session。按真实生命周期统一为 `configuredServer`、`detachedSession` 和 `serverName`，Reconnect/Configure/Authorize/Detach/Dial/Probe/Statuses/Tools/publish/shutdown 全路径使用同一语言，注释同步且不改变锁、generation、session ledger 或 Tool publication 行为 | MCP Infra、直接 Adapter/Application/Bootstrap 爆炸半径与 architecture 禁用缓存测试、vet 全绿；完整 standalone/race/lint/deadcode/generator/fuzz 和边界复扫由 P15-04 收口 |
 | 2026-08-10 | P15-03c（lifecycle and adapter vocabulary） | Goal 的 process-local active-lease incarnation 从 `loopHandle`/`activeLoop`/`running` 多词漂移收敛为单一 `goalDrive`、`activeDrive` 与 `drives`，类型及完整 lifecycle 行为共同归 `loop.go`；JSON-RPC 调度返回值由口吃式 `dispatch.DispatchResult` 改为 `dispatch.Result`，方法泛型返回值同步命名为 `ResponseValue`，两类 Result 不再遮蔽；caller-defined provider 统一使用完整 `Compatible`，adapter builder 按实际构造行为命名，清除把 compatible endpoint 误称 legacy compat/pass-through、把 direct vendor wire 泛称 native 的注释。Framework Strategy 在权威文档只称 `Interaction`，新增 package-qualified retired-name 与精确文档词汇守卫；Go 1.22 后无效 loop-variable copies 同批删除。高重复 race 进一步证明 faulting-store 测试信号早于 drive completion publication，场景现明确容许 publication 前的 `ErrGoalActive`，并继续证明发布后的失败在 Stop 前可寻址 | 受影响 Goal/LLM/Delivery/architecture 禁用缓存测试与 vet 全绿；`revive`、`copyloopvar`、复杂度、重复、未使用参数及 Go 风格精选 lint 零问题；完整 standalone/race/generator/deadcode/fuzz 与边界复扫在 P15-04 统一收口 |
 | 2026-08-10 | P15-03b（outer-ring ownership and vocabulary） | 删除 Bootstrap 与 `runsegment` 测试中自行拼装、解析 executor tree payload 的伪模型；Bootstrap write-set fixture 只持 opaque bytes，runsegment 只证明 checkpoint 旧 bytes 原子保留、新 bytes 原子替换，真实 TreeSnapshot 语义继续由 `agentexec` 独占。Adapter/Infra/Delivery/Bootstrap fixture 与错误文本统一使用 executor member/input request/child Run；已删除旧实现后失去区分对象的 `native` 限定词从代码与当前合同文档移除，provider SDK、OS path 等真实原生语义不受影响。LLM 内部表由泛化 `Info`/`Entry` 收口为 chat/embedding provider catalog/profile；execution context 文件按实际职责改为 `scope.go`；Runtime 指南的 SQLite epoch 同步为唯一事实 65。新增 checkpoint opaque boundary 与已淘汰 catalog 名称架构守卫 | Adapter/Infra/Delivery/Bootstrap、直接 Application 爆炸半径与 architecture 禁用缓存测试全绿；本批提交前执行 standalone tidy/build/vet/staticcheck/test/race、完整 lint、deadcode、生成物与 hygiene 门禁 |
 | 2026-08-10 | P15-03a（child-start durable wire ownership） | 反证发现 `adapter/runsegment` 直接 marshal `application/runs.ChildRunStartReservation`，使 Application Go 字段布局隐式成为 SQLite durable wire。改为 runsegment 私有、显式 JSON tag、去除已有独立列重复身份的 canonical payload；SQLite 继续只比较 opaque bytes，不解释产品事实。持久 shape 按规则一次提升到 epoch 65，旧 epoch 确定性拒绝，不增加 migration、dual read 或兼容字段；SQLite 测试 fixture 的 `process-*` 技术身份同步改为准确的 `member-*` | 新增 exact canonical payload/UTC column ownership 回归测试；runsegment、SQLite、architecture 普通测试与 race、vet、staticcheck、baseline epoch consistency 和 diff check 全绿 |
@@ -541,4 +543,4 @@
 
 ## 21. 当前下一步
 
-P15-04 执行完整质量矩阵、双向边界与全层级命名最终反证复扫。前端、TUI、CLI 继续按独立 consumer handoff 专项接线，不属于本 goal。
+P15 服务端精修已完成。前端、TUI、CLI 继续按独立 consumer handoff 专项接线，不属于本 goal；Runtime 不为消费者恢复旧合同。

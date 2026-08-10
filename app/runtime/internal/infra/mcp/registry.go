@@ -29,11 +29,11 @@ func (c *Connections) Statuses() []mcpserver.ConnectionStatus {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	out := make([]mcpserver.ConnectionStatus, 0, len(c.servers))
-	for _, ms := range c.servers {
+	for _, configuredServer := range c.servers {
 		out = append(out, mcpserver.ConnectionStatus{
-			Name:      ms.name(),
-			State:     ms.state,
-			ToolCount: len(ms.tools),
+			Name:      configuredServer.name(),
+			State:     configuredServer.state,
+			ToolCount: len(configuredServer.tools),
 		})
 	}
 	return out
@@ -42,7 +42,7 @@ func (c *Connections) Statuses() []mcpserver.ConnectionStatus {
 // Tools lists the tools advertised by the connected servers, scoped to server
 // when non-empty. It queries each session's tools/list live, ordered by
 // (server, tool name) as dialed. Nil-safe.
-func (c *Connections) Tools(ctx context.Context, server string) ([]mcpserver.AdvertisedTool, error) {
+func (c *Connections) Tools(ctx context.Context, serverName string) ([]mcpserver.AdvertisedTool, error) {
 	if c == nil {
 		return nil, nil
 	}
@@ -51,11 +51,11 @@ func (c *Connections) Tools(ctx context.Context, server string) ([]mcpserver.Adv
 	// or status reads. A session closed by a racing reconnect just errors here.
 	c.mu.Lock()
 	var targets []toolListTarget
-	for _, ms := range c.servers {
-		if ms.session == nil || (server != "" && ms.name() != server) {
+	for _, configuredServer := range c.servers {
+		if configuredServer.session == nil || (serverName != "" && configuredServer.name() != serverName) {
 			continue
 		}
-		targets = append(targets, toolListTarget{ms.name(), ms.session})
+		targets = append(targets, toolListTarget{configuredServer.name(), configuredServer.session})
 	}
 	c.mu.Unlock()
 
@@ -97,10 +97,10 @@ func (c *Connections) Detach(name string) error {
 		c.mu.Unlock()
 		return ErrConnectionsClosed
 	}
-	var old *sdkmcp.ClientSession
-	if index := slices.IndexFunc(c.servers, func(ms *server) bool { return ms.name() == name }); index >= 0 {
+	var detachedSession *sdkmcp.ClientSession
+	if index := slices.IndexFunc(c.servers, func(configuredServer *server) bool { return configuredServer.name() == name }); index >= 0 {
 		target := c.servers[index]
-		old = target.session
+		detachedSession = target.session
 		if target.cancel != nil {
 			target.cancel()
 			target.cancel = nil
@@ -115,7 +115,7 @@ func (c *Connections) Detach(name string) error {
 	// Shrink the model-facing catalog before a potentially-blocking session
 	// close. The publication lock keeps this ordered with every dial.
 	c.publishTools()
-	c.retireSession(old)
+	c.retireSession(detachedSession)
 	return nil
 }
 
@@ -143,9 +143,9 @@ func (c *Connections) publishTools() {
 
 	c.mu.Lock()
 	var catalog []toolcontract.Tool
-	for _, ms := range c.servers {
-		if ms.session != nil {
-			catalog = append(catalog, ms.tools...)
+	for _, configuredServer := range c.servers {
+		if configuredServer.session != nil {
+			catalog = append(catalog, configuredServer.tools...)
 		}
 	}
 	sink := c.onTools
@@ -169,10 +169,10 @@ func (c *Connections) Shutdown(ctx context.Context) error {
 	c.mu.Lock()
 	if !c.closed {
 		c.closed = true
-		for _, ms := range c.servers {
-			if ms.cancel != nil {
-				ms.cancel()
-				ms.cancel = nil
+		for _, configuredServer := range c.servers {
+			if configuredServer.cancel != nil {
+				configuredServer.cancel()
+				configuredServer.cancel = nil
 			}
 		}
 		c.servers = nil

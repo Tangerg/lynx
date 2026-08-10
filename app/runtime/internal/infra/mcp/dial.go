@@ -77,16 +77,16 @@ func Dial(ctx context.Context, servers []ServerConfig, oauthSessions OAuthSessio
 	var tools []toolcontract.Tool
 	failures := 0
 	for _, srv := range servers {
-		ms := &server{config: srv, oauth: srv.OAuthHandler}
-		ms.config.OAuthHandler = nil
+		configuredServer := &server{config: srv, oauth: srv.OAuthHandler}
+		configuredServer.config.OAuthHandler = nil
 		session, derr := dial(ctx, client, srv)
 		if derr != nil {
-			ms.state = dialStatus(derr)
-			if ms.state == mcpserver.ConnectionNeedsAuth {
-				ms.oauth = nil
+			configuredServer.state = dialStatus(derr)
+			if configuredServer.state == mcpserver.ConnectionNeedsAuth {
+				configuredServer.oauth = nil
 			}
 			failures++
-			c.servers = append(c.servers, ms)
+			c.servers = append(c.servers, configuredServer)
 			continue
 		}
 		c.ownSessionLocked(session)
@@ -101,14 +101,14 @@ func Dial(ctx context.Context, servers []ServerConfig, oauthSessions OAuthSessio
 			// aborting every independent MCP connection.
 			failure := errors.Join(terr, c.closeSession(ctx, session))
 			span.RecordError(failure)
-			ms.state = mcpserver.ConnectionFailed
+			configuredServer.state = mcpserver.ConnectionFailed
 			failures++
-			c.servers = append(c.servers, ms)
+			c.servers = append(c.servers, configuredServer)
 			continue
 		}
-		ms.session, ms.tools, ms.state = session, srcTools, mcpserver.ConnectionConnected
+		configuredServer.session, configuredServer.tools, configuredServer.state = session, srcTools, mcpserver.ConnectionConnected
 		tools = append(tools, srcTools...)
-		c.servers = append(c.servers, ms)
+		c.servers = append(c.servers, configuredServer)
 	}
 
 	span.SetAttributes(

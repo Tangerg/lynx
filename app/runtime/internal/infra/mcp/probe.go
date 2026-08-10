@@ -21,8 +21,8 @@ import (
 func (c *Connections) Probe(ctx context.Context, cfg ServerConfig) error {
 	if cfg.OAuthHandler == nil && c != nil {
 		c.mu.Lock()
-		if ms := c.find(cfg.Name); ms != nil {
-			cfg.OAuthHandler = reusableOAuth(ms.config, cfg, ms.oauth)
+		if configuredServer := c.find(cfg.Name); configuredServer != nil {
+			cfg.OAuthHandler = reusableOAuth(configuredServer.config, cfg, configuredServer.oauth)
 		}
 		c.mu.Unlock()
 	}
