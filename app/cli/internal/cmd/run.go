@@ -27,7 +27,7 @@ type renderer interface {
 	Close() error
 }
 
-func newRunCommand(resolve backend, v *viper.Viper) *cobra.Command {
+func newRunCommand(provider runtimeProvider, v *viper.Viper) *cobra.Command {
 	flags := new(runFlags)
 	cmd := &cobra.Command{
 		Use:   "run [prompt]",
@@ -41,7 +41,7 @@ func newRunCommand(resolve backend, v *viper.Viper) *cobra.Command {
 		Args:         cobra.ArbitraryArgs,
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return flags.execute(cmd, args, resolve, v)
+			return flags.execute(cmd, args, provider, v)
 		},
 	}
 	flags.register(cmd)
@@ -63,7 +63,7 @@ func (f *runFlags) register(cmd *cobra.Command) {
 	cmd.Flags().StringArrayVarP(&f.files, "file", "f", nil, "Attach a local file (repeatable)")
 }
 
-func (f *runFlags) execute(cmd *cobra.Command, args []string, resolve backend, v *viper.Viper) error {
+func (f *runFlags) execute(cmd *cobra.Command, args []string, provider runtimeProvider, v *viper.Viper) error {
 	value, err := readSettings(v)
 	if err != nil {
 		return err
@@ -76,7 +76,7 @@ func (f *runFlags) execute(cmd *cobra.Command, args []string, resolve backend, v
 	if err != nil {
 		return err
 	}
-	runtime, err := resolve.open(cmd)
+	runtime, err := provider.Open(cmd)
 	if err != nil {
 		return err
 	}

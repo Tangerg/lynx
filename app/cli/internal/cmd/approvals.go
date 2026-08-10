@@ -10,7 +10,7 @@ import (
 	"github.com/Tangerg/lynx/app/cli/internal/client"
 )
 
-func newApprovalsCommand(resolve backend) *cobra.Command {
+func newApprovalsCommand(provider runtimeProvider) *cobra.Command {
 	command := &cobra.Command{Use: "approvals", Short: "Inspect remembered approval rules", Args: cobra.NoArgs}
 	command.AddCommand(&cobra.Command{
 		Use:          "ls",
@@ -19,7 +19,7 @@ func newApprovalsCommand(resolve backend) *cobra.Command {
 		Args:         cobra.NoArgs,
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return listApprovalRules(cmd, resolve)
+			return listApprovalRules(cmd, provider)
 		},
 	})
 	var yes bool
@@ -33,7 +33,7 @@ func newApprovalsCommand(resolve backend) *cobra.Command {
 			if !yes {
 				return errors.New("refusing to delete an approval rule without --yes")
 			}
-			runtime, err := resolve.open(cmd)
+			runtime, err := provider.Open(cmd)
 			if err != nil {
 				return err
 			}
@@ -49,8 +49,8 @@ func newApprovalsCommand(resolve backend) *cobra.Command {
 	return command
 }
 
-func listApprovalRules(cmd *cobra.Command, resolve backend) error {
-	runtime, err := resolve.open(cmd)
+func listApprovalRules(cmd *cobra.Command, provider runtimeProvider) error {
+	runtime, err := provider.Open(cmd)
 	if err != nil {
 		return err
 	}

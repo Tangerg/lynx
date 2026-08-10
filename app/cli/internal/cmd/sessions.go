@@ -14,7 +14,7 @@ import (
 	"github.com/Tangerg/lynx/app/cli/internal/render"
 )
 
-func newSessionsCommand(resolve backend) *cobra.Command {
+func newSessionsCommand(provider runtimeProvider) *cobra.Command {
 	sessions := &cobra.Command{
 		Use:     "sessions",
 		Short:   "Inspect and manage sessions",
@@ -22,16 +22,16 @@ func newSessionsCommand(resolve backend) *cobra.Command {
 		Args:    cobra.NoArgs,
 	}
 	sessions.AddCommand(
-		newSessionsListCommand(resolve),
-		newSessionsShowCommand(resolve),
-		newSessionsRenameCommand(resolve),
-		newSessionsForkCommand(resolve),
-		newSessionsDeleteCommand(resolve),
+		newSessionsListCommand(provider),
+		newSessionsShowCommand(provider),
+		newSessionsRenameCommand(provider),
+		newSessionsForkCommand(provider),
+		newSessionsDeleteCommand(provider),
 	)
 	return sessions
 }
 
-func newSessionsListCommand(resolve backend) *cobra.Command {
+func newSessionsListCommand(provider runtimeProvider) *cobra.Command {
 	var query client.SessionQuery
 	cmd := &cobra.Command{
 		Use:          "ls",
@@ -40,7 +40,7 @@ func newSessionsListCommand(resolve backend) *cobra.Command {
 		Args:         cobra.NoArgs,
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			runtime, err := resolve.open(cmd)
+			runtime, err := provider.Open(cmd)
 			if err != nil {
 				return err
 			}
@@ -74,7 +74,7 @@ func newSessionsListCommand(resolve backend) *cobra.Command {
 	return cmd
 }
 
-func newSessionsShowCommand(resolve backend) *cobra.Command {
+func newSessionsShowCommand(provider runtimeProvider) *cobra.Command {
 	var asJSON bool
 	cmd := &cobra.Command{
 		Use:          "show <session-id>",
@@ -82,7 +82,7 @@ func newSessionsShowCommand(resolve backend) *cobra.Command {
 		Args:         cobra.ExactArgs(1),
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			runtime, err := resolve.open(cmd)
+			runtime, err := provider.Open(cmd)
 			if err != nil {
 				return err
 			}
@@ -108,11 +108,11 @@ func newSessionsShowCommand(resolve backend) *cobra.Command {
 		},
 	}
 	cmd.Flags().BoolVar(&asJSON, "json", false, "Write newline-delimited event JSON")
-	cmd.ValidArgsFunction = completeSessionIDs(resolve)
+	cmd.ValidArgsFunction = completeSessionIDs(provider)
 	return cmd
 }
 
-func newSessionsRenameCommand(resolve backend) *cobra.Command {
+func newSessionsRenameCommand(provider runtimeProvider) *cobra.Command {
 	var revision int64
 	cmd := &cobra.Command{
 		Use:          "rename <session-id> <title>",
@@ -120,7 +120,7 @@ func newSessionsRenameCommand(resolve backend) *cobra.Command {
 		Args:         cobra.ExactArgs(2),
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			runtime, err := resolve.open(cmd)
+			runtime, err := provider.Open(cmd)
 			if err != nil {
 				return err
 			}
@@ -133,11 +133,11 @@ func newSessionsRenameCommand(resolve backend) *cobra.Command {
 		},
 	}
 	cmd.Flags().Int64Var(&revision, "revision", 0, "Only rename the revision previously read")
-	cmd.ValidArgsFunction = completeFirstSessionArgument(resolve)
+	cmd.ValidArgsFunction = completeFirstSessionArgument(provider)
 	return cmd
 }
 
-func newSessionsForkCommand(resolve backend) *cobra.Command {
+func newSessionsForkCommand(provider runtimeProvider) *cobra.Command {
 	var (
 		at    uint64
 		title string
@@ -148,7 +148,7 @@ func newSessionsForkCommand(resolve backend) *cobra.Command {
 		Args:         cobra.ExactArgs(1),
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			runtime, err := resolve.open(cmd)
+			runtime, err := provider.Open(cmd)
 			if err != nil {
 				return err
 			}
@@ -162,11 +162,11 @@ func newSessionsForkCommand(resolve backend) *cobra.Command {
 	}
 	cmd.Flags().Uint64Var(&at, "at", 0, "Fork through a settled run cursor (default: latest)")
 	cmd.Flags().StringVar(&title, "title", "", "Title for the fork")
-	cmd.ValidArgsFunction = completeSessionIDs(resolve)
+	cmd.ValidArgsFunction = completeSessionIDs(provider)
 	return cmd
 }
 
-func newSessionsDeleteCommand(resolve backend) *cobra.Command {
+func newSessionsDeleteCommand(provider runtimeProvider) *cobra.Command {
 	var (
 		revision int64
 		yes      bool
@@ -181,7 +181,7 @@ func newSessionsDeleteCommand(resolve backend) *cobra.Command {
 			if !yes {
 				return errors.New("refusing to delete without --yes")
 			}
-			runtime, err := resolve.open(cmd)
+			runtime, err := provider.Open(cmd)
 			if err != nil {
 				return err
 			}
@@ -194,12 +194,12 @@ func newSessionsDeleteCommand(resolve backend) *cobra.Command {
 	}
 	cmd.Flags().BoolVarP(&yes, "yes", "y", false, "Confirm deletion")
 	cmd.Flags().Int64Var(&revision, "revision", 0, "Only delete the revision previously read")
-	cmd.ValidArgsFunction = completeSessionIDs(resolve)
+	cmd.ValidArgsFunction = completeSessionIDs(provider)
 	return cmd
 }
 
-func completeFirstSessionArgument(resolve backend) cobra.CompletionFunc {
-	complete := completeSessionIDs(resolve)
+func completeFirstSessionArgument(provider runtimeProvider) cobra.CompletionFunc {
+	complete := completeSessionIDs(provider)
 	return func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 		if len(args) > 0 {
 			return nil, cobra.ShellCompDirectiveNoFileComp
@@ -208,9 +208,9 @@ func completeFirstSessionArgument(resolve backend) cobra.CompletionFunc {
 	}
 }
 
-func completeSessionIDs(resolve backend) cobra.CompletionFunc {
+func completeSessionIDs(provider runtimeProvider) cobra.CompletionFunc {
 	return func(cmd *cobra.Command, _ []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-		runtime, err := resolve.forCompletion(cmd)
+		runtime, err := provider.Complete(cmd)
 		if err != nil {
 			return nil, cobra.ShellCompDirectiveError
 		}

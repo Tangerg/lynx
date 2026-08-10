@@ -15,8 +15,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/spf13/cobra"
-
 	"github.com/Tangerg/lynx/app/cli/internal/client"
 	"github.com/Tangerg/lynx/app/cli/internal/client/mock"
 )
@@ -763,7 +761,7 @@ func TestCompletionCommand(t *testing.T) {
 // database, a socket, or anything else a real runtime needs.
 func TestHelpDoesNotResolveARuntime(t *testing.T) {
 	var resolved bool
-	root := newRootWithBackend(backend{open: func(*cobra.Command) (client.Runtime, error) {
+	root := buildRoot(runtimeProvider{factory: func(context.Context) (client.Runtime, error) {
 		resolved = true
 		return instant(), nil
 	}})
