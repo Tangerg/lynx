@@ -9,6 +9,7 @@ import (
 	"github.com/Tangerg/lynx/core/chat"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
+	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/sessionfixture"
@@ -240,7 +241,7 @@ func TestRestoreSessionRejectsUnresolvableCWDBeforeMutation(t *testing.T) {
 	}))
 
 	_, err := coordinator.restoreSession(t.Context(), Snapshot{Session: sessionfixture.MustRestore(session.Snapshot{ID: "ses_1", CWD: "relative"})}, false)
-	if !errors.Is(err, session.ErrCWDUnavailable) || !errors.Is(err, want) {
+	if !errors.Is(err, workspaceapp.ErrCWDUnavailable) || !errors.Is(err, want) {
 		t.Fatalf("RestoreSession error = %v, want cwd unavailable + cause", err)
 	}
 	if len(stores.restored) != 0 {

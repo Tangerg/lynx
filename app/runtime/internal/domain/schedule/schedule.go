@@ -24,9 +24,6 @@ const IDPrefix = "sch_"
 // ErrNotFound is returned when a schedule lookup cannot find an id.
 var ErrNotFound = errors.New("schedule: not found")
 
-// ErrUnavailable is returned when scheduling is disabled for this runtime.
-var ErrUnavailable = errors.New("schedule: unavailable")
-
 // ErrRevisionConflict reports that a conditional update targeted a stale
 // version of the schedule.
 var ErrRevisionConflict = errors.New("schedule: revision conflict")
@@ -44,8 +41,6 @@ var (
 	ErrCronRequired = errors.New("schedule: cron is required")
 	// ErrInvalidCron — the cron expression is not a supported five-field spec.
 	ErrInvalidCron = errors.New("schedule: invalid cron")
-	// ErrCWDUnavailable — the configured working directory cannot be admitted.
-	ErrCWDUnavailable = errors.New("schedule: cwd unavailable")
 )
 
 // Schedule is saved instructions fired on a cron trigger. CWD anchors the headless

@@ -13,6 +13,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspacepath"
 	scheduleapp "github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
+	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
 	scheduledomain "github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
 )
 
@@ -82,7 +83,7 @@ func TestSchedulesCreateRejectsUnavailableWorkdir(t *testing.T) {
 	}
 	missing := filepath.Join(t.TempDir(), "missing")
 	_, err = scheduleByName(tools)["create_schedule"].Call(t.Context(), `{"instructions":"summarize","cron":"0 9 * * *","workspace_path":"`+missing+`"}`)
-	if !errors.Is(err, scheduledomain.ErrCWDUnavailable) {
+	if !errors.Is(err, workspaceapp.ErrCWDUnavailable) {
 		t.Fatalf("create cwd err = %v, want ErrCWDUnavailable", err)
 	}
 	if len(reg.items) != 0 {

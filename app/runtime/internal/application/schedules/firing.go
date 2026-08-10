@@ -74,11 +74,11 @@ func (f *Firing) RunWorker(ctx context.Context) {
 type disabledFiringStore struct{}
 
 func (disabledFiringStore) Get(context.Context, string) (schedule.Schedule, error) {
-	return schedule.Schedule{}, schedule.ErrUnavailable
+	return schedule.Schedule{}, ErrUnavailable
 }
 
 func (disabledFiringStore) RecordRun(context.Context, string, time.Time) error {
-	return schedule.ErrUnavailable
+	return ErrUnavailable
 }
 
 func (disabledFiringStore) Due(context.Context, time.Time, int) ([]schedule.Schedule, error) {
@@ -86,9 +86,9 @@ func (disabledFiringStore) Due(context.Context, time.Time, int) ([]schedule.Sche
 }
 
 func (disabledFiringStore) Claim(context.Context, schedule.Occurrence) (bool, error) {
-	return false, schedule.ErrUnavailable
+	return false, ErrUnavailable
 }
 
 func (disabledFiringStore) Pending(context.Context, int) ([]schedule.Occurrence, error) {
-	return nil, schedule.ErrUnavailable
+	return nil, ErrUnavailable
 }

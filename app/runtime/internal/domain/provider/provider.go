@@ -1,7 +1,7 @@
-// Package provider models the credentials and enablement registry used by model
-// run. Model metadata, pricing, capabilities, and connection construction are
-// separate concerns; this package owns only provider identity, configuration,
-// provenance, and registry operations.
+// Package provider defines model-provider identity, credential configuration,
+// effective key provenance, and patch semantics. Registry persistence,
+// environment lookup, model metadata, pricing, and client construction remain
+// outside this package.
 package provider
 
 // Provider is one registry entry: a stable provider id plus the credentials

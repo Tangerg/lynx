@@ -567,7 +567,7 @@ func TestPendingStoresOnlyOpaqueExecutorBindings(t *testing.T) {
 // private routing values and cannot escape through hook JSON.
 func TestSubagentHooksUseApplicationRunIdentity(t *testing.T) {
 	root := moduleRoot(t)
-	hookPath := filepath.Join(root, "internal", "domain", "hooks", "hooks.go")
+	hookPath := filepath.Join(root, "internal", "domain", "hooks", "hook.go")
 	hookFile, err := parser.ParseFile(token.NewFileSet(), hookPath, nil, 0)
 	if err != nil {
 		t.Fatalf("parse hook domain: %v", err)

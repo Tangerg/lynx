@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
+	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 )
@@ -19,7 +20,7 @@ func wireSessionErr(err error) error {
 	if errors.Is(err, session.ErrTitleRequired) {
 		return fmt.Errorf("%w: title must not be empty", protocol.ErrInvalidParams)
 	}
-	if errors.Is(err, session.ErrCWDUnavailable) {
+	if errors.Is(err, workspaceapp.ErrCWDUnavailable) {
 		return fmt.Errorf("%w: %w", protocol.ErrWorkspaceUnavailable, err)
 	}
 	if errors.Is(err, session.ErrRevisionConflict) {

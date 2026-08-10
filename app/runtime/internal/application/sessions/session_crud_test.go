@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
+	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/pagination"
 	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/sessionfixture"
@@ -329,7 +330,7 @@ func TestCoordinatorUpdateRejectsInvalidPatch(t *testing.T) {
 	}
 
 	ghost := "/no/such/dir"
-	if _, err := c.Update(t.Context(), "ses_1", session.Patch{CWD: &ghost}); !errors.Is(err, session.ErrCWDUnavailable) {
+	if _, err := c.Update(t.Context(), "ses_1", session.Patch{CWD: &ghost}); !errors.Is(err, workspaceapp.ErrCWDUnavailable) {
 		t.Fatalf("ghost cwd err = %v, want ErrCWDUnavailable", err)
 	}
 	if store.saved.ID() != "" {
@@ -337,7 +338,7 @@ func TestCoordinatorUpdateRejectsInvalidPatch(t *testing.T) {
 	}
 
 	title := "Renamed"
-	if _, err := c.Update(t.Context(), "ses_1", session.Patch{Title: &title, CWD: &ghost}); !errors.Is(err, session.ErrCWDUnavailable) {
+	if _, err := c.Update(t.Context(), "ses_1", session.Patch{Title: &title, CWD: &ghost}); !errors.Is(err, workspaceapp.ErrCWDUnavailable) {
 		t.Fatalf("mixed patch err = %v, want ErrCWDUnavailable", err)
 	}
 	if store.saved.ID() != "" {
@@ -345,7 +346,7 @@ func TestCoordinatorUpdateRejectsInvalidPatch(t *testing.T) {
 	}
 
 	missing := "/missing/project"
-	if _, err := c.Create(context.Background(), "New", missing); !errors.Is(err, session.ErrCWDUnavailable) {
+	if _, err := c.Create(context.Background(), "New", missing); !errors.Is(err, workspaceapp.ErrCWDUnavailable) {
 		t.Fatalf("missing create cwd err = %v, want ErrCWDUnavailable", err)
 	}
 	if store.inserted.ID() != "" {

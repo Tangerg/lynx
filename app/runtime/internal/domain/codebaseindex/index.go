@@ -1,7 +1,6 @@
-// Package codebaseindex models a project's semantic code index. It owns source
-// chunks, embeddings, incremental content identities, index lifecycle, and
-// similarity-query results. Persistence and search strategy are implementation
-// choices outside this package.
+// Package codebaseindex defines the stable values and similarity ranking used
+// by a project's semantic code index. Corpus discovery, embedding acquisition,
+// build lifecycle orchestration, and persistence remain caller concerns.
 package codebaseindex
 
 import (
@@ -33,7 +32,8 @@ type Chunk struct {
 	Embedding []float32
 }
 
-// Hit is one search result — a chunk with its similarity score (cosine, [0,1]).
+// Hit is one search result — a chunk with its cosine similarity score in
+// [-1, 1].
 type Hit struct {
 	Path      string
 	StartLine int

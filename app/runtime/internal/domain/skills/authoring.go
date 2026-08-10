@@ -1,3 +1,7 @@
+// Package skills owns the managed Skill library vocabulary: proposal identity,
+// review provenance, lifecycle state, and content safety classification. Skill
+// discovery, filesystem layout, rendering, and publication remain outside this
+// package.
 package skills
 
 import (

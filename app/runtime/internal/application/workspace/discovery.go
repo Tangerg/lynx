@@ -61,7 +61,7 @@ type Summary struct {
 // identities. The session coordinator is the production implementation.
 type Catalog interface {
 	List(ctx context.Context) ([]session.Session, error)
-	InspectWorkspace(cwd string) (session.WorkspaceIdentity, error)
+	InspectWorkspace(cwd string) (Resolved, error)
 }
 
 // Resolve returns the canonical live workspace identity for path, using the
@@ -78,7 +78,7 @@ func (d *Discovery) Resolve(path string) (Resolved, error) {
 		return Resolved{}, err
 	}
 	return Resolved{
-		Path: identity.CWD, ProjectRoot: identity.ProjectRoot, Missing: identity.Missing,
+		Path: identity.Path, ProjectRoot: identity.ProjectRoot, Missing: identity.Missing,
 	}, nil
 }
 
@@ -97,7 +97,7 @@ func (d *Discovery) Workspaces(ctx context.Context) ([]Summary, error) {
 		if err != nil {
 			return nil, err
 		}
-		workspaces[index].Path = identity.CWD
+		workspaces[index].Path = identity.Path
 		workspaces[index].ProjectRoot = identity.ProjectRoot
 		workspaces[index].Missing = identity.Missing
 	}

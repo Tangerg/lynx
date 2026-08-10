@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	scheduleapp "github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
+	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
@@ -95,13 +96,13 @@ func mapScheduleErr(err error, method, id string) error {
 	if err == nil {
 		return nil
 	}
-	if errors.Is(err, schedule.ErrUnavailable) {
+	if errors.Is(err, scheduleapp.ErrUnavailable) {
 		return capabilityNotNegotiated(method)
 	}
 	if errors.Is(err, schedule.ErrNotFound) {
 		return fmt.Errorf("%w: schedule %q not found", protocol.ErrInvalidParams, id)
 	}
-	if errors.Is(err, schedule.ErrCWDUnavailable) {
+	if errors.Is(err, workspaceapp.ErrCWDUnavailable) {
 		return fmt.Errorf("%w: %w", protocol.ErrWorkspaceUnavailable, err)
 	}
 	if errors.Is(err, schedule.ErrRevisionConflict) {

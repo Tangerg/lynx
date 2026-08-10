@@ -23,9 +23,6 @@ var (
 	ErrInvalid = errors.New("session: invalid session")
 	// ErrTitleRequired reports a Session edit with an empty title.
 	ErrTitleRequired = errors.New("session: title required")
-	// ErrCWDUnavailable reports a Session workspace that cannot be admitted by
-	// the filesystem admission boundary.
-	ErrCWDUnavailable = errors.New("session: cwd unavailable")
 	// ErrRevisionConflict reports a stale optimistic-concurrency precondition.
 	ErrRevisionConflict = errors.New("session: revision conflict")
 )

@@ -187,7 +187,7 @@ func TestUpdateScheduleUnknownIDIsInvalidParams(t *testing.T) {
 func valuePtr[T any](value T) *T { return &value }
 
 func TestScheduleUnavailableIsCapabilityNotNegotiated(t *testing.T) {
-	reg := &fakeScheduleRegistry{listErr: schedule.ErrUnavailable}
+	reg := &fakeScheduleRegistry{listErr: schedules.ErrUnavailable}
 	s := serverWithSchedules(reg)
 
 	_, err := s.ListSchedules(context.Background(), protocol.PageQuery{})

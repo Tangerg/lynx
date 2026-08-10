@@ -214,7 +214,7 @@ func (c *Coordinator) view(value session.Session, activity Activity) (View, erro
 	return View{
 		ID:          value.ID(),
 		Title:       value.Title(),
-		CWD:         workspace.CWD,
+		CWD:         workspace.Path,
 		ProjectRoot: workspace.ProjectRoot,
 		CWDMissing:  workspace.Missing,
 		Model:       model,

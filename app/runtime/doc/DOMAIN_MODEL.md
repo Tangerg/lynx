@@ -103,6 +103,36 @@ Domain package 是否成立只看以下证据：
 | 3 | `plan` | aggregate 行为不足，Tool Adapter 越过 Application 直接验证和持久化 |
 | 4 | `session` | 创建、编辑、relocation/restore 后的实体变化未完全由 Session 行为表达 |
 
+### 4.4 Package 边界冻结
+
+逐包复审必须得到可以用一句领域语言解释的 owner，而不是用目录大小解释。当前边界冻结如下；新增 package 必须重新通过同一组词汇、变化原因、消费者和 import DAG 证据，不能把未归属类型放入新的收纳目录。
+
+| Package | 唯一职责与独立存在理由 |
+|---|---|
+| `accounting` | 模型 token、cost 与累计快照的纯值和单调聚合；被 Run、pricing、usage 共同消费 |
+| `agentmemory` | Agent 维护的长期记忆、review lifecycle、fact fold 与 ranking；与人类维护的 Knowledge 分离 |
+| `approval` | Tool call gate、remembered rule、scope/specificity 与会话 permission policy |
+| `codebaseindex` | code chunk、index status、similarity hit 与纯 ranking；corpus build lifecycle 和持久化不在此处 |
+| `conversation` | 唯一的模型上下文 message sequence、seed 和 truncate watermark；不与 Transcript/Run 合并 |
+| `feedback` | 可独立保存的 immutable interaction quality signal |
+| `goal` | 跨多个 Run 的 autonomous Goal、lease、budget、progress 和 terminal reason |
+| `hooks` | 与 `hooks.json` 一致的 lifecycle Hook vocabulary、matching 和 decision fold；I/O 与 trust orchestration 在外部 |
+| `interrupt` | durable HITL kind、stable key 和 semantic resolution；open-set、request validation 和 continuation routing 在 Application |
+| `knowledge` | 人类维护的 LYRA.md scope/document value；与 AgentMemory 的所有权和写入来源不同 |
+| `mcpserver` | MCP server descriptor、canonical tool identity/schema 与 per-tool policy；connection lifecycle 在外部 |
+| `modelref` | zero-or-complete provider/model selection，被 Run、Goal、Schedule 和 model use case 共享 |
+| `plan` | Session-scoped ordered Plan replacement、step invariant、revision 和 updated time |
+| `provider` | model-provider identity、credential configuration、effective provenance 与 patch vocabulary |
+| `run` | 单个产品 Run 的完整 lifecycle、lineage、metrics、limits/capabilities 与 terminal facts |
+| `schedule` | cron cadence、saved headless-run intent、occurrence 与下一触发纯决策；Runtime availability/CWD admission 不属于它 |
+| `session` | 多 Run conversation identity、lineage、editable aggregate state 与 revision/time；live filesystem projection 不属于它 |
+| `skills` | managed Skill library 的 proposal identity、review provenance、lifecycle 与 safety classification |
+| `tool` | model-facing Tool、canonical arguments/result、failure 与 safety/workspace mutation vocabulary |
+| `toolresult` | 从 inline context 移出的 Tool result identity、stage、ref 与 portable blob lifecycle |
+| `transcript` | 用户可见、可审计 Item history、ToolCall settlement、Run timeline 和 rollback/fork boundary |
+
+这份裁决明确保留小而稳定的值 package。`session.WorkspaceIdentity` 一类 live filesystem projection 必须留在 Workspace Application owner；`ErrCWDUnavailable` 也只由该 owner 定义。某项 Runtime 能力是否装配（例如 scheduling unavailable）同样是 Application 事实，不得借错误常量倒灌 Domain。
+
 ## 5. Run 与 Transcript 的目标边界
 
 ### 5.1 唯一 Run aggregate

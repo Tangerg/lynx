@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"time"
 
+	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
 	"github.com/Tangerg/lynx/app/runtime/internal/pagination"
@@ -42,6 +43,10 @@ type CWDResolver interface {
 	ResolveExistingDir(path string) (string, error)
 }
 
+// ErrUnavailable reports that scheduled-run management was not assembled in
+// this Runtime.
+var ErrUnavailable = errors.New("schedules: unavailable")
+
 // Dependencies is the collaborator set [New] wires into a Coordinator.
 type Dependencies struct {
 	Store ManagementStore
@@ -66,7 +71,7 @@ type UpdateCommand struct {
 }
 
 // New returns a Coordinator over deps. A nil store yields a disabled
-// coordinator (every CRUD operation returns [schedule.ErrUnavailable]).
+// coordinator (every CRUD operation returns [ErrUnavailable]).
 func New(deps Dependencies) *Coordinator {
 	store := deps.Store
 	enabled := store != nil
@@ -130,7 +135,7 @@ func (c *Coordinator) ListPage(ctx context.Context, cursor string, limit int) (p
 // Create validates, normalizes, schedules, and persists a new schedule.
 func (c *Coordinator) Create(ctx context.Context, cmd CreateCommand) (schedule.Schedule, error) {
 	if !c.enabled {
-		return schedule.Schedule{}, schedule.ErrUnavailable
+		return schedule.Schedule{}, ErrUnavailable
 	}
 	scheduled, err := (schedule.Schedule{
 		Title:          cmd.Title,
@@ -158,7 +163,7 @@ func (c *Coordinator) Create(ctx context.Context, cmd CreateCommand) (schedule.S
 // and timestamps while recomputing its next due time.
 func (c *Coordinator) Update(ctx context.Context, cmd UpdateCommand) (schedule.Schedule, error) {
 	if !c.enabled {
-		return schedule.Schedule{}, schedule.ErrUnavailable
+		return schedule.Schedule{}, ErrUnavailable
 	}
 	if cmd.ID == "" {
 		return schedule.Schedule{}, schedule.ErrIDRequired
@@ -203,7 +208,7 @@ func (c *Coordinator) updateExisting(
 // Delete removes a schedule by id.
 func (c *Coordinator) Delete(ctx context.Context, id string) error {
 	if !c.enabled {
-		return schedule.ErrUnavailable
+		return ErrUnavailable
 	}
 	if id == "" {
 		return schedule.ErrIDRequired
@@ -219,11 +224,11 @@ func (c *Coordinator) resolveCWD(cwd string) (string, error) {
 		return "", nil
 	}
 	if c.paths == nil {
-		return "", errors.Join(schedule.ErrCWDUnavailable, errors.New("schedules: cwd resolver is unavailable"))
+		return "", errors.Join(workspaceapp.ErrCWDUnavailable, errors.New("schedules: cwd resolver is unavailable"))
 	}
 	resolved, err := c.paths.ResolveExistingDir(cwd)
 	if err != nil {
-		return "", fmt.Errorf("%w: resolve %q: %w", schedule.ErrCWDUnavailable, cwd, err)
+		return "", fmt.Errorf("%w: resolve %q: %w", workspaceapp.ErrCWDUnavailable, cwd, err)
 	}
 	return resolved, nil
 }
@@ -232,25 +237,25 @@ func (c *Coordinator) resolveCWD(cwd string) (string, error) {
 type disabledManagementStore struct{}
 
 func (disabledManagementStore) List(context.Context) ([]schedule.Schedule, error) {
-	return nil, schedule.ErrUnavailable
+	return nil, ErrUnavailable
 }
 
 func (disabledManagementStore) ListPage(context.Context, int64, string, int) ([]schedule.Schedule, error) {
-	return nil, schedule.ErrUnavailable
+	return nil, ErrUnavailable
 }
 
 func (disabledManagementStore) Get(context.Context, string) (schedule.Schedule, error) {
-	return schedule.Schedule{}, schedule.ErrUnavailable
+	return schedule.Schedule{}, ErrUnavailable
 }
 
 func (disabledManagementStore) Create(context.Context, schedule.Schedule) (schedule.Schedule, error) {
-	return schedule.Schedule{}, schedule.ErrUnavailable
+	return schedule.Schedule{}, ErrUnavailable
 }
 
 func (disabledManagementStore) Update(context.Context, schedule.Schedule, uint64) (schedule.Schedule, error) {
-	return schedule.Schedule{}, schedule.ErrUnavailable
+	return schedule.Schedule{}, ErrUnavailable
 }
 
 func (disabledManagementStore) Delete(context.Context, string) error {
-	return schedule.ErrUnavailable
+	return ErrUnavailable
 }

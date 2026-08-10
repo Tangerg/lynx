@@ -1,3 +1,6 @@
+// Package interrupt owns the closed vocabulary and semantic answer values for
+// durable human-in-the-loop waits. Persistence, answer validation against an
+// open request, and continuation routing remain caller concerns.
 package interrupt
 
 // Kind is the closed vocabulary of durable human waits a Run can
@@ -17,7 +20,7 @@ type Kind uint8
 
 const (
 	// Approval — a gated tool call awaits approve / deny.
-	Approval Kind = iota
+	Approval Kind = iota + 1
 	// Question — the agent asked the human a typed question.
 	Question
 )

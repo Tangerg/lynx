@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/pathidentity"
 )
 
@@ -103,23 +102,23 @@ func (r Resolver) ResolveExistingInRoot(root, path string) (string, error) {
 
 // Inspect derives the live workspace projection for an already-admitted cwd.
 // A path that disappeared (or was replaced by a non-directory) is a normal
-// domain state, not an error. Other filesystem failures remain explicit.
-func (Resolver) Inspect(path string) (session.WorkspaceIdentity, error) {
+// workspace projection, not an error. Other filesystem failures remain explicit.
+func (Resolver) Inspect(path string) (workspaceapp.Resolved, error) {
 	if path == "" {
-		return session.WorkspaceIdentity{Missing: true}, nil
+		return workspaceapp.Resolved{Missing: true}, nil
 	}
 	cwd, err := Canonical(path)
 	if err != nil {
-		return session.WorkspaceIdentity{}, err
+		return workspaceapp.Resolved{}, err
 	}
-	identity := session.WorkspaceIdentity{CWD: cwd, ProjectRoot: cwd}
+	identity := workspaceapp.Resolved{Path: cwd, ProjectRoot: cwd}
 	info, err := os.Stat(cwd)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			identity.Missing = true
 			return identity, nil
 		}
-		return session.WorkspaceIdentity{}, err
+		return workspaceapp.Resolved{}, err
 	}
 	if !info.IsDir() {
 		identity.Missing = true
@@ -128,7 +127,7 @@ func (Resolver) Inspect(path string) (session.WorkspaceIdentity, error) {
 
 	root, err := nearestProjectRoot(cwd)
 	if err != nil {
-		return session.WorkspaceIdentity{}, err
+		return workspaceapp.Resolved{}, err
 	}
 	identity.ProjectRoot = root
 	return identity, nil

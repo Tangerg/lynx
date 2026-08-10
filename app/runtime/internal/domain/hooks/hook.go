@@ -174,10 +174,6 @@ type Decision struct {
 	RewriteArguments string
 }
 
-// matches reports whether hook h should fire for input in: the events must
-// match, and for the tool events the hook's matcher (a glob) must match the
-// tool name. An empty matcher matches every tool. Discovery rejects malformed
-// globs; matches still treats one defensively as non-matching.
 // Matches reports whether h applies to in.
 func (h Hook) Matches(in Input) bool {
 	if h.Event != in.Event {
@@ -197,9 +193,6 @@ func (h Hook) Matches(in Input) bool {
 	return err == nil && ok
 }
 
-// fold merges one hook's outcome into the running decision. block latches (the
-// first denying hook owns the reason); ask is a softer escalation; injected
-// context concatenates; the first rewrite wins (deterministic).
 // Fold combines one matching hook outcome using first-deny and first-rewrite
 // precedence while accumulating injected context.
 func (d *Decision) Fold(block, ask bool, reason, inject, rewrite string) {

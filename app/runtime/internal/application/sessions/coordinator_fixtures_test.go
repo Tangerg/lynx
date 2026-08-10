@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
@@ -200,14 +201,14 @@ func (r testCWDResolver) ResolveExistingDir(path string) (string, error) {
 	return path, nil
 }
 
-func (r testCWDResolver) Inspect(path string) (session.WorkspaceIdentity, error) {
+func (r testCWDResolver) Inspect(path string) (workspace.Resolved, error) {
 	if r.err != nil {
-		return session.WorkspaceIdentity{}, r.err
+		return workspace.Resolved{}, r.err
 	}
 	if r.resolved != "" {
 		path = r.resolved
 	}
-	return session.WorkspaceIdentity{CWD: path, ProjectRoot: path}, nil
+	return workspace.Resolved{Path: path, ProjectRoot: path}, nil
 }
 
 type emptyTranscript struct{}

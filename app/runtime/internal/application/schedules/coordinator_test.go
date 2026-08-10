@@ -16,16 +16,16 @@ func TestNilRegistryDisablesCRUD(t *testing.T) {
 	c := New(Dependencies{})
 	ctx := context.Background()
 
-	if _, err := c.List(ctx); !errors.Is(err, schedule.ErrUnavailable) {
+	if _, err := c.List(ctx); !errors.Is(err, ErrUnavailable) {
 		t.Fatalf("List err = %v, want ErrUnavailable", err)
 	}
-	if _, err := c.Create(ctx, CreateCommand{}); !errors.Is(err, schedule.ErrUnavailable) {
+	if _, err := c.Create(ctx, CreateCommand{}); !errors.Is(err, ErrUnavailable) {
 		t.Fatalf("Create err = %v, want ErrUnavailable", err)
 	}
-	if err := c.Delete(ctx, "sch_1"); !errors.Is(err, schedule.ErrUnavailable) {
+	if err := c.Delete(ctx, "sch_1"); !errors.Is(err, ErrUnavailable) {
 		t.Fatalf("Delete err = %v, want ErrUnavailable", err)
 	}
-	if _, err := NewFiring(nil, nil).RunNow(ctx, "sch_1"); !errors.Is(err, schedule.ErrUnavailable) {
+	if _, err := NewFiring(nil, nil).RunNow(ctx, "sch_1"); !errors.Is(err, ErrUnavailable) {
 		t.Fatalf("RunNow err = %v, want ErrUnavailable", err)
 	}
 }

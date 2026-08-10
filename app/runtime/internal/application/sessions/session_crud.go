@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 )
 
@@ -13,7 +14,7 @@ import (
 // treat it as an invariant instead of repeatedly touching the filesystem.
 type CWDResolver interface {
 	ResolveExistingDir(path string) (string, error)
-	Inspect(path string) (session.WorkspaceIdentity, error)
+	Inspect(path string) (workspaceapp.Resolved, error)
 }
 
 // List returns every user-facing Session, newest-updated first.
@@ -36,9 +37,9 @@ func (c *Coordinator) Get(ctx context.Context, id string) (session.Session, erro
 // Missing directories are represented in the returned value; unexpected
 // filesystem failures remain errors so callers never receive a fabricated
 // workspace identity.
-func (c *Coordinator) InspectWorkspace(cwd string) (session.WorkspaceIdentity, error) {
+func (c *Coordinator) InspectWorkspace(cwd string) (workspaceapp.Resolved, error) {
 	if c.paths == nil {
-		return session.WorkspaceIdentity{}, errors.New("sessions: workspace inspector is unavailable")
+		return workspaceapp.Resolved{}, errors.New("sessions: workspace inspector is unavailable")
 	}
 	return c.paths.Inspect(cwd)
 }
@@ -182,14 +183,14 @@ func (c *Coordinator) ApplyGeneratedTitle(ctx context.Context, id, title string)
 }
 
 // resolveSessionCWD canonicalizes cwd and requires it to be an existing
-// directory, joining [session.ErrCWDUnavailable] on failure.
+// directory, returning the shared workspace-admission sentinel on failure.
 func (c *Coordinator) resolveSessionCWD(cwd string) (string, error) {
 	if c.paths == nil {
-		return "", errors.Join(session.ErrCWDUnavailable, errors.New("sessions: cwd resolver is unavailable"))
+		return "", errors.Join(workspaceapp.ErrCWDUnavailable, errors.New("sessions: cwd resolver is unavailable"))
 	}
 	resolved, err := c.paths.ResolveExistingDir(cwd)
 	if err != nil {
-		return "", errors.Join(session.ErrCWDUnavailable, err)
+		return "", errors.Join(workspaceapp.ErrCWDUnavailable, err)
 	}
 	return resolved, nil
 }
