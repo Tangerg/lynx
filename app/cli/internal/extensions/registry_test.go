@@ -147,3 +147,35 @@ func TestScopeRejectsOwnershipAfterSetupReturns(t *testing.T) {
 		t.Fatalf("closed scope registered values: %v", values)
 	}
 }
+
+func TestScopeSealWinsAgainstAnInFlightLateContribution(t *testing.T) {
+	entered := make(chan struct{})
+	release := make(chan struct{})
+	result := make(chan error, 1)
+	point := NewKeyedPoint("test.concurrent-late", func(value string) string {
+		close(entered)
+		<-release
+		return value
+	})
+	registry := new(Registry)
+	loaded, err := Load(registry, manifest("concurrent-late", func(scope *Scope) error {
+		go func() {
+			_, err := Contribute(scope, point, "late", Contribution{})
+			result <- err
+		}()
+		<-entered
+		return nil
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer loaded.Dispose()
+
+	close(release)
+	if err := <-result; !errors.Is(err, errScopeClosed) {
+		t.Fatalf("racing contribution error = %v, want scope closed", err)
+	}
+	if values := Values(registry, point); len(values) != 0 {
+		t.Fatalf("sealed scope registered values: %v", values)
+	}
+}

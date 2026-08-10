@@ -155,6 +155,50 @@ func TestClearPresentationPreservesReplayCursor(t *testing.T) {
 	}
 }
 
+func TestConversationSettlesTransientStartCancellation(t *testing.T) {
+	c := NewConversation()
+	if err := c.Starting(); err != nil {
+		t.Fatal(err)
+	}
+	if !c.Busy() || c.Phase() != Running || c.RunID() != "" {
+		t.Fatalf("starting state = busy:%t phase:%v run:%q", c.Busy(), c.Phase(), c.RunID())
+	}
+	if err := c.Starting(); !errors.Is(err, ErrInvalidTransition) {
+		t.Fatalf("overlapping start error = %v", err)
+	}
+	if err := c.CancelStarting(); err != nil {
+		t.Fatal(err)
+	}
+	if c.Busy() || c.Outcome().Status != OutcomeCanceled {
+		t.Fatalf("canceled start = busy:%t outcome:%+v", c.Busy(), c.Outcome())
+	}
+	if err := c.CancelStarting(); !errors.Is(err, ErrInvalidTransition) {
+		t.Fatalf("repeated start cancellation error = %v", err)
+	}
+}
+
+func TestConversationCanStartAgainAfterTransientFailure(t *testing.T) {
+	c := NewConversation()
+	if err := c.Starting(); err != nil {
+		t.Fatal(err)
+	}
+	want := errors.New("stream disconnected")
+	c.Failed(want)
+	blocks := c.Blocks()
+	if c.Busy() || c.Outcome().Status != OutcomeFailed || c.Outcome().Error != want.Error() {
+		t.Fatalf("failed start = busy:%t outcome:%+v", c.Busy(), c.Outcome())
+	}
+	if len(blocks) != 1 || blocks[0].Kind != BlockError || blocks[0].Text != want.Error() {
+		t.Fatalf("failure blocks = %+v", blocks)
+	}
+	if err := c.Starting(); err != nil {
+		t.Fatalf("start after failure: %v", err)
+	}
+	if c.Outcome().Status != "" {
+		t.Fatalf("new start retained outcome %+v", c.Outcome())
+	}
+}
+
 func testEnvelope(cursor Cursor, event Event) Envelope {
 	runID := "run"
 	if started, ok := event.(RunStarted); ok {
