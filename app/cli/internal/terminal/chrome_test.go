@@ -100,7 +100,7 @@ func TestPromptMovesRunOptionsIntoTheFrameAndChangesContext(t *testing.T) {
 
 	prompt.SetBusy(true)
 	busy := drawRoot(t, prompt, 120, prompt.Measure(120))
-	for _, want := range []string{"ctrl+x", "shift+enter", "ctrl+o", "ctrl+p"} {
+	for _, want := range []string{"ctrl+c", "shift+enter", "ctrl+o", "ctrl+p"} {
 		if !strings.Contains(busy, want) {
 			t.Errorf("busy prompt does not contain %q:\n%s", want, busy)
 		}

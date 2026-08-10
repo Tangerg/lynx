@@ -111,6 +111,24 @@ func TestDraggingFromAToolHeaderCopiesWithoutToggling(t *testing.T) {
 	}
 }
 
+func TestEscapeClearsATranscriptTextSelectionBeforeOtherActions(t *testing.T) {
+	view := testConversationView(t)
+	appendTestTool(view, "selection", "SELECTION_DETAIL")
+	view.Focus(true)
+	root := headless.NewRoot(view)
+	surface := grid.NewSurface(48, 8)
+	root.Draw(surface.View())
+	root.Handle(input.Mouse{Pos: image.Pt(4, 0), Action: input.MouseDown, Button: input.ButtonLeft})
+	root.Handle(input.Mouse{Pos: image.Pt(9, 0), Action: input.MouseDrag, Button: input.ButtonLeft})
+	root.Handle(input.Mouse{Pos: image.Pt(9, 0), Action: input.MouseUp, Button: input.ButtonLeft})
+	if !view.selection.Active() {
+		t.Fatal("test did not create a transcript selection")
+	}
+	if !view.Handle(input.Key{Code: input.Esc}) || view.selection.Active() {
+		t.Fatal("Esc did not clear the transcript selection first")
+	}
+}
+
 func TestGlobalToolToggleNormalizesMixedDetailStates(t *testing.T) {
 	view := testConversationView(t)
 	first := appendTestTool(view, "first", "FIRST_DETAIL")

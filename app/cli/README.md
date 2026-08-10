@@ -22,6 +22,7 @@ The interactive client uses a stable agent shell: session and workspace identity
 Core terminal interactions are available from both the keyboard and mouse:
 
 - `Enter` sends a prompt; `Shift+Enter` or `Alt+Enter` inserts a newline.
+- `Ctrl+C` is stateful: it clears a non-empty draft first and cancels the active run only when the composer is empty. `Esc` cancels an active run immediately without discarding the draft; while idle, two presses within 800ms clear a prompt and save it to history. Press `Ctrl+Q` or `Ctrl+D` twice to quit.
 - `Tab` moves keyboard focus from the composer into the transcript. `Up`/`Down` select one retained entry, `Home`/`End` jump to the edges, `Left`/`Right` collapse or expand the selected tool, `Enter` toggles it, and `Alt+C` copies the selected block. `Tab` or `Space` returns to the composer; typing printable text returns there automatically.
 - `PageUp` and `PageDown` move through the live transcript; `Ctrl+Home` and `Ctrl+End` jump to its bounds. Scrolling up suspends bottom-following while output continues.
 - Click a tool-call header to expand or collapse that tool. The action commits only when press and release land on the same header, so a drag selection cannot accidentally change layout. Its colored rail and right-aligned state remain visible while details are folded; `Ctrl+O` expands or collapses all tool details.

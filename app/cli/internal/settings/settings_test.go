@@ -17,7 +17,7 @@ func TestDefaultIsValidAndCloned(t *testing.T) {
 	defaults.Plugins.Directories = []string{"one"}
 	clone = defaults.Clone()
 	clone.Plugins.Directories[0] = "two"
-	if defaults.Keys[ActionQuit][0] != "ctrl+c" {
+	if defaults.Keys[ActionQuit][0] != "ctrl+q" {
 		t.Fatal("Clone leaked a keybinding slice")
 	}
 	if defaults.Plugins.Directories[0] != "one" {

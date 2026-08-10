@@ -90,6 +90,7 @@ type app struct {
 	history            promptHistory
 	commandSeq         uint64
 	commandOperations  map[uint64]commandOperation
+	confirmation       pressConfirmation
 
 	streamSeq     uint64
 	startRequest  string
@@ -270,11 +271,27 @@ func (a *app) Draw(frame headless.Frame) {
 
 func (a *app) Handle(event input.Event) bool {
 	action := a.action(event)
-	if a.handleGlobalAction(action) {
+	a.disarmConfirmation(event, action)
+	if action == quitApp {
+		a.handleQuit(event)
+		return true
+	}
+	// Oolong modal stacks intentionally consume every key so input cannot leak
+	// into covered content. Blocking runtime interactions are the exception at
+	// the product-policy layer: their cancel action must resolve the interaction,
+	// not disappear into the modal boundary.
+	if action == cancelRun && (a.review != nil || a.question != nil) {
+		a.handleCancelGesture()
 		return true
 	}
 	if !a.stack.Empty() {
-		return a.stack.Handle(event)
+		if a.stack.Handle(event) {
+			return true
+		}
+		return a.handleGlobalAction(action)
+	}
+	if a.handleGlobalAction(action) {
+		return true
 	}
 	if a.handleSessionAction(action) {
 		return true
@@ -294,6 +311,9 @@ func (a *app) Handle(event input.Event) bool {
 		return true
 	}
 	handled := a.stack.Handle(event)
+	if !handled && isEscapeEvent(event) {
+		return a.handleEscape()
+	}
 	if !handled && a.shell.TranscriptFocused() && isPromptTextEvent(event) {
 		a.shell.FocusPrompt()
 		handled = a.stack.Handle(event)
@@ -302,6 +322,81 @@ func (a *app) Handle(event input.Event) bool {
 		a.refreshCompletion()
 	}
 	return handled
+}
+
+func (a *app) disarmConfirmation(event input.Event, action keymap.Action) {
+	switch event := event.(type) {
+	case input.Key:
+		if !event.Down() {
+			return
+		}
+		if a.confirmation.Armed(confirmClearDraft) && event.Code == input.Esc {
+			return
+		}
+		if a.confirmation.Armed(confirmQuit) && action == quitApp {
+			return
+		}
+	case input.Paste:
+	case input.Mouse:
+		if event.Action != input.MouseDown {
+			return
+		}
+	default:
+		return
+	}
+	a.confirmation.Reset()
+}
+
+func isEscapeEvent(event input.Event) bool {
+	key, ok := event.(input.Key)
+	return ok && key.Down() && key.Code == input.Esc
+}
+
+func (a *app) handleEscape() bool {
+	if a.state.Busy() || a.following || a.pendingCancel != nil {
+		a.confirmation.Reset()
+		a.cancel()
+		return true
+	}
+	message, hasDraft, err := a.currentDraft()
+	if err != nil {
+		a.message(err.Error())
+		return true
+	}
+	if !hasDraft || !a.shell.PromptFocused() {
+		a.confirmation.Reset()
+		return false
+	}
+	if !a.confirmation.Confirm(confirmClearDraft, time.Now()) {
+		a.status.note("press Esc again to clear the draft")
+		return true
+	}
+	a.history.Add(message)
+	a.resetComposer()
+	a.completion.Dismiss()
+	a.status.note("draft cleared")
+	return true
+}
+
+func (a *app) handleQuit(event input.Event) {
+	if !a.confirmation.Confirm(confirmQuit, time.Now()) {
+		key, _ := event.(input.Key)
+		a.message("press " + key.String() + " again to quit")
+		return
+	}
+	a.loop.Quit()
+}
+
+func (a *app) currentDraft() (client.Message, bool, error) {
+	editor := a.composer.Editor()
+	if editor.Empty() && len(editor.Elements()) == 0 {
+		return client.Message{}, false, nil
+	}
+	message, err := a.composerMessage()
+	if err != nil {
+		return client.Message{}, false, err
+	}
+	return message, true, nil
 }
 
 func isTranscriptPaletteEvent(event input.Event) bool {
@@ -328,15 +423,32 @@ func (a *app) action(event input.Event) keymap.Action {
 
 func (a *app) handleGlobalAction(action keymap.Action) bool {
 	switch action {
-	case quitApp:
-		a.loop.Quit()
-		return true
 	case cancelRun:
-		a.cancel()
+		a.handleCancelGesture()
 		return true
 	default:
 		return false
 	}
+}
+
+func (a *app) handleCancelGesture() {
+	if a.review != nil || a.question != nil {
+		a.cancel()
+		return
+	}
+	message, hasDraft, err := a.currentDraft()
+	if err != nil {
+		a.message(err.Error())
+		return
+	}
+	if hasDraft {
+		a.history.Add(message)
+		a.resetComposer()
+		a.completion.Dismiss()
+		a.message("draft cleared; press Ctrl+C again to cancel")
+		return
+	}
+	a.cancel()
 }
 
 func (a *app) handleSessionAction(action keymap.Action) bool {

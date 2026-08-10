@@ -369,7 +369,6 @@ func (a *app) cancel() {
 		return
 	}
 	if !a.state.Busy() && !a.following {
-		a.loop.Quit()
 		return
 	}
 	a.status.doing = "canceling"

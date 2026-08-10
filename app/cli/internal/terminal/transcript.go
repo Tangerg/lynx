@@ -147,6 +147,10 @@ func (c *conversationView) Draw(frame headless.Frame) {
 
 func (c *conversationView) Handle(event input.Event) bool {
 	if key, ok := event.(input.Key); ok && key.Down() && c.focused {
+		if key.Code == input.Esc && c.selection.Active() {
+			c.selection.Clear()
+			return true
+		}
 		if _, handled := c.matcher.Handle(c.keys, key, c.Do); handled {
 			return true
 		}

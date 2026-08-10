@@ -236,6 +236,7 @@ func stripAttachmentElements(lines []string, elements []headless.Element) error 
 func (a *app) resetComposer() {
 	a.composer.Reset()
 	clear(a.attachmentElements)
+	a.confirmation.Reset()
 }
 
 func (a *app) restoreComposer(message client.Message) {

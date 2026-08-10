@@ -68,8 +68,8 @@ func Default() Config {
 		Keys: map[string][]string{
 			ActionSend:            {"enter"},
 			ActionNewline:         {"shift+enter", "alt+enter"},
-			ActionCancelRun:       {"ctrl+x"},
-			ActionQuit:            {"ctrl+c"},
+			ActionCancelRun:       {"ctrl+c", "ctrl+x"},
+			ActionQuit:            {"ctrl+q", "ctrl+d"},
 			ActionCommandPalette:  {"ctrl+p"},
 			ActionSessions:        {"ctrl+r"},
 			ActionSearch:          {"ctrl+f"},

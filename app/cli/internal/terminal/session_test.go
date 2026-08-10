@@ -313,6 +313,108 @@ func TestTranscriptFocusDoesNotSubmitAndTypingReturnsToPrompt(t *testing.T) {
 	stop()
 }
 
+func TestCtrlCClearsTheDraftBeforeCancelingAnActiveRun(t *testing.T) {
+	base := mock.New()
+	base.Script = func(string) mock.Script {
+		return mock.Script{Prelude: []mock.Step{
+			{Delay: time.Hour, Event: client.RunFinished{Outcome: client.Outcome{Status: client.OutcomeCompleted}}},
+		}}
+	}
+	backend := &recordingRuntime{Runtime: base}
+	host, stop := runUIWith(t, backend)
+	host.Shows(t, "Ask lyra")
+	host.Type("start a long run")
+	host.Press(input.Enter)
+	host.Shows(t, "working")
+	host.Type("UNSENT_CTRL_C_DRAFT")
+	host.Shows(t, "UNSENT_CTRL_C_DRAFT")
+
+	host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
+	host.Hides(t, "UNSENT_CTRL_C_DRAFT")
+	host.Shows(t, "press Ctrl+C again to cancel")
+	started := backend.startInput()
+	snapshot, err := base.GetSession(t.Context(), started.SessionID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if snapshot.Active == nil {
+		t.Fatal("clear-first Ctrl+C canceled the active run")
+	}
+
+	host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
+	host.Shows(t, "canceled")
+	stop()
+}
+
+func TestEscapeCancelsAnActiveRunWithoutDiscardingTheDraft(t *testing.T) {
+	base := mock.New()
+	base.Script = func(string) mock.Script {
+		return mock.Script{Prelude: []mock.Step{
+			{Delay: time.Hour, Event: client.RunFinished{Outcome: client.Outcome{Status: client.OutcomeCompleted}}},
+		}}
+	}
+	host, stop := runUIWith(t, base)
+	host.Shows(t, "Ask lyra")
+	host.Type("start another long run")
+	host.Press(input.Enter)
+	host.Shows(t, "working")
+	host.Type("PRESERVED_ESCAPE_DRAFT")
+	host.Press(input.Esc)
+	host.Shows(t, "canceled")
+	host.Shows(t, "PRESERVED_ESCAPE_DRAFT")
+	stop()
+}
+
+func TestDoubleEscapeClearsAnIdleDraftAndKeepsItInHistory(t *testing.T) {
+	host, stop := runUI(t)
+	host.Shows(t, "Ask lyra")
+	host.Type("RECOVERABLE_ESCAPE_DRAFT")
+	host.Press(input.Esc)
+	host.Shows(t, "press Esc again to clear the draft")
+	host.Shows(t, "RECOVERABLE_ESCAPE_DRAFT")
+	host.Press(input.Esc)
+	host.Hides(t, "RECOVERABLE_ESCAPE_DRAFT")
+	host.Send(input.Key{Code: input.Up, Mods: input.Alt})
+	host.Shows(t, "RECOVERABLE_ESCAPE_DRAFT")
+	stop()
+}
+
+func TestQuitRequiresAConfirmingSecondPress(t *testing.T) {
+	backend := mock.New()
+	backend.Instant = true
+	host := programtest.New(t, 96, 28)
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	done := make(chan error, 1)
+	go func() {
+		done <- Run(ctx, Config{
+			Runtime: backend, Workspace: "/tmp/lyra-cli-test", Host: host,
+		})
+	}()
+
+	host.Shows(t, "Ask lyra")
+	quit := input.Key{Code: input.Character, Rune: 'q', Mods: input.Ctrl}
+	host.Send(quit)
+	host.Shows(t, "press ctrl+q again to quit")
+	select {
+	case err := <-done:
+		t.Fatalf("first quit press stopped the app: %v", err)
+	default:
+	}
+
+	host.Send(quit)
+	wait, stopWaiting := context.WithTimeout(t.Context(), 2*time.Second)
+	defer stopWaiting()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("confirmed quit returned an error: %v", err)
+		}
+	case <-wait.Done():
+		t.Fatal("confirming quit press did not stop the app")
+	}
+}
+
 func TestInteractiveRunRecoversTransportFaultsWithoutDuplicatingTranscript(t *testing.T) {
 	for _, fault := range []mock.FaultKind{mock.FaultDisconnect, mock.FaultDuplicate, mock.FaultGap} {
 		t.Run(string(fault), func(t *testing.T) {
@@ -450,7 +552,7 @@ func TestDenyingApprovalIsAProductResult(t *testing.T) {
 	host.Press(input.Enter)
 	host.Shows(t, "Tool approval")
 
-	host.Press(input.Esc)
+	host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
 	host.Shows(t, "left unchanged")
 	host.Shows(t, "complete")
 
