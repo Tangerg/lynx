@@ -13,8 +13,8 @@ import (
 	"github.com/Tangerg/oolong/core/text"
 )
 
-func (q *queueManager) Place(space image.Point) layout.Placement {
-	innerRows := min(max(len(q.snapshot.Entries), 1), queueManagerVisibleRows)
+func (q *queueDrawer) Place(space image.Point) layout.Placement {
+	innerRows := min(max(len(q.snapshot.Entries), 1), queueDrawerVisibleRows)
 	if q.Editing() {
 		innerRows = 6
 	} else if entry, ok := q.selectedEntry(); ok {
@@ -26,7 +26,7 @@ func (q *queueManager) Place(space image.Point) layout.Placement {
 	return layout.Placement{Anchor: layout.Bottom, Height: min(innerRows+2, max(space.Y-2, 1)), Margin: 1}
 }
 
-func (q *queueManager) Draw(frame headless.Frame) {
+func (q *queueDrawer) Draw(frame headless.Frame) {
 	width, height := frame.Size()
 	if width <= 0 || height <= 0 {
 		q.presentation.Stage(frame, queuePresentation{})
@@ -52,11 +52,11 @@ func (q *queueManager) Draw(frame headless.Frame) {
 	q.presentation.Stage(frame, queuePresentation{hits: slices.Clone(hits), rowRows: rowRows})
 }
 
-func (q *queueManager) title() string {
+func (q *queueDrawer) title() string {
 	return fmt.Sprintf("Queue · %s", countedNoun(len(q.snapshot.Entries), "prompt"))
 }
 
-func (q *queueManager) footer() string {
+func (q *queueDrawer) footer() string {
 	if q.notice != "" {
 		return q.notice
 	}
@@ -66,7 +66,7 @@ func (q *queueManager) footer() string {
 	return "j/k move · enter edit · x remove · J/K reorder · s send now · esc close"
 }
 
-func (q *queueManager) drawEditor(frame headless.Frame, inner image.Rectangle) image.Rectangle {
+func (q *queueDrawer) drawEditor(frame headless.Frame, inner image.Rectangle) image.Rectangle {
 	entry, ok := q.entry(q.editingID)
 	if !ok || inner.Empty() {
 		q.editorRegion.Clear(frame)
@@ -87,7 +87,7 @@ func (q *queueManager) drawEditor(frame headless.Frame, inner image.Rectangle) i
 	return field
 }
 
-func (q *queueManager) drawEntries(view grid.View) ([]queueHit, int) {
+func (q *queueDrawer) drawEntries(view grid.View) ([]queueHit, int) {
 	width, height := view.Size()
 	if width <= 0 || height <= 0 {
 		return nil, 0
@@ -97,7 +97,7 @@ func (q *queueManager) drawEntries(view grid.View) ([]queueHit, int) {
 		view.Text(0, 0, "No queued prompts.", q.theme.Muted)
 		return nil, 0
 	}
-	hits := make([]queueHit, 0, queueManagerVisibleRows*4)
+	hits := make([]queueHit, 0, queueDrawerVisibleRows*4)
 	y := 0
 	if selected, ok := q.selectedEntry(); ok {
 		lines := strings.Split(selected.Message.Text, "\n")
@@ -113,7 +113,7 @@ func (q *queueManager) drawEntries(view grid.View) ([]queueHit, int) {
 			}
 		}
 	}
-	rowRows := min(queueManagerVisibleRows, max(height-y, 1))
+	rowRows := min(queueDrawerVisibleRows, max(height-y, 1))
 	viewport := visibleQueueStart(q.viewport, q.selected, rowRows, len(entries))
 	end := min(viewport+rowRows, len(entries))
 	for index := viewport; index < end; index++ {
@@ -151,7 +151,7 @@ func (q *queueManager) drawEntries(view grid.View) ([]queueHit, int) {
 	return hits, rowRows
 }
 
-func (q *queueManager) drawActions(view grid.View, row image.Rectangle, id uint64, right int, rowStyle grid.Style, hits *[]queueHit) int {
+func (q *queueDrawer) drawActions(view grid.View, row image.Rectangle, id uint64, right int, rowStyle grid.Style, hits *[]queueHit) int {
 	buttons := []struct {
 		label  string
 		target queueTarget

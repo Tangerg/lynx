@@ -15,7 +15,7 @@ import (
 	"github.com/Tangerg/lynx/app/cli/internal/promptqueue"
 )
 
-const queueManagerVisibleRows = 3
+const queueDrawerVisibleRows = 3
 
 type queueTargetKind uint8
 
@@ -43,7 +43,7 @@ type queuePresentation struct {
 	editorArea image.Rectangle
 }
 
-type queueManagerActions struct {
+type queueDrawerActions struct {
 	BeginEdit  func(uint64) error
 	SaveEdit   func(uint64, client.Message, bool) error
 	CancelEdit func(uint64) error
@@ -53,14 +53,14 @@ type queueManagerActions struct {
 	Dismiss    func()
 }
 
-// queueManager owns only the transient state of the bottom queue drawer. Queue
+// queueDrawer owns only the transient state of the bottom queue drawer. Queue
 // entries and ordering remain in the application store, and every mutation is
 // delegated to the app so runtime lifecycle rules stay outside the terminal view.
-type queueManager struct {
+type queueDrawer struct {
 	theme   kit.Theme
 	glyphs  kit.Glyphs
 	keys    *keymap.Map
-	actions queueManagerActions
+	actions queueDrawerActions
 
 	snapshot   promptqueue.Snapshot
 	selected   int
@@ -81,18 +81,18 @@ type queueManager struct {
 	editorRegion headless.PointerRegion
 }
 
-func newQueueManager(theme kit.Theme, glyphs kit.Glyphs, keys *keymap.Map, clipboard headless.Clipboard) *queueManager {
-	manager := &queueManager{theme: theme, glyphs: glyphs, keys: keys}
-	manager.editor = kit.Composer{Theme: theme, Prompt: glyphs.Marker + " ", MaxRows: 4}
-	manager.editor.Editor().Keys = keys
-	manager.editor.Editor().Clipboard = clipboard
-	manager.editor.Editor().Placeholder = "Edit queued prompt"
-	return manager
+func newQueueDrawer(theme kit.Theme, glyphs kit.Glyphs, keys *keymap.Map, clipboard headless.Clipboard) *queueDrawer {
+	drawer := &queueDrawer{theme: theme, glyphs: glyphs, keys: keys}
+	drawer.editor = kit.Composer{Theme: theme, Prompt: glyphs.Marker + " ", MaxRows: 4}
+	drawer.editor.Editor().Keys = keys
+	drawer.editor.Editor().Clipboard = clipboard
+	drawer.editor.Editor().Placeholder = "Edit queued prompt"
+	return drawer
 }
 
-func (q *queueManager) SetActions(actions queueManagerActions) { q.actions = actions }
+func (q *queueDrawer) SetActions(actions queueDrawerActions) { q.actions = actions }
 
-func (q *queueManager) Set(snapshot promptqueue.Snapshot) {
+func (q *queueDrawer) Set(snapshot promptqueue.Snapshot) {
 	q.snapshot = snapshot
 	entries := snapshot.Entries
 	if len(entries) == 0 {
@@ -116,11 +116,11 @@ func (q *queueManager) Set(snapshot promptqueue.Snapshot) {
 	q.ensureVisible()
 }
 
-func (q *queueManager) ResetNotice() { q.notice = "" }
+func (q *queueDrawer) ResetNotice() { q.notice = "" }
 
-func (q *queueManager) Editing() bool { return q.editingID != 0 }
+func (q *queueDrawer) Editing() bool { return q.editingID != 0 }
 
-func (q *queueManager) Handle(event input.Event) bool {
+func (q *queueDrawer) Handle(event input.Event) bool {
 	if key, ok := event.(input.Key); ok && key.Down() {
 		return q.handleKey(key)
 	}
@@ -133,7 +133,7 @@ func (q *queueManager) Handle(event input.Event) bool {
 	return false
 }
 
-func (q *queueManager) handleKey(key input.Key) bool {
+func (q *queueDrawer) handleKey(key input.Key) bool {
 	if q.Editing() {
 		return q.handleEditKey(key)
 	}
@@ -190,7 +190,7 @@ func (q *queueManager) handleKey(key input.Key) bool {
 	}
 }
 
-func (q *queueManager) handleEditKey(key input.Key) bool {
+func (q *queueDrawer) handleEditKey(key input.Key) bool {
 	if key.Code == input.Esc {
 		q.cancelEdit()
 		return true
@@ -214,7 +214,7 @@ func (q *queueManager) handleEditKey(key input.Key) bool {
 	return q.editor.Handle(key)
 }
 
-func (q *queueManager) handleMouse(mouse input.Mouse) bool {
+func (q *queueDrawer) handleMouse(mouse input.Mouse) bool {
 	if q.Editing() {
 		handled, delivered := q.editorRegion.Handle(mouse)
 		return handled || delivered
@@ -254,12 +254,12 @@ func (q *queueManager) handleMouse(mouse input.Mouse) bool {
 	return true
 }
 
-func (q *queueManager) Focus(has bool) {
+func (q *queueDrawer) Focus(has bool) {
 	q.focused = has
 	q.editor.Focus(has && q.Editing())
 }
 
-func (q *queueManager) Closed() {
+func (q *queueDrawer) Closed() {
 	q.focused = false
 	if q.editingID != 0 && q.actions.CancelEdit != nil {
 		_ = q.actions.CancelEdit(q.editingID)
@@ -268,14 +268,14 @@ func (q *queueManager) Closed() {
 	q.hovered, q.pressed, q.dragged = queueTarget{}, queueTarget{}, false
 }
 
-func (q *queueManager) selectedEntry() (promptqueue.Entry, bool) {
+func (q *queueDrawer) selectedEntry() (promptqueue.Entry, bool) {
 	if q.selected < 0 || q.selected >= len(q.snapshot.Entries) {
 		return promptqueue.Entry{}, false
 	}
 	return q.snapshot.Entries[q.selected], true
 }
 
-func (q *queueManager) entry(id uint64) (promptqueue.Entry, bool) {
+func (q *queueDrawer) entry(id uint64) (promptqueue.Entry, bool) {
 	index := queueEntryIndex(q.snapshot.Entries, id)
 	if index < 0 {
 		return promptqueue.Entry{}, false
@@ -283,7 +283,7 @@ func (q *queueManager) entry(id uint64) (promptqueue.Entry, bool) {
 	return q.snapshot.Entries[index], true
 }
 
-func (q *queueManager) selectIndex(index int) {
+func (q *queueDrawer) selectIndex(index int) {
 	if len(q.snapshot.Entries) == 0 {
 		return
 	}
@@ -293,14 +293,14 @@ func (q *queueManager) selectIndex(index int) {
 	q.hovered = queueTarget{}
 }
 
-func (q *queueManager) moveSelection(delta int) { q.selectIndex(q.selected + delta) }
+func (q *queueDrawer) moveSelection(delta int) { q.selectIndex(q.selected + delta) }
 
-func (q *queueManager) ensureVisible() {
+func (q *queueDrawer) ensureVisible() {
 	rows := max(q.presentation.Value().rowRows, 1)
 	q.viewport = visibleQueueStart(q.viewport, q.selected, rows, len(q.snapshot.Entries))
 }
 
-func (q *queueManager) beginEdit() {
+func (q *queueDrawer) beginEdit() {
 	entry, ok := q.selectedEntry()
 	if !ok {
 		return
@@ -318,7 +318,7 @@ func (q *queueManager) beginEdit() {
 	q.notice = ""
 }
 
-func (q *queueManager) cancelEdit() {
+func (q *queueDrawer) cancelEdit() {
 	if q.editingID != 0 && q.actions.CancelEdit != nil {
 		if err := q.actions.CancelEdit(q.editingID); err != nil {
 			q.notice = err.Error()
@@ -329,14 +329,14 @@ func (q *queueManager) cancelEdit() {
 	q.notice = "edit discarded"
 }
 
-func (q *queueManager) cancelEditState() {
+func (q *queueDrawer) cancelEditState() {
 	q.editingID = 0
 	q.editingMessage = client.Message{}
 	q.editor.Reset()
 	q.editor.Focus(false)
 }
 
-func (q *queueManager) saveEdit(sendNow bool) {
+func (q *queueDrawer) saveEdit(sendNow bool) {
 	if q.editingID == 0 || q.actions.SaveEdit == nil {
 		return
 	}
@@ -354,7 +354,7 @@ func (q *queueManager) saveEdit(sendNow bool) {
 	}
 }
 
-func (q *queueManager) removeSelected() {
+func (q *queueDrawer) removeSelected() {
 	entry, ok := q.selectedEntry()
 	if !ok || q.actions.Remove == nil {
 		return
@@ -366,7 +366,7 @@ func (q *queueManager) removeSelected() {
 	q.notice = "queued prompt removed"
 }
 
-func (q *queueManager) moveSelected(offset int) {
+func (q *queueDrawer) moveSelected(offset int) {
 	entry, ok := q.selectedEntry()
 	if !ok || q.actions.Move == nil {
 		return
@@ -380,14 +380,14 @@ func (q *queueManager) moveSelected(offset int) {
 	q.notice = "queued prompt reordered"
 }
 
-func (q *queueManager) sendSelected() {
+func (q *queueDrawer) sendSelected() {
 	entry, ok := q.selectedEntry()
 	if ok {
 		q.send(entry.ID)
 	}
 }
 
-func (q *queueManager) send(id uint64) {
+func (q *queueDrawer) send(id uint64) {
 	if q.actions.SendNow == nil {
 		return
 	}
@@ -398,13 +398,13 @@ func (q *queueManager) send(id uint64) {
 	q.notice = "queued prompt promoted for immediate send"
 }
 
-func (q *queueManager) dismiss() {
+func (q *queueDrawer) dismiss() {
 	if q.actions.Dismiss != nil {
 		q.actions.Dismiss()
 	}
 }
 
-func (q *queueManager) activate(target queueTarget) {
+func (q *queueDrawer) activate(target queueTarget) {
 	q.selectID(target.id)
 	switch target.kind {
 	case queueTargetRow:
@@ -417,13 +417,13 @@ func (q *queueManager) activate(target queueTarget) {
 	}
 }
 
-func (q *queueManager) selectID(id uint64) {
+func (q *queueDrawer) selectID(id uint64) {
 	if index := queueEntryIndex(q.snapshot.Entries, id); index >= 0 {
 		q.selectIndex(index)
 	}
 }
 
-func (q *queueManager) hitAt(point image.Point) queueTarget {
+func (q *queueDrawer) hitAt(point image.Point) queueTarget {
 	hits := q.presentation.Value().hits
 	for _, hit := range slices.Backward(hits) {
 		if point.In(hit.area) {

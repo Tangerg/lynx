@@ -60,7 +60,7 @@ func (q *queueView) Draw(view grid.View) {
 	if len(q.snapshot.Entries) > capacity && capacity > 1 {
 		visible--
 	}
-	for index := 0; index < visible; index++ {
+	for index := range visible {
 		entry := q.snapshot.Entries[index]
 		style, marker := q.theme.Muted, q.glyphs.Free
 		if index == 0 {
@@ -163,8 +163,8 @@ func (a *app) syncQueue() promptqueue.Snapshot {
 	snapshot := a.queue.Snapshot(a.session.ID)
 	a.queueView.Set(snapshot)
 	a.prompt.SetQueued(len(snapshot.Entries))
-	if a.queueManager != nil {
-		a.queueManager.Set(snapshot)
+	if a.queueDrawer != nil {
+		a.queueDrawer.Set(snapshot)
 	}
 	if a.queueDialog != nil {
 		a.queueDialog.SetTitle(fmt.Sprintf("Queue · %s", countedNoun(len(snapshot.Entries), "prompt")))
@@ -182,15 +182,15 @@ func (a *app) ShowQueue() {
 		a.message("queue is empty")
 		return
 	}
-	a.queueManager.ResetNotice()
+	a.queueDrawer.ResetNotice()
 	a.queueDialog.Show()
 	a.message(fmt.Sprintf("queue · %d waiting", len(snapshot.Entries)))
 }
 
-func (a *app) buildQueueManager(theme kit.Theme, glyphs kit.Glyphs, keys *keymap.Map) {
-	manager := newQueueManager(theme, glyphs, keys, a.loop.Clipboard())
-	dialog := headless.NewDialog(&a.stack, "Queue", manager)
-	manager.SetActions(queueManagerActions{
+func (a *app) buildQueueDrawer(theme kit.Theme, glyphs kit.Glyphs, keys *keymap.Map) {
+	drawer := newQueueDrawer(theme, glyphs, keys, a.loop.Clipboard())
+	dialog := headless.NewDialog(&a.stack, "Queue", drawer)
+	drawer.SetActions(queueDrawerActions{
 		BeginEdit:  a.holdQueuedPrompt,
 		SaveEdit:   a.saveQueuedPrompt,
 		CancelEdit: a.releaseQueuedPrompt,
@@ -199,7 +199,7 @@ func (a *app) buildQueueManager(theme kit.Theme, glyphs kit.Glyphs, keys *keymap
 		SendNow:    a.sendQueuedNow,
 		Dismiss:    dialog.Dismiss,
 	})
-	a.queueManager = manager
+	a.queueDrawer = drawer
 	a.queueDialog = dialog
 }
 

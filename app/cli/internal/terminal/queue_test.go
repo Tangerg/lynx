@@ -19,7 +19,7 @@ import (
 	"github.com/Tangerg/lynx/app/cli/internal/settings"
 )
 
-func testQueueManager(t *testing.T, messages ...client.Message) (*queueManager, *promptqueue.Store) {
+func testQueueDrawer(t *testing.T, messages ...client.Message) (*queueDrawer, *promptqueue.Store) {
 	t.Helper()
 	store := promptqueue.New()
 	for _, message := range messages {
@@ -31,9 +31,9 @@ func testQueueManager(t *testing.T, messages ...client.Message) (*queueManager, 
 	if err != nil {
 		t.Fatal(err)
 	}
-	manager := newQueueManager(kit.Dark(), kit.Unicode(), keys, nil)
-	sync := func() { manager.Set(store.Snapshot("session")) }
-	manager.SetActions(queueManagerActions{
+	drawer := newQueueDrawer(kit.Dark(), kit.Unicode(), keys, nil)
+	sync := func() { drawer.Set(store.Snapshot("session")) }
+	drawer.SetActions(queueDrawerActions{
 		BeginEdit: func(id uint64) error {
 			err := store.Hold("session", id)
 			sync()
@@ -76,20 +76,20 @@ func testQueueManager(t *testing.T, messages ...client.Message) (*queueManager, 
 		},
 	})
 	sync()
-	return manager, store
+	return drawer, store
 }
 
-func drawQueueManager(t *testing.T, manager *queueManager, width, height int) (*headless.Root, *grid.Surface, string) {
+func drawQueueDrawer(t *testing.T, drawer *queueDrawer, width, height int) (*headless.Root, *grid.Surface, string) {
 	t.Helper()
-	root := headless.NewRoot(manager)
+	root := headless.NewRoot(drawer)
 	surface := grid.NewSurface(width, height)
 	root.Draw(surface.View())
 	return root, surface, strings.Join(surface.Rows(), "\n")
 }
 
-func queueManagerHit(t *testing.T, manager *queueManager, target queueTarget) queueHit {
+func queueDrawerHit(t *testing.T, drawer *queueDrawer, target queueTarget) queueHit {
 	t.Helper()
-	for _, hit := range manager.presentation.Value().hits {
+	for _, hit := range drawer.presentation.Value().hits {
 		if hit.target == target {
 			return hit
 		}
@@ -123,43 +123,43 @@ func TestQueueViewKeepsTheNextPromptAndOverflowVisible(t *testing.T) {
 	}
 }
 
-func TestQueueManagerRendersPreviewActionsAndResponsiveFallback(t *testing.T) {
-	manager, _ := testQueueManager(t,
+func TestQueueDrawerRendersPreviewActionsAndResponsiveFallback(t *testing.T) {
+	drawer, _ := testQueueDrawer(t,
 		client.Message{Text: "first line\nsecond line", Attachments: []client.Attachment{{ID: "a", Kind: client.AttachmentText, Name: "context.txt", Path: "/tmp/context.txt"}}},
 		client.Message{Text: "second prompt"},
 	)
-	_, _, rendered := drawQueueManager(t, manager, 96, 9)
+	_, _, rendered := drawQueueDrawer(t, drawer, 96, 9)
 	for _, want := range []string{
 		"Queue · 2 prompts", "Preview · full queued prompt", "second line",
 		"[send now]", "[edit]", "[remove]", "J/K reorder",
 	} {
 		if !strings.Contains(rendered, want) {
-			t.Errorf("queue manager does not contain %q:\n%s", want, rendered)
+			t.Errorf("queue drawer does not contain %q:\n%s", want, rendered)
 		}
 	}
-	_, _, narrow := drawQueueManager(t, manager, 22, 5)
+	_, _, narrow := drawQueueDrawer(t, drawer, 22, 5)
 	if !strings.Contains(narrow, "first line") || strings.Contains(narrow, "[send now]") {
-		t.Fatalf("narrow queue manager did not preserve content priority:\n%s", narrow)
+		t.Fatalf("narrow queue drawer did not preserve content priority:\n%s", narrow)
 	}
 }
 
-func TestQueueManagerEditsMultilineTextAndKeepsAttachments(t *testing.T) {
+func TestQueueDrawerEditsMultilineTextAndKeepsAttachments(t *testing.T) {
 	attachment := client.Attachment{ID: "a", Kind: client.AttachmentText, Name: "context.txt", Path: "/tmp/context.txt"}
-	manager, store := testQueueManager(t, client.Message{Text: "original", Attachments: []client.Attachment{attachment}})
-	manager.Focus(true)
-	manager.Handle(input.Key{Code: input.Enter})
-	if !manager.Editing() {
+	drawer, store := testQueueDrawer(t, client.Message{Text: "original", Attachments: []client.Attachment{attachment}})
+	drawer.Focus(true)
+	drawer.Handle(input.Key{Code: input.Enter})
+	if !drawer.Editing() {
 		t.Fatal("Enter did not begin queue editing")
 	}
 	if held := store.Snapshot("session").Entries[0].Held; !held {
 		t.Fatal("queue editor did not hold its entry")
 	}
-	manager.Handle(input.Key{Code: input.Character, Rune: 'u', Mods: input.Ctrl})
-	manager.Handle(input.Paste{Text: "edited"})
-	manager.Handle(input.Key{Code: input.Enter, Mods: input.Shift})
-	manager.Handle(input.Paste{Text: "second line"})
-	manager.Handle(input.Key{Code: input.Enter})
-	if manager.Editing() {
+	drawer.Handle(input.Key{Code: input.Character, Rune: 'u', Mods: input.Ctrl})
+	drawer.Handle(input.Paste{Text: "edited"})
+	drawer.Handle(input.Key{Code: input.Enter, Mods: input.Shift})
+	drawer.Handle(input.Paste{Text: "second line"})
+	drawer.Handle(input.Key{Code: input.Enter})
+	if drawer.Editing() {
 		t.Fatal("Enter did not save queue editing")
 	}
 	entry, ok := store.Next("session")
@@ -167,12 +167,12 @@ func TestQueueManagerEditsMultilineTextAndKeepsAttachments(t *testing.T) {
 		t.Fatalf("saved queued message = %+v, %v", entry.Message, ok)
 	}
 
-	manager.Handle(input.Key{Code: input.Enter})
-	manager.Handle(input.Paste{Text: " discarded"})
-	if !manager.Handle(input.Key{Code: input.Esc}) || manager.Editing() {
+	drawer.Handle(input.Key{Code: input.Enter})
+	drawer.Handle(input.Paste{Text: " discarded"})
+	if !drawer.Handle(input.Key{Code: input.Esc}) || drawer.Editing() {
 		t.Fatal("first Esc did not discard the edit")
 	}
-	if manager.Handle(input.Key{Code: input.Esc}) {
+	if drawer.Handle(input.Key{Code: input.Esc}) {
 		t.Fatal("browse-mode Esc should be left for the dialog controller")
 	}
 	entry, _ = store.Next("session")
@@ -181,64 +181,64 @@ func TestQueueManagerEditsMultilineTextAndKeepsAttachments(t *testing.T) {
 	}
 }
 
-func TestClosingQueueManagerReleasesItsEditedEntry(t *testing.T) {
-	manager, store := testQueueManager(t, client.Message{Text: "editable"})
-	manager.Focus(true)
-	manager.Handle(input.Key{Code: input.Enter})
+func TestClosingQueueDrawerReleasesItsEditedEntry(t *testing.T) {
+	drawer, store := testQueueDrawer(t, client.Message{Text: "editable"})
+	drawer.Focus(true)
+	drawer.Handle(input.Key{Code: input.Enter})
 	if !store.Snapshot("session").Entries[0].Held {
 		t.Fatal("test did not hold the edited entry")
 	}
-	manager.Closed()
-	if manager.Editing() || store.Snapshot("session").Entries[0].Held {
-		t.Fatalf("closed queue manager left editing=%v snapshot=%+v", manager.Editing(), store.Snapshot("session"))
+	drawer.Closed()
+	if drawer.Editing() || store.Snapshot("session").Entries[0].Held {
+		t.Fatalf("closed queue drawer left editing=%v snapshot=%+v", drawer.Editing(), store.Snapshot("session"))
 	}
 }
 
-func TestQueueManagerEditorOwnsPointerPlacement(t *testing.T) {
-	manager, _ := testQueueManager(t, client.Message{Text: "move this cursor"})
-	manager.Focus(true)
-	manager.Handle(input.Key{Code: input.Enter})
-	root, _, _ := drawQueueManager(t, manager, 72, 8)
-	area := manager.presentation.Value().editorArea
+func TestQueueDrawerEditorOwnsPointerPlacement(t *testing.T) {
+	drawer, _ := testQueueDrawer(t, client.Message{Text: "move this cursor"})
+	drawer.Focus(true)
+	drawer.Handle(input.Key{Code: input.Enter})
+	root, _, _ := drawQueueDrawer(t, drawer, 72, 8)
+	area := drawer.presentation.Value().editorArea
 	if area.Empty() {
 		t.Fatal("queue editor did not publish its pointer area")
 	}
-	_, before := manager.editor.Editor().Cursor()
+	_, before := drawer.editor.Editor().Cursor()
 	if before == 0 {
 		t.Fatal("queue editor cursor did not start at the end")
 	}
 	if !root.Handle(input.Mouse{Pos: image.Pt(area.Min.X+2, area.Min.Y), Action: input.MouseDown, Button: input.ButtonLeft}) {
 		t.Fatal("queue editor click was not routed")
 	}
-	line, column := manager.editor.Editor().Cursor()
+	line, column := drawer.editor.Editor().Cursor()
 	if line != 0 || column != 0 {
 		t.Fatalf("queue editor click moved cursor to %d:%d, want 0:0", line, column)
 	}
 }
 
-func TestQueueManagerReordersAndPromotesTheSelectedEntry(t *testing.T) {
-	manager, store := testQueueManager(t,
+func TestQueueDrawerReordersAndPromotesTheSelectedEntry(t *testing.T) {
+	drawer, store := testQueueDrawer(t,
 		client.Message{Text: "first"}, client.Message{Text: "second"}, client.Message{Text: "third"},
 	)
-	manager.Handle(input.Key{Code: input.Down})
-	manager.Handle(input.Key{Code: input.Character, Rune: 'J', Mods: input.Shift})
+	drawer.Handle(input.Key{Code: input.Down})
+	drawer.Handle(input.Key{Code: input.Character, Rune: 'J', Mods: input.Shift})
 	got := store.Snapshot("session").Entries
 	if got[0].Message.Text != "first" || got[1].Message.Text != "third" || got[2].Message.Text != "second" {
 		t.Fatalf("reordered queue = %+v", got)
 	}
-	manager.Handle(input.Key{Code: input.Character, Rune: 's'})
+	drawer.Handle(input.Key{Code: input.Character, Rune: 's'})
 	got = store.Snapshot("session").Entries
 	if got[0].Message.Text != "second" {
 		t.Fatalf("send-now promotion = %+v", got)
 	}
 }
 
-func TestQueueManagerMouseActionsCommitOnlyOnAnUndraggedMatchingRelease(t *testing.T) {
-	manager, store := testQueueManager(t, client.Message{Text: "first"}, client.Message{Text: "second"})
-	root, surface, _ := drawQueueManager(t, manager, 80, 5)
+func TestQueueDrawerMouseActionsCommitOnlyOnAnUndraggedMatchingRelease(t *testing.T) {
+	drawer, store := testQueueDrawer(t, client.Message{Text: "first"}, client.Message{Text: "second"})
+	root, surface, _ := drawQueueDrawer(t, drawer, 80, 5)
 	firstID := store.Snapshot("session").Entries[0].ID
-	remove := queueManagerHit(t, manager, queueTarget{kind: queueTargetRemove, id: firstID})
-	edit := queueManagerHit(t, manager, queueTarget{kind: queueTargetEdit, id: firstID})
+	remove := queueDrawerHit(t, drawer, queueTarget{kind: queueTargetRemove, id: firstID})
+	edit := queueDrawerHit(t, drawer, queueTarget{kind: queueTargetEdit, id: firstID})
 
 	root.Handle(input.Mouse{Pos: remove.area.Min, Action: input.MouseDown, Button: input.ButtonLeft})
 	surface.Reset()
@@ -253,7 +253,7 @@ func TestQueueManagerMouseActionsCommitOnlyOnAnUndraggedMatchingRelease(t *testi
 	}
 
 	root.Draw(surface.View())
-	remove = queueManagerHit(t, manager, queueTarget{kind: queueTargetRemove, id: firstID})
+	remove = queueDrawerHit(t, drawer, queueTarget{kind: queueTargetRemove, id: firstID})
 	root.Handle(input.Mouse{Pos: remove.area.Min, Action: input.MouseDown, Button: input.ButtonLeft})
 	root.Handle(input.Mouse{Pos: image.Pt(0, 0), Action: input.MouseDrag, Button: input.ButtonLeft})
 	root.Handle(input.Mouse{Pos: remove.area.Min, Action: input.MouseUp, Button: input.ButtonLeft})
@@ -262,7 +262,7 @@ func TestQueueManagerMouseActionsCommitOnlyOnAnUndraggedMatchingRelease(t *testi
 	}
 
 	root.Draw(surface.View())
-	remove = queueManagerHit(t, manager, queueTarget{kind: queueTargetRemove, id: firstID})
+	remove = queueDrawerHit(t, drawer, queueTarget{kind: queueTargetRemove, id: firstID})
 	root.Handle(input.Mouse{Pos: remove.area.Min, Action: input.MouseDown, Button: input.ButtonLeft})
 	root.Handle(input.Mouse{Pos: remove.area.Min, Action: input.MouseUp, Button: input.ButtonLeft})
 	if got := len(store.Snapshot("session").Entries); got != 1 {
@@ -344,7 +344,7 @@ func TestCancelingARunDrainsItsQueuedFollowUpAfterCancellationSettles(t *testing
 	stop()
 }
 
-func TestQueueManagerSendsTheSelectedFollowUpBeforeTheRestAndPreservesTheDraft(t *testing.T) {
+func TestQueueDrawerSendsTheSelectedFollowUpBeforeTheRestAndPreservesTheDraft(t *testing.T) {
 	base := mock.New()
 	base.Script = func(prompt string) mock.Script {
 		if prompt == "INTERRUPTED_PRIMARY" {
@@ -422,7 +422,7 @@ func TestEmptyEnterPromotesTheNextQueuedFollowUp(t *testing.T) {
 	stop()
 }
 
-func TestQueueManagerRemainsUsableOnAConstrainedTerminal(t *testing.T) {
+func TestQueueDrawerRemainsUsableOnAConstrainedTerminal(t *testing.T) {
 	base := mock.New()
 	base.Script = func(string) mock.Script {
 		return mock.Script{Prelude: []mock.Step{

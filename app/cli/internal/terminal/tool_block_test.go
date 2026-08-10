@@ -165,7 +165,7 @@ func TestToolBlockDrawsALocaleSafeStatusRailThroughExpandedDetails(t *testing.T)
 			t.Errorf("tool block does not contain %q:\n%s", want, drawn)
 		}
 	}
-	for row := 0; row < height-1; row++ {
+	for row := range height - 1 {
 		cell, ok := surface.CellAt(0, row)
 		if !ok || cell.Content != glyphs.Vertical || cell.Style != theme.Success {
 			t.Fatalf("status rail row %d = %+v, want %q with success style", row, cell, glyphs.Vertical)

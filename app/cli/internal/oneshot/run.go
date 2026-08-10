@@ -125,9 +125,6 @@ func watchCancellation(ctx context.Context, runtime client.Runs, policy reconnec
 }
 
 func (g *cancellationGuard) Close(cancel bool) {
-	if g == nil {
-		return
-	}
 	g.exit <- cancel
 	<-g.done
 }
