@@ -12,8 +12,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/codeintel"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/executionctx"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/discovery"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/skill"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/builtin"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 	domaintool "github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
@@ -37,7 +36,7 @@ type Resolver struct {
 
 	defaultCWD    string
 	skillsUserDir string                                      // user-scope skills dir; merged under each Run's project skills
-	skillUsage    skill.UsageRecorder                         // records skill loads for the idle-lifecycle curator; nil → off
+	skillUsage    builtin.SkillUsageRecorder                  // records skill loads for the idle-lifecycle curator; nil → off
 	online        []toolcontract.Tool                         // working-directory-independent network tools
 	a2a           []toolcontract.Tool                         // working-directory-independent remote A2A agents
 	lsp           []toolcontract.Tool                         // code-intelligence tools; cwd read per-call (analyzer keys servers by root)
@@ -98,7 +97,7 @@ type staticSpec struct {
 type resolverDeps struct {
 	DefaultCWD         string
 	SkillsUserDir      string
-	SkillUsage         skill.UsageRecorder
+	SkillUsage         builtin.SkillUsageRecorder
 	Online             []toolcontract.Tool                         // network tools (webfetch/websearch/httpreq)
 	A2A                []toolcontract.Tool                         // remote A2A delegation tools
 	LSP                []toolcontract.Tool                         // code-intelligence tools
@@ -303,7 +302,7 @@ func (r *Resolver) resolve(ctx context.Context, role string) (manifestBuilder, e
 	// Skill tools are working-directory scoped (project skills live under the
 	// Run's cwd), so they are built per resolution like filesystem tools and are
 	// available to both root and delegated roles. No tools when no skills exist.
-	skillTools, err := skill.BuildReaders(cwd, r.skillsUserDir, r.skillUsage)
+	skillTools, err := builtin.BuildReaders(cwd, r.skillsUserDir, r.skillUsage)
 	if err != nil {
 		return manifestBuilder{}, fmt.Errorf("toolset: resolve skill tools: %w", err)
 	}
@@ -336,7 +335,7 @@ func (r *Resolver) resolve(ctx context.Context, role string) (manifestBuilder, e
 	// search_tools is the sole model-facing entry to every capability withheld
 	// from the initial manifest. The tools themselves remain in the same Run
 	// registry, so promotion changes visibility rather than execution authority.
-	search, err := discovery.New(tools.deferred)
+	search, err := NewDiscovery(tools.deferred)
 	if err != nil {
 		return manifestBuilder{}, fmt.Errorf("toolset: resolve search_tools: %w", err)
 	}

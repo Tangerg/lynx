@@ -597,7 +597,7 @@ func TestSubagentHooksUseApplicationRunIdentity(t *testing.T) {
 // TestToolsetDoesNotDependOnAgentexec prevents peer adapters from recreating a
 // consumer port under the execution adapter and then importing it backwards.
 // Generic tool vocabulary belongs to domain/tool, concrete identities stay in
-// toolset/catalog, and the HITL capability belongs to the runs consumer contract.
+// adapter/toolname, and the HITL capability belongs to the runs consumer contract.
 func TestToolsetDoesNotDependOnAgentexec(t *testing.T) {
 	root := moduleRoot(t)
 	legacy := filepath.Join(root, "internal", "adapter", "agentexec", "toolport")
@@ -627,11 +627,11 @@ func TestToolsetDoesNotDependOnAgentexec(t *testing.T) {
 	}
 }
 
-// TestAgentexecDoesNotOwnConcreteToolContracts keeps model-facing tool names,
-// schemas, special gate policy, and tool-specific outcome projection in
-// toolset. Agent execution resolves generic tools and translates their lifecycle
-// through its consumer-owned interpreter port.
-func TestAgentexecDoesNotOwnConcreteToolContracts(t *testing.T) {
+// TestAgentexecDoesNotDuplicateConcreteToolNames keeps shared model-facing
+// identities in adapter/toolname. Interaction may own its delegate contract
+// because delegation is an execution-strategy capability; it still consumes the
+// canonical name and cannot duplicate unrelated built-in identities.
+func TestAgentexecDoesNotDuplicateConcreteToolNames(t *testing.T) {
 	root := moduleRoot(t)
 	dir := filepath.Join(root, "internal", "adapter", "agentexec")
 	forbidden := []string{`"delegate_task"`, `"set_plan"`, `"exit_plan_mode"`, `"report_goal_outcome"`}
@@ -658,19 +658,18 @@ func TestAgentexecDoesNotOwnConcreteToolContracts(t *testing.T) {
 	}
 }
 
-// TestRuntimeOwnedToolNamesComeFromCatalog prevents constructors from opening a
-// second identity source beside toolset/catalog. Dynamically discovered MCP and
+// TestRuntimeOwnedToolNamesComeFromVocabulary prevents constructors from opening a
+// second identity source beside adapter/toolname. Dynamically discovered MCP and
 // A2A names remain values; only authored string literals in Name fields are
 // forbidden here.
-func TestRuntimeOwnedToolNamesComeFromCatalog(t *testing.T) {
+func TestRuntimeOwnedToolNamesComeFromVocabulary(t *testing.T) {
 	root := moduleRoot(t)
 	dir := filepath.Join(root, "internal", "adapter", "toolset")
 	err := filepath.WalkDir(dir, func(path string, entry os.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
 		}
-		if entry.IsDir() || filepath.Ext(path) != ".go" || strings.HasSuffix(path, "_test.go") ||
-			strings.HasPrefix(path, filepath.Join(dir, "catalog")+string(filepath.Separator)) {
+		if entry.IsDir() || filepath.Ext(path) != ".go" || strings.HasSuffix(path, "_test.go") {
 			return nil
 		}
 		file, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
@@ -691,7 +690,7 @@ func TestRuntimeOwnedToolNamesComeFromCatalog(t *testing.T) {
 				return true
 			}
 			relative, _ := filepath.Rel(root, path)
-			t.Errorf("%s authors Name %s; use toolset/catalog for a built-in identity", relative, literal.Value)
+			t.Errorf("%s authors Name %s; use adapter/toolname for a built-in identity", relative, literal.Value)
 			return true
 		})
 		return nil

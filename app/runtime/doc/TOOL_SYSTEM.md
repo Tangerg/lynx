@@ -454,7 +454,7 @@
 
 ### 批次 7f
 
-- 现行架构基准把旧 `task` / Todo 改为 `delegate_task` / Plan，端口文档同步真实的 `toolset/plan.Store`、`agentexec.PlanReader` 与 SQLite plan store，不再让已经删除的类型看起来仍是当前设计；
+- 现行架构基准把旧 `task` / Todo 改为 `delegate_task` / Plan，端口文档同步真实的 Plan Application use case、Agent execution ACL 与 SQLite plan store，不再让已经删除的类型看起来仍是当前设计；
 - 旧架构清洗台账已在 Runtime 最终收口时删除，历史实施事实只由 Git 保存；`doc/inspiration` 总索引仍是带日期的同类产品对比快照，其中 Todo/Task 等词只描述其他产品原生术语，不声明 Lynx 当前实现状态；
 - 当前规范只有本文、[`ARCHITECTURE.md`](ARCHITECTURE.md) 与机器 contract。迁移期 execution/port 快照已经在 P11 删除，历史事实只留在 Git，不保留一份会再次漂移的“当前工具表”；
 - 排除已标记历史材料、本文删除记录和本轮刻意未修改的前端 generated baseline 后，现行 runtime 文档不再出现 Todo、`task`、`update_plan` 或 `update_goal`。
@@ -527,7 +527,7 @@
 
 ### 批次 11
 
-- 将 Runtime 内建工具身份收敛到无执行依赖的 `toolset/catalog`；Runtime 自有构造器、安全等级、标准策略例外、activity、结果展示和成功调用投影都引用该身份，不再维护 `toolName*`、delegation/offload 私有别名和独立 safety switch；
+- 将 Runtime 内建工具身份收敛到无执行依赖的 `adapter/toolname`；Runtime 自有构造器、安全等级、标准策略例外、activity、结果展示和成功调用投影都引用该身份，不再维护 `toolName*`、delegation/offload 私有别名和独立 safety switch；
 - 根 toolset 的 descriptor catalog 成为跨切面行为单源。Presenter 与 Interpreter 只查询 descriptor；每个可构造内建工具必须有 descriptor，每个 descriptor 必须有可构造工具，未知 MCP/A2A 名称仍 fail-closed 为 Exec 且使用通用展示；
 - breaking change 删除 `edit` / `write` 的 Runtime 注册、resolver 分支、私有 guard、presentation 和测试 profile。所有模型只获得 `apply_patch`，继续完整复用 read-before-mutation、stale-read、path lock、protected path、auto-format 和 post-mutation diagnostics；
 - 删除按 provider/model 字符串推断 mutation dialect 的 `useApplyPatch`，同步移除 Toolset `DefaultModel` 构造参数。模型目录新增或改名不会再悄然改变工具 vocabulary；

@@ -13,7 +13,6 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/executionctx"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/discovery"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
@@ -177,7 +176,7 @@ func TestInteractionExecutorCommitsDeferredAdvertisementThroughAgentFramework(t 
 	if err != nil {
 		t.Fatal(err)
 	}
-	search, err := discovery.New([]toolcontract.Tool{hidden})
+	search, err := toolset.NewDiscovery([]toolcontract.Tool{hidden})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -21,10 +21,9 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/runsegment"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/sessiontitle"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/skillproposal"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolname"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/catalog"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/goal"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/skill"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/builtin"
 	checkpointstore "github.com/Tangerg/lynx/app/runtime/internal/adapter/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspacepath"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/admission"
@@ -113,7 +112,7 @@ type toolEnvironmentBuilder func(
 	*goals.OutcomeReporter,
 	*planapp.Coordinator,
 	*skillauthoring.Store,
-	skill.ProposalSubmitter,
+	builtin.SkillProposalSubmitter,
 ) (toolEnvironment, error)
 
 // Assembly owns configuration resources before construction begins.
@@ -305,7 +304,7 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 	if cfg.ToolResultStore != nil {
 		interactionConfig.ToolResultStore = cfg.ToolResultStore
 		interactionConfig.ToolResultThreshold = cfg.ToolResultThreshold
-		interactionConfig.ToolResultReaderName = catalog.ReadToolResult
+		interactionConfig.ToolResultReaderName = toolname.ReadToolResult
 	}
 	interactionExecutor, err := agentexec.NewInteractionExecutor(interactionConfig)
 	if err != nil {
@@ -525,7 +524,7 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 	// paused rather than silently resuming and burning budget.
 	var goalDriver *goals.Driver
 	if cfg.GoalStore != nil {
-		goalDriver = goals.NewDriver(goalStore, runCoordinator, cfg.SessionStore, goalMutations, goal.RunInstructions)
+		goalDriver = goals.NewDriver(goalStore, runCoordinator, cfg.SessionStore, goalMutations, builtin.RunInstructions)
 		lifetime.goalDriver = goalDriver
 		if err := goalDriver.Reconcile(ctx); err != nil {
 			return nil, fmt.Errorf("runtime: reconcile goals: %w", err)
@@ -533,7 +532,7 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 		// create_goal is the only Goal tool that needs the Driver. Inject the
 		// generic tool after Runs and the Driver exist instead of leaking either
 		// application type into agentexec or introducing a mutable lifecycle proxy.
-		createGoalTool, err := goal.NewCreate(goalDriver)
+		createGoalTool, err := builtin.NewCreate(goalDriver)
 		if err != nil {
 			return nil, fmt.Errorf("runtime: build create_goal: %w", err)
 		}

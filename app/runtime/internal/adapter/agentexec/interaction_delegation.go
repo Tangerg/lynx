@@ -9,7 +9,6 @@ import (
 
 	agent "github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/interaction"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/delegation"
 	corechat "github.com/Tangerg/lynx/core/chat"
 	toolcontract "github.com/Tangerg/lynx/tool"
 )
@@ -123,7 +122,7 @@ func newDelegatedInteractionDefinition(
 	if inner == nil {
 		return nil, errors.New("agentexec: delegated Interaction definition is nil")
 	}
-	inputSchema, err := runtimeContractSchema[delegation.Input]()
+	inputSchema, err := runtimeContractSchema[delegateInput]()
 	if err != nil {
 		return nil, fmt.Errorf("agentexec: delegated task input schema: %w", err)
 	}
@@ -132,7 +131,7 @@ func newDelegatedInteractionDefinition(
 		return nil, fmt.Errorf("agentexec: delegated task output schema: %w", err)
 	}
 	descriptor, err := agent.NewDescriptor(agent.DescriptorConfig{
-		Name: name, Description: delegation.Description,
+		Name: name, Description: delegateDescription,
 		Version: interactionDefinitionVersion, InputSchema: inputSchema, OutputSchema: outputSchema,
 	})
 	if err != nil {
@@ -166,7 +165,7 @@ func (definition *delegatedInteractionDefinition) Start(input agent.Input) (agen
 	if definition == nil || definition.inner == nil || !definition.descriptor.Valid() {
 		return nil, errors.New("agentexec: delegated Interaction definition is invalid")
 	}
-	task, err := agent.DecodeInput[delegation.Input](input)
+	task, err := agent.DecodeInput[delegateInput](input)
 	if err != nil {
 		return nil, fmt.Errorf("agentexec: decode delegated task: %w", err)
 	}

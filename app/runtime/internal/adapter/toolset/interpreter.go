@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/catalog"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolname"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
@@ -52,9 +52,9 @@ func (Interpreter) UsesStandardPolicy(name string) bool {
 func (Interpreter) ApprovalSubject(name string, arguments tool.Arguments) (string, error) {
 	var field string
 	switch name {
-	case catalog.Shell:
+	case toolname.Shell:
 		field = "command"
-	case catalog.Read:
+	case toolname.Read:
 		field = "path"
 	default:
 		return "", nil
@@ -70,7 +70,7 @@ func (Interpreter) ApprovalSubject(name string, arguments tool.Arguments) (strin
 // Malformed arguments return an empty command and remain gated by the tool's
 // execution safety class.
 func (Interpreter) ShellCommand(name, rawArguments string) string {
-	if name != catalog.Shell {
+	if name != toolname.Shell {
 		return ""
 	}
 	arguments, err := tool.ParseArguments(rawArguments)

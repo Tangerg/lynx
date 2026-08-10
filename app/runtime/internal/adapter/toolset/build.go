@@ -9,16 +9,7 @@ import (
 	toolcontract "github.com/Tangerg/lynx/tool"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/codeintel"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/agentmemorysearch"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/askuser"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/conversationsearch"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/goal"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/lsp"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/offload"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/plan"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/schedule"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/shell"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/skill"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/builtin"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/a2a"
@@ -45,23 +36,23 @@ type BuildConfig struct {
 	// after reconnects; toolset deliberately does not own MCP connections.
 	MCPTools       []toolcontract.Tool
 	A2AAgents      []A2AAgentConfig
-	Plan           plan.UseCases   // backs set_plan + exit_plan_mode; nil → both are omitted
-	PlanMode       plan.ModePolicy // session-scoped Plan mode; nil → enter/exit are omitted
+	Plan           builtin.PlanUseCases   // backs set_plan + exit_plan_mode; nil → both are omitted
+	PlanMode       builtin.PlanModePolicy // session-scoped Plan mode; nil → enter/exit are omitted
 	Interrupt      runs.InterruptFunc
-	Schedules      schedule.Management     // backs schedule management tools; nil → omitted
-	ToolResults    offload.Store           // backs read_tool_result (reads offloaded tool output); nil → omitted
-	SkillUsage     skill.UsageRecorder     // records skill loads for the idle-lifecycle curator; nil → use recording off
-	SkillProposals skill.ProposalSubmitter // backs root-only propose_skill; nil → omitted
-	GoalReader     GoalReader              // backs get_goal and the report_goal_outcome gate; nil → omitted
-	GoalReporter   goal.Reporter           // backs report_goal_outcome; nil → omitted
+	Schedules      builtin.ScheduleManagement     // backs schedule management tools; nil → omitted
+	ToolResults    builtin.ToolResultStore        // backs read_tool_result (reads offloaded tool output); nil → omitted
+	SkillUsage     builtin.SkillUsageRecorder     // records skill loads for the idle-lifecycle curator; nil → use recording off
+	SkillProposals builtin.SkillProposalSubmitter // backs root-only propose_skill; nil → omitted
+	GoalReader     GoalReader                     // backs get_goal and the report_goal_outcome gate; nil → omitted
+	GoalReporter   builtin.GoalOutcomeReporter    // backs report_goal_outcome; nil → omitted
 
 	// AgentMemorySearch backs search_memory (keyword + semantic search over the
 	// agent's curated project memory). nil omits the tool.
-	AgentMemorySearch agentmemorysearch.Search
+	AgentMemorySearch builtin.AgentMemorySearch
 
 	// ConversationSearch backs search_conversations (full-text search over past conversation
 	// transcripts). nil omits the tool.
-	ConversationSearch conversationsearch.Search
+	ConversationSearch builtin.ConversationSearch
 
 	// MCPToolDisabled reports whether an identified MCP tool is hidden. The
 	// runtime updates the underlying policy after every registry change.
@@ -81,8 +72,8 @@ type BuildConfig struct {
 // GoalReader supplies both the Goal read model and the active-Goal predicate
 // required while resolving the root Agent's Goal tools.
 type GoalReader interface {
-	goal.Reader
-	goal.ActiveReader
+	builtin.GoalReader
+	builtin.ActiveGoalReader
 }
 
 // Built is the assembled tool environment: the runtime-scope resolver (also the
@@ -122,7 +113,7 @@ func Build(ctx context.Context, config BuildConfig) (_ Built, err error) {
 	// lazily per (workspace root, language). Tools are cwd-independent (the
 	// analyzer keys by root, read per call off the blackboard).
 	codeIntel := codeintel.New(config.LSPServers)
-	lspTools, err := lsp.Build(codeIntel, config.DefaultCWD)
+	lspTools, err := builtin.BuildLSP(codeIntel, config.DefaultCWD)
 	if err != nil {
 		return Built{}, fmt.Errorf("toolset: build lsp tools: %w", err)
 	}
@@ -138,7 +129,7 @@ func Build(ctx context.Context, config BuildConfig) (_ Built, err error) {
 		return Built{}, fmt.Errorf("toolset: enable shell sandbox: %w", confErr)
 	}
 	shells := exec.NewShells(confiner, config.SandboxShell)
-	shellTools, err := shell.Build(shells, config.DefaultCWD)
+	shellTools, err := builtin.BuildShell(shells, config.DefaultCWD)
 	if err != nil {
 		return Built{}, fmt.Errorf("toolset: build shell tools: %w", err)
 	}
@@ -157,55 +148,55 @@ func Build(ctx context.Context, config BuildConfig) (_ Built, err error) {
 
 	// ask_user is a build-time Tool shared by root and delegated roles. A child
 	// question waits at the same durable tree boundary as child approval.
-	askUserTool, err := askuser.New(interrupt)
+	askUserTool, err := builtin.NewAskUser(interrupt)
 	if err != nil {
 		return Built{}, fmt.Errorf("toolset: build ask_user: %w", err)
 	}
 
 	// Plan mode and Plan state form one lifecycle. The family keeps
 	// exit_plan_mode bound to the exact store maintained by set_plan.
-	planFamily, err := plan.Build(config.PlanMode, config.Plan, interrupt)
+	planFamily, err := builtin.BuildPlan(config.PlanMode, config.Plan, interrupt)
 	if err != nil {
 		return Built{}, fmt.Errorf("toolset: build Plan family: %w", err)
 	}
-	scheduleTools, err := schedule.Build(config.Schedules)
+	scheduleTools, err := builtin.BuildSchedules(config.Schedules)
 	if err != nil {
 		return Built{}, fmt.Errorf("toolset: build schedule tools: %w", err)
 	}
 	// read_tool_result reads back a tool output the runtime offloaded on
 	// eviction. Working-directory independent (keys off the session id), so built
 	// once and given to both roles. nil store → nil tool, simply omitted.
-	toolResultTool, err := offload.New(config.ToolResults)
+	toolResultTool, err := builtin.NewToolResultReader(config.ToolResults)
 	if err != nil {
 		return Built{}, fmt.Errorf("toolset: build read_tool_result: %w", err)
 	}
 	// search_memory reads back the agent's curated project memory (keyword +
 	// semantic). Working-directory independent (searches the Run's project), so
 	// built once for both roles. nil searcher → nil tool, simply omitted.
-	agentMemorySearchTool, err := agentmemorysearch.New(config.AgentMemorySearch)
+	agentMemorySearchTool, err := builtin.NewAgentMemorySearch(config.AgentMemorySearch)
 	if err != nil {
 		return Built{}, fmt.Errorf("toolset: build search_memory: %w", err)
 	}
 	// search_conversations recalls past conversation transcripts (full-text, all
 	// sessions). Working-directory independent, so built once for both roles.
 	// nil searcher → nil tool, simply omitted.
-	conversationSearchTool, err := conversationsearch.New(config.ConversationSearch)
+	conversationSearchTool, err := builtin.NewConversationSearch(config.ConversationSearch)
 	if err != nil {
 		return Built{}, fmt.Errorf("toolset: build search_conversations: %w", err)
 	}
 	// Goal state is working-directory independent and keyed by session. get_goal
 	// is always useful to the root Agent; report_goal_outcome is additionally
 	// gated to an active Goal by the resolver.
-	goalGetTool, err := goal.NewGet(config.GoalReader)
+	goalGetTool, err := builtin.NewGet(config.GoalReader)
 	if err != nil {
 		return Built{}, fmt.Errorf("toolset: build get_goal: %w", err)
 	}
-	goalReportTool, err := goal.NewReport(config.GoalReporter)
+	goalReportTool, err := builtin.NewReport(config.GoalReporter)
 	if err != nil {
 		return Built{}, fmt.Errorf("toolset: build report_goal_outcome: %w", err)
 	}
 	goalActive := goalActiveReader(config.GoalReader)
-	proposeSkillTool, err := skill.NewProposal(config.SkillProposals, config.DefaultCWD)
+	proposeSkillTool, err := builtin.NewProposal(config.SkillProposals, config.DefaultCWD)
 	if err != nil {
 		return Built{}, fmt.Errorf("toolset: build propose_skill: %w", err)
 	}
@@ -261,7 +252,7 @@ func Build(ctx context.Context, config BuildConfig) (_ Built, err error) {
 // report_goal_outcome. A paused or blocked Goal does not count: only a Run
 // driven by the active autonomous loop can truthfully report its outcome.
 // Returns nil when Goal mode is off so the tool is never offered.
-func goalActiveReader(state goal.ActiveReader) func(context.Context, string) (bool, error) {
+func goalActiveReader(state builtin.ActiveGoalReader) func(context.Context, string) (bool, error) {
 	if state == nil {
 		return nil
 	}

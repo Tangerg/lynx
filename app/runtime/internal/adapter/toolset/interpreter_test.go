@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/catalog"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolname"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
@@ -18,15 +18,15 @@ func TestSemanticsSafetyClassFailsClosed(t *testing.T) {
 		name string
 		want tool.SafetyClass
 	}{
-		{name: catalog.DelegateTask, want: tool.SafetyClassSafe},
-		{name: catalog.ListSchedules, want: tool.SafetyClassSafe},
-		{name: catalog.CreateSchedule, want: tool.SafetyClassWrite},
-		{name: catalog.ApplyPatch, want: tool.SafetyClassWrite},
-		{name: catalog.Shell, want: tool.SafetyClassExec},
-		{name: catalog.ReadShellOutput, want: tool.SafetyClassSafe},
-		{name: catalog.StopShell, want: tool.SafetyClassExec},
-		{name: catalog.WebFetch, want: tool.SafetyClassNetwork},
-		{name: catalog.HTTPRequest, want: tool.SafetyClassNetwork},
+		{name: toolname.DelegateTask, want: tool.SafetyClassSafe},
+		{name: toolname.ListSchedules, want: tool.SafetyClassSafe},
+		{name: toolname.CreateSchedule, want: tool.SafetyClassWrite},
+		{name: toolname.ApplyPatch, want: tool.SafetyClassWrite},
+		{name: toolname.Shell, want: tool.SafetyClassExec},
+		{name: toolname.ReadShellOutput, want: tool.SafetyClassSafe},
+		{name: toolname.StopShell, want: tool.SafetyClassExec},
+		{name: toolname.WebFetch, want: tool.SafetyClassNetwork},
+		{name: toolname.HTTPRequest, want: tool.SafetyClassNetwork},
 		{name: "unknown_tool", want: tool.SafetyClassExec},
 	} {
 		if got := interpreter.SafetyClass(test.name); got != test.want {
@@ -43,12 +43,12 @@ func TestSemanticsApprovalSubject(t *testing.T) {
 		want      string
 		wantError bool
 	}{
-		{name: catalog.Shell, arguments: `{"command":"npm run build"}`, want: "npm run build"},
-		{name: catalog.Read, arguments: `{"path":"go.mod"}`, want: "go.mod"},
-		{name: catalog.ApplyPatch, arguments: `{"patch":"diff"}`},
-		{name: catalog.Grep, arguments: `{"pattern":"foo"}`},
-		{name: catalog.StopShell, arguments: `{"shell_id":"s1"}`},
-		{name: catalog.Shell, arguments: `{"timeout_millis":5}`, wantError: true},
+		{name: toolname.Shell, arguments: `{"command":"npm run build"}`, want: "npm run build"},
+		{name: toolname.Read, arguments: `{"path":"go.mod"}`, want: "go.mod"},
+		{name: toolname.ApplyPatch, arguments: `{"patch":"diff"}`},
+		{name: toolname.Grep, arguments: `{"pattern":"foo"}`},
+		{name: toolname.StopShell, arguments: `{"shell_id":"s1"}`},
+		{name: toolname.Shell, arguments: `{"timeout_millis":5}`, wantError: true},
 	} {
 		arguments, err := tool.ParseArguments(test.arguments)
 		if err != nil {
@@ -69,20 +69,20 @@ func TestSemanticsApprovalSubject(t *testing.T) {
 
 func TestSemanticsShellCommand(t *testing.T) {
 	interpreter := Interpreter{}
-	if got := interpreter.ShellCommand(catalog.Shell, `{"command":"rm -rf /"}`); got != "rm -rf /" {
+	if got := interpreter.ShellCommand(toolname.Shell, `{"command":"rm -rf /"}`); got != "rm -rf /" {
 		t.Fatalf("ShellCommand = %q, want command", got)
 	}
-	if got := interpreter.ShellCommand(catalog.ApplyPatch, `{"command":"rm -rf /"}`); got != "" {
+	if got := interpreter.ShellCommand(toolname.ApplyPatch, `{"command":"rm -rf /"}`); got != "" {
 		t.Fatalf("non-shell command = %q, want empty", got)
 	}
 }
 
 func TestSemanticsDelegationUsesChildLifecyclePolicy(t *testing.T) {
 	interpreter := Interpreter{}
-	if interpreter.UsesStandardPolicy(catalog.DelegateTask) {
+	if interpreter.UsesStandardPolicy(toolname.DelegateTask) {
 		t.Fatal("delegation entered ordinary tool-call policy")
 	}
-	for _, name := range []string{catalog.Read, "extension_tool"} {
+	for _, name := range []string{toolname.Read, "extension_tool"} {
 		if !interpreter.UsesStandardPolicy(name) {
 			t.Errorf("ordinary tool %q bypassed standard policy", name)
 		}
@@ -98,7 +98,7 @@ func TestSemanticsProjectsSuccessfulPlanReplacement(t *testing.T) {
 		t.Fatal(err)
 	}
 	interpreter := NewInterpreter(fixedPlanState{state: want})
-	event, err := interpreter.ProjectOutcome(t.Context(), "session_1", catalog.SetPlan, true)
+	event, err := interpreter.ProjectOutcome(t.Context(), "session_1", toolname.SetPlan, true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -110,8 +110,8 @@ func TestSemanticsProjectsSuccessfulPlanReplacement(t *testing.T) {
 		name      string
 		succeeded bool
 	}{
-		{name: catalog.SetPlan},
-		{name: catalog.Read, succeeded: true},
+		{name: toolname.SetPlan},
+		{name: toolname.Read, succeeded: true},
 	} {
 		event, err := interpreter.ProjectOutcome(t.Context(), "session_1", test.name, test.succeeded)
 		if err != nil || event != nil {

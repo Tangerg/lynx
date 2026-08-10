@@ -7,9 +7,8 @@ import (
 
 	agent "github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/interaction"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolname"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/catalog"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/delegation"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	domaintool "github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/chatclient"
@@ -136,7 +135,7 @@ func (builder *interactionDeploymentBuilder) build() (*interactionDeploymentSet,
 		}
 		if next.Valid() {
 			builder.deployments.delegatesByParent[deployment.DeploymentRef()] = map[string]agent.DeploymentRef{
-				catalog.DelegateTask: next.DeploymentRef(),
+				toolname.DelegateTask: next.DeploymentRef(),
 			}
 		}
 		next = deployment
@@ -217,7 +216,7 @@ func (builder *interactionDeploymentBuilder) delegateLayer(
 		return nil, agent.Budget{}, fmt.Errorf("agentexec: allocate Delegate at depth %d: %w", depth, err)
 	}
 	delegate, err := interaction.NewDelegate(interaction.DelegateConfig{
-		Name: catalog.DelegateTask, Description: delegation.Description,
+		Name: toolname.DelegateTask, Description: delegateDescription,
 		Deployment: next, Budget: budget,
 	})
 	if err != nil {

@@ -8,10 +8,9 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/interactioninput"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolname"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/askuser"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/catalog"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/discovery"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/builtin"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/accounting"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
@@ -146,14 +145,14 @@ func TestInteractionExecutorRestoresWaitingTreeAndDeliversSemanticAnswer(t *test
 
 func TestInteractionExecutorRestoresRuntimeAskUserTool(t *testing.T) {
 	workspace := t.TempDir()
-	ask, err := askuser.New(interactioninput.Require)
+	ask, err := builtin.NewAskUser(interactioninput.Require)
 	if err != nil {
 		t.Fatal(err)
 	}
 	arguments := `{"questions":[{"question":"Which value?"}]}`
 	model := &observationScriptModel{responses: []*chat.Response{
 		interactionToolResponse(chat.ToolCall{
-			ID: "ask_user_call", Name: catalog.AskUser, Arguments: arguments,
+			ID: "ask_user_call", Name: toolname.AskUser, Arguments: arguments,
 		}, 1, 1),
 		interactionUsageTextResponse("continued after the answer", 1, 1),
 	}}
@@ -172,7 +171,7 @@ func TestInteractionExecutorRestoresRuntimeAskUserTool(t *testing.T) {
 		return executor.BeginRoot(t.Context(), ref)
 	})
 	if len(barrier.Interruptions) != 1 || barrier.Interruptions[0].Interrupt.Question == nil ||
-		barrier.Interruptions[0].Interrupt.Question.ToolName != catalog.AskUser {
+		barrier.Interruptions[0].Interrupt.Question.ToolName != toolname.AskUser {
 		t.Fatalf("ask_user interruption = %#v", barrier.Interruptions)
 	}
 	if err := executor.Release(t.Context(), ref); err != nil {
@@ -288,7 +287,7 @@ func TestInteractionExecutorPreservesDeferredAdvertisementAcrossWaitingRestore(t
 	if err != nil {
 		t.Fatal(err)
 	}
-	search, err := discovery.New([]toolcontract.Tool{hidden})
+	search, err := toolset.NewDiscovery([]toolcontract.Tool{hidden})
 	if err != nil {
 		t.Fatal(err)
 	}

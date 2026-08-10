@@ -8,7 +8,6 @@ import (
 
 	agent "github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/interaction"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/delegation"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	corechat "github.com/Tangerg/lynx/core/chat"
@@ -28,7 +27,7 @@ type managedDelegateCall struct {
 	parentRelation     agent.ProcessRelation
 	target             agent.DeploymentRef
 	call               corechat.ToolCall
-	input              delegation.Input
+	input              delegateInput
 	arguments          tool.Arguments
 	modelCallSequence  uint32
 	toolCallIndex      uint32
@@ -117,25 +116,25 @@ func (session *interactionSession) registerDelegateCalls(
 	return nil
 }
 
-func decodeDelegateCall(call corechat.ToolCall) (delegation.Input, tool.Arguments, error) {
+func decodeDelegateCall(call corechat.ToolCall) (delegateInput, tool.Arguments, error) {
 	rawArguments := strings.TrimSpace(call.Arguments)
 	if rawArguments == "" {
 		rawArguments = "{}"
 	}
 	erased, err := agent.ParseInput([]byte(rawArguments))
 	if err != nil {
-		return delegation.Input{}, tool.Arguments{}, err
+		return delegateInput{}, tool.Arguments{}, err
 	}
-	input, err := agent.DecodeInput[delegation.Input](erased)
+	input, err := agent.DecodeInput[delegateInput](erased)
 	if err != nil {
-		return delegation.Input{}, tool.Arguments{}, err
+		return delegateInput{}, tool.Arguments{}, err
 	}
 	if err := input.Validate(); err != nil {
-		return delegation.Input{}, tool.Arguments{}, err
+		return delegateInput{}, tool.Arguments{}, err
 	}
 	arguments, err := tool.ParseArguments(string(erased.JSON()))
 	if err != nil {
-		return delegation.Input{}, tool.Arguments{}, err
+		return delegateInput{}, tool.Arguments{}, err
 	}
 	return input, arguments, nil
 }

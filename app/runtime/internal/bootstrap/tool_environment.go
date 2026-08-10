@@ -7,7 +7,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/interactioninput"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/mcpconnection"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/skill"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/builtin"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/agentmemory"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/approvals"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/goals"
@@ -36,7 +36,7 @@ func buildToolEnvironment(
 	goalReporter *goals.OutcomeReporter,
 	planCoordinator *planapp.Coordinator,
 	skillStore *skillauthoring.Store,
-	skillProposals skill.ProposalSubmitter,
+	skillProposals builtin.SkillProposalSubmitter,
 ) (toolEnvironment, error) {
 	mcpPool, mcpTools, err := mcpconnection.Open(ctx, mcpConnectionSettings.servers, cfg.MCPOAuthSessions)
 	if err != nil {

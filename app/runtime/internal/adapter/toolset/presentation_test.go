@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/catalog"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolname"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
 
@@ -20,24 +20,24 @@ func TestPresenterActivity(t *testing.T) {
 		arguments string
 		want      string
 	}{
-		{name: "web search", toolName: catalog.WebSearch, arguments: `{}`, want: "Searching the web"},
-		{name: "shell description", toolName: catalog.Shell, arguments: `{"command":"go test ./...","description":"Run server tests"}`, want: "Run server tests"},
-		{name: "shell invalid description", toolName: catalog.Shell, arguments: `{"description":" Run server tests"}`, want: "Running command"},
-		{name: "delegation summary", toolName: catalog.DelegateTask, arguments: `{"summary":"Review tool contracts"}`, want: "Delegating: Review tool contracts"},
-		{name: "long delegation summary", toolName: catalog.DelegateTask, arguments: `{"summary":"` + strings.Repeat("a", 81) + `"}`, want: "Delegating to a sub-agent"},
-		{name: "enter Plan mode", toolName: catalog.EnterPlanMode, arguments: `{}`, want: "Entering Plan mode"},
-		{name: "set Plan", toolName: catalog.SetPlan, arguments: `{}`, want: "Updating the Plan"},
-		{name: "exit Plan mode", toolName: catalog.ExitPlanMode, arguments: `{}`, want: "Requesting Plan approval"},
-		{name: "create Goal", toolName: catalog.CreateGoal, arguments: `{"objective":"finish the work"}`, want: "Starting an autonomous Goal"},
-		{name: "create titled schedule", toolName: catalog.CreateSchedule, arguments: `{"title":"Daily review"}`, want: "Creating schedule: Daily review"},
-		{name: "create untitled schedule", toolName: catalog.CreateSchedule, arguments: `{}`, want: "Creating a schedule"},
-		{name: "load Skill", toolName: catalog.LoadSkill, arguments: `{"name":"go-review"}`, want: "Loading Skill: go-review"},
-		{name: "propose named Skill", toolName: catalog.ProposeSkill, arguments: `{"name":"review-go-api"}`, want: "Proposing Skill: review-go-api"},
-		{name: "propose unnamed Skill", toolName: catalog.ProposeSkill, arguments: `{}`, want: "Proposing a Skill"},
-		{name: "LSP references", toolName: catalog.LSP, arguments: `{"operation":"references"}`, want: "Finding symbol references"},
-		{name: "unknown LSP operation", toolName: catalog.LSP, arguments: `{"operation":"rename"}`, want: "Querying the language server"},
-		{name: "HTTP default method", toolName: catalog.HTTPRequest, arguments: `{"url":"https://example.com"}`, want: "Sending GET request"},
-		{name: "HTTP explicit method", toolName: catalog.HTTPRequest, arguments: `{"url":"https://example.com","method":"POST"}`, want: "Sending POST request"},
+		{name: "web search", toolName: toolname.WebSearch, arguments: `{}`, want: "Searching the web"},
+		{name: "shell description", toolName: toolname.Shell, arguments: `{"command":"go test ./...","description":"Run server tests"}`, want: "Run server tests"},
+		{name: "shell invalid description", toolName: toolname.Shell, arguments: `{"description":" Run server tests"}`, want: "Running command"},
+		{name: "delegation summary", toolName: toolname.DelegateTask, arguments: `{"summary":"Review tool contracts"}`, want: "Delegating: Review tool contracts"},
+		{name: "long delegation summary", toolName: toolname.DelegateTask, arguments: `{"summary":"` + strings.Repeat("a", 81) + `"}`, want: "Delegating to a sub-agent"},
+		{name: "enter Plan mode", toolName: toolname.EnterPlanMode, arguments: `{}`, want: "Entering Plan mode"},
+		{name: "set Plan", toolName: toolname.SetPlan, arguments: `{}`, want: "Updating the Plan"},
+		{name: "exit Plan mode", toolName: toolname.ExitPlanMode, arguments: `{}`, want: "Requesting Plan approval"},
+		{name: "create Goal", toolName: toolname.CreateGoal, arguments: `{"objective":"finish the work"}`, want: "Starting an autonomous Goal"},
+		{name: "create titled schedule", toolName: toolname.CreateSchedule, arguments: `{"title":"Daily review"}`, want: "Creating schedule: Daily review"},
+		{name: "create untitled schedule", toolName: toolname.CreateSchedule, arguments: `{}`, want: "Creating a schedule"},
+		{name: "load Skill", toolName: toolname.LoadSkill, arguments: `{"name":"go-review"}`, want: "Loading Skill: go-review"},
+		{name: "propose named Skill", toolName: toolname.ProposeSkill, arguments: `{"name":"review-go-api"}`, want: "Proposing Skill: review-go-api"},
+		{name: "propose unnamed Skill", toolName: toolname.ProposeSkill, arguments: `{}`, want: "Proposing a Skill"},
+		{name: "LSP references", toolName: toolname.LSP, arguments: `{"operation":"references"}`, want: "Finding symbol references"},
+		{name: "unknown LSP operation", toolName: toolname.LSP, arguments: `{"operation":"rename"}`, want: "Querying the language server"},
+		{name: "HTTP default method", toolName: toolname.HTTPRequest, arguments: `{"url":"https://example.com"}`, want: "Sending GET request"},
+		{name: "HTTP explicit method", toolName: toolname.HTTPRequest, arguments: `{"url":"https://example.com","method":"POST"}`, want: "Sending POST request"},
 		{name: "unknown tool", toolName: "external_tool", arguments: `{}`, want: ""},
 	}
 	for _, test := range tests {
@@ -55,7 +55,7 @@ func TestPresenterActivity(t *testing.T) {
 
 func TestPresenterCommandResult(t *testing.T) {
 	presented, outputText := Presenter{}.Present(
-		catalog.Shell,
+		toolname.Shell,
 		tool.Arguments{},
 		mustToolResult(t, map[string]any{"stdout": "out", "stderr": "err", "exit_code": 0}),
 	)
@@ -70,7 +70,7 @@ func TestPresenterCommandResult(t *testing.T) {
 
 func TestPresenterApplyPatchResult(t *testing.T) {
 	presented, _ := Presenter{}.Present(
-		catalog.ApplyPatch,
+		toolname.ApplyPatch,
 		tool.Arguments{},
 		mustToolResult(t, map[string]any{"files": []any{
 			map[string]any{"path": "new.go", "created": true},
@@ -88,7 +88,7 @@ func TestPresenterApplyPatchResult(t *testing.T) {
 
 func TestPresenterSearchResult(t *testing.T) {
 	presented, _ := Presenter{}.Present(
-		catalog.Grep,
+		toolname.Grep,
 		tool.Arguments{},
 		mustToolResult(t, map[string]any{"matches": []any{
 			map[string]any{"path": "main.go", "line": 7, "text": "func main()"},
@@ -104,7 +104,7 @@ func TestPresenterSearchResult(t *testing.T) {
 
 func TestPresenterWebSearchResult(t *testing.T) {
 	presented, _ := Presenter{}.Present(
-		catalog.WebSearch,
+		toolname.WebSearch,
 		tool.Arguments{},
 		mustToolResult(t, map[string]any{"results": []any{
 			map[string]any{"title": "Example", "url": "https://example.com", "favicon_url": "https://example.com/icon.png"},
@@ -131,11 +131,11 @@ func TestPublishedResultContractsDecodePresenterOutput(t *testing.T) {
 		name   string
 		result map[string]any
 	}{
-		{name: catalog.Shell, result: map[string]any{"stdout": "ok", "exit_code": 0}},
-		{name: catalog.Glob, result: map[string]any{"paths": []string{"main.go"}}},
-		{name: catalog.Grep, result: map[string]any{"matches": []any{map[string]any{"path": "main.go", "line": 1, "text": "package main"}}}},
-		{name: catalog.WebSearch, result: map[string]any{"results": []any{map[string]any{"url": "https://example.com"}}}},
-		{name: catalog.ApplyPatch, result: map[string]any{"files": []any{map[string]any{"path": "main.go"}}}},
+		{name: toolname.Shell, result: map[string]any{"stdout": "ok", "exit_code": 0}},
+		{name: toolname.Glob, result: map[string]any{"paths": []string{"main.go"}}},
+		{name: toolname.Grep, result: map[string]any{"matches": []any{map[string]any{"path": "main.go", "line": 1, "text": "package main"}}}},
+		{name: toolname.WebSearch, result: map[string]any{"results": []any{map[string]any{"url": "https://example.com"}}}},
+		{name: toolname.ApplyPatch, result: map[string]any{"files": []any{map[string]any{"path": "main.go"}}}},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -160,7 +160,7 @@ func TestPublishedResultContractsDecodePresenterOutput(t *testing.T) {
 	}
 
 	wantStatuses := []string{"added", "deleted", "modified", "moved"}
-	if got := contracts[catalog.ApplyPatch].EnumValues[reflect.TypeFor[ChangeStatus]()]; !reflect.DeepEqual(got, wantStatuses) {
+	if got := contracts[toolname.ApplyPatch].EnumValues[reflect.TypeFor[ChangeStatus]()]; !reflect.DeepEqual(got, wantStatuses) {
 		t.Fatalf("published patch statuses = %v, want %v", got, wantStatuses)
 	}
 }

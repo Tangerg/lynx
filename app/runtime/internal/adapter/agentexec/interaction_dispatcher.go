@@ -19,7 +19,6 @@ import (
 	"github.com/Tangerg/lynx/agent/interaction"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/interactioninput"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/discovery"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/accounting"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
@@ -314,7 +313,7 @@ func (observed *observedInteractionTool) Call(ctx context.Context, rawArguments 
 		observed.session.recordToolOutcome(call.Name, arguments, denialReason)
 		return denialReason, nil
 	}
-	ctx = discovery.WithToolAdvertiser(ctx, func(names ...string) error {
+	ctx = toolset.WithToolAdvertiser(ctx, func(names ...string) error {
 		return interaction.AdvertiseTools(ctx, names...)
 	})
 	if err := attempt.beginExternalCall(); err != nil {
