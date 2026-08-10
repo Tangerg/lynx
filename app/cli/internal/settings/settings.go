@@ -21,6 +21,7 @@ const (
 	ActionCommandPalette  = "command-palette"
 	ActionSessions        = "sessions"
 	ActionSearch          = "search"
+	ActionManageQueue     = "manage-queue"
 	ActionCycleMode       = "cycle-mode"
 	ActionToggleDetails   = "toggle-details"
 	ActionHistoryPrevious = "history-previous"
@@ -73,6 +74,7 @@ func Default() Config {
 			ActionCommandPalette:  {"ctrl+p"},
 			ActionSessions:        {"ctrl+r"},
 			ActionSearch:          {"ctrl+f"},
+			ActionManageQueue:     {"ctrl+;", "ctrl+g"},
 			ActionCycleMode:       {"shift+tab"},
 			ActionToggleDetails:   {"ctrl+o"},
 			ActionHistoryPrevious: {"alt+up"},

@@ -26,6 +26,9 @@ func TestDefaultIsValidAndCloned(t *testing.T) {
 	if options := defaults.RunOptions(); options.Model != "" || options.Mode != client.ModeBuild {
 		t.Fatalf("RunOptions = %+v", options)
 	}
+	if got := defaults.Keys[ActionManageQueue]; len(got) != 2 || got[0] != "ctrl+;" || got[1] != "ctrl+g" {
+		t.Fatalf("manage queue bindings = %v", got)
+	}
 }
 
 func TestValidationReportsAllIndependentProblems(t *testing.T) {

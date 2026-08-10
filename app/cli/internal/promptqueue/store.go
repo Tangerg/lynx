@@ -15,6 +15,7 @@ import (
 
 var (
 	ErrEntryNotFound     = errors.New("prompt queue: entry not found")
+	ErrEntryHeld         = errors.New("prompt queue: entry is already held")
 	ErrMoveUnavailable   = errors.New("prompt queue: move unavailable")
 	ErrSessionIDRequired = errors.New("prompt queue: session id is empty")
 )
@@ -25,6 +26,7 @@ type Entry struct {
 	ID        uint64
 	SessionID string
 	Message   client.Message
+	Held      bool
 }
 
 // Snapshot is one session's detached FIFO view.
@@ -76,10 +78,48 @@ func (s *Store) Next(sessionID string) (Entry, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	entries := s.entries[sessionID]
-	if len(entries) == 0 {
+	if len(entries) == 0 || entries[0].Held {
 		return Entry{}, false
 	}
 	return cloneEntry(entries[0]), true
+}
+
+// Hold prevents the FIFO consumer from dispatching an entry while an editor
+// owns it. A held entry remains visible and keeps its position in the queue.
+func (s *Store) Hold(sessionID string, id uint64) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	entries := s.entries[sessionID]
+	index := find(entries, id)
+	if index < 0 {
+		return ErrEntryNotFound
+	}
+	if entries[index].Held {
+		return ErrEntryHeld
+	}
+	entries[index].Held = true
+	s.entries[sessionID] = entries
+	s.revision++
+	return nil
+}
+
+// Release makes a held entry dispatchable again. It is idempotent so dialog
+// teardown can safely release ownership after any close path.
+func (s *Store) Release(sessionID string, id uint64) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	entries := s.entries[sessionID]
+	index := find(entries, id)
+	if index < 0 {
+		return ErrEntryNotFound
+	}
+	if !entries[index].Held {
+		return nil
+	}
+	entries[index].Held = false
+	s.entries[sessionID] = entries
+	s.revision++
+	return nil
 }
 
 func (s *Store) Update(sessionID string, id uint64, message client.Message) error {
@@ -132,6 +172,28 @@ func (s *Store) Move(sessionID string, id uint64, offset int) error {
 	entry := entries[from]
 	entries = slices.Delete(entries, from, from+1)
 	entries = slices.Insert(entries, to, entry)
+	s.entries[sessionID] = entries
+	s.revision++
+	return nil
+}
+
+// Promote moves an entry to the front without changing its stable identity.
+// It is the queue-level half of "send now": orchestration decides whether a
+// running turn must be canceled before the promoted entry can be dispatched.
+func (s *Store) Promote(sessionID string, id uint64) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	entries := s.entries[sessionID]
+	from := find(entries, id)
+	if from < 0 {
+		return ErrEntryNotFound
+	}
+	if from == 0 {
+		return nil
+	}
+	entry := entries[from]
+	entries = slices.Delete(entries, from, from+1)
+	entries = slices.Insert(entries, 0, entry)
 	s.entries[sessionID] = entries
 	s.revision++
 	return nil

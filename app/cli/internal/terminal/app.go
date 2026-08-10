@@ -30,6 +30,7 @@ const (
 	commandPalette  keymap.Action = settings.ActionCommandPalette
 	showSessions    keymap.Action = settings.ActionSessions
 	searchHistory   keymap.Action = settings.ActionSearch
+	manageQueue     keymap.Action = settings.ActionManageQueue
 	cycleMode       keymap.Action = settings.ActionCycleMode
 	toggleDetails   keymap.Action = settings.ActionToggleDetails
 	historyPrevious keymap.Action = settings.ActionHistoryPrevious
@@ -41,6 +42,7 @@ const (
 	scrollTop       keymap.Action = settings.ActionScrollTop
 	scrollBottom    keymap.Action = settings.ActionScrollBottom
 	queueFollowUp   keymap.Action = "queue-follow-up"
+	queueOrSendNext keymap.Action = "queue-or-send-next"
 )
 
 type app struct {
@@ -54,20 +56,21 @@ type app struct {
 	state        *client.Conversation
 	operations   *operationOwner
 
-	transcript *conversationView
-	header     *sessionHeader
-	activity   *activityView
-	queueView  *queueView
-	status     *statusView
-	settings   settings.Config
-	options    client.RunOptions
-	composer   kit.Composer
-	prompt     *promptView
-	commands   headless.Commands
-	completion headless.Completion
-	shell      *shellView
-	stack      headless.Stack
-	queue      *promptqueue.Store
+	transcript   *conversationView
+	header       *sessionHeader
+	activity     *activityView
+	queueView    *queueView
+	queueManager *queueManager
+	status       *statusView
+	settings     settings.Config
+	options      client.RunOptions
+	composer     kit.Composer
+	prompt       *promptView
+	commands     headless.Commands
+	completion   headless.Completion
+	shell        *shellView
+	stack        headless.Stack
+	queue        *promptqueue.Store
 
 	review             *client.Approval
 	reviewChoice       string
@@ -88,6 +91,7 @@ type app struct {
 	commandPicker      *picker[headless.Command]
 	commandDialog      *kit.Dialog
 	searchDialog       *kit.Dialog
+	queueDialog        *headless.Dialog
 	searchQuery        string
 	attachments        *attachment.Resolver
 	attachmentElements map[uint64]client.Attachment
@@ -180,6 +184,7 @@ func newApp(loop *program.InlineRuntime, cfg appConfig) *app {
 	a.wireTranscript(a.transcript)
 	a.shell.Focus(true)
 	a.stack.SetBase(a.shell)
+	a.buildQueueManager(theme, glyphs, cfg.Keys)
 	a.buildReview(theme, glyphs)
 	a.buildSessionPicker(theme, glyphs)
 	a.buildRuntimePickers(theme, glyphs)
@@ -290,6 +295,10 @@ func (a *app) Handle(event input.Event) bool {
 	// not disappear into the modal boundary.
 	if action == cancelRun && (a.review != nil || a.question != nil) {
 		a.handleCancelGesture()
+		return true
+	}
+	if action == cancelRun && a.queueDialog != nil && a.queueDialog.Open() && !a.queueManager.Editing() {
+		a.cancel()
 		return true
 	}
 	if !a.stack.Empty() {
@@ -476,6 +485,9 @@ func (a *app) handleSessionAction(action keymap.Action) bool {
 	case searchHistory:
 		a.showSearchDialog()
 		return true
+	case manageQueue:
+		a.ShowQueue()
+		return true
 	case toggleDetails:
 		a.ToggleToolDetails()
 		return true
@@ -547,6 +559,13 @@ func (a *app) submit() {
 		return
 	}
 	if message.Text == "" && len(message.Attachments) == 0 {
+		if a.state.Busy() || a.following || a.pendingCancel != nil {
+			if entry, ok := a.queue.Next(a.session.ID); ok {
+				if err := a.sendQueuedNow(entry.ID); err != nil {
+					a.message(err.Error())
+				}
+			}
+		}
 		return
 	}
 	if name, arg, command := headless.Parse(message.Text); command {

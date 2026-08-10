@@ -45,6 +45,8 @@ func TestConfiguredKeysExposeMultilineAndTranscriptNavigation(t *testing.T) {
 		{chord: input.Chord{Code: input.PageDown}, want: scrollPageDown},
 		{chord: input.Chord{Code: input.Home, Mods: input.Ctrl}, want: scrollTop},
 		{chord: input.Chord{Code: input.End, Mods: input.Ctrl}, want: scrollBottom},
+		{chord: input.Chord{Code: input.Character, Rune: ';', Mods: input.Ctrl}, want: manageQueue},
+		{chord: input.Chord{Code: input.Character, Rune: 'g', Mods: input.Ctrl}, want: manageQueue},
 	}
 	for _, test := range tests {
 		got, ok := keys.Action(test.chord)

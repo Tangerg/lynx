@@ -1,11 +1,14 @@
 package terminal
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
+	"github.com/Tangerg/oolong/components/headless"
 	"github.com/Tangerg/oolong/components/kit"
 	"github.com/Tangerg/oolong/core/grid"
+	"github.com/Tangerg/oolong/core/keymap"
 	"github.com/Tangerg/oolong/core/text"
 
 	"github.com/Tangerg/lynx/app/cli/internal/client"
@@ -16,6 +19,8 @@ const (
 	queueMinWidth = 28
 	queueMaxRows  = 3
 )
+
+var errQueuedPromptDispatching = errors.New("queued prompt is already being sent")
 
 type queueView struct {
 	theme    kit.Theme
@@ -157,6 +162,17 @@ func (a *app) releaseQueuedDispatch() {
 func (a *app) syncQueue() promptqueue.Snapshot {
 	snapshot := a.queue.Snapshot(a.session.ID)
 	a.queueView.Set(snapshot)
+	a.prompt.SetQueued(len(snapshot.Entries))
+	if a.queueManager != nil {
+		a.queueManager.Set(snapshot)
+	}
+	if a.queueDialog != nil {
+		a.queueDialog.SetTitle(fmt.Sprintf("Queue · %s", countedNoun(len(snapshot.Entries), "prompt")))
+		a.queueDialog.SetDescription(fmt.Sprintf("Manage %s waiting behind the current turn", countedNoun(len(snapshot.Entries), "prompt")))
+		if len(snapshot.Entries) == 0 && a.queueDialog.Open() {
+			a.queueDialog.Dismiss()
+		}
+	}
 	return snapshot
 }
 
@@ -166,13 +182,110 @@ func (a *app) ShowQueue() {
 		a.message("queue is empty")
 		return
 	}
-	lines := make([]string, 0, len(snapshot.Entries))
-	for index, entry := range snapshot.Entries {
-		lines = append(lines, fmt.Sprintf("%d. %s", index+1, queueEntryLabel(entry)))
-	}
-	a.transcript.Append(&kit.Message{
-		Theme: a.transcript.theme, Speaker: "queue", Body: strings.Join(lines, "\n"),
-	})
-	a.transcript.Retain(a.loop)
+	a.queueManager.ResetNotice()
+	a.queueDialog.Show()
 	a.message(fmt.Sprintf("queue · %d waiting", len(snapshot.Entries)))
+}
+
+func (a *app) buildQueueManager(theme kit.Theme, glyphs kit.Glyphs, keys *keymap.Map) {
+	manager := newQueueManager(theme, glyphs, keys, a.loop.Clipboard())
+	dialog := headless.NewDialog(&a.stack, "Queue", manager)
+	manager.SetActions(queueManagerActions{
+		BeginEdit:  a.holdQueuedPrompt,
+		SaveEdit:   a.saveQueuedPrompt,
+		CancelEdit: a.releaseQueuedPrompt,
+		Remove:     a.removeQueuedPrompt,
+		Move:       a.moveQueuedPrompt,
+		SendNow:    a.sendQueuedNow,
+		Dismiss:    dialog.Dismiss,
+	})
+	a.queueManager = manager
+	a.queueDialog = dialog
+}
+
+func (a *app) holdQueuedPrompt(id uint64) error {
+	if id == a.dispatchingQueueEntry {
+		return errQueuedPromptDispatching
+	}
+	if err := a.queue.Hold(a.session.ID, id); err != nil {
+		return err
+	}
+	a.syncQueue()
+	return nil
+}
+
+func (a *app) saveQueuedPrompt(id uint64, message client.Message, sendNow bool) error {
+	if id == a.dispatchingQueueEntry {
+		return errQueuedPromptDispatching
+	}
+	if err := a.queue.Update(a.session.ID, id, message); err != nil {
+		return err
+	}
+	if err := a.queue.Release(a.session.ID, id); err != nil {
+		return err
+	}
+	a.syncQueue()
+	if sendNow {
+		return a.sendQueuedNow(id)
+	}
+	a.drainQueue()
+	return nil
+}
+
+func (a *app) releaseQueuedPrompt(id uint64) error {
+	if err := a.queue.Release(a.session.ID, id); err != nil {
+		return err
+	}
+	a.syncQueue()
+	a.drainQueue()
+	return nil
+}
+
+func (a *app) removeQueuedPrompt(id uint64) error {
+	if id == a.dispatchingQueueEntry {
+		return errQueuedPromptDispatching
+	}
+	if _, err := a.queue.Remove(a.session.ID, id); err != nil {
+		return err
+	}
+	snapshot := a.syncQueue()
+	if len(snapshot.Entries) == 0 {
+		a.message("queue is empty")
+	}
+	return nil
+}
+
+func (a *app) moveQueuedPrompt(id uint64, offset int) error {
+	if id == a.dispatchingQueueEntry {
+		return errQueuedPromptDispatching
+	}
+	if err := a.queue.Move(a.session.ID, id, offset); err != nil {
+		return err
+	}
+	a.syncQueue()
+	return nil
+}
+
+// sendQueuedNow persists priority in the queue before touching the active run.
+// Cancellation and dispatch therefore remain resumable if either runtime control
+// call is delayed or fails: the promoted entry is still the next FIFO item.
+func (a *app) sendQueuedNow(id uint64) error {
+	if id == a.dispatchingQueueEntry {
+		return errQueuedPromptDispatching
+	}
+	if a.operations.Active(sessionChangeOperation) {
+		return errors.New("wait for the current session change to finish")
+	}
+	if err := a.queue.Promote(a.session.ID, id); err != nil {
+		return err
+	}
+	a.syncQueue()
+	if a.state.Busy() || a.following || a.pendingCancel != nil {
+		a.cancel()
+		return nil
+	}
+	if !a.drainQueue() {
+		return errors.New("queued prompt could not be dispatched")
+	}
+	return nil
 }

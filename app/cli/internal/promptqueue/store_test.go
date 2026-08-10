@@ -65,6 +65,56 @@ func TestStoreUpdatesMovesRemovesAndClearsByStableIdentity(t *testing.T) {
 	}
 }
 
+func TestStorePromotesAnEntryWithoutChangingItsIdentity(t *testing.T) {
+	store := New()
+	first, _ := store.Enqueue("session", client.Message{Text: "first"})
+	second, _ := store.Enqueue("session", client.Message{Text: "second"})
+	third, _ := store.Enqueue("session", client.Message{Text: "third"})
+
+	if err := store.Promote("session", third.ID); err != nil {
+		t.Fatal(err)
+	}
+	got := store.Snapshot("session").Entries
+	if len(got) != 3 || got[0].ID != third.ID || got[1].ID != first.ID || got[2].ID != second.ID {
+		t.Fatalf("promoted queue = %+v", got)
+	}
+	revision := store.Snapshot("session").Revision
+	if err := store.Promote("session", third.ID); err != nil {
+		t.Fatal(err)
+	}
+	if got := store.Snapshot("session").Revision; got != revision {
+		t.Fatalf("promoting the front entry changed revision from %d to %d", revision, got)
+	}
+}
+
+func TestStoreHoldsTheFrontEntryUntilEditingReleasesIt(t *testing.T) {
+	store := New()
+	first, _ := store.Enqueue("session", client.Message{Text: "first"})
+	second, _ := store.Enqueue("session", client.Message{Text: "second"})
+	if err := store.Hold("session", first.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := store.Next("session"); ok {
+		t.Fatal("held front entry was dispatchable")
+	}
+	snapshot := store.Snapshot("session")
+	if len(snapshot.Entries) != 2 || !snapshot.Entries[0].Held || snapshot.Entries[1].ID != second.ID {
+		t.Fatalf("held snapshot = %+v", snapshot.Entries)
+	}
+	if err := store.Hold("session", first.ID); !errors.Is(err, ErrEntryHeld) {
+		t.Fatalf("second hold returned %v", err)
+	}
+	if err := store.Release("session", first.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Release("session", first.ID); err != nil {
+		t.Fatalf("idempotent release returned %v", err)
+	}
+	if next, ok := store.Next("session"); !ok || next.ID != first.ID || next.Held {
+		t.Fatalf("released next entry = %+v, %v", next, ok)
+	}
+}
+
 func TestStoreRejectsInvalidMessagesWithoutMutation(t *testing.T) {
 	store := New()
 	if _, err := store.Enqueue("", client.Message{Text: "valid"}); !errors.Is(err, ErrSessionIDRequired) {

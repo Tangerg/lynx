@@ -17,7 +17,9 @@ type promptView struct {
 	rows              *headless.Container
 	keys              *keymap.Map
 	busyKeys          *keymap.Map
+	busyQueuedKeys    *keymap.Map
 	busy              bool
+	queued            int
 	transcriptFocused bool
 	selection         transcriptSelection
 	transcriptKeys    *keymap.Map
@@ -34,11 +36,12 @@ func newPromptView(
 	panel.Box.Padding = layout.Symmetric(0, 1)
 	panel.Box.FooterAlign = layout.End
 	p := &promptView{
-		theme:    theme,
-		panel:    panel,
-		help:     kit.Help{Theme: theme, Keys: keys, Separator: "  " + glyphs.Vertical + "  "},
-		keys:     keys,
-		busyKeys: remapHelpAction(keys, sendPrompt, queueFollowUp),
+		theme:          theme,
+		panel:          panel,
+		help:           kit.Help{Theme: theme, Keys: keys, Separator: "  " + glyphs.Vertical + "  "},
+		keys:           keys,
+		busyKeys:       remapHelpAction(keys, sendPrompt, queueFollowUp),
+		busyQueuedKeys: remapHelpAction(keys, sendPrompt, queueOrSendNext),
 	}
 	p.rows = headless.Rows(
 		headless.Item{Key: "field", Size: layout.Measured(3, 8), Of: panel},
@@ -70,6 +73,11 @@ func (p *promptView) SetOptions(options client.RunOptions) {
 
 func (p *promptView) SetBusy(busy bool) {
 	p.busy = busy
+	p.refreshHelp()
+}
+
+func (p *promptView) SetQueued(count int) {
+	p.queued = max(count, 0)
 	p.refreshHelp()
 }
 
@@ -110,10 +118,18 @@ func (p *promptView) refreshHelp() {
 	}
 	if p.busy {
 		p.help.Keys = p.busyKeys
+		if p.queued > 0 {
+			p.help.Keys = p.busyQueuedKeys
+			p.help.Show = []keymap.Action{queueOrSendNext, cancelRun, insertNewline, manageQueue, toggleDetails}
+			return
+		}
 		p.help.Show = []keymap.Action{queueFollowUp, cancelRun, insertNewline, toggleDetails}
 		return
 	}
 	p.help.Show = []keymap.Action{sendPrompt, insertNewline, commandPalette, showSessions, cycleMode}
+	if p.queued > 0 {
+		p.help.Show = append(p.help.Show, manageQueue)
+	}
 }
 
 func remapHelpAction(keys *keymap.Map, from, to keymap.Action) *keymap.Map {
