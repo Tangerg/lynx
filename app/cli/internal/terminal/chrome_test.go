@@ -83,12 +83,12 @@ func TestCompactTokensKeepsTheSignAndReadablePrecision(t *testing.T) {
 }
 
 func TestPromptMovesRunOptionsIntoTheFrameAndChangesContext(t *testing.T) {
-	keys, err := configuredKeys(settings.Default())
+	bindings, err := configuredKeyBindings(settings.Default())
 	if err != nil {
 		t.Fatal(err)
 	}
 	composer := kit.Composer{Theme: kit.Dark(), Prompt: "> "}
-	prompt := newPromptView(kit.Dark(), kit.Unicode(), keys, &composer, settings.Default().RunOptions())
+	prompt := newPromptView(kit.Dark(), kit.Unicode(), bindings.editor, &composer, settings.Default().RunOptions())
 	prompt.Focus(true)
 
 	idle := drawRoot(t, prompt, 120, prompt.Measure(120))
@@ -111,7 +111,7 @@ func TestPromptMovesRunOptionsIntoTheFrameAndChangesContext(t *testing.T) {
 }
 
 func TestShellRendersAtSupportedAndConstrainedTerminalSizes(t *testing.T) {
-	keys, err := configuredKeys(settings.Default())
+	bindings, err := configuredKeyBindings(settings.Default())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -122,7 +122,7 @@ func TestShellRendersAtSupportedAndConstrainedTerminalSizes(t *testing.T) {
 	activity.Set([]agent.PlanItem{{Title: "Inspect", Status: agent.PlanActive}})
 	status := newStatusView(theme, glyphs, settings.Default().RunOptions())
 	composer := kit.Composer{Theme: theme, Prompt: glyphs.Marker + " ", MaxRows: 6}
-	prompt := newPromptView(theme, glyphs, keys, &composer, settings.Default().RunOptions())
+	prompt := newPromptView(theme, glyphs, bindings.editor, &composer, settings.Default().RunOptions())
 	shell := newShellView(header, transcript, activity, newQueueView(theme, glyphs), status, prompt)
 	shell.Focus(true)
 
@@ -139,7 +139,7 @@ func TestShellRendersAtSupportedAndConstrainedTerminalSizes(t *testing.T) {
 }
 
 func TestShellUsesTwoRowChromeOnTinyTerminals(t *testing.T) {
-	keys, err := configuredKeys(settings.Default())
+	bindings, err := configuredKeyBindings(settings.Default())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -150,9 +150,9 @@ func TestShellUsesTwoRowChromeOnTinyTerminals(t *testing.T) {
 	activity := newActivityView(theme, glyphs)
 	activity.Set([]agent.PlanItem{{Title: "HIDDEN_PLAN", Status: agent.PlanActive}})
 	composer := kit.Composer{Theme: theme, Prompt: glyphs.Marker + " ", MaxRows: 6}
-	composer.Editor().Keys = keys
+	composer.Editor().Keys = bindings.editor
 	composer.Editor().SetText("TINY_DRAFT")
-	prompt := newPromptView(theme, glyphs, keys, &composer, settings.Default().RunOptions())
+	prompt := newPromptView(theme, glyphs, bindings.editor, &composer, settings.Default().RunOptions())
 	shell := newShellView(header, transcript, activity, newQueueView(theme, glyphs), newStatusView(theme, glyphs, settings.Default().RunOptions()), prompt)
 	shell.Focus(true)
 
@@ -183,7 +183,7 @@ func TestShellUsesTwoRowChromeOnTinyTerminals(t *testing.T) {
 }
 
 func TestResponsiveShellPreservesTranscriptFocusAndDraft(t *testing.T) {
-	keys, err := configuredKeys(settings.Default())
+	bindings, err := configuredKeyBindings(settings.Default())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -191,9 +191,9 @@ func TestResponsiveShellPreservesTranscriptFocusAndDraft(t *testing.T) {
 	transcript := testTranscriptView(t)
 	appendTestTool(transcript, "focus", "detail")
 	composer := kit.Composer{Theme: theme, Prompt: glyphs.Marker + " ", MaxRows: 6}
-	composer.Editor().Keys = keys
+	composer.Editor().Keys = bindings.editor
 	composer.Editor().SetText("PRESERVED_DRAFT")
-	prompt := newPromptView(theme, glyphs, keys, &composer, settings.Default().RunOptions())
+	prompt := newPromptView(theme, glyphs, bindings.editor, &composer, settings.Default().RunOptions())
 	shell := newShellView(
 		newSessionHeader(theme, glyphs, agent.Session{}), transcript,
 		newActivityView(theme, glyphs), newQueueView(theme, glyphs),
@@ -218,7 +218,7 @@ func TestResponsiveShellPreservesTranscriptFocusAndDraft(t *testing.T) {
 }
 
 func TestShellMovesFocusBetweenPromptAndTranscript(t *testing.T) {
-	keys, err := configuredKeys(settings.Default())
+	bindings, err := configuredKeyBindings(settings.Default())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -226,7 +226,7 @@ func TestShellMovesFocusBetweenPromptAndTranscript(t *testing.T) {
 	transcript := testTranscriptView(t)
 	appendTestTool(transcript, "focus", "detail")
 	composer := kit.Composer{Theme: theme, Prompt: glyphs.Marker + " ", MaxRows: 6}
-	prompt := newPromptView(theme, glyphs, keys, &composer, settings.Default().RunOptions())
+	prompt := newPromptView(theme, glyphs, bindings.editor, &composer, settings.Default().RunOptions())
 	shell := newShellView(
 		newSessionHeader(theme, glyphs, agent.Session{}), transcript,
 		newActivityView(theme, glyphs), newQueueView(theme, glyphs),

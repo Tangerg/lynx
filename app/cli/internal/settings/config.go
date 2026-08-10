@@ -141,6 +141,11 @@ func validatePluginDirectories(directories []string) []error {
 func validateKeys(keys map[string][]string) []error {
 	known := Default().Keys
 	var problems []error
+	for _, action := range slices.Sorted(maps.Keys(known)) {
+		if _, ok := keys[action]; !ok {
+			problems = append(problems, fmt.Errorf("keys.%s is missing", action))
+		}
+	}
 	for _, action := range slices.Sorted(maps.Keys(keys)) {
 		bindings := keys[action]
 		if _, ok := known[action]; !ok {

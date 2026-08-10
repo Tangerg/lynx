@@ -101,6 +101,10 @@ type app struct {
 	commandSeq         uint64
 	commandOperations  map[uint64]commandOperation
 	confirmation       pressConfirmation
+	applicationKeys    *keymap.Map
+	globalKeys         *keymap.Map
+	applicationMatcher keymap.Matcher
+	globalMatcher      keymap.Matcher
 
 	streamSeq             uint64
 	dispatchingQueueEntry uint64
@@ -123,11 +127,13 @@ type appConfig struct {
 	Attachments   *attachment.Resolver
 	InitialPrompt string
 	Settings      settings.Config
-	Keys          *keymap.Map
+	KeyBindings   keyBindings
 	Queue         *promptqueue.Queue
 }
 
 func newApp(loop *program.InlineRuntime, cfg appConfig) *app {
+	cfg.KeyBindings.resolveWith(loop.After)
+	editorKeys := cfg.KeyBindings.editor
 	ground := loop.Environment().Ground()
 	theme := kit.Suited(ground)
 	glyphs := kit.GlyphsFor(loop.Environment().Locale())
@@ -152,13 +158,15 @@ func newApp(loop *program.InlineRuntime, cfg appConfig) *app {
 		attachments:        cfg.Attachments,
 		attachmentElements: make(map[uint64]agent.Attachment),
 		commandOperations:  make(map[uint64]commandOperation),
+		applicationKeys:    cfg.KeyBindings.application,
+		globalKeys:         cfg.KeyBindings.global,
 	}
 	a.composer = kit.Composer{
 		Theme: theme, Prompt: glyphs.Marker + " ",
 		MaxRows: 6,
 	}
 	a.composer.Editor().Placeholder = "Ask lyra to inspect, explain, or change something"
-	a.composer.Editor().Keys = cfg.Keys
+	a.composer.Editor().Keys = editorKeys
 	a.composer.Editor().Clipboard = loop.Clipboard()
 	if cfg.InitialPrompt != "" {
 		a.composer.Editor().SetText(cfg.InitialPrompt)
@@ -181,17 +189,17 @@ func newApp(loop *program.InlineRuntime, cfg appConfig) *app {
 	}
 	a.registerCommands()
 
-	a.prompt = newPromptView(theme, glyphs, cfg.Keys, &a.composer, a.options)
+	a.prompt = newPromptView(theme, glyphs, editorKeys, &a.composer, a.options)
 	a.shell = newShellView(a.header, a.transcript, a.activity, a.queueView, a.status, a.prompt)
 	a.wireTranscript(a.transcript)
 	a.shell.Focus(true)
 	a.stack.SetBase(a.shell)
-	a.buildQueueDrawer(theme, glyphs, cfg.Keys)
+	a.buildQueueDrawer(theme, glyphs, editorKeys)
 	a.buildApprovalDialog(theme, glyphs)
 	a.buildSessionPicker(theme, glyphs)
 	a.buildRuntimePickers(theme, glyphs)
 	a.buildCommandPalette(theme, glyphs)
-	a.buildShortcutDialog(theme, glyphs, cfg.Keys)
+	a.buildShortcutDialog(theme, glyphs, editorKeys)
 	a.buildSearchDialog(theme, glyphs)
 	a.listenForSearch()
 	loop.Session().SetTitle("lyra — " + displayTitle(cfg.Snapshot.Session))

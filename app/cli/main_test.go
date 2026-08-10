@@ -71,7 +71,7 @@ func TestInteractiveBinaryReturnsTheTerminalIntact(t *testing.T) {
 			if err := session.Type("\x11"); err != nil {
 				t.Fatal(err)
 			}
-			if err := session.Transcript().WaitWithin(settle, "press ctrl+q again to quit"); err != nil {
+			if err := session.Transcript().WaitWithin(settle, "repeat ctrl+q or ctrl+d to quit"); err != nil {
 				t.Fatal(err)
 			}
 			if err := session.Type("\x11"); err != nil {

@@ -33,13 +33,22 @@ func runUIWith(t *testing.T, backend agent.Runtime, plugins ...extensions.Plugin
 }
 
 func runUIWithWorkspace(t *testing.T, backend agent.Runtime, workspace string, plugins ...extensions.Plugin) (*programtest.Host, func()) {
+	return runUIConfigured(t, backend, workspace, nil, plugins...)
+}
+
+func runUIWithSettings(t *testing.T, backend agent.Runtime, configured settings.Config) (*programtest.Host, func()) {
+	t.Helper()
+	return runUIConfigured(t, backend, "/tmp/lyra-cli-test", &configured)
+}
+
+func runUIConfigured(t *testing.T, backend agent.Runtime, workspace string, configured *settings.Config, plugins ...extensions.Plugin) (*programtest.Host, func()) {
 	t.Helper()
 	host := programtest.New(t, 96, 28)
 	ctx, cancel := context.WithCancel(t.Context())
 	done := make(chan error, 1)
 	go func() {
 		done <- Run(ctx, Config{
-			Runtime: backend, Workspace: workspace, Plugins: plugins, Host: host,
+			Runtime: backend, Workspace: workspace, Plugins: plugins, Host: host, Settings: configured,
 		})
 	}()
 
@@ -291,6 +300,59 @@ func TestShiftEnterInsertsANewlineWithoutSubmitting(t *testing.T) {
 	stop()
 }
 
+func TestConfiguredKeySequencesDriveApplicationActions(t *testing.T) {
+	configured := settings.Default()
+	configured.Keys[settings.ActionSessions] = []string{"g s"}
+	configured.Keys[settings.ActionSend] = []string{"g g"}
+	backend := &recordingRuntime{Runtime: mock.New()}
+	backend.Instant = true
+	backend.Script = func(string) mock.Script {
+		return mock.Script{Prelude: []mock.Step{{Event: agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCompleted}}}}}
+	}
+	host, stop := runUIWithSettings(t, backend, configured)
+	host.Shows(t, "Ask lyra")
+	host.Send(input.Key{Code: input.Character, Rune: 'g'})
+	host.Send(input.Key{Code: input.Character, Rune: 's'})
+	host.Shows(t, "Sessions")
+	host.Press(input.Esc)
+	host.Hides(t, "Sessions")
+
+	host.Type("sequence submit")
+	host.Send(input.Key{Code: input.Character, Rune: 'g'})
+	host.Send(input.Key{Code: input.Character, Rune: 'g'})
+	host.Shows(t, "complete")
+	if got := backend.startInput().Message.Text; got != "sequence submit" {
+		t.Fatalf("submitted text = %q, want the configured key sequence to submit the draft", got)
+	}
+
+	host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
+	stop()
+}
+
+func TestConfiguredPrefixesRespectModalOwnershipAndResolveAfterTimeout(t *testing.T) {
+	configured := settings.Default()
+	configured.Keys[settings.ActionSessions] = []string{"g"}
+	configured.Keys[settings.ActionShortcuts] = []string{"g s"}
+	host, stop := runUIWithSettings(t, mock.New(), configured)
+	host.Shows(t, "Ask lyra")
+
+	host.Send(input.Key{Code: input.Character, Rune: 'f', Mods: input.Ctrl})
+	host.Shows(t, "Find in the live transcript")
+	host.Type("g sequence")
+	host.Shows(t, "g sequence")
+	host.Hides(t, "Sessions")
+	host.Press(input.Esc)
+	host.Hides(t, "Find in the live transcript")
+
+	// The exact g binding is also a prefix of g s, so it resolves through the
+	// application clock only after the configured sequence timeout expires.
+	host.Send(input.Key{Code: input.Character, Rune: 'g'})
+	host.Shows(t, "Sessions")
+	host.Press(input.Esc)
+	host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
+	stop()
+}
+
 func TestTranscriptFocusDoesNotSubmitAndTypingReturnsToPrompt(t *testing.T) {
 	backend := &recordingRuntime{Runtime: mock.New()}
 	backend.Instant = true
@@ -348,7 +410,7 @@ func TestCtrlCClearsTheDraftBeforeCancelingAnActiveRun(t *testing.T) {
 
 	host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
 	host.Hides(t, "UNSENT_CTRL_C_DRAFT")
-	host.Shows(t, "press Ctrl+C again to cancel")
+	host.Shows(t, "draft cleared; repeat ctrl+c to cancel")
 	started := backend.startInput()
 	snapshot, err := base.GetSession(t.Context(), started.SessionID)
 	if err != nil {
@@ -412,7 +474,7 @@ func TestQuitRequiresAConfirmingSecondPress(t *testing.T) {
 	host.Shows(t, "Ask lyra")
 	quit := input.Key{Code: input.Character, Rune: 'q', Mods: input.Ctrl}
 	host.Send(quit)
-	host.Shows(t, "press ctrl+q again to quit")
+	host.Shows(t, "repeat ctrl+q or ctrl+d to quit")
 	select {
 	case err := <-done:
 		t.Fatalf("first quit press stopped the app: %v", err)

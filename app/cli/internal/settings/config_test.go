@@ -43,12 +43,13 @@ func TestValidationReportsAllIndependentProblems(t *testing.T) {
 	settings.Permission = "unsafe"
 	settings.UI.TranscriptRetain = 0
 	settings.Plugins.Directories = []string{"", "/plugins", "/plugins"}
+	delete(settings.Keys, ActionShortcuts)
 	settings.Keys["unknown"] = []string{""}
 	err := settings.Validate()
 	if err == nil {
 		t.Fatal("invalid settings were accepted")
 	}
-	for _, want := range []string{"mode", "permission", "transcript-retain", "empty path", "repeats", "unknown", "empty binding"} {
+	for _, want := range []string{"mode", "permission", "transcript-retain", "empty path", "repeats", "shortcuts is missing", "unknown", "empty binding"} {
 		if !strings.Contains(err.Error(), want) {
 			t.Fatalf("validation error %q does not mention %q", err, want)
 		}

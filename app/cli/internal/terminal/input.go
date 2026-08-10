@@ -10,10 +10,39 @@ import (
 )
 
 func (a *app) Handle(event input.Event) bool {
-	action := a.action(event)
-	a.disarmConfirmation(event, action)
+	matched, handled := a.matchConfiguredAction(event)
+	if handled {
+		return true
+	}
+	if !matched {
+		a.disarmConfirmation(event, "")
+	}
+	return a.handleUnboundEvent(event)
+}
+
+func (a *app) matchConfiguredAction(event input.Event) (matched, handled bool) {
+	key, ok := event.(input.Key)
+	if !ok || !key.Down() {
+		return false, false
+	}
+	keys, matcher := a.applicationKeys, &a.applicationMatcher
+	if !a.stack.Empty() {
+		// A modal owns every non-global key. Keeping a separate matcher prevents a
+		// printable prefix configured for the application from swallowing form input.
+		a.applicationMatcher.Clear()
+		keys, matcher = a.globalKeys, &a.globalMatcher
+	} else {
+		a.globalMatcher.Clear()
+	}
+	return matcher.Handle(keys, key, func(action keymap.Action) bool {
+		a.disarmConfirmation(event, action)
+		return a.handleConfiguredAction(event, action)
+	})
+}
+
+func (a *app) handleConfiguredAction(event input.Event, action keymap.Action) bool {
 	if action == quitApp {
-		a.handleQuit(event)
+		a.handleQuit()
 		return true
 	}
 	// Oolong modal stacks intentionally consume every key so input cannot leak
@@ -40,18 +69,39 @@ func (a *app) Handle(event input.Event) bool {
 	if a.handleSessionAction(action) {
 		return true
 	}
-	if a.shell.TranscriptFocused() && a.transcript.action(event) == commandPalette {
-		a.showCommandPalette()
-		return true
-	}
+	// Completion owns its navigation and acceptance keys before prompt-level
+	// history, submission, or editing actions, matching the visual layer on top.
 	if a.completion.Handle(event) {
 		return true
 	}
 	if a.shell.PromptFocused() && a.handleHistoryAction(action) {
 		return true
 	}
-	if a.shell.PromptFocused() && isSubmitEvent(event) {
+	if !a.shell.PromptFocused() {
+		return false
+	}
+	switch action {
+	case sendPrompt:
 		a.submit()
+		return true
+	case insertNewline:
+		if a.composer.Editor().Do(action) {
+			a.refreshCompletion()
+			return true
+		}
+	}
+	return false
+}
+
+func (a *app) handleUnboundEvent(event input.Event) bool {
+	if !a.stack.Empty() {
+		return a.stack.Handle(event)
+	}
+	if a.shell.TranscriptFocused() && a.transcript.action(event) == commandPalette {
+		a.showCommandPalette()
+		return true
+	}
+	if a.completion.Handle(event) {
 		return true
 	}
 	handled := a.stack.Handle(event)
@@ -122,10 +172,9 @@ func (a *app) handleEscape() bool {
 	return true
 }
 
-func (a *app) handleQuit(event input.Event) {
+func (a *app) handleQuit() {
 	if !a.confirmation.Confirm(confirmQuit, time.Now()) {
-		key, _ := event.(input.Key)
-		a.message("press " + key.String() + " again to quit")
+		a.message("repeat " + formatBindings(a.applicationKeys, quitApp, " or ") + " to quit")
 		return
 	}
 	a.loop.Quit()
@@ -151,15 +200,6 @@ func isPromptTextEvent(event input.Event) bool {
 	return key.Mods == 0 || key.Mods == input.Shift
 }
 
-func (a *app) action(event input.Event) keymap.Action {
-	key, ok := event.(input.Key)
-	if !ok || !key.Down() {
-		return ""
-	}
-	action, _ := a.composer.Editor().Keys.Action(key.Chord())
-	return action
-}
-
 func (a *app) handleGlobalAction(action keymap.Action) bool {
 	if action != cancelRun {
 		return false
@@ -182,7 +222,7 @@ func (a *app) handleCancelGesture() {
 		a.history.Add(message)
 		a.resetComposer()
 		a.completion.Dismiss()
-		a.message("draft cleared; press Ctrl+C again to cancel")
+		a.message("draft cleared; repeat " + formatBindings(a.applicationKeys, cancelRun, " or ") + " to cancel")
 		return
 	}
 	a.cancel()
@@ -245,9 +285,4 @@ func (a *app) handleHistoryAction(action keymap.Action) bool {
 	default:
 		return false
 	}
-}
-
-func isSubmitEvent(event input.Event) bool {
-	key, ok := event.(input.Key)
-	return ok && key.Down() && key.Code == input.Enter && key.Mods == 0
 }

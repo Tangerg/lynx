@@ -95,10 +95,15 @@ ui:
 plugins:
   directories:
     - /absolute/path/to/plugins
+
+# Only overridden actions need to be listed. Spaces form key sequences.
+keys:
+  sessions: ["g s"]
+  shortcuts: ["ctrl+x"]
 ```
 
 Run `lyra config show` to inspect the merged, validated value and `lyra config path` to identify the selected file.
-Configuration decoding is strict: unknown top-level or nested keys are rejected instead of silently falling back to defaults. Completion-script generation is configuration-independent, so a broken local file cannot prevent shell setup or repair.
+Configuration decoding is strict: unknown top-level or nested keys, missing effective actions, invalid chords, and duplicate bindings are rejected instead of silently falling back to an incomplete keymap. File overrides merge with the complete default action set. Completion-script generation is configuration-independent, so a broken local file cannot prevent shell setup or repair.
 
 ## Sideloaded plugins
 

@@ -60,6 +60,27 @@ func TestConfigurationAcceptsRepeatablePluginDirectories(t *testing.T) {
 	}
 }
 
+func TestConfigurationMergesPartialKeyOverridesWithDefaultActions(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "lyra.yaml")
+	if err := os.WriteFile(path, []byte("keys:\n  sessions: [g s]\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	out, _, err := executeCommand(t, instantRuntime(), "", "--config", path, "config", "show")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got settings.Config
+	if err := json.Unmarshal([]byte(out), &got); err != nil {
+		t.Fatal(err)
+	}
+	if bindings := got.Keys[settings.ActionSessions]; len(bindings) != 1 || bindings[0] != "g s" {
+		t.Fatalf("session bindings = %v", bindings)
+	}
+	if bindings := got.Keys[settings.ActionShortcuts]; len(bindings) != 1 || bindings[0] != "ctrl+x" {
+		t.Fatalf("default shortcut bindings = %v", bindings)
+	}
+}
+
 func TestConfigurationRejectsInvalidValuesAndMissingExplicitFile(t *testing.T) {
 	if _, _, err := executeCommand(t, instantRuntime(), "", "--mode", "magic", "config", "show"); err == nil {
 		t.Fatal("invalid mode was accepted")

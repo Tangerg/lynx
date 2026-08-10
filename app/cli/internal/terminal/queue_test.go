@@ -55,11 +55,11 @@ func testQueueDrawer(t *testing.T, messages ...agent.Message) (*queueDrawer, *pr
 			t.Fatal(err)
 		}
 	}
-	keys, err := configuredKeys(settings.Default())
+	bindings, err := configuredKeyBindings(settings.Default())
 	if err != nil {
 		t.Fatal(err)
 	}
-	drawer := newQueueDrawer(kit.Dark(), kit.Unicode(), keys, nil)
+	drawer := newQueueDrawer(kit.Dark(), kit.Unicode(), bindings.editor, nil)
 	sync := func() { drawer.Set(queue.Snapshot("session")) }
 	drawer.SetActions(queueDrawerActions{
 		BeginEdit: func(id uint64) error {

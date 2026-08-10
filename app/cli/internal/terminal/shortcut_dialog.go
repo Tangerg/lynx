@@ -1,8 +1,6 @@
 package terminal
 
 import (
-	"strings"
-
 	"github.com/Tangerg/oolong/components/headless"
 	"github.com/Tangerg/oolong/components/kit"
 	"github.com/Tangerg/oolong/core/grid"
@@ -98,16 +96,12 @@ func collectShortcuts(applicationKeys, transcriptKeys, guideKeys *keymap.Map) []
 
 	shortcuts := make([]shortcut, 0, len(specs))
 	for _, spec := range specs {
-		bindings := spec.keys.Keys(spec.action)
-		if len(bindings) == 0 {
+		bindings := formatBindings(spec.keys, spec.action, " / ")
+		if bindings == "" {
 			continue
 		}
-		names := make([]string, len(bindings))
-		for i, binding := range bindings {
-			names[i] = binding.String()
-		}
 		shortcuts = append(shortcuts, shortcut{
-			area: spec.area, bindings: strings.Join(names, " / "), description: spec.description,
+			area: spec.area, bindings: bindings, description: spec.description,
 		})
 	}
 	return shortcuts

@@ -9,7 +9,6 @@ import (
 	"fmt"
 
 	"github.com/Tangerg/oolong/components/headless"
-	"github.com/Tangerg/oolong/core/keymap"
 	"github.com/Tangerg/oolong/core/program"
 	"github.com/Tangerg/oolong/core/term"
 
@@ -71,7 +70,7 @@ func Run(ctx context.Context, cfg Config) (runErr error) {
 				Context: ctx, Runtime: cfg.Runtime, Snapshot: prepared.opened,
 				Registry: registry, PluginHost: extensionHost, PluginIssues: discovered.Issues,
 				Attachments: prepared.attachments, InitialPrompt: cfg.InitialPrompt,
-				Settings: prepared.settings, Keys: prepared.keys, Queue: queue,
+				Settings: prepared.settings, KeyBindings: prepared.keyBindings, Queue: queue,
 			})
 			return headless.NewRoot(active)
 		},
@@ -87,7 +86,7 @@ func Run(ctx context.Context, cfg Config) (runErr error) {
 type preparedSession struct {
 	opened      agent.SessionSnapshot
 	attachments *attachment.Resolver
-	keys        *keymap.Map
+	keyBindings keyBindings
 	settings    settings.Config
 }
 
@@ -102,7 +101,7 @@ func prepareSession(ctx context.Context, cfg Config) (preparedSession, error) {
 	if err := configured.Validate(); err != nil {
 		return preparedSession{}, fmt.Errorf("session settings: %w", err)
 	}
-	keys, err := configuredKeys(configured)
+	bindings, err := configuredKeyBindings(configured)
 	if err != nil {
 		return preparedSession{}, err
 	}
@@ -114,7 +113,7 @@ func prepareSession(ctx context.Context, cfg Config) (preparedSession, error) {
 	if err != nil {
 		return preparedSession{}, fmt.Errorf("session attachments: %w", err)
 	}
-	return preparedSession{opened: opened, attachments: attachments, keys: keys, settings: configured}, nil
+	return preparedSession{opened: opened, attachments: attachments, keyBindings: bindings, settings: configured}, nil
 }
 
 func requireLoadedPlugin(results []extensions.LifecycleResult, id string) error {
