@@ -220,7 +220,9 @@ func (t *toolBlock) rebuild() {
 	output := truncateToolDetail(t.call.Output)
 	if t.call.Diff != "" {
 		if hunks := parseUnifiedDiff(t.call.Diff); len(hunks) > 0 {
-			t.body = append(t.body, kit.Diff{Hunks: hunks, Theme: t.theme, Glyphs: t.glyphs, Numbers: true})
+			change := kit.NewDiff(t.theme, t.glyphs, hunks)
+			change.ShowNumbers(true)
+			t.body = append(t.body, change)
 		} else {
 			t.body = append(t.body, kit.NewCode(highlight.Lines("diff", truncateToolDetail(t.call.Diff), t.syntax)))
 		}

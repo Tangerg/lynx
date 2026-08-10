@@ -125,7 +125,7 @@ func presentUser(p Presentation, block client.Block) []headless.Block {
 		}
 		body += strings.Join(lines, "\n")
 	}
-	return []headless.Block{kit.Message{Theme: p.Theme, Speaker: "you", Body: body, Own: true}}
+	return []headless.Block{&kit.Message{Theme: p.Theme, Speaker: "you", Body: body, Own: true}}
 }
 
 func presentMarkdown(speaker string) func(Presentation, client.Block) []headless.Block {
@@ -145,7 +145,7 @@ func presentTool(p Presentation, block client.Block) []headless.Block {
 }
 
 func presentNotice(p Presentation, block client.Block) []headless.Block {
-	return []headless.Block{kit.Message{Theme: p.Theme, Speaker: "notice", Body: block.Text}}
+	return []headless.Block{&kit.Message{Theme: p.Theme, Speaker: "notice", Body: block.Text}}
 }
 
 func presentFailure(p Presentation, block client.Block) []headless.Block {

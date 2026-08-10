@@ -3,11 +3,11 @@ module github.com/Tangerg/lynx/app/cli
 go 1.26.5
 
 require (
-	github.com/Tangerg/oolong/components v0.7.0
-	github.com/Tangerg/oolong/core v0.7.0
-	github.com/Tangerg/oolong/highlight v0.7.0
-	github.com/Tangerg/oolong/markdown v0.7.0
-	github.com/Tangerg/oolong/ptytest v0.7.0
+	github.com/Tangerg/oolong/components v0.8.0
+	github.com/Tangerg/oolong/core v0.8.0
+	github.com/Tangerg/oolong/highlight v0.8.0
+	github.com/Tangerg/oolong/markdown v0.8.0
+	github.com/Tangerg/oolong/ptytest v0.8.0
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/pathologize v1.1.0
 	github.com/spf13/viper v1.21.0

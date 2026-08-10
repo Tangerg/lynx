@@ -112,7 +112,7 @@ func (a *app) SetEffort(value string) {
 }
 
 func (a *app) ShowRuntimeStatus() {
-	a.transcript.Append(kit.Message{
+	a.transcript.Append(&kit.Message{
 		Theme: a.transcript.theme, Speaker: "runtime options",
 		Body: fmt.Sprintf("model: %s\neffort: %s\nmode: %s\npermissions: %s", modelLabel(a.options.Model), a.options.Effort, a.options.Mode, a.options.Permission),
 	})
@@ -138,7 +138,7 @@ func (a *app) ShowApprovalRules() {
 			for _, rule := range rules {
 				lines = append(lines, fmt.Sprintf("%s  %s  %s  %s", rule.ID, rule.Scope, rule.Decision, rule.Rule))
 			}
-			a.transcript.Append(kit.Message{Theme: a.transcript.theme, Speaker: "approval rules", Body: strings.Join(lines, "\n")})
+			a.transcript.Append(&kit.Message{Theme: a.transcript.theme, Speaker: "approval rules", Body: strings.Join(lines, "\n")})
 		},
 	)
 }

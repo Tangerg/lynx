@@ -183,7 +183,7 @@ func (a *app) showAttachments() {
 	for i, item := range message.Attachments {
 		lines = append(lines, fmt.Sprintf("%d. %s · %s · %d bytes", i+1, item.Name, item.MimeType, item.Size))
 	}
-	a.transcript.Append(kit.Message{Theme: a.transcript.theme, Speaker: "attachments", Body: strings.Join(lines, "\n")})
+	a.transcript.Append(&kit.Message{Theme: a.transcript.theme, Speaker: "attachments", Body: strings.Join(lines, "\n")})
 }
 
 func (a *app) composerMessage() (client.Message, error) {

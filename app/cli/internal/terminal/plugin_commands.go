@@ -22,7 +22,7 @@ func (a *app) ShowPlugins() {
 	for _, issue := range a.pluginIssues {
 		lines = append(lines, fmt.Sprintf("failed   source:%s · %v", issue.Source, issue.Err))
 	}
-	a.transcript.Append(kit.Message{Theme: a.transcript.theme, Speaker: "plugins", Body: strings.Join(lines, "\n")})
+	a.transcript.Append(&kit.Message{Theme: a.transcript.theme, Speaker: "plugins", Body: strings.Join(lines, "\n")})
 }
 
 func formatPluginInfo(info extensions.Info) string {

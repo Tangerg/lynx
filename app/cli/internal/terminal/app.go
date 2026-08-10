@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
@@ -116,7 +115,7 @@ type appConfig struct {
 func newApp(loop *program.InlineRuntime, cfg appConfig) *app {
 	ground := loop.Environment().Ground()
 	theme := kit.Suited(ground)
-	glyphs := kit.GlyphsFor(os.LookupEnv)
+	glyphs := kit.GlyphsFor(loop.Environment().Locale())
 	syntax := highlight.Style("github-dark")
 	if !ground.BG.Default() && !ground.BG.RGB().Dark() {
 		syntax = "github"

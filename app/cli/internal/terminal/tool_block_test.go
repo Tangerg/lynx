@@ -111,7 +111,7 @@ func requireToolBody(t *testing.T, body headless.Block, want string) {
 	case "numbered-code":
 		requireCodeBody(t, body, true)
 	case "diff":
-		requireBodyType[kit.Diff](t, body, "diff")
+		requireBodyType[*kit.Diff](t, body, "diff")
 	case "paragraph":
 		requireBodyType[*kit.Paragraph](t, body, "paragraph")
 	case "linked-paragraph":

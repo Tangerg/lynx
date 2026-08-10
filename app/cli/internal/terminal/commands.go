@@ -319,7 +319,7 @@ func (a *app) ShowHelp() {
 		}
 		lines = append(lines, fmt.Sprintf("/%-10s %s", command.Name+argument, command.Title))
 	}
-	a.transcript.Append(kit.Message{
+	a.transcript.Append(&kit.Message{
 		Theme: a.transcript.theme, Speaker: "commands", Body: strings.Join(lines, "\n"),
 	})
 }

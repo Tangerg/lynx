@@ -474,5 +474,5 @@ func markdownLook(theme kit.Theme, glyphs kit.Glyphs, style highlight.Style) mar
 func presentError(theme kit.Theme, message string) headless.Block {
 	danger := theme
 	danger.Text = theme.Danger
-	return kit.Message{Theme: danger, Speaker: "runtime", Body: message}
+	return &kit.Message{Theme: danger, Speaker: "runtime", Body: message}
 }
