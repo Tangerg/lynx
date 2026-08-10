@@ -35,3 +35,27 @@ func TestWaitHonorsCancellation(t *testing.T) {
 		t.Fatalf("Wait error = %v", err)
 	}
 }
+
+func TestControlValueRetriesOnlyAmbiguousTransportFailures(t *testing.T) {
+	attempts := 0
+	value, err := ControlValue(t.Context(), Reconnect{Attempts: 2}, func() (string, error) {
+		attempts++
+		if attempts < 3 {
+			return "", errors.Join(errors.New("response lost"), client.ErrDisconnected)
+		}
+		return "stable", nil
+	})
+	if err != nil || value != "stable" || attempts != 3 {
+		t.Fatalf("ControlValue = %q, %v after %d attempts", value, err, attempts)
+	}
+
+	want := errors.New("rejected")
+	attempts = 0
+	_, err = ControlValue(t.Context(), Reconnect{Attempts: 10}, func() (string, error) {
+		attempts++
+		return "", want
+	})
+	if !errors.Is(err, want) || attempts != 1 {
+		t.Fatalf("non-transient result = %v after %d attempts", err, attempts)
+	}
+}

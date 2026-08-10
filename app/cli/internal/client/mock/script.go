@@ -7,6 +7,9 @@
 package mock
 
 import (
+	"errors"
+	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -27,14 +30,87 @@ type Script struct {
 	Continue    func(client.Answer) []Step
 }
 
-func (s Script) interrupts() bool { return client.InteractionID(s.Interaction) != "" }
-
-func (s Script) continueWith(answer client.Answer) []Step {
-	if s.Continue == nil {
-		return nil
+func buildScriptSafely(build func(string) Script, prompt string) (script Script, err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			err = fmt.Errorf("script builder panicked: %v", recovered)
+		}
+	}()
+	script = cloneScript(build(prompt))
+	if err := script.validate(); err != nil {
+		return Script{}, err
 	}
-	return s.Continue(answer)
+	return script, nil
 }
+
+func (s Script) validate() error {
+	interrupted := s.interrupts()
+	if interrupted {
+		if err := client.ValidateInteraction(s.Interaction); err != nil {
+			return err
+		}
+	} else if s.Continue != nil {
+		return errors.New("script without an interaction has a continuation")
+	}
+	return validateSteps(s.Prelude, !interrupted)
+}
+
+func continueSafely(script Script, answer client.Answer) (steps []Step, err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			err = fmt.Errorf("script continuation panicked: %v", recovered)
+		}
+	}()
+	if script.Continue == nil {
+		return nil, errors.New("script interaction has no continuation")
+	}
+	steps = cloneSteps(script.Continue(client.CloneAnswer(answer)))
+	if err := validateSteps(steps, true); err != nil {
+		return nil, err
+	}
+	return steps, nil
+}
+
+func validateSteps(steps []Step, requireFinish bool) error {
+	finished := false
+	for i, step := range steps {
+		if step.Delay < 0 {
+			return fmt.Errorf("step %d has a negative delay", i+1)
+		}
+		if err := client.ValidateEvent(step.Event); err != nil {
+			return fmt.Errorf("step %d: %w", i+1, err)
+		}
+		switch step.Event.(type) {
+		case client.RunStarted, client.RunResumed, client.RunInterrupted:
+			return fmt.Errorf("step %d contains a runtime-owned control event", i+1)
+		case client.RunFinished:
+			if i != len(steps)-1 {
+				return fmt.Errorf("step %d finishes before the script ends", i+1)
+			}
+			finished = true
+		}
+	}
+	if requireFinish && !finished {
+		return errors.New("script path does not finish the run")
+	}
+	return nil
+}
+
+func cloneScript(script Script) Script {
+	script.Prelude = cloneSteps(script.Prelude)
+	script.Interaction = client.CloneInteraction(script.Interaction)
+	return script
+}
+
+func cloneSteps(steps []Step) []Step {
+	cloned := slices.Clone(steps)
+	for i := range cloned {
+		cloned[i].Event = cloneEvent(cloned[i].Event)
+	}
+	return cloned
+}
+
+func (s Script) interrupts() bool { return s.Interaction != nil }
 
 const (
 	// tick paces one streamed word. Fast enough to feel live, slow enough that

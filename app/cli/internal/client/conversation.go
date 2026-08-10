@@ -110,7 +110,7 @@ func (c *Conversation) ApplyEnvelope(envelope Envelope) (ApplyResult, error) {
 
 // apply folds one event after ApplyEnvelope has checked its replay identity.
 func (c *Conversation) apply(event Event) error {
-	if err := validateEvent(event); err != nil {
+	if err := ValidateEvent(event); err != nil {
 		return fmt.Errorf("conversation: %w", err)
 	}
 	if c.index == nil {

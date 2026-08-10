@@ -56,6 +56,36 @@ func Wait(ctx context.Context, delay time.Duration) error {
 	}
 }
 
+// Control retries an idempotent control operation after ambiguous transport
+// failures using the same bounded policy as stream reconnects.
+func Control(ctx context.Context, policy Reconnect, operation func() error) error {
+	_, err := ControlValue(ctx, policy, func() (struct{}, error) {
+		return struct{}{}, operation()
+	})
+	return err
+}
+
+// ControlValue is Control for an idempotent operation that returns a value.
+func ControlValue[T any](ctx context.Context, policy Reconnect, operation func() (T, error)) (T, error) {
+	var zero T
+	for failure := 1; ; failure++ {
+		value, err := operation()
+		if err == nil {
+			return value, nil
+		}
+		if !errors.Is(err, client.ErrDisconnected) {
+			return zero, err
+		}
+		delay, retry := policy.Next(failure, err)
+		if !retry {
+			return zero, err
+		}
+		if err := Wait(ctx, delay); err != nil {
+			return zero, err
+		}
+	}
+}
+
 func retryable(err error) bool {
 	return errors.Is(err, client.ErrDisconnected) || errors.Is(err, client.ErrEventGap)
 }

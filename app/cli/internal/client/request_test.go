@@ -50,3 +50,28 @@ func TestModelAndApprovalCatalogValidationRejectDuplicates(t *testing.T) {
 		t.Fatal("duplicate approval rules were accepted")
 	}
 }
+
+func TestCancelRunRequiresExactlyOneStableIdentity(t *testing.T) {
+	valid := []CancelRun{
+		{RunID: "run_1"},
+		{SessionID: "session_1", RequestID: "request_1"},
+	}
+	for _, request := range valid {
+		if err := request.Validate(); err != nil {
+			t.Fatalf("valid cancellation %+v: %v", request, err)
+		}
+	}
+
+	invalid := []CancelRun{
+		{},
+		{RunID: "run_1", SessionID: "session_1", RequestID: "request_1"},
+		{SessionID: "session_1"},
+		{RequestID: "request_1"},
+		{SessionID: "session_1", RequestID: "contains space"},
+	}
+	for _, request := range invalid {
+		if err := request.Validate(); err == nil {
+			t.Fatalf("invalid cancellation was accepted: %+v", request)
+		}
+	}
+}

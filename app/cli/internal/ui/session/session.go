@@ -219,6 +219,7 @@ type app struct {
 
 	streamCancel context.CancelFunc
 	streamSeq    uint64
+	startRequest string
 	switchSeq    uint64
 	following    bool
 	stopClock    func()

@@ -13,6 +13,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -162,6 +163,98 @@ type ambiguousControls struct {
 	resumes     int
 	requestIDs  []string
 	interruptID []string
+}
+
+type delayedStartResponse struct {
+	*mock.Runtime
+	accepted chan struct{}
+}
+
+func (r *delayedStartResponse) StartRun(ctx context.Context, input client.StartRun) (client.Run, error) {
+	if _, err := r.Runtime.StartRun(ctx, input); err != nil {
+		return client.Run{}, err
+	}
+	close(r.accepted)
+	<-ctx.Done()
+	return client.Run{}, context.Cause(ctx)
+}
+
+type discardRenderer struct{}
+
+func (discardRenderer) Render(client.Envelope) error { return nil }
+func (discardRenderer) Close() error                 { return nil }
+
+type lostStartResponses struct{ *mock.Runtime }
+
+func (r *lostStartResponses) StartRun(ctx context.Context, input client.StartRun) (client.Run, error) {
+	if _, err := r.Runtime.StartRun(ctx, input); err != nil {
+		return client.Run{}, err
+	}
+	return client.Run{}, fmt.Errorf("start response lost: %w", client.ErrDisconnected)
+}
+
+func TestRunCancellationTargetsAStartWhoseResponseWasLost(t *testing.T) {
+	base := mock.New()
+	base.Script = func(string) mock.Script {
+		return mock.Script{Prelude: []mock.Step{
+			{Delay: time.Hour, Event: client.RunFinished{Outcome: client.Outcome{Status: client.OutcomeCompleted}}},
+		}}
+	}
+	sessionID := firstSession(t, base)
+	runtime := &delayedStartResponse{Runtime: base, accepted: make(chan struct{})}
+	ctx, cancel := context.WithCancel(t.Context())
+	result := make(chan error, 1)
+	go func() {
+		result <- follow(ctx, runtime, discardRenderer{}, client.StartRun{
+			SessionID: sessionID,
+			Message:   client.Message{Text: "cancel after acceptance"},
+		}, false, 0)
+	}()
+
+	select {
+	case <-runtime.accepted:
+	case <-time.After(time.Second):
+		t.Fatal("start was not accepted")
+	}
+	cancel()
+	if err := <-result; !errors.Is(err, context.Canceled) {
+		t.Fatalf("follow error = %v, want context cancellation", err)
+	}
+
+	requireCanceledSession(t, base, sessionID)
+}
+
+func TestRunCancellationTargetsAStartAfterItsRetryBudgetIsExhausted(t *testing.T) {
+	base := mock.New()
+	base.Script = func(string) mock.Script {
+		return mock.Script{Prelude: []mock.Step{
+			{Delay: time.Hour, Event: client.RunFinished{Outcome: client.Outcome{Status: client.OutcomeCompleted}}},
+		}}
+	}
+	sessionID := firstSession(t, base)
+	err := follow(t.Context(), &lostStartResponses{Runtime: base}, discardRenderer{}, client.StartRun{
+		SessionID: sessionID,
+		Message:   client.Message{Text: "lose every response"},
+	}, false, 1)
+	if !errors.Is(err, client.ErrDisconnected) {
+		t.Fatalf("follow error = %v, want exhausted transport failure", err)
+	}
+	requireCanceledSession(t, base, sessionID)
+}
+
+func requireCanceledSession(t *testing.T, runtime client.Runtime, sessionID string) {
+	t.Helper()
+	snapshot, err := runtime.GetSession(t.Context(), sessionID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if snapshot.Active != nil {
+		t.Fatalf("canceled start left an active run: %+v", snapshot.Active)
+	}
+	finished, ok := snapshot.Events[len(snapshot.Events)-1].Event.(client.RunFinished)
+	if !ok || finished.Outcome.Status != client.OutcomeCanceled {
+		t.Fatalf("last event = %+v, want canceled run", snapshot.Events[len(snapshot.Events)-1])
+	}
 }
 
 func (r *ambiguousControls) StartRun(ctx context.Context, input client.StartRun) (client.Run, error) {

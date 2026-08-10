@@ -32,6 +32,7 @@ func (a *app) start(message client.Message) {
 	a.workflow.Reset()
 	a.status.active("starting run")
 	a.started = time.Now()
+	a.startRequest = requestID
 	a.syncAnimation()
 	a.follow(func(ctx context.Context) (subscription, error) {
 		run, err := a.backend.StartRun(ctx, client.StartRun{
@@ -224,6 +225,7 @@ func (a *app) apply(envelope client.Envelope) error {
 	}
 	switch event := event.(type) {
 	case client.RunStarted:
+		a.startRequest = ""
 		a.status.active("working")
 	case client.BlockStarted:
 		if event.Block.Kind == client.BlockTool && event.Block.Tool != nil {
@@ -239,6 +241,7 @@ func (a *app) apply(envelope client.Envelope) error {
 		a.openInteraction(a.state.Interaction())
 		a.status.note("waiting for your answer")
 	case client.RunFinished:
+		a.startRequest = ""
 		a.following = false
 		a.status.settled(a.state.Outcome(), a.state.Usage())
 		if a.settings.UI.Notifications {
@@ -255,6 +258,7 @@ func (a *app) fail(err error) {
 		return
 	}
 	a.following = false
+	a.startRequest = ""
 	a.state.Failed(err)
 	a.transcript.Append(presentError(a.transcript.theme, err.Error()))
 	a.status.settled(a.state.Outcome(), a.state.Usage())
@@ -277,20 +281,30 @@ func (a *app) cancel() {
 	a.status.doing = "canceling"
 	runID := a.state.RunID()
 	if runID == "" {
+		requestID := a.startRequest
 		a.dropStream()
 		a.following = false
+		a.startRequest = ""
 		if err := a.state.CancelStarting(); err != nil {
 			a.fail(err)
 			return
 		}
 		a.status.settled(a.state.Outcome(), a.state.Usage())
 		a.syncAnimation()
+		if requestID != "" {
+			a.cancelRuntime(client.CancelRun{SessionID: a.session.ID, RequestID: requestID})
+		}
 		return
 	}
+	a.cancelRuntime(client.CancelRun{RunID: runID})
+}
+
+func (a *app) cancelRuntime(target client.CancelRun) {
 	go func() {
 		ctx, cancel := context.WithTimeout(context.WithoutCancel(a.ctx), controlTimeout)
 		defer cancel()
-		if err := a.backend.CancelRun(ctx, runID); err != nil {
+		policy := resilience.Standard(a.settings.UI.ReconnectAttempts)
+		if err := resilience.Control(ctx, policy, func() error { return a.backend.CancelRun(ctx, target) }); err != nil {
 			a.loop.Dispatcher().Post(func() { a.fail(err) })
 		}
 	}()

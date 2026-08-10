@@ -33,6 +33,7 @@ var (
 	ErrEventConflict    = errors.New("event identity conflict")
 	ErrDisconnected     = errors.New("runtime disconnected")
 	ErrRequestConflict  = errors.New("idempotency request conflict")
+	ErrRunCanceled      = errors.New("run request canceled")
 )
 
 // BlockKind names what a transcript block is. The set is closed: an item a

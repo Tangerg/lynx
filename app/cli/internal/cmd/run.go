@@ -6,10 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/signal"
 	"strings"
-	"sync/atomic"
-	"syscall"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -150,32 +147,37 @@ func follow(ctx context.Context, rt client.Runtime, out renderer, start client.S
 		start.RequestID = requestID
 	}
 	policy := resilience.Standard(reconnectAttempts)
-	run, err := retryControlValue(ctx, policy, func() (client.Run, error) {
+	exit := make(chan bool, 1)
+	cancelDone := make(chan struct{})
+	cancelOnExit := true
+	defer func() {
+		exit <- cancelOnExit
+		<-cancelDone
+	}()
+	cancelRequest := client.CancelRun{SessionID: start.SessionID, RequestID: start.RequestID}
+	go func() {
+		defer close(cancelDone)
+		shouldCancel := true
+		select {
+		case shouldCancel = <-exit:
+		case <-ctx.Done():
+		}
+		if !shouldCancel {
+			return
+		}
+		cancelCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+		defer cancel()
+		_ = resilience.Control(cancelCtx, policy, func() error {
+			return rt.CancelRun(cancelCtx, cancelRequest)
+		})
+	}()
+
+	run, err := resilience.ControlValue(ctx, policy, func() (client.Run, error) {
 		return rt.StartRun(ctx, start)
 	})
 	if err != nil {
 		return err
 	}
-	var runID atomic.Pointer[string]
-	runID.Store(&run.ID)
-	ctx, stopSignals := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
-	defer stopSignals()
-	finished := make(chan struct{})
-	defer close(finished)
-	go func() {
-		select {
-		case <-finished:
-			return
-		case <-ctx.Done():
-			if id := runID.Load(); id != nil {
-				// Detached from the signal but bounded, so the cancellation request
-				// can finish without leaving a goroutine behind indefinitely.
-				cancelCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
-				defer cancel()
-				_ = rt.CancelRun(cancelCtx, *id)
-			}
-		}
-	}()
 
 	sequence := client.NewEventSequence(run.StartedAfter)
 	failures := 0
@@ -216,6 +218,7 @@ func follow(ctx context.Context, rt client.Runtime, out renderer, start client.S
 		}
 		progressed := sequence.Cursor() > before
 		if finished {
+			cancelOnExit = false
 			return out.Close()
 		}
 		if interrupted != nil {
@@ -224,7 +227,7 @@ func follow(ctx context.Context, rt client.Runtime, out renderer, start client.S
 				return err
 			}
 			resume := client.ResumeRun{RunID: run.ID, InterruptID: interruptID, Answer: answer}
-			if err := retryControl(ctx, policy, func() error { return rt.ResumeRun(ctx, resume) }); err != nil {
+			if err := resilience.Control(ctx, policy, func() error { return rt.ResumeRun(ctx, resume) }); err != nil {
 				return err
 			}
 			failures = 0
@@ -235,33 +238,6 @@ func follow(ctx context.Context, rt client.Runtime, out renderer, start client.S
 		}
 		if retryErr := waitToReconnect(ctx, policy, &failures, progressed, subscriptionErr); retryErr != nil {
 			return retryErr
-		}
-	}
-}
-
-func retryControl(ctx context.Context, policy resilience.Reconnect, operation func() error) error {
-	_, err := retryControlValue(ctx, policy, func() (struct{}, error) {
-		return struct{}{}, operation()
-	})
-	return err
-}
-
-func retryControlValue[T any](ctx context.Context, policy resilience.Reconnect, operation func() (T, error)) (T, error) {
-	var zero T
-	for failure := 1; ; failure++ {
-		value, err := operation()
-		if err == nil {
-			return value, nil
-		}
-		if !errors.Is(err, client.ErrDisconnected) {
-			return zero, err
-		}
-		delay, retry := policy.Next(failure, err)
-		if !retry {
-			return zero, err
-		}
-		if err := resilience.Wait(ctx, delay); err != nil {
-			return zero, err
 		}
 	}
 }

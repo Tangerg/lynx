@@ -48,7 +48,7 @@ type Runs interface {
 	StartRun(context.Context, StartRun) (Run, error)
 	FollowRun(context.Context, FollowRun) (Stream, error)
 	ResumeRun(context.Context, ResumeRun) error
-	CancelRun(context.Context, string) error
+	CancelRun(context.Context, CancelRun) error
 }
 
 // Models exposes the runtime-provided model catalog. Run modes and permission
@@ -82,4 +82,12 @@ type ResumeRun struct {
 	RunID       string
 	InterruptID string
 	Answer      Answer
+}
+
+// CancelRun identifies either an accepted run or an in-flight idempotent start.
+// Exactly one form is valid: RunID, or SessionID together with RequestID.
+type CancelRun struct {
+	RunID     string
+	SessionID string
+	RequestID string
 }

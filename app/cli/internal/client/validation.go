@@ -76,20 +76,38 @@ func (u Usage) Validate() error {
 	return nil
 }
 
-func validateEvent(event Event) error {
+// ValidateEvent checks the closed event payload independently from aggregate
+// phase and envelope identity.
+func ValidateEvent(event Event) error {
+	if event == nil {
+		return errors.New("event is nil")
+	}
+	if handled, err := validateRunEvent(event); handled {
+		return err
+	}
+	return validateProgressEvent(event)
+}
+
+func validateRunEvent(event Event) (bool, error) {
 	switch item := event.(type) {
 	case RunStarted:
-		if strings.TrimSpace(item.RunID) == "" {
-			return errors.New("run started without an id")
-		}
-		if strings.TrimSpace(item.SessionID) == "" {
-			return errors.New("run started without a session id")
-		}
-		return item.Options.Validate()
+		return true, validateRunStarted(item)
 	case RunResumed:
 		if strings.TrimSpace(item.InterruptID) == "" {
-			return errors.New("run resumed without an interrupt id")
+			return true, errors.New("run resumed without an interrupt id")
 		}
+		return true, nil
+	case RunInterrupted:
+		return true, ValidateInteraction(item.Interaction)
+	case RunFinished:
+		return true, validateRunFinished(item)
+	default:
+		return false, nil
+	}
+}
+
+func validateProgressEvent(event Event) error {
+	switch item := event.(type) {
 	case BlockStarted:
 		return validateBlock(item.Block, false)
 	case BlockDelta:
@@ -100,19 +118,27 @@ func validateEvent(event Event) error {
 		return validateBlock(item.Block, true)
 	case PlanChanged:
 		return validatePlan(item.Items)
-	case RunInterrupted:
-		return ValidateInteraction(item.Interaction)
-	case RunFinished:
-		if err := item.Outcome.Validate(); err != nil {
-			return err
-		}
-		return item.Usage.Validate()
-	case nil:
-		return errors.New("event is nil")
 	default:
 		return fmt.Errorf("event %T is unsupported", event)
 	}
 	return nil
+}
+
+func validateRunStarted(event RunStarted) error {
+	if strings.TrimSpace(event.RunID) == "" {
+		return errors.New("run started without an id")
+	}
+	if strings.TrimSpace(event.SessionID) == "" {
+		return errors.New("run started without a session id")
+	}
+	return event.Options.Validate()
+}
+
+func validateRunFinished(event RunFinished) error {
+	if err := event.Outcome.Validate(); err != nil {
+		return err
+	}
+	return event.Usage.Validate()
 }
 
 func validateBlock(block Block, completed bool) error {

@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"slices"
+	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -378,7 +380,7 @@ func TestCancelWaitingRunFinishesIt(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := runtime.CancelRun(t.Context(), run.ID); err != nil {
+	if err := runtime.CancelRun(t.Context(), client.CancelRun{RunID: run.ID}); err != nil {
 		t.Fatal(err)
 	}
 	continued, err := followAll(t, runtime, run.ID, first[len(first)-1].Cursor)
@@ -554,4 +556,182 @@ func TestStartRunValidatesAndCopiesAttachments(t *testing.T) {
 	if len(got.Attachments) != 1 || got.Attachments[0].Name != "notes.txt" {
 		t.Fatalf("stored attachments = %+v", got.Attachments)
 	}
+}
+
+func TestConcurrentIdempotentStartsBuildOnceOutsideTheRuntimeLock(t *testing.T) {
+	runtime := New()
+	runtime.Instant = true
+	session := newSession(t, runtime)
+	entered := make(chan struct{}, 1)
+	release := make(chan struct{})
+	var builds atomic.Int32
+	runtime.Script = func(string) Script {
+		builds.Add(1)
+		if _, err := runtime.ListSessions(t.Context(), client.SessionQuery{}); err != nil {
+			panic(err)
+		}
+		entered <- struct{}{}
+		<-release
+		return completedScript()
+	}
+	input := client.StartRun{RequestID: "req_same", SessionID: session.ID, Message: client.Message{Text: "once"}}
+	type result struct {
+		run client.Run
+		err error
+	}
+	results := make(chan result, 2)
+	go func() {
+		run, err := runtime.StartRun(t.Context(), input)
+		results <- result{run: run, err: err}
+	}()
+	<-entered
+	go func() {
+		run, err := runtime.StartRun(t.Context(), input)
+		results <- result{run: run, err: err}
+	}()
+	close(release)
+	first, second := <-results, <-results
+	if first.err != nil || second.err != nil || first.run.ID == "" || first.run.ID != second.run.ID {
+		t.Fatalf("idempotent starts = %+v and %+v", first, second)
+	}
+	if builds.Load() != 1 {
+		t.Fatalf("script built %d times", builds.Load())
+	}
+}
+
+func TestCancelStartCreatesATombstoneAndPreventsLateCommit(t *testing.T) {
+	runtime := New()
+	session := newSession(t, runtime)
+	entered := make(chan struct{})
+	release := make(chan struct{})
+	runtime.Script = func(string) Script {
+		close(entered)
+		<-release
+		return completedScript()
+	}
+	input := client.StartRun{RequestID: "req_cancel", SessionID: session.ID, Message: client.Message{Text: "cancel"}}
+	started := make(chan error, 1)
+	go func() {
+		_, err := runtime.StartRun(t.Context(), input)
+		started <- err
+	}()
+	<-entered
+	if err := runtime.CancelRun(t.Context(), client.CancelRun{SessionID: session.ID, RequestID: input.RequestID}); err != nil {
+		t.Fatal(err)
+	}
+	close(release)
+	if err := <-started; !errors.Is(err, client.ErrRunCanceled) {
+		t.Fatalf("late start error = %v, want ErrRunCanceled", err)
+	}
+	if _, err := runtime.StartRun(t.Context(), input); !errors.Is(err, client.ErrRunCanceled) {
+		t.Fatalf("tombstoned retry error = %v, want ErrRunCanceled", err)
+	}
+	snapshot, err := runtime.GetSession(t.Context(), session.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if snapshot.Active != nil || snapshot.Cursor != 0 {
+		t.Fatalf("canceled start committed state: %+v", snapshot)
+	}
+}
+
+func TestScriptBuilderPanicIsStableAcrossIdempotentRetries(t *testing.T) {
+	runtime := New()
+	session := newSession(t, runtime)
+	var builds atomic.Int32
+	runtime.Script = func(string) Script {
+		builds.Add(1)
+		panic("fixture exploded")
+	}
+	input := client.StartRun{RequestID: "req_panic", SessionID: session.ID, Message: client.Message{Text: "panic"}}
+	_, first := runtime.StartRun(t.Context(), input)
+	_, second := runtime.StartRun(t.Context(), input)
+	if first == nil || second == nil || first.Error() != second.Error() || !strings.Contains(first.Error(), "fixture exploded") {
+		t.Fatalf("panic errors = %v and %v", first, second)
+	}
+	if builds.Load() != 1 {
+		t.Fatalf("panicking builder ran %d times", builds.Load())
+	}
+}
+
+func TestCancelRunFinishesImmediatelyWithoutPostFinishEvents(t *testing.T) {
+	runtime := New()
+	session := newSession(t, runtime)
+	runtime.Script = func(string) Script {
+		return Script{Prelude: []Step{{Delay: time.Hour, Event: client.RunFinished{Outcome: client.Outcome{Status: client.OutcomeCompleted}}}}}
+	}
+	run, err := runtime.StartRun(t.Context(), client.StartRun{RequestID: "req_active", SessionID: session.ID, Message: client.Message{Text: "wait"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := runtime.CancelRun(t.Context(), client.CancelRun{RunID: run.ID}); err != nil {
+		t.Fatal(err)
+	}
+	events, err := followAll(t, runtime, run.ID, run.StartedAfter)
+	if err != nil {
+		t.Fatal(err)
+	}
+	finished, ok := events[len(events)-1].Event.(client.RunFinished)
+	if !ok || finished.Outcome.Status != client.OutcomeCanceled {
+		t.Fatalf("last event = %+v, want canceled finish", events[len(events)-1])
+	}
+	if err := runtime.CancelRun(t.Context(), client.CancelRun{RunID: run.ID}); err != nil {
+		t.Fatalf("idempotent cancellation: %v", err)
+	}
+}
+
+func TestContinuationRunsOutsideLockAndCancellationWinsItsCommitRace(t *testing.T) {
+	runtime := New()
+	runtime.Instant = true
+	session := newSession(t, runtime)
+	entered := make(chan struct{})
+	release := make(chan struct{})
+	runtime.Script = func(string) Script {
+		return Script{
+			Interaction: client.Question{InterruptID: "question_1", Title: "Choose", Fields: []client.QuestionField{{ID: "name", Label: "Name", Kind: client.QuestionText, Required: true}}},
+			Continue: func(client.Answer) []Step {
+				if _, err := runtime.ListSessions(t.Context(), client.SessionQuery{}); err != nil {
+					panic(err)
+				}
+				close(entered)
+				<-release
+				return completedScript().Prelude
+			},
+		}
+	}
+	run, err := runtime.StartRun(t.Context(), client.StartRun{SessionID: session.ID, Message: client.Message{Text: "ask"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	events, err := followAll(t, runtime, run.ID, run.StartedAfter)
+	if err != nil {
+		t.Fatal(err)
+	}
+	interrupted := events[len(events)-1].Event.(client.RunInterrupted)
+	resumeErr := make(chan error, 1)
+	go func() {
+		resumeErr <- runtime.ResumeRun(t.Context(), client.ResumeRun{
+			RunID: run.ID, InterruptID: client.InteractionID(interrupted.Interaction),
+			Answer: client.QuestionAnswer{Values: map[string][]string{"name": {"cache"}}},
+		})
+	}()
+	<-entered
+	if err := runtime.CancelRun(t.Context(), client.CancelRun{RunID: run.ID}); err != nil {
+		t.Fatal(err)
+	}
+	close(release)
+	if err := <-resumeErr; !errors.Is(err, client.ErrRunCanceled) {
+		t.Fatalf("resume error = %v, want ErrRunCanceled", err)
+	}
+	snapshot, err := runtime.GetSession(t.Context(), session.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if snapshot.Active != nil {
+		t.Fatalf("canceled resumption left active run: %+v", snapshot.Active)
+	}
+}
+
+func completedScript() Script {
+	return Script{Prelude: []Step{{Event: client.RunFinished{Outcome: client.Outcome{Status: client.OutcomeCompleted}}}}}
 }

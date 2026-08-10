@@ -81,6 +81,27 @@ func (r ResumeRun) Validate() error {
 	return nil
 }
 
+// Validate checks that cancellation names exactly one logical run request.
+func (r CancelRun) Validate() error {
+	byRun := strings.TrimSpace(r.RunID) != ""
+	byRequest := strings.TrimSpace(r.SessionID) != "" || strings.TrimSpace(r.RequestID) != ""
+	if byRun == byRequest {
+		return errors.New("cancel run: identify either a run or a start request")
+	}
+	if byRequest {
+		if strings.TrimSpace(r.SessionID) == "" {
+			return errors.New("cancel run: session id is empty")
+		}
+		if strings.TrimSpace(r.RequestID) == "" {
+			return errors.New("cancel run: request id is empty")
+		}
+		if err := validateRequestID(r.RequestID); err != nil {
+			return fmt.Errorf("cancel run: %w", err)
+		}
+	}
+	return nil
+}
+
 func validateRequestID(id string) error {
 	if id == "" {
 		return nil

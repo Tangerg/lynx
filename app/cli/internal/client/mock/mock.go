@@ -51,7 +51,8 @@ type Runtime struct {
 	mu       sync.Mutex
 	sessions map[string]*sessionState
 	runs     map[string]*runState
-	requests map[string]string
+	starts   map[string]*startAttempt
+	canceled map[string]struct{}
 	rules    []client.ApprovalRule
 	fault    int
 	next     uint64
@@ -59,10 +60,19 @@ type Runtime struct {
 }
 
 type sessionState struct {
-	meta    client.Session
-	events  []client.Envelope
-	active  string
-	changed chan struct{}
+	meta     client.Session
+	events   []client.Envelope
+	active   string
+	starting *startAttempt
+	changed  chan struct{}
+}
+
+type startAttempt struct {
+	input    client.StartRun
+	ready    chan struct{}
+	run      client.Run
+	err      error
+	finished bool
 }
 
 type runState struct {
@@ -74,16 +84,25 @@ type runState struct {
 	interaction  client.Interaction
 	start        client.StartRun
 	answers      map[string]client.Answer
+	resuming     *resumeAttempt
 	cancel       chan struct{}
 	cancelOnce   sync.Once
 	finishOnce   sync.Once
+}
+
+type resumeAttempt struct {
+	interruptID string
+	answer      client.Answer
+	ready       chan struct{}
+	err         error
 }
 
 func New() *Runtime {
 	r := &Runtime{
 		sessions: make(map[string]*sessionState),
 		runs:     make(map[string]*runState),
-		requests: make(map[string]string),
+		starts:   make(map[string]*startAttempt),
+		canceled: make(map[string]struct{}),
 		now:      time.Now,
 	}
 	for _, session := range demoSessions() {
@@ -210,6 +229,9 @@ func (r *Runtime) ForkSession(_ context.Context, in client.ForkSession) (client.
 	if !ok {
 		return client.Session{}, fmt.Errorf("%w: %s", client.ErrSessionNotFound, in.SessionID)
 	}
+	if source.starting != nil {
+		return client.Session{}, fmt.Errorf("%w: %s", client.ErrSessionBusy, in.SessionID)
+	}
 	at := in.At
 	if at == 0 {
 		at = client.Cursor(len(source.events))
@@ -254,7 +276,7 @@ func (r *Runtime) DeleteSession(_ context.Context, in client.DeleteSession) erro
 	if !ok {
 		return fmt.Errorf("%w: %s", client.ErrSessionNotFound, in.SessionID)
 	}
-	if state.active != "" {
+	if state.active != "" || state.starting != nil {
 		return fmt.Errorf("%w: %s", client.ErrSessionBusy, in.SessionID)
 	}
 	if in.Revision != 0 && in.Revision != state.meta.Revision {
@@ -291,60 +313,124 @@ func (r *Runtime) DeleteApprovalRule(_ context.Context, id string) error {
 	return nil
 }
 
-func (r *Runtime) StartRun(_ context.Context, in client.StartRun) (client.Run, error) {
+func (r *Runtime) StartRun(ctx context.Context, in client.StartRun) (client.Run, error) {
 	if err := in.Validate(); err != nil {
 		return client.Run{}, fmt.Errorf("mock: %w", err)
 	}
-	prompt := strings.TrimSpace(in.Message.Text)
-	attachments := slices.Clone(in.Message.Attachments)
+	attempt, owner, err := r.reserveStart(ctx, in)
+	if err != nil {
+		return client.Run{}, err
+	}
+	if !owner {
+		return awaitStart(ctx, r, attempt)
+	}
+
 	build := r.Script
 	if build == nil {
 		build = Conversation
 	}
+	script, buildErr := buildScriptSafely(build, strings.TrimSpace(in.Message.Text))
+
 	r.mu.Lock()
+	run, err := r.commitStartLocked(attempt, script, buildErr)
+	started := client.Run{}
+	if err == nil {
+		started = projectRun(run)
+	}
+	r.mu.Unlock()
+	if err != nil {
+		return client.Run{}, err
+	}
+	go r.play(run, run.script.Prelude, run.script.interrupts())
+	return started, nil
+}
+
+func (r *Runtime) reserveStart(ctx context.Context, in client.StartRun) (*startAttempt, bool, error) {
+	if err := context.Cause(ctx); err != nil {
+		return nil, false, err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	session, ok := r.sessions[in.SessionID]
 	if !ok {
-		r.mu.Unlock()
-		return client.Run{}, fmt.Errorf("%w: %s", client.ErrSessionNotFound, in.SessionID)
+		return nil, false, fmt.Errorf("%w: %s", client.ErrSessionNotFound, in.SessionID)
 	}
 	if in.RequestID != "" {
 		key := requestKey(in.SessionID, in.RequestID)
-		if runID, exists := r.requests[key]; exists {
-			existing := r.runs[runID]
-			if existing == nil || !sameStart(existing.start, in) {
-				r.mu.Unlock()
-				return client.Run{}, fmt.Errorf("%w: request %s", client.ErrRequestConflict, in.RequestID)
+		if _, canceled := r.canceled[key]; canceled {
+			return nil, false, fmt.Errorf("%w: request %s", client.ErrRunCanceled, in.RequestID)
+		}
+		if existing := r.starts[key]; existing != nil {
+			if !sameStart(existing.input, in) {
+				return nil, false, fmt.Errorf("%w: request %s", client.ErrRequestConflict, in.RequestID)
 			}
-			started := projectRun(existing)
-			r.mu.Unlock()
-			return started, nil
+			return existing, false, nil
 		}
 	}
-	if session.active != "" {
-		r.mu.Unlock()
-		return client.Run{}, fmt.Errorf("%w: %s", client.ErrSessionBusy, in.SessionID)
+	if session.active != "" || session.starting != nil {
+		return nil, false, fmt.Errorf("%w: %s", client.ErrSessionBusy, in.SessionID)
+	}
+	attempt := &startAttempt{input: cloneStart(in), ready: make(chan struct{})}
+	session.starting = attempt
+	if in.RequestID != "" {
+		r.starts[requestKey(in.SessionID, in.RequestID)] = attempt
+	}
+	return attempt, true, nil
+}
+
+func awaitStart(ctx context.Context, runtime *Runtime, attempt *startAttempt) (client.Run, error) {
+	select {
+	case <-attempt.ready:
+		runtime.mu.Lock()
+		defer runtime.mu.Unlock()
+		return attempt.run, attempt.err
+	case <-ctx.Done():
+		return client.Run{}, context.Cause(ctx)
+	}
+}
+
+func (r *Runtime) commitStartLocked(attempt *startAttempt, script Script, buildErr error) (*runState, error) {
+	if attempt.finished {
+		return nil, attempt.err
+	}
+	session := r.sessions[attempt.input.SessionID]
+	if session == nil || session.starting != attempt {
+		err := fmt.Errorf("%w: request %s", client.ErrRunCanceled, attempt.input.RequestID)
+		r.finishStartLocked(attempt, client.Run{}, err)
+		return nil, err
+	}
+	if buildErr != nil {
+		err := fmt.Errorf("mock: build script: %w", buildErr)
+		session.starting = nil
+		r.finishStartLocked(attempt, client.Run{}, err)
+		return nil, err
 	}
 	r.next++
 	run := &runState{
-		id: fmt.Sprintf("run_mock_%d", r.next), sessionID: in.SessionID,
+		id: fmt.Sprintf("run_mock_%d", r.next), sessionID: attempt.input.SessionID,
 		startedAfter: client.Cursor(len(session.events)), status: client.RunActive,
-		script: build(prompt), start: cloneStart(in), answers: make(map[string]client.Answer),
+		script: script, start: cloneStart(attempt.input), answers: make(map[string]client.Answer),
 		cancel: make(chan struct{}),
 	}
 	r.runs[run.id] = run
-	if in.RequestID != "" {
-		r.requests[requestKey(in.SessionID, in.RequestID)] = run.id
-	}
+	session.starting = nil
 	session.active = run.id
-	r.emitLocked(run, client.RunStarted{RunID: run.id, SessionID: run.sessionID, Options: in.Options})
+	r.emitLocked(run, client.RunStarted{RunID: run.id, SessionID: run.sessionID, Options: attempt.input.Options})
 	r.emitLocked(run, client.BlockCompleted{Block: client.Block{
-		ID: run.id + "_prompt", Kind: client.BlockUser, Text: prompt, Attachments: attachments,
+		ID: run.id + "_prompt", Kind: client.BlockUser,
+		Text: strings.TrimSpace(attempt.input.Message.Text), Attachments: slices.Clone(attempt.input.Message.Attachments),
 	}})
 	started := projectRun(run)
-	r.mu.Unlock()
+	r.finishStartLocked(attempt, started, nil)
+	return run, nil
+}
 
-	go r.play(run, run.script.Prelude, run.script.interrupts())
-	return started, nil
+func (r *Runtime) finishStartLocked(attempt *startAttempt, run client.Run, err error) {
+	if attempt.finished {
+		return
+	}
+	attempt.run, attempt.err, attempt.finished = run, err, true
+	close(attempt.ready)
 }
 
 func (r *Runtime) FollowRun(ctx context.Context, in client.FollowRun) (client.Stream, error) {
@@ -457,95 +543,234 @@ func (r *Runtime) takeFaultLocked() (SubscriptionFault, error) {
 	}
 }
 
-func (r *Runtime) ResumeRun(_ context.Context, in client.ResumeRun) error {
+func (r *Runtime) ResumeRun(ctx context.Context, in client.ResumeRun) error {
 	if err := in.Validate(); err != nil {
 		return fmt.Errorf("mock: %w", err)
 	}
+	run, attempt, owner, err := r.reserveResume(ctx, in)
+	if err != nil || attempt == nil {
+		return err
+	}
+	if !owner {
+		return awaitResume(ctx, r, attempt)
+	}
+	steps, continuationErr := continueSafely(run.script, in.Answer)
 	r.mu.Lock()
-	run, ok := r.runs[in.RunID]
-	if !ok {
-		r.mu.Unlock()
-		return fmt.Errorf("%w: %s", client.ErrRunNotFound, in.RunID)
-	}
-	if answered, exists := run.answers[in.InterruptID]; exists {
-		if client.EqualAnswers(answered, in.Answer) {
-			r.mu.Unlock()
-			return nil
-		}
-		r.mu.Unlock()
-		return fmt.Errorf("%w: interrupt %s", client.ErrRequestConflict, in.InterruptID)
-	}
-	if run.status != client.RunWaiting || client.InteractionID(run.interaction) != in.InterruptID {
-		r.mu.Unlock()
-		return fmt.Errorf("%w: %s", client.ErrInterruptNotOpen, in.InterruptID)
-	}
-	if err := client.ValidateAnswer(run.interaction, in.Answer); err != nil {
-		r.mu.Unlock()
-		return fmt.Errorf("mock: %w", err)
-	}
-	run.answers[in.InterruptID] = client.CloneAnswer(in.Answer)
-	if approval, ok := run.interaction.(client.Approval); ok {
-		if answer, ok := in.Answer.(client.ApprovalAnswer); ok && answer.Remember != "" && answer.Remember != client.RememberNone {
-			r.rememberApprovalLocked(run, approval, answer)
-		}
-	}
-	steps := run.script.continueWith(in.Answer)
-	run.status = client.RunActive
-	run.interaction = nil
-	r.emitLocked(run, client.RunResumed{InterruptID: in.InterruptID})
+	err = r.commitResumeLocked(run, attempt, steps, continuationErr)
 	r.mu.Unlock()
+	if err != nil {
+		return err
+	}
 	go r.play(run, steps, false)
 	return nil
 }
 
-func (r *Runtime) CancelRun(_ context.Context, runID string) error {
+func (r *Runtime) reserveResume(ctx context.Context, in client.ResumeRun) (*runState, *resumeAttempt, bool, error) {
+	if err := context.Cause(ctx); err != nil {
+		return nil, nil, false, err
+	}
 	r.mu.Lock()
-	run, ok := r.runs[runID]
+	defer r.mu.Unlock()
+	run, ok := r.runs[in.RunID]
 	if !ok {
-		r.mu.Unlock()
-		return fmt.Errorf("%w: %s", client.ErrRunNotFound, runID)
+		return nil, nil, false, fmt.Errorf("%w: %s", client.ErrRunNotFound, in.RunID)
 	}
-	status := run.status
-	r.mu.Unlock()
-	run.cancelOnce.Do(func() { close(run.cancel) })
-	if status == client.RunWaiting {
-		r.finish(run, client.RunFinished{Outcome: client.Outcome{Status: client.OutcomeCanceled}})
+	attempt, owner, err := resolveResumeAttemptLocked(run, in)
+	return run, attempt, owner, err
+}
+
+func resolveResumeAttemptLocked(run *runState, in client.ResumeRun) (*resumeAttempt, bool, error) {
+	if answered, exists := run.answers[in.InterruptID]; exists {
+		if client.EqualAnswers(answered, in.Answer) {
+			return nil, false, nil
+		}
+		return nil, false, fmt.Errorf("%w: interrupt %s", client.ErrRequestConflict, in.InterruptID)
 	}
+	if pending := run.resuming; pending != nil {
+		if pending.interruptID != in.InterruptID || !client.EqualAnswers(pending.answer, in.Answer) {
+			return nil, false, fmt.Errorf("%w: interrupt %s", client.ErrRequestConflict, in.InterruptID)
+		}
+		return pending, false, nil
+	}
+	if run.status != client.RunWaiting || client.InteractionID(run.interaction) != in.InterruptID {
+		return nil, false, fmt.Errorf("%w: %s", client.ErrInterruptNotOpen, in.InterruptID)
+	}
+	if err := client.ValidateAnswer(run.interaction, in.Answer); err != nil {
+		return nil, false, fmt.Errorf("mock: %w", err)
+	}
+	attempt := &resumeAttempt{
+		interruptID: in.InterruptID,
+		answer:      client.CloneAnswer(in.Answer),
+		ready:       make(chan struct{}),
+	}
+	run.resuming = attempt
+	return attempt, true, nil
+}
+
+func awaitResume(ctx context.Context, runtime *Runtime, attempt *resumeAttempt) error {
+	select {
+	case <-attempt.ready:
+		runtime.mu.Lock()
+		defer runtime.mu.Unlock()
+		return attempt.err
+	case <-ctx.Done():
+		return context.Cause(ctx)
+	}
+}
+
+func (r *Runtime) commitResumeLocked(run *runState, attempt *resumeAttempt, steps []Step, continuationErr error) error {
+	if run.resuming != attempt {
+		return attempt.err
+	}
+	if continuationErr != nil {
+		err := fmt.Errorf("mock: continue script: %w", continuationErr)
+		r.finishResumeLocked(run, attempt, err)
+		return err
+	}
+	if run.status != client.RunWaiting {
+		err := fmt.Errorf("%w: run %s", client.ErrRunCanceled, run.id)
+		r.finishResumeLocked(run, attempt, err)
+		return err
+	}
+	run.answers[attempt.interruptID] = client.CloneAnswer(attempt.answer)
+	if approval, ok := run.interaction.(client.Approval); ok {
+		if answer, ok := attempt.answer.(client.ApprovalAnswer); ok && answer.Remember != "" && answer.Remember != client.RememberNone {
+			r.rememberApprovalLocked(run, approval, answer)
+		}
+	}
+	run.status = client.RunActive
+	run.interaction = nil
+	r.emitLocked(run, client.RunResumed{InterruptID: attempt.interruptID})
+	r.finishResumeLocked(run, attempt, nil)
 	return nil
 }
 
+func (r *Runtime) finishResumeLocked(run *runState, attempt *resumeAttempt, err error) {
+	if run.resuming == attempt {
+		run.resuming = nil
+	}
+	attempt.err = err
+	close(attempt.ready)
+}
+
+func (r *Runtime) CancelRun(ctx context.Context, in client.CancelRun) error {
+	if err := in.Validate(); err != nil {
+		return fmt.Errorf("mock: %w", err)
+	}
+	if err := context.Cause(ctx); err != nil {
+		return err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	run, err := r.resolveCancellationLocked(in)
+	if err != nil || run == nil {
+		return err
+	}
+	r.cancelRunLocked(run)
+	return nil
+}
+
+func (r *Runtime) resolveCancellationLocked(in client.CancelRun) (*runState, error) {
+	if in.RunID != "" {
+		run := r.runs[in.RunID]
+		if run == nil {
+			return nil, fmt.Errorf("%w: %s", client.ErrRunNotFound, in.RunID)
+		}
+		return run, nil
+	}
+	return r.cancelStartLocked(in)
+}
+
+func (r *Runtime) cancelStartLocked(in client.CancelRun) (*runState, error) {
+	session := r.sessions[in.SessionID]
+	if session == nil {
+		return nil, fmt.Errorf("%w: %s", client.ErrSessionNotFound, in.SessionID)
+	}
+	key := requestKey(in.SessionID, in.RequestID)
+	r.canceled[key] = struct{}{}
+	attempt := r.starts[key]
+	if attempt == nil {
+		return nil, nil
+	}
+	if !attempt.finished {
+		if session.starting == attempt {
+			session.starting = nil
+		}
+		r.finishStartLocked(attempt, client.Run{}, fmt.Errorf("%w: request %s", client.ErrRunCanceled, in.RequestID))
+		return nil, nil
+	}
+	if attempt.err != nil {
+		return nil, nil
+	}
+	return r.runs[attempt.run.ID], nil
+}
+
+func (r *Runtime) cancelRunLocked(run *runState) {
+	run.cancelOnce.Do(func() { close(run.cancel) })
+	if pending := run.resuming; pending != nil {
+		r.finishResumeLocked(run, pending, fmt.Errorf("%w: run %s", client.ErrRunCanceled, run.id))
+	}
+	r.finishLocked(run, client.RunFinished{Outcome: client.Outcome{Status: client.OutcomeCanceled}})
+}
+
 func (r *Runtime) play(run *runState, steps []Step, interrupt bool) {
+	if !r.playSteps(run, steps) || !interrupt {
+		return
+	}
+	r.park(run)
+}
+
+func (r *Runtime) playSteps(run *runState, steps []Step) bool {
 	for _, step := range steps {
 		if err := r.pause(run, step.Delay); err != nil {
 			if errors.Is(err, errCanceled) {
 				r.finish(run, client.RunFinished{Outcome: client.Outcome{Status: client.OutcomeCanceled}})
 			}
-			return
+			return false
 		}
 		if finished, done := step.Event.(client.RunFinished); done {
 			r.finish(run, finished)
-			return
+			return false
 		}
-		r.emit(run, step.Event)
+		if !r.emit(run, step.Event) {
+			return false
+		}
 	}
-	if !interrupt {
-		return
-	}
+	return true
+}
+
+func (r *Runtime) park(run *runState) {
 	r.mu.Lock()
 	if run.status != client.RunActive {
 		r.mu.Unlock()
 		return
 	}
+	var remembered *client.ApprovalAnswer
 	if approval, ok := run.script.Interaction.(client.Approval); ok {
 		if answer, matched := r.rememberedAnswerLocked(run, approval); matched {
-			r.emitLocked(run, client.BlockCompleted{Block: client.Block{
-				ID: run.id + "_approval_rule", Kind: client.BlockNotice,
-				Text: "Applied remembered approval rule: " + approvalRuleKey(approval),
-			}})
-			r.mu.Unlock()
-			r.play(run, run.script.continueWith(answer), false)
+			remembered = &answer
+		}
+	}
+	if remembered != nil {
+		approval := run.script.Interaction.(client.Approval)
+		r.mu.Unlock()
+		steps, err := continueSafely(run.script, *remembered)
+		if err != nil {
+			r.finish(run, client.RunFinished{Outcome: client.Outcome{Status: client.OutcomeFailed, Error: "mock continuation: " + err.Error()}})
 			return
 		}
+		r.mu.Lock()
+		if run.status != client.RunActive {
+			r.mu.Unlock()
+			return
+		}
+		r.emitLocked(run, client.BlockCompleted{Block: client.Block{
+			ID: run.id + "_approval_rule", Kind: client.BlockNotice,
+			Text: "Applied remembered approval rule: " + approvalRuleKey(approval),
+		}})
+		r.mu.Unlock()
+		r.play(run, steps, false)
+		return
 	}
 	run.status = client.RunWaiting
 	run.interaction = client.CloneInteraction(run.script.Interaction)
@@ -625,10 +850,14 @@ func (r *Runtime) pause(run *runState, delay time.Duration) error {
 	}
 }
 
-func (r *Runtime) emit(run *runState, event client.Event) {
+func (r *Runtime) emit(run *runState, event client.Event) bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if run.status != client.RunActive {
+		return false
+	}
 	r.emitLocked(run, event)
+	return true
 }
 
 func (r *Runtime) emitLocked(run *runState, event client.Event) {
@@ -650,7 +879,13 @@ func (r *Runtime) emitLocked(run *runState, event client.Event) {
 }
 
 func (r *Runtime) finish(run *runState, event client.RunFinished) {
-	run.finishOnce.Do(func() { r.emit(run, event) })
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.finishLocked(run, event)
+}
+
+func (r *Runtime) finishLocked(run *runState, event client.RunFinished) {
+	run.finishOnce.Do(func() { r.emitLocked(run, event) })
 }
 
 func projectRun(run *runState) client.Run {
