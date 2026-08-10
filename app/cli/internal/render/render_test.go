@@ -164,6 +164,20 @@ func TestTextCapsToolOutput(t *testing.T) {
 	}
 }
 
+func TestTextDistinguishesCanceledToolsFromErrors(t *testing.T) {
+	var buf bytes.Buffer
+	text := NewText(&buf)
+	if err := text.Render(envelope(client.BlockCompleted{Block: client.Block{ID: "t", Kind: client.BlockTool, Tool: &client.ToolCall{
+		Kind: client.ToolShell, Command: "long command", Status: client.ToolCanceled, Output: "partial output",
+	}}})); err != nil {
+		t.Fatal(err)
+	}
+	got := buf.String()
+	if !strings.Contains(got, "− canceled") || strings.Contains(got, "✗") {
+		t.Fatalf("canceled tool output = %q", got)
+	}
+}
+
 func TestTextReportsANonCompletedOutcome(t *testing.T) {
 	var buf bytes.Buffer
 	text := NewText(&buf)

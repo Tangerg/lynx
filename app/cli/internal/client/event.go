@@ -33,7 +33,8 @@ type RunResumed struct{ InterruptID string }
 // BlockStarted appends a block whose body may stream through BlockDelta.
 type BlockStarted struct{ Block Block }
 
-// BlockDelta appends text to a previously started block.
+// BlockDelta appends text to a previously started streaming block. For tool
+// blocks it appends output; for assistant and reasoning blocks it appends Text.
 type BlockDelta struct {
 	BlockID string
 	Text    string

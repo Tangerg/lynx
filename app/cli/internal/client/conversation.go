@@ -197,7 +197,15 @@ func (c *Conversation) applyBlockDelta(event BlockDelta) error {
 	if !c.open[event.BlockID] {
 		return fmt.Errorf("%w: block %s is already complete", ErrInvalidTransition, event.BlockID)
 	}
-	c.blocks[at].Text += event.Text
+	block := &c.blocks[at]
+	switch block.Kind {
+	case BlockAssistant, BlockReasoning:
+		block.Text += event.Text
+	case BlockTool:
+		block.Tool.Output += event.Text
+	default:
+		return fmt.Errorf("%w: block %s of kind %s cannot stream", ErrInvalidTransition, event.BlockID, block.Kind)
+	}
 	return nil
 }
 
@@ -259,6 +267,14 @@ func (c *Conversation) applyFinished(event RunFinished) error {
 	if c.phase == Waiting && event.Outcome.Status != OutcomeCanceled {
 		return fmt.Errorf("%w: a waiting run can only finish by cancellation", ErrInvalidTransition)
 	}
+	if event.Outcome.Status == OutcomeCompleted && c.hasOpenBlocks() {
+		return fmt.Errorf("%w: a completed run still has open blocks", ErrInvalidTransition)
+	}
+	toolStatus := ToolError
+	if event.Outcome.Status == OutcomeCanceled {
+		toolStatus = ToolCanceled
+	}
+	c.settleOpenBlocks(toolStatus)
 	c.phase = Idle
 	c.interrupt = nil
 	c.outcome = event.Outcome
@@ -310,6 +326,7 @@ func (c *Conversation) Failed(err error) {
 	c.phase = Idle
 	c.interrupt = nil
 	c.outcome = Outcome{Status: OutcomeFailed, Error: err.Error()}
+	c.settleOpenBlocks(ToolError)
 	_ = c.put(Block{ID: fmt.Sprintf("failure:%d", c.revision+1), Kind: BlockError, Text: err.Error()}, true)
 	c.revision++
 }
@@ -332,6 +349,12 @@ func (c *Conversation) put(block Block, completed bool) error {
 		if !completed {
 			return fmt.Errorf("%w: block %s started twice", ErrInvalidTransition, block.ID)
 		}
+		if !c.open[block.ID] {
+			return fmt.Errorf("%w: block %s completed twice", ErrInvalidTransition, block.ID)
+		}
+		if err := validateBlockCompletion(c.blocks[at], block); err != nil {
+			return err
+		}
 		c.blocks[at] = cloneBlock(block)
 		c.open[block.ID] = false
 		return nil
@@ -347,6 +370,38 @@ func (c *Conversation) put(block Block, completed bool) error {
 	c.blocks = append(c.blocks, cloneBlock(block))
 	c.open[block.ID] = false
 	return nil
+}
+
+func validateBlockCompletion(started, completed Block) error {
+	if started.Kind != completed.Kind {
+		return fmt.Errorf("%w: block %s changed kind from %s to %s", ErrInvalidTransition, completed.ID, started.Kind, completed.Kind)
+	}
+	if started.Kind == BlockTool && started.Tool.Kind != completed.Tool.Kind {
+		return fmt.Errorf("%w: tool block %s changed kind from %s to %s", ErrInvalidTransition, completed.ID, started.Tool.Kind, completed.Tool.Kind)
+	}
+	return nil
+}
+
+func (c *Conversation) hasOpenBlocks() bool {
+	for _, open := range c.open {
+		if open {
+			return true
+		}
+	}
+	return false
+}
+
+func (c *Conversation) settleOpenBlocks(toolStatus ToolStatus) {
+	for id, open := range c.open {
+		if !open {
+			continue
+		}
+		block := &c.blocks[c.index[id]]
+		if block.Kind == BlockTool && block.Tool != nil {
+			block.Tool.Status = toolStatus
+		}
+		c.open[id] = false
+	}
 }
 
 func (c *Conversation) requireRunning(action string) error {

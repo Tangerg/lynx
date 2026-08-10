@@ -33,4 +33,7 @@ func TestToolCallValidationUsesClosedSemanticKinds(t *testing.T) {
 	if err := (ToolCall{Kind: ToolShell, Status: ToolRunning}).Validate(); err != nil {
 		t.Fatalf("running shell tool: %v", err)
 	}
+	if err := (ToolCall{Kind: ToolShell, Status: ToolCanceled}).Validate(); err != nil {
+		t.Fatalf("canceled shell tool: %v", err)
+	}
 }

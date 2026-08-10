@@ -353,6 +353,7 @@ func (a *app) fail(err error) {
 	a.startRequest = ""
 	a.releaseQueuedDispatch()
 	a.state.Failed(err)
+	a.transcript.settleLive(a.state.Outcome())
 	a.transcript.Append(presentError(a.transcript.theme, err.Error()))
 	a.status.settled(a.state.Outcome(), a.state.Usage())
 	a.header.SetUsage(a.state.Usage())

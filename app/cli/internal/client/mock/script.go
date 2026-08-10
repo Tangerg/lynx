@@ -264,10 +264,17 @@ func tool(id string, kind client.ToolKind, name, summary string, status client.T
 		// These kinds do not project a specialized primary field.
 	default:
 	}
-	return []Step{
-		{Delay: beat, Event: client.BlockStarted{Block: running}},
-		{Delay: 3 * beat, Event: client.BlockCompleted{Block: done}},
+	steps := []Step{{Delay: beat, Event: client.BlockStarted{Block: running}}}
+	for _, chunk := range strings.SplitAfter(output, "\n") {
+		if chunk != "" {
+			steps = append(steps, Step{Delay: 3 * tick, Event: client.BlockDelta{BlockID: id, Text: chunk}})
+		}
 	}
+	completionDelay := 3 * beat
+	if output != "" {
+		completionDelay = beat
+	}
+	return append(steps, Step{Delay: completionDelay, Event: client.BlockCompleted{Block: done}})
 }
 
 // words splits text so that concatenating the pieces reproduces it exactly.

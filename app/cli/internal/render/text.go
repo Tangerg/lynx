@@ -218,10 +218,16 @@ func (t *Text) toolBody(call *client.ToolCall) {
 func (t *Text) toolVerdict(call *client.ToolCall) {
 	// The verdict goes last, under what it is a verdict on.
 	mark := "✓"
-	if call.Status == client.ToolError {
+	switch call.Status {
+	case client.ToolError:
 		mark = "✗"
+	case client.ToolCanceled:
+		mark = "−"
 	}
 	status := "  " + mark
+	if call.Status == client.ToolCanceled {
+		status += " canceled"
+	}
 	if call.ExitCode != nil && *call.ExitCode != 0 {
 		status += " exit " + strconv.Itoa(*call.ExitCode)
 	}

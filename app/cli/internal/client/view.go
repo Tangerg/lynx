@@ -57,7 +57,8 @@ type Block struct {
 	Kind        BlockKind
 	Attachments []Attachment
 	// Text is the block's body. Assistant and reasoning bodies are markdown and
-	// arrive in pieces (see [BlockDelta]); the rest arrive whole.
+	// arrive in pieces (see [BlockDelta]). Tool deltas append to Tool.Output;
+	// the remaining block kinds arrive whole.
 	Text string
 	// Tool carries the call's projection when Kind is [BlockTool].
 	Tool *ToolCall
@@ -67,9 +68,10 @@ type Block struct {
 type ToolStatus string
 
 const (
-	ToolRunning ToolStatus = "running"
-	ToolOK      ToolStatus = "ok"
-	ToolError   ToolStatus = "error"
+	ToolRunning  ToolStatus = "running"
+	ToolOK       ToolStatus = "ok"
+	ToolError    ToolStatus = "error"
+	ToolCanceled ToolStatus = "canceled"
 )
 
 // ToolKind is a terminal-relevant semantic category assigned by a runtime
@@ -120,7 +122,7 @@ func (t ToolCall) Validate() error {
 		problems = append(problems, fmt.Errorf("kind %q is invalid", t.Kind))
 	}
 	switch t.Status {
-	case ToolRunning, ToolOK, ToolError:
+	case ToolRunning, ToolOK, ToolError, ToolCanceled:
 	default:
 		problems = append(problems, fmt.Errorf("status %q is invalid", t.Status))
 	}

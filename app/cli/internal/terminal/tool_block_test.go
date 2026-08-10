@@ -104,6 +104,48 @@ func TestUpdatingARunningToolPreservesItsDetailChoice(t *testing.T) {
 	}
 }
 
+func TestToolBlockStreamsOutputWithoutLosingItsDetailChoice(t *testing.T) {
+	presentation := Presentation{Theme: kit.Dark(), Glyphs: kit.Unicode(), Syntax: highlight.Style("github-dark")}
+	running := client.ToolCall{Kind: client.ToolShell, Command: "go test ./...", Status: client.ToolRunning}
+	block := newToolBlock(presentation, client.Block{ID: "tool", Kind: client.BlockTool, Tool: &running})
+	if !block.Expandable() {
+		t.Fatal("running tool was not expandable before its first output")
+	}
+	block.SetExpanded(true)
+	block.AppendOutput("first\n")
+	block.AppendOutput("second\n")
+	if !block.Expanded() {
+		t.Fatal("streaming output discarded the expanded state")
+	}
+	if got := block.call.Output; got != "first\nsecond\n" {
+		t.Fatalf("streamed output = %q", got)
+	}
+	drawn := drawToolBlock(block, 48)
+	if !strings.Contains(drawn, "first") || !strings.Contains(drawn, "second") {
+		t.Fatalf("streamed output was not rendered:\n%s", drawn)
+	}
+}
+
+func TestCompletedToolWithoutDetailsCannotExpand(t *testing.T) {
+	presentation := Presentation{Theme: kit.Dark(), Glyphs: kit.Unicode(), Syntax: highlight.Style("github-dark")}
+	completed := client.ToolCall{Kind: client.ToolShell, Command: "true", Status: client.ToolOK}
+	block := newToolBlock(presentation, client.Block{ID: "tool", Kind: client.BlockTool, Tool: &completed})
+	if block.Expandable() || block.Expanded() {
+		t.Fatal("detail-free completed tool was expandable")
+	}
+	block.SetExpanded(true)
+	if block.ToggleExpanded() || block.Expanded() {
+		t.Fatal("detail-free completed tool accepted an expansion request")
+	}
+	if got := block.Measure(48); got != 2 {
+		t.Fatalf("detail-free tool height = %d, want header plus gap", got)
+	}
+	toggle, _, _, _ := block.header()
+	if toggle != presentation.Glyphs.Bullet {
+		t.Fatalf("detail-free tool toggle = %q, want bullet %q", toggle, presentation.Glyphs.Bullet)
+	}
+}
+
 func TestToolBlockDrawsALocaleSafeStatusRailThroughExpandedDetails(t *testing.T) {
 	theme, glyphs := kit.Dark(), kit.ASCII()
 	call := client.ToolCall{
@@ -147,6 +189,7 @@ func TestToolStatusVocabularyDoesNotCollideWithRunOutcomes(t *testing.T) {
 	}{
 		{status: client.ToolOK, want: "done"},
 		{status: client.ToolError, want: "error"},
+		{status: client.ToolCanceled, want: "canceled"},
 		{status: client.ToolRunning, want: "running"},
 	} {
 		call := client.ToolCall{Kind: client.ToolTask, Status: test.status}
@@ -201,4 +244,10 @@ func requireLinkedParagraph(t *testing.T, body headless.Block) {
 	if !paragraph.Links {
 		t.Fatalf("body = %#v, want links enabled", body)
 	}
+}
+
+func drawToolBlock(block *toolBlock, width int) string {
+	surface := grid.NewSurface(width, block.Measure(width))
+	block.Draw(surface.View())
+	return strings.Join(surface.Rows(), "\n")
 }

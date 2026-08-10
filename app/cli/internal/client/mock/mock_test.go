@@ -85,6 +85,30 @@ func TestSessionCatalogPagesSearchesAndSorts(t *testing.T) {
 	}
 }
 
+func TestToolFixtureStreamsTheExactCompletedOutput(t *testing.T) {
+	want := "first line\nsecond line\n"
+	steps := tool("tool", client.ToolShell, "shell", "go test ./...", client.ToolOK, want, "", time.Second)
+	var streamed strings.Builder
+	var completed client.Block
+	for _, step := range steps {
+		switch event := step.Event.(type) {
+		case client.BlockDelta:
+			if event.BlockID != "tool" {
+				t.Fatalf("delta block id = %q", event.BlockID)
+			}
+			streamed.WriteString(event.Text)
+		case client.BlockCompleted:
+			completed = event.Block
+		}
+	}
+	if got := streamed.String(); got != want {
+		t.Fatalf("streamed output = %q, want %q", got, want)
+	}
+	if completed.Tool == nil || completed.Tool.Output != want {
+		t.Fatalf("completed tool = %+v", completed.Tool)
+	}
+}
+
 func seedCatalog(t *testing.T, runtime *Runtime, titles ...string) {
 	t.Helper()
 	for _, title := range titles {

@@ -1178,6 +1178,8 @@ func TestToolKindsRenderLiveAndDetailToggleChangesTheTranscript(t *testing.T) {
 			{Event: client.BlockStarted{Block: client.Block{ID: "shell", Kind: client.BlockTool, Tool: &client.ToolCall{
 				Kind: client.ToolShell, Name: "provider.exec", Command: "go test ./...", Summary: "run tests", Status: client.ToolRunning,
 			}}}},
+			{Event: client.BlockDelta{BlockID: "shell", Text: "SHELL_DETAIL_"}},
+			{Event: client.BlockDelta{BlockID: "shell", Text: "OK\nsecond line"}},
 			{Event: client.BlockCompleted{Block: client.Block{ID: "shell", Kind: client.BlockTool, Tool: &client.ToolCall{
 				Kind: client.ToolShell, Name: "provider.exec", Command: "go test ./...", Summary: "run tests", Status: client.ToolOK,
 				Output: "SHELL_DETAIL_OK\nsecond line", ExitCode: &zero,
@@ -1213,6 +1215,66 @@ func TestToolKindsRenderLiveAndDetailToggleChangesTheTranscript(t *testing.T) {
 	host.Hides(t, "SHELL_DETAIL_OK")
 	host.Hides(t, "newSweepSignal")
 
+	host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
+	stop()
+}
+
+func TestRunningToolOutputStreamsIntoAnExpandedTranscript(t *testing.T) {
+	backend := mock.New()
+	backend.Script = func(string) mock.Script {
+		zero := 0
+		return mock.Script{Prelude: []mock.Step{
+			{Event: client.BlockStarted{Block: client.Block{ID: "shell", Kind: client.BlockTool, Tool: &client.ToolCall{
+				Kind: client.ToolShell, Command: "go test ./...", Status: client.ToolRunning,
+			}}}},
+			{Delay: 100 * time.Millisecond, Event: client.BlockDelta{BlockID: "shell", Text: "LIVE_TOOL_FIRST\n"}},
+			{Delay: 400 * time.Millisecond, Event: client.BlockDelta{BlockID: "shell", Text: "LIVE_TOOL_SECOND\n"}},
+			{Delay: 400 * time.Millisecond, Event: client.BlockCompleted{Block: client.Block{ID: "shell", Kind: client.BlockTool, Tool: &client.ToolCall{
+				Kind: client.ToolShell, Command: "go test ./...", Status: client.ToolOK,
+				Output: "LIVE_TOOL_FIRST\nLIVE_TOOL_SECOND\n", ExitCode: &zero,
+			}}}},
+			{Event: client.RunFinished{Outcome: client.Outcome{Status: client.OutcomeCompleted}}},
+		}}
+	}
+	host, stop := runUIWith(t, backend)
+	host.Shows(t, "Ask lyra")
+	host.Type("stream tool output")
+	host.Press(input.Enter)
+	host.Shows(t, "$ go test ./...")
+	host.Send(input.Key{Code: input.Character, Rune: 'o', Mods: input.Ctrl})
+	host.Shows(t, "LIVE_TOOL_FIRST")
+	host.Shows(t, "LIVE_TOOL_SECOND")
+	host.Shows(t, "done")
+	host.Shows(t, "complete")
+	host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
+	stop()
+}
+
+func TestCancelingARunSettlesItsLiveToolProjection(t *testing.T) {
+	backend := mock.New()
+	backend.Script = func(string) mock.Script {
+		return mock.Script{Prelude: []mock.Step{
+			{Event: client.BlockStarted{Block: client.Block{ID: "shell", Kind: client.BlockTool, Tool: &client.ToolCall{
+				Kind: client.ToolShell, Command: "long command", Status: client.ToolRunning,
+			}}}},
+			{Event: client.BlockDelta{BlockID: "shell", Text: "PARTIAL_TOOL_OUTPUT\n"}},
+			{Delay: time.Hour, Event: client.BlockCompleted{Block: client.Block{ID: "shell", Kind: client.BlockTool, Tool: &client.ToolCall{
+				Kind: client.ToolShell, Command: "long command", Status: client.ToolOK, Output: "never reached",
+			}}}},
+			{Event: client.RunFinished{Outcome: client.Outcome{Status: client.OutcomeCompleted}}},
+		}}
+	}
+	host, stop := runUIWith(t, backend)
+	host.Shows(t, "Ask lyra")
+	host.Type("cancel live tool")
+	host.Press(input.Enter)
+	host.Shows(t, "$ long command")
+	host.Send(input.Key{Code: input.Character, Rune: 'o', Mods: input.Ctrl})
+	host.Shows(t, "PARTIAL_TOOL_OUTPUT")
+	host.Press(input.Esc)
+	host.Shows(t, "canceled")
+	host.Hides(t, "running")
+	host.Hides(t, "never reached")
 	host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
 	stop()
 }

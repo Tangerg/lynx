@@ -49,13 +49,8 @@ type conversationView struct {
 	keys           *keymap.Map
 	matcher        keymap.Matcher
 	tools          map[string]liveTool
+	textStreams    map[string]*liveText
 	toolViews      []trackedTool
-
-	streamID string
-	stream   markdown.Stream
-	stable   []markdown.Block
-	open     *markdownBlock
-	openID   headless.BlockID
 }
 
 type transcriptSelection struct {
@@ -71,6 +66,13 @@ type liveTool struct {
 	blocks []trackedTool
 }
 
+type liveText struct {
+	stream markdown.Stream
+	stable []markdown.Block
+	block  *markdownBlock
+	id     headless.BlockID
+}
+
 type trackedTool struct {
 	id    headless.BlockID
 	block mutableToolBlock
@@ -83,7 +85,7 @@ func (c *conversationView) ToggleDetails() {
 	end := first + headless.BlockID(c.content.Len())
 	expand, hasTool := false, false
 	for _, tracked := range c.toolViews {
-		if tracked.id < first || tracked.id >= end {
+		if tracked.id < first || tracked.id >= end || !tracked.block.Expandable() {
 			continue
 		}
 		hasTool = true
@@ -97,7 +99,7 @@ func (c *conversationView) ToggleDetails() {
 	}
 	c.details = expand
 	for _, tracked := range c.toolViews {
-		if tracked.id < first || tracked.id >= end {
+		if tracked.id < first || tracked.id >= end || !tracked.block.Expandable() {
 			continue
 		}
 		tracked.block.SetExpanded(c.details)
@@ -127,7 +129,8 @@ func newConversationView(
 		theme: theme, glyphs: glyphs, wheel: wheel,
 		look: markdownLook(theme, glyphs, syntax), syntax: syntax,
 		search: headless.NewSearch(), current: -1, retain: max(retain, 4), details: details,
-		clipboard: clipboard, entries: make(map[headless.BlockID]*transcriptEntry), tools: make(map[string]liveTool),
+		clipboard: clipboard, entries: make(map[headless.BlockID]*transcriptEntry),
+		tools: make(map[string]liveTool), textStreams: make(map[string]*liveText),
 		keys: transcriptKeys(),
 	}
 	c.scroll.Wheel(wheel)
@@ -358,7 +361,7 @@ func (c *conversationView) tool(id headless.BlockID) mutableToolBlock {
 
 func (c *conversationView) toggleSelected() bool {
 	tool := c.tool(c.selected)
-	if !c.hasSelected || tool == nil {
+	if !c.hasSelected || tool == nil || !tool.Expandable() {
 		return true
 	}
 	expanded := tool.ToggleExpanded()
@@ -373,7 +376,7 @@ func (c *conversationView) toggleSelected() bool {
 
 func (c *conversationView) setSelectedExpanded(expanded bool) bool {
 	tool := c.tool(c.selected)
-	if !c.hasSelected || tool == nil {
+	if !c.hasSelected || tool == nil || !tool.Expandable() {
 		return true
 	}
 	if tool.Expanded() != expanded {
@@ -421,7 +424,7 @@ func (c *conversationView) announceSelection() {
 		return
 	}
 	selection := transcriptSelection{Present: c.hasSelected}
-	if tool := c.tool(c.selected); tool != nil {
+	if tool := c.tool(c.selected); tool != nil && tool.Expandable() {
 		selection.Expandable = true
 		selection.Expanded = tool.Expanded()
 	}
@@ -448,27 +451,33 @@ func (c *conversationView) Apply(event client.Event, registry *extensions.Regist
 			return c.beginTool(e.Block, registry)
 		}
 	case client.BlockDelta:
+		if _, live := c.tools[e.BlockID]; live {
+			return c.deltaTool(e.BlockID, e.Text)
+		}
 		return c.delta(e.BlockID, e.Text)
 	case client.BlockCompleted:
 		return c.complete(e.Block, registry)
+	case client.RunFinished:
+		c.settleLive(e.Outcome)
 	}
 	return nil
 }
 
 func (c *conversationView) begin(block client.Block) error {
-	if c.streamID != "" {
-		return fmt.Errorf("terminal transcript: block %s started while %s is still streaming", block.ID, c.streamID)
+	if _, exists := c.textStreams[block.ID]; exists {
+		return fmt.Errorf("terminal transcript: text block %s started twice", block.ID)
+	}
+	if _, exists := c.tools[block.ID]; exists {
+		return fmt.Errorf("terminal transcript: block %s is already a live tool", block.ID)
 	}
 	speaker := "lyra"
 	if block.Kind == client.BlockReasoning {
 		speaker = "thinking"
 	}
-	c.streamID = block.ID
-	c.stream.Reset()
-	c.stream.SetLook(c.lookFor(block.Kind))
-	c.stable = c.stable[:0]
-	c.open = &markdownBlock{theme: c.theme, speaker: speaker}
-	c.openID = c.place(c.open, false)
+	live := &liveText{block: &markdownBlock{theme: c.theme, speaker: speaker}}
+	live.stream.SetLook(c.lookFor(block.Kind))
+	live.id = c.place(live.block, false)
+	c.textStreams[block.ID] = live
 	if block.Text != "" {
 		return c.delta(block.ID, block.Text)
 	}
@@ -476,24 +485,36 @@ func (c *conversationView) begin(block client.Block) error {
 }
 
 func (c *conversationView) delta(id, chunk string) error {
-	if id != c.streamID || c.open == nil {
-		return fmt.Errorf("terminal transcript: delta for inactive block %s", id)
+	live, ok := c.textStreams[id]
+	if !ok {
+		return fmt.Errorf("terminal transcript: delta for inactive text block %s", id)
 	}
-	c.stable = append(c.stable, c.stream.Feed(chunk)...)
-	blocks := append([]markdown.Block(nil), c.stable...)
-	blocks = append(blocks, c.stream.Open()...)
-	c.open.doc.SetBlocks(blocks)
-	c.content.Changed(c.openID)
+	live.stable = append(live.stable, live.stream.Feed(chunk)...)
+	blocks := append([]markdown.Block(nil), live.stable...)
+	blocks = append(blocks, live.stream.Open()...)
+	live.block.doc.SetBlocks(blocks)
+	c.content.Changed(live.id)
 	c.refreshSearch()
 	return nil
 }
 
-func (c *conversationView) complete(block client.Block, registry *extensions.Registry) error {
-	if block.ID == c.streamID {
-		return c.completeStream(block)
+func (c *conversationView) deltaTool(id, chunk string) error {
+	live, ok := c.tools[id]
+	if !ok {
+		return fmt.Errorf("terminal transcript: delta for inactive tool block %s", id)
 	}
-	if c.streamID != "" {
-		return fmt.Errorf("terminal transcript: block %s completed while %s is streaming", block.ID, c.streamID)
+	for _, tracked := range live.blocks {
+		tracked.block.AppendOutput(chunk)
+		c.content.Changed(tracked.id)
+	}
+	c.refreshSearch()
+	c.announceSelection()
+	return nil
+}
+
+func (c *conversationView) complete(block client.Block, registry *extensions.Registry) error {
+	if _, live := c.textStreams[block.ID]; live {
+		return c.completeStream(block)
 	}
 	if block.Kind == client.BlockTool && c.completeLiveTool(block) {
 		return nil
@@ -502,15 +523,17 @@ func (c *conversationView) complete(block client.Block, registry *extensions.Reg
 }
 
 func (c *conversationView) completeStream(block client.Block) error {
+	live, ok := c.textStreams[block.ID]
+	if !ok {
+		return fmt.Errorf("terminal transcript: completion for inactive text block %s", block.ID)
+	}
 	// The completed value is authoritative. Re-rendering it once also repairs a
 	// transport that intentionally replaced an earlier provisional tail.
-	c.open.doc.SetBlocks(markdown.Render(block.Text, c.lookFor(block.Kind)))
-	c.content.Changed(c.openID)
-	c.content.Finish(c.openID)
-	c.streamID, c.open = "", nil
-	c.stream.Reset()
-	clear(c.stable)
-	c.stable = c.stable[:0]
+	live.block.doc.SetBlocks(markdown.Render(block.Text, c.lookFor(block.Kind)))
+	c.content.Changed(live.id)
+	c.content.Finish(live.id)
+	live.stream.Reset()
+	delete(c.textStreams, block.ID)
 	c.refreshSearch()
 	return nil
 }
@@ -532,7 +555,32 @@ func (c *conversationView) completeLiveTool(block client.Block) bool {
 		return false
 	}
 	c.refreshSearch()
+	c.announceSelection()
 	return true
+}
+
+func (c *conversationView) settleLive(outcome client.Outcome) {
+	for id, live := range c.textStreams {
+		c.content.Finish(live.id)
+		live.stream.Reset()
+		delete(c.textStreams, id)
+	}
+	toolStatus := client.ToolError
+	if outcome.Status == client.OutcomeCanceled {
+		toolStatus = client.ToolCanceled
+	}
+	for id, live := range c.tools {
+		for _, tracked := range live.blocks {
+			tracked.block.Finish(toolStatus)
+			c.content.Changed(tracked.id)
+		}
+		for _, blockID := range live.ids {
+			c.content.Finish(blockID)
+		}
+		delete(c.tools, id)
+	}
+	c.refreshSearch()
+	c.announceSelection()
 }
 
 func (c *conversationView) appendCompleted(block client.Block, registry *extensions.Registry) error {
@@ -559,6 +607,9 @@ func (c *conversationView) appendCompleted(block client.Block, registry *extensi
 func (c *conversationView) beginTool(block client.Block, registry *extensions.Registry) error {
 	if _, exists := c.tools[block.ID]; exists {
 		return fmt.Errorf("terminal transcript: tool block %s started twice", block.ID)
+	}
+	if _, exists := c.textStreams[block.ID]; exists {
+		return fmt.Errorf("terminal transcript: block %s is already a live text block", block.ID)
 	}
 	rendered, err := c.present(block, registry)
 	if err != nil {
@@ -661,10 +712,10 @@ func (c *conversationView) Reset() {
 	c.sticky = headless.Sticky{MinHeight: 1, Gap: 1}
 	c.view.Content, c.view.Scroll = &c.content, &c.scroll
 	c.view.Selection, c.view.Sticky = &c.selection, &c.sticky
-	c.stream.Reset()
-	c.streamID, c.open = "", nil
-	clear(c.stable)
-	c.stable = c.stable[:0]
+	for _, live := range c.textStreams {
+		live.stream.Reset()
+	}
+	clear(c.textStreams)
 	c.query, c.matches, c.current, c.announceSearch = "", nil, -1, false
 	clear(c.tools)
 	clear(c.entries)

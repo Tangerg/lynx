@@ -27,7 +27,10 @@ const (
 type mutableToolBlock interface {
 	headless.Block
 	Update(client.Block)
+	AppendOutput(string)
+	Finish(client.ToolStatus)
 	SetExpanded(bool)
+	Expandable() bool
 	Expanded() bool
 	ToggleExpanded() bool
 }
@@ -66,18 +69,40 @@ func (t *toolBlock) Update(block client.Block) {
 	t.rebuild()
 }
 
-func (t *toolBlock) SetExpanded(expanded bool) { t.expanded = expanded }
+func (t *toolBlock) AppendOutput(chunk string) {
+	if chunk == "" {
+		return
+	}
+	t.call.Output += chunk
+	t.rebuild()
+}
 
-func (t *toolBlock) Expanded() bool { return t.expanded }
+func (t *toolBlock) Finish(status client.ToolStatus) {
+	if t.call.Status != client.ToolRunning {
+		return
+	}
+	t.call.Status = status
+	t.rebuild()
+}
+
+func (t *toolBlock) SetExpanded(expanded bool) { t.expanded = expanded && t.Expandable() }
+
+func (t *toolBlock) Expandable() bool { return t.call.Status == client.ToolRunning || len(t.body) > 0 }
+
+func (t *toolBlock) Expanded() bool { return t.expanded && t.Expandable() }
 
 func (t *toolBlock) ToggleExpanded() bool {
+	if !t.Expandable() {
+		t.expanded = false
+		return false
+	}
 	t.expanded = !t.expanded
 	return t.expanded
 }
 
 func (t *toolBlock) Measure(width int) int {
 	rows := 1
-	if t.expanded {
+	if t.Expanded() {
 		for _, block := range t.body {
 			rows = layout.Sum(rows, block.Measure(max(width-toolContentInset, 1)))
 		}
@@ -101,7 +126,7 @@ func (t *toolBlock) Draw(view grid.View) {
 		return
 	}
 	toggleStyle := t.theme.Muted
-	if t.expanded {
+	if t.Expanded() {
 		toggleStyle = t.theme.Accent
 	}
 	view.Text(toolContentInset, 0, toggle, toggleStyle)
@@ -115,7 +140,7 @@ func (t *toolBlock) Draw(view grid.View) {
 	if labelWidth := labelLimit - labelX; labelWidth > 0 {
 		view.Text(labelX, 0, text.Truncate(label, labelWidth, t.glyphs.Ellipsis), t.theme.Text)
 	}
-	if !t.expanded {
+	if !t.Expanded() {
 		return
 	}
 	y, bodyWidth := 1, max(width-toolContentInset, 0)
@@ -134,7 +159,7 @@ func (t *toolBlock) Rows(width int) []text.Row {
 	left := toggle + " " + label
 	header := strings.TrimSpace(left + " " + right)
 	rows := []text.Row{{Text: header}}
-	if t.expanded {
+	if t.Expanded() {
 		bodyWidth := max(width-toolContentInset, 1)
 		for _, block := range t.body {
 			height := block.Measure(bodyWidth)
@@ -156,8 +181,11 @@ func (t *toolBlock) Rows(width int) []text.Row {
 }
 
 func (t *toolBlock) header() (toggle, label, status string, statusStyle grid.Style) {
-	toggle = t.glyphs.Collapsed
-	if t.expanded {
+	toggle = t.glyphs.Bullet
+	if t.Expandable() {
+		toggle = t.glyphs.Collapsed
+	}
+	if t.Expanded() {
 		toggle = t.glyphs.Expanded
 	}
 	label = toolLabel(t.call)
@@ -172,6 +200,9 @@ func (t *toolBlock) header() (toggle, label, status string, statusStyle grid.Sty
 	case client.ToolError:
 		status = t.glyphs.Taken + " error"
 		statusStyle = t.theme.Danger
+	case client.ToolCanceled:
+		status = t.glyphs.Bullet + " canceled"
+		statusStyle = t.theme.Warning
 	default:
 		status = string(t.call.Status)
 	}

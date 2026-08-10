@@ -47,6 +47,173 @@ func TestStreamingPreservesAReadersScrollPosition(t *testing.T) {
 	}
 }
 
+func TestInterleavedTextBlocksStreamIndependently(t *testing.T) {
+	view := testConversationView(t)
+	for _, event := range []client.Event{
+		client.BlockStarted{Block: client.Block{ID: "answer", Kind: client.BlockAssistant}},
+		client.BlockDelta{BlockID: "answer", Text: "assistant provisional"},
+		client.BlockStarted{Block: client.Block{ID: "reasoning", Kind: client.BlockReasoning}},
+		client.BlockDelta{BlockID: "reasoning", Text: "reasoning provisional"},
+		client.BlockCompleted{Block: client.Block{ID: "reasoning", Kind: client.BlockReasoning, Text: "reasoning final"}},
+		client.BlockDelta{BlockID: "answer", Text: " tail"},
+		client.BlockCompleted{Block: client.Block{ID: "answer", Kind: client.BlockAssistant, Text: "assistant final"}},
+	} {
+		if err := view.Apply(event, nil); err != nil {
+			t.Fatalf("apply %T: %v", event, err)
+		}
+	}
+	if len(view.textStreams) != 0 {
+		t.Fatalf("completed text streams = %+v", view.textStreams)
+	}
+	surface := grid.NewSurface(48, 12)
+	headless.NewRoot(view).Draw(surface.View())
+	drawn := strings.Join(surface.Rows(), "\n")
+	for _, want := range []string{"assistant final", "reasoning final"} {
+		if !strings.Contains(drawn, want) {
+			t.Fatalf("interleaved transcript does not contain %q:\n%s", want, drawn)
+		}
+	}
+	if strings.Contains(drawn, "provisional") {
+		t.Fatalf("authoritative completion left provisional text:\n%s", drawn)
+	}
+}
+
+func TestToolStreamingPreservesAReadersScrollPosition(t *testing.T) {
+	view := testConversationView(t)
+	root := headless.NewRoot(view)
+	surface := grid.NewSurface(40, 5)
+	running := client.ToolCall{Kind: client.ToolShell, Command: "long command", Status: client.ToolRunning}
+	tool := beginTestTool(view, "tool", running)
+	tool.SetExpanded(true)
+	initial := strings.Repeat("tool output long enough to occupy rows\n", 20)
+	if err := view.Apply(client.BlockDelta{BlockID: "tool", Text: initial}, nil); err != nil {
+		t.Fatal(err)
+	}
+	root.Draw(surface.View())
+	if !view.scroll.AtBottom() {
+		t.Fatal("new tool stream did not follow its output")
+	}
+	if !view.Scroll(scrollPageUp) || view.scroll.AtBottom() {
+		t.Fatal("page-up did not enter reader-controlled scrolling")
+	}
+	wantOffset := view.scroll.Offset()
+
+	if err := view.Apply(client.BlockDelta{BlockID: "tool", Text: "new tool tail\n"}, nil); err != nil {
+		t.Fatal(err)
+	}
+	root.Draw(surface.View())
+	if view.scroll.AtBottom() {
+		t.Fatal("tool streaming resumed bottom-following after the reader scrolled up")
+	}
+	if got := view.scroll.Offset(); got != wantOffset {
+		t.Fatalf("tool streaming moved reader from offset %d to %d", wantOffset, got)
+	}
+}
+
+func TestLiveToolStreamsInPlaceAndCompletesFromAuthoritativeOutput(t *testing.T) {
+	view := testConversationView(t)
+	running := client.ToolCall{Kind: client.ToolShell, Command: "go test ./...", Status: client.ToolRunning}
+	tool := beginTestTool(view, "tool", running)
+	tool.SetExpanded(true)
+	for _, chunk := range []string{"first\n", "second\n"} {
+		if err := view.Apply(client.BlockDelta{BlockID: "tool", Text: chunk}, nil); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got := copyableRowsText(tool.Rows(48)); !strings.Contains(got, "first") || !strings.Contains(got, "second") {
+		t.Fatalf("live tool rows = %q", got)
+	}
+	completed := client.ToolCall{Kind: client.ToolShell, Command: "go test ./...", Status: client.ToolOK, Output: "final\n"}
+	if err := view.Apply(client.BlockCompleted{Block: client.Block{ID: "tool", Kind: client.BlockTool, Tool: &completed}}, nil); err != nil {
+		t.Fatal(err)
+	}
+	if !tool.Expanded() {
+		t.Fatal("tool completion discarded the expanded state")
+	}
+	got := copyableRowsText(tool.Rows(48))
+	if !strings.Contains(got, "final") || strings.Contains(got, "first") || strings.Contains(got, "second") {
+		t.Fatalf("completed tool did not use authoritative output: %q", got)
+	}
+}
+
+func TestDetailFreeCompletedToolIsNotAnnouncedExpandable(t *testing.T) {
+	view := testConversationView(t)
+	var selection transcriptSelection
+	view.OnSelection(func(next transcriptSelection) { selection = next })
+	call := client.ToolCall{Kind: client.ToolShell, Command: "true", Status: client.ToolOK}
+	block := newToolBlock(Presentation{Theme: view.theme, Glyphs: view.glyphs, Look: view.look, Syntax: view.syntax}, client.Block{
+		ID: "tool", Kind: client.BlockTool, Tool: &call,
+	})
+	id := view.place(block, true)
+	view.toolViews = append(view.toolViews, trackedTool{id: id, block: block})
+	view.Focus(true)
+	if !selection.Present || selection.Expandable || selection.Expanded {
+		t.Fatalf("selection announcement = %+v", selection)
+	}
+	if !view.Handle(input.Key{Code: input.Enter}) || block.Expanded() {
+		t.Fatal("detail-free tool expanded through keyboard interaction")
+	}
+}
+
+func TestCompletingASelectedToolWithoutDetailsRemovesItsExpansionAction(t *testing.T) {
+	view := testConversationView(t)
+	var selection transcriptSelection
+	view.OnSelection(func(next transcriptSelection) { selection = next })
+	running := client.ToolCall{Kind: client.ToolShell, Command: "true", Status: client.ToolRunning}
+	tool := beginTestTool(view, "tool", running)
+	view.Focus(true)
+	tool.SetExpanded(true)
+	view.announceSelection()
+	if !selection.Expandable || !selection.Expanded {
+		t.Fatalf("running selection = %+v", selection)
+	}
+	completed := client.ToolCall{Kind: client.ToolShell, Command: "true", Status: client.ToolOK}
+	if err := view.Apply(client.BlockCompleted{Block: client.Block{ID: "tool", Kind: client.BlockTool, Tool: &completed}}, nil); err != nil {
+		t.Fatal(err)
+	}
+	if selection.Expandable || selection.Expanded || tool.Expanded() {
+		t.Fatalf("completed selection = %+v, tool expanded = %t", selection, tool.Expanded())
+	}
+}
+
+func TestCanceledRunSettlesEveryLiveTranscriptBlock(t *testing.T) {
+	view := testConversationView(t)
+	if err := view.Apply(client.BlockStarted{Block: client.Block{ID: "answer", Kind: client.BlockAssistant}}, nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := view.Apply(client.BlockDelta{BlockID: "answer", Text: "partial answer"}, nil); err != nil {
+		t.Fatal(err)
+	}
+	tool := beginTestTool(view, "tool", client.ToolCall{Kind: client.ToolShell, Command: "long command", Status: client.ToolRunning})
+	tool.SetExpanded(true)
+	if err := view.Apply(client.BlockDelta{BlockID: "tool", Text: "partial tool output\n"}, nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := view.Apply(client.RunFinished{Outcome: client.Outcome{Status: client.OutcomeCanceled}}, nil); err != nil {
+		t.Fatal(err)
+	}
+	if len(view.textStreams) != 0 || len(view.tools) != 0 {
+		t.Fatalf("live projections survived cancellation: text=%d tools=%d", len(view.textStreams), len(view.tools))
+	}
+	if tool.call.Status != client.ToolCanceled {
+		t.Fatalf("settled tool status = %q", tool.call.Status)
+	}
+	for index := range view.content.Len() {
+		id := view.content.FirstBlock() + headless.BlockID(index)
+		if !view.content.Finished(id) {
+			t.Fatalf("transcript block %d remained unfinished", id)
+		}
+	}
+	surface := grid.NewSurface(48, 12)
+	headless.NewRoot(view).Draw(surface.View())
+	drawn := strings.Join(surface.Rows(), "\n")
+	for _, want := range []string{"partial answer", "partial tool output", "canceled"} {
+		if !strings.Contains(drawn, want) {
+			t.Fatalf("settled transcript does not contain %q:\n%s", want, drawn)
+		}
+	}
+}
+
 func TestClickingAToolHeaderTogglesOnlyThatTool(t *testing.T) {
 	view := testConversationView(t)
 	first := appendTestTool(view, "first", "FIRST_DETAIL")
@@ -231,5 +398,16 @@ func appendTestTool(view *conversationView, id, output string) *toolBlock {
 	})
 	blockID := view.place(block, true)
 	view.toolViews = append(view.toolViews, trackedTool{id: blockID, block: block})
+	return block
+}
+
+func beginTestTool(view *conversationView, id string, call client.ToolCall) *toolBlock {
+	block := newToolBlock(Presentation{Theme: view.theme, Glyphs: view.glyphs, Look: view.look, Syntax: view.syntax}, client.Block{
+		ID: id, Kind: client.BlockTool, Tool: &call,
+	})
+	blockID := view.place(block, false)
+	tracked := trackedTool{id: blockID, block: block}
+	view.toolViews = append(view.toolViews, tracked)
+	view.tools[id] = liveTool{ids: []headless.BlockID{blockID}, blocks: []trackedTool{tracked}}
 	return block
 }

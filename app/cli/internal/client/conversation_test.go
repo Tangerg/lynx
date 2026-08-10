@@ -137,6 +137,172 @@ func TestConversationRejectsImpossibleTransitions(t *testing.T) {
 	}
 }
 
+func TestConversationStreamsToolDeltasIntoToolOutput(t *testing.T) {
+	c := NewConversation()
+	running := &ToolCall{Kind: ToolShell, Command: "go test ./...", Status: ToolRunning}
+	for _, event := range []Event{
+		RunStarted{RunID: "run", SessionID: "session"},
+		BlockStarted{Block: Block{ID: "tool", Kind: BlockTool, Tool: running}},
+		BlockDelta{BlockID: "tool", Text: "first\n"},
+		BlockDelta{BlockID: "tool", Text: "second\n"},
+	} {
+		if err := c.apply(event); err != nil {
+			t.Fatalf("apply %T: %v", event, err)
+		}
+	}
+	blocks := c.Blocks()
+	if len(blocks) != 1 || blocks[0].Tool == nil {
+		t.Fatalf("blocks = %+v", blocks)
+	}
+	if got := blocks[0].Tool.Output; got != "first\nsecond\n" {
+		t.Fatalf("streamed tool output = %q", got)
+	}
+	if blocks[0].Text != "" {
+		t.Fatalf("tool delta leaked into block text: %q", blocks[0].Text)
+	}
+
+	completed := &ToolCall{Kind: ToolShell, Command: "go test ./...", Status: ToolOK, Output: "authoritative\n"}
+	if err := c.apply(BlockCompleted{Block: Block{ID: "tool", Kind: BlockTool, Tool: completed}}); err != nil {
+		t.Fatal(err)
+	}
+	if got := c.Blocks()[0].Tool.Output; got != "authoritative\n" {
+		t.Fatalf("completed tool output = %q", got)
+	}
+}
+
+func TestConversationRejectsDeltasForNonStreamingBlockKinds(t *testing.T) {
+	c := NewConversation()
+	if err := c.apply(RunStarted{RunID: "run", SessionID: "session"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.apply(BlockStarted{Block: Block{ID: "notice", Kind: BlockNotice, Text: "starting"}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.apply(BlockDelta{BlockID: "notice", Text: "late"}); !errors.Is(err, ErrInvalidTransition) {
+		t.Fatalf("notice delta error = %v, want ErrInvalidTransition", err)
+	}
+	blocks := c.Blocks()
+	if len(blocks) != 1 || blocks[0].Text != "starting" {
+		t.Fatalf("rejected delta mutated blocks: %+v", blocks)
+	}
+}
+
+func TestConversationRejectsCompletionDriftAndRepeatedCompletion(t *testing.T) {
+	for _, test := range []struct {
+		name      string
+		started   Block
+		completed Block
+	}{
+		{
+			name:      "block kind",
+			started:   Block{ID: "block", Kind: BlockAssistant},
+			completed: Block{ID: "block", Kind: BlockReasoning},
+		},
+		{
+			name: "tool kind",
+			started: Block{ID: "block", Kind: BlockTool, Tool: &ToolCall{
+				Kind: ToolShell, Command: "true", Status: ToolRunning,
+			}},
+			completed: Block{ID: "block", Kind: BlockTool, Tool: &ToolCall{
+				Kind: ToolEdit, Path: "a.go", Status: ToolOK,
+			}},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			c := NewConversation()
+			if err := c.apply(RunStarted{RunID: "run", SessionID: "session"}); err != nil {
+				t.Fatal(err)
+			}
+			if err := c.apply(BlockStarted{Block: test.started}); err != nil {
+				t.Fatal(err)
+			}
+			if err := c.apply(BlockCompleted{Block: test.completed}); !errors.Is(err, ErrInvalidTransition) {
+				t.Fatalf("completion drift error = %v", err)
+			}
+		})
+	}
+
+	c := NewConversation()
+	if err := c.apply(RunStarted{RunID: "run", SessionID: "session"}); err != nil {
+		t.Fatal(err)
+	}
+	completed := Block{ID: "once", Kind: BlockAssistant, Text: "done"}
+	if err := c.apply(BlockCompleted{Block: completed}); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.apply(BlockCompleted{Block: completed}); !errors.Is(err, ErrInvalidTransition) {
+		t.Fatalf("repeated completion error = %v", err)
+	}
+}
+
+func TestConversationSettlesOpenBlocksWhenARunDoesNotCompleteNormally(t *testing.T) {
+	for _, test := range []struct {
+		name        string
+		finish      func(*Conversation) error
+		wantStatus  ToolStatus
+		wantOutcome OutcomeStatus
+	}{
+		{
+			name: "canceled",
+			finish: func(c *Conversation) error {
+				return c.apply(RunFinished{Outcome: Outcome{Status: OutcomeCanceled}})
+			},
+			wantStatus: ToolCanceled, wantOutcome: OutcomeCanceled,
+		},
+		{
+			name: "failed",
+			finish: func(c *Conversation) error {
+				c.Failed(errors.New("stream failed"))
+				return nil
+			},
+			wantStatus: ToolError, wantOutcome: OutcomeFailed,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			c := NewConversation()
+			for _, event := range []Event{
+				RunStarted{RunID: "run", SessionID: "session"},
+				BlockStarted{Block: Block{ID: "answer", Kind: BlockAssistant}},
+				BlockDelta{BlockID: "answer", Text: "partial"},
+				BlockStarted{Block: Block{ID: "tool", Kind: BlockTool, Tool: &ToolCall{
+					Kind: ToolShell, Command: "long command", Status: ToolRunning,
+				}}},
+				BlockDelta{BlockID: "tool", Text: "some output\n"},
+			} {
+				if err := c.apply(event); err != nil {
+					t.Fatalf("apply %T: %v", event, err)
+				}
+			}
+			if err := test.finish(c); err != nil {
+				t.Fatal(err)
+			}
+			blocks := c.Blocks()
+			if blocks[0].Text != "partial" || blocks[1].Tool.Status != test.wantStatus || blocks[1].Tool.Output != "some output\n" {
+				t.Fatalf("settled blocks = %+v", blocks)
+			}
+			if c.Outcome().Status != test.wantOutcome || c.Busy() {
+				t.Fatalf("settled state = busy:%t outcome:%+v", c.Busy(), c.Outcome())
+			}
+		})
+	}
+}
+
+func TestConversationRejectsCompletedOutcomeWithOpenBlocks(t *testing.T) {
+	c := NewConversation()
+	if err := c.apply(RunStarted{RunID: "run", SessionID: "session"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.apply(BlockStarted{Block: Block{ID: "answer", Kind: BlockAssistant}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.apply(RunFinished{Outcome: Outcome{Status: OutcomeCompleted}}); !errors.Is(err, ErrInvalidTransition) {
+		t.Fatalf("completed outcome error = %v", err)
+	}
+	if !c.Busy() {
+		t.Fatal("rejected completed outcome settled the run")
+	}
+}
+
 func TestClearPresentationPreservesReplayCursor(t *testing.T) {
 	c := NewConversation()
 	cursor := Cursor(1)
