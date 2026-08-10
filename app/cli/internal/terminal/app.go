@@ -51,7 +51,7 @@ type app struct {
 	transcript *conversationView
 	workflow   workflowView
 	status     statusView
-	settings   settings.Settings
+	settings   settings.Config
 	options    client.RunOptions
 	composer   kit.Composer
 	commands   headless.Commands
@@ -104,7 +104,7 @@ type appConfig struct {
 	PluginIssues  []extensions.SourceIssue
 	Attachments   *attachment.Resolver
 	InitialPrompt string
-	Settings      settings.Settings
+	Settings      settings.Config
 	Keys          *keymap.Map
 }
 

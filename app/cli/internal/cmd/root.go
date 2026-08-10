@@ -142,7 +142,7 @@ func buildRoot(provider runtimeProvider) *cobra.Command {
 // With no terminal to take over it says so and points at the command that does not
 // need one, rather than failing with something about file descriptors: a program whose
 // output is being piped wants text, not frames.
-func interactive(cmd *cobra.Command, args []string, provider runtimeProvider, value settings.Settings) error {
+func interactive(cmd *cobra.Command, args []string, provider runtimeProvider, value settings.Config) error {
 	rt, err := provider.Open(cmd)
 	if err != nil {
 		return err
@@ -160,7 +160,7 @@ func interactive(cmd *cobra.Command, args []string, provider runtimeProvider, va
 		SessionID:     sessionID,
 		Workspace:     ws,
 		InitialPrompt: strings.TrimSpace(strings.Join(args, " ")),
-		Settings:      value,
+		Settings:      new(value),
 		PluginSources: []extensions.Source{sideload.New(value.Plugins.Directories)},
 	})
 	if errors.Is(err, term.ErrNotTerminal) {

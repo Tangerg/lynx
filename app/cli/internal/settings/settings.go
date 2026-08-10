@@ -28,7 +28,7 @@ const (
 	ActionPreviousMatch   = "previous-match"
 )
 
-type Settings struct {
+type Config struct {
 	Model      string                `json:"model" mapstructure:"model"`
 	Effort     string                `json:"effort" mapstructure:"effort"`
 	Mode       client.AgentMode      `json:"mode" mapstructure:"mode"`
@@ -55,8 +55,8 @@ type Plugins struct {
 	Directories []string `json:"directories" mapstructure:"directories"`
 }
 
-func Default() Settings {
-	return Settings{
+func Default() Config {
+	return Config{
 		Effort: "medium", Mode: client.ModeBuild, Permission: client.PermissionAsk,
 		Approval: Approval{Remember: client.RememberNone},
 		UI:       UI{Mouse: true, Notifications: true, ToolDetails: false, TranscriptRetain: 24, ReconnectAttempts: 4},
@@ -77,7 +77,7 @@ func Default() Settings {
 	}
 }
 
-func (s Settings) Validate() error {
+func (s Config) Validate() error {
 	var problems []error
 	if err := s.RunOptions().Validate(); err != nil {
 		problems = append(problems, err)
@@ -144,11 +144,11 @@ func validateKeys(keys map[string][]string) []error {
 	return problems
 }
 
-func (s Settings) RunOptions() client.RunOptions {
+func (s Config) RunOptions() client.RunOptions {
 	return client.RunOptions{Model: s.Model, Effort: s.Effort, Mode: s.Mode, Permission: s.Permission}
 }
 
-func (s Settings) Clone() Settings {
+func (s Config) Clone() Config {
 	out := s
 	out.Plugins.Directories = slices.Clone(s.Plugins.Directories)
 	out.Keys = make(map[string][]string, len(s.Keys))

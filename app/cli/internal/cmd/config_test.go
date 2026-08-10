@@ -19,7 +19,7 @@ func TestConfigurationPrecedenceFileEnvironmentFlag(t *testing.T) {
 	if err != nil {
 		t.Fatalf("config show: %v", err)
 	}
-	var got settings.Settings
+	var got settings.Config
 	if err := json.Unmarshal([]byte(out), &got); err != nil {
 		t.Fatalf("config show JSON: %v\n%s", err, out)
 	}
@@ -36,7 +36,7 @@ func TestConfigurationRegistersEnvironmentOnlyKeysForUnmarshal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var got settings.Settings
+	var got settings.Config
 	if err := json.Unmarshal([]byte(out), &got); err != nil {
 		t.Fatal(err)
 	}
@@ -50,7 +50,7 @@ func TestConfigurationAcceptsRepeatablePluginDirectories(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var got settings.Settings
+	var got settings.Config
 	if err := json.Unmarshal([]byte(out), &got); err != nil {
 		t.Fatal(err)
 	}

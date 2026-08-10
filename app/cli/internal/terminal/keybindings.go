@@ -11,7 +11,7 @@ import (
 	"github.com/Tangerg/lynx/app/cli/internal/settings"
 )
 
-func configuredKeys(configured settings.Settings) (*keymap.Map, error) {
+func configuredKeys(configured settings.Config) (*keymap.Map, error) {
 	keys := headless.DefaultEditorKeys()
 	actions := slices.Sorted(func(yield func(string) bool) {
 		for action := range configured.Keys {

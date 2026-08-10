@@ -791,10 +791,32 @@ func TestRunRejectsAnUnresolvableAttachmentWorkspace(t *testing.T) {
 		Runtime:   mock.New(),
 		Workspace: workspace,
 		Host:      programtest.New(t, 80, 24),
-		Settings:  settings.Default(),
+		Settings:  new(settings.Default()),
 	})
 	if err == nil || !strings.Contains(err.Error(), "session attachments") {
 		t.Fatalf("Run error = %v, want attachment workspace failure", err)
+	}
+}
+
+func TestPrepareSessionDistinguishesDefaultsFromExplicitFalseValues(t *testing.T) {
+	configured := settings.Default()
+	configured.UI.Mouse = false
+	prepared, err := prepareSession(t.Context(), Config{
+		Runtime: mock.New(), Workspace: t.TempDir(), Settings: new(configured),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if prepared.settings.UI.Mouse {
+		t.Fatal("explicit mouse=false was replaced by the default")
+	}
+
+	defaults, err := prepareSession(t.Context(), Config{Runtime: mock.New(), Workspace: t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !defaults.settings.UI.Mouse || defaults.settings.Keys == nil {
+		t.Fatalf("nil settings did not produce complete defaults: %+v", defaults.settings)
 	}
 }
 

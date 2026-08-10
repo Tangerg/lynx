@@ -51,7 +51,7 @@ func configure(v *viper.Viper, root *cobra.Command) {
 	flags.StringSlice("plugin-dir", defaults.Plugins.Directories, "Directory containing sideloaded plugins (repeatable)")
 }
 
-func setDefaults(v *viper.Viper, defaults settings.Settings) {
+func setDefaults(v *viper.Viper, defaults settings.Config) {
 	v.SetDefault("model", defaults.Model)
 	v.SetDefault("effort", defaults.Effort)
 	v.SetDefault("mode", defaults.Mode)
@@ -130,20 +130,20 @@ func bindNestedFlags(v *viper.Viper, cmd *cobra.Command) error {
 	return nil
 }
 
-func readSettings(v *viper.Viper) (settings.Settings, error) {
-	var value settings.Settings
+func readSettings(v *viper.Viper) (settings.Config, error) {
+	var value settings.Config
 	if err := v.Unmarshal(&value); err != nil {
-		return settings.Settings{}, fmt.Errorf("decode configuration: %w", err)
+		return settings.Config{}, fmt.Errorf("decode configuration: %w", err)
 	}
 	if len(value.Plugins.Directories) == 0 {
 		home, err := os.UserHomeDir()
 		if err != nil {
-			return settings.Settings{}, fmt.Errorf("resolve home directory for plugins: %w", err)
+			return settings.Config{}, fmt.Errorf("resolve home directory for plugins: %w", err)
 		}
 		value.Plugins.Directories = []string{filepath.Join(home, ".lyra", "plugins")}
 	}
 	if err := value.Validate(); err != nil {
-		return settings.Settings{}, fmt.Errorf("validate configuration: %w", err)
+		return settings.Config{}, fmt.Errorf("validate configuration: %w", err)
 	}
 	return value.Clone(), nil
 }

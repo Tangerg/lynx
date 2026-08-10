@@ -28,7 +28,7 @@ type Config struct {
 	Plugins       []extensions.Plugin
 	PluginSources []extensions.Source
 	Host          program.Host
-	Settings      settings.Settings
+	Settings      *settings.Config
 }
 
 // Run opens and owns the terminal interface until the user leaves.
@@ -37,7 +37,6 @@ func Run(ctx context.Context, cfg Config) (runErr error) {
 	if err != nil {
 		return err
 	}
-	cfg = prepared.config
 
 	registry := new(extensions.Registry)
 	kernel, err := extensions.NewKernel(registry)
@@ -69,11 +68,11 @@ func Run(ctx context.Context, cfg Config) (runErr error) {
 				Context: ctx, Runtime: cfg.Runtime, Snapshot: prepared.opened,
 				Registry: registry, Plugins: kernel, PluginIssues: discovered.Issues,
 				Attachments: prepared.attachments, InitialPrompt: cfg.InitialPrompt,
-				Settings: cfg.Settings, Keys: prepared.keys,
+				Settings: prepared.settings, Keys: prepared.keys,
 			})
 			return headless.NewRoot(active)
 		},
-		Terminal: term.Options{Probe: true, Mouse: cfg.Settings.UI.Mouse, Focus: true, Keyboard: term.KeyboardCompatible},
+		Terminal: term.Options{Probe: true, Mouse: prepared.settings.UI.Mouse, Focus: true, Keyboard: term.KeyboardCompatible},
 		Host:     cfg.Host,
 	})
 	if active != nil {
@@ -83,23 +82,24 @@ func Run(ctx context.Context, cfg Config) (runErr error) {
 }
 
 type preparedSession struct {
-	config      Config
 	opened      client.SessionSnapshot
 	attachments *attachment.Resolver
 	keys        *keymap.Map
+	settings    settings.Config
 }
 
 func prepareSession(ctx context.Context, cfg Config) (preparedSession, error) {
 	if cfg.Runtime == nil {
 		return preparedSession{}, errors.New("session: a runtime is required")
 	}
-	if cfg.Settings.Keys == nil {
-		cfg.Settings = settings.Default()
+	configured := settings.Default()
+	if cfg.Settings != nil {
+		configured = cfg.Settings.Clone()
 	}
-	if err := cfg.Settings.Validate(); err != nil {
+	if err := configured.Validate(); err != nil {
 		return preparedSession{}, fmt.Errorf("session settings: %w", err)
 	}
-	keys, err := configuredKeys(cfg.Settings)
+	keys, err := configuredKeys(configured)
 	if err != nil {
 		return preparedSession{}, err
 	}
@@ -111,7 +111,7 @@ func prepareSession(ctx context.Context, cfg Config) (preparedSession, error) {
 	if err != nil {
 		return preparedSession{}, fmt.Errorf("session attachments: %w", err)
 	}
-	return preparedSession{config: cfg, opened: opened, attachments: attachments, keys: keys}, nil
+	return preparedSession{opened: opened, attachments: attachments, keys: keys, settings: configured}, nil
 }
 
 func requirePlugin(results []extensions.Result, id string) error {
