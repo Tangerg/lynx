@@ -76,7 +76,7 @@ func newTestServer(t *testing.T) (*httptest.Server, *fakeRuntime) {
 func newTestServerFor(t *testing.T, api operation.Service) *httptest.Server {
 	t.Helper()
 	srv, err := lyrahttp.NewServer(lyrahttp.Config{
-		Runtime:         api,
+		Endpoint:        operation.New(api, operation.Config{}),
 		Addr:            ":0",
 		ServerInfo:      protocol.ServerInfo{Name: "lyra-test", Version: "0.0.0"},
 		ProtocolVersion: testProtocolVersion,

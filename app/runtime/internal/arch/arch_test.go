@@ -1011,11 +1011,17 @@ func TestCapabilityAdaptersDoNotImportTransportSDKs(t *testing.T) {
 
 // TestBootstrapExposesNoBusinessMethod enforces §16 rule 8: the composition root
 // assembles and closes — it must not become a business facade or hide an adapter
-// implementation behind an unexported receiver. Assembly/config/seed functions
-// are fine; Host.Close is the only receiver method Bootstrap may own.
+// implementation behind an unexported receiver. The closed allowlist is limited
+// to construction validation, process-lifecycle accessors and retryable teardown.
 func TestBootstrapExposesNoBusinessMethod(t *testing.T) {
 	root := moduleRoot(t)
 	fset := token.NewFileSet()
+	allowed := map[string]map[string]bool{
+		"Host":               {"Close": true},
+		"Instance":           {"Close": true, "Endpoint": true, "ServerInfo": true},
+		"InstanceConfig":     {"validate": true},
+		"dataDirectoryLease": {"release": true},
+	}
 	walkErr := filepath.WalkDir(filepath.Join(root, "internal", "bootstrap"), func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -1032,11 +1038,12 @@ func TestBootstrapExposesNoBusinessMethod(t *testing.T) {
 			if !ok || fn.Recv == nil {
 				continue // plain assembly/configuration functions are fine
 			}
-			if receiverName(fn.Recv) == "Host" && fn.Name.Name == "Close" {
+			receiver := receiverName(fn.Recv)
+			if allowed[receiver][fn.Name.Name] {
 				continue
 			}
 			rel, _ := filepath.Rel(root, path)
-			t.Errorf("%s: bootstrap receiver method %s.%s is forbidden — move behavior to application or an adapter (§16 rule 8)", rel, receiverName(fn.Recv), fn.Name.Name)
+			t.Errorf("%s: bootstrap receiver method %s.%s is forbidden — move business behavior to application or an adapter (§16 rule 8)", rel, receiver, fn.Name.Name)
 		}
 		return nil
 	})

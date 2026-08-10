@@ -13,9 +13,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/bootstrap"
 	"github.com/Tangerg/lynx/app/runtime/internal/config"
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/server"
 	lyrahttp "github.com/Tangerg/lynx/app/runtime/internal/delivery/transport/http"
-	"github.com/Tangerg/lynx/app/runtime/internal/idempotency"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/telemetry"
 	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
@@ -24,15 +22,11 @@ func run(ctx context.Context, errw io.Writer) (err error) {
 	shutdownTelemetry := telemetry.Configure(resolvedVersion())
 	defer func() { err = errors.Join(err, shutdownTelemetry(context.WithoutCancel(ctx))) }()
 
-	host, cfg, paths, err := bootstrapRuntime(ctx)
+	instance, cfg, paths, err := bootstrapRuntime(ctx)
 	if err != nil {
 		return err
 	}
-	defer func() { err = errors.Join(err, host.Close()) }()
-	// The Host owns the application tier's reverse-order shutdown (§10.3): the
-	// MCP reconciliation + codebase reindex tasks, then the run pump + engine +
-	// persistence. api.Close (the run supervisor) is deferred later, so LIFO runs
-	// it first — transport → supervisor → reconciler → engine/persistence.
+	defer func() { err = errors.Join(err, instance.Close()) }()
 	srv := cfg.Server
 	if len(srv.CORSOrigins) == 0 {
 		srv.CORSOrigins = lyrahttp.DefaultCORSOrigins()
@@ -40,12 +34,6 @@ func run(ctx context.Context, errw io.Writer) (err error) {
 	if srv.Listen == "" {
 		return errors.New("server.listen is empty (set config server.listen or LYRA_SERVER_LISTEN)")
 	}
-	// Re-drive durable startup recovery before constructing a delivery adapter, so
-	// no transport can observe a session whose working tree and history disagree.
-	if err := bootstrap.RecoverStartup(ctx, host.Stack); err != nil {
-		return err
-	}
-
 	var token *lyrahttp.LocalToken
 	if !srv.NoLocalToken {
 		tokenPath := srv.LocalTokenPath
@@ -63,73 +51,24 @@ func run(ctx context.Context, errw io.Writer) (err error) {
 	if token != nil {
 		tokenValue = token.Value
 	}
-	httpServer, api, err := buildHTTPServer(host.Stack, srv, tokenValue, paths)
+	httpServer, err := buildHTTPServer(instance, srv, tokenValue)
 	if err != nil {
 		return err
 	}
-	defer api.Close()
-	return runServer(ctx, errw, httpServer, host.Stack.ScheduleFiring.RunWorker, srv.Listen, token)
+	return runServer(ctx, errw, httpServer, srv.Listen, token)
 }
 
 // buildHTTPServer assembles the HTTP+SSE server from the resolved settings.
-func buildHTTPServer(stack bootstrap.Stack, srv config.Server, tokenValue string, paths runtimePaths) (*lyrahttp.Server, *server.Server, error) {
-	info := lyrahttp.ServerInfoOrDefault()
-	info.Version = resolvedVersion()
-	info.DefaultWorkspace = protocol.WorkspaceRef{Path: paths.defaultWorkspacePath}
-	info.Home = paths.userHome
-
-	api, err := server.New(server.Config{
-		Sessions:   stack.Sessions,
-		MCP:        stack.MCP,
-		Approvals:  stack.Approvals,
-		Models:     stack.Models,
-		Tools:      stack.Tools,
-		Codebase:   stack.Codebase,
-		ServerInfo: info,
-		IdempotencyLimits: protocol.IdempotencyLimits{
-			RetentionSeconds: int(idempotency.Retention.Seconds()),
-		},
-		Runs:               stack.Runs,
-		FileChanges:        stack.FileChanges,
-		MCPStatusChanges:   stack.MCPStatusChanges,
-		SkillChanges:       stack.SkillChanges,
-		ScheduleFires:      stack.ScheduleFires,
-		Invalidations:      stack.Invalidations,
-		Queries:            stack.Queries,
-		Usage:              stack.Usage,
-		Feedback:           stack.Feedback,
-		Schedules:          stack.Schedules,
-		ScheduleFiring:     stack.ScheduleFiring,
-		Goals:              stack.Goals,
-		AgentMemory:        stack.AgentMemory,
-		WorkspaceFiles:     stack.WorkspaceFiles,
-		WorkspaceVCS:       stack.WorkspaceVCS,
-		WorkspaceDiscovery: stack.WorkspaceDiscovery,
-		WorkspaceKnowledge: stack.WorkspaceKnowledge,
-		WorkspaceSkills:    stack.WorkspaceSkills,
-		WorkspaceHooks:     stack.WorkspaceHooks,
-		WorkspaceWatch:     stack.WorkspaceWatch,
-		GitAvailable:       stack.GitAvailable,
-		PlanEnabled:        stack.PlanEnabled,
+func buildHTTPServer(instance *bootstrap.Instance, srv config.Server, tokenValue string) (*lyrahttp.Server, error) {
+	info := instance.ServerInfo()
+	return lyrahttp.NewServer(lyrahttp.Config{
+		Endpoint:        instance.Endpoint(),
+		Addr:            srv.Listen,
+		ServerInfo:      info,
+		ProtocolVersion: protocol.ProtocolVersion,
+		LocalToken:      tokenValue,
+		CORSOrigins:     srv.CORSOrigins,
 	})
-	if err != nil {
-		return nil, nil, err
-	}
-
-	httpServer, err := lyrahttp.NewServer(lyrahttp.Config{
-		Runtime:          api,
-		Addr:             srv.Listen,
-		ServerInfo:       info,
-		ProtocolVersion:  protocol.ProtocolVersion,
-		LocalToken:       tokenValue,
-		CORSOrigins:      srv.CORSOrigins,
-		IdempotencyStore: stack.IdempotencyStore,
-	})
-	if err != nil {
-		api.Close()
-		return nil, nil, err
-	}
-	return httpServer, api, nil
 }
 
 // resolvedVersion keeps HTTP identity and telemetry resource metadata aligned:
@@ -143,20 +82,9 @@ func resolvedVersion() string {
 
 // runServer launches the server, blocks until it returns or a shutdown signal
 // arrives, then drains with a 10s budget.
-func runServer(ctx context.Context, errw io.Writer, httpServer *lyrahttp.Server, runScheduler func(context.Context), addr string, token *lyrahttp.LocalToken) error {
+func runServer(ctx context.Context, errw io.Writer, httpServer *lyrahttp.Server, addr string, token *lyrahttp.LocalToken) error {
 	ctx, stop := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
-
-	// The scheduled-run worker shares the server lifetime: it fires due
-	// schedules as headless runs and is joined before process resources close.
-	schedulerDone := make(chan struct{})
-	go func() {
-		defer close(schedulerDone)
-		runScheduler(ctx)
-	}()
-	defer func() {
-		stop()
-		<-schedulerDone
-	}()
+	defer stop()
 
 	errs := make(chan error, 1)
 	go func() {

@@ -31,7 +31,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/dispatch"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/operation"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/transport"
-	"github.com/Tangerg/lynx/app/runtime/internal/idempotency"
 	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
@@ -70,8 +69,9 @@ type Server struct {
 
 // Config bundles construction inputs.
 type Config struct {
-	// Runtime is the Runtime implementation. Required.
-	Runtime operation.Service
+	// Endpoint is the Runtime instance's binding-neutral operation entrypoint.
+	// Required. HTTP never constructs a second policy pipeline.
+	Endpoint *operation.Endpoint
 
 	// Addr is the listen address (":8080", "127.0.0.1:0", ...). Required.
 	Addr string
@@ -100,16 +100,12 @@ type Config struct {
 	// GET /v2/health/ready. Empty list ⇒ the endpoint always returns ready.
 	// Probes run in parallel under a shared 2s budget.
 	HealthProbes []HealthProbe
-
-	// IdempotencyStore persists first responses for Idempotency-Key replay. nil
-	// uses the router's Runtime-instance-local store (appropriate for tests).
-	IdempotencyStore idempotency.Store
 }
 
 // NewServer assembles a Server.
 func NewServer(cfg Config) (*Server, error) {
-	if cfg.Runtime == nil {
-		return nil, errors.New("http: Runtime is required")
+	if cfg.Endpoint == nil {
+		return nil, errors.New("http: Endpoint is required")
 	}
 	if cfg.Addr == "" {
 		return nil, errors.New("http: Addr is required")
@@ -140,9 +136,7 @@ func NewServer(cfg Config) (*Server, error) {
 		localToken:   cfg.LocalToken,
 		corsOrigins:  slices.Clone(cfg.CORSOrigins),
 		healthProbes: newHealthProbeRunners(cfg.HealthProbes),
-		router: dispatch.New(cfg.Runtime, dispatch.Config{
-			IdempotencyStore: cfg.IdempotencyStore,
-		}),
+		router:       dispatch.New(cfg.Endpoint),
 		handlerCtx:   handlerCtx,
 		stopHandlers: stopHandlers,
 		info:         newInfoResponse(cfg.ServerInfo, cfg.ProtocolVersion),

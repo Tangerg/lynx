@@ -41,7 +41,7 @@ func canceledRootResponse(runID string) *protocol.CancelRunResponse {
 
 func TestReplayClaimSerializesConcurrentMutation(t *testing.T) {
 	runtime := &blockingCancelRuntime{started: make(chan struct{}), release: make(chan struct{})}
-	router := New(runtime, Config{})
+	router := New(operation.New(runtime, operation.Config{}))
 	ctx := transport.WithIdempotencyKey(context.Background(), "cancel-once")
 	first, err := transport.NewCall("first", "runs.cancel", protocol.CancelRunRequest{RunID: "run_1"})
 	if err != nil {

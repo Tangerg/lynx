@@ -8,6 +8,7 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/delivery/operation"
 	lyrahttp "github.com/Tangerg/lynx/app/runtime/internal/delivery/transport/http"
 	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
@@ -15,8 +16,8 @@ import (
 func newProbeServer(t *testing.T, probes ...lyrahttp.HealthProbe) *httptest.Server {
 	t.Helper()
 	srv, err := lyrahttp.NewServer(lyrahttp.Config{
-		Runtime: &fakeRuntime{},
-		Addr:    ":0",
+		Endpoint: operation.New(&fakeRuntime{}, operation.Config{}),
+		Addr:     ":0",
 		ServerInfo: protocol.ServerInfo{
 			Name: "lyra-test", Version: "0.0.0",
 			DefaultWorkspace: protocol.WorkspaceRef{Path: "/secret/project"}, Home: "/secret/home",
@@ -170,7 +171,7 @@ func TestReadinessContainsProbePanic(t *testing.T) {
 
 func TestNewServerRejectsAmbiguousHealthProbes(t *testing.T) {
 	base := lyrahttp.Config{
-		Runtime:         &fakeRuntime{},
+		Endpoint:        operation.New(&fakeRuntime{}, operation.Config{}),
 		Addr:            ":0",
 		ServerInfo:      protocol.ServerInfo{Name: "lyra-test", Version: "0.0.0"},
 		ProtocolVersion: testProtocolVersion,

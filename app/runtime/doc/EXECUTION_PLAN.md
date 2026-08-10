@@ -576,7 +576,7 @@
 - [x] P19-01 冻结 ADR、目标结构、公共/私有边界、生命周期、独占锁与批次验收；
 - [x] P19-02 原子移动公共 protocol values/validation/version，收回服务端 method interfaces、context plumbing、numeric JSON-RPC code 与 generator internals，删除旧 internal protocol path；
 - [x] P19-03 建立 binding-neutral typed operation catalog/pipeline，让 HTTP dispatch 与 embedded 共用 validation、capability、idempotency、safe problem projection 和 run-stream replay；
-- [ ] P19-04 建立单一 Runtime instance builder、data-directory advisory lock、recovery/workers ownership 与完整 retryable Close；
+- [x] P19-04 建立单一 Runtime instance builder、data-directory advisory lock、recovery/workers ownership 与完整 retryable Close；
 - [ ] P19-05 实现公共 concrete `embedded.Runtime`、Config、command/subscription options 和外部 module import/stream/lifecycle 行为测试；
 - [ ] P19-06 更新 contract generator、架构门禁、公共 Go surface baseline、README 示例和 consumer handoff，执行全量质量与坏味道复扫。
 
@@ -603,6 +603,7 @@
 
 | 日期 | 阶段 | 完成事实 | 验证 |
 |---|---|---|---|
+| 2026-08-11 | P19-04（single Runtime instance owner） | `bootstrap.Instance` 成为 HTTP/embedded 共用的唯一完整 Runtime owner：canonical data-directory lease 早于 SQLite/recovery，统一完成 config/client/store/seeding/Assembly/Host/recovery/server/operation 组装并启动 scheduler；operation endpoint 绑定 instance lifetime，Close 先停止 admission 与流、取消并 join worker，再关闭 Host/resources，最后释放 lease，失败可重试且不提前放锁。HTTP 改为接收 instance-owned Endpoint，不再自行构造第二 registry/idempotency pipeline；cmd 不再拥有 recovery、scheduler 或 Server 组装 | 同路径、symlink alias、真实 child process 争锁与 release/reopen tests；Close 未 join 保持 lease、retry 后释放；真实 Open→discover→第二 Open 拒绝→Close→reopen 集成通过；Windows lock path cross-compile、operation/HTTP/cmd/bootstrap/architecture targeted tests 与全 Runtime tests 全绿 |
 | 2026-08-11 | P19-03（single typed operation pipeline） | method catalog、类型化 invocation、严格 request/metadata/result/event validation、capability gate、binding-neutral problem projection、durable idempotency claim/complete/replay 与 run-stream reattach 全部收敛到私有 `delivery/operation`；幂等 payload 具有显式 version，未知旧形状 fail closed。HTTP `dispatch` 只保留 JSON-RPC envelope、numeric code 与 frame encoding，Application server 从 operation context 读取 binding-neutral replay cursor；旧 dispatch registry/capability/idempotency owner 和 forwarding catalog 物理删除 | operation/dispatch/server/contractgen targeted tests、全 Runtime tests 与 architecture package-boundary guard 全绿；`go generate ./...` 成功且公开 contract 制品零语义 diff；完整静态、race 与 hygiene 门禁在本批提交前收口 |
 | 2026-08-11 | P19-02（single public protocol owner） | binding-neutral DTO、枚举、请求/响应、事件、版本、严格递归验证与稳定 problem identity 原子移动到公共 `protocol`；旧 `internal/delivery/protocol` 物理删除且无 alias/forwarder。服务端能力接口、request-context 传播和 structured problem enrichment 收回私有 `operation`，numeric JSON-RPC code 留在 `dispatch`；reflection field walker、enum/sample catalog 收回私有 `contractshape`/`contractcatalog`，公共面不再暴露 generator machinery | `go generate ./...` 成功且 contract 制品无语义 diff；公共 protocol、私有 catalog/shape、dispatch、contract generator、server、HTTP 与 architecture targeted/full tests 在本批提交前统一收口 |
 | 2026-08-11 | P19-01（public binding contract） | 真实 CLI 嵌入消费者推翻“无公共 Go binding 需求”的旧前提；ADR-RT-053 冻结唯一公共 `protocol`、concrete `embedded.Runtime`、binding-neutral `operation`、HTTP/embedded 共享 instance builder、data-directory 独占与完整 lifecycle。旧 internal in-process channel transport 不复活，不建立 JSON-RPC round-trip、胖 public interface 或消费者兼容层 | 六份核心文档与 API/Transport/README owner 同步；本批仅文档，`git diff --check` 与文档链接/术语门禁在提交前验证 |
@@ -666,4 +667,4 @@
 
 ## 25. 当前下一步
 
-P19-03 已完成 HTTP 生产路径向唯一 typed operation 入口的纵切。下一批建立 HTTP host 与 embedded 共用的 Runtime instance builder，先冻结 data-directory 独占、recovery/workers ownership 和完整可重试 `Close`；前端、TUI、CLI 不属于本阶段，Runtime 不为它们保留旧合同。
+P19-04 已完成唯一 Runtime instance owner、data-directory lease 与完整生命周期。下一批实现公共 concrete `embedded.Runtime` 的全量类型化方法、准确 option 和 stream 语义，并用外部测试 module 证明只需导入 `protocol + embedded`；前端、TUI、CLI 不属于本阶段，Runtime 不为它们保留旧合同。

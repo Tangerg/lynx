@@ -8,7 +8,6 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/operation"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/transport"
-	"github.com/Tangerg/lynx/app/runtime/internal/idempotency"
 	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
@@ -18,16 +17,12 @@ type Router struct {
 	endpoint *operation.Endpoint
 }
 
-// Config supplies durable dispatch-adjacent mechanisms to the operation owner.
-type Config struct {
-	IdempotencyStore idempotency.Store
-}
-
 // New builds a Router over the canonical Runtime operation endpoint.
-func New(service operation.Service, config Config) *Router {
-	return &Router{endpoint: operation.New(service, operation.Config{
-		IdempotencyStore: config.IdempotencyStore,
-	})}
+func New(endpoint *operation.Endpoint) *Router {
+	if endpoint == nil {
+		panic("dispatch: nil operation endpoint")
+	}
+	return &Router{endpoint: endpoint}
 }
 
 // Result holds the JSON-RPC reply and optional stream frames for one envelope.

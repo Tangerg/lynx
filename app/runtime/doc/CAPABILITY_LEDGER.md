@@ -52,7 +52,7 @@
 | 公共 protocol | 唯一 binding-neutral DTO/validation/version owner；旧 internal path 已物理删除 | Retain exact owner | P19-02 完成 |
 | Typed operation | 唯一私有 catalog/invocation/policy owner；HTTP 已纵切，embedded 将直接复用 | Retain exact owner | P19-03 完成 |
 | Embedded Runtime | 真实 CLI consumer 已成立；公共 concrete binding 尚未实现 | Rewrite | P19-04/P19-05 |
-| Runtime instance lifecycle | 当前 cmd 与 Bootstrap 分担装配、恢复和 worker；尚无 data-directory lock | Refactor | P19-04 |
+| Runtime instance lifecycle | `bootstrap.Instance` 唯一拥有装配、恢复、operation、worker、retryable Close 与 canonical data-directory lease；HTTP 只消费同一 Endpoint | Retain exact owner | P19-04 完成 |
 | Consumer wiring | CLI/前端/TUI 均不在本阶段修改；Runtime 不提供旧接口适配 | Defer | P19 完成后专项 |
 
 ## 3. 产品领域能力
@@ -330,3 +330,4 @@ P8 production cutover 已用真实 Bootstrap consumer 冻结 root stage/observe/
 - P18 进一步以行为 owner 而非 import 数量反证根级 package：pagination 的全部策略调用属于 Application read，taskgroup 的启动者属于 Application coordinator，Bootstrap/Delivery 的引用不产生共同所有权；opaque-token 的两个 payload owner同属 Application continuation。三者已移动到 `application`，旧根路径永久禁止；真正跨环的根级 pure capability 只剩 completion、HTTP origin 与 idempotency。
 - P19-02 已建立唯一公共 `protocol` owner：外部 Go consumer 与 HTTP 共用相同 values、strict validation、version 和 client-visible problem identity；服务端 method interface/context/enrichment、JSON-RPC numeric code、reflection shape walker、enum/sample artifact catalog 分别收回私有 `operation`、`dispatch`、`contractshape` 与 `contractcatalog`。旧 internal protocol path 已物理删除，无 alias、shim、双份 DTO 或 generator internals 暴露。
 - P19-03 已建立唯一私有 typed operation pipeline：method catalog、strict request/result/event validation、capability gate、safe problem projection、durable idempotency 与 run-stream reattach 由 `delivery/operation` 独占；HTTP dispatch 只适配 JSON-RPC envelope/numeric code/frame。幂等 replay payload 具有显式版本且未知形状 fail closed；旧 dispatch registry、capability、idempotency owner 与 catalog forwarding 均已删除。
+- P19-04 已建立唯一私有 Runtime instance owner：canonical data-directory advisory lease 早于 SQLite/recovery，`bootstrap.Instance` 统一拥有 Host、operation endpoint、Server projection、scheduler 与 reverse-order retryable Close。HTTP cmd 不再组装 Server/recovery/worker，HTTP transport 只消费 instance-owned Endpoint；同路径、symlink alias 和第二进程争锁均被拒绝，未完成 Close 不释放 lease。

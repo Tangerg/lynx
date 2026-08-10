@@ -32,12 +32,17 @@ type Result struct {
 type Endpoint struct {
 	service     Service
 	idempotency *replayStore
+	lifetime    context.Context
 }
 
 // Config supplies durable operation mechanisms. A nil IdempotencyStore selects
 // a Runtime-instance-local store, useful for tests and non-durable hosts.
 type Config struct {
 	IdempotencyStore idempotency.Store
+	// Lifetime ends every in-flight operation and stream owned by this Runtime
+	// instance. A nil Lifetime keeps the endpoint alive until each caller's
+	// context ends, which is useful for focused tests.
+	Lifetime context.Context
 }
 
 // New constructs a binding-neutral operation endpoint.
@@ -46,36 +51,78 @@ func New(service Service, config Config) *Endpoint {
 	if store == nil {
 		store = newMemoryIdempotencyStore()
 	}
-	return &Endpoint{service: service, idempotency: newReplayStore(store)}
+	lifetime := config.Lifetime
+	if lifetime == nil {
+		lifetime = context.Background()
+	}
+	return &Endpoint{service: service, idempotency: newReplayStore(store), lifetime: lifetime}
 }
 
 // Invoke validates and executes the named operation through the catalog's
 // capability, idempotency and safe-problem policies.
 func (e *Endpoint) Invoke(ctx context.Context, name string, parameters any, options Options) Result {
+	ctx, release := bindLifetime(ctx, e.lifetime)
 	method, ok := contract.lookup(name)
 	if !ok {
+		release()
 		return failed(NewFailure(protocol.ErrMethodNotFound, fmt.Sprintf("unknown method %q", name)))
 	}
 	if err := validateOptions(options); err != nil {
+		release()
 		return failed(err)
 	}
 	if reflect.TypeOf(parameters) != method.Meta.Params {
+		release()
 		return failed(NewFailure(
 			protocol.ErrInvalidParams,
 			fmt.Sprintf("%s parameters have type %T, want %s", name, parameters, method.Meta.Params),
 		))
 	}
 	if err := protocol.ValidateWireTree(parameters); err != nil {
+		release()
 		return failed(InvalidParameters(err))
+	}
+	if err := ctx.Err(); err != nil {
+		release()
+		return failed(ProjectError(err))
 	}
 
 	ctx = WithRequestMeta(ctx, options.RequestMeta)
 	ctx = withAfterEventID(ctx, options.AfterEventID)
 	execute := func() Result { return e.execute(ctx, method, parameters) }
+	var result Result
 	if options.IdempotencyKey == "" || !method.Meta.Idempotency.Replays() {
-		return execute()
+		result = execute()
+	} else {
+		result = e.idempotency.invoke(ctx, method, parameters, options.IdempotencyKey, execute, e.service)
 	}
-	return e.idempotency.invoke(ctx, method, parameters, options.IdempotencyKey, execute, e.service)
+	if result.Events == nil {
+		release()
+		return result
+	}
+	result.Events = releaseAfterEvents(result.Events, release)
+	return result
+}
+
+func bindLifetime(call, lifetime context.Context) (context.Context, context.CancelFunc) {
+	ctx, cancel := context.WithCancel(call)
+	stop := context.AfterFunc(lifetime, cancel)
+	select {
+	case <-lifetime.Done():
+		cancel()
+	default:
+	}
+	return ctx, func() {
+		stop()
+		cancel()
+	}
+}
+
+func releaseAfterEvents(events iter.Seq2[any, error], release context.CancelFunc) iter.Seq2[any, error] {
+	return func(yield func(any, error) bool) {
+		defer release()
+		events(yield)
+	}
 }
 
 func (e *Endpoint) execute(ctx context.Context, method *Method, parameters any) Result {

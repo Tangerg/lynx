@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/delivery/operation"
 	lyrahttp "github.com/Tangerg/lynx/app/runtime/internal/delivery/transport/http"
 	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
@@ -27,7 +28,7 @@ func TestDefaultCORSOriginsReturnsCallerOwnedConfiguration(t *testing.T) {
 func newGatedServer(t *testing.T) *httptest.Server {
 	t.Helper()
 	srv, err := lyrahttp.NewServer(lyrahttp.Config{
-		Runtime:         &fakeRuntime{},
+		Endpoint:        operation.New(&fakeRuntime{}, operation.Config{}),
 		Addr:            ":0",
 		ServerInfo:      protocol.ServerInfo{Name: "lyra-test", Version: "0.0.0"},
 		ProtocolVersion: testProtocolVersion,
