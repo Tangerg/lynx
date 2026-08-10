@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"reflect"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -26,7 +27,7 @@ var exportedAPIBaselines = []struct {
 	directory string
 	want      string
 }{
-	{name: "kernel", label: "root kernel", directory: ".", want: "eab1bda4efe207f907164d129290c9369ab17d08a42ea716307c09bf80c06136"},
+	{name: "kernel", label: "root kernel", directory: ".", want: "f45356e4627aef0663687f194a3a025c0ede7a2751520c905a176ff5eb453eba"},
 	{name: "interaction", label: "interaction", directory: "interaction", want: "98a846c0e8930518948e9e491485f3d572ebe4b540ab566990233afabbd9a625"},
 	{name: "planning", label: "planning", directory: "planning", want: "48dcc733364cf5345332aeb0f3fd64aeefd2c21e7f0585759e44278b050eb50a"},
 	{name: "goap", label: "planning/goap", directory: "planning/goap", want: "4aa78b677748784182313d25a187b0074e49ea972c75db2e041c82a0f5f82529"},
@@ -42,6 +43,34 @@ var frameworkPackageDirectories = []string{
 func TestExportedContractsAreDocumentedAndNamed(t *testing.T) {
 	for _, path := range frameworkProductionGoFiles(t) {
 		assertExportedContractsInFile(t, path)
+	}
+}
+
+func TestManagedExecutionVocabularyIsUnambiguous(t *testing.T) {
+	paths := append(frameworkProductionGoFiles(t),
+		"doc/API_BASELINE.md",
+		"doc/ARCHITECTURE.md",
+		"doc/CAPABILITY_LEDGER.md",
+		"doc/DECISIONS.md",
+		"doc/ENGINEERING_STANDARDS.md",
+		"doc/EXECUTION_PLAN.md",
+	)
+	forbidden := []*regexp.Regexp{
+		regexp.MustCompile(`(?i)\bna` + `tive\b`),
+		regexp.MustCompile(regexp.QuoteMeta("原" + "生")),
+		regexp.MustCompile(`\bStep trans` + `actions?\b`),
+		regexp.MustCompile(regexp.QuoteMeta("候选" + "事务")),
+	}
+	for _, path := range paths {
+		content, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, pattern := range forbidden {
+			if pattern.Match(content) {
+				t.Errorf("%s uses retired managed-execution terminology matching %q", path, pattern)
+			}
+		}
 	}
 }
 

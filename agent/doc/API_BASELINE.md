@@ -35,9 +35,9 @@ Baseline 18 不是兼容承诺或发布版本。仓库仍允许 breaking change�
 - Event/Delta：自足携带 exact execution attribution 的权威已发生事实与 best-effort 临时增量；listener 无 veto/error 通道。
 - Typed/EncodeInput/DecodeOutput：只存在于类型擦除边缘的人体工程学 adapter。
 
-`interaction` package 冻结为一个原生 Strategy：Definition 拥有 WorkingContext、模型/Tool 状态机、exact managed Delegate、typed Delegate artifacts 与可选 pure completion validator，Dispatcher 只拥有模型和普通 Tool I/O。Delegate 将目标 Descriptor Input 暴露为模型 Tool schema，但只能由 Execution 经 Framework `StartChild`/`WaitForChildren` 推进；成功 child Output 经 exact schema 复验后进入 immutable validator view，validator 读取防御性复制的当前 WorkingContext/candidate/artifacts，拒绝候选时以有界 feedback 进入下一模型轮次。`ModelInvocation.AppliedSteerSignalIDs` 只归因首次进入当前模型请求的 steer Signal；`ActiveDelegateChildrenFromSnapshot` 只解释 Interaction 自己的已提交 opaque state，并以不可变 `ActiveDelegateChild` 公开模型调用序号、ToolCall 位置和值、ChildKey 与 ProcessID。两者都不暴露 private wire，也不保存 Engine handle 或 Host identity。HITL/steer/stream/tool concurrency 仍通过根窄腰表达。Interaction 不拥有 Process lifecycle、产品 history、artifact store、UI 或 approval policy。
+`interaction` package 冻结为一个 Strategy：Definition 拥有 WorkingContext、模型/Tool 状态机、exact managed Delegate、typed Delegate artifacts 与可选 pure completion validator，Dispatcher 只拥有模型和普通 Tool I/O。Delegate 将目标 Descriptor Input 暴露为模型 Tool schema，但只能由 Execution 经 Framework `StartChild`/`WaitForChildren` 推进；成功 child Output 经 exact schema 复验后进入 immutable validator view，validator 读取防御性复制的当前 WorkingContext/candidate/artifacts，拒绝候选时以有界 feedback 进入下一模型轮次。`ModelInvocation.AppliedSteerSignalIDs` 只归因首次进入当前模型请求的 steer Signal；`ActiveDelegateChildrenFromSnapshot` 只解释 Interaction 自己的已提交 opaque state，并以不可变 `ActiveDelegateChild` 公开模型调用序号、ToolCall 位置和值、ChildKey 与 ProcessID。两者都不暴露 private wire，也不保存 Engine handle 或 Host identity。HITL/steer/stream/tool concurrency 仍通过根窄腰表达。Interaction 不拥有 Process lifecycle、产品 history、artifact store、UI 或 approval policy。
 
-`planning` package 冻结为另一个原生 Strategy：Goal、Condition、Truth、WorldState、Action、Plan 和 Planning outcome 全部由 Planning 拥有；Planner 只做无副作用搜索，Observer/ActionExecutor 只存在于 dispatcher 边界。Execution 每次只执行 Plan 的第一个 Action，随后重新观察、确认预测效果并重新规划。dispatcher Action 与 child Process Action 共用同一预测模型，但不共享执行 capability；unreachable/stuck 是 Planning Output，不是共同 Process 状态。
+`planning` package 冻结为另一个 Strategy：Goal、Condition、Truth、WorldState、Action、Plan 和 Planning outcome 全部由 Planning 拥有；Planner 只做无副作用搜索，Observer/ActionExecutor 只存在于 dispatcher 边界。Execution 每次只执行 Plan 的第一个 Action，随后重新观察、确认预测效果并重新规划。dispatcher Action 与 child Process Action 共用同一预测模型，但不共享执行 capability；unreachable/stuck 是 Planning Output，不是共同 Process 状态。
 
 `planning/goap` 只实现确定、有界的 uniform-cost search。HTN、Utility、Reactive、registry、默认 Planner 和 Planning telemetry 均不在基线中。
 
@@ -47,7 +47,7 @@ Baseline 18 不是兼容承诺或发布版本。仓库仍允许 breaking change�
 
 `baseline_test.go` 对七个已冻结公共 package 的完整 `go doc -all` 输出做 SHA-256 校验，因此 exported identifier、参数名、字段、签名和 GoDoc 的任何漂移都会失败；AST 守卫还要求所有公开声明/字段有精确 GoDoc、公开 callable 的参数有语义名称，并禁止 error cause 通过 `%v` 丢失 `errors.Is/As` 链。Baseline 18 public digest：
 
-- root kernel：`eab1bda4efe207f907164d129290c9369ab17d08a42ea716307c09bf80c06136`
+- root kernel：`f45356e4627aef0663687f194a3a025c0ede7a2751520c905a176ff5eb453eba`
 - interaction：`98a846c0e8930518948e9e491485f3d572ebe4b540ab566990233afabbd9a625`
 - planning：`48dcc733364cf5345332aeb0f3fd64aeefd2c21e7f0585759e44278b050eb50a`
 - planning/goap：`4aa78b677748784182313d25a187b0074e49ea972c75db2e041c82a0f5f82529`
@@ -122,6 +122,8 @@ P14-01 依据 ADR-A2-066 形成 Baseline 16。`PreparedWaitingSubtreeCancellatio
 P14-02 依据 ADR-A2-067/A2-069 形成 Baseline 17。Engine 与 OTel Observer 的 GoDoc 明确它们是禁止使用后复制的单一 mutable owner；Process GoDoc 明确 command ctx 只界定提交与响应等待，Engine loop 接收后不撤销命令。公开名称和签名不变。ADR-A2-068 同批修正 Process Event sequence 与 OTel 数值投影，但不改变 Event/Delta wire：sequence attribute 统一以十进制字符串无损表达 `uint64`，Delta drop 到 OTel `Int64Counter` 的窄化使用显式饱和。
 
 P15-01 依据 ADR-A2-070/A2-071 形成 Baseline 18。根 Process 以 `RequestCancellation` 取代会让 caller 误读同步响应的 `Cancel`：nil 只表示有效请求已经进入 Engine 单写者队列，终态仍由安全边界和 `Result` 给出；旧名称不保留 alias。Interaction 的 `ModelInvocation.AppliedSteerSignalIDs` 精确返回首次进入该模型请求的 steer Signal 身份，Dispatcher protocol 同步携带这一 Strategy-owned attribution；pending steer 将消息与有序 SignalID 作为一个不可拆分状态恢复。Interaction ExecutionState/protocol 直接升级为 v6/v4，旧格式不双读；Process Snapshot v6、TreeSnapshot v4、Kernel wire、其他 Strategy 与 observation wire 均未改变。
+
+P15-02b 依据 ADR-A2-072 对 Baseline 18 只做语义精确化：Interaction、Planning 与 Workflow 统一直接使用 Execution 合同，只有与独立 in-process `flow` 对照时才称 managed Workflow；prepared Step 的 GoDoc 只描述候选状态与固定 Effects，不借用 Host 持久化概念。公开 identifier、签名、行为和全部 wire 均未变化；root GoDoc digest 已显式更新，自动词汇守卫防止无对照限定词与 Host 概念再次漂入 Framework。
 
 ## 4. 明确不在基线中的能力
 

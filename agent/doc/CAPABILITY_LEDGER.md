@@ -104,7 +104,7 @@
 ### 7.2 真实 Host 消费证据
 
 - 只读扫描确认 Host 有 54 个 Go 源文件直接引用旧 Framework。真实共性需求是异步 start/await、根或子树取消、HITL 恢复、等待查询、opaque capture/restore 和执行清理；这些能力必须由中性 Engine 生命周期覆盖。
-- 当前根聊天执行把一个完整 Interaction 包装成单 Action 的 GOAP 计划。这个形态只证明 Host 需要原生 Interaction Definition，不证明普通聊天应依赖 Planning，也不能成为新架构的默认组合。
+- 当前根聊天执行把一个完整 Interaction 包装成单 Action 的 GOAP 计划。这个形态只证明 Host 需要 Interaction Definition，不证明普通聊天应依赖 Planning，也不能成为新架构的默认组合。
 - Host 必须继续拥有产品身份、历史与上下文、工作空间与隔离、模型选择、价格投影、业务限制、持久 write-set 和展示投影；Framework 只提供 Process identity、opaque snapshot、usage、Event/Output 和 prepared durability boundary。
 - 当前 steering 绕经聊天 middleware，迁移目标是由 Interaction 在声明的安全边界解释 opaque Signal；Engine 只排序、去重、投递并推进游标。
 - 当前 Host 将 executor checkpoint 当 opaque value 使用，这支持 Framework capture/restore 边界；Host 不应解析 Strategy state。子执行准入和持久提交仍是 Host 策略，不能升级成 Framework 的 Store、transaction、lease 或幂等模型。
@@ -188,7 +188,7 @@
 
 ### 10.2 治本式移除的旧实现形态
 
-- 不再把 Workflow 编译成普通 GOAP Agent。Sequence、Fork、Map、Switch、Vote 和 Loop 拥有分支游标、child wait、聚合与迭代恢复语义，直接由原生 Workflow ExecutionState 表达；Planning 不再承担确定性工作流控制。
+- 不再把 Workflow 编译成普通 GOAP Agent。Sequence、Fork、Map、Switch、Vote 和 Loop 拥有分支游标、child wait、聚合与迭代恢复语义，直接由 Workflow ExecutionState 表达；Planning 不再承担确定性工作流控制。
 - 不复制 builder 接收 `*runtime.Engine`、构造期调用 Deploy、Action 内调用 `RunChild` 的反向依赖。Workflow Definition 只冻结 exact child DeploymentRef、schema、预算和能力；Engine 仍是唯一 Process 创建与调度 owner。
 - 移除 ScatterGather/Generator 的裸 goroutine 分支，以及 Parallel 对它的第二层包装。需要独立生命周期的 branch 一律是真实 child Process；无生命周期的纯转换不冒充 Fork/Map。
 - 移除 Sequence 的 `LatestObjectBindingName`、Loop/Repeat 的 Blackboard History/Binding/computed Condition、Team 的 Definition 合并和 snapshot binding 拼接。数据流必须是严格 schema 的 immutable wire value，跨 Strategy 状态只存在于 child Process。
@@ -222,7 +222,7 @@
 |---|---|---|
 | Host 直接使用 `flow` 组合普通 Go/AI 能力 | 保留 | 完全符合 `flow` 的 in-process 定位，不需要 Agent Process、snapshot 或 child tree 时复杂度最低 |
 | 可选 adapter 将一个完整 `flow.Node` 作为一个 dispatcher-owned Effect 执行 | 可做 disposable spike | I/O 位于 Step 之外，能够继承外层 EffectID、取消、Delta 和 definite/unknown settlement；但内部节点没有独立 Process identity、预算、能力或 tree snapshot，replay contract 默认必须是 never |
-| 在 `Execution.Step` 内直接调用 `flow.Node.Run` 或编译后的 `workflow.Step.Run` | 移除 | Node 可执行任意 I/O，Graph 另起 goroutine scheduler，Journal 另写恢复事实；会同时破坏纯 Step、Engine 单写者和 Effect 事务边界 |
+| 在 `Execution.Step` 内直接调用 `flow.Node.Run` 或编译后的 `workflow.Step.Run` | 移除 | Node 可执行任意 I/O，Graph 另起 goroutine scheduler，Journal 另写恢复事实；会同时破坏纯 Step、Engine 单写者和 Effect 提交边界 |
 | 直接把 `workflow.Graph`/`Spec` 当成 managed Agent Workflow Definition | 暂不成立 | 现有端口类型只是可选的粗粒度 edit-time `ValueType`，Store 持有 `any` 借用值；NodeFactory 产出可执行 Step，branch/condition 允许 I/O；并发零值可无界，分支共享一个 run/Store/Journal，不是独立 child Process |
 | 为 Agent 编写自定义 compiler/interpreter 消费 `flow` Graph/Spec | 延后裁决 | 技术上可行，但会绕过大部分现有 `workflow` runtime 并重新实现 validation/scheduling/recovery，已经不是“直接封装”；只有真实 managed child Process 消费点才能证明值得做 |
 
@@ -236,7 +236,7 @@
 - 定向行为测试连续 20 次、race 连续 20 次通过；spike 随后整体删除，没有临时类型、测试 package 或依赖进入生产模块。
 - 证据证明 Workflow 的独立状态是 Stage/value/window/child/wait/result 游标，并且能完全建立在现有 StartChild/WaitForChildren/TreeSnapshot 窄腰上；它不需要 Strategy dispatcher、Kernel 字段、`flow` Store/Journal 或第二 scheduler。
 
-据此唯一实施边界确定为：普通同进程组合继续直接使用 `flow`；managed Workflow 是只编排真实 child Process 的原生 Definition/Execution。正式词汇收敛为 Transform、Call、Switch、Fork、Map、Loop；Sequence、Gate、Vote、evaluator-optimizer 等可组合语义不再各建节点 kind。
+据此唯一实施边界确定为：普通同进程组合继续直接使用 `flow`；managed Workflow 是只编排真实 child Process 的 Definition/Execution。正式词汇收敛为 Transform、Call、Switch、Fork、Map、Loop；Sequence、Gate、Vote、evaluator-optimizer 等可组合语义不再各建节点 kind。
 
 ### 10.6 Transform/Call 正式纵切面
 
@@ -469,7 +469,7 @@
 
 - 完整项目 lint 首次发现 13 项被较窄 staticcheck 门禁漏过的真实问题：import 分组、无效测试赋值、枚举 switch 可读性，以及 `Cancelled` 与项目统一美式英文和 Go `context.Canceled` 不一致。修复后把完整项目 `golangci-lint` 纳入阶段验收，结果为零问题；额外 duplicate scan 同样为零。
 - 状态合同只保留 `StatusCanceled` 与 JSON `"canceled"`，不保留旧拼写 alias 或 dual-read。Process Snapshot 升为 v6、TreeSnapshot 升为 v4，prior-version 与 prior-spelling tests 均明确拒绝旧合同；其余 Strategy/observation wire 不变。
-- P1 的 Interaction 与 prepared-Step disposable spike 已被正式 Interaction、Engine、snapshot、restore、unknown Effect 与事务提交测试完整取代，因而整体删除。删除过程暴露出的普通测试 helper 依赖被收回各自 owner；Interaction 重复 Deployment 构造则收敛到测试 package 既有唯一 helper。
+- P1 的 Interaction 与 prepared-Step disposable spike 已被正式 Interaction、Engine、snapshot、restore、unknown Effect 与状态提交测试完整取代，因而整体删除。删除过程暴露出的普通测试 helper 依赖被收回各自 owner；Interaction 重复 Deployment 构造则收敛到测试 package 既有唯一 helper。
 - 稳定架构文档只保留当前事实，P1/P3/P8 的未来时态已移回执行日志；示例统一称独立消费者。空目录、空文件、production TODO/FIXME/HACK、兼容 shim、旧模块/Host/`flow` 依赖、未登记 package/依赖边和 production/test duplicate 均为零。
 - 最终提交态 standalone build、vet、staticcheck、完整项目 lint、禁用缓存普通测试与 race 全绿；13 个 fuzz target 各 3 秒共执行 2,092,394 次且无失败，fuzz 后普通测试再次通过；八个 command consumer 全部实跑并保持确定输出。
 
@@ -479,7 +479,7 @@
 
 - P10 开始时，`app/runtime` 仍有 54 个 Go 文件直接 import 原框架实现：39 个位于 `internal/adapter/agentexec`，9 个位于 `internal/adapter/toolset`，其余是 bootstrap、runsegment 与 architecture tests。数量与 P1 审计一致，说明 P2–P9 没有把迁移半成品或 Host 类型提前带入 `agent`。
 - `internal/adapter/agentexec` 是唯一应该理解 Agent Framework 的反腐层；Application、Domain 与 Delivery 继续只依赖 executor、checkpoint、interrupt、event 等应用端口。迁移可以重写该 adapter 及其直接 toolset 装配，但不得让 `agent` import `app/runtime`，也不得让 Framework 的 Process、Signal、Effect 或 Strategy payload 穿透到 Application。
-- 根聊天当前仍是“GOAP 单 Action 包裹完整 Interaction”。真实行为只需要原生 Interaction Definition；普通聊天没有 Planning world state、Goal 搜索或 replan 语义，P10 必须删除该多余组合，而不是在新 Framework 中复制。
+- 根聊天当前仍是“GOAP 单 Action 包裹完整 Interaction”。真实行为只需要 Interaction Definition；普通聊天没有 Planning world state、Goal 搜索或 replan 语义，P10 必须删除该多余组合，而不是在新 Framework 中复制。
 - 每个 turn 使用独立 Engine、精确 root/child Interaction Deployment 和 caller-owned resolver 足以承载 per-run model、tools、limits、observer 与 restore。Platform 不是迁移前置条件，Runtime 也不需要第二个全局 Agent facade。
 
 ### 14.2 已冻结合同可以直接承载的能力
@@ -551,7 +551,7 @@
 
 ## 15. P11 唯一模块替换证据
 
-- Runtime 已在 P8 以原生 Interaction、完整 TreeSnapshot、typed waiting/Delegate inspectors 和 prepared subtree change 取代原框架执行路径；workspace 搜索证明原实现没有剩余生产 consumer、测试依赖或独有能力。
+- Runtime 已在 P8 以 Interaction、完整 TreeSnapshot、typed waiting/Delegate inspectors 和 prepared subtree change 取代原框架执行路径；workspace 搜索证明原实现没有剩余生产 consumer、测试依赖或独有能力。
 - P11 整体删除原实现，把绿色重写实现安装为唯一 `github.com/Tangerg/lynx/agent` module，并同步 Runtime imports、workspace metadata、examples、GoDoc 和 architecture guards。不存在 alias module、replace compatibility、转发 package 或第二 lifecycle owner。
 - 模块身份变化形成 Baseline 15；七个公共 package 的语义与全部 Process Snapshot、TreeSnapshot、Strategy protocol、Event/Delta wire version不变。Runtime 产品 Run、Store、transaction、checkpoint policy、WorkingContext composition 与 protocol 仍停留在应用侧，未泄露进 Framework。
 
@@ -597,3 +597,8 @@
 - 每个 model Effect 保存本轮实际应用的 steer SignalID；Dispatcher 构造的 immutable `ModelInvocation` 通过防御性复制公开 `AppliedSteerSignalIDs`。这项事实只表达 Interaction 输入到模型边界的归因，不含 Engine handle、Run、message store、transaction、checkpoint 或产品状态。
 - steer 可与 model/Tool/Delegate settlement 同批到达并保持 mailbox 顺序。Delegate wait collector 不再假设 `signals[0]` 必为 wait-opened，也不会把其后的即时 child completion 当成 duplicate opened 或提前消费；测试覆盖 steer-before-opened 与 opened-followed-by-completion 两类交错。
 - Interaction ExecutionState/protocol 直接升级为 v6/v4，旧版本不双读。根 Process Snapshot v6、TreeSnapshot v4、Kernel/其他 Strategy/observation wire 全部不变；Baseline 18 只改变根与 Interaction public digest以及 Interaction private wire digest。
+
+### 17.3 Exact managed-execution vocabulary
+
+- Interaction、Planning 与 Workflow 统一实现 Execution 合同，不再增加没有对照物的额外限定词。只有与独立 in-process `flow` 对照时，Framework Workflow 才按生命周期准确称为 managed Workflow。
+- prepared Step 只描述 Framework candidate state 与 fixed Effects，不借用 Host transaction 术语。该收口没有改变公开 API、Event 名称、wire、snapshot 或 Framework/Host 所有权。

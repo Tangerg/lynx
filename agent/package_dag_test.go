@@ -87,7 +87,7 @@ func assertExternalPackageBoundary(t *testing.T, packagePath string, sourcePath 
 	case isPackageOrChild(importPath, "github.com/Tangerg/lynx/app"):
 		t.Errorf("%s imports Host application package %q", sourcePath, importPath)
 	case isPackageOrChild(importPath, "github.com/Tangerg/flow"):
-		t.Errorf("%s imports flow instead of keeping Workflow execution native: %q", sourcePath, importPath)
+		t.Errorf("%s imports flow instead of keeping managed Workflow execution Framework-owned: %q", sourcePath, importPath)
 	case isPackageOrChild(importPath, "go.opentelemetry.io/otel") && packagePath != "otel":
 		t.Errorf("%s imports OpenTelemetry outside the otel adapter: %q", sourcePath, importPath)
 	case importPath == "log/slog":

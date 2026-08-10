@@ -27,7 +27,7 @@ const (
 	EventStepStarted = "agent.step.started"
 	// EventStepFinished reports an Execution.Step return or failure.
 	EventStepFinished = "agent.step.finished"
-	// EventStepPrepared reports a validated candidate Step transaction.
+	// EventStepPrepared reports validated candidate Step state and fixed Effects.
 	EventStepPrepared = "agent.step.prepared"
 	// EventStepCommitted reports authoritative Step state publication.
 	EventStepCommitted = "agent.step.committed"

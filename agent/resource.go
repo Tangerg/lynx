@@ -13,7 +13,7 @@ var ErrResourceLimitExceeded = errors.New("agent: resource limit exceeded")
 // EngineConfig inherit DefaultLimits; Snapshot stores effective non-zero values
 // so restoration preserves the same execution contract.
 type Limits struct {
-	// MaxSteps bounds committed Step transactions.
+	// MaxSteps bounds committed Steps.
 	MaxSteps uint64 `json:"max_steps"`
 
 	// MaxEffects bounds Effects prepared across all Steps.
@@ -66,7 +66,7 @@ func effectiveLimits(configured Limits) (Limits, error) {
 // Usage contains monotonic Framework-owned counters. It deliberately excludes
 // provider pricing and Strategy-specific concepts such as tokens or tool calls.
 type Usage struct {
-	// CommittedSteps counts finalized Step transactions.
+	// CommittedSteps counts finalized Steps.
 	CommittedSteps uint64 `json:"committed_steps"`
 
 	// PreparedEffects counts stable logical Effect identities, not replay attempts.

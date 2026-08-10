@@ -52,11 +52,11 @@
 - 决策：Interaction、Planning、Workflow 和 Supervisor 是平等 Definition，不是 Mode 枚举或 Extension。
 - 原因：它们拥有不同状态推进语义，强行压入同一配置会形成 god abstraction。
 
-## ADR-A2-007：Workflow 使用原生 Execution
+## ADR-A2-007：Workflow 使用 Execution
 
 - 状态：已接受。
 - 决策：Workflow 不编译成 GOAP Agent。
-- 原因：固定控制流与目标搜索是不同问题；原生 Workflow 才能准确表达 fork/join/gate/loop 和恢复。
+- 原因：固定控制流与目标搜索是不同问题；managed Workflow 才能准确表达 fork/join/gate/loop 和恢复。
 
 ## ADR-A2-008：GOAP 保留但不作为默认中心
 
@@ -246,10 +246,10 @@
 - 原因：预测效果不是真实事实；批量执行旧计划会在环境变化后继续沿过期路径。把执行 capability 放入 Action 或把 no-plan 变成共同状态会重新污染 Kernel。只校验 child WaitID 又无法证明 Engine 确认的是 Strategy 实际声明的等待集合。
 - 后果：P5 完成后冻结 Baseline 2，覆盖 root、Interaction、Planning 与 GOAP；HTN、Utility、Reactive、Planner registry/default、Blackboard、Planning telemetry 和 Host persistence 仍明确不实现。
 
-## ADR-A2-036：Workflow 使用 schema 化 DAG 与受限原生节点
+## ADR-A2-036：Workflow 使用 schema 化 DAG 与受限节点
 
 - 状态：已接受。
-- 决策：Workflow 是原生 Definition/Execution，不编译成 GOAP，也不建立自己的 runtime。Definition 冻结一个以稳定 `NodeID` 标识的有向无环图；每个节点声明精确 input/output schema，Definition 构造时验证入口 schema、每条边的 schema、可达性和所有 terminal output。普通图禁止环，唯一循环能力由有显式正数迭代上限的 `Loop` 节点内部拥有。
+- 决策：Workflow 是 Definition/Execution，不编译成 GOAP，也不建立自己的 runtime。Definition 冻结一个以稳定 `NodeID` 标识的有向无环图；每个节点声明精确 input/output schema，Definition 构造时验证入口 schema、每条边的 schema、可达性和所有 terminal output。普通图禁止环，唯一循环能力由有显式正数迭代上限的 `Loop` 节点内部拥有。
 - 决策：P6 的唯一节点词汇是 `Transform`、`Gate`、`Switch`、`Call`、`Fork`、`Map`、`Vote` 和 `Loop`。Prompt Chaining 是连续 `Call` 的 Sequence 用法，不建立新节点；Vote 是具名的稳定多数聚合，不公开 Consensus 别名；Fork 同时拥有 Join，不公开 Parallel/ScatterGather；Map 同时拥有 Reduce；Loop 不公开 Repeat/RepeatUntil；Workflow 内不使用 Router，以免和 P8 Deployment routing 混淆。
 - 决策：节点之间只传递 immutable、schema-validated JSON value。公开泛型构造器只在边缘把 Go 类型严格转换为 erased value；ExecutionState 保存 raw value、当前 NodeID、branch/item 游标、child key/ProcessID/wait、已结算结果和 loop iteration，不保存 callback、Deployment concrete value、Engine、context、goroutine 或 Host 数据。
 - 决策：Transform、Gate、Switch、Join、Map expansion/Reduce、Vote key 和 Loop predicate 是 `Step` 内有界、确定、无 I/O 的纯函数。任何模型、Tool、网络、文件或其他外部行为必须是一个 exact child Deployment；`Call`、Fork 的每个 branch、Map 的每个 item 和 Loop 的每轮 body 都启动普通 child Process。
@@ -267,13 +267,13 @@
 - 决策：`flow.Node.Run` 可以执行任意工作，`workflow.Graph` 会启动 goroutine，`Journal` 自行记录 Step 边界；这些行为不能在只允许纯状态归约的 `Execution.Step` 中直接运行。将编译后的 `flow` Step 直接包进 Agent Execution 会形成第二执行循环、第二恢复事实源，并允许副作用绕过 prepared Effect/EffectID，因此明确禁止。
 - 决策：已证明安全的复用形态只有两类候选，而且当前均不升级为 Workflow Strategy。Host 可以直接使用 `flow` 组合普通 Go 能力；未来可由独立可选 adapter 把一个完整 `flow.Node` 调度成单个 dispatcher-owned Effect。后一形态只有外层 Effect 粒度的 Process identity、恢复、预算和 replay contract，不能宣称内部节点各自拥有 child Process 语义。
 - 决策：是否还需要 managed deterministic orchestration Strategy，必须由真实消费和 disposable adapter spike 证明。只有当需求明确要求图内每个 Agent 分支拥有独立 ProcessID、snapshot、预算、能力衰减、取消和 tree recovery，且 `flow` 的外层封装无法满足时，才能重新设计；届时还要在“扩展 `flow` 的中性编译边界”与“最小 Agent-owned Strategy”之间重新裁决，不能默认选择后者。
-- 原因：`flow` 与 Agent Kernel 的职责都已经清晰，重复实现会制造两套控制流语言；强行直接复用运行时又会破坏 Engine 单写者与 Effect 事务语义。先冻结问题而不是冻结方案，才能同时避免重复建设、抽象泄露和为了复用而扭曲两个独立库。
+- 原因：`flow` 与 Agent Kernel 的职责都已经清晰，重复实现会制造两套控制流语言；强行直接复用运行时又会破坏 Engine 单写者与 Effect 提交语义。先冻结问题而不是冻结方案，才能同时避免重复建设、抽象泄露和为了复用而扭曲两个独立库。
 
 ## ADR-A2-038：恢复 managed Workflow，并采用最小有序 Stage 代数
 
 - 状态：已接受；整体取代 ADR-A2-037 的暂停结论，并取代 ADR-A2-036 的任意 DAG 与八类节点方案。ADR-A2-037 对 `flow.Node.Run` 不得进入纯 Step、不得建立双恢复真相的边界继续有效。
 - 证据：一个只依赖冻结公共 API 的 disposable consumer 已实现串行 child Call、固定三路 Fork、并发窗口 2、child pause、完整 TreeSnapshot capture/restore 和逆序完成。快照时第三路尚未创建；恢复后前两路逆序完成仍按声明顺序聚合，第二窗口只创建一次。专项测试与 race 各连续运行 20 次通过，随后 spike 已整体删除。
-- 决策：`flow` 继续作为普通 Go/AI 同进程控制流的首选库，也是组合代数、定义/运行分离、有界并发和稳定顺序的设计证据；`agent` 不依赖或封装其 runtime。只有当每项工作必须拥有独立 ProcessID、DeploymentRef、snapshot、预算、能力、取消和 tree recovery 时，才使用原生 managed Workflow Strategy。
+- 决策：`flow` 继续作为普通 Go/AI 同进程控制流的首选库，也是组合代数、定义/运行分离、有界并发和稳定顺序的设计证据；`agent` 不依赖或封装其 runtime。只有当每项工作必须拥有独立 ProcessID、DeploymentRef、snapshot、预算、能力、取消和 tree recovery 时，才使用 managed Workflow Strategy。
 - 决策：Workflow Definition 冻结一个有序 Stage 序列，不建立可任意连边的 visual-editor DAG、共享 Store、Journal、Node registry 或第二 scheduler。一个 Stage 消费当前 immutable、schema-validated value 并产生下一个 value；相邻 Stage 的 schema 必须在构造时精确衔接。嵌套或多阶段分支通过调用另一个 Workflow Deployment 获得组合闭包，不在同一 Process 内嵌第二个 Execution。
 - 决策：P6 只允许六个具有独立语义的 Stage：`Transform`、`Call`、`Switch`、`Fork`、`Map` 和 `Loop`。定义中的有序 Stage 本身就是 Sequence；Prompt Chaining 是连续 Call；Gate 由 Transform 校验或 Switch 表达；Vote 是 Fork 后的确定性 reducer；evaluator-optimizer 是 Loop 组合。它们不再各占一个节点 kind 或近义入口。
 - 决策：Transform、Switch selector、Fork reducer 和 Loop predicate 必须是有界、确定、无 I/O 的纯函数，只能在 `Execution.Step` 内归约一次。Call、Switch 被选分支、Fork 每个 branch、Map 每个 item 和 Loop 每轮 body 都是 exact Deployment 对应的真实 child Process。Workflow 不产生 dispatcher Effect；包内 zero-state Dispatcher 只拒绝协议违约，不成为第二执行能力。
@@ -419,7 +419,7 @@
 - 状态：已接受；完成 P8-06。
 - 证据：P2 Event 原 envelope 只有 ProcessID，child observer 无法知道 exact Deployment、parent/root/depth；只有 `step.prepared/committed`，无法区分 Execution.Step 本身的调用时间；Dispatcher Effect 有 started/finished，Framework Effect 没有，导致同一个 Effect 窄腰产生两套观察语义。EventListener/DeltaListener 的 error 永远被丢弃，公开返回值错误暗示 observer 可以影响执行。原框架实现把 OTel tracer/meter 直接 import 到 runtime、planner 与 event multicast，证明行为可观测有价值，也证明 instrumentation backend 进入 Kernel 会污染 DAG 并散落 schema。
 - 决策：Event envelope 新增 exact DeploymentRef 与 immutable ProcessRelation，且 relation.ProcessID 必须等于 envelope ProcessID；JSON strict codec 同步携带 deployment/relation。根 package 提供唯一 Framework Event 名称常量；发布点不再写裸字符串。Process-local sequence、可选 StepSequence/EffectID、phase、OccurredAt 与 bounded immutable payload 保持不变，Event/Delta observation wire 进入独立 digest gate。
-- 决策：Execution.Step 调用前后发布 attempt `EventStepStarted/Finished`，finished payload 是 `status` + 同 owner 测量的非负 `duration_ms`；prepared 与 committed 继续分别表示候选事务和权威提交。实际执行的 Framework/Dispatcher Effect 统一发布 attempt started/finished，payload 固定带 target，finished 再带 settlement status/duration。恢复时因 ReplayPolicy 被跳过的 Dispatcher Effect 没有发生新 attempt，因此只形成 unknown settlement，不伪造 started/finished。
+- 决策：Execution.Step 调用前后发布 attempt `EventStepStarted/Finished`，finished payload 是 `status` + 同 owner 测量的非负 `duration_ms`；prepared 与 committed 继续分别表示候选状态和权威提交。实际执行的 Framework/Dispatcher Effect 统一发布 attempt started/finished，payload 固定带 target，finished 再带 settlement status/duration。恢复时因 ReplayPolicy 被跳过的 Dispatcher Effect 没有发生新 attempt，因此只形成 unknown settlement，不伪造 started/finished。
 - 决策：EventListener 与 DeltaListener 都改为无 error 返回；新增对应 Func adapter。panic 继续隔离，Event listener 必须同步有界且不得重入 Process，Delta listener 仍由有界异步队列隔离并以 dropped Event/Usage 暴露丢失。观察没有 veto、retry、ack 或第二状态提交入口。
 - 决策：新增独立 `agent/otel.Observer`，只实现 EventListener，直接依赖官方 OTel trace/metric API。Config 可注入 TracerProvider/MeterProvider，nil 使用官方 global provider，typed nil 明确失败。Observer 以 Event timestamp 建立 Process/Step/Effect span，以 relation 在 parent span 已可见时建立 child parentage，并始终记录 exact root/parent/depth/deployment attributes；只记录 bounded status/target/count，不导出 raw Event payload、Input/Output 或 Host identity。metric 固定为 Process starts/exits、Step/Effect duration 与 Delta drops。
 - 决策：Kernel production source 由 architecture gate 禁止 `go.opentelemetry.io/otel`；OTel adapter production source 禁止 SDK、Strategy、原框架实现与 Host imports。SDK trace/metric 只用于真实 provider 测试，证明一个两 Step/一 Dispatcher Effect Process 产生一个 Process span、两个 Step span、一个 Effect span及 1/1/2/1 对应 metric observations。adapter panic 仍由 Engine listener boundary 隔离，不影响 Result。
@@ -453,7 +453,7 @@
 - 决策：wire baseline 按所有权分层。Kernel 只冻结自己拥有的全部 production `*Wire`、snapshot/tree、Framework child/effect protocol、Event/Delta envelope 与命名 Framework Event payload；Interaction、Planning、Workflow 各自在包内冻结私有 ExecutionState、Effect/Signal/Delta protocol 和所有支撑 wire。Kernel 不 import Strategy package、不反射递归 Strategy payload，也不把具体 phase/cursor 提升成共同类型。
 - 决策：baseline 必须同时防止“已覆盖 shape 漂移”和“新增 shape 未纳入”。根 AST 守卫要求新增 production `*Wire`/`*EventPayload` 进入 Kernel baseline；三个 Strategy 的 AST 守卫要求每个新增 private JSON struct 进入对应 owner baseline。digest 变化仍必须结合 strict codec、prior-version rejection、round-trip、restore、fuzz 与 consumer behavior 审计，不能以更新 hash 代替设计。
 - 决策：审计中发现的宽泛持久字段一次性改为 owner-qualified 语义：Process event sequence、child-wait parent ProcessID、mailbox WaitKey/WaitID；Interaction WorkingContext/model/Tool/delegate/artifact 游标与记录；Planning WorldState/excluded/current Action/confirmation；Workflow Stage/current value/case/fan-out window。Framework Event payload 也明确区分 process、step、effect settlement 与 dropped Delta 事实。旧 tag 不双读，旧 state/snapshot 版本不兼容恢复。
-- 后果：形成 Baseline 5。Process Snapshot v5、TreeSnapshot v3、Interaction ExecutionState/protocol v4/v2、Planning ExecutionState v3、Workflow ExecutionState v2；child/framework-effect protocol 保持 v2，Planning protocol 保持 v1。七个公开 API digest 不变，说明本轮只关闭 owner 私有恢复/观察协议漏口。Workflow 继续是原生 managed Strategy，`flow` 只提供显式拓扑、typed composition、确定顺序和有界 fan-out 等设计参考，不形成强制依赖或复用目标。
+- 后果：形成 Baseline 5。Process Snapshot v5、TreeSnapshot v3、Interaction ExecutionState/protocol v4/v2、Planning ExecutionState v3、Workflow ExecutionState v2；child/framework-effect protocol 保持 v2，Planning protocol 保持 v1。七个公开 API digest 不变，说明本轮只关闭 owner 私有恢复/观察协议漏口。Workflow 继续是 managed Strategy，`flow` 只提供显式拓扑、typed composition、确定顺序和有界 fan-out 等设计参考，不形成强制依赖或复用目标。
 
 ## ADR-A2-056：生产 package 集合与允许依赖边构成单一可执行合同
 
@@ -484,7 +484,7 @@
 - 决策：Runtime 的权威 Message/Reasoning/ToolCall/ToolResult/usage 投影继续由 caller-owned chat middleware 与 Tool decorator同步产生，利用上述 invocation context 做 Process 归因和 backpressure。Framework Delta 仍是有界 best-effort，Event listener 仍是隔离观察；不提升可靠等级、不让 observer veto、不从丢失 Delta 重建 transcript。
 - 决策：Kernel 新增唯一 `WaitingSubtreeCancellationPlan`，由 `Engine.PlanWaitingSubtreeCancellation(ctx, rootID, targetID, reason)` 在完整 tree quiescent cut 上计算。目标必须是同树的非 root Waiting Process；计划只拥有 source identity/digest、确定 resulting `TreeSnapshot`、parent-before-child 的 `CanceledProcessIDs` 与为阻止父级提前消费 child completion 而形成的 `PausedProcessIDs`，不持有 live lock 或外部资源。结果将目标活动子树以准确 canceled/parent-canceled 终态留在 tree snapshot，保留永久 child budget allocation；Kernel 关闭其等待、生成自己拥有的 ChildOutcome Signal，并把直接父级停在消费该 Signal 之前，不解析或改写 opaque ExecutionState。
 - 决策：`Engine.ApplyWaitingSubtreeCancellation(ctx, plan)` 只接受同一 Engine 产生且 source tree 未变化的计划，并把 live tree线性化到计划的 exact Framework state；过期时零修改失败。调用方若决定继续，只能对 `PausedProcessIDs` 使用普通 `Process.Resume`；若仍有外部等待则保留 paused checkpoint。计划/应用 API 不出现 commit、transaction、Run、Pending、checkpoint store 或 disposition。Strategy owner 的公开 helper 负责从 resulting snapshot读取 surviving external waits；Host 仍负责在自己的事务中原子保存 opaque tree、产品记录与删除/终态集合。
-- 决策：实施按依赖方向分四个批次：先补 Kernel admission/attribution 与 Interaction invocation/deferred/Delegate 合同及 owner tests；再以原生 Interaction 重写 root turn；随后迁移 child admission、HITL、tree mutation、toolset discovery 和剩余直接消费者；最后删除应用侧旧 GOAP wrapper、generic orchestration 与全部旧 import。前端、TUI、CLI 不在 P10 修改范围。每个批次先更新对应 public/wire baseline，不提供 alias、dual-read、dual-write 或临时 bridge。
+- 决策：实施按依赖方向分四个批次：先补 Kernel admission/attribution 与 Interaction invocation/deferred/Delegate 合同及 owner tests；再以 Interaction 重写 root turn；随后迁移 child admission、HITL、tree mutation、toolset discovery 和剩余直接消费者；最后删除应用侧旧 GOAP wrapper、generic orchestration 与全部旧 import。前端、TUI、CLI 不在 P10 修改范围。每个批次先更新对应 public/wire baseline，不提供 alias、dual-read、dual-write 或临时 bridge。
 - 原因：这些 seam 都能脱离 Lyra 产品词汇独立说明，也分别由 admission correctness、Strategy adapter attribution、冻结 manifest 状态与 Engine-owned tree invariant 证明；因此是合理框架能力。反过来复制 Runtime DTO、把 transcript 建在 Delta 上、让 Host 改 Interaction wire 或保留旧 engine 作为旁路，都会重新制造抽象泄漏和双重所有权。
 - 后果：Baseline 6 将按实现批次显式升级。Admission/EffectRequest 改根 public API但不必修改 snapshot wire；Interaction public API、ExecutionState 与 dispatcher protocol 必须升级；waiting subtree plan增加根 public API，并以现有 Kernel owner wire 表达 resulting state，只有实现证明确需新持久字段时才升级 snapshot schema。P10-03 开始前不再新增迁移候选合同。
 
@@ -546,7 +546,7 @@
 ## ADR-A2-065：绿色重写实现原子取得唯一 Agent module 身份
 
 - 状态：已接受，P11 已实施。
-- 证据：Runtime 已在 P8 完成原生 Interaction、waiting/restore、Delegate child tree、termination 与 recovery 的生产纵切；workspace 搜索证明原框架实现没有剩余 consumer 或独有能力。继续并存只会制造两个模块身份、两套文档和依赖解析歧义。
+- 证据：Runtime 已在 P8 完成 Interaction、waiting/restore、Delegate child tree、termination 与 recovery 的生产纵切；workspace 搜索证明原框架实现没有剩余 consumer 或独有能力。继续并存只会制造两个模块身份、两套文档和依赖解析歧义。
 - 决策：整体删除原框架实现，把绿色重写实现安装为唯一 `github.com/Tangerg/lynx/agent` module，并同步所有真实 consumer、workspace metadata、文档和 architecture guards。禁止 alias module、replace compatibility、转发 package、双读 wire 或旧 package 名。
 - 后果：模块发布需要先形成 canonical source commit，再由 Runtime standalone dependency 引用该 commit；这个发布边界不引入第二路径。Baseline 15 重新冻结 canonical GoDoc digest，Framework API 语义和全部 wire version 不变。
 
@@ -595,3 +595,12 @@
 - 决策：`ModelInvocation` 新增防御性复制的 `AppliedSteerSignalIDs()`，严格按对应 steer 首次进入该模型请求的顺序返回身份；空值只表示本次没有新应用的 steer，不表示 WorkingContext 中没有先前消息。Interaction 将 pending steer 的消息和有序唯一 SignalID 收敛为一个共同校验、共同恢复、共同清除的 Strategy-owned value，并把身份写进同一个 model Effect payload；Dispatcher 只在实际模型调用 context 中公开该 attribution。
 - 决策：模型/Tool/Delegate settlement 同批到达的 steer 都按 mailbox 顺序收集；Delegate wait-opened collector 只消费包含 steer 与唯一 opened acknowledgment 的前缀，不能假设首个 Signal 必为 opened，也不能吞掉随后已就绪的 ChildrenCompleted。身份不得进入 Kernel Signal、Event、snapshot 外层或通用 `EffectRequest`，Framework 不认识 consumer projection、message store 或事务。
 - 后果：Interaction public API/GoDoc 形成 Baseline 18；ExecutionState 从 v5 升为 v6，dispatcher protocol 从 v3 升为 v4，旧版本直接拒绝且不双读。Process Snapshot v6、TreeSnapshot v4、其他 Strategy、Kernel 与 observation wire 均不变。恢复、顺序、防御性复制、模型/Tool 边界和 Delegate 信号交错测试冻结该语义。
+
+## ADR-A2-072：托管执行只保留一个准确词汇
+
+- 状态：已接受；P15-02b 已实施，保持 Baseline 18。
+- 证据：旧实现删除后，Interaction、Planning 与 Workflow 都只实现同一个 `Execution` 合同，事实文档却仍给其中部分策略增加没有可替换对象的实现限定词；prepared Step 的注释又借用了 Host 持久化词汇描述 Framework 候选状态。这两组称谓都没有增加可辨别语义，反而暗示不存在的第二执行合同和事务所有权。
+- 决策：Interaction、Planning 与 Workflow 直接称为 Strategy/Execution，不增加无对照限定词。只有与独立 in-process `flow` 的生命周期形成真实对照时，Workflow 才称 managed Workflow。prepared Step 只称候选状态与固定 Effects；`EventStepPrepared`、Limits/Usage GoDoc 和事实文档不得把它描述成 Host transaction。
+- 决策：权威文档与 Framework production source 由自动词汇守卫共同约束；外部框架比较材料不是当前合同，不进入该守卫。守卫只拒绝精确词项，不把其他包含相同字母的普通英文单词误判为执行术语。
+- 原因：一个概念只应有一个名称；限定词只有在区分真实可替换对象时才有信息量。Framework 内部状态提交与 Host 持久化事务属于不同 owner，借词会把应用职责反向泄露进 Kernel 语义。
+- 后果：公开 identifier、参数、签名、行为和全部 wire 均不变；根 GoDoc digest 在 Baseline 18 内显式更新。后续若出现新的真实执行实现或生命周期对照，必须先用消费者证据重新定义词汇，而不能先增加近义标签。
