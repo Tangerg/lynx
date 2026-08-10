@@ -248,47 +248,44 @@ func (r *Runtime) CancelRun(ctx context.Context, in client.CancelRun) error {
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	run, err := r.resolveCancellationLocked(in)
-	if err != nil || run == nil {
-		return err
+	if in.RunID == "" {
+		return r.cancelStartLocked(in)
+	}
+	run := r.runs[in.RunID]
+	if run == nil {
+		return fmt.Errorf("%w: %s", client.ErrRunNotFound, in.RunID)
 	}
 	r.cancelRunLocked(run)
 	return nil
 }
 
-func (r *Runtime) resolveCancellationLocked(in client.CancelRun) (*runState, error) {
-	if in.RunID != "" {
-		run := r.runs[in.RunID]
-		if run == nil {
-			return nil, fmt.Errorf("%w: %s", client.ErrRunNotFound, in.RunID)
-		}
-		return run, nil
-	}
-	return r.cancelStartLocked(in)
-}
-
-func (r *Runtime) cancelStartLocked(in client.CancelRun) (*runState, error) {
+func (r *Runtime) cancelStartLocked(in client.CancelRun) error {
 	session := r.sessions[in.SessionID]
 	if session == nil {
-		return nil, fmt.Errorf("%w: %s", client.ErrSessionNotFound, in.SessionID)
+		return fmt.Errorf("%w: %s", client.ErrSessionNotFound, in.SessionID)
 	}
 	key := requestKey(in.SessionID, in.RequestID)
 	r.canceled[key] = struct{}{}
 	attempt := r.starts[key]
 	if attempt == nil {
-		return nil, nil
+		return nil
 	}
 	if !attempt.finished {
 		if session.starting == attempt {
 			session.starting = nil
 		}
 		r.finishStartLocked(attempt, client.Run{}, fmt.Errorf("%w: request %s", client.ErrRunCanceled, in.RequestID))
-		return nil, nil
+		return nil
 	}
 	if attempt.err != nil {
-		return nil, nil
+		return nil
 	}
-	return r.runs[attempt.run.ID], nil
+	run := r.runs[attempt.run.ID]
+	if run == nil {
+		return fmt.Errorf("%w: %s", client.ErrRunNotFound, attempt.run.ID)
+	}
+	r.cancelRunLocked(run)
+	return nil
 }
 
 func (r *Runtime) cancelRunLocked(run *runState) {
