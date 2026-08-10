@@ -221,9 +221,9 @@ func consume(stream client.Stream, conversation *client.Conversation, renderer R
 	return state
 }
 
-type outcomeErrorValue struct{ outcome client.Outcome }
+type unsuccessfulOutcome struct{ outcome client.Outcome }
 
-func (e *outcomeErrorValue) Error() string {
+func (e *unsuccessfulOutcome) Error() string {
 	if e.outcome.Status == client.OutcomeFailed {
 		return "run failed: " + e.outcome.Error
 	}
@@ -234,7 +234,7 @@ func outcomeError(outcome client.Outcome) error {
 	if outcome.Status == client.OutcomeCompleted {
 		return nil
 	}
-	return &outcomeErrorValue{outcome: outcome}
+	return &unsuccessfulOutcome{outcome: outcome}
 }
 
 func resume(

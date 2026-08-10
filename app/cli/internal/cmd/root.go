@@ -31,8 +31,6 @@ var version = "dev"
 
 const configIndependentAnnotation = "lyra/config-independent"
 
-type runtimeFactory func(context.Context) (client.Runtime, error)
-
 // Dependencies are the outer implementations available to the command tree.
 // Runtime construction stays lazy so help and completion do not open sockets,
 // databases, or other process-owned resources.
@@ -44,12 +42,12 @@ type Dependencies struct {
 // runtimeProvider delays construction until a command needs the runtime. It
 // owns delivery-only diagnostics so factories remain independent of Cobra.
 type runtimeProvider struct {
-	factory runtimeFactory
-	notice  string
+	open   func(context.Context) (client.Runtime, error)
+	notice string
 }
 
 func (p runtimeProvider) Open(cmd *cobra.Command) (client.Runtime, error) {
-	runtime, err := p.runtime(cmd.Context())
+	runtime, err := p.resolve(cmd.Context())
 	if err != nil {
 		return nil, err
 	}
@@ -61,28 +59,23 @@ func (p runtimeProvider) Open(cmd *cobra.Command) (client.Runtime, error) {
 	return runtime, nil
 }
 
-func (p runtimeProvider) Complete(cmd *cobra.Command) (client.Runtime, error) {
-	return p.runtime(cmd.Context())
+func (p runtimeProvider) OpenForCompletion(cmd *cobra.Command) (client.Runtime, error) {
+	return p.resolve(cmd.Context())
 }
 
-func (p runtimeProvider) runtime(ctx context.Context) (client.Runtime, error) {
-	if p.factory == nil {
+func (p runtimeProvider) resolve(ctx context.Context) (client.Runtime, error) {
+	if p.open == nil {
 		return nil, errors.New("runtime factory is required")
 	}
-	return p.factory(ctx)
+	return p.open(ctx)
 }
 
 // NewRoot builds an isolated command tree from process-owned dependencies.
 func NewRoot(dependencies Dependencies) *cobra.Command {
 	provider := runtimeProvider{
-		factory: dependencies.OpenRuntime,
-		notice:  dependencies.RuntimeNotice,
+		open:   dependencies.OpenRuntime,
+		notice: dependencies.RuntimeNotice,
 	}
-	return buildRoot(provider)
-}
-
-// buildRoot is the composition seam used by the production factory and tests.
-func buildRoot(provider runtimeProvider) *cobra.Command {
 	v := viper.New()
 	root := &cobra.Command{
 		Use:   "lyra [prompt...]",
@@ -120,8 +113,6 @@ func buildRoot(provider runtimeProvider) *cobra.Command {
 		},
 	}
 	configure(v, root)
-	root.SetOut(os.Stdout)
-	root.SetErr(os.Stderr)
 	root.Flags().StringP("session", "s", "", "Open an existing session instead of a new one")
 	root.PersistentFlags().StringP("cwd", "C", "", "Workspace directory for a new session (default: current directory)")
 	root.AddGroup(

@@ -44,10 +44,11 @@ The dependency direction follows clean architecture: product policy points inwar
 | Layer | Packages | Responsibility |
 | --- | --- | --- |
 | Domain and ports | `internal/client`, `internal/settings` | Validated session, run, event, interaction, approval, and configuration contracts. `client.Runtime` is the complete backend port; consumers use its narrower interfaces. |
-| Application orchestration | `internal/promptqueue`, `internal/cmd`, `internal/reconnect` | Session-scoped follow-up ownership, use-case sequencing, idempotent run control, reconnect policy, configuration precedence, and process exit behavior. |
-| Adapters | `internal/client/mock`, `internal/attachment`, `internal/render`, `internal/terminal`, `internal/sideload` | Scripted backend, workspace-safe files, text/NDJSON output, oolong terminal UI, and out-of-process plugins. |
+| Application use cases | `internal/oneshot`, `internal/session`, `internal/promptqueue`, `internal/reconnect` | Unattended run lifecycle, session opening, session-scoped follow-up ownership, idempotent controls, and reconnect policy. |
+| Delivery adapters | `internal/cmd`, `internal/render`, `internal/terminal` | Cobra/Viper routing, text/JSON projections, and the oolong terminal UI. |
+| Infrastructure adapters | `internal/client/mock`, `internal/attachment`, `internal/sideload` | Scripted runtime, workspace-safe files, and out-of-process plugins. |
 | Extension substrate | `internal/extensions` | Typed extension points, capability checks, dependency ordering, rollback, unload, and reload ownership. |
-| Composition root | `internal/cmd/root.go` | Constructs Cobra, Viper, the runtime adapter, plugin sources, and terminal application. |
+| Composition root | `main.go` | Selects the runtime implementation, binds process streams and signals, and constructs the command tree. |
 
 Architecture tests prevent the domain from importing Cobra, Viper, oolong, renderers, or adapters. Constructors create isolated command and UI graphs, so tests do not share mutable package state.
 
@@ -61,7 +62,7 @@ The mock is isolated behind [`client.Runtime`](internal/client/client.go). A rea
 - replay `FollowRun` strictly after the requested cursor without changing the durable log;
 - honor context cancellation for every operation and stream.
 
-Inject the adapter through `cmd.NewRoot(runtime)`. The command tree, TUI, renderers, attachment handling, and extension system require no changes. The nil path in `cmd.NewRoot` is the single composition-root choice that installs `mock.New()` today. Help and completion do not open a stateful backend.
+Inject the adapter through `cmd.NewRoot(cmd.Dependencies{OpenRuntime: ...})`. The command tree, TUI, renderers, attachment handling, and extension system require no changes. `main.go` is the single composition-root choice that installs `mock.New()` today; replacing that factory is enough to select a real adapter. Runtime construction remains lazy, so help and completion do not open a stateful backend.
 
 ## Configuration
 

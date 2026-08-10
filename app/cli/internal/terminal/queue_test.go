@@ -1,10 +1,12 @@
 package terminal
 
 import (
+	"context"
 	"image"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -18,6 +20,32 @@ import (
 	"github.com/Tangerg/lynx/app/cli/internal/promptqueue"
 	"github.com/Tangerg/lynx/app/cli/internal/settings"
 )
+
+type finishObservingRuntime struct {
+	*recordingRuntime
+	finished chan struct{}
+	once     sync.Once
+}
+
+func (r *finishObservingRuntime) FollowRun(ctx context.Context, request client.FollowRun) (client.Stream, error) {
+	stream, err := r.recordingRuntime.FollowRun(ctx, request)
+	if err != nil {
+		return nil, err
+	}
+	return func(yield func(client.Envelope, error) bool) {
+		for envelope, streamErr := range stream {
+			continued := yield(envelope, streamErr)
+			if streamErr == nil {
+				if _, finished := envelope.Event.(client.RunFinished); finished {
+					r.once.Do(func() { close(r.finished) })
+				}
+			}
+			if !continued {
+				return
+			}
+		}
+	}, nil
+}
 
 func testQueueDrawer(t *testing.T, messages ...client.Message) (*queueDrawer, *promptqueue.Store) {
 	t.Helper()
@@ -464,7 +492,10 @@ func TestEditingTheFrontPromptHoldsAutomaticDispatchUntilSave(t *testing.T) {
 			{Event: client.RunFinished{Outcome: client.Outcome{Status: client.OutcomeCompleted}}},
 		}}
 	}
-	backend := &recordingRuntime{Runtime: base}
+	backend := &finishObservingRuntime{
+		recordingRuntime: &recordingRuntime{Runtime: base},
+		finished:         make(chan struct{}),
+	}
 	host, stop := runUIWith(t, backend)
 	host.Shows(t, "Ask lyra")
 	host.Type("PRIMARY_BEFORE_QUEUE_EDIT")
@@ -477,20 +508,18 @@ func TestEditingTheFrontPromptHoldsAutomaticDispatchUntilSave(t *testing.T) {
 	host.Press(input.Enter)
 	host.Shows(t, "Editing queued prompt")
 	host.Shows(t, "PRIMARY_FINISHED_WHILE_EDITING")
+	select {
+	case <-backend.finished:
+	case <-time.After(2 * time.Second):
+		t.Fatal("primary run did not finish while the queue editor was open")
+	}
 	sessionID := backend.startInput().SessionID
-	deadline := time.Now().Add(2 * time.Second)
-	for {
-		snapshot, err := backend.GetSession(t.Context(), sessionID)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if snapshot.Active == nil {
-			break
-		}
-		if time.Now().After(deadline) {
-			t.Fatal("primary run did not finish while the queue editor was open")
-		}
-		time.Sleep(10 * time.Millisecond)
+	snapshot, err := backend.GetSession(t.Context(), sessionID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if snapshot.Active != nil {
+		t.Fatal("primary run remained active after the UI presented its completed state")
 	}
 	if got := backend.startCount(); got != 1 {
 		t.Fatalf("held queue entry started before save: %d runs", got)

@@ -60,7 +60,7 @@ func completeApprovalRuleIDs(provider runtimeProvider) cobra.CompletionFunc {
 		if len(args) > 0 {
 			return nil, cobra.ShellCompDirectiveNoFileComp
 		}
-		runtime, err := provider.Complete(cmd)
+		runtime, err := provider.OpenForCompletion(cmd)
 		if err != nil {
 			return nil, cobra.ShellCompDirectiveError
 		}

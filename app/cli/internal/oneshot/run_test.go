@@ -103,6 +103,15 @@ func TestRunRejectsEventsThatViolateTheConversationLifecycle(t *testing.T) {
 	}
 }
 
+func TestRunRequiresItsBoundaryDependencies(t *testing.T) {
+	if err := Run(t.Context(), Config{Renderer: discardRenderer{}}); err == nil || !strings.Contains(err.Error(), "runtime") {
+		t.Fatalf("missing runtime error = %v", err)
+	}
+	if err := Run(t.Context(), Config{Runtime: mock.New()}); err == nil || !strings.Contains(err.Error(), "renderer") {
+		t.Fatalf("missing renderer error = %v", err)
+	}
+}
+
 func TestRunRejectsAnInvalidStartProjection(t *testing.T) {
 	base := mock.New()
 	err := Run(t.Context(), Config{
