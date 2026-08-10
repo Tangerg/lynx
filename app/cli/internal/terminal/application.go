@@ -92,6 +92,7 @@ type app struct {
 	commandPicker      *picker[headless.Command]
 	commandDialog      *kit.Dialog
 	shortcutDialog     *kit.Dialog
+	shortcutViewport   *headless.Viewport
 	searchDialog       *kit.Dialog
 	queueDialog        *headless.Dialog
 	searchQuery        string
@@ -132,7 +133,7 @@ type appConfig struct {
 }
 
 func newApp(loop *program.InlineRuntime, cfg appConfig) *app {
-	cfg.KeyBindings.resolveWith(loop.After)
+	cfg.KeyBindings.setResolver(loop.After)
 	editorKeys := cfg.KeyBindings.editor
 	ground := loop.Environment().Ground()
 	theme := kit.Suited(ground)

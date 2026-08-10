@@ -174,7 +174,7 @@ func (a *app) handleEscape() bool {
 
 func (a *app) handleQuit() {
 	if !a.confirmation.Confirm(confirmQuit, time.Now()) {
-		a.message("repeat " + formatBindings(a.applicationKeys, quitApp, " or ") + " to quit")
+		a.message("repeat " + formatKeyBindings(a.applicationKeys, quitApp, " or ") + " to quit")
 		return
 	}
 	a.loop.Quit()
@@ -222,7 +222,7 @@ func (a *app) handleCancelGesture() {
 		a.history.Add(message)
 		a.resetComposer()
 		a.completion.Dismiss()
-		a.message("draft cleared; repeat " + formatBindings(a.applicationKeys, cancelRun, " or ") + " to cancel")
+		a.message("draft cleared; repeat " + formatKeyBindings(a.applicationKeys, cancelRun, " or ") + " to cancel")
 		return
 	}
 	a.cancel()

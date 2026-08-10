@@ -54,7 +54,7 @@ func configuredKeyBindings(configured settings.Config) (keyBindings, error) {
 	return bindings, nil
 }
 
-func (b keyBindings) resolveWith(resolve keymap.Resolver) {
+func (b keyBindings) setResolver(resolve keymap.Resolver) {
 	for _, keys := range []*keymap.Map{b.editor, b.application, b.global} {
 		if keys != nil {
 			keys.Resolve = resolve
@@ -62,7 +62,7 @@ func (b keyBindings) resolveWith(resolve keymap.Resolver) {
 	}
 }
 
-func formatBindings(keys *keymap.Map, action keymap.Action, separator string) string {
+func formatKeyBindings(keys *keymap.Map, action keymap.Action, separator string) string {
 	sequences := keys.Keys(action)
 	names := make([]string, len(sequences))
 	for i, sequence := range sequences {

@@ -1189,6 +1189,8 @@ func TestShortcutGuideReflectsActiveBindings(t *testing.T) {
 	host.Shows(t, "open this shortcut guide")
 	host.Shows(t, "shift+enter / alt+enter")
 	host.Shows(t, "insert a newline")
+	host.Press(input.End)
+	host.Hides(t, "scroll this guide up")
 	host.Press(input.Esc)
 	host.Hides(t, "open this shortcut guide")
 
@@ -1196,6 +1198,7 @@ func TestShortcutGuideReflectsActiveBindings(t *testing.T) {
 	host.Press(input.Enter)
 	host.Press(input.Enter)
 	host.Shows(t, "Shortcuts")
+	host.Shows(t, "scroll this guide up")
 	host.Press(input.Esc)
 	host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
 	stop()

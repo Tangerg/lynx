@@ -8,13 +8,13 @@ import (
 	"github.com/Tangerg/oolong/core/layout"
 )
 
-type shortcut struct {
+type shortcutRow struct {
 	area        string
 	bindings    string
 	description string
 }
 
-type shortcutSpec struct {
+type shortcutDefinition struct {
 	area        string
 	action      keymap.Action
 	description string
@@ -26,7 +26,7 @@ func (a *app) buildShortcutDialog(theme kit.Theme, glyphs kit.Glyphs, applicatio
 	for _, binding := range headless.DefaultStackKeys().Keys(headless.Close) {
 		guideKeys.Bind(headless.Close, binding...)
 	}
-	shortcuts := collectShortcuts(applicationKeys, a.transcript.Keys(), guideKeys)
+	rows := collectShortcutRows(applicationKeys, a.transcript.Keys(), guideKeys)
 	table := &kit.Table{
 		Theme: theme,
 		Columns: []kit.Column{
@@ -34,11 +34,11 @@ func (a *app) buildShortcutDialog(theme kit.Theme, glyphs kit.Glyphs, applicatio
 			{Title: "Keys", Size: layout.Measured(8, 28)},
 			{Title: "Action", Size: layout.Flex(1)},
 		},
-		Rows:   len(shortcuts),
+		Rows:   len(rows),
 		Header: true,
 		Gap:    2,
 		Cell: func(row, column int) kit.Cell {
-			entry := shortcuts[row]
+			entry := rows[row]
 			values := [...]string{entry.area, entry.bindings, entry.description}
 			styles := [...]grid.Style{theme.Subtle, theme.Accent, theme.Text}
 			return kit.LabelCell(kit.Label{Text: values[column], Style: styles[column], Ellipsis: glyphs.Ellipsis})
@@ -47,6 +47,7 @@ func (a *app) buildShortcutDialog(theme kit.Theme, glyphs kit.Glyphs, applicatio
 	viewport := headless.NewViewport(headless.Static{Of: table})
 	viewport.Keys = guideKeys
 	viewport.Scroll().Wheel(a.loop.Environment().Wheel())
+	a.shortcutViewport = viewport
 	a.shortcutDialog = kit.NewDialog(&a.stack, theme, glyphs, "Shortcuts", viewport)
 	a.shortcutDialog.Panel().Where = layout.Placement{Width: 88, Height: 24, Margin: 1}
 	a.shortcutDialog.Panel().Keys = guideKeys
@@ -54,12 +55,13 @@ func (a *app) buildShortcutDialog(theme kit.Theme, glyphs kit.Glyphs, applicatio
 }
 
 func (a *app) showShortcutDialog() {
+	a.shortcutViewport.Scroll().ToTop()
 	a.shortcutDialog.Show()
 	a.status.note("keyboard shortcuts")
 }
 
-func collectShortcuts(applicationKeys, transcriptKeys, guideKeys *keymap.Map) []shortcut {
-	specs := []shortcutSpec{
+func collectShortcutRows(applicationKeys, transcriptKeys, guideKeys *keymap.Map) []shortcutRow {
+	definitions := []shortcutDefinition{
 		{area: "Guide", action: headless.ScrollUp, description: "scroll this guide up", keys: guideKeys},
 		{area: "Guide", action: headless.ScrollDown, description: "scroll this guide down", keys: guideKeys},
 		{area: "Guide", action: headless.Close, description: "close this guide", keys: guideKeys},
@@ -94,15 +96,15 @@ func collectShortcuts(applicationKeys, transcriptKeys, guideKeys *keymap.Map) []
 		{area: "Transcript", action: transcriptPrompt, description: "return to the composer", keys: transcriptKeys},
 	}
 
-	shortcuts := make([]shortcut, 0, len(specs))
-	for _, spec := range specs {
-		bindings := formatBindings(spec.keys, spec.action, " / ")
+	rows := make([]shortcutRow, 0, len(definitions))
+	for _, definition := range definitions {
+		bindings := formatKeyBindings(definition.keys, definition.action, " / ")
 		if bindings == "" {
 			continue
 		}
-		shortcuts = append(shortcuts, shortcut{
-			area: spec.area, bindings: bindings, description: spec.description,
+		rows = append(rows, shortcutRow{
+			area: definition.area, bindings: bindings, description: definition.description,
 		})
 	}
-	return shortcuts
+	return rows
 }

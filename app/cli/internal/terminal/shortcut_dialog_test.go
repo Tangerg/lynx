@@ -7,15 +7,15 @@ import (
 	"github.com/Tangerg/oolong/core/keymap"
 )
 
-func TestCollectShortcutsUsesProvidedKeymaps(t *testing.T) {
+func TestCollectShortcutRowsUsesProvidedKeymaps(t *testing.T) {
 	applicationKeys := &keymap.Map{}
 	applicationKeys.Bind(showShortcuts, input.Chord{Code: input.F1})
 	transcriptKeys := &keymap.Map{}
 	transcriptKeys.Bind(commandPalette, input.Chord{Code: input.Character, Rune: '!'})
 
-	got := collectShortcuts(applicationKeys, transcriptKeys, nil)
+	got := collectShortcutRows(applicationKeys, transcriptKeys, nil)
 	if len(got) != 2 {
-		t.Fatalf("collectShortcuts returned %d entries, want only the two bound actions: %+v", len(got), got)
+		t.Fatalf("collectShortcutRows returned %d entries, want only the two bound actions: %+v", len(got), got)
 	}
 	if got[0].area != "Application" || got[0].bindings != "f1" || got[0].description != "open this shortcut guide" {
 		t.Fatalf("application shortcut = %+v", got[0])
