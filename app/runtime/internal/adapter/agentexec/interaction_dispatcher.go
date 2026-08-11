@@ -230,6 +230,12 @@ func (model *observedInteractionModel) complete(
 	if choice == nil || choice.Message == nil {
 		return errors.New("agentexec: completed model call has no assistant message")
 	}
+	// Agent owns Delta validation, ordering, buffering, and listener observation. Wait on its
+	// ordering barrier before committing the authoritative full response so an
+	// accepted stream increment can never reopen an Item after completion.
+	if err := model.session.flushDeltas(ctx); err != nil {
+		return err
+	}
 	fact, err := model.session.accountModelCall(invocation, callID, response)
 	if err != nil {
 		return err

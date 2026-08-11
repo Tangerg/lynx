@@ -98,18 +98,26 @@ type reducer struct {
 	// usage is the latest authoritative cumulative Run accounting reported by
 	// the executor. Nil means this segment has not advanced the committed
 	// snapshot in cfg.Metrics.
-	usage            *accounting.Usage
-	segmentDuration  time.Duration
-	userInput        []transcript.ContentBlock
-	text             *openText
-	reasoning        *openText
-	modelCalls       map[string]time.Time
-	lastModelMessage *corechat.Message
-	toolCallIDs      map[string]struct{}
-	toolPositions    map[toolPosition]string
-	tools            openTools
-	drained          []DrainedTool
-	errFailure       *run.Failure
+	usage           *accounting.Usage
+	segmentDuration time.Duration
+	userInput       []transcript.ContentBlock
+	text            *openText
+	reasoning       *openText
+	modelCalls      map[string]time.Time
+	// modelBoundaryClosed fences lossy stream observations that arrive after the
+	// authoritative ModelCallCompleted commit. A later ModelCallStarted reopens
+	// the observation window for the next provider turn.
+	modelBoundaryClosed bool
+	// Exactly one side of the final model/process confirmation handshake may be
+	// pending. The two facts travel through different executor paths and either
+	// can arrive first; only ModelCallCompleted projects transcript content.
+	lastModelMessage      *corechat.Message
+	earlyAssistantMessage *corechat.Message
+	toolCallIDs           map[string]struct{}
+	toolPositions         map[toolPosition]string
+	tools                 openTools
+	drained               []DrainedTool
+	errFailure            *run.Failure
 	// plan is the last state snapshot this segment published, kept so the segment
 	// can fence its final value before finishing. Nil means this segment never
 	// changed the projection, and a segment that changed nothing has nothing to
@@ -222,6 +230,10 @@ func (r *reducer) clone() *reducer {
 		message := r.lastModelMessage.Clone()
 		cloned.lastModelMessage = &message
 	}
+	if r.earlyAssistantMessage != nil {
+		message := r.earlyAssistantMessage.Clone()
+		cloned.earlyAssistantMessage = &message
+	}
 	return &cloned
 }
 
@@ -330,12 +342,18 @@ func (r *reducer) reduceFact(ev ExecutionFact) (factReduction, error) {
 		// response, not mutually exclusive stream modes. Keep each Item open until
 		// ModelCallCompleted supplies the authoritative full message; completing one
 		// merely because the other emitted would make that final message duplicate it.
+		if r.modelBoundaryClosed {
+			return factReduction{}, nil
+		}
 		appended, err := r.appendText(e.Text)
 		if err != nil {
 			return factReduction{}, fmt.Errorf("%w: append text: %w", errReducerInvariant, err)
 		}
 		return factReduction{events: appended}, nil
 	case ReasoningDelta:
+		if r.modelBoundaryClosed {
+			return factReduction{}, nil
+		}
 		appended, err := r.appendReasoning(e.Text)
 		if err != nil {
 			return factReduction{}, fmt.Errorf("%w: append reasoning: %w", errReducerInvariant, err)
@@ -408,11 +426,15 @@ func (r *reducer) reduceAssistantMessage(completed AssistantMessageCompleted) (f
 		r.lastModelMessage = nil
 		return factReduction{}, nil
 	}
-	events, err := r.completeAssistantMessage(completed.Message)
-	if err != nil {
-		return factReduction{}, fmt.Errorf("%w: assistant message completion: %w", errExecutorContract, err)
+	if r.earlyAssistantMessage != nil {
+		return factReduction{}, fmt.Errorf(
+			"%w: executor completed the assistant message more than once",
+			errExecutorContract,
+		)
 	}
-	return factReduction{events: events}, nil
+	message := completed.Message.Clone()
+	r.earlyAssistantMessage = &message
+	return factReduction{}, nil
 }
 
 func (r *reducer) startModelCall(started ModelCallStarted) (factReduction, error) {
@@ -424,6 +446,7 @@ func (r *reducer) startModelCall(started ModelCallStarted) (factReduction, error
 	}
 	startedAt := r.now()
 	r.modelCalls[started.CallID] = startedAt
+	r.modelBoundaryClosed = false
 	return factReduction{
 		events: []RunEvent{SegmentProgressed{Progress: RunProgress{Activity: "Calling model"}}},
 		modelInvocations: []ModelInvocationCommit{{
@@ -450,12 +473,26 @@ func (r *reducer) completeModelCall(completed ModelCallCompleted) (factReduction
 		)
 	}
 	delete(r.modelCalls, completed.CallID)
+	r.modelBoundaryClosed = true
+	if r.earlyAssistantMessage != nil && !reflect.DeepEqual(*r.earlyAssistantMessage, completed.Message) {
+		return factReduction{}, fmt.Errorf(
+			"%w: executor final assistant message differs from the committed model response",
+			errExecutorContract,
+		)
+	}
 	events, err := r.completeModelMessage(completed.Message)
 	if err != nil {
 		return factReduction{}, fmt.Errorf("%w: model call completion: %w", errExecutorContract, err)
 	}
-	message := completed.Message.Clone()
-	r.lastModelMessage = &message
+	if r.earlyAssistantMessage != nil {
+		r.earlyAssistantMessage = nil
+		r.lastModelMessage = nil
+	} else if !messageRequestsToolCalls(completed.Message) {
+		message := completed.Message.Clone()
+		r.lastModelMessage = &message
+	} else {
+		r.lastModelMessage = nil
+	}
 	progressEvents, err := r.usageProgress(UsageReported{
 		TokenUsage: completed.TokenUsage, ByModel: completed.ByModel, CostUSD: completed.CostUSD,
 		Steps: completed.Steps, ContextTokens: completed.ContextTokens,

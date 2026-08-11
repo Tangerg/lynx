@@ -310,6 +310,17 @@ func TestInteractionExecutorChunkDropPreservesFinalAndUsage(t *testing.T) {
 	if len(deltas) >= chunks {
 		t.Fatalf("streaming deltas = %d, want an observable bounded-buffer drop below %d", len(deltas), chunks)
 	}
+	completionSeen := false
+	for _, event := range events {
+		switch event.Payload.(type) {
+		case runs.ModelCallCompleted:
+			completionSeen = true
+		case runs.MessageDelta:
+			if completionSeen {
+				t.Fatal("accepted stream Delta arrived after authoritative model completion")
+			}
+		}
+	}
 	completed := payloadsOf[runs.ModelCallCompleted](events)
 	if len(completed) != 1 || completed[0].Message.Text() != strings.Repeat("x", chunks) ||
 		completed[0].TokenUsage.PromptTokens != 5 || completed[0].TokenUsage.CompletionTokens != 2 {

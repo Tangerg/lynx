@@ -107,10 +107,11 @@ type ReasoningDelta struct {
 	Text string
 }
 
-// AssistantMessageCompleted is the authoritative semantic assistant message
-// produced by an executor. Unlike [MessageDelta] and [ReasoningDelta], it is a
-// complete final value and remains correct when streaming observation is
-// disabled or drops increments.
+// AssistantMessageCompleted confirms that the executor's final process output
+// is the same assistant message already committed at the authoritative
+// [ModelCallCompleted] boundary. It may race ahead of that boundary, so the
+// reducer buffers it until the model fact arrives; it never creates a second
+// transcript Item.
 type AssistantMessageCompleted struct {
 	executionFactBase
 	Message corechat.Message
@@ -150,7 +151,7 @@ type ModelCallStarted struct {
 	CallID string
 }
 
-// ModelCallCompleted is the authoritative semantic and accounting projection
+// ModelCallCompleted is the sole authoritative semantic and accounting projection
 // of one completed model invocation. Message may contain ToolCall parts; the
 // reducer projects only assistant content/reasoning here because each actual
 // Tool invocation has its own pre-call commit boundary.

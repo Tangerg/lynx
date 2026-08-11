@@ -532,6 +532,16 @@ func (session *interactionSession) projectDelta(ctx context.Context, delta agent
 	}
 }
 
+func (session *interactionSession) flushDeltas(ctx context.Context) error {
+	if session.engine == nil {
+		return errors.New("agentexec: Interaction engine is unavailable")
+	}
+	if err := session.engine.FlushDeltas(ctx); err != nil {
+		return fmt.Errorf("agentexec: flush model deltas: %w", err)
+	}
+	return nil
+}
+
 func (session *interactionSession) observeFrameworkEvent(_ context.Context, event agent.Event) {
 	if event.Relation().RootID() != session.processRootID() {
 		return

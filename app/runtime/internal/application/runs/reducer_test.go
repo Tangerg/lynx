@@ -66,14 +66,20 @@ func TestReducerStepsCountModelCallsRatherThanParallelTools(t *testing.T) {
 	}
 }
 
-func TestReducerFinalAssistantMessageSupersedesPartialStreamingObservation(t *testing.T) {
+func TestReducerEarlyExecutorFinalWaitsForAuthoritativeModelResponse(t *testing.T) {
 	reducer := newReducer(testReducerConfig())
+	mustReduce(t, reducer, ModelCallStarted{CallID: "model_call_1"})
 	mustReduce(t, reducer, MessageDelta{Text: "partial"})
 	message := corechat.NewAssistantMessage(
 		corechat.NewReasoningPart("authoritative reasoning", nil),
 		corechat.NewTextPart("authoritative answer"),
 	)
-	reduced := mustReduce(t, reducer, AssistantMessageCompleted{Message: message})
+	if reduced := mustReduce(t, reducer, AssistantMessageCompleted{Message: message}); len(reduced) != 0 {
+		t.Fatalf("early executor confirmation projected transcript content: %#v", reduced)
+	}
+	reduced := mustReduce(t, reducer, ModelCallCompleted{
+		CallID: "model_call_1", Message: message, Steps: 1,
+	})
 
 	var completed []transcript.Item
 	for _, reduction := range reduced {
@@ -154,6 +160,25 @@ func TestReducerDoesNotDuplicateModelFinalWhenExecutorConfirmsSameMessage(t *tes
 	processBatch := mustReduce(t, reducer, AssistantMessageCompleted{Message: message})
 	if len(processBatch) != 0 {
 		t.Fatalf("executor confirmation duplicated model final: %#v", processBatch)
+	}
+}
+
+func TestReducerIgnoresStreamingObservationAfterAuthoritativeModelCompletion(t *testing.T) {
+	reducer := newReducer(testReducerConfig())
+	message := corechat.NewAssistantMessage(corechat.NewTextPart("authoritative answer"))
+	mustReduce(t, reducer, ModelCallStarted{CallID: "model_call_1"})
+	mustReduce(t, reducer, MessageDelta{Text: "authoritative answer"})
+	modelBatch := mustReduce(t, reducer, ModelCallCompleted{
+		CallID: "model_call_1", Message: message, Steps: 1,
+	})
+	if completed := completedItems(modelBatch); len(completed) != 1 {
+		t.Fatalf("model completion Items = %#v, want one", completed)
+	}
+	if late := mustReduce(t, reducer, MessageDelta{Text: "authoritative answer"}); len(late) != 0 {
+		t.Fatalf("late stream observation reopened a transcript Item: %#v", late)
+	}
+	if confirmation := mustReduce(t, reducer, AssistantMessageCompleted{Message: message}); len(confirmation) != 0 {
+		t.Fatalf("executor confirmation duplicated the model final: %#v", confirmation)
 	}
 }
 

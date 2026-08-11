@@ -162,6 +162,12 @@ func (r *reducer) completeModelMessage(message corechat.Message) ([]RunEvent, er
 	return r.completeAssistantMessage(semantic)
 }
 
+func messageRequestsToolCalls(message corechat.Message) bool {
+	return slices.ContainsFunc(message.Parts, func(part corechat.Part) bool {
+		return part.Kind == corechat.PartToolCall
+	})
+}
+
 func assistantMediaBlock(value *media.Media) (transcript.ContentBlock, error) {
 	if value == nil {
 		return transcript.ContentBlock{}, errors.New("assistant media is nil")

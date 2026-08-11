@@ -10,8 +10,8 @@ github.com/Tangerg/lynx v0.0.0-20260805221614-8b3e8b860d00 h1:ty+eMto74GrSu4Mcjk
 github.com/Tangerg/lynx v0.0.0-20260805221614-8b3e8b860d00/go.mod h1:+9o5hYEk9mbZ8778anUF1PjzUBfAd81Z/Bk1J4FK0Cc=
 github.com/Tangerg/lynx/a2a v0.0.0-20260803122848-6ade352dda10 h1:3/qCFIBln0tzmZyrnAPnlXpoogqrGG6YXpvOe3olMPo=
 github.com/Tangerg/lynx/a2a v0.0.0-20260803122848-6ade352dda10/go.mod h1:KYQPTw87c3ZEc1LJfSFyi2uyLUIhOnqScLUyqaGXVms=
-github.com/Tangerg/lynx/agent v0.0.0-20260811152247-8e667d716b22 h1:fRCwr8J7JmNeTG0SGz09fRPBoTYX8t6//ggu/AHT+fE=
-github.com/Tangerg/lynx/agent v0.0.0-20260811152247-8e667d716b22/go.mod h1:VNqsORyI9JmNoQISrOJtxKjPCiM7U5LGXuo6BTX3nv0=
+github.com/Tangerg/lynx/agent v0.0.0-20260811200139-20f12541cd8f h1:0GudKhRnD61s1iixPhpaII8yvQbxIeUrIvnornC0o18=
+github.com/Tangerg/lynx/agent v0.0.0-20260811200139-20f12541cd8f/go.mod h1:VNqsORyI9JmNoQISrOJtxKjPCiM7U5LGXuo6BTX3nv0=
 github.com/Tangerg/lynx/mcp v0.0.0-20260803122848-6ade352dda10 h1:b8RK8gcHO3zmqONHfqyty5/AkGLjXE4bj1h5WbzDX40=
 github.com/Tangerg/lynx/mcp v0.0.0-20260803122848-6ade352dda10/go.mod h1:UkSHEf5n+4RZ3UvfN876PZJm6beUSRx5b8AwlGXYBmw=
 github.com/Tangerg/lynx/models v0.0.0-20260803122848-6ade352dda10 h1:W3ovV267J0dOiqdH7pOsJSXb4/Sji3iVnNjnCatvP0c=
