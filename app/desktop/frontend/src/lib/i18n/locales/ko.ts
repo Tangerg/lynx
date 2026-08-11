@@ -519,6 +519,18 @@ export const ko: Record<string, string> = {
 
   // ── 워크스페이스 뷰: 도구 ──
   "tools.title": "도구",
+  "tools.diagnostics.sub":
+    "직접 실행할 수 있는 런타임 진단 도구입니다. Agent의 전체 도구 목록은 아닙니다.",
+  "tools.diagnostics.arguments": "인수(JSON 객체)",
+  "tools.diagnostics.schema": "매개변수 스키마",
+  "tools.diagnostics.run": "진단 실행",
+  "tools.diagnostics.running": "실행 중…",
+  "tools.diagnostics.result": "결과",
+  "tools.diagnostics.expand": "{{tool}} 진단 설정",
+  "tools.diagnostics.collapse": "{{tool}} 진단 닫기",
+  "tools.diagnostics.error.invalidJson": "올바른 JSON을 입력하세요.",
+  "tools.diagnostics.error.objectRequired": "인수는 JSON 객체여야 합니다.",
+  "tools.diagnostics.error.invoke": "진단에 실패했습니다.",
   "tools.family.shell": "셸",
   "tools.family.files": "파일",
   "tools.family.search": "검색",

@@ -240,16 +240,65 @@ function workspaceDataPlugin(state: VisualWorkspaceState): PluginSpec {
         key: WORKSPACE_BUILTIN_TOOLS_KEY,
         fetcher: async () =>
           [
-            { name: "shell", description: "Run a shell command", safetyClass: "exec" },
-            { name: "read_shell_output", description: "Read command output", safetyClass: "safe" },
-            { name: "read", description: "Read a file", safetyClass: "safe" },
-            { name: "apply_patch", description: "Apply a patch to files", safetyClass: "write" },
-            { name: "grep", description: "Search file contents", safetyClass: "safe" },
-            { name: "glob", description: "Find files by name", safetyClass: "safe" },
-            { name: "web_fetch", description: "Fetch a page", safetyClass: "network" },
-            { name: "set_plan", description: "Update the Plan", safetyClass: "safe" },
-            { name: "search_memory", description: "Search project memory", safetyClass: "safe" },
-            { name: "acme_deploy", description: "Ship it (unplaced, from a plugin)" },
+            {
+              name: "shell",
+              description: "Run a shell command",
+              parameters: { type: "object", required: ["command"] },
+              safetyClass: "exec",
+            },
+            {
+              name: "read_shell_output",
+              description: "Read command output",
+              parameters: { type: "object" },
+              safetyClass: "safe",
+            },
+            {
+              name: "read",
+              description: "Read a file",
+              parameters: { type: "object", required: ["path"] },
+              safetyClass: "safe",
+            },
+            {
+              name: "apply_patch",
+              description: "Apply a patch to files",
+              parameters: { type: "object" },
+              safetyClass: "write",
+            },
+            {
+              name: "grep",
+              description: "Search file contents",
+              parameters: { type: "object", required: ["query"] },
+              safetyClass: "safe",
+            },
+            {
+              name: "glob",
+              description: "Find files by name",
+              parameters: { type: "object" },
+              safetyClass: "safe",
+            },
+            {
+              name: "web_fetch",
+              description: "Fetch a page",
+              parameters: { type: "object", required: ["url"] },
+              safetyClass: "network",
+            },
+            {
+              name: "set_plan",
+              description: "Update the Plan",
+              parameters: { type: "object" },
+              safetyClass: "safe",
+            },
+            {
+              name: "search_memory",
+              description: "Search project memory",
+              parameters: { type: "object" },
+              safetyClass: "safe",
+            },
+            {
+              name: "acme_deploy",
+              description: "Ship it (unplaced, from a plugin)",
+              parameters: { type: "object" },
+            },
           ] satisfies BuiltinToolSummary[],
       });
       host.extensions.contribute(DATA_PROVIDER, {

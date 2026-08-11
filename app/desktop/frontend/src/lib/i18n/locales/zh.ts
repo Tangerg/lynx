@@ -654,6 +654,17 @@ export const zh: Record<string, string> = {
 
   // ── 工作区视图：工具 ──
   "tools.title": "工具",
+  "tools.diagnostics.sub": "可直接调用的运行时诊断工具；它有意不包含 Agent 的完整工具目录。",
+  "tools.diagnostics.arguments": "参数（JSON 对象）",
+  "tools.diagnostics.schema": "参数结构",
+  "tools.diagnostics.run": "运行诊断",
+  "tools.diagnostics.running": "运行中…",
+  "tools.diagnostics.result": "结果",
+  "tools.diagnostics.expand": "配置 {{tool}} 诊断",
+  "tools.diagnostics.collapse": "关闭 {{tool}} 诊断",
+  "tools.diagnostics.error.invalidJson": "请输入有效的 JSON。",
+  "tools.diagnostics.error.objectRequired": "参数必须是 JSON 对象。",
+  "tools.diagnostics.error.invoke": "诊断执行失败。",
   "tools.family.shell": "Shell",
   "tools.family.files": "文件",
   "tools.family.search": "搜索",

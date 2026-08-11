@@ -1,17 +1,37 @@
-// Built-in workspace view: "Tools" — what the agent can call. Two
-// catalogs with different lifecycles on one tab: the runtime's native
-// tools (tools.list — static per runtime build) and the connected MCP
-// servers (mcp.* — live 5-state lifecycle, expandable rows).
+// Built-in workspace view: "Tools". Two catalogs with different semantics and
+// lifecycles share one tab: direct runtime diagnostics (tools.list/invoke —
+// static per runtime build) and agent-connected MCP servers (mcp.* — live
+// 5-state lifecycle, expandable rows).
 
+import { useId, useRef, useState } from "react";
 import { MCP_SERVERS_PANE } from "@/plugins/builtin/settings/public/panes";
 import type { IconName } from "@/ui";
-import { Badge, DataView, Icon, SectionLabel, TextButton } from "@/ui";
+import {
+  Badge,
+  Collapsible,
+  DataView,
+  Icon,
+  PillButton,
+  Pressable,
+  SectionLabel,
+  TextArea,
+  TextButton,
+} from "@/ui";
 import { McpRow } from "./views/McpRow";
+import { cn } from "@/lib/classNames";
 import { useT } from "@/lib/i18n";
+import { rpcErrorText } from "@/lib/rpcErrors";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
+import { useActiveSessionCwd } from "@/plugins/builtin/agent/public/session";
 import { openWorkspaceSettingsPane } from "@/plugins/builtin/workspace/public/navigation";
 import { defineWorkspaceView } from "./defineWorkspaceView";
 import {
+  formatDiagnosticToolResult,
+  invokeDiagnosticTool,
+  parseDiagnosticToolArguments,
+} from "@/plugins/builtin/workspace/application/diagnosticTool";
+import {
+  type BuiltinToolRowViewModel,
   builtinToolCatalogViewModel,
   toolCatalogSubtext,
   toolCatalogViewModel,
@@ -33,16 +53,9 @@ function SectionHead({ children, count }: { children: React.ReactNode; count?: n
   );
 }
 
-/**
- * What the agent can call, in families.
- *
- * A flat alphabetical list of thirty names answers "is X here"; the families answer
- * "what can it do", which is what someone opens this for. Each row leads with the
- * glyph that same tool wears in the transcript, so a card scrolled past and an
- * entry read here are recognisably the same thing.
- */
 function BuiltinToolsSection() {
   const t = useT();
+  const cwd = useActiveSessionCwd();
   const { data, isLoading } = useBuiltinToolConfigs();
   const view = builtinToolCatalogViewModel(data ?? []);
   // No skeleton/error chrome here — the MCP DataView below owns the tab's
@@ -50,39 +63,147 @@ function BuiltinToolsSection() {
   if (isLoading || view.isEmpty) return null;
   return (
     <div className="pb-1.5">
+      <p className="px-4 pb-2 text-ui-xs leading-body text-fg-muted">
+        {t("tools.diagnostics.sub")}
+      </p>
       {view.families.map((family) => (
         <div key={family.id} className="pb-1">
           <SectionHead count={family.rows.length}>{t(family.titleKey)}</SectionHead>
           {family.rows.map((tool) => (
-            <div
-              key={tool.id}
-              className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-2.5 px-4 py-1"
-            >
-              <Icon name={tool.icon as IconName} size="xs" className="mt-1 text-fg-faint" />
-              <div className="min-w-0">
-                <div className="flex min-w-0 items-baseline gap-2">
-                  {/* Plain mono, no chip fill: with a glyph beside it and a heading
-                      above, a filled name was the third mark competing on one row —
-                      and the one chip a row still wears has to be the safety class,
-                      which is the fact that changes what a call can do to you. */}
-                  <span className="truncate font-mono text-ui-sm text-fg">{tool.name}</span>
-                  {tool.safety && (
-                    <Badge tone={tool.safety.tone} className="font-mono">
-                      {tool.safety.label}
-                    </Badge>
-                  )}
-                </div>
-                {/* Its own line rather than sharing the name's: in a dock this narrow
-                    both ended up truncated, so neither could be read. */}
-                <div className="truncate text-ui-xs text-fg-faint" title={tool.description}>
-                  {tool.description}
-                </div>
-              </div>
-            </div>
+            <DiagnosticToolRow key={`${cwd ?? ""}:${tool.id}`} tool={tool} cwd={cwd} />
           ))}
         </div>
       ))}
       <SectionHead>{t("tools.mcp")}</SectionHead>
+    </div>
+  );
+}
+
+function DiagnosticToolRow({ tool, cwd }: { tool: BuiltinToolRowViewModel; cwd?: string }) {
+  const t = useT();
+  const panelId = useId();
+  const runningRef = useRef(false);
+  const [open, setOpen] = useState(false);
+  const [argumentsText, setArgumentsText] = useState("{}");
+  const [running, setRunning] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [argumentsInvalid, setArgumentsInvalid] = useState(false);
+  const [result, setResult] = useState<string | null>(null);
+  const schema = JSON.stringify(tool.parameters, null, 2);
+
+  const invoke = async (): Promise<void> => {
+    if (runningRef.current) return;
+    const parsed = parseDiagnosticToolArguments(argumentsText);
+    if (!parsed.ok) {
+      setArgumentsInvalid(true);
+      setError(t(`tools.diagnostics.error.${parsed.reason}`));
+      return;
+    }
+
+    runningRef.current = true;
+    setRunning(true);
+    setArgumentsInvalid(false);
+    setError(null);
+    setResult(null);
+    try {
+      const value = await invokeDiagnosticTool({
+        name: tool.name,
+        arguments: parsed.value,
+        ...(cwd ? { cwd } : {}),
+      });
+      setResult(formatDiagnosticToolResult(value));
+    } catch (cause) {
+      setError(rpcErrorText(cause) ?? t("tools.diagnostics.error.invoke"));
+    } finally {
+      runningRef.current = false;
+      setRunning(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col">
+      <Pressable
+        type="button"
+        aria-expanded={open}
+        aria-controls={panelId}
+        aria-label={t(open ? "tools.diagnostics.collapse" : "tools.diagnostics.expand", {
+          tool: tool.name,
+        })}
+        onClick={() => setOpen((value) => !value)}
+        className="grid grid-cols-[14px_auto_minmax(0,1fr)] items-start gap-2.5 px-4 py-1 text-left hover:bg-hover"
+      >
+        <Icon
+          name="chevron-down"
+          size="xs"
+          className={cn("mt-1 text-fg-faint transition-transform", !open && "-rotate-90")}
+        />
+        <Icon name={tool.icon as IconName} size="xs" className="mt-1 text-fg-faint" />
+        <span className="min-w-0">
+          <span className="flex min-w-0 items-baseline gap-2">
+            <span className="truncate font-mono text-ui-sm text-fg">{tool.name}</span>
+            {tool.safety && (
+              <Badge tone={tool.safety.tone} className="font-mono">
+                {tool.safety.label}
+              </Badge>
+            )}
+          </span>
+          <span className="block truncate text-ui-xs text-fg-faint" title={tool.description}>
+            {tool.description}
+          </span>
+        </span>
+      </Pressable>
+      <Collapsible open={open}>
+        <div id={panelId} className="flex flex-col gap-2.5 px-4 pt-1 pb-3 pl-[58px]">
+          <label className="flex flex-col gap-1 text-ui-xs font-medium text-fg-muted">
+            {t("tools.diagnostics.arguments")}
+            <TextArea
+              value={argumentsText}
+              rows={5}
+              font="mono"
+              invalid={argumentsInvalid}
+              aria-invalid={argumentsInvalid}
+              disabled={running}
+              spellCheck={false}
+              onChange={(event) => {
+                setArgumentsText(event.target.value);
+                setArgumentsInvalid(false);
+                if (error) setError(null);
+              }}
+            />
+          </label>
+          <div>
+            <span className="text-ui-xs font-medium text-fg-muted">
+              {t("tools.diagnostics.schema")}
+            </span>
+            <pre className="mt-1 max-h-36 overflow-auto whitespace-pre-wrap break-words rounded-sm bg-sunken px-3 py-2 font-mono text-ui-xs leading-body text-fg-soft">
+              {schema}
+            </pre>
+          </div>
+          <div className="flex items-center gap-2">
+            <PillButton size="sm" variant="accent" disabled={running} onClick={() => void invoke()}>
+              {running ? t("tools.diagnostics.running") : t("tools.diagnostics.run")}
+            </PillButton>
+            {error && (
+              <span className="text-ui-xs text-negative" aria-live="polite">
+                {error}
+              </span>
+            )}
+          </div>
+          {result !== null && (
+            <div>
+              <span className="text-ui-xs font-medium text-fg-muted">
+                {t("tools.diagnostics.result")}
+              </span>
+              <pre
+                className="mt-1 max-h-52 overflow-auto whitespace-pre-wrap break-words rounded-sm bg-sunken px-3 py-2 font-mono text-ui-xs leading-body text-fg-soft"
+                aria-live="polite"
+              >
+                {result}
+              </pre>
+            </div>
+          )}
+        </div>
+      </Collapsible>
     </div>
   );
 }

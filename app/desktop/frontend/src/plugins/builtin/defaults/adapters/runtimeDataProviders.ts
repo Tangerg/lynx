@@ -215,6 +215,7 @@ export function registerDefaultDataProviders(host: ContributingHost): void {
       (await pageData(client().tools.list())).map((t) => ({
         name: t.name,
         description: t.description ?? "",
+        parameters: t.parameters ?? {},
         safetyClass: t.safetyClass,
       })),
   });

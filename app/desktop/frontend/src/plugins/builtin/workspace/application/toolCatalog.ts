@@ -20,6 +20,7 @@ export interface BuiltinToolRowViewModel {
   name: string;
   description: string;
   icon: string;
+  parameters: Record<string, unknown>;
   safety?: BuiltinToolSafetyPill;
 }
 
@@ -114,6 +115,7 @@ export function builtinToolCatalogViewModel(
       name: tool.name,
       description: tool.description,
       icon: TOOL_ICON_BY_NAME[tool.name] ?? GENERIC_TOOL_ICON,
+      parameters: tool.parameters,
       safety: tool.safetyClass
         ? {
             label: tool.safetyClass,

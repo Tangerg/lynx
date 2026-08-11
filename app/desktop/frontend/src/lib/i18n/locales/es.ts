@@ -528,6 +528,18 @@ export const es: Record<string, string> = {
 
   // ── Vista de espacio de trabajo: Herramientas ──
   "tools.title": "Herramientas",
+  "tools.diagnostics.sub":
+    "Diagnósticos directos del runtime. Esta lista es deliberadamente menor que el catálogo completo de herramientas del agente.",
+  "tools.diagnostics.arguments": "Argumentos (objeto JSON)",
+  "tools.diagnostics.schema": "Esquema de parámetros",
+  "tools.diagnostics.run": "Ejecutar diagnóstico",
+  "tools.diagnostics.running": "Ejecutando…",
+  "tools.diagnostics.result": "Resultado",
+  "tools.diagnostics.expand": "Configurar diagnóstico {{tool}}",
+  "tools.diagnostics.collapse": "Cerrar diagnóstico {{tool}}",
+  "tools.diagnostics.error.invalidJson": "Introduce un JSON válido.",
+  "tools.diagnostics.error.objectRequired": "Los argumentos deben ser un objeto JSON.",
+  "tools.diagnostics.error.invoke": "El diagnóstico falló.",
   "tools.family.shell": "Shell",
   "tools.family.files": "Archivos",
   "tools.family.search": "Búsqueda",

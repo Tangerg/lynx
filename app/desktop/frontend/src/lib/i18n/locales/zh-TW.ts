@@ -523,6 +523,17 @@ export const zhTW: Record<string, string> = {
 
   // ── 工作區檢視：工具 ──
   "tools.title": "工具",
+  "tools.diagnostics.sub": "可直接呼叫的執行環境診斷工具；它刻意不包含 Agent 的完整工具目錄。",
+  "tools.diagnostics.arguments": "參數（JSON 物件）",
+  "tools.diagnostics.schema": "參數結構",
+  "tools.diagnostics.run": "執行診斷",
+  "tools.diagnostics.running": "執行中…",
+  "tools.diagnostics.result": "結果",
+  "tools.diagnostics.expand": "設定 {{tool}} 診斷",
+  "tools.diagnostics.collapse": "關閉 {{tool}} 診斷",
+  "tools.diagnostics.error.invalidJson": "請輸入有效的 JSON。",
+  "tools.diagnostics.error.objectRequired": "參數必須是 JSON 物件。",
+  "tools.diagnostics.error.invoke": "診斷執行失敗。",
   "tools.family.shell": "Shell",
   "tools.family.files": "檔案",
   "tools.family.search": "搜尋",

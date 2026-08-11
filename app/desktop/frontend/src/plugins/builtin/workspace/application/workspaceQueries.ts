@@ -19,6 +19,7 @@ export interface WorkspaceFileChange {
 export interface BuiltinToolSummary {
   name: string;
   description: string;
+  parameters: Record<string, unknown>;
   safetyClass?: string;
 }
 

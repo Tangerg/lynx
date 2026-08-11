@@ -529,6 +529,18 @@ export const de: Record<string, string> = {
 
   // ── Workspace-Ansicht: Tools ──
   "tools.title": "Werkzeuge",
+  "tools.diagnostics.sub":
+    "Direkte Runtime-Diagnosen. Diese Liste ist bewusst kleiner als der vollständige Werkzeugkatalog des Agents.",
+  "tools.diagnostics.arguments": "Argumente (JSON-Objekt)",
+  "tools.diagnostics.schema": "Parameterschema",
+  "tools.diagnostics.run": "Diagnose ausführen",
+  "tools.diagnostics.running": "Wird ausgeführt…",
+  "tools.diagnostics.result": "Ergebnis",
+  "tools.diagnostics.expand": "Diagnose {{tool}} konfigurieren",
+  "tools.diagnostics.collapse": "Diagnose {{tool}} schließen",
+  "tools.diagnostics.error.invalidJson": "Gib gültiges JSON ein.",
+  "tools.diagnostics.error.objectRequired": "Die Argumente müssen ein JSON-Objekt sein.",
+  "tools.diagnostics.error.invoke": "Die Diagnose ist fehlgeschlagen.",
   "tools.family.shell": "Shell",
   "tools.family.files": "Dateien",
   "tools.family.search": "Suche",

@@ -50,9 +50,14 @@ describe("builtinToolCatalogViewModel", () => {
   it("groups runtime tools by family and keeps unplaced ones", () => {
     expect(
       builtinToolCatalogViewModel([
-        { name: "read", description: "Read files", safetyClass: "safe" },
-        { name: "think", description: "Think" },
-        { name: "shell", description: "Run a command", safetyClass: "exec" },
+        {
+          name: "read",
+          description: "Read files",
+          parameters: { type: "object" },
+          safetyClass: "safe",
+        },
+        { name: "think", description: "Think", parameters: {} },
+        { name: "shell", description: "Run a command", parameters: {}, safetyClass: "exec" },
       ]),
     ).toEqual({
       families: [
@@ -65,6 +70,7 @@ describe("builtinToolCatalogViewModel", () => {
               name: "shell",
               description: "Run a command",
               icon: "terminal",
+              parameters: {},
               safety: { label: "exec", tone: "negative" },
             },
           ],
@@ -78,6 +84,7 @@ describe("builtinToolCatalogViewModel", () => {
               name: "read",
               description: "Read files",
               icon: "eye",
+              parameters: { type: "object" },
               safety: { label: "safe", tone: "accent" },
             },
           ],
@@ -91,6 +98,7 @@ describe("builtinToolCatalogViewModel", () => {
               name: "think",
               description: "Think",
               icon: "tool",
+              parameters: {},
               safety: undefined,
             },
           ],
@@ -104,7 +112,7 @@ describe("builtinToolCatalogViewModel", () => {
   // no rows under it reads as a catalog that failed to load.
   it("omits families the runtime reported no tools for", () => {
     const view = builtinToolCatalogViewModel([
-      { name: "grep", description: "Search", safetyClass: "safe" },
+      { name: "grep", description: "Search", parameters: {}, safetyClass: "safe" },
     ]);
     expect(view.families.map((family) => family.id)).toEqual(["search"]);
   });

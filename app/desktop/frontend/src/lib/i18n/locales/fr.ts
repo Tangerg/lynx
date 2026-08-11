@@ -530,6 +530,18 @@ export const fr: Record<string, string> = {
 
   // ── Vue espace de travail : Outils ──
   "tools.title": "Outils",
+  "tools.diagnostics.sub":
+    "Diagnostics directs du runtime. Cette liste est volontairement plus courte que le catalogue complet de l’agent.",
+  "tools.diagnostics.arguments": "Arguments (objet JSON)",
+  "tools.diagnostics.schema": "Schéma des paramètres",
+  "tools.diagnostics.run": "Lancer le diagnostic",
+  "tools.diagnostics.running": "Exécution…",
+  "tools.diagnostics.result": "Résultat",
+  "tools.diagnostics.expand": "Configurer le diagnostic {{tool}}",
+  "tools.diagnostics.collapse": "Fermer le diagnostic {{tool}}",
+  "tools.diagnostics.error.invalidJson": "Saisissez un JSON valide.",
+  "tools.diagnostics.error.objectRequired": "Les arguments doivent former un objet JSON.",
+  "tools.diagnostics.error.invoke": "Le diagnostic a échoué.",
   "tools.family.shell": "Shell",
   "tools.family.files": "Fichiers",
   "tools.family.search": "Recherche",

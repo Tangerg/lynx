@@ -522,6 +522,18 @@ export const ja: Record<string, string> = {
 
   // ── ワークスペースビュー：ツール ──
   "tools.title": "ツール",
+  "tools.diagnostics.sub":
+    "直接実行できるランタイム診断です。Agent の完全なツール一覧ではありません。",
+  "tools.diagnostics.arguments": "引数（JSON オブジェクト）",
+  "tools.diagnostics.schema": "パラメータースキーマ",
+  "tools.diagnostics.run": "診断を実行",
+  "tools.diagnostics.running": "実行中…",
+  "tools.diagnostics.result": "結果",
+  "tools.diagnostics.expand": "{{tool}} 診断を設定",
+  "tools.diagnostics.collapse": "{{tool}} 診断を閉じる",
+  "tools.diagnostics.error.invalidJson": "有効な JSON を入力してください。",
+  "tools.diagnostics.error.objectRequired": "引数は JSON オブジェクトである必要があります。",
+  "tools.diagnostics.error.invoke": "診断に失敗しました。",
   "tools.family.shell": "シェル",
   "tools.family.files": "ファイル",
   "tools.family.search": "検索",
