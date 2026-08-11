@@ -1,0 +1,225 @@
+package ollama
+
+import (
+	"bytes"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"math"
+	"strings"
+	"time"
+)
+
+// These private values model only the documented /api/chat and /api/embed
+// wire used by this adapter. Keeping the wire local avoids importing Ollama's
+// daemon repository merely to issue two HTTP requests.
+
+type nativeDuration struct {
+	time.Duration
+}
+
+func (duration nativeDuration) MarshalJSON() ([]byte, error) {
+	if duration.Duration < 0 {
+		return []byte("-1"), nil
+	}
+	return json.Marshal(duration.String())
+}
+
+func (duration *nativeDuration) UnmarshalJSON(data []byte) error {
+	var value any
+	if err := json.Unmarshal(data, &value); err != nil {
+		return err
+	}
+	switch typed := value.(type) {
+	case float64:
+		if typed < 0 {
+			duration.Duration = time.Duration(math.MaxInt64)
+			return nil
+		}
+		duration.Duration = time.Duration(typed * float64(time.Second))
+		return nil
+	case string:
+		parsed, err := time.ParseDuration(typed)
+		if err != nil {
+			return err
+		}
+		if parsed < 0 {
+			parsed = time.Duration(math.MaxInt64)
+		}
+		duration.Duration = parsed
+		return nil
+	default:
+		return errors.New("ollama: duration must be a number of seconds or duration string")
+	}
+}
+
+type nativeThinkValue struct {
+	value any
+}
+
+func (value *nativeThinkValue) UnmarshalJSON(data []byte) error {
+	var boolean bool
+	if err := json.Unmarshal(data, &boolean); err == nil {
+		value.value = boolean
+		return nil
+	}
+	var level string
+	if err := json.Unmarshal(data, &level); err != nil {
+		return errors.New("ollama: think must be a boolean or one of high, medium, low, max")
+	}
+	switch level {
+	case "high", "medium", "low", "max":
+		value.value = level
+		return nil
+	default:
+		return fmt.Errorf("ollama: invalid think value %q", level)
+	}
+}
+
+func (value nativeThinkValue) MarshalJSON() ([]byte, error) {
+	return json.Marshal(value.value)
+}
+
+type nativeJSONObject struct {
+	raw json.RawMessage
+}
+
+func emptyNativeJSONObject() nativeJSONObject {
+	return nativeJSONObject{raw: json.RawMessage("{}")}
+}
+
+func (object *nativeJSONObject) UnmarshalJSON(data []byte) error {
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.UseNumber()
+	var value map[string]any
+	if err := decoder.Decode(&value); err != nil {
+		return err
+	}
+	if value == nil {
+		return errors.New("must be a JSON object")
+	}
+	object.raw = bytes.Clone(data)
+	return nil
+}
+
+func (object nativeJSONObject) MarshalJSON() ([]byte, error) {
+	if len(object.raw) == 0 {
+		return []byte("{}"), nil
+	}
+	return object.raw, nil
+}
+
+type nativeImageData []byte
+
+type nativeMessage struct {
+	Role       string            `json:"role"`
+	Content    string            `json:"content"`
+	Thinking   string            `json:"thinking,omitempty"`
+	Images     []nativeImageData `json:"images,omitempty"`
+	ToolCalls  []nativeToolCall  `json:"tool_calls,omitempty"`
+	ToolName   string            `json:"tool_name,omitempty"`
+	ToolCallID string            `json:"tool_call_id,omitempty"`
+}
+
+func (message *nativeMessage) UnmarshalJSON(data []byte) error {
+	type alias nativeMessage
+	var decoded alias
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+	*message = nativeMessage(decoded)
+	message.Role = strings.ToLower(message.Role)
+	return nil
+}
+
+type nativeToolCall struct {
+	ID       string                 `json:"id,omitempty"`
+	Function nativeToolCallFunction `json:"function"`
+}
+
+type nativeToolCallFunction struct {
+	Index     int              `json:"index"`
+	Name      string           `json:"name"`
+	Arguments nativeJSONObject `json:"arguments"`
+}
+
+type nativeTools []nativeTool
+
+type nativeTool struct {
+	Type     string             `json:"type"`
+	Items    any                `json:"items,omitempty"`
+	Function nativeToolFunction `json:"function"`
+}
+
+type nativeToolFunction struct {
+	Name        string          `json:"name"`
+	Description string          `json:"description,omitempty"`
+	Parameters  json.RawMessage `json:"parameters"`
+}
+
+type nativeChatRequest struct {
+	Model           string            `json:"model"`
+	Messages        []nativeMessage   `json:"messages"`
+	Stream          *bool             `json:"stream,omitempty"`
+	Format          json.RawMessage   `json:"format,omitempty"`
+	KeepAlive       *nativeDuration   `json:"keep_alive,omitempty"`
+	Tools           nativeTools       `json:"tools,omitempty"`
+	Options         map[string]any    `json:"options"`
+	Think           *nativeThinkValue `json:"think,omitempty"`
+	Truncate        *bool             `json:"truncate,omitempty"`
+	Shift           *bool             `json:"shift,omitempty"`
+	DebugRenderOnly bool              `json:"_debug_render_only,omitempty"`
+	Logprobs        bool              `json:"logprobs,omitempty"`
+	TopLogprobs     int               `json:"top_logprobs,omitempty"`
+}
+
+type nativeMetrics struct {
+	TotalDuration      time.Duration `json:"total_duration,omitempty"`
+	LoadDuration       time.Duration `json:"load_duration,omitempty"`
+	PromptEvalCount    int           `json:"prompt_eval_count,omitempty"`
+	PromptEvalDuration time.Duration `json:"prompt_eval_duration,omitempty"`
+	EvalCount          int           `json:"eval_count,omitempty"`
+	EvalDuration       time.Duration `json:"eval_duration,omitempty"`
+}
+
+type nativeChatResponse struct {
+	Model       string          `json:"model"`
+	RemoteModel string          `json:"remote_model,omitempty"`
+	RemoteHost  string          `json:"remote_host,omitempty"`
+	CreatedAt   time.Time       `json:"created_at"`
+	Message     nativeMessage   `json:"message"`
+	Done        bool            `json:"done"`
+	DoneReason  string          `json:"done_reason,omitempty"`
+	DebugInfo   json.RawMessage `json:"_debug_info,omitempty"`
+	Logprobs    json.RawMessage `json:"logprobs,omitempty"`
+	nativeMetrics
+	raw json.RawMessage
+}
+
+func (response *nativeChatResponse) UnmarshalJSON(data []byte) error {
+	type alias nativeChatResponse
+	var decoded alias
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+	*response = nativeChatResponse(decoded)
+	response.raw = bytes.Clone(data)
+	return nil
+}
+
+type nativeEmbedRequest struct {
+	Model      string          `json:"model"`
+	Input      any             `json:"input"`
+	KeepAlive  *nativeDuration `json:"keep_alive,omitempty"`
+	Truncate   *bool           `json:"truncate,omitempty"`
+	Dimensions int             `json:"dimensions,omitempty"`
+	Options    map[string]any  `json:"options"`
+}
+
+type nativeEmbedResponse struct {
+	Model           string        `json:"model"`
+	Embeddings      [][]float32   `json:"embeddings"`
+	TotalDuration   time.Duration `json:"total_duration,omitempty"`
+	LoadDuration    time.Duration `json:"load_duration,omitempty"`
+	PromptEvalCount int           `json:"prompt_eval_count,omitempty"`
+}

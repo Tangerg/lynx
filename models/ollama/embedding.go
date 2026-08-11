@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"net/http"
 
-	ollamaapi "github.com/ollama/ollama/api"
-
 	"github.com/Tangerg/lynx/core/embedding"
 	"github.com/Tangerg/lynx/core/metadata"
 )
@@ -57,13 +55,13 @@ func NewEmbeddingModel(cfg EmbeddingModelConfig) (*EmbeddingModel, error) {
 	}, nil
 }
 
-func (e *EmbeddingModel) buildAPIRequest(req *embedding.Request) (*ollamaapi.EmbedRequest, error) {
+func (e *EmbeddingModel) buildAPIRequest(req *embedding.Request) (*nativeEmbedRequest, error) {
 	mergedOpts, err := e.defaultOptions.Merged(req.Options)
 	if err != nil {
 		return nil, err
 	}
 
-	apiRequest, _, err := metadata.Decode[ollamaapi.EmbedRequest](mergedOpts.Extensions, EmbeddingRequestExtensionKey)
+	apiRequest, _, err := metadata.Decode[nativeEmbedRequest](mergedOpts.Extensions, EmbeddingRequestExtensionKey)
 	if err != nil {
 		return nil, err
 	}
@@ -82,7 +80,7 @@ func (e *EmbeddingModel) buildAPIRequest(req *embedding.Request) (*ollamaapi.Emb
 	return apiReq, nil
 }
 
-func (e *EmbeddingModel) buildResponse(apiResp *ollamaapi.EmbedResponse, expectedResults int) (*embedding.Response, error) {
+func (e *EmbeddingModel) buildResponse(apiResp *nativeEmbedResponse, expectedResults int) (*embedding.Response, error) {
 	if len(apiResp.Embeddings) == 0 {
 		return nil, errors.New("ollama: embed response has no embeddings")
 	}

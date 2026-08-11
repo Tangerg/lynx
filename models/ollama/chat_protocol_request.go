@@ -1,14 +1,13 @@
 package ollama
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"mime"
 	"slices"
 	"strings"
-
-	ollamaapi "github.com/ollama/ollama/api"
 
 	corechat "github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/core/media"
@@ -23,7 +22,7 @@ const (
 	protocolGeneratedToolPrefix = "ollama/generated/"
 )
 
-func mapProtocolRequest(defaults corechat.Options, req *corechat.Request, stream bool) (*ollamaapi.ChatRequest, error) {
+func mapProtocolRequest(defaults corechat.Options, req *corechat.Request, stream bool) (*nativeChatRequest, error) {
 	options := defaults.Overlay(req.Options)
 	if err := options.Validate(); err != nil {
 		return nil, fmt.Errorf("ollama: options: %w", err)
@@ -84,8 +83,8 @@ func mapProtocolRequest(defaults corechat.Options, req *corechat.Request, stream
 	return apiReq, nil
 }
 
-func decodeProtocolRequestExtension(req *corechat.Request) (*ollamaapi.ChatRequest, error) {
-	apiReq := new(ollamaapi.ChatRequest)
+func decodeProtocolRequestExtension(req *corechat.Request) (*nativeChatRequest, error) {
+	apiReq := new(nativeChatRequest)
 	raw, found := req.Extensions[RequestExtensionKey]
 	if !found {
 		return apiReq, nil
@@ -104,13 +103,13 @@ func protocolInt(name string, value int64) (int, error) {
 	return int(value), nil
 }
 
-func mapProtocolMessages(messages []corechat.Message) ([]ollamaapi.Message, error) {
-	mapped := make([]ollamaapi.Message, 0, len(messages))
+func mapProtocolMessages(messages []corechat.Message) ([]nativeMessage, error) {
+	mapped := make([]nativeMessage, 0, len(messages))
 	for i := range messages {
 		message := messages[i]
 		switch message.Role {
 		case corechat.RoleSystem:
-			mapped = append(mapped, ollamaapi.Message{Role: "system", Content: message.Text()})
+			mapped = append(mapped, nativeMessage{Role: "system", Content: message.Text()})
 		case corechat.RoleUser:
 			user, err := mapProtocolUserMessage(message)
 			if err != nil {
@@ -130,7 +129,7 @@ func mapProtocolMessages(messages []corechat.Message) ([]ollamaapi.Message, erro
 				if strings.HasPrefix(id, protocolGeneratedToolPrefix) {
 					id = ""
 				}
-				mapped = append(mapped, ollamaapi.Message{
+				mapped = append(mapped, nativeMessage{
 					Role:       "tool",
 					Content:    result.Result,
 					ToolName:   result.Name,
@@ -144,8 +143,8 @@ func mapProtocolMessages(messages []corechat.Message) ([]ollamaapi.Message, erro
 	return mapped, nil
 }
 
-func mapProtocolUserMessage(message corechat.Message) (ollamaapi.Message, error) {
-	mapped := ollamaapi.Message{Role: "user"}
+func mapProtocolUserMessage(message corechat.Message) (nativeMessage, error) {
+	mapped := nativeMessage{Role: "user"}
 	var text strings.Builder
 	for i := range message.Parts {
 		part := message.Parts[i]
@@ -155,18 +154,18 @@ func mapProtocolUserMessage(message corechat.Message) (ollamaapi.Message, error)
 		case corechat.PartMedia:
 			image, err := mapProtocolImage(part.Media)
 			if err != nil {
-				return ollamaapi.Message{}, fmt.Errorf("parts[%d]: %w", i, err)
+				return nativeMessage{}, fmt.Errorf("parts[%d]: %w", i, err)
 			}
 			mapped.Images = append(mapped.Images, image)
 		default:
-			return ollamaapi.Message{}, fmt.Errorf("parts[%d]: unsupported user part %q", i, part.Kind)
+			return nativeMessage{}, fmt.Errorf("parts[%d]: unsupported user part %q", i, part.Kind)
 		}
 	}
 	mapped.Content = text.String()
 	return mapped, nil
 }
 
-func mapProtocolImage(value *media.Media) (ollamaapi.ImageData, error) {
+func mapProtocolImage(value *media.Media) (nativeImageData, error) {
 	mediaType, _, err := mime.ParseMediaType(value.MIME)
 	if err != nil || !strings.HasPrefix(mediaType, "image/") {
 		return nil, fmt.Errorf("media MIME %q is not an image", value.MIME)
@@ -178,11 +177,11 @@ func mapProtocolImage(value *media.Media) (ollamaapi.ImageData, error) {
 	if err != nil {
 		return nil, err
 	}
-	return ollamaapi.ImageData(data), nil
+	return nativeImageData(data), nil
 }
 
-func mapProtocolAssistantMessage(message corechat.Message) (ollamaapi.Message, error) {
-	mapped := ollamaapi.Message{Role: "assistant"}
+func mapProtocolAssistantMessage(message corechat.Message) (nativeMessage, error) {
+	mapped := nativeMessage{Role: "assistant"}
 	var text, reasoning strings.Builder
 	for i := range message.Parts {
 		part := message.Parts[i]
@@ -191,30 +190,30 @@ func mapProtocolAssistantMessage(message corechat.Message) (ollamaapi.Message, e
 			text.WriteString(part.Text)
 		case corechat.PartReasoning:
 			if len(part.Signature) > 0 {
-				return ollamaapi.Message{}, fmt.Errorf("parts[%d]: reasoning signature is unsupported", i)
+				return nativeMessage{}, fmt.Errorf("parts[%d]: reasoning signature is unsupported", i)
 			}
 			reasoning.WriteString(part.Text)
 		case corechat.PartToolCall:
 			arguments, err := mapProtocolToolArguments(part.ToolCall.Arguments)
 			if err != nil {
-				return ollamaapi.Message{}, fmt.Errorf("parts[%d].tool_call.arguments: %w", i, err)
+				return nativeMessage{}, fmt.Errorf("parts[%d].tool_call.arguments: %w", i, err)
 			}
 			id := part.ToolCall.ID
 			if strings.HasPrefix(id, protocolGeneratedToolPrefix) {
 				id = ""
 			}
-			mapped.ToolCalls = append(mapped.ToolCalls, ollamaapi.ToolCall{
+			mapped.ToolCalls = append(mapped.ToolCalls, nativeToolCall{
 				ID: id,
-				Function: ollamaapi.ToolCallFunction{
+				Function: nativeToolCallFunction{
 					Index:     len(mapped.ToolCalls),
 					Name:      part.ToolCall.Name,
 					Arguments: arguments,
 				},
 			})
 		case corechat.PartMedia:
-			return ollamaapi.Message{}, fmt.Errorf("parts[%d]: assistant media is unsupported", i)
+			return nativeMessage{}, fmt.Errorf("parts[%d]: assistant media is unsupported", i)
 		default:
-			return ollamaapi.Message{}, fmt.Errorf("parts[%d]: unsupported assistant part %q", i, part.Kind)
+			return nativeMessage{}, fmt.Errorf("parts[%d]: unsupported assistant part %q", i, part.Kind)
 		}
 	}
 	mapped.Content = text.String()
@@ -222,40 +221,43 @@ func mapProtocolAssistantMessage(message corechat.Message) (ollamaapi.Message, e
 	return mapped, nil
 }
 
-func mapProtocolToolArguments(arguments string) (ollamaapi.ToolCallFunctionArguments, error) {
+func mapProtocolToolArguments(arguments string) (nativeJSONObject, error) {
 	if arguments == "" {
-		return ollamaapi.NewToolCallFunctionArguments(), nil
+		return emptyNativeJSONObject(), nil
 	}
 	var object map[string]json.RawMessage
 	if err := json.Unmarshal([]byte(arguments), &object); err != nil || object == nil {
 		if err == nil {
 			err = errors.New("must be a JSON object")
 		}
-		return ollamaapi.ToolCallFunctionArguments{}, err
+		return nativeJSONObject{}, err
 	}
-	var mapped ollamaapi.ToolCallFunctionArguments
+	var mapped nativeJSONObject
 	if err := json.Unmarshal([]byte(arguments), &mapped); err != nil {
-		return ollamaapi.ToolCallFunctionArguments{}, err
+		return nativeJSONObject{}, err
 	}
 	return mapped, nil
 }
 
-func mapProtocolTools(definitions []corechat.ToolDefinition) (ollamaapi.Tools, error) {
+func mapProtocolTools(definitions []corechat.ToolDefinition) (nativeTools, error) {
 	if len(definitions) == 0 {
 		return nil, nil
 	}
-	mapped := make(ollamaapi.Tools, 0, len(definitions))
+	mapped := make(nativeTools, 0, len(definitions))
 	for i := range definitions {
-		var parameters ollamaapi.ToolFunctionParameters
+		var parameters map[string]any
 		if err := json.Unmarshal(definitions[i].InputSchema, &parameters); err != nil {
 			return nil, fmt.Errorf("ollama: tools[%d].input_schema: %w", i, err)
 		}
-		mapped = append(mapped, ollamaapi.Tool{
+		if parameters == nil {
+			return nil, fmt.Errorf("ollama: tools[%d].input_schema must be an object", i)
+		}
+		mapped = append(mapped, nativeTool{
 			Type: "function",
-			Function: ollamaapi.ToolFunction{
+			Function: nativeToolFunction{
 				Name:        definitions[i].Name,
 				Description: definitions[i].Description,
-				Parameters:  parameters,
+				Parameters:  json.RawMessage(bytes.Clone(definitions[i].InputSchema)),
 			},
 		})
 	}

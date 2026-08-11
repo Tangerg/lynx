@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	ollamaapi "github.com/ollama/ollama/api"
-
 	corechat "github.com/Tangerg/lynx/core/chat"
 )
 
@@ -27,7 +25,7 @@ func newProtocolResponseMapper() *protocolResponseMapper {
 	return new(protocolResponseMapper)
 }
 
-func (m *protocolResponseMapper) mapResponse(requestModel string, response ollamaapi.ChatResponse) (*corechat.Response, error) {
+func (m *protocolResponseMapper) mapResponse(requestModel string, response nativeChatResponse) (*corechat.Response, error) {
 	modelName := response.Model
 	if modelName == "" {
 		modelName = requestModel
@@ -39,7 +37,7 @@ func (m *protocolResponseMapper) mapResponse(requestModel string, response ollam
 			OutputTokens: int64(response.EvalCount),
 		},
 	}
-	if err := mapped.SetExtension(ResponseExtensionKey, response); err != nil {
+	if err := mapped.SetExtension(ResponseExtensionKey, response.raw); err != nil {
 		return nil, fmt.Errorf("ollama: preserve native response: %w", err)
 	}
 
@@ -55,7 +53,7 @@ func (m *protocolResponseMapper) mapResponse(requestModel string, response ollam
 			return nil, err
 		}
 	}
-	if hasProtocolDurations(response.Metrics) {
+	if hasProtocolDurations(response.nativeMetrics) {
 		durations := map[string]int64{
 			"total":       int64(response.TotalDuration),
 			"load":        int64(response.LoadDuration),
@@ -81,7 +79,7 @@ func (m *protocolResponseMapper) mapResponse(requestModel string, response ollam
 	return mapped, nil
 }
 
-func (m *protocolResponseMapper) mapChoice(response ollamaapi.ChatResponse) (corechat.Choice, bool, error) {
+func (m *protocolResponseMapper) mapChoice(response nativeChatResponse) (corechat.Choice, bool, error) {
 	choice := corechat.Choice{Index: 0, FinishReason: normalizeProtocolDoneReason(response.DoneReason)}
 	if response.DoneReason != "" {
 		if err := choice.SetExtension(protocolNativeDoneReasonKey, response.DoneReason); err != nil {
@@ -101,7 +99,7 @@ func (m *protocolResponseMapper) mapChoice(response ollamaapi.ChatResponse) (cor
 		if toolCall.Function.Name == "" {
 			return corechat.Choice{}, false, fmt.Errorf("ollama: message.tool_calls[%d]: empty function name", i)
 		}
-		arguments, err := json.Marshal(&toolCall.Function.Arguments)
+		arguments, err := json.Marshal(toolCall.Function.Arguments)
 		if err != nil {
 			return corechat.Choice{}, false, fmt.Errorf("ollama: message.tool_calls[%d].arguments: %w", i, err)
 		}
@@ -135,7 +133,7 @@ func normalizeProtocolDoneReason(reason string) corechat.FinishReason {
 	}
 }
 
-func hasProtocolDurations(metrics ollamaapi.Metrics) bool {
+func hasProtocolDurations(metrics nativeMetrics) bool {
 	return metrics.TotalDuration != 0 || metrics.LoadDuration != 0 ||
 		metrics.PromptEvalDuration != 0 || metrics.EvalDuration != 0
 }

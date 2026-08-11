@@ -1,13 +1,22 @@
 package ollama
 
 import (
+	"bufio"
+	"bytes"
 	"cmp"
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
 	"net/http"
 	"net/url"
+)
 
-	ollamaapi "github.com/ollama/ollama/api"
+const (
+	maxNativeStreamFrameBytes = 8 << 20
+	maxNativeResponseBytes    = 64 << 20
+	maxNativeErrorBytes       = 64 << 10
 )
 
 // APIConfig configures the Ollama native client. Unlike cloud
@@ -29,11 +38,11 @@ func (c apiConfig) validate() error {
 	return nil
 }
 
-// API wraps Ollama's native client. We use the official SDK's typed
-// surface for chat/embed (the SDK is hosted at github.com/ollama/ollama/api
-// in the same repo as the daemon).
+// api is the narrow client mechanism for the two native endpoints this adapter
+// owns. It deliberately does not import Ollama's daemon module.
 type api struct {
-	client *ollamaapi.Client
+	baseURL    *url.URL
+	httpClient *http.Client
 }
 
 func newAPI(cfg apiConfig) (*api, error) {
@@ -51,23 +60,162 @@ func newAPI(cfg apiConfig) (*api, error) {
 		httpClient = http.DefaultClient
 	}
 
-	return &api{client: ollamaapi.NewClient(u, httpClient)}, nil
+	return &api{baseURL: u, httpClient: httpClient}, nil
 }
 
-// chat wraps client.chat. The Ollama SDK uses a streaming callback for
-// both sync and stream paths — Stream=false on the request still goes
-// through the callback but fires exactly once with the complete reply.
-func (a *api) chat(ctx context.Context, req *ollamaapi.ChatRequest, fn ollamaapi.ChatResponseFunc) error {
+// chat decodes Ollama's newline-delimited response for both streaming and
+// non-streaming requests. With stream=false the daemon returns one frame.
+func (a *api) chat(ctx context.Context, req *nativeChatRequest, fn func(nativeChatResponse) error) error {
 	if req == nil {
 		return errors.New("ollama: request must not be nil")
 	}
-	return a.client.Chat(ctx, req, fn)
+	return a.stream(ctx, "/api/chat", req, func(data []byte) error {
+		var response nativeChatResponse
+		if err := json.Unmarshal(data, &response); err != nil {
+			return err
+		}
+		return fn(response)
+	})
 }
 
-// embed wraps client.embed.
-func (a *api) embed(ctx context.Context, req *ollamaapi.EmbedRequest) (*ollamaapi.EmbedResponse, error) {
+func (a *api) embed(ctx context.Context, req *nativeEmbedRequest) (*nativeEmbedResponse, error) {
 	if req == nil {
 		return nil, errors.New("ollama: request must not be nil")
 	}
-	return a.client.Embed(ctx, req)
+	var response nativeEmbedResponse
+	if err := a.call(ctx, "/api/embed", req, &response); err != nil {
+		return nil, err
+	}
+	return &response, nil
+}
+
+func (a *api) call(ctx context.Context, path string, requestValue, responseValue any) error {
+	response, err := a.request(ctx, path, requestValue, "application/json")
+	if err != nil {
+		return err
+	}
+	defer response.Body.Close()
+	body, err := io.ReadAll(io.LimitReader(response.Body, maxNativeResponseBytes+1))
+	if err != nil {
+		return err
+	}
+	if len(body) > maxNativeResponseBytes {
+		return fmt.Errorf("ollama: response exceeds %d bytes", maxNativeResponseBytes)
+	}
+	if err := nativeResponseError(response, body); err != nil {
+		return err
+	}
+	if len(body) == 0 || responseValue == nil {
+		return nil
+	}
+	return json.Unmarshal(body, responseValue)
+}
+
+func (a *api) stream(
+	ctx context.Context,
+	path string,
+	requestValue any,
+	yield func([]byte) error,
+) error {
+	response, err := a.request(ctx, path, requestValue, "application/x-ndjson")
+	if err != nil {
+		return err
+	}
+	defer response.Body.Close()
+	if response.StatusCode >= http.StatusBadRequest {
+		body, readErr := io.ReadAll(io.LimitReader(response.Body, maxNativeErrorBytes+1))
+		if readErr != nil {
+			return readErr
+		}
+		if len(body) > maxNativeErrorBytes {
+			body = body[:maxNativeErrorBytes]
+		}
+		return nativeResponseError(response, body)
+	}
+
+	scanner := bufio.NewScanner(response.Body)
+	scanner.Buffer(make([]byte, 0, 64<<10), maxNativeStreamFrameBytes)
+	for scanner.Scan() {
+		data := bytes.Clone(scanner.Bytes())
+		if err := nativeResponseError(response, data); err != nil {
+			return err
+		}
+		var providerFailure struct {
+			Error string `json:"error"`
+		}
+		if err := json.Unmarshal(data, &providerFailure); err != nil {
+			return err
+		}
+		if providerFailure.Error != "" {
+			return errors.New(providerFailure.Error)
+		}
+		if err := yield(data); err != nil {
+			return err
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return fmt.Errorf("ollama: read native stream: %w", err)
+	}
+	return nil
+}
+
+func (a *api) request(
+	ctx context.Context,
+	path string,
+	requestValue any,
+	accept string,
+) (*http.Response, error) {
+	body, err := json.Marshal(requestValue)
+	if err != nil {
+		return nil, err
+	}
+	endpoint := a.baseURL.JoinPath(path)
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint.String(), bytes.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("Accept", accept)
+	request.Header.Set("User-Agent", "lynx-ollama")
+	return a.httpClient.Do(request)
+}
+
+type nativeStatusError struct {
+	statusCode int
+	status     string
+	message    string
+}
+
+func (err nativeStatusError) Error() string {
+	switch {
+	case err.status != "" && err.message != "":
+		return err.status + ": " + err.message
+	case err.status != "":
+		return err.status
+	case err.statusCode != 0 && err.message != "":
+		return fmt.Sprintf("%d: %s", err.statusCode, err.message)
+	case err.statusCode != 0:
+		return fmt.Sprintf("ollama: HTTP status %d", err.statusCode)
+	case err.message != "":
+		return err.message
+	default:
+		return "ollama: request failed"
+	}
+}
+
+func nativeResponseError(response *http.Response, body []byte) error {
+	if response.StatusCode < http.StatusBadRequest {
+		return nil
+	}
+	var providerFailure struct {
+		Error string `json:"error"`
+	}
+	if err := json.Unmarshal(body, &providerFailure); err != nil || providerFailure.Error == "" {
+		providerFailure.Error = string(body)
+	}
+	return nativeStatusError{
+		statusCode: response.StatusCode,
+		status:     response.Status,
+		message:    providerFailure.Error,
+	}
 }

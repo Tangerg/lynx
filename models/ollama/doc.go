@@ -18,4 +18,8 @@
 // as [NewEmbeddingModel]. The OpenAI-compatible /v1/embeddings path
 // works through [openai.NewEmbeddingModel] with
 // [option.WithBaseURL] pointed at "http://host:11434/v1".
+//
+// The native adapters own a narrow private HTTP wire for /api/chat and
+// /api/embed. They do not import the Ollama daemon repository; server
+// implementation packages are not a client abstraction.
 package ollama

@@ -7,8 +7,6 @@ import (
 	"iter"
 	"net/http"
 
-	ollamaapi "github.com/ollama/ollama/api"
-
 	corechat "github.com/Tangerg/lynx/core/chat"
 )
 
@@ -58,10 +56,10 @@ func (c *Chat) Call(ctx context.Context, req *corechat.Request) (*corechat.Respo
 	}
 
 	var (
-		response ollamaapi.ChatResponse
+		response nativeChatResponse
 		received bool
 	)
-	if err := c.api.chat(ctx, apiReq, func(next ollamaapi.ChatResponse) error {
+	if err := c.api.chat(ctx, apiReq, func(next nativeChatResponse) error {
 		response = next
 		received = true
 		return nil
@@ -87,7 +85,7 @@ func (c *Chat) Stream(ctx context.Context, req *corechat.Request) iter.Seq2[*cor
 
 		mapper := newProtocolResponseMapper()
 		consumerStopped := false
-		err = c.api.chat(ctx, apiReq, func(chunk ollamaapi.ChatResponse) error {
+		err = c.api.chat(ctx, apiReq, func(chunk nativeChatResponse) error {
 			mapped, mapErr := mapper.mapResponse(apiReq.Model, chunk)
 			if mapErr != nil {
 				return mapErr
@@ -104,7 +102,7 @@ func (c *Chat) Stream(ctx context.Context, req *corechat.Request) iter.Seq2[*cor
 	}
 }
 
-func (c *Chat) buildProtocolRequest(req *corechat.Request, stream bool) (*ollamaapi.ChatRequest, error) {
+func (c *Chat) buildProtocolRequest(req *corechat.Request, stream bool) (*nativeChatRequest, error) {
 	if c == nil || c.api == nil {
 		return nil, errors.New("ollama: nil Chat")
 	}

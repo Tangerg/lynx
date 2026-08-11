@@ -315,6 +315,11 @@ func assertProtocolResponse(t *testing.T, response *corechat.Response) {
 	if nativeReason != "stop" {
 		t.Errorf("native done reason = %q", nativeReason)
 	}
+	nativeResponse := decodeExtension[map[string]any](t, response.Extensions, ollama.ResponseExtensionKey)
+	future, ok := nativeResponse["future_field"].(map[string]any)
+	if !ok || future["kept"] != true {
+		t.Errorf("native response extension lost unknown provider fields: %#v", nativeResponse)
+	}
 }
 
 func decodeExtension[T any](t *testing.T, values metadata.Map, key string) T {
@@ -334,11 +339,11 @@ func writeProtocolChatStream(writer http.ResponseWriter) {
 		`{"model":"qwen3:8b","message":{"role":"assistant","thinking":"inspect colors"},"done":false}`,
 		`{"model":"qwen3:8b","message":{"role":"assistant","content":"It is a blue square."},"done":false}`,
 		`{"model":"qwen3:8b","message":{"role":"assistant","tool_calls":[{"function":{"name":"inspect","arguments":{"detail":true}}}]},"done":false}`,
-		`{"model":"qwen3:8b","created_at":"2026-07-14T12:00:00Z","message":{"role":"assistant","content":""},"done":true,"done_reason":"stop","total_duration":1250000000,"load_duration":100000000,"prompt_eval_count":11,"prompt_eval_duration":300000000,"eval_count":5,"eval_duration":700000000}`,
+		`{"model":"qwen3:8b","created_at":"2026-07-14T12:00:00Z","message":{"role":"assistant","content":""},"done":true,"done_reason":"stop","total_duration":1250000000,"load_duration":100000000,"prompt_eval_count":11,"prompt_eval_duration":300000000,"eval_count":5,"eval_duration":700000000,"future_field":{"kept":true}}`,
 	}
 	for _, chunk := range chunks {
 		fmt.Fprintln(writer, chunk)
 	}
 }
 
-const protocolChatResponseJSON = `{"model":"qwen3:8b","created_at":"2026-07-14T12:00:00Z","message":{"role":"assistant","thinking":"inspect colors","content":"It is a blue square.","tool_calls":[{"function":{"name":"inspect","arguments":{"detail":true}}}]},"done":true,"done_reason":"stop","total_duration":1250000000,"load_duration":100000000,"prompt_eval_count":11,"prompt_eval_duration":300000000,"eval_count":5,"eval_duration":700000000}`
+const protocolChatResponseJSON = `{"model":"qwen3:8b","created_at":"2026-07-14T12:00:00Z","message":{"role":"assistant","thinking":"inspect colors","content":"It is a blue square.","tool_calls":[{"function":{"name":"inspect","arguments":{"detail":true}}}]},"done":true,"done_reason":"stop","total_duration":1250000000,"load_duration":100000000,"prompt_eval_count":11,"prompt_eval_duration":300000000,"eval_count":5,"eval_duration":700000000,"future_field":{"kept":true}}`

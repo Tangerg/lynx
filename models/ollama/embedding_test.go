@@ -17,7 +17,17 @@ const ollamaEmbedJSON = `{
 }`
 
 func TestEmbeddingModel_Call_Mock(t *testing.T) {
-	srv := jsonServer(http.StatusOK, ollamaEmbedJSON, func(r *http.Request) {})
+	srv := jsonServer(http.StatusOK, ollamaEmbedJSON, func(r *http.Request) {
+		if r.URL.Path != "/api/embed" {
+			t.Errorf("path = %q, want /api/embed", r.URL.Path)
+		}
+		if accept := r.Header.Get("Accept"); accept != "application/json" {
+			t.Errorf("Accept = %q, want application/json", accept)
+		}
+		if authorization := r.Header.Get("Authorization"); authorization != "" {
+			t.Errorf("unexpected implicit credential %q", authorization)
+		}
+	})
 	t.Cleanup(srv.Close)
 
 	opts, err := embedding.NewOptions("nomic-embed-text")
