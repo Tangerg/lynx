@@ -425,6 +425,8 @@ Toolset descriptor 同源生成，不维护手写字段表。当前投影覆盖 
 > `previousPath` 仅 `renamed` 给。
 > **`Diff` 是 sum-type**（`files` ⊕ `patch`，按 `format`），不是松对象同时带两者。
 > `FileLine.text` / `DiffRow.code` / `GrepMatch.text` 是**纯文本**（不含 server 端 HTML）；高亮由客户端做。
+> `GrepMatch.path` 与 `FileEntry.path` 一样是 workspace-root-relative、slash-separated 的资源身份；搜索结果按
+> path、line、text 稳定排序，底层 grep 的绝对宿主路径不得穿过 Adapter 端口。
 
 ### 4.6 Usage / ProblemData
 
@@ -800,6 +802,9 @@ provider 的 key，读取面自然回落到 `keySource:"env"`；环境值只参�
 `agentMemory.list` / `agentMemory.add` 的 target 是闭合二选一：`scope:"project"` 必带 `workspace: WorkspaceRef`；
 `scope:"user"` 禁止 `workspace`。不再有“省略 scope 默认 project”或“user scope 带一个会被忽略的 workspace”这两种
 半有效请求。SDK 的 `workspace(ref).agentMemory` 固定绑定 project target；用户级 agent memory 走顶层 `agentMemory`。
+
+`agentDocs.list` 按 `home → projectRoot → cwd` 返回 AGENTS.md 级联。`scope` 是发现时保留的来源层，不从最终路径反推；
+`path` 是去除 symlink/平台别名后的 canonical source identity，因此同一物理文件只出现一次。
 
 ### 7.8 服务端发出的 Notification 汇总
 

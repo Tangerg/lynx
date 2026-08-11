@@ -3,9 +3,9 @@ package workspace
 import (
 	"context"
 	"errors"
+	"fmt"
 	"path/filepath"
 	"slices"
-	"strings"
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
@@ -128,16 +128,6 @@ func workspacesFromSessions(sessions []session.Session) []Summary {
 	return workspaces
 }
 
-// AgentDocScope identifies where an instruction document participates in the
-// cascade.
-type AgentDocScope string
-
-const (
-	AgentDocScopeHome        AgentDocScope = "home"
-	AgentDocScopeCWD         AgentDocScope = "cwd"
-	AgentDocScopeProjectRoot AgentDocScope = "projectRoot"
-)
-
 // AgentDoc is one discovered instruction document with its cascade scope.
 type AgentDoc struct {
 	Path  string
@@ -164,19 +154,12 @@ func (d *Discovery) AgentDocs(ctx context.Context, cwd string) ([]AgentDoc, erro
 	}
 	docs := make([]AgentDoc, 0, len(files))
 	for _, file := range files {
-		docs = append(docs, AgentDoc{Path: file.Path, Scope: agentDocScope(file.Path, root, d.scope.userHome)})
+		switch file.Scope {
+		case AgentDocScopeHome, AgentDocScopeProjectRoot, AgentDocScopeCWD:
+			docs = append(docs, AgentDoc{Path: file.Path, Scope: file.Scope})
+		default:
+			return nil, fmt.Errorf("workspace: unsupported agent document scope %q", file.Scope)
+		}
 	}
 	return docs, nil
-}
-
-func agentDocScope(path, cwd, home string) AgentDocScope {
-	dir := filepath.Dir(path)
-	switch {
-	case home != "" && dir == home:
-		return AgentDocScopeHome
-	case cwd != "" && (dir == cwd || strings.HasPrefix(path, cwd+string(filepath.Separator))):
-		return AgentDocScopeCWD
-	default:
-		return AgentDocScopeProjectRoot
-	}
 }

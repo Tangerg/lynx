@@ -49,10 +49,10 @@ func DiscoverAgentDocs(ctx context.Context, cwd, home string) ([]workspaceapp.Ag
 
 	// 1) User-level: Lyra-specific first, then generic (first-match).
 	if home != "" {
-		if err := d.try(ctx, filepath.Join(home, ".lyra", "AGENTS.md")); err != nil {
+		if err := d.try(ctx, filepath.Join(home, ".lyra", "AGENTS.md"), workspaceapp.AgentDocScopeHome); err != nil {
 			return nil, err
 		}
-		if err := d.tryFirst(ctx,
+		if err := d.tryFirst(ctx, workspaceapp.AgentDocScopeHome,
 			filepath.Join(home, ".agents", "AGENTS.md"),
 			filepath.Join(home, ".agents", "agents.md"),
 		); err != nil {
@@ -63,10 +63,14 @@ func DiscoverAgentDocs(ctx context.Context, cwd, home string) ([]workspaceapp.Ag
 	// 2) Project tree: root → leaf so deeper files end the blob.
 	root := findProjectRoot(cwd)
 	for _, dir := range dirsRootToLeaf(cwd, root) {
-		if err := d.try(ctx, filepath.Join(dir, ".lyra", "AGENTS.md")); err != nil {
+		scope := workspaceapp.AgentDocScopeProjectRoot
+		if dir == cwd {
+			scope = workspaceapp.AgentDocScopeCWD
+		}
+		if err := d.try(ctx, filepath.Join(dir, ".lyra", "AGENTS.md"), scope); err != nil {
 			return nil, err
 		}
-		if err := d.tryFirst(ctx,
+		if err := d.tryFirst(ctx, scope,
 			filepath.Join(dir, "AGENTS.md"),
 			filepath.Join(dir, "agents.md"),
 		); err != nil {
@@ -92,14 +96,17 @@ type agentDocScan struct {
 	files []workspaceapp.AgentDocFile
 }
 
-func (d *agentDocScan) try(ctx context.Context, path string) error {
+func (d *agentDocScan) try(ctx context.Context, path string, scope workspaceapp.AgentDocScope) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
 	if path == "" {
 		return nil
 	}
-	abs := filepath.Clean(path)
+	abs, err := filepath.EvalSymlinks(filepath.Clean(path))
+	if err != nil {
+		return nil
+	}
 	if _, dup := d.seen[abs]; dup {
 		return nil
 	}
@@ -108,14 +115,14 @@ func (d *agentDocScan) try(ctx context.Context, path string) error {
 		return nil
 	}
 	d.seen[abs] = struct{}{}
-	d.files = append(d.files, workspaceapp.AgentDocFile{Path: abs, Content: content})
+	d.files = append(d.files, workspaceapp.AgentDocFile{Path: abs, Content: content, Scope: scope})
 	return nil
 }
 
-func (d *agentDocScan) tryFirst(ctx context.Context, candidates ...string) error {
+func (d *agentDocScan) tryFirst(ctx context.Context, scope workspaceapp.AgentDocScope, candidates ...string) error {
 	for _, c := range candidates {
 		before := len(d.files)
-		if err := d.try(ctx, c); err != nil {
+		if err := d.try(ctx, c, scope); err != nil {
 			return err
 		}
 		if len(d.files) > before {

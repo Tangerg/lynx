@@ -226,7 +226,7 @@ P8 production cutover 已用真实 Bootstrap consumer 冻结 root stage/observe/
 | base prompt | `adapter/agentexec` | `base_prompt` + builtin reference | instruction |
 | home/projectRoot/cwd LYRA.md 级联 | Knowledge reader + composer | `user_knowledge` / `project_knowledge` | instruction |
 | pinned/recalled Memory | Agent Memory + composer | 只记录实际注入的 item ID | data |
-| AGENTS.md cascade | prompt-source discovery + composer | 只记录预算后实际渲染的 path | instruction |
+| AGENTS.md cascade | prompt-source Adapter 保留 canonical path + home/projectRoot/cwd provenance，Application 验证闭合集合，composer 只消费内容 | 只记录预算后实际渲染的 canonical path | instruction |
 | Session Plan | Plan reader + composer | `session_plan` | instruction |
 | lifecycle hook context | Hook Application + composer | 精确 SessionStart/UserPromptSubmit Part source | instruction |
 

@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/promptsource"
+	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
 )
 
 // writeFile is the test helper for laying out an AGENTS.md fixture. All discovery
@@ -53,6 +54,9 @@ func TestDiscoverAgentDocsWalksProjectTree(t *testing.T) {
 	if files[2].Content != "leaf-content" {
 		t.Fatalf("files[2] = %+v", files[2])
 	}
+	if files[0].Scope != workspaceapp.AgentDocScopeProjectRoot || files[1].Scope != workspaceapp.AgentDocScopeProjectRoot || files[2].Scope != workspaceapp.AgentDocScopeCWD {
+		t.Fatalf("scopes = %q, %q, %q; want projectRoot, projectRoot, cwd", files[0].Scope, files[1].Scope, files[2].Scope)
+	}
 }
 
 func TestDiscoverAgentDocsFallsBackToCWDWithoutGit(t *testing.T) {
@@ -84,6 +88,34 @@ func TestDiscoverAgentDocsDedupesAbsPath(t *testing.T) {
 	}
 	if len(files) != 1 {
 		t.Fatalf("len(files) = %d, want 1", len(files))
+	}
+}
+
+func TestDiscoverAgentDocsCanonicalizesAndDedupesSymlinkedUserSource(t *testing.T) {
+	home := t.TempDir()
+	root := t.TempDir()
+	mkGitDir(t, root)
+	writeFile(t, filepath.Join(home, ".lyra", "AGENTS.md"), "shared-user-source")
+	if err := os.MkdirAll(filepath.Join(home, ".agents"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(filepath.Join(home, ".lyra", "AGENTS.md"), filepath.Join(home, ".agents", "AGENTS.md")); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+
+	files, err := promptsource.DiscoverAgentDocs(t.Context(), root, home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(files) != 1 {
+		t.Fatalf("files = %+v, want one canonical user source", files)
+	}
+	want, err := filepath.EvalSymlinks(filepath.Join(home, ".lyra", "AGENTS.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if files[0].Path != want || files[0].Scope != workspaceapp.AgentDocScopeHome {
+		t.Fatalf("file = %+v, want canonical home source %q", files[0], want)
 	}
 }
 
@@ -143,8 +175,14 @@ func TestDiscoverAgentDocsUserScope(t *testing.T) {
 	if files[0].Content != "user-prefs" {
 		t.Fatalf("files[0] = %+v (want user-prefs first)", files[0])
 	}
+	if files[0].Scope != workspaceapp.AgentDocScopeHome {
+		t.Fatalf("files[0].Scope = %q, want home", files[0].Scope)
+	}
 	if files[1].Content != "project" {
 		t.Fatalf("files[1] = %+v", files[1])
+	}
+	if files[1].Scope != workspaceapp.AgentDocScopeCWD {
+		t.Fatalf("files[1].Scope = %q, want cwd", files[1].Scope)
 	}
 }
 

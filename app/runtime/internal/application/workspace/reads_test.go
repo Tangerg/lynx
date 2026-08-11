@@ -1,6 +1,7 @@
 package workspace
 
 import (
+	"context"
 	"errors"
 	"testing"
 	"time"
@@ -8,6 +9,12 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/sessionfixture"
 )
+
+type staticAgentDocFinder struct{ files []AgentDocFile }
+
+func (f staticAgentDocFinder) Find(context.Context, string, string) ([]AgentDocFile, error) {
+	return f.files, nil
+}
 
 func TestWorkspacesFromSessions(t *testing.T) {
 	t0 := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
@@ -30,21 +37,29 @@ func TestWorkspacesFromSessions(t *testing.T) {
 	}
 }
 
-func TestAgentDocScope(t *testing.T) {
-	cwd, home := "/Users/x/proj", "/Users/x"
-	cases := []struct {
-		path string
-		want AgentDocScope
-	}{
-		{"/Users/x/proj/AGENTS.md", "cwd"},
-		{"/Users/x/proj/pkg/AGENTS.md", "cwd"},
-		{"/Users/x/AGENTS.md", "home"},
-		{"/Users/x/mid/AGENTS.md", "projectRoot"},
+func TestAgentDocsPreservesDiscoveryProvenance(t *testing.T) {
+	finder := staticAgentDocFinder{files: []AgentDocFile{
+		{Path: "/home/.lyra/AGENTS.md", Scope: AgentDocScopeHome},
+		{Path: "/repo/AGENTS.md", Scope: AgentDocScopeProjectRoot},
+		{Path: "/repo/pkg/AGENTS.md", Scope: AgentDocScopeCWD},
+	}}
+	discovery := NewDiscovery(NewScope("", "/home", testPaths{}), nil, finder, nil)
+
+	docs, err := discovery.AgentDocs(t.Context(), "/repo/pkg")
+	if err != nil {
+		t.Fatalf("AgentDocs: %v", err)
 	}
-	for _, test := range cases {
-		if got := agentDocScope(test.path, cwd, home); got != test.want {
-			t.Errorf("agentDocScope(%q) = %q, want %q", test.path, got, test.want)
-		}
+	if len(docs) != 3 || docs[0].Scope != AgentDocScopeHome || docs[1].Scope != AgentDocScopeProjectRoot || docs[2].Scope != AgentDocScopeCWD {
+		t.Fatalf("AgentDocs = %+v, want finder scopes unchanged", docs)
+	}
+}
+
+func TestAgentDocsRejectsUnknownDiscoveryProvenance(t *testing.T) {
+	finder := staticAgentDocFinder{files: []AgentDocFile{{Path: "/repo/AGENTS.md", Scope: "other"}}}
+	discovery := NewDiscovery(NewScope("", "/home", testPaths{}), nil, finder, nil)
+
+	if _, err := discovery.AgentDocs(t.Context(), "/repo"); err == nil {
+		t.Fatal("AgentDocs accepted an unknown scope")
 	}
 }
 

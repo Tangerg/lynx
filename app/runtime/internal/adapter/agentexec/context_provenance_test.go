@@ -25,6 +25,10 @@ func TestSystemPromptProvenanceMatchesVisibleComposition(t *testing.T) {
 	if err := os.WriteFile(document, []byte("agent document"), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	canonicalDocument, err := filepath.EvalSymlinks(document)
+	if err != nil {
+		t.Fatal(err)
+	}
 	knowledge := &stubKnowledgeStore{home: "user rule", cwd: "workspace rule"}
 	memory := provenanceMemoryReader{items: []agentmemory.Item{{
 		ID: "memory:pinned", Content: "remember this", Pinned: true,
@@ -60,7 +64,7 @@ func TestSystemPromptProvenanceMatchesVisibleComposition(t *testing.T) {
 	}
 	if provenance.Sources[2].Reference != "memory:pinned" ||
 		provenance.Sources[2].Purpose != contextPurposeData ||
-		provenance.Sources[4].Reference != document ||
+		provenance.Sources[4].Reference != canonicalDocument ||
 		provenance.Sources[5].Reference != "session:one" {
 		t.Fatalf("provenance=%+v", provenance)
 	}

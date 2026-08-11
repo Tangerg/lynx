@@ -1,7 +1,7 @@
 // @vitest-environment node
 
 import { execFile } from "node:child_process";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import {
   createServer as createHttpServer,
   type IncomingMessage,
@@ -335,6 +335,8 @@ async function collectRunEvents(events: AsyncIterable<RunEvent>): Promise<RunEve
 describe("Go Runtime ↔ HTTP ↔ TypeScript SDK", () => {
   let environmentRoot = "";
   let root = "";
+  let runtimeHome = "";
+  let runtimeData = "";
   let baseUrl = "";
   let providerBaseUrl = "";
   let runtime: ReturnType<typeof import("node:child_process").spawn> | undefined;
@@ -346,8 +348,8 @@ describe("Go Runtime ↔ HTTP ↔ TypeScript SDK", () => {
   beforeAll(async () => {
     environmentRoot = await mkdtemp(join(tmpdir(), "lyra-runtime-e2e-"));
     root = join(environmentRoot, "workspace");
-    const runtimeHome = join(environmentRoot, "home");
-    const runtimeData = join(environmentRoot, "runtime-data");
+    runtimeHome = join(environmentRoot, "home");
+    runtimeData = join(environmentRoot, "runtime-data");
     await Promise.all([mkdir(root, { recursive: true }), mkdir(runtimeHome, { recursive: true })]);
     const managedSkillDirectory = join(runtimeData, "skills", managedSkillName);
     await mkdir(managedSkillDirectory, { recursive: true });
@@ -1715,6 +1717,157 @@ describe("Go Runtime ↔ HTTP ↔ TypeScript SDK", () => {
     await expect(client.usage.summary({ sinceDays: -1 })).rejects.toSatisfy(
       (error: unknown) => error instanceof RpcError && errorType(error.data) === "invalid_params",
     );
+  }, 30_000);
+
+  it("consumes workspace files, recipes, agent docs and hook trust through bound APIs", async () => {
+    if (!client) throw new Error("runtime client was not initialized");
+
+    const projectRoot = join(root, "workspace-side-api-project");
+    const workspaceRoot = join(projectRoot, "packages", "desktop");
+    await mkdir(workspaceRoot, { recursive: true });
+    await execFileAsync("git", ["init", "--quiet"], { cwd: projectRoot });
+
+    const projectRecipe = join(workspaceRoot, ".lyra", "recipes", "project-side-api.md");
+    const globalRecipe = join(runtimeData, "recipes", "global-side-api.md");
+    await Promise.all([
+      mkdir(join(workspaceRoot, ".lyra", "recipes"), { recursive: true }),
+      mkdir(join(projectRoot, ".lyra"), { recursive: true }),
+      mkdir(join(runtimeHome, ".lyra"), { recursive: true }),
+      mkdir(join(runtimeData, "recipes"), { recursive: true }),
+      mkdir(join(workspaceRoot, "nested"), { recursive: true }),
+    ]);
+    await Promise.all([
+      writeFile(join(workspaceRoot, "alpha.txt"), "first\nworkspace-side-api-marker\nthird\n"),
+      writeFile(join(workspaceRoot, "nested", "bravo.txt"), "workspace-side-api-marker\n"),
+      writeFile(join(workspaceRoot, ".gitignore"), "ignored.log\n"),
+      writeFile(join(workspaceRoot, "ignored.log"), "ignored marker\n"),
+      writeFile(join(projectRoot, "AGENTS.md"), "project-root instructions\n"),
+      writeFile(join(workspaceRoot, ".lyra", "AGENTS.md"), "workspace instructions\n"),
+      writeFile(join(runtimeHome, ".lyra", "AGENTS.md"), "home instructions\n"),
+      writeFile(
+        projectRecipe,
+        '---\ndescription: Project side API recipe\nargumentHint: "[target]"\n---\nReview $1\n',
+      ),
+      writeFile(
+        globalRecipe,
+        "---\ndescription: Global side API recipe\n---\nExplain $ARGUMENTS\n",
+      ),
+      writeFile(
+        join(runtimeHome, ".lyra", "hooks.json"),
+        JSON.stringify({ hooks: [{ event: "SessionStart", inject: "global hook context" }] }),
+      ),
+      writeFile(
+        join(projectRoot, ".lyra", "hooks.json"),
+        JSON.stringify({
+          hooks: [{ event: "PreToolUse", matcher: "shell", command: "true" }],
+        }),
+      ),
+    ]);
+
+    const resolved = await client.workspaces.resolve({ path: workspaceRoot });
+    const canonicalWorkspaceRoot = await realpath(workspaceRoot);
+    const canonicalRuntimeHome = await realpath(runtimeHome);
+    const canonicalRuntimeData = await realpath(runtimeData);
+    expect(resolved).toMatchObject({
+      ref: { path: canonicalWorkspaceRoot },
+      projectRoot: await realpath(projectRoot),
+      availability: "available",
+    });
+    if (!resolved.projectRoot) throw new Error("nested Git workspace omitted its project root");
+
+    const workspace = client.workspace({ path: workspaceRoot });
+    await expect(workspace.files.head({ path: "alpha.txt", lines: 2 })).resolves.toEqual({
+      path: "alpha.txt",
+      lines: [
+        { lineNumber: 1, text: "first" },
+        { lineNumber: 2, text: "workspace-side-api-marker" },
+      ],
+    });
+    await expect(workspace.files.search({ query: "workspace-side-api-marker" })).resolves.toEqual({
+      matches: [
+        { path: "alpha.txt", lineNumber: 2, text: "workspace-side-api-marker" },
+        { path: "nested/bravo.txt", lineNumber: 1, text: "workspace-side-api-marker" },
+      ],
+      total: 2,
+    });
+
+    const listed = await workspace.files.list({ recursive: true, limit: 1 }).autoPagingToArray();
+    expect(listed).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ path: "alpha.txt", name: "alpha.txt", type: "file" }),
+        expect.objectContaining({ path: "nested/bravo.txt", name: "bravo.txt", type: "file" }),
+      ]),
+    );
+    expect(listed.some((entry) => entry.path === "ignored.log")).toBe(false);
+    const includingIgnored = await workspace.files
+      .list({ recursive: true, includeIgnored: true, limit: 1 })
+      .autoPagingToArray();
+    expect(includingIgnored).toEqual(
+      expect.arrayContaining([expect.objectContaining({ path: "ignored.log", type: "file" })]),
+    );
+    await expect(workspace.files.head({ path: "../AGENTS.md" })).rejects.toSatisfy(
+      (error: unknown) =>
+        error instanceof RpcError && errorType(error.data) === "path_outside_root",
+    );
+
+    await expect(workspace.recipes.list()).resolves.toMatchObject({
+      data: expect.arrayContaining([
+        expect.objectContaining({
+          name: "project-side-api",
+          description: "Project side API recipe",
+          argumentHint: "[target]",
+          body: "Review $1",
+          scope: "project",
+          source: join(canonicalWorkspaceRoot, ".lyra", "recipes", "project-side-api.md"),
+        }),
+        expect.objectContaining({
+          name: "global-side-api",
+          description: "Global side API recipe",
+          body: "Explain $ARGUMENTS",
+          scope: "global",
+          source: join(canonicalRuntimeData, "recipes", "global-side-api.md"),
+        }),
+      ]),
+    });
+    await expect(workspace.agentDocs.list()).resolves.toEqual({
+      data: [
+        { path: join(canonicalRuntimeHome, ".lyra", "AGENTS.md"), scope: "home" },
+        { path: join(resolved.projectRoot, "AGENTS.md"), scope: "projectRoot" },
+        { path: join(canonicalWorkspaceRoot, ".lyra", "AGENTS.md"), scope: "cwd" },
+      ],
+    });
+
+    const untrusted = await workspace.hooks.list();
+    expect(untrusted).toMatchObject({
+      projectRoot: resolved.projectRoot,
+      projectTrusted: false,
+    });
+    expect(untrusted.hooks).toEqual([
+      expect.objectContaining({
+        event: "SessionStart",
+        scope: "global",
+        inject: "global hook context",
+        active: true,
+      }),
+      expect.objectContaining({
+        event: "PreToolUse",
+        scope: "project",
+        matcher: "shell",
+        command: "true",
+        active: false,
+      }),
+    ]);
+    await client.hooks.setTrust(resolved.projectRoot, true);
+    await expect(workspace.hooks.list()).resolves.toMatchObject({
+      projectRoot: resolved.projectRoot,
+      projectTrusted: true,
+      hooks: [
+        expect.objectContaining({ scope: "global", active: true }),
+        expect.objectContaining({ scope: "project", active: true }),
+      ],
+    });
+    await client.hooks.setTrust(resolved.projectRoot, false);
+    await expect(workspace.hooks.list()).resolves.toMatchObject({ projectTrusted: false });
   }, 30_000);
 
   it("invokes the direct diagnostic catalog inside its admitted workspace", async () => {
