@@ -1,13 +1,16 @@
 import { describe, expect, it } from "vitest";
+import type { ToolPreviewComponent } from "@/plugins/sdk";
 import { TOOL_ICON_BY_NAME } from "@/lib/toolFamilies";
 import {
   askUserToolPreview,
   diffToolPreviews,
   fileToolPreview,
   globToolPreview,
+  goalToolPreviews,
   grepToolPreview,
   httpToolPreviews,
   lspToolPreview,
+  planToolPreviews,
   recallToolPreviews,
   scheduleToolPreviews,
   shellToolPreviews,
@@ -15,104 +18,100 @@ import {
   delegationToolPreview,
   toolSearchPreview,
   webSearchToolPreview,
+  type ToolPreviewContribution,
 } from "./toolPreviewContributions";
 
-function Preview() {
-  return null;
+function independent<const Keys extends readonly string[]>(
+  keys: Keys,
+): Record<Keys[number], ToolPreviewComponent> {
+  return Object.fromEntries(
+    keys.map((key) => [
+      key,
+      function IndependentToolPreview() {
+        return null;
+      },
+    ]),
+  ) as unknown as Record<Keys[number], ToolPreviewComponent>;
 }
 
-const keys = (items: { key: string }[]) => items.map((item) => item.key);
+function one(key: string): ToolPreviewComponent {
+  return independent([key] as const)[key]!;
+}
+
+const keys = (items: ToolPreviewContribution[]) => items.map((item) => item.key);
+
+function allKnownPreviews(): ToolPreviewContribution[] {
+  return [
+    ...askUserToolPreview(one("ask_user")),
+    ...diffToolPreviews(independent(["edit", "write", "apply_patch"] as const)),
+    ...fileToolPreview(one("read")),
+    ...globToolPreview(one("glob")),
+    ...grepToolPreview(one("grep")),
+    ...httpToolPreviews(independent(["http_request", "web_fetch"] as const)),
+    ...lspToolPreview(one("lsp")),
+    ...planToolPreviews(independent(["enter_plan_mode", "set_plan", "exit_plan_mode"] as const)),
+    ...goalToolPreviews(independent(["create_goal", "get_goal", "report_goal_outcome"] as const)),
+    ...recallToolPreviews(
+      independent(["search_memory", "search_conversations", "read_tool_result"] as const),
+    ),
+    ...scheduleToolPreviews(
+      independent(["create_schedule", "list_schedules", "delete_schedule"] as const),
+    ),
+    ...shellToolPreviews(independent(["shell", "read_shell_output", "stop_shell"] as const)),
+    ...skillToolPreviews(
+      independent(["list_skills", "load_skill", "read_skill_resource", "propose_skill"] as const),
+    ),
+    ...delegationToolPreview(one("delegate_task")),
+    ...toolSearchPreview(one("search_tools")),
+    ...webSearchToolPreview(one("web_search")),
+  ];
+}
 
 describe("tool preview contributions", () => {
-  it("maps specialised preview families to runtime tool keys", () => {
-    expect(keys(askUserToolPreview(Preview))).toEqual(["ask_user"]);
-    expect(keys(globToolPreview(Preview))).toEqual(["glob"]);
-    expect(keys(skillToolPreviews(Preview))).toEqual([
-      "list_skills",
-      "load_skill",
-      "read_skill_resource",
-      "propose_skill",
+  it("maps every family to the runtime tool identities it owns", () => {
+    expect(
+      keys(shellToolPreviews(independent(["shell", "read_shell_output", "stop_shell"] as const))),
+    ).toEqual(["shell", "read_shell_output", "stop_shell"]);
+    expect(keys(diffToolPreviews(independent(["edit", "write", "apply_patch"] as const)))).toEqual([
+      "edit",
+      "write",
+      "apply_patch",
     ]);
-    expect(keys(webSearchToolPreview(Preview))).toEqual(["web_search"]);
+    expect(
+      keys(
+        skillToolPreviews(
+          independent([
+            "list_skills",
+            "load_skill",
+            "read_skill_resource",
+            "propose_skill",
+          ] as const),
+        ),
+      ),
+    ).toEqual(["list_skills", "load_skill", "read_skill_resource", "propose_skill"]);
+    expect(
+      keys(
+        planToolPreviews(independent(["enter_plan_mode", "set_plan", "exit_plan_mode"] as const)),
+      ),
+    ).toEqual(["enter_plan_mode", "set_plan", "exit_plan_mode"]);
+    expect(
+      keys(
+        goalToolPreviews(independent(["create_goal", "get_goal", "report_goal_outcome"] as const)),
+      ),
+    ).toEqual(["create_goal", "get_goal", "report_goal_outcome"]);
   });
 
-  it("maps workspace-backed preview families to all supported tool keys", () => {
-    expect(keys(diffToolPreviews(Preview))).toEqual(["edit", "write", "apply_patch"]);
-    expect(keys(fileToolPreview(Preview))).toEqual(["read"]);
-    expect(keys(grepToolPreview(Preview))).toEqual(["grep"]);
-    expect(keys(shellToolPreviews(Preview))).toEqual(["shell", "read_shell_output", "stop_shell"]);
-    expect(keys(delegationToolPreview(Preview))).toEqual(["delegate_task"]);
+  it("gives every known tool exactly one specialised renderer", () => {
+    const previews = allKnownPreviews();
+    const names = keys(previews);
+
+    expect(names.slice().sort()).toEqual(Object.keys(TOOL_ICON_BY_NAME).sort());
+    expect(new Set(names).size).toBe(names.length);
   });
 
-  it("maps the agent's own state and network families to their tool keys", () => {
-    expect(keys(recallToolPreviews(Preview, Preview))).toEqual([
-      "search_memory",
-      "search_conversations",
-    ]);
-    expect(keys(toolSearchPreview(Preview))).toEqual(["search_tools"]);
-    expect(keys(scheduleToolPreviews(Preview))).toEqual(["create_schedule", "list_schedules"]);
-    expect(keys(httpToolPreviews(Preview, Preview))).toEqual(["http_request", "web_fetch"]);
-  });
+  it("keeps every known tool on an independent component boundary", () => {
+    const previews = allKnownPreviews();
 
-  // Diagnostics is an `operation` of the one `lsp` tool, not a tool of its own, so
-  // there is a single registry key and the preview dispatches on the operation.
-  it("registers one key for the operation-dispatched LSP tool", () => {
-    expect(lspToolPreview(Preview)).toEqual([{ key: "lsp", component: Preview }]);
-  });
-
-  /**
-   * Every tool renders on purpose.
-   *
-   * A tool with no preview falls to the generic JSON tree, which is a fine answer —
-   * but only when someone chose it. Left implicit, a tool added on the backend
-   * arrives as an unlabelled blob and nobody notices, which is how `lsp_diagnostics`
-   * kept a renderer for a tool that no longer existed. So the decision is a list,
-   * and this checks the two lists together cover the whole catalog: adding a tool to
-   * the icon table (which every tool needs) without deciding how its result reads
-   * fails here.
-   */
-  it("gives every known tool either a specialised preview or a stated generic one", () => {
-    const specialised = new Set(
-      keys([
-        ...askUserToolPreview(Preview),
-        ...diffToolPreviews(Preview),
-        ...fileToolPreview(Preview),
-        ...globToolPreview(Preview),
-        ...grepToolPreview(Preview),
-        ...httpToolPreviews(Preview, Preview),
-        ...lspToolPreview(Preview),
-        ...recallToolPreviews(Preview, Preview),
-        ...scheduleToolPreviews(Preview),
-        ...shellToolPreviews(Preview),
-        ...skillToolPreviews(Preview),
-        ...delegationToolPreview(Preview),
-        ...toolSearchPreview(Preview),
-        ...webSearchToolPreview(Preview),
-      ]),
-    );
-    // Generic BY DECISION: each of these answers in one sentence or a receipt, and a
-    // component that wraps one sentence in a panel adds a frame, not information.
-    // enter/exit_plan_mode also report through the Plan panel and, for exit, through
-    // its own question card.
-    const genericByDesign = new Set([
-      "enter_plan_mode",
-      "exit_plan_mode",
-      "delete_schedule",
-      "read_tool_result",
-      // The plan and goal families report through their own pinned banners, which
-      // show what the plan IS and what the allowance has LEFT. A card would answer
-      // the same question a second time, frozen at the moment of the call.
-      "set_plan",
-      "create_goal",
-      "get_goal",
-      "report_goal_outcome",
-    ]);
-
-    const undecided = Object.keys(TOOL_ICON_BY_NAME).filter(
-      (name) => !specialised.has(name) && !genericByDesign.has(name),
-    );
-    expect(undecided).toEqual([]);
-    // And nothing is in both lists — a tool cannot be specialised and deliberately not.
-    expect([...genericByDesign].filter((name) => specialised.has(name))).toEqual([]);
+    expect(new Set(previews.map((preview) => preview.component)).size).toBe(previews.length);
   });
 });

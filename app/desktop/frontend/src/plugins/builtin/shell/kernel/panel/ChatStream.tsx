@@ -119,9 +119,11 @@ export function ChatStream({ onSend }: Props) {
           half-typed path across a session switch. */}
       <CwdMissingBanner key={resetKey} />
       <RunErrorBanner />
-      <div className="pointer-events-auto">
-        <Slot name="chat.banner.top" />
-      </div>
+      <Slot
+        name="chat.banner.top"
+        wrapper
+        className="pointer-events-auto flex flex-col gap-1.5 py-1.5"
+      />
     </div>
   );
 

@@ -82,9 +82,11 @@ import {
   diff,
   file,
   globPreview,
+  goalPreviews,
   grep,
   httpPreviews,
   lspPreviews,
+  planPreviews,
   recallPreviews,
   schedulePreview,
   skillPreview,
@@ -164,13 +166,15 @@ const messageRendering: PluginSpec[] = [
 // canonical snapshots carry results for — drew raw JSON in every fixture while
 // production drew the real thing. A list to be kept in sync by hand is a list that
 // drifts silently.
-export const toolRenderingPlugins: PluginSpec[] = [
+export const toolPreviewPlugins: PluginSpec[] = [
   shellPreview,
   diff,
   file,
   grep,
   globPreview,
   lspPreviews,
+  planPreviews,
+  goalPreviews,
   skillPreview,
   taskPreview,
   askUserPreview,
@@ -179,6 +183,10 @@ export const toolRenderingPlugins: PluginSpec[] = [
   toolSearchPreviewPlugin,
   schedulePreview,
   httpPreviews,
+];
+
+export const toolRenderingPlugins: PluginSpec[] = [
+  ...toolPreviewPlugins,
   toolActions,
   toolViewOpener,
   toolIcons,

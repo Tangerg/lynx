@@ -4,17 +4,19 @@
 // means a new preview plugin). This barrel only aggregates the specs for the
 // manifest.
 
-// Generic previews.
+// Workspace and command previews.
 export { shellPreview } from "./terminal";
 export { diff } from "./diff";
 export { file } from "./file";
 export { grep } from "./grep";
 
-// Specialised previews — one file per tool family.
+// Agent and integration previews.
 export { askUserPreview } from "./askUser";
 export { globPreview } from "./glob";
+export { goalPreviews } from "./goal";
 export { httpPreviews } from "./http";
 export { lspPreviews } from "./lsp";
+export { planPreviews } from "./plan";
 export { recallPreviews } from "./recall";
 export { schedulePreview } from "./schedule";
 export { skillPreview } from "./skill";

@@ -49,7 +49,6 @@ function GoalDisclosure({ goal }: { goal: GoalReadModel }) {
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -4 }}
       transition={disclosureTransition}
-      className="mt-1.5 mb-1"
     >
       <AgentActivityDisclosure
         icon="target"

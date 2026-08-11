@@ -174,6 +174,11 @@ export function projectSchedulePreviews(result: string | undefined): SchedulePre
   });
 }
 
+/** `delete_schedule` answers the exact identity it removed. */
+export function projectDeletedScheduleId(result: string | undefined): string {
+  return text(parseJsonResult(result)?.schedule_id);
+}
+
 export interface HttpPreview {
   status: number;
   duration: string;
@@ -208,6 +213,44 @@ export function projectFetchedPage(result: string | undefined): FetchedPage | un
   return { content: parsed.content, format: text(parsed.format) || "text" };
 }
 
+export interface GoalToolPreview {
+  objective: string;
+  status: string;
+  message: string;
+  budget: { runs: number; cost: number; steps: number };
+  usage: { runs: number; cost: number; steps: number };
+}
+
+/** `create_goal` and `get_goal` share the same model-facing goal view. */
+export function projectGoalToolPreview(result: string | undefined): GoalToolPreview | undefined {
+  const parsed = parseJsonResult(result);
+  const goal = record(parsed?.goal);
+  const objective = text(goal.objective);
+  const message = text(parsed?.message);
+  if (!objective && !message) return undefined;
+  const budget = record(goal.budget);
+  const usage = record(goal.usage);
+  return {
+    objective,
+    status: text(goal.status),
+    message,
+    budget: {
+      runs: number(budget.max_runs),
+      cost: number(budget.max_cost_usd),
+      steps: number(budget.max_steps),
+    },
+    usage: {
+      runs: number(usage.runs),
+      cost: number(usage.cost_usd),
+      steps: number(usage.steps),
+    },
+  };
+}
+
 function text(value: unknown): string {
   return typeof value === "string" ? value : "";
+}
+
+function number(value: unknown): number {
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
 }

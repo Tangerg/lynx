@@ -197,6 +197,7 @@ export function ReasoningBlock({ text, status, superseded = false }: Props) {
       // largest object in the turn. `border-field` and not `border-divider` — a
       // divider separates peers in a list, and at 7% ink it does not read as a
       // margin rule; this is the same job `.md blockquote` does, one step up.
+      contentClassName="ml-5 border-l border-field pt-0.5 pl-6"
     >
       <div
         ref={scrollRef}

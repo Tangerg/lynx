@@ -1,6 +1,6 @@
-// Presentation chrome shared by the built-in tool previews (the generic ones
-// in index.tsx and the per-family previews lsp / skill / task / askUser /
-// glob / webSearch).
+// Presentation chrome shared by the built-in tool previews. Every tool keeps an
+// independent component boundary; related tools reuse these material primitives
+// instead of sharing one registry renderer.
 
 // Shared container shape for the list/text inline previews. The disclosure's body
 // carries no fill of its own — the card behind it is the ground — so a text preview

@@ -128,4 +128,26 @@ describe("AgentActivityDisclosure", () => {
     const own = screen.getByRole("button", { name: /own/ }).querySelector("span[aria-hidden]");
     expect(own?.className).not.toContain("bg-surface-2");
   });
+
+  it("keeps a line shell's identity glyph visible without card chrome", () => {
+    render(
+      <AgentActivityDisclosure
+        icon="search"
+        shell="line"
+        label="quiet search"
+        open={false}
+        onToggle={() => {}}
+      >
+        body
+      </AgentActivityDisclosure>,
+    );
+
+    const mark = screen
+      .getByRole("button", { name: "quiet search" })
+      .querySelector("span[aria-hidden]");
+    expect(mark?.className).toContain("w-4");
+    expect(mark?.className).not.toContain("hidden");
+    expect(mark?.className).not.toContain("bg-surface-2");
+    expect(mark?.querySelector("svg")).toBeTruthy();
+  });
 });

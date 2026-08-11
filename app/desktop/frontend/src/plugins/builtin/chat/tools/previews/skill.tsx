@@ -1,8 +1,9 @@
-// skill preview family — a list of skill name + description entries, falling
-// back to raw text lines when the result isn't the structured catalog.
+// Skill previews — the catalog, loaded instructions, one resource and a proposal
+// are separate components. Text-shaped tools share typography, not identity.
 
 import type { ToolPreviewProps } from "@/plugins/sdk";
 import { PreviewFoot } from "@/plugins/builtin/chat/tools/public/previews/PreviewFoot";
+import { PreviewPlaceholder } from "@/plugins/builtin/chat/tools/public/previews/PreviewPlaceholder";
 import { definePlugin } from "@/plugins/sdk";
 import { TOOL_PREVIEW } from "@/plugins/sdk/kernelPoints";
 import { projectSkillPreview } from "@/plugins/builtin/chat/tools/application/specialisedPreviewProjections";
@@ -10,18 +11,16 @@ import { resultLines } from "@/plugins/builtin/chat/tools/application/toolResult
 import { skillToolPreviews } from "@/plugins/builtin/chat/tools/application/toolPreviewContributions";
 import { INLINE_PREVIEW_ROW_LIMIT, PreviewOverflow, TEXT_PREVIEW_CLASS } from "./previewChrome";
 
-function SkillPreview({ tool, onOpenView }: ToolPreviewProps) {
+function SkillCatalogPreview({ tool, onOpenView }: ToolPreviewProps) {
   const entries = projectSkillPreview(tool.result);
   if (entries.length === 0) {
-    const lines = resultLines(tool.result);
     return (
       <div className={TEXT_PREVIEW_CLASS}>
-        <div className="whitespace-pre-wrap break-words text-fg-soft">
-          {lines.slice(0, INLINE_PREVIEW_ROW_LIMIT).join("\n") ||
-            (tool.status === "running" ? "Loading…" : "(empty)")}
-        </div>
-        <PreviewOverflow count={lines.length - INLINE_PREVIEW_ROW_LIMIT} />
-        <PreviewFoot label="tools.preview.viewText" onClick={onOpenView} />
+        <PreviewPlaceholder
+          status={tool.status}
+          pending="tools.preview.pending.loadingTools"
+          idle="tools.preview.idle.noTools"
+        />
       </div>
     );
   }
@@ -44,11 +43,49 @@ function SkillPreview({ tool, onOpenView }: ToolPreviewProps) {
   );
 }
 
+function SkillTextPreview({ tool, onOpenView }: ToolPreviewProps) {
+  const lines = resultLines(tool.result);
+  return (
+    <div className={TEXT_PREVIEW_CLASS}>
+      {lines.length > 0 ? (
+        <div className="whitespace-pre-wrap break-words text-fg-soft">
+          {lines.slice(0, INLINE_PREVIEW_ROW_LIMIT).join("\n")}
+        </div>
+      ) : (
+        <PreviewPlaceholder
+          status={tool.status}
+          pending="tools.preview.pending.loadingTools"
+          idle="tools.preview.idle.empty"
+        />
+      )}
+      <PreviewOverflow count={lines.length - INLINE_PREVIEW_ROW_LIMIT} />
+      <PreviewFoot label="tools.preview.viewText" onClick={onOpenView} />
+    </div>
+  );
+}
+
+function LoadedSkillPreview(props: ToolPreviewProps) {
+  return <SkillTextPreview {...props} />;
+}
+
+function SkillResourcePreview(props: ToolPreviewProps) {
+  return <SkillTextPreview {...props} />;
+}
+
+function SkillProposalPreview(props: ToolPreviewProps) {
+  return <SkillTextPreview {...props} />;
+}
+
 export const skillPreview = definePlugin({
   name: "lyra.builtin.skill-preview",
   version: "1.0.0",
   setup({ host }) {
-    for (const preview of skillToolPreviews(SkillPreview)) {
+    for (const preview of skillToolPreviews({
+      list_skills: SkillCatalogPreview,
+      load_skill: LoadedSkillPreview,
+      read_skill_resource: SkillResourcePreview,
+      propose_skill: SkillProposalPreview,
+    })) {
       host.extensions.contribute(TOOL_PREVIEW, preview.component, { key: preview.key });
     }
   },

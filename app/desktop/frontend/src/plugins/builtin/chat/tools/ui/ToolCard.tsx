@@ -29,7 +29,7 @@ import {
   toolCardViewOpener,
   visibleToolMetaItems,
 } from "../application/toolCardModel";
-import { toolIconFor, toolRoutingKey } from "../public/toolIcon";
+import { toolCallIconFor } from "../public/toolIcon";
 import { ToolPreview } from "./ToolPreview";
 import { ToolText } from "./ToolText";
 
@@ -58,7 +58,9 @@ export function ToolCard({ tool, expanded, onToggleExpand }: Props) {
 
   return (
     <AgentActivityDisclosure
-      icon={toolRowIcon(tool)}
+      data-tool={tool.name}
+      data-status={tool.status}
+      icon={toolCallIconFor(tool)}
       tone={model.tone}
       shell={model.shell}
       label={<ToolText value={model.intent.label} />}
@@ -117,13 +119,6 @@ export function ToolCard({ tool, expanded, onToggleExpand }: Props) {
       <ToolPreview tool={tool} onOpenView={onOpenView} />
     </AgentActivityDisclosure>
   );
-}
-
-function toolRowIcon(tool: ToolCall): IconName {
-  if (tool.status === "err") return "x";
-  if (tool.status === "requires-action") return "alert";
-  if (tool.status === "denied") return "stop";
-  return toolIconFor(toolRoutingKey(tool));
 }
 
 function ToolMeta({ items, running }: { items: ToolMetaItem[]; running: boolean }) {

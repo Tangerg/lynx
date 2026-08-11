@@ -17,4 +17,15 @@ describe("ReasoningBlock disclosure policy", () => {
     fireEvent.click(trigger);
     expect(trigger.getAttribute("aria-expanded")).toBe("false");
   });
+
+  it("sets expanded reasoning apart as an indented aside instead of a card", () => {
+    render(<ReasoningBlock text="Inspect the protocol boundary" status="running" />);
+
+    const activity = screen.getByRole("button", { name: /Thinking/ }).closest("[data-shell]");
+    const body = screen.getByRole("region");
+
+    expect(activity?.getAttribute("data-shell")).toBe("line");
+    expect(body.className).toContain("border-l");
+    expect(body.className).toContain("pl-6");
+  });
 });

@@ -125,11 +125,27 @@ function DiffPreview({ tool, onOpenView }: ToolPreviewProps) {
   );
 }
 
+function EditPreview(props: ToolPreviewProps) {
+  return <DiffPreview {...props} />;
+}
+
+function WritePreview(props: ToolPreviewProps) {
+  return <DiffPreview {...props} />;
+}
+
+function ApplyPatchPreview(props: ToolPreviewProps) {
+  return <DiffPreview {...props} />;
+}
+
 export const diff = definePlugin({
   name: "lyra.builtin.diff",
   version: "1.0.0",
   setup({ host }) {
-    for (const preview of diffToolPreviews(DiffPreview)) {
+    for (const preview of diffToolPreviews({
+      edit: EditPreview,
+      write: WritePreview,
+      apply_patch: ApplyPatchPreview,
+    })) {
       host.extensions.contribute(TOOL_PREVIEW, preview.component, { key: preview.key });
     }
   },

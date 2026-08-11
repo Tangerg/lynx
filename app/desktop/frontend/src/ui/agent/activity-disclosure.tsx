@@ -31,13 +31,10 @@ type ActivityLeading = { icon: IconName; leading?: never } | { icon?: never; lea
 // four-glyph strip overran the label outright, and no row's text landed where another's
 // did. Anything a row wants to say beyond "what kind of row am I" belongs in the label
 // or the trailing slot, which can be as wide as they like.
-// The column a row's text starts on, and the step each nested level takes. 12 (the
-// row's inset) + 12 (the chevron) + 8 (the gap) — a `line` row carries no mark, so the
-// step is the chevron's width rather than the chevron plus a glyph.
-// Where a `line` row's text starts, and the step each nested level takes: the chevron
-// (12) plus its gap (12). The row itself has no left inset — the top level starts
-// exactly where the sentence above it does.
-const GUTTER = { slot: "w-5", text: "pl-6" } as const;
+// A line starts on the reading edge, then spends 12px on its chevron, two 8px
+// gaps and 16px on the unframed identity mark. Its body starts under its label.
+// Cards keep the wider 20px tray and 12px gaps inside their own inset.
+const GUTTER = { cardSlot: "w-5", lineBody: "pl-11" } as const;
 
 type AgentActivityDisclosureProps = Omit<ComponentPropsWithoutRef<"div">, "children"> &
   ActivityLeading & {
@@ -177,7 +174,8 @@ export function AgentActivityDisclosure({
           aria-label={toggleLabel}
           onClick={onToggle}
           className={cn(
-            "flex min-w-0 flex-1 items-center gap-3 py-1.5 pr-3 text-left",
+            "flex min-w-0 flex-1 items-center py-1.5 pr-3 text-left",
+            shell === "line" ? "gap-2" : "gap-3",
             // A card insets its content from its own edge; a line has no edge, so it
             // starts on the column.
             shell === "line" ? "pl-0" : "pl-3",
@@ -201,7 +199,7 @@ export function AgentActivityDisclosure({
             aria-hidden
             className={cn(
               "grid shrink-0 place-items-center",
-              shell === "line" ? "hidden" : GUTTER.slot,
+              shell === "line" ? "h-4 w-4" : GUTTER.cardSlot,
               // A framed icon gets the tray; a bare one gets a 16px box. But that box
               // is the shell's answer for ONE mark — a caller handing over its own
               // `leading` owns the size as well, and a folded wave's mark is a strip of
@@ -212,11 +210,10 @@ export function AgentActivityDisclosure({
               shell === "line" && tone === "neutral" ? "text-fg-faint" : TONE_CLASS[tone],
             )}
           >
-            {/* An indented row is a chevron and its words, nothing else: a column of
-                them each repeating the glyph of the group above was the density. A card
-                keeps its mark — it has no indent to say what it is, and the tray is
-                where tone lives. */}
-            {shell === "line" ? null : (leading ?? (icon ? <Icon name={icon} size="xs" /> : null))}
+            {/* A line keeps one bare identity mark; a card frames it. The same tool
+                therefore keeps its shape when model state changes its shell, while
+                tone remains responsible only for status. */}
+            {leading ?? (icon ? <Icon name={icon} size="xs" /> : null)}
           </span>
           {/* `truncate` needs the box to be allowed to shrink. Pinned at
               `shrink-0` it kept its full intrinsic width instead, so a long label
@@ -281,7 +278,7 @@ export function AgentActivityDisclosure({
             // belongs to what: its body has to start on its label's column. A card
             // groups with its FILL, so its body takes the card's own padding — the
             // label's column would leave 60px of empty card down the left.
-            shell === "line" ? `${GUTTER.text} pb-1.5 pr-1` : "px-3 pb-2.5",
+            shell === "line" ? `${GUTTER.lineBody} pb-1.5 pr-1` : "px-3 pb-2.5",
             contentClassName,
           )}
         >

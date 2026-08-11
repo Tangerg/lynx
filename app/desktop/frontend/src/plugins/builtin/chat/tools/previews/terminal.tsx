@@ -1,5 +1,5 @@
-// terminal preview — the shell family (shell / read_shell_output / stop_shell), all
-// terminal-style plain text.
+// Shell-family previews. They share the terminal material, but each tool owns a
+// component and can evolve without changing its siblings' rendering contract.
 
 import type { ToolPreviewProps } from "@/plugins/sdk";
 import { PreviewFoot } from "@/plugins/builtin/chat/tools/public/previews/PreviewFoot";
@@ -8,7 +8,7 @@ import { definePlugin } from "@/plugins/sdk";
 import { TOOL_PREVIEW } from "@/plugins/sdk/kernelPoints";
 import { shellToolPreviews } from "@/plugins/builtin/chat/tools/application/toolPreviewContributions";
 
-function ShellPreview({ tool, onOpenView }: ToolPreviewProps) {
+function TerminalResult({ tool, onOpenView }: ToolPreviewProps) {
   return (
     <div>
       {/* `tool.result` is the authoritative merged output — reconciled from the
@@ -24,13 +24,29 @@ function ShellPreview({ tool, onOpenView }: ToolPreviewProps) {
   );
 }
 
+function ShellCommandPreview(props: ToolPreviewProps) {
+  return <TerminalResult {...props} />;
+}
+
+function ShellOutputPreview(props: ToolPreviewProps) {
+  return <TerminalResult {...props} />;
+}
+
+function StopShellPreview(props: ToolPreviewProps) {
+  return <TerminalResult {...props} />;
+}
+
 // Previews are keyed by the tool ROUTING KEY = the wire tool `name` (§4.4 /
 // §4.4.2 display conventions).
 export const shellPreview = definePlugin({
   name: "lyra.builtin.shell",
   version: "1.0.0",
   setup({ host }) {
-    for (const preview of shellToolPreviews(ShellPreview)) {
+    for (const preview of shellToolPreviews({
+      shell: ShellCommandPreview,
+      read_shell_output: ShellOutputPreview,
+      stop_shell: StopShellPreview,
+    })) {
       host.extensions.contribute(TOOL_PREVIEW, preview.component, { key: preview.key });
     }
   },

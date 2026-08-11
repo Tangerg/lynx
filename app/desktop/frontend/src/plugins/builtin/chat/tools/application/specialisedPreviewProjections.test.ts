@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   projectAskUserAnswer,
   projectConversationHits,
+  projectDeletedScheduleId,
   projectFetchedPage,
   projectGlobPreview,
+  projectGoalToolPreview,
   projectHttpPreview,
   projectRecalledMemories,
   projectSchedulePreviews,
@@ -108,6 +110,24 @@ describe("prose tool results", () => {
 });
 
 describe("structured tool results", () => {
+  it("projects the goal receipt with budget and usage in separate axes", () => {
+    expect(
+      projectGoalToolPreview(
+        '{"goal":{"objective":"Ship the desktop","status":"active","budget":{"max_runs":8,"max_cost_usd":5},"usage":{"runs":2,"cost_usd":1.25,"steps":14}},"message":"Goal created."}',
+      ),
+    ).toEqual({
+      objective: "Ship the desktop",
+      status: "active",
+      message: "Goal created.",
+      budget: { runs: 8, cost: 5, steps: 0 },
+      usage: { runs: 2, cost: 1.25, steps: 14 },
+    });
+    expect(projectGoalToolPreview('{"goal":null,"message":"No Goal exists."}')).toMatchObject({
+      objective: "",
+      message: "No Goal exists.",
+    });
+  });
+
   it("reads one created schedule and a whole list through the same reader", () => {
     const one = projectSchedulePreviews(
       '{"schedule":{"schedule_id":"sch_1","title":"Nightly audit","cron":"0 3 * * *","instructions":"audit deps","enabled":true,"next_run_at":"2026-08-05T03:00:00Z"}}',
@@ -128,6 +148,7 @@ describe("structured tool results", () => {
         '{"schedules":[{"schedule_id":"a","cron":"@daily","enabled":false}]}',
       ),
     ).toMatchObject([{ id: "a", cron: "@daily", enabled: false }]);
+    expect(projectDeletedScheduleId('{"schedule_id":"sch_removed"}')).toBe("sch_removed");
   });
 
   it("reads an http response's status, timing and header count", () => {

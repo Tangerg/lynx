@@ -7,6 +7,7 @@
 
 import type { ToolPreviewProps } from "@/plugins/sdk";
 import { PreviewPlaceholder } from "@/plugins/builtin/chat/tools/public/previews/PreviewPlaceholder";
+import { ToolOutputPanel } from "@/plugins/builtin/chat/tools/public/previews/ToolOutputPanel";
 import { definePlugin } from "@/plugins/sdk";
 import { TOOL_PREVIEW } from "@/plugins/sdk/kernelPoints";
 import {
@@ -80,11 +81,28 @@ function ConversationRecallPreview({ tool }: ToolPreviewProps) {
   );
 }
 
+/** A byte window recovered from an offloaded result. Unlike memory and
+ * conversation search this is verbatim tool output, so it keeps program-output
+ * whitespace and the shared copy/show-all controls. */
+function StoredToolResultPreview({ tool }: ToolPreviewProps) {
+  return (
+    <ToolOutputPanel
+      output={tool.result}
+      status={tool.status}
+      idleLabel="tools.preview.idle.noOutput"
+    />
+  );
+}
+
 export const recallPreviews = definePlugin({
   name: "lyra.builtin.recall-previews",
   version: "1.0.0",
   setup({ host }) {
-    for (const preview of recallToolPreviews(MemoryRecallPreview, ConversationRecallPreview)) {
+    for (const preview of recallToolPreviews({
+      search_memory: MemoryRecallPreview,
+      search_conversations: ConversationRecallPreview,
+      read_tool_result: StoredToolResultPreview,
+    })) {
       host.extensions.contribute(TOOL_PREVIEW, preview.component, { key: preview.key });
     }
   },

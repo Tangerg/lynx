@@ -382,6 +382,22 @@ test("an opened but empty answer folds nothing behind it", async ({ page }) => {
   await expect(page.getByRole("button", { name: /steps/ })).toHaveCount(0);
 });
 
+test("expanded reasoning keeps a quiet identity mark and an aside rule", async ({ page }) => {
+  await page.goto("/visual/?fixture=agent&theme=light&state=waves");
+  await page.locator("html[data-visual-ready]").waitFor();
+
+  const reasoning = page
+    .locator("[data-slot='agent-activity-disclosure']")
+    .filter({ hasText: "Thinking" });
+  const trigger = reasoning.locator("button[aria-expanded]").first();
+  const mark = trigger.locator("span[aria-hidden]").first();
+
+  await expect(reasoning).toHaveAttribute("data-shell", "line");
+  await expect(mark.locator("svg")).toBeVisible();
+  await expect(mark).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+  await expect(reasoning.getByRole("region")).toHaveCSS("border-left-width", "1px");
+});
+
 test("an expanded tool row reports its subject and what it changed", async ({ page }) => {
   await page.goto("/visual/?fixture=agent&theme=light&state=tool-shells");
   await page.locator("html[data-visual-ready]").waitFor();
@@ -484,6 +500,13 @@ for (const theme of ["light", "dark"] as const) {
       await page.locator("html[data-visual-ready]").waitFor();
       if (state === "long-content") {
         await page.locator(".shiki-block .shiki").waitFor();
+      }
+      // The canonical tool-shell frame exists to photograph the tool grammar,
+      // so open its completed wave before capturing it. A collapsed "6 steps"
+      // row cannot catch icon, status, grouping or preview regressions in the
+      // components the state is named for.
+      if (state === "tool-shells") {
+        await page.getByRole("button", { name: /steps/ }).first().click();
       }
       // Put the transcript where it belongs BEFORE the clock stops, rather than
       // waiting to see where it lands. Ready only means the tree is mounted;

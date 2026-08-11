@@ -106,7 +106,10 @@ export const httpPreviews = definePlugin({
   name: "lyra.builtin.http-previews",
   version: "1.0.0",
   setup({ host }) {
-    for (const preview of httpToolPreviews(HttpRequestPreview, WebFetchPreview)) {
+    for (const preview of httpToolPreviews({
+      http_request: HttpRequestPreview,
+      web_fetch: WebFetchPreview,
+    })) {
       host.extensions.contribute(TOOL_PREVIEW, preview.component, { key: preview.key });
     }
   },

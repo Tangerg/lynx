@@ -1,8 +1,9 @@
 import type { ToolCall } from "@/plugins/builtin/agent/public/viewState";
-import { Pressable } from "@/ui";
+import { Icon, Pressable } from "@/ui";
 import { cn } from "@/lib/classNames";
 import { useT } from "@/lib/i18n";
 import { toolCardModel, visibleToolMetaItems } from "../application/toolCardModel";
+import { toolCallIconFor } from "../public/toolIcon";
 import { ToolPreview } from "./ToolPreview";
 import { ToolText } from "./ToolText";
 
@@ -21,9 +22,9 @@ interface Props {
  * the only thing distinguishing the levels was indent — which is why it read as one
  * undifferentiated pile.
  *
- * So the members lose the chrome and the list gets a rule between rows instead. Both
- * halves matter: the chevron and the glyph were the density, and the indent alone was
- * never going to carry the hierarchy on a page whose background is one colour.
+ * So the members lose nested disclosure chrome and the list gets a rule between
+ * rows instead. The one identity mark remains: it is the visual contract that a
+ * read, search and language query do not collapse into indistinguishable text.
  *
  * Clicking still opens the call's own preview, underneath, at the row's text column —
  * the capability is unchanged, it just is not advertised by a permanent arrow on every
@@ -37,6 +38,8 @@ export function ToolGroupMember({ tool, expanded, onToggleExpand }: Props) {
   return (
     <div>
       <Pressable
+        data-tool={tool.name}
+        data-status={tool.status}
         type="button"
         aria-expanded={expanded}
         onClick={onToggleExpand}
@@ -46,6 +49,11 @@ export function ToolGroupMember({ tool, expanded, onToggleExpand }: Props) {
           expanded && "bg-selected",
         )}
       >
+        <Icon
+          name={toolCallIconFor(tool)}
+          size="xs"
+          className={cn("shrink-0", model.isError ? "text-negative" : "text-fg-faint")}
+        />
         <ToolText
           value={model.detail ?? model.intent.label}
           className={cn(
