@@ -336,6 +336,7 @@ describe("Go Runtime ↔ HTTP ↔ TypeScript SDK", () => {
   let environmentRoot = "";
   let root = "";
   let baseUrl = "";
+  let providerBaseUrl = "";
   let runtime: ReturnType<typeof import("node:child_process").spawn> | undefined;
   let provider: ReturnType<typeof createHttpServer> | undefined;
   let providerGate: ProviderGate | undefined;
@@ -395,7 +396,7 @@ describe("Go Runtime ↔ HTTP ↔ TypeScript SDK", () => {
     if (providerAddress === null || typeof providerAddress === "string") {
       throw new Error("failed to start fake model provider");
     }
-    const providerBaseUrl = `http://127.0.0.1:${providerAddress.port}`;
+    providerBaseUrl = `http://127.0.0.1:${providerAddress.port}`;
 
     const executable = join(environmentRoot, "lyra-e2e");
     await execFileAsync("go", ["build", "-o", executable, "./cmd/lyra"], {
@@ -513,6 +514,66 @@ describe("Go Runtime ↔ HTTP ↔ TypeScript SDK", () => {
 
     streamController.abort();
     await events.return?.();
+  }, 30_000);
+
+  it("applies provider credentials and model roles through the live resolvers", async () => {
+    if (!client) throw new Error("runtime client was not initialized");
+
+    const providerId = "openai-compatible";
+    await expect(client.providers.list()).resolves.toMatchObject({
+      data: expect.arrayContaining([
+        expect.objectContaining({
+          id: providerId,
+          requiresBaseUrl: true,
+        }),
+      ]),
+    });
+    await expect(client.models.list(providerId)).resolves.toMatchObject({
+      data: [expect.objectContaining({ id: "e2e-model", provider: providerId })],
+    });
+    await expect(client.providers.test(providerId)).resolves.toEqual({ ok: true });
+
+    const updated = await client.providers.update({
+      provider: providerId,
+      apiKey: { type: "set", value: "alpha-credential-omega" },
+    });
+    expect(updated).toMatchObject({
+      id: providerId,
+      apiKeyMasked: "al****ga",
+      keySource: "stored",
+    });
+    expect(updated.apiKeyMasked).not.toContain("alpha-credential-omega");
+    await expect(client.providers.test(providerId)).resolves.toEqual({ ok: true });
+
+    await expect(
+      client.models.setUtilityRole({ provider: providerId, model: "e2e-model" }),
+    ).resolves.toEqual({ provider: providerId, model: "e2e-model" });
+    await expect(client.models.getUtilityRole()).resolves.toEqual({
+      provider: providerId,
+      model: "e2e-model",
+    });
+    await expect(
+      client.models.setEmbeddingRole({ provider: providerId, model: "e2e-model" }),
+    ).rejects.toSatisfy(
+      (error: unknown) => error instanceof RpcError && errorType(error.data) === "invalid_params",
+    );
+    await client.providers.update({
+      provider: "openai",
+      apiKey: { type: "set", value: "embedding-test-key" },
+      baseUrl: { type: "set", value: providerBaseUrl },
+    });
+    await expect(
+      client.models.setEmbeddingRole({ provider: "openai", model: "e2e-embedding" }),
+    ).resolves.toEqual({ provider: "openai", model: "e2e-embedding" });
+    await expect(client.models.getEmbeddingRole()).resolves.toEqual({
+      provider: "openai",
+      model: "e2e-embedding",
+    });
+
+    await expect(client.models.setUtilityRole({})).resolves.toEqual({});
+    await expect(client.models.setEmbeddingRole({})).resolves.toEqual({});
+    await expect(client.models.getUtilityRole()).resolves.toEqual({});
+    await expect(client.models.getEmbeddingRole()).resolves.toEqual({});
   }, 30_000);
 
   it("streams a complete run and reconciles its durable state", async () => {
@@ -1364,5 +1425,59 @@ describe("Go Runtime ↔ HTTP ↔ TypeScript SDK", () => {
 
     streamController.abort();
     await events.return?.();
+  }, 30_000);
+
+  it("invokes the direct diagnostic catalog inside its admitted workspace", async () => {
+    if (!client) throw new Error("runtime client was not initialized");
+
+    const workspaceRoot = join(root, "workspace-direct-tools");
+    await mkdir(workspaceRoot);
+    await writeFile(join(workspaceRoot, "diagnostic.txt"), "direct-tool-marker\n");
+    const session = await client.sessions.create({
+      workspace: { path: workspaceRoot },
+      title: "HTTP direct diagnostic tools",
+    });
+
+    await expect(client.workspaces.resolve(session.workspace.ref)).resolves.toMatchObject({
+      ref: session.workspace.ref,
+    });
+    await expect(client.workspaces.list()).resolves.toMatchObject({
+      data: expect.arrayContaining([
+        expect.objectContaining({
+          workspace: expect.objectContaining({ ref: session.workspace.ref }),
+        }),
+      ]),
+    });
+    await expect(client.tools.list()).resolves.toMatchObject({
+      data: expect.arrayContaining([
+        expect.objectContaining({ name: "read", safetyClass: "safe" }),
+        expect.objectContaining({ name: "glob", safetyClass: "safe" }),
+        expect.objectContaining({ name: "grep", safetyClass: "safe" }),
+      ]),
+    });
+
+    const readResult = await client.tools.invoke({
+      name: "read",
+      arguments: { path: "diagnostic.txt" },
+      workspace: session.workspace.ref,
+    });
+    expect(JSON.stringify(readResult)).toContain("direct-tool-marker");
+    const grepResult = await client.tools.invoke({
+      name: "grep",
+      arguments: { pattern: "direct-tool-marker", path: "." },
+      workspace: session.workspace.ref,
+    });
+    expect(JSON.stringify(grepResult)).toContain("diagnostic.txt");
+
+    await expect(
+      client.tools.invoke({
+        name: "read",
+        arguments: { path: "../outside.txt" },
+        workspace: session.workspace.ref,
+      }),
+    ).rejects.toSatisfy(
+      (error: unknown) =>
+        error instanceof RpcError && errorType(error.data) === "path_outside_root",
+    );
   }, 30_000);
 });

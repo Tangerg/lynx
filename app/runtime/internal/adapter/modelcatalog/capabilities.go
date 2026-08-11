@@ -4,6 +4,7 @@ package modelcatalog
 
 import (
 	"context"
+	"fmt"
 	"slices"
 
 	"github.com/Tangerg/lynx/core/chat"
@@ -55,8 +56,19 @@ func (Capabilities) LookupModel(providerID, modelID string) (modelsapp.Model, bo
 }
 
 func (Capabilities) Probe(ctx context.Context, entry provider.Provider) error {
+	providerID := llm.Provider(entry.ID)
+	if providerID.ProbeModels() {
+		models, err := remoteModelIDs(ctx, entry)
+		if err != nil {
+			return err
+		}
+		if len(models) == 0 {
+			return fmt.Errorf("modelcatalog: provider %q advertised no models", entry.ID)
+		}
+		return nil
+	}
 	client, err := llm.BuildClient(llm.ClientSpec{
-		Provider: llm.Provider(entry.ID), Model: llm.Provider(entry.ID).DefaultModel(), APIKey: entry.APIKey, BaseURL: entry.BaseURL,
+		Provider: providerID, Model: providerID.DefaultModel(), APIKey: entry.APIKey, BaseURL: entry.BaseURL,
 	})
 	if err != nil {
 		return err
@@ -69,6 +81,10 @@ func (Capabilities) Probe(ctx context.Context, entry provider.Provider) error {
 }
 
 func (Capabilities) ListModels(ctx context.Context, entry provider.Provider) ([]string, error) {
+	return remoteModelIDs(ctx, entry)
+}
+
+func remoteModelIDs(ctx context.Context, entry provider.Provider) ([]string, error) {
 	value := llm.Provider(entry.ID)
 	baseURL := entry.BaseURL
 	if baseURL == "" {
