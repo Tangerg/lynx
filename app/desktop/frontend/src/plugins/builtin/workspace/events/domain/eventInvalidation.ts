@@ -1,12 +1,20 @@
 export type WorkspaceInvalidationTarget =
   | "all"
   | "agentSessionProjection"
+  | "agentDocs"
   | "diff"
+  | "fileHead"
+  | "fileList"
+  | "fileRead"
   | "filesChanged"
   | "goal"
+  | "grep"
+  | "hooks"
+  | "knowledge"
   | "mcpServers"
   | "mcpTools"
   | "pendingWork"
+  | "recipes"
   | "schedules"
   | "sessionUsage"
   | "sessions"
@@ -50,7 +58,22 @@ export interface WorkspaceEventLike {
 export function workspaceInvalidations(ev: WorkspaceEventLike): WorkspaceInvalidationTarget[] {
   switch (ev.type) {
     case "files.changed":
-      return ["filesChanged", "diff"];
+      // Every read below is derived from files under the workspace. Keeping only
+      // the VCS projections fresh leaves an open file, the lazy tree, completion,
+      // search, and file-backed catalogs stale for their five-minute cache life.
+      return [
+        "filesChanged",
+        "diff",
+        "fileList",
+        "fileRead",
+        "fileHead",
+        "grep",
+        "recipes",
+        "hooks",
+        "knowledge",
+        "agentDocs",
+        "skills",
+      ];
     case "skills.changed":
       return ["skills", "managedSkills", "skillProposals"];
     case "mcp.changed":

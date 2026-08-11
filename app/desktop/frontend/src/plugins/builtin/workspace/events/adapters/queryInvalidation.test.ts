@@ -50,9 +50,19 @@ describe("workspace session projection invalidation", () => {
       topics: ["files.changed"],
     });
 
-    expect(invalidateQueries).toHaveBeenCalledTimes(2);
-    expect(invalidateQueries).toHaveBeenNthCalledWith(1, { queryKey: ["files-changed"] });
-    expect(invalidateQueries).toHaveBeenNthCalledWith(2, { queryKey: ["diff"] });
+    expect(invalidateQueries.mock.calls.map(([options]) => options.queryKey[0])).toEqual([
+      "files-changed",
+      "diff",
+      "list-files",
+      "read-file",
+      "file-head",
+      "grep",
+      "recipes",
+      "hooks",
+      "knowledge",
+      "agent-docs",
+      "skills",
+    ]);
     expect(synchronizeMountedAgentSessions).not.toHaveBeenCalled();
   });
 });

@@ -6,6 +6,8 @@ import {
 } from "@/plugins/builtin/agent/public/session";
 import { PENDING_WORK_KEY } from "@/plugins/builtin/agent/public/hitl";
 import { GOAL_KEY } from "@/plugins/builtin/chat/goal/public/queries";
+import { RECIPES_KEY } from "@/plugins/builtin/chat/recipes/public/queries";
+import { HOOKS_KEY } from "@/plugins/builtin/settings/hooks/public/queries";
 import { SCHEDULES_KEY } from "@/plugins/builtin/settings/schedules/public/queries";
 import {
   MCP_SERVERS_KEY,
@@ -14,7 +16,13 @@ import {
 import {
   WORKSPACE_DIFF_KEY,
   WORKSPACE_FILES_CHANGED_KEY,
+  WORKSPACE_FILE_HEAD_KEY,
+  WORKSPACE_GREP_KEY,
+  WORKSPACE_AGENT_DOCS_KEY,
+  WORKSPACE_KNOWLEDGE_KEY,
+  WORKSPACE_LIST_FILES_KEY,
   WORKSPACE_MANAGED_SKILLS_KEY,
+  WORKSPACE_READ_FILE_KEY,
   WORKSPACE_SKILLS_KEY,
   WORKSPACE_SKILL_PROPOSALS_KEY,
 } from "@/plugins/builtin/workspace/public/queries";
@@ -28,12 +36,20 @@ const QUERY_KEYS: Record<
   Exclude<WorkspaceInvalidationTarget, "all" | "agentSessionProjection">,
   string
 > = {
+  agentDocs: WORKSPACE_AGENT_DOCS_KEY,
   diff: WORKSPACE_DIFF_KEY,
+  fileHead: WORKSPACE_FILE_HEAD_KEY,
+  fileList: WORKSPACE_LIST_FILES_KEY,
+  fileRead: WORKSPACE_READ_FILE_KEY,
   filesChanged: WORKSPACE_FILES_CHANGED_KEY,
   goal: GOAL_KEY,
+  grep: WORKSPACE_GREP_KEY,
+  hooks: HOOKS_KEY,
+  knowledge: WORKSPACE_KNOWLEDGE_KEY,
   mcpServers: MCP_SERVERS_KEY,
   mcpTools: MCP_TOOLS_KEY,
   pendingWork: PENDING_WORK_KEY,
+  recipes: RECIPES_KEY,
   schedules: SCHEDULES_KEY,
   sessions: AGENT_SESSIONS_KEY,
   sessionUsage: AGENT_SESSION_USAGE_KEY,

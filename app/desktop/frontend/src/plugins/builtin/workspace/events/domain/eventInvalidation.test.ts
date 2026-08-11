@@ -6,6 +6,15 @@ describe("workspaceInvalidations", () => {
     expect(workspaceInvalidations({ type: "files.changed", sequence: 1 })).toEqual([
       "filesChanged",
       "diff",
+      "fileList",
+      "fileRead",
+      "fileHead",
+      "grep",
+      "recipes",
+      "hooks",
+      "knowledge",
+      "agentDocs",
+      "skills",
     ]);
     expect(workspaceInvalidations({ type: "skills.changed", sequence: 2 })).toEqual([
       "skills",
@@ -26,7 +35,20 @@ describe("workspaceInvalidations", () => {
         sequence: 6,
         topics: ["files.changed", "goals.changed", "files.changed"],
       }),
-    ).toEqual(["filesChanged", "diff", "goal"]);
+    ).toEqual([
+      "filesChanged",
+      "diff",
+      "fileList",
+      "fileRead",
+      "fileHead",
+      "grep",
+      "recipes",
+      "hooks",
+      "knowledge",
+      "agentDocs",
+      "skills",
+      "goal",
+    ]);
     expect(workspaceInvalidations({ type: "resync", sequence: 7 })).toEqual(["all"]);
   });
 
