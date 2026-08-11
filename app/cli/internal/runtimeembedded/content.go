@@ -3,7 +3,9 @@ package runtimeembedded
 import (
 	"context"
 	"encoding/base64"
+	"errors"
 	"fmt"
+	"io"
 	"mime"
 	"os"
 	"path/filepath"
@@ -16,7 +18,52 @@ import (
 
 const maximumAttachmentBytes = 20 << 20
 
-var readFile = os.ReadFile
+type attachmentTooLargeError struct {
+	maximumBytes int64
+}
+
+func (e attachmentTooLargeError) Error() string {
+	return fmt.Sprintf("file exceeds %d bytes", e.maximumBytes)
+}
+
+type attachmentLoader func(context.Context, string, int64) ([]byte, error)
+
+func loadAttachmentFile(ctx context.Context, path string, maximumBytes int64) (_ []byte, err error) {
+	if err := context.Cause(ctx); err != nil {
+		return nil, err
+	}
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		err = errors.Join(err, file.Close())
+	}()
+
+	data, err := io.ReadAll(io.LimitReader(contextReader{Context: ctx, Reader: file}, maximumBytes+1))
+	if err != nil {
+		return nil, err
+	}
+	if err := context.Cause(ctx); err != nil {
+		return nil, err
+	}
+	if int64(len(data)) > maximumBytes {
+		return nil, attachmentTooLargeError{maximumBytes: maximumBytes}
+	}
+	return data, nil
+}
+
+type contextReader struct {
+	context.Context
+	io.Reader
+}
+
+func (r contextReader) Read(buffer []byte) (int, error) {
+	if err := context.Cause(r.Context); err != nil {
+		return 0, err
+	}
+	return r.Reader.Read(buffer)
+}
 
 func (r *Runtime) projectInput(ctx context.Context, message agent.Message) ([]protocol.ContentBlock, error) {
 	if err := message.Validate(); err != nil {
@@ -30,12 +77,9 @@ func (r *Runtime) projectInput(ctx context.Context, message agent.Message) ([]pr
 		if err := context.Cause(ctx); err != nil {
 			return nil, err
 		}
-		data, err := r.readFile(attachment.Path)
+		data, err := r.loadAttachment(ctx, attachment.Path, maximumAttachmentBytes)
 		if err != nil {
 			return nil, fmt.Errorf("read attachment %q: %w", attachment.Name, err)
-		}
-		if len(data) > maximumAttachmentBytes {
-			return nil, fmt.Errorf("read attachment %q: file exceeds %d bytes", attachment.Name, maximumAttachmentBytes)
 		}
 		if err := context.Cause(ctx); err != nil {
 			return nil, err

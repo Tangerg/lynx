@@ -1,7 +1,9 @@
 package runtimeembedded
 
 import (
+	"context"
 	"encoding/base64"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -22,7 +24,7 @@ func TestProjectInputReadsTypedAttachmentsAtDispatch(t *testing.T) {
 	if err := os.WriteFile(imagePath, image, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	runtime := &Runtime{readFile: readFile}
+	runtime := &Runtime{loadAttachment: loadAttachmentFile}
 	blocks, err := runtime.projectInput(t.Context(), agent.Message{
 		Text: "prompt",
 		Attachments: []agent.Attachment{
@@ -37,6 +39,57 @@ func TestProjectInputReadsTypedAttachmentsAtDispatch(t *testing.T) {
 		blocks[1].Type != protocol.ContentBlockText || blocks[2].Type != protocol.ContentBlockImage ||
 		blocks[2].Data != base64.StdEncoding.EncodeToString(image) {
 		t.Fatalf("blocks = %+v", blocks)
+	}
+}
+
+func TestLoadAttachmentFileEnforcesTheReadLimit(t *testing.T) {
+	tests := []struct {
+		name      string
+		content   string
+		wantError bool
+	}{
+		{name: "at limit", content: "12345678"},
+		{name: "over limit", content: "123456789", wantError: true},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "attachment.txt")
+			if err := os.WriteFile(path, []byte(test.content), 0o600); err != nil {
+				t.Fatal(err)
+			}
+
+			data, err := loadAttachmentFile(t.Context(), path, 8)
+			if !test.wantError {
+				if err != nil || string(data) != test.content {
+					t.Fatalf("loadAttachmentFile = (%q, %v), want (%q, nil)", data, err, test.content)
+				}
+				return
+			}
+			var sizeError attachmentTooLargeError
+			if !errors.As(err, &sizeError) || sizeError.maximumBytes != 8 {
+				t.Fatalf("loadAttachmentFile error = %v, want 8-byte attachmentTooLargeError", err)
+			}
+			if data != nil {
+				t.Fatalf("loadAttachmentFile data = %q, want nil", data)
+			}
+		})
+	}
+}
+
+func TestLoadAttachmentFileHonorsCancellation(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "attachment.txt")
+	if err := os.WriteFile(path, []byte("content"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	data, err := loadAttachmentFile(ctx, path, 8)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("loadAttachmentFile error = %v, want context.Canceled", err)
+	}
+	if data != nil {
+		t.Fatalf("loadAttachmentFile data = %q, want nil", data)
 	}
 }
 

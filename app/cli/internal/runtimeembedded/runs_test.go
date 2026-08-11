@@ -77,7 +77,7 @@ func TestStartRunMapsOptionsAndProjectsAtomicStream(t *testing.T) {
 			}, nil)
 		}, nil
 	}
-	runtime := &Runtime{runs: stub, meta: requestMeta("test"), readFile: readFile}
+	runtime := &Runtime{runs: stub, meta: requestMeta("test"), loadAttachment: loadAttachmentFile}
 	stream, err := runtime.StartRun(t.Context(), agent.StartRun{
 		SessionID: "ses_1", Message: agent.Message{Text: "hello"},
 	})
@@ -197,7 +197,7 @@ func TestSteerRunBindsStructuredInputToTheObservedSegment(t *testing.T) {
 		}
 		return protocol.ErrStaleSegment
 	}
-	runtime := &Runtime{runs: stub, meta: requestMeta("test"), readFile: readFile}
+	runtime := &Runtime{runs: stub, meta: requestMeta("test"), loadAttachment: loadAttachmentFile}
 	err := runtime.SteerRun(t.Context(), agent.SteerRun{
 		RunID: "run_1", SegmentID: "seg_2", Message: agent.Message{Text: "focus on the parser"},
 	})

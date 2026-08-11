@@ -64,7 +64,7 @@ type Runtime struct {
 	hookPort         *hookAdapter
 	feedbackPort     *feedbackAdapter
 	meta             protocol.RequestMeta
-	readFile         func(string) ([]byte, error)
+	loadAttachment   attachmentLoader
 	supportedTopics  map[changefeed.Topic]struct{}
 	enabledFeatures  map[string]struct{}
 	maxChangeTopics  int
@@ -108,7 +108,7 @@ func Open(ctx context.Context, cfg Config) (*Runtime, error) {
 		hooks:            binding,
 		feedback:         binding,
 		meta:             requestMeta(cfg.ClientVersion),
-		readFile:         readFile,
+		loadAttachment:   loadAttachmentFile,
 		supportedTopics:  make(map[changefeed.Topic]struct{}),
 		enabledFeatures:  make(map[string]struct{}),
 	}
