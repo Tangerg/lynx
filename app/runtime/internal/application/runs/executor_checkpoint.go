@@ -23,11 +23,11 @@ var ErrInvalidExecutorCheckpoint = errors.New("invalid executor checkpoint")
 // every delegated child. Sessions, workspace isolation, and autonomous-goal
 // leases are host facts, not planner state.
 type ExecutionScope struct {
-	SessionID    string
-	CWD          string
-	WorkspaceCWD string
-	Isolated     bool
-	GoalLeaseID  string
+	SessionID         string
+	CWD               string
+	WorkspaceCWD      string
+	Isolated          bool
+	GoalIncarnationID string
 }
 
 // Validate rejects ambiguous host identities before they cross a durable
@@ -43,7 +43,7 @@ func (s ExecutionScope) Validate() error {
 		{name: "session ID", value: s.SessionID},
 		{name: "working dir", value: s.CWD},
 		{name: "workspace dir", value: s.WorkspaceCWD},
-		{name: "goal lease ID", value: s.GoalLeaseID},
+		{name: "goal incarnation ID", value: s.GoalIncarnationID},
 	} {
 		if field.value != strings.TrimSpace(field.value) {
 			return fmt.Errorf("execution: scope %s has surrounding whitespace", field.name)
@@ -72,15 +72,15 @@ type ExecutorCheckpoint struct {
 // restored. It contains no executor topology: every field is independently
 // known by the owning Run and Session.
 type ExecutorCheckpointExpectation struct {
-	RootMemberID   string
-	SessionID      string
-	CWD            string
-	WorkspaceCWD   string
-	Isolated       bool
-	GoalLeaseID    string
-	ModelSelection modelref.Selection
-	Limits         run.Limits
-	Capabilities   run.Capabilities
+	RootMemberID      string
+	SessionID         string
+	CWD               string
+	WorkspaceCWD      string
+	Isolated          bool
+	GoalIncarnationID string
+	ModelSelection    modelref.Selection
+	Limits            run.Limits
+	Capabilities      run.Capabilities
 }
 
 // Clone returns an ownership-independent checkpoint value.
@@ -177,8 +177,8 @@ func (c ExecutorCheckpoint) ValidateFor(expected ExecutorCheckpointExpectation) 
 	if err := expected.Capabilities.Validate(); err != nil {
 		return fmt.Errorf("%w: expected capabilities: %w", ErrInvalidExecutorCheckpoint, err)
 	}
-	if expected.GoalLeaseID != strings.TrimSpace(expected.GoalLeaseID) {
-		return fmt.Errorf("%w: expected goal lease ID has surrounding whitespace", ErrInvalidExecutorCheckpoint)
+	if expected.GoalIncarnationID != strings.TrimSpace(expected.GoalIncarnationID) {
+		return fmt.Errorf("%w: expected goal incarnation ID has surrounding whitespace", ErrInvalidExecutorCheckpoint)
 	}
 	if c.Scope.CWD != expected.CWD {
 		return fmt.Errorf(
@@ -204,12 +204,12 @@ func (c ExecutorCheckpoint) ValidateFor(expected ExecutorCheckpointExpectation) 
 			expected.Isolated,
 		)
 	}
-	if c.Scope.GoalLeaseID != expected.GoalLeaseID {
+	if c.Scope.GoalIncarnationID != expected.GoalIncarnationID {
 		return fmt.Errorf(
-			"%w: goal lease ID %q does not match owner %q",
+			"%w: goal incarnation ID %q does not match owner %q",
 			ErrInvalidExecutorCheckpoint,
-			c.Scope.GoalLeaseID,
-			expected.GoalLeaseID,
+			c.Scope.GoalIncarnationID,
+			expected.GoalIncarnationID,
 		)
 	}
 	if c.ModelSelection != expected.ModelSelection {

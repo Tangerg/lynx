@@ -235,7 +235,7 @@ func TestInteractionExecutorBindsResolvedRunScopeToManifestAndToolCalls(t *testi
 	start.CWD = "/isolated/project"
 	start.WorkspaceCWD = "/workspace/project"
 	start.Isolated = true
-	start.GoalLeaseID = "goal_lease"
+	start.GoalIncarnationID = "goal_lease"
 	want := rootExecutionScope(start)
 	var toolScope runs.ExecutionScope
 	executable, err := toolcontract.NewFunc(toolcontract.FuncConfig{

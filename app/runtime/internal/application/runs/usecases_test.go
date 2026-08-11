@@ -1097,7 +1097,7 @@ func TestResumeRehydrateRestoresChildSourceProjection(t *testing.T) {
 	createdAt := time.Date(2026, 7, 30, 12, 0, 0, 0, time.UTC)
 	pending := resumedTreePending(createdAt)
 	pending.Capabilities.ChildRuns = true
-	pending.GoalLeaseID = "goal-lease-1"
+	pending.GoalIncarnationID = "goal-lease-1"
 	sessions := &fakeRunSessions{
 		sess: sessionfixture.MustRestore(session.Snapshot{ID: pending.SessionID, CWD: "/work"}),
 		pending: map[string]Pending{
@@ -1144,8 +1144,8 @@ func TestResumeRehydrateRestoresChildSourceProjection(t *testing.T) {
 	if control.continuation.Checkpoint.RootMemberID != "member_root" {
 		t.Fatalf("continuation member = %q, want member_root", control.continuation.Checkpoint.RootMemberID)
 	}
-	if control.continuation.Checkpoint.Scope.GoalLeaseID != pending.GoalLeaseID {
-		t.Fatalf("continuation goal lease = %q, want %q", control.continuation.Checkpoint.Scope.GoalLeaseID, pending.GoalLeaseID)
+	if control.continuation.Checkpoint.Scope.GoalIncarnationID != pending.GoalIncarnationID {
+		t.Fatalf("continuation goal incarnation = %q, want %q", control.continuation.Checkpoint.Scope.GoalIncarnationID, pending.GoalIncarnationID)
 	}
 	wantChildRuns := map[string]ChildRunBinding{
 		"member_grandchild": {MemberID: "member_grandchild", RunID: "run_grandchild", ParentRunID: "run_a"},
@@ -1290,21 +1290,21 @@ func runForContinuation(
 	pending Pending,
 	continuation Continuation,
 ) run.Run {
-	goalLeaseID := ""
+	goalIncarnationID := ""
 	if continuation.RunID == pending.RootRunID {
-		goalLeaseID = pending.GoalLeaseID
+		goalIncarnationID = pending.GoalIncarnationID
 	}
 	return runfixture.MustRestore(run.Snapshot{ID: continuation.RunID,
 		SessionID: pending.SessionID,
 
-		ModelSelection: continuation.ModelSelection,
-		GoalLeaseID:    goalLeaseID,
-		State:          run.Waiting,
-		Metrics:        continuation.Metrics,
-		Limits:         continuation.Limits,
-		Capabilities:   pending.Capabilities,
-		CreatedAt:      continuation.RunCreatedAt,
-		MessageMark:    run.UnknownMessageMark, Lineage: run.Lineage{SpawnedByItemID: continuation.Lineage.SpawnedByItemID,
+		ModelSelection:    continuation.ModelSelection,
+		GoalIncarnationID: goalIncarnationID,
+		State:             run.Waiting,
+		Metrics:           continuation.Metrics,
+		Limits:            continuation.Limits,
+		Capabilities:      pending.Capabilities,
+		CreatedAt:         continuation.RunCreatedAt,
+		MessageMark:       run.UnknownMessageMark, Lineage: run.Lineage{SpawnedByItemID: continuation.Lineage.SpawnedByItemID,
 			ParentRunID: continuation.Lineage.ParentRunID,
 			RootRunID:   continuation.Lineage.RootRunID}})
 

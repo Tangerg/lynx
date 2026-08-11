@@ -72,8 +72,8 @@ func TestStartExecutionValidateRejectsNonCanonicalAdmissionPolicy(t *testing.T) 
 				interrupt.Approval,
 			},
 		},
-		"goal lease whitespace": {
-			Message: "hello", GoalLeaseID: " lease",
+		"goal incarnation whitespace": {
+			Message: "hello", GoalIncarnationID: " lease",
 		},
 	} {
 		t.Run(name, func(t *testing.T) {

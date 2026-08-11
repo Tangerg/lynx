@@ -301,7 +301,7 @@ func (p treePublisher) reduceTreeBarrier(
 	if err := barrier.validateFor(
 		routes.root.member.MemberID,
 		p.rootSpec.SessionID,
-		p.rootSpec.GoalLeaseID,
+		p.rootSpec.GoalIncarnationID,
 		routes.root.modelSelection,
 	); err != nil {
 		return treeBarrierProjection{}, err
@@ -316,12 +316,12 @@ func (p treePublisher) reduceTreeBarrier(
 	}
 
 	projection := treeBarrierProjection{pending: Pending{
-		RootRunID:    routes.root.runID,
-		SessionID:    p.rootSpec.SessionID,
-		ExecutorID:   p.rootSpec.ExecutorID,
-		GoalLeaseID:  p.rootSpec.GoalLeaseID,
-		Capabilities: routes.root.capabilities,
-		CreatedAt:    boundaryAt,
+		RootRunID:         routes.root.runID,
+		SessionID:         p.rootSpec.SessionID,
+		ExecutorID:        p.rootSpec.ExecutorID,
+		GoalIncarnationID: p.rootSpec.GoalIncarnationID,
+		Capabilities:      routes.root.capabilities,
+		CreatedAt:         boundaryAt,
 	},
 		reductions: make([]treeBarrierReduction, 0, len(activeRoutes)),
 		commits:    make([]EventCommit, 0, len(activeRoutes)),

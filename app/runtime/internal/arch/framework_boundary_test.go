@@ -837,31 +837,31 @@ func TestStackExposesTheIdempotencyConsumerPort(t *testing.T) {
 
 // TestExecutorCheckpointBindingIsValidatedAtEveryBoundary locks the
 // cross-aggregate invariant that a valid checkpoint and a valid Pending are
-// insufficient unless they describe the same root, Session, model selection, goal
-// lease, and restore workspace.
+// insufficient unless they describe the same root, Session, model selection,
+// Goal incarnation, and restore workspace.
 func TestExecutorCheckpointBindingIsValidatedAtEveryBoundary(t *testing.T) {
 	root := moduleRoot(t)
 	checks := map[string][]string{
 		filepath.Join("internal", "application", "runs", "execution_fact.go"): {
-			"ValidateOwnership", "Scope.GoalLeaseID", "Checkpoint.ModelSelection",
+			"ValidateOwnership", "Scope.GoalIncarnationID", "Checkpoint.ModelSelection",
 		},
 		filepath.Join("internal", "application", "runs", "waiting_cancellation.go"): {
-			"ValidateOwnership", "Scope.GoalLeaseID", "Checkpoint.ModelSelection",
+			"ValidateOwnership", "Scope.GoalIncarnationID", "Checkpoint.ModelSelection",
 		},
 		filepath.Join("internal", "application", "runs", "commit.go"): {
-			"ValidateOwnership", "Scope.GoalLeaseID", "checkpoint.ModelSelection",
+			"ValidateOwnership", "Scope.GoalIncarnationID", "checkpoint.ModelSelection",
 		},
 		filepath.Join("internal", "application", "runs", "waiting_cancellation_commit.go"): {
-			"ValidateOwnership", "Scope.GoalLeaseID", "Checkpoint.ModelSelection",
+			"ValidateOwnership", "Scope.GoalIncarnationID", "Checkpoint.ModelSelection",
 		},
 		filepath.Join("internal", "adapter", "runsegment", "effects_commit.go"): {
 			"DeleteCheckpoints(ctx, commit.SessionID",
 		},
 		filepath.Join("internal", "application", "runs", "recovery_validation.go"): {
-			"ExecutorCheckpointExpectation", "GoalLeaseID", "sess.CWD", "sess.Isolated",
+			"ExecutorCheckpointExpectation", "GoalIncarnationID", "sess.CWD", "sess.Isolated",
 		},
 		filepath.Join("internal", "adapter", "agentexec", "interaction_recovery_probe.go"): {
-			"continuation.Validate()", "checkpoint.BuildID", "checkpoint.Scope.GoalLeaseID", "continuation.Capabilities",
+			"continuation.Validate()", "checkpoint.BuildID", "checkpoint.Scope.GoalIncarnationID", "continuation.Capabilities",
 		},
 		filepath.Join("internal", "adapter", "persistence", "session_stores.go"): {
 			"DeleteCheckpoints(ctx, rollback.SessionID",
@@ -983,9 +983,9 @@ func TestPendingAndRecoveryMutationsCarryTheirOwners(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read SQLite schema: %v", err)
 	}
-	for _, required := range []string{"goal_lease_id", "root_run_id = '' OR goal_lease_id = ''"} {
+	for _, required := range []string{"goal_incarnation_id", "root_run_id = '' OR goal_incarnation_id = ''"} {
 		if !strings.Contains(string(runSchema), required) {
-			t.Errorf("Run admission no longer owns goal lease marker %q", required)
+			t.Errorf("Run admission no longer owns goal incarnation marker %q", required)
 		}
 	}
 }
@@ -1006,7 +1006,7 @@ func TestParkedContinuationFactsAreCrossCheckedAtEveryLifecycleBoundary(t *testi
 			"runCommit.Run.Metrics().Equal(continuation.Metrics)",
 			"runCommit.Run.Limits() != continuation.Limits",
 			"runCommit.Run.Capabilities().Equal(pending.Capabilities)",
-			"runCommit.Run.GoalLeaseID() != pending.GoalLeaseID",
+			"runCommit.Run.GoalIncarnationID() != pending.GoalIncarnationID",
 		},
 		filepath.Join("internal", "application", "runs", "waiting_cancellation_commit.go"): {
 			"run.Metrics().Equal(continuation.Metrics)",

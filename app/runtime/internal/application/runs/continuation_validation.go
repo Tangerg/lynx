@@ -41,8 +41,8 @@ func validatePendingRunTree(pending Pending, values []rundomain.Run) error {
 	if root.SessionID() != pending.SessionID || root.State() != rundomain.Waiting {
 		return fmt.Errorf("runs: validate parked Run tree %q: root Run scope or state differs from Pending", pending.RootRunID)
 	}
-	if root.GoalLeaseID() != pending.GoalLeaseID {
-		return fmt.Errorf("runs: validate parked Run tree %q: root Run goal lease differs from Pending", pending.RootRunID)
+	if root.GoalIncarnationID() != pending.GoalIncarnationID {
+		return fmt.Errorf("runs: validate parked Run tree %q: root Run goal incarnation differs from Pending", pending.RootRunID)
 	}
 	if !root.Capabilities().Equal(pending.Capabilities) {
 		return fmt.Errorf("runs: validate parked Run tree %q: root Run run capabilities differ from Pending", pending.RootRunID)

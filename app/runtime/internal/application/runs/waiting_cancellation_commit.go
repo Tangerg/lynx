@@ -98,8 +98,8 @@ func validateWaitingCancellationBoundary(c WaitingSubtreeCancellationCommit) err
 	if !found {
 		return errors.New("runs: waiting cancellation expected Pending has no root continuation")
 	}
-	if c.RootRun.GoalLeaseID() != c.ExpectedPending.GoalLeaseID {
-		return errors.New("runs: waiting cancellation root Run goal lease differs from Pending")
+	if c.RootRun.GoalIncarnationID() != c.ExpectedPending.GoalIncarnationID {
+		return errors.New("runs: waiting cancellation root Run goal incarnation differs from Pending")
 	}
 	if !c.RootRun.Capabilities().Equal(c.ExpectedPending.Capabilities) {
 		return errors.New("runs: waiting cancellation root Run capabilities differ from Pending")
@@ -110,7 +110,7 @@ func validateWaitingCancellationBoundary(c WaitingSubtreeCancellationCommit) err
 	if err := c.Checkpoint.ValidateOwnership(rootContinuation.MemberID, c.SessionID); err != nil {
 		return fmt.Errorf("runs: waiting cancellation checkpoint ownership: %w", err)
 	}
-	if c.Checkpoint.Scope.GoalLeaseID != c.ExpectedPending.GoalLeaseID ||
+	if c.Checkpoint.Scope.GoalIncarnationID != c.ExpectedPending.GoalIncarnationID ||
 		c.Checkpoint.ModelSelection != rootContinuation.ModelSelection ||
 		c.Checkpoint.Limits != rootContinuation.Limits {
 		return fmt.Errorf(
@@ -219,8 +219,8 @@ func (v *waitingCancellationValidation) validateTerminalRuns() error {
 			return fmt.Errorf("runs: waiting cancellation Run[%d] creation time mismatch", index)
 		case !run.Capabilities().Equal(c.ExpectedPending.Capabilities):
 			return fmt.Errorf("runs: waiting cancellation Run[%d] capabilities mismatch", index)
-		case run.GoalLeaseID() != "":
-			return fmt.Errorf("runs: waiting cancellation child Run[%d] carries a root Goal lease", index)
+		case run.GoalIncarnationID() != "":
+			return fmt.Errorf("runs: waiting cancellation child Run[%d] carries a root Goal incarnation", index)
 		case run.State() != rundomain.Canceled:
 			return fmt.Errorf("runs: waiting cancellation Run[%d] is not canceled", index)
 		}
@@ -368,7 +368,7 @@ func (v waitingCancellationValidation) validateReducedPendingAndCollectRunIDs() 
 		}
 	}
 	if c.RemainingPending.ExecutorID != c.ExpectedPending.ExecutorID ||
-		c.RemainingPending.GoalLeaseID != c.ExpectedPending.GoalLeaseID ||
+		c.RemainingPending.GoalIncarnationID != c.ExpectedPending.GoalIncarnationID ||
 		!c.RemainingPending.CreatedAt.Equal(c.ExpectedPending.CreatedAt) ||
 		!c.RemainingPending.Capabilities.Equal(c.ExpectedPending.Capabilities) {
 		return nil, errors.New("runs: waiting cancellation changed immutable Pending facts")

@@ -1,6 +1,6 @@
 # Lyra Runtime 重构实施计划
 
-> 状态：P1–P29 已完成；发布后反证审计持续进行
+> 状态：P1–P32 已完成；发布后反证审计持续进行
 >
 > 工作方式：原模块内治本重构，按可验证纵切分批完成；不创建完整 `runtime2`
 
@@ -848,10 +848,30 @@
 - 缺失 root boundary fail closed 为 contract failure，不产生虚假的 open interrupt/HITL 语义，不消耗 Goal Run usage；
 - Runtime standalone build/vet/test/race/staticcheck/golangci-lint/tidy 全绿；Agent production graph 对 `app/runtime` import 仍为零；修复只位于 Goal Application owner 与其测试，不修改 Agent、Delivery、Infra、Protocol 或 Desktop。
 
-## 36. 进度记录
+## 36. P32 — Goal objective incarnation / HITL Resume accounting
+
+### 目标
+
+清除 Goal durable identity 与 process-local drive ownership 的概念混叠。暂停等待输入再恢复时，outstanding Run 仍属于同一个 objective incarnation；它的 terminal accounting/终态必须能够作用于原 Goal，等待中的新 drive 不得从陈旧快照额外启动 Run。
+
+### 工作项
+
+- [x] P32-01 将 Goal/Run/Pending/Interrupt/execution scope/checkpoint provenance 统一为 `IncarnationID`/`GoalIncarnationID`；fresh `Start` 才创建新 incarnation，Pause/Resume/Stop/Reconcile 均保留当前 objective identity；
+- [x] P32-02 Goal driver 在每次 `WaitSessionStartable` 返回后、Run admission 前重读并结算权威 Goal；budget 已耗尽、模型已完成/阻塞、目标已暂停或被 fresh objective 取代时不启动额外 Run；
+- [x] P32-03 SQLite 直接提升至 epoch 68，采用 `incarnation_id`/`goal_incarnation_id`；executor checkpoint policy 提升至 v2，旧 lease 列/字段与 v1 codec 均确定性拒绝；
+- [x] P32-04 补齐 outstanding HITL Run 预算计费、模型完成报告、schema exact-shape 与 retired-shape 反例，并同步 Domain/Tool/Contract/Capability/ADR owners。
+
+### 验收
+
+- waiting Run 跨客户端 Resume 后仍能向同一 objective incarnation 提交 terminal accounting 与 completed/blocked outcome；fresh Start 仍隔离旧 Run；
+- session startable 等待不是 reservation，等待返回后的权威 Goal 已 blocked/complete/paused/superseded 时 Run start 次数保持为零；
+- Runtime standalone build/vet/test/race/staticcheck/lint/tidy 全绿，旧 Goal lease vocabulary 在 production/schema/checkpoint 当前 shape 中为零；Agent production graph 对 Runtime import 为零，Runtime 的 Framework import 仍只存在于 `adapter/agentexec`。
+
+## 37. 进度记录
 
 | 日期 | 阶段 | 完成事实 | 验证 |
 |---|---|---|---|
+| 2026-08-12 | P32（Goal objective incarnation / HITL Resume accounting） | Goal provenance 从混合 process-local ownership 的 lease 治本纠正为 objective-lifetime incarnation：fresh Start 才换身份，Pause/Resume/Stop/Reconcile 保留身份；outstanding HITL Run 的 terminal accounting/outcome 因而仍归原目标。driver 在每次 session-startable 等待后重读并结算权威状态，消除预算耗尽或已完成后额外启动 Run 的窗口。SQLite epoch 68、checkpoint policy v2 采用唯一 incarnation shape，旧字段/版本 fail closed；没有修改公共 Protocol 或 Agent Framework | outstanding Run budget/completed-report、fresh-objective fencing、SQLite exact/retired shape 与 checkpoint strict codec 回归通过；Runtime standalone 全门禁与双向抽象边界扫描在本批提交前收口 |
 | 2026-08-12 | P31（Goal root boundary / HITL classification） | Goal driver 从 whole-tree Run stream 只采纳 `StartResult.RunID` 的 root segment boundary；root `Waiting` 以权威 Run state 暂停为 `awaitingInput`，无 root boundary 或只有 child waiting frame 均 fail closed 为 `terminalOutcomeMissing`。测试 fake 同步真实 Event envelope。变更止于 Application/goals，没有引入 Delivery、Infra、SQLite、Frontend 或 Agent Framework 类型 | waiting/missing/foreign-child/malformed 定向普通与 race 各连续 20 轮通过，goals 全包普通与 race 各 20 轮通过；Runtime `GOWORK=off` build/vet/test/race/staticcheck/golangci-lint/tidy 全绿且 lint 0 issue；Agent production import 反向扫描零 `app/runtime` |
 | 2026-08-12 | P30（subscription scope / loss recovery） | Runtime Delivery subscription 同时拥有声明的 topic/watch scope，按流过滤普通 watch invalidation 与 resync；拥塞合并新增 broad-file 支配语义，消除跨连接 watch 泄漏和 broad 事实被 watchIds 过度收窄。Frontend 从每条新连接的首帧开始验证 sequence，retarget 后按连接重置。修改止于 Delivery 与 Frontend event application，不把 Runtime/transport/watch 类型下沉到 Agent、Domain 或 Application | workspace hub 定向普通/竞态重复回归覆盖 topic/watch 交集、foreign drop、stable order、malformed recovery、broad↔targeted 两种顺序；Runtime `GOWORK=off` build/vet/test/race/staticcheck/golangci-lint/tidy 全绿且 lint 0 issue；Frontend 224 files/1381 tests及 type/lint/format/knip/全部架构/生产 bundle 门禁全绿 |
 | 2026-08-12 | P29（CLI standalone consumer closure） | CLI 的 Runtime dependency 从旧 P24 pseudo-version 前移到已推送 commit `420f627f131a`，间接 Agent 同步 Baseline 20；standalone graph 删除旧 `models/ollama`、daemon、easyjson 与 ordered-map。没有 local replace、compat shim，也没有把 CLI 正在进行的功能文件纳入本批 | CLI `GOWORK=off` tidy-diff/build/vet/test/race/staticcheck/golangci-lint 全绿且 lint 0 issue；`govulncheck` 可达漏洞 0，`go mod why github.com/ollama/ollama` 确认为 main module 不需要该 module |
@@ -934,6 +954,6 @@
 | 2026-08-09 | P9.2 | 完成 Adapter/Infra/Application/Delivery 逐包职责审计；workspace physical path identity 收敛到唯一 Infra mechanism；删除空的 temporary architecture 台账并把旧 Agent 禁止与 Domain no-context-I/O 变为永久 framework boundary guard；确认 agentexec 按真实变化原因组织且没有第二 lifecycle owner或虚构子包 | Adapter→Infra 单向图与目标六环 DAG 全绿；Delivery concrete Adapter/Infra import、Infra 反向 import、Application outward import、纯转发 wrapper、package/type 口吃、空目录和 temporary exception 均为零；workspacepath/pathidentity/arch targeted tests 与全量质量门禁通过 |
 | 2026-08-09 | P10 | Runtime Protocol 一次性提升到 `2026-08-09`、Session Artifact 到 v14；删除 wire 中实现泄露的 `processRootSegment`，只保留准确的 `runtimeInstanceRootSegment`；Go registry、validator、manifest、OpenRPC、JSON Schema、TypeScript binding、canonical samples 与人读 API/Transport/Aux 文档同步；新增精确 consumer handoff | canonical artifact samples 中漏存的 v12 与旧 `outcome.error` 被 strict sample gate 暴露并治本修正；生成器零漂移、旧 wire token/版本归零、strict validator/round-trip、HTTP/in-process、全量质量门禁通过；Desktop backlog 已记录但未改消费者 |
 
-## 37. 当前下一步
+## 38. 当前下一步
 
-P31 已完成，当前已知的 Goal whole-tree root/child boundary 混淆、waiting HITL 错判和缺 root 假 awaiting 已清除。继续反证 cancel/duplicate resolution、Goal blocked/restart/release、Plan/Goal 并发、subscription close/retarget、事务失败和崩溃恢复边界；每轮提交前同时执行 Runtime→Agent/Agent→Runtime 双向依赖与 staged path 审计，任何新反例只在其权威 owner 修复。
+P32 已完成，当前已知的 Goal whole-tree root/child boundary、waiting HITL 判定以及 Resume 切断 outstanding Run accounting/outcome 的缺陷已清除。下一轮建立完整的 backend operation → generated client → frontend product consumer → stream/invalidation coverage matrix；生成方法不计作已消费，并优先补齐 Goal commands、核心 Run stream 与文件/旁路事件的真实入口。同时继续反证 cancel/duplicate resolution、Plan/Goal 并发、subscription close/retarget、事务失败和崩溃恢复边界；每轮提交前执行 Runtime→Agent/Agent→Runtime 双向依赖与 staged path 审计。

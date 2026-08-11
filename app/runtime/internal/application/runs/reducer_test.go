@@ -31,7 +31,7 @@ func testReducerConfig() reducerConfig {
 
 func TestReducerTerminalIncludesGoalRunRecord(t *testing.T) {
 	config := testReducerConfig()
-	config.GoalLeaseID = "goal_lease"
+	config.GoalIncarnationID = "goal_lease"
 	reducer := newReducer(config)
 	mustReduce(t, reducer, ToolCallStarted{CallID: "call_1", ToolName: "inspect", Arguments: `{}`})
 	mustReduce(t, reducer, ToolCallFinished{CallID: "call_1", Result: testToolResult(t, "ok")})
@@ -43,7 +43,7 @@ func TestReducerTerminalIncludesGoalRunRecord(t *testing.T) {
 	if commit == nil || commit.GoalRun == nil {
 		t.Fatal("terminal commit did not carry Goal Run accounting")
 	}
-	want := goal.RunRecord{SessionID: "ses_1", LeaseID: "goal_lease", RunID: "run_1", Outcome: run.OutcomeCompleted, CostUSD: 0.75, Steps: 1, CompletedAt: config.Now()}
+	want := goal.RunRecord{SessionID: "ses_1", IncarnationID: "goal_lease", RunID: "run_1", Outcome: run.OutcomeCompleted, CostUSD: 0.75, Steps: 1, CompletedAt: config.Now()}
 	if got := *commit.GoalRun; got != want {
 		t.Fatalf("GoalRun = %+v", got)
 	}

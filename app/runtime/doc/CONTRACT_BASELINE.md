@@ -58,7 +58,8 @@ TypeScript generated files 是派生制品，不单独定义语义。它们必�
 
 ### 3.1 SQLite
 
-- 当前 `schemaEpoch = 67`；
+- 当前 `schemaEpoch = 68`；
+- Goal aggregate 与 Goal terminal ledger 使用 `incarnation_id`，Run/Interrupt provenance 使用 `goal_incarnation_id`；已退休的 `lease_id`/`goal_lease_id` 列不存在且不双读；
 - executor checkpoint 与 pending interrupt 的技术身份列为 `root_member_id`，continuation/input-request binding JSON 使用 `memberId`/`requestId`；
 - `model_invocations` 与 `tool_invocations` 是 operational attempt journals，只保存 exact Run/Segment/call identity、state 与 started/finished time；semantic assistant final、Tool result 和 usage 仍只由 Transcript/Run owners 保存；
 - `interrupts.state` 只有 `open`/`resuming`：`open` 不得携带 answer/claimedAt，`resuming` 必须携带两者；普通列表/读取只返回 `open`，continuation opening 必须在事务内证明 exact root 的 `resuming` claim；
@@ -82,7 +83,7 @@ TypeScript generated files 是派生制品，不单独定义语义。它们必�
 - checkpoint replacement 只能推进 frozen identity/limits 和 monotonic usage；
 - terminalization 与 checkpoint deletion 由 Application write-set 原子决定。
 
-P7 延续的 continuation payload baseline 是 Agent Framework TreeSnapshot v4 本身，不再包一层 Runtime 自创 payload version。Agent Framework public parser 校验 snapshot version/shape，exact DeploymentRef 校验策略实现与配置，Host BuildID 校验当前二进制/adapter expectation；任一不一致都 fail closed。Host envelope 的技术 codec 仍由 Runtime 当前唯一 SQLite epoch 拥有。
+P7 延续的 continuation payload baseline 是 Agent Framework TreeSnapshot v4 本身，不再包一层 Runtime 自创 payload version。Agent Framework public parser 校验 snapshot version/shape，exact DeploymentRef 校验策略实现与配置，Host BuildID 校验当前二进制/adapter expectation；任一不一致都 fail closed。Host envelope 的技术 codec 仍由 Runtime 当前唯一 SQLite epoch 拥有；当前 executor checkpoint policy schema 为 v2，并只接受 `goal_incarnation_id`。
 
 ### 3.3 Artifact 与 Transcript
 

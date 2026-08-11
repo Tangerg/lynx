@@ -40,7 +40,7 @@ func TestGoalStoreRecordRunIsIdempotentAndBlocksAtBudget(t *testing.T) {
 		t.Fatalf("Save = (%v, %v), want true, nil", applied, err)
 	}
 	record := goal.RunRecord{
-		SessionID: sessionID, LeaseID: g.LeaseID, RunID: "run_goal_run",
+		SessionID: sessionID, IncarnationID: g.IncarnationID, RunID: "run_goal_run",
 		Outcome: run.OutcomeCompleted, CostUSD: 0.25, Steps: 3, CompletedAt: now.Add(time.Minute),
 	}
 	if err := store.RecordRun(t.Context(), record); err != nil {
@@ -50,7 +50,7 @@ func TestGoalStoreRecordRunIsIdempotentAndBlocksAtBudget(t *testing.T) {
 		t.Fatalf("repeat RecordRun: %v", err)
 	}
 	conflict := record
-	conflict.LeaseID = "another_lease"
+	conflict.IncarnationID = "another_lease"
 	if err := store.RecordRun(t.Context(), conflict); !errors.Is(err, goal.ErrRunIdentityConflict) {
 		t.Fatalf("conflicting RecordRun = %v, want ErrRunIdentityConflict", err)
 	}
@@ -63,33 +63,59 @@ func TestGoalStoreRecordRunIsIdempotentAndBlocksAtBudget(t *testing.T) {
 	}
 }
 
-func TestGoalSchemaUsesSemanticReasonCode(t *testing.T) {
+func TestGoalSchemaUsesSemanticIncarnationColumns(t *testing.T) {
 	db, err := sqlite.Open(t.Context(), filepath.Join(t.TempDir(), "lyra.db"))
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
 	t.Cleanup(func() { _ = db.Close() })
 
-	rows, err := db.Query(`PRAGMA table_info(goals)`)
-	if err != nil {
-		t.Fatalf("table_info: %v", err)
-	}
-	defer rows.Close()
-	var columns []string
-	for rows.Next() {
-		var cid, notNull, primaryKey int
-		var name, dataType string
-		var defaultValue any
-		if err := rows.Scan(&cid, &name, &dataType, &notNull, &defaultValue, &primaryKey); err != nil {
-			t.Fatalf("scan table_info: %v", err)
+	columnsOf := func(table string) []string {
+		t.Helper()
+		rows, err := db.Query(`SELECT name FROM pragma_table_info(?)`, table)
+		if err != nil {
+			t.Fatalf("table_info(%s): %v", table, err)
 		}
-		columns = append(columns, name)
+		defer rows.Close()
+		var columns []string
+		for rows.Next() {
+			var name string
+			if err := rows.Scan(&name); err != nil {
+				t.Fatalf("scan table_info(%s): %v", table, err)
+			}
+			columns = append(columns, name)
+		}
+		if err := rows.Err(); err != nil {
+			t.Fatalf("table_info(%s): %v", table, err)
+		}
+		return columns
 	}
-	if !slices.Contains(columns, "reason_code") {
-		t.Fatalf("goals columns = %v, want reason_code", columns)
+
+	for _, test := range []struct {
+		table    string
+		current  string
+		obsolete string
+	}{
+		{table: "goals", current: "incarnation_id", obsolete: "lease_id"},
+		{table: "goal_runs", current: "incarnation_id", obsolete: "lease_id"},
+		{table: "runs", current: "goal_incarnation_id", obsolete: "goal_lease_id"},
+		{table: "interrupts", current: "goal_incarnation_id", obsolete: "goal_lease_id"},
+	} {
+		columns := columnsOf(test.table)
+		if !slices.Contains(columns, test.current) {
+			t.Errorf("%s columns = %v, want %s", test.table, columns, test.current)
+		}
+		if slices.Contains(columns, test.obsolete) {
+			t.Errorf("%s columns retain obsolete %s: %v", test.table, test.obsolete, columns)
+		}
 	}
-	if slices.Contains(columns, "reason_cause") {
-		t.Fatalf("goals columns retain obsolete reason_cause: %v", columns)
+
+	goalColumns := columnsOf("goals")
+	if !slices.Contains(goalColumns, "reason_code") {
+		t.Errorf("goals columns = %v, want reason_code", goalColumns)
+	}
+	if slices.Contains(goalColumns, "reason_cause") {
+		t.Errorf("goals columns retain obsolete reason_cause: %v", goalColumns)
 	}
 }
 
@@ -188,9 +214,9 @@ func TestGoalStore_CompareAndSwap(t *testing.T) {
 	const sess = "s"
 	seedSession(t, sessions, sess)
 
-	mk := func(leaseID string, revision int64, status goal.Status) goal.Goal {
-		g, _ := goal.New(sess, "obj", modelref.Selection{}, goal.Budget{}, leaseID, now)
-		g.LeaseID = leaseID
+	mk := func(incarnationID string, revision int64, status goal.Status) goal.Goal {
+		g, _ := goal.New(sess, "obj", modelref.Selection{}, goal.Budget{}, incarnationID, now)
+		g.IncarnationID = incarnationID
 		g.Revision = revision
 		g.Status = status
 		return g
@@ -205,14 +231,14 @@ func TestGoalStore_CompareAndSwap(t *testing.T) {
 		t.Fatal("zero version must not overwrite an existing goal")
 	}
 
-	// A stale writer (zero expectation, wrong lease, or wrong revision) is rejected — no
+	// A stale writer (zero expectation, wrong incarnation, or wrong revision) is rejected — no
 	// clobber, no resurrection.
-	if _, applied, _ := store.Save(ctx, mk("lease-two", 99, goal.StatusPaused), goal.Version{LeaseID: "lease-one", Revision: 99}); applied {
+	if _, applied, _ := store.Save(ctx, mk("lease-two", 99, goal.StatusPaused), goal.Version{IncarnationID: "lease-one", Revision: 99}); applied {
 		t.Fatal("mismatched revision must not apply")
 	}
-	// A lifecycle transition renews the lease; the store advances the revision.
+	// A lifecycle transition preserves the objective incarnation while the store
+	// advances the revision.
 	paused := initial
-	paused.RenewLease("lease-two")
 	paused.Pause(goal.ReasonStoppedByUser, "", now)
 	var applied bool
 	var err error
@@ -224,11 +250,11 @@ func TestGoalStore_CompareAndSwap(t *testing.T) {
 		t.Fatalf("after cas: version=%+v status=%q, want %+v/paused", got.Version(), got.Status, paused.Version())
 	}
 
-	// A same-lease mutation advances revision and rejects the prior revision.
+	// A same-incarnation mutation advances revision and rejects the prior revision.
 	blocked := paused
 	blocked.Block(goal.ReasonRunBudgetReached, "", now)
 	if blocked, applied, err = store.Save(ctx, blocked, paused.Version()); err != nil || !applied {
-		t.Fatalf("same-lease update: applied=%v err=%v", applied, err)
+		t.Fatalf("same-incarnation update: applied=%v err=%v", applied, err)
 	}
 	if applied, _ := store.ClearIf(ctx, sess, paused.Version()); applied {
 		t.Fatal("ClearIf must not delete on a stale revision")
@@ -254,7 +280,6 @@ func TestGoalStoreReplacesExistingGoalWithoutCallerRevision(t *testing.T) {
 	}
 	firstVersion := first.Version()
 	first.Pause(goal.ReasonStoppedByUser, "", now.Add(time.Second))
-	first.RenewLease("lease-stopped")
 	first, applied, err = store.Save(t.Context(), first, firstVersion)
 	if err != nil || !applied {
 		t.Fatalf("stop first goal: applied=%v err=%v", applied, err)
@@ -265,12 +290,12 @@ func TestGoalStoreReplacesExistingGoalWithoutCallerRevision(t *testing.T) {
 	if err != nil || !applied {
 		t.Fatalf("replace goal: applied=%v err=%v", applied, err)
 	}
-	if fresh.Revision != first.Revision+1 || fresh.Objective != "second" || fresh.LeaseID != "lease-second" {
+	if fresh.Revision != first.Revision+1 || fresh.Objective != "second" || fresh.IncarnationID != "lease-second" {
 		t.Fatalf("replacement = %+v, previous = %+v", fresh, first)
 	}
 }
 
-func TestGoalStore_ClearThenRecreateRejectsStaleLease(t *testing.T) {
+func TestGoalStore_ClearThenRecreateRejectsStaleIncarnation(t *testing.T) {
 	store, sessions := newGoalStore(t)
 	const sessionID = "s"
 	seedSession(t, sessions, sessionID)
@@ -290,14 +315,14 @@ func TestGoalStore_ClearThenRecreateRejectsStaleLease(t *testing.T) {
 	}
 
 	stale.Pause(goal.ReasonRunNotCompleted, "error", now)
-	if _, applied, err := store.Save(t.Context(), stale, goal.Version{LeaseID: "lease-old", Revision: 1}); err != nil || applied {
+	if _, applied, err := store.Save(t.Context(), stale, goal.Version{IncarnationID: "lease-old", Revision: 1}); err != nil || applied {
 		t.Fatalf("stale Save: applied=%v err=%v, want false/nil", applied, err)
 	}
-	if applied, err := store.ClearIf(t.Context(), sessionID, goal.Version{LeaseID: "lease-old", Revision: 1}); err != nil || applied {
+	if applied, err := store.ClearIf(t.Context(), sessionID, goal.Version{IncarnationID: "lease-old", Revision: 1}); err != nil || applied {
 		t.Fatalf("stale ClearIf: applied=%v err=%v, want false/nil", applied, err)
 	}
 	got, ok, err := store.Get(t.Context(), sessionID)
-	if err != nil || !ok || got.Objective != "new" || got.LeaseID != "lease-fresh" {
+	if err != nil || !ok || got.Objective != "new" || got.IncarnationID != "lease-fresh" {
 		t.Fatalf("fresh goal was changed: goal=%+v present=%v err=%v", got, ok, err)
 	}
 }
@@ -323,7 +348,7 @@ func TestGoalStoreCascadesWithSessionDeletion(t *testing.T) {
 		t.Fatalf("seed goal: applied=%v err=%v", applied, err)
 	}
 	record := goal.RunRecord{
-		SessionID: sessionID, LeaseID: g.LeaseID, RunID: "run-reusable-after-delete",
+		SessionID: sessionID, IncarnationID: g.IncarnationID, RunID: "run-reusable-after-delete",
 		Outcome: run.OutcomeCompleted, CompletedAt: time.Unix(1, 0),
 	}
 	if err := store.RecordRun(t.Context(), record); err != nil {
@@ -344,7 +369,7 @@ func TestGoalStoreCascadesWithSessionDeletion(t *testing.T) {
 	if _, applied, err := store.Save(t.Context(), recreated, goal.Version{}); err != nil || !applied {
 		t.Fatalf("seed recreated goal: applied=%v err=%v", applied, err)
 	}
-	record.LeaseID = recreated.LeaseID
+	record.IncarnationID = recreated.IncarnationID
 	record.CompletedAt = time.Unix(3, 0)
 	if err := store.RecordRun(t.Context(), record); err != nil {
 		t.Fatalf("reuse terminal identity after session deletion: %v", err)
@@ -375,9 +400,9 @@ func TestGoalStoreOwnsRevision(t *testing.T) {
 	}
 
 	if _, applied, err := store.Save(t.Context(), updated, goal.Version{Revision: 2}); err == nil || applied {
-		t.Fatalf("Save(invalid expected lease) = applied=%v err=%v, want false/non-nil", applied, err)
+		t.Fatalf("Save(invalid expected incarnation) = applied=%v err=%v, want false/non-nil", applied, err)
 	}
-	if _, applied, err := store.Save(t.Context(), updated, goal.Version{LeaseID: updated.LeaseID, Revision: math.MaxInt64}); err == nil || applied {
+	if _, applied, err := store.Save(t.Context(), updated, goal.Version{IncarnationID: updated.IncarnationID, Revision: math.MaxInt64}); err == nil || applied {
 		t.Fatalf("Save(exhausted revision) = applied=%v err=%v, want false/non-nil", applied, err)
 	}
 }

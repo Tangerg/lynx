@@ -25,11 +25,11 @@ var (
 // executor scope. It has no lifecycle behavior; the Application adapter owns
 // translation to and from the authoritative runs.ExecutionScope value.
 type ExecutorScopeRecord struct {
-	SessionID    string
-	CWD          string
-	WorkspaceCWD string
-	Isolated     bool
-	GoalLeaseID  string
+	SessionID         string
+	CWD               string
+	WorkspaceCWD      string
+	Isolated          bool
+	GoalIncarnationID string
 }
 
 // ExecutorCheckpointRecord is the technical record persisted by SQLite.
@@ -57,10 +57,10 @@ func (record ExecutorCheckpointRecord) validate() error {
 		return fmt.Errorf("%w: invalid build ID", ErrInvalidExecutorCheckpointRecord)
 	}
 	for name, value := range map[string]string{
-		"session ID":    record.Scope.SessionID,
-		"working dir":   record.Scope.CWD,
-		"workspace dir": record.Scope.WorkspaceCWD,
-		"goal lease ID": record.Scope.GoalLeaseID,
+		"session ID":          record.Scope.SessionID,
+		"working dir":         record.Scope.CWD,
+		"workspace dir":       record.Scope.WorkspaceCWD,
+		"goal incarnation ID": record.Scope.GoalIncarnationID,
 	} {
 		if value != strings.TrimSpace(value) || (name == "session ID" && value == "") {
 			return fmt.Errorf("%w: invalid %s", ErrInvalidExecutorCheckpointRecord, name)
@@ -100,11 +100,11 @@ type executorUsageWire struct {
 }
 
 type executorScopeWire struct {
-	SessionID    string `json:"session_id"`
-	CWD          string `json:"cwd"`
-	WorkspaceCWD string `json:"workspace_cwd"`
-	Isolated     bool   `json:"isolated"`
-	GoalLeaseID  string `json:"goal_lease_id"`
+	SessionID         string `json:"session_id"`
+	CWD               string `json:"cwd"`
+	WorkspaceCWD      string `json:"workspace_cwd"`
+	Isolated          bool   `json:"isolated"`
+	GoalIncarnationID string `json:"goal_incarnation_id"`
 }
 
 type executorLimitsWire struct {
@@ -127,7 +127,7 @@ type executorPolicyWire struct {
 	Capabilities  *executorCapabilitiesWire `json:"capabilities"`
 }
 
-const executorPolicySchemaVersion uint16 = 1
+const executorPolicySchemaVersion uint16 = 2
 
 type executorModelUsageWire struct {
 	Model            string  `json:"model"`
@@ -316,11 +316,11 @@ func encodeExecutorPolicy(checkpoint ExecutorCheckpointRecord) ([]byte, error) {
 	return json.Marshal(executorPolicyWire{
 		SchemaVersion: executorPolicySchemaVersion,
 		Scope: executorScopeWire{
-			SessionID:    checkpoint.Scope.SessionID,
-			CWD:          checkpoint.Scope.CWD,
-			WorkspaceCWD: checkpoint.Scope.WorkspaceCWD,
-			Isolated:     checkpoint.Scope.Isolated,
-			GoalLeaseID:  checkpoint.Scope.GoalLeaseID,
+			SessionID:         checkpoint.Scope.SessionID,
+			CWD:               checkpoint.Scope.CWD,
+			WorkspaceCWD:      checkpoint.Scope.WorkspaceCWD,
+			Isolated:          checkpoint.Scope.Isolated,
+			GoalIncarnationID: checkpoint.Scope.GoalIncarnationID,
 		},
 		Provider: checkpoint.ModelSelection.Provider(),
 		Model:    checkpoint.ModelSelection.Model(),
@@ -361,11 +361,11 @@ func decodeExecutorPolicy(data string) (ExecutorCheckpointRecord, error) {
 		return ExecutorCheckpointRecord{}, fmt.Errorf("policy trailing JSON: %w", err)
 	}
 	scope := ExecutorScopeRecord{
-		SessionID:    wire.Scope.SessionID,
-		CWD:          wire.Scope.CWD,
-		WorkspaceCWD: wire.Scope.WorkspaceCWD,
-		Isolated:     wire.Scope.Isolated,
-		GoalLeaseID:  wire.Scope.GoalLeaseID,
+		SessionID:         wire.Scope.SessionID,
+		CWD:               wire.Scope.CWD,
+		WorkspaceCWD:      wire.Scope.WorkspaceCWD,
+		Isolated:          wire.Scope.Isolated,
+		GoalIncarnationID: wire.Scope.GoalIncarnationID,
 	}
 	limits := run.Limits{
 		MaxTotalTokens: wire.Limits.MaxTotalTokens,

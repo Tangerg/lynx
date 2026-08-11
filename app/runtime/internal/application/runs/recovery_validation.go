@@ -41,12 +41,12 @@ func validateRecoveryParkedTree(
 			tree.root.ID(),
 		)
 	}
-	if pending.GoalLeaseID != tree.root.GoalLeaseID() {
+	if pending.GoalIncarnationID != tree.root.GoalIncarnationID() {
 		return false, fmt.Errorf(
-			"runs: validate recovery Run tree %q: Pending goal lease %q differs from root Run lease %q",
+			"runs: validate recovery Run tree %q: Pending goal incarnation %q differs from root Run incarnation %q",
 			tree.root.ID(),
-			pending.GoalLeaseID,
-			tree.root.GoalLeaseID(),
+			pending.GoalIncarnationID,
+			tree.root.GoalIncarnationID(),
 		)
 	}
 	if !pending.Capabilities.Equal(tree.root.Capabilities()) {
@@ -114,15 +114,15 @@ func validateRecoveryParkedTree(
 		return false, nil
 	}
 	expected := ExecutorCheckpointExpectation{
-		RootMemberID:   rootContinuation.MemberID,
-		SessionID:      pending.SessionID,
-		CWD:            sess.CWD(),
-		WorkspaceCWD:   sess.CWD(),
-		Isolated:       false,
-		GoalLeaseID:    pending.GoalLeaseID,
-		ModelSelection: rootContinuation.ModelSelection,
-		Limits:         rootContinuation.Limits,
-		Capabilities:   pending.Capabilities,
+		RootMemberID:      rootContinuation.MemberID,
+		SessionID:         pending.SessionID,
+		CWD:               sess.CWD(),
+		WorkspaceCWD:      sess.CWD(),
+		Isolated:          false,
+		GoalIncarnationID: pending.GoalIncarnationID,
+		ModelSelection:    rootContinuation.ModelSelection,
+		Limits:            rootContinuation.Limits,
+		Capabilities:      pending.Capabilities,
 	}
 	checkpoint, err := store.LoadExecutorCheckpoint(ctx, rootContinuation.MemberID)
 	if errors.Is(err, ErrExecutorCheckpointNotFound) || errors.Is(err, ErrInvalidExecutorCheckpoint) {

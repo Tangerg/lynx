@@ -362,3 +362,12 @@
 - 决策：provenance 通过 `core/chat` 已有 JSON-safe Message/Part metadata 随完整 WorkingContext 一起进入 Interaction checkpoint，不建立第二 store、索引或 protocol DTO。Agent Framework 仍只把 WorkingContext 当 Strategy-owned opaque value；Application、Delivery、Infra、CLI 和 provider policy 都不解释这些私有 kind。
 - 决策：metadata 只描述来源，不复制内容、不改变 provider-facing 文本、不绕过 Message validation。若未来需要公共诊断 surface，必须由真实 consumer 另行定义安全投影，不能直接暴露 checkpoint/private metadata 或让 Runtime Protocol 依赖 Adapter 类型。
 - 后果：恢复后的上下文继续自包含且文本语义不变，同时内部诊断可精确解释实际可见来源。知识读取失败、memory recall 失败和 hook policy 仍遵守既有 best-effort/blocking 决策；本 ADR 不改变其错误语义。
+
+## ADR-RT-055：Goal provenance 使用 objective incarnation，不使用 drive lease
+
+- 状态：已接受并实施，P32 完成；取代旧 Goal 设计中把 objective identity 与 process-local drive ownership 合并为 lease 的现状，不改写历史阶段记录。
+- 背景：一个 Goal Run 可以在 HITL waiting 后由客户端恢复并继续终结。若 `Goal.Resume` 更换 durable lease，已被旧 lease 接纳的 Run 会变成“外来 Run”：它的 terminal accounting 和模型终态不能再作用于同一目标；新 drive 又可能从 Resume 前快照启动额外 Run，造成预算漏计、已完成目标继续运行。process-local drive 已由显式 cancel/join 边界管理，不需要借 durable Goal identity 表达所有权。
+- 决策：`Goal.IncarnationID` 是一个 objective incarnation 的不可变身份，只在 fresh `Start` 创建；Pause、Resume、Stop 与 boot Reconcile 均保留它。Run、Pending、Interrupt、execution scope 和 checkpoint 只携带 `GoalIncarnationID` 作为来源戳；同一 parked Run 恢复后仍可向原目标提交 terminal accounting/outcome，fresh objective 则以新 incarnation 确定性隔离旧 Run。
+- 决策：Goal drive 的 goroutine、cancellation 与 completion 仍是 Application process-local ownership，由 `quiesceDrive`/join 关闭。`WaitSessionStartable` 只是观察边界，不是 reservation；每次等待返回后、尝试 Run admission 前，driver 必须重读权威 Goal 并先结算 budget/terminal 状态。
+- 决策：SQLite 直接提升至 epoch 68，列统一为 `incarnation_id`/`goal_incarnation_id`；executor checkpoint policy 直接提升至 v2。旧 lease 列、字段和 v1 policy 均确定性拒绝，不提供 migration、alias 或 dual codec。
+- 后果：HITL Resume 不再切断 outstanding Run 与目标的账务/终态关系，等待中的 drive 也不能基于陈旧状态多启动 Run；fresh objective 仍能隔离 straggler。改动只重塑 Runtime Domain/Application/Infra/Adapter 内部 provenance，没有把 Goal、Run、Store、checkpoint 或 drive 类型泄露给 Agent Framework、Protocol 或消费者。

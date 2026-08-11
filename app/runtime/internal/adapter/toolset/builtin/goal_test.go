@@ -54,7 +54,7 @@ func (s *memStore) ClearIf(_ context.Context, id string, expected goalstate.Vers
 }
 func (s *memStore) List(context.Context) ([]goalstate.Goal, error) { return nil, nil }
 
-// testSessionActiveGoal builds a stored active goal with an opaque current lease.
+// testSessionActiveGoal builds a stored active goal with an opaque current incarnation.
 func testSessionActiveGoal() goalstate.Goal {
 	g, _ := goalstate.New("s1", "obj", modelref.Selection{}, goalstate.Budget{}, "lease-active", time.Unix(0, 0))
 	return g
@@ -157,17 +157,17 @@ func TestReportGoalOutcomeDoesNotTouchPausedGoal(t *testing.T) {
 
 // TestReportGoalOutcomeSupersededStampRefused verifies the race-#4 guard: a run
 // stamped with an OLD goal incarnation must not
-// signal the current goal, which a fresh Start gave a new lease.
+// signal the current goal, which a fresh Start gave a new incarnation.
 func TestReportGoalOutcomeSupersededStampRefused(t *testing.T) {
 	store := newMemStore()
 	current := testSessionActiveGoal()
-	current.LeaseID = "lease-current"
+	current.IncarnationID = "lease-current"
 	store.put(current)
 
-	// The run carries the lease it was launched under, since superseded.
+	// The Run carries the incarnation it was launched under, since superseded.
 	ctx := executionctx.WithScope(context.Background(), runs.ExecutionScope{
-		SessionID:   "s1",
-		GoalLeaseID: "lease-stale",
+		SessionID:         "s1",
+		GoalIncarnationID: "lease-stale",
 	})
 
 	out, err := newReporter(t, store).report(ctx, reportArgs{Outcome: "completed"})

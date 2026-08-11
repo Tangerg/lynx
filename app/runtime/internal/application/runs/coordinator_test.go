@@ -32,13 +32,13 @@ func mustTreeContinuation(t *testing.T, pending Pending) *treeContinuation {
 
 func testTreeContinuation(pending Pending) *treeContinuation {
 	return &treeContinuation{
-		rootRunID:     pending.RootRunID,
-		sessionID:     pending.SessionID,
-		executorID:    pending.ExecutorID,
-		goalLeaseID:   pending.GoalLeaseID,
-		interrupts:    slices.Clone(pending.Interrupts),
-		continuations: slices.Clone(pending.Continuations),
-		capabilities:  pending.Capabilities,
+		rootRunID:         pending.RootRunID,
+		sessionID:         pending.SessionID,
+		executorID:        pending.ExecutorID,
+		goalIncarnationID: pending.GoalIncarnationID,
+		interrupts:        slices.Clone(pending.Interrupts),
+		continuations:     slices.Clone(pending.Continuations),
+		capabilities:      pending.Capabilities,
 	}
 }
 
@@ -485,7 +485,7 @@ func (e *fakeEffects) ClaimResume(_ context.Context, claim ResumeClaimCommit) (C
 	checkpoint.Scope.SessionID = claim.Expected.SessionID
 	checkpoint.Scope.CWD = "/work"
 	checkpoint.Scope.WorkspaceCWD = "/work"
-	checkpoint.Scope.GoalLeaseID = claim.Expected.GoalLeaseID
+	checkpoint.Scope.GoalIncarnationID = claim.Expected.GoalIncarnationID
 	checkpoint.ModelSelection = root.ModelSelection
 	checkpoint.Limits = root.Limits
 	claimed := ClaimedResume{
@@ -733,7 +733,7 @@ func testSegment() segmentSpec {
 func runForSegment(spec segmentSpec) run.Run {
 	return runfixture.MustRestore(run.Snapshot{ID: spec.RunID, SessionID: spec.SessionID, State: run.Running,
 		ActiveSegmentID: spec.SegmentID, ModelSelection: spec.ModelSelection,
-		GoalLeaseID: spec.GoalLeaseID, Limits: spec.Limits,
+		GoalIncarnationID: spec.GoalIncarnationID, Limits: spec.Limits,
 		Capabilities: spec.Capabilities,
 		CreatedAt:    spec.CreatedAt, UpdatedAt: spec.CreatedAt,
 		MessageMark: run.UnknownMessageMark})
@@ -743,22 +743,22 @@ func runForSegment(spec segmentSpec) run.Run {
 func TestResumedExecutorRouteRetainsGoalLeaseForTerminalAccounting(t *testing.T) {
 	createdAt := time.Date(2026, 7, 30, 1, 2, 3, 0, time.UTC)
 	pending := testApprovalPending("member_root", createdAt)
-	pending.GoalLeaseID = "goal-lease-1"
+	pending.GoalIncarnationID = "goal-lease-1"
 	pending.Continuations[0].ModelSelection = mustSelection("openai", "model")
 	continuation := mustTreeContinuation(t, pending)
 	spec := testSegment()
 	spec.Continuation = continuation
-	spec.GoalLeaseID = pending.GoalLeaseID
+	spec.GoalIncarnationID = pending.GoalIncarnationID
 
 	routes, err := testCoordinator(&fakeExecutor{}, &fakeEffects{}).resumedExecutorRoutes(spec, nil)
 	if err != nil {
 		t.Fatalf("resumedExecutorRoutes: %v", err)
 	}
-	if routes.root.reducer.cfg.GoalLeaseID != pending.GoalLeaseID {
+	if routes.root.reducer.cfg.GoalIncarnationID != pending.GoalIncarnationID {
 		t.Fatalf(
-			"resumed reducer goal lease = %q, want %q",
-			routes.root.reducer.cfg.GoalLeaseID,
-			pending.GoalLeaseID,
+			"resumed reducer goal incarnation = %q, want %q",
+			routes.root.reducer.cfg.GoalIncarnationID,
+			pending.GoalIncarnationID,
 		)
 	}
 }

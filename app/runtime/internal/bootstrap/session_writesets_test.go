@@ -201,7 +201,7 @@ func parkWithGoalLease(
 	runs *sqlite.RunStore,
 	ints *persistence.InterruptStore,
 	checkpoints *persistence.ExecutorCheckpointStore,
-	sessionID, runID, goalLeaseID string,
+	sessionID, runID, goalIncarnationID string,
 ) string {
 	t.Helper()
 	ctx := context.Background()
@@ -214,13 +214,13 @@ func parkWithGoalLease(
 	}
 	memberID := "member_" + runID
 	checkpoint := bootstrapCheckpoint(memberID, sessionID)
-	checkpoint.Scope.GoalLeaseID = goalLeaseID
+	checkpoint.Scope.GoalIncarnationID = goalIncarnationID
 	if err := checkpoints.SaveCheckpoint(ctx, checkpoint); err != nil {
 		t.Fatalf("save executor checkpoint: %v", err)
 	}
 	if err := runs.Admit(ctx, run.Draft{
 		RunID: runID, SessionID: sessionID, SegmentID: "seg_open",
-		GoalLeaseID: goalLeaseID,
+		GoalIncarnationID: goalIncarnationID,
 		Capabilities: run.Capabilities{
 			InterruptKinds: []interrupt.Kind{interrupt.Question},
 		},
@@ -229,7 +229,7 @@ func parkWithGoalLease(
 		t.Fatalf("admit: %v", err)
 	}
 	if err := runs.Suspend(ctx, runfixture.MustRestore(run.Snapshot{SessionID: sessionID, ID: runID, State: run.Waiting,
-		GoalLeaseID: goalLeaseID,
+		GoalIncarnationID: goalIncarnationID,
 		Capabilities: run.Capabilities{
 			InterruptKinds: []interrupt.Kind{interrupt.Question},
 		},
@@ -247,7 +247,7 @@ func parkWithGoalLease(
 		parkCreatedAt,
 		time.Unix(0, 0).UTC(),
 	)
-	pending.GoalLeaseID = goalLeaseID
+	pending.GoalIncarnationID = goalIncarnationID
 	if err := ints.Open(ctx, pending); err != nil {
 		t.Fatalf("open interrupt: %v", err)
 	}
@@ -334,7 +334,7 @@ func TestApplyTerminalRecoversLostParkAtomically(t *testing.T) {
 func TestApplyTerminalChargesGoalOwnedParkAtomically(t *testing.T) {
 	ss, runs, ints := newWriteSetFixture(t)
 	ctx := t.Context()
-	const leaseID = "lease_terminal_park"
+	const incarnationID = "lease_terminal_park"
 	memberID := parkWithGoalLease(
 		t,
 		ss.sessions,
@@ -343,14 +343,14 @@ func TestApplyTerminalChargesGoalOwnedParkAtomically(t *testing.T) {
 		ss.checkpoints,
 		"ses_A",
 		"run_goal",
-		leaseID,
+		incarnationID,
 	)
 	goalValue, err := goal.New(
 		"ses_A",
 		"finish the parked run",
 		modelref.Selection{},
 		goal.Budget{},
-		leaseID,
+		incarnationID,
 		parkCreatedAt,
 	)
 	if err != nil {
@@ -378,7 +378,7 @@ func TestApplyTerminalChargesGoalOwnedParkAtomically(t *testing.T) {
 	}
 
 	goalRun := goal.RunRecord{
-		SessionID: "ses_A", LeaseID: leaseID, RunID: terminal.ID(),
+		SessionID: "ses_A", IncarnationID: incarnationID, RunID: terminal.ID(),
 		Outcome: outcome, CostUSD: costUSD, Steps: 4, CompletedAt: finishedAt,
 	}
 	if err := ss.ApplyTerminal(ctx, sessions.TerminalPlan{

@@ -174,7 +174,7 @@ type TerminalPlan struct {
 	CheckpointRootID string
 	// GoalRun is present exactly when the root Run was admitted by an autonomous Goal.
 	// Keeping it in the same write-set makes every terminal path—not only the
-	// normal reducer path—charge the lease atomically with the Run transition.
+	// normal reducer path—charge the incarnation atomically with the Run transition.
 	GoalRun *goal.RunRecord
 }
 
@@ -250,7 +250,7 @@ func (plan TerminalPlan) Validate() error {
 }
 
 func validateTerminalGoalRun(run rundomain.Run, record *goal.RunRecord) error {
-	if run.GoalLeaseID() == "" {
+	if run.GoalIncarnationID() == "" {
 		if record != nil {
 			return fmt.Errorf("sessions: terminal plan non-Goal Run %q carries a Goal Run", run.ID())
 		}
@@ -267,7 +267,7 @@ func validateTerminalGoalRun(run rundomain.Run, record *goal.RunRecord) error {
 		costUSD = *usage.Total.CostUSD
 	}
 	outcome, terminal := run.Outcome()
-	if !terminal || record.SessionID != run.SessionID() || record.LeaseID != run.GoalLeaseID() ||
+	if !terminal || record.SessionID != run.SessionID() || record.IncarnationID != run.GoalIncarnationID() ||
 		record.RunID != run.ID() || record.Outcome != outcome || record.CostUSD != costUSD ||
 		record.Steps != run.Metrics().Steps() || !record.CompletedAt.Equal(run.FinishedAt()) {
 		return fmt.Errorf("sessions: terminal plan Goal Run differs from Run %q", run.ID())

@@ -49,7 +49,7 @@ func (executor *InteractionExecutor) CanResumeWaitingExecution(
 		CWD:                      checkpoint.Scope.CWD,
 		WorkspaceCWD:             checkpoint.Scope.WorkspaceCWD,
 		Isolated:                 checkpoint.Scope.Isolated,
-		GoalLeaseID:              checkpoint.Scope.GoalLeaseID,
+		GoalIncarnationID:        checkpoint.Scope.GoalIncarnationID,
 		ModelSelection:           checkpoint.ModelSelection,
 		Limits:                   checkpoint.Limits,
 		InterruptKinds:           continuation.Capabilities.InterruptKinds,

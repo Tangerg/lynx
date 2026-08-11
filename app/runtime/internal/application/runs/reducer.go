@@ -57,16 +57,16 @@ type factReduction struct {
 }
 
 type reducerConfig struct {
-	RunID          string
-	SegmentID      string
-	SessionID      string
-	Lineage        run.Lineage
-	CWD            string
-	ExecutorID     string
-	GoalLeaseID    string
-	ModelSelection modelref.Selection
-	CreatedAt      time.Time
-	UserInput      []transcript.ContentBlock
+	RunID             string
+	SegmentID         string
+	SessionID         string
+	Lineage           run.Lineage
+	CWD               string
+	ExecutorID        string
+	GoalIncarnationID string
+	ModelSelection    modelref.Selection
+	CreatedAt         time.Time
+	UserInput         []transcript.ContentBlock
 	// Metrics is what the Run had already consumed before this segment opened —
 	// zero for a first segment, the parked Run's accrual for a continuation. Every
 	// Run record this reducer commits is the sum of this and the current segment,
@@ -914,15 +914,15 @@ func (r *reducer) projectOne(event RunEvent) (reduction, error) {
 
 func (r *reducer) goalTurn(run run.Run) *goal.RunRecord {
 	outcome, terminal := run.Outcome()
-	if r.cfg.GoalLeaseID == "" || !terminal {
+	if r.cfg.GoalIncarnationID == "" || !terminal {
 		return nil
 	}
 	record := &goal.RunRecord{
-		SessionID:   r.cfg.SessionID,
-		LeaseID:     r.cfg.GoalLeaseID,
-		RunID:       r.cfg.RunID,
-		Outcome:     outcome,
-		CompletedAt: run.FinishedAt(),
+		SessionID:     r.cfg.SessionID,
+		IncarnationID: r.cfg.GoalIncarnationID,
+		RunID:         r.cfg.RunID,
+		Outcome:       outcome,
+		CompletedAt:   run.FinishedAt(),
 	}
 	if record.CompletedAt.IsZero() {
 		record.CompletedAt = r.now()

@@ -180,7 +180,7 @@ func (e *Effects) ClaimResume(
 			return err
 		}
 		if loaded.ModelSelection != root.ModelSelection || loaded.Limits != root.Limits ||
-			loaded.Scope.GoalLeaseID != claim.Expected.GoalLeaseID {
+			loaded.Scope.GoalIncarnationID != claim.Expected.GoalIncarnationID {
 			return fmt.Errorf("%w: claimed checkpoint policy differs from Pending", runs.ErrInvalidExecutorCheckpoint)
 		}
 		consumed, found, err := e.resumeClaims.ClaimResume(

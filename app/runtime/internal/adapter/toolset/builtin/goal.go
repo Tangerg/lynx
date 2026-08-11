@@ -93,7 +93,7 @@ type goalResult struct {
 	Message string    `json:"message,omitempty"`
 }
 
-// goalView deliberately excludes the loop lease and persistence revision.
+// goalView deliberately excludes the Goal incarnation and persistence revision.
 // Those are ownership mechanics, not facts the model can act on.
 type goalView struct {
 	SessionID string     `json:"session_id"`
@@ -230,12 +230,12 @@ func (t *outcomeReporter) report(ctx context.Context, args reportArgs) (string, 
 	} else if args.Reason != nil {
 		return "Omit reason when reporting a completed Goal.", nil
 	}
-	leaseID, _ := executionctx.GoalLeaseID(ctx)
+	incarnationID, _ := executionctx.GoalIncarnationID(ctx)
 	result, err := t.goals.Report(ctx, goals.ReportCommand{
-		SessionID: sessionID,
-		LeaseID:   leaseID,
-		Outcome:   outcome,
-		Reason:    reason,
+		SessionID:     sessionID,
+		IncarnationID: incarnationID,
+		Outcome:       outcome,
+		Reason:        reason,
 	})
 	if err != nil {
 		return "", err

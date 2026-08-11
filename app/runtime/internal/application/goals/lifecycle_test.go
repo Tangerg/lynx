@@ -90,9 +90,9 @@ func TestQuiesceRetainsJoinIdentityUntilDriverExits(t *testing.T) {
 	mutations := NewSessionMutations()
 	var canceled atomic.Bool
 	drive := &goalDrive{
-		leaseID: "lease_1",
-		cancel:  func() { canceled.Store(true) },
-		done:    make(chan struct{}),
+		incarnationID: "lease_1",
+		cancel:        func() { canceled.Store(true) },
+		done:          make(chan struct{}),
 	}
 	mutations.drives["ses_1"] = drive
 	driver := &Driver{mutations: mutations}

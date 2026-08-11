@@ -386,7 +386,7 @@ func (planner *recoveryPlanner) planTree(rootRunID string) error {
 		SessionID: tree.root.SessionID(),
 		RootRunID: tree.root.ID(),
 	})
-	if tree.root.GoalLeaseID() != "" {
+	if tree.root.GoalIncarnationID() != "" {
 		record, err := recoveredGoalRun(tree.root.ID(), lostRuns)
 		if err != nil {
 			return err
@@ -479,12 +479,12 @@ func recoveredGoalRun(rootRunID string, lostRuns []rundomain.Run) (goal.RunRecor
 		return goal.RunRecord{}, fmt.Errorf("runs: recovered tree %q has no terminal root", rootRunID)
 	}
 	record := goal.RunRecord{
-		SessionID:   lostRoot.SessionID(),
-		LeaseID:     lostRoot.GoalLeaseID(),
-		RunID:       lostRoot.ID(),
-		Outcome:     outcome,
-		Steps:       lostRoot.Metrics().Steps(),
-		CompletedAt: lostRoot.FinishedAt(),
+		SessionID:     lostRoot.SessionID(),
+		IncarnationID: lostRoot.GoalIncarnationID(),
+		RunID:         lostRoot.ID(),
+		Outcome:       outcome,
+		Steps:         lostRoot.Metrics().Steps(),
+		CompletedAt:   lostRoot.FinishedAt(),
 	}
 	if usage, reported := lostRoot.Metrics().Usage(); reported && usage.Total.CostUSD != nil {
 		record.CostUSD = *usage.Total.CostUSD

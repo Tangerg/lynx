@@ -17,7 +17,7 @@ import (
 	domaintool "github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
 
-// The per-Run application-context seam (cwd, session, isolation, goal lease)
+// The per-Run application-context seam (cwd, session, isolation, goal incarnation)
 // lives in package executionctx — the resolver, per-tool packages, and prompt
 // composition all read it inward without coupling to each other.
 

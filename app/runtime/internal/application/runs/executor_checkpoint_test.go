@@ -28,15 +28,15 @@ func testExecutorCheckpoint() ExecutorCheckpoint {
 
 func TestTreeInterruptedRejectsCheckpointBoundToDifferentApplicationFacts(t *testing.T) {
 	for _, test := range []struct {
-		name        string
-		root        string
-		session     string
-		goalLeaseID string
-		selection   modelref.Selection
+		name              string
+		root              string
+		session           string
+		goalIncarnationID string
+		selection         modelref.Selection
 	}{
 		{name: "root", root: "other_root", session: "ses_1", selection: mustCheckpointSelection("openai", "model")},
 		{name: "session", root: "member_root", session: "other_session", selection: mustCheckpointSelection("openai", "model")},
-		{name: "goal lease", root: "member_root", session: "ses_1", goalLeaseID: "other_goal", selection: mustCheckpointSelection("openai", "model")},
+		{name: "goal incarnation", root: "member_root", session: "ses_1", goalIncarnationID: "other_goal", selection: mustCheckpointSelection("openai", "model")},
 		{name: "provider", root: "member_root", session: "ses_1", selection: mustCheckpointSelection("anthropic", "model")},
 		{name: "model", root: "member_root", session: "ses_1", selection: mustCheckpointSelection("openai", "gpt-other")},
 	} {
@@ -56,7 +56,7 @@ func TestTreeInterruptedRejectsCheckpointBoundToDifferentApplicationFacts(t *tes
 					},
 				}},
 			}
-			if err := barrier.validateFor(test.root, test.session, test.goalLeaseID, test.selection); !errors.Is(err, ErrInvalidExecutorCheckpoint) {
+			if err := barrier.validateFor(test.root, test.session, test.goalIncarnationID, test.selection); !errors.Is(err, ErrInvalidExecutorCheckpoint) {
 				t.Fatalf("validateFor error = %v, want ErrInvalidExecutorCheckpoint", err)
 			}
 		})

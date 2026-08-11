@@ -32,10 +32,10 @@ func TestInterruptStore_OpenGetListDelete(t *testing.T) {
 	store := newInterruptStore(t)
 
 	p := runs.Pending{
-		RootRunID:   "run_1",
-		SessionID:   "ses_a",
-		ExecutorID:  "turn_1",
-		GoalLeaseID: "goal-lease-1",
+		RootRunID:         "run_1",
+		SessionID:         "ses_a",
+		ExecutorID:        "turn_1",
+		GoalIncarnationID: "goal-lease-1",
 		Capabilities: run.Capabilities{
 			InterruptKinds: []interrupt.Kind{interrupt.Question},
 		},
@@ -69,7 +69,7 @@ func TestInterruptStore_OpenGetListDelete(t *testing.T) {
 	if err != nil || !ok {
 		t.Fatalf("Get: ok=%v err=%v", ok, err)
 	}
-	if got.SessionID != "ses_a" || got.GoalLeaseID != p.GoalLeaseID || len(got.Interrupts) != 1 ||
+	if got.SessionID != "ses_a" || got.GoalIncarnationID != p.GoalIncarnationID || len(got.Interrupts) != 1 ||
 		got.Interrupts[0].ItemID != "item_question" || !got.Interrupts[0].ItemOccurredAt.Equal(time.Unix(2, 0).UTC()) ||
 		!got.CreatedAt.Equal(time.Unix(5, 0).UTC()) {
 		t.Fatalf("Get returned %+v", got)

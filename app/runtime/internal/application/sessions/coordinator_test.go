@@ -263,7 +263,7 @@ func TestApplyRunLostProjectsTerminalTranscript(t *testing.T) {
 	stores := coordinatorStores{
 		interrupts: &coordinatorInterrupts{pending: map[string]runs.Pending{
 			"run_1": {
-				RootRunID: "run_1", SessionID: "ses_1", ExecutorID: "turn_1", GoalLeaseID: "lease_1",
+				RootRunID: "run_1", SessionID: "ses_1", ExecutorID: "turn_1", GoalIncarnationID: "lease_1",
 				Capabilities: run.Capabilities{
 					InterruptKinds: []interrupt.Kind{interrupt.Approval},
 				},
@@ -288,8 +288,8 @@ func TestApplyRunLostProjectsTerminalTranscript(t *testing.T) {
 			Messages: []chat.Message{chat.NewUserMessage(chat.NewTextPart("hello"))},
 			Runs: []run.Run{runfixture.MustRestore(run.Snapshot{
 				ID: "run_1", SessionID: "ses_1", State: run.Waiting,
-				GoalLeaseID:    "lease_1",
-				ModelSelection: selection,
+				GoalIncarnationID: "lease_1",
+				ModelSelection:    selection,
 				Capabilities: run.Capabilities{
 					InterruptKinds: []interrupt.Kind{interrupt.Approval},
 				},
@@ -340,7 +340,7 @@ func TestApplyRunLostProjectsTerminalTranscript(t *testing.T) {
 		t.Fatalf("terminal plan = %+v", applied)
 	}
 	if applied.GoalRun == nil || applied.GoalRun.SessionID != "ses_1" ||
-		applied.GoalRun.LeaseID != "lease_1" || applied.GoalRun.RunID != "run_1" ||
+		applied.GoalRun.IncarnationID != "lease_1" || applied.GoalRun.RunID != "run_1" ||
 		applied.GoalRun.Outcome != run.OutcomeLost || applied.GoalRun.CostUSD != costUSD ||
 		applied.GoalRun.Steps != 4 || !applied.GoalRun.CompletedAt.Equal(finishedAt) {
 		t.Fatalf("terminal Goal Run = %+v", applied.GoalRun)

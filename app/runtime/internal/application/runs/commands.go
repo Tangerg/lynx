@@ -105,10 +105,10 @@ type StartCommand struct {
 	// admission rather than deriving or renegotiating it later.
 	Capabilities run.Capabilities
 	Input        []transcript.ContentBlock
-	// GoalLeaseID stamps a Goal-mode autonomous run with the goal incarnation
+	// GoalIncarnationID stamps a Goal-mode autonomous run with the goal incarnation
 	// that launched it, so the Run's reported outcome only affects that Goal
-	// (see the goals application store's lease-and-revision CAS). Empty for ordinary runs.
-	GoalLeaseID string
+	// (see the goals application store's incarnation-and-revision CAS). Empty for ordinary runs.
+	GoalIncarnationID string
 }
 
 // ValidateScheduledIdentity ensures the three stable identifiers supplied by a
@@ -346,8 +346,8 @@ func (r RootExecutionStart) Validate() error {
 	}).Validate(); err != nil {
 		return fmt.Errorf("runs: capabilities: %w", err)
 	}
-	if r.GoalLeaseID != strings.TrimSpace(r.GoalLeaseID) {
-		return errors.New("runs: goal lease ID has surrounding whitespace")
+	if r.GoalIncarnationID != strings.TrimSpace(r.GoalIncarnationID) {
+		return errors.New("runs: goal incarnation ID has surrounding whitespace")
 	}
 	return validateOptions(r.Options)
 }

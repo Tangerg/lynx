@@ -628,7 +628,7 @@ func TestCommitEventRecordsGoalRunWithTerminalRun(t *testing.T) {
 	state := sqlite.NewRunStore(db)
 	draft := run.Draft{
 		RunID: "run_goal", SessionID: g.SessionID, SegmentID: "seg_open",
-		GoalLeaseID: g.LeaseID, CreatedAt: created,
+		GoalIncarnationID: g.IncarnationID, CreatedAt: created,
 	}
 	if err := state.Admit(ctx, draft); err != nil {
 		t.Fatalf("admit goal run: %v", err)
@@ -663,7 +663,7 @@ func TestCommitEventRecordsGoalRunWithTerminalRun(t *testing.T) {
 		Outcome: run.OutcomeCompleted,
 		Run:     finished,
 		GoalRun: &goal.RunRecord{
-			SessionID: g.SessionID, LeaseID: g.LeaseID, RunID: draft.RunID,
+			SessionID: g.SessionID, IncarnationID: g.IncarnationID, RunID: draft.RunID,
 			Outcome: run.OutcomeCompleted, CostUSD: costUSD, Steps: 2, CompletedAt: finished.FinishedAt(),
 		},
 	}); err != nil {

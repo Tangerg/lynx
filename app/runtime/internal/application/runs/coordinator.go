@@ -391,14 +391,14 @@ func (c *Coordinator) commitOpening(ctx context.Context, spec segmentSpec, route
 		}
 	} else {
 		opening.Admit = &rundomain.Draft{
-			RunID:          spec.RunID,
-			SessionID:      spec.SessionID,
-			SegmentID:      spec.SegmentID,
-			ModelSelection: spec.ModelSelection,
-			GoalLeaseID:    spec.GoalLeaseID,
-			Limits:         spec.Limits,
-			Capabilities:   spec.Capabilities,
-			CreatedAt:      spec.CreatedAt,
+			RunID:             spec.RunID,
+			SessionID:         spec.SessionID,
+			SegmentID:         spec.SegmentID,
+			ModelSelection:    spec.ModelSelection,
+			GoalIncarnationID: spec.GoalIncarnationID,
+			Limits:            spec.Limits,
+			Capabilities:      spec.Capabilities,
+			CreatedAt:         spec.CreatedAt,
 		}
 		opening.InitialSession = spec.InitialSession
 		opening.SessionReplacement = spec.SessionReplacement

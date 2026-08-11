@@ -26,7 +26,7 @@ func TestNewValidates(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := New("s", "obj", selection, Budget{}, "", now); err == nil {
-		t.Fatal("empty lease should error")
+		t.Fatal("empty incarnation should error")
 	}
 	g, err := New("s", "obj", selection, Budget{MaxRuns: 3}, "lease", now)
 	if err != nil {
@@ -74,7 +74,7 @@ func TestValidateSnapshotRejectsMissingConcurrencyIdentity(t *testing.T) {
 		name   string
 		mutate func(*Goal)
 	}{
-		{"lease", func(g *Goal) { g.LeaseID = "" }},
+		{"incarnation", func(g *Goal) { g.IncarnationID = "" }},
 		{"revision", func(g *Goal) { g.Revision = 0 }},
 	}
 	for _, tt := range tests {
@@ -136,7 +136,7 @@ func TestRecordRunPreservesPriorTerminalReport(t *testing.T) {
 	}
 	g.Block(ReasonBlockedByModel, "need a credential", now)
 	g.RecordRun(RunRecord{
-		SessionID: "s", LeaseID: "lease", RunID: "run_1", Outcome: run.OutcomeCompleted,
+		SessionID: "s", IncarnationID: "lease", RunID: "run_1", Outcome: run.OutcomeCompleted,
 		CostUSD: 0.25, Steps: 2, CompletedAt: now.Add(time.Second),
 	})
 	if g.Status != StatusBlocked || g.Reason != (Reason{Code: ReasonBlockedByModel, Detail: "need a credential"}) {

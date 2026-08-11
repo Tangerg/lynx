@@ -28,15 +28,15 @@ type InterruptStore struct {
 // waiting-tree hand-off. Application semantics belong to the persistence
 // adapter; this record only names the values required by the storage codec.
 type InterruptRecord struct {
-	RootRunID     string
-	SessionID     string
-	ExecutorID    string
-	GoalLeaseID   string
-	Interrupts    []transcript.Interrupt
-	Bindings      []InterruptBindingRecord
-	Continuations []ContinuationRecord
-	Capabilities  run.Capabilities
-	CreatedAt     time.Time
+	RootRunID         string
+	SessionID         string
+	ExecutorID        string
+	GoalIncarnationID string
+	Interrupts        []transcript.Interrupt
+	Bindings          []InterruptBindingRecord
+	Continuations     []ContinuationRecord
+	Capabilities      run.Capabilities
+	CreatedAt         time.Time
 }
 
 // ContinuationRecord is the stored continuation row for one Run.
@@ -96,8 +96,8 @@ func (record InterruptRecord) validateStorageShape() error {
 		return errors.New("session ID must be non-empty without surrounding whitespace")
 	case strings.TrimSpace(record.ExecutorID) == "" || record.ExecutorID != strings.TrimSpace(record.ExecutorID):
 		return errors.New("executor ID must be non-empty without surrounding whitespace")
-	case record.GoalLeaseID != strings.TrimSpace(record.GoalLeaseID):
-		return errors.New("goal lease ID has surrounding whitespace")
+	case record.GoalIncarnationID != strings.TrimSpace(record.GoalIncarnationID):
+		return errors.New("goal incarnation ID has surrounding whitespace")
 	case record.CreatedAt.IsZero():
 		return errors.New("creation time is required")
 	case len(record.Interrupts) == 0:
@@ -207,11 +207,11 @@ func (s *InterruptStore) Open(ctx context.Context, p InterruptRecord) error {
 		return fmt.Errorf("sqlite: open interrupt: %w", err)
 	}
 	result, err := conn(ctx, s.db).ExecContext(ctx,
-		`INSERT INTO interrupts(root_run_id, session_id, executor_id, goal_lease_id, root_member_id, payload, continuations, interrupt_bindings, capabilities, created_at)
+		`INSERT INTO interrupts(root_run_id, session_id, executor_id, goal_incarnation_id, root_member_id, payload, continuations, interrupt_bindings, capabilities, created_at)
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		 ON CONFLICT(root_run_id) DO UPDATE SET
 		   executor_id = excluded.executor_id,
-		   goal_lease_id = excluded.goal_lease_id,
+		   goal_incarnation_id = excluded.goal_incarnation_id,
 		   root_member_id = excluded.root_member_id,
 		   payload = excluded.payload,
 		   continuations = excluded.continuations,
@@ -226,7 +226,7 @@ func (s *InterruptStore) Open(ctx context.Context, p InterruptRecord) error {
 		p.RootRunID,
 		p.SessionID,
 		p.ExecutorID,
-		p.GoalLeaseID,
+		p.GoalIncarnationID,
 		root.MemberID,
 		string(payload),
 		string(continuations),
@@ -255,7 +255,7 @@ func (s *InterruptStore) Open(ctx context.Context, p InterruptRecord) error {
 	return nil
 }
 
-const interruptColumns = `root_run_id, session_id, executor_id, goal_lease_id, root_member_id, payload, continuations, interrupt_bindings, capabilities, created_at`
+const interruptColumns = `root_run_id, session_id, executor_id, goal_incarnation_id, root_member_id, payload, continuations, interrupt_bindings, capabilities, created_at`
 
 func (s *InterruptStore) List(ctx context.Context, sessionID string) ([]InterruptRecord, error) {
 	return s.list(ctx, sessionID, "", 0, "", 0)
@@ -489,7 +489,7 @@ func scanPending(row scanRow) (InterruptRecord, error) {
 		&p.RootRunID,
 		&p.SessionID,
 		&p.ExecutorID,
-		&p.GoalLeaseID,
+		&p.GoalIncarnationID,
 		&rootMemberID,
 		&payload,
 		&continuations,

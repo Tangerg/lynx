@@ -111,7 +111,7 @@ func (store *recoveryStoreStub) LoadExecutorCheckpoint(
 			BuildID:      "test-build",
 			Scope: ExecutionScope{
 				SessionID: pending.SessionID, CWD: sess.CWD(), WorkspaceCWD: sess.CWD(),
-				Isolated: sess.Isolated(), GoalLeaseID: pending.GoalLeaseID,
+				Isolated: sess.Isolated(), GoalIncarnationID: pending.GoalIncarnationID,
 			},
 			ModelSelection: root.ModelSelection,
 			Limits:         root.Limits,
@@ -220,7 +220,7 @@ func TestRecoveryChargesLostGoalOwnedRootToItsAdmissionLease(t *testing.T) {
 	finishedAt := createdAt.Add(time.Minute)
 	cost := 1.25
 	run := runfixture.MustRestore(rundomain.Snapshot{ID: "run_goal", SessionID: "session", State: rundomain.Running,
-		ActiveSegmentID: "segment_goal", GoalLeaseID: "lease_goal",
+		ActiveSegmentID: "segment_goal", GoalIncarnationID: "lease_goal",
 		Metrics: runfixture.MustMetrics(runfixture.MetricsInput{Steps: 3,
 			Usage: &accounting.Usage{Total: accounting.Totals{CostUSD: &cost}}}),
 
@@ -246,7 +246,7 @@ func TestRecoveryChargesLostGoalOwnedRootToItsAdmissionLease(t *testing.T) {
 		t.Fatalf("Goal Runs = %+v, want one", store.commit.GoalRuns)
 	}
 	goalRun := store.commit.GoalRuns[0]
-	if goalRun.SessionID != run.SessionID() || goalRun.LeaseID != run.GoalLeaseID() ||
+	if goalRun.SessionID != run.SessionID() || goalRun.IncarnationID != run.GoalIncarnationID() ||
 		goalRun.RunID != run.ID() || goalRun.Outcome != rundomain.OutcomeLost ||
 		goalRun.CostUSD != cost || goalRun.Steps != run.Metrics().Steps() ||
 		!goalRun.CompletedAt.Equal(finishedAt) {
@@ -260,9 +260,9 @@ func TestRecoveryChargesLostGoalOwnedRootToItsAdmissionLease(t *testing.T) {
 	}
 	mismatchedCharge := store.commit
 	mismatchedCharge.GoalRuns = append([]goal.RunRecord(nil), store.commit.GoalRuns...)
-	mismatchedCharge.GoalRuns[0].LeaseID = "other-lease"
+	mismatchedCharge.GoalRuns[0].IncarnationID = "other-lease"
 	if err := mismatchedCharge.Validate(); err == nil {
-		t.Fatal("RecoveryCommit.Validate accepted a Goal Run from another lease")
+		t.Fatal("RecoveryCommit.Validate accepted a Goal Run from another incarnation")
 	}
 	foreignDeletion := store.commit
 	foreignDeletion.DeleteInterrupts = append(
@@ -279,9 +279,9 @@ func TestRecoveryChargesLostGoalOwnedRootToItsAdmissionLease(t *testing.T) {
 
 func TestRecoveryPreservesOnlyCoherentInterruptedTree(t *testing.T) {
 	run, pending, item := coherentRecoveryPark(t)
-	pending.GoalLeaseID = "goal-lease-1"
+	pending.GoalIncarnationID = "goal-lease-1"
 	snapshot := run.Snapshot()
-	snapshot.GoalLeaseID = pending.GoalLeaseID
+	snapshot.GoalIncarnationID = pending.GoalIncarnationID
 	run = runfixture.MustRestore(snapshot)
 	store := &recoveryStoreStub{
 		runs:         []rundomain.Run{run},
@@ -306,7 +306,7 @@ func TestRecoveryPreservesOnlyCoherentInterruptedTree(t *testing.T) {
 		RootMemberID: "member_root", Payload: []byte(`{}`), BuildID: "test-build",
 		Scope: ExecutionScope{
 			SessionID: run.SessionID(), CWD: "/workspace", WorkspaceCWD: "/workspace",
-			GoalLeaseID: pending.GoalLeaseID,
+			GoalIncarnationID: pending.GoalIncarnationID,
 		},
 		ModelSelection: run.ModelSelection(), Limits: run.Limits(), Capabilities: pending.Capabilities,
 	})

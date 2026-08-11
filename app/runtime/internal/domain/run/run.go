@@ -21,45 +21,45 @@ const UnknownMessageMark = -1
 // resume boundaries to exactly one terminal outcome. Its fields are private so
 // every lifecycle and accounting change crosses a validated domain behavior.
 type Run struct {
-	sessionID       string
-	id              string
-	lineage         Lineage
-	modelSelection  modelref.Selection
-	goalLeaseID     string
-	state           State
-	activeSegmentID string
-	outcome         *Outcome
-	detail          string
-	failure         *Failure
-	metrics         Metrics
-	limits          Limits
-	capabilities    Capabilities
-	createdAt       time.Time
-	finishedAt      time.Time
-	updatedAt       time.Time
-	messageMark     int
+	sessionID         string
+	id                string
+	lineage           Lineage
+	modelSelection    modelref.Selection
+	goalIncarnationID string
+	state             State
+	activeSegmentID   string
+	outcome           *Outcome
+	detail            string
+	failure           *Failure
+	metrics           Metrics
+	limits            Limits
+	capabilities      Capabilities
+	createdAt         time.Time
+	finishedAt        time.Time
+	updatedAt         time.Time
+	messageMark       int
 }
 
 // Snapshot is the complete immutable value needed to restore or persist a Run.
 // Restore validates every field; it is not a second mutation surface.
 type Snapshot struct {
-	SessionID       string
-	ID              string
-	Lineage         Lineage
-	ModelSelection  modelref.Selection
-	GoalLeaseID     string
-	State           State
-	ActiveSegmentID string
-	Outcome         *Outcome
-	Detail          string
-	Failure         *Failure
-	Metrics         Metrics
-	Limits          Limits
-	Capabilities    Capabilities
-	CreatedAt       time.Time
-	FinishedAt      time.Time
-	UpdatedAt       time.Time
-	MessageMark     int
+	SessionID         string
+	ID                string
+	Lineage           Lineage
+	ModelSelection    modelref.Selection
+	GoalIncarnationID string
+	State             State
+	ActiveSegmentID   string
+	Outcome           *Outcome
+	Detail            string
+	Failure           *Failure
+	Metrics           Metrics
+	Limits            Limits
+	Capabilities      Capabilities
+	CreatedAt         time.Time
+	FinishedAt        time.Time
+	UpdatedAt         time.Time
+	MessageMark       int
 }
 
 // Admit creates the authoritative aggregate for a fresh root or child Run.
@@ -69,7 +69,7 @@ func Admit(draft Draft) (Run, error) {
 	}
 	return Restore(Snapshot{
 		SessionID: draft.SessionID, ID: draft.RunID, Lineage: draft.Lineage(),
-		ModelSelection: draft.ModelSelection, GoalLeaseID: draft.GoalLeaseID,
+		ModelSelection: draft.ModelSelection, GoalIncarnationID: draft.GoalIncarnationID,
 		State: Running, ActiveSegmentID: draft.SegmentID, Limits: draft.Limits,
 		Capabilities: draft.Capabilities, CreatedAt: draft.CreatedAt.UTC(),
 		UpdatedAt: draft.CreatedAt.UTC(), MessageMark: UnknownMessageMark,
@@ -80,7 +80,7 @@ func Admit(draft Draft) (Run, error) {
 func Restore(snapshot Snapshot) (Run, error) {
 	run := Run{
 		sessionID: snapshot.SessionID, id: snapshot.ID, lineage: snapshot.Lineage,
-		modelSelection: snapshot.ModelSelection, goalLeaseID: snapshot.GoalLeaseID,
+		modelSelection: snapshot.ModelSelection, goalIncarnationID: snapshot.GoalIncarnationID,
 		state: snapshot.State, activeSegmentID: snapshot.ActiveSegmentID,
 		outcome: cloneOutcome(snapshot.Outcome), detail: snapshot.Detail,
 		failure: cloneFailure(snapshot.Failure), metrics: snapshot.Metrics,
@@ -98,7 +98,7 @@ func Restore(snapshot Snapshot) (Run, error) {
 func (run Run) Snapshot() Snapshot {
 	return Snapshot{
 		SessionID: run.sessionID, ID: run.id, Lineage: run.lineage,
-		ModelSelection: run.modelSelection, GoalLeaseID: run.goalLeaseID,
+		ModelSelection: run.modelSelection, GoalIncarnationID: run.goalIncarnationID,
 		State: run.state, ActiveSegmentID: run.activeSegmentID,
 		Outcome: cloneOutcome(run.outcome), Detail: run.detail,
 		Failure: cloneFailure(run.failure), Metrics: run.metrics,
@@ -113,7 +113,7 @@ func (run Run) Snapshot() Snapshot {
 // proposed transition was derived from the currently committed aggregate.
 func (run Run) Equal(other Run) bool {
 	if run.sessionID != other.sessionID || run.id != other.id || run.lineage != other.lineage ||
-		run.modelSelection != other.modelSelection || run.goalLeaseID != other.goalLeaseID ||
+		run.modelSelection != other.modelSelection || run.goalIncarnationID != other.goalIncarnationID ||
 		run.state != other.state || run.activeSegmentID != other.activeSegmentID ||
 		run.detail != other.detail || !run.metrics.Equal(other.metrics) || run.limits != other.limits ||
 		!run.capabilities.Equal(other.capabilities) || !run.createdAt.Equal(other.createdAt) ||
@@ -171,11 +171,11 @@ func (run Run) Validate() error {
 	if err := run.modelSelection.Validate(); err != nil {
 		return fmt.Errorf("run: model selection: %w", err)
 	}
-	if run.goalLeaseID != strings.TrimSpace(run.goalLeaseID) {
-		return errors.New("run: goal lease ID has surrounding whitespace")
+	if run.goalIncarnationID != strings.TrimSpace(run.goalIncarnationID) {
+		return errors.New("run: goal incarnation ID has surrounding whitespace")
 	}
-	if run.lineage.IsChild() && run.goalLeaseID != "" {
-		return errors.New("run: child carries a root Goal lease")
+	if run.lineage.IsChild() && run.goalIncarnationID != "" {
+		return errors.New("run: child carries a root Goal incarnation")
 	}
 	if (run.state == Running) != (run.activeSegmentID != "") {
 		return fmt.Errorf("run: %s Run has active Segment %q", run.state, run.activeSegmentID)
@@ -384,7 +384,7 @@ func (run Run) ID() string                         { return run.id }
 func (run Run) SessionID() string                  { return run.sessionID }
 func (run Run) Lineage() Lineage                   { return run.lineage }
 func (run Run) ModelSelection() modelref.Selection { return run.modelSelection }
-func (run Run) GoalLeaseID() string                { return run.goalLeaseID }
+func (run Run) GoalIncarnationID() string          { return run.goalIncarnationID }
 func (run Run) State() State                       { return run.state }
 func (run Run) ActiveSegmentID() string            { return run.activeSegmentID }
 func (run Run) Outcome() (Outcome, bool) {

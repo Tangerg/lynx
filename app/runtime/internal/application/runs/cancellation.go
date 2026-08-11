@@ -388,16 +388,16 @@ func (c *Coordinator) resumeAfterWaitingChildCancellation(
 	}
 	var committed WaitingSubtreeCancellationResult
 	events, err := c.openSegment(ctx, segmentSpec{
-		RunID:          plan.root.run.ID(),
-		SegmentID:      segmentID,
-		SessionID:      plan.pending.SessionID,
-		CWD:            sess.CWD(),
-		ExecutorID:     plan.executor.ExecutorID,
-		ModelSelection: rootContinuation.ModelSelection,
-		GoalLeaseID:    transformation.continuation.goalLeaseID,
-		CreatedAt:      rootContinuation.RunCreatedAt,
-		Continuation:   transformation.continuation,
-		admission:      runAdmission,
+		RunID:             plan.root.run.ID(),
+		SegmentID:         segmentID,
+		SessionID:         plan.pending.SessionID,
+		CWD:               sess.CWD(),
+		ExecutorID:        plan.executor.ExecutorID,
+		ModelSelection:    rootContinuation.ModelSelection,
+		GoalIncarnationID: transformation.continuation.goalIncarnationID,
+		CreatedAt:         rootContinuation.RunCreatedAt,
+		Continuation:      transformation.continuation,
+		admission:         runAdmission,
 		CommitOpening: func(commitCtx context.Context, opening OpeningCommit) error {
 			if opening.Admit != nil || opening.Resume == nil {
 				return errors.New("runs: waiting child continuation produced an invalid opening disposition")

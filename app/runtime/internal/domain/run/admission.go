@@ -30,11 +30,11 @@ type Draft struct {
 	// nothing can attach to.
 	SegmentID      string
 	ModelSelection modelref.Selection
-	// GoalLeaseID is the autonomous-goal incarnation that admitted this root
+	// GoalIncarnationID is the autonomous-goal incarnation that admitted this root
 	// Run. It is durable admission provenance so crash recovery can terminalize
-	// the Run and charge the exact lease in one transaction. Child Runs leave it
+	// the Run and charge the exact incarnation in one transaction. Child Runs leave it
 	// empty because the root is the single Goal Run.
-	GoalLeaseID string
+	GoalIncarnationID string
 	// Limits is the allowance this Run is admitted under. It is recorded with the
 	// admission and never changes: a resume answers an interrupt, it does not
 	// renegotiate the budget the Run was accepted with.
@@ -58,8 +58,8 @@ func (draft Draft) Validate() error {
 		return errors.New("run: opening Segment ID is required without surrounding whitespace")
 	case draft.CreatedAt.IsZero():
 		return errors.New("run: admission time is required")
-	case draft.GoalLeaseID != strings.TrimSpace(draft.GoalLeaseID):
-		return errors.New("run: Goal lease ID has surrounding whitespace")
+	case draft.GoalIncarnationID != strings.TrimSpace(draft.GoalIncarnationID):
+		return errors.New("run: Goal incarnation ID has surrounding whitespace")
 	}
 	lineage := draft.Lineage()
 	if err := lineage.Validate(draft.RunID); err != nil {
@@ -74,8 +74,8 @@ func (draft Draft) Validate() error {
 	if err := draft.Capabilities.Validate(); err != nil {
 		return err
 	}
-	if lineage.IsChild() && draft.GoalLeaseID != "" {
-		return errors.New("run: child carries a root Goal lease")
+	if lineage.IsChild() && draft.GoalIncarnationID != "" {
+		return errors.New("run: child carries a root Goal incarnation")
 	}
 	return nil
 }

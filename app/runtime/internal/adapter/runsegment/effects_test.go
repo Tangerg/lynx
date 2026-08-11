@@ -464,10 +464,10 @@ func TestCommitTreeBarrierRejectsMismatchedCheckpointBindingBeforeTransaction(t 
 		createdAt, createdAt.Add(time.Second),
 	)
 	for name, mutate := range map[string]func(*runs.ExecutorCheckpoint){
-		"root":       func(checkpoint *runs.ExecutorCheckpoint) { checkpoint.RootMemberID = "other_proc" },
-		"session":    func(checkpoint *runs.ExecutorCheckpoint) { checkpoint.Scope.SessionID = "other_session" },
-		"goal lease": func(checkpoint *runs.ExecutorCheckpoint) { checkpoint.Scope.GoalLeaseID = "other_goal" },
-		"limits":     func(checkpoint *runs.ExecutorCheckpoint) { checkpoint.Limits.MaxTotalTokens++ },
+		"root":             func(checkpoint *runs.ExecutorCheckpoint) { checkpoint.RootMemberID = "other_proc" },
+		"session":          func(checkpoint *runs.ExecutorCheckpoint) { checkpoint.Scope.SessionID = "other_session" },
+		"goal incarnation": func(checkpoint *runs.ExecutorCheckpoint) { checkpoint.Scope.GoalIncarnationID = "other_goal" },
+		"limits":           func(checkpoint *runs.ExecutorCheckpoint) { checkpoint.Limits.MaxTotalTokens++ },
 		"provider": func(checkpoint *runs.ExecutorCheckpoint) {
 			checkpoint.ModelSelection, _ = modelref.New("openai", checkpoint.ModelSelection.Model())
 		},
@@ -542,10 +542,10 @@ func TestCommitTreeBarrierRejectsRunContinuationFactDriftBeforeTransaction(t *te
 			},
 		},
 		{
-			name: "root goal lease",
+			name: "root goal incarnation",
 			mutate: func(_ *runs.Pending, record *run.Run) {
 				snapshot := record.Snapshot()
-				snapshot.GoalLeaseID = "other-lease"
+				snapshot.GoalIncarnationID = "other-lease"
 				*record = runfixture.MustRestore(snapshot)
 			},
 		},
@@ -558,14 +558,14 @@ func TestCommitTreeBarrierRejectsRunContinuationFactDriftBeforeTransaction(t *te
 				"run_1", "ses_1", "member_1", "request_1", "int_1",
 				createdAt, createdAt.Add(time.Second),
 			)
-			pending.GoalLeaseID = "goal-lease"
+			pending.GoalIncarnationID = "goal-lease"
 			pending.Continuations[0].Metrics = runfixture.MustMetrics(runfixture.MetricsInput{Steps: 2})
 			pending.Continuations[0].Limits = run.Limits{MaxSteps: 5}
 			run := runfixture.MustRestore(run.Snapshot{SessionID: pending.SessionID,
-				ID:             pending.RootRunID,
-				ModelSelection: pending.Continuations[0].ModelSelection,
-				GoalLeaseID:    pending.GoalLeaseID,
-				State:          run.Waiting,
+				ID:                pending.RootRunID,
+				ModelSelection:    pending.Continuations[0].ModelSelection,
+				GoalIncarnationID: pending.GoalIncarnationID,
+				State:             run.Waiting,
 
 				Metrics:      pending.Continuations[0].Metrics,
 				Limits:       pending.Continuations[0].Limits,
@@ -575,7 +575,7 @@ func TestCommitTreeBarrierRejectsRunContinuationFactDriftBeforeTransaction(t *te
 
 			test.mutate(&pending, &run)
 			checkpoint := testRootExecutorCheckpoint()
-			checkpoint.Scope.GoalLeaseID = pending.GoalLeaseID
+			checkpoint.Scope.GoalIncarnationID = pending.GoalIncarnationID
 			checkpoint.Limits = pending.Continuations[0].Limits
 			stores := &fakeStores{interrupts: &fakeInterrupts{}}
 			tx := &fakeTx{}

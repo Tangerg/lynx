@@ -24,13 +24,13 @@ type Pending struct {
 	RootRunID  string
 	SessionID  string
 	ExecutorID string
-	// GoalLeaseID is the root Run's autonomous-goal incarnation. It is an
+	// GoalIncarnationID is the root Run's autonomous-goal incarnation. It is an
 	// Run continuation fact, not executor payload: a resumed Segment
 	// needs it to keep terminal budget accounting attached to the same Goal.
-	GoalLeaseID   string
-	Interrupts    []transcript.Interrupt
-	Bindings      []InterruptBinding
-	Continuations []Continuation
+	GoalIncarnationID string
+	Interrupts        []transcript.Interrupt
+	Bindings          []InterruptBinding
+	Continuations     []Continuation
 	// Capabilities is the Run's frozen optional behavior. A continuation refuses
 	// callers that lack it and reuses its admitted interrupt kinds.
 	Capabilities run.Capabilities
@@ -154,8 +154,8 @@ func (p Pending) validateEnvelope() error {
 		return errors.New("interrupts: pending executor ID is required")
 	case p.ExecutorID != strings.TrimSpace(p.ExecutorID):
 		return errors.New("interrupts: pending executor ID has surrounding whitespace")
-	case p.GoalLeaseID != strings.TrimSpace(p.GoalLeaseID):
-		return errors.New("interrupts: pending goal lease id has surrounding whitespace")
+	case p.GoalIncarnationID != strings.TrimSpace(p.GoalIncarnationID):
+		return errors.New("interrupts: pending goal incarnation id has surrounding whitespace")
 	case p.CreatedAt.IsZero():
 		return errors.New("interrupts: pending creation time is required")
 	case len(p.Interrupts) == 0:

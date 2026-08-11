@@ -67,9 +67,9 @@ func (prepared *fakePreparedWaitingCancellation) value() PreparedWaitingSubtreeC
 func TestPrepareWaitingCancellationRejectsCheckpointBoundToDifferentApplicationFacts(t *testing.T) {
 	plan := runACancellationPlan(t, false)
 	for name, mutate := range map[string]func(*ExecutorCheckpoint){
-		"root":       func(checkpoint *ExecutorCheckpoint) { checkpoint.RootMemberID = "other_root" },
-		"session":    func(checkpoint *ExecutorCheckpoint) { checkpoint.Scope.SessionID = "other_session" },
-		"goal lease": func(checkpoint *ExecutorCheckpoint) { checkpoint.Scope.GoalLeaseID = "other_goal" },
+		"root":             func(checkpoint *ExecutorCheckpoint) { checkpoint.RootMemberID = "other_root" },
+		"session":          func(checkpoint *ExecutorCheckpoint) { checkpoint.Scope.SessionID = "other_session" },
+		"goal incarnation": func(checkpoint *ExecutorCheckpoint) { checkpoint.Scope.GoalIncarnationID = "other_goal" },
 		"provider": func(checkpoint *ExecutorCheckpoint) {
 			checkpoint.ModelSelection = mustSelection("anthropic", checkpoint.ModelSelection.Model())
 		},

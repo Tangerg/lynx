@@ -9,11 +9,11 @@ import (
 
 func TestScopeAccessorsShareOneImmutableTurnValue(t *testing.T) {
 	want := runs.ExecutionScope{
-		SessionID:    "session-1",
-		CWD:          "/sandbox/project",
-		WorkspaceCWD: "/workspace/project",
-		Isolated:     true,
-		GoalLeaseID:  "lease-1",
+		SessionID:         "session-1",
+		CWD:               "/sandbox/project",
+		WorkspaceCWD:      "/workspace/project",
+		Isolated:          true,
+		GoalIncarnationID: "lease-1",
 	}
 	ctx := WithScope(context.Background(), want)
 
@@ -32,8 +32,8 @@ func TestScopeAccessorsShareOneImmutableTurnValue(t *testing.T) {
 	if !Isolated(ctx) {
 		t.Fatal("Isolated = false, want true")
 	}
-	if got, ok := GoalLeaseID(ctx); !ok || got != want.GoalLeaseID {
-		t.Fatalf("GoalLeaseID = (%q, %v), want (%q, true)", got, ok, want.GoalLeaseID)
+	if got, ok := GoalIncarnationID(ctx); !ok || got != want.GoalIncarnationID {
+		t.Fatalf("GoalIncarnationID = (%q, %v), want (%q, true)", got, ok, want.GoalIncarnationID)
 	}
 }
 
@@ -51,7 +51,7 @@ func TestMissingScopeUsesHostFallbacks(t *testing.T) {
 	if SessionID(ctx) != "" || Isolated(ctx) {
 		t.Fatal("missing scope produced session or isolation")
 	}
-	if _, ok := GoalLeaseID(ctx); ok {
-		t.Fatal("missing scope produced a goal lease")
+	if _, ok := GoalIncarnationID(ctx); ok {
+		t.Fatal("missing scope produced a goal incarnation")
 	}
 }

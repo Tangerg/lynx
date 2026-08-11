@@ -406,7 +406,7 @@ func (projection *delegateProjection) applyOpening(opening runs.OpeningCommit) {
 		projection.runs[draft.RunID] = runfixture.MustRestore(run.Snapshot{ID: draft.RunID, SessionID: draft.SessionID,
 
 			State: run.Running, ActiveSegmentID: draft.SegmentID,
-			ModelSelection: draft.ModelSelection, GoalLeaseID: draft.GoalLeaseID,
+			ModelSelection: draft.ModelSelection, GoalIncarnationID: draft.GoalIncarnationID,
 			Limits: draft.Limits, Capabilities: draft.Capabilities,
 			CreatedAt: draft.CreatedAt, UpdatedAt: draft.CreatedAt,
 			MessageMark: run.UnknownMessageMark, Lineage: run.Lineage{SpawnedByItemID: draft.SpawnedByItemID, ParentRunID: draft.ParentRunID,

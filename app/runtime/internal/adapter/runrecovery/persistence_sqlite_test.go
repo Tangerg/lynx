@@ -208,7 +208,7 @@ func TestRecoveryRepairsWholeDurableLifecycle(t *testing.T) {
 		t.Fatalf("Save Goal: applied=%t err=%v", applied, err)
 	}
 	if err := runStore.Admit(ctx, run.Draft{
-		RunID: "run_lost", SessionID: "session", SegmentID: "segment", GoalLeaseID: goalValue.LeaseID, CreatedAt: createdAt,
+		RunID: "run_lost", SessionID: "session", SegmentID: "segment", GoalIncarnationID: goalValue.IncarnationID, CreatedAt: createdAt,
 	}); err != nil {
 		t.Fatalf("Admit: %v", err)
 	}

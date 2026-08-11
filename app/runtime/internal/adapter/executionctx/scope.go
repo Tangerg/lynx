@@ -56,11 +56,11 @@ func Isolated(ctx context.Context) bool {
 	return ok && scope.Isolated
 }
 
-// GoalLeaseID reports the goal incarnation this run was launched under
+// GoalIncarnationID reports the goal incarnation this run was launched under
 // and whether it was set.
-func GoalLeaseID(ctx context.Context) (string, bool) {
-	if scope, ok := Scope(ctx); ok && scope.GoalLeaseID != "" {
-		return scope.GoalLeaseID, true
+func GoalIncarnationID(ctx context.Context) (string, bool) {
+	if scope, ok := Scope(ctx); ok && scope.GoalIncarnationID != "" {
+		return scope.GoalIncarnationID, true
 	}
 	return "", false
 }

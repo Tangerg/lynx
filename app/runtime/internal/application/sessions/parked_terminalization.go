@@ -60,7 +60,7 @@ func (terminalization parkedRunTerminalization) build() (TerminalPlan, rundomain
 		return TerminalPlan{}, rundomain.Run{}, err
 	}
 	rootRun := terminalRuns[len(terminalRuns)-1]
-	if rootRun.ID() != terminalization.rootRunID || rootRun.GoalLeaseID() != terminalization.pending.GoalLeaseID {
+	if rootRun.ID() != terminalization.rootRunID || rootRun.GoalIncarnationID() != terminalization.pending.GoalIncarnationID {
 		return TerminalPlan{}, rundomain.Run{}, fmt.Errorf(
 			"sessions: terminalize parked Run tree %q: root admission differs from Pending",
 			terminalization.rootRunID,
@@ -81,7 +81,7 @@ func (terminalization parkedRunTerminalization) build() (TerminalPlan, rundomain
 		Runs: terminalRuns, Items: items, Messages: conversationMessages,
 		CheckpointRootID: root.MemberID,
 	}
-	if rootRun.GoalLeaseID() != "" {
+	if rootRun.GoalIncarnationID() != "" {
 		record := terminalGoalRun(rootRun)
 		plan.GoalRun = &record
 	}
@@ -354,12 +354,12 @@ func (terminalization parkedRunTerminalization) terminalConversationMessages() (
 func terminalGoalRun(root rundomain.Run) goal.RunRecord {
 	outcome, _ := root.Outcome()
 	record := goal.RunRecord{
-		SessionID:   root.SessionID(),
-		LeaseID:     root.GoalLeaseID(),
-		RunID:       root.ID(),
-		Outcome:     outcome,
-		Steps:       root.Metrics().Steps(),
-		CompletedAt: root.FinishedAt(),
+		SessionID:     root.SessionID(),
+		IncarnationID: root.GoalIncarnationID(),
+		RunID:         root.ID(),
+		Outcome:       outcome,
+		Steps:         root.Metrics().Steps(),
+		CompletedAt:   root.FinishedAt(),
 	}
 	if usage, reported := root.Metrics().Usage(); reported && usage.Total.CostUSD != nil {
 		record.CostUSD = *usage.Total.CostUSD

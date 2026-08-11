@@ -426,14 +426,14 @@ func (c EventCommit) validateLifecycle() error {
 }
 
 func validateTerminalGoalRun(value run.Run, record *goal.RunRecord) error {
-	if value.GoalLeaseID() == "" {
+	if value.GoalIncarnationID() == "" {
 		if record != nil {
 			return fmt.Errorf("runs: non-Goal Run %q carries a Goal Run", value.ID())
 		}
 		return nil
 	}
 	if !value.Lineage().IsRoot() {
-		return fmt.Errorf("runs: child Run %q carries a root Goal lease", value.ID())
+		return fmt.Errorf("runs: child Run %q carries a root Goal incarnation", value.ID())
 	}
 	if record == nil {
 		return fmt.Errorf("runs: Goal-owned terminal Run %q has no Goal Run", value.ID())
@@ -446,7 +446,7 @@ func validateTerminalGoalRun(value run.Run, record *goal.RunRecord) error {
 		costUSD = *usage.Total.CostUSD
 	}
 	outcome, ok := value.Outcome()
-	if !ok || record.SessionID != value.SessionID() || record.LeaseID != value.GoalLeaseID() ||
+	if !ok || record.SessionID != value.SessionID() || record.IncarnationID != value.GoalIncarnationID() ||
 		record.RunID != value.ID() || record.Outcome != outcome || record.CostUSD != costUSD ||
 		record.Steps != value.Metrics().Steps() || !record.CompletedAt.Equal(value.FinishedAt()) {
 		return fmt.Errorf("runs: Goal Run differs from terminal Run %q", value.ID())
@@ -555,11 +555,11 @@ func (validator treeBarrierValidator) validateCheckpoint(rootContinuation Contin
 	if err := checkpoint.ValidateOwnership(rootContinuation.MemberID, pending.SessionID); err != nil {
 		return fmt.Errorf("runs: tree barrier checkpoint ownership: %w", err)
 	}
-	if checkpoint.Scope.GoalLeaseID != pending.GoalLeaseID {
+	if checkpoint.Scope.GoalIncarnationID != pending.GoalIncarnationID {
 		return fmt.Errorf(
-			"runs: tree barrier checkpoint goal lease %q does not match Pending %q: %w",
-			checkpoint.Scope.GoalLeaseID,
-			pending.GoalLeaseID,
+			"runs: tree barrier checkpoint goal incarnation %q does not match Pending %q: %w",
+			checkpoint.Scope.GoalIncarnationID,
+			pending.GoalIncarnationID,
 			ErrInvalidExecutorCheckpoint,
 		)
 	}
@@ -614,11 +614,11 @@ func (validator treeBarrierValidator) validateRun(index int, runCommit EventComm
 		return fmt.Errorf("runs: tree barrier Run[%d] capabilities differ from Pending", index)
 	}
 	if runCommit.RunID == pending.RootRunID {
-		if runCommit.Run.GoalLeaseID() != pending.GoalLeaseID {
-			return errors.New("runs: tree barrier root Run goal lease differs from Pending")
+		if runCommit.Run.GoalIncarnationID() != pending.GoalIncarnationID {
+			return errors.New("runs: tree barrier root Run goal incarnation differs from Pending")
 		}
-	} else if runCommit.Run.GoalLeaseID() != "" {
-		return fmt.Errorf("runs: tree barrier child Run[%d] carries a root Goal lease", index)
+	} else if runCommit.Run.GoalIncarnationID() != "" {
+		return fmt.Errorf("runs: tree barrier child Run[%d] carries a root Goal incarnation", index)
 	}
 	if _, duplicate := validator.seenRunIDs[runCommit.RunID]; duplicate {
 		return fmt.Errorf("runs: tree barrier repeats Run %q", runCommit.RunID)

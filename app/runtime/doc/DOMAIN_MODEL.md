@@ -79,7 +79,7 @@ Domain package 是否成立只看以下证据：
 | Package | 已有核心所有权 | 裁决 |
 |---|---|---|
 | `run` | lifecycle、outcome、lineage、limits、capabilities、tree topology | 保留并接回完整 Run entity |
-| `goal` | incarnation、lease、budget、progress、pause/block/complete | 保留 |
+| `goal` | objective incarnation、budget、progress、pause/block/complete | 保留 |
 | `approval` | rule matching、specificity、risk decision、remember policy | 保留 |
 | `agentmemory` | memory fold、review、ranking、search | 保留 |
 | `accounting` | usage validation、aggregation、monotonic advance | 保留，并成为 Run metrics 的值来源 |
@@ -115,7 +115,7 @@ Domain package 是否成立只看以下证据：
 | `codebaseindex` | code chunk、index status、similarity hit 与纯 ranking；corpus build lifecycle 和持久化不在此处 |
 | `conversation` | 唯一的模型上下文 message sequence、seed 和 truncate watermark；不与 Transcript/Run 合并 |
 | `feedback` | 可独立保存的 immutable interaction quality signal |
-| `goal` | 跨多个 Run 的 autonomous Goal、lease、budget、progress 和 terminal reason |
+| `goal` | 跨多个 Run 的 autonomous Goal、objective incarnation、budget、progress 和 terminal reason |
 | `hooks` | 与 `hooks.json` 一致的 lifecycle Hook vocabulary、matching 和 decision fold；I/O 与 trust orchestration 在外部 |
 | `interrupt` | durable HITL kind、stable key 和 semantic resolution；open-set、request validation 和 continuation routing 在 Application |
 | `knowledge` | 人类维护的 LYRA.md scope/document value；与 AgentMemory 的所有权和写入来源不同 |
@@ -142,7 +142,7 @@ Domain package 是否成立只看以下证据：
 `run.Run` 拥有：
 
 - Session/Run identity 与 immutable lineage；
-- frozen model selection、Goal lease provenance、limits 和 capabilities；
+- frozen model selection、Goal incarnation provenance、limits 和 capabilities；
 - lifecycle state 与 active Segment identity；
 - cumulative metrics；
 - terminal outcome、Run failure、detail、finished time 和 conversation message watermark；

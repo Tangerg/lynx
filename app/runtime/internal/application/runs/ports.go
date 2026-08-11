@@ -272,9 +272,9 @@ type RootExecutionStart struct {
 	// handshake for AgentTool children. It is deliberately explicit and defaults
 	// off; the Run's frozen application policy is its sole production source.
 	ChildRunAdmissionEnabled bool
-	// GoalLeaseID stamps a Goal-mode autonomous run with its goal incarnation
+	// GoalIncarnationID stamps a Goal-mode autonomous run with its goal incarnation
 	// so a terminal outcome report only signals that Goal; empty for ordinary Runs.
-	GoalLeaseID string
+	GoalIncarnationID string
 }
 
 // WaitingMember is the minimum durable Application state an executor needs to

@@ -49,8 +49,8 @@ func (c *Coordinator) openingRoutes(
 	rootReducer := newReducer(reducerConfig{
 		RunID: spec.RunID, SegmentID: spec.SegmentID, SessionID: spec.SessionID,
 		CWD: spec.CWD, ExecutorID: spec.ExecutorID, ModelSelection: spec.ModelSelection,
-		GoalLeaseID: spec.GoalLeaseID,
-		CreatedAt:   spec.CreatedAt, UserInput: spec.Input,
+		GoalIncarnationID: spec.GoalIncarnationID,
+		CreatedAt:         spec.CreatedAt, UserInput: spec.Input,
 		Metrics: spec.priorMetrics(), Limits: spec.effectiveLimits(),
 		Capabilities: spec.effectiveCapabilities(),
 		Now:          c.now, CancelReason: cancellationReason(cancelReason, spec.RunID),
@@ -174,15 +174,15 @@ func (builder *resumedRouteBuilder) newRoute(continuationState Continuation) (*e
 		capabilities:   builder.continuation.capabilities,
 	}
 	userInput := []transcript.ContentBlock(nil)
-	goalLeaseID := ""
+	goalIncarnationID := ""
 	if continuationState.RunID == builder.continuation.rootRunID {
 		userInput = builder.spec.Input
-		goalLeaseID = builder.spec.GoalLeaseID
+		goalIncarnationID = builder.spec.GoalIncarnationID
 	}
 	route.reducer = newReducer(reducerConfig{
 		RunID: route.runID, SegmentID: route.segmentID, SessionID: builder.spec.SessionID,
 		Lineage: route.lineage, CWD: builder.spec.CWD, ExecutorID: builder.spec.ExecutorID,
-		GoalLeaseID: goalLeaseID, ModelSelection: route.modelSelection,
+		GoalIncarnationID: goalIncarnationID, ModelSelection: route.modelSelection,
 		CreatedAt: continuationState.RunCreatedAt, UserInput: userInput,
 		Metrics: continuationState.Metrics, Limits: continuationState.Limits,
 		Capabilities: builder.continuation.capabilities, Continuation: builder.continuation,

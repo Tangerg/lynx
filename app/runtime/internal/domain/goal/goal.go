@@ -71,14 +71,13 @@ type Usage struct {
 	Steps   int
 }
 
-// Version identifies one durable revision of a Goal. LeaseID is an opaque,
-// non-reusable ownership token for a driving loop; Revision advances on every
-// persisted mutation, including lifecycle transitions that renew the lease.
-// Together they make a stale loop unable to write a freshly-created Goal after
-// the old row was cleared.
+// Version identifies one durable revision of a Goal. IncarnationID names the
+// immutable objective incarnation; Revision advances on every persisted
+// mutation inside it. Together they prevent an old Run or drive from writing a
+// fresh Goal that replaced the prior objective after its row was cleared.
 type Version struct {
-	LeaseID  string
-	Revision int64
+	IncarnationID string
+	Revision      int64
 }
 
 // BudgetLimit identifies the cross-Run cap that stopped a goal.
@@ -164,9 +163,10 @@ type Goal struct {
 	ModelSelection modelref.Selection // model the loop runs each Run against
 	Budget         Budget
 	Used           Usage
-	// LeaseID names the currently valid driving-loop incarnation. It is generated
-	// afresh at every lifecycle transition, never inferred from row existence.
-	LeaseID string
+	// IncarnationID names this objective incarnation. Pausing and resuming do not
+	// replace the objective, so every Run already admitted for it keeps the same
+	// identity until a fresh Goal replaces the aggregate.
+	IncarnationID string
 	// Revision is the durable optimistic-concurrency version of this session's
 	// goal row. Persistence, not callers, assigns and advances it.
 	Revision  int64
@@ -191,18 +191,19 @@ var (
 	ErrRunIdentityConflict = errors.New("goal: Run identity conflict")
 )
 
-// New builds a new active goal for sessionID. A lease is part of the aggregate
-// rather than a follow-up mutation: an active goal without an owner is not a
-// valid intermediate state. Persistence assigns the first durable revision.
-func New(sessionID, objective string, selection modelref.Selection, budget Budget, leaseID string, now time.Time) (Goal, error) {
+// New builds a fresh active objective incarnation for sessionID. The
+// incarnation is part of the aggregate rather than a follow-up mutation, so an
+// admitted Run can always carry exact Goal provenance. Persistence assigns the
+// first durable revision.
+func New(sessionID, objective string, selection modelref.Selection, budget Budget, incarnationID string, now time.Time) (Goal, error) {
 	if sessionID == "" {
 		return Goal{}, errSessionRequired
 	}
 	if objective == "" {
 		return Goal{}, errObjectiveRequired
 	}
-	if leaseID == "" {
-		return Goal{}, fmt.Errorf("%w: lease ID is required", errInvalidSnapshot)
+	if incarnationID == "" {
+		return Goal{}, fmt.Errorf("%w: incarnation ID is required", errInvalidSnapshot)
 	}
 	if err := budget.Validate(); err != nil {
 		return Goal{}, err
@@ -213,7 +214,7 @@ func New(sessionID, objective string, selection modelref.Selection, budget Budge
 		Status:         StatusActive,
 		ModelSelection: selection,
 		Budget:         budget,
-		LeaseID:        leaseID,
+		IncarnationID:  incarnationID,
 		CreatedAt:      now,
 		UpdatedAt:      now,
 	}, nil
@@ -229,8 +230,8 @@ func (g Goal) ValidateSnapshot() error {
 	if g.Objective == "" {
 		return errObjectiveRequired
 	}
-	if g.LeaseID == "" {
-		return fmt.Errorf("%w: lease ID is required", errInvalidSnapshot)
+	if g.IncarnationID == "" {
+		return fmt.Errorf("%w: incarnation ID is required", errInvalidSnapshot)
 	}
 	if g.Revision <= 0 {
 		return fmt.Errorf("%w: revision must be positive", errInvalidSnapshot)
@@ -270,16 +271,16 @@ func (g *Goal) AddRun(costUSD float64, steps int, now time.Time) {
 }
 
 // RunRecord is the immutable accounting fact emitted when one goal-owned Run
-// terminalizes. RunID makes the store-level recording idempotent; LeaseID keeps
-// a straggling Run from charging a later goal incarnation.
+// terminalizes. RunID makes the store-level recording idempotent;
+// IncarnationID keeps a Run from charging a later objective incarnation.
 type RunRecord struct {
-	SessionID   string
-	LeaseID     string
-	RunID       string
-	Outcome     run.Outcome
-	CostUSD     float64
-	Steps       int
-	CompletedAt time.Time
+	SessionID     string
+	IncarnationID string
+	RunID         string
+	Outcome       run.Outcome
+	CostUSD       float64
+	Steps         int
+	CompletedAt   time.Time
 }
 
 // Validate reports whether this immutable Goal accounting fact is complete and
@@ -290,7 +291,7 @@ func (record RunRecord) Validate() error {
 		value string
 	}{
 		{name: "session ID", value: record.SessionID},
-		{name: "lease ID", value: record.LeaseID},
+		{name: "incarnation ID", value: record.IncarnationID},
 		{name: "Run ID", value: record.RunID},
 	} {
 		if strings.TrimSpace(identity.value) == "" {
@@ -315,8 +316,8 @@ func (record RunRecord) Validate() error {
 	return nil
 }
 
-// RecordRun folds one terminal Run into the matching goal lease. It always
-// records work the lease actually performed; a model report may already have
+// RecordRun folds one terminal Run into the matching Goal incarnation. It
+// always records work that incarnation performed; a model report may already have
 // changed Active to Complete or Blocked before the Run terminalizes, and that
 // transition must not erase the Run's cost. Only an active goal derives a new
 // lifecycle state from the terminal outcome or budget — an earlier explicit
@@ -396,12 +397,5 @@ func reasonForBudgetLimit(limit BudgetLimit) ReasonCode {
 
 // Version returns the value a caller must use to condition its next mutation.
 func (g Goal) Version() Version {
-	return Version{LeaseID: g.LeaseID, Revision: g.Revision}
-}
-
-// RenewLease revokes every prior loop ownership token. Persistence owns revision
-// advancement, so lifecycle code cannot accidentally publish an unversioned
-// mutation or advance a version twice.
-func (g *Goal) RenewLease(leaseID string) {
-	g.LeaseID = leaseID
+	return Version{IncarnationID: g.IncarnationID, Revision: g.Revision}
 }

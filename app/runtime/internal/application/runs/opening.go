@@ -33,7 +33,7 @@ func (c *Coordinator) Start(ctx context.Context, cmd StartCommand) (StartResult,
 		Options:                  cmd.Options,
 		InterruptKinds:           cmd.Capabilities.InterruptKinds,
 		ChildRunAdmissionEnabled: cmd.Capabilities.ChildRuns,
-		GoalLeaseID:              cmd.GoalLeaseID,
+		GoalIncarnationID:        cmd.GoalIncarnationID,
 	}
 	currentMessage, err := MaterializeUserMessage(cmd.Input)
 	if err != nil {
@@ -119,7 +119,7 @@ func (c *Coordinator) Start(ctx context.Context, cmd StartCommand) (StartResult,
 		CWD:                sess.CWD(),
 		ExecutorID:         ref.ExecutorID,
 		ModelSelection:     cmd.ModelSelection,
-		GoalLeaseID:        cmd.GoalLeaseID,
+		GoalIncarnationID:  cmd.GoalIncarnationID,
 		InitialSession:     initialSession,
 		SessionReplacement: sessionReplacement,
 		ScheduleFiring:     cmd.ScheduleFiring,

@@ -64,7 +64,7 @@ func (r *reducer) runRecord(state run.State) (run.Run, error) {
 	}
 	current, err := run.Restore(run.Snapshot{
 		SessionID: r.cfg.SessionID, ID: r.cfg.RunID, Lineage: r.cfg.Lineage,
-		ModelSelection: r.cfg.ModelSelection, GoalLeaseID: r.cfg.GoalLeaseID,
+		ModelSelection: r.cfg.ModelSelection, GoalIncarnationID: r.cfg.GoalIncarnationID,
 		State: run.Running, ActiveSegmentID: r.cfg.SegmentID,
 		Metrics: metrics, Limits: r.cfg.Limits, Capabilities: r.cfg.Capabilities,
 		CreatedAt: createdAt, UpdatedAt: updatedAt, MessageMark: run.UnknownMessageMark,

@@ -38,10 +38,10 @@ func storedExecutorCheckpoint(rootMemberID, sessionID, payload string) runs.Exec
 		Payload:      []byte(payload),
 		BuildID:      "sha256:checkpoint-build",
 		Scope: runs.ExecutionScope{
-			SessionID:   sessionID,
-			CWD:         "/workspace/" + sessionID,
-			Isolated:    true,
-			GoalLeaseID: "lease-" + sessionID,
+			SessionID:         sessionID,
+			CWD:               "/workspace/" + sessionID,
+			Isolated:          true,
+			GoalIncarnationID: "lease-" + sessionID,
 		},
 		ModelSelection: selection,
 		Limits: run.Limits{
@@ -98,10 +98,10 @@ func TestExecutorCheckpointStoreRejectsImmutablePolicyReplacement(t *testing.T) 
 		t.Fatalf("SaveCheckpoint(first): %v", err)
 	}
 	for name, mutate := range map[string]func(*runs.ExecutorCheckpoint){
-		"build":      func(checkpoint *runs.ExecutorCheckpoint) { checkpoint.BuildID = "other-build" },
-		"cwd":        func(checkpoint *runs.ExecutorCheckpoint) { checkpoint.Scope.CWD = "/other" },
-		"isolation":  func(checkpoint *runs.ExecutorCheckpoint) { checkpoint.Scope.Isolated = false },
-		"goal lease": func(checkpoint *runs.ExecutorCheckpoint) { checkpoint.Scope.GoalLeaseID = "other-lease" },
+		"build":            func(checkpoint *runs.ExecutorCheckpoint) { checkpoint.BuildID = "other-build" },
+		"cwd":              func(checkpoint *runs.ExecutorCheckpoint) { checkpoint.Scope.CWD = "/other" },
+		"isolation":        func(checkpoint *runs.ExecutorCheckpoint) { checkpoint.Scope.Isolated = false },
+		"goal incarnation": func(checkpoint *runs.ExecutorCheckpoint) { checkpoint.Scope.GoalIncarnationID = "other-lease" },
 		"provider": func(checkpoint *runs.ExecutorCheckpoint) {
 			checkpoint.ModelSelection, _ = modelref.New("openai", "claude")
 		},
@@ -210,10 +210,12 @@ func TestExecutorCheckpointStoreRoundTripsApplicationEnvelope(t *testing.T) {
 
 func TestExecutorCheckpointStoreRejectsUnversionedOrMalformedCapabilities(t *testing.T) {
 	tests := map[string]string{
-		"unversioned policy":     `{"scope":{"session_id":"session-1","cwd":"/workspace/session-1","workspace_cwd":"","isolated":true,"goal_lease_id":"lease-session-1"},"provider":"anthropic","model":"claude","limits":{"max_total_tokens":8192,"max_budget_usd":2.5,"max_steps":16},"capabilities":{"child_runs":true,"interrupt_kinds":["approval","question"]}}`,
-		"missing capability set": `{"schema_version":1,"scope":{"session_id":"session-1","cwd":"/workspace/session-1","workspace_cwd":"","isolated":true,"goal_lease_id":"lease-session-1"},"provider":"anthropic","model":"claude","limits":{"max_total_tokens":8192,"max_budget_usd":2.5,"max_steps":16}}`,
-		"noncanonical kinds":     `{"schema_version":1,"scope":{"session_id":"session-1","cwd":"/workspace/session-1","workspace_cwd":"","isolated":true,"goal_lease_id":"lease-session-1"},"provider":"anthropic","model":"claude","limits":{"max_total_tokens":8192,"max_budget_usd":2.5,"max_steps":16},"capabilities":{"child_runs":true,"interrupt_kinds":["question","approval"]}}`,
-		"unknown kind":           `{"schema_version":1,"scope":{"session_id":"session-1","cwd":"/workspace/session-1","workspace_cwd":"","isolated":true,"goal_lease_id":"lease-session-1"},"provider":"anthropic","model":"claude","limits":{"max_total_tokens":8192,"max_budget_usd":2.5,"max_steps":16},"capabilities":{"child_runs":true,"interrupt_kinds":["approval","future"]}}`,
+		"unversioned policy":     `{"scope":{"session_id":"session-1","cwd":"/workspace/session-1","workspace_cwd":"","isolated":true,"goal_incarnation_id":"lease-session-1"},"provider":"anthropic","model":"claude","limits":{"max_total_tokens":8192,"max_budget_usd":2.5,"max_steps":16},"capabilities":{"child_runs":true,"interrupt_kinds":["approval","question"]}}`,
+		"retired lease field":    `{"schema_version":2,"scope":{"session_id":"session-1","cwd":"/workspace/session-1","workspace_cwd":"","isolated":true,"goal_lease_id":"lease-session-1"},"provider":"anthropic","model":"claude","limits":{"max_total_tokens":8192,"max_budget_usd":2.5,"max_steps":16},"capabilities":{"child_runs":true,"interrupt_kinds":["approval","question"]}}`,
+		"retired policy version": `{"schema_version":1,"scope":{"session_id":"session-1","cwd":"/workspace/session-1","workspace_cwd":"","isolated":true,"goal_incarnation_id":"lease-session-1"},"provider":"anthropic","model":"claude","limits":{"max_total_tokens":8192,"max_budget_usd":2.5,"max_steps":16},"capabilities":{"child_runs":true,"interrupt_kinds":["approval","question"]}}`,
+		"missing capability set": `{"schema_version":2,"scope":{"session_id":"session-1","cwd":"/workspace/session-1","workspace_cwd":"","isolated":true,"goal_incarnation_id":"lease-session-1"},"provider":"anthropic","model":"claude","limits":{"max_total_tokens":8192,"max_budget_usd":2.5,"max_steps":16}}`,
+		"noncanonical kinds":     `{"schema_version":2,"scope":{"session_id":"session-1","cwd":"/workspace/session-1","workspace_cwd":"","isolated":true,"goal_incarnation_id":"lease-session-1"},"provider":"anthropic","model":"claude","limits":{"max_total_tokens":8192,"max_budget_usd":2.5,"max_steps":16},"capabilities":{"child_runs":true,"interrupt_kinds":["question","approval"]}}`,
+		"unknown kind":           `{"schema_version":2,"scope":{"session_id":"session-1","cwd":"/workspace/session-1","workspace_cwd":"","isolated":true,"goal_incarnation_id":"lease-session-1"},"provider":"anthropic","model":"claude","limits":{"max_total_tokens":8192,"max_budget_usd":2.5,"max_steps":16},"capabilities":{"child_runs":true,"interrupt_kinds":["approval","future"]}}`,
 	}
 	for name, policy := range tests {
 		t.Run(name, func(t *testing.T) {

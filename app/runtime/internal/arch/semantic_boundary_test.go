@@ -205,7 +205,7 @@ func assertExecutorIdentityShapes(t *testing.T, root string) {
 	if err != nil {
 		t.Fatalf("parse execution scope: %v", err)
 	}
-	wantScope := []string{"SessionID", "CWD", "WorkspaceCWD", "Isolated", "GoalLeaseID"}
+	wantScope := []string{"SessionID", "CWD", "WorkspaceCWD", "Isolated", "GoalIncarnationID"}
 	if fields := structFields(scopeFile, "ExecutionScope"); !slices.Equal(fields, wantScope) {
 		t.Fatalf("ExecutionScope fields = %v, want %v", fields, wantScope)
 	}

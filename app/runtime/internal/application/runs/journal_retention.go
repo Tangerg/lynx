@@ -42,7 +42,7 @@ func retainedRunBytes(run run.Run) int {
 		snapshot.Lineage.SpawnedByItemID,
 		snapshot.Lineage.ParentRunID,
 		snapshot.Lineage.RootRunID,
-		snapshot.GoalLeaseID,
+		snapshot.GoalIncarnationID,
 		snapshot.ActiveSegmentID,
 		snapshot.Detail,
 		snapshot.ModelSelection.Provider(),

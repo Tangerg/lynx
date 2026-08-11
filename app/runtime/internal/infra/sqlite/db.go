@@ -61,7 +61,7 @@ func Open(ctx context.Context, path string) (*sql.DB, error) {
 // schemaEpoch identifies the one storage shape this build understands. It is an
 // epoch rather than a version because nothing connects two values: a database
 // stamped with any other number is refused, never upgraded.
-const schemaEpoch = 67
+const schemaEpoch = 68
 
 func installCurrentSchema(ctx context.Context, db *sql.DB, path string) error {
 	var epoch int
@@ -153,7 +153,7 @@ func installCurrentSchema(ctx context.Context, db *sql.DB, path string) error {
 			outcome            TEXT    NOT NULL DEFAULT '',
 			provider           TEXT    NOT NULL DEFAULT '',
 			model              TEXT    NOT NULL DEFAULT '',
-			goal_lease_id      TEXT    NOT NULL DEFAULT '',
+			goal_incarnation_id      TEXT    NOT NULL DEFAULT '',
 			detail             TEXT    NOT NULL DEFAULT '',
 			steps              INTEGER NOT NULL DEFAULT 0,
 			active_duration_ns INTEGER NOT NULL DEFAULT 0,
@@ -172,7 +172,7 @@ func installCurrentSchema(ctx context.Context, db *sql.DB, path string) error {
 				(spawned_by_item_id != '' AND parent_run_id != '' AND root_run_id != '' AND
 				 parent_run_id != run_id AND root_run_id != run_id)
 			),
-			CHECK (root_run_id = '' OR goal_lease_id = '')
+			CHECK (root_run_id = '' OR goal_incarnation_id = '')
 		)`,
 		`CREATE UNIQUE INDEX IF NOT EXISTS idx_runs_session_active
 			ON runs(session_id) WHERE state != 'terminal' AND root_run_id = ''`,
@@ -253,7 +253,7 @@ func installCurrentSchema(ctx context.Context, db *sql.DB, path string) error {
 			root_run_id        TEXT    PRIMARY KEY,
 			session_id         TEXT    NOT NULL,
 			executor_id        TEXT    NOT NULL,
-			goal_lease_id      TEXT    NOT NULL DEFAULT '',
+			goal_incarnation_id      TEXT    NOT NULL DEFAULT '',
 			-- Derived from the root Continuation and checked again on decode. It
 			-- exists as a relational key so two pending sets cannot claim the same
 			-- executor snapshot even though the complete hand-off stays one JSON
@@ -423,7 +423,7 @@ func installCurrentSchema(ctx context.Context, db *sql.DB, path string) error {
 			model      TEXT    NOT NULL DEFAULT '',
 			budget     TEXT    NOT NULL,
 			used       TEXT    NOT NULL,
-			lease_id   TEXT    NOT NULL CHECK (lease_id <> ''),
+			incarnation_id   TEXT    NOT NULL CHECK (incarnation_id <> ''),
 			revision   INTEGER NOT NULL CHECK (revision > 0),
 			created_at INTEGER NOT NULL,
 			updated_at INTEGER NOT NULL
@@ -434,14 +434,14 @@ func installCurrentSchema(ctx context.Context, db *sql.DB, path string) error {
 		`CREATE TABLE IF NOT EXISTS goal_runs (
 				run_id       TEXT    PRIMARY KEY,
 				session_id   TEXT    NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
-				lease_id     TEXT    NOT NULL,
+				incarnation_id     TEXT    NOT NULL,
 			outcome      TEXT    NOT NULL,
 			cost_usd     REAL    NOT NULL,
 			steps        INTEGER NOT NULL,
 			completed_at INTEGER NOT NULL
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_goal_runs_session
-			ON goal_runs(session_id, lease_id)`,
+			ON goal_runs(session_id, incarnation_id)`,
 		// Persistent fine-grained approval rules. id is
 		// deterministic over (scope, scope_key, tool, subject) so re-remembering
 		// the same rule upserts the decision; scope_key is the session id /

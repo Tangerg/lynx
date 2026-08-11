@@ -274,7 +274,7 @@ func scanRunRow(row scanRow, pendingPolicy pendingReadPolicy) (rundomain.Run, er
 		outcome             string
 		provider            string
 		model               string
-		goalLeaseID         string
+		goalIncarnationID   string
 		detail              string
 		steps               int
 		usage               string
@@ -293,7 +293,7 @@ func scanRunRow(row scanRow, pendingPolicy pendingReadPolicy) (rundomain.Run, er
 		&id, &sessionID,
 		&spawnedByItemID, &parentRunID, &rootRunID,
 		&coarse, &activeSegmentID, &outcome,
-		&provider, &model, &goalLeaseID, &detail, &steps, &durationNs, &usage, &problem,
+		&provider, &model, &goalIncarnationID, &detail, &steps, &durationNs, &usage, &problem,
 		&limits.MaxTotalTokens, &limits.MaxSteps, &limits.MaxBudgetUSD, &ownCapabilities, &rootCapabilities,
 		&messageMark, &startedAt, &finishedAt, &updatedAt, &interruptsSuspended,
 	); err != nil {
@@ -332,7 +332,7 @@ func scanRunRow(row scanRow, pendingPolicy pendingReadPolicy) (rundomain.Run, er
 	}
 	snapshot := rundomain.Snapshot{
 		SessionID: sessionID, ID: id, Lineage: lineage, ModelSelection: selection,
-		GoalLeaseID: goalLeaseID, ActiveSegmentID: activeSegmentID, Detail: detail,
+		GoalIncarnationID: goalIncarnationID, ActiveSegmentID: activeSegmentID, Detail: detail,
 		Metrics: metrics, Limits: limits, Capabilities: capabilitiesValue,
 		CreatedAt: time.Unix(0, startedAt).UTC(), UpdatedAt: time.Unix(0, updatedAt).UTC(),
 		MessageMark: messageMark,

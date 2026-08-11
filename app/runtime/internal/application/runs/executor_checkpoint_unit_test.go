@@ -25,10 +25,10 @@ func TestExecutorCheckpointValidatesOnlyApplicationEnvelope(t *testing.T) {
 		Payload:      []byte(`{"executorOwned":"opaque"}`),
 		BuildID:      "sha256:build",
 		Scope: ExecutionScope{
-			SessionID:   "session-1",
-			CWD:         "/workspace/project",
-			Isolated:    true,
-			GoalLeaseID: "lease-1",
+			SessionID:         "session-1",
+			CWD:               "/workspace/project",
+			Isolated:          true,
+			GoalIncarnationID: "lease-1",
 		},
 		ModelSelection: checkpointSelection(t, "anthropic", "claude"),
 		Limits: run.Limits{
@@ -43,17 +43,17 @@ func TestExecutorCheckpointValidatesOnlyApplicationEnvelope(t *testing.T) {
 	}
 
 	for name, mutate := range map[string]func(*ExecutorCheckpoint){
-		"empty root":          func(checkpoint *ExecutorCheckpoint) { checkpoint.RootMemberID = "" },
-		"unstable root":       func(checkpoint *ExecutorCheckpoint) { checkpoint.RootMemberID = " root" },
-		"empty payload":       func(checkpoint *ExecutorCheckpoint) { checkpoint.Payload = nil },
-		"empty build":         func(checkpoint *ExecutorCheckpoint) { checkpoint.BuildID = "" },
-		"unstable session":    func(checkpoint *ExecutorCheckpoint) { checkpoint.Scope.SessionID = " session-1" },
-		"unstable cwd":        func(checkpoint *ExecutorCheckpoint) { checkpoint.Scope.CWD = "/workspace/project " },
-		"unstable goal lease": func(checkpoint *ExecutorCheckpoint) { checkpoint.Scope.GoalLeaseID = " lease-1" },
-		"negative tokens":     func(checkpoint *ExecutorCheckpoint) { checkpoint.Limits.MaxTotalTokens = -1 },
-		"negative cost":       func(checkpoint *ExecutorCheckpoint) { checkpoint.Limits.MaxBudgetUSD = -1 },
-		"non-finite cost":     func(checkpoint *ExecutorCheckpoint) { checkpoint.Limits.MaxBudgetUSD = math.Inf(1) },
-		"negative steps":      func(checkpoint *ExecutorCheckpoint) { checkpoint.Limits.MaxSteps = -1 },
+		"empty root":                func(checkpoint *ExecutorCheckpoint) { checkpoint.RootMemberID = "" },
+		"unstable root":             func(checkpoint *ExecutorCheckpoint) { checkpoint.RootMemberID = " root" },
+		"empty payload":             func(checkpoint *ExecutorCheckpoint) { checkpoint.Payload = nil },
+		"empty build":               func(checkpoint *ExecutorCheckpoint) { checkpoint.BuildID = "" },
+		"unstable session":          func(checkpoint *ExecutorCheckpoint) { checkpoint.Scope.SessionID = " session-1" },
+		"unstable cwd":              func(checkpoint *ExecutorCheckpoint) { checkpoint.Scope.CWD = "/workspace/project " },
+		"unstable goal incarnation": func(checkpoint *ExecutorCheckpoint) { checkpoint.Scope.GoalIncarnationID = " lease-1" },
+		"negative tokens":           func(checkpoint *ExecutorCheckpoint) { checkpoint.Limits.MaxTotalTokens = -1 },
+		"negative cost":             func(checkpoint *ExecutorCheckpoint) { checkpoint.Limits.MaxBudgetUSD = -1 },
+		"non-finite cost":           func(checkpoint *ExecutorCheckpoint) { checkpoint.Limits.MaxBudgetUSD = math.Inf(1) },
+		"negative steps":            func(checkpoint *ExecutorCheckpoint) { checkpoint.Limits.MaxSteps = -1 },
 	} {
 		t.Run(name, func(t *testing.T) {
 			checkpoint := valid.Clone()
@@ -104,12 +104,12 @@ func TestExecutorCheckpointValidatesCrossAggregateOwnership(t *testing.T) {
 	}
 
 	for name, mutate := range map[string]func(*ExecutorCheckpointExpectation){
-		"root":       func(value *ExecutorCheckpointExpectation) { value.RootMemberID = "other-root" },
-		"session":    func(value *ExecutorCheckpointExpectation) { value.SessionID = "other-session" },
-		"cwd":        func(value *ExecutorCheckpointExpectation) { value.CWD = "/other/workspace" },
-		"workspace":  func(value *ExecutorCheckpointExpectation) { value.WorkspaceCWD = "/other/workspace" },
-		"isolation":  func(value *ExecutorCheckpointExpectation) { value.Isolated = true },
-		"goal lease": func(value *ExecutorCheckpointExpectation) { value.GoalLeaseID = "other-lease" },
+		"root":             func(value *ExecutorCheckpointExpectation) { value.RootMemberID = "other-root" },
+		"session":          func(value *ExecutorCheckpointExpectation) { value.SessionID = "other-session" },
+		"cwd":              func(value *ExecutorCheckpointExpectation) { value.CWD = "/other/workspace" },
+		"workspace":        func(value *ExecutorCheckpointExpectation) { value.WorkspaceCWD = "/other/workspace" },
+		"isolation":        func(value *ExecutorCheckpointExpectation) { value.Isolated = true },
+		"goal incarnation": func(value *ExecutorCheckpointExpectation) { value.GoalIncarnationID = "other-lease" },
 		"provider": func(value *ExecutorCheckpointExpectation) {
 			value.ModelSelection = checkpointSelection(t, "openai", "claude")
 		},

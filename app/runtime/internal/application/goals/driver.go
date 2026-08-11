@@ -86,18 +86,18 @@ type RunInstructionBuilder func(RunInstructionInput) string
 // drive goroutine, spawned into a task group so shutdown cancels and joins them.
 //
 // Every durable goal write is a compare-and-swap on [goal.Version]. An opaque
-// lease distinguishes drive ownership across clears, and the revision protects
-// mutations inside one lease. Per-session command locks serialize explicit
+// incarnation distinguishes fresh objectives across clears, and the revision
+// protects mutations inside one incarnation. Per-session command locks serialize explicit
 // lifecycle commands with session write-sets without coupling unrelated
 // sessions; drive goroutines and reported outcomes use the store CAS.
 type Driver struct {
-	goals        Store
-	runs         AutonomousRuns
-	sessions     SessionExists
-	tasks        *taskgroup.Group
-	now          func() time.Time
-	newLease     func() string
-	instructions RunInstructionBuilder
+	goals          Store
+	runs           AutonomousRuns
+	sessions       SessionExists
+	tasks          *taskgroup.Group
+	now            func() time.Time
+	newIncarnation func() string
+	instructions   RunInstructionBuilder
 
 	mutations *SessionMutations
 	closed    atomic.Bool
@@ -113,22 +113,22 @@ func NewDriver(store Store, autonomousRuns AutonomousRuns, sessions SessionExist
 		panic("goals: run instruction builder is required")
 	}
 	return &Driver{
-		goals:        store,
-		runs:         autonomousRuns,
-		sessions:     sessions,
-		tasks:        &taskgroup.Group{},
-		now:          time.Now,
-		newLease:     uuid.NewString,
-		instructions: instructions,
-		mutations:    mutations,
+		goals:          store,
+		runs:           autonomousRuns,
+		sessions:       sessions,
+		tasks:          &taskgroup.Group{},
+		now:            time.Now,
+		newIncarnation: uuid.NewString,
+		instructions:   instructions,
+		mutations:      mutations,
 	}
 }
 
 // Start opens a new goal for the session and begins driving it. It replaces a
 // paused or blocked goal (a fresh objective abandons the old one) but refuses to
 // clobber a goal that is already actively driving, and refuses a session that
-// does not exist. The new goal gets a fresh lease so a straggler from any
-// previously-cleared goal can no longer write.
+// does not exist. The new objective gets a fresh incarnation so a Run from any
+// previously-cleared Goal can no longer write it.
 func (d *Driver) Start(ctx context.Context, sessionID, objective string, selection modelref.Selection, budget goal.Budget) (goal.Goal, error) {
 	if !d.Available() {
 		return goal.Goal{}, ErrUnavailable
@@ -150,7 +150,7 @@ func (d *Driver) Start(ctx context.Context, sessionID, objective string, selecti
 		return goal.Goal{}, err
 	}
 	if ok && existing.Status == goal.StatusActive {
-		if err := d.ensureDriveLocked(ctx, sessionID, existing.LeaseID); err != nil {
+		if err := d.ensureDriveLocked(ctx, sessionID, existing.IncarnationID); err != nil {
 			return goal.Goal{}, err
 		}
 		return goal.Goal{}, ErrGoalActive
@@ -166,7 +166,7 @@ func (d *Driver) Start(ctx context.Context, sessionID, objective string, selecti
 		return goal.Goal{}, err
 	}
 	if ok && existing.Status == goal.StatusActive {
-		if err := d.ensureDriveLocked(ctx, sessionID, existing.LeaseID); err != nil {
+		if err := d.ensureDriveLocked(ctx, sessionID, existing.IncarnationID); err != nil {
 			return goal.Goal{}, err
 		}
 		return goal.Goal{}, ErrGoalActive
@@ -175,7 +175,7 @@ func (d *Driver) Start(ctx context.Context, sessionID, objective string, selecti
 	if ok {
 		expected = existing.Version()
 	}
-	g, err := goal.New(sessionID, objective, selection, budget, d.newLease(), d.now())
+	g, err := goal.New(sessionID, objective, selection, budget, d.newIncarnation(), d.now())
 	if err != nil {
 		return goal.Goal{}, err
 	}
@@ -186,15 +186,16 @@ func (d *Driver) Start(ctx context.Context, sessionID, objective string, selecti
 	if !applied {
 		return goal.Goal{}, ErrGoalConflict
 	}
-	if !d.launchLocked(ctx, sessionID, g.LeaseID) {
+	if !d.launchLocked(ctx, sessionID, g.IncarnationID) {
 		panic("goals: command crossed the shutdown admission boundary")
 	}
 	return g, nil
 }
 
 // Resume returns a paused or blocked goal to active and drives it again. It is
-// idempotent on an already-active goal. The resume renews the lease so
-// the fresh drive owns the Goal and any straggler cannot write.
+// idempotent on an already-active goal. Resume preserves the objective
+// incarnation: a Run parked for HITL remains part of this Goal when it resumes,
+// while quiesceDrive is the process-local boundary between old and new drives.
 func (d *Driver) Resume(ctx context.Context, sessionID string) (goal.Goal, error) {
 	if !d.Available() {
 		return goal.Goal{}, ErrUnavailable
@@ -212,7 +213,7 @@ func (d *Driver) Resume(ctx context.Context, sessionID string) (goal.Goal, error
 		return goal.Goal{}, ErrNoGoal
 	}
 	if g.Status == goal.StatusActive {
-		if err := d.ensureDriveLocked(ctx, sessionID, g.LeaseID); err != nil {
+		if err := d.ensureDriveLocked(ctx, sessionID, g.IncarnationID); err != nil {
 			return goal.Goal{}, err
 		}
 		return g, nil
@@ -228,7 +229,7 @@ func (d *Driver) Resume(ctx context.Context, sessionID string) (goal.Goal, error
 		return goal.Goal{}, ErrNoGoal
 	}
 	if g.Status == goal.StatusActive {
-		if err := d.ensureDriveLocked(ctx, sessionID, g.LeaseID); err != nil {
+		if err := d.ensureDriveLocked(ctx, sessionID, g.IncarnationID); err != nil {
 			return goal.Goal{}, err
 		}
 		return g, nil
@@ -237,7 +238,6 @@ func (d *Driver) Resume(ctx context.Context, sessionID string) (goal.Goal, error
 	if err := g.Resume(d.now()); err != nil {
 		return goal.Goal{}, err
 	}
-	g.RenewLease(d.newLease())
 	g, applied, err := d.goals.Save(ctx, g, expected)
 	if err != nil {
 		return goal.Goal{}, err
@@ -245,7 +245,7 @@ func (d *Driver) Resume(ctx context.Context, sessionID string) (goal.Goal, error
 	if !applied {
 		return goal.Goal{}, ErrGoalConflict
 	}
-	if !d.launchLocked(ctx, sessionID, g.LeaseID) {
+	if !d.launchLocked(ctx, sessionID, g.IncarnationID) {
 		panic("goals: command crossed the shutdown admission boundary")
 	}
 	return g, nil
@@ -289,7 +289,6 @@ func (d *Driver) Stop(ctx context.Context, sessionID string) (goal.Goal, error) 
 	}
 	expected := current.Version()
 	current.Pause(goal.ReasonStoppedByUser, "", d.now())
-	current.RenewLease(d.newLease())
 	saved, applied, err := d.goals.Save(ctx, current, expected)
 	if err != nil {
 		return goal.Goal{}, errors.Join(err, quiesceErr)
@@ -350,7 +349,6 @@ func (d *Driver) Reconcile(ctx context.Context) error {
 		case goal.StatusActive:
 			expected := g.Version()
 			g.Pause(goal.ReasonRuntimeRestarted, "", d.now())
-			g.RenewLease(d.newLease())
 			if _, _, err := d.goals.Save(ctx, g, expected); err != nil {
 				return err
 			}

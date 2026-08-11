@@ -16,13 +16,13 @@ import (
 // tree whose final interrupt was canceled still has enough continuation state
 // to open fresh Segments without inventing a fake human answer.
 type treeContinuation struct {
-	rootRunID     string
-	sessionID     string
-	executorID    string
-	goalLeaseID   string
-	interrupts    []transcript.Interrupt
-	continuations []Continuation
-	capabilities  run.Capabilities
+	rootRunID         string
+	sessionID         string
+	executorID        string
+	goalIncarnationID string
+	interrupts        []transcript.Interrupt
+	continuations     []Continuation
+	capabilities      run.Capabilities
 }
 
 func treeContinuationFromPending(pending Pending) (*treeContinuation, error) {
@@ -30,13 +30,13 @@ func treeContinuationFromPending(pending Pending) (*treeContinuation, error) {
 		return nil, err
 	}
 	continuation := &treeContinuation{
-		rootRunID:     pending.RootRunID,
-		sessionID:     pending.SessionID,
-		executorID:    pending.ExecutorID,
-		goalLeaseID:   pending.GoalLeaseID,
-		interrupts:    slices.Clone(pending.Interrupts),
-		continuations: slices.Clone(pending.Continuations),
-		capabilities:  pending.Capabilities,
+		rootRunID:         pending.RootRunID,
+		sessionID:         pending.SessionID,
+		executorID:        pending.ExecutorID,
+		goalIncarnationID: pending.GoalIncarnationID,
+		interrupts:        slices.Clone(pending.Interrupts),
+		continuations:     slices.Clone(pending.Continuations),
+		capabilities:      pending.Capabilities,
 	}
 	if err := continuation.validate(); err != nil {
 		return nil, err
@@ -55,8 +55,8 @@ func (continuation *treeContinuation) validate() error {
 		return errors.New("runs: tree continuation Session id is required")
 	case strings.TrimSpace(continuation.executorID) == "":
 		return errors.New("runs: tree continuation executor ID is required")
-	case continuation.goalLeaseID != strings.TrimSpace(continuation.goalLeaseID):
-		return errors.New("runs: tree continuation goal lease id has surrounding whitespace")
+	case continuation.goalIncarnationID != strings.TrimSpace(continuation.goalIncarnationID):
+		return errors.New("runs: tree continuation goal incarnation id has surrounding whitespace")
 	case len(continuation.continuations) == 0:
 		return errors.New("runs: tree continuation has no Runs")
 	}

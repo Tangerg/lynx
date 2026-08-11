@@ -327,7 +327,7 @@ func validateRecoveryItemReplacement(replacement ItemReplacement, finishedAt tim
 func validateRecoveryGoalRuns(records []goal.RunRecord, lostByID map[string]rundomain.Run) error {
 	expected := make(map[string]rundomain.Run)
 	for _, run := range lostByID {
-		if run.Lineage().IsRoot() && run.GoalLeaseID() != "" {
+		if run.Lineage().IsRoot() && run.GoalIncarnationID() != "" {
 			expected[run.ID()] = run
 		}
 	}
@@ -349,7 +349,7 @@ func validateRecoveryGoalRuns(records []goal.RunRecord, lostByID map[string]rund
 		if usage, reported := run.Metrics().Usage(); reported && usage.Total.CostUSD != nil {
 			cost = *usage.Total.CostUSD
 		}
-		if record.SessionID != run.SessionID() || record.LeaseID != run.GoalLeaseID() ||
+		if record.SessionID != run.SessionID() || record.IncarnationID != run.GoalIncarnationID() ||
 			record.Outcome != outcome || record.CostUSD != cost ||
 			record.Steps != run.Metrics().Steps() || !record.CompletedAt.Equal(run.FinishedAt()) {
 			return fmt.Errorf("runs: recovery commit Goal Run differs from lost Run %q", run.ID())

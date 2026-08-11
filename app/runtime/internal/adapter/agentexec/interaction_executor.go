@@ -592,7 +592,7 @@ func (executor *InteractionExecutor) restoreWaitingTree(
 	start := runs.RootExecutionStart{
 		SessionID: continuation.SessionID,
 		CWD:       continuation.Checkpoint.Scope.CWD, WorkspaceCWD: continuation.Checkpoint.Scope.WorkspaceCWD,
-		Isolated: continuation.Checkpoint.Scope.Isolated, GoalLeaseID: continuation.Checkpoint.Scope.GoalLeaseID,
+		Isolated: continuation.Checkpoint.Scope.Isolated, GoalIncarnationID: continuation.Checkpoint.Scope.GoalIncarnationID,
 		ModelSelection: continuation.Checkpoint.ModelSelection, Limits: continuation.Checkpoint.Limits,
 		InterruptKinds:           continuation.Capabilities.InterruptKinds,
 		ChildRunAdmissionEnabled: continuation.ChildRunAdmissionEnabled,
@@ -837,7 +837,7 @@ func interactionAnswerSignalID(
 func rootExecutionScope(start runs.RootExecutionStart) runs.ExecutionScope {
 	return runs.ExecutionScope{
 		SessionID: start.SessionID, CWD: start.CWD, WorkspaceCWD: start.WorkspaceCWD,
-		Isolated: start.Isolated, GoalLeaseID: start.GoalLeaseID,
+		Isolated: start.Isolated, GoalIncarnationID: start.GoalIncarnationID,
 	}
 }
 

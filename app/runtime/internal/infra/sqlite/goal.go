@@ -41,7 +41,7 @@ type goalUsed struct {
 // Get returns the session's goal, or (zero, false, nil) when it has none.
 func (s *GoalStore) Get(ctx context.Context, sessionID string) (goal.Goal, bool, error) {
 	row := conn(ctx, s.db).QueryRowContext(ctx,
-		`SELECT session_id, objective, status, reason_code, reason_detail, provider, model, budget, used, lease_id, revision, created_at, updated_at
+		`SELECT session_id, objective, status, reason_code, reason_detail, provider, model, budget, used, incarnation_id, revision, created_at, updated_at
 		 FROM goals WHERE session_id = ?`, sessionID)
 	g, err := scanGoal(row)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -60,7 +60,7 @@ func (s *GoalStore) Save(ctx context.Context, g goal.Goal, expected goal.Version
 	if expected == (goal.Version{}) {
 		g.Revision = 1
 	} else {
-		if expected.LeaseID == "" || expected.Revision <= 0 {
+		if expected.IncarnationID == "" || expected.Revision <= 0 {
 			return goal.Goal{}, false, errors.New("sqlite: expected goal version is invalid")
 		}
 		if expected.Revision == math.MaxInt64 {
@@ -81,11 +81,11 @@ func (s *GoalStore) Save(ctx context.Context, g goal.Goal, expected goal.Version
 	}
 	if expected == (goal.Version{}) {
 		res, err := conn(ctx, s.db).ExecContext(ctx,
-			`INSERT INTO goals(session_id, objective, status, reason_code, reason_detail, provider, model, budget, used, lease_id, revision, created_at, updated_at)
+			`INSERT INTO goals(session_id, objective, status, reason_code, reason_detail, provider, model, budget, used, incarnation_id, revision, created_at, updated_at)
 			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 			 ON CONFLICT(session_id) DO NOTHING`,
 			g.SessionID, g.Objective, string(g.Status), string(g.Reason.Code), g.Reason.Detail, g.ModelSelection.Provider(), g.ModelSelection.Model(),
-			string(budget), string(used), g.LeaseID, g.Revision, g.CreatedAt.UTC().UnixNano(), g.UpdatedAt.UTC().UnixNano())
+			string(budget), string(used), g.IncarnationID, g.Revision, g.CreatedAt.UTC().UnixNano(), g.UpdatedAt.UTC().UnixNano())
 		if err != nil {
 			return goal.Goal{}, false, fmt.Errorf("sqlite: insert goal: %w", err)
 		}
@@ -96,11 +96,11 @@ func (s *GoalStore) Save(ctx context.Context, g goal.Goal, expected goal.Version
 		return g, true, nil
 	}
 	res, err := conn(ctx, s.db).ExecContext(ctx,
-		`UPDATE goals SET objective = ?, status = ?, reason_code = ?, reason_detail = ?, provider = ?, model = ?, budget = ?, used = ?, lease_id = ?, revision = ?, created_at = ?, updated_at = ?
-		 WHERE session_id = ? AND lease_id = ? AND revision = ?`,
+		`UPDATE goals SET objective = ?, status = ?, reason_code = ?, reason_detail = ?, provider = ?, model = ?, budget = ?, used = ?, incarnation_id = ?, revision = ?, created_at = ?, updated_at = ?
+		 WHERE session_id = ? AND incarnation_id = ? AND revision = ?`,
 		g.Objective, string(g.Status), string(g.Reason.Code), g.Reason.Detail, g.ModelSelection.Provider(), g.ModelSelection.Model(),
-		string(budget), string(used), g.LeaseID, g.Revision, g.CreatedAt.UTC().UnixNano(), g.UpdatedAt.UTC().UnixNano(),
-		g.SessionID, expected.LeaseID, expected.Revision)
+		string(budget), string(used), g.IncarnationID, g.Revision, g.CreatedAt.UTC().UnixNano(), g.UpdatedAt.UTC().UnixNano(),
+		g.SessionID, expected.IncarnationID, expected.Revision)
 	if err != nil {
 		return goal.Goal{}, false, fmt.Errorf("sqlite: save goal: %w", err)
 	}
@@ -114,17 +114,17 @@ func (s *GoalStore) Save(ctx context.Context, g goal.Goal, expected goal.Version
 // RecordRun records a terminal goal-owned Run and applies its aggregate
 // accounting in one transaction. goal_runs is an immutable idempotency ledger:
 // a repeated terminal delivery for the same Run cannot charge the Goal twice,
-// while a stale lease is retained as history but never mutates a newer goal.
+// while an older incarnation is retained as history but never mutates a newer Goal.
 func (s *GoalStore) RecordRun(ctx context.Context, record goal.RunRecord) error {
 	if err := record.Validate(); err != nil {
 		return fmt.Errorf("sqlite: record Goal Run: %w", err)
 	}
 	return RunInTx(ctx, s.db, func(ctx context.Context) error {
 		res, err := conn(ctx, s.db).ExecContext(ctx,
-			`INSERT INTO goal_runs(run_id, session_id, lease_id, outcome, cost_usd, steps, completed_at)
+			`INSERT INTO goal_runs(run_id, session_id, incarnation_id, outcome, cost_usd, steps, completed_at)
 			 VALUES (?, ?, ?, ?, ?, ?, ?)
 			 ON CONFLICT(run_id) DO NOTHING`,
-			record.RunID, record.SessionID, record.LeaseID, record.Outcome.String(), record.CostUSD, record.Steps, record.CompletedAt.UTC().UnixNano())
+			record.RunID, record.SessionID, record.IncarnationID, record.Outcome.String(), record.CostUSD, record.Steps, record.CompletedAt.UTC().UnixNano())
 		if err != nil {
 			return fmt.Errorf("sqlite: record Goal Run: %w", err)
 		}
@@ -140,7 +140,7 @@ func (s *GoalStore) RecordRun(ctx context.Context, record goal.RunRecord) error 
 		if err != nil {
 			return err
 		}
-		if !found || g.LeaseID != record.LeaseID {
+		if !found || g.IncarnationID != record.IncarnationID {
 			return nil
 		}
 		expected := g.Version()
@@ -158,23 +158,23 @@ func (s *GoalStore) RecordRun(ctx context.Context, record goal.RunRecord) error 
 
 func (s *GoalStore) validateExistingRun(ctx context.Context, record goal.RunRecord) error {
 	var (
-		sessionID   string
-		leaseID     string
-		outcome     string
-		costUSD     float64
-		steps       int
-		completedAt int64
+		sessionID     string
+		incarnationID string
+		outcome       string
+		costUSD       float64
+		steps         int
+		completedAt   int64
 	)
 	err := conn(ctx, s.db).QueryRowContext(ctx,
-		`SELECT session_id, lease_id, outcome, cost_usd, steps, completed_at
+		`SELECT session_id, incarnation_id, outcome, cost_usd, steps, completed_at
 		   FROM goal_runs
 		  WHERE run_id = ?`,
 		record.RunID,
-	).Scan(&sessionID, &leaseID, &outcome, &costUSD, &steps, &completedAt)
+	).Scan(&sessionID, &incarnationID, &outcome, &costUSD, &steps, &completedAt)
 	if err != nil {
 		return fmt.Errorf("sqlite: inspect existing Goal Run %q: %w", record.RunID, err)
 	}
-	if sessionID == record.SessionID && leaseID == record.LeaseID &&
+	if sessionID == record.SessionID && incarnationID == record.IncarnationID &&
 		outcome == record.Outcome.String() && costUSD == record.CostUSD &&
 		steps == record.Steps && completedAt == record.CompletedAt.UTC().UnixNano() {
 		return nil
@@ -207,7 +207,7 @@ func (s *GoalStore) Clear(ctx context.Context, sessionID string) error {
 // (the loop's CAS delete), reporting whether it applied.
 func (s *GoalStore) ClearIf(ctx context.Context, sessionID string, expected goal.Version) (bool, error) {
 	res, err := conn(ctx, s.db).ExecContext(ctx,
-		`DELETE FROM goals WHERE session_id = ? AND lease_id = ? AND revision = ?`, sessionID, expected.LeaseID, expected.Revision)
+		`DELETE FROM goals WHERE session_id = ? AND incarnation_id = ? AND revision = ?`, sessionID, expected.IncarnationID, expected.Revision)
 	if err != nil {
 		return false, fmt.Errorf("sqlite: clear goal (cas): %w", err)
 	}
@@ -217,7 +217,7 @@ func (s *GoalStore) ClearIf(ctx context.Context, sessionID string, expected goal
 // List returns every stored goal (for the boot reconcile).
 func (s *GoalStore) List(ctx context.Context) ([]goal.Goal, error) {
 	rows, err := conn(ctx, s.db).QueryContext(ctx,
-		`SELECT session_id, objective, status, reason_code, reason_detail, provider, model, budget, used, lease_id, revision, created_at, updated_at FROM goals`)
+		`SELECT session_id, objective, status, reason_code, reason_detail, provider, model, budget, used, incarnation_id, revision, created_at, updated_at FROM goals`)
 	if err != nil {
 		return nil, fmt.Errorf("sqlite: list goals: %w", err)
 	}
@@ -248,7 +248,7 @@ func scanGoal(row scanRow) (goal.Goal, error) {
 		budgetJSON, usedJSON string
 		createdAt, updatedAt int64
 	)
-	if err := row.Scan(&g.SessionID, &g.Objective, &status, &reasonCode, &g.Reason.Detail, &provider, &model, &budgetJSON, &usedJSON, &g.LeaseID, &g.Revision, &createdAt, &updatedAt); err != nil {
+	if err := row.Scan(&g.SessionID, &g.Objective, &status, &reasonCode, &g.Reason.Detail, &provider, &model, &budgetJSON, &usedJSON, &g.IncarnationID, &g.Revision, &createdAt, &updatedAt); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return goal.Goal{}, err
 		}

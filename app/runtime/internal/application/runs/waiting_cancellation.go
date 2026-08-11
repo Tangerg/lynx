@@ -227,11 +227,11 @@ func (builder waitingCancellationBuilder) validate() error {
 	); err != nil {
 		return fmt.Errorf("runs: invalid prepared waiting subtree checkpoint ownership: %w", err)
 	}
-	if builder.prepared.Checkpoint.Scope.GoalLeaseID != builder.plan.pending.GoalLeaseID {
+	if builder.prepared.Checkpoint.Scope.GoalIncarnationID != builder.plan.pending.GoalIncarnationID {
 		return fmt.Errorf(
-			"runs: prepared waiting subtree checkpoint goal lease %q does not match Pending %q: %w",
-			builder.prepared.Checkpoint.Scope.GoalLeaseID,
-			builder.plan.pending.GoalLeaseID,
+			"runs: prepared waiting subtree checkpoint goal incarnation %q does not match Pending %q: %w",
+			builder.prepared.Checkpoint.Scope.GoalIncarnationID,
+			builder.plan.pending.GoalIncarnationID,
 			ErrInvalidExecutorCheckpoint,
 		)
 	}
@@ -473,13 +473,13 @@ func (builder waitingCancellationBuilder) treeContinuation(
 	continuations []Continuation,
 ) (*treeContinuation, error) {
 	continuation := &treeContinuation{
-		rootRunID:     builder.plan.pending.RootRunID,
-		sessionID:     builder.plan.pending.SessionID,
-		executorID:    builder.plan.pending.ExecutorID,
-		goalLeaseID:   builder.plan.pending.GoalLeaseID,
-		interrupts:    slices.Clone(interrupts),
-		continuations: slices.Clone(continuations),
-		capabilities:  builder.plan.pending.Capabilities,
+		rootRunID:         builder.plan.pending.RootRunID,
+		sessionID:         builder.plan.pending.SessionID,
+		executorID:        builder.plan.pending.ExecutorID,
+		goalIncarnationID: builder.plan.pending.GoalIncarnationID,
+		interrupts:        slices.Clone(interrupts),
+		continuations:     slices.Clone(continuations),
+		capabilities:      builder.plan.pending.Capabilities,
 	}
 	if err := continuation.validate(); err != nil {
 		return nil, fmt.Errorf(

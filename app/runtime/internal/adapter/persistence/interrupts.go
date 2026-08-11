@@ -180,7 +180,7 @@ func interruptRecord(pending runs.Pending) sqlite.InterruptRecord {
 	}
 	return sqlite.InterruptRecord{
 		RootRunID: pending.RootRunID, SessionID: pending.SessionID,
-		ExecutorID: pending.ExecutorID, GoalLeaseID: pending.GoalLeaseID,
+		ExecutorID: pending.ExecutorID, GoalIncarnationID: pending.GoalIncarnationID,
 		Interrupts: pending.Interrupts, Bindings: bindings,
 		Continuations: continuations, Capabilities: pending.Capabilities,
 		CreatedAt: pending.CreatedAt,
@@ -229,7 +229,7 @@ func pendingValue(record sqlite.InterruptRecord) runs.Pending {
 	}
 	return runs.Pending{
 		RootRunID: record.RootRunID, SessionID: record.SessionID,
-		ExecutorID: record.ExecutorID, GoalLeaseID: record.GoalLeaseID,
+		ExecutorID: record.ExecutorID, GoalIncarnationID: record.GoalIncarnationID,
 		Interrupts: record.Interrupts, Bindings: bindings,
 		Continuations: continuations, Capabilities: record.Capabilities,
 		CreatedAt: record.CreatedAt,

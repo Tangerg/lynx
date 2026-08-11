@@ -266,7 +266,7 @@ func (barrier TreeInterrupted) validate() error {
 func (barrier TreeInterrupted) validateFor(
 	rootMemberID string,
 	sessionID string,
-	goalLeaseID string,
+	goalIncarnationID string,
 	selection modelref.Selection,
 ) error {
 	if err := barrier.validate(); err != nil {
@@ -275,11 +275,11 @@ func (barrier TreeInterrupted) validateFor(
 	if err := barrier.Checkpoint.ValidateOwnership(rootMemberID, sessionID); err != nil {
 		return fmt.Errorf("runs: executor tree interrupt checkpoint ownership: %w", err)
 	}
-	if barrier.Checkpoint.Scope.GoalLeaseID != goalLeaseID {
+	if barrier.Checkpoint.Scope.GoalIncarnationID != goalIncarnationID {
 		return fmt.Errorf(
-			"runs: executor tree interrupt checkpoint goal lease %q does not match Run %q: %w",
-			barrier.Checkpoint.Scope.GoalLeaseID,
-			goalLeaseID,
+			"runs: executor tree interrupt checkpoint goal incarnation %q does not match Run %q: %w",
+			barrier.Checkpoint.Scope.GoalIncarnationID,
+			goalIncarnationID,
 			ErrInvalidExecutorCheckpoint,
 		)
 	}

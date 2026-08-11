@@ -104,7 +104,7 @@
 
 ### `get_goal`
 
-参数为空。返回 `goal` JSON；没有 Goal 时为 `null`。结果包括 `session_id`、`objective`、`status`、安全停止原因、模型、预算、使用量和时间戳，明确排除 lease 与 persistence revision：后两者是内部所有权机制，模型不能据此采取行动。
+参数为空。返回 `goal` JSON；没有 Goal 时为 `null`。结果包括 `session_id`、`objective`、`status`、安全停止原因、模型、预算、使用量和时间戳，明确排除 incarnation 与 persistence revision：后两者是内部所有权机制，模型不能据此采取行动。
 
 ### `report_goal_outcome`
 
@@ -340,7 +340,7 @@
 ### 批次 3
 
 - 将旧 `update_goal(status="complete|blocked")` 完整替换为 `report_goal_outcome(outcome="completed|blocked", reason?)`；工具名称、参数、enum、描述、Goal prompt、注释、安全分类和测试使用同一套报告语义，不保留别名或兼容字段；
-- 新增 `create_goal(objective,budget?)` 和无参数 `get_goal`。`create_goal` 只响应用户明确的跨 Run 自主执行请求；`get_goal` 返回模型可操作的 Goal 投影，并剔除 lease/revision 内部机制；
+- 新增 `create_goal(objective,budget?)` 和无参数 `get_goal`。`create_goal` 只响应用户明确的跨 Run 自主执行请求；`get_goal` 返回模型可操作的 Goal 投影，并剔除 incarnation/revision 内部机制；
 - `create_goal` 通过 Goal Driver 的 `Start` 窄端口持久化并启动受 task group 所有的 loop；Goal Run 在 runs `WaitSessionStartable` 观察到当前 Run、pending opening、terminal maintenance 和 working-tree mutation 全部释放后才开始，且只对 Gate 标记的可恢复 admission 竞争重试；
 - `get_goal` 始终对启用 Goal 的根 Agent 可见；`report_goal_outcome` 只在该 session 存在 active Goal 时可见；`create_goal` 在 Driver 构造完成后晚绑定到根 resolver。委派 Agent 不获得任何 Goal 生命周期或状态报告能力；
 - 晚绑定 seam 只传递通用 `tool.Tool`。Resolver 不持有 Driver，`agentexec.ToolResolver` 不新增 Goal 方法，`agent` 模块不知道 Goal、session admission 或 Runtime lifecycle；`create/get/report/active gate` 分别消费 `Starter/Reader/Reporter/ActiveReader` 单方法接口，只有 tool family 的 BuildConfig 组合为 `State`；没有引入 Bootstrap proxy、store facade、unowned goroutine 或复制的 Run 状态；

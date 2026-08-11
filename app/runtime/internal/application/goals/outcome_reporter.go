@@ -8,12 +8,12 @@ import (
 )
 
 // ReportCommand is a model-originated terminal outcome for the active Goal.
-// LeaseID is the Run's immutable origin stamp; empty targets the current Goal.
+// IncarnationID is the Run's immutable origin stamp; empty targets the current Goal.
 type ReportCommand struct {
-	SessionID string
-	LeaseID   string
-	Outcome   goal.Status
-	Reason    string
+	SessionID     string
+	IncarnationID string
+	Outcome       goal.Status
+	Reason        string
 }
 
 // ReportResult identifies the recoverable outcome of one report.
@@ -55,7 +55,7 @@ func (r *OutcomeReporter) Report(ctx context.Context, cmd ReportCommand) (Report
 	if !ok || g.Status != goal.StatusActive {
 		return ReportNoActiveGoal, nil
 	}
-	if cmd.LeaseID != "" && cmd.LeaseID != g.LeaseID {
+	if cmd.IncarnationID != "" && cmd.IncarnationID != g.IncarnationID {
 		return ReportSuperseded, nil
 	}
 	expected := g.Version()

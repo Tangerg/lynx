@@ -21,7 +21,7 @@ type segmentSpec struct {
 	CWD                string
 	ExecutorID         string
 	ModelSelection     modelref.Selection
-	GoalLeaseID        string
+	GoalIncarnationID  string
 	InitialSession     *session.Session
 	SessionReplacement *SessionReplacement
 	ScheduleFiring     string

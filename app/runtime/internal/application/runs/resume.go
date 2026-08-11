@@ -89,17 +89,17 @@ func (c *Coordinator) Resume(ctx context.Context, cmd ResumeCommand) (StartResul
 		)
 	}
 	events, err := c.openSegment(ctx, segmentSpec{
-		RunID:          cmd.RunID,
-		SegmentID:      segmentID,
-		SessionID:      pending.SessionID,
-		CWD:            sess.CWD(),
-		ExecutorID:     ref.ExecutorID,
-		ModelSelection: rootContinuation.ModelSelection,
-		GoalLeaseID:    pending.GoalLeaseID,
-		CreatedAt:      createdAt,
-		Input:          cmd.Input,
-		Continuation:   continuation,
-		admission:      &runAdmission,
+		RunID:             cmd.RunID,
+		SegmentID:         segmentID,
+		SessionID:         pending.SessionID,
+		CWD:               sess.CWD(),
+		ExecutorID:        ref.ExecutorID,
+		ModelSelection:    rootContinuation.ModelSelection,
+		GoalIncarnationID: pending.GoalIncarnationID,
+		CreatedAt:         createdAt,
+		Input:             cmd.Input,
+		Continuation:      continuation,
+		admission:         &runAdmission,
 		BeginExecution: func(beginCtx context.Context) error {
 			return c.continuation.BeginContinuation(
 				beginCtx, ref, claimed.Answers, pending.Capabilities.InterruptKinds,

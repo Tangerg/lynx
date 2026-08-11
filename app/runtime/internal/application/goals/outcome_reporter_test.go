@@ -49,7 +49,7 @@ func TestOutcomeReporterOwnsTerminalGoalTransition(t *testing.T) {
 	}
 
 	result, err := reporter.Report(t.Context(), ReportCommand{
-		SessionID: "ses_1", LeaseID: "lease-stale", Outcome: goal.StatusComplete,
+		SessionID: "ses_1", IncarnationID: "lease-stale", Outcome: goal.StatusComplete,
 	})
 	if err != nil || result != ReportSuperseded {
 		t.Fatalf("stale Report = %v, %v, want superseded, nil", result, err)
@@ -59,14 +59,14 @@ func TestOutcomeReporterOwnsTerminalGoalTransition(t *testing.T) {
 	}
 
 	result, err = reporter.Report(t.Context(), ReportCommand{
-		SessionID: "ses_1", LeaseID: "lease-current", Outcome: goal.StatusBlocked,
+		SessionID: "ses_1", IncarnationID: "lease-current", Outcome: goal.StatusBlocked,
 	})
 	if err != nil || result != ReportReasonRequired {
 		t.Fatalf("reasonless blocked Report = %v, %v, want reason-required, nil", result, err)
 	}
 
 	result, err = reporter.Report(t.Context(), ReportCommand{
-		SessionID: "ses_1", LeaseID: "lease-current", Outcome: goal.StatusBlocked, Reason: "needs credentials",
+		SessionID: "ses_1", IncarnationID: "lease-current", Outcome: goal.StatusBlocked, Reason: "needs credentials",
 	})
 	if err != nil || result != ReportApplied {
 		t.Fatalf("blocked Report = %v, %v, want applied, nil", result, err)
