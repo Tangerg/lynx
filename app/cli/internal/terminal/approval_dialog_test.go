@@ -45,3 +45,27 @@ func TestApprovalDefaultSelectsEveryConfiguredRememberScope(t *testing.T) {
 		}
 	}
 }
+
+func TestApprovalChoiceNormalizationRespectsRememberability(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name         string
+		choice       string
+		rememberable bool
+		want         string
+	}{
+		{name: "rememberable project", choice: "allow-project", rememberable: true, want: "allow-project"},
+		{name: "one shot project", choice: "allow-project", want: "allow-once"},
+		{name: "one shot global", choice: "allow-global", want: "allow-once"},
+		{name: "one shot deny", choice: "deny", want: "deny"},
+		{name: "unknown", choice: "unexpected", rememberable: true, want: "allow-once"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			if got := normalizeApprovalChoice(test.choice, test.rememberable); got != test.want {
+				t.Fatalf("normalizeApprovalChoice(%q, %t) = %q, want %q", test.choice, test.rememberable, got, test.want)
+			}
+		})
+	}
+}

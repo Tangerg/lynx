@@ -23,8 +23,8 @@ func TestQuestionnaireOwnsAnswersAndNavigation(t *testing.T) {
 	}
 	question.Fields[0].Prompt = "mutated by caller"
 	previous.Values[0][0] = "mutated by caller"
-	if review.Title() != "Plan deployment · 1/3" || *review.Text(0) != "release" {
-		t.Fatalf("initial questionnaire = %q, %q", review.Title(), *review.Text(0))
+	if review.Title() != "Plan deployment · 1/3" || review.response(0).text != "release" {
+		t.Fatalf("initial questionnaire = %q, %q", review.Title(), review.response(0).text)
 	}
 	if !review.Advance() || review.Title() != "Plan deployment · 2/3" || !review.Advance() || review.Advance() {
 		t.Fatalf("forward navigation stopped at %q", review.Title())
@@ -55,7 +55,8 @@ func TestQuestionnaireNormalizesCustomMultipleValues(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	*review.Text(0) = " linux, custom ,darwin "
+	review.response(0).multiple = []questionChoice{offeredQuestionChoice("linux"), customQuestionChoice()}
+	review.response(0).custom = " custom, darwin "
 	answer, err := review.Answer()
 	if err != nil {
 		t.Fatal(err)
@@ -63,6 +64,35 @@ func TestQuestionnaireNormalizesCustomMultipleValues(t *testing.T) {
 	want := []string{"linux", "custom", "darwin"}
 	if !slices.Equal(answer.Values[0], want) {
 		t.Fatalf("custom values = %q, want %q", answer.Values[0], want)
+	}
+}
+
+func TestQuestionnaireRestoresOfferedAndCustomChoices(t *testing.T) {
+	question := agent.Question{
+		ItemID: "targets", Title: "Targets",
+		Fields: []agent.QuestionField{
+			{Prompt: "Platform", Kind: agent.QuestionSingle, AllowCustom: true, Options: []agent.QuestionOption{{Label: "linux"}, {Label: "darwin"}}},
+			{Prompt: "Checks", Kind: agent.QuestionMulti, AllowCustom: true, Options: []agent.QuestionOption{{Label: "unit"}, {Label: "integration"}}},
+		},
+	}
+	previous := agent.QuestionAnswer{Values: [][]string{{"freebsd"}, {"unit", "smoke", "manual"}}}
+	review, err := newQuestionnaire(question, previous)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if response := review.response(0); response == nil || !response.single.custom || response.custom != "freebsd" {
+		t.Fatalf("restored single response = %+v", response)
+	}
+	wantChoices := []questionChoice{offeredQuestionChoice("unit"), customQuestionChoice()}
+	if response := review.response(1); response == nil || !slices.Equal(response.multiple, wantChoices) || response.custom != "smoke, manual" {
+		t.Fatalf("restored multiple response = %+v", response)
+	}
+	answer, err := review.Answer()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.EqualFunc(answer.Values, previous.Values, slices.Equal) {
+		t.Fatalf("restored answer = %+v, want %+v", answer.Values, previous.Values)
 	}
 }
 

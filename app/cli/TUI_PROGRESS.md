@@ -44,7 +44,7 @@ Status values are `done`, `active`, `pending`, and `deferred`.
 | VIEW-02 | Full-content reader | Inline output is capped | Searchable full-screen reader with stable selection and live-tail policy | done |
 | VIEW-03 | Tool presentation registry | One generic block presenter | Semantic presenters with ordered matching and generic fallback | done |
 | VIEW-04 | Adjacent tool grouping | Each tool is independent | Foldable groups preserve each tool identity and lifecycle | done |
-| HITL-01 | Approval and question decisions | Implemented sequential dialogs | Existing decisions and remembered scopes remain correct | done |
+| HITL-01 | Approval and question decisions | Implemented sequential dialogs | Rememberability is enforced; offered and custom answers compose without losing option metadata; validation and resize preserve editable state | done |
 | HITL-02 | Tool-aware approval preview | Diff-first generic presentation | Shell, edit, write, read and network requests use deterministic presentations | done |
 | HITL-03 | Denial feedback | Fixed denial reason | Optional user feedback is submitted as the denial reason | done |
 | HITL-04 | Interaction review | Answers commit one dialog at a time | Multi-item wizard supports back, edit, review and one final resume | done |

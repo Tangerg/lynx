@@ -78,22 +78,12 @@ func (a *app) buildApprovalDialog(theme kit.Theme, glyphs kit.Glyphs) {
 }
 
 func (a *app) setApprovalForm(initial string) {
-	a.approvalChoice = initial
+	rememberable := a.approval == nil || a.approval.Rememberable
+	a.approvalChoice = normalizeApprovalChoice(initial, rememberable)
 	choice := &headless.Select[string]{
 		Label: "How should lyra proceed?", Value: headless.Bind(&a.approvalChoice), Rows: 3,
 	}
-	options := []headless.Option[string]{
-		{Label: "Allow once", Value: "allow-once"},
-		{Label: "Deny", Value: "deny"},
-	}
-	if a.approval == nil || a.approval.Rememberable {
-		options = slices.Insert(options, 1,
-			headless.Option[string]{Label: "Allow for this session", Value: "allow-session"},
-			headless.Option[string]{Label: "Allow for this project", Value: "allow-project"},
-			headless.Option[string]{Label: "Always allow this rule", Value: "allow-global"},
-		)
-	}
-	choice.SetOptions(options)
+	choice.SetOptions(approvalOptions(rememberable))
 	reason := &headless.Text{
 		Label: "Denial feedback (optional)", Placeholder: "Explain what should change before retrying",
 		Value: headless.Bind(&a.approvalReason),
@@ -109,6 +99,30 @@ func (a *app) setApprovalForm(initial string) {
 		Hints: []keymap.Action{headless.Submit, headless.Cancel},
 	})
 	a.approvalPane.form = dressed
+}
+
+func approvalOptions(rememberable bool) []headless.Option[string] {
+	options := []headless.Option[string]{
+		{Label: "Allow once", Value: "allow-once"},
+		{Label: "Deny", Value: "deny"},
+	}
+	if !rememberable {
+		return options
+	}
+	return slices.Insert(options, 1,
+		headless.Option[string]{Label: "Allow for this session", Value: "allow-session"},
+		headless.Option[string]{Label: "Allow for this project", Value: "allow-project"},
+		headless.Option[string]{Label: "Always allow this rule", Value: "allow-global"},
+	)
+}
+
+func normalizeApprovalChoice(choice string, rememberable bool) string {
+	for _, option := range approvalOptions(rememberable) {
+		if option.Value == choice {
+			return choice
+		}
+	}
+	return "allow-once"
 }
 
 func (a *app) openApproval(approval agent.Approval) {

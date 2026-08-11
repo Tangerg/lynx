@@ -1295,7 +1295,12 @@ func TestCustomMultipleQuestionKeepsInvalidInputEditable(t *testing.T) {
 	host.Type("choose targets")
 	host.Press(input.Enter)
 	host.Shows(t, "Choose targets")
-	host.Type("linux, darwin, linux")
+	host.Send(input.Key{Code: input.Character, Rune: ' '})
+	host.Press(input.Down)
+	host.Press(input.Down)
+	host.Send(input.Key{Code: input.Character, Rune: ' '})
+	host.Press(input.Tab)
+	host.Type("linux")
 	host.Press(input.Enter)
 	host.Shows(t, `choice "linux" is duplicated`)
 	select {
@@ -1304,13 +1309,65 @@ func TestCustomMultipleQuestionKeepsInvalidInputEditable(t *testing.T) {
 	default:
 	}
 	host.Send(input.Key{Code: input.Character, Rune: 'a', Mods: input.Alt})
-	host.Type("linux, custom")
+	host.Type("custom")
 	host.Press(input.Enter)
 	host.Shows(t, "complete")
 	answer := <-answers
 	want := []string{"linux", "custom"}
 	if !slices.Equal(answer.Values[0], want) {
 		t.Fatalf("custom choices = %q, want %q", answer.Values[0], want)
+	}
+
+	host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
+	stop()
+}
+
+func TestCustomSingleQuestionPreservesOptionsAndSurvivesResize(t *testing.T) {
+	backend := mock.New()
+	backend.Instant = true
+	answers := make(chan agent.QuestionAnswer, 1)
+	backend.Script = func(string) mock.Script {
+		return mock.Script{
+			Interactions: []agent.Interaction{agent.Question{
+				ItemID: "platform", Title: "Choose platform", Detail: "Select a supported platform or provide another one",
+				Fields: []agent.QuestionField{{
+					Prompt: "Platform", Kind: agent.QuestionSingle, AllowCustom: true,
+					Options: []agent.QuestionOption{
+						{Label: "linux", Description: "Supported", Preview: "CI image"},
+						{Label: "darwin", Description: "Experimental"},
+					},
+				}},
+			}},
+			Continue: func(answerSet []agent.InterruptAnswer) []mock.Step {
+				answers <- answerSet[0].Answer.(agent.QuestionAnswer)
+				return []mock.Step{{Event: agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCompleted}}}}
+			},
+		}
+	}
+	host, stop := runUIWith(t, backend)
+	host.Shows(t, "Ask lyra")
+	host.Type("choose a platform")
+	host.Press(input.Enter)
+	host.Shows(t, "linux — Supported · CI image")
+	host.Press(input.Down)
+	host.Press(input.Down)
+	showsPlain(t, host, "● Other — provide a custom answer")
+	host.Press(input.Enter)
+	host.Shows(t, "an answer is required")
+	host.Press(input.Tab)
+	host.Type("freebsd")
+	if !host.Resize(1, 1) || !host.Repaint() {
+		t.Fatal("custom single-choice question did not survive a minimal viewport")
+	}
+	if !host.Resize(96, 28) {
+		t.Fatal("custom single-choice question viewport could not be restored")
+	}
+	host.Shows(t, "freebsd")
+	host.Press(input.Enter)
+	host.Shows(t, "complete")
+	answer := <-answers
+	if len(answer.Values) != 1 || !slices.Equal(answer.Values[0], []string{"freebsd"}) {
+		t.Fatalf("custom single choice = %+v", answer.Values)
 	}
 
 	host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
@@ -1487,6 +1544,42 @@ func TestApprovalStateSurvivesMinimalViewportAndRestores(t *testing.T) {
 	answer := <-answers
 	if answer.Decision != agent.ApprovalDeny || answer.Reason != "KEEP_RESIZE_FEEDBACK" {
 		t.Fatalf("restored approval answer = %+v", answer)
+	}
+
+	host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
+	stop()
+}
+
+func TestNonRememberableApprovalOverridesConfiguredRememberDefault(t *testing.T) {
+	backend := mock.New()
+	backend.Instant = true
+	answers := make(chan agent.ApprovalAnswer, 1)
+	backend.Script = func(string) mock.Script {
+		return mock.Script{
+			Interactions: []agent.Interaction{agent.Approval{
+				ItemID: "one-shot-approval", Title: "Read generated report",
+				Tool: &agent.ToolCall{Kind: agent.ToolRead, Name: "read", Path: "report.txt", Status: agent.ToolRunning},
+			}},
+			Continue: func(provided []agent.InterruptAnswer) []mock.Step {
+				answers <- provided[0].Answer.(agent.ApprovalAnswer)
+				return []mock.Step{{Event: agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCompleted}}}}
+			},
+		}
+	}
+	configured := settings.Default()
+	configured.Approval.Remember = settings.RememberProject
+	host, stop := runUIWithSettings(t, backend, configured)
+	host.Shows(t, "Ask lyra")
+	host.Type("read report")
+	host.Press(input.Enter)
+	showsPlain(t, host, "● Allow once")
+	host.Hides(t, "Allow for this project")
+	host.Hides(t, "Always allow this rule")
+	host.Press(input.Enter)
+	host.Shows(t, "complete")
+	answer := <-answers
+	if answer.Decision != agent.ApprovalApprove || answer.Remember != agent.RememberNone {
+		t.Fatalf("one-shot approval answer = %+v", answer)
 	}
 
 	host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
