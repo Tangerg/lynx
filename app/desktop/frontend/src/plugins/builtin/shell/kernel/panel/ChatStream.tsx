@@ -7,7 +7,7 @@
 // message list must not re-render on every keystroke or every scroll event.
 
 import type { UserInput } from "@/plugins/builtin/chat/composer/public/input";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { useActiveConversationRows } from "@/plugins/builtin/agent/public/conversation";
 import { useActiveSessionToolCalls } from "@/plugins/builtin/agent/public/run";
 import { useActiveSessionId } from "@/plugins/builtin/agent/public/session";
@@ -24,9 +24,9 @@ import { useUiStore } from "@/state/uiStore";
 import { ChatErrorBoundary } from "./ChatErrorBoundary";
 import { ComposerSurface } from "./ComposerSurface";
 import { FloatingComposer } from "./FloatingComposer";
-import { READING_COLUMN, READING_GUTTER } from "./readingColumn";
+import { COMPOSER_OVERLAY_PROPERTY, READING_COLUMN, READING_GUTTER } from "./readingColumn";
 import { CwdMissingBanner } from "./CwdMissingBanner";
-import { MessageStream } from "./MessageStream";
+import { MessageStream, type MessageStreamController } from "./MessageStream";
 import { RunErrorBanner } from "./RunErrorBanner";
 
 interface Props {
@@ -103,6 +103,40 @@ export function ChatStream({ onSend }: Props) {
   const started = rows.length > 0;
 
   const paneRef = useRef<HTMLDivElement>(null);
+  const composerOverlayRef = useRef<HTMLDivElement>(null);
+  const messageStreamRef = useRef<MessageStreamController>(null);
+
+  // ChatStream owns both siblings whose geometry is coupled: the transcript
+  // consumes the height and the floating composer produces it. Measure in the
+  // parent's layout phase, when both refs are attached but before the
+  // stick-to-bottom viewport calculates its first target. Publishing from the
+  // child deferred the initial value until ResizeObserver and opened every long
+  // conversation one composer-height above its tail. Later textarea growth is a
+  // direct style write — no transcript render on the typing path.
+  useLayoutEffect(() => {
+    if (!started) return;
+    const pane = paneRef.current;
+    const overlay = composerOverlayRef.current;
+    if (!pane || !overlay) return;
+
+    const publishHeight = (height = overlay.getBoundingClientRect().height) => {
+      // Keep the sub-pixel border-box measurement. `offsetHeight` rounds it to
+      // an integer and can round down, leaving the transcript's final baseline
+      // one physical pixel inside the glass composer at some scale factors.
+      pane.style.setProperty(COMPOSER_OVERLAY_PROPERTY, `${height}px`);
+    };
+
+    publishHeight();
+    messageStreamRef.current?.settleInitialBottom();
+    const observer = new ResizeObserver(([entry]) => {
+      const borderBox = entry?.borderBoxSize[0];
+      publishHeight(borderBox?.blockSize);
+    });
+    observer.observe(overlay);
+    return () => {
+      observer.disconnect();
+    };
+  }, [started]);
 
   const t = useT();
 
@@ -178,11 +212,16 @@ export function ChatStream({ onSend }: Props) {
             application puts it and the only place it isn't in the way. */}
         <div className="relative flex min-h-0 flex-1 flex-col">
           <ChatErrorBoundary resetKey={resetKey} label={`session:${resetKey}`}>
-            <MessageStream rows={rows} ctx={ctx} resetKey={resetKey} />
+            <MessageStream
+              rows={rows}
+              ctx={ctx}
+              resetKey={resetKey}
+              controllerRef={messageStreamRef}
+            />
           </ChatErrorBoundary>
         </div>
 
-        <FloatingComposer publishHeightTo={paneRef}>{composer}</FloatingComposer>
+        <FloatingComposer overlayRef={composerOverlayRef}>{composer}</FloatingComposer>
       </div>
     </div>
   );

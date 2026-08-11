@@ -3,7 +3,8 @@
 // PluginBoundary. Used when the user has promoted a workspace view
 // (Settings, Diff, Files, …) into the chat-area tab strip.
 
-import { EmptyState } from "@/ui";
+import { Suspense } from "react";
+import { EmptyState, SkeletonList } from "@/ui";
 import { useT } from "@/lib/i18n";
 import { PluginBoundary } from "@/plugins/host/PluginBoundary";
 import { useWorkspaceViews } from "@/plugins/sdk";
@@ -30,7 +31,9 @@ export function WorkspaceViewBody({ viewId }: Props) {
   }
   return (
     <PluginBoundary plugin={`workspace:${viewId}`} label={t("plugins.mainView")}>
-      <Body />
+      <Suspense fallback={<SkeletonList count={6} label={t("common.loading")} />}>
+        <Body />
+      </Suspense>
     </PluginBoundary>
   );
 }

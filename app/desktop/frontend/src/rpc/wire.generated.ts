@@ -9,7 +9,7 @@
 // in the generated validator and in schema.json.
 
 // The wire version this runtime serves; a client states it in request metadata.
-export const PROTOCOL_VERSION = "2026-08-10";
+export const PROTOCOL_VERSION = "2026-08-11";
 
 // The methods the runtime sends downstream. A client only ever subscribes.
 export const NOTIFICATIONS_RUN_EVENT = "notifications.run.event";
@@ -152,7 +152,7 @@ export interface ArtifactProblem {
   type: ArtifactProblemType;
 }
 
-export type ArtifactProblemType = "internalError" | "runLost" | "agentStuck" | "rateLimited" | "invalidApiKey" | "timeout" | "providerUnavailable" | "providerRejected" | "deniedByUser" | "toolFailed" | "childRunCanceled";
+export type ArtifactProblemType = "internalError" | "runLost" | "agentStuck" | "rateLimited" | "invalidApiKey" | "timeout" | "providerUnavailable" | "providerRejected" | "deniedByUser" | "toolFailed" | "childRunCanceled" | "toolCanceled";
 
 export interface ArtifactQuestion {
   fields: ArtifactQuestionField[];
@@ -973,6 +973,7 @@ export type ProblemData =
   | { type: "session_not_found"; detail?: string; docUrl?: string }
   | { type: "stale_segment"; detail?: string; docUrl?: string }
   | { type: "timeout"; detail?: string; docUrl?: string; retryAfterSeconds?: number }
+  | { type: "tool_canceled"; detail?: string; docUrl?: string }
   | { type: "tool_failed"; detail?: string; docUrl?: string }
   | { type: "unsupported_mime"; detail?: string; docUrl?: string }
   | { type: "vcs_unavailable"; detail?: string; docUrl?: string }
@@ -1581,7 +1582,7 @@ export const WIRE_ENUMS = {
   ApprovalRuleDecision: ["allow", "deny"],
   ApprovalRuleScope: ["session", "project", "global"],
   ArtifactOutcomeType: ["completed", "timedOut", "failed", "maxSteps", "maxBudget", "canceled", "lost"],
-  ArtifactProblemType: ["internalError", "runLost", "agentStuck", "rateLimited", "invalidApiKey", "timeout", "providerUnavailable", "providerRejected", "deniedByUser", "toolFailed", "childRunCanceled"],
+  ArtifactProblemType: ["internalError", "runLost", "agentStuck", "rateLimited", "invalidApiKey", "timeout", "providerUnavailable", "providerRejected", "deniedByUser", "toolFailed", "childRunCanceled", "toolCanceled"],
   ArtifactStateType: ["plan"],
   CancelRunResponseType: ["root", "child"],
   CapabilityRequirementType: ["feature", "interruptType", "runtimeTopic", "stateSnapshot"],

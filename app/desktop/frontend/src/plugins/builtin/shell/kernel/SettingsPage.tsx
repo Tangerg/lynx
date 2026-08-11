@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import type { IconName } from "@/ui";
-import { Button, Icon, SearchField, VerticalTabs } from "@/ui";
+import { Button, Icon, SearchField, SkeletonList, VerticalTabs } from "@/ui";
 import { AgentSurfaceHeader } from "@/ui/agent";
 import { useT } from "@/lib/i18n";
 import { PluginBoundary } from "@/plugins/host/PluginBoundary";
@@ -56,7 +56,9 @@ export function SettingsPage() {
             description={p.description ? t(p.description) : undefined}
           >
             <PluginBoundary plugin={`settings:${p.id}`}>
-              <p.component />
+              <Suspense fallback={<SkeletonList count={4} label={t("common.loading")} />}>
+                <p.component />
+              </Suspense>
             </PluginBoundary>
           </SettingsPaneFrame>
         ),

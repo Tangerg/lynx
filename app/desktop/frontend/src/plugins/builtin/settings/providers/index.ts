@@ -1,8 +1,12 @@
+import { lazy } from "react";
 import { definePlugin } from "@/plugins/sdk";
 import { registerSettingsPane } from "../public";
 import { installProviderGateway } from "./adapters/runtimeProviderGateway";
 import { providersSettingsPane } from "./application/providersContributions";
-import { ProvidersPane } from "./ui/ProvidersPane";
+
+const ProvidersPane = lazy(() =>
+  import("./ui/ProvidersPane").then(({ ProvidersPane }) => ({ default: ProvidersPane })),
+);
 
 export default definePlugin({
   name: "lyra.builtin.providers-pane",

@@ -6,10 +6,14 @@
 // approval.* methods only exist on a B9 runtime — a pre-B9 one rejects getMode,
 // so the pane degrades to an inert "unavailable" state (handled in ApprovalsPane).
 
+import { lazy } from "react";
 import { definePlugin } from "@/plugins/sdk";
 import { registerSettingsPane } from "../public";
 import { approvalsSettingsPane } from "./application/approvalsContributions";
-import { ApprovalsPane } from "./ui/ApprovalsPane";
+
+const ApprovalsPane = lazy(() =>
+  import("./ui/ApprovalsPane").then(({ ApprovalsPane }) => ({ default: ApprovalsPane })),
+);
 
 export default definePlugin({
   name: "lyra.builtin.approvals-pane",

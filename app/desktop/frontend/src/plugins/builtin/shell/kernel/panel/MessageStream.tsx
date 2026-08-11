@@ -3,8 +3,12 @@ import type { BlockCtx } from "@/plugins/builtin/chat/message/public/rendering";
 import type { TranscriptRow } from "@/plugins/builtin/agent/public/conversation";
 import type { Message } from "@/plugins/builtin/agent/public/viewState";
 import { AnimatePresence, motion } from "motion/react";
-import { memo, useEffect } from "react";
-import { StickToBottom, useStickToBottomContext } from "use-stick-to-bottom";
+import { memo, useEffect, useImperativeHandle, useRef, type Ref } from "react";
+import {
+  StickToBottom,
+  useStickToBottomContext,
+  type StickToBottomContext,
+} from "use-stick-to-bottom";
 import { enterUp } from "@/lib/motion";
 import { useMotionOff } from "@/lib/appearance";
 import { cn } from "@/lib/classNames";
@@ -29,7 +33,15 @@ interface Props {
   ctx: BlockCtx;
   /** Re-key on change to reset scroll position + follow state. */
   resetKey: string;
+  controllerRef?: Ref<MessageStreamController>;
 }
+
+export interface MessageStreamController {
+  /** Reconcile geometry that becomes known during the parent's first layout. */
+  settleInitialBottom(): void;
+}
+
+const INITIAL_BOTTOM_SETTLE_MS = 250;
 
 // Publishes StickToBottom's follow state out of the provider, for the
 // jump-to-bottom button — which has to be a sibling of the scroller to sit over
@@ -168,7 +180,7 @@ const TranscriptTurn = memo(function TranscriptTurn({
   );
 });
 
-export function MessageStream({ rows, ctx, resetKey }: Props) {
+export function MessageStream({ rows, ctx, resetKey, controllerRef }: Props) {
   // While a run streams, content grows continuously; the default `resize`
   // spring (stiffness 0.05 / mass 1.25) is too sluggish to track it and the
   // tail scrolls out of view (D2). Hard-pin to the bottom during generation,
@@ -176,6 +188,62 @@ export function MessageStream({ rows, ctx, resetKey }: Props) {
   // `running` flips only at run boundaries, so this never churns per token.
   const running = useIsCurrentRootRunning();
   const motionOff = useMotionOff();
+  const stickContextRef = useRef<StickToBottomContext>(null);
+  const initialSettleFrameRef = useRef<number | null>(null);
+
+  useEffect(
+    () => () => {
+      if (initialSettleFrameRef.current !== null) {
+        cancelAnimationFrame(initialSettleFrameRef.current);
+      }
+    },
+    [],
+  );
+
+  // Keep the scroll library behind MessageStream's local controller. The
+  // parent owns shared composer/transcript geometry, but it should not know
+  // which package implements transcript following. `scrollToBottom` performs
+  // its write on the next frame, after the parent's custom-property update has
+  // been included in the content height.
+  useImperativeHandle(
+    controllerRef,
+    () => ({
+      settleInitialBottom() {
+        const stickContext = stickContextRef.current;
+        const viewport = stickContext?.scrollRef.current;
+        if (!viewport) return;
+
+        if (initialSettleFrameRef.current !== null) {
+          cancelAnimationFrame(initialSettleFrameRef.current);
+        }
+
+        const settleUntil = performance.now() + INITIAL_BOTTOM_SETTLE_MS;
+        const pinCurrentBottom = () => {
+          const currentViewport = stickContextRef.current?.scrollRef.current;
+          if (!currentViewport) {
+            initialSettleFrameRef.current = null;
+            return;
+          }
+
+          // Reading scrollHeight commits the parent's newly-published composer
+          // clearance. Pinning the real DOM value for this bounded mount window
+          // also covers Markdown and syntax highlighting that resolve on an
+          // adjacent frame without letting a library animation retain a stale
+          // target. After the window, the library regains normal escape rules.
+          currentViewport.scrollTop = currentViewport.scrollHeight;
+          initialSettleFrameRef.current =
+            performance.now() < settleUntil ? requestAnimationFrame(pinCurrentBottom) : null;
+        };
+
+        pinCurrentBottom();
+        void stickContext?.scrollToBottom({
+          animation: "instant",
+          ignoreEscapes: true,
+        });
+      },
+    }),
+    [],
+  );
 
   // No empty branch: the only caller mounts this once a transcript exists, and the
   // empty home is its own layout (centred, no scroller). The branch that used to be
@@ -191,6 +259,7 @@ export function MessageStream({ rows, ctx, resetKey }: Props) {
   return (
     <StickToBottom
       key={resetKey}
+      contextRef={stickContextRef}
       className="panel-scroll msg-scroll"
       initial="instant"
       // A transcript that eases itself into place is motion, and motion is a

@@ -103,6 +103,10 @@ async function waitForWorkspaceState(page: Page, state: VisualWorkspaceState): P
   }
   if (state === "settings") {
     await expect(page.getByRole("heading", { name: "Appearance" })).toBeVisible();
+    // The heading is owned by the settings host and renders before the lazy
+    // Appearance pane. A pane-owned control is the actual ready boundary for
+    // interaction assertions and goldens.
+    await expect(page.getByRole("button", { name: en["settings.theme"]! })).toBeVisible();
     return;
   }
   // Not a fallthrough. This used to end with the Settings assertion as its default,

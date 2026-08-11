@@ -2,11 +2,15 @@
 // ui/HooksPane, the hook-trust gateway install in adapters/, the RPC use cases
 // in application/.
 
+import { lazy } from "react";
 import { definePlugin } from "@/plugins/sdk";
 import { registerSettingsPane } from "../public";
 import { installHookTrustGateway } from "./adapters/runtimeHookTrustGateway";
 import { hooksSettingsPane } from "./application/hooksContributions";
-import { HooksPane } from "./ui/HooksPane";
+
+const HooksPane = lazy(() =>
+  import("./ui/HooksPane").then(({ HooksPane }) => ({ default: HooksPane })),
+);
 
 export default definePlugin({
   name: "lyra.builtin.hooks-pane",

@@ -73,6 +73,10 @@ async function openFixture(page: Page, route: FixtureRoute): Promise<void> {
   }
   if (route.fixture === "workspace" && route.state === "settings") {
     await expect(page.getByRole("heading", { name: "Appearance" })).toBeVisible();
+    // The heading belongs to the host and precedes the lazy pane body. Waiting
+    // for a control owned by Appearance proves the chunk has resolved before
+    // accessibility checks or screenshots inspect the page.
+    await expect(page.getByRole("button", { name: en["settings.theme"]! })).toBeVisible();
   }
 }
 

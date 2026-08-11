@@ -22,7 +22,8 @@
 //     on size.
 //
 // Method:
-//   1. Parse dist/index.html for the entry assets (<script src>, stylesheets).
+//   1. Parse dist/index.html for the entry assets (<script src>,
+//      <link rel="modulepreload">, stylesheets).
 //   2. Sum their raw bytes, compare against BUDGETS.
 //   3. For each lazy feature: assert its chunk exists, assert index.html does
 //      not reference it, sum its raw bytes against a runaway ceiling.
@@ -37,12 +38,14 @@ import { basename, join } from "node:path";
 const DIST = "dist";
 const INDEX_HTML = join(DIST, "index.html");
 
-// Budgets in RAW bytes. Recorded 2026-08-04 from a clean `npm run build`:
-// entry JS 926.8 KB, entry CSS 98.5 KB. Headroom is ~30% — loose enough that
+// Budgets in RAW bytes. Recorded 2026-08-11 from a clean `npm run build`:
+// entry JS 2.56 MB, entry CSS 100.9 KB. JS includes modulepreloads — omitting
+// them measured only the root chunk even though the webview parses its static
+// dependency graph before first paint. Headroom is ~14% — loose enough that
 // adding a normal feature doesn't bump it, tight enough that pulling a
 // heavyweight dependency onto the startup path fails here.
 const BUDGETS = {
-  js: 1_250_000,
+  js: 3_000_000,
   css: 135_000,
 };
 
@@ -51,6 +54,24 @@ const BUDGETS = {
 // on-demand local reads, so the ceiling exists to catch an accident of scale (a
 // full language set, a second diagram engine), not to ration bytes.
 const LAZY_FEATURES = [
+  {
+    label: "settings panes",
+    prefixes: [
+      "AppearancePane-",
+      "ApprovalsPane-",
+      "ConnectionPane-",
+      "HooksPane-",
+      "IconGallery-",
+      "IconShowcase-",
+      "McpServersPane-",
+      "PersonalizationPane-",
+      "PluginsPane-",
+      "ProvidersPane-",
+      "SchedulesPane-",
+      "UsagePane-",
+    ],
+    ceiling: 200_000,
+  },
   { label: "syntax highlighting", prefix: "shiki-", ceiling: 3_000_000 },
   { label: "diagram rendering", prefix: "mermaid-", ceiling: 3_000_000 },
 ];
@@ -66,7 +87,9 @@ function loadIndexHtml() {
 }
 
 function extractEntryAssets(html) {
-  const js = [...html.matchAll(/<script[^>]*\ssrc="(\/assets\/[^"]+\.js)"/g)].map((m) => m[1]);
+  // Vite writes every static dependency as a modulepreload. All JS assets in
+  // this document are therefore startup work, not only the root <script>.
+  const js = [...new Set([...html.matchAll(/["'](\/assets\/[^"']+\.js)["']/g)].map((m) => m[1]))];
   const css = [
     ...html.matchAll(/<link[^>]*\srel="stylesheet"[^>]*\shref="(\/assets\/[^"]+\.css)"/g),
     ...html.matchAll(/<link[^>]*\shref="(\/assets\/[^"]+\.css)"[^>]*\srel="stylesheet"/g),
@@ -133,12 +156,18 @@ const assetNames = readdirSync(assetDirectory);
 const entryReferences = referencedAssets(html);
 
 console.log("[check-bundle-size] lazy features — must stay off the startup path (raw):");
-for (const { label, prefix, ceiling } of LAZY_FEATURES) {
-  const chunks = assetNames.filter((name) => name.startsWith(prefix) && name.endsWith(".js"));
-  if (chunks.length === 0) {
-    console.error(`  ${label}: no ${prefix}*.js chunk found — did it get folded into the entry?`);
+for (const { label, prefix, prefixes = [prefix], ceiling } of LAZY_FEATURES) {
+  const missing = prefixes.filter(
+    (candidate) => !assetNames.some((name) => name.startsWith(candidate) && name.endsWith(".js")),
+  );
+  const chunks = assetNames.filter(
+    (name) => prefixes.some((candidate) => name.startsWith(candidate)) && name.endsWith(".js"),
+  );
+  if (missing.length > 0) {
+    console.error(
+      `  ${label}: no chunk found for ${missing.join(", ")} — did it get folded into the entry?`,
+    );
     failed = true;
-    continue;
   }
   const eager = chunks.filter((name) => entryReferences.has(name));
   if (eager.length > 0) {

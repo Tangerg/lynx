@@ -1,8 +1,12 @@
+import { lazy } from "react";
 import { definePlugin } from "@/plugins/sdk";
 import { registerSettingsPane } from "../public";
 import { installMCPServerGateway } from "./adapters/runtimeMcpServerGateway";
 import { mcpServersSettingsPane } from "./application/mcpServersContributions";
-import { McpServersPane } from "./ui/McpServersPane";
+
+const McpServersPane = lazy(() =>
+  import("./ui/McpServersPane").then(({ McpServersPane }) => ({ default: McpServersPane })),
+);
 
 export default definePlugin({
   name: "lyra.builtin.mcp-servers-pane",
