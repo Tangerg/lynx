@@ -21,7 +21,7 @@ import (
 // use case. Firing and worker cursor updates intentionally remain separate.
 type ManagementStore interface {
 	List(ctx context.Context) ([]schedule.Schedule, error)
-	ListPage(ctx context.Context, afterCreatedAt int64, afterID string, limit int) ([]schedule.Schedule, error)
+	ListPage(ctx context.Context, afterCreatedAt time.Time, afterID string, limit int) ([]schedule.Schedule, error)
 	Get(ctx context.Context, id string) (schedule.Schedule, error)
 	Create(ctx context.Context, scheduled schedule.Schedule) (schedule.Schedule, error)
 	Update(ctx context.Context, scheduled schedule.Schedule, expectedRevision uint64) (schedule.Schedule, error)
@@ -112,15 +112,17 @@ func (c *Coordinator) ListPage(ctx context.Context, cursor string, limit int) (p
 	if err != nil {
 		return pagination.Page[schedule.Schedule]{}, err
 	}
-	var afterCreatedAt int64
+	var afterCreatedAt time.Time
 	var afterID string
 	if len(anchor) > 0 {
 		if len(anchor) != 2 {
 			return pagination.Page[schedule.Schedule]{}, pagination.ErrInvalidCursor
 		}
-		if afterCreatedAt, err = strconv.ParseInt(anchor[0], 10, 64); err != nil {
+		afterCreatedAtNanos, parseErr := strconv.ParseInt(anchor[0], 10, 64)
+		if parseErr != nil {
 			return pagination.Page[schedule.Schedule]{}, pagination.ErrInvalidCursor
 		}
+		afterCreatedAt = time.Unix(0, afterCreatedAtNanos).UTC()
 		afterID = anchor[1]
 	}
 	size, err := pagination.Limit(limit, listPageLimit)
@@ -250,7 +252,7 @@ func (disabledManagementStore) List(context.Context) ([]schedule.Schedule, error
 	return nil, ErrUnavailable
 }
 
-func (disabledManagementStore) ListPage(context.Context, int64, string, int) ([]schedule.Schedule, error) {
+func (disabledManagementStore) ListPage(context.Context, time.Time, string, int) ([]schedule.Schedule, error) {
 	return nil, ErrUnavailable
 }
 

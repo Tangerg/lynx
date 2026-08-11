@@ -24,7 +24,7 @@ type fakeScheduleRegistry struct {
 	deleted []string
 }
 
-func (r *fakeScheduleRegistry) ListPage(ctx context.Context, _ int64, _ string, _ int) ([]schedule.Schedule, error) {
+func (r *fakeScheduleRegistry) ListPage(ctx context.Context, _ time.Time, _ string, _ int) ([]schedule.Schedule, error) {
 	return r.List(ctx)
 }
 

@@ -86,20 +86,21 @@ func (s *ScheduleStore) Get(ctx context.Context, id string) (schedule.Schedule, 
 }
 
 func (s *ScheduleStore) List(ctx context.Context) ([]schedule.Schedule, error) {
-	return s.ListPage(ctx, 0, "", 0)
+	return s.ListPage(ctx, time.Time{}, "", 0)
 }
 
 // ListPage returns schedules newest-created first, bounded by the query. after is
 // the (creation time, id) position a previous page ended at; the id breaks ties,
 // so two schedules created in the same nanosecond cannot be dropped or repeated
 // across a page boundary.
-func (s *ScheduleStore) ListPage(ctx context.Context, afterCreatedAt int64, afterID string, limit int) ([]schedule.Schedule, error) {
+func (s *ScheduleStore) ListPage(ctx context.Context, afterCreatedAt time.Time, afterID string, limit int) ([]schedule.Schedule, error) {
 	query := `SELECT id, title, instructions, cwd, provider, model, cron, enabled, last_run_at, next_run_at, created_at, revision
 		 FROM schedules`
 	var args []any
-	if afterCreatedAt > 0 || afterID != "" {
+	if !afterCreatedAt.IsZero() || afterID != "" {
 		query += ` WHERE created_at < ? OR (created_at = ? AND id < ?)`
-		args = append(args, afterCreatedAt, afterCreatedAt, afterID)
+		afterMillis := afterCreatedAt.UnixMilli()
+		args = append(args, afterMillis, afterMillis, afterID)
 	}
 	query += ` ORDER BY created_at DESC, id DESC`
 	if limit > 0 {

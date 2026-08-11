@@ -424,6 +424,20 @@ func TestScheduleQueriesUseIDAsStableTieBreaker(t *testing.T) {
 	if got, want := ids(listed), []string{"sch_c", "sch_b", "sch_a"}; !slices.Equal(got, want) {
 		t.Fatalf("List IDs = %v, want %v", got, want)
 	}
+	firstPage, err := store.ListPage(t.Context(), time.Time{}, "", 2)
+	if err != nil {
+		t.Fatalf("ListPage first: %v", err)
+	}
+	if got, want := ids(firstPage), []string{"sch_c", "sch_b"}; !slices.Equal(got, want) {
+		t.Fatalf("ListPage first IDs = %v, want %v", got, want)
+	}
+	secondPage, err := store.ListPage(t.Context(), firstPage[1].CreatedAt, firstPage[1].ID, 2)
+	if err != nil {
+		t.Fatalf("ListPage second: %v", err)
+	}
+	if got, want := ids(secondPage), []string{"sch_a"}; !slices.Equal(got, want) {
+		t.Fatalf("ListPage second IDs = %v, want %v", got, want)
+	}
 	if got, want := ids(due), []string{"sch_a", "sch_b", "sch_c"}; !slices.Equal(got, want) {
 		t.Fatalf("Due IDs = %v, want %v", got, want)
 	}

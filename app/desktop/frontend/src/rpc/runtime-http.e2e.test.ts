@@ -1552,6 +1552,108 @@ for await (const line of lines) {
     await runtimeEvents.return?.();
   }, 30_000);
 
+  it("preserves filters and ordering across every high-cardinality cursor", async () => {
+    if (!client) throw new Error("runtime client was not initialized");
+
+    const timelineSession = await client.sessions.create({
+      workspace: { path: root },
+      title: "HTTP pagination timeline",
+    });
+    const siblingSessions = await Promise.all([
+      client.sessions.create({ workspace: { path: root }, title: "HTTP pagination sibling A" }),
+      client.sessions.create({ workspace: { path: root }, title: "HTTP pagination sibling B" }),
+    ]);
+    const firstRun = await client.runs.start({
+      sessionId: asSessionId(timelineSession.id),
+      input: [{ type: "text", text: "E2E_PAGE first filtered run." }],
+    });
+    await collectRunEvents(firstRun.events);
+    const secondRun = await client.runs.start({
+      sessionId: asSessionId(timelineSession.id),
+      input: [{ type: "text", text: "E2E_PAGE second filtered run." }],
+    });
+    await collectRunEvents(secondRun.events);
+
+    const sessionIds = new Set([
+      timelineSession.id,
+      ...siblingSessions.map((session) => session.id),
+    ]);
+    const pagedSessions = await client.sessions.list({ limit: 1 }).autoPagingToArray();
+    expect(pagedSessions.filter((session) => sessionIds.has(session.id))).toHaveLength(3);
+
+    const pagedRuns = await client.runs
+      .list({ sessionId: asSessionId(timelineSession.id), limit: 1 })
+      .autoPagingToArray();
+    expect(pagedRuns.map((run) => run.id)).toEqual([secondRun.result.runId, firstRun.result.runId]);
+    expect(pagedRuns.every((run) => run.sessionId === timelineSession.id)).toBe(true);
+
+    const pagedItems = await client.items
+      .list({
+        scope: { type: "session", sessionId: asSessionId(timelineSession.id) },
+        limit: 1,
+      })
+      .autoPagingToArray();
+    expect(pagedItems).toHaveLength(4);
+    expect(pagedItems.map((item) => item.runId)).toEqual([
+      firstRun.result.runId,
+      firstRun.result.runId,
+      secondRun.result.runId,
+      secondRun.result.runId,
+    ]);
+
+    const waitingRuns: string[] = [];
+    const schedules: string[] = [];
+    try {
+      for (const suffix of ["A", "B"]) {
+        const waitingSession = await client.sessions.create({
+          workspace: { path: root },
+          title: `HTTP paged interrupt ${suffix}`,
+        });
+        const waiting = await client.runs.start({
+          sessionId: asSessionId(waitingSession.id),
+          input: [{ type: "text", text: `E2E_HITL pagination interrupt ${suffix}.` }],
+        });
+        const events = await collectRunEvents(waiting.events);
+        expect(events.at(-1)?.event).toMatchObject({
+          type: "segment.finished",
+          outcome: { type: "interrupt" },
+        });
+        waitingRuns.push(waiting.result.runId);
+      }
+      const pagedInterrupts = await client.interrupts.list({ limit: 1 }).autoPagingToArray();
+      expect(
+        pagedInterrupts
+          .filter((set) => waitingRuns.includes(set.rootRunId))
+          .map((set) => set.rootRunId)
+          .sort(),
+      ).toEqual([...waitingRuns].sort());
+
+      for (const suffix of ["A", "B"]) {
+        const schedule = await client.schedules.create({
+          cron: "0 0 1 1 *",
+          instructions: `Run paged schedule ${suffix}.`,
+          title: `HTTP paged schedule ${suffix}`,
+          workspace: { path: root },
+        });
+        schedules.push(schedule.id);
+      }
+      const pagedSchedules = await client.schedules.list({ limit: 1 }).autoPagingToArray();
+      expect(
+        pagedSchedules
+          .filter((schedule) => schedules.includes(schedule.id))
+          .map((schedule) => schedule.id)
+          .sort(),
+      ).toEqual([...schedules].sort());
+    } finally {
+      for (const runId of waitingRuns) {
+        await client.runs.cancel(asRunId(runId), "HTTP pagination cleanup");
+      }
+      for (const scheduleId of schedules) {
+        await client.schedules.delete(scheduleId);
+      }
+    }
+  }, 30_000);
+
   it("reconciles disabled MCP configuration through mcp.changed", async () => {
     if (!client) throw new Error("runtime client was not initialized");
 

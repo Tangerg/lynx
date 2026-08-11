@@ -179,7 +179,7 @@ type runNowStore struct {
 	recordCtxErr error
 }
 
-func (r *runNowStore) ListPage(ctx context.Context, _ int64, _ string, _ int) ([]schedule.Schedule, error) {
+func (r *runNowStore) ListPage(ctx context.Context, _ time.Time, _ string, _ int) ([]schedule.Schedule, error) {
 	return r.List(ctx)
 }
 
@@ -235,13 +235,12 @@ type pagedStore struct {
 	limit   int
 }
 
-func (r *pagedStore) ListPage(_ context.Context, afterCreatedAt int64, afterID string, limit int) ([]schedule.Schedule, error) {
+func (r *pagedStore) ListPage(_ context.Context, afterCreatedAt time.Time, afterID string, limit int) ([]schedule.Schedule, error) {
 	r.afterID, r.limit = afterID, limit
 	var out []schedule.Schedule
 	for _, row := range r.rows {
-		if afterCreatedAt != 0 || afterID != "" {
-			position := row.CreatedAt.UnixNano()
-			if position > afterCreatedAt || (position == afterCreatedAt && row.ID <= afterID) {
+		if !afterCreatedAt.IsZero() || afterID != "" {
+			if row.CreatedAt.After(afterCreatedAt) || (row.CreatedAt.Equal(afterCreatedAt) && row.ID <= afterID) {
 				continue
 			}
 		}

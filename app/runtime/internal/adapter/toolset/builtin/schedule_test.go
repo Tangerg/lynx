@@ -115,7 +115,7 @@ func newTestScheduleCoordinator(reg scheduleapp.ManagementStore) *scheduleapp.Co
 	})
 }
 
-func (m *memoryScheduleRegistry) ListPage(ctx context.Context, _ int64, _ string, _ int) ([]scheduledomain.Schedule, error) {
+func (m *memoryScheduleRegistry) ListPage(ctx context.Context, _ time.Time, _ string, _ int) ([]scheduledomain.Schedule, error) {
 	return m.List(ctx)
 }
 
