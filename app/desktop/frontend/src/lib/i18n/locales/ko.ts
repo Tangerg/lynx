@@ -1027,7 +1027,6 @@ export const ko: Record<string, string> = {
   "session.error.relocate": "세션 작업 디렉터리를 옮길 수 없습니다.",
   "session.error.rollback": "대화를 되돌릴 수 없습니다.",
   "session.error.steer": "실행 중인 턴을 조정할 수 없습니다",
-  "session.pruned": "빈 세션 {{count}}개를 정리했습니다",
   "composer.error.readImage": "이미지를 읽을 수 없습니다",
   "composer.error.readImages": "이미지 {{count}}장을 읽을 수 없습니다",
 

@@ -2,7 +2,6 @@ import type { AgentSessionSummary } from "./sessionQueries";
 import { useEffect, useMemo, useRef } from "react";
 import { useAgentSessions } from "./sessionQueries";
 import { agentSessionState } from "../ports/sessionState";
-import { pruneUnusedSessions } from "./pruneUnusedSessions";
 
 const EMPTY_SESSIONS: AgentSessionSummary[] = [];
 
@@ -28,9 +27,10 @@ export function useReconcilePersistedAgentSessions(): void {
     // than owned (see lib/navigation). Reconcile then gets the chance to reject
     // it if the runtime no longer has that session.
     agentSessionState().restoreLastSession();
-    // Reconcile SECOND: it decides which sessions the app still holds open, and
-    // the sweep must not delete the one being restored into view.
+    // Reconcile SECOND: it decides which sessions the app still holds open.
+    // Empty sessions that belong to another client remain visible. This client
+    // cannot infer their draft ownership after a cold start, so only the
+    // owner-scoped navigation cleanup may delete an unused draft.
     agentSessionState().reconcileSessions(sessions.map((session) => session.id));
-    void pruneUnusedSessions(sessions, agentSessionState().getLifecycleSnapshot().openSessionIds);
   }, [isSuccess, data]);
 }

@@ -67,8 +67,10 @@ describe("discardAbandonedDraft", () => {
     expect(deleteSession).not.toHaveBeenCalled();
   });
 
-  it("never touches an ordinary session, however empty it looks", () => {
-    // A real session reads as message-less while its history loads.
+  it("never touches another client's session, however empty it looks", () => {
+    // Draft ownership is local. After a cold start, an empty session may still
+    // be a live draft in another window, so absence from this client's draft set
+    // is a hard no-delete boundary rather than evidence that it was abandoned.
     const deleteSession = wire({ drafts: [] });
 
     discardAbandonedDraft("session-1");

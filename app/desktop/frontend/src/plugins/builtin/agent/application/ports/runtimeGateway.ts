@@ -38,9 +38,6 @@ export interface AgentRuntimeGateway {
    * snapshot shape and commit it atomically.
    */
   loadSessionSnapshot(sessionId: string): Promise<AgentSessionSnapshot>;
-  /** Does this session hold any transcript item at all? One row is enough to
-   *  answer, so this asks for one rather than reading a history. */
-  sessionHoldsNothing(sessionId: string): Promise<boolean>;
   loadSessionUsage(sessionId: string): Promise<AgentSessionUsage>;
   rollbackSession(input: {
     sessionId: string;

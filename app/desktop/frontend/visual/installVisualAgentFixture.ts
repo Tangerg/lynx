@@ -89,7 +89,6 @@ function visualAgentRuntimeGateway(state: VisualAgentState): AgentRuntimeGateway
     updateSession: async ({ expectedRevision }) => ({ revision: expectedRevision + 1 }),
     forkSession: async () => ({ id: `${VISUAL_SESSION_ID}_fork` }),
     loadSessionSnapshot: async () => snapshot,
-    sessionHoldsNothing: async () => snapshot.items.length === 0,
     loadSessionUsage: async () => ({}),
     rollbackSession: async () => undefined,
     steerRun: async (runId, segmentId, input) => {

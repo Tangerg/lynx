@@ -1079,7 +1079,6 @@ export const en: Record<string, string> = {
   "session.error.relocate": "Couldn't relocate the session.",
   "session.error.rollback": "Couldn't rewind the conversation.",
   "session.error.steer": "Couldn't steer the running turn",
-  "session.pruned": "Removed {{count}} empty session(s)",
   "composer.error.readImage": "Couldn't read the image",
   "composer.error.readImages": "Couldn't read {{count}} images",
 
