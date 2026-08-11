@@ -12,6 +12,7 @@ export interface CodebaseStatusReadModel {
   chunkCount: number;
   indexedAt?: string;
   truncated?: boolean;
+  operationId?: string;
 }
 
 export interface SelectableModel {
@@ -41,6 +42,17 @@ export const UTILITY_ROLE_KEY = "utility-role";
 export const EMBEDDING_ROLE_KEY = "embedding-role";
 export const CODEBASE_STATUS_KEY = "codebase-status";
 
+const ACTIVE_CODEBASE_STATUS_REFRESH_MS = 1_000;
+
+// Runtime owns background reindex execution and exposes operationId as its
+// liveness handle. Refresh only while that handle exists, then let the final
+// ready/error status return this query to its normal cache lifetime.
+export function codebaseStatusRefreshInterval(
+  status: CodebaseStatusReadModel | undefined,
+): number | false {
+  return status?.operationId ? ACTIVE_CODEBASE_STATUS_REFRESH_MS : false;
+}
+
 export const useModels = createDataQuery<SelectableModel[]>(MODELS_KEY);
 export const useProviders = createDataQuery<ProviderConfiguration[]>(PROVIDERS_KEY);
 export const useUtilityRole = createDataQuery<ProviderRoleSelection>(UTILITY_ROLE_KEY);
@@ -48,4 +60,4 @@ export const useEmbeddingRole = createDataQuery<ProviderRoleSelection>(EMBEDDING
 export const useCodebaseStatus = createParameterizedDataQuery<
   CodebaseStatusQuery,
   CodebaseStatusReadModel
->(CODEBASE_STATUS_KEY);
+>(CODEBASE_STATUS_KEY, { refetchInterval: codebaseStatusRefreshInterval });

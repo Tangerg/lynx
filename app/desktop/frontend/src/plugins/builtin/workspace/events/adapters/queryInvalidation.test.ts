@@ -36,6 +36,19 @@ describe("workspace session projection invalidation", () => {
     },
   );
 
+  it("refreshes agent memory after completed-run maintenance", () => {
+    invalidateWorkspaceEvent({
+      type: "runs.changed",
+      sequence: 1,
+      sessionIds: ["ses_a"],
+    });
+
+    expect(invalidateQueries.mock.calls.map(([options]) => options.queryKey[0])).toEqual([
+      "agent-session-usage",
+      "agent-memory",
+    ]);
+  });
+
   it("synchronizes every mounted session after a lossy resync", () => {
     invalidateWorkspaceEverything();
 

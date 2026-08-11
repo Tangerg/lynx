@@ -15,6 +15,7 @@ import {
 } from "@/plugins/builtin/settings/mcp-servers/public/queries";
 import {
   WORKSPACE_DIFF_KEY,
+  WORKSPACE_AGENT_MEMORY_KEY,
   WORKSPACE_FILES_CHANGED_KEY,
   WORKSPACE_FILE_HEAD_KEY,
   WORKSPACE_GREP_KEY,
@@ -37,6 +38,7 @@ const QUERY_KEYS: Record<
   string
 > = {
   agentDocs: WORKSPACE_AGENT_DOCS_KEY,
+  agentMemory: WORKSPACE_AGENT_MEMORY_KEY,
   diff: WORKSPACE_DIFF_KEY,
   fileHead: WORKSPACE_FILE_HEAD_KEY,
   fileList: WORKSPACE_LIST_FILES_KEY,

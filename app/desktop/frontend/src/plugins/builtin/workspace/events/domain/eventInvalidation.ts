@@ -1,5 +1,6 @@
 export type WorkspaceInvalidationTarget =
   | "all"
+  | "agentMemory"
   | "agentSessionProjection"
   | "agentDocs"
   | "diff"
@@ -83,12 +84,12 @@ export function workspaceInvalidations(ev: WorkspaceEventLike): WorkspaceInvalid
     case "sessions.changed":
       return ["sessions"];
     case "runs.changed":
-      // The material projection and accounting depend on Runs. The Runtime
-      // publishes sessions.changed separately for the Session list and
-      // interrupts.changed separately for pending human work; invalidating those
-      // here as well duplicates every lifecycle read and reintroduces races
-      // between two refetches of the same resource.
-      return ["sessionUsage", "agentSessionProjection"];
+      // Completed Runs can also commit agent-memory maintenance before this
+      // signal is published. The Runtime publishes sessions.changed separately
+      // for the Session list and interrupts.changed separately for pending human
+      // work; invalidating those here as well duplicates every lifecycle read
+      // and reintroduces races between two refetches of the same resource.
+      return ["sessionUsage", "agentMemory", "agentSessionProjection"];
     case "interrupts.changed":
       return ["agentSessionProjection", "pendingWork"];
     case "goals.changed":
