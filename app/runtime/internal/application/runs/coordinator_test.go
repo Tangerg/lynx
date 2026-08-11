@@ -933,8 +933,24 @@ func TestCoordinatorHoldsSessionAdmissionThroughTerminalMaintenance(t *testing.T
 	if err != nil {
 		t.Fatalf("openSegment: %v", err)
 	}
-	streamDone := make(chan []Event, 1)
-	go func() { streamDone <- collectEvents(stream) }()
+	next, stop := iter.Pull(stream)
+	defer stop()
+	opening, ok := next()
+	if !ok {
+		t.Fatal("stream ended before its opening event")
+	}
+	if _, started := opening.Payload.(SegmentStarted); !started {
+		t.Fatalf("opening payload = %T, want SegmentStarted", opening.Payload)
+	}
+	type nextResult struct {
+		event Event
+		ok    bool
+	}
+	terminal := make(chan nextResult, 1)
+	go func() {
+		event, ok := next()
+		terminal <- nextResult{event: event, ok: ok}
+	}()
 	select {
 	case <-started:
 	case <-time.After(time.Second):
@@ -950,16 +966,25 @@ func TestCoordinatorHoldsSessionAdmissionThroughTerminalMaintenance(t *testing.T
 		t.Fatal("new run admission crossed the terminal-maintenance fence")
 	}
 	select {
-	case <-streamDone:
-		t.Fatal("stream closed before terminal maintenance released admission")
+	case result := <-terminal:
+		t.Fatalf("terminal event crossed terminal maintenance: %+v", result)
 	case <-time.After(50 * time.Millisecond):
 	}
 
 	close(release)
 	select {
-	case <-streamDone:
+	case result := <-terminal:
+		if !result.ok {
+			t.Fatal("stream closed without its terminal event")
+		}
+		if _, finished := result.event.Payload.(SegmentFinished); !finished {
+			t.Fatalf("terminal payload = %T, want SegmentFinished", result.event.Payload)
+		}
 	case <-time.After(time.Second):
-		t.Fatal("stream did not close after terminal maintenance released admission")
+		t.Fatal("terminal event did not publish after terminal maintenance released admission")
+	}
+	if _, ok := next(); ok {
+		t.Fatal("stream remained open after its terminal event")
 	}
 	requireCoordinatorShutdown(t, coordinator)
 	if hasActiveSession(coordinator, "ses_1") {

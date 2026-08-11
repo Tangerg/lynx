@@ -99,7 +99,11 @@ type journal struct {
 	evictedThrough uint64
 	subs           map[int]*journalSubscriber
 	nextSubID      int
-	closed         bool
+	// closeEvent is the root segment.finished event. Its durable facts may commit
+	// before terminal maintenance, but clients treat receiving it as permission to
+	// start the next operation, so fan-out waits until close releases admission.
+	closeEvent *chargedEvent
+	closed     bool
 }
 
 // newJournal builds the stream for one segment. scope binds every position it
@@ -116,19 +120,43 @@ func newJournal(scope streamScope, retention Retention) *journal {
 // sequence order, publication order and replay order are one order rather than
 // three that agree by convention.
 func (j *journal) append(ev Event) {
-	// Charging walks the event's retained values and needs nothing from this
-	// journal. Keep it before the lock so position assignment and subscriber
-	// fan-out never wait behind accounting work.
-	size := 0
-	if ev.Replayable() {
-		size = retainedBytes(ev)
-	}
-
+	charged := chargeJournalEvent(ev)
 	j.mu.Lock()
 	defer j.mu.Unlock()
 	if j.closed {
 		return
 	}
+	j.appendLocked(charged)
+}
+
+// deferCloseEvent retains the root terminal signal until close. Exactly one
+// root segment boundary can close a journal; a duplicate is an internal
+// lifecycle violation rather than a second client completion boundary.
+func (j *journal) deferCloseEvent(ev Event) {
+	charged := chargeJournalEvent(ev)
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	if j.closed {
+		return
+	}
+	if j.closeEvent != nil {
+		panic("runs: journal received more than one close event")
+	}
+	j.closeEvent = &charged
+}
+
+func chargeJournalEvent(ev Event) chargedEvent {
+	size := 0
+	if ev.Replayable() {
+		size = retainedBytes(ev)
+	}
+	return chargedEvent{event: ev, bytes: size}
+}
+
+// appendLocked assigns the next stream position and fans out one pre-charged
+// event. The caller holds j.mu and has proved the journal is open.
+func (j *journal) appendLocked(charged chargedEvent) {
+	ev := charged.event
 	j.head++
 	ev.Sequence = j.head
 	ev.Cursor = encodeReplayCursor(replayPosition{
@@ -136,12 +164,12 @@ func (j *journal) append(ev Event) {
 		segmentID: j.scope.SegmentID, sequence: j.head,
 	})
 	if ev.Replayable() {
-		j.retained = append(j.retained, chargedEvent{event: ev, bytes: size})
-		j.retainedBytes += size
+		j.retained = append(j.retained, chargedEvent{event: ev, bytes: charged.bytes})
+		j.retainedBytes += charged.bytes
 		j.evictLocked()
 	}
 	for _, subscriber := range j.subs {
-		subscriber.enqueue(ev, size)
+		subscriber.enqueue(ev, charged.bytes)
 	}
 }
 
@@ -168,6 +196,10 @@ func (j *journal) close() {
 	if j.closed {
 		j.mu.Unlock()
 		return
+	}
+	if j.closeEvent != nil {
+		j.appendLocked(*j.closeEvent)
+		j.closeEvent = nil
 	}
 	j.closed = true
 	subscribers := make([]*journalSubscriber, 0, len(j.subs))

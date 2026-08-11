@@ -454,7 +454,15 @@ func suspendedInterrupts(events []RunEvent) []transcript.Interrupt {
 }
 
 func (p treePublisher) append(route *executorRoute, reduced reduction) {
-	p.owner.hub.append(p.coordinator.event(route.runID, route.segmentID, reduced))
+	event := p.coordinator.event(route.runID, route.segmentID, reduced)
+	if route.runID == p.rootSpec.RunID && reduced.Event.Terminal() {
+		// The client uses root segment.finished as the stream/completion boundary.
+		// Its facts are already durable, but publication must not outrun terminal
+		// maintenance and admission release or an immediate next command sees busy.
+		p.owner.hub.deferCloseEvent(event)
+	} else {
+		p.owner.hub.append(event)
+	}
 	if reduced.Nudge != nil {
 		p.coordinator.workspace.Nudge(reduced.Nudge.CWD, reduced.Nudge.Paths)
 	}
