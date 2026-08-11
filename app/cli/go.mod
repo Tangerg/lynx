@@ -3,7 +3,7 @@ module github.com/Tangerg/lynx/app/cli
 go 1.26.5
 
 require (
-	github.com/Tangerg/lynx/app/runtime v0.0.0-20260810180839-2284f1d90fc5
+	github.com/Tangerg/lynx/app/runtime v0.0.0-20260811170725-420f627f131a
 	github.com/Tangerg/oolong/components v0.11.0
 	github.com/Tangerg/oolong/core v0.11.0
 	github.com/Tangerg/oolong/highlight v0.11.0
@@ -22,11 +22,10 @@ require (
 	github.com/Masterminds/semver/v3 v3.5.0 // indirect
 	github.com/Tangerg/lynx v0.0.0-20260805221614-8b3e8b860d00 // indirect
 	github.com/Tangerg/lynx/a2a v0.0.0-20260803122848-6ade352dda10 // indirect
-	github.com/Tangerg/lynx/agent v0.0.0-20260809225948-4cce747c1724 // indirect
+	github.com/Tangerg/lynx/agent v0.0.0-20260811152247-8e667d716b22 // indirect
 	github.com/Tangerg/lynx/mcp v0.0.0-20260803122848-6ade352dda10 // indirect
 	github.com/Tangerg/lynx/models v0.0.0-20260803122848-6ade352dda10 // indirect
 	github.com/Tangerg/lynx/models/google v0.0.0-20260803122848-6ade352dda10 // indirect
-	github.com/Tangerg/lynx/models/ollama v0.0.0-20260803122848-6ade352dda10 // indirect
 	github.com/Tangerg/lynx/models/protocol/openai v0.0.0-20260803122848-6ade352dda10 // indirect
 	github.com/Tangerg/lynx/skills v0.0.0-20260803141845-7207652c95af // indirect
 	github.com/Tangerg/lynx/tools/httpreq v0.0.0-20260803213301-143b5c1045ad // indirect
@@ -57,12 +56,10 @@ require (
 	github.com/gorilla/websocket v1.5.3 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/invopop/jsonschema v0.14.0 // indirect
-	github.com/mailru/easyjson v0.9.2 // indirect
 	github.com/mattn/go-isatty v0.0.24 // indirect
 	github.com/mattn/go-runewidth v0.0.27 // indirect
 	github.com/modelcontextprotocol/go-sdk v1.7.0 // indirect
 	github.com/ncruces/go-strftime v1.0.0 // indirect
-	github.com/ollama/ollama v0.32.5 // indirect
 	github.com/openai/openai-go/v3 v3.49.0 // indirect
 	github.com/pb33f/ordered-map/v2 v2.3.1 // indirect
 	github.com/pelletier/go-toml/v2 v2.4.3 // indirect
@@ -83,7 +80,6 @@ require (
 	github.com/tidwall/match v1.2.0 // indirect
 	github.com/tidwall/pretty v1.2.1 // indirect
 	github.com/tidwall/sjson v1.2.5 // indirect
-	github.com/wk8/go-ordered-map/v2 v2.1.8 // indirect
 	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
 	github.com/yuin/goldmark v1.8.5 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect

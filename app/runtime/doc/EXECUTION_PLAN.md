@@ -1,6 +1,6 @@
 # Lyra Runtime 重构实施计划
 
-> 状态：P1–P28 已完成；发布后反证审计持续进行
+> 状态：P1–P29 已完成；发布后反证审计持续进行
 >
 > 工作方式：原模块内治本重构，按可验证纵切分批完成；不创建完整 `runtime2`
 
@@ -62,6 +62,7 @@
 | P26 | Tool 可见 lifecycle 与真实 execution timing 分离 | P25 + 真实审批等待/Tool journal/UI 对账 | 已完成 |
 | P27 | Runtime/Frontend 依赖信任边界收缩 | P26 + 真实依赖图/漏洞可达性/恢复压力证据 | 已完成 |
 | P28 | Ollama standalone client/daemon 边界纠偏 | P27 + workspace module 可达性审计 | 已完成 |
+| P29 | CLI standalone Runtime consumer 发布闭环 | P28 + 已推送 Runtime canonical commit | 已完成 |
 
 ## 4. P0 — 文档、事实和边界基线
 
@@ -791,10 +792,30 @@
 - 非流响应和单帧有显式内存上限，慢流、取消、early stop、首个坏帧与 provider error 都确定收口；
 - Runtime/Agent/Application/Domain/Delivery 合同不因 provider client 修复变化。
 
-## 33. 进度记录
+## 33. P29 — CLI standalone Runtime consumer 发布闭环
+
+### 目标
+
+关闭 workspace overlay 掩盖的 CLI 发布缺口：CLI standalone module 必须消费已推送、已移除 Ollama daemon 依赖的 Runtime canonical pseudo-version，而不是继续固定 P27 之前的旧 Runtime graph。依赖前移不得吞入 CLI 正在进行的功能改动，也不得用本地 `replace` 旁路发布事实。
+
+### 工作项
+
+- [x] P29-01 将 CLI 的 Runtime 直接依赖精确前移到 commit `420f627f131a` 对应 pseudo-version，并同步其 Agent Baseline 20 间接依赖；
+- [x] P29-02 通过 standalone tidy 删除旧 `models/ollama`、daemon、easyjson 与 ordered-map 图，保留 CLI 自己新增的真实直接依赖；
+- [x] P29-03 完成 `GOWORK=off` tidy-diff/build/vet/test/race/staticcheck/golangci-lint/govulncheck。
+
+### 验收
+
+- CLI standalone module graph 不含 `github.com/ollama/ollama`，可达漏洞为零；
+- CLI 消费远端 canonical Runtime/Agent 版本，无 `replace`、workspace-only 假绿或 consumer compatibility shim；
+- CLI normal/race 全包、staticcheck/lint 与 build/vet 全绿，Runtime public embedded contract 无漂移；
+- 提交只包含依赖发布闭环与台账，不夹带 CLI 功能工作树。
+
+## 34. 进度记录
 
 | 日期 | 阶段 | 完成事实 | 验证 |
 |---|---|---|---|
+| 2026-08-12 | P29（CLI standalone consumer closure） | CLI 的 Runtime dependency 从旧 P24 pseudo-version 前移到已推送 commit `420f627f131a`，间接 Agent 同步 Baseline 20；standalone graph 删除旧 `models/ollama`、daemon、easyjson 与 ordered-map。没有 local replace、compat shim，也没有把 CLI 正在进行的功能文件纳入本批 | CLI `GOWORK=off` tidy-diff/build/vet/test/race/staticcheck/golangci-lint 全绿且 lint 0 issue；`govulncheck` 可达漏洞 0，`go mod why github.com/ollama/ollama` 确认为 main module 不需要该 module |
 | 2026-08-12 | P28（Ollama client/daemon 边界） | 独立 `models/ollama` 不再把完整 daemon repository 当客户端 SDK；provider module 私有 wire 精确拥有原生 chat/embed request、response、NDJSON streaming、状态错误与内存上限，并以 raw response extension 保留未知 provider 字段。公开构造器、Core chat/embedding interface、Runtime 与 Agent 合同均未变化 | `models/ollama` standalone tidy-diff/build/vet/test/race/staticcheck/golangci-lint 全绿且 lint 0 issue，Core conformance/behavior、cancel/early-stop/首坏帧、原生 HTTP contract 与未知字段回归通过；`govulncheck` 从 8 条可达路径降为 0，architecture gate 禁止 daemon module 回流 |
 | 2026-08-12 | P27（依赖信任边界收缩） | Frontend lock 前移到 Mermaid 11.16.1、DOMPurify 3.4.13、NanoID 6.0.1/3.3.18；Runtime Infra 将 Ollama chat/embedding 改由既有 OpenAI-compatible protocol 组装，移除只为客户端能力引入的完整 Ollama 服务端 module 及独占间接依赖。变更没有进入 Agent/Application/Domain/Delivery，也没有新增 shim、override 或双路径 | clean `npm ci` 后 audit 0，Frontend 224 files/1380 tests、生产 build/bundle 与真实 Mermaid SVG 全绿；Runtime `govulncheck` 可达漏洞 0，standalone tidy-diff/build/vet/test/race/staticcheck/golangci-lint 全绿。真实审批 reject、等待审批崩溃恢复、Tool 执行中崩溃、Goal/Plan crash-resume、双 Session HITL 隔离全部通过，四个 fuzz target 共约 92.6 万次执行通过；SQLite integrity `ok`、foreign-key/开放 lifecycle/active Goal 均为零 |
 | 2026-08-12 | P26（Tool execution timing） | Reducer 以真实 attempt start/finish 产出 optional exact execution duration，Transcript 独占该终态事实，SQLite codec 精确 round-trip，Delivery 只投影；未重启/恢复不可证的 Tool 保持 unknown。Protocol 前移 `2026-08-12`、Artifact v17，Runtime contract 与 Desktop generated consumer 原子同步；Agent Framework 未获得任何 Runtime timing、Store、transaction 或产品 DTO | Runtime `GOWORK=off` tidy-diff/build/vet/test/race/staticcheck/golangci-lint 全绿且 lint 0 issue；Frontend 224 files/1380 tests与完整架构/格式/生产 bundle 门禁全绿。真实 HITL 明确等待后，Tool lifecycle 31.160s、journal/payload execution 2.016s、UI 显示 `2s`、最终唯一 `TOOL_DURATION_FIXED_OK`；两个自治 Goal 实时完成 Plan revision 2/3 与 completed audit，完成后普通 Run 返回 `AFTER_GOAL_ORDINARY_OK`。SQLite integrity `ok`、foreign-key/全部开放 lifecycle 为零 |
@@ -874,6 +895,6 @@
 | 2026-08-09 | P9.2 | 完成 Adapter/Infra/Application/Delivery 逐包职责审计；workspace physical path identity 收敛到唯一 Infra mechanism；删除空的 temporary architecture 台账并把旧 Agent 禁止与 Domain no-context-I/O 变为永久 framework boundary guard；确认 agentexec 按真实变化原因组织且没有第二 lifecycle owner或虚构子包 | Adapter→Infra 单向图与目标六环 DAG 全绿；Delivery concrete Adapter/Infra import、Infra 反向 import、Application outward import、纯转发 wrapper、package/type 口吃、空目录和 temporary exception 均为零；workspacepath/pathidentity/arch targeted tests 与全量质量门禁通过 |
 | 2026-08-09 | P10 | Runtime Protocol 一次性提升到 `2026-08-09`、Session Artifact 到 v14；删除 wire 中实现泄露的 `processRootSegment`，只保留准确的 `runtimeInstanceRootSegment`；Go registry、validator、manifest、OpenRPC、JSON Schema、TypeScript binding、canonical samples 与人读 API/Transport/Aux 文档同步；新增精确 consumer handoff | canonical artifact samples 中漏存的 v12 与旧 `outcome.error` 被 strict sample gate 暴露并治本修正；生成器零漂移、旧 wire token/版本归零、strict validator/round-trip、HTTP/in-process、全量质量门禁通过；Desktop backlog 已记录但未改消费者 |
 
-## 34. 当前下一步
+## 35. 当前下一步
 
-P28 已完成，Runtime/Frontend 与独立 Ollama provider module 的已知可达依赖漏洞、client/daemon 过宽边界已经清除。继续反证 cancel/duplicate resolution、Goal blocked/restart/release、Plan/Goal 并发、event queue backpressure/resync 与事务失败边界；新反例只在其权威 owner 与正确抽象层修复，不把 provider/Runtime/Application/Adapter/Infra/Delivery 或 Agent Framework 合同相互泄露。
+P29 已完成，Runtime/Frontend、独立 Ollama provider 与 CLI standalone consumer 的已知可达依赖漏洞和发布图缺口已经清除。继续反证 cancel/duplicate resolution、Goal blocked/restart/release、Plan/Goal 并发、event queue backpressure/resync 与事务失败边界；新反例只在其权威 owner 与正确抽象层修复，不把 provider/consumer/Runtime/Application/Adapter/Infra/Delivery 或 Agent Framework 合同相互泄露。
