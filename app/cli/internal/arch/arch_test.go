@@ -32,7 +32,12 @@ var layers = []struct {
 }{
 	{"internal/agent/mock/", "mock"},
 	{"internal/runtimeembedded/", "runtimeembedded"},
+	{"internal/authoringcontext/", "authoringcontext"},
 	{"internal/agentmemory/", "agentmemory"},
+	{"internal/diagnostictool/", "diagnostictool"},
+	{"internal/hookpolicy/", "hookpolicy"},
+	{"internal/codebase/", "codebase"},
+	{"internal/feedback/", "feedback"},
 	{"internal/changefeed/", "changefeed"},
 	{"internal/workspace/", "workspace"},
 	{"internal/usage/", "usage"},
@@ -66,38 +71,43 @@ var layers = []struct {
 // dependency fail closed instead of silently weakening the architecture.
 var allowed = map[string][]string{
 	// Domain policy and generic infrastructure are the center.
-	"agent":           nil,
-	"agentmemory":     nil,
-	"changefeed":      nil,
-	"workspace":       nil,
-	"usage":           nil,
-	"modelconfig":     nil,
-	"goal":            nil,
-	"knowledge":       nil,
-	"skills":          nil,
-	"mcp":             nil,
-	"schedule":        nil,
-	"backend":         {"agent", "agentmemory", "changefeed", "goal", "knowledge", "mcp", "modelconfig", "schedule", "sessiontransfer", "skills", "usage", "workspace"},
-	"settings":        {"agent"},
-	"session":         {"agent"},
-	"oneshot":         {"agent", "reconnect", "runrecovery"},
-	"extensions":      nil,
-	"promptqueue":     {"agent"},
-	"sessiontransfer": {"agent"},
-	"sessionartifact": {"sessiontransfer"},
-	"workbench":       {"agent"},
+	"agent":            nil,
+	"agentmemory":      nil,
+	"authoringcontext": nil,
+	"diagnostictool":   nil,
+	"hookpolicy":       nil,
+	"codebase":         nil,
+	"feedback":         nil,
+	"changefeed":       nil,
+	"workspace":        nil,
+	"usage":            nil,
+	"modelconfig":      nil,
+	"goal":             nil,
+	"knowledge":        nil,
+	"skills":           nil,
+	"mcp":              nil,
+	"schedule":         nil,
+	"backend":          {"agent", "agentmemory", "authoringcontext", "changefeed", "codebase", "diagnostictool", "feedback", "goal", "hookpolicy", "knowledge", "mcp", "modelconfig", "schedule", "sessiontransfer", "skills", "usage", "workspace"},
+	"settings":         {"agent"},
+	"session":          {"agent"},
+	"oneshot":          {"agent", "reconnect", "runrecovery"},
+	"extensions":       nil,
+	"promptqueue":      {"agent"},
+	"sessiontransfer":  {"agent"},
+	"sessionartifact":  {"sessiontransfer"},
+	"workbench":        {"agent"},
 
 	// Outbound adapters share domain contracts, not one another.
 	"attachment":      {"agent"},
 	"reconnect":       {"agent"},
 	"runrecovery":     {"agent"},
 	"mock":            {"agent"},
-	"runtimeembedded": {"agent", "agentmemory", "backend", "changefeed", "goal", "knowledge", "mcp", "modelconfig", "schedule", "sessiontransfer", "skills", "usage", "workspace"},
+	"runtimeembedded": {"agent", "agentmemory", "authoringcontext", "backend", "changefeed", "codebase", "diagnostictool", "feedback", "goal", "hookpolicy", "knowledge", "mcp", "modelconfig", "schedule", "sessiontransfer", "skills", "usage", "workspace"},
 	"render":          {"agent"},
 
 	// Delivery adapters compose inward abstractions. Sideloading is the outer trust
 	// boundary around terminal contributions; cmd is the application composition root.
-	"terminal": {"agent", "agentmemory", "attachment", "changefeed", "extensions", "goal", "knowledge", "mcp", "modelconfig", "promptqueue", "reconnect", "runrecovery", "schedule", "session", "sessionartifact", "sessiontransfer", "settings", "skills", "usage", "workbench", "workspace"},
+	"terminal": {"agent", "agentmemory", "attachment", "authoringcontext", "changefeed", "codebase", "diagnostictool", "extensions", "feedback", "goal", "hookpolicy", "knowledge", "mcp", "modelconfig", "promptqueue", "reconnect", "runrecovery", "schedule", "session", "sessionartifact", "sessiontransfer", "settings", "skills", "usage", "workbench", "workspace"},
 	"sideload": {"extensions", "terminal"},
 	"cmd":      {"agent", "attachment", "backend", "extensions", "oneshot", "render", "session", "settings", "sideload", "terminal"},
 	"arch":     nil,
@@ -168,7 +178,7 @@ func TestTheLibraryStaysALibrary(t *testing.T) {
 	root := moduleRoot(t)
 	fset := token.NewFileSet()
 
-	terminalFree := []string{"agent", "agentmemory", "backend", "changefeed", "goal", "knowledge", "mcp", "modelconfig", "schedule", "skills", "usage", "workspace", "settings", "mock", "runtimeembedded", "attachment", "promptqueue", "reconnect", "runrecovery", "session", "sessionartifact", "sessiontransfer", "workbench", "oneshot", "extensions", "render"}
+	terminalFree := []string{"agent", "agentmemory", "authoringcontext", "backend", "changefeed", "codebase", "diagnostictool", "feedback", "goal", "hookpolicy", "knowledge", "mcp", "modelconfig", "schedule", "skills", "usage", "workspace", "settings", "mock", "runtimeembedded", "attachment", "promptqueue", "reconnect", "runrecovery", "session", "sessionartifact", "sessiontransfer", "workbench", "oneshot", "extensions", "render"}
 	walk(t, root, func(dir, path string) {
 		layer := layerOf(dir)
 		if !slices.Contains(terminalFree, layer) {

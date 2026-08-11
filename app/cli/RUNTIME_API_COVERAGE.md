@@ -8,8 +8,8 @@ uses a CLI-owned domain model and a consumer-owned port.
 
 Baseline date: 2026-08-12
 Runtime API inventory: 87 exported methods
-Production API consumption: 77 methods
-Queued API consumption: 10 methods
+Production API consumption: 87 methods
+Queued API consumption: 0 methods
 
 Status meanings:
 
@@ -46,11 +46,11 @@ resync policy; mutations need lifecycle and failure-path tests.
 | Skills | `ApproveSkillProposal`, `ArchiveSkill`, `ListDiscoveredSkills`, `ListManagedSkills`, `ListSkillProposals`, `RejectSkillProposal`, `RestoreSkill` | complete | Discovered, managed, and proposal Readers; archive/restore; confirmed approve/reject bound to workspace + scope + name + full immutable revision; same-name revisions remain distinct; `skills.changed` refetches only an open Skill projection. |
 | MCP | `CreateMCPAuthorizationAttempt`, `CreateMCPServer`, `DeleteMCPServer`, `GetMCPAuthorizationAttempt`, `ListMCPServers`, `ListMCPTools`, `ReconnectMCPServer`, `TestMCPServer`, `UpdateMCPServer` | complete | `/mcp`, `/mcp-tools`, `/mcp-create`, `/mcp-edit`, `/mcp-probe`, `/mcp-delete`, `/mcp-reconnect`, and `/mcp-auth` expose secret-safe connection management, schemas, health probes, reconnect, and the complete browser authorization lifecycle; `mcp.changed` refetches only the open server/tool projection. |
 | Schedules | `CreateSchedule`, `DeleteSchedule`, `ListSchedules`, `RunScheduleNow`, `UpdateSchedule` | complete | `/schedules`, `/schedule-create`, `/schedule-edit`, `/schedule-enable`, `/schedule-disable`, `/schedule-run`, and `/schedule-delete` expose cursor-complete reads, revision-guarded edits, lifecycle, immediate firing handles, destructive confirmation, and `schedules.changed` refetch. |
-| Tools | `InvokeTool`, `ListTools` | queued | Add an inspect/invoke surface for diagnostics; normal agent tool execution remains runtime-owned. |
-| Codebase | `GetCodebaseStatus`, `ReindexCodebase`, `SearchCodebase` | queued | Add indexing status, explicit reindex, and semantic search distinct from workspace grep. |
-| Agent documents and recipes | `ListAgentDocs`, `ListRecipes` | queued | Add discoverable authoring/context catalogs and prompt insertion. |
-| Hooks | `ListHooks`, `SetHookTrust` | queued | Add hook inventory and an explicit trust decision surface. |
-| Feedback | `CreateFeedback` | queued | Add scoped run/session feedback after outcome completion. |
+| Tools | `InvokeTool`, `ListTools` | complete | `/tools` and `/tool-invoke` expose only the runtime's direct read-only diagnostics, retain schemas and arguments as owned JSON, reject non-safe/duplicate/unpageable catalogs, resolve exact or unique names, confine every invocation to the admitted workspace, and render the canonical JSON result. Normal agent tool execution remains runtime-owned. |
+| Codebase | `GetCodebaseStatus`, `ReindexCodebase`, `SearchCodebase` | complete | `/codebase`, `/codebase-search`, and confirmed `/codebase-reindex` expose the closed index lifecycle, parsed index time, counts/truncation/model, scored source spans, background operation identity, and semantic search independently from workspace grep. |
+| Agent documents and recipes | `ListAgentDocs`, `ListRecipes` | complete | `/agent-docs` and `/recipes` expose source/scope provenance. `/recipe` resolves an exact or unique name, expands `$ARGUMENTS` and `$1..$9` with the documented boundary semantics, and opens a resize-safe multiline review whose save enters the unified send-or-queue path. |
+| Hooks | `ListHooks`, `SetHookTrust` | complete | `/hooks` exposes exact executable/declarative actions, lifecycle event, matcher, timeout, source, scope, active state, trust root, and trust state. Trust and revocation re-read the current catalog, require resize-safe confirmation, bind the mutation to the reported project root, and refetch afterward. |
+| Feedback | `CreateFeedback` | complete | `/feedback` validates a positive/negative rating plus optional note and targets the latest durable assistant item when available, otherwise the current run/session. The write uses normal command idempotency and remains outside the conversation aggregate. |
 
 ## Batch order
 
@@ -59,8 +59,9 @@ resync policy; mutations need lifecycle and failure-path tests.
    invalidations — complete.
 3. Goals, usage, model roles, and providers — complete.
 4. Skills and MCP, including terminal authorization — complete.
-5. Schedules, agent memory, and knowledge — complete; codebase, tools, hooks,
-   docs/recipes, and feedback — next.
+5. Schedules, agent memory, and knowledge — complete.
+6. Codebase, direct diagnostic tools, agent documents/recipes, hooks, and
+   feedback — complete.
 
 Each batch must pass package tests, the race detector, architecture guards,
 static analysis, native and cross-platform builds, and a real embedded-runtime

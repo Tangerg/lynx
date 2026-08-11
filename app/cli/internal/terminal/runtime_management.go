@@ -31,6 +31,11 @@ const (
 	runtimeReaderSchedules
 	runtimeReaderAgentMemory
 	runtimeReaderKnowledge
+	runtimeReaderDiagnosticTools
+	runtimeReaderCodebase
+	runtimeReaderAgentDocuments
+	runtimeReaderRecipes
+	runtimeReaderHooks
 )
 
 type usageReport struct {

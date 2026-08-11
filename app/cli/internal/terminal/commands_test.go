@@ -48,18 +48,35 @@ func TestCommandCatalogRejectsNameAndAliasConflicts(t *testing.T) {
 	}
 }
 
+func TestSplitCommandArgumentPreservesRemainderAcrossWhitespace(t *testing.T) {
+	t.Parallel()
+	identity, remainder, ok := splitCommandArgument("  inspect\t{\"depth\": 2}  ")
+	if !ok || identity != "inspect" || remainder != `{"depth": 2}` {
+		t.Fatalf("split = (%q, %q, %t)", identity, remainder, ok)
+	}
+	if _, _, ok := splitCommandArgument(" \n\t "); ok {
+		t.Fatal("empty argument was accepted")
+	}
+	if remainder, ok := trimCommandIdentity("review code\tcarefully", "review code"); !ok || remainder != "carefully" {
+		t.Fatalf("trim identity = (%q, %t)", remainder, ok)
+	}
+	if _, ok := trimCommandIdentity("reviewer", "review"); ok {
+		t.Fatal("partial token matched a complete identity")
+	}
+}
+
 func TestBuiltinCommandsOwnTheirCategoryAndAvailabilityPolicy(t *testing.T) {
 	t.Parallel()
 	wantCategories := map[string][]string{
 		commandCategoryApplication: {"quit"},
-		commandCategoryTranscript:  {"help", "shortcuts", "clear", "find", "next", "previous", "queue", "details", "view", "copy-last", "export"},
+		commandCategoryTranscript:  {"help", "shortcuts", "clear", "find", "next", "previous", "queue", "details", "view", "copy-last", "export", "feedback"},
 		commandCategorySessions:    {"sessions", "timeline", "new", "workspace", "rename", "fork", "rollback", "import"},
 		commandCategoryComposer:    {"attach", "detach", "attachments", "stash", "stashes", "stash-apply", "stash-delete", "editor"},
-		commandCategoryRuntime:     {"model", "usage", "roles", "utility", "embedding", "providers", "provider-test", "provider-config", "approval", "status", "rules", "steer", "goal", "goal-start", "goal-stop", "goal-resume"},
+		commandCategoryRuntime:     {"tools", "tool-invoke", "model", "usage", "roles", "utility", "embedding", "providers", "provider-test", "provider-config", "approval", "status", "rules", "steer", "goal", "goal-start", "goal-stop", "goal-resume", "hooks", "hooks-trust", "hooks-revoke"},
 		commandCategoryAutomation:  {"schedules", "schedule-create", "schedule-edit", "schedule-enable", "schedule-disable", "schedule-run", "schedule-delete"},
-		commandCategoryContext:     {"memory", "memory-add", "memory-edit", "memory-pin", "memory-unpin", "memory-approve", "memory-reject", "memory-delete", "knowledge", "knowledge-read", "knowledge-edit", "skills", "skill-library", "skill-proposals", "skill-archive", "skill-restore", "skill-approve", "skill-reject"},
+		commandCategoryContext:     {"agent-docs", "recipes", "recipe", "memory", "memory-add", "memory-edit", "memory-pin", "memory-unpin", "memory-approve", "memory-reject", "memory-delete", "knowledge", "knowledge-read", "knowledge-edit", "skills", "skill-library", "skill-proposals", "skill-archive", "skill-restore", "skill-approve", "skill-reject"},
 		commandCategoryConnections: {"mcp", "mcp-tools", "mcp-create", "mcp-edit", "mcp-probe", "mcp-delete", "mcp-reconnect", "mcp-auth"},
-		commandCategoryWorkspace:   {"workspaces", "changes", "diff", "preview", "grep", "browse", "read"},
+		commandCategoryWorkspace:   {"codebase", "codebase-search", "codebase-reindex", "workspaces", "changes", "diff", "preview", "grep", "browse", "read"},
 		commandCategoryExtensions:  {"plugins", "reload", "unload"},
 	}
 	wantGuard := map[string]bool{
@@ -74,6 +91,11 @@ func TestBuiltinCommandsOwnTheirCategoryAndAvailabilityPolicy(t *testing.T) {
 		"knowledge": true, "knowledge-read": true, "knowledge-edit": true,
 		"mcp": true, "mcp-tools": true, "mcp-create": true, "mcp-edit": true, "mcp-probe": true, "mcp-delete": true, "mcp-reconnect": true, "mcp-auth": true,
 		"schedules": true, "schedule-create": true, "schedule-edit": true, "schedule-enable": true, "schedule-disable": true, "schedule-run": true, "schedule-delete": true,
+		"tools": true, "tool-invoke": true,
+		"codebase": true, "codebase-search": true, "codebase-reindex": true,
+		"agent-docs": true, "recipes": true, "recipe": true,
+		"hooks": true, "hooks-trust": true, "hooks-revoke": true,
+		"feedback": true,
 	}
 
 	seen := make(map[string]struct{})

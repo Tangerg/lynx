@@ -18,9 +18,14 @@ import (
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
 	"github.com/Tangerg/lynx/app/cli/internal/agentmemory"
 	"github.com/Tangerg/lynx/app/cli/internal/attachment"
+	"github.com/Tangerg/lynx/app/cli/internal/authoringcontext"
 	"github.com/Tangerg/lynx/app/cli/internal/changefeed"
+	"github.com/Tangerg/lynx/app/cli/internal/codebase"
+	"github.com/Tangerg/lynx/app/cli/internal/diagnostictool"
 	"github.com/Tangerg/lynx/app/cli/internal/extensions"
+	"github.com/Tangerg/lynx/app/cli/internal/feedback"
 	"github.com/Tangerg/lynx/app/cli/internal/goal"
+	"github.com/Tangerg/lynx/app/cli/internal/hookpolicy"
 	"github.com/Tangerg/lynx/app/cli/internal/knowledge"
 	"github.com/Tangerg/lynx/app/cli/internal/mcp"
 	"github.com/Tangerg/lynx/app/cli/internal/modelconfig"
@@ -62,27 +67,32 @@ const (
 )
 
 type app struct {
-	ctx          context.Context
-	loop         *program.Runtime
-	runtime      agent.Runtime
-	workspaces   workspace.Service
-	changes      changefeed.Source
-	transfers    sessiontransfer.Service
-	usage        usage.Service
-	modelConfig  modelconfig.Service
-	goals        goal.Service
-	skills       skills.Service
-	mcp          mcp.Service
-	schedules    schedule.Service
-	agentMemory  agentmemory.Service
-	knowledge    knowledge.Service
-	artifacts    sessionartifact.Store
-	session      agent.Session
-	registry     *extensions.Registry
-	pluginHost   *extensions.Host
-	pluginIssues []extensions.SourceIssue
-	conversation *agent.Conversation
-	operations   *operationOwner
+	ctx              context.Context
+	loop             *program.Runtime
+	runtime          agent.Runtime
+	workspaces       workspace.Service
+	changes          changefeed.Source
+	transfers        sessiontransfer.Service
+	usage            usage.Service
+	modelConfig      modelconfig.Service
+	goals            goal.Service
+	skills           skills.Service
+	mcp              mcp.Service
+	schedules        schedule.Service
+	agentMemory      agentmemory.Service
+	knowledge        knowledge.Service
+	diagnosticTools  diagnostictool.Service
+	codebase         codebase.Service
+	authoringContext authoringcontext.Service
+	hooks            hookpolicy.Service
+	feedback         feedback.Service
+	artifacts        sessionartifact.Store
+	session          agent.Session
+	registry         *extensions.Registry
+	pluginHost       *extensions.Host
+	pluginIssues     []extensions.SourceIssue
+	conversation     *agent.Conversation
+	operations       *operationOwner
 
 	transcript  *transcriptView
 	header      *sessionHeader
@@ -170,30 +180,35 @@ type app struct {
 }
 
 type appConfig struct {
-	context      context.Context
-	runtime      agent.Runtime
-	workspaces   workspace.Service
-	changes      changefeed.Source
-	transfers    sessiontransfer.Service
-	usage        usage.Service
-	modelConfig  modelconfig.Service
-	goals        goal.Service
-	skills       skills.Service
-	mcp          mcp.Service
-	schedules    schedule.Service
-	agentMemory  agentmemory.Service
-	knowledge    knowledge.Service
-	snapshot     agent.SessionSnapshot
-	registry     *extensions.Registry
-	pluginHost   *extensions.Host
-	pluginIssues []extensions.SourceIssue
-	attachments  *attachment.Resolver
-	initialDraft agent.Message
-	settings     settings.Config
-	keyBindings  keyBindings
-	queue        *promptqueue.Queue
-	workbench    *workbench.Store
-	editor       promptEditor
+	context          context.Context
+	runtime          agent.Runtime
+	workspaces       workspace.Service
+	changes          changefeed.Source
+	transfers        sessiontransfer.Service
+	usage            usage.Service
+	modelConfig      modelconfig.Service
+	goals            goal.Service
+	skills           skills.Service
+	mcp              mcp.Service
+	schedules        schedule.Service
+	agentMemory      agentmemory.Service
+	knowledge        knowledge.Service
+	diagnosticTools  diagnostictool.Service
+	codebase         codebase.Service
+	authoringContext authoringcontext.Service
+	hooks            hookpolicy.Service
+	feedback         feedback.Service
+	snapshot         agent.SessionSnapshot
+	registry         *extensions.Registry
+	pluginHost       *extensions.Host
+	pluginIssues     []extensions.SourceIssue
+	attachments      *attachment.Resolver
+	initialDraft     agent.Message
+	settings         settings.Config
+	keyBindings      keyBindings
+	queue            *promptqueue.Queue
+	workbench        *workbench.Store
+	editor           promptEditor
 }
 
 type terminalAppearance struct {
@@ -221,6 +236,8 @@ func newApp(loop *program.Runtime, cfg appConfig) *app {
 		changes: cfg.changes, transfers: cfg.transfers, usage: cfg.usage, modelConfig: cfg.modelConfig,
 		goals: cfg.goals, skills: cfg.skills, mcp: cfg.mcp, schedules: cfg.schedules,
 		agentMemory: cfg.agentMemory, knowledge: cfg.knowledge,
+		diagnosticTools: cfg.diagnosticTools, codebase: cfg.codebase,
+		authoringContext: cfg.authoringContext, hooks: cfg.hooks, feedback: cfg.feedback,
 		session: cfg.snapshot.Session, registry: cfg.registry,
 		pluginHost: cfg.pluginHost, pluginIssues: cfg.pluginIssues,
 		conversation:       agent.NewConversation(),
@@ -537,6 +554,13 @@ func (a *app) submit() {
 		a.runCommand(name, arg)
 		return
 	}
+	a.dispatchPrompt(message)
+}
+
+// dispatchPrompt owns the single path from an authored message to either the
+// active run or its durable follow-up queue. Callers such as recipe expansion
+// cannot bypass session-change exclusion, prompt history, or composer cleanup.
+func (a *app) dispatchPrompt(message agent.Message) {
 	if a.conversation.Busy() || a.following || a.pendingCancel != nil {
 		a.enqueueFollowUp(message)
 		return

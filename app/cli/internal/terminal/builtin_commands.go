@@ -37,6 +37,7 @@ func builtinCommands() []localCommand {
 			localCommand{Descriptor: CommandDescriptor{Name: "view", Title: "open the selected transcript entry in the full reader"}, Available: availableWithReadableSelection, Run: func(a *app, _ string) error { a.OpenReader(); return nil }},
 			localCommand{Descriptor: CommandDescriptor{Name: "copy-last", Title: "copy the latest durable assistant response"}, Run: func(a *app, _ string) error { return a.copyLastAssistant() }},
 			localCommand{Descriptor: CommandDescriptor{Name: "export", Title: "export a runtime-native session document", Takes: true}, Available: availableWithSessionTransfer, Run: func(a *app, argument string) error { return a.exportSession(argument) }},
+			localCommand{Descriptor: CommandDescriptor{Name: "feedback", Title: "rate the latest assistant response", Takes: true}, Available: availableWithFeedback, Run: func(a *app, argument string) error { return a.RecordFeedback(argument) }},
 		),
 		commandGroup(commandCategorySessions,
 			localCommand{Descriptor: CommandDescriptor{Name: "sessions", Title: "search and switch sessions", Aliases: []string{"resume"}}, Available: availableWithoutActiveRun, Run: func(a *app, _ string) error { a.ShowSessions(); return nil }},
@@ -59,6 +60,8 @@ func builtinCommands() []localCommand {
 			localCommand{Descriptor: CommandDescriptor{Name: "editor", Title: "edit the current prompt in the configured external editor"}, Available: availableWithoutActiveRun, Run: func(a *app, _ string) error { return a.editPromptExternally() }},
 		),
 		commandGroup(commandCategoryRuntime,
+			localCommand{Descriptor: CommandDescriptor{Name: "tools", Title: "inspect direct read-only diagnostic tools"}, Available: availableWithDiagnosticTools, Run: func(a *app, _ string) error { a.ShowDiagnosticTools(); return nil }},
+			localCommand{Descriptor: CommandDescriptor{Name: "tool-invoke", Title: "invoke a direct read-only diagnostic tool", Takes: true}, Available: availableWithDiagnosticTools, Run: func(a *app, argument string) error { return a.InvokeDiagnosticTool(argument) }},
 			localCommand{Descriptor: CommandDescriptor{Name: "model", Title: "choose the model for new runs"}, Run: func(a *app, _ string) error { a.ChooseModel(); return nil }},
 			localCommand{Descriptor: CommandDescriptor{Name: "usage", Title: "inspect session and runtime usage", Takes: true}, Available: availableWithUsage, Run: func(a *app, days string) error { return a.ShowUsage(days) }},
 			localCommand{Descriptor: CommandDescriptor{Name: "roles", Title: "inspect utility and embedding model roles"}, Available: availableWithModelConfiguration, Run: func(a *app, _ string) error { a.ShowModelRoles(); return nil }},
@@ -75,6 +78,9 @@ func builtinCommands() []localCommand {
 			localCommand{Descriptor: CommandDescriptor{Name: "goal-start", Title: "start autonomous pursuit for this session", Takes: true}, Available: availableForGoalStart, Run: func(a *app, objective string) error { return a.StartGoal(objective) }},
 			localCommand{Descriptor: CommandDescriptor{Name: "goal-stop", Title: "pause autonomous pursuit for this session"}, Available: availableWithGoals, Run: func(a *app, _ string) error { return a.StopGoal() }},
 			localCommand{Descriptor: CommandDescriptor{Name: "goal-resume", Title: "resume autonomous pursuit for this session"}, Available: availableWithGoals, Run: func(a *app, _ string) error { return a.ResumeGoal() }},
+			localCommand{Descriptor: CommandDescriptor{Name: "hooks", Title: "audit lifecycle hooks and project trust"}, Available: availableWithHooks, Run: func(a *app, _ string) error { a.ShowHooks(); return nil }},
+			localCommand{Descriptor: CommandDescriptor{Name: "hooks-trust", Title: "trust reviewed project lifecycle hooks"}, Available: availableWithHooks, Run: func(a *app, _ string) error { return a.PrepareHookTrust(true) }},
+			localCommand{Descriptor: CommandDescriptor{Name: "hooks-revoke", Title: "revoke project lifecycle hook trust"}, Available: availableWithHooks, Run: func(a *app, _ string) error { return a.PrepareHookTrust(false) }},
 		),
 		commandGroup(commandCategoryAutomation,
 			localCommand{Descriptor: CommandDescriptor{Name: "schedules", Title: "inspect scheduled headless runs"}, Available: availableWithSchedules, Run: func(a *app, _ string) error { a.ShowSchedules(); return nil }},
@@ -86,6 +92,9 @@ func builtinCommands() []localCommand {
 			localCommand{Descriptor: CommandDescriptor{Name: "schedule-delete", Title: "delete a schedule", Takes: true}, Available: availableWithSchedules, Run: func(a *app, identity string) error { return a.PrepareDeleteSchedule(identity) }},
 		),
 		commandGroup(commandCategoryContext,
+			localCommand{Descriptor: CommandDescriptor{Name: "agent-docs", Title: "inspect applicable AGENTS.md documents"}, Available: availableWithAuthoringContext, Run: func(a *app, _ string) error { a.ShowAgentDocuments(); return nil }},
+			localCommand{Descriptor: CommandDescriptor{Name: "recipes", Title: "inspect parameterized prompt recipes"}, Available: availableWithAuthoringContext, Run: func(a *app, _ string) error { a.ShowRecipes(); return nil }},
+			localCommand{Descriptor: CommandDescriptor{Name: "recipe", Title: "expand and review a prompt recipe", Takes: true}, Available: availableWithAuthoringContext, Run: func(a *app, argument string) error { return a.PrepareRecipe(argument) }},
 			localCommand{Descriptor: CommandDescriptor{Name: "memory", Title: "inspect governed agent memory by scope", Takes: true}, Available: availableWithAgentMemory, Run: func(a *app, scope string) error { return a.ShowAgentMemory(scope) }},
 			localCommand{Descriptor: CommandDescriptor{Name: "memory-add", Title: "author a new active memory item", Takes: true}, Available: availableWithAgentMemory, Run: func(a *app, scope string) error { return a.AddAgentMemory(scope) }},
 			localCommand{Descriptor: CommandDescriptor{Name: "memory-edit", Title: "edit memory by scope and id", Takes: true}, Available: availableWithAgentMemory, Run: func(a *app, identity string) error { return a.EditAgentMemory(identity) }},
@@ -116,6 +125,9 @@ func builtinCommands() []localCommand {
 			localCommand{Descriptor: CommandDescriptor{Name: "mcp-auth", Title: "start and observe MCP browser authorization", Takes: true}, Available: availableWithMCP, Run: func(a *app, server string) error { return a.AuthorizeMCPServer(server) }},
 		),
 		commandGroup(commandCategoryWorkspace,
+			localCommand{Descriptor: CommandDescriptor{Name: "codebase", Title: "inspect semantic codebase index status"}, Available: availableWithCodebase, Run: func(a *app, _ string) error { a.ShowCodebaseStatus(); return nil }},
+			localCommand{Descriptor: CommandDescriptor{Name: "codebase-search", Title: "search the semantic codebase index", Takes: true}, Available: availableWithCodebase, Run: func(a *app, query string) error { return a.SearchCodebase(query) }},
+			localCommand{Descriptor: CommandDescriptor{Name: "codebase-reindex", Title: "rebuild the semantic codebase index"}, Available: availableWithCodebase, Run: func(a *app, _ string) error { return a.PrepareCodebaseReindex() }},
 			localCommand{Descriptor: CommandDescriptor{Name: "workspaces", Title: "inspect runtime-known workspaces"}, Available: availableWithWorkspaceService, Run: func(a *app, _ string) error { a.ShowWorkspaces(); return nil }},
 			localCommand{Descriptor: CommandDescriptor{Name: "changes", Title: "inspect authoritative workspace changes"}, Available: availableWithWorkspaceService, Run: func(a *app, _ string) error { a.ShowWorkspaceChanges(); return nil }},
 			localCommand{Descriptor: CommandDescriptor{Name: "diff", Title: "inspect the workspace diff, optionally for one path"}, Available: availableWithWorkspaceService, Run: func(a *app, path string) error { a.ShowWorkspaceDiff(path); return nil }},
@@ -201,6 +213,41 @@ func availableWithAgentMemory(a *app) CommandAvailability {
 func availableWithKnowledge(a *app) CommandAvailability {
 	if a.knowledge == nil {
 		return CommandAvailability{Reason: "this runtime composition has no knowledge service"}
+	}
+	return CommandAvailability{Enabled: true}
+}
+
+func availableWithDiagnosticTools(a *app) CommandAvailability {
+	if a.diagnosticTools == nil {
+		return CommandAvailability{Reason: "this runtime composition has no diagnostic tool service"}
+	}
+	return CommandAvailability{Enabled: true}
+}
+
+func availableWithCodebase(a *app) CommandAvailability {
+	if a.codebase == nil {
+		return CommandAvailability{Reason: "this runtime composition has no codebase service"}
+	}
+	return CommandAvailability{Enabled: true}
+}
+
+func availableWithAuthoringContext(a *app) CommandAvailability {
+	if a.authoringContext == nil {
+		return CommandAvailability{Reason: "this runtime composition has no authoring context service"}
+	}
+	return CommandAvailability{Enabled: true}
+}
+
+func availableWithHooks(a *app) CommandAvailability {
+	if a.hooks == nil {
+		return CommandAvailability{Reason: "this runtime composition has no hook service"}
+	}
+	return CommandAvailability{Enabled: true}
+}
+
+func availableWithFeedback(a *app) CommandAvailability {
+	if a.feedback == nil {
+		return CommandAvailability{Reason: "this runtime composition has no feedback service"}
 	}
 	return CommandAvailability{Enabled: true}
 }

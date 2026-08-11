@@ -15,9 +15,14 @@ import (
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
 	"github.com/Tangerg/lynx/app/cli/internal/agentmemory"
 	"github.com/Tangerg/lynx/app/cli/internal/attachment"
+	"github.com/Tangerg/lynx/app/cli/internal/authoringcontext"
 	"github.com/Tangerg/lynx/app/cli/internal/changefeed"
+	"github.com/Tangerg/lynx/app/cli/internal/codebase"
+	"github.com/Tangerg/lynx/app/cli/internal/diagnostictool"
 	"github.com/Tangerg/lynx/app/cli/internal/extensions"
+	"github.com/Tangerg/lynx/app/cli/internal/feedback"
 	"github.com/Tangerg/lynx/app/cli/internal/goal"
+	"github.com/Tangerg/lynx/app/cli/internal/hookpolicy"
 	"github.com/Tangerg/lynx/app/cli/internal/knowledge"
 	"github.com/Tangerg/lynx/app/cli/internal/mcp"
 	"github.com/Tangerg/lynx/app/cli/internal/modelconfig"
@@ -34,26 +39,31 @@ import (
 
 // Config describes one terminal application instance.
 type Config struct {
-	Runtime        agent.Runtime
-	Workspaces     workspace.Service
-	Changes        changefeed.Source
-	Transfers      sessiontransfer.Service
-	Usage          usage.Service
-	ModelConfig    modelconfig.Service
-	Goals          goal.Service
-	Skills         skills.Service
-	MCP            mcp.Service
-	Schedules      schedule.Service
-	AgentMemory    agentmemory.Service
-	Knowledge      knowledge.Service
-	SessionID      string
-	Workspace      string
-	InitialPrompt  string
-	Plugins        []extensions.Plugin
-	PluginSources  []extensions.Source
-	Host           program.Host
-	Settings       *settings.Config
-	StateDirectory string
+	Runtime          agent.Runtime
+	Workspaces       workspace.Service
+	Changes          changefeed.Source
+	Transfers        sessiontransfer.Service
+	Usage            usage.Service
+	ModelConfig      modelconfig.Service
+	Goals            goal.Service
+	Skills           skills.Service
+	MCP              mcp.Service
+	Schedules        schedule.Service
+	AgentMemory      agentmemory.Service
+	Knowledge        knowledge.Service
+	DiagnosticTools  diagnostictool.Service
+	Codebase         codebase.Service
+	AuthoringContext authoringcontext.Service
+	Hooks            hookpolicy.Service
+	Feedback         feedback.Service
+	SessionID        string
+	Workspace        string
+	InitialPrompt    string
+	Plugins          []extensions.Plugin
+	PluginSources    []extensions.Source
+	Host             program.Host
+	Settings         *settings.Config
+	StateDirectory   string
 }
 
 // Run opens and owns the terminal interface until the user leaves.
@@ -96,6 +106,8 @@ func Run(ctx context.Context, cfg Config) (runErr error) {
 				transfers: cfg.Transfers, usage: cfg.Usage, modelConfig: cfg.ModelConfig,
 				goals: cfg.Goals, skills: cfg.Skills, mcp: cfg.MCP, schedules: cfg.Schedules,
 				agentMemory: cfg.AgentMemory, knowledge: cfg.Knowledge,
+				diagnosticTools: cfg.DiagnosticTools, codebase: cfg.Codebase,
+				authoringContext: cfg.AuthoringContext, hooks: cfg.Hooks, feedback: cfg.Feedback,
 				registry: registry, pluginHost: extensionHost, pluginIssues: discovered.Issues,
 				attachments: prepared.attachments,
 				settings:    prepared.settings, keyBindings: prepared.keyBindings, queue: queue,

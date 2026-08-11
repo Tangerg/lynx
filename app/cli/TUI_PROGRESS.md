@@ -74,7 +74,8 @@ Status values are `done`, `active`, `pending`, and `deferred`.
 | BACKEND-06 | Scheduled-run surfaces | Schedule APIs and `schedules.changed` were not consumed | Cursor-complete catalog, revision-guarded editing, enable/disable, immediate run handles, destructive confirmation, resize-safe forms, and authoritative invalidation refresh | done |
 | BACKEND-07 | Governed agent memory | Agent memory APIs were not consumed | Project/user partitions, provenance, pending review, pin/edit/add, confirmed decisions/deletion, resize-safe multiline authoring, and authoritative post-mutation reads | done |
 | BACKEND-08 | Human-authored knowledge | Knowledge APIs were not consumed | LYRA.md cascade list/get/update, exact scope context, verbatim multiline editing/clearing, resize safety, and authoritative post-save reads | done |
-| BACKEND-01 | Public runtime API coverage | Core run/session methods only | Every exported embedded API is inventoried and tracked to a consumer surface and test | active |
+| BACKEND-09 | Diagnostics, semantic index, authoring context, hooks, and feedback | Ten exported embedded APIs were not consumed | Safe workspace-confined direct tools, semantic codebase lifecycle/search, agent documents, recipe expansion, hook trust governance, and scoped feedback have adapter, terminal, resize, and real-runtime evidence | done |
+| BACKEND-01 | Public runtime API coverage | Core run/session methods only | Every exported embedded API is inventoried and tracked to a consumer surface and test | done |
 | QUALITY-01 | Deterministic package tests | Full suite passes | New domains use table tests and consumer-owned fakes | done |
 | QUALITY-02 | Race safety | Terminal race suite passes | Full CLI race suite passes after all batches | done |
 | QUALITY-03 | Architecture boundaries | Architecture tests exist | New packages do not import runtime protocol, Cobra, Viper, or Oolong inward | done |
@@ -114,4 +115,8 @@ invalidation tests cover attach-first cold reads, topic negotiation, scope,
 sequence-gap resync, metadata-only updates, side-channel session refresh, and
 goal, Skill, and MCP projection refresh. Provider and MCP configuration tests
 additionally prove that write-only credentials never appear in recorded
-terminal frames, including after an extreme resize.
+terminal frames, including after an extreme resize. The final backend batch
+adds fail-closed diagnostic JSON/safety validation, semantic-index projection
+tests, recipe substitution and unified prompt dispatch, resize-safe reindex and
+hook-trust confirmation, durable feedback targeting, and live embedded reads and
+writes for the stable auxiliary services.

@@ -5,7 +5,35 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 )
+
+func splitCommandArgument(value string) (identity, remainder string, ok bool) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return "", "", false
+	}
+	boundary := strings.IndexFunc(value, unicode.IsSpace)
+	if boundary < 0 {
+		return value, "", true
+	}
+	return value[:boundary], strings.TrimSpace(value[boundary:]), true
+}
+
+func trimCommandIdentity(value, identity string) (string, bool) {
+	if !strings.HasPrefix(value, identity) {
+		return "", false
+	}
+	remainder := value[len(identity):]
+	if remainder == "" {
+		return "", true
+	}
+	if boundary, _ := utf8.DecodeRuneInString(remainder); !unicode.IsSpace(boundary) {
+		return "", false
+	}
+	return strings.TrimSpace(remainder), true
+}
 
 // SlashCommand is a contributed composer command. Extensions receive a
 // bounded request snapshot rather than the terminal application itself.

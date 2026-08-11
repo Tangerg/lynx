@@ -11,6 +11,7 @@ import (
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
 	"github.com/Tangerg/lynx/app/cli/internal/agentmemory"
 	"github.com/Tangerg/lynx/app/cli/internal/changefeed"
+	"github.com/Tangerg/lynx/app/cli/internal/feedback"
 	"github.com/Tangerg/lynx/app/cli/internal/knowledge"
 	"github.com/Tangerg/lynx/app/cli/internal/schedule"
 	"github.com/Tangerg/lynx/app/cli/internal/sessiontransfer"
@@ -30,8 +31,40 @@ func TestEmbeddedRuntimeSessionCatalogAndLifecycle(t *testing.T) {
 	requireSessionPortability(t, runtime, forked.ID)
 	requireRuntimeCatalogs(t, runtime, created.ID, created.Workspace)
 	requireContextManagement(t, runtime, created.Workspace)
+	requireAuxiliaryCapabilities(t, runtime, created.ID, created.Workspace)
 	requireSessionDeletion(t, runtime, created.ID, forked.ID)
 	requireClosedRuntime(t, runtime)
+}
+
+func requireAuxiliaryCapabilities(t *testing.T, runtime *Runtime, sessionID, workspace string) {
+	t.Helper()
+	services := runtime.services()
+	if services.DiagnosticTools == nil || services.AuthoringContext == nil || services.Hooks == nil || services.Feedback == nil {
+		t.Fatalf("stable auxiliary services were not composed: %+v", services)
+	}
+	tools, err := services.DiagnosticTools.Tools(t.Context())
+	if err != nil || len(tools) == 0 {
+		t.Fatalf("DiagnosticTools = (%+v, %v)", tools, err)
+	}
+	if documents, err := services.AuthoringContext.Documents(t.Context(), workspace); err != nil {
+		t.Fatalf("Agent documents = (%+v, %v)", documents, err)
+	}
+	if recipes, err := services.AuthoringContext.Recipes(t.Context(), workspace); err != nil {
+		t.Fatalf("Recipes = (%+v, %v)", recipes, err)
+	}
+	if hooks, err := services.Hooks.Catalog(t.Context(), workspace); err != nil {
+		t.Fatalf("Hooks = (%+v, %v)", hooks, err)
+	}
+	if err := services.Feedback.Record(t.Context(), feedback.Signal{
+		SessionID: sessionID, Rating: feedback.Positive, Text: "embedded integration",
+	}); err != nil {
+		t.Fatalf("Create feedback: %v", err)
+	}
+	if services.Codebase != nil {
+		if status, err := services.Codebase.Status(t.Context(), workspace); err != nil {
+			t.Fatalf("Codebase status = (%+v, %v)", status, err)
+		}
+	}
 }
 
 func requireContextManagement(t *testing.T, runtime *Runtime, workspace string) {
@@ -340,7 +373,8 @@ func TestOwnerOpensOnceAndRefusesReopenAfterClose(t *testing.T) {
 		t.Fatal("owner opened more than one runtime")
 	}
 	if first.Goals == nil || first.Skills == nil || first.MCP == nil || first.Schedules == nil ||
-		first.AgentMemory == nil || first.Knowledge == nil {
+		first.AgentMemory == nil || first.Knowledge == nil || first.DiagnosticTools == nil ||
+		first.AuthoringContext == nil || first.Hooks == nil || first.Feedback == nil {
 		t.Fatalf("advertised optional services were not composed: %+v", first)
 	}
 	if err := owner.Close(); err != nil {

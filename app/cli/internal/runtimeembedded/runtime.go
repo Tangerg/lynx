@@ -50,9 +50,19 @@ type Runtime struct {
 	schedules        scheduleBinding
 	agentMemory      agentMemoryBinding
 	knowledge        knowledgeBinding
+	diagnosticTools  diagnosticToolBinding
+	codebase         codebaseBinding
+	authoringContext authoringContextBinding
+	hooks            hookBinding
+	feedback         feedbackBinding
 	servicePortsOnce sync.Once
 	agentMemoryPort  *agentMemoryAdapter
 	knowledgePort    *knowledgeAdapter
+	diagnosticPort   *diagnosticToolAdapter
+	codebasePort     *codebaseAdapter
+	authoringPort    *authoringContextAdapter
+	hookPort         *hookAdapter
+	feedbackPort     *feedbackAdapter
 	meta             protocol.RequestMeta
 	readFile         func(string) ([]byte, error)
 	supportedTopics  map[changefeed.Topic]struct{}
@@ -79,23 +89,28 @@ func Open(ctx context.Context, cfg Config) (*Runtime, error) {
 	}
 
 	runtime := &Runtime{
-		binding:         binding,
-		runs:            binding,
-		sessions:        binding,
-		workspaces:      binding,
-		changes:         binding,
-		usage:           binding,
-		modelConfig:     binding,
-		goals:           binding,
-		skills:          binding,
-		mcp:             binding,
-		schedules:       binding,
-		agentMemory:     binding,
-		knowledge:       binding,
-		meta:            requestMeta(cfg.ClientVersion),
-		readFile:        readFile,
-		supportedTopics: make(map[changefeed.Topic]struct{}),
-		enabledFeatures: make(map[string]struct{}),
+		binding:          binding,
+		runs:             binding,
+		sessions:         binding,
+		workspaces:       binding,
+		changes:          binding,
+		usage:            binding,
+		modelConfig:      binding,
+		goals:            binding,
+		skills:           binding,
+		mcp:              binding,
+		schedules:        binding,
+		agentMemory:      binding,
+		knowledge:        binding,
+		diagnosticTools:  binding,
+		codebase:         binding,
+		authoringContext: binding,
+		hooks:            binding,
+		feedback:         binding,
+		meta:             requestMeta(cfg.ClientVersion),
+		readFile:         readFile,
+		supportedTopics:  make(map[changefeed.Topic]struct{}),
+		enabledFeatures:  make(map[string]struct{}),
 	}
 	discovery, err := binding.Discover(ctx, runtime.callOptions())
 	if err == nil {
@@ -290,10 +305,16 @@ func (r *Runtime) services() backend.Services {
 	r.servicePortsOnce.Do(func() {
 		r.agentMemoryPort = &agentMemoryAdapter{runtime: r}
 		r.knowledgePort = &knowledgeAdapter{runtime: r}
+		r.diagnosticPort = &diagnosticToolAdapter{runtime: r}
+		r.codebasePort = &codebaseAdapter{runtime: r}
+		r.authoringPort = &authoringContextAdapter{runtime: r}
+		r.hookPort = &hookAdapter{runtime: r}
+		r.feedbackPort = &feedbackAdapter{runtime: r}
 	})
 	services := backend.Services{
 		Agent: r, Workspaces: r, Changes: r, Transfers: r,
-		Usage: r, ModelConfig: r,
+		Usage: r, ModelConfig: r, DiagnosticTools: r.diagnosticPort,
+		AuthoringContext: r.authoringPort, Hooks: r.hookPort, Feedback: r.feedbackPort,
 	}
 	if r.supportsFeature(protocol.FeatureGoals) {
 		services.Goals = r
@@ -312,6 +333,9 @@ func (r *Runtime) services() backend.Services {
 	}
 	if r.supportsFeature(protocol.FeatureKnowledge) {
 		services.Knowledge = r.knowledgePort
+	}
+	if r.supportsFeature(protocol.FeatureCodebase) {
+		services.Codebase = r.codebasePort
 	}
 	return services
 }

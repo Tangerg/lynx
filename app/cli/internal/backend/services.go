@@ -8,8 +8,13 @@ import (
 
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
 	"github.com/Tangerg/lynx/app/cli/internal/agentmemory"
+	"github.com/Tangerg/lynx/app/cli/internal/authoringcontext"
 	"github.com/Tangerg/lynx/app/cli/internal/changefeed"
+	"github.com/Tangerg/lynx/app/cli/internal/codebase"
+	"github.com/Tangerg/lynx/app/cli/internal/diagnostictool"
+	"github.com/Tangerg/lynx/app/cli/internal/feedback"
 	"github.com/Tangerg/lynx/app/cli/internal/goal"
+	"github.com/Tangerg/lynx/app/cli/internal/hookpolicy"
 	"github.com/Tangerg/lynx/app/cli/internal/knowledge"
 	"github.com/Tangerg/lynx/app/cli/internal/mcp"
 	"github.com/Tangerg/lynx/app/cli/internal/modelconfig"
@@ -22,18 +27,23 @@ import (
 
 // Services is one coherent connection to a backend runtime.
 type Services struct {
-	Agent       agent.Runtime
-	Workspaces  workspace.Service
-	Changes     changefeed.Source
-	Transfers   sessiontransfer.Service
-	Usage       usage.Service
-	ModelConfig modelconfig.Service
-	Goals       goal.Service
-	Skills      skills.Service
-	MCP         mcp.Service
-	Schedules   schedule.Service
-	AgentMemory agentmemory.Service
-	Knowledge   knowledge.Service
+	Agent            agent.Runtime
+	Workspaces       workspace.Service
+	Changes          changefeed.Source
+	Transfers        sessiontransfer.Service
+	Usage            usage.Service
+	ModelConfig      modelconfig.Service
+	Goals            goal.Service
+	Skills           skills.Service
+	MCP              mcp.Service
+	Schedules        schedule.Service
+	AgentMemory      agentmemory.Service
+	Knowledge        knowledge.Service
+	DiagnosticTools  diagnostictool.Service
+	Codebase         codebase.Service
+	AuthoringContext authoringcontext.Service
+	Hooks            hookpolicy.Service
+	Feedback         feedback.Service
 }
 
 // AgentOnly builds the intentionally reduced composition used by the scripted
