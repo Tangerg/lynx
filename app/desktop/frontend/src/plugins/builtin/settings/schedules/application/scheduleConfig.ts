@@ -1,7 +1,7 @@
 export interface ScheduleConfig {
   id: string;
   title: string;
-  prompt: string;
+  instructions: string;
   cwd?: string;
   cron: string;
   enabled: boolean;
@@ -15,7 +15,7 @@ export interface ScheduleConfig {
 
 export interface ScheduleConfigInput {
   title: string;
-  prompt: string;
+  instructions: string;
   cwd: string;
   cron: string;
 }

@@ -29,7 +29,7 @@ function run(id: string, overrides: Partial<AgentRunView> = {}): AgentRunView {
     outcome: null,
     metrics: {
       steps: 2,
-      activeDurationMs: 10,
+      activeDurationMillis: 10,
       usage: { inputTokens: 1, outputTokens: 1, cacheReadTokens: 0 },
     },
     progress: { step: 3, activity: "Inspecting" },
@@ -100,7 +100,7 @@ describe("timeline Run status", () => {
           status: "finished",
           activeSegmentId: null,
           progress: null,
-          outcome: { type: "error", error: { message: "Provider failed" } },
+          outcome: { type: "failed", error: { message: "Provider failed" } },
           finishedAt: "2026-01-01T00:00:01.000Z",
         }),
       ),

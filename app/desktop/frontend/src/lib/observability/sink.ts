@@ -110,7 +110,7 @@ export class LocalSpanProcessor implements SpanProcessor {
       name: span.name,
       kind: SPAN_KIND[span.kind] ?? String(span.kind),
       startMs: hrToMs(span.startTime),
-      durationMs: hrToMs(span.duration),
+      durationMillis: hrToMs(span.duration),
       status: STATUS_TONE[code] ?? "unset",
       // The failure message endSpan set via setStatus — the one bit of "why"
       // the bare status enum can't carry. Empty string → omit.

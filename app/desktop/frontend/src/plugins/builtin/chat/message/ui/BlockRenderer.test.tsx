@@ -37,7 +37,7 @@ function run(
     outcome: status === "finished" ? { type: "completed" } : null,
     metrics: {
       steps: 1,
-      activeDurationMs: 1,
+      activeDurationMillis: 1,
       usage: { inputTokens: 1, outputTokens: 1, cacheReadTokens: 0 },
     },
     progress: null,

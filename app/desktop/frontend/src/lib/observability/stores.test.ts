@@ -190,7 +190,7 @@ describe("telemetry store: spans + logs ring buffers", () => {
       name: "rpc",
       kind: "client",
       startMs: i,
-      durationMs: 1,
+      durationMillis: 1,
       status: "ok" as const,
       attrs: {},
     });

@@ -47,7 +47,7 @@ function run(overrides: Partial<AgentRunView> & Pick<AgentRunView, "id">): Agent
     outcome: { type: "completed" },
     metrics: {
       steps: 1,
-      activeDurationMs: 10,
+      activeDurationMillis: 10,
       usage: { inputTokens: 1, outputTokens: 1, cacheReadTokens: 0 },
     },
     progress: null,

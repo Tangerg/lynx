@@ -128,7 +128,7 @@ describe("smoke: v2 end-to-end happy path", () => {
         run: {
           id: asRunId("run_1"),
           sessionId: asSessionId("ses_1"),
-          metrics: { steps: 0, activeDurationMs: 0 },
+          metrics: { steps: 0, activeDurationMillis: 0 },
           protocolProfile: { requiredFeatures: [], interruptTypes: ["approval"] },
         },
       });
@@ -198,7 +198,7 @@ describe("smoke: v2 end-to-end happy path", () => {
         run: {
           id: asRunId("run_1"),
           sessionId: asSessionId("ses_1"),
-          metrics: { steps: 0, activeDurationMs: 0 },
+          metrics: { steps: 0, activeDurationMillis: 0 },
           protocolProfile: { requiredFeatures: [], interruptTypes: ["approval"] },
         },
       });
@@ -212,7 +212,7 @@ describe("smoke: v2 end-to-end happy path", () => {
         "seg_2",
         "evt_3",
         { type: "completed" },
-        { usage: { inputTokens: 100, outputTokens: 20 }, steps: 2, activeDurationMs: 0 },
+        { usage: { inputTokens: 100, outputTokens: 20 }, steps: 2, activeDurationMillis: 0 },
       );
     }, 0);
 

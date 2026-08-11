@@ -45,12 +45,12 @@ import type {
   ListApprovalRulesResult,
   ListFilesRequest,
   ListItemsResponse,
-  McpAuthorizationAttempt,
-  McpServer,
-  McpTestResult,
-  McpTool,
-  MemoryEntry,
-  MemoryScope,
+  MCPAuthorizationAttempt,
+  MCPServer,
+  MCPTestResult,
+  MCPTool,
+  KnowledgeEntry,
+  KnowledgeScope,
   Model,
   PendingInterruptSet,
   Page,
@@ -215,10 +215,10 @@ export interface WorkspaceMethods {
     status: () => Promise<CodebaseStatus>;
     reindex: () => MutationPromise<CodebaseReindexResponse>;
   };
-  memory: {
-    list: () => Promise<Page<MemoryEntry>>;
-    get: (scope: MemoryScope) => Promise<MemoryEntry>;
-    update: (params: { scope: MemoryScope; content: string }) => MutationPromise<void>;
+  knowledge: {
+    list: () => Promise<Page<KnowledgeEntry>>;
+    get: (scope: KnowledgeScope) => Promise<KnowledgeEntry>;
+    update: (params: { scope: KnowledgeScope; content: string }) => MutationPromise<void>;
   };
   agentMemory: {
     list: () => Promise<AgentMemoryList>;
@@ -351,20 +351,20 @@ export interface Methods {
   mcp: {
     // One resource carries durable configuration and live state. Create and
     // update are distinct; update uses exact omission=preserve semantics.
-    list: () => Promise<Page<McpServer>>;
-    create: (params: MCPServerCandidate) => MutationPromise<McpServer>;
-    update: (params: UpdateMCPServerRequest) => MutationPromise<McpServer>;
+    list: () => Promise<Page<MCPServer>>;
+    create: (params: MCPServerCandidate) => MutationPromise<MCPServer>;
+    update: (params: UpdateMCPServerRequest) => MutationPromise<MCPServer>;
     delete: (server: string) => MutationPromise<void>;
     // Dry-run connection probe (NOT persisted). A failed probe is
     // `{ ok:false, error }`, never an RPC error (mirrors providers.test).
-    test: (params: MCPServerCandidate) => Promise<McpTestResult>;
-    listTools: (server?: string) => Promise<Page<McpTool>>;
+    test: (params: MCPServerCandidate) => Promise<MCPTestResult>;
+    listTools: (server?: string) => Promise<Page<MCPTool>>;
     reconnect: (server: string) => MutationPromise<void>;
     authorizationAttempts: {
       // Interactive OAuth is an asynchronous resource, not a command ACK. Create
       // opens the browser; get observes its terminal outcome after reconnects.
-      create: (server: string, signal?: AbortSignal) => MutationPromise<McpAuthorizationAttempt>;
-      get: (attemptId: string, signal?: AbortSignal) => Promise<McpAuthorizationAttempt>;
+      create: (server: string, signal?: AbortSignal) => MutationPromise<MCPAuthorizationAttempt>;
+      get: (attemptId: string, signal?: AbortSignal) => Promise<MCPAuthorizationAttempt>;
     };
   };
   providers: {
@@ -511,10 +511,10 @@ function bindWorkspace(call: WireCall, ref: WorkspaceRef): WorkspaceMethods {
       status: () => call("codebase.status", { workspace }),
       reindex: () => call("codebase.reindex", { workspace }),
     },
-    memory: {
-      list: () => call("memory.list", { workspace }),
-      get: (scope) => call("memory.get", { scope, workspace }),
-      update: (params) => call("memory.update", { ...params, workspace }),
+    knowledge: {
+      list: () => call("knowledge.list", { workspace }),
+      get: (scope) => call("knowledge.get", { scope, workspace }),
+      update: (params) => call("knowledge.update", { ...params, workspace }),
     },
     agentMemory: {
       list: () => call("agentMemory.list", { scope: "project", workspace }),

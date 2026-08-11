@@ -22,10 +22,10 @@ describe("where a session's tool time went", () => {
   it("orders by time spent, not by how often a tool was called", () => {
     const summary = toolStats(
       calls(
-        call({ name: "grep", status: "ok", durationMs: 5 }),
-        call({ name: "grep", status: "ok", durationMs: 5 }),
-        call({ name: "grep", status: "ok", durationMs: 5 }),
-        call({ name: "shell", status: "ok", durationMs: 4000 }),
+        call({ name: "grep", status: "ok", durationMillis: 5 }),
+        call({ name: "grep", status: "ok", durationMillis: 5 }),
+        call({ name: "grep", status: "ok", durationMillis: 5 }),
+        call({ name: "shell", status: "ok", durationMillis: 4000 }),
       ),
     );
 
@@ -40,7 +40,7 @@ describe("where a session's tool time went", () => {
       calls(
         call({ name: "shell", status: "running" }),
         call({ name: "shell", status: "requires-action" }),
-        call({ name: "shell", status: "ok", durationMs: 10 }),
+        call({ name: "shell", status: "ok", durationMillis: 10 }),
       ),
     );
 
@@ -54,7 +54,7 @@ describe("where a session's tool time went", () => {
       calls(
         call({ name: "write", status: "denied" }),
         call({ name: "write", status: "err" }),
-        call({ name: "write", status: "ok", durationMs: 3 }),
+        call({ name: "write", status: "ok", durationMillis: 3 }),
       ),
     );
 
@@ -65,7 +65,7 @@ describe("where a session's tool time went", () => {
     const summary = toolStats(
       calls(
         call({ name: "read", status: "ok" }),
-        call({ name: "read", status: "ok", durationMs: 8 }),
+        call({ name: "read", status: "ok", durationMillis: 8 }),
       ),
     );
 

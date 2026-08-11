@@ -127,8 +127,8 @@ export function toolMetaItems(t: Translate, tool: ToolCall): ToolMetaItem[] {
   // The runtime measures this; a client stopwatch would time its own render loop.
   // Sub-second calls are omitted: "0.1s" on a dozen reads is noise, and the number
   // only earns its place once it answers "why did that take so long".
-  if (tool.durationMs != null && tool.durationMs >= 1000) {
-    items.push({ id: "duration", label: fmtDuration(tool.durationMs), tone: "muted" });
+  if (tool.durationMillis != null && tool.durationMillis >= 1000) {
+    items.push({ id: "duration", label: fmtDuration(tool.durationMillis), tone: "muted" });
   }
   if (tool.status === "running") {
     items.push({ id: "live", label: t("tool.meta.live"), tone: "muted" });

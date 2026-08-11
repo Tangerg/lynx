@@ -33,7 +33,7 @@ function advertising(
     ),
     limits: {
       idempotency: { retentionSeconds: 86_400 },
-      runReplay: { scope: "processRootSegment", maxEvents: 2048, maxBytes: 16_777_216 },
+      runReplay: { scope: "runtimeInstanceRootSegment", maxEvents: 2048, maxBytes: 16_777_216 },
       mcpAuthorizationAttempts: { retentionSeconds: 600 },
       runtimeSubscription: { maxTopics: 32, maxWatches: 32 },
     },
@@ -42,20 +42,22 @@ function advertising(
 
 describe("the capability preflight", () => {
   it("refuses a gated method the server says it cannot do", () => {
-    expect(unnegotiated("memory.list", {}, advertising({ memory: false }))).toEqual(["memory"]);
-    expect(unnegotiated("memory.list", {}, advertising({ memory: true }))).toEqual([]);
+    expect(unnegotiated("knowledge.list", {}, advertising({ knowledge: false }))).toEqual([
+      "knowledge",
+    ]);
+    expect(unnegotiated("knowledge.list", {}, advertising({ knowledge: true }))).toEqual([]);
   });
 
   // §9: a client reads a key the server never advertised as off, which is the same
   // reading the dispatcher applies to its own advertised map.
   it("reads an unadvertised key as off", () => {
-    expect(unnegotiated("memory.list", {}, advertising({}))).toEqual(["memory"]);
+    expect(unnegotiated("knowledge.list", {}, advertising({}))).toEqual(["knowledge"]);
   });
 
   // Refusing on a guess would take away a feature the server offers.
   it("allows everything until something has been negotiated", () => {
-    expect(unnegotiated("memory.list", {}, null)).toEqual([]);
-    expect(unnegotiated("memory.list", {}, undefined)).toEqual([]);
+    expect(unnegotiated("knowledge.list", {}, null)).toEqual([]);
+    expect(unnegotiated("knowledge.list", {}, undefined)).toEqual([]);
   });
 
   it("leaves an ungated method alone", () => {

@@ -6,7 +6,7 @@ import type {
   WorkspaceProjectSummary,
 } from "@/plugins/builtin/workspace/public/queries";
 import type {
-  McpServer as RpcMCPServer,
+  MCPServer as RpcMCPServer,
   Session,
   WorkspaceFileChange as RpcFileChange,
   WorkspaceSummary as RpcWorkspaceSummary,

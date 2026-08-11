@@ -1,7 +1,7 @@
 import { definePlugin } from "@/plugins/sdk";
 import { installCodebaseGateway } from "./adapters/runtimeCodebaseGateway";
 import { installConversationArchiveGateway } from "./adapters/runtimeConversationArchiveGateway";
-import { installWorkspaceMemoryGateway } from "./adapters/runtimeMemoryGateway";
+import { installWorkspaceKnowledgeGateway } from "./adapters/runtimeKnowledgeGateway";
 import { installAgentMemoryGateway } from "./adapters/runtimeAgentMemoryGateway";
 import { installSkillLibraryGateway } from "./adapters/runtimeSkillLibraryGateway";
 import { installSkillProposalsGateway } from "./adapters/runtimeSkillProposalsGateway";
@@ -17,7 +17,7 @@ export default definePlugin({
     const disposers = [
       installCodebaseGateway(),
       installConversationArchiveGateway(),
-      installWorkspaceMemoryGateway(),
+      installWorkspaceKnowledgeGateway(),
       installAgentMemoryGateway(),
       installSkillLibraryGateway(),
       installSkillProposalsGateway(),

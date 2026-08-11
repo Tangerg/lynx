@@ -4,7 +4,7 @@ import { selectCurrentRootRun, selectRun } from "../view/runTree";
 import { reduceRunEvent } from "./reducer";
 
 /** The accounting of a run that has reported none. */
-export const noMetrics: RunMetrics = { steps: 0, activeDurationMs: 0 };
+export const noMetrics: RunMetrics = { steps: 0, activeDurationMillis: 0 };
 
 let nextEventSequence = 0;
 

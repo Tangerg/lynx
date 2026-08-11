@@ -21,7 +21,8 @@ export function runCloseReadout(metrics: AgentRunMetrics | null): RunCloseReadou
   if (!metrics) return null;
 
   const readout: RunCloseReadout = {};
-  if (metrics.activeDurationMs > 0) readout.duration = fmtDuration(metrics.activeDurationMs);
+  if (metrics.activeDurationMillis > 0)
+    readout.duration = fmtDuration(metrics.activeDurationMillis);
   if (metrics.steps > 0) readout.steps = metrics.steps;
   if (metrics.usage.inputTokens > 0) readout.inputTokens = fmtTokens(metrics.usage.inputTokens);
   if (metrics.usage.outputTokens > 0) readout.outputTokens = fmtTokens(metrics.usage.outputTokens);

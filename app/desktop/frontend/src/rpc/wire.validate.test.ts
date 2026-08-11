@@ -45,7 +45,7 @@ const finishedRun = {
   status: "finished",
   createdAt: "2026-07-07T10:00:00Z",
   finishedAt: "2026-07-07T10:00:20Z",
-  metrics: { steps: 2, activeDurationMs: 20_000 },
+  metrics: { steps: 2, activeDurationMillis: 20_000 },
   protocolProfile: { requiredFeatures: [], interruptTypes: [] },
   outcome: { type: "completed" },
 };
@@ -162,10 +162,10 @@ describe("the generated wire checks", () => {
 
   it("rejects an empty secret-map replacement", () => {
     expect(
-      validateWire("McpHeadersChange", { type: "set", value: { "X-API-Key": "secret" } }),
+      validateWire("MCPHeadersChange", { type: "set", value: { "X-API-Key": "secret" } }),
     ).toEqual([]);
-    expect(validateWire("McpHeadersChange", { type: "set", value: {} })).toEqual([
-      { path: "McpHeadersChange.value", detail: "expected at least 1 property" },
+    expect(validateWire("MCPHeadersChange", { type: "set", value: {} })).toEqual([
+      { path: "MCPHeadersChange.value", detail: "expected at least 1 property" },
     ]);
   });
 
@@ -219,7 +219,7 @@ describe("the generated wire checks", () => {
   // one that reads `minLength` with no type keyword beside it.
   it("states a constraint on a field of a shared shape", () => {
     const artifact = {
-      version: 12,
+      version: 15,
       session: artifactSession,
       items: [],
       messages: [],

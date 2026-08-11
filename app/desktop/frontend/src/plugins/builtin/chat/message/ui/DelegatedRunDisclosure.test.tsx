@@ -15,7 +15,7 @@ function run(overrides: Partial<AgentRunView> = {}): AgentRunView {
     outcome: null,
     metrics: {
       steps: 2,
-      activeDurationMs: 10,
+      activeDurationMillis: 10,
       usage: { inputTokens: 3, outputTokens: 1, cacheReadTokens: 0 },
     },
     progress: { step: 3, activity: "Reviewing tests" },

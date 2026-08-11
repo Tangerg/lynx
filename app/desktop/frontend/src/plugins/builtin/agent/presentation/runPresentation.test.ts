@@ -14,7 +14,7 @@ function run(overrides: Partial<AgentRunView> = {}): AgentRunView {
     outcome: null,
     metrics: {
       steps: 3,
-      activeDurationMs: 100,
+      activeDurationMillis: 100,
       usage: { inputTokens: 10, outputTokens: 2, cacheReadTokens: 0 },
     },
     progress: { step: 4, activity: "Inspecting tests" },
@@ -36,7 +36,9 @@ describe("Run presentation facts", () => {
 
   it.each([
     [{ type: "completed" } as const, "finished"],
-    [{ type: "error", error: { message: "Provider failed" } } as const, "error"],
+    [{ type: "failed", error: { message: "Provider failed" } } as const, "error"],
+    [{ type: "timedOut", error: { message: "Provider timed out" } } as const, "error"],
+    [{ type: "lost", error: { message: "Runtime restarted" } } as const, "error"],
     [{ type: "canceled", detail: "Stopped by user" } as const, "canceled"],
     [{ type: "maxSteps", detail: "Step limit" } as const, "limit"],
     [{ type: "maxBudget", detail: "Budget limit" } as const, "limit"],
@@ -52,8 +54,8 @@ describe("Run presentation facts", () => {
     expect(agentRunDetail(finished)).toBe(
       outcome.type === "completed"
         ? null
-        : outcome.type === "error"
-          ? "Provider failed"
+        : outcome.type === "failed" || outcome.type === "timedOut" || outcome.type === "lost"
+          ? outcome.error.message
           : outcome.detail,
     );
     expect(agentRunStepCount(finished)).toBe(3);

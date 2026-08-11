@@ -1,7 +1,6 @@
-// Built-in workspace view: "Memory" — the LYRA.md memory files the runtime
-// loads into the agent's context (memory.list / memory.update, gated by
-// features.memory). One entry per scope; each row expands into an inline
-// whole-file editor — memory.update writes the full content back.
+// Built-in workspace view: "Knowledge" — the LYRA.md knowledge files the runtime
+// loads into the agent's context. One entry per scope expands into an inline
+// whole-file editor.
 
 import { useId, useRef, useState } from "react";
 import { Collapsible, DataView, Icon, PillButton, Pressable, TextArea } from "@/ui";
@@ -12,16 +11,16 @@ import { notifyError } from "@/plugins/sdk";
 import { cn } from "@/lib/classNames";
 import { defineWorkspaceView } from "./defineWorkspaceView";
 import {
-  saveWorkspaceMemory,
-  useWorkspaceMemory,
-} from "@/plugins/builtin/workspace/application/memoryConfig";
+  saveWorkspaceKnowledge,
+  useWorkspaceKnowledge,
+} from "@/plugins/builtin/workspace/application/knowledgeConfig";
 import {
-  type WorkspaceMemoryRowViewModel,
-  workspaceMemoryViewModel,
+  type WorkspaceKnowledgeRowViewModel,
+  workspaceKnowledgeViewModel,
 } from "@/plugins/builtin/workspace/application/workspaceCatalogViewModel";
 import { useWorkspaceCapability } from "@/plugins/builtin/workspace/application/workspaceCapabilities";
 
-function MemoryRow({ row, cwd }: { row: WorkspaceMemoryRowViewModel; cwd?: string }) {
+function KnowledgeRow({ row, cwd }: { row: WorkspaceKnowledgeRowViewModel; cwd?: string }) {
   const t = useT();
   const [open, setOpen] = useState(false);
   const panelId = useId();
@@ -29,7 +28,7 @@ function MemoryRow({ row, cwd }: { row: WorkspaceMemoryRowViewModel; cwd?: strin
   const [draft, setDraft] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   // Synchronous latch — `saving` state lags a render, so a double-click before
-  // the disabled state applies would otherwise fire two memory.update writes.
+  // the disabled state applies would otherwise fire two knowledge.update writes.
   const savingRef = useRef(false);
   const dirty = draft !== null && draft !== row.content;
 
@@ -37,14 +36,14 @@ function MemoryRow({ row, cwd }: { row: WorkspaceMemoryRowViewModel; cwd?: strin
     if (!dirty || savingRef.current) return;
     savingRef.current = true;
     setSaving(true);
-    saveWorkspaceMemory({ scope: row.scope, cwd, content: draft })
+    saveWorkspaceKnowledge({ scope: row.scope, cwd, content: draft })
       .then(() => {
         setDraft(null);
       })
       .catch((err: unknown) => {
-        notifyError(t("memory.saveError"), {
+        notifyError(t("knowledge.saveError"), {
           description: err instanceof Error ? err.message : String(err),
-          source: "memory",
+          source: "knowledge",
         });
       })
       .finally(() => {
@@ -78,7 +77,7 @@ function MemoryRow({ row, cwd }: { row: WorkspaceMemoryRowViewModel; cwd?: strin
       <Collapsible open={open}>
         <div id={panelId} className="flex flex-col gap-2 px-4 pb-3 pl-10">
           <TextArea
-            aria-label={t("memory.aria", { path: row.path })}
+            aria-label={t("knowledge.aria", { path: row.path })}
             value={draft ?? row.content}
             onChange={(e) => setDraft(e.target.value)}
             spellCheck={false}
@@ -87,14 +86,14 @@ function MemoryRow({ row, cwd }: { row: WorkspaceMemoryRowViewModel; cwd?: strin
           />
           <div className="flex items-center gap-2">
             <PillButton size="sm" variant="accent" disabled={!dirty || saving} onClick={save}>
-              {saving ? t("memory.saving") : t("memory.save")}
+              {saving ? t("knowledge.saving") : t("knowledge.save")}
             </PillButton>
             <PillButton size="sm" disabled={!dirty || saving} onClick={() => setDraft(null)}>
-              {t("memory.revert")}
+              {t("knowledge.revert")}
             </PillButton>
             {row.updatedAt && (
               <span className="ml-auto text-ui-xs text-fg-faint">
-                {t("memory.updated")} {new Date(row.updatedAt).toLocaleString()}
+                {t("knowledge.updated")} {new Date(row.updatedAt).toLocaleString()}
               </span>
             )}
           </div>
@@ -104,19 +103,19 @@ function MemoryRow({ row, cwd }: { row: WorkspaceMemoryRowViewModel; cwd?: strin
   );
 }
 
-function MemoryTab() {
+function KnowledgeTab() {
   const t = useT();
-  const memoryEnabled = useWorkspaceCapability("memory");
+  const knowledgeEnabled = useWorkspaceCapability("knowledge");
   const cwd = useActiveSessionCwd();
-  const { data, isLoading, isError } = useWorkspaceMemory(memoryEnabled, cwd);
-  const view = workspaceMemoryViewModel(data ?? [], memoryEnabled);
+  const { data, isLoading, isError } = useWorkspaceKnowledge(knowledgeEnabled, cwd);
+  const view = workspaceKnowledgeViewModel(data ?? [], knowledgeEnabled);
 
   return (
     <WorkspaceViewLayout
       icon="filetext"
       titleStrong
-      title="memory.title"
-      sub={view.enabled ? t("memory.scopes", { count: view.count }) : t("memory.off")}
+      title="knowledge.title"
+      sub={view.enabled ? t("knowledge.scopes", { count: view.count }) : t("knowledge.off")}
       scrollClassName="py-1"
     >
       <DataView
@@ -125,23 +124,23 @@ function MemoryTab() {
         isError={isError}
         skeletonCount={2}
         empty={
-          memoryEnabled
+          knowledgeEnabled
             ? {
                 icon: "filetext",
-                title: t("memory.empty.title"),
-                sub: t("memory.empty.sub"),
+                title: t("knowledge.empty.title"),
+                sub: t("knowledge.empty.sub"),
               }
             : {
                 icon: "filetext",
-                title: t("memory.disabled.title"),
-                sub: t("memory.disabled.sub"),
+                title: t("knowledge.disabled.title"),
+                sub: t("knowledge.disabled.sub"),
               }
         }
       >
         {(rows) => (
           <div className="flex flex-col">
             {rows.map((m) => (
-              <MemoryRow key={m.id} row={m} cwd={cwd} />
+              <KnowledgeRow key={m.id} row={m} cwd={cwd} />
             ))}
           </div>
         )}
@@ -150,11 +149,11 @@ function MemoryTab() {
   );
 }
 
-export const memoryView = defineWorkspaceView({
-  id: "memory",
-  title: "workspace.view.title.memory",
+export const knowledgeView = defineWorkspaceView({
+  id: "knowledge",
+  title: "workspace.view.title.knowledge",
   icon: "filetext",
   order: 100,
   splittable: true,
-  component: MemoryTab,
+  component: KnowledgeTab,
 });

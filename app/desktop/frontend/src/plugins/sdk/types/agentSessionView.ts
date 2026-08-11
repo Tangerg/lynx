@@ -91,10 +91,10 @@ export interface ToolCall {
   /** plan-writing calls: how far the plan has got. Not a formatted ratio: the
    *  reader's language decides how "3 of 7" is worded. */
   progress?: { done: number; total: number };
-  /** How long the call took, measured by the runtime (toolCall Item durationMs).
+  /** How long the call took, measured by the runtime (toolCall Item durationMillis).
    *  Absent while the call is still running — a client-side stopwatch would be
    *  measuring its own render loop, not the tool. */
-  durationMs?: number;
+  durationMillis?: number;
 }
 
 export interface Message {
@@ -149,16 +149,21 @@ export interface AgentProblem {
 
 export type AgentRunStatus = "running" | "waiting" | "finished";
 
+export type AgentRunFailureOutcome = {
+  type: "timedOut" | "failed" | "lost";
+  error: AgentProblem;
+};
+
 export type AgentRunOutcome =
   | { type: "completed" }
-  | { type: "error"; error: AgentProblem }
+  | AgentRunFailureOutcome
   | { type: "maxSteps"; detail?: string }
   | { type: "maxBudget"; detail?: string }
   | { type: "canceled"; detail?: string };
 
 export interface AgentRunMetrics {
   steps: number;
-  activeDurationMs: number;
+  activeDurationMillis: number;
   usage: RunUsage;
 }
 

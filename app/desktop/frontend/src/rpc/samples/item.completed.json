@@ -11,7 +11,7 @@
       "status": "completed",
       "startedAt": "2026-07-07T10:00:04Z",
       "finishedAt": "2026-07-07T10:00:05Z",
-      "durationMs": 1200,
+      "durationMillis": 1200,
       "type": "toolCall",
       "tool": {
         "name": "shell",

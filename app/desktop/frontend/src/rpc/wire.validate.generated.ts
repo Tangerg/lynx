@@ -30,6 +30,7 @@ export type WireTypeName =
   | "AgentMemoryScope"
   | "AgentMemoryStatus"
   | "AgentMemoryUpdateRequest"
+  | "AppliedChange"
   | "ApprovalDecision"
   | "ApprovalMode"
   | "ApprovalModeResult"
@@ -61,6 +62,7 @@ export type WireTypeName =
   | "CancelRunResponseType"
   | "CapabilityRequirement"
   | "CapabilityRequirementType"
+  | "ChangeStatus"
   | "ClientCapabilities"
   | "ClientInfo"
   | "CodebaseHit"
@@ -71,6 +73,7 @@ export type WireTypeName =
   | "CodebaseState"
   | "CodebaseStatus"
   | "CodebaseStatusRequest"
+  | "CommandResult"
   | "ContentBlock"
   | "ContentBlockType"
   | "CreateMCPAuthorizationAttemptRequest"
@@ -96,7 +99,6 @@ export type WireTypeName =
   | "FieldError"
   | "FileContent"
   | "FileDiff"
-  | "FileEdit"
   | "FileEntry"
   | "FileEntryType"
   | "FileHead"
@@ -107,7 +109,7 @@ export type WireTypeName =
   | "GenerationParams"
   | "GetDiffRequest"
   | "GetFileHeadRequest"
-  | "GetMemoryRequest"
+  | "GetKnowledgeRequest"
   | "GetPlanRequest"
   | "GetRunRequest"
   | "GetSessionRequest"
@@ -143,6 +145,8 @@ export type WireTypeName =
   | "ItemScopeType"
   | "ItemStatus"
   | "ItemType"
+  | "KnowledgeEntry"
+  | "KnowledgeScope"
   | "ListApprovalRulesRequest"
   | "ListApprovalRulesResult"
   | "ListFilesRequest"
@@ -152,29 +156,27 @@ export type WireTypeName =
   | "ListItemsResponse"
   | "ListModelsRequest"
   | "ListRunsRequest"
+  | "MCPAuthorizationAttempt"
   | "MCPAuthorizationAttemptLimits"
   | "MCPAuthorizationAttemptRequest"
+  | "MCPAuthorizationAttemptStatus"
+  | "MCPAuthorizationAttemptStatusType"
+  | "MCPAuthorizationChange"
+  | "MCPConnection"
+  | "MCPConnectionInput"
+  | "MCPEnvironmentChange"
+  | "MCPHeadersChange"
   | "MCPListToolsRequest"
+  | "MCPSecretChangeType"
+  | "MCPServer"
   | "MCPServerCandidate"
   | "MCPServerRequest"
+  | "MCPServerState"
+  | "MCPServerStateType"
+  | "MCPTestResult"
+  | "MCPTool"
+  | "MCPTransport"
   | "ManagedSkill"
-  | "McpAuthorizationAttempt"
-  | "McpAuthorizationAttemptStatus"
-  | "McpAuthorizationAttemptStatusType"
-  | "McpAuthorizationChange"
-  | "McpConnection"
-  | "McpConnectionInput"
-  | "McpEnvironmentChange"
-  | "McpHeadersChange"
-  | "McpSecretChangeType"
-  | "McpServer"
-  | "McpServerState"
-  | "McpServerStateType"
-  | "McpTestResult"
-  | "McpTool"
-  | "McpTransport"
-  | "MemoryEntry"
-  | "MemoryScope"
   | "Modality"
   | "Model"
   | "ModelCapabilities"
@@ -182,10 +184,10 @@ export type WireTypeName =
   | "ModelUsage"
   | "PageOfAgentDoc"
   | "PageOfFileEntry"
+  | "PageOfKnowledgeEntry"
+  | "PageOfMCPServer"
+  | "PageOfMCPTool"
   | "PageOfManagedSkill"
-  | "PageOfMcpServer"
-  | "PageOfMcpTool"
-  | "PageOfMemoryEntry"
   | "PageOfModel"
   | "PageOfPendingInterruptSet"
   | "PageOfProvider"
@@ -199,6 +201,7 @@ export type WireTypeName =
   | "PageOfWorkspaceFileChange"
   | "PageOfWorkspaceSummary"
   | "PageQuery"
+  | "PatchResult"
   | "PendingInterruptSet"
   | "PlanSnapshot"
   | "PlanStatus"
@@ -250,6 +253,7 @@ export type WireTypeName =
   | "SafetyClass"
   | "Schedule"
   | "SearchHit"
+  | "SearchResult"
   | "SegmentOutcome"
   | "SegmentOutcomeType"
   | "ServerCapabilities"
@@ -286,8 +290,8 @@ export type WireTypeName =
   | "TestProviderRequest"
   | "ToolInvocation"
   | "ToolSpec"
+  | "UpdateKnowledgeRequest"
   | "UpdateMCPServerRequest"
-  | "UpdateMemoryRequest"
   | "UpdateProviderRequest"
   | "UpdateScheduleRequest"
   | "UpdateSessionRequest"
@@ -297,6 +301,7 @@ export type WireTypeName =
   | "UsageSummaryRequest"
   | "UtilityRole"
   | "WatchSpec"
+  | "WebSearchHit"
   | "WebSearchResult"
   | "WorkspaceAvailability"
   | "WorkspaceFileChange"
@@ -389,6 +394,11 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     id: allOf([text(), minLength(1)]),
     pinned: flag(),
   }, ["id"]),
+  AppliedChange: object({
+    from: text(),
+    path: text(),
+    status: ref(() => CHECKS.ChangeStatus),
+  }, ["path", "status"]),
   ApprovalDecision: enumOf(["approve", "deny"]),
   ApprovalMode: enumOf(["safe", "balanced", "yolo"]),
   ApprovalModeResult: object({
@@ -429,7 +439,7 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
       content: array(ref(() => CHECKS.ArtifactContentBlock)),
       createdAt: text(),
       droppedMessages: allOf([integer(), minimum(0)]),
-      durationMs: allOf([integer(), minimum(0)]),
+      durationMillis: allOf([integer(), minimum(0)]),
       error: ref(() => CHECKS.ArtifactProblem),
       finishedAt: text(),
       id: text(),
@@ -447,7 +457,7 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     oneOf([
       fields({
         droppedMessages: absent(),
-        durationMs: absent(),
+        durationMillis: absent(),
         error: absent(),
         finishedAt: absent(),
         question: absent(),
@@ -461,7 +471,7 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
       }, ["createdAt", "id", "runId", "status", "type"]),
       fields({
         droppedMessages: absent(),
-        durationMs: absent(),
+        durationMillis: absent(),
         error: absent(),
         finishedAt: absent(),
         question: absent(),
@@ -476,7 +486,7 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
       fields({
         content: absent(),
         droppedMessages: absent(),
-        durationMs: absent(),
+        durationMillis: absent(),
         error: absent(),
         finishedAt: absent(),
         question: absent(),
@@ -489,7 +499,7 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
       fields({
         content: absent(),
         droppedMessages: absent(),
-        durationMs: absent(),
+        durationMillis: absent(),
         error: absent(),
         finishedAt: absent(),
         redacted: absent(),
@@ -512,7 +522,7 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
       }, ["id", "runId", "startedAt", "status", "type"]),
       fields({
         content: absent(),
-        durationMs: absent(),
+        durationMillis: absent(),
         error: absent(),
         finishedAt: absent(),
         question: absent(),
@@ -530,7 +540,7 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
         type: literal("toolCall"),
       }, ["status", "type"]),
       fields({
-        durationMs: absent(),
+        durationMillis: absent(),
         finishedAt: absent(),
       }, []),
     ),
@@ -539,14 +549,14 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
         status: literal("completed"),
         type: literal("toolCall"),
       }, ["status", "type"]),
-      fields({}, ["durationMs", "finishedAt"]),
+      fields({}, ["durationMillis", "finishedAt"]),
     ),
     ifThen(
       fields({
         status: literal("incomplete"),
         type: literal("toolCall"),
       }, ["status", "type"]),
-      fields({}, ["durationMs", "finishedAt"]),
+      fields({}, ["durationMillis", "finishedAt"]),
     ),
   ]),
   ArtifactModelUsage: object({
@@ -571,7 +581,11 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
       }, ["type"]),
       fields({
         detail: absent(),
-        type: literal("error"),
+        type: literal("timedOut"),
+      }, ["error", "type"]),
+      fields({
+        detail: absent(),
+        type: literal("failed"),
       }, ["error", "type"]),
       fields({
         error: absent(),
@@ -585,17 +599,37 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
         error: absent(),
         type: literal("canceled"),
       }, ["type"]),
+      fields({
+        detail: absent(),
+        type: literal("lost"),
+      }, ["error", "type"]),
     ]),
     ifThen(
       fields({
-        type: literal("error"),
+        type: literal("timedOut"),
+      }, ["type"]),
+      fields({
+        detail: absent(),
+      }, ["error"]),
+    ),
+    ifThen(
+      fields({
+        type: literal("failed"),
+      }, ["type"]),
+      fields({
+        detail: absent(),
+      }, ["error"]),
+    ),
+    ifThen(
+      fields({
+        type: literal("lost"),
       }, ["type"]),
       fields({
         detail: absent(),
       }, ["error"]),
     ),
   ]),
-  ArtifactOutcomeType: enumOf(["completed", "error", "maxSteps", "maxBudget", "canceled"]),
+  ArtifactOutcomeType: enumOf(["completed", "timedOut", "failed", "maxSteps", "maxBudget", "canceled", "lost"]),
   ArtifactProblem: object({
     detail: text(),
     docUrl: text(),
@@ -675,10 +709,10 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     maxTotalTokens: allOf([integer(), minimum(0)]),
   }, []),
   ArtifactRunMetrics: object({
-    activeDurationMs: allOf([integer(), minimum(0)]),
+    activeDurationMillis: allOf([integer(), minimum(0)]),
     steps: allOf([integer(), minimum(0)]),
     usage: ref(() => CHECKS.ArtifactUsage),
-  }, ["activeDurationMs", "steps"]),
+  }, ["activeDurationMillis", "steps"]),
   ArtifactSession: object({
     createdAt: text(),
     favorite: flag(),
@@ -764,6 +798,7 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     ]),
   ]),
   CapabilityRequirementType: enumOf(["feature", "interruptType", "runtimeTopic", "stateSnapshot"]),
+  ChangeStatus: enumOf(["added", "deleted", "modified", "moved"]),
   ClientCapabilities: object({
     excludedEphemeralEvents: allOf([array(ref(() => CHECKS.SuppressibleRunEventType)), uniqueItems()]),
     features: record(ref(() => CHECKS.FeaturePreference)),
@@ -807,6 +842,10 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
   CodebaseStatusRequest: object({
     workspace: ref(() => CHECKS.WorkspaceRef),
   }, ["workspace"]),
+  CommandResult: object({
+    exitCode: integer(),
+    output: text(),
+  }, ["output"]),
   ContentBlock: allOf([
     object({
       data: text(),
@@ -832,12 +871,12 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
   }, ["server"]),
   CreateScheduleRequest: object({
     cron: allOf([text(), minLength(1)]),
+    instructions: allOf([text(), minLength(1)]),
     model: text(),
-    prompt: allOf([text(), minLength(1)]),
     provider: text(),
     title: text(),
     workspace: ref(() => CHECKS.WorkspaceRef),
-  }, ["cron", "prompt"]),
+  }, ["cron", "instructions"]),
   CreateSessionRequest: object({
     title: text(),
     workspace: ref(() => CHECKS.WorkspaceRef),
@@ -949,11 +988,6 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     rows: array(ref(() => CHECKS.DiffRow)),
     status: ref(() => CHECKS.FileStatus),
   }, ["path", "rows", "status"]),
-  FileEdit: object({
-    diff: array(ref(() => CHECKS.DiffRow)),
-    path: text(),
-    status: ref(() => CHECKS.FileStatus),
-  }, ["path", "status"]),
   FileEntry: object({
     modifiedAt: text(),
     name: text(),
@@ -997,8 +1031,8 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     path: allOf([text(), minLength(1)]),
     workspace: ref(() => CHECKS.WorkspaceRef),
   }, ["path", "workspace"]),
-  GetMemoryRequest: object({
-    scope: ref(() => CHECKS.MemoryScope),
+  GetKnowledgeRequest: object({
+    scope: ref(() => CHECKS.KnowledgeScope),
     workspace: ref(() => CHECKS.WorkspaceRef),
   }, ["scope"]),
   GetPlanRequest: object({
@@ -1065,7 +1099,7 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     matcher: text(),
     scope: ref(() => CHECKS.HookScope),
     source: text(),
-    timeoutMs: integer(),
+    timeoutMillis: integer(),
   }, ["active", "event", "scope", "source"]),
   HookScope: enumOf(["global", "project"]),
   HooksListResult: object({
@@ -1185,7 +1219,7 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
       content: array(ref(() => CHECKS.ContentBlock)),
       createdAt: text(),
       droppedMessages: integer(),
-      durationMs: allOf([integer(), minimum(0)]),
+      durationMillis: allOf([integer(), minimum(0)]),
       error: ref(() => CHECKS.ProblemData),
       finishedAt: text(),
       id: text(),
@@ -1203,7 +1237,7 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     oneOf([
       fields({
         droppedMessages: absent(),
-        durationMs: absent(),
+        durationMillis: absent(),
         error: absent(),
         finishedAt: absent(),
         question: absent(),
@@ -1217,7 +1251,7 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
       }, ["createdAt", "id", "runId", "status", "type"]),
       fields({
         droppedMessages: absent(),
-        durationMs: absent(),
+        durationMillis: absent(),
         error: absent(),
         finishedAt: absent(),
         question: absent(),
@@ -1232,7 +1266,7 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
       fields({
         content: absent(),
         droppedMessages: absent(),
-        durationMs: absent(),
+        durationMillis: absent(),
         error: absent(),
         finishedAt: absent(),
         question: absent(),
@@ -1245,7 +1279,7 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
       fields({
         content: absent(),
         droppedMessages: absent(),
-        durationMs: absent(),
+        durationMillis: absent(),
         error: absent(),
         finishedAt: absent(),
         redacted: absent(),
@@ -1268,7 +1302,7 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
       }, ["id", "runId", "startedAt", "status", "type"]),
       fields({
         content: absent(),
-        durationMs: absent(),
+        durationMillis: absent(),
         error: absent(),
         finishedAt: absent(),
         question: absent(),
@@ -1286,7 +1320,7 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
         type: literal("toolCall"),
       }, ["status", "type"]),
       fields({
-        durationMs: absent(),
+        durationMillis: absent(),
         finishedAt: absent(),
       }, []),
     ),
@@ -1295,14 +1329,14 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
         status: literal("completed"),
         type: literal("toolCall"),
       }, ["status", "type"]),
-      fields({}, ["durationMs", "finishedAt"]),
+      fields({}, ["durationMillis", "finishedAt"]),
     ),
     ifThen(
       fields({
         status: literal("incomplete"),
         type: literal("toolCall"),
       }, ["status", "type"]),
-      fields({}, ["durationMs", "finishedAt"]),
+      fields({}, ["durationMillis", "finishedAt"]),
     ),
   ]),
   ItemDelta: allOf([
@@ -1358,6 +1392,12 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
   ItemScopeType: enumOf(["session", "run"]),
   ItemStatus: enumOf(["running", "completed", "incomplete"]),
   ItemType: enumOf(["userMessage", "agentMessage", "reasoning", "question", "toolCall", "compaction"]),
+  KnowledgeEntry: object({
+    content: text(),
+    scope: ref(() => CHECKS.KnowledgeScope),
+    updatedAt: text(),
+  }, ["content", "scope"]),
+  KnowledgeScope: enumOf(["cwd", "projectRoot", "home"]),
   ListApprovalRulesRequest: object({
     sessionId: allOf([text(), minLength(1)]),
   }, ["sessionId"]),
@@ -1410,39 +1450,13 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     sessionId: text(),
     statuses: allOf([array(ref(() => CHECKS.RunStatus)), minItems(1), uniqueItems()]),
   }, []),
-  MCPAuthorizationAttemptLimits: object({
-    retentionSeconds: allOf([integer(), minimum(1)]),
-  }, ["retentionSeconds"]),
-  MCPAuthorizationAttemptRequest: object({
-    attemptId: allOf([text(), minLength(1)]),
-  }, ["attemptId"]),
-  MCPListToolsRequest: object({
-    server: text(),
-  }, []),
-  MCPServerCandidate: object({
-    autoApproveTools: allOf([array(text()), uniqueItems()]),
-    connection: ref(() => CHECKS.McpConnectionInput),
-    description: text(),
-    disabledTools: allOf([array(text()), uniqueItems()]),
-    enabled: flag(),
-    name: allOf([text(), minLength(1)]),
-    timeoutSeconds: allOf([integer(), minimum(0)]),
-  }, ["connection", "enabled", "name"]),
-  MCPServerRequest: object({
-    server: allOf([text(), minLength(1)]),
-  }, ["server"]),
-  ManagedSkill: object({
-    description: text(),
-    lifecycle: ref(() => CHECKS.SkillLifecycle),
-    name: text(),
-  }, ["lifecycle", "name"]),
-  McpAuthorizationAttempt: allOf([
+  MCPAuthorizationAttempt: allOf([
     object({
       createdAt: text(),
       finishedAt: text(),
       id: allOf([text(), minLength(1)]),
       server: allOf([text(), minLength(1)]),
-      status: ref(() => CHECKS.McpAuthorizationAttemptStatus),
+      status: ref(() => CHECKS.MCPAuthorizationAttemptStatus),
     }, ["createdAt", "id", "server", "status"]),
     ifThen(
       fields({
@@ -1479,10 +1493,16 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
       fields({}, ["finishedAt"]),
     ),
   ]),
-  McpAuthorizationAttemptStatus: allOf([
+  MCPAuthorizationAttemptLimits: object({
+    retentionSeconds: allOf([integer(), minimum(1)]),
+  }, ["retentionSeconds"]),
+  MCPAuthorizationAttemptRequest: object({
+    attemptId: allOf([text(), minLength(1)]),
+  }, ["attemptId"]),
+  MCPAuthorizationAttemptStatus: allOf([
     object({
       error: ref(() => CHECKS.ProblemData),
-      type: ref(() => CHECKS.McpAuthorizationAttemptStatusType),
+      type: ref(() => CHECKS.MCPAuthorizationAttemptStatusType),
     }, []),
     oneOf([
       fields({
@@ -1502,10 +1522,10 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
       }, ["type"]),
     ]),
   ]),
-  McpAuthorizationAttemptStatusType: enumOf(["pending", "succeeded", "failed", "canceled"]),
-  McpAuthorizationChange: allOf([
+  MCPAuthorizationAttemptStatusType: enumOf(["pending", "succeeded", "failed", "canceled"]),
+  MCPAuthorizationChange: allOf([
     object({
-      type: ref(() => CHECKS.McpSecretChangeType),
+      type: ref(() => CHECKS.MCPSecretChangeType),
       value: allOf([text(), minLength(1)]),
     }, []),
     oneOf([
@@ -1518,7 +1538,7 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
       }, ["type"]),
     ]),
   ]),
-  McpConnection: allOf([
+  MCPConnection: allOf([
     object({
       args: array(text()),
       authorizationMasked: text(),
@@ -1526,7 +1546,7 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
       dir: text(),
       envMasked: record(text()),
       headersMasked: record(text()),
-      type: ref(() => CHECKS.McpTransport),
+      type: ref(() => CHECKS.MCPTransport),
       url: allOf([text(), minLength(1)]),
     }, []),
     oneOf([
@@ -1545,15 +1565,15 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
       }, ["command", "type"]),
     ]),
   ]),
-  McpConnectionInput: allOf([
+  MCPConnectionInput: allOf([
     object({
       args: array(text()),
-      authorization: ref(() => CHECKS.McpAuthorizationChange),
+      authorization: ref(() => CHECKS.MCPAuthorizationChange),
       command: allOf([text(), minLength(1)]),
       dir: text(),
-      env: ref(() => CHECKS.McpEnvironmentChange),
-      headers: ref(() => CHECKS.McpHeadersChange),
-      type: ref(() => CHECKS.McpTransport),
+      env: ref(() => CHECKS.MCPEnvironmentChange),
+      headers: ref(() => CHECKS.MCPHeadersChange),
+      type: ref(() => CHECKS.MCPTransport),
       url: allOf([text(), minLength(1)]),
     }, []),
     oneOf([
@@ -1572,9 +1592,9 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
       }, ["command", "type"]),
     ]),
   ]),
-  McpEnvironmentChange: allOf([
+  MCPEnvironmentChange: allOf([
     object({
-      type: ref(() => CHECKS.McpSecretChangeType),
+      type: ref(() => CHECKS.MCPSecretChangeType),
       value: allOf([record(text()), minProperties(1)]),
     }, []),
     oneOf([
@@ -1587,9 +1607,9 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
       }, ["type"]),
     ]),
   ]),
-  McpHeadersChange: allOf([
+  MCPHeadersChange: allOf([
     object({
-      type: ref(() => CHECKS.McpSecretChangeType),
+      type: ref(() => CHECKS.MCPSecretChangeType),
       value: allOf([record(text()), minProperties(1)]),
     }, []),
     oneOf([
@@ -1602,21 +1622,36 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
       }, ["type"]),
     ]),
   ]),
-  McpSecretChangeType: enumOf(["set", "clear"]),
-  McpServer: object({
+  MCPListToolsRequest: object({
+    server: text(),
+  }, []),
+  MCPSecretChangeType: enumOf(["set", "clear"]),
+  MCPServer: object({
     autoApproveTools: array(text()),
-    connection: ref(() => CHECKS.McpConnection),
+    connection: ref(() => CHECKS.MCPConnection),
     description: text(),
     disabledTools: array(text()),
     name: text(),
-    status: ref(() => CHECKS.McpServerState),
+    status: ref(() => CHECKS.MCPServerState),
     timeoutSeconds: integer(),
   }, ["connection", "name", "status"]),
-  McpServerState: allOf([
+  MCPServerCandidate: object({
+    autoApproveTools: allOf([array(text()), uniqueItems()]),
+    connection: ref(() => CHECKS.MCPConnectionInput),
+    description: text(),
+    disabledTools: allOf([array(text()), uniqueItems()]),
+    enabled: flag(),
+    name: allOf([text(), minLength(1)]),
+    timeoutSeconds: allOf([integer(), minimum(0)]),
+  }, ["connection", "enabled", "name"]),
+  MCPServerRequest: object({
+    server: allOf([text(), minLength(1)]),
+  }, ["server"]),
+  MCPServerState: allOf([
     object({
       error: ref(() => CHECKS.ProblemData),
       toolCount: integer(),
-      type: ref(() => CHECKS.McpServerStateType),
+      type: ref(() => CHECKS.MCPServerStateType),
     }, []),
     oneOf([
       fields({
@@ -1648,25 +1683,23 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
       }, ["error", "type"]),
     ]),
   ]),
-  McpServerStateType: enumOf(["disabled", "disconnected", "connecting", "connected", "failed", "needsAuth"]),
-  McpTestResult: object({
+  MCPServerStateType: enumOf(["disabled", "disconnected", "connecting", "connected", "failed", "needsAuth"]),
+  MCPTestResult: object({
     error: ref(() => CHECKS.ProblemData),
     ok: flag(),
   }, ["ok"]),
-  McpTool: object({
+  MCPTool: object({
     description: text(),
     inputSchema: record(anything()),
     name: text(),
     server: text(),
   }, ["name", "server"]),
-  McpTransport: enumOf(["stdio", "streamableHttp"]),
-  MemoryEntry: object({
-    content: text(),
-    path: text(),
-    scope: ref(() => CHECKS.MemoryScope),
-    updatedAt: text(),
-  }, ["content", "path", "scope"]),
-  MemoryScope: enumOf(["cwd", "projectRoot", "home"]),
+  MCPTransport: enumOf(["stdio", "streamableHttp"]),
+  ManagedSkill: object({
+    description: text(),
+    lifecycle: ref(() => CHECKS.SkillLifecycle),
+    name: text(),
+  }, ["lifecycle", "name"]),
   Modality: enumOf(["text", "image", "audio", "video", "pdf"]),
   Model: object({
     capabilities: ref(() => CHECKS.ModelCapabilities),
@@ -1712,20 +1745,20 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     data: array(ref(() => CHECKS.FileEntry)),
     nextCursor: text(),
   }, ["data"]),
+  PageOfKnowledgeEntry: object({
+    data: array(ref(() => CHECKS.KnowledgeEntry)),
+    nextCursor: text(),
+  }, ["data"]),
+  PageOfMCPServer: object({
+    data: array(ref(() => CHECKS.MCPServer)),
+    nextCursor: text(),
+  }, ["data"]),
+  PageOfMCPTool: object({
+    data: array(ref(() => CHECKS.MCPTool)),
+    nextCursor: text(),
+  }, ["data"]),
   PageOfManagedSkill: object({
     data: array(ref(() => CHECKS.ManagedSkill)),
-    nextCursor: text(),
-  }, ["data"]),
-  PageOfMcpServer: object({
-    data: array(ref(() => CHECKS.McpServer)),
-    nextCursor: text(),
-  }, ["data"]),
-  PageOfMcpTool: object({
-    data: array(ref(() => CHECKS.McpTool)),
-    nextCursor: text(),
-  }, ["data"]),
-  PageOfMemoryEntry: object({
-    data: array(ref(() => CHECKS.MemoryEntry)),
     nextCursor: text(),
   }, ["data"]),
   PageOfModel: object({
@@ -1780,6 +1813,9 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     cursor: text(),
     limit: allOf([integer(), minimum(0)]),
   }, []),
+  PatchResult: object({
+    changes: array(ref(() => CHECKS.AppliedChange)),
+  }, ["changes"]),
   PendingInterruptSet: allOf([
     object({
       createdAt: text(),
@@ -2264,10 +2300,10 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     maxTotalTokens: allOf([integer(), minimum(0)]),
   }, []),
   RunMetrics: object({
-    activeDurationMs: integer(),
+    activeDurationMillis: integer(),
     steps: integer(),
     usage: ref(() => CHECKS.Usage),
-  }, ["activeDurationMs", "steps"]),
+  }, ["activeDurationMillis", "steps"]),
   RunOutcome: allOf([
     object({
       detail: text(),
@@ -2282,7 +2318,11 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
       }, ["type"]),
       fields({
         detail: absent(),
-        type: literal("error"),
+        type: literal("timedOut"),
+      }, ["error", "type"]),
+      fields({
+        detail: absent(),
+        type: literal("failed"),
       }, ["error", "type"]),
       fields({
         error: absent(),
@@ -2296,17 +2336,37 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
         error: absent(),
         type: literal("canceled"),
       }, ["type"]),
+      fields({
+        detail: absent(),
+        type: literal("lost"),
+      }, ["error", "type"]),
     ]),
     ifThen(
       fields({
-        type: literal("error"),
+        type: literal("timedOut"),
+      }, ["type"]),
+      fields({
+        detail: absent(),
+      }, ["error"]),
+    ),
+    ifThen(
+      fields({
+        type: literal("failed"),
+      }, ["type"]),
+      fields({
+        detail: absent(),
+      }, ["error"]),
+    ),
+    ifThen(
+      fields({
+        type: literal("lost"),
       }, ["type"]),
       fields({
         detail: absent(),
       }, ["error"]),
     ),
   ]),
-  RunOutcomeType: enumOf(["completed", "error", "maxSteps", "maxBudget", "canceled"]),
+  RunOutcomeType: enumOf(["completed", "timedOut", "failed", "maxSteps", "maxBudget", "canceled", "lost"]),
   RunProgress: object({
     activity: text(),
     contextTokens: integer(),
@@ -2400,7 +2460,7 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     maxEvents: allOf([integer(), minimum(1)]),
     scope: ref(() => CHECKS.RunReplayScope),
   }, ["maxBytes", "maxEvents", "scope"]),
-  RunReplayScope: enumOf(["processRootSegment"]),
+  RunReplayScope: enumOf(["runtimeInstanceRootSegment"]),
   RunScheduleNowRequest: object({
     id: allOf([text(), minLength(1)]),
   }, ["id"]),
@@ -2625,20 +2685,23 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     cron: text(),
     enabled: flag(),
     id: text(),
+    instructions: text(),
     lastRunAt: text(),
     model: text(),
     nextRunAt: text(),
-    prompt: text(),
     provider: text(),
     revision: allOf([integer(), minimum(0)]),
     title: text(),
     workspace: ref(() => CHECKS.WorkspaceRef),
-  }, ["createdAt", "cron", "enabled", "id", "prompt", "revision", "title"]),
+  }, ["createdAt", "cron", "enabled", "id", "instructions", "revision", "title"]),
   SearchHit: object({
     lineNumber: integer(),
     path: text(),
     snippet: text(),
   }, ["path"]),
+  SearchResult: object({
+    hits: array(ref(() => CHECKS.SearchHit)),
+  }, ["hits"]),
   SegmentOutcome: allOf([
     object({
       detail: text(),
@@ -2667,7 +2730,12 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
       fields({
         detail: absent(),
         interrupts: absent(),
-        type: literal("error"),
+        type: literal("timedOut"),
+      }, ["error", "type"]),
+      fields({
+        detail: absent(),
+        interrupts: absent(),
+        type: literal("failed"),
       }, ["error", "type"]),
       fields({
         error: absent(),
@@ -2684,10 +2752,31 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
         interrupts: absent(),
         type: literal("canceled"),
       }, ["type"]),
+      fields({
+        detail: absent(),
+        interrupts: absent(),
+        type: literal("lost"),
+      }, ["error", "type"]),
     ]),
     ifThen(
       fields({
-        type: literal("error"),
+        type: literal("timedOut"),
+      }, ["type"]),
+      fields({
+        detail: absent(),
+      }, ["error"]),
+    ),
+    ifThen(
+      fields({
+        type: literal("failed"),
+      }, ["type"]),
+      fields({
+        detail: absent(),
+      }, ["error"]),
+    ),
+    ifThen(
+      fields({
+        type: literal("lost"),
       }, ["type"]),
       fields({
         detail: absent(),
@@ -2713,7 +2802,7 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
       }, []),
     ),
   ]),
-  SegmentOutcomeType: enumOf(["interrupt", "suspended", "completed", "error", "maxSteps", "maxBudget", "canceled"]),
+  SegmentOutcomeType: enumOf(["interrupt", "suspended", "completed", "timedOut", "failed", "maxSteps", "maxBudget", "canceled", "lost"]),
   ServerCapabilities: object({
     features: record(ref(() => CHECKS.FeatureCapability)),
     limits: ref(() => CHECKS.RuntimeLimits),
@@ -2746,7 +2835,7 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     session: ref(() => CHECKS.ArtifactSession),
     states: array(ref(() => CHECKS.ArtifactState)),
     toolResults: array(ref(() => CHECKS.ArtifactToolResult)),
-    version: allOf([integer(), minimum(12), maximum(12)]),
+    version: allOf([integer(), minimum(15), maximum(15)]),
   }, ["items", "messages", "runs", "session", "toolResults", "version"]),
   SessionStatus: enumOf(["running", "waiting", "idle"]),
   SessionUsageRequest: object({
@@ -2984,20 +3073,20 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     parameters: record(anything()),
     safetyClass: ref(() => CHECKS.SafetyClass),
   }, ["name"]),
+  UpdateKnowledgeRequest: object({
+    content: text(),
+    scope: ref(() => CHECKS.KnowledgeScope),
+    workspace: ref(() => CHECKS.WorkspaceRef),
+  }, ["content", "scope"]),
   UpdateMCPServerRequest: object({
     autoApproveTools: allOf([array(text()), uniqueItems()]),
-    connection: ref(() => CHECKS.McpConnectionInput),
+    connection: ref(() => CHECKS.MCPConnectionInput),
     description: text(),
     disabledTools: allOf([array(text()), uniqueItems()]),
     enabled: flag(),
     server: allOf([text(), minLength(1)]),
     timeoutSeconds: allOf([integer(), minimum(0)]),
   }, ["server"]),
-  UpdateMemoryRequest: object({
-    content: text(),
-    scope: ref(() => CHECKS.MemoryScope),
-    workspace: ref(() => CHECKS.WorkspaceRef),
-  }, ["content", "scope"]),
   UpdateProviderRequest: object({
     apiKey: ref(() => CHECKS.ProviderConfigChange),
     baseUrl: ref(() => CHECKS.ProviderConfigChange),
@@ -3008,8 +3097,8 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     enabled: flag(),
     expectedRevision: allOf([integer(), minimum(1)]),
     id: allOf([text(), minLength(1)]),
+    instructions: allOf([text(), minLength(1)]),
     model: text(),
-    prompt: allOf([text(), minLength(1)]),
     provider: text(),
     title: text(),
     workspace: ref(() => CHECKS.WorkspaceRef),
@@ -3060,12 +3149,15 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     watchId: text(),
     workspace: ref(() => CHECKS.WorkspaceRef),
   }, ["watchId", "workspace"]),
-  WebSearchResult: object({
+  WebSearchHit: object({
     faviconUrl: text(),
     snippet: text(),
     title: text(),
     url: text(),
   }, ["url"]),
+  WebSearchResult: object({
+    results: array(ref(() => CHECKS.WebSearchHit)),
+  }, ["results"]),
   WorkspaceAvailability: enumOf(["available", "missing"]),
   WorkspaceFileChange: object({
     added: integer(),
@@ -3133,15 +3225,15 @@ const METHOD_RESULTS: Record<WireMethodName, WireCheck> = {
   "skills.proposals.reject": object({}, []),
   "recipes.list": ref(() => CHECKS.PageOfRecipe),
   "agentDocs.list": ref(() => CHECKS.PageOfAgentDoc),
-  "mcp.servers.list": ref(() => CHECKS.PageOfMcpServer),
-  "mcp.servers.create": ref(() => CHECKS.McpServer),
-  "mcp.servers.update": ref(() => CHECKS.McpServer),
+  "mcp.servers.list": ref(() => CHECKS.PageOfMCPServer),
+  "mcp.servers.create": ref(() => CHECKS.MCPServer),
+  "mcp.servers.update": ref(() => CHECKS.MCPServer),
   "mcp.servers.delete": object({}, []),
-  "mcp.servers.test": ref(() => CHECKS.McpTestResult),
-  "mcp.tools.list": ref(() => CHECKS.PageOfMcpTool),
+  "mcp.servers.test": ref(() => CHECKS.MCPTestResult),
+  "mcp.tools.list": ref(() => CHECKS.PageOfMCPTool),
   "mcp.servers.reconnect": object({}, []),
-  "mcp.authorizationAttempts.create": ref(() => CHECKS.McpAuthorizationAttempt),
-  "mcp.authorizationAttempts.get": ref(() => CHECKS.McpAuthorizationAttempt),
+  "mcp.authorizationAttempts.create": ref(() => CHECKS.MCPAuthorizationAttempt),
+  "mcp.authorizationAttempts.get": ref(() => CHECKS.MCPAuthorizationAttempt),
   "hooks.list": ref(() => CHECKS.HooksListResult),
   "hooks.setTrust": object({}, []),
   "approval.getMode": ref(() => CHECKS.ApprovalModeResult),
@@ -3172,9 +3264,9 @@ const METHOD_RESULTS: Record<WireMethodName, WireCheck> = {
   "tools.invoke": anything(),
   "usage.session": ref(() => CHECKS.Usage),
   "usage.summary": ref(() => CHECKS.UsageSummary),
-  "memory.list": ref(() => CHECKS.PageOfMemoryEntry),
-  "memory.get": ref(() => CHECKS.MemoryEntry),
-  "memory.update": object({}, []),
+  "knowledge.list": ref(() => CHECKS.PageOfKnowledgeEntry),
+  "knowledge.get": ref(() => CHECKS.KnowledgeEntry),
+  "knowledge.update": object({}, []),
   "agentMemory.list": ref(() => CHECKS.AgentMemoryList),
   "agentMemory.review": object({}, []),
   "agentMemory.update": ref(() => CHECKS.AgentMemoryItem),

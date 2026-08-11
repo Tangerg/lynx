@@ -6,6 +6,7 @@ import type {
 } from "@/plugins/sdk/types/agentSessionView";
 import { appendTimelineEntry } from "@/plugins/sdk/types/agentTimeline";
 import { projectRunRef } from "../view/runProjection";
+import { isAgentRunFailure } from "../view/runOutcome";
 
 export function foldRunSnapshot(state: AgentSessionView, run: RunRef): AgentSessionView {
   const projected = projectRunRef(run);
@@ -40,7 +41,7 @@ export function foldRunSnapshot(state: AgentSessionView, run: RunRef): AgentSess
     next = appendTimelineEntry({
       id: `snapshot:run:${run.id}:terminal`,
       ts: snapshotTimestamp(run.id, projected.finishedAt!),
-      kind: projected.outcome?.type === "error" ? "run-error" : "run-end",
+      kind: isAgentRunFailure(projected.outcome) ? "run-error" : "run-end",
       runId: run.id,
       ...terminalTimelinePatch(projected.outcome),
     })(next);
@@ -53,7 +54,7 @@ function terminalTimelinePatch(
 ): Partial<Pick<TimelineEntry, "status" | "summary">> {
   if (!outcome) return {};
   if (outcome.type === "completed") return { status: "ok" };
-  if (outcome.type === "error") {
+  if (isAgentRunFailure(outcome)) {
     return {
       status: "err",
       summary: outcome.error.message ?? outcome.error.code,

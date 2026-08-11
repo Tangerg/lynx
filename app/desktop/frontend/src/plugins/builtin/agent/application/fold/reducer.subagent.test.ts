@@ -5,7 +5,7 @@ import { EMPTY_AGENT_SESSION_VIEW } from "@/plugins/sdk/types/agentSessionView";
 import { reduceRunEvent } from "./reducer";
 import { foldRunSnapshot } from "./runSnapshot";
 
-const METRICS = { steps: 0, activeDurationMs: 0 };
+const METRICS = { steps: 0, activeDurationMillis: 0 };
 const PROFILE = { interruptTypes: [], requiredFeatures: [] };
 
 function runningRun(
@@ -57,7 +57,7 @@ function finished(eventId: string, runId: string, segmentId: string): RunEvent {
   return envelope(eventId, runId, segmentId, {
     type: "segment.finished",
     outcome: { type: "completed" },
-    metrics: { steps: 7, activeDurationMs: 50 },
+    metrics: { steps: 7, activeDurationMillis: 50 },
   });
 }
 
@@ -201,7 +201,7 @@ describe("reducer — source-owned Run tree", () => {
       status: "finished",
       activeSegmentId: undefined,
       outcome: { type: "completed" },
-      metrics: { steps: 7, activeDurationMs: 50 },
+      metrics: { steps: 7, activeDurationMillis: 50 },
       finishedAt: terminalEvent.timestamp,
     });
     expect(cold.runsById.root).toEqual(live.runsById.root);

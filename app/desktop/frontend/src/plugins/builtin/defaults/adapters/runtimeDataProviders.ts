@@ -25,14 +25,17 @@ import {
   UTILITY_ROLE_KEY,
   type CodebaseStatusQuery,
 } from "@/plugins/builtin/settings/providers/public/queries";
-import { SCHEDULES_KEY } from "@/plugins/builtin/settings/schedules/public/queries";
+import {
+  SCHEDULES_KEY,
+  type ScheduleConfig,
+} from "@/plugins/builtin/settings/schedules/public/queries";
 import type {
   WorkspaceDiffQuery,
   WorkspaceFileChangesQuery,
   WorkspaceFileHeadQuery,
   WorkspaceGrepQuery,
   WorkspaceListFilesQuery,
-  WorkspaceMemoryQuery,
+  WorkspaceKnowledgeQuery,
   WorkspaceReadFileQuery,
   WorkspaceDiff,
   AgentMemoryQuery,
@@ -45,7 +48,7 @@ import {
   WORKSPACE_FILE_HEAD_KEY,
   WORKSPACE_GREP_KEY,
   WORKSPACE_LIST_FILES_KEY,
-  WORKSPACE_MEMORY_KEY,
+  WORKSPACE_KNOWLEDGE_KEY,
   WORKSPACE_PROJECTS_KEY,
   WORKSPACE_READ_FILE_KEY,
   WORKSPACE_SKILLS_KEY,
@@ -57,6 +60,7 @@ import type { DataProviderSpec, ContributingHost } from "@/plugins/sdk";
 import { getContainer } from "@/main/container";
 import { DATA_PROVIDER } from "@/plugins/sdk/kernelPoints";
 import { asSessionId } from "@/rpc";
+import type { Schedule } from "@/rpc";
 import { runtimeCapability } from "@/plugins/builtin/runtime/public/capabilities";
 import {
   emptyListIfUngated,
@@ -81,6 +85,14 @@ function requiredParams<P>(key: string, params: unknown): P {
 
 function pageData<T>(request: Promise<{ data: T[] }>): Promise<T[]> {
   return request.then((page) => page.data);
+}
+
+function scheduleConfig(schedule: Schedule): ScheduleConfig {
+  const { workspace, ...config } = schedule;
+  return {
+    ...config,
+    ...(workspace ? { cwd: workspace.path } : {}),
+  };
 }
 
 export function registerDefaultDataProviders(host: ContributingHost): void {
@@ -207,12 +219,11 @@ export function registerDefaultDataProviders(host: ContributingHost): void {
       })),
   });
   contribute({
-    key: WORKSPACE_MEMORY_KEY,
+    key: WORKSPACE_KNOWLEDGE_KEY,
     fetcher: async (params) => {
-      const resources = await workspace(optionalParams<WorkspaceMemoryQuery>(params)?.cwd);
-      return (await pageData(resources.memory.list()).catch(emptyListIfUngated)).map((m) => ({
+      const resources = await workspace(optionalParams<WorkspaceKnowledgeQuery>(params)?.cwd);
+      return (await pageData(resources.knowledge.list()).catch(emptyListIfUngated)).map((m) => ({
         scope: m.scope,
-        path: m.path,
         content: m.content,
         updatedAt: m.updatedAt,
       }));
@@ -356,7 +367,7 @@ export function registerDefaultDataProviders(host: ContributingHost): void {
     key: SCHEDULES_KEY,
     fetcher: async () => {
       if (!runtimeCapability("schedules")) return [];
-      return client().schedules.list().autoPagingToArray();
+      return (await client().schedules.list().autoPagingToArray()).map(scheduleConfig);
     },
   });
   contribute({

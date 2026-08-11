@@ -77,7 +77,7 @@ describe("agent view selectors react to session switch", () => {
       outcome: null,
       metrics: {
         steps: 0,
-        activeDurationMs: 0,
+        activeDurationMillis: 0,
         usage: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0 },
       },
       progress: null,
@@ -115,7 +115,7 @@ describe("agent view selectors react to session switch", () => {
       outcome,
       metrics: {
         steps: 1,
-        activeDurationMs: 10,
+        activeDurationMillis: 10,
         usage: { inputTokens: 3, outputTokens: 2, cacheReadTokens: 0 },
       },
       progress: null,

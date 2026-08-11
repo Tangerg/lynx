@@ -45,18 +45,18 @@ describe("reducer — run lifecycle", () => {
       id: "run_1",
       sessionId: "ses_1",
     });
-    s = reduce(s, runFinished({ type: "completed" }, { steps: 2, activeDurationMs: 0 }));
+    s = reduce(s, runFinished({ type: "completed" }, { steps: 2, activeDurationMillis: 0 }));
     expect(selectCurrentRootRun(s)).toMatchObject({
       status: "finished",
       metrics: { steps: 2 },
     });
   });
 
-  it("segment.finished{error} stores the error; a fresh segment.started clears it", () => {
+  it("segment.finished{failed} stores the error; a fresh segment.started clears it", () => {
     let s = reduce(EMPTY_AGENT_SESSION_VIEW, runStarted("run_1", "ses_1"));
     s = reduce(
       s,
-      runFinished({ type: "error", error: { type: "provider_error", detail: "boom" } }),
+      runFinished({ type: "failed", error: { type: "provider_error", detail: "boom" } }),
     );
     expect(selectVisibleProblem(s)).toEqual({
       message: "boom",
@@ -71,9 +71,9 @@ describe("reducer — run lifecycle", () => {
   // A run that failed without a per-occurrence detail must leave `message`
   // unset. Defaulting it to the symbol here would show "internal_error" as the
   // explanation and leave the banner nothing to translate.
-  it("segment.finished{error} without a detail leaves the words to the banner", () => {
+  it("segment.finished{failed} without a detail leaves the words to the banner", () => {
     let s = reduce(EMPTY_AGENT_SESSION_VIEW, runStarted("run_1", "ses_1"));
-    s = reduce(s, runFinished({ type: "error", error: { type: "internal_error" } }));
+    s = reduce(s, runFinished({ type: "failed", error: { type: "internal_error" } }));
     expect(selectVisibleProblem(s)).toEqual({
       message: undefined,
       code: "internal_error",

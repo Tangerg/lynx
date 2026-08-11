@@ -123,10 +123,10 @@ describe("toolPresentation", () => {
   // The runtime measures the call; a sub-second read reporting "0.1s" is noise on
   // every row, so the number only appears once it can explain a wait.
   it("reports a measured duration, and only once it is worth reading", () => {
-    expect(toolMetaItems(t, tool({ durationMs: 4200 })).map((item) => item.id)).toEqual([
+    expect(toolMetaItems(t, tool({ durationMillis: 4200 })).map((item) => item.id)).toEqual([
       "duration",
     ]);
-    expect(toolMetaItems(t, tool({ durationMs: 120 }))).toEqual([]);
+    expect(toolMetaItems(t, tool({ durationMillis: 120 }))).toEqual([]);
     expect(toolMetaItems(t, tool({}))).toEqual([]);
   });
 

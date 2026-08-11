@@ -67,7 +67,7 @@ describe("the published JSON Schema bundle", () => {
       status: "finished",
       outcome: { type: "canceled" },
       finishedAt: "2026-07-30T00:00:00Z",
-      metrics: { steps: 0, activeDurationMs: 0 },
+      metrics: { steps: 0, activeDurationMillis: 0 },
       protocolProfile: { requiredFeatures: [], interruptTypes: [] },
     };
     expect(cancel?.({ type: "root", run: canceledRun })).toBe(true);
@@ -116,7 +116,7 @@ describe("the published JSON Schema bundle", () => {
       runtimeLimits?.({
         idempotency: { retentionSeconds: 86_400 },
         runReplay: {
-          scope: "processRootSegment",
+          scope: "runtimeInstanceRootSegment",
           maxEvents: 2048,
           maxBytes: 16_777_216,
         },

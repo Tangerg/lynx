@@ -4,6 +4,7 @@ import type {
   AgentSessionView,
   Message,
 } from "@/plugins/sdk/types/agentSessionView";
+import { isAgentRunFailure } from "./runOutcome";
 
 const EMPTY_MESSAGES: Message[] = [];
 
@@ -119,7 +120,7 @@ export function selectRunTree(view: AgentSessionView): AgentRunTreeNode[] {
 }
 
 export function selectRunProblem(run: AgentRunView | null): AgentProblem | null {
-  return run?.outcome?.type === "error" ? run.outcome.error : null;
+  return isAgentRunFailure(run?.outcome) ? run.outcome.error : null;
 }
 
 export function selectVisibleProblem(view: AgentSessionView): AgentProblem | null {

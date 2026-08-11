@@ -82,7 +82,7 @@ export function injectRunFinished(
   segmentId: string,
   eventId: string,
   outcome: SegmentOutcome = { type: "completed" },
-  metrics: RunMetrics = { steps: 0, activeDurationMs: 0 },
+  metrics: RunMetrics = { steps: 0, activeDurationMillis: 0 },
 ): void {
   injectRunEvent(t, runId, segmentId, eventId, { type: "segment.finished", outcome, metrics });
 }

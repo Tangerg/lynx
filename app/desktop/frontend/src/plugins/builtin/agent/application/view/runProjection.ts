@@ -28,7 +28,7 @@ export function projectUsage(usage?: Usage): RunUsage {
 export function projectRunMetrics(metrics: RunMetrics): AgentRunMetrics {
   return {
     steps: metrics.steps,
-    activeDurationMs: metrics.activeDurationMs,
+    activeDurationMillis: metrics.activeDurationMillis,
     usage: projectUsage(metrics.usage),
   };
 }
@@ -46,8 +46,10 @@ export function projectRunOutcome(outcome: RunOutcome): AgentRunOutcome {
   switch (outcome.type) {
     case "completed":
       return { type: "completed" };
-    case "error":
-      return { type: "error", error: projectProblem(outcome.error) };
+    case "timedOut":
+    case "failed":
+    case "lost":
+      return { type: outcome.type, error: projectProblem(outcome.error) };
     case "maxSteps":
     case "maxBudget":
     case "canceled":

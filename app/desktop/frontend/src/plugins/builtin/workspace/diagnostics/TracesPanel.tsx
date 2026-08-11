@@ -93,7 +93,7 @@ function SpanRowItem({
         </span>
         <span className="grow min-w-0 truncate text-left">{span.name}</span>
         <span className="w-16 shrink-0 text-right tabular-nums">
-          {span.durationMs.toFixed(1)}ms
+          {span.durationMillis.toFixed(1)}ms
         </span>
         <span className="w-16 shrink-0 text-left">
           <StatusTag status={span.status} />
@@ -129,7 +129,7 @@ function SpanDetail({ span }: { span: SpanRow }) {
     ["parent", span.parentSpanId ?? "—"],
     ["kind", span.kind],
     ["start", new Date(span.startMs).toISOString()],
-    ["dur", `${span.durationMs.toFixed(1)}ms`],
+    ["dur", `${span.durationMillis.toFixed(1)}ms`],
   ];
   const attrs = Object.entries(span.attrs);
   return (

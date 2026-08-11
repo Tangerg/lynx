@@ -13,17 +13,17 @@ import { materializeInterrupt } from "./interruptMaterialization";
 import type { AgentFoldSource } from "./source";
 import { sourceTimestamp } from "./source";
 import {
-  projectProblem,
   projectRunMetrics,
   projectStartedRun,
   projectTerminalSegmentOutcome,
   projectUsage,
 } from "../view/runProjection";
+import { isAgentRunFailure } from "../view/runOutcome";
 
 function sameRunMetrics(left: AgentRunMetrics, right: AgentRunMetrics): boolean {
   return (
     left.steps === right.steps &&
-    left.activeDurationMs === right.activeDurationMs &&
+    left.activeDurationMillis === right.activeDurationMillis &&
     left.usage.inputTokens === right.usage.inputTokens &&
     left.usage.outputTokens === right.usage.outputTokens &&
     left.usage.cacheReadTokens === right.usage.cacheReadTokens &&
@@ -34,7 +34,7 @@ function sameRunMetrics(left: AgentRunMetrics, right: AgentRunMetrics): boolean 
 function sameRunOutcome(left: AgentRunOutcome | null, right: AgentRunOutcome): boolean {
   if (!left || left.type !== right.type) return false;
   if (left.type === "completed") return true;
-  if (left.type === "error" && right.type === "error") {
+  if (isAgentRunFailure(left) && isAgentRunFailure(right)) {
     return (
       left.error.code === right.error.code &&
       left.error.message === right.error.message &&
@@ -211,8 +211,9 @@ export function onRunFinished(
   }
 
   next = settleRunPendingInterrupts(next, source.runId);
-  if (outcome.type === "error") {
-    const problem = projectProblem(outcome.error);
+  const projectedOutcome = projectTerminalSegmentOutcome(outcome);
+  if (isAgentRunFailure(projectedOutcome)) {
+    const problem = projectedOutcome.error;
     return appendTimelineEntry(
       timelineEntry(source, "run-error", {
         status: "err",
@@ -224,9 +225,16 @@ export function onRunFinished(
   return appendTimelineEntry(
     timelineEntry(source, "run-end", {
       status: outcome.type === "completed" ? "ok" : undefined,
-      summary: outcome.type === "completed" ? undefined : (outcome.detail ?? outcome.type),
+      summary: terminalOutcomeSummary(projectedOutcome),
     }),
   )(next);
+}
+
+function terminalOutcomeSummary(outcome: AgentRunOutcome): string | undefined {
+  if (outcome.type === "completed") return undefined;
+  if (isAgentRunFailure(outcome))
+    return outcome.error.message ?? outcome.error.code ?? outcome.type;
+  return outcome.detail ?? outcome.type;
 }
 
 function mergePendingInterrupts(

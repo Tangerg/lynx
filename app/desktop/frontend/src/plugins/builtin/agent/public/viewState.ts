@@ -10,3 +10,4 @@ export type {
   ToolCall,
 } from "@/plugins/sdk/types/agentSessionView";
 export { toolCategory } from "../domain/toolCategory";
+export { isAgentRunFailure } from "../application/view/runOutcome";

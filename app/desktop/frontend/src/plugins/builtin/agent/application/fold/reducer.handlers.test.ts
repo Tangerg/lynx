@@ -56,10 +56,10 @@ describe("handler contract — run.*", () => {
     s = reduce(
       s,
       runFinished(
-        { type: "error", error: { type: "provider_error", detail: "boom" } },
+        { type: "failed", error: { type: "provider_error", detail: "boom" } },
         {
           steps: 3,
-          activeDurationMs: 20,
+          activeDurationMillis: 20,
           usage: { inputTokens: 500, outputTokens: 200, cacheReadTokens: 40 },
         },
       ),
@@ -114,7 +114,10 @@ describe("handler contract — run.*", () => {
     let s = reduce(EMPTY_AGENT_SESSION_VIEW, runStarted("r1", "s1"));
     s = reduce(s, started(item({ id: "a", type: "agentMessage", content: [] })));
     s = reduce(s, snapshot(1));
-    const out = reduce(s, runFinished({ type: "completed" }, { steps: 2, activeDurationMs: 0 }));
+    const out = reduce(
+      s,
+      runFinished({ type: "completed" }, { steps: 2, activeDurationMillis: 0 }),
+    );
     expect(selectRun(out, "r1")?.status).toBe("finished");
     expect(out.messages).toEqual(s.messages);
     expect(out.shared).toEqual(s.shared);

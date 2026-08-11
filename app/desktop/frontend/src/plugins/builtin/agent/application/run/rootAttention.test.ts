@@ -33,7 +33,7 @@ function root(
     outcome,
     metrics: {
       steps: 1,
-      activeDurationMs: 1,
+      activeDurationMillis: 1,
       usage: { inputTokens: 1, outputTokens: 1, cacheReadTokens: 0 },
     },
     progress: null,
@@ -82,7 +82,9 @@ const terminalCases: Array<{
   status: "finished" | "error" | "canceled" | "limit";
 }> = [
   { outcome: { type: "completed" }, status: "finished" },
-  { outcome: { type: "error", error: { message: "Provider failed" } }, status: "error" },
+  { outcome: { type: "failed", error: { message: "Provider failed" } }, status: "error" },
+  { outcome: { type: "timedOut", error: { message: "Provider timed out" } }, status: "error" },
+  { outcome: { type: "lost", error: { message: "Runtime restarted" } }, status: "error" },
   { outcome: { type: "canceled" }, status: "canceled" },
   { outcome: { type: "maxSteps" }, status: "limit" },
   { outcome: { type: "maxBudget" }, status: "limit" },
@@ -116,7 +118,7 @@ describe("root Run attention", () => {
     publish(view(root("running")));
     expect(onSettled).toHaveBeenCalledOnce();
 
-    publish(view(root("finished", { type: "error", error: { message: "Provider failed" } })));
+    publish(view(root("finished", { type: "failed", error: { message: "Provider failed" } })));
     expect(onSettled).toHaveBeenLastCalledWith({
       sessionId: "session-1",
       status: "error",
@@ -135,7 +137,10 @@ describe("root Run attention", () => {
     expect(onSettled).toHaveBeenCalledWith({
       sessionId: "session-1",
       status,
-      errorMessage: outcome?.type === "error" ? outcome.error.message : null,
+      errorMessage:
+        outcome?.type === "failed" || outcome?.type === "timedOut" || outcome?.type === "lost"
+          ? (outcome.error.message ?? null)
+          : null,
     });
   });
 });

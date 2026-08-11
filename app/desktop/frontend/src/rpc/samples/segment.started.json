@@ -13,7 +13,7 @@
       "status": "running",
       "metrics": {
         "steps": 1,
-        "activeDurationMs": 2100
+        "activeDurationMillis": 2100
       },
       "limits": {
         "maxSteps": 20,

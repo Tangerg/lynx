@@ -4,7 +4,7 @@
 // tool is slow" or "which one keeps failing" — those are questions about the
 // SHAPE of a session, and reading them off a scrolling log means counting by
 // eye. Everything here is derived from tool calls the fold already holds: the
-// runtime measures `durationMs` per call, so nothing is timed in the client.
+// runtime measures `durationMillis` per call, so nothing is timed in the client.
 
 import type { ToolCall } from "@/plugins/sdk/types/agentSessionView";
 
@@ -65,11 +65,11 @@ export function toolStats(calls: Record<string, ToolCall>): ToolStatsSummary {
     // lumping the two would make an approval policy read as a broken tool.
     if (call.status === "err") row.failed += 1;
     if (call.status === "denied") row.denied += 1;
-    if (call.durationMs !== undefined) {
+    if (call.durationMillis !== undefined) {
       row.timed += 1;
-      row.totalMs += call.durationMs;
-      row.slowestMs = Math.max(row.slowestMs, call.durationMs);
-      row.durations.push(call.durationMs);
+      row.totalMs += call.durationMillis;
+      row.slowestMs = Math.max(row.slowestMs, call.durationMillis);
+      row.durations.push(call.durationMillis);
     }
     byName.set(call.name, row);
   }

@@ -1,7 +1,7 @@
 {
   "id": "sch_01",
   "title": "Nightly dependency audit",
-  "prompt": "Review the dependency tree and report any outdated or vulnerable packages.",
+  "instructions": "Review the dependency tree and report any outdated or vulnerable packages.",
   "workspace": { "path": "/Users/dev/project" },
   "provider": "anthropic",
   "model": "claude-opus-4-8",

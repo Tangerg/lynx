@@ -3,11 +3,11 @@ import { describeProblem } from "@/lib/rpcErrors";
 import { getContainer } from "@/main/container";
 import type {
   MCPServerCandidate,
-  McpAuthorizationChange,
-  McpAuthorizationAttempt,
-  McpConnectionInput,
-  McpEnvironmentChange,
-  McpHeadersChange,
+  MCPAuthorizationChange,
+  MCPAuthorizationAttempt,
+  MCPConnectionInput,
+  MCPEnvironmentChange,
+  MCPHeadersChange,
   UpdateMCPServerRequest,
 } from "@/rpc";
 import type { MCPServerInput } from "../application/mcpServerInput";
@@ -17,26 +17,26 @@ import {
   type MCPServerGateway,
 } from "../application/ports/mcpServerGateway";
 
-function authorizationChange(value: string | null | undefined): McpAuthorizationChange | undefined {
+function authorizationChange(value: string | null | undefined): MCPAuthorizationChange | undefined {
   if (value === undefined) return undefined;
   return value === null ? { type: "clear" } : { type: "set", value };
 }
 
 function headersChange(
   value: Record<string, string> | null | undefined,
-): McpHeadersChange | undefined {
+): MCPHeadersChange | undefined {
   if (value === undefined) return undefined;
   return value === null ? { type: "clear" } : { type: "set", value };
 }
 
 function environmentChange(
   value: Record<string, string> | null | undefined,
-): McpEnvironmentChange | undefined {
+): MCPEnvironmentChange | undefined {
   if (value === undefined) return undefined;
   return value === null ? { type: "clear" } : { type: "set", value };
 }
 
-function connectionInput(input: MCPServerInput): McpConnectionInput {
+function connectionInput(input: MCPServerInput): MCPConnectionInput {
   if (input.transport === "stdio") {
     return {
       type: "stdio",
@@ -77,7 +77,7 @@ function updateRequest(name: string, input: MCPServerInput): UpdateMCPServerRequ
   };
 }
 
-function authorizationAttempt(attempt: McpAuthorizationAttempt): AuthorizationAttempt {
+function authorizationAttempt(attempt: MCPAuthorizationAttempt): AuthorizationAttempt {
   switch (attempt.status.type) {
     case "pending":
     case "succeeded":

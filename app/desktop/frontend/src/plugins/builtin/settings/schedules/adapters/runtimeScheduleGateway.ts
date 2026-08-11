@@ -1,31 +1,41 @@
 import { getContainer } from "@/main/container";
-import type { CreateScheduleRequest } from "@/rpc";
+import type { CreateScheduleRequest, Schedule } from "@/rpc";
 import { configureScheduleGateway } from "../application/ports/scheduleGateway";
 import type { ScheduleGateway } from "../application/ports/scheduleGateway";
-import type { ScheduleConfigInput } from "../application/scheduleConfig";
+import type { ScheduleConfig, ScheduleConfigInput } from "../application/scheduleConfig";
 
 function scheduleInput(input: ScheduleConfigInput): CreateScheduleRequest {
   return {
     title: input.title,
-    prompt: input.prompt,
+    instructions: input.instructions,
     workspace: { path: input.cwd },
     cron: input.cron,
   };
 }
 
+function scheduleConfig(schedule: Schedule): ScheduleConfig {
+  const { workspace, ...config } = schedule;
+  return {
+    ...config,
+    ...(workspace ? { cwd: workspace.path } : {}),
+  };
+}
+
 const gateway: ScheduleGateway = {
   async create(input) {
-    return getContainer().client().schedules.create(scheduleInput(input));
+    return scheduleConfig(await getContainer().client().schedules.create(scheduleInput(input)));
   },
   async update(input) {
-    return getContainer()
-      .client()
-      .schedules.update({
-        ...scheduleInput(input),
-        id: input.id,
-        expectedRevision: input.revision,
-        enabled: input.enabled,
-      });
+    return scheduleConfig(
+      await getContainer()
+        .client()
+        .schedules.update({
+          ...scheduleInput(input),
+          id: input.id,
+          expectedRevision: input.revision,
+          enabled: input.enabled,
+        }),
+    );
   },
   async setEnabled(schedule, enabled) {
     await getContainer().client().schedules.update({

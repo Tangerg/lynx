@@ -6,6 +6,7 @@ import {
   selectCurrentRootRun,
   selectRunProblem,
 } from "../view/runTree";
+import { isAgentRunFailure } from "../view/runOutcome";
 
 export interface RootRunSettlement {
   sessionId: string;
@@ -31,9 +32,8 @@ function anySessionRunning(sessions: Record<string, AgentSessionViewEntry>): boo
 function terminalSettlementStatus(
   outcome: AgentRunView["outcome"],
 ): Exclude<RootRunSettlement["status"], "needsInput"> {
+  if (isAgentRunFailure(outcome)) return "error";
   switch (outcome?.type) {
-    case "error":
-      return "error";
     case "canceled":
       return "canceled";
     case "maxSteps":

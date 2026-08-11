@@ -78,9 +78,9 @@ export function ScheduleRow({
           </div>
           <div
             className="mt-0.5 truncate font-mono text-ui-md leading-body text-fg-muted"
-            title={schedule.prompt}
+            title={schedule.instructions}
           >
-            {schedule.prompt}
+            {schedule.instructions}
           </div>
           <div className="mt-1 flex flex-wrap gap-x-3 text-ui-sm text-fg-faint">
             {schedule.enabled && schedule.nextRunAt && (

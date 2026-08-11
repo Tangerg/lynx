@@ -26,7 +26,7 @@ export type VisualAgentState = (typeof VISUAL_AGENT_STATES)[number];
 const SESSION_ID = "ses_visual";
 const ROOT_RUN_ID = "run_root";
 const CREATED_AT = "2026-07-31T08:00:00.000Z";
-const METRICS = { steps: 4, activeDurationMs: 12_000 };
+const METRICS = { steps: 4, activeDurationMillis: 12_000 };
 const PROFILE: RunProtocolProfile = {
   interruptTypes: ["approval"],
   requiredFeatures: ["subagents"],
@@ -181,7 +181,7 @@ const SHELL_READ: Item = {
   runId: ROOT_RUN_ID,
   status: "completed",
   startedAt: CREATED_AT,
-  durationMs: 42,
+  durationMillis: 42,
   tool: { name: "read", arguments: { path: "app/runtime/internal/session/store.go" } },
 };
 
@@ -192,7 +192,7 @@ const SHELL_COMMAND: Item = {
   runId: ROOT_RUN_ID,
   status: "completed",
   startedAt: CREATED_AT,
-  durationMs: 8400,
+  durationMillis: 8400,
   // A real test run: coloured, longer than the panel shows at rest, and non-zero.
   // Every one of those was invisible here — the fixture's command produced no output
   // at all, so the panel that holds it appeared in no screenshot.
@@ -234,7 +234,7 @@ const WRITE_NEW_FILE: Item = {
   runId: ROOT_RUN_ID,
   status: "completed",
   startedAt: CREATED_AT,
-  durationMs: 40,
+  durationMillis: 40,
   tool: {
     name: "write",
     arguments: {
@@ -257,7 +257,7 @@ const SHELL_FAILED: Item = {
   runId: ROOT_RUN_ID,
   status: "incomplete",
   startedAt: CREATED_AT,
-  durationMs: 120,
+  durationMillis: 120,
   tool: { name: "edit", arguments: { path: "app/runtime/internal/session/store.go" } },
   error: { type: "tool_failed", detail: "store.go changed on disk after it was read." },
 };
@@ -311,7 +311,7 @@ const SHELL_DENIED: Item = {
   runId: ROOT_RUN_ID,
   status: "incomplete",
   startedAt: CREATED_AT,
-  durationMs: 15,
+  durationMillis: 15,
   tool: { name: "write", arguments: { path: ".env.production" } },
   error: { type: "denied_by_user", detail: "You declined this write." },
 };
@@ -697,7 +697,7 @@ export const AGENT_SESSION_SNAPSHOTS: Readonly<Record<VisualAgentState, AgentSes
       run("finished", {
         finishedAt: "2026-07-31T08:00:12.000Z",
         outcome: {
-          type: "error",
+          type: "failed",
           error: {
             type: "provider_rejected",
             detail: "The provider rejected the request. Verify the selected model and retry.",
@@ -713,7 +713,7 @@ export const AGENT_SESSION_SNAPSHOTS: Readonly<Record<VisualAgentState, AgentSes
       run("finished", {
         finishedAt: "2026-07-31T08:00:12.000Z",
         outcome: {
-          type: "error",
+          type: "lost",
           error: {
             type: "run_lost",
             detail: "The Runtime restarted before this Run reached a terminal event.",
@@ -732,7 +732,7 @@ export const AGENT_SESSION_SNAPSHOTS: Readonly<Record<VisualAgentState, AgentSes
         sessionId: SESSION_ID,
         status: "waiting",
         createdAt: "2026-07-31T08:00:03.000Z",
-        metrics: { steps: 2, activeDurationMs: 7_000 },
+        metrics: { steps: 2, activeDurationMillis: 7_000 },
         protocolProfile: PROFILE,
         parentRunId: ROOT_RUN_ID,
         rootRunId: ROOT_RUN_ID,
@@ -744,7 +744,7 @@ export const AGENT_SESSION_SNAPSHOTS: Readonly<Record<VisualAgentState, AgentSes
         status: "running",
         activeSegmentId: "seg_nested",
         createdAt: "2026-07-31T08:00:05.000Z",
-        metrics: { steps: 1, activeDurationMs: 3_000 },
+        metrics: { steps: 1, activeDurationMillis: 3_000 },
         protocolProfile: PROFILE,
         parentRunId: "run_child",
         rootRunId: ROOT_RUN_ID,
@@ -887,7 +887,7 @@ export const AGENT_SESSION_SNAPSHOTS: Readonly<Record<VisualAgentState, AgentSes
         // Five tool calls below, so the run's own count says five. The default
         // METRICS is four; leaving it would put two numbers that disagree in the
         // same frame, which is a bug everywhere except in a fixture nobody read.
-        metrics: { steps: 5, activeDurationMs: 12_000 },
+        metrics: { steps: 5, activeDurationMillis: 12_000 },
       }),
     ],
     items: [

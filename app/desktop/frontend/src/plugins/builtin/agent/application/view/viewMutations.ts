@@ -4,6 +4,7 @@ import type { ApprovalDecision } from "../../domain/hitl";
 import type { AgentProblem, AgentSessionView } from "@/plugins/sdk/types/agentSessionView";
 import { appendTimelineEntry } from "@/plugins/sdk/types/agentTimeline";
 import { selectCurrentRootRun } from "./runTree";
+import { isAgentRunFailure } from "./runOutcome";
 
 export interface SettledInterrupt {
   decision?: ApprovalDecision;
@@ -73,8 +74,9 @@ export function setCommandError(
 
 export function dismissVisibleProblem(view: AgentSessionView): AgentSessionView {
   const run = selectCurrentRootRun(view);
-  const dismissedProblemRunId =
-    run?.outcome?.type === "error" ? run.id : view.dismissedProblemRunId;
+  const dismissedProblemRunId = isAgentRunFailure(run?.outcome)
+    ? run.id
+    : view.dismissedProblemRunId;
   if (view.commandError === null && dismissedProblemRunId === view.dismissedProblemRunId) {
     return view;
   }

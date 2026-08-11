@@ -24,7 +24,7 @@ const progressed: RunEvent["event"] = { type: "segment.progress", progress: { st
 const finished: RunEvent["event"] = {
   type: "segment.finished",
   outcome: { type: "completed" },
-  metrics: { steps: 1, activeDurationMs: 1 },
+  metrics: { steps: 1, activeDurationMillis: 1 },
 } as never;
 
 function streamOf(events: RunEvent[], headEventId?: string): RunStream {

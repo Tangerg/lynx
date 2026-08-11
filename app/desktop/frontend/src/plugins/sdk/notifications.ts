@@ -87,7 +87,7 @@ export type NotifySource =
   | "goal"
   | "import"
   | "mcp"
-  | "memory"
+  | "knowledge"
   | "project"
   | "render"
   | "session"

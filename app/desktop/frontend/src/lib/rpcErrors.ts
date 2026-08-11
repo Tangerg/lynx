@@ -50,7 +50,7 @@ const MAPPED_TYPES: readonly string[] = [
   "no_language_server",
   "is_a_directory",
   "file_too_large",
-  // Inline status verdicts: they ride an McpServer / ProviderTestResult rather
+  // Inline status verdicts: they ride an MCPServer / ProviderTestResult rather
   // than failing the call, and the runtime sends the symbol alone.
   "mcp_authorization_required",
   "mcp_authorization_failed",
@@ -76,7 +76,7 @@ export function describeRpcError(err: unknown): string | undefined {
 }
 
 /** Best human-readable text for a ProblemData that rides a result rather than
- *  failing the call (McpServer.error, ProviderTestResult.error, a run or tool
+ *  failing the call (MCPServer.error, ProviderTestResult.error, a run or tool
  *  error): the per-occurrence detail, then this locale's copy for the symbol,
  *  then the bare symbol.
  *

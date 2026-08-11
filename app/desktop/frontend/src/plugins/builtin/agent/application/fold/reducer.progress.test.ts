@@ -58,7 +58,7 @@ describe("reducer — segment.progress (mid-run live readout)", () => {
         { type: "completed" },
         {
           steps: 3,
-          activeDurationMs: 0,
+          activeDurationMillis: 0,
           usage: { inputTokens: 1200, outputTokens: 80, costUsd: 0.5 },
         },
       ),

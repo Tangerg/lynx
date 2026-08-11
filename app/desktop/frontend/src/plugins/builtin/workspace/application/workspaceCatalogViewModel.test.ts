@@ -4,16 +4,16 @@ import {
   codebaseStatusViewModel,
   scopeLabelKey,
   workspaceAgentDocsViewModel,
-  workspaceMemoryViewModel,
+  workspaceKnowledgeViewModel,
   workspaceRecipesViewModel,
   workspaceSkillsViewModel,
 } from "./workspaceCatalogViewModel";
 
 describe("workspace catalog view models", () => {
-  it("gates memory rows when the runtime capability is off", () => {
+  it("gates knowledge rows when the runtime capability is off", () => {
     expect(
-      workspaceMemoryViewModel(
-        [{ scope: "cwd", path: "LYRA.md", content: "memory", updatedAt: "2026-01-01T00:00:00Z" }],
+      workspaceKnowledgeViewModel(
+        [{ scope: "cwd", content: "knowledge", updatedAt: "2026-01-01T00:00:00Z" }],
         false,
       ),
     ).toEqual({
@@ -24,20 +24,17 @@ describe("workspace catalog view models", () => {
     });
   });
 
-  it("projects memory row identity and scope labels", () => {
+  it("projects knowledge row identity and scope labels", () => {
     expect(
-      workspaceMemoryViewModel(
-        [{ scope: "projectRoot", path: "project/LYRA.md", content: "memory" }],
-        true,
-      ),
+      workspaceKnowledgeViewModel([{ scope: "projectRoot", content: "knowledge" }], true),
     ).toEqual({
       rows: [
         {
-          id: "projectRoot:project/LYRA.md",
+          id: "projectRoot",
           scope: "projectRoot",
-          scopeLabelKey: "memory.scope.projectRoot",
+          scopeLabelKey: "knowledge.scope.projectRoot",
           path: "project/LYRA.md",
-          content: "memory",
+          content: "knowledge",
           updatedAt: undefined,
         },
       ],
@@ -94,12 +91,17 @@ describe("workspace catalog view models", () => {
         { path: "root/AGENTS.md", title: "Root rules", scope: "projectRoot" },
       ]).rows,
     ).toEqual([
-      { id: "AGENTS.md", title: "AGENTS.md", path: "AGENTS.md", scopeLabelKey: "memory.scope.cwd" },
+      {
+        id: "AGENTS.md",
+        title: "AGENTS.md",
+        path: "AGENTS.md",
+        scopeLabelKey: "knowledge.scope.cwd",
+      },
       {
         id: "root/AGENTS.md",
         title: "Root rules",
         path: "root/AGENTS.md",
-        scopeLabelKey: "memory.scope.projectRoot",
+        scopeLabelKey: "knowledge.scope.projectRoot",
       },
     ]);
   });

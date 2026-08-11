@@ -4,7 +4,7 @@ import { runCloseReadout } from "./runCloseModel";
 
 const metrics = (over: Partial<AgentRunMetrics> = {}): AgentRunMetrics => ({
   steps: 0,
-  activeDurationMs: 0,
+  activeDurationMillis: 0,
   usage: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0 },
   ...over,
 });
@@ -18,7 +18,7 @@ describe("runCloseReadout", () => {
   });
 
   it("reports only the figures that are real", () => {
-    expect(runCloseReadout(metrics({ steps: 12, activeDurationMs: 246_000 }))).toEqual({
+    expect(runCloseReadout(metrics({ steps: 12, activeDurationMillis: 246_000 }))).toEqual({
       steps: 12,
       duration: "4m 06s",
     });

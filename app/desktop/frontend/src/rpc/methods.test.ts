@@ -325,7 +325,7 @@ describe("methods factory", () => {
       params: runEvent("run_1", "seg_1", "evt_2", {
         type: "segment.finished",
         outcome: { type: "completed" },
-        metrics: { steps: 0, activeDurationMs: 0 },
+        metrics: { steps: 0, activeDurationMillis: 0 },
       }),
     });
 
@@ -374,7 +374,7 @@ describe("methods factory", () => {
       params: runEvent("run_1", "seg_1", "evt_2", {
         type: "segment.finished",
         outcome: { type: "completed" },
-        metrics: { steps: 0, activeDurationMs: 0 },
+        metrics: { steps: 0, activeDurationMillis: 0 },
       }),
     });
 

@@ -1,5 +1,5 @@
 import type { IconName } from "@/ui";
-import type { AgentRunOutcome } from "@/plugins/builtin/agent/public/viewState";
+import { isAgentRunFailure, type AgentRunOutcome } from "@/plugins/builtin/agent/public/viewState";
 import { Divider, Icon } from "@/ui";
 import { useT } from "@/lib/i18n";
 import { useCurrentRootMetrics, useCurrentRootOutcome } from "@/plugins/builtin/agent/public/run";
@@ -21,7 +21,7 @@ export function RootRunOutcome() {
   const t = useT();
   const outcome = useCurrentRootOutcome();
   const metrics = useCurrentRootMetrics();
-  if (!outcome || outcome.type === "error") return null;
+  if (!outcome || isAgentRunFailure(outcome)) return null;
 
   const face = CLOSE_FACE[outcome.type];
   const detail = outcome.type === "completed" ? undefined : outcome.detail;
@@ -58,7 +58,7 @@ function RunCloseFigures({ close }: { close: RunCloseReadout }) {
 }
 
 const CLOSE_FACE: Record<
-  Exclude<AgentRunOutcome["type"], "error">,
+  Exclude<AgentRunOutcome["type"], "timedOut" | "failed" | "lost">,
   { icon: IconName; intent: "neutral" | "accent"; labelKey: string }
 > = {
   completed: { icon: "check", intent: "accent", labelKey: "agent.runOutcome.completed" },

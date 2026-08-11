@@ -40,7 +40,7 @@ import type {
   ForkSessionRequest,
   GetDiffRequest,
   GetFileHeadRequest,
-  GetMemoryRequest,
+  GetKnowledgeRequest,
   GetPlanRequest,
   GetRunRequest,
   GetSessionRequest,
@@ -52,6 +52,7 @@ import type {
   ImportSessionRequest,
   ImportSessionResponse,
   InvokeToolRequest,
+  KnowledgeEntry,
   ListApprovalRulesRequest,
   ListApprovalRulesResult,
   ListFilesRequest,
@@ -61,20 +62,19 @@ import type {
   ListItemsResponse,
   ListModelsRequest,
   ListRunsRequest,
+  MCPAuthorizationAttempt,
   MCPAuthorizationAttemptRequest,
   MCPListToolsRequest,
+  MCPServer,
   MCPServerCandidate,
   MCPServerRequest,
-  McpAuthorizationAttempt,
-  McpServer,
-  McpTestResult,
-  MemoryEntry,
+  MCPTestResult,
   PageOfAgentDoc,
   PageOfFileEntry,
+  PageOfKnowledgeEntry,
+  PageOfMCPServer,
+  PageOfMCPTool,
   PageOfManagedSkill,
-  PageOfMcpServer,
-  PageOfMcpTool,
-  PageOfMemoryEntry,
   PageOfModel,
   PageOfPendingInterruptSet,
   PageOfProvider,
@@ -116,8 +116,8 @@ import type {
   SubscribeRunRequest,
   SubscribeRunResponse,
   TestProviderRequest,
+  UpdateKnowledgeRequest,
   UpdateMCPServerRequest,
-  UpdateMemoryRequest,
   UpdateProviderRequest,
   UpdateScheduleRequest,
   UpdateSessionRequest,
@@ -138,7 +138,7 @@ const FEATURES = [
   "plan",
   "goals",
   "agentMemory",
-  "memory",
+  "knowledge",
   "skills",
   "mcp",
   "schedules",
@@ -235,9 +235,9 @@ const METHOD_NAMES = [
   "tools.invoke",
   "usage.session",
   "usage.summary",
-  "memory.list",
-  "memory.get",
-  "memory.update",
+  "knowledge.list",
+  "knowledge.get",
+  "knowledge.update",
   "agentMemory.list",
   "agentMemory.review",
   "agentMemory.update",
@@ -333,8 +333,8 @@ const VALUE_METHOD_NAMES = [
   "tools.invoke",
   "usage.session",
   "usage.summary",
-  "memory.list",
-  "memory.get",
+  "knowledge.list",
+  "knowledge.get",
   "agentMemory.list",
   "agentMemory.update",
   "agentMemory.add",
@@ -823,19 +823,19 @@ export const WIRE_METHOD_POLICY = {
     idempotency: "none",
     pagination: "none",
   },
-  "memory.list": {
+  "knowledge.list": {
     operation: "query",
     response: "unary",
     idempotency: "none",
     pagination: "none",
   },
-  "memory.get": {
+  "knowledge.get": {
     operation: "query",
     response: "unary",
     idempotency: "none",
     pagination: "none",
   },
-  "memory.update": {
+  "knowledge.update": {
     operation: "command",
     response: "unary",
     idempotency: "replayResponse",
@@ -1037,14 +1037,14 @@ export const WIRE_CAPABILITY_POLICY: {
   "codebase.reindex": [
     { requires: ["codebase"] },
   ],
-  "memory.list": [
-    { requires: ["memory"] },
+  "knowledge.list": [
+    { requires: ["knowledge"] },
   ],
-  "memory.get": [
-    { requires: ["memory"] },
+  "knowledge.get": [
+    { requires: ["knowledge"] },
   ],
-  "memory.update": [
-    { requires: ["memory"] },
+  "knowledge.update": [
+    { requires: ["knowledge"] },
   ],
   "agentMemory.list": [
     { requires: ["agentMemory"] },
@@ -1103,15 +1103,15 @@ export interface WireShapes {
   "skills.proposals.reject": { params: SkillProposalRef };
   "recipes.list": { params: WorkspaceQuery; result: PageOfRecipe };
   "agentDocs.list": { params: WorkspaceQuery; result: PageOfAgentDoc };
-  "mcp.servers.list": { params: Record<string, never>; result: PageOfMcpServer };
-  "mcp.servers.create": { params: MCPServerCandidate; result: McpServer };
-  "mcp.servers.update": { params: UpdateMCPServerRequest; result: McpServer };
+  "mcp.servers.list": { params: Record<string, never>; result: PageOfMCPServer };
+  "mcp.servers.create": { params: MCPServerCandidate; result: MCPServer };
+  "mcp.servers.update": { params: UpdateMCPServerRequest; result: MCPServer };
   "mcp.servers.delete": { params: MCPServerRequest };
-  "mcp.servers.test": { params: MCPServerCandidate; result: McpTestResult };
-  "mcp.tools.list": { params: MCPListToolsRequest; result: PageOfMcpTool };
+  "mcp.servers.test": { params: MCPServerCandidate; result: MCPTestResult };
+  "mcp.tools.list": { params: MCPListToolsRequest; result: PageOfMCPTool };
   "mcp.servers.reconnect": { params: MCPServerRequest };
-  "mcp.authorizationAttempts.create": { params: CreateMCPAuthorizationAttemptRequest; result: McpAuthorizationAttempt };
-  "mcp.authorizationAttempts.get": { params: MCPAuthorizationAttemptRequest; result: McpAuthorizationAttempt };
+  "mcp.authorizationAttempts.create": { params: CreateMCPAuthorizationAttemptRequest; result: MCPAuthorizationAttempt };
+  "mcp.authorizationAttempts.get": { params: MCPAuthorizationAttemptRequest; result: MCPAuthorizationAttempt };
   "hooks.list": { params: ListHooksRequest; result: HooksListResult };
   "hooks.setTrust": { params: SetHookTrustRequest };
   "approval.getMode": { params: Record<string, never>; result: ApprovalModeResult };
@@ -1142,9 +1142,9 @@ export interface WireShapes {
   "tools.invoke": { params: InvokeToolRequest; result: unknown };
   "usage.session": { params: SessionUsageRequest; result: Usage };
   "usage.summary": { params: UsageSummaryRequest; result: UsageSummary };
-  "memory.list": { params: WorkspaceQuery; result: PageOfMemoryEntry };
-  "memory.get": { params: GetMemoryRequest; result: MemoryEntry };
-  "memory.update": { params: UpdateMemoryRequest };
+  "knowledge.list": { params: WorkspaceQuery; result: PageOfKnowledgeEntry };
+  "knowledge.get": { params: GetKnowledgeRequest; result: KnowledgeEntry };
+  "knowledge.update": { params: UpdateKnowledgeRequest };
   "agentMemory.list": { params: AgentMemoryListRequest; result: AgentMemoryList };
   "agentMemory.review": { params: AgentMemoryReviewRequest };
   "agentMemory.update": { params: AgentMemoryUpdateRequest; result: AgentMemoryItem };

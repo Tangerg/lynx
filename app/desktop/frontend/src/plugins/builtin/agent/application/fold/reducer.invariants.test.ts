@@ -122,7 +122,7 @@ const FULL_STREAM: StreamEvent[] = [
   {
     type: "segment.finished",
     outcome: { type: "completed" },
-    metrics: { steps: 1, activeDurationMs: 0 },
+    metrics: { steps: 1, activeDurationMillis: 0 },
   },
 ];
 

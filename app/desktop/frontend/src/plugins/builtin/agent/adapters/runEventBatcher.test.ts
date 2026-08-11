@@ -20,7 +20,7 @@ const runStarted = (): RunEvent =>
       status: "running",
       activeSegmentId: "seg_1",
       createdAt: "2026-06-03T00:00:00.000Z",
-      metrics: { steps: 0, activeDurationMs: 0 },
+      metrics: { steps: 0, activeDurationMillis: 0 },
       protocolProfile: { interruptTypes: [], requiredFeatures: [] },
     },
   });
@@ -31,7 +31,7 @@ const runFinished = (): RunEvent =>
   envelope({
     type: "segment.finished",
     outcome: { type: "completed" },
-    metrics: { steps: 0, activeDurationMs: 1 },
+    metrics: { steps: 0, activeDurationMillis: 1 },
   });
 
 function frameScheduler() {

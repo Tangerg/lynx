@@ -63,7 +63,7 @@ export interface AgentMemoryQuery {
 
 // One addressable agent-memory item (agentMemory.list). status is
 // active | pending (pending items await review); origin is auto (mined) | user
-// (authored). Distinct from WorkspaceMemoryEntry (the LYRA.md file cascade).
+// (authored). Distinct from WorkspaceKnowledgeEntry (the LYRA.md file cascade).
 export interface AgentMemoryEntry {
   id: string;
   scope: "project" | "user";
@@ -78,13 +78,13 @@ export interface AgentMemoryEntry {
 }
 
 /** Where a project-level agent doc lives: the session cwd, the project root, or
- *  the user's home. Shared by the memory files and the AGENTS.md docs. */
-export type WorkspaceMemoryScope = "cwd" | "projectRoot" | "home";
+ *  the user's home. Shared by the knowledge files and the AGENTS.md docs. */
+export type WorkspaceKnowledgeScope = "cwd" | "projectRoot" | "home";
 
 export interface WorkspaceAgentDoc {
   path: string;
   title: string;
-  scope: WorkspaceMemoryScope;
+  scope: WorkspaceKnowledgeScope;
 }
 
 export interface WorkspaceDiffQuery {
@@ -137,13 +137,12 @@ export interface WorkspaceGrepResult {
   total: number;
 }
 
-export interface WorkspaceMemoryQuery {
+export interface WorkspaceKnowledgeQuery {
   cwd?: string;
 }
 
-export interface WorkspaceMemoryEntry {
-  scope: WorkspaceMemoryScope;
-  path: string;
+export interface WorkspaceKnowledgeEntry {
+  scope: WorkspaceKnowledgeScope;
   content: string;
   updatedAt?: string;
 }
@@ -191,7 +190,7 @@ export const WORKSPACE_SKILLS_KEY = "skills";
 export const WORKSPACE_MANAGED_SKILLS_KEY = "managed-skills";
 export const WORKSPACE_SKILL_PROPOSALS_KEY = "skill-proposals";
 export const WORKSPACE_AGENT_MEMORY_KEY = "agent-memory";
-export const WORKSPACE_MEMORY_KEY = "memory";
+export const WORKSPACE_KNOWLEDGE_KEY = "knowledge";
 export const WORKSPACE_BUILTIN_TOOLS_KEY = "builtin-tools";
 export const WORKSPACE_GREP_KEY = "grep";
 export const WORKSPACE_FILE_HEAD_KEY = "file-head";
@@ -225,10 +224,10 @@ export const useSkillProposals = createDataQuery<SkillProposal[]>(WORKSPACE_SKIL
 export const useAgentMemory = createParameterizedDataQuery<AgentMemoryQuery, AgentMemoryEntry[]>(
   WORKSPACE_AGENT_MEMORY_KEY,
 );
-export const useWorkspaceMemory = createParameterizedDataQuery<
-  WorkspaceMemoryQuery,
-  WorkspaceMemoryEntry[]
->(WORKSPACE_MEMORY_KEY);
+export const useWorkspaceKnowledge = createParameterizedDataQuery<
+  WorkspaceKnowledgeQuery,
+  WorkspaceKnowledgeEntry[]
+>(WORKSPACE_KNOWLEDGE_KEY);
 export const useWorkspaceAgentDocs = createDataQuery<WorkspaceAgentDoc[]>(WORKSPACE_AGENT_DOCS_KEY);
 export const useWorkspaceListFiles = createParameterizedDataQuery<
   WorkspaceListFilesQuery,

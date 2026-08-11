@@ -9,7 +9,7 @@ describe("scheduleDraft", () => {
   it("initializes new schedules from the active cwd", () => {
     expect(initialScheduleDraft(undefined, "/repo")).toEqual({
       title: "",
-      prompt: "",
+      instructions: "",
       cron: "0 9 * * 1-5",
       cwd: "/repo",
     });
@@ -21,7 +21,7 @@ describe("scheduleDraft", () => {
         {
           id: "sched-1",
           title: "Morning review",
-          prompt: "Summarize changes",
+          instructions: "Summarize changes",
           cwd: "/workspace",
           cron: "0 9 * * 1",
           enabled: true,
@@ -32,7 +32,7 @@ describe("scheduleDraft", () => {
       ),
     ).toEqual({
       title: "Morning review",
-      prompt: "Summarize changes",
+      instructions: "Summarize changes",
       cron: "0 9 * * 1",
       cwd: "/workspace",
     });
@@ -42,24 +42,30 @@ describe("scheduleDraft", () => {
     expect(
       scheduleInputFromDraft({
         title: " Weekly review ",
-        prompt: " Review this repo ",
+        instructions: " Review this repo ",
         cron: " 0 9 * * 1 ",
         cwd: " /repo ",
       }),
     ).toEqual({
       title: "Weekly review",
-      prompt: "Review this repo",
+      instructions: "Review this repo",
       cron: "0 9 * * 1",
       cwd: "/repo",
     });
   });
 
-  it("requires prompt and cron while respecting the busy flag", () => {
+  it("requires instructions and cron while respecting the busy flag", () => {
     const draft = initialScheduleDraft();
 
-    expect(canSaveScheduleDraft({ ...draft, prompt: "run", cron: "0 * * * *" }, false)).toBe(true);
-    expect(canSaveScheduleDraft({ ...draft, prompt: "", cron: "0 * * * *" }, false)).toBe(false);
-    expect(canSaveScheduleDraft({ ...draft, prompt: "run", cron: "" }, false)).toBe(false);
-    expect(canSaveScheduleDraft({ ...draft, prompt: "run", cron: "0 * * * *" }, true)).toBe(false);
+    expect(canSaveScheduleDraft({ ...draft, instructions: "run", cron: "0 * * * *" }, false)).toBe(
+      true,
+    );
+    expect(canSaveScheduleDraft({ ...draft, instructions: "", cron: "0 * * * *" }, false)).toBe(
+      false,
+    );
+    expect(canSaveScheduleDraft({ ...draft, instructions: "run", cron: "" }, false)).toBe(false);
+    expect(canSaveScheduleDraft({ ...draft, instructions: "run", cron: "0 * * * *" }, true)).toBe(
+      false,
+    );
   });
 });

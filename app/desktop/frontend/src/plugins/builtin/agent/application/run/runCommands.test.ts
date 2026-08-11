@@ -26,7 +26,7 @@ function run(id: string, status: AgentRunView["status"]): AgentRunView {
     outcome: status === "finished" ? { type: "completed" } : null,
     metrics: {
       steps: 0,
-      activeDurationMs: 0,
+      activeDurationMillis: 0,
       usage: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0 },
     },
     progress: null,

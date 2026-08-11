@@ -69,11 +69,11 @@ export function ScheduleForm({ schedule, defaultCwd, onDone, onCancel }: Schedul
       <TextArea
         font="sans"
         size="sm"
-        value={draft.prompt}
-        onChange={(event) => updateDraft("prompt", event.target.value)}
+        value={draft.instructions}
+        onChange={(event) => updateDraft("instructions", event.target.value)}
         rows={4}
-        placeholder={t("schedules.form.prompt")}
-        aria-label={t("schedules.form.prompt")}
+        placeholder={t("schedules.form.instructions")}
+        aria-label={t("schedules.form.instructions")}
       />
       <div className="flex flex-wrap items-center gap-1.5">
         {CRON_PRESETS.map((preset) => (

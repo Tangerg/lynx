@@ -25,14 +25,14 @@ const runStarted = (id: string, sessionId: string): StreamEvent => ({
     status: "running",
     activeSegmentId: `seg_${id}`,
     createdAt: "2026-06-03T00:00:00.000Z",
-    metrics: { steps: 0, activeDurationMs: 0 },
+    metrics: { steps: 0, activeDurationMillis: 0 },
     protocolProfile: { interruptTypes: [], requiredFeatures: [] },
   },
 });
 const runFinished = (outcome: SegmentOutcome): StreamEvent => ({
   type: "segment.finished",
   outcome,
-  metrics: { steps: 0, activeDurationMs: 0 },
+  metrics: { steps: 0, activeDurationMillis: 0 },
 });
 let eventSequence = 0;
 const fold = (event: StreamEvent): RunEvent => {
@@ -118,7 +118,7 @@ const runRef = (partial: Partial<RunRef> = {}): RunRef => ({
   status: "running",
   activeSegmentId: "seg_run_1",
   createdAt: "2026-06-03T00:00:00.000Z",
-  metrics: { steps: 0, activeDurationMs: 0 },
+  metrics: { steps: 0, activeDurationMillis: 0 },
   protocolProfile: { interruptTypes: [], requiredFeatures: [] },
   ...partial,
 });
@@ -156,7 +156,7 @@ describe("agentStore.applyCancelResponse", () => {
         finishedAt: "2026-06-03T00:00:02.000Z",
         metrics: {
           steps: 0,
-          activeDurationMs: 1,
+          activeDurationMillis: 1,
           usage: { inputTokens: 1000, outputTokens: 200 },
         },
       }),

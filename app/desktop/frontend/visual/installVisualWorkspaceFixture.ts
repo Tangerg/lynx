@@ -180,7 +180,7 @@ const VISUAL_CAPABILITIES: ServerCapabilities = {
   features: { git: stable(true), plan: stable(true) },
   streamingMethods: [],
   limits: {
-    runReplay: { scope: "processRootSegment", maxEvents: 2_048, maxBytes: 16_777_216 },
+    runReplay: { scope: "runtimeInstanceRootSegment", maxEvents: 2_048, maxBytes: 16_777_216 },
     runtimeSubscription: { maxTopics: 32, maxWatches: 32 },
     idempotency: { retentionSeconds: 86_400 },
     mcpAuthorizationAttempts: { retentionSeconds: 600 },

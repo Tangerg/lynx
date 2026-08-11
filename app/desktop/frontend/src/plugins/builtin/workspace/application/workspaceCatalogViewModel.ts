@@ -1,6 +1,10 @@
-import type { WorkspaceMemoryEntry } from "./workspaceQueries";
+import type { WorkspaceKnowledgeEntry } from "./workspaceQueries";
 import type { CodebaseSearchHit } from "./ports/codebaseGateway";
-import type { WorkspaceAgentDoc, WorkspaceMemoryScope, WorkspaceSkill } from "./workspaceQueries";
+import type {
+  WorkspaceAgentDoc,
+  WorkspaceKnowledgeScope,
+  WorkspaceSkill,
+} from "./workspaceQueries";
 
 export interface WorkspaceCatalogViewModel<Row> {
   rows: Row[];
@@ -9,9 +13,9 @@ export interface WorkspaceCatalogViewModel<Row> {
   isEmpty: boolean;
 }
 
-export interface WorkspaceMemoryRowViewModel {
+export interface WorkspaceKnowledgeRowViewModel {
   id: string;
-  scope: WorkspaceMemoryScope;
+  scope: WorkspaceKnowledgeScope;
   scopeLabelKey: string;
   path: string;
   content: string;
@@ -69,10 +73,10 @@ export interface CodebaseSearchViewModel {
 }
 
 // The scope words live in the catalogs; this maps a scope to its key.
-const SCOPE_LABEL_KEY: Record<WorkspaceMemoryScope, string> = {
-  cwd: "memory.scope.cwd",
-  projectRoot: "memory.scope.projectRoot",
-  home: "memory.scope.home",
+const SCOPE_LABEL_KEY: Record<WorkspaceKnowledgeScope, string> = {
+  cwd: "knowledge.scope.cwd",
+  projectRoot: "knowledge.scope.projectRoot",
+  home: "knowledge.scope.home",
 };
 
 function catalog<Row>(rows: Row[], enabled = true): WorkspaceCatalogViewModel<Row> {
@@ -84,29 +88,35 @@ function catalog<Row>(rows: Row[], enabled = true): WorkspaceCatalogViewModel<Ro
   };
 }
 
-/** The catalog key for a memory scope; an unknown scope reads as itself. */
+/** The catalog key for a knowledge scope; an unknown scope reads as itself. */
 export function scopeLabelKey(scope: string): string {
-  return SCOPE_LABEL_KEY[scope as WorkspaceMemoryScope] ?? scope;
+  return SCOPE_LABEL_KEY[scope as WorkspaceKnowledgeScope] ?? scope;
 }
 
-export function workspaceMemoryViewModel(
-  entries: readonly WorkspaceMemoryEntry[],
+export function workspaceKnowledgeViewModel(
+  entries: readonly WorkspaceKnowledgeEntry[],
   enabled: boolean,
-): WorkspaceCatalogViewModel<WorkspaceMemoryRowViewModel> {
+): WorkspaceCatalogViewModel<WorkspaceKnowledgeRowViewModel> {
   if (!enabled) {
     return catalog([], false);
   }
 
   return catalog(
     entries.map((entry) => ({
-      id: `${entry.scope}:${entry.path}`,
+      id: entry.scope,
       scope: entry.scope,
       scopeLabelKey: scopeLabelKey(entry.scope),
-      path: entry.path,
+      path: knowledgePath(entry.scope),
       content: entry.content,
       updatedAt: entry.updatedAt,
     })),
   );
+}
+
+function knowledgePath(scope: WorkspaceKnowledgeScope): string {
+  if (scope === "cwd") return "LYRA.md";
+  if (scope === "projectRoot") return "project/LYRA.md";
+  return "~/.lyra/LYRA.md";
 }
 
 export function workspaceSkillsViewModel(
