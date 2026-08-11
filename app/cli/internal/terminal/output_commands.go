@@ -5,7 +5,7 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/Tangerg/lynx/app/cli/internal/sessionexport"
+	"github.com/Tangerg/lynx/app/cli/internal/sessiontransfer"
 )
 
 type sessionOutputResult struct {
@@ -21,7 +21,7 @@ func (a *app) copyLastAssistant() error {
 			if err != nil {
 				return sessionOutputResult{}, err
 			}
-			text, err := sessionexport.LastAssistantText(snapshot)
+			text, err := snapshot.LastAssistantText()
 			return sessionOutputResult{sessionID: sessionID, value: text}, err
 		},
 		func(result sessionOutputResult, err error) {
@@ -52,17 +52,14 @@ func (a *app) exportSession(argument string) error {
 		return err
 	}
 	sessionID, workspace := a.session.ID, a.session.Workspace
+	title := a.session.Title
 	started := runOperation(a, sessionOutputOperation, false,
 		func(ctx context.Context) (sessionOutputResult, error) {
-			snapshot, err := a.runtime.GetSession(ctx, sessionID)
+			document, err := a.transfers.ExportSession(ctx, sessiontransfer.ExportRequest{SessionID: sessionID, Format: format})
 			if err != nil {
 				return sessionOutputResult{}, err
 			}
-			report, err := sessionexport.New(snapshot, format)
-			if err != nil {
-				return sessionOutputResult{}, err
-			}
-			path, err := report.Save(workspace, filename)
+			path, err := a.artifacts.Publish(workspace, title, filename, document)
 			return sessionOutputResult{sessionID: sessionID, value: path}, err
 		},
 		func(result sessionOutputResult, err error) {
@@ -79,13 +76,13 @@ func (a *app) exportSession(argument string) error {
 	return nil
 }
 
-func parseExportArgument(argument string) (sessionexport.Format, string, error) {
+func parseExportArgument(argument string) (sessiontransfer.Format, string, error) {
 	argument = strings.TrimSpace(argument)
 	formatName, filename, found := strings.Cut(argument, " ")
 	if !found {
 		formatName, filename = argument, ""
 	}
-	format, err := sessionexport.ParseFormat(formatName)
+	format, err := sessiontransfer.ParseFormat(formatName)
 	if err != nil {
 		return "", "", err
 	}

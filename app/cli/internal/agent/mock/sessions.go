@@ -188,6 +188,67 @@ func (r *Runtime) ForkSession(ctx context.Context, in agent.ForkSession) (agent.
 	return meta, nil
 }
 
+func (r *Runtime) RollbackSession(ctx context.Context, in agent.RollbackSession) (agent.RollbackResult, error) {
+	if err := in.Validate(); err != nil {
+		return agent.RollbackResult{}, fmt.Errorf("mock: %w", err)
+	}
+	if err := context.Cause(ctx); err != nil {
+		return agent.RollbackResult{}, err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	state := r.sessions[in.SessionID]
+	if state == nil {
+		return agent.RollbackResult{}, fmt.Errorf("%w: %s", agent.ErrSessionNotFound, in.SessionID)
+	}
+	if state.active != "" {
+		return agent.RollbackResult{}, fmt.Errorf("%w: %s", agent.ErrSessionBusy, in.SessionID)
+	}
+	if in.Scope == agent.RestoreFiles {
+		return agent.RollbackResult{Session: state.meta}, nil
+	}
+	keep := -1
+	if in.ToRunID != "" {
+		keep = slices.Index(state.runs, in.ToRunID)
+		if keep < 0 {
+			return agent.RollbackResult{}, fmt.Errorf("%w: %s", agent.ErrRunNotFound, in.ToRunID)
+		}
+	}
+	droppedIDs := slices.Clone(state.runs[keep+1:])
+	droppedSet := make(map[string]struct{}, len(droppedIDs))
+	result := agent.RollbackResult{Dropped: make([]agent.DroppedRun, 0, len(droppedIDs))}
+	for _, runID := range droppedIDs {
+		droppedSet[runID] = struct{}{}
+		dropped := agent.DroppedRun{RunID: runID}
+		for _, item := range state.items {
+			if item.runID == runID && item.block.Kind == agent.BlockUser && strings.TrimSpace(item.block.Text) != "" {
+				dropped.Input = append(dropped.Input, agent.InputContent{Kind: agent.InputText, Text: item.block.Text})
+				break
+			}
+		}
+		result.Dropped = append(result.Dropped, dropped)
+		delete(r.runs, runID)
+		delete(state.planAtRun, runID)
+	}
+	state.runs = slices.Clone(state.runs[:keep+1])
+	state.items = slices.DeleteFunc(state.items, func(item durableItem) bool {
+		_, dropped := droppedSet[item.runID]
+		return dropped
+	})
+	state.plan = nil
+	if in.ToRunID != "" {
+		state.plan = slices.Clone(state.planAtRun[in.ToRunID])
+	}
+	state.planRevision++
+	state.meta.Revision++
+	state.meta.UpdatedAt = r.now()
+	result.Session = state.meta
+	if err := result.Validate(); err != nil {
+		return agent.RollbackResult{}, fmt.Errorf("mock: %w", err)
+	}
+	return result, nil
+}
+
 type forkBoundary struct {
 	plan []agent.PlanItem
 }

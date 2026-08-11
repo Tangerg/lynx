@@ -53,17 +53,18 @@ func TestBuiltinCommandsOwnTheirCategoryAndAvailabilityPolicy(t *testing.T) {
 	wantCategories := map[string][]string{
 		commandCategoryApplication: {"quit"},
 		commandCategoryTranscript:  {"help", "shortcuts", "clear", "find", "next", "previous", "queue", "details", "view", "copy-last", "export"},
-		commandCategorySessions:    {"sessions", "timeline", "new", "workspace", "rename", "fork"},
+		commandCategorySessions:    {"sessions", "timeline", "new", "workspace", "rename", "fork", "rollback", "import"},
 		commandCategoryComposer:    {"attach", "detach", "attachments", "stash", "stashes", "stash-apply", "stash-delete", "editor"},
-		commandCategoryRuntime:     {"model", "approval", "status", "rules"},
+		commandCategoryRuntime:     {"model", "approval", "status", "rules", "steer"},
 		commandCategoryWorkspace:   {"workspaces", "changes", "diff", "preview", "grep", "browse", "read"},
 		commandCategoryExtensions:  {"plugins", "reload", "unload"},
 	}
 	wantGuard := map[string]bool{
-		"clear": true, "view": true,
-		"sessions": true, "timeline": true, "new": true, "workspace": true, "rename": true, "fork": true,
+		"clear": true, "view": true, "export": true,
+		"sessions": true, "timeline": true, "new": true, "workspace": true, "rename": true, "fork": true, "rollback": true, "import": true,
 		"stash": true, "stash-apply": true, "editor": true,
 		"workspaces": true, "changes": true, "diff": true, "preview": true, "grep": true, "browse": true, "read": true,
+		"steer": true,
 	}
 
 	seen := make(map[string]struct{})

@@ -1,0 +1,193 @@
+package terminal
+
+import (
+	"context"
+	"errors"
+	"os"
+	"path/filepath"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/Tangerg/oolong/core/input"
+	"github.com/Tangerg/oolong/core/programtest"
+
+	"github.com/Tangerg/lynx/app/cli/internal/agent"
+	"github.com/Tangerg/lynx/app/cli/internal/agent/mock"
+	"github.com/Tangerg/lynx/app/cli/internal/sessiontransfer"
+)
+
+func TestParseRollbackArgumentPreservesTheInclusiveBoundaryAndScope(t *testing.T) {
+	request, err := parseRollbackArgument("ses_1", "run_42 both")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if request.SessionID != "ses_1" || request.ToRunID != "run_42" || request.Scope != agent.RestoreBoth {
+		t.Fatalf("request = %+v", request)
+	}
+	all, err := parseRollbackArgument("ses_1", "all")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if all.ToRunID != "" || all.Scope != agent.RestoreHistory {
+		t.Fatalf("all request = %+v", all)
+	}
+	if _, err := parseRollbackArgument("ses_1", "all files"); err == nil {
+		t.Fatal("file rollback without a boundary was accepted")
+	}
+}
+
+func TestRollbackPreviewRejectsEverySessionRevisionChange(t *testing.T) {
+	backend := mock.New()
+	snapshot, err := backend.GetSession(t.Context(), "ses_demo_1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := agent.RollbackSession{
+		SessionID: snapshot.Session.ID, ToRunID: snapshot.Runs[0].ID, Scope: agent.RestoreFiles,
+	}
+	preview, err := previewRollback(snapshot, request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := preview.ValidateCommit(snapshot); err != nil {
+		t.Fatalf("unchanged snapshot: %v", err)
+	}
+	snapshot.Session.Revision++
+	if err := preview.ValidateCommit(snapshot); err == nil {
+		t.Fatal("files-only rollback accepted a session changed after preview")
+	}
+}
+
+func TestRollbackConfirmationSurvivesExtremeResizeAndRestoresOpeningInput(t *testing.T) {
+	backend := mock.New()
+	host, stop := runUIForSession(t, backend, "ses_demo_1")
+	host.Shows(t, "Ask lyra")
+	host.Type("/rollback all history")
+	host.Press(input.Enter)
+	host.Shows(t, "Rollback session")
+	if !host.Resize(1, 1) || !host.Repaint() {
+		t.Fatal("rollback dialog could not enter a minimal viewport")
+	}
+	if !host.Resize(96, 28) {
+		t.Fatal("rollback dialog could not restore its viewport")
+	}
+	host.Shows(t, "Rollback session")
+	host.Press(input.Down)
+	host.Press(input.Enter)
+	host.Shows(t, "1 runs removed")
+	host.Shows(t, "Why is the cache expiry test flaky?")
+	stop()
+}
+
+type importingTransfer struct{ runtime *mock.Runtime }
+
+func (transfer importingTransfer) ExportSession(context.Context, sessiontransfer.ExportRequest) (sessiontransfer.Document, error) {
+	return sessiontransfer.Document{}, errors.New("unexpected export")
+}
+
+func (transfer importingTransfer) ImportSession(ctx context.Context, request sessiontransfer.ImportRequest) (agent.Session, error) {
+	if err := request.Validate(); err != nil {
+		return agent.Session{}, err
+	}
+	return transfer.runtime.CreateSession(ctx, agent.CreateSession{Title: "Imported session", Workspace: "/tmp/lyra-imported"})
+}
+
+func TestImportRequiresConfirmationAndInstallsTheAuthoritativeSession(t *testing.T) {
+	workspace := t.TempDir()
+	artifact := filepath.Join(workspace, "portable.json")
+	if err := os.WriteFile(artifact, []byte(`{"version":17}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	backend := mock.New()
+	host := programtest.New(t, 96, 28)
+	ctx, cancel := context.WithCancel(t.Context())
+	done := make(chan error, 1)
+	go func() {
+		done <- Run(ctx, Config{
+			Runtime: backend, Transfers: importingTransfer{runtime: backend}, Workspace: workspace, Host: host,
+		})
+	}()
+	var once sync.Once
+	stop := func() {
+		once.Do(func() {
+			cancel()
+			if err := <-done; err != nil {
+				t.Errorf("terminal session stopped with %v", err)
+			}
+		})
+	}
+	t.Cleanup(stop)
+
+	host.Shows(t, "Ask lyra")
+	host.Type("/import portable.json")
+	host.Press(input.Enter)
+	host.Shows(t, "Import session")
+	if !host.Resize(1, 1) || !host.Repaint() || !host.Resize(96, 28) {
+		t.Fatal("import confirmation did not survive a minimal viewport")
+	}
+	host.Shows(t, "Import session")
+	host.Press(input.Down)
+	host.Press(input.Enter)
+	host.Shows(t, "Imported session")
+	stop()
+}
+
+type steeringRuntime struct {
+	*mock.Runtime
+
+	mu      sync.Mutex
+	request agent.SteerRun
+	err     error
+}
+
+func (runtime *steeringRuntime) SteerRun(_ context.Context, request agent.SteerRun) error {
+	runtime.mu.Lock()
+	runtime.request = request
+	runtime.mu.Unlock()
+	return runtime.err
+}
+
+func (runtime *steeringRuntime) lastSteer() agent.SteerRun {
+	runtime.mu.Lock()
+	defer runtime.mu.Unlock()
+	request := runtime.request
+	request.Message = request.Message.Clone()
+	return request
+}
+
+func TestSteerTargetsTheObservedSegmentAndRestoresAttachmentsOnRefusal(t *testing.T) {
+	base := mock.New()
+	base.Script = func(string) mock.Script {
+		return mock.Script{Prelude: []mock.Step{
+			{Event: agent.BlockStarted{Block: agent.Block{ID: "thinking", Kind: agent.BlockReasoning}}},
+			{Delay: time.Hour, Event: agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCompleted}}},
+		}}
+	}
+	backend := &steeringRuntime{Runtime: base, err: agent.ErrStaleSegment}
+	workspace := t.TempDir()
+	attachment := filepath.Join(workspace, "notes.txt")
+	if err := os.WriteFile(attachment, []byte("notes"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	host, stop := runUIWithWorkspace(t, backend, workspace)
+	host.Shows(t, "Ask lyra")
+	host.Type("start long work")
+	host.Press(input.Enter)
+	host.Shows(t, "thinking")
+	host.Type("/attach notes.txt")
+	host.Press(input.Enter)
+	host.Shows(t, "attached notes.txt")
+	host.Type("/steer focus on parsing")
+	host.Press(input.Enter)
+	host.Shows(t, "steer run failed")
+
+	request := backend.lastSteer()
+	if request.RunID == "" || request.SegmentID == "" || request.Message.Text != "focus on parsing" || len(request.Message.Attachments) != 1 {
+		t.Fatalf("steer request = %+v", request)
+	}
+	host.Type("/attachments")
+	host.Press(input.Enter)
+	host.Shows(t, "notes.txt")
+	stop()
+}

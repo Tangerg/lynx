@@ -17,6 +17,7 @@ type runBinding interface {
 	StartRun(context.Context, protocol.StartRunRequest, embedded.RunCommandOptions) (*protocol.StartRunResponse, iter.Seq2[protocol.RunEvent, error], error)
 	ResumeRun(context.Context, protocol.ResumeRunRequest, embedded.RunCommandOptions) (*protocol.ResumeRunResponse, iter.Seq2[protocol.RunEvent, error], error)
 	SubscribeRun(context.Context, protocol.SubscribeRunRequest, embedded.RunSubscriptionOptions) (*protocol.SubscribeRunResponse, iter.Seq2[protocol.RunEvent, error], error)
+	SteerRun(context.Context, protocol.SteerRunRequest, embedded.CommandOptions) error
 	CancelRun(context.Context, protocol.CancelRunRequest, embedded.CommandOptions) (*protocol.CancelRunResponse, error)
 }
 
@@ -172,6 +173,23 @@ func (r *Runtime) CancelRun(ctx context.Context, input agent.CancelRun) (agent.R
 		return agent.Run{}, fmt.Errorf("%w: cancel returned child-run result %q", agent.ErrIncompatibleRuntime, result.Type)
 	}
 	return projectRun(result.Run)
+}
+
+func (r *Runtime) SteerRun(ctx context.Context, input agent.SteerRun) error {
+	if err := input.Validate(); err != nil {
+		return err
+	}
+	content, err := r.projectInput(ctx, input.Message)
+	if err != nil {
+		return err
+	}
+	options, err := r.commandOptions()
+	if err != nil {
+		return err
+	}
+	return classifyError(r.runs.SteerRun(ctx, protocol.SteerRunRequest{
+		RunID: input.RunID, ExpectedSegmentID: input.SegmentID, Input: content,
+	}, options))
 }
 
 func projectEventStream(source iter.Seq2[protocol.RunEvent, error]) agent.EventStream {

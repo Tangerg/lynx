@@ -20,6 +20,8 @@ import (
 	"github.com/Tangerg/lynx/app/cli/internal/changefeed"
 	"github.com/Tangerg/lynx/app/cli/internal/extensions"
 	"github.com/Tangerg/lynx/app/cli/internal/promptqueue"
+	"github.com/Tangerg/lynx/app/cli/internal/sessionartifact"
+	"github.com/Tangerg/lynx/app/cli/internal/sessiontransfer"
 	"github.com/Tangerg/lynx/app/cli/internal/settings"
 	"github.com/Tangerg/lynx/app/cli/internal/workbench"
 	"github.com/Tangerg/lynx/app/cli/internal/workspace"
@@ -57,6 +59,8 @@ type app struct {
 	runtime      agent.Runtime
 	workspaces   workspace.Service
 	changes      changefeed.Source
+	transfers    sessiontransfer.Service
+	artifacts    sessionartifact.Store
 	session      agent.Session
 	registry     *extensions.Registry
 	pluginHost   *extensions.Host
@@ -92,6 +96,7 @@ type app struct {
 	sessionDialog       *kit.Dialog
 	sessionRenameDialog *kit.Dialog
 	sessionDeleteDialog *kit.Dialog
+	sessionActionDialog *kit.Dialog
 	workspacePicker     *picker[workspaceChoice]
 	workspaceDialog     *kit.Dialog
 	timeline            *timelinePane
@@ -120,6 +125,7 @@ type app struct {
 	attachmentElements  map[uint64]agent.Attachment
 	history             promptHistory
 	workbenchProblem    string
+	sessionInvalidated  bool
 	commandSeq          uint64
 	commandOperations   map[uint64]commandOperation
 	confirmation        pressConfirmation
@@ -145,6 +151,7 @@ type appConfig struct {
 	runtime      agent.Runtime
 	workspaces   workspace.Service
 	changes      changefeed.Source
+	transfers    sessiontransfer.Service
 	snapshot     agent.SessionSnapshot
 	registry     *extensions.Registry
 	pluginHost   *extensions.Host
@@ -180,7 +187,7 @@ func newApp(loop *program.Runtime, cfg appConfig) *app {
 	appearance := newTerminalAppearance(loop)
 	a := &app{
 		ctx: cfg.context, loop: loop, runtime: cfg.runtime, workspaces: cfg.workspaces,
-		changes: cfg.changes, session: cfg.snapshot.Session, registry: cfg.registry,
+		changes: cfg.changes, transfers: cfg.transfers, session: cfg.snapshot.Session, registry: cfg.registry,
 		pluginHost: cfg.pluginHost, pluginIssues: cfg.pluginIssues,
 		conversation:       agent.NewConversation(),
 		operations:         newOperationOwner(cfg.context),
@@ -209,7 +216,7 @@ func newApp(loop *program.Runtime, cfg appConfig) *app {
 	a.buildInterface(appearance, cfg.keyBindings.editor)
 	a.restore(cfg.snapshot)
 	a.persistDraft()
-	a.followWorkspaceChanges()
+	a.followRuntimeChanges()
 	return a
 }
 

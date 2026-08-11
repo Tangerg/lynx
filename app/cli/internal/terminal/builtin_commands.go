@@ -1,6 +1,10 @@
 package terminal
 
-import "slices"
+import (
+	"slices"
+
+	"github.com/Tangerg/lynx/app/cli/internal/agent"
+)
 
 const (
 	commandCategoryApplication = "Application"
@@ -28,7 +32,7 @@ func builtinCommands() []localCommand {
 			localCommand{Descriptor: CommandDescriptor{Name: "details", Title: "expand or collapse tool output and diffs"}, Run: func(a *app, _ string) error { a.ToggleToolDetails(); return nil }},
 			localCommand{Descriptor: CommandDescriptor{Name: "view", Title: "open the selected transcript entry in the full reader"}, Available: availableWithReadableSelection, Run: func(a *app, _ string) error { a.OpenReader(); return nil }},
 			localCommand{Descriptor: CommandDescriptor{Name: "copy-last", Title: "copy the latest durable assistant response"}, Run: func(a *app, _ string) error { return a.copyLastAssistant() }},
-			localCommand{Descriptor: CommandDescriptor{Name: "export", Title: "export this session as markdown or json", Takes: true}, Run: func(a *app, argument string) error { return a.exportSession(argument) }},
+			localCommand{Descriptor: CommandDescriptor{Name: "export", Title: "export a runtime-native session document", Takes: true}, Available: availableWithSessionTransfer, Run: func(a *app, argument string) error { return a.exportSession(argument) }},
 		),
 		commandGroup(commandCategorySessions,
 			localCommand{Descriptor: CommandDescriptor{Name: "sessions", Title: "search and switch sessions", Aliases: []string{"resume"}}, Available: availableWithoutActiveRun, Run: func(a *app, _ string) error { a.ShowSessions(); return nil }},
@@ -37,6 +41,8 @@ func builtinCommands() []localCommand {
 			localCommand{Descriptor: CommandDescriptor{Name: "workspace", Title: "start a session in a recent or specified workspace"}, Available: availableWithoutActiveRun, Run: func(a *app, path string) error { return a.chooseWorkspace(path) }},
 			localCommand{Descriptor: CommandDescriptor{Name: "rename", Title: "rename the current session", Takes: true}, Available: availableWithoutActiveRun, Run: func(a *app, title string) error { a.RenameSession(title); return nil }},
 			localCommand{Descriptor: CommandDescriptor{Name: "fork", Title: "fork the complete current session", Takes: true}, Available: availableWithoutActiveRun, Run: func(a *app, title string) error { a.ForkSession(title); return nil }},
+			localCommand{Descriptor: CommandDescriptor{Name: "rollback", Title: "rewind history, files, or both to a run boundary", Takes: true}, Available: availableForRollback, Run: func(a *app, argument string) error { return a.prepareSessionRollback(argument) }},
+			localCommand{Descriptor: CommandDescriptor{Name: "import", Title: "import and open a runtime-native JSON session artifact", Takes: true}, Available: availableWithSessionTransfer, Run: func(a *app, path string) error { return a.prepareSessionImport(path) }},
 		),
 		commandGroup(commandCategoryComposer,
 			localCommand{Descriptor: CommandDescriptor{Name: "attach", Title: "attach a local file to the next prompt", Takes: true}, Run: func(a *app, path string) error { return a.AttachFile(path) }},
@@ -53,6 +59,7 @@ func builtinCommands() []localCommand {
 			localCommand{Descriptor: CommandDescriptor{Name: "approval", Title: "choose the runtime approval mode", Aliases: []string{"permissions", "permission"}}, Run: func(a *app, _ string) error { a.ChooseApprovalMode(); return nil }},
 			localCommand{Descriptor: CommandDescriptor{Name: "status", Title: "show model, run limits, and runtime approval mode"}, Run: func(a *app, _ string) error { a.ShowRuntimeStatus(); return nil }},
 			localCommand{Descriptor: CommandDescriptor{Name: "rules", Title: "show remembered approval rules"}, Run: func(a *app, _ string) error { a.ShowApprovalRules(); return nil }},
+			localCommand{Descriptor: CommandDescriptor{Name: "steer", Title: "inject an instruction into the observed run segment", Takes: true}, Available: availableWithRunningSegment, Run: func(a *app, instruction string) error { return a.steerRun(instruction) }},
 		),
 		commandGroup(commandCategoryWorkspace,
 			localCommand{Descriptor: CommandDescriptor{Name: "workspaces", Title: "inspect runtime-known workspaces"}, Available: availableWithWorkspaceService, Run: func(a *app, _ string) error { a.ShowWorkspaces(); return nil }},
@@ -74,6 +81,37 @@ func builtinCommands() []localCommand {
 func availableWithWorkspaceService(a *app) CommandAvailability {
 	if a.workspaces == nil {
 		return CommandAvailability{Reason: "this runtime composition has no workspace service"}
+	}
+	return CommandAvailability{Enabled: true}
+}
+
+func availableWithSessionTransfer(a *app) CommandAvailability {
+	if unavailable := availableWithoutActiveRun(a); !unavailable.Enabled {
+		return unavailable
+	}
+	if a.transfers == nil {
+		return CommandAvailability{Reason: "this runtime composition has no session transfer service"}
+	}
+	return CommandAvailability{Enabled: true}
+}
+
+func availableForRollback(a *app) CommandAvailability {
+	if unavailable := availableWithoutActiveRun(a); !unavailable.Enabled {
+		return unavailable
+	}
+	_, present, err := a.currentDraft()
+	if err != nil {
+		return CommandAvailability{Reason: err.Error()}
+	}
+	if present {
+		return CommandAvailability{Reason: "stash or detach the current draft before rolling back"}
+	}
+	return CommandAvailability{Enabled: true}
+}
+
+func availableWithRunningSegment(a *app) CommandAvailability {
+	if a.conversation.Phase() != agent.ConversationRunning || a.conversation.RunID() == "" || a.conversation.SegmentID() == "" {
+		return CommandAvailability{Reason: "no observed run segment is executing"}
 	}
 	return CommandAvailability{Enabled: true}
 }

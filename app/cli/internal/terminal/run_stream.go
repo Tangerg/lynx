@@ -448,6 +448,10 @@ func (a *app) noteRunFinished() {
 
 func (a *app) finishFollowing() {
 	a.following = false
+	if a.sessionInvalidated {
+		a.refreshInvalidatedSession(true)
+		return
+	}
 	if a.conversation.Phase() != agent.ConversationIdle || a.conversation.Outcome().Status == "" {
 		return
 	}
@@ -591,6 +595,10 @@ func (a *app) handleRuntimeCancellation(lease operationLease, settled agent.Run,
 	a.header.SetUsage(settled.Usage)
 	a.prompt.SetBusy(false)
 	a.syncAnimation()
+	if a.sessionInvalidated {
+		a.refreshInvalidatedSession(true)
+		return
+	}
 	a.drainQueue()
 }
 

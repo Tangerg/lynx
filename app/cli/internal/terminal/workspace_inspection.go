@@ -208,22 +208,38 @@ func workspaceChangesDocument(path string, changes []workspace.Change) readerDoc
 	return paragraphDocument("Workspace changes", fmt.Sprintf("%d files · %s", len(changes), path), lines)
 }
 
-func (a *app) followWorkspaceChanges() {
-	a.operations.Cancel(workspaceChangesOperation)
-	if a.workspaces == nil {
+func (a *app) followRuntimeChanges() {
+	a.operations.Cancel(runtimeChangesOperation)
+	if a.workspaces == nil && a.changes == nil {
 		return
 	}
 	workspacePath := a.session.Workspace
 	dispatcher := a.loop.Dispatcher()
-	a.operations.Go(workspaceChangesOperation, true, func(ctx context.Context, lease operationLease) {
-		monitor := workspaceChangeMonitor{
+	a.operations.Go(runtimeChangesOperation, true, func(ctx context.Context, lease operationLease) {
+		monitor := runtimeChangeMonitor{
 			workspace: workspacePath, repository: a.workspaces, source: a.changes,
-			apply: func(changes []workspace.Change) error {
+			applyFiles: func(changes []workspace.Change) error {
 				return post(ctx, dispatcher, func() {
 					if !a.operations.Current(lease) || a.closed || a.session.Workspace != workspacePath {
 						return
 					}
 					a.applyWorkspaceChanges(changes)
+				})
+			},
+			applyEvent: func(event changefeed.Event) error {
+				return post(ctx, dispatcher, func() {
+					if !a.operations.Current(lease) || a.closed || a.session.Workspace != workspacePath {
+						return
+					}
+					a.applyRuntimeInvalidation(event)
+				})
+			},
+			applyResync: func(topics []changefeed.Topic) error {
+				return post(ctx, dispatcher, func() {
+					if !a.operations.Current(lease) || a.closed || a.session.Workspace != workspacePath {
+						return
+					}
+					a.applyRuntimeResync(topics)
 				})
 			},
 		}
@@ -239,21 +255,24 @@ func (a *app) applyWorkspaceChanges(changes []workspace.Change) {
 	}
 }
 
-type workspaceChangeMonitor struct {
-	workspace  string
-	repository workspace.ChangeReader
-	source     changefeed.Source
-	apply      func([]workspace.Change) error
+type runtimeChangeMonitor struct {
+	workspace   string
+	repository  workspace.ChangeReader
+	source      changefeed.Source
+	applyFiles  func([]workspace.Change) error
+	applyEvent  func(changefeed.Event) error
+	applyResync func([]changefeed.Topic) error
 }
 
-func (monitor workspaceChangeMonitor) run(ctx context.Context) {
-	if monitor.source == nil || !monitor.source.Supports(changefeed.FilesChanged) {
+func (monitor runtimeChangeMonitor) run(ctx context.Context) {
+	topics := monitor.supportedTopics()
+	if monitor.source == nil || len(topics) == 0 {
 		monitor.runWithoutWatch(ctx)
 		return
 	}
-	subscription := changefeed.Subscription{
-		Topics:  []changefeed.Topic{changefeed.FilesChanged},
-		Watches: []changefeed.Watch{{ID: workspaceWatchID, Workspace: monitor.workspace}},
+	subscription := changefeed.Subscription{Topics: topics}
+	if monitor.repository != nil && containsTopic(topics, changefeed.FilesChanged) {
+		subscription.Watches = []changefeed.Watch{{ID: workspaceWatchID, Workspace: monitor.workspace}}
 	}
 	failures := 0
 	for context.Cause(ctx) == nil {
@@ -267,10 +286,20 @@ func (monitor workspaceChangeMonitor) run(ctx context.Context) {
 			}
 			continue
 		}
-		// The watch is registered before the cold read. Events that race the read
-		// are buffered by the subscription and consumed below, closing the classic
-		// read-then-subscribe gap without treating event payloads as state.
-		if err := monitor.refresh(attemptContext); err != nil {
+		// The subscription is registered before every authoritative cold refresh.
+		// Events that race those reads remain buffered in the stream and trigger a
+		// later replacement read, closing read-then-subscribe gaps for every topic.
+		if containsTopic(topics, changefeed.FilesChanged) {
+			if err := monitor.refreshFiles(attemptContext); err != nil {
+				cancelAttempt()
+				failures++
+				if reconnect.Wait(ctx, workspaceRetryDelay(failures)) != nil {
+					return
+				}
+				continue
+			}
+		}
+		if err := monitor.resync(topics); err != nil {
 			cancelAttempt()
 			failures++
 			if reconnect.Wait(ctx, workspaceRetryDelay(failures)) != nil {
@@ -286,8 +315,23 @@ func (monitor workspaceChangeMonitor) run(ctx context.Context) {
 			}
 			gap := lastSequence > 0 && event.Sequence != lastSequence+1
 			lastSequence = event.Sequence
-			if gap || monitor.invalidates(event) {
-				if err := monitor.refresh(attemptContext); err != nil {
+			if gap {
+				if containsTopic(topics, changefeed.FilesChanged) {
+					if err := monitor.refreshFiles(attemptContext); err != nil {
+						break
+					}
+				}
+				if err := monitor.resync(topics); err != nil {
+					break
+				}
+			}
+			if monitor.invalidatesFiles(event) {
+				if err := monitor.refreshFiles(attemptContext); err != nil {
+					break
+				}
+			}
+			if event.Type != changefeed.EventType(changefeed.FilesChanged) {
+				if err := monitor.invalidate(event); err != nil {
 					break
 				}
 			}
@@ -300,10 +344,13 @@ func (monitor workspaceChangeMonitor) run(ctx context.Context) {
 	}
 }
 
-func (monitor workspaceChangeMonitor) runWithoutWatch(ctx context.Context) {
+func (monitor runtimeChangeMonitor) runWithoutWatch(ctx context.Context) {
+	if monitor.repository == nil {
+		return
+	}
 	failures := 0
 	for context.Cause(ctx) == nil {
-		if err := monitor.refresh(ctx); err == nil {
+		if err := monitor.refreshFiles(ctx); err == nil {
 			return
 		}
 		failures++
@@ -313,7 +360,32 @@ func (monitor workspaceChangeMonitor) runWithoutWatch(ctx context.Context) {
 	}
 }
 
-func (monitor workspaceChangeMonitor) refresh(ctx context.Context) error {
+func (monitor runtimeChangeMonitor) supportedTopics() []changefeed.Topic {
+	if monitor.source == nil {
+		return nil
+	}
+	candidates := []changefeed.Topic{
+		changefeed.SessionsChanged,
+		changefeed.RunsChanged,
+		changefeed.StateChanged,
+		changefeed.InterruptsChanged,
+	}
+	if monitor.repository != nil {
+		candidates = append([]changefeed.Topic{changefeed.FilesChanged}, candidates...)
+	}
+	topics := make([]changefeed.Topic, 0, len(candidates))
+	for _, topic := range candidates {
+		if monitor.source.Supports(topic) {
+			topics = append(topics, topic)
+		}
+	}
+	return topics
+}
+
+func (monitor runtimeChangeMonitor) refreshFiles(ctx context.Context) error {
+	if monitor.repository == nil || monitor.applyFiles == nil {
+		return nil
+	}
 	changes, err := monitor.repository.Changes(ctx, monitor.workspace)
 	if err != nil {
 		return err
@@ -321,10 +393,24 @@ func (monitor workspaceChangeMonitor) refresh(ctx context.Context) error {
 	if cause := context.Cause(ctx); cause != nil {
 		return cause
 	}
-	return monitor.apply(changes)
+	return monitor.applyFiles(changes)
 }
 
-func (monitor workspaceChangeMonitor) invalidates(event changefeed.Event) bool {
+func (monitor runtimeChangeMonitor) invalidate(event changefeed.Event) error {
+	if monitor.applyEvent == nil {
+		return nil
+	}
+	return monitor.applyEvent(event)
+}
+
+func (monitor runtimeChangeMonitor) resync(topics []changefeed.Topic) error {
+	if monitor.applyResync == nil {
+		return nil
+	}
+	return monitor.applyResync(topics)
+}
+
+func (monitor runtimeChangeMonitor) invalidatesFiles(event changefeed.Event) bool {
 	switch event.Type {
 	case changefeed.EventType(changefeed.FilesChanged):
 		return event.WatchID == workspaceWatchID && event.Workspace == monitor.workspace

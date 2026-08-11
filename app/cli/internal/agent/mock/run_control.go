@@ -252,3 +252,27 @@ func (r *Runtime) CancelRun(ctx context.Context, in agent.CancelRun) (agent.Run,
 	r.finishLocked(run, agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCanceled, Detail: strings.TrimSpace(in.Reason)}})
 	return projectRun(run), nil
 }
+
+func (r *Runtime) SteerRun(ctx context.Context, in agent.SteerRun) error {
+	if err := in.Validate(); err != nil {
+		return fmt.Errorf("mock: %w", err)
+	}
+	if err := context.Cause(ctx); err != nil {
+		return err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	run := r.runs[in.RunID]
+	if run == nil {
+		return fmt.Errorf("%w: %s", agent.ErrRunNotFound, in.RunID)
+	}
+	if run.status != agent.RunStatusRunning || run.active != in.SegmentID {
+		return fmt.Errorf("%w: run %s is not executing segment %s", agent.ErrStaleSegment, in.RunID, in.SegmentID)
+	}
+	r.next++
+	r.emitLocked(run, agent.BlockCompleted{Block: agent.Block{
+		ID: fmt.Sprintf("item_mock_%d", r.next), Kind: agent.BlockUser,
+		Text: strings.TrimSpace(in.Message.Text), Attachments: slices.Clone(in.Message.Attachments),
+	}})
+	return nil
+}

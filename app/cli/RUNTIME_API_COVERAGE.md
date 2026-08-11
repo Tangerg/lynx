@@ -25,11 +25,11 @@ resync policy; mutations need lifecycle and failure-path tests.
 | Bounded context | Exported embedded methods | Status | Current consumption and remaining work |
 | --- | --- | --- | --- |
 | Runtime lifecycle and discovery | `Discover`, `Close` | complete | Open validates protocol, run stream vocabulary, replay scope, plan recovery, topics, and closes process-owned state. |
-| Runtime invalidations | `SubscribeRuntime` | partial | `files.changed` is negotiated, watched, sequence-checked, re-fetched, reconnected, and projected into the header/reader. Add consumers for skills, MCP, schedules, sessions, runs, state, goals, and interrupts as their views land. |
+| Runtime invalidations | `SubscribeRuntime` | partial | One negotiated attach-first subscription consumes `files.changed`, `sessions.changed`, `runs.changed`, `state.changed`, and `interrupts.changed`. File events re-read workspace changes; session/run/state/interrupt events re-read the authoritative session without taking ownership from an active stream. Reconnects and sequence gaps resync every subscribed topic. Add skills, MCP, schedules, and goals when their query surfaces land. |
 | Sessions | `CreateSession`, `DeleteSession`, `ForkSession`, `GetSession`, `ListSessions`, `UpdateSession` | complete | Interactive session center, switching, creation, rename, favorite, fork, delete, and cold snapshot recovery. |
-| Session portability and rewind | `ExportSession`, `ImportSession`, `RollbackSession` | queued | The existing local transcript exporter is not a substitute for runtime portability. Add native export/import resources and authoritative rollback UI. |
+| Session portability and rewind | `ExportSession`, `ImportSession`, `RollbackSession` | complete | Runtime-authored Markdown/JSON exports, opaque JSON round-trip import, conflict-safe artifact files, authoritative rollback preview, destructive confirmation, change-before-commit rejection, and cold snapshot reinstall. |
 | Runs | `CancelRun`, `GetRun`, `ListRuns`, `ResumeRun`, `StartRun`, `SubscribeRun` | complete | Core streaming, reconnect/replay, recovery, cancellation, HITL resume, and timeline. `GetRun`/`ListRuns` are consumed by the cold session projection. |
-| Run steering | `SteerRun` | queued | Add a distinct steer-now interaction; do not disguise queued follow-ups as steering. |
+| Run steering | `SteerRun` | complete | `/steer` binds text and staged attachments to the exact observed run/segment; stale segments fail closed and refused attachments return to the live draft. Queued follow-ups remain a distinct interaction. |
 | Run resources | `GetPlan`, `ListInterrupts`, `ListItems` | complete | Folded into the authoritative cold snapshot and recovery/HITL projections. |
 | Models | `ListModels` | complete | Provider-qualified model picker and run options. |
 | Model roles | `GetEmbeddingRole`, `GetUtilityRole`, `SetEmbeddingRole`, `SetUtilityRole` | queued | Add role inspection and selection without mixing them into the primary run model picker. |
@@ -52,10 +52,9 @@ resync policy; mutations need lifecycle and failure-path tests.
 
 ## Batch order
 
-1. Workspace inspection plus `files.changed` invalidation — implemented in the
-   current batch.
+1. Workspace inspection plus `files.changed` invalidation — complete.
 2. Session rollback/portability, run steering, and session/run/state/interrupt
-   invalidations.
+   invalidations — complete.
 3. Goals, usage, model roles, and providers.
 4. Skills and MCP, including terminal authorization.
 5. Schedules, memory, knowledge, codebase, tools, hooks, docs/recipes, and

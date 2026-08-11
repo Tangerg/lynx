@@ -18,6 +18,14 @@ type runBindingStub struct {
 	resume    func(context.Context, protocol.ResumeRunRequest, embedded.RunCommandOptions) (*protocol.ResumeRunResponse, iter.Seq2[protocol.RunEvent, error], error)
 	subscribe func(context.Context, protocol.SubscribeRunRequest, embedded.RunSubscriptionOptions) (*protocol.SubscribeRunResponse, iter.Seq2[protocol.RunEvent, error], error)
 	cancel    func(context.Context, protocol.CancelRunRequest, embedded.CommandOptions) (*protocol.CancelRunResponse, error)
+	steer     func(context.Context, protocol.SteerRunRequest, embedded.CommandOptions) error
+}
+
+func (s runBindingStub) SteerRun(ctx context.Context, request protocol.SteerRunRequest, options embedded.CommandOptions) error {
+	if s.steer == nil {
+		return errors.New("unexpected steer")
+	}
+	return s.steer(ctx, request, options)
 }
 
 func (s runBindingStub) StartRun(ctx context.Context, request protocol.StartRunRequest, options embedded.RunCommandOptions) (*protocol.StartRunResponse, iter.Seq2[protocol.RunEvent, error], error) {
@@ -175,5 +183,25 @@ func TestResumeAndCancelMapControlContracts(t *testing.T) {
 	}
 	if canceled.Status != agent.RunStatusFinished || canceled.Outcome.Status != agent.OutcomeCanceled || canceled.Outcome.Detail != "stop" {
 		t.Fatalf("canceled = %+v", canceled)
+	}
+}
+
+func TestSteerRunBindsStructuredInputToTheObservedSegment(t *testing.T) {
+	stub := runBindingStub{}
+	stub.steer = func(_ context.Context, request protocol.SteerRunRequest, options embedded.CommandOptions) error {
+		if request.RunID != "run_1" || request.ExpectedSegmentID != "seg_2" || len(request.Input) != 1 || request.Input[0].Text != "focus on the parser" {
+			t.Fatalf("steer request = %+v", request)
+		}
+		if options.IdempotencyKey == "" || options.RequestMeta.ProtocolVersion != protocol.ProtocolVersion {
+			t.Fatalf("steer options = %+v", options)
+		}
+		return protocol.ErrStaleSegment
+	}
+	runtime := &Runtime{runs: stub, meta: requestMeta("test"), readFile: readFile}
+	err := runtime.SteerRun(t.Context(), agent.SteerRun{
+		RunID: "run_1", SegmentID: "seg_2", Message: agent.Message{Text: "focus on the parser"},
+	})
+	if !errors.Is(err, agent.ErrStaleSegment) {
+		t.Fatalf("SteerRun error = %v, want ErrStaleSegment", err)
 	}
 }

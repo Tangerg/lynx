@@ -56,16 +56,18 @@ Status values are `done`, `active`, `pending`, and `deferred`.
 | SESSION-01 | Session switch/create/rename/fork | Implemented | Existing behavior remains authoritative | done |
 | SESSION-02 | Paginated session center | First page only | Cursor pagination, grouping, preview, favorite, rename and delete | done |
 | SESSION-03 | Current-session timeline | No dedicated surface | Jump to retained entries and fork from an existing root run | done |
-| SESSION-04 | Runtime rewind/rollback | Runtime protocol is now exposed | Consume authoritative rollback with preview, confirmation, and recovery tests | pending |
+| SESSION-04 | Runtime rewind/rollback | Runtime protocol is now exposed | Consume authoritative rollback with preview, confirmation, and recovery tests | done |
 | CMD-01 | Searchable command palette | Implemented flat catalog | Existing palette remains authoritative | done |
 | CMD-02 | Context-aware command catalog | Handlers reject unavailable actions late | Category, availability and disabled reason share one descriptor | done |
 | CMD-03 | Pending key sequence hint | No focused hint | Only an active chord shows valid continuations | done |
 | NOTICE-01 | Run completion notifications | Implemented without focus policy | Focus-aware approval, question, failure and completion notifications | done |
 | NOTICE-02 | Terminal title state | Static session title | Unfocused action-required state is reflected and later cleared | done |
-| OUTPUT-01 | Transcript copy/export | Selected block copy only | Last assistant copy plus Markdown and JSON session export | done |
+| OUTPUT-01 | Transcript copy/export/import | Selected block copy only | Last assistant copy plus runtime-native Markdown/JSON export and portable JSON import | done |
+| RUN-01 | Exact-segment steering | Follow-ups are queue-only | Steer text/attachments bind to the observed segment and fail closed when stale | done |
 | WORKSPACE-01 | Workspace selection | New sessions inherit current workspace | Recent workspace picker and explicit directory selection | done |
 | WORKSPACE-02 | Runtime workspace inspection | Local attachment resolver only | Runtime-backed changes, diff, head, list, read and grep surfaces use the full reader | done |
 | WORKSPACE-03 | File invalidation stream | No runtime-wide subscription | Negotiated watch refetches authoritative changes after events, gaps and reconnects | done |
+| BACKEND-02 | Session-side invalidation stream | No side-channel reconciliation | Session, run, state and interrupt events trigger scoped authoritative reads without racing active streams | done |
 | BACKEND-01 | Public runtime API coverage | Core run/session methods only | Every exported embedded API is inventoried and tracked to a consumer surface and test | active |
 | QUALITY-01 | Deterministic package tests | Full suite passes | New domains use table tests and consumer-owned fakes | done |
 | QUALITY-02 | Race safety | Terminal race suite passes | Full CLI race suite passes after all batches | done |
@@ -86,7 +88,7 @@ progress without its acceptance evidence remains `active` or `pending`.
 
 ## Final verification
 
-The CLI-only implementation passed these gates on 2026-08-11:
+The CLI-only implementation passed these gates on 2026-08-12:
 
 - `go test ./...`
 - `go test -race ./...`
@@ -98,6 +100,9 @@ The CLI-only implementation passed these gates on 2026-08-11:
 
 The root package exercises the published Oolong PTY adapter through a built
 binary; package tests cover the presentation, interaction, workbench, export,
-session, workspace, attention, and architecture contracts. The runtime now
-exposes authoritative rollback, so `SESSION-04` moves into the runtime API
-consumption queue rather than being implemented as a CLI-local imitation.
+session, workspace, attention, and architecture contracts. Runtime-native
+session portability, rollback, and exact-segment steering are covered by
+protocol-shape tests, real embedded round trips, destructive-dialog resize
+tests, stale-segment failure tests, and authoritative cold reinstall. Runtime
+invalidation tests cover attach-first cold reads, topic negotiation, scope,
+sequence-gap resync, metadata-only updates, and side-channel session refresh.

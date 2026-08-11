@@ -349,6 +349,7 @@ func (a *app) prepareDestinationDraft(session agent.Session) (agent.Message, err
 }
 
 func (installation sessionInstallation) apply(a *app) {
+	previousWorkspace := a.session.Workspace
 	a.dropStream()
 	a.operations.Cancel(completionOperation)
 	a.completion.Dismiss()
@@ -372,9 +373,14 @@ func (installation sessionInstallation) apply(a *app) {
 	a.listenForSearch()
 	a.setWindowTitle()
 	a.restoreActivity(installation.snapshot)
-	a.followWorkspaceChanges()
+	if a.session.Workspace != previousWorkspace {
+		a.followRuntimeChanges()
+	}
 	if a.conversation.Phase() == agent.ConversationIdle {
 		a.message("session · " + displayTitle(installation.snapshot.Session))
+		if a.sessionInvalidated {
+			a.refreshInvalidatedSession(false)
+		}
 	}
 }
 

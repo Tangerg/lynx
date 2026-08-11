@@ -39,6 +39,7 @@ type Config struct {
 type Runtime struct {
 	binding          *embedded.Runtime
 	runs             runBinding
+	sessions         sessionBinding
 	workspaces       workspaceBinding
 	changes          changeBinding
 	meta             protocol.RequestMeta
@@ -68,6 +69,7 @@ func Open(ctx context.Context, cfg Config) (*Runtime, error) {
 	runtime := &Runtime{
 		binding:         binding,
 		runs:            binding,
+		sessions:        binding,
 		workspaces:      binding,
 		changes:         binding,
 		meta:            requestMeta(cfg.ClientVersion),
@@ -259,7 +261,7 @@ func (o *Owner) Runtime(ctx context.Context) (backend.Services, error) {
 }
 
 func (r *Runtime) services() backend.Services {
-	return backend.Services{Agent: r, Workspaces: r, Changes: r}
+	return backend.Services{Agent: r, Workspaces: r, Changes: r, Transfers: r}
 }
 
 func (o *Owner) Close() error {

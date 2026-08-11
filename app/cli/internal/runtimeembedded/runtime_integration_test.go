@@ -10,6 +10,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
 	"github.com/Tangerg/lynx/app/cli/internal/changefeed"
+	"github.com/Tangerg/lynx/app/cli/internal/sessiontransfer"
 	workspaceapi "github.com/Tangerg/lynx/app/cli/internal/workspace"
 )
 
@@ -23,9 +24,36 @@ func TestEmbeddedRuntimeSessionCatalogAndLifecycle(t *testing.T) {
 	created := requireSessionCatalog(t, runtime, workspace)
 	requireWorkspaceInspection(t, runtime, workspace)
 	forked := requireSessionMutation(t, runtime, created)
+	requireSessionPortability(t, runtime, forked.ID)
 	requireRuntimeCatalogs(t, runtime, created.ID)
 	requireSessionDeletion(t, runtime, created.ID, forked.ID)
 	requireClosedRuntime(t, runtime)
+}
+
+func requireSessionPortability(t *testing.T, runtime *Runtime, sessionID string) {
+	t.Helper()
+	markdown, err := runtime.ExportSession(t.Context(), sessiontransfer.ExportRequest{
+		SessionID: sessionID, Format: sessiontransfer.Markdown,
+	})
+	if err != nil || len(markdown.Bytes()) == 0 || markdown.Importable() {
+		t.Fatalf("Markdown ExportSession = (%q, %v)", markdown.Bytes(), err)
+	}
+	artifact, err := runtime.ExportSession(t.Context(), sessiontransfer.ExportRequest{
+		SessionID: sessionID, Format: sessiontransfer.JSON,
+	})
+	if err != nil || !artifact.Importable() {
+		t.Fatalf("JSON ExportSession = (%q, %v)", artifact.Bytes(), err)
+	}
+	imported, err := runtime.ImportSession(t.Context(), sessiontransfer.ImportRequest{Artifact: artifact})
+	if err != nil || imported.ID != sessionID {
+		t.Fatalf("ImportSession = (%+v, %v)", imported, err)
+	}
+	rolledBack, err := runtime.RollbackSession(t.Context(), agent.RollbackSession{
+		SessionID: sessionID, Scope: agent.RestoreHistory,
+	})
+	if err != nil || rolledBack.Session.ID != sessionID || len(rolledBack.Dropped) != 0 {
+		t.Fatalf("RollbackSession = (%+v, %v)", rolledBack, err)
+	}
 }
 
 func requireWorkspaceInspection(t *testing.T, runtime *Runtime, path string) {

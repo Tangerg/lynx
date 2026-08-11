@@ -42,7 +42,8 @@ Core terminal interactions are available from both the keyboard and mouse:
 - `/sessions` opens a paginated center with current-session preview, favorites, rename, delete, and load-more actions; `/timeline` jumps among retained runs or forks at a selected root run. `/workspace [directory]` resolves an explicit directory through the runtime before creating a session, while `/workspace` merges runtime-known and recent workspaces.
 - `/changes`, `/diff [path]`, `/preview <path>`, `/grep <query>`, `/browse [path]`, `/read <path>`, and `/workspaces` consume the runtime's authoritative workspace APIs and open results in the searchable Reader. The header's `ΔN` indicator is refreshed from `files.changed`; sequence gaps and reconnects trigger a full changes read instead of trusting event payloads as state.
 - Prompt history, per-session drafts, recent workspaces, and `/stash` entries are durable CLI-local authoring state. `/stashes`, `/stash-apply`, and `/stash-delete` manage saved prompts; `Ctrl+E` or `/editor` performs a lossless round trip through `LYRA_EDITOR`, `VISUAL`, or `EDITOR`.
-- `/copy-last` copies the latest durable assistant response. `/export markdown [filename]` and `/export json [filename]` render the complete runtime snapshot and publish a conflict-safe file inside the current workspace.
+- `/copy-last` copies the latest durable assistant response. `/export markdown [filename]` and `/export json [filename]` publish the runtime's native session document with conflict-safe naming; `/import <artifact.json>` validates, confirms, imports, and opens a portable session.
+- `/rollback <run-id|all> [history|files|both]` previews the authoritative root-run boundary, requires explicit confirmation, rejects a session that changed after the preview, and restores the earliest dropped text to the composer. `/steer <instruction>` targets the exact run segment currently on screen and is distinct from a queued follow-up.
 - Completion, failure, approval, and question attention signals update the terminal title and desktop notification only while the terminal is unfocused; the marker clears when the user returns.
 
 The shortcut row is contextual: idle runs emphasize send, sessions, and model selection; active runs emphasize cancel, multiline input, and tool details; transcript focus exposes entry navigation and actions. Mouse, selection, transcript scrolling, and command shortcuts remain available while output streams.
@@ -53,11 +54,11 @@ The dependency direction follows clean architecture: product policy points inwar
 
 | Layer | Packages | Responsibility |
 | --- | --- | --- |
-| Domain and ports | `internal/agent`, `internal/workspace`, `internal/changefeed`, `internal/settings` | Validated agent, workspace, invalidation, and configuration contracts with consumer-owned narrow ports. |
+| Domain and ports | `internal/agent`, `internal/workspace`, `internal/changefeed`, `internal/sessiontransfer`, `internal/settings` | Validated agent, workspace, invalidation, portable-session, and configuration contracts with consumer-owned narrow ports. |
 | Application boundary | `internal/backend` | Explicit manifest of the coherent runtime services available to the process; it contains no protocol DTOs or feature guessing. |
-| Application use cases | `internal/oneshot`, `internal/session`, `internal/promptqueue`, `internal/reconnect`, `internal/runrecovery`, `internal/workbench`, `internal/sessionexport` | Unattended run lifecycle, session opening, session-scoped follow-up ownership, bounded reconnects, authoritative cold recovery, CLI-local authoring state, and portable session reports. |
+| Application use cases | `internal/oneshot`, `internal/session`, `internal/promptqueue`, `internal/reconnect`, `internal/runrecovery`, `internal/workbench` | Unattended run lifecycle, session opening, session-scoped follow-up ownership, bounded reconnects, authoritative cold recovery, and CLI-local authoring state. |
 | Delivery adapters | `internal/cmd`, `internal/render`, `internal/terminal` | Cobra/Viper routing, text/JSON projections, and the oolong terminal UI. |
-| Infrastructure adapters | `internal/runtimeembedded`, `internal/agent/mock`, `internal/attachment`, `internal/sideload` | Production embedded/protocol anti-corruption layer, scripted test runtime, local attachment safety, and out-of-process plugins. |
+| Infrastructure adapters | `internal/runtimeembedded`, `internal/agent/mock`, `internal/attachment`, `internal/sessionartifact`, `internal/sideload` | Production embedded/protocol anti-corruption layer, scripted test runtime, local attachment and portable-artifact safety, and out-of-process plugins. |
 | Extension substrate | `internal/extensions` | Typed extension points, capability checks, dependency ordering, rollback, unload, and reload ownership. |
 | Composition root | `main.go` | Selects the runtime implementation, binds process streams and signals, and constructs the command tree. |
 
@@ -72,9 +73,11 @@ Architecture tests prevent the domain from importing Cobra, Viper, oolong, rende
 - subscribe to the exact `runId` + `segmentId`, carrying the opaque event checkpoint through transport metadata without parsing or ordering it;
 - map waiting, finished, stale-segment, invalid-cursor, and replay-unavailable errors by identity so the client can switch to cold recovery;
 - consume an entire pending interrupt set in one resume and preserve provider/model pairing plus run limits;
+- bind steering to the exact observed segment, and consume runtime-native session export, import, and rollback without duplicating the artifact schema outside the adapter;
 - negotiate the CLI's exact Run Protocol profile (`approval` and `question` interrupts, without `subagents` or `clientTools`) and reject an incompatible existing Run at the adapter boundary;
 - map authoritative item/state events into the domain projection while treating item deltas as disposable previews whose completed Item remains the terminal source of truth;
 - project workspace catalog, change, diff, file, preview, and grep resources without exposing protocol DTOs, and negotiate runtime invalidation topics before subscribing;
+- reconcile session, run, state, and interrupt invalidations through authoritative cold reads while deferring replacement until an active stream releases projection ownership;
 - treat runtime-wide events as invalidations: sequence gaps, `resync`, and reconnects re-read authoritative workspace changes;
 - honor context cancellation for every operation and stream.
 

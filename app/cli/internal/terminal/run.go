@@ -18,6 +18,7 @@ import (
 	"github.com/Tangerg/lynx/app/cli/internal/extensions"
 	"github.com/Tangerg/lynx/app/cli/internal/promptqueue"
 	"github.com/Tangerg/lynx/app/cli/internal/session"
+	"github.com/Tangerg/lynx/app/cli/internal/sessiontransfer"
 	"github.com/Tangerg/lynx/app/cli/internal/settings"
 	"github.com/Tangerg/lynx/app/cli/internal/workbench"
 	"github.com/Tangerg/lynx/app/cli/internal/workspace"
@@ -28,6 +29,7 @@ type Config struct {
 	Runtime        agent.Runtime
 	Workspaces     workspace.Service
 	Changes        changefeed.Source
+	Transfers      sessiontransfer.Service
 	SessionID      string
 	Workspace      string
 	InitialPrompt  string
@@ -75,7 +77,8 @@ func Run(ctx context.Context, cfg Config) (runErr error) {
 			active = newApp(loop, appConfig{
 				context: ctx, runtime: cfg.Runtime, snapshot: prepared.opened,
 				workspaces: cfg.Workspaces, changes: cfg.Changes,
-				registry: registry, pluginHost: extensionHost, pluginIssues: discovered.Issues,
+				transfers: cfg.Transfers,
+				registry:  registry, pluginHost: extensionHost, pluginIssues: discovered.Issues,
 				attachments: prepared.attachments,
 				settings:    prepared.settings, keyBindings: prepared.keyBindings, queue: queue,
 				workbench: prepared.workbench, initialDraft: prepared.draft, editor: prepared.editor,

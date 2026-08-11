@@ -47,6 +47,14 @@ type Message struct {
 	Attachments []Attachment
 }
 
+// SteerRun injects an instruction only into the exact running segment the user
+// is currently observing. A stale segment must be rejected, never retargeted.
+type SteerRun struct {
+	RunID     string
+	SegmentID string
+	Message   Message
+}
+
 func (m Message) Clone() Message {
 	m.Text = strings.Clone(m.Text)
 	m.Attachments = slices.Clone(m.Attachments)

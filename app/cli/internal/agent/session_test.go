@@ -1,6 +1,9 @@
 package agent
 
-import "testing"
+import (
+	"slices"
+	"testing"
+)
 
 func TestSessionSnapshotRestoresDurableProjection(t *testing.T) {
 	snapshot := SessionSnapshot{
@@ -142,5 +145,69 @@ func TestConversationRestoresCursorlessAttachmentHead(t *testing.T) {
 	stream.SegmentID = "seg_other"
 	if err := conversation.RestoreAttachedSnapshot(snapshot, stream); err == nil {
 		t.Fatal("mismatched attached stream was accepted")
+	}
+}
+
+func TestSessionSnapshotFindsTheLastDurableAssistantText(t *testing.T) {
+	snapshot := SessionSnapshot{Transcript: []Block{
+		{Kind: BlockAssistant, Text: "first"},
+		{Kind: BlockReasoning, Text: "internal"},
+		{Kind: BlockAssistant, Text: "  final answer  "},
+	}}
+	text, err := snapshot.LastAssistantText()
+	if err != nil || text != "final answer" {
+		t.Fatalf("LastAssistantText = (%q, %v)", text, err)
+	}
+}
+
+func TestConversationMatchesColdSnapshotSemantics(t *testing.T) {
+	snapshot := SessionSnapshot{
+		Session: Session{ID: "ses_1", Title: "Original", Status: SessionIdle, Workspace: "/tmp/demo"},
+		Transcript: []Block{{
+			ID: "answer_1", RunID: "run_1", Status: BlockStatusCompleted,
+			Kind: BlockAssistant, Text: "done",
+		}},
+		Runs: []Run{{
+			ID: "run_1", SessionID: "ses_1", Status: RunStatusFinished,
+			Outcome: Outcome{Status: OutcomeCompleted}, Usage: Usage{InputTokens: 5},
+		}},
+		Plan: []PlanItem{{Title: "inspect", Status: PlanDone}}, PlanRevision: 2,
+	}
+	conversation := NewConversation()
+	if err := conversation.RestoreSnapshot(snapshot); err != nil {
+		t.Fatal(err)
+	}
+
+	snapshot.Session.Title = "Renamed elsewhere"
+	if !conversation.MatchesSnapshot(snapshot) {
+		t.Fatal("session metadata changed the conversation identity")
+	}
+
+	tests := []struct {
+		name   string
+		mutate func(*SessionSnapshot)
+	}{
+		{name: "transcript", mutate: func(value *SessionSnapshot) { value.Transcript[0].Text = "changed" }},
+		{name: "plan", mutate: func(value *SessionSnapshot) { value.Plan[0].Status = PlanActive }},
+		{name: "usage", mutate: func(value *SessionSnapshot) { value.Runs[0].Usage.InputTokens++ }},
+		{name: "outcome", mutate: func(value *SessionSnapshot) { value.Runs[0].Outcome.Status = OutcomeCanceled }},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			changed := snapshot
+			changed.Transcript = cloneBlocks(snapshot.Transcript)
+			changed.Plan = slices.Clone(snapshot.Plan)
+			changed.Runs = []Run{snapshot.Runs[0].Clone()}
+			test.mutate(&changed)
+			if conversation.MatchesSnapshot(changed) {
+				t.Fatal("semantic change matched the live conversation")
+			}
+		})
+	}
+
+	invalid := snapshot
+	invalid.Session.Status = "broken"
+	if conversation.MatchesSnapshot(invalid) {
+		t.Fatal("invalid snapshot matched the live conversation")
 	}
 }

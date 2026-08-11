@@ -2,6 +2,7 @@ package terminal
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -14,7 +15,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
 	"github.com/Tangerg/lynx/app/cli/internal/agent/mock"
-	"github.com/Tangerg/lynx/app/cli/internal/sessionexport"
+	"github.com/Tangerg/lynx/app/cli/internal/sessiontransfer"
 )
 
 func TestParseExportArgumentSeparatesTheFormatFromAnOptionalSpacedFilename(t *testing.T) {
@@ -22,7 +23,7 @@ func TestParseExportArgumentSeparatesTheFormatFromAnOptionalSpacedFilename(t *te
 	if err != nil {
 		t.Fatal(err)
 	}
-	if format != sessionexport.Markdown || filename != "Project notes.md" {
+	if format != sessiontransfer.Markdown || filename != "Project notes.md" {
 		t.Fatalf("export argument = %q, %q", format, filename)
 	}
 	if _, _, err := parseExportArgument("pdf report.pdf"); err == nil {
@@ -40,12 +41,30 @@ func (h *copyTestHost) Copy(value string) bool {
 	return true
 }
 
+type outputTransferStub struct{}
+
+func (outputTransferStub) ExportSession(_ context.Context, request sessiontransfer.ExportRequest) (sessiontransfer.Document, error) {
+	if err := request.Validate(); err != nil {
+		return sessiontransfer.Document{}, err
+	}
+	if request.Format == sessiontransfer.Markdown {
+		return sessiontransfer.NewDocument(sessiontransfer.Markdown, []byte("# Runtime export\n\nstable answer\n"))
+	}
+	return sessiontransfer.NewDocument(sessiontransfer.JSON, []byte(`{"version":17}`))
+}
+
+func (outputTransferStub) ImportSession(context.Context, sessiontransfer.ImportRequest) (agent.Session, error) {
+	return agent.Session{}, errors.New("unexpected import")
+}
+
 func runUIWithCopyHost(t *testing.T, backend agent.Runtime, workspace string) (*copyTestHost, func()) {
 	t.Helper()
 	host := &copyTestHost{Host: programtest.New(t, 96, 28), copied: make(chan string, 8)}
 	ctx, cancel := context.WithCancel(t.Context())
 	done := make(chan error, 1)
-	go func() { done <- Run(ctx, Config{Runtime: backend, Workspace: workspace, Host: host}) }()
+	go func() {
+		done <- Run(ctx, Config{Runtime: backend, Transfers: outputTransferStub{}, Workspace: workspace, Host: host})
+	}()
 	var once sync.Once
 	stop := func() {
 		once.Do(func() {

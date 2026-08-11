@@ -110,6 +110,16 @@ func (s SessionSnapshot) RunByID(id string) (Run, bool) {
 	return Run{}, false
 }
 
+// LastAssistantText returns the latest durable non-empty assistant response.
+func (s SessionSnapshot) LastAssistantText() (string, error) {
+	for _, block := range slices.Backward(s.Transcript) {
+		if block.Kind == BlockAssistant && strings.TrimSpace(block.Text) != "" {
+			return strings.TrimSpace(block.Text), nil
+		}
+	}
+	return "", errors.New("the session has no assistant response to copy")
+}
+
 func (s SessionSnapshot) Validate() error {
 	if err := s.Session.Validate(); err != nil {
 		return fmt.Errorf("session snapshot: %w", err)

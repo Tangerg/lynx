@@ -8,6 +8,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
 	"github.com/Tangerg/lynx/app/cli/internal/changefeed"
+	"github.com/Tangerg/lynx/app/cli/internal/sessiontransfer"
 	"github.com/Tangerg/lynx/app/cli/internal/workspace"
 )
 
@@ -16,6 +17,7 @@ type Services struct {
 	Agent      agent.Runtime
 	Workspaces workspace.Service
 	Changes    changefeed.Source
+	Transfers  sessiontransfer.Service
 }
 
 // AgentOnly builds the intentionally reduced composition used by the scripted

@@ -192,6 +192,31 @@ func TestRuntimeForkStartsWithAFreshProjectionAtRunBoundary(t *testing.T) {
 	}
 }
 
+func TestRuntimeRollbackRestoresTheEarliestDroppedOpeningInput(t *testing.T) {
+	runtime := New()
+	result, err := runtime.RollbackSession(t.Context(), agent.RollbackSession{
+		SessionID: "ses_demo_1", Scope: agent.RestoreHistory,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Dropped) != 1 {
+		t.Fatalf("dropped runs = %+v", result.Dropped)
+	}
+	input, ok := result.FirstOpeningInput()
+	text, images := input.OpeningText()
+	if !ok || text != "Why is the cache expiry test flaky?" || images != 0 {
+		t.Fatalf("opening input = (%q, %d, %t)", text, images, ok)
+	}
+	snapshot, err := runtime.GetSession(t.Context(), "ses_demo_1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(snapshot.Runs) != 0 || len(snapshot.Transcript) != 0 {
+		t.Fatalf("snapshot after rollback = %+v", snapshot)
+	}
+}
+
 func TestRuntimeForkExcludesAnActiveTail(t *testing.T) {
 	runtime := New()
 	runtime.Script = func(string) Script {

@@ -99,6 +99,23 @@ func (r CancelRun) Validate() error {
 	return nil
 }
 
+func (r SteerRun) Validate() error {
+	var problems []error
+	if strings.TrimSpace(r.RunID) == "" {
+		problems = append(problems, errors.New("run id is empty"))
+	}
+	if strings.TrimSpace(r.SegmentID) == "" {
+		problems = append(problems, errors.New("segment id is empty"))
+	}
+	if err := r.Message.Validate(); err != nil {
+		problems = append(problems, err)
+	}
+	if err := errors.Join(problems...); err != nil {
+		return fmt.Errorf("steer run: %w", err)
+	}
+	return nil
+}
+
 func (s SegmentStream) Validate() error {
 	var problems []error
 	if strings.TrimSpace(s.RunID) == "" {

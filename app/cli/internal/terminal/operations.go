@@ -8,18 +8,20 @@ import (
 type operationSlot string
 
 const (
-	streamOperation           operationSlot = "stream"
-	completionOperation       operationSlot = "completion"
-	searchOperation           operationSlot = "search"
-	readerSearchOperation     operationSlot = "reader-search"
-	pickerCatalogOperation    operationSlot = "picker-catalog"
-	sessionCenterOperation    operationSlot = "session-center"
-	sessionChangeOperation    operationSlot = "session-change"
-	sessionOutputOperation    operationSlot = "session-output"
-	approvalCatalogOperation  operationSlot = "approval-catalog"
-	cancelRunOperation        operationSlot = "cancel-run"
-	workspaceQueryOperation   operationSlot = "workspace-query"
-	workspaceChangesOperation operationSlot = "workspace-changes"
+	streamOperation              operationSlot = "stream"
+	completionOperation          operationSlot = "completion"
+	searchOperation              operationSlot = "search"
+	readerSearchOperation        operationSlot = "reader-search"
+	pickerCatalogOperation       operationSlot = "picker-catalog"
+	sessionCenterOperation       operationSlot = "session-center"
+	sessionChangeOperation       operationSlot = "session-change"
+	sessionOutputOperation       operationSlot = "session-output"
+	approvalCatalogOperation     operationSlot = "approval-catalog"
+	cancelRunOperation           operationSlot = "cancel-run"
+	steerRunOperation            operationSlot = "steer-run"
+	workspaceQueryOperation      operationSlot = "workspace-query"
+	runtimeChangesOperation      operationSlot = "runtime-changes"
+	sessionInvalidationOperation operationSlot = "session-invalidation"
 )
 
 type operationLease struct {
@@ -104,6 +106,23 @@ func (o *operationOwner) Cancel(slot operationSlot) {
 	}
 }
 
+// Release relinquishes an exact operation lease. It is used when applying a
+// completed result may synchronously start the next coalesced operation in the
+// same slot; a stale worker can never release its successor.
+func (o *operationOwner) Release(lease operationLease) bool {
+	o.mu.Lock()
+	active, ok := o.active[lease.slot]
+	if ok && active.id == lease.id {
+		delete(o.active, lease.slot)
+	}
+	o.mu.Unlock()
+	if ok && active.id == lease.id {
+		active.cancel()
+		return true
+	}
+	return false
+}
+
 func (o *operationOwner) Close() {
 	if o == nil {
 		return
@@ -146,6 +165,25 @@ func runOperation[T any](a *app, slot operationSlot, replace bool, work func(con
 		}
 		_ = post(ctx, dispatcher, func() {
 			if !a.operations.Current(lease) || a.closed {
+				return
+			}
+			apply(result, err)
+		})
+	})
+}
+
+// runCoalescingOperation releases its exclusive slot immediately before apply.
+// The apply callback may therefore start a successor in the same slot when work
+// became stale while it was in flight.
+func runCoalescingOperation[T any](a *app, slot operationSlot, work func(context.Context) (T, error), apply func(T, error)) bool {
+	dispatcher := a.loop.Dispatcher()
+	return a.operations.Go(slot, false, func(ctx context.Context, lease operationLease) {
+		result, err := work(ctx)
+		if context.Cause(ctx) != nil {
+			return
+		}
+		_ = post(ctx, dispatcher, func() {
+			if !a.operations.Current(lease) || a.closed || !a.operations.Release(lease) {
 				return
 			}
 			apply(result, err)

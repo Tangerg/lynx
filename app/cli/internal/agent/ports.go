@@ -45,6 +45,7 @@ type SessionWriter interface {
 	CreateSession(context.Context, CreateSession) (Session, error)
 	UpdateSession(context.Context, UpdateSession) (Session, error)
 	ForkSession(context.Context, ForkSession) (Session, error)
+	RollbackSession(context.Context, RollbackSession) (RollbackResult, error)
 	DeleteSession(context.Context, DeleteSession) error
 }
 
@@ -55,6 +56,7 @@ type RunLifecycle interface {
 	StartRun(context.Context, StartRun) (SegmentStream, error)
 	ResumeRun(context.Context, ResumeRun) (SegmentStream, error)
 	SubscribeRun(context.Context, SubscribeRun) (SegmentStream, error)
+	SteerRun(context.Context, SteerRun) error
 	CancelRun(context.Context, CancelRun) (Run, error)
 }
 

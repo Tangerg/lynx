@@ -42,7 +42,8 @@ var layers = []struct {
 	{"internal/reconnect/", "reconnect"},
 	{"internal/runrecovery/", "runrecovery"},
 	{"internal/session/", "session"},
-	{"internal/sessionexport/", "sessionexport"},
+	{"internal/sessionartifact/", "sessionartifact"},
+	{"internal/sessiontransfer/", "sessiontransfer"},
 	{"internal/workbench/", "workbench"},
 	{"internal/oneshot/", "oneshot"},
 	{"internal/agent/", "agent"},
@@ -57,29 +58,30 @@ var layers = []struct {
 // dependency fail closed instead of silently weakening the architecture.
 var allowed = map[string][]string{
 	// Domain policy and generic infrastructure are the center.
-	"agent":         nil,
-	"changefeed":    nil,
-	"workspace":     nil,
-	"backend":       {"agent", "changefeed", "workspace"},
-	"settings":      {"agent"},
-	"session":       {"agent"},
-	"oneshot":       {"agent", "reconnect", "runrecovery"},
-	"extensions":    nil,
-	"promptqueue":   {"agent"},
-	"sessionexport": {"agent"},
-	"workbench":     {"agent"},
+	"agent":           nil,
+	"changefeed":      nil,
+	"workspace":       nil,
+	"backend":         {"agent", "changefeed", "sessiontransfer", "workspace"},
+	"settings":        {"agent"},
+	"session":         {"agent"},
+	"oneshot":         {"agent", "reconnect", "runrecovery"},
+	"extensions":      nil,
+	"promptqueue":     {"agent"},
+	"sessiontransfer": {"agent"},
+	"sessionartifact": {"sessiontransfer"},
+	"workbench":       {"agent"},
 
 	// Outbound adapters share domain contracts, not one another.
 	"attachment":      {"agent"},
 	"reconnect":       {"agent"},
 	"runrecovery":     {"agent"},
 	"mock":            {"agent"},
-	"runtimeembedded": {"agent", "backend", "changefeed", "workspace"},
+	"runtimeembedded": {"agent", "backend", "changefeed", "sessiontransfer", "workspace"},
 	"render":          {"agent"},
 
 	// Delivery adapters compose inward abstractions. Sideloading is the outer trust
 	// boundary around terminal contributions; cmd is the application composition root.
-	"terminal": {"agent", "attachment", "changefeed", "extensions", "promptqueue", "reconnect", "runrecovery", "session", "sessionexport", "settings", "workbench", "workspace"},
+	"terminal": {"agent", "attachment", "changefeed", "extensions", "promptqueue", "reconnect", "runrecovery", "session", "sessionartifact", "sessiontransfer", "settings", "workbench", "workspace"},
 	"sideload": {"extensions", "terminal"},
 	"cmd":      {"agent", "attachment", "backend", "extensions", "oneshot", "render", "session", "settings", "sideload", "terminal"},
 	"arch":     nil,
@@ -150,7 +152,7 @@ func TestTheLibraryStaysALibrary(t *testing.T) {
 	root := moduleRoot(t)
 	fset := token.NewFileSet()
 
-	terminalFree := []string{"agent", "backend", "changefeed", "workspace", "settings", "mock", "runtimeembedded", "attachment", "promptqueue", "reconnect", "runrecovery", "session", "sessionexport", "workbench", "oneshot", "extensions", "render"}
+	terminalFree := []string{"agent", "backend", "changefeed", "workspace", "settings", "mock", "runtimeembedded", "attachment", "promptqueue", "reconnect", "runrecovery", "session", "sessionartifact", "sessiontransfer", "workbench", "oneshot", "extensions", "render"}
 	walk(t, root, func(dir, path string) {
 		layer := layerOf(dir)
 		if !slices.Contains(terminalFree, layer) {
@@ -227,7 +229,8 @@ func TestTheRulesWouldActuallyRefuseSomething(t *testing.T) {
 		{"internal/reconnect", "internal/cmd", true},
 		{"internal/runrecovery", "internal/cmd", true},
 		{"internal/session", "internal/terminal", true},
-		{"internal/sessionexport", "internal/terminal", true},
+		{"internal/sessionartifact", "internal/terminal", true},
+		{"internal/sessiontransfer", "internal/terminal", true},
 		{"internal/workbench", "internal/terminal", true},
 		{"internal/oneshot", "internal/cmd", true},
 		{"internal/settings", "internal/terminal", true},
@@ -240,7 +243,8 @@ func TestTheRulesWouldActuallyRefuseSomething(t *testing.T) {
 		{"internal/runtimeembedded", "internal/agent", false},
 		{"internal/runtimeembedded", "internal/terminal", true},
 		{"internal/terminal", "internal/agent", false},
-		{"internal/terminal", "internal/sessionexport", false},
+		{"internal/terminal", "internal/sessionartifact", false},
+		{"internal/terminal", "internal/sessiontransfer", false},
 		{"internal/terminal", "internal/workbench", false},
 		{"internal/terminal", "internal/extensions", false},
 		{"internal/cmd", "internal/terminal", false},

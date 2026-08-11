@@ -233,7 +233,7 @@ func TestWorkspaceMonitorSubscribesBeforeItsAuthoritativeRead(t *testing.T) {
 		order = append(order, step)
 		mu.Unlock()
 	}
-	monitor := workspaceChangeMonitor{
+	monitor := runtimeChangeMonitor{
 		workspace: "/workspace",
 		source: changeSourceFunc(func(ctx context.Context, _ changefeed.Subscription) (changefeed.EventStream, error) {
 			record("subscribe")
@@ -243,7 +243,7 @@ func TestWorkspaceMonitorSubscribesBeforeItsAuthoritativeRead(t *testing.T) {
 			record("read")
 			return []workspace.Change{}, nil
 		}),
-		apply: func([]workspace.Change) error {
+		applyFiles: func([]workspace.Change) error {
 			record("apply")
 			cancel()
 			return nil

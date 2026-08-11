@@ -64,6 +64,28 @@ func (c *Conversation) SegmentID() string           { return c.segmentID }
 func (c *Conversation) Checkpoint() string          { return c.checkpoint }
 func (c *Conversation) Busy() bool                  { return c.phase != ConversationIdle }
 
+// MatchesSnapshot reports whether a cold projection carries the same
+// conversation state currently folded by this aggregate. Session metadata and
+// historical run catalogs are deliberately outside this comparison.
+func (c *Conversation) MatchesSnapshot(snapshot SessionSnapshot) bool {
+	expected := NewConversation()
+	if err := expected.RestoreSnapshot(snapshot); err != nil {
+		return false
+	}
+	if len(c.blocks) != len(expected.blocks) {
+		return false
+	}
+	for index, block := range c.blocks {
+		if !block.Equal(expected.blocks[index]) {
+			return false
+		}
+	}
+	return slices.Equal(c.plan, expected.plan) && c.planRevision == expected.planRevision &&
+		c.usage.Equal(expected.usage) && equalInteractions(c.interactions, expected.interactions) &&
+		c.outcome == expected.outcome && c.phase == expected.phase && c.runID == expected.runID &&
+		c.segmentID == expected.segmentID
+}
+
 // ApplyRunEvent validates and folds one event exactly once. It never assigns
 // ordering meaning to EventID; the stream order is the order of delivery.
 func (c *Conversation) ApplyRunEvent(envelope RunEvent) (EventAcceptance, error) {
