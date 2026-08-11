@@ -31,6 +31,7 @@ export {
   type WorkspaceGrepResult,
   type WorkspaceListFilesQuery,
   type WorkspaceKnowledgeQuery,
+  type WorkspaceCatalogQuery,
   type WorkspaceProjectSummary,
   type WorkspaceReadFileQuery,
   type AgentMemoryQuery,

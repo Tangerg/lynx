@@ -7,10 +7,12 @@ import { useT } from "@/lib/i18n";
 import { defineWorkspaceView } from "./defineWorkspaceView";
 import { useWorkspaceAgentDocs } from "@/plugins/builtin/workspace/application/workspaceQueries";
 import { workspaceAgentDocsViewModel } from "@/plugins/builtin/workspace/application/workspaceCatalogViewModel";
+import { useActiveSessionCwd } from "@/plugins/builtin/agent/public/session";
 
 function AgentDocsTab() {
   const t = useT();
-  const { data, isLoading, isError } = useWorkspaceAgentDocs();
+  const cwd = useActiveSessionCwd();
+  const { data, isLoading, isError } = useWorkspaceAgentDocs({ cwd });
   const view = workspaceAgentDocsViewModel(data ?? []);
 
   return (

@@ -30,6 +30,13 @@ export interface WorkspaceSkill {
   scope: "project" | "user";
 }
 
+// Workspace catalog reads are keyed by the session workspace. Keeping the
+// scope in the query identity prevents a catalog from one open project being
+// reused after the user switches to another.
+export interface WorkspaceCatalogQuery {
+  cwd?: string;
+}
+
 // One entry in the global self-authored skill library (skills.library.list),
 // tagged with its curator lifecycle. Distinct from WorkspaceSkill (the agent's
 // project+global discovery view): this is the management surface, which also
@@ -45,6 +52,8 @@ export interface ManagedSkill {
 // origin and sourceSession are the provenance shown to the reviewer, and
 // `revises` says an approval would overwrite a Skill that already loads.
 export interface SkillProposal {
+  /** The exact workspace against which this immutable proposal was listed. */
+  workspace: string;
   name: string;
   revision: string;
   scope: "project" | "user";
@@ -219,9 +228,15 @@ export const useWorkspaceFileHead = createParameterizedDataQuery<
 export const useWorkspaceBuiltinTools = createDataQuery<BuiltinToolSummary[]>(
   WORKSPACE_BUILTIN_TOOLS_KEY,
 );
-export const useWorkspaceSkills = createDataQuery<WorkspaceSkill[]>(WORKSPACE_SKILLS_KEY);
+export const useWorkspaceSkills = createParameterizedDataQuery<
+  WorkspaceCatalogQuery,
+  WorkspaceSkill[]
+>(WORKSPACE_SKILLS_KEY);
 export const useManagedSkills = createDataQuery<ManagedSkill[]>(WORKSPACE_MANAGED_SKILLS_KEY);
-export const useSkillProposals = createDataQuery<SkillProposal[]>(WORKSPACE_SKILL_PROPOSALS_KEY);
+export const useSkillProposals = createParameterizedDataQuery<
+  WorkspaceCatalogQuery,
+  SkillProposal[]
+>(WORKSPACE_SKILL_PROPOSALS_KEY);
 export const useAgentMemory = createParameterizedDataQuery<AgentMemoryQuery, AgentMemoryEntry[]>(
   WORKSPACE_AGENT_MEMORY_KEY,
 );
@@ -229,7 +244,10 @@ export const useWorkspaceKnowledge = createParameterizedDataQuery<
   WorkspaceKnowledgeQuery,
   WorkspaceKnowledgeEntry[]
 >(WORKSPACE_KNOWLEDGE_KEY);
-export const useWorkspaceAgentDocs = createDataQuery<WorkspaceAgentDoc[]>(WORKSPACE_AGENT_DOCS_KEY);
+export const useWorkspaceAgentDocs = createParameterizedDataQuery<
+  WorkspaceCatalogQuery,
+  WorkspaceAgentDoc[]
+>(WORKSPACE_AGENT_DOCS_KEY);
 export const useWorkspaceListFiles = createParameterizedDataQuery<
   WorkspaceListFilesQuery,
   WorkspaceFileEntry[]

@@ -9,11 +9,13 @@ import { defineWorkspaceView } from "./defineWorkspaceView";
 import { useWorkspaceSkills } from "@/plugins/builtin/workspace/application/workspaceQueries";
 import { useWorkspaceCapability } from "@/plugins/builtin/workspace/application/workspaceCapabilities";
 import { workspaceSkillsViewModel } from "@/plugins/builtin/workspace/application/workspaceCatalogViewModel";
+import { useActiveSessionCwd } from "@/plugins/builtin/agent/public/session";
 
 function SkillsTab() {
   const t = useT();
   const skillsEnabled = useWorkspaceCapability("skills");
-  const { data, isLoading, isError } = useWorkspaceSkills();
+  const cwd = useActiveSessionCwd();
+  const { data, isLoading, isError } = useWorkspaceSkills({ cwd });
   const view = workspaceSkillsViewModel(data ?? [], skillsEnabled);
 
   return (

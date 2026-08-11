@@ -5,7 +5,7 @@
 // it.
 
 import type { UseQueryResult } from "@tanstack/react-query";
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { lookupDataProvider } from "./selectors/runtime";
 
 const STATIC_QUERY_OPTIONS = {
@@ -47,7 +47,10 @@ export function createParameterizedDataQuery<P, T>(
       queryKey: [key, params],
       queryFn: resolve<T, P>(key, params),
       enabled: params !== undefined,
-      placeholderData: keepPreviousData,
+      // Parameters are resource identity, not presentation state. Reusing the
+      // prior key's value can display and mutate one session/workspace while
+      // the UI already names another. A surface whose parameter variants are
+      // genuinely interchangeable can opt into that behavior in its own hook.
       ...STATIC_QUERY_OPTIONS,
       refetchInterval: interval ? (query) => interval(query.state.data) : undefined,
     });

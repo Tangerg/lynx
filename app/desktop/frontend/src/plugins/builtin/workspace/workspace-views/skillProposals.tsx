@@ -19,10 +19,12 @@ import {
   approveSkillProposal,
   rejectSkillProposal,
 } from "@/plugins/builtin/workspace/application/skillProposalsConfig";
+import { useActiveSessionCwd } from "@/plugins/builtin/agent/public/session";
 
 function SkillProposalsTab() {
   const t = useT();
-  const { data, isLoading, isError } = useSkillProposals();
+  const cwd = useActiveSessionCwd();
+  const { data, isLoading, isError } = useSkillProposals({ cwd });
   const proposals = data ?? [];
 
   return (
@@ -81,7 +83,12 @@ function SkillProposalRow({ proposal }: { proposal: SkillProposal }) {
     [t],
   );
 
-  const handle = { name: proposal.name, revision: proposal.revision, scope: proposal.scope };
+  const handle = {
+    workspace: proposal.workspace,
+    name: proposal.name,
+    revision: proposal.revision,
+    scope: proposal.scope,
+  };
 
   return (
     <div className="px-4 py-2.5">

@@ -64,6 +64,9 @@ describe("defaultDataProviders — providers over JSON-RPC", () => {
       "diff",
       "grep",
       "file-head",
+      "skills",
+      "skill-proposals",
+      "agent-docs",
       "approval-rules",
       "list-files",
       "read-file",
@@ -72,6 +75,48 @@ describe("defaultDataProviders — providers over JSON-RPC", () => {
       expect(fetcher).toBeDefined();
       await expect(fetcher!()).rejects.toThrow(`Data provider "${key}" requires parameters`);
     }
+  });
+
+  it("workspace catalogs bind the selected project and retain proposal decision scope", async () => {
+    const { value: skills, requests: skillRequests } = await runProvider<
+      Array<{ name: string; scope: string }>
+    >("skills", [["skills.discovered.list", { data: [{ name: "verify", scope: "project" }] }]], {
+      cwd: "/work/alpha",
+    });
+    expect(skillRequests[0]?.params).toEqual({ workspace: { path: "/work/alpha" } });
+    expect(skills).toEqual([{ name: "verify", description: "", scope: "project" }]);
+
+    const { value: proposals, requests: proposalRequests } = await runProvider<
+      Array<{ workspace: string; name: string }>
+    >(
+      "skill-proposals",
+      [
+        [
+          "skills.proposals.list",
+          {
+            data: [
+              {
+                name: "verify",
+                revision: "rev_1",
+                scope: "project",
+                description: "Verify changes",
+                instructions: "Run the checks.",
+              },
+            ],
+          },
+        ],
+      ],
+      { cwd: "/work/beta" },
+    );
+    expect(proposalRequests[0]?.params).toEqual({ workspace: { path: "/work/beta" } });
+    expect(proposals[0]).toMatchObject({ workspace: "/work/beta", name: "verify" });
+
+    const { requests: docRequests } = await runProvider(
+      "agent-docs",
+      [["agentDocs.list", { data: [] }]],
+      { cwd: "/work/gamma" },
+    );
+    expect(docRequests[0]?.params).toEqual({ workspace: { path: "/work/gamma" } });
   });
 
   it("sessions: maps Page<Session>.data into AgentSessionSummary rows (updatedAt → time)", async () => {

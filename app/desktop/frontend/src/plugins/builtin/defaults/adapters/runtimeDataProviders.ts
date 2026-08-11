@@ -39,6 +39,7 @@ import type {
   WorkspaceReadFileQuery,
   WorkspaceDiff,
   AgentMemoryQuery,
+  WorkspaceCatalogQuery,
 } from "@/plugins/builtin/workspace/public/queries";
 import {
   WORKSPACE_AGENT_DOCS_KEY,
@@ -170,8 +171,9 @@ export function registerDefaultDataProviders(host: ContributingHost): void {
   });
   contribute({
     key: WORKSPACE_SKILLS_KEY,
-    fetcher: async () => {
-      const resources = await workspace();
+    fetcher: async (params) => {
+      const query = requiredParams<WorkspaceCatalogQuery>(WORKSPACE_SKILLS_KEY, params);
+      const resources = await workspace(query.cwd);
       return (await pageData(resources.skills.listDiscovered()).catch(emptyListIfUngated)).map(
         (s) => ({
           name: s.name,
@@ -192,10 +194,12 @@ export function registerDefaultDataProviders(host: ContributingHost): void {
   });
   contribute({
     key: WORKSPACE_SKILL_PROPOSALS_KEY,
-    fetcher: async () => {
-      const resources = await workspace();
+    fetcher: async (params) => {
+      const query = requiredParams<WorkspaceCatalogQuery>(WORKSPACE_SKILL_PROPOSALS_KEY, params);
+      const resources = await workspace(query.cwd);
       return (await pageData(resources.skills.listProposals()).catch(emptyListIfUngated)).map(
         (p) => ({
+          workspace: resources.ref.path,
           name: p.name,
           revision: p.revision,
           scope: p.scope,
@@ -288,8 +292,9 @@ export function registerDefaultDataProviders(host: ContributingHost): void {
   });
   contribute({
     key: WORKSPACE_AGENT_DOCS_KEY,
-    fetcher: async () => {
-      const resources = await workspace();
+    fetcher: async (params) => {
+      const query = requiredParams<WorkspaceCatalogQuery>(WORKSPACE_AGENT_DOCS_KEY, params);
+      const resources = await workspace(query.cwd);
       return (await pageData(resources.agentDocs.list()).catch(emptyListIfUngated)).map((d) => ({
         path: d.path,
         title: d.title ?? "",

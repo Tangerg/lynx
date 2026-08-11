@@ -5,6 +5,7 @@ import { createSingletonPort } from "@/lib/ports/singletonPort";
 // would act on a proposal that changed under the reviewer; scope says which
 // library an approval publishes into.
 export interface SkillProposalHandle {
+  workspace: string;
   name: string;
   revision: string;
   scope: "project" | "user";
