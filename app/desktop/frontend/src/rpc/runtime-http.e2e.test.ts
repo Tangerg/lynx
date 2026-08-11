@@ -1359,6 +1359,63 @@ for await (const line of lines) {
     await runtimeEvents.return?.();
   }, 30_000);
 
+  it("keeps headless goal runs from parking on HITL tools", async () => {
+    if (!client) throw new Error("runtime client was not initialized");
+
+    const session = await client.sessions.create({
+      workspace: { path: root },
+      title: "HTTP headless goal HITL policy",
+    });
+    const sessionId = asSessionId(session.id);
+    await expect(
+      client.goals.start({
+        sessionId,
+        objective: "E2E_HITL attempt to ask for input from this headless goal run.",
+        budget: { maxRuns: 1 },
+      }),
+    ).resolves.toMatchObject({
+      sessionId: session.id,
+      status: "active",
+      used: { runs: 0 },
+    });
+
+    let current = await client.goals.get(sessionId);
+    for (let attempt = 0; attempt < 100 && current?.status === "active"; attempt++) {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      current = await client.goals.get(sessionId);
+    }
+    expect(current).toMatchObject({
+      sessionId: session.id,
+      status: "blocked",
+      reason: { code: "runBudgetReached" },
+      used: { runs: 1 },
+    });
+
+    const runs = await client.runs.list({ sessionId });
+    expect(runs.data).toEqual([
+      expect.objectContaining({
+        sessionId: session.id,
+        status: "finished",
+        outcome: { type: "completed" },
+      }),
+    ]);
+    const ownedRun = runs.data[0];
+    if (!ownedRun) throw new Error("headless goal run disappeared");
+    await expect(
+      client.items.list({ scope: { type: "run", runId: asRunId(ownedRun.id) } }),
+    ).resolves.toMatchObject({
+      data: expect.arrayContaining([
+        expect.objectContaining({
+          type: "toolCall",
+          tool: expect.objectContaining({ name: "ask_user" }),
+        }),
+      ]),
+    });
+    await expect(
+      client.interrupts.list({ rootRunId: asRunId(ownedRun.id) }),
+    ).resolves.toMatchObject({ data: [] });
+  }, 30_000);
+
   it("stops an active goal, cancels its owned run and resumes from durable usage", async () => {
     if (!client) throw new Error("runtime client was not initialized");
 
