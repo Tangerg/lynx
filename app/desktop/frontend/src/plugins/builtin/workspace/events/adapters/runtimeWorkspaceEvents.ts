@@ -31,15 +31,20 @@ export async function subscribeRuntimeWorkspaceEvents(
   cwd: string | undefined,
   signal: AbortSignal,
 ): Promise<AsyncIterable<RuntimeEvent>> {
-  // Watches are legal only alongside files.changed, and only when the runtime offers
-  // the capability that produces them.
+  // A file watch is an optional scope on the app-wide signal stream. Resolve it
+  // before subscribing so a workspace which disappeared after its session was
+  // opened simply contributes no watch; it must not take the global sessions,
+  // runs, HITL, goal, plan, MCP, and schedule invalidations offline with it.
+  // Other resolution failures still reject and enter the subscription loop's
+  // reconnect path.
   const client = getContainer().client();
   const workspace = runtimeCapability("fileWatch")
-    ? await client.workspaces.open(cwd ? { path: cwd } : undefined)
+    ? await client.workspaces.resolve(cwd ? { path: cwd } : undefined)
     : undefined;
-  const watches = workspace
-    ? [{ watchId: "active-session", workspace: { path: workspace.ref.path } }]
-    : undefined;
+  const watches =
+    workspace?.availability === "available"
+      ? [{ watchId: "active-session", workspace: { path: workspace.ref.path } }]
+      : undefined;
   const { events } = await client.runtimeEvents.subscribe(
     { topics: [...SUBSCRIBED_TOPICS], ...(watches ? { watches } : {}) },
     signal,
