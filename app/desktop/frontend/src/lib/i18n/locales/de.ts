@@ -581,9 +581,11 @@ export const de: Record<string, string> = {
   "knowledge.disabled.title": "Wissen ist deaktiviert",
   "knowledge.disabled.sub": "Diese Runtime bietet die Wissensfunktion nicht an.",
   "knowledge.save": "Speichern",
+  "knowledge.loading": "Wird geladen…",
   "knowledge.saving": "Speichern…",
   "knowledge.revert": "Zurücksetzen",
   "knowledge.saveError": "Speichern des Wissens fehlgeschlagen",
+  "knowledge.loadError": "Das Wissen konnte nicht aktualisiert werden",
   "knowledge.updated": "aktualisiert",
   "knowledge.aria": "Wissensinhalt für {{path}}",
 

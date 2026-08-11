@@ -7,7 +7,18 @@ export interface WorkspaceKnowledgeUpdateInput {
   content: string;
 }
 
+export interface WorkspaceKnowledgeReadInput {
+  scope: WorkspaceKnowledgeScope;
+  cwd?: string;
+}
+
+export interface WorkspaceKnowledgeDocument {
+  content: string;
+  updatedAt?: string;
+}
+
 export interface WorkspaceKnowledgeGateway {
+  read(input: WorkspaceKnowledgeReadInput): Promise<WorkspaceKnowledgeDocument>;
   save(input: WorkspaceKnowledgeUpdateInput): Promise<void>;
 }
 

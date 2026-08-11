@@ -11,9 +11,16 @@ import { notifyError } from "@/plugins/sdk";
 import { cn } from "@/lib/classNames";
 import { defineWorkspaceView } from "./defineWorkspaceView";
 import {
+  loadWorkspaceKnowledge,
   saveWorkspaceKnowledge,
   useWorkspaceKnowledge,
 } from "@/plugins/builtin/workspace/application/knowledgeConfig";
+import {
+  commitKnowledgeSave,
+  editKnowledge,
+  isKnowledgeDirty,
+  openedKnowledgeEditor,
+} from "@/plugins/builtin/workspace/application/knowledgeEditor";
 import {
   type WorkspaceKnowledgeRowViewModel,
   workspaceKnowledgeViewModel,
@@ -24,21 +31,64 @@ function KnowledgeRow({ row, cwd }: { row: WorkspaceKnowledgeRowViewModel; cwd?:
   const t = useT();
   const [open, setOpen] = useState(false);
   const panelId = useId();
-  // null = pristine (textarea shows row.content); a string = user edits.
-  const [draft, setDraft] = useState<string | null>(null);
+  const [editor, setEditor] = useState(() =>
+    openedKnowledgeEditor({
+      content: row.content,
+      ...(row.updatedAt ? { updatedAt: row.updatedAt } : {}),
+    }),
+  );
+  const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const loadSequence = useRef(0);
   // Synchronous latch — `saving` state lags a render, so a double-click before
   // the disabled state applies would otherwise fire two knowledge.update writes.
   const savingRef = useRef(false);
-  const dirty = draft !== null && draft !== row.content;
+  const dirty = isKnowledgeDirty(editor);
+
+  const toggle = (): void => {
+    if (open) {
+      loadSequence.current += 1;
+      setLoading(false);
+      setOpen(false);
+      return;
+    }
+    setOpen(true);
+    // A collapsed dirty editor is an intentional local draft. Reopening must
+    // never let a later server read replace it.
+    if (dirty) return;
+
+    const sequence = ++loadSequence.current;
+    setLoading(true);
+    loadWorkspaceKnowledge({ scope: row.scope, cwd })
+      .then((document) => {
+        if (loadSequence.current === sequence) setEditor(openedKnowledgeEditor(document));
+      })
+      .catch((err: unknown) => {
+        if (loadSequence.current !== sequence) return;
+        setEditor(
+          openedKnowledgeEditor({
+            content: row.content,
+            ...(row.updatedAt ? { updatedAt: row.updatedAt } : {}),
+          }),
+        );
+        notifyError(t("knowledge.loadError"), {
+          description: err instanceof Error ? err.message : String(err),
+          source: "knowledge",
+        });
+      })
+      .finally(() => {
+        if (loadSequence.current === sequence) setLoading(false);
+      });
+  };
 
   const save = (): void => {
     if (!dirty || savingRef.current) return;
+    const savedContent = editor.draft;
     savingRef.current = true;
     setSaving(true);
-    saveWorkspaceKnowledge({ scope: row.scope, cwd, content: draft })
+    saveWorkspaceKnowledge({ scope: row.scope, cwd, content: savedContent })
       .then(() => {
-        setDraft(null);
+        setEditor((current) => commitKnowledgeSave(current, savedContent));
       })
       .catch((err: unknown) => {
         notifyError(t("knowledge.saveError"), {
@@ -58,7 +108,7 @@ function KnowledgeRow({ row, cwd }: { row: WorkspaceKnowledgeRowViewModel; cwd?:
         type="button"
         aria-expanded={open}
         aria-controls={panelId}
-        onClick={() => setOpen((v) => !v)}
+        onClick={toggle}
         className="grid grid-cols-[14px_minmax(0,1fr)_auto] items-center gap-2 border-0 bg-transparent px-4 py-2 text-left hover:bg-hover"
       >
         <Icon
@@ -78,22 +128,37 @@ function KnowledgeRow({ row, cwd }: { row: WorkspaceKnowledgeRowViewModel; cwd?:
         <div id={panelId} className="flex flex-col gap-2 px-4 pb-3 pl-10">
           <TextArea
             aria-label={t("knowledge.aria", { path: row.path })}
-            value={draft ?? row.content}
-            onChange={(e) => setDraft(e.target.value)}
+            value={editor.draft}
+            disabled={loading}
+            aria-busy={loading}
+            onChange={(e) => setEditor((current) => editKnowledge(current, e.target.value))}
             spellCheck={false}
             rows={12}
             className="text-fg-soft"
           />
           <div className="flex items-center gap-2">
-            <PillButton size="sm" variant="accent" disabled={!dirty || saving} onClick={save}>
-              {saving ? t("knowledge.saving") : t("knowledge.save")}
+            <PillButton
+              size="sm"
+              variant="accent"
+              disabled={!dirty || saving || loading}
+              onClick={save}
+            >
+              {loading
+                ? t("knowledge.loading")
+                : saving
+                  ? t("knowledge.saving")
+                  : t("knowledge.save")}
             </PillButton>
-            <PillButton size="sm" disabled={!dirty || saving} onClick={() => setDraft(null)}>
+            <PillButton
+              size="sm"
+              disabled={!dirty || saving || loading}
+              onClick={() => setEditor((current) => editKnowledge(current, current.content))}
+            >
               {t("knowledge.revert")}
             </PillButton>
-            {row.updatedAt && (
+            {editor.updatedAt && (
               <span className="ml-auto text-ui-xs text-fg-faint">
-                {t("knowledge.updated")} {new Date(row.updatedAt).toLocaleString()}
+                {t("knowledge.updated")} {new Date(editor.updatedAt).toLocaleString()}
               </span>
             )}
           </div>
@@ -140,7 +205,10 @@ function KnowledgeTab() {
         {(rows) => (
           <div className="flex flex-col">
             {rows.map((m) => (
-              <KnowledgeRow key={m.id} row={m} cwd={cwd} />
+              // The editor draft is workspace-bound. Reusing a scope row after
+              // session navigation could otherwise save the old workspace's
+              // draft through the new workspace binding.
+              <KnowledgeRow key={`${cwd ?? ""}:${m.id}`} row={m} cwd={cwd} />
             ))}
           </div>
         )}

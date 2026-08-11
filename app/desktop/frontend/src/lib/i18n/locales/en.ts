@@ -835,9 +835,11 @@ export const en: Record<string, string> = {
   "knowledge.disabled.title": "Knowledge is off",
   "knowledge.disabled.sub": "This runtime doesn't advertise the knowledge feature.",
   "knowledge.save": "Save",
+  "knowledge.loading": "Loading…",
   "knowledge.saving": "Saving…",
   "knowledge.revert": "Revert",
   "knowledge.saveError": "Knowledge save failed",
+  "knowledge.loadError": "Knowledge could not be refreshed",
   "knowledge.updated": "updated",
   "knowledge.aria": "Knowledge content for {{path}}",
 

@@ -580,9 +580,11 @@ export const es: Record<string, string> = {
   "knowledge.disabled.title": "Conocimiento desactivado",
   "knowledge.disabled.sub": "Este runtime no ofrece la funcionalidad de conocimiento.",
   "knowledge.save": "Guardar",
+  "knowledge.loading": "Cargando…",
   "knowledge.saving": "Guardando…",
   "knowledge.revert": "Revertir",
   "knowledge.saveError": "Error al guardar el conocimiento",
+  "knowledge.loadError": "No se pudo actualizar el conocimiento",
   "knowledge.updated": "actualizado",
   "knowledge.aria": "Contenido de conocimiento para {{path}}",
 

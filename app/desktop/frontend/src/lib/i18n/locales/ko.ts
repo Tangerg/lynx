@@ -569,9 +569,11 @@ export const ko: Record<string, string> = {
   "knowledge.disabled.title": "지식 기능이 꺼져 있음",
   "knowledge.disabled.sub": "이 런타임은 지식 기능을 제공하지 않습니다.",
   "knowledge.save": "저장",
+  "knowledge.loading": "불러오는 중…",
   "knowledge.saving": "저장 중…",
   "knowledge.revert": "되돌리기",
   "knowledge.saveError": "지식 저장 실패",
+  "knowledge.loadError": "지식 내용을 새로 불러올 수 없습니다",
   "knowledge.updated": "업데이트됨",
   "knowledge.aria": "{{path}}의 지식 내용",
 
