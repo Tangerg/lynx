@@ -32,11 +32,13 @@ var layers = []struct {
 }{
 	{"internal/agent/mock/", "mock"},
 	{"internal/runtimeembedded/", "runtimeembedded"},
+	{"internal/agentmemory/", "agentmemory"},
 	{"internal/changefeed/", "changefeed"},
 	{"internal/workspace/", "workspace"},
 	{"internal/usage/", "usage"},
 	{"internal/modelconfig/", "modelconfig"},
 	{"internal/goal/", "goal"},
+	{"internal/knowledge/", "knowledge"},
 	{"internal/skills/", "skills"},
 	{"internal/mcp/", "mcp"},
 	{"internal/schedule/", "schedule"},
@@ -65,15 +67,17 @@ var layers = []struct {
 var allowed = map[string][]string{
 	// Domain policy and generic infrastructure are the center.
 	"agent":           nil,
+	"agentmemory":     nil,
 	"changefeed":      nil,
 	"workspace":       nil,
 	"usage":           nil,
 	"modelconfig":     nil,
 	"goal":            nil,
+	"knowledge":       nil,
 	"skills":          nil,
 	"mcp":             nil,
 	"schedule":        nil,
-	"backend":         {"agent", "changefeed", "goal", "mcp", "modelconfig", "schedule", "sessiontransfer", "skills", "usage", "workspace"},
+	"backend":         {"agent", "agentmemory", "changefeed", "goal", "knowledge", "mcp", "modelconfig", "schedule", "sessiontransfer", "skills", "usage", "workspace"},
 	"settings":        {"agent"},
 	"session":         {"agent"},
 	"oneshot":         {"agent", "reconnect", "runrecovery"},
@@ -88,12 +92,12 @@ var allowed = map[string][]string{
 	"reconnect":       {"agent"},
 	"runrecovery":     {"agent"},
 	"mock":            {"agent"},
-	"runtimeembedded": {"agent", "backend", "changefeed", "goal", "mcp", "modelconfig", "schedule", "sessiontransfer", "skills", "usage", "workspace"},
+	"runtimeembedded": {"agent", "agentmemory", "backend", "changefeed", "goal", "knowledge", "mcp", "modelconfig", "schedule", "sessiontransfer", "skills", "usage", "workspace"},
 	"render":          {"agent"},
 
 	// Delivery adapters compose inward abstractions. Sideloading is the outer trust
 	// boundary around terminal contributions; cmd is the application composition root.
-	"terminal": {"agent", "attachment", "changefeed", "extensions", "goal", "mcp", "modelconfig", "promptqueue", "reconnect", "runrecovery", "schedule", "session", "sessionartifact", "sessiontransfer", "settings", "skills", "usage", "workbench", "workspace"},
+	"terminal": {"agent", "agentmemory", "attachment", "changefeed", "extensions", "goal", "knowledge", "mcp", "modelconfig", "promptqueue", "reconnect", "runrecovery", "schedule", "session", "sessionartifact", "sessiontransfer", "settings", "skills", "usage", "workbench", "workspace"},
 	"sideload": {"extensions", "terminal"},
 	"cmd":      {"agent", "attachment", "backend", "extensions", "oneshot", "render", "session", "settings", "sideload", "terminal"},
 	"arch":     nil,
@@ -164,7 +168,7 @@ func TestTheLibraryStaysALibrary(t *testing.T) {
 	root := moduleRoot(t)
 	fset := token.NewFileSet()
 
-	terminalFree := []string{"agent", "backend", "changefeed", "goal", "mcp", "modelconfig", "schedule", "skills", "usage", "workspace", "settings", "mock", "runtimeembedded", "attachment", "promptqueue", "reconnect", "runrecovery", "session", "sessionartifact", "sessiontransfer", "workbench", "oneshot", "extensions", "render"}
+	terminalFree := []string{"agent", "agentmemory", "backend", "changefeed", "goal", "knowledge", "mcp", "modelconfig", "schedule", "skills", "usage", "workspace", "settings", "mock", "runtimeembedded", "attachment", "promptqueue", "reconnect", "runrecovery", "session", "sessionartifact", "sessiontransfer", "workbench", "oneshot", "extensions", "render"}
 	walk(t, root, func(dir, path string) {
 		layer := layerOf(dir)
 		if !slices.Contains(terminalFree, layer) {

@@ -7,8 +7,10 @@ import (
 	"errors"
 
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
+	"github.com/Tangerg/lynx/app/cli/internal/agentmemory"
 	"github.com/Tangerg/lynx/app/cli/internal/changefeed"
 	"github.com/Tangerg/lynx/app/cli/internal/goal"
+	"github.com/Tangerg/lynx/app/cli/internal/knowledge"
 	"github.com/Tangerg/lynx/app/cli/internal/mcp"
 	"github.com/Tangerg/lynx/app/cli/internal/modelconfig"
 	"github.com/Tangerg/lynx/app/cli/internal/schedule"
@@ -30,6 +32,8 @@ type Services struct {
 	Skills      skills.Service
 	MCP         mcp.Service
 	Schedules   schedule.Service
+	AgentMemory agentmemory.Service
+	Knowledge   knowledge.Service
 }
 
 // AgentOnly builds the intentionally reduced composition used by the scripted

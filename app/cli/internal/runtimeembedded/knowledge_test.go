@@ -1,0 +1,113 @@
+package runtimeembedded
+
+import (
+	"context"
+	"testing"
+	"time"
+
+	"github.com/Tangerg/lynx/app/runtime/embedded"
+	"github.com/Tangerg/lynx/app/runtime/protocol"
+
+	"github.com/Tangerg/lynx/app/cli/internal/knowledge"
+)
+
+type knowledgeBindingStub struct {
+	t       *testing.T
+	updates []protocol.UpdateKnowledgeRequest
+	updated time.Time
+	listed  *protocol.Page[protocol.KnowledgeEntry]
+	nilList bool
+}
+
+func (stub *knowledgeBindingStub) ListKnowledge(_ context.Context, request protocol.WorkspaceQuery, options embedded.CallOptions) (*protocol.Page[protocol.KnowledgeEntry], error) {
+	stub.assertMeta(options.RequestMeta)
+	if request.Workspace.Path != "/workspace" {
+		stub.t.Fatalf("list request = %+v", request)
+	}
+	if stub.nilList {
+		return nil, nil
+	}
+	if stub.listed != nil {
+		return stub.listed, nil
+	}
+	return protocol.NewPage([]protocol.KnowledgeEntry{{
+		Scope: protocol.KnowledgeScopeProjectRoot, Content: "project rules", UpdatedAt: stub.updated,
+	}}), nil
+}
+
+func TestKnowledgeAdapterRejectsUnaddressableCatalogs(t *testing.T) {
+	now := time.Now()
+	duplicate := protocol.KnowledgeEntry{Scope: protocol.KnowledgeScopeHome, Content: "prefs", UpdatedAt: now}
+	for _, test := range []struct {
+		name    string
+		listed  *protocol.Page[protocol.KnowledgeEntry]
+		nilList bool
+	}{
+		{name: "nil page", nilList: true},
+		{name: "continuation without request cursor", listed: &protocol.Page[protocol.KnowledgeEntry]{NextCursor: "next"}},
+		{name: "duplicate scope", listed: &protocol.Page[protocol.KnowledgeEntry]{Data: []protocol.KnowledgeEntry{duplicate, duplicate}}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			stub := &knowledgeBindingStub{t: t, updated: now, listed: test.listed, nilList: test.nilList}
+			adapter := &knowledgeAdapter{runtime: &Runtime{knowledge: stub, meta: requestMeta("test")}}
+			if _, err := adapter.Entries(t.Context(), "/workspace"); err == nil {
+				t.Fatal("unaddressable catalog was accepted")
+			}
+		})
+	}
+}
+
+func (stub *knowledgeBindingStub) GetKnowledge(_ context.Context, request protocol.GetKnowledgeRequest, options embedded.CallOptions) (*protocol.KnowledgeEntry, error) {
+	stub.assertMeta(options.RequestMeta)
+	if request.Scope == protocol.KnowledgeScopeHome {
+		if request.Workspace != nil {
+			stub.t.Fatalf("home get leaked workspace: %+v", request)
+		}
+	} else if request.Workspace == nil || request.Workspace.Path != "/workspace" {
+		stub.t.Fatalf("workspace get request = %+v", request)
+	}
+	return &protocol.KnowledgeEntry{Scope: request.Scope, Content: "document"}, nil
+}
+
+func (stub *knowledgeBindingStub) UpdateKnowledge(_ context.Context, request protocol.UpdateKnowledgeRequest, options embedded.CommandOptions) error {
+	stub.assertMeta(options.RequestMeta)
+	if options.IdempotencyKey == "" {
+		stub.t.Fatal("update has no idempotency key")
+	}
+	stub.updates = append(stub.updates, request)
+	return nil
+}
+
+func (stub *knowledgeBindingStub) assertMeta(meta protocol.RequestMeta) {
+	stub.t.Helper()
+	if meta.ProtocolVersion != protocol.ProtocolVersion {
+		stub.t.Fatalf("request meta = %+v", meta)
+	}
+}
+
+func TestKnowledgeAdapterKeepsCascadeScopeAndVerbatimContent(t *testing.T) {
+	stub := &knowledgeBindingStub{t: t, updated: time.Now()}
+	adapter := &knowledgeAdapter{runtime: &Runtime{knowledge: stub, meta: requestMeta("test")}}
+	entries, err := adapter.Entries(t.Context(), "/workspace")
+	if err != nil || len(entries) != 1 || entries[0].UpdatedAt == nil {
+		t.Fatalf("Entries = (%+v, %v)", entries, err)
+	}
+	project, err := knowledge.NewTarget(knowledge.ProjectRoot, "/workspace")
+	if err != nil {
+		t.Fatal(err)
+	}
+	entry, err := adapter.Document(t.Context(), project)
+	if err != nil || entry.Scope != knowledge.ProjectRoot || entry.Content != "document" {
+		t.Fatalf("Document = (%+v, %v)", entry, err)
+	}
+	home, err := knowledge.NewTarget(knowledge.Home, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := adapter.Save(t.Context(), home, "line one\nline two\n"); err != nil {
+		t.Fatal(err)
+	}
+	if len(stub.updates) != 1 || stub.updates[0].Workspace != nil || stub.updates[0].Content != "line one\nline two\n" {
+		t.Fatalf("updates = %+v", stub.updates)
+	}
+}

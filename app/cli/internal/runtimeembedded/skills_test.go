@@ -132,9 +132,11 @@ func TestSkillAdapterProjectsCatalogsAndExactMutationReferences(t *testing.T) {
 func TestServicesExposeOnlyAdvertisedOptionalFeatures(t *testing.T) {
 	runtime := &Runtime{enabledFeatures: map[string]struct{}{
 		protocol.FeatureSkills: {}, protocol.FeatureMCP: {}, protocol.FeatureSchedules: {},
+		protocol.FeatureAgentMemory: {}, protocol.FeatureKnowledge: {},
 	}}
 	services := runtime.services()
-	if services.Skills == nil || services.MCP == nil || services.Schedules == nil || services.Goals != nil {
+	if services.Skills == nil || services.MCP == nil || services.Schedules == nil ||
+		services.AgentMemory == nil || services.Knowledge == nil || services.Goals != nil {
 		t.Fatalf("services = %+v", services)
 	}
 }

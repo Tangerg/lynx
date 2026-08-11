@@ -13,10 +13,12 @@ import (
 	"github.com/Tangerg/oolong/core/term"
 
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
+	"github.com/Tangerg/lynx/app/cli/internal/agentmemory"
 	"github.com/Tangerg/lynx/app/cli/internal/attachment"
 	"github.com/Tangerg/lynx/app/cli/internal/changefeed"
 	"github.com/Tangerg/lynx/app/cli/internal/extensions"
 	"github.com/Tangerg/lynx/app/cli/internal/goal"
+	"github.com/Tangerg/lynx/app/cli/internal/knowledge"
 	"github.com/Tangerg/lynx/app/cli/internal/mcp"
 	"github.com/Tangerg/lynx/app/cli/internal/modelconfig"
 	"github.com/Tangerg/lynx/app/cli/internal/promptqueue"
@@ -42,6 +44,8 @@ type Config struct {
 	Skills         skills.Service
 	MCP            mcp.Service
 	Schedules      schedule.Service
+	AgentMemory    agentmemory.Service
+	Knowledge      knowledge.Service
 	SessionID      string
 	Workspace      string
 	InitialPrompt  string
@@ -91,6 +95,7 @@ func Run(ctx context.Context, cfg Config) (runErr error) {
 				workspaces: cfg.Workspaces, changes: cfg.Changes,
 				transfers: cfg.Transfers, usage: cfg.Usage, modelConfig: cfg.ModelConfig,
 				goals: cfg.Goals, skills: cfg.Skills, mcp: cfg.MCP, schedules: cfg.Schedules,
+				agentMemory: cfg.AgentMemory, knowledge: cfg.Knowledge,
 				registry: registry, pluginHost: extensionHost, pluginIssues: discovered.Issues,
 				attachments: prepared.attachments,
 				settings:    prepared.settings, keyBindings: prepared.keyBindings, queue: queue,

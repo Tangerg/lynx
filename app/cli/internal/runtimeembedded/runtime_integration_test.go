@@ -9,7 +9,9 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/protocol"
 
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
+	"github.com/Tangerg/lynx/app/cli/internal/agentmemory"
 	"github.com/Tangerg/lynx/app/cli/internal/changefeed"
+	"github.com/Tangerg/lynx/app/cli/internal/knowledge"
 	"github.com/Tangerg/lynx/app/cli/internal/schedule"
 	"github.com/Tangerg/lynx/app/cli/internal/sessiontransfer"
 	workspaceapi "github.com/Tangerg/lynx/app/cli/internal/workspace"
@@ -27,8 +29,52 @@ func TestEmbeddedRuntimeSessionCatalogAndLifecycle(t *testing.T) {
 	forked := requireSessionMutation(t, runtime, created)
 	requireSessionPortability(t, runtime, forked.ID)
 	requireRuntimeCatalogs(t, runtime, created.ID, created.Workspace)
+	requireContextManagement(t, runtime, created.Workspace)
 	requireSessionDeletion(t, runtime, created.ID, forked.ID)
 	requireClosedRuntime(t, runtime)
+}
+
+func requireContextManagement(t *testing.T, runtime *Runtime, workspace string) {
+	t.Helper()
+	services := runtime.services()
+	if services.AgentMemory == nil || services.Knowledge == nil {
+		t.Fatalf("context services were not advertised: %+v", services)
+	}
+	userTarget, err := agentmemory.NewTarget(agentmemory.User, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	added, err := services.AgentMemory.Add(t.Context(), userTarget, "integration preference")
+	if err != nil {
+		t.Fatalf("Add agent memory: %v", err)
+	}
+	items, err := services.AgentMemory.Items(t.Context(), userTarget)
+	if err != nil || len(items) != 1 || items[0].ID != added.ID {
+		t.Fatalf("Items agent memory = (%+v, %v)", items, err)
+	}
+	pinned := true
+	updated, err := services.AgentMemory.Update(t.Context(), agentmemory.Patch{ID: added.ID, Pinned: &pinned})
+	if err != nil || !updated.Pinned {
+		t.Fatalf("Update agent memory = (%+v, %v)", updated, err)
+	}
+	if err := services.AgentMemory.Delete(t.Context(), added.ID); err != nil {
+		t.Fatalf("Delete agent memory: %v", err)
+	}
+	entries, err := services.Knowledge.Entries(t.Context(), workspace)
+	if err != nil {
+		t.Fatalf("Entries knowledge = (%+v, %v)", entries, err)
+	}
+	target, err := knowledge.NewTarget(knowledge.WorkingDirectory, workspace)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := services.Knowledge.Save(t.Context(), target, "# Integration knowledge\n"); err != nil {
+		t.Fatalf("Save knowledge: %v", err)
+	}
+	document, err := services.Knowledge.Document(t.Context(), target)
+	if err != nil || document.Content != "# Integration knowledge\n" {
+		t.Fatalf("Document knowledge = (%+v, %v)", document, err)
+	}
 }
 
 func requireSessionPortability(t *testing.T, runtime *Runtime, sessionID string) {
@@ -293,7 +339,8 @@ func TestOwnerOpensOnceAndRefusesReopenAfterClose(t *testing.T) {
 	if first != second {
 		t.Fatal("owner opened more than one runtime")
 	}
-	if first.Goals == nil || first.Skills == nil || first.MCP == nil || first.Schedules == nil {
+	if first.Goals == nil || first.Skills == nil || first.MCP == nil || first.Schedules == nil ||
+		first.AgentMemory == nil || first.Knowledge == nil {
 		t.Fatalf("advertised optional services were not composed: %+v", first)
 	}
 	if err := owner.Close(); err != nil {

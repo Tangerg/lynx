@@ -29,6 +29,8 @@ const (
 	mcpOperation                 operationSlot = "mcp"
 	mcpAuthorizationOperation    operationSlot = "mcp-authorization"
 	scheduleOperation            operationSlot = "schedule"
+	agentMemoryOperation         operationSlot = "agent-memory"
+	knowledgeOperation           operationSlot = "knowledge"
 )
 
 type operationLease struct {

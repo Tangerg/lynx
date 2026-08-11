@@ -72,6 +72,8 @@ Status values are `done`, `active`, `pending`, and `deferred`.
 | BACKEND-04 | Skill governance surfaces | Skill APIs and `skills.changed` were not consumed | Workspace discovery, managed lifecycle, immutable proposal review, resize-safe confirmation, and authoritative invalidation refresh | done |
 | BACKEND-05 | MCP connection surfaces | MCP APIs and `mcp.changed` were not consumed | Secret-safe server lifecycle, tool schemas, probes, reconnect, browser authorization polling, resize-safe editing, and authoritative invalidation refresh | done |
 | BACKEND-06 | Scheduled-run surfaces | Schedule APIs and `schedules.changed` were not consumed | Cursor-complete catalog, revision-guarded editing, enable/disable, immediate run handles, destructive confirmation, resize-safe forms, and authoritative invalidation refresh | done |
+| BACKEND-07 | Governed agent memory | Agent memory APIs were not consumed | Project/user partitions, provenance, pending review, pin/edit/add, confirmed decisions/deletion, resize-safe multiline authoring, and authoritative post-mutation reads | done |
+| BACKEND-08 | Human-authored knowledge | Knowledge APIs were not consumed | LYRA.md cascade list/get/update, exact scope context, verbatim multiline editing/clearing, resize safety, and authoritative post-save reads | done |
 | BACKEND-01 | Public runtime API coverage | Core run/session methods only | Every exported embedded API is inventoried and tracked to a consumer surface and test | active |
 | QUALITY-01 | Deterministic package tests | Full suite passes | New domains use table tests and consumer-owned fakes | done |
 | QUALITY-02 | Race safety | Terminal race suite passes | Full CLI race suite passes after all batches | done |

@@ -48,6 +48,11 @@ type Runtime struct {
 	skills           skillBinding
 	mcp              mcpBinding
 	schedules        scheduleBinding
+	agentMemory      agentMemoryBinding
+	knowledge        knowledgeBinding
+	servicePortsOnce sync.Once
+	agentMemoryPort  *agentMemoryAdapter
+	knowledgePort    *knowledgeAdapter
 	meta             protocol.RequestMeta
 	readFile         func(string) ([]byte, error)
 	supportedTopics  map[changefeed.Topic]struct{}
@@ -85,6 +90,8 @@ func Open(ctx context.Context, cfg Config) (*Runtime, error) {
 		skills:          binding,
 		mcp:             binding,
 		schedules:       binding,
+		agentMemory:     binding,
+		knowledge:       binding,
 		meta:            requestMeta(cfg.ClientVersion),
 		readFile:        readFile,
 		supportedTopics: make(map[changefeed.Topic]struct{}),
@@ -280,6 +287,10 @@ func (o *Owner) Runtime(ctx context.Context) (backend.Services, error) {
 }
 
 func (r *Runtime) services() backend.Services {
+	r.servicePortsOnce.Do(func() {
+		r.agentMemoryPort = &agentMemoryAdapter{runtime: r}
+		r.knowledgePort = &knowledgeAdapter{runtime: r}
+	})
 	services := backend.Services{
 		Agent: r, Workspaces: r, Changes: r, Transfers: r,
 		Usage: r, ModelConfig: r,
@@ -295,6 +306,12 @@ func (r *Runtime) services() backend.Services {
 	}
 	if r.supportsFeature(protocol.FeatureSchedules) {
 		services.Schedules = r
+	}
+	if r.supportsFeature(protocol.FeatureAgentMemory) {
+		services.AgentMemory = r.agentMemoryPort
+	}
+	if r.supportsFeature(protocol.FeatureKnowledge) {
+		services.Knowledge = r.knowledgePort
 	}
 	return services
 }

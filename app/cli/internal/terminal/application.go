@@ -16,10 +16,12 @@ import (
 	"github.com/Tangerg/oolong/highlight"
 
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
+	"github.com/Tangerg/lynx/app/cli/internal/agentmemory"
 	"github.com/Tangerg/lynx/app/cli/internal/attachment"
 	"github.com/Tangerg/lynx/app/cli/internal/changefeed"
 	"github.com/Tangerg/lynx/app/cli/internal/extensions"
 	"github.com/Tangerg/lynx/app/cli/internal/goal"
+	"github.com/Tangerg/lynx/app/cli/internal/knowledge"
 	"github.com/Tangerg/lynx/app/cli/internal/mcp"
 	"github.com/Tangerg/lynx/app/cli/internal/modelconfig"
 	"github.com/Tangerg/lynx/app/cli/internal/promptqueue"
@@ -72,6 +74,8 @@ type app struct {
 	skills       skills.Service
 	mcp          mcp.Service
 	schedules    schedule.Service
+	agentMemory  agentmemory.Service
+	knowledge    knowledge.Service
 	artifacts    sessionartifact.Store
 	session      agent.Session
 	registry     *extensions.Registry
@@ -120,6 +124,7 @@ type app struct {
 	providerDialog      *kit.Dialog
 	mcpDialog           *kit.Dialog
 	scheduleDialog      *kit.Dialog
+	contextEditorDialog *kit.Dialog
 	questionnaire       *questionnaire
 	questionDialog      *kit.Dialog
 	interactionReview   *interactionReview
@@ -176,6 +181,8 @@ type appConfig struct {
 	skills       skills.Service
 	mcp          mcp.Service
 	schedules    schedule.Service
+	agentMemory  agentmemory.Service
+	knowledge    knowledge.Service
 	snapshot     agent.SessionSnapshot
 	registry     *extensions.Registry
 	pluginHost   *extensions.Host
@@ -213,6 +220,7 @@ func newApp(loop *program.Runtime, cfg appConfig) *app {
 		ctx: cfg.context, loop: loop, runtime: cfg.runtime, workspaces: cfg.workspaces,
 		changes: cfg.changes, transfers: cfg.transfers, usage: cfg.usage, modelConfig: cfg.modelConfig,
 		goals: cfg.goals, skills: cfg.skills, mcp: cfg.mcp, schedules: cfg.schedules,
+		agentMemory: cfg.agentMemory, knowledge: cfg.knowledge,
 		session: cfg.snapshot.Session, registry: cfg.registry,
 		pluginHost: cfg.pluginHost, pluginIssues: cfg.pluginIssues,
 		conversation:       agent.NewConversation(),

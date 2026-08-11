@@ -86,6 +86,17 @@ func builtinCommands() []localCommand {
 			localCommand{Descriptor: CommandDescriptor{Name: "schedule-delete", Title: "delete a schedule", Takes: true}, Available: availableWithSchedules, Run: func(a *app, identity string) error { return a.PrepareDeleteSchedule(identity) }},
 		),
 		commandGroup(commandCategoryContext,
+			localCommand{Descriptor: CommandDescriptor{Name: "memory", Title: "inspect governed agent memory by scope", Takes: true}, Available: availableWithAgentMemory, Run: func(a *app, scope string) error { return a.ShowAgentMemory(scope) }},
+			localCommand{Descriptor: CommandDescriptor{Name: "memory-add", Title: "author a new active memory item", Takes: true}, Available: availableWithAgentMemory, Run: func(a *app, scope string) error { return a.AddAgentMemory(scope) }},
+			localCommand{Descriptor: CommandDescriptor{Name: "memory-edit", Title: "edit memory by scope and id", Takes: true}, Available: availableWithAgentMemory, Run: func(a *app, identity string) error { return a.EditAgentMemory(identity) }},
+			localCommand{Descriptor: CommandDescriptor{Name: "memory-pin", Title: "pin memory by scope and id", Takes: true}, Available: availableWithAgentMemory, Run: func(a *app, identity string) error { return a.SetAgentMemoryPinned(identity, true) }},
+			localCommand{Descriptor: CommandDescriptor{Name: "memory-unpin", Title: "unpin memory by scope and id", Takes: true}, Available: availableWithAgentMemory, Run: func(a *app, identity string) error { return a.SetAgentMemoryPinned(identity, false) }},
+			localCommand{Descriptor: CommandDescriptor{Name: "memory-approve", Title: "approve a pending memory proposal", Takes: true}, Available: availableWithAgentMemory, Run: func(a *app, identity string) error { return a.PrepareAgentMemoryReview(identity, true) }},
+			localCommand{Descriptor: CommandDescriptor{Name: "memory-reject", Title: "reject a pending memory proposal", Takes: true}, Available: availableWithAgentMemory, Run: func(a *app, identity string) error { return a.PrepareAgentMemoryReview(identity, false) }},
+			localCommand{Descriptor: CommandDescriptor{Name: "memory-delete", Title: "delete memory by scope and id", Takes: true}, Available: availableWithAgentMemory, Run: func(a *app, identity string) error { return a.PrepareDeleteAgentMemory(identity) }},
+			localCommand{Descriptor: CommandDescriptor{Name: "knowledge", Title: "inspect the LYRA.md knowledge cascade"}, Available: availableWithKnowledge, Run: func(a *app, _ string) error { a.ShowKnowledge(); return nil }},
+			localCommand{Descriptor: CommandDescriptor{Name: "knowledge-read", Title: "read one LYRA.md scope", Takes: true}, Available: availableWithKnowledge, Run: func(a *app, scope string) error { return a.ReadKnowledge(scope) }},
+			localCommand{Descriptor: CommandDescriptor{Name: "knowledge-edit", Title: "edit one LYRA.md scope", Takes: true}, Available: availableWithKnowledge, Run: func(a *app, scope string) error { return a.EditKnowledge(scope) }},
 			localCommand{Descriptor: CommandDescriptor{Name: "skills", Title: "inspect skills discoverable in this workspace"}, Available: availableWithSkills, Run: func(a *app, _ string) error { a.ShowDiscoveredSkills(); return nil }},
 			localCommand{Descriptor: CommandDescriptor{Name: "skill-library", Title: "inspect active and archived managed skills"}, Available: availableWithSkills, Run: func(a *app, _ string) error { a.ShowManagedSkills(); return nil }},
 			localCommand{Descriptor: CommandDescriptor{Name: "skill-proposals", Title: "review pending immutable Skill proposals"}, Available: availableWithSkills, Run: func(a *app, _ string) error { a.ShowSkillProposals(); return nil }},
@@ -176,6 +187,20 @@ func availableWithMCP(a *app) CommandAvailability {
 func availableWithSchedules(a *app) CommandAvailability {
 	if a.schedules == nil {
 		return CommandAvailability{Reason: "this runtime composition has no schedule service"}
+	}
+	return CommandAvailability{Enabled: true}
+}
+
+func availableWithAgentMemory(a *app) CommandAvailability {
+	if a.agentMemory == nil {
+		return CommandAvailability{Reason: "this runtime composition has no agent memory service"}
+	}
+	return CommandAvailability{Enabled: true}
+}
+
+func availableWithKnowledge(a *app) CommandAvailability {
+	if a.knowledge == nil {
+		return CommandAvailability{Reason: "this runtime composition has no knowledge service"}
 	}
 	return CommandAvailability{Enabled: true}
 }

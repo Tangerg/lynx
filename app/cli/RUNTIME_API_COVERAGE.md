@@ -8,8 +8,8 @@ uses a CLI-owned domain model and a consumer-owned port.
 
 Baseline date: 2026-08-12
 Runtime API inventory: 87 exported methods
-Production API consumption: 69 methods
-Queued API consumption: 18 methods
+Production API consumption: 77 methods
+Queued API consumption: 10 methods
 
 Status meanings:
 
@@ -41,8 +41,8 @@ resync policy; mutations need lifecycle and failure-path tests.
 | Workspace inspection | `GetWorkspaceDiff`, `GetWorkspaceFileHead`, `ListWorkspaceFileChanges`, `ListWorkspaceFiles`, `ReadWorkspaceFile`, `SearchWorkspaceFiles` | complete | `/diff`, `/preview`, `/changes`, `/browse`, `/read`, and `/grep`, all rendered in the searchable full reader. |
 | Usage | `GetSessionUsage`, `GetUsageSummary` | complete | `/usage [positive-days\|all]` renders session and global totals plus provider/model/day breakdowns; live stream usage remains the active-run source. |
 | Goals | `GetGoal`, `ResumeGoal`, `StartGoal`, `StopGoal` | complete | `/goal`, `/goal-start`, `/goal-stop`, and `/goal-resume` expose objective, model, budget, usage, reason, and the full lifecycle; `goals.changed` refetches an open goal projection. |
-| Agent memory | `AddAgentMemory`, `DeleteAgentMemory`, `ListAgentMemory`, `ReviewAgentMemory`, `UpdateAgentMemory` | queued | Add a reviewable memory manager with explicit mutation confirmation. |
-| Knowledge | `GetKnowledge`, `ListKnowledge`, `UpdateKnowledge` | queued | Add provenance-aware knowledge browser/editor and invalidation policy when exposed. |
+| Agent memory | `AddAgentMemory`, `DeleteAgentMemory`, `ListAgentMemory`, `ReviewAgentMemory`, `UpdateAgentMemory` | complete | `/memory` and the `memory-*` commands preserve project/user partitions, provenance, pending review state, exact item identity, pinning, multiline edits, and confirmed review/deletion; every successful mutation immediately re-reads the selected scope because the runtime exposes no memory invalidation topic. |
+| Knowledge | `GetKnowledge`, `ListKnowledge`, `UpdateKnowledge` | complete | `/knowledge`, `/knowledge-read`, and `/knowledge-edit` expose the human-authored `cwd`/`projectRoot`/`home` LYRA.md cascade in a multiline resize-safe editor, preserve content verbatim (including intentional clearing), omit irrelevant workspace context for home scope, and read the saved document back authoritatively. The runtime exposes no knowledge invalidation topic. |
 | Skills | `ApproveSkillProposal`, `ArchiveSkill`, `ListDiscoveredSkills`, `ListManagedSkills`, `ListSkillProposals`, `RejectSkillProposal`, `RestoreSkill` | complete | Discovered, managed, and proposal Readers; archive/restore; confirmed approve/reject bound to workspace + scope + name + full immutable revision; same-name revisions remain distinct; `skills.changed` refetches only an open Skill projection. |
 | MCP | `CreateMCPAuthorizationAttempt`, `CreateMCPServer`, `DeleteMCPServer`, `GetMCPAuthorizationAttempt`, `ListMCPServers`, `ListMCPTools`, `ReconnectMCPServer`, `TestMCPServer`, `UpdateMCPServer` | complete | `/mcp`, `/mcp-tools`, `/mcp-create`, `/mcp-edit`, `/mcp-probe`, `/mcp-delete`, `/mcp-reconnect`, and `/mcp-auth` expose secret-safe connection management, schemas, health probes, reconnect, and the complete browser authorization lifecycle; `mcp.changed` refetches only the open server/tool projection. |
 | Schedules | `CreateSchedule`, `DeleteSchedule`, `ListSchedules`, `RunScheduleNow`, `UpdateSchedule` | complete | `/schedules`, `/schedule-create`, `/schedule-edit`, `/schedule-enable`, `/schedule-disable`, `/schedule-run`, and `/schedule-delete` expose cursor-complete reads, revision-guarded edits, lifecycle, immediate firing handles, destructive confirmation, and `schedules.changed` refetch. |
@@ -59,7 +59,7 @@ resync policy; mutations need lifecycle and failure-path tests.
    invalidations — complete.
 3. Goals, usage, model roles, and providers — complete.
 4. Skills and MCP, including terminal authorization — complete.
-5. Schedules — complete; memory, knowledge, codebase, tools, hooks,
+5. Schedules, agent memory, and knowledge — complete; codebase, tools, hooks,
    docs/recipes, and feedback — next.
 
 Each batch must pass package tests, the race detector, architecture guards,

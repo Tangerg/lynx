@@ -1,0 +1,363 @@
+package terminal
+
+import (
+	"context"
+	"errors"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/Tangerg/oolong/core/input"
+
+	"github.com/Tangerg/lynx/app/cli/internal/agent/mock"
+	"github.com/Tangerg/lynx/app/cli/internal/agentmemory"
+	"github.com/Tangerg/lynx/app/cli/internal/knowledge"
+)
+
+type agentMemoryServiceStub struct {
+	mu      sync.Mutex
+	project []agentmemory.Item
+	user    []agentmemory.Item
+	added   chan string
+	review  chan agentmemory.ReviewDecision
+}
+
+func newAgentMemoryServiceStub() *agentMemoryServiceStub {
+	now := time.Now()
+	return &agentMemoryServiceStub{
+		project: []agentmemory.Item{{
+			ID: "mem_pending", Scope: agentmemory.Project, Content: "confirm release steps",
+			Origin: agentmemory.Automatic, Status: agentmemory.Pending, SessionID: "ses_origin",
+			Day: "2026-08-12", CreatedAt: now, UpdatedAt: now,
+		}},
+		user: []agentmemory.Item{{
+			ID: "mem_user", Scope: agentmemory.User, Content: "prefer concise answers",
+			Origin: agentmemory.Authored, Status: agentmemory.Active, Pinned: true,
+			CreatedAt: now, UpdatedAt: now,
+		}},
+		added: make(chan string, 1), review: make(chan agentmemory.ReviewDecision, 1),
+	}
+}
+
+func (service *agentMemoryServiceStub) Items(_ context.Context, target agentmemory.Target) ([]agentmemory.Item, error) {
+	if err := target.Validate(); err != nil {
+		return nil, err
+	}
+	service.mu.Lock()
+	defer service.mu.Unlock()
+	if target.Scope == agentmemory.User {
+		return append([]agentmemory.Item(nil), service.user...), nil
+	}
+	return append([]agentmemory.Item(nil), service.project...), nil
+}
+
+func (service *agentMemoryServiceStub) Review(_ context.Context, id string, decision agentmemory.ReviewDecision) error {
+	if err := decision.Validate(); err != nil {
+		return err
+	}
+	service.mu.Lock()
+	defer service.mu.Unlock()
+	for index := range service.project {
+		if service.project[index].ID != id {
+			continue
+		}
+		if service.project[index].Status != agentmemory.Pending {
+			return errors.New("not pending")
+		}
+		if decision == agentmemory.Reject {
+			service.project = append(service.project[:index], service.project[index+1:]...)
+		} else {
+			service.project[index].Status = agentmemory.Active
+			service.project[index].UpdatedAt = time.Now()
+		}
+		service.review <- decision
+		return nil
+	}
+	return errors.New("not found")
+}
+
+func (service *agentMemoryServiceStub) Update(_ context.Context, patch agentmemory.Patch) (agentmemory.Item, error) {
+	if err := patch.Validate(); err != nil {
+		return agentmemory.Item{}, err
+	}
+	service.mu.Lock()
+	defer service.mu.Unlock()
+	for _, items := range []*[]agentmemory.Item{&service.project, &service.user} {
+		for index := range *items {
+			item := &(*items)[index]
+			if item.ID != patch.ID {
+				continue
+			}
+			if patch.Content != nil {
+				item.Content = *patch.Content
+			}
+			if patch.Pinned != nil {
+				item.Pinned = *patch.Pinned
+			}
+			item.UpdatedAt = time.Now()
+			return *item, nil
+		}
+	}
+	return agentmemory.Item{}, errors.New("not found")
+}
+
+func (service *agentMemoryServiceStub) Delete(_ context.Context, id string) error {
+	service.mu.Lock()
+	defer service.mu.Unlock()
+	for _, items := range []*[]agentmemory.Item{&service.project, &service.user} {
+		for index := range *items {
+			if (*items)[index].ID == id {
+				*items = append((*items)[:index], (*items)[index+1:]...)
+				return nil
+			}
+		}
+	}
+	return errors.New("not found")
+}
+
+func (service *agentMemoryServiceStub) Add(_ context.Context, target agentmemory.Target, content string) (agentmemory.Item, error) {
+	if err := target.Validate(); err != nil {
+		return agentmemory.Item{}, err
+	}
+	now := time.Now()
+	item := agentmemory.Item{
+		ID: "mem_added", Scope: target.Scope, Content: content, Origin: agentmemory.Authored,
+		Status: agentmemory.Active, CreatedAt: now, UpdatedAt: now,
+	}
+	service.mu.Lock()
+	if target.Scope == agentmemory.User {
+		service.user = append(service.user, item)
+	} else {
+		service.project = append(service.project, item)
+	}
+	service.mu.Unlock()
+	service.added <- content
+	return item, nil
+}
+
+type knowledgeServiceStub struct {
+	mu        sync.Mutex
+	content   map[knowledge.Scope]string
+	saved     chan string
+	failed    chan struct{}
+	failNext  bool
+	blockNext <-chan struct{}
+	started   chan string
+}
+
+func newKnowledgeServiceStub() *knowledgeServiceStub {
+	return &knowledgeServiceStub{
+		content: map[knowledge.Scope]string{
+			knowledge.WorkingDirectory: "cwd guidance",
+			knowledge.ProjectRoot:      "project rules",
+			knowledge.Home:             "global preferences",
+		},
+		saved: make(chan string, 1), failed: make(chan struct{}, 1),
+	}
+}
+
+func (service *knowledgeServiceStub) Entries(context.Context, string) ([]knowledge.Entry, error) {
+	service.mu.Lock()
+	defer service.mu.Unlock()
+	now := time.Now()
+	return []knowledge.Entry{
+		{Scope: knowledge.WorkingDirectory, Content: service.content[knowledge.WorkingDirectory], UpdatedAt: &now},
+		{Scope: knowledge.ProjectRoot, Content: service.content[knowledge.ProjectRoot], UpdatedAt: &now},
+		{Scope: knowledge.Home, Content: service.content[knowledge.Home], UpdatedAt: &now},
+	}, nil
+}
+
+func (service *knowledgeServiceStub) Document(_ context.Context, target knowledge.Target) (knowledge.Entry, error) {
+	if err := target.Validate(); err != nil {
+		return knowledge.Entry{}, err
+	}
+	service.mu.Lock()
+	defer service.mu.Unlock()
+	return knowledge.Entry{Scope: target.Scope, Content: service.content[target.Scope]}, nil
+}
+
+func (service *knowledgeServiceStub) Save(ctx context.Context, target knowledge.Target, content string) error {
+	if err := target.Validate(); err != nil {
+		return err
+	}
+	service.mu.Lock()
+	if service.failNext {
+		service.failNext = false
+		service.mu.Unlock()
+		service.failed <- struct{}{}
+		return errors.New("write refused")
+	}
+	block := service.blockNext
+	service.blockNext = nil
+	service.mu.Unlock()
+	if block != nil {
+		service.started <- content
+		select {
+		case <-block:
+		case <-ctx.Done():
+			return context.Cause(ctx)
+		}
+	}
+	service.mu.Lock()
+	service.content[target.Scope] = content
+	service.mu.Unlock()
+	service.saved <- content
+	return nil
+}
+
+func TestAgentMemoryAndKnowledgeReadersShowScopeAndProvenance(t *testing.T) {
+	memory := newAgentMemoryServiceStub()
+	knowledgeStore := newKnowledgeServiceStub()
+	host, stop := runUIWithRuntimeServices(t, Config{
+		Runtime: mock.New(), Workspace: "/workspace", AgentMemory: memory, Knowledge: knowledgeStore,
+	})
+	host.Shows(t, "Ask lyra")
+	host.Type("/memory project")
+	host.Press(input.Enter)
+	host.Shows(t, "Agent memory · project")
+	host.Shows(t, "session  ses_origin")
+	host.Press(input.Esc)
+	host.Shows(t, "Ask lyra")
+	host.Type("/knowledge")
+	host.Press(input.Enter)
+	host.Shows(t, "LYRA.md knowledge")
+	host.Shows(t, "global preferences")
+	stop()
+}
+
+func TestAgentMemoryMultilineAddSurvivesResize(t *testing.T) {
+	memory := newAgentMemoryServiceStub()
+	host, stop := runUIWithRuntimeServices(t, Config{
+		Runtime: mock.New(), Workspace: "/workspace", AgentMemory: memory,
+	})
+	host.Shows(t, "Ask lyra")
+	host.Type("/memory-add user")
+	host.Press(input.Enter)
+	host.Shows(t, "Add user memory")
+	if !host.Resize(1, 1) || !host.Repaint() || !host.Resize(96, 28) {
+		t.Fatal("agent memory editor did not survive a minimal viewport")
+	}
+	host.Shows(t, "Add user memory")
+	host.Type("first line")
+	host.Press(input.Enter)
+	host.Type("second line")
+	host.Send(input.Key{Code: input.Character, Rune: 's', Mods: input.Ctrl})
+	if got := awaitValue(t, memory.added, "agent memory add"); got != "first line\nsecond line" {
+		t.Fatalf("added content = %q", got)
+	}
+	host.Shows(t, "Agent memory · user")
+	host.Shows(t, "first line")
+	stop()
+}
+
+func TestPendingAgentMemoryReviewRequiresResizeSafeConfirmation(t *testing.T) {
+	memory := newAgentMemoryServiceStub()
+	host, stop := runUIWithRuntimeServices(t, Config{
+		Runtime: mock.New(), Workspace: "/workspace", AgentMemory: memory,
+	})
+	host.Shows(t, "Ask lyra")
+	host.Type("/memory-approve project mem_pending")
+	host.Press(input.Enter)
+	host.Shows(t, "Approve agent memory")
+	if !host.Resize(1, 1) || !host.Repaint() || !host.Resize(96, 28) {
+		t.Fatal("agent memory confirmation did not survive a minimal viewport")
+	}
+	host.Shows(t, "Approve agent memory")
+	host.Press(input.Down)
+	host.Press(input.Enter)
+	if got := awaitValue(t, memory.review, "agent memory review"); got != agentmemory.Approve {
+		t.Fatalf("review = %q", got)
+	}
+	host.Shows(t, "Agent memory · project")
+	host.Shows(t, "active")
+	stop()
+}
+
+func TestKnowledgeEditorPreservesMultilineContentAcrossResize(t *testing.T) {
+	knowledgeStore := newKnowledgeServiceStub()
+	host, stop := runUIWithRuntimeServices(t, Config{
+		Runtime: mock.New(), Workspace: "/workspace", Knowledge: knowledgeStore,
+	})
+	host.Shows(t, "Ask lyra")
+	host.Type("/knowledge-edit projectRoot")
+	host.Press(input.Enter)
+	host.Shows(t, "Edit LYRA.md · projectRoot")
+	if !host.Resize(1, 1) || !host.Repaint() || !host.Resize(96, 28) {
+		t.Fatal("knowledge editor did not survive a minimal viewport")
+	}
+	host.Shows(t, "Edit LYRA.md · projectRoot")
+	host.Send(input.Key{Code: input.Character, Rune: 'a', Mods: input.Alt})
+	host.Type("line one")
+	host.Press(input.Enter)
+	host.Type("line two")
+	host.Send(input.Key{Code: input.Character, Rune: 's', Mods: input.Ctrl})
+	if got := awaitValue(t, knowledgeStore.saved, "knowledge save"); got != "line one\nline two" {
+		t.Fatalf("saved content = %q", got)
+	}
+	host.Shows(t, "LYRA.md · projectRoot")
+	host.Shows(t, "line one")
+	stop()
+}
+
+func TestKnowledgeEditorRetainsDraftWhenRuntimeSaveFails(t *testing.T) {
+	knowledgeStore := newKnowledgeServiceStub()
+	knowledgeStore.failNext = true
+	host, stop := runUIWithRuntimeServices(t, Config{
+		Runtime: mock.New(), Workspace: "/workspace", Knowledge: knowledgeStore,
+	})
+	host.Shows(t, "Ask lyra")
+	host.Type("/knowledge-edit projectRoot")
+	host.Press(input.Enter)
+	host.Shows(t, "Edit LYRA.md · projectRoot")
+	host.Send(input.Key{Code: input.Character, Rune: 'a', Mods: input.Alt})
+	host.Type("unsaved draft")
+	host.Send(input.Key{Code: input.Character, Rune: 's', Mods: input.Ctrl})
+	awaitValue(t, knowledgeStore.failed, "failed knowledge save")
+	host.Shows(t, "Edit LYRA.md · projectRoot")
+	host.Shows(t, "write refused")
+	host.Shows(t, "unsaved draft")
+	if !host.Resize(1, 1) || !host.Repaint() || !host.Resize(96, 28) {
+		t.Fatal("failed knowledge editor did not survive a minimal viewport")
+	}
+	host.Shows(t, "unsaved draft")
+	host.Send(input.Key{Code: input.Character, Rune: 's', Mods: input.Ctrl})
+	if got := awaitValue(t, knowledgeStore.saved, "retried knowledge save"); got != "unsaved draft" {
+		t.Fatalf("retried content = %q", got)
+	}
+	host.Shows(t, "LYRA.md · projectRoot")
+	stop()
+}
+
+func TestKnowledgeEditorDoesNotLoseEditsMadeWhileSaving(t *testing.T) {
+	knowledgeStore := newKnowledgeServiceStub()
+	release := make(chan struct{})
+	knowledgeStore.blockNext = release
+	knowledgeStore.started = make(chan string, 1)
+	host, stop := runUIWithRuntimeServices(t, Config{
+		Runtime: mock.New(), Workspace: "/workspace", Knowledge: knowledgeStore,
+	})
+	host.Shows(t, "Ask lyra")
+	host.Type("/knowledge-edit projectRoot")
+	host.Press(input.Enter)
+	host.Shows(t, "Edit LYRA.md · projectRoot")
+	host.Send(input.Key{Code: input.Character, Rune: 'a', Mods: input.Alt})
+	host.Type("first draft")
+	host.Send(input.Key{Code: input.Character, Rune: 's', Mods: input.Ctrl})
+	if got := awaitValue(t, knowledgeStore.started, "knowledge save start"); got != "first draft" {
+		t.Fatalf("first submitted content = %q", got)
+	}
+	host.Type(" with newer edits")
+	host.Shows(t, "first draft with newer edits")
+	close(release)
+	if got := awaitValue(t, knowledgeStore.saved, "first knowledge save"); got != "first draft" {
+		t.Fatalf("first saved content = %q", got)
+	}
+	host.Shows(t, "Saved. New edits remain unsaved.")
+	host.Shows(t, "first draft with newer edits")
+	host.Send(input.Key{Code: input.Character, Rune: 's', Mods: input.Ctrl})
+	if got := awaitValue(t, knowledgeStore.saved, "second knowledge save"); got != "first draft with newer edits" {
+		t.Fatalf("second saved content = %q", got)
+	}
+	host.Shows(t, "LYRA.md · projectRoot")
+	stop()
+}
