@@ -52,7 +52,7 @@ func validManifest(id string) pluginManifest {
 	return pluginManifest{
 		SchemaVersion: manifestSchemaVersion, ID: id, Version: "1.2.3", APIVersion: extensions.HostAPIVersion,
 		Capabilities: []string{"terminal.commands"}, Entry: "plugin",
-		Contributes: manifestContributions{Commands: []commandManifest{{Name: "hello", Title: "say hello", Takes: true}}},
+		Contributes: manifestContributions{Commands: []commandManifest{{Name: "hello", Title: "say hello", Arguments: "required"}}},
 	}
 }
 
@@ -133,6 +133,20 @@ func TestSideloadedPluginMustDeclareCommandsCapability(t *testing.T) {
 	}
 	if commands := extensions.Values(registry, terminal.SlashCommands); len(commands) != 0 {
 		t.Fatalf("denied plugin registered commands: %+v", commands)
+	}
+}
+
+func TestSideloadedCommandRejectsAnInvalidArgumentMode(t *testing.T) {
+	root := t.TempDir()
+	declared := validManifest("test.arguments")
+	declared.Contributes.Commands[0].Arguments = "sometimes"
+	writePlugin(t, root, "arguments", declared, "not executed")
+	discovered, err := New([]string{root}).Discover(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(discovered.Plugins) != 0 || len(discovered.Issues) != 1 || !strings.Contains(discovered.Issues[0].Error(), "invalid arguments mode") {
+		t.Fatalf("discovery = %+v", discovered)
 	}
 }
 
@@ -229,7 +243,7 @@ func TestSideloadedCommandRunsEndToEndInTheTerminal(t *testing.T) {
 	}
 	root := t.TempDir()
 	declared := validManifest("test.e2e")
-	declared.Contributes.Commands[0].Takes = false
+	declared.Contributes.Commands[0].Arguments = "none"
 	script := "#!/bin/sh\nread request\nprintf '{\"protocol\":1,\"message\":\"sideload end to end\"}'\n"
 	writePlugin(t, root, "e2e", declared, script)
 	backend := mock.New()

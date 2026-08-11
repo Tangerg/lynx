@@ -151,11 +151,11 @@ Configuration decoding is strict: unknown top-level or nested keys, missing effe
 
 ## Sideloaded plugins
 
-Each configured plugin directory, or one of its immediate child directories, may contain `lyra-plugin.json` and an executable entry. Schema and host API version are both `1`.
+Each configured plugin directory, or one of its immediate child directories, may contain `lyra-plugin.json` and an executable entry. The manifest schema version is `2`; the executable host API version is `1`.
 
 ```json
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "example.tools",
   "version": "1.0.0",
   "apiVersion": 1,
@@ -168,7 +168,7 @@ Each configured plugin directory, or one of its immediate child directories, may
         "name": "hello",
         "title": "greet the current session",
         "aliases": ["hi"],
-        "takes": true,
+        "arguments": "required",
         "timeoutSeconds": 10
       }
     ]
@@ -176,7 +176,7 @@ Each configured plugin directory, or one of its immediate child directories, may
 }
 ```
 
-The entry must be a regular executable inside its canonical plugin directory. Absolute paths, unsafe segments, backslash-separated paths, and symlink escapes are rejected. Manifests reject unknown fields and duplicate command spellings. A plugin can declare at most 128 commands, 16 aliases per command, and a timeout from 1 through 60 seconds.
+The entry must be a regular executable inside its canonical plugin directory. Absolute paths, unsafe segments, backslash-separated paths, and symlink escapes are rejected. Manifests reject unknown fields and duplicate command spellings. A command's `arguments` mode is `none`, `optional`, or `required` (omission means `none`). A plugin can declare at most 128 commands, 16 aliases per command, and a timeout from 1 through 60 seconds.
 
 Commands use one JSON request on stdin and one JSON response on stdout:
 

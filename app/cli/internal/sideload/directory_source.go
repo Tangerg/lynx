@@ -24,7 +24,7 @@ import (
 
 const (
 	manifestName          = "lyra-plugin.json"
-	manifestSchemaVersion = 1
+	manifestSchemaVersion = 2
 	maxManifestBytes      = 1 << 20
 	defaultCommandTimeout = 10 * time.Second
 	maxCommandTimeout     = 60 * time.Second
@@ -168,7 +168,7 @@ type commandManifest struct {
 	Name           string   `json:"name"`
 	Title          string   `json:"title"`
 	Aliases        []string `json:"aliases"`
-	Takes          bool     `json:"takes"`
+	Arguments      string   `json:"arguments"`
 	TimeoutSeconds int      `json:"timeoutSeconds"`
 }
 
@@ -354,6 +354,10 @@ func compileCommand(
 	if err != nil {
 		return terminal.SlashCommand{}, err
 	}
+	arguments, err := commandArgumentMode(name, declared.Arguments)
+	if err != nil {
+		return terminal.SlashCommand{}, err
+	}
 	timeout, err := commandTimeout(name, declared.TimeoutSeconds)
 	if err != nil {
 		return terminal.SlashCommand{}, err
@@ -364,10 +368,23 @@ func compileCommand(
 	}
 	return terminal.SlashCommand{
 		Descriptor: terminal.CommandDescriptor{
-			Name: name, Title: title, Aliases: aliases, Takes: declared.Takes,
+			Name: name, Title: title, Aliases: aliases, Arguments: arguments,
 		},
 		Execute: commandExecutor.Execute,
 	}, nil
+}
+
+func commandArgumentMode(name, declared string) (terminal.ArgumentMode, error) {
+	switch strings.TrimSpace(declared) {
+	case "", "none":
+		return terminal.NoArguments, nil
+	case "optional":
+		return terminal.OptionalArguments, nil
+	case "required":
+		return terminal.RequiredArguments, nil
+	default:
+		return terminal.NoArguments, fmt.Errorf("command %q has invalid arguments mode %q", name, declared)
+	}
 }
 
 func validCommandSpelling(value string) bool {

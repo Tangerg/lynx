@@ -12,8 +12,9 @@ import (
 )
 
 type registeredCommand struct {
-	category string
-	evaluate func(*app) CommandAvailability
+	category  string
+	arguments ArgumentMode
+	evaluate  func(*app) CommandAvailability
 }
 
 func (command registeredCommand) availability(host *app) (availability CommandAvailability) {
@@ -56,9 +57,12 @@ func (catalog *commandCatalog) add(owner string, descriptor CommandDescriptor, r
 		}
 	}
 	catalog.index.Add(headless.Command{
-		Name: descriptor.Name, Title: descriptor.Title, Aliases: descriptor.Aliases, Takes: descriptor.Takes, Run: run,
+		Name: descriptor.Name, Title: descriptor.Title, Aliases: descriptor.Aliases,
+		Takes: descriptor.Arguments.TakesInput(), Run: run,
 	})
-	catalog.registrations[descriptor.Name] = registeredCommand{category: descriptor.category(), evaluate: evaluate}
+	catalog.registrations[descriptor.Name] = registeredCommand{
+		category: descriptor.category(), arguments: descriptor.Arguments, evaluate: evaluate,
+	}
 	return nil
 }
 
@@ -92,6 +96,10 @@ func (catalog *commandCatalog) used(name string) {
 
 func (catalog *commandCatalog) category(name string) string {
 	return catalog.registrations[name].category
+}
+
+func (catalog *commandCatalog) arguments(name string) ArgumentMode {
+	return catalog.registrations[name].arguments
 }
 
 func (catalog *commandCatalog) availability(name string, host *app) CommandAvailability {
@@ -229,10 +237,11 @@ func (a *app) runCommand(name, argument string) {
 		a.message("/" + command.Name + " unavailable: " + availability.Reason)
 		return
 	}
-	if command.Takes && strings.TrimSpace(argument) == "" {
-		a.message("/" + command.Name + " needs an argument")
+	argument = strings.TrimSpace(argument)
+	if err := a.commands.arguments(command.Name).ValidateInvocation(command.Name, argument); err != nil {
+		a.message(err.Error())
 		return
 	}
 	a.commands.used(command.Name)
-	command.Run(strings.TrimSpace(argument))
+	command.Run(argument)
 }

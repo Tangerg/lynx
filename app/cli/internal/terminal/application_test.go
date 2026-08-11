@@ -665,6 +665,19 @@ func TestSlashCompletionHelpAndTranscriptSearchUseRegisteredCommands(t *testing.
 	stop()
 }
 
+func TestSlashCommandsEnforceTheirArgumentCardinality(t *testing.T) {
+	host, stop := runUI(t)
+	host.Shows(t, "Ask lyra")
+	host.Type("/status accidental")
+	host.Press(input.Enter)
+	host.Shows(t, "/status does not accept arguments")
+
+	host.Type("/find")
+	host.Press(input.Enter)
+	host.Shows(t, "/find needs an argument")
+	stop()
+}
+
 func TestAPluginCanAddACommandWithoutChangingTheShell(t *testing.T) {
 	var loads atomic.Int32
 	plugin := extensions.Plugin{ID: "test.greeting", Version: "1.0.0", APIVersion: extensions.HostAPIVersion, Capabilities: []extensions.Capability{SlashCommands.Capability()}, Setup: func(scope *extensions.Scope) error {

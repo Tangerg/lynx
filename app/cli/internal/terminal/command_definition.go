@@ -49,14 +49,53 @@ type localCommand struct {
 	Run        func(*app, string) error
 }
 
+// ArgumentMode is the cardinality of one slash command's trailing input. It is
+// deliberately richer than the presenter's Takes flag: optional input must be
+// discoverable without being mistaken for required input, and argument-free
+// commands must reject accidental trailing text.
+type ArgumentMode uint8
+
+const (
+	NoArguments ArgumentMode = iota
+	OptionalArguments
+	RequiredArguments
+)
+
+func (mode ArgumentMode) Validate() error {
+	if mode > RequiredArguments {
+		return fmt.Errorf("slash command argument mode %d is invalid", mode)
+	}
+	return nil
+}
+
+func (mode ArgumentMode) TakesInput() bool { return mode != NoArguments }
+
+func (mode ArgumentMode) ValidateInvocation(name, argument string) error {
+	argument = strings.TrimSpace(argument)
+	switch mode {
+	case NoArguments:
+		if argument != "" {
+			return fmt.Errorf("/%s does not accept arguments", name)
+		}
+	case OptionalArguments:
+	case RequiredArguments:
+		if argument == "" {
+			return fmt.Errorf("/%s needs an argument", name)
+		}
+	default:
+		return fmt.Errorf("/%s has an invalid argument contract", name)
+	}
+	return nil
+}
+
 // CommandDescriptor defines a slash command's stable identity, presentation,
 // and argument contract independently of its execution environment.
 type CommandDescriptor struct {
-	Name     string
-	Title    string
-	Category string
-	Aliases  []string
-	Takes    bool
+	Name      string
+	Title     string
+	Category  string
+	Aliases   []string
+	Arguments ArgumentMode
 }
 
 // Validate checks the command identity and its aliases as one namespace.
@@ -69,6 +108,9 @@ func (descriptor CommandDescriptor) Validate() error {
 	case strings.TrimSpace(descriptor.Title) == "":
 		return fmt.Errorf("slash command %q has no title", descriptor.Name)
 	default:
+		if err := descriptor.Arguments.Validate(); err != nil {
+			return fmt.Errorf("slash command %q: %w", descriptor.Name, err)
+		}
 		return descriptor.validateAliases()
 	}
 }
