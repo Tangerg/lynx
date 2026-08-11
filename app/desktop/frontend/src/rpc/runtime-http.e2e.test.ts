@@ -1,7 +1,7 @@
 // @vitest-environment node
 
 import { execFile } from "node:child_process";
-import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import {
   createServer as createHttpServer,
   type IncomingMessage,
@@ -2481,13 +2481,26 @@ for await (const line of lines) {
     // level entries even though no flat candidate file can imply their presence.
     const plainRoot = join(root, "workspace-side-api-plain");
     await mkdir(join(plainRoot, "empty"), { recursive: true });
+    await writeFile(join(plainRoot, ".git"), "gitdir: ../not-a-repository\n");
     await writeFile(join(plainRoot, "visible.txt"), "visible\n");
-    await expect(client.workspace({ path: plainRoot }).files.list()).resolves.toMatchObject({
+    const plainListing = await client.workspace({ path: plainRoot }).files.list();
+    expect(plainListing).toMatchObject({
       data: [
         expect.objectContaining({ path: "empty", name: "empty", type: "dir" }),
         expect.objectContaining({ path: "visible.txt", name: "visible.txt", type: "file" }),
       ],
     });
+    expect(plainListing.data.some((entry) => entry.path === ".git")).toBe(false);
+    const outsidePlainRoot = join(root, "workspace-side-api-outside");
+    await mkdir(outsidePlainRoot);
+    await writeFile(join(outsidePlainRoot, "secret.txt"), "secret\n");
+    await symlink(outsidePlainRoot, join(plainRoot, "escape"), "dir");
+    await expect(
+      client.workspace({ path: plainRoot }).files.list({ path: "escape" }),
+    ).rejects.toSatisfy(
+      (error: unknown) =>
+        error instanceof RpcError && errorType(error.data) === "path_outside_root",
+    );
     await expect(workspace.files.head({ path: "../AGENTS.md" })).rejects.toSatisfy(
       (error: unknown) =>
         error instanceof RpcError && errorType(error.data) === "path_outside_root",

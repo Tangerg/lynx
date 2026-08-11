@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path"
@@ -131,16 +132,16 @@ func levelFilesystemEntries(ctx context.Context, root, sub string, includeIgnore
 	if sub != "" {
 		directory = filepath.Join(root, filepath.FromSlash(sub))
 	}
-	children, err := os.ReadDir(directory)
+	children, err := readDirectoryEntries(directory, maxListEntries)
 	if err != nil {
-		return nil, fmt.Errorf("list %q: %w", directory, err)
+		return nil, err
 	}
 	entries := make([]FileEntry, 0, len(children))
 	for _, child := range children {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		if child.IsDir() && (child.Name() == ".git" || (!includeIgnored && backstopExclude[child.Name()])) {
+		if child.Name() == ".git" || (child.IsDir() && !includeIgnored && backstopExclude[child.Name()]) {
 			continue
 		}
 		rel := path.Join(sub, child.Name())
@@ -154,6 +155,26 @@ func levelFilesystemEntries(ctx context.Context, root, sub string, includeIgnore
 	}
 	sortFileEntries(entries)
 	return entries, nil
+}
+
+func readDirectoryEntries(directory string, limit int) ([]fs.DirEntry, error) {
+	dir, err := os.Open(directory)
+	if err != nil {
+		return nil, fmt.Errorf("list %q: %w", directory, err)
+	}
+	defer dir.Close()
+
+	// Read one sentinel entry beyond the contract limit. os.ReadDir(directory)
+	// would materialize an unbounded directory before the safety policy had a
+	// chance to reject it.
+	children, err := dir.ReadDir(limit + 1)
+	if err != nil && !errors.Is(err, io.EOF) {
+		return nil, fmt.Errorf("list %q: %w", directory, err)
+	}
+	if len(children) > limit {
+		return nil, fmt.Errorf("%w: more than %d entries in %q", ErrListingTooLarge, limit, directory)
+	}
+	return children, nil
 }
 
 // candidateFiles returns every non-ignored file under sub (relative to root),
@@ -180,8 +201,14 @@ func walkFiles(ctx context.Context, root, sub string, includeIgnored bool) ([]st
 		if err != nil {
 			return fmt.Errorf("visit %q: %w", p, err)
 		}
+		if p != start && d.Name() == ".git" {
+			if d.IsDir() {
+				return fs.SkipDir
+			}
+			return nil
+		}
 		if d.IsDir() {
-			if p != start && (d.Name() == ".git" || (!includeIgnored && backstopExclude[d.Name()])) {
+			if p != start && !includeIgnored && backstopExclude[d.Name()] {
 				return fs.SkipDir
 			}
 			return nil

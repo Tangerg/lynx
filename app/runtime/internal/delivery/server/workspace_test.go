@@ -164,6 +164,22 @@ func TestWorkspaceListFilesPaginatesInspectedEntries(t *testing.T) {
 	}
 }
 
+func TestWorkspaceListFilesRejectsSymlinkDirectoryEscape(t *testing.T) {
+	root := t.TempDir()
+	outside := t.TempDir()
+	if err := os.WriteFile(filepath.Join(outside, "secret.txt"), []byte("secret"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, filepath.Join(root, "escape")); err != nil {
+		t.Skipf("symlink unsupported: %v", err)
+	}
+	s := newWorkspaceServer(root)
+
+	if _, err := s.ListWorkspaceFiles(context.Background(), protocol.ListFilesRequest{Path: "escape"}); !errors.Is(err, protocol.ErrPathOutsideRoot) {
+		t.Fatalf("list symlink escape err = %v, want ErrPathOutsideRoot", err)
+	}
+}
+
 func TestWorkspaceReadFileRejectsSymlinkEscape(t *testing.T) {
 	root := t.TempDir()
 	outside := t.TempDir()

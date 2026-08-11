@@ -142,7 +142,11 @@ func (f *Files) List(ctx context.Context, input FileListInput) (FilePage, error)
 	}
 	path := ""
 	if input.Path != "" {
-		path, err = f.scope.paths.ResolveInRoot(root, input.Path)
+		// Listing a subdirectory dereferences it. Resolve its physical identity at
+		// the application boundary just like read/head/search, otherwise a lexical
+		// in-root symlink could make the file browser port enumerate a directory
+		// outside the admitted workspace.
+		path, err = f.scope.paths.ResolveExistingInRoot(root, input.Path)
 		if err != nil {
 			return FilePage{}, err
 		}

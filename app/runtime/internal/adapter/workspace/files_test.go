@@ -102,6 +102,32 @@ func TestListFiles_OneLevelIncludesEmptyDirectoryWithoutDescending(t *testing.T)
 	}
 }
 
+func TestListFiles_HidesGitControlFileAndBoundsOneLevelReads(t *testing.T) {
+	root := t.TempDir()
+	for _, name := range []string{".git", "a.txt", "b.txt", "c.txt"} {
+		if err := os.WriteFile(filepath.Join(root, name), []byte(name), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	for _, options := range []ListFilesOptions{
+		{IncludeIgnored: true},
+		{Recursive: true, IncludeIgnored: true},
+	} {
+		got, err := ListFiles(context.Background(), root, options)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if slices.Contains(paths(got), ".git") {
+			t.Fatalf("ListFiles(%+v) exposed the Git control file: %v", options, paths(got))
+		}
+	}
+
+	if _, err := readDirectoryEntries(root, 3); !errors.Is(err, ErrListingTooLarge) {
+		t.Fatalf("readDirectoryEntries() error = %v, want ErrListingTooLarge", err)
+	}
+}
+
 func TestListFiles_ScopedToSubdir(t *testing.T) {
 	root := buildTree(t)
 	got, err := ListFiles(context.Background(), root, ListFilesOptions{Path: "sub"})
