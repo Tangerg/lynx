@@ -48,10 +48,12 @@ func guardedMutation(tool toolcontract.Tool, ci *codeintel.Analyzer, tracker *re
 	return withPathGuard(
 		withPathLock(
 			withMutationGuard(
-				withMutationDiagnostics(
-					withAutoFormat(tool, cwd),
-					ci,
-					cwd,
+				withMutationRecording(
+					withMutationDiagnostics(
+						withAutoFormat(tool, cwd),
+						ci,
+						cwd,
+					),
 				),
 				tracker,
 				cwd,

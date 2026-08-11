@@ -22,7 +22,11 @@ func guardedPatchTools(dir string, format bool) (toolcontract.Tool, toolcontract
 	if format {
 		mutation = withAutoFormat(mutation, dir)
 	}
-	return read, withMutationGuard(withMutationDiagnostics(mutation, nil, dir), tracker, dir)
+	return read, withMutationGuard(
+		withMutationRecording(withMutationDiagnostics(mutation, nil, dir)),
+		tracker,
+		dir,
+	)
 }
 
 func patchArguments(t *testing.T, path, oldContent, newContent string) string {
@@ -82,6 +86,36 @@ func TestMutationGuardRequiresReadBeforeChangingExistingFile(t *testing.T) {
 	}
 	if got, _ := os.ReadFile(path); string(got) != before {
 		t.Fatalf("file changed despite guard: %q", got)
+	}
+}
+
+func TestMutationRecordingReportsOnlyAppliedChanges(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "foo.txt")
+	if err := os.WriteFile(path, []byte("before\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	read, mutation := guardedPatchTools(dir, false)
+	var recorded []string
+	ctx := WithMutationRecorder(t.Context(), func(paths []string) {
+		recorded = append(recorded, paths...)
+	})
+	arguments := patchArguments(t, "foo.txt", "before\n", "after\n")
+
+	if _, err := mutation.Call(ctx, arguments); err != nil {
+		t.Fatalf("guarded patch: %v", err)
+	}
+	if len(recorded) != 0 {
+		t.Fatalf("guard refusal recorded mutations: %v", recorded)
+	}
+	if _, err := read.Call(ctx, `{"path":"foo.txt"}`); err != nil {
+		t.Fatalf("read: %v", err)
+	}
+	if _, err := mutation.Call(ctx, arguments); err != nil {
+		t.Fatalf("applied patch: %v", err)
+	}
+	if len(recorded) != 1 || recorded[0] != "foo.txt" {
+		t.Fatalf("recorded mutations = %v, want [foo.txt]", recorded)
 	}
 }
 

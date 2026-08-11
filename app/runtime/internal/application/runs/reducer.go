@@ -877,8 +877,7 @@ func (r *reducer) projectOne(event RunEvent) (reduction, error) {
 	switch e := event.(type) {
 	case ItemCompleted:
 		commit.Items = []transcript.Item{e.Item}
-		_, failed := e.Item.Failure()
-		if e.Item.Status() == transcript.ItemCompleted && !failed && len(e.mutatedPaths) > 0 {
+		if len(e.mutatedPaths) > 0 {
 			nudge = &Nudge{CWD: r.cfg.CWD, Paths: slices.Clone(e.mutatedPaths)}
 		}
 	case SegmentFinished:

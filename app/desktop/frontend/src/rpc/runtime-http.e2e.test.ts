@@ -1,25 +1,30 @@
 // @vitest-environment node
 
 import { execFile } from "node:child_process";
-import { mkdtemp, rm } from "node:fs/promises";
-import { createServer } from "node:net";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import {
+  createServer as createHttpServer,
+  type IncomingMessage,
+  type ServerResponse,
+} from "node:http";
+import { createServer as createNetServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { promisify } from "node:util";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createLyraClient, type LyraClient } from "./sdk";
 import { RpcError } from "./errors";
-import { asSessionId } from "./ids";
+import { asRunId, asSessionId } from "./ids";
 import { errorType } from "./types";
 import { createSidecarClient } from "./sidecar";
 import { createHttpTransport } from "./transports/http";
-import { PROTOCOL_VERSION, type RuntimeEvent } from "./wire.generated";
+import { PROTOCOL_VERSION, type RunEvent, type RuntimeEvent } from "./wire.generated";
 
 const execFileAsync = promisify(execFile);
 const runtimeDirectory = resolve(process.cwd(), "../../runtime");
 
 async function unusedLoopbackPort(): Promise<number> {
-  const server = createServer();
+  const server = createNetServer();
   await new Promise<void>((resolve, reject) => {
     server.once("error", reject);
     server.listen(0, "127.0.0.1", resolve);
@@ -30,6 +35,183 @@ async function unusedLoopbackPort(): Promise<number> {
     server.close((error) => (error ? reject(error) : resolve())),
   );
   return address.port;
+}
+
+interface FakeChatRequest {
+  messages?: Array<{ role?: string; content?: unknown }>;
+  model?: string;
+  stream?: boolean;
+  tools?: Array<{ function?: { name?: string } }>;
+}
+
+interface FakeToolCall {
+  arguments: string;
+  name: string;
+}
+
+async function requestJson(request: IncomingMessage): Promise<FakeChatRequest> {
+  const chunks: Buffer[] = [];
+  for await (const chunk of request) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  }
+  return JSON.parse(Buffer.concat(chunks).toString("utf8")) as FakeChatRequest;
+}
+
+function scriptedReply(body: FakeChatRequest): { text?: string; tool?: FakeToolCall } {
+  const transcript = JSON.stringify(body.messages ?? []);
+  const availableTools = new Set(
+    (body.tools ?? []).flatMap((tool) => (tool.function?.name ? [tool.function.name] : [])),
+  );
+  const toolResultCount = (body.messages ?? []).filter((message) => message.role === "tool").length;
+  const hasToolResult = toolResultCount > 0;
+
+  if (transcript.includes("E2E_HITL") && availableTools.has("ask_user") && !hasToolResult) {
+    return {
+      tool: {
+        name: "ask_user",
+        arguments: JSON.stringify({
+          questions: [{ question: "Continue the HTTP lifecycle check?", header: "Continue" }],
+        }),
+      },
+    };
+  }
+  if (transcript.includes("E2E_PLAN") && availableTools.has("set_plan") && !hasToolResult) {
+    return {
+      tool: {
+        name: "set_plan",
+        arguments: JSON.stringify({
+          steps: [
+            { description: "Inspect the runtime contract", status: "completed" },
+            { description: "Verify frontend reconciliation", status: "in_progress" },
+          ],
+        }),
+      },
+    };
+  }
+  if (
+    transcript.includes("E2E_FILE_WRITE") &&
+    availableTools.has("read") &&
+    availableTools.has("apply_patch") &&
+    toolResultCount === 0
+  ) {
+    return {
+      tool: {
+        name: "read",
+        arguments: JSON.stringify({ path: "agent-write.txt" }),
+      },
+    };
+  }
+  if (
+    transcript.includes("E2E_FILE_WRITE") &&
+    availableTools.has("apply_patch") &&
+    toolResultCount === 1
+  ) {
+    return {
+      tool: {
+        name: "apply_patch",
+        arguments: JSON.stringify({
+          patch: [
+            "--- a/agent-write.txt",
+            "+++ b/agent-write.txt",
+            "@@ -1 +1 @@",
+            "-before",
+            "+after",
+            "",
+          ].join("\n"),
+        }),
+      },
+    };
+  }
+  return { text: "HTTP runtime lifecycle complete." };
+}
+
+function writeChatCompletion(
+  response: ServerResponse,
+  body: FakeChatRequest,
+  sequence: number,
+): void {
+  const id = `chatcmpl-e2e-${sequence}`;
+  const model = body.model ?? "e2e-model";
+  const reply = scriptedReply(body);
+  const finishReason = reply.tool ? "tool_calls" : "stop";
+  const message = reply.tool
+    ? {
+        role: "assistant",
+        content: "",
+        tool_calls: [
+          {
+            id: `call-e2e-${sequence}`,
+            type: "function",
+            function: { name: reply.tool.name, arguments: reply.tool.arguments },
+          },
+        ],
+      }
+    : { role: "assistant", content: reply.text };
+
+  if (!body.stream) {
+    response.writeHead(200, { "Content-Type": "application/json" });
+    response.end(
+      JSON.stringify({
+        id,
+        object: "chat.completion",
+        model,
+        choices: [{ index: 0, message, finish_reason: finishReason }],
+        usage: { prompt_tokens: 8, completion_tokens: 4, total_tokens: 12 },
+      }),
+    );
+    return;
+  }
+
+  response.writeHead(200, { "Content-Type": "text/event-stream" });
+  const chunks = reply.tool
+    ? [
+        { choices: [{ index: 0, delta: { role: "assistant" }, finish_reason: null }] },
+        {
+          choices: [
+            {
+              index: 0,
+              delta: {
+                tool_calls: [
+                  {
+                    index: 0,
+                    id: `call-e2e-${sequence}`,
+                    type: "function",
+                    function: { name: reply.tool.name, arguments: reply.tool.arguments },
+                  },
+                ],
+              },
+              finish_reason: null,
+            },
+          ],
+        },
+        { choices: [{ index: 0, delta: {}, finish_reason: finishReason }] },
+      ]
+    : [
+        {
+          choices: [
+            {
+              index: 0,
+              delta: { role: "assistant", content: reply.text },
+              finish_reason: finishReason,
+            },
+          ],
+        },
+      ];
+  for (const chunk of chunks) {
+    response.write(
+      `data: ${JSON.stringify({ id, object: "chat.completion.chunk", model, ...chunk })}\n\n`,
+    );
+  }
+  response.write(
+    `data: ${JSON.stringify({
+      id,
+      object: "chat.completion.chunk",
+      model,
+      choices: [],
+      usage: { prompt_tokens: 8, completion_tokens: 4, total_tokens: 12 },
+    })}\n\n`,
+  );
+  response.end("data: [DONE]\n\n");
 }
 
 async function waitUntilReady(baseUrl: string, processError: () => string): Promise<void> {
@@ -63,15 +245,52 @@ async function nextRuntimeEvent(
   throw new Error(`timed out waiting for ${type}`);
 }
 
+async function collectRunEvents(events: AsyncIterable<RunEvent>): Promise<RunEvent[]> {
+  const collected: RunEvent[] = [];
+  for await (const event of events) collected.push(event);
+  return collected;
+}
+
 describe("Go Runtime ↔ HTTP ↔ TypeScript SDK", () => {
   let root = "";
   let baseUrl = "";
   let runtime: ReturnType<typeof import("node:child_process").spawn> | undefined;
+  let provider: ReturnType<typeof createHttpServer> | undefined;
   let client: LyraClient | undefined;
   let processOutput = "";
 
   beforeAll(async () => {
     root = await mkdtemp(join(tmpdir(), "lyra-runtime-e2e-"));
+    let providerCalls = 0;
+    provider = createHttpServer(async (request, response) => {
+      try {
+        if (request.method === "GET" && request.url?.endsWith("/models")) {
+          response.writeHead(200, { "Content-Type": "application/json" });
+          response.end(
+            JSON.stringify({ object: "list", data: [{ id: "e2e-model", object: "model" }] }),
+          );
+          return;
+        }
+        if (request.method !== "POST" || !request.url?.endsWith("/chat/completions")) {
+          response.writeHead(404).end();
+          return;
+        }
+        writeChatCompletion(response, await requestJson(request), ++providerCalls);
+      } catch (error) {
+        response.writeHead(500, { "Content-Type": "application/json" });
+        response.end(JSON.stringify({ error: { message: String(error) } }));
+      }
+    });
+    await new Promise<void>((resolve, reject) => {
+      provider?.once("error", reject);
+      provider?.listen(0, "127.0.0.1", resolve);
+    });
+    const providerAddress = provider.address();
+    if (providerAddress === null || typeof providerAddress === "string") {
+      throw new Error("failed to start fake model provider");
+    }
+    const providerBaseUrl = `http://127.0.0.1:${providerAddress.port}`;
+
     const executable = join(root, "lyra-e2e");
     await execFileAsync("go", ["build", "-o", executable, "./cmd/lyra"], {
       cwd: runtimeDirectory,
@@ -86,10 +305,11 @@ describe("Go Runtime ↔ HTTP ↔ TypeScript SDK", () => {
         ...process.env,
         HOME: root,
         LYRA_HOME: join(root, ".lyra"),
-        LYRA_PROVIDER: "openai",
-        LYRA_MODEL: "gpt-4.1-mini",
+        LYRA_PROVIDER: "openai-compatible",
+        LYRA_MODEL: "e2e-model",
         LYRA_APIKEY: "e2e-placeholder-key",
-        OPENAI_API_KEY: "e2e-placeholder-key",
+        LYRA_BASEURL: providerBaseUrl,
+        OPENAI_COMPATIBLE_API_KEY: "e2e-placeholder-key",
         LYRA_SERVER_LISTEN: `127.0.0.1:${port}`,
         LYRA_SERVER_NOLOCALTOKEN: "true",
         LYRA_MCP_SERVERS: "",
@@ -124,6 +344,11 @@ describe("Go Runtime ↔ HTTP ↔ TypeScript SDK", () => {
         new Promise<void>((resolve) => setTimeout(resolve, 5_000)),
       ]);
       if (runtime.exitCode === null) runtime.kill("SIGKILL");
+    }
+    if (provider?.listening) {
+      await new Promise<void>((resolve, reject) =>
+        provider?.close((error) => (error ? reject(error) : resolve())),
+      );
     }
     if (root) await rm(root, { recursive: true, force: true });
   }, 10_000);
@@ -179,6 +404,305 @@ describe("Go Runtime ↔ HTTP ↔ TypeScript SDK", () => {
       (error: unknown) =>
         error instanceof RpcError && errorType(error.data) === "session_not_found",
     );
+
+    streamController.abort();
+    await events.return?.();
+  }, 30_000);
+
+  it("streams a complete run and reconciles its durable state", async () => {
+    if (!client) throw new Error("runtime client was not initialized");
+
+    const session = await client.sessions.create({
+      workspace: { path: root },
+      title: "HTTP run lifecycle",
+    });
+    const started = await client.runs.start({
+      sessionId: asSessionId(session.id),
+      input: [{ type: "text", text: "E2E_RUN complete without tools." }],
+    });
+    const runId = asRunId(started.result.runId);
+    const events = await collectRunEvents(started.events);
+
+    expect(events.at(0)?.event.type).toBe("segment.started");
+    expect(events.some((event) => event.event.type === "item.delta")).toBe(true);
+    expect(events.at(-1)?.event).toMatchObject({
+      type: "segment.finished",
+      outcome: { type: "completed" },
+    });
+    await expect(client.runs.get(runId)).resolves.toMatchObject({
+      id: runId,
+      sessionId: session.id,
+      status: "finished",
+      outcome: { type: "completed" },
+    });
+    await expect(
+      client.items.list({ scope: { type: "session", sessionId: session.id } }),
+    ).resolves.toMatchObject({
+      data: expect.arrayContaining([
+        expect.objectContaining({ type: "userMessage", runId: started.result.runId }),
+        expect.objectContaining({ type: "agentMessage", runId: started.result.runId }),
+      ]),
+    });
+    await expect(client.usage.session(asSessionId(session.id))).resolves.toMatchObject({
+      inputTokens: expect.any(Number),
+      outputTokens: expect.any(Number),
+    });
+  }, 30_000);
+
+  it("publishes plan state on the stream and through the exact cold read", async () => {
+    if (!client) throw new Error("runtime client was not initialized");
+
+    const session = await client.sessions.create({
+      workspace: { path: root },
+      title: "HTTP plan lifecycle",
+    });
+    const streamController = new AbortController();
+    const subscription = await client.runtimeEvents.subscribe(
+      { topics: ["state.changed"] },
+      streamController.signal,
+    );
+    const runtimeEvents = subscription.events[Symbol.asyncIterator]();
+
+    const started = await client.runs.start({
+      sessionId: asSessionId(session.id),
+      input: [{ type: "text", text: "E2E_PLAN publish the two-step plan." }],
+    });
+    const events = await collectRunEvents(started.events);
+    expect(
+      events.some(
+        (event) =>
+          event.event.type === "state.snapshot" &&
+          event.event.state.type === "plan" &&
+          event.event.state.plan.length === 2,
+      ),
+    ).toBe(true);
+
+    const changed = await nextRuntimeEvent(runtimeEvents, "state.changed");
+    expect(changed).toMatchObject({
+      type: "state.changed",
+      key: "plan",
+      sessionIds: [session.id],
+    });
+    await expect(client.plan.get(asSessionId(session.id))).resolves.toMatchObject({
+      type: "plan",
+      revision: 1,
+      sessionId: session.id,
+      plan: [
+        { description: "Inspect the runtime contract", status: "completed" },
+        { description: "Verify frontend reconciliation", status: "in_progress" },
+      ],
+    });
+
+    streamController.abort();
+    await runtimeEvents.return?.();
+  }, 30_000);
+
+  it("parks and resumes the same run through durable HITL identity", async () => {
+    if (!client) throw new Error("runtime client was not initialized");
+
+    const session = await client.sessions.create({
+      workspace: { path: root },
+      title: "HTTP HITL lifecycle",
+    });
+    const started = await client.runs.start({
+      sessionId: asSessionId(session.id),
+      input: [{ type: "text", text: "E2E_HITL ask before continuing." }],
+    });
+    const runId = asRunId(started.result.runId);
+    const startEvents = await collectRunEvents(started.events);
+    expect(startEvents.at(-1)?.event).toMatchObject({
+      type: "segment.finished",
+      outcome: { type: "interrupt" },
+    });
+    const waiting = await client.runs.get(runId);
+    expect(waiting).toMatchObject({ status: "waiting" });
+    expect(waiting).not.toHaveProperty("activeSegmentId");
+
+    const pending = await client.interrupts.list({ rootRunId: runId });
+    expect(pending.data).toHaveLength(1);
+    expect(pending.data[0]?.interrupts).toHaveLength(1);
+    const question = pending.data[0]?.interrupts[0];
+    if (!question || question.type !== "question") {
+      throw new Error("runtime did not persist the expected question interrupt");
+    }
+    expect(question.runId).toBe(started.result.runId);
+    expect(question.payload.question.fields[0]?.prompt).toBe("Continue the HTTP lifecycle check?");
+
+    const resumed = await client.runs.resume({
+      runId,
+      responses: [
+        {
+          itemId: question.itemId,
+          response: { type: "answer", answers: [["Yes"]] },
+        },
+      ],
+    });
+    expect(resumed.result.runId).toBe(started.result.runId);
+    expect(resumed.result.segmentId).not.toBe(started.result.segmentId);
+    const resumeEvents = await collectRunEvents(resumed.events);
+    expect(resumeEvents.at(-1)?.event).toMatchObject({
+      type: "segment.finished",
+      outcome: { type: "completed" },
+    });
+    await expect(client.interrupts.list({ rootRunId: runId })).resolves.toMatchObject({ data: [] });
+    await expect(client.runs.get(runId)).resolves.toMatchObject({
+      status: "finished",
+      outcome: { type: "completed" },
+    });
+  }, 30_000);
+
+  it("drives a goal to its durable budget boundary", async () => {
+    if (!client) throw new Error("runtime client was not initialized");
+
+    const session = await client.sessions.create({
+      workspace: { path: root },
+      title: "HTTP goal lifecycle",
+    });
+    const sessionId = asSessionId(session.id);
+    const streamController = new AbortController();
+    const subscription = await client.runtimeEvents.subscribe(
+      { topics: ["goals.changed", "runs.changed"] },
+      streamController.signal,
+    );
+    const runtimeEvents = subscription.events[Symbol.asyncIterator]();
+
+    await expect(
+      client.goals.start({
+        sessionId,
+        objective: "E2E_GOAL complete one autonomous run.",
+        budget: { maxRuns: 1 },
+      }),
+    ).resolves.toMatchObject({
+      sessionId: session.id,
+      status: "active",
+      budget: { maxRuns: 1 },
+      used: { runs: 0 },
+    });
+    await nextRuntimeEvent(runtimeEvents, "goals.changed");
+
+    let current = await client.goals.get(sessionId);
+    for (let attempt = 0; attempt < 100 && current?.status === "active"; attempt++) {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      current = await client.goals.get(sessionId);
+    }
+    expect(current).toMatchObject({
+      sessionId: session.id,
+      status: "blocked",
+      reason: { code: "runBudgetReached" },
+      used: { runs: 1 },
+    });
+    await nextRuntimeEvent(runtimeEvents, "goals.changed");
+
+    const runs = await client.runs.list({ sessionId });
+    expect(runs.data).toHaveLength(1);
+    expect(runs.data[0]).toMatchObject({
+      sessionId: session.id,
+      status: "finished",
+      outcome: { type: "completed" },
+    });
+    await expect(client.goals.resume(sessionId)).rejects.toSatisfy(
+      (error: unknown) => error instanceof RpcError && errorType(error.data) === "invalid_params",
+    );
+
+    streamController.abort();
+    await runtimeEvents.return?.();
+  }, 30_000);
+
+  it("reconciles an agent file write through files.changed", async () => {
+    if (!client) throw new Error("runtime client was not initialized");
+
+    const workspaceRoot = join(root, "workspace-agent-write");
+    await mkdir(workspaceRoot);
+    await writeFile(join(workspaceRoot, "agent-write.txt"), "before\n");
+    const session = await client.sessions.create({
+      workspace: { path: workspaceRoot },
+      title: "HTTP agent file write",
+    });
+    const streamController = new AbortController();
+    const subscription = await client.runtimeEvents.subscribe(
+      { topics: ["files.changed"] },
+      streamController.signal,
+    );
+    const runtimeEvents = subscription.events[Symbol.asyncIterator]();
+
+    const started = await client.runs.start({
+      sessionId: asSessionId(session.id),
+      input: [{ type: "text", text: "E2E_FILE_WRITE update the fixture." }],
+    });
+    const events = await collectRunEvents(started.events);
+    expect(events.at(-1)?.event).toMatchObject({
+      type: "segment.finished",
+      outcome: { type: "completed" },
+    });
+
+    const changed = await nextRuntimeEvent(runtimeEvents, "files.changed");
+    expect(changed).toMatchObject({
+      type: "files.changed",
+      paths: ["agent-write.txt"],
+      workspace: session.workspace.ref,
+    });
+    const file = await client
+      .workspace(session.workspace.ref)
+      .files.read({ path: "agent-write.txt" });
+    if (file.content !== "after\n") {
+      const toolEvents = events.filter(
+        (event) => event.event.type === "item.completed" && event.event.item.type === "toolCall",
+      );
+      throw new Error(`agent write did not persist: ${JSON.stringify(toolEvents)}`);
+    }
+    expect(file.path).toBe("agent-write.txt");
+
+    streamController.abort();
+    await runtimeEvents.return?.();
+  }, 30_000);
+
+  it("keeps file-change signals scoped and reconciles them through cold reads", async () => {
+    if (!client) throw new Error("runtime client was not initialized");
+
+    const workspaceRoot = join(root, "workspace-file-events");
+    await mkdir(workspaceRoot);
+    await execFileAsync("git", ["init", "--quiet"], { cwd: workspaceRoot });
+    await execFileAsync("git", ["config", "user.name", "Runtime HTTP E2E"], {
+      cwd: workspaceRoot,
+    });
+    await execFileAsync("git", ["config", "user.email", "runtime-http-e2e@example.invalid"], {
+      cwd: workspaceRoot,
+    });
+    await writeFile(join(workspaceRoot, "tracked.txt"), "before\n");
+    await execFileAsync("git", ["add", "tracked.txt"], { cwd: workspaceRoot });
+    await execFileAsync("git", ["commit", "--quiet", "-m", "baseline"], {
+      cwd: workspaceRoot,
+    });
+
+    const streamController = new AbortController();
+    const watchId = "workspace-file-events";
+    const subscription = await client.runtimeEvents.subscribe(
+      {
+        topics: ["files.changed"],
+        watches: [{ watchId, workspace: { path: workspaceRoot } }],
+      },
+      streamController.signal,
+    );
+    const events = subscription.events[Symbol.asyncIterator]();
+
+    await writeFile(join(workspaceRoot, "tracked.txt"), "after\n");
+    await execFileAsync("git", ["add", "tracked.txt"], { cwd: workspaceRoot });
+
+    const changed = await nextRuntimeEvent(events, "resync");
+    expect(changed.type === "resync" && changed.topics).toContain("files.changed");
+    expect(changed.type === "resync" && changed.watchIds).toContain(watchId);
+
+    const workspace = client.workspace({ path: workspaceRoot });
+    await expect(workspace.files.read({ path: "tracked.txt" })).resolves.toMatchObject({
+      content: "after\n",
+      path: "tracked.txt",
+    });
+    await expect(workspace.changes.list()).resolves.toMatchObject({
+      data: [{ path: "tracked.txt", status: "modified" }],
+    });
+    await expect(workspace.diff.get()).resolves.toMatchObject({
+      files: [{ path: "tracked.txt", status: "modified" }],
+    });
 
     streamController.abort();
     await events.return?.();

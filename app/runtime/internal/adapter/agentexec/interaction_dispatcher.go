@@ -321,6 +321,10 @@ func (observed *observedInteractionTool) Call(ctx context.Context, rawArguments 
 	if err := attempt.beginExternalCall(); err != nil {
 		return "", err
 	}
+	var mutatedPaths []string
+	ctx = toolset.WithMutationRecorder(ctx, func(paths []string) {
+		mutatedPaths = append(mutatedPaths, paths...)
+	})
 	output, callErr := observed.inner.Call(ctx, rawArguments)
 	if errors.Is(context.Cause(ctx), errInteractionRunCanceled) &&
 		(errors.Is(callErr, context.Canceled) || errors.Is(callErr, context.DeadlineExceeded)) {
@@ -346,7 +350,7 @@ func (observed *observedInteractionTool) Call(ctx context.Context, rawArguments 
 		arguments,
 		modelOutput,
 		offload,
-		observed.mutatedPaths(arguments, callErr),
+		normalizeMutationPaths(mutatedPaths),
 		callErr,
 	)
 	// A later concurrent Tool may finish before an earlier model-declared call.
@@ -666,21 +670,7 @@ func (observed *observedInteractionTool) offload(
 	)
 }
 
-func (observed *observedInteractionTool) mutatedPaths(
-	arguments tool.Arguments,
-	callErr error,
-) []string {
-	if callErr != nil {
-		return nil
-	}
-	reporter, ok, err := toolcontract.Capability[interactionFileMutationReporter](observed.inner)
-	if err != nil || !ok {
-		return nil
-	}
-	paths, err := reporter.MutationPaths(arguments.Canonical())
-	if err != nil {
-		return nil
-	}
+func normalizeMutationPaths(paths []string) []string {
 	paths = slices.DeleteFunc(slices.Clone(paths), func(path string) bool { return path == "" })
 	slices.Sort(paths)
 	return slices.Compact(paths)

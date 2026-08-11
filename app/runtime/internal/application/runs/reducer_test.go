@@ -491,6 +491,21 @@ func TestReducerPreservesRawToolResultsAndExplicitFileNudges(t *testing.T) {
 		t.Fatalf("write nudge = %+v", nudge)
 	}
 
+	mustReduce(t, reducer, ToolCallStarted{CallID: "partial_1", ToolName: "write", Arguments: `{"path":"src/partial.go"}`})
+	partial := mustReduce(t, reducer, ToolCallFinished{
+		CallID: "partial_1", MutatedPaths: []string{"src/partial.go"},
+		Failure: &tool.Failure{Kind: tool.FailureExecution, Detail: "post-write failure"},
+	})
+	nudge = nil
+	for _, reduction := range partial {
+		if reduction.Nudge != nil {
+			nudge = reduction.Nudge
+		}
+	}
+	if nudge == nil || len(nudge.Paths) != 1 || nudge.Paths[0] != "src/partial.go" {
+		t.Fatalf("partial write nudge = %+v", nudge)
+	}
+
 	mustReduce(t, reducer, ToolCallStarted{CallID: "denied_1", ToolName: "shell", Arguments: `{}`})
 	denied := completedItem(t, mustReduce(t, reducer, ToolCallFinished{
 		CallID:  "denied_1",
