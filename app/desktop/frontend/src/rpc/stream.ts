@@ -18,6 +18,7 @@
 
 import { createPushPullChannel, type PushPullChannel } from "./channel";
 import type { RpcClient } from "./client";
+import type { RpcId } from "./types";
 import type { RunEvent, RuntimeEvent } from "./wire.generated";
 import { RUNTIME_SUBSCRIBE_METHOD } from "./transport";
 import { NOTIFICATIONS_RUN_EVENT, NOTIFICATIONS_RUNTIME_EVENT } from "./wire.generated";
@@ -35,9 +36,8 @@ export const RUNTIME_EVENT_METHOD = NOTIFICATIONS_RUNTIME_EVENT;
 class RunTree {
   // Subagent runIds admitted onto this tree PLUS the root run's own runId
   // (learned from the root-segment segment.started). The root's OWN events are
-  // matched by segmentId, not by this set; the set exists so subagents can be
-  // admitted by runId and so transport stream termination (which reports runIds)
-  // can match.
+  // matched by segmentId, not by this set; the set exists so descendants can be
+  // admitted and then matched by their own runId.
   private readonly runs = new Set<string>();
   private readonly itemOwner = new Map<string, string>(); // itemId → owning runId
   // Event ids already delivered on this stream. §9.2 requires the client to
@@ -60,13 +60,6 @@ class RunTree {
     if (this.seenEventIds.has(eventId)) return true;
     this.seenEventIds.add(eventId);
     return false;
-  }
-
-  /** True if the given run belongs to this stream's tree (root or subagent) —
-   *  used by transport stream termination, which is keyed on runId. The root run is known from
-   *  the call response; descendant runs are learned from segment.started. */
-  hasRun(runId: string): boolean {
-    return this.runs.has(runId);
   }
 
   /** An event belongs to this tree if it's on the root segment or on an
@@ -207,44 +200,42 @@ export interface RunEventStream {
  * HTTP the call's response and its event frames arrive on one ordered stream
  * (TRANSPORT.md §6.4), so the head events land right after the response —
  * subscribing only after the response resolves races and drops them. So we
- * subscribe immediately, buffer raw events until `bind(runId, segmentId)` supplies
- * the runtime-assigned root identity, then replay the buffer through the tree
- * filter. (Every stream-opening method returns its root segmentId, so this is
- * the single run-event stream builder — a Run's runId is stable, but the
- * segment being streamed is only known from the response.)
+ * subscribe immediately, bind the transport-owned request id before send, buffer
+ * that response stream's events until `bind(runId, segmentId)` supplies the
+ * runtime-assigned root identity, then replay the buffer through the tree filter.
+ * (Every stream-opening method returns its root segmentId, so this is the single
+ * run-event stream builder — a Run's runId is stable, but the segment being
+ * streamed is only known from the response.)
  */
 export function streamRunEvents(
   client: RpcClient,
   signal?: AbortSignal,
-): RunEventStream & { bind: (rootRunId: string, rootSegmentId: string) => void } {
+): RunEventStream & {
+  bindRequest: (requestRpcId: RpcId) => void;
+  bind: (rootRunId: string, rootSegmentId: string) => void;
+} {
   const lifetime = createStreamLifetime(signal);
   const channel = createPushPullChannel<RunEvent>();
   const buffer: RunEvent[] = [];
-  const streamsEndedBeforeBind = new Map<string, Error | null>();
+  let ownerRequestRpcId: RpcId | undefined;
   let tree: RunTree | null = null;
 
   const unsubEvents = client.subscribe(RUN_EVENT_METHOD, {
-    next(event) {
-      if (channel.closed) return;
+    next(event, requestRpcId) {
+      if (channel.closed || requestRpcId !== ownerRequestRpcId) return;
       if (tree === null) buffer.push(event);
       else feedRunEvent(tree, channel, event);
     },
-    error: (error) => {
+    error: (error, requestRpcId) => {
+      if (requestRpcId !== undefined && requestRpcId !== ownerRequestRpcId) return;
       channel.fail(error);
       lifetime.abort();
     },
   });
   const unsubDown = client.onStreamEnd((event) => {
-    if (channel.closed) return;
-    if (tree === null) {
-      for (const runId of event.runIds) streamsEndedBeforeBind.set(runId, event.error ?? null);
-      return;
-    }
-    const activeTree = tree;
-    if (event.runIds.some((runId) => activeTree.hasRun(runId))) {
-      if (event.error) channel.fail(event.error);
-      else channel.close();
-    }
+    if (channel.closed || event.requestRpcId !== ownerRequestRpcId) return;
+    if (event.error) channel.fail(event.error);
+    else channel.close();
   });
 
   const bind = (rootRunId: string, rootSegmentId: string): void => {
@@ -252,12 +243,6 @@ export function streamRunEvents(
     tree = new RunTree(rootRunId, rootSegmentId);
     for (const ev of buffer) feedRunEvent(tree, channel, ev);
     buffer.length = 0;
-    if (streamsEndedBeforeBind.has(rootRunId)) {
-      const error = streamsEndedBeforeBind.get(rootRunId);
-      if (error) channel.fail(error);
-      else channel.close();
-    }
-    streamsEndedBeforeBind.clear();
   };
 
   const cleanup = bindLifecycle(
@@ -271,6 +256,12 @@ export function streamRunEvents(
   return {
     events: iterableOf(channel, cleanup),
     requestSignal: lifetime.signal,
+    bindRequest: (requestRpcId) => {
+      if (ownerRequestRpcId !== undefined) {
+        throw new Error("run event stream is already bound to a request");
+      }
+      ownerRequestRpcId = requestRpcId;
+    },
     bind,
     dispose: () => {
       channel.close();
@@ -294,22 +285,29 @@ export interface RuntimeEventStream {
   dispose: () => void;
 }
 
-export function streamRuntimeEvents(client: RpcClient, signal?: AbortSignal): RuntimeEventStream {
+export function streamRuntimeEvents(
+  client: RpcClient,
+  signal?: AbortSignal,
+): RuntimeEventStream & { bindRequest: (requestRpcId: RpcId) => void } {
   const lifetime = createStreamLifetime(signal);
   const channel = createPushPullChannel<RuntimeEvent>();
+  let ownerRequestRpcId: RpcId | undefined;
   const unsubEvents = client.subscribe(RUNTIME_EVENT_METHOD, {
-    next(params) {
-      if (channel.closed) return;
+    next(params, requestRpcId) {
+      if (channel.closed || requestRpcId !== ownerRequestRpcId) return;
       channel.push(params.event);
     },
-    error: (error) => {
+    error: (error, requestRpcId) => {
+      if (requestRpcId !== undefined && requestRpcId !== ownerRequestRpcId) return;
       channel.fail(error);
       lifetime.abort();
     },
   });
   const unsubDown = client.onStreamEnd((event) => {
     if (channel.closed) return;
-    if (event.method !== RUNTIME_SUBSCRIBE_METHOD) return;
+    if (event.method !== RUNTIME_SUBSCRIBE_METHOD || event.requestRpcId !== ownerRequestRpcId) {
+      return;
+    }
     if (event.error) channel.fail(event.error);
     else channel.close();
   });
@@ -324,6 +322,12 @@ export function streamRuntimeEvents(client: RpcClient, signal?: AbortSignal): Ru
   return {
     events: iterableOf(channel, cleanup),
     requestSignal: lifetime.signal,
+    bindRequest: (requestRpcId) => {
+      if (ownerRequestRpcId !== undefined) {
+        throw new Error("runtime event stream is already bound to a request");
+      }
+      ownerRequestRpcId = requestRpcId;
+    },
     dispose: () => {
       channel.close();
       cleanup();

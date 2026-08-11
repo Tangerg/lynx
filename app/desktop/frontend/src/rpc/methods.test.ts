@@ -1,10 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import { createRpcClient, type RpcCallOptions, type RpcClient } from "./client";
-import { RpcError, RpcTransportError } from "./errors";
+import { RpcError, RpcProtocolError, RpcTransportError } from "./errors";
 import { asRunId, asSegmentId, asSessionId } from "./ids";
 import { createMethods } from "./methods";
 import type { Item, RunEvent, StreamEvent } from "./wire.generated";
-import { RUN_EVENT_METHOD } from "./stream";
+import { RUN_EVENT_METHOD, RUNTIME_EVENT_METHOD } from "./stream";
 import { createMemoryTransport } from "./transports/memory";
 import { waitForRequest } from "./transports/memory.testkit";
 import type { RpcMessage } from "./types";
@@ -311,23 +311,31 @@ describe("methods factory", () => {
     const { result, events } = await startPromise;
     expect(result.runId).toBe("run_1");
 
-    t.inject({
-      jsonrpc: JSONRPC_VERSION,
-      method: RUN_EVENT_METHOD,
-      params: runEvent("run_1", "seg_1", "evt_1", {
-        type: "item.started",
-        item: agentMessageItem("item_1", "run_1", "running"),
-      }),
-    });
-    t.inject({
-      jsonrpc: JSONRPC_VERSION,
-      method: RUN_EVENT_METHOD,
-      params: runEvent("run_1", "seg_1", "evt_2", {
-        type: "segment.finished",
-        outcome: { type: "completed" },
-        metrics: { steps: 0, activeDurationMillis: 0 },
-      }),
-    });
+    t.inject(
+      {
+        jsonrpc: JSONRPC_VERSION,
+        method: RUN_EVENT_METHOD,
+        params: runEvent("run_1", "seg_1", "evt_1", {
+          type: "item.started",
+          item: agentMessageItem("item_1", "run_1", "running"),
+        }),
+      },
+      undefined,
+      req.id,
+    );
+    t.inject(
+      {
+        jsonrpc: JSONRPC_VERSION,
+        method: RUN_EVENT_METHOD,
+        params: runEvent("run_1", "seg_1", "evt_2", {
+          type: "segment.finished",
+          outcome: { type: "completed" },
+          metrics: { steps: 0, activeDurationMillis: 0 },
+        }),
+      },
+      undefined,
+      req.id,
+    );
 
     const collected: RunEvent[] = [];
     for await (const ev of events) collected.push(ev);
@@ -352,35 +360,167 @@ describe("methods factory", () => {
     } as RpcMessage);
     const { events } = await startPromise;
 
-    t.inject({
-      jsonrpc: JSONRPC_VERSION,
-      method: RUN_EVENT_METHOD,
-      params: runEvent("run_OTHER", "seg_OTHER", "evt_x", {
-        type: "item.started",
-        item: agentMessageItem("item_x", "run_OTHER", "running"),
-      }),
-    });
-    t.inject({
-      jsonrpc: JSONRPC_VERSION,
-      method: RUN_EVENT_METHOD,
-      params: runEvent("run_1", "seg_1", "evt_1", {
-        type: "item.completed",
-        item: agentMessageItem("item_1", "run_1", "completed"),
-      }),
-    });
-    t.inject({
-      jsonrpc: JSONRPC_VERSION,
-      method: RUN_EVENT_METHOD,
-      params: runEvent("run_1", "seg_1", "evt_2", {
-        type: "segment.finished",
-        outcome: { type: "completed" },
-        metrics: { steps: 0, activeDurationMillis: 0 },
-      }),
-    });
+    t.inject(
+      {
+        jsonrpc: JSONRPC_VERSION,
+        method: RUN_EVENT_METHOD,
+        params: runEvent("run_OTHER", "seg_OTHER", "evt_x", {
+          type: "item.started",
+          item: agentMessageItem("item_x", "run_OTHER", "running"),
+        }),
+      },
+      undefined,
+      req.id,
+    );
+    t.inject(
+      {
+        jsonrpc: JSONRPC_VERSION,
+        method: RUN_EVENT_METHOD,
+        params: runEvent("run_1", "seg_1", "evt_1", {
+          type: "item.completed",
+          item: agentMessageItem("item_1", "run_1", "completed"),
+        }),
+      },
+      undefined,
+      req.id,
+    );
+    t.inject(
+      {
+        jsonrpc: JSONRPC_VERSION,
+        method: RUN_EVENT_METHOD,
+        params: runEvent("run_1", "seg_1", "evt_2", {
+          type: "segment.finished",
+          outcome: { type: "completed" },
+          metrics: { steps: 0, activeDurationMillis: 0 },
+        }),
+      },
+      undefined,
+      req.id,
+    );
 
     const collected: RunEvent[] = [];
     for await (const ev of events) collected.push(ev);
     expect(collected.map((e) => e.event.type)).toEqual(["item.completed", "segment.finished"]);
+    await client.close();
+  });
+
+  it("keeps concurrent runtime subscriptions isolated by their response stream", async () => {
+    const t = createMemoryTransport();
+    const client = createRpcClient(t);
+    const methods = createMethods(client);
+
+    const sessionsPromise = methods.runtimeEvents.subscribe({ topics: ["sessions.changed"] });
+    const sessionsRequest = await waitForRequest(t, "runtime.subscribe");
+    t.inject({ jsonrpc: JSONRPC_VERSION, id: sessionsRequest.id, result: {} } as RpcMessage);
+    const sessions = await sessionsPromise;
+
+    const schedulesPromise = methods.runtimeEvents.subscribe({ topics: ["schedules.changed"] });
+    await Promise.resolve();
+    const schedulesRequest = t
+      .outbox()
+      .find(
+        (request) => request.method === "runtime.subscribe" && request.id !== sessionsRequest.id,
+      );
+    expect(schedulesRequest).toBeDefined();
+    t.inject({
+      jsonrpc: JSONRPC_VERSION,
+      id: schedulesRequest!.id,
+      result: {},
+    } as RpcMessage);
+    const schedules = await schedulesPromise;
+
+    const sessionsIterator = sessions.events[Symbol.asyncIterator]();
+    const schedulesIterator = schedules.events[Symbol.asyncIterator]();
+    t.inject(
+      {
+        jsonrpc: JSONRPC_VERSION,
+        method: RUNTIME_EVENT_METHOD,
+        params: {
+          event: { type: "sessions.changed", sequence: 1, sessionIds: ["session_1"] },
+        },
+      },
+      undefined,
+      sessionsRequest.id,
+    );
+    t.inject(
+      {
+        jsonrpc: JSONRPC_VERSION,
+        method: RUNTIME_EVENT_METHOD,
+        params: {
+          event: { type: "schedules.changed", sequence: 1, scheduleIds: ["schedule_1"] },
+        },
+      },
+      undefined,
+      schedulesRequest!.id,
+    );
+
+    await expect(sessionsIterator.next()).resolves.toMatchObject({
+      value: { type: "sessions.changed" },
+    });
+    await expect(schedulesIterator.next()).resolves.toMatchObject({
+      value: { type: "schedules.changed" },
+    });
+
+    t.endStream("runtime.subscribe", sessionsRequest.id);
+    await expect(sessionsIterator.next()).resolves.toMatchObject({ done: true });
+    t.endStream("runtime.subscribe", schedulesRequest!.id);
+    await expect(schedulesIterator.next()).resolves.toMatchObject({ done: true });
+    await client.close();
+  });
+
+  it("scopes an invalid notification to the response stream that carried it", async () => {
+    const t = createMemoryTransport();
+    const client = createRpcClient(t);
+    const methods = createMethods(client);
+
+    const sessionsPromise = methods.runtimeEvents.subscribe({ topics: ["sessions.changed"] });
+    const sessionsRequest = await waitForRequest(t, "runtime.subscribe");
+    t.inject({ jsonrpc: JSONRPC_VERSION, id: sessionsRequest.id, result: {} } as RpcMessage);
+    const sessions = await sessionsPromise;
+
+    const schedulesPromise = methods.runtimeEvents.subscribe({ topics: ["schedules.changed"] });
+    await Promise.resolve();
+    const schedulesRequest = t
+      .outbox()
+      .find(
+        (request) => request.method === "runtime.subscribe" && request.id !== sessionsRequest.id,
+      );
+    expect(schedulesRequest).toBeDefined();
+    t.inject({
+      jsonrpc: JSONRPC_VERSION,
+      id: schedulesRequest!.id,
+      result: {},
+    } as RpcMessage);
+    const schedules = await schedulesPromise;
+
+    const sessionsIterator = sessions.events[Symbol.asyncIterator]();
+    const schedulesIterator = schedules.events[Symbol.asyncIterator]();
+    t.inject(
+      {
+        jsonrpc: JSONRPC_VERSION,
+        method: RUNTIME_EVENT_METHOD,
+        params: { event: { type: "sessions.changed", sequence: 0 } },
+      },
+      undefined,
+      sessionsRequest.id,
+    );
+    await expect(sessionsIterator.next()).rejects.toBeInstanceOf(RpcProtocolError);
+
+    t.inject(
+      {
+        jsonrpc: JSONRPC_VERSION,
+        method: RUNTIME_EVENT_METHOD,
+        params: { event: { type: "schedules.changed", sequence: 1 } },
+      },
+      undefined,
+      schedulesRequest!.id,
+    );
+    await expect(schedulesIterator.next()).resolves.toMatchObject({
+      value: { type: "schedules.changed" },
+    });
+
+    t.endStream("runtime.subscribe", schedulesRequest!.id);
+    await expect(schedulesIterator.next()).resolves.toMatchObject({ done: true });
     await client.close();
   });
 });

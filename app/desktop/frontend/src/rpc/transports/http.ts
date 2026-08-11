@@ -35,7 +35,6 @@ import { createParser } from "eventsource-parser";
 import { createPushPullChannel } from "../channel";
 import { errorMessage, parseTransportProblem, RpcTransportError } from "../errors";
 import {
-  RUNTIME_SUBSCRIBE_METHOD,
   type Transport,
   type TransportEvent,
   type TransportRequest,
@@ -43,17 +42,10 @@ import {
   type TransportSendOptions,
 } from "../transport";
 import type { RpcId } from "../types";
-import { isErrorResponse, isNotification, isResponse, parseRpcMessage } from "../types";
-import { NOTIFICATIONS_RUN_EVENT } from "../wire.generated";
+import { isResponse, parseRpcMessage } from "../types";
 import { isWireStreamingMethodName, type WireStreamingMethodName } from "../wire.methods.generated";
 
 const RPC_PATH = "/v2/rpc";
-
-function stringMember(value: unknown, member: string): string | undefined {
-  if (value === null || typeof value !== "object" || Array.isArray(value)) return undefined;
-  const found = (value as Record<string, unknown>)[member];
-  return typeof found === "string" ? found : undefined;
-}
 
 // Delegating tracer — resolves to the global provider once observability is
 // installed (no-op spans before then). One CLIENT span per RPC call; the
@@ -108,17 +100,13 @@ export function createHttpTransport(config: HttpTransportConfig): Transport {
   // runtime restart, premature EOS) must not strand its consumers: without a
   // signal, the call whose response never arrived hangs its pending promise
   // forever, and a run mid-stream leaves the UI stuck "running". So we sniff
-  // what this stream carried — whether `requestId`'s response was delivered,
-  // and which runIds streamed events here — then reports typed transport
-  // lifecycle events. They never impersonate JSON-RPC responses or notifications.
-  // A unary call's stream EOSing after its one
-  // response frame produces neither (responseSeen, no runIds) — that's the
-  // normal case, not a death.
+  // whether `requestId`'s response was delivered, then report a lifecycle event
+  // owned by that exact request. It never impersonates a JSON-RPC response or
+  // notification.
   //
-  // runtime.subscribe is the one NON-run stream: it has no runId to
-  // attribute and no terminal frame, so for it ANY non-abort end — graceful
-  // EOS included — means "subscription over, resubscribe" (AUX_API §3.1). We
-  // signal that with a method-attributed streamEnd event.
+  // For runtime.subscribe, which has no terminal frame, any non-abort end —
+  // graceful EOS included — means "subscription over, resubscribe"
+  // (AUX_API §3.1).
   async function drainStream(
     body: ReadableStream<Uint8Array>,
     requestId: RpcId,
@@ -128,7 +116,6 @@ export function createHttpTransport(config: HttpTransportConfig): Transport {
   ): Promise<void> {
     let responseSeen = false;
     let streamError: Error | undefined;
-    const runIds = new Set<string>();
     const parser = createParser({
       onEvent(event) {
         if (!event.data) return;
@@ -143,19 +130,8 @@ export function createHttpTransport(config: HttpTransportConfig): Transport {
         }
         if (isResponse(msg) && msg.id === requestId) {
           responseSeen = true;
-          // runs.start/resume/subscribe responses carry the stream's root
-          // runId — record it so a death BEFORE the first run event still
-          // names the run in the streamEnd event.
-          if (!isErrorResponse(msg)) {
-            const runId = stringMember(msg.result, "runId");
-            if (runId) runIds.add(runId);
-          }
         }
-        if (isNotification(msg) && msg.method === NOTIFICATIONS_RUN_EVENT) {
-          const runId = stringMember(msg.params, "runId");
-          if (runId) runIds.add(runId);
-        }
-        channel.push({ type: "message", message: msg, metadata });
+        channel.push({ type: "message", message: msg, requestRpcId: requestId, metadata });
       },
     });
     const reader = body.getReader();
@@ -194,15 +170,13 @@ export function createHttpTransport(config: HttpTransportConfig): Transport {
           ),
       });
     }
-    if (runIds.size > 0 || method === RUNTIME_SUBSCRIBE_METHOD) {
-      channel.push({
-        type: "streamEnd",
-        method,
-        runIds: [...runIds],
-        ...(streamError ? { error: streamError } : {}),
-        metadata,
-      });
-    }
+    channel.push({
+      type: "streamEnd",
+      method,
+      requestRpcId: requestId,
+      ...(streamError ? { error: streamError } : {}),
+      metadata,
+    });
   }
 
   async function send(
@@ -354,7 +328,7 @@ export function createHttpTransport(config: HttpTransportConfig): Transport {
       endSpan(span, err);
       throw err;
     }
-    channel.push({ type: "message", message: inbound, metadata });
+    channel.push({ type: "message", message: inbound, requestRpcId: rpcId, metadata });
     endSpan(span);
   }
 

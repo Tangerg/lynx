@@ -103,15 +103,18 @@ describe("HTTPTransport — streamable HTTP", () => {
     expect(r0.value).toMatchObject({
       type: "message",
       message: { id: "1", result: { runId: "run_01" } },
+      requestRpcId: "1",
       metadata: { requestId: "req_stream_01" },
     });
     expect(r1.value).toMatchObject({
       type: "message",
       message: { params: { event: { type: "segment.started" } } },
+      requestRpcId: "1",
     });
     expect(r2.value).toMatchObject({
       type: "message",
       message: { params: { event: { type: "segment.finished" } } },
+      requestRpcId: "1",
     });
   });
 
@@ -136,6 +139,7 @@ describe("HTTPTransport — streamable HTTP", () => {
     expect(r.value).toMatchObject({
       type: "message",
       message: { id: "2", result: { id: "ses_1" } },
+      requestRpcId: "2",
       metadata: { requestId: "req_unary_01" },
     });
     expect(fetchStub).toHaveBeenCalledWith(
@@ -285,7 +289,7 @@ describe("HTTPTransport — streamable HTTP", () => {
     expect(r1.value).toMatchObject({
       type: "streamEnd",
       method: "runs.start",
-      runIds: ["run_01"],
+      requestRpcId: "1",
       error: expect.any(Error),
     });
   });
@@ -324,6 +328,7 @@ describe("HTTPTransport — streamable HTTP", () => {
     expect(ended.value).toMatchObject({
       type: "streamEnd",
       method: "runs.start",
+      requestRpcId: "1",
       error: expect.any(RpcTransportError),
     });
   });

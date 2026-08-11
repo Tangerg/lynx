@@ -123,37 +123,65 @@ describe("smoke: v2 end-to-end happy path", () => {
 
     // ---- Step 4 + 5: drive items until the interrupt ----------------------
     setTimeout(() => {
-      injectRunEvent(transport, "run_1", "seg_1", "evt_1", {
-        type: "segment.started",
-        run: {
-          id: asRunId("run_1"),
-          sessionId: asSessionId("ses_1"),
-          metrics: { steps: 0, activeDurationMillis: 0 },
-          protocolProfile: { requiredFeatures: [], interruptTypes: ["approval"] },
+      injectRunEvent(
+        transport,
+        "run_1",
+        "seg_1",
+        "evt_1",
+        {
+          type: "segment.started",
+          run: {
+            id: asRunId("run_1"),
+            sessionId: asSessionId("ses_1"),
+            metrics: { steps: 0, activeDurationMillis: 0 },
+            protocolProfile: { requiredFeatures: [], interruptTypes: ["approval"] },
+          },
         },
-      });
-      injectRunEvent(transport, "run_1", "seg_1", "evt_2", {
-        type: "item.started",
-        item: agentMessageItem("item_1", "run_1", "", "running"),
-      });
-      injectRunEvent(transport, "run_1", "seg_1", "evt_3", {
-        type: "item.delta",
-        itemId: asItemId("item_1"),
-        delta: { type: "content", text: "Running ls…" },
-      });
-      injectRunEvent(transport, "run_1", "seg_1", "evt_4", {
-        type: "item.started",
-        item: {
-          id: asItemId("item_tool"),
-          runId: asRunId("run_1"),
-          status: "running",
-          startedAt: "2026-06-03T00:00:00Z",
-          type: "toolCall",
-          tool: { name: "shell", arguments: { command: "ls", description: "List files" } },
+        startReq.id,
+      );
+      injectRunEvent(
+        transport,
+        "run_1",
+        "seg_1",
+        "evt_2",
+        {
+          type: "item.started",
+          item: agentMessageItem("item_1", "run_1", "", "running"),
         },
-      });
+        startReq.id,
+      );
+      injectRunEvent(
+        transport,
+        "run_1",
+        "seg_1",
+        "evt_3",
+        {
+          type: "item.delta",
+          itemId: asItemId("item_1"),
+          delta: { type: "content", text: "Running ls…" },
+        },
+        startReq.id,
+      );
+      injectRunEvent(
+        transport,
+        "run_1",
+        "seg_1",
+        "evt_4",
+        {
+          type: "item.started",
+          item: {
+            id: asItemId("item_tool"),
+            runId: asRunId("run_1"),
+            status: "running",
+            startedAt: "2026-06-03T00:00:00Z",
+            type: "toolCall",
+            tool: { name: "shell", arguments: { command: "ls", description: "List files" } },
+          },
+        },
+        startReq.id,
+      );
       // R-model HITL: the segment ENDS with an interrupt for the tool approval.
-      injectRunFinished(transport, "run_1", "seg_1", "evt_5", {
+      injectRunFinished(transport, "run_1", "seg_1", "evt_5", startReq.id, {
         type: "interrupt",
         interrupts: [
           {
@@ -193,24 +221,39 @@ describe("smoke: v2 end-to-end happy path", () => {
 
     // ---- Step 7: continuation segment completes ---------------------------
     setTimeout(() => {
-      injectRunEvent(transport, "run_1", "seg_2", "evt_1", {
-        type: "segment.started",
-        run: {
-          id: asRunId("run_1"),
-          sessionId: asSessionId("ses_1"),
-          metrics: { steps: 0, activeDurationMillis: 0 },
-          protocolProfile: { requiredFeatures: [], interruptTypes: ["approval"] },
+      injectRunEvent(
+        transport,
+        "run_1",
+        "seg_2",
+        "evt_1",
+        {
+          type: "segment.started",
+          run: {
+            id: asRunId("run_1"),
+            sessionId: asSessionId("ses_1"),
+            metrics: { steps: 0, activeDurationMillis: 0 },
+            protocolProfile: { requiredFeatures: [], interruptTypes: ["approval"] },
+          },
         },
-      });
-      injectRunEvent(transport, "run_1", "seg_2", "evt_2", {
-        type: "item.completed",
-        item: agentMessageItem("item_2", "run_1", "Found 5 files.", "completed"),
-      });
+        resumeReq.id,
+      );
+      injectRunEvent(
+        transport,
+        "run_1",
+        "seg_2",
+        "evt_2",
+        {
+          type: "item.completed",
+          item: agentMessageItem("item_2", "run_1", "Found 5 files.", "completed"),
+        },
+        resumeReq.id,
+      );
       injectRunFinished(
         transport,
         "run_1",
         "seg_2",
         "evt_3",
+        resumeReq.id,
         { type: "completed" },
         { usage: { inputTokens: 100, outputTokens: 20 }, steps: 2, activeDurationMillis: 0 },
       );
@@ -243,15 +286,29 @@ describe("smoke: v2 end-to-end happy path", () => {
     const { events } = await startPromise;
 
     setTimeout(() => {
-      injectRunEvent(transport, "run_other", "seg_other", "evt_1", {
-        type: "item.completed",
-        item: agentMessageItem("item_x", "run_other", "stolen", "completed"),
-      });
-      injectRunEvent(transport, "run_ours", "seg_ours", "evt_1", {
-        type: "item.completed",
-        item: agentMessageItem("item_ok", "run_ours", "ok", "completed"),
-      });
-      injectRunFinished(transport, "run_ours", "seg_ours", "evt_2");
+      injectRunEvent(
+        transport,
+        "run_other",
+        "seg_other",
+        "evt_1",
+        {
+          type: "item.completed",
+          item: agentMessageItem("item_x", "run_other", "stolen", "completed"),
+        },
+        req.id,
+      );
+      injectRunEvent(
+        transport,
+        "run_ours",
+        "seg_ours",
+        "evt_1",
+        {
+          type: "item.completed",
+          item: agentMessageItem("item_ok", "run_ours", "ok", "completed"),
+        },
+        req.id,
+      );
+      injectRunFinished(transport, "run_ours", "seg_ours", "evt_2", req.id);
     }, 0);
 
     const collected: RunEvent[] = [];
@@ -278,11 +335,15 @@ describe("smoke: v2 end-to-end happy path", () => {
 
     setTimeout(() => {
       // Malformed: missing segmentId/eventId/timestamp (required by envelope schema).
-      transport.inject({
-        jsonrpc: "2.0",
-        method: "notifications.run.event",
-        params: { runId: "run_1", event: { type: "item.started" } },
-      });
+      transport.inject(
+        {
+          jsonrpc: "2.0",
+          method: "notifications.run.event",
+          params: { runId: "run_1", event: { type: "item.started" } },
+        },
+        undefined,
+        req.id,
+      );
     }, 0);
 
     await expect(async () => {

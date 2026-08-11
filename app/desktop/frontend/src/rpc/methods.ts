@@ -634,6 +634,7 @@ export function createMethods(client: RpcClient, options: MethodsOptions = {}): 
             perform("runs.start", params, {
               signal: stream.requestSignal,
               idempotencyKey,
+              onRequestRpcId: stream.bindRequest,
             }),
           );
           stream.bind(result.runId, result.segmentId);
@@ -647,6 +648,7 @@ export function createMethods(client: RpcClient, options: MethodsOptions = {}): 
             perform("runs.resume", params, {
               signal: stream.requestSignal,
               idempotencyKey,
+              onRequestRpcId: stream.bindRequest,
             }),
           );
           stream.bind(result.runId, result.segmentId);
@@ -660,6 +662,7 @@ export function createMethods(client: RpcClient, options: MethodsOptions = {}): 
           call("runs.subscribe", params, {
             signal: stream.requestSignal,
             lastEventId: options?.lastEventId,
+            onRequestRpcId: stream.bindRequest,
           }),
         );
         stream.bind(result.runId, result.segmentId);
@@ -678,7 +681,10 @@ export function createMethods(client: RpcClient, options: MethodsOptions = {}): 
       subscribe: async (params, signal) => {
         const stream = streamRuntimeEvents(client, signal);
         const result = await callOrDispose(stream, () =>
-          call(RUNTIME_SUBSCRIBE_METHOD, params, { signal: stream.requestSignal }),
+          call(RUNTIME_SUBSCRIBE_METHOD, params, {
+            signal: stream.requestSignal,
+            onRequestRpcId: stream.bindRequest,
+          }),
         );
         return { result, events: stream.events };
       },

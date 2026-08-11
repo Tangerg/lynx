@@ -23,12 +23,19 @@ export interface TransportResponseMetadata {
 }
 
 export type TransportEvent =
-  | { type: "message"; message: RpcMessage; metadata?: TransportResponseMetadata }
+  | {
+      type: "message";
+      message: RpcMessage;
+      /** Outbound JSON-RPC request whose response stream carried this frame. */
+      requestRpcId: RpcId;
+      metadata?: TransportResponseMetadata;
+    }
   | { type: "requestError"; rpcId: RpcId; error: Error }
   | {
       type: "streamEnd";
       method: WireStreamingMethodName;
-      runIds: readonly string[];
+      /** Outbound JSON-RPC request that owned the ended response stream. */
+      requestRpcId: RpcId;
       error?: Error;
       metadata?: TransportResponseMetadata;
     };

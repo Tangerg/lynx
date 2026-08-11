@@ -50,8 +50,13 @@ export function respondSuccess(t: MemoryTransport, id: RpcId, result: unknown): 
 }
 
 /** Inject a server-side Notification with arbitrary method + params. */
-export function injectNotification(t: MemoryTransport, method: string, params: unknown): void {
-  t.inject({ jsonrpc: JSONRPC_VERSION, method, params });
+export function injectNotification(
+  t: MemoryTransport,
+  requestRpcId: RpcId,
+  method: string,
+  params: unknown,
+): void {
+  t.inject({ jsonrpc: JSONRPC_VERSION, method, params }, undefined, requestRpcId);
 }
 
 /** Inject a `notifications.run.event` carrying a v2 StreamEvent (§5). A
@@ -64,8 +69,9 @@ export function injectRunEvent(
   segmentId: string,
   eventId: string,
   event: StreamEvent,
+  requestRpcId: RpcId,
 ): void {
-  injectNotification(t, RUN_EVENT_METHOD, {
+  injectNotification(t, requestRpcId, RUN_EVENT_METHOD, {
     runId,
     segmentId,
     eventId,
@@ -81,8 +87,16 @@ export function injectRunFinished(
   runId: string,
   segmentId: string,
   eventId: string,
+  requestRpcId: RpcId,
   outcome: SegmentOutcome = { type: "completed" },
   metrics: RunMetrics = { steps: 0, activeDurationMillis: 0 },
 ): void {
-  injectRunEvent(t, runId, segmentId, eventId, { type: "segment.finished", outcome, metrics });
+  injectRunEvent(
+    t,
+    runId,
+    segmentId,
+    eventId,
+    { type: "segment.finished", outcome, metrics },
+    requestRpcId,
+  );
 }

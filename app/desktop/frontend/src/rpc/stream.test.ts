@@ -10,8 +10,13 @@
 
 import type { NotificationObserver, RpcClient, StreamEndHandler } from "./client";
 import { describe, expect, it } from "vitest";
-import type { RunEvent } from "./wire.generated";
-import { RUN_EVENT_METHOD, streamRunEvents } from "./stream";
+import type { RunEvent, RuntimeEvent } from "./wire.generated";
+import {
+  RUN_EVENT_METHOD,
+  RUNTIME_EVENT_METHOD,
+  streamRunEvents,
+  streamRuntimeEvents,
+} from "./stream";
 import type { WireNotificationName, WireNotificationParams } from "./wire.validate.generated";
 
 function fakeClient() {
@@ -46,18 +51,28 @@ function fakeClient() {
     },
   } as unknown as RpcClient;
 
-  const emitTo = <M extends WireNotificationName>(method: M, params: WireNotificationParams[M]) => {
+  const emitTo = <M extends WireNotificationName>(
+    method: M,
+    params: WireNotificationParams[M],
+    requestRpcId = "rpc_run",
+  ) => {
     for (const observer of subs.get(method) ?? []) {
-      observer.next(params);
+      observer.next(params, requestRpcId);
     }
   };
-  const emit = (params: RunEvent) => emitTo(RUN_EVENT_METHOD, params);
-  const emitDown = (runIds: string[]) => {
+  const emit = (params: RunEvent, requestRpcId = "rpc_run") =>
+    emitTo(RUN_EVENT_METHOD, params, requestRpcId);
+  const emitRuntime = (event: RuntimeEvent, requestRpcId: string) =>
+    emitTo(RUNTIME_EVENT_METHOD, { event }, requestRpcId);
+  const emitDown = (
+    requestRpcId = "rpc_run",
+    method: "runs.start" | "runtime.subscribe" = "runs.start",
+  ) => {
     for (const handler of streamEndHandlers) {
-      handler({ type: "streamEnd", method: "runs.start", runIds });
+      handler({ type: "streamEnd", method, requestRpcId });
     }
   };
-  return { client, emit, emitDown, activeCount: () => active };
+  return { client, emit, emitRuntime, emitDown, activeCount: () => active };
 }
 
 function evt(
@@ -69,8 +84,7 @@ function evt(
   return { runId, segmentId, eventId, timestamp: "2026-06-03T00:00:00Z", event } as RunEvent;
 }
 
-// A root-segment segment.started — its `run.id` is the root runId (learned by the
-// tree for transport stream-end matching); it lands FIRST on every real stream.
+// A root-segment segment.started — it lands first on every real run stream.
 function rootStarted(): RunEvent {
   return evt("run_root", "seg_root", "evt_start", {
     type: "segment.started",
@@ -82,6 +96,7 @@ describe("streamRunEvents — tree membership (bound)", () => {
   it("yields tree events and ends on the root-segment segment.finished, no leaked subscriber", async () => {
     const { client, emit, activeCount } = fakeClient();
     const stream = streamRunEvents(client);
+    stream.bindRequest("rpc_run");
     stream.bind("run_root", "seg_root");
 
     const collected: string[] = [];
@@ -119,6 +134,7 @@ describe("streamRunEvents — tree membership (bound)", () => {
   it("admits a subagent run spawned by an item seen on the tree", async () => {
     const { client, emit } = fakeClient();
     const stream = streamRunEvents(client);
+    stream.bindRequest("rpc_run");
     stream.bind("run_root", "seg_root");
     const collected: RunEvent[] = [];
     const consume = (async () => {
@@ -174,6 +190,7 @@ describe("streamRunEvents — tree membership (bound)", () => {
   it("drops a re-delivered eventId (replay/overlap dedupe, §9.2)", async () => {
     const { client, emit } = fakeClient();
     const stream = streamRunEvents(client);
+    stream.bindRequest("rpc_run");
     stream.bind("run_root", "seg_root");
     const collected: string[] = [];
     const consume = (async () => {
@@ -202,6 +219,7 @@ describe("streamRunEvents — tree membership (bound)", () => {
   it("unsubscribes on early break", async () => {
     const { client, emit, activeCount } = fakeClient();
     const stream = streamRunEvents(client);
+    stream.bindRequest("rpc_run");
     stream.bind("run_root", "seg_root");
     const collected: string[] = [];
     const consume = (async () => {
@@ -223,9 +241,10 @@ describe("streamRunEvents — tree membership (bound)", () => {
     expect(stream.requestSignal.aborted).toBe(true);
   });
 
-  it("a stream-end naming a tree run closes the stream (consumer unblocks)", async () => {
+  it("its owning stream-end closes the stream (consumer unblocks)", async () => {
     const { client, emit, emitDown, activeCount } = fakeClient();
     const stream = streamRunEvents(client);
+    stream.bindRequest("rpc_run");
     stream.bind("run_root", "seg_root");
     const collected: string[] = [];
     const consume = (async () => {
@@ -242,7 +261,7 @@ describe("streamRunEvents — tree membership (bound)", () => {
     );
     // Transport reports the SSE stream carrying run_root died (no segment.finished
     // ever arrived) — the consumer's for-await must end, not hang forever.
-    emitDown(["run_root"]);
+    emitDown();
     await consume;
 
     expect(collected).toEqual(["segment.started", "item.started"]);
@@ -252,21 +271,23 @@ describe("streamRunEvents — tree membership (bound)", () => {
   it("remembers a stream-end that arrives before the call result is bound", async () => {
     const { client, emitDown, activeCount } = fakeClient();
     const stream = streamRunEvents(client);
+    stream.bindRequest("rpc_run");
     const iterator = stream.events[Symbol.asyncIterator]();
     const next = iterator.next();
 
     // The HTTP reader can deliver response + immediate EOS before the
     // Promise continuation binds the returned run and segment IDs.
-    emitDown(["run_root"]);
+    emitDown();
     stream.bind("run_root", "seg_root");
 
     await expect(next).resolves.toMatchObject({ done: true });
     expect(activeCount()).toBe(0);
   });
 
-  it("a stream-end for an unrelated run leaves the stream open", async () => {
+  it("a stream-end for an unrelated request leaves the stream open", async () => {
     const { client, emit, emitDown } = fakeClient();
     const stream = streamRunEvents(client);
+    stream.bindRequest("rpc_run");
     stream.bind("run_root", "seg_root");
     const collected: string[] = [];
     const consume = (async () => {
@@ -274,7 +295,7 @@ describe("streamRunEvents — tree membership (bound)", () => {
     })();
 
     await Promise.resolve();
-    emitDown(["run_other"]); // some other run's stream died — not ours
+    emitDown("rpc_other");
     emit(
       evt("run_root", "seg_root", "evt_1", {
         type: "item.started",
@@ -323,7 +344,8 @@ describe("streamRunEvents — deferred bind lifecycle", () => {
 
   it("buffers events before bind, then replays through the tree filter", async () => {
     const { client, emit } = fakeClient();
-    const { events, bind } = streamRunEvents(client);
+    const { events, bind, bindRequest } = streamRunEvents(client);
+    bindRequest("rpc_run");
     const collected: string[] = [];
     const consume = (async () => {
       for await (const ev of events) collected.push(ev.event.type);
@@ -349,5 +371,50 @@ describe("streamRunEvents — deferred bind lifecycle", () => {
     await consume;
 
     expect(collected).toEqual(["segment.started", "item.started", "segment.finished"]);
+  });
+});
+
+describe("streamRuntimeEvents — response-stream ownership", () => {
+  it("isolates concurrent subscriptions on the same RpcClient", async () => {
+    const { client, emitRuntime, emitDown, activeCount } = fakeClient();
+    const sessions = streamRuntimeEvents(client);
+    const schedules = streamRuntimeEvents(client);
+    sessions.bindRequest("rpc_sessions");
+    schedules.bindRequest("rpc_schedules");
+
+    const sessionsIterator = sessions.events[Symbol.asyncIterator]();
+    const schedulesIterator = schedules.events[Symbol.asyncIterator]();
+    emitRuntime(
+      { type: "sessions.changed", sequence: 1, sessionIds: ["session_1"] },
+      "rpc_sessions",
+    );
+    emitRuntime(
+      { type: "schedules.changed", sequence: 1, scheduleIds: ["schedule_1"] },
+      "rpc_schedules",
+    );
+
+    await expect(sessionsIterator.next()).resolves.toMatchObject({
+      value: { type: "sessions.changed" },
+      done: false,
+    });
+    await expect(schedulesIterator.next()).resolves.toMatchObject({
+      value: { type: "schedules.changed" },
+      done: false,
+    });
+
+    emitDown("rpc_sessions", "runtime.subscribe");
+    await expect(sessionsIterator.next()).resolves.toMatchObject({ done: true });
+    expect(activeCount()).toBe(2);
+    emitDown("rpc_schedules", "runtime.subscribe");
+    await expect(schedulesIterator.next()).resolves.toMatchObject({ done: true });
+    expect(activeCount()).toBe(0);
+  });
+
+  it("rejects rebinding a stream to a different request", () => {
+    const { client } = fakeClient();
+    const stream = streamRuntimeEvents(client);
+    stream.bindRequest("rpc_1");
+    expect(() => stream.bindRequest("rpc_2")).toThrow(/already bound/);
+    stream.dispose();
   });
 });

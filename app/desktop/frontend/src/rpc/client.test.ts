@@ -90,11 +90,15 @@ describe("RpcClient", () => {
     const error = vi.fn();
     const unsubscribe = client.subscribe("notifications.runtime.event", { next, error });
 
-    transport.inject({
-      jsonrpc: JSONRPC_VERSION,
-      method: "notifications.runtime.event",
-      params: { event: { type: "skills.changed", sequence: 1 } },
-    });
+    transport.inject(
+      {
+        jsonrpc: JSONRPC_VERSION,
+        method: "notifications.runtime.event",
+        params: { event: { type: "skills.changed", sequence: 1 } },
+      },
+      undefined,
+      "rpc_runtime",
+    );
     await new Promise((resolve) => setTimeout(resolve, 0));
 
     expect(next).toHaveBeenCalledOnce();
@@ -110,15 +114,19 @@ describe("RpcClient", () => {
     const error = vi.fn();
     client.subscribe("notifications.runtime.event", { next, error });
 
-    transport.inject({
-      jsonrpc: JSONRPC_VERSION,
-      method: "notifications.runtime.event",
-      params: { event: { type: "skills.changed", sequence: 0 } },
-    });
+    transport.inject(
+      {
+        jsonrpc: JSONRPC_VERSION,
+        method: "notifications.runtime.event",
+        params: { event: { type: "skills.changed", sequence: 0 } },
+      },
+      undefined,
+      "rpc_runtime",
+    );
     await new Promise((resolve) => setTimeout(resolve, 0));
 
     expect(next).not.toHaveBeenCalled();
-    expect(error).toHaveBeenCalledWith(expect.any(RpcProtocolError));
+    expect(error).toHaveBeenCalledWith(expect.any(RpcProtocolError), "rpc_runtime");
     await client.close();
   });
 
@@ -130,17 +138,21 @@ describe("RpcClient", () => {
     const error = vi.fn();
     client.subscribe("notifications.run.event", { next, error });
 
-    transport.inject({
-      jsonrpc: JSONRPC_VERSION,
-      method: "notifications.run.event",
-      params: {
-        runId: "run_01",
-        segmentId: "seg_01",
-        eventId: "evt_01",
-        timestamp: "2026-08-02T00:00:00Z",
-        event: { type: "item.delta" },
+    transport.inject(
+      {
+        jsonrpc: JSONRPC_VERSION,
+        method: "notifications.run.event",
+        params: {
+          runId: "run_01",
+          segmentId: "seg_01",
+          eventId: "evt_01",
+          timestamp: "2026-08-02T00:00:00Z",
+          event: { type: "item.delta" },
+        },
       },
-    });
+      undefined,
+      "rpc_run",
+    );
     await new Promise((resolve) => setTimeout(resolve, 0));
 
     expect(next).not.toHaveBeenCalled();
@@ -157,21 +169,25 @@ describe("RpcClient", () => {
     const error = vi.fn();
     client.subscribe("notifications.run.event", { next, error });
 
-    transport.inject({
-      jsonrpc: JSONRPC_VERSION,
-      method: "notifications.run.event",
-      params: {
-        runId: "run_01",
-        segmentId: "seg_01",
-        eventId: "evt_01",
-        timestamp: "2026-08-02T00:00:00Z",
-        event: { type: "segment.finished" },
+    transport.inject(
+      {
+        jsonrpc: JSONRPC_VERSION,
+        method: "notifications.run.event",
+        params: {
+          runId: "run_01",
+          segmentId: "seg_01",
+          eventId: "evt_01",
+          timestamp: "2026-08-02T00:00:00Z",
+          event: { type: "segment.finished" },
+        },
       },
-    });
+      undefined,
+      "rpc_run",
+    );
     await new Promise((resolve) => setTimeout(resolve, 0));
 
     expect(next).not.toHaveBeenCalled();
-    expect(error).toHaveBeenCalledWith(expect.any(RpcProtocolError));
+    expect(error).toHaveBeenCalledWith(expect.any(RpcProtocolError), "rpc_run");
     await client.close();
   });
 
@@ -221,11 +237,15 @@ describe("RpcClient", () => {
   it("ignores unknown server notifications without poisoning correlation", async () => {
     const transport = createMemoryTransport();
     const client = createRpcClient(transport);
-    transport.inject({
-      jsonrpc: JSONRPC_VERSION,
-      method: "notifications.unknown",
-      params: {},
-    });
+    transport.inject(
+      {
+        jsonrpc: JSONRPC_VERSION,
+        method: "notifications.unknown",
+        params: {},
+      },
+      undefined,
+      "rpc_unknown",
+    );
     await Promise.resolve();
 
     const promise = client.call("sessions.get", { sessionId: "ses_01" });

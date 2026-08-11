@@ -37,8 +37,10 @@ import type { RpcId, RpcMessage } from "./types";
 import { JSONRPC_VERSION, isErrorResponse, isNotification, isResponse } from "./types";
 
 export interface NotificationObserver<M extends WireNotificationName = WireNotificationName> {
-  next(params: WireNotificationParams[M]): void;
-  error(error: RpcProtocolError | RpcTransportError): void;
+  next(params: WireNotificationParams[M], requestRpcId: RpcId): void;
+  /** A notification-local protocol error names its response stream; a connection
+   *  failure has no request owner and terminates every observer. */
+  error(error: RpcProtocolError | RpcTransportError, requestRpcId?: RpcId): void;
 }
 
 export type StreamEndHandler = (event: Extract<TransportEvent, { type: "streamEnd" }>) => void;
@@ -67,6 +69,8 @@ export interface RpcCallOptions {
    * configured metadata provider is dynamic.
    */
   requestMeta?: RequestMeta | null;
+  /** Bind a stream owner before Transport.send can deliver its first frame. */
+  onRequestRpcId?: (id: RpcId) => void;
 }
 
 export interface RpcClient {
@@ -149,10 +153,14 @@ export function createRpcClient(transport: Transport, options: RpcClientOptions 
       for (const handler of streamEndHandlers) handler(event);
       return;
     }
-    dispatchMessage(event.message, event.metadata);
+    dispatchMessage(event.message, event.requestRpcId, event.metadata);
   }
 
-  function dispatchMessage(msg: RpcMessage, metadata?: TransportResponseMetadata): void {
+  function dispatchMessage(
+    msg: RpcMessage,
+    requestRpcId: RpcId,
+    metadata?: TransportResponseMetadata,
+  ): void {
     if (isResponse(msg)) {
       const entry = pending.get(msg.id);
       if (!entry) return; // unsolicited or already settled — drop silently
@@ -211,13 +219,12 @@ export function createRpcClient(transport: Transport, options: RpcClientOptions 
           console.warn(`[rpc] dropping invalid ephemeral notification: ${failure.message}`);
           return;
         }
-        subscribers.delete(msg.method);
-        for (const observer of handlers) observer.error(failure);
+        for (const observer of handlers) observer.error(failure, requestRpcId);
         return;
       }
       for (const observer of handlers) {
         try {
-          observer.next(msg.params as WireNotificationParams[typeof msg.method]);
+          observer.next(msg.params as WireNotificationParams[typeof msg.method], requestRpcId);
         } catch (err) {
           // Subscribers must not crash the dispatch loop. Log and move on.
           console.error(`[rpc] notification handler for "${msg.method}" threw:`, err);
@@ -249,6 +256,7 @@ export function createRpcClient(transport: Transport, options: RpcClientOptions 
   ): Promise<WireResult<M>> {
     if (closed) throw new RpcTransportError("client closed");
     const id = String(nextId++);
+    callOptions.onRequestRpcId?.(id);
     const req: TransportRequest = {
       jsonrpc: JSONRPC_VERSION,
       id,

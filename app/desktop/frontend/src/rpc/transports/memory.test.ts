@@ -14,11 +14,15 @@ describe("MemoryTransport", () => {
     const t = createMemoryTransport();
     const iter = t.recv()[Symbol.asyncIterator]();
 
-    t.inject({
-      jsonrpc: JSONRPC_VERSION,
-      method: "notifications.example.event",
-      params: { n: 1 },
-    });
+    t.inject(
+      {
+        jsonrpc: JSONRPC_VERSION,
+        method: "notifications.example.event",
+        params: { n: 1 },
+      },
+      undefined,
+      "rpc_1",
+    );
 
     const next = await iter.next();
     expect(next.done).toBe(false);
@@ -30,14 +34,22 @@ describe("MemoryTransport", () => {
 
   it("recv yields buffered messages even when readers arrive late", async () => {
     const t = createMemoryTransport();
-    t.inject({ jsonrpc: JSONRPC_VERSION, method: "n1" });
-    t.inject({ jsonrpc: JSONRPC_VERSION, method: "n2" });
+    t.inject({ jsonrpc: JSONRPC_VERSION, method: "n1" }, undefined, "rpc_1");
+    t.inject({ jsonrpc: JSONRPC_VERSION, method: "n2" }, undefined, "rpc_2");
 
     const iter = t.recv()[Symbol.asyncIterator]();
     const a = await iter.next();
     const b = await iter.next();
-    expect(a.value).toMatchObject({ type: "message", message: { method: "n1" } });
-    expect(b.value).toMatchObject({ type: "message", message: { method: "n2" } });
+    expect(a.value).toMatchObject({
+      type: "message",
+      message: { method: "n1" },
+      requestRpcId: "rpc_1",
+    });
+    expect(b.value).toMatchObject({
+      type: "message",
+      message: { method: "n2" },
+      requestRpcId: "rpc_2",
+    });
   });
 
   it("close terminates recv iterator and rejects further send", async () => {

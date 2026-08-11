@@ -661,6 +661,72 @@ for await (const line of lines) {
     await events.return?.();
   }, 30_000);
 
+  it("isolates concurrent runtime subscriptions on one HTTP client", async () => {
+    if (!client) throw new Error("runtime client was not initialized");
+
+    const sessionsController = new AbortController();
+    const schedulesController = new AbortController();
+    const sessionsSubscription = await client.runtimeEvents.subscribe(
+      { topics: ["sessions.changed"] },
+      sessionsController.signal,
+    );
+    const schedulesSubscription = await client.runtimeEvents.subscribe(
+      { topics: ["schedules.changed"] },
+      schedulesController.signal,
+    );
+    const sessionEvents = sessionsSubscription.events[Symbol.asyncIterator]();
+    const scheduleEvents = schedulesSubscription.events[Symbol.asyncIterator]();
+    let sessionId: string | undefined;
+    let scheduleId: string | undefined;
+
+    try {
+      const session = await client.sessions.create({
+        workspace: { path: root },
+        title: "HTTP isolated runtime subscriptions",
+      });
+      sessionId = session.id;
+      await expect(
+        within(sessionEvents.next(), "the session subscription's first event"),
+      ).resolves.toMatchObject({
+        done: false,
+        value: { type: "sessions.changed", sessionIds: [session.id] },
+      });
+
+      const schedule = await client.schedules.create({
+        cron: "0 0 1 1 *",
+        instructions: "Verify concurrent runtime subscription isolation.",
+        title: "HTTP isolated runtime subscriptions",
+        workspace: { path: root },
+      });
+      scheduleId = schedule.id;
+      await expect(
+        within(scheduleEvents.next(), "the schedule subscription's first event"),
+      ).resolves.toMatchObject({
+        done: false,
+        value: { type: "schedules.changed", scheduleIds: [schedule.id] },
+      });
+
+      await client.sessions.update({
+        sessionId: asSessionId(session.id),
+        expectedRevision: session.revision,
+        title: "HTTP isolated runtime subscriptions updated",
+      });
+      await expect(
+        within(sessionEvents.next(), "the session subscription's second event"),
+      ).resolves.toMatchObject({
+        done: false,
+        value: { type: "sessions.changed", sessionIds: [session.id] },
+      });
+    } finally {
+      if (scheduleId) await client.schedules.delete(scheduleId);
+      if (sessionId) await client.sessions.delete(asSessionId(sessionId));
+      sessionsController.abort();
+      schedulesController.abort();
+      await sessionEvents.return?.();
+      await scheduleEvents.return?.();
+    }
+  }, 30_000);
+
   it("applies provider credentials and model roles through the live resolvers", async () => {
     if (!client) throw new Error("runtime client was not initialized");
 

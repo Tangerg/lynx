@@ -11,13 +11,13 @@ import type {
   TransportResponseMetadata,
 } from "../transport";
 import type { WireStreamingMethodName } from "../wire.methods.generated";
-import type { RpcMessage } from "../types";
+import { isResponse, type RpcId, type RpcMessage } from "../types";
 
 export interface MemoryTransport extends Transport {
   /** Push a message as if it arrived from the runtime. */
-  inject(msg: RpcMessage, metadata?: TransportResponseMetadata): void;
+  inject(msg: RpcMessage, metadata?: TransportResponseMetadata, requestRpcId?: RpcId): void;
   /** End one streaming response as if reported by the transport. */
-  endStream(method: WireStreamingMethodName, runIds?: readonly string[]): void;
+  endStream(method: WireStreamingMethodName, requestRpcId: RpcId): void;
   /** Drain all messages the client has sent so far. */
   outbox(): TransportRequest[];
 }
@@ -35,13 +35,17 @@ export function createMemoryTransport(): MemoryTransport {
     async close() {
       channel.close();
     },
-    inject(msg, metadata) {
+    inject(msg, metadata, requestRpcId) {
       if (channel.closed) throw new Error("transport closed");
-      channel.push({ type: "message", message: msg, metadata });
+      const owner = requestRpcId ?? (isResponse(msg) ? msg.id : undefined);
+      if (owner === undefined) {
+        throw new Error("notification injection requires its owning request RPC id");
+      }
+      channel.push({ type: "message", message: msg, requestRpcId: owner, metadata });
     },
-    endStream(method, runIds = []) {
+    endStream(method, requestRpcId) {
       if (channel.closed) throw new Error("transport closed");
-      channel.push({ type: "streamEnd", method, runIds });
+      channel.push({ type: "streamEnd", method, requestRpcId });
     },
     outbox() {
       return [...sent];
