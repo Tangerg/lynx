@@ -132,6 +132,7 @@ func (c *Coordinator) restoreSession(ctx context.Context, snapshot Snapshot, pre
 	if err != nil {
 		return View{}, err
 	}
+	committedSession := sessionReplacement.State()
 	var view View
 	err = c.withGoalMutation(
 		ctx,
@@ -155,7 +156,7 @@ func (c *Coordinator) restoreSession(ctx context.Context, snapshot Snapshot, pre
 			}
 			if present {
 				var viewErr error
-				view, viewErr = c.view(snapshot.Session, ActivityIdle)
+				view, viewErr = c.view(committedSession, ActivityIdle)
 				postCommitErrs = append(postCommitErrs, viewErr)
 			}
 			return errors.Join(postCommitErrs...)

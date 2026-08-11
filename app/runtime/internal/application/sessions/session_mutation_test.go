@@ -5,6 +5,7 @@ import (
 	"errors"
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/Tangerg/lynx/core/chat"
 
@@ -231,6 +232,33 @@ func TestRestoreSessionAppliesPlan(t *testing.T) {
 	}
 }
 
+func TestRestoreSessionPresentsTheCommittedReplacementRevision(t *testing.T) {
+	stores := newMutationStores("")
+	stores.pending = map[string][]runs.Pending{}
+	current := sessionfixture.MustRestore(session.Snapshot{
+		ID: "ses_1", CWD: "/workspace", StartedAt: time.Unix(1, 0).UTC(),
+		UpdatedAt: time.Unix(1, 0).UTC(), Revision: 4,
+	})
+	stores.current = &current
+	coordinator := newCoordinator(stores, mutationExecutions{operations: &stores.operations})
+
+	view, err := coordinator.restoreSession(t.Context(), Snapshot{
+		Session: sessionfixture.MustRestore(session.Snapshot{
+			ID: "ses_1", CWD: "/workspace", StartedAt: time.Unix(1, 0).UTC(),
+			UpdatedAt: time.Unix(1, 0).UTC(), Revision: 1,
+		}),
+	}, true)
+	if err != nil {
+		t.Fatalf("RestoreSession: %v", err)
+	}
+	if view.Revision != 5 {
+		t.Fatalf("restored view revision = %d, want committed replacement revision 5", view.Revision)
+	}
+	if len(stores.restored) != 1 || stores.restored[0].Session.State().Revision() != view.Revision {
+		t.Fatalf("restored write/view revisions differ: plans=%+v view=%+v", stores.restored, view)
+	}
+}
+
 func TestRestoreSessionRejectsUnresolvableCWDBeforeMutation(t *testing.T) {
 	stores := newMutationStores("")
 	stores.pending = map[string][]runs.Pending{}
@@ -280,6 +308,7 @@ type mutationStores struct {
 	restored   []RestorePlan
 	ints       *mutationInterrupts
 	pending    map[string][]runs.Pending
+	current    *session.Session
 }
 
 func newMutationStores(fail string) *mutationStores {
@@ -342,7 +371,10 @@ func (*mutationStores) List(context.Context) ([]session.Session, error) { panic(
 func (*mutationStores) ListPage(context.Context, bool, int64, string, int) ([]session.Session, error) {
 	panic("unused")
 }
-func (*mutationStores) Get(context.Context, string) (session.Session, error) {
+func (s *mutationStores) Get(context.Context, string) (session.Session, error) {
+	if s.current != nil {
+		return *s.current, nil
+	}
 	return session.Session{}, session.ErrNotFound
 }
 func (*mutationStores) Insert(context.Context, session.Session) error { panic("unused") }

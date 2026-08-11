@@ -257,6 +257,34 @@ async function nextRuntimeEvent(
   throw new Error(`timed out waiting for ${type}`);
 }
 
+async function collectSessionRuntimeEvents(
+  iterator: AsyncIterator<RuntimeEvent>,
+  types: readonly RuntimeEvent["type"][],
+  sessionId: string,
+): Promise<RuntimeEvent[]> {
+  const pending = new Set<RuntimeEvent["type"]>(types);
+  const collected: RuntimeEvent[] = [];
+  const deadline = AbortSignal.timeout(5_000);
+  const timeout = new Promise<never>((_resolve, reject) => {
+    deadline.addEventListener(
+      "abort",
+      () => reject(new Error(`timed out waiting for ${[...pending].join(", ")}`)),
+      { once: true },
+    );
+  });
+  while (pending.size > 0 && !deadline.aborted) {
+    const result = await Promise.race([iterator.next(), timeout]);
+    if (result.done) throw new Error("runtime event stream ended before aggregate reconciliation");
+    const event = result.value;
+    if (pending.has(event.type) && "sessionIds" in event && event.sessionIds?.includes(sessionId)) {
+      pending.delete(event.type);
+      collected.push(event);
+    }
+  }
+  if (pending.size > 0) throw new Error(`timed out waiting for ${[...pending].join(", ")}`);
+  return collected;
+}
+
 async function collectRunEvents(events: AsyncIterable<RunEvent>): Promise<RunEvent[]> {
   const collected: RunEvent[] = [];
   for await (const event of events) collected.push(event);
@@ -537,6 +565,127 @@ describe("Go Runtime ↔ HTTP ↔ TypeScript SDK", () => {
       }),
     ]);
     expect(forkItems.every((item) => item.runId === forkRuns[0]?.id)).toBe(true);
+
+    streamController.abort();
+    await runtimeEvents.return?.();
+  }, 30_000);
+
+  it("round-trips exports, rollback state and aggregate invalidations", async () => {
+    if (!client) throw new Error("runtime client was not initialized");
+
+    const source = await client.sessions.create({
+      workspace: { path: root },
+      title: "HTTP transfer lifecycle",
+    });
+    const first = await client.runs.start({
+      sessionId: asSessionId(source.id),
+      input: [{ type: "text", text: "E2E_PLAN preserve this plan in the archive." }],
+    });
+    await collectRunEvents(first.events);
+    const second = await client.runs.start({
+      sessionId: asSessionId(source.id),
+      input: [{ type: "text", text: "E2E_TRANSFER remove and restore this turn." }],
+    });
+    await collectRunEvents(second.events);
+
+    const jsonExport = await client.sessions.export(asSessionId(source.id), "json");
+    if (!jsonExport.artifact) throw new Error("JSON export omitted its session artifact");
+    expect(jsonExport).toMatchObject({ format: "json" });
+    expect(jsonExport).not.toHaveProperty("markdown");
+    expect(jsonExport.artifact).toMatchObject({
+      session: { id: source.id, title: "HTTP transfer lifecycle" },
+      runs: [{ id: first.result.runId }, { id: second.result.runId }],
+      states: [
+        {
+          type: "plan",
+          plan: [
+            { description: "Inspect the runtime contract", status: "completed" },
+            { description: "Verify frontend reconciliation", status: "in_progress" },
+          ],
+        },
+      ],
+    });
+    expect(jsonExport.artifact.items.length).toBeGreaterThanOrEqual(5);
+
+    const markdownExport = await client.sessions.export(asSessionId(source.id), "md");
+    expect(markdownExport).toEqual({
+      format: "md",
+      markdown: expect.stringContaining("# HTTP transfer lifecycle"),
+    });
+    expect(markdownExport.markdown).toContain("E2E_PLAN preserve this plan in the archive.");
+    expect(markdownExport.markdown).toContain("E2E_TRANSFER remove and restore this turn.");
+
+    const aggregateTopics = [
+      "sessions.changed",
+      "runs.changed",
+      "interrupts.changed",
+      "goals.changed",
+      "state.changed",
+    ] as const;
+    const streamController = new AbortController();
+    const subscription = await client.runtimeEvents.subscribe(
+      { topics: [...aggregateTopics] },
+      streamController.signal,
+    );
+    const runtimeEvents = subscription.events[Symbol.asyncIterator]();
+
+    const rolledBack = await client.sessions.rollback({
+      sessionId: asSessionId(source.id),
+      toRunId: asRunId(first.result.runId),
+      restoreType: "history",
+    });
+    expect(rolledBack.droppedRuns).toEqual([
+      expect.objectContaining({
+        run: expect.objectContaining({ id: second.result.runId }),
+        userInput: [{ type: "text", text: "E2E_TRANSFER remove and restore this turn." }],
+      }),
+    ]);
+    expect(
+      (await collectSessionRuntimeEvents(runtimeEvents, aggregateTopics, source.id)).map(
+        (event) => event.type,
+      ),
+    ).toEqual(aggregateTopics);
+    const rolledRuns = await client.runs
+      .list({ sessionId: asSessionId(source.id) })
+      .autoPagingToArray();
+    const rolledItems = await client.items
+      .list({ scope: { type: "session", sessionId: asSessionId(source.id) } })
+      .autoPagingToArray();
+    expect(rolledRuns.map((run) => run.id)).toEqual([first.result.runId]);
+    expect(rolledItems.every((item) => item.runId === first.result.runId)).toBe(true);
+    await expect(client.plan.get(asSessionId(source.id))).resolves.toMatchObject({
+      plan: jsonExport.artifact.states?.[0]?.plan,
+    });
+
+    const imported = await client.sessions.import(jsonExport.artifact);
+    expect(imported.session.id).toBe(source.id);
+    expect(imported.session.revision).toBeGreaterThan(rolledBack.session.revision);
+    expect(
+      (await collectSessionRuntimeEvents(runtimeEvents, aggregateTopics, source.id)).map(
+        (event) => event.type,
+      ),
+    ).toEqual(aggregateTopics);
+    const restoredRuns = await client.runs
+      .list({ sessionId: asSessionId(source.id) })
+      .autoPagingToArray();
+    const restoredItems = await client.items
+      .list({ scope: { type: "session", sessionId: asSessionId(source.id) } })
+      .autoPagingToArray();
+    expect(restoredRuns.map((run) => run.id)).toEqual([second.result.runId, first.result.runId]);
+    expect(restoredItems).toHaveLength(jsonExport.artifact.items.length);
+    await expect(client.plan.get(asSessionId(source.id))).resolves.toMatchObject({
+      plan: jsonExport.artifact.states?.[0]?.plan,
+    });
+
+    const continued = await client.runs.start({
+      sessionId: asSessionId(source.id),
+      input: [{ type: "text", text: "E2E_TRANSFER continue after import." }],
+    });
+    const continuedEvents = await collectRunEvents(continued.events);
+    expect(continuedEvents.at(-1)?.event).toMatchObject({
+      type: "segment.finished",
+      outcome: { type: "completed" },
+    });
 
     streamController.abort();
     await runtimeEvents.return?.();
