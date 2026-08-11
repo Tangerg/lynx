@@ -248,9 +248,11 @@ type scriptedRun struct {
 	reason         string
 	outcome        run.Outcome
 	missingOutcome bool
+	waiting        bool
+	boundaryRunID  string
 	cost           float64
 	steps          int
-	park           bool // close the stream without a terminal
+	park           bool // violate the stream contract by omitting the root boundary
 }
 
 type fakeRuns struct {
@@ -408,11 +410,20 @@ func (f *fakeRuns) emitScriptedRun(
 		if !script.park {
 			cost := script.cost
 			var outcome *run.Outcome
-			if !script.missingOutcome {
+			if !script.missingOutcome && !script.waiting {
 				outcome = &script.outcome
 			}
+			boundaryRunID := runID
+			if script.boundaryRunID != "" {
+				boundaryRunID = script.boundaryRunID
+			}
+			boundaryState := run.Running
+			if script.waiting {
+				boundaryState = run.Waiting
+			}
 			finishedRun := runfixture.MustRestore(run.Snapshot{SessionID: cmd.SessionID,
-				ID:      runID,
+				ID:      boundaryRunID,
+				State:   boundaryState,
 				Outcome: outcome,
 				Metrics: runfixture.MustMetrics(runfixture.MetricsInput{Steps: script.steps, Usage: &accounting.Usage{Total: accounting.Totals{CostUSD: &cost}}})})
 
@@ -424,7 +435,7 @@ func (f *fakeRuns) emitScriptedRun(
 					f.t.Errorf("record terminal Goal Run: %v", err)
 				}
 			}
-			events <- runs.Event{Payload: runs.SegmentFinished{Run: finishedRun}}
+			events <- runs.Event{RunID: boundaryRunID, Payload: runs.SegmentFinished{Run: finishedRun}}
 		}
 	}()
 }
@@ -669,6 +680,48 @@ func TestDriverPausesOnMalformedTerminal(t *testing.T) {
 	}
 	if g.Used.Runs != 0 {
 		t.Fatalf("malformed terminal recorded %d Runs, want 0", g.Used.Runs)
+	}
+}
+
+func TestDriverPausesOnWaitingRootBoundary(t *testing.T) {
+	store := newMemStore()
+	d := newDriver(t, store, scriptedRun{waiting: true})
+	if _, err := d.Start(t.Context(), "s1", "do it", testGoalModelSelection(), goal.Budget{}); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	waitTestSessionGoal(t, store, func(g goal.Goal, ok bool) bool {
+		return ok && g.Status == goal.StatusPaused
+	})
+
+	g, _, _ := store.Get(t.Context(), "s1")
+	if g.Reason != (goal.Reason{Code: goal.ReasonAwaitingInput}) {
+		t.Fatalf("waiting root pause reason = %+v, want awaitingInput", g.Reason)
+	}
+	if g.Used.Runs != 0 {
+		t.Fatalf("waiting root recorded %d completed Runs, want 0", g.Used.Runs)
+	}
+}
+
+func TestDriverTreatsMissingRootBoundaryAsContractFailure(t *testing.T) {
+	for name, script := range map[string]scriptedRun{
+		"empty stream":       {park: true},
+		"child waiting only": {waiting: true, boundaryRunID: "run_child"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			store := newMemStore()
+			d := newDriver(t, store, script)
+			if _, err := d.Start(t.Context(), "s1", "do it", testGoalModelSelection(), goal.Budget{}); err != nil {
+				t.Fatalf("Start: %v", err)
+			}
+			waitTestSessionGoal(t, store, func(g goal.Goal, ok bool) bool {
+				return ok && g.Status == goal.StatusPaused
+			})
+
+			g, _, _ := store.Get(t.Context(), "s1")
+			if g.Reason != (goal.Reason{Code: goal.ReasonTerminalOutcomeMissing}) {
+				t.Fatalf("missing root pause reason = %+v, want terminalOutcomeMissing", g.Reason)
+			}
+		})
 	}
 }
 

@@ -830,10 +830,29 @@
 - Frontend 首帧和任意后继帧的断号均触发全量 query 与 mounted Session projection 同步，正常从 1 连续流不增加无关刷新；
 - Runtime standalone build/vet/test/race/staticcheck/golangci-lint/tidy 全绿，Frontend 224 files/1381 tests、架构/格式/生产 bundle 全绿；Agent production graph 不获得 Runtime subscription、Delivery 或 watch 抽象。
 
-## 35. 进度记录
+## 35. P31 — Goal root Run boundary / HITL 状态判定
+
+### 目标
+
+清除 Goal driver 对 whole-tree Run stream 的边界猜测：child `SegmentFinished`、root waiting boundary 与缺失 root boundary 必须按各自权威身份和 Run state 区分。Goal 不得用“有没有任意 finished frame”推断 HITL，也不得把 stream contract failure 伪装成 awaiting input。
+
+### 工作项
+
+- [x] P31-01 Goal 只消费 `StartResult.RunID` 对应的 root `SegmentFinished`，child Run 的合法终结帧不参与 owning Goal lifecycle；
+- [x] P31-02 root `run.Waiting` 明确落为 `awaitingInput` 且不计 completed Run budget；空流或仅 child boundary 明确落为 `terminalOutcomeMissing`；
+- [x] P31-03 测试 fixture 补齐真实 `runs.Event.RunID` envelope，并覆盖 waiting root、missing root、foreign child waiting 与 malformed running boundary。
+
+### 验收
+
+- whole-tree stream 的 child boundary 不能暂停、完成或阻塞 root Goal；root waiting 由 durable Run state 而非 frame 缺席证明；
+- 缺失 root boundary fail closed 为 contract failure，不产生虚假的 open interrupt/HITL 语义，不消耗 Goal Run usage；
+- Runtime standalone build/vet/test/race/staticcheck/golangci-lint/tidy 全绿；Agent production graph 对 `app/runtime` import 仍为零；修复只位于 Goal Application owner 与其测试，不修改 Agent、Delivery、Infra、Protocol 或 Desktop。
+
+## 36. 进度记录
 
 | 日期 | 阶段 | 完成事实 | 验证 |
 |---|---|---|---|
+| 2026-08-12 | P31（Goal root boundary / HITL classification） | Goal driver 从 whole-tree Run stream 只采纳 `StartResult.RunID` 的 root segment boundary；root `Waiting` 以权威 Run state 暂停为 `awaitingInput`，无 root boundary 或只有 child waiting frame 均 fail closed 为 `terminalOutcomeMissing`。测试 fake 同步真实 Event envelope。变更止于 Application/goals，没有引入 Delivery、Infra、SQLite、Frontend 或 Agent Framework 类型 | waiting/missing/foreign-child/malformed 定向普通与 race 各连续 20 轮通过，goals 全包普通与 race 各 20 轮通过；Runtime `GOWORK=off` build/vet/test/race/staticcheck/golangci-lint/tidy 全绿且 lint 0 issue；Agent production import 反向扫描零 `app/runtime` |
 | 2026-08-12 | P30（subscription scope / loss recovery） | Runtime Delivery subscription 同时拥有声明的 topic/watch scope，按流过滤普通 watch invalidation 与 resync；拥塞合并新增 broad-file 支配语义，消除跨连接 watch 泄漏和 broad 事实被 watchIds 过度收窄。Frontend 从每条新连接的首帧开始验证 sequence，retarget 后按连接重置。修改止于 Delivery 与 Frontend event application，不把 Runtime/transport/watch 类型下沉到 Agent、Domain 或 Application | workspace hub 定向普通/竞态重复回归覆盖 topic/watch 交集、foreign drop、stable order、malformed recovery、broad↔targeted 两种顺序；Runtime `GOWORK=off` build/vet/test/race/staticcheck/golangci-lint/tidy 全绿且 lint 0 issue；Frontend 224 files/1381 tests及 type/lint/format/knip/全部架构/生产 bundle 门禁全绿 |
 | 2026-08-12 | P29（CLI standalone consumer closure） | CLI 的 Runtime dependency 从旧 P24 pseudo-version 前移到已推送 commit `420f627f131a`，间接 Agent 同步 Baseline 20；standalone graph 删除旧 `models/ollama`、daemon、easyjson 与 ordered-map。没有 local replace、compat shim，也没有把 CLI 正在进行的功能文件纳入本批 | CLI `GOWORK=off` tidy-diff/build/vet/test/race/staticcheck/golangci-lint 全绿且 lint 0 issue；`govulncheck` 可达漏洞 0，`go mod why github.com/ollama/ollama` 确认为 main module 不需要该 module |
 | 2026-08-12 | P28（Ollama client/daemon 边界） | 独立 `models/ollama` 不再把完整 daemon repository 当客户端 SDK；provider module 私有 wire 精确拥有原生 chat/embed request、response、NDJSON streaming、状态错误与内存上限，并以 raw response extension 保留未知 provider 字段。公开构造器、Core chat/embedding interface、Runtime 与 Agent 合同均未变化 | `models/ollama` standalone tidy-diff/build/vet/test/race/staticcheck/golangci-lint 全绿且 lint 0 issue，Core conformance/behavior、cancel/early-stop/首坏帧、原生 HTTP contract 与未知字段回归通过；`govulncheck` 从 8 条可达路径降为 0，architecture gate 禁止 daemon module 回流 |
@@ -915,6 +934,6 @@
 | 2026-08-09 | P9.2 | 完成 Adapter/Infra/Application/Delivery 逐包职责审计；workspace physical path identity 收敛到唯一 Infra mechanism；删除空的 temporary architecture 台账并把旧 Agent 禁止与 Domain no-context-I/O 变为永久 framework boundary guard；确认 agentexec 按真实变化原因组织且没有第二 lifecycle owner或虚构子包 | Adapter→Infra 单向图与目标六环 DAG 全绿；Delivery concrete Adapter/Infra import、Infra 反向 import、Application outward import、纯转发 wrapper、package/type 口吃、空目录和 temporary exception 均为零；workspacepath/pathidentity/arch targeted tests 与全量质量门禁通过 |
 | 2026-08-09 | P10 | Runtime Protocol 一次性提升到 `2026-08-09`、Session Artifact 到 v14；删除 wire 中实现泄露的 `processRootSegment`，只保留准确的 `runtimeInstanceRootSegment`；Go registry、validator、manifest、OpenRPC、JSON Schema、TypeScript binding、canonical samples 与人读 API/Transport/Aux 文档同步；新增精确 consumer handoff | canonical artifact samples 中漏存的 v12 与旧 `outcome.error` 被 strict sample gate 暴露并治本修正；生成器零漂移、旧 wire token/版本归零、strict validator/round-trip、HTTP/in-process、全量质量门禁通过；Desktop backlog 已记录但未改消费者 |
 
-## 36. 当前下一步
+## 37. 当前下一步
 
-P30 已完成，当前已知的 runtime invalidation topic/watch 跨订阅泄漏、拥塞合并过度收窄与 Frontend 首帧断号漏检已经清除。继续反证 cancel/duplicate resolution、Goal blocked/restart/release、Plan/Goal 并发、subscription close/retarget、事务失败和崩溃恢复边界；新反例只在其权威 owner 与正确抽象层修复，不把 provider/consumer/Runtime/Application/Adapter/Infra/Delivery 或 Agent Framework 合同相互泄露。
+P31 已完成，当前已知的 Goal whole-tree root/child boundary 混淆、waiting HITL 错判和缺 root 假 awaiting 已清除。继续反证 cancel/duplicate resolution、Goal blocked/restart/release、Plan/Goal 并发、subscription close/retarget、事务失败和崩溃恢复边界；每轮提交前同时执行 Runtime→Agent/Agent→Runtime 双向依赖与 staged path 审计，任何新反例只在其权威 owner 修复。

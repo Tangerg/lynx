@@ -187,7 +187,7 @@ func (d *Driver) driveRun(ctx context.Context, g *goal.Goal) (disposition runDis
 		return d.resolveGoalRunStartError(ctx, g, span, err)
 	}
 
-	finished := drainTerminal(result.Events)
+	finished := drainRootBoundary(result.Events, result.RunID)
 	if ctx.Err() != nil {
 		if finished == nil {
 			return "", d.cancelRun(ctx, result.RunID)
@@ -294,9 +294,23 @@ func (d *Driver) resolveTerminalRun(
 	finished *run.Run,
 ) (runDisposition, error) {
 	if finished == nil {
-		// The run parked for HITL and produced no terminal (rare — autonomous runs
-		// are headless, so an unanswerable interrupt auto-denies rather than
-		// parking). Wait for the user, who resolves it and can resume the goal.
+		// A segment stream must end with its root boundary. Absence cannot prove
+		// HITL: child boundaries may have been present and a broken stream may end
+		// without any boundary at all. Preserve that distinction as a contract
+		// failure instead of inventing a waiting Run.
+		disposition, err := d.pauseOwned(ctx, g, goal.ReasonTerminalOutcomeMissing, "")
+		if err != nil {
+			if ctx.Err() != nil {
+				return "", nil
+			}
+			return "", err
+		}
+		return disposition, nil
+	}
+	if finished.State() == run.Waiting {
+		// Rare for a headless autonomous Run (unanswerable interrupts normally
+		// auto-deny), but Waiting is a first-class root boundary. The user may
+		// resolve the durable interrupt and explicitly resume the Goal.
 		disposition, err := d.pauseOwned(ctx, g, goal.ReasonAwaitingInput, "")
 		if err != nil {
 			if ctx.Err() != nil {
@@ -350,12 +364,15 @@ func (d *Driver) command(g goal.Goal) runs.StartCommand {
 	}
 }
 
-// drainTerminal consumes a run's event stream to its close and returns the run's
-// terminal record, or nil when the stream closed without one (the run parked).
-func drainTerminal(events iter.Seq[runs.Event]) *run.Run {
+// drainRootBoundary consumes a root run's whole-tree stream to its close and
+// returns only that root's final segment boundary. Child SegmentFinished frames
+// are valid members of the stream but cannot decide the owning Goal's lifecycle.
+// Nil means the stream violated its root-boundary contract; waiting is expressed
+// by a non-nil Run whose authoritative state is [run.Waiting].
+func drainRootBoundary(events iter.Seq[runs.Event], rootRunID string) *run.Run {
 	var finished *run.Run
 	for ev := range events {
-		if seg, ok := ev.Payload.(runs.SegmentFinished); ok {
+		if seg, ok := ev.Payload.(runs.SegmentFinished); ok && ev.RunID == rootRunID {
 			run := seg.Run
 			finished = &run
 		}
