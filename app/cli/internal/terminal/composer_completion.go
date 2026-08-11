@@ -74,6 +74,19 @@ func (a *app) completeFiles(token headless.Token) {
 	)
 }
 
+func (a *app) exactCommandCompletion() bool {
+	token, open := a.completion.Token()
+	if !open || token.Trigger.Prefix != "/" || token.Query == "" {
+		return false
+	}
+	command, found := a.commands.lookup(token.Query)
+	if !found {
+		return false
+	}
+	candidate, selected := a.completion.Current()
+	return selected && candidate.Text == command.Name
+}
+
 func (a *app) drawCompletion(frame headless.Frame) {
 	width, height := frame.Size()
 	rows := a.completion.Measure(width)
@@ -85,6 +98,8 @@ func (a *app) drawCompletion(frame headless.Frame) {
 	if token, ok := a.completion.Token(); ok && token.Trigger.Prefix == "@" {
 		title = "workspace files"
 		footer = "enter attach"
+	} else if a.exactCommandCompletion() {
+		footer = "enter run"
 	}
 	box := kit.Box{
 		Theme: a.transcript.theme, Glyphs: a.transcript.glyphs,

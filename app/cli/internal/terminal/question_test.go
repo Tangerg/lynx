@@ -66,6 +66,22 @@ func TestQuestionnaireNormalizesCustomMultipleValues(t *testing.T) {
 	}
 }
 
+func TestCustomMultipleValuesRejectEmptyAndDuplicateInput(t *testing.T) {
+	for _, test := range []struct {
+		name  string
+		value string
+	}{
+		{name: "empty separators", value: " , , "},
+		{name: "duplicate", value: "linux, darwin, linux"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			if _, err := parseCustomChoices(test.value); err == nil {
+				t.Fatalf("parseCustomChoices(%q) accepted invalid input", test.value)
+			}
+		})
+	}
+}
+
 func TestQuestionnaireRejectsMissingFieldsAndIncompleteAnswers(t *testing.T) {
 	if _, err := newQuestionnaire(agent.Question{}, nil); err == nil {
 		t.Fatal("question without fields was accepted")

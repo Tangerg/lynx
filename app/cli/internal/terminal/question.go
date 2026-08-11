@@ -107,7 +107,11 @@ func (q *questionnaire) Answer() (agent.QuestionAnswer, error) {
 	}
 	answer := agent.QuestionAnswer{Values: make([][]string, len(q.question.Fields))}
 	for index, field := range q.question.Fields {
-		answer.Values[index] = q.values(index, field)
+		values, err := q.values(index, field)
+		if err != nil {
+			return agent.QuestionAnswer{}, fmt.Errorf("answer question field %d: %w", index+1, err)
+		}
+		answer.Values[index] = values
 	}
 	if err := agent.ValidateAnswer(q.question, answer); err != nil {
 		return agent.QuestionAnswer{}, fmt.Errorf("answer question: %w", err)
@@ -115,25 +119,18 @@ func (q *questionnaire) Answer() (agent.QuestionAnswer, error) {
 	return answer, nil
 }
 
-func (q *questionnaire) values(index int, field agent.QuestionField) []string {
+func (q *questionnaire) values(index int, field agent.QuestionField) ([]string, error) {
 	if value := q.multiple[index]; value != nil {
-		return slices.Clone(*value)
+		return slices.Clone(*value), nil
 	}
 	value := q.text[index]
 	if value == nil {
-		return nil
+		return nil, nil
 	}
 	if field.Kind == agent.QuestionMulti && field.AllowCustom {
-		parts := strings.Split(*value, ",")
-		out := make([]string, 0, len(parts))
-		for _, part := range parts {
-			if trimmed := strings.TrimSpace(part); trimmed != "" {
-				out = append(out, trimmed)
-			}
-		}
-		return out
+		return parseCustomChoices(*value)
 	}
-	return []string{strings.TrimSpace(*value)}
+	return []string{strings.TrimSpace(*value)}, nil
 }
 
 func (a *app) openQuestion(question agent.Question) {
@@ -165,15 +162,15 @@ func (a *app) buildQuestionField(review *questionnaire, index int, specification
 	label := questionFieldLabel(specification)
 	switch specification.Kind {
 	case agent.QuestionText:
-		return a.buildQuestionText(review, index, label, ""), nil
+		return a.buildQuestionText(review, index, label, "", requiredText), nil
 	case agent.QuestionSingle:
 		if specification.AllowCustom {
-			return a.buildQuestionText(review, index, label, choicePlaceholder(specification.Options)), nil
+			return a.buildQuestionText(review, index, label, choicePlaceholder(specification.Options), requiredText), nil
 		}
 		return a.buildQuestionSingle(review, index, specification, label), nil
 	case agent.QuestionMulti:
 		if specification.AllowCustom {
-			return a.buildQuestionText(review, index, label+" (comma-separated)", choicePlaceholder(specification.Options)), nil
+			return a.buildQuestionText(review, index, label+" (comma-separated)", choicePlaceholder(specification.Options), validateCustomChoices), nil
 		}
 		return a.buildQuestionMulti(review, index, specification, label), nil
 	default:
@@ -181,8 +178,8 @@ func (a *app) buildQuestionField(review *questionnaire, index int, specification
 	}
 }
 
-func (a *app) buildQuestionText(review *questionnaire, index int, label, placeholder string) headless.Field {
-	field := &headless.Text{Label: label, Placeholder: placeholder, Value: headless.Bind(review.Text(index)), Check: requiredText}
+func (a *app) buildQuestionText(review *questionnaire, index int, label, placeholder string, check func(string) error) headless.Field {
+	field := &headless.Text{Label: label, Placeholder: placeholder, Value: headless.Bind(review.Text(index)), Check: check}
 	field.Editor().Clipboard = a.loop.Clipboard()
 	return field
 }
@@ -317,4 +314,30 @@ func requiredText(value string) error {
 		return errors.New("an answer is required")
 	}
 	return nil
+}
+
+func validateCustomChoices(value string) error {
+	_, err := parseCustomChoices(value)
+	return err
+}
+
+func parseCustomChoices(value string) ([]string, error) {
+	parts := strings.Split(value, ",")
+	choices := make([]string, 0, len(parts))
+	seen := make(map[string]struct{}, len(parts))
+	for _, part := range parts {
+		choice := strings.TrimSpace(part)
+		if choice == "" {
+			continue
+		}
+		if _, duplicate := seen[choice]; duplicate {
+			return nil, fmt.Errorf("choice %q is duplicated", choice)
+		}
+		seen[choice] = struct{}{}
+		choices = append(choices, choice)
+	}
+	if len(choices) == 0 {
+		return nil, errors.New("choose at least one option")
+	}
+	return choices, nil
 }

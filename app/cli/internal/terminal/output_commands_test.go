@@ -73,7 +73,6 @@ func TestCopyLastAndExportCommandsUseTheDurableSessionSnapshot(t *testing.T) {
 
 	host.Type("/copy-last")
 	host.Press(input.Enter)
-	host.Press(input.Enter)
 	select {
 	case copied := <-host.copied:
 		if strings.TrimSpace(copied) != "stable answer" {

@@ -76,7 +76,6 @@ func TestRecentWorkspacePickerCreatesAndSwitchesToTheSelectedRoot(t *testing.T) 
 
 	host.Type("/workspace")
 	host.Press(input.Enter)
-	host.Press(input.Enter)
 	host.Shows(t, "Workspaces")
 	host.Type("recent-project")
 	host.Shows(t, "recent-project")

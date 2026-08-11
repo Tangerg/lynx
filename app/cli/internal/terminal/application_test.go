@@ -314,10 +314,25 @@ func TestTranscriptReaderSearchesBeyondInlineToolSummary(t *testing.T) {
 	host.Send(input.Key{Code: input.Character, Rune: 'v'})
 	host.Shows(t, "Reader")
 	host.Shows(t, "long output")
+	if !host.Resize(1, 1) || !host.Repaint() {
+		t.Fatal("reader did not survive a temporarily minimal viewport")
+	}
+	if !host.Resize(96, 28) {
+		t.Fatal("reader viewport could not be restored")
+	}
+	host.Shows(t, "Reader")
 	host.Send(input.Key{Code: input.Character, Rune: 'f', Mods: input.Ctrl})
 	host.Shows(t, "Search reader")
 	host.Type(lines[len(lines)-1])
+	if !host.Resize(1, 1) || !host.Repaint() {
+		t.Fatal("reader search did not survive a temporarily minimal viewport")
+	}
+	if !host.Resize(96, 28) {
+		t.Fatal("reader search viewport could not be restored")
+	}
+	host.Shows(t, lines[len(lines)-1])
 	host.Press(input.Enter)
+	host.Shows(t, "1 matches")
 	host.Shows(t, lines[len(lines)-1])
 	host.Press(input.Esc)
 	host.Hides(t, "Reader")
@@ -666,22 +681,17 @@ func TestAPluginCanAddACommandWithoutChangingTheShell(t *testing.T) {
 	host.Shows(t, "Ask lyra")
 	host.Type("/hello")
 	host.Press(input.Enter)
-	host.Press(input.Enter)
 	host.Shows(t, "hello from plugin load 1")
 	host.Type("/plugins")
-	host.Press(input.Enter)
 	host.Press(input.Enter)
 	host.Shows(t, "loaded   test.greeting@1.0.0")
 	host.Type("/reload test.greeting")
 	host.Press(input.Enter)
-	host.Press(input.Enter)
 	host.Shows(t, "reloaded plugin test.greeting")
 	host.Type("/hello")
 	host.Press(input.Enter)
-	host.Press(input.Enter)
 	host.Shows(t, "hello from plugin load 2")
 	host.Type("/unload test.greeting")
-	host.Press(input.Enter)
 	host.Press(input.Enter)
 	host.Shows(t, "unloaded plugin test.greeting")
 	host.Type("/hello")
@@ -689,10 +699,8 @@ func TestAPluginCanAddACommandWithoutChangingTheShell(t *testing.T) {
 	host.Shows(t, "unknown command: /hello")
 	host.Type("/reload test.greeting")
 	host.Press(input.Enter)
-	host.Press(input.Enter)
 	host.Shows(t, "reloaded plugin test.greeting")
 	host.Type("/hello")
-	host.Press(input.Enter)
 	host.Press(input.Enter)
 	host.Shows(t, "hello from plugin load 3")
 	if got := loads.Load(); got != 3 {
@@ -727,10 +735,8 @@ func TestAsynchronousPluginCommandKeepsTheTerminalResponsive(t *testing.T) {
 	host.Shows(t, "Ask lyra")
 	host.Type("/slow")
 	host.Press(input.Enter)
-	host.Press(input.Enter)
 	host.Shows(t, "running /slow")
 	host.Type("/plugins")
-	host.Press(input.Enter)
 	host.Press(input.Enter)
 	host.Shows(t, "test.async@1.0.0")
 	close(release)
@@ -770,10 +776,8 @@ func TestUnloadingPluginCancelsItsInFlightCommand(t *testing.T) {
 	host.Shows(t, "Ask lyra")
 	host.Type("/wait")
 	host.Press(input.Enter)
-	host.Press(input.Enter)
 	host.Shows(t, "running /wait")
 	host.Type("/unload test.cancel")
-	host.Press(input.Enter)
 	host.Press(input.Enter)
 	host.Shows(t, "unloaded plugin test.cancel")
 	select {
@@ -817,11 +821,9 @@ func TestUnloadingAPluginLeavesIndependentCommandsRunning(t *testing.T) {
 	for _, command := range []string{"/wait-a", "/wait-b"} {
 		host.Type(command)
 		host.Press(input.Enter)
-		host.Press(input.Enter)
 		host.Shows(t, "running "+command)
 	}
 	host.Type("/unload test.cancel-a")
-	host.Press(input.Enter)
 	host.Press(input.Enter)
 	host.Shows(t, "unloaded plugin test.cancel-a")
 	select {
@@ -858,7 +860,6 @@ func TestPluginCommandCannotShadowABuiltin(t *testing.T) {
 	host.Shows(t, "Ask lyra")
 	host.Type("/help")
 	host.Press(input.Enter)
-	host.Press(input.Enter)
 	host.Shows(t, "/clear")
 	host.Hides(t, "shadowed builtin")
 	host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
@@ -886,7 +887,6 @@ func TestSessionPickerRestoresHistoryAndLifecycleCommandsSwitchCleanly(t *testin
 	host.Hides(t, "The fixed sleep races the janitor")
 
 	host.Type("/new")
-	host.Press(input.Enter)
 	host.Press(input.Enter)
 	host.Shows(t, "session · Untitled session")
 
@@ -955,7 +955,14 @@ func TestCurrentSessionTimelineJumpsAndForksFromARootRun(t *testing.T) {
 	host.Shows(t, "stable answer")
 	host.Type("/timeline")
 	host.Press(input.Enter)
-	host.Press(input.Enter)
+	host.Shows(t, "Current session timeline")
+	host.Shows(t, "Run 1 of 1")
+	if !host.Resize(1, 1) || !host.Repaint() {
+		t.Fatal("timeline did not survive a temporarily minimal viewport")
+	}
+	if !host.Resize(96, 28) {
+		t.Fatal("timeline viewport could not be restored")
+	}
 	host.Shows(t, "Current session timeline")
 	host.Shows(t, "Run 1 of 1")
 	host.Press(input.Enter)
@@ -963,7 +970,6 @@ func TestCurrentSessionTimelineJumpsAndForksFromARootRun(t *testing.T) {
 
 	host.Send(input.Key{Code: input.Character, Rune: ' ', Mods: 0})
 	host.Type("/timeline")
-	host.Press(input.Enter)
 	host.Press(input.Enter)
 	host.Shows(t, "Current session timeline")
 	host.Send(input.Key{Code: input.Character, Rune: 'f', Mods: input.Alt})
@@ -985,7 +991,6 @@ func TestSessionChangeOwnsTheComposerUntilItsSnapshotIsInstalled(t *testing.T) {
 	host, stop := runUIWith(t, backend)
 	host.Shows(t, "Ask lyra")
 	host.Type("/new")
-	host.Press(input.Enter)
 	host.Press(input.Enter)
 	select {
 	case <-backend.changeStarted:
@@ -1045,7 +1050,6 @@ func TestSessionSwitchRebindsWorkspaceAttachmentsAndDropsOldChips(t *testing.T) 
 
 	host.Type("/attachments")
 	host.Press(input.Enter)
-	host.Press(input.Enter)
 	host.Shows(t, "the composer has no attachments")
 	host.Type("@special")
 	host.Shows(t, "workspace files")
@@ -1074,7 +1078,6 @@ func TestProviderQualifiedModelAndLimitsApplyToTheNextRun(t *testing.T) {
 	host.Shows(t, settings.DefaultProvider+"/"+settings.DefaultModel)
 
 	host.Type("/model")
-	host.Press(input.Enter)
 	host.Press(input.Enter)
 	host.Shows(t, "Models")
 	host.Type("Deep")
@@ -1213,6 +1216,20 @@ func TestQuestionnaireSurvivesResizeBetweenFields(t *testing.T) {
 	}
 	host.Shows(t, "Goal — What should change?")
 	host.Type("release safely")
+	if !host.Resize(1, 1) || !host.Repaint() {
+		t.Fatal("question field did not survive a temporarily minimal viewport")
+	}
+	if !host.Resize(36, 10) {
+		t.Fatal("question field viewport could not be restored")
+	}
+	host.Shows(t, "release safely")
+	host.Press(input.Enter)
+	host.Shows(t, "Plan deployment · 2/3")
+	host.Press(input.Esc)
+	host.Shows(t, "Plan deployment · 1/3")
+	host.Shows(t, "release safely")
+	host.Send(input.Key{Code: input.Character, Rune: 'a', Mods: input.Alt})
+	host.Type("release carefully")
 	host.Press(input.Enter)
 	host.Shows(t, "Plan deployment · 2/3")
 	if !host.Resize(120, 30) {
@@ -1232,9 +1249,55 @@ func TestQuestionnaireSurvivesResizeBetweenFields(t *testing.T) {
 	host.Shows(t, "complete")
 
 	answer := <-answers
-	want := [][]string{{"release safely"}, {"Fast"}, {"Unit", "Integration"}}
+	want := [][]string{{"release carefully"}, {"Fast"}, {"Unit", "Integration"}}
 	if !slices.EqualFunc(answer.Values, want, slices.Equal) {
 		t.Fatalf("submitted answer = %+v, want %+v", answer.Values, want)
+	}
+
+	host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
+	stop()
+}
+
+func TestCustomMultipleQuestionKeepsInvalidInputEditable(t *testing.T) {
+	backend := mock.New()
+	backend.Instant = true
+	answers := make(chan agent.QuestionAnswer, 1)
+	backend.Script = func(string) mock.Script {
+		return mock.Script{
+			Interactions: []agent.Interaction{agent.Question{
+				ItemID: "targets", Title: "Choose targets",
+				Fields: []agent.QuestionField{{
+					Prompt: "Targets", Kind: agent.QuestionMulti, AllowCustom: true,
+					Options: []agent.QuestionOption{{Label: "linux"}, {Label: "darwin"}},
+				}},
+			}},
+			Continue: func(answerSet []agent.InterruptAnswer) []mock.Step {
+				answers <- answerSet[0].Answer.(agent.QuestionAnswer)
+				return []mock.Step{{Event: agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCompleted}}}}
+			},
+		}
+	}
+	host, stop := runUIWith(t, backend)
+	host.Shows(t, "Ask lyra")
+	host.Type("choose targets")
+	host.Press(input.Enter)
+	host.Shows(t, "Choose targets")
+	host.Type("linux, darwin, linux")
+	host.Press(input.Enter)
+	host.Shows(t, `choice "linux" is duplicated`)
+	select {
+	case answer := <-answers:
+		t.Fatalf("invalid custom choices reached the runtime: %+v", answer)
+	default:
+	}
+	host.Send(input.Key{Code: input.Character, Rune: 'a', Mods: input.Alt})
+	host.Type("linux, custom")
+	host.Press(input.Enter)
+	host.Shows(t, "complete")
+	answer := <-answers
+	want := []string{"linux", "custom"}
+	if !slices.Equal(answer.Values[0], want) {
+		t.Fatalf("custom choices = %q, want %q", answer.Values[0], want)
 	}
 
 	host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
@@ -1294,7 +1357,6 @@ func TestPromptStashCanBeListedAppliedAndDeleted(t *testing.T) {
 	prefix := match[1][:8]
 	host.Type("/stashes")
 	host.Press(input.Enter)
-	host.Press(input.Enter)
 	host.Shows(t, "draft to preserve")
 	host.Type("/stash-apply " + prefix)
 	host.Press(input.Enter)
@@ -1305,7 +1367,6 @@ func TestPromptStashCanBeListedAppliedAndDeleted(t *testing.T) {
 	host.Press(input.Enter)
 	host.Shows(t, "deleted prompt stash")
 	host.Type("/stashes")
-	host.Press(input.Enter)
 	host.Press(input.Enter)
 	host.Shows(t, "there are no prompt stashes")
 
@@ -1376,6 +1437,49 @@ func TestApprovalDenialSubmitsOptionalUserFeedback(t *testing.T) {
 	stop()
 }
 
+func TestApprovalStateSurvivesMinimalViewportAndRestores(t *testing.T) {
+	backend := mock.New()
+	backend.Instant = true
+	answers := make(chan agent.ApprovalAnswer, 1)
+	backend.Script = func(string) mock.Script {
+		return mock.Script{
+			Interactions: []agent.Interaction{agent.Approval{
+				ItemID: "resize-approval", Title: "Run generated command",
+				Tool: &agent.ToolCall{Kind: agent.ToolShell, Name: "shell", Command: "rm generated.txt", Status: agent.ToolRunning},
+			}},
+			Continue: func(provided []agent.InterruptAnswer) []mock.Step {
+				answers <- provided[0].Answer.(agent.ApprovalAnswer)
+				return []mock.Step{{Event: agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCompleted}}}}
+			},
+		}
+	}
+	host, stop := runUIWith(t, backend)
+	host.Shows(t, "Ask lyra")
+	host.Type("review command")
+	host.Press(input.Enter)
+	host.Shows(t, "Tool approval")
+	host.Press(input.Down)
+	host.Press(input.Tab)
+	host.Type("KEEP_RESIZE_FEEDBACK")
+	if !host.Resize(1, 1) || !host.Repaint() {
+		t.Fatal("approval did not survive a temporarily minimal viewport")
+	}
+	if !host.Resize(96, 28) {
+		t.Fatal("approval viewport could not be restored")
+	}
+	host.Shows(t, "KEEP_RESIZE_FEEDBACK")
+	showsPlain(t, host, "● Deny")
+	host.Press(input.Enter)
+	host.Shows(t, "complete")
+	answer := <-answers
+	if answer.Decision != agent.ApprovalDeny || answer.Reason != "KEEP_RESIZE_FEEDBACK" {
+		t.Fatalf("restored approval answer = %+v", answer)
+	}
+
+	host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
+	stop()
+}
+
 func TestMultiInteractionReviewSupportsBackEditAndOneFinalResume(t *testing.T) {
 	backend := mock.New()
 	backend.Instant = true
@@ -1389,8 +1493,20 @@ func TestMultiInteractionReviewSupportsBackEditAndOneFinalResume(t *testing.T) {
 	showsPlain(t, host, "● Allow once")
 	host.Press(input.Enter)
 	host.Shows(t, "Choose platform")
+	host.Press(input.Esc)
+	host.Shows(t, "$ go test ./...")
+	showsPlain(t, host, "● Allow once")
+	host.Press(input.Enter)
+	host.Shows(t, "Choose platform")
 	showsPlain(t, host, "● Linux")
 	host.Press(input.Enter)
+	host.Shows(t, "Review interactions")
+	if !host.Resize(1, 1) || !host.Repaint() {
+		t.Fatal("interaction review did not survive a temporarily minimal viewport")
+	}
+	if !host.Resize(96, 28) {
+		t.Fatal("interaction review viewport could not be restored")
+	}
 	host.Shows(t, "Review interactions")
 	select {
 	case premature := <-answers:
@@ -1418,6 +1534,37 @@ func TestMultiInteractionReviewSupportsBackEditAndOneFinalResume(t *testing.T) {
 	select {
 	case duplicate := <-answers:
 		t.Fatalf("runtime resumed twice: %+v", duplicate)
+	default:
+	}
+
+	host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
+	stop()
+}
+
+func TestCancelingInteractionReviewDoesNotResumeTheRuntime(t *testing.T) {
+	backend := mock.New()
+	backend.Instant = true
+	answers := make(chan []agent.InterruptAnswer, 1)
+	backend.Script = func(string) mock.Script { return multiInteractionReviewScript(answers) }
+	host, stop := runUIWith(t, backend)
+	host.Shows(t, "Ask lyra")
+	host.Type("review then cancel")
+	host.Press(input.Enter)
+	host.Shows(t, "$ go test ./...")
+	showsPlain(t, host, "● Allow once")
+	host.Press(input.Enter)
+	host.Shows(t, "Choose platform")
+	showsPlain(t, host, "● Linux")
+	host.Press(input.Enter)
+	host.Shows(t, "Review interactions")
+	host.Press(input.Down)
+	host.Press(input.Down)
+	showsPlain(t, host, "● Cancel the run")
+	host.Press(input.Enter)
+	host.Shows(t, "canceled")
+	select {
+	case provided := <-answers:
+		t.Fatalf("canceled review resumed the runtime: %+v", provided)
 	default:
 	}
 
@@ -1496,6 +1643,33 @@ func TestCommandPaletteSearchAndDetailShortcutsAreReachable(t *testing.T) {
 	stop()
 }
 
+func TestExactSlashCommandRunsWithOneEnterWhilePartialInputCompletes(t *testing.T) {
+	host, stop := runUI(t)
+	host.Shows(t, "Ask lyra")
+	host.Type("/help")
+	host.Press(input.Enter)
+	host.Shows(t, "Commands")
+	host.Press(input.Esc)
+	host.Hides(t, "Commands")
+
+	host.Type("/sho")
+	host.Press(input.Enter)
+	host.Shows(t, "/shortcuts")
+	host.Hides(t, "Shortcuts")
+	host.Press(input.Enter)
+	host.Shows(t, "Shortcuts")
+	host.Press(input.Esc)
+	host.Hides(t, "Shortcuts")
+
+	host.Type("/resume")
+	host.Press(input.Enter)
+	host.Shows(t, "Sessions")
+	host.Press(input.Esc)
+
+	host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
+	stop()
+}
+
 func TestCommandPaletteSharesContextAvailabilityWithExecution(t *testing.T) {
 	host, stop := runUI(t)
 	host.Shows(t, "Ask lyra")
@@ -1541,7 +1715,6 @@ func TestShortcutGuideReflectsActiveBindings(t *testing.T) {
 	host.Hides(t, "open this shortcut guide")
 
 	host.Type("/shortcuts")
-	host.Press(input.Enter)
 	host.Press(input.Enter)
 	host.Shows(t, "Shortcuts")
 	host.Shows(t, "scroll this guide up")
@@ -1807,10 +1980,42 @@ func TestTerminalSurvivesExtremeResizeAndRemainsInteractive(t *testing.T) {
 	host.Hides(t, "resize draft")
 	host.Type("/plugins")
 	host.Press(input.Enter)
-	host.Press(input.Enter)
 	host.Shows(t, "terminal.core@1.0.0")
 	host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
 	stop()
+}
+
+func TestCatalogDialogsRestoreAfterMinimalViewport(t *testing.T) {
+	for _, test := range []struct {
+		command string
+		title   string
+	}{
+		{command: "/help", title: "Commands"},
+		{command: "/shortcuts", title: "Shortcuts"},
+		{command: "/sessions", title: "Sessions"},
+		{command: "/workspace", title: "Workspaces"},
+		{command: "/model", title: "Models"},
+		{command: "/approval", title: "Runtime approval mode"},
+	} {
+		t.Run(strings.TrimPrefix(test.command, "/"), func(t *testing.T) {
+			host, stop := runUI(t)
+			host.Shows(t, "Ask lyra")
+			host.Type(test.command)
+			host.Press(input.Enter)
+			host.Shows(t, test.title)
+			if !host.Resize(1, 1) || !host.Repaint() {
+				t.Fatalf("%s did not survive a temporarily minimal viewport", test.title)
+			}
+			if !host.Resize(96, 28) {
+				t.Fatalf("%s viewport could not be restored", test.title)
+			}
+			host.Shows(t, test.title)
+			host.Press(input.Esc)
+			host.Shows(t, "Ask lyra")
+			host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
+			stop()
+		})
+	}
 }
 
 func TestStreamingRemainsResponsiveThroughAResizeStorm(t *testing.T) {
@@ -1854,7 +2059,6 @@ func TestStreamingRemainsResponsiveThroughAResizeStorm(t *testing.T) {
 	host.Shows(t, "RESIZE_STREAM_COMPLETE")
 	host.Shows(t, "complete")
 	host.Type("/plugins")
-	host.Press(input.Enter)
 	host.Press(input.Enter)
 	host.Shows(t, "terminal.core")
 	stop()
