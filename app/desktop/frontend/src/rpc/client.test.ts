@@ -44,6 +44,44 @@ describe("RpcClient", () => {
     await client.close();
   });
 
+  it("rejects a response carried by another request without settling that request", async () => {
+    const transport = createMemoryTransport();
+    const client = createRpcClient(transport);
+
+    const sessionsPromise = client.call("sessions.get", { sessionId: "ses_01" });
+    const runsPromise = client.call("runs.list", {});
+    const sessionsRequest = await waitForRequest(transport, "sessions.get");
+    const runsRequest = await waitForRequest(transport, "runs.list");
+
+    transport.inject(
+      {
+        jsonrpc: JSONRPC_VERSION,
+        id: runsRequest.id,
+        result: { data: [] },
+      } as RpcMessage,
+      { requestId: "req_mismatch_01" },
+      sessionsRequest.id,
+    );
+    await expect(sessionsPromise).rejects.toMatchObject({
+      name: "RpcProtocolError",
+      requestId: "req_mismatch_01",
+      violations: [
+        {
+          path: "sessions.get.response.id",
+          detail: `must match request id ${sessionsRequest.id}`,
+        },
+      ],
+    } satisfies Partial<RpcProtocolError>);
+
+    transport.inject({
+      jsonrpc: JSONRPC_VERSION,
+      id: runsRequest.id,
+      result: { data: [] },
+    } as RpcMessage);
+    await expect(runsPromise).resolves.toEqual({ data: [] });
+    await client.close();
+  });
+
   it("validates an ack result and exposes it as void", async () => {
     const transport = createMemoryTransport();
     const client = createRpcClient(transport);

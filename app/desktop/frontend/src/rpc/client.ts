@@ -153,6 +153,28 @@ export function createRpcClient(transport: Transport, options: RpcClientOptions 
       for (const handler of streamEndHandlers) handler(event);
       return;
     }
+    if (isResponse(event.message) && event.message.id !== event.requestRpcId) {
+      // A Transport merges many concurrent response bodies into one receive
+      // channel. Its source request is authoritative: trusting only the envelope
+      // id would let a malformed frame from request A settle request B and strand A.
+      const entry = pending.get(event.requestRpcId);
+      if (entry) {
+        pending.delete(event.requestRpcId);
+        entry.reject(
+          new RpcProtocolError(
+            `${entry.method} response`,
+            [
+              {
+                path: `${entry.method}.response.id`,
+                detail: `must match request id ${event.requestRpcId}`,
+              },
+            ],
+            event.metadata?.requestId,
+          ),
+        );
+      }
+      return;
+    }
     dispatchMessage(event.message, event.requestRpcId, event.metadata);
   }
 
