@@ -8,8 +8,8 @@ uses a CLI-owned domain model and a consumer-owned port.
 
 Baseline date: 2026-08-12
 Runtime API inventory: 87 exported methods
-Production API consumption: 64 methods
-Queued API consumption: 23 methods
+Production API consumption: 69 methods
+Queued API consumption: 18 methods
 
 Status meanings:
 
@@ -27,7 +27,7 @@ resync policy; mutations need lifecycle and failure-path tests.
 | Bounded context | Exported embedded methods | Status | Current consumption and remaining work |
 | --- | --- | --- | --- |
 | Runtime lifecycle and discovery | `Discover`, `Close` | complete | Open validates protocol, run stream vocabulary, replay scope, plan recovery, topics, and closes process-owned state. |
-| Runtime invalidations | `SubscribeRuntime` | partial | One negotiated attach-first subscription consumes `files.changed`, `skills.changed`, `mcp.changed`, `sessions.changed`, `runs.changed`, `state.changed`, `goals.changed`, and `interrupts.changed`. File events re-read workspace changes; session/run/state/interrupt events re-read the authoritative session without taking ownership from an active stream; Skill, MCP, and goal events refresh only their open projections. Reconnects and sequence gaps resync every subscribed topic. Add schedules when its query surface lands. |
+| Runtime invalidations | `SubscribeRuntime` | complete | One negotiated attach-first subscription consumes every advertised topic: `files.changed`, `skills.changed`, `mcp.changed`, `schedules.changed`, `sessions.changed`, `runs.changed`, `state.changed`, `goals.changed`, and `interrupts.changed`. File events re-read workspace changes; session/run/state/interrupt events re-read the authoritative session without taking ownership from an active stream; Skill, MCP, schedule, and goal events refresh only their open projections. Reconnects and sequence gaps resync every subscribed topic. |
 | Sessions | `CreateSession`, `DeleteSession`, `ForkSession`, `GetSession`, `ListSessions`, `UpdateSession` | complete | Interactive session center, switching, creation, rename, favorite, fork, delete, and cold snapshot recovery. |
 | Session portability and rewind | `ExportSession`, `ImportSession`, `RollbackSession` | complete | Runtime-authored Markdown/JSON exports, opaque JSON round-trip import, conflict-safe artifact files, authoritative rollback preview, destructive confirmation, change-before-commit rejection, and cold snapshot reinstall. |
 | Runs | `CancelRun`, `GetRun`, `ListRuns`, `ResumeRun`, `StartRun`, `SubscribeRun` | complete | Core streaming, reconnect/replay, recovery, cancellation, HITL resume, and timeline. `GetRun`/`ListRuns` are consumed by the cold session projection. |
@@ -45,7 +45,7 @@ resync policy; mutations need lifecycle and failure-path tests.
 | Knowledge | `GetKnowledge`, `ListKnowledge`, `UpdateKnowledge` | queued | Add provenance-aware knowledge browser/editor and invalidation policy when exposed. |
 | Skills | `ApproveSkillProposal`, `ArchiveSkill`, `ListDiscoveredSkills`, `ListManagedSkills`, `ListSkillProposals`, `RejectSkillProposal`, `RestoreSkill` | complete | Discovered, managed, and proposal Readers; archive/restore; confirmed approve/reject bound to workspace + scope + name + full immutable revision; same-name revisions remain distinct; `skills.changed` refetches only an open Skill projection. |
 | MCP | `CreateMCPAuthorizationAttempt`, `CreateMCPServer`, `DeleteMCPServer`, `GetMCPAuthorizationAttempt`, `ListMCPServers`, `ListMCPTools`, `ReconnectMCPServer`, `TestMCPServer`, `UpdateMCPServer` | complete | `/mcp`, `/mcp-tools`, `/mcp-create`, `/mcp-edit`, `/mcp-probe`, `/mcp-delete`, `/mcp-reconnect`, and `/mcp-auth` expose secret-safe connection management, schemas, health probes, reconnect, and the complete browser authorization lifecycle; `mcp.changed` refetches only the open server/tool projection. |
-| Schedules | `CreateSchedule`, `DeleteSchedule`, `ListSchedules`, `RunScheduleNow`, `UpdateSchedule` | queued | Add schedule catalog/editor/run-now history and `schedules.changed` refetch. |
+| Schedules | `CreateSchedule`, `DeleteSchedule`, `ListSchedules`, `RunScheduleNow`, `UpdateSchedule` | complete | `/schedules`, `/schedule-create`, `/schedule-edit`, `/schedule-enable`, `/schedule-disable`, `/schedule-run`, and `/schedule-delete` expose cursor-complete reads, revision-guarded edits, lifecycle, immediate firing handles, destructive confirmation, and `schedules.changed` refetch. |
 | Tools | `InvokeTool`, `ListTools` | queued | Add an inspect/invoke surface for diagnostics; normal agent tool execution remains runtime-owned. |
 | Codebase | `GetCodebaseStatus`, `ReindexCodebase`, `SearchCodebase` | queued | Add indexing status, explicit reindex, and semantic search distinct from workspace grep. |
 | Agent documents and recipes | `ListAgentDocs`, `ListRecipes` | queued | Add discoverable authoring/context catalogs and prompt insertion. |
@@ -59,8 +59,8 @@ resync policy; mutations need lifecycle and failure-path tests.
    invalidations — complete.
 3. Goals, usage, model roles, and providers — complete.
 4. Skills and MCP, including terminal authorization — complete.
-5. Schedules, memory, knowledge, codebase, tools, hooks, docs/recipes, and
-   feedback.
+5. Schedules — complete; memory, knowledge, codebase, tools, hooks,
+   docs/recipes, and feedback — next.
 
 Each batch must pass package tests, the race detector, architecture guards,
 static analysis, native and cross-platform builds, and a real embedded-runtime

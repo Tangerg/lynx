@@ -20,6 +20,7 @@ import (
 	"github.com/Tangerg/lynx/app/cli/internal/mcp"
 	"github.com/Tangerg/lynx/app/cli/internal/modelconfig"
 	"github.com/Tangerg/lynx/app/cli/internal/promptqueue"
+	"github.com/Tangerg/lynx/app/cli/internal/schedule"
 	"github.com/Tangerg/lynx/app/cli/internal/session"
 	"github.com/Tangerg/lynx/app/cli/internal/sessiontransfer"
 	"github.com/Tangerg/lynx/app/cli/internal/settings"
@@ -40,6 +41,7 @@ type Config struct {
 	Goals          goal.Service
 	Skills         skills.Service
 	MCP            mcp.Service
+	Schedules      schedule.Service
 	SessionID      string
 	Workspace      string
 	InitialPrompt  string
@@ -88,7 +90,7 @@ func Run(ctx context.Context, cfg Config) (runErr error) {
 				context: ctx, runtime: cfg.Runtime, snapshot: prepared.opened,
 				workspaces: cfg.Workspaces, changes: cfg.Changes,
 				transfers: cfg.Transfers, usage: cfg.Usage, modelConfig: cfg.ModelConfig,
-				goals: cfg.Goals, skills: cfg.Skills, mcp: cfg.MCP,
+				goals: cfg.Goals, skills: cfg.Skills, mcp: cfg.MCP, schedules: cfg.Schedules,
 				registry: registry, pluginHost: extensionHost, pluginIssues: discovered.Issues,
 				attachments: prepared.attachments,
 				settings:    prepared.settings, keyBindings: prepared.keyBindings, queue: queue,

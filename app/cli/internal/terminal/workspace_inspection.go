@@ -220,6 +220,7 @@ func (a *app) followRuntimeChanges() {
 		monitor := runtimeChangeMonitor{
 			workspace: workspacePath, repository: a.workspaces, source: a.changes,
 			includeGoals: a.goals != nil, includeSkills: a.skills != nil, includeMCP: a.mcp != nil,
+			includeSchedules: a.schedules != nil,
 			applyFiles: func(changes []workspace.Change) error {
 				return post(ctx, dispatcher, func() {
 					if !a.operations.Current(lease) || a.closed || a.session.Workspace != workspacePath {
@@ -258,15 +259,16 @@ func (a *app) applyWorkspaceChanges(changes []workspace.Change) {
 }
 
 type runtimeChangeMonitor struct {
-	workspace     string
-	repository    workspace.ChangeReader
-	source        changefeed.Source
-	includeGoals  bool
-	includeSkills bool
-	includeMCP    bool
-	applyFiles    func([]workspace.Change) error
-	applyEvent    func(changefeed.Event) error
-	applyResync   func([]changefeed.Topic) error
+	workspace        string
+	repository       workspace.ChangeReader
+	source           changefeed.Source
+	includeGoals     bool
+	includeSkills    bool
+	includeMCP       bool
+	includeSchedules bool
+	applyFiles       func([]workspace.Change) error
+	applyEvent       func(changefeed.Event) error
+	applyResync      func([]changefeed.Topic) error
 }
 
 func (monitor runtimeChangeMonitor) run(ctx context.Context) {
@@ -383,6 +385,9 @@ func (monitor runtimeChangeMonitor) supportedTopics() []changefeed.Topic {
 	}
 	if monitor.includeMCP {
 		candidates = append(candidates, changefeed.MCPChanged)
+	}
+	if monitor.includeSchedules {
+		candidates = append(candidates, changefeed.SchedulesChanged)
 	}
 	if monitor.repository != nil {
 		candidates = append([]changefeed.Topic{changefeed.FilesChanged}, candidates...)

@@ -13,6 +13,7 @@ const (
 	commandCategorySessions    = "Sessions"
 	commandCategoryComposer    = "Composer"
 	commandCategoryRuntime     = "Runtime"
+	commandCategoryAutomation  = "Automation"
 	commandCategoryContext     = "Context"
 	commandCategoryConnections = "Connections"
 	commandCategoryWorkspace   = "Workspace"
@@ -74,6 +75,15 @@ func builtinCommands() []localCommand {
 			localCommand{Descriptor: CommandDescriptor{Name: "goal-start", Title: "start autonomous pursuit for this session", Takes: true}, Available: availableForGoalStart, Run: func(a *app, objective string) error { return a.StartGoal(objective) }},
 			localCommand{Descriptor: CommandDescriptor{Name: "goal-stop", Title: "pause autonomous pursuit for this session"}, Available: availableWithGoals, Run: func(a *app, _ string) error { return a.StopGoal() }},
 			localCommand{Descriptor: CommandDescriptor{Name: "goal-resume", Title: "resume autonomous pursuit for this session"}, Available: availableWithGoals, Run: func(a *app, _ string) error { return a.ResumeGoal() }},
+		),
+		commandGroup(commandCategoryAutomation,
+			localCommand{Descriptor: CommandDescriptor{Name: "schedules", Title: "inspect scheduled headless runs"}, Available: availableWithSchedules, Run: func(a *app, _ string) error { a.ShowSchedules(); return nil }},
+			localCommand{Descriptor: CommandDescriptor{Name: "schedule-create", Title: "create a scheduled headless run"}, Available: availableWithSchedules, Run: func(a *app, _ string) error { return a.OpenScheduleCreateForm() }},
+			localCommand{Descriptor: CommandDescriptor{Name: "schedule-edit", Title: "edit a schedule by id, prefix, or title", Takes: true}, Available: availableWithSchedules, Run: func(a *app, identity string) error { return a.EditSchedule(identity) }},
+			localCommand{Descriptor: CommandDescriptor{Name: "schedule-enable", Title: "enable a schedule", Takes: true}, Available: availableWithSchedules, Run: func(a *app, identity string) error { return a.SetScheduleEnabled(identity, true) }},
+			localCommand{Descriptor: CommandDescriptor{Name: "schedule-disable", Title: "disable a schedule", Takes: true}, Available: availableWithSchedules, Run: func(a *app, identity string) error { return a.SetScheduleEnabled(identity, false) }},
+			localCommand{Descriptor: CommandDescriptor{Name: "schedule-run", Title: "fire a schedule without advancing its cron cursor", Takes: true}, Available: availableWithSchedules, Run: func(a *app, identity string) error { return a.RunScheduleNow(identity) }},
+			localCommand{Descriptor: CommandDescriptor{Name: "schedule-delete", Title: "delete a schedule", Takes: true}, Available: availableWithSchedules, Run: func(a *app, identity string) error { return a.PrepareDeleteSchedule(identity) }},
 		),
 		commandGroup(commandCategoryContext,
 			localCommand{Descriptor: CommandDescriptor{Name: "skills", Title: "inspect skills discoverable in this workspace"}, Available: availableWithSkills, Run: func(a *app, _ string) error { a.ShowDiscoveredSkills(); return nil }},
@@ -159,6 +169,13 @@ func availableWithSkills(a *app) CommandAvailability {
 func availableWithMCP(a *app) CommandAvailability {
 	if a.mcp == nil {
 		return CommandAvailability{Reason: "this runtime composition has no MCP service"}
+	}
+	return CommandAvailability{Enabled: true}
+}
+
+func availableWithSchedules(a *app) CommandAvailability {
+	if a.schedules == nil {
+		return CommandAvailability{Reason: "this runtime composition has no schedule service"}
 	}
 	return CommandAvailability{Enabled: true}
 }

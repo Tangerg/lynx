@@ -28,6 +28,7 @@ const (
 	skillOperation               operationSlot = "skill"
 	mcpOperation                 operationSlot = "mcp"
 	mcpAuthorizationOperation    operationSlot = "mcp-authorization"
+	scheduleOperation            operationSlot = "schedule"
 )
 
 type operationLease struct {

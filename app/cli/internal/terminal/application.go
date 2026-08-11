@@ -23,6 +23,7 @@ import (
 	"github.com/Tangerg/lynx/app/cli/internal/mcp"
 	"github.com/Tangerg/lynx/app/cli/internal/modelconfig"
 	"github.com/Tangerg/lynx/app/cli/internal/promptqueue"
+	"github.com/Tangerg/lynx/app/cli/internal/schedule"
 	"github.com/Tangerg/lynx/app/cli/internal/sessionartifact"
 	"github.com/Tangerg/lynx/app/cli/internal/sessiontransfer"
 	"github.com/Tangerg/lynx/app/cli/internal/settings"
@@ -70,6 +71,7 @@ type app struct {
 	goals        goal.Service
 	skills       skills.Service
 	mcp          mcp.Service
+	schedules    schedule.Service
 	artifacts    sessionartifact.Store
 	session      agent.Session
 	registry     *extensions.Registry
@@ -117,6 +119,7 @@ type app struct {
 	approvalModeDialog  *kit.Dialog
 	providerDialog      *kit.Dialog
 	mcpDialog           *kit.Dialog
+	scheduleDialog      *kit.Dialog
 	questionnaire       *questionnaire
 	questionDialog      *kit.Dialog
 	interactionReview   *interactionReview
@@ -172,6 +175,7 @@ type appConfig struct {
 	goals        goal.Service
 	skills       skills.Service
 	mcp          mcp.Service
+	schedules    schedule.Service
 	snapshot     agent.SessionSnapshot
 	registry     *extensions.Registry
 	pluginHost   *extensions.Host
@@ -208,7 +212,7 @@ func newApp(loop *program.Runtime, cfg appConfig) *app {
 	a := &app{
 		ctx: cfg.context, loop: loop, runtime: cfg.runtime, workspaces: cfg.workspaces,
 		changes: cfg.changes, transfers: cfg.transfers, usage: cfg.usage, modelConfig: cfg.modelConfig,
-		goals: cfg.goals, skills: cfg.skills, mcp: cfg.mcp,
+		goals: cfg.goals, skills: cfg.skills, mcp: cfg.mcp, schedules: cfg.schedules,
 		session: cfg.snapshot.Session, registry: cfg.registry,
 		pluginHost: cfg.pluginHost, pluginIssues: cfg.pluginIssues,
 		conversation:       agent.NewConversation(),

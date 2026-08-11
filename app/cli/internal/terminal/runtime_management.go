@@ -28,6 +28,7 @@ const (
 	runtimeReaderMCPServers
 	runtimeReaderMCPTools
 	runtimeReaderMCPAuthorization
+	runtimeReaderSchedules
 )
 
 type usageReport struct {

@@ -10,6 +10,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
 	"github.com/Tangerg/lynx/app/cli/internal/changefeed"
+	"github.com/Tangerg/lynx/app/cli/internal/schedule"
 	"github.com/Tangerg/lynx/app/cli/internal/sessiontransfer"
 	workspaceapi "github.com/Tangerg/lynx/app/cli/internal/workspace"
 )
@@ -208,6 +209,7 @@ func requireRuntimeCatalogs(t *testing.T, runtime *Runtime, sessionID, workspace
 	if tools, err := runtime.Tools(t.Context(), ""); err != nil {
 		t.Fatalf("MCP tools = (%+v, %v)", tools, err)
 	}
+	requireScheduleLifecycle(t, runtime, workspace)
 	if rules, err := runtime.ListApprovalRules(t.Context(), sessionID); err != nil || len(rules) != 0 {
 		t.Fatalf("ListApprovalRules = (%+v, %v)", rules, err)
 	}
@@ -219,6 +221,30 @@ func requireRuntimeCatalogs(t *testing.T, runtime *Runtime, sessionID, workspace
 	mode, err := runtime.GetApprovalMode(t.Context())
 	if err != nil || mode != agent.ApprovalModeSafe {
 		t.Fatalf("GetApprovalMode = (%q, %v)", mode, err)
+	}
+}
+
+func requireScheduleLifecycle(t *testing.T, runtime *Runtime, workspace string) {
+	t.Helper()
+	created, err := runtime.Create(t.Context(), schedule.Candidate{
+		Title: "Adapter schedule", Instructions: "review the workspace", Workspace: workspace, Cron: "0 9 * * 1-5",
+	})
+	if err != nil {
+		t.Fatalf("Create schedule: %v", err)
+	}
+	listed, err := runtime.Schedules(t.Context())
+	if err != nil || len(listed) != 1 || listed[0].ID != created.ID {
+		t.Fatalf("Schedules = (%+v, %v)", listed, err)
+	}
+	enabled := false
+	updated, err := runtime.Update(t.Context(), schedule.Patch{
+		ID: created.ID, ExpectedRevision: created.Revision, Enabled: &enabled,
+	})
+	if err != nil || updated.Enabled || updated.Revision <= created.Revision {
+		t.Fatalf("Update schedule = (%+v, %v)", updated, err)
+	}
+	if err := runtime.Delete(t.Context(), created.ID); err != nil {
+		t.Fatalf("Delete schedule: %v", err)
 	}
 }
 
@@ -267,7 +293,7 @@ func TestOwnerOpensOnceAndRefusesReopenAfterClose(t *testing.T) {
 	if first != second {
 		t.Fatal("owner opened more than one runtime")
 	}
-	if first.Goals == nil || first.Skills == nil || first.MCP == nil {
+	if first.Goals == nil || first.Skills == nil || first.MCP == nil || first.Schedules == nil {
 		t.Fatalf("advertised optional services were not composed: %+v", first)
 	}
 	if err := owner.Close(); err != nil {

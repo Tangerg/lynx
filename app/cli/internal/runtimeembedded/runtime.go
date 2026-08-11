@@ -47,6 +47,7 @@ type Runtime struct {
 	goals            goalBinding
 	skills           skillBinding
 	mcp              mcpBinding
+	schedules        scheduleBinding
 	meta             protocol.RequestMeta
 	readFile         func(string) ([]byte, error)
 	supportedTopics  map[changefeed.Topic]struct{}
@@ -83,6 +84,7 @@ func Open(ctx context.Context, cfg Config) (*Runtime, error) {
 		goals:           binding,
 		skills:          binding,
 		mcp:             binding,
+		schedules:       binding,
 		meta:            requestMeta(cfg.ClientVersion),
 		readFile:        readFile,
 		supportedTopics: make(map[changefeed.Topic]struct{}),
@@ -290,6 +292,9 @@ func (r *Runtime) services() backend.Services {
 	}
 	if r.supportsFeature(protocol.FeatureMCP) {
 		services.MCP = r
+	}
+	if r.supportsFeature(protocol.FeatureSchedules) {
+		services.Schedules = r
 	}
 	return services
 }

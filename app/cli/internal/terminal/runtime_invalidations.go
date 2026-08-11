@@ -13,6 +13,7 @@ func (a *app) applyRuntimeInvalidation(event changefeed.Event) {
 	a.refreshGoalReader(goalInvalidationAffectsSession(event, a.session.ID))
 	a.refreshSkillReader(changefeed.Topic(event.Type) == changefeed.SkillsChanged)
 	a.refreshMCPReader(changefeed.Topic(event.Type) == changefeed.MCPChanged)
+	a.refreshScheduleReader(changefeed.Topic(event.Type) == changefeed.SchedulesChanged)
 	a.applySessionInvalidation(
 		invalidatesSessionCatalog(event),
 		invalidationAffectsSession(event, a.session.ID, a.conversation.RunID()),
@@ -23,10 +24,17 @@ func (a *app) applyRuntimeResync(topics []changefeed.Topic) {
 	a.refreshGoalReader(containsTopic(topics, changefeed.GoalsChanged))
 	a.refreshSkillReader(containsTopic(topics, changefeed.SkillsChanged))
 	a.refreshMCPReader(containsTopic(topics, changefeed.MCPChanged))
+	a.refreshScheduleReader(containsTopic(topics, changefeed.SchedulesChanged))
 	a.applySessionInvalidation(
 		containsTopic(topics, changefeed.SessionsChanged),
 		resyncAffectsSession(topics),
 	)
+}
+
+func (a *app) refreshScheduleReader(affected bool) {
+	if affected && a.schedules != nil && a.runtimeReader == runtimeReaderSchedules && a.readerDialog.Open() {
+		a.ShowSchedules()
+	}
 }
 
 func (a *app) refreshMCPReader(affected bool) {
