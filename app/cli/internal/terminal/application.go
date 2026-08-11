@@ -225,10 +225,7 @@ func (a *app) configureCompletion(appearance terminalAppearance) {
 		Look: appearance.theme.Look(appearance.glyphs), Keys: completionKeys,
 		Accept: func(candidate headless.Candidate, token headless.Token) {
 			if token.Trigger.Prefix == "@" {
-				a.composer.Editor().Replace(max(token.Start-1, 0), token.End, "")
-				if err := a.addAttachment(candidate.Text); err != nil {
-					a.message(err.Error())
-				}
+				a.acceptAttachmentCompletion(candidate.Text, token)
 				return
 			}
 			a.composer.Editor().Replace(token.Start, token.End, candidate.Text)

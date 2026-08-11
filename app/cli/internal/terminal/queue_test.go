@@ -211,6 +211,34 @@ func TestQueueDrawerEditsMultilineTextAndKeepsAttachments(t *testing.T) {
 	}
 }
 
+func TestQueueDrawerPreservesItsEditThroughAnExtremeResize(t *testing.T) {
+	drawer, queue := testQueueDrawer(t, agent.Message{Text: "original"})
+	drawer.Focus(true)
+	drawer.Handle(input.Key{Code: input.Enter})
+	drawer.Handle(input.Key{Code: input.Character, Rune: 'u', Mods: input.Ctrl})
+	drawer.Handle(input.Paste{Text: "first line"})
+	drawer.Handle(input.Key{Code: input.Enter, Mods: input.Shift})
+	drawer.Handle(input.Paste{Text: "second line"})
+
+	_, _, tiny := drawQueueDrawer(t, drawer, 1, 1)
+	if tiny == "" {
+		t.Fatal("extreme queue layout did not retain ownership of its viewport")
+	}
+	drawer.Handle(input.Paste{Text: " while tiny"})
+	_, _, restored := drawQueueDrawer(t, drawer, 72, 8)
+	for _, want := range []string{"Editing queued prompt", "first line", "second line while tiny"} {
+		if !strings.Contains(restored, want) {
+			t.Fatalf("restored queue editor does not contain %q:\n%s", want, restored)
+		}
+	}
+
+	drawer.Handle(input.Key{Code: input.Enter})
+	entry, ok := queue.Next("session")
+	if !ok || entry.Message.Text != "first line\nsecond line while tiny" {
+		t.Fatalf("saved queue edit after resize = %+v, %v", entry.Message, ok)
+	}
+}
+
 func TestClosingQueueDrawerReleasesItsEditedEntry(t *testing.T) {
 	drawer, queue := testQueueDrawer(t, agent.Message{Text: "editable"})
 	drawer.Focus(true)
@@ -413,6 +441,57 @@ func TestQueueDrawerSendsTheSelectedFollowUpBeforeTheRestAndPreservesTheDraft(t 
 		t.Fatalf("started %d runs: %+v", len(inputs), inputs)
 	}
 	for index, want := range []string{"INTERRUPTED_PRIMARY", "SECOND_FOLLOW_UP", "FIRST_FOLLOW_UP"} {
+		if got := inputs[index].Message.Text; got != want {
+			t.Fatalf("run %d = %q, want %q", index+1, got, want)
+		}
+	}
+	stop()
+}
+
+func TestQueueDrawerReordersAndRemovesFollowUpsBeforeDispatch(t *testing.T) {
+	base := mock.New()
+	base.Script = func(prompt string) mock.Script {
+		if prompt == "PRIMARY_FOR_QUEUE_MUTATION" {
+			return mock.Script{Prelude: []mock.Step{
+				{Delay: time.Hour, Event: agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCompleted}}},
+			}}
+		}
+		return mock.Script{Prelude: []mock.Step{
+			{Event: agent.BlockCompleted{Block: agent.Block{ID: "answer-" + prompt, Kind: agent.BlockAssistant, Text: "RAN_" + prompt}}},
+			{Event: agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCompleted}}},
+		}}
+	}
+	backend := &recordingRuntime{Runtime: base}
+	host, stop := runUIWith(t, backend)
+	host.Shows(t, "Ask lyra")
+	host.Type("PRIMARY_FOR_QUEUE_MUTATION")
+	host.Press(input.Enter)
+	host.Shows(t, "working")
+	for _, prompt := range []string{"FOLLOW_UP_ONE", "FOLLOW_UP_TWO", "FOLLOW_UP_THREE"} {
+		host.Type(prompt)
+		host.Press(input.Enter)
+	}
+	host.Shows(t, "3 queued")
+	host.Send(input.Key{Code: input.Character, Rune: 'g', Mods: input.Ctrl})
+	host.Shows(t, "Queue · 3 prompts")
+	host.Press(input.Down)
+	host.Send(input.Key{Code: input.Character, Rune: 'K', Mods: input.Shift})
+	host.Shows(t, "queued prompt reordered")
+	host.Press(input.Down)
+	host.Send(input.Key{Code: input.Character, Rune: 'x'})
+	host.Shows(t, "queued prompt removed")
+	host.Press(input.Esc)
+	host.Hides(t, "Queue · 2 prompts")
+	host.Press(input.Esc)
+	host.Shows(t, "RAN_FOLLOW_UP_TWO")
+	host.Shows(t, "RAN_FOLLOW_UP_THREE")
+	host.Shows(t, "complete")
+
+	inputs := backend.startInputs()
+	if len(inputs) != 3 {
+		t.Fatalf("started %d runs after queue mutation: %+v", len(inputs), inputs)
+	}
+	for index, want := range []string{"PRIMARY_FOR_QUEUE_MUTATION", "FOLLOW_UP_TWO", "FOLLOW_UP_THREE"} {
 		if got := inputs[index].Message.Text; got != want {
 			t.Fatalf("run %d = %q, want %q", index+1, got, want)
 		}

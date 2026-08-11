@@ -15,6 +15,11 @@ import (
 
 const fileElement headless.ElementKind = 1
 
+type attachmentInsertion struct {
+	item  agent.Attachment
+	count int
+}
+
 // promptHistory keeps semantic messages rather than rendered editor text. A
 // recalled prompt therefore restores attachment chips as attachments instead of
 // turning their labels into ordinary @words.
@@ -77,33 +82,57 @@ func (h *promptHistory) Forward() (agent.Message, bool) {
 	return h.entries[len(h.entries)-h.at].Clone(), true
 }
 
-func (a *app) addAttachment(path string) error {
+// resolveAttachment performs every fallible check before the composer is
+// mutated. Completion acceptance can therefore commit the token replacement and
+// attachment chip as one successful UI transition instead of destroying the
+// user's token when resolution, duplicate detection, or capacity checks fail.
+func (a *app) resolveAttachment(path string) (attachmentInsertion, error) {
 	if a.attachments == nil {
-		return errors.New("attachments are unavailable in this session")
+		return attachmentInsertion{}, errors.New("attachments are unavailable in this session")
 	}
 	current, err := a.composerMessage()
 	if err != nil {
-		return err
+		return attachmentInsertion{}, err
 	}
 	item, err := a.attachments.Resolve(a.ctx, path)
 	if err != nil {
-		return err
+		return attachmentInsertion{}, err
 	}
 	for _, attached := range current.Attachments {
 		if attached.Path == item.Path {
-			return fmt.Errorf("%s is already attached", item.Name)
+			return attachmentInsertion{}, fmt.Errorf("%s is already attached", item.Name)
 		}
 	}
 	if len(current.Attachments) >= agent.MaxMessageAttachments {
-		return fmt.Errorf("a prompt accepts at most %d attachments", agent.MaxMessageAttachments)
+		return attachmentInsertion{}, fmt.Errorf("a prompt accepts at most %d attachments", agent.MaxMessageAttachments)
 	}
+	return attachmentInsertion{item: item, count: len(current.Attachments) + 1}, nil
+}
+
+func (a *app) insertAttachment(insertion attachmentInsertion) {
+	item := insertion.item
 	element := a.composer.Editor().InsertElement(fileElement, "@"+item.Name)
-	if element.ID == 0 {
-		return errors.New("could not insert attachment into the composer")
-	}
 	a.attachmentElements[element.ID] = item
-	a.message(fmt.Sprintf("attached %s · %s · %d/%d", item.Name, item.MimeType, len(current.Attachments)+1, agent.MaxMessageAttachments))
+	a.message(fmt.Sprintf("attached %s · %s · %d/%d", item.Name, item.MimeType, insertion.count, agent.MaxMessageAttachments))
+}
+
+func (a *app) addAttachment(path string) error {
+	insertion, err := a.resolveAttachment(path)
+	if err != nil {
+		return err
+	}
+	a.insertAttachment(insertion)
 	return nil
+}
+
+func (a *app) acceptAttachmentCompletion(path string, token headless.Token) {
+	insertion, err := a.resolveAttachment(path)
+	if err != nil {
+		a.message(err.Error())
+		return
+	}
+	a.composer.Editor().Replace(max(token.Start-1, 0), token.End, "")
+	a.insertAttachment(insertion)
 }
 
 func (a *app) removeAttachment(argument string) error {
@@ -120,12 +149,11 @@ func (a *app) removeAttachment(argument string) error {
 		a.message("removed all attachments")
 		return nil
 	}
-	element, item, found := a.findAttachment(elements, argument)
-	if !found {
-		return fmt.Errorf("attachment %q is not in the composer", argument)
+	element, item, err := a.findAttachment(elements, argument)
+	if err != nil {
+		return err
 	}
 	a.composer.Editor().RemoveElement(element.ID)
-	delete(a.attachmentElements, element.ID)
 	a.message("detached " + item.Name)
 	return nil
 }
@@ -136,27 +164,54 @@ func (a *app) removeAllAttachments(elements []headless.Element) {
 			continue
 		}
 		a.composer.Editor().RemoveElement(element.ID)
-		delete(a.attachmentElements, element.ID)
 	}
 }
 
-func (a *app) findAttachment(elements []headless.Element, argument string) (headless.Element, agent.Attachment, bool) {
-	position := 0
+type composerAttachment struct {
+	element headless.Element
+	item    agent.Attachment
+}
+
+func (a *app) findAttachment(elements []headless.Element, argument string) (headless.Element, agent.Attachment, error) {
+	attached := make([]composerAttachment, 0, len(elements))
 	for _, element := range elements {
 		item, ok := a.attachmentElements[element.ID]
 		if !ok || element.Kind != fileElement {
 			continue
 		}
-		position++
-		if attachmentMatches(argument, position, item) {
-			return element, item, true
-		}
+		attached = append(attached, composerAttachment{element: element, item: item})
 	}
-	return headless.Element{}, agent.Attachment{}, false
+	if position, err := strconv.Atoi(argument); err == nil {
+		if position > 0 && position <= len(attached) {
+			match := attached[position-1]
+			return match.element, match.item, nil
+		}
+		return headless.Element{}, agent.Attachment{}, fmt.Errorf("attachment %q is not in the composer", argument)
+	}
+	if matches := matchingAttachments(attached, func(item agent.Attachment) bool { return argument == item.Name }); len(matches) > 0 {
+		return uniqueAttachment(argument, matches)
+	}
+	if matches := matchingAttachments(attached, func(item agent.Attachment) bool { return argument == filepathBase(item.Name) }); len(matches) > 0 {
+		return uniqueAttachment(argument, matches)
+	}
+	return headless.Element{}, agent.Attachment{}, fmt.Errorf("attachment %q is not in the composer", argument)
 }
 
-func attachmentMatches(argument string, position int, item agent.Attachment) bool {
-	return argument == strconv.Itoa(position) || argument == item.Name || argument == filepathBase(item.Name)
+func matchingAttachments(attached []composerAttachment, matches func(agent.Attachment) bool) []composerAttachment {
+	selected := make([]composerAttachment, 0, len(attached))
+	for _, candidate := range attached {
+		if matches(candidate.item) {
+			selected = append(selected, candidate)
+		}
+	}
+	return selected
+}
+
+func uniqueAttachment(argument string, matches []composerAttachment) (headless.Element, agent.Attachment, error) {
+	if len(matches) != 1 {
+		return headless.Element{}, agent.Attachment{}, fmt.Errorf("attachment %q is ambiguous; use its number or full name", argument)
+	}
+	return matches[0].element, matches[0].item, nil
 }
 
 func filepathBase(path string) string {

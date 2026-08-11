@@ -1774,6 +1774,102 @@ func TestWorkspaceFileCompletionCreatesAtomicAttachments(t *testing.T) {
 	stop()
 }
 
+func TestRejectedWorkspaceFileCompletionPreservesTheDraftToken(t *testing.T) {
+	workspace := t.TempDir()
+	if err := os.WriteFile(filepath.Join(workspace, "archive.bin"), []byte{0, 1, 2, 3}, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	host, stop := runUIWithWorkspace(t, mock.New(), workspace)
+	host.Shows(t, "Ask lyra")
+	host.Type("inspect @archive")
+	host.Shows(t, "workspace files")
+	host.Press(input.Enter)
+	host.Shows(t, "attachment must be text or an image")
+	host.Shows(t, "inspect @archive")
+
+	host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
+	stop()
+}
+
+func TestUndoAfterDetachRestoresTheAttachmentValue(t *testing.T) {
+	workspace := t.TempDir()
+	path := filepath.Join(workspace, "context.txt")
+	if err := os.WriteFile(path, []byte("restorable context"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	backend := &recordingRuntime{Runtime: mock.New()}
+	backend.Instant = true
+	backend.Script = func(string) mock.Script {
+		return mock.Script{Prelude: []mock.Step{{Event: agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCompleted}}}}}
+	}
+	host, stop := runUIWithWorkspace(t, backend, workspace)
+	host.Shows(t, "Ask lyra")
+	host.Type("/attach context.txt")
+	host.Press(input.Enter)
+	host.Shows(t, "attached context.txt")
+	host.Type("/detach all")
+	host.Press(input.Enter)
+	host.Shows(t, "removed all attachments")
+
+	host.Send(input.Key{Code: input.Character, Rune: '_', Mods: input.Ctrl})
+	host.Shows(t, "@context.txt")
+	host.Type("use restored context")
+	host.Press(input.Enter)
+	host.Shows(t, "complete")
+	started := backend.startInput()
+	canonical, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if started.Message.Text != "use restored context" || len(started.Message.Attachments) != 1 || started.Message.Attachments[0].Path != canonical {
+		t.Fatalf("restored attachment input = %+v", started.Message)
+	}
+
+	host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
+	stop()
+}
+
+func TestDetachRejectsAnAmbiguousAttachmentBasename(t *testing.T) {
+	workspace := t.TempDir()
+	for _, name := range []string{"one/shared.txt", "two/shared.txt"} {
+		path := filepath.Join(workspace, filepath.FromSlash(name))
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(name), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	backend := &recordingRuntime{Runtime: mock.New()}
+	backend.Instant = true
+	backend.Script = func(string) mock.Script {
+		return mock.Script{Prelude: []mock.Step{{Event: agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCompleted}}}}}
+	}
+	host, stop := runUIWithWorkspace(t, backend, workspace)
+	host.Shows(t, "Ask lyra")
+	for _, name := range []string{"one/shared.txt", "two/shared.txt"} {
+		host.Type("/attach " + name)
+		host.Press(input.Enter)
+		host.Shows(t, "attached "+name)
+	}
+	host.Type("/detach shared.txt")
+	host.Press(input.Enter)
+	host.Shows(t, `attachment "shared.txt" is ambiguous`)
+	host.Type("/detach 2")
+	host.Press(input.Enter)
+	host.Shows(t, "detached two/shared.txt")
+	host.Type("use the unambiguous attachment")
+	host.Press(input.Enter)
+	host.Shows(t, "complete")
+	started := backend.startInput()
+	if len(started.Message.Attachments) != 1 || started.Message.Attachments[0].Name != "one/shared.txt" {
+		t.Fatalf("attachments after detach = %+v", started.Message.Attachments)
+	}
+
+	host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
+	stop()
+}
+
 func TestToolKindsRenderLiveAndDetailToggleChangesTheTranscript(t *testing.T) {
 	backend := mock.New()
 	backend.Instant = true
