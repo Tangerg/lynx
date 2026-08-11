@@ -22,6 +22,7 @@ import { PROTOCOL_VERSION, type RunEvent, type RuntimeEvent } from "./wire.gener
 
 const execFileAsync = promisify(execFile);
 const runtimeDirectory = resolve(process.cwd(), "../../runtime");
+const managedSkillName = "runtime-http-e2e";
 
 async function unusedLoopbackPort(): Promise<number> {
   const server = createNetServer();
@@ -263,6 +264,7 @@ async function collectRunEvents(events: AsyncIterable<RunEvent>): Promise<RunEve
 }
 
 describe("Go Runtime ↔ HTTP ↔ TypeScript SDK", () => {
+  let environmentRoot = "";
   let root = "";
   let baseUrl = "";
   let runtime: ReturnType<typeof import("node:child_process").spawn> | undefined;
@@ -271,7 +273,17 @@ describe("Go Runtime ↔ HTTP ↔ TypeScript SDK", () => {
   let processOutput = "";
 
   beforeAll(async () => {
-    root = await mkdtemp(join(tmpdir(), "lyra-runtime-e2e-"));
+    environmentRoot = await mkdtemp(join(tmpdir(), "lyra-runtime-e2e-"));
+    root = join(environmentRoot, "workspace");
+    const runtimeHome = join(environmentRoot, "home");
+    const runtimeData = join(environmentRoot, "runtime-data");
+    await Promise.all([mkdir(root, { recursive: true }), mkdir(runtimeHome, { recursive: true })]);
+    const managedSkillDirectory = join(runtimeData, "skills", managedSkillName);
+    await mkdir(managedSkillDirectory, { recursive: true });
+    await writeFile(
+      join(managedSkillDirectory, "SKILL.md"),
+      `---\nname: ${managedSkillName}\ndescription: Exercise the real Runtime skill lifecycle.\n---\n\nRun the Runtime HTTP E2E suite.\n`,
+    );
     let providerCalls = 0;
     provider = createHttpServer(async (request, response) => {
       try {
@@ -302,7 +314,7 @@ describe("Go Runtime ↔ HTTP ↔ TypeScript SDK", () => {
     }
     const providerBaseUrl = `http://127.0.0.1:${providerAddress.port}`;
 
-    const executable = join(root, "lyra-e2e");
+    const executable = join(environmentRoot, "lyra-e2e");
     await execFileAsync("go", ["build", "-o", executable, "./cmd/lyra"], {
       cwd: runtimeDirectory,
     });
@@ -314,8 +326,8 @@ describe("Go Runtime ↔ HTTP ↔ TypeScript SDK", () => {
       cwd: root,
       env: {
         ...process.env,
-        HOME: root,
-        LYRA_HOME: join(root, ".lyra"),
+        HOME: runtimeHome,
+        LYRA_HOME: runtimeData,
         LYRA_PROVIDER: "openai-compatible",
         LYRA_MODEL: "e2e-model",
         LYRA_APIKEY: "e2e-placeholder-key",
@@ -361,7 +373,7 @@ describe("Go Runtime ↔ HTTP ↔ TypeScript SDK", () => {
         provider?.close((error) => (error ? reject(error) : resolve())),
       );
     }
-    if (root) await rm(root, { recursive: true, force: true });
+    if (environmentRoot) await rm(environmentRoot, { recursive: true, force: true });
   }, 10_000);
 
   it("validates discovery, streaming notifications and session lifecycle", async () => {
@@ -781,6 +793,48 @@ describe("Go Runtime ↔ HTTP ↔ TypeScript SDK", () => {
       serverIds: [server],
     });
     await expect(client.mcp.list()).resolves.toMatchObject({ data: [] });
+
+    streamController.abort();
+    await runtimeEvents.return?.();
+  }, 30_000);
+
+  it("reconciles skill archive and restore through skills.changed", async () => {
+    if (!client) throw new Error("runtime client was not initialized");
+
+    const workspace = client.workspace({ path: root });
+    await expect(client.skills.listLibrary()).resolves.toMatchObject({
+      data: [expect.objectContaining({ name: managedSkillName, lifecycle: "active" })],
+    });
+    await expect(workspace.skills.listDiscovered()).resolves.toMatchObject({
+      data: [expect.objectContaining({ name: managedSkillName, scope: "user" })],
+    });
+
+    const streamController = new AbortController();
+    const subscription = await client.runtimeEvents.subscribe(
+      { topics: ["skills.changed"] },
+      streamController.signal,
+    );
+    const runtimeEvents = subscription.events[Symbol.asyncIterator]();
+
+    await client.skills.archive(managedSkillName);
+    await expect(nextRuntimeEvent(runtimeEvents, "skills.changed")).resolves.toMatchObject({
+      type: "skills.changed",
+    });
+    await expect(client.skills.listLibrary()).resolves.toMatchObject({
+      data: [expect.objectContaining({ name: managedSkillName, lifecycle: "archived" })],
+    });
+    await expect(workspace.skills.listDiscovered()).resolves.toMatchObject({ data: [] });
+
+    await client.skills.restore(managedSkillName);
+    await expect(nextRuntimeEvent(runtimeEvents, "skills.changed")).resolves.toMatchObject({
+      type: "skills.changed",
+    });
+    await expect(client.skills.listLibrary()).resolves.toMatchObject({
+      data: [expect.objectContaining({ name: managedSkillName, lifecycle: "active" })],
+    });
+    await expect(workspace.skills.listDiscovered()).resolves.toMatchObject({
+      data: [expect.objectContaining({ name: managedSkillName, scope: "user" })],
+    });
 
     streamController.abort();
     await runtimeEvents.return?.();
