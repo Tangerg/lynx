@@ -1097,6 +1097,7 @@ describe("Go Runtime ↔ HTTP ↔ TypeScript SDK", () => {
       throw new Error("runtime did not persist the expected approval interrupt");
     }
     expect(approval.runId).toBe(runId);
+    expect(approval.payload.rememberable).toBe(true);
     expect(approval.payload.tool).toMatchObject({
       name: "shell",
       arguments: {
@@ -1110,7 +1111,11 @@ describe("Go Runtime ↔ HTTP ↔ TypeScript SDK", () => {
       responses: [
         {
           itemId: approval.itemId,
-          response: { type: "approval", decision: "approve" },
+          response: {
+            type: "approval",
+            decision: "approve",
+            remember: { scope: "session" },
+          },
         },
       ],
     });
@@ -1126,8 +1131,30 @@ describe("Go Runtime ↔ HTTP ↔ TypeScript SDK", () => {
     });
     await expect(client.interrupts.list({ rootRunId: runId })).resolves.toMatchObject({ data: [] });
 
+    const rules = await client.approval.listRules(asSessionId(session.id));
+    expect(rules.rules).toEqual([
+      expect.objectContaining({ scope: "session", tool: "shell", decision: "allow" }),
+    ]);
+    const rememberedRule = rules.rules[0];
+    if (!rememberedRule) throw new Error("approval decision was not remembered");
+    await client.approval.forgetRule(rememberedRule.id);
+    await expect(client.approval.listRules(asSessionId(session.id))).resolves.toEqual({
+      rules: [],
+    });
+
     streamController.abort();
     await runtimeEvents.return?.();
+  }, 30_000);
+
+  it("round-trips the runtime approval mode without changing run policy", async () => {
+    if (!client) throw new Error("runtime client was not initialized");
+
+    const original = await client.approval.getMode();
+    const alternate = original.mode === "yolo" ? "balanced" : "yolo";
+    await expect(client.approval.setMode(alternate)).resolves.toEqual({ mode: alternate });
+    await expect(client.approval.getMode()).resolves.toEqual({ mode: alternate });
+    await expect(client.approval.setMode(original.mode)).resolves.toEqual(original);
+    await expect(client.approval.getMode()).resolves.toEqual(original);
   }, 30_000);
 
   it("drives a goal to its durable budget boundary", async () => {
@@ -1187,6 +1214,69 @@ describe("Go Runtime ↔ HTTP ↔ TypeScript SDK", () => {
     await runtimeEvents.return?.();
   }, 30_000);
 
+  it("stops an active goal, cancels its owned run and resumes from durable usage", async () => {
+    if (!client) throw new Error("runtime client was not initialized");
+
+    const gate = createProviderGate("E2E_GOAL_STOP");
+    providerGate = gate;
+    try {
+      const session = await client.sessions.create({
+        workspace: { path: root },
+        title: "HTTP goal stop and resume",
+      });
+      const sessionId = asSessionId(session.id);
+      await expect(
+        client.goals.start({
+          sessionId,
+          objective: "E2E_GOAL_STOP exercise stop and resume.",
+          budget: { maxRuns: 2 },
+        }),
+      ).resolves.toMatchObject({ status: "active", used: { runs: 0 } });
+      await within(gate.arrived.promise, "the goal-owned model request");
+
+      await expect(client.goals.stop(sessionId)).resolves.toMatchObject({
+        sessionId: session.id,
+        status: "paused",
+        reason: { code: "stoppedByUser" },
+        used: { runs: 1 },
+      });
+      await within(gate.closed.promise, "the stopped goal provider connection to close");
+      gate.release.resolve();
+      providerGate = undefined;
+      await expect(client.runs.list({ sessionId })).resolves.toMatchObject({
+        data: [
+          expect.objectContaining({
+            outcome: expect.objectContaining({ type: "canceled" }),
+            status: "finished",
+          }),
+        ],
+      });
+
+      await expect(client.goals.resume(sessionId)).resolves.toMatchObject({
+        sessionId: session.id,
+        status: "active",
+        used: { runs: 1 },
+      });
+      let current = await client.goals.get(sessionId);
+      for (let attempt = 0; attempt < 100 && current?.status === "active"; attempt++) {
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        current = await client.goals.get(sessionId);
+      }
+      expect(current).toMatchObject({
+        status: "blocked",
+        reason: { code: "runBudgetReached" },
+        used: { runs: 2 },
+      });
+      const runs = await client.runs.list({ sessionId });
+      expect(runs.data).toHaveLength(2);
+      expect(runs.data.filter((run) => run.outcome?.type === "canceled")).toHaveLength(1);
+      expect(runs.data.filter((run) => run.outcome?.type === "completed")).toHaveLength(1);
+    } finally {
+      gate.release.resolve();
+      providerGate = undefined;
+    }
+  }, 30_000);
+
   it("reconciles the schedule lifecycle through schedules.changed", async () => {
     if (!client) throw new Error("runtime client was not initialized");
 
@@ -1211,13 +1301,39 @@ describe("Go Runtime ↔ HTTP ↔ TypeScript SDK", () => {
       data: [expect.objectContaining({ id: created.id, revision: created.revision })],
     });
 
+    const fired = await client.schedules.runNow(created.id);
+    expect(fired.sessionId).toEqual(expect.stringMatching(/^ses_/));
+    expect(fired.runId).toEqual(expect.stringMatching(/^run_/));
+    await expect(nextRuntimeEvent(runtimeEvents, "schedules.changed")).resolves.toMatchObject({
+      type: "schedules.changed",
+      scheduleIds: [created.id],
+    });
+    let firedRun = await client.runs.get(asRunId(fired.runId));
+    for (let attempt = 0; attempt < 100 && firedRun.status !== "finished"; attempt++) {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      firedRun = await client.runs.get(asRunId(fired.runId));
+    }
+    expect(firedRun).toMatchObject({
+      id: fired.runId,
+      sessionId: fired.sessionId,
+      status: "finished",
+      outcome: { type: "completed" },
+    });
+    const firedSchedule = (await client.schedules.list()).data[0];
+    expect(firedSchedule).toMatchObject({
+      id: created.id,
+      lastRunAt: expect.any(String),
+    });
+    if (!firedSchedule) throw new Error("schedule disappeared after its manual run");
+    expect(firedSchedule.revision).toBeGreaterThan(created.revision);
+
     const updated = await client.schedules.update({
       id: created.id,
-      expectedRevision: created.revision,
+      expectedRevision: firedSchedule.revision,
       enabled: false,
       title: "HTTP schedule lifecycle updated",
     });
-    expect(updated.revision).toBe(created.revision + 1);
+    expect(updated.revision).toBe(firedSchedule.revision + 1);
     await expect(nextRuntimeEvent(runtimeEvents, "schedules.changed")).resolves.toMatchObject({
       type: "schedules.changed",
       scheduleIds: [created.id],
