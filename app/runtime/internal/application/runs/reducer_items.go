@@ -497,9 +497,9 @@ func (r *reducer) completeTool(ref *openTool, e ToolCallFinished) ([]RunEvent, e
 		if err := e.Failure.Validate(); err != nil {
 			return nil, fmt.Errorf("tool %q failure: %w", ref.name, err)
 		}
-		item, err = item.FailToolCall(*invocation, *e.Failure, ref.finishedAt)
+		item, err = item.FailToolCall(*invocation, *e.Failure, ref.attemptStartedAt, ref.finishedAt)
 	} else {
-		item, err = item.CompleteToolCall(*invocation, ref.finishedAt)
+		item, err = item.CompleteToolCall(*invocation, ref.attemptStartedAt, ref.finishedAt)
 	}
 	if err != nil {
 		return nil, err

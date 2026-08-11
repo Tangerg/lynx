@@ -3,19 +3,17 @@
 > Owner: the server-side contract cutover facts that frontend, TUI, CLI, and
 > other Runtime Protocol consumers must adopt after the Runtime rewrite.
 >
-> This document records work deliberately not performed by the Runtime goal. It
-> is not a compatibility promise and does not authorize dual fields or fallback
-> decoding in the server.
+> This document records exact consumer cutover state. It is not a compatibility
+> promise and does not authorize dual fields or fallback decoding in the server.
 >
-> Last verified against the Runtime-owned server and public Go contracts:
-> 2026-08-11, at Runtime P19 completion. Consumer modules remain intentionally
-> untouched by this goal; their concurrent or later migrations do not change
-> the Runtime contract.
+> Last verified against the Runtime-owned server, public Go contracts, and
+> Desktop generated consumer: 2026-08-12, during the post-P25 adversarial audit.
+> Other consumers migrate independently and do not change the Runtime contract.
 
 ## Current server baseline
 
-- Protocol version: `2026-08-11`; `minSupported` is the same value.
-- Session artifact version: `16`; versions 15 and earlier are rejected before
+- Protocol version: `2026-08-12`; `minSupported` is the same value.
+- Session artifact version: `17`; versions 16 and earlier are rejected before
   any import write.
 - Machine truth: [`../contract/`](../contract/) generated from the Go contract
   registry with `go generate ./...`; `go-api.json` freezes the complete public
@@ -43,12 +41,16 @@ reasoning streams retain provisional starts for rendering; ToolCall remains the
 only durable running Item. A question's outstanding-answer lifecycle belongs to
 its `PendingInterruptSet`, not to the historical Item.
 
+ToolCall `startedAt` / `finishedAt` describe the visible Item lifecycle. Optional
+`durationMillis` is exact Tool execution time, excludes approval and other
+pre-execution waits, and remains absent when recovery cannot prove the interval.
+
 ## Desktop follow-up
 
-The desktop currently vendors generated Runtime bindings and samples. Its
-follow-up must replace those copies from `app/runtime/contract/typescript`, then
-update handwritten fixtures and assertions that still state
-`processRootSegment`:
+The desktop vendors generated Runtime bindings and samples from
+`app/runtime/contract/typescript`. P25 synchronized the projection/runtime
+contract; every later protocol batch must continue replacing those generated
+copies atomically with handwritten SDK semantics and fixtures:
 
 - `app/desktop/frontend/src/rpc/` generated bindings, validators, samples, SDK,
   preflight, and schema tests;
@@ -56,8 +58,6 @@ update handwritten fixtures and assertions that still state
   store tests;
 - `app/desktop/frontend/visual/installVisualWorkspaceFixture.ts`;
 - `app/desktop/frontend/CONTENT_RENDERING.md`.
-
-No desktop source was changed by this Runtime goal.
 
 ## CLI and TUI follow-up
 
@@ -89,10 +89,10 @@ that an in-tree or out-of-tree consumer is compatible.
 A consumer migration is complete only when it:
 
 1. vendors or generates from the current Runtime-owned contract;
-2. sends `protocolVersion: "2026-08-11"` and rejects any different discovered
+2. sends `protocolVersion: "2026-08-12"` and rejects any different discovered
    range instead of guessing compatibility;
 3. accepts only `runtimeInstanceRootSegment` for `RunReplayScope`;
-4. imports/exports Session artifact v16 without rewriting prior documents;
+4. imports/exports Session artifact v17 without rewriting prior documents;
 5. passes its strict fixture validation and HTTP integration suite.
 
 An embedded Go consumer additionally passes an external-module compile test,

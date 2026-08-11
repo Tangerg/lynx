@@ -45,11 +45,12 @@ func presentItem(item transcript.Item) protocol.Item {
 }
 
 func presentToolDurationMillis(item transcript.Item) *int64 {
-	if item.FinishedAt().IsZero() {
+	duration, known := item.ExecutionDuration()
+	if !known {
 		return nil
 	}
-	duration := item.FinishedAt().Sub(item.OccurredAt()).Milliseconds()
-	return &duration
+	millis := duration.Milliseconds()
+	return &millis
 }
 
 func presentItemStart(item runs.ItemStart) protocol.Item {

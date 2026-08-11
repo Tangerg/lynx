@@ -124,21 +124,29 @@ func TestToolCallSettlementIsTerminalAndPreservesIdentity(t *testing.T) {
 	}
 
 	finishedAt := running.OccurredAt().Add(time.Second)
+	executionStartedAt := running.OccurredAt().Add(250 * time.Millisecond)
 	result := tool.StringResult("contents")
 	settlement := transcript.ToolInvocation{Name: "read_file", Arguments: arguments, Result: &result}
-	completed, err := running.CompleteToolCall(settlement, finishedAt)
+	completed, err := running.CompleteToolCall(settlement, executionStartedAt, finishedAt)
 	if err != nil {
 		t.Fatalf("CompleteToolCall: %v", err)
 	}
 	if completed.Status() != transcript.ItemCompleted || !completed.FinishedAt().Equal(finishedAt) {
 		t.Fatalf("completed ToolCall = status %v, finished %v", completed.Status(), completed.FinishedAt())
 	}
-	if _, err := completed.FailToolCall(settlement, tool.Failure{Kind: tool.FailureExecution}, finishedAt); err == nil {
+	duration, known := completed.ExecutionDuration()
+	if !known || duration != 750*time.Millisecond {
+		t.Fatalf("completed execution duration = %v/%t", duration, known)
+	}
+	if _, err := completed.FailToolCall(
+		settlement, tool.Failure{Kind: tool.FailureExecution}, executionStartedAt, finishedAt,
+	); err == nil {
 		t.Fatal("terminal ToolCall accepted a second settlement")
 	}
 
 	if _, err := running.CompleteToolCall(
 		transcript.ToolInvocation{Name: "other_tool", Arguments: arguments, Result: &result},
+		executionStartedAt,
 		finishedAt,
 	); err == nil {
 		t.Fatal("ToolCall settlement changed invocation identity")
@@ -153,8 +161,11 @@ func TestToolCallFailureAndAbandonmentHaveOneWayTransitions(t *testing.T) {
 		t.Fatalf("NewToolCall: %v", err)
 	}
 	finishedAt := running.OccurredAt().Add(time.Second)
+	executionStartedAt := running.OccurredAt().Add(500 * time.Millisecond)
 	failure := tool.Failure{Kind: tool.FailureDenied, Detail: "not approved"}
-	failed, err := running.FailToolCall(transcript.ToolInvocation{Name: "shell"}, failure, finishedAt)
+	failed, err := running.FailToolCall(
+		transcript.ToolInvocation{Name: "shell"}, failure, executionStartedAt, finishedAt,
+	)
 	if err != nil {
 		t.Fatalf("FailToolCall: %v", err)
 	}
@@ -169,6 +180,9 @@ func TestToolCallFailureAndAbandonmentHaveOneWayTransitions(t *testing.T) {
 	abandoned, err := running.AbandonToolCall(nil, finishedAt)
 	if err != nil {
 		t.Fatalf("AbandonToolCall: %v", err)
+	}
+	if duration, known := abandoned.ExecutionDuration(); known {
+		t.Fatalf("unstarted abandonment execution duration = %v", duration)
 	}
 	causal := tool.Failure{Kind: tool.FailureChildRunCanceled, Detail: "child canceled"}
 	classified, err := abandoned.ClassifyAbandonedToolCall(causal)

@@ -1288,7 +1288,7 @@
         {
           "name": "MinProtocolVersion",
           "type": "untyped string",
-          "value": "\"2026-08-11\""
+          "value": "\"2026-08-12\""
         },
         {
           "name": "ModalityAudio",
@@ -1458,7 +1458,7 @@
         {
           "name": "ProtocolVersion",
           "type": "untyped string",
-          "value": "\"2026-08-11\""
+          "value": "\"2026-08-12\""
         },
         {
           "name": "ProviderConfigClear",
@@ -1728,7 +1728,7 @@
         {
           "name": "SessionArtifactVersion",
           "type": "untyped int",
-          "value": "16"
+          "value": "17"
         },
         {
           "name": "SessionStatusIdle",

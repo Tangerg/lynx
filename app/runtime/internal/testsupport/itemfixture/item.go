@@ -13,22 +13,23 @@ import (
 // Domain Item itself private. It is intentionally test-only and is not a second
 // production representation.
 type Input struct {
-	SessionID       string
-	RunID           string
-	ID              string
-	Status          transcript.ItemStatus
-	FinishedAt      time.Time
-	Kind            transcript.ItemKind
-	OccurredAt      time.Time
-	Content         []transcript.ContentBlock
-	Text            string
-	Redacted        bool
-	Question        *transcript.Question
-	Tool            *transcript.ToolInvocation
-	SafetyClass     tool.SafetyClass
-	Failure         *tool.Failure
-	Summary         string
-	DroppedMessages int
+	SessionID         string
+	RunID             string
+	ID                string
+	Status            transcript.ItemStatus
+	FinishedAt        time.Time
+	ExecutionDuration *time.Duration
+	Kind              transcript.ItemKind
+	OccurredAt        time.Time
+	Content           []transcript.ContentBlock
+	Text              string
+	Redacted          bool
+	Question          *transcript.Question
+	Tool              *transcript.ToolInvocation
+	SafetyClass       tool.SafetyClass
+	Failure           *tool.Failure
+	Summary           string
+	DroppedMessages   int
 }
 
 // MustRestore returns one valid Item or panics. Tests exercising invalid
@@ -73,13 +74,18 @@ func MustRestore(input Input) transcript.Item {
 		if input.Status != transcript.ItemRunning && input.FinishedAt.IsZero() {
 			input.FinishedAt = input.OccurredAt
 		}
+		if input.Status != transcript.ItemRunning && input.ExecutionDuration == nil {
+			duration := input.FinishedAt.Sub(input.OccurredAt)
+			input.ExecutionDuration = &duration
+		}
 	}
 	item, err := transcript.RestoreItem(transcript.ItemSnapshot{
 		Identity: transcript.ItemIdentity{
 			SessionID: input.SessionID, RunID: input.RunID, ItemID: input.ID,
 			OccurredAt: input.OccurredAt,
 		},
-		Status: input.Status, FinishedAt: input.FinishedAt, Kind: input.Kind,
+		Status: input.Status, FinishedAt: input.FinishedAt,
+		ExecutionDuration: input.ExecutionDuration, Kind: input.Kind,
 		Content: input.Content, Text: input.Text, Redacted: input.Redacted,
 		Question: input.Question, Tool: input.Tool, SafetyClass: input.SafetyClass,
 		Failure: input.Failure, Summary: input.Summary, DroppedMessages: input.DroppedMessages,

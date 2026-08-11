@@ -1,7 +1,7 @@
 {
   "protocol": {
-    "current": "2026-08-11",
-    "minSupported": "2026-08-11"
+    "current": "2026-08-12",
+    "minSupported": "2026-08-12"
   },
   "serverInfo": {
     "name": "lyra",

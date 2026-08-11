@@ -41,37 +41,39 @@ func (identity ItemIdentity) Validate() error {
 // Item is one immutable, user-visible transcript fact. Only ToolCall has an
 // internal lifecycle: every other variant is complete when constructed.
 type Item struct {
-	identity        ItemIdentity
-	status          ItemStatus
-	finishedAt      time.Time
-	kind            ItemKind
-	content         []ContentBlock
-	text            string
-	redacted        bool
-	question        *Question
-	tool            *ToolInvocation
-	safetyClass     tool.SafetyClass
-	failure         *tool.Failure
-	summary         string
-	droppedMessages int
+	identity          ItemIdentity
+	status            ItemStatus
+	finishedAt        time.Time
+	executionDuration *time.Duration
+	kind              ItemKind
+	content           []ContentBlock
+	text              string
+	redacted          bool
+	question          *Question
+	tool              *ToolInvocation
+	safetyClass       tool.SafetyClass
+	failure           *tool.Failure
+	summary           string
+	droppedMessages   int
 }
 
 // ItemSnapshot is the complete representation consumed by strict technical
 // codecs. [RestoreItem] validates it; it is not a second mutation surface.
 type ItemSnapshot struct {
-	Identity        ItemIdentity
-	Status          ItemStatus
-	FinishedAt      time.Time
-	Kind            ItemKind
-	Content         []ContentBlock
-	Text            string
-	Redacted        bool
-	Question        *Question
-	Tool            *ToolInvocation
-	SafetyClass     tool.SafetyClass
-	Failure         *tool.Failure
-	Summary         string
-	DroppedMessages int
+	Identity          ItemIdentity
+	Status            ItemStatus
+	FinishedAt        time.Time
+	ExecutionDuration *time.Duration
+	Kind              ItemKind
+	Content           []ContentBlock
+	Text              string
+	Redacted          bool
+	Question          *Question
+	Tool              *ToolInvocation
+	SafetyClass       tool.SafetyClass
+	Failure           *tool.Failure
+	Summary           string
+	DroppedMessages   int
 }
 
 // NewUserMessage constructs a complete user message.
@@ -129,7 +131,8 @@ func RestoreItem(snapshot ItemSnapshot) (Item, error) {
 	snapshot.Identity.OccurredAt = snapshot.Identity.OccurredAt.UTC()
 	item := Item{
 		identity: snapshot.Identity, status: snapshot.Status, finishedAt: snapshot.FinishedAt.UTC(),
-		kind: snapshot.Kind, content: CloneContent(snapshot.Content), text: snapshot.Text,
+		executionDuration: cloneDuration(snapshot.ExecutionDuration),
+		kind:              snapshot.Kind, content: CloneContent(snapshot.Content), text: snapshot.Text,
 		redacted: snapshot.Redacted, question: cloneQuestion(snapshot.Question),
 		tool: cloneToolInvocation(snapshot.Tool), safetyClass: snapshot.SafetyClass,
 		failure: cloneToolFailure(snapshot.Failure), summary: snapshot.Summary,
@@ -145,7 +148,8 @@ func RestoreItem(snapshot ItemSnapshot) (Item, error) {
 func (item Item) Snapshot() ItemSnapshot {
 	return ItemSnapshot{
 		Identity: item.identity, Status: item.status, FinishedAt: item.finishedAt,
-		Kind: item.kind, Content: CloneContent(item.content), Text: item.text,
+		ExecutionDuration: cloneDuration(item.executionDuration),
+		Kind:              item.kind, Content: CloneContent(item.content), Text: item.text,
 		Redacted: item.redacted, Question: cloneQuestion(item.question),
 		Tool: cloneToolInvocation(item.tool), SafetyClass: item.safetyClass,
 		Failure: cloneToolFailure(item.failure), Summary: item.summary,
@@ -153,14 +157,25 @@ func (item Item) Snapshot() ItemSnapshot {
 	}
 }
 
-// CompleteToolCall settles a running ToolCall successfully.
-func (item Item) CompleteToolCall(invocation ToolInvocation, finishedAt time.Time) (Item, error) {
-	return item.settleToolCall(invocation, nil, ItemCompleted, finishedAt)
+// CompleteToolCall settles a running ToolCall successfully with the exact
+// execution interval reported by the Tool boundary.
+func (item Item) CompleteToolCall(
+	invocation ToolInvocation,
+	executionStartedAt time.Time,
+	finishedAt time.Time,
+) (Item, error) {
+	return item.settleToolCall(invocation, nil, ItemCompleted, executionStartedAt, finishedAt)
 }
 
-// FailToolCall settles a running ToolCall with a classified failure.
-func (item Item) FailToolCall(invocation ToolInvocation, failure tool.Failure, finishedAt time.Time) (Item, error) {
-	return item.settleToolCall(invocation, &failure, ItemIncomplete, finishedAt)
+// FailToolCall settles a started ToolCall with a classified failure and the
+// exact execution interval reported by the Tool boundary.
+func (item Item) FailToolCall(
+	invocation ToolInvocation,
+	failure tool.Failure,
+	executionStartedAt time.Time,
+	finishedAt time.Time,
+) (Item, error) {
+	return item.settleToolCall(invocation, &failure, ItemIncomplete, executionStartedAt, finishedAt)
 }
 
 // AbandonToolCall records that a running ToolCall never reached a conclusive
@@ -169,7 +184,20 @@ func (item Item) AbandonToolCall(failure *tool.Failure, finishedAt time.Time) (I
 	if item.tool == nil {
 		return Item{}, errors.New("transcript: ToolCall invocation is absent")
 	}
-	return item.settleToolCall(*item.tool, failure, ItemIncomplete, finishedAt)
+	return item.settleToolCall(*item.tool, failure, ItemIncomplete, time.Time{}, finishedAt)
+}
+
+// AbandonStartedToolCall records an inconclusive started Tool attempt whose
+// executor boundary still supplied an exact execution interval.
+func (item Item) AbandonStartedToolCall(
+	failure *tool.Failure,
+	executionStartedAt time.Time,
+	finishedAt time.Time,
+) (Item, error) {
+	if item.tool == nil {
+		return Item{}, errors.New("transcript: ToolCall invocation is absent")
+	}
+	return item.settleToolCall(*item.tool, failure, ItemIncomplete, executionStartedAt, finishedAt)
 }
 
 // ClassifyAbandonedToolCall attaches the causal failure that became known after
@@ -193,6 +221,7 @@ func (item Item) settleToolCall(
 	invocation ToolInvocation,
 	failure *tool.Failure,
 	status ItemStatus,
+	executionStartedAt time.Time,
 	finishedAt time.Time,
 ) (Item, error) {
 	if item.kind != ToolCall || item.status != ItemRunning {
@@ -202,9 +231,20 @@ func (item Item) settleToolCall(
 		return Item{}, errors.New("transcript: ToolCall settlement changes tool identity")
 	}
 	if finishedAt.IsZero() || finishedAt.Before(item.identity.OccurredAt) {
-		return Item{}, errors.New("transcript: ToolCall finish time precedes its start")
+		return Item{}, errors.New("transcript: ToolCall finish time precedes its occurrence")
+	}
+	var executionDuration *time.Duration
+	if !executionStartedAt.IsZero() {
+		if executionStartedAt.Before(item.identity.OccurredAt) || finishedAt.Before(executionStartedAt) {
+			return Item{}, errors.New("transcript: ToolCall execution interval is outside its lifecycle")
+		}
+		duration := finishedAt.Sub(executionStartedAt)
+		executionDuration = &duration
+	} else if status == ItemCompleted {
+		return Item{}, errors.New("transcript: completed ToolCall requires an execution interval")
 	}
 	item.status, item.finishedAt = status, finishedAt.UTC()
+	item.executionDuration = executionDuration
 	item.tool, item.failure = cloneToolInvocation(&invocation), cloneToolFailure(failure)
 	if err := item.Validate(); err != nil {
 		return Item{}, err
@@ -267,7 +307,7 @@ func (item Item) validateToolCall() error {
 	}
 	switch item.status {
 	case ItemRunning:
-		if !item.finishedAt.IsZero() || item.failure != nil {
+		if !item.finishedAt.IsZero() || item.executionDuration != nil || item.failure != nil {
 			return errors.New("transcript: running ToolCall carries terminal facts")
 		}
 	case ItemCompleted:
@@ -282,7 +322,15 @@ func (item Item) validateToolCall() error {
 		return fmt.Errorf("transcript: unknown Item status %d", item.status)
 	}
 	if !item.finishedAt.IsZero() && item.finishedAt.Before(item.identity.OccurredAt) {
-		return errors.New("transcript: ToolCall finish time precedes its start")
+		return errors.New("transcript: ToolCall finish time precedes its occurrence")
+	}
+	if item.executionDuration != nil {
+		if *item.executionDuration < 0 {
+			return errors.New("transcript: ToolCall execution duration is negative")
+		}
+		if item.finishedAt.IsZero() || *item.executionDuration > item.finishedAt.Sub(item.identity.OccurredAt) {
+			return errors.New("transcript: ToolCall execution duration exceeds its lifecycle")
+		}
 	}
 	if item.failure != nil {
 		if err := item.failure.Validate(); err != nil {
@@ -311,6 +359,7 @@ func (item Item) rejectDisallowedPayload() error {
 		{item.kind != ToolCall && item.safetyClass != "", "Tool safety class"},
 		{item.kind != ToolCall && item.failure != nil, "Tool failure"},
 		{item.kind != ToolCall && !item.finishedAt.IsZero(), "finish time"},
+		{item.kind != ToolCall && item.executionDuration != nil, "execution duration"},
 		{item.kind != Compaction && item.summary != "", "summary"},
 		{item.kind != Compaction && item.droppedMessages != 0, "dropped messages"},
 	}
@@ -369,6 +418,14 @@ func cloneToolFailure(failure *tool.Failure) *tool.Failure {
 	return &copy
 }
 
+func cloneDuration(duration *time.Duration) *time.Duration {
+	if duration == nil {
+		return nil
+	}
+	copy := *duration
+	return &copy
+}
+
 func cloneQuestion(question *Question) *Question {
 	if question == nil {
 		return nil
@@ -381,12 +438,18 @@ func cloneQuestion(question *Question) *Question {
 	return &copy
 }
 
-func (item Item) SessionID() string             { return item.identity.SessionID }
-func (item Item) RunID() string                 { return item.identity.RunID }
-func (item Item) ID() string                    { return item.identity.ItemID }
-func (item Item) Status() ItemStatus            { return item.status }
-func (item Item) OccurredAt() time.Time         { return item.identity.OccurredAt }
-func (item Item) FinishedAt() time.Time         { return item.finishedAt }
+func (item Item) SessionID() string     { return item.identity.SessionID }
+func (item Item) RunID() string         { return item.identity.RunID }
+func (item Item) ID() string            { return item.identity.ItemID }
+func (item Item) Status() ItemStatus    { return item.status }
+func (item Item) OccurredAt() time.Time { return item.identity.OccurredAt }
+func (item Item) FinishedAt() time.Time { return item.finishedAt }
+func (item Item) ExecutionDuration() (time.Duration, bool) {
+	if item.executionDuration == nil {
+		return 0, false
+	}
+	return *item.executionDuration, true
+}
 func (item Item) Kind() ItemKind                { return item.kind }
 func (item Item) Content() []ContentBlock       { return CloneContent(item.content) }
 func (item Item) Text() string                  { return item.text }

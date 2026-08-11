@@ -14,18 +14,19 @@ import (
 )
 
 type transcriptItemPayload struct {
-	Status          string                 `json:"status"`
-	FinishedAt      int64                  `json:"finishedAt,omitempty"`
-	Kind            string                 `json:"kind"`
-	Content         []contentPayload       `json:"content,omitempty"`
-	Text            string                 `json:"text,omitempty"`
-	Redacted        bool                   `json:"redacted,omitempty"`
-	Question        *questionPayload       `json:"question,omitempty"`
-	Tool            *toolInvocationPayload `json:"tool,omitempty"`
-	SafetyClass     string                 `json:"safetyClass,omitempty"`
-	Failure         *toolFailurePayload    `json:"failure,omitempty"`
-	Summary         string                 `json:"summary,omitempty"`
-	DroppedMessages int                    `json:"droppedMessages,omitempty"`
+	Status                 string                 `json:"status"`
+	FinishedAt             int64                  `json:"finishedAt,omitempty"`
+	ExecutionDurationNanos *int64                 `json:"executionDurationNanos,omitempty"`
+	Kind                   string                 `json:"kind"`
+	Content                []contentPayload       `json:"content,omitempty"`
+	Text                   string                 `json:"text,omitempty"`
+	Redacted               bool                   `json:"redacted,omitempty"`
+	Question               *questionPayload       `json:"question,omitempty"`
+	Tool                   *toolInvocationPayload `json:"tool,omitempty"`
+	SafetyClass            string                 `json:"safetyClass,omitempty"`
+	Failure                *toolFailurePayload    `json:"failure,omitempty"`
+	Summary                string                 `json:"summary,omitempty"`
+	DroppedMessages        int                    `json:"droppedMessages,omitempty"`
 }
 
 type contentPayload struct {
@@ -84,6 +85,10 @@ func encodeTranscriptItem(item transcript.Item) ([]byte, error) {
 	}
 	if !item.FinishedAt().IsZero() {
 		payload.FinishedAt = item.FinishedAt().UnixNano()
+	}
+	if duration, known := item.ExecutionDuration(); known {
+		nanos := duration.Nanoseconds()
+		payload.ExecutionDurationNanos = &nanos
 	}
 	content := item.Content()
 	if len(content) > 0 {
@@ -145,6 +150,10 @@ func decodeTranscriptItem(data []byte) (transcript.ItemSnapshot, error) {
 	}
 	if payload.FinishedAt != 0 {
 		snapshot.FinishedAt = time.Unix(0, payload.FinishedAt).UTC()
+	}
+	if payload.ExecutionDurationNanos != nil {
+		duration := time.Duration(*payload.ExecutionDurationNanos)
+		snapshot.ExecutionDuration = &duration
 	}
 	if len(payload.Content) > 0 {
 		snapshot.Content = make([]transcript.ContentBlock, len(payload.Content))

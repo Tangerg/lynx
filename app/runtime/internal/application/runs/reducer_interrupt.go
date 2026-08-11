@@ -313,7 +313,7 @@ func (r *reducer) removeDrained(itemID string) {
 	})
 }
 
-func (r *reducer) incompleteToolItem(ref *openTool) (ItemCompleted, error) {
+func (r *reducer) incompleteStartedToolItem(ref *openTool) (ItemCompleted, error) {
 	if err := r.closeSuspendedToolAttempt(ref); err != nil {
 		return ItemCompleted{}, err
 	}
@@ -321,7 +321,23 @@ func (r *reducer) incompleteToolItem(ref *openTool) (ItemCompleted, error) {
 	if err != nil {
 		return ItemCompleted{}, err
 	}
-	item, err = item.AbandonToolCall(nil, ref.finishedAt)
+	item, err = item.AbandonStartedToolCall(nil, ref.attemptStartedAt, ref.finishedAt)
+	if err != nil {
+		return ItemCompleted{}, err
+	}
+	return ItemCompleted{Item: item}, nil
+}
+
+func (r *reducer) abandonUnstartedToolItem(ref *openTool) (ItemCompleted, error) {
+	finishedAt := r.now()
+	if finishedAt.Before(ref.occurredAt) {
+		return ItemCompleted{}, fmt.Errorf("tool call %q finish time precedes occurrence time", ref.callID)
+	}
+	item, err := r.runningToolItem(ref)
+	if err != nil {
+		return ItemCompleted{}, err
+	}
+	item, err = item.AbandonToolCall(nil, finishedAt)
 	if err != nil {
 		return ItemCompleted{}, err
 	}
@@ -429,7 +445,7 @@ func (r *reducer) drainTools() ([]RunEvent, error) {
 			out = append(out, completed...)
 			continue
 		}
-		incomplete, err := r.incompleteToolItem(ref)
+		incomplete, err := r.incompleteStartedToolItem(ref)
 		if err != nil {
 			return nil, err
 		}

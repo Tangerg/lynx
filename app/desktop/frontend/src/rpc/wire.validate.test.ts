@@ -219,7 +219,7 @@ describe("the generated wire checks", () => {
   // one that reads `minLength` with no type keyword beside it.
   it("states a constraint on a field of a shared shape", () => {
     const artifact = {
-      version: 16,
+      version: 17,
       session: artifactSession,
       items: [],
       messages: [],

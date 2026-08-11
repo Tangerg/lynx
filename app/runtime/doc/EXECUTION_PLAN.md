@@ -1,6 +1,6 @@
 # Lyra Runtime 重构实施计划
 
-> 状态：P1–P25 已完成；发布后反证审计持续进行
+> 状态：P1–P26 已完成；发布后反证审计持续进行
 >
 > 工作方式：原模块内治本重构，按可验证纵切分批完成；不创建完整 `runtime2`
 
@@ -24,7 +24,7 @@
 - breaking change 允许，禁止 alias、shim、dual read/write 和两套长期路径；
 - 每个阶段按依赖方向从内到外推进，但每个提交必须形成可运行纵切，不允许长期红仓；
 - 旧实现可以作为事实证据，不能成为新 API 兼容规范；
-- Runtime standalone 依赖仍固定 Agent Framework Baseline 18；workspace 当前 Framework 已冻结 Baseline 20，Runtime 不读取其 private state，发布后只通过 canonical module version 一次性前移；
+- Runtime standalone 直接绑定已发布 Agent Framework Baseline 20 canonical module；workspace 与 `GOWORK=off` 消费同一 source，Runtime 不读取其 private state；
 - 每批完成后更新本计划和 Capability Ledger，运行对应质量门禁，提交并推送；
 - 如果发现 Agent Framework 缺口，先证明它是中性 Framework 能力且已有真实 Runtime consumer，再单独走 Agent Framework ADR/baseline；禁止在 Runtime 侧补第二套内核；
 - 阶段完成不以文件数量或目录形状判断，只以验收合同和旧 owner 删除判断。
@@ -59,6 +59,7 @@
 | P23 | WorkingContext 行为所有权精修 | P22 + typed provenance 回归 | 已完成 |
 | P24 | Runtime/Desktop 全链路时序、事务与恢复硬化 | P23 + 真实 HITL/Plan/Goal/崩溃证据 | 已完成 |
 | P25 | Runtime/Desktop 第二轮反证式缺陷清零 | P24 + 组合/乱序/失败注入/真实恢复证据 | 已完成 |
+| P26 | Tool 可见 lifecycle 与真实 execution timing 分离 | P25 + 真实审批等待/Tool journal/UI 对账 | 已完成 |
 
 ## 4. P0 — 文档、事实和边界基线
 
@@ -731,10 +732,30 @@
 - 隔离数据库 integrity 为 `ok`、foreign-key 零违规，终态无非 terminal Run、open/resuming interrupt、started invocation、Goal run 或 checkpoint；
 - Agent production DAG 对 `app/runtime` import 为零，Runtime Framework concrete import 仍只在 `adapter/agentexec`；workspace 与 `GOWORK=off` 最终消费同一 canonical Agent source。
 
-## 30. 进度记录
+## 30. P26 — Tool execution timing 反证修复
+
+### 目标
+
+修复真实 HITL dogfood 发现的 Tool 卡片把审批等待计入执行时长的问题。可见 Item lifecycle 与真实 executor 活动区间必须由各自 owner 表达；unknown execution 不得用 wall time 猜测，Delivery 与前端不得跨层读取 invocation journal 纠偏。
+
+### 工作项
+
+- [x] P26-01 Run Reducer 以已拥有的 attempt start/finish 计算唯一 exact execution duration，Transcript terminal fact 持有可选值；恢复不能证明区间时保持 unknown；
+- [x] P26-02 SQLite transcript codec 精确 round-trip execution duration，Delivery 只投影该领域事实；Artifact v17、Protocol registry、生成物、canonical samples 与 Desktop vendored contract 同步；
+- [x] P26-03 完成 Domain/Reducer/SQLite/Artifact/Protocol/Frontend 全量门禁，以及带显式审批等待的真实 Runtime/Desktop 回归和数据库对账。
+
+### 验收
+
+- Tool 卡片时长等于真实 executor interval，显式审批等待只增长 lifecycle；
+- terminal ToolCall 的 duration 可选、非负且不超过 lifecycle；unknown 不伪造成 `finishedAt - startedAt`；
+- Delivery 不读取 Infra journal，Frontend 不二次计算；Agent Framework 不接收 Runtime timing、Store 或产品 DTO；
+- Artifact v16 及更早版本在写入前拒绝，v17 exact/unknown duration 均能 round-trip。
+
+## 31. 进度记录
 
 | 日期 | 阶段 | 完成事实 | 验证 |
 |---|---|---|---|
+| 2026-08-12 | P26（Tool execution timing） | Reducer 以真实 attempt start/finish 产出 optional exact execution duration，Transcript 独占该终态事实，SQLite codec 精确 round-trip，Delivery 只投影；未重启/恢复不可证的 Tool 保持 unknown。Protocol 前移 `2026-08-12`、Artifact v17，Runtime contract 与 Desktop generated consumer 原子同步；Agent Framework 未获得任何 Runtime timing、Store、transaction 或产品 DTO | Runtime `GOWORK=off` tidy-diff/build/vet/test/race/staticcheck/golangci-lint 全绿且 lint 0 issue；Frontend 224 files/1380 tests与完整架构/格式/生产 bundle 门禁全绿。真实 HITL 明确等待后，Tool lifecycle 31.160s、journal/payload execution 2.016s、UI 显示 `2s`、最终唯一 `TOOL_DURATION_FIXED_OK`；两个自治 Goal 实时完成 Plan revision 2/3 与 completed audit，完成后普通 Run 返回 `AFTER_GOAL_ORDINARY_OK`。SQLite integrity `ok`、foreign-key/全部开放 lifecycle 为零 |
 | 2026-08-11 | P25-04（canonical dependency closure） | Agent Baseline 20 以 commit `8e667d716b22` 发布，Runtime 直接绑定远端 pseudo-version `v0.0.0-20260811152247-8e667d716b22`；没有 `replace`、Runtime metadata sanitizer、Schema 复制或测试跳过。Framework 仍不认识 Runtime 的 Run、Store、transaction、provider 与 provenance policy | 原先 Baseline 18 下失败的两条 bootstrap 冷恢复/HITL consumer 测试转绿；Runtime `GOWORK=off` tidy-diff/build/vet/test/race/staticcheck/golangci-lint 全绿且 lint 0 issue，证明 P25 不依赖 workspace overlay |
 | 2026-08-11 | P25-01～P25-03（second adversarial clear） | 前端建立 live-stream/durable-snapshot 单一串行投影，修正 default workspace、draft cache miss、resolution failure、reconnect backoff/opening retarget，并冻结 Run/Item/Plan late-event 单调性；Transport decode 边界递归拒绝 duplicate/unknown member、空 method、非字符串 id、client response 与 request/response 混合，消除 SDK 有损或歧义解释；HITL/Plan/Goal/取消恢复/幂等/cursor/失败注入/断线/崩溃 case 扩展完成。Agent Framework 没有接收 Runtime Run、Store、transaction 或 provenance policy，Runtime 也未建立 sanitizer/replace | Frontend 224 files/1380 tests及全部架构/格式/生产门禁全绿；Runtime workspace build/vet/test/tidy/lint/race/staticcheck、Agent standalone 同级门禁、transport fuzz 199,589 次及 contract generator 零漂移；真实 RPC valid=200、notification=204，九类 duplicate/unknown/null/numeric/client-response/mixed envelope=400。真实 `SIGKILL` 精确捕获 running Run + started model invocation，重启后收口为 lost + unknown，随后同页返回 `POST_CRASH_RECOVERY_OK`；真实 ask_user waiting/resume 返回 `HITL_RESUME_OK`，Plan 两次替换落为 revision 2，autonomous Goal 分别完成 completed/blocked（blocked reason 与 1-Run budget 持久化）且 blocked 后普通 Run 返回 `BLOCKED_GOAL_RELEASE_OK`。SQLite integrity `ok`、foreign-key/开放 lifecycle 为零；浏览器恢复后的 console/error 清洁。完整 Runtime `GOWORK=off` 唯一剩余失败精确归因为 `go.mod` 仍固定未含通用 RawMessage Schema 修订的 Baseline 18，等待 Baseline 20 canonical publication 后绑定 |
 | 2026-08-11 | P24（Runtime/Desktop E2E hardening） | Session activity 与前端冷 hydration 统一消费 durable Run/Item；workspace event 精确失效且 Git watcher 只观察 HEAD/index 语义；Segment activation 与 cancel 由 root owner 仲裁；Boot recovery 将 Run tree、Goal、cleanup 和全部 open invocation journal 纳入同一 Application write-set/SQLite transaction，不再留下 terminal Run 对应的 `started` invocation | 真实 HITL、Plan、Goal、并发 cancel/resume、reload 与 `kill -9` 全链路通过；崩溃 Run/Goal/invocation 终结时间完全一致。Runtime 全量 race/static/lint/deadcode、Agent build/vet/race/static/lint、Desktop build/vet/test/static、Frontend 222 files/1361 tests及全部架构/格式/生产构建门禁通过；隔离 SQLite integrity `ok`、foreign-key/开放 lifecycle 均为零，前端空闲 5 秒 `/v2/rpc` 为零 |

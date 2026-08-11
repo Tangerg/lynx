@@ -926,6 +926,8 @@ func TestReducerKeepsQuestionToolLifecycleOpenAcrossHITLResume(t *testing.T) {
 
 	config := testReducerConfig()
 	config.SegmentID = "seg_2"
+	resumeNow := config.CreatedAt.Add(time.Minute)
+	config.Now = func() time.Time { return resumeNow }
 	config.Continuation = testTreeContinuation(Pending{
 		RootRunID: "run_1", SessionID: "ses_1",
 		Interrupts: finished.Interrupts,
@@ -953,11 +955,19 @@ func TestReducerKeepsQuestionToolLifecycleOpenAcrossHITLResume(t *testing.T) {
 	if startedAttempts != 1 {
 		t.Fatalf("resumed Tool started attempts = %d, want one new segment attempt", startedAttempts)
 	}
+	resumeNow = resumeNow.Add(2 * time.Second)
 	completed := completedItem(t, mustReduce(t, resumed, ToolCallFinished{
 		CallID: "call_question", Result: testToolResult(t, "Blue"),
 	}))
 	if completed.ID() != toolItemID || completed.Status() != transcript.ItemCompleted {
 		t.Fatalf("resumed question Tool = %+v, want one completion of %q", completed, toolItemID)
+	}
+	duration, known := completed.ExecutionDuration()
+	if !known || duration != 2*time.Second {
+		t.Fatalf("resumed Tool execution duration = %v/%t, want 2s excluding HITL wait", duration, known)
+	}
+	if lifecycle := completed.FinishedAt().Sub(completed.OccurredAt()); lifecycle <= duration {
+		t.Fatalf("resumed Tool lifecycle = %v, want greater than execution duration %v", lifecycle, duration)
 	}
 }
 
@@ -1099,6 +1109,9 @@ func TestReducerTerminalSynthesisClosesUnrestartedResumeTool(t *testing.T) {
 	}
 	if settled.ID() == "" || settled.Status() != transcript.ItemIncomplete {
 		t.Fatalf("resumed tool terminal item = %+v, want incomplete item_original", settled.Snapshot())
+	}
+	if duration, known := settled.ExecutionDuration(); known {
+		t.Fatalf("unrestarted resume Tool fabricated execution duration %v", duration)
 	}
 }
 

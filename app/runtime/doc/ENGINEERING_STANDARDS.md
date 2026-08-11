@@ -233,7 +233,7 @@ Entity 自己保护状态迁移和不变量。Application 不得通过一串 set
 - 方法使用动作语义，不使用含糊 `Handle`、`Process`、`Prepare`，除非该词本身是领域概念且 GoDoc 定义边界；
 - accessor 不加 `Get`；
 - bool 参数改为准确 option/value type，避免调用点无法阅读；
-- 时间字段使用 `StartedAt`、`FinishedAt`、`Duration`/`DurationMillis` 的唯一语义，不存可派生重复事实。
+- 时间字段使用 `StartedAt`、`FinishedAt`、`Duration`/`DurationMillis` 的唯一语义。能从同一连续区间精确派生的时长不重复存；生命周期含审批、暂停等空档而无法推出真实活动时长时，只允许拥有外部边界的单一 owner 计算并保存该独立事实。
 
 ### 5.2 Types
 

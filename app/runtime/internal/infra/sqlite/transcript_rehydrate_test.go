@@ -26,6 +26,7 @@ func openTranscriptAndBlobs(t *testing.T) (*sqlite.TranscriptStore, *sqlite.Tool
 func toolItem(sessionID, id, result string, ref *resultoffload.Ref) transcript.Item {
 	value := tool.StringResult(result)
 	at := time.Unix(1, 0).UTC()
+	executionDuration := 500 * time.Millisecond
 	return itemfixture.MustRestore(itemfixture.Input{
 		SessionID:  sessionID,
 		ID:         id,
@@ -33,8 +34,8 @@ func toolItem(sessionID, id, result string, ref *resultoffload.Ref) transcript.I
 		Kind:       transcript.ToolCall,
 		Status:     transcript.ItemCompleted,
 		OccurredAt: at,
-		FinishedAt: at,
-		Tool:       &transcript.ToolInvocation{Name: "shell", Result: &value, Offload: ref},
+		FinishedAt: at.Add(time.Second), ExecutionDuration: &executionDuration,
+		Tool: &transcript.ToolInvocation{Name: "shell", Result: &value, Offload: ref},
 	})
 }
 
@@ -83,6 +84,10 @@ func TestTranscriptRehydratesOffloadedToolResult(t *testing.T) {
 	}
 	if got, ok := invocation.Result.String(); !ok || got != full {
 		t.Fatalf("tool result not rehydrated: got %q, want the full %d-byte body", got, len(full))
+	}
+	duration, known := items[0].ExecutionDuration()
+	if !known || duration != 500*time.Millisecond {
+		t.Fatalf("tool execution duration not rehydrated: got %v/%t", duration, known)
 	}
 }
 

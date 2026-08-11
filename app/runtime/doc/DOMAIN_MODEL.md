@@ -224,7 +224,9 @@ Domain 提供按语义命名的构造入口，例如：
 - running ToolCall 以精确 Tool failure 结束；
 - recovery/cancel 将尚未结算的 running Item 标记为 incomplete；
 - 不允许 terminal Item 再次结算；
-- `FinishedAt` 只能由 ToolCall 的 terminal 行为设置，且不得早于 `OccurredAt`。
+- `FinishedAt` 只能由 ToolCall 的 terminal 行为设置，且不得早于 `OccurredAt`；
+- Tool 真正进入 executor 后，由 Reducer 提供 execution start 与 finish，ToolCall 保存精确 execution duration；审批等待属于可见 Item lifecycle 而不属于执行时间；
+- recovery 无法证明 execution interval 时 duration 保持 unknown，不从 `FinishedAt - OccurredAt` 猜测。
 
 Question、message、reasoning、compaction 等一次形成即完成的事实，不为了 API 对称而制造 Start/Complete 方法。
 

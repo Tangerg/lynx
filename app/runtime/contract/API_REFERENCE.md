@@ -5,7 +5,7 @@
 > method the runtime does not serve. Prose, rationale and wire examples live in
 > `app/runtime/doc/{API,TRANSPORT,AUX_API}.md`; this is the mechanical index.
 
-Protocol `2026-08-11` (minimum supported `2026-08-11`) · 86 methods
+Protocol `2026-08-12` (minimum supported `2026-08-12`) · 86 methods
 
 ## Methods
 
@@ -449,8 +449,8 @@ TypeScript validator from this single registry projection.
 | `UpdateSessionRequest` | `sessionId` | `nonEmpty` |
 | `UpdateSessionRequest` | `expectedRevision` | `positive` |
 | `ImportSessionRequest` | `artifact.session.id` | `nonEmpty` |
-| `SessionArtifact` | `version` | `minimum(16)` |
-| `SessionArtifact` | `version` | `maximum(16)` |
+| `SessionArtifact` | `version` | `minimum(17)` |
+| `SessionArtifact` | `version` | `maximum(17)` |
 | `ArtifactRun` | `messageMark` | `nonNegative` |
 | `ArtifactRunMetrics` | `steps` | `nonNegative` |
 | `ArtifactRunMetrics` | `activeDurationMillis` | `nonNegative` |

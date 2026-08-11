@@ -747,15 +747,14 @@ func (r *reducer) abandonUnconsumedResumeTools() ([]RunEvent, error) {
 			return nil, fmt.Errorf("tool %q arguments: %w", drained.Name, err)
 		}
 		ref := &openTool{
-			callID:           drained.CallID,
-			sourceCallID:     drained.SourceCallID,
-			id:               drained.ItemID,
-			occurredAt:       drained.ItemOccurredAt,
-			attemptStartedAt: drained.ItemOccurredAt,
-			name:             drained.Name,
-			arguments:        arguments,
+			callID:       drained.CallID,
+			sourceCallID: drained.SourceCallID,
+			id:           drained.ItemID,
+			occurredAt:   drained.ItemOccurredAt,
+			name:         drained.Name,
+			arguments:    arguments,
 		}
-		completed, err := r.incompleteToolItem(ref)
+		completed, err := r.abandonUnstartedToolItem(ref)
 		if err != nil {
 			return nil, err
 		}

@@ -366,6 +366,20 @@ func TestItemTimingVocabularyIsVariantExclusive(t *testing.T) {
 	toolCall.CreatedAt = at
 	assertConstraintField(t, toolCall.ValidateWire(), "Item", "createdAt")
 
+	finishedAt := at.Add(time.Minute)
+	toolCall = Item{
+		ID: "item_tool", RunID: "run_1", Status: ItemStatusIncomplete,
+		Type: ItemTypeToolCall, StartedAt: at, FinishedAt: finishedAt,
+	}
+	if err := toolCall.ValidateWire(); err != nil {
+		t.Fatalf("terminal tool-call with unknown execution duration: %v", err)
+	}
+	durationMillis := int64(500)
+	toolCall.DurationMillis = &durationMillis
+	if err := toolCall.ValidateWire(); err != nil {
+		t.Fatalf("terminal tool-call with exact execution duration: %v", err)
+	}
+
 	artifactToolCall := ArtifactItem{
 		ID: "item_tool", RunID: "run_1", Status: ItemStatusRunning,
 		Type: ItemTypeToolCall, StartedAt: at,

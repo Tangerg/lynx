@@ -3,6 +3,7 @@ package server
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/Tangerg/lynx/core/chat"
@@ -277,9 +278,12 @@ func portableItemFromArtifact(sessionID, path string, artifact protocol.Artifact
 	if kind == transcript.ToolCall {
 		snapshot.Identity.OccurredAt = artifact.StartedAt
 		if status != transcript.ItemRunning {
-			expectedDuration := artifact.FinishedAt.Sub(artifact.StartedAt).Milliseconds()
-			if artifact.DurationMillis == nil || *artifact.DurationMillis != expectedDuration {
-				return transcript.Item{}, invalidArtifact(path+".durationMillis", "must equal finishedAt minus startedAt in milliseconds")
+			if artifact.DurationMillis != nil {
+				if *artifact.DurationMillis > math.MaxInt64/int64(time.Millisecond) {
+					return transcript.Item{}, invalidArtifact(path+".durationMillis", "exceeds the representable duration")
+				}
+				duration := time.Duration(*artifact.DurationMillis) * time.Millisecond
+				snapshot.ExecutionDuration = &duration
 			}
 			snapshot.FinishedAt = artifact.FinishedAt
 		}

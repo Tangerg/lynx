@@ -1,4 +1,4 @@
-# Lyra Runtime Protocol（定稿 `2026-08-11`）
+# Lyra Runtime Protocol（定稿 `2026-08-12`）
 
 > **状态：正式契约（canonical）。** 本文是 Lyra 客户端 ↔ Lyra Runtime 的 wire 契约真相源之一。物理传输见同目录
 > [`TRANSPORT.md`](./TRANSPORT.md)，旁路能力见 [`AUX_API.md`](./AUX_API.md)。
@@ -13,7 +13,7 @@
 > **本文写的是生成物写不出来的东西**：语义、不变量、"为什么不能是另一种形状"、以及跨方法的走查。一个事实一个作者
 > —— 本文一旦重述字段表，它就成了第二份会腐烂的真相。
 >
-> `protocolVersion`: **`2026-08-11`**（`minSupported` 同值：本 build 只服务这一个版本，旧版本请求确定性返回
+> `protocolVersion`: **`2026-08-12`**（`minSupported` 同值：本 build 只服务这一个版本，旧版本请求确定性返回
 > `invalid_protocol_version`，见 §12）。
 
 ---
@@ -346,6 +346,9 @@ profile，会被**拒绝**而不是降级投递——降级等于给同一个 Ru
 - **只有 ToolCall 拥有持久 lifecycle**：它从 `running` 进入 `completed` 或 `incomplete`。user message、Question、
   compaction，以及落入 Transcript 的完整 agent message/reasoning 都以 `completed` 形成。流式 agent message/reasoning
   的 `item.started` 只是客户端渲染锚点，不是可以持久化或恢复的 running Domain Item。
+- **ToolCall 的 `startedAt` / `finishedAt` 是可见 Item lifecycle**；终态可选的 `durationMillis` 是 Runtime 在 Tool
+  executor 边界测得的精确执行时长，不包含审批或其他执行前等待，因此可以小于 `finishedAt - startedAt`。恢复无法证明
+  精确执行区间时字段缺省，客户端不得用 lifecycle 差值伪造。
 - `question` 是一等 complete Item：它记录“问题已经提出”；是否仍待回答只由同一个 park write-set 中的
   `PendingInterruptSet` 表达，之后由 `runs.resume` 应答。它不是另一套 Form
   子系统：`fields` 是有序、非空、**全部必答**的闭合联合，仅有 `text` 与 `choice`。因此没有与实际行为冲突的
@@ -705,7 +708,7 @@ Run 创建时把这份声明冻进 `RunProtocolProfile.interruptTypes`（§3.2�
   `restoreType` 可选还原文件（`features.checkpoints`），并把**边界那一刻的会话 state 作为一次新写入重新发布**
   （§5.3）。返回 `droppedRuns: DroppedRun[]`（每条带 `run: RunSummary` + 触发它的 `userInput`），所以客户端能
   告诉人"回退丢了哪些回合"。session 有 run 在飞时拒绝（`session_busy`），不去和正在 append 的历史赛跑。
-- **`export` / `import` 是同一份 `SessionArtifact`（v16）的两端**（AUX_API §4.3）：终态 run + 完整 Item 历史 +
+- **`export` / `import` 是同一份 `SessionArtifact`（v17）的两端**（AUX_API §4.3）：终态 run + 完整 Item 历史 +
   chat 消息 + offload 的工具正文 + 会话级 state 的**语义值**（不带 revision / updatedAt —— 那是源 runtime 的排序
   凭证，带过去会让导入值声称一个目标 runtime 从未发出的位置）。import 是**替换语义**（同 id 覆盖），版本不认识就
   确定性拒绝、**不迁移**；未广告的 state key 在任何写入之前拒绝。
@@ -1008,7 +1011,7 @@ dispatcher、discovery 与客户端 preflight 读的是同一份）。
 
 ## 12. 版本规则
 
-- `protocolVersion` 是日期串（本定稿 `2026-08-11`），`minSupported` 与之同值：**本 build 只服务一个版本**。
+- `protocolVersion` 是日期串（本定稿 `2026-08-12`），`minSupported` 与之同值：**本 build 只服务一个版本**。
   一个更宽的范围会宣称一次代码并不执行的协商。
 - 版本不兼容以 request 级 `invalid_protocol_version` 返回（带上本 build 服务的范围），**不存在连接级硬断开**。
 - **加什么不用 bump**：加 method / 加可选响应字段 / 加 `features` map key / 加开放枚举值 → 同版本号。
@@ -1016,7 +1019,7 @@ dispatcher、discovery 与客户端 preflight 读的是同一份）。
   exhaustive switch，§2.3）、加 state key、改语义 / 删字段 / 改字段类型。
 - **判据不是"加还是改"，而是"老客户端会不会做错事"**。这条规则由 CI 强制：compatibility differ 拿本次产物与
   上一版基线对比，判定 breaking 就要求同批 bump（§14）。
-- `SessionArtifactVersion` 与 `protocolVersion` 各自独立编号（本定稿 artifact = **16**）：一份归档可能被一个更新的
+- `SessionArtifactVersion` 与 `protocolVersion` 各自独立编号（本定稿 artifact = **17**）：一份归档可能被一个更新的
   runtime 读到。不认识的版本确定性拒绝，**dev 阶段不写 migration**。
 - HTTP URL 里的 `/v2/`（wire major epoch）与日期 `protocolVersion`（epoch 内请求版本）是两个层级
   （见 TRANSPORT §6.1）。

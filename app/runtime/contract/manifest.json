@@ -1,7 +1,7 @@
 {
   "protocol": {
-    "current": "2026-08-11",
-    "minSupported": "2026-08-11"
+    "current": "2026-08-12",
+    "minSupported": "2026-08-12"
   },
   "features": [
     "reasoning",
@@ -3459,8 +3459,7 @@
             }
           ],
           "required": [
-            "finishedAt",
-            "durationMillis"
+            "finishedAt"
           ]
         },
         {
@@ -3477,8 +3476,7 @@
             }
           ],
           "required": [
-            "finishedAt",
-            "durationMillis"
+            "finishedAt"
           ]
         }
       ]
@@ -3518,8 +3516,7 @@
             }
           ],
           "required": [
-            "finishedAt",
-            "durationMillis"
+            "finishedAt"
           ]
         },
         {
@@ -3536,8 +3533,7 @@
             }
           ],
           "required": [
-            "finishedAt",
-            "durationMillis"
+            "finishedAt"
           ]
         }
       ]
@@ -4177,11 +4173,11 @@
       "rules": [
         {
           "field": "version",
-          "constraint": "minimum(16)"
+          "constraint": "minimum(17)"
         },
         {
           "field": "version",
-          "constraint": "maximum(16)"
+          "constraint": "maximum(17)"
         }
       ]
     },

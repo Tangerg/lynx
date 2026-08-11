@@ -744,9 +744,7 @@ func (value Item) ValidateWire() error {
 		forbiddenWhen(wireFieldEquals(value, "type", "toolCall") && wireFieldEquals(value, "status", "running"), "finishedAt", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "toolCall") && wireFieldEquals(value, "status", "running"), "durationMillis", value),
 		requiredWhen(wireFieldEquals(value, "type", "toolCall") && wireFieldEquals(value, "status", "completed"), "finishedAt", value),
-		requiredWhen(wireFieldEquals(value, "type", "toolCall") && wireFieldEquals(value, "status", "completed"), "durationMillis", value),
 		requiredWhen(wireFieldEquals(value, "type", "toolCall") && wireFieldEquals(value, "status", "incomplete"), "finishedAt", value),
-		requiredWhen(wireFieldEquals(value, "type", "toolCall") && wireFieldEquals(value, "status", "incomplete"), "durationMillis", value),
 	)
 }
 
@@ -1321,9 +1319,7 @@ func (value ArtifactItem) ValidateWire() error {
 		forbiddenWhen(wireFieldEquals(value, "type", "toolCall") && wireFieldEquals(value, "status", "running"), "finishedAt", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "toolCall") && wireFieldEquals(value, "status", "running"), "durationMillis", value),
 		requiredWhen(wireFieldEquals(value, "type", "toolCall") && wireFieldEquals(value, "status", "completed"), "finishedAt", value),
-		requiredWhen(wireFieldEquals(value, "type", "toolCall") && wireFieldEquals(value, "status", "completed"), "durationMillis", value),
 		requiredWhen(wireFieldEquals(value, "type", "toolCall") && wireFieldEquals(value, "status", "incomplete"), "finishedAt", value),
-		requiredWhen(wireFieldEquals(value, "type", "toolCall") && wireFieldEquals(value, "status", "incomplete"), "durationMillis", value),
 	)
 }
 
@@ -1438,8 +1434,8 @@ func (value ArtifactRun) ValidateWire() error {
 
 func (value SessionArtifact) ValidateWire() error {
 	return collectWireViolations("SessionArtifact",
-		minimumNumber("version", value.Version, 16),
-		maximumNumber("version", value.Version, 16),
+		minimumNumber("version", value.Version, 17),
+		maximumNumber("version", value.Version, 17),
 	)
 }
 

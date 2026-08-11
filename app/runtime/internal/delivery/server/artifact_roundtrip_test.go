@@ -34,8 +34,8 @@ import (
 // is that the document this build writes is the version the contract named. Bumping
 // it is a breaking act, so it should cost a deliberate edit here.
 func TestArtifactVersionMatchesCurrentContractBaseline(t *testing.T) {
-	if protocol.SessionArtifactVersion != 16 {
-		t.Fatalf("SessionArtifactVersion = %d; current Runtime contract requires artifact v16",
+	if protocol.SessionArtifactVersion != 17 {
+		t.Fatalf("SessionArtifactVersion = %d; current Runtime contract requires artifact v17",
 			protocol.SessionArtifactVersion)
 	}
 }

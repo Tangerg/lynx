@@ -2,6 +2,8 @@ package server
 
 import (
 	"errors"
+	"math"
+	"strings"
 	"testing"
 	"time"
 
@@ -124,7 +126,7 @@ func TestPortableArtifactDecoderPreservesCanceledToolFailure(t *testing.T) {
 	}
 }
 
-func TestPortableArtifactDecoderRejectsInconsistentToolTiming(t *testing.T) {
+func TestPortableArtifactDecoderRejectsImpossibleToolTiming(t *testing.T) {
 	startedAt := time.Unix(1, 0).UTC()
 	finishedAt := startedAt.Add(1500 * time.Millisecond)
 	valid := func() protocol.SessionArtifact {
@@ -144,8 +146,8 @@ func TestPortableArtifactDecoderRejectsInconsistentToolTiming(t *testing.T) {
 		{name: "tool call carries createdAt", mutate: func(item *protocol.ArtifactItem) {
 			item.CreatedAt = startedAt
 		}},
-		{name: "duration differs from boundaries", mutate: func(item *protocol.ArtifactItem) {
-			item.DurationMillis = valuePtr(int64(1499))
+		{name: "duration exceeds lifecycle", mutate: func(item *protocol.ArtifactItem) {
+			item.DurationMillis = valuePtr(int64(1501))
 		}},
 	}
 	for _, test := range tests {
@@ -160,7 +162,59 @@ func TestPortableArtifactDecoderRejectsInconsistentToolTiming(t *testing.T) {
 	}
 }
 
-func TestArtifactV16RejectsSyntheticLifecyclesForCompleteFacts(t *testing.T) {
+func TestPortableArtifactDecoderRejectsToolDurationOverflow(t *testing.T) {
+	startedAt := time.Unix(1, 0).UTC()
+	artifact := validArtifact()
+	artifact.Items[0] = protocol.ArtifactItem{
+		ID: "item_1", RunID: "run_1", Status: protocol.ItemStatusCompleted,
+		StartedAt: startedAt, FinishedAt: startedAt.Add(time.Second),
+		DurationMillis: valuePtr(int64(math.MaxInt64)), Type: protocol.ItemTypeToolCall,
+		Tool: &protocol.ArtifactToolInvocation{Name: "shell", Arguments: map[string]any{}},
+	}
+	_, err := portableArtifactFromWire(artifact)
+	if !errors.Is(err, protocol.ErrInvalidParams) || !strings.Contains(err.Error(), "representable duration") {
+		t.Fatalf("portableArtifactFromWire error = %v, want bounded invalid duration", err)
+	}
+}
+
+func TestPortableArtifactDecoderAcceptsToolExecutionShorterThanLifecycle(t *testing.T) {
+	startedAt := time.Unix(1, 0).UTC()
+	artifact := validArtifact()
+	artifact.Items[0] = protocol.ArtifactItem{
+		ID: "item_1", RunID: "run_1", Status: protocol.ItemStatusCompleted,
+		StartedAt: startedAt, FinishedAt: startedAt.Add(1500 * time.Millisecond),
+		DurationMillis: valuePtr(int64(500)), Type: protocol.ItemTypeToolCall,
+		Tool: &protocol.ArtifactToolInvocation{Name: "shell", Arguments: map[string]any{}},
+	}
+	portable, err := portableArtifactFromWire(artifact)
+	if err != nil {
+		t.Fatal(err)
+	}
+	duration, known := portable.Items[0].ExecutionDuration()
+	if !known || duration != 500*time.Millisecond {
+		t.Fatalf("execution duration = %v/%t", duration, known)
+	}
+}
+
+func TestPortableArtifactDecoderPreservesUnknownToolExecutionDuration(t *testing.T) {
+	startedAt := time.Unix(1, 0).UTC()
+	artifact := validArtifact()
+	artifact.Items[0] = protocol.ArtifactItem{
+		ID: "item_1", RunID: "run_1", Status: protocol.ItemStatusIncomplete,
+		StartedAt: startedAt, FinishedAt: startedAt.Add(1500 * time.Millisecond),
+		Type: protocol.ItemTypeToolCall,
+		Tool: &protocol.ArtifactToolInvocation{Name: "shell", Arguments: map[string]any{}},
+	}
+	portable, err := portableArtifactFromWire(artifact)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if duration, known := portable.Items[0].ExecutionDuration(); known {
+		t.Fatalf("unknown execution duration was fabricated as %v", duration)
+	}
+}
+
+func TestArtifactV17RejectsSyntheticLifecyclesForCompleteFacts(t *testing.T) {
 	question := &protocol.ArtifactQuestion{Fields: []protocol.ArtifactQuestionField{{
 		Type: protocol.QuestionFieldText, Prompt: "Continue?",
 	}}}

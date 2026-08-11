@@ -549,14 +549,14 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
         status: literal("completed"),
         type: literal("toolCall"),
       }, ["status", "type"]),
-      fields({}, ["durationMillis", "finishedAt"]),
+      fields({}, ["finishedAt"]),
     ),
     ifThen(
       fields({
         status: literal("incomplete"),
         type: literal("toolCall"),
       }, ["status", "type"]),
-      fields({}, ["durationMillis", "finishedAt"]),
+      fields({}, ["finishedAt"]),
     ),
   ]),
   ArtifactModelUsage: object({
@@ -1329,14 +1329,14 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
         status: literal("completed"),
         type: literal("toolCall"),
       }, ["status", "type"]),
-      fields({}, ["durationMillis", "finishedAt"]),
+      fields({}, ["finishedAt"]),
     ),
     ifThen(
       fields({
         status: literal("incomplete"),
         type: literal("toolCall"),
       }, ["status", "type"]),
-      fields({}, ["durationMillis", "finishedAt"]),
+      fields({}, ["finishedAt"]),
     ),
   ]),
   ItemDelta: allOf([
@@ -2842,7 +2842,7 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     session: ref(() => CHECKS.ArtifactSession),
     states: array(ref(() => CHECKS.ArtifactState)),
     toolResults: array(ref(() => CHECKS.ArtifactToolResult)),
-    version: allOf([integer(), minimum(16), maximum(16)]),
+    version: allOf([integer(), minimum(17), maximum(17)]),
   }, ["items", "messages", "runs", "session", "toolResults", "version"]),
   SessionStatus: enumOf(["running", "waiting", "idle"]),
   SessionUsageRequest: object({

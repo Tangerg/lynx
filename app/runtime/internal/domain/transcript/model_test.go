@@ -48,6 +48,8 @@ func TestItemValidateOwnsPayloadInvariants(t *testing.T) {
 		SessionID: "session-1", RunID: "run-1", ItemID: "item-1",
 		OccurredAt: time.Unix(1, 0).UTC(),
 	}
+	negativeDuration := -time.Nanosecond
+	tooLongDuration := 2 * time.Second
 	tests := []struct {
 		name     string
 		snapshot transcript.ItemSnapshot
@@ -78,6 +80,24 @@ func TestItemValidateOwnsPayloadInvariants(t *testing.T) {
 				Content: []transcript.ContentBlock{{Kind: transcript.TextContent, Text: "hello"}},
 			},
 		},
+		{
+			name: "negative tool execution duration",
+			snapshot: transcript.ItemSnapshot{
+				Identity: identity, Kind: transcript.ToolCall, Status: transcript.ItemIncomplete,
+				FinishedAt: identity.OccurredAt.Add(time.Second), ExecutionDuration: &negativeDuration,
+				Tool: &transcript.ToolInvocation{Name: "shell"},
+			},
+			wantErr: true,
+		},
+		{
+			name: "tool execution duration exceeds lifecycle",
+			snapshot: transcript.ItemSnapshot{
+				Identity: identity, Kind: transcript.ToolCall, Status: transcript.ItemCompleted,
+				FinishedAt: identity.OccurredAt.Add(time.Second), ExecutionDuration: &tooLongDuration,
+				Tool: &transcript.ToolInvocation{Name: "shell"},
+			},
+			wantErr: true,
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -91,6 +111,7 @@ func TestItemValidateOwnsPayloadInvariants(t *testing.T) {
 
 func TestToolCallTimingLifecycle(t *testing.T) {
 	startedAt := time.Date(2026, 8, 4, 10, 0, 0, 0, time.UTC)
+	executionStartedAt := startedAt.Add(500 * time.Millisecond)
 	finishedAt := startedAt.Add(1500 * time.Millisecond)
 	identity := transcript.ItemIdentity{
 		SessionID: "session-1", RunID: "run-1", ItemID: "item-1", OccurredAt: startedAt,
@@ -103,18 +124,18 @@ func TestToolCallTimingLifecycle(t *testing.T) {
 	if running.Status() != transcript.ItemRunning || !running.FinishedAt().IsZero() {
 		t.Fatalf("running timing = (%v, %v)", running.Status(), running.FinishedAt())
 	}
-	completed, err := running.CompleteToolCall(invocation, finishedAt)
+	completed, err := running.CompleteToolCall(invocation, executionStartedAt, finishedAt)
 	if err != nil {
 		t.Fatalf("CompleteToolCall(): %v", err)
 	}
 	if completed.Status() != transcript.ItemCompleted || !completed.FinishedAt().Equal(finishedAt) {
 		t.Fatalf("completed timing = (%v, %v)", completed.Status(), completed.FinishedAt())
 	}
-	if _, err := completed.CompleteToolCall(invocation, finishedAt.Add(time.Second)); err == nil {
+	if _, err := completed.CompleteToolCall(invocation, executionStartedAt, finishedAt.Add(time.Second)); err == nil {
 		t.Fatal("second CompleteToolCall() succeeded")
 	}
-	if _, err := running.CompleteToolCall(invocation, startedAt.Add(-time.Millisecond)); err == nil {
-		t.Fatal("CompleteToolCall() accepted a finish before start")
+	if _, err := running.CompleteToolCall(invocation, startedAt.Add(-time.Millisecond), finishedAt); err == nil {
+		t.Fatal("CompleteToolCall() accepted execution before occurrence")
 	}
 	abandoned, err := running.AbandonToolCall(nil, finishedAt)
 	if err != nil {
@@ -122,6 +143,16 @@ func TestToolCallTimingLifecycle(t *testing.T) {
 	}
 	if abandoned.Status() != transcript.ItemIncomplete {
 		t.Fatalf("abandoned status = %v", abandoned.Status())
+	}
+	if _, known := abandoned.ExecutionDuration(); known {
+		t.Fatal("unstarted abandonment fabricated an execution duration")
+	}
+	startedAbandonment, err := running.AbandonStartedToolCall(nil, executionStartedAt, finishedAt)
+	if err != nil {
+		t.Fatalf("AbandonStartedToolCall(): %v", err)
+	}
+	if duration, known := startedAbandonment.ExecutionDuration(); !known || duration != time.Second {
+		t.Fatalf("started abandonment execution duration = %v/%t, want 1s", duration, known)
 	}
 }
 

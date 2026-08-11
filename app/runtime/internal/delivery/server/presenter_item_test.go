@@ -21,11 +21,13 @@ func TestPresentToolCallTiming(t *testing.T) {
 		t.Fatalf("running timing = started %s finished %s duration %v", running.StartedAt, running.FinishedAt, running.DurationMillis)
 	}
 
-	finishedAt := startedAt.Add(1250 * time.Millisecond)
+	finishedAt := startedAt.Add(10 * time.Second)
+	executionDuration := 1250 * time.Millisecond
 	completed := presentItem(itemfixture.MustRestore(itemfixture.Input{
 		ID: "item_1", RunID: "run_1", Kind: transcript.ToolCall,
 		Status: transcript.ItemCompleted, OccurredAt: startedAt, FinishedAt: finishedAt,
-		Tool: &transcript.ToolInvocation{Name: "shell"},
+		ExecutionDuration: &executionDuration,
+		Tool:              &transcript.ToolInvocation{Name: "shell"},
 	}))
 	if !completed.CreatedAt.IsZero() || completed.StartedAt != startedAt || completed.FinishedAt != finishedAt ||
 		completed.DurationMillis == nil || *completed.DurationMillis != 1250 {

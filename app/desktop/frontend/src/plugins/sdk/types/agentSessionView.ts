@@ -91,9 +91,10 @@ export interface ToolCall {
   /** plan-writing calls: how far the plan has got. Not a formatted ratio: the
    *  reader's language decides how "3 of 7" is worded. */
   progress?: { done: number; total: number };
-  /** How long the call took, measured by the runtime (toolCall Item durationMillis).
-   *  Absent while the call is still running — a client-side stopwatch would be
-   *  measuring its own render loop, not the tool. */
+  /** How long the Tool actually executed, measured by the runtime (toolCall Item
+   *  durationMillis). Approval and other pre-execution waits are excluded. Absent
+   *  when the execution interval is not known — a client-side stopwatch would be
+   *  measuring its own render loop, not the Tool. */
   durationMillis?: number;
 }
 

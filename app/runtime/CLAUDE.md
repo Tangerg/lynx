@@ -24,7 +24,7 @@
 
 ## 当前状态
 
-P1–P18 服务端重构、合同同步、领域行为、package 边界与 Application mechanism 所有权精修已经完成。Protocol `2026-08-11`、Artifact v16、SQLite epoch 67、唯一 `runtimeInstanceRootSegment` replay scope、全部生成物/严格 sample gate 与 Agent Framework Baseline 18 是当前基线；原框架、临时 module、迁移文档和兼容路径均已删除。前端、TUI、CLI 只按 [`doc/CONSUMER_HANDOFF.md`](doc/CONSUMER_HANDOFF.md) 在独立专项接线，Runtime 不为它们恢复旧合同。
+P1–P25 服务端重构、公共 binding、真实 consumer 联调与两轮反证审计已经完成。Protocol `2026-08-12`、Artifact v17、SQLite epoch 67、唯一 `runtimeInstanceRootSegment` replay scope、全部生成物/严格 sample gate 与 Agent Framework Baseline 20 是当前基线；Runtime 只通过 canonical Agent module 和 `adapter/agentexec` 防腐层消费 Framework，不读取 private state，也不向 Agent 泄露产品抽象。消费者同步状态以 [`doc/CONSUMER_HANDOFF.md`](doc/CONSUMER_HANDOFF.md) 为准，Runtime 不为任何消费者恢复旧合同。
 
 ## 工作纪律
 

@@ -2,7 +2,7 @@
 
 > 状态：当前能力事实，随每个实施批次更新
 >
-> 基线日期：2026-08-11
+> 基线日期：2026-08-12
 
 本文记录当前能力事实、目标 owner、迁移 verdict、实施阶段和验收证据。它不重复目标架构和 ADR。代码变化后必须在同一批更新对应条目；不能用“计划保留”冒充“已经迁移”。
 
@@ -21,7 +21,7 @@
 ### 2.1 规模与依赖
 
 - Runtime 源码、测试、`go.mod` 与 `go.sum` 对旧 `github.com/Tangerg/lynx/agent` 的依赖均为零；architecture guard 将其作为永久禁止边，而非迁移数量台账；
-- `go.mod` 仍声明 Baseline 18 Agent Framework commit；`GOWORK=off` 的 tidy/build/vet 可独立通过，但完整 test 已由冷恢复回归精确证明该发布物缺少 workspace Baseline 20 的通用 RawMessage/byte Schema 修订。发布前禁止用 workspace 隐式替换、Runtime sanitizer 或 `replace` 冒充 standalone 绿色；
+- `go.mod` 直接绑定已发布 Agent Framework Baseline 20 pseudo-version `v0.0.0-20260811152247-8e667d716b22`；workspace 与 `GOWORK=off` 消费同一 canonical source，standalone tidy/build/vet/test/race/staticcheck/lint 全绿且没有 `replace` 或 Runtime sanitizer；
 - Agent Framework production import 只允许位于 `adapter/agentexec`；Domain、Application、Infra、Delivery、Bootstrap 与通用 Toolset 对 Agent Framework concrete types 为零；
 - P2 已删除 `domain/execution` 及全部 forwarding/alias path；Domain 生产代码与测试对 Application/Adapter/Infra/Delivery/Bootstrap 零 import，context-based I/O port 为零；
 - Run、Accounting、Conversation、Transcript、Interrupt、Tool 与 ToolResult 已成为准确顶层 bounded-context package；P16-01 已由 `run.Run` 接管完整 Run aggregate，Transcript 不再承载第二 Run lifecycle，Run/Tool failure taxonomy 按 owner 分离；executor checkpoint/ref、pending continuation 与 workspace mutation 由 Application consumer 拥有；
@@ -201,7 +201,7 @@ P8 production cutover 已用真实 Bootstrap consumer 冻结 root stage/observe/
 
 ### 5.2 Agent Framework 已提供的合同
 
-| Runtime 需要 | Agent Framework Baseline 18 | Runtime 责任 |
+| Runtime 需要 | Agent Framework Baseline 20 | Runtime 责任 |
 |---|---|---|
 | root execution | Engine/Deployment/Interaction | 组装产品配置并翻译结果 |
 | tree identity | ProcessID/Relation/root/parent/depth | 映射不透明 executor member/child Run |
@@ -268,14 +268,14 @@ P8 production cutover 已用真实 Bootstrap consumer 冻结 root stage/observe/
 
 | 能力 | 当前 owner | Verdict | 说明 |
 |---|---|---|---|
-| Protocol types/errors | `protocol` + `contract` | Retain | Protocol `2026-08-11`、Artifact v16；Tool cancellation 是独立 `tool_canceled` / `toolCanceled` variant；`doc.go`、`runtime.go`、`version.go`、`identifiers.go` 各自只拥有 package、method surface、version negotiation、resource identity，机器真相仍在 contract |
+| Protocol types/errors | `protocol` + `contract` | Retain | Protocol `2026-08-12`、Artifact v17；ToolCall lifecycle 与 optional exact execution duration 分离，后者排除审批等待且 unknown 时不伪造；Tool cancellation 是独立 `tool_canceled` / `toolCanceled` variant；机器真相仍在 contract |
 | Runtime method implementation | `delivery/server` | Retain | Protocol server side 与 projection；构造按 required use-case validation、defaults、contract facts、instance、notification observation 分阶段，不持有 transport listener |
 | JSON-RPC dispatch/registry | `delivery/dispatch` | Retain | method registry/router/idempotency；typed params decode 与 response projection 分属 `params.go`/`response.go`，不与 server 合并 |
 | HTTP/SSE | transport/http | Retain | envelope I/O、stream/backpressure |
 | Embedded Go | 旧 internal channel prototype 已删除；P19 新建类型化公共 binding | Rewrite, do not revive transport | CLI 已成为真实消费者；复用 operation/Application，不导出 envelope/Router |
 | Server product-value projections | Application read/write use cases + 必要 immutable Domain values | Retain | 只做 wire validation/error mapping/projection，不读取 repository、不持有 lifecycle owner |
 | Delivery adapter imports | architecture guard 禁止 | Retain | Delivery 只驱动 Application；对 concrete Adapter/Infra/Bootstrap/Agent Framework import 为零 |
-| frontend/TUI/CLI generated consumers | Desktop 仍含旧 `processRootSegment` vendored binding/fixtures；CLI/TUI 当前扫描无该 token | Defer | 精确 backlog 见 `CONSUMER_HANDOFF.md`；本 goal 不改消费者 |
+| frontend/TUI/CLI generated consumers | Desktop generated Runtime bindings、strict validators、samples 与 handwritten SDK 已同步 P25/P26；其他消费者按各自阶段消费公共 `protocol` / `embedded` | Retain boundary | 精确 cutover 见 `CONSUMER_HANDOFF.md`；Runtime 不为消费者建立兼容 shape |
 
 ## 9. 结构清理台账
 
@@ -368,7 +368,7 @@ P8 production cutover 已用真实 Bootstrap consumer 冻结 root stage/observe/
 - Runtime 产品领域、协议、持久化和工具能力大部分保留；
 - 执行 Framework integration 是主要 Rewrite 区；
 - P8 已将 Agent Framework vertical 原子切为唯一生产 owner；root、managed Delegate child、waiting subtree、termination、unknown 与 recovery 均由真实 Bootstrap consumer 验证；
-- Agent Framework Baseline 18 已提供 P4–P7 的公共合同并完成 canonical module 身份替换；Runtime standalone 仍绑定 `v0.0.0-20260809225948-4cce747c1724`，但 P22/P23 provenance consumer 已要求 Baseline 20 的通用 JSON Schema 修订。Framework 没有引入任何 Runtime 产品、持久化或 transaction 抽象；发布后只前移 module version；
+- Agent Framework Baseline 20 已提供 P4–P7 公共合同与通用 RawMessage/byte JSON Schema 修订，并以 canonical module pseudo-version 被 Runtime standalone 直接消费。Framework 没有引入任何 Runtime 产品、持久化或 transaction 抽象；
 - Runtime 对原框架 source/test/module dependency 与临时 module path 已归零；唯一 `agent` Framework 仍只拥有中性合同，产品 Run、Store、transaction、WorkingContext composition 与 recovery policy 均留在 Runtime；
 - P11 删除迁移期 execution/port 快照文档；P12 继续删除已完成的架构清洗台账。当前架构、端口与工具接线分别只有 `ARCHITECTURE.md`、真实 consumer code/GoDoc 和 `TOOL_SYSTEM.md` 一个 owner，历史实施事实归 Git，不保留第二套错误现状；
 - P12 全量静态审计捕获的格式漂移与嵌入字段冗余已在各自源码 owner 治本清除；Runtime 与 Agent Framework 的 tracked production TODO/FIXME/HACK、旧 Framework 路径、旧 replay scope、空文件、空目录和内部死代码均为零。
@@ -391,6 +391,7 @@ P8 production cutover 已用真实 Bootstrap consumer 冻结 root stage/observe/
 - P21 已以真实 DeepSeek、SQLite、mock 与 PTY 四类证据闭环普通/连续/并发 Tool、授权五种选择、问题 HITL、resume、取消、重连、重复/乱序和 crash/restart。Runtime adapter 只把产品取消作用域翻译为对应 Agent Effect context，未把 Run、授权、Store 或 transaction 职责泄露进 Framework；终态没有 checkpoint、open interrupt、unknown Effect 或未完成 invocation。
 - P22 已在 WorkingContext 唯一组合 owner 内为 base/Knowledge/Memory/Agent document/Plan/hook 建立私有 typed provenance；预算后的实际来源与 instruction/data purpose 随 Message/Part metadata 进入 opaque checkpoint，文本、Protocol、Artifact、SQLite 与 Agent Framework 合同均未变化。
 - P23 将 WorkingContext provenance 从“调用点同步填充的数据”收敛为行为所有权：source kind 唯一派生并验证 purpose，预算后的 Memory/Agent document fragment 原子拥有 text+sources，hook result 自己应用拒绝/注入，`WorkingContextComposer` 统一拥有 system/Plan/recall/hook。公开 DTO、Protocol、Artifact、SQLite 与 Agent Framework 合同均未变化。
-- P23 完整 standalone 复验同时证明当前 `go.mod` 的 Baseline 18 尚未包含 workspace 已完成的标准库 RawMessage/byte Schema 修订：两个冷恢复 consumer 在首个模型调用前按旧 Schema 失败。该发布顺序缺口必须由 Agent 新版本发布后一次性前移依赖解决；Runtime 不复制 Schema、不清洗 provider metadata、不增加 `replace` 或跳过回归。
+- P25 已关闭 P23 暴露的发布顺序缺口：Agent Baseline 20 canonical 发布后 Runtime 一次性前移真实 module version，原先两条冷恢复 consumer 回归转绿；Runtime 没有复制 Schema、清洗 provider metadata、增加 `replace` 或跳过回归。
 - P24 以真实 Desktop、Runtime 与隔离 SQLite 将 read model、query invalidation、Git observation、Segment activation/cancel 和 boot recovery 重新对账：终态无 started invocation、非终态 Run、open interrupt 或 checkpoint，崩溃恢复的 Run/Goal/invocation 使用同一终结时间；Agent production graph 仍不 import Runtime，Framework concrete type 仍只存在于 `adapter/agentexec`。
 - P25 第二轮反证进一步把前端 live/durable projection、workspace retarget/reconnect、Run/Item/Plan late-event 单调性与 JSON-RPC envelope 歧义收回唯一 owner：真实 Runtime 对合法请求返回 200、notification 返回 204，对 duplicate/unknown、空 method、显式 null/numeric id、client response 与 mixed envelope 返回 400；真实 Desktop 在 active Run `SIGKILL` 后把 Run/model invocation 收口为 lost/unknown，无刷新重连后继续完成新 Run。真实 ask_user、两次 Plan 替换、Goal completed/blocked 与 blocked 后普通 Run 均完成，终态无 open interrupt/checkpoint/active Run。Agent Baseline 20 已发布，Runtime 绑定远端真实 pseudo-version 后 standalone tidy-diff/build/vet/test/race/staticcheck/lint 全绿；原 Baseline 18 下失败的两条冷恢复 consumer 回归转绿，且没有引入 `replace`、Runtime sanitizer 或 Framework 抽象泄露。
+- P26 将 Tool 可见 lifecycle 与真实 executor interval 分离：Reducer 是 exact execution duration 的唯一计算 owner，Transcript terminal fact 持有 optional duration，SQLite 只编码、Delivery 只投影，恢复无法证明时保持 unknown。Protocol `2026-08-12`、Artifact v17 与 Desktop generated consumer 已同步；真实 HITL lifecycle 31.160s、execution 2.016s、UI `2s`，Goal/Plan/普通 Run 后续矩阵与全部质量门禁全绿，Agent Framework 边界未变化。

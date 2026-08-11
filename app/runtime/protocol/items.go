@@ -155,8 +155,11 @@ type Item struct {
 	// the union contract forbids carrying both names for the same instant.
 	CreatedAt time.Time `json:"createdAt,omitzero"`
 	Type      ItemType  `json:"type"`
-	// ToolCall execution timing. StartedAt is present from the first running
-	// frame; FinishedAt and DurationMillis appear together on terminal frames.
+	// ToolCall lifecycle timing. StartedAt is when the request became a visible
+	// Item and FinishedAt is when that Item settled. DurationMillis is present
+	// only when the Runtime knows the exact Tool execution interval; it excludes
+	// approval and other pre-execution waits and may therefore be shorter than
+	// FinishedAt-StartedAt.
 	StartedAt      time.Time `json:"startedAt,omitzero"`
 	FinishedAt     time.Time `json:"finishedAt,omitzero"`
 	DurationMillis *int64    `json:"durationMillis,omitempty"`

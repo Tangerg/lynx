@@ -140,10 +140,10 @@ type ExportSessionResponse struct {
 // artifact it doesn't recognize; development builds do not migrate old
 // artifacts.
 //
-// Version 16 admits only complete message/reasoning/question/compaction facts,
-// distinguishes a canceled in-flight Tool from execution failure, and rejects
-// unsupported artifact schemas before any write.
-const SessionArtifactVersion = 16
+// Version 17 distinguishes a ToolCall's visible lifecycle from its optional
+// exact execution duration. Approval and other pre-execution waits are not
+// execution time, while recovery may leave that duration unknowable.
+const SessionArtifactVersion = 17
 
 // SessionArtifact is the portable, round-trippable form of a session: its
 // identity plus the full conversation — chat messages (the model's context),
@@ -297,14 +297,16 @@ type ArtifactModelUsage struct {
 // Item response DTO: archive tool results remain canonical rather than being
 // transformed for a particular client presentation.
 type ArtifactItem struct {
-	ID             string     `json:"id"`
-	RunID          string     `json:"runId"`
-	Status         ItemStatus `json:"status"`
-	CreatedAt      time.Time  `json:"createdAt,omitzero"`
-	Type           ItemType   `json:"type"`
-	StartedAt      time.Time  `json:"startedAt,omitzero"`
-	FinishedAt     time.Time  `json:"finishedAt,omitzero"`
-	DurationMillis *int64     `json:"durationMillis,omitempty"`
+	ID        string     `json:"id"`
+	RunID     string     `json:"runId"`
+	Status    ItemStatus `json:"status"`
+	CreatedAt time.Time  `json:"createdAt,omitzero"`
+	Type      ItemType   `json:"type"`
+	// ToolCall lifecycle timing follows Item. DurationMillis, when present, is
+	// exact Tool execution time and can be shorter than the lifecycle.
+	StartedAt      time.Time `json:"startedAt,omitzero"`
+	FinishedAt     time.Time `json:"finishedAt,omitzero"`
+	DurationMillis *int64    `json:"durationMillis,omitempty"`
 
 	Content         []ArtifactContentBlock  `json:"content,omitempty"`
 	Text            string                  `json:"text,omitempty"`
