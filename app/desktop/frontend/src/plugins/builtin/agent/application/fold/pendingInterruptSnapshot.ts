@@ -15,15 +15,20 @@ export function foldPendingInterruptSet(
   }
 
   for (const [runId, interrupts] of byRunId) {
-    next = mergeGroup(next, snapshot.sessionId, runId, interrupts);
+    next = mergeGroup(next, snapshot.sessionId, runId, snapshot.rootRunId, interrupts);
   }
   for (const interrupt of snapshot.interrupts) {
-    next = materializeInterrupt(next, interrupt, {
-      runId: interrupt.runId,
-      segmentId: null,
-      eventId: `snapshot:${snapshot.rootRunId}:interrupt:${interrupt.itemId}`,
-      timestamp: snapshot.createdAt,
-    });
+    next = materializeInterrupt(
+      next,
+      interrupt,
+      {
+        runId: interrupt.runId,
+        segmentId: null,
+        eventId: `snapshot:${snapshot.rootRunId}:interrupt:${interrupt.itemId}`,
+        timestamp: snapshot.createdAt,
+      },
+      snapshot.rootRunId,
+    );
   }
   return next;
 }
@@ -32,22 +37,30 @@ function mergeGroup(
   state: AgentSessionView,
   sessionId: string,
   runId: string,
+  rootRunId: string,
   interrupts: PendingInterrupt[],
 ): AgentSessionView {
-  const existing = state.pendingInterrupts.find((group) => group.runId === runId);
+  const existing = state.pendingInterrupts.find(
+    (group) => group.runId === runId && group.rootRunId === rootRunId,
+  );
   const known = new Set(existing?.interrupts.map((interrupt) => interrupt.itemId));
   const fresh = interrupts.filter((interrupt) => !known.has(interrupt.itemId));
   if (fresh.length === 0) return state;
   if (!existing) {
     return {
       ...state,
-      pendingInterrupts: [...state.pendingInterrupts, { runId, sessionId, interrupts: fresh }],
+      pendingInterrupts: [
+        ...state.pendingInterrupts,
+        { runId, rootRunId, sessionId, interrupts: fresh },
+      ],
     };
   }
   return {
     ...state,
     pendingInterrupts: state.pendingInterrupts.map((group) =>
-      group.runId === runId ? { ...group, interrupts: [...group.interrupts, ...fresh] } : group,
+      group.runId === runId && group.rootRunId === rootRunId
+        ? { ...group, interrupts: [...group.interrupts, ...fresh] }
+        : group,
     ),
   };
 }

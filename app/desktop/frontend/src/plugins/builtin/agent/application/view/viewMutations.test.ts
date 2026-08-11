@@ -64,6 +64,7 @@ function pendingInterrupt(
 ): PendingInterruptGroup {
   return {
     runId: "run_1",
+    rootRunId: "run_1",
     sessionId: "ses_1",
     interrupts: items,
   };

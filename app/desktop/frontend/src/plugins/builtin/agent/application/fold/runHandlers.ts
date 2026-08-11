@@ -62,9 +62,10 @@ function isDuplicateRunFinish(
   if (!sameRunMetrics(run.metrics, projectedMetrics)) return false;
   if (outcome.type === "interrupt") {
     if (run.status !== "waiting") return false;
+    const rootRunId = run.rootRunId;
     const open = new Set(
       state.pendingInterrupts
-        .filter((group) => group.runId === run.id)
+        .filter((group) => group.rootRunId === rootRunId)
         .flatMap((group) => group.interrupts.map((interrupt) => interrupt.itemId)),
     );
     return outcome.interrupts.every((interrupt) => open.has(interrupt.itemId));
@@ -213,16 +214,20 @@ export function onRunFinished(
 
   if (outcome.type === "suspended") return next;
   if (outcome.type === "interrupt") {
-    next = mergePendingInterrupts(
-      next,
-      source.runId,
-      outcome.interrupts.map((interrupt) => ({
-        itemId: interrupt.itemId,
-        kind: interrupt.type,
-      })),
-    );
+    const rootRunId = next.runsById[source.runId]!.rootRunId;
+    const byRunId = new Map<string, PendingInterrupt[]>();
     for (const interrupt of outcome.interrupts) {
-      next = materializeInterrupt(next, interrupt, source);
+      const runId = interrupt.runId;
+      const pending = byRunId.get(runId) ?? [];
+      pending.push({ itemId: interrupt.itemId, kind: interrupt.type });
+      byRunId.set(runId, pending);
+    }
+    for (const [runId, interrupts] of byRunId) {
+      next = mergePendingInterrupts(next, runId, rootRunId, interrupts);
+    }
+    for (const interrupt of outcome.interrupts) {
+      const runId = interrupt.runId;
+      next = materializeInterrupt(next, interrupt, { ...source, runId }, rootRunId);
     }
     return next;
   }
@@ -257,11 +262,17 @@ function terminalOutcomeSummary(outcome: AgentRunOutcome): string | undefined {
 function mergePendingInterrupts(
   state: AgentSessionView,
   runId: string,
+  rootRunId: string,
   interrupts: PendingInterrupt[],
 ): AgentSessionView {
   if (interrupts.length === 0) return state;
-  const run = state.runsById[runId]!;
-  const existingGroup = state.pendingInterrupts.find((group) => group.runId === runId);
+  const run = state.runsById[runId];
+  if (!run) {
+    throw new Error(`agent.fold.runMissing:event=segment.finished.interrupt;run=${runId}`);
+  }
+  const existingGroup = state.pendingInterrupts.find(
+    (group) => group.runId === runId && group.rootRunId === rootRunId,
+  );
   const existingIds = new Set(existingGroup?.interrupts.map((interrupt) => interrupt.itemId));
   const fresh = interrupts.filter((interrupt) => !existingIds.has(interrupt.itemId));
   if (fresh.length === 0) return state;
@@ -270,14 +281,16 @@ function mergePendingInterrupts(
       ...state,
       pendingInterrupts: [
         ...state.pendingInterrupts,
-        { runId, sessionId: run.sessionId, interrupts: fresh },
+        { runId, rootRunId, sessionId: run.sessionId, interrupts: fresh },
       ],
     };
   }
   return {
     ...state,
     pendingInterrupts: state.pendingInterrupts.map((group) =>
-      group.runId === runId ? { ...group, interrupts: [...group.interrupts, ...fresh] } : group,
+      group.runId === runId && group.rootRunId === rootRunId
+        ? { ...group, interrupts: [...group.interrupts, ...fresh] }
+        : group,
     ),
   };
 }

@@ -11,6 +11,7 @@ export function materializeInterrupt(
   state: AgentSessionView,
   interrupt: Interrupt,
   source: AgentFoldSource,
+  resumeRunId: string = source.runId,
 ): AgentSessionView {
   const withToolStatus = markToolRequiresAction(state, source.runId, interrupt.itemId);
   if (interrupt.type === "approval") {
@@ -32,7 +33,7 @@ export function materializeInterrupt(
         (b) => ({
           ...b,
           status: "requires-action",
-          runId: source.runId,
+          runId: resumeRunId,
           rememberable: interrupt.payload?.rememberable ?? false,
         }),
       );
@@ -42,7 +43,7 @@ export function materializeInterrupt(
       kind: "approval",
       status: "requires-action",
       itemId: interrupt.itemId,
-      runId: source.runId,
+      runId: resumeRunId,
       toolName: tool?.name,
       command: tool ? commandString(tool) : "",
       reason: interrupt.payload?.reason ?? "",
@@ -81,7 +82,7 @@ export function materializeInterrupt(
         withToolStatus,
         source.runId,
         (b) => b.kind === "question" && b.itemId === interrupt.itemId,
-        (b) => ({ ...b, status: "requires-action", runId: source.runId }),
+        (b) => ({ ...b, status: "requires-action", runId: resumeRunId }),
       );
     }
     return appendToTurn(
@@ -92,7 +93,7 @@ export function materializeInterrupt(
         kind: "question",
         status: "requires-action",
         itemId: interrupt.itemId,
-        runId: source.runId,
+        runId: resumeRunId,
         questions: mapQuestion(interrupt.payload?.question),
       },
       source.timestamp,

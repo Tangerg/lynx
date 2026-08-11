@@ -224,7 +224,12 @@ export interface PendingInterrupt {
 }
 
 export interface PendingInterruptGroup {
-  runId: string; // the Run to resume (its current segment ended in an interrupt)
+  /** The Run which raised these interrupts. It owns their transcript cards and
+   *  tool state, but is not necessarily the Run the resume command addresses. */
+  runId: string;
+  /** The root which owns the complete pending set. Every group with this value
+   *  must be answered together in one resume command. */
+  rootRunId: string;
   sessionId: string;
   interrupts: PendingInterrupt[];
 }

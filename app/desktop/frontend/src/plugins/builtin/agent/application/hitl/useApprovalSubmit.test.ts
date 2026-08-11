@@ -10,6 +10,7 @@ import { navigator } from "@/lib/navigation";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useAgentStore } from "@/plugins/builtin/agent/adapters/agentStore";
 import { useApprovalSubmit } from "./useApprovalSubmit";
+import { discardStagedInterruptResponses } from "./interruptResponseCoordinator";
 
 const SID = "ses_1";
 
@@ -17,23 +18,47 @@ const SID = "ses_1";
 // which mounts then binds the imperative actions. Required now that
 // the store refuses to resurrect a dropped/absent session (see agentStore).
 function bindResume(impl?: (...args: unknown[]) => void) {
-  const resume = impl ? vi.fn(impl) : vi.fn();
+  const resume = vi.fn((...args: unknown[]) => {
+    impl?.(...args);
+    return true;
+  });
   navigator().go({ session: SID });
   useAgentStore.getState().ensureSession(SID);
   useAgentStore.getState().setResume(SID, resume);
   return resume;
 }
 
+function seedPending(itemId: string): void {
+  const store = useAgentStore.getState();
+  store.ensureSession(SID);
+  const token = store.beginViewRefresh(SID, false)!;
+  const view = useAgentStore.getState().sessions[SID]!.view;
+  store.commitViewRefresh(SID, token, {
+    ...view,
+    pendingInterrupts: [
+      {
+        sessionId: SID,
+        runId: "run_1",
+        rootRunId: "run_1",
+        interrupts: [{ itemId, kind: "approval" }],
+      },
+    ],
+  });
+}
+
 afterEach(() => {
+  discardStagedInterruptResponses();
   useAgentStore.getState().dropSession(SID);
 });
 beforeEach(() => {
+  discardStagedInterruptResponses();
   useAgentStore.getState().dropSession(SID);
 });
 
 describe("useApprovalSubmit", () => {
   it("maps approved → approve and latches pending", () => {
     const resume = bindResume();
+    seedPending("item_1");
     const { result } = renderHook(() => useApprovalSubmit("run_1", "item_1"));
     act(() => result.current.submit("approved"));
     expect(resume).toHaveBeenCalledWith(
@@ -47,6 +72,7 @@ describe("useApprovalSubmit", () => {
 
   it("maps declined → deny", () => {
     const resume = bindResume();
+    seedPending("item_2");
     const { result } = renderHook(() => useApprovalSubmit("run_1", "item_2"));
     act(() => result.current.submit("declined"));
     expect(resume).toHaveBeenCalledWith(
@@ -59,6 +85,7 @@ describe("useApprovalSubmit", () => {
 
   it("forwards editedArgs only when provided (approve-with-modified-args)", () => {
     const resume = bindResume();
+    seedPending("item_e");
     const { result } = renderHook(() => useApprovalSubmit("run_1", "item_e"));
     act(() => result.current.submit("approved", { editedArgs: { path: "/safe" } }));
     expect(resume).toHaveBeenCalledWith(
@@ -76,6 +103,7 @@ describe("useApprovalSubmit", () => {
 
   it("forwards remember{scope} when rememberScope is set (AUX_API §6)", () => {
     const resume = bindResume();
+    seedPending("item_r");
     const { result } = renderHook(() => useApprovalSubmit("run_1", "item_r"));
     act(() => result.current.submit("declined", { rememberScope: "project" }));
     expect(resume).toHaveBeenCalledWith(
@@ -97,6 +125,7 @@ describe("useApprovalSubmit", () => {
     act(() => result.current.submit("approved"));
     expect(resume).not.toHaveBeenCalled();
 
+    seedPending("item_3");
     const { result: r2 } = renderHook(() => useApprovalSubmit("run_1", "item_3"));
     act(() => r2.current.submit("approved"));
     act(() => r2.current.submit("declined")); // ignored — already pending
@@ -107,6 +136,7 @@ describe("useApprovalSubmit", () => {
   it("commits resolveInterrupt only after the run starts (onSettled)", () => {
     // resume invokes the success callback synchronously (run accepted).
     bindResume((_run, _resp, onSettled) => (onSettled as () => void)());
+    seedPending("item_ok");
     const spy = vi.spyOn(useAgentStore.getState(), "resolveInterrupt");
     const { result } = renderHook(() => useApprovalSubmit("run_1", "item_ok"));
     act(() => result.current.submit("approved"));
@@ -117,6 +147,7 @@ describe("useApprovalSubmit", () => {
   it("rolls back pending and does NOT resolve when the resume rejects (channel-a)", () => {
     // resume invokes the failure callback synchronously (runs.resume rejected).
     bindResume((_run, _resp, _onSettled, onStartError) => (onStartError as () => void)());
+    seedPending("item_fail");
     const spy = vi.spyOn(useAgentStore.getState(), "resolveInterrupt");
     const { result } = renderHook(() => useApprovalSubmit("run_1", "item_fail"));
     act(() => result.current.submit("approved"));

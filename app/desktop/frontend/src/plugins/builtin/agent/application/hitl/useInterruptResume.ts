@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState } from "react";
 import type { InterruptResumePayload, ResolvePatch } from "../ports/sessionView";
 import { agentSessionState } from "../ports/sessionState";
-import { agentSessionView } from "../ports/sessionView";
+import { stageInterruptResponse } from "./interruptResponseCoordinator";
 
 // Shared HITL resume scaffold (API.md §6, R-model) behind useApprovalSubmit and
 // useQuestionAnswer — the parts that must behave identically for every interrupt
@@ -13,17 +13,18 @@ import { agentSessionView } from "../ports/sessionView";
 //  - a one-shot `pending` latch the card settles its optimistic state from;
 //  - the guard — missing ids or already-pending → no-op; absent ids mean the
 //    card is a decorative preview;
-//  - the resume call whose store-level settle (resolveInterrupt) is DEFERRED to
-//    the run-started callback — see resumeInterrupt below.
+//  - staging the card response into its root Run's atomic interrupt set; the
+//    store-level settles are DEFERRED until the complete set opens a
+//    continuation — see resumeInterrupt below.
 // Each caller supplies, per submit, the pending marker (so the card knows which
 // action is settling), the wire response payload, and the resolveInterrupt patch.
 
 /**
- * Fire a HITL resume for one open interrupt and DEFER the optimistic settle to
- * the run-started callback: `resolveInterrupt` runs only once `runs.resume` has
- * actually opened the continuation, so a channel-a failure (rejected resume,
- * §8.1) leaves the interrupt intact + the card retryable. Returns false (a
- * no-op) when the session has no resume binding.
+ * Stage one HITL answer and DEFER every optimistic settle until the owning
+ * root's complete interrupt set has opened one continuation. A channel-a
+ * failure (rejected resume, §8.1) leaves the whole set intact and retryable.
+ * Returns false when this card is no longer part of an answerable open set or
+ * the session has no resume binding.
  *
  * The single source of this deferred-settle semantic — shared by the per-card
  * `useInterruptResume` hook (optimistic card state) and the keyboard-path
@@ -39,18 +40,7 @@ export function resumeInterrupt(
   settled: ResolvePatch,
   hooks?: { onSettled?: () => void; onError?: () => void },
 ): boolean {
-  const sessionResume = agentSessionView().getSession(sessionId)?.resume;
-  if (!sessionResume) return false;
-  sessionResume(
-    runId,
-    [{ itemId, response }],
-    () => {
-      agentSessionView().resolveInterrupt(sessionId, itemId, settled, Date.now());
-      hooks?.onSettled?.();
-    },
-    () => hooks?.onError?.(),
-  );
-  return true;
+  return stageInterruptResponse(sessionId, runId, itemId, response, settled, hooks);
 }
 
 export function useInterruptResume<P>(runId?: string, itemId?: string) {

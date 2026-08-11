@@ -146,13 +146,17 @@ describe("useAgentSession run timing guards", () => {
     } as unknown as AgentDriver;
     renderHook(() => useAgentSession(() => driver, SID));
 
+    let firstAccepted = false;
+    let secondAccepted = true;
     act(() => {
       const resumeAction = useAgentStore.getState().sessions[SID]!.resume!;
-      resumeAction("run_parent" as never, []);
-      resumeAction("run_parent" as never, []);
+      firstAccepted = resumeAction("run_parent" as never, []);
+      secondAccepted = resumeAction("run_parent" as never, []);
     });
 
     expect(resume).toHaveBeenCalledTimes(1);
+    expect(firstAccepted).toBe(true);
+    expect(secondAccepted).toBe(false);
   });
 
   it("keeps a run live until cancellation is committed by the runtime", async () => {

@@ -231,6 +231,7 @@ export async function installVisualAgentFixture(
     document.documentElement.dataset.visualResumedRun = runId;
     document.documentElement.dataset.visualResumedItem = responses[0]?.itemId ?? "";
     onSettled?.();
+    return true;
   });
   store.setCancelRun(VISUAL_SESSION_ID, (runId) => {
     document.documentElement.dataset.visualCanceledRun = runId;

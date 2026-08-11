@@ -147,13 +147,14 @@ describe("projectAgentSessionSnapshot", () => {
       view.messages.flatMap((message) => message.blocks).find((block) => block.kind === "approval"),
     ).toMatchObject({
       itemId: "item_approval",
-      runId: CHILD_RUN_ID,
+      runId: ROOT_RUN_ID,
       status: "requires-action",
     });
     expect(view.pendingInterrupts).toEqual([
       {
         sessionId: SESSION_ID,
         runId: CHILD_RUN_ID,
+        rootRunId: ROOT_RUN_ID,
         interrupts: [{ itemId: "item_approval", kind: "approval" }],
       },
     ]);

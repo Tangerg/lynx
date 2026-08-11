@@ -8,6 +8,7 @@ import { navigator } from "@/lib/navigation";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useAgentStore } from "@/plugins/builtin/agent/adapters/agentStore";
 import { useQuestionAnswer } from "./useQuestionAnswer";
+import { discardStagedInterruptResponses } from "./interruptResponseCoordinator";
 
 const SID = "ses_1";
 
@@ -15,19 +16,47 @@ const SID = "ses_1";
 // resurrects an absent session, so the binding must follow a mount (as
 // useAgentSession does at mount).
 function bindResume(impl?: (...args: unknown[]) => void) {
-  const resume = impl ? vi.fn(impl) : vi.fn();
+  const resume = vi.fn((...args: unknown[]) => {
+    impl?.(...args);
+    return true;
+  });
   navigator().go({ session: SID });
   useAgentStore.getState().ensureSession(SID);
   useAgentStore.getState().setResume(SID, resume);
   return resume;
 }
 
-afterEach(() => useAgentStore.getState().dropSession(SID));
-beforeEach(() => useAgentStore.getState().dropSession(SID));
+function seedPending(itemId: string): void {
+  const store = useAgentStore.getState();
+  store.ensureSession(SID);
+  const token = store.beginViewRefresh(SID, false)!;
+  const view = useAgentStore.getState().sessions[SID]!.view;
+  store.commitViewRefresh(SID, token, {
+    ...view,
+    pendingInterrupts: [
+      {
+        sessionId: SID,
+        runId: "run_1",
+        rootRunId: "run_1",
+        interrupts: [{ itemId, kind: "question" }],
+      },
+    ],
+  });
+}
+
+afterEach(() => {
+  discardStagedInterruptResponses();
+  useAgentStore.getState().dropSession(SID);
+});
+beforeEach(() => {
+  discardStagedInterruptResponses();
+  useAgentStore.getState().dropSession(SID);
+});
 
 describe("useQuestionAnswer", () => {
   it("resumes with an answer InterruptResponse and latches pending", () => {
     const resume = bindResume();
+    seedPending("item_q");
     const { result } = renderHook(() => useQuestionAnswer("run_1", "item_q"));
     const answers = [["Postgres"], ["tools", "vision"]];
     act(() => result.current.submit(answers));
@@ -51,6 +80,7 @@ describe("useQuestionAnswer", () => {
     act(() => result.current.submit([["x"]]));
     expect(resume).not.toHaveBeenCalled();
 
+    seedPending("item_q2");
     const { result: r2 } = renderHook(() => useQuestionAnswer("run_1", "item_q2"));
     act(() => r2.current.submit([["first"]]));
     act(() => r2.current.submit([["second"]])); // ignored — already pending
@@ -65,6 +95,7 @@ describe("useQuestionAnswer", () => {
 
   it("commits resolveInterrupt only after the run starts; rolls back on reject", () => {
     const onStarted = bindResume((_r, _resp, onSettled) => (onSettled as () => void)());
+    seedPending("q_ok");
     const spy = vi.spyOn(useAgentStore.getState(), "resolveInterrupt");
     const { result } = renderHook(() => useQuestionAnswer("run_1", "q_ok"));
     act(() => result.current.submit([["x"]]));
@@ -79,6 +110,7 @@ describe("useQuestionAnswer", () => {
 
     spy.mockClear();
     bindResume((_r, _resp, _s, onStartError) => (onStartError as () => void)());
+    seedPending("q_fail");
     const { result: r2 } = renderHook(() => useQuestionAnswer("run_1", "q_fail"));
     act(() => r2.current.submit([["x"]]));
     expect(spy).not.toHaveBeenCalled();

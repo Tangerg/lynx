@@ -74,6 +74,77 @@ beforeEach(async () => {
 });
 
 describe("reducer — source-owned Run tree", () => {
+  it("keeps child interrupt provenance while binding the complete set to its root", () => {
+    const root = runningRun("root", "seg_root");
+    const childA = runningRun("child_a", "seg_a", {
+      parentRunId: root.id,
+      rootRunId: root.id,
+      spawnedByItemId: "spawn_a",
+    });
+    const childB = runningRun("child_b", "seg_b", {
+      parentRunId: root.id,
+      rootRunId: root.id,
+      spawnedByItemId: "spawn_b",
+    });
+    let view = reduceRunEvent(EMPTY_AGENT_SESSION_VIEW, started("evt_root_start", root));
+    view = reduceRunEvent(view, started("evt_a_start", childA));
+    view = reduceRunEvent(view, started("evt_b_start", childB));
+
+    view = reduceRunEvent(
+      view,
+      envelope("evt_root_wait", root.id, "seg_root", {
+        type: "segment.finished",
+        outcome: {
+          type: "interrupt",
+          interrupts: [
+            {
+              type: "approval",
+              itemId: "approval_a",
+              runId: childA.id,
+              payload: { tool: { name: "shell", arguments: { command: "make test" } } },
+            },
+            {
+              type: "question",
+              itemId: "question_b",
+              runId: childB.id,
+              payload: {
+                question: {
+                  fields: [{ type: "text", prompt: "Release name?", header: "Name" }],
+                },
+              },
+            },
+          ],
+        },
+        metrics: METRICS,
+      }),
+    );
+
+    expect(view.pendingInterrupts).toEqual([
+      {
+        sessionId: "ses_1",
+        runId: childA.id,
+        rootRunId: root.id,
+        interrupts: [{ itemId: "approval_a", kind: "approval" }],
+      },
+      {
+        sessionId: "ses_1",
+        runId: childB.id,
+        rootRunId: root.id,
+        interrupts: [{ itemId: "question_b", kind: "question" }],
+      },
+    ]);
+    const blocks = view.messages.flatMap((message) => message.blocks);
+    expect(blocks.find((block) => block.kind === "approval")).toMatchObject({
+      itemId: "approval_a",
+      runId: root.id,
+    });
+    expect(blocks.find((block) => block.kind === "question")).toMatchObject({
+      itemId: "question_b",
+      runId: root.id,
+    });
+    expect(view.messages.map((message) => message.runId)).toEqual([childA.id, childB.id]);
+  });
+
   it("projects root, siblings, and nested descendants without cross-run overwrite", () => {
     const root = runningRun("root", "seg_root");
     const childA = runningRun("child_a", "seg_a", {

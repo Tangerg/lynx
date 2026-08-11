@@ -101,7 +101,8 @@ interface AgentStore {
    *  segment.finished{error} will arrive to carry it. */
   setCommandError: (sessionId: string, error: AgentProblem | null) => void;
   /**
-   * Optimistically settle a HITL block after its `runs.resume` is sent:
+   * Optimistically settle a HITL block after its complete interrupt set has
+   * opened a continuation through `runs.resume`:
    * stamp the approval/question block (by interrupt itemId) + drop the
    * matching open interrupt. The continuation Run streams the real
    * follow-up; this just flips the card out of its requires-action state.

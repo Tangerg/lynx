@@ -6,7 +6,7 @@
 // The card registers stable approve/decline thunks (each reads the card's
 // latest local state via a ref) keyed by the interrupt's itemId while it's
 // actionable; submitPendingApproval looks them up before falling back to a
-// bare resume (the card not being mounted is the only fallback case).
+// direct response stage (the card not being mounted is the only fallback case).
 
 export interface ApprovalActions {
   approve: () => void;

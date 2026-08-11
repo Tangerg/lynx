@@ -143,8 +143,8 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
       responses: InterruptResumeInput[],
       onSettled?: () => void,
       onStartError?: () => void,
-    ): void => {
-      if (runOpening.isStarting()) return;
+    ): boolean => {
+      if (runOpening.isStarting()) return false;
       const wireResponses: InterruptResponse[] = responses.map((response) => ({
         itemId: asItemId(response.itemId),
         response: response.response,
@@ -154,6 +154,7 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
         onSettled ? () => onSettled() : undefined,
         onStartError,
       );
+      return true;
     };
 
     const cancelRun = (runId: string): void => {

@@ -59,11 +59,12 @@ describe("reducer — HITL resume preserves toolOutput on result", () => {
         interrupts: [
           {
             itemId: TOOL,
+            runId: "run_X" as never,
             type: "approval",
             payload: { tool: { name: "shell", arguments: { command: "pwd" } } },
           },
         ],
-      } as never),
+      }),
     );
     expect(s.toolCalls[TOOL]?.result).toBeUndefined();
     expect(s.toolCalls[TOOL]?.status).toBe("requires-action");
