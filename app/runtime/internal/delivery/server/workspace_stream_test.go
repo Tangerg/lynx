@@ -189,6 +189,32 @@ func TestWorkspaceHubCoalescesRatherThanDroppingSignals(t *testing.T) {
 	}
 }
 
+func TestWorkspaceHubWidensInvalidStalledSignalToFullResync(t *testing.T) {
+	hub := newWorkspaceHub()
+	events := make(chan protocol.RuntimeEvent, 1)
+	sub, unregister, _ := hub.register(events, allTopics(), nil)
+	defer unregister()
+
+	hub.publish(protocol.RuntimeEvent{Type: protocol.RuntimeSkillsChanged})
+	// RunIDs are forbidden on skills.changed. The full queue forces this frame
+	// through the coalescing path where validation used to be skipped.
+	hub.publish(protocol.RuntimeEvent{
+		Type: protocol.RuntimeSkillsChanged, RunIDs: []string{"run_wrong_scope"},
+	})
+
+	if first := <-events; first.Type != protocol.RuntimeSkillsChanged || first.Sequence != 1 {
+		t.Fatalf("first frame = %+v, want skills.changed sequence 1", first)
+	}
+	hub.drained(sub)
+	resync := <-events
+	if resync.Type != protocol.RuntimeResync || resync.Sequence != 2 {
+		t.Fatalf("recovery frame = %+v, want resync sequence 2", resync)
+	}
+	if !slices.Equal(resync.Topics, protocol.RuntimeTopics()) {
+		t.Fatalf("resync topics = %v, want full subscription %v", resync.Topics, protocol.RuntimeTopics())
+	}
+}
+
 // TestWorkspaceHubResyncKeepsTheScopeItWasStalledWith: a resync that cannot be
 // delivered must not narrow when it is finally sent — a watch scope it named is a
 // read the client still owes.

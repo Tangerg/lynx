@@ -164,7 +164,12 @@ func (*workspaceHub) sendLocked(subscription *workspaceSubscription, event proto
 	// A pending resync goes first, and while it is pending this signal joins it: the
 	// notice that frames were missed must not arrive after the frames that followed
 	// them.
-	if !subscription.flushStalledLocked() || !subscription.offerLocked(event) {
+	if !subscription.flushStalledLocked() {
+		subscription.stallLocked(subscription.prepareLocked(event))
+		return
+	}
+	event = subscription.prepareLocked(event)
+	if !subscription.offerPreparedLocked(event) {
 		subscription.stallLocked(event)
 	}
 }
@@ -223,9 +228,11 @@ func (subscription *workspaceSubscription) scopeResync(
 	return event, true
 }
 
-// offerLocked hands event to the queue, numbering it only if it fits. Reports whether
-// the subscriber has it.
-func (subscription *workspaceSubscription) offerLocked(event protocol.RuntimeEvent) bool {
+// prepareLocked gives a signal one canonical, validated meaning before either
+// queueing or coalescing it. Doing this before stallLocked is essential: otherwise
+// an invalid producer frame is widened to a full resync when the queue has room but
+// narrowed to its superficial topic when the queue is full.
+func (subscription *workspaceSubscription) prepareLocked(event protocol.RuntimeEvent) protocol.RuntimeEvent {
 	event = cloneRuntimeEvent(event)
 	clearEmptyRuntimeScopes(&event)
 	event.Sequence = subscription.sequence + 1
@@ -236,6 +243,12 @@ func (subscription *workspaceSubscription) offerLocked(event protocol.RuntimeEve
 			panic("server: invalid runtime resync invariant: " + recoveryErr.Error())
 		}
 	}
+	return event
+}
+
+// offerPreparedLocked hands a canonical event to the queue, advancing the
+// subscription sequence only when it fits.
+func (subscription *workspaceSubscription) offerPreparedLocked(event protocol.RuntimeEvent) bool {
 	select {
 	case subscription.events <- event:
 		subscription.sequence++
@@ -243,6 +256,11 @@ func (subscription *workspaceSubscription) offerLocked(event protocol.RuntimeEve
 	default:
 		return false
 	}
+}
+
+// offerLocked is the preparation boundary used by synthetic recovery events.
+func (subscription *workspaceSubscription) offerLocked(event protocol.RuntimeEvent) bool {
+	return subscription.offerPreparedLocked(subscription.prepareLocked(event))
 }
 
 func (subscription *workspaceSubscription) resyncEvent() protocol.RuntimeEvent {
