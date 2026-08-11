@@ -17,10 +17,12 @@ import (
 
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
 	"github.com/Tangerg/lynx/app/cli/internal/attachment"
+	"github.com/Tangerg/lynx/app/cli/internal/changefeed"
 	"github.com/Tangerg/lynx/app/cli/internal/extensions"
 	"github.com/Tangerg/lynx/app/cli/internal/promptqueue"
 	"github.com/Tangerg/lynx/app/cli/internal/settings"
 	"github.com/Tangerg/lynx/app/cli/internal/workbench"
+	"github.com/Tangerg/lynx/app/cli/internal/workspace"
 )
 
 const (
@@ -53,6 +55,8 @@ type app struct {
 	ctx          context.Context
 	loop         *program.Runtime
 	runtime      agent.Runtime
+	workspaces   workspace.Service
+	changes      changefeed.Source
 	session      agent.Session
 	registry     *extensions.Registry
 	pluginHost   *extensions.Host
@@ -109,6 +113,7 @@ type app struct {
 	readerDialog        *kit.Dialog
 	readerSearchDialog  *kit.Dialog
 	readerSearchQuery   string
+	workspaceReader     workspaceReaderMode
 	queueDialog         *headless.Dialog
 	searchQuery         string
 	attachments         *attachment.Resolver
@@ -138,6 +143,8 @@ type app struct {
 type appConfig struct {
 	context      context.Context
 	runtime      agent.Runtime
+	workspaces   workspace.Service
+	changes      changefeed.Source
 	snapshot     agent.SessionSnapshot
 	registry     *extensions.Registry
 	pluginHost   *extensions.Host
@@ -172,7 +179,8 @@ func newApp(loop *program.Runtime, cfg appConfig) *app {
 	cfg.keyBindings.setResolver(loop.After)
 	appearance := newTerminalAppearance(loop)
 	a := &app{
-		ctx: cfg.context, loop: loop, runtime: cfg.runtime, session: cfg.snapshot.Session, registry: cfg.registry,
+		ctx: cfg.context, loop: loop, runtime: cfg.runtime, workspaces: cfg.workspaces,
+		changes: cfg.changes, session: cfg.snapshot.Session, registry: cfg.registry,
 		pluginHost: cfg.pluginHost, pluginIssues: cfg.pluginIssues,
 		conversation:       agent.NewConversation(),
 		operations:         newOperationOwner(cfg.context),
@@ -201,6 +209,7 @@ func newApp(loop *program.Runtime, cfg appConfig) *app {
 	a.buildInterface(appearance, cfg.keyBindings.editor)
 	a.restore(cfg.snapshot)
 	a.persistDraft()
+	a.followWorkspaceChanges()
 	return a
 }
 

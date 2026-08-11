@@ -16,6 +16,7 @@ func (a *app) buildReader(theme kit.Theme, glyphs kit.Glyphs) {
 		Where: layout.Placement{},
 	})
 	a.reader.dismiss = func() {
+		a.workspaceReader = workspaceReaderNone
 		a.reader.CloseDocument()
 		a.readerDialog.Dismiss()
 	}
@@ -47,6 +48,15 @@ func (a *app) OpenReader() {
 		a.status.note("select a readable transcript entry")
 		return
 	}
+	a.workspaceReader = workspaceReaderNone
+	a.openReaderTarget(target)
+}
+
+func (a *app) openReaderDocument(document readerDocument) {
+	a.openReaderTarget(readerTarget{document: document})
+}
+
+func (a *app) openReaderTarget(target readerTarget) {
 	a.reader.Open(target)
 	a.readerDialog.Controller().SetDescription(target.document.Title)
 	a.readerDialog.Show()

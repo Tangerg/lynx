@@ -56,12 +56,14 @@ func TestBuiltinCommandsOwnTheirCategoryAndAvailabilityPolicy(t *testing.T) {
 		commandCategorySessions:    {"sessions", "timeline", "new", "workspace", "rename", "fork"},
 		commandCategoryComposer:    {"attach", "detach", "attachments", "stash", "stashes", "stash-apply", "stash-delete", "editor"},
 		commandCategoryRuntime:     {"model", "approval", "status", "rules"},
+		commandCategoryWorkspace:   {"workspaces", "changes", "diff", "preview", "grep", "browse", "read"},
 		commandCategoryExtensions:  {"plugins", "reload", "unload"},
 	}
 	wantGuard := map[string]bool{
 		"clear": true, "view": true,
 		"sessions": true, "timeline": true, "new": true, "workspace": true, "rename": true, "fork": true,
 		"stash": true, "stash-apply": true, "editor": true,
+		"workspaces": true, "changes": true, "diff": true, "preview": true, "grep": true, "browse": true, "read": true,
 	}
 
 	seen := make(map[string]struct{})

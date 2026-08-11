@@ -372,6 +372,7 @@ func (installation sessionInstallation) apply(a *app) {
 	a.listenForSearch()
 	a.setWindowTitle()
 	a.restoreActivity(installation.snapshot)
+	a.followWorkspaceChanges()
 	if a.conversation.Phase() == agent.ConversationIdle {
 		a.message("session · " + displayTitle(installation.snapshot.Session))
 	}

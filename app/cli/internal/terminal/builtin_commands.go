@@ -8,6 +8,7 @@ const (
 	commandCategorySessions    = "Sessions"
 	commandCategoryComposer    = "Composer"
 	commandCategoryRuntime     = "Runtime"
+	commandCategoryWorkspace   = "Workspace"
 	commandCategoryExtensions  = "Extensions"
 )
 
@@ -53,12 +54,28 @@ func builtinCommands() []localCommand {
 			localCommand{Descriptor: CommandDescriptor{Name: "status", Title: "show model, run limits, and runtime approval mode"}, Run: func(a *app, _ string) error { a.ShowRuntimeStatus(); return nil }},
 			localCommand{Descriptor: CommandDescriptor{Name: "rules", Title: "show remembered approval rules"}, Run: func(a *app, _ string) error { a.ShowApprovalRules(); return nil }},
 		),
+		commandGroup(commandCategoryWorkspace,
+			localCommand{Descriptor: CommandDescriptor{Name: "workspaces", Title: "inspect runtime-known workspaces"}, Available: availableWithWorkspaceService, Run: func(a *app, _ string) error { a.ShowWorkspaces(); return nil }},
+			localCommand{Descriptor: CommandDescriptor{Name: "changes", Title: "inspect authoritative workspace changes"}, Available: availableWithWorkspaceService, Run: func(a *app, _ string) error { a.ShowWorkspaceChanges(); return nil }},
+			localCommand{Descriptor: CommandDescriptor{Name: "diff", Title: "inspect the workspace diff, optionally for one path"}, Available: availableWithWorkspaceService, Run: func(a *app, path string) error { a.ShowWorkspaceDiff(path); return nil }},
+			localCommand{Descriptor: CommandDescriptor{Name: "preview", Title: "preview the first lines of a workspace file", Takes: true}, Available: availableWithWorkspaceService, Run: func(a *app, path string) error { a.PreviewWorkspaceFile(path); return nil }},
+			localCommand{Descriptor: CommandDescriptor{Name: "grep", Title: "search text across workspace files", Takes: true}, Available: availableWithWorkspaceService, Run: func(a *app, query string) error { a.SearchWorkspace(query); return nil }},
+			localCommand{Descriptor: CommandDescriptor{Name: "browse", Title: "browse a workspace directory"}, Available: availableWithWorkspaceService, Run: func(a *app, path string) error { a.BrowseWorkspace(path); return nil }},
+			localCommand{Descriptor: CommandDescriptor{Name: "read", Title: "read an authoritative workspace file", Takes: true}, Available: availableWithWorkspaceService, Run: func(a *app, path string) error { a.ReadWorkspaceFile(path); return nil }},
+		),
 		commandGroup(commandCategoryExtensions,
 			localCommand{Descriptor: CommandDescriptor{Name: "plugins", Title: "show discovered plugins and lifecycle state"}, Run: func(a *app, _ string) error { a.ShowPlugins(); return nil }},
 			localCommand{Descriptor: CommandDescriptor{Name: "reload", Title: "reload a plugin and its dependents", Takes: true}, Run: func(a *app, id string) error { a.ReloadPlugin(id); return nil }},
 			localCommand{Descriptor: CommandDescriptor{Name: "unload", Title: "unload a sideloaded plugin and its dependents", Takes: true}, Run: func(a *app, id string) error { a.UnloadPlugin(id); return nil }},
 		),
 	)
+}
+
+func availableWithWorkspaceService(a *app) CommandAvailability {
+	if a.workspaces == nil {
+		return CommandAvailability{Reason: "this runtime composition has no workspace service"}
+	}
+	return CommandAvailability{Enabled: true}
 }
 
 func commandGroup(category string, commands ...localCommand) []localCommand {

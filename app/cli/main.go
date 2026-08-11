@@ -11,8 +11,8 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/Tangerg/lynx/app/cli/internal/agent"
 	"github.com/Tangerg/lynx/app/cli/internal/agent/mock"
+	"github.com/Tangerg/lynx/app/cli/internal/backend"
 	"github.com/Tangerg/lynx/app/cli/internal/cmd"
 	"github.com/Tangerg/lynx/app/cli/internal/runtimeembedded"
 )
@@ -58,14 +58,14 @@ func run() int {
 }
 
 type runtimeOwner interface {
-	Runtime(context.Context) (agent.Runtime, error)
+	Runtime(context.Context) (backend.Services, error)
 	Close() error
 }
 
-type mockOwner struct{ runtime agent.Runtime }
+type mockOwner struct{ services backend.Services }
 
-func (o *mockOwner) Runtime(context.Context) (agent.Runtime, error) { return o.runtime, nil }
-func (*mockOwner) Close() error                                     { return nil }
+func (o *mockOwner) Runtime(context.Context) (backend.Services, error) { return o.services, nil }
+func (*mockOwner) Close() error                                        { return nil }
 
 func newRuntimeOwner() (runtimeOwner, string, error) {
 	if os.Getenv("LYRA_RUNTIME") == "mock" {
@@ -81,7 +81,7 @@ func newRuntimeOwner() (runtimeOwner, string, error) {
 func newRuntimeOwnerAt(lyraHome string) (runtimeOwner, string, error) {
 	switch mode := os.Getenv("LYRA_RUNTIME"); mode {
 	case "mock":
-		return &mockOwner{runtime: mock.New()}, mockRuntimeNotice, nil
+		return &mockOwner{services: backend.AgentOnly(mock.New())}, mockRuntimeNotice, nil
 	case "", "embedded":
 	default:
 		return nil, "", fmt.Errorf("unsupported LYRA_RUNTIME %q (want embedded or mock)", mode)

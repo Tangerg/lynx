@@ -21,10 +21,12 @@ const (
 )
 
 type sessionHeader struct {
-	theme   kit.Theme
-	glyphs  kit.Glyphs
-	session agent.Session
-	usage   agent.Usage
+	theme        kit.Theme
+	glyphs       kit.Glyphs
+	session      agent.Session
+	usage        agent.Usage
+	changes      int
+	changesKnown bool
 }
 
 func newSessionHeader(theme kit.Theme, glyphs kit.Glyphs, session agent.Session) *sessionHeader {
@@ -34,6 +36,10 @@ func newSessionHeader(theme kit.Theme, glyphs kit.Glyphs, session agent.Session)
 func (h *sessionHeader) SetSession(session agent.Session) { h.session = session }
 
 func (h *sessionHeader) SetUsage(usage agent.Usage) { h.usage = usage.Clone() }
+
+func (h *sessionHeader) SetWorkspaceChanges(count int) {
+	h.changes, h.changesKnown = max(count, 0), true
+}
 
 func (h *sessionHeader) Measure(width int) int {
 	if width < headerMinWidth {
@@ -47,7 +53,7 @@ func (h *sessionHeader) Draw(view grid.View) {
 	if width < headerMinWidth || height <= 0 {
 		return
 	}
-	right := headerUsageLabel(h.usage)
+	right := headerRightLabel(h.usage, h.changes, h.changesKnown)
 	rightWidth := text.Width(right)
 	if rightWidth > 0 && rightWidth < width {
 		view.Text(width-rightWidth, 0, right, h.theme.Subtle)
@@ -71,6 +77,17 @@ func (h *sessionHeader) Draw(view grid.View) {
 	if remaining > text.Width(separator) {
 		view.Text(x, 0, separator+text.Truncate(title, remaining-text.Width(separator), h.glyphs.Ellipsis), h.theme.Muted)
 	}
+}
+
+func headerRightLabel(usage agent.Usage, changes int, known bool) string {
+	parts := make([]string, 0, 2)
+	if tokens := headerUsageLabel(usage); tokens != "" {
+		parts = append(parts, tokens)
+	}
+	if known && changes > 0 {
+		parts = append(parts, fmt.Sprintf("Δ%d", changes))
+	}
+	return strings.Join(parts, "  ")
 }
 
 func displayWorkspace(path string) string {

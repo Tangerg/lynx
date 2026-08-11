@@ -6,18 +6,23 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
+	"time"
 
 	"github.com/Tangerg/oolong/components/kit"
 	"github.com/Tangerg/oolong/core/layout"
 
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
 	"github.com/Tangerg/lynx/app/cli/internal/workbench"
+	"github.com/Tangerg/lynx/app/cli/internal/workspace"
 )
 
 type workspaceChoice struct {
 	workspace workbench.Workspace
 	current   bool
+	available bool
+	detail    string
 }
 
 func (a *app) buildWorkspacePicker(theme kit.Theme, glyphs kit.Glyphs) {
@@ -27,10 +32,21 @@ func (a *app) buildWorkspacePicker(theme kit.Theme, glyphs kit.Glyphs) {
 			if choice.current {
 				return "current"
 			}
+			if choice.detail != "" {
+				return choice.detail
+			}
 			return compactRelativeAge(choice.workspace.LastOpened)
 		},
 		func(choice workspaceChoice) {
 			a.workspaceDialog.Dismiss()
+			if !choice.available {
+				a.message("workspace is no longer available · " + choice.workspace.Path)
+				return
+			}
+			if a.workspaces != nil {
+				a.resolveAndStartWorkspace(choice.workspace.Path)
+				return
+			}
 			if err := a.createSessionInWorkspace(choice.workspace.Path); err != nil {
 				a.message(err.Error())
 			}
@@ -45,8 +61,20 @@ func (a *app) buildWorkspacePicker(theme kit.Theme, glyphs kit.Glyphs) {
 
 func (a *app) chooseWorkspace(argument string) error {
 	if strings.TrimSpace(argument) != "" {
+		if a.workspaces != nil {
+			a.resolveAndStartWorkspace(argument)
+			return nil
+		}
 		return a.createSessionInWorkspace(argument)
 	}
+	if a.workspaces != nil {
+		a.loadWorkspaceChoices()
+		return nil
+	}
+	return a.showLocalWorkspaceChoices()
+}
+
+func (a *app) showLocalWorkspaceChoices() error {
 	workspaces := a.workbench.Workspaces()
 	if len(workspaces) == 0 {
 		return errors.New("there are no recent workspaces")
@@ -56,6 +84,7 @@ func (a *app) chooseWorkspace(argument string) error {
 		choices = append(choices, workspaceChoice{
 			workspace: workspace,
 			current:   samePath(workspace.Path, a.session.Workspace),
+			available: true,
 		})
 	}
 	a.workspacePicker.Reset()
@@ -63,6 +92,92 @@ func (a *app) chooseWorkspace(argument string) error {
 	a.workspaceDialog.Show()
 	a.status.note("choose a workspace")
 	return nil
+}
+
+func (a *app) loadWorkspaceChoices() {
+	a.status.note("loading runtime workspaces")
+	runOperation(a, workspaceQueryOperation, true,
+		func(ctx context.Context) ([]workspaceChoice, error) {
+			known, err := a.workspaces.List(ctx)
+			if err != nil {
+				return nil, err
+			}
+			byPath := make(map[string]workspaceChoice, len(known))
+			for _, summary := range known {
+				lastOpened := time.Time{}
+				if summary.LastActive != nil {
+					lastOpened = *summary.LastActive
+				}
+				detail := fmt.Sprintf("%d sessions", summary.Sessions)
+				if !summary.Workspace.IsAvailable() {
+					detail += " · missing"
+				}
+				byPath[summary.Workspace.Path] = workspaceChoice{
+					workspace: workbench.Workspace{Path: summary.Workspace.Path, LastOpened: lastOpened},
+					current:   samePath(summary.Workspace.Path, a.session.Workspace),
+					available: summary.Workspace.IsAvailable(), detail: detail,
+				}
+			}
+			for _, recent := range a.workbench.Workspaces() {
+				if _, exists := byPath[recent.Path]; exists {
+					continue
+				}
+				byPath[recent.Path] = workspaceChoice{
+					workspace: recent, current: samePath(recent.Path, a.session.Workspace), available: true,
+				}
+			}
+			choices := make([]workspaceChoice, 0, len(byPath))
+			for _, choice := range byPath {
+				choices = append(choices, choice)
+			}
+			sort.Slice(choices, func(left, right int) bool {
+				if choices[left].current != choices[right].current {
+					return choices[left].current
+				}
+				return choices[left].workspace.LastOpened.After(choices[right].workspace.LastOpened)
+			})
+			return choices, nil
+		},
+		func(choices []workspaceChoice, err error) {
+			if err != nil {
+				a.message("could not load workspaces: " + err.Error())
+				return
+			}
+			if len(choices) == 0 {
+				a.message("there are no known workspaces")
+				return
+			}
+			a.workspacePicker.Reset()
+			a.workspacePicker.SetItems(choices)
+			a.workspaceDialog.Show()
+			a.status.note("choose a workspace")
+		},
+	)
+}
+
+func (a *app) resolveAndStartWorkspace(requested string) {
+	path, err := resolveWorkspace(a.session.Workspace, requested)
+	if err != nil {
+		a.message(err.Error())
+		return
+	}
+	a.status.note("resolving workspace")
+	runOperation(a, workspaceQueryOperation, true,
+		func(ctx context.Context) (workspace.Workspace, error) {
+			return a.workspaces.Resolve(ctx, workspace.ResolveRequest{Path: path})
+		},
+		func(resolved workspace.Workspace, err error) {
+			if err != nil {
+				a.message("resolve workspace: " + err.Error())
+				return
+			}
+			if !resolved.IsAvailable() {
+				a.message("workspace is unavailable · " + resolved.Path)
+				return
+			}
+			a.startSessionInWorkspace(resolved.Path)
+		},
+	)
 }
 
 func (a *app) createSessionInWorkspace(requested string) error {

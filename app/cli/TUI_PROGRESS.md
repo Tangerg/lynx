@@ -56,7 +56,7 @@ Status values are `done`, `active`, `pending`, and `deferred`.
 | SESSION-01 | Session switch/create/rename/fork | Implemented | Existing behavior remains authoritative | done |
 | SESSION-02 | Paginated session center | First page only | Cursor pagination, grouping, preview, favorite, rename and delete | done |
 | SESSION-03 | Current-session timeline | No dedicated surface | Jump to retained entries and fork from an existing root run | done |
-| SESSION-04 | Runtime rewind/rollback | Protocol not stable | Implement only after runtime exposes authoritative semantics | deferred |
+| SESSION-04 | Runtime rewind/rollback | Runtime protocol is now exposed | Consume authoritative rollback with preview, confirmation, and recovery tests | pending |
 | CMD-01 | Searchable command palette | Implemented flat catalog | Existing palette remains authoritative | done |
 | CMD-02 | Context-aware command catalog | Handlers reject unavailable actions late | Category, availability and disabled reason share one descriptor | done |
 | CMD-03 | Pending key sequence hint | No focused hint | Only an active chord shows valid continuations | done |
@@ -64,6 +64,9 @@ Status values are `done`, `active`, `pending`, and `deferred`.
 | NOTICE-02 | Terminal title state | Static session title | Unfocused action-required state is reflected and later cleared | done |
 | OUTPUT-01 | Transcript copy/export | Selected block copy only | Last assistant copy plus Markdown and JSON session export | done |
 | WORKSPACE-01 | Workspace selection | New sessions inherit current workspace | Recent workspace picker and explicit directory selection | done |
+| WORKSPACE-02 | Runtime workspace inspection | Local attachment resolver only | Runtime-backed changes, diff, head, list, read and grep surfaces use the full reader | done |
+| WORKSPACE-03 | File invalidation stream | No runtime-wide subscription | Negotiated watch refetches authoritative changes after events, gaps and reconnects | done |
+| BACKEND-01 | Public runtime API coverage | Core run/session methods only | Every exported embedded API is inventoried and tracked to a consumer surface and test | active |
 | QUALITY-01 | Deterministic package tests | Full suite passes | New domains use table tests and consumer-owned fakes | done |
 | QUALITY-02 | Race safety | Terminal race suite passes | Full CLI race suite passes after all batches | done |
 | QUALITY-03 | Architecture boundaries | Architecture tests exist | New packages do not import runtime protocol, Cobra, Viper, or Oolong inward | done |
@@ -95,6 +98,6 @@ The CLI-only implementation passed these gates on 2026-08-11:
 
 The root package exercises the published Oolong PTY adapter through a built
 binary; package tests cover the presentation, interaction, workbench, export,
-session, workspace, attention, and architecture contracts. `SESSION-04` is the
-only deferred row because rewind/rollback must originate in an authoritative
-runtime protocol rather than a CLI-local imitation.
+session, workspace, attention, and architecture contracts. The runtime now
+exposes authoritative rollback, so `SESSION-04` moves into the runtime API
+consumption queue rather than being implemented as a CLI-local imitation.

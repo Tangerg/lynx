@@ -20,6 +20,7 @@ import (
 	"github.com/Tangerg/oolong/core/term"
 
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
+	"github.com/Tangerg/lynx/app/cli/internal/backend"
 	"github.com/Tangerg/lynx/app/cli/internal/extensions"
 	"github.com/Tangerg/lynx/app/cli/internal/settings"
 	"github.com/Tangerg/lynx/app/cli/internal/sideload"
@@ -38,7 +39,7 @@ const configIndependentAnnotation = "lyra/config-independent"
 // Runtime construction stays lazy so help and completion do not open sockets,
 // databases, or other process-owned resources.
 type Dependencies struct {
-	OpenRuntime    func(context.Context) (agent.Runtime, error)
+	OpenRuntime    func(context.Context) (backend.Services, error)
 	RuntimeNotice  string
 	StateDirectory string
 }
@@ -46,32 +47,48 @@ type Dependencies struct {
 // runtimeProvider delays construction until a command needs the runtime. It
 // owns delivery-only diagnostics so factories remain independent of Cobra.
 type runtimeProvider struct {
-	open   func(context.Context) (agent.Runtime, error)
+	open   func(context.Context) (backend.Services, error)
 	notice string
 }
 
 func (p runtimeProvider) Open(cmd *cobra.Command) (agent.Runtime, error) {
-	runtime, err := p.resolve(cmd.Context())
+	services, err := p.OpenServices(cmd)
 	if err != nil {
 		return nil, err
 	}
+	return services.Agent, nil
+}
+
+func (p runtimeProvider) OpenServices(cmd *cobra.Command) (backend.Services, error) {
+	services, err := p.resolve(cmd.Context())
+	if err != nil {
+		return backend.Services{}, err
+	}
 	if p.notice != "" {
 		if _, err := fmt.Fprintln(cmd.ErrOrStderr(), p.notice); err != nil {
-			return nil, fmt.Errorf("announce runtime: %w", err)
+			return backend.Services{}, fmt.Errorf("announce runtime: %w", err)
 		}
 	}
-	return runtime, nil
+	return services, nil
 }
 
 func (p runtimeProvider) OpenQuietly(cmd *cobra.Command) (agent.Runtime, error) {
-	return p.resolve(cmd.Context())
+	services, err := p.resolve(cmd.Context())
+	return services.Agent, err
 }
 
-func (p runtimeProvider) resolve(ctx context.Context) (agent.Runtime, error) {
+func (p runtimeProvider) resolve(ctx context.Context) (backend.Services, error) {
 	if p.open == nil {
-		return nil, errors.New("runtime factory is required")
+		return backend.Services{}, errors.New("runtime factory is required")
 	}
-	return p.open(ctx)
+	services, err := p.open(ctx)
+	if err != nil {
+		return backend.Services{}, err
+	}
+	if err := services.Validate(); err != nil {
+		return backend.Services{}, err
+	}
+	return services, nil
 }
 
 // NewRoot builds an isolated command tree from process-owned dependencies.
@@ -153,7 +170,7 @@ func addRootCommands(root *cobra.Command, provider runtimeProvider, v *viper.Vip
 // need one, rather than failing with something about file descriptors: a program whose
 // output is being piped wants text, not frames.
 func runInteractive(cmd *cobra.Command, args []string, provider runtimeProvider, config settings.Config, stateDirectory string) error {
-	rt, err := provider.Open(cmd)
+	services, err := provider.OpenServices(cmd)
 	if err != nil {
 		return err
 	}
@@ -166,7 +183,9 @@ func runInteractive(cmd *cobra.Command, args []string, provider runtimeProvider,
 	sessionID, _ := cmd.Flags().GetString("session")
 
 	err = terminalui.Run(cmd.Context(), terminalui.Config{
-		Runtime:        rt,
+		Runtime:        services.Agent,
+		Workspaces:     services.Workspaces,
+		Changes:        services.Changes,
 		SessionID:      sessionID,
 		Workspace:      workspacePath,
 		InitialPrompt:  strings.TrimSpace(strings.Join(args, " ")),

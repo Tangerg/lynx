@@ -8,16 +8,18 @@ import (
 type operationSlot string
 
 const (
-	streamOperation          operationSlot = "stream"
-	completionOperation      operationSlot = "completion"
-	searchOperation          operationSlot = "search"
-	readerSearchOperation    operationSlot = "reader-search"
-	pickerCatalogOperation   operationSlot = "picker-catalog"
-	sessionCenterOperation   operationSlot = "session-center"
-	sessionChangeOperation   operationSlot = "session-change"
-	sessionOutputOperation   operationSlot = "session-output"
-	approvalCatalogOperation operationSlot = "approval-catalog"
-	cancelRunOperation       operationSlot = "cancel-run"
+	streamOperation           operationSlot = "stream"
+	completionOperation       operationSlot = "completion"
+	searchOperation           operationSlot = "search"
+	readerSearchOperation     operationSlot = "reader-search"
+	pickerCatalogOperation    operationSlot = "picker-catalog"
+	sessionCenterOperation    operationSlot = "session-center"
+	sessionChangeOperation    operationSlot = "session-change"
+	sessionOutputOperation    operationSlot = "session-output"
+	approvalCatalogOperation  operationSlot = "approval-catalog"
+	cancelRunOperation        operationSlot = "cancel-run"
+	workspaceQueryOperation   operationSlot = "workspace-query"
+	workspaceChangesOperation operationSlot = "workspace-changes"
 )
 
 type operationLease struct {

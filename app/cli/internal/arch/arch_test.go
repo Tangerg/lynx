@@ -32,6 +32,9 @@ var layers = []struct {
 }{
 	{"internal/agent/mock/", "mock"},
 	{"internal/runtimeembedded/", "runtimeembedded"},
+	{"internal/changefeed/", "changefeed"},
+	{"internal/workspace/", "workspace"},
+	{"internal/backend/", "backend"},
 	{"internal/sideload/", "sideload"},
 	{"internal/terminal/", "terminal"},
 	{"internal/attachment/", "attachment"},
@@ -55,6 +58,9 @@ var layers = []struct {
 var allowed = map[string][]string{
 	// Domain policy and generic infrastructure are the center.
 	"agent":         nil,
+	"changefeed":    nil,
+	"workspace":     nil,
+	"backend":       {"agent", "changefeed", "workspace"},
 	"settings":      {"agent"},
 	"session":       {"agent"},
 	"oneshot":       {"agent", "reconnect", "runrecovery"},
@@ -68,14 +74,14 @@ var allowed = map[string][]string{
 	"reconnect":       {"agent"},
 	"runrecovery":     {"agent"},
 	"mock":            {"agent"},
-	"runtimeembedded": {"agent"},
+	"runtimeembedded": {"agent", "backend", "changefeed", "workspace"},
 	"render":          {"agent"},
 
 	// Delivery adapters compose inward abstractions. Sideloading is the outer trust
 	// boundary around terminal contributions; cmd is the application composition root.
-	"terminal": {"agent", "attachment", "extensions", "promptqueue", "reconnect", "runrecovery", "session", "sessionexport", "settings", "workbench"},
+	"terminal": {"agent", "attachment", "changefeed", "extensions", "promptqueue", "reconnect", "runrecovery", "session", "sessionexport", "settings", "workbench", "workspace"},
 	"sideload": {"extensions", "terminal"},
-	"cmd":      {"agent", "attachment", "extensions", "oneshot", "render", "session", "settings", "sideload", "terminal"},
+	"cmd":      {"agent", "attachment", "backend", "extensions", "oneshot", "render", "session", "settings", "sideload", "terminal"},
 	"arch":     nil,
 }
 
@@ -144,7 +150,7 @@ func TestTheLibraryStaysALibrary(t *testing.T) {
 	root := moduleRoot(t)
 	fset := token.NewFileSet()
 
-	terminalFree := []string{"agent", "settings", "mock", "runtimeembedded", "attachment", "promptqueue", "reconnect", "runrecovery", "session", "sessionexport", "workbench", "oneshot", "extensions", "render"}
+	terminalFree := []string{"agent", "backend", "changefeed", "workspace", "settings", "mock", "runtimeembedded", "attachment", "promptqueue", "reconnect", "runrecovery", "session", "sessionexport", "workbench", "oneshot", "extensions", "render"}
 	walk(t, root, func(dir, path string) {
 		layer := layerOf(dir)
 		if !slices.Contains(terminalFree, layer) {

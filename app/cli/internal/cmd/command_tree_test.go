@@ -19,6 +19,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
 	"github.com/Tangerg/lynx/app/cli/internal/agent/mock"
+	"github.com/Tangerg/lynx/app/cli/internal/backend"
 )
 
 // executeCommand runs the CLI in memory and returns stdout, stderr and the command error.
@@ -27,9 +28,9 @@ import (
 func executeCommand(t *testing.T, rt agent.Runtime, stdin string, args ...string) (string, string, error) {
 	t.Helper()
 	var out, errb bytes.Buffer
-	dependencies := Dependencies{OpenRuntime: func(context.Context) (agent.Runtime, error) { return rt, nil }}
+	dependencies := Dependencies{OpenRuntime: func(context.Context) (backend.Services, error) { return backend.AgentOnly(rt), nil }}
 	if rt == nil {
-		dependencies.OpenRuntime = func(context.Context) (agent.Runtime, error) { return mock.New(), nil }
+		dependencies.OpenRuntime = func(context.Context) (backend.Services, error) { return backend.AgentOnly(mock.New()), nil }
 		dependencies.RuntimeNotice = testRuntimeNotice
 	}
 	root := NewRoot(dependencies)
@@ -833,9 +834,9 @@ func TestCompletionCommand(t *testing.T) {
 // database, a socket, or anything else a real runtime needs.
 func TestHelpDoesNotResolveARuntime(t *testing.T) {
 	var resolved bool
-	root := NewRoot(Dependencies{OpenRuntime: func(context.Context) (agent.Runtime, error) {
+	root := NewRoot(Dependencies{OpenRuntime: func(context.Context) (backend.Services, error) {
 		resolved = true
-		return instantRuntime(), nil
+		return backend.AgentOnly(instantRuntime()), nil
 	}})
 	root.SetOut(io.Discard)
 	root.SetErr(io.Discard)

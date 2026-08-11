@@ -2,22 +2,66 @@ package runtimeembedded
 
 import (
 	"errors"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/Tangerg/lynx/app/runtime/protocol"
 
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
+	"github.com/Tangerg/lynx/app/cli/internal/changefeed"
+	workspaceapi "github.com/Tangerg/lynx/app/cli/internal/workspace"
 )
 
 func TestEmbeddedRuntimeSessionCatalogAndLifecycle(t *testing.T) {
 	configureIntegrationRuntime(t)
 	workspace := t.TempDir()
+	if err := os.WriteFile(filepath.Join(workspace, "main.go"), []byte("package main\n\nvar answer = 42\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	runtime := openIntegrationRuntime(t, workspace)
 	created := requireSessionCatalog(t, runtime, workspace)
+	requireWorkspaceInspection(t, runtime, workspace)
 	forked := requireSessionMutation(t, runtime, created)
 	requireRuntimeCatalogs(t, runtime, created.ID)
 	requireSessionDeletion(t, runtime, created.ID, forked.ID)
 	requireClosedRuntime(t, runtime)
+}
+
+func requireWorkspaceInspection(t *testing.T, runtime *Runtime, path string) {
+	t.Helper()
+	if !runtime.Supports(changefeed.FilesChanged) {
+		t.Fatal("embedded runtime did not advertise files.changed")
+	}
+	canonical, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resolved, err := runtime.Resolve(t.Context(), workspaceapi.ResolveRequest{Path: path})
+	if err != nil || resolved.Path != canonical || !resolved.IsAvailable() {
+		t.Fatalf("Resolve = (%+v, %v)", resolved, err)
+	}
+	path = resolved.Path
+	known, err := runtime.List(t.Context())
+	if err != nil || len(known) == 0 {
+		t.Fatalf("List = (%+v, %v)", known, err)
+	}
+	files, err := runtime.Files(t.Context(), workspaceapi.FilesRequest{Workspace: path, Limit: 20})
+	if err != nil || len(files.Entries) != 1 || files.Entries[0].Path != "main.go" {
+		t.Fatalf("Files = (%+v, %v)", files, err)
+	}
+	head, err := runtime.Head(t.Context(), workspaceapi.HeadRequest{Workspace: path, Path: "main.go", Lines: 2})
+	if err != nil || len(head.Lines) != 2 || head.Lines[0].Text != "package main" {
+		t.Fatalf("Head = (%+v, %v)", head, err)
+	}
+	found, err := runtime.Search(t.Context(), workspaceapi.SearchRequest{Workspace: path, Query: "answer", Limit: 20})
+	if err != nil || found.Total != 1 || len(found.Matches) != 1 {
+		t.Fatalf("Search = (%+v, %v)", found, err)
+	}
+	content, err := runtime.Read(t.Context(), workspaceapi.ReadRequest{Workspace: path, Path: "main.go"})
+	if err != nil || content.TotalLines != 4 || content.Content == "" {
+		t.Fatalf("Read = (%+v, %v)", content, err)
+	}
 }
 
 func configureIntegrationRuntime(t *testing.T) {

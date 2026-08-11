@@ -17,6 +17,9 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/protocol"
 
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
+	"github.com/Tangerg/lynx/app/cli/internal/backend"
+	"github.com/Tangerg/lynx/app/cli/internal/changefeed"
+	"github.com/Tangerg/lynx/app/cli/internal/workspace"
 )
 
 const clientName = "lyra-cli"
@@ -34,13 +37,20 @@ type Config struct {
 // Runtime is the anti-corruption adapter between protocol DTOs and CLI domain
 // projections. It intentionally exposes no protocol or embedded types.
 type Runtime struct {
-	binding  *embedded.Runtime
-	runs     runBinding
-	meta     protocol.RequestMeta
-	readFile func(string) ([]byte, error)
+	binding          *embedded.Runtime
+	runs             runBinding
+	workspaces       workspaceBinding
+	changes          changeBinding
+	meta             protocol.RequestMeta
+	readFile         func(string) ([]byte, error)
+	supportedTopics  map[changefeed.Topic]struct{}
+	maxChangeTopics  int
+	maxChangeWatches int
 }
 
 var _ agent.Runtime = (*Runtime)(nil)
+var _ workspace.Service = (*Runtime)(nil)
+var _ changefeed.Source = (*Runtime)(nil)
 
 // Open starts and validates one embedded runtime. A runtime whose discovery
 // contract cannot support the CLI is closed before Open returns the error.
@@ -56,10 +66,13 @@ func Open(ctx context.Context, cfg Config) (*Runtime, error) {
 	}
 
 	runtime := &Runtime{
-		binding:  binding,
-		runs:     binding,
-		meta:     requestMeta(cfg.ClientVersion),
-		readFile: readFile,
+		binding:         binding,
+		runs:            binding,
+		workspaces:      binding,
+		changes:         binding,
+		meta:            requestMeta(cfg.ClientVersion),
+		readFile:        readFile,
+		supportedTopics: make(map[changefeed.Topic]struct{}),
 	}
 	discovery, err := binding.Discover(ctx, runtime.callOptions())
 	if err == nil {
@@ -68,6 +81,11 @@ func Open(ctx context.Context, cfg Config) (*Runtime, error) {
 	if err != nil {
 		return nil, errors.Join(classifyError(err), binding.Close())
 	}
+	for _, topic := range discovery.Capabilities.RuntimeTopics {
+		runtime.supportedTopics[changefeed.Topic(topic)] = struct{}{}
+	}
+	runtime.maxChangeTopics = discovery.Capabilities.Limits.RuntimeSubscription.MaxTopics
+	runtime.maxChangeWatches = discovery.Capabilities.Limits.RuntimeSubscription.MaxWatches
 	return runtime, nil
 }
 
@@ -115,6 +133,10 @@ func (r *Runtime) subscriptionOptions(afterEventID string) embedded.RunSubscript
 		RequestMeta:  cloneRequestMeta(r.meta),
 		AfterEventID: afterEventID,
 	}
+}
+
+func (r *Runtime) changeSubscriptionOptions() embedded.SubscriptionOptions {
+	return embedded.SubscriptionOptions{RequestMeta: cloneRequestMeta(r.meta)}
 }
 
 func cloneRequestMeta(meta protocol.RequestMeta) protocol.RequestMeta {
@@ -216,24 +238,28 @@ func NewOwner(config Config) *Owner {
 	return &Owner{config: config}
 }
 
-func (o *Owner) Runtime(ctx context.Context) (agent.Runtime, error) {
+func (o *Owner) Runtime(ctx context.Context) (backend.Services, error) {
 	if o == nil {
-		return nil, errors.New("embedded runtime owner is nil")
+		return backend.Services{}, errors.New("embedded runtime owner is nil")
 	}
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	if o.closing {
-		return nil, agent.ErrDisconnected
+		return backend.Services{}, agent.ErrDisconnected
 	}
 	if o.runtime != nil {
-		return o.runtime, nil
+		return o.runtime.services(), nil
 	}
 	opened, err := Open(ctx, o.config)
 	if err != nil {
-		return nil, err
+		return backend.Services{}, err
 	}
 	o.runtime = opened
-	return opened, nil
+	return opened.services(), nil
+}
+
+func (r *Runtime) services() backend.Services {
+	return backend.Services{Agent: r, Workspaces: r, Changes: r}
 }
 
 func (o *Owner) Close() error {
