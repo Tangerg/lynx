@@ -110,7 +110,9 @@ func validatorChecks(
 ) []string {
 	checks := make([]string, 0, len(constraints))
 	for _, constraint := range constraints {
-		checks = append(checks, constraintCheck(shape, constraint))
+		if check := constraintCheck(shape, constraint, union); check != "" {
+			checks = append(checks, check)
+		}
 	}
 	checks = append(checks, enumChecks(shape)...)
 	checks = append(checks, unionChecks(union)...)
@@ -118,7 +120,11 @@ func validatorChecks(
 	return checks
 }
 
-func constraintCheck(shape reflect.Type, constraint dispatch.FieldConstraint) string {
+func constraintCheck(
+	shape reflect.Type,
+	constraint dispatch.FieldConstraint,
+	union dispatch.UnionSpec,
+) string {
 	selector, leaf, found := contractshape.GoPath(shape, constraint.Field)
 	if !found {
 		panic(fmt.Sprintf("contractgen: %s has no field %q", shape.Name(), constraint.Field))
@@ -126,6 +132,14 @@ func constraintCheck(shape reflect.Type, constraint dispatch.FieldConstraint) st
 	field := strconv.Quote(constraint.Field)
 	switch constraint.Kind {
 	case dispatch.ConstraintNonEmpty:
+		// A non-pointer scalar cannot distinguish an omitted JSON property from its
+		// zero value after decoding. When a union branch owns the property's
+		// requiredness, requiredWhen below already rejects that zero value in the
+		// branch where it is required and accepts it where the property is forbidden.
+		// An unconditional requiredText would reject every other legal branch.
+		if leaf.Optional && leaf.Type.Kind() != reflect.Pointer && unionRequiresField(union, constraint.Field) {
+			return ""
+		}
 		validatorName := "requiredText"
 		if leaf.Optional && leaf.Type.Kind() == reflect.Pointer {
 			validatorName = "optionalText"
@@ -197,6 +211,21 @@ func constraintCheck(shape reflect.Type, constraint dispatch.FieldConstraint) st
 			constraint.Kind,
 		))
 	}
+}
+
+func unionRequiresField(union dispatch.UnionSpec, field string) bool {
+	if union.GoType == nil {
+		return false
+	}
+	for _, variant := range union.Variants {
+		if slices.Contains(variant.Required, field) {
+			return true
+		}
+	}
+	if pattern := union.PatternVariant; pattern != nil {
+		return slices.Contains(pattern.Required, field)
+	}
+	return false
 }
 
 func enumChecks(shape reflect.Type) []string {

@@ -849,8 +849,6 @@ func (value ProviderConfigChange) ValidateWire() error {
 
 func (value MCPConnection) ValidateWire() error {
 	return collectWireViolations("MCPConnection",
-		requiredText("url", value.URL),
-		requiredText("command", value.Command),
 		closedEnum("type", string(value.Type), []string{"stdio", "streamableHttp"}, false),
 		requiredWhen(wireFieldEquals(value, "type", "streamableHttp"), "url", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "streamableHttp"), "command", value),
@@ -866,8 +864,6 @@ func (value MCPConnection) ValidateWire() error {
 
 func (value MCPConnectionInput) ValidateWire() error {
 	return collectWireViolations("MCPConnectionInput",
-		requiredText("url", value.URL),
-		requiredText("command", value.Command),
 		closedEnum("type", string(value.Type), []string{"stdio", "streamableHttp"}, false),
 		requiredWhen(wireFieldEquals(value, "type", "streamableHttp"), "url", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "streamableHttp"), "command", value),
@@ -883,7 +879,6 @@ func (value MCPConnectionInput) ValidateWire() error {
 
 func (value MCPAuthorizationChange) ValidateWire() error {
 	return collectWireViolations("MCPAuthorizationChange",
-		requiredText("value", value.Value),
 		closedEnum("type", string(value.Type), []string{"set", "clear"}, false),
 		requiredWhen(wireFieldEquals(value, "type", "set"), "value", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "clear"), "value", value),

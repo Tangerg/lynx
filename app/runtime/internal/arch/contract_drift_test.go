@@ -672,7 +672,12 @@ func TestValueConstraintsAgreeAcrossArtifacts(t *testing.T) {
 	validator := string(readArtifact(t, filepath.Join(root, validatorDir), validatorFile))
 	checks := checkEntries(t, string(readArtifact(t, filepath.Join(root, tsWireDir), tsWireValidator)))
 
-	for _, spec := range dispatch.WireShapes().ValueConstraints() {
+	shapes := dispatch.WireShapes()
+	unions := make(map[reflect.Type]dispatch.UnionSpec)
+	for _, union := range shapes.Unions() {
+		unions[union.GoType] = union
+	}
+	for _, spec := range shapes.ValueConstraints() {
 		shape := spec.GoType.Name()
 		definition, ok := bundle.Defs[shape]
 		if !ok {
@@ -680,7 +685,7 @@ func TestValueConstraintsAgreeAcrossArtifacts(t *testing.T) {
 			continue
 		}
 		for _, constraint := range spec.Constraints {
-			expected := expectedCompiledConstraint(t, shape, spec.GoType, constraint)
+			expected := expectedCompiledConstraint(t, shape, spec.GoType, constraint, unions[spec.GoType])
 			assertCompiledConstraint(t, shape, constraint, expected, definition, validator, checks)
 		}
 	}
@@ -696,6 +701,7 @@ func expectedCompiledConstraint(
 	shape string,
 	goType reflect.Type,
 	constraint dispatch.FieldConstraint,
+	union dispatch.UnionSpec,
 ) compiledConstraintExpectation {
 	t.Helper()
 	leaf := func() contractshape.Field {
@@ -710,6 +716,9 @@ func expectedCompiledConstraint(
 		field := leaf()
 		if field.Optional && field.Type.Kind() == reflect.Pointer {
 			return compiledConstraintExpectation{"minLength", "optionalText"}
+		}
+		if field.Optional && unionRequiresField(union, constraint.Field) {
+			return compiledConstraintExpectation{"minLength", "requiredWhen"}
 		}
 		return compiledConstraintExpectation{"minLength", "requiredText"}
 	case dispatch.ConstraintPositive:
@@ -735,6 +744,9 @@ func expectedCompiledConstraint(
 	case dispatch.ConstraintNonEmptyProperties:
 		return compiledConstraintExpectation{"minProperties", "nonEmptyProperties"}
 	case dispatch.ConstraintUniqueItems:
+		if leaf().Type.Kind() == reflect.Pointer {
+			return compiledConstraintExpectation{"uniqueItems", "optionalUniqueItems"}
+		}
 		return compiledConstraintExpectation{"uniqueItems", "uniqueItems"}
 	case dispatch.ConstraintMinItems:
 		if leaf().Optional {
@@ -762,6 +774,15 @@ func expectedCompiledConstraint(
 	}
 }
 
+func unionRequiresField(union dispatch.UnionSpec, field string) bool {
+	for _, variant := range union.Variants {
+		if slices.Contains(variant.Required, field) {
+			return true
+		}
+	}
+	return union.PatternVariant != nil && slices.Contains(union.PatternVariant.Required, field)
+}
+
 func assertCompiledConstraint(
 	t *testing.T,
 	shape string,
@@ -778,7 +799,7 @@ func assertCompiledConstraint(
 		t.Errorf("%s.%s is declared %s and schema.json states no %s for it",
 			shape, constraint.Field, constraint, expected.schemaKeyword)
 	}
-	if !statesGoConstraint(validator, expected.goHelper, constraint.Field, constraint.Limit) {
+	if !statesGoConstraint(validator, shape, expected.goHelper, constraint.Field, constraint.Limit) {
 		t.Errorf("%s.%s is declared %s and the generated validator has no %s call",
 			shape, constraint.Field, constraint, expected.goHelper)
 	}
@@ -814,7 +835,25 @@ func statesCheck(entry, path, keyword string, limit int) bool {
 	return false
 }
 
-func statesGoConstraint(source, helper, field string, limit int) bool {
+func statesGoConstraint(source, shape, helper, field string, limit int) bool {
+	marker := "func (value " + shape + ") ValidateWire() error {"
+	start := strings.Index(source, marker)
+	if start < 0 {
+		return false
+	}
+	source = source[start:]
+	if end := strings.Index(source[len(marker):], "\nfunc "); end >= 0 {
+		source = source[:len(marker)+end]
+	}
+	if helper == "requiredWhen" {
+		fieldArgument := `, "` + field + `", value)`
+		for line := range strings.SplitSeq(source, "\n") {
+			if strings.Contains(line, "requiredWhen(") && strings.Contains(line, fieldArgument) {
+				return true
+			}
+		}
+		return false
+	}
 	prefix := helper + `("` + field + `"`
 	for line := range strings.SplitSeq(source, "\n") {
 		if !strings.Contains(line, prefix) {

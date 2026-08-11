@@ -163,6 +163,47 @@ func TestMCPSecretMapChangesRejectEmptyReplacement(t *testing.T) {
 	}
 }
 
+func TestMCPWireUnionsAcceptEveryLegalBranch(t *testing.T) {
+	t.Parallel()
+
+	valid := []WireValidator{
+		MCPConnection{Type: MCPTransportStreamableHTTP, URL: "https://example.com/mcp"},
+		MCPConnection{Type: MCPTransportStdio, Command: "mcp-server"},
+		MCPConnectionInput{Type: MCPTransportStreamableHTTP, URL: "https://example.com/mcp"},
+		MCPConnectionInput{Type: MCPTransportStdio, Command: "mcp-server"},
+		MCPAuthorizationChange{Type: MCPSecretSet, Value: "Bearer secret"},
+		MCPAuthorizationChange{Type: MCPSecretClear},
+		MCPHeadersChange{Type: MCPSecretClear},
+		MCPEnvironmentChange{Type: MCPSecretClear},
+	}
+	for _, value := range valid {
+		if err := value.ValidateWire(); err != nil {
+			t.Errorf("ValidateWire rejected legal %T branch: %v", value, err)
+		}
+	}
+
+	stdioCandidate := MCPServerCandidate{
+		Name: "filesystem", Enabled: false,
+		Connection: MCPConnectionInput{Type: MCPTransportStdio, Command: "mcp-server"},
+	}
+	if err := ValidateWireTree(stdioCandidate); err != nil {
+		t.Fatalf("ValidateWireTree rejected a legal stdio candidate: %v", err)
+	}
+
+	assertConstraintField(t,
+		(MCPConnectionInput{Type: MCPTransportStdio}).ValidateWire(),
+		"MCPConnectionInput", "command",
+	)
+	assertConstraintField(t,
+		(MCPConnectionInput{Type: MCPTransportStreamableHTTP}).ValidateWire(),
+		"MCPConnectionInput", "url",
+	)
+	assertConstraintField(t,
+		(MCPAuthorizationChange{Type: MCPSecretSet}).ValidateWire(),
+		"MCPAuthorizationChange", "value",
+	)
+}
+
 func TestProblemDataWireUnion(t *testing.T) {
 	t.Parallel()
 

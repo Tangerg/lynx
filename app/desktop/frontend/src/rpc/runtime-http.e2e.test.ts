@@ -735,6 +735,57 @@ describe("Go Runtime ↔ HTTP ↔ TypeScript SDK", () => {
     await runtimeEvents.return?.();
   }, 30_000);
 
+  it("reconciles disabled MCP configuration through mcp.changed", async () => {
+    if (!client) throw new Error("runtime client was not initialized");
+
+    const streamController = new AbortController();
+    const subscription = await client.runtimeEvents.subscribe(
+      { topics: ["mcp.changed"] },
+      streamController.signal,
+    );
+    const runtimeEvents = subscription.events[Symbol.asyncIterator]();
+    const server = "http-e2e-disabled";
+
+    const created = await client.mcp.create({
+      connection: { type: "stdio", command: "runtime-http-e2e-mcp" },
+      description: "Disabled MCP E2E fixture",
+      enabled: false,
+      name: server,
+    });
+    expect(created).toMatchObject({ name: server, status: { type: "disabled" } });
+    await expect(nextRuntimeEvent(runtimeEvents, "mcp.changed")).resolves.toMatchObject({
+      type: "mcp.changed",
+      serverIds: [server],
+    });
+    await expect(client.mcp.list()).resolves.toMatchObject({
+      data: [expect.objectContaining({ name: server, status: { type: "disabled" } })],
+    });
+
+    const updated = await client.mcp.update({
+      server,
+      description: "Updated disabled MCP E2E fixture",
+    });
+    expect(updated).toMatchObject({
+      name: server,
+      description: "Updated disabled MCP E2E fixture",
+      status: { type: "disabled" },
+    });
+    await expect(nextRuntimeEvent(runtimeEvents, "mcp.changed")).resolves.toMatchObject({
+      type: "mcp.changed",
+      serverIds: [server],
+    });
+
+    await client.mcp.delete(server);
+    await expect(nextRuntimeEvent(runtimeEvents, "mcp.changed")).resolves.toMatchObject({
+      type: "mcp.changed",
+      serverIds: [server],
+    });
+    await expect(client.mcp.list()).resolves.toMatchObject({ data: [] });
+
+    streamController.abort();
+    await runtimeEvents.return?.();
+  }, 30_000);
+
   it("reconciles an agent file write through files.changed", async () => {
     if (!client) throw new Error("runtime client was not initialized");
 
