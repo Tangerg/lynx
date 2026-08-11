@@ -31,7 +31,7 @@ func (clock *activeDurationClock) start(carried time.Duration, at time.Time) {
 	clock.segmentStartedAt = at
 }
 
-func (clock activeDurationClock) elapsed(at time.Time) time.Duration {
+func (clock *activeDurationClock) elapsed(at time.Time) time.Duration {
 	if clock.segmentStartedAt.IsZero() {
 		return clock.carried
 	}
@@ -161,8 +161,7 @@ func (f *streamFollower) runStream(current agent.SegmentStream) {
 		if !active {
 			return
 		}
-		var applicationErr *eventApplicationError
-		if errors.As(streamErr, &applicationErr) {
+		if applicationErr, ok := errors.AsType[*eventApplicationError](streamErr); ok {
 			f.postFailure(current.RunID, applicationErr.err)
 			return
 		}
@@ -230,6 +229,20 @@ type followSnapshot struct {
 	phase      agent.ConversationPhase
 }
 
+type recoveryDisposition uint8
+
+const (
+	recoveryStopped recoveryDisposition = iota
+	recoveryRetry
+	recoveryAttached
+)
+
+type recoveryAttempt struct {
+	disposition recoveryDisposition
+	stream      agent.SegmentStream
+	cause       error
+}
+
 func (f *streamFollower) snapshot() (followSnapshot, error) {
 	snapshot := followSnapshot{active: true}
 	err := post(f.ctx, f.dispatcher, func() {
@@ -245,64 +258,85 @@ func (f *streamFollower) snapshot() (followSnapshot, error) {
 
 func (f *streamFollower) reconnect(runID, segmentID string, cause error) (agent.SegmentStream, bool) {
 	for {
-		f.failures++
-		delay, retry := f.policy.Next(f.failures, cause)
-		if !retry {
-			f.postFailure(runID, cause)
-			return agent.SegmentStream{}, false
-		}
-		if err := post(f.ctx, f.dispatcher, func() {
-			if f.app.streamSeq == f.sequence {
-				f.app.status.note(fmt.Sprintf("reconnecting %d/%d", f.failures, f.policy.Attempts))
-				f.app.syncAnimation()
-			}
-		}); err != nil || reconnect.Wait(f.ctx, delay) != nil {
+		if !f.waitBeforeReconnect(runID, cause) {
 			return agent.SegmentStream{}, false
 		}
 		rebound, err := f.app.runtime.SubscribeRun(f.ctx, agent.SubscribeRun{
 			RunID: runID, SegmentID: segmentID, AfterEventID: f.checkpoint,
 		})
-		if err != nil {
-			if runrecovery.Required(err) {
-				recovered, recoveryErr := runrecovery.Recover(f.ctx, f.app.runtime, f.app.session.ID, runID)
-				if recoveryErr != nil {
-					if !runrecovery.Required(recoveryErr) {
-						cause = recoveryErr
-					}
-					continue
-				}
-				active := true
-				var reconcileErr error
-				postErr := post(f.ctx, f.dispatcher, func() {
-					if f.app.streamSeq != f.sequence {
-						active = false
-						return
-					}
-					reconcileErr = f.app.reconcileRunSnapshot(recovered.Snapshot, recovered.Stream)
-				})
-				if postErr != nil || reconcileErr != nil {
-					f.postFailure(runID, errors.Join(postErr, reconcileErr))
-					return agent.SegmentStream{}, false
-				}
-				if !active || recovered.Run.Status != agent.RunStatusRunning {
-					return agent.SegmentStream{}, false
-				}
-				f.checkpoint = recovered.Stream.HeadEventID
-				return recovered.Stream, true
-			}
+		if err == nil {
+			return f.acceptRebound(runID, segmentID, rebound)
+		}
+		if !runrecovery.Required(err) {
 			cause = err
 			continue
 		}
-		if err := rebound.ValidateSubscription(); err != nil {
-			f.postFailure(runID, err)
+		recovery := f.recover(runID, cause)
+		switch recovery.disposition {
+		case recoveryRetry:
+			cause = recovery.cause
+		case recoveryAttached:
+			return recovery.stream, true
+		default:
 			return agent.SegmentStream{}, false
 		}
-		if rebound.RunID != runID || rebound.SegmentID != segmentID {
-			f.postFailure(runID, errors.New("runtime rebound a different run segment"))
-			return agent.SegmentStream{}, false
-		}
-		return rebound, true
 	}
+}
+
+func (f *streamFollower) waitBeforeReconnect(runID string, cause error) bool {
+	f.failures++
+	delay, retry := f.policy.Next(f.failures, cause)
+	if !retry {
+		f.postFailure(runID, cause)
+		return false
+	}
+	err := post(f.ctx, f.dispatcher, func() {
+		if f.app.streamSeq == f.sequence {
+			f.app.status.note(fmt.Sprintf("reconnecting %d/%d", f.failures, f.policy.Attempts))
+			f.app.syncAnimation()
+		}
+	})
+	return err == nil && reconnect.Wait(f.ctx, delay) == nil
+}
+
+func (f *streamFollower) acceptRebound(runID, segmentID string, rebound agent.SegmentStream) (agent.SegmentStream, bool) {
+	if err := rebound.ValidateSubscription(); err != nil {
+		f.postFailure(runID, err)
+		return agent.SegmentStream{}, false
+	}
+	if rebound.RunID != runID || rebound.SegmentID != segmentID {
+		f.postFailure(runID, errors.New("runtime rebound a different run segment"))
+		return agent.SegmentStream{}, false
+	}
+	return rebound, true
+}
+
+func (f *streamFollower) recover(runID string, cause error) recoveryAttempt {
+	recovered, err := runrecovery.Recover(f.ctx, f.app.runtime, f.app.session.ID, runID)
+	if err != nil {
+		if runrecovery.Required(err) {
+			return recoveryAttempt{disposition: recoveryRetry, cause: cause}
+		}
+		return recoveryAttempt{disposition: recoveryRetry, cause: err}
+	}
+	active := true
+	var reconcileErr error
+	postErr := post(f.ctx, f.dispatcher, func() {
+		if f.app.streamSeq != f.sequence {
+			active = false
+			return
+		}
+		reconcileErr = f.app.reconcileRunSnapshot(recovered.Snapshot, recovered.Stream)
+	})
+	if postErr != nil || reconcileErr != nil {
+		f.postFailure(runID, errors.Join(postErr, reconcileErr))
+		return recoveryAttempt{disposition: recoveryStopped}
+	}
+	if !active || recovered.Run.Status != agent.RunStatusRunning {
+		return recoveryAttempt{disposition: recoveryStopped}
+	}
+	f.checkpoint = recovered.Stream.HeadEventID
+	return recoveryAttempt{disposition: recoveryAttached, stream: recovered.Stream}
 }
 
 func (f *streamFollower) finish() {
@@ -366,7 +400,7 @@ func (a *app) apply(event agent.RunEvent) error {
 		return err
 	}
 	a.applyPresentationEvent(event.Event)
-	a.transcript.Retain(a.loop)
+	a.transcript.DiscardExcess()
 	a.syncAnimation()
 	return nil
 }
@@ -422,9 +456,7 @@ func (a *app) finishFollowing() {
 	if a.drainQueue() {
 		return
 	}
-	if a.settings.UI.Notifications {
-		a.loop.Session().Notify(outcomeNotification(a.conversation.Outcome()))
-	}
+	a.raiseAttention(outcomeAttention(a.conversation.Outcome()))
 }
 
 func outcomeNotification(outcome agent.Outcome) string {
@@ -455,6 +487,7 @@ func (a *app) fail(err error) {
 	a.header.SetUsage(a.conversation.Usage())
 	a.prompt.SetBusy(false)
 	a.syncAnimation()
+	a.raiseAttention(failureAttention())
 }
 
 func (a *app) cancel() {
@@ -462,8 +495,8 @@ func (a *app) cancel() {
 		a.answerApproval("deny")
 		return
 	}
-	if a.question != nil {
-		a.answerQuestion(true)
+	if a.questionnaire != nil {
+		a.finishQuestionnaire(true)
 		return
 	}
 	if a.pendingCancel != nil {
@@ -526,35 +559,39 @@ func (a *app) requestRuntimeCancellation(target agent.CancelRun, policy cancella
 		defer cancel()
 		settled, err := a.runtime.CancelRun(ctx, target)
 		_ = post(ctx, dispatcher, func() {
-			if a.operations.Current(lease) && !a.closed {
-				if err != nil {
-					if policy == preserveProjectionFailure {
-						return
-					}
-					a.fail(err)
-					return
-				}
-				a.pendingCancel = nil
-				a.dropStream()
-				if policy == preserveProjectionFailure {
-					a.prompt.SetBusy(false)
-					a.syncAnimation()
-					a.drainQueue()
-					return
-				}
-				if err := a.conversation.SettleRun(settled); err != nil {
-					a.fail(err)
-					return
-				}
-				a.transcript.settleLive(settled.Outcome)
-				a.status.settled(settled.Outcome, settled.Usage)
-				a.header.SetUsage(settled.Usage)
-				a.prompt.SetBusy(false)
-				a.syncAnimation()
-				a.drainQueue()
-			}
+			a.handleRuntimeCancellation(lease, settled, err, policy)
 		})
 	})
+}
+
+func (a *app) handleRuntimeCancellation(lease operationLease, settled agent.Run, err error, policy cancellationResultPolicy) {
+	if !a.operations.Current(lease) || a.closed {
+		return
+	}
+	if err != nil {
+		if policy != preserveProjectionFailure {
+			a.fail(err)
+		}
+		return
+	}
+	a.pendingCancel = nil
+	a.dropStream()
+	if policy == preserveProjectionFailure {
+		a.prompt.SetBusy(false)
+		a.syncAnimation()
+		a.drainQueue()
+		return
+	}
+	if err := a.conversation.SettleRun(settled); err != nil {
+		a.fail(err)
+		return
+	}
+	a.transcript.settleLive(settled.Outcome)
+	a.status.settled(settled.Outcome, settled.Usage)
+	a.header.SetUsage(settled.Usage)
+	a.prompt.SetBusy(false)
+	a.syncAnimation()
+	a.drainQueue()
 }
 
 func (a *app) cancelRuntimeNow(ownerCtx context.Context, target agent.CancelRun) {

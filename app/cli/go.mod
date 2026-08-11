@@ -9,7 +9,9 @@ require (
 	github.com/Tangerg/oolong/highlight v0.11.0
 	github.com/Tangerg/oolong/markdown v0.11.0
 	github.com/Tangerg/oolong/ptytest v0.11.0
+	github.com/mattn/go-shellwords v1.0.14
 	github.com/spf13/cobra v1.10.2
+	github.com/spf13/fileflow v0.1.0
 	github.com/spf13/pathologize v1.1.0
 	github.com/spf13/viper v1.21.0
 	golang.org/x/mod v0.38.0

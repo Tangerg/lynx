@@ -175,7 +175,8 @@ func newSessionsRenameCommand(provider runtimeProvider) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			updated, err := runtime.UpdateSession(cmd.Context(), agent.UpdateSession{SessionID: args[0], Title: args[1], ExpectedRevision: revision})
+			title := args[1]
+			updated, err := runtime.UpdateSession(cmd.Context(), agent.UpdateSession{SessionID: args[0], Title: &title, ExpectedRevision: revision})
 			if err != nil {
 				return err
 			}

@@ -33,12 +33,16 @@ Core terminal interactions are available from both the keyboard and mouse:
 - `Enter` sends a prompt while idle and queues a typed follow-up while a run or its cancellation is still settling. Queued prompts are session-scoped and drain in FIFO order only after the prior transport lifecycle finishes; with an empty composer, `Enter` promotes the next queued prompt and cancels the active turn first. `Shift+Enter` or `Alt+Enter` inserts a newline.
 - `Ctrl+;` or `/queue` opens the bottom queue drawer; `Ctrl+G` is the portable fallback for terminals that cannot distinguish modified punctuation. Use `Up`/`Down` or `j`/`k` to select, `Enter` or `e` to edit, `x` to remove, `Shift+J`/`Shift+K` to reorder, and `s` or `Ctrl+Enter` to send the selected prompt next. Queue edits preserve attachments; mouse actions commit only when an undragged press and release land on the same control.
 - `Ctrl+C` is stateful: it clears a non-empty draft first and cancels the active run only when the composer is empty. `Esc` cancels an active run immediately without discarding the draft; while idle, two presses within 800ms clear a prompt and save it to history. Press `Ctrl+Q` or `Ctrl+D` twice to quit.
-- `Tab` moves keyboard focus from the composer into the transcript. `Up`/`Down` select one retained entry, `Home`/`End` jump to the edges, `Left`/`Right` collapse or expand the selected tool, `Enter` toggles it, and `Alt+C` copies the selected block. `Tab` or `Space` returns to the composer; typing printable text returns there automatically.
+- `Tab` moves keyboard focus from the composer into the transcript. `Up`/`Down` select one retained entry, `Home`/`End` jump to the edges, `Left`/`Right` collapse or expand the selected tool, `Enter` toggles it, `v` opens its complete searchable Reader, and `Alt+C` copies the selected block. `Tab` or `Space` returns to the composer; typing printable text returns there automatically.
 - `PageUp` and `PageDown` move through the live transcript; `Ctrl+Home` and `Ctrl+End` jump to its bounds. Scrolling up suspends bottom-following while output continues.
-- Click a tool-call header to expand or collapse that tool. Running output streams into the same block, completion replaces provisional output with the runtime's authoritative result, and scrolling up never resumes bottom-following. Tools without output or a diff use a non-interactive marker instead of opening an empty panel. The action commits only when press and release land on the same header, so a drag selection cannot accidentally change layout. Its colored rail and right-aligned state remain visible while details are folded; `Ctrl+O` expands or collapses all available tool details.
+- Click a tool-call header to expand or collapse that tool. Running output streams into the same block, completion replaces provisional output with the runtime's authoritative result, and scrolling up never resumes bottom-following. Adjacent read, search, and web calls share a disclosure without losing their individual identity, status, details, or Reader content. Tools without output or a diff use a non-interactive marker instead of opening an empty panel. The action commits only when press and release land on the same header, so a drag selection cannot accidentally change layout. Its colored rail and right-aligned state remain visible while details are folded; `Ctrl+O` expands or collapses all available tool details.
 - `Ctrl+P` opens the searchable command palette. With transcript focus, `?` is the local alternative. `/help` opens the same surface, so command discovery does not flood the transcript.
 - `Ctrl+X` or `/shortcuts` opens a scrollable shortcut guide generated from the active keymaps, so customized bindings and their current contexts stay discoverable.
 - Searchable session, command, provider-qualified model, and runtime approval-mode pickers support both keyboard selection and click-to-activate. A click commits on release over the same row; dragging only moves the selection.
+- `/sessions` opens a paginated center with current-session preview, favorites, rename, delete, and load-more actions; `/timeline` jumps among retained runs or forks at a selected root run. `/workspace [directory]` starts a session in an explicit existing directory, while `/workspace` presents recent workspaces.
+- Prompt history, per-session drafts, recent workspaces, and `/stash` entries are durable CLI-local authoring state. `/stashes`, `/stash-apply`, and `/stash-delete` manage saved prompts; `Ctrl+E` or `/editor` performs a lossless round trip through `LYRA_EDITOR`, `VISUAL`, or `EDITOR`.
+- `/copy-last` copies the latest durable assistant response. `/export markdown [filename]` and `/export json [filename]` render the complete runtime snapshot and publish a conflict-safe file inside the current workspace.
+- Completion, failure, approval, and question attention signals update the terminal title and desktop notification only while the terminal is unfocused; the marker clears when the user returns.
 
 The shortcut row is contextual: idle runs emphasize send, sessions, and model selection; active runs emphasize cancel, multiline input, and tool details; transcript focus exposes entry navigation and actions. Mouse, selection, transcript scrolling, and command shortcuts remain available while output streams.
 
@@ -49,7 +53,7 @@ The dependency direction follows clean architecture: product policy points inwar
 | Layer | Packages | Responsibility |
 | --- | --- | --- |
 | Domain and ports | `internal/agent`, `internal/settings` | Validated session, run, event, interaction, approval, and configuration contracts. `agent.Runtime` is the complete backend port; consumers use its narrower interfaces. |
-| Application use cases | `internal/oneshot`, `internal/session`, `internal/promptqueue`, `internal/reconnect`, `internal/runrecovery` | Unattended run lifecycle, session opening, session-scoped follow-up ownership, bounded reconnects, and authoritative cold recovery. |
+| Application use cases | `internal/oneshot`, `internal/session`, `internal/promptqueue`, `internal/reconnect`, `internal/runrecovery`, `internal/workbench`, `internal/sessionexport` | Unattended run lifecycle, session opening, session-scoped follow-up ownership, bounded reconnects, authoritative cold recovery, CLI-local authoring state, and portable session reports. |
 | Delivery adapters | `internal/cmd`, `internal/render`, `internal/terminal` | Cobra/Viper routing, text/JSON projections, and the oolong terminal UI. |
 | Infrastructure adapters | `internal/runtimeembedded`, `internal/agent/mock`, `internal/attachment`, `internal/sideload` | Production embedded/protocol anti-corruption layer, scripted test runtime, workspace-safe files, and out-of-process plugins. |
 | Extension substrate | `internal/extensions` | Typed extension points, capability checks, dependency ordering, rollback, unload, and reload ownership. |
@@ -160,7 +164,7 @@ The host caps each output stream at 1 MiB, request JSON at 128 KiB, arguments at
 
 ## Development
 
-The TUI is pinned to the published oolong `v0.10.0` modules. Keep the module set on one release to avoid mixing component contracts.
+The TUI is pinned to the published oolong `v0.11.0` modules. Keep the module set on one release to avoid mixing component contracts.
 
 ```sh
 go mod tidy

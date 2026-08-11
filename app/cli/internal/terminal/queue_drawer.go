@@ -141,6 +141,9 @@ func (q *queueDrawer) handleKey(key input.Key) bool {
 		q.sendSelected()
 		return true
 	}
+	if key.Code == input.Character {
+		return q.handleCommandKey(key)
+	}
 	switch key.Code {
 	case input.Up:
 		q.moveSelection(-1)
@@ -160,34 +163,36 @@ func (q *queueDrawer) handleKey(key input.Key) bool {
 	case input.Enter:
 		q.beginEdit()
 		return true
-	case input.Character:
-		if key.Mods != 0 && key.Mods != input.Shift {
-			return false
-		}
-		switch key.Rune {
-		case 'q':
-			q.dismiss()
-		case 'j':
-			q.moveSelection(1)
-		case 'k':
-			q.moveSelection(-1)
-		case 'J':
-			q.moveSelected(1)
-		case 'K':
-			q.moveSelected(-1)
-		case 'e':
-			q.beginEdit()
-		case 'x':
-			q.removeSelected()
-		case 's':
-			q.sendSelected()
-		default:
-			return false
-		}
-		return true
 	default:
 		return false
 	}
+}
+
+func (q *queueDrawer) handleCommandKey(key input.Key) bool {
+	if key.Mods != 0 && key.Mods != input.Shift {
+		return false
+	}
+	switch key.Rune {
+	case 'q':
+		q.dismiss()
+	case 'j':
+		q.moveSelection(1)
+	case 'k':
+		q.moveSelection(-1)
+	case 'J':
+		q.moveSelected(1)
+	case 'K':
+		q.moveSelected(-1)
+	case 'e':
+		q.beginEdit()
+	case 'x':
+		q.removeSelected()
+	case 's':
+		q.sendSelected()
+	default:
+		return false
+	}
+	return true
 }
 
 func (q *queueDrawer) handleEditKey(key input.Key) bool {

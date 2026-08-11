@@ -1,0 +1,132 @@
+package terminal
+
+import (
+	"fmt"
+	"strings"
+
+	"github.com/Tangerg/oolong/components/headless"
+	"github.com/Tangerg/oolong/components/kit"
+	"github.com/Tangerg/oolong/core/input"
+	"github.com/Tangerg/oolong/core/keymap"
+	"github.com/Tangerg/oolong/core/layout"
+
+	"github.com/Tangerg/lynx/app/cli/internal/agent"
+)
+
+type interactionSummaryPane struct {
+	viewport *headless.Viewport
+	form     *kit.Form
+}
+
+func (p *interactionSummaryPane) Draw(frame headless.Frame) {
+	rows := frame.Subs((layout.Flow{Axis: layout.Down}).Rects(frame.Bounds().Size(), []layout.Slot{
+		{Size: layout.Flex(1)},
+		{Size: layout.Fixed(min(p.form.Measure(frame.Bounds().Dx()), 7))},
+	}))
+	p.viewport.Draw(rows[0])
+	p.form.Draw(rows[1])
+}
+
+func (p *interactionSummaryPane) Handle(event input.Event) bool {
+	if p.form.Handle(event) {
+		return true
+	}
+	return p.viewport.Handle(event)
+}
+
+func (p *interactionSummaryPane) Focus(has bool) { p.form.Focus(has) }
+
+func (a *app) openInteractionSummary() {
+	review := a.interactionReview
+	if review == nil || !review.Reviewing() {
+		return
+	}
+	if _, err := review.Responses(); err != nil {
+		a.fail(fmt.Errorf("review interactions: %w", err))
+		return
+	}
+	decision := "submit"
+	choice := &headless.Select[string]{
+		Label: "Review complete", Value: headless.Bind(&decision), Rows: 3,
+	}
+	choice.SetOptions([]headless.Option[string]{
+		{Label: "Submit all decisions", Value: "submit"},
+		{Label: "Go back and edit", Value: "back"},
+		{Label: "Cancel the run", Value: "cancel"},
+	})
+	form := headless.NewForm(choice)
+	form.Keys = headless.DefaultFormKeys()
+	settled := false
+	form.Done = func() {
+		settled = true
+		a.reviewDialog.Dismiss()
+		switch decision {
+		case "submit":
+			a.resumeInteractions()
+		case "back":
+			a.backInteraction()
+		default:
+			a.abortInteractions("interactions canceled during terminal review")
+		}
+	}
+	form.GaveUp = func() {
+		if settled {
+			return
+		}
+		settled = true
+		a.reviewDialog.Dismiss()
+		if !a.backInteraction() {
+			a.abortInteractions("interactions canceled during terminal review")
+		}
+	}
+	dressed := kit.NewForm(kit.FormConfig{
+		Theme: a.transcript.theme, Glyphs: a.transcript.glyphs, Controller: form,
+		Hints: []keymap.Action{headless.Submit, headless.Cancel},
+	})
+	summary := kit.NewParagraph(interactionSummary(review), a.transcript.theme.Text)
+	viewport := headless.NewViewport(headless.Static{Of: summary})
+	viewport.Scroll().Wheel(a.loop.Environment().Wheel())
+	pane := &interactionSummaryPane{viewport: viewport, form: dressed}
+	a.reviewDialog = kit.NewDialog(kit.DialogConfig{
+		Stack: &a.stack, Theme: a.transcript.theme, Glyphs: a.transcript.glyphs,
+		Title: "Review interactions", Body: pane,
+		Where: layout.Placement{Width: 88, Height: 22},
+	})
+	a.reviewDialog.Show()
+}
+
+func interactionSummary(review *interactionReview) string {
+	items, answers := review.Items(), review.Answers()
+	lines := make([]string, 0, len(items)+1)
+	lines = append(lines, "Nothing is sent to the runtime until you submit this review.")
+	for index, item := range items {
+		lines = append(lines, fmt.Sprintf("%d. %s", index+1, summarizeInteraction(item, answers[index])))
+	}
+	return strings.Join(lines, "\n\n")
+}
+
+func summarizeInteraction(item agent.Interaction, answer agent.Answer) string {
+	switch interaction := item.(type) {
+	case agent.Approval:
+		provided, _ := answer.(agent.ApprovalAnswer)
+		decision := "allow once"
+		if provided.Decision == agent.ApprovalDeny {
+			decision = "deny"
+			if strings.TrimSpace(provided.Reason) != "" {
+				decision += " — " + strings.TrimSpace(provided.Reason)
+			}
+		} else if provided.Remember != agent.RememberNone {
+			decision = "allow for " + string(provided.Remember)
+		}
+		return interaction.Title + " — " + decision
+	case agent.Question:
+		provided, _ := answer.(agent.QuestionAnswer)
+		values := make([]string, 0, len(provided.Values))
+		for _, field := range provided.Values {
+			values = append(values, strings.Join(field, ", "))
+		}
+		return interaction.Title + " — " + strings.Join(values, " · ")
+	default:
+		return "Unknown interaction"
+	}
+}

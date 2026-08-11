@@ -6,7 +6,7 @@ import (
 )
 
 func TestRunLifecycleShape(t *testing.T) {
-	running := runningRun("run_1", "seg_1")
+	running := runningRun("seg_1")
 	if err := running.Validate(); err != nil {
 		t.Fatal(err)
 	}

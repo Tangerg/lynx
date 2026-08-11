@@ -2,6 +2,7 @@ package runtimeembedded
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -14,56 +15,76 @@ import (
 )
 
 func projectItem(value protocol.Item) (agent.Block, error) {
-	status := agent.BlockStatus(value.Status)
-	block := agent.Block{ID: value.ID, RunID: value.RunID, Status: status}
-	switch value.Type {
-	case protocol.ItemTypeUserMessage:
-		block.Kind = agent.BlockUser
-		text, attachments, err := projectContent(value.ID, value.Content)
-		if err != nil {
-			return agent.Block{}, err
-		}
-		block.Text, block.Attachments = text, attachments
-	case protocol.ItemTypeAgentMessage:
-		block.Kind = agent.BlockAssistant
-		text, attachments, err := projectContent(value.ID, value.Content)
-		if err != nil {
-			return agent.Block{}, err
-		}
-		if len(attachments) != 0 {
-			return agent.Block{}, fmt.Errorf("agent message %s contains unsupported image output", value.ID)
-		}
-		block.Text = text
-	case protocol.ItemTypeReasoning:
-		block.Kind = agent.BlockReasoning
-		block.Text = value.Text
-	case protocol.ItemTypeQuestion:
-		block.Kind = agent.BlockQuestion
-		question, err := projectQuestion(value.ID, value.Question)
-		if err != nil {
-			return agent.Block{}, err
-		}
-		block.Question = &question
-	case protocol.ItemTypeToolCall:
-		block.Kind = agent.BlockTool
-		tool, err := projectTool(value.Tool, value.Status, value.DurationMillis, value.Error)
-		if err != nil {
-			return agent.Block{}, fmt.Errorf("item %s: %w", value.ID, err)
-		}
-		block.Tool = &tool
-	case protocol.ItemTypeCompaction:
-		block.Kind = agent.BlockNotice
-		block.Text = value.Summary
-		if strings.TrimSpace(block.Text) == "" {
-			block.Text = fmt.Sprintf("Conversation compacted; %d messages removed.", value.DroppedMessages)
-		}
-	default:
-		return agent.Block{}, fmt.Errorf("item %s has unsupported type %q", value.ID, value.Type)
+	projection := itemProjection{
+		source: value,
+		block:  agent.Block{ID: value.ID, RunID: value.RunID, Status: agent.BlockStatus(value.Status)},
 	}
-	if err := validateProjectedBlock(block); err != nil {
+	if err := projection.project(); err != nil {
+		return agent.Block{}, err
+	}
+	if err := validateProjectedBlock(projection.block); err != nil {
 		return agent.Block{}, fmt.Errorf("runtime item %s: %w", value.ID, err)
 	}
-	return block, nil
+	return projection.block, nil
+}
+
+type itemProjection struct {
+	source protocol.Item
+	block  agent.Block
+}
+
+func (projection *itemProjection) project() error {
+	switch projection.source.Type {
+	case protocol.ItemTypeUserMessage:
+		projection.block.Kind = agent.BlockUser
+		return projection.projectMessage(true)
+	case protocol.ItemTypeAgentMessage:
+		projection.block.Kind = agent.BlockAssistant
+		return projection.projectMessage(false)
+	case protocol.ItemTypeReasoning:
+		projection.block.Kind = agent.BlockReasoning
+		projection.block.Text = projection.source.Text
+	case protocol.ItemTypeQuestion:
+		projection.block.Kind = agent.BlockQuestion
+		question, err := projectQuestion(projection.source.ID, projection.source.Question)
+		if err != nil {
+			return err
+		}
+		projection.block.Question = &question
+	case protocol.ItemTypeToolCall:
+		projection.block.Kind = agent.BlockTool
+		tool, err := projectTool(projection.source.Tool, projection.source.Status, projection.source.DurationMillis, projection.source.Error)
+		if err != nil {
+			return fmt.Errorf("item %s: %w", projection.source.ID, err)
+		}
+		projection.block.Tool = &tool
+	case protocol.ItemTypeCompaction:
+		projection.projectCompaction()
+	default:
+		return fmt.Errorf("item %s has unsupported type %q", projection.source.ID, projection.source.Type)
+	}
+	return nil
+}
+
+func (projection *itemProjection) projectMessage(allowAttachments bool) error {
+	text, attachments, err := projectContent(projection.source.ID, projection.source.Content)
+	if err != nil {
+		return err
+	}
+	if !allowAttachments && len(attachments) != 0 {
+		return fmt.Errorf("agent message %s contains unsupported image output", projection.source.ID)
+	}
+	projection.block.Text = text
+	projection.block.Attachments = attachments
+	return nil
+}
+
+func (projection *itemProjection) projectCompaction() {
+	projection.block.Kind = agent.BlockNotice
+	projection.block.Text = projection.source.Summary
+	if strings.TrimSpace(projection.block.Text) == "" {
+		projection.block.Text = fmt.Sprintf("Conversation compacted; %d messages removed.", projection.source.DroppedMessages)
+	}
 }
 
 func validateProjectedBlock(block agent.Block) error {
@@ -120,7 +141,7 @@ func projectQuestion(itemID string, value *protocol.Question) (agent.Question, e
 
 func projectTool(value *protocol.ToolInvocation, status protocol.ItemStatus, durationMillis *int64, problem *protocol.ProblemData) (agent.ToolCall, error) {
 	if value == nil {
-		return agent.ToolCall{}, fmt.Errorf("tool payload is absent")
+		return agent.ToolCall{}, errors.New("tool payload is absent")
 	}
 	tool := agent.ToolCall{
 		Kind: kindForTool(value.Name), Name: value.Name, Summary: toolSummary(value),
@@ -218,36 +239,48 @@ func projectToolResult(tool *agent.ToolCall, result any) {
 	if result == nil {
 		return
 	}
-	object, objectOK := result.(map[string]any)
-	if objectOK {
-		if output, ok := object["output"].(string); ok {
-			tool.Output = output
-		}
-		if exitCode, ok := integerValue(object["exitCode"]); ok {
-			tool.ExitCode = &exitCode
-		}
-		if changes, ok := object["changes"].([]any); ok {
-			paths := make([]string, 0, len(changes))
-			for _, change := range changes {
-				if entry, ok := change.(map[string]any); ok {
-					if path, ok := entry["path"].(string); ok {
-						paths = append(paths, filepath.ToSlash(path))
-					}
-				}
-			}
-			if tool.Path == "" && len(paths) != 0 {
-				tool.Path = paths[0]
-			}
-			if tool.Output == "" && len(paths) != 0 {
-				tool.Output = strings.Join(paths, "\n")
-			}
-		}
+	if object, ok := result.(map[string]any); ok {
+		projectStructuredToolResult(tool, object)
 	}
 	if tool.Output == "" {
 		if encoded, err := json.MarshalIndent(result, "", "  "); err == nil {
 			tool.Output = string(encoded)
 		}
 	}
+}
+
+func projectStructuredToolResult(tool *agent.ToolCall, result map[string]any) {
+	if output, ok := result["output"].(string); ok {
+		tool.Output = output
+	}
+	if exitCode, ok := integerValue(result["exitCode"]); ok {
+		tool.ExitCode = &exitCode
+	}
+	paths := changedPaths(result["changes"])
+	if tool.Path == "" && len(paths) != 0 {
+		tool.Path = paths[0]
+	}
+	if tool.Output == "" && len(paths) != 0 {
+		tool.Output = strings.Join(paths, "\n")
+	}
+}
+
+func changedPaths(value any) []string {
+	changes, ok := value.([]any)
+	if !ok {
+		return nil
+	}
+	paths := make([]string, 0, len(changes))
+	for _, change := range changes {
+		entry, ok := change.(map[string]any)
+		if !ok {
+			continue
+		}
+		if path, ok := entry["path"].(string); ok {
+			paths = append(paths, filepath.ToSlash(path))
+		}
+	}
+	return paths
 }
 
 func integerValue(value any) (int, bool) {

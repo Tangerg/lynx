@@ -7,7 +7,7 @@ import (
 
 func TestConversationFoldsInitialAndResumedSegments(t *testing.T) {
 	conversation := NewConversation()
-	started := RunEvent{EventID: "opaque:start", RunID: "run_1", SegmentID: "seg_1", Event: SegmentStarted{Run: runningRun("run_1", "seg_1")}}
+	started := RunEvent{EventID: "opaque:start", RunID: "run_1", SegmentID: "seg_1", Event: SegmentStarted{Run: runningRun("seg_1")}}
 	apply(t, conversation, started)
 	apply(t, conversation, RunEvent{EventID: "opaque:item-start", RunID: "run_1", SegmentID: "seg_1", Event: BlockStarted{Block: Block{ID: "msg_1", RunID: "run_1", Status: BlockStatusRunning, Kind: BlockAssistant}}})
 	apply(t, conversation, RunEvent{EventID: "opaque:delta", RunID: "run_1", SegmentID: "seg_1", Event: BlockDelta{BlockID: "msg_1", Text: "draft"}})
@@ -34,7 +34,7 @@ func TestConversationFoldsInitialAndResumedSegments(t *testing.T) {
 		t.Fatalf("waiting projection = phase %v, interactions %d, usage %+v", conversation.Phase(), len(conversation.Interactions()), conversation.Usage())
 	}
 
-	resumed := runningRun("run_1", "seg_2")
+	resumed := runningRun("seg_2")
 	resumed.Usage = interruptedUsage
 	apply(t, conversation, RunEvent{EventID: "different-space:start", RunID: "run_1", SegmentID: "seg_2", Event: SegmentStarted{Run: resumed}})
 	if conversation.Phase() != ConversationRunning || conversation.SegmentID() != "seg_2" || len(conversation.Interactions()) != 0 {
@@ -58,7 +58,7 @@ func TestConversationFoldsInitialAndResumedSegments(t *testing.T) {
 
 func TestConversationRejectsRegressingRunUsage(t *testing.T) {
 	conversation := NewConversation()
-	run := runningRun("run_1", "seg_1")
+	run := runningRun("seg_1")
 	run.Usage = Usage{InputTokens: 10}
 	apply(t, conversation, RunEvent{EventID: "start", RunID: "run_1", SegmentID: "seg_1", Event: SegmentStarted{Run: run}})
 	approval := runningApproval("approval_1", "shell")
@@ -76,7 +76,7 @@ func TestConversationRejectsRegressingRunUsage(t *testing.T) {
 
 func TestConversationTreatsEventIDAsOpaqueIdentity(t *testing.T) {
 	conversation := NewConversation()
-	event := RunEvent{EventID: "z/not-a-number", RunID: "run_1", SegmentID: "seg_1", Event: SegmentStarted{Run: runningRun("run_1", "seg_1")}}
+	event := RunEvent{EventID: "z/not-a-number", RunID: "run_1", SegmentID: "seg_1", Event: SegmentStarted{Run: runningRun("seg_1")}}
 	apply(t, conversation, event)
 	accepted, err := conversation.ApplyRunEvent(event.Clone())
 	if err != nil || accepted.Applied {
@@ -91,7 +91,7 @@ func TestConversationTreatsEventIDAsOpaqueIdentity(t *testing.T) {
 
 func TestConversationRejectsCrossSegmentAndInvalidTransitions(t *testing.T) {
 	conversation := NewConversation()
-	apply(t, conversation, RunEvent{EventID: "start", RunID: "run_1", SegmentID: "seg_1", Event: SegmentStarted{Run: runningRun("run_1", "seg_1")}})
+	apply(t, conversation, RunEvent{EventID: "start", RunID: "run_1", SegmentID: "seg_1", Event: SegmentStarted{Run: runningRun("seg_1")}})
 	_, err := conversation.ApplyRunEvent(RunEvent{EventID: "wrong", RunID: "run_1", SegmentID: "seg_2", Event: BlockCompleted{Block: Block{ID: "x", RunID: "run_1", Status: BlockStatusCompleted, Kind: BlockAssistant, Text: "x"}}})
 	if !errors.Is(err, ErrInvalidTransition) && err == nil {
 		t.Fatal("cross-segment event was accepted")
@@ -120,7 +120,7 @@ func TestConversationStartingWindow(t *testing.T) {
 
 func TestConversationSettlesRunningItemsWithOutOfBandCancellation(t *testing.T) {
 	conversation := NewConversation()
-	apply(t, conversation, RunEvent{EventID: "start", RunID: "run_1", SegmentID: "seg_1", Event: SegmentStarted{Run: runningRun("run_1", "seg_1")}})
+	apply(t, conversation, RunEvent{EventID: "start", RunID: "run_1", SegmentID: "seg_1", Event: SegmentStarted{Run: runningRun("seg_1")}})
 	apply(t, conversation, RunEvent{EventID: "tool", RunID: "run_1", SegmentID: "seg_1", Event: BlockStarted{Block: Block{
 		ID: "tool_1", RunID: "run_1", Status: BlockStatusRunning, Kind: BlockTool,
 		Tool: &ToolCall{Kind: ToolShell, Name: "shell", Status: ToolRunning},
@@ -136,20 +136,8 @@ func TestConversationSettlesRunningItemsWithOutOfBandCancellation(t *testing.T) 
 
 func TestConversationReconcilesAttachThenReadOverlap(t *testing.T) {
 	conversation := NewConversation()
-	plan := []PlanItem{{Title: "inspect", Status: PlanActive}}
-	snapshot := SessionSnapshot{
-		Session: Session{ID: "ses_1", Status: SessionRunning, Workspace: "/tmp/demo"},
-		Transcript: []Block{
-			{ID: "same", RunID: "run_old", Status: BlockStatusCompleted, Kind: BlockAssistant, Text: "old"},
-			{ID: "same", RunID: "run_1", Status: BlockStatusCompleted, Kind: BlockAssistant, Text: "current"},
-			{ID: "live", RunID: "run_1", Status: BlockStatusRunning, Kind: BlockTool, Tool: &ToolCall{Kind: ToolShell, Name: "shell", Status: ToolRunning}},
-		},
-		Runs: []Run{
-			{ID: "run_old", SessionID: "ses_1", Status: RunStatusFinished, Outcome: Outcome{Status: OutcomeCompleted}},
-			{ID: "run_1", SessionID: "ses_1", Status: RunStatusRunning, ActiveSegmentID: "seg_1"},
-		},
-		Plan: plan, PlanRevision: 2,
-	}
+	snapshot := attachedReconciliationSnapshot()
+	plan := snapshot.Plan
 	stream := SegmentStream{RunID: "run_1", SegmentID: "seg_1", HeadEventID: "head", Events: func(func(RunEvent, error) bool) {}}
 	if err := conversation.RestoreAttachedSnapshot(snapshot, stream); err != nil {
 		t.Fatal(err)
@@ -201,9 +189,25 @@ func TestConversationReconcilesAttachThenReadOverlap(t *testing.T) {
 	}
 }
 
+func attachedReconciliationSnapshot() SessionSnapshot {
+	return SessionSnapshot{
+		Session: Session{ID: "ses_1", Status: SessionRunning, Workspace: "/tmp/demo"},
+		Transcript: []Block{
+			{ID: "same", RunID: "run_old", Status: BlockStatusCompleted, Kind: BlockAssistant, Text: "old"},
+			{ID: "same", RunID: "run_1", Status: BlockStatusCompleted, Kind: BlockAssistant, Text: "current"},
+			{ID: "live", RunID: "run_1", Status: BlockStatusRunning, Kind: BlockTool, Tool: &ToolCall{Kind: ToolShell, Name: "shell", Status: ToolRunning}},
+		},
+		Runs: []Run{
+			{ID: "run_old", SessionID: "ses_1", Status: RunStatusFinished, Outcome: Outcome{Status: OutcomeCompleted}},
+			{ID: "run_1", SessionID: "ses_1", Status: RunStatusRunning, ActiveSegmentID: "seg_1"},
+		},
+		Plan: []PlanItem{{Title: "inspect", Status: PlanActive}}, PlanRevision: 2,
+	}
+}
+
 func TestConversationRejectsOrphanPreviewOutsideColdTail(t *testing.T) {
 	conversation := NewConversation()
-	apply(t, conversation, RunEvent{EventID: "start", RunID: "run_1", SegmentID: "seg_1", Event: SegmentStarted{Run: runningRun("run_1", "seg_1")}})
+	apply(t, conversation, RunEvent{EventID: "start", RunID: "run_1", SegmentID: "seg_1", Event: SegmentStarted{Run: runningRun("seg_1")}})
 	if _, err := conversation.ApplyRunEvent(RunEvent{
 		EventID: "orphan", RunID: "run_1", SegmentID: "seg_1",
 		Event: BlockDelta{BlockID: "missing", Text: "bad"},
@@ -212,8 +216,8 @@ func TestConversationRejectsOrphanPreviewOutsideColdTail(t *testing.T) {
 	}
 }
 
-func runningRun(runID, segmentID string) Run {
-	return Run{ID: runID, SessionID: "ses_1", Provider: "mock", Model: "balanced", Status: RunStatusRunning, ActiveSegmentID: segmentID}
+func runningRun(segmentID string) Run {
+	return Run{ID: "run_1", SessionID: "ses_1", Provider: "mock", Model: "balanced", Status: RunStatusRunning, ActiveSegmentID: segmentID}
 }
 
 func apply(t *testing.T, conversation *Conversation, event RunEvent) {

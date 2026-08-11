@@ -2,7 +2,9 @@ package runtimeembedded
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"slices"
 
 	"github.com/Tangerg/lynx/app/runtime/protocol"
 
@@ -15,10 +17,10 @@ func (r *Runtime) ListModels(ctx context.Context) ([]agent.Model, error) {
 		return nil, classifyError(err)
 	}
 	if providers == nil {
-		return nil, fmt.Errorf("list providers: runtime returned a nil page")
+		return nil, errors.New("list providers: runtime returned a nil page")
 	}
 
-	models := make([]agent.Model, 0)
+	var models []agent.Model
 	for _, provider := range providers.Data {
 		page, err := r.binding.ListModels(ctx, protocol.ListModelsRequest{Provider: provider.ID}, r.callOptions())
 		if err != nil {
@@ -35,7 +37,7 @@ func (r *Runtime) ListModels(ctx context.Context) ([]agent.Model, error) {
 			}
 			if value.Capabilities != nil {
 				model.Capabilities = agent.ModelCapabilities{
-					Reasoning: value.Capabilities.Reasoning, ReasoningLevels: append([]string(nil), value.Capabilities.ReasoningLevels...),
+					Reasoning: value.Capabilities.Reasoning, ReasoningLevels: slices.Clone(value.Capabilities.ReasoningLevels),
 					Multimodal: value.Capabilities.Multimodal, ToolUse: value.Capabilities.ToolUse,
 				}
 			}
@@ -54,7 +56,7 @@ func (r *Runtime) GetApprovalMode(ctx context.Context) (agent.ApprovalMode, erro
 		return "", classifyError(err)
 	}
 	if result == nil {
-		return "", fmt.Errorf("get approval mode: runtime returned nil")
+		return "", errors.New("get approval mode: runtime returned nil")
 	}
 	mode := agent.ApprovalMode(result.Mode)
 	if err := mode.Validate(); err != nil {
@@ -76,7 +78,7 @@ func (r *Runtime) SetApprovalMode(ctx context.Context, mode agent.ApprovalMode) 
 		return "", classifyError(err)
 	}
 	if result == nil {
-		return "", fmt.Errorf("set approval mode: runtime returned nil")
+		return "", errors.New("set approval mode: runtime returned nil")
 	}
 	applied := agent.ApprovalMode(result.Mode)
 	if err := applied.Validate(); err != nil {
@@ -91,7 +93,7 @@ func (r *Runtime) ListApprovalRules(ctx context.Context, sessionID string) ([]ag
 		return nil, classifyError(err)
 	}
 	if result == nil {
-		return nil, fmt.Errorf("list approval rules: runtime returned nil")
+		return nil, errors.New("list approval rules: runtime returned nil")
 	}
 	rules := make([]agent.ApprovalRule, 0, len(result.Rules))
 	for _, value := range result.Rules {

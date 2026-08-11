@@ -10,6 +10,8 @@ import (
 )
 
 func (a *app) Handle(event input.Event) bool {
+	defer a.persistDraft()
+	a.observeAttention(event)
 	matched, handled := a.matchConfiguredAction(event)
 	if handled {
 		return true
@@ -30,14 +32,19 @@ func (a *app) matchConfiguredAction(event input.Event) (matched, handled bool) {
 		// A modal owns every non-global key. Keeping a separate matcher prevents a
 		// printable prefix configured for the application from swallowing form input.
 		a.applicationMatcher.Clear()
+		a.prompt.SetPendingKeySequence("")
 		keys, matcher = a.globalKeys, &a.globalMatcher
 	} else {
 		a.globalMatcher.Clear()
 	}
-	return matcher.Handle(keys, key, func(action keymap.Action) bool {
+	matched, handled = matcher.Handle(keys, key, func(action keymap.Action) bool {
 		a.disarmConfirmation(event, action)
 		return a.handleConfiguredAction(event, action)
 	})
+	if matcher == &a.applicationMatcher {
+		a.prompt.SetPendingKeySequence(pendingKeySequenceHint(keys, matcher.Keys()))
+	}
+	return matched, handled
 }
 
 func (a *app) handleConfiguredAction(event input.Event, action keymap.Action) bool {
@@ -49,7 +56,7 @@ func (a *app) handleConfiguredAction(event input.Event, action keymap.Action) bo
 	// into covered content. Blocking runtime interactions are the exception at
 	// the product-policy layer: their cancel action must resolve the interaction,
 	// not disappear into the modal boundary.
-	if action == cancelRun && (a.approval != nil || a.question != nil) {
+	if action == cancelRun && (a.approval != nil || a.questionnaire != nil) {
 		a.handleCancelGesture()
 		return true
 	}
@@ -97,9 +104,15 @@ func (a *app) handleUnboundEvent(event input.Event) bool {
 	if !a.stack.Empty() {
 		return a.stack.Handle(event)
 	}
-	if a.shell.TranscriptFocused() && a.transcript.action(event) == commandPalette {
-		a.showCommandPalette()
-		return true
+	if a.shell.TranscriptFocused() {
+		switch a.transcript.action(event) {
+		case commandPalette:
+			a.showCommandPalette()
+			return true
+		case openReader:
+			a.OpenReader()
+			return true
+		}
 	}
 	if a.completion.Handle(event) {
 		return true
@@ -165,7 +178,7 @@ func (a *app) handleEscape() bool {
 		a.status.note("press Esc again to clear the draft")
 		return true
 	}
-	a.history.Add(message)
+	a.rememberPrompt(message)
 	a.resetComposer()
 	a.completion.Dismiss()
 	a.status.note("draft cleared")
@@ -209,7 +222,7 @@ func (a *app) handleGlobalAction(action keymap.Action) bool {
 }
 
 func (a *app) handleCancelGesture() {
-	if a.approval != nil || a.question != nil {
+	if a.approval != nil || a.questionnaire != nil {
 		a.cancel()
 		return
 	}
@@ -219,7 +232,7 @@ func (a *app) handleCancelGesture() {
 		return
 	}
 	if hasDraft {
-		a.history.Add(message)
+		a.rememberPrompt(message)
 		a.resetComposer()
 		a.completion.Dismiss()
 		a.message("draft cleared; repeat " + formatKeyBindings(a.applicationKeys, cancelRun, " or ") + " to cancel")
@@ -239,12 +252,8 @@ func (a *app) handleSessionAction(action keymap.Action) bool {
 	case showSessions:
 		a.ShowSessions()
 		return true
-	case chooseModel:
-		if !a.shell.PromptFocused() {
-			return false
-		}
-		a.ChooseModel()
-		return true
+	case chooseModel, editPrompt:
+		return a.handlePromptAction(action)
 	case searchTranscript:
 		a.showSearchDialog()
 		return true
@@ -268,6 +277,20 @@ func (a *app) handleSessionAction(action keymap.Action) bool {
 	default:
 		return false
 	}
+}
+
+func (a *app) handlePromptAction(action keymap.Action) bool {
+	if !a.shell.PromptFocused() {
+		return false
+	}
+	if action == chooseModel {
+		a.ChooseModel()
+		return true
+	}
+	if err := a.editPromptExternally(); err != nil {
+		a.message(err.Error())
+	}
+	return true
 }
 
 func (a *app) handleHistoryAction(action keymap.Action) bool {

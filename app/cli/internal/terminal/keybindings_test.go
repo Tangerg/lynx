@@ -31,6 +31,23 @@ func TestConfiguredKeysBindProductActions(t *testing.T) {
 	}
 }
 
+func TestPendingKeySequenceHintShowsOnlyValidContinuations(t *testing.T) {
+	configured := settings.Default()
+	configured.Keys[settings.ActionSessions] = []string{"g s"}
+	configured.Keys[settings.ActionShortcuts] = []string{"g ?"}
+	bindings, err := configuredKeyBindings(configured)
+	if err != nil {
+		t.Fatal(err)
+	}
+	hint := pendingKeySequenceHint(bindings.application, input.Keys{{Code: input.Character, Rune: 'g'}})
+	if !strings.Contains(hint, "g →") || !strings.Contains(hint, "s sessions") || !strings.Contains(hint, "? shortcuts") {
+		t.Fatalf("pending hint = %q", hint)
+	}
+	if strings.Contains(hint, "send") {
+		t.Fatalf("pending hint includes an invalid continuation: %q", hint)
+	}
+}
+
 func TestConfiguredKeysExposeMultilineAndTranscriptNavigation(t *testing.T) {
 	bindings, err := configuredKeyBindings(settings.Default())
 	if err != nil {

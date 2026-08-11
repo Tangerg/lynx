@@ -38,8 +38,9 @@ const configIndependentAnnotation = "lyra/config-independent"
 // Runtime construction stays lazy so help and completion do not open sockets,
 // databases, or other process-owned resources.
 type Dependencies struct {
-	OpenRuntime   func(context.Context) (agent.Runtime, error)
-	RuntimeNotice string
+	OpenRuntime    func(context.Context) (agent.Runtime, error)
+	RuntimeNotice  string
+	StateDirectory string
 }
 
 // runtimeProvider delays construction until a command needs the runtime. It
@@ -80,7 +81,21 @@ func NewRoot(dependencies Dependencies) *cobra.Command {
 		notice: dependencies.RuntimeNotice,
 	}
 	v := viper.New()
-	root := &cobra.Command{
+	root := newRootCommand(v, provider, dependencies.StateDirectory)
+	configureRoot(v, root)
+	root.Flags().StringP("session", "s", "", "Open an existing session instead of a new one")
+	root.PersistentFlags().StringP("cwd", "C", "", "Workspace directory for a new session (default: current directory)")
+	root.AddGroup(
+		&cobra.Group{ID: "work", Title: "Work:"},
+		&cobra.Group{ID: "manage", Title: "Manage:"},
+		&cobra.Group{ID: "setup", Title: "Setup:"},
+	)
+	addRootCommands(root, provider, v)
+	return root
+}
+
+func newRootCommand(v *viper.Viper, provider runtimeProvider, stateDirectory string) *cobra.Command {
+	return &cobra.Command{
 		Use:   "lyra [prompt...]",
 		Short: "Terminal front end for the lyra agent runtime",
 		Long: "lyra drives an agent runtime from the terminal: an interactive session by\n" +
@@ -112,17 +127,12 @@ func NewRoot(dependencies Dependencies) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return runInteractive(cmd, args, provider, config)
+			return runInteractive(cmd, args, provider, config, stateDirectory)
 		},
 	}
-	configureRoot(v, root)
-	root.Flags().StringP("session", "s", "", "Open an existing session instead of a new one")
-	root.PersistentFlags().StringP("cwd", "C", "", "Workspace directory for a new session (default: current directory)")
-	root.AddGroup(
-		&cobra.Group{ID: "work", Title: "Work:"},
-		&cobra.Group{ID: "manage", Title: "Manage:"},
-		&cobra.Group{ID: "setup", Title: "Setup:"},
-	)
+}
+
+func addRootCommands(root *cobra.Command, provider runtimeProvider, v *viper.Viper) {
 	run := newRunCommand(provider, v)
 	run.GroupID = "work"
 	sessions := newSessionsCommand(provider)
@@ -134,7 +144,6 @@ func NewRoot(dependencies Dependencies) *cobra.Command {
 	completion := newCompletionCommand(root)
 	completion.GroupID = "setup"
 	root.AddCommand(run, sessions, approvals, config, completion)
-	return root
 }
 
 // runInteractive opens the terminal interface, seeding the field with whatever was typed
@@ -143,7 +152,7 @@ func NewRoot(dependencies Dependencies) *cobra.Command {
 // With no terminal to take over it says so and points at the command that does not
 // need one, rather than failing with something about file descriptors: a program whose
 // output is being piped wants text, not frames.
-func runInteractive(cmd *cobra.Command, args []string, provider runtimeProvider, config settings.Config) error {
+func runInteractive(cmd *cobra.Command, args []string, provider runtimeProvider, config settings.Config, stateDirectory string) error {
 	rt, err := provider.Open(cmd)
 	if err != nil {
 		return err
@@ -157,12 +166,13 @@ func runInteractive(cmd *cobra.Command, args []string, provider runtimeProvider,
 	sessionID, _ := cmd.Flags().GetString("session")
 
 	err = terminalui.Run(cmd.Context(), terminalui.Config{
-		Runtime:       rt,
-		SessionID:     sessionID,
-		Workspace:     workspacePath,
-		InitialPrompt: strings.TrimSpace(strings.Join(args, " ")),
-		Settings:      new(config),
-		PluginSources: []extensions.Source{sideload.New(config.Plugins.Directories)},
+		Runtime:        rt,
+		SessionID:      sessionID,
+		Workspace:      workspacePath,
+		InitialPrompt:  strings.TrimSpace(strings.Join(args, " ")),
+		Settings:       new(config),
+		PluginSources:  []extensions.Source{sideload.New(config.Plugins.Directories)},
+		StateDirectory: stateDirectory,
 	})
 	if errors.Is(err, term.ErrNotTerminal) {
 		return errors.New("no terminal to draw on; use `lyra run` for a one-shot run")

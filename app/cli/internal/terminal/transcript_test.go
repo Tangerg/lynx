@@ -83,7 +83,7 @@ func TestToolStreamingPreservesAReadersScrollPosition(t *testing.T) {
 	root := headless.NewRoot(view)
 	surface := grid.NewSurface(40, 5)
 	running := agent.ToolCall{Kind: agent.ToolShell, Command: "long command", Status: agent.ToolRunning}
-	tool := beginTestTool(view, "tool", running)
+	tool := beginTestTool(view, running)
 	tool.SetExpanded(true)
 	initial := strings.Repeat("tool output long enough to occupy rows\n", 20)
 	if err := view.Apply(agent.BlockDelta{BlockID: "tool", Text: initial}, nil); err != nil {
@@ -113,7 +113,7 @@ func TestToolStreamingPreservesAReadersScrollPosition(t *testing.T) {
 func TestLiveToolStreamsInPlaceAndCompletesFromAuthoritativeOutput(t *testing.T) {
 	view := testTranscriptView(t)
 	running := agent.ToolCall{Kind: agent.ToolShell, Command: "go test ./...", Status: agent.ToolRunning}
-	tool := beginTestTool(view, "tool", running)
+	tool := beginTestTool(view, running)
 	tool.SetExpanded(true)
 	for _, chunk := range []string{"first\n", "second\n"} {
 		if err := view.Apply(agent.BlockDelta{BlockID: "tool", Text: chunk}, nil); err != nil {
@@ -145,7 +145,7 @@ func TestDetailFreeCompletedToolIsNotAnnouncedExpandable(t *testing.T) {
 		ID: "tool", Kind: agent.BlockTool, Tool: &call,
 	})
 	id := view.place(block, true)
-	view.toolViews = append(view.toolViews, trackedTool{id: id, block: block})
+	view.toolViews = append(view.toolViews, trackedToolView{id: id, block: block})
 	view.Focus(true)
 	if !selection.Present || selection.Expandable || selection.Expanded {
 		t.Fatalf("selection announcement = %+v", selection)
@@ -160,7 +160,7 @@ func TestCompletingASelectedToolWithoutDetailsRemovesItsExpansionAction(t *testi
 	var selection transcriptSelection
 	view.OnSelection(func(next transcriptSelection) { selection = next })
 	running := agent.ToolCall{Kind: agent.ToolShell, Command: "true", Status: agent.ToolRunning}
-	tool := beginTestTool(view, "tool", running)
+	tool := beginTestTool(view, running)
 	view.Focus(true)
 	tool.SetExpanded(true)
 	view.announceSelection()
@@ -184,7 +184,7 @@ func TestCanceledRunSettlesEveryLiveTranscriptBlock(t *testing.T) {
 	if err := view.Apply(agent.BlockDelta{BlockID: "answer", Text: "partial answer"}, nil); err != nil {
 		t.Fatal(err)
 	}
-	tool := beginTestTool(view, "tool", agent.ToolCall{Kind: agent.ToolShell, Command: "long command", Status: agent.ToolRunning})
+	tool := beginTestTool(view, agent.ToolCall{Kind: agent.ToolShell, Command: "long command", Status: agent.ToolRunning})
 	tool.SetExpanded(true)
 	if err := view.Apply(agent.BlockDelta{BlockID: "tool", Text: "partial tool output\n"}, nil); err != nil {
 		t.Fatal(err)
@@ -315,7 +315,7 @@ func TestGlobalToolToggleNormalizesMixedDetailStates(t *testing.T) {
 func TestCompletingALiveToolPreservesItsExpandedState(t *testing.T) {
 	view := testTranscriptView(t)
 	tool := appendTestTool(view, "tool", "running")
-	tracked := view.toolViews[0]
+	tracked := trackedTool{id: view.toolViews[0].id, block: tool}
 	view.tools["tool"] = liveTool{ids: []headless.BlockID{tracked.id}, blocks: []trackedTool{tracked}}
 	tool.ToggleExpanded()
 
@@ -375,6 +375,37 @@ func TestFocusedTranscriptCopiesTheSelectedBlock(t *testing.T) {
 	}
 }
 
+func TestDiscardExcessRetainsABoundedInteractiveWindow(t *testing.T) {
+	view := testTranscriptView(t)
+	view.retain = 2
+	appendTestTool(view, "discarded", "OLD_DETAIL")
+	for _, body := range []string{"second", "third", "fourth", "fifth"} {
+		view.Append(&kit.Message{Theme: view.theme, Speaker: "lyra", Body: body})
+	}
+	root := headless.NewRoot(view)
+	root.Draw(grid.NewSurface(48, 10).View())
+	view.Focus(true)
+	view.selectEntry(view.content.FirstBlock(), false)
+
+	view.DiscardExcess()
+
+	if view.content.Len() != 2 || view.content.FirstBlock() != 3 {
+		t.Fatalf("retained transcript has %d blocks starting at %d, want 2 starting at 3", view.content.Len(), view.content.FirstBlock())
+	}
+	if len(view.entries) != 2 || len(view.toolViews) != 0 {
+		t.Fatalf("discarded metadata survived: entries=%d tools=%d", len(view.entries), len(view.toolViews))
+	}
+	if !view.hasSelected || view.selected != 4 {
+		t.Fatalf("selection after discard = present %t, id %d; want newest id 4", view.hasSelected, view.selected)
+	}
+	surface := grid.NewSurface(48, 10)
+	root.Draw(surface.View())
+	drawn := strings.Join(surface.Rows(), "\n")
+	if strings.Contains(drawn, "third") || !strings.Contains(drawn, "fourth") || !strings.Contains(drawn, "fifth") {
+		t.Fatalf("retained transcript rendered the wrong window:\n%s", drawn)
+	}
+}
+
 type recordingClipboard struct{ text string }
 
 func (c *recordingClipboard) Copy(value string) bool {
@@ -397,17 +428,17 @@ func appendTestTool(view *transcriptView, id, output string) *toolBlock {
 		ID: id, Kind: agent.BlockTool, Tool: &call,
 	})
 	blockID := view.place(block, true)
-	view.toolViews = append(view.toolViews, trackedTool{id: blockID, block: block})
+	view.toolViews = append(view.toolViews, trackedToolView{id: blockID, block: block})
 	return block
 }
 
-func beginTestTool(view *transcriptView, id string, call agent.ToolCall) *toolBlock {
+func beginTestTool(view *transcriptView, call agent.ToolCall) *toolBlock {
 	block := newToolBlock(BlockPresentation{Theme: view.theme, Glyphs: view.glyphs, Look: view.look, Syntax: view.syntax}, agent.Block{
-		ID: id, Kind: agent.BlockTool, Tool: &call,
+		ID: "tool", Kind: agent.BlockTool, Tool: &call,
 	})
 	blockID := view.place(block, false)
 	tracked := trackedTool{id: blockID, block: block}
-	view.toolViews = append(view.toolViews, tracked)
-	view.tools[id] = liveTool{ids: []headless.BlockID{blockID}, blocks: []trackedTool{tracked}}
+	view.toolViews = append(view.toolViews, trackedToolView{id: blockID, block: block})
+	view.tools["tool"] = liveTool{ids: []headless.BlockID{blockID}, blocks: []trackedTool{tracked}}
 	return block
 }

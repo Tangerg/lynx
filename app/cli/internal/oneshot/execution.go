@@ -116,7 +116,8 @@ func (w *cancellationWatcher) Finish(cancelRun bool) {
 type disposition uint8
 
 const (
-	abandoned disposition = iota
+	continuing disposition = iota
+	abandoned
 	settled
 	parked
 )
@@ -124,31 +125,32 @@ const (
 func (d disposition) preservesRun() bool { return d == settled || d == parked }
 
 func drive(ctx context.Context, invocation Invocation, opened agent.SegmentStream) (disposition, error) {
-	conversation := agent.NewConversation()
-	policy := reconnect.New(invocation.ReconnectAttempts)
-	failures := 0
-	current := opened
+	driver := executionDriver{
+		invocation: invocation, openedRunID: opened.RunID,
+		conversation: agent.NewConversation(), policy: reconnect.New(invocation.ReconnectAttempts), current: opened,
+	}
+	return driver.run(ctx)
+}
+
+type executionDriver struct {
+	invocation   Invocation
+	openedRunID  string
+	conversation *agent.Conversation
+	policy       reconnect.Policy
+	current      agent.SegmentStream
+	failures     int
+}
+
+func (d *executionDriver) run(ctx context.Context) (disposition, error) {
 	for {
-		followed := consume(current.Events, conversation, invocation.Renderer)
+		followed := consume(d.current.Events, d.conversation, d.invocation.Renderer)
 		if followed.outcome != nil {
 			return settled, errorForOutcome(*followed.outcome)
 		}
 		if len(followed.interactions) != 0 {
-			answers, err := unattendedAnswers(followed.interactions, invocation.ApproveAll, invocation.Start.SessionID)
-			if err != nil {
-				if _, required := errors.AsType[*interactionRequiredError](err); required {
-					return parked, err
-				}
-				return abandoned, err
+			if err := d.resume(ctx, followed.interactions, d.current.RunID); err != nil {
+				return interactionDisposition(err), err
 			}
-			current, err = invocation.Runtime.ResumeRun(ctx, agent.ResumeRun{RunID: current.RunID, Answers: answers})
-			if err != nil {
-				return abandoned, err
-			}
-			if err := validateContinuation(current, opened.RunID); err != nil {
-				return abandoned, err
-			}
-			failures = 0
 			continue
 		}
 		cause := followed.err
@@ -156,69 +158,92 @@ func drive(ctx context.Context, invocation Invocation, opened agent.SegmentStrea
 			cause = fmt.Errorf("%w: segment stream ended without a terminal event", agent.ErrDisconnected)
 		}
 		if followed.applied > 0 {
-			failures = 0
+			d.failures = 0
 		}
-		for {
-			failures++
-			delay, retry := policy.Next(failures, cause)
-			if !retry {
-				return abandoned, cause
-			}
-			if err := reconnect.Wait(ctx, delay); err != nil {
-				return abandoned, err
-			}
-			rebound, subscribeErr := invocation.Runtime.SubscribeRun(ctx, agent.SubscribeRun{
-				RunID: current.RunID, SegmentID: current.SegmentID, AfterEventID: conversation.Checkpoint(),
-			})
-			if subscribeErr != nil {
-				if runrecovery.Required(subscribeErr) {
-					recovered, recoveryErr := runrecovery.Recover(ctx, invocation.Runtime, invocation.Start.SessionID, current.RunID)
-					if recoveryErr != nil {
-						if !runrecovery.Required(recoveryErr) {
-							cause = recoveryErr
-						}
-						continue
-					}
-					if err := invocation.Renderer.Reconcile(recovered.Snapshot); err != nil {
-						return abandoned, err
-					}
-					if err := restoreRecoveredConversation(conversation, recovered); err != nil {
-						return abandoned, err
-					}
-					switch recovered.Run.Status {
-					case agent.RunStatusFinished:
-						return settled, errorForOutcome(recovered.Run.Outcome)
-					case agent.RunStatusWaiting:
-						answers, err := unattendedAnswers(recovered.Snapshot.Interactions, invocation.ApproveAll, invocation.Start.SessionID)
-						if err != nil {
-							if _, required := errors.AsType[*interactionRequiredError](err); required {
-								return parked, err
-							}
-							return abandoned, err
-						}
-						current, err = invocation.Runtime.ResumeRun(ctx, agent.ResumeRun{RunID: recovered.Run.ID, Answers: answers})
-						if err != nil {
-							return abandoned, err
-						}
-						if err := validateContinuation(current, opened.RunID); err != nil {
-							return abandoned, err
-						}
-						failures = 0
-					case agent.RunStatusRunning:
-						current = recovered.Stream
-					}
-					break
-				}
-				cause = subscribeErr
-				continue
-			}
+		disposition, err := d.reconnect(ctx, cause)
+		if disposition != continuing {
+			return disposition, err
+		}
+	}
+}
+
+func (d *executionDriver) resume(ctx context.Context, interactions []agent.Interaction, runID string) error {
+	answers, err := unattendedAnswers(interactions, d.invocation.ApproveAll, d.invocation.Start.SessionID)
+	if err != nil {
+		return err
+	}
+	continued, err := d.invocation.Runtime.ResumeRun(ctx, agent.ResumeRun{RunID: runID, Answers: answers})
+	if err != nil {
+		return err
+	}
+	if err := validateContinuation(continued, d.openedRunID); err != nil {
+		return err
+	}
+	d.current = continued
+	d.failures = 0
+	return nil
+}
+
+func interactionDisposition(err error) disposition {
+	if _, required := errors.AsType[*interactionRequiredError](err); required {
+		return parked
+	}
+	return abandoned
+}
+
+func (d *executionDriver) reconnect(ctx context.Context, cause error) (disposition, error) {
+	for {
+		d.failures++
+		delay, retry := d.policy.Next(d.failures, cause)
+		if !retry {
+			return abandoned, cause
+		}
+		if err := reconnect.Wait(ctx, delay); err != nil {
+			return abandoned, err
+		}
+		rebound, err := d.invocation.Runtime.SubscribeRun(ctx, agent.SubscribeRun{
+			RunID: d.current.RunID, SegmentID: d.current.SegmentID, AfterEventID: d.conversation.Checkpoint(),
+		})
+		if err == nil {
 			if err := rebound.ValidateSubscription(); err != nil {
 				return abandoned, fmt.Errorf("subscribe run: %w", err)
 			}
-			current = rebound
-			break
+			d.current = rebound
+			return continuing, nil
 		}
+		if !runrecovery.Required(err) {
+			cause = err
+			continue
+		}
+		recovered, recoveryErr := runrecovery.Recover(ctx, d.invocation.Runtime, d.invocation.Start.SessionID, d.current.RunID)
+		if recoveryErr != nil {
+			if !runrecovery.Required(recoveryErr) {
+				cause = recoveryErr
+			}
+			continue
+		}
+		return d.installRecovery(ctx, recovered)
 	}
+}
+
+func (d *executionDriver) installRecovery(ctx context.Context, recovered runrecovery.State) (disposition, error) {
+	if err := d.invocation.Renderer.Reconcile(recovered.Snapshot); err != nil {
+		return abandoned, err
+	}
+	if err := restoreRecoveredConversation(d.conversation, recovered); err != nil {
+		return abandoned, err
+	}
+	switch recovered.Run.Status {
+	case agent.RunStatusFinished:
+		return settled, errorForOutcome(recovered.Run.Outcome)
+	case agent.RunStatusWaiting:
+		if err := d.resume(ctx, recovered.Snapshot.Interactions, recovered.Run.ID); err != nil {
+			return interactionDisposition(err), err
+		}
+	case agent.RunStatusRunning:
+		d.current = recovered.Stream
+	}
+	return continuing, nil
 }
 
 func restoreRecoveredConversation(conversation *agent.Conversation, recovered runrecovery.State) error {

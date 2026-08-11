@@ -31,14 +31,18 @@ func runtimeConfigDirectories(runtimeDirectory string) ([]string, error) {
 		return directories, nil
 	}
 
-	workingDirectory, err := os.Getwd()
-	if err != nil {
-		return directories, nil
-	}
-	if development, ok := developmentRuntimeConfigDirectory(workingDirectory); ok && development != runtimeDirectory {
+	if development, ok := discoverDevelopmentRuntimeConfigDirectory(); ok && development != runtimeDirectory {
 		directories = append(directories, development)
 	}
 	return directories, nil
+}
+
+func discoverDevelopmentRuntimeConfigDirectory() (string, bool) {
+	workingDirectory, err := os.Getwd()
+	if err != nil {
+		return "", false
+	}
+	return developmentRuntimeConfigDirectory(workingDirectory)
 }
 
 func developmentRuntimeConfigDirectory(start string) (string, bool) {

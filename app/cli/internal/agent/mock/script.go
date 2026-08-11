@@ -203,102 +203,123 @@ const (
 // DefaultScript is the default script: think, run a command, explain, ask to edit
 // a file, then either edit it or say why it did not.
 func DefaultScript(_ string) Script {
-	reasoning := "The failure is intermittent, roughly one run in five, which points at timing rather than logic. " +
-		"Let me run the test several times and read what the failing run actually reports."
+	return newDefaultScenario().script()
+}
 
-	explain := "`TestCacheExpiry` waits a fixed **50ms** for the janitor goroutine to evict, then asserts the entry is gone.\n\n" +
-		"On a loaded machine the janitor has not always woken by then, so the assertion reads a value that is about to be\n" +
-		"removed. The sleep is the bug — the test needs to wait for the eviction, not for a duration.\n"
+type defaultScenario struct {
+	reasoning   string
+	explanation string
+	summary     string
+	declined    string
+	diff        string
+	testOutput  string
+}
 
-	summary := "Replaced the sleep with a wait on the janitor's eviction signal. Ran the test 50 times: no failures.\n"
+func newDefaultScenario() defaultScenario {
+	return defaultScenario{
+		reasoning: "The failure is intermittent, roughly one run in five, which points at timing rather than logic. " +
+			"Let me run the test several times and read what the failing run actually reports.",
+		explanation: "`TestCacheExpiry` waits a fixed **50ms** for the janitor goroutine to evict, then asserts the entry is gone.\n\n" +
+			"On a loaded machine the janitor has not always woken by then, so the assertion reads a value that is about to be\n" +
+			"removed. The sleep is the bug — the test needs to wait for the eviction, not for a duration.\n",
+		summary: "Replaced the sleep with a wait on the janitor's eviction signal. Ran the test 50 times: no failures.\n",
+		declined: "Left the file alone. If you would rather fix it differently, the janitor already exposes a channel that\n" +
+			"closes after each sweep — waiting on that is the smallest change that removes the timing assumption.\n",
+		diff: strings.Join([]string{
+			"--- a/internal/store/cache_test.go",
+			"+++ b/internal/store/cache_test.go",
+			"@@ -18,8 +18,8 @@ func TestCacheExpiry(t *testing.T) {",
+			" \tc := New(WithTTL(10 * time.Millisecond))",
+			" \tc.Set(\"k\", \"v\")",
+			" ",
+			"-\ttime.Sleep(50 * time.Millisecond)",
+			"-",
+			"+\t<-c.swept()",
+			"+",
+			" \tif _, ok := c.Get(\"k\"); ok {",
+			" \t\tt.Fatal(\"expected k to have expired\")",
+			" \t}",
+			"",
+		}, "\n"),
+		testOutput: strings.Join([]string{
+			"--- FAIL: TestCacheExpiry (0.05s)",
+			"    cache_test.go:24: expected k to have expired",
+			"FAIL",
+			"FAIL\tgithub.com/example/store\t0.412s",
+			"ok  \tgithub.com/example/store\t0.409s",
+			"ok  \tgithub.com/example/store\t0.407s",
+			"--- FAIL: TestCacheExpiry (0.05s)",
+			"    cache_test.go:24: expected k to have expired",
+			"FAIL",
+			"ok  \tgithub.com/example/store\t0.410s",
+		}, "\n"),
+	}
+}
 
-	declined := "Left the file alone. If you would rather fix it differently, the janitor already exposes a channel that\n" +
-		"closes after each sweep — waiting on that is the smallest change that removes the timing assumption.\n"
-
-	diff := strings.Join([]string{
-		"--- a/internal/store/cache_test.go",
-		"+++ b/internal/store/cache_test.go",
-		"@@ -18,8 +18,8 @@ func TestCacheExpiry(t *testing.T) {",
-		" \tc := New(WithTTL(10 * time.Millisecond))",
-		" \tc.Set(\"k\", \"v\")",
-		" ",
-		"-\ttime.Sleep(50 * time.Millisecond)",
-		"-",
-		"+\t<-c.swept()",
-		"+",
-		" \tif _, ok := c.Get(\"k\"); ok {",
-		" \t\tt.Fatal(\"expected k to have expired\")",
-		" \t}",
-		"",
-	}, "\n")
-
-	testOutput := strings.Join([]string{
-		"--- FAIL: TestCacheExpiry (0.05s)",
-		"    cache_test.go:24: expected k to have expired",
-		"FAIL",
-		"FAIL\tgithub.com/example/store\t0.412s",
-		"ok  \tgithub.com/example/store\t0.409s",
-		"ok  \tgithub.com/example/store\t0.407s",
-		"--- FAIL: TestCacheExpiry (0.05s)",
-		"    cache_test.go:24: expected k to have expired",
-		"FAIL",
-		"ok  \tgithub.com/example/store\t0.410s",
-	}, "\n")
-
+func (scenario defaultScenario) prelude() []Step {
 	prelude := make([]Step, 0, 32)
 	prelude = append(prelude, Step{Delay: beat, Event: agent.PlanChanged{Items: []agent.PlanItem{
 		{Title: "Reproduce the flake", Status: agent.PlanActive},
 		{Title: "Find what the test is really waiting for", Status: agent.PlanPending},
 		{Title: "Replace the sleep and re-run", Status: agent.PlanPending},
 	}}})
-	prelude = append(prelude, stream("rsn_1", agent.BlockReasoning, reasoning)...)
+	prelude = append(prelude, stream("rsn_1", agent.BlockReasoning, scenario.reasoning)...)
 	prelude = append(prelude, tool("tool_1", agent.ToolShell, "shell",
 		"go test ./internal/store -run TestCacheExpiry -count=5",
-		agent.ToolOK, testOutput, "", 3*time.Second+412*time.Millisecond)...)
+		agent.ToolOK, scenario.testOutput, "", 3*time.Second+412*time.Millisecond)...)
 	prelude = append(prelude, Step{Delay: beat, Event: agent.PlanChanged{Items: []agent.PlanItem{
 		{Title: "Reproduce the flake", Status: agent.PlanDone},
 		{Title: "Find what the test is really waiting for", Status: agent.PlanDone},
 		{Title: "Replace the sleep and re-run", Status: agent.PlanActive},
 	}}})
-	prelude = append(prelude, stream("msg_1", agent.BlockAssistant, explain)...)
+	return append(prelude, stream("msg_1", agent.BlockAssistant, scenario.explanation)...)
+}
 
+func (scenario defaultScenario) approved() []Step {
 	approved := tool("tool_3", agent.ToolShell, "shell",
 		"go test ./internal/store -run TestCacheExpiry -count=50",
 		agent.ToolOK, "ok  \tgithub.com/example/store\t2.104s", "", 2*time.Second+104*time.Millisecond)
-	approved = append(approved, stream("msg_2", agent.BlockAssistant, summary)...)
+	approved = append(approved, stream("msg_2", agent.BlockAssistant, scenario.summary)...)
 	approved = append(approved, Step{Delay: beat, Event: agent.RunFinished{
 		Outcome: agent.Outcome{Status: agent.OutcomeCompleted},
 		Usage: agent.Usage{
 			InputTokens: 18422, OutputTokens: 1163, CacheReadTokens: 12800,
-			CostUSD: knownCostUSD(0.0412), Duration: 21 * time.Second,
+			CostUSD: new(0.0412), Duration: 21 * time.Second,
 		},
 	}})
+	return approved
+}
 
+func (scenario defaultScenario) denied() []Step {
 	denied := make([]Step, 0, 16)
 	denied = append(denied, Step{Delay: beat, Event: agent.BlockCompleted{Block: agent.Block{
 		ID: "note_1", Kind: agent.BlockNotice, Text: "Edit declined — internal/store/cache_test.go left unchanged.",
 	}}})
-	denied = append(denied, stream("msg_3", agent.BlockAssistant, declined)...)
+	denied = append(denied, stream("msg_3", agent.BlockAssistant, scenario.declined)...)
 	denied = append(denied, Step{Delay: beat, Event: agent.RunFinished{
 		Outcome: agent.Outcome{Status: agent.OutcomeCompleted},
 		Usage: agent.Usage{
 			InputTokens: 14180, OutputTokens: 742, CacheReadTokens: 12800,
-			CostUSD: knownCostUSD(0.0291), Duration: 14 * time.Second,
+			CostUSD: new(0.0291), Duration: 14 * time.Second,
 		},
 	}})
+	return denied
+}
 
+func (scenario defaultScenario) script() Script {
+	approved, denied := scenario.approved(), scenario.denied()
 	return Script{
-		Prelude:        prelude,
-		InterruptUsage: agent.Usage{InputTokens: 12_800, OutputTokens: 684, CacheReadTokens: 9_600, CostUSD: knownCostUSD(0.0264), Duration: 9 * time.Second},
+		Prelude:        scenario.prelude(),
+		InterruptUsage: agent.Usage{InputTokens: 12_800, OutputTokens: 684, CacheReadTokens: 9_600, CostUSD: new(0.0264), Duration: 9 * time.Second},
 		Interactions: []agent.Interaction{agent.Approval{
 			ItemID: "tool_2",
 			Title:  "edit internal/store/cache_test.go",
 			Detail: "Replace the fixed 50ms sleep with a wait on the janitor's sweep signal.",
 			Tool: &agent.ToolCall{
 				Kind: agent.ToolEdit, Name: "edit", Summary: "internal/store/cache_test.go",
-				Status: agent.ToolRunning, Path: "internal/store/cache_test.go", Diff: diff,
+				Status: agent.ToolRunning, Path: "internal/store/cache_test.go", Diff: scenario.diff,
 			},
-			Diff:         diff,
+			Diff:         scenario.diff,
 			Risk:         agent.ApprovalRiskMedium,
 			RuleHint:     "edit:internal/store/cache_test.go",
 			Rememberable: true,
@@ -312,8 +333,6 @@ func DefaultScript(_ string) Script {
 		},
 	}
 }
-
-func knownCostUSD(value float64) *float64 { return &value }
 
 // stream renders one body as a started block, a delta per word, and a completed
 // block — the shape a real streaming item takes.

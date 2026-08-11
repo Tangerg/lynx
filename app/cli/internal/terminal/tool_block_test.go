@@ -25,6 +25,45 @@ func TestPluginPresenterPanicBecomesAnError(t *testing.T) {
 	}
 }
 
+func TestToolPresentersUseOrderedMatchingAndAGenericFallback(t *testing.T) {
+	call := agent.ToolCall{Kind: agent.ToolUnknown, Name: "provider_tool", Summary: "work", Status: agent.ToolRunning}
+	presenters := []ToolPresenter{
+		{
+			ID:      "specific",
+			Matches: func(got agent.ToolCall) bool { return got.Name == "provider_tool" },
+			Present: func(agent.ToolCall) ToolPresentation { return ToolPresentation{Label: "specific view"} },
+		},
+		{ID: "fallback", Matches: func(agent.ToolCall) bool { return true }, Present: presentUnknownTool},
+	}
+	presentation, err := selectToolPresentation(presenters, call)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if presentation.Label != "specific view" {
+		t.Fatalf("selected label = %q", presentation.Label)
+	}
+
+	fallback, err := selectToolPresentation(nil, agent.ToolCall{Kind: agent.ToolUnknown, Name: "other", Status: agent.ToolRunning})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fallback.Label != "other" {
+		t.Fatalf("fallback label = %q", fallback.Label)
+	}
+}
+
+func TestToolPresenterPanicsBecomePresentationErrors(t *testing.T) {
+	presenter := ToolPresenter{
+		ID:      "broken",
+		Matches: func(agent.ToolCall) bool { return true },
+		Present: func(agent.ToolCall) ToolPresentation { panic("projection boom") },
+	}
+	_, err := selectToolPresentation([]ToolPresenter{presenter}, agent.ToolCall{})
+	if err == nil || !strings.Contains(err.Error(), "projection boom") {
+		t.Fatalf("tool presenter error = %v", err)
+	}
+}
+
 func TestParseUnifiedDiffCarriesLineKindsAndNumbers(t *testing.T) {
 	hunks := parseUnifiedDiff("--- a/a.go\n+++ b/a.go\n@@ -10,3 +10,3 @@\n keep\n-old\n+new\n")
 	lines := requireSingleHunk(t, hunks, 10, 10, 3)

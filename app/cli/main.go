@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
@@ -26,14 +27,20 @@ func run() int {
 	ctx, stop := processSignalContext(context.Background())
 	defer stop()
 
-	owner, notice, err := newRuntimeOwner()
+	lyraHome, err := lyraHomeDirectory()
+	if err != nil {
+		_, _ = fmt.Fprintln(os.Stderr, "Error:", err)
+		return exitCode(err)
+	}
+	owner, notice, err := newRuntimeOwnerAt(lyraHome)
 	if err != nil {
 		_, _ = fmt.Fprintln(os.Stderr, "Error:", err)
 		return exitCode(err)
 	}
 	root := cmd.NewRoot(cmd.Dependencies{
-		OpenRuntime:   owner.Runtime,
-		RuntimeNotice: notice,
+		OpenRuntime:    owner.Runtime,
+		RuntimeNotice:  notice,
+		StateDirectory: filepath.Join(lyraHome, "cli"),
 	})
 	root.SetIn(os.Stdin)
 	root.SetOut(os.Stdout)
@@ -61,6 +68,17 @@ func (o *mockOwner) Runtime(context.Context) (agent.Runtime, error) { return o.r
 func (*mockOwner) Close() error                                     { return nil }
 
 func newRuntimeOwner() (runtimeOwner, string, error) {
+	if os.Getenv("LYRA_RUNTIME") == "mock" {
+		return newRuntimeOwnerAt("")
+	}
+	lyraHome, err := lyraHomeDirectory()
+	if err != nil {
+		return nil, "", err
+	}
+	return newRuntimeOwnerAt(lyraHome)
+}
+
+func newRuntimeOwnerAt(lyraHome string) (runtimeOwner, string, error) {
 	switch mode := os.Getenv("LYRA_RUNTIME"); mode {
 	case "mock":
 		return &mockOwner{runtime: mock.New()}, mockRuntimeNotice, nil
@@ -72,13 +90,6 @@ func newRuntimeOwner() (runtimeOwner, string, error) {
 	if err != nil {
 		return nil, "", fmt.Errorf("resolve runtime home: %w", err)
 	}
-	lyraHome := os.Getenv("LYRA_HOME")
-	if lyraHome == "" {
-		lyraHome = filepath.Join(userHome, ".lyra")
-	}
-	if !filepath.IsAbs(lyraHome) {
-		return nil, "", errors.New("LYRA_HOME must be an absolute path")
-	}
 	runtimeDirectory := filepath.Join(filepath.Clean(lyraHome), "runtime")
 	configDirectories, err := runtimeConfigDirectories(runtimeDirectory)
 	if err != nil {
@@ -88,6 +99,21 @@ func newRuntimeOwner() (runtimeOwner, string, error) {
 		DataDirectory: runtimeDirectory, UserHomePath: userHome,
 		ConfigDirectories: configDirectories, ClientVersion: cmd.Version(),
 	}), "", nil
+}
+
+func lyraHomeDirectory() (string, error) {
+	lyraHome := strings.TrimSpace(os.Getenv("LYRA_HOME"))
+	if lyraHome == "" {
+		userHome, err := os.UserHomeDir()
+		if err != nil {
+			return "", fmt.Errorf("resolve lyra home: %w", err)
+		}
+		lyraHome = filepath.Join(userHome, ".lyra")
+	}
+	if !filepath.IsAbs(lyraHome) {
+		return "", errors.New("LYRA_HOME must be an absolute path")
+	}
+	return filepath.Clean(lyraHome), nil
 }
 
 type exitCoder interface {

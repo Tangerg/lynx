@@ -89,16 +89,16 @@ func headerUsageLabel(usage agent.Usage) string {
 }
 
 func compactTokens(tokens int64) string {
-	abs := uint64(tokens)
-	if tokens < 0 {
-		abs = uint64(-(tokens + 1)) + 1
+	magnitude := float64(tokens)
+	if magnitude < 0 {
+		magnitude = -magnitude
 	}
 	switch {
-	case abs < 1_000:
+	case magnitude < 1_000:
 		return strconv.FormatInt(tokens, 10)
-	case abs < 10_000:
+	case magnitude < 10_000:
 		return strconv.FormatFloat(float64(tokens)/1_000, 'f', 1, 64) + "k"
-	case abs < 1_000_000:
+	case magnitude < 1_000_000:
 		return strconv.FormatInt(tokens/1_000, 10) + "k"
 	default:
 		return strconv.FormatFloat(float64(tokens)/1_000_000, 'f', 1, 64) + "m"

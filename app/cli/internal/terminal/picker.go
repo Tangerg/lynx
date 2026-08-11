@@ -47,6 +47,8 @@ func (p *picker[T]) SetItems(items []T) {
 	p.items.SetPattern(p.query.Text())
 }
 
+func (p *picker[T]) Current() (T, bool) { return p.items.Current() }
+
 func (p *picker[T]) Reset() {
 	p.query.Reset()
 	p.items.SetPattern("")
@@ -56,9 +58,9 @@ func (p *picker[T]) Reset() {
 
 func (p *picker[T]) Draw(frame headless.Frame) {
 	rects := (layout.Flow{Axis: layout.Down}).Rects(frame.Bounds().Size(), []layout.Slot{
-		layout.Slot{Size: layout.Fixed(1)},
-		layout.Slot{Size: layout.Flex(1)},
-		layout.Slot{Size: layout.Fixed(1)},
+		{Size: layout.Fixed(1)},
+		{Size: layout.Flex(1)},
+		{Size: layout.Fixed(1)},
 	})
 	rows := frame.Subs(rects)
 	p.areas.Stage(frame, pickerAreas{query: rects[0], list: rects[1]})

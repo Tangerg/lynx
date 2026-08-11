@@ -20,6 +20,7 @@ import (
 	"github.com/Tangerg/lynx/app/cli/internal/extensions"
 	"github.com/Tangerg/lynx/app/cli/internal/promptqueue"
 	"github.com/Tangerg/lynx/app/cli/internal/settings"
+	"github.com/Tangerg/lynx/app/cli/internal/workbench"
 )
 
 const (
@@ -34,6 +35,7 @@ const (
 	manageQueue      keymap.Action = settings.ActionManageQueue
 	chooseModel      keymap.Action = settings.ActionChooseModel
 	toggleDetails    keymap.Action = settings.ActionToggleDetails
+	openReader       keymap.Action = "open reader"
 	historyPrevious  keymap.Action = settings.ActionHistoryPrevious
 	historyNext      keymap.Action = settings.ActionHistoryNext
 	nextMatch        keymap.Action = settings.ActionNextMatch
@@ -42,13 +44,14 @@ const (
 	scrollPageDown   keymap.Action = settings.ActionScrollPageDown
 	scrollTop        keymap.Action = settings.ActionScrollTop
 	scrollBottom     keymap.Action = settings.ActionScrollBottom
+	editPrompt       keymap.Action = settings.ActionExternalEditor
 	queueFollowUp    keymap.Action = "queue-follow-up"
 	queueOrSendNext  keymap.Action = "queue-or-send-next"
 )
 
 type app struct {
 	ctx          context.Context
-	loop         *program.InlineRuntime
+	loop         *program.Runtime
 	runtime      agent.Runtime
 	session      agent.Session
 	registry     *extensions.Registry
@@ -67,50 +70,64 @@ type app struct {
 	options     agent.RunOptions
 	composer    kit.Composer
 	prompt      *promptView
-	commands    headless.Commands
+	commands    commandCatalog
 	completion  headless.Completion
 	shell       *shellView
 	stack       headless.Stack
 	queue       *promptqueue.Queue
+	workbench   *workbench.Store
+	editor      promptEditor
 
-	approval           *agent.Approval
-	approvalChoice     string
-	approvalForm       *headless.Form
-	approvalPane       approvalPane
-	approvalDialog     *kit.Dialog
-	sessionPicker      *picker[agent.Session]
-	sessionDialog      *kit.Dialog
-	modelPicker        *picker[agent.Model]
-	modelDialog        *kit.Dialog
-	approvalModePicker *picker[agent.ApprovalMode]
-	approvalModeDialog *kit.Dialog
-	question           *agent.Question
-	questionDialog     *kit.Dialog
-	questionText       map[int]*string
-	questionMulti      map[int]*[]string
-	interactionQueue   []agent.Interaction
-	interactionAnswers []agent.InterruptAnswer
-	commandPicker      *picker[headless.Command]
-	commandDialog      *kit.Dialog
-	shortcutDialog     *kit.Dialog
-	shortcutViewport   *headless.Viewport
-	searchDialog       *kit.Dialog
-	queueDialog        *headless.Dialog
-	searchQuery        string
-	attachments        *attachment.Resolver
-	attachmentElements map[uint64]agent.Attachment
-	history            promptHistory
-	commandSeq         uint64
-	commandOperations  map[uint64]commandOperation
-	confirmation       pressConfirmation
-	applicationKeys    *keymap.Map
-	globalKeys         *keymap.Map
-	applicationMatcher keymap.Matcher
-	globalMatcher      keymap.Matcher
+	approval            *agent.Approval
+	approvalChoice      string
+	approvalReason      string
+	approvalForm        *headless.Form
+	approvalPane        approvalPane
+	approvalDialog      *kit.Dialog
+	sessionCenter       *sessionCenterPane
+	sessionDialog       *kit.Dialog
+	sessionRenameDialog *kit.Dialog
+	sessionDeleteDialog *kit.Dialog
+	workspacePicker     *picker[workspaceChoice]
+	workspaceDialog     *kit.Dialog
+	timeline            *timelinePane
+	timelineDialog      *kit.Dialog
+	modelPicker         *picker[agent.Model]
+	modelDialog         *kit.Dialog
+	approvalModePicker  *picker[agent.ApprovalMode]
+	approvalModeDialog  *kit.Dialog
+	questionnaire       *questionnaire
+	questionDialog      *kit.Dialog
+	interactionReview   *interactionReview
+	reviewDialog        *kit.Dialog
+	commandPicker       *picker[commandPaletteItem]
+	commandDialog       *kit.Dialog
+	shortcutDialog      *kit.Dialog
+	shortcutViewport    *headless.Viewport
+	searchDialog        *kit.Dialog
+	reader              *readerPane
+	readerDialog        *kit.Dialog
+	readerSearchDialog  *kit.Dialog
+	readerSearchQuery   string
+	queueDialog         *headless.Dialog
+	searchQuery         string
+	attachments         *attachment.Resolver
+	attachmentElements  map[uint64]agent.Attachment
+	history             promptHistory
+	workbenchProblem    string
+	commandSeq          uint64
+	commandOperations   map[uint64]commandOperation
+	confirmation        pressConfirmation
+	applicationKeys     *keymap.Map
+	globalKeys          *keymap.Map
+	applicationMatcher  keymap.Matcher
+	globalMatcher       keymap.Matcher
+	attention           attentionCenter
 
 	streamSeq             uint64
 	dispatchingQueueEntry uint64
 	pendingCancel         *agent.CancelRun
+	sessionChangeDraft    *sessionChangeDraft
 	following             bool
 	stopClock             func()
 	executionClock        activeDurationClock
@@ -119,65 +136,93 @@ type app struct {
 }
 
 type appConfig struct {
-	Context       context.Context
-	Runtime       agent.Runtime
-	Snapshot      agent.SessionSnapshot
-	Registry      *extensions.Registry
-	PluginHost    *extensions.Host
-	PluginIssues  []extensions.SourceIssue
-	Attachments   *attachment.Resolver
-	InitialPrompt string
-	Settings      settings.Config
-	KeyBindings   keyBindings
-	Queue         *promptqueue.Queue
+	context      context.Context
+	runtime      agent.Runtime
+	snapshot     agent.SessionSnapshot
+	registry     *extensions.Registry
+	pluginHost   *extensions.Host
+	pluginIssues []extensions.SourceIssue
+	attachments  *attachment.Resolver
+	initialDraft agent.Message
+	settings     settings.Config
+	keyBindings  keyBindings
+	queue        *promptqueue.Queue
+	workbench    *workbench.Store
+	editor       promptEditor
 }
 
-func newApp(loop *program.InlineRuntime, cfg appConfig) *app {
-	cfg.KeyBindings.setResolver(loop.After)
-	editorKeys := cfg.KeyBindings.editor
+type terminalAppearance struct {
+	theme  kit.Theme
+	glyphs kit.Glyphs
+	syntax highlight.Renderer
+}
+
+func newTerminalAppearance(loop *program.Runtime) terminalAppearance {
 	ground := loop.Environment().Ground()
-	theme := kit.Suited(ground)
-	glyphs := kit.GlyphsFor(loop.Environment().Locale())
-	syntaxStyle := highlight.Style("github-dark")
+	style := highlight.Style("github-dark")
 	if !ground.BG.Default() && !ground.BG.RGB().Dark() {
-		syntaxStyle = "github"
+		style = "github"
 	}
-	syntax := highlight.New(syntaxStyle)
+	return terminalAppearance{
+		theme: kit.Suited(ground), glyphs: kit.GlyphsFor(loop.Environment().Locale()), syntax: highlight.New(style),
+	}
+}
+
+func newApp(loop *program.Runtime, cfg appConfig) *app {
+	cfg.keyBindings.setResolver(loop.After)
+	appearance := newTerminalAppearance(loop)
 	a := &app{
-		ctx: cfg.Context, loop: loop, runtime: cfg.Runtime, session: cfg.Snapshot.Session, registry: cfg.Registry,
-		pluginHost: cfg.PluginHost, pluginIssues: cfg.PluginIssues,
+		ctx: cfg.context, loop: loop, runtime: cfg.runtime, session: cfg.snapshot.Session, registry: cfg.registry,
+		pluginHost: cfg.pluginHost, pluginIssues: cfg.pluginIssues,
 		conversation:       agent.NewConversation(),
-		operations:         newOperationOwner(cfg.Context),
-		transcript:         newTranscriptView(theme, glyphs, loop.Environment().Wheel(), syntax, cfg.Settings.UI.TranscriptRetain, cfg.Settings.UI.ToolDetails, loop.Clipboard()),
-		header:             newSessionHeader(theme, glyphs, cfg.Snapshot.Session),
-		activity:           newActivityView(theme, glyphs),
-		queueView:          newQueueView(theme, glyphs),
-		status:             newStatusView(theme, glyphs, cfg.Settings.RunOptions()),
-		queue:              cfg.Queue,
-		settings:           cfg.Settings.Clone(),
-		options:            cfg.Settings.RunOptions(),
-		syntax:             syntax,
-		attachments:        cfg.Attachments,
+		operations:         newOperationOwner(cfg.context),
+		transcript:         newTranscriptView(appearance.theme, appearance.glyphs, loop.Environment().Wheel(), appearance.syntax, cfg.settings.UI.TranscriptRetain, cfg.settings.UI.ToolDetails, loop.Clipboard()),
+		header:             newSessionHeader(appearance.theme, appearance.glyphs, cfg.snapshot.Session),
+		activity:           newActivityView(appearance.theme, appearance.glyphs),
+		queueView:          newQueueView(appearance.theme, appearance.glyphs),
+		status:             newStatusView(appearance.theme, appearance.glyphs, cfg.settings.RunOptions()),
+		queue:              cfg.queue,
+		workbench:          cfg.workbench,
+		editor:             cfg.editor,
+		settings:           cfg.settings.Clone(),
+		options:            cfg.settings.RunOptions(),
+		syntax:             appearance.syntax,
+		attachments:        cfg.attachments,
 		attachmentElements: make(map[uint64]agent.Attachment),
 		commandOperations:  make(map[uint64]commandOperation),
-		applicationKeys:    cfg.KeyBindings.application,
-		globalKeys:         cfg.KeyBindings.global,
+		commands:           newCommandCatalog(),
+		attention:          newAttentionCenter(),
+		applicationKeys:    cfg.keyBindings.application,
+		globalKeys:         cfg.keyBindings.global,
 	}
+	a.configureComposer(appearance, cfg.keyBindings.editor, cfg.initialDraft)
+	a.configureCompletion(appearance)
+	a.registerCommands()
+	a.buildInterface(appearance, cfg.keyBindings.editor)
+	a.restore(cfg.snapshot)
+	a.persistDraft()
+	return a
+}
+
+func (a *app) configureComposer(appearance terminalAppearance, keys *keymap.Map, initial agent.Message) {
 	a.composer = kit.Composer{
-		Theme: theme, Prompt: glyphs.Marker + " ",
+		Theme: appearance.theme, Prompt: appearance.glyphs.Marker + " ",
 		MaxRows: 6,
 	}
 	a.composer.Editor().Placeholder = "Ask lyra to inspect, explain, or change something"
-	a.composer.Editor().Keys = editorKeys
-	a.composer.Editor().Clipboard = loop.Clipboard()
-	if cfg.InitialPrompt != "" {
-		a.composer.Editor().SetText(cfg.InitialPrompt)
+	a.composer.Editor().Keys = keys
+	a.composer.Editor().Clipboard = a.loop.Clipboard()
+	if a.workbench != nil {
+		a.history.Load(a.workbench.History())
 	}
+	a.restoreComposer(initial)
+}
 
+func (a *app) configureCompletion(appearance terminalAppearance) {
 	completionKeys := headless.DefaultCompletionKeys()
 	completionKeys.Bind(headless.Accept, input.Chord{Code: input.Enter})
 	a.completion = headless.Completion{
-		Look: theme.Look(glyphs), Keys: completionKeys,
+		Look: appearance.theme.Look(appearance.glyphs), Keys: completionKeys,
 		Accept: func(candidate headless.Candidate, token headless.Token) {
 			if token.Trigger.Prefix == "@" {
 				a.composer.Editor().Replace(max(token.Start-1, 0), token.End, "")
@@ -189,8 +234,10 @@ func newApp(loop *program.InlineRuntime, cfg appConfig) *app {
 			a.composer.Editor().Replace(token.Start, token.End, candidate.Text)
 		},
 	}
-	a.registerCommands()
+}
 
+func (a *app) buildInterface(appearance terminalAppearance, editorKeys *keymap.Map) {
+	theme, glyphs := appearance.theme, appearance.glyphs
 	a.prompt = newPromptView(theme, glyphs, editorKeys, &a.composer, a.options)
 	a.shell = newShellView(a.header, a.transcript, a.activity, a.queueView, a.status, a.prompt)
 	a.wireTranscript(a.transcript)
@@ -199,14 +246,15 @@ func newApp(loop *program.InlineRuntime, cfg appConfig) *app {
 	a.buildQueueDrawer(theme, glyphs, editorKeys)
 	a.buildApprovalDialog(theme, glyphs)
 	a.buildSessionPicker(theme, glyphs)
+	a.buildWorkspacePicker(theme, glyphs)
+	a.buildTimeline(theme, glyphs)
 	a.buildRuntimePickers(theme, glyphs)
 	a.buildCommandPalette(theme, glyphs)
 	a.buildShortcutDialog(theme, glyphs, editorKeys)
 	a.buildSearchDialog(theme, glyphs)
+	a.buildReader(theme, glyphs)
 	a.listenForSearch()
-	loop.Session().SetTitle("lyra — " + displayTitle(cfg.Snapshot.Session))
-	a.restore(cfg.Snapshot)
-	return a
+	a.setWindowTitle()
 }
 
 func (a *app) wireTranscript(transcript *transcriptView) {
@@ -221,21 +269,19 @@ func (a *app) wireTranscript(transcript *transcriptView) {
 }
 
 func (a *app) buildSessionPicker(theme kit.Theme, glyphs kit.Glyphs) {
-	a.sessionPicker = newPicker(theme, glyphs, "search sessions",
-		displayTitle,
-		func(session agent.Session) string {
-			return compactRelativeAge(session.UpdatedAt) + " · " + session.Workspace
-		},
-		func(session agent.Session) {
-			a.sessionDialog.Dismiss()
-			a.switchSession(session.ID)
-		},
-	)
-	a.sessionDialog = kit.NewDialog(kit.DialogConfig{
-		Stack: &a.stack, Theme: theme, Glyphs: glyphs, Title: "Sessions", Body: a.sessionPicker,
-		Where: layout.Placement{Width: 88, Height: 18, Margin: 1},
+	a.sessionCenter = newSessionCenterPane(theme, glyphs, func(session agent.Session) {
+		a.sessionDialog.Dismiss()
+		a.switchSession(session.ID)
 	})
-	a.sessionPicker.cancel = a.sessionDialog.Dismiss
+	a.sessionCenter.loadMore = a.loadMoreSessions
+	a.sessionCenter.toggleFavorite = a.toggleSessionFavorite
+	a.sessionCenter.rename = a.openSessionRename
+	a.sessionCenter.delete = a.openSessionDelete
+	a.sessionDialog = kit.NewDialog(kit.DialogConfig{
+		Stack: &a.stack, Theme: theme, Glyphs: glyphs, Title: "Sessions · Center", Body: a.sessionCenter,
+		Where: layout.Placement{Width: 96, Height: 24},
+	})
+	a.sessionCenter.picker.cancel = a.sessionDialog.Dismiss
 }
 
 func (a *app) restore(snapshot agent.SessionSnapshot) {
@@ -260,7 +306,48 @@ func presentSnapshot(view *transcriptView, snapshot agent.SessionSnapshot, regis
 			return fmt.Errorf("restore transcript block %s: %w", block.ID, err)
 		}
 	}
+	view.SealToolGroups()
 	return nil
+}
+
+type sessionProjection struct {
+	conversation *agent.Conversation
+	transcript   *transcriptView
+}
+
+func (projection sessionProjection) close() {
+	if projection.transcript != nil {
+		projection.transcript.Close()
+	}
+}
+
+func (a *app) projectSession(snapshot agent.SessionSnapshot, attached *agent.SegmentStream) (sessionProjection, error) {
+	if err := snapshot.Validate(); err != nil {
+		return sessionProjection{}, err
+	}
+	conversation := agent.NewConversation()
+	var err error
+	if active, ok := snapshot.ActiveRun(); attached != nil && ok && active.Status == agent.RunStatusRunning {
+		err = conversation.RestoreAttachedSnapshot(snapshot, *attached)
+	} else {
+		err = conversation.RestoreSnapshot(snapshot)
+	}
+	if err != nil {
+		return sessionProjection{}, err
+	}
+	transcript := a.newTranscript()
+	if err := presentSnapshot(transcript, snapshot, a.registry); err != nil {
+		transcript.Close()
+		return sessionProjection{}, err
+	}
+	return sessionProjection{conversation: conversation, transcript: transcript}, nil
+}
+
+func (a *app) newTranscript() *transcriptView {
+	return newTranscriptView(
+		a.transcript.theme, a.transcript.glyphs, a.transcript.wheel, a.syntax,
+		a.settings.UI.TranscriptRetain, a.transcript.details, a.transcript.clipboard,
+	)
 }
 
 // reconcileRunSnapshot atomically replaces the in-memory projection after a
@@ -268,64 +355,47 @@ func presentSnapshot(view *transcriptView, snapshot agent.SessionSnapshot, regis
 // operation alive: runrecovery already attached the replacement stream before
 // taking this snapshot, so canceling that operation here would reopen a gap.
 func (a *app) reconcileRunSnapshot(snapshot agent.SessionSnapshot, stream agent.SegmentStream) error {
-	if err := snapshot.Validate(); err != nil {
-		return fmt.Errorf("reconcile run snapshot: %w", err)
-	}
 	if snapshot.Session.ID != a.session.ID {
 		return fmt.Errorf("reconcile run snapshot: session %s does not match %s", snapshot.Session.ID, a.session.ID)
 	}
-	next := agent.NewConversation()
-	var restoreErr error
-	if active, ok := snapshot.ActiveRun(); ok && active.Status == agent.RunStatusRunning {
-		restoreErr = next.RestoreAttachedSnapshot(snapshot, stream)
-	} else {
-		restoreErr = next.RestoreSnapshot(snapshot)
-	}
-	if restoreErr != nil {
-		return fmt.Errorf("reconcile run snapshot: %w", restoreErr)
-	}
-	nextTranscript := newTranscriptView(
-		a.transcript.theme, a.transcript.glyphs, a.transcript.wheel, a.syntax,
-		a.settings.UI.TranscriptRetain, a.transcript.details, a.transcript.clipboard,
-	)
-	if err := presentSnapshot(nextTranscript, snapshot, a.registry); err != nil {
-		nextTranscript.Close()
-		return err
+	projection, err := a.projectSession(snapshot, &stream)
+	if err != nil {
+		return fmt.Errorf("reconcile run snapshot: %w", err)
 	}
 
 	previousTranscript := a.transcript
 	a.session = snapshot.Session
-	a.conversation = next
-	a.transcript = nextTranscript
-	a.wireTranscript(nextTranscript)
-	a.shell.SetTranscript(nextTranscript)
+	a.conversation = projection.conversation
+	a.transcript = projection.transcript
+	a.wireTranscript(projection.transcript)
+	a.shell.SetTranscript(projection.transcript)
 	a.header.SetSession(snapshot.Session)
-	a.header.SetUsage(next.Usage())
-	a.activity.Set(next.Plan())
-	a.prompt.SetBusy(next.Busy())
+	a.header.SetUsage(projection.conversation.Usage())
+	a.activity.Set(projection.conversation.Plan())
+	a.prompt.SetBusy(projection.conversation.Busy())
 	previousTranscript.Close()
 	a.listenForSearch()
-	a.loop.Session().SetTitle("lyra — " + displayTitle(snapshot.Session))
+	a.setWindowTitle()
 
-	switch next.Phase() {
+	switch projection.conversation.Phase() {
 	case agent.ConversationRunning:
 		a.following = true
-		a.executionClock.start(next.Usage().Duration, time.Now())
+		a.executionClock.start(projection.conversation.Usage().Duration, time.Now())
 		a.status.active("reconnected")
 	case agent.ConversationWaiting:
 		a.following = false
-		a.openInteractions(next.Interactions())
+		a.openInteractions(projection.conversation.Interactions())
 		a.status.note("waiting for your answers")
 	case agent.ConversationIdle:
 		a.following = false
-		if next.Outcome().Status != "" {
-			a.status.settled(next.Outcome(), next.Usage())
+		if projection.conversation.Outcome().Status != "" {
+			a.status.settled(projection.conversation.Outcome(), projection.conversation.Usage())
 		}
 		if a.drainQueue() {
 			return nil
 		}
-		if a.settings.UI.Notifications && next.Outcome().Status != "" {
-			a.loop.Session().Notify(outcomeNotification(next.Outcome()))
+		if projection.conversation.Outcome().Status != "" {
+			a.raiseAttention(outcomeAttention(projection.conversation.Outcome()))
 		}
 	default:
 		return errors.New("reconcile run snapshot: unknown conversation phase")
@@ -377,6 +447,7 @@ func (a *app) Close(ctx context.Context) {
 	if a.closed {
 		return
 	}
+	a.persistDraft()
 	a.closed = true
 	target, cancelRuntime := a.activeCancellation()
 	if !cancelRuntime && a.pendingCancel != nil {
@@ -390,6 +461,9 @@ func (a *app) Close(ctx context.Context) {
 		a.cancelRuntimeNow(ctx, target)
 	}
 	a.transcript.Close()
+	if a.reader != nil {
+		a.reader.Shutdown()
+	}
 	if a.stopClock != nil {
 		a.stopClock()
 		a.stopClock = nil
@@ -403,13 +477,7 @@ func (a *app) submit() {
 		return
 	}
 	if message.Text == "" && len(message.Attachments) == 0 {
-		if a.conversation.Busy() || a.following || a.pendingCancel != nil {
-			if entry, ok := a.queue.Next(a.session.ID); ok {
-				if err := a.sendQueuedNow(entry.ID); err != nil {
-					a.message(err.Error())
-				}
-			}
-		}
+		a.sendNextQueuedIfBusy()
 		return
 	}
 	if name, arg, command := headless.Parse(message.Text); command {
@@ -433,11 +501,24 @@ func (a *app) submit() {
 	a.operations.Cancel(pickerCatalogOperation)
 	a.sessionDialog.Dismiss()
 	a.modelDialog.Dismiss()
-	a.history.Add(message)
+	a.rememberPrompt(message)
 	a.resetComposer()
 	a.operations.Cancel(completionOperation)
 	a.completion.Dismiss()
 	a.startRun(message, "starting run")
+}
+
+func (a *app) sendNextQueuedIfBusy() {
+	if !a.conversation.Busy() && !a.following && a.pendingCancel == nil {
+		return
+	}
+	entry, ok := a.queue.Next(a.session.ID)
+	if !ok {
+		return
+	}
+	if err := a.sendQueuedNow(entry.ID); err != nil {
+		a.message(err.Error())
+	}
 }
 
 func (a *app) message(label string) {

@@ -114,51 +114,16 @@ func (s SessionSnapshot) Validate() error {
 	if err := s.Session.Validate(); err != nil {
 		return fmt.Errorf("session snapshot: %w", err)
 	}
-	blocksByIdentity := make(map[string]Block, len(s.Transcript))
-	var runningBlocks []Block
-	for i, block := range s.Transcript {
-		if err := validateBlock(block, block.Status != BlockStatusRunning); err != nil {
-			return fmt.Errorf("session snapshot: transcript block %d: %w", i+1, err)
-		}
-		identity := block.RunID + "\x00" + block.ID
-		if _, duplicate := blocksByIdentity[identity]; duplicate {
-			return fmt.Errorf("session snapshot: transcript repeats block %q in run %q", block.ID, block.RunID)
-		}
-		blocksByIdentity[identity] = block
-		if block.Status == BlockStatusRunning {
-			if block.Kind != BlockTool {
-				return fmt.Errorf("session snapshot: transcript block %d: only a tool call can be durably running", i+1)
-			}
-			runningBlocks = append(runningBlocks, block)
-		}
+	transcript, err := s.validateTranscript()
+	if err != nil {
+		return err
 	}
-	runIDs := make(map[string]struct{}, len(s.Runs))
-	activeIndex := -1
-	for i, run := range s.Runs {
-		if err := run.Validate(); err != nil {
-			return fmt.Errorf("session snapshot: run %d: %w", i+1, err)
-		}
-		if run.SessionID != s.Session.ID {
-			return fmt.Errorf("session snapshot: run %s belongs to session %s", run.ID, run.SessionID)
-		}
-		if _, duplicate := runIDs[run.ID]; duplicate {
-			return fmt.Errorf("session snapshot: repeats run %q", run.ID)
-		}
-		runIDs[run.ID] = struct{}{}
-		if run.Status != RunStatusFinished {
-			if activeIndex >= 0 {
-				return errors.New("session snapshot: more than one root run is active")
-			}
-			activeIndex = i
-		}
+	runs, err := s.validateRuns()
+	if err != nil {
+		return err
 	}
-	for _, block := range s.Transcript {
-		if _, exists := runIDs[block.RunID]; !exists {
-			return fmt.Errorf("session snapshot: block %s references unknown run %s", block.ID, block.RunID)
-		}
-	}
-	if activeIndex >= 0 && activeIndex != len(s.Runs)-1 {
-		return errors.New("session snapshot: active run is not the latest root run")
+	if err := s.validateReferences(transcript, runs); err != nil {
+		return err
 	}
 	if err := validatePlan(s.Plan); err != nil {
 		return fmt.Errorf("session snapshot: %w", err)
@@ -166,24 +131,91 @@ func (s SessionSnapshot) Validate() error {
 	if s.PlanRevision == 0 && len(s.Plan) != 0 {
 		return errors.New("session snapshot: unwritten plan contains items")
 	}
-	if activeIndex < 0 {
-		if len(runningBlocks) != 0 {
-			return errors.New("session snapshot: idle session carries a running transcript block")
+	return s.validateLifecycle(transcript, runs)
+}
+
+type snapshotTranscript struct {
+	byIdentity map[string]Block
+	running    []Block
+}
+
+func (s SessionSnapshot) validateTranscript() (snapshotTranscript, error) {
+	indexed := snapshotTranscript{byIdentity: make(map[string]Block, len(s.Transcript))}
+	for i, block := range s.Transcript {
+		if err := block.validateLifecycle(block.Status != BlockStatusRunning); err != nil {
+			return snapshotTranscript{}, fmt.Errorf("session snapshot: transcript block %d: %w", i+1, err)
 		}
-		if len(s.Interactions) != 0 {
-			return errors.New("session snapshot: idle session carries pending interactions")
+		identity := blockIdentity(block.RunID, block.ID)
+		if _, duplicate := indexed.byIdentity[identity]; duplicate {
+			return snapshotTranscript{}, fmt.Errorf("session snapshot: transcript repeats block %q in run %q", block.ID, block.RunID)
 		}
-		if s.Session.Status != SessionIdle {
-			return fmt.Errorf("session snapshot: session status is %s without an active run", s.Session.Status)
+		indexed.byIdentity[identity] = block
+		if block.Status != BlockStatusRunning {
+			continue
 		}
+		if block.Kind != BlockTool {
+			return snapshotTranscript{}, fmt.Errorf("session snapshot: transcript block %d: only a tool call can be durably running", i+1)
+		}
+		indexed.running = append(indexed.running, block)
+	}
+	return indexed, nil
+}
+
+type snapshotRuns struct {
+	ids         map[string]struct{}
+	activeIndex int
+}
+
+func (s SessionSnapshot) validateRuns() (snapshotRuns, error) {
+	indexed := snapshotRuns{ids: make(map[string]struct{}, len(s.Runs)), activeIndex: -1}
+	for i, run := range s.Runs {
+		if err := run.Validate(); err != nil {
+			return snapshotRuns{}, fmt.Errorf("session snapshot: run %d: %w", i+1, err)
+		}
+		if run.SessionID != s.Session.ID {
+			return snapshotRuns{}, fmt.Errorf("session snapshot: run %s belongs to session %s", run.ID, run.SessionID)
+		}
+		if _, duplicate := indexed.ids[run.ID]; duplicate {
+			return snapshotRuns{}, fmt.Errorf("session snapshot: repeats run %q", run.ID)
+		}
+		indexed.ids[run.ID] = struct{}{}
+		if run.Status == RunStatusFinished {
+			continue
+		}
+		if indexed.activeIndex >= 0 {
+			return snapshotRuns{}, errors.New("session snapshot: more than one root run is active")
+		}
+		indexed.activeIndex = i
+	}
+	if indexed.activeIndex >= 0 && indexed.activeIndex != len(s.Runs)-1 {
+		return snapshotRuns{}, errors.New("session snapshot: active run is not the latest root run")
+	}
+	return indexed, nil
+}
+
+func (s SessionSnapshot) validateReferences(transcript snapshotTranscript, runs snapshotRuns) error {
+	for _, block := range s.Transcript {
+		if _, exists := runs.ids[block.RunID]; !exists {
+			return fmt.Errorf("session snapshot: block %s references unknown run %s", block.ID, block.RunID)
+		}
+	}
+	if runs.activeIndex < 0 {
 		return nil
 	}
-	active := s.Runs[activeIndex]
-	for _, block := range runningBlocks {
+	active := s.Runs[runs.activeIndex]
+	for _, block := range transcript.running {
 		if block.RunID != active.ID {
 			return fmt.Errorf("session snapshot: running block %s belongs to inactive run %s", block.ID, block.RunID)
 		}
 	}
+	return nil
+}
+
+func (s SessionSnapshot) validateLifecycle(transcript snapshotTranscript, runs snapshotRuns) error {
+	if runs.activeIndex < 0 {
+		return s.validateIdleLifecycle(transcript)
+	}
+	active := s.Runs[runs.activeIndex]
 	switch active.Status {
 	case RunStatusRunning:
 		if s.Session.Status != SessionRunning {
@@ -193,21 +225,39 @@ func (s SessionSnapshot) Validate() error {
 			return errors.New("session snapshot: running run carries pending interactions")
 		}
 	case RunStatusWaiting:
-		if s.Session.Status != SessionWaiting {
-			return fmt.Errorf("session snapshot: waiting run has session status %s", s.Session.Status)
+		return s.validateWaitingLifecycle(active, transcript)
+	}
+	return nil
+}
+
+func (s SessionSnapshot) validateIdleLifecycle(transcript snapshotTranscript) error {
+	if len(transcript.running) != 0 {
+		return errors.New("session snapshot: idle session carries a running transcript block")
+	}
+	if len(s.Interactions) != 0 {
+		return errors.New("session snapshot: idle session carries pending interactions")
+	}
+	if s.Session.Status != SessionIdle {
+		return fmt.Errorf("session snapshot: session status is %s without an active run", s.Session.Status)
+	}
+	return nil
+}
+
+func (s SessionSnapshot) validateWaitingLifecycle(active Run, transcript snapshotTranscript) error {
+	if s.Session.Status != SessionWaiting {
+		return fmt.Errorf("session snapshot: waiting run has session status %s", s.Session.Status)
+	}
+	if err := ValidateInteractions(s.Interactions); err != nil {
+		return fmt.Errorf("session snapshot: waiting run: %w", err)
+	}
+	for _, interaction := range s.Interactions {
+		itemID := InteractionItemID(interaction)
+		block, exists := transcript.byIdentity[blockIdentity(active.ID, itemID)]
+		if !exists {
+			return fmt.Errorf("session snapshot: waiting interrupt references unknown item %s", itemID)
 		}
-		if err := ValidateInteractions(s.Interactions); err != nil {
+		if err := validateInteractionItem(interaction, block); err != nil {
 			return fmt.Errorf("session snapshot: waiting run: %w", err)
-		}
-		for _, interaction := range s.Interactions {
-			itemID := InteractionItemID(interaction)
-			block, exists := blocksByIdentity[blockIdentity(active.ID, itemID)]
-			if !exists {
-				return fmt.Errorf("session snapshot: waiting interrupt references unknown item %s", itemID)
-			}
-			if err := validateInteractionItem(interaction, block); err != nil {
-				return fmt.Errorf("session snapshot: waiting run: %w", err)
-			}
 		}
 	}
 	return nil
@@ -219,7 +269,7 @@ func (c *Conversation) RestoreSnapshot(snapshot SessionSnapshot) error {
 	}
 	next := NewConversation()
 	next.blocks = cloneBlocks(snapshot.Transcript)
-	next.plan = append([]PlanItem(nil), snapshot.Plan...)
+	next.plan = slices.Clone(snapshot.Plan)
 	next.planRevision = snapshot.PlanRevision
 	next.rebuildBlockIndex()
 	if active, ok := snapshot.ActiveRun(); ok {
@@ -275,7 +325,8 @@ type CreateSession struct {
 
 type UpdateSession struct {
 	SessionID        string
-	Title            string
+	Title            *string
+	Favorite         *bool
 	ExpectedRevision uint64
 }
 

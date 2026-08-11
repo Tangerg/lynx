@@ -20,6 +20,14 @@ func (e RunEvent) Clone() RunEvent {
 	return e
 }
 
+// Equal reports whether two envelopes contain the same durable event fact.
+// Timestamp equality is based on the instant, not time.Location pointer or a
+// process-local monotonic reading that cannot survive persistence.
+func (e RunEvent) Equal(other RunEvent) bool {
+	return e.EventID == other.EventID && e.RunID == other.RunID && e.SegmentID == other.SegmentID &&
+		e.At.Equal(other.At) && equalEvent(e.Event, other.Event)
+}
+
 type Event interface{ isEvent() }
 
 // SegmentStarted is the authoritative opening fact of every initial or resumed
@@ -98,4 +106,51 @@ func CloneEvent(event Event) Event {
 	default:
 		return nil
 	}
+}
+
+func equalEvent(left, right Event) bool {
+	switch item := left.(type) {
+	case SegmentStarted:
+		other, ok := right.(SegmentStarted)
+		return ok && item.Run.Equal(other.Run)
+	case BlockStarted:
+		other, ok := right.(BlockStarted)
+		return ok && item.Block.Equal(other.Block)
+	case BlockDelta:
+		other, ok := right.(BlockDelta)
+		return ok && item == other
+	case BlockCompleted:
+		other, ok := right.(BlockCompleted)
+		return ok && item.Block.Equal(other.Block)
+	case PlanChanged:
+		other, ok := right.(PlanChanged)
+		return ok && item.Revision == other.Revision && slices.Equal(item.Items, other.Items)
+	case RunInterrupted:
+		other, ok := right.(RunInterrupted)
+		return ok && item.Usage.Equal(other.Usage) && equalInteractions(item.Interactions, other.Interactions)
+	case RunFinished:
+		other, ok := right.(RunFinished)
+		return ok && item.Outcome == other.Outcome && item.Usage.Equal(other.Usage)
+	case nil:
+		return right == nil
+	default:
+		return false
+	}
+}
+
+func equalInteractions(left, right []Interaction) bool {
+	return slices.EqualFunc(left, right, func(left, right Interaction) bool {
+		switch item := left.(type) {
+		case Approval:
+			other, ok := right.(Approval)
+			return ok && item.Equal(other)
+		case Question:
+			other, ok := right.(Question)
+			return ok && item.Equal(other)
+		case nil:
+			return right == nil
+		default:
+			return false
+		}
+	})
 }

@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"reflect"
 	"slices"
 	"strings"
 )
@@ -137,14 +136,14 @@ func ValidateEvent(event Event) error {
 		}
 		return nil
 	case BlockStarted:
-		return validateBlock(item.Block, false)
+		return item.Block.validateLifecycle(false)
 	case BlockDelta:
 		if strings.TrimSpace(item.BlockID) == "" {
 			return errors.New("block delta without a block id")
 		}
 		return nil
 	case BlockCompleted:
-		return validateBlock(item.Block, true)
+		return item.Block.validateLifecycle(true)
 	case PlanChanged:
 		if item.Revision == 0 {
 			return errors.New("plan changed without a revision")
@@ -164,7 +163,17 @@ func ValidateEvent(event Event) error {
 	}
 }
 
-func validateBlock(block Block, completed bool) error {
+func (block Block) validateLifecycle(completed bool) error {
+	if err := block.validateEnvelope(completed); err != nil {
+		return err
+	}
+	if err := block.validateAttachments(); err != nil {
+		return err
+	}
+	return block.validateProjection()
+}
+
+func (block Block) validateEnvelope(completed bool) error {
 	if strings.TrimSpace(block.ID) == "" {
 		return errors.New("transcript block has no id")
 	}
@@ -183,51 +192,31 @@ func validateBlock(block Block, completed bool) error {
 	if block.Status == BlockStatusRunning && !slices.Contains([]BlockKind{BlockAssistant, BlockReasoning, BlockTool}, block.Kind) {
 		return fmt.Errorf("%s block %s cannot be running", block.Kind, block.ID)
 	}
-	if block.Kind == BlockUser || block.Kind == BlockQuestion || block.Kind == BlockNotice {
-		if block.Status != BlockStatusCompleted {
-			return fmt.Errorf("%s block %s must be completed", block.Kind, block.ID)
-		}
+	wholeOnly := slices.Contains([]BlockKind{BlockUser, BlockQuestion, BlockNotice}, block.Kind)
+	if wholeOnly && block.Status != BlockStatusCompleted {
+		return fmt.Errorf("%s block %s must be completed", block.Kind, block.ID)
 	}
 	if block.Kind != BlockUser && len(block.Attachments) != 0 {
 		return fmt.Errorf("%s block %s carries attachments", block.Kind, block.ID)
 	}
+	return nil
+}
+
+func (block Block) validateAttachments() error {
 	for i, attachment := range block.Attachments {
 		if err := attachment.Validate(); err != nil {
 			return fmt.Errorf("block %s attachment %d: %w", block.ID, i+1, err)
 		}
 	}
+	return nil
+}
+
+func (block Block) validateProjection() error {
 	switch block.Kind {
 	case BlockQuestion:
-		if block.Question == nil {
-			return fmt.Errorf("question block %s has no question projection", block.ID)
-		}
-		if block.Question.ItemID != block.ID {
-			return fmt.Errorf("question block %s carries item id %s", block.ID, block.Question.ItemID)
-		}
-		if err := block.Question.Validate(); err != nil {
-			return fmt.Errorf("block %s: %w", block.ID, err)
-		}
+		return block.validateQuestionProjection()
 	case BlockTool:
-		if block.Tool == nil {
-			return fmt.Errorf("tool block %s has no tool projection", block.ID)
-		}
-		if err := block.Tool.Validate(); err != nil {
-			return fmt.Errorf("block %s: %w", block.ID, err)
-		}
-		switch block.Tool.Status {
-		case ToolRunning:
-			if block.Status != BlockStatusRunning {
-				return fmt.Errorf("block %s is %s while its tool is running", block.ID, block.Status)
-			}
-		case ToolOK:
-			if block.Status != BlockStatusCompleted {
-				return fmt.Errorf("block %s is %s while its tool completed", block.ID, block.Status)
-			}
-		case ToolError, ToolCanceled:
-			if block.Status != BlockStatusIncomplete {
-				return fmt.Errorf("block %s is %s while its tool is %s", block.ID, block.Status, block.Tool.Status)
-			}
-		}
+		return block.validateToolProjection()
 	default:
 		if block.Question != nil {
 			return fmt.Errorf("%s block %s carries a question projection", block.Kind, block.ID)
@@ -237,6 +226,44 @@ func validateBlock(block Block, completed bool) error {
 		}
 	}
 	return nil
+}
+
+func (block Block) validateQuestionProjection() error {
+	if block.Question == nil {
+		return fmt.Errorf("question block %s has no question projection", block.ID)
+	}
+	if block.Question.ItemID != block.ID {
+		return fmt.Errorf("question block %s carries item id %s", block.ID, block.Question.ItemID)
+	}
+	if err := block.Question.Validate(); err != nil {
+		return fmt.Errorf("block %s: %w", block.ID, err)
+	}
+	return nil
+}
+
+func (block Block) validateToolProjection() error {
+	if block.Tool == nil {
+		return fmt.Errorf("tool block %s has no tool projection", block.ID)
+	}
+	if err := block.Tool.Validate(); err != nil {
+		return fmt.Errorf("block %s: %w", block.ID, err)
+	}
+	want := block.Tool.Status.blockStatus()
+	if block.Status != want {
+		return fmt.Errorf("block %s is %s while its tool is %s", block.ID, block.Status, block.Tool.Status)
+	}
+	return nil
+}
+
+func (status ToolStatus) blockStatus() BlockStatus {
+	switch status {
+	case ToolRunning:
+		return BlockStatusRunning
+	case ToolOK:
+		return BlockStatusCompleted
+	default:
+		return BlockStatusIncomplete
+	}
 }
 
 func validatePlan(items []PlanItem) error {
@@ -291,14 +318,14 @@ func validateInteractionItem(interaction Interaction, block Block) error {
 		if block.Kind != BlockTool || block.Status != BlockStatusRunning || block.Tool == nil {
 			return fmt.Errorf("approval item %s is not a running tool", itemID)
 		}
-		if !reflect.DeepEqual(*block.Tool, *item.Tool) {
+		if !block.Tool.Equal(*item.Tool) {
 			return fmt.Errorf("approval item %s differs from its tool block", itemID)
 		}
 	case Question:
 		if block.Kind != BlockQuestion || block.Status != BlockStatusCompleted || block.Question == nil {
 			return fmt.Errorf("question item %s is not a completed question", itemID)
 		}
-		if !reflect.DeepEqual(*block.Question, item) {
+		if !block.Question.Equal(item) {
 			return fmt.Errorf("question item %s differs from its question block", itemID)
 		}
 	default:

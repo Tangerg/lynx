@@ -2,6 +2,7 @@ package runtimeembedded
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -45,7 +46,7 @@ func (r *Runtime) ListSessions(ctx context.Context, query agent.SessionQuery) (a
 			return agent.SessionPage{}, classifyError(err)
 		}
 		if page == nil {
-			return agent.SessionPage{}, fmt.Errorf("list sessions: runtime returned a nil page")
+			return agent.SessionPage{}, errors.New("list sessions: runtime returned a nil page")
 		}
 		for _, value := range page.Data {
 			projected, err := projectSession(value)
@@ -81,7 +82,7 @@ func matchesSession(session agent.Session, search, workspace string) bool {
 
 func projectSessionPage(page *protocol.Page[protocol.Session]) (agent.SessionPage, error) {
 	if page == nil {
-		return agent.SessionPage{}, fmt.Errorf("list sessions: runtime returned a nil page")
+		return agent.SessionPage{}, errors.New("list sessions: runtime returned a nil page")
 	}
 	result := agent.SessionPage{Items: make([]agent.Session, 0, len(page.Data)), NextCursor: page.NextCursor}
 	for _, value := range page.Data {
@@ -124,7 +125,7 @@ func (r *Runtime) CreateSession(ctx context.Context, input agent.CreateSession) 
 		return agent.Session{}, classifyError(err)
 	}
 	if created == nil {
-		return agent.Session{}, fmt.Errorf("create session: runtime returned nil")
+		return agent.Session{}, errors.New("create session: runtime returned nil")
 	}
 	return projectSession(*created)
 }
@@ -134,15 +135,15 @@ func (r *Runtime) UpdateSession(ctx context.Context, input agent.UpdateSession) 
 	if err != nil {
 		return agent.Session{}, err
 	}
-	title := input.Title
 	updated, err := r.binding.UpdateSession(ctx, protocol.UpdateSessionRequest{
-		SessionID: input.SessionID, ExpectedRevision: input.ExpectedRevision, Title: &title,
+		SessionID: input.SessionID, ExpectedRevision: input.ExpectedRevision,
+		Title: input.Title, Favorite: input.Favorite,
 	}, options)
 	if err != nil {
 		return agent.Session{}, classifyError(err)
 	}
 	if updated == nil {
-		return agent.Session{}, fmt.Errorf("update session: runtime returned nil")
+		return agent.Session{}, errors.New("update session: runtime returned nil")
 	}
 	return projectSession(*updated)
 }
@@ -159,7 +160,7 @@ func (r *Runtime) ForkSession(ctx context.Context, input agent.ForkSession) (age
 		return agent.Session{}, classifyError(err)
 	}
 	if forked == nil {
-		return agent.Session{}, fmt.Errorf("fork session: runtime returned nil")
+		return agent.Session{}, errors.New("fork session: runtime returned nil")
 	}
 	return projectSession(*forked)
 }

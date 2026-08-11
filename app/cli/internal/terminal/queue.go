@@ -106,7 +106,7 @@ func (a *app) enqueueFollowUp(message agent.Message) {
 		a.message(err.Error())
 		return
 	}
-	a.history.Add(message)
+	a.rememberPrompt(message)
 	a.resetComposer()
 	a.operations.Cancel(completionOperation)
 	a.completion.Dismiss()
@@ -167,7 +167,7 @@ func (a *app) syncQueue() promptqueue.Snapshot {
 		a.queueDrawer.Set(snapshot)
 	}
 	if a.queueDialog != nil {
-		a.queueDialog.SetTitle(fmt.Sprintf("Queue · %s", countedNoun(len(snapshot.Entries), "prompt")))
+		a.queueDialog.SetTitle("Queue · " + countedNoun(len(snapshot.Entries), "prompt"))
 		a.queueDialog.SetDescription(fmt.Sprintf("Manage %s waiting behind the current turn", countedNoun(len(snapshot.Entries), "prompt")))
 		if len(snapshot.Entries) == 0 && a.queueDialog.Open() {
 			a.queueDialog.Dismiss()

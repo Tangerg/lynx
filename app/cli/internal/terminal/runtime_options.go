@@ -32,7 +32,7 @@ func (a *app) buildRuntimePickers(theme kit.Theme, glyphs kit.Glyphs) {
 	)
 	a.modelDialog = kit.NewDialog(kit.DialogConfig{
 		Stack: &a.stack, Theme: theme, Glyphs: glyphs, Title: "Models", Body: a.modelPicker,
-		Where: layout.Placement{Width: 76, Height: 14, Margin: 1},
+		Where: layout.Placement{Width: 76, Height: 14},
 	})
 	a.modelPicker.cancel = a.modelDialog.Dismiss
 
@@ -47,7 +47,7 @@ func (a *app) buildRuntimePickers(theme kit.Theme, glyphs kit.Glyphs) {
 	a.approvalModePicker.SetItems([]agent.ApprovalMode{agent.ApprovalModeSafe, agent.ApprovalModeBalanced, agent.ApprovalModeYolo})
 	a.approvalModeDialog = kit.NewDialog(kit.DialogConfig{
 		Stack: &a.stack, Theme: theme, Glyphs: glyphs, Title: "Runtime approval mode", Body: a.approvalModePicker,
-		Where: layout.Placement{Width: 88, Height: 9, Margin: 1},
+		Where: layout.Placement{Width: 88, Height: 9},
 	})
 	a.approvalModePicker.cancel = a.approvalModeDialog.Dismiss
 }

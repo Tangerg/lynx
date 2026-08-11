@@ -35,6 +35,13 @@ func (r Run) Clone() Run {
 	return r
 }
 
+// Equal reports whether two run projections carry the same lifecycle fact.
+func (r Run) Equal(other Run) bool {
+	return r.ID == other.ID && r.SessionID == other.SessionID && r.Provider == other.Provider &&
+		r.Model == other.Model && r.Status == other.Status && r.ActiveSegmentID == other.ActiveSegmentID &&
+		r.Limits == other.Limits && r.Outcome == other.Outcome && r.Usage.Equal(other.Usage)
+}
+
 type Message struct {
 	Text        string
 	Attachments []Attachment
@@ -44,6 +51,13 @@ func (m Message) Clone() Message {
 	m.Text = strings.Clone(m.Text)
 	m.Attachments = slices.Clone(m.Attachments)
 	return m
+}
+
+// Equal reports whether two messages have the same complete authoring value.
+// Attachment metadata participates because restored drafts and history must not
+// silently retain a stale projection for an otherwise identical attachment ID.
+func (m Message) Equal(other Message) bool {
+	return m.Text == other.Text && slices.Equal(m.Attachments, other.Attachments)
 }
 
 type AttachmentKind string
@@ -224,4 +238,15 @@ func (u Usage) Clone() Usage {
 		u.CostUSD = new(*u.CostUSD)
 	}
 	return u
+}
+
+// Equal preserves the distinction between unknown cost and a known zero cost.
+func (u Usage) Equal(other Usage) bool {
+	if u.InputTokens != other.InputTokens || u.OutputTokens != other.OutputTokens ||
+		u.CacheReadTokens != other.CacheReadTokens || u.CacheWriteTokens != other.CacheWriteTokens ||
+		u.ReasoningTokens != other.ReasoningTokens || u.Duration != other.Duration ||
+		(u.CostUSD == nil) != (other.CostUSD == nil) {
+		return false
+	}
+	return u.CostUSD == nil || *u.CostUSD == *other.CostUSD
 }

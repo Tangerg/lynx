@@ -93,6 +93,22 @@ func (b Block) Clone() Block {
 	return b
 }
 
+// Equal reports whether two blocks carry the same complete presentation fact.
+// It deliberately compares nested projections by value so replay consistency
+// does not depend on pointer identity or on a reflection-based struct layout.
+func (b Block) Equal(other Block) bool {
+	if b.ID != other.ID || b.RunID != other.RunID || b.Status != other.Status || b.Kind != other.Kind ||
+		b.Text != other.Text || !slices.Equal(b.Attachments, other.Attachments) {
+		return false
+	}
+	if (b.Question == nil) != (other.Question == nil) ||
+		(b.Question != nil && !b.Question.Equal(*other.Question)) {
+		return false
+	}
+	return (b.Tool == nil) == (other.Tool == nil) &&
+		(b.Tool == nil || b.Tool.Equal(*other.Tool))
+}
+
 // ToolStatus is where a tool call is in its life.
 type ToolStatus string
 
@@ -148,6 +164,19 @@ func (t ToolCall) Clone() ToolCall {
 		t.ExitCode = new(*t.ExitCode)
 	}
 	return t
+}
+
+// Equal reports whether two tool projections describe the same invocation
+// state. An absent exit code remains distinct from an explicit successful zero.
+func (t ToolCall) Equal(other ToolCall) bool {
+	if t.Kind != other.Kind || t.Name != other.Name || t.Summary != other.Summary ||
+		t.Status != other.Status || t.Command != other.Command || t.Path != other.Path ||
+		t.Query != other.Query || t.URL != other.URL || t.Output != other.Output ||
+		t.Diff != other.Diff || t.Duration != other.Duration ||
+		(t.ExitCode == nil) != (other.ExitCode == nil) {
+		return false
+	}
+	return t.ExitCode == nil || *t.ExitCode == *other.ExitCode
 }
 
 func (t ToolCall) Validate() error {

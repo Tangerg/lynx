@@ -50,7 +50,7 @@ func (a *app) buildShortcutDialog(theme kit.Theme, glyphs kit.Glyphs, applicatio
 	a.shortcutViewport = viewport
 	a.shortcutDialog = kit.NewDialog(kit.DialogConfig{
 		Stack: &a.stack, Theme: theme, Glyphs: glyphs, Title: "Shortcuts", Body: viewport,
-		Where: layout.Placement{Width: 88, Height: 24, Margin: 1}, Keys: guideKeys,
+		Where: layout.Placement{Width: 88, Height: 24}, Keys: guideKeys,
 		Hints: []keymap.Action{headless.ScrollUp, headless.ScrollDown, headless.Close},
 	})
 }
@@ -71,6 +71,7 @@ func collectShortcutRows(applicationKeys, transcriptKeys, guideKeys *keymap.Map)
 		{area: "Composer", action: cancelRun, description: "clear draft or cancel active run", keys: applicationKeys},
 		{area: "Composer", action: historyPrevious, description: "recall previous prompt", keys: applicationKeys},
 		{area: "Composer", action: historyNext, description: "recall next prompt", keys: applicationKeys},
+		{area: "Composer", action: editPrompt, description: "edit prompt in external editor", keys: applicationKeys},
 		{area: "Composer", action: chooseModel, description: "choose provider and model", keys: applicationKeys},
 		{area: "Application", action: commandPalette, description: "open command palette", keys: applicationKeys},
 		{area: "Application", action: showShortcuts, description: "open this shortcut guide", keys: applicationKeys},

@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -657,7 +658,7 @@ func requireSessionRename(t *testing.T, runtime agent.Runtime, id string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	renamed, _, err := executeCommand(t, runtime, "", "sessions", "rename", id, "Investigate cache", "--revision", fmt.Sprint(snapshot.Session.Revision))
+	renamed, _, err := executeCommand(t, runtime, "", "sessions", "rename", id, "Investigate cache", "--revision", strconv.FormatUint(snapshot.Session.Revision, 10))
 	if err != nil || !strings.Contains(renamed, "Investigate cache") {
 		t.Fatalf("sessions rename = %q, %v", renamed, err)
 	}

@@ -18,18 +18,20 @@ import (
 	"github.com/Tangerg/lynx/app/cli/internal/promptqueue"
 	"github.com/Tangerg/lynx/app/cli/internal/session"
 	"github.com/Tangerg/lynx/app/cli/internal/settings"
+	"github.com/Tangerg/lynx/app/cli/internal/workbench"
 )
 
 // Config describes one terminal application instance.
 type Config struct {
-	Runtime       agent.Runtime
-	SessionID     string
-	Workspace     string
-	InitialPrompt string
-	Plugins       []extensions.Plugin
-	PluginSources []extensions.Source
-	Host          program.Host
-	Settings      *settings.Config
+	Runtime        agent.Runtime
+	SessionID      string
+	Workspace      string
+	InitialPrompt  string
+	Plugins        []extensions.Plugin
+	PluginSources  []extensions.Source
+	Host           program.Host
+	Settings       *settings.Config
+	StateDirectory string
 }
 
 // Run opens and owns the terminal interface until the user leaves.
@@ -65,12 +67,13 @@ func Run(ctx context.Context, cfg Config) (runErr error) {
 	var active *app
 	queue := promptqueue.New()
 	err = program.Run(ctx, program.Config{
-		Inline: func(loop *program.InlineRuntime) program.Component {
+		Root: func(loop *program.Runtime) program.Component {
 			active = newApp(loop, appConfig{
-				Context: ctx, Runtime: cfg.Runtime, Snapshot: prepared.opened,
-				Registry: registry, PluginHost: extensionHost, PluginIssues: discovered.Issues,
-				Attachments: prepared.attachments, InitialPrompt: cfg.InitialPrompt,
-				Settings: prepared.settings, KeyBindings: prepared.keyBindings, Queue: queue,
+				context: ctx, runtime: cfg.Runtime, snapshot: prepared.opened,
+				registry: registry, pluginHost: extensionHost, pluginIssues: discovered.Issues,
+				attachments: prepared.attachments,
+				settings:    prepared.settings, keyBindings: prepared.keyBindings, queue: queue,
+				workbench: prepared.workbench, initialDraft: prepared.draft, editor: prepared.editor,
 			})
 			return headless.NewRoot(active)
 		},
@@ -88,6 +91,9 @@ type preparedSession struct {
 	attachments *attachment.Resolver
 	keyBindings keyBindings
 	settings    settings.Config
+	workbench   *workbench.Store
+	draft       agent.Message
+	editor      *draftEditor
 }
 
 func prepareSession(ctx context.Context, cfg Config) (preparedSession, error) {
@@ -113,7 +119,28 @@ func prepareSession(ctx context.Context, cfg Config) (preparedSession, error) {
 	if err != nil {
 		return preparedSession{}, fmt.Errorf("session attachments: %w", err)
 	}
-	return preparedSession{opened: opened, attachments: attachments, keyBindings: bindings, settings: configured}, nil
+	authoring, err := workbench.Open(cfg.StateDirectory, workbench.Config{})
+	if err != nil {
+		return preparedSession{}, fmt.Errorf("open CLI workbench: %w", err)
+	}
+	if err := authoring.RememberWorkspace(opened.Session.Workspace); err != nil {
+		return preparedSession{}, fmt.Errorf("remember workspace: %w", err)
+	}
+	draft, _, err := authoring.Draft(opened.Session.ID)
+	if err != nil {
+		return preparedSession{}, fmt.Errorf("load session draft: %w", err)
+	}
+	if cfg.InitialPrompt != "" {
+		draft = agent.Message{Text: cfg.InitialPrompt}
+	}
+	editor, err := configuredDraftEditor()
+	if err != nil {
+		return preparedSession{}, err
+	}
+	return preparedSession{
+		opened: opened, attachments: attachments, keyBindings: bindings, settings: configured,
+		workbench: authoring, draft: draft, editor: editor,
+	}, nil
 }
 
 func requireLoadedPlugin(results []extensions.LifecycleResult, id string) error {

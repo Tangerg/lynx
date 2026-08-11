@@ -77,6 +77,26 @@ func (a Approval) Validate() error {
 	return nil
 }
 
+// Clone returns an approval with no mutable tool projection shared with the caller.
+func (a Approval) Clone() Approval {
+	if a.Tool != nil {
+		tool := a.Tool.Clone()
+		a.Tool = &tool
+	}
+	return a
+}
+
+// Equal reports whether two approvals ask for the same decision about the same
+// projected tool invocation.
+func (a Approval) Equal(other Approval) bool {
+	if a.ItemID != other.ItemID || a.Title != other.Title || a.Detail != other.Detail ||
+		a.Diff != other.Diff || a.Risk != other.Risk || a.RuleHint != other.RuleHint ||
+		a.Rememberable != other.Rememberable || (a.Tool == nil) != (other.Tool == nil) {
+		return false
+	}
+	return a.Tool == nil || a.Tool.Equal(*other.Tool)
+}
+
 func (q Question) Validate() error {
 	var problems []error
 	if strings.TrimSpace(q.ItemID) == "" {
@@ -97,6 +117,18 @@ func (q Question) Validate() error {
 		return fmt.Errorf("question: %w", err)
 	}
 	return nil
+}
+
+// Clone returns a question with no mutable field or option storage shared with the caller.
+func (q Question) Clone() Question { return cloneQuestion(q) }
+
+// Equal reports whether two questions present the same ordered fields. Field
+// order is semantic because QuestionAnswer uses the same order on the wire.
+func (q Question) Equal(other Question) bool {
+	return q.ItemID == other.ItemID && q.Title == other.Title && q.Detail == other.Detail &&
+		slices.EqualFunc(q.Fields, other.Fields, func(left, right QuestionField) bool {
+			return left.Equal(right)
+		})
 }
 
 func (f QuestionField) Validate() error {
@@ -129,6 +161,12 @@ func (f QuestionField) Validate() error {
 		return fmt.Errorf("kind %q is invalid", f.Kind)
 	}
 	return nil
+}
+
+// Equal reports whether two fields accept and present the same answer space.
+func (f QuestionField) Equal(other QuestionField) bool {
+	return f.Prompt == other.Prompt && f.Header == other.Header && f.Kind == other.Kind &&
+		f.AllowCustom == other.AllowCustom && slices.Equal(f.Options, other.Options)
 }
 
 func ValidateAnswer(interaction Interaction, answer Answer) error {
@@ -216,13 +254,9 @@ func questionOffers(field QuestionField, value string) bool {
 func CloneInteraction(interaction Interaction) Interaction {
 	switch item := interaction.(type) {
 	case Approval:
-		if item.Tool != nil {
-			tool := item.Tool.Clone()
-			item.Tool = &tool
-		}
-		return item
+		return item.Clone()
 	case Question:
-		return cloneQuestion(item)
+		return item.Clone()
 	default:
 		return nil
 	}

@@ -20,6 +20,9 @@ import (
 const (
 	modulePath  = "github.com/Tangerg/lynx/app/cli"
 	libraryPath = "github.com/Tangerg/oolong"
+	runtimePath = "github.com/Tangerg/lynx/app/runtime"
+	cobraPath   = "github.com/spf13/cobra"
+	viperPath   = "github.com/spf13/viper"
 )
 
 // The layers, longest prefix first so the first match wins.
@@ -36,6 +39,8 @@ var layers = []struct {
 	{"internal/reconnect/", "reconnect"},
 	{"internal/runrecovery/", "runrecovery"},
 	{"internal/session/", "session"},
+	{"internal/sessionexport/", "sessionexport"},
+	{"internal/workbench/", "workbench"},
 	{"internal/oneshot/", "oneshot"},
 	{"internal/agent/", "agent"},
 	{"internal/settings/", "settings"},
@@ -49,12 +54,14 @@ var layers = []struct {
 // dependency fail closed instead of silently weakening the architecture.
 var allowed = map[string][]string{
 	// Domain policy and generic infrastructure are the center.
-	"agent":       nil,
-	"settings":    {"agent"},
-	"session":     {"agent"},
-	"oneshot":     {"agent", "reconnect", "runrecovery"},
-	"extensions":  nil,
-	"promptqueue": {"agent"},
+	"agent":         nil,
+	"settings":      {"agent"},
+	"session":       {"agent"},
+	"oneshot":       {"agent", "reconnect", "runrecovery"},
+	"extensions":    nil,
+	"promptqueue":   {"agent"},
+	"sessionexport": {"agent"},
+	"workbench":     {"agent"},
 
 	// Outbound adapters share domain contracts, not one another.
 	"attachment":      {"agent"},
@@ -66,10 +73,19 @@ var allowed = map[string][]string{
 
 	// Delivery adapters compose inward abstractions. Sideloading is the outer trust
 	// boundary around terminal contributions; cmd is the application composition root.
-	"terminal": {"agent", "attachment", "extensions", "promptqueue", "reconnect", "runrecovery", "session", "settings"},
+	"terminal": {"agent", "attachment", "extensions", "promptqueue", "reconnect", "runrecovery", "session", "sessionexport", "settings", "workbench"},
 	"sideload": {"extensions", "terminal"},
 	"cmd":      {"agent", "attachment", "extensions", "oneshot", "render", "session", "settings", "sideload", "terminal"},
 	"arch":     nil,
+}
+
+var adapterDependencies = []struct {
+	path          string
+	allowedLayers []string
+}{
+	{path: runtimePath, allowedLayers: []string{"runtimeembedded"}},
+	{path: cobraPath, allowedLayers: []string{"cmd"}},
+	{path: viperPath, allowedLayers: []string{"cmd"}},
 }
 
 func TestLayeringHoldsInTheImports(t *testing.T) {
@@ -128,7 +144,7 @@ func TestTheLibraryStaysALibrary(t *testing.T) {
 	root := moduleRoot(t)
 	fset := token.NewFileSet()
 
-	terminalFree := []string{"agent", "settings", "mock", "runtimeembedded", "attachment", "promptqueue", "reconnect", "runrecovery", "session", "oneshot", "extensions", "render"}
+	terminalFree := []string{"agent", "settings", "mock", "runtimeembedded", "attachment", "promptqueue", "reconnect", "runrecovery", "session", "sessionexport", "workbench", "oneshot", "extensions", "render"}
 	walk(t, root, func(dir, path string) {
 		layer := layerOf(dir)
 		if !slices.Contains(terminalFree, layer) {
@@ -141,6 +157,52 @@ func TestTheLibraryStaysALibrary(t *testing.T) {
 			}
 		}
 	})
+}
+
+func TestAdapterDependenciesStayAtTheirBoundaries(t *testing.T) {
+	root := moduleRoot(t)
+	fset := token.NewFileSet()
+	walk(t, root, func(dir, path string) {
+		layer := layerOf(dir)
+		if layer == "" {
+			return
+		}
+		for _, imported := range imports(t, fset, path) {
+			for _, dependency := range adapterDependencies {
+				if importsPath(imported, dependency.path) && !slices.Contains(dependency.allowedLayers, layer) {
+					t.Errorf("%s (%s) imports %s: %s is confined to %s",
+						dir, layer, imported, dependency.path, strings.Join(dependency.allowedLayers, ", "))
+				}
+			}
+		}
+	})
+}
+
+func TestAdapterBoundaryRulesRefuseInwardLeaks(t *testing.T) {
+	for _, test := range []struct {
+		layer, imported string
+	}{
+		{layer: "agent", imported: runtimePath + "/protocol"},
+		{layer: "settings", imported: cobraPath},
+		{layer: "oneshot", imported: viperPath},
+	} {
+		if adapterDependencyAllowed(test.layer, test.imported) {
+			t.Errorf("%s unexpectedly accepts %s", test.layer, test.imported)
+		}
+	}
+}
+
+func adapterDependencyAllowed(layer, imported string) bool {
+	for _, dependency := range adapterDependencies {
+		if importsPath(imported, dependency.path) {
+			return slices.Contains(dependency.allowedLayers, layer)
+		}
+	}
+	return true
+}
+
+func importsPath(imported, dependency string) bool {
+	return imported == dependency || strings.HasPrefix(imported, dependency+"/")
 }
 
 // TestTheRulesWouldActuallyRefuseSomething is the counter-example: a guard never shown
@@ -159,6 +221,8 @@ func TestTheRulesWouldActuallyRefuseSomething(t *testing.T) {
 		{"internal/reconnect", "internal/cmd", true},
 		{"internal/runrecovery", "internal/cmd", true},
 		{"internal/session", "internal/terminal", true},
+		{"internal/sessionexport", "internal/terminal", true},
+		{"internal/workbench", "internal/terminal", true},
 		{"internal/oneshot", "internal/cmd", true},
 		{"internal/settings", "internal/terminal", true},
 		{"internal/promptqueue", "internal/terminal", true},
@@ -170,6 +234,8 @@ func TestTheRulesWouldActuallyRefuseSomething(t *testing.T) {
 		{"internal/runtimeembedded", "internal/agent", false},
 		{"internal/runtimeembedded", "internal/terminal", true},
 		{"internal/terminal", "internal/agent", false},
+		{"internal/terminal", "internal/sessionexport", false},
+		{"internal/terminal", "internal/workbench", false},
 		{"internal/terminal", "internal/extensions", false},
 		{"internal/cmd", "internal/terminal", false},
 		{"internal/sideload", "internal/extensions", false},

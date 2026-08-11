@@ -140,11 +140,19 @@ func (r *Runtime) UpdateSession(ctx context.Context, in agent.UpdateSession) (ag
 	if in.ExpectedRevision != state.meta.Revision {
 		return agent.Session{}, fmt.Errorf("%w: session %s is at revision %d", agent.ErrRevisionConflict, in.SessionID, state.meta.Revision)
 	}
-	title := strings.TrimSpace(in.Title)
-	if title == "" {
-		return agent.Session{}, errors.New("mock: session title is empty")
+	if in.Title == nil && in.Favorite == nil {
+		return agent.Session{}, errors.New("mock: session update is empty")
 	}
-	state.meta.Title = title
+	if in.Title != nil {
+		title := strings.TrimSpace(*in.Title)
+		if title == "" {
+			return agent.Session{}, errors.New("mock: session title is empty")
+		}
+		state.meta.Title = title
+	}
+	if in.Favorite != nil {
+		state.meta.Favorite = *in.Favorite
+	}
 	state.meta.Revision++
 	state.meta.UpdatedAt = r.now()
 	return state.meta, nil
@@ -195,8 +203,8 @@ func (r *Runtime) resolveForkBoundary(source *sessionState, fromRunID string) (f
 			return forkBoundary{}, fmt.Errorf("%w: %s", agent.ErrRunNotFound, fromRunID)
 		}
 	} else {
-		for i := len(source.runs) - 1; i >= 0; i-- {
-			if run := r.runs[source.runs[i]]; run != nil && run.status == agent.RunStatusFinished {
+		for i, runID := range slices.Backward(source.runs) {
+			if run := r.runs[runID]; run != nil && run.status == agent.RunStatusFinished {
 				boundaryIndex = i
 				break
 			}

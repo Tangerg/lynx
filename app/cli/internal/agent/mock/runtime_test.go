@@ -16,9 +16,16 @@ func TestRuntimeStartResumeAndColdRestore(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	opened, conversation := startWaitingRun(t, runtime, session.ID)
+	interaction := requireWaitingProjection(t, runtime, session.ID, opened)
+	resumeApprovedRun(t, runtime, opened, conversation, interaction)
+	requireCompletedColdProjection(t, runtime, session.ID, opened.RunID, interaction)
+}
 
+func startWaitingRun(t *testing.T, runtime *Runtime, sessionID string) (agent.SegmentStream, *agent.Conversation) {
+	t.Helper()
 	opened, err := runtime.StartRun(t.Context(), agent.StartRun{
-		SessionID: session.ID, Message: agent.Message{Text: "fix the flaky test"},
+		SessionID: sessionID, Message: agent.Message{Text: "fix the flaky test"},
 		Options: agent.RunOptions{Provider: "mock", Model: "balanced", Limits: agent.RunLimits{MaxSteps: 12, MaxBudgetUSD: 1.5}},
 	})
 	if err != nil {
@@ -29,16 +36,32 @@ func TestRuntimeStartResumeAndColdRestore(t *testing.T) {
 	if conversation.Phase() != agent.ConversationWaiting || len(conversation.Interactions()) != 1 {
 		t.Fatalf("after first segment: phase %v, interactions %d", conversation.Phase(), len(conversation.Interactions()))
 	}
+	return opened, conversation
+}
 
-	interaction := conversation.Interactions()[0]
-	waiting, err := runtime.GetSession(t.Context(), session.ID)
+func requireWaitingProjection(t *testing.T, runtime *Runtime, sessionID string, opened agent.SegmentStream) agent.Interaction {
+	t.Helper()
+	waiting, err := runtime.GetSession(t.Context(), sessionID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	approvalItem, ok := snapshotBlock(waiting, opened.RunID, agent.InteractionItemID(interaction))
-	if !ok || approvalItem.Kind != agent.BlockTool || approvalItem.Status != agent.BlockStatusRunning || waiting.Runs[0].Usage.InputTokens == 0 {
-		t.Fatalf("waiting approval projection = item %+v, usage %+v", approvalItem, waiting.Runs[0].Usage)
+	if len(waiting.Interactions) != 1 {
+		t.Fatalf("waiting interactions = %d, want 1", len(waiting.Interactions))
 	}
+	waitingRun, ok := waiting.LatestRun()
+	if !ok {
+		t.Fatal("waiting snapshot has no run")
+	}
+	interaction := waiting.Interactions[0]
+	approvalItem, ok := snapshotBlock(waiting, opened.RunID, agent.InteractionItemID(interaction))
+	if !ok || approvalItem.Kind != agent.BlockTool || approvalItem.Status != agent.BlockStatusRunning || waitingRun.Usage.InputTokens == 0 {
+		t.Fatalf("waiting approval projection = item %+v, usage %+v", approvalItem, waitingRun.Usage)
+	}
+	return interaction
+}
+
+func resumeApprovedRun(t *testing.T, runtime *Runtime, opened agent.SegmentStream, conversation *agent.Conversation, interaction agent.Interaction) {
+	t.Helper()
 	continued, err := runtime.ResumeRun(t.Context(), agent.ResumeRun{
 		RunID: opened.RunID,
 		Answers: []agent.InterruptAnswer{{
@@ -56,8 +79,11 @@ func TestRuntimeStartResumeAndColdRestore(t *testing.T) {
 	if conversation.Outcome().Status != agent.OutcomeCompleted {
 		t.Fatalf("outcome = %+v", conversation.Outcome())
 	}
+}
 
-	snapshot, err := runtime.GetSession(t.Context(), session.ID)
+func requireCompletedColdProjection(t *testing.T, runtime *Runtime, sessionID, runID string, interaction agent.Interaction) {
+	t.Helper()
+	snapshot, err := runtime.GetSession(t.Context(), sessionID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -67,11 +93,11 @@ func TestRuntimeStartResumeAndColdRestore(t *testing.T) {
 	if latest, ok := snapshot.LatestRun(); !ok || latest.Limits.MaxSteps != 12 || latest.Limits.MaxBudgetUSD != 1.5 {
 		t.Fatalf("latest run limits = %+v", latest.Limits)
 	}
-	approvalItem, ok = snapshotBlock(snapshot, opened.RunID, agent.InteractionItemID(interaction))
+	approvalItem, ok := snapshotBlock(snapshot, runID, agent.InteractionItemID(interaction))
 	if !ok || approvalItem.Status != agent.BlockStatusCompleted || approvalItem.Tool.Status != agent.ToolOK {
 		t.Fatalf("completed approval item = %+v", approvalItem)
 	}
-	rules, err := runtime.ListApprovalRules(t.Context(), session.ID)
+	rules, err := runtime.ListApprovalRules(t.Context(), sessionID)
 	if err != nil || len(rules) != 1 || rules[0].Scope != agent.RememberProject {
 		t.Fatalf("rules = %+v, %v", rules, err)
 	}

@@ -2,9 +2,12 @@ package terminal
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -25,6 +28,18 @@ func runUI(t *testing.T, plugins ...extensions.Plugin) (*programtest.Host, func(
 	backend := mock.New()
 	backend.Instant = true
 	return runUIWith(t, backend, plugins...)
+}
+
+var terminalControlSequence = regexp.MustCompile(`\x1b\[[0-?]*[ -/]*[@-~]`)
+
+func showsPlain(t *testing.T, host *programtest.Host, expected string) {
+	t.Helper()
+	host.Until(t, "the interface to show "+expected, func() bool {
+		if !host.Repaint() {
+			return false
+		}
+		return strings.Contains(terminalControlSequence.ReplaceAllString(host.Frame(), ""), expected)
+	})
 }
 
 func runUIWith(t *testing.T, backend agent.Runtime, plugins ...extensions.Plugin) (*programtest.Host, func()) {
@@ -74,6 +89,30 @@ func runUIForSession(t *testing.T, backend agent.Runtime, sessionID string) (*pr
 		done <- Run(ctx, Config{Runtime: backend, SessionID: sessionID, Host: host})
 	}()
 
+	var once sync.Once
+	stop := func() {
+		once.Do(func() {
+			cancel()
+			if err := <-done; err != nil {
+				t.Errorf("terminal session stopped with %v", err)
+			}
+		})
+	}
+	t.Cleanup(stop)
+	return host, stop
+}
+
+func runUIWithState(t *testing.T, backend agent.Runtime, workspace, sessionID, stateDirectory string) (*programtest.Host, func()) {
+	t.Helper()
+	host := programtest.New(t, 96, 28)
+	ctx, cancel := context.WithCancel(t.Context())
+	done := make(chan error, 1)
+	go func() {
+		done <- Run(ctx, Config{
+			Runtime: backend, Workspace: workspace, SessionID: sessionID,
+			StateDirectory: stateDirectory, Host: host,
+		})
+	}()
 	var once sync.Once
 	stop := func() {
 		once.Do(func() {
@@ -241,6 +280,47 @@ func TestShiftEnterInsertsANewlineWithoutSubmitting(t *testing.T) {
 	if got := backend.startInput().Message.Text; got != "first line\nsecond line" {
 		t.Fatalf("submitted text = %q, want a two-line prompt", got)
 	}
+
+	host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
+	stop()
+}
+
+func TestTranscriptReaderSearchesBeyondInlineToolSummary(t *testing.T) {
+	backend := mock.New()
+	backend.Instant = true
+	lines := make([]string, maxToolDetailLines+60)
+	for i := range lines {
+		lines[i] = fmt.Sprintf("reader contract line %03d", i+1)
+	}
+	backend.Script = func(string) mock.Script {
+		return mock.Script{Prelude: []mock.Step{
+			{Event: agent.BlockCompleted{Block: agent.Block{
+				ID: "long_tool", Kind: agent.BlockTool,
+				Tool: &agent.ToolCall{
+					Kind: agent.ToolShell, Command: "long output", Status: agent.ToolOK,
+					Output: strings.Join(lines, "\n"),
+				},
+			}}},
+			{Event: agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCompleted}}},
+		}}
+	}
+	host, stop := runUIWith(t, backend)
+	host.Shows(t, "Ask lyra")
+	host.Type("show a long tool result")
+	host.Press(input.Enter)
+	host.Shows(t, "complete")
+
+	host.Press(input.Tab)
+	host.Send(input.Key{Code: input.Character, Rune: 'v'})
+	host.Shows(t, "Reader")
+	host.Shows(t, "long output")
+	host.Send(input.Key{Code: input.Character, Rune: 'f', Mods: input.Ctrl})
+	host.Shows(t, "Search reader")
+	host.Type(lines[len(lines)-1])
+	host.Press(input.Enter)
+	host.Shows(t, lines[len(lines)-1])
+	host.Press(input.Esc)
+	host.Hides(t, "Reader")
 
 	host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
 	stop()
@@ -575,7 +655,7 @@ func TestAPluginCanAddACommandWithoutChangingTheShell(t *testing.T) {
 	plugin := extensions.Plugin{ID: "test.greeting", Version: "1.0.0", APIVersion: extensions.HostAPIVersion, Capabilities: []extensions.Capability{SlashCommands.Capability()}, Setup: func(scope *extensions.Scope) error {
 		loads.Add(1)
 		_, err := extensions.Contribute(scope, SlashCommands, SlashCommand{
-			Name: "hello", Title: "run a contributed command",
+			Descriptor: CommandDescriptor{Name: "hello", Title: "run a contributed command"},
 			Execute: func(context.Context, CommandRequest) (CommandResult, error) {
 				return CommandResult{Message: fmt.Sprintf("hello from plugin load %d", loads.Load())}, nil
 			},
@@ -630,7 +710,7 @@ func TestAsynchronousPluginCommandKeepsTheTerminalResponsive(t *testing.T) {
 		Capabilities: []extensions.Capability{SlashCommands.Capability()},
 		Setup: func(scope *extensions.Scope) error {
 			_, err := extensions.Contribute(scope, SlashCommands, SlashCommand{
-				Name: "slow", Title: "complete asynchronously",
+				Descriptor: CommandDescriptor{Name: "slow", Title: "complete asynchronously"},
 				Execute: func(ctx context.Context, _ CommandRequest) (CommandResult, error) {
 					select {
 					case <-release:
@@ -661,8 +741,8 @@ func TestAsynchronousPluginCommandKeepsTheTerminalResponsive(t *testing.T) {
 
 func TestPluginCommandPanicBecomesAnError(t *testing.T) {
 	_, err := executeCommandSafely(t.Context(), SlashCommand{
-		Name:    "boom",
-		Execute: func(context.Context, CommandRequest) (CommandResult, error) { panic("command boom") },
+		Descriptor: CommandDescriptor{Name: "boom", Title: "panic"},
+		Execute:    func(context.Context, CommandRequest) (CommandResult, error) { panic("command boom") },
 	}, CommandRequest{})
 	if err == nil || !strings.Contains(err.Error(), "command boom") {
 		t.Fatalf("command panic error = %v", err)
@@ -676,7 +756,7 @@ func TestUnloadingPluginCancelsItsInFlightCommand(t *testing.T) {
 		Capabilities: []extensions.Capability{SlashCommands.Capability()},
 		Setup: func(scope *extensions.Scope) error {
 			_, err := extensions.Contribute(scope, SlashCommands, SlashCommand{
-				Name: "wait", Title: "wait until unloaded",
+				Descriptor: CommandDescriptor{Name: "wait", Title: "wait until unloaded"},
 				Execute: func(ctx context.Context, _ CommandRequest) (CommandResult, error) {
 					<-ctx.Done()
 					canceled <- struct{}{}
@@ -715,7 +795,7 @@ func TestUnloadingAPluginLeavesIndependentCommandsRunning(t *testing.T) {
 			Capabilities: []extensions.Capability{SlashCommands.Capability()},
 			Setup: func(scope *extensions.Scope) error {
 				_, err := extensions.Contribute(scope, SlashCommands, SlashCommand{
-					Name: name, Title: "wait for completion",
+					Descriptor: CommandDescriptor{Name: name, Title: "wait for completion"},
 					Execute: func(ctx context.Context, _ CommandRequest) (CommandResult, error) {
 						select {
 						case <-release:
@@ -766,7 +846,7 @@ func TestPluginCommandCannotShadowABuiltin(t *testing.T) {
 		Capabilities: []extensions.Capability{SlashCommands.Capability()},
 		Setup: func(scope *extensions.Scope) error {
 			_, err := extensions.Contribute(scope, SlashCommands, SlashCommand{
-				Name: "help", Title: "shadow help",
+				Descriptor: CommandDescriptor{Name: "help", Title: "shadow help"},
 				Execute: func(context.Context, CommandRequest) (CommandResult, error) {
 					return CommandResult{Message: "shadowed builtin"}, nil
 				},
@@ -809,6 +889,85 @@ func TestSessionPickerRestoresHistoryAndLifecycleCommandsSwitchCleanly(t *testin
 	host.Press(input.Enter)
 	host.Press(input.Enter)
 	host.Shows(t, "session · Untitled session")
+
+	host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
+	stop()
+}
+
+func TestSessionCenterPaginatesAndManagesSelectedSession(t *testing.T) {
+	backend := mock.New()
+	backend.Instant = true
+	workspace := t.TempDir()
+	var target agent.Session
+	for index := range 30 {
+		created, err := backend.CreateSession(t.Context(), agent.CreateSession{
+			Title: fmt.Sprintf("Center target %02d", index), Workspace: workspace,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if index == 0 {
+			target = created
+		}
+	}
+	host, stop := runUIWithWorkspace(t, backend, workspace)
+	host.Shows(t, "Ask lyra")
+	host.Send(input.Key{Code: input.Character, Rune: 'r', Mods: input.Ctrl})
+	host.Shows(t, "Sessions · Center")
+	host.Type(target.Title)
+	host.Shows(t, "0/20")
+	host.Send(input.Key{Code: input.Character, Rune: 'l', Mods: input.Alt})
+	host.Shows(t, target.Title)
+	host.Send(input.Key{Code: input.Character, Rune: 'f', Mods: input.Alt})
+	host.Shows(t, "Favorites · "+target.Title)
+
+	host.Send(input.Key{Code: input.Character, Rune: 'r', Mods: input.Alt})
+	host.Shows(t, "Rename session")
+	host.Send(input.Key{Code: input.Character, Rune: 'a', Mods: input.Alt})
+	host.Type("Renamed center target")
+	host.Press(input.Enter)
+	host.Hides(t, "Rename session")
+	host.Shows(t, "Favorites · Renamed center target")
+
+	host.Send(input.Key{Code: input.Character, Rune: 'd', Mods: input.Alt})
+	host.Shows(t, "Delete session")
+	host.Press(input.Down)
+	host.Press(input.Enter)
+	host.Hides(t, "Delete session")
+	host.Hides(t, "Renamed center target")
+	if _, err := backend.GetSession(t.Context(), target.ID); !errors.Is(err, agent.ErrSessionNotFound) {
+		t.Fatalf("deleted session read error = %v", err)
+	}
+
+	host.Press(input.Esc)
+	host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
+	stop()
+}
+
+func TestCurrentSessionTimelineJumpsAndForksFromARootRun(t *testing.T) {
+	backend := mock.New()
+	backend.Instant = true
+	backend.Script = stableCompletedScript
+	host, stop := runUIWith(t, backend)
+	host.Shows(t, "Ask lyra")
+	host.Type("create a timeline boundary")
+	host.Press(input.Enter)
+	host.Shows(t, "stable answer")
+	host.Type("/timeline")
+	host.Press(input.Enter)
+	host.Press(input.Enter)
+	host.Shows(t, "Current session timeline")
+	host.Shows(t, "Run 1 of 1")
+	host.Press(input.Enter)
+	host.Shows(t, "stable answer")
+
+	host.Send(input.Key{Code: input.Character, Rune: ' ', Mods: 0})
+	host.Type("/timeline")
+	host.Press(input.Enter)
+	host.Press(input.Enter)
+	host.Shows(t, "Current session timeline")
+	host.Send(input.Key{Code: input.Character, Rune: 'f', Mods: input.Alt})
+	host.Shows(t, "session · Fork from")
 
 	host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
 	stop()
@@ -1024,6 +1183,267 @@ func TestQuestionFormSubmitsTypedAnswerAndCanCancel(t *testing.T) {
 	stop()
 }
 
+func TestQuestionnaireSurvivesResizeBetweenFields(t *testing.T) {
+	backend := mock.New()
+	backend.Instant = true
+	answers := make(chan agent.QuestionAnswer, 1)
+	backend.Script = func(string) mock.Script {
+		return mock.Script{
+			Interactions: []agent.Interaction{agent.Question{
+				ItemID: "deployment-plan", Title: "Plan deployment", Detail: "Complete every field",
+				Fields: []agent.QuestionField{
+					{Header: "Goal", Prompt: "What should change?", Kind: agent.QuestionText},
+					{Header: "Strategy", Prompt: "Choose an approach", Kind: agent.QuestionSingle, Options: []agent.QuestionOption{{Label: "Safe"}, {Label: "Fast"}}},
+					{Header: "Checks", Prompt: "Select validation", Kind: agent.QuestionMulti, Options: []agent.QuestionOption{{Label: "Unit"}, {Label: "Integration"}}},
+				},
+			}},
+			Continue: func(answerSet []agent.InterruptAnswer) []mock.Step {
+				answers <- answerSet[0].Answer.(agent.QuestionAnswer)
+				return []mock.Step{{Event: agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCompleted}}}}
+			},
+		}
+	}
+	host, stop := runUIWith(t, backend)
+	host.Shows(t, "Ask lyra")
+	host.Type("prepare deployment")
+	host.Press(input.Enter)
+	host.Shows(t, "Plan deployment · 1/3")
+	if !host.Resize(36, 10) {
+		t.Fatal("resize while the first question field was open was refused")
+	}
+	host.Shows(t, "Goal — What should change?")
+	host.Type("release safely")
+	host.Press(input.Enter)
+	host.Shows(t, "Plan deployment · 2/3")
+	if !host.Resize(120, 30) {
+		t.Fatal("resize while the second question field was open was refused")
+	}
+	host.Press(input.Down)
+	showsPlain(t, host, "● Fast")
+	host.Press(input.Enter)
+	host.Shows(t, "Plan deployment · 3/3")
+	if !host.Resize(40, 12) {
+		t.Fatal("resize while the third question field was open was refused")
+	}
+	host.Send(input.Key{Code: input.Character, Rune: ' '})
+	host.Press(input.Down)
+	host.Send(input.Key{Code: input.Character, Rune: ' '})
+	host.Press(input.Enter)
+	host.Shows(t, "complete")
+
+	answer := <-answers
+	want := [][]string{{"release safely"}, {"Fast"}, {"Unit", "Integration"}}
+	if !slices.EqualFunc(answer.Values, want, slices.Equal) {
+		t.Fatalf("submitted answer = %+v, want %+v", answer.Values, want)
+	}
+
+	host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
+	stop()
+}
+
+func TestWorkbenchRestoresHistoryAndSessionDraftAcrossLaunches(t *testing.T) {
+	backend := mock.New()
+	backend.Instant = true
+	backend.Script = stableCompletedScript
+	workspace, stateDirectory := t.TempDir(), t.TempDir()
+	attachmentPath := filepath.Join(workspace, "context.txt")
+	if err := os.WriteFile(attachmentPath, []byte("context"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	first, stopFirst := runUIWithState(t, backend, workspace, "", stateDirectory)
+	first.Shows(t, "Ask lyra")
+	first.Type("persisted history")
+	first.Press(input.Enter)
+	first.Shows(t, "stable answer")
+	first.Type("/attach " + attachmentPath)
+	first.Press(input.Enter)
+	first.Shows(t, "attached context.txt")
+	first.Type("unfinished draft")
+	first.Shows(t, "unfinished draft")
+	sessionID := firstRuntimeSession(t, backend)
+	stopFirst()
+
+	second, stopSecond := runUIWithState(t, backend, workspace, sessionID, stateDirectory)
+	second.Shows(t, "unfinished draft")
+	second.Shows(t, "@context.txt")
+	second.Send(input.Key{Code: input.Up, Mods: input.Alt})
+	second.Shows(t, "persisted history")
+	second.Send(input.Key{Code: input.Down, Mods: input.Alt})
+	second.Shows(t, "unfinished draft")
+	second.Shows(t, "@context.txt")
+
+	second.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
+	stopSecond()
+}
+
+func TestPromptStashCanBeListedAppliedAndDeleted(t *testing.T) {
+	host, stop := runUI(t)
+	host.Shows(t, "Ask lyra")
+	host.Type("draft to preserve")
+	host.Send(input.Key{Code: input.Character, Rune: 'p', Mods: input.Ctrl})
+	host.Shows(t, "Commands")
+	host.Type("stash current prompt")
+	host.Shows(t, "/stash")
+	host.Press(input.Enter)
+	host.Shows(t, "stashed prompt")
+	match := regexp.MustCompile(`stashed prompt · ([0-9a-f]{16})`).FindStringSubmatch(host.Frame())
+	if len(match) != 2 {
+		t.Fatalf("stash id is not visible:\n%s", host.Frame())
+	}
+	prefix := match[1][:8]
+	host.Type("/stashes")
+	host.Press(input.Enter)
+	host.Press(input.Enter)
+	host.Shows(t, "draft to preserve")
+	host.Type("/stash-apply " + prefix)
+	host.Press(input.Enter)
+	host.Shows(t, "applied prompt stash")
+	host.Shows(t, "draft to preserve")
+	host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
+	host.Type("/stash-delete " + prefix)
+	host.Press(input.Enter)
+	host.Shows(t, "deleted prompt stash")
+	host.Type("/stashes")
+	host.Press(input.Enter)
+	host.Press(input.Enter)
+	host.Shows(t, "there are no prompt stashes")
+
+	host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
+	stop()
+}
+
+func TestExternalEditorRoundTripReplacesOnlyAfterSuccess(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		t.Setenv("LYRA_EDITOR", `sh -c 'printf "\nrevised externally" >> "$0"'`)
+		host, stop := runUIWithWorkspace(t, mock.New(), t.TempDir())
+		host.Shows(t, "Ask lyra")
+		host.Type("original draft")
+		host.Send(input.Key{Code: input.Character, Rune: 'e', Mods: input.Ctrl})
+		host.Shows(t, "updated prompt from external editor")
+		host.Shows(t, "original draft")
+		host.Shows(t, "revised externally")
+		host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
+		stop()
+	})
+
+	t.Run("failure preserves draft", func(t *testing.T) {
+		t.Setenv("LYRA_EDITOR", `sh -c 'exit 9'`)
+		host, stop := runUIWithWorkspace(t, mock.New(), t.TempDir())
+		host.Shows(t, "Ask lyra")
+		host.Type("do not lose this")
+		host.Send(input.Key{Code: input.Character, Rune: 'e', Mods: input.Ctrl})
+		host.Shows(t, "exit status 9")
+		host.Shows(t, "do not lose this")
+		host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
+		stop()
+	})
+}
+
+func TestApprovalDenialSubmitsOptionalUserFeedback(t *testing.T) {
+	backend := mock.New()
+	backend.Instant = true
+	answers := make(chan []agent.InterruptAnswer, 1)
+	backend.Script = func(string) mock.Script {
+		return mock.Script{
+			Interactions: []agent.Interaction{agent.Approval{
+				ItemID: "approval-feedback", Title: "Run destructive command", Detail: "Review this request carefully",
+				Tool: &agent.ToolCall{Kind: agent.ToolShell, Name: "shell", Command: "rm generated.txt", Status: agent.ToolRunning},
+			}},
+			Continue: func(provided []agent.InterruptAnswer) []mock.Step {
+				answers <- provided
+				return []mock.Step{{Event: agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCompleted}}}}
+			},
+		}
+	}
+	host, stop := runUIWith(t, backend)
+	host.Shows(t, "Ask lyra")
+	host.Type("remove generated output")
+	host.Press(input.Enter)
+	host.Shows(t, "$ rm generated.txt")
+	host.Press(input.Down)
+	host.Press(input.Tab)
+	host.Type("keep the generated fixture")
+	host.Press(input.Enter)
+	host.Shows(t, "complete")
+	provided := <-answers
+	answer, ok := provided[0].Answer.(agent.ApprovalAnswer)
+	if !ok || answer.Decision != agent.ApprovalDeny || answer.Reason != "keep the generated fixture" {
+		t.Fatalf("denial answer = %#v", provided[0].Answer)
+	}
+
+	host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
+	stop()
+}
+
+func TestMultiInteractionReviewSupportsBackEditAndOneFinalResume(t *testing.T) {
+	backend := mock.New()
+	backend.Instant = true
+	answers := make(chan []agent.InterruptAnswer, 2)
+	backend.Script = func(string) mock.Script { return multiInteractionReviewScript(answers) }
+	host, stop := runUIWith(t, backend)
+	host.Shows(t, "Ask lyra")
+	host.Type("test the project")
+	host.Press(input.Enter)
+	host.Shows(t, "$ go test ./...")
+	showsPlain(t, host, "● Allow once")
+	host.Press(input.Enter)
+	host.Shows(t, "Choose platform")
+	showsPlain(t, host, "● Linux")
+	host.Press(input.Enter)
+	host.Shows(t, "Review interactions")
+	select {
+	case premature := <-answers:
+		t.Fatalf("runtime resumed before final review: %+v", premature)
+	default:
+	}
+	host.Press(input.Down)
+	host.Press(input.Enter)
+	host.Hides(t, "Review interactions")
+	host.Shows(t, "Choose platform")
+	host.Press(input.Down)
+	showsPlain(t, host, "● Darwin")
+	host.Press(input.Enter)
+	host.Shows(t, "Review interactions")
+	host.Press(input.Enter)
+	host.Shows(t, "complete")
+	provided := <-answers
+	if len(provided) != 2 {
+		t.Fatalf("interaction answers = %+v", provided)
+	}
+	question, ok := provided[1].Answer.(agent.QuestionAnswer)
+	if !ok || question.Values[0][0] != "Darwin" {
+		t.Fatalf("edited question answer = %#v", provided[1].Answer)
+	}
+	select {
+	case duplicate := <-answers:
+		t.Fatalf("runtime resumed twice: %+v", duplicate)
+	default:
+	}
+
+	host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
+	stop()
+}
+
+func multiInteractionReviewScript(answers chan<- []agent.InterruptAnswer) mock.Script {
+	return mock.Script{
+		Interactions: []agent.Interaction{
+			agent.Approval{
+				ItemID: "approval", Title: "Run tests", Rememberable: true,
+				Tool: &agent.ToolCall{Kind: agent.ToolShell, Name: "shell", Command: "go test ./...", Status: agent.ToolRunning},
+			},
+			agent.Question{
+				ItemID: "question", Title: "Choose platform",
+				Fields: []agent.QuestionField{{Prompt: "Platform", Kind: agent.QuestionSingle, Options: []agent.QuestionOption{{Label: "Linux"}, {Label: "Darwin"}}}},
+			},
+		},
+		Continue: func(provided []agent.InterruptAnswer) []mock.Step {
+			answers <- provided
+			return []mock.Step{{Event: agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCompleted}}}}
+		},
+	}
+}
+
 func TestApprovalRememberScopeAppliesToLaterRuns(t *testing.T) {
 	backend := mock.New()
 	backend.Instant = true
@@ -1072,6 +1492,36 @@ func TestCommandPaletteSearchAndDetailShortcutsAreReachable(t *testing.T) {
 	host.Send(input.Key{Code: input.Character, Rune: 'o', Mods: input.Ctrl})
 	host.Shows(t, "tool details collapsed")
 
+	host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
+	stop()
+}
+
+func TestCommandPaletteSharesContextAvailabilityWithExecution(t *testing.T) {
+	host, stop := runUI(t)
+	host.Shows(t, "Ask lyra")
+	host.Send(input.Key{Code: input.Character, Rune: 'p', Mods: input.Ctrl})
+	host.Shows(t, "Commands")
+	host.Type("view")
+	host.Shows(t, "Transcript · unavailable: select a readable transcript entry first")
+	host.Press(input.Enter)
+	host.Shows(t, "/view unavailable: select a readable transcript entry first")
+
+	host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
+	stop()
+}
+
+func TestPendingConfiguredChordShowsItsContinuationsUntilResolved(t *testing.T) {
+	configured := settings.Default()
+	configured.Keys[settings.ActionCommandPalette] = []string{"ctrl+k ctrl+p"}
+	host, stop := runUIWithSettings(t, mock.New(), configured)
+	host.Shows(t, "Ask lyra")
+	host.Send(input.Key{Code: input.Character, Rune: 'k', Mods: input.Ctrl})
+	host.Shows(t, "ctrl+k → ctrl+p command-palette")
+	host.Send(input.Key{Code: input.Character, Rune: 'p', Mods: input.Ctrl})
+	host.Shows(t, "Commands")
+	host.Hides(t, "ctrl+k →")
+
+	host.Press(input.Esc)
 	host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
 	stop()
 }
@@ -1297,11 +1747,12 @@ func TestApprovalRemainsUsableAtRepresentativeWidths(t *testing.T) {
 			backend.Script = approvalWidthScript
 			host, stop := runUIWith(t, backend)
 			host.Shows(t, "Ask lyra")
-			if !host.Resize(size.width, size.height) {
-				t.Fatalf("resize to %dx%d was refused", size.width, size.height)
-			}
 			host.Type("review this at the current terminal width")
 			host.Press(input.Enter)
+			host.Shows(t, "How should lyra proceed?")
+			if !host.Resize(size.width, size.height) {
+				t.Fatalf("resize open approval to %dx%d was refused", size.width, size.height)
+			}
 			host.Shows(t, "How should lyra proceed?")
 			host.Press(input.Esc)
 			host.Shows(t, "Approval denied at current width")

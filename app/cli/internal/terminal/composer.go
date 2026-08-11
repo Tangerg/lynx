@@ -25,13 +25,20 @@ type promptHistory struct {
 	limit   int
 }
 
+func (h *promptHistory) Load(messages []agent.Message) {
+	h.entries, h.at, h.draft = nil, 0, agent.Message{}
+	for _, message := range messages {
+		h.Add(message)
+	}
+}
+
 func (h *promptHistory) Add(message agent.Message) {
 	h.at, h.draft = 0, agent.Message{}
 	message = message.Clone()
 	if strings.TrimSpace(message.Text) == "" && len(message.Attachments) == 0 {
 		return
 	}
-	if len(h.entries) > 0 && equalMessage(h.entries[len(h.entries)-1], message) {
+	if len(h.entries) > 0 && h.entries[len(h.entries)-1].Equal(message) {
 		return
 	}
 	h.entries = append(h.entries, message)
@@ -68,10 +75,6 @@ func (h *promptHistory) Forward() (agent.Message, bool) {
 		return draft, true
 	}
 	return h.entries[len(h.entries)-h.at].Clone(), true
-}
-
-func equalMessage(a, b agent.Message) bool {
-	return a.Text == b.Text && slices.EqualFunc(a.Attachments, b.Attachments, func(a, b agent.Attachment) bool { return a.ID == b.ID })
 }
 
 func (a *app) addAttachment(path string) error {
@@ -231,6 +234,38 @@ func (a *app) resetComposer() {
 	a.composer.Reset()
 	clear(a.attachmentElements)
 	a.confirmation.Reset()
+}
+
+func (a *app) rememberPrompt(message agent.Message) {
+	a.history.Add(message)
+	if a.workbench == nil {
+		return
+	}
+	a.reportWorkbenchError(a.workbench.Remember(message))
+}
+
+func (a *app) persistDraft() {
+	if a.workbench == nil || a.session.ID == "" {
+		return
+	}
+	message, _, err := a.currentDraft()
+	if err == nil {
+		err = a.workbench.SaveDraft(a.session.ID, message)
+	}
+	a.reportWorkbenchError(err)
+}
+
+func (a *app) reportWorkbenchError(err error) {
+	if err == nil {
+		a.workbenchProblem = ""
+		return
+	}
+	problem := "workbench: " + err.Error()
+	if problem == a.workbenchProblem {
+		return
+	}
+	a.workbenchProblem = problem
+	a.message(problem)
 }
 
 func (a *app) restoreComposer(message agent.Message) {

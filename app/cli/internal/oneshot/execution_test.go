@@ -88,8 +88,7 @@ func TestExecuteLeavesQuestionsParked(t *testing.T) {
 		Runtime: runtime, Renderer: new(recordingRenderer),
 		Start: agent.StartRun{SessionID: session.ID, Message: agent.Message{Text: "ask"}},
 	})
-	var required *interactionRequiredError
-	if !errors.As(err, &required) {
+	if _, ok := errors.AsType[*interactionRequiredError](err); !ok {
 		t.Fatalf("error = %v", err)
 	}
 	snapshot, snapshotErr := runtime.GetSession(t.Context(), session.ID)

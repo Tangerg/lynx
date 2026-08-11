@@ -7,60 +7,125 @@ import (
 	"strings"
 
 	"github.com/Tangerg/oolong/components/headless"
-	"github.com/Tangerg/oolong/components/kit"
-	"github.com/Tangerg/oolong/core/grid"
-	"github.com/Tangerg/oolong/core/layout"
-	"github.com/Tangerg/oolong/core/program"
 
 	"github.com/Tangerg/lynx/app/cli/internal/extensions"
 )
 
-func (a *app) registerCommands() {
-	for _, found := range a.commands.Find("") {
-		a.commands.Remove(found.Command.Name)
+type registeredCommand struct {
+	category string
+	evaluate func(*app) CommandAvailability
+}
+
+func (command registeredCommand) availability(host *app) (availability CommandAvailability) {
+	if command.evaluate == nil {
+		return CommandAvailability{Enabled: true}
 	}
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			availability = CommandAvailability{Reason: fmt.Sprintf("availability check panicked: %v", recovered)}
+		}
+	}()
+	availability = command.evaluate(host)
+	availability.Reason = strings.TrimSpace(availability.Reason)
+	if !availability.Enabled && availability.Reason == "" {
+		availability.Reason = "not available in the current context"
+	}
+	return availability
+}
+
+type commandCatalog struct {
+	index         headless.Commands
+	registrations map[string]registeredCommand
+}
+
+func newCommandCatalog() commandCatalog {
+	return commandCatalog{registrations: make(map[string]registeredCommand)}
+}
+
+func (catalog *commandCatalog) reset() {
+	for _, found := range catalog.index.Find("") {
+		catalog.index.Remove(found.Command.Name)
+	}
+	clear(catalog.registrations)
+}
+
+func (catalog *commandCatalog) add(owner string, descriptor CommandDescriptor, run func(string), evaluate func(*app) CommandAvailability) error {
+	for _, identity := range descriptor.identities() {
+		if existing, found := catalog.index.Lookup(identity); found {
+			return fmt.Errorf("plugin %s command /%s conflicts with /%s", owner, descriptor.Name, existing.Name)
+		}
+	}
+	catalog.index.Add(headless.Command{
+		Name: descriptor.Name, Title: descriptor.Title, Aliases: descriptor.Aliases, Takes: descriptor.Takes, Run: run,
+	})
+	catalog.registrations[descriptor.Name] = registeredCommand{category: descriptor.category(), evaluate: evaluate}
+	return nil
+}
+
+func (catalog *commandCatalog) find(query string) []headless.Found {
+	return catalog.index.Find(query)
+}
+
+func (catalog *commandCatalog) lookup(identity string) (headless.Command, bool) {
+	return catalog.index.Lookup(identity)
+}
+
+func (catalog *commandCatalog) used(name string) {
+	catalog.index.Used(name)
+}
+
+func (catalog *commandCatalog) category(name string) string {
+	return catalog.registrations[name].category
+}
+
+func (catalog *commandCatalog) availability(name string, host *app) CommandAvailability {
+	command, ok := catalog.registrations[name]
+	if !ok {
+		return CommandAvailability{Enabled: true}
+	}
+	return command.availability(host)
+}
+
+func (a *app) registerCommands() {
+	a.commands.reset()
 	for _, local := range builtinCommands() {
 		command := local
-		if err := validateLocalCommand(command); err != nil {
+		if err := command.validate(); err != nil {
 			a.message(err.Error())
 			continue
 		}
-		if err := a.addCommand("terminal", headless.Command{
-			Name: command.Name, Title: command.Title, Aliases: command.Aliases, Takes: command.Takes,
-			Run: func(argument string) {
+		if err := a.commands.add("terminal", command.Descriptor,
+			func(argument string) {
 				if err := runLocalCommandSafely(command, a, argument); err != nil {
 					a.message(err.Error())
 				}
 			},
-		}); err != nil {
+			command.Available,
+		); err != nil {
 			a.message(err.Error())
 		}
 	}
 	for _, contributed := range extensions.OwnedValues(a.registry, SlashCommands) {
 		command := contributed.Value
 		pluginID := contributed.PluginID
-		if err := validateCommand(command); err != nil {
+		if err := command.validate(); err != nil {
 			a.message("plugin " + pluginID + ": " + err.Error())
 			continue
 		}
-		if err := a.addCommand(pluginID, headless.Command{
-			Name: command.Name, Title: command.Title, Aliases: command.Aliases, Takes: command.Takes,
-			Run: func(argument string) { a.executeCommand(pluginID, command, argument) },
-		}); err != nil {
+		var evaluate func(*app) CommandAvailability
+		if command.Available != nil {
+			evaluate = func(host *app) CommandAvailability {
+				request := CommandRequest{Workspace: host.session.Workspace, SessionID: host.session.ID}
+				return command.Available(request)
+			}
+		}
+		if err := a.commands.add(pluginID, command.Descriptor,
+			func(argument string) { a.executeCommand(pluginID, command, argument) },
+			evaluate,
+		); err != nil {
 			a.message(err.Error())
 		}
 	}
-}
-
-func (a *app) addCommand(owner string, command headless.Command) error {
-	identities := append([]string{command.Name}, command.Aliases...)
-	for _, identity := range identities {
-		if existing, found := a.commands.Lookup(identity); found {
-			return fmt.Errorf("plugin %s command /%s conflicts with /%s", owner, command.Name, existing.Name)
-		}
-	}
-	a.commands.Add(command)
-	return nil
 }
 
 type commandOperation struct {
@@ -69,7 +134,8 @@ type commandOperation struct {
 }
 
 func (a *app) executeCommand(pluginID string, command SlashCommand, argument string) {
-	a.status.note("running /" + command.Name)
+	name := command.Descriptor.Name
+	a.status.note("running /" + name)
 	request := CommandRequest{Argument: argument, Workspace: a.session.Workspace, SessionID: a.session.ID}
 	dispatcher := a.loop.Dispatcher()
 	a.commandSeq++
@@ -92,14 +158,14 @@ func (a *app) executeCommand(pluginID string, command SlashCommand, argument str
 			}
 			message := strings.TrimSpace(result.Message)
 			if message == "" {
-				message = "completed /" + command.Name
+				message = "completed /" + name
 			}
 			a.message(message)
 		})
 	})
 	if !started {
 		delete(a.commandOperations, sequence)
-		a.message("could not start /" + command.Name)
+		a.message("could not start /" + name)
 	}
 }
 
@@ -122,7 +188,7 @@ func (a *app) cancelPluginCommands(pluginIDs ...string) {
 func executeCommandSafely(ctx context.Context, command SlashCommand, request CommandRequest) (result CommandResult, err error) {
 	defer func() {
 		if recovered := recover(); recovered != nil {
-			err = fmt.Errorf("command /%s panicked: %v", command.Name, recovered)
+			err = fmt.Errorf("command /%s panicked: %v", command.Descriptor.Name, recovered)
 		}
 	}()
 	return command.Execute(ctx, request)
@@ -131,196 +197,26 @@ func executeCommandSafely(ctx context.Context, command SlashCommand, request Com
 func runLocalCommandSafely(command localCommand, host *app, argument string) (err error) {
 	defer func() {
 		if recovered := recover(); recovered != nil {
-			err = fmt.Errorf("command /%s panicked: %v", command.Name, recovered)
+			err = fmt.Errorf("command /%s panicked: %v", command.Descriptor.Name, recovered)
 		}
 	}()
 	return command.Run(host, argument)
 }
 
 func (a *app) runCommand(name, argument string) {
-	command, ok := a.commands.Lookup(name)
+	command, ok := a.commands.lookup(name)
 	if !ok || command.Run == nil {
 		a.message("unknown command: /" + name)
+		return
+	}
+	if availability := a.commands.availability(command.Name, a); !availability.Enabled {
+		a.message("/" + command.Name + " unavailable: " + availability.Reason)
 		return
 	}
 	if command.Takes && strings.TrimSpace(argument) == "" {
 		a.message("/" + command.Name + " needs an argument")
 		return
 	}
-	a.commands.Used(command.Name)
+	a.commands.used(command.Name)
 	command.Run(strings.TrimSpace(argument))
-}
-
-func (a *app) refreshCompletion() {
-	a.operations.Cancel(completionOperation)
-	lines := strings.Split(a.composer.Text(), "\n")
-	line, column := a.composer.Editor().Cursor()
-	if line < 0 || line >= len(lines) {
-		a.completion.Dismiss()
-		return
-	}
-	token, ok := headless.TokenAt(lines[line], column,
-		headless.Trigger{Prefix: "/", AtStart: true},
-		headless.Trigger{Prefix: "@"},
-	)
-	if !ok {
-		a.completion.Dismiss()
-		return
-	}
-	if token.Trigger.Prefix == "@" {
-		a.completeFiles(token)
-		return
-	}
-	found := a.commands.Find(token.Query)
-	candidates := make([]headless.Candidate, 0, len(found))
-	for _, match := range found {
-		candidates = append(candidates, headless.Candidate{
-			Text: match.Command.Name, Label: match.Command.Name,
-			Detail: match.Command.Title, Matched: match.At,
-		})
-	}
-	a.completion.Offer(token, candidates)
-}
-
-func (a *app) completeFiles(token headless.Token) {
-	if a.attachments == nil {
-		a.completion.Dismiss()
-		return
-	}
-	resolver := a.attachments
-	runOperation(a, completionOperation, true,
-		func(ctx context.Context) ([]headless.Candidate, error) {
-			matches, err := resolver.Complete(ctx, token.Query, 50)
-			candidates := make([]headless.Candidate, 0, len(matches))
-			for _, match := range matches {
-				candidates = append(candidates, headless.Candidate{
-					Text: match.Path, Label: match.Path, Detail: match.Detail, Matched: match.Matched,
-				})
-			}
-			return candidates, err
-		},
-		func(candidates []headless.Candidate, err error) {
-			if err != nil {
-				a.completion.Dismiss()
-				a.message(err.Error())
-				return
-			}
-			a.completion.Offer(token, candidates)
-		},
-	)
-}
-
-func (a *app) drawCompletion(frame headless.Frame) {
-	width, height := frame.Size()
-	rows := a.completion.Measure(width)
-	if width <= 2 || height <= 2 || rows <= 0 {
-		return
-	}
-	title := "commands"
-	footer := "enter complete"
-	if token, ok := a.completion.Token(); ok && token.Trigger.Prefix == "@" {
-		title = "workspace files"
-		footer = "enter attach"
-	}
-	box := kit.Box{
-		Theme: a.transcript.theme, Glyphs: a.transcript.glyphs,
-		Padding: layout.Symmetric(0, 1), Title: title, Footer: footer,
-		FooterAlign: layout.End,
-	}
-	popupWidth := min(max(a.completion.Width()+4, 32), width-2)
-	popupHeight := min(rows+2, height)
-	y := max(height-a.composer.Measure(width)-popupHeight, 0)
-	area := grid.Rect(1, y, popupWidth, popupHeight)
-	inner := box.InnerRect(area.Size())
-	box.Draw(frame.View.Sub(area))
-	a.completion.Draw(frame.Sub(area).Sub(inner))
-}
-
-func (a *app) listenForSearch() {
-	results := a.transcript.SearchResults()
-	dispatcher := a.loop.Dispatcher()
-	a.operations.Go(searchOperation, true, func(ctx context.Context, lease operationLease) {
-		for {
-			select {
-			case result, ok := <-results:
-				if !ok {
-					return
-				}
-				if err := a.postSearchResult(ctx, dispatcher, lease, result); err != nil {
-					return
-				}
-			case <-ctx.Done():
-				return
-			}
-		}
-	})
-}
-
-func (a *app) postSearchResult(ctx context.Context, dispatcher program.Dispatcher, lease operationLease, result headless.Result) error {
-	return post(ctx, dispatcher, func() {
-		if !a.operations.Current(lease) || a.closed {
-			return
-		}
-		a.acceptSearchResult(result)
-	})
-}
-
-func (a *app) acceptSearchResult(result headless.Result) {
-	if result.Err != nil {
-		a.message(fmt.Sprintf("search failed: %v", result.Err))
-		return
-	}
-	accepted, announce := a.transcript.AcceptSearch(result)
-	if accepted && announce {
-		a.message(fmt.Sprintf("%d match(es) for %q", len(result.Matches), result.Query))
-	}
-}
-
-// Local command actions.
-
-func (a *app) Clear() {
-	if a.conversation.Busy() || a.following {
-		a.status.doing = "the active run owns the transcript"
-		return
-	}
-	a.conversation.ClearPresentation()
-	a.transcript.Reset()
-	a.activity.Reset()
-	a.status.Reset(a.options)
-	a.status.note("cleared")
-	a.header.SetUsage(a.conversation.Usage())
-}
-
-func (a *app) Find(query string) {
-	a.transcript.Find(query)
-	a.message("searching for " + query)
-}
-
-func (a *app) NextMatch() {
-	if !a.transcript.StepMatch(1) {
-		a.message("no active search matches")
-	}
-}
-
-func (a *app) PreviousMatch() {
-	if !a.transcript.StepMatch(-1) {
-		a.message("no active search matches")
-	}
-}
-
-func (a *app) Quit() { a.loop.Quit() }
-
-func (a *app) ShowHelp() { a.showCommandPalette() }
-
-func (a *app) ShowShortcuts() { a.showShortcutDialog() }
-
-func (a *app) AttachFile(path string) error { return a.addAttachment(path) }
-
-func (a *app) DetachFile(value string) error { return a.removeAttachment(value) }
-
-func (a *app) ShowAttachments() { a.showAttachments() }
-
-func (a *app) ToggleToolDetails() {
-	a.transcript.ToggleDetails()
-	a.message(a.transcript.DetailsLabel())
 }

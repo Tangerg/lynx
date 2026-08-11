@@ -70,3 +70,21 @@ func formatKeyBindings(keys *keymap.Map, action keymap.Action, separator string)
 	}
 	return strings.Join(names, separator)
 }
+
+func pendingKeySequenceHint(keys *keymap.Map, prefix input.Keys) string {
+	if keys == nil || len(prefix) == 0 {
+		return ""
+	}
+	var continuations []string
+	for _, binding := range keys.Bindings() {
+		if len(binding.Keys) <= len(prefix) || !slices.Equal(binding.Keys[:len(prefix)], prefix) {
+			continue
+		}
+		continuations = append(continuations, binding.Keys[len(prefix):].String()+" "+binding.Action.String())
+	}
+	slices.Sort(continuations)
+	if len(continuations) == 0 {
+		return ""
+	}
+	return prefix.String() + " → " + strings.Join(continuations, " · ")
+}

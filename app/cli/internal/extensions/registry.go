@@ -51,6 +51,12 @@ func NewMultiPoint[T any](id string) Point[T] {
 	return Point[T]{id: id, keying: Multi}
 }
 
+// NewCapabilityMultiPoint defines a protected point where ordered contributions
+// coexist.
+func NewCapabilityMultiPoint[T any](id string, capability Capability) Point[T] {
+	return Point[T]{id: id, keying: Multi, capability: capability}
+}
+
 // NewCapabilityKeyedPoint defines a protected keyed point.
 func NewCapabilityKeyedPoint[T any](id string, capability Capability, keyOf func(T) string) Point[T] {
 	return Point[T]{id: id, keying: Keyed, capability: capability, keyOf: keyOf}

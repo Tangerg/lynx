@@ -2,6 +2,7 @@ package terminal
 
 import (
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -21,27 +22,37 @@ const (
 	toolContentInset   = 2
 )
 
-// mutableToolBlock is the optional lifecycle a block presenter may implement to
-// update a running tool in place and participate in the global detail toggle.
-// It remains a terminal-only protocol; the domain only knows ToolCall values.
-type mutableToolBlock interface {
+// toolDisclosure is the shared interaction contract for an individual tool or
+// a semantic group of adjacent tools.
+type toolDisclosure interface {
 	headless.Block
-	Update(agent.Block)
-	AppendOutput(string)
-	Finish(agent.ToolStatus)
 	SetExpanded(bool)
 	Expandable() bool
 	Expanded() bool
 	ToggleExpanded() bool
 }
 
+// mutableToolBlock is the optional lifecycle a block presenter may implement to
+// update a running tool in place. It remains a terminal-only protocol; the
+// domain only knows ToolCall values.
+type mutableToolBlock interface {
+	toolDisclosure
+	Update(agent.Block)
+	AppendOutput(string)
+	Finish(agent.ToolStatus)
+}
+
 type toolBlock struct {
-	theme    kit.Theme
-	glyphs   kit.Glyphs
-	syntax   highlight.Renderer
-	call     agent.ToolCall
-	expanded bool
-	body     []headless.Block
+	theme        kit.Theme
+	glyphs       kit.Glyphs
+	syntax       highlight.Renderer
+	presenters   []ToolPresenter
+	call         agent.ToolCall
+	presentation ToolPresentation
+	expanded     bool
+	body         []headless.Block
+	nextObserver uint64
+	observers    map[uint64]func(readerDocument)
 }
 
 var (
@@ -51,7 +62,7 @@ var (
 )
 
 func newToolBlock(p BlockPresentation, block agent.Block) *toolBlock {
-	t := &toolBlock{theme: p.Theme, glyphs: p.Glyphs, syntax: p.Syntax}
+	t := &toolBlock{theme: p.Theme, glyphs: p.Glyphs, syntax: p.Syntax, presenters: slices.Clone(p.Tools)}
 	t.Update(block)
 	return t
 }
@@ -188,7 +199,10 @@ func (t *toolBlock) header() (toggle, label, status string, statusStyle grid.Sty
 	if t.Expanded() {
 		toggle = t.glyphs.Expanded
 	}
-	label = toolLabel(t.call)
+	label = t.presentation.Label
+	if label == "" {
+		label = "tool"
+	}
 	statusStyle = t.theme.Muted
 	switch t.call.Status {
 	case agent.ToolRunning:
@@ -215,86 +229,76 @@ func (t *toolBlock) header() (toggle, label, status string, statusStyle grid.Sty
 	return toggle, label, strings.TrimSpace(status), statusStyle
 }
 
-func toolLabel(call agent.ToolCall) string {
-	switch call.Kind {
-	case agent.ToolShell:
-		return shellToolLabel(call)
-	case agent.ToolEdit:
-		return toolKindLabel("edit", toolPrimary(call.Path, call.Summary))
-	case agent.ToolRead:
-		return toolKindLabel("read", toolPrimary(call.Path, call.Summary))
-	case agent.ToolSearch:
-		return toolKindLabel("search", toolPrimary(call.Query, call.Summary))
-	case agent.ToolWeb:
-		return toolKindLabel("web", toolPrimary(call.URL, call.Summary))
-	case agent.ToolTask:
-		return toolKindLabel("task", strings.TrimSpace(call.Summary))
-	case agent.ToolUnknown:
-		return unknownToolLabel(call)
-	default:
-		return unknownToolLabel(call)
-	}
-}
-
-func shellToolLabel(call agent.ToolCall) string {
-	primary := toolPrimary(call.Command, call.Summary)
-	if primary == "" {
-		return "shell"
-	}
-	return "$ " + primary
-}
-
-func unknownToolLabel(call agent.ToolCall) string {
-	name := strings.TrimSpace(call.Name)
-	if name == "" {
-		name = "tool"
-	}
-	return toolKindLabel(name, strings.TrimSpace(call.Summary))
-}
-
-func toolPrimary(specific, fallback string) string {
-	if specific = strings.TrimSpace(specific); specific != "" {
-		return specific
-	}
-	return strings.TrimSpace(fallback)
-}
-
-func toolKindLabel(kind, primary string) string {
-	if primary == "" {
-		return kind
-	}
-	return kind + " · " + primary
-}
-
 func (t *toolBlock) rebuild() {
-	t.body = nil
-	output := truncateToolDetail(t.call.Output)
-	if t.call.Diff != "" {
-		if hunks := parseUnifiedDiff(t.call.Diff); len(hunks) > 0 {
-			change := kit.NewDiff(t.theme, t.glyphs, hunks)
-			change.ShowNumbers(true)
-			t.body = append(t.body, change)
-		} else {
-			t.body = append(t.body, kit.NewCode(t.syntax.Lines("diff", truncateToolDetail(t.call.Diff))))
+	presentation, err := selectToolPresentation(t.presenters, t.call)
+	if err != nil {
+		presentation = ToolPresentation{
+			Label:    unknownToolLabel(t.call),
+			Sections: []ToolSection{{Title: "Presentation error", Style: toolSectionCode, Language: "text", Text: err.Error()}},
 		}
 	}
-	if output == "" {
-		return
+	t.presentation = presentation
+	t.body = renderToolSections(BlockPresentation{Theme: t.theme, Glyphs: t.glyphs, Syntax: t.syntax}, presentation.Sections, true)
+	for _, observer := range t.observers {
+		observer(t.readerDocument())
 	}
-	switch t.call.Kind {
-	case agent.ToolRead:
-		code := kit.NewCode(t.syntax.Lines(languageForPath(t.call.Path), output))
-		code.Gutter = kit.LineNumbers{Style: t.theme.Subtle, Separator: t.glyphs.Vertical}
-		t.body = append(t.body, code)
-	case agent.ToolSearch, agent.ToolWeb, agent.ToolTask:
-		paragraph := kit.NewParagraph(output, t.theme.Text)
-		paragraph.SetLinks(kit.LinkConfig{Enabled: t.call.Kind == agent.ToolWeb})
-		t.body = append(t.body, paragraph)
-	case agent.ToolUnknown, agent.ToolShell, agent.ToolEdit:
-		t.body = append(t.body, kit.NewCode(t.syntax.Lines("text", output)))
-	default:
-		t.body = append(t.body, kit.NewCode(t.syntax.Lines("text", output)))
+}
+
+func (t *toolBlock) Observe(observer func(readerDocument)) func() {
+	if t == nil || observer == nil {
+		return func() {}
 	}
+	if t.observers == nil {
+		t.observers = make(map[uint64]func(readerDocument))
+	}
+	t.nextObserver++
+	id := t.nextObserver
+	t.observers[id] = observer
+	observer(t.readerDocument())
+	return func() { delete(t.observers, id) }
+}
+
+func (t *toolBlock) readerDocument() readerDocument {
+	_, _, status, _ := t.header()
+	return readerDocument{Title: t.presentation.Label, Detail: status, Sections: slices.Clone(t.presentation.Sections)}
+}
+
+func renderToolSections(p BlockPresentation, sections []ToolSection, truncate bool) []headless.Block {
+	blocks := make([]headless.Block, 0, len(sections))
+	for _, section := range sections {
+		value := section.Text
+		if truncate {
+			value = truncateToolDetail(value)
+		}
+		if strings.TrimSpace(value) == "" {
+			continue
+		}
+		switch section.Style {
+		case toolSectionDiff:
+			if hunks := parseUnifiedDiff(value); len(hunks) > 0 {
+				change := kit.NewDiff(p.Theme, p.Glyphs, hunks)
+				change.ShowNumbers(true)
+				blocks = append(blocks, change)
+			} else {
+				blocks = append(blocks, kit.NewCode(p.Syntax.Lines("diff", value)))
+			}
+		case toolSectionParagraph:
+			paragraph := kit.NewParagraph(value, p.Theme.Text)
+			paragraph.SetLinks(kit.LinkConfig{Enabled: section.Links})
+			blocks = append(blocks, paragraph)
+		case toolSectionCode:
+			language := section.Language
+			if language == "" {
+				language = "text"
+			}
+			code := kit.NewCode(p.Syntax.Lines(language, value))
+			if section.LineNumbers {
+				code.Gutter = kit.LineNumbers{Style: p.Theme.Subtle, Separator: p.Glyphs.Vertical}
+			}
+			blocks = append(blocks, code)
+		}
+	}
+	return blocks
 }
 
 func truncateToolDetail(value string) string {
@@ -304,7 +308,7 @@ func truncateToolDetail(value string) string {
 	}
 	head, tail := 140, 40
 	omitted := len(lines) - head - tail
-	kept := append([]string(nil), lines[:head]...)
+	kept := slices.Clone(lines[:head])
 	kept = append(kept, "… "+strconv.Itoa(omitted)+" lines omitted …")
 	kept = append(kept, lines[len(lines)-tail:]...)
 	return strings.Join(kept, "\n")

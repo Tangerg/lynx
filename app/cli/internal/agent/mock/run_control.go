@@ -3,6 +3,7 @@ package mock
 import (
 	"context"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 
@@ -77,72 +78,104 @@ func (r *Runtime) ResumeRun(ctx context.Context, in agent.ResumeRun) (agent.Segm
 	}
 
 	r.mu.Lock()
+	prepared, err := r.prepareResumeLocked(in)
+	r.mu.Unlock()
+	if err != nil {
+		return agent.SegmentStream{}, err
+	}
+	steps, err := prepared.continueScript()
+	if err != nil {
+		return agent.SegmentStream{}, err
+	}
+
+	r.mu.Lock()
+	stream, err := r.activateResumeLocked(ctx, in.Message, prepared)
+	r.mu.Unlock()
+	if err != nil {
+		return agent.SegmentStream{}, err
+	}
+
+	go r.play(prepared.run, steps, false)
+	return stream, nil
+}
+
+type resumePreparation struct {
+	run        *runState
+	answers    []agent.InterruptAnswer
+	allAnswers []agent.InterruptAnswer
+	script     Script
+}
+
+func (prepared resumePreparation) continueScript() ([]Step, error) {
+	steps, err := continueSafely(prepared.script, prepared.allAnswers)
+	if err != nil {
+		return nil, fmt.Errorf("mock: continue script: %w", err)
+	}
+	return steps, nil
+}
+
+func (r *Runtime) prepareResumeLocked(in agent.ResumeRun) (resumePreparation, error) {
 	run := r.runs[in.RunID]
 	if run == nil {
-		r.mu.Unlock()
-		return agent.SegmentStream{}, fmt.Errorf("%w: %s", agent.ErrRunNotFound, in.RunID)
+		return resumePreparation{}, fmt.Errorf("%w: %s", agent.ErrRunNotFound, in.RunID)
 	}
 	if err := validateResumeSet(run, in.Answers); err != nil {
-		r.mu.Unlock()
-		return agent.SegmentStream{}, err
+		return resumePreparation{}, err
 	}
 	answers := cloneAnswers(in.Answers)
 	allAnswers, err := completeScriptAnswers(run, answers)
 	if err != nil {
-		r.mu.Unlock()
-		return agent.SegmentStream{}, err
+		return resumePreparation{}, err
 	}
-	script := run.script
-	r.mu.Unlock()
+	return resumePreparation{run: run, answers: answers, allAnswers: allAnswers, script: run.script}, nil
+}
 
-	steps, err := continueSafely(script, allAnswers)
-	if err != nil {
-		return agent.SegmentStream{}, fmt.Errorf("mock: continue script: %w", err)
-	}
-
-	r.mu.Lock()
+func (r *Runtime) activateResumeLocked(ctx context.Context, message *agent.Message, prepared resumePreparation) (agent.SegmentStream, error) {
+	run := prepared.run
 	if run.status != agent.RunStatusWaiting {
-		r.mu.Unlock()
 		return agent.SegmentStream{}, fmt.Errorf("%w: run %s", agent.ErrInterruptNotOpen, run.id)
 	}
 	fault, err := r.takeFaultLocked()
 	if err != nil {
-		r.mu.Unlock()
 		return agent.SegmentStream{}, err
 	}
-	for _, response := range answers {
-		run.answers[response.ItemID] = agent.CloneAnswer(response.Answer)
-		if approval := findApproval(run.interactions, response.ItemID); approval != nil {
-			if answer, ok := response.Answer.(agent.ApprovalAnswer); ok && answer.Remember != agent.RememberNone {
-				r.rememberApprovalLocked(run, *approval, answer)
-			}
-		}
-	}
+	r.recordAnswersLocked(run, prepared.answers)
 	run.interactions = nil
 	run.status = agent.RunStatusRunning
 	segment := r.openSegmentLocked(run)
-	session := r.sessions[run.sessionID]
-	r.setSessionStatusLocked(session, agent.SessionRunning)
+	r.setSessionStatusLocked(r.sessions[run.sessionID], agent.SessionRunning)
 	r.emitLocked(run, agent.SegmentStarted{Run: projectRun(run)})
-	userItemID := ""
-	if in.Message != nil {
-		r.next++
-		userItemID = fmt.Sprintf("item_mock_%d", r.next)
-		r.emitLocked(run, agent.BlockCompleted{Block: agent.Block{ID: userItemID, Kind: agent.BlockUser, Text: strings.TrimSpace(in.Message.Text), Attachments: slices.Clone(in.Message.Attachments)}})
-	}
-	r.completeApprovalItemsLocked(run, answers)
-	stream := r.bindSegmentLocked(ctx, run, segment, 0, 0, userItemID, fault)
-	r.mu.Unlock()
+	userItemID := r.emitResumeMessageLocked(run, message)
+	r.completeApprovalItemsLocked(run, prepared.answers)
+	return r.bindSegmentLocked(ctx, run, segment, 0, 0, userItemID, fault), nil
+}
 
-	go r.play(run, steps, false)
-	return stream, nil
+func (r *Runtime) recordAnswersLocked(run *runState, answers []agent.InterruptAnswer) {
+	for _, response := range answers {
+		run.answers[response.ItemID] = agent.CloneAnswer(response.Answer)
+		approval := findApproval(run.interactions, response.ItemID)
+		answer, ok := response.Answer.(agent.ApprovalAnswer)
+		if approval != nil && ok && answer.Remember != agent.RememberNone {
+			r.rememberApprovalLocked(run, *approval, answer)
+		}
+	}
+}
+
+func (r *Runtime) emitResumeMessageLocked(run *runState, message *agent.Message) string {
+	if message == nil {
+		return ""
+	}
+	r.next++
+	itemID := fmt.Sprintf("item_mock_%d", r.next)
+	r.emitLocked(run, agent.BlockCompleted{Block: agent.Block{
+		ID: itemID, Kind: agent.BlockUser, Text: strings.TrimSpace(message.Text), Attachments: slices.Clone(message.Attachments),
+	}})
+	return itemID
 }
 
 func completeScriptAnswers(run *runState, provided []agent.InterruptAnswer) ([]agent.InterruptAnswer, error) {
 	byID := make(map[string]agent.Answer, len(run.answers)+len(provided))
-	for id, answer := range run.answers {
-		byID[id] = answer
-	}
+	maps.Copy(byID, run.answers)
 	for _, answer := range provided {
 		byID[answer.ItemID] = answer.Answer
 	}

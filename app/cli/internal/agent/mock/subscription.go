@@ -3,6 +3,7 @@ package mock
 import (
 	"context"
 	"fmt"
+	"slices"
 
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
 )
@@ -71,9 +72,9 @@ func (r *Runtime) bindSegmentLocked(
 	fault SubscriptionFault,
 ) agent.SegmentStream {
 	headEventID := ""
-	for i := len(segment.events) - 1; i >= 0; i-- {
-		if agent.ReplayableEvent(segment.events[i].Event) {
-			headEventID = segment.events[i].EventID
+	for _, event := range slices.Backward(segment.events) {
+		if agent.ReplayableEvent(event.Event) {
+			headEventID = event.EventID
 			break
 		}
 	}

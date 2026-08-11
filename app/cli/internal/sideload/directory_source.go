@@ -363,8 +363,10 @@ func compileCommand(
 		directory: directory, timeout: timeout,
 	}
 	return terminal.SlashCommand{
-		Name: name, Title: title, Aliases: aliases,
-		Takes: declared.Takes, Execute: commandExecutor.Execute,
+		Descriptor: terminal.CommandDescriptor{
+			Name: name, Title: title, Aliases: aliases, Takes: declared.Takes,
+		},
+		Execute: commandExecutor.Execute,
 	}, nil
 }
 

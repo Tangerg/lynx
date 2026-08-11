@@ -110,6 +110,10 @@ func (p *promptView) SetOptions(options agent.RunOptions) {
 	p.panel.Box.Footer = optionsLabel(options)
 }
 
+func (p *promptView) SetPendingKeySequence(hint string) {
+	p.panel.Box.Title = hint
+}
+
 func (p *promptView) SetBusy(busy bool) {
 	p.busy = busy
 	p.refreshHelp()
@@ -137,38 +141,48 @@ func (p *promptView) SetTranscriptKeys(keys *keymap.Map) {
 
 func (p *promptView) refreshHelp() {
 	p.help.Keys = p.keys
-	if p.transcriptFocused {
-		p.help.Keys = p.transcriptKeys
-		if !p.selection.Present {
-			p.help.Show = []keymap.Action{transcriptPrompt}
-			return
-		}
-		p.help.Show = []keymap.Action{headless.SelectPrev, headless.SelectNext, transcriptPrompt}
-		if p.selection.Expandable {
-			if p.selection.Expanded {
-				p.help.Show = append(p.help.Show, headless.Collapse)
-			} else {
-				p.help.Show = append(p.help.Show, headless.Expand)
-			}
-			p.help.Show = append(p.help.Show, toggleDetails)
-		}
-		p.help.Show = append(p.help.Show, headless.Copy)
+	switch {
+	case p.transcriptFocused:
+		p.showTranscriptHelp()
+		return
+	case p.busy:
+		p.showBusyHelp()
 		return
 	}
-	if p.busy {
-		p.help.Keys = p.busyKeys
-		if p.queued > 0 {
-			p.help.Keys = p.busyQueuedKeys
-			p.help.Show = []keymap.Action{queueOrSendNext, cancelRun, insertNewline, manageQueue, toggleDetails}
-			return
-		}
-		p.help.Show = []keymap.Action{queueFollowUp, cancelRun, insertNewline, toggleDetails}
-		return
-	}
-	p.help.Show = []keymap.Action{sendPrompt, insertNewline, commandPalette, showSessions, chooseModel}
+	p.help.Show = []keymap.Action{sendPrompt, insertNewline, editPrompt, commandPalette, showSessions, chooseModel}
 	if p.queued > 0 {
 		p.help.Show = append(p.help.Show, manageQueue)
 	}
+}
+
+func (p *promptView) showTranscriptHelp() {
+	p.help.Keys = p.transcriptKeys
+	if !p.selection.Present {
+		p.help.Show = []keymap.Action{transcriptPrompt}
+		return
+	}
+	p.help.Show = []keymap.Action{headless.SelectPrev, headless.SelectNext, transcriptPrompt}
+	if p.selection.Expandable {
+		action := headless.Expand
+		if p.selection.Expanded {
+			action = headless.Collapse
+		}
+		p.help.Show = append(p.help.Show, action, toggleDetails)
+	}
+	if p.selection.Readable {
+		p.help.Show = append(p.help.Show, openReader)
+	}
+	p.help.Show = append(p.help.Show, headless.Copy)
+}
+
+func (p *promptView) showBusyHelp() {
+	p.help.Keys = p.busyKeys
+	p.help.Show = []keymap.Action{queueFollowUp, cancelRun, insertNewline, toggleDetails}
+	if p.queued == 0 {
+		return
+	}
+	p.help.Keys = p.busyQueuedKeys
+	p.help.Show = []keymap.Action{queueOrSendNext, cancelRun, insertNewline, manageQueue, toggleDetails}
 }
 
 func remapHelpAction(keys *keymap.Map, from, to keymap.Action) *keymap.Map {

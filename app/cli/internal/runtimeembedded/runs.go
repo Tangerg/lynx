@@ -2,8 +2,10 @@ package runtimeembedded
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"iter"
+	"slices"
 
 	"github.com/Tangerg/lynx/app/runtime/embedded"
 	"github.com/Tangerg/lynx/app/runtime/protocol"
@@ -42,7 +44,7 @@ func (r *Runtime) StartRun(ctx context.Context, input agent.StartRun) (agent.Seg
 			Temperature: input.Options.Generation.Temperature,
 			MaxTokens:   input.Options.Generation.MaxTokens,
 			TopP:        input.Options.Generation.TopP,
-			Stop:        append([]string(nil), input.Options.Generation.Stop...),
+			Stop:        slices.Clone(input.Options.Generation.Stop),
 		}
 	}
 	ack, events, err := r.runs.StartRun(ctx, request, options)
@@ -50,7 +52,7 @@ func (r *Runtime) StartRun(ctx context.Context, input agent.StartRun) (agent.Seg
 		return agent.SegmentStream{}, classifyError(err)
 	}
 	if ack == nil || events == nil {
-		return agent.SegmentStream{}, fmt.Errorf("start run: runtime returned an incomplete stream")
+		return agent.SegmentStream{}, errors.New("start run: runtime returned an incomplete stream")
 	}
 	stream := agent.SegmentStream{
 		RunID: ack.RunID, SegmentID: ack.SegmentID, UserItemID: ack.UserItemID,
@@ -94,7 +96,7 @@ func (r *Runtime) ResumeRun(ctx context.Context, input agent.ResumeRun) (agent.S
 		return agent.SegmentStream{}, classifyError(err)
 	}
 	if ack == nil || events == nil {
-		return agent.SegmentStream{}, fmt.Errorf("resume run: runtime returned an incomplete stream")
+		return agent.SegmentStream{}, errors.New("resume run: runtime returned an incomplete stream")
 	}
 	stream := agent.SegmentStream{RunID: ack.RunID, SegmentID: ack.SegmentID, Events: projectEventStream(events)}
 	if ack.UserItemID != nil {
@@ -120,7 +122,7 @@ func projectAnswer(value agent.InterruptAnswer) (protocol.InterruptResponse, err
 		response.Response.Type = protocol.InterruptResponseAnswer
 		response.Response.Answers = make([][]string, len(answer.Values))
 		for index, answers := range answer.Values {
-			response.Response.Answers[index] = append([]string(nil), answers...)
+			response.Response.Answers[index] = slices.Clone(answers)
 		}
 	default:
 		return protocol.InterruptResponse{}, fmt.Errorf("answer for item %s has unsupported type %T", value.ItemID, value.Answer)
@@ -139,7 +141,7 @@ func (r *Runtime) SubscribeRun(ctx context.Context, input agent.SubscribeRun) (a
 		return agent.SegmentStream{}, classifyError(err)
 	}
 	if ack == nil || events == nil {
-		return agent.SegmentStream{}, fmt.Errorf("subscribe run: runtime returned an incomplete stream")
+		return agent.SegmentStream{}, errors.New("subscribe run: runtime returned an incomplete stream")
 	}
 	stream := agent.SegmentStream{
 		RunID: ack.RunID, SegmentID: ack.SegmentID, HeadEventID: ack.HeadEventID,
@@ -164,7 +166,7 @@ func (r *Runtime) CancelRun(ctx context.Context, input agent.CancelRun) (agent.R
 		return agent.Run{}, classifyError(err)
 	}
 	if result == nil {
-		return agent.Run{}, fmt.Errorf("cancel run: runtime returned nil")
+		return agent.Run{}, errors.New("cancel run: runtime returned nil")
 	}
 	if result.Type != protocol.CancelRunRoot || result.RootRun != nil {
 		return agent.Run{}, fmt.Errorf("%w: cancel returned child-run result %q", agent.ErrIncompatibleRuntime, result.Type)

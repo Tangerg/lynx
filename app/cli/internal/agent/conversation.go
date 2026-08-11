@@ -3,7 +3,6 @@ package agent
 import (
 	"errors"
 	"fmt"
-	"reflect"
 	"slices"
 	"strings"
 )
@@ -77,7 +76,7 @@ func (c *Conversation) ApplyRunEvent(envelope RunEvent) (EventAcceptance, error)
 			return EventAcceptance{}, fmt.Errorf("conversation: event segment %s does not match active segment %s", envelope.SegmentID, c.segmentID)
 		}
 	} else if known, duplicate := c.seen[envelope.EventID]; duplicate {
-		if !reflect.DeepEqual(known, envelope) {
+		if !known.Equal(envelope) {
 			return EventAcceptance{}, fmt.Errorf("%w: event %s changed on replay", ErrEventConflict, envelope.EventID)
 		}
 		return EventAcceptance{}, nil
@@ -134,7 +133,7 @@ func (c *Conversation) ignoreRecoveredOverlap(event Event) (bool, error) {
 			return false, nil
 		}
 		if err := validateBlockIdentity(c.blocks[at], item.Block); err != nil {
-			return false, fmt.Errorf("%w: replayed start conflicts with the cold snapshot: %v", ErrEventConflict, err)
+			return false, fmt.Errorf("%w: replayed start conflicts with the cold snapshot: %w", ErrEventConflict, err)
 		}
 		return true, nil
 	case BlockDelta:
@@ -147,7 +146,7 @@ func (c *Conversation) ignoreRecoveredOverlap(event Event) (bool, error) {
 		if !exists || c.open[key] {
 			return false, nil
 		}
-		if !reflect.DeepEqual(c.blocks[at], item.Block) {
+		if !c.blocks[at].Equal(item.Block) {
 			return false, fmt.Errorf("%w: completed block %s differs from the cold snapshot", ErrEventConflict, item.Block.ID)
 		}
 		return true, nil
@@ -254,7 +253,7 @@ func (c *Conversation) applySegmentStarted(event SegmentStarted) error {
 		}
 	}
 	if err := validateUsageProgress(previousUsage, event.Run.Usage); err != nil {
-		return fmt.Errorf("%w: segment started with %v", ErrInvalidTransition, err)
+		return fmt.Errorf("%w: segment started: %w", ErrInvalidTransition, err)
 	}
 	c.runID = event.Run.ID
 	c.phase = ConversationRunning
@@ -324,11 +323,11 @@ func (c *Conversation) applyInterrupted(event RunInterrupted) error {
 			return fmt.Errorf("%w: interrupt references unknown item %s", ErrInvalidTransition, itemID)
 		}
 		if err := validateInteractionItem(interaction, c.blocks[at]); err != nil {
-			return fmt.Errorf("%w: %v", ErrInvalidTransition, err)
+			return fmt.Errorf("%w: %w", ErrInvalidTransition, err)
 		}
 	}
 	if err := validateUsageProgress(c.usage, event.Usage); err != nil {
-		return fmt.Errorf("%w: run interrupted with %v", ErrInvalidTransition, err)
+		return fmt.Errorf("%w: run interrupted: %w", ErrInvalidTransition, err)
 	}
 	c.phase = ConversationWaiting
 	c.reconciling = false
@@ -349,7 +348,7 @@ func (c *Conversation) applyFinished(event RunFinished) error {
 		return fmt.Errorf("%w: a completed run still has open blocks", ErrInvalidTransition)
 	}
 	if err := validateUsageProgress(c.usage, event.Usage); err != nil {
-		return fmt.Errorf("%w: run finished with %v", ErrInvalidTransition, err)
+		return fmt.Errorf("%w: run finished: %w", ErrInvalidTransition, err)
 	}
 	toolStatus := ToolError
 	if event.Outcome.Status == OutcomeCanceled {
@@ -409,7 +408,7 @@ func (c *Conversation) SettleRun(run Run) error {
 	}
 	if c.runID == run.ID {
 		if err := validateUsageProgress(c.usage, run.Usage); err != nil {
-			return fmt.Errorf("%w: settled run has %v", ErrInvalidTransition, err)
+			return fmt.Errorf("%w: settled run: %w", ErrInvalidTransition, err)
 		}
 	}
 	toolStatus := ToolError

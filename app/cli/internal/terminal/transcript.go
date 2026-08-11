@@ -7,6 +7,7 @@ import (
 
 	"github.com/Tangerg/oolong/components/headless"
 	"github.com/Tangerg/oolong/components/kit"
+	"github.com/Tangerg/oolong/core/grid"
 	"github.com/Tangerg/oolong/core/input"
 	"github.com/Tangerg/oolong/core/keymap"
 	"github.com/Tangerg/oolong/highlight"
@@ -23,38 +24,41 @@ type transcriptView struct {
 	look   markdown.Look
 	syntax highlight.Renderer
 
-	content        headless.Transcript
-	scroll         headless.Scroll
-	selection      headless.Selection
-	sticky         headless.Sticky
-	view           kit.Transcript
-	search         *headless.Search
-	query          string
-	announceSearch bool
-	matches        []headless.Match
-	current        int
-	retain         int
-	details        bool
-	clipboard      headless.Clipboard
-	focused        bool
-	selected       headless.BlockID
-	hasSelected    bool
-	entries        map[headless.BlockID]*transcriptEntry
-	pressed        headless.BlockID
-	pressedHeader  bool
-	dragged        bool
-	onFocusChange  func(bool)
-	onSelection    func(transcriptSelection)
-	onCopy         func(string)
-	keys           *keymap.Map
-	matcher        keymap.Matcher
-	tools          map[string]liveTool
-	textStreams    map[string]*liveText
-	toolViews      []trackedTool
+	content         headless.Transcript
+	scroll          headless.Scroll
+	selection       headless.Selection
+	sticky          headless.Sticky
+	view            kit.Transcript
+	search          *headless.Search
+	query           string
+	announceSearch  bool
+	matches         []headless.Match
+	current         int
+	retain          int
+	details         bool
+	clipboard       headless.Clipboard
+	focused         bool
+	selected        headless.BlockID
+	hasSelected     bool
+	entries         map[headless.BlockID]*transcriptEntry
+	pressed         headless.BlockID
+	pressedHeader   bool
+	dragged         bool
+	onFocusChange   func(bool)
+	onSelection     func(transcriptSelection)
+	onCopy          func(string)
+	keys            *keymap.Map
+	matcher         keymap.Matcher
+	tools           map[string]liveTool
+	textStreams     map[string]*liveText
+	toolViews       []trackedToolView
+	runEntries      map[string][]headless.BlockID
+	activeToolGroup *trackedToolGroup
 }
 
 type transcriptSelection struct {
 	Present    bool
+	Readable   bool
 	Expandable bool
 	Expanded   bool
 }
@@ -64,6 +68,7 @@ const transcriptPrompt keymap.Action = "prompt"
 type liveTool struct {
 	ids    []headless.BlockID
 	blocks []trackedTool
+	group  *trackedToolGroup
 }
 
 type liveText struct {
@@ -76,6 +81,17 @@ type liveText struct {
 type trackedTool struct {
 	id    headless.BlockID
 	block mutableToolBlock
+}
+
+type trackedToolView struct {
+	id    headless.BlockID
+	block toolDisclosure
+}
+
+type trackedToolGroup struct {
+	id    headless.BlockID
+	runID string
+	block *toolGroupBlock
 }
 
 func (c *transcriptView) ToggleDetails() {
@@ -131,7 +147,8 @@ func newTranscriptView(
 		search: headless.NewSearch(), current: -1, retain: max(retain, 4), details: details,
 		clipboard: clipboard, entries: make(map[headless.BlockID]*transcriptEntry),
 		tools: make(map[string]liveTool), textStreams: make(map[string]*liveText),
-		keys: transcriptKeys(),
+		runEntries: make(map[string][]headless.BlockID),
+		keys:       transcriptKeys(),
 	}
 	c.scroll.Wheel(wheel)
 	c.scroll.ToBottom()
@@ -236,6 +253,7 @@ func transcriptKeys() *keymap.Map {
 	keys.Bind(headless.Collapse, input.Chord{Code: input.Left})
 	keys.Bind(toggleDetails, input.Chord{Code: input.Enter})
 	keys.Bind(headless.Copy, input.Alt.Rune('c'))
+	keys.Bind(openReader, input.Chord{Code: input.Character, Rune: 'v'})
 	keys.Bind(transcriptPrompt, input.Chord{Code: input.Tab})
 	keys.Bind(transcriptPrompt, input.Chord{Code: input.Character, Rune: ' '})
 	keys.Bind(commandPalette, input.Chord{Code: input.Character, Rune: '?'})
@@ -277,14 +295,14 @@ func (c *transcriptView) handleMouse(mouse input.Mouse) {
 
 func (c *transcriptView) ensureSelection() {
 	first := c.content.FirstBlock()
-	if c.hasSelected && c.selected >= first && c.selected < first+headless.BlockID(c.content.Len()) {
+	if c.hasSelected && c.selected >= first && c.selected < first+blockOffset(c.content.Len()) {
 		return
 	}
 	if c.content.Len() == 0 {
 		c.hasSelected = false
 		return
 	}
-	c.selected = first + headless.BlockID(c.content.Len()-1)
+	c.selected = first + blockOffset(c.content.Len()-1)
 	c.hasSelected = true
 	c.revealSelected()
 }
@@ -295,13 +313,14 @@ func (c *transcriptView) moveSelection(delta int) bool {
 	}
 	c.ensureSelection()
 	first := c.content.FirstBlock()
-	last := first + headless.BlockID(c.content.Len()-1)
+	last := first + blockOffset(c.content.Len()-1)
 	next := c.selected
-	if delta < 0 && next > first {
+	switch {
+	case delta < 0 && next > first:
 		next--
-	} else if delta > 0 && next < last {
+	case delta > 0 && next < last:
 		next++
-	} else {
+	default:
 		return true
 	}
 	c.selectEntry(next, true)
@@ -314,7 +333,7 @@ func (c *transcriptView) selectEdge(last bool) bool {
 	}
 	id := c.content.FirstBlock()
 	if last {
-		id += headless.BlockID(c.content.Len() - 1)
+		id += blockOffset(c.content.Len() - 1)
 	}
 	c.selectEntry(id, true)
 	return true
@@ -360,7 +379,7 @@ func (c *transcriptView) revealSelected() {
 	}
 }
 
-func (c *transcriptView) tool(id headless.BlockID) mutableToolBlock {
+func (c *transcriptView) tool(id headless.BlockID) toolDisclosure {
 	for _, tracked := range c.toolViews {
 		if tracked.id == id {
 			return tracked.block
@@ -433,12 +452,60 @@ func (c *transcriptView) announceSelection() {
 	if c.onSelection == nil {
 		return
 	}
-	selection := transcriptSelection{Present: c.hasSelected}
+	_, readable := c.readerTargetForSelected()
+	selection := transcriptSelection{Present: c.hasSelected, Readable: readable}
 	if tool := c.tool(c.selected); tool != nil && tool.Expandable() {
 		selection.Expandable = true
 		selection.Expanded = tool.Expanded()
 	}
 	c.onSelection(selection)
+}
+
+func (c *transcriptView) selectedReaderTarget() (readerTarget, bool) {
+	if !c.hasSelected {
+		c.ensureSelection()
+	}
+	return c.readerTargetForSelected()
+}
+
+func (c *transcriptView) readerTargetForSelected() (readerTarget, bool) {
+	if !c.hasSelected {
+		return readerTarget{}, false
+	}
+	entry := c.entries[c.selected]
+	if entry == nil || entry.content == nil {
+		return readerTarget{}, false
+	}
+	switch tool := entry.content.(type) {
+	case *toolBlock:
+		return readerTarget{document: tool.readerDocument(), source: tool}, true
+	case *toolGroupBlock:
+		return readerTarget{document: tool.readerDocument(), source: tool}, true
+	}
+	copyable, ok := entry.content.(headless.Copyable)
+	if !ok {
+		return readerTarget{}, false
+	}
+	width := max(c.content.Width()-transcriptEntryInset, 40)
+	value := copyableRowsText(copyable.Rows(width))
+	if strings.TrimSpace(value) == "" {
+		return readerTarget{}, false
+	}
+	title := "Transcript entry"
+	switch block := entry.content.(type) {
+	case *markdownBlock:
+		title = block.speaker
+	case *userMessageBlock:
+		title = "you"
+	case *kit.Message:
+		if strings.TrimSpace(block.Speaker) != "" {
+			title = block.Speaker
+		}
+	}
+	return readerTarget{document: readerDocument{
+		Title:    title,
+		Sections: []ToolSection{{Style: toolSectionCode, Language: "text", Text: value}},
+	}}, true
 }
 
 func (c *transcriptView) Follow() { c.scroll.ToBottom() }
@@ -460,6 +527,7 @@ func (c *transcriptView) Apply(event agent.Event, registry *extensions.Registry)
 		if e.Block.Kind == agent.BlockTool {
 			return c.beginTool(e.Block, registry)
 		}
+		c.sealToolGroup()
 	case agent.BlockDelta:
 		if _, live := c.tools[e.BlockID]; live {
 			return c.deltaTool(e.BlockID, e.Text)
@@ -469,6 +537,8 @@ func (c *transcriptView) Apply(event agent.Event, registry *extensions.Registry)
 		return c.complete(e.Block, registry)
 	case agent.RunFinished:
 		c.settleLive(e.Outcome)
+	case agent.RunInterrupted:
+		c.sealToolGroup()
 	}
 	return nil
 }
@@ -480,6 +550,7 @@ func (c *transcriptView) begin(block agent.Block) error {
 	if _, exists := c.tools[block.ID]; exists {
 		return fmt.Errorf("terminal transcript: block %s is already a live tool", block.ID)
 	}
+	c.sealToolGroup()
 	speaker := "lyra"
 	if block.Kind == agent.BlockReasoning {
 		speaker = "thinking"
@@ -487,6 +558,7 @@ func (c *transcriptView) begin(block agent.Block) error {
 	live := &liveText{block: &markdownBlock{theme: c.theme, speaker: speaker}}
 	live.stream.SetLook(c.lookFor(block.Kind))
 	live.id = c.place(live.block, false)
+	c.trackRunEntry(block.RunID, live.id)
 	c.textStreams[block.ID] = live
 	if block.Text != "" {
 		return c.delta(block.ID, block.Text)
@@ -500,7 +572,7 @@ func (c *transcriptView) delta(id, chunk string) error {
 		return fmt.Errorf("terminal transcript: delta for inactive text block %s", id)
 	}
 	live.stable = append(live.stable, live.stream.Feed(chunk)...)
-	blocks := append([]markdown.Block(nil), live.stable...)
+	blocks := slices.Clone(live.stable)
 	blocks = append(blocks, live.stream.Open()...)
 	live.block.doc.SetBlocks(blocks)
 	c.content.Changed(live.id)
@@ -557,8 +629,12 @@ func (c *transcriptView) completeLiveTool(block agent.Block) bool {
 		tracked.block.Update(block)
 		c.content.Changed(tracked.id)
 	}
-	for _, id := range live.ids {
-		c.content.Finish(id)
+	if live.group != nil {
+		c.finishToolGroupIfReady(live.group)
+	} else {
+		for _, id := range live.ids {
+			c.content.Finish(id)
+		}
 	}
 	delete(c.tools, block.ID)
 	if len(live.blocks) == 0 {
@@ -584,11 +660,16 @@ func (c *transcriptView) settleLive(outcome agent.Outcome) {
 			tracked.block.Finish(toolStatus)
 			c.content.Changed(tracked.id)
 		}
-		for _, blockID := range live.ids {
-			c.content.Finish(blockID)
+		if live.group != nil {
+			c.finishToolGroupIfReady(live.group)
+		} else {
+			for _, blockID := range live.ids {
+				c.content.Finish(blockID)
+			}
 		}
 		delete(c.tools, id)
 	}
+	c.sealToolGroup()
 	c.refreshSearch()
 	c.announceSelection()
 }
@@ -598,14 +679,23 @@ func (c *transcriptView) appendCompleted(block agent.Block, registry *extensions
 	if err != nil {
 		return err
 	}
+	if block.Kind == agent.BlockTool {
+		if tool, grouped := groupedTool(rendered); grouped {
+			c.addGroupedTool(block.RunID, tool)
+			c.refreshSearch()
+			return nil
+		}
+	}
+	c.sealToolGroup()
 	for _, item := range rendered {
 		mutable, isMutable := item.(mutableToolBlock)
 		if isMutable {
 			mutable.SetExpanded(c.details)
 		}
 		id := c.append(item)
+		c.trackRunEntry(block.RunID, id)
 		if isMutable {
-			c.toolViews = append(c.toolViews, trackedTool{id: id, block: mutable})
+			c.toolViews = append(c.toolViews, trackedToolView{id: id, block: mutable})
 		}
 		if block.Kind == agent.BlockUser {
 			c.sticky.Add(id)
@@ -625,6 +715,14 @@ func (c *transcriptView) beginTool(block agent.Block, registry *extensions.Regis
 	if err != nil {
 		return err
 	}
+	if tool, grouped := groupedTool(rendered); grouped {
+		group := c.addGroupedTool(block.RunID, tool)
+		tracked := trackedTool{id: group.id, block: tool}
+		c.tools[block.ID] = liveTool{blocks: []trackedTool{tracked}, group: group}
+		c.refreshSearch()
+		return nil
+	}
+	c.sealToolGroup()
 	live := liveTool{}
 	for _, item := range rendered {
 		mutable, isMutable := item.(mutableToolBlock)
@@ -632,11 +730,12 @@ func (c *transcriptView) beginTool(block agent.Block, registry *extensions.Regis
 			mutable.SetExpanded(c.details)
 		}
 		id := c.place(item, false)
+		c.trackRunEntry(block.RunID, id)
 		live.ids = append(live.ids, id)
 		if isMutable {
 			tracked := trackedTool{id: id, block: mutable}
 			live.blocks = append(live.blocks, tracked)
-			c.toolViews = append(c.toolViews, tracked)
+			c.toolViews = append(c.toolViews, trackedToolView{id: id, block: mutable})
 		}
 	}
 	c.tools[block.ID] = live
@@ -644,11 +743,59 @@ func (c *transcriptView) beginTool(block agent.Block, registry *extensions.Regis
 	return nil
 }
 
+func groupedTool(rendered []headless.Block) (*toolBlock, bool) {
+	if len(rendered) != 1 {
+		return nil, false
+	}
+	tool, ok := rendered[0].(*toolBlock)
+	return tool, ok && groupableTool(tool.call)
+}
+
+func (c *transcriptView) addGroupedTool(runID string, tool *toolBlock) *trackedToolGroup {
+	group := c.activeToolGroup
+	if group == nil || group.runID != runID {
+		c.sealToolGroup()
+		block := newToolGroupBlock(c.theme, c.glyphs, c.details)
+		block.Add(tool)
+		group = &trackedToolGroup{runID: runID, block: block}
+		group.id = c.place(block, false)
+		c.trackRunEntry(runID, group.id)
+		c.toolViews = append(c.toolViews, trackedToolView{id: group.id, block: block})
+		c.activeToolGroup = group
+		return group
+	}
+	group.block.Add(tool)
+	c.content.Changed(group.id)
+	return group
+}
+
+func (c *transcriptView) sealToolGroup() {
+	group := c.activeToolGroup
+	if group == nil {
+		return
+	}
+	group.block.Seal()
+	c.content.Changed(group.id)
+	c.activeToolGroup = nil
+	c.finishToolGroupIfReady(group)
+}
+
+func (c *transcriptView) finishToolGroupIfReady(group *trackedToolGroup) {
+	if group != nil && group.block.ReadyToFinish() {
+		c.content.Finish(group.id)
+	}
+}
+
+// SealToolGroups closes the trailing adjacency window after a cold snapshot.
+// A live event stream closes it naturally on the next semantic boundary.
+func (c *transcriptView) SealToolGroups() { c.sealToolGroup() }
+
 func (c *transcriptView) present(block agent.Block, registry *extensions.Registry) ([]headless.Block, error) {
 	for _, presenter := range extensions.Values(registry, BlockPresenters) {
 		if presenter.Kind == block.Kind {
 			return presentSafely(presenter, BlockPresentation{
 				Theme: c.theme, Glyphs: c.glyphs, Look: c.look, Syntax: c.syntax,
+				Tools: extensions.Values(registry, ToolPresenters),
 			}, block)
 		}
 	}
@@ -664,7 +811,10 @@ func presentSafely(presenter BlockPresenter, presentation BlockPresentation, blo
 	return presenter.Present(presentation, block), nil
 }
 
-func (c *transcriptView) Append(block headless.Block) { c.append(block) }
+func (c *transcriptView) Append(block headless.Block) {
+	c.sealToolGroup()
+	c.append(block)
+}
 
 func (c *transcriptView) append(block headless.Block) headless.BlockID {
 	id := c.place(block, true)
@@ -682,7 +832,11 @@ func (c *transcriptView) place(block headless.Block, finished bool) headless.Blo
 	return id
 }
 
-func (c *transcriptView) Retain(printer kit.Printer) {
+type discardedOutput struct{}
+
+func (discardedOutput) Print(grid.Drawable) {}
+
+func (c *transcriptView) DiscardExcess() {
 	if c.content.Width() <= 0 {
 		return
 	}
@@ -695,13 +849,21 @@ func (c *transcriptView) Retain(printer kit.Printer) {
 		finished++
 	}
 	if excess := finished - c.retain; excess > 0 {
-		c.view.Commit(printer, excess)
+		c.view.Commit(discardedOutput{}, excess)
 	}
 	first := c.content.FirstBlock()
-	c.toolViews = slices.DeleteFunc(c.toolViews, func(item trackedTool) bool { return item.id < first })
+	c.toolViews = slices.DeleteFunc(c.toolViews, func(item trackedToolView) bool { return item.id < first })
 	for id := range c.entries {
 		if id < first {
 			delete(c.entries, id)
+		}
+	}
+	for runID, ids := range c.runEntries {
+		ids = slices.DeleteFunc(ids, func(id headless.BlockID) bool { return id < first })
+		if len(ids) == 0 {
+			delete(c.runEntries, runID)
+		} else {
+			c.runEntries[runID] = ids
 		}
 	}
 	if c.hasSelected && c.selected < first {
@@ -729,9 +891,38 @@ func (c *transcriptView) Reset() {
 	c.query, c.matches, c.current, c.announceSearch = "", nil, -1, false
 	clear(c.tools)
 	clear(c.entries)
+	clear(c.runEntries)
+	c.activeToolGroup = nil
 	c.hasSelected, c.pressedHeader, c.dragged = false, false, false
 	c.toolViews = nil
 	c.search.Submit(&c.content, "", false)
+}
+
+func (c *transcriptView) trackRunEntry(runID string, id headless.BlockID) {
+	if strings.TrimSpace(runID) == "" {
+		return
+	}
+	c.runEntries[runID] = append(c.runEntries[runID], id)
+}
+
+func (c *transcriptView) JumpToRun(runID string) bool {
+	first := c.content.FirstBlock()
+	last := first + blockOffset(c.content.Len())
+	for _, id := range c.runEntries[runID] {
+		if id < first || id >= last {
+			continue
+		}
+		c.selectEntry(id, true)
+		return true
+	}
+	return false
+}
+
+func blockOffset(index int) headless.BlockID {
+	if index < 0 {
+		panic("terminal: negative transcript block offset")
+	}
+	return headless.BlockID(index) // #nosec G115 -- validated nonnegative and int cannot exceed uint64.
 }
 
 func (c *transcriptView) Find(query string) {

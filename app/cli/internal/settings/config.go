@@ -36,6 +36,7 @@ const (
 	ActionScrollPageDown  = "scroll-page-down"
 	ActionScrollTop       = "scroll-top"
 	ActionScrollBottom    = "scroll-bottom"
+	ActionExternalEditor  = "external-editor"
 )
 
 type Config struct {
@@ -121,6 +122,7 @@ func Default() Config {
 			ActionScrollPageDown:  {"pagedown"},
 			ActionScrollTop:       {"ctrl+home"},
 			ActionScrollBottom:    {"ctrl+end"},
+			ActionExternalEditor:  {"ctrl+e"},
 		},
 	}
 }

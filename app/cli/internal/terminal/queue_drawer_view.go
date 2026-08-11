@@ -11,9 +11,14 @@ import (
 	"github.com/Tangerg/oolong/core/grid"
 	"github.com/Tangerg/oolong/core/layout"
 	"github.com/Tangerg/oolong/core/text"
+
+	"github.com/Tangerg/lynx/app/cli/internal/promptqueue"
 )
 
 func (q *queueDrawer) Place(space image.Point) layout.Placement {
+	if space.X <= 0 || space.Y <= 0 {
+		return layout.Placement{}
+	}
 	innerRows := min(max(len(q.snapshot.Entries), 1), queueDrawerVisibleRows)
 	if q.Editing() {
 		innerRows = 6
@@ -23,7 +28,7 @@ func (q *queueDrawer) Place(space image.Point) layout.Placement {
 			innerRows += min(len(lines), 3) + 1
 		}
 	}
-	return layout.Placement{Anchor: layout.Bottom, Height: min(innerRows+2, max(space.Y-2, 1)), Margin: 1}
+	return layout.Placement{Anchor: layout.Bottom, Height: min(innerRows+2, space.Y)}
 }
 
 func (q *queueDrawer) Draw(frame headless.Frame) {
@@ -53,7 +58,7 @@ func (q *queueDrawer) Draw(frame headless.Frame) {
 }
 
 func (q *queueDrawer) title() string {
-	return fmt.Sprintf("Queue · %s", countedNoun(len(q.snapshot.Entries), "prompt"))
+	return "Queue · " + countedNoun(len(q.snapshot.Entries), "prompt")
 }
 
 func (q *queueDrawer) footer() string {
@@ -73,8 +78,8 @@ func (q *queueDrawer) drawEditor(frame headless.Frame, inner image.Rectangle) im
 		return image.Rectangle{}
 	}
 	rows := (layout.Flow{Axis: layout.Down}).Rects(inner.Size(), []layout.Slot{
-		layout.Slot{Size: layout.Fixed(1)},
-		layout.Slot{Size: layout.Flex(1)},
+		{Size: layout.Fixed(1)},
+		{Size: layout.Flex(1)},
 	})
 	header, field := rows[0].Add(inner.Min), rows[1].Add(inner.Min)
 	label := "Editing queued prompt"
@@ -98,12 +103,27 @@ func (q *queueDrawer) drawEntries(view grid.View) ([]queueHit, int) {
 		return nil, 0
 	}
 	hits := make([]queueHit, 0, queueDrawerVisibleRows*4)
-	y := 0
+	y := q.drawSelectedPreview(view)
+	rowRows := min(queueDrawerVisibleRows, max(height-y, 1))
+	viewport := visibleQueueStart(q.viewport, q.selected, rowRows, len(entries))
+	end := min(viewport+rowRows, len(entries))
+	for index := viewport; index < end; index++ {
+		rowY := y + index - viewport
+		if rowY >= height {
+			break
+		}
+		hits = append(hits, q.drawEntry(view, entries[index], index, rowY, width)...)
+	}
+	return hits, rowRows
+}
+
+func (q *queueDrawer) drawSelectedPreview(view grid.View) int {
+	width, height := view.Size()
 	if selected, ok := q.selectedEntry(); ok {
 		lines := strings.Split(selected.Message.Text, "\n")
 		if len(lines) > 1 && height >= 4 {
-			view.Text(0, y, "Preview · full queued prompt", q.theme.Subtle.Merge(grid.Style{Attr: grid.Bold}))
-			y++
+			view.Text(0, 0, "Preview · full queued prompt", q.theme.Subtle.Merge(grid.Style{Attr: grid.Bold}))
+			y := 1
 			for _, line := range lines[:min(len(lines), 3)] {
 				if y >= height-1 {
 					break
@@ -111,44 +131,37 @@ func (q *queueDrawer) drawEntries(view grid.View) ([]queueHit, int) {
 				view.Text(2, y, text.Truncate(cleanQueueText(line), max(width-2, 1), q.glyphs.Ellipsis), q.theme.Accent)
 				y++
 			}
+			return y
 		}
 	}
-	rowRows := min(queueDrawerVisibleRows, max(height-y, 1))
-	viewport := visibleQueueStart(q.viewport, q.selected, rowRows, len(entries))
-	end := min(viewport+rowRows, len(entries))
-	for index := viewport; index < end; index++ {
-		entry := entries[index]
-		rowY := y + index - viewport
-		if rowY >= height {
-			break
-		}
-		row := grid.Rect(0, rowY, width, 1)
-		rowTarget := queueTarget{kind: queueTargetRow, id: entry.ID}
-		style := q.theme.Text
-		if index == q.selected || q.hovered.id == entry.ID {
-			style = style.Merge(q.theme.Selection)
-			view.Fill(row, q.theme.Selection)
-		}
-		if q.pressed == rowTarget {
-			style = style.Merge(grid.Style{Attr: grid.Bold | grid.Reverse})
-		}
-		hits = append(hits, queueHit{area: row, target: rowTarget})
+	return 0
+}
 
-		marker := " "
-		if index == q.selected {
-			marker = q.glyphs.Marker
-		}
-		prefix := fmt.Sprintf("%s %d. ", marker, index+1)
-		right := width
-		if width >= 40 && (index == q.selected || q.hovered.id == entry.ID || q.pressed.id == entry.ID) {
-			right = q.drawActions(view, row, entry.ID, right, style, &hits)
-		}
-		view.Text(0, rowY, prefix, style.Merge(q.theme.Muted))
-		left := text.Width(prefix)
-		label := queueEntryLabel(entry)
-		view.Text(left, rowY, text.Truncate(label, max(right-left, 1), q.glyphs.Ellipsis), style)
+func (q *queueDrawer) drawEntry(view grid.View, entry promptqueue.Entry, index, rowY, width int) []queueHit {
+	row := grid.Rect(0, rowY, width, 1)
+	rowTarget := queueTarget{kind: queueTargetRow, id: entry.ID}
+	style := q.theme.Text
+	if index == q.selected || q.hovered.id == entry.ID {
+		style = style.Merge(q.theme.Selection)
+		view.Fill(row, q.theme.Selection)
 	}
-	return hits, rowRows
+	if q.pressed == rowTarget {
+		style = style.Merge(grid.Style{Attr: grid.Bold | grid.Reverse})
+	}
+	hits := []queueHit{{area: row, target: rowTarget}}
+	marker := " "
+	if index == q.selected {
+		marker = q.glyphs.Marker
+	}
+	prefix := fmt.Sprintf("%s %d. ", marker, index+1)
+	right := width
+	if width >= 40 && (index == q.selected || q.hovered.id == entry.ID || q.pressed.id == entry.ID) {
+		right = q.drawActions(view, row, entry.ID, right, style, &hits)
+	}
+	view.Text(0, rowY, prefix, style.Merge(q.theme.Muted))
+	left := text.Width(prefix)
+	view.Text(left, rowY, text.Truncate(queueEntryLabel(entry), max(right-left, 1), q.glyphs.Ellipsis), style)
+	return hits
 }
 
 func (q *queueDrawer) drawActions(view grid.View, row image.Rectangle, id uint64, right int, rowStyle grid.Style, hits *[]queueHit) int {

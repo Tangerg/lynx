@@ -1,0 +1,109 @@
+package terminal
+
+import (
+	"fmt"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/Tangerg/oolong/components/headless"
+	"github.com/Tangerg/oolong/components/kit"
+	"github.com/Tangerg/oolong/core/grid"
+	"github.com/Tangerg/oolong/core/input"
+	"github.com/Tangerg/oolong/highlight"
+
+	"github.com/Tangerg/lynx/app/cli/internal/agent"
+)
+
+func TestReaderKeepsToolContentThatTheInlineBlockSummarizes(t *testing.T) {
+	lines := make([]string, maxToolDetailLines+60)
+	for i := range lines {
+		lines[i] = fmt.Sprintf("contract line %03d", i+1)
+	}
+	call := agent.ToolCall{
+		Kind: agent.ToolShell, Command: "long output", Status: agent.ToolOK,
+		Output: strings.Join(lines, "\n"),
+	}
+	presentation := BlockPresentation{Theme: kit.Dark(), Glyphs: kit.Unicode(), Syntax: highlight.New("github-dark")}
+	tool := newToolBlock(presentation, agent.Block{Kind: agent.BlockTool, Tool: &call})
+	tool.SetExpanded(true)
+	inline := drawToolBlock(tool, 72)
+	if !strings.Contains(inline, "lines omitted") {
+		t.Fatal("inline tool did not retain its bounded summary contract")
+	}
+
+	reader := newReaderPane(presentation.Theme, presentation.Glyphs, presentation.Syntax, input.Wheel{}, nil)
+	t.Cleanup(reader.Shutdown)
+	reader.Open(readerTarget{source: tool})
+	root := headless.NewRoot(reader)
+	root.Draw(grid.NewSurface(72, 16).View())
+	full := copyableRowsText(reader.content.Rows(reader.content.StartRow(), reader.content.Height()))
+	for _, want := range []string{lines[0], lines[179], lines[len(lines)-1]} {
+		if !strings.Contains(full, want) {
+			t.Errorf("reader does not contain %q", want)
+		}
+	}
+	if strings.Contains(full, "lines omitted") {
+		t.Fatal("reader reused the inline truncation policy")
+	}
+}
+
+func TestReaderLiveTailFollowsOnlyAfterTheReaderMovesToTheBottom(t *testing.T) {
+	presentation := BlockPresentation{Theme: kit.Dark(), Glyphs: kit.Unicode(), Syntax: highlight.New("github-dark")}
+	call := agent.ToolCall{
+		Kind: agent.ToolShell, Command: "stream", Status: agent.ToolRunning,
+		Output: strings.Repeat("initial output row\n", 40),
+	}
+	tool := newToolBlock(presentation, agent.Block{Kind: agent.BlockTool, Tool: &call})
+	reader := newReaderPane(presentation.Theme, presentation.Glyphs, presentation.Syntax, input.Wheel{}, nil)
+	t.Cleanup(reader.Shutdown)
+	reader.Open(readerTarget{source: tool})
+	root := headless.NewRoot(reader)
+	surface := grid.NewSurface(60, 10)
+	root.Draw(surface.View())
+
+	reader.scroll.By(5)
+	root.Draw(surface.View())
+	wantOffset := reader.scroll.Offset()
+	tool.AppendOutput(strings.Repeat("new row while reading\n", 10))
+	root.Draw(surface.View())
+	if reader.scroll.AtBottom() || reader.scroll.Offset() != wantOffset {
+		t.Fatalf("live update moved reader from offset %d to (%d, bottom=%t)", wantOffset, reader.scroll.Offset(), reader.scroll.AtBottom())
+	}
+
+	reader.scroll.ToBottom()
+	root.Draw(surface.View())
+	before := reader.scroll.Offset()
+	tool.AppendOutput(strings.Repeat("followed row\n", 10))
+	root.Draw(surface.View())
+	if !reader.scroll.AtBottom() || reader.scroll.Offset() <= before {
+		t.Fatalf("live tail = (offset %d, bottom=%t), want an advancing followed end after %d", reader.scroll.Offset(), reader.scroll.AtBottom(), before)
+	}
+}
+
+func TestReaderSearchStepsAcrossFullContent(t *testing.T) {
+	presentation := BlockPresentation{Theme: kit.Dark(), Glyphs: kit.Unicode(), Syntax: highlight.New("github-dark")}
+	reader := newReaderPane(presentation.Theme, presentation.Glyphs, presentation.Syntax, input.Wheel{}, nil)
+	t.Cleanup(reader.Shutdown)
+	reader.Open(readerTarget{document: readerDocument{
+		Title:    "search contract",
+		Sections: []ToolSection{{Style: toolSectionCode, Text: "needle one\nother\nneedle two"}},
+	}})
+	headless.NewRoot(reader).Draw(grid.NewSurface(60, 10).View())
+	reader.Find("needle")
+
+	select {
+	case result := <-reader.SearchResults():
+		if !reader.AcceptSearch(result) {
+			t.Fatal("reader rejected its current search result")
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("reader search did not finish")
+	}
+	if len(reader.matches) != 2 || reader.current != 0 {
+		t.Fatalf("search state = (%d matches, current %d)", len(reader.matches), reader.current)
+	}
+	if !reader.StepMatch(1) || reader.current != 1 {
+		t.Fatalf("next search match = %d, want 1", reader.current)
+	}
+}

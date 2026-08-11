@@ -10,13 +10,27 @@ import (
 )
 
 func TestEmbeddedRuntimeSessionCatalogAndLifecycle(t *testing.T) {
+	configureIntegrationRuntime(t)
+	workspace := t.TempDir()
+	runtime := openIntegrationRuntime(t, workspace)
+	created := requireSessionCatalog(t, runtime, workspace)
+	forked := requireSessionMutation(t, runtime, created)
+	requireRuntimeCatalogs(t, runtime, created.ID)
+	requireSessionDeletion(t, runtime, created.ID, forked.ID)
+	requireClosedRuntime(t, runtime)
+}
+
+func configureIntegrationRuntime(t *testing.T) {
+	t.Helper()
 	t.Setenv("LYRA_PROVIDER", "anthropic")
 	t.Setenv("ANTHROPIC_API_KEY", "test-key")
 	t.Setenv("LYRA_MCP_SERVERS", "")
 	t.Setenv("LYRA_A2A_AGENTS", "")
 	t.Setenv("LYRA_A2A_RPC_ORIGINS", "")
+}
 
-	workspace := t.TempDir()
+func openIntegrationRuntime(t *testing.T, workspace string) *Runtime {
+	t.Helper()
 	runtime, err := Open(t.Context(), Config{
 		DataDirectory: t.TempDir(), DefaultWorkspacePath: workspace,
 		UserHomePath: t.TempDir(), ConfigDirectories: []string{t.TempDir()}, ClientVersion: "test",
@@ -25,7 +39,11 @@ func TestEmbeddedRuntimeSessionCatalogAndLifecycle(t *testing.T) {
 		t.Fatalf("Open: %v", err)
 	}
 	t.Cleanup(func() { _ = runtime.Close() })
+	return runtime
+}
 
+func requireSessionCatalog(t *testing.T, runtime *Runtime, workspace string) agent.Session {
+	t.Helper()
 	created, err := runtime.CreateSession(t.Context(), agent.CreateSession{Title: "adapter session", Workspace: workspace})
 	if err != nil {
 		t.Fatalf("CreateSession: %v", err)
@@ -50,9 +68,14 @@ func TestEmbeddedRuntimeSessionCatalogAndLifecycle(t *testing.T) {
 	if snapshot.Session.ID != created.ID || len(snapshot.Runs) != 0 || len(snapshot.Transcript) != 0 {
 		t.Fatalf("snapshot = %+v", snapshot)
 	}
+	return created
+}
 
+func requireSessionMutation(t *testing.T, runtime *Runtime, created agent.Session) agent.Session {
+	t.Helper()
+	title := "renamed adapter session"
 	updated, err := runtime.UpdateSession(t.Context(), agent.UpdateSession{
-		SessionID: created.ID, Title: "renamed adapter session", ExpectedRevision: created.Revision,
+		SessionID: created.ID, Title: &title, ExpectedRevision: created.Revision,
 	})
 	if err != nil {
 		t.Fatalf("UpdateSession: %v", err)
@@ -67,7 +90,11 @@ func TestEmbeddedRuntimeSessionCatalogAndLifecycle(t *testing.T) {
 	if forked.ID == created.ID || forked.Title != "forked adapter session" {
 		t.Fatalf("forked = %+v", forked)
 	}
+	return forked
+}
 
+func requireRuntimeCatalogs(t *testing.T, runtime *Runtime, sessionID string) {
+	t.Helper()
 	models, err := runtime.ListModels(t.Context())
 	if err != nil {
 		t.Fatalf("ListModels: %v", err)
@@ -75,7 +102,7 @@ func TestEmbeddedRuntimeSessionCatalogAndLifecycle(t *testing.T) {
 	if len(models) == 0 {
 		t.Fatal("ListModels returned no provider-qualified models")
 	}
-	if rules, err := runtime.ListApprovalRules(t.Context(), created.ID); err != nil || len(rules) != 0 {
+	if rules, err := runtime.ListApprovalRules(t.Context(), sessionID); err != nil || len(rules) != 0 {
 		t.Fatalf("ListApprovalRules = (%+v, %v)", rules, err)
 	}
 
@@ -87,22 +114,27 @@ func TestEmbeddedRuntimeSessionCatalogAndLifecycle(t *testing.T) {
 	if err != nil || mode != agent.ApprovalModeSafe {
 		t.Fatalf("GetApprovalMode = (%q, %v)", mode, err)
 	}
+}
 
-	if err := runtime.DeleteSession(t.Context(), agent.DeleteSession{SessionID: created.ID}); err != nil {
-		t.Fatalf("DeleteSession: %v", err)
-	}
-	if err := runtime.DeleteSession(t.Context(), agent.DeleteSession{SessionID: forked.ID}); err != nil {
-		t.Fatalf("DeleteSession fork: %v", err)
-	}
-	if _, err := runtime.GetSession(t.Context(), created.ID); !errors.Is(err, agent.ErrSessionNotFound) {
-		t.Fatalf("GetSession after delete = %v, want ErrSessionNotFound", err)
-	} else {
-		var problem protocol.ProblemError
-		if !errors.As(err, &problem) || problem.Problem().Type != protocol.ErrSessionNotFound.Error() {
-			t.Fatalf("structured GetSession error = %T %v", err, err)
+func requireSessionDeletion(t *testing.T, runtime *Runtime, sessionIDs ...string) {
+	t.Helper()
+	for _, sessionID := range sessionIDs {
+		if err := runtime.DeleteSession(t.Context(), agent.DeleteSession{SessionID: sessionID}); err != nil {
+			t.Fatalf("DeleteSession %s: %v", sessionID, err)
 		}
 	}
+	_, err := runtime.GetSession(t.Context(), sessionIDs[0])
+	if !errors.Is(err, agent.ErrSessionNotFound) {
+		t.Fatalf("GetSession after delete = %v, want ErrSessionNotFound", err)
+	}
+	problem, ok := errors.AsType[protocol.ProblemError](err)
+	if !ok || problem.Problem().Type != protocol.ErrSessionNotFound.Error() {
+		t.Fatalf("structured GetSession error = %T %v", err, err)
+	}
+}
 
+func requireClosedRuntime(t *testing.T, runtime *Runtime) {
+	t.Helper()
 	if err := runtime.Close(); err != nil {
 		t.Fatalf("Close: %v", err)
 	}
@@ -112,11 +144,7 @@ func TestEmbeddedRuntimeSessionCatalogAndLifecycle(t *testing.T) {
 }
 
 func TestOwnerOpensOnceAndRefusesReopenAfterClose(t *testing.T) {
-	t.Setenv("LYRA_PROVIDER", "anthropic")
-	t.Setenv("ANTHROPIC_API_KEY", "test-key")
-	t.Setenv("LYRA_MCP_SERVERS", "")
-	t.Setenv("LYRA_A2A_AGENTS", "")
-	t.Setenv("LYRA_A2A_RPC_ORIGINS", "")
+	configureIntegrationRuntime(t)
 
 	owner := NewOwner(Config{
 		DataDirectory: t.TempDir(), DefaultWorkspacePath: t.TempDir(),

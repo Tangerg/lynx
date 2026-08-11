@@ -125,7 +125,14 @@ func TestResultJSONFoldsFinalAssistantProjection(t *testing.T) {
 }
 
 func TestColdReconciliationKeepsOneShotOutputScopedToItsRun(t *testing.T) {
-	snapshot := agent.SessionSnapshot{
+	snapshot := reconciliationSnapshot()
+	requireScopedResultJSON(t, snapshot)
+	requireScopedText(t, snapshot)
+	requireScopedStream(t, snapshot)
+}
+
+func reconciliationSnapshot() agent.SessionSnapshot {
+	return agent.SessionSnapshot{
 		Session: agent.Session{ID: "ses_1", Status: agent.SessionIdle, Workspace: "/tmp/demo"},
 		Transcript: []agent.Block{
 			{ID: "old", RunID: "run_old", Status: agent.BlockStatusCompleted, Kind: agent.BlockAssistant, Text: "historical answer"},
@@ -139,6 +146,10 @@ func TestColdReconciliationKeepsOneShotOutputScopedToItsRun(t *testing.T) {
 		},
 		Plan: []agent.PlanItem{{Title: "newer plan", Status: agent.PlanDone}}, PlanRevision: 3,
 	}
+}
+
+func requireScopedResultJSON(t *testing.T, snapshot agent.SessionSnapshot) {
+	t.Helper()
 	var output bytes.Buffer
 	renderer := NewResultJSON(&output)
 	if err := renderer.Begin(testRun(), agent.RunOptions{}); err != nil {
@@ -153,8 +164,11 @@ func TestColdReconciliationKeepsOneShotOutputScopedToItsRun(t *testing.T) {
 	if strings.Contains(output.String(), "historical answer") || strings.Contains(output.String(), "newer answer") || !strings.Contains(output.String(), "current answer") {
 		t.Fatalf("reconciled result = %s", output.String())
 	}
+}
 
-	output.Reset()
+func requireScopedText(t *testing.T, snapshot agent.SessionSnapshot) {
+	t.Helper()
+	var output bytes.Buffer
 	textRenderer := NewText(&output)
 	if err := textRenderer.Begin(testRun(), agent.RunOptions{}); err != nil {
 		t.Fatal(err)
@@ -168,8 +182,11 @@ func TestColdReconciliationKeepsOneShotOutputScopedToItsRun(t *testing.T) {
 	if strings.Contains(output.String(), "historical answer") || strings.Contains(output.String(), "newer answer") || !strings.Contains(output.String(), "current answer") {
 		t.Fatalf("reconciled text = %s", output.String())
 	}
+}
 
-	output.Reset()
+func requireScopedStream(t *testing.T, snapshot agent.SessionSnapshot) {
+	t.Helper()
+	var output bytes.Buffer
 	streamRenderer := NewNDJSON(&output)
 	if err := streamRenderer.Begin(testRun(), agent.RunOptions{}); err != nil {
 		t.Fatal(err)
@@ -211,7 +228,7 @@ func TestUsageJSONDistinguishesUnknownFromKnownZeroCost(t *testing.T) {
 	if bytes.Contains(unknown, []byte(`"costUsd"`)) {
 		t.Fatalf("unknown cost was serialized: %s", unknown)
 	}
-	known, err := json.Marshal(encodeUsage(agent.Usage{CostUSD: knownCostUSD(0)}))
+	known, err := json.Marshal(encodeUsage(agent.Usage{CostUSD: new(0.0)}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -234,7 +251,7 @@ func testEvents() []agent.RunEvent {
 		}}}),
 		testEvent("evt_done", agent.RunFinished{
 			Outcome: agent.Outcome{Status: agent.OutcomeCompleted},
-			Usage:   agent.Usage{InputTokens: 1_200, OutputTokens: 80, CacheReadTokens: 600, CostUSD: knownCostUSD(0.01), Duration: time.Second},
+			Usage:   agent.Usage{InputTokens: 1_200, OutputTokens: 80, CacheReadTokens: 600, CostUSD: new(0.01), Duration: time.Second},
 		}),
 	}
 }
@@ -263,5 +280,3 @@ func testApproval(itemID, title string) agent.Approval {
 		Tool: &agent.ToolCall{Kind: agent.ToolShell, Name: "shell", Status: agent.ToolRunning},
 	}
 }
-
-func knownCostUSD(value float64) *float64 { return &value }

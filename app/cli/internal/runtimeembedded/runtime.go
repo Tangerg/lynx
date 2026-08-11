@@ -9,6 +9,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 	"sync"
 
@@ -124,9 +125,7 @@ func cloneRequestMeta(meta protocol.RequestMeta) protocol.RequestMeta {
 	if meta.ClientCapabilities != nil {
 		capabilities := *meta.ClientCapabilities
 		capabilities.Features = make(map[string]protocol.FeaturePreference, len(meta.ClientCapabilities.Features))
-		for key, value := range meta.ClientCapabilities.Features {
-			capabilities.Features[key] = value
-		}
+		maps.Copy(capabilities.Features, meta.ClientCapabilities.Features)
 		capabilities.InterruptTypes = slices.Clone(meta.ClientCapabilities.InterruptTypes)
 		capabilities.ExcludedEphemeralEvents = slices.Clone(meta.ClientCapabilities.ExcludedEphemeralEvents)
 		cloned.ClientCapabilities = &capabilities

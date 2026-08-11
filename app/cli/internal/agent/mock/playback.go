@@ -110,7 +110,7 @@ func (r *Runtime) ensureInterruptItemsLocked(run *runState) error {
 				ID: item.ItemID, Kind: agent.BlockTool, Tool: cloneTool(item.Tool),
 			}})
 		case agent.Question:
-			question := agent.CloneInteraction(item).(agent.Question)
+			question := item.Clone()
 			r.emitLocked(run, agent.BlockCompleted{Block: agent.Block{
 				ID: item.ItemID, Kind: agent.BlockQuestion, Question: &question,
 			}})
@@ -223,7 +223,7 @@ func (r *Runtime) emitLocked(run *runState, event agent.Event) {
 	case agent.BlockCompleted:
 		persistBlock(session, run.id, item.Block)
 	case agent.PlanChanged:
-		session.plan = append([]agent.PlanItem(nil), item.Items...)
+		session.plan = slices.Clone(item.Items)
 	case agent.RunInterrupted:
 		r.closeSegmentLocked(segment)
 	case agent.RunFinished:
