@@ -109,6 +109,18 @@ type Engine struct {
 	closed                 bool
 }
 
+// FlushDeltas waits until every best-effort Delta accepted before this call has
+// finished delivery to the configured listeners. Deltas rejected by the bounded
+// queue remain dropped; the method is an ordering barrier, not a reliability
+// upgrade. Callers use it before publishing a final value that must not overtake
+// its already-accepted streaming observations.
+func (engine *Engine) FlushDeltas(ctx context.Context) error {
+	if engine == nil {
+		return ErrEngineClosed
+	}
+	return engine.observation.flushDeltas(ctx)
+}
+
 // NewEngine validates execution infrastructure and returns an empty Engine.
 func NewEngine(config EngineConfig) (*Engine, error) {
 	if config.DeltaBufferCapacity < 0 {

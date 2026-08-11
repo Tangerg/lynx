@@ -830,6 +830,43 @@ func TestDeltaBufferDropsAreObservableAndListenerPanicIsIsolated(t *testing.T) {
 	}
 }
 
+func TestFlushDeltasWaitsForAcceptedListenerDelivery(t *testing.T) {
+	definition := newEngineTestDefinition(t, "engine.effect", "effect")
+	dispatcher := &engineTestDispatcher{policy: ReplayPolicyNever, deltas: 2}
+	deployment := engineTestDeployment(t, definition, dispatcher)
+	deltas := &blockingDeltaListener{entered: make(chan struct{}), release: make(chan struct{})}
+	engine, err := NewEngine(EngineConfig{
+		DeltaListeners: []DeltaListener{deltas}, DeltaBufferCapacity: 2,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	input, _ := EncodeInput(engineTestInput{Value: "stream"})
+	result, err := engine.Run(context.Background(), deployment, input)
+	if err != nil || result.Status() != StatusCompleted {
+		t.Fatalf("result=%+v err=%v", result, err)
+	}
+	<-deltas.entered
+	flushed := make(chan error, 1)
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		flushed <- engine.FlushDeltas(ctx)
+	}()
+	select {
+	case err := <-flushed:
+		t.Fatalf("FlushDeltas returned before the listener: %v", err)
+	default:
+	}
+	close(deltas.release)
+	if err := <-flushed; err != nil {
+		t.Fatalf("FlushDeltas: %v", err)
+	}
+	if err := engine.Close(); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestEventLifecycleCarriesExactBindingAndAttemptDurations(t *testing.T) {
 	definition := newEngineTestDefinition(t, "engine.effect", "effect")
 	deployment := engineTestDeployment(t, definition, &engineTestDispatcher{policy: ReplayPolicyNever})

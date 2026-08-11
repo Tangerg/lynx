@@ -41,9 +41,17 @@ type observationBus struct {
 	deltas []DeltaListener
 
 	deltaMu     sync.RWMutex
-	deltaQueue  chan Delta
+	deltaQueue  chan deltaObservation
 	deltaClosed bool
 	deltaDone   chan struct{}
+}
+
+// deltaObservation is either one best-effort Delta or an ordering barrier. A
+// barrier does not make dropped increments reliable; it only proves that every
+// increment the bounded queue accepted before it has finished calling listeners.
+type deltaObservation struct {
+	delta   Delta
+	barrier chan struct{}
 }
 
 func newObservationBus(events []EventListener, deltas []DeltaListener, capacity int) *observationBus {
@@ -52,7 +60,7 @@ func newObservationBus(events []EventListener, deltas []DeltaListener, capacity 
 		deltas: append([]DeltaListener(nil), deltas...),
 	}
 	if len(bus.deltas) > 0 {
-		bus.deltaQueue = make(chan Delta, capacity)
+		bus.deltaQueue = make(chan deltaObservation, capacity)
 		bus.deltaDone = make(chan struct{})
 		go bus.deliverDeltas()
 	}
@@ -80,7 +88,7 @@ func (bus *observationBus) offerDelta(delta Delta) bool {
 		return false
 	}
 	select {
-	case bus.deltaQueue <- delta:
+	case bus.deltaQueue <- deltaObservation{delta: delta}:
 		return true
 	default:
 		return false
@@ -89,10 +97,42 @@ func (bus *observationBus) offerDelta(delta Delta) bool {
 
 func (bus *observationBus) deliverDeltas() {
 	defer close(bus.deltaDone)
-	for delta := range bus.deltaQueue {
-		for _, listener := range bus.deltas {
-			callDeltaListener(listener, delta)
+	for observation := range bus.deltaQueue {
+		if observation.barrier != nil {
+			close(observation.barrier)
+			continue
 		}
+		for _, listener := range bus.deltas {
+			callDeltaListener(listener, observation.delta)
+		}
+	}
+}
+
+func (bus *observationBus) flushDeltas(ctx context.Context) error {
+	if bus.deltaQueue == nil {
+		return nil
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	barrier := make(chan struct{})
+	bus.deltaMu.RLock()
+	if bus.deltaClosed {
+		bus.deltaMu.RUnlock()
+		return ErrEngineClosed
+	}
+	select {
+	case bus.deltaQueue <- deltaObservation{barrier: barrier}:
+		bus.deltaMu.RUnlock()
+	case <-ctx.Done():
+		bus.deltaMu.RUnlock()
+		return ctx.Err()
+	}
+	select {
+	case <-barrier:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
 	}
 }
 

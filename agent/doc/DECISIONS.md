@@ -621,3 +621,12 @@
 - 决策：Workflow Definition owner 公开函数无关的 `Topology` 值投影。它完整携带有序 Stage kind/schema、exact child `DeploymentRef`、child schema、Budget/Capabilities，以及 Fork/Map/Loop 的显式上限；每次投影独立持有 slice。投影不包含 callback、ExecutionState、Process handle、可变 Definition 引用、任意图或第二 scheduler。现有 workflow command 以阶段诊断实际消费该投影。
 - 决策：继续拒绝通用 façade、fluent builder、middleware 控制流、Framework checkpoint store、AG-UI、任意图 runtime 与 provider/message 体系。后续 A2A continuation、checkpoint lineage、citation 或更高层编排 recipe 必须分别由真实消费者重开设计，不能借本次外层人体工程学扩张 Kernel。
 - 后果：Baseline 20 新增 `agenttest` public digest并更新 Workflow digest；根与其他 Strategy/adapter API、全部 snapshot/state/protocol/observation wire 和 schema version 不变。Agent package DAG 新增唯一 `agenttest → root` 边，Host production import 禁令不变。
+
+## ADR-A2-075：Delta 完成顺序由 Framework barrier 表达
+
+- 状态：已接受并实施；形成 Baseline 21。
+- 证据：Delta 是由 Framework 有界队列异步投递的 best-effort observation。真实流式 consumer 证明：已经被队列接受的 Delta 仍可能晚于同一模型调用的权威完成值到达，使 consumer 重开已经完成的输出项；若 consumer 直接丢弃迟到 Delta，又会让正常流式输出退化成只有最终值。队列接受与 listener 实际完成之间的顺序只由 Framework 掌握，Runtime 无法准确推断。
+- 决策：根 `Engine` 新增 `FlushDeltas(ctx)` ordering barrier。它在同一 Delta queue 中排入 barrier，只等待调用前已经被队列接受的 Delta 完成 listener delivery；已经因容量丢弃的 Delta 仍然丢弃，调用后产生的 Delta 不在本次承诺内。无 Delta listener 时立即成功，Engine 已关闭时返回既有 `ErrEngineClosed`，ctx 只界定 barrier 入队和等待时间。
+- 决策：barrier 只表达 Framework-owned observation ordering，不接收 Host callback、资源 identity、事务或持久化协议，不改变 Event 的同步可靠投递，也不把 Delta 升级为可靠流。Runtime 在提交自己的权威模型完成事实前消费这一公共能力；Agent 不 import、命名或解释 Run、Item、会话和产品协议。
+- 拒绝方案：拒绝 Runtime 读取或绕过 Agent 私有队列、定时 sleep、UI 内容去重、把全部 Delta 改成同步可靠投递，以及以可选 type assertion 隐藏依赖版本错误。这些方案分别会泄露 owner、制造竞态、掩盖重复事实、扩大热路径合同或让模块独立构建失真。
+- 后果：root public API/GoDoc 形成 Baseline 21；Event/Delta wire、Process Snapshot v6、TreeSnapshot v4、全部 Strategy state/protocol 与其他 public package 均不改变。调用方若要求最终值不越过已接受的流增量，必须在发布最终值前显式调用 barrier；barrier 成功不代表没有历史 drop，也不代表任何 Host 状态已经持久化。
