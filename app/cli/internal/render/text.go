@@ -30,14 +30,18 @@ const maxToolOutputLines = 12
 // printed as a labeled unit — a marker prefix cannot survive being interleaved
 // with a live token feed.
 type Text struct {
-	w   io.Writer
-	err error
+	w     io.Writer
+	err   error
+	runID string
 
 	// streaming contains assistant blocks whose deltas are written straight
 	// through. A map preserves correct routing if a runtime interleaves blocks.
 	streaming map[string]struct{}
 	// pending collects the bodies of blocks that print on completion.
 	pending map[string]*strings.Builder
+	seen    map[string]struct{}
+	shown   map[string]struct{}
+	settled bool
 	// column tracks whether the cursor sits mid-line, so separators can be
 	// inserted without doubling blank lines.
 	column bool
@@ -47,18 +51,44 @@ type Text struct {
 func NewText(w io.Writer) *Text {
 	return &Text{
 		w: w, streaming: make(map[string]struct{}),
-		pending: make(map[string]*strings.Builder),
+		pending: make(map[string]*strings.Builder), seen: make(map[string]struct{}),
+		shown: make(map[string]struct{}),
 	}
+}
+
+// Begin binds subsequent live and recovered output to the accepted run. Text
+// does not print the identity, but retaining it prevents a cold read from
+// accidentally selecting a newer run in the same session.
+func (t *Text) Begin(run agent.Run, _ agent.RunOptions) error {
+	if t.err != nil {
+		return t.err
+	}
+	if err := run.Validate(); err != nil {
+		t.err = fmt.Errorf("begin text: %w", err)
+		return t.err
+	}
+	if t.runID != "" && t.runID != run.ID {
+		t.err = fmt.Errorf("begin text: run %s does not match %s", run.ID, t.runID)
+		return t.err
+	}
+	t.runID = run.ID
+	return nil
 }
 
 // Render writes one event. The first error is remembered and returned by every
 // later call, so a caller may render a whole run and check once.
-func (t *Text) Render(envelope agent.Envelope) error {
+func (t *Text) Render(envelope agent.RunEvent) error {
 	if t.err != nil {
 		return t.err
 	}
 	if err := agent.ValidateEvent(envelope.Event); err != nil {
 		t.err = fmt.Errorf("render text event: %w", err)
+		return t.err
+	}
+	if t.runID == "" {
+		t.runID = envelope.RunID
+	} else if envelope.RunID != t.runID {
+		t.err = fmt.Errorf("render text event: run %s does not match %s", envelope.RunID, t.runID)
 		return t.err
 	}
 	t.renderEvent(envelope.Event)
@@ -67,7 +97,7 @@ func (t *Text) Render(envelope agent.Envelope) error {
 
 func (t *Text) renderEvent(event agent.Event) {
 	switch event := event.(type) {
-	case agent.RunStarted:
+	case agent.SegmentStarted:
 		// A run's identity is machinery, not content.
 	case agent.BlockStarted:
 		t.begin(event.Block)
@@ -77,12 +107,14 @@ func (t *Text) renderEvent(event agent.Event) {
 		t.finish(event.Block)
 	case agent.PlanChanged:
 		t.plan(event.Items)
-	case agent.RunResumed:
-		// Control identity is not reader-facing text.
 	case agent.RunInterrupted:
-		t.interrupted(event.Interaction)
+		for _, interaction := range event.Interactions {
+			t.showInteraction(interaction)
+		}
+		t.showUsage(event.Usage)
 	case agent.RunFinished:
 		t.finished(event)
+		t.settled = true
 	default:
 		t.err = fmt.Errorf("render text event: unsupported event %T", event)
 	}
@@ -100,7 +132,7 @@ func (t *Text) begin(b agent.Block) {
 		t.blank()
 		t.streaming[b.ID] = struct{}{}
 		t.write(b.Text)
-	case agent.BlockReasoning, agent.BlockTool, agent.BlockUser, agent.BlockNotice, agent.BlockError:
+	case agent.BlockReasoning, agent.BlockTool, agent.BlockUser, agent.BlockQuestion, agent.BlockNotice, agent.BlockError:
 		body := &strings.Builder{}
 		body.WriteString(b.Text)
 		t.pending[b.ID] = body
@@ -118,6 +150,10 @@ func (t *Text) delta(d agent.BlockDelta) {
 }
 
 func (t *Text) finish(b agent.Block) {
+	if _, duplicate := t.seen[b.ID]; duplicate {
+		return
+	}
+	t.seen[b.ID] = struct{}{}
 	if _, streaming := t.streaming[b.ID]; streaming {
 		delete(t.streaming, b.ID)
 		t.endLine()
@@ -127,6 +163,65 @@ func (t *Text) finish(b agent.Block) {
 	text := t.completedText(b)
 	delete(t.pending, b.ID)
 	t.renderCompletedBlock(b, text)
+}
+
+// Reconcile replaces missing streamed facts with an authoritative cold-read
+// projection after replay is no longer possible. Already rendered blocks and
+// interactions are not printed twice.
+func (t *Text) Reconcile(snapshot agent.SessionSnapshot) error {
+	if t.err != nil {
+		return t.err
+	}
+	if err := snapshot.Validate(); err != nil {
+		t.err = fmt.Errorf("render text snapshot: %w", err)
+		return t.err
+	}
+	target, err := resolveSnapshotRun(snapshot, t.runID)
+	if err != nil {
+		t.err = fmt.Errorf("render text snapshot: %w", err)
+		return t.err
+	}
+	targetRunID := target.ID
+	t.runID = targetRunID
+	for _, block := range snapshot.Transcript {
+		if block.RunID == targetRunID {
+			if block.Status == agent.BlockStatusRunning {
+				t.resume(block)
+			} else {
+				t.finish(block)
+			}
+		}
+	}
+	if target.Status == agent.RunStatusWaiting {
+		for _, interaction := range snapshot.Interactions {
+			t.showInteraction(interaction)
+		}
+		t.showUsage(target.Usage)
+	}
+	if target.Status == agent.RunStatusFinished && !t.settled {
+		t.finished(agent.RunFinished{Outcome: target.Outcome, Usage: target.Usage})
+		t.settled = true
+	}
+	return t.err
+}
+
+func (t *Text) resume(block agent.Block) {
+	if _, present := t.streaming[block.ID]; present {
+		return
+	}
+	if _, present := t.pending[block.ID]; present {
+		return
+	}
+	t.begin(block)
+}
+
+func (t *Text) showInteraction(interaction agent.Interaction) {
+	id := agent.InteractionItemID(interaction)
+	if _, duplicate := t.shown[id]; duplicate {
+		return
+	}
+	t.shown[id] = struct{}{}
+	t.interrupted(interaction)
 }
 
 func (t *Text) completedText(block agent.Block) string {
@@ -150,6 +245,11 @@ func (t *Text) renderCompletedBlock(b agent.Block, text string) {
 		t.block("· ", text)
 	case agent.BlockTool:
 		t.tool(b)
+	case agent.BlockQuestion:
+		if b.Question != nil {
+			t.shown[b.ID] = struct{}{}
+			t.interrupted(*b.Question)
+		}
 	case agent.BlockNotice:
 		t.blank()
 		t.block("! ", text)
@@ -327,7 +427,7 @@ func (t *Text) interrupted(interaction agent.Interaction) {
 	case agent.Question:
 		t.line("? " + item.Title)
 		for _, field := range item.Fields {
-			t.line("  - " + field.Label)
+			t.line("  - " + field.Prompt)
 		}
 	}
 }
@@ -338,16 +438,21 @@ func (t *Text) finished(e agent.RunFinished) {
 		msg := string(e.Outcome.Status)
 		if e.Outcome.Error != "" {
 			msg += ": " + e.Outcome.Error
+		} else if e.Outcome.Detail != "" {
+			msg += ": " + e.Outcome.Detail
 		}
 		t.line(msg)
 	}
-	u := e.Usage
+	t.showUsage(e.Usage)
+}
+
+func (t *Text) showUsage(u agent.Usage) {
 	parts := []string{"↑ " + formatThousands(u.InputTokens), "↓ " + formatThousands(u.OutputTokens)}
-	if u.CachedTokens > 0 {
-		parts = append(parts, "cached "+formatThousands(u.CachedTokens))
+	if u.CacheReadTokens > 0 {
+		parts = append(parts, "cached "+formatThousands(u.CacheReadTokens))
 	}
-	if u.CostUSD > 0 {
-		parts = append(parts, "$"+strconv.FormatFloat(u.CostUSD, 'f', 4, 64))
+	if u.CostUSD != nil {
+		parts = append(parts, "$"+strconv.FormatFloat(*u.CostUSD, 'f', 4, 64))
 	}
 	if u.Duration > 0 {
 		parts = append(parts, formatDuration(u.Duration))

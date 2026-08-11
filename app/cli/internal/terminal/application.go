@@ -32,7 +32,7 @@ const (
 	showSessions     keymap.Action = settings.ActionSessions
 	searchTranscript keymap.Action = settings.ActionSearch
 	manageQueue      keymap.Action = settings.ActionManageQueue
-	cycleMode        keymap.Action = settings.ActionCycleMode
+	chooseModel      keymap.Action = settings.ActionChooseModel
 	toggleDetails    keymap.Action = settings.ActionToggleDetails
 	historyPrevious  keymap.Action = settings.ActionHistoryPrevious
 	historyNext      keymap.Action = settings.ActionHistoryNext
@@ -82,13 +82,14 @@ type app struct {
 	sessionDialog      *kit.Dialog
 	modelPicker        *picker[agent.Model]
 	modelDialog        *kit.Dialog
-	permissionPicker   *picker[agent.PermissionMode]
-	permissionDialog   *kit.Dialog
+	approvalModePicker *picker[agent.ApprovalMode]
+	approvalModeDialog *kit.Dialog
 	question           *agent.Question
 	questionDialog     *kit.Dialog
-	questionText       map[string]*string
-	questionMulti      map[string]*[]string
-	questionBool       map[string]*bool
+	questionText       map[int]*string
+	questionMulti      map[int]*[]string
+	interactionQueue   []agent.Interaction
+	interactionAnswers []agent.InterruptAnswer
 	commandPicker      *picker[headless.Command]
 	commandDialog      *kit.Dialog
 	shortcutDialog     *kit.Dialog
@@ -109,13 +110,12 @@ type app struct {
 
 	streamSeq             uint64
 	dispatchingQueueEntry uint64
-	startRequest          string
 	pendingCancel         *agent.CancelRun
 	following             bool
 	stopClock             func()
-	started               time.Time
+	executionClock        activeDurationClock
 	closed                bool
-	syntax                highlight.Style
+	syntax                highlight.Renderer
 }
 
 type appConfig struct {
@@ -138,10 +138,11 @@ func newApp(loop *program.InlineRuntime, cfg appConfig) *app {
 	ground := loop.Environment().Ground()
 	theme := kit.Suited(ground)
 	glyphs := kit.GlyphsFor(loop.Environment().Locale())
-	syntax := highlight.Style("github-dark")
+	syntaxStyle := highlight.Style("github-dark")
 	if !ground.BG.Default() && !ground.BG.RGB().Dark() {
-		syntax = "github"
+		syntaxStyle = "github"
 	}
+	syntax := highlight.New(syntaxStyle)
 	a := &app{
 		ctx: cfg.Context, loop: loop, runtime: cfg.Runtime, session: cfg.Snapshot.Session, registry: cfg.Registry,
 		pluginHost: cfg.PluginHost, pluginIssues: cfg.PluginIssues,
@@ -230,8 +231,10 @@ func (a *app) buildSessionPicker(theme kit.Theme, glyphs kit.Glyphs) {
 			a.switchSession(session.ID)
 		},
 	)
-	a.sessionDialog = kit.NewDialog(&a.stack, theme, glyphs, "Sessions", a.sessionPicker)
-	a.sessionDialog.Panel().Where = layout.Placement{Width: 88, Height: 18, Margin: 1}
+	a.sessionDialog = kit.NewDialog(kit.DialogConfig{
+		Stack: &a.stack, Theme: theme, Glyphs: glyphs, Title: "Sessions", Body: a.sessionPicker,
+		Where: layout.Placement{Width: 88, Height: 18, Margin: 1},
+	})
 	a.sessionPicker.cancel = a.sessionDialog.Dismiss
 }
 
@@ -248,11 +251,86 @@ func (a *app) restore(snapshot agent.SessionSnapshot) {
 }
 
 func presentSnapshot(view *transcriptView, snapshot agent.SessionSnapshot, registry *extensions.Registry) error {
-	for _, envelope := range snapshot.Events {
-		if err := view.Apply(envelope.Event, registry); err != nil {
-			return fmt.Errorf("restore transcript at cursor %d: %w", envelope.Cursor, err)
+	for _, block := range snapshot.Transcript {
+		var event agent.Event = agent.BlockCompleted{Block: block}
+		if block.Status == agent.BlockStatusRunning {
+			event = agent.BlockStarted{Block: block}
+		}
+		if err := view.Apply(event, registry); err != nil {
+			return fmt.Errorf("restore transcript block %s: %w", block.ID, err)
 		}
 	}
+	return nil
+}
+
+// reconcileRunSnapshot atomically replaces the in-memory projection after a
+// segment can no longer be replayed. It deliberately keeps the current stream
+// operation alive: runrecovery already attached the replacement stream before
+// taking this snapshot, so canceling that operation here would reopen a gap.
+func (a *app) reconcileRunSnapshot(snapshot agent.SessionSnapshot, stream agent.SegmentStream) error {
+	if err := snapshot.Validate(); err != nil {
+		return fmt.Errorf("reconcile run snapshot: %w", err)
+	}
+	if snapshot.Session.ID != a.session.ID {
+		return fmt.Errorf("reconcile run snapshot: session %s does not match %s", snapshot.Session.ID, a.session.ID)
+	}
+	next := agent.NewConversation()
+	var restoreErr error
+	if active, ok := snapshot.ActiveRun(); ok && active.Status == agent.RunStatusRunning {
+		restoreErr = next.RestoreAttachedSnapshot(snapshot, stream)
+	} else {
+		restoreErr = next.RestoreSnapshot(snapshot)
+	}
+	if restoreErr != nil {
+		return fmt.Errorf("reconcile run snapshot: %w", restoreErr)
+	}
+	nextTranscript := newTranscriptView(
+		a.transcript.theme, a.transcript.glyphs, a.transcript.wheel, a.syntax,
+		a.settings.UI.TranscriptRetain, a.transcript.details, a.transcript.clipboard,
+	)
+	if err := presentSnapshot(nextTranscript, snapshot, a.registry); err != nil {
+		nextTranscript.Close()
+		return err
+	}
+
+	previousTranscript := a.transcript
+	a.session = snapshot.Session
+	a.conversation = next
+	a.transcript = nextTranscript
+	a.wireTranscript(nextTranscript)
+	a.shell.SetTranscript(nextTranscript)
+	a.header.SetSession(snapshot.Session)
+	a.header.SetUsage(next.Usage())
+	a.activity.Set(next.Plan())
+	a.prompt.SetBusy(next.Busy())
+	previousTranscript.Close()
+	a.listenForSearch()
+	a.loop.Session().SetTitle("lyra — " + displayTitle(snapshot.Session))
+
+	switch next.Phase() {
+	case agent.ConversationRunning:
+		a.following = true
+		a.executionClock.start(next.Usage().Duration, time.Now())
+		a.status.active("reconnected")
+	case agent.ConversationWaiting:
+		a.following = false
+		a.openInteractions(next.Interactions())
+		a.status.note("waiting for your answers")
+	case agent.ConversationIdle:
+		a.following = false
+		if next.Outcome().Status != "" {
+			a.status.settled(next.Outcome(), next.Usage())
+		}
+		if a.drainQueue() {
+			return nil
+		}
+		if a.settings.UI.Notifications && next.Outcome().Status != "" {
+			a.loop.Session().Notify(outcomeNotification(next.Outcome()))
+		}
+	default:
+		return errors.New("reconcile run snapshot: unknown conversation phase")
+	}
+	a.syncAnimation()
 	return nil
 }
 
@@ -262,17 +340,16 @@ func (a *app) restoreActivity(snapshot agent.SessionSnapshot) {
 	a.prompt.SetBusy(a.conversation.Busy())
 	switch a.conversation.Phase() {
 	case agent.ConversationWaiting:
-		a.openInteraction(a.conversation.Interaction())
-		a.status.note("waiting for your answer")
+		a.openInteractions(a.conversation.Interactions())
+		a.status.note("waiting for your answers")
 	case agent.ConversationRunning:
-		if snapshot.Active == nil {
+		if _, ok := snapshot.ActiveRun(); !ok {
 			a.fail(errors.New("session snapshot has a running conversation without an active run"))
 			return
 		}
+		a.executionClock.start(a.conversation.Usage().Duration, time.Now())
 		a.status.active("reconnecting")
-		a.follow(func(context.Context) (runSubscription, error) {
-			return runSubscription{runID: snapshot.Active.ID, after: snapshot.Cursor}, nil
-		})
+		a.followRecoveredSession()
 	case agent.ConversationIdle:
 		if a.conversation.Outcome().Status != "" {
 			a.status.settled(a.conversation.Outcome(), a.conversation.Usage())

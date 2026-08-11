@@ -36,7 +36,7 @@ func newShellView(
 		transcript: transcript, prompt: prompt, header: header,
 		activity: activity, queue: queue, status: status,
 	}
-	rows := headless.Rows(shell.items(false)...)
+	rows := headless.NewContainer(layout.Down, shell.items(false)...)
 	keys := headless.DefaultContainerKeys()
 	keys.Bind(headless.FocusNext, input.Chord{Code: input.Character, Rune: ' '})
 	rows.Keys = keys

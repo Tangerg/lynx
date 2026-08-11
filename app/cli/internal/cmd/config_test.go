@@ -10,13 +10,10 @@ import (
 	"github.com/Tangerg/lynx/app/cli/internal/settings"
 )
 
-func TestConfigurationPrecedenceFileEnvironmentFlag(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "lyra.yaml")
-	if err := os.WriteFile(path, []byte("model: file-model\nmode: plan\npermission: read-only\neffort: low\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	t.Setenv("LYRA_MODEL", "environment-model")
-	out, _, err := executeCommand(t, instantRuntime(), "", "--config", path, "--mode", "review", "config", "show")
+func TestConfigurationUsesDeepSeekProductDefaults(t *testing.T) {
+	t.Setenv("LYRA_PROVIDER", "")
+	t.Setenv("LYRA_MODEL", "")
+	out, _, err := executeCommand(t, instantRuntime(), "", "config", "show")
 	if err != nil {
 		t.Fatalf("config show: %v", err)
 	}
@@ -24,7 +21,26 @@ func TestConfigurationPrecedenceFileEnvironmentFlag(t *testing.T) {
 	if err := json.Unmarshal([]byte(out), &got); err != nil {
 		t.Fatalf("config show JSON: %v\n%s", err, out)
 	}
-	if got.Model != "environment-model" || got.Mode != "review" || got.Permission != "read-only" || got.Effort != "low" {
+	if got.Provider != settings.DefaultProvider || got.Model != settings.DefaultModel {
+		t.Fatalf("default model = %q/%q, want %q/%q", got.Provider, got.Model, settings.DefaultProvider, settings.DefaultModel)
+	}
+}
+
+func TestConfigurationPrecedenceFileEnvironmentFlag(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "lyra.yaml")
+	if err := os.WriteFile(path, []byte("provider: file-provider\nmodel: file-model\nrun:\n  max-total-tokens: 12000\n  max-steps: 8\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("LYRA_MODEL", "environment-model")
+	out, _, err := executeCommand(t, instantRuntime(), "", "--config", path, "--max-steps", "12", "config", "show")
+	if err != nil {
+		t.Fatalf("config show: %v", err)
+	}
+	var got settings.Config
+	if err := json.Unmarshal([]byte(out), &got); err != nil {
+		t.Fatalf("config show JSON: %v\n%s", err, out)
+	}
+	if got.Provider != "file-provider" || got.Model != "environment-model" || got.Run.MaxTotalTokens != 12000 || got.Run.MaxSteps != 12 {
 		t.Fatalf("effective settings = %+v", got)
 	}
 }
@@ -82,8 +98,8 @@ func TestConfigurationMergesPartialKeyOverridesWithDefaultActions(t *testing.T) 
 }
 
 func TestConfigurationRejectsInvalidValuesAndMissingExplicitFile(t *testing.T) {
-	if _, _, err := executeCommand(t, instantRuntime(), "", "--mode", "magic", "config", "show"); err == nil {
-		t.Fatal("invalid mode was accepted")
+	if _, _, err := executeCommand(t, instantRuntime(), "", "--max-steps=-1", "config", "show"); err == nil {
+		t.Fatal("negative run limit was accepted")
 	}
 	missing := filepath.Join(t.TempDir(), "missing.yaml")
 	if _, _, err := executeCommand(t, instantRuntime(), "", "--config", missing, "config", "show"); err == nil {

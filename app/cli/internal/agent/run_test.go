@@ -1,39 +1,88 @@
 package agent
 
 import (
-	"strings"
+	"math"
 	"testing"
 )
 
-func TestAttachmentValidationRejectsEveryMalformedField(t *testing.T) {
-	attachment := Attachment{Kind: "unknown", Size: -1}
-	err := attachment.Validate()
-	if err == nil {
-		t.Fatal("malformed attachment was accepted")
+func TestRunLifecycleShape(t *testing.T) {
+	running := runningRun("run_1", "seg_1")
+	if err := running.Validate(); err != nil {
+		t.Fatal(err)
 	}
-	for _, want := range []string{"id is empty", "kind", "name is empty", "path is empty", "size is negative"} {
-		if !strings.Contains(err.Error(), want) {
-			t.Fatalf("error %q does not include %q", err, want)
-		}
+	waiting := running
+	waiting.Status, waiting.ActiveSegmentID = RunStatusWaiting, ""
+	if err := waiting.Validate(); err != nil {
+		t.Fatal(err)
 	}
-	valid := Attachment{ID: "att_1", Kind: AttachmentText, Name: "a.txt", Path: "/tmp/a.txt", Size: 0}
-	if err := valid.Validate(); err != nil {
-		t.Fatalf("valid attachment: %v", err)
+	finished := waiting
+	finished.Status, finished.Outcome = RunStatusFinished, Outcome{Status: OutcomeCompleted}
+	if err := finished.Validate(); err != nil {
+		t.Fatal(err)
 	}
 }
 
-func TestToolCallValidationUsesClosedSemanticKinds(t *testing.T) {
-	invalid := ToolCall{Kind: "provider-specific", Status: "maybe"}
-	if err := invalid.Validate(); err == nil || !strings.Contains(err.Error(), "kind") || !strings.Contains(err.Error(), "status") {
-		t.Fatalf("invalid tool error = %v", err)
+func TestRunOptionsValidateBounds(t *testing.T) {
+	temperature, topP, maxTokens := 0.7, 0.9, int64(4096)
+	options := RunOptions{
+		Provider: "mock", Model: "balanced",
+		Limits:     RunLimits{MaxSteps: 20, MaxBudgetUSD: 3},
+		Generation: GenerationParams{Temperature: &temperature, TopP: &topP, MaxTokens: &maxTokens, Stop: []string{"END"}},
 	}
-	if err := (ToolCall{Kind: ToolUnknown, Name: "custom", Status: ToolOK}).Validate(); err != nil {
-		t.Fatalf("named custom tool: %v", err)
+	if err := options.Validate(); err != nil {
+		t.Fatal(err)
 	}
-	if err := (ToolCall{Kind: ToolShell, Status: ToolRunning}).Validate(); err != nil {
-		t.Fatalf("running shell tool: %v", err)
+	bad := 3.0
+	options.Generation.Temperature = &bad
+	if err := options.Validate(); err == nil {
+		t.Fatal("invalid temperature was accepted")
 	}
-	if err := (ToolCall{Kind: ToolShell, Status: ToolCanceled}).Validate(); err != nil {
-		t.Fatalf("canceled shell tool: %v", err)
+}
+
+func TestOutcomeValidationMatchesRuntimeUnion(t *testing.T) {
+	valid := []Outcome{
+		{Status: OutcomeCompleted},
+		{Status: OutcomeTimedOut, Error: "deadline exceeded"},
+		{Status: OutcomeFailed, Error: "provider failed"},
+		{Status: OutcomeLost, Error: "executor disappeared"},
+		{Status: OutcomeMaxSteps, Detail: "20 / 20 steps"},
+		{Status: OutcomeMaxBudget, Detail: "$2.00 / $2.00"},
+		{Status: OutcomeCanceled, Detail: "user stopped"},
+	}
+	for _, outcome := range valid {
+		if err := outcome.Validate(); err != nil {
+			t.Fatalf("valid outcome %+v: %v", outcome, err)
+		}
+	}
+	for _, outcome := range []Outcome{
+		{Status: OutcomeTimedOut},
+		{Status: OutcomeFailed, Detail: "wrong channel"},
+		{Status: OutcomeCanceled, Error: "wrong channel"},
+		{Status: OutcomeCompleted, Detail: "unexpected"},
+	} {
+		if err := outcome.Validate(); err == nil {
+			t.Fatalf("invalid outcome %+v was accepted", outcome)
+		}
+	}
+}
+
+func TestUsagePreservesOptionalCostSemantics(t *testing.T) {
+	knownZero := 0.0
+	usage := Usage{CostUSD: &knownZero}
+	if err := usage.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	cloned := usage.Clone()
+	*usage.CostUSD = 1
+	if cloned.CostUSD == nil || *cloned.CostUSD != 0 {
+		t.Fatalf("cloned cost = %v", cloned.CostUSD)
+	}
+
+	invalid := math.NaN()
+	if err := (Usage{CostUSD: &invalid}).Validate(); err == nil {
+		t.Fatal("NaN cost was accepted")
+	}
+	if err := validateUsageProgress(Usage{CostUSD: &knownZero}, Usage{}); err == nil {
+		t.Fatal("known cumulative cost became unknown")
 	}
 }

@@ -5,73 +5,82 @@ import (
 	"testing"
 )
 
-func TestStartRunValidationOwnsMessageAndIdempotencyInvariants(t *testing.T) {
-	attachment := Attachment{ID: "att_1", Kind: AttachmentText, Name: "a.txt", Path: "/a.txt"}
-	valid := StartRun{RequestID: "req_1", SessionID: "session_1", Message: Message{Text: "inspect", Attachments: []Attachment{attachment}}}
+func TestStartRunValidation(t *testing.T) {
+	valid := StartRun{SessionID: "ses_1", Message: Message{Text: "hello"}, Options: RunOptions{Provider: "mock", Model: "balanced"}}
 	if err := valid.Validate(); err != nil {
-		t.Fatalf("valid request: %v", err)
+		t.Fatal(err)
 	}
-
 	invalid := valid
-	invalid.RequestID = "contains space"
-	invalid.SessionID = ""
-	invalid.Message.Attachments = append(invalid.Message.Attachments, attachment)
-	err := invalid.Validate()
-	if err == nil {
-		t.Fatal("invalid start request was accepted")
-	}
-	for _, want := range []string{"request id", "session id", "repeats attachment"} {
-		if !strings.Contains(err.Error(), want) {
-			t.Fatalf("validation error %q does not mention %q", err, want)
-		}
+	invalid.Options.Model = ""
+	if err := invalid.Validate(); err == nil || !strings.Contains(err.Error(), "selected together") {
+		t.Fatalf("error = %v", err)
 	}
 }
 
-func TestMessageAttachmentLimitIsCentralized(t *testing.T) {
-	attachments := make([]Attachment, MaxMessageAttachments+1)
-	for i := range attachments {
-		attachments[i] = Attachment{ID: "id", Kind: AttachmentFile, Name: "file", Path: "/file"}
+func TestResumeRunRequiresCompleteUniqueSet(t *testing.T) {
+	request := ResumeRun{RunID: "run_1", Answers: []InterruptAnswer{
+		{ItemID: "a", Answer: ApprovalAnswer{Decision: ApprovalApprove}},
+		{ItemID: "q", Answer: QuestionAnswer{Values: [][]string{{"yes"}}}},
+	}}
+	if err := request.Validate(); err != nil {
+		t.Fatal(err)
 	}
-	if err := (Message{Attachments: attachments}).Validate(); err == nil || !strings.Contains(err.Error(), "limit") {
-		t.Fatalf("attachment limit error = %v", err)
-	}
-}
-
-func TestModelAndApprovalCatalogValidationRejectDuplicates(t *testing.T) {
-	models := []Model{
-		{ID: "one", DisplayName: "One", Default: true, Efforts: []string{"low"}},
-		{ID: "one", DisplayName: "Other", Default: true, Efforts: []string{"medium"}},
-	}
-	if err := ValidateModels(models); err == nil {
-		t.Fatal("duplicate model catalog was accepted")
-	}
-	rule := ApprovalRule{ID: "rule_1", Rule: "edit:*", Decision: ApprovalAllow, Scope: RememberGlobal}
-	if err := ValidateApprovalRules([]ApprovalRule{rule, rule}); err == nil {
-		t.Fatal("duplicate approval rules were accepted")
+	request.Answers[1].ItemID = "a"
+	if err := request.Validate(); err == nil {
+		t.Fatal("duplicate interrupt was accepted")
 	}
 }
 
-func TestCancelRunRequiresExactlyOneStableIdentity(t *testing.T) {
-	valid := []CancelRun{
-		{RunID: "run_1"},
-		{SessionID: "session_1", RequestID: "request_1"},
+func TestSubscribeRunNeedsRunAndSegment(t *testing.T) {
+	if err := (SubscribeRun{RunID: "run_1", SegmentID: "seg_1", AfterEventID: "opaque"}).Validate(); err != nil {
+		t.Fatal(err)
 	}
-	for _, request := range valid {
-		if err := request.Validate(); err != nil {
-			t.Fatalf("valid cancellation %+v: %v", request, err)
-		}
+	if err := (SubscribeRun{RunID: "run_1"}).Validate(); err == nil {
+		t.Fatal("missing segment was accepted")
 	}
+}
 
-	invalid := []CancelRun{
-		{},
-		{RunID: "run_1", SessionID: "session_1", RequestID: "request_1"},
-		{SessionID: "session_1"},
-		{RequestID: "request_1"},
-		{SessionID: "session_1", RequestID: "contains space"},
+func TestMessageRejectsDuplicateAttachments(t *testing.T) {
+	attachment := Attachment{ID: "a", Kind: AttachmentText, Name: "a.txt", Path: "/tmp/a.txt"}
+	message := Message{Attachments: []Attachment{attachment, attachment}}
+	if err := message.Validate(); err == nil {
+		t.Fatal("duplicate attachment was accepted")
 	}
-	for _, request := range invalid {
-		if err := request.Validate(); err == nil {
-			t.Fatalf("invalid cancellation was accepted: %+v", request)
-		}
+}
+
+func TestDurableAttachmentMayLackLocalPathButDraftMayNot(t *testing.T) {
+	durable := Attachment{ID: "item_1:image:0", Kind: AttachmentImage, Name: "image.png", MimeType: "image/png", Size: 8}
+	if err := durable.Validate(); err != nil {
+		t.Fatalf("durable attachment: %v", err)
+	}
+	if err := (Message{Attachments: []Attachment{durable}}).Validate(); err == nil || !strings.Contains(err.Error(), "local path") {
+		t.Fatalf("draft attachment error = %v", err)
+	}
+}
+
+func TestSegmentStreamValidatesOperationSpecificUserItemIdentity(t *testing.T) {
+	stream := SegmentStream{RunID: "run_1", SegmentID: "seg_1", Events: func(func(RunEvent, error) bool) {}}
+	if err := stream.ValidateStart(); err == nil {
+		t.Fatal("start stream without a user item id was accepted")
+	}
+	stream.UserItemID = "item_1"
+	if err := stream.ValidateStart(); err != nil {
+		t.Fatal(err)
+	}
+	if err := stream.ValidateSubscription(); err == nil {
+		t.Fatal("subscription stream with a user item id was accepted")
+	}
+	if err := stream.ValidateResume(&Message{Text: "continue"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := stream.ValidateResume(nil); err == nil {
+		t.Fatal("response-only resume with a user item id was accepted")
+	}
+	stream.UserItemID = ""
+	if err := stream.ValidateSubscription(); err != nil {
+		t.Fatal(err)
+	}
+	if err := stream.ValidateResume(nil); err != nil {
+		t.Fatal(err)
 	}
 }

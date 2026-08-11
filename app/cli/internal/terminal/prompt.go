@@ -47,7 +47,7 @@ func newPromptView(
 		busyKeys:       remapHelpAction(keys, sendPrompt, queueFollowUp),
 		busyQueuedKeys: remapHelpAction(keys, sendPrompt, queueOrSendNext),
 	}
-	p.rows = headless.Rows(
+	p.rows = headless.NewContainer(layout.Down,
 		headless.Item{Key: "field", Size: layout.Measured(3, 8), Of: panel},
 		headless.Item{Key: "help", Size: layout.Fixed(1), Of: headless.Static{Of: &p.help}},
 	)
@@ -165,7 +165,7 @@ func (p *promptView) refreshHelp() {
 		p.help.Show = []keymap.Action{queueFollowUp, cancelRun, insertNewline, toggleDetails}
 		return
 	}
-	p.help.Show = []keymap.Action{sendPrompt, insertNewline, commandPalette, showSessions, cycleMode}
+	p.help.Show = []keymap.Action{sendPrompt, insertNewline, commandPalette, showSessions, chooseModel}
 	if p.queued > 0 {
 		p.help.Show = append(p.help.Show, manageQueue)
 	}

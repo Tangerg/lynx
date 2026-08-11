@@ -23,15 +23,15 @@ type ResultJSON struct {
 }
 
 type resultFrame struct {
-	Type        string           `json:"type"`
-	Status      string           `json:"status"`
-	RunID       string           `json:"runId"`
-	SessionID   string           `json:"sessionId"`
-	Text        string           `json:"text,omitzero"`
-	Options     *runOptionsJSON  `json:"options,omitzero"`
-	Interaction *interactionJSON `json:"interaction,omitzero"`
-	Outcome     *outcomeJSON     `json:"outcome,omitzero"`
-	Usage       *usageJSON       `json:"usage,omitzero"`
+	Type         string            `json:"type"`
+	Status       string            `json:"status"`
+	RunID        string            `json:"runId"`
+	SessionID    string            `json:"sessionId"`
+	Text         string            `json:"text,omitzero"`
+	Options      *runOptionsJSON   `json:"options,omitzero"`
+	Interactions []interactionJSON `json:"interactions,omitzero"`
+	Outcome      *outcomeJSON      `json:"outcome,omitzero"`
+	Usage        *usageJSON        `json:"usage,omitzero"`
 }
 
 // NewResultJSON builds a renderer that emits at most one JSON result from Close.
@@ -62,7 +62,7 @@ func (r *ResultJSON) Begin(run agent.Run, options agent.RunOptions) error {
 }
 
 // Render folds one validated event into the final result.
-func (r *ResultJSON) Render(envelope agent.Envelope) error {
+func (r *ResultJSON) Render(envelope agent.RunEvent) error {
 	if r.err != nil {
 		return r.err
 	}
@@ -74,24 +74,76 @@ func (r *ResultJSON) Render(envelope agent.Envelope) error {
 		r.err = fmt.Errorf("render result event: %w", err)
 		return r.err
 	}
+	if r.frame.RunID == "" {
+		r.frame.RunID = envelope.RunID
+	} else if envelope.RunID != r.frame.RunID {
+		r.err = fmt.Errorf("render result event: run %s does not match %s", envelope.RunID, r.frame.RunID)
+		return r.err
+	}
 	r.fold(envelope)
 	return nil
 }
 
-func (r *ResultJSON) fold(envelope agent.Envelope) {
+// Reconcile replaces the folded result with durable cold-read values after the
+// runtime reports that the live segment can no longer be replayed.
+func (r *ResultJSON) Reconcile(snapshot agent.SessionSnapshot) error {
+	if r.err != nil {
+		return r.err
+	}
+	if r.closed {
+		r.err = errors.New("reconcile result after close")
+		return r.err
+	}
+	if err := snapshot.Validate(); err != nil {
+		r.err = fmt.Errorf("reconcile result snapshot: %w", err)
+		return r.err
+	}
+	r.started = true
+	r.live = make(map[string]*strings.Builder)
+	r.prose = r.prose[:0]
+	target, err := resolveSnapshotRun(snapshot, r.frame.RunID)
+	if err != nil {
+		r.err = fmt.Errorf("render result snapshot: %w", err)
+		return r.err
+	}
+	targetRunID := target.ID
+	for _, block := range snapshot.Transcript {
+		if block.RunID == targetRunID && block.Status != agent.BlockStatusRunning && block.Kind == agent.BlockAssistant && block.Text != "" {
+			r.prose = append(r.prose, block.Text)
+		}
+	}
+	r.frame.RunID = targetRunID
+	r.frame.SessionID = snapshot.Session.ID
+	r.frame.Status = "incomplete"
+	r.frame.Interactions = nil
+	r.frame.Outcome = nil
+	r.frame.Usage = nil
+	switch target.Status {
+	case agent.RunStatusWaiting:
+		r.frame.Status = "interrupted"
+		r.frame.Interactions = encodeInteractions(snapshot.Interactions)
+		r.frame.Usage = encodeUsage(target.Usage)
+	case agent.RunStatusFinished:
+		r.frame.Status = string(target.Outcome.Status)
+		finished := encodeFinishedFrame(agent.RunFinished{Outcome: target.Outcome, Usage: target.Usage})
+		r.frame.Outcome, r.frame.Usage = finished.Outcome, finished.Usage
+	case agent.RunStatusRunning:
+	}
+	return nil
+}
+
+func (r *ResultJSON) fold(envelope agent.RunEvent) {
 	switch event := envelope.Event.(type) {
-	case agent.RunStarted:
+	case agent.SegmentStarted:
 		if !r.started {
 			r.started = true
 			r.frame = resultFrame{Type: "result", Status: "incomplete"}
 		}
-		r.frame.RunID, r.frame.SessionID = event.RunID, event.SessionID
-		r.frame.Options = encodeRunOptions(event.Options)
+		r.frame.RunID, r.frame.SessionID = event.Run.ID, event.Run.SessionID
+		r.frame.Status = "incomplete"
+		r.frame.Interactions = nil
 		if r.frame.RunID == "" {
 			r.frame.RunID = envelope.RunID
-		}
-		if r.frame.SessionID == "" {
-			r.frame.SessionID = envelope.SessionID
 		}
 	case agent.BlockStarted:
 		r.begin(event.Block)
@@ -103,13 +155,11 @@ func (r *ResultJSON) fold(envelope agent.Envelope) {
 		r.complete(event.Block)
 	case agent.RunInterrupted:
 		r.frame.Status = "interrupted"
-		r.frame.Interaction = encodeInteraction(event.Interaction)
-	case agent.RunResumed:
-		r.frame.Status = "incomplete"
-		r.frame.Interaction = nil
+		r.frame.Interactions = encodeInteractions(event.Interactions)
+		r.frame.Usage = encodeUsage(event.Usage)
 	case agent.RunFinished:
 		r.frame.Status = string(event.Outcome.Status)
-		r.frame.Interaction = nil
+		r.frame.Interactions = nil
 		finished := encodeFinishedFrame(event)
 		r.frame.Outcome, r.frame.Usage = finished.Outcome, finished.Usage
 	case agent.PlanChanged:

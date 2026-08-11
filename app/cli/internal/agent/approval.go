@@ -1,14 +1,25 @@
 package agent
 
-import "time"
+type ApprovalMode string
 
-// ApprovalRule is a remembered decision projected for inspection and removal.
+const (
+	ApprovalModeSafe     ApprovalMode = "safe"
+	ApprovalModeBalanced ApprovalMode = "balanced"
+	ApprovalModeYolo     ApprovalMode = "yolo"
+)
+
 type ApprovalRule struct {
-	ID        string
-	Rule      string
-	Decision  ApprovalDecision
-	Scope     RememberScope
-	SessionID string
-	Workspace string
-	CreatedAt time.Time
+	ID       string
+	Scope    RememberScope
+	Tool     string
+	Subject  string
+	Dir      string
+	Decision ApprovalRuleDecision
 }
+
+type ApprovalRuleDecision string
+
+const (
+	ApprovalRuleAllow ApprovalRuleDecision = "allow"
+	ApprovalRuleDeny  ApprovalRuleDecision = "deny"
+)

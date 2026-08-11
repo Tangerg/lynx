@@ -2,6 +2,7 @@ package terminal
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/Tangerg/oolong/components/headless"
@@ -25,15 +26,14 @@ func (a *app) openQuestion(question agent.Question) {
 func (a *app) prepareQuestion(question agent.Question) {
 	cloned := agent.CloneInteraction(question).(agent.Question)
 	a.question = &cloned
-	a.questionText = make(map[string]*string)
-	a.questionMulti = make(map[string]*[]string)
-	a.questionBool = make(map[string]*bool)
+	a.questionText = make(map[int]*string)
+	a.questionMulti = make(map[int]*[]string)
 }
 
 func (a *app) buildQuestionFields(specifications []agent.QuestionField) ([]headless.Field, error) {
 	fields := make([]headless.Field, 0, len(specifications))
-	for _, specification := range specifications {
-		field, err := a.buildQuestionField(specification)
+	for i, specification := range specifications {
+		field, err := a.buildQuestionField(i, specification)
 		if err != nil {
 			return nil, err
 		}
@@ -45,76 +45,67 @@ func (a *app) buildQuestionFields(specifications []agent.QuestionField) ([]headl
 	return fields, nil
 }
 
-func (a *app) buildQuestionField(specification agent.QuestionField) (headless.Field, error) {
+func (a *app) buildQuestionField(index int, specification agent.QuestionField) (headless.Field, error) {
 	label := questionFieldLabel(specification)
 	switch specification.Kind {
 	case agent.QuestionText:
-		return a.buildQuestionText(specification, label), nil
+		return a.buildQuestionText(index, label, ""), nil
 	case agent.QuestionSingle:
-		return a.buildQuestionSingle(specification, label), nil
+		if specification.AllowCustom {
+			return a.buildQuestionText(index, label, choicePlaceholder(specification.Options)), nil
+		}
+		return a.buildQuestionSingle(index, specification, label), nil
 	case agent.QuestionMulti:
-		return a.buildQuestionMulti(specification, label), nil
-	case agent.QuestionBool:
-		value := new(bool)
-		a.questionBool[specification.ID] = value
-		return &headless.Confirm{Label: label, Value: headless.Bind(value), Yes: "yes", No: "no"}, nil
+		if specification.AllowCustom {
+			return a.buildQuestionText(index, label+" (comma-separated)", choicePlaceholder(specification.Options)), nil
+		}
+		return a.buildQuestionMulti(index, specification, label), nil
 	default:
 		return nil, errors.New("runtime returned an unsupported question field kind")
 	}
 }
 
-func (a *app) buildQuestionText(specification agent.QuestionField, label string) headless.Field {
+func (a *app) buildQuestionText(index int, label, placeholder string) headless.Field {
 	value := new(string)
-	a.questionText[specification.ID] = value
-	field := &headless.Text{Label: label, Placeholder: specification.Placeholder, Value: headless.Bind(value)}
-	if specification.Required {
-		field.Check = requiredText
-	}
+	a.questionText[index] = value
+	field := &headless.Text{Label: label, Placeholder: placeholder, Value: headless.Bind(value), Check: requiredText}
 	field.Editor().Clipboard = a.loop.Clipboard()
 	return field
 }
 
-func (a *app) buildQuestionSingle(specification agent.QuestionField, label string) headless.Field {
+func (a *app) buildQuestionSingle(index int, specification agent.QuestionField, label string) headless.Field {
 	value := new(string)
 	options := questionOptions(specification.Options)
-	*value = defaultQuestionOption(specification.Options)
-	a.questionText[specification.ID] = value
-	field := &headless.Select[string]{Label: label, Value: headless.Bind(value), Rows: min(len(options), 5)}
-	field.SetOptions(options)
-	if specification.Required {
-		field.Check = requiredText
+	if len(options) > 0 {
+		*value = options[0].Value
 	}
+	a.questionText[index] = value
+	field := &headless.Select[string]{Label: label, Value: headless.Bind(value), Rows: min(len(options), 5), Check: requiredText}
+	field.SetOptions(options)
 	return field
 }
 
-func (a *app) buildQuestionMulti(specification agent.QuestionField, label string) headless.Field {
+func (a *app) buildQuestionMulti(index int, specification agent.QuestionField, label string) headless.Field {
 	value := new([]string)
-	a.questionMulti[specification.ID] = value
-	field := &headless.MultiSelect[string]{Label: label, Value: headless.Bind(value), Rows: min(len(specification.Options), 5)}
+	a.questionMulti[index] = value
+	field := &headless.MultiSelect[string]{Label: label, Value: headless.Bind(value), Rows: min(len(specification.Options), 5), Check: requiredChoices}
 	field.SetOptions(questionOptions(specification.Options))
-	if specification.Required {
-		field.Check = requiredChoices
-	}
 	return field
 }
 
 func questionFieldLabel(specification agent.QuestionField) string {
-	if specification.Description == "" {
-		return specification.Label
+	if specification.Header == "" {
+		return specification.Prompt
 	}
-	return specification.Label + " — " + specification.Description
+	return specification.Header + " — " + specification.Prompt
 }
 
-func defaultQuestionOption(options []agent.QuestionOption) string {
+func choicePlaceholder(options []agent.QuestionOption) string {
+	labels := make([]string, 0, len(options))
 	for _, option := range options {
-		if option.Recommended {
-			return option.Value
-		}
+		labels = append(labels, option.Label)
 	}
-	if len(options) > 0 {
-		return options[0].Value
-	}
-	return ""
+	return strings.Join(labels, " / ")
 }
 
 func (a *app) showQuestionDialog(question agent.Question, fields []headless.Field) {
@@ -124,12 +115,15 @@ func (a *app) showQuestionDialog(question agent.Question, fields []headless.Fiel
 	form.Gap = 1
 	form.Done = func() { a.answerQuestion(false) }
 	form.GaveUp = func() { a.answerQuestion(true) }
-	dressed := kit.NewForm(a.transcript.theme, a.transcript.glyphs, form)
-	dressed.Title = question.Detail
-	dressed.Keys = keys
-	dressed.Hints = []keymap.Action{headless.FocusNext, headless.Submit, headless.Cancel}
-	a.questionDialog = kit.NewDialog(&a.stack, a.transcript.theme, a.transcript.glyphs, question.Title, dressed)
-	a.questionDialog.Panel().Where = layout.Placement{Width: 88, Height: min(26, max(10, dressed.Measure(80)+2)), Margin: 1}
+	dressed := kit.NewForm(kit.FormConfig{
+		Theme: a.transcript.theme, Glyphs: a.transcript.glyphs, Controller: form,
+		Title: question.Detail, Hints: []keymap.Action{headless.FocusNext, headless.Submit, headless.Cancel},
+	})
+	a.questionDialog = kit.NewDialog(kit.DialogConfig{
+		Stack: &a.stack, Theme: a.transcript.theme, Glyphs: a.transcript.glyphs,
+		Title: question.Title, Body: dressed,
+		Where: layout.Placement{Width: 88, Height: min(26, max(10, dressed.Measure(80)+2)), Margin: 1},
+	})
 	a.questionDialog.Show()
 }
 
@@ -138,60 +132,63 @@ func (a *app) answerQuestion(canceled bool) {
 	if question == nil {
 		return
 	}
-	answer := a.questionAnswer(*question, canceled)
 	a.question = nil
 	a.questionDialog.Dismiss()
-	a.status.active("resuming")
-	a.syncAnimation()
-	a.resumeInteraction(question.InterruptID, answer)
-}
-
-func (a *app) questionAnswer(question agent.Question, canceled bool) agent.QuestionAnswer {
-	answer := agent.QuestionAnswer{Canceled: canceled}
 	if canceled {
-		return answer
+		a.abortInteractions("question canceled by the terminal user")
+		return
 	}
-	answer.Values = make(map[string][]string, len(question.Fields))
-	for _, field := range question.Fields {
-		answer.Values[field.ID] = a.questionValues(field)
+	answer, err := a.questionAnswer(*question)
+	if err != nil {
+		a.fail(err)
+		return
 	}
-	return answer
+	a.acceptInteractionAnswer(question.ItemID, answer)
 }
 
-func (a *app) questionValues(field agent.QuestionField) []string {
-	switch field.Kind {
-	case agent.QuestionText, agent.QuestionSingle:
-		if value := a.questionText[field.ID]; value != nil {
-			return []string{*value}
-		}
-	case agent.QuestionMulti:
-		if value := a.questionMulti[field.ID]; value != nil {
-			return append([]string(nil), (*value)...)
-		}
-	case agent.QuestionBool:
-		if value := a.questionBool[field.ID]; value != nil && *value {
-			return []string{"true"}
-		}
-		return []string{"false"}
-	default:
+func (a *app) questionAnswer(question agent.Question) (agent.QuestionAnswer, error) {
+	answer := agent.QuestionAnswer{Values: make([][]string, len(question.Fields))}
+	for i, field := range question.Fields {
+		answer.Values[i] = a.questionValues(i, field)
 	}
-	return nil
+	if err := agent.ValidateAnswer(question, answer); err != nil {
+		return agent.QuestionAnswer{}, fmt.Errorf("answer question: %w", err)
+	}
+	return answer, nil
+}
+
+func (a *app) questionValues(index int, field agent.QuestionField) []string {
+	if value := a.questionMulti[index]; value != nil {
+		return append([]string(nil), (*value)...)
+	}
+	value := a.questionText[index]
+	if value == nil {
+		return nil
+	}
+	if field.Kind == agent.QuestionMulti && field.AllowCustom {
+		parts := strings.Split(*value, ",")
+		out := make([]string, 0, len(parts))
+		for _, part := range parts {
+			if trimmed := strings.TrimSpace(part); trimmed != "" {
+				out = append(out, trimmed)
+			}
+		}
+		return out
+	}
+	return []string{strings.TrimSpace(*value)}
 }
 
 func questionOptions(options []agent.QuestionOption) []headless.Option[string] {
 	out := make([]headless.Option[string], 0, len(options))
 	for _, option := range options {
 		label := option.Label
-		if label == "" {
-			label = option.Value
-		}
-		if option.Recommended {
-			label += " (recommended)"
-		}
 		if option.Description != "" {
 			label += " — " + option.Description
 		}
-		out = append(out, headless.Option[string]{Label: label, Value: option.Value})
+		if option.Preview != "" {
+			label += " · " + option.Preview
+		}
+		out = append(out, headless.Option[string]{Label: label, Value: option.Label})
 	}
 	return out
 }

@@ -74,7 +74,7 @@ func Run(ctx context.Context, cfg Config) (runErr error) {
 			})
 			return headless.NewRoot(active)
 		},
-		Terminal: term.Options{Probe: true, Mouse: prepared.settings.UI.Mouse, Focus: true, Keyboard: term.KeyboardCompatible},
+		Terminal: term.Config{Probe: true, Mouse: prepared.settings.UI.Mouse, Focus: true, Keyboard: term.KeyboardCompatible},
 		Host:     cfg.Host,
 	})
 	if active != nil {

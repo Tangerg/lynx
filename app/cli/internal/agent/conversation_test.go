@@ -2,373 +2,227 @@ package agent
 
 import (
 	"errors"
-	"strconv"
 	"testing"
 )
 
-func TestConversationFoldsACompleteRun(t *testing.T) {
-	c := NewConversation()
-	events := []Event{
-		RunStarted{RunID: "run", SessionID: "session"},
-		BlockStarted{Block: Block{ID: "answer", Kind: BlockAssistant}},
-		BlockDelta{BlockID: "answer", Text: "hello "},
-		BlockCompleted{Block: Block{ID: "answer", Kind: BlockAssistant, Text: "hello world"}},
-		PlanChanged{Items: []PlanItem{{Title: "verify", Status: PlanDone}}},
-		RunFinished{Outcome: Outcome{Status: OutcomeCompleted}, Usage: Usage{InputTokens: 12}},
+func TestConversationFoldsInitialAndResumedSegments(t *testing.T) {
+	conversation := NewConversation()
+	started := RunEvent{EventID: "opaque:start", RunID: "run_1", SegmentID: "seg_1", Event: SegmentStarted{Run: runningRun("run_1", "seg_1")}}
+	apply(t, conversation, started)
+	apply(t, conversation, RunEvent{EventID: "opaque:item-start", RunID: "run_1", SegmentID: "seg_1", Event: BlockStarted{Block: Block{ID: "msg_1", RunID: "run_1", Status: BlockStatusRunning, Kind: BlockAssistant}}})
+	apply(t, conversation, RunEvent{EventID: "opaque:delta", RunID: "run_1", SegmentID: "seg_1", Event: BlockDelta{BlockID: "msg_1", Text: "draft"}})
+	if got := conversation.Checkpoint(); got != "opaque:item-start" {
+		t.Fatalf("checkpoint after delta = %q", got)
 	}
-	cursor := Cursor(1)
-	for i, event := range events {
-		result, err := c.ApplyEnvelope(testEnvelope(cursor, event))
-		if err != nil {
-			t.Fatalf("ApplyEnvelope(%T): %v", event, err)
-		}
-		if !result.Applied {
-			t.Fatalf("event %d was treated as a duplicate", i+1)
-		}
-		cursor++
-	}
-	if c.Phase() != ConversationIdle || c.Cursor() != Cursor(len(events)) {
-		t.Fatalf("phase/cursor = %v/%d, want idle/%d", c.Phase(), c.Cursor(), len(events))
-	}
-	if got := c.Blocks(); len(got) != 1 || got[0].Text != "hello world" {
-		t.Fatalf("blocks = %+v", got)
-	}
-	if c.Usage().InputTokens != 12 || c.Outcome().Status != OutcomeCompleted {
-		t.Fatalf("settled state = %+v %+v", c.Outcome(), c.Usage())
-	}
-}
+	apply(t, conversation, RunEvent{EventID: "opaque:item-done", RunID: "run_1", SegmentID: "seg_1", Event: BlockCompleted{Block: Block{ID: "msg_1", RunID: "run_1", Status: BlockStatusCompleted, Kind: BlockAssistant, Text: "final"}}})
 
-func TestConversationDeduplicatesReplayAndRejectsConflict(t *testing.T) {
-	c := NewConversation()
-	original := testEnvelope(1, RunStarted{RunID: "run", SessionID: "session"})
-	if _, err := c.ApplyEnvelope(original); err != nil {
-		t.Fatal(err)
+	interrupts := []Interaction{
+		runningApproval("item_approval", "run shell"),
+		Question{ItemID: "item_question", Title: "choose", Fields: []QuestionField{{Prompt: "Which?", Kind: QuestionSingle, Options: []QuestionOption{{Label: "A"}, {Label: "B"}}}}},
 	}
-	replayed, err := c.ApplyEnvelope(original)
-	if err != nil || replayed.Applied {
-		t.Fatalf("duplicate = %+v, %v; want ignored", replayed, err)
-	}
-	conflict := original
-	conflict.ID = "different"
-	if _, err := c.ApplyEnvelope(conflict); !errors.Is(err, ErrEventConflict) {
-		t.Fatalf("conflict error = %v, want ErrEventConflict", err)
-	}
-	if _, err := c.ApplyEnvelope(testEnvelope(3, RunFinished{})); !errors.Is(err, ErrEventGap) {
-		t.Fatalf("gap error = %v, want ErrEventGap", err)
-	}
-}
-
-func TestConversationInterruptAndResumeAreExplicit(t *testing.T) {
-	c := NewConversation()
-	approval := Approval{InterruptID: "approval_1", Title: "edit file"}
-	cursor := Cursor(1)
-	for _, event := range []Event{
-		RunStarted{RunID: "run", SessionID: "session"},
-		RunInterrupted{Interaction: approval},
-		RunResumed{InterruptID: approval.InterruptID},
-		RunFinished{Outcome: Outcome{Status: OutcomeCompleted}},
-	} {
-		if _, err := c.ApplyEnvelope(testEnvelope(cursor, event)); err != nil {
-			t.Fatalf("ApplyEnvelope(%T): %v", event, err)
-		}
-		cursor++
-	}
-	if c.Phase() != ConversationIdle || c.Interaction() != nil {
-		t.Fatalf("settled conversation = phase %v interaction %+v", c.Phase(), c.Interaction())
-	}
-}
-
-func TestConversationClonesNestedState(t *testing.T) {
-	c := NewConversation()
-	exit := 0
-	tool := &ToolCall{Kind: ToolUnknown, Name: "shell", Status: ToolOK, Output: "safe", ExitCode: &exit}
-	if err := c.apply(RunStarted{RunID: "run", SessionID: "session"}); err != nil {
-		t.Fatal(err)
-	}
-	if err := c.apply(BlockCompleted{Block: Block{ID: "tool", Kind: BlockTool, Tool: tool}}); err != nil {
-		t.Fatal(err)
-	}
-	tool.Output = "mutated"
-	exit = 9
-	blocks := c.Blocks()
-	blocks[0].Tool.Output = "also mutated"
-	if got := c.Blocks()[0].Tool.Output; got != "safe" {
-		t.Fatalf("aggregate leaked tool pointer: %q", got)
-	}
-	if got := *c.Blocks()[0].Tool.ExitCode; got != 0 {
-		t.Fatalf("aggregate leaked exit code pointer: %d", got)
+	approval := interrupts[0].(Approval)
+	apply(t, conversation, RunEvent{EventID: "approval-start", RunID: "run_1", SegmentID: "seg_1", Event: BlockStarted{Block: Block{
+		ID: approval.ItemID, RunID: "run_1", Status: BlockStatusRunning, Kind: BlockTool, Tool: approval.Tool,
+	}}})
+	question := interrupts[1].(Question)
+	apply(t, conversation, RunEvent{EventID: "question-done", RunID: "run_1", SegmentID: "seg_1", Event: BlockCompleted{Block: Block{
+		ID: question.ItemID, RunID: "run_1", Status: BlockStatusCompleted, Kind: BlockQuestion, Question: &question,
+	}}})
+	interruptedUsage := Usage{InputTokens: 10, OutputTokens: 2}
+	apply(t, conversation, RunEvent{EventID: "opaque:park", RunID: "run_1", SegmentID: "seg_1", Event: RunInterrupted{Interactions: interrupts, Usage: interruptedUsage}})
+	if conversation.Phase() != ConversationWaiting || len(conversation.Interactions()) != 2 || conversation.Usage() != interruptedUsage {
+		t.Fatalf("waiting projection = phase %v, interactions %d, usage %+v", conversation.Phase(), len(conversation.Interactions()), conversation.Usage())
 	}
 
-	question := Question{InterruptID: "q", Title: "Choose", Fields: []QuestionField{{ID: "choice", Label: "Choice", Kind: QuestionSingle, Options: []QuestionOption{{Value: "a"}}}}}
-	if err := c.apply(RunInterrupted{Interaction: question}); err != nil {
-		t.Fatal(err)
+	resumed := runningRun("run_1", "seg_2")
+	resumed.Usage = interruptedUsage
+	apply(t, conversation, RunEvent{EventID: "different-space:start", RunID: "run_1", SegmentID: "seg_2", Event: SegmentStarted{Run: resumed}})
+	if conversation.Phase() != ConversationRunning || conversation.SegmentID() != "seg_2" || len(conversation.Interactions()) != 0 {
+		t.Fatalf("resumed projection = phase %v, segment %q", conversation.Phase(), conversation.SegmentID())
 	}
-	cloned := c.Interaction().(Question)
-	cloned.Fields[0].Options[0].Value = "changed"
-	if got := c.Interaction().(Question).Fields[0].Options[0].Value; got != "a" {
-		t.Fatalf("aggregate leaked question slices: %q", got)
+	completedTool := approval.Tool.Clone()
+	completedTool.Status = ToolOK
+	apply(t, conversation, RunEvent{EventID: "approval-done", RunID: "run_1", SegmentID: "seg_2", Event: BlockCompleted{Block: Block{
+		ID: approval.ItemID, RunID: "run_1", Status: BlockStatusCompleted, Kind: BlockTool, Tool: &completedTool,
+	}}})
+	apply(t, conversation, RunEvent{EventID: "different-space:done", RunID: "run_1", SegmentID: "seg_2", Event: RunFinished{
+		Outcome: Outcome{Status: OutcomeCompleted}, Usage: Usage{InputTokens: 14, OutputTokens: 4},
+	}})
+	if conversation.Phase() != ConversationIdle || conversation.Outcome().Status != OutcomeCompleted {
+		t.Fatalf("terminal projection = phase %v, outcome %+v", conversation.Phase(), conversation.Outcome())
 	}
-}
-
-func TestConversationRejectsImpossibleTransitions(t *testing.T) {
-	c := NewConversation()
-	if err := c.apply(RunStarted{RunID: "run", SessionID: "session"}); err != nil {
-		t.Fatal(err)
-	}
-	if err := c.apply(BlockDelta{BlockID: "missing", Text: "x"}); !errors.Is(err, ErrUnknownBlock) {
-		t.Fatalf("unknown delta error = %v", err)
-	}
-	if err := c.apply(BlockCompleted{Block: Block{ID: "done", Kind: BlockAssistant, Text: "done"}}); err != nil {
-		t.Fatal(err)
-	}
-	if err := c.apply(BlockDelta{BlockID: "done", Text: "late"}); !errors.Is(err, ErrInvalidTransition) {
-		t.Fatalf("late delta error = %v", err)
-	}
-	idle := NewConversation()
-	if err := idle.apply(RunInterrupted{Interaction: Approval{InterruptID: "a", Title: "Approve"}}); !errors.Is(err, ErrInvalidTransition) {
-		t.Fatalf("early interrupt error = %v", err)
-	}
-	overlap := NewConversation()
-	if err := overlap.apply(RunStarted{RunID: "first", SessionID: "session"}); err != nil {
-		t.Fatal(err)
-	}
-	if err := overlap.apply(RunStarted{RunID: "second", SessionID: "session"}); !errors.Is(err, ErrInvalidTransition) {
-		t.Fatalf("overlapping run error = %v", err)
-	}
-}
-
-func TestConversationStreamsToolDeltasIntoToolOutput(t *testing.T) {
-	c := NewConversation()
-	running := &ToolCall{Kind: ToolShell, Command: "go test ./...", Status: ToolRunning}
-	for _, event := range []Event{
-		RunStarted{RunID: "run", SessionID: "session"},
-		BlockStarted{Block: Block{ID: "tool", Kind: BlockTool, Tool: running}},
-		BlockDelta{BlockID: "tool", Text: "first\n"},
-		BlockDelta{BlockID: "tool", Text: "second\n"},
-	} {
-		if err := c.apply(event); err != nil {
-			t.Fatalf("apply %T: %v", event, err)
-		}
-	}
-	blocks := c.Blocks()
-	if len(blocks) != 1 || blocks[0].Tool == nil {
+	if blocks := conversation.Blocks(); len(blocks) != 3 || blocks[0].Text != "final" {
 		t.Fatalf("blocks = %+v", blocks)
 	}
-	if got := blocks[0].Tool.Output; got != "first\nsecond\n" {
-		t.Fatalf("streamed tool output = %q", got)
-	}
-	if blocks[0].Text != "" {
-		t.Fatalf("tool delta leaked into block text: %q", blocks[0].Text)
-	}
+}
 
-	completed := &ToolCall{Kind: ToolShell, Command: "go test ./...", Status: ToolOK, Output: "authoritative\n"}
-	if err := c.apply(BlockCompleted{Block: Block{ID: "tool", Kind: BlockTool, Tool: completed}}); err != nil {
-		t.Fatal(err)
+func TestConversationRejectsRegressingRunUsage(t *testing.T) {
+	conversation := NewConversation()
+	run := runningRun("run_1", "seg_1")
+	run.Usage = Usage{InputTokens: 10}
+	apply(t, conversation, RunEvent{EventID: "start", RunID: "run_1", SegmentID: "seg_1", Event: SegmentStarted{Run: run}})
+	approval := runningApproval("approval_1", "shell")
+	apply(t, conversation, RunEvent{EventID: "approval", RunID: "run_1", SegmentID: "seg_1", Event: BlockStarted{Block: Block{
+		ID: approval.ItemID, RunID: "run_1", Status: BlockStatusRunning, Kind: BlockTool, Tool: approval.Tool,
+	}}})
+	interrupted := RunInterrupted{
+		Interactions: []Interaction{approval},
+		Usage:        Usage{InputTokens: 9},
 	}
-	if got := c.Blocks()[0].Tool.Output; got != "authoritative\n" {
-		t.Fatalf("completed tool output = %q", got)
+	if _, err := conversation.ApplyRunEvent(RunEvent{EventID: "wait", RunID: "run_1", SegmentID: "seg_1", Event: interrupted}); !errors.Is(err, ErrInvalidTransition) {
+		t.Fatalf("regressing usage error = %v", err)
 	}
 }
 
-func TestConversationRejectsDeltasForNonStreamingBlockKinds(t *testing.T) {
-	c := NewConversation()
-	if err := c.apply(RunStarted{RunID: "run", SessionID: "session"}); err != nil {
-		t.Fatal(err)
+func TestConversationTreatsEventIDAsOpaqueIdentity(t *testing.T) {
+	conversation := NewConversation()
+	event := RunEvent{EventID: "z/not-a-number", RunID: "run_1", SegmentID: "seg_1", Event: SegmentStarted{Run: runningRun("run_1", "seg_1")}}
+	apply(t, conversation, event)
+	accepted, err := conversation.ApplyRunEvent(event.Clone())
+	if err != nil || accepted.Applied {
+		t.Fatalf("identical replay = %+v, %v", accepted, err)
 	}
-	if err := c.apply(BlockStarted{Block: Block{ID: "notice", Kind: BlockNotice, Text: "starting"}}); err != nil {
-		t.Fatal(err)
-	}
-	if err := c.apply(BlockDelta{BlockID: "notice", Text: "late"}); !errors.Is(err, ErrInvalidTransition) {
-		t.Fatalf("notice delta error = %v, want ErrInvalidTransition", err)
-	}
-	blocks := c.Blocks()
-	if len(blocks) != 1 || blocks[0].Text != "starting" {
-		t.Fatalf("rejected delta mutated blocks: %+v", blocks)
+	conflict := event
+	conflict.Event = SegmentStarted{Run: Run{ID: "run_1", SessionID: "ses_1", Status: RunStatusRunning, ActiveSegmentID: "seg_1", Provider: "mock", Model: "other"}}
+	if _, err := conversation.ApplyRunEvent(conflict); !errors.Is(err, ErrEventConflict) {
+		t.Fatalf("conflict error = %v", err)
 	}
 }
 
-func TestConversationRejectsCompletionDriftAndRepeatedCompletion(t *testing.T) {
-	for _, test := range []struct {
-		name      string
-		started   Block
-		completed Block
-	}{
-		{
-			name:      "block kind",
-			started:   Block{ID: "block", Kind: BlockAssistant},
-			completed: Block{ID: "block", Kind: BlockReasoning},
+func TestConversationRejectsCrossSegmentAndInvalidTransitions(t *testing.T) {
+	conversation := NewConversation()
+	apply(t, conversation, RunEvent{EventID: "start", RunID: "run_1", SegmentID: "seg_1", Event: SegmentStarted{Run: runningRun("run_1", "seg_1")}})
+	_, err := conversation.ApplyRunEvent(RunEvent{EventID: "wrong", RunID: "run_1", SegmentID: "seg_2", Event: BlockCompleted{Block: Block{ID: "x", RunID: "run_1", Status: BlockStatusCompleted, Kind: BlockAssistant, Text: "x"}}})
+	if !errors.Is(err, ErrInvalidTransition) && err == nil {
+		t.Fatal("cross-segment event was accepted")
+	}
+	_, err = conversation.ApplyRunEvent(RunEvent{EventID: "finish", RunID: "run_1", SegmentID: "seg_1", Event: RunFinished{Outcome: Outcome{Status: OutcomeCompleted}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestConversationStartingWindow(t *testing.T) {
+	conversation := NewConversation()
+	if err := conversation.Starting(); err != nil {
+		t.Fatal(err)
+	}
+	if err := conversation.Starting(); !errors.Is(err, ErrInvalidTransition) {
+		t.Fatalf("second Starting error = %v", err)
+	}
+	if err := conversation.CancelStarting(); err != nil {
+		t.Fatal(err)
+	}
+	if conversation.Outcome().Status != OutcomeCanceled {
+		t.Fatalf("outcome = %+v", conversation.Outcome())
+	}
+}
+
+func TestConversationSettlesRunningItemsWithOutOfBandCancellation(t *testing.T) {
+	conversation := NewConversation()
+	apply(t, conversation, RunEvent{EventID: "start", RunID: "run_1", SegmentID: "seg_1", Event: SegmentStarted{Run: runningRun("run_1", "seg_1")}})
+	apply(t, conversation, RunEvent{EventID: "tool", RunID: "run_1", SegmentID: "seg_1", Event: BlockStarted{Block: Block{
+		ID: "tool_1", RunID: "run_1", Status: BlockStatusRunning, Kind: BlockTool,
+		Tool: &ToolCall{Kind: ToolShell, Name: "shell", Status: ToolRunning},
+	}}})
+	if err := conversation.SettleRun(Run{ID: "run_1", SessionID: "ses_1", Status: RunStatusFinished, Outcome: Outcome{Status: OutcomeCanceled}}); err != nil {
+		t.Fatal(err)
+	}
+	block := conversation.Blocks()[0]
+	if block.Status != BlockStatusIncomplete || block.Tool.Status != ToolCanceled {
+		t.Fatalf("settled block = %+v", block)
+	}
+}
+
+func TestConversationReconcilesAttachThenReadOverlap(t *testing.T) {
+	conversation := NewConversation()
+	plan := []PlanItem{{Title: "inspect", Status: PlanActive}}
+	snapshot := SessionSnapshot{
+		Session: Session{ID: "ses_1", Status: SessionRunning, Workspace: "/tmp/demo"},
+		Transcript: []Block{
+			{ID: "same", RunID: "run_old", Status: BlockStatusCompleted, Kind: BlockAssistant, Text: "old"},
+			{ID: "same", RunID: "run_1", Status: BlockStatusCompleted, Kind: BlockAssistant, Text: "current"},
+			{ID: "live", RunID: "run_1", Status: BlockStatusRunning, Kind: BlockTool, Tool: &ToolCall{Kind: ToolShell, Name: "shell", Status: ToolRunning}},
 		},
-		{
-			name: "tool kind",
-			started: Block{ID: "block", Kind: BlockTool, Tool: &ToolCall{
-				Kind: ToolShell, Command: "true", Status: ToolRunning,
-			}},
-			completed: Block{ID: "block", Kind: BlockTool, Tool: &ToolCall{
-				Kind: ToolEdit, Path: "a.go", Status: ToolOK,
-			}},
+		Runs: []Run{
+			{ID: "run_old", SessionID: "ses_1", Status: RunStatusFinished, Outcome: Outcome{Status: OutcomeCompleted}},
+			{ID: "run_1", SessionID: "ses_1", Status: RunStatusRunning, ActiveSegmentID: "seg_1"},
 		},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			c := NewConversation()
-			if err := c.apply(RunStarted{RunID: "run", SessionID: "session"}); err != nil {
-				t.Fatal(err)
-			}
-			if err := c.apply(BlockStarted{Block: test.started}); err != nil {
-				t.Fatal(err)
-			}
-			if err := c.apply(BlockCompleted{Block: test.completed}); !errors.Is(err, ErrInvalidTransition) {
-				t.Fatalf("completion drift error = %v", err)
-			}
-		})
+		Plan: plan, PlanRevision: 2,
 	}
-
-	c := NewConversation()
-	if err := c.apply(RunStarted{RunID: "run", SessionID: "session"}); err != nil {
+	stream := SegmentStream{RunID: "run_1", SegmentID: "seg_1", HeadEventID: "head", Events: func(func(RunEvent, error) bool) {}}
+	if err := conversation.RestoreAttachedSnapshot(snapshot, stream); err != nil {
 		t.Fatal(err)
 	}
-	completed := Block{ID: "once", Kind: BlockAssistant, Text: "done"}
-	if err := c.apply(BlockCompleted{Block: completed}); err != nil {
-		t.Fatal(err)
-	}
-	if err := c.apply(BlockCompleted{Block: completed}); !errors.Is(err, ErrInvalidTransition) {
-		t.Fatalf("repeated completion error = %v", err)
-	}
-}
 
-func TestConversationSettlesOpenBlocksWhenARunDoesNotCompleteNormally(t *testing.T) {
-	for _, test := range []struct {
-		name        string
-		finish      func(*Conversation) error
-		wantStatus  ToolStatus
-		wantOutcome OutcomeStatus
-	}{
-		{
-			name: "canceled",
-			finish: func(c *Conversation) error {
-				return c.apply(RunFinished{Outcome: Outcome{Status: OutcomeCanceled}})
-			},
-			wantStatus: ToolCanceled, wantOutcome: OutcomeCanceled,
-		},
-		{
-			name: "failed",
-			finish: func(c *Conversation) error {
-				c.Failed(errors.New("stream failed"))
-				return nil
-			},
-			wantStatus: ToolError, wantOutcome: OutcomeFailed,
-		},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			c := NewConversation()
-			for _, event := range []Event{
-				RunStarted{RunID: "run", SessionID: "session"},
-				BlockStarted{Block: Block{ID: "answer", Kind: BlockAssistant}},
-				BlockDelta{BlockID: "answer", Text: "partial"},
-				BlockStarted{Block: Block{ID: "tool", Kind: BlockTool, Tool: &ToolCall{
-					Kind: ToolShell, Command: "long command", Status: ToolRunning,
-				}}},
-				BlockDelta{BlockID: "tool", Text: "some output\n"},
-			} {
-				if err := c.apply(event); err != nil {
-					t.Fatalf("apply %T: %v", event, err)
-				}
-			}
-			if err := test.finish(c); err != nil {
-				t.Fatal(err)
-			}
-			blocks := c.Blocks()
-			if blocks[0].Text != "partial" || blocks[1].Tool.Status != test.wantStatus || blocks[1].Tool.Output != "some output\n" {
-				t.Fatalf("settled blocks = %+v", blocks)
-			}
-			if c.Outcome().Status != test.wantOutcome || c.Busy() {
-				t.Fatalf("settled state = busy:%t outcome:%+v", c.Busy(), c.Outcome())
-			}
-		})
+	ignored := []RunEvent{
+		{EventID: "overlap-start", RunID: "run_1", SegmentID: "seg_1", Event: BlockStarted{Block: Block{ID: "same", RunID: "run_1", Status: BlockStatusRunning, Kind: BlockAssistant}}},
+		{EventID: "overlap-delta", RunID: "run_1", SegmentID: "seg_1", Event: BlockDelta{BlockID: "same", Text: "duplicate preview"}},
+		{EventID: "overlap-complete", RunID: "run_1", SegmentID: "seg_1", Event: BlockCompleted{Block: snapshot.Transcript[1]}},
+		{EventID: "overlap-plan-old", RunID: "run_1", SegmentID: "seg_1", Event: PlanChanged{Revision: 1, Items: []PlanItem{{Title: "older", Status: PlanPending}}}},
+		{EventID: "overlap-plan-current", RunID: "run_1", SegmentID: "seg_1", Event: PlanChanged{Revision: 2, Items: plan}},
 	}
-}
-
-func TestConversationRejectsCompletedOutcomeWithOpenBlocks(t *testing.T) {
-	c := NewConversation()
-	if err := c.apply(RunStarted{RunID: "run", SessionID: "session"}); err != nil {
-		t.Fatal(err)
-	}
-	if err := c.apply(BlockStarted{Block: Block{ID: "answer", Kind: BlockAssistant}}); err != nil {
-		t.Fatal(err)
-	}
-	if err := c.apply(RunFinished{Outcome: Outcome{Status: OutcomeCompleted}}); !errors.Is(err, ErrInvalidTransition) {
-		t.Fatalf("completed outcome error = %v", err)
-	}
-	if !c.Busy() {
-		t.Fatal("rejected completed outcome settled the run")
-	}
-}
-
-func TestClearPresentationPreservesReplayCursor(t *testing.T) {
-	c := NewConversation()
-	cursor := Cursor(1)
-	for _, event := range []Event{RunStarted{RunID: "run", SessionID: "session"}, BlockCompleted{Block: Block{ID: "x", Kind: BlockUser, Text: "x"}}, RunFinished{Outcome: Outcome{Status: OutcomeCompleted}}} {
-		if _, err := c.ApplyEnvelope(testEnvelope(cursor, event)); err != nil {
-			t.Fatal(err)
+	for _, event := range ignored {
+		accepted, err := conversation.ApplyRunEvent(event)
+		if err != nil {
+			t.Fatalf("apply overlap %s: %v", event.EventID, err)
 		}
-		cursor++
+		if accepted.Applied {
+			t.Fatalf("overlap %s was folded twice", event.EventID)
+		}
 	}
-	c.ClearPresentation()
-	if len(c.Blocks()) != 0 || c.Cursor() != 3 {
-		t.Fatalf("clear left blocks=%d cursor=%d", len(c.Blocks()), c.Cursor())
+	conflict := RunEvent{EventID: "overlap-plan-conflict", RunID: "run_1", SegmentID: "seg_1", Event: PlanChanged{Revision: 2, Items: []PlanItem{{Title: "different", Status: PlanActive}}}}
+	if _, err := conversation.ApplyRunEvent(conflict); !errors.Is(err, ErrEventConflict) {
+		t.Fatalf("same-revision plan conflict = %v", err)
 	}
-	if _, err := c.ApplyEnvelope(testEnvelope(4, RunStarted{RunID: "next", SessionID: "session"})); err != nil {
-		t.Fatalf("next event after clear: %v", err)
+	startConflict := RunEvent{
+		EventID: "overlap-start-conflict", RunID: "run_1", SegmentID: "seg_1",
+		Event: BlockStarted{Block: Block{ID: "same", RunID: "run_1", Status: BlockStatusRunning, Kind: BlockReasoning}},
+	}
+	if _, err := conversation.ApplyRunEvent(startConflict); !errors.Is(err, ErrEventConflict) {
+		t.Fatalf("replayed start conflict = %v", err)
+	}
+
+	accepted, err := conversation.ApplyRunEvent(RunEvent{EventID: "new-delta", RunID: "run_1", SegmentID: "seg_1", Event: BlockDelta{BlockID: "live", Text: "preview"}})
+	if err != nil || !accepted.Applied {
+		t.Fatalf("new live delta = %+v, %v", accepted, err)
+	}
+	accepted, err = conversation.ApplyRunEvent(RunEvent{EventID: "orphan-preview", RunID: "run_1", SegmentID: "seg_1", Event: BlockDelta{BlockID: "missing", Text: "preview without its transient start"}})
+	if err != nil || accepted.Applied {
+		t.Fatalf("cold-tail orphan preview = %+v, %v", accepted, err)
+	}
+	completedTool := snapshot.Transcript[2].Tool.Clone()
+	completedTool.Status = ToolOK
+	apply(t, conversation, RunEvent{EventID: "live-complete", RunID: "run_1", SegmentID: "seg_1", Event: BlockCompleted{Block: Block{ID: "live", RunID: "run_1", Status: BlockStatusCompleted, Kind: BlockTool, Tool: &completedTool}}})
+	apply(t, conversation, RunEvent{EventID: "missing-complete", RunID: "run_1", SegmentID: "seg_1", Event: BlockCompleted{Block: Block{ID: "missing", RunID: "run_1", Status: BlockStatusCompleted, Kind: BlockAssistant, Text: "authoritative"}}})
+	apply(t, conversation, RunEvent{EventID: "new-plan", RunID: "run_1", SegmentID: "seg_1", Event: PlanChanged{Revision: 3, Items: []PlanItem{{Title: "done", Status: PlanDone}}}})
+	if conversation.PlanRevision() != 3 || conversation.Checkpoint() != "new-plan" {
+		t.Fatalf("reconciled state = plan revision %d, checkpoint %q", conversation.PlanRevision(), conversation.Checkpoint())
 	}
 }
 
-func TestConversationSettlesTransientStartCancellation(t *testing.T) {
-	c := NewConversation()
-	if err := c.Starting(); err != nil {
-		t.Fatal(err)
-	}
-	if !c.Busy() || c.Phase() != ConversationRunning || c.RunID() != "" {
-		t.Fatalf("starting state = busy:%t phase:%v run:%q", c.Busy(), c.Phase(), c.RunID())
-	}
-	if err := c.Starting(); !errors.Is(err, ErrInvalidTransition) {
-		t.Fatalf("overlapping start error = %v", err)
-	}
-	if err := c.CancelStarting(); err != nil {
-		t.Fatal(err)
-	}
-	if c.Busy() || c.Outcome().Status != OutcomeCanceled {
-		t.Fatalf("canceled start = busy:%t outcome:%+v", c.Busy(), c.Outcome())
-	}
-	if err := c.CancelStarting(); !errors.Is(err, ErrInvalidTransition) {
-		t.Fatalf("repeated start cancellation error = %v", err)
+func TestConversationRejectsOrphanPreviewOutsideColdTail(t *testing.T) {
+	conversation := NewConversation()
+	apply(t, conversation, RunEvent{EventID: "start", RunID: "run_1", SegmentID: "seg_1", Event: SegmentStarted{Run: runningRun("run_1", "seg_1")}})
+	if _, err := conversation.ApplyRunEvent(RunEvent{
+		EventID: "orphan", RunID: "run_1", SegmentID: "seg_1",
+		Event: BlockDelta{BlockID: "missing", Text: "bad"},
+	}); !errors.Is(err, ErrUnknownBlock) {
+		t.Fatalf("orphan preview error = %v", err)
 	}
 }
 
-func TestConversationCanStartAgainAfterTransientFailure(t *testing.T) {
-	c := NewConversation()
-	if err := c.Starting(); err != nil {
-		t.Fatal(err)
-	}
-	want := errors.New("stream disconnected")
-	c.Failed(want)
-	blocks := c.Blocks()
-	if c.Busy() || c.Outcome().Status != OutcomeFailed || c.Outcome().Error != want.Error() {
-		t.Fatalf("failed start = busy:%t outcome:%+v", c.Busy(), c.Outcome())
-	}
-	if len(blocks) != 1 || blocks[0].Kind != BlockError || blocks[0].Text != want.Error() {
-		t.Fatalf("failure blocks = %+v", blocks)
-	}
-	if err := c.Starting(); err != nil {
-		t.Fatalf("start after failure: %v", err)
-	}
-	if c.Outcome().Status != "" {
-		t.Fatalf("new start retained outcome %+v", c.Outcome())
-	}
+func runningRun(runID, segmentID string) Run {
+	return Run{ID: runID, SessionID: "ses_1", Provider: "mock", Model: "balanced", Status: RunStatusRunning, ActiveSegmentID: segmentID}
 }
 
-func testEnvelope(cursor Cursor, event Event) Envelope {
-	runID := "run"
-	if started, ok := event.(RunStarted); ok {
-		runID = started.RunID
+func apply(t *testing.T, conversation *Conversation, event RunEvent) {
+	t.Helper()
+	accepted, err := conversation.ApplyRunEvent(event)
+	if err != nil {
+		t.Fatal(err)
 	}
-	return Envelope{ID: "event_" + strconv.FormatUint(uint64(cursor), 10), Cursor: cursor, RunID: runID, SessionID: "session", Event: event}
+	if !accepted.Applied {
+		t.Fatal("event was not applied")
+	}
 }

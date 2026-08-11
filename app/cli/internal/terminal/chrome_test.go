@@ -92,7 +92,7 @@ func TestPromptMovesRunOptionsIntoTheFrameAndChangesContext(t *testing.T) {
 	prompt.Focus(true)
 
 	idle := drawRoot(t, prompt, 120, prompt.Measure(120))
-	for _, want := range []string{"runtime default · medium · build · ask", "enter", "shift+enter", "ctrl+p"} {
+	for _, want := range []string{settings.DefaultProvider + "/" + settings.DefaultModel, "enter", "shift+enter", "ctrl+p"} {
 		if !strings.Contains(idle, want) {
 			t.Errorf("idle prompt does not contain %q:\n%s", want, idle)
 		}
@@ -160,7 +160,7 @@ func TestShellUsesTwoRowChromeOnTinyTerminals(t *testing.T) {
 	if !shell.compact || !prompt.compact {
 		t.Fatal("tiny shell did not enter compact layout")
 	}
-	for _, want := range []string{"VISIBLE", "TINY_DRAFT", "ready"} {
+	for _, want := range []string{"VISIBLE", "TINY_DRAFT", "rea"} {
 		if !strings.Contains(tiny, want) {
 			t.Errorf("tiny shell does not contain %q:\n%s", want, tiny)
 		}

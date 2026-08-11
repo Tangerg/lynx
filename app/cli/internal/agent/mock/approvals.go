@@ -9,13 +9,22 @@ import (
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
 )
 
-func (r *Runtime) ListApprovalRules(ctx context.Context) ([]agent.ApprovalRule, error) {
+func (r *Runtime) ListApprovalRules(ctx context.Context, sessionID string) ([]agent.ApprovalRule, error) {
 	if err := context.Cause(ctx); err != nil {
 		return nil, err
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	out := slices.Clone(r.rules)
+	session := r.sessions[sessionID]
+	if session == nil {
+		return nil, fmt.Errorf("%w: %s", agent.ErrSessionNotFound, sessionID)
+	}
+	out := make([]agent.ApprovalRule, 0, len(r.rules))
+	for _, stored := range r.rules {
+		if ruleApplies(stored, sessionID, session.meta.Workspace) {
+			out = append(out, stored.view)
+		}
+	}
 	slices.Reverse(out)
 	return out, nil
 }
@@ -26,71 +35,128 @@ func (r *Runtime) DeleteApprovalRule(ctx context.Context, id string) error {
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	at := slices.IndexFunc(r.rules, func(rule agent.ApprovalRule) bool { return rule.ID == id })
-	if at < 0 {
-		return fmt.Errorf("mock: approval rule %s not found", id)
+	at := slices.IndexFunc(r.rules, func(rule storedRule) bool { return rule.view.ID == id })
+	if at >= 0 {
+		r.rules = slices.Delete(r.rules, at, at+1)
 	}
-	r.rules = slices.Delete(r.rules, at, at+1)
 	return nil
 }
 
 func (r *Runtime) rememberApprovalLocked(run *runState, approval agent.Approval, answer agent.ApprovalAnswer) {
+	if !approval.Rememberable || answer.Remember == agent.RememberNone {
+		return
+	}
 	session := r.sessions[run.sessionID]
-	key := approvalRuleKey(approval)
-	for _, rule := range r.rules {
-		if rule.Rule == key && rule.Scope == answer.Remember && ruleApplies(rule, run.sessionID, session.meta.Workspace) {
+	tool, subject := approvalRuleParts(approval)
+	for _, stored := range r.rules {
+		rule := stored.view
+		if rule.Tool == tool && rule.Subject == subject && rule.Scope == answer.Remember && ruleApplies(stored, run.sessionID, session.meta.Workspace) {
 			return
 		}
 	}
 	r.next++
 	rule := agent.ApprovalRule{
-		ID: fmt.Sprintf("rule_mock_%d", r.next), Rule: key, Decision: answer.Decision,
-		Scope: answer.Remember, CreatedAt: r.now(),
+		ID: fmt.Sprintf("rule_mock_%d", r.next), Scope: answer.Remember,
+		Tool: tool, Subject: subject, Decision: approvalRuleDecision(answer.Decision),
 	}
+	stored := storedRule{view: rule}
 	switch answer.Remember {
 	case agent.RememberSession:
-		rule.SessionID = run.sessionID
+		stored.sessionID = run.sessionID
 	case agent.RememberProject:
-		rule.Workspace = session.meta.Workspace
+		stored.view.Dir = session.meta.Workspace
 	case agent.RememberGlobal:
-		// Global rules intentionally carry no qualifier.
-	case agent.RememberNone:
-		return
 	default:
 		return
 	}
-	r.rules = append(r.rules, rule)
+	r.rules = append(r.rules, stored)
+}
+
+func (r *Runtime) resolveRememberedLocked(run *runState, interactions []agent.Interaction) (resolved []agent.InterruptAnswer, pending []agent.Interaction) {
+	resolved = make([]agent.InterruptAnswer, 0, len(interactions))
+	pending = make([]agent.Interaction, 0, len(interactions))
+	for _, interaction := range interactions {
+		approval, ok := interaction.(agent.Approval)
+		if !ok {
+			pending = append(pending, agent.CloneInteraction(interaction))
+			continue
+		}
+		answer, matched := r.rememberedAnswerLocked(run, approval)
+		if !matched {
+			pending = append(pending, agent.CloneInteraction(interaction))
+			continue
+		}
+		resolved = append(resolved, agent.InterruptAnswer{ItemID: approval.ItemID, Answer: answer})
+	}
+	return resolved, pending
 }
 
 func (r *Runtime) rememberedAnswerLocked(run *runState, approval agent.Approval) (agent.ApprovalAnswer, bool) {
 	workspace := r.sessions[run.sessionID].meta.Workspace
-	key := approvalRuleKey(approval)
-	for _, rule := range slices.Backward(r.rules) {
-		if rule.Rule == key && ruleApplies(rule, run.sessionID, workspace) {
-			return agent.ApprovalAnswer{Decision: rule.Decision, Remember: rule.Scope}, true
+	tool, subject := approvalRuleParts(approval)
+	for _, stored := range slices.Backward(r.rules) {
+		rule := stored.view
+		if rule.Tool == tool && rule.Subject == subject && ruleApplies(stored, run.sessionID, workspace) {
+			return agent.ApprovalAnswer{Decision: approvalDecision(rule.Decision), Remember: rule.Scope}, true
 		}
 	}
 	return agent.ApprovalAnswer{}, false
 }
 
-func ruleApplies(rule agent.ApprovalRule, sessionID, workspace string) bool {
-	switch rule.Scope {
+func approvalRuleDecision(decision agent.ApprovalDecision) agent.ApprovalRuleDecision {
+	if decision == agent.ApprovalApprove {
+		return agent.ApprovalRuleAllow
+	}
+	return agent.ApprovalRuleDeny
+}
+
+func approvalDecision(decision agent.ApprovalRuleDecision) agent.ApprovalDecision {
+	if decision == agent.ApprovalRuleAllow {
+		return agent.ApprovalApprove
+	}
+	return agent.ApprovalDeny
+}
+
+func ruleApplies(rule storedRule, sessionID, workspace string) bool {
+	switch rule.view.Scope {
 	case agent.RememberSession:
-		return rule.SessionID == sessionID
+		return rule.sessionID == sessionID
 	case agent.RememberProject:
-		return rule.Workspace == workspace
+		return rule.view.Dir == workspace
 	case agent.RememberGlobal:
 		return true
-	case agent.RememberNone:
-		return false
 	default:
 		return false
 	}
 }
 
-func approvalRuleKey(approval agent.Approval) string {
-	if key := strings.TrimSpace(approval.RuleHint); key != "" {
-		return key
+func approvalRuleParts(approval agent.Approval) (tool, subject string) {
+	hint := strings.TrimSpace(approval.RuleHint)
+	if hint != "" {
+		if tool, subject, ok := strings.Cut(hint, ":"); ok && strings.TrimSpace(tool) != "" {
+			return strings.TrimSpace(tool), strings.TrimSpace(subject)
+		}
 	}
-	return strings.TrimSpace(approval.Title)
+	if approval.Tool == nil {
+		return "unknown", strings.TrimSpace(approval.Title)
+	}
+	tool = strings.TrimSpace(approval.Tool.Name)
+	if tool == "" {
+		tool = string(approval.Tool.Kind)
+	}
+	switch approval.Tool.Kind {
+	case agent.ToolShell:
+		subject = approval.Tool.Command
+	case agent.ToolEdit, agent.ToolRead:
+		subject = approval.Tool.Path
+	case agent.ToolSearch:
+		subject = approval.Tool.Query
+	case agent.ToolWeb:
+		subject = approval.Tool.URL
+	case agent.ToolUnknown, agent.ToolTask:
+	}
+	if strings.TrimSpace(subject) == "" {
+		subject = approval.Tool.Summary
+	}
+	return tool, strings.TrimSpace(subject)
 }

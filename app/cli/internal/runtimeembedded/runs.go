@@ -1,0 +1,192 @@
+package runtimeembedded
+
+import (
+	"context"
+	"fmt"
+	"iter"
+
+	"github.com/Tangerg/lynx/app/runtime/embedded"
+	"github.com/Tangerg/lynx/app/runtime/protocol"
+
+	"github.com/Tangerg/lynx/app/cli/internal/agent"
+)
+
+type runBinding interface {
+	StartRun(context.Context, protocol.StartRunRequest, embedded.RunCommandOptions) (*protocol.StartRunResponse, iter.Seq2[protocol.RunEvent, error], error)
+	ResumeRun(context.Context, protocol.ResumeRunRequest, embedded.RunCommandOptions) (*protocol.ResumeRunResponse, iter.Seq2[protocol.RunEvent, error], error)
+	SubscribeRun(context.Context, protocol.SubscribeRunRequest, embedded.RunSubscriptionOptions) (*protocol.SubscribeRunResponse, iter.Seq2[protocol.RunEvent, error], error)
+	CancelRun(context.Context, protocol.CancelRunRequest, embedded.CommandOptions) (*protocol.CancelRunResponse, error)
+}
+
+func (r *Runtime) StartRun(ctx context.Context, input agent.StartRun) (agent.SegmentStream, error) {
+	if err := input.Validate(); err != nil {
+		return agent.SegmentStream{}, err
+	}
+	content, err := r.projectInput(ctx, input.Message)
+	if err != nil {
+		return agent.SegmentStream{}, err
+	}
+	options, err := r.runCommandOptions()
+	if err != nil {
+		return agent.SegmentStream{}, err
+	}
+	request := protocol.StartRunRequest{
+		SessionID: input.SessionID, Input: content,
+		Provider: input.Options.Provider, Model: input.Options.Model,
+		MaxTotalTokens: input.Options.Limits.MaxTotalTokens,
+		MaxSteps:       input.Options.Limits.MaxSteps,
+		MaxBudgetUSD:   input.Options.Limits.MaxBudgetUSD,
+	}
+	if generationParamsPresent(input.Options.Generation) {
+		request.Params = &protocol.GenerationParams{
+			Temperature: input.Options.Generation.Temperature,
+			MaxTokens:   input.Options.Generation.MaxTokens,
+			TopP:        input.Options.Generation.TopP,
+			Stop:        append([]string(nil), input.Options.Generation.Stop...),
+		}
+	}
+	ack, events, err := r.runs.StartRun(ctx, request, options)
+	if err != nil {
+		return agent.SegmentStream{}, classifyError(err)
+	}
+	if ack == nil || events == nil {
+		return agent.SegmentStream{}, fmt.Errorf("start run: runtime returned an incomplete stream")
+	}
+	stream := agent.SegmentStream{
+		RunID: ack.RunID, SegmentID: ack.SegmentID, UserItemID: ack.UserItemID,
+		Events: projectEventStream(events),
+	}
+	if err := stream.ValidateStart(); err != nil {
+		return agent.SegmentStream{}, err
+	}
+	return stream, nil
+}
+
+func generationParamsPresent(value agent.GenerationParams) bool {
+	return value.Temperature != nil || value.MaxTokens != nil || value.TopP != nil || len(value.Stop) != 0
+}
+
+func (r *Runtime) ResumeRun(ctx context.Context, input agent.ResumeRun) (agent.SegmentStream, error) {
+	if err := input.Validate(); err != nil {
+		return agent.SegmentStream{}, err
+	}
+	request := protocol.ResumeRunRequest{RunID: input.RunID, Responses: make([]protocol.InterruptResponse, 0, len(input.Answers))}
+	for _, answer := range input.Answers {
+		projected, err := projectAnswer(answer)
+		if err != nil {
+			return agent.SegmentStream{}, err
+		}
+		request.Responses = append(request.Responses, projected)
+	}
+	if input.Message != nil {
+		content, err := r.projectInput(ctx, *input.Message)
+		if err != nil {
+			return agent.SegmentStream{}, err
+		}
+		request.Input = content
+	}
+	options, err := r.runCommandOptions()
+	if err != nil {
+		return agent.SegmentStream{}, err
+	}
+	ack, events, err := r.runs.ResumeRun(ctx, request, options)
+	if err != nil {
+		return agent.SegmentStream{}, classifyError(err)
+	}
+	if ack == nil || events == nil {
+		return agent.SegmentStream{}, fmt.Errorf("resume run: runtime returned an incomplete stream")
+	}
+	stream := agent.SegmentStream{RunID: ack.RunID, SegmentID: ack.SegmentID, Events: projectEventStream(events)}
+	if ack.UserItemID != nil {
+		stream.UserItemID = *ack.UserItemID
+	}
+	if err := stream.ValidateResume(input.Message); err != nil {
+		return agent.SegmentStream{}, err
+	}
+	return stream, nil
+}
+
+func projectAnswer(value agent.InterruptAnswer) (protocol.InterruptResponse, error) {
+	response := protocol.InterruptResponse{ItemID: value.ItemID}
+	switch answer := value.Answer.(type) {
+	case agent.ApprovalAnswer:
+		response.Response.Type = protocol.InterruptResponseApproval
+		response.Response.Decision = protocol.ApprovalDecision(answer.Decision)
+		response.Response.Reason = answer.Reason
+		if answer.Remember != agent.RememberNone {
+			response.Response.Remember = &protocol.RememberScope{Scope: protocol.RememberScopeKind(answer.Remember)}
+		}
+	case agent.QuestionAnswer:
+		response.Response.Type = protocol.InterruptResponseAnswer
+		response.Response.Answers = make([][]string, len(answer.Values))
+		for index, answers := range answer.Values {
+			response.Response.Answers[index] = append([]string(nil), answers...)
+		}
+	default:
+		return protocol.InterruptResponse{}, fmt.Errorf("answer for item %s has unsupported type %T", value.ItemID, value.Answer)
+	}
+	return response, nil
+}
+
+func (r *Runtime) SubscribeRun(ctx context.Context, input agent.SubscribeRun) (agent.SegmentStream, error) {
+	if err := input.Validate(); err != nil {
+		return agent.SegmentStream{}, err
+	}
+	ack, events, err := r.runs.SubscribeRun(ctx, protocol.SubscribeRunRequest{
+		RunID: input.RunID, SegmentID: input.SegmentID,
+	}, r.subscriptionOptions(input.AfterEventID))
+	if err != nil {
+		return agent.SegmentStream{}, classifyError(err)
+	}
+	if ack == nil || events == nil {
+		return agent.SegmentStream{}, fmt.Errorf("subscribe run: runtime returned an incomplete stream")
+	}
+	stream := agent.SegmentStream{
+		RunID: ack.RunID, SegmentID: ack.SegmentID, HeadEventID: ack.HeadEventID,
+		Events: projectEventStream(events),
+	}
+	if err := stream.ValidateSubscription(); err != nil {
+		return agent.SegmentStream{}, err
+	}
+	return stream, nil
+}
+
+func (r *Runtime) CancelRun(ctx context.Context, input agent.CancelRun) (agent.Run, error) {
+	if err := input.Validate(); err != nil {
+		return agent.Run{}, err
+	}
+	options, err := r.commandOptions()
+	if err != nil {
+		return agent.Run{}, err
+	}
+	result, err := r.runs.CancelRun(ctx, protocol.CancelRunRequest{RunID: input.RunID, Reason: input.Reason}, options)
+	if err != nil {
+		return agent.Run{}, classifyError(err)
+	}
+	if result == nil {
+		return agent.Run{}, fmt.Errorf("cancel run: runtime returned nil")
+	}
+	if result.Type != protocol.CancelRunRoot || result.RootRun != nil {
+		return agent.Run{}, fmt.Errorf("%w: cancel returned child-run result %q", agent.ErrIncompatibleRuntime, result.Type)
+	}
+	return projectRun(result.Run)
+}
+
+func projectEventStream(source iter.Seq2[protocol.RunEvent, error]) agent.EventStream {
+	return func(yield func(agent.RunEvent, error) bool) {
+		for value, streamErr := range source {
+			if streamErr != nil {
+				yield(agent.RunEvent{}, classifyError(streamErr))
+				return
+			}
+			projected, include, err := projectEvent(value)
+			if err != nil {
+				yield(agent.RunEvent{}, err)
+				return
+			}
+			if include && !yield(projected, nil) {
+				return
+			}
+		}
+	}
+}

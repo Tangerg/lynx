@@ -189,7 +189,7 @@ func (a *app) ShowQueue() {
 
 func (a *app) buildQueueDrawer(theme kit.Theme, glyphs kit.Glyphs, keys *keymap.Map) {
 	drawer := newQueueDrawer(theme, glyphs, keys, a.loop.Clipboard())
-	dialog := headless.NewDialog(&a.stack, "Queue", drawer)
+	dialog := headless.NewDialog(headless.DialogConfig{Stack: &a.stack, Title: "Queue", Content: drawer})
 	drawer.SetActions(queueDrawerActions{
 		BeginEdit:  a.holdQueuedPrompt,
 		SaveEdit:   a.saveQueuedPrompt,

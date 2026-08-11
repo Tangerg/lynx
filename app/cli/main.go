@@ -7,14 +7,16 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
 	"github.com/Tangerg/lynx/app/cli/internal/agent/mock"
 	"github.com/Tangerg/lynx/app/cli/internal/cmd"
+	"github.com/Tangerg/lynx/app/cli/internal/runtimeembedded"
 )
 
-const mockRuntimeNotice = "lyra: scripted mock runtime — no backend is wired in yet"
+const mockRuntimeNotice = "lyra: scripted mock runtime (explicit test/demo mode)"
 
 func main() {
 	os.Exit(run())
@@ -24,24 +26,68 @@ func run() int {
 	ctx, stop := processSignalContext(context.Background())
 	defer stop()
 
+	owner, notice, err := newRuntimeOwner()
+	if err != nil {
+		_, _ = fmt.Fprintln(os.Stderr, "Error:", err)
+		return exitCode(err)
+	}
 	root := cmd.NewRoot(cmd.Dependencies{
-		OpenRuntime: func(context.Context) (agent.Runtime, error) {
-			return mock.New(), nil
-		},
-		RuntimeNotice: mockRuntimeNotice,
+		OpenRuntime:   owner.Runtime,
+		RuntimeNotice: notice,
 	})
 	root.SetIn(os.Stdin)
 	root.SetOut(os.Stdout)
 	root.SetErr(os.Stderr)
-	err := root.ExecuteContext(ctx)
+	err = root.ExecuteContext(ctx)
+	err = errors.Join(err, owner.Close())
 	if cause := context.Cause(ctx); cause != nil {
-		return exitCode(cause)
+		err = errors.Join(cause, err)
 	}
 	if err == nil {
 		return 0
 	}
 	_, _ = fmt.Fprintln(os.Stderr, "Error:", err)
 	return exitCode(err)
+}
+
+type runtimeOwner interface {
+	Runtime(context.Context) (agent.Runtime, error)
+	Close() error
+}
+
+type mockOwner struct{ runtime agent.Runtime }
+
+func (o *mockOwner) Runtime(context.Context) (agent.Runtime, error) { return o.runtime, nil }
+func (*mockOwner) Close() error                                     { return nil }
+
+func newRuntimeOwner() (runtimeOwner, string, error) {
+	switch mode := os.Getenv("LYRA_RUNTIME"); mode {
+	case "mock":
+		return &mockOwner{runtime: mock.New()}, mockRuntimeNotice, nil
+	case "", "embedded":
+	default:
+		return nil, "", fmt.Errorf("unsupported LYRA_RUNTIME %q (want embedded or mock)", mode)
+	}
+	userHome, err := os.UserHomeDir()
+	if err != nil {
+		return nil, "", fmt.Errorf("resolve runtime home: %w", err)
+	}
+	lyraHome := os.Getenv("LYRA_HOME")
+	if lyraHome == "" {
+		lyraHome = filepath.Join(userHome, ".lyra")
+	}
+	if !filepath.IsAbs(lyraHome) {
+		return nil, "", errors.New("LYRA_HOME must be an absolute path")
+	}
+	runtimeDirectory := filepath.Join(filepath.Clean(lyraHome), "runtime")
+	configDirectories, err := runtimeConfigDirectories(runtimeDirectory)
+	if err != nil {
+		return nil, "", err
+	}
+	return runtimeembedded.NewOwner(runtimeembedded.Config{
+		DataDirectory: runtimeDirectory, UserHomePath: userHome,
+		ConfigDirectories: configDirectories, ClientVersion: cmd.Version(),
+	}), "", nil
 }
 
 type exitCoder interface {

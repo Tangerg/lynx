@@ -7,122 +7,158 @@ import (
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
 )
 
-func (r *Runtime) FollowRun(ctx context.Context, in agent.FollowRun) (agent.RunStream, error) {
+func (r *Runtime) SubscribeRun(ctx context.Context, in agent.SubscribeRun) (agent.SegmentStream, error) {
 	if err := in.Validate(); err != nil {
-		return nil, fmt.Errorf("mock: %w", err)
+		return agent.SegmentStream{}, fmt.Errorf("mock: %w", err)
 	}
-	run, fault, err := r.openSubscription(in)
-	if err != nil {
-		return nil, err
+	if err := context.Cause(ctx); err != nil {
+		return agent.SegmentStream{}, err
 	}
-	subscription := &runSubscription{runtime: r, ctx: ctx, run: run, after: in.After, fault: fault}
-	return subscription.stream, nil
-}
-
-func (r *Runtime) openSubscription(in agent.FollowRun) (*runState, SubscriptionFault, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	run, ok := r.runs[in.RunID]
-	if !ok {
-		return nil, SubscriptionFault{}, fmt.Errorf("%w: %s", agent.ErrRunNotFound, in.RunID)
+	run := r.runs[in.RunID]
+	if run == nil {
+		return agent.SegmentStream{}, fmt.Errorf("%w: %s", agent.ErrRunNotFound, in.RunID)
 	}
-	if in.After < run.startedAfter {
-		return nil, SubscriptionFault{}, fmt.Errorf("mock: cursor %d predates run start cursor %d", in.After, run.startedAfter)
+	if run.active != in.SegmentID || run.status != agent.RunStatusRunning {
+		return agent.SegmentStream{}, fmt.Errorf("%w: run %s is not executing segment %s", agent.ErrStaleSegment, in.RunID, in.SegmentID)
 	}
-	session := r.sessions[run.sessionID]
-	latest := agent.Cursor(len(session.events))
-	if in.After > latest {
-		return nil, SubscriptionFault{}, fmt.Errorf("mock: cursor %d is after session cursor %d", in.After, latest)
+	segment := run.segments[in.SegmentID]
+	if segment == nil {
+		return agent.SegmentStream{}, fmt.Errorf("%w: %s", agent.ErrStaleSegment, in.SegmentID)
+	}
+
+	head := len(segment.events)
+	start := head // Empty checkpoint attaches at the current head.
+	if in.AfterEventID != "" {
+		at := replayIndex(segment.events, in.AfterEventID)
+		if at < 0 {
+			return agent.SegmentStream{}, fmt.Errorf("%w: event %s", agent.ErrReplayUnavailable, in.AfterEventID)
+		}
+		start = at + 1
 	}
 	fault, err := r.takeFaultLocked()
-	return run, fault, err
+	if err != nil {
+		return agent.SegmentStream{}, err
+	}
+	return r.bindSegmentLocked(ctx, run, segment, start, head, "", fault), nil
 }
 
-type runSubscription struct {
-	runtime  *Runtime
-	ctx      context.Context
-	run      *runState
-	after    agent.Cursor
-	fault    SubscriptionFault
-	position int
+func replayIndex(events []agent.RunEvent, eventID string) int {
+	for i, event := range events {
+		if event.EventID == eventID && agent.ReplayableEvent(event.Event) {
+			return i
+		}
+	}
+	return -1
 }
 
-func (s *runSubscription) stream(yield func(agent.Envelope, error) bool) {
+func (r *Runtime) openSegmentLocked(run *runState) *segmentState {
+	r.next++
+	segment := &segmentState{id: fmt.Sprintf("seg_mock_%d", r.next), changed: make(chan struct{})}
+	run.active = segment.id
+	run.segments[segment.id] = segment
+	return segment
+}
+
+func (r *Runtime) bindSegmentLocked(
+	ctx context.Context,
+	run *runState,
+	segment *segmentState,
+	start int,
+	replayUntil int,
+	userItemID string,
+	fault SubscriptionFault,
+) agent.SegmentStream {
+	headEventID := ""
+	for i := len(segment.events) - 1; i >= 0; i-- {
+		if agent.ReplayableEvent(segment.events[i].Event) {
+			headEventID = segment.events[i].EventID
+			break
+		}
+	}
+	subscription := &segmentSubscription{
+		runtime: r, ctx: ctx, run: run, segment: segment,
+		next: start, replayUntil: replayUntil, fault: fault,
+	}
+	return agent.SegmentStream{
+		RunID: run.id, SegmentID: segment.id, UserItemID: userItemID,
+		HeadEventID: headEventID, Events: subscription.stream,
+	}
+}
+
+type segmentSubscription struct {
+	runtime     *Runtime
+	ctx         context.Context
+	run         *runState
+	segment     *segmentState
+	next        int
+	replayUntil int
+	fault       SubscriptionFault
+	position    int
+}
+
+func (s *segmentSubscription) stream(yield func(agent.RunEvent, error) bool) {
 	for {
-		next, active, changed := s.next()
+		next, closed, changed := s.nextEvent()
 		if next != nil {
 			if !s.deliver(*next, yield) {
 				return
 			}
 			continue
 		}
-		if !active || !s.awaitChange(changed, yield) {
+		if closed || !s.awaitChange(changed, yield) {
 			return
 		}
 	}
 }
 
-func (s *runSubscription) next() (*agent.Envelope, bool, <-chan struct{}) {
+func (s *segmentSubscription) nextEvent() (*agent.RunEvent, bool, <-chan struct{}) {
 	s.runtime.mu.Lock()
 	defer s.runtime.mu.Unlock()
-	session := s.runtime.sessions[s.run.sessionID]
-	for _, envelope := range session.events {
-		if envelope.Cursor <= s.after || envelope.RunID != s.run.id {
+	for s.next < len(s.segment.events) {
+		at := s.next
+		s.next++
+		event := s.segment.events[at]
+		if at < s.replayUntil && !agent.ReplayableEvent(event.Event) {
 			continue
 		}
-		cloned := cloneEnvelope(envelope)
-		return &cloned, s.run.status == agent.RunActive, session.changed
+		cloned := event.Clone()
+		return &cloned, s.segment.closed, s.segment.changed
 	}
-	return nil, s.run.status == agent.RunActive, session.changed
+	return nil, s.segment.closed, s.segment.changed
 }
 
-func (s *runSubscription) deliver(next agent.Envelope, yield func(agent.Envelope, error) bool) bool {
+func (s *segmentSubscription) deliver(next agent.RunEvent, yield func(agent.RunEvent, error) bool) bool {
 	s.position++
-	if s.fault.Kind == FaultGap && s.position == s.fault.After {
-		s.after = next.Cursor
-		return true
-	}
-	s.after = next.Cursor
-	if !yield(next, nil) || !s.injectDeliveredFault(next, yield) {
+	if !yield(next, nil) {
 		return false
 	}
-	switch next.Event.(type) {
-	case agent.RunInterrupted, agent.RunFinished:
-		return false
-	default:
-	}
-	if s.fault.Kind == FaultDisconnect && s.position == s.fault.After {
-		yield(agent.Envelope{}, fmt.Errorf("%w after cursor %d", agent.ErrDisconnected, s.after))
-		return false
+	if s.position == s.fault.After {
+		switch s.fault.Kind {
+		case FaultDuplicate:
+			if !yield(next, nil) {
+				return false
+			}
+		case FaultConflict:
+			conflict := next.Clone()
+			conflict.Event = agent.BlockCompleted{Block: agent.Block{ID: "conflict", RunID: next.RunID, Status: agent.BlockStatusCompleted, Kind: agent.BlockNotice, Text: "conflicting replay"}}
+			yield(conflict, nil)
+			return false
+		case FaultDisconnect:
+			yield(agent.RunEvent{}, fmt.Errorf("%w after event %s", agent.ErrDisconnected, next.EventID))
+			return false
+		}
 	}
 	return true
 }
 
-func (s *runSubscription) injectDeliveredFault(next agent.Envelope, yield func(agent.Envelope, error) bool) bool {
-	if s.position != s.fault.After {
-		return true
-	}
-	switch s.fault.Kind {
-	case FaultDuplicate:
-		return yield(next, nil)
-	case FaultConflict:
-		conflict := cloneEnvelope(next)
-		conflict.ID += "_conflict"
-		yield(conflict, nil)
-		return false
-	case FaultDisconnect, FaultGap, "":
-		return true
-	default:
-		return true
-	}
-}
-
-func (s *runSubscription) awaitChange(changed <-chan struct{}, yield func(agent.Envelope, error) bool) bool {
+func (s *segmentSubscription) awaitChange(changed <-chan struct{}, yield func(agent.RunEvent, error) bool) bool {
 	select {
 	case <-changed:
 		return true
 	case <-s.ctx.Done():
-		yield(agent.Envelope{}, context.Cause(s.ctx))
+		yield(agent.RunEvent{}, context.Cause(s.ctx))
 		return false
 	}
 }
@@ -137,7 +173,7 @@ func (r *Runtime) takeFaultLocked() (SubscriptionFault, error) {
 		fault.After = 1
 	}
 	switch fault.Kind {
-	case FaultDisconnect, FaultDuplicate, FaultGap, FaultConflict:
+	case FaultDisconnect, FaultDuplicate, FaultConflict:
 		return fault, nil
 	default:
 		return SubscriptionFault{}, fmt.Errorf("mock: unknown subscription fault %q", fault.Kind)

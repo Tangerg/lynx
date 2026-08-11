@@ -32,8 +32,9 @@ const (
 )
 
 var (
-	ErrNotRegular = errors.New("attachment is not a regular file")
-	ErrTooLarge   = errors.New("attachment is too large")
+	ErrNotRegular      = errors.New("attachment is not a regular file")
+	ErrTooLarge        = errors.New("attachment is too large")
+	ErrUnsupportedType = errors.New("attachment must be text or an image")
 )
 
 // Resolver resolves explicit paths and searches the workspace for completion.
@@ -80,7 +81,7 @@ func (r *Resolver) Resolve(ctx context.Context, input string) (agent.Attachment,
 	if err != nil {
 		return agent.Attachment{}, err
 	}
-	return r.project(canonical, info, header), nil
+	return r.project(canonical, info, header)
 }
 
 func (r *Resolver) inspect(input string) (string, fs.FileInfo, []byte, error) {
@@ -134,27 +135,31 @@ func readAttachmentHeader(file io.Reader, input string) ([]byte, error) {
 	return header[:n], nil
 }
 
-func (r *Resolver) project(canonical string, info fs.FileInfo, header []byte) agent.Attachment {
+func (r *Resolver) project(canonical string, info fs.FileInfo, header []byte) (agent.Attachment, error) {
 	mimeType := classifyMIME(canonical, header)
+	kind, supported := attachmentKind(mimeType)
+	if !supported {
+		return agent.Attachment{}, fmt.Errorf("%w: %s (%s)", ErrUnsupportedType, canonical, mimeType)
+	}
 	name := filepath.Base(canonical)
 	if relative, ok := r.relative(canonical); ok {
 		name = relative
 	}
 	digest := sha256.Sum256([]byte(canonical + "\x00" + strconv.FormatInt(info.Size(), 10) + "\x00" + strconv.FormatInt(info.ModTime().UnixNano(), 10)))
 	return agent.Attachment{
-		ID: "att_" + hex.EncodeToString(digest[:8]), Kind: attachmentKind(mimeType), Name: filepath.ToSlash(name),
+		ID: "att_" + hex.EncodeToString(digest[:8]), Kind: kind, Name: filepath.ToSlash(name),
 		Path: canonical, MimeType: mimeType, Size: info.Size(),
-	}
+	}, nil
 }
 
-func attachmentKind(mimeType string) agent.AttachmentKind {
+func attachmentKind(mimeType string) (agent.AttachmentKind, bool) {
 	switch {
 	case strings.HasPrefix(mimeType, "image/"):
-		return agent.AttachmentImage
+		return agent.AttachmentImage, true
 	case isTextMIME(mimeType):
-		return agent.AttachmentText
+		return agent.AttachmentText, true
 	default:
-		return agent.AttachmentFile
+		return "", false
 	}
 }
 

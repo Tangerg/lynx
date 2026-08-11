@@ -113,18 +113,20 @@ func (m *markdownBlock) Rows(width int) []text.Row {
 	return append(rows, text.Row{})
 }
 
-func markdownLook(theme kit.Theme, glyphs kit.Glyphs, style highlight.Style) markdown.Look {
-	return markdown.Look{
+func markdownLook(theme kit.Theme, glyphs kit.Glyphs, syntax highlight.Renderer) markdown.Look {
+	look := markdown.Look{
 		Text: theme.Text, Headings: []grid.Style{theme.Heading, theme.Strong},
 		Strong: theme.Strong, Emphasis: grid.Style{Attr: grid.Italic},
 		Struck: theme.Muted, Code: theme.Info, Block: theme.Sunken,
 		Link: theme.Accent, Quote: theme.Muted, Rail: theme.Subtle,
-		Marker: theme.Accent, Rule: theme.Divider, Highlight: highlight.Of(style),
+		Marker: theme.Accent, Rule: theme.Divider,
 		Glyphs: markdown.Glyphs{
 			Bullet: glyphs.Bullet, Bar: glyphs.Vertical, Divider: glyphs.Horizontal,
 			Checked: glyphs.Taken, Unchecked: glyphs.Free,
 		},
 	}
+	look.SetRenderer(markdown.FencedCode, syntax.Lines)
+	return look
 }
 
 func presentError(theme kit.Theme, message string) headless.Block {

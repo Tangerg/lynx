@@ -3,8 +3,6 @@ package oneshot
 import (
 	"context"
 	"errors"
-	"fmt"
-	"strings"
 	"testing"
 	"time"
 
@@ -12,197 +10,148 @@ import (
 	"github.com/Tangerg/lynx/app/cli/internal/agent/mock"
 )
 
-type discardRenderer struct{}
+type invalidOpeningRuntime struct{ *mock.Runtime }
 
-func (discardRenderer) Render(agent.Envelope) error { return nil }
-func (discardRenderer) Close() error                { return nil }
-
-type countingRenderer struct {
-	rendered int
-	closed   int
-}
-
-func (r *countingRenderer) Render(agent.Envelope) error { r.rendered++; return nil }
-func (r *countingRenderer) Close() error                { r.closed++; return nil }
-
-type delayedStartResponse struct {
-	*mock.Runtime
-	accepted chan struct{}
-}
-
-func (r *delayedStartResponse) StartRun(ctx context.Context, input agent.StartRun) (agent.Run, error) {
-	if _, err := r.Runtime.StartRun(ctx, input); err != nil {
-		return agent.Run{}, err
+func (runtime invalidOpeningRuntime) StartRun(ctx context.Context, input agent.StartRun) (agent.SegmentStream, error) {
+	opened, err := runtime.Runtime.StartRun(ctx, input)
+	if err == nil {
+		opened.Events = nil
 	}
-	close(r.accepted)
-	<-ctx.Done()
-	return agent.Run{}, context.Cause(ctx)
+	return opened, err
 }
 
-type lostStartResponses struct{ *mock.Runtime }
+type recordingRenderer struct {
+	events []agent.RunEvent
+	err    error
+}
 
-func (r *lostStartResponses) StartRun(ctx context.Context, input agent.StartRun) (agent.Run, error) {
-	if _, err := r.Runtime.StartRun(ctx, input); err != nil {
-		return agent.Run{}, err
+func (r *recordingRenderer) Begin(agent.Run, agent.RunOptions) error { return r.err }
+
+func (r *recordingRenderer) Render(event agent.RunEvent) error {
+	if r.err != nil {
+		return r.err
 	}
-	return agent.Run{}, fmt.Errorf("start response lost: %w", agent.ErrDisconnected)
+	r.events = append(r.events, event.Clone())
+	return nil
 }
 
-type invalidLifecycleRuntime struct {
-	*mock.Runtime
-	sessionID string
-}
-
-func (r *invalidLifecycleRuntime) StartRun(_ context.Context, input agent.StartRun) (agent.Run, error) {
-	return agent.Run{ID: "run_invalid", SessionID: input.SessionID, Status: agent.RunActive}, nil
-}
-
-func (r *invalidLifecycleRuntime) FollowRun(_ context.Context, input agent.FollowRun) (agent.RunStream, error) {
-	return func(yield func(agent.Envelope, error) bool) {
-		if !yield(agent.Envelope{
-			ID: "event_started", Cursor: input.After + 1,
-			RunID: input.RunID, SessionID: r.sessionID,
-			Event: agent.RunStarted{RunID: input.RunID, SessionID: r.sessionID},
-		}, nil) {
-			return
-		}
-		yield(agent.Envelope{
-			ID: "event_invalid", Cursor: input.After + 2,
-			RunID: input.RunID, SessionID: r.sessionID,
-			Event: agent.RunStarted{RunID: input.RunID, SessionID: r.sessionID},
-		}, nil)
-	}, nil
-}
-
-type invalidStartRuntime struct{ *mock.Runtime }
-
-func (r *invalidStartRuntime) StartRun(context.Context, agent.StartRun) (agent.Run, error) {
-	return agent.Run{SessionID: "wrong", Status: agent.RunActive}, nil
-}
-
-func TestExecuteRejectsEventsThatViolateTheConversationLifecycle(t *testing.T) {
-	base := mock.New()
-	sessionID := firstSession(t, base)
-	renderer := new(countingRenderer)
-	err := Execute(t.Context(), Invocation{
-		Runtime:  &invalidLifecycleRuntime{Runtime: base, sessionID: sessionID},
-		Renderer: renderer,
-		Start: agent.StartRun{
-			SessionID: sessionID,
-			Message:   agent.Message{Text: "invalid lifecycle"},
-		},
-	})
-	if !errors.Is(err, agent.ErrInvalidTransition) {
-		t.Fatalf("run error = %v, want invalid transition", err)
+func (r *recordingRenderer) Reconcile(snapshot agent.SessionSnapshot) error {
+	if r.err != nil {
+		return r.err
 	}
-	if renderer.rendered != 1 {
-		t.Fatalf("renderer received %d events, want only the valid prefix", renderer.rendered)
+	for _, block := range snapshot.Transcript {
+		r.events = append(r.events, agent.RunEvent{EventID: "snapshot:" + block.ID, RunID: "snapshot", SegmentID: "snapshot", Event: agent.BlockCompleted{Block: block.Clone()}})
 	}
-	if renderer.closed != 1 {
-		t.Fatalf("renderer closed %d times, want once", renderer.closed)
-	}
+	return nil
 }
 
-func TestExecuteRequiresItsBoundaryDependencies(t *testing.T) {
-	if err := Execute(t.Context(), Invocation{Renderer: discardRenderer{}}); err == nil || !strings.Contains(err.Error(), "runtime") {
-		t.Fatalf("missing runtime error = %v", err)
-	}
-	if err := Execute(t.Context(), Invocation{Runtime: mock.New()}); err == nil || !strings.Contains(err.Error(), "renderer") {
-		t.Fatalf("missing renderer error = %v", err)
-	}
-}
+func (*recordingRenderer) Close() error { return nil }
 
-func TestExecuteRejectsAnInvalidStartProjection(t *testing.T) {
-	base := mock.New()
-	err := Execute(t.Context(), Invocation{
-		Runtime:  &invalidStartRuntime{Runtime: base},
-		Renderer: discardRenderer{},
-		Start: agent.StartRun{
-			SessionID: firstSession(t, base),
-			Message:   agent.Message{Text: "invalid start"},
-		},
-	})
-	if err == nil || !strings.Contains(err.Error(), "start run response") {
-		t.Fatalf("run error = %v", err)
-	}
-}
-
-func TestExecuteCancellationTargetsAStartWhoseResponseWasLost(t *testing.T) {
-	base := slowRuntime()
-	sessionID := firstSession(t, base)
-	runtime := &delayedStartResponse{Runtime: base, accepted: make(chan struct{})}
-	ctx, cancel := context.WithCancel(t.Context())
-	result := make(chan error, 1)
-	go func() {
-		result <- Execute(ctx, Invocation{
-			Runtime: runtime, Renderer: discardRenderer{},
-			Start: agent.StartRun{
-				SessionID: sessionID,
-				Message:   agent.Message{Text: "cancel after acceptance"},
-			},
-		})
-	}()
-
-	select {
-	case <-runtime.accepted:
-	case <-time.After(time.Second):
-		t.Fatal("start was not accepted")
-	}
-	cancel()
-	if err := <-result; !errors.Is(err, context.Canceled) {
-		t.Fatalf("run error = %v, want context cancellation", err)
-	}
-	requireCanceledSession(t, base, sessionID)
-}
-
-func TestExecuteCancellationTargetsAStartAfterItsRetryBudgetIsExhausted(t *testing.T) {
-	base := slowRuntime()
-	sessionID := firstSession(t, base)
-	err := Execute(t.Context(), Invocation{
-		Runtime: &lostStartResponses{Runtime: base}, Renderer: discardRenderer{},
-		Start: agent.StartRun{
-			SessionID: sessionID,
-			Message:   agent.Message{Text: "lose every response"},
-		},
-		ReconnectAttempts: 1,
-	})
-	if !errors.Is(err, agent.ErrDisconnected) {
-		t.Fatalf("run error = %v, want exhausted transport failure", err)
-	}
-	requireCanceledSession(t, base, sessionID)
-}
-
-func slowRuntime() *mock.Runtime {
+func TestExecuteDrivesApprovalAcrossSegments(t *testing.T) {
 	runtime := mock.New()
+	runtime.Instant = true
+	session, _ := runtime.CreateSession(t.Context(), agent.CreateSession{Workspace: t.TempDir()})
+	renderer := new(recordingRenderer)
+	err := Execute(t.Context(), Invocation{
+		Runtime: runtime, Renderer: renderer,
+		Start:      agent.StartRun{SessionID: session.ID, Message: agent.Message{Text: "fix it"}},
+		ApproveAll: true, ReconnectAttempts: 2,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	segments := make(map[string]struct{})
+	for _, event := range renderer.events {
+		segments[event.SegmentID] = struct{}{}
+	}
+	if len(segments) != 2 {
+		t.Fatalf("segments = %v", segments)
+	}
+}
+
+func TestExecuteLeavesQuestionsParked(t *testing.T) {
+	runtime := mock.New()
+	runtime.Instant = true
 	runtime.Script = func(string) mock.Script {
-		return mock.Script{Prelude: []mock.Step{{
-			Delay: time.Hour,
-			Event: agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCompleted}},
-		}}}
+		return mock.Script{
+			Interactions: []agent.Interaction{agent.Question{
+				ItemID: "q_1", Title: "Target",
+				Fields: []agent.QuestionField{{Prompt: "Target", Kind: agent.QuestionSingle, Options: []agent.QuestionOption{{Label: "linux"}, {Label: "darwin"}}}},
+			}},
+			Continue: func([]agent.InterruptAnswer) []mock.Step {
+				return []mock.Step{{Event: agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCompleted}}}}
+			},
+		}
 	}
-	return runtime
+	session, _ := runtime.CreateSession(t.Context(), agent.CreateSession{Workspace: t.TempDir()})
+	err := Execute(t.Context(), Invocation{
+		Runtime: runtime, Renderer: new(recordingRenderer),
+		Start: agent.StartRun{SessionID: session.ID, Message: agent.Message{Text: "ask"}},
+	})
+	var required *interactionRequiredError
+	if !errors.As(err, &required) {
+		t.Fatalf("error = %v", err)
+	}
+	snapshot, snapshotErr := runtime.GetSession(t.Context(), session.ID)
+	active, activeOK := snapshot.ActiveRun()
+	if snapshotErr != nil || !activeOK || active.Status != agent.RunStatusWaiting {
+		t.Fatalf("snapshot = %+v, %v", snapshot, snapshotErr)
+	}
 }
 
-func firstSession(t *testing.T, runtime agent.SessionCatalog) string {
-	t.Helper()
-	page, err := runtime.ListSessions(t.Context(), agent.SessionQuery{})
+func TestExecuteReconnectsOnlyTheCurrentSegment(t *testing.T) {
+	runtime := mock.New()
+	runtime.Faults = []mock.SubscriptionFault{{Kind: mock.FaultDisconnect, After: 1}}
+	runtime.Script = func(string) mock.Script {
+		return mock.Script{Prelude: []mock.Step{
+			{Delay: 30 * time.Millisecond, Event: agent.BlockCompleted{Block: agent.Block{ID: "answer", Kind: agent.BlockAssistant, Text: "done"}}},
+			{Event: agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCompleted}}},
+		}}
+	}
+	session, _ := runtime.CreateSession(t.Context(), agent.CreateSession{Workspace: t.TempDir()})
+	err := Execute(t.Context(), Invocation{
+		Runtime: runtime, Renderer: new(recordingRenderer),
+		Start:             agent.StartRun{SessionID: session.ID, Message: agent.Message{Text: "fix"}},
+		ReconnectAttempts: 3,
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	return page.Items[0].ID
 }
 
-func requireCanceledSession(t *testing.T, runtime agent.SessionReader, sessionID string) {
-	t.Helper()
-	snapshot, err := runtime.GetSession(t.Context(), sessionID)
-	if err != nil {
-		t.Fatal(err)
+func TestExecutePropagatesRendererFailureAndCancelsRun(t *testing.T) {
+	runtime := mock.New()
+	runtime.Instant = true
+	session, _ := runtime.CreateSession(t.Context(), agent.CreateSession{Workspace: t.TempDir()})
+	want := errors.New("write failed")
+	err := Execute(t.Context(), Invocation{
+		Runtime: runtime, Renderer: &recordingRenderer{err: want},
+		Start: agent.StartRun{SessionID: session.ID, Message: agent.Message{Text: "fix"}},
+	})
+	if !errors.Is(err, want) {
+		t.Fatalf("error = %v", err)
 	}
-	if snapshot.Active != nil {
-		t.Fatalf("canceled start left an active run: %+v", snapshot.Active)
+}
+
+func TestExecuteCancelsARunWhoseOpeningStreamIsInvalid(t *testing.T) {
+	base := mock.New()
+	base.Script = func(string) mock.Script {
+		return mock.Script{Prelude: []mock.Step{{Delay: time.Hour, Event: agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCompleted}}}}}
 	}
-	finished, ok := snapshot.Events[len(snapshot.Events)-1].Event.(agent.RunFinished)
-	if !ok || finished.Outcome.Status != agent.OutcomeCanceled {
-		t.Fatalf("last event = %+v, want canceled run", snapshot.Events[len(snapshot.Events)-1])
+	session, _ := base.CreateSession(t.Context(), agent.CreateSession{Workspace: t.TempDir()})
+	err := Execute(t.Context(), Invocation{
+		Runtime: invalidOpeningRuntime{Runtime: base}, Renderer: new(recordingRenderer),
+		Start: agent.StartRun{SessionID: session.ID, Message: agent.Message{Text: "start"}},
+	})
+	if err == nil {
+		t.Fatal("invalid opening stream was accepted")
+	}
+	snapshot, snapshotErr := base.GetSession(t.Context(), session.ID)
+	if snapshotErr != nil {
+		t.Fatal(snapshotErr)
+	}
+	latest, ok := snapshot.LatestRun()
+	if !ok || latest.Status != agent.RunStatusFinished || latest.Outcome.Status != agent.OutcomeCanceled {
+		t.Fatalf("invalid opening left run active: %+v", snapshot.Runs)
 	}
 }

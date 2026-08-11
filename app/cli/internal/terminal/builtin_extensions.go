@@ -52,7 +52,7 @@ type BlockPresentation struct {
 	Theme  kit.Theme
 	Glyphs kit.Glyphs
 	Look   markdown.Look
-	Syntax highlight.Style
+	Syntax highlight.Renderer
 }
 
 // BlockPresenter maps one closed domain block kind to terminal blocks.
@@ -72,6 +72,7 @@ func builtinPlugin() extensions.Plugin {
 			{Kind: agent.BlockUser, Present: presentUser},
 			{Kind: agent.BlockAssistant, Present: presentMarkdown("lyra")},
 			{Kind: agent.BlockReasoning, Present: presentMarkdown("thinking")},
+			{Kind: agent.BlockQuestion, Present: presentQuestion},
 			{Kind: agent.BlockTool, Present: presentTool},
 			{Kind: agent.BlockNotice, Present: presentNotice},
 			{Kind: agent.BlockError, Present: presentFailure},
@@ -97,12 +98,10 @@ func builtinCommands() []localCommand {
 		{Name: "sessions", Title: "search and switch sessions", Aliases: []string{"resume"}, Run: func(a *app, _ string) error { a.ShowSessions(); return nil }},
 		{Name: "new", Title: "start a new session", Run: func(a *app, _ string) error { a.NewSession(); return nil }},
 		{Name: "rename", Title: "rename the current session", Takes: true, Run: func(a *app, title string) error { a.RenameSession(title); return nil }},
-		{Name: "fork", Title: "fork the current session at its latest event", Takes: true, Run: func(a *app, title string) error { a.ForkSession(title); return nil }},
+		{Name: "fork", Title: "fork the complete current session", Takes: true, Run: func(a *app, title string) error { a.ForkSession(title); return nil }},
 		{Name: "model", Title: "choose the model for new runs", Run: func(a *app, _ string) error { a.ChooseModel(); return nil }},
-		{Name: "mode", Title: "cycle build, plan, and review modes", Run: func(a *app, _ string) error { a.CycleMode(); return nil }},
-		{Name: "permissions", Title: "choose the permission mode", Aliases: []string{"permission"}, Run: func(a *app, _ string) error { a.ChoosePermission(); return nil }},
-		{Name: "effort", Title: "set reasoning effort", Takes: true, Run: func(a *app, value string) error { a.SetEffort(value); return nil }},
-		{Name: "status", Title: "show model, mode, permission, and effort", Run: func(a *app, _ string) error { a.ShowRuntimeStatus(); return nil }},
+		{Name: "approval", Title: "choose the runtime approval mode", Aliases: []string{"permissions", "permission"}, Run: func(a *app, _ string) error { a.ChooseApprovalMode(); return nil }},
+		{Name: "status", Title: "show model, run limits, and runtime approval mode", Run: func(a *app, _ string) error { a.ShowRuntimeStatus(); return nil }},
 		{Name: "queue", Title: "manage follow-ups waiting behind the current run", Run: func(a *app, _ string) error { a.ShowQueue(); return nil }},
 		{Name: "rules", Title: "show remembered approval rules", Run: func(a *app, _ string) error { a.ShowApprovalRules(); return nil }},
 		{Name: "attach", Title: "attach a local file to the next prompt", Takes: true, Run: func(a *app, path string) error { return a.AttachFile(path) }},
@@ -144,6 +143,21 @@ func presentMarkdown(speaker string) func(BlockPresentation, agent.Block) []head
 
 func presentTool(p BlockPresentation, block agent.Block) []headless.Block {
 	return []headless.Block{newToolBlock(p, block)}
+}
+
+func presentQuestion(p BlockPresentation, block agent.Block) []headless.Block {
+	if block.Question == nil {
+		return nil
+	}
+	lines := make([]string, 0, len(block.Question.Fields))
+	for _, field := range block.Question.Fields {
+		lines = append(lines, p.Glyphs.Bullet+" "+field.Prompt)
+	}
+	body := strings.Join(lines, "\n")
+	if block.Question.Detail != "" {
+		body = block.Question.Detail + "\n" + body
+	}
+	return []headless.Block{&kit.Message{Theme: p.Theme, Speaker: block.Question.Title, Body: body}}
 }
 
 func presentNotice(p BlockPresentation, block agent.Block) []headless.Block {

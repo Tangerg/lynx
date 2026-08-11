@@ -93,17 +93,22 @@ type sessionPageJSON struct {
 type sessionJSON struct {
 	ID        string    `json:"id"`
 	Title     string    `json:"title"`
+	Status    string    `json:"status"`
+	Model     string    `json:"model,omitempty"`
 	Workspace string    `json:"workspace"`
+	CreatedAt time.Time `json:"createdAt,omitzero"`
 	UpdatedAt time.Time `json:"updatedAt,omitzero"`
-	Revision  int64     `json:"revision"`
+	Favorite  bool      `json:"favorite,omitempty"`
+	Revision  uint64    `json:"revision"`
 }
 
 func writeSessionPageJSON(cmd *cobra.Command, page agent.SessionPage) error {
 	output := sessionPageJSON{Items: make([]sessionJSON, 0, len(page.Items)), NextCursor: page.NextCursor}
 	for _, session := range page.Items {
 		output.Items = append(output.Items, sessionJSON{
-			ID: session.ID, Title: session.Title, Workspace: session.Workspace,
-			UpdatedAt: session.UpdatedAt, Revision: session.Revision,
+			ID: session.ID, Title: session.Title, Status: string(session.Status), Model: session.Model,
+			Workspace: session.Workspace, CreatedAt: session.CreatedAt, UpdatedAt: session.UpdatedAt,
+			Favorite: session.Favorite, Revision: session.Revision,
 		})
 	}
 	return json.NewEncoder(cmd.OutOrStdout()).Encode(output)
@@ -131,26 +136,27 @@ func newSessionsShowCommand(provider runtimeProvider) *cobra.Command {
 			return writeSessionSnapshot(cmd, snapshot, asJSON)
 		},
 	}
-	cmd.Flags().BoolVar(&asJSON, "json", false, "Write newline-delimited event JSON")
+	cmd.Flags().BoolVar(&asJSON, "json", false, "Write the authoritative cold snapshot as JSON")
 	cmd.ValidArgsFunction = completeSessionIDs(provider)
 	return cmd
 }
 
 type sessionRenderer interface {
-	Render(agent.Envelope) error
+	Render(agent.RunEvent) error
 	Close() error
 }
 
 func writeSessionSnapshot(cmd *cobra.Command, snapshot agent.SessionSnapshot, asJSON bool) (writeErr error) {
-	var output sessionRenderer = render.NewText(cmd.OutOrStdout())
 	if asJSON {
-		output = render.NewNDJSON(cmd.OutOrStdout())
-	} else if _, err := fmt.Fprintf(cmd.OutOrStdout(), "%s · %s\n", snapshot.Session.Title, snapshot.Session.Workspace); err != nil {
+		return render.WriteSessionSnapshotJSON(cmd.OutOrStdout(), snapshot)
+	}
+	var output sessionRenderer = render.NewText(cmd.OutOrStdout())
+	if _, err := fmt.Fprintf(cmd.OutOrStdout(), "%s · %s\n", snapshot.Session.Title, snapshot.Session.Workspace); err != nil {
 		return err
 	}
 	defer func() { writeErr = errors.Join(writeErr, output.Close()) }()
-	for _, envelope := range snapshot.Events {
-		if err := output.Render(envelope); err != nil {
+	for _, block := range snapshot.Transcript {
+		if err := output.Render(agent.RunEvent{EventID: block.ID, RunID: "cold-read", SegmentID: "cold-read", Event: agent.BlockCompleted{Block: block}}); err != nil {
 			return err
 		}
 	}
@@ -158,7 +164,7 @@ func writeSessionSnapshot(cmd *cobra.Command, snapshot agent.SessionSnapshot, as
 }
 
 func newSessionsRenameCommand(provider runtimeProvider) *cobra.Command {
-	var revision int64
+	var revision uint64
 	cmd := &cobra.Command{
 		Use:          "rename <session-id> <title>",
 		Short:        "Rename a session",
@@ -169,7 +175,7 @@ func newSessionsRenameCommand(provider runtimeProvider) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			updated, err := runtime.UpdateSession(cmd.Context(), agent.UpdateSession{SessionID: args[0], Title: args[1], Revision: revision})
+			updated, err := runtime.UpdateSession(cmd.Context(), agent.UpdateSession{SessionID: args[0], Title: args[1], ExpectedRevision: revision})
 			if err != nil {
 				return err
 			}
@@ -183,19 +189,20 @@ func newSessionsRenameCommand(provider runtimeProvider) *cobra.Command {
 			return err
 		},
 	}
-	cmd.Flags().Int64Var(&revision, "revision", 0, "Only rename the revision previously read")
+	cmd.Flags().Uint64Var(&revision, "revision", 0, "Revision previously read from sessions ls/show")
+	_ = cmd.MarkFlagRequired("revision")
 	cmd.ValidArgsFunction = completeFirstSessionArgument(provider)
 	return cmd
 }
 
 func newSessionsForkCommand(provider runtimeProvider) *cobra.Command {
 	var (
-		at    uint64
-		title string
+		fromRun string
+		title   string
 	)
 	cmd := &cobra.Command{
 		Use:          "fork <session-id>",
-		Short:        "Fork a session from a transcript cursor",
+		Short:        "Fork a session at a run boundary",
 		Args:         cobra.ExactArgs(1),
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -203,7 +210,7 @@ func newSessionsForkCommand(provider runtimeProvider) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			forked, err := runtime.ForkSession(cmd.Context(), agent.ForkSession{SessionID: args[0], At: agent.Cursor(at), Title: title})
+			forked, err := runtime.ForkSession(cmd.Context(), agent.ForkSession{SessionID: args[0], FromRunID: fromRun, Title: title})
 			if err != nil {
 				return err
 			}
@@ -214,7 +221,7 @@ func newSessionsForkCommand(provider runtimeProvider) *cobra.Command {
 			return err
 		},
 	}
-	cmd.Flags().Uint64Var(&at, "at", 0, "Fork through a settled run cursor (default: latest)")
+	cmd.Flags().StringVar(&fromRun, "from-run", "", "Fork through this root run (default: complete session)")
 	cmd.Flags().StringVar(&title, "title", "", "Title for the fork")
 	cmd.ValidArgsFunction = completeSessionIDs(provider)
 	return cmd
@@ -222,8 +229,7 @@ func newSessionsForkCommand(provider runtimeProvider) *cobra.Command {
 
 func newSessionsDeleteCommand(provider runtimeProvider) *cobra.Command {
 	var (
-		revision int64
-		yes      bool
+		yes bool
 	)
 	cmd := &cobra.Command{
 		Use:          "delete <session-id>",
@@ -239,7 +245,7 @@ func newSessionsDeleteCommand(provider runtimeProvider) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if err := runtime.DeleteSession(cmd.Context(), agent.DeleteSession{SessionID: args[0], Revision: revision}); err != nil {
+			if err := runtime.DeleteSession(cmd.Context(), agent.DeleteSession{SessionID: args[0]}); err != nil {
 				return err
 			}
 			_, err = fmt.Fprintln(cmd.OutOrStdout(), args[0])
@@ -247,7 +253,6 @@ func newSessionsDeleteCommand(provider runtimeProvider) *cobra.Command {
 		},
 	}
 	cmd.Flags().BoolVarP(&yes, "yes", "y", false, "Confirm deletion")
-	cmd.Flags().Int64Var(&revision, "revision", 0, "Only delete the revision previously read")
 	cmd.ValidArgsFunction = completeSessionIDs(provider)
 	return cmd
 }

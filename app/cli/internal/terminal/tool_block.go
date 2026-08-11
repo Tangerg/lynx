@@ -38,7 +38,7 @@ type mutableToolBlock interface {
 type toolBlock struct {
 	theme    kit.Theme
 	glyphs   kit.Glyphs
-	syntax   highlight.Style
+	syntax   highlight.Renderer
 	call     agent.ToolCall
 	expanded bool
 	body     []headless.Block
@@ -275,7 +275,7 @@ func (t *toolBlock) rebuild() {
 			change.ShowNumbers(true)
 			t.body = append(t.body, change)
 		} else {
-			t.body = append(t.body, kit.NewCode(highlight.Lines("diff", truncateToolDetail(t.call.Diff), t.syntax)))
+			t.body = append(t.body, kit.NewCode(t.syntax.Lines("diff", truncateToolDetail(t.call.Diff))))
 		}
 	}
 	if output == "" {
@@ -283,17 +283,17 @@ func (t *toolBlock) rebuild() {
 	}
 	switch t.call.Kind {
 	case agent.ToolRead:
-		code := kit.NewCode(highlight.Lines(languageForPath(t.call.Path), output, t.syntax))
+		code := kit.NewCode(t.syntax.Lines(languageForPath(t.call.Path), output))
 		code.Gutter = kit.LineNumbers{Style: t.theme.Subtle, Separator: t.glyphs.Vertical}
 		t.body = append(t.body, code)
 	case agent.ToolSearch, agent.ToolWeb, agent.ToolTask:
 		paragraph := kit.NewParagraph(output, t.theme.Text)
-		paragraph.Links = t.call.Kind == agent.ToolWeb
+		paragraph.SetLinks(kit.LinkConfig{Enabled: t.call.Kind == agent.ToolWeb})
 		t.body = append(t.body, paragraph)
 	case agent.ToolUnknown, agent.ToolShell, agent.ToolEdit:
-		t.body = append(t.body, kit.NewCode(highlight.Lines("text", output, t.syntax)))
+		t.body = append(t.body, kit.NewCode(t.syntax.Lines("text", output)))
 	default:
-		t.body = append(t.body, kit.NewCode(highlight.Lines("text", output, t.syntax)))
+		t.body = append(t.body, kit.NewCode(t.syntax.Lines("text", output)))
 	}
 }
 

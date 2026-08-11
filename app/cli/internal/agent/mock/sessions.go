@@ -31,7 +31,15 @@ func (r *Runtime) ListSessions(ctx context.Context, query agent.SessionQuery) (a
 		}
 		items = append(items, state.meta)
 	}
-	slices.SortStableFunc(items, func(a, b agent.Session) int { return b.UpdatedAt.Compare(a.UpdatedAt) })
+	slices.SortStableFunc(items, func(a, b agent.Session) int {
+		if a.Favorite != b.Favorite {
+			if a.Favorite {
+				return -1
+			}
+			return 1
+		}
+		return b.UpdatedAt.Compare(a.UpdatedAt)
+	})
 
 	offset, err := pageOffset(query.Cursor, len(items))
 	if err != nil {
@@ -72,13 +80,22 @@ func (r *Runtime) GetSession(ctx context.Context, id string) (agent.SessionSnaps
 		return agent.SessionSnapshot{}, fmt.Errorf("%w: %s", agent.ErrSessionNotFound, id)
 	}
 	snapshot := agent.SessionSnapshot{
-		Session: state.meta,
-		Events:  cloneEnvelopes(state.events),
-		Cursor:  agent.Cursor(len(state.events)),
+		Session:      state.meta,
+		Transcript:   make([]agent.Block, len(state.items)),
+		Runs:         make([]agent.Run, 0, len(state.runs)),
+		Plan:         slices.Clone(state.plan),
+		PlanRevision: state.planRevision,
 	}
-	if active, ok := r.runs[state.active]; ok {
-		run := projectRun(active)
-		snapshot.Active = &run
+	for i, item := range state.items {
+		snapshot.Transcript[i] = item.block.Clone()
+	}
+	for _, runID := range state.runs {
+		if run := r.runs[runID]; run != nil {
+			snapshot.Runs = append(snapshot.Runs, projectRun(run))
+		}
+	}
+	if active := r.runs[state.active]; active != nil {
+		snapshot.Interactions = agent.CloneInteractions(active.interactions)
 	}
 	if err := snapshot.Validate(); err != nil {
 		return agent.SessionSnapshot{}, fmt.Errorf("mock: invalid session snapshot: %w", err)
@@ -101,11 +118,12 @@ func (r *Runtime) CreateSession(ctx context.Context, in agent.CreateSession) (ag
 	if title == "" {
 		title = "Untitled session"
 	}
+	now := r.now()
 	session := agent.Session{
-		ID: fmt.Sprintf("ses_mock_%d", r.next), Title: title, Workspace: workspace,
-		UpdatedAt: r.now(), Revision: 1,
+		ID: fmt.Sprintf("ses_mock_%d", r.next), Title: title, Status: agent.SessionIdle,
+		Workspace: workspace, CreatedAt: now, UpdatedAt: now, Revision: 1,
 	}
-	r.sessions[session.ID] = &sessionState{meta: session, changed: make(chan struct{})}
+	r.sessions[session.ID] = &sessionState{meta: session}
 	return session, nil
 }
 
@@ -119,7 +137,7 @@ func (r *Runtime) UpdateSession(ctx context.Context, in agent.UpdateSession) (ag
 	if !ok {
 		return agent.Session{}, fmt.Errorf("%w: %s", agent.ErrSessionNotFound, in.SessionID)
 	}
-	if in.Revision != 0 && in.Revision != state.meta.Revision {
+	if in.ExpectedRevision != state.meta.Revision {
 		return agent.Session{}, fmt.Errorf("%w: session %s is at revision %d", agent.ErrRevisionConflict, in.SessionID, state.meta.Revision)
 	}
 	title := strings.TrimSpace(in.Title)
@@ -142,19 +160,9 @@ func (r *Runtime) ForkSession(ctx context.Context, in agent.ForkSession) (agent.
 	if !ok {
 		return agent.Session{}, fmt.Errorf("%w: %s", agent.ErrSessionNotFound, in.SessionID)
 	}
-	if source.starting != nil {
-		return agent.Session{}, fmt.Errorf("%w: %s", agent.ErrSessionBusy, in.SessionID)
-	}
-	at := in.At
-	if at == 0 {
-		at = agent.Cursor(len(source.events))
-	}
-	if at > agent.Cursor(len(source.events)) {
-		return agent.Session{}, fmt.Errorf("mock: fork cursor %d is beyond session cursor %d", at, len(source.events))
-	}
-	prefix := agent.SessionSnapshot{Session: source.meta, Events: cloneEnvelopes(source.events[:at]), Cursor: at}
-	if err := prefix.Validate(); err != nil {
-		return agent.Session{}, fmt.Errorf("mock: fork cursor %d is not a settled run boundary: %w", at, err)
+	boundary, err := r.resolveForkBoundary(source, in.FromRunID)
+	if err != nil {
+		return agent.Session{}, err
 	}
 	r.next++
 	id := fmt.Sprintf("ses_mock_%d", r.next)
@@ -162,24 +170,44 @@ func (r *Runtime) ForkSession(ctx context.Context, in agent.ForkSession) (agent.
 	if title == "" {
 		title = source.meta.Title + " (fork)"
 	}
-	meta := agent.Session{
-		ID: id, Title: title, Workspace: source.meta.Workspace,
-		UpdatedAt: r.now(), Revision: 1,
-	}
-	state := &sessionState{meta: meta, changed: make(chan struct{})}
-	for _, sourceEnvelope := range source.events[:at] {
-		r.next++
-		envelope := cloneEnvelope(sourceEnvelope)
-		envelope.ID = fmt.Sprintf("evt_mock_%d", r.next)
-		envelope.SessionID = id
-		if started, ok := envelope.Event.(agent.RunStarted); ok {
-			started.SessionID = id
-			envelope.Event = started
-		}
-		state.events = append(state.events, envelope)
+	now := r.now()
+	meta := agent.Session{ID: id, Title: title, Status: agent.SessionIdle, Model: source.meta.Model, Workspace: source.meta.Workspace, CreatedAt: now, UpdatedAt: now, Revision: 1}
+	state := &sessionState{meta: meta, plan: slices.Clone(boundary.plan)}
+	if len(boundary.plan) != 0 {
+		state.planRevision = 1
 	}
 	r.sessions[id] = state
 	return meta, nil
+}
+
+type forkBoundary struct {
+	plan []agent.PlanItem
+}
+
+// resolveForkBoundary mirrors the runtime's durable boundary rule: an explicit
+// target must be terminal, while an implicit fork stops at the newest terminal
+// root and excludes every running or waiting tail.
+func (r *Runtime) resolveForkBoundary(source *sessionState, fromRunID string) (forkBoundary, error) {
+	boundaryIndex := -1
+	if fromRunID != "" {
+		boundaryIndex = slices.Index(source.runs, fromRunID)
+		if boundaryIndex < 0 || r.runs[fromRunID] == nil || r.runs[fromRunID].status != agent.RunStatusFinished {
+			return forkBoundary{}, fmt.Errorf("%w: %s", agent.ErrRunNotFound, fromRunID)
+		}
+	} else {
+		for i := len(source.runs) - 1; i >= 0; i-- {
+			if run := r.runs[source.runs[i]]; run != nil && run.status == agent.RunStatusFinished {
+				boundaryIndex = i
+				break
+			}
+		}
+	}
+	if boundaryIndex < 0 {
+		return forkBoundary{}, nil
+	}
+
+	boundaryRunID := source.runs[boundaryIndex]
+	return forkBoundary{plan: slices.Clone(source.planAtRun[boundaryRunID])}, nil
 }
 
 func (r *Runtime) DeleteSession(ctx context.Context, in agent.DeleteSession) error {
@@ -192,11 +220,8 @@ func (r *Runtime) DeleteSession(ctx context.Context, in agent.DeleteSession) err
 	if !ok {
 		return fmt.Errorf("%w: %s", agent.ErrSessionNotFound, in.SessionID)
 	}
-	if state.active != "" || state.starting != nil {
+	if state.active != "" {
 		return fmt.Errorf("%w: %s", agent.ErrSessionBusy, in.SessionID)
-	}
-	if in.Revision != 0 && in.Revision != state.meta.Revision {
-		return fmt.Errorf("%w: session %s is at revision %d", agent.ErrRevisionConflict, in.SessionID, state.meta.Revision)
 	}
 	delete(r.sessions, in.SessionID)
 	return nil
@@ -207,14 +232,17 @@ func (r *Runtime) seedHistory() {
 	if state == nil {
 		return
 	}
-	run := &runState{id: "run_demo_history", sessionID: state.meta.ID, status: agent.RunComplete}
-	r.runs[run.id] = run
-	for _, event := range []agent.Event{
-		agent.RunStarted{RunID: run.id, SessionID: state.meta.ID, Options: agent.RunOptions{Model: "mock-balanced", Mode: agent.ModeBuild, Permission: agent.PermissionAsk, Effort: "medium"}},
-		agent.BlockCompleted{Block: agent.Block{ID: "demo_prompt", Kind: agent.BlockUser, Text: "Why is the cache expiry test flaky?"}},
-		agent.BlockCompleted{Block: agent.Block{ID: "demo_answer", Kind: agent.BlockAssistant, Text: "The fixed sleep races the janitor. Wait for its sweep signal instead."}},
-		agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCompleted}, Usage: agent.Usage{InputTokens: 820, OutputTokens: 94, CachedTokens: 512, Duration: 3 * time.Second}},
-	} {
-		r.emitLocked(run, event)
+	run := &runState{
+		id: "run_demo_history", sessionID: state.meta.ID, provider: "mock", model: "balanced",
+		status: agent.RunStatusFinished, segments: make(map[string]*segmentState),
+		outcome: agent.Outcome{Status: agent.OutcomeCompleted},
+		usage:   agent.Usage{InputTokens: 820, OutputTokens: 94, CacheReadTokens: 512, Duration: 3 * time.Second},
 	}
+	r.runs[run.id] = run
+	state.runs = append(state.runs, run.id)
+	state.items = append(state.items,
+		durableItem{runID: run.id, block: agent.Block{ID: "demo_prompt", RunID: run.id, Status: agent.BlockStatusCompleted, Kind: agent.BlockUser, Text: "Why is the cache expiry test flaky?"}},
+		durableItem{runID: run.id, block: agent.Block{ID: "demo_answer", RunID: run.id, Status: agent.BlockStatusCompleted, Kind: agent.BlockAssistant, Text: "The fixed sleep races the janitor. Wait for its sweep signal instead."}},
+	)
+	state.planAtRun = map[string][]agent.PlanItem{run.id: nil}
 }

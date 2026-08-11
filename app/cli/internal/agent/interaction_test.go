@@ -1,85 +1,44 @@
 package agent
 
-import (
-	"strings"
-	"testing"
-)
+import "testing"
 
-func TestQuestionValidationRejectsAmbiguousSchemas(t *testing.T) {
-	question := Question{
-		InterruptID: "question_1",
-		Title:       "Choose",
-		Fields: []QuestionField{
-			{ID: "strategy", Label: "Strategy", Kind: QuestionSingle, Options: []QuestionOption{{Value: "safe", Recommended: true}, {Value: "safe", Recommended: true}}},
-			{ID: "strategy", Label: "Again", Kind: QuestionText},
-		},
-	}
-	err := question.Validate()
-	if err == nil {
-		t.Fatal("ambiguous question was accepted")
-	}
-	for _, want := range []string{"repeats option", "duplicated"} {
-		if !strings.Contains(err.Error(), want) {
-			t.Fatalf("validation error %q does not mention %q", err, want)
-		}
-	}
-}
-
-func TestValidateAnswerEnforcesEveryQuestionKind(t *testing.T) {
-	question := Question{
-		InterruptID: "question_1",
-		Title:       "Configure",
-		Fields: []QuestionField{
-			{ID: "name", Label: "Name", Kind: QuestionText, Required: true},
-			{ID: "strategy", Label: "Strategy", Kind: QuestionSingle, Options: []QuestionOption{{Value: "safe"}, {Value: "fast"}}},
-			{ID: "checks", Label: "Checks", Kind: QuestionMulti, Options: []QuestionOption{{Value: "test"}, {Value: "lint"}}},
-			{ID: "confirm", Label: "Confirm", Kind: QuestionBool},
-		},
-	}
-	valid := QuestionAnswer{Values: map[string][]string{
-		"name": {"cache"}, "strategy": {"safe"}, "checks": {"test", "lint"}, "confirm": {"false"},
+func TestQuestionAnswerUsesFieldOrder(t *testing.T) {
+	question := Question{ItemID: "q_1", Title: "Configuration", Fields: []QuestionField{
+		{Prompt: "Name", Kind: QuestionText},
+		{Prompt: "Targets", Kind: QuestionMulti, Options: []QuestionOption{{Label: "linux"}, {Label: "darwin"}}},
 	}}
-	if err := ValidateAnswer(question, valid); err != nil {
-		t.Fatalf("valid answer: %v", err)
+	answer := QuestionAnswer{Values: [][]string{{"lyra"}, {"linux", "darwin"}}}
+	if err := ValidateAnswer(question, answer); err != nil {
+		t.Fatal(err)
 	}
-	for name, answer := range map[string]QuestionAnswer{
-		"required":   {Values: map[string][]string{"name": {" "}}},
-		"unknown":    {Values: map[string][]string{"name": {"cache"}, "extra": {"x"}}},
-		"single":     {Values: map[string][]string{"name": {"cache"}, "strategy": {"safe", "fast"}}},
-		"multi":      {Values: map[string][]string{"name": {"cache"}, "checks": {"test", "test"}}},
-		"boolean":    {Values: map[string][]string{"name": {"cache"}, "confirm": {"maybe"}}},
-		"cancel mix": {Canceled: true, Values: map[string][]string{"name": {"cache"}}},
-	} {
-		t.Run(name, func(t *testing.T) {
-			if err := ValidateAnswer(question, answer); err == nil {
-				t.Fatal("invalid answer was accepted")
-			}
-		})
+	if err := ValidateAnswer(question, QuestionAnswer{Values: [][]string{{"lyra"}}}); err == nil {
+		t.Fatal("partial answer set was accepted")
 	}
 }
 
-func TestApprovalAnswerCannotRememberADenial(t *testing.T) {
-	approval := Approval{InterruptID: "approval_1", Title: "Edit file"}
-	if err := ValidateAnswer(approval, ApprovalAnswer{Decision: ApprovalAllow, Remember: RememberProject}); err != nil {
-		t.Fatalf("valid approval answer: %v", err)
+func TestApprovalHonorsRememberable(t *testing.T) {
+	approval := runningApproval("a_1", "shell")
+	if err := ValidateAnswer(approval, ApprovalAnswer{Decision: ApprovalApprove, Remember: RememberProject}); err == nil {
+		t.Fatal("unrememberable approval was remembered")
 	}
-	if err := ValidateAnswer(approval, ApprovalAnswer{Decision: ApprovalDeny, Remember: RememberGlobal}); err == nil {
-		t.Fatal("remembered denial was accepted as an allow rule")
+	approval.Rememberable = true
+	if err := ValidateAnswer(approval, ApprovalAnswer{Decision: ApprovalApprove, Remember: RememberProject}); err != nil {
+		t.Fatal(err)
 	}
 }
 
-func TestAnswerAndInteractionClonesOwnNestedCollections(t *testing.T) {
-	question := Question{InterruptID: "q", Title: "Q", Fields: []QuestionField{{ID: "f", Label: "F", Kind: QuestionSingle, Options: []QuestionOption{{Value: "a"}}}}}
-	clonedQuestion := CloneInteraction(question).(Question)
-	clonedQuestion.Fields[0].Options[0].Value = "changed"
-	if question.Fields[0].Options[0].Value != "a" {
-		t.Fatal("CloneInteraction shared question options")
+func runningApproval(itemID, title string) Approval {
+	return Approval{
+		ItemID: itemID, Title: title,
+		Tool: &ToolCall{Kind: ToolShell, Name: "shell", Status: ToolRunning},
 	}
+}
 
-	answer := QuestionAnswer{Values: map[string][]string{"f": {"a"}}}
-	clonedAnswer := CloneAnswer(answer).(QuestionAnswer)
-	clonedAnswer.Values["f"][0] = "changed"
-	if answer.Values["f"][0] != "a" || EqualAnswers(answer, clonedAnswer) {
-		t.Fatal("CloneAnswer shared values or EqualAnswers ignored a change")
+func TestQuestionFieldEnforcesRuntimePresentationBounds(t *testing.T) {
+	if err := (QuestionField{Prompt: "Choose", Header: "1234567890123", Kind: QuestionText}).Validate(); err == nil {
+		t.Fatal("overlong question header was accepted")
+	}
+	if err := (QuestionField{Prompt: "Choose", Kind: QuestionSingle, Options: []QuestionOption{{Label: "only"}}}).Validate(); err == nil {
+		t.Fatal("single-option choice was accepted")
 	}
 }

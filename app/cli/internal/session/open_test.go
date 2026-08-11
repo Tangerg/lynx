@@ -15,7 +15,7 @@ func TestOpenCreatesOrRestoresAValidatedSnapshot(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
-	if created.Session.ID == "" || len(created.Events) != 0 || created.Active != nil {
+	if created.Session.ID == "" || len(created.Transcript) != 0 || len(created.Runs) != 0 {
 		t.Fatalf("created snapshot = %+v", created)
 	}
 

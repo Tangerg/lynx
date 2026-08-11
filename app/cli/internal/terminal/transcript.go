@@ -21,7 +21,7 @@ type transcriptView struct {
 	glyphs kit.Glyphs
 	wheel  input.Wheel
 	look   markdown.Look
-	syntax highlight.Style
+	syntax highlight.Renderer
 
 	content        headless.Transcript
 	scroll         headless.Scroll
@@ -120,7 +120,7 @@ func newTranscriptView(
 	theme kit.Theme,
 	glyphs kit.Glyphs,
 	wheel input.Wheel,
-	syntax highlight.Style,
+	syntax highlight.Renderer,
 	retain int,
 	details bool,
 	clipboard headless.Clipboard,
@@ -695,7 +695,7 @@ func (c *transcriptView) Retain(printer kit.Printer) {
 		finished++
 	}
 	if excess := finished - c.retain; excess > 0 {
-		c.view.CommitN(printer, excess)
+		c.view.Commit(printer, excess)
 	}
 	first := c.content.FirstBlock()
 	c.toolViews = slices.DeleteFunc(c.toolViews, func(item trackedTool) bool { return item.id < first })

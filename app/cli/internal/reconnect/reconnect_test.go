@@ -23,8 +23,8 @@ func TestReconnectRetriesOnlyTransientErrorsWithinBudget(t *testing.T) {
 	if _, ok := policy.Next(1, agent.ErrEventConflict); ok {
 		t.Fatal("identity conflict was treated as transient")
 	}
-	if _, ok := policy.Next(1, agent.ErrEventGap); !ok {
-		t.Fatal("replayable gap was not treated as transient")
+	if _, ok := policy.Next(1, agent.ErrReplayUnavailable); ok {
+		t.Fatal("unavailable replay was treated as a retryable disconnect")
 	}
 }
 
@@ -33,29 +33,5 @@ func TestWaitHonorsCancellation(t *testing.T) {
 	cancel()
 	if err := Wait(ctx, time.Hour); !errors.Is(err, context.Canceled) {
 		t.Fatalf("Wait error = %v", err)
-	}
-}
-
-func TestControlValueRetriesOnlyAmbiguousTransportFailures(t *testing.T) {
-	attempts := 0
-	value, err := ControlValue(t.Context(), Policy{Attempts: 2}, func() (string, error) {
-		attempts++
-		if attempts < 3 {
-			return "", errors.Join(errors.New("response lost"), agent.ErrDisconnected)
-		}
-		return "stable", nil
-	})
-	if err != nil || value != "stable" || attempts != 3 {
-		t.Fatalf("ControlValue = %q, %v after %d attempts", value, err, attempts)
-	}
-
-	want := errors.New("rejected")
-	attempts = 0
-	_, err = ControlValue(t.Context(), Policy{Attempts: 10}, func() (string, error) {
-		attempts++
-		return "", want
-	})
-	if !errors.Is(err, want) || attempts != 1 {
-		t.Fatalf("non-transient result = %v after %d attempts", err, attempts)
 	}
 }

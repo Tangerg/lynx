@@ -27,16 +27,17 @@ type finishObservingRuntime struct {
 	once     sync.Once
 }
 
-func (r *finishObservingRuntime) FollowRun(ctx context.Context, request agent.FollowRun) (agent.RunStream, error) {
-	stream, err := r.recordingRuntime.FollowRun(ctx, request)
+func (r *finishObservingRuntime) StartRun(ctx context.Context, request agent.StartRun) (agent.SegmentStream, error) {
+	stream, err := r.recordingRuntime.StartRun(ctx, request)
 	if err != nil {
-		return nil, err
+		return agent.SegmentStream{}, err
 	}
-	return func(yield func(agent.Envelope, error) bool) {
-		for envelope, streamErr := range stream {
-			continued := yield(envelope, streamErr)
+	original := stream.Events
+	stream.Events = func(yield func(agent.RunEvent, error) bool) {
+		for event, streamErr := range original {
+			continued := yield(event, streamErr)
 			if streamErr == nil {
-				if _, finished := envelope.Event.(agent.RunFinished); finished {
+				if _, finished := event.Event.(agent.RunFinished); finished {
 					r.once.Do(func() { close(r.finished) })
 				}
 			}
@@ -44,7 +45,8 @@ func (r *finishObservingRuntime) FollowRun(ctx context.Context, request agent.Fo
 				return
 			}
 		}
-	}, nil
+	}
+	return stream, nil
 }
 
 func testQueueDrawer(t *testing.T, messages ...agent.Message) (*queueDrawer, *promptqueue.Queue) {
@@ -518,7 +520,7 @@ func TestEditingTheFrontPromptHoldsAutomaticDispatchUntilSave(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if snapshot.Active != nil {
+	if _, active := snapshot.ActiveRun(); active {
 		t.Fatal("primary run remained active after the UI presented its completed state")
 	}
 	if got := backend.startCount(); got != 1 {

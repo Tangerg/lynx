@@ -55,12 +55,11 @@ func (p *picker[T]) Reset() {
 }
 
 func (p *picker[T]) Draw(frame headless.Frame) {
-	p.areas.Stage(frame, pickerAreas{})
-	rects := layout.Down.Rects(frame.Bounds().Size(),
+	rects := (layout.Flow{Axis: layout.Down}).Rects(frame.Bounds().Size(), []layout.Slot{
 		layout.Slot{Size: layout.Fixed(1)},
 		layout.Slot{Size: layout.Flex(1)},
 		layout.Slot{Size: layout.Fixed(1)},
-	)
+	})
 	rows := frame.Subs(rects)
 	p.areas.Stage(frame, pickerAreas{query: rects[0], list: rects[1]})
 	p.query.Draw(rows[0])

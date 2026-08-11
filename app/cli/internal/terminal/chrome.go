@@ -33,7 +33,7 @@ func newSessionHeader(theme kit.Theme, glyphs kit.Glyphs, session agent.Session)
 
 func (h *sessionHeader) SetSession(session agent.Session) { h.session = session }
 
-func (h *sessionHeader) SetUsage(usage agent.Usage) { h.usage = usage }
+func (h *sessionHeader) SetUsage(usage agent.Usage) { h.usage = usage.Clone() }
 
 func (h *sessionHeader) Measure(width int) int {
 	if width < headerMinWidth {
@@ -242,9 +242,9 @@ func (s *statusView) Draw(view grid.View) {
 	switch s.outcome.Status {
 	case agent.OutcomeCompleted:
 		style = s.theme.Success
-	case agent.OutcomeCanceled:
+	case agent.OutcomeCanceled, agent.OutcomeTimedOut, agent.OutcomeMaxSteps, agent.OutcomeMaxBudget:
 		style = s.theme.Warning
-	case agent.OutcomeFailed:
+	case agent.OutcomeFailed, agent.OutcomeLost:
 		style = s.theme.Danger
 	}
 	left := s.doing
@@ -260,25 +260,35 @@ func (s *statusView) Draw(view grid.View) {
 func (s *statusView) setOptions(options agent.RunOptions) { s.options = options }
 
 func optionsLabel(options agent.RunOptions) string {
-	parts := make([]string, 0, 4)
-	parts = append(parts, modelLabel(options.Model))
-	if options.Effort != "" {
-		parts = append(parts, options.Effort)
-	}
-	if options.Mode != "" {
-		parts = append(parts, string(options.Mode))
-	}
-	if options.Permission != "" {
-		parts = append(parts, string(options.Permission))
+	parts := []string{modelLabel(options)}
+	if limits := limitsLabel(options.Limits); limits != "" {
+		parts = append(parts, strings.TrimPrefix(limits, "\n"))
 	}
 	return strings.Join(parts, " · ")
 }
 
-func modelLabel(model string) string {
-	if model = strings.TrimSpace(model); model != "" {
-		return model
+func modelLabel(options agent.RunOptions) string {
+	if options.Provider != "" && options.Model != "" {
+		return options.Provider + "/" + options.Model
 	}
 	return "runtime default"
+}
+
+func limitsLabel(limits agent.RunLimits) string {
+	parts := make([]string, 0, 3)
+	if limits.MaxTotalTokens > 0 {
+		parts = append(parts, fmt.Sprintf("tokens ≤ %d", limits.MaxTotalTokens))
+	}
+	if limits.MaxSteps > 0 {
+		parts = append(parts, fmt.Sprintf("steps ≤ %d", limits.MaxSteps))
+	}
+	if limits.MaxBudgetUSD > 0 {
+		parts = append(parts, fmt.Sprintf("budget ≤ $%.2f", limits.MaxBudgetUSD))
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	return "\nlimits: " + strings.Join(parts, ", ")
 }
 
 func (s *statusView) tick(elapsed time.Duration) {
@@ -287,15 +297,23 @@ func (s *statusView) tick(elapsed time.Duration) {
 }
 
 func (s *statusView) settled(outcome agent.Outcome, usage agent.Usage) {
-	s.outcome, s.usage, s.elapsed = outcome, usage, ""
+	s.outcome, s.usage, s.elapsed = outcome, usage.Clone(), ""
 	s.busy = false
 	switch outcome.Status {
 	case agent.OutcomeCompleted:
 		s.doing = "complete"
 	case agent.OutcomeCanceled:
 		s.doing = "canceled"
+	case agent.OutcomeTimedOut:
+		s.doing = "timed out"
+	case agent.OutcomeMaxSteps:
+		s.doing = "max steps"
+	case agent.OutcomeMaxBudget:
+		s.doing = "max budget"
 	case agent.OutcomeFailed:
 		s.doing = "failed: " + outcome.Error
+	case agent.OutcomeLost:
+		s.doing = "lost: " + outcome.Error
 	default:
 		s.doing = "ready"
 	}
@@ -319,11 +337,11 @@ func usageLabel(usage agent.Usage) string {
 		return ""
 	}
 	parts := []string{"↑" + formatThousands(usage.InputTokens), "↓" + formatThousands(usage.OutputTokens)}
-	if usage.CachedTokens > 0 {
-		parts = append(parts, "cached "+formatThousands(usage.CachedTokens))
+	if usage.CacheReadTokens > 0 {
+		parts = append(parts, "cached "+formatThousands(usage.CacheReadTokens))
 	}
-	if usage.CostUSD > 0 {
-		parts = append(parts, "$"+strconv.FormatFloat(usage.CostUSD, 'f', 4, 64))
+	if usage.CostUSD != nil {
+		parts = append(parts, "$"+strconv.FormatFloat(*usage.CostUSD, 'f', 4, 64))
 	}
 	if usage.Duration > 0 {
 		parts = append(parts, formatCompactDuration(usage.Duration))

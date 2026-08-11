@@ -4,19 +4,12 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"unicode"
 )
 
-// MaxMessageAttachments is the product-level limit shared by every input
-// adapter and runtime implementation.
 const MaxMessageAttachments = 16
 
-// Validate checks a complete idempotent start request.
 func (r StartRun) Validate() error {
 	var problems []error
-	if err := validateRequestID(r.RequestID); err != nil {
-		problems = append(problems, err)
-	}
 	if strings.TrimSpace(r.SessionID) == "" {
 		problems = append(problems, errors.New("session id is empty"))
 	}
@@ -32,7 +25,6 @@ func (r StartRun) Validate() error {
 	return nil
 }
 
-// Validate checks a user message and the attachment identities it owns.
 func (m Message) Validate() error {
 	if strings.TrimSpace(m.Text) == "" && len(m.Attachments) == 0 {
 		return errors.New("message is empty")
@@ -46,6 +38,9 @@ func (m Message) Validate() error {
 		if err := attachment.Validate(); err != nil {
 			return fmt.Errorf("message attachment %d: %w", i+1, err)
 		}
+		if strings.TrimSpace(attachment.Path) == "" {
+			return fmt.Errorf("message attachment %d: local path is empty", i+1)
+		}
 		if _, duplicate := ids[attachment.ID]; duplicate {
 			return fmt.Errorf("message repeats attachment id %q", attachment.ID)
 		}
@@ -58,56 +53,102 @@ func (m Message) Validate() error {
 	return nil
 }
 
-// Validate checks a follow subscription request.
-func (r FollowRun) Validate() error {
+func (r SubscribeRun) Validate() error {
 	if strings.TrimSpace(r.RunID) == "" {
-		return errors.New("follow run: run id is empty")
+		return errors.New("subscribe run: run id is empty")
+	}
+	if strings.TrimSpace(r.SegmentID) == "" {
+		return errors.New("subscribe run: segment id is empty")
 	}
 	return nil
 }
 
-// Validate checks the identity and payload of a resume request. Matching the
-// answer to the live interaction remains the runtime's responsibility.
 func (r ResumeRun) Validate() error {
 	if strings.TrimSpace(r.RunID) == "" {
 		return errors.New("resume run: run id is empty")
 	}
-	if strings.TrimSpace(r.InterruptID) == "" {
-		return errors.New("resume run: interrupt id is empty")
+	if len(r.Answers) == 0 {
+		return errors.New("resume run: answers are empty")
 	}
-	if r.Answer == nil {
-		return errors.New("resume run: answer is nil")
+	seen := make(map[string]struct{}, len(r.Answers))
+	for i, response := range r.Answers {
+		id := strings.TrimSpace(response.ItemID)
+		if id == "" {
+			return fmt.Errorf("resume run: answer %d has no item id", i+1)
+		}
+		if response.Answer == nil {
+			return fmt.Errorf("resume run: answer %d is nil", i+1)
+		}
+		if _, duplicate := seen[id]; duplicate {
+			return fmt.Errorf("resume run: item %q is answered more than once", id)
+		}
+		seen[id] = struct{}{}
+	}
+	if r.Message != nil {
+		if err := r.Message.Validate(); err != nil {
+			return fmt.Errorf("resume run: %w", err)
+		}
 	}
 	return nil
 }
 
-// Validate checks that cancellation names exactly one logical run request.
 func (r CancelRun) Validate() error {
-	byRun := strings.TrimSpace(r.RunID) != ""
-	byRequest := strings.TrimSpace(r.SessionID) != "" || strings.TrimSpace(r.RequestID) != ""
-	if byRun == byRequest {
-		return errors.New("cancel run: identify either a run or a start request")
-	}
-	if byRequest {
-		if strings.TrimSpace(r.SessionID) == "" {
-			return errors.New("cancel run: session id is empty")
-		}
-		if strings.TrimSpace(r.RequestID) == "" {
-			return errors.New("cancel run: request id is empty")
-		}
-		if err := validateRequestID(r.RequestID); err != nil {
-			return fmt.Errorf("cancel run: %w", err)
-		}
+	if strings.TrimSpace(r.RunID) == "" {
+		return errors.New("cancel run: run id is empty")
 	}
 	return nil
 }
 
-func validateRequestID(id string) error {
-	if id == "" {
-		return nil
+func (s SegmentStream) Validate() error {
+	var problems []error
+	if strings.TrimSpace(s.RunID) == "" {
+		problems = append(problems, errors.New("run id is empty"))
 	}
-	if len(id) > 128 || strings.IndexFunc(id, unicode.IsSpace) >= 0 {
-		return fmt.Errorf("request id %q is invalid", id)
+	if strings.TrimSpace(s.SegmentID) == "" {
+		problems = append(problems, errors.New("segment id is empty"))
+	}
+	if s.Events == nil {
+		problems = append(problems, errors.New("event stream is nil"))
+	}
+	if err := errors.Join(problems...); err != nil {
+		return fmt.Errorf("segment stream: %w", err)
+	}
+	return nil
+}
+
+// ValidateStart enforces the runs.start-specific response invariant: every
+// accepted start creates and names its opening user item.
+func (s SegmentStream) ValidateStart() error {
+	if err := s.Validate(); err != nil {
+		return err
+	}
+	if strings.TrimSpace(s.UserItemID) == "" {
+		return errors.New("start segment stream: user item id is empty")
+	}
+	return nil
+}
+
+// ValidateResume enforces the runs.resume response union. UserItemID exists
+// exactly when an optional continuation message was committed with the answers.
+func (s SegmentStream) ValidateResume(message *Message) error {
+	if err := s.Validate(); err != nil {
+		return err
+	}
+	hasUserItem := strings.TrimSpace(s.UserItemID) != ""
+	if hasUserItem != (message != nil) {
+		return errors.New("resume segment stream: user item id does not match input presence")
+	}
+	return nil
+}
+
+// ValidateSubscription enforces that rebinding an existing segment creates no
+// user item of its own.
+func (s SegmentStream) ValidateSubscription() error {
+	if err := s.Validate(); err != nil {
+		return err
+	}
+	if s.UserItemID != "" {
+		return errors.New("subscription segment stream carries a user item id")
 	}
 	return nil
 }

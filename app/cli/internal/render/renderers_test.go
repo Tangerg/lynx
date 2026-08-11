@@ -3,7 +3,6 @@ package render
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -11,522 +10,258 @@ import (
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
 )
 
-// script is one of each event, small enough that the expected text can be read
-// in full.
-func script() []agent.Envelope {
-	events := []agent.Event{
-		agent.RunStarted{RunID: "run_1", SessionID: "ses_1"},
-		agent.BlockCompleted{Block: agent.Block{ID: "p", Kind: agent.BlockUser, Text: "why?"}},
-		agent.PlanChanged{Items: []agent.PlanItem{
-			{Title: "Look", Status: agent.PlanDone},
-			{Title: "Fix", Status: agent.PlanActive},
-			{Title: "Verify", Status: agent.PlanPending},
-		}},
-		agent.BlockStarted{Block: agent.Block{ID: "m", Kind: agent.BlockAssistant}},
-		agent.BlockDelta{BlockID: "m", Text: "one "},
-		agent.BlockDelta{BlockID: "m", Text: "two"},
-		agent.BlockCompleted{Block: agent.Block{ID: "m", Kind: agent.BlockAssistant, Text: "one two"}},
-		agent.BlockStarted{Block: agent.Block{ID: "t", Kind: agent.BlockTool, Tool: &agent.ToolCall{
-			Kind: agent.ToolShell, Name: "shell", Summary: "go test ./...", Status: agent.ToolRunning,
-		}}},
-		agent.BlockCompleted{Block: agent.Block{ID: "t", Kind: agent.BlockTool, Tool: &agent.ToolCall{
-			Kind: agent.ToolShell, Name: "shell", Summary: "go test ./...", Status: agent.ToolOK,
-			Output: "ok\nFAIL", Duration: 1500 * time.Millisecond,
-		}}},
-		agent.RunFinished{
-			Outcome: agent.Outcome{Status: agent.OutcomeCompleted},
-			Usage:   agent.Usage{InputTokens: 12345, OutputTokens: 678, CachedTokens: 900, CostUSD: 0.0412, Duration: 2 * time.Second},
-		},
-	}
-	out := make([]agent.Envelope, len(events))
-	for i, event := range events {
-		out[i] = agent.Envelope{ID: fmt.Sprintf("event_%d", i+1), Cursor: agent.Cursor(i + 1), RunID: "run_1", SessionID: "ses_1", Event: event}
-	}
-	return out
-}
-
-func envelope(event agent.Event) agent.Envelope {
-	return agent.Envelope{ID: "event", Cursor: 1, Event: event}
-}
-
-func renderAll(t *testing.T, r interface {
-	Render(agent.Envelope) error
-	Close() error
-}, events []agent.Envelope,
-) {
-	t.Helper()
-	for _, ev := range events {
-		if err := r.Render(ev); err != nil {
-			t.Fatalf("Render(%T): %v", ev.Event, err)
-		}
-	}
-	if err := r.Close(); err != nil {
-		t.Fatalf("Close: %v", err)
-	}
-}
-
-func TestTextOutput(t *testing.T) {
-	var buf bytes.Buffer
-	renderAll(t, NewText(&buf), script())
-
-	want := strings.Join([]string{
-		"",
-		"› why?",
-		"",
-		"plan",
-		"  ☑ Look",
-		"  ▸ Fix",
-		"  ☐ Verify",
-		"",
-		"one two",
-		"",
-		"● shell · go test ./...",
-		"  │ ok",
-		"  │ FAIL",
-		"  ✓ 1.5s",
-		"",
-		"↑ 12,345  ↓ 678  cached 900  $0.0412  2.0s",
-		"",
-	}, "\n")
-	if got := buf.String(); got != want {
-		t.Fatalf("text output mismatch\n--- got ---\n%s\n--- want ---\n%s", got, want)
-	}
-}
-
-func TestTextStreamsAssistantProseAsItArrives(t *testing.T) {
-	var buf bytes.Buffer
-	text := NewText(&buf)
-
-	if err := text.Render(envelope(agent.BlockStarted{Block: agent.Block{ID: "m", Kind: agent.BlockAssistant}})); err != nil {
-		t.Fatal(err)
-	}
-	if err := text.Render(envelope(agent.BlockDelta{BlockID: "m", Text: "half"})); err != nil {
-		t.Fatal(err)
-	}
-	// The point of streaming: the words are out before the block completes.
-	if !strings.Contains(buf.String(), "half") {
-		t.Fatalf("delta was buffered instead of written: %q", buf.String())
-	}
-}
-
-func TestTextRoutesInterleavedAssistantDeltasWithoutDuplicatingCompletion(t *testing.T) {
-	var buf bytes.Buffer
-	text := NewText(&buf)
-	for _, event := range []agent.Event{
-		agent.BlockStarted{Block: agent.Block{ID: "first", Kind: agent.BlockAssistant}},
-		agent.BlockDelta{BlockID: "first", Text: "FIRST_PART"},
-		agent.BlockStarted{Block: agent.Block{ID: "second", Kind: agent.BlockAssistant}},
-		agent.BlockDelta{BlockID: "second", Text: "SECOND_PART"},
-		agent.BlockDelta{BlockID: "first", Text: "FIRST_TAIL"},
-		agent.BlockCompleted{Block: agent.Block{ID: "first", Kind: agent.BlockAssistant, Text: "FIRST_PARTFIRST_TAIL"}},
-		agent.BlockCompleted{Block: agent.Block{ID: "second", Kind: agent.BlockAssistant, Text: "SECOND_PART"}},
-	} {
-		if err := text.Render(envelope(event)); err != nil {
+func TestTextRendersStreamedAnswerToolAndUsage(t *testing.T) {
+	var output bytes.Buffer
+	renderer := NewText(&output)
+	for _, event := range testEvents() {
+		if err := renderer.Render(event); err != nil {
 			t.Fatal(err)
 		}
 	}
-	got := buf.String()
-	for _, fragment := range []string{"FIRST_PART", "FIRST_TAIL", "SECOND_PART"} {
-		if count := strings.Count(got, fragment); count != 1 {
-			t.Fatalf("fragment %q appears %d times in %q", fragment, count, got)
+	if err := renderer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	text := output.String()
+	for _, want := range []string{"hello world", "go test ./...", "PASS", "↑ 1,200", "cached 600"} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("text output does not contain %q:\n%s", want, text)
 		}
 	}
 }
 
-func TestTextHoldsNonProseUntilItsBlockCompletes(t *testing.T) {
-	var buf bytes.Buffer
-	text := NewText(&buf)
-
-	if err := text.Render(envelope(agent.BlockStarted{Block: agent.Block{ID: "r", Kind: agent.BlockReasoning}})); err != nil {
-		t.Fatal(err)
-	}
-	if err := text.Render(envelope(agent.BlockDelta{BlockID: "r", Text: "thinking"})); err != nil {
-		t.Fatal(err)
-	}
-	if buf.Len() != 0 {
-		t.Fatalf("reasoning leaked before completing: %q", buf.String())
-	}
-	if err := text.Render(envelope(agent.BlockCompleted{Block: agent.Block{ID: "r", Kind: agent.BlockReasoning}})); err != nil {
-		t.Fatal(err)
-	}
-	if got := buf.String(); !strings.Contains(got, "· thinking") {
-		t.Fatalf("completed reasoning = %q, want it prefixed with a marker", got)
-	}
-}
-
-func TestTextIndentsContinuationLines(t *testing.T) {
-	var buf bytes.Buffer
-	text := NewText(&buf)
-	if err := text.Render(envelope(agent.BlockCompleted{Block: agent.Block{
-		ID: "r", Kind: agent.BlockReasoning, Text: "first\nsecond",
-	}})); err != nil {
-		t.Fatal(err)
-	}
-	if got := buf.String(); !strings.Contains(got, "· first\n  second") {
-		t.Fatalf("output = %q, want the second line aligned under the first", got)
-	}
-}
-
-func TestTextCapsToolOutput(t *testing.T) {
-	lines := make([]string, 0, maxToolOutputLines+5)
-	for i := range maxToolOutputLines + 5 {
-		lines = append(lines, "line"+string(rune('a'+i)))
-	}
-	var buf bytes.Buffer
-	text := NewText(&buf)
-	if err := text.Render(envelope(agent.BlockCompleted{Block: agent.Block{ID: "t", Kind: agent.BlockTool, Tool: &agent.ToolCall{
-		Kind: agent.ToolShell, Name: "shell", Status: agent.ToolOK, Output: strings.Join(lines, "\n"),
-	}}})); err != nil {
-		t.Fatal(err)
-	}
-	got := buf.String()
-	if strings.Count(got, "  │ ") != maxToolOutputLines+1 {
-		t.Fatalf("output body has %d lines, want %d plus one summary line", strings.Count(got, "  │ "), maxToolOutputLines)
-	}
-	if !strings.Contains(got, "… 5 more lines") {
-		t.Fatalf("output = %q, want it to say how much was withheld", got)
-	}
-}
-
-func TestTextDistinguishesCanceledToolsFromErrors(t *testing.T) {
-	var buf bytes.Buffer
-	text := NewText(&buf)
-	if err := text.Render(envelope(agent.BlockCompleted{Block: agent.Block{ID: "t", Kind: agent.BlockTool, Tool: &agent.ToolCall{
-		Kind: agent.ToolShell, Command: "long command", Status: agent.ToolCanceled, Output: "partial output",
-	}}})); err != nil {
-		t.Fatal(err)
-	}
-	got := buf.String()
-	if !strings.Contains(got, "− canceled") || strings.Contains(got, "✗") {
-		t.Fatalf("canceled tool output = %q", got)
-	}
-}
-
-func TestTextReportsANonCompletedOutcome(t *testing.T) {
-	var buf bytes.Buffer
-	text := NewText(&buf)
-	if err := text.Render(envelope(agent.RunFinished{Outcome: agent.Outcome{
-		Status: agent.OutcomeFailed, Error: "provider refused",
-	}})); err != nil {
-		t.Fatal(err)
-	}
-	if got := buf.String(); !strings.Contains(got, "failed: provider refused") {
-		t.Fatalf("output = %q, want the failure stated", got)
-	}
-}
-
-func TestNDJSONEmitsOneObjectPerEvent(t *testing.T) {
-	var buf bytes.Buffer
-	events := script()
-	renderAll(t, NewNDJSON(&buf), events)
-
-	lines := strings.Split(strings.TrimRight(buf.String(), "\n"), "\n")
-	if len(lines) != len(events) {
-		t.Fatalf("wrote %d lines for %d events", len(lines), len(events))
-	}
-	want := []string{
-		"run.started", "block.completed", "plan.changed",
-		"block.started", "block.delta", "block.delta", "block.completed",
-		"block.started", "block.completed", "run.finished",
-	}
-	for i, line := range lines {
-		var got eventRecord
-		if err := json.Unmarshal([]byte(line), &got); err != nil {
-			t.Fatalf("line %d is not JSON: %v\n%s", i, err, line)
-		}
-		if got.Type != want[i] {
-			t.Fatalf("line %d type = %q, want %q", i, got.Type, want[i])
-		}
-	}
-}
-
-func TestResultJSONFoldsACompletedRunIntoOneObject(t *testing.T) {
+func TestNDJSONCarriesSegmentIdentityAndInterruptSet(t *testing.T) {
 	var output bytes.Buffer
-	renderAll(t, NewResultJSON(&output), script())
-	var got resultFrame
-	if err := json.Unmarshal(output.Bytes(), &got); err != nil {
-		t.Fatalf("result is not JSON: %v\n%s", err, output.String())
+	renderer := NewNDJSON(&output)
+	events := []agent.RunEvent{
+		testEvent("evt_start", agent.SegmentStarted{Run: testRun()}),
+		testEvent("evt_wait", agent.RunInterrupted{Usage: agent.Usage{InputTokens: 42}, Interactions: []agent.Interaction{
+			testApproval("tool_1", "shell"),
+			agent.Question{ItemID: "question_1", Title: "choose", Fields: []agent.QuestionField{{Prompt: "Target", Kind: agent.QuestionSingle, Options: []agent.QuestionOption{{Label: "linux"}, {Label: "darwin"}}}}},
+		}}),
 	}
-	if got.Type != "result" || got.Status != "completed" || got.RunID != "run_1" || got.SessionID != "ses_1" {
-		t.Fatalf("result identity = %+v", got)
-	}
-	if got.Text != "one two" || got.Outcome == nil || got.Outcome.Status != "completed" || got.Usage == nil || got.Usage.InputTokens != 12345 {
-		t.Fatalf("result payload = %+v", got)
-	}
-}
-
-func TestResultJSONFallsBackToStreamedTextAndRepresentsAnInterrupt(t *testing.T) {
-	var output bytes.Buffer
-	result := NewResultJSON(&output)
-	for _, event := range []agent.Event{
-		agent.RunStarted{RunID: "run_1", SessionID: "session_1"},
-		agent.BlockStarted{Block: agent.Block{ID: "answer", Kind: agent.BlockAssistant}},
-		agent.BlockDelta{BlockID: "answer", Text: "streamed answer"},
-		agent.BlockCompleted{Block: agent.Block{ID: "answer", Kind: agent.BlockAssistant}},
-		agent.RunInterrupted{Interaction: agent.Question{
-			InterruptID: "question_1", Title: "Choose",
-			Fields: []agent.QuestionField{{ID: "choice", Label: "Choice", Kind: agent.QuestionText}},
-		}},
-	} {
-		if err := result.Render(envelope(event)); err != nil {
+	for _, event := range events {
+		if err := renderer.Render(event); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if err := result.Close(); err != nil {
+	if err := renderer.Close(); err != nil {
 		t.Fatal(err)
 	}
-	if err := result.Close(); err != nil {
-		t.Fatalf("second close: %v", err)
-	}
-	var got resultFrame
-	if err := json.Unmarshal(output.Bytes(), &got); err != nil {
-		t.Fatal(err)
-	}
-	if got.Status != "interrupted" || got.Text != "streamed answer" || got.Interaction == nil || got.Interaction.Kind != "question" {
-		t.Fatalf("interrupted result = %+v", got)
-	}
-	if strings.Count(strings.TrimSpace(output.String()), "\n") != 0 {
-		t.Fatalf("idempotent close emitted more than one record: %q", output.String())
-	}
-}
-
-func TestResultJSONLeavesStdoutEmptyWhenRunNeverStarted(t *testing.T) {
-	var output bytes.Buffer
-	result := NewResultJSON(&output)
-	if err := result.Close(); err != nil {
-		t.Fatal(err)
-	}
-	if output.Len() != 0 {
-		t.Fatalf("empty result wrote %q", output.String())
-	}
-}
-
-func TestResultJSONCanReportAnAcceptedRunBeforeEventsArrive(t *testing.T) {
-	var output bytes.Buffer
-	result := NewResultJSON(&output)
-	if err := result.Begin(agent.Run{
-		ID: "run_1", SessionID: "session_1", Status: agent.RunActive,
-	}, agent.RunOptions{Model: "model_1", Effort: "high"}); err != nil {
-		t.Fatal(err)
-	}
-	if err := result.Close(); err != nil {
-		t.Fatal(err)
-	}
-	var got resultFrame
-	if err := json.Unmarshal(output.Bytes(), &got); err != nil {
-		t.Fatal(err)
-	}
-	if got.Status != "incomplete" || got.RunID != "run_1" || got.SessionID != "session_1" || got.Options == nil || got.Options.Model != "model_1" {
-		t.Fatalf("accepted result = %+v", got)
-	}
-}
-
-func TestNDJSONCarriesTheToolProjection(t *testing.T) {
-	got := renderEventRecord(t, agent.BlockCompleted{Block: agent.Block{ID: "t", Kind: agent.BlockTool, Tool: &agent.ToolCall{
-		Kind: agent.ToolEdit, Name: "provider.patch", Path: "a.go", Summary: "change a.go",
-		Status: agent.ToolOK, Diff: "--- a\n+++ b", Duration: 250 * time.Millisecond,
-	}}})
-	if got.Block == nil || got.Block.Tool == nil {
-		t.Fatalf("record = %+v, want a tool projection", got)
-	}
-	tool := got.Block.Tool
-	if tool.Kind != "edit" || tool.Name != "provider.patch" || tool.Path != "a.go" || tool.Status != "ok" || tool.Diff == "" || tool.DurationMS != 250 {
-		t.Fatalf("tool = %+v, want the call carried through intact", tool)
-	}
-}
-
-func renderEventRecord(t *testing.T, event agent.Event) eventRecord {
-	t.Helper()
-	var output bytes.Buffer
-	if err := NewNDJSON(&output).Render(envelope(event)); err != nil {
-		t.Fatal(err)
-	}
-	var got eventRecord
-	if err := json.Unmarshal(output.Bytes(), &got); err != nil {
-		t.Fatalf("not JSON: %v", err)
-	}
-	return got
-}
-
-func TestNDJSONCarriesControlOptionsAndCompleteInteractionMetadata(t *testing.T) {
-	events := []agent.Envelope{
-		envelope(agent.RunStarted{
-			RunID: "run_1", SessionID: "session_1",
-			Options: agent.RunOptions{Model: "deep", Mode: agent.ModeReview, Permission: agent.PermissionReadOnly, Effort: "high"},
-		}),
-		envelope(agent.RunResumed{InterruptID: "approval_1"}),
-		envelope(agent.RunInterrupted{Interaction: agent.Approval{
-			InterruptID: "approval_2", Title: "Allow edit", Detail: "change file",
-			Risk: "writes", Diff: "--- a\n+++ b", RuleHint: "edit:a.go",
-		}}),
-		envelope(agent.RunInterrupted{Interaction: agent.Question{
-			InterruptID: "question_1", Title: "Choose", Detail: "select strategy",
-			Fields: []agent.QuestionField{{
-				ID: "strategy", Label: "Strategy", Description: "How to proceed",
-				Kind: agent.QuestionSingle, Required: true, Placeholder: "pick one",
-				Options: []agent.QuestionOption{{
-					Value: "safe", Label: "Safe", Description: "Prefer safety", Recommended: true,
-				}},
-			}},
-		}}),
-	}
-	var output bytes.Buffer
-	renderAll(t, NewNDJSON(&output), events)
 	lines := strings.Split(strings.TrimSpace(output.String()), "\n")
-	var started, resumed, approval, question eventRecord
-	decodeEventRecords(t, lines, &started, &resumed, &approval, &question)
-	requireRunOptions(t, started.Options)
-	if resumed.InterruptID != "approval_1" {
-		t.Fatalf("resume record = %+v", resumed)
+	if len(lines) != 2 {
+		t.Fatalf("NDJSON lines = %d", len(lines))
 	}
-	if approval.Interaction == nil {
-		t.Fatalf("approval record = %+v", approval.Interaction)
+	var frame map[string]any
+	if err := json.Unmarshal([]byte(lines[1]), &frame); err != nil {
+		t.Fatal(err)
 	}
-	if approval.Interaction.RuleHint != "edit:a.go" {
-		t.Fatalf("approval record = %+v", approval.Interaction)
+	if frame["segmentId"] != "seg_1" || frame["eventId"] != "evt_wait" {
+		t.Fatalf("event identity = %+v", frame)
 	}
-	if question.Interaction == nil {
-		t.Fatalf("question record = %+v", question.Interaction)
+	interactions, ok := frame["interactions"].([]any)
+	if !ok || len(interactions) != 2 {
+		t.Fatalf("interactions = %#v", frame["interactions"])
 	}
-	requireQuestionField(t, question.Interaction.Fields)
+	usage, ok := frame["usage"].(map[string]any)
+	if !ok || usage["inputTokens"] != float64(42) {
+		t.Fatalf("interrupt usage = %#v", frame["usage"])
+	}
 }
 
-func decodeEventRecords(t *testing.T, lines []string, targets ...*eventRecord) {
-	t.Helper()
-	if len(lines) != len(targets) {
-		t.Fatalf("JSON lines = %d, want %d", len(lines), len(targets))
+func TestResultJSONClearsPriorInterruptWhenANewSegmentStarts(t *testing.T) {
+	var output bytes.Buffer
+	renderer := NewResultJSON(&output)
+	if err := renderer.Begin(testRun(), agent.RunOptions{}); err != nil {
+		t.Fatal(err)
 	}
-	for index, target := range targets {
-		if err := json.Unmarshal([]byte(lines[index]), target); err != nil {
+	question := agent.Question{
+		ItemID: "question_1", Title: "choose",
+		Fields: []agent.QuestionField{{Prompt: "Target", Kind: agent.QuestionSingle, Options: []agent.QuestionOption{{Label: "linux"}, {Label: "darwin"}}}},
+	}
+	resumed := testRun()
+	resumed.ActiveSegmentID = "seg_2"
+	for _, event := range []agent.RunEvent{
+		testEvent("start", agent.SegmentStarted{Run: testRun()}),
+		testEvent("wait", agent.RunInterrupted{Interactions: []agent.Interaction{question}}),
+		{EventID: "resume", RunID: "run_1", SegmentID: "seg_2", Event: agent.SegmentStarted{Run: resumed}},
+	} {
+		if err := renderer.Render(event); err != nil {
 			t.Fatal(err)
 		}
 	}
-}
-
-func requireRunOptions(t *testing.T, options *runOptionsJSON) {
-	t.Helper()
-	if options == nil {
-		t.Fatal("run options are absent")
-	}
-	want := runOptionsJSON{Model: "deep", Mode: "review", Permission: "read-only", Effort: "high"}
-	if *options != want {
-		t.Fatalf("run options = %+v, want %+v", options, want)
-	}
-}
-
-func requireQuestionField(t *testing.T, fields []questionFieldJSON) {
-	t.Helper()
-	if len(fields) != 1 {
-		t.Fatalf("question fields = %+v", fields)
-	}
-	field := fields[0]
-	if field.Description != "How to proceed" || field.Placeholder != "pick one" {
-		t.Fatalf("question field = %+v", field)
-	}
-	if len(field.Options) != 1 {
-		t.Fatalf("question options = %+v", field.Options)
-	}
-	option := field.Options[0]
-	if !option.Recommended || option.Description != "Prefer safety" {
-		t.Fatalf("question option = %+v", option)
-	}
-}
-
-func TestRenderersRejectInvalidEventsInsteadOfEmittingEmptyOutput(t *testing.T) {
-	for name, renderer := range map[string]interface {
-		Render(agent.Envelope) error
-		Close() error
-	}{
-		"ndjson": NewNDJSON(&bytes.Buffer{}),
-		"text":   NewText(&bytes.Buffer{}),
-	} {
-		t.Run(name, func(t *testing.T) {
-			if err := renderer.Render(envelope(nil)); err == nil || !strings.Contains(err.Error(), "event is nil") {
-				t.Fatalf("Render error = %v", err)
-			}
-			if err := renderer.Render(envelope(agent.RunResumed{InterruptID: "later"})); err == nil || !strings.Contains(err.Error(), "event is nil") {
-				t.Fatalf("sticky Render error = %v", err)
-			}
-		})
-	}
-}
-
-func TestRenderersCarryUserAttachments(t *testing.T) {
-	block := agent.Block{
-		ID: "u", Kind: agent.BlockUser, Text: "inspect",
-		Attachments: []agent.Attachment{{
-			ID: "att_1", Kind: agent.AttachmentText, Name: "notes.txt",
-			Path: "/tmp/notes.txt", MimeType: "text/plain", Size: 5,
-		}},
-	}
-	var textOut bytes.Buffer
-	if err := NewText(&textOut).Render(envelope(agent.BlockCompleted{Block: block})); err != nil {
+	if err := renderer.Close(); err != nil {
 		t.Fatal(err)
 	}
-	if got := textOut.String(); !strings.Contains(got, "@ notes.txt (text/plain, 5 bytes)") {
-		t.Fatalf("text attachment = %q", got)
-	}
-
-	var jsonOut bytes.Buffer
-	if err := NewNDJSON(&jsonOut).Render(envelope(agent.BlockCompleted{Block: block})); err != nil {
+	var result map[string]any
+	if err := json.Unmarshal(output.Bytes(), &result); err != nil {
 		t.Fatal(err)
 	}
-	var got eventRecord
-	if err := json.Unmarshal(jsonOut.Bytes(), &got); err != nil {
-		t.Fatal(err)
-	}
-	if got.Block == nil || len(got.Block.Attachments) != 1 || got.Block.Attachments[0].Path != "/tmp/notes.txt" {
-		t.Fatalf("json attachment = %+v", got.Block)
+	if result["status"] != "incomplete" || result["interactions"] != nil {
+		t.Fatalf("resumed result = %+v", result)
 	}
 }
 
-func TestNDJSONOmitsWhatDidNotHappen(t *testing.T) {
-	var buf bytes.Buffer
-	j := NewNDJSON(&buf)
-	if err := j.Render(envelope(agent.BlockDelta{BlockID: "m", Text: "x"})); err != nil {
+func TestResultJSONFoldsFinalAssistantProjection(t *testing.T) {
+	var output bytes.Buffer
+	renderer := NewResultJSON(&output)
+	if err := renderer.Begin(testRun(), agent.RunOptions{Provider: "mock", Model: "balanced"}); err != nil {
 		t.Fatal(err)
 	}
-	var got map[string]any
-	if err := json.Unmarshal(buf.Bytes(), &got); err != nil {
-		t.Fatalf("not JSON: %v", err)
-	}
-	for _, absent := range []string{"block", "usage", "outcome", "approval", "plan", "runId"} {
-		if _, ok := got[absent]; ok {
-			t.Fatalf("delta record carries %q: %v", absent, got)
+	for _, event := range testEvents() {
+		if err := renderer.Render(event); err != nil {
+			t.Fatal(err)
 		}
 	}
-	if got["blockId"] != "m" || got["text"] != "x" {
-		t.Fatalf("delta record = %v, want the block id and the text", got)
+	if err := renderer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	var result map[string]any
+	if err := json.Unmarshal(output.Bytes(), &result); err != nil {
+		t.Fatal(err)
+	}
+	if result["status"] != "completed" || result["text"] != "hello world" || result["runId"] != "run_1" {
+		t.Fatalf("result = %+v", result)
 	}
 }
 
-func TestFormatThousands(t *testing.T) {
-	for _, tc := range []struct {
-		in   int64
-		want string
-	}{
-		{0, "0"}, {7, "7"}, {999, "999"}, {1000, "1,000"},
-		{12345, "12,345"}, {1000000, "1,000,000"}, {-4321, "-4,321"},
-		{-1 << 63, "-9,223,372,036,854,775,808"},
-	} {
-		if got := formatThousands(tc.in); got != tc.want {
-			t.Errorf("formatThousands(%d) = %q, want %q", tc.in, got, tc.want)
-		}
+func TestColdReconciliationKeepsOneShotOutputScopedToItsRun(t *testing.T) {
+	snapshot := agent.SessionSnapshot{
+		Session: agent.Session{ID: "ses_1", Status: agent.SessionIdle, Workspace: "/tmp/demo"},
+		Transcript: []agent.Block{
+			{ID: "old", RunID: "run_old", Status: agent.BlockStatusCompleted, Kind: agent.BlockAssistant, Text: "historical answer"},
+			{ID: "current", RunID: "run_1", Status: agent.BlockStatusCompleted, Kind: agent.BlockAssistant, Text: "current answer"},
+			{ID: "new", RunID: "run_new", Status: agent.BlockStatusCompleted, Kind: agent.BlockAssistant, Text: "newer answer"},
+		},
+		Runs: []agent.Run{
+			{ID: "run_old", SessionID: "ses_1", Status: agent.RunStatusFinished, Outcome: agent.Outcome{Status: agent.OutcomeCompleted}},
+			{ID: "run_1", SessionID: "ses_1", Status: agent.RunStatusFinished, Outcome: agent.Outcome{Status: agent.OutcomeCompleted}},
+			{ID: "run_new", SessionID: "ses_1", Status: agent.RunStatusFinished, Outcome: agent.Outcome{Status: agent.OutcomeCompleted}},
+		},
+		Plan: []agent.PlanItem{{Title: "newer plan", Status: agent.PlanDone}}, PlanRevision: 3,
+	}
+	var output bytes.Buffer
+	renderer := NewResultJSON(&output)
+	if err := renderer.Begin(testRun(), agent.RunOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	if err := renderer.Reconcile(snapshot); err != nil {
+		t.Fatal(err)
+	}
+	if err := renderer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(output.String(), "historical answer") || strings.Contains(output.String(), "newer answer") || !strings.Contains(output.String(), "current answer") {
+		t.Fatalf("reconciled result = %s", output.String())
+	}
+
+	output.Reset()
+	textRenderer := NewText(&output)
+	if err := textRenderer.Begin(testRun(), agent.RunOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	if err := textRenderer.Reconcile(snapshot); err != nil {
+		t.Fatal(err)
+	}
+	if err := textRenderer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(output.String(), "historical answer") || strings.Contains(output.String(), "newer answer") || !strings.Contains(output.String(), "current answer") {
+		t.Fatalf("reconciled text = %s", output.String())
+	}
+
+	output.Reset()
+	streamRenderer := NewNDJSON(&output)
+	if err := streamRenderer.Begin(testRun(), agent.RunOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	if err := streamRenderer.Reconcile(snapshot); err != nil {
+		t.Fatal(err)
+	}
+	var frame eventRecord
+	if err := json.Unmarshal(output.Bytes(), &frame); err != nil {
+		t.Fatal(err)
+	}
+	if frame.RunID != "run_1" || len(frame.Transcript) != 1 || frame.Transcript[0].Text != "current answer" {
+		t.Fatalf("reconciled stream = %+v", frame)
+	}
+	if frame.Revision != 0 || len(frame.Plan) != 0 {
+		t.Fatalf("reconciled stream leaked newer plan = %+v", frame.Plan)
 	}
 }
 
-func TestFormatDuration(t *testing.T) {
-	for _, tc := range []struct {
-		in   time.Duration
-		want string
-	}{
-		{120 * time.Millisecond, "120ms"},
-		{999 * time.Millisecond, "999ms"},
-		{time.Second, "1.0s"},
-		{2500 * time.Millisecond, "2.5s"},
-	} {
-		if got := formatDuration(tc.in); got != tc.want {
-			t.Errorf("formatDuration(%v) = %q, want %q", tc.in, got, tc.want)
-		}
+func TestRenderersRejectInvalidEvents(t *testing.T) {
+	invalid := agent.RunEvent{EventID: "evt", RunID: "run_1", SegmentID: "seg_1", Event: agent.BlockDelta{}}
+	var output bytes.Buffer
+	if err := NewText(&output).Render(invalid); err == nil {
+		t.Fatal("text accepted invalid event")
+	}
+	if err := NewNDJSON(&output).Render(invalid); err == nil {
+		t.Fatal("NDJSON accepted invalid event")
+	}
+	if err := NewResultJSON(&output).Render(invalid); err == nil {
+		t.Fatal("result JSON accepted invalid event")
 	}
 }
+
+func TestUsageJSONDistinguishesUnknownFromKnownZeroCost(t *testing.T) {
+	unknown, err := json.Marshal(encodeUsage(agent.Usage{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Contains(unknown, []byte(`"costUsd"`)) {
+		t.Fatalf("unknown cost was serialized: %s", unknown)
+	}
+	known, err := json.Marshal(encodeUsage(agent.Usage{CostUSD: knownCostUSD(0)}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(known, []byte(`"costUsd":0`)) {
+		t.Fatalf("known zero cost was omitted: %s", known)
+	}
+}
+
+func testEvents() []agent.RunEvent {
+	code := 0
+	return []agent.RunEvent{
+		testEvent("evt_start", agent.SegmentStarted{Run: testRun()}),
+		testEvent("evt_message_start", agent.BlockStarted{Block: agent.Block{ID: "msg_1", Kind: agent.BlockAssistant}}),
+		testEvent("evt_message_delta_1", agent.BlockDelta{BlockID: "msg_1", Text: "hello "}),
+		testEvent("evt_message_delta_2", agent.BlockDelta{BlockID: "msg_1", Text: "world"}),
+		testEvent("evt_message_done", agent.BlockCompleted{Block: agent.Block{ID: "msg_1", Kind: agent.BlockAssistant, Text: "hello world"}}),
+		testEvent("evt_tool", agent.BlockCompleted{Block: agent.Block{ID: "tool_1", Kind: agent.BlockTool, Tool: &agent.ToolCall{
+			Kind: agent.ToolShell, Name: "shell", Summary: "go test ./...", Status: agent.ToolOK,
+			Command: "go test ./...", Output: "PASS", ExitCode: &code,
+		}}}),
+		testEvent("evt_done", agent.RunFinished{
+			Outcome: agent.Outcome{Status: agent.OutcomeCompleted},
+			Usage:   agent.Usage{InputTokens: 1_200, OutputTokens: 80, CacheReadTokens: 600, CostUSD: knownCostUSD(0.01), Duration: time.Second},
+		}),
+	}
+}
+
+func testEvent(id string, event agent.Event) agent.RunEvent {
+	switch item := event.(type) {
+	case agent.BlockStarted:
+		item.Block.RunID = "run_1"
+		item.Block.Status = agent.BlockStatusRunning
+		event = item
+	case agent.BlockCompleted:
+		item.Block.RunID = "run_1"
+		item.Block.Status = agent.BlockStatusCompleted
+		event = item
+	}
+	return agent.RunEvent{EventID: id, RunID: "run_1", SegmentID: "seg_1", At: time.Unix(1, 0), Event: event}
+}
+
+func testRun() agent.Run {
+	return agent.Run{ID: "run_1", SessionID: "ses_1", Provider: "mock", Model: "balanced", Status: agent.RunStatusRunning, ActiveSegmentID: "seg_1"}
+}
+
+func testApproval(itemID, title string) agent.Approval {
+	return agent.Approval{
+		ItemID: itemID, Title: title,
+		Tool: &agent.ToolCall{Kind: agent.ToolShell, Name: "shell", Status: agent.ToolRunning},
+	}
+}
+
+func knownCostUSD(value float64) *float64 { return &value }

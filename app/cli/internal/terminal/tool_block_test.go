@@ -64,7 +64,7 @@ func TestToolDetailTruncationKeepsTheBeginningAndEnd(t *testing.T) {
 }
 
 func TestToolKindsBuildSpecializedOolongBlocks(t *testing.T) {
-	presentation := BlockPresentation{Theme: kit.Dark(), Glyphs: kit.Unicode(), Syntax: highlight.Style("github-dark")}
+	presentation := BlockPresentation{Theme: kit.Dark(), Glyphs: kit.Unicode(), Syntax: highlight.New("github-dark")}
 	diff := "--- a/a.go\n+++ b/a.go\n@@ -1 +1 @@\n-old\n+new\n"
 	tests := []struct {
 		name string
@@ -90,7 +90,7 @@ func TestToolKindsBuildSpecializedOolongBlocks(t *testing.T) {
 }
 
 func TestUpdatingARunningToolPreservesItsDetailChoice(t *testing.T) {
-	presentation := BlockPresentation{Theme: kit.Dark(), Glyphs: kit.Unicode(), Syntax: highlight.Style("github-dark")}
+	presentation := BlockPresentation{Theme: kit.Dark(), Glyphs: kit.Unicode(), Syntax: highlight.New("github-dark")}
 	running := agent.ToolCall{Kind: agent.ToolShell, Command: "go test ./...", Status: agent.ToolRunning}
 	block := newToolBlock(presentation, agent.Block{ID: "tool", Kind: agent.BlockTool, Tool: &running})
 	block.ToggleExpanded()
@@ -105,7 +105,7 @@ func TestUpdatingARunningToolPreservesItsDetailChoice(t *testing.T) {
 }
 
 func TestToolBlockStreamsOutputWithoutLosingItsDetailChoice(t *testing.T) {
-	presentation := BlockPresentation{Theme: kit.Dark(), Glyphs: kit.Unicode(), Syntax: highlight.Style("github-dark")}
+	presentation := BlockPresentation{Theme: kit.Dark(), Glyphs: kit.Unicode(), Syntax: highlight.New("github-dark")}
 	running := agent.ToolCall{Kind: agent.ToolShell, Command: "go test ./...", Status: agent.ToolRunning}
 	block := newToolBlock(presentation, agent.Block{ID: "tool", Kind: agent.BlockTool, Tool: &running})
 	if !block.Expandable() {
@@ -127,7 +127,7 @@ func TestToolBlockStreamsOutputWithoutLosingItsDetailChoice(t *testing.T) {
 }
 
 func TestCompletedToolWithoutDetailsCannotExpand(t *testing.T) {
-	presentation := BlockPresentation{Theme: kit.Dark(), Glyphs: kit.Unicode(), Syntax: highlight.Style("github-dark")}
+	presentation := BlockPresentation{Theme: kit.Dark(), Glyphs: kit.Unicode(), Syntax: highlight.New("github-dark")}
 	completed := agent.ToolCall{Kind: agent.ToolShell, Command: "true", Status: agent.ToolOK}
 	block := newToolBlock(presentation, agent.Block{ID: "tool", Kind: agent.BlockTool, Tool: &completed})
 	if block.Expandable() || block.Expanded() {
@@ -151,7 +151,7 @@ func TestToolBlockDrawsALocaleSafeStatusRailThroughExpandedDetails(t *testing.T)
 	call := agent.ToolCall{
 		Kind: agent.ToolShell, Command: "go test ./...", Status: agent.ToolOK, Output: "all packages passed",
 	}
-	block := newToolBlock(BlockPresentation{Theme: theme, Glyphs: glyphs, Syntax: highlight.Style("github-dark")}, agent.Block{
+	block := newToolBlock(BlockPresentation{Theme: theme, Glyphs: glyphs, Syntax: highlight.New("github-dark")}, agent.Block{
 		ID: "test", Kind: agent.BlockTool, Tool: &call,
 	})
 	block.SetExpanded(true)
@@ -241,8 +241,9 @@ func requireLinkedParagraph(t *testing.T, body headless.Block) {
 	if !ok {
 		t.Fatalf("body = %T, want linked paragraph", body)
 	}
-	if !paragraph.Links {
-		t.Fatalf("body = %#v, want links enabled", body)
+	destination, ok := paragraph.LinkAt(0, 0, 80)
+	if !ok || destination.Target != "https://example.com/result" {
+		t.Fatalf("link = %#v, %v, want detected web destination", destination, ok)
 	}
 }
 

@@ -5,67 +5,55 @@ import (
 	"time"
 )
 
-// Cursor is a session-local event position. Zero means no event has been
-// accepted yet; real events start at one.
-type Cursor uint64
-
-// Envelope gives an event durable replay identity. ID detects conflicting
-// duplicates while Cursor orders events and makes reconnect resumable.
-type Envelope struct {
-	ID        string
-	Cursor    Cursor
+// RunEvent is one projected runtime event. EventID is an opaque replay token
+// scoped to SegmentID.
+type RunEvent struct {
+	EventID   string
 	RunID     string
-	SessionID string
+	SegmentID string
 	At        time.Time
 	Event     Event
 }
 
-// Clone returns an envelope whose event owns its mutable projections.
-func (e Envelope) Clone() Envelope {
+func (e RunEvent) Clone() RunEvent {
 	e.Event = CloneEvent(e.Event)
 	return e
 }
 
-// Event is one closed, presentation-oriented fact from a runtime adapter.
 type Event interface{ isEvent() }
 
-// RunStarted announces a logical run in the session timeline.
-type RunStarted struct {
-	RunID     string
-	SessionID string
-	Options   RunOptions
-}
+// SegmentStarted is the authoritative opening fact of every initial or resumed
+// run segment.
+type SegmentStarted struct{ Run Run }
 
-// RunResumed records that an interrupt answer was accepted.
-type RunResumed struct{ InterruptID string }
-
-// BlockStarted appends a block whose body may stream through BlockDelta.
 type BlockStarted struct{ Block Block }
 
-// BlockDelta appends text to a previously started streaming block. For tool
-// blocks it appends output; for assistant and reasoning blocks it appends Text.
 type BlockDelta struct {
 	BlockID string
 	Text    string
 }
 
-// BlockCompleted replaces a block with its authoritative final projection.
 type BlockCompleted struct{ Block Block }
 
-// PlanChanged carries the whole current plan.
-type PlanChanged struct{ Items []PlanItem }
+type PlanChanged struct {
+	Revision uint64
+	Items    []PlanItem
+}
 
-// RunInterrupted ends a subscription while leaving the logical run waiting.
-type RunInterrupted struct{ Interaction Interaction }
+// RunInterrupted closes the current segment and parks the stable logical run.
+// Interactions is the complete pending set that must be answered atomically;
+// Usage is the run-cumulative metering committed at that segment boundary.
+type RunInterrupted struct {
+	Interactions []Interaction
+	Usage        Usage
+}
 
-// RunFinished ends the logical run.
 type RunFinished struct {
 	Outcome Outcome
 	Usage   Usage
 }
 
-func (RunStarted) isEvent()     {}
-func (RunResumed) isEvent()     {}
+func (SegmentStarted) isEvent() {}
 func (BlockStarted) isEvent()   {}
 func (BlockDelta) isEvent()     {}
 func (BlockCompleted) isEvent() {}
@@ -73,12 +61,21 @@ func (PlanChanged) isEvent()    {}
 func (RunInterrupted) isEvent() {}
 func (RunFinished) isEvent()    {}
 
-// CloneEvent returns a detached copy of a known event payload.
+// ReplayableEvent reports whether the underlying runtime retains this event in
+// its segment journal. Deltas are deliberately ephemeral.
+func ReplayableEvent(event Event) bool {
+	switch event.(type) {
+	case SegmentStarted, BlockStarted, BlockCompleted, PlanChanged, RunInterrupted, RunFinished:
+		return true
+	default:
+		return false
+	}
+}
+
 func CloneEvent(event Event) Event {
 	switch item := event.(type) {
-	case RunStarted:
-		return item
-	case RunResumed:
+	case SegmentStarted:
+		item.Run = item.Run.Clone()
 		return item
 	case BlockStarted:
 		item.Block = item.Block.Clone()
@@ -92,9 +89,11 @@ func CloneEvent(event Event) Event {
 		item.Items = slices.Clone(item.Items)
 		return item
 	case RunInterrupted:
-		item.Interaction = CloneInteraction(item.Interaction)
+		item.Interactions = CloneInteractions(item.Interactions)
+		item.Usage = item.Usage.Clone()
 		return item
 	case RunFinished:
+		item.Usage = item.Usage.Clone()
 		return item
 	default:
 		return nil

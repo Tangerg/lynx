@@ -1,0 +1,92 @@
+package render
+
+import (
+	"encoding/json"
+	"fmt"
+	"io"
+	"time"
+
+	"github.com/Tangerg/lynx/app/cli/internal/agent"
+)
+
+type sessionSnapshotRecord struct {
+	Session      sessionFrame      `json:"session"`
+	Transcript   []blockFrame      `json:"transcript"`
+	Runs         []runFrame        `json:"runs"`
+	Plan         planSnapshotFrame `json:"plan"`
+	Interactions []interactionJSON `json:"interactions,omitempty"`
+}
+
+type sessionFrame struct {
+	ID        string    `json:"id"`
+	Title     string    `json:"title"`
+	Status    string    `json:"status"`
+	Model     string    `json:"model,omitempty"`
+	Workspace string    `json:"workspace"`
+	CreatedAt time.Time `json:"createdAt,omitzero"`
+	UpdatedAt time.Time `json:"updatedAt,omitzero"`
+	Favorite  bool      `json:"favorite,omitempty"`
+	Revision  uint64    `json:"revision"`
+}
+
+type runFrame struct {
+	ID              string          `json:"id"`
+	SessionID       string          `json:"sessionId"`
+	Provider        string          `json:"provider,omitempty"`
+	Model           string          `json:"model,omitempty"`
+	Status          string          `json:"status"`
+	ActiveSegmentID string          `json:"activeSegmentId,omitempty"`
+	Limits          *runLimitsFrame `json:"limits,omitempty"`
+	Outcome         *outcomeJSON    `json:"outcome,omitempty"`
+	Usage           usageJSON       `json:"usage"`
+}
+
+type runLimitsFrame struct {
+	MaxTotalTokens int64   `json:"maxTotalTokens,omitempty"`
+	MaxSteps       int     `json:"maxSteps,omitempty"`
+	MaxBudgetUSD   float64 `json:"maxBudgetUsd,omitempty"`
+}
+
+type planSnapshotFrame struct {
+	Revision uint64      `json:"revision"`
+	Items    []planFrame `json:"items"`
+}
+
+// WriteSessionSnapshotJSON writes the CLI's stable cold-read JSON projection.
+// Domain values intentionally carry no encoding tags, so this adapter owns the
+// external field names instead of leaking a delivery format into the core.
+func WriteSessionSnapshotJSON(w io.Writer, snapshot agent.SessionSnapshot) error {
+	if err := snapshot.Validate(); err != nil {
+		return fmt.Errorf("render session snapshot: %w", err)
+	}
+	record := sessionSnapshotRecord{
+		Session: sessionFrame{
+			ID: snapshot.Session.ID, Title: snapshot.Session.Title, Status: string(snapshot.Session.Status),
+			Model: snapshot.Session.Model, Workspace: snapshot.Session.Workspace,
+			CreatedAt: snapshot.Session.CreatedAt, UpdatedAt: snapshot.Session.UpdatedAt,
+			Favorite: snapshot.Session.Favorite, Revision: snapshot.Session.Revision,
+		},
+		Transcript:   make([]blockFrame, 0, len(snapshot.Transcript)),
+		Runs:         make([]runFrame, 0, len(snapshot.Runs)),
+		Plan:         planSnapshotFrame{Revision: snapshot.PlanRevision, Items: encodePlan(snapshot.Plan)},
+		Interactions: encodeInteractions(snapshot.Interactions),
+	}
+	for _, block := range snapshot.Transcript {
+		record.Transcript = append(record.Transcript, *encodeBlock(block))
+	}
+	for _, run := range snapshot.Runs {
+		encoded := runFrame{
+			ID: run.ID, SessionID: run.SessionID, Provider: run.Provider, Model: run.Model,
+			Status: string(run.Status), ActiveSegmentID: run.ActiveSegmentID,
+			Usage: *encodeUsage(run.Usage),
+		}
+		if run.Limits != (agent.RunLimits{}) {
+			encoded.Limits = &runLimitsFrame{MaxTotalTokens: run.Limits.MaxTotalTokens, MaxSteps: run.Limits.MaxSteps, MaxBudgetUSD: run.Limits.MaxBudgetUSD}
+		}
+		if run.Status == agent.RunStatusFinished {
+			encoded.Outcome = &outcomeJSON{Status: string(run.Outcome.Status), Error: run.Outcome.Error, Detail: run.Outcome.Detail}
+		}
+		record.Runs = append(record.Runs, encoded)
+	}
+	return json.NewEncoder(w).Encode(record)
+}

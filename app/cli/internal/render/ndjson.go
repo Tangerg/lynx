@@ -17,13 +17,33 @@ import (
 // segment identity, replay windows and dedup keys that exist to make a
 // reconnecting consumer correct and would be noise in a pipe.
 type NDJSON struct {
-	enc *json.Encoder
-	err error
+	enc       *json.Encoder
+	err       error
+	runID     string
+	sessionID string
 }
 
 // NewNDJSON builds an event-stream renderer over w.
 func NewNDJSON(w io.Writer) *NDJSON {
 	return &NDJSON{enc: json.NewEncoder(w)}
+}
+
+// Begin binds the stream to the accepted run without emitting a synthetic
+// event. The runtime's segment.started event remains the first output frame.
+func (j *NDJSON) Begin(run agent.Run, _ agent.RunOptions) error {
+	if j.err != nil {
+		return j.err
+	}
+	if err := run.Validate(); err != nil {
+		j.err = fmt.Errorf("begin NDJSON: %w", err)
+		return j.err
+	}
+	if j.runID != "" && j.runID != run.ID {
+		j.err = fmt.Errorf("begin NDJSON: run %s does not match %s", run.ID, j.runID)
+		return j.err
+	}
+	j.runID, j.sessionID = run.ID, run.SessionID
+	return nil
 }
 
 // eventRecord is one output line.
@@ -33,35 +53,42 @@ func NewNDJSON(w io.Writer) *NDJSON {
 // lets a reader ignore what it does not use. Type is always set and is the only
 // field a consumer must switch on.
 type eventRecord struct {
-	Type        string           `json:"type"`
-	EventID     string           `json:"eventId"`
-	Cursor      agent.Cursor     `json:"cursor"`
-	At          time.Time        `json:"at,omitzero"`
-	RunID       string           `json:"runId,omitzero"`
-	SessionID   string           `json:"sessionId,omitzero"`
-	InterruptID string           `json:"interruptId,omitzero"`
-	Options     *runOptionsJSON  `json:"options,omitzero"`
-	BlockID     string           `json:"blockId,omitzero"`
-	Text        string           `json:"text,omitzero"`
-	Block       *blockFrame      `json:"block,omitzero"`
-	Plan        []planFrame      `json:"plan,omitzero"`
-	Interaction *interactionJSON `json:"interaction,omitzero"`
-	Outcome     *outcomeJSON     `json:"outcome,omitzero"`
-	Usage       *usageJSON       `json:"usage,omitzero"`
+	Type         string            `json:"type"`
+	EventID      string            `json:"eventId,omitzero"`
+	SegmentID    string            `json:"segmentId,omitzero"`
+	Status       string            `json:"status,omitzero"`
+	Revision     uint64            `json:"revision,omitzero"`
+	At           time.Time         `json:"at,omitzero"`
+	RunID        string            `json:"runId,omitzero"`
+	SessionID    string            `json:"sessionId,omitzero"`
+	ItemID       string            `json:"itemId,omitzero"`
+	Options      *runOptionsJSON   `json:"options,omitzero"`
+	BlockID      string            `json:"blockId,omitzero"`
+	Text         string            `json:"text,omitzero"`
+	Block        *blockFrame       `json:"block,omitzero"`
+	Transcript   []blockFrame      `json:"transcript,omitzero"`
+	Plan         []planFrame       `json:"plan,omitzero"`
+	Interactions []interactionJSON `json:"interactions,omitzero"`
+	Outcome      *outcomeJSON      `json:"outcome,omitzero"`
+	Usage        *usageJSON        `json:"usage,omitzero"`
 }
 
 type runOptionsJSON struct {
-	Model      string `json:"model"`
-	Mode       string `json:"mode"`
-	Permission string `json:"permission"`
-	Effort     string `json:"effort"`
+	Provider       string  `json:"provider,omitzero"`
+	Model          string  `json:"model,omitzero"`
+	MaxTotalTokens int64   `json:"maxTotalTokens,omitzero"`
+	MaxSteps       int     `json:"maxSteps,omitzero"`
+	MaxBudgetUSD   float64 `json:"maxBudgetUsd,omitzero"`
 }
 
 type blockFrame struct {
 	ID          string            `json:"id"`
+	RunID       string            `json:"runId,omitzero"`
+	Status      string            `json:"status"`
 	Kind        string            `json:"kind"`
 	Text        string            `json:"text,omitzero"`
 	Attachments []attachmentFrame `json:"attachments,omitzero"`
+	Question    *interactionJSON  `json:"question,omitzero"`
 	Tool        *toolFrame        `json:"tool,omitzero"`
 }
 
@@ -95,48 +122,48 @@ type planFrame struct {
 }
 
 type interactionJSON struct {
-	Kind        string              `json:"kind"`
-	InterruptID string              `json:"interruptId"`
-	Title       string              `json:"title"`
-	Detail      string              `json:"detail,omitzero"`
-	Diff        string              `json:"diff,omitzero"`
-	Risk        string              `json:"risk,omitzero"`
-	RuleHint    string              `json:"ruleHint,omitzero"`
-	Fields      []questionFieldJSON `json:"fields,omitzero"`
+	Kind     string              `json:"kind"`
+	ItemID   string              `json:"itemId"`
+	Title    string              `json:"title"`
+	Detail   string              `json:"detail,omitzero"`
+	Diff     string              `json:"diff,omitzero"`
+	Risk     string              `json:"risk,omitzero"`
+	RuleHint string              `json:"ruleHint,omitzero"`
+	Fields   []questionFieldJSON `json:"fields,omitzero"`
 }
 
 type questionFieldJSON struct {
-	ID          string               `json:"id"`
-	Label       string               `json:"label"`
-	Description string               `json:"description,omitzero"`
+	Prompt      string               `json:"prompt"`
+	Header      string               `json:"header,omitzero"`
 	Kind        string               `json:"kind"`
-	Required    bool                 `json:"required,omitzero"`
-	Placeholder string               `json:"placeholder,omitzero"`
+	AllowCustom bool                 `json:"allowCustom,omitzero"`
 	Options     []questionOptionJSON `json:"options,omitzero"`
 }
 
 type questionOptionJSON struct {
-	Value       string `json:"value"`
 	Label       string `json:"label"`
 	Description string `json:"description,omitzero"`
-	Recommended bool   `json:"recommended,omitzero"`
+	Preview     string `json:"preview,omitzero"`
 }
 
 type outcomeJSON struct {
 	Status string `json:"status"`
 	Error  string `json:"error,omitzero"`
+	Detail string `json:"detail,omitzero"`
 }
 
 type usageJSON struct {
-	InputTokens  int64   `json:"inputTokens"`
-	OutputTokens int64   `json:"outputTokens"`
-	CachedTokens int64   `json:"cachedTokens,omitzero"`
-	CostUSD      float64 `json:"costUsd,omitzero"`
-	DurationMS   float64 `json:"durationMs,omitzero"`
+	InputTokens      int64    `json:"inputTokens"`
+	OutputTokens     int64    `json:"outputTokens"`
+	CacheReadTokens  int64    `json:"cacheReadTokens,omitzero"`
+	CacheWriteTokens int64    `json:"cacheWriteTokens,omitzero"`
+	ReasoningTokens  int64    `json:"reasoningTokens,omitzero"`
+	CostUSD          *float64 `json:"costUsd,omitempty"`
+	DurationMS       float64  `json:"durationMs,omitzero"`
 }
 
 // Render writes one line. As with [Text], the first error sticks.
-func (j *NDJSON) Render(envelope agent.Envelope) error {
+func (j *NDJSON) Render(envelope agent.RunEvent) error {
 	if j.err != nil {
 		return j.err
 	}
@@ -144,26 +171,69 @@ func (j *NDJSON) Render(envelope agent.Envelope) error {
 		j.err = fmt.Errorf("render NDJSON event: %w", err)
 		return j.err
 	}
+	if j.runID == "" {
+		j.runID = envelope.RunID
+	} else if envelope.RunID != j.runID {
+		j.err = fmt.Errorf("render NDJSON event: run %s does not match %s", envelope.RunID, j.runID)
+		return j.err
+	}
 	f, err := encodeEventFrame(envelope)
 	if err != nil {
 		j.err = err
 		return j.err
 	}
-	f.EventID, f.Cursor, f.At = envelope.ID, envelope.Cursor, envelope.At
+	f.EventID, f.SegmentID, f.At = envelope.EventID, envelope.SegmentID, envelope.At
 	if f.RunID == "" {
 		f.RunID = envelope.RunID
-	}
-	if f.SessionID == "" {
-		f.SessionID = envelope.SessionID
 	}
 	j.err = j.enc.Encode(f)
 	return j.err
 }
 
-func encodeEventFrame(envelope agent.Envelope) (eventRecord, error) {
+// Reconcile emits a replacement snapshot frame. Unlike a runtime event it has
+// no eventId: consumers replace their durable projection with this frame, then
+// continue folding later segment events on top.
+func (j *NDJSON) Reconcile(snapshot agent.SessionSnapshot) error {
+	if j.err != nil {
+		return j.err
+	}
+	if err := snapshot.Validate(); err != nil {
+		j.err = fmt.Errorf("render NDJSON snapshot: %w", err)
+		return j.err
+	}
+	target, err := resolveSnapshotRun(snapshot, j.runID)
+	if err != nil {
+		j.err = fmt.Errorf("render NDJSON snapshot: %w", err)
+		return j.err
+	}
+	j.runID, j.sessionID = target.ID, snapshot.Session.ID
+	frame := eventRecord{
+		Type: "run.snapshot", RunID: target.ID, SessionID: snapshot.Session.ID, Status: string(target.Status),
+		Transcript: make([]blockFrame, 0, len(snapshot.Transcript)),
+	}
+	for _, block := range snapshot.Transcript {
+		if block.RunID == target.ID {
+			frame.Transcript = append(frame.Transcript, *encodeBlock(block))
+		}
+	}
+	if latest, ok := snapshot.LatestRun(); ok && latest.ID == target.ID {
+		frame.Revision, frame.Plan = snapshot.PlanRevision, encodePlan(snapshot.Plan)
+	}
+	if target.Status == agent.RunStatusWaiting {
+		frame.Interactions = encodeInteractions(snapshot.Interactions)
+	}
+	if target.Status == agent.RunStatusFinished {
+		finished := encodeFinishedFrame(agent.RunFinished{Outcome: target.Outcome, Usage: target.Usage})
+		frame.Outcome, frame.Usage = finished.Outcome, finished.Usage
+	}
+	j.err = j.enc.Encode(frame)
+	return j.err
+}
+
+func encodeEventFrame(envelope agent.RunEvent) (eventRecord, error) {
 	switch event := envelope.Event.(type) {
-	case agent.RunStarted:
-		return eventRecord{Type: "run.started", RunID: event.RunID, SessionID: event.SessionID, Options: encodeRunOptions(event.Options)}, nil
+	case agent.SegmentStarted:
+		return eventRecord{Type: "segment.started", RunID: event.Run.ID, SessionID: event.Run.SessionID}, nil
 	case agent.BlockStarted:
 		return eventRecord{Type: "block.started", Block: encodeBlock(event.Block)}, nil
 	case agent.BlockDelta:
@@ -171,11 +241,9 @@ func encodeEventFrame(envelope agent.Envelope) (eventRecord, error) {
 	case agent.BlockCompleted:
 		return eventRecord{Type: "block.completed", Block: encodeBlock(event.Block)}, nil
 	case agent.PlanChanged:
-		return eventRecord{Type: "plan.changed", Plan: encodePlan(event.Items)}, nil
-	case agent.RunResumed:
-		return eventRecord{Type: "run.resumed", RunID: envelope.RunID, InterruptID: event.InterruptID}, nil
+		return eventRecord{Type: "plan.changed", Revision: event.Revision, Plan: encodePlan(event.Items)}, nil
 	case agent.RunInterrupted:
-		return eventRecord{Type: "run.interrupted", Interaction: encodeInteraction(event.Interaction)}, nil
+		return eventRecord{Type: "run.interrupted", Interactions: encodeInteractions(event.Interactions), Usage: encodeUsage(event.Usage)}, nil
 	case agent.RunFinished:
 		return encodeFinishedFrame(event), nil
 	default:
@@ -186,42 +254,66 @@ func encodeEventFrame(envelope agent.Envelope) (eventRecord, error) {
 func encodeFinishedFrame(event agent.RunFinished) eventRecord {
 	return eventRecord{
 		Type:    "run.finished",
-		Outcome: &outcomeJSON{Status: string(event.Outcome.Status), Error: event.Outcome.Error},
-		Usage: &usageJSON{
-			InputTokens:  event.Usage.InputTokens,
-			OutputTokens: event.Usage.OutputTokens,
-			CachedTokens: event.Usage.CachedTokens,
-			CostUSD:      event.Usage.CostUSD,
-			DurationMS:   float64(event.Usage.Duration.Milliseconds()),
-		},
+		Outcome: &outcomeJSON{Status: string(event.Outcome.Status), Error: event.Outcome.Error, Detail: event.Outcome.Detail},
+		Usage:   encodeUsage(event.Usage),
 	}
+}
+
+func encodeUsage(usage agent.Usage) *usageJSON {
+	return &usageJSON{
+		InputTokens:      usage.InputTokens,
+		OutputTokens:     usage.OutputTokens,
+		CacheReadTokens:  usage.CacheReadTokens,
+		CacheWriteTokens: usage.CacheWriteTokens,
+		ReasoningTokens:  usage.ReasoningTokens,
+		CostUSD:          cloneFloat64(usage.CostUSD),
+		DurationMS:       float64(usage.Duration.Milliseconds()),
+	}
+}
+
+func cloneFloat64(value *float64) *float64 {
+	if value == nil {
+		return nil
+	}
+	return new(*value)
 }
 
 func encodeRunOptions(options agent.RunOptions) *runOptionsJSON {
 	return &runOptionsJSON{
-		Model: options.Model, Mode: string(options.Mode),
-		Permission: string(options.Permission), Effort: options.Effort,
+		Provider: options.Provider, Model: options.Model,
+		MaxTotalTokens: options.Limits.MaxTotalTokens,
+		MaxSteps:       options.Limits.MaxSteps,
+		MaxBudgetUSD:   options.Limits.MaxBudgetUSD,
 	}
+}
+
+func encodeInteractions(interactions []agent.Interaction) []interactionJSON {
+	out := make([]interactionJSON, 0, len(interactions))
+	for _, interaction := range interactions {
+		if encoded := encodeInteraction(interaction); encoded != nil {
+			out = append(out, *encoded)
+		}
+	}
+	return out
 }
 
 func encodeInteraction(interaction agent.Interaction) *interactionJSON {
 	switch item := interaction.(type) {
 	case agent.Approval:
 		return &interactionJSON{
-			Kind: "approval", InterruptID: item.InterruptID, Title: item.Title,
-			Detail: item.Detail, Diff: item.Diff, Risk: item.Risk, RuleHint: item.RuleHint,
+			Kind: "approval", ItemID: item.ItemID, Title: item.Title,
+			Detail: item.Detail, Diff: item.Diff, Risk: string(item.Risk), RuleHint: item.RuleHint,
 		}
 	case agent.Question:
-		out := &interactionJSON{Kind: "question", InterruptID: item.InterruptID, Title: item.Title, Detail: item.Detail}
+		out := &interactionJSON{Kind: "question", ItemID: item.ItemID, Title: item.Title, Detail: item.Detail}
 		for _, field := range item.Fields {
 			encoded := questionFieldJSON{
-				ID: field.ID, Label: field.Label, Description: field.Description,
-				Kind: string(field.Kind), Required: field.Required, Placeholder: field.Placeholder,
+				Prompt: field.Prompt, Header: field.Header,
+				Kind: string(field.Kind), AllowCustom: field.AllowCustom,
 			}
 			for _, option := range field.Options {
 				encoded.Options = append(encoded.Options, questionOptionJSON{
-					Value: option.Value, Label: option.Label,
-					Description: option.Description, Recommended: option.Recommended,
+					Label: option.Label, Description: option.Description, Preview: option.Preview,
 				})
 			}
 			out.Fields = append(out.Fields, encoded)
@@ -237,7 +329,7 @@ func encodeInteraction(interaction agent.Interaction) *interactionJSON {
 func (j *NDJSON) Close() error { return j.err }
 
 func encodeBlock(b agent.Block) *blockFrame {
-	out := &blockFrame{ID: b.ID, Kind: string(b.Kind), Text: b.Text}
+	out := &blockFrame{ID: b.ID, RunID: b.RunID, Status: string(b.Status), Kind: string(b.Kind), Text: b.Text}
 	for _, attachment := range b.Attachments {
 		out.Attachments = append(out.Attachments, attachmentFrame{
 			ID: attachment.ID, Kind: string(attachment.Kind), Name: attachment.Name,
@@ -259,6 +351,9 @@ func encodeBlock(b agent.Block) *blockFrame {
 			ExitCode:   b.Tool.ExitCode,
 			DurationMS: float64(b.Tool.Duration.Milliseconds()),
 		}
+	}
+	if b.Question != nil {
+		out.Question = encodeInteraction(*b.Question)
 	}
 	return out
 }

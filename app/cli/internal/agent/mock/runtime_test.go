@@ -3,858 +3,436 @@ package mock
 import (
 	"context"
 	"errors"
-	"slices"
-	"strings"
-	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
 )
 
-func newSession(t *testing.T, runtime *Runtime) agent.Session {
-	t.Helper()
-	session, err := runtime.CreateSession(t.Context(), agent.CreateSession{Title: "Test", Workspace: "/tmp/mock-test"})
-	if err != nil {
-		t.Fatalf("CreateSession: %v", err)
-	}
-	return session
-}
-
-func followAll(t *testing.T, runtime *Runtime, runID string, after agent.Cursor) ([]agent.Envelope, error) {
-	t.Helper()
-	stream, err := runtime.FollowRun(t.Context(), agent.FollowRun{RunID: runID, After: after})
-	if err != nil {
-		return nil, err
-	}
-	var events []agent.Envelope
-	for envelope, streamErr := range stream {
-		if streamErr != nil {
-			return events, streamErr
-		}
-		events = append(events, envelope)
-	}
-	return events, nil
-}
-
-func mustStartRun(t *testing.T, runtime *Runtime, input agent.StartRun) agent.Run {
-	t.Helper()
-	run, err := runtime.StartRun(t.Context(), input)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return run
-}
-
-func mustFollowAll(t *testing.T, runtime *Runtime, runID string, after agent.Cursor) []agent.Envelope {
-	t.Helper()
-	events, err := followAll(t, runtime, runID, after)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return events
-}
-
-func mustSnapshot(t *testing.T, runtime *Runtime, sessionID string) agent.SessionSnapshot {
-	t.Helper()
-	snapshot, err := runtime.GetSession(t.Context(), sessionID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return snapshot
-}
-
-func TestSessionCatalogPagesSearchesAndSorts(t *testing.T) {
+func TestRuntimeStartResumeAndColdRestore(t *testing.T) {
 	runtime := New()
-	seedCatalog(t, runtime, "Alpha", "Beta", "Gamma")
-	first := mustListSessions(t, runtime, agent.SessionQuery{Workspace: "/tmp/catalog", Limit: 2})
-	if len(first.Items) != 2 || first.NextCursor == "" {
-		t.Fatalf("first page = %+v", first)
+	runtime.Instant = true
+	session, err := runtime.CreateSession(t.Context(), agent.CreateSession{Workspace: "/tmp/mock"})
+	if err != nil {
+		t.Fatal(err)
 	}
-	second := mustListSessions(t, runtime, agent.SessionQuery{Workspace: "/tmp/catalog", Cursor: first.NextCursor, Limit: 2})
-	if len(second.Items) != 1 || second.NextCursor != "" {
-		t.Fatalf("second page = %+v", second)
+
+	opened, err := runtime.StartRun(t.Context(), agent.StartRun{
+		SessionID: session.ID, Message: agent.Message{Text: "fix the flaky test"},
+		Options: agent.RunOptions{Provider: "mock", Model: "balanced", Limits: agent.RunLimits{MaxSteps: 12, MaxBudgetUSD: 1.5}},
+	})
+	if err != nil {
+		t.Fatal(err)
 	}
-	search := mustListSessions(t, runtime, agent.SessionQuery{Search: "beta"})
-	if len(search.Items) != 1 || search.Items[0].Title != "Beta" {
-		t.Fatalf("search = %+v", search)
+	conversation := agent.NewConversation()
+	drain(t, opened, conversation)
+	if conversation.Phase() != agent.ConversationWaiting || len(conversation.Interactions()) != 1 {
+		t.Fatalf("after first segment: phase %v, interactions %d", conversation.Phase(), len(conversation.Interactions()))
 	}
-	if _, err := runtime.ListSessions(t.Context(), agent.SessionQuery{Cursor: "bogus"}); err == nil {
-		t.Fatal("invalid cursor was accepted")
+
+	interaction := conversation.Interactions()[0]
+	waiting, err := runtime.GetSession(t.Context(), session.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	approvalItem, ok := snapshotBlock(waiting, opened.RunID, agent.InteractionItemID(interaction))
+	if !ok || approvalItem.Kind != agent.BlockTool || approvalItem.Status != agent.BlockStatusRunning || waiting.Runs[0].Usage.InputTokens == 0 {
+		t.Fatalf("waiting approval projection = item %+v, usage %+v", approvalItem, waiting.Runs[0].Usage)
+	}
+	continued, err := runtime.ResumeRun(t.Context(), agent.ResumeRun{
+		RunID: opened.RunID,
+		Answers: []agent.InterruptAnswer{{
+			ItemID: agent.InteractionItemID(interaction),
+			Answer: agent.ApprovalAnswer{Decision: agent.ApprovalApprove, Remember: agent.RememberProject},
+		}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if continued.SegmentID == opened.SegmentID {
+		t.Fatal("resume reused the first segment")
+	}
+	drain(t, continued, conversation)
+	if conversation.Outcome().Status != agent.OutcomeCompleted {
+		t.Fatalf("outcome = %+v", conversation.Outcome())
+	}
+
+	snapshot, err := runtime.GetSession(t.Context(), session.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, active := snapshot.ActiveRun(); active || len(snapshot.Interactions) != 0 || len(snapshot.Transcript) < 4 {
+		t.Fatalf("snapshot = runs %+v, interactions %d, transcript %d", snapshot.Runs, len(snapshot.Interactions), len(snapshot.Transcript))
+	}
+	if latest, ok := snapshot.LatestRun(); !ok || latest.Limits.MaxSteps != 12 || latest.Limits.MaxBudgetUSD != 1.5 {
+		t.Fatalf("latest run limits = %+v", latest.Limits)
+	}
+	approvalItem, ok = snapshotBlock(snapshot, opened.RunID, agent.InteractionItemID(interaction))
+	if !ok || approvalItem.Status != agent.BlockStatusCompleted || approvalItem.Tool.Status != agent.ToolOK {
+		t.Fatalf("completed approval item = %+v", approvalItem)
+	}
+	rules, err := runtime.ListApprovalRules(t.Context(), session.ID)
+	if err != nil || len(rules) != 1 || rules[0].Scope != agent.RememberProject {
+		t.Fatalf("rules = %+v, %v", rules, err)
 	}
 }
 
-func TestToolFixtureStreamsTheExactCompletedOutput(t *testing.T) {
-	want := "first line\nsecond line\n"
-	steps := tool("tool", agent.ToolShell, "shell", "go test ./...", agent.ToolOK, want, "", time.Second)
-	var streamed strings.Builder
-	var completed agent.Block
-	for _, step := range steps {
-		switch event := step.Event.(type) {
-		case agent.BlockDelta:
-			if event.BlockID != "tool" {
-				t.Fatalf("delta block id = %q", event.BlockID)
-			}
-			streamed.WriteString(event.Text)
-		case agent.BlockCompleted:
-			completed = event.Block
+func TestRuntimeReconnectUsesOpaqueReplayCheckpoint(t *testing.T) {
+	runtime := New()
+	runtime.Faults = []SubscriptionFault{{Kind: FaultDisconnect, After: 1}}
+	runtime.Script = func(string) Script {
+		return Script{Prelude: []Step{
+			{Delay: 30 * time.Millisecond, Event: agent.BlockCompleted{Block: agent.Block{ID: "answer", Kind: agent.BlockAssistant, Text: "done"}}},
+			{Event: agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCompleted}}},
+		}}
+	}
+	session, _ := runtime.CreateSession(t.Context(), agent.CreateSession{Workspace: "/tmp/mock"})
+	opened, err := runtime.StartRun(t.Context(), agent.StartRun{SessionID: session.ID, Message: agent.Message{Text: "hello"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	conversation := agent.NewConversation()
+	var disconnected error
+	for event, streamErr := range opened.Events {
+		if streamErr != nil {
+			disconnected = streamErr
+			break
+		}
+		if _, err := conversation.ApplyRunEvent(event); err != nil {
+			t.Fatal(err)
 		}
 	}
-	if got := streamed.String(); got != want {
-		t.Fatalf("streamed output = %q, want %q", got, want)
+	if !errors.Is(disconnected, agent.ErrDisconnected) {
+		t.Fatalf("stream error = %v", disconnected)
 	}
-	if completed.Tool == nil || completed.Tool.Output != want {
-		t.Fatalf("completed tool = %+v", completed.Tool)
+	checkpoint := conversation.Checkpoint()
+	if checkpoint == "" {
+		t.Fatal("no replay checkpoint was retained")
+	}
+	rebound, err := runtime.SubscribeRun(t.Context(), agent.SubscribeRun{
+		RunID: opened.RunID, SegmentID: opened.SegmentID, AfterEventID: checkpoint,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	drain(t, rebound, conversation)
+	if conversation.Outcome().Status != agent.OutcomeCompleted {
+		t.Fatalf("outcome = %+v", conversation.Outcome())
 	}
 }
 
-func seedCatalog(t *testing.T, runtime *Runtime, titles ...string) {
+func TestRuntimeSubscribeWithoutCheckpointAttachesAtHead(t *testing.T) {
+	runtime := New()
+	runtime.Script = func(string) Script {
+		return Script{Prelude: []Step{{Delay: time.Second, Event: agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCompleted}}}}}
+	}
+	session, _ := runtime.CreateSession(t.Context(), agent.CreateSession{Workspace: "/tmp/mock"})
+	opened, err := runtime.StartRun(t.Context(), agent.StartRun{SessionID: session.ID, Message: agent.Message{Text: "hello"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := timeLimitedContext(t, 20*time.Millisecond)
+	defer cancel()
+	attached, err := runtime.SubscribeRun(ctx, agent.SubscribeRun{RunID: opened.RunID, SegmentID: opened.SegmentID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	count := 0
+	for event, streamErr := range attached.Events {
+		if streamErr != nil {
+			break
+		}
+		count++
+		_ = event
+	}
+	if count != 0 {
+		t.Fatalf("attach-at-head replayed %d historical events", count)
+	}
+	_, _ = runtime.CancelRun(t.Context(), agent.CancelRun{RunID: opened.RunID})
+}
+
+func TestRuntimeForkStartsWithAFreshProjectionAtRunBoundary(t *testing.T) {
+	runtime := New()
+	forked, err := runtime.ForkSession(t.Context(), agent.ForkSession{SessionID: "ses_demo_1", FromRunID: "run_demo_history"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	snapshot, err := runtime.GetSession(t.Context(), forked.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(snapshot.Transcript) != 0 || len(snapshot.Runs) != 0 {
+		t.Fatalf("fork projection = %d blocks, %d runs", len(snapshot.Transcript), len(snapshot.Runs))
+	}
+}
+
+func TestRuntimeForkExcludesAnActiveTail(t *testing.T) {
+	runtime := New()
+	runtime.Script = func(string) Script {
+		return Script{Prelude: []Step{{Delay: time.Hour, Event: agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCompleted}}}}}
+	}
+	opened, err := runtime.StartRun(t.Context(), agent.StartRun{SessionID: "ses_demo_1", Message: agent.Message{Text: "active tail"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	forked, err := runtime.ForkSession(t.Context(), agent.ForkSession{SessionID: "ses_demo_1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	snapshot, err := runtime.GetSession(t.Context(), forked.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(snapshot.Transcript) != 0 || len(snapshot.Runs) != 0 {
+		t.Fatalf("fork copied a parent projection: blocks=%+v runs=%+v", snapshot.Transcript, snapshot.Runs)
+	}
+	if _, err := runtime.ForkSession(t.Context(), agent.ForkSession{SessionID: "ses_demo_1", FromRunID: opened.RunID}); !errors.Is(err, agent.ErrRunNotFound) {
+		t.Fatalf("explicit active boundary error = %v", err)
+	}
+	_, _ = runtime.CancelRun(t.Context(), agent.CancelRun{RunID: opened.RunID})
+}
+
+func TestRuntimeForkCopiesThePlanAtItsRunBoundary(t *testing.T) {
+	runtime := New()
+	runtime.Script = func(prompt string) Script {
+		plan := []agent.PlanItem{{Title: prompt + " plan", Status: agent.PlanActive}}
+		delay := time.Duration(0)
+		if prompt == "active" {
+			delay = time.Hour
+		}
+		return Script{Prelude: []Step{
+			{Event: agent.PlanChanged{Items: plan}},
+			{Delay: delay, Event: agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCompleted}}},
+		}}
+	}
+	session, err := runtime.CreateSession(t.Context(), agent.CreateSession{Workspace: "/tmp/mock"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	first, err := runtime.StartRun(t.Context(), agent.StartRun{SessionID: session.ID, Message: agent.Message{Text: "boundary"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	drain(t, first, agent.NewConversation())
+	second, err := runtime.StartRun(t.Context(), agent.StartRun{SessionID: session.ID, Message: agent.Message{Text: "active"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for event, streamErr := range second.Events {
+		if streamErr != nil {
+			t.Fatal(streamErr)
+		}
+		if _, changed := event.Event.(agent.PlanChanged); changed {
+			break
+		}
+	}
+	forked, err := runtime.ForkSession(t.Context(), agent.ForkSession{SessionID: session.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	snapshot, err := runtime.GetSession(t.Context(), forked.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if snapshot.PlanRevision != 1 || len(snapshot.Plan) != 1 || snapshot.Plan[0].Title != "boundary plan" {
+		t.Fatalf("fork plan = revision %d, items %+v", snapshot.PlanRevision, snapshot.Plan)
+	}
+	if len(snapshot.Transcript) != 0 || len(snapshot.Runs) != 0 {
+		t.Fatalf("fork copied a parent projection: blocks=%+v runs=%+v", snapshot.Transcript, snapshot.Runs)
+	}
+	_, _ = runtime.CancelRun(t.Context(), agent.CancelRun{RunID: second.RunID})
+}
+
+func TestRuntimeColdReadTracksAndSettlesRunningItems(t *testing.T) {
+	runtime := New()
+	runtime.Script = func(string) Script {
+		return Script{Prelude: []Step{
+			{Event: agent.BlockStarted{Block: agent.Block{ID: "answer", Kind: agent.BlockAssistant}}},
+			{Event: agent.BlockStarted{Block: agent.Block{ID: "tool", Kind: agent.BlockTool, Tool: &agent.ToolCall{Kind: agent.ToolShell, Name: "shell", Status: agent.ToolRunning}}}},
+			{Delay: time.Hour, Event: agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCompleted}}},
+		}}
+	}
+	session, err := runtime.CreateSession(t.Context(), agent.CreateSession{Workspace: "/tmp/mock"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	opened, err := runtime.StartRun(t.Context(), agent.StartRun{SessionID: session.ID, Message: agent.Message{Text: "run"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	startedCount := 0
+	for event, streamErr := range opened.Events {
+		if streamErr != nil {
+			t.Fatal(streamErr)
+		}
+		if _, started := event.Event.(agent.BlockStarted); started {
+			startedCount++
+			if startedCount == 2 {
+				break
+			}
+		}
+	}
+	running, err := runtime.GetSession(t.Context(), session.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(running.Transcript) != 2 {
+		t.Fatalf("cold transcript includes a provisional assistant start: %+v", running.Transcript)
+	}
+	if got := running.Transcript[len(running.Transcript)-1]; got.Status != agent.BlockStatusRunning || got.ID != opened.RunID+":tool" || got.Kind != agent.BlockTool {
+		t.Fatalf("running item = %+v", got)
+	}
+	if _, err := runtime.CancelRun(t.Context(), agent.CancelRun{RunID: opened.RunID}); err != nil {
+		t.Fatal(err)
+	}
+	settled, err := runtime.GetSession(t.Context(), session.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := settled.Transcript[len(settled.Transcript)-1]; got.Status != agent.BlockStatusIncomplete {
+		t.Fatalf("settled item = %+v", got)
+	}
+}
+
+func TestScriptContinuationReceivesFixtureLocalItemIDs(t *testing.T) {
+	runtime := New()
+	runtime.Instant = true
+	var received string
+	runtime.Script = func(string) Script {
+		return Script{
+			Interactions: []agent.Interaction{approvalFixture("approval", "approve")},
+			Continue: func(answers []agent.InterruptAnswer) []Step {
+				received = answers[0].ItemID
+				return []Step{{Event: agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCompleted}}}}
+			},
+		}
+	}
+	session, _ := runtime.CreateSession(t.Context(), agent.CreateSession{Workspace: "/tmp/mock"})
+	opened, err := runtime.StartRun(t.Context(), agent.StartRun{SessionID: session.ID, Message: agent.Message{Text: "ask"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	conversation := agent.NewConversation()
+	drain(t, opened, conversation)
+	interaction := conversation.Interactions()[0]
+	continued, err := runtime.ResumeRun(t.Context(), agent.ResumeRun{RunID: opened.RunID, Answers: []agent.InterruptAnswer{{
+		ItemID: agent.InteractionItemID(interaction), Answer: agent.ApprovalAnswer{Decision: agent.ApprovalApprove},
+	}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	drain(t, continued, conversation)
+	if received != "approval" {
+		t.Fatalf("continuation item id = %q, want fixture-local id", received)
+	}
+}
+
+func TestInvalidFaultConfigurationDoesNotMutateRunState(t *testing.T) {
+	runtime := New()
+	runtime.Faults = []SubscriptionFault{{Kind: FaultKind("unknown"), After: 1}}
+	session, _ := runtime.CreateSession(t.Context(), agent.CreateSession{Workspace: "/tmp/mock"})
+	if _, err := runtime.StartRun(t.Context(), agent.StartRun{SessionID: session.ID, Message: agent.Message{Text: "start"}}); err == nil {
+		t.Fatal("invalid subscription fault was ignored")
+	}
+	snapshot, err := runtime.GetSession(t.Context(), session.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(snapshot.Runs) != 0 || len(snapshot.Transcript) != 0 || snapshot.Session.Status != agent.SessionIdle {
+		t.Fatalf("failed start mutated snapshot: %+v", snapshot)
+	}
+}
+
+func TestRememberedRulesRemoveOnlyMatchedApprovalsFromThePendingSet(t *testing.T) {
+	runtime := New()
+	runtime.Instant = true
+	runtime.rules = []storedRule{{view: agent.ApprovalRule{
+		ID: "rule_1", Scope: agent.RememberGlobal, Tool: "shell", Subject: "go test ./...", Decision: agent.ApprovalRuleAllow,
+	}}}
+	var continuedWith []agent.InterruptAnswer
+	runtime.Script = func(string) Script {
+		return Script{
+			Interactions: []agent.Interaction{
+				func() agent.Approval {
+					approval := approvalFixture("approval", "run tests")
+					approval.RuleHint, approval.Rememberable = "shell:go test ./...", true
+					return approval
+				}(),
+				agent.Question{ItemID: "question", Title: "Target", Fields: []agent.QuestionField{{Prompt: "Target", Kind: agent.QuestionText}}},
+			},
+			Continue: func(answers []agent.InterruptAnswer) []Step {
+				continuedWith = cloneAnswers(answers)
+				return []Step{{Event: agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCompleted}}}}
+			},
+		}
+	}
+	session, _ := runtime.CreateSession(t.Context(), agent.CreateSession{Workspace: "/tmp/mock"})
+	opened, err := runtime.StartRun(t.Context(), agent.StartRun{SessionID: session.ID, Message: agent.Message{Text: "ask"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	conversation := agent.NewConversation()
+	drain(t, opened, conversation)
+	pending := conversation.Interactions()
+	if len(pending) != 1 {
+		t.Fatalf("pending interactions = %+v, want only the unmatched question", pending)
+	}
+	question, ok := pending[0].(agent.Question)
+	if !ok {
+		t.Fatalf("pending interaction = %T, want question", pending[0])
+	}
+	waiting, err := runtime.GetSession(t.Context(), session.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	questionItem, found := snapshotBlock(waiting, opened.RunID, question.ItemID)
+	if !found || questionItem.Kind != agent.BlockQuestion || questionItem.Question == nil {
+		t.Fatalf("durable question item = %+v", questionItem)
+	}
+	continued, err := runtime.ResumeRun(t.Context(), agent.ResumeRun{RunID: opened.RunID, Answers: []agent.InterruptAnswer{{
+		ItemID: question.ItemID, Answer: agent.QuestionAnswer{Values: [][]string{{"linux"}}},
+	}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	drain(t, continued, conversation)
+	if len(continuedWith) != 2 || continuedWith[0].ItemID != "approval" || continuedWith[1].ItemID != "question" {
+		t.Fatalf("continuation answers = %+v, want the complete fixture-local set", continuedWith)
+	}
+}
+
+func drain(t *testing.T, stream agent.SegmentStream, conversation *agent.Conversation) {
 	t.Helper()
-	for _, title := range titles {
-		if _, err := runtime.CreateSession(t.Context(), agent.CreateSession{Title: title, Workspace: "/tmp/catalog"}); err != nil {
+	if err := stream.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	for event, streamErr := range stream.Events {
+		if streamErr != nil {
+			t.Fatal(streamErr)
+		}
+		if _, err := conversation.ApplyRunEvent(event); err != nil {
 			t.Fatal(err)
 		}
 	}
 }
 
-func mustListSessions(t *testing.T, runtime *Runtime, query agent.SessionQuery) agent.SessionPage {
-	t.Helper()
-	page, err := runtime.ListSessions(t.Context(), query)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return page
-}
-
-func TestSynchronousRuntimeQueriesHonorCancellation(t *testing.T) {
-	runtime := New()
-	session := newSession(t, runtime)
-	ctx, cancel := context.WithCancel(t.Context())
-	cancel()
-
-	tests := []struct {
-		name string
-		call func(context.Context) error
-	}{
-		{"list sessions", func(ctx context.Context) error {
-			_, err := runtime.ListSessions(ctx, agent.SessionQuery{})
-			return err
-		}},
-		{"get session", func(ctx context.Context) error { _, err := runtime.GetSession(ctx, session.ID); return err }},
-		{"create session", func(ctx context.Context) error {
-			_, err := runtime.CreateSession(ctx, agent.CreateSession{Workspace: "/tmp/canceled"})
-			return err
-		}},
-		{"update session", func(ctx context.Context) error {
-			_, err := runtime.UpdateSession(ctx, agent.UpdateSession{SessionID: session.ID, Title: "Canceled"})
-			return err
-		}},
-		{"fork session", func(ctx context.Context) error {
-			_, err := runtime.ForkSession(ctx, agent.ForkSession{SessionID: session.ID})
-			return err
-		}},
-		{"delete session", func(ctx context.Context) error {
-			return runtime.DeleteSession(ctx, agent.DeleteSession{SessionID: session.ID})
-		}},
-		{"list models", func(ctx context.Context) error { _, err := runtime.ListModels(ctx); return err }},
-		{"list approval rules", func(ctx context.Context) error { _, err := runtime.ListApprovalRules(ctx); return err }},
-		{"delete approval rule", func(ctx context.Context) error { return runtime.DeleteApprovalRule(ctx, "rule_missing") }},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			if err := test.call(ctx); !errors.Is(err, context.Canceled) {
-				t.Fatalf("error = %v, want context cancellation", err)
-			}
-		})
+func approvalFixture(itemID, title string) agent.Approval {
+	return agent.Approval{
+		ItemID: itemID, Title: title,
+		Tool: &agent.ToolCall{Kind: agent.ToolShell, Name: "shell", Status: agent.ToolRunning},
 	}
 }
 
-func TestSessionLifecycleHonorsRevisionAndForkCursor(t *testing.T) {
-	runtime := New()
-	runtime.Instant = true
-	runtime.Script = func(string) Script {
-		return Script{Prelude: []Step{{Event: agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCompleted}}}}}
-	}
-	session := newSession(t, runtime)
-	updated, err := runtime.UpdateSession(t.Context(), agent.UpdateSession{SessionID: session.ID, Title: "Renamed", Revision: session.Revision})
-	if err != nil || updated.Title != "Renamed" {
-		t.Fatalf("UpdateSession = %+v, %v", updated, err)
-	}
-	if _, err := runtime.UpdateSession(t.Context(), agent.UpdateSession{SessionID: session.ID, Title: "Stale", Revision: session.Revision}); !errors.Is(err, agent.ErrRevisionConflict) {
-		t.Fatalf("stale update error = %v", err)
-	}
-
-	run := mustStartRun(t, runtime, agent.StartRun{SessionID: session.ID, Message: agent.Message{Text: "why?"}})
-	events := mustFollowAll(t, runtime, run.ID, run.StartedAfter)
-	if len(events) < 3 {
-		t.Fatalf("run produced %d events", len(events))
-	}
-	fork, err := runtime.ForkSession(t.Context(), agent.ForkSession{SessionID: session.ID, At: events[len(events)-1].Cursor, Title: "Forked"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	snapshot := mustSnapshot(t, runtime, fork.ID)
-	if agent.Cursor(len(snapshot.Events)) != events[len(events)-1].Cursor || snapshot.Session.Title != "Forked" {
-		t.Fatalf("fork snapshot = %+v", snapshot)
-	}
-	requireEventSession(t, snapshot.Events, fork.ID)
-	if err := runtime.DeleteSession(t.Context(), agent.DeleteSession{SessionID: fork.ID, Revision: fork.Revision}); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := runtime.GetSession(t.Context(), fork.ID); !errors.Is(err, agent.ErrSessionNotFound) {
-		t.Fatalf("deleted session error = %v", err)
-	}
-}
-
-func requireEventSession(t *testing.T, events []agent.Envelope, sessionID string) {
-	t.Helper()
-	for _, envelope := range events {
-		if envelope.SessionID != sessionID {
-			t.Fatalf("event retained source session id: %+v", envelope)
+func snapshotBlock(snapshot agent.SessionSnapshot, runID, itemID string) (agent.Block, bool) {
+	for _, block := range snapshot.Transcript {
+		if block.RunID == runID && block.ID == itemID {
+			return block, true
 		}
 	}
+	return agent.Block{}, false
 }
 
-func TestRunReplaysAndResumesApprovalWithoutDuplicates(t *testing.T) {
-	runtime := New()
-	runtime.Instant = true
-	session := newSession(t, runtime)
-	run := mustStartRun(t, runtime, agent.StartRun{
-		SessionID: session.ID,
-		Message:   agent.Message{Text: "why?"},
-		Options:   agent.RunOptions{Model: "mock-balanced", Mode: agent.ModeBuild, Permission: agent.PermissionAsk},
-	})
-	first := mustFollowAll(t, runtime, run.ID, run.StartedAfter)
-	approval := requireApprovalInterrupt(t, first)
-
-	// Replaying from the cursor before the last event returns that exact event.
-	requireLastEventReplay(t, runtime, run.ID, first)
-	if err := runtime.ResumeRun(t.Context(), agent.ResumeRun{
-		RunID: run.ID, InterruptID: approval.InterruptID,
-		Answer: agent.ApprovalAnswer{Decision: agent.ApprovalAllow, Remember: agent.RememberSession},
-	}); err != nil {
-		t.Fatal(err)
-	}
-	second := mustFollowAll(t, runtime, run.ID, first[len(first)-1].Cursor)
-	requireCompletedContinuation(t, second)
-	requireUniqueEventIDs(t, slices.Concat(first, second))
-}
-
-func requireApprovalInterrupt(t *testing.T, events []agent.Envelope) agent.Approval {
+func timeLimitedContext(t *testing.T, timeout time.Duration) (context.Context, context.CancelFunc) {
 	t.Helper()
-	if len(events) == 0 {
-		t.Fatal("initial subscription was empty")
-	}
-	interrupted, ok := events[len(events)-1].Event.(agent.RunInterrupted)
-	if !ok {
-		t.Fatalf("last event = %T, want RunInterrupted", events[len(events)-1].Event)
-	}
-	approval, ok := interrupted.Interaction.(agent.Approval)
-	if !ok {
-		t.Fatalf("interaction = %T, want Approval", interrupted.Interaction)
-	}
-	return approval
-}
-
-func requireLastEventReplay(t *testing.T, runtime *Runtime, runID string, events []agent.Envelope) {
-	t.Helper()
-	last := events[len(events)-1]
-	replay, err := followAll(t, runtime, runID, events[len(events)-2].Cursor)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(replay) != 1 || replay[0].ID != last.ID {
-		t.Fatalf("replay = %+v, want event %s", replay, last.ID)
-	}
-}
-
-func requireCompletedContinuation(t *testing.T, events []agent.Envelope) {
-	t.Helper()
-	if len(events) == 0 {
-		t.Fatal("continuation was empty")
-	}
-	if _, ok := events[0].Event.(agent.RunResumed); !ok {
-		t.Fatalf("first continuation event = %T, want RunResumed", events[0].Event)
-	}
-	finished, ok := events[len(events)-1].Event.(agent.RunFinished)
-	if !ok {
-		t.Fatalf("last continuation event = %T, want RunFinished", events[len(events)-1].Event)
-	}
-	if finished.Outcome.Status != agent.OutcomeCompleted {
-		t.Fatalf("outcome status = %s, want completed", finished.Outcome.Status)
-	}
-}
-
-func requireUniqueEventIDs(t *testing.T, events []agent.Envelope) {
-	t.Helper()
-	seen := make(map[string]bool, len(events))
-	for _, envelope := range events {
-		if seen[envelope.ID] {
-			t.Fatalf("duplicate event id %s", envelope.ID)
-		}
-		seen[envelope.ID] = true
-	}
-}
-
-func TestStartRunIsIdempotentForARequestIdentity(t *testing.T) {
-	runtime := New()
-	runtime.Instant = true
-	session := newSession(t, runtime)
-	start := agent.StartRun{
-		RequestID: "req_retry_1",
-		SessionID: session.ID,
-		Message:   agent.Message{Text: "retry this turn"},
-		Options:   agent.RunOptions{Mode: agent.ModeBuild, Permission: agent.PermissionAsk},
-	}
-	first, err := runtime.StartRun(t.Context(), start)
-	if err != nil {
-		t.Fatal(err)
-	}
-	second, err := runtime.StartRun(t.Context(), start)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if first != second {
-		t.Fatalf("replayed start = %+v, want %+v", second, first)
-	}
-
-	conflict := start
-	conflict.Message.Text = "a different turn"
-	if _, err := runtime.StartRun(t.Context(), conflict); !errors.Is(err, agent.ErrRequestConflict) {
-		t.Fatalf("conflicting replay error = %v", err)
-	}
-	if _, err := runtime.StartRun(t.Context(), agent.StartRun{
-		RequestID: "bad request", SessionID: session.ID, Message: agent.Message{Text: "invalid"},
-	}); err == nil {
-		t.Fatal("request identity containing whitespace was accepted")
-	}
-
-	events, err := followAll(t, runtime, first.ID, first.StartedAfter)
-	if err != nil {
-		t.Fatal(err)
-	}
-	started := 0
-	for _, envelope := range events {
-		if _, ok := envelope.Event.(agent.RunStarted); ok {
-			started++
-		}
-	}
-	if started != 1 {
-		t.Fatalf("idempotent start emitted %d RunStarted events", started)
-	}
-}
-
-func TestResumeRunIsIdempotentForTheSameAnswer(t *testing.T) {
-	runtime := New()
-	runtime.Instant = true
-	session := newSession(t, runtime)
-	run, err := runtime.StartRun(t.Context(), agent.StartRun{SessionID: session.ID, Message: agent.Message{Text: "why?"}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	before, err := followAll(t, runtime, run.ID, run.StartedAfter)
-	if err != nil {
-		t.Fatal(err)
-	}
-	approval := before[len(before)-1].Event.(agent.RunInterrupted).Interaction.(agent.Approval)
-	resume := agent.ResumeRun{
-		RunID: run.ID, InterruptID: approval.InterruptID,
-		Answer: agent.ApprovalAnswer{Decision: agent.ApprovalAllow, Remember: agent.RememberNone},
-	}
-	if err := runtime.ResumeRun(t.Context(), resume); err != nil {
-		t.Fatal(err)
-	}
-	if err := runtime.ResumeRun(t.Context(), resume); err != nil {
-		t.Fatalf("replayed answer: %v", err)
-	}
-	resume.Answer = agent.ApprovalAnswer{Decision: agent.ApprovalDeny, Remember: agent.RememberNone}
-	if err := runtime.ResumeRun(t.Context(), resume); !errors.Is(err, agent.ErrRequestConflict) {
-		t.Fatalf("conflicting answer error = %v", err)
-	}
-	continued, err := followAll(t, runtime, run.ID, before[len(before)-1].Cursor)
-	if err != nil {
-		t.Fatal(err)
-	}
-	resumed := 0
-	for _, envelope := range continued {
-		if _, ok := envelope.Event.(agent.RunResumed); ok {
-			resumed++
-		}
-	}
-	if resumed != 1 {
-		t.Fatalf("idempotent answer emitted %d RunResumed events", resumed)
-	}
-}
-
-func TestFollowRunInjectsTransportFaultsWithoutChangingDurableLog(t *testing.T) {
-	for _, kind := range []FaultKind{FaultDisconnect, FaultDuplicate, FaultGap, FaultConflict} {
-		t.Run(string(kind), func(t *testing.T) { exerciseTransportFault(t, kind) })
-	}
-}
-
-func exerciseTransportFault(t *testing.T, kind FaultKind) {
-	t.Helper()
-	runtime := New()
-	runtime.Instant = true
-	runtime.Faults = []SubscriptionFault{{Kind: kind, After: 1}}
-	session := newSession(t, runtime)
-	run := mustStartRun(t, runtime, agent.StartRun{SessionID: session.ID, Message: agent.Message{Text: "fault"}})
-	events, streamErr := followAll(t, runtime, run.ID, run.StartedAfter)
-	requireInjectedFault(t, kind, events, streamErr)
-	replayed := mustFollowAll(t, runtime, run.ID, run.StartedAfter)
-	snapshot := mustSnapshot(t, runtime, session.ID)
-	if len(replayed) != len(snapshot.Events) {
-		t.Fatalf("durable replay = %d events, snapshot = %d", len(replayed), len(snapshot.Events))
-	}
-}
-
-func requireInjectedFault(t *testing.T, kind FaultKind, events []agent.Envelope, err error) {
-	t.Helper()
-	switch kind {
-	case FaultDisconnect:
-		requireDisconnectFault(t, events, err)
-	case FaultDuplicate:
-		requireDuplicateFault(t, events, err)
-	case FaultGap:
-		requireGapFault(t, events, err)
-	case FaultConflict:
-		requireConflictFault(t, events, err)
-	default:
-		t.Fatalf("unsupported fault %q", kind)
-	}
-}
-
-func requireDisconnectFault(t *testing.T, events []agent.Envelope, err error) {
-	t.Helper()
-	if len(events) != 1 || !errors.Is(err, agent.ErrDisconnected) {
-		t.Fatalf("events = %d, error = %v", len(events), err)
-	}
-}
-
-func requireDuplicateFault(t *testing.T, events []agent.Envelope, err error) {
-	t.Helper()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(events) < 2 || events[0].ID != events[1].ID {
-		t.Fatalf("events = %+v, want a duplicate prefix", events)
-	}
-}
-
-func requireGapFault(t *testing.T, events []agent.Envelope, err error) {
-	t.Helper()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(events) == 0 || events[0].Cursor < 2 {
-		t.Fatalf("events = %+v, want a leading cursor gap", events)
-	}
-}
-
-func requireConflictFault(t *testing.T, events []agent.Envelope, err error) {
-	t.Helper()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(events) != 2 {
-		t.Fatalf("events = %+v, want a two-event conflict", events)
-	}
-	if events[0].Cursor != events[1].Cursor || events[0].ID == events[1].ID {
-		t.Fatalf("events = %+v, want shared cursor with distinct ids", events)
-	}
-}
-
-func TestQuestionRequiresTypedCompleteAnswer(t *testing.T) {
-	runtime := New()
-	runtime.Instant = true
-	runtime.Script = func(string) Script {
-		return Script{
-			Interaction: agent.Question{InterruptID: "question_1", Title: "Choose", Fields: []agent.QuestionField{{ID: "strategy", Label: "Strategy", Kind: agent.QuestionSingle, Required: true, Options: []agent.QuestionOption{{Value: "safe", Label: "Safe"}}}}},
-			Continue: func(agent.Answer) []Step {
-				return []Step{{Event: agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCompleted}}}}
-			},
-		}
-	}
-	session := newSession(t, runtime)
-	run, err := runtime.StartRun(t.Context(), agent.StartRun{SessionID: session.ID, Message: agent.Message{Text: "ask"}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	first, err := followAll(t, runtime, run.ID, run.StartedAfter)
-	if err != nil {
-		t.Fatal(err)
-	}
-	question := first[len(first)-1].Event.(agent.RunInterrupted).Interaction.(agent.Question)
-	if err := runtime.ResumeRun(t.Context(), agent.ResumeRun{RunID: run.ID, InterruptID: question.InterruptID, Answer: agent.ApprovalAnswer{Decision: agent.ApprovalAllow}}); err == nil {
-		t.Fatal("approval answer was accepted for a question")
-	}
-	if err := runtime.ResumeRun(t.Context(), agent.ResumeRun{RunID: run.ID, InterruptID: question.InterruptID, Answer: agent.QuestionAnswer{}}); err == nil {
-		t.Fatal("missing required answer was accepted")
-	}
-	if err := runtime.ResumeRun(t.Context(), agent.ResumeRun{
-		RunID: run.ID, InterruptID: question.InterruptID,
-		Answer: agent.QuestionAnswer{Values: map[string][]string{"strategy": {"safe"}}},
-	}); err != nil {
-		t.Fatalf("complete answer: %v", err)
-	}
-}
-
-func TestCancelWaitingRunFinishesIt(t *testing.T) {
-	runtime := New()
-	runtime.Instant = true
-	session := newSession(t, runtime)
-	run, err := runtime.StartRun(t.Context(), agent.StartRun{SessionID: session.ID, Message: agent.Message{Text: "why?"}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	first, err := followAll(t, runtime, run.ID, run.StartedAfter)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := runtime.CancelRun(t.Context(), agent.CancelRun{RunID: run.ID}); err != nil {
-		t.Fatal(err)
-	}
-	continued, err := followAll(t, runtime, run.ID, first[len(first)-1].Cursor)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(continued) != 1 {
-		t.Fatalf("cancel continuation = %+v", continued)
-	}
-	finished := continued[0].Event.(agent.RunFinished)
-	if finished.Outcome.Status != agent.OutcomeCanceled {
-		t.Fatalf("cancel outcome = %+v", finished.Outcome)
-	}
-}
-
-func TestRememberedApprovalRuleSkipsMatchingInterruptAndCanBeForgotten(t *testing.T) {
-	runtime := New()
-	runtime.Instant = true
-	session := newSession(t, runtime)
-	firstRun := mustStartRun(t, runtime, agent.StartRun{SessionID: session.ID, Message: agent.Message{Text: "first"}})
-	first := mustFollowAll(t, runtime, firstRun.ID, firstRun.StartedAfter)
-	approval := first[len(first)-1].Event.(agent.RunInterrupted).Interaction.(agent.Approval)
-	if err := runtime.ResumeRun(t.Context(), agent.ResumeRun{
-		RunID: firstRun.ID, InterruptID: approval.InterruptID,
-		Answer: agent.ApprovalAnswer{Decision: agent.ApprovalAllow, Remember: agent.RememberSession},
-	}); err != nil {
-		t.Fatal(err)
-	}
-	_ = mustFollowAll(t, runtime, firstRun.ID, first[len(first)-1].Cursor)
-
-	rules, err := runtime.ListApprovalRules(t.Context())
-	if err != nil || len(rules) != 1 || rules[0].Scope != agent.RememberSession {
-		t.Fatalf("rules = %+v, %v", rules, err)
-	}
-	secondRun := mustStartRun(t, runtime, agent.StartRun{SessionID: session.ID, Message: agent.Message{Text: "second"}})
-	second := mustFollowAll(t, runtime, secondRun.ID, secondRun.StartedAfter)
-	requireFinishedWithoutInterrupt(t, second)
-	if err := runtime.DeleteApprovalRule(t.Context(), rules[0].ID); err != nil {
-		t.Fatal(err)
-	}
-	if rules, _ := runtime.ListApprovalRules(t.Context()); len(rules) != 0 {
-		t.Fatalf("deleted rule remains: %+v", rules)
-	}
-}
-
-func requireFinishedWithoutInterrupt(t *testing.T, events []agent.Envelope) {
-	t.Helper()
-	if slices.ContainsFunc(events, func(envelope agent.Envelope) bool {
-		_, interrupted := envelope.Event.(agent.RunInterrupted)
-		return interrupted
-	}) {
-		t.Fatalf("remembered rule did not skip approval: %+v", events)
-	}
-	if _, ok := events[len(events)-1].Event.(agent.RunFinished); !ok {
-		t.Fatalf("run did not finish: %+v", events)
-	}
-}
-
-func TestCanceledSubscriptionDoesNotCancelLogicalRun(t *testing.T) {
-	runtime := New()
-	runtime.Script = func(string) Script {
-		return Script{Prelude: []Step{{Delay: 100 * time.Millisecond, Event: agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCompleted}}}}}
-	}
-	session := newSession(t, runtime)
-	run, err := runtime.StartRun(t.Context(), agent.StartRun{SessionID: session.ID, Message: agent.Message{Text: "wait"}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	ctx, cancel := context.WithCancel(t.Context())
-	defer cancel()
-	stream, err := runtime.FollowRun(ctx, agent.FollowRun{RunID: run.ID, After: run.StartedAfter})
-	if err != nil {
-		t.Fatal(err)
-	}
-	for envelope, streamErr := range stream {
-		if streamErr != nil {
-			break
-		}
-		if _, ok := envelope.Event.(agent.BlockCompleted); ok {
-			cancel()
-		}
-	}
-	replayed, err := followAll(t, runtime, run.ID, run.StartedAfter)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, ok := replayed[len(replayed)-1].Event.(agent.RunFinished); !ok {
-		t.Fatalf("logical run did not finish after subscriber left: %+v", replayed)
-	}
-}
-
-func TestFollowRunRejectsCursorOutsideSessionWithoutOverflow(t *testing.T) {
-	runtime := New()
-	runtime.Instant = true
-	session := newSession(t, runtime)
-	run, err := runtime.StartRun(t.Context(), agent.StartRun{
-		SessionID: session.ID,
-		Message:   agent.Message{Text: "finish"},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := runtime.FollowRun(t.Context(), agent.FollowRun{RunID: run.ID, After: ^agent.Cursor(0)}); err == nil {
-		t.Fatal("FollowRun accepted a cursor beyond the session")
-	}
-}
-
-func TestRuntimeSupportsConcurrentCatalogReadsDuringStreaming(t *testing.T) {
-	runtime := New()
-	runtime.Instant = true
-	session := newSession(t, runtime)
-	var wait sync.WaitGroup
-	for range 16 {
-		wait.Go(func() {
-			if _, err := runtime.ListSessions(t.Context(), agent.SessionQuery{}); err != nil {
-				t.Errorf("ListSessions: %v", err)
-			}
-		})
-	}
-	run, err := runtime.StartRun(t.Context(), agent.StartRun{SessionID: session.ID, Message: agent.Message{Text: "why?"}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	wait.Go(func() {
-		if _, err := followAll(t, runtime, run.ID, run.StartedAfter); err != nil {
-			t.Errorf("FollowRun: %v", err)
-		}
-	})
-	wait.Wait()
-}
-
-func TestStartRunValidatesAndCopiesAttachments(t *testing.T) {
-	runtime := New()
-	runtime.Instant = true
-	session := newSession(t, runtime)
-	invalid := agent.Attachment{Kind: agent.AttachmentText, Name: "broken.txt", Path: "/tmp/broken.txt"}
-	if _, err := runtime.StartRun(t.Context(), agent.StartRun{
-		SessionID: session.ID, Message: agent.Message{Attachments: []agent.Attachment{invalid}},
-	}); err == nil {
-		t.Fatal("invalid attachment was accepted")
-	}
-
-	attachments := []agent.Attachment{{
-		ID: "att_1", Kind: agent.AttachmentText, Name: "notes.txt",
-		Path: "/tmp/notes.txt", MimeType: "text/plain", Size: 5,
-	}}
-	run, err := runtime.StartRun(t.Context(), agent.StartRun{
-		SessionID: session.ID, Message: agent.Message{Text: "inspect", Attachments: attachments},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	attachments[0].Name = "mutated.txt"
-	snapshot, err := runtime.GetSession(t.Context(), session.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var got agent.Block
-	for _, envelope := range snapshot.Events {
-		if event, ok := envelope.Event.(agent.BlockCompleted); ok && envelope.RunID == run.ID && event.Block.Kind == agent.BlockUser {
-			got = event.Block
-		}
-	}
-	if len(got.Attachments) != 1 || got.Attachments[0].Name != "notes.txt" {
-		t.Fatalf("stored attachments = %+v", got.Attachments)
-	}
-}
-
-func TestConcurrentIdempotentStartsBuildOnceOutsideTheRuntimeLock(t *testing.T) {
-	runtime := New()
-	runtime.Instant = true
-	session := newSession(t, runtime)
-	entered := make(chan struct{}, 1)
-	release := make(chan struct{})
-	var builds atomic.Int32
-	runtime.Script = func(string) Script {
-		builds.Add(1)
-		if _, err := runtime.ListSessions(t.Context(), agent.SessionQuery{}); err != nil {
-			panic(err)
-		}
-		entered <- struct{}{}
-		<-release
-		return completedScript()
-	}
-	input := agent.StartRun{RequestID: "req_same", SessionID: session.ID, Message: agent.Message{Text: "once"}}
-	type result struct {
-		run agent.Run
-		err error
-	}
-	results := make(chan result, 2)
-	go func() {
-		run, err := runtime.StartRun(t.Context(), input)
-		results <- result{run: run, err: err}
-	}()
-	<-entered
-	go func() {
-		run, err := runtime.StartRun(t.Context(), input)
-		results <- result{run: run, err: err}
-	}()
-	close(release)
-	first, second := <-results, <-results
-	if first.err != nil || second.err != nil || first.run.ID == "" || first.run.ID != second.run.ID {
-		t.Fatalf("idempotent starts = %+v and %+v", first, second)
-	}
-	if builds.Load() != 1 {
-		t.Fatalf("script built %d times", builds.Load())
-	}
-}
-
-func TestCancelStartCreatesATombstoneAndPreventsLateCommit(t *testing.T) {
-	runtime := New()
-	session := newSession(t, runtime)
-	entered := make(chan struct{})
-	release := make(chan struct{})
-	runtime.Script = func(string) Script {
-		close(entered)
-		<-release
-		return completedScript()
-	}
-	input := agent.StartRun{RequestID: "req_cancel", SessionID: session.ID, Message: agent.Message{Text: "cancel"}}
-	started := make(chan error, 1)
-	go func() {
-		_, err := runtime.StartRun(t.Context(), input)
-		started <- err
-	}()
-	<-entered
-	if err := runtime.CancelRun(t.Context(), agent.CancelRun{SessionID: session.ID, RequestID: input.RequestID}); err != nil {
-		t.Fatal(err)
-	}
-	close(release)
-	if err := <-started; !errors.Is(err, agent.ErrRunCanceled) {
-		t.Fatalf("late start error = %v, want ErrRunCanceled", err)
-	}
-	if _, err := runtime.StartRun(t.Context(), input); !errors.Is(err, agent.ErrRunCanceled) {
-		t.Fatalf("tombstoned retry error = %v, want ErrRunCanceled", err)
-	}
-	snapshot, err := runtime.GetSession(t.Context(), session.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if snapshot.Active != nil || snapshot.Cursor != 0 {
-		t.Fatalf("canceled start committed state: %+v", snapshot)
-	}
-}
-
-func TestScriptBuilderPanicIsStableAcrossIdempotentRetries(t *testing.T) {
-	runtime := New()
-	session := newSession(t, runtime)
-	var builds atomic.Int32
-	runtime.Script = func(string) Script {
-		builds.Add(1)
-		panic("fixture exploded")
-	}
-	input := agent.StartRun{RequestID: "req_panic", SessionID: session.ID, Message: agent.Message{Text: "panic"}}
-	_, first := runtime.StartRun(t.Context(), input)
-	_, second := runtime.StartRun(t.Context(), input)
-	if first == nil || second == nil || first.Error() != second.Error() || !strings.Contains(first.Error(), "fixture exploded") {
-		t.Fatalf("panic errors = %v and %v", first, second)
-	}
-	if builds.Load() != 1 {
-		t.Fatalf("panicking builder ran %d times", builds.Load())
-	}
-}
-
-func TestCancelRunFinishesImmediatelyWithoutPostFinishEvents(t *testing.T) {
-	runtime := New()
-	session := newSession(t, runtime)
-	runtime.Script = func(string) Script {
-		return Script{Prelude: []Step{{Delay: time.Hour, Event: agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCompleted}}}}}
-	}
-	run, err := runtime.StartRun(t.Context(), agent.StartRun{RequestID: "req_active", SessionID: session.ID, Message: agent.Message{Text: "wait"}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := runtime.CancelRun(t.Context(), agent.CancelRun{RunID: run.ID}); err != nil {
-		t.Fatal(err)
-	}
-	events, err := followAll(t, runtime, run.ID, run.StartedAfter)
-	if err != nil {
-		t.Fatal(err)
-	}
-	finished, ok := events[len(events)-1].Event.(agent.RunFinished)
-	if !ok || finished.Outcome.Status != agent.OutcomeCanceled {
-		t.Fatalf("last event = %+v, want canceled finish", events[len(events)-1])
-	}
-	if err := runtime.CancelRun(t.Context(), agent.CancelRun{RunID: run.ID}); err != nil {
-		t.Fatalf("idempotent cancellation: %v", err)
-	}
-}
-
-func TestContinuationRunsOutsideLockAndCancellationWinsItsCommitRace(t *testing.T) {
-	runtime := New()
-	runtime.Instant = true
-	session := newSession(t, runtime)
-	entered := make(chan struct{})
-	release := make(chan struct{})
-	runtime.Script = func(string) Script {
-		return Script{
-			Interaction: agent.Question{InterruptID: "question_1", Title: "Choose", Fields: []agent.QuestionField{{ID: "name", Label: "Name", Kind: agent.QuestionText, Required: true}}},
-			Continue: func(agent.Answer) []Step {
-				if _, err := runtime.ListSessions(t.Context(), agent.SessionQuery{}); err != nil {
-					panic(err)
-				}
-				close(entered)
-				<-release
-				return completedScript().Prelude
-			},
-		}
-	}
-	run, err := runtime.StartRun(t.Context(), agent.StartRun{SessionID: session.ID, Message: agent.Message{Text: "ask"}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	events, err := followAll(t, runtime, run.ID, run.StartedAfter)
-	if err != nil {
-		t.Fatal(err)
-	}
-	interrupted := events[len(events)-1].Event.(agent.RunInterrupted)
-	resumeErr := make(chan error, 1)
-	go func() {
-		resumeErr <- runtime.ResumeRun(t.Context(), agent.ResumeRun{
-			RunID: run.ID, InterruptID: agent.InteractionID(interrupted.Interaction),
-			Answer: agent.QuestionAnswer{Values: map[string][]string{"name": {"cache"}}},
-		})
-	}()
-	<-entered
-	if err := runtime.CancelRun(t.Context(), agent.CancelRun{RunID: run.ID}); err != nil {
-		t.Fatal(err)
-	}
-	close(release)
-	if err := <-resumeErr; !errors.Is(err, agent.ErrRunCanceled) {
-		t.Fatalf("resume error = %v, want ErrRunCanceled", err)
-	}
-	snapshot, err := runtime.GetSession(t.Context(), session.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if snapshot.Active != nil {
-		t.Fatalf("canceled resumption left active run: %+v", snapshot.Active)
-	}
-}
-
-func completedScript() Script {
-	return Script{Prelude: []Step{{Event: agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCompleted}}}}}
+	return context.WithTimeout(t.Context(), timeout)
 }

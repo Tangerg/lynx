@@ -9,33 +9,35 @@ import (
 
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
 	"github.com/Tangerg/lynx/app/cli/internal/reconnect"
-	"github.com/Tangerg/lynx/app/cli/internal/requestid"
+	"github.com/Tangerg/lynx/app/cli/internal/runrecovery"
 )
 
 const cancellationTimeout = 5 * time.Second
 
-// Renderer consumes the accepted event prefix of a run and releases its output
-// resources when the run ends or fails.
 type Renderer interface {
-	Render(agent.Envelope) error
+	Begin(agent.Run, agent.RunOptions) error
+	Render(agent.RunEvent) error
+	Reconcile(agent.SessionSnapshot) error
 	Close() error
 }
 
-type runInitializer interface {
-	Begin(agent.Run, agent.RunOptions) error
+type Runtime interface {
+	agent.RunLifecycle
+	agent.SessionReader
 }
 
-// Invocation contains the dependencies and product policy for one unattended run.
 type Invocation struct {
-	Runtime           agent.RunLifecycle
+	Runtime           Runtime
 	Renderer          Renderer
 	Start             agent.StartRun
 	ApproveAll        bool
 	ReconnectAttempts int
 }
 
-// Execute starts, follows, and settles one unattended run. Approvals are denied
-// unless ApproveAll is set; questions remain parked for an interactive agent.
+// Execute drives one stable Run across as many Segments as its interrupts
+// require. The embedded adapter gives controls stable runtime identities, but
+// this use case deliberately does not repeat user intent after an ambiguous
+// return; it rebinds an acknowledged segment stream and otherwise cold-recovers.
 func Execute(ctx context.Context, invocation Invocation) (runErr error) {
 	if invocation.Runtime == nil {
 		return errors.New("one-shot run requires a runtime")
@@ -43,59 +45,43 @@ func Execute(ctx context.Context, invocation Invocation) (runErr error) {
 	if invocation.Renderer == nil {
 		return errors.New("one-shot run requires a renderer")
 	}
-	defer func() { runErr = errors.Join(runErr, invocation.Renderer.Close()) }()
-	if err := ensureRequestID(&invocation.Start); err != nil {
+	if err := invocation.Start.Validate(); err != nil {
 		return err
 	}
-	policy := reconnect.New(invocation.ReconnectAttempts)
-	watcher := watchCancellation(ctx, invocation.Runtime, policy, agent.CancelRun{
-		SessionID: invocation.Start.SessionID,
-		RequestID: invocation.Start.RequestID,
-	})
-	cancelOnExit := true
-	defer func() { watcher.Finish(cancelOnExit) }()
+	defer func() { runErr = errors.Join(runErr, invocation.Renderer.Close()) }()
 
-	run, err := reconnect.ControlValue(ctx, policy, func() (agent.Run, error) {
-		return invocation.Runtime.StartRun(ctx, invocation.Start)
-	})
+	opened, err := invocation.Runtime.StartRun(ctx, invocation.Start)
 	if err != nil {
 		return err
 	}
-	if err := validateStartedRun(run, invocation.Start.SessionID); err != nil {
+	cancelOnExit := true
+	var watcher *cancellationWatcher
+	if opened.RunID != "" {
+		watcher = watchCancellation(ctx, invocation.Runtime, opened.RunID)
+		defer func() { watcher.Finish(cancelOnExit) }()
+	}
+	if err := opened.ValidateStart(); err != nil {
+		return fmt.Errorf("start run: %w", err)
+	}
+	run := agent.Run{
+		ID: opened.RunID, SessionID: invocation.Start.SessionID,
+		Provider: invocation.Start.Options.Provider, Model: invocation.Start.Options.Model,
+		Status: agent.RunStatusRunning, ActiveSegmentID: opened.SegmentID, Limits: invocation.Start.Options.Limits,
+	}
+	if run.Provider == "" {
+		// The runtime default is intentionally opaque to the caller. Validation
+		// permits the pair to be empty.
+		run.Model = ""
+	}
+	if err := invocation.Renderer.Begin(run, invocation.Start.Options); err != nil {
 		return err
 	}
-	if initializer, ok := invocation.Renderer.(runInitializer); ok {
-		if err := initializer.Begin(run, invocation.Start.Options); err != nil {
-			return err
-		}
-	}
-	disposition, err := drive(ctx, invocation.Runtime, invocation.Renderer, invocation.Start, run, invocation.ApproveAll, policy)
+
+	disposition, err := drive(ctx, invocation, opened)
 	if disposition.preservesRun() {
 		cancelOnExit = false
 	}
 	return err
-}
-
-func validateStartedRun(run agent.Run, sessionID string) error {
-	if err := run.Validate(); err != nil {
-		return fmt.Errorf("start run response: %w", err)
-	}
-	if run.SessionID != sessionID {
-		return fmt.Errorf("start run response: run belongs to session %s, want %s", run.SessionID, sessionID)
-	}
-	return nil
-}
-
-func ensureRequestID(start *agent.StartRun) error {
-	if start.RequestID != "" {
-		return nil
-	}
-	id, err := requestid.New()
-	if err != nil {
-		return err
-	}
-	start.RequestID = id
-	return nil
 }
 
 type cancellationWatcher struct {
@@ -103,7 +89,7 @@ type cancellationWatcher struct {
 	done chan struct{}
 }
 
-func watchCancellation(ctx context.Context, runtime agent.RunLifecycle, policy reconnect.Policy, request agent.CancelRun) *cancellationWatcher {
+func watchCancellation(ctx context.Context, runtime agent.RunLifecycle, runID string) *cancellationWatcher {
 	watcher := &cancellationWatcher{exit: make(chan bool, 1), done: make(chan struct{})}
 	go func() {
 		defer close(watcher.done)
@@ -117,9 +103,7 @@ func watchCancellation(ctx context.Context, runtime agent.RunLifecycle, policy r
 		}
 		cancelCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), cancellationTimeout)
 		defer cancel()
-		_ = reconnect.Control(cancelCtx, policy, func() error {
-			return runtime.CancelRun(cancelCtx, request)
-		})
+		_, _ = runtime.CancelRun(cancelCtx, agent.CancelRun{RunID: runID, Reason: "CLI execution ended before the run settled"})
 	}()
 	return watcher
 }
@@ -139,83 +123,153 @@ const (
 
 func (d disposition) preservesRun() bool { return d == settled || d == parked }
 
-func drive(
-	ctx context.Context,
-	runtime agent.RunLifecycle,
-	renderer Renderer,
-	start agent.StartRun,
-	run agent.Run,
-	approveAll bool,
-	policy reconnect.Policy,
-) (disposition, error) {
-	conversation := agent.NewConversationAt(run.StartedAfter)
+func drive(ctx context.Context, invocation Invocation, opened agent.SegmentStream) (disposition, error) {
+	conversation := agent.NewConversation()
+	policy := reconnect.New(invocation.ReconnectAttempts)
 	failures := 0
+	current := opened
 	for {
-		before := conversation.Cursor()
-		stream, err := runtime.FollowRun(ctx, agent.FollowRun{RunID: run.ID, After: before})
-		if err != nil {
-			if retryErr := waitToReconnect(ctx, policy, &failures, false, err); retryErr != nil {
-				return abandoned, retryErr
-			}
-			continue
-		}
-		if stream == nil {
-			return abandoned, errors.New("runtime returned a nil event stream")
-		}
-		followed := consume(stream, conversation, renderer)
-		progressed := conversation.Cursor() > before
+		followed := consume(current.Events, conversation, invocation.Renderer)
 		if followed.outcome != nil {
 			return settled, errorForOutcome(*followed.outcome)
 		}
-		if followed.interrupted != nil {
-			if err := resume(ctx, runtime, policy, run.ID, start.SessionID, followed.interrupted, approveAll); err != nil {
+		if len(followed.interactions) != 0 {
+			answers, err := unattendedAnswers(followed.interactions, invocation.ApproveAll, invocation.Start.SessionID)
+			if err != nil {
 				if _, required := errors.AsType[*interactionRequiredError](err); required {
 					return parked, err
 				}
 				return abandoned, err
 			}
+			current, err = invocation.Runtime.ResumeRun(ctx, agent.ResumeRun{RunID: current.RunID, Answers: answers})
+			if err != nil {
+				return abandoned, err
+			}
+			if err := validateContinuation(current, opened.RunID); err != nil {
+				return abandoned, err
+			}
 			failures = 0
 			continue
 		}
-		if followed.err == nil {
-			followed.err = fmt.Errorf("%w: runtime subscription ended without interrupting or finishing the run", agent.ErrDisconnected)
+		cause := followed.err
+		if cause == nil {
+			cause = fmt.Errorf("%w: segment stream ended without a terminal event", agent.ErrDisconnected)
 		}
-		if retryErr := waitToReconnect(ctx, policy, &failures, progressed, followed.err); retryErr != nil {
-			return abandoned, retryErr
+		if followed.applied > 0 {
+			failures = 0
+		}
+		for {
+			failures++
+			delay, retry := policy.Next(failures, cause)
+			if !retry {
+				return abandoned, cause
+			}
+			if err := reconnect.Wait(ctx, delay); err != nil {
+				return abandoned, err
+			}
+			rebound, subscribeErr := invocation.Runtime.SubscribeRun(ctx, agent.SubscribeRun{
+				RunID: current.RunID, SegmentID: current.SegmentID, AfterEventID: conversation.Checkpoint(),
+			})
+			if subscribeErr != nil {
+				if runrecovery.Required(subscribeErr) {
+					recovered, recoveryErr := runrecovery.Recover(ctx, invocation.Runtime, invocation.Start.SessionID, current.RunID)
+					if recoveryErr != nil {
+						if !runrecovery.Required(recoveryErr) {
+							cause = recoveryErr
+						}
+						continue
+					}
+					if err := invocation.Renderer.Reconcile(recovered.Snapshot); err != nil {
+						return abandoned, err
+					}
+					if err := restoreRecoveredConversation(conversation, recovered); err != nil {
+						return abandoned, err
+					}
+					switch recovered.Run.Status {
+					case agent.RunStatusFinished:
+						return settled, errorForOutcome(recovered.Run.Outcome)
+					case agent.RunStatusWaiting:
+						answers, err := unattendedAnswers(recovered.Snapshot.Interactions, invocation.ApproveAll, invocation.Start.SessionID)
+						if err != nil {
+							if _, required := errors.AsType[*interactionRequiredError](err); required {
+								return parked, err
+							}
+							return abandoned, err
+						}
+						current, err = invocation.Runtime.ResumeRun(ctx, agent.ResumeRun{RunID: recovered.Run.ID, Answers: answers})
+						if err != nil {
+							return abandoned, err
+						}
+						if err := validateContinuation(current, opened.RunID); err != nil {
+							return abandoned, err
+						}
+						failures = 0
+					case agent.RunStatusRunning:
+						current = recovered.Stream
+					}
+					break
+				}
+				cause = subscribeErr
+				continue
+			}
+			if err := rebound.ValidateSubscription(); err != nil {
+				return abandoned, fmt.Errorf("subscribe run: %w", err)
+			}
+			current = rebound
+			break
 		}
 	}
 }
 
-type followResult struct {
-	interrupted agent.Interaction
-	outcome     *agent.Outcome
-	err         error
+func restoreRecoveredConversation(conversation *agent.Conversation, recovered runrecovery.State) error {
+	if recovered.Run.Status == agent.RunStatusRunning {
+		return conversation.RestoreAttachedSnapshot(recovered.Snapshot, recovered.Stream)
+	}
+	return conversation.RestoreSnapshot(recovered.Snapshot)
 }
 
-func consume(stream agent.RunStream, conversation *agent.Conversation, renderer Renderer) followResult {
+func validateContinuation(stream agent.SegmentStream, runID string) error {
+	if err := stream.ValidateResume(nil); err != nil {
+		return err
+	}
+	if stream.RunID != runID {
+		return fmt.Errorf("resume run response: run %s does not match %s", stream.RunID, runID)
+	}
+	return nil
+}
+
+type followResult struct {
+	interactions []agent.Interaction
+	outcome      *agent.Outcome
+	err          error
+	applied      int
+}
+
+func consume(stream agent.EventStream, conversation *agent.Conversation, renderer Renderer) followResult {
 	var followed followResult
-	for envelope, streamErr := range stream {
+	for event, streamErr := range stream {
 		if streamErr != nil {
 			followed.err = streamErr
 			break
 		}
-		result, err := conversation.ApplyEnvelope(envelope)
+		result, err := conversation.ApplyRunEvent(event)
 		if err != nil {
-			followed.err = fmt.Errorf("accept runtime event at cursor %d: %w", envelope.Cursor, err)
+			followed.err = fmt.Errorf("accept runtime event %s: %w", event.EventID, err)
 			break
 		}
 		if !result.Applied {
 			continue
 		}
-		if err := renderer.Render(envelope); err != nil {
+		followed.applied++
+		if err := renderer.Render(event); err != nil {
 			followed.err = err
 			break
 		}
-		switch event := envelope.Event.(type) {
+		switch payload := event.Event.(type) {
 		case agent.RunInterrupted:
-			followed.interrupted = event.Interaction
+			followed.interactions = agent.CloneInteractions(payload.Interactions)
 		case agent.RunFinished:
-			followed.outcome = new(event.Outcome)
+			followed.outcome = new(payload.Outcome)
 		}
 	}
 	return followed
@@ -224,8 +278,11 @@ func consume(stream agent.RunStream, conversation *agent.Conversation, renderer 
 type outcomeError struct{ outcome agent.Outcome }
 
 func (e *outcomeError) Error() string {
-	if e.outcome.Status == agent.OutcomeFailed {
-		return "run failed: " + e.outcome.Error
+	if e.outcome.Error != "" {
+		return "run " + string(e.outcome.Status) + ": " + e.outcome.Error
+	}
+	if e.outcome.Detail != "" {
+		return "run " + string(e.outcome.Status) + ": " + e.outcome.Detail
 	}
 	return "run " + string(e.outcome.Status)
 }
@@ -237,49 +294,24 @@ func errorForOutcome(outcome agent.Outcome) error {
 	return &outcomeError{outcome: outcome}
 }
 
-func resume(
-	ctx context.Context,
-	runtime agent.RunLifecycle,
-	policy reconnect.Policy,
-	runID string,
-	sessionID string,
-	interaction agent.Interaction,
-	approveAll bool,
-) error {
-	answer, interruptID, err := unattendedAnswer(interaction, approveAll, sessionID)
-	if err != nil {
-		return err
+func unattendedAnswers(interactions []agent.Interaction, approveAll bool, sessionID string) ([]agent.InterruptAnswer, error) {
+	answers := make([]agent.InterruptAnswer, 0, len(interactions))
+	for _, interaction := range interactions {
+		switch item := interaction.(type) {
+		case agent.Approval:
+			answers = append(answers, agent.InterruptAnswer{ItemID: item.ItemID, Answer: approvalAnswer(approveAll)})
+		case agent.Question:
+			return nil, &interactionRequiredError{title: item.Title, sessionID: sessionID}
+		default:
+			return nil, errors.New("runtime returned an unknown interaction")
+		}
 	}
-	request := agent.ResumeRun{RunID: runID, InterruptID: interruptID, Answer: answer}
-	return reconnect.Control(ctx, policy, func() error { return runtime.ResumeRun(ctx, request) })
-}
-
-func waitToReconnect(ctx context.Context, policy reconnect.Policy, failures *int, progressed bool, cause error) error {
-	if progressed {
-		*failures = 0
-	}
-	*failures++
-	delay, ok := policy.Next(*failures, cause)
-	if !ok {
-		return cause
-	}
-	return reconnect.Wait(ctx, delay)
-}
-
-func unattendedAnswer(interaction agent.Interaction, approveAll bool, sessionID string) (agent.Answer, string, error) {
-	switch item := interaction.(type) {
-	case agent.Approval:
-		return approvalAnswer(approveAll), item.InterruptID, nil
-	case agent.Question:
-		return nil, item.InterruptID, &interactionRequiredError{title: item.Title, sessionID: sessionID}
-	default:
-		return nil, "", errors.New("runtime returned an unknown interaction")
-	}
+	return answers, nil
 }
 
 func approvalAnswer(approveAll bool) agent.ApprovalAnswer {
 	if approveAll {
-		return agent.ApprovalAnswer{Decision: agent.ApprovalAllow, Remember: agent.RememberNone}
+		return agent.ApprovalAnswer{Decision: agent.ApprovalApprove}
 	}
 	return agent.ApprovalAnswer{
 		Decision: agent.ApprovalDeny,

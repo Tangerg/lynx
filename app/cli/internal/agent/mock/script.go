@@ -22,12 +22,13 @@ type Step struct {
 	Event agent.Event
 }
 
-// Script is one run's worth of events. Prelude plays first; Interaction, when
-// non-nil, parks the run and Continue maps the typed answer to its continuation.
+// Script is one run's worth of events. Prelude plays first; Interactions, when
+// non-empty, park the run as one atomic waiting set.
 type Script struct {
-	Prelude     []Step
-	Interaction agent.Interaction
-	Continue    func(agent.Answer) []Step
+	Prelude        []Step
+	Interactions   []agent.Interaction
+	InterruptUsage agent.Usage
+	Continue       func([]agent.InterruptAnswer) []Step
 }
 
 func buildScriptSafely(build func(string) Script, prompt string) (script Script, err error) {
@@ -44,9 +45,12 @@ func buildScriptSafely(build func(string) Script, prompt string) (script Script,
 }
 
 func (s Script) validate() error {
+	if err := s.InterruptUsage.Validate(); err != nil {
+		return fmt.Errorf("script interrupt usage: %w", err)
+	}
 	interrupted := s.interrupts()
 	if interrupted {
-		if err := agent.ValidateInteraction(s.Interaction); err != nil {
+		if err := agent.ValidateInteractions(s.Interactions); err != nil {
 			return err
 		}
 	} else if s.Continue != nil {
@@ -55,7 +59,7 @@ func (s Script) validate() error {
 	return validateSteps(s.Prelude, !interrupted)
 }
 
-func continueSafely(script Script, answer agent.Answer) (steps []Step, err error) {
+func continueSafely(script Script, answers []agent.InterruptAnswer) (steps []Step, err error) {
 	defer func() {
 		if recovered := recover(); recovered != nil {
 			err = fmt.Errorf("script continuation panicked: %v", recovered)
@@ -64,7 +68,7 @@ func continueSafely(script Script, answer agent.Answer) (steps []Step, err error
 	if script.Continue == nil {
 		return nil, errors.New("script interaction has no continuation")
 	}
-	steps = cloneSteps(script.Continue(agent.CloneAnswer(answer)))
+	steps = cloneSteps(script.Continue(cloneAnswers(answers)))
 	if err := validateSteps(steps, true); err != nil {
 		return nil, err
 	}
@@ -77,11 +81,26 @@ func validateSteps(steps []Step, requireFinish bool) error {
 		if step.Delay < 0 {
 			return fmt.Errorf("step %d has a negative delay", i+1)
 		}
-		if err := agent.ValidateEvent(step.Event); err != nil {
+		event := step.Event
+		switch item := event.(type) {
+		case agent.BlockStarted:
+			item.Block.RunID = "fixture"
+			item.Block.Status = agent.BlockStatusRunning
+			event = item
+		case agent.BlockCompleted:
+			item.Block.RunID = "fixture"
+			item.Block.Status = completedBlockStatus(item.Block)
+			event = item
+		}
+		if changed, ok := event.(agent.PlanChanged); ok && changed.Revision == 0 {
+			changed.Revision = 1 // Runtime assigns the durable revision at emission.
+			event = changed
+		}
+		if err := agent.ValidateEvent(event); err != nil {
 			return fmt.Errorf("step %d: %w", i+1, err)
 		}
 		switch step.Event.(type) {
-		case agent.RunStarted, agent.RunResumed, agent.RunInterrupted:
+		case agent.SegmentStarted, agent.RunInterrupted:
 			return fmt.Errorf("step %d contains a runtime-owned control event", i+1)
 		case agent.RunFinished:
 			if i != len(steps)-1 {
@@ -98,19 +117,81 @@ func validateSteps(steps []Step, requireFinish bool) error {
 
 func cloneScript(script Script) Script {
 	script.Prelude = cloneSteps(script.Prelude)
-	script.Interaction = agent.CloneInteraction(script.Interaction)
+	script.Interactions = agent.CloneInteractions(script.Interactions)
+	script.InterruptUsage = script.InterruptUsage.Clone()
 	return script
+}
+
+func completedBlockStatus(block agent.Block) agent.BlockStatus {
+	if block.Kind == agent.BlockError || block.Tool != nil && (block.Tool.Status == agent.ToolError || block.Tool.Status == agent.ToolCanceled) {
+		return agent.BlockStatusIncomplete
+	}
+	return agent.BlockStatusCompleted
 }
 
 func cloneSteps(steps []Step) []Step {
 	cloned := slices.Clone(steps)
 	for i := range cloned {
-		cloned[i].Event = cloneEvent(cloned[i].Event)
+		cloned[i].Event = agent.CloneEvent(cloned[i].Event)
 	}
 	return cloned
 }
 
-func (s Script) interrupts() bool { return s.Interaction != nil }
+// namespaceScript turns reusable fixture-local identities into runtime-global
+// Item identities. Durable transcripts span Runs, so a second invocation must
+// never reuse the first invocation's block or pending-item IDs.
+func namespaceScript(script Script, runID string) Script {
+	originalContinue := script.Continue
+	script.Prelude = namespaceSteps(script.Prelude, runID)
+	for i, interaction := range script.Interactions {
+		script.Interactions[i] = namespaceInteraction(interaction, runID)
+	}
+	if originalContinue != nil {
+		script.Continue = func(answers []agent.InterruptAnswer) []Step {
+			local := cloneAnswers(answers)
+			for i := range local {
+				local[i].ItemID = strings.TrimPrefix(local[i].ItemID, runID+":")
+			}
+			return namespaceSteps(originalContinue(local), runID)
+		}
+	}
+	return script
+}
+
+func namespaceSteps(steps []Step, runID string) []Step {
+	out := cloneSteps(steps)
+	for i, step := range out {
+		switch event := step.Event.(type) {
+		case agent.BlockStarted:
+			event.Block.ID = runID + ":" + event.Block.ID
+			event.Block.RunID = runID
+			out[i].Event = event
+		case agent.BlockDelta:
+			event.BlockID = runID + ":" + event.BlockID
+			out[i].Event = event
+		case agent.BlockCompleted:
+			event.Block.ID = runID + ":" + event.Block.ID
+			event.Block.RunID = runID
+			out[i].Event = event
+		}
+	}
+	return out
+}
+
+func namespaceInteraction(interaction agent.Interaction, runID string) agent.Interaction {
+	switch item := interaction.(type) {
+	case agent.Approval:
+		item.ItemID = runID + ":" + item.ItemID
+		return item
+	case agent.Question:
+		item.ItemID = runID + ":" + item.ItemID
+		return item
+	default:
+		return nil
+	}
+}
+
+func (s Script) interrupts() bool { return len(s.Interactions) != 0 }
 
 const (
 	// tick paces one streamed word. Fast enough to feel live, slow enough that
@@ -181,17 +262,15 @@ func DefaultScript(_ string) Script {
 	}}})
 	prelude = append(prelude, stream("msg_1", agent.BlockAssistant, explain)...)
 
-	approved := tool("tool_2", agent.ToolEdit, "edit", "internal/store/cache_test.go",
-		agent.ToolOK, "", diff, 118*time.Millisecond)
-	approved = append(approved, tool("tool_3", agent.ToolShell, "shell",
+	approved := tool("tool_3", agent.ToolShell, "shell",
 		"go test ./internal/store -run TestCacheExpiry -count=50",
-		agent.ToolOK, "ok  \tgithub.com/example/store\t2.104s", "", 2*time.Second+104*time.Millisecond)...)
+		agent.ToolOK, "ok  \tgithub.com/example/store\t2.104s", "", 2*time.Second+104*time.Millisecond)
 	approved = append(approved, stream("msg_2", agent.BlockAssistant, summary)...)
 	approved = append(approved, Step{Delay: beat, Event: agent.RunFinished{
 		Outcome: agent.Outcome{Status: agent.OutcomeCompleted},
 		Usage: agent.Usage{
-			InputTokens: 18422, OutputTokens: 1163, CachedTokens: 12800,
-			CostUSD: 0.0412, Duration: 21 * time.Second,
+			InputTokens: 18422, OutputTokens: 1163, CacheReadTokens: 12800,
+			CostUSD: knownCostUSD(0.0412), Duration: 21 * time.Second,
 		},
 	}})
 
@@ -203,30 +282,38 @@ func DefaultScript(_ string) Script {
 	denied = append(denied, Step{Delay: beat, Event: agent.RunFinished{
 		Outcome: agent.Outcome{Status: agent.OutcomeCompleted},
 		Usage: agent.Usage{
-			InputTokens: 14180, OutputTokens: 742, CachedTokens: 12800,
-			CostUSD: 0.0291, Duration: 14 * time.Second,
+			InputTokens: 14180, OutputTokens: 742, CacheReadTokens: 12800,
+			CostUSD: knownCostUSD(0.0291), Duration: 14 * time.Second,
 		},
 	}})
 
 	return Script{
-		Prelude: prelude,
-		Interaction: agent.Approval{
-			InterruptID: "int_1",
-			Title:       "edit internal/store/cache_test.go",
-			Detail:      "Replace the fixed 50ms sleep with a wait on the janitor's sweep signal.",
-			Diff:        diff,
-			Risk:        "writes one workspace test file",
-			RuleHint:    "edit:internal/store/cache_test.go",
-		},
-		Continue: func(answer agent.Answer) []Step {
-			approval, ok := answer.(agent.ApprovalAnswer)
-			if ok && approval.Decision == agent.ApprovalAllow {
+		Prelude:        prelude,
+		InterruptUsage: agent.Usage{InputTokens: 12_800, OutputTokens: 684, CacheReadTokens: 9_600, CostUSD: knownCostUSD(0.0264), Duration: 9 * time.Second},
+		Interactions: []agent.Interaction{agent.Approval{
+			ItemID: "tool_2",
+			Title:  "edit internal/store/cache_test.go",
+			Detail: "Replace the fixed 50ms sleep with a wait on the janitor's sweep signal.",
+			Tool: &agent.ToolCall{
+				Kind: agent.ToolEdit, Name: "edit", Summary: "internal/store/cache_test.go",
+				Status: agent.ToolRunning, Path: "internal/store/cache_test.go", Diff: diff,
+			},
+			Diff:         diff,
+			Risk:         agent.ApprovalRiskMedium,
+			RuleHint:     "edit:internal/store/cache_test.go",
+			Rememberable: true,
+		}},
+		Continue: func(answers []agent.InterruptAnswer) []Step {
+			approval, ok := answers[0].Answer.(agent.ApprovalAnswer)
+			if ok && approval.Decision == agent.ApprovalApprove {
 				return approved
 			}
 			return denied
 		},
 	}
 }
+
+func knownCostUSD(value float64) *float64 { return &value }
 
 // stream renders one body as a started block, a delta per word, and a completed
 // block — the shape a real streaming item takes.
@@ -295,8 +382,8 @@ func words(text string) []string {
 func demoSessions() []agent.Session {
 	now := time.Date(2026, 8, 4, 11, 30, 0, 0, time.UTC)
 	return []agent.Session{
-		{ID: "ses_demo_1", Title: "Flaky cache expiry test", Workspace: "/tmp/demo/store", UpdatedAt: now, Revision: 7},
-		{ID: "ses_demo_2", Title: "Rename the shell tool family", Workspace: "/tmp/demo/store", UpdatedAt: now.Add(-90 * time.Minute), Revision: 3},
-		{ID: "ses_demo_3", Title: "Draft the release notes", Workspace: "/tmp/demo/docs", UpdatedAt: now.Add(-26 * time.Hour), Revision: 12},
+		{ID: "ses_demo_1", Title: "Flaky cache expiry test", Status: agent.SessionIdle, Workspace: "/tmp/demo/store", UpdatedAt: now, Revision: 7},
+		{ID: "ses_demo_2", Title: "Rename the shell tool family", Status: agent.SessionIdle, Workspace: "/tmp/demo/store", UpdatedAt: now.Add(-90 * time.Minute), Revision: 3},
+		{ID: "ses_demo_3", Title: "Draft the release notes", Status: agent.SessionIdle, Workspace: "/tmp/demo/docs", UpdatedAt: now.Add(-26 * time.Hour), Revision: 12},
 	}
 }

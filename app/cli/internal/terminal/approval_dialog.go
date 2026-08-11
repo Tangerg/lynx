@@ -3,17 +3,17 @@ package terminal
 import (
 	"context"
 	"errors"
+	"fmt"
+	"slices"
 	"strings"
 
+	"github.com/Tangerg/lynx/app/cli/internal/agent"
 	"github.com/Tangerg/oolong/components/headless"
 	"github.com/Tangerg/oolong/components/kit"
 	"github.com/Tangerg/oolong/core/input"
 	"github.com/Tangerg/oolong/core/keymap"
 	"github.com/Tangerg/oolong/core/layout"
 	"github.com/Tangerg/oolong/core/text"
-	"github.com/Tangerg/oolong/highlight"
-
-	"github.com/Tangerg/lynx/app/cli/internal/agent"
 )
 
 type approvalPane struct {
@@ -33,12 +33,12 @@ func (p *approvalPane) Draw(frame headless.Frame) {
 	}
 	detailRows := min(p.detail.Measure(width), 4)
 	formRows := min(p.form.Measure(width), 7)
-	rows := frame.Subs(layout.Down.Rects(frame.Bounds().Size(),
+	rows := frame.Subs((layout.Flow{Axis: layout.Down}).Rects(frame.Bounds().Size(), []layout.Slot{
 		layout.Slot{Size: layout.Fixed(1)},
 		layout.Slot{Size: layout.Fixed(detailRows)},
 		layout.Slot{Size: layout.Flex(1)},
 		layout.Slot{Size: layout.Fixed(formRows)},
-	))
+	}))
 	kit.Label{Text: p.title, Style: p.theme.Strong, Ellipsis: "…"}.Draw(rows[0].View)
 	p.detail.Draw(rows[1].View)
 	p.viewport.Draw(rows[2])
@@ -66,8 +66,10 @@ func (a *app) buildApprovalDialog(theme kit.Theme, glyphs kit.Glyphs) {
 		viewport: headless.NewViewport(headless.Static{Of: code}),
 	}
 	a.setApprovalForm("allow-once")
-	a.approvalDialog = kit.NewDialog(&a.stack, theme, glyphs, "Tool approval", &a.approvalPane)
-	a.approvalDialog.Panel().Where = layout.Placement{Width: 88, Height: 24, Margin: 1}
+	a.approvalDialog = kit.NewDialog(kit.DialogConfig{
+		Stack: &a.stack, Theme: theme, Glyphs: glyphs, Title: "Tool approval", Body: &a.approvalPane,
+		Where: layout.Placement{Width: 88, Height: 24, Margin: 1},
+	})
 }
 
 func (a *app) setApprovalForm(initial string) {
@@ -75,32 +77,38 @@ func (a *app) setApprovalForm(initial string) {
 	choice := &headless.Select[string]{
 		Label: "How should lyra proceed?", Value: headless.Bind(&a.approvalChoice), Rows: 5,
 	}
-	choice.SetOptions([]headless.Option[string]{
+	options := []headless.Option[string]{
 		{Label: "Allow once", Value: "allow-once"},
-		{Label: "Allow for this session", Value: "allow-session"},
-		{Label: "Allow for this project", Value: "allow-project"},
-		{Label: "Always allow this rule", Value: "allow-global"},
 		{Label: "Deny", Value: "deny"},
-	})
+	}
+	if a.approval == nil || a.approval.Rememberable {
+		options = slices.Insert(options, 1,
+			headless.Option[string]{Label: "Allow for this session", Value: "allow-session"},
+			headless.Option[string]{Label: "Allow for this project", Value: "allow-project"},
+			headless.Option[string]{Label: "Always allow this rule", Value: "allow-global"},
+		)
+	}
+	choice.SetOptions(options)
 	keys := headless.DefaultFormKeys()
 	a.approvalForm = headless.NewForm(choice)
 	a.approvalForm.Keys = keys
 	a.approvalForm.Done = func() { a.answerApproval(a.approvalChoice) }
 	a.approvalForm.GaveUp = func() { a.answerApproval("deny") }
-	dressed := kit.NewForm(a.approvalPane.theme, a.approvalPane.glyphs, a.approvalForm)
-	dressed.Keys = keys
-	dressed.Hints = []keymap.Action{headless.Submit, headless.Cancel}
+	dressed := kit.NewForm(kit.FormConfig{
+		Theme: a.approvalPane.theme, Glyphs: a.approvalPane.glyphs, Controller: a.approvalForm,
+		Hints: []keymap.Action{headless.Submit, headless.Cancel},
+	})
 	a.approvalPane.form = dressed
 }
 
 func (a *app) openApproval(approval agent.Approval) {
 	cloned := approval
 	a.approval = &cloned
-	a.setApprovalForm(approvalDefault(a.settings.Approval.Remember))
+	a.setApprovalForm(approvalDefault(a.settings.Approval.Remember.Scope()))
 	a.approvalPane.title = approval.Title
 	details := []string{approval.Detail}
 	if approval.Risk != "" {
-		details = append(details, "risk: "+approval.Risk)
+		details = append(details, "risk: "+string(approval.Risk))
 	}
 	if approval.RuleHint != "" {
 		details = append(details, "rule: "+approval.RuleHint)
@@ -110,17 +118,33 @@ func (a *app) openApproval(approval agent.Approval) {
 	if diff == "" {
 		diff = "No diff was supplied for this request."
 	}
-	a.approvalPane.code.SetText(highlight.Lines("diff", diff, a.syntax))
+	a.approvalPane.code.SetText(a.syntax.Lines("diff", diff))
 	a.approvalPane.viewport.Scroll().ToTop()
 	a.approvalDialog.Controller().SetDescription(approval.Title)
 	a.approvalDialog.Show()
 }
 
-func (a *app) openInteraction(interaction agent.Interaction) {
-	if a.approval != nil || a.question != nil {
-		a.fail(errors.New("runtime opened a second interaction while one is active"))
+func (a *app) openInteractions(interactions []agent.Interaction) {
+	if a.approval != nil || a.question != nil || len(a.interactionQueue) != 0 {
+		a.fail(errors.New("runtime opened interactions while another set is active"))
 		return
 	}
+	if err := agent.ValidateInteractions(interactions); err != nil {
+		a.fail(fmt.Errorf("runtime interactions: %w", err))
+		return
+	}
+	a.interactionQueue = agent.CloneInteractions(interactions)
+	a.interactionAnswers = nil
+	a.openNextInteraction()
+}
+
+func (a *app) openNextInteraction() {
+	if len(a.interactionQueue) == 0 {
+		a.resumeInteractions()
+		return
+	}
+	interaction := a.interactionQueue[0]
+	a.interactionQueue = a.interactionQueue[1:]
 	switch item := interaction.(type) {
 	case agent.Approval:
 		a.openApproval(item)
@@ -144,7 +168,7 @@ func (a *app) answerApproval(choice string) {
 	if decision.Decision == agent.ApprovalDeny {
 		decision.Reason = "denied by the user in the terminal"
 	}
-	a.resumeInteraction(approval.InterruptID, decision)
+	a.acceptInteractionAnswer(approval.ItemID, decision)
 }
 
 func approvalDefault(scope agent.RememberScope) string {
@@ -165,27 +189,56 @@ func approvalDefault(scope agent.RememberScope) string {
 func approvalAnswer(choice string) agent.ApprovalAnswer {
 	switch choice {
 	case "allow-session":
-		return agent.ApprovalAnswer{Decision: agent.ApprovalAllow, Remember: agent.RememberSession}
+		return agent.ApprovalAnswer{Decision: agent.ApprovalApprove, Remember: agent.RememberSession}
 	case "allow-project":
-		return agent.ApprovalAnswer{Decision: agent.ApprovalAllow, Remember: agent.RememberProject}
+		return agent.ApprovalAnswer{Decision: agent.ApprovalApprove, Remember: agent.RememberProject}
 	case "allow-global":
-		return agent.ApprovalAnswer{Decision: agent.ApprovalAllow, Remember: agent.RememberGlobal}
+		return agent.ApprovalAnswer{Decision: agent.ApprovalApprove, Remember: agent.RememberGlobal}
 	case "allow-once":
-		return agent.ApprovalAnswer{Decision: agent.ApprovalAllow, Remember: agent.RememberNone}
+		return agent.ApprovalAnswer{Decision: agent.ApprovalApprove, Remember: agent.RememberNone}
 	default:
 		return agent.ApprovalAnswer{Decision: agent.ApprovalDeny, Remember: agent.RememberNone}
 	}
 }
 
-func (a *app) resumeInteraction(interruptID string, answer agent.Answer) {
+func (a *app) acceptInteractionAnswer(itemID string, answer agent.Answer) {
+	a.interactionAnswers = append(a.interactionAnswers, agent.InterruptAnswer{ItemID: itemID, Answer: agent.CloneAnswer(answer)})
+	if len(a.interactionQueue) != 0 {
+		a.openNextInteraction()
+		return
+	}
+	a.resumeInteractions()
+}
+
+func (a *app) resumeInteractions() {
+	if len(a.interactionAnswers) == 0 {
+		return
+	}
 	runID := a.conversation.RunID()
-	after := a.conversation.Cursor()
-	a.follow(func(ctx context.Context) (runSubscription, error) {
-		if err := a.runtime.ResumeRun(ctx, agent.ResumeRun{RunID: runID, InterruptID: interruptID, Answer: answer}); err != nil {
-			return runSubscription{}, err
+	answers := slices.Clone(a.interactionAnswers)
+	a.interactionAnswers = nil
+	a.status.active("resuming")
+	a.syncAnimation()
+	a.follow(func(ctx context.Context) (agent.SegmentStream, error) {
+		stream, err := a.runtime.ResumeRun(ctx, agent.ResumeRun{RunID: runID, Answers: answers})
+		if err != nil {
+			return agent.SegmentStream{}, err
 		}
-		return runSubscription{runID: runID, after: after}, nil
+		if err := stream.ValidateResume(nil); err != nil {
+			return agent.SegmentStream{}, fmt.Errorf("resume run: %w", err)
+		}
+		return stream, nil
 	})
+}
+
+func (a *app) abortInteractions(reason string) {
+	a.approval = nil
+	a.question = nil
+	a.interactionQueue = nil
+	a.interactionAnswers = nil
+	if runID := a.conversation.RunID(); runID != "" {
+		a.cancelRuntime(agent.CancelRun{RunID: runID, Reason: reason})
+	}
 }
 
 func nonEmptyStrings(values []string) []string {

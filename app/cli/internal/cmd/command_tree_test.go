@@ -67,8 +67,8 @@ func TestRunDeclinesApprovalWhenUnattended(t *testing.T) {
 	if !strings.Contains(out, "Edit declined") {
 		t.Fatalf("output does not show the run continuing after the refusal:\n%s", out)
 	}
-	if strings.Contains(out, "● edit") {
-		t.Fatalf("the edit ran despite being declined:\n%s", out)
+	if !strings.Contains(out, "● edit") || !strings.Contains(out, "✗") || strings.Contains(out, "count=50") {
+		t.Fatalf("the denied tool lifecycle is incorrect:\n%s", out)
 	}
 	if !strings.Contains(out, "↑ ") {
 		t.Fatalf("output has no usage footer, so the run did not finish:\n%s", out)
@@ -101,8 +101,8 @@ func TestRunStreamingJSONIsOneObjectPerLineEndingWithTheRun(t *testing.T) {
 	}
 	requireTypedJSONLines(t, lines)
 	first := decodeRunFrame(t, lines[0])
-	if first.Type != "run.started" {
-		t.Fatalf("first frame = %s, want run.started", lines[0])
+	if first.Type != "segment.started" {
+		t.Fatalf("first frame = %s, want segment.started", lines[0])
 	}
 	last := decodeRunFrame(t, lines[len(lines)-1])
 	if last.Type != "run.finished" || last.Outcome.Status != "completed" {
@@ -138,10 +138,10 @@ type commandResult struct {
 		Status string `json:"status"`
 		Error  string `json:"error"`
 	} `json:"outcome"`
-	Interaction struct {
+	Interactions []struct {
 		Kind  string `json:"kind"`
 		Title string `json:"title"`
-	} `json:"interaction"`
+	} `json:"interactions"`
 }
 
 func decodeResult(t *testing.T, output string) commandResult {
@@ -190,7 +190,7 @@ func decodeRunFrame(t *testing.T, line string) runFrame {
 }
 
 func TestRunRecoversTransportFaultsWithoutRenderingDuplicates(t *testing.T) {
-	for _, fault := range []mock.FaultKind{mock.FaultDisconnect, mock.FaultDuplicate, mock.FaultGap} {
+	for _, fault := range []mock.FaultKind{mock.FaultDisconnect, mock.FaultDuplicate} {
 		t.Run(string(fault), func(t *testing.T) {
 			rt := instantRuntime()
 			rt.Script = shortCompletedScript
@@ -200,23 +200,26 @@ func TestRunRecoversTransportFaultsWithoutRenderingDuplicates(t *testing.T) {
 				t.Fatalf("run: %v\n%s", err, out)
 			}
 			seen := make(map[string]bool)
-			var lastType string
+			var lastType, lastStatus string
 			for i, line := range strings.Split(strings.TrimSpace(out), "\n") {
 				var frame struct {
 					Type    string `json:"type"`
 					EventID string `json:"eventId"`
+					Status  string `json:"status"`
 				}
 				if err := json.Unmarshal([]byte(line), &frame); err != nil {
 					t.Fatalf("line %d: %v", i, err)
 				}
-				if seen[frame.EventID] {
+				if frame.EventID != "" && seen[frame.EventID] {
 					t.Fatalf("event %s rendered twice:\n%s", frame.EventID, out)
 				}
-				seen[frame.EventID] = true
-				lastType = frame.Type
+				if frame.EventID != "" {
+					seen[frame.EventID] = true
+				}
+				lastType, lastStatus = frame.Type, frame.Status
 			}
-			if lastType != "run.finished" {
-				t.Fatalf("last event = %q, want run.finished\n%s", lastType, out)
+			if lastType != "run.finished" && (lastType != "run.snapshot" || lastStatus != "finished") {
+				t.Fatalf("last event = %q (%q), want run.finished or a finished run.snapshot\n%s", lastType, lastStatus, out)
 			}
 		})
 	}
@@ -225,97 +228,73 @@ func TestRunRecoversTransportFaultsWithoutRenderingDuplicates(t *testing.T) {
 type ambiguousControls struct {
 	*mock.Runtime
 
-	mu          sync.Mutex
-	starts      int
-	resumes     int
-	requestIDs  []string
-	interruptID []string
+	mu         sync.Mutex
+	starts     int
+	resumes    int
+	loseStart  bool
+	loseResume bool
 }
 
-func (r *ambiguousControls) StartRun(ctx context.Context, input agent.StartRun) (agent.Run, error) {
-	run, err := r.Runtime.StartRun(ctx, input)
+func (r *ambiguousControls) StartRun(ctx context.Context, input agent.StartRun) (agent.SegmentStream, error) {
+	stream, err := r.Runtime.StartRun(ctx, input)
 	if err != nil {
-		return agent.Run{}, err
+		return agent.SegmentStream{}, err
 	}
 	r.mu.Lock()
 	r.starts++
-	r.requestIDs = append(r.requestIDs, input.RequestID)
-	lost := r.starts == 1
+	lost := r.loseStart
 	r.mu.Unlock()
 	if lost {
-		return agent.Run{}, fmt.Errorf("lost start response: %w", agent.ErrDisconnected)
+		return agent.SegmentStream{}, fmt.Errorf("lost start response: %w", agent.ErrDisconnected)
 	}
-	return run, nil
+	return stream, nil
 }
 
-func (r *ambiguousControls) ResumeRun(ctx context.Context, input agent.ResumeRun) error {
-	if err := r.Runtime.ResumeRun(ctx, input); err != nil {
-		return err
+func (r *ambiguousControls) ResumeRun(ctx context.Context, input agent.ResumeRun) (agent.SegmentStream, error) {
+	stream, err := r.Runtime.ResumeRun(ctx, input)
+	if err != nil {
+		return agent.SegmentStream{}, err
 	}
 	r.mu.Lock()
 	r.resumes++
-	r.interruptID = append(r.interruptID, input.InterruptID)
-	lost := r.resumes == 1
+	lost := r.loseResume
 	r.mu.Unlock()
 	if lost {
-		return fmt.Errorf("lost resume response: %w", agent.ErrDisconnected)
+		return agent.SegmentStream{}, fmt.Errorf("lost resume response: %w", agent.ErrDisconnected)
 	}
-	return nil
+	return stream, nil
 }
 
-func (r *ambiguousControls) calls() (int, int, []string, []string) {
+func (r *ambiguousControls) calls() (int, int) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	return r.starts, r.resumes, slices.Clone(r.requestIDs), slices.Clone(r.interruptID)
+	return r.starts, r.resumes
 }
 
-func TestRunRecoversAmbiguousControlResponsesWithoutDuplicatingAControl(t *testing.T) {
-	base := instantRuntime()
-	runtime := &ambiguousControls{Runtime: base}
-	out, _, err := executeCommand(t, runtime, "", "run", "--output-format", "streaming-json", "--approve-all", "-s", firstSession(t, runtime), "recover controls")
-	if err != nil {
-		t.Fatalf("run: %v\n%s", err, out)
-	}
-	starts, resumes, requestIDs, interruptIDs := runtime.calls()
-	requireRetriedControlIdentity(t, starts, resumes, requestIDs, interruptIDs)
-	counts := countUniqueFrames(t, out)
-	if counts["run.started"] != 1 || counts["run.resumed"] != 1 || counts["run.finished"] != 1 {
-		t.Fatalf("control event counts = %+v\n%s", counts, out)
-	}
-}
+func TestRunDoesNotRetryAmbiguousControlOperations(t *testing.T) {
+	t.Run("start", func(t *testing.T) {
+		runtime := &ambiguousControls{Runtime: instantRuntime(), loseStart: true}
+		_, _, err := executeCommand(t, runtime, "", "run", "-s", firstSession(t, runtime), "start once")
+		if !errors.Is(err, agent.ErrDisconnected) {
+			t.Fatalf("run error = %v, want ErrDisconnected", err)
+		}
+		starts, resumes := runtime.calls()
+		if starts != 1 || resumes != 0 {
+			t.Fatalf("control calls = start %d, resume %d; want 1, 0", starts, resumes)
+		}
+	})
 
-func requireRetriedControlIdentity(t *testing.T, starts, resumes int, requestIDs, interruptIDs []string) {
-	t.Helper()
-	if starts != 2 || resumes != 2 {
-		t.Fatalf("control calls = start %d, resume %d; want one retry each", starts, resumes)
-	}
-	if requestIDs[0] == "" || requestIDs[0] != requestIDs[1] {
-		t.Fatalf("start retries used request identities %q", requestIDs)
-	}
-	if interruptIDs[0] == "" || interruptIDs[0] != interruptIDs[1] {
-		t.Fatalf("resume retries used interrupt identities %q", interruptIDs)
-	}
-}
-
-func countUniqueFrames(t *testing.T, output string) map[string]int {
-	t.Helper()
-	seen := make(map[string]bool)
-	counts := make(map[string]int)
-	for line := range strings.SplitSeq(strings.TrimSpace(output), "\n") {
-		var frame struct {
-			Type    string `json:"type"`
-			EventID string `json:"eventId"`
+	t.Run("resume", func(t *testing.T) {
+		runtime := &ambiguousControls{Runtime: instantRuntime(), loseResume: true}
+		_, _, err := executeCommand(t, runtime, "", "run", "--approve-all", "-s", firstSession(t, runtime), "resume once")
+		if !errors.Is(err, agent.ErrDisconnected) {
+			t.Fatalf("run error = %v, want ErrDisconnected", err)
 		}
-		if err := json.Unmarshal([]byte(line), &frame); err != nil {
-			t.Fatal(err)
+		starts, resumes := runtime.calls()
+		if starts != 1 || resumes != 1 {
+			t.Fatalf("control calls = start %d, resume %d; want 1, 1", starts, resumes)
 		}
-		if seen[frame.EventID] {
-			t.Fatalf("event %s rendered twice:\n%s", frame.EventID, output)
-		}
-		seen[frame.EventID] = true
-		counts[frame.Type]++
-	}
-	return counts
+	})
 }
 
 func TestRunRejectsConflictingReplay(t *testing.T) {
@@ -331,10 +310,10 @@ func TestRunRejectsConflictingReplay(t *testing.T) {
 func TestRunQuestionNamesTheResumableSession(t *testing.T) {
 	rt := instantRuntime()
 	rt.Script = func(string) mock.Script {
-		return mock.Script{Interaction: agent.Question{
-			InterruptID: "question_1", Title: "Choose a strategy",
-			Fields: []agent.QuestionField{{ID: "strategy", Label: "Strategy", Kind: agent.QuestionText}},
-		}}
+		return mock.Script{Interactions: []agent.Interaction{agent.Question{
+			ItemID: "question_1", Title: "Choose a strategy",
+			Fields: []agent.QuestionField{{Prompt: "Strategy", Kind: agent.QuestionText}},
+		}}}
 	}
 	id := firstSession(t, rt)
 	out, _, err := executeCommand(t, rt, "", "run", "--json", "-s", id, "ask me")
@@ -342,18 +321,19 @@ func TestRunQuestionNamesTheResumableSession(t *testing.T) {
 		t.Fatalf("question error = %v", err)
 	}
 	result := decodeResult(t, out)
-	if result.Status != "interrupted" || result.Interaction.Kind != "question" || result.Interaction.Title != "Choose a strategy" {
+	if result.Status != "interrupted" || len(result.Interactions) != 1 || result.Interactions[0].Kind != "question" || result.Interactions[0].Title != "Choose a strategy" {
 		t.Fatalf("interrupted result = %+v", result)
 	}
 	snapshot, getErr := rt.GetSession(t.Context(), id)
 	if getErr != nil {
 		t.Fatal(getErr)
 	}
-	if snapshot.Active == nil || snapshot.Active.Status != agent.RunWaiting {
-		t.Fatalf("question did not leave a resumable waiting run: %+v", snapshot.Active)
+	active, activeOK := snapshot.ActiveRun()
+	if !activeOK || active.Status != agent.RunStatusWaiting {
+		t.Fatalf("question did not leave a resumable waiting run: %+v", snapshot.Runs)
 	}
-	if _, ok := snapshot.Events[len(snapshot.Events)-1].Event.(agent.RunInterrupted); !ok {
-		t.Fatalf("question was followed by an unexpected cleanup event: %+v", snapshot.Events[len(snapshot.Events)-1])
+	if len(snapshot.Interactions) != 1 || agent.InteractionItemID(snapshot.Interactions[0]) == "" {
+		t.Fatalf("question waiting set = %+v, want one pending interaction", snapshot.Interactions)
 	}
 }
 
@@ -384,8 +364,8 @@ func TestRunReturnsAnErrorForNonCompletedOutcomes(t *testing.T) {
 			if getErr != nil {
 				t.Fatal(getErr)
 			}
-			if snapshot.Active != nil {
-				t.Fatalf("settled outcome left an active run: %+v", snapshot.Active)
+			if _, active := snapshot.ActiveRun(); active {
+				t.Fatalf("settled outcome left an active run: %+v", snapshot.Runs)
 			}
 		})
 	}
@@ -419,8 +399,26 @@ func TestOutputFormatCompletionFiltersCandidates(t *testing.T) {
 
 type alwaysDisconnected struct{ agent.Runtime }
 
-func (alwaysDisconnected) FollowRun(context.Context, agent.FollowRun) (agent.RunStream, error) {
-	return nil, fmt.Errorf("test transport: %w", agent.ErrDisconnected)
+func (runtime alwaysDisconnected) StartRun(ctx context.Context, input agent.StartRun) (agent.SegmentStream, error) {
+	stream, err := runtime.Runtime.StartRun(ctx, input)
+	if err != nil {
+		return agent.SegmentStream{}, err
+	}
+	upstream := stream.Events
+	stream.Events = func(yield func(agent.RunEvent, error) bool) {
+		for event, streamErr := range upstream {
+			if !yield(event, streamErr) || streamErr != nil {
+				return
+			}
+			yield(agent.RunEvent{}, fmt.Errorf("test transport: %w", agent.ErrDisconnected))
+			return
+		}
+	}
+	return stream, nil
+}
+
+func (alwaysDisconnected) SubscribeRun(context.Context, agent.SubscribeRun) (agent.SegmentStream, error) {
+	return agent.SegmentStream{}, fmt.Errorf("test transport: %w", agent.ErrDisconnected)
 }
 
 func TestRunStopsAfterReconnectBudgetIsExhausted(t *testing.T) {
@@ -475,7 +473,7 @@ func TestRunAttachesRepeatedFilesAndAllowsAttachmentOnlyPrompts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	prompt := userPromptBlock(t, snapshot.Events)
+	prompt := userPromptBlock(t, snapshot.Transcript)
 	if prompt.Text != "" || len(prompt.Attachments) != 2 {
 		t.Fatalf("prompt block = %+v", prompt)
 	}
@@ -491,11 +489,11 @@ func writeCommandFixture(t *testing.T, path string, content []byte) {
 	}
 }
 
-func userPromptBlock(t *testing.T, events []agent.Envelope) agent.Block {
+func userPromptBlock(t *testing.T, blocks []agent.Block) agent.Block {
 	t.Helper()
-	for _, envelope := range slices.Backward(events) {
-		if event, ok := envelope.Event.(agent.BlockCompleted); ok && event.Block.Kind == agent.BlockUser {
-			return event.Block
+	for _, block := range slices.Backward(blocks) {
+		if block.Kind == agent.BlockUser {
+			return block
 		}
 	}
 	t.Fatal("user prompt block was not emitted")
@@ -618,6 +616,33 @@ func TestSessionManagementCommands(t *testing.T) {
 	requireSessionDelete(t, runtime, forkID)
 }
 
+func TestSessionShowJSONUsesTheCLISnapshotContract(t *testing.T) {
+	runtime := instantRuntime()
+	out, _, err := executeCommand(t, runtime, "", "sessions", "show", firstSession(t, runtime), "--json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var snapshot struct {
+		Session struct {
+			ID string `json:"id"`
+		} `json:"session"`
+		Transcript []json.RawMessage `json:"transcript"`
+		Runs       []struct {
+			ID     string `json:"id"`
+			Status string `json:"status"`
+		} `json:"runs"`
+	}
+	if err := json.Unmarshal([]byte(out), &snapshot); err != nil {
+		t.Fatalf("session snapshot is not JSON: %v\n%s", err, out)
+	}
+	if snapshot.Session.ID == "" || len(snapshot.Transcript) != 2 || len(snapshot.Runs) != 1 || snapshot.Runs[0].Status != "finished" {
+		t.Fatalf("session snapshot = %+v", snapshot)
+	}
+	if strings.Contains(out, `"ID"`) || !strings.Contains(out, `"sessionId"`) {
+		t.Fatalf("session snapshot leaked Go field names:\n%s", out)
+	}
+}
+
 func requireSessionShow(t *testing.T, runtime agent.Runtime, id string) {
 	t.Helper()
 	shown, _, err := executeCommand(t, runtime, "", "sessions", "show", id)
@@ -628,7 +653,11 @@ func requireSessionShow(t *testing.T, runtime agent.Runtime, id string) {
 
 func requireSessionRename(t *testing.T, runtime agent.Runtime, id string) {
 	t.Helper()
-	renamed, _, err := executeCommand(t, runtime, "", "sessions", "rename", id, "Investigate cache")
+	snapshot, err := runtime.GetSession(t.Context(), id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	renamed, _, err := executeCommand(t, runtime, "", "sessions", "rename", id, "Investigate cache", "--revision", fmt.Sprint(snapshot.Session.Revision))
 	if err != nil || !strings.Contains(renamed, "Investigate cache") {
 		t.Fatalf("sessions rename = %q, %v", renamed, err)
 	}
@@ -636,13 +665,13 @@ func requireSessionRename(t *testing.T, runtime agent.Runtime, id string) {
 
 func forkTestSession(t *testing.T, runtime agent.Runtime, id string) string {
 	t.Helper()
-	forked, _, err := executeCommand(t, runtime, "", "sessions", "fork", id, "--at", "4", "--title", "Alternative")
+	forked, _, err := executeCommand(t, runtime, "", "sessions", "fork", id, "--from-run", "run_demo_history", "--title", "Alternative")
 	if err != nil {
 		t.Fatalf("sessions fork: %v", err)
 	}
 	forkID := strings.TrimSpace(forked)
 	snapshot, err := runtime.GetSession(t.Context(), forkID)
-	if err != nil || snapshot.Session.Title != "Alternative" || len(snapshot.Events) != 4 {
+	if err != nil || snapshot.Session.Title != "Alternative" || len(snapshot.Transcript) != 0 || len(snapshot.Runs) != 0 {
 		t.Fatalf("fork snapshot = %+v, %v", snapshot, err)
 	}
 	return forkID
@@ -691,88 +720,87 @@ func TestApprovalRuleCommandsInspectAndForget(t *testing.T) {
 	runtime := instantRuntime()
 	sessionID := firstSession(t, runtime)
 	ruleID := createProjectApprovalRule(t, runtime, sessionID)
-	requireApprovalList(t, runtime)
-	jsonOut, _, jsonErr := executeCommand(t, runtime, "", "approvals", "ls", "--json")
+	requireApprovalList(t, runtime, sessionID)
+	jsonOut, _, jsonErr := executeCommand(t, runtime, "", "approvals", "ls", "--session", sessionID, "--json")
 	if jsonErr != nil {
 		t.Fatal(jsonErr)
 	}
-	var rules approvalRulesJSON
-	if err := json.Unmarshal([]byte(jsonOut), &rules); err != nil || len(rules.Rules) != 1 || rules.Rules[0].ID != ruleID {
+	var rules struct {
+		Rules []approvalRuleJSON `json:"rules"`
+	}
+	if err := json.Unmarshal([]byte(jsonOut), &rules); err != nil || len(rules.Rules) != 1 || rules.Rules[0].ID != ruleID || rules.Rules[0].Decision != "allow" {
 		t.Fatalf("approval JSON = %+v, %v", rules, err)
 	}
-	out, _, err := executeCommand(t, runtime, "", "__complete", "approvals", "delete", "")
+	out, _, err := executeCommand(t, runtime, "", "__complete", "approvals", "delete", "--session", sessionID, "")
 	if err != nil || !strings.Contains(out, ruleID) {
 		t.Fatalf("approval completion = %q, %v", out, err)
 	}
-	if _, _, err := executeCommand(t, runtime, "", "approvals", "forget", ruleID); err == nil {
+	if _, _, err := executeCommand(t, runtime, "", "approvals", "forget", "--session", sessionID, ruleID); err == nil {
 		t.Fatal("approvals forget did not require --yes")
 	}
-	if _, _, err := executeCommand(t, runtime, "", "approvals", "forget", "--yes", ruleID); err != nil {
+	if _, _, err := executeCommand(t, runtime, "", "approvals", "forget", "--session", sessionID, "--yes", ruleID); err != nil {
 		t.Fatal(err)
 	}
 }
 
 func createProjectApprovalRule(t *testing.T, runtime agent.Runtime, sessionID string) string {
 	t.Helper()
-	run, err := runtime.StartRun(t.Context(), agent.StartRun{SessionID: sessionID, Message: agent.Message{Text: "remember this"}})
+	stream, err := runtime.StartRun(t.Context(), agent.StartRun{SessionID: sessionID, Message: agent.Message{Text: "remember this"}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	interrupted, after := followApprovalInterrupt(t, runtime, run)
-	resumeProjectApproval(t, runtime, run.ID, interrupted)
-	drainContinuation(t, runtime, run.ID, after)
-	return onlyApprovalRule(t, runtime).ID
+	interrupted := followApprovalInterrupt(t, stream)
+	continuation := resumeProjectApproval(t, runtime, stream.RunID, interrupted)
+	drainContinuation(t, continuation)
+	return onlyApprovalRule(t, runtime, sessionID).ID
 }
 
-func followApprovalInterrupt(t *testing.T, runtime agent.Runtime, run agent.Run) (agent.Approval, agent.Cursor) {
+func followApprovalInterrupt(t *testing.T, stream agent.SegmentStream) agent.Approval {
 	t.Helper()
-	stream, err := runtime.FollowRun(t.Context(), agent.FollowRun{RunID: run.ID, After: run.StartedAfter})
-	if err != nil {
-		t.Fatal(err)
-	}
 	var interrupted agent.Approval
-	var after agent.Cursor
-	for envelope, streamErr := range stream {
+	for event, streamErr := range stream.Events {
 		if streamErr != nil {
 			t.Fatal(streamErr)
 		}
-		after = envelope.Cursor
-		if event, ok := envelope.Event.(agent.RunInterrupted); ok {
-			interrupted = event.Interaction.(agent.Approval)
+		if parked, ok := event.Event.(agent.RunInterrupted); ok {
+			if len(parked.Interactions) != 1 {
+				t.Fatalf("pending interactions = %+v, want one", parked.Interactions)
+			}
+			interrupted, _ = parked.Interactions[0].(agent.Approval)
 		}
 	}
-	if interrupted.InterruptID == "" {
+	if interrupted.ItemID == "" {
 		t.Fatal("run did not request approval")
 	}
-	return interrupted, after
+	return interrupted
 }
 
-func resumeProjectApproval(t *testing.T, runtime agent.Runtime, runID string, interrupted agent.Approval) {
+func resumeProjectApproval(t *testing.T, runtime agent.Runtime, runID string, interrupted agent.Approval) agent.SegmentStream {
 	t.Helper()
-	if err := runtime.ResumeRun(t.Context(), agent.ResumeRun{
-		RunID: runID, InterruptID: interrupted.InterruptID,
-		Answer: agent.ApprovalAnswer{Decision: agent.ApprovalAllow, Remember: agent.RememberProject},
-	}); err != nil {
-		t.Fatal(err)
-	}
-}
-
-func drainContinuation(t *testing.T, runtime agent.Runtime, runID string, after agent.Cursor) {
-	t.Helper()
-	continuation, err := runtime.FollowRun(t.Context(), agent.FollowRun{RunID: runID, After: after})
+	stream, err := runtime.ResumeRun(t.Context(), agent.ResumeRun{
+		RunID: runID, Answers: []agent.InterruptAnswer{{
+			ItemID: interrupted.ItemID,
+			Answer: agent.ApprovalAnswer{Decision: agent.ApprovalApprove, Remember: agent.RememberProject},
+		}},
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, streamErr := range continuation {
+	return stream
+}
+
+func drainContinuation(t *testing.T, stream agent.SegmentStream) {
+	t.Helper()
+	for _, streamErr := range stream.Events {
 		if streamErr != nil {
 			t.Fatal(streamErr)
 		}
 	}
 }
 
-func onlyApprovalRule(t *testing.T, runtime agent.Runtime) agent.ApprovalRule {
+func onlyApprovalRule(t *testing.T, runtime agent.Runtime, sessionID string) agent.ApprovalRule {
 	t.Helper()
-	rules, err := runtime.ListApprovalRules(t.Context())
+	rules, err := runtime.ListApprovalRules(t.Context(), sessionID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -782,10 +810,10 @@ func onlyApprovalRule(t *testing.T, runtime agent.Runtime) agent.ApprovalRule {
 	return rules[0]
 }
 
-func requireApprovalList(t *testing.T, runtime agent.Runtime) {
+func requireApprovalList(t *testing.T, runtime agent.Runtime, sessionID string) {
 	t.Helper()
-	out, _, err := executeCommand(t, runtime, "", "approvals", "ls")
-	if err != nil || !strings.Contains(out, "edit:internal/store/cache_test.go") || !strings.Contains(out, "project") {
+	out, _, err := executeCommand(t, runtime, "", "approvals", "ls", "--session", sessionID)
+	if err != nil || !strings.Contains(out, "edit") || !strings.Contains(out, "internal/store/cache_test.go") || !strings.Contains(out, "project") {
 		t.Fatalf("approvals ls = %q, %v", out, err)
 	}
 }

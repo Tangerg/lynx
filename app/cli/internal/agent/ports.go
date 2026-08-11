@@ -5,33 +5,42 @@ import (
 	"iter"
 )
 
-// RunStream is a replayable run subscription. Every envelope after the requested
-// cursor is delivered in cursor order. A subscription ends when the run
-// finishes or interrupts, or yields one non-nil error and stops.
-type RunStream = iter.Seq2[Envelope, error]
+// EventStream is the ordered event stream of one run segment. A stream yields
+// at most one non-nil error and then stops.
+type EventStream = iter.Seq2[RunEvent, error]
+
+// SegmentStream is an opened segment together with its event stream. Event IDs
+// are opaque tokens scoped to SegmentID; callers may retain and return them but
+// must never parse or order them.
+type SegmentStream struct {
+	RunID       string
+	SegmentID   string
+	UserItemID  string
+	HeadEventID string
+	Events      EventStream
+}
 
 // Runtime is the complete capability assembled at the application boundary.
-// Consumers depend on the narrower interfaces below.
+// Use cases depend on the narrower consumer-owned interfaces below.
 type Runtime interface {
 	SessionCatalog
 	SessionReader
 	SessionWriter
 	RunLifecycle
 	ModelCatalog
-	ApprovalRuleCatalog
+	ApprovalCatalog
 }
 
-// SessionCatalog discovers sessions without loading their transcripts.
 type SessionCatalog interface {
 	ListSessions(context.Context, SessionQuery) (SessionPage, error)
 }
 
-// SessionReader restores one session and its authoritative event history.
+// SessionReader returns a cold, authoritative projection assembled from the
+// runtime's session, item, run, plan, and interrupt reads.
 type SessionReader interface {
 	GetSession(context.Context, string) (SessionSnapshot, error)
 }
 
-// SessionWriter owns session lifecycle mutations.
 type SessionWriter interface {
 	CreateSession(context.Context, CreateSession) (Session, error)
 	UpdateSession(context.Context, UpdateSession) (Session, error)
@@ -39,55 +48,59 @@ type SessionWriter interface {
 	DeleteSession(context.Context, DeleteSession) error
 }
 
-// RunLifecycle controls logical runs independently from their transport subscriptions.
-// A disconnected subscriber can call FollowRun again with the last accepted
-// cursor without restarting or duplicating the run. StartRun is idempotent for
-// a non-empty RequestID, and ResumeRun is idempotent for the same interrupt and
-// answer, so a lost control response can be retried safely.
+// RunLifecycle opens and rebinds segment streams. StartRun and ResumeRun return
+// the stream created by the same atomic runtime operation; consumers never have
+// to race a second subscription against the first event.
 type RunLifecycle interface {
-	StartRun(context.Context, StartRun) (Run, error)
-	FollowRun(context.Context, FollowRun) (RunStream, error)
-	ResumeRun(context.Context, ResumeRun) error
-	CancelRun(context.Context, CancelRun) error
+	StartRun(context.Context, StartRun) (SegmentStream, error)
+	ResumeRun(context.Context, ResumeRun) (SegmentStream, error)
+	SubscribeRun(context.Context, SubscribeRun) (SegmentStream, error)
+	CancelRun(context.Context, CancelRun) (Run, error)
 }
 
-// ModelCatalog exposes the runtime-provided model catalog. Run modes and permission
-// modes remain CLI product concepts and are sent back in RunOptions.
+// ModelCatalog exposes provider-qualified models. Model IDs are not assumed to
+// be globally unique.
 type ModelCatalog interface {
 	ListModels(context.Context) ([]Model, error)
 }
 
-// ApprovalRuleCatalog manages remembered decisions independently from live interrupts.
-type ApprovalRuleCatalog interface {
-	ListApprovalRules(context.Context) ([]ApprovalRule, error)
+// ApprovalCatalog manages the runtime-wide approval stance and the remembered
+// rules visible from a particular session.
+type ApprovalCatalog interface {
+	GetApprovalMode(context.Context) (ApprovalMode, error)
+	SetApprovalMode(context.Context, ApprovalMode) (ApprovalMode, error)
+	ListApprovalRules(context.Context, string) ([]ApprovalRule, error)
 	DeleteApprovalRule(context.Context, string) error
 }
 
-// StartRun describes a new user turn.
 type StartRun struct {
-	RequestID string
 	SessionID string
 	Message   Message
 	Options   RunOptions
 }
 
-// FollowRun subscribes after a cursor previously accepted by the agent.
-type FollowRun struct {
-	RunID string
-	After Cursor
+// SubscribeRun rebinds one exact segment. AfterEventID is an opaque checkpoint
+// previously accepted from that segment. Empty means attach at its current head.
+type SubscribeRun struct {
+	RunID        string
+	SegmentID    string
+	AfterEventID string
 }
 
-// ResumeRun answers the interrupt currently holding a run.
+// InterruptAnswer pairs a response with the pending item it answers. A resume
+// consumes the complete waiting set atomically.
+type InterruptAnswer struct {
+	ItemID string
+	Answer Answer
+}
+
 type ResumeRun struct {
-	RunID       string
-	InterruptID string
-	Answer      Answer
+	RunID   string
+	Answers []InterruptAnswer
+	Message *Message
 }
 
-// CancelRun identifies either an accepted run or an in-flight idempotent start.
-// Exactly one form is valid: RunID, or SessionID together with RequestID.
 type CancelRun struct {
-	RunID     string
-	SessionID string
-	RequestID string
+	RunID  string
+	Reason string
 }

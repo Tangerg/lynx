@@ -7,27 +7,29 @@ import (
 	"strings"
 )
 
-// Validate checks a model projection before it reaches a picker or run request.
 func (m Model) Validate() error {
 	var problems []error
 	if strings.TrimSpace(m.ID) == "" {
 		problems = append(problems, errors.New("id is empty"))
 	}
-	if strings.TrimSpace(m.DisplayName) == "" {
-		problems = append(problems, errors.New("display name is empty"))
+	if strings.TrimSpace(m.Provider) == "" {
+		problems = append(problems, errors.New("provider is empty"))
 	}
-	if m.Context < 0 {
-		problems = append(problems, errors.New("context size is negative"))
+	if m.ContextWindow < 0 || m.MaxInputTokens < 0 || m.MaxOutputTokens < 0 {
+		problems = append(problems, errors.New("token limits cannot be negative"))
 	}
-	seen := make(map[string]struct{}, len(m.Efforts))
-	for _, effort := range m.Efforts {
-		if err := (RunOptions{Effort: effort}).Validate(); err != nil {
-			problems = append(problems, err)
+	seen := make(map[string]struct{}, len(m.Capabilities.ReasoningLevels))
+	for _, level := range m.Capabilities.ReasoningLevels {
+		if strings.TrimSpace(level) == "" {
+			problems = append(problems, errors.New("reasoning level is empty"))
 		}
-		if _, duplicate := seen[effort]; duplicate {
-			problems = append(problems, fmt.Errorf("effort %q is duplicated", effort))
+		if _, duplicate := seen[level]; duplicate {
+			problems = append(problems, fmt.Errorf("reasoning level %q is duplicated", level))
 		}
-		seen[effort] = struct{}{}
+		seen[level] = struct{}{}
+	}
+	if !m.Capabilities.Reasoning && len(m.Capabilities.ReasoningLevels) != 0 {
+		problems = append(problems, errors.New("non-reasoning model carries reasoning levels"))
 	}
 	if err := errors.Join(problems...); err != nil {
 		return fmt.Errorf("model: %w", err)
@@ -35,80 +37,47 @@ func (m Model) Validate() error {
 	return nil
 }
 
-// ValidateModels checks per-model invariants, unique identities, and a single
-// default selection.
 func ValidateModels(models []Model) error {
-	ids := make(map[string]struct{}, len(models))
-	defaults := 0
+	identities := make(map[string]struct{}, len(models))
 	for i, model := range models {
 		if err := model.Validate(); err != nil {
 			return fmt.Errorf("model %d: %w", i+1, err)
 		}
-		if _, duplicate := ids[model.ID]; duplicate {
-			return fmt.Errorf("model id %q is duplicated", model.ID)
+		identity := model.Provider + "\x00" + model.ID
+		if _, duplicate := identities[identity]; duplicate {
+			return fmt.Errorf("model %s/%s is duplicated", model.Provider, model.ID)
 		}
-		ids[model.ID] = struct{}{}
-		if model.Default {
-			defaults++
-		}
-	}
-	if defaults > 1 {
-		return errors.New("model catalog has more than one default")
+		identities[identity] = struct{}{}
 	}
 	return nil
 }
 
-// Validate checks a remembered approval projection and its scope qualifier.
-func (r ApprovalRule) Validate() error {
-	if strings.TrimSpace(r.ID) == "" || strings.TrimSpace(r.Rule) == "" {
-		return errors.New("approval rule: id and rule are required")
+func (m ApprovalMode) Validate() error {
+	if !slices.Contains([]ApprovalMode{ApprovalModeSafe, ApprovalModeBalanced, ApprovalModeYolo}, m) {
+		return fmt.Errorf("approval mode %q is invalid", m)
 	}
-	if !slices.Contains([]ApprovalDecision{ApprovalAllow, ApprovalDeny}, r.Decision) {
+	return nil
+}
+
+func (r ApprovalRule) Validate() error {
+	if strings.TrimSpace(r.ID) == "" || strings.TrimSpace(r.Tool) == "" {
+		return errors.New("approval rule: id and tool are required")
+	}
+	if !slices.Contains([]ApprovalRuleDecision{ApprovalRuleAllow, ApprovalRuleDeny}, r.Decision) {
 		return fmt.Errorf("approval rule: decision %q is invalid", r.Decision)
 	}
 	if !slices.Contains([]RememberScope{RememberSession, RememberProject, RememberGlobal}, r.Scope) {
 		return fmt.Errorf("approval rule: scope %q is invalid", r.Scope)
 	}
-	return r.validateQualifier()
-}
-
-func (r ApprovalRule) validateQualifier() error {
-	switch r.Scope {
-	case RememberSession:
-		return r.validateSessionQualifier()
-	case RememberProject:
-		return r.validateProjectQualifier()
-	case RememberGlobal:
-		return r.validateGlobalQualifier()
-	case RememberNone:
-		return errors.New("approval rule: none is not a persisted scope")
-	default:
-		return fmt.Errorf("approval rule: scope %q is invalid", r.Scope)
+	if r.Scope == RememberProject && strings.TrimSpace(r.Dir) == "" {
+		return errors.New("approval rule: project scope requires a directory")
 	}
-}
-
-func (r ApprovalRule) validateSessionQualifier() error {
-	if strings.TrimSpace(r.SessionID) == "" || r.Workspace != "" {
-		return errors.New("approval rule: session scope requires only a session id")
+	if r.Scope != RememberProject && r.Dir != "" {
+		return errors.New("approval rule: only project scope may carry a directory")
 	}
 	return nil
 }
 
-func (r ApprovalRule) validateProjectQualifier() error {
-	if strings.TrimSpace(r.Workspace) == "" || r.SessionID != "" {
-		return errors.New("approval rule: project scope requires only a workspace")
-	}
-	return nil
-}
-
-func (r ApprovalRule) validateGlobalQualifier() error {
-	if r.SessionID != "" || r.Workspace != "" {
-		return errors.New("approval rule: global scope cannot carry a qualifier")
-	}
-	return nil
-}
-
-// ValidateApprovalRules checks rule invariants and unique identities.
 func ValidateApprovalRules(rules []ApprovalRule) error {
 	ids := make(map[string]struct{}, len(rules))
 	for i, rule := range rules {

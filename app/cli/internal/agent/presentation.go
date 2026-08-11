@@ -19,16 +19,20 @@ import (
 // symbolic names the runtime protocol uses for the same conditions. Commands
 // branch on these; nothing branches on error text.
 var (
-	ErrSessionNotFound  = errors.New("session not found")
-	ErrRunNotFound      = errors.New("run not found")
-	ErrInterruptNotOpen = errors.New("interrupt not open")
-	ErrSessionBusy      = errors.New("session has an active run")
-	ErrRevisionConflict = errors.New("revision conflict")
-	ErrEventGap         = errors.New("event gap")
-	ErrEventConflict    = errors.New("event identity conflict")
-	ErrDisconnected     = errors.New("runtime disconnected")
-	ErrRequestConflict  = errors.New("idempotency request conflict")
-	ErrRunCanceled      = errors.New("run request canceled")
+	ErrSessionNotFound     = errors.New("session not found")
+	ErrRunNotFound         = errors.New("run not found")
+	ErrInterruptNotOpen    = errors.New("interrupt not open")
+	ErrStaleSegment        = errors.New("stale segment")
+	ErrRunWaiting          = errors.New("run is waiting")
+	ErrRunFinished         = errors.New("run is finished")
+	ErrReplayCursorInvalid = errors.New("event replay cursor is invalid")
+	ErrReplayUnavailable   = errors.New("event replay unavailable")
+	ErrSessionHasActiveRun = errors.New("session has an active run")
+	ErrSessionBusy         = errors.New("session is busy")
+	ErrRevisionConflict    = errors.New("revision conflict")
+	ErrEventConflict       = errors.New("event identity conflict")
+	ErrDisconnected        = errors.New("runtime disconnected")
+	ErrIncompatibleRuntime = errors.New("runtime protocol is incompatible")
 )
 
 // BlockKind names what a transcript block is. The set is closed: an item a
@@ -40,21 +44,37 @@ const (
 	BlockUser      BlockKind = "user"
 	BlockAssistant BlockKind = "assistant"
 	BlockReasoning BlockKind = "reasoning"
+	BlockQuestion  BlockKind = "question"
 	BlockTool      BlockKind = "tool"
 	BlockNotice    BlockKind = "notice"
 	BlockError     BlockKind = "error"
 )
 
-// Block is one renderable unit of a transcript, identified for the lifetime of
-// its run so deltas can find it.
+// BlockStatus is the durable lifecycle of a transcript item. Incomplete is a
+// terminal item-level failure; it does not imply that the owning Run failed.
+type BlockStatus string
+
+const (
+	BlockStatusRunning    BlockStatus = "running"
+	BlockStatusCompleted  BlockStatus = "completed"
+	BlockStatusIncomplete BlockStatus = "incomplete"
+)
+
+// Block is one renderable unit of a transcript. RunID preserves the durable
+// item's provenance across cold reads; ID identifies the item within that Run.
 type Block struct {
 	ID          string
+	RunID       string
+	Status      BlockStatus
 	Kind        BlockKind
 	Attachments []Attachment
 	// Text is the block's body. Assistant and reasoning bodies are markdown and
 	// arrive in pieces (see [BlockDelta]). Tool deltas append to Tool.Output;
 	// the remaining block kinds arrive whole.
 	Text string
+	// Question carries the durable prompt when Kind is [BlockQuestion]. Its
+	// ItemID is the same identity as this block's ID.
+	Question *Question
 	// Tool carries the call's projection when Kind is [BlockTool].
 	Tool *ToolCall
 }
@@ -62,11 +82,12 @@ type Block struct {
 // Clone returns a block with no mutable storage shared with the caller.
 func (b Block) Clone() Block {
 	b.Attachments = slices.Clone(b.Attachments)
+	if b.Question != nil {
+		question := cloneQuestion(*b.Question)
+		b.Question = &question
+	}
 	if b.Tool != nil {
-		tool := *b.Tool
-		if b.Tool.ExitCode != nil {
-			tool.ExitCode = new(*b.Tool.ExitCode)
-		}
+		tool := b.Tool.Clone()
 		b.Tool = &tool
 	}
 	return b
@@ -122,6 +143,13 @@ type ToolCall struct {
 	Duration time.Duration
 }
 
+func (t ToolCall) Clone() ToolCall {
+	if t.ExitCode != nil {
+		t.ExitCode = new(*t.ExitCode)
+	}
+	return t
+}
+
 func (t ToolCall) Validate() error {
 	var problems []error
 	switch t.Kind {
@@ -166,13 +194,20 @@ type OutcomeStatus string
 
 const (
 	OutcomeCompleted OutcomeStatus = "completed"
+	OutcomeTimedOut  OutcomeStatus = "timedOut"
+	OutcomeMaxSteps  OutcomeStatus = "maxSteps"
+	OutcomeMaxBudget OutcomeStatus = "maxBudget"
 	OutcomeCanceled  OutcomeStatus = "canceled"
 	OutcomeFailed    OutcomeStatus = "failed"
+	OutcomeLost      OutcomeStatus = "lost"
 )
 
 // Outcome is a finished run's verdict.
 type Outcome struct {
 	Status OutcomeStatus
-	// Error carries the failure when Status is [OutcomeFailed].
+	// Error carries the structured runtime problem's display text for failed,
+	// timed-out, and lost outcomes.
 	Error string
+	// Detail explains a policy stop such as max steps, max budget, or cancel.
+	Detail string
 }

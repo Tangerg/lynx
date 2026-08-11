@@ -21,8 +21,10 @@ func (a *app) buildCommandPalette(theme kit.Theme, glyphs kit.Glyphs) {
 			a.runCommand(command.Name, "")
 		},
 	)
-	a.commandDialog = kit.NewDialog(&a.stack, theme, glyphs, "Commands", a.commandPicker)
-	a.commandDialog.Panel().Where = layout.Placement{Width: 82, Height: 18, Margin: 1}
+	a.commandDialog = kit.NewDialog(kit.DialogConfig{
+		Stack: &a.stack, Theme: theme, Glyphs: glyphs, Title: "Commands", Body: a.commandPicker,
+		Where: layout.Placement{Width: 82, Height: 18, Margin: 1},
+	})
 	a.commandPicker.cancel = a.commandDialog.Dismiss
 }
 
@@ -48,11 +50,14 @@ func (a *app) buildSearchDialog(theme kit.Theme, glyphs kit.Glyphs) {
 		a.Find(a.searchQuery)
 	}
 	form.GaveUp = func() { a.searchDialog.Dismiss() }
-	dressed := kit.NewForm(theme, glyphs, form)
-	dressed.Keys = keys
-	dressed.Hints = []keymap.Action{headless.Submit, headless.Cancel}
-	a.searchDialog = kit.NewDialog(&a.stack, theme, glyphs, "Search", dressed)
-	a.searchDialog.Panel().Where = layout.Placement{Width: 68, Height: 7, Margin: 1}
+	dressed := kit.NewForm(kit.FormConfig{
+		Theme: theme, Glyphs: glyphs, Controller: form,
+		Hints: []keymap.Action{headless.Submit, headless.Cancel},
+	})
+	a.searchDialog = kit.NewDialog(kit.DialogConfig{
+		Stack: &a.stack, Theme: theme, Glyphs: glyphs, Title: "Search", Body: dressed,
+		Where: layout.Placement{Width: 68, Height: 7, Margin: 1},
+	})
 }
 
 func (a *app) showSearchDialog() {

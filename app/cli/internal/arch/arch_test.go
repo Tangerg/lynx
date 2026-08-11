@@ -28,12 +28,13 @@ var layers = []struct {
 	name   string
 }{
 	{"internal/agent/mock/", "mock"},
+	{"internal/runtimeembedded/", "runtimeembedded"},
 	{"internal/sideload/", "sideload"},
 	{"internal/terminal/", "terminal"},
 	{"internal/attachment/", "attachment"},
 	{"internal/promptqueue/", "promptqueue"},
 	{"internal/reconnect/", "reconnect"},
-	{"internal/requestid/", "requestid"},
+	{"internal/runrecovery/", "runrecovery"},
 	{"internal/session/", "session"},
 	{"internal/oneshot/", "oneshot"},
 	{"internal/agent/", "agent"},
@@ -50,21 +51,22 @@ var allowed = map[string][]string{
 	// Domain policy and generic infrastructure are the center.
 	"agent":       nil,
 	"settings":    {"agent"},
-	"requestid":   nil,
 	"session":     {"agent"},
-	"oneshot":     {"agent", "reconnect", "requestid"},
+	"oneshot":     {"agent", "reconnect", "runrecovery"},
 	"extensions":  nil,
 	"promptqueue": {"agent"},
 
 	// Outbound adapters share domain contracts, not one another.
-	"attachment": {"agent"},
-	"reconnect":  {"agent"},
-	"mock":       {"agent"},
-	"render":     {"agent"},
+	"attachment":      {"agent"},
+	"reconnect":       {"agent"},
+	"runrecovery":     {"agent"},
+	"mock":            {"agent"},
+	"runtimeembedded": {"agent"},
+	"render":          {"agent"},
 
 	// Delivery adapters compose inward abstractions. Sideloading is the outer trust
 	// boundary around terminal contributions; cmd is the application composition root.
-	"terminal": {"agent", "attachment", "extensions", "promptqueue", "reconnect", "requestid", "session", "settings"},
+	"terminal": {"agent", "attachment", "extensions", "promptqueue", "reconnect", "runrecovery", "session", "settings"},
 	"sideload": {"extensions", "terminal"},
 	"cmd":      {"agent", "attachment", "extensions", "oneshot", "render", "session", "settings", "sideload", "terminal"},
 	"arch":     nil,
@@ -126,7 +128,7 @@ func TestTheLibraryStaysALibrary(t *testing.T) {
 	root := moduleRoot(t)
 	fset := token.NewFileSet()
 
-	terminalFree := []string{"agent", "settings", "mock", "attachment", "promptqueue", "reconnect", "requestid", "session", "oneshot", "extensions", "render"}
+	terminalFree := []string{"agent", "settings", "mock", "runtimeembedded", "attachment", "promptqueue", "reconnect", "runrecovery", "session", "oneshot", "extensions", "render"}
 	walk(t, root, func(dir, path string) {
 		layer := layerOf(dir)
 		if !slices.Contains(terminalFree, layer) {
@@ -150,11 +152,12 @@ func TestTheRulesWouldActuallyRefuseSomething(t *testing.T) {
 	}{
 		{"internal/agent", "internal/agent/mock", true},
 		{"internal/agent", "internal/terminal", true},
+		{"internal/agent", "internal/runtimeembedded", true},
 		{"internal/extensions", "internal/agent", true},
 		{"internal/agent/mock", "internal/render", true},
 		{"internal/attachment", "internal/terminal", true},
 		{"internal/reconnect", "internal/cmd", true},
-		{"internal/requestid", "internal/agent", true},
+		{"internal/runrecovery", "internal/cmd", true},
 		{"internal/session", "internal/terminal", true},
 		{"internal/oneshot", "internal/cmd", true},
 		{"internal/settings", "internal/terminal", true},
@@ -164,6 +167,8 @@ func TestTheRulesWouldActuallyRefuseSomething(t *testing.T) {
 		{"internal/sideload", "internal/cmd", true},
 
 		{"internal/agent/mock", "internal/agent", false},
+		{"internal/runtimeembedded", "internal/agent", false},
+		{"internal/runtimeembedded", "internal/terminal", true},
 		{"internal/terminal", "internal/agent", false},
 		{"internal/terminal", "internal/extensions", false},
 		{"internal/cmd", "internal/terminal", false},
@@ -171,7 +176,8 @@ func TestTheRulesWouldActuallyRefuseSomething(t *testing.T) {
 		{"internal/render", "internal/agent", false},
 		{"internal/attachment", "internal/agent", false},
 		{"internal/reconnect", "internal/agent", false},
-		{"internal/cmd", "internal/requestid", true},
+		{"internal/runrecovery", "internal/agent", false},
+		{"internal/cmd", "internal/runrecovery", true},
 		{"internal/cmd", "internal/session", false},
 		{"internal/cmd", "internal/oneshot", false},
 		{"internal/settings", "internal/agent", false},

@@ -14,6 +14,9 @@ import (
 )
 
 const (
+	DefaultProvider = "deepseek"
+	DefaultModel    = "deepseek-v4-flash"
+
 	ActionSend            = "send"
 	ActionNewline         = "newline"
 	ActionCancelRun       = "cancel-run"
@@ -23,7 +26,7 @@ const (
 	ActionSessions        = "sessions"
 	ActionSearch          = "search"
 	ActionManageQueue     = "manage-queue"
-	ActionCycleMode       = "cycle-mode"
+	ActionChooseModel     = "choose-model"
 	ActionToggleDetails   = "toggle-details"
 	ActionHistoryPrevious = "history-previous"
 	ActionHistoryNext     = "history-next"
@@ -36,18 +39,48 @@ const (
 )
 
 type Config struct {
-	Model      string               `json:"model"      mapstructure:"model"`
-	Effort     string               `json:"effort"     mapstructure:"effort"`
-	Mode       agent.AgentMode      `json:"mode"       mapstructure:"mode"`
-	Permission agent.PermissionMode `json:"permission" mapstructure:"permission"`
-	Approval   Approval             `json:"approval"   mapstructure:"approval"`
-	UI         UI                   `json:"ui"         mapstructure:"ui"`
-	Plugins    Plugins              `json:"plugins"    mapstructure:"plugins"`
-	Keys       map[string][]string  `json:"keys"       mapstructure:"keys"`
+	Provider string              `json:"provider" mapstructure:"provider"`
+	Model    string              `json:"model"    mapstructure:"model"`
+	Run      Run                 `json:"run"      mapstructure:"run"`
+	Approval Approval            `json:"approval" mapstructure:"approval"`
+	UI       UI                  `json:"ui"       mapstructure:"ui"`
+	Plugins  Plugins             `json:"plugins"  mapstructure:"plugins"`
+	Keys     map[string][]string `json:"keys"     mapstructure:"keys"`
+}
+
+type Run struct {
+	MaxTotalTokens int64   `json:"maxTotalTokens" mapstructure:"max-total-tokens"`
+	MaxSteps       int     `json:"maxSteps"       mapstructure:"max-steps"`
+	MaxBudgetUSD   float64 `json:"maxBudgetUsd"   mapstructure:"max-budget-usd"`
 }
 
 type Approval struct {
-	Remember agent.RememberScope `json:"remember" mapstructure:"remember"`
+	Remember RememberPreference `json:"remember" mapstructure:"remember"`
+}
+
+// RememberPreference is the explicit configuration vocabulary. It deliberately
+// differs from agent.RememberScope, whose zero value means the protocol answer
+// omits a remember directive.
+type RememberPreference string
+
+const (
+	RememberNone    RememberPreference = "none"
+	RememberSession RememberPreference = "session"
+	RememberProject RememberPreference = "project"
+	RememberGlobal  RememberPreference = "global"
+)
+
+func (p RememberPreference) Scope() agent.RememberScope {
+	switch p {
+	case RememberSession:
+		return agent.RememberSession
+	case RememberProject:
+		return agent.RememberProject
+	case RememberGlobal:
+		return agent.RememberGlobal
+	default:
+		return agent.RememberNone
+	}
 }
 
 type UI struct {
@@ -64,8 +97,9 @@ type Plugins struct {
 
 func Default() Config {
 	return Config{
-		Effort: "medium", Mode: agent.ModeBuild, Permission: agent.PermissionAsk,
-		Approval: Approval{Remember: agent.RememberNone},
+		Provider: DefaultProvider,
+		Model:    DefaultModel,
+		Approval: Approval{Remember: RememberNone},
 		UI:       UI{Mouse: true, Notifications: true, ToolDetails: false, TranscriptRetain: 24, ReconnectAttempts: 4},
 		Keys: map[string][]string{
 			ActionSend:            {"enter"},
@@ -77,7 +111,7 @@ func Default() Config {
 			ActionSessions:        {"ctrl+r"},
 			ActionSearch:          {"ctrl+f"},
 			ActionManageQueue:     {"ctrl+;", "ctrl+g"},
-			ActionCycleMode:       {"shift+tab"},
+			ActionChooseModel:     {"shift+tab"},
 			ActionToggleDetails:   {"ctrl+o"},
 			ActionHistoryPrevious: {"alt+up"},
 			ActionHistoryNext:     {"alt+down"},
@@ -104,7 +138,7 @@ func (s Config) Validate() error {
 }
 
 func validateApproval(approval Approval) []error {
-	if !slices.Contains([]agent.RememberScope{agent.RememberNone, agent.RememberSession, agent.RememberProject, agent.RememberGlobal}, approval.Remember) {
+	if !slices.Contains([]RememberPreference{RememberNone, RememberSession, RememberProject, RememberGlobal}, approval.Remember) {
 		return []error{fmt.Errorf("approval remember scope %q is invalid", approval.Remember)}
 	}
 	return nil
@@ -164,7 +198,15 @@ func validateKeys(keys map[string][]string) []error {
 }
 
 func (s Config) RunOptions() agent.RunOptions {
-	return agent.RunOptions{Model: s.Model, Effort: s.Effort, Mode: s.Mode, Permission: s.Permission}
+	return agent.RunOptions{
+		Provider: s.Provider,
+		Model:    s.Model,
+		Limits: agent.RunLimits{
+			MaxTotalTokens: s.Run.MaxTotalTokens,
+			MaxSteps:       s.Run.MaxSteps,
+			MaxBudgetUSD:   s.Run.MaxBudgetUSD,
+		},
+	}
 }
 
 func (s Config) Clone() Config {

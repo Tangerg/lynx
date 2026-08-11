@@ -3,20 +3,31 @@ package agent
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 )
 
-// Session is one durable conversation.
+type SessionStatus string
+
+const (
+	SessionRunning SessionStatus = "running"
+	SessionWaiting SessionStatus = "waiting"
+	SessionIdle    SessionStatus = "idle"
+)
+
 type Session struct {
 	ID        string
 	Title     string
+	Status    SessionStatus
+	Model     string
 	Workspace string
+	CreatedAt time.Time
 	UpdatedAt time.Time
-	Revision  int64
+	Favorite  bool
+	Revision  uint64
 }
 
-// Validate checks session metadata returned by a runtime before an adapter uses it.
 func (s Session) Validate() error {
 	var problems []error
 	if strings.TrimSpace(s.ID) == "" {
@@ -25,8 +36,8 @@ func (s Session) Validate() error {
 	if strings.TrimSpace(s.Workspace) == "" {
 		problems = append(problems, errors.New("workspace is empty"))
 	}
-	if s.Revision < 0 {
-		problems = append(problems, errors.New("revision is negative"))
+	if s.Status != SessionRunning && s.Status != SessionWaiting && s.Status != SessionIdle {
+		problems = append(problems, fmt.Errorf("status %q is invalid", s.Status))
 	}
 	if err := errors.Join(problems...); err != nil {
 		return fmt.Errorf("session: %w", err)
@@ -34,7 +45,6 @@ func (s Session) Validate() error {
 	return nil
 }
 
-// SessionQuery requests one stable page, newest first.
 type SessionQuery struct {
 	Cursor    string
 	Limit     int
@@ -42,13 +52,11 @@ type SessionQuery struct {
 	Workspace string
 }
 
-// SessionPage is a page plus an opaque cursor for the next page.
 type SessionPage struct {
 	Items      []Session
 	NextCursor string
 }
 
-// Validate checks every listed session and rejects duplicate identities.
 func (p SessionPage) Validate() error {
 	seen := make(map[string]struct{}, len(p.Items))
 	for index, session := range p.Items {
@@ -63,128 +71,201 @@ func (p SessionPage) Validate() error {
 	return nil
 }
 
-// SessionSnapshot is sufficient to rebuild the terminal without a second
-// transcript endpoint. Events are ordered from cursor one through Cursor.
+// SessionSnapshot is the cold-read projection the CLI restores. Transcript,
+// Runs, and Plan are durable values, never reconstructed from a historical
+// event stream. Runs contains root runs in creation order.
 type SessionSnapshot struct {
-	Session Session
-	Events  []Envelope
-	Cursor  Cursor
-	Active  *Run
+	Session      Session
+	Transcript   []Block
+	Runs         []Run
+	Plan         []PlanItem
+	PlanRevision uint64
+	Interactions []Interaction
 }
 
-// Validate proves that metadata, replay history, aggregate phase, and active
-// run describe the same authoritative session state.
+// LatestRun returns the most recently created root run.
+func (s SessionSnapshot) LatestRun() (Run, bool) {
+	if len(s.Runs) == 0 {
+		return Run{}, false
+	}
+	return s.Runs[len(s.Runs)-1].Clone(), true
+}
+
+// ActiveRun returns the sole running or waiting root run, when one exists.
+func (s SessionSnapshot) ActiveRun() (Run, bool) {
+	for _, run := range slices.Backward(s.Runs) {
+		if run.Status != RunStatusFinished {
+			return run.Clone(), true
+		}
+	}
+	return Run{}, false
+}
+
+func (s SessionSnapshot) RunByID(id string) (Run, bool) {
+	for _, run := range s.Runs {
+		if run.ID == id {
+			return run.Clone(), true
+		}
+	}
+	return Run{}, false
+}
+
 func (s SessionSnapshot) Validate() error {
-	_, err := foldSnapshot(s)
-	return err
+	if err := s.Session.Validate(); err != nil {
+		return fmt.Errorf("session snapshot: %w", err)
+	}
+	blocksByIdentity := make(map[string]Block, len(s.Transcript))
+	var runningBlocks []Block
+	for i, block := range s.Transcript {
+		if err := validateBlock(block, block.Status != BlockStatusRunning); err != nil {
+			return fmt.Errorf("session snapshot: transcript block %d: %w", i+1, err)
+		}
+		identity := block.RunID + "\x00" + block.ID
+		if _, duplicate := blocksByIdentity[identity]; duplicate {
+			return fmt.Errorf("session snapshot: transcript repeats block %q in run %q", block.ID, block.RunID)
+		}
+		blocksByIdentity[identity] = block
+		if block.Status == BlockStatusRunning {
+			if block.Kind != BlockTool {
+				return fmt.Errorf("session snapshot: transcript block %d: only a tool call can be durably running", i+1)
+			}
+			runningBlocks = append(runningBlocks, block)
+		}
+	}
+	runIDs := make(map[string]struct{}, len(s.Runs))
+	activeIndex := -1
+	for i, run := range s.Runs {
+		if err := run.Validate(); err != nil {
+			return fmt.Errorf("session snapshot: run %d: %w", i+1, err)
+		}
+		if run.SessionID != s.Session.ID {
+			return fmt.Errorf("session snapshot: run %s belongs to session %s", run.ID, run.SessionID)
+		}
+		if _, duplicate := runIDs[run.ID]; duplicate {
+			return fmt.Errorf("session snapshot: repeats run %q", run.ID)
+		}
+		runIDs[run.ID] = struct{}{}
+		if run.Status != RunStatusFinished {
+			if activeIndex >= 0 {
+				return errors.New("session snapshot: more than one root run is active")
+			}
+			activeIndex = i
+		}
+	}
+	for _, block := range s.Transcript {
+		if _, exists := runIDs[block.RunID]; !exists {
+			return fmt.Errorf("session snapshot: block %s references unknown run %s", block.ID, block.RunID)
+		}
+	}
+	if activeIndex >= 0 && activeIndex != len(s.Runs)-1 {
+		return errors.New("session snapshot: active run is not the latest root run")
+	}
+	if err := validatePlan(s.Plan); err != nil {
+		return fmt.Errorf("session snapshot: %w", err)
+	}
+	if s.PlanRevision == 0 && len(s.Plan) != 0 {
+		return errors.New("session snapshot: unwritten plan contains items")
+	}
+	if activeIndex < 0 {
+		if len(runningBlocks) != 0 {
+			return errors.New("session snapshot: idle session carries a running transcript block")
+		}
+		if len(s.Interactions) != 0 {
+			return errors.New("session snapshot: idle session carries pending interactions")
+		}
+		if s.Session.Status != SessionIdle {
+			return fmt.Errorf("session snapshot: session status is %s without an active run", s.Session.Status)
+		}
+		return nil
+	}
+	active := s.Runs[activeIndex]
+	for _, block := range runningBlocks {
+		if block.RunID != active.ID {
+			return fmt.Errorf("session snapshot: running block %s belongs to inactive run %s", block.ID, block.RunID)
+		}
+	}
+	switch active.Status {
+	case RunStatusRunning:
+		if s.Session.Status != SessionRunning {
+			return fmt.Errorf("session snapshot: running run has session status %s", s.Session.Status)
+		}
+		if len(s.Interactions) != 0 {
+			return errors.New("session snapshot: running run carries pending interactions")
+		}
+	case RunStatusWaiting:
+		if s.Session.Status != SessionWaiting {
+			return fmt.Errorf("session snapshot: waiting run has session status %s", s.Session.Status)
+		}
+		if err := ValidateInteractions(s.Interactions); err != nil {
+			return fmt.Errorf("session snapshot: waiting run: %w", err)
+		}
+		for _, interaction := range s.Interactions {
+			itemID := InteractionItemID(interaction)
+			block, exists := blocksByIdentity[blockIdentity(active.ID, itemID)]
+			if !exists {
+				return fmt.Errorf("session snapshot: waiting interrupt references unknown item %s", itemID)
+			}
+			if err := validateInteractionItem(interaction, block); err != nil {
+				return fmt.Errorf("session snapshot: waiting run: %w", err)
+			}
+		}
+	}
+	return nil
 }
 
-// RestoreSnapshot atomically replaces the aggregate with a validated snapshot.
 func (c *Conversation) RestoreSnapshot(snapshot SessionSnapshot) error {
-	next, err := foldSnapshot(snapshot)
-	if err != nil {
+	if err := snapshot.Validate(); err != nil {
 		return err
+	}
+	next := NewConversation()
+	next.blocks = cloneBlocks(snapshot.Transcript)
+	next.plan = append([]PlanItem(nil), snapshot.Plan...)
+	next.planRevision = snapshot.PlanRevision
+	next.rebuildBlockIndex()
+	if active, ok := snapshot.ActiveRun(); ok {
+		next.runID = active.ID
+		next.segmentID = active.ActiveSegmentID
+		next.usage = active.Usage.Clone()
+		if active.Status == RunStatusWaiting {
+			next.phase = ConversationWaiting
+			next.interactions = CloneInteractions(snapshot.Interactions)
+		} else {
+			next.phase = ConversationRunning
+			next.coldTail = true
+		}
+	} else if latest, ok := snapshot.LatestRun(); ok {
+		next.runID = latest.ID
+		next.usage = latest.Usage.Clone()
+		next.outcome = latest.Outcome
 	}
 	*c = *next
 	return nil
 }
 
-func foldSnapshot(snapshot SessionSnapshot) (*Conversation, error) {
-	if err := validateSnapshotHeader(snapshot); err != nil {
-		return nil, err
+// RestoreAttachedSnapshot restores a cold projection that was read after a
+// cursorless subscription was attached. HeadEventID is the exact journal
+// position preceding that stream; retaining it closes a second-disconnect gap
+// before the first replayable event arrives.
+func (c *Conversation) RestoreAttachedSnapshot(snapshot SessionSnapshot, stream SegmentStream) error {
+	if err := stream.ValidateSubscription(); err != nil {
+		return fmt.Errorf("restore attached snapshot: %w", err)
 	}
-	conversation := NewConversation()
-	if err := foldSnapshotEvents(snapshot, conversation); err != nil {
-		return nil, err
+	active, ok := snapshot.ActiveRun()
+	if !ok || active.Status != RunStatusRunning {
+		return errors.New("restore attached snapshot: snapshot has no running run")
 	}
-	if conversation.Cursor() != snapshot.Cursor {
-		return nil, fmt.Errorf("session snapshot: folded cursor %d does not match %d", conversation.Cursor(), snapshot.Cursor)
+	if active.ID != stream.RunID || active.ActiveSegmentID != stream.SegmentID {
+		return fmt.Errorf(
+			"restore attached snapshot: stream %s/%s does not match run %s/%s",
+			stream.RunID, stream.SegmentID, active.ID, active.ActiveSegmentID,
+		)
 	}
-	if err := validateActiveRun(snapshot, conversation); err != nil {
-		return nil, err
-	}
-	return conversation, nil
-}
-
-func validateSnapshotHeader(snapshot SessionSnapshot) error {
-	if err := snapshot.Session.Validate(); err != nil {
-		return fmt.Errorf("session snapshot: %w", err)
-	}
-	switch {
-	case snapshot.Cursor == 0 && len(snapshot.Events) != 0:
-		return errors.New("session snapshot: zero cursor carries events")
-	case snapshot.Cursor != 0 && (len(snapshot.Events) == 0 || snapshot.Events[len(snapshot.Events)-1].Cursor != snapshot.Cursor):
-		return fmt.Errorf("session snapshot: cursor %d does not match event history", snapshot.Cursor)
-	default:
-		return nil
-	}
-}
-
-func foldSnapshotEvents(snapshot SessionSnapshot, conversation *Conversation) error {
-	for _, envelope := range snapshot.Events {
-		if envelope.SessionID != snapshot.Session.ID {
-			return fmt.Errorf("session snapshot: event %s belongs to session %s", envelope.ID, envelope.SessionID)
-		}
-		if _, err := conversation.ApplyEnvelope(envelope); err != nil {
-			return fmt.Errorf("session snapshot: cursor %d: %w", envelope.Cursor, err)
-		}
-	}
-	return nil
-}
-
-func validateActiveRun(snapshot SessionSnapshot, conversation *Conversation) error {
-	if snapshot.Active == nil {
-		if conversation.Phase() != ConversationIdle {
-			return errors.New("session snapshot: busy conversation has no active run")
-		}
-		return nil
-	}
-	active := *snapshot.Active
-	if err := validateActiveProjection(active, snapshot.Session.ID, conversation); err != nil {
+	if err := c.RestoreSnapshot(snapshot); err != nil {
 		return err
 	}
-	return validateActiveStart(active, snapshot.Events)
-}
-
-func validateActiveProjection(active Run, sessionID string, conversation *Conversation) error {
-	if err := active.Validate(); err != nil {
-		return fmt.Errorf("session snapshot: %w", err)
-	}
-	if active.Status == RunComplete {
-		return errors.New("session snapshot: completed run is marked active")
-	}
-	if active.SessionID != sessionID {
-		return fmt.Errorf("session snapshot: active run belongs to session %s", active.SessionID)
-	}
-	if conversation.RunID() != active.ID {
-		return fmt.Errorf("session snapshot: aggregate run %s does not match active run %s", conversation.RunID(), active.ID)
-	}
-	wantPhase := ConversationRunning
-	if active.Status == RunWaiting {
-		wantPhase = ConversationWaiting
-	}
-	if conversation.Phase() != wantPhase {
-		return fmt.Errorf("session snapshot: active run status %s conflicts with conversation phase %d", active.Status, conversation.Phase())
-	}
+	c.checkpoint = stream.HeadEventID
+	c.reconciling = true
 	return nil
-}
-
-func validateActiveStart(active Run, events []Envelope) error {
-	if active.StartedAfter == ^Cursor(0) {
-		return errors.New("session snapshot: active run start cursor overflows")
-	}
-	startedAt := active.StartedAfter + 1
-	for _, envelope := range events {
-		if envelope.Cursor != startedAt || envelope.RunID != active.ID {
-			continue
-		}
-		started, ok := envelope.Event.(RunStarted)
-		if ok && started.RunID == active.ID {
-			return nil
-		}
-		break
-	}
-	return fmt.Errorf("session snapshot: active run %s has no start event at cursor %d", active.ID, startedAt)
 }
 
 type CreateSession struct {
@@ -192,23 +273,24 @@ type CreateSession struct {
 	Workspace string
 }
 
-// UpdateSession uses optimistic concurrency. Zero Revision disables the check
-// for explicitly unconditional administrative commands.
 type UpdateSession struct {
-	SessionID string
-	Title     string
-	Revision  int64
+	SessionID        string
+	Title            string
+	ExpectedRevision uint64
 }
 
-// ForkSession creates a new session from the source timeline through At. At
-// must end at a settled run boundary; zero means the source's latest cursor.
 type ForkSession struct {
 	SessionID string
-	At        Cursor
+	FromRunID string
 	Title     string
 }
 
-type DeleteSession struct {
-	SessionID string
-	Revision  int64
+type DeleteSession struct{ SessionID string }
+
+func cloneBlocks(blocks []Block) []Block {
+	out := make([]Block, len(blocks))
+	for i, block := range blocks {
+		out[i] = block.Clone()
+	}
+	return out
 }

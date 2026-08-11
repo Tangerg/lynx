@@ -9,288 +9,213 @@ import (
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
 )
 
-func (r *Runtime) StartRun(ctx context.Context, in agent.StartRun) (agent.Run, error) {
+func (r *Runtime) StartRun(ctx context.Context, in agent.StartRun) (agent.SegmentStream, error) {
 	if err := in.Validate(); err != nil {
-		return agent.Run{}, fmt.Errorf("mock: %w", err)
+		return agent.SegmentStream{}, fmt.Errorf("mock: %w", err)
 	}
-	attempt, owner, err := r.reserveStart(ctx, in)
-	if err != nil {
-		return agent.Run{}, err
+	if err := context.Cause(ctx); err != nil {
+		return agent.SegmentStream{}, err
 	}
-	if !owner {
-		return awaitStart(ctx, r, attempt)
-	}
-
 	build := r.Script
 	if build == nil {
 		build = DefaultScript
 	}
-	script, buildErr := buildScriptSafely(build, strings.TrimSpace(in.Message.Text))
-
-	r.mu.Lock()
-	run, err := r.commitStartLocked(attempt, script, buildErr)
-	started := agent.Run{}
-	if err == nil {
-		started = projectRun(run)
-	}
-	r.mu.Unlock()
+	script, err := buildScriptSafely(build, strings.TrimSpace(in.Message.Text))
 	if err != nil {
-		return agent.Run{}, err
+		return agent.SegmentStream{}, fmt.Errorf("mock: build script: %w", err)
 	}
-	go r.play(run, run.script.Prelude, run.script.interrupts())
-	return started, nil
-}
 
-func (r *Runtime) reserveStart(ctx context.Context, in agent.StartRun) (*startAttempt, bool, error) {
-	if err := context.Cause(ctx); err != nil {
-		return nil, false, err
-	}
 	r.mu.Lock()
-	defer r.mu.Unlock()
-	session, ok := r.sessions[in.SessionID]
-	if !ok {
-		return nil, false, fmt.Errorf("%w: %s", agent.ErrSessionNotFound, in.SessionID)
+	session := r.sessions[in.SessionID]
+	if session == nil {
+		r.mu.Unlock()
+		return agent.SegmentStream{}, fmt.Errorf("%w: %s", agent.ErrSessionNotFound, in.SessionID)
 	}
-	if in.RequestID != "" {
-		key := requestKey(in.SessionID, in.RequestID)
-		if _, canceled := r.canceled[key]; canceled {
-			return nil, false, fmt.Errorf("%w: request %s", agent.ErrRunCanceled, in.RequestID)
-		}
-		if existing := r.starts[key]; existing != nil {
-			if !sameStart(existing.input, in) {
-				return nil, false, fmt.Errorf("%w: request %s", agent.ErrRequestConflict, in.RequestID)
-			}
-			return existing, false, nil
-		}
+	if session.active != "" {
+		r.mu.Unlock()
+		return agent.SegmentStream{}, fmt.Errorf("%w: %s", agent.ErrSessionHasActiveRun, in.SessionID)
 	}
-	if session.active != "" || session.starting != nil {
-		return nil, false, fmt.Errorf("%w: %s", agent.ErrSessionBusy, in.SessionID)
-	}
-	attempt := &startAttempt{input: cloneStart(in), ready: make(chan struct{})}
-	session.starting = attempt
-	if in.RequestID != "" {
-		r.starts[requestKey(in.SessionID, in.RequestID)] = attempt
-	}
-	return attempt, true, nil
-}
-
-func awaitStart(ctx context.Context, runtime *Runtime, attempt *startAttempt) (agent.Run, error) {
-	select {
-	case <-attempt.ready:
-		runtime.mu.Lock()
-		defer runtime.mu.Unlock()
-		return attempt.run, attempt.err
-	case <-ctx.Done():
-		return agent.Run{}, context.Cause(ctx)
-	}
-}
-
-func (r *Runtime) commitStartLocked(attempt *startAttempt, script Script, buildErr error) (*runState, error) {
-	if attempt.finished {
-		return nil, attempt.err
-	}
-	session := r.sessions[attempt.input.SessionID]
-	if session == nil || session.starting != attempt {
-		err := fmt.Errorf("%w: request %s", agent.ErrRunCanceled, attempt.input.RequestID)
-		r.finishStartLocked(attempt, agent.Run{}, err)
-		return nil, err
-	}
-	if buildErr != nil {
-		err := fmt.Errorf("mock: build script: %w", buildErr)
-		session.starting = nil
-		r.finishStartLocked(attempt, agent.Run{}, err)
-		return nil, err
+	fault, err := r.takeFaultLocked()
+	if err != nil {
+		r.mu.Unlock()
+		return agent.SegmentStream{}, err
 	}
 	r.next++
 	run := &runState{
-		id: fmt.Sprintf("run_mock_%d", r.next), sessionID: attempt.input.SessionID,
-		startedAfter: agent.Cursor(len(session.events)), status: agent.RunActive,
-		script: script, start: cloneStart(attempt.input), answers: make(map[string]agent.Answer),
-		cancel: make(chan struct{}),
+		id: fmt.Sprintf("run_mock_%d", r.next), sessionID: in.SessionID,
+		provider: in.Options.Provider, model: in.Options.Model, limits: in.Options.Limits, status: agent.RunStatusRunning,
+		segments: make(map[string]*segmentState), script: script, answers: make(map[string]agent.Answer), cancel: make(chan struct{}),
 	}
+	run.script = namespaceScript(run.script, run.id)
+	if run.provider == "" {
+		run.provider, run.model = "mock", "balanced"
+	}
+	segment := r.openSegmentLocked(run)
 	r.runs[run.id] = run
-	session.starting = nil
 	session.active = run.id
-	r.emitLocked(run, agent.RunStarted{RunID: run.id, SessionID: run.sessionID, Options: attempt.input.Options})
+	session.runs = append(session.runs, run.id)
+	r.setSessionStatusLocked(session, agent.SessionRunning)
+	r.emitLocked(run, agent.SegmentStarted{Run: projectRun(run)})
+	r.next++
+	userItemID := fmt.Sprintf("item_mock_%d", r.next)
 	r.emitLocked(run, agent.BlockCompleted{Block: agent.Block{
-		ID: run.id + "_prompt", Kind: agent.BlockUser,
-		Text: strings.TrimSpace(attempt.input.Message.Text), Attachments: slices.Clone(attempt.input.Message.Attachments),
+		ID: userItemID, Kind: agent.BlockUser, Text: strings.TrimSpace(in.Message.Text), Attachments: slices.Clone(in.Message.Attachments),
 	}})
-	started := projectRun(run)
-	r.finishStartLocked(attempt, started, nil)
-	return run, nil
-}
-
-func (r *Runtime) finishStartLocked(attempt *startAttempt, run agent.Run, err error) {
-	if attempt.finished {
-		return
-	}
-	attempt.run, attempt.err, attempt.finished = run, err, true
-	close(attempt.ready)
-}
-
-func (r *Runtime) ResumeRun(ctx context.Context, in agent.ResumeRun) error {
-	if err := in.Validate(); err != nil {
-		return fmt.Errorf("mock: %w", err)
-	}
-	run, attempt, owner, err := r.reserveResume(ctx, in)
-	if err != nil || attempt == nil {
-		return err
-	}
-	if !owner {
-		return awaitResume(ctx, r, attempt)
-	}
-	steps, continuationErr := continueSafely(run.script, in.Answer)
-	r.mu.Lock()
-	err = r.commitResumeLocked(run, attempt, continuationErr)
+	stream := r.bindSegmentLocked(ctx, run, segment, 0, 0, userItemID, fault)
 	r.mu.Unlock()
-	if err != nil {
-		return err
-	}
-	go r.play(run, steps, false)
-	return nil
+
+	go r.play(run, run.script.Prelude, run.script.interrupts())
+	return stream, nil
 }
 
-func (r *Runtime) reserveResume(ctx context.Context, in agent.ResumeRun) (*runState, *resumeAttempt, bool, error) {
-	if err := context.Cause(ctx); err != nil {
-		return nil, nil, false, err
-	}
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	run, ok := r.runs[in.RunID]
-	if !ok {
-		return nil, nil, false, fmt.Errorf("%w: %s", agent.ErrRunNotFound, in.RunID)
-	}
-	attempt, owner, err := resolveResumeAttemptLocked(run, in)
-	return run, attempt, owner, err
-}
-
-func resolveResumeAttemptLocked(run *runState, in agent.ResumeRun) (*resumeAttempt, bool, error) {
-	if answered, exists := run.answers[in.InterruptID]; exists {
-		if agent.EqualAnswers(answered, in.Answer) {
-			return nil, false, nil
-		}
-		return nil, false, fmt.Errorf("%w: interrupt %s", agent.ErrRequestConflict, in.InterruptID)
-	}
-	if pending := run.resuming; pending != nil {
-		if pending.interruptID != in.InterruptID || !agent.EqualAnswers(pending.answer, in.Answer) {
-			return nil, false, fmt.Errorf("%w: interrupt %s", agent.ErrRequestConflict, in.InterruptID)
-		}
-		return pending, false, nil
-	}
-	if run.status != agent.RunWaiting || agent.InteractionID(run.interaction) != in.InterruptID {
-		return nil, false, fmt.Errorf("%w: %s", agent.ErrInterruptNotOpen, in.InterruptID)
-	}
-	if err := agent.ValidateAnswer(run.interaction, in.Answer); err != nil {
-		return nil, false, fmt.Errorf("mock: %w", err)
-	}
-	attempt := &resumeAttempt{
-		interruptID: in.InterruptID,
-		answer:      agent.CloneAnswer(in.Answer),
-		ready:       make(chan struct{}),
-	}
-	run.resuming = attempt
-	return attempt, true, nil
-}
-
-func awaitResume(ctx context.Context, runtime *Runtime, attempt *resumeAttempt) error {
-	select {
-	case <-attempt.ready:
-		runtime.mu.Lock()
-		defer runtime.mu.Unlock()
-		return attempt.err
-	case <-ctx.Done():
-		return context.Cause(ctx)
-	}
-}
-
-func (r *Runtime) commitResumeLocked(run *runState, attempt *resumeAttempt, continuationErr error) error {
-	if run.resuming != attempt {
-		return attempt.err
-	}
-	if continuationErr != nil {
-		err := fmt.Errorf("mock: continue script: %w", continuationErr)
-		r.finishResumeLocked(run, attempt, err)
-		return err
-	}
-	if run.status != agent.RunWaiting {
-		err := fmt.Errorf("%w: run %s", agent.ErrRunCanceled, run.id)
-		r.finishResumeLocked(run, attempt, err)
-		return err
-	}
-	run.answers[attempt.interruptID] = agent.CloneAnswer(attempt.answer)
-	if approval, ok := run.interaction.(agent.Approval); ok {
-		if answer, ok := attempt.answer.(agent.ApprovalAnswer); ok && answer.Remember != "" && answer.Remember != agent.RememberNone {
-			r.rememberApprovalLocked(run, approval, answer)
-		}
-	}
-	run.status = agent.RunActive
-	run.interaction = nil
-	r.emitLocked(run, agent.RunResumed{InterruptID: attempt.interruptID})
-	r.finishResumeLocked(run, attempt, nil)
-	return nil
-}
-
-func (r *Runtime) finishResumeLocked(run *runState, attempt *resumeAttempt, err error) {
-	if run.resuming == attempt {
-		run.resuming = nil
-	}
-	attempt.err = err
-	close(attempt.ready)
-}
-
-func (r *Runtime) CancelRun(ctx context.Context, in agent.CancelRun) error {
+func (r *Runtime) ResumeRun(ctx context.Context, in agent.ResumeRun) (agent.SegmentStream, error) {
 	if err := in.Validate(); err != nil {
-		return fmt.Errorf("mock: %w", err)
+		return agent.SegmentStream{}, fmt.Errorf("mock: %w", err)
 	}
 	if err := context.Cause(ctx); err != nil {
-		return err
+		return agent.SegmentStream{}, err
 	}
+
 	r.mu.Lock()
-	defer r.mu.Unlock()
-	if in.RunID == "" {
-		return r.cancelStartLocked(in)
-	}
 	run := r.runs[in.RunID]
 	if run == nil {
-		return fmt.Errorf("%w: %s", agent.ErrRunNotFound, in.RunID)
+		r.mu.Unlock()
+		return agent.SegmentStream{}, fmt.Errorf("%w: %s", agent.ErrRunNotFound, in.RunID)
 	}
-	r.cancelRunLocked(run)
+	if err := validateResumeSet(run, in.Answers); err != nil {
+		r.mu.Unlock()
+		return agent.SegmentStream{}, err
+	}
+	answers := cloneAnswers(in.Answers)
+	allAnswers, err := completeScriptAnswers(run, answers)
+	if err != nil {
+		r.mu.Unlock()
+		return agent.SegmentStream{}, err
+	}
+	script := run.script
+	r.mu.Unlock()
+
+	steps, err := continueSafely(script, allAnswers)
+	if err != nil {
+		return agent.SegmentStream{}, fmt.Errorf("mock: continue script: %w", err)
+	}
+
+	r.mu.Lock()
+	if run.status != agent.RunStatusWaiting {
+		r.mu.Unlock()
+		return agent.SegmentStream{}, fmt.Errorf("%w: run %s", agent.ErrInterruptNotOpen, run.id)
+	}
+	fault, err := r.takeFaultLocked()
+	if err != nil {
+		r.mu.Unlock()
+		return agent.SegmentStream{}, err
+	}
+	for _, response := range answers {
+		run.answers[response.ItemID] = agent.CloneAnswer(response.Answer)
+		if approval := findApproval(run.interactions, response.ItemID); approval != nil {
+			if answer, ok := response.Answer.(agent.ApprovalAnswer); ok && answer.Remember != agent.RememberNone {
+				r.rememberApprovalLocked(run, *approval, answer)
+			}
+		}
+	}
+	run.interactions = nil
+	run.status = agent.RunStatusRunning
+	segment := r.openSegmentLocked(run)
+	session := r.sessions[run.sessionID]
+	r.setSessionStatusLocked(session, agent.SessionRunning)
+	r.emitLocked(run, agent.SegmentStarted{Run: projectRun(run)})
+	userItemID := ""
+	if in.Message != nil {
+		r.next++
+		userItemID = fmt.Sprintf("item_mock_%d", r.next)
+		r.emitLocked(run, agent.BlockCompleted{Block: agent.Block{ID: userItemID, Kind: agent.BlockUser, Text: strings.TrimSpace(in.Message.Text), Attachments: slices.Clone(in.Message.Attachments)}})
+	}
+	r.completeApprovalItemsLocked(run, answers)
+	stream := r.bindSegmentLocked(ctx, run, segment, 0, 0, userItemID, fault)
+	r.mu.Unlock()
+
+	go r.play(run, steps, false)
+	return stream, nil
+}
+
+func completeScriptAnswers(run *runState, provided []agent.InterruptAnswer) ([]agent.InterruptAnswer, error) {
+	byID := make(map[string]agent.Answer, len(run.answers)+len(provided))
+	for id, answer := range run.answers {
+		byID[id] = answer
+	}
+	for _, answer := range provided {
+		byID[answer.ItemID] = answer.Answer
+	}
+	complete := make([]agent.InterruptAnswer, 0, len(run.script.Interactions))
+	for _, interaction := range run.script.Interactions {
+		id := agent.InteractionItemID(interaction)
+		answer, ok := byID[id]
+		if !ok {
+			return nil, fmt.Errorf("mock: script interrupt %s has no answer", id)
+		}
+		complete = append(complete, agent.InterruptAnswer{ItemID: id, Answer: agent.CloneAnswer(answer)})
+	}
+	return complete, nil
+}
+
+func validateResumeSet(run *runState, answers []agent.InterruptAnswer) error {
+	if run.status != agent.RunStatusWaiting {
+		return fmt.Errorf("%w: run %s", agent.ErrInterruptNotOpen, run.id)
+	}
+	if len(answers) != len(run.interactions) {
+		return fmt.Errorf("mock: resume answers %d interrupts; waiting set has %d", len(answers), len(run.interactions))
+	}
+	byID := make(map[string]agent.Answer, len(answers))
+	for _, answer := range answers {
+		byID[answer.ItemID] = answer.Answer
+	}
+	for _, interaction := range run.interactions {
+		id := agent.InteractionItemID(interaction)
+		answer, ok := byID[id]
+		if !ok {
+			return fmt.Errorf("mock: waiting interrupt %s has no answer", id)
+		}
+		if err := agent.ValidateAnswer(interaction, answer); err != nil {
+			return fmt.Errorf("mock: interrupt %s: %w", id, err)
+		}
+	}
 	return nil
 }
 
-func (r *Runtime) cancelStartLocked(in agent.CancelRun) error {
-	session := r.sessions[in.SessionID]
-	if session == nil {
-		return fmt.Errorf("%w: %s", agent.ErrSessionNotFound, in.SessionID)
-	}
-	key := requestKey(in.SessionID, in.RequestID)
-	r.canceled[key] = struct{}{}
-	attempt := r.starts[key]
-	if attempt == nil {
-		return nil
-	}
-	if !attempt.finished {
-		if session.starting == attempt {
-			session.starting = nil
+func findApproval(interactions []agent.Interaction, id string) *agent.Approval {
+	for _, interaction := range interactions {
+		if approval, ok := interaction.(agent.Approval); ok && approval.ItemID == id {
+			return &approval
 		}
-		r.finishStartLocked(attempt, agent.Run{}, fmt.Errorf("%w: request %s", agent.ErrRunCanceled, in.RequestID))
-		return nil
-	}
-	if attempt.err == nil {
-		run := r.runs[attempt.run.ID]
-		if run == nil {
-			return fmt.Errorf("%w: %s", agent.ErrRunNotFound, attempt.run.ID)
-		}
-		r.cancelRunLocked(run)
 	}
 	return nil
 }
 
-func (r *Runtime) cancelRunLocked(run *runState) {
+func cloneAnswers(answers []agent.InterruptAnswer) []agent.InterruptAnswer {
+	out := slices.Clone(answers)
+	for i := range out {
+		out[i].Answer = agent.CloneAnswer(out[i].Answer)
+	}
+	return out
+}
+
+func (r *Runtime) CancelRun(ctx context.Context, in agent.CancelRun) (agent.Run, error) {
+	if err := in.Validate(); err != nil {
+		return agent.Run{}, fmt.Errorf("mock: %w", err)
+	}
+	if err := context.Cause(ctx); err != nil {
+		return agent.Run{}, err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	run := r.runs[in.RunID]
+	if run == nil {
+		return agent.Run{}, fmt.Errorf("%w: %s", agent.ErrRunNotFound, in.RunID)
+	}
+	if run.status == agent.RunStatusFinished {
+		return projectRun(run), nil
+	}
 	run.cancelOnce.Do(func() { close(run.cancel) })
-	if pending := run.resuming; pending != nil {
-		r.finishResumeLocked(run, pending, fmt.Errorf("%w: run %s", agent.ErrRunCanceled, run.id))
-	}
-	r.finishLocked(run, agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCanceled}})
+	r.finishLocked(run, agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCanceled, Detail: strings.TrimSpace(in.Reason)}})
+	return projectRun(run), nil
 }

@@ -22,10 +22,11 @@ type flagBinding struct {
 }
 
 var settingFlagBindings = [...]flagBinding{
+	{key: "provider", flag: "provider"},
 	{key: "model", flag: "model"},
-	{key: "effort", flag: "effort"},
-	{key: "mode", flag: "mode"},
-	{key: "permission", flag: "permission"},
+	{key: "run.max-total-tokens", flag: "max-total-tokens"},
+	{key: "run.max-steps", flag: "max-steps"},
+	{key: "run.max-budget-usd", flag: "max-budget-usd"},
 	{key: "ui.mouse", flag: "mouse"},
 	{key: "ui.notifications", flag: "notifications"},
 	{key: "ui.tool-details", flag: "tool-details"},
@@ -43,10 +44,11 @@ func configureRoot(v *viper.Viper, root *cobra.Command) {
 
 	flags := root.PersistentFlags()
 	flags.String("config", "", "Configuration file (default: ./.lyra.yaml or the user config directory)")
-	flags.String("model", defaults.Model, "Model used for new runs")
-	flags.String("effort", defaults.Effort, "Reasoning effort: low, medium, high, max, or ultra")
-	flags.String("mode", string(defaults.Mode), "Agent mode: build, plan, or review")
-	flags.String("permission", string(defaults.Permission), "Permission mode: ask, read-only, auto-edit, or full-access")
+	flags.String("provider", defaults.Provider, "Provider used for new runs (must be paired with --model)")
+	flags.String("model", defaults.Model, "Model used for new runs (must be paired with --provider)")
+	flags.Int64("max-total-tokens", defaults.Run.MaxTotalTokens, "Maximum cumulative tokens per run (0 means uncapped)")
+	flags.Int("max-steps", defaults.Run.MaxSteps, "Maximum steps per run (0 means uncapped)")
+	flags.Float64("max-budget-usd", defaults.Run.MaxBudgetUSD, "Maximum run cost in USD (0 means uncapped)")
 	flags.Bool("mouse", defaults.UI.Mouse, "Enable mouse input in the terminal UI")
 	flags.Bool("notifications", defaults.UI.Notifications, "Enable terminal completion notifications")
 	flags.Bool("tool-details", defaults.UI.ToolDetails, "Expand tool output and diffs by default")
@@ -56,10 +58,11 @@ func configureRoot(v *viper.Viper, root *cobra.Command) {
 }
 
 func setDefaults(v *viper.Viper, defaults settings.Config) {
+	v.SetDefault("provider", defaults.Provider)
 	v.SetDefault("model", defaults.Model)
-	v.SetDefault("effort", defaults.Effort)
-	v.SetDefault("mode", defaults.Mode)
-	v.SetDefault("permission", defaults.Permission)
+	v.SetDefault("run.max-total-tokens", defaults.Run.MaxTotalTokens)
+	v.SetDefault("run.max-steps", defaults.Run.MaxSteps)
+	v.SetDefault("run.max-budget-usd", defaults.Run.MaxBudgetUSD)
 	v.SetDefault("approval.remember", defaults.Approval.Remember)
 	v.SetDefault("ui.mouse", defaults.UI.Mouse)
 	v.SetDefault("ui.notifications", defaults.UI.Notifications)

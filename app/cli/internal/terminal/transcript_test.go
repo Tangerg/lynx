@@ -253,7 +253,7 @@ func TestClickingAToolHeaderTogglesOnlyThatTool(t *testing.T) {
 
 func TestDraggingFromAToolHeaderCopiesWithoutToggling(t *testing.T) {
 	clipboard := new(recordingClipboard)
-	view := newTranscriptView(kit.Dark(), kit.Unicode(), input.Wheel{}, highlight.Style("github-dark"), 24, false, clipboard)
+	view := newTranscriptView(kit.Dark(), kit.Unicode(), input.Wheel{}, highlight.New("github-dark"), 24, false, clipboard)
 	t.Cleanup(view.Close)
 	tool := appendTestTool(view, "drag", "DRAG_DETAIL")
 	root := headless.NewRoot(view)
@@ -361,7 +361,7 @@ func TestTranscriptFocusSelectsAndOperatesOnOneEntry(t *testing.T) {
 
 func TestFocusedTranscriptCopiesTheSelectedBlock(t *testing.T) {
 	clipboard := new(recordingClipboard)
-	view := newTranscriptView(kit.Dark(), kit.Unicode(), input.Wheel{}, highlight.Style("github-dark"), 24, false, clipboard)
+	view := newTranscriptView(kit.Dark(), kit.Unicode(), input.Wheel{}, highlight.New("github-dark"), 24, false, clipboard)
 	t.Cleanup(view.Close)
 	appendTestTool(view, "copy", "COPY_DETAIL")
 	view.Focus(true)
@@ -386,7 +386,7 @@ func (*recordingClipboard) Paste() bool { return false }
 
 func testTranscriptView(t *testing.T) *transcriptView {
 	t.Helper()
-	view := newTranscriptView(kit.Dark(), kit.Unicode(), input.Wheel{}, highlight.Style("github-dark"), 24, false, nil)
+	view := newTranscriptView(kit.Dark(), kit.Unicode(), input.Wheel{}, highlight.New("github-dark"), 24, false, nil)
 	t.Cleanup(view.Close)
 	return view
 }

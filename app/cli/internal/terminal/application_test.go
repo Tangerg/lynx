@@ -65,6 +65,28 @@ func runUIConfigured(t *testing.T, backend agent.Runtime, workspace string, conf
 	return host, stop
 }
 
+func runUIForSession(t *testing.T, backend agent.Runtime, sessionID string) (*programtest.Host, func()) {
+	t.Helper()
+	host := programtest.New(t, 96, 28)
+	ctx, cancel := context.WithCancel(t.Context())
+	done := make(chan error, 1)
+	go func() {
+		done <- Run(ctx, Config{Runtime: backend, SessionID: sessionID, Host: host})
+	}()
+
+	var once sync.Once
+	stop := func() {
+		once.Do(func() {
+			cancel()
+			if err := <-done; err != nil {
+				t.Errorf("terminal session stopped with %v", err)
+			}
+		})
+	}
+	t.Cleanup(stop)
+	return host, stop
+}
+
 type delayedFirstRuntime struct {
 	*mock.Runtime
 
@@ -80,14 +102,6 @@ type recordingRuntime struct {
 	starts int
 }
 
-type ambiguousControlRuntime struct {
-	*mock.Runtime
-
-	mu      sync.Mutex
-	starts  int
-	resumes int
-}
-
 type blockingSessionChangeRuntime struct {
 	*mock.Runtime
 
@@ -98,39 +112,6 @@ type blockingSessionChangeRuntime struct {
 	releaseChange chan struct{}
 	mu            sync.Mutex
 	startedIn     string
-}
-
-type lostStartRuntime struct {
-	*mock.Runtime
-
-	mu           sync.Mutex
-	sessionID    string
-	canceled     chan struct{}
-	canceledOnce sync.Once
-}
-
-func (r *lostStartRuntime) StartRun(ctx context.Context, input agent.StartRun) (agent.Run, error) {
-	if _, err := r.Runtime.StartRun(ctx, input); err != nil {
-		return agent.Run{}, err
-	}
-	r.mu.Lock()
-	r.sessionID = input.SessionID
-	r.mu.Unlock()
-	return agent.Run{}, fmt.Errorf("start response lost: %w", agent.ErrDisconnected)
-}
-
-func (r *lostStartRuntime) CancelRun(ctx context.Context, input agent.CancelRun) error {
-	if err := r.Runtime.CancelRun(ctx, input); err != nil {
-		return err
-	}
-	r.canceledOnce.Do(func() { close(r.canceled) })
-	return nil
-}
-
-func (r *lostStartRuntime) startedSession() string {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	return r.sessionID
 }
 
 func (r *blockingSessionChangeRuntime) CreateSession(ctx context.Context, input agent.CreateSession) (agent.Session, error) {
@@ -146,7 +127,7 @@ func (r *blockingSessionChangeRuntime) CreateSession(ctx context.Context, input 
 	}
 }
 
-func (r *blockingSessionChangeRuntime) StartRun(ctx context.Context, input agent.StartRun) (agent.Run, error) {
+func (r *blockingSessionChangeRuntime) StartRun(ctx context.Context, input agent.StartRun) (agent.SegmentStream, error) {
 	r.starts.Add(1)
 	r.mu.Lock()
 	r.startedIn = input.SessionID
@@ -160,42 +141,7 @@ func (r *blockingSessionChangeRuntime) startedSession() string {
 	return r.startedIn
 }
 
-func (r *ambiguousControlRuntime) StartRun(ctx context.Context, input agent.StartRun) (agent.Run, error) {
-	run, err := r.Runtime.StartRun(ctx, input)
-	if err != nil {
-		return agent.Run{}, err
-	}
-	r.mu.Lock()
-	r.starts++
-	lost := r.starts == 1
-	r.mu.Unlock()
-	if lost {
-		return agent.Run{}, fmt.Errorf("lost start response: %w", agent.ErrDisconnected)
-	}
-	return run, nil
-}
-
-func (r *ambiguousControlRuntime) ResumeRun(ctx context.Context, input agent.ResumeRun) error {
-	if err := r.Runtime.ResumeRun(ctx, input); err != nil {
-		return err
-	}
-	r.mu.Lock()
-	r.resumes++
-	lost := r.resumes == 1
-	r.mu.Unlock()
-	if lost {
-		return fmt.Errorf("lost resume response: %w", agent.ErrDisconnected)
-	}
-	return nil
-}
-
-func (r *ambiguousControlRuntime) counts() (int, int) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	return r.starts, r.resumes
-}
-
-func (r *recordingRuntime) StartRun(ctx context.Context, input agent.StartRun) (agent.Run, error) {
+func (r *recordingRuntime) StartRun(ctx context.Context, input agent.StartRun) (agent.SegmentStream, error) {
 	r.mu.Lock()
 	r.last = cloneStartRun(input)
 	r.inputs = append(r.inputs, cloneStartRun(input))
@@ -239,10 +185,10 @@ func cloneStartRun(input agent.StartRun) agent.StartRun {
 	return input
 }
 
-func (r *delayedFirstRuntime) StartRun(ctx context.Context, input agent.StartRun) (agent.Run, error) {
+func (r *delayedFirstRuntime) StartRun(ctx context.Context, input agent.StartRun) (agent.SegmentStream, error) {
 	if r.starts.Add(1) == 1 {
 		<-ctx.Done()
-		return agent.Run{}, context.Cause(ctx)
+		return agent.SegmentStream{}, context.Cause(ctx)
 	}
 	return r.Runtime.StartRun(ctx, input)
 }
@@ -416,7 +362,7 @@ func TestCtrlCClearsTheDraftBeforeCancelingAnActiveRun(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if snapshot.Active == nil {
+	if _, active := snapshot.ActiveRun(); !active {
 		t.Fatal("clear-first Ctrl+C canceled the active run")
 	}
 
@@ -495,49 +441,45 @@ func TestQuitRequiresAConfirmingSecondPress(t *testing.T) {
 }
 
 func TestInteractiveRunRecoversTransportFaultsWithoutDuplicatingTranscript(t *testing.T) {
-	for _, fault := range []mock.FaultKind{mock.FaultDisconnect, mock.FaultDuplicate, mock.FaultGap} {
+	for _, fault := range []mock.FaultKind{mock.FaultDisconnect, mock.FaultDuplicate} {
 		t.Run(string(fault), func(t *testing.T) {
 			backend := mock.New()
-			backend.Instant = true
+			backend.Instant = fault == mock.FaultDuplicate
 			backend.Script = stableCompletedScript
 			backend.Faults = []mock.SubscriptionFault{{Kind: fault, After: 1}}
 			host, stop := runUIWith(t, backend)
 			host.Shows(t, "Ask lyra")
 			host.Type("recover the stream")
 			host.Press(input.Enter)
-			host.Shows(t, "stable answer")
-			host.Shows(t, "complete")
-			host.Hides(t, "failed:")
-			if count := strings.Count(host.Frame(), "stable answer"); count != 1 {
-				t.Fatalf("stable answer appears %d times:\n%s", count, host.Frame())
-			}
+			assertStableCompletedTranscript(t, host)
 			host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
 			stop()
 		})
 	}
 }
 
-func TestInteractiveRunRecoversAmbiguousControlResponses(t *testing.T) {
-	base := mock.New()
-	base.Instant = true
-	backend := &ambiguousControlRuntime{Runtime: base}
+func TestInteractiveRunColdRecoversWhenTheDroppedSegmentAlreadyFinished(t *testing.T) {
+	backend := mock.New()
+	backend.Instant = true
+	backend.Script = stableCompletedScript
+	backend.Faults = []mock.SubscriptionFault{{Kind: mock.FaultDisconnect, After: 1}}
 	host, stop := runUIWith(t, backend)
 	host.Shows(t, "Ask lyra")
-	host.Type("recover ambiguous controls")
+	host.Type("recover from cold state")
 	host.Press(input.Enter)
-	host.Shows(t, "Tool approval")
-	host.Press(input.Enter)
-	host.Shows(t, "complete")
-	host.Hides(t, "failed:")
-	starts, resumes := backend.counts()
-	if starts != 2 || resumes != 2 {
-		t.Fatalf("control calls = start %d, resume %d; want one retry each", starts, resumes)
-	}
-	if count := strings.Count(host.Frame(), "Replaced the sleep"); count != 1 {
-		t.Fatalf("assistant result appears %d times:\n%s", count, host.Frame())
-	}
+	assertStableCompletedTranscript(t, host)
 	host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
 	stop()
+}
+
+func assertStableCompletedTranscript(t *testing.T, host *programtest.Host) {
+	t.Helper()
+	host.Shows(t, "complete")
+	host.Hides(t, "failed:")
+	host.Shows(t, "stable answer")
+	if count := strings.Count(host.Frame(), "stable answer"); count != 1 {
+		t.Fatalf("stable answer appears %d times:\n%s", count, host.Frame())
+	}
 }
 
 func TestClosingTheTerminalCancelsTheOwnedRuntimeRun(t *testing.T) {
@@ -563,43 +505,12 @@ func TestClosingTheTerminalCancelsTheOwnedRuntimeRun(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if snapshot.Active != nil {
-		t.Fatalf("terminal close left an active run: %+v", snapshot.Active)
+	if _, active := snapshot.ActiveRun(); active {
+		t.Fatalf("terminal close left an active run: %+v", snapshot.Runs)
 	}
-	finished, ok := snapshot.Events[len(snapshot.Events)-1].Event.(agent.RunFinished)
-	if !ok || finished.Outcome.Status != agent.OutcomeCanceled {
-		t.Fatalf("last event = %+v, want canceled run", snapshot.Events[len(snapshot.Events)-1])
+	if snapshot.Session.Status != agent.SessionIdle {
+		t.Fatalf("session status = %s, want idle", snapshot.Session.Status)
 	}
-}
-
-func TestExhaustedInteractiveStartRetriesCancelTheAcceptedRequest(t *testing.T) {
-	base := mock.New()
-	base.Script = func(string) mock.Script {
-		return mock.Script{Prelude: []mock.Step{
-			{Delay: time.Hour, Event: agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCompleted}}},
-		}}
-	}
-	backend := &lostStartRuntime{Runtime: base, canceled: make(chan struct{})}
-	host, stop := runUIWith(t, backend)
-	host.Shows(t, "Ask lyra")
-	host.Type("lose all start responses")
-	host.Press(input.Enter)
-	host.Shows(t, "failed:")
-	select {
-	case <-backend.canceled:
-	case <-time.After(3 * time.Second):
-		t.Fatal("accepted start was not canceled after retry exhaustion")
-	}
-
-	snapshot, err := base.GetSession(t.Context(), backend.startedSession())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if snapshot.Active != nil {
-		t.Fatalf("retry exhaustion left an active run: %+v", snapshot.Active)
-	}
-	host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
-	stop()
 }
 
 func TestInteractiveRunRejectsConflictingReplay(t *testing.T) {
@@ -619,8 +530,8 @@ func TestInteractiveRunRejectsConflictingReplay(t *testing.T) {
 
 func stableCompletedScript(string) mock.Script {
 	return mock.Script{Prelude: []mock.Step{
-		{Event: agent.BlockCompleted{Block: agent.Block{ID: "answer", Kind: agent.BlockAssistant, Text: "stable answer"}}},
-		{Event: agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCompleted}}},
+		{Delay: 30 * time.Millisecond, Event: agent.BlockCompleted{Block: agent.Block{ID: "answer", Kind: agent.BlockAssistant, Text: "stable answer"}}},
+		{Delay: 100 * time.Millisecond, Event: agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCompleted}}},
 	}}
 }
 
@@ -892,7 +803,7 @@ func TestSessionPickerRestoresHistoryAndLifecycleCommandsSwitchCleanly(t *testin
 	host.Type("/fork Safe alternative")
 	host.Press(input.Enter)
 	host.Shows(t, "session · Safe alternative")
-	host.Shows(t, "The fixed sleep races the janitor")
+	host.Hides(t, "The fixed sleep races the janitor")
 
 	host.Type("/new")
 	host.Press(input.Enter)
@@ -994,45 +905,32 @@ func firstRuntimeSession(t *testing.T, runtime agent.SessionCatalog) string {
 	return page.Items[0].ID
 }
 
-func TestModelModePermissionAndEffortApplyToTheNextRun(t *testing.T) {
+func TestProviderQualifiedModelAndLimitsApplyToTheNextRun(t *testing.T) {
 	backend := &recordingRuntime{Runtime: mock.New()}
 	backend.Instant = true
-	host, stop := runUIWith(t, backend)
-	host.Shows(t, "runtime default · medium · build · ask")
+	configured := settings.Default()
+	configured.Run.MaxSteps = 42
+	configured.Run.MaxBudgetUSD = 2.5
+	host, stop := runUIWithSettings(t, backend, configured)
+	host.Shows(t, settings.DefaultProvider+"/"+settings.DefaultModel)
 
 	host.Type("/model")
 	host.Press(input.Enter)
 	host.Press(input.Enter)
 	host.Shows(t, "Models")
 	host.Type("Deep")
-	host.Shows(t, "Mock Deep")
+	host.Shows(t, "Synthetic Deep")
 	host.Press(input.Enter)
-	host.Shows(t, "model · Mock Deep")
+	host.Shows(t, "model · synthetic/deep")
 
-	host.Send(input.Key{Code: input.Tab, Mods: input.Shift})
-	host.Shows(t, "mode · plan")
-	host.Type("/permissions")
-	host.Press(input.Enter)
-	host.Press(input.Enter)
-	host.Shows(t, "Permissions")
-	host.Press(input.Down)
-	host.Press(input.Enter)
-	host.Shows(t, "permissions · read-only")
-	host.Type("/effort max")
-	host.Press(input.Enter)
-	host.Shows(t, "effort · max")
-	host.Type("/clear")
-	host.Press(input.Enter)
-	host.Press(input.Enter)
-	host.Shows(t, "cleared")
-	host.Shows(t, "mock-deep · max · plan · read-only")
+	host.Shows(t, "synthetic/deep")
 
 	host.Type("use these options")
 	host.Press(input.Enter)
 	host.Shows(t, "How should lyra proceed?")
 	host.Press(input.Esc)
 	host.Shows(t, "complete")
-	if got := backend.options(); got.Model != "mock-deep" || got.Mode != agent.ModePlan || got.Permission != agent.PermissionReadOnly || got.Effort != "max" {
+	if got := backend.options(); got.Provider != "synthetic" || got.Model != "deep" || got.Limits.MaxSteps != 42 || got.Limits.MaxBudgetUSD != 2.5 {
 		t.Fatalf("StartRun options = %+v", got)
 	}
 
@@ -1091,15 +989,15 @@ func TestQuestionFormSubmitsTypedAnswerAndCanCancel(t *testing.T) {
 	answers := make(chan agent.QuestionAnswer, 2)
 	backend.Script = func(string) mock.Script {
 		return mock.Script{
-			Interaction: agent.Question{
-				InterruptID: "question_1", Title: "Choose a strategy", Detail: "One short decision",
+			Interactions: []agent.Interaction{agent.Question{
+				ItemID: "question_1", Title: "Choose a strategy", Detail: "One short decision",
 				Fields: []agent.QuestionField{{
-					ID: "strategy", Label: "Strategy", Kind: agent.QuestionSingle, Required: true,
-					Options: []agent.QuestionOption{{Value: "safe", Label: "Safe", Recommended: true}, {Value: "fast", Label: "Fast"}},
+					Header: "Strategy", Prompt: "Choose a strategy", Kind: agent.QuestionSingle,
+					Options: []agent.QuestionOption{{Label: "Safe"}, {Label: "Fast"}},
 				}},
-			},
-			Continue: func(answer agent.Answer) []mock.Step {
-				answers <- answer.(agent.QuestionAnswer)
+			}},
+			Continue: func(answerSet []agent.InterruptAnswer) []mock.Step {
+				answers <- answerSet[0].Answer.(agent.QuestionAnswer)
 				return []mock.Step{{Event: agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCompleted}}}}
 			},
 		}
@@ -1109,10 +1007,10 @@ func TestQuestionFormSubmitsTypedAnswerAndCanCancel(t *testing.T) {
 	host.Type("ask me")
 	host.Press(input.Enter)
 	host.Shows(t, "Choose a strategy")
-	host.Shows(t, "Safe (recommended)")
+	host.Shows(t, "Safe")
 	host.Press(input.Enter)
 	host.Shows(t, "complete")
-	if answer := <-answers; answer.Canceled || len(answer.Values["strategy"]) != 1 || answer.Values["strategy"][0] != "safe" {
+	if answer := <-answers; len(answer.Values) != 1 || len(answer.Values[0]) != 1 || answer.Values[0][0] != "Safe" {
 		t.Fatalf("submitted answer = %+v", answer)
 	}
 
@@ -1120,10 +1018,7 @@ func TestQuestionFormSubmitsTypedAnswerAndCanCancel(t *testing.T) {
 	host.Press(input.Enter)
 	host.Shows(t, "Choose a strategy")
 	host.Press(input.Esc)
-	host.Shows(t, "complete")
-	if answer := <-answers; !answer.Canceled {
-		t.Fatalf("canceled answer = %+v", answer)
-	}
+	host.Shows(t, "canceled")
 
 	host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
 	stop()
@@ -1146,7 +1041,8 @@ func TestApprovalRememberScopeAppliesToLaterRuns(t *testing.T) {
 	host.Shows(t, "Applied remembered approval rule")
 	host.Shows(t, "complete")
 	host.Hides(t, "How should lyra proceed?")
-	rules, err := backend.ListApprovalRules(t.Context())
+	sessionID := firstRuntimeSession(t, backend)
+	rules, err := backend.ListApprovalRules(t.Context(), sessionID)
 	if err != nil || len(rules) != 1 || rules[0].Scope != agent.RememberSession {
 		t.Fatalf("remembered rules = %+v, %v", rules, err)
 	}
@@ -1396,7 +1292,10 @@ func TestApprovalRemainsUsableAtRepresentativeWidths(t *testing.T) {
 		{name: "wide", width: 120, height: 32},
 	} {
 		t.Run(size.name, func(t *testing.T) {
-			host, stop := runUI(t)
+			backend := mock.New()
+			backend.Instant = true
+			backend.Script = approvalWidthScript
+			host, stop := runUIWith(t, backend)
 			host.Shows(t, "Ask lyra")
 			if !host.Resize(size.width, size.height) {
 				t.Fatalf("resize to %dx%d was refused", size.width, size.height)
@@ -1405,12 +1304,38 @@ func TestApprovalRemainsUsableAtRepresentativeWidths(t *testing.T) {
 			host.Press(input.Enter)
 			host.Shows(t, "How should lyra proceed?")
 			host.Press(input.Esc)
-			host.Shows(t, "Left the file alone")
+			host.Shows(t, "Approval denied at current width")
 			host.Shows(t, "complete")
 
 			host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
 			stop()
 		})
+	}
+}
+
+func approvalWidthScript(string) mock.Script {
+	return mock.Script{
+		Interactions: []agent.Interaction{agent.Approval{
+			ItemID: "responsive-approval",
+			Title:  "Review the proposed change",
+			Detail: "Confirm that the approval form remains usable at this terminal width.",
+			Tool: &agent.ToolCall{
+				Kind: agent.ToolShell, Name: "responsive-check", Command: "go test ./...", Status: agent.ToolRunning,
+			},
+		}},
+		Continue: func(answers []agent.InterruptAnswer) []mock.Step {
+			message := "Approval was not denied at current width"
+			if len(answers) == 1 {
+				answer, ok := answers[0].Answer.(agent.ApprovalAnswer)
+				if ok && answer.Decision == agent.ApprovalDeny {
+					message = "Approval denied at current width"
+				}
+			}
+			return []mock.Step{
+				{Event: agent.BlockCompleted{Block: agent.Block{ID: "responsive-result", Kind: agent.BlockAssistant, Text: message}}},
+				{Event: agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCompleted}}},
+			}
+		},
 	}
 }
 
@@ -1481,6 +1406,40 @@ func TestStreamingRemainsResponsiveThroughAResizeStorm(t *testing.T) {
 	host.Press(input.Enter)
 	host.Press(input.Enter)
 	host.Shows(t, "terminal.core")
+	stop()
+}
+
+func TestOpeningAnActiveSessionRecoversAStreamWhoseTransientStartPredatesAttachment(t *testing.T) {
+	backend := mock.New()
+	backend.Script = func(string) mock.Script {
+		return mock.Script{Prelude: []mock.Step{
+			{Event: agent.BlockStarted{Block: agent.Block{ID: "answer", Kind: agent.BlockAssistant}}},
+			{Event: agent.BlockDelta{BlockID: "answer", Text: "provisional"}},
+			{Delay: 200 * time.Millisecond, Event: agent.BlockDelta{BlockID: "answer", Text: " preview"}},
+			{Event: agent.BlockCompleted{Block: agent.Block{ID: "answer", Kind: agent.BlockAssistant, Text: "RECOVERED_AUTHORITATIVE_ANSWER"}}},
+			{Event: agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCompleted}}},
+		}}
+	}
+	session, err := backend.CreateSession(t.Context(), agent.CreateSession{Workspace: t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	opened, err := backend.StartRun(t.Context(), agent.StartRun{SessionID: session.ID, Message: agent.Message{Text: "recover me"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for event, streamErr := range opened.Events {
+		if streamErr != nil {
+			t.Fatal(streamErr)
+		}
+		if _, delta := event.Event.(agent.BlockDelta); delta {
+			break
+		}
+	}
+
+	host, stop := runUIForSession(t, backend, session.ID)
+	host.Shows(t, "RECOVERED_AUTHORITATIVE_ANSWER")
+	host.Shows(t, "complete")
 	stop()
 }
 

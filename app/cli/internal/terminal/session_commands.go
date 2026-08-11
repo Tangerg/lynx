@@ -68,7 +68,7 @@ func (a *app) RenameSession(title string) {
 			if err != nil {
 				return agent.Session{}, err
 			}
-			return a.runtime.UpdateSession(ctx, agent.UpdateSession{SessionID: sessionID, Title: title, Revision: latest.Session.Revision})
+			return a.runtime.UpdateSession(ctx, agent.UpdateSession{SessionID: sessionID, Title: title, ExpectedRevision: latest.Session.Revision})
 		},
 		func(updated agent.Session) error {
 			if err := updated.Validate(); err != nil {
@@ -87,10 +87,10 @@ func (a *app) RenameSession(title string) {
 }
 
 func (a *app) ForkSession(title string) {
-	source, at := a.session.ID, a.conversation.Cursor()
+	source := a.session.ID
 	runSessionChange(a, "forking session",
 		func(ctx context.Context) (agent.SessionSnapshot, error) {
-			forked, err := a.runtime.ForkSession(ctx, agent.ForkSession{SessionID: source, At: at, Title: strings.TrimSpace(title)})
+			forked, err := a.runtime.ForkSession(ctx, agent.ForkSession{SessionID: source, Title: strings.TrimSpace(title)})
 			if err != nil {
 				return agent.SessionSnapshot{}, err
 			}

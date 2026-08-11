@@ -29,6 +29,9 @@ import (
 // version is overridden at link time via -ldflags "-X ...cmd.version=...".
 var version = "dev"
 
+// Version returns the client build identity advertised to runtime discovery.
+func Version() string { return version }
+
 const configIndependentAnnotation = "lyra/config-independent"
 
 // Dependencies are the outer implementations available to the command tree.

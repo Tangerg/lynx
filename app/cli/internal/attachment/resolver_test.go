@@ -76,6 +76,18 @@ func TestResolveRejectsDirectoriesAndOversizedFiles(t *testing.T) {
 	}
 }
 
+func TestResolveRejectsContentTheRuntimeProtocolCannotRepresent(t *testing.T) {
+	root := t.TempDir()
+	resolver, _ := New(root)
+	path := filepath.Join(root, "archive.bin")
+	if err := os.WriteFile(path, []byte{0, 1, 2, 3}, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := resolver.Resolve(t.Context(), path); !errors.Is(err, ErrUnsupportedType) {
+		t.Fatalf("binary attachment error = %v", err)
+	}
+}
+
 func TestCompleteRanksFilesAndSkipsDependencyInternals(t *testing.T) {
 	root := t.TempDir()
 	for _, name := range []string{"internal/cache/store.go", "cache_test.go", ".git/cache-secret", "node_modules/cache.js"} {

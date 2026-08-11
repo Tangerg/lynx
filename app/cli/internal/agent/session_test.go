@@ -1,95 +1,146 @@
 package agent
 
-import (
-	"strconv"
-	"strings"
-	"testing"
-)
+import "testing"
 
-func TestSessionAndPageValidationRejectMalformedRuntimeProjections(t *testing.T) {
-	valid := Session{ID: "session_1", Workspace: "/workspace", Revision: 2}
-	if err := valid.Validate(); err != nil {
-		t.Fatalf("valid session: %v", err)
-	}
-	for name, session := range map[string]Session{
-		"missing id":        {Workspace: "/workspace"},
-		"missing workspace": {ID: "session_1"},
-		"negative revision": {ID: "session_1", Workspace: "/workspace", Revision: -1},
-	} {
-		t.Run(name, func(t *testing.T) {
-			if err := session.Validate(); err == nil {
-				t.Fatal("malformed session was accepted")
-			}
-		})
-	}
-	if err := (SessionPage{Items: []Session{valid, valid}}).Validate(); err == nil || !strings.Contains(err.Error(), "repeats") {
-		t.Fatalf("duplicate page error = %v", err)
-	}
-	invalid := valid
-	invalid.Workspace = ""
-	if err := (SessionPage{Items: []Session{invalid}}).Validate(); err == nil || !strings.Contains(err.Error(), "item 1") {
-		t.Fatalf("invalid page error = %v", err)
-	}
-}
-
-func TestSessionSnapshotValidatesAggregateAndActiveRunTogether(t *testing.T) {
-	events := []Envelope{
-		snapshotEnvelope(1, RunStarted{RunID: "run_1", SessionID: "session_1"}),
-		snapshotEnvelope(2, RunInterrupted{Interaction: Approval{InterruptID: "approval_1", Title: "Edit"}}),
-	}
+func TestSessionSnapshotRestoresDurableProjection(t *testing.T) {
 	snapshot := SessionSnapshot{
-		Session: Session{ID: "session_1", Workspace: "/workspace"},
-		Events:  events,
-		Cursor:  2,
-		Active:  &Run{ID: "run_1", SessionID: "session_1", Status: RunWaiting, StartedAfter: 0},
+		Session: Session{ID: "ses_1", Status: SessionWaiting, Workspace: "/tmp/demo", Revision: 2},
+		Transcript: []Block{
+			{ID: "user_1", RunID: "run_1", Status: BlockStatusCompleted, Kind: BlockUser, Text: "hello"},
+			{ID: "tool_1", RunID: "run_1", Status: BlockStatusRunning, Kind: BlockTool, Tool: &ToolCall{Kind: ToolEdit, Name: "edit", Status: ToolRunning}},
+		},
+		Plan:         []PlanItem{{Title: "inspect", Status: PlanActive}},
+		PlanRevision: 3,
+		Runs:         []Run{{ID: "run_1", SessionID: "ses_1", Status: RunStatusWaiting}},
+		Interactions: []Interaction{Approval{
+			ItemID: "tool_1", Title: "edit", Rememberable: true,
+			Tool: &ToolCall{Kind: ToolEdit, Name: "edit", Status: ToolRunning},
+		}},
 	}
 	if err := snapshot.Validate(); err != nil {
-		t.Fatalf("valid snapshot: %v", err)
+		t.Fatal(err)
 	}
+	conversation := NewConversation()
+	if err := conversation.RestoreSnapshot(snapshot); err != nil {
+		t.Fatal(err)
+	}
+	if conversation.Phase() != ConversationWaiting || len(conversation.Blocks()) != 2 || len(conversation.Interactions()) != 1 {
+		t.Fatalf("restored conversation = phase %v, blocks %d, interactions %d", conversation.Phase(), len(conversation.Blocks()), len(conversation.Interactions()))
+	}
+}
 
-	for name, mutate := range map[string]func(*SessionSnapshot){
-		"cursor":         func(s *SessionSnapshot) { s.Cursor = 3 },
-		"event session":  func(s *SessionSnapshot) { s.Events[1].SessionID = "other" },
-		"missing active": func(s *SessionSnapshot) { s.Active = nil },
-		"wrong status":   func(s *SessionSnapshot) { s.Active.Status = RunActive },
-		"wrong start":    func(s *SessionSnapshot) { s.Active.StartedAfter = 1 },
+func TestSessionSnapshotRejectsWaitingWithoutInteractions(t *testing.T) {
+	snapshot := SessionSnapshot{
+		Session: Session{ID: "ses_1", Status: SessionWaiting, Workspace: "/tmp/demo"},
+		Runs:    []Run{{ID: "run_1", SessionID: "ses_1", Status: RunStatusWaiting}},
+	}
+	if err := snapshot.Validate(); err == nil {
+		t.Fatal("waiting snapshot without interactions was accepted")
+	}
+}
+
+func TestSessionSnapshotRestoresLatestFinishedRun(t *testing.T) {
+	snapshot := SessionSnapshot{
+		Session: Session{ID: "ses_1", Status: SessionIdle, Workspace: "/tmp/demo"},
+		Runs: []Run{{
+			ID: "run_1", SessionID: "ses_1", Status: RunStatusFinished,
+			Outcome: Outcome{Status: OutcomeCompleted}, Usage: Usage{InputTokens: 12, OutputTokens: 3},
+		}},
+	}
+	conversation := NewConversation()
+	if err := conversation.RestoreSnapshot(snapshot); err != nil {
+		t.Fatal(err)
+	}
+	if conversation.Phase() != ConversationIdle || conversation.RunID() != "run_1" || conversation.Outcome().Status != OutcomeCompleted || conversation.Usage().InputTokens != 12 {
+		t.Fatalf("restored finished conversation = phase %v, run %q, outcome %+v, usage %+v", conversation.Phase(), conversation.RunID(), conversation.Outcome(), conversation.Usage())
+	}
+}
+
+func TestSessionSnapshotRejectsLifecycleDrift(t *testing.T) {
+	for _, test := range []struct {
+		name     string
+		snapshot SessionSnapshot
+	}{
+		{
+			name: "running run with idle session",
+			snapshot: SessionSnapshot{
+				Session: Session{ID: "ses_1", Status: SessionIdle, Workspace: "/tmp/demo"},
+				Runs:    []Run{{ID: "run_1", SessionID: "ses_1", Status: RunStatusRunning, ActiveSegmentID: "seg_1"}},
+			},
+		},
+		{
+			name: "active run before latest run",
+			snapshot: SessionSnapshot{
+				Session: Session{ID: "ses_1", Status: SessionRunning, Workspace: "/tmp/demo"},
+				Runs: []Run{
+					{ID: "run_1", SessionID: "ses_1", Status: RunStatusRunning, ActiveSegmentID: "seg_1"},
+					{ID: "run_2", SessionID: "ses_1", Status: RunStatusFinished, Outcome: Outcome{Status: OutcomeCompleted}},
+				},
+			},
+		},
 	} {
-		t.Run(name, func(t *testing.T) {
-			invalid := snapshot
-			invalid.Events = append([]Envelope(nil), snapshot.Events...)
-			active := *snapshot.Active
-			invalid.Active = &active
-			mutate(&invalid)
-			if err := invalid.Validate(); err == nil {
-				t.Fatal("invalid snapshot was accepted")
+		t.Run(test.name, func(t *testing.T) {
+			if err := test.snapshot.Validate(); err == nil {
+				t.Fatal("inconsistent snapshot was accepted")
 			}
 		})
 	}
 }
 
-func TestRestoreSnapshotIsAtomic(t *testing.T) {
-	conversation := NewConversation()
-	valid := SessionSnapshot{
-		Session: Session{ID: "session_1", Workspace: "/workspace"},
-		Events: []Envelope{
-			snapshotEnvelope(1, RunStarted{RunID: "run_1", SessionID: "session_1"}),
-			snapshotEnvelope(2, RunFinished{Outcome: Outcome{Status: OutcomeCompleted}}),
-		},
-		Cursor: 2,
+func TestSessionSnapshotRejectsRunningItemsWithoutAnActiveRun(t *testing.T) {
+	snapshot := SessionSnapshot{
+		Session:    Session{ID: "ses_1", Status: SessionIdle, Workspace: "/tmp/demo"},
+		Transcript: []Block{{ID: "tool_1", RunID: "run_1", Status: BlockStatusRunning, Kind: BlockTool, Tool: &ToolCall{Kind: ToolShell, Name: "shell", Status: ToolRunning}}},
 	}
-	if err := conversation.RestoreSnapshot(valid); err != nil {
-		t.Fatal(err)
-	}
-	invalid := valid
-	invalid.Cursor = 3
-	if err := conversation.RestoreSnapshot(invalid); err == nil || !strings.Contains(err.Error(), "cursor") {
-		t.Fatalf("invalid restore error = %v", err)
-	}
-	if conversation.Cursor() != 2 || conversation.Outcome().Status != OutcomeCompleted {
-		t.Fatalf("failed restore mutated aggregate: cursor=%d outcome=%+v", conversation.Cursor(), conversation.Outcome())
+	if err := snapshot.Validate(); err == nil {
+		t.Fatal("idle snapshot with a running item was accepted")
 	}
 }
 
-func snapshotEnvelope(cursor Cursor, event Event) Envelope {
-	return Envelope{ID: "event_" + strconv.FormatUint(uint64(cursor), 10), Cursor: cursor, RunID: "run_1", SessionID: "session_1", Event: event}
+func TestSessionSnapshotRejectsTransientRunningItems(t *testing.T) {
+	for _, kind := range []BlockKind{BlockAssistant, BlockReasoning} {
+		t.Run(string(kind), func(t *testing.T) {
+			snapshot := SessionSnapshot{
+				Session:    Session{ID: "ses_1", Status: SessionRunning, Workspace: "/tmp/demo"},
+				Transcript: []Block{{ID: "preview_1", RunID: "run_1", Status: BlockStatusRunning, Kind: kind}},
+				Runs:       []Run{{ID: "run_1", SessionID: "ses_1", Status: RunStatusRunning, ActiveSegmentID: "seg_1"}},
+			}
+			if err := snapshot.Validate(); err == nil {
+				t.Fatalf("snapshot accepted a durable running %s preview", kind)
+			}
+		})
+	}
+}
+
+func TestSessionSnapshotRejectsItemWithoutItsRun(t *testing.T) {
+	snapshot := SessionSnapshot{
+		Session:    Session{ID: "ses_1", Status: SessionIdle, Workspace: "/tmp/demo"},
+		Transcript: []Block{{ID: "message_1", RunID: "run_missing", Status: BlockStatusCompleted, Kind: BlockAssistant, Text: "orphaned"}},
+	}
+	if err := snapshot.Validate(); err == nil {
+		t.Fatal("snapshot with an orphaned item was accepted")
+	}
+}
+
+func TestConversationRestoresCursorlessAttachmentHead(t *testing.T) {
+	snapshot := SessionSnapshot{
+		Session: Session{ID: "ses_1", Status: SessionRunning, Workspace: "/tmp/demo"},
+		Runs:    []Run{{ID: "run_1", SessionID: "ses_1", Status: RunStatusRunning, ActiveSegmentID: "seg_1"}},
+	}
+	stream := SegmentStream{
+		RunID: "run_1", SegmentID: "seg_1", HeadEventID: "opaque-head",
+		Events: func(func(RunEvent, error) bool) {},
+	}
+	conversation := NewConversation()
+	if err := conversation.RestoreAttachedSnapshot(snapshot, stream); err != nil {
+		t.Fatal(err)
+	}
+	if conversation.Checkpoint() != "opaque-head" || conversation.Phase() != ConversationRunning {
+		t.Fatalf("restored checkpoint %q, phase %v", conversation.Checkpoint(), conversation.Phase())
+	}
+
+	stream.SegmentID = "seg_other"
+	if err := conversation.RestoreAttachedSnapshot(snapshot, stream); err == nil {
+		t.Fatal("mismatched attached stream was accepted")
+	}
 }

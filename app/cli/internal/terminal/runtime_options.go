@@ -3,7 +3,6 @@ package terminal
 import (
 	"context"
 	"fmt"
-	"slices"
 	"strings"
 
 	"github.com/Tangerg/oolong/components/kit"
@@ -15,40 +14,42 @@ import (
 func (a *app) buildRuntimePickers(theme kit.Theme, glyphs kit.Glyphs) {
 	a.modelPicker = newPicker(theme, glyphs, "search models",
 		func(model agent.Model) string {
-			if model.Default {
-				return model.DisplayName + " · default"
+			label := model.DisplayName
+			if label == "" {
+				label = model.ID
 			}
-			return model.DisplayName
+			if model.Deprecated {
+				label += " · deprecated"
+			}
+			return label
 		},
-		func(model agent.Model) string { return model.ID },
+		func(model agent.Model) string { return model.Provider + "/" + model.ID },
 		func(model agent.Model) {
 			a.modelDialog.Dismiss()
-			a.options.Model = model.ID
-			if !slices.Contains(model.Efforts, a.options.Effort) {
-				a.options.Effort = preferredEffort(model.Efforts)
-			}
-			a.syncOptions("model · " + model.DisplayName)
+			a.options.Provider, a.options.Model = model.Provider, model.ID
+			a.syncOptions("model · " + model.Provider + "/" + model.ID)
 		},
 	)
-	a.modelDialog = kit.NewDialog(&a.stack, theme, glyphs, "Models", a.modelPicker)
-	a.modelDialog.Panel().Where = layout.Placement{Width: 76, Height: 14, Margin: 1}
+	a.modelDialog = kit.NewDialog(kit.DialogConfig{
+		Stack: &a.stack, Theme: theme, Glyphs: glyphs, Title: "Models", Body: a.modelPicker,
+		Where: layout.Placement{Width: 76, Height: 14, Margin: 1},
+	})
 	a.modelPicker.cancel = a.modelDialog.Dismiss
 
-	a.permissionPicker = newPicker(theme, glyphs, "search permission modes",
-		permissionTitle,
-		permissionDetail,
-		func(mode agent.PermissionMode) {
-			a.permissionDialog.Dismiss()
-			a.options.Permission = mode
-			a.syncOptions("permissions · " + string(mode))
+	a.approvalModePicker = newPicker(theme, glyphs, "search approval modes",
+		approvalModeTitle,
+		approvalModeDetail,
+		func(mode agent.ApprovalMode) {
+			a.approvalModeDialog.Dismiss()
+			a.setApprovalMode(mode)
 		},
 	)
-	a.permissionPicker.SetItems([]agent.PermissionMode{
-		agent.PermissionAsk, agent.PermissionReadOnly, agent.PermissionAutoEdit, agent.PermissionFull,
+	a.approvalModePicker.SetItems([]agent.ApprovalMode{agent.ApprovalModeSafe, agent.ApprovalModeBalanced, agent.ApprovalModeYolo})
+	a.approvalModeDialog = kit.NewDialog(kit.DialogConfig{
+		Stack: &a.stack, Theme: theme, Glyphs: glyphs, Title: "Runtime approval mode", Body: a.approvalModePicker,
+		Where: layout.Placement{Width: 88, Height: 9, Margin: 1},
 	})
-	a.permissionDialog = kit.NewDialog(&a.stack, theme, glyphs, "Permissions", a.permissionPicker)
-	a.permissionDialog.Panel().Where = layout.Placement{Width: 88, Height: 10, Margin: 1}
-	a.permissionPicker.cancel = a.permissionDialog.Dismiss
+	a.approvalModePicker.cancel = a.approvalModeDialog.Dismiss
 }
 
 func (a *app) ChooseModel() {
@@ -71,56 +72,56 @@ func (a *app) ChooseModel() {
 			a.modelPicker.Reset()
 			a.modelPicker.SetItems(models)
 			a.modelDialog.Show()
-			a.status.note("choose a model")
+			a.status.note("choose a provider-qualified model")
 		},
 	)
 }
 
-func (a *app) CycleMode() {
+func (a *app) ChooseApprovalMode() {
 	if a.conversation.Busy() || a.following {
-		a.message("mode changes apply between runs")
+		a.message("approval mode changes apply between runs")
 		return
 	}
-	modes := []agent.AgentMode{agent.ModeBuild, agent.ModePlan, agent.ModeReview}
-	at := slices.Index(modes, a.options.Mode)
-	a.options.Mode = modes[(at+1)%len(modes)]
-	a.syncOptions("mode · " + string(a.options.Mode))
+	a.approvalModePicker.Reset()
+	a.approvalModeDialog.Show()
+	a.status.note("choose the runtime approval mode")
 }
 
-func (a *app) ChoosePermission() {
-	if a.conversation.Busy() || a.following {
-		a.message("permission changes apply between runs")
-		return
-	}
-	a.permissionPicker.Reset()
-	a.permissionDialog.Show()
-	a.status.note("choose a permission mode")
-}
-
-func (a *app) SetEffort(value string) {
-	if a.conversation.Busy() || a.following {
-		a.message("effort changes apply between runs")
-		return
-	}
-	value = strings.ToLower(strings.TrimSpace(value))
-	if !slices.Contains([]string{"low", "medium", "high", "max", "ultra"}, value) {
-		a.message("effort must be low, medium, high, max, or ultra")
-		return
-	}
-	a.options.Effort = value
-	a.syncOptions("effort · " + value)
+func (a *app) setApprovalMode(mode agent.ApprovalMode) {
+	runOperation(a, pickerCatalogOperation, true,
+		func(ctx context.Context) (agent.ApprovalMode, error) { return a.runtime.SetApprovalMode(ctx, mode) },
+		func(applied agent.ApprovalMode, err error) {
+			if err != nil {
+				a.message("could not set approval mode: " + err.Error())
+				return
+			}
+			a.message("approval mode · " + string(applied))
+		},
+	)
 }
 
 func (a *app) ShowRuntimeStatus() {
-	a.transcript.Append(&kit.Message{
-		Theme: a.transcript.theme, Speaker: "runtime options",
-		Body: fmt.Sprintf("model: %s\neffort: %s\nmode: %s\npermissions: %s", modelLabel(a.options.Model), a.options.Effort, a.options.Mode, a.options.Permission),
-	})
+	runOperation(a, pickerCatalogOperation, true,
+		func(ctx context.Context) (agent.ApprovalMode, error) { return a.runtime.GetApprovalMode(ctx) },
+		func(mode agent.ApprovalMode, err error) {
+			if err != nil {
+				a.message("could not read runtime status: " + err.Error())
+				return
+			}
+			a.transcript.Append(&kit.Message{
+				Theme: a.transcript.theme, Speaker: "runtime options",
+				Body: fmt.Sprintf("model: %s\napproval mode: %s%s", modelLabel(a.options), mode, limitsLabel(a.options.Limits)),
+			})
+		},
+	)
 }
 
 func (a *app) ShowApprovalRules() {
+	sessionID := a.session.ID
 	runOperation(a, approvalCatalogOperation, true,
-		func(ctx context.Context) ([]agent.ApprovalRule, error) { return a.runtime.ListApprovalRules(ctx) },
+		func(ctx context.Context) ([]agent.ApprovalRule, error) {
+			return a.runtime.ListApprovalRules(ctx, sessionID)
+		},
 		func(rules []agent.ApprovalRule, err error) {
 			if err != nil {
 				a.message("could not load approval rules: " + err.Error())
@@ -136,7 +137,11 @@ func (a *app) ShowApprovalRules() {
 			}
 			lines := make([]string, 0, len(rules))
 			for _, rule := range rules {
-				lines = append(lines, fmt.Sprintf("%s  %s  %s  %s", rule.ID, rule.Scope, rule.Decision, rule.Rule))
+				subject := rule.Subject
+				if subject == "" {
+					subject = "*"
+				}
+				lines = append(lines, fmt.Sprintf("%s  %s  %s  %s:%s", rule.ID, rule.Scope, rule.Decision, rule.Tool, subject))
 			}
 			a.transcript.Append(&kit.Message{Theme: a.transcript.theme, Speaker: "approval rules", Body: strings.Join(lines, "\n")})
 		},
@@ -149,41 +154,27 @@ func (a *app) syncOptions(message string) {
 	a.message(message)
 }
 
-func preferredEffort(efforts []string) string {
-	if slices.Contains(efforts, "medium") {
-		return "medium"
-	}
-	if len(efforts) > 0 {
-		return efforts[0]
-	}
-	return "medium"
-}
-
-func permissionTitle(mode agent.PermissionMode) string {
+func approvalModeTitle(mode agent.ApprovalMode) string {
 	switch mode {
-	case agent.PermissionAsk:
-		return "Ask before consequential work"
-	case agent.PermissionReadOnly:
-		return "Read only"
-	case agent.PermissionAutoEdit:
-		return "Auto-edit workspace files"
-	case agent.PermissionFull:
-		return "Full access"
+	case agent.ApprovalModeSafe:
+		return "Safe"
+	case agent.ApprovalModeBalanced:
+		return "Balanced"
+	case agent.ApprovalModeYolo:
+		return "Yolo"
 	default:
 		return string(mode)
 	}
 }
 
-func permissionDetail(mode agent.PermissionMode) string {
+func approvalModeDetail(mode agent.ApprovalMode) string {
 	switch mode {
-	case agent.PermissionAsk:
-		return "review writes and risky commands"
-	case agent.PermissionReadOnly:
-		return "never mutate the workspace"
-	case agent.PermissionAutoEdit:
-		return "writes allowed; risky external actions ask"
-	case agent.PermissionFull:
-		return "all runtime capabilities allowed"
+	case agent.ApprovalModeSafe:
+		return "ask before write, exec, and network tools"
+	case agent.ApprovalModeBalanced:
+		return "allow writes and network; ask before shell execution"
+	case agent.ApprovalModeYolo:
+		return "allow every tool without approval prompts"
 	default:
 		return ""
 	}

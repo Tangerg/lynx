@@ -3,6 +3,7 @@ package mock
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -16,96 +17,95 @@ const (
 	maxPageSize     = 100
 )
 
-// FaultKind identifies one transport fault injected into the next run
-// subscription. Faults alter delivery only; the durable session log remains
-// intact so clients can prove their replay and recovery behavior.
 type FaultKind string
 
 const (
 	FaultDisconnect FaultKind = "disconnect"
 	FaultDuplicate  FaultKind = "duplicate"
-	FaultGap        FaultKind = "gap"
 	FaultConflict   FaultKind = "conflict"
 )
 
-// SubscriptionFault is consumed by one FollowRun call. After is the one-based
-// delivery position at which the fault occurs; values below one mean the first
-// event.
 type SubscriptionFault struct {
 	Kind  FaultKind
 	After int
 }
 
-// Runtime is a complete in-memory runtime adapter. Runs outlive individual
-// subscriptions, event logs are replayable, and every operation is safe for
-// concurrent use so the mock exercises the same lifecycle as a remote adapter.
+// Runtime is an in-memory implementation of the CLI's consumer port. It models
+// stable Runs, per-resume Segments, opaque event IDs, authoritative cold reads,
+// and complete interrupt sets independently from any delivery transport.
 type Runtime struct {
 	Instant bool
 	Script  func(prompt string) Script
 	Faults  []SubscriptionFault
 
-	mu       sync.Mutex
-	sessions map[string]*sessionState
-	runs     map[string]*runState
-	starts   map[string]*startAttempt
-	canceled map[string]struct{}
-	rules    []agent.ApprovalRule
-	fault    int
-	next     uint64
-	now      func() time.Time
+	mu           sync.Mutex
+	sessions     map[string]*sessionState
+	runs         map[string]*runState
+	rules        []storedRule
+	approvalMode agent.ApprovalMode
+	fault        int
+	next         uint64
+	now          func() time.Time
 }
 
 type sessionState struct {
-	meta     agent.Session
-	events   []agent.Envelope
-	active   string
-	starting *startAttempt
-	changed  chan struct{}
+	meta         agent.Session
+	items        []durableItem
+	plan         []agent.PlanItem
+	planRevision uint64
+	planAtRun    map[string][]agent.PlanItem
+	runs         []string
+	active       string
 }
 
-type startAttempt struct {
-	input    agent.StartRun
-	ready    chan struct{}
-	run      agent.Run
-	err      error
-	finished bool
+type durableItem struct {
+	runID string
+	block agent.Block
+}
+
+type storedRule struct {
+	view      agent.ApprovalRule
+	sessionID string
 }
 
 type runState struct {
 	id           string
 	sessionID    string
-	startedAfter agent.Cursor
+	provider     string
+	model        string
+	limits       agent.RunLimits
 	status       agent.RunStatus
+	active       string
+	segments     map[string]*segmentState
 	script       Script
-	interaction  agent.Interaction
-	start        agent.StartRun
+	interactions []agent.Interaction
 	answers      map[string]agent.Answer
-	resuming     *resumeAttempt
 	cancel       chan struct{}
 	cancelOnce   sync.Once
 	finishOnce   sync.Once
+	usage        agent.Usage
+	outcome      agent.Outcome
 }
 
-type resumeAttempt struct {
-	interruptID string
-	answer      agent.Answer
-	ready       chan struct{}
-	err         error
+type segmentState struct {
+	id      string
+	events  []agent.RunEvent
+	changed chan struct{}
+	closed  bool
 }
 
 func New() *Runtime {
-	r := &Runtime{
-		sessions: make(map[string]*sessionState),
-		runs:     make(map[string]*runState),
-		starts:   make(map[string]*startAttempt),
-		canceled: make(map[string]struct{}),
-		now:      time.Now,
+	runtime := &Runtime{
+		sessions:     make(map[string]*sessionState),
+		runs:         make(map[string]*runState),
+		approvalMode: agent.ApprovalModeBalanced,
+		now:          time.Now,
 	}
 	for _, session := range demoSessions() {
-		r.sessions[session.ID] = &sessionState{meta: session, changed: make(chan struct{})}
+		runtime.sessions[session.ID] = &sessionState{meta: session}
 	}
-	r.seedHistory()
-	return r
+	runtime.seedHistory()
+	return runtime
 }
 
 var _ agent.Runtime = (*Runtime)(nil)
@@ -114,9 +114,32 @@ func (r *Runtime) ListModels(ctx context.Context) ([]agent.Model, error) {
 	if err := context.Cause(ctx); err != nil {
 		return nil, err
 	}
-	return []agent.Model{
-		{ID: "mock-balanced", DisplayName: "Mock Balanced", Description: "Synthetic balanced coding model", Default: true, Efforts: []string{"low", "medium", "high"}, Context: 200_000},
-		{ID: "mock-fast", DisplayName: "Mock Fast", Description: "Synthetic low-latency model", Efforts: []string{"low", "medium"}, Context: 128_000},
-		{ID: "mock-deep", DisplayName: "Mock Deep", Description: "Synthetic deep-reasoning model", Efforts: []string{"medium", "high", "max"}, Context: 400_000},
-	}, nil
+	models := []agent.Model{
+		{ID: "balanced", Provider: "mock", DisplayName: "Mock Balanced", ContextWindow: 200_000, MaxOutputTokens: 32_000, Capabilities: agent.ModelCapabilities{Reasoning: true, ReasoningLevels: []string{"low", "medium", "high"}, Multimodal: true, ToolUse: true}},
+		{ID: "fast", Provider: "mock", DisplayName: "Mock Fast", ContextWindow: 128_000, MaxOutputTokens: 16_000, Capabilities: agent.ModelCapabilities{ToolUse: true}},
+		{ID: "deep", Provider: "synthetic", DisplayName: "Synthetic Deep", ContextWindow: 400_000, MaxOutputTokens: 64_000, Capabilities: agent.ModelCapabilities{Reasoning: true, ReasoningLevels: []string{"medium", "high", "max"}, ToolUse: true}},
+	}
+	return models, nil
+}
+
+func (r *Runtime) GetApprovalMode(ctx context.Context) (agent.ApprovalMode, error) {
+	if err := context.Cause(ctx); err != nil {
+		return "", err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.approvalMode, nil
+}
+
+func (r *Runtime) SetApprovalMode(ctx context.Context, mode agent.ApprovalMode) (agent.ApprovalMode, error) {
+	if err := context.Cause(ctx); err != nil {
+		return "", err
+	}
+	if err := mode.Validate(); err != nil {
+		return "", fmt.Errorf("mock: %w", err)
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.approvalMode = mode
+	return mode, nil
 }

@@ -52,7 +52,7 @@ func TestInteractiveBinaryReturnsTheTerminalIntact(t *testing.T) {
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			session, err := ptytest.StartWith(t.Context(), ptytest.Options{
+			session, err := ptytest.Start(t.Context(), ptytest.Config{
 				Size: ptytest.Size{Cols: 80, Rows: 24},
 				Env:  terminalTestEnvironment(t, test.environment),
 			}, binary, test.args...)
@@ -65,16 +65,21 @@ func TestInteractiveBinaryReturnsTheTerminalIntact(t *testing.T) {
 			t.Cleanup(func() { _ = session.Close() })
 
 			const settle = 30 * time.Second
-			if err := session.Transcript().WaitWithin(settle, "Ask lyra"); err != nil {
+			waitFor := func(text string) error {
+				ctx, cancel := context.WithTimeout(t.Context(), settle)
+				defer cancel()
+				return session.Transcript().WaitFor(ctx, text)
+			}
+			if err := waitFor("Ask lyra"); err != nil {
 				t.Fatal(err)
 			}
-			if err := session.Type("\x11"); err != nil {
+			if _, err := io.WriteString(session, "\x11"); err != nil {
 				t.Fatal(err)
 			}
-			if err := session.Transcript().WaitWithin(settle, "repeat ctrl+q or ctrl+d to quit"); err != nil {
+			if err := waitFor("repeat ctrl+q or ctrl+d to quit"); err != nil {
 				t.Fatal(err)
 			}
-			if err := session.Type("\x11"); err != nil {
+			if _, err := io.WriteString(session, "\x11"); err != nil {
 				t.Fatal(err)
 			}
 			ctx, cancel := context.WithTimeout(t.Context(), settle)
@@ -128,6 +133,7 @@ func TestHeadlessBinaryReturnsConventionalSignalExitCodes(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			command := exec.CommandContext(t.Context(), binary, "run", "--json", "--approve-all", "wait for signal")
+			command.Env = terminalTestEnvironment(t, nil)
 			command.Stdout = io.Discard
 			stderr, err := command.StderrPipe()
 			if err != nil {
@@ -206,6 +212,25 @@ func TestHeadlessBinaryReturnsConventionalSignalExitCodes(t *testing.T) {
 
 const mockNoticeForTest = "scripted mock runtime"
 
+func TestRuntimeOwnerSelectionRejectsAmbiguousConfiguration(t *testing.T) {
+	t.Setenv("LYRA_RUNTIME", "typo")
+	if _, _, err := newRuntimeOwner(); err == nil {
+		t.Fatal("newRuntimeOwner accepted an unknown mode")
+	}
+
+	t.Setenv("LYRA_RUNTIME", "embedded")
+	t.Setenv("LYRA_HOME", "relative")
+	if _, _, err := newRuntimeOwner(); err == nil {
+		t.Fatal("newRuntimeOwner accepted a relative LYRA_HOME")
+	}
+
+	t.Setenv("LYRA_RUNTIME", "mock")
+	owner, notice, err := newRuntimeOwner()
+	if err != nil || owner == nil || !strings.Contains(notice, mockNoticeForTest) {
+		t.Fatalf("mock owner = (%T, %q, %v)", owner, notice, err)
+	}
+}
+
 type testExitError struct{ code int }
 
 func (e testExitError) Error() string { return "coded" }
@@ -242,6 +267,7 @@ func terminalTestEnvironment(t *testing.T, overrides map[string]string) []string
 	values := map[string]string{
 		"COLORTERM": "", "LANG": "", "LC_ALL": "", "TERM_PROGRAM": "",
 		"VSCODE_INJECTION": "", "WSL_INTEROP": "", "WSL_DISTRO_NAME": "",
+		"LYRA_RUNTIME": "mock", "LYRA_RUNTIME_CONFIG_DIR": "",
 	}
 	for name, value := range overrides {
 		values[name] = value

@@ -30,7 +30,7 @@ func (q *queueDrawer) Draw(frame headless.Frame) {
 	width, height := frame.Size()
 	if width <= 0 || height <= 0 {
 		q.presentation.Stage(frame, queuePresentation{})
-		q.editorRegion.Clear(frame)
+		q.editorRegion.Stage(frame, image.Rectangle{}, nil)
 		return
 	}
 	box := kit.Box{
@@ -44,7 +44,7 @@ func (q *queueDrawer) Draw(frame headless.Frame) {
 		q.presentation.Stage(frame, queuePresentation{editorArea: editorArea})
 		return
 	}
-	q.editorRegion.Clear(frame)
+	q.editorRegion.Stage(frame, image.Rectangle{}, nil)
 	hits, rowRows := q.drawEntries(frame.View.Sub(inner))
 	for index := range hits {
 		hits[index].area = hits[index].area.Add(inner.Min)
@@ -69,13 +69,13 @@ func (q *queueDrawer) footer() string {
 func (q *queueDrawer) drawEditor(frame headless.Frame, inner image.Rectangle) image.Rectangle {
 	entry, ok := q.entry(q.editingID)
 	if !ok || inner.Empty() {
-		q.editorRegion.Clear(frame)
+		q.editorRegion.Stage(frame, image.Rectangle{}, nil)
 		return image.Rectangle{}
 	}
-	rows := layout.Down.Rects(inner.Size(),
+	rows := (layout.Flow{Axis: layout.Down}).Rects(inner.Size(), []layout.Slot{
 		layout.Slot{Size: layout.Fixed(1)},
 		layout.Slot{Size: layout.Flex(1)},
-	)
+	})
 	header, field := rows[0].Add(inner.Min), rows[1].Add(inner.Min)
 	label := "Editing queued prompt"
 	if attachments := len(entry.Message.Attachments); attachments > 0 {

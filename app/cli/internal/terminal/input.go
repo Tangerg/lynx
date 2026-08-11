@@ -239,11 +239,11 @@ func (a *app) handleSessionAction(action keymap.Action) bool {
 	case showSessions:
 		a.ShowSessions()
 		return true
-	case cycleMode:
+	case chooseModel:
 		if !a.shell.PromptFocused() {
 			return false
 		}
-		a.CycleMode()
+		a.ChooseModel()
 		return true
 	case searchTranscript:
 		a.showSearchDialog()
