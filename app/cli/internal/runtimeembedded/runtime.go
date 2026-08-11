@@ -38,6 +38,8 @@ type Config struct {
 // projections. It intentionally exposes no protocol or embedded types.
 type Runtime struct {
 	binding          *embedded.Runtime
+	modelCatalog     modelCatalogBinding
+	approvals        approvalBinding
 	runs             runBinding
 	sessions         sessionBinding
 	workspaces       workspaceBinding
@@ -90,6 +92,8 @@ func Open(ctx context.Context, cfg Config) (*Runtime, error) {
 
 	runtime := &Runtime{
 		binding:          binding,
+		modelCatalog:     binding,
+		approvals:        binding,
 		runs:             binding,
 		sessions:         binding,
 		workspaces:       binding,

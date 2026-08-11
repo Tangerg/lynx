@@ -6,30 +6,45 @@ import (
 	"fmt"
 	"slices"
 
+	"github.com/Tangerg/lynx/app/runtime/embedded"
 	"github.com/Tangerg/lynx/app/runtime/protocol"
 
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
 )
 
+type modelCatalogBinding interface {
+	ListProviders(context.Context, embedded.CallOptions) (*protocol.Page[protocol.Provider], error)
+	ListModels(context.Context, protocol.ListModelsRequest, embedded.CallOptions) (*protocol.Page[protocol.Model], error)
+}
+
+type approvalBinding interface {
+	GetApprovalMode(context.Context, embedded.CallOptions) (*protocol.ApprovalModeResult, error)
+	SetApprovalMode(context.Context, protocol.SetApprovalModeRequest, embedded.CommandOptions) (*protocol.ApprovalModeResult, error)
+	ListApprovalRules(context.Context, protocol.ListApprovalRulesRequest, embedded.CallOptions) (*protocol.ListApprovalRulesResult, error)
+	ForgetApprovalRule(context.Context, protocol.ForgetApprovalRuleRequest, embedded.CommandOptions) error
+}
+
 func (r *Runtime) ListModels(ctx context.Context) ([]agent.Model, error) {
-	providers, err := r.binding.ListProviders(ctx, r.callOptions())
+	providers, err := r.modelCatalog.ListProviders(ctx, r.callOptions())
 	if err != nil {
 		return nil, classifyError(err)
 	}
-	if providers == nil {
-		return nil, errors.New("list providers: runtime returned a nil page")
+	providerValues, err := requireCompletePage("list providers", providers)
+	if err != nil {
+		return nil, err
 	}
 
 	var models []agent.Model
-	for _, provider := range providers.Data {
-		page, err := r.binding.ListModels(ctx, protocol.ListModelsRequest{Provider: provider.ID}, r.callOptions())
+	for _, provider := range providerValues {
+		page, err := r.modelCatalog.ListModels(ctx, protocol.ListModelsRequest{Provider: provider.ID}, r.callOptions())
 		if err != nil {
 			return nil, classifyError(err)
 		}
-		if page == nil {
-			return nil, fmt.Errorf("list models for %s: runtime returned a nil page", provider.ID)
+		values, err := requireCompletePage("list models for "+provider.ID, page)
+		if err != nil {
+			return nil, err
 		}
-		for _, value := range page.Data {
+		for _, value := range values {
 			model := agent.Model{
 				ID: value.ID, Provider: value.Provider, DisplayName: value.DisplayName,
 				ContextWindow: value.ContextWindow, MaxInputTokens: value.MaxInputTokens,
@@ -51,7 +66,7 @@ func (r *Runtime) ListModels(ctx context.Context) ([]agent.Model, error) {
 }
 
 func (r *Runtime) GetApprovalMode(ctx context.Context) (agent.ApprovalMode, error) {
-	result, err := r.binding.GetApprovalMode(ctx, r.callOptions())
+	result, err := r.approvals.GetApprovalMode(ctx, r.callOptions())
 	if err != nil {
 		return "", classifyError(err)
 	}
@@ -73,7 +88,7 @@ func (r *Runtime) SetApprovalMode(ctx context.Context, mode agent.ApprovalMode) 
 	if err != nil {
 		return "", err
 	}
-	result, err := r.binding.SetApprovalMode(ctx, protocol.SetApprovalModeRequest{Mode: protocol.ApprovalMode(mode)}, options)
+	result, err := r.approvals.SetApprovalMode(ctx, protocol.SetApprovalModeRequest{Mode: protocol.ApprovalMode(mode)}, options)
 	if err != nil {
 		return "", classifyError(err)
 	}
@@ -88,7 +103,7 @@ func (r *Runtime) SetApprovalMode(ctx context.Context, mode agent.ApprovalMode) 
 }
 
 func (r *Runtime) ListApprovalRules(ctx context.Context, sessionID string) ([]agent.ApprovalRule, error) {
-	result, err := r.binding.ListApprovalRules(ctx, protocol.ListApprovalRulesRequest{SessionID: sessionID}, r.callOptions())
+	result, err := r.approvals.ListApprovalRules(ctx, protocol.ListApprovalRulesRequest{SessionID: sessionID}, r.callOptions())
 	if err != nil {
 		return nil, classifyError(err)
 	}
@@ -113,5 +128,5 @@ func (r *Runtime) DeleteApprovalRule(ctx context.Context, id string) error {
 	if err != nil {
 		return err
 	}
-	return classifyError(r.binding.ForgetApprovalRule(ctx, protocol.ForgetApprovalRuleRequest{ID: id}, options))
+	return classifyError(r.approvals.ForgetApprovalRule(ctx, protocol.ForgetApprovalRuleRequest{ID: id}, options))
 }

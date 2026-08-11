@@ -3,7 +3,6 @@ package runtimeembedded
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"strings"
 
@@ -28,15 +27,13 @@ func (adapter *diagnosticToolAdapter) Tools(ctx context.Context) ([]diagnosticto
 	if err != nil {
 		return nil, classifyError(err)
 	}
-	if page == nil {
-		return nil, errors.New("list diagnostic tools: runtime returned nil")
+	values, err := requireCompletePage("list diagnostic tools", page)
+	if err != nil {
+		return nil, err
 	}
-	if page.NextCursor != "" {
-		return nil, errors.New("list diagnostic tools: runtime returned an unusable continuation cursor")
-	}
-	tools := make([]diagnostictool.Descriptor, 0, len(page.Data))
-	seen := make(map[string]struct{}, len(page.Data))
-	for index, value := range page.Data {
+	tools := make([]diagnostictool.Descriptor, 0, len(values))
+	seen := make(map[string]struct{}, len(values))
+	for index, value := range values {
 		schema, marshalErr := json.Marshal(value.Parameters)
 		if marshalErr != nil {
 			return nil, fmt.Errorf("list diagnostic tools item %d schema: %w", index+1, marshalErr)

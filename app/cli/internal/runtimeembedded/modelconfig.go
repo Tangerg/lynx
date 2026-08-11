@@ -89,15 +89,13 @@ func (r *Runtime) Providers(ctx context.Context) ([]modelconfig.Provider, error)
 	if err != nil {
 		return nil, classifyError(err)
 	}
-	if result == nil {
-		return nil, errors.New("list providers: runtime returned nil")
+	values, err := requireCompletePage("list providers", result)
+	if err != nil {
+		return nil, err
 	}
-	if result.NextCursor != "" {
-		return nil, errors.New("list providers: runtime returned an unsupported continuation cursor")
-	}
-	providers := make([]modelconfig.Provider, 0, len(result.Data))
-	seen := make(map[string]struct{}, len(result.Data))
-	for index, value := range result.Data {
+	providers := make([]modelconfig.Provider, 0, len(values))
+	seen := make(map[string]struct{}, len(values))
+	for index, value := range values {
 		provider := projectProvider(value)
 		if err := provider.Validate(); err != nil {
 			return nil, fmt.Errorf("list providers item %d: %w", index+1, err)

@@ -47,11 +47,12 @@ func (r *Runtime) List(ctx context.Context) ([]workspace.Summary, error) {
 	if err != nil {
 		return nil, classifyError(err)
 	}
-	if page == nil {
-		return nil, errors.New("list workspaces: runtime returned a nil page")
+	values, err := requireCompletePage("list workspaces", page)
+	if err != nil {
+		return nil, err
 	}
-	result := make([]workspace.Summary, 0, len(page.Data))
-	for index, value := range page.Data {
+	result := make([]workspace.Summary, 0, len(values))
+	for index, value := range values {
 		projected, err := projectWorkspaceSummary(value)
 		if err != nil {
 			return nil, fmt.Errorf("list workspaces row %d: %w", index, err)
@@ -68,11 +69,12 @@ func (r *Runtime) Changes(ctx context.Context, path string) ([]workspace.Change,
 	if err != nil {
 		return nil, classifyError(err)
 	}
-	if page == nil {
-		return nil, errors.New("list workspace changes: runtime returned a nil page")
+	values, err := requireCompletePage("list workspace changes", page)
+	if err != nil {
+		return nil, err
 	}
-	result := make([]workspace.Change, 0, len(page.Data))
-	for index, value := range page.Data {
+	result := make([]workspace.Change, 0, len(values))
+	for index, value := range values {
 		projected, err := projectChange(value.Path, value.Status, value.PreviousPath, value.Added, value.Removed, value.Binary)
 		if err != nil {
 			return nil, fmt.Errorf("list workspace changes row %d: %w", index, err)

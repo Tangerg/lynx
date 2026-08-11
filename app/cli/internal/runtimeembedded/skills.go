@@ -33,15 +33,13 @@ func (r *Runtime) Discover(ctx context.Context, workspace string) ([]skills.Disc
 	if err != nil {
 		return nil, classifyError(err)
 	}
-	if page == nil {
-		return nil, errors.New("list discovered skills: runtime returned nil")
+	values, err := requireCompletePage("list discovered skills", page)
+	if err != nil {
+		return nil, err
 	}
-	if page.NextCursor != "" {
-		return nil, errors.New("list discovered skills: runtime returned an unsupported continuation cursor")
-	}
-	projected := make([]skills.Discovered, 0, len(page.Data))
-	seen := make(map[string]struct{}, len(page.Data))
-	for index, value := range page.Data {
+	projected := make([]skills.Discovered, 0, len(values))
+	seen := make(map[string]struct{}, len(values))
+	for index, value := range values {
 		skill := skills.Discovered{
 			Name: value.Name, Description: value.Description, Scope: skills.Scope(value.Scope),
 		}
@@ -62,15 +60,13 @@ func (r *Runtime) Managed(ctx context.Context) ([]skills.Managed, error) {
 	if err != nil {
 		return nil, classifyError(err)
 	}
-	if page == nil {
-		return nil, errors.New("list managed skills: runtime returned nil")
+	values, err := requireCompletePage("list managed skills", page)
+	if err != nil {
+		return nil, err
 	}
-	if page.NextCursor != "" {
-		return nil, errors.New("list managed skills: runtime returned an unsupported continuation cursor")
-	}
-	projected := make([]skills.Managed, 0, len(page.Data))
-	seen := make(map[string]struct{}, len(page.Data))
-	for index, value := range page.Data {
+	projected := make([]skills.Managed, 0, len(values))
+	seen := make(map[string]struct{}, len(values))
+	for index, value := range values {
 		skill := skills.Managed{
 			Name: value.Name, Description: value.Description, Lifecycle: skills.Lifecycle(value.Lifecycle),
 		}
@@ -95,15 +91,13 @@ func (r *Runtime) Proposals(ctx context.Context, workspace string) ([]skills.Pro
 	if err != nil {
 		return nil, classifyError(err)
 	}
-	if page == nil {
-		return nil, errors.New("list skill proposals: runtime returned nil")
+	values, err := requireCompletePage("list skill proposals", page)
+	if err != nil {
+		return nil, err
 	}
-	if page.NextCursor != "" {
-		return nil, errors.New("list skill proposals: runtime returned an unsupported continuation cursor")
-	}
-	projected := make([]skills.Proposal, 0, len(page.Data))
-	seen := make(map[[3]string]struct{}, len(page.Data))
-	for index, value := range page.Data {
+	projected := make([]skills.Proposal, 0, len(values))
+	seen := make(map[[3]string]struct{}, len(values))
+	for index, value := range values {
 		proposal := skills.Proposal{
 			Name: value.Name, Revision: value.Revision, Scope: skills.Scope(value.Scope),
 			Description: value.Description, Instructions: value.Instructions,

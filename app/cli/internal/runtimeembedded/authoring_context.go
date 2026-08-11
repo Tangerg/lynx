@@ -31,15 +31,13 @@ func (adapter *authoringContextAdapter) Documents(ctx context.Context, workspace
 	if err != nil {
 		return nil, classifyError(err)
 	}
-	if page == nil {
-		return nil, errors.New("list agent documents: runtime returned nil")
+	values, err := requireCompletePage("list agent documents", page)
+	if err != nil {
+		return nil, err
 	}
-	if page.NextCursor != "" {
-		return nil, errors.New("list agent documents: runtime returned an unusable continuation cursor")
-	}
-	documents := make([]authoringcontext.Document, 0, len(page.Data))
-	seen := make(map[string]struct{}, len(page.Data))
-	for index, value := range page.Data {
+	documents := make([]authoringcontext.Document, 0, len(values))
+	seen := make(map[string]struct{}, len(values))
+	for index, value := range values {
 		document := authoringcontext.Document{Path: value.Path, Title: value.Title, Scope: authoringcontext.DocumentScope(value.Scope)}
 		if err := document.Validate(); err != nil {
 			return nil, fmt.Errorf("list agent documents item %d: %w", index+1, err)
@@ -63,15 +61,13 @@ func (adapter *authoringContextAdapter) Recipes(ctx context.Context, workspace s
 	if err != nil {
 		return nil, classifyError(err)
 	}
-	if page == nil {
-		return nil, errors.New("list recipes: runtime returned nil")
+	values, err := requireCompletePage("list recipes", page)
+	if err != nil {
+		return nil, err
 	}
-	if page.NextCursor != "" {
-		return nil, errors.New("list recipes: runtime returned an unusable continuation cursor")
-	}
-	recipes := make([]authoringcontext.Recipe, 0, len(page.Data))
-	seen := make(map[string]struct{}, len(page.Data))
-	for index, value := range page.Data {
+	recipes := make([]authoringcontext.Recipe, 0, len(values))
+	seen := make(map[string]struct{}, len(values))
+	for index, value := range values {
 		recipe := authoringcontext.Recipe{
 			Name: value.Name, Description: value.Description, ArgumentHint: value.ArgumentHint,
 			Body: value.Body, Scope: authoringcontext.RecipeScope(value.Scope), Source: value.Source,

@@ -143,6 +143,41 @@ func TestWorkspaceFilesRejectsCyclicRuntimePagination(t *testing.T) {
 	}
 }
 
+func TestWorkspaceUnpageableListsRejectContinuation(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name string
+		stub *workspaceBindingStub
+		call func(context.Context, *Runtime) error
+	}{
+		{
+			name: "catalog",
+			stub: &workspaceBindingStub{known: protocol.NewPageWithCursor([]protocol.WorkspaceSummary{}, "next")},
+			call: func(ctx context.Context, runtime *Runtime) error {
+				_, err := runtime.List(ctx)
+				return err
+			},
+		},
+		{
+			name: "changes",
+			stub: &workspaceBindingStub{changes: protocol.NewPageWithCursor([]protocol.WorkspaceFileChange{}, "next")},
+			call: func(ctx context.Context, runtime *Runtime) error {
+				_, err := runtime.Changes(ctx, "/workspace")
+				return err
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			err := test.call(t.Context(), &Runtime{workspaces: test.stub, meta: requestMeta("test")})
+			if err == nil || !strings.Contains(err.Error(), "continuation cursor") {
+				t.Fatalf("list error = %v, want continuation cursor failure", err)
+			}
+		})
+	}
+}
+
 func TestWorkspaceAdapterRejectsNilResponses(t *testing.T) {
 	t.Parallel()
 	runtime := &Runtime{workspaces: &workspaceBindingStub{}, meta: requestMeta("test")}

@@ -34,15 +34,13 @@ func (r *Runtime) Servers(ctx context.Context) ([]mcp.Server, error) {
 	if err != nil {
 		return nil, classifyError(err)
 	}
-	if page == nil {
-		return nil, errors.New("list MCP servers: runtime returned nil")
+	values, err := requireCompletePage("list MCP servers", page)
+	if err != nil {
+		return nil, err
 	}
-	if page.NextCursor != "" {
-		return nil, errors.New("list MCP servers: runtime returned an unsupported continuation cursor")
-	}
-	servers := make([]mcp.Server, 0, len(page.Data))
-	seen := make(map[string]struct{}, len(page.Data))
-	for index, value := range page.Data {
+	servers := make([]mcp.Server, 0, len(values))
+	seen := make(map[string]struct{}, len(values))
+	for index, value := range values {
 		server := projectMCPServer(value)
 		if err := server.Validate(); err != nil {
 			return nil, fmt.Errorf("list MCP servers item %d: %w", index+1, err)
@@ -144,15 +142,13 @@ func (r *Runtime) Tools(ctx context.Context, server string) ([]mcp.Tool, error) 
 	if err != nil {
 		return nil, classifyError(err)
 	}
-	if page == nil {
-		return nil, errors.New("list MCP tools: runtime returned nil")
+	values, err := requireCompletePage("list MCP tools", page)
+	if err != nil {
+		return nil, err
 	}
-	if page.NextCursor != "" {
-		return nil, errors.New("list MCP tools: runtime returned an unsupported continuation cursor")
-	}
-	tools := make([]mcp.Tool, 0, len(page.Data))
-	seen := make(map[[2]string]struct{}, len(page.Data))
-	for index, value := range page.Data {
+	tools := make([]mcp.Tool, 0, len(values))
+	seen := make(map[[2]string]struct{}, len(values))
+	for index, value := range values {
 		tool := mcp.Tool{Server: value.Server, Name: value.Name, Description: value.Description}
 		if value.InputSchema != nil {
 			schema, marshalErr := json.Marshal(value.InputSchema)

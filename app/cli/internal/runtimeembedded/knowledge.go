@@ -34,15 +34,13 @@ func (adapter *knowledgeAdapter) Entries(ctx context.Context, workspace string) 
 	if err != nil {
 		return nil, classifyError(err)
 	}
-	if page == nil {
-		return nil, errors.New("list knowledge: runtime returned nil")
+	values, err := requireCompletePage("list knowledge", page)
+	if err != nil {
+		return nil, err
 	}
-	if page.NextCursor != "" {
-		return nil, errors.New("list knowledge: runtime returned an unusable continuation cursor")
-	}
-	entries := make([]knowledge.Entry, 0, len(page.Data))
-	seen := make(map[knowledge.Scope]struct{}, len(page.Data))
-	for index, value := range page.Data {
+	entries := make([]knowledge.Entry, 0, len(values))
+	seen := make(map[knowledge.Scope]struct{}, len(values))
+	for index, value := range values {
 		entry := projectKnowledgeEntry(value)
 		if err := entry.Validate(); err != nil {
 			return nil, fmt.Errorf("list knowledge item %d: %w", index+1, err)

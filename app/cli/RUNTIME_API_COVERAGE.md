@@ -24,6 +24,12 @@ No row is complete merely because the adapter compiles. Query capabilities
 need a CLI/TUI surface; invalidation topics need an authoritative refetch and
 resync policy; mutations need lifecycle and failure-path tests.
 
+Every protocol method that returns `Page` but accepts no continuation cursor is
+guarded by one anti-corruption invariant: a non-empty `NextCursor` fails closed
+instead of presenting a silently truncated catalog. Cursor-capable methods
+either expose deliberate user paging (sessions) or exhaust and cycle-check the
+runtime cursor inside the adapter (snapshots, schedules, and workspace files).
+
 | Bounded context | Exported embedded methods | Status | Current consumption and remaining work |
 | --- | --- | --- | --- |
 | Runtime lifecycle and discovery | `Discover`, `Close` | complete | Open validates protocol, run stream vocabulary, replay scope, plan recovery, topics, and closes process-owned state. |
