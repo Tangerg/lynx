@@ -65,7 +65,7 @@ DDD 用于澄清语言、实体行为、聚合和所有权，不用于复制 Jav
 | `Segment` | 一个 Run 中连续输出的一段；首启和每次恢复分别打开新 Segment | Run、Agent Framework Step |
 | `Conversation` | Host 拥有、用于构造未来模型上下文的产品消息历史 | Transcript、WorkingContext |
 | `Transcript` | 面向用户和审计的权威 Items-and-Runs 记录 | 模型恢复状态、Framework Event 流 |
-| `Knowledge` | 用户可编辑的项目长期知识，例如 `LYRA.md` | Conversation、Agent memory index |
+| `Knowledge` | 用户可编辑的 home/projectRoot/cwd `LYRA.md` 级联 | Conversation、Agent memory index |
 | `Interrupt` | 一个 Run tree 等待外部答案或裁决的产品请求 | Agent Framework Signal payload 本身 |
 | `Plan` | 当前工作请求的步骤状态 | Goal、Todo 的别名 |
 | `Goal` | 跨多个 Run 持续推进的自主目标 | 当前 Run 的 Plan |

@@ -21,39 +21,38 @@ const knowledgeFileName = "LYRA.md"
 
 // Store persists human-authored knowledge to markdown files:
 //
-//   - <dir>/LYRA.md    — project scope (per-repo knowledge); dir is
-//     supplied per call (a session's cwd), so one store serves
-//     every project
+//   - <cwd>/LYRA.md — workspace-local knowledge
+//   - <project-root>/LYRA.md — project knowledge when the workspace is nested
 //   - <data-dir>/LYRA.md — user scope (cross-project preferences)
 //
 // Files are created lazily on first Update; Get returns "" until that point.
 // Concurrent updates are serialized with last-write-wins semantics. Machine-
 // curated facts never enter these human-owned files.
 type Store struct {
-	defaultProjectDirectory string
-	userScopeDirectory      string
+	defaultWorkspaceDirectory string
+	userScopeDirectory        string
 
 	mu sync.Mutex // protects the file writes (paths differ but a single mutex is plenty for this volume)
 }
 
 // New binds both filesystem roots explicitly and only maps
 // knowledge scopes onto the paths supplied at construction.
-func New(userScopeDirectory, defaultProjectDirectory string) (*Store, error) {
+func New(userScopeDirectory, defaultWorkspaceDirectory string) (*Store, error) {
 	if userScopeDirectory == "" {
 		return nil, errors.New("knowledge store: user scope directory is required")
 	}
 	if !filepath.IsAbs(userScopeDirectory) {
 		return nil, errors.New("knowledge store: user scope directory must be absolute")
 	}
-	if defaultProjectDirectory == "" {
-		return nil, errors.New("knowledge store: default project directory is required")
+	if defaultWorkspaceDirectory == "" {
+		return nil, errors.New("knowledge store: default workspace directory is required")
 	}
-	if !filepath.IsAbs(defaultProjectDirectory) {
-		return nil, errors.New("knowledge store: default project directory must be absolute")
+	if !filepath.IsAbs(defaultWorkspaceDirectory) {
+		return nil, errors.New("knowledge store: default workspace directory must be absolute")
 	}
 	return &Store{
-		defaultProjectDirectory: defaultProjectDirectory,
-		userScopeDirectory:      userScopeDirectory,
+		defaultWorkspaceDirectory: defaultWorkspaceDirectory,
+		userScopeDirectory:        userScopeDirectory,
 	}, nil
 }
 
@@ -63,15 +62,15 @@ func New(userScopeDirectory, defaultProjectDirectory string) (*Store, error) {
 // while an unknown scope is rejected rather than reinterpreted as unavailable.
 func (s *Store) pathFor(scope knowledge.Scope, dir string) (string, error) {
 	switch scope {
-	case knowledge.ScopeProject:
+	case knowledge.ScopeCWD, knowledge.ScopeProjectRoot:
 		if dir == "" {
-			dir = s.defaultProjectDirectory
+			dir = s.defaultWorkspaceDirectory
 		}
 		if !filepath.IsAbs(dir) {
 			return "", errors.New("project directory must be absolute")
 		}
 		return filepath.Join(dir, knowledgeFileName), nil
-	case knowledge.ScopeUser:
+	case knowledge.ScopeHome:
 		return filepath.Join(s.userScopeDirectory, knowledgeFileName), nil
 	default:
 		return "", scope.Validate()
@@ -141,27 +140,47 @@ func (s *Store) Update(_ context.Context, scope knowledge.Scope, dir string, con
 	return nil
 }
 
-// List returns one [knowledge.Entry] per scope that has content. A missing
-// document is absence, so empty scopes are omitted.
-func (s *Store) List(ctx context.Context, dir string) ([]knowledge.Entry, error) {
-	out := make([]knowledge.Entry, 0, 2)
-	for _, scope := range []knowledge.Scope{knowledge.ScopeProject, knowledge.ScopeUser} {
-		content, err := s.Get(ctx, scope, dir)
+// List returns the visible cascade in precedence order: home, distinct project
+// root, then cwd. A workspace at its project root has one physical file, so it
+// is emitted once as cwd rather than duplicated under two scopes. Missing and
+// empty documents are absent.
+func (s *Store) List(ctx context.Context, cwd, projectRoot string) ([]knowledge.Entry, error) {
+	type target struct {
+		scope knowledge.Scope
+		dir   string
+	}
+	targets := []target{{scope: knowledge.ScopeHome}}
+	cwdPath, err := s.pathFor(knowledge.ScopeCWD, cwd)
+	if err != nil {
+		return nil, fmt.Errorf("knowledge store: resolve cwd path: %w", err)
+	}
+	projectPath, err := s.pathFor(knowledge.ScopeProjectRoot, projectRoot)
+	if err != nil {
+		return nil, fmt.Errorf("knowledge store: resolve project-root path: %w", err)
+	}
+	if projectPath != cwdPath {
+		targets = append(targets, target{scope: knowledge.ScopeProjectRoot, dir: projectRoot})
+	}
+	targets = append(targets, target{scope: knowledge.ScopeCWD, dir: cwd})
+
+	out := make([]knowledge.Entry, 0, len(targets))
+	for _, target := range targets {
+		content, err := s.Get(ctx, target.scope, target.dir)
 		if err != nil {
 			return nil, err
 		}
 		if content == "" {
 			continue
 		}
-		entry := knowledge.Entry{Scope: scope, Content: content}
+		path, err := s.pathFor(target.scope, target.dir)
+		if err != nil {
+			return nil, fmt.Errorf("knowledge store: resolve listed path: %w", err)
+		}
+		entry := knowledge.Entry{Scope: target.scope, Path: path, Content: content}
 		// UpdatedAt = the LYRA.md file's mtime: it's a user-editable file, so
 		// its last-modified time is the truthful "when this knowledge was updated".
 		// Best-effort — a stat failure leaves the zero time rather than
 		// dropping the entry.
-		path, err := s.pathFor(scope, dir)
-		if err != nil {
-			return nil, fmt.Errorf("knowledge store: resolve listed path: %w", err)
-		}
 		if info, err := os.Stat(path); err == nil {
 			entry.UpdatedAt = info.ModTime()
 		}

@@ -35,13 +35,14 @@ error, read the message and adjust — don't blindly retry. If a
 task is ambiguous, ask one focused question rather than guess.`
 
 // composeSystemMessage assembles the system prompt for one turn. Global
-// context loads first, project context second, so project knowledge
-// extends and overrides the global layer:
+// context loads from broadest to narrowest so more local knowledge extends and
+// overrides the broader layer:
 //
 //	<base prompt>
 //	<user knowledge>       (~/.lyra/LYRA.md — global, user-managed)
 //	<pinned agent memory>  (durable, project-scoped, agent-managed)
-//	<project knowledge>    (<cwd>/LYRA.md — per-session project dir)
+//	<project knowledge>    (<project-root>/LYRA.md, when distinct)
+//	<workspace knowledge>  (<cwd>/LYRA.md — per-session workspace root)
 //	<discovered>      (agentdoc cascade — global AGENTS.md first
 //	                   (~/.lyra, ~/.agents), then project root → cwd)
 //
@@ -68,13 +69,19 @@ func (composer *WorkingContextComposer) composeSystemMessage(
 		contextSourceBasePrompt.source("builtin:lyra"),
 	)
 
+	var knowledgeEntries []knowledge.Entry
 	if composer.config.Knowledge != nil {
-		userKnowledge, _ := composer.config.Knowledge.Get(ctx, knowledge.ScopeUser, "")
-		if s := strings.TrimSpace(userKnowledge); s != "" {
-			prompt.append(
-				"## User preferences (from ~/.lyra/LYRA.md)\n\n"+s,
-				contextSourceUserKnowledge.source("~/.lyra/LYRA.md"),
-			)
+		knowledgeEntries, _ = composer.config.Knowledge.Entries(ctx, cwd)
+		for _, entry := range knowledgeEntries {
+			if entry.Scope != knowledge.ScopeHome {
+				continue
+			}
+			if content := strings.TrimSpace(entry.Content); content != "" {
+				prompt.append(
+					"## User preferences (from ~/.lyra/LYRA.md)\n\n"+content,
+					contextSourceUserKnowledge.source(entry.Path),
+				)
+			}
 		}
 	}
 
@@ -92,12 +99,21 @@ func (composer *WorkingContextComposer) composeSystemMessage(
 		newPinnedMemoryPrompt(pinned, agentMemoryInjectBudget).appendTo(&prompt)
 	}
 
-	if composer.config.Knowledge != nil {
-		projectKnowledge, _ := composer.config.Knowledge.Get(ctx, knowledge.ScopeProject, cwd)
-		if s := strings.TrimSpace(projectKnowledge); s != "" {
+	for _, entry := range knowledgeEntries {
+		content := strings.TrimSpace(entry.Content)
+		if content == "" {
+			continue
+		}
+		switch entry.Scope {
+		case knowledge.ScopeProjectRoot:
 			prompt.append(
-				"## Project knowledge (from <cwd>/LYRA.md)\n\n"+s,
-				contextSourceProjectKnowledge.source(filepath.Join(filepath.Clean(cwd), "LYRA.md")),
+				"## Project knowledge (from <project-root>/LYRA.md)\n\n"+content,
+				contextSourceProjectKnowledge.source(entry.Path),
+			)
+		case knowledge.ScopeCWD:
+			prompt.append(
+				"## Workspace knowledge (from <cwd>/LYRA.md)\n\n"+content,
+				contextSourceProjectKnowledge.source(entry.Path),
 			)
 		}
 	}

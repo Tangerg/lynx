@@ -83,7 +83,7 @@ func (r *Reporter) Session(ctx context.Context, sessionID string) (SessionReport
 	total := usageAccumulator{}
 	byModel := map[string]*usageAccumulator{}
 	for _, run := range runs {
-		foldRun(run, time.Time{}, &total, nil, byModel, nil)
+		foldRun(run, time.Time{}, &total, nil, byModel, nil, false)
 	}
 	report := SessionReport{Total: total.usage()}
 	if len(byModel) > 0 {
@@ -120,7 +120,7 @@ func (r *Reporter) Summary(ctx context.Context, sinceDays int) (Summary, error) 
 		}
 		before := total.runs
 		for _, run := range runs {
-			foldRun(run, since, &total, byProvider, byModel, byDay)
+			foldRun(run, since, &total, byProvider, byModel, byDay, true)
 		}
 		if total.runs > before {
 			sessionCount++
@@ -137,7 +137,7 @@ func (r *Reporter) Summary(ctx context.Context, sinceDays int) (Summary, error) 
 	}, nil
 }
 
-func foldRun(current run.Run, since time.Time, total *usageAccumulator, byProvider, byModel, byDay map[string]*usageAccumulator) {
+func foldRun(current run.Run, since time.Time, total *usageAccumulator, byProvider, byModel, byDay map[string]*usageAccumulator, qualifyModels bool) {
 	usage, reported := current.Metrics().Usage()
 	if !current.State().IsTerminal() || !reported {
 		return
@@ -164,15 +164,22 @@ func foldRun(current run.Run, since time.Time, total *usageAccumulator, byProvid
 	}
 	if len(usage.ByModel) > 0 {
 		for name, split := range usage.ByModel {
-			bucket := accumulatorFor(byModel, name)
+			bucket := accumulatorFor(byModel, usageModelKey(current.ModelSelection().Provider(), name, qualifyModels))
 			bucket.add(split)
 			bucket.runs++
 		}
 		return
 	}
-	bucket := accumulatorFor(byModel, current.ModelSelection().Model())
+	bucket := accumulatorFor(byModel, usageModelKey(current.ModelSelection().Provider(), current.ModelSelection().Model(), qualifyModels))
 	bucket.add(usage.Total)
 	bucket.runs++
+}
+
+func usageModelKey(provider, model string, qualified bool) string {
+	if !qualified || provider == "" {
+		return model
+	}
+	return provider + "/" + model
 }
 
 // usageAccumulator preserves the metering fields needed while folding Run

@@ -11,7 +11,7 @@ import (
 // KnowledgeReader is the prompt composer's read-only view of human-authored
 // LYRA.md content.
 type KnowledgeReader interface {
-	Get(ctx context.Context, scope knowledge.Scope, dir string) (string, error)
+	Entries(ctx context.Context, cwd string) ([]knowledge.Entry, error)
 }
 
 // PlanReader is the prompt composer's read-only view of the current Session

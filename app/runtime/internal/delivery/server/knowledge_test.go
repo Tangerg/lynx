@@ -16,18 +16,20 @@ import (
 // calls, so the knowledge delivery handlers can be tested against a wired store
 // (or, when nil, against the disabled path).
 type fakeKnowledgeStore struct {
-	entries       []knowledge.Entry
-	listCWD       string
-	getScope      knowledge.Scope
-	getCWD        string
-	getContent    string
-	updateScope   knowledge.Scope
-	updateCWD     string
-	updateContent string
+	entries         []knowledge.Entry
+	listCWD         string
+	listProjectRoot string
+	getScope        knowledge.Scope
+	getCWD          string
+	getContent      string
+	updateScope     knowledge.Scope
+	updateCWD       string
+	updateContent   string
 }
 
-func (s *fakeKnowledgeStore) List(_ context.Context, cwd string) ([]knowledge.Entry, error) {
+func (s *fakeKnowledgeStore) List(_ context.Context, cwd, projectRoot string) ([]knowledge.Entry, error) {
 	s.listCWD = cwd
+	s.listProjectRoot = projectRoot
 	return s.entries, nil
 }
 
@@ -82,7 +84,7 @@ func TestListKnowledgeMapsEntriesToWire(t *testing.T) {
 	repo := t.TempDir()
 	store := &fakeKnowledgeStore{
 		entries: []knowledge.Entry{{
-			Scope:     knowledge.ScopeUser,
+			Scope:     knowledge.ScopeHome,
 			Content:   "Use short answers",
 			UpdatedAt: captured,
 		}},
@@ -114,7 +116,7 @@ func TestGetAndUpdateKnowledgeMapScopeToRuntime(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get knowledge: %v", err)
 	}
-	if got.Content != "project notes" || store.getScope != knowledge.ScopeProject || store.getCWD != canonicalWorkspacePath(t, repo) {
+	if got.Content != "project notes" || store.getScope != knowledge.ScopeProjectRoot || store.getCWD != canonicalWorkspacePath(t, repo) {
 		t.Fatalf("get wire=%+v scope=%v cwd=%q", got, store.getScope, store.getCWD)
 	}
 
@@ -126,7 +128,7 @@ func TestGetAndUpdateKnowledgeMapScopeToRuntime(t *testing.T) {
 	if err != nil {
 		t.Fatalf("update knowledge: %v", err)
 	}
-	if store.updateScope != knowledge.ScopeUser || store.updateCWD != "" || store.updateContent != "global prefs" {
+	if store.updateScope != knowledge.ScopeHome || store.updateCWD != "" || store.updateContent != "global prefs" {
 		t.Fatalf("update scope=%v cwd=%q content=%q", store.updateScope, store.updateCWD, store.updateContent)
 	}
 }

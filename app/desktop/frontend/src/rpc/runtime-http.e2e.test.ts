@@ -1,7 +1,7 @@
 // @vitest-environment node
 
 import { execFile } from "node:child_process";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import {
   createServer as createHttpServer,
   type IncomingMessage,
@@ -1541,6 +1541,180 @@ describe("Go Runtime ↔ HTTP ↔ TypeScript SDK", () => {
 
     streamController.abort();
     await events.return?.();
+  }, 30_000);
+
+  it("preserves the home, project-root and workspace knowledge cascade", async () => {
+    if (!client) throw new Error("runtime client was not initialized");
+
+    const projectRoot = join(root, "workspace-knowledge-project");
+    const workspaceRoot = join(projectRoot, "packages", "desktop");
+    await mkdir(workspaceRoot, { recursive: true });
+    await execFileAsync("git", ["init", "--quiet"], { cwd: projectRoot });
+    const workspace = client.workspace({ path: workspaceRoot });
+
+    await workspace.knowledge.update({ scope: "home", content: "home knowledge\n" });
+    await workspace.knowledge.update({
+      scope: "projectRoot",
+      content: "project-root knowledge\n",
+    });
+    await workspace.knowledge.update({ scope: "cwd", content: "workspace knowledge\n" });
+
+    await expect(workspace.knowledge.get("home")).resolves.toEqual({
+      scope: "home",
+      content: "home knowledge\n",
+    });
+    await expect(workspace.knowledge.get("projectRoot")).resolves.toEqual({
+      scope: "projectRoot",
+      content: "project-root knowledge\n",
+    });
+    await expect(workspace.knowledge.get("cwd")).resolves.toEqual({
+      scope: "cwd",
+      content: "workspace knowledge\n",
+    });
+    await expect(workspace.knowledge.list()).resolves.toMatchObject({
+      data: [
+        { scope: "home", content: "home knowledge\n", updatedAt: expect.any(String) },
+        {
+          scope: "projectRoot",
+          content: "project-root knowledge\n",
+          updatedAt: expect.any(String),
+        },
+        { scope: "cwd", content: "workspace knowledge\n", updatedAt: expect.any(String) },
+      ],
+    });
+    await expect(readFile(join(projectRoot, "LYRA.md"), "utf8")).resolves.toBe(
+      "project-root knowledge\n",
+    );
+    await expect(readFile(join(workspaceRoot, "LYRA.md"), "utf8")).resolves.toBe(
+      "workspace knowledge\n",
+    );
+
+    await workspace.knowledge.update({ scope: "home", content: "" });
+    await workspace.knowledge.update({ scope: "projectRoot", content: "" });
+    await workspace.knowledge.update({ scope: "cwd", content: "" });
+    await expect(workspace.knowledge.list()).resolves.toMatchObject({ data: [] });
+  }, 30_000);
+
+  it("round-trips project and user agent memory through durable cold reads", async () => {
+    if (!client) throw new Error("runtime client was not initialized");
+
+    const workspaceRoot = join(root, "workspace-agent-memory");
+    await mkdir(workspaceRoot);
+    const workspace = client.workspace({ path: workspaceRoot });
+    const project = await workspace.agentMemory.add("project memory marker");
+    expect(project).toMatchObject({
+      scope: "project",
+      content: "project memory marker",
+      origin: "user",
+      status: "active",
+      pinned: false,
+    });
+    const duplicate = await workspace.agentMemory.add("project memory marker");
+    expect(duplicate.id).toBe(project.id);
+
+    const user = await client.agentMemory.add({
+      scope: "user",
+      content: "user memory marker",
+    });
+    expect(user).toMatchObject({ scope: "user", origin: "user", status: "active" });
+    await expect(workspace.agentMemory.list()).resolves.toMatchObject({
+      items: [expect.objectContaining({ id: project.id, content: "project memory marker" })],
+    });
+    await expect(client.agentMemory.list({ scope: "user" })).resolves.toMatchObject({
+      items: [expect.objectContaining({ id: user.id, content: "user memory marker" })],
+    });
+
+    const updated = await client.agentMemory.update({
+      id: project.id,
+      content: "project memory marker updated",
+      pinned: true,
+    });
+    expect(updated).toMatchObject({
+      id: project.id,
+      content: "project memory marker updated",
+      pinned: true,
+    });
+    await expect(workspace.agentMemory.list()).resolves.toMatchObject({
+      items: [
+        expect.objectContaining({
+          id: project.id,
+          content: "project memory marker updated",
+          pinned: true,
+        }),
+      ],
+    });
+    await expect(client.agentMemory.review(project.id, "approve")).rejects.toSatisfy(
+      (error: unknown) => error instanceof RpcError && errorType(error.data) === "invalid_params",
+    );
+
+    await client.agentMemory.delete(project.id);
+    await client.agentMemory.delete(user.id);
+    expect((await workspace.agentMemory.list()).items.some((item) => item.id === project.id)).toBe(
+      false,
+    );
+    expect(
+      (await client.agentMemory.list({ scope: "user" })).items.some((item) => item.id === user.id),
+    ).toBe(false);
+  }, 30_000);
+
+  it("aggregates durable usage and accepts write-only feedback", async () => {
+    if (!client) throw new Error("runtime client was not initialized");
+
+    const session = await client.sessions.create({
+      workspace: { path: root },
+      title: "HTTP usage and feedback",
+    });
+    const started = await client.runs.start({
+      sessionId: asSessionId(session.id),
+      input: [{ type: "text", text: "E2E_USAGE produce metered output." }],
+    });
+    await collectRunEvents(started.events);
+    await expect(client.runs.get(asRunId(started.result.runId))).resolves.toMatchObject({
+      provider: "openai-compatible",
+      model: "e2e-model",
+      status: "finished",
+    });
+    const items = await client.items
+      .list({ scope: { type: "run", runId: asRunId(started.result.runId) } })
+      .autoPagingToArray();
+    const agentItem = items.find((item) => item.type === "agentMessage");
+    if (!agentItem) throw new Error("metered run omitted its agent item");
+
+    await expect(
+      client.feedback.create({
+        sessionId: session.id,
+        runId: started.result.runId,
+        itemId: agentItem.id,
+        rating: "positive",
+        text: "HTTP feedback marker",
+      }),
+    ).resolves.toBeUndefined();
+    await expect(client.feedback.create({})).rejects.toSatisfy(
+      (error: unknown) => error instanceof RpcError && errorType(error.data) === "invalid_params",
+    );
+
+    const summary = await client.usage.summary({ sinceDays: 30 });
+    expect(summary).toMatchObject({
+      total: {
+        inputTokens: expect.any(Number),
+        outputTokens: expect.any(Number),
+      },
+      sessions: expect.any(Number),
+      runs: expect.any(Number),
+      byProvider: expect.arrayContaining([
+        expect.objectContaining({ key: "openai-compatible", runs: expect.any(Number) }),
+      ]),
+      byModel: expect.arrayContaining([
+        expect.objectContaining({ key: "openai-compatible/e2e-model", runs: expect.any(Number) }),
+      ]),
+    });
+    expect(summary.total.inputTokens).toBeGreaterThan(0);
+    expect(summary.total.outputTokens).toBeGreaterThan(0);
+    expect(summary.sessions).toBeGreaterThan(0);
+    expect(summary.runs).toBeGreaterThan(0);
+    await expect(client.usage.summary({ sinceDays: -1 })).rejects.toSatisfy(
+      (error: unknown) => error instanceof RpcError && errorType(error.data) === "invalid_params",
+    );
   }, 30_000);
 
   it("invokes the direct diagnostic catalog inside its admitted workspace", async () => {

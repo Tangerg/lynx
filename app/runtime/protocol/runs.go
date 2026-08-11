@@ -40,12 +40,12 @@ type RunSummary struct {
 	// features.subagents; durable history retains the edges unchanged.
 	ParentRunID string `json:"parentRunId,omitempty"`
 	RootRunID   string `json:"rootRunId,omitempty"`
-	// Model is the model id this run ran against (Model.id); empty means the
-	// run used the runtime default (surfaced via Session.model).
+	// Model is the model id this run ran against (Model.id). Normal admission
+	// resolves the runtime default before persistence so finished Runs remain
+	// self-describing; empty is reserved for imported legacy/unconfigured data.
 	Model string `json:"model,omitempty"`
 	// Provider is the provider id this run ran against (Provider.id), paired
-	// with Model. Empty means the runtime default. Stamped so a finished run is
-	// self-describing — usage.summary attributes spend by provider without
+	// with Model. It is stamped before execution so usage.summary attributes spend by provider without
 	// re-deriving the model→provider mapping (which isn't 1:1 across
 	// compatible-endpoint providers).
 	Provider   string      `json:"provider,omitempty"`

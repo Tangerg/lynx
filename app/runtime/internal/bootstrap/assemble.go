@@ -45,6 +45,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/usage"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/skills"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/toolresult"
@@ -247,6 +248,7 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 		Invalidations: applicationInvalidations.Publish,
 	})
 	workspaceScope := workspace.NewScope(cfg.DefaultWorkspacePath, cfg.UserHome, workspacepath.Resolver{})
+	workspaceKnowledge := workspace.NewKnowledge(workspaceScope, workspacepath.Resolver{}, cfg.KnowledgeStore)
 	// One signal covers every committed Skill-library mutation, including
 	// proposal submission and review decisions.
 	skillChanges := &notification.Relay[struct{}]{}
@@ -269,7 +271,7 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 	}
 
 	workingContexts := agentexec.NewWorkingContextComposer(agentexec.WorkingContextConfig{
-		UserHome: cfg.UserHome, Knowledge: cfg.KnowledgeStore,
+		UserHome: cfg.UserHome, Knowledge: workspaceKnowledge,
 		AgentMemory: cfg.AgentMemoryStore, AgentMemorySearch: modelServices.agentMemorySearch,
 		Plan: cfg.PlanStore, Hooks: cfg.HooksResolver,
 	})
@@ -436,6 +438,10 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 		Tasks:               runEffectTasks,
 		PublishFileChanges:  fileChanges.Publish,
 	})
+	defaultRunModel, err := modelref.New(cfg.Provider, cfg.Model)
+	if err != nil {
+		return nil, fmt.Errorf("runtime: default Run model selection: %w", err)
+	}
 	runDependencies := runs.Dependencies{
 		RootStarts:                         interactionExecutor,
 		Observations:                       interactionExecutor,
@@ -465,10 +471,11 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 			Workspace:                   runSegmentEffects,
 			Finalizer:                   runSegmentEffects,
 		},
-		Runs:       cfg.RunStore,
-		Items:      cfg.TranscriptStore,
-		Admissions: admissionGate,
-		Now:        time.Now,
+		Runs:                  cfg.RunStore,
+		Items:                 cfg.TranscriptStore,
+		Admissions:            admissionGate,
+		DefaultModelSelection: defaultRunModel,
+		Now:                   time.Now,
 		NewRunID: func() string {
 			return runs.NewRunID(uuid.NewString())
 		},
@@ -558,7 +565,6 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 	workspaceDiscovery := workspace.NewDiscovery(
 		workspaceScope, sessionCoordinator, promptsource.AgentDocs{}, promptsource.NewWorkspaceRecipes(cfg.RecipesGlobalDir),
 	)
-	workspaceKnowledge := workspace.NewKnowledge(workspaceScope, cfg.KnowledgeStore)
 	workspaceHooks := workspace.NewHooks(workspaceScope, cfg.HooksResolver, cfg.HookTrustStore)
 	workspaceWatch := workspace.NewGitWatch(workspaceScope, checkpointstore.GitWatcher{})
 	// The @codebase semantic index is its own use-case coordinator (nil index =

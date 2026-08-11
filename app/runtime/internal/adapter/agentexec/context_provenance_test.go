@@ -25,7 +25,7 @@ func TestSystemPromptProvenanceMatchesVisibleComposition(t *testing.T) {
 	if err := os.WriteFile(document, []byte("agent document"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	knowledge := &stubKnowledgeStore{user: "user rule", project: "project rule"}
+	knowledge := &stubKnowledgeStore{home: "user rule", cwd: "workspace rule"}
 	memory := provenanceMemoryReader{items: []agentmemory.Item{{
 		ID: "memory:pinned", Content: "remember this", Pinned: true,
 	}}}

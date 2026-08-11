@@ -415,6 +415,32 @@ func TestStartOwnsCompleteAdmissionSequence(t *testing.T) {
 	}
 }
 
+func TestStartResolvesTheDefaultModelBeforeExecutorAndDurableAdmission(t *testing.T) {
+	exec := &fakeExecutor{}
+	effects := &fakeEffects{}
+	sessions := &fakeRunSessions{sess: sessionfixture.MustRestore(session.Snapshot{ID: "ses_1", CWD: "/work"})}
+	control := &fakeExecutionPorts{startRef: ExecutorRef{SessionID: "ses_1", ExecutorID: "turn_1"}}
+	coordinator := newUseCaseCoordinator(exec, control, sessions, effects)
+	coordinator.defaultModelSelection = mustUseCaseSelection("default-provider", "default-model")
+
+	result, err := coordinator.Start(t.Context(), StartCommand{
+		SessionID: "ses_1",
+		Input:     []transcript.ContentBlock{{Kind: transcript.TextContent, Text: "hello"}},
+	})
+	if err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	consumeEvents(result.Events)
+	want := mustUseCaseSelection("default-provider", "default-model")
+	if control.validated.ModelSelection != want || control.started.ModelSelection != want {
+		t.Fatalf("executor selection: validated=%v started=%v want=%v", control.validated.ModelSelection, control.started.ModelSelection, want)
+	}
+	opening := effects.opening()
+	if opening.Admit == nil || opening.Admit.ModelSelection != want {
+		t.Fatalf("durable opening = %+v, want model selection %v", opening, want)
+	}
+}
+
 func TestScheduledStartCarriesExactInitialSessionInOpening(t *testing.T) {
 	executor := &fakeExecutor{}
 	effects := &fakeEffects{}

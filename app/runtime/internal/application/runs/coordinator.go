@@ -12,6 +12,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/invalidation"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/sessionadmission"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/taskgroup"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	rundomain "github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
@@ -54,6 +55,7 @@ type Coordinator struct {
 	workspace                          WorkspaceChangeNotifier
 	finalizer                          SegmentFinalizer
 	isolation                          IsolationProvider // resolves an isolated session's sandbox copy; nil = isolation off
+	defaultModelSelection              modelref.Selection
 	now                                func() time.Time
 	newRunID                           func() string
 	newSegmentID                       func() string
@@ -102,7 +104,11 @@ type Dependencies struct {
 	Items                              ItemProjection
 	Admissions                         *sessionadmission.Gate
 	Isolation                          IsolationProvider // nil disables isolated sessions (their start is refused)
-	Now                                func() time.Time
+	// DefaultModelSelection resolves an omitted per-Run selection before
+	// executor staging and durable admission. A zero value preserves runtimes
+	// that deliberately have no configured default.
+	DefaultModelSelection modelref.Selection
+	Now                   func() time.Time
 	// Retention bounds every segment's replay window. Zero takes
 	// [DefaultRetention], which is also what discovery advertises.
 	Retention    Retention
@@ -150,6 +156,7 @@ func NewCoordinator(deps Dependencies) *Coordinator {
 		runs:                               deps.Runs,
 		items:                              deps.Items,
 		isolation:                          deps.Isolation,
+		defaultModelSelection:              deps.DefaultModelSelection,
 		now:                                deps.Now,
 		newRunID:                           deps.NewRunID,
 		newSegmentID:                       deps.NewSegmentID,

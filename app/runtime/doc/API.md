@@ -792,6 +792,8 @@ provider 的 key，读取面自然回落到 `keySource:"env"`；环境值只参�
 
 `knowledge.*` 专指人工维护的 `LYRA.md` 级联：`knowledge.list` 列出 workspace 可见条目，
 `knowledge.get` / `knowledge.update` 以闭合 `scope`（`cwd` / `projectRoot` / `home`）读取或覆盖一个条目。
+级联按 `home → projectRoot → cwd` 从宽到窄排列；当 workspace 本身就是 project root 时，同一物理文件只列一次并归为
+`cwd`，但 `knowledge.get/update` 仍可用任一显式 scope 寻址。
 它不承载模型提炼事实，也不与 `agentMemory.*` 共享生命周期；后者才是 Agent 自维护、可检索和人工复核的记忆账本。
 因此协议不再提供含混的 `memory.*` 别名或 `features.memory`。
 

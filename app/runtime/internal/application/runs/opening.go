@@ -21,6 +21,15 @@ func (c *Coordinator) Start(ctx context.Context, cmd StartCommand) (StartResult,
 	if err := cmd.ValidateScheduledIdentity(); err != nil {
 		return StartResult{}, err
 	}
+	if err := cmd.ModelSelection.Validate(); err != nil {
+		return StartResult{}, fmt.Errorf("runs: model selection: %w", err)
+	}
+	if !cmd.ModelSelection.Configured() {
+		cmd.ModelSelection = c.defaultModelSelection
+	}
+	if err := cmd.ModelSelection.Validate(); err != nil {
+		return StartResult{}, fmt.Errorf("runs: default model selection: %w", err)
+	}
 	message, media, openingUserText, err := cmd.MaterializeInput()
 	if err != nil {
 		return StartResult{}, err

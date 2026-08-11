@@ -38,7 +38,7 @@ func TestFoldRunFoldsAllDimensions(t *testing.T) {
 	byProvider := map[string]*usageAccumulator{}
 	byModel := map[string]*usageAccumulator{}
 	byDay := map[string]*usageAccumulator{}
-	foldRun(run, time.Time{}, &total, byProvider, byModel, byDay)
+	foldRun(run, time.Time{}, &total, byProvider, byModel, byDay, false)
 
 	if total.runs != 1 || total.tokens.InputTokens != 100 || total.cost != 1.5 {
 		t.Fatalf("total = %+v", total)
@@ -63,7 +63,7 @@ func TestFoldRunPrefersByModelSplit(t *testing.T) {
 		},
 	})
 	byModel := map[string]*usageAccumulator{}
-	foldRun(run, time.Time{}, nil, nil, byModel, nil)
+	foldRun(run, time.Time{}, nil, nil, byModel, nil, false)
 
 	if len(byModel) != 2 {
 		t.Fatalf("expected 2 model buckets, got %+v", byModel)
@@ -76,15 +76,29 @@ func TestFoldRunPrefersByModelSplit(t *testing.T) {
 func TestFoldRunSkipsUnfinishedAndOld(t *testing.T) {
 	total := usageAccumulator{}
 
-	foldRun(runfixture.MustRestore(run.Snapshot{State: run.Running}), time.Time{}, &total, nil, nil, nil)
+	foldRun(runfixture.MustRestore(run.Snapshot{State: run.Running}), time.Time{}, &total, nil, nil, nil, false)
 	noUsage := runfixture.MustRestore(run.Snapshot{State: run.Completed})
-	foldRun(noUsage, time.Time{}, &total, nil, nil, nil)
+	foldRun(noUsage, time.Time{}, &total, nil, nil, nil, false)
 	old := finishedRun(t, "anthropic", "m", time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC),
 		accounting.Usage{Total: accounting.Totals{InputTokens: 99}})
-	foldRun(old, time.Now().UTC().AddDate(0, 0, -1), &total, nil, nil, nil)
+	foldRun(old, time.Now().UTC().AddDate(0, 0, -1), &total, nil, nil, nil, false)
 
 	if total.runs != 0 {
 		t.Errorf("expected nothing folded, got runs=%d tokens=%d", total.runs, total.tokens.InputTokens)
+	}
+}
+
+func TestFoldRunQualifiesSummaryModelsWithTheirProvider(t *testing.T) {
+	current := finishedRun(t, "openai-compatible", "shared-model", time.Now().UTC(), accounting.Usage{
+		Total: accounting.Totals{InputTokens: 10},
+		ByModel: map[string]accounting.Totals{
+			"shared-model": {InputTokens: 10},
+		},
+	})
+	byModel := map[string]*usageAccumulator{}
+	foldRun(current, time.Time{}, nil, nil, byModel, nil, true)
+	if byModel["openai-compatible/shared-model"] == nil || byModel["shared-model"] != nil {
+		t.Fatalf("summary model buckets = %+v", byModel)
 	}
 }
 

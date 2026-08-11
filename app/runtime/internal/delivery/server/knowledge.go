@@ -34,11 +34,11 @@ func (s *Server) ListKnowledge(ctx context.Context, in protocol.WorkspaceQuery) 
 // GetKnowledge returns one scope's LYRA.md content. Dispatch has already
 // validated the scope (KnowledgeScope.Valid).
 func (s *Server) GetKnowledge(ctx context.Context, in protocol.GetKnowledgeRequest) (*protocol.KnowledgeEntry, error) {
-	scope, cwd, err := s.knowledgeTargetFromWire(in.Scope, workspaceRefPath(in.Workspace))
+	scope, err := knowledgeScopeFromWire(in.Scope)
 	if err != nil {
 		return nil, err
 	}
-	content, err := s.workspaceKnowledge.Read(ctx, scope, cwd)
+	content, err := s.workspaceKnowledge.Read(ctx, scope, workspaceRefPath(in.Workspace))
 	if err != nil {
 		return nil, wireWorkspaceError(err)
 	}
@@ -46,22 +46,22 @@ func (s *Server) GetKnowledge(ctx context.Context, in protocol.GetKnowledgeReque
 }
 
 func (s *Server) UpdateKnowledge(ctx context.Context, in protocol.UpdateKnowledgeRequest) error {
-	scope, cwd, err := s.knowledgeTargetFromWire(in.Scope, workspaceRefPath(in.Workspace))
+	scope, err := knowledgeScopeFromWire(in.Scope)
 	if err != nil {
 		return err
 	}
-	return wireWorkspaceError(s.workspaceKnowledge.Update(ctx, scope, cwd, in.Content))
+	return wireWorkspaceError(s.workspaceKnowledge.Update(ctx, scope, workspaceRefPath(in.Workspace), in.Content))
 }
 
-// presentKnowledgeScope / knowledgeScopeFromWire bridge the protocol and Domain closed
-// vocabularies. The wire's cwd + projectRoot both
-// fold into the project scope (addressed by the request's cwd);
-// home maps to the user scope.
+// presentKnowledgeScope / knowledgeScopeFromWire bridge the protocol and Domain
+// closed vocabularies without collapsing distinct cascade locations.
 func presentKnowledgeScope(scope knowledge.Scope) (protocol.KnowledgeScope, error) {
 	switch scope {
-	case knowledge.ScopeProject:
+	case knowledge.ScopeCWD:
 		return protocol.KnowledgeScopeCWD, nil
-	case knowledge.ScopeUser:
+	case knowledge.ScopeProjectRoot:
+		return protocol.KnowledgeScopeProjectRoot, nil
+	case knowledge.ScopeHome:
 		return protocol.KnowledgeScopeHome, nil
 	default:
 		return "", fmt.Errorf("knowledge: unsupported knowledge scope %q", scope)
@@ -70,22 +70,13 @@ func presentKnowledgeScope(scope knowledge.Scope) (protocol.KnowledgeScope, erro
 
 func knowledgeScopeFromWire(scope protocol.KnowledgeScope) (knowledge.Scope, error) {
 	switch scope {
-	case protocol.KnowledgeScopeCWD, protocol.KnowledgeScopeProjectRoot:
-		return knowledge.ScopeProject, nil
+	case protocol.KnowledgeScopeCWD:
+		return knowledge.ScopeCWD, nil
+	case protocol.KnowledgeScopeProjectRoot:
+		return knowledge.ScopeProjectRoot, nil
 	case protocol.KnowledgeScopeHome:
-		return knowledge.ScopeUser, nil
+		return knowledge.ScopeHome, nil
 	default:
 		return "", fmt.Errorf("%w: unknown knowledge scope %q", protocol.ErrInvalidParams, scope)
 	}
-}
-
-func (s *Server) knowledgeTargetFromWire(scope protocol.KnowledgeScope, cwd string) (knowledge.Scope, string, error) {
-	target, err := knowledgeScopeFromWire(scope)
-	if err != nil {
-		return "", "", err
-	}
-	if target == knowledge.ScopeUser {
-		return target, "", nil
-	}
-	return target, cwd, nil
 }

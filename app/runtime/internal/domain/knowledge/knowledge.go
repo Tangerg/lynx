@@ -9,30 +9,28 @@ import (
 	"time"
 )
 
-// Scope selects which LYRA.md the operation targets. The prompt
-// composes both per Run — user (global) first, then project, so
-// project knowledge extends and overrides the global preferences.
+// Scope selects one location in the human-authored LYRA.md cascade. The three
+// locations are distinct even when a workspace happens to be its project root:
+// callers may address that file through either semantic scope, while cascade
+// readers de-duplicate the shared physical document.
 type Scope string
 
 const (
-	// ScopeProject — `<dir>/LYRA.md`. Project-specific knowledge:
-	// conventions, key files, gotchas. Addressed by the project
-	// directory passed per call (a session's cwd), so one store
-	// serves every project.
-	ScopeProject Scope = "project"
-	// ScopeUser — `~/.lyra/LYRA.md`. Cross-project preferences:
-	// coding style, tools, vocabulary. The global scope; per-call
-	// dir is ignored.
-	ScopeUser Scope = "user"
+	// ScopeCWD is the LYRA.md at the workspace resource root.
+	ScopeCWD Scope = "cwd"
+	// ScopeProjectRoot is the LYRA.md at the nearest project-discovery root.
+	ScopeProjectRoot Scope = "projectRoot"
+	// ScopeHome is the cross-project LYRA.md in the Runtime's user data root.
+	ScopeHome Scope = "home"
 )
 
-// Valid reports whether s names one of the two human-authored knowledge
-// partitions.
+// Valid reports whether s names one of the three human-authored knowledge
+// locations.
 func (s Scope) Valid() bool {
-	return s == ScopeProject || s == ScopeUser
+	return s == ScopeCWD || s == ScopeProjectRoot || s == ScopeHome
 }
 
-// Validate rejects a value that cannot identify a LYRA.md partition.
+// Validate rejects a value that cannot identify a LYRA.md location.
 func (s Scope) Validate() error {
 	if !s.Valid() {
 		return fmt.Errorf("knowledge: invalid scope %q", s)
@@ -46,6 +44,7 @@ func (s Scope) String() string { return string(s) }
 // Markdown; UpdatedAt records the document's last modification.
 type Entry struct {
 	Scope     Scope
+	Path      string
 	Content   string
 	UpdatedAt time.Time
 }

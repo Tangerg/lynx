@@ -9,7 +9,7 @@ import (
 )
 
 func TestRuntimeKnowledgeUnavailable(t *testing.T) {
-	c := NewKnowledge(NewScope("", "", nil), nil)
+	c := NewKnowledge(NewScope("", "", nil), nil, nil)
 	ctx := context.Background()
 
 	if c.Available() {
@@ -18,10 +18,10 @@ func TestRuntimeKnowledgeUnavailable(t *testing.T) {
 	if _, err := c.Entries(ctx, "/repo"); !errors.Is(err, ErrKnowledgeUnavailable) {
 		t.Fatalf("Entries err = %v, want ErrKnowledgeUnavailable", err)
 	}
-	if _, err := c.Read(ctx, knowledge.ScopeProject, "/repo"); !errors.Is(err, ErrKnowledgeUnavailable) {
+	if _, err := c.Read(ctx, knowledge.ScopeCWD, "/repo"); !errors.Is(err, ErrKnowledgeUnavailable) {
 		t.Fatalf("Read err = %v, want ErrKnowledgeUnavailable", err)
 	}
-	if err := c.Update(ctx, knowledge.ScopeUser, "", "prefs"); !errors.Is(err, ErrKnowledgeUnavailable) {
+	if err := c.Update(ctx, knowledge.ScopeHome, "", "prefs"); !errors.Is(err, ErrKnowledgeUnavailable) {
 		t.Fatalf("Update err = %v, want ErrKnowledgeUnavailable", err)
 	}
 }
@@ -30,43 +30,47 @@ func TestRuntimeKnowledgePorts(t *testing.T) {
 	ctx := context.Background()
 	store := &fakeKnowledgeStore{
 		entries: []knowledge.Entry{{
-			Scope:   knowledge.ScopeUser,
+			Scope:   knowledge.ScopeHome,
 			Content: "prefs",
 		}},
 		content: "project notes",
 	}
-	c := NewKnowledge(NewScope("", "", testPaths{}), store)
+	c := NewKnowledge(
+		NewScope("", "", testPaths{}),
+		knowledgeInspector{resolved: Resolved{Path: "/repo/work", ProjectRoot: "/repo"}},
+		store,
+	)
 
 	if !c.Available() {
 		t.Fatal("Available = false, want true")
 	}
-	entries, err := c.Entries(ctx, "/repo")
+	entries, err := c.Entries(ctx, "/repo/work")
 	if err != nil {
 		t.Fatalf("Entries err = %v", err)
 	}
-	if len(entries) != 1 || entries[0].Content != "prefs" || store.listCWD != "/repo" {
-		t.Fatalf("Entries = %+v, cwd = %q", entries, store.listCWD)
+	if len(entries) != 1 || entries[0].Content != "prefs" || store.listCWD != "/repo/work" || store.listProjectRoot != "/repo" {
+		t.Fatalf("Entries = %+v, cwd = %q, projectRoot = %q", entries, store.listCWD, store.listProjectRoot)
 	}
 
-	got, err := c.Read(ctx, knowledge.ScopeProject, "/repo")
+	got, err := c.Read(ctx, knowledge.ScopeProjectRoot, "/repo/work")
 	if err != nil {
 		t.Fatalf("Read err = %v", err)
 	}
-	if got != "project notes" || store.getScope != knowledge.ScopeProject || store.getCWD != "/repo" {
+	if got != "project notes" || store.getScope != knowledge.ScopeProjectRoot || store.getCWD != "/repo" {
 		t.Fatalf("Read = %q, scope = %v, cwd = %q", got, store.getScope, store.getCWD)
 	}
 
-	if err := c.Update(ctx, knowledge.ScopeUser, "", "global prefs"); err != nil {
+	if err := c.Update(ctx, knowledge.ScopeHome, "", "global prefs"); err != nil {
 		t.Fatalf("Update err = %v", err)
 	}
-	if store.updateScope != knowledge.ScopeUser || store.updateCWD != "" || store.updateContent != "global prefs" {
+	if store.updateScope != knowledge.ScopeHome || store.updateCWD != "" || store.updateContent != "global prefs" {
 		t.Fatalf("Update scope = %v, cwd = %q, content = %q", store.updateScope, store.updateCWD, store.updateContent)
 	}
 }
 
 func TestRuntimeKnowledgeRejectsUnknownScopeBeforeDispatch(t *testing.T) {
 	store := &fakeKnowledgeStore{}
-	c := NewKnowledge(NewScope("", "", testPaths{}), store)
+	c := NewKnowledge(NewScope("", "", testPaths{}), knowledgeInspector{}, store)
 	unknown := knowledge.Scope("workspace")
 
 	if _, err := c.Read(t.Context(), unknown, "/repo"); err == nil {
@@ -84,7 +88,8 @@ type fakeKnowledgeStore struct {
 	entries []knowledge.Entry
 	content string
 
-	listCWD string
+	listCWD         string
+	listProjectRoot string
 
 	getScope knowledge.Scope
 	getCWD   string
@@ -94,8 +99,9 @@ type fakeKnowledgeStore struct {
 	updateContent string
 }
 
-func (s *fakeKnowledgeStore) List(_ context.Context, cwd string) ([]knowledge.Entry, error) {
+func (s *fakeKnowledgeStore) List(_ context.Context, cwd, projectRoot string) ([]knowledge.Entry, error) {
 	s.listCWD = cwd
+	s.listProjectRoot = projectRoot
 	return s.entries, nil
 }
 
@@ -110,4 +116,13 @@ func (s *fakeKnowledgeStore) Update(_ context.Context, scope knowledge.Scope, cw
 	s.updateCWD = cwd
 	s.updateContent = content
 	return nil
+}
+
+type knowledgeInspector struct {
+	resolved Resolved
+	err      error
+}
+
+func (i knowledgeInspector) Inspect(string) (Resolved, error) {
+	return i.resolved, i.err
 }
