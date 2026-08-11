@@ -1,4 +1,5 @@
 import { useT } from "@/lib/i18n";
+import { Slot } from "@/plugins/host/Slot";
 import { SidebarPanel } from "@/plugins/builtin/sidebar/ui/SidebarPanel";
 import {
   useSidebarDrawer,
@@ -69,6 +70,7 @@ export function VisualShellFixture({ state }: { state: VisualWorkIndexState }) {
       }
       overlay={
         <>
+          <Slot name="app.overlay" />
           <output className="sr-only" data-testid="persisted-sidebar-width">
             {width}
           </output>

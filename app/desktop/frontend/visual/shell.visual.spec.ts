@@ -68,6 +68,19 @@ test("drawer collapse keeps one visible recovery control", async ({ page }) => {
   await expect(page.getByRole("button", { name: "Hide sidebar" })).toBeFocused();
 });
 
+test("Work Index search opens the shared session finder and restores focus", async ({ page }) => {
+  await openShell(page, { theme: "light", state: "populated" });
+  await waitForWorkIndexState(page, "populated");
+
+  const launcher = page.getByRole("button", { name: /Search sessions/ });
+  await launcher.click();
+  await expect(page.getByRole("combobox", { name: "Search sessions…" })).toBeFocused();
+
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("combobox", { name: "Search sessions…" })).toHaveCount(0);
+  await expect(launcher).toBeFocused();
+});
+
 test("destructive session dialog traps, dismisses, and returns focus", async ({ page }) => {
   await openShell(page, { theme: "light", state: "populated" });
   await waitForWorkIndexState(page, "populated");
@@ -107,8 +120,8 @@ test("resize separator commits once after pointer movement and supports the keyb
   const persistedWidth = page.getByTestId("persisted-sidebar-width");
   await rail.focus();
   await rail.press("ArrowRight");
-  await expect(rail).toHaveAttribute("aria-valuenow", "248");
-  await expect(persistedWidth).toHaveText("248");
+  await expect(rail).toHaveAttribute("aria-valuenow", "264");
+  await expect(persistedWidth).toHaveText("264");
 
   // `hover()` rather than a measured coordinate: the rail sits exactly at the
   // drawer's trailing edge, so any layout settling between measuring it and
@@ -120,7 +133,7 @@ test("resize separator commits once after pointer movement and supports the keyb
   const box = await rail.boundingBox();
   if (!box) throw new Error("Resize separator has no layout box");
   await page.mouse.move(336, box.y + box.height / 2);
-  await expect(persistedWidth).toHaveText("248");
+  await expect(persistedWidth).toHaveText("264");
   await expect.poll(() => sidebarCssWidth(page)).toBe("336px");
   await page.mouse.up();
   await expect(persistedWidth).toHaveText("336");

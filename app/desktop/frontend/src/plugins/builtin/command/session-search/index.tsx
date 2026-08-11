@@ -7,21 +7,24 @@
 
 import { definePlugin } from "@/plugins/sdk";
 import { SHORTCUT } from "@/plugins/sdk/kernelPoints";
-import { useSessionSearchStore } from "../sessionSearchStore";
 import {
   sessionSearchOverlaySlot,
   sessionSearchShortcut,
 } from "./application/sessionSearchContributions";
+import { sessionSearchLauncher } from "./application/ports/sessionSearchLauncher";
+import { installSessionSearchLauncher } from "./adapters/sessionSearchLauncher";
 import { SessionSearch } from "./ui/SessionSearch";
 
 export default definePlugin({
   name: "lyra.builtin.session-search",
   version: "1.0.0",
   setup({ host }) {
+    const disposeLauncher = installSessionSearchLauncher();
     host.layout.register("app.overlay", sessionSearchOverlaySlot(SessionSearch));
     host.extensions.contribute(
       SHORTCUT,
-      sessionSearchShortcut(() => useSessionSearchStore.getState().toggle()),
+      sessionSearchShortcut(() => sessionSearchLauncher().toggle()),
     );
+    return disposeLauncher;
   },
 });

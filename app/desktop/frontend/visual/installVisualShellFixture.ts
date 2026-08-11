@@ -7,6 +7,7 @@ import {
   AGENT_SESSIONS_KEY,
   type AgentSessionSummary,
 } from "@/plugins/builtin/agent/public/session";
+import sessionSearch from "@/plugins/builtin/command/session-search";
 import {
   sidebarActions,
   sidebarFooter,
@@ -190,6 +191,7 @@ export async function installVisualShellFixture(
     defaultAccents,
     lyraDark,
     ...builtinVisualStyles,
+    sessionSearch,
     sidebarActions,
     sidebarProjects,
     sidebarRecents,

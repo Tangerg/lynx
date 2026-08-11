@@ -2,15 +2,15 @@ import { formatRelative } from "@/lib/i18n/relativeTime";
 import { useT } from "@/lib/i18n";
 import { EmptyState, Icon, SearchOverlay } from "@/ui";
 import { selectAgentSession, useAgentSessions } from "@/plugins/builtin/agent/public/session";
-import { useSessionSearchStore } from "../../sessionSearchStore";
 import { matchSessions } from "../application/sessionMatches";
+import { useSessionSearchStore } from "../application/sessionSearchState";
+import { sessionSearchReturnFocus } from "../adapters/sessionSearchLauncher";
 
 /**
  * ⌘K: go to a session by name.
  *
- * All that is left of the command palette, and on purpose — its other rows were a
- * third path to things that already had a button and a shortcut. This one had no
- * other home: the sidebar lists every session and cannot filter.
+ * The same focused search opens from the keyboard or Work Index. Keeping one
+ * overlay means both paths share ranking, focus management, and selection.
  */
 export function SessionSearch() {
   const t = useT();
@@ -22,6 +22,7 @@ export function SessionSearch() {
     <SearchOverlay
       open={open}
       onOpenChange={setOpen}
+      finalFocus={sessionSearchReturnFocus}
       label={t("sessionSearch.label")}
       placeholder={t("sessionSearch.placeholder")}
       empty={

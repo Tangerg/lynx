@@ -5,7 +5,7 @@
 // settled width) need them, and `state` must not import `ui`.
 
 export const SIDEBAR_MIN_WIDTH_PX = 240;
-export const SIDEBAR_DEFAULT_WIDTH_PX = 240;
+export const SIDEBAR_DEFAULT_WIDTH_PX = 256;
 
 export const DOCK_MIN_WIDTH_PX = 300;
 /** One stable workspace width. Switching tabs must not make both reading

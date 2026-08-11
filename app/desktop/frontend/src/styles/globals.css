@@ -691,11 +691,11 @@
      recomputes these from the user's pick (lib/density.ts). Chrome-bar heights
      are NOT here on purpose: they stay pinned so the drawer and content headers
      keep lining up across the seam. */
-  --density-row-height: 38px;
+  --density-row-height: 36px;
   --density-row-gap: 10px;
   --density-navigation-gutter: 12px;
-  --density-navigation-section-gap: 22px;
-  --density-navigation-group-gap: 12px;
+  --density-navigation-section-gap: 18px;
+  --density-navigation-group-gap: 10px;
   --density-column-gutter: 12px;
   --density-column-gutter-wide: 20px;
   --density-composer-editor-top: 12px;
@@ -1180,7 +1180,7 @@ html.theme-light .panel-scroll::-webkit-scrollbar-thumb:hover {
   --app-min-height: 720px;
   /* Drawer width. Live-updated inline on the shell element while dragging the
      seam rail; AgentAppShell restores the persisted value on mount. */
-  --sidebar-width: 240px;
+  --sidebar-width: 256px;
   /* The PLATFORM's three window controls sit over our content, so the header has to
      clear them and the first control after them has to share their centre line. Both
      are overwritten before first paint with what AppKit actually did

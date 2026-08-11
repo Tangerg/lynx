@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AGENT_SESSIONS_KEY } from "@/plugins/builtin/agent/public/session";
-import { useSessionSearchStore } from "../../sessionSearchStore";
+import { useSessionSearchStore } from "../application/sessionSearchState";
 import { SessionSearch } from "./SessionSearch";
 
 const selectAgentSession = vi.hoisted(() => vi.fn());

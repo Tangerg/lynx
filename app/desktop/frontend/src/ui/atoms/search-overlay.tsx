@@ -28,6 +28,9 @@ interface SearchOverlayProps {
    *  scroll position together. */
   options: (query: string) => readonly SearchOption[];
   empty: ReactNode;
+  /** Restores the control or editor that opened a controlled dialog without a
+   *  Base UI trigger in the same React tree. */
+  finalFocus?: () => HTMLElement | null;
 }
 
 function wrap(index: number, count: number, step: number) {
@@ -53,6 +56,7 @@ export function SearchOverlay({
   placeholder,
   options,
   empty,
+  finalFocus,
 }: SearchOverlayProps) {
   return (
     <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
@@ -61,6 +65,7 @@ export function SearchOverlay({
         <DialogPrimitive.Popup
           data-slot="search-overlay"
           aria-label={label}
+          finalFocus={finalFocus}
           className={cn(
             "fixed inset-x-0 top-24 z-[var(--layer-modal)] mx-auto flex w-[min(520px,calc(100vw-32px))]",
             "flex-col overflow-hidden rounded-[var(--floating-panel-radius)] outline-none",
@@ -86,7 +91,7 @@ export function SearchOverlay({
   );
 }
 
-type SearchOverlayContentProps = Omit<SearchOverlayProps, "onOpenChange">;
+type SearchOverlayContentProps = Omit<SearchOverlayProps, "onOpenChange" | "finalFocus">;
 
 function SearchOverlayContent({
   open,
