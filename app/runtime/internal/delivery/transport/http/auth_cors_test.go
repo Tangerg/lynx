@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -23,9 +24,52 @@ func TestDefaultCORSOriginsReturnsCallerOwnedConfiguration(t *testing.T) {
 	}
 }
 
+func TestDefaultCORSOriginsAuthorizeShippedDesktopClients(t *testing.T) {
+	ts := newGatedServerWithOrigins(t, lyrahttp.DefaultCORSOrigins())
+	defer ts.Close()
+
+	for _, origin := range []string{
+		"wails://localhost",
+		"http://wails.localhost",
+		"http://127.0.0.1:5174",
+		"http://localhost:5173",
+	} {
+		t.Run(origin, func(t *testing.T) {
+			req, err := netHTTP.NewRequest(netHTTP.MethodOptions, ts.URL+"/v2/rpc", nil)
+			if err != nil {
+				t.Fatalf("new preflight: %v", err)
+			}
+			req.Header.Set("Origin", origin)
+			req.Header.Set("Access-Control-Request-Method", netHTTP.MethodPost)
+			req.Header.Set("Access-Control-Request-Headers", "Authorization, Content-Type")
+			resp, err := netHTTP.DefaultClient.Do(req)
+			if err != nil {
+				t.Fatalf("preflight: %v", err)
+			}
+			defer resp.Body.Close()
+			if got := resp.Header.Get("Access-Control-Allow-Origin"); got != origin {
+				t.Fatalf("Allow-Origin = %q, want %q", got, origin)
+			}
+		})
+	}
+
+	if slices.Contains(lyrahttp.DefaultCORSOrigins(), "*") {
+		t.Fatal("default desktop CORS policy must not allow every browser origin")
+	}
+	for _, unrelated := range []string{"tauri://localhost", "http://localhost:3000"} {
+		if slices.Contains(lyrahttp.DefaultCORSOrigins(), unrelated) {
+			t.Fatalf("default desktop CORS policy still allows unrelated origin %q", unrelated)
+		}
+	}
+}
+
 // newGatedServer builds a test server with the local-token gate +
 // CORS allowlist set. Token is "test-token", origins is "http://app".
 func newGatedServer(t *testing.T) *httptest.Server {
+	return newGatedServerWithOrigins(t, []string{"http://app"})
+}
+
+func newGatedServerWithOrigins(t *testing.T, origins []string) *httptest.Server {
 	t.Helper()
 	srv, err := lyrahttp.NewServer(lyrahttp.Config{
 		Endpoint:        operation.New(&fakeRuntime{}, operation.Config{}),
@@ -33,7 +77,7 @@ func newGatedServer(t *testing.T) *httptest.Server {
 		ServerInfo:      protocol.ServerInfo{Name: "lyra-test", Version: "0.0.0"},
 		ProtocolVersion: testProtocolVersion,
 		LocalToken:      "test-token",
-		CORSOrigins:     []string{"http://app"},
+		CORSOrigins:     origins,
 	})
 	if err != nil {
 		t.Fatalf("NewServer: %v", err)

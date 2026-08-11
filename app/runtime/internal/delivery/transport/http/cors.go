@@ -9,15 +9,14 @@ import (
 
 // DefaultCORSOrigins returns the allowlist baked in for the runtime HTTP server
 // when the operator hasn't supplied CORS origins. It covers the browser shells
-// and development servers shipped with the application. Each caller owns its
-// result, so server configuration cannot mutate the package default.
+// and development servers actually shipped with the application. Each caller
+// owns its result, so server configuration cannot mutate the package default.
 func DefaultCORSOrigins() []string {
 	return []string{
-		"tauri://localhost",
-		"http://tauri.localhost",
-		"http://localhost:1420", // Tauri dev
-		"http://localhost:5173", // Vite default
-		"http://localhost:3000", // Next.js / CRA
+		"wails://localhost",      // Wails macOS/Linux asset server
+		"http://wails.localhost", // Wails Windows asset server
+		"http://127.0.0.1:5174",  // repository Wails/Vite dev task
+		"http://localhost:5173",  // standalone Vite default
 	}
 }
 
@@ -50,8 +49,8 @@ func corsMiddleware(origins []string) func(http.Handler) http.Handler {
 	// forbids a literal "*" in Access-Control-Allow-Origin (browsers reject
 	// it on a credentialed request), so REFLECT the request origin instead —
 	// a credentials-compatible allow-all — rather than emitting "*". This is
-	// what makes the Tauri webview origin (tauri://localhost) work
-	// while the config keeps the simple "*" dev default. An explicit
+	// reserved for an operator's explicit development configuration; the
+	// built-in Wails origins use the exact allowlist above. An explicit
 	// allowlist passes through unchanged.
 	if slices.Contains(origins, "*") {
 		opts.AllowOriginFunc = func(*http.Request, string) bool { return true }

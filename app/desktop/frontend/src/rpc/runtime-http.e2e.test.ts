@@ -2475,6 +2475,19 @@ for await (const line of lines) {
     expect(includingIgnored).toEqual(
       expect.arrayContaining([expect.objectContaining({ path: "ignored.log", type: "file" })]),
     );
+
+    // A plain filesystem workspace must answer a lazy, one-level browser read
+    // without walking all descendants first. Empty directories are real first-
+    // level entries even though no flat candidate file can imply their presence.
+    const plainRoot = join(root, "workspace-side-api-plain");
+    await mkdir(join(plainRoot, "empty"), { recursive: true });
+    await writeFile(join(plainRoot, "visible.txt"), "visible\n");
+    await expect(client.workspace({ path: plainRoot }).files.list()).resolves.toMatchObject({
+      data: [
+        expect.objectContaining({ path: "empty", name: "empty", type: "dir" }),
+        expect.objectContaining({ path: "visible.txt", name: "visible.txt", type: "file" }),
+      ],
+    });
     await expect(workspace.files.head({ path: "../AGENTS.md" })).rejects.toSatisfy(
       (error: unknown) =>
         error instanceof RpcError && errorType(error.data) === "path_outside_root",

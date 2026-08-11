@@ -84,6 +84,24 @@ func TestListFiles_OneLevelDirsThenFiles(t *testing.T) {
 	}
 }
 
+func TestListFiles_OneLevelIncludesEmptyDirectoryWithoutDescending(t *testing.T) {
+	root := t.TempDir()
+	if err := os.Mkdir(filepath.Join(root, "empty"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "a.txt"), []byte("a"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := ListFiles(context.Background(), root, ListFilesOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"empty", "a.txt"}; !slices.Equal(paths(got), want) {
+		t.Fatalf("paths = %v, want %v", paths(got), want)
+	}
+}
+
 func TestListFiles_ScopedToSubdir(t *testing.T) {
 	root := buildTree(t)
 	got, err := ListFiles(context.Background(), root, ListFilesOptions{Path: "sub"})

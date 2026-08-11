@@ -100,6 +100,14 @@ func ListFiles(ctx context.Context, root string, opts ListFilesOptions) ([]FileE
 			return nil, fmt.Errorf("%w %q: %v", ErrInvalidGlob, opts.Glob, err)
 		}
 	}
+	// A non-recursive filesystem listing is genuinely one level. Walking the
+	// entire subtree first defeats lazy tree loading: a home-directory workspace
+	// can hit an unreadable descendant or the global safety limit before its
+	// immediate children are returned. Git-backed listings still derive their
+	// children from `git ls-files` so ignored directories stay hidden.
+	if !opts.Recursive && opts.Glob == "" && (opts.IncludeIgnored || !git.IsRepo(ctx, root)) {
+		return levelFilesystemEntries(ctx, root, sub, opts.IncludeIgnored)
+	}
 
 	files, err := candidateFiles(ctx, root, sub, opts.IncludeIgnored)
 	if err != nil {
@@ -113,6 +121,39 @@ func ListFiles(ctx context.Context, root string, opts ListFilesOptions) ([]FileE
 		return recursiveFiles(root, files, opts.Glob)
 	}
 	return levelEntries(root, files, sub)
+}
+
+func levelFilesystemEntries(ctx context.Context, root, sub string, includeIgnored bool) ([]FileEntry, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	directory := root
+	if sub != "" {
+		directory = filepath.Join(root, filepath.FromSlash(sub))
+	}
+	children, err := os.ReadDir(directory)
+	if err != nil {
+		return nil, fmt.Errorf("list %q: %w", directory, err)
+	}
+	entries := make([]FileEntry, 0, len(children))
+	for _, child := range children {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		if child.IsDir() && (child.Name() == ".git" || (!includeIgnored && backstopExclude[child.Name()])) {
+			continue
+		}
+		rel := path.Join(sub, child.Name())
+		entry, exists, err := inspectEntry(root, rel)
+		if err != nil {
+			return nil, err
+		}
+		if exists {
+			entries = append(entries, entry)
+		}
+	}
+	sortFileEntries(entries)
+	return entries, nil
 }
 
 // candidateFiles returns every non-ignored file under sub (relative to root),
