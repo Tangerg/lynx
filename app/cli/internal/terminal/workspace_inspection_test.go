@@ -80,9 +80,9 @@ func (stub *workspaceServiceStub) Search(context.Context, workspace.SearchReques
 	return workspace.SearchResult{Matches: []workspace.Match{{Path: "main.go", Line: 1, Text: "package main"}}, Total: 1}, nil
 }
 
-func (stub *workspaceServiceStub) Files(context.Context, workspace.FilesRequest) (workspace.FilePage, error) {
+func (stub *workspaceServiceStub) Files(context.Context, workspace.FilesRequest) (workspace.FileListing, error) {
 	stub.called("files")
-	return workspace.FilePage{Entries: []workspace.FileEntry{{Path: "main.go", Name: "main.go", Type: workspace.FileEntryFile}}}, nil
+	return workspace.FileListing{Entries: []workspace.FileEntry{{Path: "main.go", Name: "main.go", Type: workspace.FileEntryFile}}}, nil
 }
 
 func (stub *workspaceServiceStub) Read(context.Context, workspace.ReadRequest) (workspace.FileContent, error) {

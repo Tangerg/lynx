@@ -68,3 +68,14 @@ func TestReadRequestRefusesAnAmbiguousLineWindow(t *testing.T) {
 		t.Fatalf("Validate = %v", err)
 	}
 }
+
+func TestFileListingOwnsPathUniqueness(t *testing.T) {
+	t.Parallel()
+	listing := FileListing{Entries: []FileEntry{
+		{Path: "main.go", Name: "main.go", Type: FileEntryFile},
+		{Path: "main.go", Name: "main.go", Type: FileEntryFile},
+	}}
+	if err := listing.Validate(); err == nil || !strings.Contains(err.Error(), "repeats path") {
+		t.Fatalf("Validate = %v, want duplicate path error", err)
+	}
+}

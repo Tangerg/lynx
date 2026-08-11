@@ -22,6 +22,8 @@ type workspaceBinding interface {
 	ReadWorkspaceFile(context.Context, protocol.ReadFileRequest, embedded.CallOptions) (*protocol.FileContent, error)
 }
 
+const workspaceFilePageLimit = 500
+
 func (r *Runtime) Resolve(ctx context.Context, request workspace.ResolveRequest) (workspace.Workspace, error) {
 	if err := request.Validate(); err != nil {
 		return workspace.Workspace{}, err
@@ -144,30 +146,45 @@ func (r *Runtime) Search(ctx context.Context, request workspace.SearchRequest) (
 	return result, nil
 }
 
-func (r *Runtime) Files(ctx context.Context, request workspace.FilesRequest) (workspace.FilePage, error) {
+func (r *Runtime) Files(ctx context.Context, request workspace.FilesRequest) (workspace.FileListing, error) {
 	if err := request.Validate(); err != nil {
-		return workspace.FilePage{}, err
+		return workspace.FileListing{}, err
 	}
-	page, err := r.workspaces.ListWorkspaceFiles(ctx, protocol.ListFilesRequest{
-		Workspace: protocol.WorkspaceRef{Path: request.Workspace}, Path: request.Path, Glob: request.Glob,
-		Recursive: request.Recursive, IncludeIgnored: request.IncludeIgnored,
-		PageQuery: protocol.PageQuery{Limit: request.Limit, Cursor: request.Cursor},
-	}, r.callOptions())
-	if err != nil {
-		return workspace.FilePage{}, classifyError(err)
-	}
-	if page == nil {
-		return workspace.FilePage{}, errors.New("list workspace files: runtime returned a nil page")
-	}
-	result := workspace.FilePage{Entries: make([]workspace.FileEntry, 0, len(page.Data)), NextCursor: page.NextCursor}
-	for _, entry := range page.Data {
-		result.Entries = append(result.Entries, workspace.FileEntry{
-			Path: entry.Path, Name: entry.Name, Type: projectFileType(entry.Type),
-			SizeBytes: cloneInt64(entry.SizeBytes), ModifiedAt: entry.ModifiedAt,
-		})
+	result := workspace.FileListing{}
+	cursor := ""
+	seenCursors := map[string]struct{}{"": {}}
+	for {
+		if err := context.Cause(ctx); err != nil {
+			return workspace.FileListing{}, err
+		}
+		page, err := r.workspaces.ListWorkspaceFiles(ctx, protocol.ListFilesRequest{
+			Workspace: protocol.WorkspaceRef{Path: request.Workspace}, Path: request.Path, Glob: request.Glob,
+			Recursive: request.Recursive, IncludeIgnored: request.IncludeIgnored,
+			PageQuery: protocol.PageQuery{Limit: workspaceFilePageLimit, Cursor: cursor},
+		}, r.callOptions())
+		if err != nil {
+			return workspace.FileListing{}, classifyError(err)
+		}
+		if page == nil {
+			return workspace.FileListing{}, fmt.Errorf("list workspace files after cursor %q: runtime returned a nil page", cursor)
+		}
+		for _, entry := range page.Data {
+			result.Entries = append(result.Entries, workspace.FileEntry{
+				Path: entry.Path, Name: entry.Name, Type: projectFileType(entry.Type),
+				SizeBytes: cloneInt64(entry.SizeBytes), ModifiedAt: entry.ModifiedAt,
+			})
+		}
+		if page.NextCursor == "" {
+			break
+		}
+		if _, exists := seenCursors[page.NextCursor]; exists {
+			return workspace.FileListing{}, errors.New("list workspace files: runtime returned a cyclic continuation cursor")
+		}
+		seenCursors[page.NextCursor] = struct{}{}
+		cursor = page.NextCursor
 	}
 	if err := result.Validate(); err != nil {
-		return workspace.FilePage{}, fmt.Errorf("list workspace files projection: %w", err)
+		return workspace.FileListing{}, fmt.Errorf("list workspace files projection: %w", err)
 	}
 	return result, nil
 }

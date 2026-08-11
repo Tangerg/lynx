@@ -21,7 +21,7 @@ type Inspector interface {
 	Diff(context.Context, DiffRequest) (Diff, error)
 	Head(context.Context, HeadRequest) (FileHead, error)
 	Search(context.Context, SearchRequest) (SearchResult, error)
-	Files(context.Context, FilesRequest) (FilePage, error)
+	Files(context.Context, FilesRequest) (FileListing, error)
 	Read(context.Context, ReadRequest) (FileContent, error)
 }
 

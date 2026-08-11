@@ -41,16 +41,20 @@ func (entry FileEntry) Validate() error {
 	}
 }
 
-type FilePage struct {
-	Entries    []FileEntry
-	NextCursor string
+type FileListing struct {
+	Entries []FileEntry
 }
 
-func (page FilePage) Validate() error {
-	for index, entry := range page.Entries {
+func (listing FileListing) Validate() error {
+	paths := make(map[string]struct{}, len(listing.Entries))
+	for index, entry := range listing.Entries {
 		if err := entry.Validate(); err != nil {
 			return fmt.Errorf("file entry %d: %w", index, err)
 		}
+		if _, exists := paths[entry.Path]; exists {
+			return fmt.Errorf("file entry %d repeats path %q", index, entry.Path)
+		}
+		paths[entry.Path] = struct{}{}
 	}
 	return nil
 }
@@ -61,16 +65,11 @@ type FilesRequest struct {
 	Glob           string
 	Recursive      bool
 	IncludeIgnored bool
-	Limit          int
-	Cursor         string
 }
 
 func (request FilesRequest) Validate() error {
 	if strings.TrimSpace(request.Workspace) == "" {
 		return errors.New("file list workspace is empty")
-	}
-	if request.Limit < 0 {
-		return errors.New("file list limit is negative")
 	}
 	return nil
 }

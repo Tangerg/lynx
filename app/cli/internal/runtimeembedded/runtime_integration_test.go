@@ -24,6 +24,9 @@ func TestEmbeddedRuntimeSessionCatalogAndLifecycle(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(workspace, "main.go"), []byte("package main\n\nvar answer = 42\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
+	if err := os.Mkdir(filepath.Join(workspace, "empty"), 0o700); err != nil {
+		t.Fatal(err)
+	}
 	runtime := openIntegrationRuntime(t, workspace)
 	created := requireSessionCatalog(t, runtime, workspace)
 	requireWorkspaceInspection(t, runtime, workspace)
@@ -154,8 +157,9 @@ func requireWorkspaceInspection(t *testing.T, runtime *Runtime, path string) {
 	if err != nil || len(known) == 0 {
 		t.Fatalf("List = (%+v, %v)", known, err)
 	}
-	files, err := runtime.Files(t.Context(), workspaceapi.FilesRequest{Workspace: path, Limit: 20})
-	if err != nil || len(files.Entries) != 1 || files.Entries[0].Path != "main.go" {
+	files, err := runtime.Files(t.Context(), workspaceapi.FilesRequest{Workspace: path})
+	if err != nil || len(files.Entries) != 2 || files.Entries[0].Path != "empty" ||
+		files.Entries[0].Type != workspaceapi.FileEntryDirectory || files.Entries[1].Path != "main.go" {
 		t.Fatalf("Files = (%+v, %v)", files, err)
 	}
 	head, err := runtime.Head(t.Context(), workspaceapi.HeadRequest{Workspace: path, Path: "main.go", Lines: 2})

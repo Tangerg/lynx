@@ -117,26 +117,23 @@ func (a *app) SearchWorkspace(query string) {
 
 func (a *app) BrowseWorkspace(path string) {
 	request := workspace.FilesRequest{
-		Workspace: a.session.Workspace, Path: strings.TrimSpace(path), Limit: 500,
+		Workspace: a.session.Workspace, Path: strings.TrimSpace(path),
 	}
 	a.runWorkspaceQuery("browsing workspace",
 		func(ctx context.Context) (readerDocument, error) {
-			page, err := a.workspaces.Files(ctx, request)
+			listing, err := a.workspaces.Files(ctx, request)
 			if err != nil {
 				return readerDocument{}, err
 			}
-			lines := make([]string, 0, len(page.Entries)+1)
-			for _, entry := range page.Entries {
+			lines := make([]string, 0, len(listing.Entries))
+			for _, entry := range listing.Entries {
 				kind := string(entry.Type)
 				if entry.Type == workspace.FileEntryDirectory {
 					kind = "dir"
 				}
 				lines = append(lines, fmt.Sprintf("%-7s %s", kind, entry.Path))
 			}
-			detail := fmt.Sprintf("%d entries", len(page.Entries))
-			if page.NextCursor != "" {
-				detail += " · more available"
-			}
+			detail := fmt.Sprintf("%d entries", len(listing.Entries))
 			title := "Workspace files"
 			if request.Path != "" {
 				title += " · " + request.Path

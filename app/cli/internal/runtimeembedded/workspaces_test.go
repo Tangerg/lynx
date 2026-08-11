@@ -2,6 +2,7 @@ package runtimeembedded
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/Tangerg/lynx/app/runtime/embedded"
@@ -11,14 +12,16 @@ import (
 )
 
 type workspaceBindingStub struct {
-	resolved *protocol.WorkspaceInfo
-	known    *protocol.Page[protocol.WorkspaceSummary]
-	changes  *protocol.Page[protocol.WorkspaceFileChange]
-	diff     *protocol.Diff
-	head     *protocol.FileHead
-	search   *protocol.GrepResult
-	files    *protocol.Page[protocol.FileEntry]
-	content  *protocol.FileContent
+	resolved  *protocol.WorkspaceInfo
+	known     *protocol.Page[protocol.WorkspaceSummary]
+	changes   *protocol.Page[protocol.WorkspaceFileChange]
+	diff      *protocol.Diff
+	head      *protocol.FileHead
+	search    *protocol.GrepResult
+	files     *protocol.Page[protocol.FileEntry]
+	filePages map[string]*protocol.Page[protocol.FileEntry]
+	fileCalls []protocol.ListFilesRequest
+	content   *protocol.FileContent
 }
 
 func (stub *workspaceBindingStub) ResolveWorkspace(context.Context, protocol.ResolveWorkspaceRequest, embedded.CallOptions) (*protocol.WorkspaceInfo, error) {
@@ -45,7 +48,11 @@ func (stub *workspaceBindingStub) SearchWorkspaceFiles(context.Context, protocol
 	return stub.search, nil
 }
 
-func (stub *workspaceBindingStub) ListWorkspaceFiles(context.Context, protocol.ListFilesRequest, embedded.CallOptions) (*protocol.Page[protocol.FileEntry], error) {
+func (stub *workspaceBindingStub) ListWorkspaceFiles(_ context.Context, request protocol.ListFilesRequest, _ embedded.CallOptions) (*protocol.Page[protocol.FileEntry], error) {
+	stub.fileCalls = append(stub.fileCalls, request)
+	if stub.filePages != nil {
+		return stub.filePages[request.Cursor], nil
+	}
 	return stub.files, nil
 }
 
@@ -67,9 +74,12 @@ func TestWorkspaceAdapterProjectsEveryReadShape(t *testing.T) {
 			Path: "main.go", Status: protocol.FileStatusModified, Added: &added, Removed: &removed,
 			Rows: []protocol.DiffRow{{Type: protocol.DiffRowAdded, RightLine: 1, Code: "package main"}},
 		}}},
-		head:    &protocol.FileHead{Path: "main.go", Lines: []protocol.FileLine{{LineNumber: 1, Text: "package main"}}},
-		search:  &protocol.GrepResult{Matches: []protocol.GrepMatch{{Path: "main.go", LineNumber: 1, Text: "package main"}}, Total: 1},
-		files:   protocol.NewPageWithCursor([]protocol.FileEntry{{Path: "main.go", Name: "main.go", Type: protocol.FileEntryFile, SizeBytes: &size, ModifiedAt: "2026-08-12T00:00:00Z"}}, "next"),
+		head:   &protocol.FileHead{Path: "main.go", Lines: []protocol.FileLine{{LineNumber: 1, Text: "package main"}}},
+		search: &protocol.GrepResult{Matches: []protocol.GrepMatch{{Path: "main.go", LineNumber: 1, Text: "package main"}}, Total: 1},
+		filePages: map[string]*protocol.Page[protocol.FileEntry]{
+			"":     protocol.NewPageWithCursor([]protocol.FileEntry{{Path: "main.go", Name: "main.go", Type: protocol.FileEntryFile, SizeBytes: &size, ModifiedAt: "2026-08-12T00:00:00Z"}}, "next"),
+			"next": protocol.NewPage([]protocol.FileEntry{{Path: "internal", Name: "internal", Type: protocol.FileEntryDir}}),
+		},
 		content: &protocol.FileContent{Path: "main.go", Content: "package main\n", Encoding: "utf-8", TotalLines: 1},
 	}
 	runtime := &Runtime{workspaces: stub, meta: requestMeta("test")}
@@ -99,8 +109,13 @@ func TestWorkspaceAdapterProjectsEveryReadShape(t *testing.T) {
 		t.Fatalf("Search = (%+v, %v)", search, err)
 	}
 	files, err := runtime.Files(t.Context(), workspace.FilesRequest{Workspace: "/workspace"})
-	if err != nil || files.NextCursor != "next" || files.Entries[0].Type != workspace.FileEntryFile || *files.Entries[0].SizeBytes != size {
+	if err != nil || len(files.Entries) != 2 || files.Entries[0].Type != workspace.FileEntryFile ||
+		*files.Entries[0].SizeBytes != size || files.Entries[1].Type != workspace.FileEntryDirectory {
 		t.Fatalf("Files = (%+v, %v)", files, err)
+	}
+	if len(stub.fileCalls) != 2 || stub.fileCalls[0].Cursor != "" ||
+		stub.fileCalls[1].Cursor != "next" || stub.fileCalls[1].Limit != workspaceFilePageLimit {
+		t.Fatalf("ListWorkspaceFiles calls = %+v", stub.fileCalls)
 	}
 	content, err := runtime.Read(t.Context(), workspace.ReadRequest{Workspace: "/workspace", Path: "main.go"})
 	if err != nil || content.Content != "package main\n" || content.Window() != "1 lines" {
@@ -110,6 +125,21 @@ func TestWorkspaceAdapterProjectsEveryReadShape(t *testing.T) {
 	added = 99
 	if *changes[0].Added != 4 {
 		t.Fatal("workspace projection retained a mutable protocol pointer")
+	}
+}
+
+func TestWorkspaceFilesRejectsCyclicRuntimePagination(t *testing.T) {
+	t.Parallel()
+	stub := &workspaceBindingStub{filePages: map[string]*protocol.Page[protocol.FileEntry]{
+		"":      protocol.NewPageWithCursor([]protocol.FileEntry{}, "next"),
+		"next":  protocol.NewPageWithCursor([]protocol.FileEntry{}, "later"),
+		"later": protocol.NewPageWithCursor([]protocol.FileEntry{}, "next"),
+	}}
+	runtime := &Runtime{workspaces: stub, meta: requestMeta("test")}
+
+	_, err := runtime.Files(t.Context(), workspace.FilesRequest{Workspace: "/workspace"})
+	if err == nil || !strings.Contains(err.Error(), "cyclic continuation cursor") {
+		t.Fatalf("Files error = %v, want cyclic continuation cursor", err)
 	}
 }
 
