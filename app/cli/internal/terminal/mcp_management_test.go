@@ -3,6 +3,7 @@ package terminal
 import (
 	"context"
 	"errors"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -158,10 +159,9 @@ func TestMCPReadersFormsAndLifecycleCommands(t *testing.T) {
 	host.Press(input.Enter)
 	host.Shows(t, "Create MCP server")
 	host.Type("private-docs")
-	host.Press(input.Tab)
-	host.Press(input.Tab)
-	host.Press(input.Tab)
-	host.Press(input.Tab)
+	host.Press(input.Enter)
+	host.Shows(t, "Create MCP server · 2/3")
+	host.Shows(t, "HTTP URL")
 	host.Type("https://private.example/tools")
 	host.Press(input.Tab)
 	host.Press(input.Down)
@@ -176,6 +176,9 @@ func TestMCPReadersFormsAndLifecycleCommands(t *testing.T) {
 		t.Fatal("MCP authorization secret appeared in terminal frames")
 	}
 	host.Press(input.Enter)
+	host.Shows(t, "Create MCP server · 3/3")
+	host.Shows(t, "Disabled tools")
+	host.Press(input.Enter)
 	host.Shows(t, "private-docs · disconnected")
 	created := <-service.created
 	if created.Connection.Authorization == nil || created.Connection.Authorization.Value != secret {
@@ -188,6 +191,8 @@ func TestMCPReadersFormsAndLifecycleCommands(t *testing.T) {
 	host.Press(input.Enter)
 	host.Shows(t, "Configure MCP server · docs")
 	host.Press(input.Down)
+	host.Press(input.Enter)
+	host.Shows(t, "Configure MCP server · docs · 2/2")
 	host.Press(input.Enter)
 	host.Shows(t, "docs · disabled")
 	updated := <-service.updated
@@ -221,6 +226,65 @@ func TestMCPReadersFormsAndLifecycleCommands(t *testing.T) {
 	if deleted := <-service.deleted; deleted != "docs" {
 		t.Fatalf("deleted = %q", deleted)
 	}
+	stop()
+}
+
+func TestMCPStdioWizardKeepsEveryFieldVisibleAndSecretsMasked(t *testing.T) {
+	service := newMCPServiceStub()
+	host, stop := runUIWithRuntimeServices(t, Config{Runtime: mock.New(), MCP: service})
+	host.Shows(t, "Ask lyra")
+	host.Type("/mcp-create")
+	host.Press(input.Enter)
+	host.Shows(t, "Create MCP server · 1/3")
+	host.Type("local-tools")
+	host.Press(input.Tab)
+	host.Press(input.Tab)
+	host.Press(input.Tab)
+	host.Press(input.Down)
+	showsPlain(t, host, "● stdio process")
+	host.Press(input.Enter)
+	host.Shows(t, "Create MCP server · 2/3")
+	host.Shows(t, "stdio command")
+	host.Type("local-mcp")
+	host.Press(input.Tab)
+	host.Type(`["--stdio"]`)
+	host.Press(input.Tab)
+	host.Press(input.Down)
+	host.Press(input.Tab)
+	secret := `{"TOKEN":"MCP_STDIO_SECRET"}`
+	host.Type(secret)
+	host.Press(input.Tab)
+	host.Type("/tmp")
+	if !host.Resize(44, 18) || !host.Resize(96, 28) {
+		t.Fatal("stdio MCP step did not survive a narrow viewport round trip")
+	}
+	if strings.Contains(host.Frames(), "MCP_STDIO_SECRET") {
+		t.Fatal("stdio environment secret appeared in terminal frames")
+	}
+	host.Press(input.Enter)
+	host.Shows(t, "Create MCP server · 3/3")
+	host.Press(input.Tab)
+	host.Type("read, read")
+	host.Press(input.Enter)
+	host.Shows(t, `tool "read" is duplicated`)
+	select {
+	case candidate := <-service.created:
+		t.Fatalf("invalid MCP policy reached the service: %+v", candidate)
+	default:
+	}
+	host.Send(input.Key{Code: input.Character, Rune: 'a', Mods: input.Alt})
+	host.Type("read")
+	host.Press(input.Enter)
+	host.Shows(t, "local-tools · disconnected")
+	created := <-service.created
+	if created.Connection.Transport != mcp.Stdio || created.Connection.Command != "local-mcp" ||
+		!slices.Equal(created.Connection.Args, []string{"--stdio"}) || created.Connection.Directory != "/tmp" ||
+		created.Connection.Environment == nil || created.Connection.Environment.Value["TOKEN"] != "MCP_STDIO_SECRET" ||
+		!slices.Equal(created.DisabledTools, []string{"read"}) {
+		t.Fatalf("created stdio MCP candidate = %+v", created)
+	}
+
+	host.Press(input.Esc)
 	stop()
 }
 
