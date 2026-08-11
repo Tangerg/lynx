@@ -103,7 +103,7 @@ Architecture tests prevent the domain from importing Cobra, Viper, oolong, rende
 
 `main.go` is the composition root. It installs a lazy process-level owner; command help and static completion do not open databases or model clients. Protocol DTOs, request metadata, replay options, inline media, tool-result JSON, capability negotiation, and structured runtime errors are all confined to the adapter. The command tree, TUI, renderers, attachment handling, and extension system depend only on the CLI projection.
 
-[`RUNTIME_API_COVERAGE.md`](RUNTIME_API_COVERAGE.md) inventories all 87 exported embedded methods and records the production surface and acceptance evidence required before each bounded context is marked complete.
+[`RUNTIME_API_COVERAGE.md`](RUNTIME_API_COVERAGE.md) inventories all 87 exported embedded methods and records the production surface and acceptance evidence required before each bounded context is marked complete. A reflection-based contract test fails whenever that public method set drifts, so a new backend API cannot remain silently unreviewed.
 
 ## Configuration
 

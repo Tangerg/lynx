@@ -11,6 +11,11 @@ Runtime API inventory: 87 exported methods
 Production API consumption: 87 methods
 Queued API consumption: 0 methods
 
+`internal/runtimeembedded` reflects the public method set in tests and assigns
+every method to one bounded context. A runtime method addition, removal, or
+duplicate assignment fails the CLI suite until this ledger and its production
+consumer are reviewed together.
+
 Status meanings:
 
 - `complete`: a production CLI path calls the method, projects the result, and
