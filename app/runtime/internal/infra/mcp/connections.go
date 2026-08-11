@@ -102,7 +102,7 @@ func (c *Connections) find(name string) *server {
 	return nil
 }
 
-func (c *Connections) ownSessionLocked(session *sdkmcp.ClientSession) {
+func (c *Connections) ownSessionLocked(session *sdkmcp.ClientSession, cancel context.CancelFunc) {
 	if session == nil {
 		return
 	}
@@ -110,7 +110,10 @@ func (c *Connections) ownSessionLocked(session *sdkmcp.ClientSession) {
 		c.sessions = make(map[*sdkmcp.ClientSession]*ownedSession)
 	}
 	if c.sessions[session] == nil {
-		c.sessions[session] = &ownedSession{closeFn: session.Close}
+		c.sessions[session] = &ownedSession{closeFn: func() error {
+			defer cancel()
+			return session.Close()
+		}}
 	}
 }
 

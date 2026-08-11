@@ -47,14 +47,14 @@ func TestServerConfigValidate(t *testing.T) {
 }
 
 func TestDialValidatesBeforeDialing(t *testing.T) {
-	_, err := dial(context.Background(), nil,
+	_, _, err := dial(context.Background(), nil,
 		ServerConfig{Name: "x", Transport: TransportHTTP})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "Endpoint is required")
 }
 
 func TestDialNilClient(t *testing.T) {
-	_, err := dial(context.Background(), nil,
+	_, _, err := dial(context.Background(), nil,
 		ServerConfig{Name: "x", Transport: TransportHTTP, Endpoint: "https://e/"})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "client must not be nil")

@@ -39,6 +39,7 @@ async function unusedLoopbackPort(): Promise<number> {
 }
 
 interface FakeChatRequest {
+  input?: string | string[];
   messages?: Array<{ role?: string; content?: unknown }>;
   model?: string;
   stream?: boolean;
@@ -175,7 +176,62 @@ function scriptedReply(body: FakeChatRequest): { text?: string; tool?: FakeToolC
       },
     };
   }
+  if (
+    (transcript.includes("E2E_SKILL_PROPOSAL_PROJECT") ||
+      transcript.includes("E2E_SKILL_PROPOSAL_USER")) &&
+    availableTools.has("search_tools") &&
+    !availableTools.has("propose_skill") &&
+    toolResultCount === 0
+  ) {
+    return {
+      tool: {
+        name: "search_tools",
+        arguments: JSON.stringify({ query: "select:propose_skill" }),
+      },
+    };
+  }
+  if (
+    transcript.includes("E2E_SKILL_PROPOSAL_PROJECT") &&
+    availableTools.has("propose_skill") &&
+    toolResultCount === 1
+  ) {
+    return {
+      tool: {
+        name: "propose_skill",
+        arguments: JSON.stringify({
+          name: "e2e-project-proposal",
+          description: "Preserve the project-side HTTP E2E workflow.",
+          instructions: "Run the project-side HTTP E2E workflow and report its result.",
+          scope: "project",
+        }),
+      },
+    };
+  }
+  if (
+    transcript.includes("E2E_SKILL_PROPOSAL_USER") &&
+    availableTools.has("propose_skill") &&
+    toolResultCount === 1
+  ) {
+    return {
+      tool: {
+        name: "propose_skill",
+        arguments: JSON.stringify({
+          name: "e2e-user-proposal",
+          description: "Preserve the user-side HTTP E2E workflow.",
+          instructions: "Run the user-side HTTP E2E workflow and report its result.",
+          scope: "user",
+        }),
+      },
+    };
+  }
   return { text: "HTTP runtime lifecycle complete." };
+}
+
+function fakeEmbedding(text: string): number[] {
+  const normalized = text.toLowerCase();
+  if (normalized.includes("semantic target marker")) return [1, 0, 0];
+  if (normalized.includes("unrelated helper")) return [0, 1, 0];
+  return [0, 0, 1];
 }
 
 function writeChatCompletion(
@@ -338,6 +394,7 @@ describe("Go Runtime ↔ HTTP ↔ TypeScript SDK", () => {
   let runtimeHome = "";
   let runtimeData = "";
   let baseUrl = "";
+  let mcpFixturePath = "";
   let providerBaseUrl = "";
   let runtime: ReturnType<typeof import("node:child_process").spawn> | undefined;
   let provider: ReturnType<typeof createHttpServer> | undefined;
@@ -351,6 +408,41 @@ describe("Go Runtime ↔ HTTP ↔ TypeScript SDK", () => {
     runtimeHome = join(environmentRoot, "home");
     runtimeData = join(environmentRoot, "runtime-data");
     await Promise.all([mkdir(root, { recursive: true }), mkdir(runtimeHome, { recursive: true })]);
+    mcpFixturePath = join(environmentRoot, "mcp-fixture.mjs");
+    await writeFile(
+      mcpFixturePath,
+      `import { createInterface } from "node:readline";
+
+const lines = createInterface({ input: process.stdin, crlfDelay: Infinity });
+const reply = (id, result) => {
+  process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id, result }) + "\\n");
+};
+
+for await (const line of lines) {
+  const message = JSON.parse(line);
+  if (message.id === undefined) continue;
+  if (message.method === "initialize") {
+    reply(message.id, {
+      protocolVersion: message.params?.protocolVersion ?? "2025-11-25",
+      capabilities: { tools: {} },
+      serverInfo: { name: "runtime-http-e2e-mcp", version: "1.0.0" },
+    });
+    continue;
+  }
+  if (message.method === "tools/list") {
+    reply(message.id, {
+      tools: [{
+        name: "ping",
+        description: "Returns pong for Runtime HTTP E2E.",
+        inputSchema: { type: "object", properties: {}, additionalProperties: false },
+      }],
+    });
+    continue;
+  }
+  reply(message.id, { });
+}
+`,
+    );
     const managedSkillDirectory = join(runtimeData, "skills", managedSkillName);
     await mkdir(managedSkillDirectory, { recursive: true });
     await writeFile(
@@ -364,6 +456,24 @@ describe("Go Runtime ↔ HTTP ↔ TypeScript SDK", () => {
           response.writeHead(200, { "Content-Type": "application/json" });
           response.end(
             JSON.stringify({ object: "list", data: [{ id: "e2e-model", object: "model" }] }),
+          );
+          return;
+        }
+        if (request.method === "POST" && request.url?.endsWith("/embeddings")) {
+          const body = await requestJson(request);
+          const inputs = Array.isArray(body.input) ? body.input : [body.input ?? ""];
+          response.writeHead(200, { "Content-Type": "application/json" });
+          response.end(
+            JSON.stringify({
+              object: "list",
+              model: body.model ?? "e2e-embedding",
+              data: inputs.map((input, index) => ({
+                object: "embedding",
+                index,
+                embedding: fakeEmbedding(input),
+              })),
+              usage: { prompt_tokens: inputs.length, total_tokens: inputs.length },
+            }),
           );
           return;
         }
@@ -1403,6 +1513,97 @@ describe("Go Runtime ↔ HTTP ↔ TypeScript SDK", () => {
     await runtimeEvents.return?.();
   }, 30_000);
 
+  it("probes, connects, lists and reconnects a real stdio MCP server", async () => {
+    if (!client) throw new Error("runtime client was not initialized");
+
+    const server = "http-e2e-stdio";
+    const candidate = {
+      connection: { type: "stdio" as const, command: process.execPath, args: [mcpFixturePath] },
+      description: "Live MCP E2E fixture",
+      enabled: true,
+      name: server,
+    };
+
+    await expect(client.mcp.test(candidate)).resolves.toEqual({ ok: true });
+
+    const connectController = new AbortController();
+    const connectSubscription = await client.runtimeEvents.subscribe(
+      { topics: ["mcp.changed"] },
+      connectController.signal,
+    );
+    const connectEvents = connectSubscription.events[Symbol.asyncIterator]();
+    await expect(client.mcp.create(candidate)).resolves.toMatchObject({ name: server });
+    for (let phase = 0; phase < 2; phase++) {
+      await expect(nextRuntimeEvent(connectEvents, "mcp.changed")).resolves.toMatchObject({
+        type: "mcp.changed",
+        serverIds: [server],
+      });
+    }
+
+    let connected = (await client.mcp.list()).data.find((entry) => entry.name === server);
+    for (let attempt = 0; attempt < 100 && connected?.status.type !== "connected"; attempt++) {
+      await new Promise((resolve) => setTimeout(resolve, 25));
+      connected = (await client.mcp.list()).data.find((entry) => entry.name === server);
+    }
+    expect(connected).toMatchObject({
+      name: server,
+      status: { type: "connected", toolCount: 1 },
+    });
+    const allTools = await client.mcp.listTools();
+    expect(allTools).toMatchObject({
+      data: [
+        {
+          server,
+          name: "ping",
+          description: "Returns pong for Runtime HTTP E2E.",
+          inputSchema: { type: "object", properties: {}, additionalProperties: false },
+        },
+      ],
+    });
+    await expect(client.mcp.listTools(server)).resolves.toMatchObject({
+      data: [expect.objectContaining({ server, name: "ping" })],
+    });
+
+    await expect(client.mcp.authorizationAttempts.create(server)).rejects.toSatisfy(
+      (error: unknown) => error instanceof RpcError && errorType(error.data) === "invalid_params",
+    );
+    await expect(client.mcp.authorizationAttempts.get("mcpauth_missing")).rejects.toSatisfy(
+      (error: unknown) =>
+        error instanceof RpcError &&
+        errorType(error.data) === "mcp_authorization_attempt_not_found",
+    );
+
+    connectController.abort();
+    await connectEvents.return?.();
+
+    const reconnectController = new AbortController();
+    const reconnectSubscription = await client.runtimeEvents.subscribe(
+      { topics: ["mcp.changed"] },
+      reconnectController.signal,
+    );
+    const reconnectEvents = reconnectSubscription.events[Symbol.asyncIterator]();
+    await client.mcp.reconnect(server);
+    for (let phase = 0; phase < 2; phase++) {
+      await expect(nextRuntimeEvent(reconnectEvents, "mcp.changed")).resolves.toMatchObject({
+        type: "mcp.changed",
+        serverIds: [server],
+      });
+    }
+    await expect(client.mcp.listTools(server)).resolves.toMatchObject({
+      data: [expect.objectContaining({ server, name: "ping" })],
+    });
+
+    await client.mcp.delete(server);
+    await expect(nextRuntimeEvent(reconnectEvents, "mcp.changed")).resolves.toMatchObject({
+      type: "mcp.changed",
+      serverIds: [server],
+    });
+    await expect(client.mcp.listTools(server)).resolves.toMatchObject({ data: [] });
+
+    reconnectController.abort();
+    await reconnectEvents.return?.();
+  }, 30_000);
+
   it("reconciles skill archive and restore through skills.changed", async () => {
     if (!client) throw new Error("runtime client was not initialized");
 
@@ -1443,6 +1644,182 @@ describe("Go Runtime ↔ HTTP ↔ TypeScript SDK", () => {
 
     streamController.abort();
     await runtimeEvents.return?.();
+  }, 30_000);
+
+  it("reviews project and user skill proposals produced by a real run tool", async () => {
+    if (!client) throw new Error("runtime client was not initialized");
+
+    const workspaceRoot = join(root, "workspace-skill-proposals");
+    await mkdir(workspaceRoot);
+    const workspace = client.workspace({ path: workspaceRoot });
+    const streamController = new AbortController();
+    const subscription = await client.runtimeEvents.subscribe(
+      { topics: ["skills.changed"] },
+      streamController.signal,
+    );
+    const runtimeEvents = subscription.events[Symbol.asyncIterator]();
+
+    const projectSession = await client.sessions.create({
+      workspace: { path: workspaceRoot },
+      title: "HTTP project Skill proposal",
+    });
+    const projectRun = await client.runs.start({
+      sessionId: asSessionId(projectSession.id),
+      input: [{ type: "text", text: "E2E_SKILL_PROPOSAL_PROJECT save this workflow." }],
+    });
+    const projectEvents = await collectRunEvents(projectRun.events);
+    expect(projectEvents).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          event: expect.objectContaining({
+            type: "item.completed",
+            item: expect.objectContaining({
+              type: "toolCall",
+              tool: expect.objectContaining({ name: "propose_skill" }),
+            }),
+          }),
+        }),
+      ]),
+    );
+    await expect(nextRuntimeEvent(runtimeEvents, "skills.changed")).resolves.toMatchObject({
+      type: "skills.changed",
+    });
+
+    const projectProposals = await workspace.skills.listProposals();
+    expect(projectProposals.data).toEqual([
+      expect.objectContaining({
+        name: "e2e-project-proposal",
+        scope: "project",
+        origin: "requested",
+        sourceSession: projectSession.id,
+        description: "Preserve the project-side HTTP E2E workflow.",
+        instructions: "Run the project-side HTTP E2E workflow and report its result.",
+        revision: expect.stringMatching(/^[a-f0-9]+$/),
+      }),
+    ]);
+    const projectProposal = projectProposals.data[0];
+    if (!projectProposal) throw new Error("project proposal disappeared before review");
+    const projectRef = {
+      name: projectProposal.name,
+      revision: projectProposal.revision,
+      scope: projectProposal.scope,
+    };
+    await workspace.skills.approveProposal(projectRef);
+    await expect(nextRuntimeEvent(runtimeEvents, "skills.changed")).resolves.toMatchObject({
+      type: "skills.changed",
+    });
+    await expect(workspace.skills.listProposals()).resolves.toMatchObject({ data: [] });
+    await expect(workspace.skills.listDiscovered()).resolves.toMatchObject({
+      data: expect.arrayContaining([
+        expect.objectContaining({ name: projectProposal.name, scope: "project" }),
+      ]),
+    });
+    await expect(
+      readFile(join(workspaceRoot, ".lyra", "skills", projectProposal.name, "SKILL.md"), "utf8"),
+    ).resolves.toContain(projectProposal.instructions);
+    await expect(workspace.skills.approveProposal(projectRef)).rejects.toSatisfy(
+      (error: unknown) => error instanceof RpcError && errorType(error.data) === "invalid_params",
+    );
+
+    const userSession = await client.sessions.create({
+      workspace: { path: workspaceRoot },
+      title: "HTTP user Skill proposal",
+    });
+    const userRun = await client.runs.start({
+      sessionId: asSessionId(userSession.id),
+      input: [{ type: "text", text: "E2E_SKILL_PROPOSAL_USER save this workflow." }],
+    });
+    await collectRunEvents(userRun.events);
+    await expect(nextRuntimeEvent(runtimeEvents, "skills.changed")).resolves.toMatchObject({
+      type: "skills.changed",
+    });
+    const userProposal = (await workspace.skills.listProposals()).data.find(
+      (proposal) => proposal.name === "e2e-user-proposal",
+    );
+    if (!userProposal) throw new Error("user proposal disappeared before review");
+    expect(userProposal).toMatchObject({
+      scope: "user",
+      origin: "requested",
+      sourceSession: userSession.id,
+    });
+    await workspace.skills.rejectProposal({
+      name: userProposal.name,
+      revision: userProposal.revision,
+      scope: userProposal.scope,
+    });
+    await expect(nextRuntimeEvent(runtimeEvents, "skills.changed")).resolves.toMatchObject({
+      type: "skills.changed",
+    });
+    await expect(workspace.skills.listProposals()).resolves.toMatchObject({ data: [] });
+    expect(
+      (await client.skills.listLibrary()).data.some((skill) => skill.name === userProposal.name),
+    ).toBe(false);
+
+    streamController.abort();
+    await runtimeEvents.return?.();
+  }, 30_000);
+
+  it("reindexes and searches the real codebase side API with the selected embedding role", async () => {
+    if (!client) throw new Error("runtime client was not initialized");
+
+    const workspaceRoot = join(root, "workspace-codebase-index");
+    await mkdir(workspaceRoot);
+    await execFileAsync("git", ["init", "--quiet"], { cwd: workspaceRoot });
+    await writeFile(
+      join(workspaceRoot, "target.go"),
+      "package target\n\n// semantic target marker belongs to the indexed symbol.\nfunc Target() {}\n",
+    );
+    await writeFile(
+      join(workspaceRoot, "helper.go"),
+      "package helper\n\n// unrelated helper belongs to another symbol.\nfunc Helper() {}\n",
+    );
+    await client.providers.update({
+      provider: "openai",
+      apiKey: { type: "set", value: "embedding-test-key" },
+      baseUrl: { type: "set", value: providerBaseUrl },
+    });
+    await client.models.setEmbeddingRole({ provider: "openai", model: "e2e-embedding" });
+
+    try {
+      const codebase = client.workspace({ path: workspaceRoot }).codebase;
+      await expect(codebase.status()).resolves.toEqual({
+        state: "none",
+        fileCount: 0,
+        chunkCount: 0,
+      });
+      await expect(codebase.reindex()).resolves.toEqual({
+        operationId: expect.stringMatching(/^op_/),
+      });
+
+      let status = await codebase.status();
+      for (let attempt = 0; attempt < 100 && status.state !== "ready"; attempt++) {
+        await new Promise((resolve) => setTimeout(resolve, 25));
+        status = await codebase.status();
+      }
+      expect(status).toMatchObject({
+        state: "ready",
+        modelId: "openai:e2e-embedding",
+        fileCount: 2,
+        chunkCount: 2,
+        indexedAt: expect.any(String),
+      });
+
+      const search = await codebase.search({ query: "semantic target marker", limit: 1 });
+      expect(search.hits).toEqual([
+        expect.objectContaining({
+          path: "target.go",
+          startLine: 1,
+          endLine: 5,
+          snippet: expect.stringContaining("semantic target marker"),
+          score: 1,
+        }),
+      ]);
+      await expect(codebase.search({ query: "", limit: 1 })).rejects.toSatisfy(
+        (error: unknown) => error instanceof RpcError && errorType(error.data) === "invalid_params",
+      );
+    } finally {
+      await client.models.setEmbeddingRole({});
+    }
   }, 30_000);
 
   it("reconciles an agent file write through files.changed", async () => {

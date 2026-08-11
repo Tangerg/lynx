@@ -127,43 +127,87 @@ func (c ServerConfig) hasStaticAuthorization() bool {
 	return false
 }
 
-func dial(ctx context.Context, client *sdkmcp.Client, cfg ServerConfig) (*sdkmcp.ClientSession, error) {
+func dial(
+	ctx context.Context,
+	client *sdkmcp.Client,
+	cfg ServerConfig,
+) (*sdkmcp.ClientSession, context.CancelFunc, error) {
 	if err := cfg.Validate(); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if client == nil {
-		return nil, errors.New("mcp: client must not be nil")
+		return nil, nil, errors.New("mcp: client must not be nil")
 	}
-	if cfg.Timeout > 0 {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, cfg.Timeout)
-		defer cancel()
+	connect := func(sessionCtx context.Context) (*sdkmcp.ClientSession, error) {
+		switch cfg.Transport {
+		case TransportHTTP:
+			httpClient, err := endpointHTTPClient(cfg.Endpoint, cfg.Authorization, cfg.Headers)
+			if err != nil {
+				return nil, fmt.Errorf("mcp server %q: build HTTP client: %w", cfg.Name, err)
+			}
+			transport := &sdkmcp.StreamableClientTransport{
+				Endpoint:     cfg.Endpoint,
+				HTTPClient:   httpClient,
+				OAuthHandler: cfg.OAuthHandler,
+			}
+			session, err := client.Connect(sessionCtx, transport, nil)
+			return session, classifyHTTPDialError(httpClient, err)
+		case TransportStdio:
+			cmd := exec.CommandContext(sessionCtx, cfg.Command, cfg.Args...)
+			if cfg.Env != nil {
+				cmd.Env = cfg.Env
+			}
+			if cfg.Dir != "" {
+				cmd.Dir = cfg.Dir
+			}
+			return client.Connect(sessionCtx, &sdkmcp.CommandTransport{Command: cmd}, nil)
+		default:
+			return nil, fmt.Errorf("mcp: unknown transport %d", cfg.Transport)
+		}
 	}
-	switch cfg.Transport {
-	case TransportHTTP:
-		httpClient, err := endpointHTTPClient(cfg.Endpoint, cfg.Authorization, cfg.Headers)
-		if err != nil {
-			return nil, fmt.Errorf("mcp server %q: build HTTP client: %w", cfg.Name, err)
-		}
-		transport := &sdkmcp.StreamableClientTransport{
-			Endpoint:     cfg.Endpoint,
-			HTTPClient:   httpClient,
-			OAuthHandler: cfg.OAuthHandler,
-		}
-		session, err := client.Connect(ctx, transport, nil)
-		return session, classifyHTTPDialError(httpClient, err)
-	case TransportStdio:
-		cmd := exec.CommandContext(ctx, cfg.Command, cfg.Args...)
-		if cfg.Env != nil {
-			cmd.Env = cfg.Env
-		}
-		if cfg.Dir != "" {
-			cmd.Dir = cfg.Dir
-		}
-		return client.Connect(ctx, &sdkmcp.CommandTransport{Command: cmd}, nil)
-	default:
-		return nil, fmt.Errorf("mcp: unknown transport %d", cfg.Transport)
+	return connectSession(ctx, cfg.Timeout, connect)
+}
+
+// connectSession gives an MCP session a lifecycle distinct from the operation
+// that establishes it. Parent cancellation and the configured timeout still
+// abort the handshake, but after Connect succeeds the session remains alive
+// until its owner explicitly cancels it during detach, replacement, or
+// shutdown. Binding the session directly to a short-lived command context
+// makes a successful dynamic Configure look connected while its transport is
+// already being torn down.
+func connectSession(
+	parent context.Context,
+	timeout time.Duration,
+	connect func(context.Context) (*sdkmcp.ClientSession, error),
+) (*sdkmcp.ClientSession, context.CancelFunc, error) {
+	if parent == nil {
+		parent = context.Background()
 	}
+	lifetimeCtx, cancelLifetime := context.WithCancel(context.WithoutCancel(parent))
+	handshakeCtx := parent
+	cancelHandshake := func() {}
+	if timeout > 0 {
+		handshakeCtx, cancelHandshake = context.WithTimeout(parent, timeout)
+	}
+	stopHandshake := context.AfterFunc(handshakeCtx, cancelLifetime)
+
+	session, err := connect(lifetimeCtx)
+	if err != nil {
+		stopHandshake()
+		cancelHandshake()
+		cancelLifetime()
+		return nil, nil, err
+	}
+	if handshakeErr := handshakeCtx.Err(); handshakeErr != nil || !stopHandshake() {
+		if handshakeErr == nil {
+			handshakeErr = context.Canceled
+		}
+		cancelHandshake()
+		cancelLifetime()
+		return nil, nil, errors.Join(handshakeErr, session.Close())
+	}
+	cancelHandshake()
+	return session, cancelLifetime, nil
 }
 
 const maxRedirects = 10
