@@ -13,6 +13,8 @@ const (
 	commandCategorySessions    = "Sessions"
 	commandCategoryComposer    = "Composer"
 	commandCategoryRuntime     = "Runtime"
+	commandCategoryContext     = "Context"
+	commandCategoryConnections = "Connections"
 	commandCategoryWorkspace   = "Workspace"
 	commandCategoryExtensions  = "Extensions"
 )
@@ -73,6 +75,25 @@ func builtinCommands() []localCommand {
 			localCommand{Descriptor: CommandDescriptor{Name: "goal-stop", Title: "pause autonomous pursuit for this session"}, Available: availableWithGoals, Run: func(a *app, _ string) error { return a.StopGoal() }},
 			localCommand{Descriptor: CommandDescriptor{Name: "goal-resume", Title: "resume autonomous pursuit for this session"}, Available: availableWithGoals, Run: func(a *app, _ string) error { return a.ResumeGoal() }},
 		),
+		commandGroup(commandCategoryContext,
+			localCommand{Descriptor: CommandDescriptor{Name: "skills", Title: "inspect skills discoverable in this workspace"}, Available: availableWithSkills, Run: func(a *app, _ string) error { a.ShowDiscoveredSkills(); return nil }},
+			localCommand{Descriptor: CommandDescriptor{Name: "skill-library", Title: "inspect active and archived managed skills"}, Available: availableWithSkills, Run: func(a *app, _ string) error { a.ShowManagedSkills(); return nil }},
+			localCommand{Descriptor: CommandDescriptor{Name: "skill-proposals", Title: "review pending immutable Skill proposals"}, Available: availableWithSkills, Run: func(a *app, _ string) error { a.ShowSkillProposals(); return nil }},
+			localCommand{Descriptor: CommandDescriptor{Name: "skill-archive", Title: "archive one managed Skill", Takes: true}, Available: availableWithSkills, Run: func(a *app, name string) error { return a.ArchiveSkill(name) }},
+			localCommand{Descriptor: CommandDescriptor{Name: "skill-restore", Title: "restore one archived managed Skill", Takes: true}, Available: availableWithSkills, Run: func(a *app, name string) error { return a.RestoreSkill(name) }},
+			localCommand{Descriptor: CommandDescriptor{Name: "skill-approve", Title: "approve an exact pending Skill proposal", Takes: true}, Available: availableWithSkills, Run: func(a *app, identity string) error { return a.PrepareSkillProposalDecision(identity, true) }},
+			localCommand{Descriptor: CommandDescriptor{Name: "skill-reject", Title: "reject an exact pending Skill proposal", Takes: true}, Available: availableWithSkills, Run: func(a *app, identity string) error { return a.PrepareSkillProposalDecision(identity, false) }},
+		),
+		commandGroup(commandCategoryConnections,
+			localCommand{Descriptor: CommandDescriptor{Name: "mcp", Title: "inspect configured MCP servers and live state"}, Available: availableWithMCP, Run: func(a *app, _ string) error { a.ShowMCPServers(); return nil }},
+			localCommand{Descriptor: CommandDescriptor{Name: "mcp-tools", Title: "inspect MCP tools, optionally for one server", Takes: true}, Available: availableWithMCP, Run: func(a *app, server string) error { a.ShowMCPTools(server); return nil }},
+			localCommand{Descriptor: CommandDescriptor{Name: "mcp-create", Title: "configure a new MCP server"}, Available: availableWithMCP, Run: func(a *app, _ string) error { return a.OpenMCPCreateForm() }},
+			localCommand{Descriptor: CommandDescriptor{Name: "mcp-edit", Title: "update an MCP server", Takes: true}, Available: availableWithMCP, Run: func(a *app, server string) error { return a.EditMCPServer(server) }},
+			localCommand{Descriptor: CommandDescriptor{Name: "mcp-probe", Title: "test an unpersisted MCP candidate"}, Available: availableWithMCP, Run: func(a *app, _ string) error { return a.OpenMCPProbeForm() }},
+			localCommand{Descriptor: CommandDescriptor{Name: "mcp-delete", Title: "delete an MCP server", Takes: true}, Available: availableWithMCP, Run: func(a *app, server string) error { return a.PrepareDeleteMCPServer(server) }},
+			localCommand{Descriptor: CommandDescriptor{Name: "mcp-reconnect", Title: "request an asynchronous MCP reconnect", Takes: true}, Available: availableWithMCP, Run: func(a *app, server string) error { return a.ReconnectMCPServer(server) }},
+			localCommand{Descriptor: CommandDescriptor{Name: "mcp-auth", Title: "start and observe MCP browser authorization", Takes: true}, Available: availableWithMCP, Run: func(a *app, server string) error { return a.AuthorizeMCPServer(server) }},
+		),
 		commandGroup(commandCategoryWorkspace,
 			localCommand{Descriptor: CommandDescriptor{Name: "workspaces", Title: "inspect runtime-known workspaces"}, Available: availableWithWorkspaceService, Run: func(a *app, _ string) error { a.ShowWorkspaces(); return nil }},
 			localCommand{Descriptor: CommandDescriptor{Name: "changes", Title: "inspect authoritative workspace changes"}, Available: availableWithWorkspaceService, Run: func(a *app, _ string) error { a.ShowWorkspaceChanges(); return nil }},
@@ -124,6 +145,20 @@ func availableWithModelConfiguration(a *app) CommandAvailability {
 func availableWithGoals(a *app) CommandAvailability {
 	if a.goals == nil {
 		return CommandAvailability{Reason: "this runtime composition has no goal service"}
+	}
+	return CommandAvailability{Enabled: true}
+}
+
+func availableWithSkills(a *app) CommandAvailability {
+	if a.skills == nil {
+		return CommandAvailability{Reason: "this runtime composition has no skill service"}
+	}
+	return CommandAvailability{Enabled: true}
+}
+
+func availableWithMCP(a *app) CommandAvailability {
+	if a.mcp == nil {
+		return CommandAvailability{Reason: "this runtime composition has no MCP service"}
 	}
 	return CommandAvailability{Enabled: true}
 }

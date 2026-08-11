@@ -9,8 +9,10 @@ import (
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
 	"github.com/Tangerg/lynx/app/cli/internal/changefeed"
 	"github.com/Tangerg/lynx/app/cli/internal/goal"
+	"github.com/Tangerg/lynx/app/cli/internal/mcp"
 	"github.com/Tangerg/lynx/app/cli/internal/modelconfig"
 	"github.com/Tangerg/lynx/app/cli/internal/sessiontransfer"
+	"github.com/Tangerg/lynx/app/cli/internal/skills"
 	"github.com/Tangerg/lynx/app/cli/internal/usage"
 	"github.com/Tangerg/lynx/app/cli/internal/workspace"
 )
@@ -24,6 +26,8 @@ type Services struct {
 	Usage       usage.Service
 	ModelConfig modelconfig.Service
 	Goals       goal.Service
+	Skills      skills.Service
+	MCP         mcp.Service
 }
 
 // AgentOnly builds the intentionally reduced composition used by the scripted

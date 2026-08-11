@@ -22,11 +22,27 @@ type runtimeReaderMode uint8
 const (
 	runtimeReaderNone runtimeReaderMode = iota
 	runtimeReaderGoal
+	runtimeReaderDiscoveredSkills
+	runtimeReaderManagedSkills
+	runtimeReaderSkillProposals
+	runtimeReaderMCPServers
+	runtimeReaderMCPTools
+	runtimeReaderMCPAuthorization
 )
 
 type usageReport struct {
 	session usage.SessionReport
 	summary usage.Summary
+}
+
+func (a *app) setRuntimeReader(mode runtimeReaderMode) {
+	a.runtimeReader = mode
+	if mode != runtimeReaderMCPTools {
+		a.mcpToolServer = ""
+	}
+	if mode != runtimeReaderMCPAuthorization {
+		a.mcpAuthorizationID = ""
+	}
 }
 
 func (a *app) ShowUsage(argument string) error {
@@ -496,7 +512,7 @@ func (a *app) changeGoal(label string, change func(context.Context) (goal.Goal, 
 			a.message(label + " failed: " + err.Error())
 			return
 		}
-		a.runtimeReader = runtimeReaderGoal
+		a.setRuntimeReader(runtimeReaderGoal)
 		a.workspaceReader = workspaceReaderNone
 		a.openReaderDocument(goalDocument(current, true))
 		a.status.note("goal · " + string(current.Status))
@@ -519,7 +535,7 @@ func (a *app) runRuntimeReaderQuery(
 			a.message(status + " failed: " + err.Error())
 			return
 		}
-		a.runtimeReader = mode
+		a.setRuntimeReader(mode)
 		a.workspaceReader = workspaceReaderNone
 		a.openReaderDocument(document)
 		a.status.note(strings.ToLower(document.Title))

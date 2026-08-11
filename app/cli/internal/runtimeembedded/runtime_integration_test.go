@@ -25,7 +25,7 @@ func TestEmbeddedRuntimeSessionCatalogAndLifecycle(t *testing.T) {
 	requireWorkspaceInspection(t, runtime, workspace)
 	forked := requireSessionMutation(t, runtime, created)
 	requireSessionPortability(t, runtime, forked.ID)
-	requireRuntimeCatalogs(t, runtime, created.ID)
+	requireRuntimeCatalogs(t, runtime, created.ID, created.Workspace)
 	requireSessionDeletion(t, runtime, created.ID, forked.ID)
 	requireClosedRuntime(t, runtime)
 }
@@ -165,7 +165,7 @@ func requireSessionMutation(t *testing.T, runtime *Runtime, created agent.Sessio
 	return forked
 }
 
-func requireRuntimeCatalogs(t *testing.T, runtime *Runtime, sessionID string) {
+func requireRuntimeCatalogs(t *testing.T, runtime *Runtime, sessionID, workspace string) {
 	t.Helper()
 	models, err := runtime.ListModels(t.Context())
 	if err != nil {
@@ -192,6 +192,21 @@ func requireRuntimeCatalogs(t *testing.T, runtime *Runtime, sessionID string) {
 	}
 	if current, exists, err := runtime.GetGoal(t.Context(), sessionID); err != nil || exists {
 		t.Fatalf("GetGoal without a goal = (%+v, %t, %v)", current, exists, err)
+	}
+	if discovered, err := runtime.Discover(t.Context(), workspace); err != nil {
+		t.Fatalf("Discover skills = (%+v, %v)", discovered, err)
+	}
+	if managed, err := runtime.Managed(t.Context()); err != nil {
+		t.Fatalf("Managed skills = (%+v, %v)", managed, err)
+	}
+	if proposals, err := runtime.Proposals(t.Context(), workspace); err != nil {
+		t.Fatalf("Skill proposals = (%+v, %v)", proposals, err)
+	}
+	if servers, err := runtime.Servers(t.Context()); err != nil {
+		t.Fatalf("MCP servers = (%+v, %v)", servers, err)
+	}
+	if tools, err := runtime.Tools(t.Context(), ""); err != nil {
+		t.Fatalf("MCP tools = (%+v, %v)", tools, err)
 	}
 	if rules, err := runtime.ListApprovalRules(t.Context(), sessionID); err != nil || len(rules) != 0 {
 		t.Fatalf("ListApprovalRules = (%+v, %v)", rules, err)
@@ -251,6 +266,9 @@ func TestOwnerOpensOnceAndRefusesReopenAfterClose(t *testing.T) {
 	}
 	if first != second {
 		t.Fatal("owner opened more than one runtime")
+	}
+	if first.Goals == nil || first.Skills == nil || first.MCP == nil {
+		t.Fatalf("advertised optional services were not composed: %+v", first)
 	}
 	if err := owner.Close(); err != nil {
 		t.Fatalf("Close: %v", err)

@@ -17,11 +17,13 @@ import (
 	"github.com/Tangerg/lynx/app/cli/internal/changefeed"
 	"github.com/Tangerg/lynx/app/cli/internal/extensions"
 	"github.com/Tangerg/lynx/app/cli/internal/goal"
+	"github.com/Tangerg/lynx/app/cli/internal/mcp"
 	"github.com/Tangerg/lynx/app/cli/internal/modelconfig"
 	"github.com/Tangerg/lynx/app/cli/internal/promptqueue"
 	"github.com/Tangerg/lynx/app/cli/internal/session"
 	"github.com/Tangerg/lynx/app/cli/internal/sessiontransfer"
 	"github.com/Tangerg/lynx/app/cli/internal/settings"
+	"github.com/Tangerg/lynx/app/cli/internal/skills"
 	"github.com/Tangerg/lynx/app/cli/internal/usage"
 	"github.com/Tangerg/lynx/app/cli/internal/workbench"
 	"github.com/Tangerg/lynx/app/cli/internal/workspace"
@@ -36,6 +38,8 @@ type Config struct {
 	Usage          usage.Service
 	ModelConfig    modelconfig.Service
 	Goals          goal.Service
+	Skills         skills.Service
+	MCP            mcp.Service
 	SessionID      string
 	Workspace      string
 	InitialPrompt  string
@@ -83,7 +87,8 @@ func Run(ctx context.Context, cfg Config) (runErr error) {
 			active = newApp(loop, appConfig{
 				context: ctx, runtime: cfg.Runtime, snapshot: prepared.opened,
 				workspaces: cfg.Workspaces, changes: cfg.Changes,
-				transfers: cfg.Transfers, usage: cfg.Usage, modelConfig: cfg.ModelConfig, goals: cfg.Goals,
+				transfers: cfg.Transfers, usage: cfg.Usage, modelConfig: cfg.ModelConfig,
+				goals: cfg.Goals, skills: cfg.Skills, mcp: cfg.MCP,
 				registry: registry, pluginHost: extensionHost, pluginIssues: discovered.Issues,
 				attachments: prepared.attachments,
 				settings:    prepared.settings, keyBindings: prepared.keyBindings, queue: queue,

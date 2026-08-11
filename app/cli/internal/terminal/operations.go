@@ -25,6 +25,9 @@ const (
 	usageQueryOperation          operationSlot = "usage-query"
 	modelConfigOperation         operationSlot = "model-config"
 	goalOperation                operationSlot = "goal"
+	skillOperation               operationSlot = "skill"
+	mcpOperation                 operationSlot = "mcp"
+	mcpAuthorizationOperation    operationSlot = "mcp-authorization"
 )
 
 type operationLease struct {

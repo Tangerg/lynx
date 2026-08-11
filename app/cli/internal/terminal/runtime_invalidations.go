@@ -11,6 +11,8 @@ import (
 
 func (a *app) applyRuntimeInvalidation(event changefeed.Event) {
 	a.refreshGoalReader(goalInvalidationAffectsSession(event, a.session.ID))
+	a.refreshSkillReader(changefeed.Topic(event.Type) == changefeed.SkillsChanged)
+	a.refreshMCPReader(changefeed.Topic(event.Type) == changefeed.MCPChanged)
 	a.applySessionInvalidation(
 		invalidatesSessionCatalog(event),
 		invalidationAffectsSession(event, a.session.ID, a.conversation.RunID()),
@@ -19,10 +21,38 @@ func (a *app) applyRuntimeInvalidation(event changefeed.Event) {
 
 func (a *app) applyRuntimeResync(topics []changefeed.Topic) {
 	a.refreshGoalReader(containsTopic(topics, changefeed.GoalsChanged))
+	a.refreshSkillReader(containsTopic(topics, changefeed.SkillsChanged))
+	a.refreshMCPReader(containsTopic(topics, changefeed.MCPChanged))
 	a.applySessionInvalidation(
 		containsTopic(topics, changefeed.SessionsChanged),
 		resyncAffectsSession(topics),
 	)
+}
+
+func (a *app) refreshMCPReader(affected bool) {
+	if !affected || a.mcp == nil || !a.readerDialog.Open() {
+		return
+	}
+	switch a.runtimeReader {
+	case runtimeReaderMCPServers:
+		a.ShowMCPServers()
+	case runtimeReaderMCPTools:
+		a.ShowMCPTools(a.mcpToolServer)
+	}
+}
+
+func (a *app) refreshSkillReader(affected bool) {
+	if !affected || a.skills == nil || !a.readerDialog.Open() {
+		return
+	}
+	switch a.runtimeReader {
+	case runtimeReaderDiscoveredSkills:
+		a.ShowDiscoveredSkills()
+	case runtimeReaderManagedSkills:
+		a.ShowManagedSkills()
+	case runtimeReaderSkillProposals:
+		a.ShowSkillProposals()
+	}
 }
 
 func (a *app) refreshGoalReader(affected bool) {

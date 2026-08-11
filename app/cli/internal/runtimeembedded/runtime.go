@@ -45,9 +45,12 @@ type Runtime struct {
 	usage            usageBinding
 	modelConfig      modelConfigBinding
 	goals            goalBinding
+	skills           skillBinding
+	mcp              mcpBinding
 	meta             protocol.RequestMeta
 	readFile         func(string) ([]byte, error)
 	supportedTopics  map[changefeed.Topic]struct{}
+	enabledFeatures  map[string]struct{}
 	maxChangeTopics  int
 	maxChangeWatches int
 }
@@ -78,9 +81,12 @@ func Open(ctx context.Context, cfg Config) (*Runtime, error) {
 		usage:           binding,
 		modelConfig:     binding,
 		goals:           binding,
+		skills:          binding,
+		mcp:             binding,
 		meta:            requestMeta(cfg.ClientVersion),
 		readFile:        readFile,
 		supportedTopics: make(map[changefeed.Topic]struct{}),
+		enabledFeatures: make(map[string]struct{}),
 	}
 	discovery, err := binding.Discover(ctx, runtime.callOptions())
 	if err == nil {
@@ -91,6 +97,11 @@ func Open(ctx context.Context, cfg Config) (*Runtime, error) {
 	}
 	for _, topic := range discovery.Capabilities.RuntimeTopics {
 		runtime.supportedTopics[changefeed.Topic(topic)] = struct{}{}
+	}
+	for name, capability := range discovery.Capabilities.Features {
+		if capability.Enabled {
+			runtime.enabledFeatures[name] = struct{}{}
+		}
 	}
 	runtime.maxChangeTopics = discovery.Capabilities.Limits.RuntimeSubscription.MaxTopics
 	runtime.maxChangeWatches = discovery.Capabilities.Limits.RuntimeSubscription.MaxWatches
@@ -267,10 +278,25 @@ func (o *Owner) Runtime(ctx context.Context) (backend.Services, error) {
 }
 
 func (r *Runtime) services() backend.Services {
-	return backend.Services{
+	services := backend.Services{
 		Agent: r, Workspaces: r, Changes: r, Transfers: r,
-		Usage: r, ModelConfig: r, Goals: r,
+		Usage: r, ModelConfig: r,
 	}
+	if r.supportsFeature(protocol.FeatureGoals) {
+		services.Goals = r
+	}
+	if r.supportsFeature(protocol.FeatureSkills) {
+		services.Skills = r
+	}
+	if r.supportsFeature(protocol.FeatureMCP) {
+		services.MCP = r
+	}
+	return services
+}
+
+func (r *Runtime) supportsFeature(name string) bool {
+	_, supported := r.enabledFeatures[name]
+	return supported
 }
 
 func (o *Owner) Close() error {

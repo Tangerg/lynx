@@ -20,11 +20,13 @@ import (
 	"github.com/Tangerg/lynx/app/cli/internal/changefeed"
 	"github.com/Tangerg/lynx/app/cli/internal/extensions"
 	"github.com/Tangerg/lynx/app/cli/internal/goal"
+	"github.com/Tangerg/lynx/app/cli/internal/mcp"
 	"github.com/Tangerg/lynx/app/cli/internal/modelconfig"
 	"github.com/Tangerg/lynx/app/cli/internal/promptqueue"
 	"github.com/Tangerg/lynx/app/cli/internal/sessionartifact"
 	"github.com/Tangerg/lynx/app/cli/internal/sessiontransfer"
 	"github.com/Tangerg/lynx/app/cli/internal/settings"
+	"github.com/Tangerg/lynx/app/cli/internal/skills"
 	"github.com/Tangerg/lynx/app/cli/internal/usage"
 	"github.com/Tangerg/lynx/app/cli/internal/workbench"
 	"github.com/Tangerg/lynx/app/cli/internal/workspace"
@@ -66,6 +68,8 @@ type app struct {
 	usage        usage.Service
 	modelConfig  modelconfig.Service
 	goals        goal.Service
+	skills       skills.Service
+	mcp          mcp.Service
 	artifacts    sessionartifact.Store
 	session      agent.Session
 	registry     *extensions.Registry
@@ -102,7 +106,7 @@ type app struct {
 	sessionDialog       *kit.Dialog
 	sessionRenameDialog *kit.Dialog
 	sessionDeleteDialog *kit.Dialog
-	sessionActionDialog *kit.Dialog
+	confirmationDialog  *kit.Dialog
 	workspacePicker     *picker[workspaceChoice]
 	workspaceDialog     *kit.Dialog
 	timeline            *timelinePane
@@ -112,6 +116,7 @@ type app struct {
 	approvalModePicker  *picker[agent.ApprovalMode]
 	approvalModeDialog  *kit.Dialog
 	providerDialog      *kit.Dialog
+	mcpDialog           *kit.Dialog
 	questionnaire       *questionnaire
 	questionDialog      *kit.Dialog
 	interactionReview   *interactionReview
@@ -127,6 +132,8 @@ type app struct {
 	readerSearchQuery   string
 	workspaceReader     workspaceReaderMode
 	runtimeReader       runtimeReaderMode
+	mcpToolServer       string
+	mcpAuthorizationID  string
 	queueDialog         *headless.Dialog
 	searchQuery         string
 	attachments         *attachment.Resolver
@@ -163,6 +170,8 @@ type appConfig struct {
 	usage        usage.Service
 	modelConfig  modelconfig.Service
 	goals        goal.Service
+	skills       skills.Service
+	mcp          mcp.Service
 	snapshot     agent.SessionSnapshot
 	registry     *extensions.Registry
 	pluginHost   *extensions.Host
@@ -198,7 +207,8 @@ func newApp(loop *program.Runtime, cfg appConfig) *app {
 	appearance := newTerminalAppearance(loop)
 	a := &app{
 		ctx: cfg.context, loop: loop, runtime: cfg.runtime, workspaces: cfg.workspaces,
-		changes: cfg.changes, transfers: cfg.transfers, usage: cfg.usage, modelConfig: cfg.modelConfig, goals: cfg.goals,
+		changes: cfg.changes, transfers: cfg.transfers, usage: cfg.usage, modelConfig: cfg.modelConfig,
+		goals: cfg.goals, skills: cfg.skills, mcp: cfg.mcp,
 		session: cfg.snapshot.Session, registry: cfg.registry,
 		pluginHost: cfg.pluginHost, pluginIssues: cfg.pluginIssues,
 		conversation:       agent.NewConversation(),

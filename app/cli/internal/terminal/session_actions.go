@@ -37,7 +37,7 @@ func (a *app) prepareSessionImport(path string) error {
 				a.message("import session failed: " + err.Error())
 				return
 			}
-			a.confirmSessionAction(
+			a.confirmAction(
 				"Import session",
 				"Import "+prepared.path+"? An existing session with the artifact ID will be replaced.",
 				"Import and replace",
@@ -89,7 +89,7 @@ func (a *app) prepareSessionRollback(argument string) error {
 				a.message("preview rollback failed: " + err.Error())
 				return
 			}
-			a.confirmSessionAction(
+			a.confirmAction(
 				"Rollback session",
 				preview.Description()+" This cannot be undone.",
 				"Rollback permanently",
@@ -222,9 +222,9 @@ func parseRollbackArgument(sessionID, argument string) (agent.RollbackSession, e
 	return request, nil
 }
 
-func (a *app) confirmSessionAction(title, question, action string, confirm func()) {
-	if a.sessionActionDialog != nil {
-		a.sessionActionDialog.Dismiss()
+func (a *app) confirmAction(title, question, action string, confirm func()) {
+	if a.confirmationDialog != nil {
+		a.confirmationDialog.Dismiss()
 	}
 	decision := "cancel"
 	choice := &headless.Select[string]{Label: question, Value: headless.Bind(&decision), Rows: 2}
@@ -234,20 +234,26 @@ func (a *app) confirmSessionAction(title, question, action string, confirm func(
 	})
 	form := headless.NewForm(choice)
 	form.Keys = headless.DefaultFormKeys()
+	dismiss := func() {
+		if a.confirmationDialog != nil {
+			a.confirmationDialog.Dismiss()
+			a.confirmationDialog = nil
+		}
+	}
 	form.Done = func() {
-		a.sessionActionDialog.Dismiss()
+		dismiss()
 		if decision == "confirm" {
 			confirm()
 		}
 	}
-	form.GaveUp = func() { a.sessionActionDialog.Dismiss() }
+	form.GaveUp = dismiss
 	body := kit.NewForm(kit.FormConfig{
 		Theme: a.transcript.theme, Glyphs: a.transcript.glyphs, Controller: form,
 		Hints: []keymap.Action{headless.Submit, headless.Cancel},
 	})
-	a.sessionActionDialog = kit.NewDialog(kit.DialogConfig{
+	a.confirmationDialog = kit.NewDialog(kit.DialogConfig{
 		Stack: &a.stack, Theme: a.transcript.theme, Glyphs: a.transcript.glyphs,
 		Title: title, Body: body, Where: layout.Placement{Width: 78, Height: 9},
 	})
-	a.sessionActionDialog.Show()
+	a.confirmationDialog.Show()
 }
