@@ -104,7 +104,9 @@ func (a *app) openScheduleForm(mode scheduleFormMode, scheduled schedule.Schedul
 		textField("Cron", "0 9 * * 1-5", &draft.cron, validateCronShape),
 		textField("Workspace", "Optional absolute path", &draft.workspace, nil),
 		textField("Provider", "Optional; set together with model", &draft.provider, nil),
-		textField("Model", "Optional; set together with provider", &draft.model, nil),
+		textField("Model", "Optional; set together with provider", &draft.model, func(string) error {
+			return validateScheduleModelPair(draft.provider, draft.model)
+		}),
 	}
 	if mode == scheduleFormUpdate {
 		enabled := &headless.Select[string]{Label: "Lifecycle", Value: headless.Bind(&draft.enabled), Rows: 2}
@@ -113,12 +115,6 @@ func (a *app) openScheduleForm(mode scheduleFormMode, scheduled schedule.Schedul
 	}
 	form := headless.NewForm(fields...)
 	form.Keys = headless.DefaultFormKeys()
-	form.Check = func() error {
-		if (strings.TrimSpace(draft.provider) == "") != (strings.TrimSpace(draft.model) == "") {
-			return errors.New("provider and model must both be set or both be empty")
-		}
-		return nil
-	}
 	dismiss := func() {
 		if a.scheduleDialog != nil {
 			a.scheduleDialog.Dismiss()
@@ -160,7 +156,8 @@ func (a *app) openScheduleForm(mode scheduleFormMode, scheduled schedule.Schedul
 	}
 	a.scheduleDialog = kit.NewDialog(kit.DialogConfig{
 		Stack: &a.stack, Theme: a.transcript.theme, Glyphs: a.transcript.glyphs,
-		Title: title, Body: body, Where: layout.Placement{Width: 88, Height: 20},
+		Title: title, Body: body,
+		Where: layout.Placement{Width: 88, Height: formDialogHeight(body.Measure(84), len(fields), 24)},
 	})
 	a.scheduleDialog.Show()
 }
@@ -169,6 +166,13 @@ func validateCronShape(value string) error {
 	fields := strings.Fields(value)
 	if len(fields) != 5 {
 		return errors.New("cron must contain exactly five fields")
+	}
+	return nil
+}
+
+func validateScheduleModelPair(provider, model string) error {
+	if (strings.TrimSpace(provider) == "") != (strings.TrimSpace(model) == "") {
+		return errors.New("provider and model must both be set or both be empty")
 	}
 	return nil
 }

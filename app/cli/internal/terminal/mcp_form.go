@@ -219,7 +219,7 @@ func (a *app) showMCPFormStep(flow *mcpFormFlow) {
 	a.mcpDialog = kit.NewDialog(kit.DialogConfig{
 		Stack: &a.stack, Theme: a.transcript.theme, Glyphs: a.transcript.glyphs,
 		Title: title, Body: body,
-		Where: layout.Placement{Width: 92, Height: mcpFormDialogHeight(body.Measure(88), len(fields))},
+		Where: layout.Placement{Width: 92, Height: formDialogHeight(body.Measure(88), len(fields), 24)},
 	})
 	a.mcpDialog.Controller().SetDescription(label)
 	a.mcpDialog.Show()
@@ -260,10 +260,6 @@ func (a *app) closeMCPForm(flow *mcpFormFlow) {
 		a.mcpDialog.Dismiss()
 		a.mcpDialog = nil
 	}
-}
-
-func mcpFormDialogHeight(contentRows, fieldCount int) int {
-	return min(24, max(8, layout.Sum(contentRows, fieldCount, 2)))
 }
 
 func (a *app) mcpFormFields(flow *mcpFormFlow) ([]headless.Field, []*headless.Text) {

@@ -325,13 +325,9 @@ func (a *app) showQuestionDialog(review *questionnaire, fields []headless.Field)
 	a.questionDialog = kit.NewDialog(kit.DialogConfig{
 		Stack: &a.stack, Theme: a.transcript.theme, Glyphs: a.transcript.glyphs,
 		Title: review.Title(), Body: dressed,
-		Where: layout.Placement{Width: 88, Height: questionDialogHeight(dressed.Measure(80), len(fields))},
+		Where: layout.Placement{Width: 88, Height: formDialogHeight(dressed.Measure(80), len(fields), 18)},
 	})
 	a.questionDialog.Show()
-}
-
-func questionDialogHeight(contentRows, fieldCount int) int {
-	return min(18, max(8, layout.Sum(contentRows, fieldCount, 2)))
 }
 
 func (a *app) advanceQuestionnaire() {

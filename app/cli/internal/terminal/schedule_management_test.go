@@ -166,14 +166,28 @@ func TestScheduleCreateFormSurvivesExtremeResize(t *testing.T) {
 	host.Type("Daily audit")
 	host.Press(input.Tab)
 	host.Type("audit the repository")
+	host.Press(input.Tab)
+	host.Press(input.Tab)
+	host.Press(input.Tab)
+	host.Type("deepseek")
+	host.Press(input.Enter)
+	host.Shows(t, "provider and model must both be set or both be empty")
+	select {
+	case candidate := <-service.created:
+		t.Fatalf("incomplete model selection reached the service: %+v", candidate)
+	default:
+	}
 	if !host.Resize(1, 1) || !host.Repaint() || !host.Resize(96, 28) {
 		t.Fatal("schedule form did not survive a minimal viewport")
 	}
 	host.Shows(t, "Create scheduled run")
+	host.Press(input.Tab)
+	host.Type("deepseek-v4-flash")
 	host.Press(input.Enter)
 	host.Shows(t, "Daily audit")
 	created := awaitValue(t, service.created, "schedule creation")
-	if created.Instructions != "audit the repository" || created.Cron != "0 9 * * 1-5" || created.Workspace == "" {
+	if created.Instructions != "audit the repository" || created.Cron != "0 9 * * 1-5" || created.Workspace == "" ||
+		created.Provider != "deepseek" || created.Model != "deepseek-v4-flash" {
 		t.Fatalf("created schedule candidate = %+v", created)
 	}
 	stop()
