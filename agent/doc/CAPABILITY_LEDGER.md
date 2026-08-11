@@ -2,7 +2,7 @@
 
 > 状态：持续维护的实施事实
 > 建立日期：2026-08-06
-> 最后更新：2026-08-09
+> 最后更新：2026-08-11
 
 本文只追踪旧能力是否被新 Framework 认领、归谁拥有、如何裁决和在哪一阶段验收。它不定义目标架构、不复制 ADR、不记录逐提交进度。
 
@@ -602,3 +602,48 @@
 
 - Interaction、Planning 与 Workflow 统一实现 Execution 合同，不再增加没有对照物的额外限定词。只有与独立 in-process `flow` 对照时，Framework Workflow 才按生命周期准确称为 managed Workflow。
 - prepared Step 只描述 Framework candidate state 与 fixed Effects，不借用 Host transaction 术语。该收口没有改变公开 API、Event 名称、wire、snapshot 或 Framework/Host 所有权。
+
+## 18. P16 JSON wire schema 对账证据
+
+### 18.1 唯一派生 owner
+
+- `SchemaFor` 继续是 Definition typed edge 的唯一 JSON Schema 派生入口；`ParseSchema`、Descriptor 与 Deployment 不建立第二份规则。
+- `json.RawMessage` 表达已经编码的一整个合法 JSON value，其底层 byte slice 不是 wire array；普通 `[]byte` 则由 `encoding/json` 编成 base64 string，nil 编成 null。两条覆盖都属于通用 Go/JSON 合同，不属于 Interaction、Runtime 或 provider。
+- 其他字段继续由同一生成器严格派生。无效 RawMessage 在 `EncodeInput`/`EncodeOutput` 编码边界失败，普通字段类型错误与 byte-array wire 继续被 Schema 拒绝，没有全局 permissive fallback。
+
+### 18.2 真实消费者反例与边界
+
+- 外部测试使用真实 `interaction.Output`，证明对象 response extension、字符串 reasoning metadata 与非空 signature 可共同通过最终 Output Schema；它只提供消费证据，不让根生产包依赖 Core chat 或 Interaction。
+- Runtime 不删除/重写 provider metadata、不识别 DeepSeek、不跳过输出校验，也不复制 Framework schema。Agent production package DAG 的 Host import 守卫继续阻止 `github.com/Tangerg/lynx/app` 进入任何生产 package。
+- 公开 Go API、Process Snapshot v6、TreeSnapshot v4、Interaction state/protocol v6/v4 与其余 owner wire 均不变；派生 JSON Schema 及由内容决定的 Descriptor/Deployment digest 显式切换到正确值。
+
+### 18.3 最终验收
+
+- Agent standalone build/vet/tidy-diff/staticcheck/lint/test/race、公开/私有合同与 package DAG 门禁全绿；deadcode 只报告 Baseline 已冻结、供外部消费者使用的 `DeltaListenerFunc.OnDelta` adapter。
+- 当前 workspace 源码直接构建的 CLI 已通过真实 DeepSeek one-shot 与 TUI，两条链路均完成且 SQLite 权威事实一致；Runtime 与 CLI 各自的 build/vet/test/tidy/lint/race 六项门禁全绿。
+- 最终 production 扫描仍无 `app/runtime` import、provider 特判、产品词汇或 Host persistence 抽象。P16 只改变 Framework 自有的派生 Schema 合同，Runtime 职责没有进入 Agent。
+
+## 19. P17 外层产品化证据
+
+### 19.1 公共消费者测试工具
+
+- `agenttest.ScriptedDispatcher` 以冻结的有限脚本精确匹配 Effect，按声明顺序发出 Delta，并产生 definite/unknown settlement 或注入外部错误；并发调用只通过一个消费游标决定实际顺序，越界与不匹配显式失败。
+- `ObservationRecorder` 同时消费 Event/Delta，返回防御性 slice，并以 channel 变化通知实现无轮询 `AwaitEvent`；predicate 在锁外运行，不会因回读 recorder 自死锁。`PreparedStepRecorder` 记录每个 durability boundary，并按有限 error script 注入 ack 失败。
+- 外部 `agent_test` consumer 经真实 Definition、Deployment、Engine、Effect settlement、Delta、prepared acknowledgment 与 terminal Event 使用全部三类 fixture。测试包没有第二 Process loop、模型/Tool 假对象或 Host persistence owner。
+
+### 19.2 Workflow topology
+
+- `Definition.Topology` 覆盖 Transform/Call/Switch/Fork/Map/Loop 六种 sealed Stage，并保留 Stage/binding 声明顺序、准确 input/output schema、exact child reference、Budget/Capabilities 和 window/item/iteration limit。
+- Map owner 额外冻结既有 item input schema，供投影准确描述 child 合同；它不改变执行状态或 wire。投影值可 JSON 序列化，consumer 对返回 slice 的修改不会改变 Definition 或后续投影。
+- 现有 workflow command 使用 Topology 输出阶段数，六种 kind 的表驱动 contract 与 slice ownership 测试冻结完整投影；没有恢复已删除的零散 getter、任意图、registry 或第二 runtime。
+
+### 19.3 明确延后
+
+- direct-first 入口已经由真实 Runtime consumer 证明可用，本批不建立 façade/preset。
+- A2A continuation、checkpoint lineage、citation 与编排 recipe 尚无当前产品缺口证据，继续保持未实现；Runtime-owned context provenance 也不进入 Agent Framework。
+
+## 20. P18 行为所有权精修证据
+
+- `DispatchStep` 与 `ScriptedDispatcherConfig` 继续是公开声明数据；构造边界将其冻结为私有 `dispatchStep`，后者独占 expected Effect 匹配、Delta 顺序与 settlement/error 行为。Expected Effect 在构造时编码并脱离 caller 后续修改，Dispatcher 只拥有并发安全的脚本消费游标。
+- 外部测试只使用公开 Definition/Execution/Deployment/Engine 合同，真实经过 prepared Effect、Dispatcher、Settlement、Delta 与 terminal Event；fixture 没有复制 Engine loop、Process 状态或 Host 持久化职责。
+- Workflow 的 `Stage`、`childBinding` 与 `stageKind` 各自投影自己拥有的 sealed state；公开 `Topology`/`StageTopology`/`BindingTopology` 保持 function-free、detached DTO。该精修没有改变公开 API、GoDoc、JSON shape、执行或恢复语义，Baseline 20 保持不变。

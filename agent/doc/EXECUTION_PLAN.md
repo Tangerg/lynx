@@ -2,9 +2,9 @@
 
 > 状态：持续实施
 > 建立日期：2026-08-06
-> 最后更新：2026-08-10
-> 当前阶段：P1–P15 完成
-> 当前实施范围：Framework 重写、消费迁移与 canonical module 替换均已完成；Runtime 最终验收由 `app/runtime` 专项文档拥有
+> 最后更新：2026-08-11
+> 当前阶段：P1–P18 完成
+> 当前实施范围：Framework 重写、消费迁移、canonical module 替换、JSON wire schema 对账与外层产品化均已完成；Runtime 最终验收仍由 `app/runtime` 专项文档拥有
 > 模块路径：`github.com/Tangerg/lynx/agent`
 
 本文只记录实施范围、阶段任务、当前进度、风险、验证结果和执行日志。目标架构见 [`ARCHITECTURE.md`](ARCHITECTURE.md)，长期决策见 [`DECISIONS.md`](DECISIONS.md)，能力裁决与消费者证据见 [`CAPABILITY_LEDGER.md`](CAPABILITY_LEDGER.md)，强制工程标准见 [`ENGINEERING_STANDARDS.md`](ENGINEERING_STANDARDS.md)。
@@ -83,6 +83,9 @@ go test ./...
 | P13 模块内部精修 | 完成 | 3/3 | 继续反证模块内部状态、资源、并发、观察与测试 owner，治本清除新发现的坏味道 |
 | P14 二次反证精修 | 完成 | 3/3 | 从公开 capability 误用、内部签名与命名反例继续证明并收紧模块不变量 |
 | P15 真实消费者反例精修 | 完成 | 2/2 | 以准确提交与 Strategy attribution 消除 command/steer 结果猜测 |
+| P16 JSON wire schema 对账 | 完成 | 2/2 | 让公开 Schema 派生严格匹配 `encoding/json`，不吸收 Runtime/provider 职责 |
+| P17 外层产品化 | 完成 | 2/2 | 提供确定性 consumer fixture 与完整 Workflow 静态投影，不建立第二 runtime |
+| P18 行为所有权精修 | 完成 | 2/2 | 让 fixture step 与 sealed Stage 自己拥有匹配、执行和投影行为，保持公共 DTO 与 wire 纯数据 |
 
 ---
 
@@ -240,6 +243,21 @@ go test ./...
 - [x] P15-01 将 caller cancellation 收敛为准确的队列提交合同，并由 Interaction owner 公开每次模型调用实际应用的 steer Signal 身份；不引入 Host persistence 或产品投影抽象。
 - [x] P15-02 完成 standalone build/vet/staticcheck/lint/test/race/fuzz/examples、公开/私有合同与边界复扫，冻结 Baseline 18。
 
+### P16：JSON wire schema 对账
+
+- [x] P16-01 依据真实 Interaction consumer 反例，在 `SchemaFor` 唯一 owner 修正 `json.RawMessage` 与 `[]byte` 的 `encoding/json` wire 派生；增加通用与真实 Interaction 回归，禁止 Runtime/provider 特判或校验旁路。
+- [x] P16-02 完成 standalone build/vet/staticcheck/lint/test/race、公开/私有合同、package DAG、真实 DeepSeek consumer 与 Runtime/CLI 回归，冻结 Baseline 19。
+
+### P17：外层产品化
+
+- [x] P17-01 建立只依赖根窄腰的公共 `agenttest` fixture，并由外部 Engine consumer 覆盖 Effect、Delta、prepared acknowledgment 与 terminal Event；不模拟 Engine/Process/Strategy。
+- [x] P17-02 为 sealed Workflow 建立完整无函数 Topology 投影，由现有 command 真实消费；完成六种 Stage、projection ownership、JSON、public baseline、package DAG 与模块质量门禁，冻结 Baseline 20。
+
+### P18：行为所有权精修
+
+- [x] P18-01 将 scripted dispatch 的 Effect 匹配、Delta 发射和 settlement 生成收回冻结后的私有 step；用真实外部 Definition/Deployment/Engine consumer 覆盖完整执行，不让公开配置 DTO 承担行为。
+- [x] P18-02 将 Workflow Topology 的 kind/binding/stage 投影收回 sealed owner，并完成 standalone build/vet/test/tidy/lint/race、staticcheck、deadcode、生成物和重复代码门禁；公共 API/GoDoc、wire、schema version 与 Baseline 20 均不变。
+
 ---
 
 ## 6. 最终完成定义
@@ -285,6 +303,10 @@ go test ./...
 
 | 日期 | 阶段 | 实际事实 | 验证与结果 |
 |---|---|---|---|
+| 2026-08-11 | P18（behavior ownership refinement） | `dispatchStep` 自己拥有 Effect 匹配、按序 Delta 与最终 settlement；`Stage`、`childBinding`、`stageKind` 自己投影 sealed Workflow Topology。公开 config/topology 继续是函数无关 DTO，没有引入 service hierarchy、第二 runtime、Host import 或 wire 变化 | Agent standalone build/vet/test/tidy/lint/race 全绿，lint 0 issue；staticcheck 零输出，deadcode 只报告 Baseline 已冻结的外部 `DeltaListenerFunc.OnDelta` adapter；真实 Engine fixture、六种 Topology、生成物与重复代码门禁通过。Baseline 20 保持不变，P18 2/2 完成 |
+| 2026-08-11 | P17（Baseline 20） | `agenttest` 以有限脚本和只读记录器产品化公共测试 seam；Workflow Definition 以完整无函数 Topology 投影 sealed algebra，现有 command 输出阶段诊断。没有 façade、任意图、第二 scheduler、Host import 或 Runtime 产品词汇 | chathistory、Agent fixture/Workflow/example、Runtime provenance 定向测试通过；Agent/Runtime/root 完整 build/vet/test/race/static/hygiene 与最终 digest 见本批验收结果。Baseline 20 冻结，P17 2/2 完成 |
+| 2026-08-11 | P16-02（Baseline 19 final freeze） | 对通用 JSON wire 修正完成 standalone 与真实 consumer 双向反证。Framework production 仍只认识标准库 JSON/reflect 和 Schema：没有 Runtime import、provider 名称、产品状态、持久化端口、metadata sanitizer、第二 schema 或 validation bypass；Host package DAG 守卫保持不变 | Agent standalone build/vet/tidy-diff/staticcheck/lint/test/race 全绿，lint 0 issue；公开/私有合同与 architecture gates 通过，deadcode 仅报告既有冻结的外部 `DeltaListenerFunc.OnDelta` adapter。无 overlay 的当前源码真实构建后，DeepSeek one-shot 与 TUI 均 exit 0；Runtime/CLI build/vet/test/tidy/lint/race 六项全绿，真实 SQLite 两个 Run/模型调用全部 completed，user/reasoning/assistant 各恰好两条且无重复、problem、未完成调用、中断、Tool 或 checkpoint 残留。Baseline 19 冻结，P16 2/2 完成 |
+| 2026-08-11 | P16-01（JSON wire schema ownership） | 真实 Interaction consumer 证明 `SchemaFor` 的通用反射默认值把 `json.RawMessage` 按底层 `[]byte` 限成 null/array，并把普通 `[]byte` 错写成 integer array；合法的 provider object/string metadata 因而在模型成功后被 Framework 输出校验拒绝。根 Schema owner 现只覆盖两个标准库 wire 事实：RawMessage 接受任意合法 JSON，byte slice 接受 null/base64 string；没有 import Runtime、识别 provider、删除 metadata、复制 schema 或绕过验证 | 通用回归覆盖六类 Raw JSON、非空/空 byte slice、array 拒绝与无效 RawMessage；外部 `interaction.Output` 回归覆盖对象 response extension、字符串 reasoning metadata 和非空 signature。定向测试、package DAG/Host boundary、全量 15 package test 与 active-child 200 次压力均通过；最终 race/static/real-provider 门禁在 P16-02 执行 |
 | 2026-08-10 | P15-02b（exact managed-execution vocabulary） | ADR-A2-072 删除旧实现后已经失去对照物的两套近义限定词：Framework 策略统一称 Interaction/Execution，只有与 in-process `flow` 对照时使用准确的 managed Workflow。prepared Step 精确描述为 candidate state + fixed Effects，不再借用 Host transaction 术语；公开 identifier、签名、事件名称、wire 与行为均不变，root GoDoc digest 完成显式审计 | standalone tidy-diff/build/vet/staticcheck、完整 lint（0 issues）、禁缓存 shuffle test/race、13 个 owner fuzz target 与 8 个 command consumer 全绿；deadcode 仅报告 Baseline 18 冻结的外部 `DeltaListenerFunc.OnDelta` adapter。新增自动词汇守卫；package DAG、公共/owner wire baseline、空文件/目录、生产 TODO/FIXME/HACK、Runtime import 与淘汰术语扫描均无残留 |
 | 2026-08-10 | P15-02 | 完成 cancellation submission、Interaction applied-steer attribution、Delegate signal prefix、恢复 wire 与模块边界的最终反向复核。生产代码仍只含 Framework/Strategy 概念；没有 Runtime import、产品状态、持久化接口、兼容 alias、第二 command writer 或 Host payload 解释。根与 Interaction public contract 形成 Baseline 18，Interaction state/protocol 为 v6/v4，其余 owner wire保持原版本 | standalone tidy-diff/build/vet/staticcheck/完整 lint、禁缓存 shuffle 全包 race、根/Interaction/Workflow 各 10 轮 race、13 个 fuzz owner 与 8 个 command examples 全绿。wire/public digest、prior-version、恢复、精确 Signal 顺序和防御性复制测试通过；空文件/目录、生产 TODO/FIXME/HACK、Runtime import 为 0，deadcode 只剩冻结的外部 `DeltaListenerFunc.OnDelta` adapter。P15 2/2 完成 |
 | 2026-08-10 | P15-01 | 真实 consumer 反例证明通用 command response 会让 cancellation caller 把 ctx 超时误当作未提交，且 `DeliverSignal` 返回不能指出哪个模型调用真正吸收了 steer。根 Process 以 submission-only `RequestCancellation` 取代 `Cancel`；Interaction 以消息+SignalID共同状态和 `ModelInvocation.AppliedSteerSignalIDs` 给出 exact model boundary attribution，并修正 Delegate wait 对 Signal[0] 与整批消费的错误假设。没有把 Run、Store、transaction、projection 或应用 callback 提升进 Framework | 阻塞 Effect 下 request 先返回且最终 host-canceled、已取消 context 零提交、模型/Tool 安全边界、pending steer state restore、Signal 顺序/副本隔离、steer-before-opened 与 opened-before-immediate-completion 行为测试全绿；Interaction prior v5/v3 直接拒绝，root/Interaction public digest 与 private wire digest完成审计更新 |
@@ -378,4 +400,4 @@ go test ./...
 
 ## 9. 当前下一步
 
-P1–P15 与真实 consumer 证明的 Framework 合同均已完成。`agent` 当前保持唯一 Kernel lifecycle owner、可替换 Strategy、sealed Workflow algebra 与独立 Platform/OTel adapters；一次性 authority、观察数值、mutable owner identity、提交式 cancellation request 与 Interaction applied-steer attribution 由 Baseline 18 和行为门禁共同冻结。后续只有新的 Framework 能力证据或真实消费者反例才能重开设计，不得以 Runtime 产品、Store、transaction、Run 或消费者术语污染 Framework。
+P18 已完成，Baseline 20 保持不变。Framework Kernel 与执行语义未扩张；`agenttest` 的行为属于冻结后的私有 step，Workflow Topology 的行为属于 sealed Stage owner，公开配置和投影继续保持纯数据。Runtime context provenance 仍由 Runtime owner 处理。后续 façade、A2A continuation、checkpoint lineage、citation 或新编排语义必须由新的真实消费者反例和完整 standalone/consumer 门禁驱动。

@@ -604,3 +604,20 @@
 - 决策：权威文档与 Framework production source 由自动词汇守卫共同约束；外部框架比较材料不是当前合同，不进入该守卫。守卫只拒绝精确词项，不把其他包含相同字母的普通英文单词误判为执行术语。
 - 原因：一个概念只应有一个名称；限定词只有在区分真实可替换对象时才有信息量。Framework 内部状态提交与 Host 持久化事务属于不同 owner，借词会把应用职责反向泄露进 Kernel 语义。
 - 后果：公开 identifier、参数、签名、行为和全部 wire 均不变；根 GoDoc digest 在 Baseline 18 内显式更新。后续若出现新的真实执行实现或生命周期对照，必须先用消费者证据重新定义词汇，而不能先增加近义标签。
+
+## ADR-A2-073：Schema 派生必须服从 JSON wire，而不是 Go 底层表示
+
+- 状态：已接受并实施；Baseline 19 已冻结。
+- 证据：`SchemaFor` 的反射生成器把 `json.RawMessage` 看成底层 byte slice，从而只允许 null/array；又把普通 `[]byte` 看成 integer array。真实 Interaction 输出中的 provider response extension 是合法 JSON object，reasoning metadata 是合法 JSON string，reasoning signature 则由 `encoding/json` 编成 base64 string。模型调用和语义输出都已成功时，错误派生的 Framework Output Schema 仍会拒绝结果；让 Runtime 删除 metadata、provider 特判或跳过校验都会把 Schema owner 泄露到 Host。
+- 决策：根 package 的 `SchemaFor` 是唯一派生 owner，并在调用通用生成器时覆盖两个标准库 wire 事实：`json.RawMessage` 对应任意合法 JSON value；`[]byte` 对应 null 或带 `contentEncoding=base64` 的 string。其他类型继续由同一个生成器严格派生，`ParseSchema`/`ValidateInput`/`ValidateOutput` 合同不放宽。
+- 决策：生产代码只 import 标准库 JSON/reflect 与既有 schema 库，不 import Core chat、Interaction consumer、`app/runtime` 或具体 provider。根包行为测试冻结通用 wire，外部测试只把真实 `interaction.Output` 作为反例；Runtime 不拥有 sanitizer、第二份 schema、失败吞噬或兼容路径。
+- 后果：公开 Go identifier、参数、签名、GoDoc、Process/Tree snapshot、Strategy state/protocol 和 observation wire 均不变；由 `SchemaFor` 产生的 JSON Schema 与依赖它的 Descriptor/Deployment digest 按正确 wire 发生显式 breaking correction。Baseline 19 新增派生行为门禁，不伪造旧 digest 兼容。
+
+## ADR-A2-074：外层产品化只增加消费者工具与无行为投影
+
+- 状态：已接受并实施；形成 Baseline 20。
+- 证据：外部框架对比与当前真实 consumer 共同证明两项缺口。第一，消费者为了验证 Effect 顺序、Delta、durability gate 和观察事实，必须重复编写并发安全的 Dispatcher/recorder；第二，Workflow 的 sealed Stage 已拥有完整静态结构，但 UI、诊断和部署审计只能看到 Descriptor，无法在不读取 private state 的前提下解释阶段、child binding 与界限。既有 direct-first 决策仍成立，没有证据支持 Agent 大对象或运行 façade。
+- 决策：新增叶子 `agenttest` package，只依赖根窄腰，提供有限脚本 `ScriptedDispatcher`、`ObservationRecorder` 与 `PreparedStepRecorder`。它不 import `testing`、Interaction、Host、模型或 Tool，不模拟 Engine/Process/Strategy，不建立 assertion DSL；真实外部 package test 通过正常 Engine 路径消费全部 fixture。
+- 决策：Workflow Definition owner 公开函数无关的 `Topology` 值投影。它完整携带有序 Stage kind/schema、exact child `DeploymentRef`、child schema、Budget/Capabilities，以及 Fork/Map/Loop 的显式上限；每次投影独立持有 slice。投影不包含 callback、ExecutionState、Process handle、可变 Definition 引用、任意图或第二 scheduler。现有 workflow command 以阶段诊断实际消费该投影。
+- 决策：继续拒绝通用 façade、fluent builder、middleware 控制流、Framework checkpoint store、AG-UI、任意图 runtime 与 provider/message 体系。后续 A2A continuation、checkpoint lineage、citation 或更高层编排 recipe 必须分别由真实消费者重开设计，不能借本次外层人体工程学扩张 Kernel。
+- 后果：Baseline 20 新增 `agenttest` public digest并更新 Workflow digest；根与其他 Strategy/adapter API、全部 snapshot/state/protocol/observation wire 和 schema version 不变。Agent package DAG 新增唯一 `agenttest → root` 边，Host production import 禁令不变。

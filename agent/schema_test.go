@@ -1,10 +1,16 @@
 package agent
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"testing"
 )
+
+type jsonWireFixture struct {
+	Metadata  map[string]json.RawMessage `json:"metadata"`
+	Signature []byte                     `json:"signature"`
+}
 
 func TestSchemaForValidatesTypedWireValues(t *testing.T) {
 	schema, err := SchemaFor[wireFixture]()
@@ -24,6 +30,56 @@ func TestSchemaForValidatesTypedWireValues(t *testing.T) {
 	}
 	if err := schema.ValidateInput(invalid); !errors.Is(err, ErrInvalidInput) {
 		t.Fatalf("ValidateInput(invalid) error = %v, want ErrInvalidInput; schema = %s", err, schema.JSON())
+	}
+}
+
+func TestSchemaForMatchesEncodingJSONWireTypes(t *testing.T) {
+	schema, err := SchemaFor[jsonWireFixture]()
+	if err != nil {
+		t.Fatal(err)
+	}
+	valid, err := EncodeOutput(jsonWireFixture{
+		Metadata: map[string]json.RawMessage{
+			"array":   json.RawMessage(`[1,"two"]`),
+			"boolean": json.RawMessage(`true`),
+			"null":    json.RawMessage(`null`),
+			"number":  json.RawMessage(`3`),
+			"object":  json.RawMessage(`{"id":"chunk"}`),
+			"string":  json.RawMessage(`"deepseek"`),
+		},
+		Signature: []byte{0, 1, 2, 255},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := schema.ValidateOutput(valid); err != nil {
+		t.Fatalf("ValidateOutput(valid JSON wire values) error = %v; schema = %s", err, schema.JSON())
+	}
+
+	nilSignature, err := EncodeOutput(jsonWireFixture{Metadata: map[string]json.RawMessage{}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := schema.ValidateOutput(nilSignature); err != nil {
+		t.Fatalf("ValidateOutput(nil byte slice) error = %v; schema = %s", err, schema.JSON())
+	}
+
+	arraySignature, err := ParseOutput([]byte(`{"metadata":{"provider":"deepseek"},"signature":[1,2,3]}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := schema.ValidateOutput(arraySignature); !errors.Is(err, ErrInvalidOutput) {
+		t.Fatalf("ValidateOutput(array signature) error = %v, want ErrInvalidOutput", err)
+	}
+	if !bytes.Contains(schema.JSON(), []byte(`"contentEncoding":"base64"`)) {
+		t.Fatalf("derived schema does not identify the byte-slice encoding: %s", schema.JSON())
+	}
+
+	_, err = EncodeOutput(jsonWireFixture{
+		Metadata: map[string]json.RawMessage{"invalid": json.RawMessage(`{`)},
+	})
+	if !errors.Is(err, ErrInvalidOutput) {
+		t.Fatalf("EncodeOutput(invalid RawMessage) error = %v, want ErrInvalidOutput", err)
 	}
 }
 

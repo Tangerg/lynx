@@ -37,6 +37,7 @@ type mapStage struct {
 	binding          childBinding
 	windowSize       uint32
 	itemLimit        uint32
+	itemInputSchema  agent.Schema
 	itemOutputSchema agent.Schema
 	count            func(json.RawMessage) (uint32, error)
 	windowInputs     func(json.RawMessage, uint32, uint32) ([]agent.Input, error)
@@ -45,7 +46,8 @@ type mapStage struct {
 
 func (stage mapStage) valid() bool {
 	return stage.binding.valid() && stage.windowSize > 0 && stage.itemLimit > 0 &&
-		stage.windowSize <= stage.itemLimit && stage.itemOutputSchema.Valid() &&
+		stage.windowSize <= stage.itemLimit && stage.itemInputSchema.Valid() &&
+		stage.itemOutputSchema.Valid() &&
 		stage.count != nil && stage.windowInputs != nil && stage.collect != nil
 }
 
@@ -95,7 +97,7 @@ func Map[I, O any](config MapConfig[I, O]) (Stage, error) {
 				capabilities: config.Capabilities,
 			},
 			windowSize: config.WindowSize, itemLimit: config.ItemLimit,
-			itemOutputSchema: schemas.itemOutput, count: count,
+			itemInputSchema: schemas.itemInput, itemOutputSchema: schemas.itemOutput, count: count,
 			windowInputs: windowInputs, collect: collect,
 		},
 	}, nil

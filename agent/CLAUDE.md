@@ -17,6 +17,10 @@ The documents have distinct owners. Do not copy progress into architecture,
 copy architecture into the execution log, copy architecture into the capability
 ledger, or rewrite accepted decisions without a superseding ADR.
 
+[`doc/PEER_COMPARISON.md`](doc/PEER_COMPARISON.md) records dated external-framework
+evidence. It is reference material, not required reading and not a contract; a gap
+it identifies becomes actionable only through a new ADR.
+
 Framework work follows these module rules:
 
 - keep production changes inside `agent` and the workspace/module metadata

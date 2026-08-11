@@ -11,7 +11,7 @@ func TestRun(t *testing.T) {
 	if err := run(context.Background(), &output); err != nil {
 		t.Fatal(err)
 	}
-	const want = "request: ship managed workflow\nreviews: clarity=ready, safety=ready\nprocesses: 4\n"
+	const want = "request: ship managed workflow\nreviews: clarity=ready, safety=ready\nstages: 2\nprocesses: 4\n"
 	if output.String() != want {
 		t.Fatalf("output = %q, want %q", output.String(), want)
 	}

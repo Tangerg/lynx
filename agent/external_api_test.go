@@ -3,10 +3,11 @@ package agent_test
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"testing"
+	"time"
 
 	agent "github.com/Tangerg/lynx/agent"
+	"github.com/Tangerg/lynx/agent/agenttest"
 )
 
 type externalInput struct {
@@ -21,6 +22,11 @@ type externalDefinition struct {
 	descriptor agent.Descriptor
 }
 
+type externalState struct {
+	Phase string `json:"phase"`
+	Value string `json:"value"`
+}
+
 func (definition externalDefinition) Descriptor() agent.Descriptor { return definition.descriptor }
 
 func (externalDefinition) Start(input agent.Input) (agent.Execution, error) {
@@ -28,51 +34,63 @@ func (externalDefinition) Start(input agent.Input) (agent.Execution, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &externalExecution{value: value.Value}, nil
+	return &externalExecution{state: externalState{Phase: "ready", Value: value.Value}}, nil
 }
 
 func (externalDefinition) Restore(state agent.ExecutionState) (agent.Execution, error) {
 	if state.Kind() != "external.direct" || state.SchemaVersion() != 1 {
 		return nil, agent.ErrInvalidExecutionState
 	}
-	var value externalInput
+	var value externalState
 	if err := json.Unmarshal(state.Payload(), &value); err != nil {
 		return nil, err
 	}
-	return &externalExecution{value: value.Value}, nil
+	return &externalExecution{state: value}, nil
 }
 
 type externalExecution struct {
-	value string
+	state externalState
 }
 
-func (execution *externalExecution) Step(context.Context, []agent.Signal) (agent.Transition, error) {
-	output, err := agent.EncodeOutput(externalOutput{Value: execution.value})
-	if err != nil {
-		return agent.Transition{}, err
+func (execution *externalExecution) Step(_ context.Context, signals []agent.Signal) (agent.Transition, error) {
+	switch execution.state.Phase {
+	case "ready":
+		payload, err := json.Marshal(externalInput{Value: execution.state.Value})
+		if err != nil {
+			return agent.Transition{}, err
+		}
+		effect, err := agent.NewDispatcherEffect(payload)
+		if err != nil {
+			return agent.Transition{}, err
+		}
+		execution.state.Phase = "dispatched"
+		return agent.Continue(0, effect)
+	case "dispatched":
+		if len(signals) != 1 {
+			return agent.Transition{}, agent.ErrInvalidSignal
+		}
+		var result externalOutput
+		if err := json.Unmarshal(signals[0].Payload(), &result); err != nil {
+			return agent.Transition{}, err
+		}
+		output, err := agent.EncodeOutput(result)
+		if err != nil {
+			return agent.Transition{}, err
+		}
+		execution.state.Phase = "completed"
+		return agent.Complete(1, output)
+	default:
+		return agent.Transition{}, agent.ErrInvalidExecutionState
 	}
-	return agent.Complete(0, output)
 }
 
 func (execution *externalExecution) Snapshot() (agent.ExecutionState, error) {
-	payload, err := json.Marshal(externalInput{Value: execution.value})
+	payload, err := json.Marshal(execution.state)
 	if err != nil {
 		return agent.ExecutionState{}, err
 	}
 	return agent.NewExecutionState("external.direct", 1, payload)
 }
-
-type unusedDispatcher struct{}
-
-func (unusedDispatcher) Dispatch(
-	context.Context,
-	agent.EffectRequest,
-	agent.DeltaEmitter,
-) (agent.Settlement, error) {
-	return agent.Settlement{}, errors.New("direct execution declared an unexpected effect")
-}
-
-func (unusedDispatcher) ReplayPolicy(agent.Effect) agent.ReplayPolicy { return agent.ReplayPolicyNever }
 
 func TestExternalPackageCanComposeAndRunDefinition(t *testing.T) {
 	inputSchema, err := agent.SchemaFor[externalInput]()
@@ -90,15 +108,41 @@ func TestExternalPackageCanComposeAndRunDefinition(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	expectedPayload, err := json.Marshal(externalInput{Value: "done"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	expectedEffect, err := agent.NewDispatcherEffect(expectedPayload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dispatcher, err := agenttest.NewScriptedDispatcher(agenttest.ScriptedDispatcherConfig{
+		ReplayPolicy: agent.ReplayPolicyNever,
+		Steps: []agenttest.DispatchStep{{
+			ExpectedEffect:    &expectedEffect,
+			Deltas:            []json.RawMessage{json.RawMessage(`{"text":"do"}`)},
+			SettlementStatus:  agent.SettlementStatusSucceeded,
+			SettlementPayload: json.RawMessage(`{"value":"done"}`),
+		}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
 	deployment, err := agent.NewDeployment(agent.DeploymentConfig{
-		Definition: externalDefinition{descriptor: descriptor}, Dispatcher: unusedDispatcher{},
+		Definition: externalDefinition{descriptor: descriptor}, Dispatcher: dispatcher,
 		ImplementationDigest: agent.ComputeDigest([]byte("external-direct-implementation")),
 		ConfigurationDigest:  agent.ComputeDigest([]byte("external-direct-configuration")),
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	engine, err := agent.NewEngine(agent.EngineConfig{})
+	observations := &agenttest.ObservationRecorder{}
+	preparedSteps := agenttest.NewPreparedStepRecorder(nil)
+	engine, err := agent.NewEngine(agent.EngineConfig{
+		PreparedStepAcknowledger: preparedSteps,
+		EventListeners:           []agent.EventListener{observations},
+		DeltaListeners:           []agent.DeltaListener{observations},
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -120,5 +164,22 @@ func TestExternalPackageCanComposeAndRunDefinition(t *testing.T) {
 	}
 	if err := engine.Close(); err != nil {
 		t.Fatal(err)
+	}
+	if dispatcher.Remaining() != 0 || len(dispatcher.Requests()) != 1 {
+		t.Fatalf("remaining dispatches=%d requests=%d", dispatcher.Remaining(), len(dispatcher.Requests()))
+	}
+	if len(preparedSteps.Snapshots()) != 1 {
+		t.Fatalf("prepared snapshots=%d, want 1", len(preparedSteps.Snapshots()))
+	}
+	if len(observations.Events()) == 0 || len(observations.Deltas()) != 1 {
+		t.Fatalf("events=%d deltas=%d", len(observations.Events()), len(observations.Deltas()))
+	}
+	waitContext, cancelWait := context.WithTimeout(t.Context(), time.Second)
+	defer cancelWait()
+	finished, err := observations.AwaitEvent(waitContext, func(event agent.Event) bool {
+		return event.Name() == agent.EventProcessFinished
+	})
+	if err != nil || finished.ProcessID() != result.ProcessID() {
+		t.Fatalf("finished event=%+v error=%v", finished, err)
 	}
 }

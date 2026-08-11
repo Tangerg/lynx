@@ -15,6 +15,7 @@ const moduleImportPath = "github.com/Tangerg/lynx/agent"
 
 var allowedPackageDependencies = map[string]map[string]struct{}{
 	".":             {},
+	"agenttest":     {".": {}},
 	"interaction":   {".": {}},
 	"otel":          {".": {}},
 	"planning":      {".": {}},

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
 
 	googlejsonschema "github.com/google/jsonschema-go/jsonschema"
 	validationjsonschema "github.com/santhosh-tekuri/jsonschema/v6"
@@ -49,7 +50,7 @@ func ParseSchema(data json.RawMessage) (Schema, error) {
 
 // SchemaFor derives and resolves a JSON Schema for T.
 func SchemaFor[T any]() (Schema, error) {
-	definition, err := googlejsonschema.For[T](nil)
+	definition, err := googlejsonschema.For[T](schemaForOptions())
 	if err != nil {
 		return Schema{}, fmt.Errorf("%w: derive: %w", ErrInvalidSchema, err)
 	}
@@ -58,6 +59,22 @@ func SchemaFor[T any]() (Schema, error) {
 		return Schema{}, fmt.Errorf("%w: encode derived schema: %w", ErrInvalidSchema, err)
 	}
 	return ParseSchema(data)
+}
+
+func schemaForOptions() *googlejsonschema.ForOptions {
+	return &googlejsonschema.ForOptions{
+		TypeSchemas: map[reflect.Type]*googlejsonschema.Schema{
+			// RawMessage already contains one JSON value, so its Go []byte
+			// representation must not constrain the value's JSON kind.
+			reflect.TypeFor[json.RawMessage](): {},
+			// encoding/json represents byte slices as base64 strings (or null),
+			// not as JSON arrays of integers.
+			reflect.TypeFor[[]byte](): {
+				Types:           []string{"null", "string"},
+				ContentEncoding: "base64",
+			},
+		},
+	}
 }
 
 // JSON returns an independently owned JSON representation.

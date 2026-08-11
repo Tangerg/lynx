@@ -1,14 +1,14 @@
 # Agent Framework 公共合同基线
 
-> 状态：Baseline 18 已冻结
-> 冻结日期：2026-08-10
-> 适用范围：`agent` 根 package、`agent/interaction`、`agent/planning`、`agent/planning/goap`、`agent/workflow`、`agent/otel`、`agent/platform`、Process Snapshot v6、TreeSnapshot v4、child/framework-effect protocol v2、Interaction state/protocol v6/v4、Planning state/protocol v3/v1、Workflow state v2、Event/Delta observation wire
+> 状态：Baseline 20 已冻结
+> 冻结日期：2026-08-11
+> 适用范围：`agent` 根 package、`agent/agenttest`、`agent/interaction`、`agent/planning`、`agent/planning/goap`、`agent/workflow`、`agent/otel`、`agent/platform`、Process Snapshot v6、TreeSnapshot v4、child/framework-effect protocol v2、Interaction state/protocol v6/v4、Planning state/protocol v3/v1、Workflow state v2、Event/Delta observation wire
 
 本文只记录已经由 P3 真实 Interaction、P4 child composition、八个独立 command consumer、P5 真实 Planning/GOAP、P6 managed Workflow、P8 Platform 与恢复合同共同证明的公共合同基线。目标架构、ADR、工程标准和实施进度仍由各自文档拥有；这里不复制它们。
 
 ## 1. 基线的含义
 
-Baseline 18 不是兼容承诺或发布版本。仓库仍允许 breaking change，但任何公共名称、参数名、签名、GoDoc、sentinel error、Framework/Strategy recovery wire 或 observation wire 的变化都必须是显式设计决策：
+Baseline 20 不是兼容承诺或发布版本。仓库仍允许 breaking change，但任何公共名称、参数名、签名、GoDoc、派生 JSON Schema、sentinel error、Framework/Strategy recovery wire 或 observation wire 的变化都必须是显式设计决策：
 
 1. 先用真实 Strategy 或 consumer 证明变化必要；
 2. 更新或追加 ADR，不保留 alias、双读、双写或兼容 shim；
@@ -45,17 +45,22 @@ Baseline 18 不是兼容承诺或发布版本。仓库仍允许 breaking change�
 
 ## 3. 自动守卫
 
-`baseline_test.go` 对七个已冻结公共 package 的完整 `go doc -all` 输出做 SHA-256 校验，因此 exported identifier、参数名、字段、签名和 GoDoc 的任何漂移都会失败；AST 守卫还要求所有公开声明/字段有精确 GoDoc、公开 callable 的参数有语义名称，并禁止 error cause 通过 `%v` 丢失 `errors.Is/As` 链。Baseline 18 public digest：
+`baseline_test.go` 对八个已冻结公共 package 的完整 `go doc -all` 输出做 SHA-256 校验，因此 exported identifier、参数名、字段、签名和 GoDoc 的任何漂移都会失败；AST 守卫还要求所有公开声明/字段有精确 GoDoc、公开 callable 的参数有语义名称，并禁止 error cause 通过 `%v` 丢失 `errors.Is/As` 链。Baseline 20 public digest：
+
+P17 只新增 `agenttest` 并显式修订 Workflow：
 
 - root kernel：`f45356e4627aef0663687f194a3a025c0ede7a2751520c905a176ff5eb453eba`
+- agenttest：`4c549417607c1a4e8044357c6defa1135ce420d48a28d5f574cceeb9cead5490`
 - interaction：`98a846c0e8930518948e9e491485f3d572ebe4b540ab566990233afabbd9a625`
 - planning：`48dcc733364cf5345332aeb0f3fd64aeefd2c21e7f0585759e44278b050eb50a`
 - planning/goap：`4aa78b677748784182313d25a187b0074e49ea972c75db2e041c82a0f5f82529`
-- workflow：`1a8d2dfe3803ae114cd5da12ee888acd372bc348b46ae6fecb2a1029a825e749`
+- workflow：`82dd31a06d26b01877f1c3df631083921fe59f58b0472f39e272897d2231b231`
 - otel：`aeed9c638fae1729c2965b4bccd466edf858dd9a4cf49e9611386f910d4c5d60`
 - platform：`5d2140197e3ac09ebf62a156b308b0327197716888974706c338cd14b9b9b21b`
 
-Kernel 测试独立冻结其全部 production `*Wire`、Framework Event payload 与 schema version；每个 Strategy package 冻结自己的私有 ExecutionState 和 Effect/Signal/Delta protocol。覆盖守卫要求新增 production wire 或私有 JSON struct 必须进入所有者 baseline，Kernel 始终只保存 opaque `ExecutionState.Payload`，不会递归解释 Strategy shape。Baseline 18 wire digest：
+Kernel 测试独立冻结其全部 production `*Wire`、Framework Event payload 与 schema version；每个 Strategy package 冻结自己的私有 ExecutionState 和 Effect/Signal/Delta protocol。覆盖守卫要求新增 production wire 或私有 JSON struct 必须进入所有者 baseline，Kernel 始终只保存 opaque `ExecutionState.Payload`，不会递归解释 Strategy shape。Baseline 20 wire digest：
+
+P17 未改变以下值：
 
 - Kernel snapshot/protocol wire：`56ac28855e547d8e6d26ee595278055fa3e24be245a5ce99e8443b4d282c465d`
 - Framework Event/Delta observation wire：`152f8856da33fa85f1ca7eab0bd0b30287915931a100100bdfa83ddf56f9b39e`
@@ -125,6 +130,12 @@ P15-01 依据 ADR-A2-070/A2-071 形成 Baseline 18。根 Process 以 `RequestCan
 
 P15-02b 依据 ADR-A2-072 对 Baseline 18 只做语义精确化：Interaction、Planning 与 Workflow 统一直接使用 Execution 合同，只有与独立 in-process `flow` 对照时才称 managed Workflow；prepared Step 的 GoDoc 只描述候选状态与固定 Effects，不借用 Host 持久化概念。公开 identifier、签名、行为和全部 wire 均未变化；root GoDoc digest 已显式更新，自动词汇守卫防止无对照限定词与 Host 概念再次漂入 Framework。
 
+P16 依据 ADR-A2-073 形成并冻结 Baseline 19 的派生 Schema 修订。`SchemaFor` 对 `json.RawMessage` 使用任意合法 JSON value 合同，对 `[]byte` 使用 null/base64 string 合同，准确匹配 `encoding/json`；其他字段仍按具体 Go 类型严格派生。`TestSchemaForMatchesEncodingJSONWireTypes` 与外部 Interaction consumer 回归直接冻结行为，package DAG 继续禁止任何 `app/runtime` production import。七个 public/GoDoc digest、全部 snapshot/Strategy/observation wire digest 与 schema version 均不变，但依赖修正后 JSON Schema 的 Descriptor/Deployment digest 会按内容变化，不提供旧 digest 兼容。
+
+P17 依据 ADR-A2-074 形成 Baseline 20。新增 `agenttest` 叶子 package，冻结 scripted Effect dispatch、Event/Delta recording 和 prepared-step acknowledgment fault injection；外部 Engine consumer 验证它们只消费公共窄腰。Workflow 新增完整、无函数、独立持有 slice 的 `Topology` 投影并由现有 command 消费，覆盖六种 Stage、exact child contract 与显式界限。根、Interaction、Planning、GOAP、OTel、Platform、全部共同/Strategy wire 与 schema version 均未变化。
+
+P18 只精修 Baseline 20 已冻结能力的私有行为所有权：scripted dispatch 的匹配、发射与 settlement 归私有 frozen step；Workflow Topology 的投影归 sealed Stage/binding/kind。公开声明、GoDoc、JSON shape、digest 输入、snapshot/Strategy/observation wire 与 schema version 均未变化，因此不形成 Baseline 21。
+
 ## 4. 明确不在基线中的能力
 
-Baseline 18 保持唯一 `agent` module、一次性 prepared authority、mutable owner pointer identity、提交式取消请求与 Interaction-owned steer 归因合同。模块路径变化不引入 alias、replace compatibility 或旧 wire 双读；七个公共 package 及全部 snapshot、Strategy protocol 和 observation wire 的语义仍由各自 digest 守卫。`flow` 保持独立 in-process 库，不形成 Agent adapter API 或依赖；Workflow 吸收其显式拓扑、确定顺序和有界 fan-out 思想，但不强求复用或建立 adapter。未来编辑器图只能在更高层编译成已验证的 Workflow Definition，不能反向扩张 Kernel 或恢复 wire。
+Baseline 20 保持唯一 `agent` module、一次性 prepared authority、mutable owner pointer identity、提交式取消请求、Interaction-owned steer 归因与准确 JSON wire schema 合同。派生规则只认识标准库 JSON 语义，不认识 Runtime/provider；模块路径变化不引入 alias、replace compatibility 或旧 wire 双读。八个公共 package 及全部 snapshot、Strategy protocol 和 observation wire 的语义仍由各自 digest 守卫。`agenttest` 不模拟 Framework 生命周期；`flow` 保持独立 in-process 库，不形成 Agent adapter API 或依赖；Workflow Topology 只是 sealed algebra 的静态投影，不是可执行图。未来编辑器图只能在更高层编译成已验证的 Workflow Definition，不能反向扩张 Kernel 或恢复 wire。

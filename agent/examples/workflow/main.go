@@ -27,6 +27,11 @@ func run(ctx context.Context, output io.Writer) error {
 	if err != nil {
 		return err
 	}
+	definition, ok := root.Definition().(*workflow.Definition)
+	if !ok {
+		return errors.New("root does not contain a Workflow Definition")
+	}
+	topology := definition.Topology()
 	engine, err := agent.NewEngine(agent.EngineConfig{DeploymentResolver: resolver})
 	if err != nil {
 		return err
@@ -59,12 +64,13 @@ func run(ctx context.Context, output io.Writer) error {
 	}
 	_, err = fmt.Fprintf(
 		output,
-		"request: %s\nreviews: %s=%s, %s=%s\nprocesses: %d\n",
+		"request: %s\nreviews: %s=%s, %s=%s\nstages: %d\nprocesses: %d\n",
 		report.Request,
 		report.Reviews[0].Reviewer,
 		report.Reviews[0].Verdict,
 		report.Reviews[1].Reviewer,
 		report.Reviews[1].Verdict,
+		len(topology.Stages),
 		len(tree.ProcessSnapshots()),
 	)
 	return err

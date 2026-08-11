@@ -17,8 +17,8 @@ import (
 )
 
 const (
-	currentAPIBaseline         = 18
-	currentAPIBaselineFrozenOn = "2026-08-10"
+	currentAPIBaseline         = 20
+	currentAPIBaselineFrozenOn = "2026-08-11"
 )
 
 var exportedAPIBaselines = []struct {
@@ -28,16 +28,17 @@ var exportedAPIBaselines = []struct {
 	want      string
 }{
 	{name: "kernel", label: "root kernel", directory: ".", want: "f45356e4627aef0663687f194a3a025c0ede7a2751520c905a176ff5eb453eba"},
+	{name: "agenttest", label: "agenttest", directory: "agenttest", want: "4c549417607c1a4e8044357c6defa1135ce420d48a28d5f574cceeb9cead5490"},
 	{name: "interaction", label: "interaction", directory: "interaction", want: "98a846c0e8930518948e9e491485f3d572ebe4b540ab566990233afabbd9a625"},
 	{name: "planning", label: "planning", directory: "planning", want: "48dcc733364cf5345332aeb0f3fd64aeefd2c21e7f0585759e44278b050eb50a"},
 	{name: "goap", label: "planning/goap", directory: "planning/goap", want: "4aa78b677748784182313d25a187b0074e49ea972c75db2e041c82a0f5f82529"},
-	{name: "workflow", label: "workflow", directory: "workflow", want: "1a8d2dfe3803ae114cd5da12ee888acd372bc348b46ae6fecb2a1029a825e749"},
+	{name: "workflow", label: "workflow", directory: "workflow", want: "82dd31a06d26b01877f1c3df631083921fe59f58b0472f39e272897d2231b231"},
 	{name: "otel", label: "otel", directory: "otel", want: "aeed9c638fae1729c2965b4bccd466edf858dd9a4cf49e9611386f910d4c5d60"},
 	{name: "platform", label: "platform", directory: "platform", want: "5d2140197e3ac09ebf62a156b308b0327197716888974706c338cd14b9b9b21b"},
 }
 
 var frameworkPackageDirectories = []string{
-	".", "interaction", "planning", "planning/goap", "workflow", "otel", "platform",
+	".", "agenttest", "interaction", "planning", "planning/goap", "workflow", "otel", "platform",
 }
 
 func TestExportedContractsAreDocumentedAndNamed(t *testing.T) {
@@ -238,6 +239,9 @@ func TestAPIBaselineDocumentMatchesFrozenPublicContracts(t *testing.T) {
 		fmt.Sprintf("Baseline %d 不是兼容承诺或发布版本。", currentAPIBaseline),
 		fmt.Sprintf("Baseline %d public digest：", currentAPIBaseline),
 		fmt.Sprintf("Baseline %d wire digest：", currentAPIBaseline),
+		"`json.RawMessage` 使用任意合法 JSON value 合同",
+		"`[]byte` 使用 null/base64 string 合同",
+		"package DAG 继续禁止任何 `app/runtime` production import",
 	}
 	for _, baseline := range exportedAPIBaselines {
 		required = append(required, fmt.Sprintf("- %s：`%s`", baseline.label, baseline.want))
