@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 	"time"
@@ -12,18 +13,19 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
-// TestWorkspaceSubscribe_GitWatch verifies the cross-platform git-state watch:
-// a write to a .git signal file (here .git/index) surfaces a debounced resync.
-// No working-tree recursion — so no per-file fd cost on any platform.
+// TestWorkspaceSubscribe_GitWatch verifies that a real staged index transition
+// surfaces a debounced resync without recursively watching the working tree.
 func TestWorkspaceSubscribe_GitWatch(t *testing.T) {
-	dir := t.TempDir()
-	gitDir := filepath.Join(dir, ".git")
-	if err := os.MkdirAll(gitDir, 0o755); err != nil {
-		t.Fatalf("mkdir .git: %v", err)
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not on PATH")
 	}
-	if err := os.WriteFile(filepath.Join(gitDir, "index"), []byte("v0"), 0o644); err != nil {
+	dir := t.TempDir()
+	fileWatchGitCommand(t, dir, "init", "-q")
+	tracked := filepath.Join(dir, "tracked.txt")
+	if err := os.WriteFile(tracked, []byte("v0\n"), 0o644); err != nil {
 		t.Fatalf("seed index: %v", err)
 	}
+	fileWatchGitCommand(t, dir, "add", "tracked.txt")
 	s := newWorkspaceServer(dir)
 	s.workspaceHub = newWorkspaceHub()
 
@@ -31,24 +33,25 @@ func TestWorkspaceSubscribe_GitWatch(t *testing.T) {
 	defer cancel()
 	_, seq, err := s.SubscribeRuntime(ctx, protocol.RuntimeSubscribeRequest{
 		Topics:  []protocol.RuntimeTopic{protocol.TopicFilesChanged},
-		Watches: []protocol.WatchSpec{{WatchID: "w1"}},
+		Watches: []protocol.WatchSpec{{WatchID: "w1", Workspace: protocol.WorkspaceRef{Path: dir}}},
 	})
 	if err != nil {
 		t.Fatalf("subscribe: %v", err)
 	}
 	events := drainSeq(ctx, seq)
 
-	// A git operation rewrites .git/index → expect a debounced resync.
-	if err := os.WriteFile(filepath.Join(gitDir, "index"), []byte("v1"), 0o644); err != nil {
-		t.Fatalf("touch index: %v", err)
+	// A git operation semantically changes the staged index → expect a debounced resync.
+	if err := os.WriteFile(tracked, []byte("v1\n"), 0o644); err != nil {
+		t.Fatalf("modify tracked file: %v", err)
 	}
+	fileWatchGitCommand(t, dir, "add", "tracked.txt")
 	select {
 	case ev := <-events:
 		if ev.Type != "resync" {
 			t.Fatalf("event = %+v, want resync", ev)
 		}
 	case <-time.After(3 * time.Second):
-		t.Fatal("no resync within 3s of a .git change")
+		t.Fatal("no resync within 3s of a staged index change")
 	}
 }
 
@@ -62,7 +65,7 @@ func TestWorkspaceSubscribe_NonRepoInert(t *testing.T) {
 	defer cancel()
 	_, seq, err := s.SubscribeRuntime(ctx, protocol.RuntimeSubscribeRequest{
 		Topics:  []protocol.RuntimeTopic{protocol.TopicFilesChanged, protocol.TopicSkillsChanged},
-		Watches: []protocol.WatchSpec{{WatchID: "w1"}},
+		Watches: []protocol.WatchSpec{{WatchID: "w1", Workspace: protocol.WorkspaceRef{Path: dir}}},
 	})
 	if err != nil {
 		t.Fatalf("subscribe (non-repo) must not error: %v", err)
@@ -77,6 +80,15 @@ func TestWorkspaceSubscribe_NonRepoInert(t *testing.T) {
 		}
 	case <-time.After(time.Second):
 		t.Fatal("broadcast event not delivered on a non-repo subscription")
+	}
+}
+
+func fileWatchGitCommand(t *testing.T, dir string, args ...string) {
+	t.Helper()
+	cmd := exec.Command("git", args...)
+	cmd.Dir = dir
+	if output, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git %v: %v: %s", args, err, output)
 	}
 }
 

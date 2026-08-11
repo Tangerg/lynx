@@ -10,20 +10,19 @@ import (
 
 // untrackedPaths lists untracked files (status ??), optionally under relPath.
 func untrackedPaths(ctx context.Context, dir, relPath string) []string {
-	out, err := run(ctx, dir, "status", "--porcelain=v1", "-z")
+	scopePath, err := gitPathRelativeToWorkspace(dir, relPath)
+	if err != nil {
+		return nil
+	}
+	out, err := run(ctx, dir, "ls-files", "--others", "--exclude-standard", "-z", "--", scopePath)
 	if err != nil {
 		return nil
 	}
 	var paths []string
-	for rec := range strings.SplitSeq(out, "\x00") {
-		if len(rec) < 3 || rec[:2] != "??" {
-			continue
+	for path := range strings.SplitSeq(out, "\x00") {
+		if path != "" {
+			paths = append(paths, path)
 		}
-		p := rec[3:]
-		if relPath != "" && p != relPath && !strings.HasPrefix(p, relPath+"/") {
-			continue
-		}
-		paths = append(paths, p)
 	}
 	return paths
 }

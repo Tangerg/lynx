@@ -2,6 +2,8 @@ package git
 
 import (
 	"context"
+	"fmt"
+	"path/filepath"
 	"strings"
 )
 
@@ -15,7 +17,7 @@ func diffSources(ctx context.Context, dir, relPath string, mode Mode) (patch str
 		return "", nil, ErrNotRepo
 	}
 
-	args := []string{"diff", "-M"}
+	args := []string{"diff", "-M", "--relative"}
 	switch mode {
 	case Base:
 		base, berr := mergeBase(ctx, dir)
@@ -26,9 +28,11 @@ func diffSources(ctx context.Context, dir, relPath string, mode Mode) (patch str
 	default: // Worktree
 		args = append(args, "HEAD")
 	}
-	if relPath != "" {
-		args = append(args, "--", relPath)
+	scopePath, err := gitPathRelativeToWorkspace(dir, relPath)
+	if err != nil {
+		return "", nil, err
 	}
+	args = append(args, "--", scopePath)
 	patch, err = run(ctx, dir, args...)
 	if err != nil {
 		// Fresh repo (no HEAD) yields an error; treat as empty diff rather than fail.
@@ -39,6 +43,27 @@ func diffSources(ctx context.Context, dir, relPath string, mode Mode) (patch str
 		untracked = untrackedPaths(ctx, dir, relPath)
 	}
 	return patch, untracked, nil
+}
+
+func gitPathRelativeToWorkspace(dir, path string) (string, error) {
+	if path == "" {
+		return ".", nil
+	}
+	if !filepath.IsAbs(path) {
+		relative := filepath.Clean(path)
+		if relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
+			return "", fmt.Errorf("git: path %q is outside workspace %q", path, dir)
+		}
+		return filepath.ToSlash(relative), nil
+	}
+	relative, err := filepath.Rel(dir, path)
+	if err != nil {
+		return "", fmt.Errorf("git: resolve workspace-relative path: %w", err)
+	}
+	if relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
+		return "", fmt.Errorf("git: path %q is outside workspace %q", path, dir)
+	}
+	return filepath.ToSlash(relative), nil
 }
 
 // mergeBase resolves the merge-base of HEAD with the default branch.

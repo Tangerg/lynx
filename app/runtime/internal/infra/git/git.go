@@ -116,10 +116,16 @@ func ListChanges(ctx context.Context, dir string) ([]FileChange, error) {
 	if !IsRepo(ctx, dir) {
 		return nil, ErrNotRepo
 	}
+	prefixOut, err := run(ctx, dir, "rev-parse", "--show-prefix")
+	if err != nil {
+		return nil, err
+	}
+	repositoryPrefix := strings.TrimRight(prefixOut, "\r\n")
 
 	// status --porcelain gives the status letter + path (+ rename source);
-	// -z NUL-delimits so paths with spaces/newlines stay intact.
-	statusOut, err := run(ctx, dir, "status", "--porcelain=v1", "-z")
+	// -z NUL-delimits so paths with spaces/newlines stay intact. The explicit
+	// pathspec keeps a nested WorkspaceRef jailed to its own resource root.
+	statusOut, err := run(ctx, dir, "status", "--porcelain=v1", "-z", "--", ".")
 	if err != nil {
 		return nil, err
 	}
@@ -133,7 +139,7 @@ func ListChanges(ctx context.Context, dir string) ([]FileChange, error) {
 		return nil, err
 	}
 	if strings.TrimSpace(head) != "" {
-		numOut, err := run(ctx, dir, "diff", "--numstat", "-M", "-z", "HEAD")
+		numOut, err := run(ctx, dir, "diff", "--numstat", "-M", "-z", "HEAD", "--", ".")
 		if err != nil {
 			return nil, err
 		}
@@ -144,9 +150,48 @@ func ListChanges(ctx context.Context, dir string) ([]FileChange, error) {
 
 	out := make([]FileChange, 0, len(order))
 	for _, p := range order {
-		out = append(out, *changes[p])
+		change := *changes[p]
+		path, pathInside := workspaceRelativeGitPath(change.Path, repositoryPrefix)
+		if change.Status == StatusRenamed {
+			previousPath, previousInside := workspaceRelativeGitPath(change.PreviousPath, repositoryPrefix)
+			switch {
+			case pathInside && previousInside:
+				change.Path, change.PreviousPath = path, previousPath
+			case pathInside:
+				change.Path, change.PreviousPath, change.Status = path, "", StatusAdded
+			case previousInside:
+				change.Path, change.PreviousPath, change.Status = previousPath, "", StatusDeleted
+			default:
+				continue
+			}
+		} else {
+			if !pathInside {
+				continue
+			}
+			change.Path = path
+		}
+		if change.Status == StatusUntracked {
+			if file, ok := untrackedDiffFile(dir, change.Path); ok {
+				change.Added, change.Removed, change.Binary = file.Added, file.Removed, file.Binary
+			}
+		}
+		out = append(out, change)
 	}
 	return out, nil
+}
+
+// workspaceRelativeGitPath maps Git's repository-root-relative porcelain path
+// back into the WorkspaceRef root. Porcelain v1 with -z deliberately ignores
+// status.relativePaths, so this translation is part of the adapter boundary.
+func workspaceRelativeGitPath(path, repositoryPrefix string) (string, bool) {
+	if path == "" {
+		return "", false
+	}
+	if repositoryPrefix == "" {
+		return path, true
+	}
+	relative, ok := strings.CutPrefix(path, repositoryPrefix)
+	return relative, ok && relative != ""
 }
 
 // ListFiles lists the non-ignored files under dir, honoring .gitignore: tracked

@@ -2165,19 +2165,20 @@ for await (const line of lines) {
   it("keeps file-change signals scoped and reconciles them through cold reads", async () => {
     if (!client) throw new Error("runtime client was not initialized");
 
-    const workspaceRoot = join(root, "workspace-file-events");
-    await mkdir(workspaceRoot);
-    await execFileAsync("git", ["init", "--quiet"], { cwd: workspaceRoot });
+    const projectRoot = join(root, "workspace-file-events");
+    const workspaceRoot = join(projectRoot, "packages", "desktop");
+    await mkdir(workspaceRoot, { recursive: true });
+    await execFileAsync("git", ["init", "--quiet"], { cwd: projectRoot });
     await execFileAsync("git", ["config", "user.name", "Runtime HTTP E2E"], {
-      cwd: workspaceRoot,
+      cwd: projectRoot,
     });
     await execFileAsync("git", ["config", "user.email", "runtime-http-e2e@example.invalid"], {
-      cwd: workspaceRoot,
+      cwd: projectRoot,
     });
     await writeFile(join(workspaceRoot, "tracked.txt"), "before\n");
-    await execFileAsync("git", ["add", "tracked.txt"], { cwd: workspaceRoot });
+    await execFileAsync("git", ["add", "packages/desktop/tracked.txt"], { cwd: projectRoot });
     await execFileAsync("git", ["commit", "--quiet", "-m", "baseline"], {
-      cwd: workspaceRoot,
+      cwd: projectRoot,
     });
 
     const streamController = new AbortController();
@@ -2192,7 +2193,7 @@ for await (const line of lines) {
     const events = subscription.events[Symbol.asyncIterator]();
 
     await writeFile(join(workspaceRoot, "tracked.txt"), "after\n");
-    await execFileAsync("git", ["add", "tracked.txt"], { cwd: workspaceRoot });
+    await execFileAsync("git", ["add", "packages/desktop/tracked.txt"], { cwd: projectRoot });
 
     const changed = await nextRuntimeEvent(events, "resync");
     expect(changed.type === "resync" && changed.topics).toContain("files.changed");

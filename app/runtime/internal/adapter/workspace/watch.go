@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -42,17 +43,18 @@ func (GitWatcher) Watch(roots []string, notify func()) (io.Closer, error) {
 		fsw: fsw, notify: notify, repositories: repositories,
 		done: make(chan struct{}), exited: make(chan struct{}),
 	}
+	addedDirectories := make(map[string]struct{})
 	for _, repository := range repositories {
-		gitDir := repository.gitDir
-		// .git directly holds HEAD/index/packed-refs and refs/heads holds branch
-		// tips. Both are non-recursive, bounded watches; refs/heads may not exist
-		// until a repository has its first branch.
-		if err := fsw.Add(gitDir); err != nil {
-			return nil, closeFailedWatch(fsw, fmt.Errorf("watch git directory %q: %w", gitDir, err))
+		// The per-worktree git directory owns HEAD/index, while the common
+		// directory owns packed refs and branch tips. They are identical for an
+		// ordinary checkout and distinct for `git worktree` checkouts.
+		for _, gitDir := range []string{repository.gitDir, repository.commonDir} {
+			if err := addGitWatch(fsw, addedDirectories, gitDir, false); err != nil {
+				return nil, closeFailedWatch(fsw, err)
+			}
 		}
-		refsHeads := filepath.Join(gitDir, "refs", "heads")
-		if err := fsw.Add(refsHeads); err != nil && !errors.Is(err, os.ErrNotExist) {
-			return nil, closeFailedWatch(fsw, fmt.Errorf("watch git refs directory %q: %w", refsHeads, err))
+		if err := addGitWatch(fsw, addedDirectories, filepath.Join(repository.commonDir, "refs", "heads"), true); err != nil {
+			return nil, closeFailedWatch(fsw, err)
 		}
 	}
 	go w.run()
@@ -62,6 +64,7 @@ func (GitWatcher) Watch(roots []string, notify func()) (io.Closer, error) {
 type watchedRepository struct {
 	root        string
 	gitDir      string
+	commonDir   string
 	fingerprint [sha256.Size]byte
 	valid       bool
 }
@@ -70,29 +73,64 @@ func watchedRepositories(roots []string) []watchedRepository {
 	seen := make(map[string]struct{}, len(roots))
 	repositories := make([]watchedRepository, 0, len(roots))
 	for _, root := range roots {
-		gitDir, ok := gitDirOf(root)
+		gitDir, commonDir, ok := gitDirectoriesOf(root)
 		if !ok {
 			continue
 		}
-		if _, duplicate := seen[gitDir]; duplicate {
+		// Multiple WorkspaceRefs may point at different subtrees of the same
+		// repository. Their fingerprints are intentionally separate because Git
+		// pathspecs scope staged entries to each resource root.
+		identity := filepath.Clean(root) + "\x00" + gitDir
+		if _, duplicate := seen[identity]; duplicate {
 			continue
 		}
-		seen[gitDir] = struct{}{}
+		seen[identity] = struct{}{}
 		fingerprint, valid := semanticGitFingerprint(root)
 		repositories = append(repositories, watchedRepository{
-			root: root, gitDir: gitDir, fingerprint: fingerprint, valid: valid,
+			root: root, gitDir: gitDir, commonDir: commonDir,
+			fingerprint: fingerprint, valid: valid,
 		})
 	}
 	return repositories
 }
 
-func gitDirOf(root string) (string, bool) {
-	gitDir := filepath.Join(root, ".git")
-	info, err := os.Stat(gitDir)
-	if err != nil || !info.IsDir() {
-		return "", false
+func gitDirectoriesOf(root string) (gitDir, commonDir string, ok bool) {
+	gitDirOutput, ok := gitObservation(root, "rev-parse", "--absolute-git-dir")
+	if !ok {
+		return "", "", false
 	}
-	return gitDir, true
+	gitDir = strings.TrimRight(string(gitDirOutput), "\r\n")
+	commonDirOutput, ok := gitObservation(root, "rev-parse", "--git-common-dir")
+	if !ok {
+		return "", "", false
+	}
+	commonDir = strings.TrimRight(string(commonDirOutput), "\r\n")
+	if !filepath.IsAbs(commonDir) {
+		commonDir = filepath.Join(root, commonDir)
+	}
+	gitDir = filepath.Clean(gitDir)
+	commonDir = filepath.Clean(commonDir)
+	for _, directory := range []string{gitDir, commonDir} {
+		info, err := os.Stat(directory)
+		if err != nil || !info.IsDir() {
+			return "", "", false
+		}
+	}
+	return gitDir, commonDir, true
+}
+
+func addGitWatch(watcher *fsnotify.Watcher, added map[string]struct{}, directory string, optional bool) error {
+	if _, exists := added[directory]; exists {
+		return nil
+	}
+	if err := watcher.Add(directory); err != nil {
+		if optional && errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+		return fmt.Errorf("watch git directory %q: %w", directory, err)
+	}
+	added[directory] = struct{}{}
+	return nil
 }
 
 type gitWatch struct {

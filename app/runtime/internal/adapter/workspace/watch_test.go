@@ -80,6 +80,144 @@ func TestGitWatcherIgnoresIndexStatRefreshButPublishesStageChange(t *testing.T) 
 	}
 }
 
+func TestGitWatcherResolvesRepositoryFromNestedWorkspace(t *testing.T) {
+	if !GitAvailable() {
+		t.Skip("git not on PATH")
+	}
+	root := t.TempDir()
+	gitCommand(t, root, "init", "-b", "main")
+	gitCommand(t, root, "config", "user.name", "t")
+	gitCommand(t, root, "config", "user.email", "t@t")
+	nested := filepath.Join(root, "packages", "desktop")
+	if err := os.MkdirAll(nested, 0o755); err != nil {
+		t.Fatalf("mkdir nested workspace: %v", err)
+	}
+	tracked := filepath.Join(nested, "tracked.txt")
+	if err := os.WriteFile(tracked, []byte("before\n"), 0o644); err != nil {
+		t.Fatalf("write tracked file: %v", err)
+	}
+	gitCommand(t, root, "add", "packages/desktop/tracked.txt")
+	gitCommand(t, root, "commit", "-m", "initial")
+
+	notified := make(chan struct{}, 1)
+	watcher, err := (GitWatcher{}).Watch([]string{nested}, func() { notified <- struct{}{} })
+	if err != nil {
+		t.Fatalf("watch nested workspace: %v", err)
+	}
+	defer watcher.Close()
+
+	if err := os.WriteFile(tracked, []byte("after\n"), 0o644); err != nil {
+		t.Fatalf("modify nested workspace file: %v", err)
+	}
+	gitCommand(t, root, "add", "packages/desktop/tracked.txt")
+	select {
+	case <-notified:
+	case <-time.After(3 * time.Second):
+		t.Fatal("nested workspace did not observe its repository index change")
+	}
+}
+
+func TestGitWatcherKeepsDistinctScopesWithinOneRepository(t *testing.T) {
+	if !GitAvailable() {
+		t.Skip("git not on PATH")
+	}
+	root := t.TempDir()
+	gitCommand(t, root, "init", "-b", "main")
+	first := filepath.Join(root, "packages", "first")
+	second := filepath.Join(root, "packages", "second")
+	for _, workspace := range []string{first, second} {
+		if err := os.MkdirAll(workspace, 0o755); err != nil {
+			t.Fatalf("mkdir workspace: %v", err)
+		}
+		if err := os.WriteFile(filepath.Join(workspace, "tracked.txt"), []byte("before\n"), 0o644); err != nil {
+			t.Fatalf("write tracked file: %v", err)
+		}
+	}
+	gitCommand(t, root, "add", "packages/first/tracked.txt", "packages/second/tracked.txt")
+
+	notified := make(chan struct{}, 1)
+	watcher, err := (GitWatcher{}).Watch([]string{first, second}, func() {
+		select {
+		case notified <- struct{}{}:
+		default:
+		}
+	})
+	if err != nil {
+		t.Fatalf("watch sibling workspace scopes: %v", err)
+	}
+	defer watcher.Close()
+
+	if err := os.WriteFile(filepath.Join(second, "tracked.txt"), []byte("after\n"), 0o644); err != nil {
+		t.Fatalf("modify second workspace file: %v", err)
+	}
+	gitCommand(t, root, "add", "packages/second/tracked.txt")
+	select {
+	case <-notified:
+	case <-time.After(3 * time.Second):
+		t.Fatal("second workspace scope did not observe its repository index change")
+	}
+}
+
+func TestGitWatcherObservesLinkedWorktreeFromNestedWorkspace(t *testing.T) {
+	if !GitAvailable() {
+		t.Skip("git not on PATH")
+	}
+	base := t.TempDir()
+	mainRoot := filepath.Join(base, "main")
+	worktreeRoot := filepath.Join(base, "linked")
+	if err := os.Mkdir(mainRoot, 0o755); err != nil {
+		t.Fatalf("mkdir main repository: %v", err)
+	}
+	gitCommand(t, mainRoot, "init", "-b", "main")
+	gitCommand(t, mainRoot, "config", "user.name", "t")
+	gitCommand(t, mainRoot, "config", "user.email", "t@t")
+	mainNested := filepath.Join(mainRoot, "packages", "desktop")
+	if err := os.MkdirAll(mainNested, 0o755); err != nil {
+		t.Fatalf("mkdir main nested workspace: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(mainNested, "tracked.txt"), []byte("before\n"), 0o644); err != nil {
+		t.Fatalf("write tracked file: %v", err)
+	}
+	gitCommand(t, mainRoot, "add", "packages/desktop/tracked.txt")
+	gitCommand(t, mainRoot, "commit", "-m", "initial")
+	gitCommand(t, mainRoot, "worktree", "add", "-b", "linked", worktreeRoot)
+
+	nested := filepath.Join(worktreeRoot, "packages", "desktop")
+	if err := os.MkdirAll(nested, 0o755); err != nil {
+		t.Fatalf("mkdir nested worktree workspace: %v", err)
+	}
+	gitDir, commonDir, ok := gitDirectoriesOf(nested)
+	if !ok {
+		t.Fatal("linked worktree was not resolved as a repository")
+	}
+	if gitDir == commonDir {
+		t.Fatalf("linked worktree git directory %q unexpectedly equals common directory", gitDir)
+	}
+
+	notified := make(chan struct{}, 1)
+	watcher, err := (GitWatcher{}).Watch([]string{nested}, func() {
+		select {
+		case notified <- struct{}{}:
+		default:
+		}
+	})
+	if err != nil {
+		t.Fatalf("watch linked worktree: %v", err)
+	}
+	defer watcher.Close()
+
+	tracked := filepath.Join(nested, "tracked.txt")
+	if err := os.WriteFile(tracked, []byte("after\n"), 0o644); err != nil {
+		t.Fatalf("modify worktree file: %v", err)
+	}
+	gitCommand(t, worktreeRoot, "add", "packages/desktop/tracked.txt")
+	select {
+	case <-notified:
+	case <-time.After(3 * time.Second):
+		t.Fatal("linked worktree did not observe its private index change")
+	}
+}
+
 func gitCommand(t *testing.T, dir string, args ...string) {
 	t.Helper()
 	cmd := exec.Command("git", args...)

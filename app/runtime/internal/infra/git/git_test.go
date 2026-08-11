@@ -85,6 +85,67 @@ func TestListChangesAndDiff(t *testing.T) {
 	}
 }
 
+func TestNestedWorkspaceVCSReadsStayJailedAndWorkspaceRelative(t *testing.T) {
+	root := initRepo(t)
+	nested := filepath.Join(root, "packages", "desktop")
+	if err := os.MkdirAll(nested, 0o755); err != nil {
+		t.Fatalf("mkdir nested workspace: %v", err)
+	}
+	write(t, nested, "inside.txt", "before\n")
+	gitTestCommand(t, root, "add", "packages/desktop/inside.txt")
+	gitTestCommand(t, root, "commit", "-m", "add nested workspace")
+
+	write(t, root, "a.txt", "outside change\n")
+	write(t, nested, "inside.txt", "after\n")
+	write(t, root, "outside-untracked.txt", "outside\n")
+	write(t, nested, "inside-untracked.txt", "one\ntwo\n")
+
+	changes, err := ListChanges(t.Context(), nested)
+	if err != nil {
+		t.Fatalf("ListChanges: %v", err)
+	}
+	if len(changes) != 2 {
+		t.Fatalf("changes = %+v, want only the two nested workspace files", changes)
+	}
+	byPath := make(map[string]FileChange, len(changes))
+	for _, change := range changes {
+		byPath[change.Path] = change
+	}
+	if change := byPath["inside.txt"]; change.Status != StatusModified {
+		t.Fatalf("inside.txt = %+v, want modified", change)
+	}
+	if change := byPath["inside-untracked.txt"]; change.Status != StatusUntracked || change.Added != 2 {
+		t.Fatalf("inside-untracked.txt = %+v, want untracked with two added lines", change)
+	}
+	for _, outside := range []string{"a.txt", "outside-untracked.txt", "packages/desktop/inside.txt"} {
+		if _, leaked := byPath[outside]; leaked {
+			t.Fatalf("outside or repository-relative path %q leaked into nested workspace", outside)
+		}
+	}
+
+	files, err := Diff(t.Context(), nested, "", Worktree)
+	if err != nil {
+		t.Fatalf("Diff: %v", err)
+	}
+	diffByPath := make(map[string]DiffFile, len(files))
+	for _, file := range files {
+		diffByPath[file.Path] = file
+	}
+	if len(files) != 2 || diffByPath["inside.txt"].Status != StatusModified || diffByPath["inside-untracked.txt"].Status != StatusUntracked {
+		t.Fatalf("diff files = %+v, want workspace-relative nested files", files)
+	}
+	selected, err := Diff(t.Context(), nested, filepath.Join(nested, "inside.txt"), Worktree)
+	if err != nil {
+		t.Fatalf("Diff selected absolute path: %v", err)
+	}
+	if len(selected) != 1 || selected[0].Path != "inside.txt" {
+		t.Fatalf("selected diff = %+v, want inside.txt", selected)
+	}
+	if _, err := Diff(t.Context(), nested, filepath.Join(root, "a.txt"), Worktree); err == nil {
+		t.Fatal("Diff accepted a path outside the nested workspace")
+	}
+}
+
 // TestDiffRowsStructure: rows carry the right type + line numbers.
 func TestDiffRowsStructure(t *testing.T) {
 	dir := initRepo(t)
@@ -196,5 +257,18 @@ func TestApplyNumstatRejectsMalformedCounts(t *testing.T) {
 	changes := map[string]*FileChange{"a.txt": {Path: "a.txt"}}
 	if err := applyNumstatZ("invalid\t1\ta.txt\x00", changes); err == nil {
 		t.Fatal("applyNumstatZ accepted a malformed added-line count")
+	}
+}
+
+func gitTestCommand(t *testing.T, dir string, args ...string) {
+	t.Helper()
+	cmd := exec.Command("git", args...)
+	cmd.Dir = dir
+	cmd.Env = append(os.Environ(),
+		"GIT_AUTHOR_NAME=t", "GIT_AUTHOR_EMAIL=t@t",
+		"GIT_COMMITTER_NAME=t", "GIT_COMMITTER_EMAIL=t@t",
+	)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git %v: %v: %s", args, err, output)
 	}
 }
