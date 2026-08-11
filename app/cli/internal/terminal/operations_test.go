@@ -64,3 +64,36 @@ func TestOperationOwnerReleaseMakesExclusiveSlotAvailableToSuccessor(t *testing.
 	}
 	<-successorDone
 }
+
+func TestOperationOwnerCancelsOnlyTheRequestedScope(t *testing.T) {
+	owner := newOperationOwner(t.Context())
+	t.Cleanup(owner.Close)
+	applicationCanceled := make(chan struct{})
+	if !owner.Go("application", false, func(ctx context.Context, _ operationLease) {
+		<-ctx.Done()
+		close(applicationCanceled)
+	}) {
+		t.Fatal("application operation was rejected")
+	}
+	sessionCanceled := make(chan struct{})
+	if !owner.GoSession("session", false, func(ctx context.Context, _ operationLease) {
+		<-ctx.Done()
+		close(sessionCanceled)
+	}) {
+		t.Fatal("session operation was rejected")
+	}
+
+	owner.CancelScope(sessionOperationScope)
+	<-sessionCanceled
+	select {
+	case <-applicationCanceled:
+		t.Fatal("canceling the session scope canceled application work")
+	default:
+	}
+	if owner.Active("session") {
+		t.Fatal("canceled session operation remains active")
+	}
+	if !owner.Active("application") {
+		t.Fatal("application operation was retired with the session scope")
+	}
+}

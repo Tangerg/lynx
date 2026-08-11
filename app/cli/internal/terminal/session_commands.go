@@ -350,8 +350,9 @@ func (a *app) prepareDestinationDraft(session agent.Session) (agent.Message, err
 
 func (installation sessionInstallation) apply(a *app) {
 	previousWorkspace := a.session.Workspace
+	a.cancelPluginCommands()
+	a.operations.CancelScope(sessionOperationScope)
 	a.dropStream()
-	a.operations.Cancel(completionOperation)
 	a.completion.Dismiss()
 	previousTranscript := a.transcript
 	a.session = installation.snapshot.Session

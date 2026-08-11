@@ -84,19 +84,23 @@ func (recipe Recipe) Expand(arguments string) (string, error) {
 	}
 	trimmed := strings.TrimSpace(arguments)
 	parts := strings.Fields(trimmed)
-	expanded := strings.ReplaceAll(recipe.Body, "$ARGUMENTS", trimmed)
-	return expandPositionalArguments(expanded, parts), nil
+	return expandRecipeTemplate(recipe.Body, trimmed, parts), nil
 }
 
-func expandPositionalArguments(template string, arguments []string) string {
+func expandRecipeTemplate(template, allArguments string, positional []string) string {
 	var expanded strings.Builder
 	expanded.Grow(len(template))
 	for offset := 0; offset < len(template); {
+		if strings.HasPrefix(template[offset:], "$ARGUMENTS") {
+			expanded.WriteString(allArguments)
+			offset += len("$ARGUMENTS")
+			continue
+		}
 		if template[offset] == '$' && offset+1 < len(template) && template[offset+1] >= '1' && template[offset+1] <= '9' &&
 			(offset+2 == len(template) || template[offset+2] < '0' || template[offset+2] > '9') {
 			index := int(template[offset+1] - '1')
-			if index < len(arguments) {
-				expanded.WriteString(arguments[index])
+			if index < len(positional) {
+				expanded.WriteString(positional[index])
 			}
 			offset += 2
 			continue

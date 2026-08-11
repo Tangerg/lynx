@@ -35,6 +35,25 @@ func TestCommandDescriptorValidatesItsIdentityNamespace(t *testing.T) {
 	}
 }
 
+func TestCommandsWithUsefulDefaultsDoNotRequireArguments(t *testing.T) {
+	t.Parallel()
+	want := map[string]bool{
+		"fork": true, "usage": true, "memory": true, "memory-add": true, "mcp-tools": true,
+	}
+	for _, command := range builtinCommands() {
+		if !want[command.Descriptor.Name] {
+			continue
+		}
+		delete(want, command.Descriptor.Name)
+		if command.Descriptor.Takes {
+			t.Errorf("/%s rejects its documented default by requiring an argument", command.Descriptor.Name)
+		}
+	}
+	for name := range want {
+		t.Errorf("defaultable command /%s is not registered", name)
+	}
+}
+
 func TestCommandCatalogRejectsNameAndAliasConflicts(t *testing.T) {
 	t.Parallel()
 	catalog := newCommandCatalog()

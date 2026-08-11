@@ -43,8 +43,16 @@ type operationLease struct {
 	id   uint64
 }
 
+type operationScope uint8
+
+const (
+	applicationOperationScope operationScope = iota
+	sessionOperationScope
+)
+
 type ownedOperation struct {
 	id     uint64
+	scope  operationScope
 	cancel context.CancelFunc
 }
 
@@ -70,6 +78,17 @@ func newOperationOwner(parent context.Context) *operationOwner {
 // Go starts work in slot. A replaceable operation cancels the previous owner;
 // an exclusive operation is rejected while the slot is occupied.
 func (o *operationOwner) Go(slot operationSlot, replace bool, work func(context.Context, operationLease)) bool {
+	return o.goScoped(applicationOperationScope, slot, replace, work)
+}
+
+// GoSession starts work owned by the current terminal session projection. A
+// successful projection replacement cancels all work in this scope before the
+// new session becomes visible, so a late result cannot bleed into it.
+func (o *operationOwner) GoSession(slot operationSlot, replace bool, work func(context.Context, operationLease)) bool {
+	return o.goScoped(sessionOperationScope, slot, replace, work)
+}
+
+func (o *operationOwner) goScoped(scope operationScope, slot operationSlot, replace bool, work func(context.Context, operationLease)) bool {
 	o.mu.Lock()
 	if o.closed {
 		o.mu.Unlock()
@@ -85,7 +104,7 @@ func (o *operationOwner) Go(slot operationSlot, replace bool, work func(context.
 	ctx, cancel := context.WithCancel(o.ctx)
 	o.next++
 	lease := operationLease{slot: slot, id: o.next}
-	o.active[slot] = ownedOperation{id: lease.id, cancel: cancel}
+	o.active[slot] = ownedOperation{id: lease.id, scope: scope, cancel: cancel}
 	o.wg.Go(func() {
 		defer o.release(lease, cancel)
 		work(ctx, lease)
@@ -117,6 +136,25 @@ func (o *operationOwner) Cancel(slot operationSlot) {
 	o.mu.Unlock()
 	if ok {
 		active.cancel()
+	}
+}
+
+// CancelScope atomically retires every operation in scope before notifying its
+// workers. Removing all leases under one lock is what prevents a completed old
+// worker from winning a race with a newly installed session projection.
+func (o *operationOwner) CancelScope(scope operationScope) {
+	o.mu.Lock()
+	operations := make([]ownedOperation, 0, len(o.active))
+	for slot, operation := range o.active {
+		if operation.scope != scope {
+			continue
+		}
+		delete(o.active, slot)
+		operations = append(operations, operation)
+	}
+	o.mu.Unlock()
+	for _, operation := range operations {
+		operation.cancel()
 	}
 }
 
@@ -170,9 +208,12 @@ func (o *operationOwner) release(lease operationLease, cancel context.CancelFunc
 	o.mu.Unlock()
 }
 
+// runOperation owns a user-initiated task for the lifetime of the current
+// session projection. Process-lifetime workers such as event subscriptions and
+// search listeners use operationOwner.Go directly and carry their own guards.
 func runOperation[T any](a *app, slot operationSlot, replace bool, work func(context.Context) (T, error), apply func(T, error)) bool {
 	dispatcher := a.loop.Dispatcher()
-	return a.operations.Go(slot, replace, func(ctx context.Context, lease operationLease) {
+	return a.operations.GoSession(slot, replace, func(ctx context.Context, lease operationLease) {
 		result, err := work(ctx)
 		if context.Cause(ctx) != nil {
 			return

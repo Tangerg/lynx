@@ -37,6 +37,22 @@ func (usageServiceStub) Summary(_ context.Context, sinceDays int) (usage.Summary
 	}, nil
 }
 
+type blockingUsageService struct {
+	started  chan struct{}
+	canceled chan struct{}
+}
+
+func (service blockingUsageService) SessionUsage(ctx context.Context, _ string) (usage.SessionReport, error) {
+	close(service.started)
+	<-ctx.Done()
+	close(service.canceled)
+	return usage.SessionReport{}, context.Cause(ctx)
+}
+
+func (blockingUsageService) Summary(context.Context, int) (usage.Summary, error) {
+	panic("summary must not run after the session usage query is canceled")
+}
+
 func TestUsageAndModelRoleCommandsProjectRuntimeConfiguration(t *testing.T) {
 	models := newModelConfigServiceStub()
 	host, stop := runUIWithRuntimeServices(t, Config{
@@ -67,6 +83,21 @@ func TestUsageAndModelRoleCommandsProjectRuntimeConfiguration(t *testing.T) {
 	if err != nil || roles.Utility.Model != "maintenance" || roles.Embedding.Configured() {
 		t.Fatalf("roles = (%+v, %v)", roles, err)
 	}
+	stop()
+}
+
+func TestSessionReplacementCancelsAnOutstandingSideQuery(t *testing.T) {
+	usageService := blockingUsageService{started: make(chan struct{}), canceled: make(chan struct{})}
+	host, stop := runUIWithRuntimeServices(t, Config{Runtime: mock.New(), Usage: usageService})
+	host.Shows(t, "Ask lyra")
+	host.Type("/usage")
+	host.Press(input.Enter)
+	awaitSignal(t, usageService.started, "session usage query")
+
+	host.Type("/new")
+	host.Press(input.Enter)
+	awaitSignal(t, usageService.canceled, "old session query cancellation")
+	host.Hides(t, "Runtime usage")
 	stop()
 }
 

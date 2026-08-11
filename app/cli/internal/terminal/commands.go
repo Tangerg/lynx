@@ -158,7 +158,7 @@ func (a *app) executeCommand(pluginID string, command SlashCommand, argument str
 	sequence := a.commandSeq
 	slot := operationSlot(fmt.Sprintf("command:%d", sequence))
 	a.commandOperations[sequence] = commandOperation{pluginID: pluginID, slot: slot}
-	started := a.operations.Go(slot, false, func(ctx context.Context, lease operationLease) {
+	started := a.operations.GoSession(slot, false, func(ctx context.Context, lease operationLease) {
 		result, err := executeCommandSafely(ctx, command, request)
 		_ = post(ctx, dispatcher, func() {
 			if !a.operations.Current(lease) || a.closed {
