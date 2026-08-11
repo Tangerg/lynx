@@ -8,7 +8,6 @@ require (
 	github.com/Tangerg/lynx/mcp v0.0.0-20260803122848-6ade352dda10
 	github.com/Tangerg/lynx/models v0.0.0-20260803122848-6ade352dda10
 	github.com/Tangerg/lynx/models/google v0.0.0-20260803122848-6ade352dda10
-	github.com/Tangerg/lynx/models/ollama v0.0.0-20260803122848-6ade352dda10
 	github.com/Tangerg/lynx/otel v0.0.0-20260803122848-6ade352dda10
 	github.com/Tangerg/lynx/skills v0.0.0-20260803141845-7207652c95af
 	github.com/Tangerg/lynx/tools/httpreq v0.0.0-20260803213301-143b5c1045ad
@@ -58,7 +57,7 @@ require (
 	cloud.google.com/go/compute/metadata v0.9.0 // indirect
 	github.com/Masterminds/semver/v3 v3.5.0 // indirect
 	github.com/Tangerg/lynx v0.0.0-20260805221614-8b3e8b860d00
-	github.com/Tangerg/lynx/models/protocol/openai v0.0.0-20260803122848-6ade352dda10 // indirect
+	github.com/Tangerg/lynx/models/protocol/openai v0.0.0-20260803122848-6ade352dda10
 	github.com/a2aproject/a2a-go/v2 v2.4.0 // indirect
 	github.com/bahlo/generic-list-go v0.2.0 // indirect
 	github.com/buger/jsonparser v1.6.1 // indirect
@@ -75,10 +74,8 @@ require (
 	github.com/googleapis/enterprise-certificate-proxy v0.3.19 // indirect
 	github.com/googleapis/gax-go/v2 v2.23.0 // indirect
 	github.com/gorilla/websocket v1.5.3 // indirect
-	github.com/mailru/easyjson v0.9.2 // indirect
 	github.com/mattn/go-isatty v0.0.24 // indirect
 	github.com/ncruces/go-strftime v1.0.0 // indirect
-	github.com/ollama/ollama v0.32.5 // indirect
 	github.com/pb33f/ordered-map/v2 v2.3.1 // indirect
 	github.com/pelletier/go-toml/v2 v2.4.3 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
@@ -94,7 +91,6 @@ require (
 	github.com/tidwall/match v1.2.0 // indirect
 	github.com/tidwall/pretty v1.2.1 // indirect
 	github.com/tidwall/sjson v1.2.5 // indirect
-	github.com/wk8/go-ordered-map/v2 v2.1.8 // indirect
 	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.69.0 // indirect

@@ -17,7 +17,6 @@ import (
 	"github.com/Tangerg/lynx/models/minimax"
 	"github.com/Tangerg/lynx/models/mistral"
 	"github.com/Tangerg/lynx/models/moonshot"
-	"github.com/Tangerg/lynx/models/ollama"
 	"github.com/Tangerg/lynx/models/openai"
 	"github.com/Tangerg/lynx/models/openrouter"
 	"github.com/Tangerg/lynx/models/perplexity"
@@ -121,9 +120,7 @@ var chatProviderCatalog = map[Provider]chatProviderProfile{
 
 	// Local daemon (base URL defaults to localhost; model id is user-pulled —
 	// dynamic discovery probes the daemon's /v1/models for what is installed).
-	ProviderOllama: {apiKeyEnv: "OLLAMA_API_KEY", defaultBaseURL: "http://localhost:11434/v1", build: func(s ClientSpec, o chat.Options) (chat.Model, error) {
-		return ollama.NewOpenAIChat(ollama.OpenAIChatConfig{APIKey: s.APIKey, DefaultOptions: o, BaseURL: s.BaseURL})
-	}},
+	ProviderOllama: {apiKeyEnv: "OLLAMA_API_KEY", defaultBaseURL: defaultOllamaOpenAIBaseURL, build: buildOllamaChatModel},
 
 	// Azure: the base URL is the complete per-resource /openai/v1 endpoint;
 	// the model id is a deployment name. Both are user-supplied.

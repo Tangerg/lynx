@@ -9,7 +9,6 @@ import (
 	"github.com/Tangerg/lynx/models/azureopenai"
 	"github.com/Tangerg/lynx/models/google"
 	"github.com/Tangerg/lynx/models/mistral"
-	"github.com/Tangerg/lynx/models/ollama"
 	openaimodel "github.com/Tangerg/lynx/models/openai"
 	"github.com/Tangerg/lynx/models/zhipu"
 )
@@ -43,10 +42,7 @@ var embeddingProviderCatalog = map[Provider]embeddingProviderProfile{
 	ProviderMistral: {defaultModel: mistral.ModelEmbed, build: func(s ClientSpec, o embedding.Options) (embedding.Model, error) {
 		return mistral.NewEmbeddingModel(mistral.EmbeddingModelConfig{APIKey: s.APIKey, DefaultOptions: o, BaseURL: s.BaseURL})
 	}},
-	ProviderOllama: {defaultModel: "nomic-embed-text", build: func(s ClientSpec, o embedding.Options) (embedding.Model, error) {
-		// Ollama is a keyless local daemon — no APIKey field.
-		return ollama.NewEmbeddingModel(ollama.EmbeddingModelConfig{DefaultOptions: o, BaseURL: s.BaseURL})
-	}},
+	ProviderOllama: {defaultModel: "nomic-embed-text", build: buildOllamaEmbeddingModel},
 	ProviderZhipu: {defaultModel: zhipu.ModelEmbedding3, build: func(s ClientSpec, o embedding.Options) (embedding.Model, error) {
 		return zhipu.NewEmbeddingModel(zhipu.EmbeddingModelConfig{APIKey: s.APIKey, DefaultOptions: o, BaseURL: s.BaseURL})
 	}},
