@@ -1,11 +1,14 @@
 import { AnimatePresence, motion } from "motion/react";
-import { useState } from "react";
-import { Badge, ProgressBar } from "@/ui";
+import { useRef, useState } from "react";
+import { Badge, ProgressBar, TextButton } from "@/ui";
 import { AgentActivityDisclosure } from "@/ui/agent";
 import { disclosureTransition } from "@/lib/motion";
 import { fmtCost } from "@/lib/format";
 import { useT } from "@/lib/i18n";
+import { rpcErrorText } from "@/lib/rpcErrors";
+import { notifyError } from "@/plugins/sdk";
 import { useActiveSessionId } from "@/plugins/builtin/agent/public/session";
+import { resumeGoal, stopGoal } from "../application/goalCommands";
 import {
   GOAL_STATUS_I18N,
   GOAL_STOP_I18N,
@@ -41,7 +44,25 @@ export function GoalBanner() {
 function GoalDisclosure({ goal }: { goal: GoalReadModel }) {
   const t = useT();
   const [expanded, setExpanded] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const commandInFlight = useRef(false);
   const axes = goalBudgetAxes(goal);
+
+  const changeStatus = async () => {
+    if (commandInFlight.current) return;
+    commandInFlight.current = true;
+    setBusy(true);
+    try {
+      if (goal.status === "active") await stopGoal(goal.sessionId);
+      else await resumeGoal(goal.sessionId);
+    } catch (error) {
+      const fallback = goal.status === "active" ? t("goal.error.stop") : t("goal.error.resume");
+      notifyError(rpcErrorText(error) ?? fallback);
+    } finally {
+      commandInFlight.current = false;
+      setBusy(false);
+    }
+  };
 
   return (
     <motion.div
@@ -60,11 +81,22 @@ function GoalDisclosure({ goal }: { goal: GoalReadModel }) {
         // on screen already says, and a badge repeating it would leave the two
         // states that need saying — paused, blocked — competing with noise.
         actions={
-          goal.status !== "active" && (
-            <Badge tone={GOAL_STATUS_I18N[goal.status].tone}>
-              {t(GOAL_STATUS_I18N[goal.status].label)}
-            </Badge>
-          )
+          <div className="flex items-center gap-2">
+            {goal.status !== "active" && (
+              <Badge tone={GOAL_STATUS_I18N[goal.status].tone}>
+                {t(GOAL_STATUS_I18N[goal.status].label)}
+              </Badge>
+            )}
+            <TextButton
+              type="button"
+              size="sm"
+              tone={goal.status === "active" ? "negative" : "accent"}
+              disabled={busy}
+              onClick={() => void changeStatus()}
+            >
+              {goal.status === "active" ? t("goal.action.stop") : t("goal.action.resume")}
+            </TextButton>
+          </div>
         }
         open={expanded}
         onToggle={() => setExpanded((value) => !value)}

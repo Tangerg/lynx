@@ -9,3 +9,13 @@ export function goalBannerSlot(component: LayoutSlotSpec["component"]): LayoutSl
     component,
   };
 }
+
+/** Before the composer's send control: Goal mode changes how the draft is
+ * executed, while Send remains the terminal action on the right edge. */
+export function goalLauncherSlot(component: LayoutSlotSpec["component"]): LayoutSlotSpec {
+  return {
+    id: "goal-launcher",
+    order: 90,
+    component,
+  };
+}
