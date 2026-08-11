@@ -200,6 +200,32 @@ describe("agentStore.applyCancelResponse", () => {
   });
 });
 
+describe("agentStore.applyRunSnapshot", () => {
+  it("folds the exact terminal RunRef after the stream tail", () => {
+    const store = useAgentStore.getState();
+    store.ensureSession(SID);
+    store.applyRunEvents(SID, [fold(runStarted("run_1", SID))]);
+
+    store.applyRunSnapshot(
+      SID,
+      runRef({
+        status: "finished",
+        activeSegmentId: undefined,
+        outcome: { type: "completed" },
+        finishedAt: "2026-06-03T00:00:02.000Z",
+        metrics: { steps: 4, activeDurationMillis: 120 },
+      }),
+    );
+
+    expect(view().runsById.run_1).toMatchObject({
+      status: "finished",
+      outcome: { type: "completed" },
+      metrics: { steps: 4, activeDurationMillis: 120 },
+    });
+    expect(view().timeline.at(-1)).toMatchObject({ kind: "run-end", status: "ok" });
+  });
+});
+
 describe("agentStore authoritative refresh", () => {
   it("keeps the current view visible until a complete snapshot commits", () => {
     const store = useAgentStore.getState();
@@ -367,6 +393,12 @@ describe("agentStore never resurrects a dropped session", () => {
     useAgentStore
       .getState()
       .applyRunEvents("ses_ghost", [runStarted("run_x", "ses_ghost")].map(fold));
+    expect(useAgentStore.getState().sessions["ses_ghost"]).toBeUndefined();
+  });
+
+  it("applyRunSnapshot on an absent session is a no-op (no ghost entry)", () => {
+    useAgentStore.getState().dropSession("ses_ghost");
+    useAgentStore.getState().applyRunSnapshot("ses_ghost", runRef({ sessionId: "ses_ghost" }));
     expect(useAgentStore.getState().sessions["ses_ghost"]).toBeUndefined();
   });
 

@@ -3,8 +3,8 @@
 // the run behind it is still executing.
 
 import { describe, expect, it, vi } from "vitest";
-import type { RunEvent } from "@/rpc";
-import { asRunId, asSegmentId, RpcProtocolError } from "@/rpc";
+import type { RunEvent, RunRef } from "@/rpc";
+import { asRunId, asSegmentId, asSessionId, RpcProtocolError } from "@/rpc";
 import { createAgentRunPump, type RunStream, type RunStreamPosition } from "./agentRunPump";
 
 const RUN = asRunId("run_1");
@@ -33,6 +33,19 @@ function streamOf(events: RunEvent[], headEventId?: string): RunStream {
     events: (async function* () {
       for (const ev of events) yield ev;
     })(),
+  };
+}
+
+function terminalRun(): RunRef {
+  return {
+    id: RUN,
+    sessionId: asSessionId("ses_1"),
+    status: "finished",
+    createdAt: "2026-07-29T00:00:00Z",
+    finishedAt: "2026-07-29T00:00:01Z",
+    outcome: { type: "completed" },
+    metrics: { steps: 1, activeDurationMillis: 1 },
+    protocolProfile: { interruptTypes: [], requiredFeatures: [] },
   };
 }
 
@@ -115,6 +128,11 @@ describe("agent run pump reattach", () => {
       isCancelled: () => false,
       readEpoch: () => 0,
       applyEvents: (events) => order.push(...events.map((entry) => entry.event.type)),
+      readRunSnapshot: async () => {
+        order.push("exact-read");
+        return terminalRun();
+      },
+      applyRunSnapshot: () => order.push("snapshot"),
       onIdle: () => order.push("idle"),
     });
 
@@ -123,8 +141,44 @@ describe("agent run pump reattach", () => {
       new AbortController().signal,
     );
 
-    expect(order).toEqual(["segment.progress", "segment.finished", "idle"]);
+    expect(order).toEqual([
+      "segment.progress",
+      "segment.finished",
+      "exact-read",
+      "snapshot",
+      "idle",
+    ]);
     expect(pump.isActive()).toBe(false);
+  });
+
+  it("does not fold an older exact read after a newer pump takes ownership", async () => {
+    const exactRead = deferred<RunRef>();
+    const applyRunSnapshot = vi.fn();
+    const readRunSnapshot = vi.fn(() => exactRead.promise);
+    const pump = createAgentRunPump({
+      sessionId: "ses_1",
+      isCancelled: () => false,
+      readEpoch: () => 0,
+      applyEvents: vi.fn(),
+      readRunSnapshot,
+      applyRunSnapshot,
+    });
+    const oldController = new AbortController();
+    const newController = new AbortController();
+    const newerSegment = asSegmentId("seg_newer");
+
+    const older = pump.pump(streamOf([frame("evt_old_terminal", finished)]), oldController.signal);
+    await vi.waitFor(() => expect(readRunSnapshot).toHaveBeenCalledOnce());
+    const newer = pump.pump(parkedStream(newerSegment, newController.signal), newController.signal);
+    await Promise.resolve();
+
+    exactRead.resolve(terminalRun());
+    await older;
+    expect(applyRunSnapshot).not.toHaveBeenCalled();
+    expect(pump.isFollowing(RUN, newerSegment)).toBe(true);
+
+    newController.abort();
+    await newer;
   });
 
   it("keeps its own cursor across a replaying reattach", async () => {
@@ -211,4 +265,12 @@ function parkedStream(segmentId: ReturnType<typeof asSegmentId>, signal: AbortSi
       },
     },
   };
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((done) => {
+    resolve = done;
+  });
+  return { promise, resolve };
 }

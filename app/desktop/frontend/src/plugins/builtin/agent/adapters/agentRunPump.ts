@@ -3,6 +3,7 @@ import {
   RpcProtocolError,
   type RunEvent,
   type RunId,
+  type RunRef,
   type SegmentId,
   type StreamingResult,
 } from "@/rpc";
@@ -35,6 +36,10 @@ interface AgentRunPumpOptions {
   isCancelled: () => boolean;
   readEpoch: () => number;
   applyEvents: (events: RunEvent[]) => void;
+  /** Read the root Run after its live segment settles. Stream terminal events are
+   *  intentionally compact; runs.get is the authoritative complete RunRef. */
+  readRunSnapshot?: (runId: RunId, signal: AbortSignal) => Promise<RunRef>;
+  applyRunSnapshot?: (run: RunRef) => void;
   /** Reattach a run whose stream ended before the run did. null means the run is no
    *  longer attachable at all — finished, waiting on a person, or moved to another
    *  segment — and the fold already holds, or will be told, everything it can. */
@@ -55,6 +60,8 @@ export function createAgentRunPump({
   isCancelled,
   readEpoch,
   applyEvents,
+  readRunSnapshot,
+  applyRunSnapshot,
   reattach,
   onIdle,
 }: AgentRunPumpOptions): AgentRunPump {
@@ -113,9 +120,26 @@ export function createAgentRunPump({
           // refresh. Land this stream's rAF-delayed tail before declaring the
           // session idle, otherwise the newer snapshot can overtake it.
           eventBatcher.flush();
-          currentRunId = null;
-          currentSegmentId = null;
-          onIdle?.();
+          let snapshot: RunRef | undefined;
+          if (readRunSnapshot && !isCancelled() && !signal.aborted) {
+            try {
+              snapshot = await readRunSnapshot(runId, signal);
+            } catch (error) {
+              if (!isCancelled() && !signal.aborted) {
+                console.warn("[agent] exact run read failed:", sessionId, runId, error);
+              }
+            }
+          }
+
+          // A newer pump may have opened while the exact read was in flight.
+          // Its stream owns the projection now, so the older RunRef cannot be
+          // folded and the older finally cannot publish an idle boundary.
+          if (currentPumpSequence === pumpSequence) {
+            if (snapshot) applyRunSnapshot?.(snapshot);
+            currentRunId = null;
+            currentSegmentId = null;
+            onIdle?.();
+          }
         }
       }
     },

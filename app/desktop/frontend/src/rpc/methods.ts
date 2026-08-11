@@ -283,7 +283,7 @@ export interface Methods {
       input: ContentBlock[],
     ) => MutationPromise<void>;
     // One run by id — current or terminal — without knowing its session (§7.3).
-    get: (runId: RunId) => Promise<RunRef>;
+    get: (runId: RunId, signal?: AbortSignal) => Promise<RunRef>;
     // The durable run history, newest first (§7.3). Omitting statuses returns every
     // position; asking for descendants requires negotiated features.subagents.
     list: (
@@ -668,7 +668,7 @@ export function createMethods(client: RpcClient, options: MethodsOptions = {}): 
       cancel: (runId, reason) => call("runs.cancel", { runId, reason }),
       steer: (runId, expectedSegmentId, input) =>
         call("runs.steer", { runId, expectedSegmentId, input }),
-      get: (runId) => call("runs.get", { runId }),
+      get: (runId, signal) => call("runs.get", { runId }, { signal }),
       list: (query) => call("runs.list", query ?? {}),
     },
     plan: {

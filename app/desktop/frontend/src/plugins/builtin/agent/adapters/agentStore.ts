@@ -1,4 +1,4 @@
-import type { CancelRunResponse, RunEvent } from "@/rpc";
+import type { CancelRunResponse, RunEvent, RunRef } from "@/rpc";
 import type {
   AgentViewRefreshToken,
   CancelRunAction,
@@ -12,6 +12,7 @@ import { create } from "zustand";
 import { disposeOnHmr } from "@/lib/hmr";
 import { reduceRunEvent } from "@/plugins/builtin/agent/application/fold/reducer";
 import { foldCancelRunResponse } from "@/plugins/builtin/agent/application/fold/cancelResponse";
+import { foldRunSnapshot } from "@/plugins/builtin/agent/application/fold/runSnapshot";
 import { EMPTY_AGENT_SESSION_VIEW } from "@/plugins/sdk/types/agentSessionView";
 import {
   dismissVisibleProblem,
@@ -54,6 +55,7 @@ interface AgentStore {
    * instead of one per delta.
    */
   applyRunEvents: (sessionId: string, events: RunEvent[]) => void;
+  applyRunSnapshot: (sessionId: string, run: RunRef) => void;
   applyCancelResponse: (sessionId: string, response: CancelRunResponse) => void;
   appendLocalMessage: (sessionId: string, message: Message) => void;
   /** Create the mounted session slice if absent. Existing projection state is
@@ -180,6 +182,11 @@ export const useAgentStore = create<AgentStore>((set) => ({
           viewRevision: prev.viewRevision + 1,
         }),
       };
+    }),
+  applyRunSnapshot: (sessionId, run) =>
+    set((state) => {
+      const sessions = patchView(state.sessions, sessionId, (view) => foldRunSnapshot(view, run));
+      return sessions === state.sessions ? state : { sessions };
     }),
   applyCancelResponse: (sessionId, response) =>
     set((state) => {

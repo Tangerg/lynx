@@ -56,6 +56,8 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
       isCancelled: () => cancelled,
       readEpoch: () => store().sessions[sessionId]?.viewEpoch ?? 0,
       applyEvents: (events) => store().applyRunEvents(sessionId, events),
+      readRunSnapshot: (runId, signal) => client().runs.get(runId, signal),
+      applyRunSnapshot: (run) => store().applyRunSnapshot(sessionId, run),
       // A run keeps executing when its stream drops. Reattaching is what makes that a
       // gap instead of a transcript that stops moving until the next reload.
       reattach: createRunStreamReattach({
