@@ -49,7 +49,7 @@ type ScheduleStore interface {
 	Get(ctx context.Context, id string) (schedule.Schedule, error)
 	Create(ctx context.Context, sc schedule.Schedule) (schedule.Schedule, error)
 	Update(ctx context.Context, sc schedule.Schedule, expectedRevision uint64) (schedule.Schedule, error)
-	Delete(ctx context.Context, id string) error
+	Delete(ctx context.Context, id string) (bool, error)
 	Due(ctx context.Context, now time.Time, limit int) ([]schedule.Schedule, error)
 	Claim(ctx context.Context, occurrence schedule.Occurrence) (bool, error)
 	Pending(ctx context.Context, limit int) ([]schedule.Occurrence, error)

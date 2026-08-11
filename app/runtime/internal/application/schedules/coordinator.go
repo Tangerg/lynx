@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/application/invalidation"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/pagination"
 	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
@@ -24,16 +25,17 @@ type ManagementStore interface {
 	Get(ctx context.Context, id string) (schedule.Schedule, error)
 	Create(ctx context.Context, scheduled schedule.Schedule) (schedule.Schedule, error)
 	Update(ctx context.Context, scheduled schedule.Schedule, expectedRevision uint64) (schedule.Schedule, error)
-	Delete(ctx context.Context, id string) error
+	Delete(ctx context.Context, id string) (bool, error)
 }
 
 // Coordinator owns editable scheduled-run management over its narrow store.
 // It is stateless beyond its dependencies and safe to share.
 type Coordinator struct {
-	store   ManagementStore
-	paths   CWDResolver
-	now     func() time.Time
-	enabled bool
+	store         ManagementStore
+	paths         CWDResolver
+	now           func() time.Time
+	invalidations invalidation.Publish
+	enabled       bool
 }
 
 // CWDResolver is the filesystem boundary used to admit a schedule's working
@@ -49,8 +51,9 @@ var ErrUnavailable = errors.New("schedules: unavailable")
 
 // Dependencies is the collaborator set [New] wires into a Coordinator.
 type Dependencies struct {
-	Store ManagementStore
-	Paths CWDResolver
+	Store         ManagementStore
+	Paths         CWDResolver
+	Invalidations invalidation.Publish
 }
 
 // CreateCommand is the complete editable state of a new schedule.
@@ -79,10 +82,11 @@ func New(deps Dependencies) *Coordinator {
 		store = disabledManagementStore{}
 	}
 	return &Coordinator{
-		store:   store,
-		paths:   deps.Paths,
-		now:     time.Now,
-		enabled: enabled,
+		store:         store,
+		paths:         deps.Paths,
+		now:           time.Now,
+		invalidations: deps.Invalidations,
+		enabled:       enabled,
 	}
 }
 
@@ -156,6 +160,7 @@ func (c *Coordinator) Create(ctx context.Context, cmd CreateCommand) (schedule.S
 	if err != nil {
 		return schedule.Schedule{}, fmt.Errorf("schedules: create: %w", err)
 	}
+	c.invalidations.Notify(invalidation.ForSchedules(created.ID))
 	return created, nil
 }
 
@@ -202,6 +207,7 @@ func (c *Coordinator) updateExisting(
 	if err != nil {
 		return schedule.Schedule{}, fmt.Errorf("schedules: update %q: %w", existing.ID, err)
 	}
+	c.invalidations.Notify(invalidation.ForSchedules(updated.ID))
 	return updated, nil
 }
 
@@ -213,8 +219,12 @@ func (c *Coordinator) Delete(ctx context.Context, id string) error {
 	if id == "" {
 		return schedule.ErrIDRequired
 	}
-	if err := c.store.Delete(ctx, id); err != nil {
+	deleted, err := c.store.Delete(ctx, id)
+	if err != nil {
 		return fmt.Errorf("schedules: delete %q: %w", id, err)
+	}
+	if deleted {
+		c.invalidations.Notify(invalidation.ForSchedules(id))
 	}
 	return nil
 }
@@ -256,6 +266,6 @@ func (disabledManagementStore) Update(context.Context, schedule.Schedule, uint64
 	return schedule.Schedule{}, ErrUnavailable
 }
 
-func (disabledManagementStore) Delete(context.Context, string) error {
-	return ErrUnavailable
+func (disabledManagementStore) Delete(context.Context, string) (bool, error) {
+	return false, ErrUnavailable
 }

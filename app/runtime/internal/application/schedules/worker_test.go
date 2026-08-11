@@ -35,7 +35,7 @@ func (s *workerStore) Create(context.Context, schedule.Schedule) (schedule.Sched
 func (s *workerStore) Update(context.Context, schedule.Schedule, uint64) (schedule.Schedule, error) {
 	return schedule.Schedule{}, nil
 }
-func (s *workerStore) Delete(context.Context, string) error { return nil }
+func (s *workerStore) Delete(context.Context, string) (bool, error) { return false, nil }
 func (s *workerStore) Due(_ context.Context, _ time.Time, _ int) ([]schedule.Schedule, error) {
 	return s.due, s.dueErr
 }

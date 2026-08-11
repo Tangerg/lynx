@@ -56,9 +56,9 @@ func (r *fakeScheduleRegistry) Update(_ context.Context, scheduled schedule.Sche
 	return scheduled, nil
 }
 
-func (r *fakeScheduleRegistry) Delete(_ context.Context, id string) error {
+func (r *fakeScheduleRegistry) Delete(_ context.Context, id string) (bool, error) {
 	r.deleted = append(r.deleted, id)
-	return nil
+	return true, nil
 }
 
 func (r *fakeScheduleRegistry) RecordRun(context.Context, string, time.Time) error { return nil }

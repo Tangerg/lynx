@@ -19,16 +19,24 @@ func TestEveryInvalidationResourceIsPublishable(t *testing.T) {
 		invalidation.Interrupts,
 		invalidation.Goals,
 		invalidation.PlanState,
+		invalidation.Schedules,
 	} {
-		ev, ok := runtimeEventFor(invalidation.Notice{Resource: resource, SessionIDs: []string{"ses_1"}})
+		notice := invalidation.Notice{Resource: resource, SessionIDs: []string{"ses_1"}}
+		if resource == invalidation.Schedules {
+			notice = invalidation.ForSchedules("sch_1")
+		}
+		ev, ok := runtimeEventFor(notice)
 		if !ok {
 			t.Fatalf("resource %d has no runtime event", resource)
 		}
 		if !slices.Contains(protocol.RuntimeTopics(), protocol.RuntimeTopic(ev.Type)) {
 			t.Fatalf("resource %d maps to %q, which is not a subscribable topic", resource, ev.Type)
 		}
-		if !slices.Equal(ev.SessionIDs, []string{"ses_1"}) {
+		if resource != invalidation.Schedules && !slices.Equal(ev.SessionIDs, []string{"ses_1"}) {
 			t.Fatalf("resource %d dropped the session scope: %+v", resource, ev.SessionIDs)
+		}
+		if resource == invalidation.Schedules && !slices.Equal(ev.ScheduleIDs, []string{"sch_1"}) {
+			t.Fatalf("schedule invalidation dropped its scope: %+v", ev.ScheduleIDs)
 		}
 	}
 }

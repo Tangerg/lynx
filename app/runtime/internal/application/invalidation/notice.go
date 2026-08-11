@@ -26,15 +26,18 @@ const (
 	Goals
 	// PlanState — the session-scoped Plan projection was committed.
 	PlanState
+	// Schedules — an editable scheduled run was created, updated, or deleted.
+	Schedules
 )
 
 // Notice is one committed change: the resource, and the members of it a reader can
 // narrow to. Empty ID sets mean "every member of this resource may be stale",
 // which is the honest answer when a mutation's scope is not enumerable.
 type Notice struct {
-	Resource   Resource
-	SessionIDs []string
-	RunIDs     []string
+	Resource    Resource
+	SessionIDs  []string
+	RunIDs      []string
+	ScheduleIDs []string
 }
 
 // InSession is the notice for a resource that moved inside one session, optionally
@@ -47,6 +50,11 @@ func InSession(resource Resource, sessionID string, runIDs ...string) Notice {
 // once, such as a bulk lifecycle mutation.
 func InSessions(resource Resource, ids ...string) Notice {
 	return Notice{Resource: resource, SessionIDs: ids}
+}
+
+// ForSchedules is the notice for committed changes to editable schedules.
+func ForSchedules(ids ...string) Notice {
+	return Notice{Resource: Schedules, ScheduleIDs: ids}
 }
 
 func sessionIDs(id string) []string {

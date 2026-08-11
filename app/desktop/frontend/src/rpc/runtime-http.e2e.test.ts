@@ -88,6 +88,17 @@ function scriptedReply(body: FakeChatRequest): { text?: string; tool?: FakeToolC
       },
     };
   }
+  if (transcript.includes("E2E_APPROVAL") && availableTools.has("shell") && !hasToolResult) {
+    return {
+      tool: {
+        name: "shell",
+        arguments: JSON.stringify({
+          command: "printf approval-ok",
+          description: "Print the approval marker",
+        }),
+      },
+    };
+  }
   if (
     transcript.includes("E2E_FILE_WRITE") &&
     availableTools.has("read") &&
@@ -551,6 +562,75 @@ describe("Go Runtime ↔ HTTP ↔ TypeScript SDK", () => {
     });
   }, 30_000);
 
+  it("opens and clears an approval interrupt around the exact tool call", async () => {
+    if (!client) throw new Error("runtime client was not initialized");
+
+    const session = await client.sessions.create({
+      workspace: { path: root },
+      title: "HTTP approval lifecycle",
+    });
+    const streamController = new AbortController();
+    const subscription = await client.runtimeEvents.subscribe(
+      { topics: ["interrupts.changed"] },
+      streamController.signal,
+    );
+    const runtimeEvents = subscription.events[Symbol.asyncIterator]();
+
+    const started = await client.runs.start({
+      sessionId: asSessionId(session.id),
+      input: [{ type: "text", text: "E2E_APPROVAL run the command after approval." }],
+    });
+    const runId = asRunId(started.result.runId);
+    const startEvents = await collectRunEvents(started.events);
+    expect(startEvents.at(-1)?.event).toMatchObject({
+      type: "segment.finished",
+      outcome: { type: "interrupt" },
+    });
+    await expect(nextRuntimeEvent(runtimeEvents, "interrupts.changed")).resolves.toMatchObject({
+      type: "interrupts.changed",
+      runIds: [runId],
+      sessionIds: [session.id],
+    });
+
+    const pending = await client.interrupts.list({ rootRunId: runId });
+    const approval = pending.data[0]?.interrupts[0];
+    if (!approval || approval.type !== "approval") {
+      throw new Error("runtime did not persist the expected approval interrupt");
+    }
+    expect(approval.runId).toBe(runId);
+    expect(approval.payload.tool).toMatchObject({
+      name: "shell",
+      arguments: {
+        command: "printf approval-ok",
+        description: "Print the approval marker",
+      },
+    });
+
+    const resumed = await client.runs.resume({
+      runId,
+      responses: [
+        {
+          itemId: approval.itemId,
+          response: { type: "approval", decision: "approve" },
+        },
+      ],
+    });
+    const resumeEvents = await collectRunEvents(resumed.events);
+    expect(resumeEvents.at(-1)?.event).toMatchObject({
+      type: "segment.finished",
+      outcome: { type: "completed" },
+    });
+    await expect(nextRuntimeEvent(runtimeEvents, "interrupts.changed")).resolves.toMatchObject({
+      type: "interrupts.changed",
+      runIds: [runId],
+      sessionIds: [session.id],
+    });
+    await expect(client.interrupts.list({ rootRunId: runId })).resolves.toMatchObject({ data: [] });
+
+    streamController.abort();
+    await runtimeEvents.return?.();
+  }, 30_000);
+
   it("drives a goal to its durable budget boundary", async () => {
     if (!client) throw new Error("runtime client was not initialized");
 
@@ -603,6 +683,53 @@ describe("Go Runtime ↔ HTTP ↔ TypeScript SDK", () => {
     await expect(client.goals.resume(sessionId)).rejects.toSatisfy(
       (error: unknown) => error instanceof RpcError && errorType(error.data) === "invalid_params",
     );
+
+    streamController.abort();
+    await runtimeEvents.return?.();
+  }, 30_000);
+
+  it("reconciles the schedule lifecycle through schedules.changed", async () => {
+    if (!client) throw new Error("runtime client was not initialized");
+
+    const streamController = new AbortController();
+    const subscription = await client.runtimeEvents.subscribe(
+      { topics: ["schedules.changed"] },
+      streamController.signal,
+    );
+    const runtimeEvents = subscription.events[Symbol.asyncIterator]();
+
+    const created = await client.schedules.create({
+      cron: "0 0 1 1 *",
+      instructions: "Run the annual HTTP E2E check.",
+      title: "HTTP schedule lifecycle",
+      workspace: { path: root },
+    });
+    await expect(nextRuntimeEvent(runtimeEvents, "schedules.changed")).resolves.toMatchObject({
+      type: "schedules.changed",
+      scheduleIds: [created.id],
+    });
+    await expect(client.schedules.list()).resolves.toMatchObject({
+      data: [expect.objectContaining({ id: created.id, revision: created.revision })],
+    });
+
+    const updated = await client.schedules.update({
+      id: created.id,
+      expectedRevision: created.revision,
+      enabled: false,
+      title: "HTTP schedule lifecycle updated",
+    });
+    expect(updated.revision).toBe(created.revision + 1);
+    await expect(nextRuntimeEvent(runtimeEvents, "schedules.changed")).resolves.toMatchObject({
+      type: "schedules.changed",
+      scheduleIds: [created.id],
+    });
+
+    await client.schedules.delete(created.id);
+    await expect(nextRuntimeEvent(runtimeEvents, "schedules.changed")).resolves.toMatchObject({
+      type: "schedules.changed",
+      scheduleIds: [created.id],
+    });
+    await expect(client.schedules.list()).resolves.toMatchObject({ data: [] });
 
     streamController.abort();
     await runtimeEvents.return?.();

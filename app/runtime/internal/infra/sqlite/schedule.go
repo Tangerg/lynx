@@ -252,11 +252,16 @@ func (s *ScheduleStore) RecordRun(ctx context.Context, id string, ranAt time.Tim
 	return nil
 }
 
-func (s *ScheduleStore) Delete(ctx context.Context, id string) error {
-	if _, err := conn(ctx, s.db).ExecContext(ctx, `DELETE FROM schedules WHERE id = ?`, id); err != nil {
-		return fmt.Errorf("sqlite: delete schedule: %w", err)
+func (s *ScheduleStore) Delete(ctx context.Context, id string) (bool, error) {
+	result, err := conn(ctx, s.db).ExecContext(ctx, `DELETE FROM schedules WHERE id = ?`, id)
+	if err != nil {
+		return false, fmt.Errorf("sqlite: delete schedule: %w", err)
 	}
-	return nil
+	deleted, err := result.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("sqlite: inspect deleted schedule: %w", err)
+	}
+	return deleted > 0, nil
 }
 
 func (s *ScheduleStore) query(ctx context.Context, operation, q string, args ...any) ([]schedule.Schedule, error) {

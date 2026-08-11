@@ -220,7 +220,7 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 		return nil, fmt.Errorf("runtime: approval policy: %w", err)
 	}
 	// One bridge carries every committed change a client can fold — sessions, runs,
-	// interrupts, goals, state — from the use case that committed it to the delivery
+	// interrupts, goals, state, schedules — from the use case that committed it to the delivery
 	// hub that names its topic. It is one channel rather than five because the
 	// producers publish the same shape (a resource plus the ids that moved), and the
 	// wire vocabulary belongs to delivery either way.
@@ -241,8 +241,9 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 	}
 
 	scheduleCoordinator := schedules.New(schedules.Dependencies{
-		Store: cfg.ScheduleStore,
-		Paths: workspacepath.Resolver{},
+		Store:         cfg.ScheduleStore,
+		Paths:         workspacepath.Resolver{},
+		Invalidations: applicationInvalidations.Publish,
 	})
 	workspaceScope := workspace.NewScope(cfg.DefaultWorkspacePath, cfg.UserHome, workspacepath.Resolver{})
 	// One signal covers every committed Skill-library mutation, including

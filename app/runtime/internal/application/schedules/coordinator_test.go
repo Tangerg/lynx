@@ -195,7 +195,7 @@ func (r *runNowStore) Update(_ context.Context, scheduled schedule.Schedule, _ u
 	r.updated = scheduled
 	return scheduled, nil
 }
-func (r *runNowStore) Delete(context.Context, string) error { return nil }
+func (r *runNowStore) Delete(context.Context, string) (bool, error) { return false, nil }
 func (r *runNowStore) Due(context.Context, time.Time, int) ([]schedule.Schedule, error) {
 	return nil, nil
 }

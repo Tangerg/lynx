@@ -78,11 +78,19 @@ func TestScheduleCRUD(t *testing.T) {
 		t.Errorf("update not applied: %+v", reread)
 	}
 
-	if err := s.Delete(ctx, created.ID); err != nil {
+	deleted, err := s.Delete(ctx, created.ID)
+	if err != nil {
 		t.Fatalf("delete: %v", err)
+	}
+	if !deleted {
+		t.Fatal("delete reported no committed mutation")
 	}
 	if _, err := s.Get(ctx, created.ID); err != schedule.ErrNotFound {
 		t.Errorf("get after delete err = %v, want ErrNotFound", err)
+	}
+	deleted, err = s.Delete(ctx, created.ID)
+	if err != nil || deleted {
+		t.Fatalf("second delete = (%v, %v), want false, nil", deleted, err)
 	}
 }
 

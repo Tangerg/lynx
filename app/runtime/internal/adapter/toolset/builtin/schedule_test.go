@@ -151,9 +151,10 @@ func (m *memoryScheduleRegistry) Update(_ context.Context, sc scheduledomain.Sch
 	return sc, nil
 }
 
-func (m *memoryScheduleRegistry) Delete(_ context.Context, id string) error {
+func (m *memoryScheduleRegistry) Delete(_ context.Context, id string) (bool, error) {
+	_, found := m.items[id]
 	delete(m.items, id)
-	return nil
+	return found, nil
 }
 
 func (m *memoryScheduleRegistry) Due(context.Context, time.Time, int) ([]scheduledomain.Schedule, error) {
