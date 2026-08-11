@@ -14,7 +14,7 @@ import { promisify } from "node:util";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createLyraClient, type LyraClient } from "./sdk";
 import { RpcError } from "./errors";
-import { asRunId, asSessionId } from "./ids";
+import { asRunId, asSegmentId, asSessionId } from "./ids";
 import { errorType } from "./types";
 import { createSidecarClient } from "./sidecar";
 import { createHttpTransport } from "./transports/http";
@@ -48,6 +48,47 @@ interface FakeChatRequest {
 interface FakeToolCall {
   arguments: string;
   name: string;
+}
+
+interface Deferred {
+  promise: Promise<void>;
+  resolve: () => void;
+}
+
+interface ProviderGate {
+  arrived: Deferred;
+  claimed: boolean;
+  closed: Deferred;
+  marker: string;
+  release: Deferred;
+}
+
+function deferred(): Deferred {
+  let resolve!: () => void;
+  const promise = new Promise<void>((done) => {
+    resolve = done;
+  });
+  return { promise, resolve };
+}
+
+function createProviderGate(marker: string): ProviderGate {
+  return {
+    arrived: deferred(),
+    claimed: false,
+    closed: deferred(),
+    marker,
+    release: deferred(),
+  };
+}
+
+async function within<T>(promise: Promise<T>, detail: string): Promise<T> {
+  const deadline = AbortSignal.timeout(5_000);
+  const timeout = new Promise<never>((_resolve, reject) => {
+    deadline.addEventListener("abort", () => reject(new Error(`timed out waiting for ${detail}`)), {
+      once: true,
+    });
+  });
+  return Promise.race([promise, timeout]);
 }
 
 async function requestJson(request: IncomingMessage): Promise<FakeChatRequest> {
@@ -297,6 +338,7 @@ describe("Go Runtime ↔ HTTP ↔ TypeScript SDK", () => {
   let baseUrl = "";
   let runtime: ReturnType<typeof import("node:child_process").spawn> | undefined;
   let provider: ReturnType<typeof createHttpServer> | undefined;
+  let providerGate: ProviderGate | undefined;
   let client: LyraClient | undefined;
   let processOutput = "";
 
@@ -326,7 +368,20 @@ describe("Go Runtime ↔ HTTP ↔ TypeScript SDK", () => {
           response.writeHead(404).end();
           return;
         }
-        writeChatCompletion(response, await requestJson(request), ++providerCalls);
+        const body = await requestJson(request);
+        const gate = providerGate;
+        if (
+          gate !== undefined &&
+          !gate.claimed &&
+          JSON.stringify(body.messages ?? []).includes(gate.marker)
+        ) {
+          gate.claimed = true;
+          response.once("close", gate.closed.resolve);
+          gate.arrived.resolve();
+          await gate.release.promise;
+          if (response.destroyed) return;
+        }
+        writeChatCompletion(response, body, ++providerCalls);
       } catch (error) {
         response.writeHead(500, { "Content-Type": "application/json" });
         response.end(JSON.stringify({ error: { message: String(error) } }));
@@ -498,6 +553,158 @@ describe("Go Runtime ↔ HTTP ↔ TypeScript SDK", () => {
       inputTokens: expect.any(Number),
       outputTokens: expect.any(Number),
     });
+  }, 30_000);
+
+  it("reattaches to a live segment before releasing the in-flight model", async () => {
+    if (!client) throw new Error("runtime client was not initialized");
+
+    const gate = createProviderGate("E2E_SUBSCRIBE");
+    providerGate = gate;
+    try {
+      const session = await client.sessions.create({
+        workspace: { path: root },
+        title: "HTTP run reattach",
+      });
+      const started = await client.runs.start({
+        sessionId: asSessionId(session.id),
+        input: [{ type: "text", text: "E2E_SUBSCRIBE hold the model request." }],
+      });
+      await within(gate.arrived.promise, "the reattach model request");
+
+      const attached = await client.runs.subscribe({
+        runId: asRunId(started.result.runId),
+        segmentId: asSegmentId(started.result.segmentId),
+      });
+      expect(attached.result).toMatchObject({
+        runId: started.result.runId,
+        segmentId: started.result.segmentId,
+        headEventId: expect.stringMatching(/^evt_/),
+      });
+
+      gate.release.resolve();
+      const [openingEvents, attachedEvents] = await within(
+        Promise.all([collectRunEvents(started.events), collectRunEvents(attached.events)]),
+        "both run streams to finish",
+      );
+      expect(openingEvents.at(-1)?.event).toMatchObject({
+        type: "segment.finished",
+        outcome: { type: "completed" },
+      });
+      expect(attachedEvents.some((event) => event.event.type === "item.delta")).toBe(true);
+      expect(attachedEvents.at(-1)?.event).toMatchObject({
+        type: "segment.finished",
+        outcome: { type: "completed" },
+      });
+    } finally {
+      gate.release.resolve();
+      providerGate = undefined;
+    }
+  }, 30_000);
+
+  it("applies steering only after the in-flight model boundary", async () => {
+    if (!client) throw new Error("runtime client was not initialized");
+
+    const gate = createProviderGate("E2E_STEER");
+    providerGate = gate;
+    try {
+      const session = await client.sessions.create({
+        workspace: { path: root },
+        title: "HTTP run steering",
+      });
+      const started = await client.runs.start({
+        sessionId: asSessionId(session.id),
+        input: [{ type: "text", text: "E2E_STEER hold the first model boundary." }],
+      });
+      await within(gate.arrived.promise, "the steer model request");
+
+      await client.runs.steer(
+        asRunId(started.result.runId),
+        asSegmentId(started.result.segmentId),
+        [{ type: "text", text: "Include the queued steering instruction." }],
+      );
+      gate.release.resolve();
+
+      const events = await within(
+        collectRunEvents(started.events),
+        "the steered run stream to finish",
+      );
+      const steeredMessage = events.find(
+        (event) =>
+          event.event.type === "item.completed" &&
+          event.event.item.type === "userMessage" &&
+          event.event.item.content?.some(
+            (block) =>
+              block.type === "text" && block.text === "Include the queued steering instruction.",
+          ),
+      );
+      expect(steeredMessage).toBeDefined();
+      expect(events.at(-1)?.event).toMatchObject({
+        type: "segment.finished",
+        outcome: { type: "completed" },
+      });
+      await expect(
+        client.items.list({ scope: { type: "run", runId: started.result.runId } }),
+      ).resolves.toMatchObject({
+        data: expect.arrayContaining([
+          expect.objectContaining({
+            type: "userMessage",
+            content: expect.arrayContaining([
+              { type: "text", text: "Include the queued steering instruction." },
+            ]),
+          }),
+        ]),
+      });
+    } finally {
+      gate.release.resolve();
+      providerGate = undefined;
+    }
+  }, 30_000);
+
+  it("cancels an in-flight model request and durably closes its stream", async () => {
+    if (!client) throw new Error("runtime client was not initialized");
+
+    const gate = createProviderGate("E2E_CANCEL");
+    providerGate = gate;
+    try {
+      const session = await client.sessions.create({
+        workspace: { path: root },
+        title: "HTTP run cancellation",
+      });
+      const started = await client.runs.start({
+        sessionId: asSessionId(session.id),
+        input: [{ type: "text", text: "E2E_CANCEL hold the model request." }],
+      });
+      const runId = asRunId(started.result.runId);
+      await within(gate.arrived.promise, "the cancel model request");
+
+      const canceled = await client.runs.cancel(runId, "HTTP cancellation E2E");
+      expect(canceled).toMatchObject({
+        type: "root",
+        run: {
+          id: runId,
+          status: "finished",
+          outcome: { type: "canceled", detail: "HTTP cancellation E2E" },
+        },
+      });
+      await within(gate.closed.promise, "the canceled provider connection to close");
+
+      const events = await within(
+        collectRunEvents(started.events),
+        "the canceled run stream to finish",
+      );
+      expect(events.at(-1)?.event).toMatchObject({
+        type: "segment.finished",
+        outcome: { type: "canceled", detail: "HTTP cancellation E2E" },
+      });
+      await expect(client.runs.get(runId)).resolves.toMatchObject({
+        id: runId,
+        status: "finished",
+        outcome: { type: "canceled", detail: "HTTP cancellation E2E" },
+      });
+    } finally {
+      gate.release.resolve();
+      providerGate = undefined;
+    }
   }, 30_000);
 
   it("forks a visible durable conversation at the selected run boundary", async () => {
