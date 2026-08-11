@@ -38,6 +38,12 @@ type ForkPlan struct {
 	// the parent still exists and inserts this exact aggregate.
 	Child    session.Session
 	Messages []chat.Message
+	// Runs, Items, and ToolResults are the identity-remapped durable projection of
+	// the copied conversation. They make the child's visible transcript agree with
+	// the chat history used as model context.
+	Runs        []rundomain.Run
+	Items       []transcript.Item
+	ToolResults []toolresult.Blob
 	// PlanReplacement is the initial child Plan decided from the parent's fork
 	// boundary. nil means the boundary held no value worth publishing.
 	PlanReplacement *planapp.Replacement

@@ -27,6 +27,10 @@ type ForkSpec struct {
 // a plan that never went with what it remembers.
 type ForkBoundary struct {
 	Messages []chat.Message
+	// RunIDs are the terminal Run facts whose user-visible transcript belongs to
+	// Messages. A fork remaps them into the child instead of leaving the model with
+	// context the client cannot see through runs.list/items.list.
+	RunIDs []string
 	// RunID is the boundary run, empty when the parent has no terminal run to
 	// branch from (nothing to copy).
 	RunID string
@@ -91,7 +95,16 @@ func ResolveForkBoundary(msgs []chat.Message, runs []run.Run, fromRunID string) 
 	if err != nil {
 		return ForkBoundary{}, err
 	}
-	return ForkBoundary{Messages: slices.Clone(msgs[:b.KeepMessageMark]), RunID: b.KeepRunID}, nil
+	kept := terminal[:len(terminal)-len(b.Dropped)]
+	runIDs := make([]string, len(kept))
+	for index, node := range kept {
+		runIDs[index] = node.ID
+	}
+	return ForkBoundary{
+		Messages: slices.Clone(msgs[:b.KeepMessageMark]),
+		RunIDs:   runIDs,
+		RunID:    b.KeepRunID,
+	}, nil
 }
 
 // Fork creates a child session, seeds it with the resolved parent history prefix
@@ -127,15 +140,25 @@ func (c *Coordinator) Fork(ctx context.Context, spec ForkSpec) (session.Session,
 	if err != nil {
 		return session.Session{}, err
 	}
+	forked, err := c.copyForkSnapshot(snapshot, child, boundary, plan.Steps)
+	if err != nil {
+		return session.Session{}, err
+	}
 	if _, err := c.writes.ApplyFork(ctx, ForkPlan{
 		ParentID:        spec.ParentID,
 		Child:           child,
-		Messages:        boundary.Messages,
+		Messages:        forked.Messages,
+		Items:           forked.Items,
+		Runs:            forked.Runs,
+		ToolResults:     forked.ToolResults,
 		PlanReplacement: planReplacement,
 	}); err != nil {
 		return session.Session{}, err
 	}
 	c.publishSessionMoved(child.ID())
+	if len(forked.Runs) > 0 {
+		c.publishRunsMoved(child.ID(), forked.Runs)
+	}
 	if planReplacement != nil {
 		c.publishStateMoved(child.ID())
 	}

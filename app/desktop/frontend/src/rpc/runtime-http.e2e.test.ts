@@ -472,6 +472,76 @@ describe("Go Runtime ↔ HTTP ↔ TypeScript SDK", () => {
     });
   }, 30_000);
 
+  it("forks a visible durable conversation at the selected run boundary", async () => {
+    if (!client) throw new Error("runtime client was not initialized");
+
+    const source = await client.sessions.create({
+      workspace: { path: root },
+      title: "HTTP fork source",
+    });
+    const started = await client.runs.start({
+      sessionId: asSessionId(source.id),
+      input: [{ type: "text", text: "E2E_FORK preserve this visible turn." }],
+    });
+    const forkRunEvents = await collectRunEvents(started.events);
+    expect(forkRunEvents.filter((event) => event.event.type === "item.completed")).toHaveLength(2);
+    const sourceRuns = await client.runs
+      .list({ sessionId: asSessionId(source.id) })
+      .autoPagingToArray();
+    const sourceItems = await client.items
+      .list({ scope: { type: "session", sessionId: asSessionId(source.id) } })
+      .autoPagingToArray();
+    expect(sourceRuns).toHaveLength(1);
+    expect(sourceRuns[0]?.metrics.steps).toBe(1);
+    expect(sourceItems).toHaveLength(2);
+
+    const streamController = new AbortController();
+    const subscription = await client.runtimeEvents.subscribe(
+      { topics: ["sessions.changed", "runs.changed"] },
+      streamController.signal,
+    );
+    const runtimeEvents = subscription.events[Symbol.asyncIterator]();
+
+    const fork = await client.sessions.fork({
+      sessionId: asSessionId(source.id),
+      fromRunId: asRunId(started.result.runId),
+      title: "HTTP visible fork",
+    });
+    await expect(nextRuntimeEvent(runtimeEvents, "sessions.changed")).resolves.toMatchObject({
+      type: "sessions.changed",
+      sessionIds: [fork.id],
+    });
+    await expect(nextRuntimeEvent(runtimeEvents, "runs.changed")).resolves.toMatchObject({
+      type: "runs.changed",
+      sessionIds: [fork.id],
+      runIds: [expect.not.stringMatching(started.result.runId)],
+    });
+    const forkRuns = await client.runs
+      .list({ sessionId: asSessionId(fork.id) })
+      .autoPagingToArray();
+    expect(forkRuns).toHaveLength(1);
+    expect(forkRuns[0]).toMatchObject({ sessionId: fork.id, status: "finished" });
+    expect(forkRuns[0]?.id).not.toBe(started.result.runId);
+    const forkItems = await client.items
+      .list({ scope: { type: "session", sessionId: asSessionId(fork.id) } })
+      .autoPagingToArray();
+    expect(forkItems).toHaveLength(2);
+    expect(forkItems).toEqual([
+      expect.objectContaining({
+        type: "userMessage",
+        content: [{ type: "text", text: "E2E_FORK preserve this visible turn." }],
+      }),
+      expect.objectContaining({
+        type: "agentMessage",
+        content: [{ type: "text", text: "HTTP runtime lifecycle complete." }],
+      }),
+    ]);
+    expect(forkItems.every((item) => item.runId === forkRuns[0]?.id)).toBe(true);
+
+    streamController.abort();
+    await runtimeEvents.return?.();
+  }, 30_000);
+
   it("publishes plan state on the stream and through the exact cold read", async () => {
     if (!client) throw new Error("runtime client was not initialized");
 

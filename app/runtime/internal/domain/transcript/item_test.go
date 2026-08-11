@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/toolresult"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
@@ -103,6 +104,45 @@ func TestItemOwnsMutablePayloads(t *testing.T) {
 	owned, _ := questionItem.Question()
 	if owned.Fields[0].Options[0].Label != "A" || owned.Fields[0].Options[1].Label != "B" {
 		t.Fatalf("question shares mutable option storage: %+v", owned)
+	}
+}
+
+func TestItemForkReidentifiesTerminalHistoryAndRemapsOffload(t *testing.T) {
+	running, err := transcript.NewToolCall(
+		itemIdentity(), transcript.ToolInvocation{Name: "read_large"}, tool.SafetyClassSafe,
+	)
+	if err != nil {
+		t.Fatalf("NewToolCall: %v", err)
+	}
+	if _, err := running.Fork("session-child", "run-child", "item-child", nil); err == nil {
+		t.Fatal("Fork accepted a running Item")
+	}
+	preview := tool.StringResult("preview")
+	completed, err := running.CompleteToolCall(transcript.ToolInvocation{
+		Name: "read_large", Result: &preview, Offload: &toolresult.Ref{ID: "SOURCE23"},
+	}, running.OccurredAt(), running.OccurredAt().Add(time.Second))
+	if err != nil {
+		t.Fatalf("CompleteToolCall: %v", err)
+	}
+	if _, err := completed.Fork("session-child", "run-child", "item-child", nil); err == nil {
+		t.Fatal("Fork removed an existing offload reference")
+	}
+	forked, err := completed.Fork(
+		"session-child", "run-child", "item-child", &toolresult.Ref{ID: "TARGET23"},
+	)
+	if err != nil {
+		t.Fatalf("Fork: %v", err)
+	}
+	invocation, present := forked.ToolInvocation()
+	if forked.SessionID() != "session-child" || forked.RunID() != "run-child" ||
+		forked.ID() != "item-child" || !present || invocation.Offload == nil ||
+		invocation.Offload.ID != "TARGET23" {
+		t.Fatalf("forked Item = %+v", forked.Snapshot())
+	}
+	sourceInvocation, _ := completed.ToolInvocation()
+	if completed.SessionID() != "session-1" || completed.ID() != "item-1" ||
+		sourceInvocation.Offload == nil || sourceInvocation.Offload.ID != "SOURCE23" {
+		t.Fatalf("fork mutated source Item: %+v", completed.Snapshot())
 	}
 }
 

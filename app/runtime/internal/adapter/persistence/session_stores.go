@@ -135,14 +135,17 @@ func (s *SessionStores) ReadSnapshot(ctx context.Context, sessionID string) (ses
 	return snapshot, err
 }
 
-// ApplyFork persists the Domain-derived child Session and its history/Plan
-// boundary in one transaction.
+// ApplyFork persists the Domain-derived child Session and the complete visible
+// history/Plan boundary in one transaction.
 func (s *SessionStores) ApplyFork(ctx context.Context, fork sessions.ForkPlan) (session.Session, error) {
 	if err := fork.Child.Validate(); err != nil {
 		return session.Session{}, fmt.Errorf("persistence: invalid child Session: %w", err)
 	}
 	if fork.Child.ParentID() != fork.ParentID || fork.Child.Revision() != 1 {
 		return session.Session{}, errors.New("persistence: child Session differs from fork parent or initial revision")
+	}
+	if s.toolResults == nil && len(fork.ToolResults) > 0 {
+		return session.Session{}, errors.New("persistence: cannot fork tool results without blob persistence")
 	}
 	err := s.tx(ctx, func(ctx context.Context) error {
 		if _, err := s.sessions.Get(ctx, fork.ParentID); err != nil {
@@ -160,7 +163,13 @@ func (s *SessionStores) ApplyFork(ctx context.Context, fork sessions.ForkPlan) (
 		if err := s.savePlanReplacement(ctx, fork.Child.ID(), fork.PlanReplacement); err != nil {
 			return err
 		}
-		return nil
+		if err := s.restoreRuns(ctx, fork.Runs); err != nil {
+			return err
+		}
+		if err := s.appendTranscriptItems(ctx, fork.Items); err != nil {
+			return err
+		}
+		return s.restoreToolResults(ctx, fork.ToolResults)
 	})
 	if err != nil {
 		return session.Session{}, err

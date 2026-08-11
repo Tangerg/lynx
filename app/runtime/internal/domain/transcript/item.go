@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/toolresult"
 )
 
 // ItemIdentity is the immutable ownership and occurrence identity shared by
@@ -155,6 +156,28 @@ func (item Item) Snapshot() ItemSnapshot {
 		Failure: cloneToolFailure(item.failure), Summary: item.summary,
 		DroppedMessages: item.droppedMessages,
 	}
+}
+
+// Fork derives a terminal historical Item for a child Session under fresh
+// ownership identities. Semantic content and lifecycle times are preserved. An
+// existing offloaded Tool result must be remapped together with its blob; the
+// method neither introduces nor removes offloading.
+func (item Item) Fork(sessionID, runID, itemID string, offload *toolresult.Ref) (Item, error) {
+	if item.status == ItemRunning {
+		return Item{}, errors.New("transcript: only a terminal Item can be forked")
+	}
+	snapshot := item.Snapshot()
+	snapshot.Identity.SessionID = sessionID
+	snapshot.Identity.RunID = runID
+	snapshot.Identity.ItemID = itemID
+	sourceOffloaded := snapshot.Tool != nil && snapshot.Tool.Offload != nil
+	if sourceOffloaded != (offload != nil) {
+		return Item{}, errors.New("transcript: fork must preserve Tool result offloading")
+	}
+	if snapshot.Tool != nil {
+		snapshot.Tool.Offload = offload
+	}
+	return RestoreItem(snapshot)
 }
 
 // CompleteToolCall settles a running ToolCall successfully with the exact

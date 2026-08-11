@@ -91,8 +91,9 @@ type RunStore interface {
 // the plan; the implementation executes it atomically, enriching nothing.
 type WriteSets interface {
 	// ApplyFork branches a child session off the plan's parent, seeds its chat log
-	// with the resolved history prefix and its Plan with the boundary value —
-	// atomically — returning the already-decided child aggregate.
+	// and visible Run/Item/tool-result projection with the resolved history prefix,
+	// and seeds its Plan with the boundary value — atomically — returning the
+	// already-decided child aggregate.
 	ApplyFork(ctx context.Context, plan ForkPlan) (session.Session, error)
 	// ApplyRollback truncates the chat log to the boundary, drops each
 	// past-boundary run, republishes the boundary's plan projection, and
@@ -240,9 +241,12 @@ type Coordinator struct {
 	// Every notice is published from a post-commit boundary, never from the commit
 	// itself: a signal for a transaction that then rolled back would send every
 	// listener to re-read state that never changed. nil publishes nothing.
-	invalidations invalidation.Publish
-	now           func() time.Time
-	newID         func() string
+	invalidations   invalidation.Publish
+	now             func() time.Time
+	newID           func() string
+	newRunID        func() string
+	newItemID       func() string
+	newToolResultID func() toolresult.ID
 }
 
 // Dependencies is the collaborator set [New] wires into a Coordinator. Durable
@@ -273,6 +277,12 @@ type Dependencies struct {
 	Now func() time.Time
 	// NewID returns one complete Session identity, including its type prefix.
 	NewID func() string
+	// Forks copy durable transcript facts under fresh global identities. The
+	// Session use case owns the remap; composition only supplies entropy-bearing
+	// identifiers in each resource namespace.
+	NewRunID        func() string
+	NewItemID       func() string
+	NewToolResultID func() toolresult.ID
 }
 
 // ErrSessionBusy reports that a session already has an active or parked run.
@@ -304,6 +314,9 @@ func New(deps Dependencies) *Coordinator {
 		invalidations:     deps.Invalidations,
 		now:               deps.Now,
 		newID:             deps.NewID,
+		newRunID:          deps.NewRunID,
+		newItemID:         deps.NewItemID,
+		newToolResultID:   deps.NewToolResultID,
 	}
 }
 

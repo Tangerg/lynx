@@ -47,6 +47,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/skills"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/toolresult"
 	"github.com/Tangerg/lynx/app/runtime/internal/idempotency"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/skillauthoring"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/teardown"
@@ -385,6 +386,13 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 		NewID: func() string {
 			return session.IDPrefix + uuid.NewString()
 		},
+		NewRunID: func() string {
+			return runs.NewRunID(uuid.NewString())
+		},
+		NewItemID: func() string {
+			return runs.NewItemID(uuid.NewString())
+		},
+		NewToolResultID: toolresult.NewID,
 	}
 	// Set only when present so a nil *Isolator never reaches the coordinator as a
 	// non-nil interface (which would defeat its own nil check).

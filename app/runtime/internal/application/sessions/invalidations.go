@@ -1,6 +1,9 @@
 package sessions
 
-import "github.com/Tangerg/lynx/app/runtime/internal/application/invalidation"
+import (
+	"github.com/Tangerg/lynx/app/runtime/internal/application/invalidation"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
+)
 
 // The session lifecycle's invalidations. Each is published from a post-commit
 // boundary — for the write-sets, the afterCommit half of [Coordinator.withGoalMutation],
@@ -11,6 +14,19 @@ import "github.com/Tangerg/lynx/app/runtime/internal/application/invalidation"
 // untouched, so nothing else is invalidated.
 func (c *Coordinator) publishSessionMoved(sessionID string) {
 	c.invalidations.Notify(invalidation.InSession(invalidation.Sessions, sessionID))
+}
+
+// publishRunsMoved reports the material transcript projection copied into a new
+// session. Items have no independent invalidation topic: runs.changed is the
+// contract that tells clients to cold-read both Runs and their Items.
+func (c *Coordinator) publishRunsMoved(sessionID string, copied []run.Run) {
+	runIDs := make([]string, len(copied))
+	for index, value := range copied {
+		runIDs[index] = value.ID()
+	}
+	c.invalidations.Notify(invalidation.Notice{
+		Resource: invalidation.Runs, SessionIDs: []string{sessionID}, RunIDs: runIDs,
+	})
 }
 
 // publishStateMoved reports a committed session-scoped state projection — the value

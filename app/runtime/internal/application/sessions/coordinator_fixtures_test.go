@@ -3,12 +3,14 @@ package sessions
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/toolresult"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
@@ -175,6 +177,22 @@ func testDependencies(stores testStores, deps Dependencies) Dependencies {
 	}
 	if deps.NewID == nil {
 		deps.NewID = func() string { return "ses_fork" }
+	}
+	var runSequence, itemSequence int
+	if deps.NewRunID == nil {
+		deps.NewRunID = func() string {
+			runSequence++
+			return fmt.Sprintf("run_fork_%d", runSequence)
+		}
+	}
+	if deps.NewItemID == nil {
+		deps.NewItemID = func() string {
+			itemSequence++
+			return fmt.Sprintf("item_fork_%d", itemSequence)
+		}
+	}
+	if deps.NewToolResultID == nil {
+		deps.NewToolResultID = toolresult.NewID
 	}
 	deps.Sessions = stores.Session()
 	deps.Interrupts = stores.Interrupts()

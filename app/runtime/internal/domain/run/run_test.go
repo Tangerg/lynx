@@ -94,6 +94,45 @@ func TestRunTerminalFactsRemainCoherent(t *testing.T) {
 	}
 }
 
+func TestForkReidentifiesTerminalHistoryAndClearsGoalAttribution(t *testing.T) {
+	createdAt := time.Unix(1, 0).UTC()
+	source, err := Admit(Draft{
+		RunID: "run_source", SessionID: "session_source", SegmentID: "segment_source",
+		GoalIncarnationID: "goal_incarnation_source", CreatedAt: createdAt,
+	})
+	if err != nil {
+		t.Fatalf("Admit: %v", err)
+	}
+	source, err = source.Terminate(Termination{
+		Outcome: OutcomeCompleted, FinishedAt: createdAt.Add(time.Second), MessageMark: 2,
+	})
+	if err != nil {
+		t.Fatalf("Terminate: %v", err)
+	}
+
+	forked, err := source.Fork("session_child", "run_child_copy", Lineage{})
+	if err != nil {
+		t.Fatalf("Fork: %v", err)
+	}
+	if forked.SessionID() != "session_child" || forked.ID() != "run_child_copy" ||
+		forked.GoalIncarnationID() != "" || forked.State() != Completed ||
+		forked.MessageMark() != source.MessageMark() || !forked.CreatedAt().Equal(source.CreatedAt()) {
+		t.Fatalf("forked Run = %+v", forked.Snapshot())
+	}
+	if source.SessionID() != "session_source" || source.ID() != "run_source" ||
+		source.GoalIncarnationID() != "goal_incarnation_source" {
+		t.Fatalf("fork mutated source Run: %+v", source.Snapshot())
+	}
+	if running, err := Admit(Draft{
+		RunID: "run_running", SessionID: "session_source", SegmentID: "segment_running",
+		CreatedAt: createdAt,
+	}); err != nil {
+		t.Fatalf("Admit running: %v", err)
+	} else if _, err := running.Fork("session_child", "run_invalid", Lineage{}); err == nil {
+		t.Fatal("Fork accepted a non-terminal Run")
+	}
+}
+
 func TestRunRejectsIllegalTransitionsAndRegressingFacts(t *testing.T) {
 	createdAt := time.Unix(2, 0).UTC()
 	value, err := Admit(Draft{

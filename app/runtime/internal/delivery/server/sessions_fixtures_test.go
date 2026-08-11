@@ -541,6 +541,24 @@ func (s stubLifecycleStores) ApplyFork(ctx context.Context, plan sessions.ForkPl
 	if err := s.rt.SeedHistory(ctx, child.ID(), plan.Messages); err != nil {
 		return session.Session{}, err
 	}
+	for _, value := range plan.Runs {
+		if err := s.rt.runs.Restore(ctx, value); err != nil {
+			return session.Session{}, err
+		}
+	}
+	for _, item := range plan.Items {
+		if err := s.rt.hist.AppendItem(ctx, item); err != nil {
+			return session.Session{}, err
+		}
+	}
+	for _, blob := range plan.ToolResults {
+		if s.rt.toolResults == nil {
+			return session.Session{}, errors.New("test runtime: tool-result persistence is unavailable")
+		}
+		if err := s.rt.toolResults.Restore(ctx, blob); err != nil {
+			return session.Session{}, err
+		}
+	}
 	if s.rt.plan != nil && plan.PlanReplacement != nil {
 		if err := s.rt.plan.Save(ctx, child.ID(), plan.PlanReplacement.ExpectedRevision(), plan.PlanReplacement.State()); err != nil {
 			return session.Session{}, err
@@ -758,6 +776,13 @@ func (s *stubRuntime) sessionsCoordinatorWithRestorer(checkpoints sessions.Works
 		NewID: func() string {
 			return fmt.Sprintf("ses_fixture_%d", sessionFixtureSequence.Add(1))
 		},
+		NewRunID: func() string {
+			return runs.NewRunID(fmt.Sprintf("fixture_%d", sessionFixtureSequence.Add(1)))
+		},
+		NewItemID: func() string {
+			return runs.NewItemID(fmt.Sprintf("fixture_%d", sessionFixtureSequence.Add(1)))
+		},
+		NewToolResultID: toolresult.NewID,
 	})
 }
 

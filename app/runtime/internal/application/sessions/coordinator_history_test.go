@@ -34,6 +34,9 @@ func TestResolveForkBoundary(t *testing.T) {
 	if got.RunID != "run_1" {
 		t.Fatalf("boundary run = %q, want run_1", got.RunID)
 	}
+	if len(got.RunIDs) != 1 || got.RunIDs[0] != "run_1" {
+		t.Fatalf("boundary run projection = %v, want [run_1]", got.RunIDs)
+	}
 }
 
 func TestResolveForkBoundaryExcludesActiveTail(t *testing.T) {
@@ -60,6 +63,9 @@ func TestResolveForkBoundaryExcludesActiveTail(t *testing.T) {
 	}
 	if got.RunID != "run_1" {
 		t.Fatalf("boundary run = %q, want the last terminal run run_1", got.RunID)
+	}
+	if len(got.RunIDs) != 1 || got.RunIDs[0] != "run_1" {
+		t.Fatalf("boundary run projection = %v, want only the stable run", got.RunIDs)
 	}
 }
 

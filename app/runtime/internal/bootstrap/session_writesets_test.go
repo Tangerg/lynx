@@ -22,6 +22,8 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/toolresult"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	sqlite "github.com/Tangerg/lynx/app/runtime/internal/infra/sqlite"
 	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/itemfixture"
@@ -115,6 +117,7 @@ type sessionStores struct {
 	history     *conversations.Messages
 	plan        *sqlite.PlanStore
 	approvals   *sqlite.ApprovalRuleStore
+	toolResults *sqlite.ToolResultStore
 	goals       *sqlite.GoalStore
 }
 
@@ -140,12 +143,13 @@ func newWriteSetFixture(t *testing.T) (sessionStores, *sqlite.RunStore, *persist
 		history:     conversations.NewMessages(sqlite.NewMessageStore(db)),
 		plan:        plan,
 		approvals:   approvals,
+		toolResults: sqlite.NewToolResultStore(db),
 		goals:       sqlite.NewGoalStore(db),
 	}
 	ss.SessionStores = persistence.NewSessionStores(persistence.SessionStoresConfig{
 		Sessions: ss.sessions, Transcript: ss.transcript, Interrupts: ss.interrupts,
 		Runs: ss.runs, ExecutorCheckpoints: ss.checkpoints, History: ss.history, Plan: ss.plan,
-		Approvals: ss.approvals, Goals: ss.goals,
+		Approvals: ss.approvals, ToolResults: ss.toolResults, Goals: ss.goals,
 		Tx: func(ctx context.Context, fn func(context.Context) error) error {
 			return sqlite.RunInTx(ctx, db, fn)
 		},
@@ -529,7 +533,7 @@ func TestApplyRollbackClearsToARecordedEmptyBoundary(t *testing.T) {
 // the resolved prefix, and titles it — all in one transaction (the child's Fork
 // joins the seed + rename rather than opening its own connection).
 func TestApplyForkBranchesAndSeeds(t *testing.T) {
-	ss, _, _ := newWriteSetFixture(t)
+	ss, runStore, _ := newWriteSetFixture(t)
 	ctx := context.Background()
 	parent := bootstrapSession("ses_parent", "parent", "/repo")
 	insertBootstrapSession(t, ss.sessions, parent)
@@ -542,10 +546,36 @@ func TestApplyForkBranchesAndSeeds(t *testing.T) {
 	if err != nil {
 		t.Fatalf("prepare child Plan: %v", err)
 	}
+	forkedAt := time.Now().UTC()
+	forkedRun := runfixture.MustRestore(run.Snapshot{
+		SessionID: childState.ID(), ID: "run_child_history", State: run.Completed,
+		CreatedAt: forkedAt, FinishedAt: forkedAt, UpdatedAt: forkedAt, MessageMark: 1,
+	})
+	forkedItem := itemfixture.MustRestore(itemfixture.Input{
+		SessionID: childState.ID(), RunID: forkedRun.ID(), ID: "item_child_history",
+		Kind: transcript.UserMessage, OccurredAt: forkedAt,
+		Content: []transcript.ContentBlock{{Kind: transcript.TextContent, Text: "hello"}},
+	})
+	preview := tool.StringResult("bounded preview")
+	forkedToolItem := itemfixture.MustRestore(itemfixture.Input{
+		SessionID: childState.ID(), RunID: forkedRun.ID(), ID: "item_child_tool",
+		Kind: transcript.ToolCall, Status: transcript.ItemCompleted, OccurredAt: forkedAt,
+		Tool: &transcript.ToolInvocation{
+			Name: "read_large", Result: &preview, Offload: &toolresult.Ref{ID: "FORK234"},
+		},
+	})
+	forkedBlob := toolresult.Blob{
+		ID: "FORK234", SessionID: childState.ID(), ItemID: forkedToolItem.ID(),
+		ToolName: "read_large", Preview: "bounded preview", Body: "complete durable body",
+		CreatedAt: forkedAt,
+	}
 	child, err := ss.ApplyFork(ctx, sessions.ForkPlan{
 		ParentID:        parent.ID(),
 		Child:           childState,
 		Messages:        []chat.Message{chat.NewUserMessage(chat.NewTextPart("hello"))},
+		Runs:            []run.Run{forkedRun},
+		Items:           []transcript.Item{forkedItem, forkedToolItem},
+		ToolResults:     []toolresult.Blob{forkedBlob},
 		PlanReplacement: &initial,
 	})
 	if err != nil {
@@ -569,6 +599,18 @@ func TestApplyForkBranchesAndSeeds(t *testing.T) {
 	}
 	if got, err := ss.plan.List(ctx, parent.ID()); err != nil || len(got) != 0 {
 		t.Fatalf("parent plan = %+v (err %v), want none written by the fork", got, err)
+	}
+	gotRuns, err := runStore.ListRuns(ctx, child.ID())
+	if err != nil || len(gotRuns) != 1 || gotRuns[0].ID() != forkedRun.ID() {
+		t.Fatalf("child Runs = %+v (err %v), want copied visible Run", gotRuns, err)
+	}
+	gotItems, err := ss.transcript.List(ctx, child.ID())
+	if err != nil || len(gotItems) != 2 || gotItems[0].ID() != forkedItem.ID() || gotItems[1].ID() != forkedToolItem.ID() {
+		t.Fatalf("child Items = %+v (err %v), want copied visible Items", gotItems, err)
+	}
+	gotBlobs, err := ss.toolResults.List(ctx, child.ID())
+	if err != nil || len(gotBlobs) != 1 || gotBlobs[0].ID != forkedBlob.ID || gotBlobs[0].Body != forkedBlob.Body {
+		t.Fatalf("child ToolResults = %+v (err %v), want copied offloaded body", gotBlobs, err)
 	}
 }
 

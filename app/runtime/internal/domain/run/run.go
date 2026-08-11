@@ -108,6 +108,25 @@ func (run Run) Snapshot() Snapshot {
 	}
 }
 
+// Fork derives a terminal historical Run for a child Session under fresh
+// identities. It preserves the completed work facts, replaces root/child
+// lineage with the caller-resolved equivalent, and clears Goal attribution
+// because a Session branch does not inherit the parent's Goal incarnation.
+func (run Run) Fork(sessionID, id string, lineage Lineage) (Run, error) {
+	if !run.state.IsTerminal() {
+		return Run{}, errors.New("run: only a terminal Run can be forked")
+	}
+	if run.lineage.IsRoot() != lineage.IsRoot() {
+		return Run{}, errors.New("run: fork changes root/child lineage kind")
+	}
+	snapshot := run.Snapshot()
+	snapshot.SessionID = sessionID
+	snapshot.ID = id
+	snapshot.Lineage = lineage
+	snapshot.GoalIncarnationID = ""
+	return Restore(snapshot)
+}
+
 // Equal reports whether two values contain the same authoritative Run facts.
 // It is useful at persistence and hand-off boundaries that must prove a
 // proposed transition was derived from the currently committed aggregate.

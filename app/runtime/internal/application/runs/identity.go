@@ -8,9 +8,10 @@ const (
 	itemIDPrefix    = "item_"
 )
 
-// NewRunID and NewSegmentID add the application-owned namespace to an opaque
+// NewRunID, NewSegmentID, and NewItemID add the application-owned namespace to an opaque
 // entropy value supplied by composition. The source may be UUID, a test
 // sequence, or another collision-safe generator; the use case owns the
 // resulting resource shape.
 func NewRunID(entropy string) string     { return runIDPrefix + entropy }
 func NewSegmentID(entropy string) string { return segmentIDPrefix + entropy }
+func NewItemID(entropy string) string    { return itemIDPrefix + entropy }
