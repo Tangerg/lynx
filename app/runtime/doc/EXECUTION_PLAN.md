@@ -811,10 +811,30 @@
 - CLI normal/race 全包、staticcheck/lint 与 build/vet 全绿，Runtime public embedded contract 无漂移；
 - 提交只包含依赖发布闭环与台账，不夹带 CLI 功能工作树。
 
-## 34. 进度记录
+## 34. P30 — Runtime 失效流订阅隔离与断号恢复
+
+### 目标
+
+修复 `runtime.subscribe` 在多连接、不同 topic/watch 集和队列拥塞下的作用域泄漏与过度收窄。每条流只消费自己声明的失效范围；丢帧恢复必须保守覆盖全部未投递事实；Frontend 必须从首帧开始校验连接内序号，不能把连接建立窗口中的丢失当成完整流。
+
+### 工作项
+
+- [x] P30-01 Delivery hub 将 topic 与 client-declared watch scope 同时归入 subscription owner；普通 `files.changed`、显式 `resync` 和无匹配 watch 的事件都在分配 sequence 前按本流声明过滤，非法内部 frame 仍 fail closed 为本订阅全量 resync；
+- [x] P30-02 拥塞合并显式区分 targeted watch 与 broad file invalidation；任一 broad 事实支配已有/后续 watch 列表，避免最终 `resync.watchIds` 错误收窄；
+- [x] P30-03 Frontend event loop 以 0 为每次新连接的 sequence 基线，首帧非 1、重复、倒退或后续断号都触发 authoritative 全量同步；retarget 后新流重新从 1 验证。
+
+### 验收
+
+- 不同订阅的 topic/watch invalidation 不串流，过滤事件不消耗 sequence；同一 resync 的 topic/watch 交集按协议/订阅声明顺序稳定输出；
+- malformed resync 不被猜测性归一化，而是扩大为本订阅声明 topic 的合法全量 resync；队列内 broad+targeted 文件信号按任意顺序合并都保持 broad；
+- Frontend 首帧和任意后继帧的断号均触发全量 query 与 mounted Session projection 同步，正常从 1 连续流不增加无关刷新；
+- Runtime standalone build/vet/test/race/staticcheck/golangci-lint/tidy 全绿，Frontend 224 files/1381 tests、架构/格式/生产 bundle 全绿；Agent production graph 不获得 Runtime subscription、Delivery 或 watch 抽象。
+
+## 35. 进度记录
 
 | 日期 | 阶段 | 完成事实 | 验证 |
 |---|---|---|---|
+| 2026-08-12 | P30（subscription scope / loss recovery） | Runtime Delivery subscription 同时拥有声明的 topic/watch scope，按流过滤普通 watch invalidation 与 resync；拥塞合并新增 broad-file 支配语义，消除跨连接 watch 泄漏和 broad 事实被 watchIds 过度收窄。Frontend 从每条新连接的首帧开始验证 sequence，retarget 后按连接重置。修改止于 Delivery 与 Frontend event application，不把 Runtime/transport/watch 类型下沉到 Agent、Domain 或 Application | workspace hub 定向普通/竞态重复回归覆盖 topic/watch 交集、foreign drop、stable order、malformed recovery、broad↔targeted 两种顺序；Runtime `GOWORK=off` build/vet/test/race/staticcheck/golangci-lint/tidy 全绿且 lint 0 issue；Frontend 224 files/1381 tests及 type/lint/format/knip/全部架构/生产 bundle 门禁全绿 |
 | 2026-08-12 | P29（CLI standalone consumer closure） | CLI 的 Runtime dependency 从旧 P24 pseudo-version 前移到已推送 commit `420f627f131a`，间接 Agent 同步 Baseline 20；standalone graph 删除旧 `models/ollama`、daemon、easyjson 与 ordered-map。没有 local replace、compat shim，也没有把 CLI 正在进行的功能文件纳入本批 | CLI `GOWORK=off` tidy-diff/build/vet/test/race/staticcheck/golangci-lint 全绿且 lint 0 issue；`govulncheck` 可达漏洞 0，`go mod why github.com/ollama/ollama` 确认为 main module 不需要该 module |
 | 2026-08-12 | P28（Ollama client/daemon 边界） | 独立 `models/ollama` 不再把完整 daemon repository 当客户端 SDK；provider module 私有 wire 精确拥有原生 chat/embed request、response、NDJSON streaming、状态错误与内存上限，并以 raw response extension 保留未知 provider 字段。公开构造器、Core chat/embedding interface、Runtime 与 Agent 合同均未变化 | `models/ollama` standalone tidy-diff/build/vet/test/race/staticcheck/golangci-lint 全绿且 lint 0 issue，Core conformance/behavior、cancel/early-stop/首坏帧、原生 HTTP contract 与未知字段回归通过；`govulncheck` 从 8 条可达路径降为 0，architecture gate 禁止 daemon module 回流 |
 | 2026-08-12 | P27（依赖信任边界收缩） | Frontend lock 前移到 Mermaid 11.16.1、DOMPurify 3.4.13、NanoID 6.0.1/3.3.18；Runtime Infra 将 Ollama chat/embedding 改由既有 OpenAI-compatible protocol 组装，移除只为客户端能力引入的完整 Ollama 服务端 module 及独占间接依赖。变更没有进入 Agent/Application/Domain/Delivery，也没有新增 shim、override 或双路径 | clean `npm ci` 后 audit 0，Frontend 224 files/1380 tests、生产 build/bundle 与真实 Mermaid SVG 全绿；Runtime `govulncheck` 可达漏洞 0，standalone tidy-diff/build/vet/test/race/staticcheck/golangci-lint 全绿。真实审批 reject、等待审批崩溃恢复、Tool 执行中崩溃、Goal/Plan crash-resume、双 Session HITL 隔离全部通过，四个 fuzz target 共约 92.6 万次执行通过；SQLite integrity `ok`、foreign-key/开放 lifecycle/active Goal 均为零 |
@@ -895,6 +915,6 @@
 | 2026-08-09 | P9.2 | 完成 Adapter/Infra/Application/Delivery 逐包职责审计；workspace physical path identity 收敛到唯一 Infra mechanism；删除空的 temporary architecture 台账并把旧 Agent 禁止与 Domain no-context-I/O 变为永久 framework boundary guard；确认 agentexec 按真实变化原因组织且没有第二 lifecycle owner或虚构子包 | Adapter→Infra 单向图与目标六环 DAG 全绿；Delivery concrete Adapter/Infra import、Infra 反向 import、Application outward import、纯转发 wrapper、package/type 口吃、空目录和 temporary exception 均为零；workspacepath/pathidentity/arch targeted tests 与全量质量门禁通过 |
 | 2026-08-09 | P10 | Runtime Protocol 一次性提升到 `2026-08-09`、Session Artifact 到 v14；删除 wire 中实现泄露的 `processRootSegment`，只保留准确的 `runtimeInstanceRootSegment`；Go registry、validator、manifest、OpenRPC、JSON Schema、TypeScript binding、canonical samples 与人读 API/Transport/Aux 文档同步；新增精确 consumer handoff | canonical artifact samples 中漏存的 v12 与旧 `outcome.error` 被 strict sample gate 暴露并治本修正；生成器零漂移、旧 wire token/版本归零、strict validator/round-trip、HTTP/in-process、全量质量门禁通过；Desktop backlog 已记录但未改消费者 |
 
-## 35. 当前下一步
+## 36. 当前下一步
 
-P29 已完成，Runtime/Frontend、独立 Ollama provider 与 CLI standalone consumer 的已知可达依赖漏洞和发布图缺口已经清除。继续反证 cancel/duplicate resolution、Goal blocked/restart/release、Plan/Goal 并发、event queue backpressure/resync 与事务失败边界；新反例只在其权威 owner 与正确抽象层修复，不把 provider/consumer/Runtime/Application/Adapter/Infra/Delivery 或 Agent Framework 合同相互泄露。
+P30 已完成，当前已知的 runtime invalidation topic/watch 跨订阅泄漏、拥塞合并过度收窄与 Frontend 首帧断号漏检已经清除。继续反证 cancel/duplicate resolution、Goal blocked/restart/release、Plan/Goal 并发、subscription close/retarget、事务失败和崩溃恢复边界；新反例只在其权威 owner 与正确抽象层修复，不把 provider/consumer/Runtime/Application/Adapter/Infra/Delivery 或 Agent Framework 合同相互泄露。

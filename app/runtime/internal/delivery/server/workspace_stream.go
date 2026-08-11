@@ -44,9 +44,15 @@ func newWorkspaceHub() *workspaceHub {
 type workspaceSubscription struct {
 	events chan protocol.RuntimeEvent
 	// topics is what THIS subscription asked for. The hub broadcasts every signal it
-	// receives; a subscription only sees the ones it can fold. resync is not a topic
-	// and always passes: a client that fell behind has to be told.
+	// receives; a subscription only sees the ones it can fold. A resync is narrowed
+	// to this same set before delivery: a client cannot re-read a topic it never
+	// declared.
 	topics map[protocol.RuntimeTopic]bool
+	// watchIDs is the stable, client-declared file-watch scope of THIS stream.
+	// Watch identifiers are connection-local: a targeted file invalidation from
+	// another subscription must never cross into this one merely because both
+	// clients subscribed to files.changed.
+	watchIDs []string
 	// sequence is assigned when a frame is handed to the queue, never when one is
 	// produced or filtered — so the numbers a subscriber sees are consecutive and a
 	// gap can only mean the transport lost a frame.
@@ -55,16 +61,25 @@ type workspaceSubscription struct {
 	// could not take. They become one resync; until it is delivered every further
 	// signal folds into them, because a client must not receive a later invalidation
 	// ahead of the notice that it missed earlier ones.
-	stalledTopics   map[protocol.RuntimeTopic]bool
-	stalledWatchIDs []string
+	stalledTopics     map[protocol.RuntimeTopic]bool
+	stalledWatchIDs   []string
+	stalledAllWatches bool
 }
 
 // register adds a caller-owned channel to the broadcast fan-out and returns an
 // idempotent unregister. It does NOT close the channel — the owner does, after
 // it has stopped every other writer (the file watcher), so a late broadcast
 // can't send on a closed channel.
-func (h *workspaceHub) register(events chan protocol.RuntimeEvent, topics map[protocol.RuntimeTopic]bool) (*workspaceSubscription, func(), bool) {
-	subscription := &workspaceSubscription{events: events, topics: topics}
+func (h *workspaceHub) register(
+	events chan protocol.RuntimeEvent,
+	topics map[protocol.RuntimeTopic]bool,
+	watchIDs []string,
+) (*workspaceSubscription, func(), bool) {
+	subscription := &workspaceSubscription{
+		events:   events,
+		topics:   topics,
+		watchIDs: slices.Clone(watchIDs),
+	}
 	h.mu.Lock()
 	if h.closed {
 		h.mu.Unlock()
@@ -123,7 +138,13 @@ func (h *workspaceHub) publishTo(subscription *workspaceSubscription, event prot
 }
 
 func (*workspaceHub) sendLocked(subscription *workspaceSubscription, event protocol.RuntimeEvent) {
-	if event.Type != protocol.RuntimeResync {
+	if event.Type == protocol.RuntimeResync {
+		var deliver bool
+		event, deliver = subscription.scopeResync(event)
+		if !deliver {
+			return
+		}
+	} else {
 		topic := protocol.RuntimeTopic(event.Type)
 		if !slices.Contains(protocol.RuntimeTopics(), topic) {
 			// An invalid producer signal has no trustworthy narrowing scope. Preserve
@@ -131,6 +152,12 @@ func (*workspaceHub) sendLocked(subscription *workspaceSubscription, event proto
 			// the encoder must never silently discard an internal shape violation.
 			event = subscription.resyncEvent()
 		} else if !subscription.topics[topic] {
+			return
+		} else if topic == protocol.TopicFilesChanged && event.WatchID != "" &&
+			!slices.Contains(subscription.watchIDs, event.WatchID) {
+			// A watch id is meaningful only inside the stream that declared it.
+			// Unscoped tool-write notices have no watch id and still fan out to
+			// every files.changed subscriber.
 			return
 		}
 	}
@@ -140,6 +167,60 @@ func (*workspaceHub) sendLocked(subscription *workspaceSubscription, event proto
 	if !subscription.flushStalledLocked() || !subscription.offerLocked(event) {
 		subscription.stallLocked(event)
 	}
+}
+
+// scopeResync intersects a valid resync with what this subscription declared,
+// in protocol declaration order. Invalid scope is intentionally left intact:
+// offerLocked's complete wire validation then widens it to this subscription's
+// full resync instead of guessing what a malformed producer meant.
+func (subscription *workspaceSubscription) scopeResync(
+	event protocol.RuntimeEvent,
+) (protocol.RuntimeEvent, bool) {
+	if len(event.Topics) == 0 {
+		return event, true
+	}
+	seenWatchIDs := make(map[string]bool, len(event.WatchIDs))
+	for _, watchID := range event.WatchIDs {
+		if watchID == "" || seenWatchIDs[watchID] {
+			return event, true
+		}
+		seenWatchIDs[watchID] = true
+	}
+	knownTopics := protocol.RuntimeTopics()
+	requested := make(map[protocol.RuntimeTopic]bool, len(event.Topics))
+	for _, topic := range event.Topics {
+		if !slices.Contains(knownTopics, topic) || requested[topic] {
+			return event, true
+		}
+		requested[topic] = true
+	}
+	if requested[protocol.TopicFilesChanged] && len(event.WatchIDs) > 0 {
+		scopedWatchIDs := make([]string, 0, len(event.WatchIDs))
+		for _, watchID := range subscription.watchIDs {
+			if seenWatchIDs[watchID] {
+				scopedWatchIDs = append(scopedWatchIDs, watchID)
+			}
+		}
+		if len(scopedWatchIDs) == 0 {
+			delete(requested, protocol.TopicFilesChanged)
+		}
+		event.WatchIDs = scopedWatchIDs
+	}
+
+	scoped := make([]protocol.RuntimeTopic, 0, len(requested))
+	for _, topic := range knownTopics {
+		if requested[topic] && subscription.topics[topic] {
+			scoped = append(scoped, topic)
+		}
+	}
+	if len(scoped) == 0 {
+		return protocol.RuntimeEvent{}, false
+	}
+	event.Topics = scoped
+	if !slices.Contains(scoped, protocol.TopicFilesChanged) {
+		event.WatchIDs = nil
+	}
+	return event, true
 }
 
 // offerLocked hands event to the queue, numbering it only if it fits. Reports whether
@@ -216,18 +297,37 @@ func (subscription *workspaceSubscription) stallLocked(event protocol.RuntimeEve
 		for _, topic := range event.Topics {
 			subscription.stalledTopics[topic] = true
 		}
-		subscription.stallWatchIDsLocked(event.WatchIDs)
+		if slices.Contains(event.Topics, protocol.TopicFilesChanged) {
+			subscription.stallFileScopeLocked(event.WatchIDs)
+		}
 		return
 	}
-	subscription.stalledTopics[protocol.RuntimeTopic(event.Type)] = true
-	if event.WatchID != "" {
-		subscription.stallWatchIDsLocked([]string{event.WatchID})
+	topic := protocol.RuntimeTopic(event.Type)
+	subscription.stalledTopics[topic] = true
+	if topic == protocol.TopicFilesChanged {
+		if event.WatchID == "" {
+			subscription.stallFileScopeLocked(nil)
+		} else {
+			subscription.stallFileScopeLocked([]string{event.WatchID})
+		}
 	}
 }
 
-func (subscription *workspaceSubscription) stallWatchIDsLocked(ids []string) {
+// stallFileScopeLocked unions targeted watches, but broad invalidation dominates:
+// once any missed file signal had no watch id, the eventual resync must omit
+// watchIds too. Retaining an earlier narrow list would falsely tell the client
+// that its other file projections are still current.
+func (subscription *workspaceSubscription) stallFileScopeLocked(ids []string) {
+	if len(ids) == 0 {
+		subscription.stalledAllWatches = true
+		subscription.stalledWatchIDs = nil
+		return
+	}
+	if subscription.stalledAllWatches {
+		return
+	}
 	for _, id := range ids {
-		if id != "" && !slices.Contains(subscription.stalledWatchIDs, id) {
+		if !slices.Contains(subscription.stalledWatchIDs, id) {
 			subscription.stalledWatchIDs = append(subscription.stalledWatchIDs, id)
 		}
 	}
@@ -256,6 +356,7 @@ func (subscription *workspaceSubscription) flushStalledLocked() bool {
 	}
 	subscription.stalledTopics = nil
 	subscription.stalledWatchIDs = nil
+	subscription.stalledAllWatches = false
 	return true
 }
 
@@ -308,7 +409,7 @@ func (s *Server) SubscribeRuntime(ctx context.Context, request protocol.RuntimeS
 	// watches are present) the application-owned watcher emits to it. Closing it
 	// only after that watcher has stopped keeps emit from racing the close.
 	events := make(chan protocol.RuntimeEvent, 64)
-	subscription, unregister, registered := s.workspaceHub.register(events, topics)
+	subscription, unregister, registered := s.workspaceHub.register(events, topics, watchIDs)
 	if !registered {
 		close(events)
 		return nil, nil, errSubscriptionAdmissionsClosed

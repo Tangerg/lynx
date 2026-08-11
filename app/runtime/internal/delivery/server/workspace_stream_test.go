@@ -27,7 +27,7 @@ func allTopics() map[protocol.RuntimeTopic]bool {
 // fan-out, not about what one subscription asked for.
 func (h *workspaceHub) subscribe() (<-chan protocol.RuntimeEvent, func()) {
 	ch := make(chan protocol.RuntimeEvent, 64)
-	_, unregister, ok := h.register(ch, allTopics())
+	_, unregister, ok := h.register(ch, allTopics(), nil)
 	if !ok {
 		close(ch)
 		return ch, func() {}
@@ -42,8 +42,8 @@ func TestWorkspaceHubSequencesEventsPerSubscription(t *testing.T) {
 	hub := newWorkspaceHub()
 	first := make(chan protocol.RuntimeEvent, 2)
 	second := make(chan protocol.RuntimeEvent, 1)
-	firstSub, unregisterFirst, _ := hub.register(first, allTopics())
-	_, unregisterSecond, _ := hub.register(second, allTopics())
+	firstSub, unregisterFirst, _ := hub.register(first, allTopics(), nil)
+	_, unregisterSecond, _ := hub.register(second, allTopics(), nil)
 	defer unregisterFirst()
 	defer unregisterSecond()
 
@@ -64,21 +64,101 @@ func TestWorkspaceHubSequencesEventsPerSubscription(t *testing.T) {
 	assertWorkspaceEvent(second, protocol.RuntimeSkillsChanged, 1)
 }
 
-// The sequence is per subscription and counts what was PUBLISHED to it, not what
-// it received: that gap is the only way a client learns it missed something on a
-// lossy stream.
-//
-// Every event carries a real topic — a subscription filters by topic, so a
-// made-up type would be dropped before the sequence could say anything, and the
-// test would hang waiting for a frame the hub correctly never sent.
+func TestWorkspaceHubScopesResyncToEachSubscriptionsDeclaredTopics(t *testing.T) {
+	hub := newWorkspaceHub()
+	events := make(chan protocol.RuntimeEvent, 1)
+	subscription, unregister, _ := hub.register(events, map[protocol.RuntimeTopic]bool{
+		protocol.TopicSkillsChanged: true,
+	}, nil)
+	defer unregister()
+
+	hub.publishTo(subscription, protocol.RuntimeEvent{
+		Type:     protocol.RuntimeResync,
+		Topics:   []protocol.RuntimeTopic{protocol.TopicFilesChanged},
+		WatchIDs: []string{"foreign-watch"},
+	})
+	select {
+	case event := <-events:
+		t.Fatalf("unsubscribed resync leaked into stream: %+v", event)
+	default:
+	}
+
+	hub.publishTo(subscription, protocol.RuntimeEvent{
+		Type: protocol.RuntimeResync,
+		Topics: []protocol.RuntimeTopic{
+			protocol.TopicFilesChanged,
+			protocol.TopicSkillsChanged,
+		},
+		WatchIDs: []string{"foreign-watch"},
+	})
+	got := <-events
+	if !slices.Equal(got.Topics, []protocol.RuntimeTopic{protocol.TopicSkillsChanged}) {
+		t.Fatalf("resync topics = %v, want only skills.changed", got.Topics)
+	}
+	if len(got.WatchIDs) != 0 {
+		t.Fatalf("non-file resync retained foreign watch scope: %v", got.WatchIDs)
+	}
+}
+
+func TestWorkspaceHubScopesResyncToSubscriptionsDeclaredWatches(t *testing.T) {
+	hub := newWorkspaceHub()
+	events := make(chan protocol.RuntimeEvent, 2)
+	subscription, unregister, _ := hub.register(events, map[protocol.RuntimeTopic]bool{
+		protocol.TopicFilesChanged:  true,
+		protocol.TopicSkillsChanged: true,
+	}, []string{"own-second", "own-first"})
+	defer unregister()
+
+	hub.publishTo(subscription, protocol.RuntimeEvent{
+		Type: protocol.RuntimeResync,
+		Topics: []protocol.RuntimeTopic{
+			protocol.TopicFilesChanged,
+			protocol.TopicSkillsChanged,
+		},
+		WatchIDs: []string{"foreign-watch", "own-first", "own-second"},
+	})
+	got := <-events
+	if !slices.Equal(got.Topics, []protocol.RuntimeTopic{
+		protocol.TopicFilesChanged,
+		protocol.TopicSkillsChanged,
+	}) {
+		t.Fatalf("resync topics = %v, want files.changed and skills.changed", got.Topics)
+	}
+	if !slices.Equal(got.WatchIDs, []string{"own-second", "own-first"}) {
+		t.Fatalf("resync watch ids = %v, want subscription declaration order", got.WatchIDs)
+	}
+
+	hub.publishTo(subscription, protocol.RuntimeEvent{
+		Type:     protocol.RuntimeResync,
+		Topics:   []protocol.RuntimeTopic{protocol.TopicFilesChanged},
+		WatchIDs: []string{"foreign-watch"},
+	})
+	hub.publish(protocol.RuntimeEvent{
+		Type: protocol.RuntimeFilesChanged, WatchID: "foreign-watch", Paths: []string{"foreign.go"},
+	})
+	select {
+	case event := <-events:
+		t.Fatalf("foreign watch invalidation leaked into stream: %+v", event)
+	default:
+	}
+
+	hub.publish(protocol.RuntimeEvent{
+		Type: protocol.RuntimeFilesChanged, WatchID: "own-first", Paths: []string{"own.go"},
+	})
+	if got := <-events; got.Type != protocol.RuntimeFilesChanged || got.WatchID != "own-first" || got.Sequence != 2 {
+		t.Fatalf("owned watch invalidation = %+v, want files.changed sequence 2", got)
+	}
+}
+
 // TestWorkspaceHubCoalescesRatherThanDroppingSignals: a subscriber whose queue is
 // full is told WHAT to re-read, not merely that it missed something. The old
 // behavior published a number and dropped the frame, which meant a client learned
-// about the loss only from a gap — and on a quiet stream, never.
+// about the loss only from a later gap — and on a quiet stream, never. Sequence
+// numbers now count only frames actually queued for this subscription.
 func TestWorkspaceHubCoalescesRatherThanDroppingSignals(t *testing.T) {
 	hub := newWorkspaceHub()
 	events := make(chan protocol.RuntimeEvent, 1)
-	sub, unregister, _ := hub.register(events, allTopics())
+	sub, unregister, _ := hub.register(events, allTopics(), []string{"w1"})
 	defer unregister()
 
 	hub.publish(protocol.RuntimeEvent{
@@ -115,7 +195,7 @@ func TestWorkspaceHubCoalescesRatherThanDroppingSignals(t *testing.T) {
 func TestWorkspaceHubResyncKeepsTheScopeItWasStalledWith(t *testing.T) {
 	hub := newWorkspaceHub()
 	events := make(chan protocol.RuntimeEvent, 1)
-	sub, unregister, _ := hub.register(events, allTopics())
+	sub, unregister, _ := hub.register(events, allTopics(), []string{"active-session", "other"})
 	defer unregister()
 
 	hub.publish(protocol.RuntimeEvent{Type: protocol.RuntimeMCPChanged})
@@ -142,12 +222,49 @@ func TestWorkspaceHubResyncKeepsTheScopeItWasStalledWith(t *testing.T) {
 	}
 }
 
+func TestWorkspaceHubBroadFileStallDominatesNarrowWatchScope(t *testing.T) {
+	narrow := protocol.RuntimeEvent{
+		Type:     protocol.RuntimeResync,
+		Topics:   []protocol.RuntimeTopic{protocol.TopicFilesChanged},
+		WatchIDs: []string{"own-watch"},
+	}
+	broad := protocol.RuntimeEvent{
+		Type: protocol.RuntimeFilesChanged, Paths: []string{"global.go"},
+	}
+	for name, signals := range map[string][]protocol.RuntimeEvent{
+		"narrow then broad": {narrow, broad},
+		"broad then narrow": {broad, narrow},
+	} {
+		t.Run(name, func(t *testing.T) {
+			hub := newWorkspaceHub()
+			events := make(chan protocol.RuntimeEvent, 1)
+			sub, unregister, _ := hub.register(events, allTopics(), []string{"own-watch"})
+			defer unregister()
+
+			hub.publish(protocol.RuntimeEvent{Type: protocol.RuntimeMCPChanged})
+			for _, signal := range signals {
+				hub.publishTo(sub, signal)
+			}
+
+			<-events
+			hub.drained(sub)
+			resync := <-events
+			if !slices.Equal(resync.Topics, []protocol.RuntimeTopic{protocol.TopicFilesChanged}) {
+				t.Fatalf("resync topics = %v, want files.changed", resync.Topics)
+			}
+			if len(resync.WatchIDs) != 0 {
+				t.Fatalf("broad file invalidation was incorrectly narrowed to %v", resync.WatchIDs)
+			}
+		})
+	}
+}
+
 func TestWorkspaceHubIsolatesMutableEventDataPerSubscription(t *testing.T) {
 	hub := newWorkspaceHub()
 	first := make(chan protocol.RuntimeEvent, 1)
 	second := make(chan protocol.RuntimeEvent, 1)
-	_, unregisterFirst, _ := hub.register(first, allTopics())
-	_, unregisterSecond, _ := hub.register(second, allTopics())
+	_, unregisterFirst, _ := hub.register(first, allTopics(), nil)
+	_, unregisterSecond, _ := hub.register(second, allTopics(), nil)
 	defer unregisterFirst()
 	defer unregisterSecond()
 
@@ -180,7 +297,7 @@ func TestWorkspaceHubRecoversMalformedSignalWithSubscriptionResync(t *testing.T)
 		protocol.TopicFilesChanged:  true,
 		protocol.TopicSkillsChanged: true,
 	}
-	_, unregister, _ := hub.register(events, topics)
+	_, unregister, _ := hub.register(events, topics, nil)
 	defer unregister()
 
 	// A files signal without paths cannot tell the client what changed. Publishing
@@ -198,10 +315,55 @@ func TestWorkspaceHubRecoversMalformedSignalWithSubscriptionResync(t *testing.T)
 	}
 }
 
+func TestWorkspaceHubRecoversMalformedResyncWithSubscriptionScope(t *testing.T) {
+	for name, malformed := range map[string]protocol.RuntimeEvent{
+		"missing topics": {
+			Type: protocol.RuntimeResync,
+		},
+		"duplicate topic": {
+			Type: protocol.RuntimeResync,
+			Topics: []protocol.RuntimeTopic{
+				protocol.TopicFilesChanged,
+				protocol.TopicFilesChanged,
+			},
+		},
+		"duplicate watch": {
+			Type:     protocol.RuntimeResync,
+			Topics:   []protocol.RuntimeTopic{protocol.TopicFilesChanged},
+			WatchIDs: []string{"own-watch", "own-watch"},
+		},
+		"unknown topic": {
+			Type:   protocol.RuntimeResync,
+			Topics: []protocol.RuntimeTopic{"future.changed"},
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			hub := newWorkspaceHub()
+			events := make(chan protocol.RuntimeEvent, 1)
+			_, unregister, _ := hub.register(events, map[protocol.RuntimeTopic]bool{
+				protocol.TopicFilesChanged:  true,
+				protocol.TopicSkillsChanged: true,
+			}, []string{"own-watch"})
+			defer unregister()
+
+			hub.publish(malformed)
+			got := <-events
+			wantTopics := []protocol.RuntimeTopic{
+				protocol.TopicFilesChanged,
+				protocol.TopicSkillsChanged,
+			}
+			if got.Type != protocol.RuntimeResync || got.Sequence != 1 ||
+				!slices.Equal(got.Topics, wantTopics) || len(got.WatchIDs) != 0 {
+				t.Fatalf("recovery frame = %+v, want full subscription resync", got)
+			}
+		})
+	}
+}
+
 func TestWorkspaceHubCloseLinearizesSubscriptionAdmission(t *testing.T) {
 	hub := newWorkspaceHub()
 	before := make(chan protocol.RuntimeEvent, 1)
-	_, unregister, ok := hub.register(before, allTopics())
+	_, unregister, ok := hub.register(before, allTopics(), nil)
 	if !ok {
 		t.Fatal("subscription before close was rejected")
 	}
@@ -209,7 +371,7 @@ func TestWorkspaceHubCloseLinearizesSubscriptionAdmission(t *testing.T) {
 
 	hub.closeAdmissions()
 	after := make(chan protocol.RuntimeEvent, 1)
-	if _, _, ok := hub.register(after, allTopics()); ok {
+	if _, _, ok := hub.register(after, allTopics(), nil); ok {
 		t.Fatal("subscription admitted after close returned")
 	}
 

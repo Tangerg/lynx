@@ -16,8 +16,8 @@ describe("workspace event loop", () => {
     const loop = createWorkspaceEventLoop({
       async subscribe({ signal }) {
         return (async function* () {
-          yield { type: "skills.changed", sequence: 41 } as const;
-          yield { type: "mcp.changed", sequence: 43 } as const;
+          yield { type: "skills.changed", sequence: 1 } as const;
+          yield { type: "mcp.changed", sequence: 3 } as const;
           await new Promise<void>((resolve) => {
             signal.addEventListener("abort", () => resolve(), { once: true });
           });
@@ -35,8 +35,36 @@ describe("workspace event loop", () => {
     await done;
     controller.abort();
 
-    expect(handled).toEqual([41, 43]);
+    expect(handled).toEqual([1, 3]);
     expect(invalidateAll).toHaveBeenCalledTimes(2); // subscribe + detected gap
+  });
+
+  it("invalidates all caches when the first frame is not sequence one", async () => {
+    const controller = new AbortController();
+    const invalidateAll = vi.fn();
+    let handled!: () => void;
+    const received = new Promise<void>((resolve) => {
+      handled = resolve;
+    });
+    const loop = createWorkspaceEventLoop({
+      async subscribe({ signal }) {
+        return (async function* () {
+          yield { type: "skills.changed", sequence: 2 } as const;
+          await new Promise<void>((resolve) => {
+            signal.addEventListener("abort", () => resolve(), { once: true });
+          });
+        })();
+      },
+      handleEvent: handled,
+      invalidateAll,
+      reportError: vi.fn(),
+    });
+
+    loop.start(controller.signal);
+    await received;
+    controller.abort();
+
+    expect(invalidateAll).toHaveBeenCalledTimes(2); // subscribe + missing sequence 1
   });
 
   it("retargets from an explicit project back to the default workspace", async () => {
@@ -128,7 +156,8 @@ describe("workspace event loop", () => {
         if (subscribed.length === 1) return oldOpening;
         reachedNew();
         return (async function* () {
-          yield { type: "resync", sequence: 2 } as const;
+          // Sequence is connection-local and restarts at one after retarget.
+          yield { type: "resync", sequence: 1 } as const;
           await new Promise<void>((resolve) => {
             if (signal.aborted) resolve();
             else signal.addEventListener("abort", () => resolve(), { once: true });
@@ -149,7 +178,7 @@ describe("workspace event loop", () => {
       })(),
     );
     await newSubscription;
-    await vi.waitFor(() => expect(handled).toEqual([2]));
+    await vi.waitFor(() => expect(handled).toEqual([1]));
     outer.abort();
 
     expect(subscribed).toEqual([undefined, "/new-repo"]);

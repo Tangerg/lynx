@@ -62,10 +62,10 @@ async function subscribeLoop(
       if (iter.signal.aborted) continue;
       attempt = 0;
       deps.invalidateAll();
-      let lastSequence: number | undefined;
+      let lastSequence = 0;
       for await (const ev of events) {
         if (iter.signal.aborted) break;
-        if (lastSequence !== undefined && ev.sequence !== lastSequence + 1) {
+        if (ev.sequence !== lastSequence + 1) {
           deps.invalidateAll();
         }
         lastSequence = ev.sequence;
