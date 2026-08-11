@@ -145,7 +145,7 @@ func TestInteractionExecutorRestoresWaitingTreeAndDeliversSemanticAnswer(t *test
 
 func TestInteractionExecutorRestoresRuntimeAskUserTool(t *testing.T) {
 	workspace := t.TempDir()
-	ask, err := builtin.NewAskUser(interactioninput.Require)
+	ask, err := builtin.NewAskUser(RequireToolInput)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -167,11 +167,13 @@ func TestInteractionExecutorRestoresRuntimeAskUserTool(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, barrier := observeInteractionUntilWaiting(t, executor, ref, func() error {
+	beforeAnswer, barrier := observeInteractionUntilWaiting(t, executor, ref, func() error {
 		return executor.BeginRoot(t.Context(), ref)
 	})
+	starts := payloadsOf[runs.ToolCallStarted](beforeAnswer)
 	if len(barrier.Interruptions) != 1 || barrier.Interruptions[0].Interrupt.Question == nil ||
-		barrier.Interruptions[0].Interrupt.Question.ToolName != toolname.AskUser {
+		barrier.Interruptions[0].Interrupt.Question.ToolName != toolname.AskUser ||
+		len(starts) != 1 || barrier.Interruptions[0].Interrupt.Question.CallID != starts[0].CallID {
 		t.Fatalf("ask_user interruption = %#v", barrier.Interruptions)
 	}
 	if err := executor.Release(t.Context(), ref); err != nil {
@@ -562,6 +564,36 @@ func TestInteractionExecutorRejectsInvalidWaitingRecoveryFacts(t *testing.T) {
 	})
 }
 
+func TestInteractionExecutorProbesWaitingCheckpointThroughExactRestorePath(t *testing.T) {
+	workspace := t.TempDir()
+	checkpoint := captureInteractionQuestionCheckpoint(t, workspace)
+	executor := newObservedTestInteractionExecutor(t, chat.ModelFunc(func(context.Context, *chat.Request) (*chat.Response, error) {
+		return nil, errors.New("model must not be called while probing a waiting checkpoint")
+	}), InteractionExecutorConfig{
+		ToolResolver: staticInteractionTools{manifest: toolset.Manifest{
+			Visible: []toolcontract.Tool{newQuestionCheckpointTool(t)},
+		}},
+		ToolInterpreter: testInteractionToolInterpreter{}, ToolAuthorizer: allowInteractionTools{},
+	})
+	continuation := rootInteractionWaitingContinuation(
+		checkpoint,
+		"exec_probe",
+		run.Capabilities{InterruptKinds: []interrupt.Kind{interrupt.Question}},
+	)
+	resumable, err := executor.CanResumeWaitingExecution(t.Context(), continuation)
+	if err != nil || !resumable {
+		t.Fatalf("CanResumeWaitingExecution = %t, %v, want true", resumable, err)
+	}
+
+	foreign := continuation
+	foreign.Members = append([]runs.WaitingMember(nil), continuation.Members...)
+	foreign.Members[0].MemberID = "interaction:foreign-member"
+	resumable, err = executor.CanResumeWaitingExecution(t.Context(), foreign)
+	if err != nil || resumable {
+		t.Fatalf("foreign CanResumeWaitingExecution = %t, %v, want false", resumable, err)
+	}
+}
+
 func TestInteractionExecutorDoesNotCheckpointOrReplayUnknownEffect(t *testing.T) {
 	workspace := t.TempDir()
 	var calls int
@@ -721,21 +753,7 @@ func (model *runtimeSteerModel) Call(_ context.Context, request *chat.Request) (
 
 func captureInteractionQuestionCheckpoint(t *testing.T, workspace string) runs.ExecutorCheckpoint {
 	t.Helper()
-	question, err := toolcontract.NewFunc(toolcontract.FuncConfig{
-		Name: "ask", Description: "Ask before completing.",
-	}, func(ctx context.Context, _ struct{}) (string, error) {
-		_, err := interactioninput.Require(ctx, "question.ask", runs.Interrupt{
-			Kind: interrupt.Question,
-			Question: &runs.QuestionPrompt{
-				ToolName: "ask", Arguments: `{}`,
-				Fields: []runs.QuestionFieldSpec{{Prompt: "Which value?"}},
-			},
-		})
-		return "", err
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	question := newQuestionCheckpointTool(t)
 	executor := newObservedTestInteractionExecutor(t, &observationScriptModel{responses: []*chat.Response{
 		interactionToolResponse(chat.ToolCall{ID: "ask_call", Name: "ask", Arguments: `{}`}, 1, 1),
 	}}, InteractionExecutorConfig{
@@ -756,6 +774,26 @@ func captureInteractionQuestionCheckpoint(t *testing.T, workspace string) runs.E
 		t.Fatal(err)
 	}
 	return barrier.Checkpoint
+}
+
+func newQuestionCheckpointTool(t *testing.T) toolcontract.Tool {
+	t.Helper()
+	question, err := toolcontract.NewFunc(toolcontract.FuncConfig{
+		Name: "ask", Description: "Ask before completing.",
+	}, func(ctx context.Context, _ struct{}) (string, error) {
+		_, err := interactioninput.Require(ctx, "question.ask", runs.Interrupt{
+			Kind: interrupt.Question,
+			Question: &runs.QuestionPrompt{
+				ToolName: "ask", Arguments: `{}`,
+				Fields: []runs.QuestionFieldSpec{{Prompt: "Which value?"}},
+			},
+		})
+		return "", err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return question
 }
 
 func observeInteractionUntilWaiting(

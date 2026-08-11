@@ -45,6 +45,19 @@ func (r *fakeInterruptReader) Get(_ context.Context, runID string) (runs.Pending
 	return runs.Pending{}, false, r.err
 }
 
+type activityRunStore struct {
+	runs []run.Run
+	err  error
+}
+
+func (s activityRunStore) ListRuns(context.Context, string) ([]run.Run, error) {
+	return s.runs, s.err
+}
+
+func (s activityRunStore) ListNonTerminalRuns(context.Context) ([]run.Run, error) {
+	return s.runs, s.err
+}
+
 // TestListRunsPublishesTheWholeHistoryNewestFirst is runs.list's delivery half: the
 // page is every root run of the session — including the ones that ended — ordered
 // newest first, and each row carries the position a client renders.
@@ -389,25 +402,37 @@ func TestListItemsReadsBackwardWhenAsked(t *testing.T) {
 	}
 }
 
-func TestSessionStatesPreservesInterruptReadFailure(t *testing.T) {
-	want := errors.New("interrupt store unavailable")
-	reader := &fakeInterruptReader{err: want}
-	coordinator := sessions.New(sessions.Dependencies{Interrupts: reader, Admissions: new(sessionadmission.Gate)})
+func TestSessionStatesPreservesDurableRunReadFailure(t *testing.T) {
+	want := errors.New("run store unavailable")
+	coordinator := sessions.New(sessions.Dependencies{Runs: activityRunStore{err: want}})
 	if _, err := coordinator.Activities(t.Context(), []string{"ses_1", "ses_2"}); !errors.Is(err, want) {
-		t.Fatalf("Activities error = %v, want interrupt read failure", err)
+		t.Fatalf("Activities error = %v, want Run read failure", err)
 	}
 }
 
-func TestSessionStatesDoNotQueryInterruptsForActiveRun(t *testing.T) {
-	reader := &fakeInterruptReader{err: errors.New("must not be read")}
-	gate := &sessionadmission.Gate{}
-	if _, ok := gate.AcquireSession("ses_1"); !ok {
-		t.Fatal("AcquireSession rejected an empty registry")
+func TestSessionStatesComeFromDurableRunLifecycle(t *testing.T) {
+	gate := new(sessionadmission.Gate)
+	release, ok := gate.AcquireSession("ses_maintenance")
+	if !ok {
+		t.Fatal("AcquireSession rejected an empty admission gate")
 	}
-	coordinator := sessions.New(sessions.Dependencies{Interrupts: reader, Admissions: gate})
-	activities, err := coordinator.Activities(t.Context(), []string{"ses_1"})
-	if err != nil || activities["ses_1"] != sessions.ActivityRunning {
-		t.Fatalf("Activities = (%q, %v), want running", activities["ses_1"], err)
+	defer release()
+	coordinator := sessions.New(sessions.Dependencies{Admissions: gate, Runs: activityRunStore{runs: []run.Run{
+		runfixture.MustRestore(run.Snapshot{ID: "run_running", SessionID: "ses_running", State: run.Running}),
+		runfixture.MustRestore(run.Snapshot{ID: "run_waiting", SessionID: "ses_waiting", State: run.Waiting}),
+	}}})
+	activities, err := coordinator.Activities(
+		t.Context(),
+		[]string{"ses_running", "ses_waiting", "ses_idle", "ses_maintenance"},
+	)
+	if err != nil {
+		t.Fatalf("Activities: %v", err)
+	}
+	if activities["ses_running"] != sessions.ActivityRunning ||
+		activities["ses_waiting"] != sessions.ActivityWaiting ||
+		activities["ses_idle"] != sessions.ActivityIdle ||
+		activities["ses_maintenance"] != sessions.ActivityIdle {
+		t.Fatalf("Activities = %+v, want durable running/waiting/idle", activities)
 	}
 }
 

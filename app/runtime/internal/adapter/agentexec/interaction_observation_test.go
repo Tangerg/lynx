@@ -77,6 +77,159 @@ func TestInteractionExecutorProjectsAuthoritativeModelToolLifecycleAndAccounting
 	}
 }
 
+func TestInteractionExecutorCancellationStopsCooperativeInflightTool(t *testing.T) {
+	toolStarted := make(chan struct{})
+	toolReturned := make(chan struct{})
+	executable, err := toolcontract.NewFunc(toolcontract.FuncConfig{
+		Name: "block", Description: "Block until canceled.",
+	}, func(ctx context.Context, _ struct{}) (string, error) {
+		close(toolStarted)
+		<-ctx.Done()
+		close(toolReturned)
+		return "", ctx.Err()
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	model := &observationScriptModel{responses: []*chat.Response{
+		interactionToolResponse(chat.ToolCall{ID: "provider_call", Name: "block", Arguments: `{}`}, 1, 1),
+	}}
+	executor := newObservedTestInteractionExecutor(t, model, InteractionExecutorConfig{
+		ToolResolver:    staticInteractionTools{manifest: toolset.Manifest{Visible: []toolcontract.Tool{executable}}},
+		ToolInterpreter: testInteractionToolInterpreter{},
+		ToolAuthorizer:  allowInteractionTools{},
+	})
+	ref, err := executor.StageRoot(t.Context(), interactionTestStart())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := executor.Release(context.Background(), ref); err != nil {
+			t.Errorf("Release: %v", err)
+		}
+	})
+	sequence, err := executor.Observe(context.Background(), ref)
+	if err != nil {
+		t.Fatal(err)
+	}
+	eventsReady := make(chan []runs.ExecutorEvent, 1)
+	go func() {
+		var events []runs.ExecutorEvent
+		for event := range sequence {
+			if commit, authoritative := event.Payload.(runs.ExecutionFactCommit); authoritative {
+				commit.Complete(nil)
+				event.Payload = commit.Fact
+			}
+			events = append(events, event)
+		}
+		eventsReady <- events
+	}()
+	if err := executor.BeginRoot(t.Context(), ref); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-toolStarted:
+	case <-time.After(time.Second):
+		t.Fatal("Tool did not start")
+	}
+	if err := executor.RequestRootCancellation(t.Context(), ref, "operator canceled"); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-toolReturned:
+	case <-time.After(time.Second):
+		t.Fatal("Tool context was not canceled")
+	}
+	var events []runs.ExecutorEvent
+	select {
+	case events = <-eventsReady:
+	case <-time.After(time.Second):
+		t.Fatal("canceled Interaction did not reach a terminal boundary")
+	}
+	if unknown := payloadsOf[runs.UnknownEffectsDetected](events); len(unknown) != 0 {
+		t.Fatalf("canceled Tool became an unknown Effect: %#v", unknown)
+	}
+	finished := payloadsOf[runs.ToolCallFinished](events)
+	if len(finished) != 1 || finished[0].Failure == nil ||
+		finished[0].Failure.Kind != domaintool.FailureCanceled ||
+		finished[0].Failure.Detail != "" {
+		t.Fatalf("canceled Tool completion = %#v", finished)
+	}
+	ended := payloadsOf[runs.SegmentEnded](events)
+	if len(ended) != 1 || ended[0].Reason != run.OutcomeCanceled {
+		t.Fatalf("segment end = %#v, want canceled", ended)
+	}
+}
+
+func TestInteractionExecutorCancellationStopsCooperativeInflightModel(t *testing.T) {
+	modelStarted := make(chan struct{})
+	modelReturned := make(chan struct{})
+	model := chat.ModelFunc(func(ctx context.Context, _ *chat.Request) (*chat.Response, error) {
+		close(modelStarted)
+		<-ctx.Done()
+		close(modelReturned)
+		return nil, ctx.Err()
+	})
+	executor := newObservedTestInteractionExecutor(t, model, InteractionExecutorConfig{})
+	ref, err := executor.StageRoot(t.Context(), interactionTestStart())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := executor.Release(context.Background(), ref); err != nil {
+			t.Errorf("Release: %v", err)
+		}
+	})
+	sequence, err := executor.Observe(context.Background(), ref)
+	if err != nil {
+		t.Fatal(err)
+	}
+	eventsReady := make(chan []runs.ExecutorEvent, 1)
+	go func() {
+		var events []runs.ExecutorEvent
+		for event := range sequence {
+			if commit, authoritative := event.Payload.(runs.ExecutionFactCommit); authoritative {
+				commit.Complete(nil)
+				event.Payload = commit.Fact
+			}
+			events = append(events, event)
+		}
+		eventsReady <- events
+	}()
+	if err := executor.BeginRoot(t.Context(), ref); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-modelStarted:
+	case <-time.After(time.Second):
+		t.Fatal("model did not start")
+	}
+	if err := executor.RequestRootCancellation(t.Context(), ref, "operator canceled"); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-modelReturned:
+	case <-time.After(time.Second):
+		t.Fatal("model context was not canceled")
+	}
+	var events []runs.ExecutorEvent
+	select {
+	case events = <-eventsReady:
+	case <-time.After(time.Second):
+		t.Fatal("canceled Interaction did not reach a terminal boundary")
+	}
+	if unknown := payloadsOf[runs.UnknownEffectsDetected](events); len(unknown) != 0 {
+		t.Fatalf("canceled model became an unknown Effect: %#v", unknown)
+	}
+	if failed := payloadsOf[runs.ModelCallFailed](events); len(failed) != 1 {
+		t.Fatalf("model failures = %#v, want one definite failed invocation", failed)
+	}
+	ended := payloadsOf[runs.SegmentEnded](events)
+	if len(ended) != 1 || ended[0].Reason != run.OutcomeCanceled {
+		t.Fatalf("segment end = %#v, want canceled", ended)
+	}
+}
+
 func TestInteractionExecutorBindsResolvedRunScopeToManifestAndToolCalls(t *testing.T) {
 	start := interactionTestStart()
 	start.CWD = "/isolated/project"

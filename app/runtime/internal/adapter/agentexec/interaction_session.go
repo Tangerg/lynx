@@ -42,43 +42,52 @@ type interactionSession struct {
 	unknownWake   chan struct{}
 	stateWake     chan struct{}
 
-	mu                    sync.Mutex
-	childProjectionMu     sync.Mutex
-	pendingSteers         map[agent.SignalID]pendingInteractionSteer
-	process               *agent.Process
-	admittedProcessID     agent.ProcessID
-	observerWasAttached   bool
-	begun                 bool
-	finished              bool
-	boundary              interactionBoundary
-	waitingCheckpoint     runs.ExecutorCheckpoint
-	subtreeChange         *interactionWaitingSubtreeChange
-	subtreePrepared       chan struct{}
-	releaseOnce           sync.Once
-	finishOnce            sync.Once
-	workers               sync.WaitGroup
-	reconcilers           sync.WaitGroup
-	usageByProcess        map[agent.ProcessID]map[string]accounting.ModelUsage
-	carriedUsage          map[string]accounting.ModelUsage
-	provider              string
-	fallbackModel         string
-	pricing               accounting.Pricing
-	unknownPollInterval   time.Duration
-	statePollInterval     time.Duration
-	mcpToolAutoApproved   func(server, tool string) bool
-	maintenance           RunMaintenance
-	lifecycleHooks        InteractionLifecycleHooks
-	buildID               string
-	start                 runs.RootExecutionStart
-	unknownReported       bool
-	toolOutcomeKey        string
-	toolOutcomeDigest     [sha256.Size]byte
-	toolOutcomeRepeats    int
-	toolCalls             int
-	deployments           *interactionDeploymentSet
-	delegateCalls         map[delegateCallIdentity]*managedDelegateCall
-	delegateChildren      map[agent.ProcessID]*managedDelegateCall
-	committedModelReplies map[agent.ProcessID]corechat.Message
+	mu                        sync.Mutex
+	childProjectionMu         sync.Mutex
+	pendingSteers             map[agent.SignalID]pendingInteractionSteer
+	process                   *agent.Process
+	admittedProcessID         agent.ProcessID
+	observerWasAttached       bool
+	begun                     bool
+	finished                  bool
+	boundary                  interactionBoundary
+	waitingCheckpoint         runs.ExecutorCheckpoint
+	subtreeChange             *interactionWaitingSubtreeChange
+	subtreePrepared           chan struct{}
+	releaseOnce               sync.Once
+	finishOnce                sync.Once
+	workers                   sync.WaitGroup
+	reconcilers               sync.WaitGroup
+	usageByProcess            map[agent.ProcessID]map[string]accounting.ModelUsage
+	carriedUsage              map[string]accounting.ModelUsage
+	provider                  string
+	fallbackModel             string
+	pricing                   accounting.Pricing
+	unknownPollInterval       time.Duration
+	statePollInterval         time.Duration
+	mcpToolAutoApproved       func(server, tool string) bool
+	maintenance               RunMaintenance
+	lifecycleHooks            InteractionLifecycleHooks
+	buildID                   string
+	start                     runs.RootExecutionStart
+	unknownReported           bool
+	toolOutcomeKey            string
+	toolOutcomeDigest         [sha256.Size]byte
+	toolOutcomeRepeats        int
+	toolCalls                 int
+	deployments               *interactionDeploymentSet
+	delegateCalls             map[delegateCallIdentity]*managedDelegateCall
+	delegateChildren          map[agent.ProcessID]*managedDelegateCall
+	committedModelReplies     map[agent.ProcessID]corechat.Message
+	activeDispatches          map[string]activeInteractionDispatch
+	canceledSubtreeRoots      map[agent.ProcessID]struct{}
+	rootCancellationRequested bool
+	segmentStartedAt          time.Time
+}
+
+type activeInteractionDispatch struct {
+	processID agent.ProcessID
+	cancel    context.CancelCauseFunc
 }
 
 type pendingInteractionSteer struct {
@@ -151,6 +160,8 @@ func newInteractionSession(
 		delegateCalls:         make(map[delegateCallIdentity]*managedDelegateCall),
 		delegateChildren:      make(map[agent.ProcessID]*managedDelegateCall),
 		committedModelReplies: make(map[agent.ProcessID]corechat.Message),
+		activeDispatches:      make(map[string]activeInteractionDispatch),
+		canceledSubtreeRoots:  make(map[agent.ProcessID]struct{}),
 		stateWake:             make(chan struct{}, 1),
 		provider:              provider, fallbackModel: start.ModelSelection.Model(), pricing: config.Pricing,
 		unknownPollInterval: config.UnknownEffectPollInterval,
@@ -160,6 +171,125 @@ func newInteractionSession(
 		lifecycleHooks:      config.LifecycleHooks,
 		buildID:             config.BuildID, start: start,
 	}
+}
+
+var errInteractionRunCanceled = errors.New("agentexec: Interaction Run cancellation requested")
+
+func interactionDispatchKey(request agent.EffectRequest) string {
+	return request.ProcessID().String() + "\x00" + request.ID().String()
+}
+
+// beginDispatch binds one Agent-owned Effect attempt to the product Run's
+// explicit cancellation plane. Agent Framework deliberately lets an in-flight
+// Effect settle before applying a cancellation intent; this adapter-owned
+// context gives cooperative model and Tool implementations a chance to produce
+// that settlement promptly without changing Framework lifecycle semantics.
+func (session *interactionSession) beginDispatch(
+	ctx context.Context,
+	request agent.EffectRequest,
+) (context.Context, func()) {
+	bound, cancel := context.WithCancelCause(ctx)
+	key := interactionDispatchKey(request)
+	session.mu.Lock()
+	if session.rootCancellationRequested || session.inCanceledSubtreeLocked(request.ProcessID()) {
+		cancel(errInteractionRunCanceled)
+	} else {
+		session.activeDispatches[key] = activeInteractionDispatch{
+			processID: request.ProcessID(),
+			cancel:    cancel,
+		}
+	}
+	session.mu.Unlock()
+	return bound, func() {
+		session.mu.Lock()
+		delete(session.activeDispatches, key)
+		session.mu.Unlock()
+		cancel(nil)
+	}
+}
+
+func (session *interactionSession) cancelAllDispatches() {
+	session.mu.Lock()
+	session.rootCancellationRequested = true
+	cancels := make([]context.CancelCauseFunc, 0, len(session.activeDispatches))
+	for _, dispatch := range session.activeDispatches {
+		cancels = append(cancels, dispatch.cancel)
+	}
+	session.mu.Unlock()
+	for _, cancel := range cancels {
+		cancel(errInteractionRunCanceled)
+	}
+}
+
+func (session *interactionSession) cancelSubtreeDispatches(rootID agent.ProcessID) {
+	session.mu.Lock()
+	session.canceledSubtreeRoots[rootID] = struct{}{}
+	cancels := make([]context.CancelCauseFunc, 0, len(session.activeDispatches))
+	for _, dispatch := range session.activeDispatches {
+		if session.inSubtreeLocked(dispatch.processID, rootID) {
+			cancels = append(cancels, dispatch.cancel)
+		}
+	}
+	session.mu.Unlock()
+	for _, cancel := range cancels {
+		cancel(errInteractionRunCanceled)
+	}
+}
+
+func (session *interactionSession) inCanceledSubtreeLocked(processID agent.ProcessID) bool {
+	for rootID := range session.canceledSubtreeRoots {
+		if session.inSubtreeLocked(processID, rootID) {
+			return true
+		}
+	}
+	return false
+}
+
+func (session *interactionSession) inSubtreeLocked(
+	processID agent.ProcessID,
+	rootID agent.ProcessID,
+) bool {
+	for range len(session.delegateChildren) + 1 {
+		if processID == rootID {
+			return true
+		}
+		managed := session.delegateChildren[processID]
+		if managed == nil {
+			return false
+		}
+		processID = managed.identity.parentID
+	}
+	return false
+}
+
+// startSegment records the executor-side start of the product Segment that is
+// about to advance the already-live Process tree. A Process may survive several
+// human-input boundaries, so its framework StartedAt cannot represent a resumed
+// product Segment.
+func (session *interactionSession) startSegment() {
+	startedAt := time.Now().UTC()
+	session.mu.Lock()
+	session.segmentStartedAt = startedAt
+	session.mu.Unlock()
+}
+
+func (session *interactionSession) resultSegmentDuration(result agent.Result) time.Duration {
+	session.mu.Lock()
+	segmentStartedAt := session.segmentStartedAt
+	session.mu.Unlock()
+	return interactionSegmentDuration(result.StartedAt(), segmentStartedAt, result.FinishedAt())
+}
+
+func interactionSegmentDuration(
+	processStartedAt time.Time,
+	segmentStartedAt time.Time,
+	finishedAt time.Time,
+) time.Duration {
+	startedAt := processStartedAt
+	if segmentStartedAt.After(startedAt) {
+		startedAt = segmentStartedAt
+	}
+	return max(finishedAt.Sub(startedAt), 0)
 }
 
 func (session *interactionSession) recordToolCall() {
@@ -870,10 +1000,7 @@ func (session *interactionSession) release(ctx context.Context) error {
 
 func (session *interactionSession) segmentEnd(result agent.Result) runs.SegmentEnded {
 	termination := result.Termination()
-	end := segmentEndFromTermination(
-		termination,
-		max(result.FinishedAt().Sub(result.StartedAt()), 0),
-	)
+	end := segmentEndFromTermination(termination, session.resultSegmentDuration(result))
 	session.mu.Lock()
 	usageByModel := session.usageByProcess[result.ProcessID()]
 	models := make([]accounting.ModelUsage, 0, len(usageByModel))

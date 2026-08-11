@@ -176,6 +176,22 @@ func TestInteractionTerminationMappingIsComplete(t *testing.T) {
 	}
 }
 
+func TestInteractionSegmentDurationExcludesTimeBeforeContinuation(t *testing.T) {
+	processStartedAt := time.Date(2026, 8, 11, 1, 0, 0, 0, time.UTC)
+	continuedAt := processStartedAt.Add(8 * time.Hour)
+	finishedAt := continuedAt.Add(750 * time.Millisecond)
+
+	if got := interactionSegmentDuration(processStartedAt, continuedAt, finishedAt); got != 750*time.Millisecond {
+		t.Fatalf("resumed Segment duration = %v, want 750ms", got)
+	}
+	if got := interactionSegmentDuration(processStartedAt, time.Time{}, finishedAt); got != 8*time.Hour+750*time.Millisecond {
+		t.Fatalf("initial Segment duration = %v, want full Process lifetime", got)
+	}
+	if got := interactionSegmentDuration(processStartedAt, finishedAt.Add(time.Second), finishedAt); got != 0 {
+		t.Fatalf("clock-regressed Segment duration = %v, want 0", got)
+	}
+}
+
 func newTestInteractionExecutor(t *testing.T, model chat.Model) *InteractionExecutor {
 	t.Helper()
 	client, err := chatclient.New(model, chatclient.Config{})

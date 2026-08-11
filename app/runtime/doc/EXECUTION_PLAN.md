@@ -1,6 +1,6 @@
 # Lyra Runtime 重构实施计划
 
-> 状态：P1–P19 已完成；Runtime 公共 protocol 与 embedded binding 已冻结
+> 状态：P1–P25 已完成；发布后反证审计持续进行
 >
 > 工作方式：原模块内治本重构，按可验证纵切分批完成；不创建完整 `runtime2`
 
@@ -10,21 +10,21 @@
 
 当前实施 goal 已授权：
 
-- 在已完成的 P1–P18 基线上公开唯一 `protocol` 与 concrete `embedded.Runtime`；
-- 抽取 HTTP/embedded 共用的 binding-neutral operation pipeline，统一 validation、capability、idempotency、problem 与 replay；
-- 建立 HTTP host 与 embedded 共用的 Runtime instance builder、完整 Open/Close、后台任务 join 和数据目录独占；
-- 每完成一个可独立验收批次，同步本计划和 Capability Ledger，统一验证、提交并推送；
-- 允许服务端内部与公共 Go API breaking change，不建立兼容路径。
+- 以 `app/runtime` 作为后端唯一业务入口，同时启动 Desktop 前端做真实端到端联调；允许修改全仓直接爆炸半径并执行 breaking correction；
+- 在已完成并冻结的 P19 公共 `protocol + embedded.Runtime` 基线上，以真实 CLI consumer、终端行为、SQLite 与日志证据复核完整链路；
+- 修改 Agent Framework、`app/runtime` 与 `app/cli`，治本修复 Effect identity、waiting/resume/recovery、授权/HITL、取消和权威投影之间可复现的不一致；
+- 每完成一个可独立验收批次，同步本计划和 Capability Ledger 并执行对应质量门禁；
+- 允许 breaking change，不建立兼容路径；本轮新增的 Tool cancellation 产品语义以一次协议、Artifact 与 SQLite epoch 前移完整发布，不保留双份 vocabulary。
 
-本 goal 不修改前端、TUI、CLI，也不为它们保留兼容字段；消费端接线在服务端完成后专项处理。跨出 `app/runtime` 的 Framework 合同变化仍需单独满足 P7 的证据与授权约束，不能在 Runtime 内伪造替代合同。
+本 goal 同时审计真实 Desktop/CLI/TUI consumer。Agent Framework 仍只拥有中性进程与 Effect 语义；Runtime 的 Run、授权、HITL、Store、transaction、投影和 provider policy 均未泄露进入 Agent。
 
 ## 2. 全程约束
 
-- 只修改 `app/runtime` 及该阶段不可避免的直接后端爆炸半径；前端、TUI、CLI 在独立 consumer 阶段处理；
+- 只修改 `app/runtime` 及该阶段不可避免的直接爆炸半径；P24/P25 已获得 Desktop 前端联调与全仓 breaking correction 授权，其他消费者仍按独立阶段处理；
 - breaking change 允许，禁止 alias、shim、dual read/write 和两套长期路径；
 - 每个阶段按依赖方向从内到外推进，但每个提交必须形成可运行纵切，不允许长期红仓；
 - 旧实现可以作为事实证据，不能成为新 API 兼容规范；
-- Agent Framework Baseline 18 是当前 Framework 合同；Runtime 不读取其 private state；
+- Runtime standalone 依赖仍固定 Agent Framework Baseline 18；workspace 当前 Framework 已冻结 Baseline 20，Runtime 不读取其 private state，发布后只通过 canonical module version 一次性前移；
 - 每批完成后更新本计划和 Capability Ledger，运行对应质量门禁，提交并推送；
 - 如果发现 Agent Framework 缺口，先证明它是中性 Framework 能力且已有真实 Runtime consumer，再单独走 Agent Framework ADR/baseline；禁止在 Runtime 侧补第二套内核；
 - 阶段完成不以文件数量或目录形状判断，只以验收合同和旧 owner 删除判断。
@@ -53,6 +53,12 @@
 | P17 | package 边界与目录结构精修 | P16 + 真实 import graph | 已完成 |
 | P18 | Application mechanism 所有权纠偏 | P17 + 完整调用图 | 已完成 |
 | P19 | 公共 protocol 与 embedded Runtime | P18 + 真实 CLI 嵌入消费者 | 已完成 |
+| P20 | 真实 embedded consumer 回归与权威输出对账 | P19 + CLI 真实运行证据 | 已完成 |
+| P21 | 运行链路、授权/HITL 与取消全矩阵闭环 | P20 + 真实 DeepSeek/SQLite/PTY 证据 | 已完成 |
+| P22 | WorkingContext typed provenance | P21 + 现有 Knowledge/Memory/Plan/hooks consumer | 已完成 |
+| P23 | WorkingContext 行为所有权精修 | P22 + typed provenance 回归 | 已完成 |
+| P24 | Runtime/Desktop 全链路时序、事务与恢复硬化 | P23 + 真实 HITL/Plan/Goal/崩溃证据 | 已完成 |
+| P25 | Runtime/Desktop 第二轮反证式缺陷清零 | P24 + 组合/乱序/失败注入/真实恢复证据 | 已完成 |
 
 ## 4. P0 — 文档、事实和边界基线
 
@@ -599,10 +605,148 @@
 - 公共 surface 无胖 interface、context key、numeric RPC code、Router、Host、Store、Engine、Application concrete 或 transport type；
 - generator 零漂移，standalone build/vet/test/race/staticcheck/lint/deadcode/fuzz 与架构门禁全绿。
 
-## 24. 进度记录
+## 24. P20 — 真实 embedded consumer 回归与权威输出对账
+
+### 目标
+
+以真实 CLI embedded consumer 的终端、数据库与结构化失败为反例，逐层区分 TUI 交互、consumer 适配、Runtime 投影和 Agent Framework 合同问题；Runtime 只修复自己拥有的权威输出对账，不吞掉上游有效数据，也不以展示层补丁掩盖持久化错误。
+
+### 工作项
+
+- [x] P20-01 隔离运行 mock TUI 与真实 embedded 数据库，复核多行输入、运行中滚动、Tool 详情、Run/Item/model/tool invocation、数据库完整性和宿主 telemetry 输出边界；
+- [x] P20-02 让同一 model call 的 reasoning/text 流式观察持续到权威 `ModelCallCompleted` 边界，再以最终消息完成原 Item，消除 reasoning 重复投影；
+- [x] P20-03 为真实 DeepSeek provider metadata 的 Agent Schema 失败建立最小回归并在唯一 Framework schema owner 修复；Runtime 未丢弃 metadata、识别 provider 或绕过校验；
+- [x] P20-04 执行 Runtime targeted/full/race/static/generator/hygiene 与隔离 embedded 真实回归，确认 Transcript、Run outcome 和数据库完整性一致。
+
+### 验收
+
+- 同一 model call 的每个语义 reasoning/message 只形成一个 canonical Transcript Item；Delta 可以丢失，最终模型响应仍是权威内容；
+- DeepSeek 的字符串、对象等合法 metadata 不再导致成功模型响应被标记为 failed，修复位于真实 schema owner；
+- 不改变公共 Runtime Protocol、Go API、SQLite epoch 或 Session Artifact shape；
+- TUI 交互验证与后端持久化验证分别有证据，不能用 mock UI 通过代替真实 embedded 闭环；
+- 不建立 sanitizer、schema duplicate、失败吞噬、兼容 alias 或 provider 特判。
+
+## 25. P21 — 运行链路、授权/HITL 与取消全矩阵闭环
+
+### 目标
+
+以真实 DeepSeek、embedded SQLite、mock Runtime 和 PTY 四类证据覆盖普通对话、连续/并发 Tool、授权、问题型 HITL、resume、取消、重连、重复/乱序事件与进程重启；任何异常都回到拥有 identity、lifecycle 或 transaction 不变量的源头修复。
+
+### 工作项
+
+- [x] P21-01 将 model/tool/approval/HITL 的 canonical Item identity 与外部 invocation attempt 分离，消除同一 block 重复 started，并冻结重复、乱序、Delta drop 和最终权威响应的 reducer 语义；
+- [x] P21-02 让 waiting checkpoint 携带并验证完整 product capabilities，恢复时经真实 Agent tree probe；answer claim、opening commit、Framework continuation 与 checkpoint 删除保持准确顺序；
+- [x] P21-03 覆盖 allow once、deny、session/project/global remember 及其作用域边界；覆盖问题 choice/text、取消、同进程 resume 和崩溃重启 resume，且 restore 不重复 policy、hook 或 Tool admission；
+- [x] P21-04 将 product root/subtree cancellation 绑定到对应 Agent Effect dispatch context；协作式在途 model/Tool 立即形成确定 settlement，子树取消不影响 root 或 sibling，Framework 继续独占安全边界与最终 lifecycle；
+- [x] P21-05 将 product Segment active duration 从长寿命 Process wall time 中分离，排除授权/HITL 等待且不跨 continuation 重复累计；
+- [x] P21-06 以 `tool_canceled` / `toolCanceled` 表达 Tool 所属 Run 取消造成的终止，以 `child_run_canceled` 保留父 Delegate Tool 语义；同步 Protocol `2026-08-11`、Artifact v16、SQLite epoch 67、生成物与 CLI 展示，不暴露内部 cancellation sentinel；
+- [x] P21-07 完成 Agent/Runtime/CLI targeted、full、race、static、generator、fuzz、SQLite invariants 与真实 DeepSeek 端到端验收。
+
+### 验收
+
+- 任一 canonical Item 最多 started 一次；连续/并发 Tool 即使乱序完成，Transcript 顺序、SourceCallID、model history 和 invocation journal 仍一致；
+- waiting Run 的 open Tool/model context、Pending、checkpoint 和 capabilities 原子一致；resume/cancel/recovery 只有一个 owner，终态不遗留 checkpoint、open interrupt 或未知 Effect；
+- 授权五种选择均映射到准确 decision/scope，session/project/global 规则只在合法边界内可见；问题回答保持字段顺序和精确类型，取消与重启恢复均可闭环；
+- root 取消中止整棵树的协作式在途 dispatch；child 取消只中止目标及后代，root/sibling 继续运行；Tool 显示 canceled 而不是通用 error；
+- Segment active duration 不包含人工等待，且恒不超过对应 wall duration；
+- 真实数据库 `integrity_check=ok`、foreign-key 零违规，无未完成 invocation、pending interrupt 或 checkpoint；全量与竞态门禁无未解释失败。
+
+## 26. P22 — WorkingContext typed provenance
+
+### 目标
+
+在不改变 prompt 文本、不公开 Adapter 类型、不扩张 Agent Framework 的前提下，使 fresh-root checkpoint 能解释模型实际看到的 Runtime context 来源。
+
+### 工作项
+
+- [x] P22-01 在 `adapter/agentexec` 建立 versioned context source/purpose 与 prompt composition，覆盖 base、Knowledge、pinned Memory、Agent document 和 Plan，并只记录预算后实际渲染的来源；
+- [x] P22-02 为 recalled Memory 的 system message 与 SessionStart/UserPromptSubmit hook 注入 Part 标记同一 metadata，保持 user media/text ordering 与既有错误策略；
+- [x] P22-03 以 source 顺序、reference、instruction/data、预算裁剪、Message validation 和完整 WorkingContext 行为回归冻结内部合同；确认 Protocol、Artifact、SQLite 与 Agent Framework public API/wire 均未变化。
+
+### 验收
+
+- 每个实际可见来源按 prompt 顺序产生一个 typed source；被预算整体排除的 Memory/Agent document 不产生虚假来源；
+- recalled/pinned Memory 标记为 data，其余现有 instruction layer 标记为 instruction；hook provenance 留在注入 Part，不污染用户原始 part；
+- 完整 Message 继续通过 Core validation，文本与既有 header/order 回归不变；metadata 随 opaque checkpoint 恢复但不进入公共协议或 Store schema；
+- Runtime full/race/static/contract/hygiene 门禁无新增失败，Agent Framework package DAG 继续禁止 Runtime import。
+
+## 27. P23 — WorkingContext 行为所有权精修
+
+### 目标
+
+在不改变 WorkingContext 文本或跨层合同的前提下，让 context source、prompt fragment、hook result 与 composer 各自拥有自己的构造、校验和应用行为，删除调用点手工同步 text/provenance 的过程式路径。
+
+### 工作项
+
+- [x] P23-01 由 source kind 唯一派生 instruction/data purpose，并由 source collection 在写入 metadata 前验证 kind/purpose 不变量；非法组合 fail closed。
+- [x] P23-02 由 pinned Memory/Agent documents prompt fragment 同时拥有预算后文本与实际来源；由 `WorkingContextComposer` 统一拥有 system message、Plan、hook evaluation/application 与 recall，不保留测试专用生产 wrapper。
+- [x] P23-03 完成 prompt 文本、来源顺序、hook Part ordering、recall、非法 purpose、全 Runtime standalone/race/static/lint/deadcode/generator 与重复代码门禁；Protocol、Artifact、SQLite、公共 Go API 和 Agent Framework 合同均不变。
+
+### 验收
+
+- provenance purpose 不再由多个调用点手填；来源种类和 purpose 的矛盾不能进入 checkpoint；
+- 预算裁剪的 text/source 由同一 prompt fragment 原子产生，不存在“文本被裁掉但来源仍出现”或反向漂移；
+- `ComposeWorkingContext` 只协调输入校验、hook 结果应用、system/recall/seed 顺序，具体层行为由各自 owner 完成；
+- Runtime workspace build/vet/test/tidy/lint/race 全绿，`GOWORK=off` 的 `agentexec` 定向测试、全模块 staticcheck/deadcode、generator/dupl 无本轮问题；完整 standalone 冷恢复仍等待已完成但尚未发布的 Agent Baseline 19+ Schema 修订进入 `go.mod`。
+
+## 28. P24 — Runtime/Desktop 全链路时序、事务与恢复硬化
+
+### 目标
+
+以真实后端、Desktop 前端和隔离 SQLite 为同一验收系统，覆盖 HITL、Plan、Goal、取消/恢复竞争、冷启动与进程崩溃；发现的问题回到拥有 lifecycle、transaction、read model 或 invalidation 语义的唯一 owner 修复，不以 UI 刷新、延时或兼容旁路掩盖。
+
+### 工作项
+
+- [x] P24-01 Session activity 从 durable non-terminal Run 投影；前端按语义 Session projection 订阅并从 durable running Item 冷 hydration，消除进程内 gate 与页面 reload 造成的状态漂移；
+- [x] P24-02 Runtime workspace watcher 只比较 Git HEAD/index 语义指纹并禁用 optional lock；前端按事件精确映射 query scope，消除 `files.changed -> global invalidation -> git stat refresh` 自激 RPC 环；
+- [x] P24-03 以 root-owned Segment activation arbiter 串行化 resume/start 与 cancel；终态归约关闭未重启的 drained Tool，避免同一 Run 同时激活/取消或遗留 running Item；
+- [x] P24-04 Boot recovery 由 Application 规划完整 Run tree、Goal、cleanup 与全部 open model/tool invocation write-set；Adapter 在一个 SQLite transaction 内应用，Infra 只提供 technical journal iteration/update；
+- [x] P24-05 用真实 HITL approve/reject/cancel、Plan set/exit、Goal complete/stop/resume、reload、并发请求和 `kill -9` 执行端到端回归，并完成 Runtime/Agent/Desktop/Frontend 全量质量门禁与边界审计。
+
+### 验收
+
+- cancel/resume/activation 每个边界只有一个线性化结果；Session activity、Run、Item 与页面冷加载读取同一 durable 事实；
+- boot recovery 的 lost Run、Goal run、model/tool invocation 和 cleanup 同事务提交并使用同一终结时间；失败注入必须整批回滚；
+- Desktop 空闲不产生 `/v2/rpc` 自激请求；Git stat cache 变化不伪装为 workspace change，真实 HEAD/index 变化仍会发布；
+- 隔离数据库 integrity 为 `ok`、foreign-key 零违规，终态无 started invocation、非终态 Run、open/resuming interrupt 或 checkpoint；
+- Agent production DAG 对 `app/runtime` import 为零，Runtime Framework concrete import 仍只在 `adapter/agentexec`；Protocol、Artifact 与 SQLite shape/epoch 不因本批变化。
+
+## 29. P25 — Runtime/Desktop 第二轮反证式缺陷清零
+
+### 目标
+
+在新的隔离 Runtime、Desktop 与 SQLite 系统中扩大 HITL、Plan、Goal、Run/Tool、重复/乱序、失败注入、断线重连、冷启动和真实崩溃矩阵；所有反例回到拥有 transport、projection、lifecycle 或 Framework contract 的唯一 owner 修复，不以延时、刷新、sanitizer、`replace` 或测试跳过掩盖。
+
+### 工作项
+
+- [x] P25-01 前端 live Run stream 在活动期独占会话投影，durable `runs.changed` snapshot 串行合并并延迟到 stream tail 同步 flush 后应用；取消同时终止旧 stream。Workspace event target 以 `resolved/unavailable` 区分合法默认 workspace 与解析失败，draft cache miss 精确读取 Session，project→default、reconnect backoff 及 opening-retarget race 均立即切换且不发布旧订阅；Run/Item/Plan fold 对 duplicate、late started/delta 与同 revision replay 保持单调，同时保留 HITL Tool `requires-action -> running` 的合法 continuation；
+- [x] P25-02 JSON-RPC transport 在 SDK decode 前递归拒绝任意深度 duplicate/unknown object member、空 request method、所有非字符串显式 id、request/response 混合与 result/error 双载荷；HTTP binding 只接受 request/notification 并统一投影 transport problem，SDK 不再折叠 null/number 或执行语义歧义 envelope；
+- [x] P25-03 完成 HITL 双提交与真实 ask_user resume、Plan revision、Goal complete/blocked/budget、cancel/resume、幂等 replay/drift、cursor、事务失败、`kill -9`、child process、同 build/异 build恢复及真实 Desktop 无刷新重连回归；
+- [x] P25-04 发布已完成的 Agent Baseline 20 canonical source，Runtime `go.mod` 从 Baseline 18 一次性绑定该真实 pseudo-version，并完成 `GOWORK=off` build/vet/staticcheck/lint/test/race 与冷恢复矩阵；禁止本地 `replace` 或 Runtime metadata 降形旁路。
+
+### 验收
+
+- live stream 与 durable snapshot 只有一个线性化投影顺序，terminal tail 不丢失、不重复、不触发状态机冲突；
+- 相同 JSON bytes 不会因 first-wins/last-wins decoder 差异路由到不同 method；空 method、client response、混合 envelope 与显式 `null`/numeric id 不再伪装成 notification、被执行或错误关联到另一个 call；
+- 隔离数据库 integrity 为 `ok`、foreign-key 零违规，终态无非 terminal Run、open/resuming interrupt、started invocation、Goal run 或 checkpoint；
+- Agent production DAG 对 `app/runtime` import 为零，Runtime Framework concrete import 仍只在 `adapter/agentexec`；workspace 与 `GOWORK=off` 最终消费同一 canonical Agent source。
+
+## 30. 进度记录
 
 | 日期 | 阶段 | 完成事实 | 验证 |
 |---|---|---|---|
+| 2026-08-11 | P25-04（canonical dependency closure） | Agent Baseline 20 以 commit `8e667d716b22` 发布，Runtime 直接绑定远端 pseudo-version `v0.0.0-20260811152247-8e667d716b22`；没有 `replace`、Runtime metadata sanitizer、Schema 复制或测试跳过。Framework 仍不认识 Runtime 的 Run、Store、transaction、provider 与 provenance policy | 原先 Baseline 18 下失败的两条 bootstrap 冷恢复/HITL consumer 测试转绿；Runtime `GOWORK=off` tidy-diff/build/vet/test/race/staticcheck/golangci-lint 全绿且 lint 0 issue，证明 P25 不依赖 workspace overlay |
+| 2026-08-11 | P25-01～P25-03（second adversarial clear） | 前端建立 live-stream/durable-snapshot 单一串行投影，修正 default workspace、draft cache miss、resolution failure、reconnect backoff/opening retarget，并冻结 Run/Item/Plan late-event 单调性；Transport decode 边界递归拒绝 duplicate/unknown member、空 method、非字符串 id、client response 与 request/response 混合，消除 SDK 有损或歧义解释；HITL/Plan/Goal/取消恢复/幂等/cursor/失败注入/断线/崩溃 case 扩展完成。Agent Framework 没有接收 Runtime Run、Store、transaction 或 provenance policy，Runtime 也未建立 sanitizer/replace | Frontend 224 files/1380 tests及全部架构/格式/生产门禁全绿；Runtime workspace build/vet/test/tidy/lint/race/staticcheck、Agent standalone 同级门禁、transport fuzz 199,589 次及 contract generator 零漂移；真实 RPC valid=200、notification=204，九类 duplicate/unknown/null/numeric/client-response/mixed envelope=400。真实 `SIGKILL` 精确捕获 running Run + started model invocation，重启后收口为 lost + unknown，随后同页返回 `POST_CRASH_RECOVERY_OK`；真实 ask_user waiting/resume 返回 `HITL_RESUME_OK`，Plan 两次替换落为 revision 2，autonomous Goal 分别完成 completed/blocked（blocked reason 与 1-Run budget 持久化）且 blocked 后普通 Run 返回 `BLOCKED_GOAL_RELEASE_OK`。SQLite integrity `ok`、foreign-key/开放 lifecycle 为零；浏览器恢复后的 console/error 清洁。完整 Runtime `GOWORK=off` 唯一剩余失败精确归因为 `go.mod` 仍固定未含通用 RawMessage Schema 修订的 Baseline 18，等待 Baseline 20 canonical publication 后绑定 |
+| 2026-08-11 | P24（Runtime/Desktop E2E hardening） | Session activity 与前端冷 hydration 统一消费 durable Run/Item；workspace event 精确失效且 Git watcher 只观察 HEAD/index 语义；Segment activation 与 cancel 由 root owner 仲裁；Boot recovery 将 Run tree、Goal、cleanup 和全部 open invocation journal 纳入同一 Application write-set/SQLite transaction，不再留下 terminal Run 对应的 `started` invocation | 真实 HITL、Plan、Goal、并发 cancel/resume、reload 与 `kill -9` 全链路通过；崩溃 Run/Goal/invocation 终结时间完全一致。Runtime 全量 race/static/lint/deadcode、Agent build/vet/race/static/lint、Desktop build/vet/test/static、Frontend 222 files/1361 tests及全部架构/格式/生产构建门禁通过；隔离 SQLite integrity `ok`、foreign-key/开放 lifecycle 均为零，前端空闲 5 秒 `/v2/rpc` 为零 |
+| 2026-08-11 | P23（WorkingContext behavior ownership） | source kind 唯一派生并校验 purpose；Memory/Agent document fragment 原子拥有预算后 text+sources；hook result 自己拒绝、注入并附 provenance；`WorkingContextComposer` 统一拥有 system/Plan/recall/hook 流程。旧自由函数和测试专用生产 wrapper 已删除，没有 Java 式继承或 service 层级 | Runtime workspace build/vet/test/tidy/lint/race 全绿，lint 0 issue；`GOWORK=off agentexec`、全模块 staticcheck/deadcode、generator drift、目标重复代码与定向 provenance/WorkingContext race 均通过。完整 `GOWORK=off` 复验准确暴露 `go.mod` 仍固定 Baseline 18、尚未含已完成的通用 RawMessage/byte Schema 修订；这不是 P23 回归，不在 Runtime 建兼容旁路 |
+| 2026-08-11 | P22（WorkingContext typed provenance） | `agentexec` 将 base/Knowledge/pinned+recalled Memory/AGENTS.md/Plan/hook 的实际可见来源投影为 versioned JSON-safe metadata，并区分 instruction/data；预算未选中的来源不会伪装成模型可见。归因伴随 opaque checkpoint，不进入 Application/Protocol/SQLite/Framework | prompt text 回归、来源顺序/reference/purpose、budget selection、hook Part ordering、recalled Memory 与 Message validation 定向测试通过；Runtime 全量质量门禁见本批最终验收 |
+| 2026-08-11 | P21-07（全场景最终验收） | 真实 DeepSeek 分别完成普通对话、Tool 授权 allow/deny、session/project/global remember 作用域、问题 HITL 取消与 crash/restart resume、长运行 Tool 根取消；SQLite 对 Run/Segment/Item/model/tool invocation/rule/interrupt/checkpoint 逐项对账。mock/PTY 永久回归覆盖审批五种选择、问题 choice/text/cancel、Shift+Enter、滚动、Tool 详情、断线/重复 replay 与冷恢复。压力运行捕获到一次测试把 oolong 最近 diff frame 当完整屏幕的错误 oracle，现改为完成后请求以答案为条件的 full repaint，再验证唯一性，没有增加 sleep 或修改生产行为 | Runtime normal/race 全量、Agent/CLI normal 全量通过；授权 Domain/Application/SQLite、Runtime HITL/restart、CLI terminal/adapter 均 `-race -count=20`，断线/冷恢复唯一答案 `-race -count=50`；三个 strict codec fuzz 各 10 秒共约 59.6 万次通过；真实 SQLite integrity `ok`、foreign-key 零违规 |
+| 2026-08-11 | P21-04～P21-06（取消、计时与产品语义） | Runtime adapter 为每个 Agent Effect 绑定 product cancellation context：root 取消覆盖全树，running child 取消按 managed relation 覆盖目标与后代且保留 root/sibling；取消后的 model/Tool 均形成确定 settlement，不进入 Unknown。长寿命 Process 的恢复 Segment 以 continuation 激活点单独计时。Tool 取消成为一等 failure kind，并完整前移 Protocol/Artifact/SQLite 合同 | root model/Tool 与 child model 协作取消定向 race 各连续通过；subtree scope/late descendant 回归证明无 sibling 误伤；真实 `sleep 30` 在 Ctrl+C 后及时退出，Run/Tool 均 canceled，审批等待不计入 active duration；真实 HITL wall 17.412s、active 2.414s |
+| 2026-08-11 | P21-01～P21-03（identity、waiting、授权/HITL） | canonical Tool identity、provider SourceCallID 和 execution attempt 分责；Run reducer 在 waiting/terminal/recovery 原子关闭正确上下文，checkpoint 以 schema v1 冻结 capabilities，启动恢复在 Goal 注入后执行。真实 DeepSeek 授权矩阵与问题 HITL 验证 consumer→Protocol→Application→Agent tree 全链路 | 重复 started、连续/并发 Tool、乱序 completion、unknown/recovery、waiting cancel/resume/restore、approval hook-once 与 SQLite write-set 回归全绿；真实 allow once、deny、session/project/global remember 及作用域边界通过，question cancel 与 crash/restart resume 通过，终态 checkpoint/interrupt 均为零 |
+| 2026-08-11 | P20-04（真实 embedded 与最终门禁） | 以当前 workspace 源码直接构建、无 overlay 的 CLI，分别完成 DeepSeek JSON one-shot 与交互 TUI；两次运行均得到指定文本并正常退出。窄终端 approval race 回归暴露的是测试依赖默认长对话首句可见的脆弱 oracle：拒绝已经生效但首句被正常滚出视口；测试现使用专用短交互脚本，以明确 deny 结果验证响应式审批，不延长 sleep 或修改正确生产行为 | Runtime 与 CLI 各自的 build/vet/test/tidy/lint/race 六项 CI 等价门禁全绿，lint 0 issues；approval 定向 race 连续 20 次通过。隔离 SQLite integrity `ok`、foreign-key 零违规；2 个 Run 与 2 个 model invocation 全部 completed，user/reasoning/agent 各 2 条且无重复 Item、problem、未完成调用、pending interrupt、open Tool invocation 或 checkpoint |
+| 2026-08-11 | P20-03（Framework JSON wire schema correction） | 获得明确跨模块授权后，修复留在 Agent Framework 的唯一 `SchemaFor` owner：`json.RawMessage` 接受任意合法 JSON value，`[]byte` 接受 null/base64 string，均服从 `encoding/json`。生产实现不 import Runtime/Core consumer、不识别 DeepSeek、不删除 metadata，也未把 Run、Store、transaction、投影或 provider 策略带入 Agent | Agent 通用 Schema 回归覆盖 Raw JSON 六类值、byte slice 和无效输入；外部 Interaction 回归覆盖 object response extension、string reasoning metadata 与 signature。Agent standalone build/vet/tidy-diff/staticcheck/lint/test/race、public/private contract 和 package DAG 全绿；真实 DeepSeek 不再在成功模型响应后因 Schema 失败 |
+| 2026-08-11 | P20-01（TUI、SQLite 与 embedded diagnostics attribution） | 隔离 mock PTY 逐项证明 Shift+Enter 多行输入、运行中 PageUp 暂停 bottom-follow、Ctrl+O 展开 Tool 详情和审批交互；真实 embedded SQLite 的 integrity/foreign-key、Run/Item/model/tool invocation/interrupt 关联反证 Tool continuation 并未串写。日志所有权同时厘清：HTTP dev 的 `lyra.log` 是 Makefile 重定向，`embedded` library 正确地不安装进程级 OTel globals，而当前 CLI host 尚未安装 provider，不能把旧服务日志当成当前 TUI 证据 | PTY 行为矩阵通过；真实数据库 integrity `ok`、foreign-key 零违规；`LYRA_LOG_LEVEL=debug` 的 embedded `sessions ls --json` exit 0、stdout 单行合法 JSON、stderr 0 字节且隔离目录只含数据库与锁文件 |
+| 2026-08-11 | P20-02（stream/final authoritative reconciliation） | `application/runs` 不再把 reasoning/text 当作互斥流模式：两种 Delta 各自保持同一开放 Item，直到 `ModelCallCompleted` 以最终完整消息完成原 identity；最终内容可覆盖部分观察，`AssistantMessageCompleted` 仍只作相同结果确认。删除类型切换时的提前完成后，真实 DeepSeek 路径中的 reasoning 不再先落一次、再由最终响应重复写入 | 新回归同时固定“切换不产生 ItemCompleted”“最终沿用两个已开始 identity”“最终权威内容替换部分文本”，连续 100 次通过；`application/runs` 与 `agentexec` targeted 重复测试、Runtime 全量测试、两 owner race、CLI `-p 1` 全量 consumer 回归均通过 |
 | 2026-08-11 | P19-06（public contract freeze and final audit） | contract generator 从 `protocol + embedded` 的真实 Go type information 派生完整 `go-api.json`，冻结 public package/import/constant/variable/function/type/field/method；架构门禁拒绝第三个公共 package、模块根 package、public signature 的 internal type、operation/method 漂移、generated artifact/digest 和 Session Artifact version 漂移。新增窄 `protocol.ProblemError`，保留 `errors.Is` sentinel 并为 `errors.As` 提供结构化恢复事实；README 与 consumer handoff 给出真实嵌入用法及唯一 owner 约束。embedded 的伞状 `automation`/`integrations` 文件和错位方法按准确 capability 文件彻底收敛，不增加子包；最终 race 发现的并发 Tool 测试缺少“全部跨过外部边界”线性化前提，以显式 barrier 治本，不更改正确的 production stop-unstarted 语义 | generator/drift/digest/public external-module/operation parity/structured-error tests 全绿；Runtime standalone build/vet/test/tidy/lint/race 六项全绿，lint 0 issues；GOWORK=off staticcheck 与 deadcode -test 零输出；3 个 continuation fuzz owner 约 52.9 万次执行全绿；并发 unknown-effect race 目标 50 次及全模块 race 复跑全绿；空目录/空文件、旧 public/internal protocol/inprocess、伞状文件、兼容残留和 public abstraction leak 复扫零新增违规 |
 | 2026-08-11 | P19-05（public embedded Runtime） | 新增公共 concrete `embedded.Runtime`，以准确的 `CallOptions`、`CommandOptions`、`RunCommandOptions`、`RunSubscriptionOptions`、`SubscriptionOptions` 暴露全部 operation；方法直接进入 P19-03 的唯一类型化 pipeline，不启动 listener、不经过 JSON-RPC/SSE、也不公开 Host/Store/Engine/Router/context key。`Config` 冻结显式绝对 host path，默认 workspace 只取一次 user-home snapshot，默认 config search 只限 data directory；`Close` 停止新调用并由 instance owner 结束流、join worker、逆序关闭资源及释放独占 lease，失败保持可重试 | AST+reflection 门禁逐项证明每个 catalog operation 恰有一个公开方法且 request/options/result/event 类型精确一致；真实 embedded 集成覆盖 discovery/protocol reject、durable idempotency replay/conflict、Runtime notification、流随 Close 结束、closed rejection、同目录拒绝与 reopen；独立临时 Go module 仅导入 `protocol + embedded` 编译通过；embedded/operation/bootstrap/arch/cmd targeted test/vet 全绿 |
 | 2026-08-11 | P19-04（single Runtime instance owner） | `bootstrap.Instance` 成为 HTTP/embedded 共用的唯一完整 Runtime owner：canonical data-directory lease 早于 SQLite/recovery，统一完成 config/client/store/seeding/Assembly/Host/recovery/server/operation 组装并启动 scheduler；operation endpoint 绑定 instance lifetime，Close 先停止 admission 与流、取消并 join worker，再关闭 Host/resources，最后释放 lease，失败可重试且不提前放锁。HTTP 改为接收 instance-owned Endpoint，不再自行构造第二 registry/idempotency pipeline；cmd 不再拥有 recovery、scheduler 或 Server 组装 | 同路径、symlink alias、真实 child process 争锁与 release/reopen tests；Close 未 join 保持 lease、retry 后释放；真实 Open→discover→第二 Open 拒绝→Close→reopen 集成通过；Windows lock path cross-compile、operation/HTTP/cmd/bootstrap/architecture targeted tests 与全 Runtime tests 全绿 |
@@ -667,6 +811,6 @@
 | 2026-08-09 | P9.2 | 完成 Adapter/Infra/Application/Delivery 逐包职责审计；workspace physical path identity 收敛到唯一 Infra mechanism；删除空的 temporary architecture 台账并把旧 Agent 禁止与 Domain no-context-I/O 变为永久 framework boundary guard；确认 agentexec 按真实变化原因组织且没有第二 lifecycle owner或虚构子包 | Adapter→Infra 单向图与目标六环 DAG 全绿；Delivery concrete Adapter/Infra import、Infra 反向 import、Application outward import、纯转发 wrapper、package/type 口吃、空目录和 temporary exception 均为零；workspacepath/pathidentity/arch targeted tests 与全量质量门禁通过 |
 | 2026-08-09 | P10 | Runtime Protocol 一次性提升到 `2026-08-09`、Session Artifact 到 v14；删除 wire 中实现泄露的 `processRootSegment`，只保留准确的 `runtimeInstanceRootSegment`；Go registry、validator、manifest、OpenRPC、JSON Schema、TypeScript binding、canonical samples 与人读 API/Transport/Aux 文档同步；新增精确 consumer handoff | canonical artifact samples 中漏存的 v12 与旧 `outcome.error` 被 strict sample gate 暴露并治本修正；生成器零漂移、旧 wire token/版本归零、strict validator/round-trip、HTTP/in-process、全量质量门禁通过；Desktop backlog 已记录但未改消费者 |
 
-## 25. 当前下一步
+## 31. 当前下一步
 
-P19 已完成：`protocol + embedded.Runtime` 是唯一公共 Go 合同，HTTP 与 embedded 共用唯一 operation/instance owner，旧 internal protocol 与 in-process channel transport 无兼容残留。下一步是独立 consumer 接线阶段；前端、TUI、CLI 不属于本计划，Runtime 不为它们保留旧合同。
+P25 已完成，Runtime 已绑定远端 Agent Baseline 20 且 standalone 门禁全绿。继续以发布后的真实依赖图反证 Goal blocked/restart/release、Plan/Goal 并发、event queue backpressure/resync 与事务失败边界；新反例只在其权威 owner 与正确抽象层修复，不把 Application/Adapter/Infra/Delivery 或 Agent Framework 合同相互泄露。

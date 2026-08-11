@@ -479,6 +479,8 @@ func portableToolFailureFromArtifact(path string, artifact *protocol.ArtifactPro
 		kind = tool.FailureExecution
 	case protocol.ArtifactProblemChildRunCanceled:
 		kind = tool.FailureChildRunCanceled
+	case protocol.ArtifactProblemToolCanceled:
+		kind = tool.FailureCanceled
 	default:
 		return nil, invalidArtifact(path+".type", "unknown value %q", artifact.Type)
 	}

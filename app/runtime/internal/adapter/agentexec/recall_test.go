@@ -24,9 +24,10 @@ func TestRecalledMemoriesSkipsPinnedAndInjectsRest(t *testing.T) {
 		{Content: "- pinned core", Pinned: true},
 		{Content: "- relevant fact", Pinned: false},
 	}}
-	msg, ok := recalledMemories(context.Background(), search, "/repo", "what is the fact")
-	if !ok {
-		t.Fatal("expected a recall block")
+	composer := NewWorkingContextComposer(WorkingContextConfig{AgentMemorySearch: search})
+	msg, ok, err := composer.recallMessage(context.Background(), "/repo", "what is the fact")
+	if err != nil || !ok {
+		t.Fatalf("recallMessage found=%t error=%v", ok, err)
 	}
 	text := msg.Text()
 	if strings.Contains(text, "pinned core") {
@@ -41,17 +42,19 @@ func TestRecalledMemoriesSkipsPinnedAndInjectsRest(t *testing.T) {
 }
 
 func TestRecalledMemoriesEmptyCases(t *testing.T) {
-	if _, ok := recalledMemories(context.Background(), nil, "/repo", "q"); ok {
+	if _, ok, _ := NewWorkingContextComposer(WorkingContextConfig{}).recallMessage(context.Background(), "/repo", "q"); ok {
 		t.Fatal("no searcher → no block")
 	}
-	if _, ok := recalledMemories(context.Background(), &fakeAgentMemorySearcher{}, "/repo", "q"); ok {
+	composer := NewWorkingContextComposer(WorkingContextConfig{AgentMemorySearch: &fakeAgentMemorySearcher{}})
+	if _, ok, _ := composer.recallMessage(context.Background(), "/repo", "q"); ok {
 		t.Fatal("no items → no block")
 	}
 	allPinned := &fakeAgentMemorySearcher{items: []agentmemory.Item{{Content: "- x", Pinned: true}}}
-	if _, ok := recalledMemories(context.Background(), allPinned, "/repo", "q"); ok {
+	composer = NewWorkingContextComposer(WorkingContextConfig{AgentMemorySearch: allPinned})
+	if _, ok, _ := composer.recallMessage(context.Background(), "/repo", "q"); ok {
 		t.Fatal("all-pinned results → no block (already in the core)")
 	}
-	if _, ok := recalledMemories(context.Background(), &fakeAgentMemorySearcher{}, "/repo", "  "); ok {
+	if _, ok, _ := composer.recallMessage(context.Background(), "/repo", "  "); ok {
 		t.Fatal("blank query → no block")
 	}
 }

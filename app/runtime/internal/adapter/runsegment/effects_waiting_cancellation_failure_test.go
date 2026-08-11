@@ -339,6 +339,7 @@ func (fixture *waitingCancellationSQLiteFixture) replaceEffects(
 		Interrupts:          fixture.interrupts,
 		Transcript:          fixture.transcript,
 		ItemReplacer:        fixture.transcript,
+		Conversation:        fixture.conversation,
 		State:               fixture.runState,
 		ExecutorCheckpoints: fixture.checkpoints,
 		Tx: func(ctx context.Context, fn func(context.Context) error) error {
@@ -427,6 +428,10 @@ func assertWaitingCancellationUnchanged(
 	}
 	if terminalRuns != 0 {
 		t.Fatalf("terminal Runs after rollback = %d, want 0", terminalRuns)
+	}
+	messages, err := fixture.conversation.Read(fixture.ctx, fixture.rootRun.SessionID())
+	if err != nil || len(messages) != 0 {
+		t.Fatalf("conversation after rollback = %+v err=%v, want empty", messages, err)
 	}
 }
 

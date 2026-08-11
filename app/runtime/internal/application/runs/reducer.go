@@ -47,11 +47,13 @@ type reductionBatch struct {
 // factReduction is the complete in-memory consequence of one executor fact
 // before Run events are projected into their durable publication shape.
 type factReduction struct {
-	events             []RunEvent
-	modelInvocations   []ModelInvocationCommit
-	toolInvocations    []ToolInvocationCommit
-	settledToolCallIDs []string
-	progress           *RunProgressCommit
+	events               []RunEvent
+	parkItems            []transcript.Item
+	conversationMessages []corechat.Message
+	modelInvocations     []ModelInvocationCommit
+	toolInvocations      []ToolInvocationCommit
+	settledToolCallIDs   []string
+	progress             *RunProgressCommit
 }
 
 type reducerConfig struct {
@@ -270,7 +272,20 @@ func (r *reducer) open() (reductionBatch, error) {
 		return reductionBatch{}, err
 	}
 	out = append(out, userMessage...)
-	return r.project(out)
+	batch, err := r.project(out)
+	if err != nil {
+		return reductionBatch{}, err
+	}
+	if r.cfg.Lineage.IsRoot() && len(r.cfg.UserInput) != 0 {
+		message, err := MaterializeUserMessage(r.cfg.UserInput)
+		if err != nil {
+			return reductionBatch{}, fmt.Errorf("%w: opening conversation message: %w", errReducerInvariant, err)
+		}
+		if err := r.attachConversationMessages(&batch, []corechat.Message{message}); err != nil {
+			return reductionBatch{}, err
+		}
+	}
+	return batch, nil
 }
 
 func (r *reducer) reduce(ev ExecutionFact) (reductionBatch, error) {
@@ -278,13 +293,27 @@ func (r *reducer) reduce(ev ExecutionFact) (reductionBatch, error) {
 	if err != nil {
 		return reductionBatch{}, err
 	}
+	return r.projectFact(reduced)
+}
+
+func (r *reducer) projectFact(reduced factReduction) (reductionBatch, error) {
 	batch, err := r.project(reduced.events)
 	if err != nil {
 		return reductionBatch{}, err
 	}
 	batch.settledToolCallIDs = slices.Clone(reduced.settledToolCallIDs)
+	if len(reduced.parkItems) != 0 {
+		if batch.parkCommit == nil {
+			return reductionBatch{}, fmt.Errorf("%w: parked Items have no park boundary", errReducerInvariant)
+		}
+		batch.parkCommit.Items = append(batch.parkCommit.Items, reduced.parkItems...)
+		if err := validateReductionBatch(batch); err != nil {
+			return reductionBatch{}, err
+		}
+	}
 	if err := r.attachDurableObservation(
 		&batch,
+		reduced.conversationMessages,
 		reduced.modelInvocations,
 		reduced.toolInvocations,
 		reduced.progress,
@@ -297,25 +326,21 @@ func (r *reducer) reduce(ev ExecutionFact) (reductionBatch, error) {
 func (r *reducer) reduceFact(ev ExecutionFact) (factReduction, error) {
 	switch e := ev.(type) {
 	case MessageDelta:
-		events, err := r.closeReasoning()
-		if err != nil {
-			return factReduction{}, fmt.Errorf("%w: close reasoning: %w", errReducerInvariant, err)
-		}
+		// Reasoning and message are two concurrent projections of one model
+		// response, not mutually exclusive stream modes. Keep each Item open until
+		// ModelCallCompleted supplies the authoritative full message; completing one
+		// merely because the other emitted would make that final message duplicate it.
 		appended, err := r.appendText(e.Text)
 		if err != nil {
 			return factReduction{}, fmt.Errorf("%w: append text: %w", errReducerInvariant, err)
 		}
-		return factReduction{events: append(events, appended...)}, nil
+		return factReduction{events: appended}, nil
 	case ReasoningDelta:
-		events, err := r.closeText()
-		if err != nil {
-			return factReduction{}, fmt.Errorf("%w: close text: %w", errReducerInvariant, err)
-		}
 		appended, err := r.appendReasoning(e.Text)
 		if err != nil {
 			return factReduction{}, fmt.Errorf("%w: append reasoning: %w", errReducerInvariant, err)
 		}
-		return factReduction{events: append(events, appended...)}, nil
+		return factReduction{events: appended}, nil
 	case AssistantMessageCompleted:
 		return r.reduceAssistantMessage(e)
 	case ModelCallStarted:
@@ -339,7 +364,18 @@ func (r *reducer) reduceFact(ev ExecutionFact) (factReduction, error) {
 		if err != nil {
 			return factReduction{}, fmt.Errorf("%w: applied steers: %w", errExecutorContract, err)
 		}
-		return factReduction{events: events}, nil
+		var messages []corechat.Message
+		if r.cfg.Lineage.IsRoot() {
+			messages = make([]corechat.Message, len(e.Messages))
+			for index, content := range e.Messages {
+				message, err := MaterializeUserMessage(content)
+				if err != nil {
+					return factReduction{}, fmt.Errorf("%w: applied steer message[%d]: %w", errExecutorContract, index, err)
+				}
+				messages[index] = message
+			}
+		}
+		return factReduction{events: events, conversationMessages: messages}, nil
 	case PlanUpdated:
 		return factReduction{events: r.planSnapshot(e)}, nil
 	case CompactionBoundary:
@@ -349,11 +385,11 @@ func (r *reducer) reduceFact(ev ExecutionFact) (factReduction, error) {
 		}
 		return factReduction{events: events}, nil
 	case SegmentInterrupted:
-		events, err := r.interrupt(e)
+		interrupted, err := r.interrupt(e)
 		if err != nil {
 			return factReduction{}, fmt.Errorf("%w: interrupt: %w", errExecutorContract, err)
 		}
-		return factReduction{events: events}, nil
+		return interrupted, nil
 	case SegmentEnded:
 		return r.endSegment(e)
 	default:
@@ -432,7 +468,8 @@ func (r *reducer) completeModelCall(completed ModelCallCompleted) (factReduction
 		return factReduction{}, fmt.Errorf("%w: model call metrics: %w", errExecutorContract, err)
 	}
 	return factReduction{
-		events: append(events, progressEvents...),
+		events:               append(events, progressEvents...),
+		conversationMessages: r.rootConversationMessages(completed.Message),
 		modelInvocations: []ModelInvocationCommit{{
 			CallID: completed.CallID, SegmentID: r.cfg.SegmentID,
 			State: ModelInvocationCompleted, StartedAt: startedAt, FinishedAt: finishedAt,
@@ -485,7 +522,7 @@ func (r *reducer) startToolCall(started ToolCallStarted) (factReduction, error) 
 }
 
 func (r *reducer) finishToolCall(finished ToolCallFinished) (factReduction, error) {
-	events, invocations, err := r.toolEnd(finished)
+	events, invocations, messages, err := r.toolEnd(finished)
 	if err != nil {
 		return factReduction{}, fmt.Errorf("%w: tool call end: %w", errExecutorContract, err)
 	}
@@ -494,7 +531,8 @@ func (r *reducer) finishToolCall(finished ToolCallFinished) (factReduction, erro
 		settledCallIDs[index] = invocation.CallID
 	}
 	return factReduction{
-		events: events, toolInvocations: invocations, settledToolCallIDs: settledCallIDs,
+		events: events, conversationMessages: messages,
+		toolInvocations: invocations, settledToolCallIDs: settledCallIDs,
 	}, nil
 }
 
@@ -545,27 +583,64 @@ func (r *reducer) closeLostModelCalls(outcome run.Outcome) ([]ModelInvocationCom
 
 func (r *reducer) attachDurableObservation(
 	batch *reductionBatch,
+	conversationMessages []corechat.Message,
 	modelInvocations []ModelInvocationCommit,
 	toolInvocations []ToolInvocationCommit,
 	progress *RunProgressCommit,
 ) error {
-	if len(modelInvocations) == 0 && len(toolInvocations) == 0 && progress == nil {
+	if len(conversationMessages) == 0 && len(modelInvocations) == 0 && len(toolInvocations) == 0 && progress == nil {
+		return nil
+	}
+	if batch == nil || len(batch.events) == 0 {
+		return fmt.Errorf("%w: durable observation has no ordinary reduction", errReducerInvariant)
+	}
+	var commit *EventCommit
+	if batch.parkCommit != nil {
+		commit = batch.parkCommit
+	} else {
+		last := &batch.events[len(batch.events)-1]
+		if last.Commit == nil {
+			last.Commit = &EventCommit{RunID: r.cfg.RunID, SessionID: r.cfg.SessionID}
+		}
+		commit = last.Commit
+	}
+	commit.ModelInvocations = append(commit.ModelInvocations, modelInvocations...)
+	commit.ToolInvocations = append(commit.ToolInvocations, toolInvocations...)
+	commit.ConversationMessages = appendClonedMessages(commit.ConversationMessages, conversationMessages...)
+	if progress != nil {
+		cloned := *progress
+		commit.Progress = &cloned
+	}
+	return validateReductionBatch(*batch)
+}
+
+func (r *reducer) attachConversationMessages(batch *reductionBatch, messages []corechat.Message) error {
+	if len(messages) == 0 {
 		return nil
 	}
 	if batch == nil || len(batch.events) == 0 || batch.parkCommit != nil {
-		return fmt.Errorf("%w: durable observation has no ordinary reduction", errReducerInvariant)
+		return fmt.Errorf("%w: conversation projection has no ordinary reduction", errReducerInvariant)
 	}
 	last := &batch.events[len(batch.events)-1]
 	if last.Commit == nil {
 		last.Commit = &EventCommit{RunID: r.cfg.RunID, SessionID: r.cfg.SessionID}
 	}
-	last.Commit.ModelInvocations = slices.Clone(modelInvocations)
-	last.Commit.ToolInvocations = slices.Clone(toolInvocations)
-	if progress != nil {
-		cloned := *progress
-		last.Commit.Progress = &cloned
-	}
+	last.Commit.ConversationMessages = appendClonedMessages(last.Commit.ConversationMessages, messages...)
 	return validateReductionBatch(*batch)
+}
+
+func (r *reducer) rootConversationMessages(messages ...corechat.Message) []corechat.Message {
+	if !r.cfg.Lineage.IsRoot() {
+		return nil
+	}
+	return appendClonedMessages(nil, messages...)
+}
+
+func appendClonedMessages(dst []corechat.Message, messages ...corechat.Message) []corechat.Message {
+	for _, message := range messages {
+		dst = append(dst, message.Clone())
+	}
+	return dst
 }
 
 func closedToolInvocationCommits(segmentID string, tools []*openTool) []ToolInvocationCommit {
@@ -591,6 +666,11 @@ func (r *reducer) synthesizeTerminal() (reductionBatch, error) {
 	if err != nil {
 		return reductionBatch{}, fmt.Errorf("%w: close streaming: %w", errReducerInvariant, err)
 	}
+	resumedTools, err := r.abandonUnconsumedResumeTools()
+	if err != nil {
+		return reductionBatch{}, fmt.Errorf("%w: abandon resumed tools: %w", errReducerInvariant, err)
+	}
+	out = append(out, resumedTools...)
 	openTools := r.tools.ordered()
 	drained, err := r.drainTools()
 	if err != nil {
@@ -641,6 +721,7 @@ func (r *reducer) synthesizeTerminal() (reductionBatch, error) {
 	}
 	if err := r.attachDurableObservation(
 		&batch,
+		nil,
 		modelInvocations,
 		closedToolInvocationCommits(r.cfg.SegmentID, openTools),
 		nil,
@@ -648,6 +729,40 @@ func (r *reducer) synthesizeTerminal() (reductionBatch, error) {
 		return reductionBatch{}, err
 	}
 	return batch, nil
+}
+
+// abandonUnconsumedResumeTools closes logical Tool Items that were carried
+// across a human boundary but whose executor attempt never restarted in this
+// Segment. Without this step an activation failure or a cancel-before-activate
+// can terminalize the Run while leaving its preexisting Tool Item running.
+func (r *reducer) abandonUnconsumedResumeTools() ([]RunEvent, error) {
+	if r.resume == nil {
+		return nil, nil
+	}
+	remaining := r.resume.remainingDrainedTools()
+	events := make([]RunEvent, 0, len(remaining))
+	for _, drained := range remaining {
+		arguments, err := parseToolArguments(drained.Arguments)
+		if err != nil {
+			return nil, fmt.Errorf("tool %q arguments: %w", drained.Name, err)
+		}
+		ref := &openTool{
+			callID:           drained.CallID,
+			sourceCallID:     drained.SourceCallID,
+			id:               drained.ItemID,
+			occurredAt:       drained.ItemOccurredAt,
+			attemptStartedAt: drained.ItemOccurredAt,
+			name:             drained.Name,
+			arguments:        arguments,
+		}
+		completed, err := r.incompleteToolItem(ref)
+		if err != nil {
+			return nil, err
+		}
+		events = append(events, completed)
+		r.resume.consumeToolItem(drained.ItemID)
+	}
+	return events, nil
 }
 
 // abort marks the Segment as failed so terminal synthesis produces an error
@@ -713,22 +828,14 @@ func parkReductionBatch(reductions []reduction, parkBoundary int) (reductionBatc
 	if parkCommit == nil {
 		return reductionBatch{}, fmt.Errorf("%w: park boundary has no projection commit", errReducerInvariant)
 	}
-	items := make([]transcript.Item, 0, len(reductions))
 	for index, reduced := range reductions {
 		if index != parkBoundary && reduced.Commit != nil {
 			if reduced.Commit.Run != nil || reduced.Commit.State != StateUnchanged {
 				return reductionBatch{}, fmt.Errorf("%w: park batch contains another lifecycle transition", errReducerInvariant)
 			}
-			items = append(items, reduced.Commit.Items...)
-		}
-		if itemStarted, isItemStarted := reduced.Event.(ItemStarted); isItemStarted {
-			if item, durable := itemStarted.Item.durableItem(); durable {
-				items = append(items, item)
-			}
 		}
 		reductions[index].Commit = nil
 	}
-	parkCommit.Items = items
 	return reductionBatch{events: reductions, parkCommit: parkCommit}, nil
 }
 

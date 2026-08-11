@@ -259,6 +259,14 @@ func TestConcurrentToolResultsCommitInModelOrder(t *testing.T) {
 		final.ToolInvocations[1].CallID != "tool_second" {
 		t.Fatalf("Tool invocation order = %#v", final.ToolInvocations)
 	}
+	if len(final.ConversationMessages) != 1 || final.ConversationMessages[0].Role != corechat.RoleTool ||
+		len(final.ConversationMessages[0].Parts) != 2 ||
+		final.ConversationMessages[0].Parts[0].ToolResult == nil ||
+		final.ConversationMessages[0].Parts[0].ToolResult.ID != "provider_first" ||
+		final.ConversationMessages[0].Parts[1].ToolResult == nil ||
+		final.ConversationMessages[0].Parts[1].ToolResult.ID != "provider_second" {
+		t.Fatalf("Tool conversation projection = %#v, want provider-ordered results", final.ConversationMessages)
+	}
 }
 
 func TestConcurrentToolBatchFailurePublishesOnlyIncompleteRunLost(t *testing.T) {

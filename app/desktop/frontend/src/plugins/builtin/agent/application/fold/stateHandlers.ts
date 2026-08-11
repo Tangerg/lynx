@@ -21,5 +21,8 @@ export function onStateSnapshot(
 function supersededBy(held: unknown, arriving: StateSnapshot): boolean {
   if (held === null || typeof held !== "object" || !("revision" in held)) return false;
   const revision = (held as { revision: unknown }).revision;
-  return typeof revision === "number" && revision > arriving.revision;
+  // Equal revision is the same version, not a later write. Treat its replay as
+  // a no-op as well; otherwise two same-revision frames with drifted contents
+  // make the final projection depend on arrival order.
+  return typeof revision === "number" && revision >= arriving.revision;
 }

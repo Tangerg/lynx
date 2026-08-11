@@ -5,6 +5,10 @@ type CancelFrame = (handle: number) => void;
 
 export interface RunEventBatcher {
   enqueue(event: RunEvent): void;
+  /** Apply the queued stream tail synchronously. Projection synchronization
+   *  calls this before it is allowed to read a newer durable snapshot, so an
+   *  animation-frame delay cannot reorder live facts behind that snapshot. */
+  flush(): void;
   dispose(): void;
 }
 
@@ -28,8 +32,7 @@ export function createRunEventBatcher({
   let queueEpoch = readEpoch();
   let disposed = false;
 
-  const flush = (): void => {
-    frame = null;
+  const applyQueued = (): void => {
     if (disposed || queue.length === 0) return;
 
     const batch = queue;
@@ -43,6 +46,14 @@ export function createRunEventBatcher({
     if (batch.some((entry) => entry.event.type === "segment.finished")) onRunFinished?.();
   };
 
+  const flush = (): void => {
+    if (frame !== null) {
+      cancelFrame(frame);
+      frame = null;
+    }
+    applyQueued();
+  };
+
   return {
     enqueue(event) {
       if (disposed) return;
@@ -53,8 +64,13 @@ export function createRunEventBatcher({
         queueEpoch = epoch;
       }
       queue.push(event);
-      if (frame === null) frame = scheduleFrame(flush);
+      if (frame === null)
+        frame = scheduleFrame(() => {
+          frame = null;
+          applyQueued();
+        });
     },
+    flush,
     dispose() {
       disposed = true;
       queue = [];

@@ -26,6 +26,42 @@ func NewModelInvocationStore(db *sql.DB) *ModelInvocationStore {
 	return &ModelInvocationStore{db: db}
 }
 
+// ListStartedModelInvocations yields every provider attempt still owned by a
+// pre-crash process. The callback keeps recovery application types out of the
+// SQLite package while preserving an exact boot snapshot for its write-set.
+func (store *ModelInvocationStore) ListStartedModelInvocations(
+	ctx context.Context,
+	yield func(sessionID, runID, segmentID, callID string, startedAt time.Time) error,
+) error {
+	if yield == nil {
+		return errors.New("sqlite: model invocation reader is required")
+	}
+	rows, err := conn(ctx, store.db).QueryContext(ctx, `
+		SELECT session_id, run_id, segment_id, call_id, started_at
+		  FROM model_invocations
+		 WHERE state = ?
+		 ORDER BY session_id, run_id, segment_id, call_id
+	`, modelInvocationStarted)
+	if err != nil {
+		return fmt.Errorf("sqlite: list started model invocations: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var sessionID, runID, segmentID, callID string
+		var startedAt int64
+		if err := rows.Scan(&sessionID, &runID, &segmentID, &callID, &startedAt); err != nil {
+			return fmt.Errorf("sqlite: scan started model invocation: %w", err)
+		}
+		if err := yield(sessionID, runID, segmentID, callID, time.Unix(0, startedAt).UTC()); err != nil {
+			return err
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("sqlite: iterate started model invocations: %w", err)
+	}
+	return nil
+}
+
 func (store *ModelInvocationStore) StartModelInvocation(
 	ctx context.Context,
 	sessionID, runID, segmentID, callID string,

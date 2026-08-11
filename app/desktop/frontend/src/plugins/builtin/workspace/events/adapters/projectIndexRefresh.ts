@@ -1,9 +1,12 @@
 import { queryClient } from "@/lib/queryClient";
-import { AGENT_SESSIONS_KEY } from "@/plugins/builtin/agent/public/session";
+import {
+  subscribeAgentSessionProjection,
+  type AgentSessionSummary,
+} from "@/plugins/builtin/agent/public/session";
 import { WORKSPACE_PROJECTS_KEY } from "@/plugins/builtin/workspace/public/queries";
 
 /**
- * Keep the project index fresh as the session collection moves.
+ * Keep the project index fresh when the Session facts it is derived from move.
  *
  * A project row IS a view over the agent's sessions — their cwds, and how many
  * sessions each one holds — so it goes stale exactly when that collection does.
@@ -12,14 +15,19 @@ import { WORKSPACE_PROJECTS_KEY } from "@/plugins/builtin/workspace/public/queri
  * have made the two contexts circular, so the string hid the edge that the cycle
  * check would otherwise have refused.
  *
- * The dependency belongs this way round. The workspace already watches this same
- * cache entry to resolve the active cwd (see `sessionWorkspaceCwd`), so watching
- * it for the index it derives adds no new coupling — and the agent goes back to
- * knowing only about its own sessions.
+ * Query-cache lifecycle events are deliberately not the signal. The project
+ * read depends only on Session identity, cwd, and updated time; status changes,
+ * observer churn, and fetch-state changes cannot alter it and must not refetch
+ * workspaces.list.
  */
 export function installProjectIndexRefresh(): () => void {
-  return queryClient.getQueryCache().subscribe((event) => {
-    if (event.query.queryKey[0] !== AGENT_SESSIONS_KEY) return;
+  return subscribeAgentSessionProjection(workspaceProjectRevision, () => {
     void queryClient.invalidateQueries({ queryKey: [WORKSPACE_PROJECTS_KEY] });
   });
+}
+
+export function workspaceProjectRevision(
+  sessions: readonly AgentSessionSummary[] | undefined,
+): string {
+  return JSON.stringify(sessions?.map(({ id, cwd, time }) => [id, cwd ?? "", time]) ?? null);
 }

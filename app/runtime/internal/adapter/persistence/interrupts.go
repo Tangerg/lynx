@@ -151,13 +151,14 @@ func interruptRecord(pending runs.Pending) sqlite.InterruptRecord {
 		for toolIndex, tool := range continuation.DrainedTools {
 			drained[toolIndex] = sqlite.DrainedToolRecord{
 				ItemID: tool.ItemID, ItemOccurredAt: tool.ItemOccurredAt,
-				CallID: tool.CallID, Name: tool.Name, Arguments: tool.Arguments,
+				CallID: tool.CallID, SourceCallID: tool.SourceCallID,
+				Name: tool.Name, Arguments: tool.Arguments,
 			}
 		}
 		committed := make([]sqlite.CommittedToolRecord, len(continuation.CommittedTools))
 		for toolIndex, tool := range continuation.CommittedTools {
 			committed[toolIndex] = sqlite.CommittedToolRecord{
-				ItemID: tool.ItemID, CallID: tool.CallID, Name: tool.Name,
+				ItemID: tool.ItemID, CallID: tool.CallID, SourceCallID: tool.SourceCallID, Name: tool.Name,
 				Arguments: tool.Arguments, Failure: tool.Failure,
 			}
 		}
@@ -196,7 +197,8 @@ func pendingValue(record sqlite.InterruptRecord) runs.Pending {
 		for toolIndex, tool := range continuation.DrainedTools {
 			drained[toolIndex] = runs.DrainedTool{
 				ItemID: tool.ItemID, ItemOccurredAt: tool.ItemOccurredAt,
-				CallID: tool.CallID, Name: tool.Name, Arguments: tool.Arguments,
+				CallID: tool.CallID, SourceCallID: tool.SourceCallID,
+				Name: tool.Name, Arguments: tool.Arguments,
 			}
 		}
 		var committed []runs.CommittedTool
@@ -205,7 +207,7 @@ func pendingValue(record sqlite.InterruptRecord) runs.Pending {
 		}
 		for toolIndex, tool := range continuation.CommittedTools {
 			committed[toolIndex] = runs.CommittedTool{
-				ItemID: tool.ItemID, CallID: tool.CallID, Name: tool.Name,
+				ItemID: tool.ItemID, CallID: tool.CallID, SourceCallID: tool.SourceCallID, Name: tool.Name,
 				Arguments: tool.Arguments, Failure: tool.Failure,
 			}
 		}

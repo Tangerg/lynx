@@ -37,6 +37,7 @@ type cancellationPlan struct {
 	spawningItem         transcript.Item
 	hasSpawningItem      bool
 	targetInterruptItems []transcript.Item
+	targetDrainedItems   []transcript.Item
 	completePostorderIDs []string
 }
 
@@ -162,40 +163,31 @@ func (c *Coordinator) resolveCancellationOwner(
 	switch root.State() {
 	case rundomain.Running:
 		if hasPending {
-			return ExecutorRef{}, nil, fmt.Errorf(
-				"runs: running tree %q has an open interrupt",
-				root.ID(),
+			return ExecutorRef{}, nil, c.classifyCancellationOwnerDrift(
+				ctx,
+				targetRunID,
+				root.State(),
+				fmt.Errorf(
+					"runs: running tree %q has an open interrupt",
+					root.ID(),
+				),
 			)
 		}
 		if !hasLive || live.owner == nil {
-			// The terminal commit may have won after Tree returned. Refresh
-			// the addressed Run once so that race reports run_finished rather
-			// than a false missing-owner invariant.
-			refreshed, refreshedFound, refreshErr := c.runs.Run(ctx, targetRunID)
-			switch {
-			case refreshErr != nil:
-				return ExecutorRef{}, nil, refreshErr
-			case !refreshedFound:
-				return ExecutorRef{}, nil, fmt.Errorf(
-					"runs: Run %q disappeared after its cancellation tree was resolved",
-					targetRunID,
-				)
-			case refreshed.State().IsTerminal():
-				return ExecutorRef{}, nil, fmt.Errorf(
-					"%w: %q completed as %s",
-					ErrRunFinished,
-					targetRunID,
-					refreshed.State(),
-				)
-			default:
-				return ExecutorRef{}, nil, fmt.Errorf(
+			return ExecutorRef{}, nil, c.classifyCancellationOwnerDrift(
+				ctx,
+				targetRunID,
+				root.State(),
+				fmt.Errorf(
 					"runs: running tree %q has no live root owner",
 					root.ID(),
-				)
-			}
+				),
+			)
 		}
 		if err := validateCancellationLiveRoot(live, root); err != nil {
-			return ExecutorRef{}, nil, err
+			return ExecutorRef{}, nil, c.classifyCancellationOwnerDrift(
+				ctx, targetRunID, root.State(), err,
+			)
 		}
 		return ExecutorRef{
 			SessionID:  live.record.SessionID,
@@ -203,9 +195,14 @@ func (c *Coordinator) resolveCancellationOwner(
 		}, live.owner.executorMemberSnapshot(), nil
 	case rundomain.Waiting:
 		if !hasPending {
-			return ExecutorRef{}, nil, fmt.Errorf(
-				"runs: waiting tree %q has no open interrupt",
-				root.ID(),
+			return ExecutorRef{}, nil, c.classifyCancellationOwnerDrift(
+				ctx,
+				targetRunID,
+				root.State(),
+				fmt.Errorf(
+					"runs: waiting tree %q has no open interrupt",
+					root.ID(),
+				),
 			)
 		}
 		if err := pending.Validate(); err != nil {
@@ -221,20 +218,32 @@ func (c *Coordinator) resolveCancellationOwner(
 		}
 		if hasLive {
 			if live.owner == nil {
-				return ExecutorRef{}, nil, fmt.Errorf(
-					"runs: waiting tree %q has a live registry entry without a Run-tree owner",
-					root.ID(),
+				return ExecutorRef{}, nil, c.classifyCancellationOwnerDrift(
+					ctx,
+					targetRunID,
+					root.State(),
+					fmt.Errorf(
+						"runs: waiting tree %q has a live registry entry without a Run-tree owner",
+						root.ID(),
+					),
 				)
 			}
 			if err := validateCancellationLiveRoot(live, root); err != nil {
-				return ExecutorRef{}, nil, err
+				return ExecutorRef{}, nil, c.classifyCancellationOwnerDrift(
+					ctx, targetRunID, root.State(), err,
+				)
 			}
 			if live.record.ExecutorID != pending.ExecutorID {
-				return ExecutorRef{}, nil, fmt.Errorf(
-					"runs: waiting tree %q live executor %q differs from pending executor %q",
-					root.ID(),
-					live.record.ExecutorID,
-					pending.ExecutorID,
+				return ExecutorRef{}, nil, c.classifyCancellationOwnerDrift(
+					ctx,
+					targetRunID,
+					root.State(),
+					fmt.Errorf(
+						"runs: waiting tree %q live executor %q differs from pending executor %q",
+						root.ID(),
+						live.record.ExecutorID,
+						pending.ExecutorID,
+					),
 				)
 			}
 		}
@@ -249,6 +258,49 @@ func (c *Coordinator) resolveCancellationOwner(
 			root.State(),
 			targetRunID,
 		)
+	}
+}
+
+// classifyCancellationOwnerDrift distinguishes a durable lifecycle transition
+// from a persistent ownership invariant violation. Tree, interrupt, and live
+// owner facts come from different consistency domains, so Resume or terminal
+// commit can linearize between those reads. That loser is a normal busy/finished
+// outcome; only a contradiction that still exists at the refreshed Run state is
+// an internal invariant fault.
+func (c *Coordinator) classifyCancellationOwnerDrift(
+	ctx context.Context,
+	targetRunID string,
+	sourceState rundomain.State,
+	cause error,
+) error {
+	refreshed, found, err := c.runs.Run(ctx, targetRunID)
+	switch {
+	case err != nil:
+		return err
+	case !found:
+		return fmt.Errorf(
+			"runs: Run %q disappeared after its cancellation tree was resolved: %w",
+			targetRunID,
+			cause,
+		)
+	case refreshed.State().IsTerminal():
+		return fmt.Errorf(
+			"%w: %q completed as %s",
+			ErrRunFinished,
+			targetRunID,
+			refreshed.State(),
+		)
+	case refreshed.State() != sourceState:
+		return fmt.Errorf(
+			"%w: Run %q moved from %s to %s while cancellation ownership was resolved: %v",
+			ErrSessionBusy,
+			targetRunID,
+			sourceState,
+			refreshed.State(),
+			cause,
+		)
+	default:
+		return cause
 	}
 }
 
@@ -283,6 +335,7 @@ func (c *Coordinator) loadWaitingCancellationItems(ctx context.Context, plan *ca
 	for _, member := range plan.targetSubtree {
 		targetRunIDs[member.run.ID()] = struct{}{}
 	}
+	seenToolItems := make(map[string]struct{})
 	for _, request := range plan.pending.Interrupts {
 		if _, targeted := targetRunIDs[request.RunID]; !targeted {
 			continue
@@ -307,6 +360,57 @@ func (c *Coordinator) loadWaitingCancellationItems(ctx context.Context, plan *ca
 			return err
 		}
 		plan.targetInterruptItems = append(plan.targetInterruptItems, item)
+		if item.Kind() == transcript.ToolCall {
+			seenToolItems[item.ID()] = struct{}{}
+		}
+	}
+	for _, continuation := range plan.pending.Continuations {
+		if _, targeted := targetRunIDs[continuation.RunID]; !targeted {
+			continue
+		}
+		for _, drained := range continuation.DrainedTools {
+			if _, duplicate := seenToolItems[drained.ItemID]; duplicate {
+				return fmt.Errorf(
+					"runs: waiting child cancellation Tool Item %q is both an interrupt and a drained tool",
+					drained.ItemID,
+				)
+			}
+			item, found, err := c.items.Item(ctx, drained.ItemID)
+			if err != nil {
+				return fmt.Errorf("runs: read waiting drained Tool Item %q: %w", drained.ItemID, err)
+			}
+			if !found {
+				return fmt.Errorf("runs: waiting drained Tool Item %q is missing", drained.ItemID)
+			}
+			if err := validateWaitingCancellationDrainedItem(*plan, continuation, drained, item); err != nil {
+				return err
+			}
+			seenToolItems[item.ID()] = struct{}{}
+			plan.targetDrainedItems = append(plan.targetDrainedItems, item)
+		}
+	}
+	return nil
+}
+
+func validateWaitingCancellationDrainedItem(
+	plan cancellationPlan,
+	continuation Continuation,
+	drained DrainedTool,
+	item transcript.Item,
+) error {
+	invocation, present := item.ToolInvocation()
+	if item.ID() != drained.ItemID || item.SessionID() != plan.root.run.SessionID() ||
+		item.RunID() != continuation.RunID || item.Kind() != transcript.ToolCall ||
+		item.Status() != transcript.ItemRunning || !present ||
+		invocation.Name != drained.Name || invocation.Arguments.Canonical() != drained.Arguments {
+		return fmt.Errorf(
+			"runs: waiting drained Tool Item %q differs from Run %q continuation",
+			drained.ItemID,
+			continuation.RunID,
+		)
+	}
+	if _, failed := item.Failure(); failed {
+		return fmt.Errorf("runs: waiting drained Tool Item %q already carries a failure", item.ID())
 	}
 	return nil
 }
@@ -397,9 +501,9 @@ func validateWaitingCancellationSpawningItem(plan cancellationPlan, item transcr
 		)
 	case item.Kind() != transcript.ToolCall:
 		return fmt.Errorf("runs: spawning Item %q is not a tool call", item.ID())
-	case item.Status() != transcript.ItemIncomplete:
+	case item.Status() != transcript.ItemRunning:
 		return fmt.Errorf(
-			"runs: spawning Item %q is in status %s, want incomplete",
+			"runs: spawning Item %q is in status %s, want running",
 			item.ID(),
 			item.Status(),
 		)

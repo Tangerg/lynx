@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/accounting"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 )
@@ -41,6 +42,7 @@ type ExecutorCheckpointRecord struct {
 	Scope          ExecutorScopeRecord
 	ModelSelection modelref.Selection
 	Limits         run.Limits
+	Capabilities   run.Capabilities
 	Usage          accounting.Snapshot
 }
 
@@ -69,6 +71,9 @@ func (record ExecutorCheckpointRecord) validate() error {
 	}
 	if err := record.Limits.Validate(); err != nil {
 		return fmt.Errorf("%w: limits: %w", ErrInvalidExecutorCheckpointRecord, err)
+	}
+	if err := record.Capabilities.Validate(); err != nil {
+		return fmt.Errorf("%w: capabilities: %w", ErrInvalidExecutorCheckpointRecord, err)
 	}
 	if err := record.Usage.Validate(); err != nil {
 		return fmt.Errorf("%w: usage: %w", ErrInvalidExecutorCheckpointRecord, err)
@@ -108,12 +113,21 @@ type executorLimitsWire struct {
 	MaxSteps       int     `json:"max_steps"`
 }
 
-type executorPolicyWire struct {
-	Scope    executorScopeWire  `json:"scope"`
-	Provider string             `json:"provider"`
-	Model    string             `json:"model"`
-	Limits   executorLimitsWire `json:"limits"`
+type executorCapabilitiesWire struct {
+	ChildRuns      bool     `json:"child_runs"`
+	InterruptKinds []string `json:"interrupt_kinds"`
 }
+
+type executorPolicyWire struct {
+	SchemaVersion uint16                    `json:"schema_version"`
+	Scope         executorScopeWire         `json:"scope"`
+	Provider      string                    `json:"provider"`
+	Model         string                    `json:"model"`
+	Limits        executorLimitsWire        `json:"limits"`
+	Capabilities  *executorCapabilitiesWire `json:"capabilities"`
+}
+
+const executorPolicySchemaVersion uint16 = 1
 
 type executorModelUsageWire struct {
 	Model            string  `json:"model"`
@@ -292,7 +306,15 @@ func encodeExecutorPolicy(checkpoint ExecutorCheckpointRecord) ([]byte, error) {
 	if err := checkpoint.validate(); err != nil {
 		return nil, err
 	}
+	var interruptKinds []string
+	if checkpoint.Capabilities.InterruptKinds != nil {
+		interruptKinds = make([]string, len(checkpoint.Capabilities.InterruptKinds))
+	}
+	for index, kind := range checkpoint.Capabilities.InterruptKinds {
+		interruptKinds[index] = kind.String()
+	}
 	return json.Marshal(executorPolicyWire{
+		SchemaVersion: executorPolicySchemaVersion,
 		Scope: executorScopeWire{
 			SessionID:    checkpoint.Scope.SessionID,
 			CWD:          checkpoint.Scope.CWD,
@@ -307,6 +329,10 @@ func encodeExecutorPolicy(checkpoint ExecutorCheckpointRecord) ([]byte, error) {
 			MaxBudgetUSD:   checkpoint.Limits.MaxBudgetUSD,
 			MaxSteps:       checkpoint.Limits.MaxSteps,
 		},
+		Capabilities: &executorCapabilitiesWire{
+			ChildRuns:      checkpoint.Capabilities.ChildRuns,
+			InterruptKinds: interruptKinds,
+		},
 	})
 }
 
@@ -316,6 +342,16 @@ func decodeExecutorPolicy(data string) (ExecutorCheckpointRecord, error) {
 	var wire executorPolicyWire
 	if err := decoder.Decode(&wire); err != nil {
 		return ExecutorCheckpointRecord{}, err
+	}
+	if wire.SchemaVersion != executorPolicySchemaVersion {
+		return ExecutorCheckpointRecord{}, fmt.Errorf(
+			"policy schema version is %d, want %d",
+			wire.SchemaVersion,
+			executorPolicySchemaVersion,
+		)
+	}
+	if wire.Capabilities == nil {
+		return ExecutorCheckpointRecord{}, errors.New("policy capabilities are required")
 	}
 	var trailing any
 	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
@@ -339,6 +375,26 @@ func decodeExecutorPolicy(data string) (ExecutorCheckpointRecord, error) {
 	if err := limits.Validate(); err != nil {
 		return ExecutorCheckpointRecord{}, err
 	}
+	capabilities := run.Capabilities{
+		ChildRuns: wire.Capabilities.ChildRuns,
+	}
+	if wire.Capabilities.InterruptKinds != nil {
+		capabilities.InterruptKinds = make([]interrupt.Kind, len(wire.Capabilities.InterruptKinds))
+	}
+	for index, value := range wire.Capabilities.InterruptKinds {
+		kind, ok := interrupt.ParseKind(value)
+		if !ok {
+			return ExecutorCheckpointRecord{}, fmt.Errorf(
+				"policy capability interrupt kind[%d] %q is unknown",
+				index,
+				value,
+			)
+		}
+		capabilities.InterruptKinds[index] = kind
+	}
+	if err := capabilities.Validate(); err != nil {
+		return ExecutorCheckpointRecord{}, err
+	}
 	selection, err := modelref.New(wire.Provider, wire.Model)
 	if err != nil {
 		return ExecutorCheckpointRecord{}, fmt.Errorf("policy model selection: %w", err)
@@ -350,6 +406,7 @@ func decodeExecutorPolicy(data string) (ExecutorCheckpointRecord, error) {
 		Scope:          scope,
 		ModelSelection: selection,
 		Limits:         limits,
+		Capabilities:   capabilities,
 	}, nil
 }
 

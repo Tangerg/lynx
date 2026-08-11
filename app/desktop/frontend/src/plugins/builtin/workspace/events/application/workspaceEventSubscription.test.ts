@@ -25,7 +25,7 @@ function subscriptionPorts(
   return {
     canSubscribe: vi.fn(() => true),
     subscribeCapabilities: vi.fn(() => vi.fn()),
-    resolveWorkspaceCwd: vi.fn().mockResolvedValue("/repo"),
+    resolveWorkspaceCwd: vi.fn().mockResolvedValue({ status: "resolved", cwd: "/repo" }),
     subscribeWorkspaceCwdInputs: vi.fn(() => vi.fn()),
     loop,
     ...patch,
@@ -64,8 +64,10 @@ describe("startWorkspaceEventSubscription", () => {
   });
 
   it("retargets to the latest resolved cwd and ignores stale resolutions", async () => {
-    const first = deferred<string | undefined>();
-    const second = deferred<string | undefined>();
+    const first =
+      deferred<Awaited<ReturnType<WorkspaceEventSubscriptionPorts["resolveWorkspaceCwd"]>>>();
+    const second =
+      deferred<Awaited<ReturnType<WorkspaceEventSubscriptionPorts["resolveWorkspaceCwd"]>>>();
     let onCwdChange: (() => void) | undefined;
     const resolveWorkspaceCwd = vi
       .fn<WorkspaceEventSubscriptionPorts["resolveWorkspaceCwd"]>()
@@ -81,19 +83,49 @@ describe("startWorkspaceEventSubscription", () => {
 
     startWorkspaceEventSubscription(ports);
     onCwdChange?.();
-    first.resolve("/old");
+    first.resolve({ status: "resolved", cwd: "/old" });
     await tick();
-    second.resolve("/new");
+    second.resolve({ status: "resolved", cwd: "/new" });
     await tick();
 
     expect(ports.loop.retarget).toHaveBeenCalledTimes(1);
     expect(ports.loop.retarget).toHaveBeenCalledWith("/new");
   });
 
+  it("retargets to the default workspace but preserves the target on resolution failure", async () => {
+    const unavailable =
+      deferred<Awaited<ReturnType<WorkspaceEventSubscriptionPorts["resolveWorkspaceCwd"]>>>();
+    const defaultWorkspace =
+      deferred<Awaited<ReturnType<WorkspaceEventSubscriptionPorts["resolveWorkspaceCwd"]>>>();
+    let onCwdChange: (() => void) | undefined;
+    const ports = subscriptionPorts({
+      resolveWorkspaceCwd: vi
+        .fn<WorkspaceEventSubscriptionPorts["resolveWorkspaceCwd"]>()
+        .mockReturnValueOnce(unavailable.promise)
+        .mockReturnValueOnce(defaultWorkspace.promise),
+      subscribeWorkspaceCwdInputs: (listener) => {
+        onCwdChange = listener;
+        return vi.fn();
+      },
+    });
+
+    startWorkspaceEventSubscription(ports);
+    unavailable.resolve({ status: "unavailable" });
+    await tick();
+    expect(ports.loop.retarget).not.toHaveBeenCalled();
+
+    onCwdChange?.();
+    defaultWorkspace.resolve({ status: "resolved" });
+    await tick();
+    expect(ports.loop.retarget).toHaveBeenCalledOnce();
+    expect(ports.loop.retarget).toHaveBeenCalledWith(undefined);
+  });
+
   it("unsubscribes, aborts the loop signal, and suppresses late retargets on dispose", async () => {
     const unsubscribeCapabilities = vi.fn();
     const unsubscribeCwdInputs = vi.fn();
-    const cwd = deferred<string | undefined>();
+    const cwd =
+      deferred<Awaited<ReturnType<WorkspaceEventSubscriptionPorts["resolveWorkspaceCwd"]>>>();
     let loopSignal: AbortSignal | undefined;
     const loop: WorkspaceEventLoop = {
       start: vi.fn((signal) => {
@@ -110,7 +142,7 @@ describe("startWorkspaceEventSubscription", () => {
 
     const dispose = startWorkspaceEventSubscription(ports);
     dispose();
-    cwd.resolve("/repo");
+    cwd.resolve({ status: "resolved", cwd: "/repo" });
     await tick();
 
     expect(unsubscribeCapabilities).toHaveBeenCalledOnce();

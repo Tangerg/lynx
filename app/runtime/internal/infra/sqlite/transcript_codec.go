@@ -394,6 +394,8 @@ func encodeToolFailureKind(kind tool.FailureKind) (string, error) {
 		return "tool_failed", nil
 	case tool.FailureChildRunCanceled:
 		return "child_run_canceled", nil
+	case tool.FailureCanceled:
+		return "tool_canceled", nil
 	default:
 		return "", fmt.Errorf("unknown Tool failure kind %d", kind)
 	}
@@ -409,6 +411,8 @@ func decodeToolFailureKind(kind string) (tool.FailureKind, error) {
 		return tool.FailureExecution, nil
 	case "child_run_canceled":
 		return tool.FailureChildRunCanceled, nil
+	case "tool_canceled":
+		return tool.FailureCanceled, nil
 	default:
 		return 0, fmt.Errorf("unknown Tool failure kind %q", kind)
 	}

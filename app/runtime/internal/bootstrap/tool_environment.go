@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/interactioninput"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/mcpconnection"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/builtin"
@@ -55,7 +55,7 @@ func buildToolEnvironment(
 		MCPTools:        mcpTools,
 		A2AAgents:       cfg.A2AAgents,
 		Plan:            planCoordinator,
-		Interrupt:       interactioninput.Require,
+		Interrupt:       agentexec.RequireToolInput,
 		MCPToolDisabled: mcpConnectionSettings.policy.ToolDisabled,
 		// The authoring store records Skill loads for idle-Skill archival; a
 		// disabled store no-ops RecordUse.

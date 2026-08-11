@@ -14,7 +14,7 @@ import (
 // TestComposeSystemPrompt_BaseOnly verifies a nil memory store
 // yields the base prompt verbatim (no markdown headers).
 func TestComposeSystemPrompt_BaseOnly(t *testing.T) {
-	got := composePrompt(context.Background(), nil, nil, "", "")
+	got := composeSystemPromptText(t, WorkingContextConfig{}, "")
 	if !strings.Contains(got, "You are Lyra") {
 		t.Errorf("base prompt missing identity, got %q", got)
 	}
@@ -30,7 +30,7 @@ func TestComposeSystemPrompt_WithMemory(t *testing.T) {
 		user:    "prefer terse output",
 		project: "build with `make test`",
 	}
-	got := composePrompt(context.Background(), store, nil, "", "")
+	got := composeSystemPromptText(t, WorkingContextConfig{Knowledge: store}, "")
 	if !strings.Contains(got, "## User preferences") {
 		t.Error("user section missing")
 	}
@@ -49,7 +49,7 @@ func TestComposeSystemPrompt_WithMemory(t *testing.T) {
 // don't produce empty markdown headers.
 func TestComposeSystemPrompt_SkipsEmptyScopes(t *testing.T) {
 	store := &stubKnowledgeStore{project: "only project"}
-	got := composePrompt(context.Background(), store, nil, "", "")
+	got := composeSystemPromptText(t, WorkingContextConfig{Knowledge: store}, "")
 	if strings.Contains(got, "## User preferences") {
 		t.Error("empty user scope should be skipped")
 	}
@@ -63,7 +63,7 @@ func TestComposeSystemPrompt_SkipsEmptyScopes(t *testing.T) {
 // cwd), not a directory fixed at construction time.
 func TestComposePrompt_ProjectMemoryFollowsCWD(t *testing.T) {
 	store := &stubKnowledgeStore{project: "project body"}
-	composePrompt(context.Background(), store, nil, "/projects/alpha", "")
+	composeSystemPromptText(t, WorkingContextConfig{Knowledge: store}, "/projects/alpha")
 	if store.projectDir != "/projects/alpha" {
 		t.Fatalf("project memory read dir = %q, want /projects/alpha", store.projectDir)
 	}
@@ -72,7 +72,9 @@ func TestComposePrompt_ProjectMemoryFollowsCWD(t *testing.T) {
 func TestComposePromptPlacesCuratedMemoryBelowHumanProjectKnowledge(t *testing.T) {
 	store := &stubKnowledgeStore{user: "global", project: "human project rule"}
 	memory := stubAgentMemory{content: "agent learned fact"}
-	got := composePrompt(context.Background(), store, memory, "/projects/alpha", "")
+	got := composeSystemPromptText(t, WorkingContextConfig{
+		Knowledge: store, AgentMemory: memory,
+	}, "/projects/alpha")
 	curatedIndex := strings.Index(got, "## Pinned memory")
 	projectIndex := strings.Index(got, "## Project knowledge")
 	if curatedIndex < 0 || projectIndex < 0 || curatedIndex > projectIndex {
@@ -90,7 +92,7 @@ func TestComposePromptUsesInjectedUserHomeForAgentDocs(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	got := composePrompt(t.Context(), nil, nil, workspace, userHome)
+	got := composeSystemPromptText(t, WorkingContextConfig{UserHome: userHome}, workspace)
 	if !strings.Contains(got, "injected home rule") {
 		t.Fatalf("prompt did not use injected user home:\n%s", got)
 	}
@@ -99,6 +101,15 @@ func TestComposePromptUsesInjectedUserHomeForAgentDocs(t *testing.T) {
 // ------------------------------------------------------------------
 // helpers
 // ------------------------------------------------------------------
+
+func composeSystemPromptText(t *testing.T, config WorkingContextConfig, cwd string) string {
+	t.Helper()
+	message, err := NewWorkingContextComposer(config).composeSystemMessage(t.Context(), "", cwd)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return message.Text()
+}
 
 type stubKnowledgeStore struct {
 	user    string
@@ -115,7 +126,7 @@ func (s stubAgentMemory) Items(_ context.Context, scope agentmemory.Scope, _ str
 	if scope != agentmemory.ScopeProject || strings.TrimSpace(s.content) == "" {
 		return nil, nil
 	}
-	// Pinned so it reaches the always-on core (composePrompt injects pinned only).
+	// Pinned so it reaches the always-on core (the composer injects pinned only).
 	return []agentmemory.Item{{Content: s.content, Pinned: true, Status: agentmemory.StatusActive}}, nil
 }
 

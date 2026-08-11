@@ -8,12 +8,17 @@ import (
 
 const agentDocPromptMaxBytes = 32 * 1024
 
-// renderAgentDocs formats discovered files for the agent system prompt. The
+// agentDocumentsPrompt formats discovered files for the agent system prompt. The
 // provenance marker and byte budget are part of the model-facing prompt, not
 // the agent-document domain value.
-func renderAgentDocs(files []workspace.AgentDocFile, maxBytes int) string {
+type agentDocumentsPrompt struct {
+	text    string
+	sources contextSources
+}
+
+func newAgentDocumentsPrompt(files []workspace.AgentDocFile, maxBytes int) agentDocumentsPrompt {
 	if len(files) == 0 || maxBytes <= 0 {
-		return ""
+		return agentDocumentsPrompt{}
 	}
 
 	blocks := make([]string, len(files))
@@ -37,7 +42,7 @@ func renderAgentDocs(files []workspace.AgentDocFile, maxBytes int) string {
 		start++
 	}
 	if start == len(files) {
-		return ""
+		return agentDocumentsPrompt{}
 	}
 
 	var prompt strings.Builder
@@ -48,5 +53,20 @@ func renderAgentDocs(files []workspace.AgentDocFile, maxBytes int) string {
 		}
 		prompt.WriteString(blocks[i])
 	}
-	return prompt.String()
+	sources := make(contextSources, 0, len(files)-start)
+	for _, file := range files[start:] {
+		sources = append(sources, contextSourceAgentDocument.source(file.Path))
+	}
+	return agentDocumentsPrompt{text: prompt.String(), sources: sources}
+}
+
+func (prompt agentDocumentsPrompt) appendTo(composition *promptComposition) {
+	if prompt.text == "" {
+		return
+	}
+	composition.append(
+		"## Project context (from AGENTS.md cascade)\n\n"+prompt.text,
+		prompt.sources[0],
+		prompt.sources[1:]...,
+	)
 }

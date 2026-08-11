@@ -15,6 +15,7 @@ const (
 	FailureDenied
 	FailureExecution
 	FailureChildRunCanceled
+	FailureCanceled
 )
 
 // Failure is the durable explanation attached to an incomplete ToolCall.
@@ -29,7 +30,7 @@ type Failure struct {
 // execution-policy decision, so durable Tool failures do not carry a retry
 // delay in the current product contract.
 func (failure Failure) Validate() error {
-	if failure.Kind > FailureChildRunCanceled {
+	if failure.Kind > FailureCanceled {
 		return fmt.Errorf("tool: unknown failure kind %d", failure.Kind)
 	}
 	if failure.RetryAfter < 0 {

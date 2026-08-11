@@ -9,26 +9,30 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/agentmemory"
 )
 
-func TestRenderPinnedMemoryOrdersPinnedThenRecent(t *testing.T) {
+func TestPinnedMemoryPromptOrdersPinnedThenRecent(t *testing.T) {
 	base := time.Date(2026, 7, 19, 0, 0, 0, 0, time.UTC)
 	items := []agentmemory.Item{
-		{Content: "- old unpinned", UpdatedAt: base},
-		{Content: "- pinned note", Pinned: true, UpdatedAt: base.Add(-time.Hour)},
-		{Content: "- fresh unpinned", UpdatedAt: base.Add(time.Hour)},
+		{ID: "old", Content: "- old unpinned", UpdatedAt: base},
+		{ID: "pinned", Content: "- pinned note", Pinned: true, UpdatedAt: base.Add(-time.Hour)},
+		{ID: "fresh", Content: "- fresh unpinned", UpdatedAt: base.Add(time.Hour)},
 	}
-	got := strings.Split(renderPinnedMemory(items, 0), "\n")
+	got := strings.Split(newPinnedMemoryPrompt(items, 0).text, "\n")
 	want := []string{"- pinned note", "- fresh unpinned", "- old unpinned"}
 	if !slices.Equal(got, want) {
 		t.Fatalf("rendered memory = %#v, want %#v", got, want)
 	}
 }
 
-func TestRenderPinnedMemoryHonorsBudget(t *testing.T) {
-	items := []agentmemory.Item{{Content: "- pinned", Pinned: true}, {Content: strings.Repeat("界", 40)}}
-	if got := renderPinnedMemory(items, 5); got != "- pinned" {
-		t.Fatalf("budgeted memory = %q, want pinned item", got)
+func TestPinnedMemoryPromptHonorsBudget(t *testing.T) {
+	items := []agentmemory.Item{
+		{ID: "pinned", Content: "- pinned", Pinned: true},
+		{ID: "omitted", Content: strings.Repeat("界", 40)},
 	}
-	if renderPinnedMemory(nil, 10) != "" {
+	prompt := newPinnedMemoryPrompt(items, 5)
+	if prompt.text != "- pinned" || len(prompt.sources) != 1 || prompt.sources[0].Reference != "pinned" {
+		t.Fatalf("budgeted memory = %+v, want only pinned item", prompt)
+	}
+	if newPinnedMemoryPrompt(nil, 10).text != "" {
 		t.Fatal("empty memory must render nothing")
 	}
 	if got := estimateMemoryPromptTokens(strings.Repeat("界", 100)); got != 100 {

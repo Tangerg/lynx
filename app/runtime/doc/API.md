@@ -1,4 +1,4 @@
-# Lyra Runtime Protocol（定稿 `2026-08-10`）
+# Lyra Runtime Protocol（定稿 `2026-08-11`）
 
 > **状态：正式契约（canonical）。** 本文是 Lyra 客户端 ↔ Lyra Runtime 的 wire 契约真相源之一。物理传输见同目录
 > [`TRANSPORT.md`](./TRANSPORT.md)，旁路能力见 [`AUX_API.md`](./AUX_API.md)。
@@ -13,7 +13,7 @@
 > **本文写的是生成物写不出来的东西**：语义、不变量、"为什么不能是另一种形状"、以及跨方法的走查。一个事实一个作者
 > —— 本文一旦重述字段表，它就成了第二份会腐烂的真相。
 >
-> `protocolVersion`: **`2026-08-10`**（`minSupported` 同值：本 build 只服务这一个版本，旧版本请求确定性返回
+> `protocolVersion`: **`2026-08-11`**（`minSupported` 同值：本 build 只服务这一个版本，旧版本请求确定性返回
 > `invalid_protocol_version`，见 §12）。
 
 ---
@@ -705,7 +705,7 @@ Run 创建时把这份声明冻进 `RunProtocolProfile.interruptTypes`（§3.2�
   `restoreType` 可选还原文件（`features.checkpoints`），并把**边界那一刻的会话 state 作为一次新写入重新发布**
   （§5.3）。返回 `droppedRuns: DroppedRun[]`（每条带 `run: RunSummary` + 触发它的 `userInput`），所以客户端能
   告诉人"回退丢了哪些回合"。session 有 run 在飞时拒绝（`session_busy`），不去和正在 append 的历史赛跑。
-- **`export` / `import` 是同一份 `SessionArtifact`（v15）的两端**（AUX_API §4.3）：终态 run + 完整 Item 历史 +
+- **`export` / `import` 是同一份 `SessionArtifact`（v16）的两端**（AUX_API §4.3）：终态 run + 完整 Item 历史 +
   chat 消息 + offload 的工具正文 + 会话级 state 的**语义值**（不带 revision / updatedAt —— 那是源 runtime 的排序
   凭证，带过去会让导入值声称一个目标 runtime 从未发出的位置）。import 是**替换语义**（同 id 覆盖），版本不认识就
   确定性拒绝、**不迁移**；未广告的 state key 在任何写入之前拒绝。
@@ -897,6 +897,7 @@ error `type` 是 §2.6 命名空间的一个实例：first-party 用裸 `snake_c
 **run/item 级符号名**（无数字码，落点 b/c）：
 
 - `tool_failed` —— 工具执行失败。
+- `tool_canceled` —— 工具所属 Run 的取消终止了一个已经开始执行的工具；它不是工具执行错误，也不是审批拒绝。父 Run 上代表已取消 child Run 的 Delegate Tool 仍使用独立的 `child_run_canceled`。
 - `denied_by_user` —— **用户**在 HITL 里拒绝该工具（item 级）。
 - `agent_stuck` —— agent loop 无前进进度被守卫终止（run 终态错误，区别于落 `internal_error` 的意外失败）。
 - `run_lost` —— runtime 重启时发现 executor 已消失且没有可恢复 interrupt；启动恢复把该 Run 及仍在 running 的 Item
@@ -1007,7 +1008,7 @@ dispatcher、discovery 与客户端 preflight 读的是同一份）。
 
 ## 12. 版本规则
 
-- `protocolVersion` 是日期串（本定稿 `2026-08-10`），`minSupported` 与之同值：**本 build 只服务一个版本**。
+- `protocolVersion` 是日期串（本定稿 `2026-08-11`），`minSupported` 与之同值：**本 build 只服务一个版本**。
   一个更宽的范围会宣称一次代码并不执行的协商。
 - 版本不兼容以 request 级 `invalid_protocol_version` 返回（带上本 build 服务的范围），**不存在连接级硬断开**。
 - **加什么不用 bump**：加 method / 加可选响应字段 / 加 `features` map key / 加开放枚举值 → 同版本号。
@@ -1015,7 +1016,7 @@ dispatcher、discovery 与客户端 preflight 读的是同一份）。
   exhaustive switch，§2.3）、加 state key、改语义 / 删字段 / 改字段类型。
 - **判据不是"加还是改"，而是"老客户端会不会做错事"**。这条规则由 CI 强制：compatibility differ 拿本次产物与
   上一版基线对比，判定 breaking 就要求同批 bump（§14）。
-- `SessionArtifactVersion` 与 `protocolVersion` 各自独立编号（本定稿 artifact = **15**）：一份归档可能被一个更新的
+- `SessionArtifactVersion` 与 `protocolVersion` 各自独立编号（本定稿 artifact = **16**）：一份归档可能被一个更新的
   runtime 读到。不认识的版本确定性拒绝，**dev 阶段不写 migration**。
 - HTTP URL 里的 `/v2/`（wire major epoch）与日期 `protocolVersion`（epoch 内请求版本）是两个层级
   （见 TRANSPORT §6.1）。

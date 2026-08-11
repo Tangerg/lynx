@@ -244,6 +244,8 @@ func presentToolFailure(failure *tool.Failure) *protocol.ProblemData {
 		kind = protocol.ProblemToolFailed
 	case tool.FailureChildRunCanceled:
 		kind = protocol.ProblemChildRunCanceled
+	case tool.FailureCanceled:
+		kind = protocol.ProblemToolCanceled
 	default:
 		panic("server: unknown tool failure kind")
 	}

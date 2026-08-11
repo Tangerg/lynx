@@ -26,6 +26,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/itemfixture"
 	runfixture "github.com/Tangerg/lynx/app/runtime/internal/testsupport/runfixture"
 	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/sessionfixture"
+	"github.com/Tangerg/lynx/core/chat"
 )
 
 var (
@@ -768,7 +769,7 @@ func testEffects(stores *fakeStores, cfg Config) *Effects {
 	cfg.SessionTitles = stores.session
 	cfg.Transcript = stores.transcript
 	cfg.ToolResults = stores.toolResults
-	cfg.Messages = stores
+	cfg.Conversation = stores
 	cfg.Titles = stores
 	if cfg.ExecutorCheckpoints == nil {
 		cfg.ExecutorCheckpoints = &recordingExecutorCheckpointStore{}
@@ -783,6 +784,7 @@ func (s *fakeStores) ToolResults() ToolResultStore { return s.toolResults }
 func (s *fakeStores) Count(context.Context, string) (int, error) {
 	return s.mark, s.markErr
 }
+func (*fakeStores) Write(context.Context, string, ...chat.Message) error { return nil }
 func (s *fakeStores) Generate(context.Context, string) (string, error) {
 	if s.operations != nil {
 		*s.operations = append(*s.operations, "title.generate")

@@ -171,6 +171,52 @@ describe("reducer — item fold", () => {
     expect(s.toolCalls.t1).toMatchObject({ status: "ok", result: "ok" });
   });
 
+  it("late item.started shells cannot regress completed text or Tool Items", () => {
+    const textShell = item({ id: "a1", type: "agentMessage", content: [] });
+    let s = reduce(EMPTY_AGENT_SESSION_VIEW, started(textShell));
+    s = reduce(s, delta("a1", { type: "content", text: "streamed" }));
+    s = reduce(
+      s,
+      completed(
+        item({
+          id: "a1",
+          type: "agentMessage",
+          status: "completed",
+          content: [{ type: "text", text: "authoritative" }],
+        }),
+      ),
+    );
+    const completedText = s;
+    expect(reduce(s, started(textShell))).toBe(completedText);
+    expect(reduce(s, delta("a1", { type: "content", text: " stale" }))).toBe(completedText);
+    expect(s.messages[0]!.blocks[0]).toMatchObject({
+      status: "complete",
+      text: "authoritative",
+    });
+
+    const toolShell = item({
+      id: "t1",
+      type: "toolCall",
+      tool: { name: "shell", arguments: { command: "true" } },
+    });
+    s = reduce(s, started(toolShell));
+    s = reduce(
+      s,
+      completed(
+        item({
+          id: "t1",
+          type: "toolCall",
+          status: "completed",
+          tool: { name: "shell", arguments: { command: "true" }, result: { exitCode: 0 } },
+        }),
+      ),
+    );
+    const completedTool = s;
+    expect(reduce(s, started(toolShell))).toBe(completedTool);
+    expect(reduce(s, delta("t1", { type: "toolOutput", text: "stale" }))).toBe(completedTool);
+    expect(s.toolCalls.t1?.status).toBe("ok");
+  });
+
   it("contiguous assistant items fold into one turn bubble; a userMessage opens a new one", () => {
     let s: AgentSessionView = EMPTY_AGENT_SESSION_VIEW;
     s = reduce(s, started(item({ id: "r1", type: "reasoning", text: "think" })));
@@ -240,17 +286,20 @@ describe("reducer — item fold", () => {
     });
   });
 
-  it("rejects item.completed with a non-terminal Item status", () => {
+  it("hydrates a durable running Item through start semantics", () => {
     const running = item({
-      id: "a1",
-      type: "agentMessage",
+      id: "tool_waiting",
+      type: "toolCall",
       status: "running",
-      content: [{ type: "text", text: "half a thought" }],
+      startedAt: "2026-06-03T00:00:00Z",
+      tool: { name: "shell", arguments: { command: "pwd" } },
     });
 
-    expect(() => reduceDurableItem(EMPTY_AGENT_SESSION_VIEW, running)).toThrow(
-      "agent.fold.itemCompletedRequiresTerminalStatus:item=a1;run=run_1;status=running",
-    );
+    const hydrated = reduceDurableItem(EMPTY_AGENT_SESSION_VIEW, running);
+    expect(hydrated.toolCalls.tool_waiting).toMatchObject({
+      fn: "pwd",
+      status: "running",
+    });
   });
 
   it("item.completed{status:incomplete} settles the block as incomplete, not complete", () => {

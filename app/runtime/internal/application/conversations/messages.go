@@ -73,6 +73,32 @@ func (m *Messages) Seed(ctx context.Context, sessionID string, messages []chat.M
 	return nil
 }
 
+// Append extends an existing conversation with validated model-context messages.
+func (m *Messages) Append(ctx context.Context, sessionID string, messages ...chat.Message) error {
+	if sessionID == "" {
+		return errSessionIDRequired
+	}
+	if len(messages) == 0 {
+		return nil
+	}
+	stored, err := m.Read(ctx, sessionID)
+	if err != nil {
+		return err
+	}
+	history, err := conversation.New(stored)
+	if err != nil {
+		return err
+	}
+	extended, err := history.Append(messages...)
+	if err != nil {
+		return err
+	}
+	if err := m.store.Write(ctx, sessionID, extended.Messages()[len(stored):]...); err != nil {
+		return fmt.Errorf("conversations: append session %q: %w", sessionID, err)
+	}
+	return nil
+}
+
 // Count returns the durable message watermark.
 func (m *Messages) Count(ctx context.Context, sessionID string) (int, error) {
 	if sessionID == "" {

@@ -114,13 +114,30 @@ export function onRunStarted(
 ): AgentSessionView {
   const started = projectStartedRun(run, source);
   const previous = state.runsById[run.id];
-  const sameSegment = previous?.activeSegmentId === source.segmentId;
+  const exactReplay = state.timeline.some(
+    (entry) => entry.id === `timeline:${source.eventId}:run-start`,
+  );
+  if (previous) {
+    if (previous.status === "finished") {
+      if (exactReplay) return state;
+      throw new Error(
+        `agent.fold.runStatusMismatch:event=segment.started;run=${run.id};status=finished;expected=waitingOrAbsent`,
+      );
+    }
+    if (previous.status === "running") {
+      if (previous.activeSegmentId === source.segmentId) return state;
+      throw new Error(
+        `agent.fold.segmentMismatch:event=segment.started;run=${run.id};eventSegment=${source.segmentId ?? "missing"};activeSegment=${previous.activeSegmentId ?? "missing"}`,
+      );
+    }
+    if (exactReplay) return state;
+  }
   const next: AgentSessionView = {
     ...state,
     commandError: null,
     runsById: {
       ...state.runsById,
-      [run.id]: sameSegment ? { ...started, progress: previous.progress } : started,
+      [run.id]: started,
     },
   };
   return appendTimelineEntry(timelineEntry(source, "run-start"))(next);

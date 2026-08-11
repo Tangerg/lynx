@@ -66,16 +66,22 @@ func (*blockingRunRuntime) BeginRoot(context.Context, runs.ExecutorRef) error { 
 // in the process registry is a run nothing can subscribe to.
 func (r *blockingRunRuntime) RunSegmentEffects(runsegment.Checkpoints, runsegment.FileChangePublisher) *runsegment.Effects {
 	return runsegment.New(runsegment.Config{
-		Transcript: blockingTranscript{},
-		State:      r.runs,
-		Sessions:   r.sess,
-		Tx:         r.RunInTx,
+		Transcript:   blockingTranscript{},
+		Conversation: blockingConversation{},
+		State:        r.runs,
+		Sessions:     r.sess,
+		Tx:           r.RunInTx,
 	})
 }
 
 type blockingTranscript struct{}
 
 func (blockingTranscript) AppendItem(context.Context, transcript.Item) error { return nil }
+
+type blockingConversation struct{}
+
+func (blockingConversation) Write(context.Context, string, ...chat.Message) error { return nil }
+func (blockingConversation) Count(context.Context, string) (int, error)           { return 0, nil }
 
 // startLiveRun starts a run that blocks forever (via a blockingRunRuntime the
 // caller wired into the Server), waits until the coordinator has registered it,

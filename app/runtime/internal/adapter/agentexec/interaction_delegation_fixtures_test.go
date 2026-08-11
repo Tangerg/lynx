@@ -43,7 +43,7 @@ type cancelableDelegateModel struct {
 	childStartedOnce        sync.Once
 	rootStartedOnce         sync.Once
 	childCallStarted        chan struct{}
-	releaseChildCall        chan struct{}
+	childCallReturned       chan struct{}
 	rootContinuationStarted chan struct{}
 	releaseRootContinuation chan struct{}
 }
@@ -52,7 +52,7 @@ func newCancelableDelegateModel() *cancelableDelegateModel {
 	return &cancelableDelegateModel{
 		defaults:                &chat.Options{Model: "stub-cancelable-delegate"},
 		childCallStarted:        make(chan struct{}),
-		releaseChildCall:        make(chan struct{}),
+		childCallReturned:       make(chan struct{}),
 		rootContinuationStarted: make(chan struct{}),
 		releaseRootContinuation: make(chan struct{}),
 	}
@@ -75,12 +75,9 @@ func (model *cancelableDelegateModel) Call(
 		}
 	case userMessagesContain(request.Messages, "child waits for cancellation"):
 		model.childStartedOnce.Do(func() { close(model.childCallStarted) })
-		select {
-		case <-model.releaseChildCall:
-			return interactionUsageTextResponse("child response should be canceled", 2, 1), nil
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		}
+		<-ctx.Done()
+		close(model.childCallReturned)
+		return nil, ctx.Err()
 	case userMessagesContain(request.Messages, "delegate cancelable work"):
 		return interactionToolResponse(chat.ToolCall{
 			ID: "delegate_cancelable", Name: "delegate_task",

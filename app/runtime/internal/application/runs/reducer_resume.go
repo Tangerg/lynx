@@ -137,23 +137,23 @@ func resumeKey(toolName, arguments string) string { return toolName + "\x00" + a
 
 func argumentIdentity(arguments tool.Arguments) string { return arguments.Canonical() }
 
-func (r *reducer) reuseOrCreateToolItem(callID, toolName string, arguments tool.Arguments) resumableItem {
+func (r *reducer) reuseOrCreateToolItem(callID, toolName string, arguments tool.Arguments) (resumableItem, bool) {
 	if r.resume != nil {
 		if item, ok := r.resume.callItems[callID]; callID != "" && ok {
 			r.resume.consumeToolItem(item.id)
-			return item
+			return item, true
 		}
 		key := resumeKey(toolName, argumentIdentity(arguments))
 		if item, ok := r.resume.toolItems[key]; ok {
 			r.resume.consumeToolItem(item.id)
-			return item
+			return item, true
 		}
 		if item, ok := r.resume.byName[toolName]; ok && item.id != "" {
 			r.resume.consumeToolItem(item.id)
-			return item
+			return item, true
 		}
 	}
-	return resumableItem{id: r.nextItemID(), occurredAt: r.now()}
+	return resumableItem{id: r.nextItemID(), occurredAt: r.now()}, false
 }
 
 func (b *resumeBinding) consumeToolItem(id string) {

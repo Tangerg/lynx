@@ -281,7 +281,6 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 	)
 	interactionConfig := agentexec.InteractionExecutorConfig{
 		BuildID: cfg.BuildID, DefaultClient: cfg.ChatClient, ChatResolver: modelServices.chatResolver,
-		Checkpoints:            cfg.ExecutorCheckpoints,
 		ImplementationIdentity: cfg.BuildID,
 		ConfigurationIdentity:  "lyra.runtime.interaction.v1",
 		StreamModelResponses:   true,
@@ -310,27 +309,6 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 	if err != nil {
 		return nil, fmt.Errorf("runtime: Interaction executor: %w", err)
 	}
-	recoveryPersistence, err := runrecovery.New(runrecovery.Config{
-		Sessions:            cfg.SessionStore,
-		Runs:                cfg.RunStore,
-		Interrupts:          cfg.InterruptStore,
-		Transcript:          cfg.TranscriptStore,
-		Messages:            conversationServices.messages,
-		GoalRuns:            cfg.GoalStore,
-		ExecutorCheckpoints: cfg.ExecutorCheckpoints,
-		Tx:                  runrecovery.Transactor(cfg.Transactor),
-	})
-	if err != nil {
-		return nil, fmt.Errorf("runtime: boot recovery persistence: %w", err)
-	}
-	bootRecovery, err := runs.NewRecovery(recoveryPersistence, interactionExecutor)
-	if err != nil {
-		return nil, fmt.Errorf("runtime: boot recovery: %w", err)
-	}
-	if _, err := bootRecovery.Reconcile(ctx); err != nil {
-		return nil, fmt.Errorf("runtime: reconcile abandoned Runs: %w", err)
-	}
-
 	lifetime.executor = interactionExecutor
 	toolRegistry := toolset.NewDiagnosticRegistry()
 
@@ -438,7 +416,7 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 		ToolResults:         cfg.ToolResultStore,
 		ModelInvocations:    cfg.ModelInvocationStore,
 		ToolInvocations:     cfg.ToolInvocationStore,
-		Messages:            conversationServices.messages,
+		Conversation:        conversationServices.store,
 		Titles:              sessiontitle.NewGenerator(modelServices.utilityClient),
 		State:               cfg.RunStore,
 		RunMetrics:          cfg.RunStore,
@@ -519,25 +497,51 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 	lifetime.mcpCoordinator = mcpCoordinator
 
 	// Goal mode: the autonomous-execution loop driver over the run coordinator.
-	// nil store → nil driver → goals.* report capability_not_negotiated. Reconcile
-	// runs before serving so a goal left active by a crashed process degrades to
-	// paused rather than silently resuming and burning budget.
+	// nil store → nil driver → goals.* report capability_not_negotiated.
 	var goalDriver *goals.Driver
 	if cfg.GoalStore != nil {
 		goalDriver = goals.NewDriver(goalStore, runCoordinator, cfg.SessionStore, goalMutations, builtin.RunInstructions)
 		lifetime.goalDriver = goalDriver
-		if err := goalDriver.Reconcile(ctx); err != nil {
-			return nil, fmt.Errorf("runtime: reconcile goals: %w", err)
-		}
 		// create_goal is the only Goal tool that needs the Driver. Inject the
-		// generic tool after Runs and the Driver exist instead of leaking either
-		// application type into agentexec or introducing a mutable lifecycle proxy.
+		// generic tool after Runs and the Driver exist. This must precede Run
+		// recovery because it is part of the exact Deployment configuration used
+		// to validate a durable executor checkpoint.
 		createGoalTool, err := builtin.NewCreate(goalDriver)
 		if err != nil {
 			return nil, fmt.Errorf("runtime: build create_goal: %w", err)
 		}
 		if toolRuntime.tools.Resolver != nil {
 			toolRuntime.tools.Resolver.UseCreateGoalTool(createGoalTool)
+		}
+	}
+
+	recoveryPersistence, err := runrecovery.New(runrecovery.Config{
+		Sessions:            cfg.SessionStore,
+		Runs:                cfg.RunStore,
+		Interrupts:          cfg.InterruptStore,
+		Transcript:          cfg.TranscriptStore,
+		Messages:            conversationServices.store,
+		GoalRuns:            cfg.GoalStore,
+		ExecutorCheckpoints: cfg.ExecutorCheckpoints,
+		ModelInvocations:    cfg.ModelInvocationStore,
+		ToolInvocations:     cfg.ToolInvocationStore,
+		Tx:                  runrecovery.Transactor(cfg.Transactor),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("runtime: boot recovery persistence: %w", err)
+	}
+	bootRecovery, err := runs.NewRecovery(recoveryPersistence, interactionExecutor)
+	if err != nil {
+		return nil, fmt.Errorf("runtime: boot recovery: %w", err)
+	}
+	if _, err := bootRecovery.Reconcile(ctx); err != nil {
+		return nil, fmt.Errorf("runtime: reconcile abandoned Runs: %w", err)
+	}
+	// Reconcile Runs before Goals so an autonomous goal left active by a crashed
+	// process degrades to paused rather than silently resuming and burning budget.
+	if goalDriver != nil {
+		if err := goalDriver.Reconcile(ctx); err != nil {
+			return nil, fmt.Errorf("runtime: reconcile goals: %w", err)
 		}
 	}
 	workspaceFiles := workspace.NewFiles(workspaceScope, checkpointstore.FileBrowser{})

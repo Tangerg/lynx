@@ -233,7 +233,8 @@ func TestInterruptStoreRoundTripsAppLineageWithoutExecutorTopology(t *testing.T)
 				RunCreatedAt: createdAt,
 				DrainedTools: []runs.DrainedTool{{
 					ItemID: "item_open", ItemOccurredAt: createdAt.Add(time.Second),
-					CallID: "call_open", Name: "shell", Arguments: "{}",
+					CallID: "call_open", SourceCallID: "provider_open",
+					Name: "shell", Arguments: "{}",
 				}},
 			},
 			{
@@ -241,7 +242,8 @@ func TestInterruptStoreRoundTripsAppLineageWithoutExecutorTopology(t *testing.T)
 				MemberID:     "member_root",
 				RunCreatedAt: createdAt,
 				CommittedTools: []runs.CommittedTool{{
-					ItemID: "item_spawn_child", CallID: "call_child", Name: "delegate_task", Arguments: "{}",
+					ItemID: "item_spawn_child", CallID: "call_child", SourceCallID: "provider_child",
+					Name: "delegate_task", Arguments: "{}",
 					Failure: tool.Failure{
 						Kind:   tool.FailureChildRunCanceled,
 						Detail: "stop delegated branch",
@@ -260,7 +262,8 @@ func TestInterruptStoreRoundTripsAppLineageWithoutExecutorTopology(t *testing.T)
 	}
 	child := got.Continuations[0]
 	if child.Lineage != lineage || child.MemberID != "member_child" || len(child.DrainedTools) != 1 ||
-		!child.DrainedTools[0].ItemOccurredAt.Equal(createdAt.Add(time.Second)) {
+		!child.DrainedTools[0].ItemOccurredAt.Equal(createdAt.Add(time.Second)) ||
+		child.DrainedTools[0].SourceCallID != "provider_open" {
 		t.Fatalf("child continuation = %+v, want lineage %+v", child, lineage)
 	}
 	root, found := got.RootContinuation()
@@ -268,6 +271,7 @@ func TestInterruptStoreRoundTripsAppLineageWithoutExecutorTopology(t *testing.T)
 		len(root.CommittedTools) != 1 ||
 		root.CommittedTools[0].ItemID != "item_spawn_child" ||
 		root.CommittedTools[0].CallID != "call_child" ||
+		root.CommittedTools[0].SourceCallID != "provider_child" ||
 		root.CommittedTools[0].Failure.Kind != tool.FailureChildRunCanceled {
 		t.Fatalf("root committed tools = %+v, want canceled child result hand-off", root.CommittedTools)
 	}

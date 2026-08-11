@@ -78,6 +78,10 @@ type PlanReplacements interface {
 // inferring them from the items they produced.
 type RunStore interface {
 	ListRuns(ctx context.Context, sessionID string) ([]run.Run, error)
+	// ListNonTerminalRuns returns the durable activity facts for every Session in
+	// one read. Session list pages filter this set to their own IDs; keeping the
+	// read batched avoids one Run query per visible Session.
+	ListNonTerminalRuns(ctx context.Context) ([]run.Run, error)
 }
 
 // WriteSets are the atomic durable write-sets the coordinator commits through the

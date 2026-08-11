@@ -2,6 +2,7 @@ package runs
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"time"
 
@@ -29,7 +30,61 @@ type runTreeOwner struct {
 	childCancel     *childCancellation
 	cancelRequested bool
 	cancelReason    string
+	activation      segmentActivation
 	interrupt       interruptBoundary
+}
+
+// segmentActivation serializes the post-commit executor activation with root
+// cancellation. The durable Run becomes Running before BeginExecution crosses
+// the executor side-effect boundary, so cancellation must either win before
+// activation starts or wait for activation to finish; executing both calls at
+// once leaves neither side able to classify the resulting executor error.
+type segmentActivation struct {
+	done     chan struct{}
+	started  bool
+	finished bool
+	err      error
+}
+
+// beginExecution crosses the executor activation boundary exactly once. A root
+// cancellation that claimed the owner first suppresses activation and lets the
+// pump synthesize the canonical canceled terminal from the committed opening.
+func (owner *runTreeOwner) beginExecution(
+	ctx context.Context,
+	begin func(context.Context) error,
+) (canceled bool, err error) {
+	if owner == nil {
+		if begin == nil {
+			return false, nil
+		}
+		return false, begin(ctx)
+	}
+	owner.mu.Lock()
+	if owner.activation.done == nil {
+		owner.activation.done = make(chan struct{})
+	}
+	if owner.activation.started || owner.activation.finished {
+		owner.mu.Unlock()
+		return false, errors.New("runs: segment activation already resolved")
+	}
+	if owner.cancelRequested {
+		owner.activation.finished = true
+		close(owner.activation.done)
+		owner.mu.Unlock()
+		return true, nil
+	}
+	owner.activation.started = true
+	owner.mu.Unlock()
+
+	if begin != nil {
+		err = begin(ctx)
+	}
+	owner.mu.Lock()
+	owner.activation.err = err
+	owner.activation.finished = true
+	close(owner.activation.done)
+	owner.mu.Unlock()
+	return false, err
 }
 
 func (owner *runTreeOwner) committedTerminalRun() (run.Run, bool) {

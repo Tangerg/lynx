@@ -1,8 +1,8 @@
-# Lyra Runtime Transport（定稿 `2026-08-10`）
+# Lyra Runtime Transport（定稿 `2026-08-11`）
 
 > **状态：正式契约（canonical）。** 本文定义同目录 [`API.md`](./API.md)（Lyra Runtime Protocol）如何在具体 transport
 > 上承载，并且是 **binding 层的唯一作者**：端点、POST 契约、HTTP status、SSE 帧、续流、门禁 token、sidecar、CORS、
-> 背压 —— 这些在别处都没有第二份定义。`protocolVersion`: **`2026-08-10`**。
+> 背压 —— 这些在别处都没有第二份定义。`protocolVersion`: **`2026-08-11`**。
 
 ## 0. 目的
 
@@ -50,8 +50,12 @@ API 定义 JSON-RPC 方法、资源、事件语义；transport 定义 message �
 - trace / 门禁 token / `Last-Event-Id` = 传输上下文 → 带外。
 - **不再有连接 id**：streamable HTTP 下事件属于"开它的那条 POST 流"，无需带外路由键（§6 / §8）。
 - **JSON-RPC envelope `id` 必须是 string**（硬约束）。虽然 JSON-RPC 2.0 本身也允许 number id，本协议**只接受字符串 id**
-  —— number id 会被拒为 `invalid_request`（`detail: "id must be a JSON string"`）。本文所有示例用字符串即遵此约定。
-  （`null` id 仅用于无法解析 request 时的错误响应，按 JSON-RPC 2.0。）
+  —— number / boolean / array / object / explicit `null` id 都在 SDK decode 前被拒为 `400 invalid_request`；通知必须省略 `id`。
+  这样不会让 SDK 把 `null` 折叠成通知，或把小数、超大整数截断/饱和成另一个请求 id。本文所有示例用字符串即遵此约定。
+  Lyra 的 streamable-HTTP binding 对无法解码的 request 返回 transport problem，不再生成带 `null` id 的 JSON-RPC error envelope。
+- Envelope 是闭合形状：request/notification 只允许 `jsonrpc`、`id`、`method`、`params`；response 只允许
+  `jsonrpc`、`id` 与 `result XOR error`。禁止 unknown member、`method` 与 `result/error` 混合、以及 `result+error` 双载荷。
+  `POST /v2/rpc` 是 client→server binding，只接受 request/notification；客户端发送 response envelope 返回 `400 invalid_request`。
 
 ## 3. 抽象形态
 
@@ -139,7 +143,7 @@ body：
   "method": "runs.start",
   "params": {
     "_meta": {
-      "protocolVersion": "2026-08-10",
+      "protocolVersion": "2026-08-11",
       "clientInfo": { "name": "lyra-desktop", "version": "0.1.0" },
       "clientCapabilities": {
         "features": {},
@@ -193,7 +197,7 @@ HTTP status 只描述传输层失败。
 | ------ | ----------------------------------------------------------------------------------------------------------------------------- |
 | `200`  | JSON-RPC 响应已接受（`application/json` 单条，body 里仍可能含业务 error）**或** 流式响应已开启（`text/event-stream`，§6.4）。 |
 | `204`  | client 通知已接受、同步 dispatch 完毕；无 body。                                                                              |
-| `400`  | HTTP body 读不出、或 JSON 无法解码成 JSON-RPC message。                                                                       |
+| `400`  | HTTP body 读不出，或 JSON / envelope shape（含 duplicate/unknown member、request/response 混合、空 method、非字符串显式 id、client response）无法解码成 Lyra request/notification。 |
 | `401`  | 本地门禁 token 缺失或错误。响应**必带** `WWW-Authenticate: Bearer`（RFC 9110 §15.5.2）。                                      |
 | `404`  | 未知 transport 端点。                                                                                                         |
 | `405`  | HTTP 方法错误。响应**必带** `Allow`（列出该端点支持的方法，RFC 9110 §15.5.6）。                                               |
@@ -203,7 +207,8 @@ HTTP status 只描述传输层失败。
 
 > 状态码只描述传输层（RFC 9110）。**通知**同步处理完且无 body 用 `204`（非 `202` —— 后者语义是"已收下、
 > 处理未决"）。**URL 从不携带 method**（§6.1），故不存在"URL 与 body 的 method 不一致"这种 `400`；envelope 一旦
-> 解码成功，method / params 的一切问题都是 `200` + JSON-RPC error。`409` 不用于传输层。
+> 解码成功，method / params 的一切问题都是 `200` + JSON-RPC error。Lyra 的 string-only id 是 envelope decode 约束，
+> 因而非字符串显式 id 在 dispatch 前返回 `400`；`409` 不用于传输层。
 
 除 `404` / `405` 等由 HTTP 路由器直接产生的标准响应外，transport 失败使用
 `application/problem+json`，字段为 `{ type, title, status, detail, requestId? }`；`type` 是稳定的
@@ -407,7 +412,7 @@ live 只返回 200；ready 在依赖异常时返回 503，并携带 `checks`。
 
 ```json
 {
-  "protocol": { "current": "2026-08-10", "minSupported": "2026-08-10" },
+  "protocol": { "current": "2026-08-11", "minSupported": "2026-08-11" },
   "server": { "name": "lyra-runtime", "version": "0.0.0" },
   "transport": "http",
   "endpoints": {

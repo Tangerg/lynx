@@ -5,6 +5,7 @@ import { SLASH_COMMAND } from "@/plugins/sdk/kernelPoints";
 import {
   AGENT_SESSIONS_KEY,
   getActiveSessionId,
+  subscribeAgentSessionProjection,
   subscribeActiveSessionId,
   type AgentSessionSummary,
 } from "@/plugins/builtin/agent/public/session";
@@ -33,6 +34,10 @@ function activeCwd(): string | undefined {
   if (!id) return undefined;
   const sessions = queryClient.getQueryData<AgentSessionSummary[]>([AGENT_SESSIONS_KEY]);
   return sessions?.find((session) => session.id === id)?.cwd;
+}
+
+function sessionWorkspaceRevision(sessions: readonly AgentSessionSummary[] | undefined): string {
+  return JSON.stringify(sessions?.map(({ id, cwd }) => [id, cwd ?? ""]) ?? null);
 }
 
 function fetchRecipes(cwd?: string): Promise<Recipe[]> {
@@ -88,9 +93,7 @@ export function installRecipeSlashCommands(host: ContributingHost): () => void {
 
   refresh();
   const unsubscribeSession = subscribeActiveSessionId(refresh);
-  const unsubscribeQuery = queryClient.getQueryCache().subscribe((event) => {
-    if (event.query.queryKey[0] === AGENT_SESSIONS_KEY) refresh();
-  });
+  const unsubscribeQuery = subscribeAgentSessionProjection(sessionWorkspaceRevision, refresh);
 
   return () => {
     unsubscribeSession();

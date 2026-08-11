@@ -382,6 +382,11 @@ func (s *SessionStores) ApplyTerminal(ctx context.Context, terminal sessions.Ter
 		if err := s.appendTranscriptItems(ctx, terminal.Items); err != nil {
 			return err
 		}
+		if len(terminal.Messages) != 0 {
+			if err := s.history.Append(ctx, root.SessionID(), terminal.Messages...); err != nil {
+				return fmt.Errorf("persistence: append terminal conversation messages: %w", err)
+			}
+		}
 		if err := s.clearParkedRunState(ctx, root, terminal.CheckpointRootID); err != nil {
 			return err
 		}

@@ -1,6 +1,8 @@
 package runs
 
 import (
+	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -8,6 +10,28 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	runfixture "github.com/Tangerg/lynx/app/runtime/internal/testsupport/runfixture"
 )
+
+type cancellationDriftProjection struct {
+	tree    []run.Run
+	current run.Run
+}
+
+func (projection cancellationDriftProjection) Run(
+	_ context.Context,
+	runID string,
+) (run.Run, bool, error) {
+	if projection.current.ID() != runID {
+		return run.Run{}, false, nil
+	}
+	return projection.current, true, nil
+}
+
+func (projection cancellationDriftProjection) Tree(
+	context.Context,
+	string,
+) ([]run.Run, error) {
+	return append([]run.Run(nil), projection.tree...), nil
+}
 
 func TestCancellationPlanPartitionsCanonicalSubtree(t *testing.T) {
 	runs := cancellationTree(run.Running)
@@ -137,6 +161,53 @@ func TestCancellationRejectsLiveOwnerFactDrift(t *testing.T) {
 				t.Fatalf("accepted %s drift between live owner and durable Run", test.name)
 			}
 		})
+	}
+}
+
+func TestCancellationClassifiesResumeBetweenDurableReadsAsBusy(t *testing.T) {
+	createdAt := time.Date(2026, 8, 11, 10, 0, 0, 0, time.UTC)
+	pending := testApprovalPending("member_root", createdAt)
+	waiting := runForPending(pending)
+	runningSnapshot := waiting.Snapshot()
+	runningSnapshot.State = run.Running
+	runningSnapshot.ActiveSegmentID = "segment_resumed"
+	running := runfixture.MustRestore(runningSnapshot)
+
+	coordinator := NewCoordinator(Dependencies{
+		Runs: cancellationDriftProjection{
+			tree:    []run.Run{waiting},
+			current: running,
+		},
+		Session: testSessionPorts(&fakeRunSessions{}),
+	})
+
+	_, _, _, err := coordinator.cancellationPlanFor(
+		t.Context(),
+		CancelCommand{RunID: pending.RootRunID},
+	)
+	if !errors.Is(err, ErrSessionBusy) {
+		t.Fatalf("Cancel during waiting-to-running transition = %v, want ErrSessionBusy", err)
+	}
+}
+
+func TestCancellationPreservesPersistentMissingInterruptAsInvariantFault(t *testing.T) {
+	createdAt := time.Date(2026, 8, 11, 10, 0, 0, 0, time.UTC)
+	pending := testApprovalPending("member_root", createdAt)
+	waiting := runForPending(pending)
+	coordinator := NewCoordinator(Dependencies{
+		Runs: cancellationDriftProjection{
+			tree:    []run.Run{waiting},
+			current: waiting,
+		},
+		Session: testSessionPorts(&fakeRunSessions{}),
+	})
+
+	_, _, _, err := coordinator.cancellationPlanFor(
+		t.Context(),
+		CancelCommand{RunID: pending.RootRunID},
+	)
+	if err == nil || errors.Is(err, ErrSessionBusy) || !strings.Contains(err.Error(), "no open interrupt") {
+		t.Fatalf("persistent ownership contradiction = %v, want invariant fault", err)
 	}
 }
 

@@ -636,7 +636,7 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     retryAfterSeconds: allOf([integer(), minimum(1)]),
     type: ref(() => CHECKS.ArtifactProblemType),
   }, ["type"]),
-  ArtifactProblemType: enumOf(["internalError", "runLost", "agentStuck", "rateLimited", "invalidApiKey", "timeout", "providerUnavailable", "providerRejected", "deniedByUser", "toolFailed", "childRunCanceled"]),
+  ArtifactProblemType: enumOf(["internalError", "runLost", "agentStuck", "rateLimited", "invalidApiKey", "timeout", "providerUnavailable", "providerRejected", "deniedByUser", "toolFailed", "childRunCanceled", "toolCanceled"]),
   ArtifactQuestion: object({
     fields: allOf([array(ref(() => CHECKS.ArtifactQuestionField)), minItems(1)]),
   }, ["fields"]),
@@ -2144,6 +2144,13 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
         errors: absent(),
         requiredCapabilities: absent(),
         retryAfterSeconds: absent(),
+        type: literal("tool_canceled"),
+      }, ["type"]),
+      fields({
+        activeRun: absent(),
+        errors: absent(),
+        requiredCapabilities: absent(),
+        retryAfterSeconds: absent(),
         type: literal("tool_failed"),
       }, ["type"]),
       fields({
@@ -2835,7 +2842,7 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     session: ref(() => CHECKS.ArtifactSession),
     states: array(ref(() => CHECKS.ArtifactState)),
     toolResults: array(ref(() => CHECKS.ArtifactToolResult)),
-    version: allOf([integer(), minimum(15), maximum(15)]),
+    version: allOf([integer(), minimum(16), maximum(16)]),
   }, ["items", "messages", "runs", "session", "toolResults", "version"]),
   SessionStatus: enumOf(["running", "waiting", "idle"]),
   SessionUsageRequest: object({

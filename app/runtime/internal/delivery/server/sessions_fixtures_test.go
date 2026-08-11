@@ -707,6 +707,9 @@ type stubMessageCounter struct{ rt stubRuntime }
 func (s stubMessageCounter) Count(ctx context.Context, id string) (int, error) {
 	return s.rt.MessageCount(ctx, id)
 }
+func (s stubMessageCounter) Write(ctx context.Context, id string, messages ...chat.Message) error {
+	return s.rt.SeedHistory(ctx, id, messages)
+}
 
 type stubTitleGenerator struct{}
 
@@ -732,11 +735,15 @@ func (s *stubRuntime) sessionsCoordinatorWithRestorer(checkpoints sessions.Works
 		admissions = shared[0]
 	}
 	stores := stubLifecycleStores{rt: s}
+	var runStore sessions.RunStore = emptySessionRunStore{}
+	if s.runs != nil {
+		runStore = s.runs
+	}
 	return sessions.New(sessions.Dependencies{
 		Sessions:          s.sess,
 		Interrupts:        s.interrupts,
 		Transcript:        s.hist,
-		Runs:              s.runs,
+		Runs:              runStore,
 		Boundaries:        s.plan,
 		PlanReplacements:  planapp.New(planapp.Dependencies{Store: s.plan, Now: time.Now}),
 		Snapshots:         stores,
@@ -754,13 +761,27 @@ func (s *stubRuntime) sessionsCoordinatorWithRestorer(checkpoints sessions.Works
 	})
 }
 
+// emptySessionRunStore is the explicit no-Run dependency for delivery fixtures
+// that exercise Session CRUD without constructing SQLite Run persistence. A
+// typed nil *sqlite.RunStore would satisfy the interface and panic on its first
+// activity read, disguising a malformed fixture as an application failure.
+type emptySessionRunStore struct{}
+
+func (emptySessionRunStore) ListRuns(context.Context, string) ([]run.Run, error) {
+	return nil, nil
+}
+
+func (emptySessionRunStore) ListNonTerminalRuns(context.Context) ([]run.Run, error) {
+	return nil, nil
+}
+
 func (s stubRuntime) RunSegmentEffects(checkpoints runsegment.Checkpoints, publish runsegment.FileChangePublisher) *runsegment.Effects {
 	return runsegment.New(runsegment.Config{
 		Interrupts:         s.interrupts,
 		Sessions:           s.sess,
 		Transcript:         s.hist,
 		ToolResults:        s.toolResults,
-		Messages:           stubMessageCounter{rt: s},
+		Conversation:       stubMessageCounter{rt: s},
 		Titles:             stubTitleGenerator{},
 		State:              s.runWriter(),
 		Tx:                 s.RunInTx,

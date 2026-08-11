@@ -86,58 +86,99 @@ func (composer *WorkingContextComposer) ComposeWorkingContext(
 		}
 	}
 
-	if composer.config.Hooks != nil {
-		bound, err := composer.config.Hooks.For(ctx, input.CWD)
-		if err != nil {
-			return nil, fmt.Errorf("agentexec: resolve prompt lifecycle hooks: %w", err)
-		}
-		decision := domainhooks.Decision{}
-		if composer.claimSessionStart(input.SessionID) {
-			decision = bound.Run(ctx, domainhooks.Input{
-				Event: domainhooks.SessionStart, SessionID: input.SessionID, CWD: input.CWD,
-			})
-		}
-		submitted := bound.Run(ctx, domainhooks.Input{
-			Event: domainhooks.UserPromptSubmit, SessionID: input.SessionID,
-			CWD: input.CWD, Prompt: input.PromptText,
-		})
-		decision.Fold(
-			submitted.Block,
-			submitted.Ask,
-			submitted.Reason,
-			submitted.InjectContext,
-			submitted.RewriteArguments,
-		)
-		if decision.Block {
-			reason := strings.TrimSpace(decision.Reason)
-			if reason == "" {
-				reason = "blocked by a lifecycle hook"
-			}
-			return nil, fmt.Errorf("%w: %s", ErrPromptRejected, reason)
-		}
-		if injected := strings.TrimSpace(decision.InjectContext); injected != "" {
-			current := &seed[len(seed)-1]
-			current.Parts = append(
-				[]corechat.Part{corechat.NewTextPart("<hook-context>\n" + injected + "\n</hook-context>")},
-				current.Parts...,
-			)
-		}
+	hookResult, err := composer.evaluatePromptHooks(ctx, input)
+	if err != nil {
+		return nil, err
+	}
+	if err := hookResult.applyTo(&seed[len(seed)-1]); err != nil {
+		return nil, err
 	}
 
-	system := composePrompt(ctx, composer.config.Knowledge, composer.config.AgentMemory, input.CWD, composer.config.UserHome)
-	system = appendPlanForSession(ctx, system, composer.config.Plan, input.SessionID)
+	system, err := composer.composeSystemMessage(ctx, input.SessionID, input.CWD)
+	if err != nil {
+		return nil, err
+	}
 	contextMessages := make([]corechat.Message, 0, len(seed)+2)
-	contextMessages = append(contextMessages, corechat.NewSystemMessage(system))
-	if recalled, found := recalledMemories(
-		ctx,
-		composer.config.AgentMemorySearch,
-		input.CWD,
-		input.PromptText,
-	); found {
+	contextMessages = append(contextMessages, system)
+	if recalled, found, err := composer.recallMessage(ctx, input.CWD, input.PromptText); err != nil {
+		return nil, err
+	} else if found {
 		contextMessages = append(contextMessages, recalled)
 	}
 	contextMessages = append(contextMessages, seed...)
 	return contextMessages, nil
+}
+
+type promptHookResult struct {
+	decision domainhooks.Decision
+	sources  contextSources
+}
+
+func (result promptHookResult) applyTo(message *corechat.Message) error {
+	if result.decision.Block {
+		reason := strings.TrimSpace(result.decision.Reason)
+		if reason == "" {
+			reason = "blocked by a lifecycle hook"
+		}
+		return fmt.Errorf("%w: %s", ErrPromptRejected, reason)
+	}
+	injected := strings.TrimSpace(result.decision.InjectContext)
+	if injected == "" {
+		return nil
+	}
+	if len(result.sources) == 0 {
+		return errors.New("agentexec: injected hook context has no provenance source")
+	}
+	part := corechat.NewTextPart("<hook-context>\n" + injected + "\n</hook-context>")
+	if err := result.sources.attach(&part.Metadata, "hook context part"); err != nil {
+		return err
+	}
+	message.Parts = append([]corechat.Part{part}, message.Parts...)
+	return nil
+}
+
+func (composer *WorkingContextComposer) evaluatePromptHooks(
+	ctx context.Context,
+	input runs.WorkingContextInput,
+) (promptHookResult, error) {
+	if composer.config.Hooks == nil {
+		return promptHookResult{}, nil
+	}
+	bound, err := composer.config.Hooks.For(ctx, input.CWD)
+	if err != nil {
+		return promptHookResult{}, fmt.Errorf("agentexec: resolve prompt lifecycle hooks: %w", err)
+	}
+
+	result := promptHookResult{}
+	if composer.claimSessionStart(input.SessionID) {
+		result.decision = bound.Run(ctx, domainhooks.Input{
+			Event: domainhooks.SessionStart, SessionID: input.SessionID, CWD: input.CWD,
+		})
+		if strings.TrimSpace(result.decision.InjectContext) != "" {
+			result.sources = append(
+				result.sources,
+				contextSourceLifecycleHook.source(string(domainhooks.SessionStart)),
+			)
+		}
+	}
+	submitted := bound.Run(ctx, domainhooks.Input{
+		Event: domainhooks.UserPromptSubmit, SessionID: input.SessionID,
+		CWD: input.CWD, Prompt: input.PromptText,
+	})
+	if strings.TrimSpace(submitted.InjectContext) != "" {
+		result.sources = append(
+			result.sources,
+			contextSourceLifecycleHook.source(string(domainhooks.UserPromptSubmit)),
+		)
+	}
+	result.decision.Fold(
+		submitted.Block,
+		submitted.Ask,
+		submitted.Reason,
+		submitted.InjectContext,
+		submitted.RewriteArguments,
+	)
+	return result, nil
 }
 
 func (composer *WorkingContextComposer) claimSessionStart(sessionID string) bool {
@@ -286,18 +327,17 @@ func (composer *WorkingContextComposer) runObserveOnlyHook(
 	})
 }
 
-func recalledMemories(
+func (composer *WorkingContextComposer) recallMessage(
 	ctx context.Context,
-	search AgentMemorySearcher,
 	cwd string,
 	query string,
-) (corechat.Message, bool) {
-	if search == nil || strings.TrimSpace(query) == "" || strings.TrimSpace(cwd) == "" {
-		return corechat.Message{}, false
+) (corechat.Message, bool, error) {
+	if composer.config.AgentMemorySearch == nil || strings.TrimSpace(query) == "" || strings.TrimSpace(cwd) == "" {
+		return corechat.Message{}, false, nil
 	}
 	ctx, span := recallTracer.Start(ctx, "memory.recall")
 	defer span.End()
-	items, err := search.Search(
+	items, err := composer.config.AgentMemorySearch.Search(
 		ctx,
 		agentmemory.ScopeProject,
 		filepath.Clean(cwd),
@@ -306,9 +346,10 @@ func recalledMemories(
 	)
 	if err != nil {
 		span.RecordError(err)
-		return corechat.Message{}, false
+		return corechat.Message{}, false, nil
 	}
 	var body strings.Builder
+	var sources contextSources
 	injected := 0
 	for _, item := range items {
 		content := strings.TrimSpace(item.Content)
@@ -320,15 +361,20 @@ func recalledMemories(
 		}
 		body.WriteString(content)
 		body.WriteByte('\n')
+		sources = append(sources, contextSourceRecalledMemory.source(item.ID))
 		injected++
 	}
 	span.SetAttributes(attribute.Int("memory.recalled", injected))
 	if injected == 0 {
-		return corechat.Message{}, false
+		return corechat.Message{}, false, nil
 	}
 	loadRecallCounter().Add(ctx, int64(injected))
 	body.WriteString("</system-reminder>")
-	return corechat.NewSystemMessage(body.String()), true
+	message := corechat.NewSystemMessage(body.String())
+	if err := sources.attach(&message.Metadata, "recalled-memory message"); err != nil {
+		return corechat.Message{}, false, err
+	}
+	return message, true, nil
 }
 
 var (

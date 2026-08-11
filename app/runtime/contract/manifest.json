@@ -1,7 +1,7 @@
 {
   "protocol": {
-    "current": "2026-08-10",
-    "minSupported": "2026-08-10"
+    "current": "2026-08-11",
+    "minSupported": "2026-08-11"
   },
   "features": [
     "reasoning",
@@ -1472,6 +1472,7 @@
       "rate_limited",
       "run_lost",
       "timeout",
+      "tool_canceled",
       "tool_failed"
     ],
     "inlineStatusTypes": [
@@ -2405,6 +2406,13 @@
             "detail",
             "docUrl",
             "retryAfterSeconds"
+          ]
+        },
+        {
+          "tag": "tool_canceled",
+          "optional": [
+            "detail",
+            "docUrl"
           ]
         },
         {
@@ -4169,11 +4177,11 @@
       "rules": [
         {
           "field": "version",
-          "constraint": "minimum(15)"
+          "constraint": "minimum(16)"
         },
         {
           "field": "version",
-          "constraint": "maximum(15)"
+          "constraint": "maximum(16)"
         }
       ]
     },

@@ -88,6 +88,7 @@ func mustProblemContracts() []ProblemContract {
 		protocol.ProblemProviderRejected,
 		protocol.ProblemDeniedByUser,
 		protocol.ProblemToolFailed,
+		protocol.ProblemToolCanceled,
 		protocol.ProblemChildRunCanceled,
 	)
 	add(ProblemChannelInlineStatus,

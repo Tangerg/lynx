@@ -220,3 +220,7 @@ func (emptyTranscript) List(context.Context, string) ([]transcript.Item, error) 
 func (emptyTranscript) ListRuns(context.Context, string) ([]run.Run, error) {
 	return nil, nil
 }
+
+func (emptyTranscript) ListNonTerminalRuns(context.Context) ([]run.Run, error) {
+	return nil, nil
+}

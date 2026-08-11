@@ -143,6 +143,7 @@ func TestUsageAndToolFailureValidate(t *testing.T) {
 		{name: "unknown failure kind", failure: &tool.Failure{Kind: tool.FailureKind(99)}, wantErr: true},
 		{name: "retry delay on permanent failure", failure: &tool.Failure{Kind: tool.FailureDenied, RetryAfter: time.Second}, wantErr: true},
 		{name: "valid execution failure", failure: &tool.Failure{Kind: tool.FailureExecution}},
+		{name: "valid canceled failure", failure: &tool.Failure{Kind: tool.FailureCanceled}},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

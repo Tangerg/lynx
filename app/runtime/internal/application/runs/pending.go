@@ -86,7 +86,9 @@ type DrainedTool struct {
 	ItemID         string
 	ItemOccurredAt time.Time
 	CallID         string
-	Name           string
+	// SourceCallID is the provider ToolCall identity used by model-context results.
+	SourceCallID string
+	Name         string
 	// Arguments is the canonical JSON used for resume correlation.
 	Arguments string
 }
@@ -97,9 +99,10 @@ type DrainedTool struct {
 // the executor's lower-level error when the checkpoint later publishes its
 // model-facing result.
 type CommittedTool struct {
-	ItemID string
-	CallID string
-	Name   string
+	ItemID       string
+	CallID       string
+	SourceCallID string
+	Name         string
 	// Arguments is the canonical JSON used to reject a mismatched replay.
 	Arguments string
 	Failure   tool.Failure
@@ -347,6 +350,9 @@ func (c Continuation) Validate() error {
 		if err := validateToolIdentity(tool.ItemID, tool.CallID, tool.Name, tool.Arguments); err != nil {
 			return fmt.Errorf("drained tool[%d]: %w", index, err)
 		}
+		if tool.SourceCallID != strings.TrimSpace(tool.SourceCallID) {
+			return fmt.Errorf("drained tool[%d]: source call id has surrounding whitespace", index)
+		}
 		if tool.ItemOccurredAt.IsZero() {
 			return fmt.Errorf("drained tool[%d]: item occurrence time is required", index)
 		}
@@ -364,6 +370,9 @@ func (c Continuation) Validate() error {
 	for index, tool := range c.CommittedTools {
 		if err := validateToolIdentity(tool.ItemID, tool.CallID, tool.Name, tool.Arguments); err != nil {
 			return fmt.Errorf("committed tool[%d]: %w", index, err)
+		}
+		if tool.SourceCallID != strings.TrimSpace(tool.SourceCallID) {
+			return fmt.Errorf("committed tool[%d]: source call id has surrounding whitespace", index)
 		}
 		if err := tool.Failure.Validate(); err != nil {
 			return fmt.Errorf("committed tool[%d] failure: %w", index, err)

@@ -18,6 +18,7 @@ import { useAgentSessionStore } from "./agentSessionStore";
 import { createOptimisticUserMessage } from "./optimisticUserMessage";
 import { createRunOpeningController } from "./runOpeningController";
 import { agentProblemFromRpcError } from "./rpcProblem";
+import { createSessionProjectionSynchronization } from "../application/session/sessionProjectionSynchronization";
 
 export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string): AgentSession {
   // Driver construction belongs to the session effect, but the adapter factory
@@ -46,6 +47,9 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
     // read must not commit after that command, even before its first stream
     // event has advanced the store revision.
     let interacted = false;
+    let projectionSynchronization: ReturnType<
+      typeof createSessionProjectionSynchronization
+    > | null = null;
 
     const runPump = createAgentRunPump({
       sessionId,
@@ -60,26 +64,32 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
         isCancelled: () => cancelled,
         recoverProjection: () => refreshAgentSessionProjection(sessionId).then(() => undefined),
       }),
+      onIdle: () => projectionSynchronization?.liveStreamSettled(),
     });
 
-    const synchronize = (guardInitialInteraction = false): void => {
-      startAgentSessionRecovery({
-        client: client(),
-        sessionId,
-        isCancelled: () => cancelled,
-        hasInteracted: () => guardInitialInteraction && interacted,
-        isFollowing: runPump.isFollowing,
-        setAbortController: (controller) => {
-          abort?.abort();
-          abort = controller;
-        },
-        pump: runPump.pump,
-      });
-    };
+    const recoverExistingSession = !useAgentSessionStore.getState().draftSessionIds.has(sessionId);
+    let guardInitialInteraction = recoverExistingSession;
+    projectionSynchronization = createSessionProjectionSynchronization({
+      isLiveStreamActive: runPump.isActive,
+      synchronize: () => {
+        const guardInteraction = guardInitialInteraction;
+        guardInitialInteraction = false;
+        return startAgentSessionRecovery({
+          client: client(),
+          sessionId,
+          isCancelled: () => cancelled,
+          hasInteracted: () => guardInteraction && interacted,
+          isFollowing: runPump.isFollowing,
+          setAbortController: (controller) => {
+            abort?.abort();
+            abort = controller;
+          },
+          pump: runPump.pump,
+        });
+      },
+    });
 
-    if (!useAgentSessionStore.getState().draftSessionIds.has(sessionId)) {
-      synchronize(true);
-    }
+    if (recoverExistingSession) projectionSynchronization.request();
 
     const runOpening = createRunOpeningController({
       sessionId,
@@ -157,8 +167,11 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
           // the root's exact post-cancel state). Fold only those facts; the
           // following snapshot fills in every query-owned descendant.
           store().applyCancelResponse(sessionId, response);
-          if (response.type === "root") abort?.abort();
-          synchronize();
+          // Root cancellation ends the stream; child cancellation advances
+          // the parent onto a new segment. In both cases the currently attached
+          // segment has lost ownership, so release it before reconciliation.
+          abort?.abort();
+          projectionSynchronization?.request();
           void queryClient.invalidateQueries({
             queryKey: [AGENT_SESSION_USAGE_KEY, sessionId],
           });
@@ -185,7 +198,7 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
     store().setSend(sessionId, send);
     store().setStop(sessionId, stop);
     store().setResume(sessionId, resume);
-    store().setSynchronize(sessionId, () => synchronize());
+    store().setSynchronize(sessionId, () => projectionSynchronization?.request());
     store().setCancelRun(sessionId, cancelRun);
 
     // A message typed on the welcome screen (no active session) was queued
@@ -197,6 +210,7 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
 
     return () => {
       cancelled = true;
+      projectionSynchronization?.dispose();
       runPump.dispose();
       abort?.abort();
       store().setSend(sessionId, null);

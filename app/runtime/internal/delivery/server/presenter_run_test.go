@@ -36,4 +36,8 @@ func TestPresentationDoesNotAuthorOutcomeOrFailureDetail(t *testing.T) {
 	if raw == nil || raw.Detail != "exit status 2" {
 		t.Fatalf("raw tool problem = %+v, want it verbatim", raw)
 	}
+	canceledTool := presentToolFailure(&tool.Failure{Kind: tool.FailureCanceled})
+	if canceledTool == nil || canceledTool.Type != protocol.ProblemToolCanceled {
+		t.Fatalf("canceled tool problem = %+v", canceledTool)
+	}
 }

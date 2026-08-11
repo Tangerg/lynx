@@ -165,8 +165,12 @@ type DeletePlan struct {
 // interrupt Items, root-owned Pending, executor checkpoint, admission, and
 // optional Goal charge all move in one transaction.
 type TerminalPlan struct {
-	Runs             []rundomain.Run
-	Items            []transcript.Item
+	Runs  []rundomain.Run
+	Items []transcript.Item
+	// Messages close model-context Tool calls that cannot receive their ordinary
+	// result because the parked tree is being abandoned. They are appended in
+	// the same transaction before the terminal Run watermark is committed.
+	Messages         []chat.Message
 	CheckpointRootID string
 	// GoalRun is present exactly when the root Run was admitted by an autonomous Goal.
 	// Keeping it in the same write-set makes every terminal path—not only the
@@ -235,6 +239,11 @@ func (plan TerminalPlan) Validate() error {
 		seenItems[item.ID()] = struct{}{}
 		if err := item.Validate(); err != nil {
 			return fmt.Errorf("sessions: terminal plan Item %q: %w", item.ID(), err)
+		}
+	}
+	for index, message := range plan.Messages {
+		if err := message.Validate(); err != nil {
+			return fmt.Errorf("sessions: terminal plan Message[%d]: %w", index, err)
 		}
 	}
 	return validateTerminalGoalRun(root, plan.GoalRun)

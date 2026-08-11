@@ -368,7 +368,7 @@ func (value ProblemData) ValidateWire() error {
 		optionalPositiveScalarNumber("retryAfterSeconds", value.RetryAfterSeconds),
 		nonEmptyItems("requiredCapabilities", value.RequiredCapabilities),
 		uniqueItems("requiredCapabilities", value.RequiredCapabilities),
-		unionTag("type", string(value.Type), []string{"agent_stuck", "capability_not_negotiated", "checkpoint_unavailable", "child_run_canceled", "denied_by_user", "idempotency_conflict", "idempotency_in_progress", "internal_error", "interrupt_not_open", "invalid_api_key", "invalid_params", "invalid_protocol_version", "invalid_request", "item_not_found", "mcp_authorization_attempt_not_found", "mcp_authorization_failed", "mcp_authorization_required", "mcp_dial_failed", "mcp_server_already_exists", "mcp_server_disabled", "mcp_server_not_found", "method_not_found", "path_outside_root", "provider_error", "provider_not_configured", "provider_rejected", "provider_test_failed", "provider_unavailable", "rate_limited", "replay_cursor_invalid", "replay_unavailable", "revision_conflict", "run_finished", "run_lost", "run_not_found", "run_not_root", "run_waiting", "session_busy", "session_has_active_run", "session_not_found", "stale_segment", "timeout", "tool_failed", "unsupported_mime", "vcs_unavailable", "workspace_unavailable"}, "^plugin:[a-z0-9][a-z0-9._-]*/[a-z0-9][a-z0-9._-]*$"),
+		unionTag("type", string(value.Type), []string{"agent_stuck", "capability_not_negotiated", "checkpoint_unavailable", "child_run_canceled", "denied_by_user", "idempotency_conflict", "idempotency_in_progress", "internal_error", "interrupt_not_open", "invalid_api_key", "invalid_params", "invalid_protocol_version", "invalid_request", "item_not_found", "mcp_authorization_attempt_not_found", "mcp_authorization_failed", "mcp_authorization_required", "mcp_dial_failed", "mcp_server_already_exists", "mcp_server_disabled", "mcp_server_not_found", "method_not_found", "path_outside_root", "provider_error", "provider_not_configured", "provider_rejected", "provider_test_failed", "provider_unavailable", "rate_limited", "replay_cursor_invalid", "replay_unavailable", "revision_conflict", "run_finished", "run_lost", "run_not_found", "run_not_root", "run_waiting", "session_busy", "session_has_active_run", "session_not_found", "stale_segment", "timeout", "tool_canceled", "tool_failed", "unsupported_mime", "vcs_unavailable", "workspace_unavailable"}, "^plugin:[a-z0-9][a-z0-9._-]*/[a-z0-9][a-z0-9._-]*$"),
 		forbiddenWhen(wireFieldEquals(value, "type", "agent_stuck"), "requiredCapabilities", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "agent_stuck"), "retryAfterSeconds", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "agent_stuck"), "errors", value),
@@ -543,6 +543,10 @@ func (value ProblemData) ValidateWire() error {
 		forbiddenWhen(wireFieldEquals(value, "type", "timeout"), "requiredCapabilities", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "timeout"), "errors", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "timeout"), "activeRun", value),
+		forbiddenWhen(wireFieldEquals(value, "type", "tool_canceled"), "requiredCapabilities", value),
+		forbiddenWhen(wireFieldEquals(value, "type", "tool_canceled"), "retryAfterSeconds", value),
+		forbiddenWhen(wireFieldEquals(value, "type", "tool_canceled"), "errors", value),
+		forbiddenWhen(wireFieldEquals(value, "type", "tool_canceled"), "activeRun", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "tool_failed"), "requiredCapabilities", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "tool_failed"), "retryAfterSeconds", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "tool_failed"), "errors", value),
@@ -1434,8 +1438,8 @@ func (value ArtifactRun) ValidateWire() error {
 
 func (value SessionArtifact) ValidateWire() error {
 	return collectWireViolations("SessionArtifact",
-		minimumNumber("version", value.Version, 15),
-		maximumNumber("version", value.Version, 15),
+		minimumNumber("version", value.Version, 16),
+		maximumNumber("version", value.Version, 16),
 	)
 }
 
@@ -1471,7 +1475,7 @@ func (value ArtifactModelUsage) ValidateWire() error {
 func (value ArtifactProblem) ValidateWire() error {
 	return collectWireViolations("ArtifactProblem",
 		optionalPositiveScalarNumber("retryAfterSeconds", value.RetryAfterSeconds),
-		closedEnum("type", string(value.Type), []string{"internalError", "runLost", "agentStuck", "rateLimited", "invalidApiKey", "timeout", "providerUnavailable", "providerRejected", "deniedByUser", "toolFailed", "childRunCanceled"}, false),
+		closedEnum("type", string(value.Type), []string{"internalError", "runLost", "agentStuck", "rateLimited", "invalidApiKey", "timeout", "providerUnavailable", "providerRejected", "deniedByUser", "toolFailed", "childRunCanceled", "toolCanceled"}, false),
 	)
 }
 

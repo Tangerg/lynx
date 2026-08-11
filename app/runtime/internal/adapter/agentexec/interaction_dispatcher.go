@@ -45,6 +45,8 @@ func (dispatcher *interactionDispatcher) Dispatch(
 	request agent.EffectRequest,
 	emit agent.DeltaEmitter,
 ) (agent.Settlement, error) {
+	ctx, finishDispatch := dispatcher.session.beginDispatch(ctx, request)
+	defer finishDispatch()
 	attempt := newDispatchAttempt(request.ID())
 	settlement, err := dispatcher.inner.Dispatch(withDispatchAttempt(ctx, attempt), request, emit)
 	if projectionErr := attempt.indeterminateFailure(); projectionErr != nil {
@@ -320,6 +322,16 @@ func (observed *observedInteractionTool) Call(ctx context.Context, rawArguments 
 		return "", err
 	}
 	output, callErr := observed.inner.Call(ctx, rawArguments)
+	if errors.Is(context.Cause(ctx), errInteractionRunCanceled) &&
+		(errors.Is(callErr, context.Canceled) || errors.Is(callErr, context.DeadlineExceeded)) {
+		// The product cancellation plane, unlike an arbitrary caller deadline,
+		// has already accepted terminal intent and owns the durable Tool fact
+		// committed below. Return a definite Tool failure to Interaction so Agent
+		// can settle the in-flight Effect and apply that intent at its safe
+		// boundary; retaining context.Canceled here would correctly-but-uselessly
+		// classify the whole Effect as unknown.
+		callErr = errInteractionRunCanceled
+	}
 	var inputRequired *interaction.ToolInputRequiredError
 	if errors.As(callErr, &inputRequired) {
 		// Tool input is an Interaction control boundary, not a failed external
@@ -623,6 +635,12 @@ func (observed *observedInteractionTool) finishedFact(
 		finished.Failure = &tool.Failure{
 			Kind:   tool.FailureExecution,
 			Detail: callErr.Error(),
+		}
+		if errors.Is(callErr, errInteractionRunCanceled) {
+			// The symbolic cancellation kind is the client-visible explanation.
+			// Keeping the adapter sentinel out of Detail lets each consumer own
+			// localized presentation instead of exposing implementation vocabulary.
+			finished.Failure = &tool.Failure{Kind: tool.FailureCanceled}
 		}
 	}
 	return finished

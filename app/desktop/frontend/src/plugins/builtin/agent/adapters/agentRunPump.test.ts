@@ -108,6 +108,25 @@ describe("agent run pump reattach", () => {
     expect(positions).toHaveLength(0);
   });
 
+  it("folds the stream tail before publishing the idle ownership boundary", async () => {
+    const order: string[] = [];
+    const pump = createAgentRunPump({
+      sessionId: "ses_1",
+      isCancelled: () => false,
+      readEpoch: () => 0,
+      applyEvents: (events) => order.push(...events.map((entry) => entry.event.type)),
+      onIdle: () => order.push("idle"),
+    });
+
+    await pump.pump(
+      streamOf([frame("evt_1", progressed), frame("evt_2", finished)]),
+      new AbortController().signal,
+    );
+
+    expect(order).toEqual(["segment.progress", "segment.finished", "idle"]);
+    expect(pump.isActive()).toBe(false);
+  });
+
   it("keeps its own cursor across a replaying reattach", async () => {
     // The ack of a reattach reports the head as of that attach, which is AHEAD of the
     // cursor being replayed from. Adopting it would skip the replay.

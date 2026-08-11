@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	corechat "github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/core/media"
@@ -293,7 +294,7 @@ func (r *reducer) toolStart(e ToolCallStarted) ([]RunEvent, error) {
 	out = append(out, SegmentProgressed{Progress: RunProgress{
 		Step: &step, ToolName: e.ToolName, Activity: e.Activity,
 	}})
-	identity := r.reuseOrCreateToolItem(e.CallID, e.ToolName, arguments)
+	identity, reused := r.reuseOrCreateToolItem(e.CallID, e.ToolName, arguments)
 	ref := &openTool{
 		callID: e.CallID, sourceCallID: e.SourceCallID, arrivalOrder: r.toolOrder,
 		modelCallSequence: e.ModelCallSequence, toolCallIndex: e.ToolCallIndex,
@@ -312,11 +313,13 @@ func (r *reducer) toolStart(e ToolCallStarted) ([]RunEvent, error) {
 	if err != nil {
 		return nil, err
 	}
-	start, err := newToolItemStart(running)
-	if err != nil {
-		return nil, err
+	if !reused {
+		start, err := newToolItemStart(running)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, ItemStarted{Item: start})
 	}
-	out = append(out, ItemStarted{Item: start})
 	if e.Arguments != "" {
 		out = append(out, ItemChanged{
 			ItemID: ref.id,
@@ -368,16 +371,16 @@ func (r *reducer) spawningItem(sourceCallID string) (transcript.Item, error) {
 	return r.runningToolItem(match)
 }
 
-func (r *reducer) toolEnd(e ToolCallFinished) ([]RunEvent, []ToolInvocationCommit, error) {
+func (r *reducer) toolEnd(e ToolCallFinished) ([]RunEvent, []ToolInvocationCommit, []corechat.Message, error) {
 	ref, ok := r.tools[e.CallID]
 	if !ok {
 		if consumed, err := r.resume.consumeCommittedTool(e); consumed {
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
-		return nil, nil, fmt.Errorf("tool call %q ended without an open start", e.CallID)
+		return nil, nil, nil, fmt.Errorf("tool call %q ended without an open start", e.CallID)
 	}
 	if ref.end != nil {
-		return nil, nil, fmt.Errorf("tool call %q ended more than once", e.CallID)
+		return nil, nil, nil, fmt.Errorf("tool call %q ended more than once", e.CallID)
 	}
 	cloned := e
 	if e.Offload != nil {
@@ -391,7 +394,7 @@ func (r *reducer) toolEnd(e ToolCallFinished) ([]RunEvent, []ToolInvocationCommi
 	cloned.MutatedPaths = slices.Clone(e.MutatedPaths)
 	finishedAt := r.now()
 	if finishedAt.Before(ref.attemptStartedAt) {
-		return nil, nil, fmt.Errorf("tool call %q finish time precedes start time", e.CallID)
+		return nil, nil, nil, fmt.Errorf("tool call %q finish time precedes start time", e.CallID)
 	}
 	ref.finishedAt = finishedAt
 	ref.end = &cloned
@@ -401,10 +404,11 @@ func (r *reducer) toolEnd(e ToolCallFinished) ([]RunEvent, []ToolInvocationCommi
 // flushEndedTools commits only the longest completed prefix. Tools may finish
 // concurrently in any order, but transcript identity, mutation nudges, and
 // durable insertion order must follow the model's call order.
-func (r *reducer) flushEndedTools() ([]RunEvent, []ToolInvocationCommit, error) {
+func (r *reducer) flushEndedTools() ([]RunEvent, []ToolInvocationCommit, []corechat.Message, error) {
 	ordered := r.tools.ordered()
 	var out []RunEvent
 	var invocations []ToolInvocationCommit
+	var results []corechat.ToolResult
 	for _, ref := range ordered {
 		if ref.end == nil {
 			break
@@ -412,9 +416,12 @@ func (r *reducer) flushEndedTools() ([]RunEvent, []ToolInvocationCommit, error) 
 		delete(r.tools, ref.callID)
 		completed, err := r.completeTool(ref, *ref.end)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
 		out = append(out, completed...)
+		if r.cfg.Lineage.IsRoot() && ref.modelCallSequence > 0 {
+			results = append(results, conversationToolResult(ref, *ref.end))
+		}
 		if ref.modelCallSequence > 0 {
 			invocations = append(invocations, ToolInvocationCommit{
 				CallID: ref.callID, ItemID: ref.id, SegmentID: r.cfg.SegmentID,
@@ -422,7 +429,28 @@ func (r *reducer) flushEndedTools() ([]RunEvent, []ToolInvocationCommit, error) 
 			})
 		}
 	}
-	return out, invocations, nil
+	if len(results) == 0 {
+		return out, invocations, nil, nil
+	}
+	return out, invocations, []corechat.Message{corechat.NewToolMessage(results...)}, nil
+}
+
+func conversationToolResult(ref *openTool, finished ToolCallFinished) corechat.ToolResult {
+	result := ""
+	if finished.Result != nil {
+		if text, ok := finished.Result.String(); ok {
+			result = text
+		} else {
+			result = finished.Result.Canonical()
+		}
+	}
+	isError := finished.Failure != nil && finished.Failure.Kind != tool.FailureDenied
+	if isError && result == "" {
+		result = fmt.Sprintf("error: tool %q failed: %s", ref.name, finished.Failure.Detail)
+	}
+	return corechat.ToolResult{
+		ID: ref.sourceCallID, Name: ref.name, Result: result, IsError: isError,
+	}
 }
 
 // forgetToolEnds removes speculative external results whose canonical batch

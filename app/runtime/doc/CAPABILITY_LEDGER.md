@@ -2,7 +2,7 @@
 
 > 状态：当前能力事实，随每个实施批次更新
 >
-> 基线日期：2026-08-10
+> 基线日期：2026-08-11
 
 本文记录当前能力事实、目标 owner、迁移 verdict、实施阶段和验收证据。它不重复目标架构和 ADR。代码变化后必须在同一批更新对应条目；不能用“计划保留”冒充“已经迁移”。
 
@@ -21,14 +21,14 @@
 ### 2.1 规模与依赖
 
 - Runtime 源码、测试、`go.mod` 与 `go.sum` 对旧 `github.com/Tangerg/lynx/agent` 的依赖均为零；architecture guard 将其作为永久禁止边，而非迁移数量台账；
-- `go.mod` 精确声明包含 Baseline 18 的 Agent Framework commit；`GOWORK=off` 的 tidy/build/vet/test 已证明 Runtime 不依赖 workspace 隐式替换；
+- `go.mod` 仍声明 Baseline 18 Agent Framework commit；`GOWORK=off` 的 tidy/build/vet 可独立通过，但完整 test 已由冷恢复回归精确证明该发布物缺少 workspace Baseline 20 的通用 RawMessage/byte Schema 修订。发布前禁止用 workspace 隐式替换、Runtime sanitizer 或 `replace` 冒充 standalone 绿色；
 - Agent Framework production import 只允许位于 `adapter/agentexec`；Domain、Application、Infra、Delivery、Bootstrap 与通用 Toolset 对 Agent Framework concrete types 为零；
 - P2 已删除 `domain/execution` 及全部 forwarding/alias path；Domain 生产代码与测试对 Application/Adapter/Infra/Delivery/Bootstrap 零 import，context-based I/O port 为零；
 - Run、Accounting、Conversation、Transcript、Interrupt、Tool 与 ToolResult 已成为准确顶层 bounded-context package；P16-01 已由 `run.Run` 接管完整 Run aggregate，Transcript 不再承载第二 Run lifecycle，Run/Tool failure taxonomy 按 owner 分离；executor checkpoint/ref、pending continuation 与 workspace mutation 由 Application consumer 拥有；
 - P3 已删除 Application 的 `ExecutionControl`、`SegmentExecutor`、`SessionLifecycle` 与 `Effects` 胖接口；root start/observe/release、Session reads/termination 与 Run projection write-sets 均由真实 consumer-owned ports 表达；
 - Application executor tree identity 已统一为 `ExecutorMember`/`MemberID`；Framework `ProcessID` 只存在于 `adapter/agentexec` 内部映射，SQLite technical shape 使用 `root_member_id`/`memberId`；
 - 同一 Interaction tree 已在生产 Bootstrap 接通 conclusive child start、durable Delegate child Run attribution、nested/sibling child reconciliation，以及 one-shot prepared waiting-subtree cancellation；
-- SQLite 当前唯一 shape 为 epoch 66：model/tool invocation operational journal 与 Transcript semantic final 分离，interrupt row 具有 `open`/`resuming` answer-claim 状态，child-start reservation payload 由 `runsegment` 显式编码；Transcript/committed-tool failure payload 使用准确的 `failure` vocabulary；Run pump 是唯一 reducer/persistence writer；
+- SQLite 当前唯一 shape 为 epoch 67：model/tool invocation operational journal 与 Transcript semantic final 分离，interrupt row 具有 `open`/`resuming` answer-claim 状态，child-start reservation payload 由 `runsegment` 显式编码；Transcript/committed-tool failure payload 使用准确的 `failure` vocabulary，并区分 owning Run 取消、执行失败、审批拒绝与父 Run 上的 child Run 取消；Run pump 是唯一 reducer/persistence writer；
 - Agent Framework production dependency 只存在于执行防腐层；Runtime 其他 ring 对 Framework concrete type 为零。
 
 ### 2.2 当前架构基础
@@ -43,7 +43,7 @@
 | Adapter/Infra direction | Adapter 单向使用 Infra；Infra 对 Application/Adapter/Delivery/Bootstrap 反向 import 为零 | Retain | P9 已完成 |
 | Shared mechanisms | `component` umbrella 已删除；根级只保留三个真正跨环 capability，Application 共享机制归还 Application | Retain exact owners | P18 所有权纠偏，永久 purity/owner guard |
 | Contract generation | `contract/` 的 manifest/OpenRPC/schema/TypeScript/Go validator 来自唯一 registry；public Go API baseline 来自真实 type information；canonical samples 同时经 round-trip 与 strict validator | Retain | P10/P19-06 已完成 |
-| SQLite exact epoch | epoch 66 单一 shape，无生产 migration chain | Retain | P6/P8 完成；P15-03 收回 child-start durable wire owner；P16-02 收回 Tool failure vocabulary |
+| SQLite exact epoch | epoch 67 单一 shape，无生产 migration chain | Retain | P6/P8 完成；P15-03 收回 child-start durable wire owner；P16-02 收回 Tool failure vocabulary；P21 区分 owning Run 取消 |
 
 ### 2.3 P19 公共 Go binding 事实
 
@@ -54,6 +54,46 @@
 | Embedded Runtime | 公共 concrete binding 完整覆盖唯一 operation catalog；直接复用严格验证、能力、幂等、problem 与 replay，不建立 transport round-trip | Retain exact owner | P19-05 完成 |
 | Runtime instance lifecycle | `bootstrap.Instance` 唯一拥有装配、恢复、operation、worker、retryable Close 与 canonical data-directory lease；HTTP 只消费同一 Endpoint | Retain exact owner | P19-04 完成 |
 | Consumer wiring | CLI/前端/TUI 均不在本阶段修改；Runtime 不提供旧接口适配 | Defer | P19 完成后专项 |
+
+### 2.4 P20 真实 consumer 回归事实
+
+| 能力 | 当前事实 | Verdict | 阶段 |
+|---|---|---|---|
+| TUI 核心交互 | 隔离 mock PTY 已证明 Shift+Enter 多行、运行中 PageUp 和 Ctrl+O Tool 详情均可工作；这些行为不解释真实 Run failed | Retain + regression | P20-01 已验证 |
+| embedded 可观测性 | `embedded` 作为库不安装进程级 OTel provider；HTTP dev 的 `lyra.log` 只是 Makefile 对独立服务进程 stderr/stdout 的重定向。当前 CLI 宿主未安装 provider，`LYRA_LOG_LEVEL=debug` 的真实 embedded 查询仍保持 stderr 为空、stdout 为单行合法 JSON，隔离数据目录也只产生 Runtime 数据库与锁文件 | Host composition gap；禁止 library 擅改 globals | P20-01 已审计 |
+| model stream/final 对账 | reasoning/text Delta 各自保持同一开放 Item，直到 `ModelCallCompleted` 以最终完整消息完成原 identity；类型切换不再提前落库或复制 reasoning | Retain authoritative reducer state | P20-02 完成 |
+| provider metadata schema | Agent `SchemaFor` 已在唯一 Framework owner 按 `encoding/json` 修正：`json.RawMessage` 接受任意合法 JSON，`[]byte` 接受 null/base64 string；真实 DeepSeek object/string metadata 与 signature 通过，Runtime 未删除 metadata、识别 provider 或绕过校验 | Framework-owned correction；Runtime 无 workaround | P20-03 完成 |
+| Tool invocation segment | 审批/恢复后，canonical Tool Item 可保留原 Segment identity，外部调用尝试 journal 归恢复后的 Segment；Run/Item 关联和 SQLite foreign-key/integrity 均正常 | Retain exact semantics | P20-01 已反证非串写 |
+
+### 2.5 P21 运行链路与交互控制事实
+
+| 能力 | 当前事实 | Verdict | 阶段 |
+|---|---|---|---|
+| Effect / Item identity | canonical model/tool Item、provider SourceCallID 与外部 invocation attempt 各有唯一 owner；重复/乱序/replay 不再产生第二次 started | Retain exact identities | P21-01 完成 |
+| waiting / recovery | checkpoint schema v1 冻结 product capabilities；Pending、open Item/context、answer claim、continuation opening 与 checkpoint 删除保持原子顺序，boot recovery 在 Goal 注入后探测真实 Agent tree | Retain exact transaction | P21-02 完成 |
+| approval / HITL | allow once、deny、session/project/global remember 及作用域边界已由真实 DeepSeek 验证；问题 choice/text、取消、同进程与 crash/restart resume 共用一个 typed continuation contract，restore 不重跑 policy/hook/admission | Retain Runtime ownership | P21-03 完成 |
+| cooperative cancellation | Runtime adapter 将 product root/subtree intent 绑定到对应 Agent Effect context；root 覆盖全树，child 只覆盖目标及后代，Framework 继续拥有 safe settlement 后的 lifecycle | Retain anti-corruption owner | P21-04 完成 |
+| Segment active duration | 每个 product Segment 在首次激活/continuation 时独立计时，不从长寿命 Agent Process started time 重算，授权/HITL 等人工等待不计入 active | Retain exact accounting | P21-05 完成 |
+| Tool cancellation | Tool 所属 Run 的取消造成的终止使用 `tool_canceled` / `toolCanceled`；父 Run 的 Delegate Tool 使用 `child_run_canceled`，内部 sentinel 不进入产品 detail，CLI 显示 canceled | Retain first-class failure | P21-06 完成 |
+
+### 2.6 P24 Runtime/Desktop 全链路硬化事实
+
+| 能力 | 当前事实 | Verdict | 阶段 |
+|---|---|---|---|
+| Session activity / cold hydration | Session activity 由 durable non-terminal Run 派生；Desktop Session projection 使用语义订阅，reload 从 durable running Item 恢复 fold 状态 | Retain durable read model | P24-01 完成 |
+| Workspace invalidation | Runtime Git watcher 比较 HEAD/index 语义指纹且禁用 optional lock；Desktop workspace event 只失效对应 query scope，不再把 scoped resync 扩张为 global | Retain exact observation boundary | P24-02 完成 |
+| Segment activation arbitration | root-owned arbiter 串行化 opening 后 activation 与 cancel；cancel 先赢时不跨 executor boundary，activation 先赢时 cancel 等待其结果后分类 | Retain single lifecycle owner | P24-03 完成 |
+| Boot invocation settlement | Application recovery snapshot 包含全部 open model/tool invocation 并形成 exact write-set；Adapter 与 Run tree、Goal、cleanup 在同一 transaction 应用，Infra 只存 technical journal | Retain cross-aggregate transaction | P24-04 完成 |
+| Desktop E2E acceptance | HITL、Plan、Goal、并发 cancel/resume、reload 与真实 `kill -9` 均已由隔离 Runtime/Desktop/SQLite 闭环；空闲页面无自激 RPC | Retain regression matrix | P24-05 完成 |
+
+### 2.7 P25 第二轮反证事实
+
+| 能力 | 当前事实 | Verdict | 阶段 |
+|---|---|---|---|
+| Session/workspace projection serialization | live Run stream 活动期拥有前端 fold；durable snapshot 延迟到 stream tail/idle 后应用；workspace resolution 区分 default/unavailable，retarget 可中断 opening/backoff 且旧订阅不发布；Run/Item/Plan duplicate/late fold 单调并保留 HITL continuation | Retain single projection/subscription owner | P25-01 完成 |
+| JSON-RPC envelope ambiguity | `delivery/transport.DecodeMessage` 在 SDK decode 前递归拒绝 duplicate/unknown member、空 method、非字符串 id、request/response 混合及 result/error 双载荷；HTTP 只接受 request/notification 并投影 transport problem | Retain exact transport owner | P25-02 完成 |
+| Adversarial recovery matrix | HITL 双提交与真实 ask_user resume、Plan revision 2、Goal completed/blocked/budget、cancel/resume、idempotency drift、cursor、transaction failure、断线与 active-Run `kill -9` 已覆盖；崩溃 started invocation 收口 unknown，真实终态无开放 lifecycle | Retain regression matrix | P25-03 完成 |
+| Standalone Framework dependency | Agent Baseline 20 已发布为 commit `8e667d716b22`；Runtime 直接绑定远端 pseudo-version `v0.0.0-20260811152247-8e667d716b22`，没有 `replace`、Schema 复制或 metadata 降形旁路 | Retain canonical dependency | P25-04 完成 |
 
 ## 3. 产品领域能力
 
@@ -179,6 +219,19 @@ P8 production cutover 已用真实 Bootstrap consumer 冻结 root stage/observe/
 
 当前 root Interaction、ordinary Tool/model、waiting capture/restore、steer、durable Delegate child admission 与 waiting-subtree change 均没有已知 Agent Framework blocker。P7 真实 Runtime consumer 已推动并验证两个中性 Framework 合同：conclusive `ProcessStartOutcome` 与 one-shot `PreparedWaitingSubtreeCancellation`；Agent Framework 仍不感知 Run、Store、transaction 或产品恢复策略。单 Process prepared-step acknowledgment 本轮明确不启用，不算待实现 Runtime 能力。
 
+### 5.3 WorkingContext provenance
+
+| 来源 | Runtime owner | checkpoint 投影 | purpose |
+|---|---|---|---|
+| base prompt | `adapter/agentexec` | `base_prompt` + builtin reference | instruction |
+| 用户/项目 LYRA.md | Knowledge reader + composer | `user_knowledge` / `project_knowledge` | instruction |
+| pinned/recalled Memory | Agent Memory + composer | 只记录实际注入的 item ID | data |
+| AGENTS.md cascade | prompt-source discovery + composer | 只记录预算后实际渲染的 path | instruction |
+| Session Plan | Plan reader + composer | `session_plan` | instruction |
+| lifecycle hook context | Hook Application + composer | 精确 SessionStart/UserPromptSubmit Part source | instruction |
+
+这些 kind 是 `agentexec` 私有诊断合同，不进入 Runtime Protocol、Application port、SQLite schema 或 Agent Framework。文本顺序、header、预算与 best-effort 读取语义未改变；metadata 只伴随自包含 WorkingContext checkpoint。
+
 ## 6. Tool 能力
 
 | 当前能力 | Verdict | Agent Framework 接线变化 |
@@ -200,7 +253,7 @@ P8 production cutover 已用真实 Bootstrap consumer 冻结 root stage/observe/
 
 | 能力 | 当前事实 | Verdict | 验收 |
 |---|---|---|---|
-| SQLite schema | epoch 66；保留 `root_member_id`/`memberId`，open/resuming answer audit；child-start payload 为 adapter-owned canonical JSON；Transcript/committed-tool 使用 `failure`；tool invocation identity 按 Segment 隔离 | Retain pattern | 旧 epoch/列/codec 被拒绝，无 migration |
+| SQLite schema | epoch 67；保留 `root_member_id`/`memberId`，open/resuming answer audit；child-start payload 为 adapter-owned canonical JSON；Transcript/committed-tool 使用 closed `failure` taxonomy；tool invocation identity 按 Segment 隔离 | Retain pattern | 旧 epoch/列/codec 被拒绝，无 migration |
 | executor checkpoint | Host metadata + Agent Framework public complete-tree snapshot | Retain opaque payload owner | Application/Store 完全 opaque；exact capabilities 纳入 expectation |
 | checkpoint transaction | runsegment/persistence 组合 | Retain semantics | waiting facts 同事务 |
 | BuildID | Host-owned | Retain | 不进入 Agent Framework deployment/snapshot |
@@ -215,7 +268,7 @@ P8 production cutover 已用真实 Bootstrap consumer 冻结 root stage/observe/
 
 | 能力 | 当前 owner | Verdict | 说明 |
 |---|---|---|---|
-| Protocol types/errors | `delivery/protocol` + `contract` | Retain | Protocol `2026-08-10`、Artifact v15；`doc.go`、`runtime.go`、`version.go`、`identifiers.go` 各自只拥有 package、method surface、version negotiation、resource identity，机器真相仍在 contract |
+| Protocol types/errors | `protocol` + `contract` | Retain | Protocol `2026-08-11`、Artifact v16；Tool cancellation 是独立 `tool_canceled` / `toolCanceled` variant；`doc.go`、`runtime.go`、`version.go`、`identifiers.go` 各自只拥有 package、method surface、version negotiation、resource identity，机器真相仍在 contract |
 | Runtime method implementation | `delivery/server` | Retain | Protocol server side 与 projection；构造按 required use-case validation、defaults、contract facts、instance、notification observation 分阶段，不持有 transport listener |
 | JSON-RPC dispatch/registry | `delivery/dispatch` | Retain | method registry/router/idempotency；typed params decode 与 response projection 分属 `params.go`/`response.go`，不与 server 合并 |
 | HTTP/SSE | transport/http | Retain | envelope I/O、stream/backpressure |
@@ -301,10 +354,12 @@ P8 production cutover 已用真实 Bootstrap consumer 冻结 root stage/observe/
 | ToolCall/result/usage | accounting/tool | 必须 | 必须 | 必须 | 必须 |
 | waiting/checkpoint | run/interrupt | 必须 | 必须 | 必须 | 必须 |
 | restore/resume | run/interrupt | 必须 | 必须 | 必须 | 必须 |
+| approval allow/deny/remember | approval/tool | 必须 | Tool input | 必须 | 必须 |
+| question choice/text/cancel | interrupt/transcript | 必须 | Tool input | 必须 | 必须 |
 | steer | run command | 必须 | 必须 | 按产品事实 | 必须 |
 | Delegate child | run/lineage | 必须 | 必须 | 必须 | 必须 |
-| subtree cancel | run/interrupt | 必须 | 必须 | 必须 | 必须 |
-| cancel/deadline/lost | run outcome | 必须 | 必须 | 必须 | 必须 |
+| subtree cancel | run/interrupt | 必须 | scoped Effect settlement | 必须 | 必须 |
+| cancel/deadline/lost | run outcome/tool failure | 必须 | tree-wide Effect settlement | 必须 | 必须 |
 | rollback/fork | conversation/transcript | 必须 | parked cleanup | 必须 | 必须 |
 | recovery after restart | run/session | 必须 | restore probe | 必须 | projection |
 
@@ -313,11 +368,11 @@ P8 production cutover 已用真实 Bootstrap consumer 冻结 root stage/observe/
 - Runtime 产品领域、协议、持久化和工具能力大部分保留；
 - 执行 Framework integration 是主要 Rewrite 区；
 - P8 已将 Agent Framework vertical 原子切为唯一生产 owner；root、managed Delegate child、waiting subtree、termination、unknown 与 recovery 均由真实 Bootstrap consumer 验证；
-- Agent Framework Baseline 18 已提供 P4–P7 与当前 Runtime consumer 所需的全部公共合同并完成 canonical module 身份替换；Runtime standalone 精确绑定 `v0.0.0-20260809225948-4cce747c1724`，且 Framework 没有引入任何 Runtime 产品、持久化或 transaction 抽象；
+- Agent Framework Baseline 18 已提供 P4–P7 的公共合同并完成 canonical module 身份替换；Runtime standalone 仍绑定 `v0.0.0-20260809225948-4cce747c1724`，但 P22/P23 provenance consumer 已要求 Baseline 20 的通用 JSON Schema 修订。Framework 没有引入任何 Runtime 产品、持久化或 transaction 抽象；发布后只前移 module version；
 - Runtime 对原框架 source/test/module dependency 与临时 module path 已归零；唯一 `agent` Framework 仍只拥有中性合同，产品 Run、Store、transaction、WorkingContext composition 与 recovery policy 均留在 Runtime；
 - P11 删除迁移期 execution/port 快照文档；P12 继续删除已完成的架构清洗台账。当前架构、端口与工具接线分别只有 `ARCHITECTURE.md`、真实 consumer code/GoDoc 和 `TOOL_SYSTEM.md` 一个 owner，历史实施事实归 Git，不保留第二套错误现状；
 - P12 全量静态审计捕获的格式漂移与嵌入字段冗余已在各自源码 owner 治本清除；Runtime 与 Agent Framework 的 tracked production TODO/FIXME/HACK、旧 Framework 路径、旧 replay scope、空文件、空目录和内部死代码均为零。
-- P12 最终行为矩阵证明 Runtime root/child Interaction、authoritative model/tool、waiting、restore、resume、steer、unknown、recovery、rollback 与全部外环能力仍自洽；SQLite 当前 epoch 66 由 baseline consistency test 永久守卫。`interactioninput` 是 pending continuation/prompt/resolution 的唯一 ACL 与 codec owner，原单消费者子包和第二 decoder 已删除；三个 Runtime strict-codec fuzz owner与 Agent Framework 十三个 wire/state fuzz owner均全绿。
+- P12 最终行为矩阵证明 Runtime root/child Interaction、authoritative model/tool、waiting、restore、resume、steer、unknown、recovery、rollback 与全部外环能力仍自洽；SQLite 当前 epoch 67 由 baseline consistency test 永久守卫。`interactioninput` 是 pending continuation/prompt/resolution 的唯一 ACL 与 codec owner，原单消费者子包和第二 decoder 已删除；三个 Runtime strict-codec fuzz owner与 Agent Framework 十三个 wire/state fuzz owner均全绿。
 - P14 完成 Runtime 内部职责与全层级命名精修：package、目录、文件、类型、方法、函数、常量、字段和局部变量按 owner/行为逐层反证；淘汰词汇与失真文件路径由精确 package guard 防回流。最终 standalone、race、生成物、文档链接、死代码、空残留、复杂度与完整 lint 门禁全绿，未改变 Runtime/Agent Framework 边界、协议或持久化合同。
 - P15-02 再次反证 Domain/Application 后，将 system-invariant 的说明性 catalog 从生产 Application graph 移至 `cmd/contractgen`，而真实跨聚合不变量继续由对应 write-set 和 integration fixture 独占；无消费者导出链已删除，结果值、水位与 child/executor 语言按真实语义统一。Domain 仍只拥有聚合、值与纯策略合同，Application 仍独占 I/O ports；本批没有新增 Framework concrete type、协议 wire、SQLite shape 或消费者兼容路径。
 - P15-03 反证 Adapter/Infra/Delivery/Bootstrap 后，executor checkpoint 在 `agentexec` 之外重新成为纯 opaque bytes：Bootstrap 与 runsegment 不再复制或解释 TreeSnapshot shape，持久化测试只证明 checkpoint envelope 的原子保存、替换和删除。非 Framework 层的 member/request/child-Run 词汇、LLM catalog/profile 命名、execution scope 文件职责与 SQLite epoch 事实已同步；新增 architecture guard 禁止外环重新拼装 Framework tree wire。本批没有改变协议、SQLite shape 或 Agent Framework 合同。
@@ -333,3 +388,9 @@ P8 production cutover 已用真实 Bootstrap consumer 冻结 root stage/observe/
 - P19-04 已建立唯一私有 Runtime instance owner：canonical data-directory advisory lease 早于 SQLite/recovery，`bootstrap.Instance` 统一拥有 Host、operation endpoint、Server projection、scheduler 与 reverse-order retryable Close。HTTP cmd 不再组装 Server/recovery/worker，HTTP transport 只消费 instance-owned Endpoint；同路径、symlink alias 和第二进程争锁均被拒绝，未完成 Close 不释放 lease。
 - P19-05 已建立公共 concrete `embedded.Runtime`：全量 operation 以类型化 Go 方法直接消费唯一 operation pipeline，公开面只含 `protocol` values、精确 options、`iter.Seq2` streams 与完整 Open/Close lifecycle。外部 module 无需且不能依赖 Runtime internal；AST+reflection 门禁保证 operation 覆盖和签名不漂移，真实集成保证 protocol、idempotency、notification、stream close、directory lease 与 reopen 行为。
 - P19-06 已冻结完整公共 Go 合同：生成的 `contract/go-api.json` 来自真实 Go type information，架构门禁同时守住唯一 public package 集合、visible import、operation/method parity、external-module compilation 与 artifact digest。稳定失败由 protocol sentinel + `ProblemError` 提供准确的 `errors.Is`/`errors.As` 语义；README/consumer handoff、准确 capability 文件和最终质量矩阵均已收口，P19 不留下 consumer shim 或 transport duplicate。
+- P21 已以真实 DeepSeek、SQLite、mock 与 PTY 四类证据闭环普通/连续/并发 Tool、授权五种选择、问题 HITL、resume、取消、重连、重复/乱序和 crash/restart。Runtime adapter 只把产品取消作用域翻译为对应 Agent Effect context，未把 Run、授权、Store 或 transaction 职责泄露进 Framework；终态没有 checkpoint、open interrupt、unknown Effect 或未完成 invocation。
+- P22 已在 WorkingContext 唯一组合 owner 内为 base/Knowledge/Memory/Agent document/Plan/hook 建立私有 typed provenance；预算后的实际来源与 instruction/data purpose 随 Message/Part metadata 进入 opaque checkpoint，文本、Protocol、Artifact、SQLite 与 Agent Framework 合同均未变化。
+- P23 将 WorkingContext provenance 从“调用点同步填充的数据”收敛为行为所有权：source kind 唯一派生并验证 purpose，预算后的 Memory/Agent document fragment 原子拥有 text+sources，hook result 自己应用拒绝/注入，`WorkingContextComposer` 统一拥有 system/Plan/recall/hook。公开 DTO、Protocol、Artifact、SQLite 与 Agent Framework 合同均未变化。
+- P23 完整 standalone 复验同时证明当前 `go.mod` 的 Baseline 18 尚未包含 workspace 已完成的标准库 RawMessage/byte Schema 修订：两个冷恢复 consumer 在首个模型调用前按旧 Schema 失败。该发布顺序缺口必须由 Agent 新版本发布后一次性前移依赖解决；Runtime 不复制 Schema、不清洗 provider metadata、不增加 `replace` 或跳过回归。
+- P24 以真实 Desktop、Runtime 与隔离 SQLite 将 read model、query invalidation、Git observation、Segment activation/cancel 和 boot recovery 重新对账：终态无 started invocation、非终态 Run、open interrupt 或 checkpoint，崩溃恢复的 Run/Goal/invocation 使用同一终结时间；Agent production graph 仍不 import Runtime，Framework concrete type 仍只存在于 `adapter/agentexec`。
+- P25 第二轮反证进一步把前端 live/durable projection、workspace retarget/reconnect、Run/Item/Plan late-event 单调性与 JSON-RPC envelope 歧义收回唯一 owner：真实 Runtime 对合法请求返回 200、notification 返回 204，对 duplicate/unknown、空 method、显式 null/numeric id、client response 与 mixed envelope 返回 400；真实 Desktop 在 active Run `SIGKILL` 后把 Run/model invocation 收口为 lost/unknown，无刷新重连后继续完成新 Run。真实 ask_user、两次 Plan 替换、Goal completed/blocked 与 blocked 后普通 Run 均完成，终态无 open interrupt/checkpoint/active Run。Agent Baseline 20 已发布，Runtime 绑定远端真实 pseudo-version 后 standalone tidy-diff/build/vet/test/race/staticcheck/lint 全绿；原 Baseline 18 下失败的两条冷恢复 consumer 回归转绿，且没有引入 `replace`、Runtime sanitizer 或 Framework 抽象泄露。

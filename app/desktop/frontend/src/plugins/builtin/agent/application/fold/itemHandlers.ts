@@ -43,6 +43,20 @@ export function onItemStarted(
   source: AgentFoldSource,
 ): AgentSessionView {
   assertItemSource(item, source);
+  // item.started is a create-once observation. Replays may arrive after
+  // deltas, item.completed, an interrupt materialization, or a durable
+  // snapshot has already advanced the same Item. Letting the older shell
+  // upsert at that point would erase content and regress complete/err cards
+  // back to running. Only item.completed is allowed to reconcile an existing
+  // projection with authoritative fields.
+  const materialized = assertItemProjectionIdentity(state, item);
+  if (
+    item.type !== "userMessage" &&
+    materialized &&
+    !(item.type === "toolCall" && state.toolCalls[item.id]?.status === "requires-action")
+  ) {
+    return state;
+  }
   switch (item.type) {
     case "userMessage":
       return appendUserMessage(state, item);
@@ -63,6 +77,60 @@ export function onItemStarted(
   }
 }
 
+interface ProjectedItemIdentity {
+  type: Item["type"];
+  runId: string | null;
+}
+
+function assertItemProjectionIdentity(state: AgentSessionView, item: Item): boolean {
+  const identities: ProjectedItemIdentity[] = [];
+  const tool = state.toolCalls[item.id];
+  if (tool) identities.push({ type: "toolCall", runId: tool.runId });
+
+  for (const message of state.messages) {
+    if (message.id === item.id) {
+      if (message.role === "user") {
+        identities.push({ type: "userMessage", runId: message.runId });
+      } else if (message.blocks.some((block) => block.kind === "compaction")) {
+        identities.push({ type: "compaction", runId: message.runId });
+      }
+    }
+    for (const block of message.blocks) {
+      switch (block.kind) {
+        case "text":
+          if (block.itemId === item.id)
+            identities.push({ type: "agentMessage", runId: message.runId });
+          break;
+        case "reasoning":
+          if (block.reasoningId === item.id)
+            identities.push({ type: "reasoning", runId: message.runId });
+          break;
+        case "tool":
+          if (block.toolCallId === item.id)
+            identities.push({ type: "toolCall", runId: message.runId });
+          break;
+        case "approval":
+          if (block.itemId === item.id) identities.push({ type: "toolCall", runId: message.runId });
+          break;
+        case "question":
+          if (block.itemId === item.id) identities.push({ type: "question", runId: message.runId });
+          break;
+        default:
+          break;
+      }
+    }
+  }
+
+  for (const identity of identities) {
+    if (identity.type !== item.type || (identity.runId !== null && identity.runId !== item.runId)) {
+      throw new Error(
+        `agent.fold.itemIdentityConflict:item=${item.id};itemType=${item.type};itemRun=${item.runId};existingType=${identity.type};existingRun=${identity.runId ?? "unbound"}`,
+      );
+    }
+  }
+  return identities.length > 0;
+}
+
 export function onItemDelta(
   state: AgentSessionView,
   itemId: string,
@@ -74,27 +142,34 @@ export function onItemDelta(
       return patchRunBlock(
         state,
         source.runId,
-        (block) => block.kind === "text" && block.itemId === itemId,
+        (block) => block.kind === "text" && block.itemId === itemId && block.status === "running",
         (block) => (block.kind === "text" ? { ...block, text: block.text + delta.text } : block),
       );
     case "reasoning":
       return patchRunBlock(
         state,
         source.runId,
-        (block) => block.kind === "reasoning" && block.reasoningId === itemId,
+        (block) =>
+          block.kind === "reasoning" && block.reasoningId === itemId && block.status === "running",
         (block) =>
           block.kind === "reasoning" ? { ...block, text: block.text + delta.text } : block,
       );
-    case "toolArguments":
+    case "toolArguments": {
+      const tool = state.toolCalls[itemId];
+      if (!tool || tool.runId !== source.runId || tool.status !== "running") return state;
       return updateTool(state, source.runId, itemId, (tool) => ({
         ...tool,
         args: tool.args + delta.argumentsTextDelta,
       }));
-    case "toolOutput":
+    }
+    case "toolOutput": {
+      const tool = state.toolCalls[itemId];
+      if (!tool || tool.runId !== source.runId || tool.status !== "running") return state;
       return updateTool(state, source.runId, itemId, (tool) => ({
         ...tool,
         result: (tool.result ?? "") + delta.text,
       }));
+    }
   }
 }
 
@@ -104,6 +179,7 @@ export function onItemCompleted(
   source: AgentFoldSource,
 ): AgentSessionView {
   assertItemSource(item, source);
+  assertItemProjectionIdentity(state, item);
   if (item.status === "running") {
     throw new Error(
       `agent.fold.itemCompletedRequiresTerminalStatus:item=${item.id};run=${item.runId};status=${item.status}`,

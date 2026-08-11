@@ -12,6 +12,7 @@ import (
 	rundomain "github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
+	corechat "github.com/Tangerg/lynx/core/chat"
 )
 
 type waitingCancellationValidation struct {
@@ -40,6 +41,9 @@ func (c WaitingSubtreeCancellationCommit) Validate() error {
 		return err
 	}
 	if err := validation.validateParentItem(); err != nil {
+		return err
+	}
+	if err := validation.validateConversationMessages(); err != nil {
 		return err
 	}
 	if err := validation.validateDisposition(); err != nil {
@@ -235,10 +239,31 @@ func (v *waitingCancellationValidation) validateTerminalRuns() error {
 
 func (v waitingCancellationValidation) validateTerminalItems() error {
 	c := v.commit
-	expectedByItemID := make(map[string]transcript.Interrupt)
+	type expectedTool struct {
+		runID     string
+		name      string
+		arguments string
+	}
+	expectedByItemID := make(map[string]expectedTool)
 	for _, request := range c.ExpectedPending.Interrupts {
 		if _, terminal := v.terminalRunIDs[request.RunID]; terminal && request.Kind == interrupt.Approval {
-			expectedByItemID[request.ItemID] = request
+			expectedByItemID[request.ItemID] = expectedTool{
+				runID: request.RunID, name: request.Approval.Tool.Name,
+				arguments: request.Approval.Tool.Arguments.Canonical(),
+			}
+		}
+	}
+	for _, continuation := range c.ExpectedPending.Continuations {
+		if _, terminal := v.terminalRunIDs[continuation.RunID]; !terminal {
+			continue
+		}
+		for _, drained := range continuation.DrainedTools {
+			if _, duplicate := expectedByItemID[drained.ItemID]; duplicate {
+				return fmt.Errorf("runs: waiting cancellation Tool Item %q has multiple terminal roles", drained.ItemID)
+			}
+			expectedByItemID[drained.ItemID] = expectedTool{
+				runID: continuation.RunID, name: drained.Name, arguments: drained.Arguments,
+			}
 		}
 	}
 	if len(c.TerminalItems) != len(expectedByItemID) {
@@ -246,16 +271,21 @@ func (v waitingCancellationValidation) validateTerminalItems() error {
 	}
 	seen := make(map[string]struct{}, len(c.TerminalItems))
 	for index, replacement := range c.TerminalItems {
-		interrupt, expected := expectedByItemID[replacement.Expected.ID()]
+		expectedTool, expected := expectedByItemID[replacement.Expected.ID()]
 		if !expected || replacement.Expected.SessionID() != c.SessionID ||
-			replacement.Expected.RunID() != interrupt.RunID || replacement.Expected.Status() != transcript.ItemRunning {
-			return fmt.Errorf("runs: waiting cancellation terminal Item[%d] is outside canceled interrupts", index)
+			replacement.Expected.RunID() != expectedTool.runID || replacement.Expected.Status() != transcript.ItemRunning {
+			return fmt.Errorf("runs: waiting cancellation terminal Item[%d] is outside canceled Tools", index)
 		}
 		if _, duplicate := seen[replacement.Expected.ID()]; duplicate {
 			return fmt.Errorf("runs: waiting cancellation repeats terminal Item %q", replacement.Expected.ID())
 		}
 		seen[replacement.Expected.ID()] = struct{}{}
-		if err := validateTerminalItemReplacement(interrupt, replacement, v.finishedAtByRunID[interrupt.RunID]); err != nil {
+		if err := validateTerminalItemReplacement(
+			expectedTool.name,
+			expectedTool.arguments,
+			replacement,
+			v.finishedAtByRunID[expectedTool.runID],
+		); err != nil {
 			return fmt.Errorf("runs: waiting cancellation terminal Item %q: %w", replacement.Expected.ID(), err)
 		}
 	}
@@ -263,17 +293,15 @@ func (v waitingCancellationValidation) validateTerminalItems() error {
 }
 
 func validateTerminalItemReplacement(
-	request transcript.Interrupt,
+	toolName string,
+	arguments string,
 	replacement ItemReplacement,
 	finishedAt time.Time,
 ) error {
-	if request.Kind != interrupt.Approval {
-		return fmt.Errorf("unsupported terminal Item interrupt kind %s", request.Kind)
-	}
 	invocation, present := replacement.Expected.ToolInvocation()
-	if replacement.Expected.Kind() != transcript.ToolCall || !present || request.Approval == nil ||
-		!reflect.DeepEqual(invocation, request.Approval.Tool) {
-		return errors.New("approval tool differs from its interrupt")
+	if replacement.Expected.Kind() != transcript.ToolCall || !present ||
+		invocation.Name != toolName || invocation.Arguments.Canonical() != arguments {
+		return errors.New("tool Item differs from its pending identity")
 	}
 	failure, failed := replacement.Replacement.Failure()
 	if !failed || failure.Kind != tool.FailureExecution {
@@ -375,8 +403,8 @@ func (v waitingCancellationValidation) validateSurvivingContinuations() error {
 			}
 			settled := matched[0]
 			expected.CommittedTools = append(slices.Clone(expected.CommittedTools), CommittedTool{
-				ItemID: settled.ItemID, CallID: settled.CallID, Name: settled.Name,
-				Arguments: settled.Arguments, Failure: failure,
+				ItemID: settled.ItemID, CallID: settled.CallID, SourceCallID: settled.SourceCallID,
+				Name: settled.Name, Arguments: settled.Arguments, Failure: failure,
 			})
 		}
 		if !sameContinuationValue(actual, expected) {
@@ -416,7 +444,7 @@ func (v waitingCancellationValidation) validateParentItem() error {
 		expected.RunID() != target.Lineage.ParentRunID {
 		return errors.New("runs: waiting cancellation parent Item identity mismatch")
 	}
-	if expected.Kind() != transcript.ToolCall || expected.Status() != transcript.ItemIncomplete {
+	if expected.Kind() != transcript.ToolCall || expected.Status() != transcript.ItemRunning {
 		return errors.New("runs: waiting cancellation parent replacement changes immutable facts")
 	}
 	if _, present := expected.ToolInvocation(); !present {
@@ -430,9 +458,42 @@ func (v waitingCancellationValidation) validateParentItem() error {
 		failure.Kind != tool.FailureChildRunCanceled {
 		return errors.New("runs: waiting cancellation parent Item lacks child_run_canceled")
 	}
-	want, err := expected.ClassifyAbandonedToolCall(failure)
+	want, err := expected.AbandonToolCall(&failure, replacement.FinishedAt())
 	if err != nil || !reflect.DeepEqual(want.Snapshot(), replacement.Snapshot()) {
 		return errors.New("runs: waiting cancellation parent replacement changes immutable facts")
+	}
+	return nil
+}
+
+func (v waitingCancellationValidation) validateConversationMessages() error {
+	c := v.commit
+	if c.ParentItem.Expected.RunID() != c.RootRunID {
+		if len(c.ConversationMessages) != 0 {
+			return errors.New("runs: non-root child cancellation carries root conversation messages")
+		}
+		return nil
+	}
+	parentContinuation := v.continuationByRunID[c.RootRunID]
+	var committed CommittedTool
+	found := false
+	for _, drained := range parentContinuation.DrainedTools {
+		if drained.ItemID != c.ParentItem.Expected.ID() {
+			continue
+		}
+		committed = CommittedTool{
+			ItemID: drained.ItemID, CallID: drained.CallID, SourceCallID: drained.SourceCallID,
+			Name: drained.Name, Arguments: drained.Arguments,
+		}
+		found = true
+		break
+	}
+	failure, failed := c.ParentItem.Replacement.Failure()
+	if !found || committed.SourceCallID == "" || !failed {
+		return errors.New("runs: root child cancellation cannot correlate its model-context Tool result")
+	}
+	want := []corechat.Message{childCancellationToolMessage(committed, failure)}
+	if !reflect.DeepEqual(want, c.ConversationMessages) {
+		return errors.New("runs: waiting cancellation conversation result differs from its parent Tool")
 	}
 	return nil
 }

@@ -353,3 +353,12 @@
 - 决策：HTTP 进程宿主与 embedded binding 共用同一个 Runtime instance builder。该 owner 在打开 SQLite/recovery 前取得 canonical data directory 的进程级独占锁，按顺序组装 stores、Host、恢复器、operation endpoint 和 Runtime workers；`Close` 停止新请求、解除订阅、取消并 join 后台任务、逆序关闭资源，最后释放锁。请求 context 只约束当前调用/订阅，已接受 Run 继续由 Runtime lifecycle 拥有。
 - 决策：`contract/go-api.json` 由 contract generator 从 `protocol + embedded` 的真实 Go type information 派生，完整冻结公共 package、constant、variable、function、type、field、method 与 visible import。架构门禁拒绝第三个公共 package 和任何 public signature 的 `internal` 类型，不用手写 API 清单形成第二真相源。
 - 后果：Runtime 是唯一服务端合同；CLI、前端和 TUI 后续按新公共面 breaking 接线，Runtime 不迁就旧消费者接口。一个数据目录同一时间只能由一个 HTTP 或 embedded Runtime owner 打开；需要多进程共享时必须使用单独宿主进程或其他 IPC，不能绕过独占锁。
+
+## ADR-RT-054：WorkingContext 来源由 Agent execution adapter 类型化归因
+
+- 状态：已接受并实施，P22 完成；不改变 Runtime Protocol、Artifact、SQLite 或 Agent Framework 合同。
+- 背景：fresh root prompt 已组合 base prompt、用户/项目 Knowledge、pinned/recalled Memory、AGENTS.md cascade、Session Plan 与 lifecycle hook context。此前最终只剩文本，checkpoint 虽能自包含恢复，却无法回答某段上下文来自哪个 owner、应作为 instruction 还是 data，也无法证明预算裁剪后模型实际看到了哪些 Memory/Agent document。把这些产品来源提升进 Agent Framework 或公共 Runtime Protocol 都会泄露 owner。
+- 决策：`adapter/agentexec` 在唯一 WorkingContext composition boundary 内建立私有 typed provenance：来源 kind、精确可用 reference、`instruction`/`data` purpose 与 schema version。prompt 继续按原有顺序和文本渲染；只有实际通过预算并写入消息的 pinned Memory 与 Agent document 才进入来源集合。recalled Memory 单独标记为 data；SessionStart/UserPromptSubmit hook context 标记在其注入的 user Part 上。
+- 决策：provenance 通过 `core/chat` 已有 JSON-safe Message/Part metadata 随完整 WorkingContext 一起进入 Interaction checkpoint，不建立第二 store、索引或 protocol DTO。Agent Framework 仍只把 WorkingContext 当 Strategy-owned opaque value；Application、Delivery、Infra、CLI 和 provider policy 都不解释这些私有 kind。
+- 决策：metadata 只描述来源，不复制内容、不改变 provider-facing 文本、不绕过 Message validation。若未来需要公共诊断 surface，必须由真实 consumer 另行定义安全投影，不能直接暴露 checkpoint/private metadata 或让 Runtime Protocol 依赖 Adapter 类型。
+- 后果：恢复后的上下文继续自包含且文本语义不变，同时内部诊断可精确解释实际可见来源。知识读取失败、memory recall 失败和 hook policy 仍遵守既有 best-effort/blocking 决策；本 ADR 不改变其错误语义。

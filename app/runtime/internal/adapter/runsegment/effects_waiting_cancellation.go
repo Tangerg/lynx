@@ -90,6 +90,14 @@ func (e *Effects) persistWaitingCancellationProjection(
 	ctx context.Context,
 	commit runs.WaitingSubtreeCancellationCommit,
 ) error {
+	if len(commit.ConversationMessages) != 0 {
+		if e.conversation == nil {
+			return errors.New("runsegment: conversation persistence is unavailable")
+		}
+		if err := e.conversation.Write(ctx, commit.SessionID, commit.ConversationMessages...); err != nil {
+			return fmt.Errorf("runsegment: append waiting cancellation conversation result: %w", err)
+		}
+	}
 	if err := e.executorCheckpoints.SaveCheckpoint(ctx, commit.Checkpoint); err != nil {
 		return fmt.Errorf(
 			"runsegment: persist checkpoint for waiting child Run %q in root Run %q: %w",

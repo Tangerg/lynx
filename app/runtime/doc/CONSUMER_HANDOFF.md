@@ -14,8 +14,8 @@
 
 ## Current server baseline
 
-- Protocol version: `2026-08-10`; `minSupported` is the same value.
-- Session artifact version: `15`; versions 14 and earlier are rejected before
+- Protocol version: `2026-08-11`; `minSupported` is the same value.
+- Session artifact version: `16`; versions 15 and earlier are rejected before
   any import write.
 - Machine truth: [`../contract/`](../contract/) generated from the Go contract
   registry with `go generate ./...`; `go-api.json` freezes the complete public
@@ -89,10 +89,10 @@ that an in-tree or out-of-tree consumer is compatible.
 A consumer migration is complete only when it:
 
 1. vendors or generates from the current Runtime-owned contract;
-2. sends `protocolVersion: "2026-08-10"` and rejects any different discovered
+2. sends `protocolVersion: "2026-08-11"` and rejects any different discovered
    range instead of guessing compatibility;
 3. accepts only `runtimeInstanceRootSegment` for `RunReplayScope`;
-4. imports/exports Session artifact v15 without rewriting prior documents;
+4. imports/exports Session artifact v16 without rewriting prior documents;
 5. passes its strict fixture validation and HTTP integration suite.
 
 An embedded Go consumer additionally passes an external-module compile test,

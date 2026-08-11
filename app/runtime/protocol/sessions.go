@@ -140,10 +140,10 @@ type ExportSessionResponse struct {
 // artifact it doesn't recognize; development builds do not migrate old
 // artifacts.
 //
-// Version 15 admits only complete message/reasoning/question/compaction facts
-// and the current ToolCall lifecycle, and rejects unsupported artifact schemas
-// before any write.
-const SessionArtifactVersion = 15
+// Version 16 admits only complete message/reasoning/question/compaction facts,
+// distinguishes a canceled in-flight Tool from execution failure, and rejects
+// unsupported artifact schemas before any write.
+const SessionArtifactVersion = 16
 
 // SessionArtifact is the portable, round-trippable form of a session: its
 // identity plus the full conversation — chat messages (the model's context),
@@ -373,6 +373,7 @@ const (
 	ArtifactProblemDeniedByUser        ArtifactProblemType = "deniedByUser"
 	ArtifactProblemToolFailed          ArtifactProblemType = "toolFailed"
 	ArtifactProblemChildRunCanceled    ArtifactProblemType = "childRunCanceled"
+	ArtifactProblemToolCanceled        ArtifactProblemType = "toolCanceled"
 )
 
 // ArtifactToolResult carries the single full-body source for an offloaded tool

@@ -39,11 +39,14 @@ interface AgentRunPumpOptions {
    *  longer attachable at all — finished, waiting on a person, or moved to another
    *  segment — and the fold already holds, or will be told, everything it can. */
   reattach?: (position: RunStreamPosition, signal: AbortSignal) => Promise<RunStream | null>;
+  /** The newest live stream became idle after its queued tail was folded. */
+  onIdle?: () => void;
 }
 
 interface AgentRunPump {
   pump: (stream: RunStream, signal: AbortSignal) => Promise<void>;
   isFollowing: (runId: string, segmentId: string) => boolean;
+  isActive: () => boolean;
   dispose: () => void;
 }
 
@@ -53,6 +56,7 @@ export function createAgentRunPump({
   readEpoch,
   applyEvents,
   reattach,
+  onIdle,
 }: AgentRunPumpOptions): AgentRunPump {
   let currentRunId: RunId | null = null;
   let currentSegmentId: SegmentId | null = null;
@@ -105,13 +109,21 @@ export function createAgentRunPump({
         }
       } finally {
         if (currentPumpSequence === pumpSequence) {
+          // The durable change stream may already have requested a projection
+          // refresh. Land this stream's rAF-delayed tail before declaring the
+          // session idle, otherwise the newer snapshot can overtake it.
+          eventBatcher.flush();
           currentRunId = null;
           currentSegmentId = null;
+          onIdle?.();
         }
       }
     },
     isFollowing(runId, segmentId) {
       return currentRunId === runId && currentSegmentId === segmentId;
+    },
+    isActive() {
+      return currentRunId !== null;
     },
     dispose() {
       eventBatcher.dispose();

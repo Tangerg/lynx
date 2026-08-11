@@ -11,8 +11,8 @@ import (
 )
 
 // Black-box round-trips through the exported Policy API against the in-memory
-// store fixture. The white-box matching/precedence tests (unexported subject /
-// matchesSubject / ruleSet.decide) stay in rule_test.go.
+// store fixture. The white-box matching and precedence rules stay with their
+// Domain owner in domain/approval/rule_test.go.
 
 // TestServiceRememberDecide: a remembered shell command auto-resolves a matching
 // future call; a different command still misses (subject granularity).

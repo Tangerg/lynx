@@ -7,12 +7,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
+	corechat "github.com/Tangerg/lynx/core/chat"
 )
 
 type RunStore interface {
@@ -34,7 +36,9 @@ type TranscriptStore interface {
 	ReplaceItem(ctx context.Context, expected transcript.Item, replacement transcript.Item) error
 }
 
-type MessageCounter interface {
+type ConversationStore interface {
+	Read(ctx context.Context, sessionID string) ([]corechat.Message, error)
+	Write(ctx context.Context, sessionID string, messages ...corechat.Message) error
 	Count(ctx context.Context, sessionID string) (int, error)
 }
 
@@ -43,7 +47,32 @@ type GoalRunRecorder interface {
 }
 
 type ExecutorCheckpointStore interface {
+	LoadCheckpoint(ctx context.Context, rootMemberID string) (runs.ExecutorCheckpoint, error)
 	DeleteUnownedCheckpoints(ctx context.Context, keepRootIDs []string) error
+}
+
+type ModelInvocationStore interface {
+	ListStartedModelInvocations(
+		ctx context.Context,
+		yield func(sessionID, runID, segmentID, callID string, startedAt time.Time) error,
+	) error
+	MarkModelInvocationUnknown(
+		ctx context.Context,
+		sessionID, runID, segmentID, callID string,
+		startedAt, finishedAt time.Time,
+	) error
+}
+
+type ToolInvocationStore interface {
+	ListStartedToolInvocations(
+		ctx context.Context,
+		yield func(sessionID, runID, segmentID, callID, itemID string, startedAt time.Time) error,
+	) error
+	MarkToolInvocationIncomplete(
+		ctx context.Context,
+		sessionID, runID, segmentID, callID, itemID string,
+		startedAt, finishedAt time.Time,
+	) error
 }
 
 type Transactor func(ctx context.Context, fn func(context.Context) error) error
@@ -53,9 +82,11 @@ type Config struct {
 	Runs                RunStore
 	Interrupts          InterruptStore
 	Transcript          TranscriptStore
-	Messages            MessageCounter
+	Messages            ConversationStore
 	GoalRuns            GoalRunRecorder
 	ExecutorCheckpoints ExecutorCheckpointStore
+	ModelInvocations    ModelInvocationStore
+	ToolInvocations     ToolInvocationStore
 	Tx                  Transactor
 }
 
@@ -66,9 +97,11 @@ type Persistence struct {
 	runs                RunStore
 	interrupts          InterruptStore
 	transcript          TranscriptStore
-	messages            MessageCounter
+	messages            ConversationStore
 	goalRuns            GoalRunRecorder
 	executorCheckpoints ExecutorCheckpointStore
+	modelInvocations    ModelInvocationStore
+	toolInvocations     ToolInvocationStore
 	tx                  Transactor
 }
 
@@ -86,6 +119,10 @@ func New(config Config) (*Persistence, error) {
 		return nil, errors.New("runrecovery: message counter is required")
 	case config.ExecutorCheckpoints == nil:
 		return nil, errors.New("runrecovery: executor checkpoint store is required")
+	case config.ModelInvocations == nil:
+		return nil, errors.New("runrecovery: model invocation store is required")
+	case config.ToolInvocations == nil:
+		return nil, errors.New("runrecovery: Tool invocation store is required")
 	case config.Tx == nil:
 		return nil, errors.New("runrecovery: transactor is required")
 	default:
@@ -97,6 +134,8 @@ func New(config Config) (*Persistence, error) {
 			messages:            config.Messages,
 			goalRuns:            config.GoalRuns,
 			executorCheckpoints: config.ExecutorCheckpoints,
+			modelInvocations:    config.ModelInvocations,
+			toolInvocations:     config.ToolInvocations,
 			tx:                  config.Tx,
 		}, nil
 	}
@@ -114,12 +153,59 @@ func (p *Persistence) ListPendingInterrupts(ctx context.Context) ([]runs.Pending
 	return p.interrupts.List(ctx, "")
 }
 
+func (p *Persistence) ListOpenModelInvocations(ctx context.Context) ([]runs.OpenModelInvocation, error) {
+	var invocations []runs.OpenModelInvocation
+	err := p.modelInvocations.ListStartedModelInvocations(
+		ctx,
+		func(sessionID, runID, segmentID, callID string, startedAt time.Time) error {
+			invocations = append(invocations, runs.OpenModelInvocation{
+				SessionID: sessionID, RunID: runID, SegmentID: segmentID,
+				CallID: callID, StartedAt: startedAt,
+			})
+			return nil
+		},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("runrecovery: list open model invocations: %w", err)
+	}
+	return invocations, nil
+}
+
+func (p *Persistence) ListOpenToolInvocations(ctx context.Context) ([]runs.OpenToolInvocation, error) {
+	var invocations []runs.OpenToolInvocation
+	err := p.toolInvocations.ListStartedToolInvocations(
+		ctx,
+		func(sessionID, runID, segmentID, callID, itemID string, startedAt time.Time) error {
+			invocations = append(invocations, runs.OpenToolInvocation{
+				SessionID: sessionID, RunID: runID, SegmentID: segmentID,
+				CallID: callID, ItemID: itemID, StartedAt: startedAt,
+			})
+			return nil
+		},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("runrecovery: list open Tool invocations: %w", err)
+	}
+	return invocations, nil
+}
+
 func (p *Persistence) ListTranscript(ctx context.Context, sessionID string) ([]transcript.Item, error) {
 	return p.transcript.List(ctx, sessionID)
 }
 
 func (p *Persistence) CountMessages(ctx context.Context, sessionID string) (int, error) {
 	return p.messages.Count(ctx, sessionID)
+}
+
+func (p *Persistence) ReadMessages(ctx context.Context, sessionID string) ([]corechat.Message, error) {
+	return p.messages.Read(ctx, sessionID)
+}
+
+func (p *Persistence) LoadExecutorCheckpoint(
+	ctx context.Context,
+	rootMemberID string,
+) (runs.ExecutorCheckpoint, error) {
+	return p.executorCheckpoints.LoadCheckpoint(ctx, rootMemberID)
 }
 
 // CommitRecovery applies the application-produced write-set in one storage
@@ -130,6 +216,66 @@ func (p *Persistence) CommitRecovery(ctx context.Context, commit runs.RecoveryCo
 		return fmt.Errorf("runrecovery: invalid recovery commit: %w", err)
 	}
 	return p.tx(ctx, func(ctx context.Context) error {
+		for _, invocation := range commit.ModelInvocations {
+			if err := p.modelInvocations.MarkModelInvocationUnknown(
+				ctx,
+				invocation.SessionID,
+				invocation.RunID,
+				invocation.SegmentID,
+				invocation.CallID,
+				invocation.StartedAt,
+				invocation.FinishedAt,
+			); err != nil {
+				return fmt.Errorf(
+					"runrecovery: mark model invocation %q unknown: %w",
+					invocation.CallID,
+					err,
+				)
+			}
+		}
+		for _, invocation := range commit.ToolInvocations {
+			if err := p.toolInvocations.MarkToolInvocationIncomplete(
+				ctx,
+				invocation.SessionID,
+				invocation.RunID,
+				invocation.SegmentID,
+				invocation.CallID,
+				invocation.ItemID,
+				invocation.StartedAt,
+				invocation.FinishedAt,
+			); err != nil {
+				return fmt.Errorf(
+					"runrecovery: mark Tool invocation %q incomplete: %w",
+					invocation.CallID,
+					err,
+				)
+			}
+		}
+		for _, transition := range commit.ConversationTransitions {
+			count, err := p.messages.Count(ctx, transition.SessionID)
+			if err != nil {
+				return fmt.Errorf(
+					"runrecovery: count conversation for root Run %q: %w",
+					transition.RootRunID,
+					err,
+				)
+			}
+			if count != transition.ExpectedCount {
+				return fmt.Errorf(
+					"runrecovery: conversation for root Run %q moved from %d to %d messages",
+					transition.RootRunID,
+					transition.ExpectedCount,
+					count,
+				)
+			}
+			if err := p.messages.Write(ctx, transition.SessionID, transition.Messages...); err != nil {
+				return fmt.Errorf(
+					"runrecovery: close conversation for root Run %q: %w",
+					transition.RootRunID,
+					err,
+				)
+			}
+		}
 		for _, replacement := range commit.ItemReplacements {
 			if err := p.transcript.ReplaceItem(ctx, replacement.Expected, replacement.Replacement); err != nil {
 				return fmt.Errorf("runrecovery: replace transcript Item %q: %w", replacement.Expected.ID(), err)

@@ -42,4 +42,17 @@ describe("workspace session projection invalidation", () => {
     expect(invalidateQueries).toHaveBeenCalledWith();
     expect(synchronizeMountedAgentSessions).toHaveBeenCalledWith();
   });
+
+  it("keeps a scoped resync inside the reads named by its topics", () => {
+    invalidateWorkspaceEvent({
+      type: "resync",
+      sequence: 1,
+      topics: ["files.changed"],
+    });
+
+    expect(invalidateQueries).toHaveBeenCalledTimes(2);
+    expect(invalidateQueries).toHaveBeenNthCalledWith(1, { queryKey: ["files-changed"] });
+    expect(invalidateQueries).toHaveBeenNthCalledWith(2, { queryKey: ["diff"] });
+    expect(synchronizeMountedAgentSessions).not.toHaveBeenCalled();
+  });
 });

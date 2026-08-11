@@ -64,17 +64,19 @@ type DrainedToolRecord struct {
 	ItemID         string
 	ItemOccurredAt time.Time
 	CallID         string
+	SourceCallID   string
 	Name           string
 	Arguments      string
 }
 
 // CommittedToolRecord is the stored identity and outcome of a settled tool.
 type CommittedToolRecord struct {
-	ItemID    string
-	CallID    string
-	Name      string
-	Arguments string
-	Failure   tool.Failure
+	ItemID       string
+	CallID       string
+	SourceCallID string
+	Name         string
+	Arguments    string
+	Failure      tool.Failure
 }
 
 func (record InterruptRecord) rootContinuation() (ContinuationRecord, bool) {
@@ -116,16 +118,18 @@ type drainedToolRow struct {
 	ItemID         string `json:"itemId"`
 	ItemOccurredAt int64  `json:"itemOccurredAt"`
 	CallID         string `json:"callId"`
+	SourceCallID   string `json:"sourceCallId,omitempty"`
 	Name           string `json:"name"`
 	Arguments      string `json:"arguments"`
 }
 
 type committedToolRow struct {
-	ItemID    string             `json:"itemId"`
-	CallID    string             `json:"callId"`
-	Name      string             `json:"name"`
-	Arguments string             `json:"arguments"`
-	Failure   toolFailurePayload `json:"failure"`
+	ItemID       string             `json:"itemId"`
+	CallID       string             `json:"callId"`
+	SourceCallID string             `json:"sourceCallId,omitempty"`
+	Name         string             `json:"name"`
+	Arguments    string             `json:"arguments"`
+	Failure      toolFailurePayload `json:"failure"`
 }
 
 type interruptPayload struct {
@@ -568,7 +572,8 @@ func drainedToolRows(tools []DrainedToolRecord) []drainedToolRow {
 	for index, tool := range tools {
 		rows[index] = drainedToolRow{
 			ItemID: tool.ItemID, ItemOccurredAt: tool.ItemOccurredAt.UnixNano(),
-			CallID: tool.CallID, Name: tool.Name, Arguments: tool.Arguments,
+			CallID: tool.CallID, SourceCallID: tool.SourceCallID,
+			Name: tool.Name, Arguments: tool.Arguments,
 		}
 	}
 	return rows
@@ -579,7 +584,8 @@ func drainedToolsFromRows(rows []drainedToolRow) []DrainedToolRecord {
 	for index, row := range rows {
 		tools[index] = DrainedToolRecord{
 			ItemID: row.ItemID, ItemOccurredAt: time.Unix(0, row.ItemOccurredAt).UTC(),
-			CallID: row.CallID, Name: row.Name, Arguments: row.Arguments,
+			CallID: row.CallID, SourceCallID: row.SourceCallID,
+			Name: row.Name, Arguments: row.Arguments,
 		}
 	}
 	return tools
@@ -593,11 +599,12 @@ func committedToolRows(tools []CommittedToolRecord) ([]committedToolRow, error) 
 			return nil, fmt.Errorf("committed tool[%d] failure: %w", index, err)
 		}
 		rows[index] = committedToolRow{
-			ItemID:    committed.ItemID,
-			CallID:    committed.CallID,
-			Name:      committed.Name,
-			Arguments: committed.Arguments,
-			Failure:   failure,
+			ItemID:       committed.ItemID,
+			CallID:       committed.CallID,
+			SourceCallID: committed.SourceCallID,
+			Name:         committed.Name,
+			Arguments:    committed.Arguments,
+			Failure:      failure,
 		}
 	}
 	return rows, nil
@@ -611,11 +618,12 @@ func committedToolsFromRows(rows []committedToolRow) ([]CommittedToolRecord, err
 			return nil, fmt.Errorf("committed tool[%d] failure: %w", index, err)
 		}
 		tools[index] = CommittedToolRecord{
-			ItemID:    row.ItemID,
-			CallID:    row.CallID,
-			Name:      row.Name,
-			Arguments: row.Arguments,
-			Failure:   failure,
+			ItemID:       row.ItemID,
+			CallID:       row.CallID,
+			SourceCallID: row.SourceCallID,
+			Name:         row.Name,
+			Arguments:    row.Arguments,
+			Failure:      failure,
 		}
 	}
 	return tools, nil

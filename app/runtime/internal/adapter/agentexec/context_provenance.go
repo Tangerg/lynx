@@ -1,0 +1,156 @@
+package agentexec
+
+import (
+	"fmt"
+	"slices"
+	"strings"
+
+	corechat "github.com/Tangerg/lynx/core/chat"
+	coremetadata "github.com/Tangerg/lynx/core/metadata"
+)
+
+const (
+	contextProvenanceSchemaVersion uint16 = 1
+	contextProvenanceMetadataKey          = "lynx/context_provenance"
+)
+
+type contextSourceKind string
+
+const (
+	contextSourceBasePrompt       contextSourceKind = "base_prompt"
+	contextSourceUserKnowledge    contextSourceKind = "user_knowledge"
+	contextSourcePinnedMemory     contextSourceKind = "pinned_memory"
+	contextSourceProjectKnowledge contextSourceKind = "project_knowledge"
+	contextSourceAgentDocument    contextSourceKind = "agent_document"
+	contextSourceSessionPlan      contextSourceKind = "session_plan"
+	contextSourceLifecycleHook    contextSourceKind = "lifecycle_hook"
+	contextSourceRecalledMemory   contextSourceKind = "recalled_memory"
+)
+
+type contextPurpose string
+
+const (
+	contextPurposeInstruction contextPurpose = "instruction"
+	contextPurposeData        contextPurpose = "data"
+)
+
+func (kind contextSourceKind) source(reference string) contextSource {
+	return contextSource{Kind: kind, Reference: reference, Purpose: kind.purpose()}
+}
+
+func (kind contextSourceKind) purpose() contextPurpose {
+	switch kind {
+	case contextSourcePinnedMemory, contextSourceRecalledMemory:
+		return contextPurposeData
+	case contextSourceBasePrompt,
+		contextSourceUserKnowledge,
+		contextSourceProjectKnowledge,
+		contextSourceAgentDocument,
+		contextSourceSessionPlan,
+		contextSourceLifecycleHook:
+		return contextPurposeInstruction
+	default:
+		return ""
+	}
+}
+
+type contextSource struct {
+	Kind      contextSourceKind `json:"kind"`
+	Reference string            `json:"reference,omitempty"`
+	Purpose   contextPurpose    `json:"purpose"`
+}
+
+type contextProvenance struct {
+	SchemaVersion uint16          `json:"schema_version"`
+	Sources       []contextSource `json:"sources"`
+}
+
+type contextSources []contextSource
+
+func (sources contextSources) provenance() (contextProvenance, error) {
+	for index, source := range sources {
+		expectedPurpose := source.Kind.purpose()
+		if expectedPurpose == "" || source.Purpose != expectedPurpose {
+			return contextProvenance{}, fmt.Errorf(
+				"agentexec: invalid context source[%d] kind %q purpose %q",
+				index,
+				source.Kind,
+				source.Purpose,
+			)
+		}
+	}
+	return contextProvenance{
+		SchemaVersion: contextProvenanceSchemaVersion,
+		Sources:       slices.Clone(sources),
+	}, nil
+}
+
+func (sources contextSources) attach(target *coremetadata.Map, targetName string) error {
+	if len(sources) == 0 {
+		return nil
+	}
+	provenance, err := sources.provenance()
+	if err != nil {
+		return err
+	}
+	if err := target.Set(contextProvenanceMetadataKey, provenance); err != nil {
+		return fmt.Errorf("agentexec: attach %s context provenance: %w", targetName, err)
+	}
+	return nil
+}
+
+type promptSection struct {
+	text    string
+	sources contextSources
+}
+
+type promptComposition struct {
+	sections []promptSection
+}
+
+func (composition *promptComposition) append(
+	text string,
+	source contextSource,
+	additionalSources ...contextSource,
+) {
+	if text == "" {
+		return
+	}
+	sources := make(contextSources, 1, 1+len(additionalSources))
+	sources[0] = source
+	sources = append(sources, additionalSources...)
+	composition.sections = append(composition.sections, promptSection{
+		text: text, sources: sources,
+	})
+}
+
+func (composition promptComposition) render() string {
+	var rendered strings.Builder
+	for index, section := range composition.sections {
+		if index > 0 {
+			rendered.WriteString("\n\n")
+		}
+		rendered.WriteString(section.text)
+	}
+	return rendered.String()
+}
+
+func (composition promptComposition) sources() contextSources {
+	count := 0
+	for _, section := range composition.sections {
+		count += len(section.sources)
+	}
+	sources := make(contextSources, 0, count)
+	for _, section := range composition.sections {
+		sources = append(sources, section.sources...)
+	}
+	return sources
+}
+
+func (composition promptComposition) systemMessage() (corechat.Message, error) {
+	message := corechat.NewSystemMessage(composition.render())
+	if err := composition.sources().attach(&message.Metadata, "system message"); err != nil {
+		return corechat.Message{}, err
+	}
+	return message, nil
+}

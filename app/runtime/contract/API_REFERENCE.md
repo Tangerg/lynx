@@ -5,7 +5,7 @@
 > method the runtime does not serve. Prose, rationale and wire examples live in
 > `app/runtime/doc/{API,TRANSPORT,AUX_API}.md`; this is the mechanical index.
 
-Protocol `2026-08-10` (minimum supported `2026-08-10`) · 86 methods
+Protocol `2026-08-11` (minimum supported `2026-08-11`) · 86 methods
 
 ## Methods
 
@@ -177,6 +177,7 @@ publish one namespaced pattern branch without weakening first-party tags.
 | `session_not_found` | — | `detail`, `docUrl` |
 | `stale_segment` | — | `detail`, `docUrl` |
 | `timeout` | — | `detail`, `docUrl`, `retryAfterSeconds` |
+| `tool_canceled` | — | `detail`, `docUrl` |
 | `tool_failed` | — | `detail`, `docUrl` |
 | `unsupported_mime` | — | `detail`, `docUrl` |
 | `vcs_unavailable` | — | `detail`, `docUrl` |
@@ -448,8 +449,8 @@ TypeScript validator from this single registry projection.
 | `UpdateSessionRequest` | `sessionId` | `nonEmpty` |
 | `UpdateSessionRequest` | `expectedRevision` | `positive` |
 | `ImportSessionRequest` | `artifact.session.id` | `nonEmpty` |
-| `SessionArtifact` | `version` | `minimum(15)` |
-| `SessionArtifact` | `version` | `maximum(15)` |
+| `SessionArtifact` | `version` | `minimum(16)` |
+| `SessionArtifact` | `version` | `maximum(16)` |
 | `ArtifactRun` | `messageMark` | `nonNegative` |
 | `ArtifactRunMetrics` | `steps` | `nonNegative` |
 | `ArtifactRunMetrics` | `activeDurationMillis` | `nonNegative` |

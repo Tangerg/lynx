@@ -276,42 +276,69 @@ func (owner *runTreeOwner) requestCancel(
 	if owner == nil {
 		return false, nil
 	}
-	owner.mu.Lock()
-	if owner.childCancel != nil {
-		targetRunID := owner.childCancel.targetRunID
-		owner.mu.Unlock()
-		return false, fmt.Errorf(
-			"%w: child Run %q cancellation owns the tree",
-			ErrSessionBusy,
-			targetRunID,
-		)
-	}
-	owner.cancelRequested = true
-	owner.cancelReason = reason
-	inflight := owner.interrupt.active
-	owner.mu.Unlock()
-	if requestExecutor == nil {
-		owner.abortRootCancellation(reason)
-		return false, errors.New("runs: root executor cancellation request is unavailable")
-	}
-	if err := requestExecutor(ctx); err != nil {
-		owner.abortRootCancellation(reason)
-		return false, err
-	}
-	if inflight != nil {
-		inflight.cancel()
-	}
-	if inflight != nil {
-		select {
-		case <-inflight.done:
-		case <-ctx.Done():
-			return false, ctx.Err()
+	for {
+		owner.mu.Lock()
+		if owner.childCancel != nil {
+			targetRunID := owner.childCancel.targetRunID
+			owner.mu.Unlock()
+			return false, fmt.Errorf(
+				"%w: child Run %q cancellation owns the tree",
+				ErrSessionBusy,
+				targetRunID,
+			)
 		}
+		if owner.cancelRequested {
+			owner.mu.Unlock()
+			return false, fmt.Errorf(
+				"%w: root Run cancellation already owns the tree",
+				ErrSessionBusy,
+			)
+		}
+		activation := owner.activation
+		if activation.done != nil && activation.started && !activation.finished {
+			owner.mu.Unlock()
+			select {
+			case <-activation.done:
+				continue
+			case <-ctx.Done():
+				return false, ctx.Err()
+			}
+		}
+		if activation.done != nil && activation.finished && activation.err != nil {
+			owner.mu.Unlock()
+			return false, fmt.Errorf(
+				"%w: segment activation failed: %v",
+				ErrRunFinished,
+				activation.err,
+			)
+		}
+		owner.cancelRequested = true
+		owner.cancelReason = reason
+		inflight := owner.interrupt.active
+		owner.mu.Unlock()
+		if requestExecutor == nil {
+			owner.abortRootCancellation(reason)
+			return false, errors.New("runs: root executor cancellation request is unavailable")
+		}
+		if err := requestExecutor(ctx); err != nil {
+			owner.abortRootCancellation(reason)
+			return false, err
+		}
+		if inflight != nil {
+			inflight.cancel()
+		}
+		if inflight != nil {
+			select {
+			case <-inflight.done:
+			case <-ctx.Done():
+				return false, ctx.Err()
+			}
+		}
+		owner.mu.Lock()
+		committed := owner.interrupt.committed
+		owner.mu.Unlock()
+		return committed, nil
 	}
-	owner.mu.Lock()
-	committed := owner.interrupt.committed
-	owner.mu.Unlock()
-	return committed, nil
 }
 
 func (owner *runTreeOwner) abortRootCancellation(reason string) {

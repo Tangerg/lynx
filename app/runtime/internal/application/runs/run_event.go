@@ -198,10 +198,3 @@ func (start ItemStart) validate() error {
 	}
 	return item.Validate()
 }
-
-func (start ItemStart) durableItem() (transcript.Item, bool) {
-	if start.durable == nil {
-		return transcript.Item{}, false
-	}
-	return *start.durable, true
-}

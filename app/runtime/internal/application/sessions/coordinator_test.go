@@ -172,6 +172,87 @@ func TestApplyRunCancelProjectsTerminalTranscript(t *testing.T) {
 	}
 }
 
+func TestApplyRunCancelSettlesQuestionToolAndClosesModelContext(t *testing.T) {
+	finishedAt := time.Date(2026, 8, 11, 2, 3, 4, 0, time.UTC)
+	createdAt := finishedAt.Add(-time.Minute)
+	question := &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Favorite color?"}}}
+	selection := runfixture.Selection()
+	var applied TerminalPlan
+	stores := coordinatorStores{
+		interrupts: &coordinatorInterrupts{pending: map[string]runs.Pending{
+			"run_1": {
+				RootRunID: "run_1", SessionID: "ses_1", ExecutorID: "turn_1",
+				Capabilities: run.Capabilities{InterruptKinds: []interrupt.Kind{interrupt.Question}},
+				Interrupts: []transcript.Interrupt{{
+					ItemID: "item_question", ItemOccurredAt: createdAt,
+					RunID: "run_1", Kind: interrupt.Question, Question: question,
+				}},
+				Bindings: []runs.InterruptBinding{{
+					InterruptItemID: "item_question", MemberID: "member_1", RequestID: "request_1",
+				}},
+				Continuations: []runs.Continuation{{
+					RunID: "run_1", MemberID: "member_1", RunCreatedAt: createdAt,
+					ModelSelection: selection,
+					DrainedTools: []runs.DrainedTool{{
+						ItemID: "item_tool", ItemOccurredAt: createdAt,
+						CallID: "tool:runtime:0", Name: "ask_user", Arguments: "{}",
+					}},
+				}},
+				CreatedAt: createdAt.Add(time.Second),
+			},
+		}},
+		snapshot: Snapshot{
+			Messages: []chat.Message{
+				chat.NewUserMessage(chat.NewTextPart("ask me")),
+				chat.NewAssistantMessage(chat.NewToolCallPart(chat.ToolCall{
+					ID: "provider_call_1", Name: "ask_user", Arguments: "{}",
+				})),
+			},
+			Runs: []run.Run{runfixture.MustRestore(run.Snapshot{
+				ID: "run_1", SessionID: "ses_1", State: run.Waiting,
+				ModelSelection: selection,
+				Capabilities:   run.Capabilities{InterruptKinds: []interrupt.Kind{interrupt.Question}},
+				CreatedAt:      createdAt, MessageMark: run.UnknownMessageMark,
+			})},
+			Items: []transcript.Item{
+				itemfixture.MustRestore(itemfixture.Input{
+					ID: "item_tool", RunID: "run_1", SessionID: "ses_1",
+					Kind: transcript.ToolCall, Status: transcript.ItemRunning, OccurredAt: createdAt,
+					Tool: &transcript.ToolInvocation{Name: "ask_user"},
+				}),
+				itemfixture.MustRestore(itemfixture.Input{
+					ID: "item_question", RunID: "run_1", SessionID: "ses_1",
+					Kind: transcript.QuestionItem, OccurredAt: createdAt, Question: question,
+				}),
+			},
+		},
+		terminal: &applied,
+	}
+
+	terminal, err := newCoordinator(stores, nil).ApplyRunCancel(
+		t.Context(), "ses_1", "run_1", "user dismissed the question", finishedAt,
+	)
+	if err != nil {
+		t.Fatalf("ApplyRunCancel: %v", err)
+	}
+	if terminal.State() != run.Canceled || terminal.MessageMark() != 3 {
+		t.Fatalf("terminal Run = %+v, want canceled at message mark 3", terminal)
+	}
+	if len(applied.Items) != 1 || applied.Items[0].ID() != "item_tool" ||
+		applied.Items[0].Status() != transcript.ItemIncomplete {
+		t.Fatalf("terminal Items = %+v, want incomplete item_tool", applied.Items)
+	}
+	if len(applied.Messages) != 1 || applied.Messages[0].Role != chat.RoleTool ||
+		len(applied.Messages[0].Parts) != 1 || applied.Messages[0].Parts[0].ToolResult == nil {
+		t.Fatalf("terminal Messages = %+v, want one Tool result", applied.Messages)
+	}
+	result := *applied.Messages[0].Parts[0].ToolResult
+	if result.ID != "provider_call_1" || result.Name != "ask_user" || !result.IsError ||
+		result.Result != "tool call canceled before completion: user dismissed the question" {
+		t.Fatalf("terminal Tool result = %+v", result)
+	}
+}
+
 func TestApplyRunLostProjectsTerminalTranscript(t *testing.T) {
 	finishedAt := time.Date(2026, 7, 16, 2, 3, 4, 0, time.UTC)
 	createdAt := finishedAt.Add(-time.Minute)

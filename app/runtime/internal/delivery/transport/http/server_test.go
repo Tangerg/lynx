@@ -254,8 +254,9 @@ func TestRPCUsesEnvelopeMethod(t *testing.T) {
 	}
 }
 
-// TestNonStringIDRejected confirms API.md §2.2: the envelope id must be
-// a STRING; a numeric id is rejected with invalid_request (-32600).
+// TestNonStringIDRejected confirms API.md §2.2: the envelope id must be a
+// STRING. This is a transport-shape constraint, so a numeric id is rejected
+// before dispatch instead of being coerced by the JSON-RPC SDK.
 func TestNonStringIDRejected(t *testing.T) {
 	ts, _ := newTestServer(t)
 	defer ts.Close()
@@ -266,12 +267,12 @@ func TestNonStringIDRejected(t *testing.T) {
 		t.Fatalf("post: %v", err)
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != netHTTP.StatusOK {
+	if resp.StatusCode != netHTTP.StatusBadRequest {
 		raw := readBody(resp)
-		t.Fatalf("status = %d, want 200; body = %s", resp.StatusCode, raw)
+		t.Fatalf("status = %d, want 400; body = %s", resp.StatusCode, raw)
 	}
-	if code := decodeErrorCode(t, resp); code != -32600 {
-		t.Fatalf("expected -32600, got %d", code)
+	if got := resp.Header.Get("Content-Type"); got != "application/problem+json; charset=utf-8" {
+		t.Fatalf("content-type = %q, want application/problem+json", got)
 	}
 }
 
@@ -415,6 +416,86 @@ func TestMalformedRPCBodyReturnsTransportProblem(t *testing.T) {
 	}
 	if problem.Type != "urn:lyra:transport:invalid_request" || problem.RequestID == "" {
 		t.Fatalf("problem = %+v", problem)
+	}
+}
+
+func TestInvalidRPCEnvelopeReturnsTransportProblem(t *testing.T) {
+	tests := []struct {
+		name   string
+		body   string
+		detail string
+	}{
+		{
+			name:   "duplicate member",
+			body:   `{"jsonrpc":"2.0","id":"1","method":"sessions.list","method":"runs.list","params":{}}`,
+			detail: `duplicate JSON member "method"`,
+		},
+		{
+			name:   "empty method",
+			body:   `{"jsonrpc":"2.0","id":"1","method":""}`,
+			detail: "JSON-RPC request method is empty",
+		},
+		{
+			name:   "explicit null id",
+			body:   `{"jsonrpc":"2.0","id":null,"method":"runtime.discover","params":{}}`,
+			detail: "JSON-RPC id must be a string; omit id for a notification",
+		},
+		{
+			name:   "fractional numeric id",
+			body:   `{"jsonrpc":"2.0","id":1.5,"method":"runtime.discover","params":{}}`,
+			detail: "JSON-RPC id must be a string; omit id for a notification",
+		},
+		{
+			name:   "out of range numeric id",
+			body:   `{"jsonrpc":"2.0","id":1e100,"method":"runtime.discover","params":{}}`,
+			detail: "JSON-RPC id must be a string; omit id for a notification",
+		},
+		{
+			name:   "client response envelope",
+			body:   `{"jsonrpc":"2.0","id":"1","result":{}}`,
+			detail: "POST /v2/rpc accepts only JSON-RPC requests and notifications",
+		},
+		{
+			name:   "request with response result",
+			body:   `{"jsonrpc":"2.0","id":"1","method":"runtime.discover","params":{},"result":{}}`,
+			detail: `unknown JSON-RPC request member "result"`,
+		},
+		{
+			name:   "response with result and error",
+			body:   `{"jsonrpc":"2.0","id":"1","result":{},"error":{"code":-1,"message":"bad"}}`,
+			detail: "JSON-RPC response contains both result and error",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			ts, _ := newTestServer(t)
+			defer ts.Close()
+
+			resp, err := netHTTP.Post(
+				ts.URL+"/v2/rpc",
+				"application/json",
+				bytes.NewBufferString(test.body),
+			)
+			if err != nil {
+				t.Fatalf("post: %v", err)
+			}
+			defer resp.Body.Close()
+			if resp.StatusCode != netHTTP.StatusBadRequest {
+				t.Fatalf("status = %d, want 400", resp.StatusCode)
+			}
+			var problem struct {
+				Type   string `json:"type"`
+				Detail string `json:"detail"`
+			}
+			if err := json.NewDecoder(resp.Body).Decode(&problem); err != nil {
+				t.Fatalf("decode problem: %v", err)
+			}
+			if problem.Type != "urn:lyra:transport:invalid_request" ||
+				!strings.Contains(problem.Detail, test.detail) {
+				t.Fatalf("problem = %+v", problem)
+			}
+		})
 	}
 }
 

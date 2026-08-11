@@ -5,11 +5,13 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/conversation"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
 	rundomain "github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
+	corechat "github.com/Tangerg/lynx/core/chat"
 )
 
 // parkedRunTerminalization derives the atomic Application write-set that ends
@@ -45,7 +47,15 @@ func (terminalization parkedRunTerminalization) build() (TerminalPlan, rundomain
 	if err != nil {
 		return TerminalPlan{}, rundomain.Run{}, err
 	}
-	terminalRuns, err := terminalization.terminalRuns(runsByID, rootAdmission)
+	conversationMessages, err := terminalization.terminalConversationMessages()
+	if err != nil {
+		return TerminalPlan{}, rundomain.Run{}, err
+	}
+	terminalRuns, err := terminalization.terminalRuns(
+		runsByID,
+		rootAdmission,
+		len(terminalization.snapshot.Messages)+len(conversationMessages),
+	)
 	if err != nil {
 		return TerminalPlan{}, rundomain.Run{}, err
 	}
@@ -67,7 +77,10 @@ func (terminalization parkedRunTerminalization) build() (TerminalPlan, rundomain
 			terminalization.rootRunID,
 		)
 	}
-	plan := TerminalPlan{Runs: terminalRuns, Items: items, CheckpointRootID: root.MemberID}
+	plan := TerminalPlan{
+		Runs: terminalRuns, Items: items, Messages: conversationMessages,
+		CheckpointRootID: root.MemberID,
+	}
 	if rootRun.GoalLeaseID() != "" {
 		record := terminalGoalRun(rootRun)
 		plan.GoalRun = &record
@@ -129,6 +142,7 @@ func (terminalization parkedRunTerminalization) indexRuns() (
 func (terminalization parkedRunTerminalization) terminalRuns(
 	runsByID map[string]rundomain.Run,
 	rootAdmission rundomain.Run,
+	messageMark int,
 ) ([]rundomain.Run, error) {
 	terminalRuns := make([]rundomain.Run, 0, len(terminalization.pending.Continuations))
 	for _, continuation := range terminalization.pending.Continuations {
@@ -153,12 +167,12 @@ func (terminalization parkedRunTerminalization) terminalRuns(
 			terminal, err = run.RecoverLost(rundomain.Failure{
 				Kind:   rundomain.FailureLost,
 				Detail: "the parked Run tree's executor checkpoint could not be restored",
-			}, terminalization.finishedAt, len(terminalization.snapshot.Messages))
+			}, terminalization.finishedAt, messageMark)
 		} else {
 			terminal, err = run.CancelWaiting(
 				terminalization.detail,
 				terminalization.finishedAt,
-				len(terminalization.snapshot.Messages),
+				messageMark,
 			)
 		}
 		if err != nil {
@@ -191,13 +205,28 @@ func (terminalization parkedRunTerminalization) terminalItems() ([]transcript.It
 		interruptItems[interruption.ItemID] = interruption
 	}
 	pendingRunIDs := make(map[string]struct{}, len(terminalization.pending.Continuations))
+	drainedItems := make(map[string]runs.DrainedTool)
 	for _, continuation := range terminalization.pending.Continuations {
 		pendingRunIDs[continuation.RunID] = struct{}{}
+		for _, drained := range continuation.DrainedTools {
+			drainedItems[drained.ItemID] = drained
+		}
 	}
-	items := make([]transcript.Item, 0, len(interruptItems))
+	items := make([]transcript.Item, 0, len(interruptItems)+len(drainedItems))
 	for _, item := range terminalization.snapshot.Items {
 		request, found := interruptItems[item.ID()]
 		if !found {
+			if drained, drainedFound := drainedItems[item.ID()]; drainedFound {
+				settled, changed, err := terminalization.terminalDrainedItem(item, drained)
+				if err != nil {
+					return nil, err
+				}
+				if changed {
+					items = append(items, settled)
+				}
+				delete(drainedItems, item.ID())
+				continue
+			}
 			if _, pending := pendingRunIDs[item.RunID()]; pending && item.Status() == transcript.ItemRunning {
 				return nil, fmt.Errorf(
 					"sessions: terminalize parked Run tree %q: Running Item %q has no matching interrupt",
@@ -244,7 +273,82 @@ func (terminalization parkedRunTerminalization) terminalItems() ([]transcript.It
 			terminalization.rootRunID,
 		)
 	}
+	if len(drainedItems) != 0 {
+		return nil, fmt.Errorf(
+			"sessions: terminalize parked Run tree %q: transcript is missing %d drained Tool Items",
+			terminalization.rootRunID,
+			len(drainedItems),
+		)
+	}
 	return items, nil
+}
+
+func (terminalization parkedRunTerminalization) terminalDrainedItem(
+	item transcript.Item,
+	drained runs.DrainedTool,
+) (transcript.Item, bool, error) {
+	invocation, present := item.ToolInvocation()
+	if item.SessionID() != terminalization.sessionID || item.Kind() != transcript.ToolCall ||
+		!present || invocation.Name != drained.Name ||
+		invocation.Arguments.Canonical() != drained.Arguments {
+		return transcript.Item{}, false, fmt.Errorf(
+			"sessions: terminalize parked Run tree %q: drained Tool Item %q differs from its continuation",
+			terminalization.rootRunID,
+			item.ID(),
+		)
+	}
+	switch item.Status() {
+	case transcript.ItemRunning:
+		var failure *tool.Failure
+		if terminalization.outcome == rundomain.OutcomeLost {
+			failure = &tool.Failure{
+				Kind:   tool.FailureExecution,
+				Detail: "tool call abandoned because its run could not be resumed",
+			}
+		}
+		settled, err := item.AbandonToolCall(failure, terminalization.finishedAt)
+		if err != nil {
+			return transcript.Item{}, false, fmt.Errorf(
+				"sessions: terminalize parked ToolCall %q: %w",
+				item.ID(),
+				err,
+			)
+		}
+		return settled, true, nil
+	default:
+		return transcript.Item{}, false, fmt.Errorf(
+			"sessions: terminalize parked Run tree %q: drained Tool Item %q is %s",
+			terminalization.rootRunID,
+			item.ID(),
+			item.Status(),
+		)
+	}
+}
+
+func (terminalization parkedRunTerminalization) terminalConversationMessages() ([]corechat.Message, error) {
+	resultText := "tool call canceled before completion"
+	if terminalization.outcome == rundomain.OutcomeLost {
+		resultText = "tool result unavailable because execution state was lost"
+	} else if terminalization.detail != "" {
+		resultText += ": " + terminalization.detail
+	}
+	history, err := conversation.New(terminalization.snapshot.Messages)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"sessions: terminalize parked Run tree %q conversation: %w",
+			terminalization.rootRunID,
+			err,
+		)
+	}
+	_, appended, err := history.CloseOpenToolCalls(resultText)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"sessions: close parked Run tree %q Tool context: %w",
+			terminalization.rootRunID,
+			err,
+		)
+	}
+	return appended, nil
 }
 
 func terminalGoalRun(root rundomain.Run) goal.RunRecord {

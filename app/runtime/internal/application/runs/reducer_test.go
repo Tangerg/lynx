@@ -93,6 +93,44 @@ func TestReducerFinalAssistantMessageSupersedesPartialStreamingObservation(t *te
 	}
 }
 
+func TestReducerKeepsStreamingItemsOpenUntilTheAuthoritativeModelResponse(t *testing.T) {
+	reducer := newReducer(testReducerConfig())
+	mustReduce(t, reducer, ModelCallStarted{CallID: "model_call_1"})
+	reasoningBatch := mustReduce(t, reducer, ReasoningDelta{Text: "partial reasoning"})
+	textBatch := mustReduce(t, reducer, MessageDelta{Text: "partial answer"})
+
+	reasoningItemID := startedItemID(t, reasoningBatch)
+	textItemID := startedItemID(t, textBatch)
+	for _, batch := range [][]reduction{reasoningBatch, textBatch} {
+		for _, reduced := range batch {
+			if _, completed := reduced.Event.(ItemCompleted); completed {
+				t.Fatalf("stream transition completed an Item before the model boundary: %#v", reduced.Event)
+			}
+		}
+	}
+
+	message := corechat.NewAssistantMessage(
+		corechat.NewReasoningPart("authoritative reasoning", nil),
+		corechat.NewTextPart("authoritative answer"),
+	)
+	completed := mustReduce(t, reducer, ModelCallCompleted{
+		CallID: "model_call_1", Message: message, Steps: 1,
+	})
+	items := completedItems(completed)
+	if len(items) != 2 {
+		t.Fatalf("completed Items = %#v, want one reasoning and one assistant message", items)
+	}
+	if items[0].ID() != reasoningItemID || items[0].Kind() != transcript.Reasoning ||
+		items[0].Text() != "authoritative reasoning" {
+		t.Fatalf("reasoning completion = %#v, want authoritative completion of %q", items[0], reasoningItemID)
+	}
+	content := items[1].Content()
+	if items[1].ID() != textItemID || items[1].Kind() != transcript.AgentMessage ||
+		len(content) != 1 || content[0].Text != "authoritative answer" {
+		t.Fatalf("assistant completion = %#v, want authoritative completion of %q", items[1], textItemID)
+	}
+}
+
 func TestReducerDoesNotDuplicateModelFinalWhenExecutorConfirmsSameMessage(t *testing.T) {
 	reducer := newReducer(testReducerConfig())
 	message := corechat.NewAssistantMessage(corechat.NewTextPart("authoritative answer"))
@@ -108,6 +146,10 @@ func TestReducerDoesNotDuplicateModelFinalWhenExecutorConfirmsSameMessage(t *tes
 	}
 	if completed != 1 {
 		t.Fatalf("model completion Item count = %d, want 1", completed)
+	}
+	conversation := committedConversationMessages(modelBatch)
+	if len(conversation) != 1 || conversation[0].Text() != "authoritative answer" {
+		t.Fatalf("model conversation projection = %#v", conversation)
 	}
 	processBatch := mustReduce(t, reducer, AssistantMessageCompleted{Message: message})
 	if len(processBatch) != 0 {
@@ -133,6 +175,42 @@ func TestReducerProjectsAppliedSteersAsOneOrderedFact(t *testing.T) {
 	if len(completed) != 2 || completed[0].Content()[0].Text != "first" ||
 		completed[1].Content()[0].Text != "second" || completed[0].ID() == completed[1].ID() {
 		t.Fatalf("completed steer items = %#v", completed)
+	}
+	conversation := committedConversationMessages(reduced)
+	if len(conversation) != 2 || conversation[0].Text() != "first" || conversation[1].Text() != "second" {
+		t.Fatalf("steer conversation projection = %#v", conversation)
+	}
+}
+
+func TestReducerProjectsModelToolContextWithProviderCallIdentity(t *testing.T) {
+	reducer := newReducer(testReducerConfig())
+	call := corechat.ToolCall{ID: "provider_call_1", Name: "inspect", Arguments: `{"path":"README.md"}`}
+	message := corechat.NewAssistantMessage(corechat.NewToolCallPart(call))
+	mustReduce(t, reducer, ModelCallStarted{CallID: "model_call_1"})
+	modelBatch := mustReduce(t, reducer, ModelCallCompleted{
+		CallID: "model_call_1", Message: message, Steps: 1,
+	})
+	modelMessages := committedConversationMessages(modelBatch)
+	if len(modelMessages) != 1 || len(modelMessages[0].Parts) != 1 ||
+		modelMessages[0].Parts[0].ToolCall == nil || modelMessages[0].Parts[0].ToolCall.ID != call.ID {
+		t.Fatalf("model ToolCall conversation projection = %#v", modelMessages)
+	}
+
+	mustReduce(t, reducer, ToolCallStarted{
+		CallID: "runtime_call_1", SourceCallID: call.ID,
+		ModelCallSequence: 1, ToolCallIndex: 0,
+		ToolName: call.Name, Arguments: call.Arguments, SafetyClass: tool.SafetyClassSafe,
+	})
+	toolBatch := mustReduce(t, reducer, ToolCallFinished{
+		CallID: "runtime_call_1", Result: testToolResult(t, "contents"),
+	})
+	toolMessages := committedConversationMessages(toolBatch)
+	if len(toolMessages) != 1 || toolMessages[0].Role != corechat.RoleTool || len(toolMessages[0].Parts) != 1 {
+		t.Fatalf("Tool result conversation projection = %#v", toolMessages)
+	}
+	result := toolMessages[0].Parts[0].ToolResult
+	if result == nil || result.ID != call.ID || result.Name != call.Name || result.Result != "contents" || result.IsError {
+		t.Fatalf("Tool result = %#v, want provider identity and successful output", result)
 	}
 }
 
@@ -308,9 +386,23 @@ func TestReducerOpeningCreatesCanonicalRunAndUserItem(t *testing.T) {
 	if opening[1].Commit == nil || len(opening[1].Commit.Items) != 1 {
 		t.Fatal("completed user item has no canonical durable fact")
 	}
+	conversation := opening[1].Commit.ConversationMessages
+	if len(conversation) != 1 || conversation[0].Role != corechat.RoleUser || conversation[0].Text() != "hello" {
+		t.Fatalf("opening conversation projection = %#v", conversation)
+	}
 	if again := mustOpen(t, reducer); len(again) != 1 {
 		t.Fatalf("second opening repeated user input: %+v", again)
 	}
+}
+
+func committedConversationMessages(reductions []reduction) []corechat.Message {
+	var messages []corechat.Message
+	for _, reduced := range reductions {
+		if reduced.Commit != nil {
+			messages = append(messages, reduced.Commit.ConversationMessages...)
+		}
+	}
+	return messages
 }
 
 func mustReducerSelection(provider, model string) modelref.Selection {
@@ -536,10 +628,16 @@ func TestReducerCarriesLaterPausedCallIdentityAcrossSequentialResumes(t *testing
 	})
 	resumed := newReducer(config)
 	mustOpen(t, resumed)
-	if got := startedItemID(t, mustReduce(t, resumed, ToolCallStarted{
+	resumedStart := mustReduce(t, resumed, ToolCallStarted{
 		CallID: "call-1", ToolName: "approval", Arguments: `{"path":"a"}`, SafetyClass: "write",
-	})); got != firstID {
-		t.Fatalf("resumed first item ID = %q, want %q", got, firstID)
+	})
+	for _, reduced := range resumedStart {
+		if _, ok := reduced.Event.(ItemStarted); ok {
+			t.Fatal("resumed canonical Tool Item published a second lifecycle start")
+		}
+	}
+	if got, open := resumed.openToolItemID("call-1"); !open || got != firstID {
+		t.Fatalf("resumed first item = %q/%t, want %q", got, open, firstID)
 	}
 	mustReduce(t, resumed, ToolCallFinished{CallID: "call-1", Result: testToolResult(t, "approved")})
 
@@ -677,16 +775,18 @@ func TestReducerResumeReusesInterruptedItems(t *testing.T) {
 	}
 
 	started := mustReduce(t, reducer, ToolCallStarted{CallID: "call_1", ToolName: "shell", Arguments: `{"command":"go test","description":"Run tests"}`})
-	var startedItem ItemStart
 	for _, reduction := range started {
-		if event, ok := reduction.Event.(ItemStarted); ok {
-			startedItem = event.Item
+		if _, ok := reduction.Event.(ItemStarted); ok {
+			t.Fatal("resumed canonical Tool Item published a second lifecycle start")
 		}
 	}
-	if startedItem.ItemID != "item_approval" || !startedItem.OccurredAt.Equal(approvalAt) {
-		t.Fatalf("resumed tool item = %+v, want original identity and occurrence", startedItem)
+	if itemID, open := reducer.openToolItemID("call_1"); !open || itemID != "item_approval" {
+		t.Fatalf("resumed open tool = %q/%t, want item_approval", itemID, open)
 	}
-	mustReduce(t, reducer, ToolCallFinished{CallID: "call_1", Result: testToolResult(t, "ok")})
+	completed := completedItem(t, mustReduce(t, reducer, ToolCallFinished{CallID: "call_1", Result: testToolResult(t, "ok")}))
+	if completed.ID() != "item_approval" || !completed.OccurredAt().Equal(approvalAt) {
+		t.Fatalf("resumed completed tool = %s/%s, want original identity and occurrence", completed.ID(), completed.OccurredAt())
+	}
 
 	second := mustReduce(t, reducer, ToolCallStarted{CallID: "call_2", ToolName: "shell", Arguments: `{"command":"go vet","description":"Vet server packages"}`})
 	var secondID string
@@ -737,6 +837,127 @@ func TestReducerProjectsParkAsOneAtomicWriteSetBeforeFirstInterruptEvent(t *test
 	}
 	if terminal := batch.events[len(batch.events)-1]; terminal.Commit != nil {
 		t.Fatalf("terminal event repeated park commit: %+v", terminal)
+	}
+}
+
+func TestReducerPublishesOneStartForToolThatBecomesAnApproval(t *testing.T) {
+	reducer := newReducer(testReducerConfig())
+	started := mustReduce(t, reducer, ToolCallStarted{
+		CallID: "call_1", SourceCallID: "provider_1", ModelCallSequence: 1,
+		ToolName: "shell", Arguments: `{}`,
+	})
+	parked := mustReduceBatch(t, reducer, SegmentInterrupted{Interrupts: []Interrupt{{
+		Kind: interrupt.Approval,
+		Approval: &ApprovalPrompt{
+			CallID: "call_1", ToolName: "shell", Arguments: `{}`,
+			SafetyClass: tool.SafetyClassExec, Risk: "high",
+		},
+	}}})
+
+	starts := 0
+	for _, reduced := range append(started, parked.events...) {
+		if _, ok := reduced.Event.(ItemStarted); ok {
+			starts++
+		}
+	}
+	if starts != 1 {
+		t.Fatalf("tool start events = %d, want one canonical lifecycle start", starts)
+	}
+	if parked.parkCommit == nil || len(parked.parkCommit.Items) != 1 {
+		t.Fatalf("park commit = %+v, want the running approval Item", parked.parkCommit)
+	}
+	if len(parked.parkCommit.ToolInvocations) != 1 ||
+		parked.parkCommit.ToolInvocations[0].State != ToolInvocationIncomplete {
+		t.Fatalf("park Tool invocations = %+v, want one incomplete attempt", parked.parkCommit.ToolInvocations)
+	}
+}
+
+func TestReducerKeepsQuestionToolLifecycleOpenAcrossHITLResume(t *testing.T) {
+	const (
+		arguments    = `{"questions":[{"header":"Color","options":[{"label":"Blue"},{"label":"Green"}],"question":"Choose"}]}`
+		providerArgs = `{"questions":[{"header":"Color","options":[{"description":"","label":"Blue"},{"description":"","label":"Green"}],"question":"Choose"}]}`
+	)
+	first := newReducer(testReducerConfig())
+	toolItemID := startedItemID(t, mustReduce(t, first, ToolCallStarted{
+		CallID: "call_question", SourceCallID: "provider_question",
+		ModelCallSequence: 1, ToolName: "ask_user", Arguments: providerArgs,
+		SafetyClass: tool.SafetyClassSafe,
+	}))
+	parked := mustReduceBatch(t, first, SegmentInterrupted{Interrupts: []Interrupt{{
+		Kind: interrupt.Question,
+		Question: &QuestionPrompt{
+			CallID: "call_question", ToolName: "ask_user", Arguments: arguments,
+			Fields: []QuestionFieldSpec{{
+				Prompt: "Choose", Header: "Color",
+				Options:     []QuestionOptionSpec{{Label: "Blue"}, {Label: "Green"}},
+				AllowCustom: true,
+			}},
+		},
+	}}})
+
+	for _, reduced := range parked.events {
+		completed, ok := reduced.Event.(ItemCompleted)
+		if ok && completed.Item.ID() == toolItemID {
+			t.Fatal("question park completed its still-suspended Tool Item")
+		}
+	}
+	if parked.parkCommit == nil || len(parked.parkCommit.Items) != 2 {
+		t.Fatalf("question park commit = %+v, want running Tool and completed Question", parked.parkCommit)
+	}
+	if parked.parkCommit.Items[0].ID() != toolItemID ||
+		parked.parkCommit.Items[0].Status() != transcript.ItemRunning ||
+		parked.parkCommit.Items[1].Kind() != transcript.QuestionItem ||
+		parked.parkCommit.Items[1].Status() != transcript.ItemCompleted {
+		t.Fatalf("question park Items = %+v", parked.parkCommit.Items)
+	}
+	if len(first.drained) != 1 || first.drained[0].ItemID != toolItemID {
+		t.Fatalf("question continuation tools = %+v, want %q", first.drained, toolItemID)
+	}
+	if len(parked.parkCommit.ToolInvocations) != 1 ||
+		parked.parkCommit.ToolInvocations[0].CallID != "call_question" ||
+		parked.parkCommit.ToolInvocations[0].ItemID != toolItemID ||
+		parked.parkCommit.ToolInvocations[0].State != ToolInvocationIncomplete {
+		t.Fatalf("question park Tool invocations = %+v, want closed first-segment attempt", parked.parkCommit.ToolInvocations)
+	}
+	finished := parked.events[len(parked.events)-1].Event.(SegmentFinished)
+	if len(finished.Interrupts) != 1 || finished.Interrupts[0].ItemID == toolItemID {
+		t.Fatalf("question interrupt = %+v, want a separate prompt Item", finished.Interrupts)
+	}
+
+	config := testReducerConfig()
+	config.SegmentID = "seg_2"
+	config.Continuation = testTreeContinuation(Pending{
+		RootRunID: "run_1", SessionID: "ses_1",
+		Interrupts: finished.Interrupts,
+		Continuations: []Continuation{{
+			RunID: "run_1", DrainedTools: slices.Clone(first.drained),
+		}},
+	})
+	resumed := newReducer(config)
+	mustOpen(t, resumed)
+	refired := mustReduce(t, resumed, ToolCallStarted{
+		CallID: "call_question", SourceCallID: "provider_question",
+		ModelCallSequence: 1, ToolName: "ask_user", Arguments: providerArgs,
+		SafetyClass: tool.SafetyClassSafe,
+	})
+	startedAttempts := 0
+	for _, reduced := range refired {
+		if _, started := reduced.Event.(ItemStarted); started {
+			t.Fatal("resumed question Tool published a second lifecycle start")
+		}
+		if reduced.Commit != nil && len(reduced.Commit.ToolInvocations) == 1 &&
+			reduced.Commit.ToolInvocations[0].State == ToolInvocationStarted {
+			startedAttempts++
+		}
+	}
+	if startedAttempts != 1 {
+		t.Fatalf("resumed Tool started attempts = %d, want one new segment attempt", startedAttempts)
+	}
+	completed := completedItem(t, mustReduce(t, resumed, ToolCallFinished{
+		CallID: "call_question", Result: testToolResult(t, "Blue"),
+	}))
+	if completed.ID() != toolItemID || completed.Status() != transcript.ItemCompleted {
+		t.Fatalf("resumed question Tool = %+v, want one completion of %q", completed, toolItemID)
 	}
 }
 
@@ -834,13 +1055,50 @@ func TestReducerUsesCanonicalArgumentsForResumeIdentity(t *testing.T) {
 		CallID: "new_call", ToolName: "lookup",
 		Arguments: "{\n  \"a\": {\"enabled\": true}, \"b\": 2\n}",
 	})
-	if got := startedItemID(t, started); got != "item_original" {
-		t.Fatalf("resumed item id = %q, want canonical match item_original", got)
-	}
 	for _, reduction := range started {
-		if event, ok := reduction.Event.(ItemStarted); ok && !event.Item.OccurredAt.Equal(itemOccurredAt) {
-			t.Fatalf("resumed item occurrence = %s, want %s", event.Item.OccurredAt, itemOccurredAt)
+		if _, ok := reduction.Event.(ItemStarted); ok {
+			t.Fatal("resumed canonical Tool Item published a second lifecycle start")
 		}
+	}
+	if itemID, open := reducer.openToolItemID("new_call"); !open || itemID != "item_original" {
+		t.Fatalf("resumed open tool = %q/%t, want item_original", itemID, open)
+	}
+	completed := completedItem(t, mustReduce(t, reducer, ToolCallFinished{CallID: "new_call", Result: testToolResult(t, "ok")}))
+	if completed.ID() != "item_original" || !completed.OccurredAt().Equal(itemOccurredAt) {
+		t.Fatalf("resumed completed tool = %s/%s, want original identity and occurrence", completed.ID(), completed.OccurredAt())
+	}
+}
+
+func TestReducerTerminalSynthesisClosesUnrestartedResumeTool(t *testing.T) {
+	itemOccurredAt := time.Unix(1, 0).UTC()
+	config := testReducerConfig()
+	config.Continuation = testTreeContinuation(Pending{
+		RootRunID: "run_1", SessionID: "ses_1",
+		Continuations: []Continuation{{
+			RunID: "run_1",
+			DrainedTools: []DrainedTool{{
+				ItemID: "item_original", ItemOccurredAt: itemOccurredAt,
+				CallID: "old_call", Name: "shell", Arguments: `{"command":"pwd"}`,
+			}},
+		}},
+	})
+	reducer := newReducer(config)
+	if _, err := reducer.open(); err != nil {
+		t.Fatalf("open resumed segment: %v", err)
+	}
+
+	batch, err := reducer.synthesizeTerminal()
+	if err != nil {
+		t.Fatalf("synthesize terminal: %v", err)
+	}
+	var settled transcript.Item
+	for _, reduced := range batch.events {
+		if completed, ok := reduced.Event.(ItemCompleted); ok && completed.Item.ID() == "item_original" {
+			settled = completed.Item
+		}
+	}
+	if settled.ID() == "" || settled.Status() != transcript.ItemIncomplete {
+		t.Fatalf("resumed tool terminal item = %+v, want incomplete item_original", settled.Snapshot())
 	}
 }
 
@@ -1029,7 +1287,7 @@ func TestReducerDrainsToolsInStartOrder(t *testing.T) {
 		mustReduce(t, reducer, event)
 	}
 
-	drained := drainedToolRefs(reducer.tools.ordered(), nil)
+	drained := drainedToolRefs(reducer.tools.ordered(), nil, nil)
 	if len(drained) != 3 {
 		t.Fatalf("drained tool count = %d, want 3", len(drained))
 	}
@@ -1080,6 +1338,16 @@ func completedItem(t *testing.T, reductions []reduction) transcript.Item {
 	}
 	t.Fatalf("no ItemCompleted in %+v", reductions)
 	return transcript.Item{}
+}
+
+func completedItems(reductions []reduction) []transcript.Item {
+	var items []transcript.Item
+	for _, reduction := range reductions {
+		if event, ok := reduction.Event.(ItemCompleted); ok {
+			items = append(items, event.Item)
+		}
+	}
+	return items
 }
 
 func startedItemID(t *testing.T, reductions []reduction) string {

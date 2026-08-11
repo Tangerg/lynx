@@ -236,6 +236,7 @@ type approvalPromptWire struct {
 }
 
 type questionPromptWire struct {
+	CallID    string                  `json:"callId,omitempty"`
 	ToolName  string                  `json:"toolName"`
 	Arguments string                  `json:"arguments"`
 	Fields    []questionFieldSpecWire `json:"fields"`
@@ -264,7 +265,7 @@ func promptWireFrom(interrupt runs.Interrupt) interruptWire {
 	}
 	if prompt := interrupt.Question; prompt != nil {
 		result.Question = &questionPromptWire{
-			ToolName: prompt.ToolName, Arguments: prompt.Arguments,
+			CallID: prompt.CallID, ToolName: prompt.ToolName, Arguments: prompt.Arguments,
 			Fields: questionFieldWiresFrom(prompt.Fields),
 		}
 	}
@@ -293,7 +294,7 @@ func (wire interruptWire) interrupt() (runs.Interrupt, error) {
 	}
 	if prompt := wire.Question; prompt != nil {
 		result.Question = &runs.QuestionPrompt{
-			ToolName: prompt.ToolName, Arguments: prompt.Arguments,
+			CallID: prompt.CallID, ToolName: prompt.ToolName, Arguments: prompt.Arguments,
 			Fields: questionFieldSpecsFrom(wire.Question.Fields),
 		}
 	}

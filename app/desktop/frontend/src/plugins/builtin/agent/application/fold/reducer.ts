@@ -2,7 +2,7 @@ import type { Item, RunEvent } from "@/rpc";
 import type { AgentSessionView } from "@/plugins/sdk/types/agentSessionView";
 import { measureReduce } from "@/lib/metrics";
 import { lookupCustomHandlers, lookupStreamHandlers, reportPluginError } from "@/plugins/sdk";
-import { onItemCompleted } from "./itemHandlers";
+import { onItemCompleted, onItemStarted } from "./itemHandlers";
 import { durableItemSource } from "./source";
 
 function applyStreamHandlers(state: AgentSessionView, event: RunEvent): AgentSessionView {
@@ -45,5 +45,8 @@ export function reduceRunEvent(state: AgentSessionView, event: RunEvent): AgentS
 }
 
 export function reduceDurableItem(state: AgentSessionView, item: Item): AgentSessionView {
-  return onItemCompleted(state, item, durableItemSource(item));
+  const source = durableItemSource(item);
+  return item.status === "running"
+    ? onItemStarted(state, item, source)
+    : onItemCompleted(state, item, source);
 }

@@ -10,6 +10,7 @@ import (
 	rundomain "github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
+	corechat "github.com/Tangerg/lynx/core/chat"
 )
 
 // Validate verifies the Application projection and one-shot executor
@@ -73,15 +74,16 @@ func (prepared PreparedWaitingSubtreeCancellation) Validate() error {
 }
 
 type waitingCancellationTransformation struct {
-	terminalRuns   []rundomain.Run
-	terminalItems  []ItemReplacement
-	parentItem     ItemReplacement
-	remaining      *Pending
-	continuation   *treeContinuation
-	checkpoint     ExecutorCheckpoint
-	root           rundomain.Run
-	targetRunID    string
-	canceledRunIDs []string
+	terminalRuns         []rundomain.Run
+	terminalItems        []ItemReplacement
+	parentItem           ItemReplacement
+	remaining            *Pending
+	continuation         *treeContinuation
+	checkpoint           ExecutorCheckpoint
+	conversationMessages []corechat.Message
+	root                 rundomain.Run
+	targetRunID          string
+	canceledRunIDs       []string
 }
 
 // waitingCancellationBuilder owns the pure Application transformation from a
@@ -124,6 +126,10 @@ func (builder waitingCancellationBuilder) build() (waitingCancellationTransforma
 	if err != nil {
 		return waitingCancellationTransformation{}, err
 	}
+	conversationMessages, err := builder.parentConversationMessages(parentItem, continuations)
+	if err != nil {
+		return waitingCancellationTransformation{}, err
+	}
 	interrupts, bindings, err := builder.remainingInterruptions(canceledMembers, continuations)
 	if err != nil {
 		return waitingCancellationTransformation{}, err
@@ -137,16 +143,59 @@ func (builder waitingCancellationBuilder) build() (waitingCancellationTransforma
 		return waitingCancellationTransformation{}, err
 	}
 	return waitingCancellationTransformation{
-		terminalRuns:   terminalRuns,
-		terminalItems:  terminalItems,
-		parentItem:     parentItem,
-		remaining:      remaining,
-		continuation:   continuation,
-		checkpoint:     builder.prepared.Checkpoint.Clone(),
-		root:           builder.plan.root.run,
-		targetRunID:    builder.plan.target.run.ID(),
-		canceledRunIDs: canceledRunIDs,
+		terminalRuns:         terminalRuns,
+		terminalItems:        terminalItems,
+		parentItem:           parentItem,
+		remaining:            remaining,
+		continuation:         continuation,
+		checkpoint:           builder.prepared.Checkpoint.Clone(),
+		conversationMessages: conversationMessages,
+		root:                 builder.plan.root.run,
+		targetRunID:          builder.plan.target.run.ID(),
+		canceledRunIDs:       canceledRunIDs,
 	}, nil
+}
+
+func (builder waitingCancellationBuilder) parentConversationMessages(
+	parentItem ItemReplacement,
+	continuations []Continuation,
+) ([]corechat.Message, error) {
+	if parentItem.Expected.RunID() != builder.plan.root.run.ID() {
+		return nil, nil
+	}
+	failure, failed := parentItem.Replacement.Failure()
+	if !failed {
+		return nil, errors.New("runs: waiting cancellation parent Tool has no failure")
+	}
+	for _, continuation := range continuations {
+		if continuation.RunID != builder.plan.root.run.ID() {
+			continue
+		}
+		for _, committed := range continuation.CommittedTools {
+			if committed.ItemID != parentItem.Expected.ID() {
+				continue
+			}
+			if committed.SourceCallID == "" {
+				return nil, fmt.Errorf(
+					"runs: root spawning Tool %q has no provider source call ID",
+					committed.ItemID,
+				)
+			}
+			return []corechat.Message{childCancellationToolMessage(committed, failure)}, nil
+		}
+	}
+	return nil, fmt.Errorf(
+		"runs: root spawning Tool %q has no committed continuation",
+		parentItem.Expected.ID(),
+	)
+}
+
+func childCancellationToolMessage(committed CommittedTool, failure tool.Failure) corechat.Message {
+	return corechat.NewToolMessage(corechat.ToolResult{
+		ID: committed.SourceCallID, Name: committed.Name,
+		Result:  fmt.Sprintf("error: tool %q failed: %s", committed.Name, failure.Detail),
+		IsError: true,
+	})
 }
 
 func (builder waitingCancellationBuilder) validate() error {
@@ -257,15 +306,18 @@ func (builder waitingCancellationBuilder) settleWaitingItems(
 		Detail: builder.reason,
 	}
 	parentItem := builder.plan.spawningItem
-	replacement, err := parentItem.ClassifyAbandonedToolCall(failure)
+	replacement, err := parentItem.AbandonToolCall(&failure, builder.finishedAt)
 	if err != nil {
 		return nil, ItemReplacement{}, nil, fmt.Errorf("runs: classify spawning Item: %w", err)
 	}
-	terminalItems := make([]ItemReplacement, 0, len(builder.plan.targetInterruptItems))
+	terminalItems := make([]ItemReplacement, 0, len(builder.plan.targetInterruptItems)+len(builder.plan.targetDrainedItems))
+	toolItems := slices.Clone(builder.plan.targetDrainedItems)
 	for _, item := range builder.plan.targetInterruptItems {
-		if item.Kind() == transcript.QuestionItem {
-			continue
+		if item.Kind() == transcript.ToolCall {
+			toolItems = append(toolItems, item)
 		}
+	}
+	for _, item := range toolItems {
 		itemFailure := tool.Failure{
 			Kind:   tool.FailureExecution,
 			Detail: builder.reason,
@@ -319,11 +371,12 @@ func (builder waitingCancellationBuilder) settleWaitingItems(
 				)
 			}
 			clone.CommittedTools = append(clone.CommittedTools, CommittedTool{
-				ItemID:    tool.ItemID,
-				CallID:    tool.CallID,
-				Name:      tool.Name,
-				Arguments: tool.Arguments,
-				Failure:   failure,
+				ItemID:       tool.ItemID,
+				CallID:       tool.CallID,
+				SourceCallID: tool.SourceCallID,
+				Name:         tool.Name,
+				Arguments:    tool.Arguments,
+				Failure:      failure,
 			})
 			parentToolMoved = true
 		}
@@ -474,15 +527,16 @@ func (transformation waitingCancellationTransformation) durableCommit(
 	expected Pending,
 ) WaitingSubtreeCancellationCommit {
 	return WaitingSubtreeCancellationCommit{
-		RootRunID:        expected.RootRunID,
-		TargetRunID:      transformation.targetRunID,
-		SessionID:        expected.SessionID,
-		RootRun:          transformation.root,
-		ExpectedPending:  expected,
-		RemainingPending: transformation.remaining,
-		Checkpoint:       transformation.checkpoint,
-		TerminalRuns:     slices.Clone(transformation.terminalRuns),
-		TerminalItems:    slices.Clone(transformation.terminalItems),
-		ParentItem:       transformation.parentItem,
+		RootRunID:            expected.RootRunID,
+		TargetRunID:          transformation.targetRunID,
+		SessionID:            expected.SessionID,
+		RootRun:              transformation.root,
+		ExpectedPending:      expected,
+		RemainingPending:     transformation.remaining,
+		Checkpoint:           transformation.checkpoint,
+		TerminalRuns:         slices.Clone(transformation.terminalRuns),
+		TerminalItems:        slices.Clone(transformation.terminalItems),
+		ParentItem:           transformation.parentItem,
+		ConversationMessages: appendClonedMessages(nil, transformation.conversationMessages...),
 	}
 }

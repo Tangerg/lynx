@@ -1,6 +1,7 @@
 package git
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"os"
@@ -8,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 // initRepo creates a temp git repo with one committed file ("a.txt") and
@@ -144,6 +146,42 @@ func TestRunAllowsDocumentedExitCode(t *testing.T) {
 	}
 	if !strings.Contains(out, "+new") {
 		t.Fatalf("diff output = %q, want added content", out)
+	}
+}
+
+func TestStatusObservationDoesNotRefreshGitIndex(t *testing.T) {
+	dir := initRepo(t)
+	indexPath := filepath.Join(dir, ".git", "index")
+	before, err := os.ReadFile(indexPath)
+	if err != nil {
+		t.Fatalf("read index before ListChanges: %v", err)
+	}
+
+	// Change only the worktree stat tuple. An ordinary `git status` proves the
+	// content is unchanged and then refreshes the cached tuple in the index;
+	// --no-optional-locks must keep this observation from writing that refresh.
+	info, err := os.Stat(filepath.Join(dir, "a.txt"))
+	if err != nil {
+		t.Fatalf("stat tracked file: %v", err)
+	}
+	changed := info.ModTime().Add(2 * time.Second)
+	if err := os.Chtimes(filepath.Join(dir, "a.txt"), changed, changed); err != nil {
+		t.Fatalf("change tracked file timestamp: %v", err)
+	}
+
+	status, err := run(t.Context(), dir, "status", "--porcelain=v1", "-z")
+	if err != nil {
+		t.Fatalf("status: %v", err)
+	}
+	if status != "" {
+		t.Fatalf("timestamp-only change reported as content change: %q", status)
+	}
+	after, err := os.ReadFile(indexPath)
+	if err != nil {
+		t.Fatalf("read index after ListChanges: %v", err)
+	}
+	if !bytes.Equal(before, after) {
+		t.Fatal("read-only status refreshed .git/index")
 	}
 }
 

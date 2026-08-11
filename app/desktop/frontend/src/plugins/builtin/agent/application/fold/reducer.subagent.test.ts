@@ -207,6 +207,50 @@ describe("reducer — source-owned Run tree", () => {
     expect(cold.runsById.root).toEqual(live.runsById.root);
   });
 
+  it("does not let duplicate or late segment.started regress a newer Run state", () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const root = runningRun("root", "seg_root");
+    const startEvent = started("evt_root_start", root);
+    const startedView = reduceRunEvent(EMPTY_AGENT_SESSION_VIEW, startEvent);
+    const progressed = reduceRunEvent(
+      startedView,
+      progress("evt_root_progress", root.id, "seg_root", 3),
+    );
+
+    expect(reduceRunEvent(progressed, startEvent)).toBe(progressed);
+    const terminal = reduceRunEvent(progressed, finished("evt_root_finish", root.id, "seg_root"));
+    expect(reduceRunEvent(terminal, startEvent)).toBe(terminal);
+
+    const late = reduceRunEvent(terminal, started("evt_late_start", root));
+    expect(late).toBe(terminal);
+    expect(error).toHaveBeenCalledWith(
+      expect.stringContaining('stream handler "segment.started"'),
+      expect.objectContaining({
+        message: expect.stringContaining("agent.fold.runStatusMismatch"),
+      }),
+    );
+    error.mockRestore();
+  });
+
+  it("does not let a second segment start while another segment is running", () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const root = runningRun("root", "seg_root");
+    const startedView = reduceRunEvent(EMPTY_AGENT_SESSION_VIEW, started("evt_root_start", root));
+    const conflicting = reduceRunEvent(
+      startedView,
+      started("evt_conflicting_start", runningRun("root", "seg_other")),
+    );
+
+    expect(conflicting).toBe(startedView);
+    expect(error).toHaveBeenCalledWith(
+      expect.stringContaining('stream handler "segment.started"'),
+      expect.objectContaining({
+        message: expect.stringContaining("agent.fold.segmentMismatch"),
+      }),
+    );
+    error.mockRestore();
+  });
+
   it("fails closed when an Item owner disagrees with the event envelope", () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
     const root = runningRun("root", "seg_root");

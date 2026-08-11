@@ -125,6 +125,17 @@ describe("reducer — shared state", () => {
     s = reduce(s, plan(2, "stale"));
     expect(s.shared.plan).toMatchObject({ revision: 4, plan: [{ description: "current" }] });
   });
+
+  it("a duplicate revision is a no-op even if a drifted replay arrives", () => {
+    const current = reduce(EMPTY_AGENT_SESSION_VIEW, plan(4, "current"));
+    const duplicate = reduce(current, plan(4, "drifted replay"));
+
+    expect(duplicate).toBe(current);
+    expect(duplicate.shared.plan).toMatchObject({
+      revision: 4,
+      plan: [{ description: "current" }],
+    });
+  });
 });
 
 describe("reducer — durable history hydration", () => {

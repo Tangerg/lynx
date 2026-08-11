@@ -55,6 +55,66 @@ func (c Conversation) Seed(messages []chat.Message) (Conversation, error) {
 	return New(messages)
 }
 
+// Append returns the conversation extended by messages in model-context order.
+func (c Conversation) Append(messages ...chat.Message) (Conversation, error) {
+	combined := make([]chat.Message, 0, len(c.messages)+len(messages))
+	combined = append(combined, c.messages...)
+	combined = append(combined, messages...)
+	return New(combined)
+}
+
+// CloseOpenToolCalls returns the conversation with one error result appended
+// for every provider ToolCall that has no later ToolResult. The results are
+// ordered by the calls' first unresolved occurrence and share one Tool message,
+// matching the provider-neutral conversation protocol. A resolved call ID may
+// be reused by a later generation without reopening the former generation.
+func (c Conversation) CloseOpenToolCalls(result string) (Conversation, []chat.Message, error) {
+	type openCall struct {
+		call       chat.ToolCall
+		generation int
+	}
+	ordered := make([]openCall, 0)
+	open := make(map[string]int)
+	generation := 0
+	for _, message := range c.messages {
+		for _, part := range message.Parts {
+			if call := part.ToolCall; call != nil {
+				if _, duplicate := open[call.ID]; !duplicate {
+					generation++
+					open[call.ID] = generation
+					ordered = append(ordered, openCall{call: *call, generation: generation})
+				}
+			}
+			if toolResult := part.ToolResult; toolResult != nil {
+				delete(open, toolResult.ID)
+			}
+		}
+	}
+	if len(open) == 0 {
+		return c, nil, nil
+	}
+	results := make([]chat.ToolResult, 0, len(open))
+	for _, unresolved := range ordered {
+		current, present := open[unresolved.call.ID]
+		if !present || current != unresolved.generation {
+			continue
+		}
+		results = append(results, chat.ToolResult{
+			ID: unresolved.call.ID, Name: unresolved.call.Name,
+			Result: result, IsError: true,
+		})
+	}
+	if len(results) == 0 {
+		return c, nil, nil
+	}
+	appended := []chat.Message{chat.NewToolMessage(results...)}
+	closed, err := c.Append(appended...)
+	if err != nil {
+		return Conversation{}, nil, err
+	}
+	return closed, appended, nil
+}
+
 // Truncate returns the prefix ending at keepN. Values below zero clear the
 // conversation; values beyond the current watermark are a no-op.
 func (c Conversation) Truncate(keepN int) Conversation {

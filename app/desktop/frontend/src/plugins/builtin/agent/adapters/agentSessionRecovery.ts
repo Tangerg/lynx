@@ -14,8 +14,8 @@ interface AgentSessionRecoveryOptions {
   pump: (stream: RunStream, signal: AbortSignal) => Promise<void>;
 }
 
-export function startAgentSessionRecovery(options: AgentSessionRecoveryOptions): void {
-  void recover(options).catch((error: unknown) => {
+export function startAgentSessionRecovery(options: AgentSessionRecoveryOptions): Promise<void> {
+  return recover(options).catch((error: unknown) => {
     if (!options.isCancelled()) {
       console.error("[agent] session recovery failed:", options.sessionId, error);
     }

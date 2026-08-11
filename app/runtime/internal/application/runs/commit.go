@@ -10,6 +10,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
+	corechat "github.com/Tangerg/lynx/core/chat"
 )
 
 type ItemReplacement struct {
@@ -20,18 +21,19 @@ type ItemReplacement struct {
 // WaitingSubtreeCancellationCommit is the immutable write-set for canceling a
 // child while its Run tree is waiting.
 type WaitingSubtreeCancellationCommit struct {
-	RootRunID        string
-	TargetRunID      string
-	SessionID        string
-	RootRun          run.Run
-	ExpectedPending  Pending
-	RemainingPending *Pending
-	Checkpoint       ExecutorCheckpoint
-	TerminalRuns     []run.Run
-	TerminalItems    []ItemReplacement
-	ParentItem       ItemReplacement
-	Resume           *run.TreeResumeDraft
-	OpeningEvents    []EventCommit
+	RootRunID            string
+	TargetRunID          string
+	SessionID            string
+	RootRun              run.Run
+	ExpectedPending      Pending
+	RemainingPending     *Pending
+	Checkpoint           ExecutorCheckpoint
+	TerminalRuns         []run.Run
+	TerminalItems        []ItemReplacement
+	ParentItem           ItemReplacement
+	ConversationMessages []corechat.Message
+	Resume               *run.TreeResumeDraft
+	OpeningEvents        []EventCommit
 }
 
 type WaitingSubtreeCancellationResult struct {
@@ -265,6 +267,11 @@ type EventCommit struct {
 	State     StateChange
 	Outcome   run.Outcome
 	Items     []transcript.Item
+	// ConversationMessages are the provider-neutral messages this root
+	// execution made durable for future model context. Conversation and
+	// Transcript remain separate projections: the former feeds later model
+	// calls, while the latter owns user-visible Run history.
+	ConversationMessages []corechat.Message
 	// ModelInvocations and Progress are application observations committed in
 	// the same transaction as the semantic Transcript Items derived from one
 	// authoritative executor fact.
@@ -287,6 +294,9 @@ func (c EventCommit) Validate() error {
 	if err := c.validateItems(); err != nil {
 		return err
 	}
+	if err := c.validateConversationMessages(); err != nil {
+		return err
+	}
 	if err := c.validateInvocations(); err != nil {
 		return err
 	}
@@ -296,6 +306,15 @@ func (c EventCommit) Validate() error {
 		}
 	}
 	return c.validateLifecycle()
+}
+
+func (c EventCommit) validateConversationMessages() error {
+	for index, message := range c.ConversationMessages {
+		if err := message.Validate(); err != nil {
+			return fmt.Errorf("runs: event commit conversation message[%d]: %w", index, err)
+		}
+	}
+	return nil
 }
 
 func (c EventCommit) validateEnvelope() error {
@@ -437,6 +456,7 @@ func validateTerminalGoalRun(value run.Run, record *goal.RunRecord) error {
 
 func (c EventCommit) isEmpty() bool {
 	return len(c.Items) == 0 &&
+		len(c.ConversationMessages) == 0 &&
 		len(c.ModelInvocations) == 0 &&
 		len(c.ToolInvocations) == 0 &&
 		c.Progress == nil &&

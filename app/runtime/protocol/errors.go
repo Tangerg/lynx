@@ -144,6 +144,7 @@ const (
 	// Tool channel (toolCall.error) — how a tool call failed.
 	ProblemDeniedByUser     = "denied_by_user"     // denied by the approval verdict
 	ProblemToolFailed       = "tool_failed"        // tool execution returned an error
+	ProblemToolCanceled     = "tool_canceled"      // cancellation of the owning Run stopped an in-flight tool
 	ProblemChildRunCanceled = "child_run_canceled" // delegated Run was canceled by Run identity
 	// Inline status (MCPServer.status.error, ProviderTestResult.error) — a connection or
 	// probe verdict that rides its own query result instead of failing the call,

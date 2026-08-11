@@ -16,13 +16,18 @@ describe("workspaceInvalidations", () => {
       "mcpServers",
       "mcpTools",
     ]);
-    // A fired schedule starts a run in a fresh session, so both lists move.
     expect(workspaceInvalidations({ type: "schedules.changed", sequence: 4 })).toEqual([
       "schedules",
-      "sessions",
     ]);
     expect(workspaceInvalidations({ type: "sessions.changed", sequence: 5 })).toEqual(["sessions"]);
-    expect(workspaceInvalidations({ type: "resync", sequence: 6 })).toEqual(["all"]);
+    expect(
+      workspaceInvalidations({
+        type: "resync",
+        sequence: 6,
+        topics: ["files.changed", "goals.changed", "files.changed"],
+      }),
+    ).toEqual(["filesChanged", "diff", "goal"]);
+    expect(workspaceInvalidations({ type: "resync", sequence: 7 })).toEqual(["all"]);
   });
 
   // The four topics that used to be unmapped. They are read-backed now — the run
@@ -30,15 +35,10 @@ describe("workspaceInvalidations", () => {
   // autonomous loop or another window arrives through these or not at all.
   it("maps every signal a session can move through", () => {
     expect(workspaceInvalidations({ type: "runs.changed", sequence: 1 })).toEqual([
-      "sessions",
       "sessionUsage",
       "agentSessionProjection",
-      // A run that ended cannot still be waiting on anyone, and the queue of
-      // what is waiting has no signal of its own for that.
-      "pendingWork",
     ]);
     expect(workspaceInvalidations({ type: "interrupts.changed", sequence: 2 })).toEqual([
-      "sessions",
       "agentSessionProjection",
       "pendingWork",
     ]);

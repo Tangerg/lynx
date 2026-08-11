@@ -8,12 +8,16 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/conversation"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
 	rundomain "github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
+	corechat "github.com/Tangerg/lynx/core/chat"
 )
+
+const recoveryLostToolResult = "tool result unavailable because execution state was lost"
 
 // RecoveryStore exposes durable application facts and atomically applies the
 // recovery plan derived from them. It never validates executor payloads or
@@ -21,17 +25,22 @@ import (
 type RecoveryStore interface {
 	ListNonTerminalRuns(ctx context.Context) ([]rundomain.Run, error)
 	ListPendingInterrupts(ctx context.Context) ([]Pending, error)
+	ListOpenModelInvocations(ctx context.Context) ([]OpenModelInvocation, error)
+	ListOpenToolInvocations(ctx context.Context) ([]OpenToolInvocation, error)
 	SessionByID(ctx context.Context, sessionID string) (session.Session, error)
 	ListTranscript(ctx context.Context, sessionID string) ([]transcript.Item, error)
+	LoadExecutorCheckpoint(ctx context.Context, rootMemberID string) (ExecutorCheckpoint, error)
+	ReadMessages(ctx context.Context, sessionID string) ([]corechat.Message, error)
 	CountMessages(ctx context.Context, sessionID string) (int, error)
 	CommitRecovery(ctx context.Context, commit RecoveryCommit) error
 }
 
-// CheckpointResumability is the recovery use case's narrow checkpoint probe.
-// false, nil means the opaque continuation is unavailable or incompatible;
-// an error means validation itself failed and startup must stop without writes.
-type CheckpointResumability interface {
-	CanResumeCheckpoint(ctx context.Context, expected ExecutorCheckpointExpectation) (bool, error)
+// WaitingExecutionResumability is the recovery use case's narrow executor
+// probe. The Application supplies the exact durable continuation; false, nil
+// means its opaque state is incompatible or indeterminate, while an error means
+// the probe itself was inconclusive and startup must stop without writes.
+type WaitingExecutionResumability interface {
+	CanResumeWaitingExecution(ctx context.Context, continuation WaitingContinuation) (bool, error)
 }
 
 // RecoveryCommit is the complete atomic write-set for boot reconciliation.
@@ -40,9 +49,69 @@ type CheckpointResumability interface {
 type RecoveryCommit struct {
 	LostRuns                   []rundomain.Run
 	ItemReplacements           []ItemReplacement
+	ConversationTransitions    []RecoveryConversationTransition
+	ModelInvocations           []ModelInvocationRecovery
+	ToolInvocations            []ToolInvocationRecovery
 	GoalRuns                   []goal.RunRecord
 	DeleteInterrupts           []InterruptOwner
 	PreservedCheckpointRootIDs []string
+}
+
+// OpenModelInvocation is an operational provider attempt that crossed the
+// external boundary but has no durable terminal observation. Because boot
+// recovery runs before executor admission, no live process can still own it.
+type OpenModelInvocation struct {
+	SessionID string
+	RunID     string
+	SegmentID string
+	CallID    string
+	StartedAt time.Time
+}
+
+// OpenToolInvocation is an operational Tool attempt without a durable
+// terminal observation. ItemID binds the attempt back to its canonical
+// Transcript lifecycle without copying arguments or results into the journal.
+type OpenToolInvocation struct {
+	SessionID string
+	RunID     string
+	SegmentID string
+	CallID    string
+	ItemID    string
+	StartedAt time.Time
+}
+
+// ModelInvocationRecovery marks one boot-abandoned provider attempt unknown.
+// The state is implied by the recovery operation rather than stored as an
+// application enum in the persistence port.
+type ModelInvocationRecovery struct {
+	SessionID  string
+	RunID      string
+	SegmentID  string
+	CallID     string
+	StartedAt  time.Time
+	FinishedAt time.Time
+}
+
+// ToolInvocationRecovery marks one boot-abandoned Tool attempt incomplete.
+type ToolInvocationRecovery struct {
+	SessionID  string
+	RunID      string
+	SegmentID  string
+	CallID     string
+	ItemID     string
+	StartedAt  time.Time
+	FinishedAt time.Time
+}
+
+// RecoveryConversationTransition closes the model context for one lost Run
+// tree. ExpectedCount is the boot snapshot's durable watermark; Messages is
+// empty when the context was already closed, or one Tool message containing an
+// error result for every unresolved provider ToolCall.
+type RecoveryConversationTransition struct {
+	RootRunID     string
+	SessionID     string
+	ExpectedCount int
+	Messages      []corechat.Message
 }
 
 // InterruptOwner is the complete mutation authority for one root-owned
@@ -59,9 +128,9 @@ type InterruptOwner struct {
 // applies the resulting write-set atomically and Run transitions remain CAS
 // guarded by storage.
 type Recovery struct {
-	store       RecoveryStore
-	checkpoints CheckpointResumability
-	now         func() time.Time
+	store        RecoveryStore
+	resumability WaitingExecutionResumability
+	now          func() time.Time
 }
 
 // recoveryPlanner owns one boot reconciliation snapshot and the caches needed
@@ -71,28 +140,33 @@ type Recovery struct {
 type recoveryPlanner struct {
 	ctx           context.Context
 	store         RecoveryStore
-	checkpoints   CheckpointResumability
+	resumability  WaitingExecutionResumability
 	pending       []Pending
 	pendingByRoot map[string]Pending
 	trees         map[string]recoveryRunTree
 	transcripts   map[string][]transcript.Item
 	sessions      map[string]session.Session
-	messageMarks  map[string]int
+	conversations map[string]recoveryConversationSnapshot
 	preserved     map[string]struct{}
 	commit        RecoveryCommit
 	finishedAt    time.Time
 	reconciled    int
 }
 
+type recoveryConversationSnapshot struct {
+	history conversation.Conversation
+	count   int
+}
+
 // NewRecovery constructs the boot recovery use case.
-func NewRecovery(store RecoveryStore, checkpoints CheckpointResumability) (*Recovery, error) {
+func NewRecovery(store RecoveryStore, resumability WaitingExecutionResumability) (*Recovery, error) {
 	if store == nil {
 		return nil, errors.New("runs: recovery store is required")
 	}
-	if checkpoints == nil {
-		return nil, errors.New("runs: checkpoint resumability is required")
+	if resumability == nil {
+		return nil, errors.New("runs: waiting execution resumability is required")
 	}
-	return &Recovery{store: store, checkpoints: checkpoints, now: time.Now}, nil
+	return &Recovery{store: store, resumability: resumability, now: time.Now}, nil
 }
 
 // Reconcile preserves only complete waiting trees whose durable hand-off
@@ -125,6 +199,15 @@ func newRecoveryPlanner(ctx context.Context, recovery *Recovery) (*recoveryPlann
 	if err != nil {
 		return nil, fmt.Errorf("runs: load pending interrupts for recovery: %w", err)
 	}
+	modelInvocations, err := recovery.store.ListOpenModelInvocations(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("runs: load open model invocations for recovery: %w", err)
+	}
+	toolInvocations, err := recovery.store.ListOpenToolInvocations(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("runs: load open Tool invocations for recovery: %w", err)
+	}
+	finishedAt := recovery.now().UTC()
 
 	pendingByRun := make(map[string]Pending, len(pending))
 	checkpointOwners := make(map[string]string, len(pending))
@@ -152,19 +235,33 @@ func newRecoveryPlanner(ctx context.Context, recovery *Recovery) (*recoveryPlann
 	if err != nil {
 		return nil, err
 	}
-	return &recoveryPlanner{
+	planner := &recoveryPlanner{
 		ctx:           ctx,
 		store:         recovery.store,
-		checkpoints:   recovery.checkpoints,
+		resumability:  recovery.resumability,
 		pending:       slices.Clone(pending),
 		pendingByRoot: pendingByRun,
 		trees:         trees,
 		transcripts:   make(map[string][]transcript.Item),
 		sessions:      make(map[string]session.Session),
-		messageMarks:  make(map[string]int),
+		conversations: make(map[string]recoveryConversationSnapshot),
 		preserved:     make(map[string]struct{}, len(trees)),
-		finishedAt:    recovery.now().UTC(),
-	}, nil
+		finishedAt:    finishedAt,
+	}
+	for _, invocation := range modelInvocations {
+		planner.commit.ModelInvocations = append(planner.commit.ModelInvocations, ModelInvocationRecovery{
+			SessionID: invocation.SessionID, RunID: invocation.RunID, SegmentID: invocation.SegmentID,
+			CallID: invocation.CallID, StartedAt: invocation.StartedAt, FinishedAt: finishedAt,
+		})
+	}
+	for _, invocation := range toolInvocations {
+		planner.commit.ToolInvocations = append(planner.commit.ToolInvocations, ToolInvocationRecovery{
+			SessionID: invocation.SessionID, RunID: invocation.RunID, SegmentID: invocation.SegmentID,
+			CallID: invocation.CallID, ItemID: invocation.ItemID,
+			StartedAt: invocation.StartedAt, FinishedAt: finishedAt,
+		})
+	}
+	return planner, nil
 }
 
 func (planner *recoveryPlanner) plan() (RecoveryCommit, int, error) {
@@ -193,11 +290,41 @@ func (planner *recoveryPlanner) plan() (RecoveryCommit, int, error) {
 		}
 		return strings.Compare(left.RootRunID, right.RootRunID)
 	})
+	slices.SortFunc(planner.commit.ModelInvocations, compareModelInvocationRecoveries)
+	slices.SortFunc(planner.commit.ToolInvocations, compareToolInvocationRecoveries)
 	slices.Sort(planner.commit.PreservedCheckpointRootIDs)
 	if err := planner.commit.Validate(); err != nil {
 		return RecoveryCommit{}, 0, err
 	}
 	return planner.commit, planner.reconciled, nil
+}
+
+func compareModelInvocationRecoveries(left, right ModelInvocationRecovery) int {
+	for _, comparison := range []int{
+		strings.Compare(left.SessionID, right.SessionID),
+		strings.Compare(left.RunID, right.RunID),
+		strings.Compare(left.SegmentID, right.SegmentID),
+		strings.Compare(left.CallID, right.CallID),
+	} {
+		if comparison != 0 {
+			return comparison
+		}
+	}
+	return 0
+}
+
+func compareToolInvocationRecoveries(left, right ToolInvocationRecovery) int {
+	if comparison := compareModelInvocationRecoveries(
+		ModelInvocationRecovery{
+			SessionID: left.SessionID, RunID: left.RunID, SegmentID: left.SegmentID, CallID: left.CallID,
+		},
+		ModelInvocationRecovery{
+			SessionID: right.SessionID, RunID: right.RunID, SegmentID: right.SegmentID, CallID: right.CallID,
+		},
+	); comparison != 0 {
+		return comparison
+	}
+	return strings.Compare(left.ItemID, right.ItemID)
 }
 
 func (planner *recoveryPlanner) planTree(rootRunID string) error {
@@ -218,7 +345,8 @@ func (planner *recoveryPlanner) planTree(rootRunID string) error {
 			open,
 			sess,
 			items,
-			planner.checkpoints,
+			planner.store,
+			planner.resumability,
 		)
 		if err != nil {
 			return err
@@ -228,16 +356,32 @@ func (planner *recoveryPlanner) planTree(rootRunID string) error {
 			return nil
 		}
 	}
-	messageMark, err := planner.messageMark(tree.root.SessionID())
+	conversationSnapshot, err := planner.conversation(tree.root.SessionID())
 	if err != nil {
 		return err
 	}
+	_, closure, err := conversationSnapshot.history.CloseOpenToolCalls(recoveryLostToolResult)
+	if err != nil {
+		return fmt.Errorf(
+			"runs: close recovery conversation for root Run %q: %w",
+			tree.root.ID(),
+			err,
+		)
+	}
+	messageMark := conversationSnapshot.count + len(closure)
 	lostRuns, replacements, err := recoverLostTree(tree, items, messageMark, planner.finishedAt)
 	if err != nil {
 		return err
 	}
 	planner.commit.LostRuns = append(planner.commit.LostRuns, lostRuns...)
 	planner.commit.ItemReplacements = append(planner.commit.ItemReplacements, replacements...)
+	planner.commit.ConversationTransitions = append(
+		planner.commit.ConversationTransitions,
+		RecoveryConversationTransition{
+			RootRunID: tree.root.ID(), SessionID: tree.root.SessionID(),
+			ExpectedCount: conversationSnapshot.count, Messages: closure,
+		},
+	)
 	planner.commit.DeleteInterrupts = append(planner.commit.DeleteInterrupts, InterruptOwner{
 		SessionID: tree.root.SessionID(),
 		RootRunID: tree.root.ID(),
@@ -284,16 +428,45 @@ func (planner *recoveryPlanner) session(sessionID string) (session.Session, erro
 	return sess, nil
 }
 
-func (planner *recoveryPlanner) messageMark(sessionID string) (int, error) {
-	if mark, ok := planner.messageMarks[sessionID]; ok {
-		return mark, nil
+func (planner *recoveryPlanner) conversation(sessionID string) (recoveryConversationSnapshot, error) {
+	if snapshot, ok := planner.conversations[sessionID]; ok {
+		return snapshot, nil
 	}
-	mark, err := planner.store.CountMessages(planner.ctx, sessionID)
+	messages, err := planner.store.ReadMessages(planner.ctx, sessionID)
 	if err != nil {
-		return 0, fmt.Errorf("runs: load recovery message watermark for Session %q: %w", sessionID, err)
+		return recoveryConversationSnapshot{}, fmt.Errorf(
+			"runs: load recovery conversation for Session %q: %w",
+			sessionID,
+			err,
+		)
 	}
-	planner.messageMarks[sessionID] = mark
-	return mark, nil
+	history, err := conversation.New(messages)
+	if err != nil {
+		return recoveryConversationSnapshot{}, fmt.Errorf(
+			"runs: validate recovery conversation for Session %q: %w",
+			sessionID,
+			err,
+		)
+	}
+	count, err := planner.store.CountMessages(planner.ctx, sessionID)
+	if err != nil {
+		return recoveryConversationSnapshot{}, fmt.Errorf(
+			"runs: load recovery message watermark for Session %q: %w",
+			sessionID,
+			err,
+		)
+	}
+	if count != history.Count() {
+		return recoveryConversationSnapshot{}, fmt.Errorf(
+			"runs: recovery conversation for Session %q decoded %d messages at stored watermark %d",
+			sessionID,
+			history.Count(),
+			count,
+		)
+	}
+	snapshot := recoveryConversationSnapshot{history: history, count: count}
+	planner.conversations[sessionID] = snapshot
+	return snapshot, nil
 }
 
 func recoveredGoalRun(rootRunID string, lostRuns []rundomain.Run) (goal.RunRecord, error) {

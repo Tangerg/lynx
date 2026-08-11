@@ -381,7 +381,7 @@ func TestBootRecoveryPolicyBelongsToApplication(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read application recovery: %v", err)
 	}
-	for _, required := range []string{"type Recovery struct", "type RecoveryCommit struct", "CanResumeCheckpoint", "RecoverLost"} {
+	for _, required := range []string{"type Recovery struct", "type RecoveryCommit struct", "CanResumeWaitingExecution", "RecoverLost"} {
 		if !strings.Contains(string(applicationSource), required) {
 			t.Errorf("application recovery does not own %q", required)
 		}
@@ -861,7 +861,7 @@ func TestExecutorCheckpointBindingIsValidatedAtEveryBoundary(t *testing.T) {
 			"ExecutorCheckpointExpectation", "GoalLeaseID", "sess.CWD", "sess.Isolated",
 		},
 		filepath.Join("internal", "adapter", "agentexec", "interaction_recovery_probe.go"): {
-			"ValidateFor", "GoalLeaseID", "Capabilities",
+			"continuation.Validate()", "checkpoint.BuildID", "checkpoint.Scope.GoalLeaseID", "continuation.Capabilities",
 		},
 		filepath.Join("internal", "adapter", "persistence", "session_stores.go"): {
 			"DeleteCheckpoints(ctx, rollback.SessionID",
@@ -938,8 +938,10 @@ func TestPendingAndRecoveryMutationsCarryTheirOwners(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read terminal write-set: %v", err)
 	}
+	if got := namedStructFieldType(t, terminalPlanPath, "TerminalPlan", "Runs"); got != "[]rundomain.Run" {
+		t.Errorf("parked-tree terminal write-set Runs type = %q, want []rundomain.Run", got)
+	}
 	for _, required := range []string{
-		"Runs             []rundomain.Run",
 		"rundomain.NewTree",
 		"tree.Postorder()",
 		"validateTerminalGoalRun",

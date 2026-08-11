@@ -3,30 +3,35 @@ import { queryClient } from "@/lib/queryClient";
 import {
   AGENT_SESSIONS_KEY,
   getActiveSessionId,
+  subscribeAgentSessionProjection,
   subscribeActiveSessionId,
+  type AgentSessionSummary,
 } from "@/plugins/builtin/agent/public/session";
 import { asSessionId } from "@/rpc";
+import type { WorkspaceCwdResolution } from "../application/workspaceEventSubscription";
 
-export async function resolveActiveSessionWorkspaceCwd(): Promise<string | undefined> {
+export async function resolveActiveSessionWorkspaceCwd(): Promise<WorkspaceCwdResolution> {
   const id = getActiveSessionId();
-  if (!id) return undefined;
+  if (!id) return { status: "resolved" };
   const list = queryClient.getQueryData<{ id: string; cwd?: string }[]>([AGENT_SESSIONS_KEY]);
-  const cached = list?.find((session) => session.id === id)?.cwd;
-  if (cached !== undefined || list !== undefined) return cached;
+  const cached = list?.find((session) => session.id === id);
+  if (cached) return { status: "resolved", ...(cached.cwd ? { cwd: cached.cwd } : {}) };
   return getContainer()
     .client()
     .sessions.get(asSessionId(id))
-    .then((session) => session.workspace.ref.path)
-    .catch(() => undefined);
+    .then((session) => ({ status: "resolved", cwd: session.workspace.ref.path }) as const)
+    .catch(() => ({ status: "unavailable" }) as const);
 }
 
 export function subscribeWorkspaceCwdInputs(onChange: () => void): () => void {
   const unsubSession = subscribeActiveSessionId(onChange);
-  const unsubCache = queryClient.getQueryCache().subscribe((event) => {
-    if (event.query.queryKey[0] === AGENT_SESSIONS_KEY) onChange();
-  });
+  const unsubCache = subscribeAgentSessionProjection(sessionWorkspaceRevision, onChange);
   return () => {
     unsubSession();
     unsubCache();
   };
+}
+
+function sessionWorkspaceRevision(sessions: readonly AgentSessionSummary[] | undefined): string {
+  return JSON.stringify(sessions?.map(({ id, cwd }) => [id, cwd ?? ""]) ?? null);
 }

@@ -25,6 +25,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/toolresult"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/sqlite"
+	"github.com/Tangerg/lynx/core/chat"
 )
 
 // SessionStore is the exact persistence surface used inside an opening
@@ -192,8 +193,10 @@ type ChildRunStartReservationStore interface {
 // transactor rather than silently weakening atomicity.
 type Transactor func(ctx context.Context, fn func(context.Context) error) error
 
-// MessageCounter resolves the conversation watermark a terminal run records.
-type MessageCounter interface {
+// ConversationStore appends root execution context and resolves the watermark
+// recorded by a terminal Run. Both operations join the event transaction.
+type ConversationStore interface {
+	Write(ctx context.Context, sessionID string, messages ...chat.Message) error
 	Count(ctx context.Context, sessionID string) (int, error)
 }
 
@@ -232,7 +235,7 @@ type Config struct {
 	ToolResults         ToolResultStore
 	ModelInvocations    ModelInvocationJournal
 	ToolInvocations     ToolInvocationJournal
-	Messages            MessageCounter
+	Conversation        ConversationStore
 	Titles              TitleGenerator
 	State               RunWriter
 	RunMetrics          RunMetricsWriter
@@ -258,7 +261,7 @@ type Effects struct {
 	toolResults         ToolResultStore
 	modelInvocations    ModelInvocationJournal
 	toolInvocations     ToolInvocationJournal
-	messages            MessageCounter
+	conversation        ConversationStore
 	titles              TitleGenerator
 	runState            RunWriter
 	runMetrics          RunMetricsWriter
@@ -298,7 +301,7 @@ func New(cfg Config) *Effects {
 		toolResults:         cfg.ToolResults,
 		modelInvocations:    cfg.ModelInvocations,
 		toolInvocations:     cfg.ToolInvocations,
-		messages:            cfg.Messages,
+		conversation:        cfg.Conversation,
 		titles:              cfg.Titles,
 		runState:            cfg.State,
 		runMetrics:          cfg.RunMetrics,

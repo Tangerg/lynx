@@ -17,6 +17,7 @@ export {
 export {
   AGENT_SESSIONS_KEY,
   invalidateAgentSessions,
+  subscribeAgentSessionProjection,
   useAgentSessions,
   type AgentSessionSummary,
 } from "../application/session/sessionQueries";

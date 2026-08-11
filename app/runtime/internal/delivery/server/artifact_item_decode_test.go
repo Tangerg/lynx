@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
@@ -103,6 +104,26 @@ func TestPortableArtifactDecoderPreservesCanonicalToolResult(t *testing.T) {
 	}
 }
 
+func TestPortableArtifactDecoderPreservesCanceledToolFailure(t *testing.T) {
+	artifact := validArtifact()
+	at := time.Unix(1, 0).UTC()
+	artifact.Items[0] = protocol.ArtifactItem{
+		ID: "item_1", RunID: "run_1", Status: protocol.ItemStatusIncomplete,
+		Type: protocol.ItemTypeToolCall, StartedAt: at, FinishedAt: at,
+		DurationMillis: valuePtr(int64(0)),
+		Tool:           &protocol.ArtifactToolInvocation{Name: "shell", Arguments: map[string]any{}},
+		Error:          &protocol.ArtifactProblem{Type: protocol.ArtifactProblemToolCanceled},
+	}
+	portable, err := portableArtifactFromWire(artifact)
+	if err != nil {
+		t.Fatalf("portableArtifactFromWire: %v", err)
+	}
+	failure, present := portable.Items[0].Failure()
+	if !present || failure.Kind != tool.FailureCanceled {
+		t.Fatalf("decoded Tool failure = (%+v, %t)", failure, present)
+	}
+}
+
 func TestPortableArtifactDecoderRejectsInconsistentToolTiming(t *testing.T) {
 	startedAt := time.Unix(1, 0).UTC()
 	finishedAt := startedAt.Add(1500 * time.Millisecond)
@@ -139,7 +160,7 @@ func TestPortableArtifactDecoderRejectsInconsistentToolTiming(t *testing.T) {
 	}
 }
 
-func TestArtifactV15RejectsSyntheticLifecyclesForCompleteFacts(t *testing.T) {
+func TestArtifactV16RejectsSyntheticLifecyclesForCompleteFacts(t *testing.T) {
 	question := &protocol.ArtifactQuestion{Fields: []protocol.ArtifactQuestionField{{
 		Type: protocol.QuestionFieldText, Prompt: "Continue?",
 	}}}

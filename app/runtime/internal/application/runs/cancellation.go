@@ -71,6 +71,9 @@ func (c *Coordinator) Cancel(ctx context.Context, cmd CancelCommand) (CancelResu
 		if errors.Is(requestErr, ErrSessionBusy) {
 			return CancelResult{}, requestErr
 		}
+		if errors.Is(requestErr, ErrRunFinished) {
+			return CancelResult{}, errors.Join(requestErr, entry.owner.wait(cleanupCtx))
+		}
 		c.registry.MarkCancel(plan.root.run.ID(), cmd.Reason)
 		return CancelResult{}, errors.Join(requestErr, entry.owner.wait(cleanupCtx))
 	}

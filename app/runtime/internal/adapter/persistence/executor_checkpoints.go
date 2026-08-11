@@ -37,6 +37,7 @@ func (store *ExecutorCheckpointStore) SaveCheckpoint(ctx context.Context, checkp
 		},
 		ModelSelection: checkpoint.ModelSelection,
 		Limits:         checkpoint.Limits,
+		Capabilities:   checkpoint.Capabilities.Clone(),
 		Usage:          checkpoint.Usage,
 	})
 	return translateCheckpointStorageError(err)
@@ -60,6 +61,7 @@ func (store *ExecutorCheckpointStore) LoadCheckpoint(ctx context.Context, rootMe
 		},
 		ModelSelection: record.ModelSelection,
 		Limits:         record.Limits,
+		Capabilities:   record.Capabilities.Clone(),
 		Usage:          record.Usage,
 	}
 	if err := checkpoint.Validate(); err != nil {

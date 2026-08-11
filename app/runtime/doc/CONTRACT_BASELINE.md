@@ -2,7 +2,7 @@
 
 > 状态：Runtime Protocol Baseline 1
 >
-> 基线日期：2026-08-10
+> 基线日期：2026-08-11
 >
 > 适用范围：Runtime Protocol 制品、持久化 shape、Agent Framework 消费边界和重构期间的内部防腐合同
 
@@ -35,10 +35,10 @@ Digest 只用于发现未审计漂移，不能替代语义测试。
 
 | 制品 | SHA-256 |
 |---|---|
-| `contract/manifest.json` | `9425d26052572d3cf87076dab3f60bdba267b5169a34e6c016f9d767e23975fb` |
-| `contract/openrpc.json` | `7eac002e34a636f21653c639318669374e2795cae9907986d591e427634b0a06` |
-| `contract/schema.json` | `56b608ff48dca53b4b924f0634f56d37bd347581207fe71fd307e1a568b57be8` |
-| `contract/go-api.json` | `f79d3007a5fbdc011c4d6e6b05104b6ed915ae81c84d4bea99a6f97597354cda` |
+| `contract/manifest.json` | `aeafffa9b508a972b876db0227b6d65769d44c88a5e3eb8108e7acd2a2839eb7` |
+| `contract/openrpc.json` | `ea500558d0dd7ea42dc79fc259296380e64aefdc7fbbcb2d3dd28912111e745e` |
+| `contract/schema.json` | `73da798a1a9af1a7c1a9f2c0ef2e6110feb7eb68123675e7fd7f25cdaf732f17` |
+| `contract/go-api.json` | `a5fd934097ed572a6cb3f7cf71dd9ba539232f81b7b86dc6df8bb449abcd5ade` |
 
 TypeScript generated files 是派生制品，不单独定义语义。它们必须由同一个 contract generator 产生且 diff-free；当前前端/TUI/CLI 是否已经消费最新 shape，由 P10/P12 的 consumer handoff 记录，不通过兼容字段掩盖。
 
@@ -50,7 +50,7 @@ TypeScript generated files 是派生制品，不单独定义语义。它们必�
 
 本文件不复制 method、field、error 或 example catalog。
 
-当前协议版本为 `2026-08-10`，只服务同值的 `minSupported`。唯一 replay scope 是 `runtimeInstanceRootSegment`：它准确表达一个 Runtime instance 内的一条 root Segment replay buffer；旧 `processRootSegment` 已直接删除。消费者 breaking surface 与未接线事实由 [`CONSUMER_HANDOFF.md`](CONSUMER_HANDOFF.md) 唯一记录。
+当前协议版本为 `2026-08-11`，只服务同值的 `minSupported`。唯一 replay scope 是 `runtimeInstanceRootSegment`：它准确表达一个 Runtime instance 内的一条 root Segment replay buffer；旧 `processRootSegment` 已直接删除。消费者 breaking surface 与未接线事实由 [`CONSUMER_HANDOFF.md`](CONSUMER_HANDOFF.md) 唯一记录。
 
 公共 Go surface 只有 `runtime/protocol` 与 `runtime/embedded`，由生成的 `contract/go-api.json` 完整冻结。`protocol` 只公开 binding-neutral values、strict validation、版本、稳定错误 identity 与 `ProblemError`；`embedded` 只公开 concrete Runtime lifecycle、准确 options 和类型化 operation methods。服务端 method interface、request context plumbing、numeric JSON-RPC code、reflection shape walker、artifact catalogue、Host、Store、Engine 和 Router 均属于 `internal`，不构成公共 Go surface。
 
@@ -58,7 +58,7 @@ TypeScript generated files 是派生制品，不单独定义语义。它们必�
 
 ### 3.1 SQLite
 
-- 当前 `schemaEpoch = 66`；
+- 当前 `schemaEpoch = 67`；
 - executor checkpoint 与 pending interrupt 的技术身份列为 `root_member_id`，continuation/input-request binding JSON 使用 `memberId`/`requestId`；
 - `model_invocations` 与 `tool_invocations` 是 operational attempt journals，只保存 exact Run/Segment/call identity、state 与 started/finished time；semantic assistant final、Tool result 和 usage 仍只由 Transcript/Run owners 保存；
 - `interrupts.state` 只有 `open`/`resuming`：`open` 不得携带 answer/claimedAt，`resuming` 必须携带两者；普通列表/读取只返回 `open`，continuation opening 必须在事务内证明 exact root 的 `resuming` claim；
@@ -86,7 +86,7 @@ P7 延续的 continuation payload baseline 是 Agent Framework TreeSnapshot v4 �
 
 ### 3.3 Artifact 与 Transcript
 
-Artifact、Transcript Item 和 ToolCall timing 的当前机器 shape 仍由 Runtime contract/store codec 拥有。Session Artifact 当前唯一版本为 15；v14 及更早版本在任何写入前确定性拒绝，不从旧 artifact 猜测缺失事实或改写版本号。
+Artifact、Transcript Item 和 ToolCall timing 的当前机器 shape 仍由 Runtime contract/store codec 拥有。Session Artifact 当前唯一版本为 16；v15 及更早版本在任何写入前确定性拒绝，不从旧 artifact 猜测缺失事实或改写版本号。Tool failure taxonomy 将工具所属 Run 的取消导致的在途终止表示为 `toolCanceled`，不与执行失败、审批拒绝或父 Run 上的 `childRunCanceled` 合并。
 
 ## 4. Agent Framework 消费 Baseline
 
@@ -164,6 +164,10 @@ P8 已冻结 child/subtree 合同：Delegate ToolCall authoritative commit 先�
 P8 已冻结这些内部消费端口及防腐语义：Application 单写者、operational journal 与 semantic Transcript 分离、final 独立于 Delta、并发 Tool canonical prefix 原子提交、unknown 在 release 前 durable `RunLost` 收口、answer claim → stage/restore → durable opening → semantic Signal，以及 Delegate reservation → conclusive start → public child Run 的唯一顺序。
 
 Fresh root input 的防腐合同是 Application `WorkingContextComposer` 读取 Host Conversation 并追加当前 user message，再组装 Knowledge、Plan、Memory 与 hooks，形成完整 `WorkingContext` seed；agentexec 不读取产品 Store。成功 assistant final 由 Agent Framework Result 投影 `AssistantMessageCompleted`，不从 Delta 拼接。
+
+WorkingContext 的来源归因属于 `adapter/agentexec` 私有合同：base prompt、Knowledge、pinned/recalled Memory、AGENTS.md、Plan 与 lifecycle hook 只在实际注入后以 versioned JSON-safe Message/Part metadata 标记，并区分 instruction/data purpose。该 metadata 随 opaque Interaction checkpoint 自包含恢复，但不进入 Runtime Protocol、Artifact/SQLite schema、Application port 或 Agent Framework 公共类型；公共诊断若出现必须另行设计安全投影。
+
+P23 进一步冻结该私有合同的行为所有权：context source kind 唯一决定 purpose 并在 metadata 写入前验证；预算后的 Memory/Agent document prompt fragment 同时持有可见文本与来源；hook result 负责 block/injection/provenance 应用；`WorkingContextComposer` 负责完整 system/Plan/recall/hook 编排。该内部重构不改变 metadata JSON shape、prompt 文本或任何公共/持久合同。
 
 Application executor tree identity 统一为 `ExecutorMember`/`MemberID`。Framework `ProcessID` 只能由 execution adapter 在边界内映射，不能重新进入 Application field、port 参数、持久化 technical field 或 Runtime Protocol。
 

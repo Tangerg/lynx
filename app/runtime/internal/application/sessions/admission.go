@@ -12,7 +12,6 @@ import (
 type Admissions interface {
 	AcquireSession(sessionID string) (release func(), ok bool)
 	AcquireWorkingTreeMutation(cwd string) (release func(), ok bool)
-	ActiveSessions() map[string]bool
 }
 
 // WorkingTreeAdmission is a held working-tree slot. Release is idempotent

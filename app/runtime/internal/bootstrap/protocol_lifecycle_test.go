@@ -3,6 +3,7 @@ package bootstrap
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"iter"
 	"os"
 	"sync"
@@ -34,6 +35,51 @@ func TestProtocolLifecycleSurvivesColdRestart(t *testing.T) {
 	fixture.assertColdState()
 }
 
+func TestAssemblyPreservesParkedQuestionAcrossCrashLikeRestart(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("LYRA_HOME", home)
+	stores, err := persistence.Open(t.Context(), persistence.Config{
+		DataDirectory: home, DefaultWorkspacePath: home,
+	})
+	if err != nil {
+		t.Fatalf("open persistence: %v", err)
+	}
+	model := newLifecycleModel()
+	cfg := protocolRuntimeConfig(t, stores, model)
+	firstHost, firstAPI := buildProtocolRuntime(t, cfg, stores.DataDirectory)
+	fixture := &protocolLifecycleFixture{
+		t: t, home: home, ctx: protocolLifecycleContext(t.Context()), model: model,
+		host: firstHost, api: firstAPI, stores: stores,
+	}
+	defer fixture.closeFirstRuntime()
+	fixture.startAndPark()
+
+	restartedConfig := cfg
+	restartedConfig.Resources = nil
+	restartedHost, restartedAPI := buildProtocolRuntime(t, restartedConfig, stores.DataDirectory)
+	defer func() {
+		restartedAPI.Close()
+		if err := restartedHost.Close(); err != nil {
+			t.Errorf("close restarted runtime: %v", err)
+		}
+	}()
+	restarted, err := restartedAPI.GetRun(fixture.ctx, protocol.GetRunRequest{RunID: fixture.started.RunID})
+	if err != nil {
+		t.Fatalf("runs.get after crash-like restart: %v", err)
+	}
+	pending, err := restartedAPI.ListInterrupts(fixture.ctx, protocol.ListInterruptsRequest{
+		RootRunID: fixture.started.RunID,
+	})
+	if err != nil {
+		t.Fatalf("interrupt.list after crash-like restart: %v", err)
+	}
+	if restarted.Status != protocol.RunStatusWaiting || restarted.Outcome != nil ||
+		len(pending.Data) != 1 || len(pending.Data[0].Interrupts) != 1 {
+		t.Fatalf("restarted waiting boundary = run %+v, interrupts %+v", restarted, pending.Data)
+	}
+
+}
+
 type protocolLifecycleFixture struct {
 	t         *testing.T
 	home      string
@@ -41,6 +87,7 @@ type protocolLifecycleFixture struct {
 	model     *lifecycleModel
 	host      *Host
 	api       *runtimeserver.Server
+	stores    *persistence.Bundle
 	sessionID string
 	started   *protocol.StartRunResponse
 	closed    bool
@@ -51,14 +98,27 @@ func newProtocolLifecycleFixture(t *testing.T) *protocolLifecycleFixture {
 	home := t.TempDir()
 	t.Setenv("LYRA_HOME", home)
 	model := newLifecycleModel()
-	host, api := openProtocolRuntime(t, model)
-	ctx := operation.WithRequestMeta(t.Context(), protocol.RequestMeta{
+	stores, err := persistence.Open(t.Context(), persistence.Config{
+		DataDirectory: home, DefaultWorkspacePath: home,
+	})
+	if err != nil {
+		t.Fatalf("open persistence: %v", err)
+	}
+	cfg := protocolRuntimeConfig(t, stores, model)
+	host, api := buildProtocolRuntime(t, cfg, stores.DataDirectory)
+	ctx := protocolLifecycleContext(t.Context())
+	return &protocolLifecycleFixture{
+		t: t, home: home, ctx: ctx, model: model, host: host, api: api, stores: stores,
+	}
+}
+
+func protocolLifecycleContext(ctx context.Context) context.Context {
+	return operation.WithRequestMeta(ctx, protocol.RequestMeta{
 		ProtocolVersion: protocol.ProtocolVersion,
 		ClientCapabilities: &protocol.ClientCapabilities{
 			InterruptTypes: []protocol.InterruptType{protocol.InterruptQuestion},
 		},
 	})
-	return &protocolLifecycleFixture{t: t, home: home, ctx: ctx, model: model, host: host, api: api}
 }
 
 func (f *protocolLifecycleFixture) startAndPark() protocol.Interrupt {
@@ -90,7 +150,12 @@ func (f *protocolLifecycleFixture) startAndPark() protocol.Interrupt {
 	case events := <-startEventsDone:
 		ended, _ := f.api.GetRun(f.ctx, protocol.GetRunRequest{RunID: started.RunID})
 		diagnostic, _ := json.Marshal(ended)
-		f.t.Fatalf("run ended before first model call: run=%s events=%+v", diagnostic, events)
+		f.t.Fatalf(
+			"run ended before first model call: run=%s domainFailure=%s events=%+v",
+			diagnostic,
+			f.domainFailureDiagnostic(started.RunID),
+			events,
+		)
 	case <-time.After(5 * time.Second):
 		f.t.Fatal("timed out waiting for first model call")
 	}
@@ -129,6 +194,20 @@ func (f *protocolLifecycleFixture) startAndPark() protocol.Interrupt {
 		f.t.Fatalf("pending interrupt = %+v, want this run's question", question)
 	}
 	return question
+}
+
+func (f *protocolLifecycleFixture) domainFailureDiagnostic(runID string) string {
+	if f.stores == nil || f.stores.Runs == nil {
+		return "unavailable"
+	}
+	value, found, err := f.stores.Runs.Run(f.ctx, runID)
+	if err != nil {
+		return "read error: " + err.Error()
+	}
+	if !found {
+		return "missing"
+	}
+	return fmt.Sprintf("%+v", value.Snapshot().Failure)
 }
 
 func (f *protocolLifecycleFixture) resumeAndCancel(question protocol.Interrupt) {
@@ -310,6 +389,12 @@ func openProtocolRuntime(t *testing.T, model chat.Model) (*Host, *runtimeserver.
 	if err != nil {
 		t.Fatalf("open persistence: %v", err)
 	}
+	cfg := protocolRuntimeConfig(t, stores, model)
+	return buildProtocolRuntime(t, cfg, stores.DataDirectory)
+}
+
+func protocolRuntimeConfig(t *testing.T, stores *persistence.Bundle, model chat.Model) Config {
+	t.Helper()
 	client, err := chatclient.New(model, chatclient.Config{})
 	if err != nil {
 		_ = stores.Close()
@@ -326,7 +411,11 @@ func openProtocolRuntime(t *testing.T, model chat.Model) (*Host, *runtimeserver.
 	cfg.UserHome = stores.DataDirectory
 	cfg.DefaultWorkspacePath = stores.DataDirectory
 	cfg.Maintenance = noMaintenance{}
+	return cfg
+}
 
+func buildProtocolRuntime(t *testing.T, cfg Config, cwd string) (*Host, *runtimeserver.Server) {
+	t.Helper()
 	assembly := NewAssembly(cfg)
 	host, err := BuildAssembly(t.Context(), assembly)
 	if err != nil {
@@ -337,7 +426,7 @@ func openProtocolRuntime(t *testing.T, model chat.Model) (*Host, *runtimeserver.
 		_ = host.Close()
 		t.Fatalf("recover runtime: %v", err)
 	}
-	api, err := protocolServer(host.Stack, stores.DataDirectory)
+	api, err := protocolServer(host.Stack, cwd)
 	if err != nil {
 		_ = host.Close()
 		t.Fatalf("build protocol server: %v", err)

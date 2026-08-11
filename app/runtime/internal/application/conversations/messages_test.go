@@ -25,8 +25,11 @@ func TestMessagesCoordinatesDurableHistory(t *testing.T) {
 	if err := messages.Truncate(t.Context(), "ses_1", 2); err != nil {
 		t.Fatal(err)
 	}
+	if err := messages.Append(t.Context(), "ses_1", chat.NewUserMessage(chat.NewTextPart("four"))); err != nil {
+		t.Fatal(err)
+	}
 	got, err := messages.Read(t.Context(), "ses_1")
-	if err != nil || len(got) != 2 || got[1].Text() != "two" {
+	if err != nil || len(got) != 3 || got[1].Text() != "two" || got[2].Text() != "four" {
 		t.Fatalf("Read = %#v, %v", got, err)
 	}
 }
@@ -35,5 +38,8 @@ func TestMessagesRejectsMissingSession(t *testing.T) {
 	messages := NewMessages(inmemory.New())
 	if _, err := messages.Read(t.Context(), ""); !errors.Is(err, errSessionIDRequired) {
 		t.Fatalf("Read error = %v", err)
+	}
+	if err := messages.Append(t.Context(), "", chat.NewUserMessage(chat.NewTextPart("one"))); !errors.Is(err, errSessionIDRequired) {
+		t.Fatalf("Append error = %v", err)
 	}
 }

@@ -19,15 +19,22 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/itemfixture"
 	runfixture "github.com/Tangerg/lynx/app/runtime/internal/testsupport/runfixture"
 	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/sessionfixture"
+	corechat "github.com/Tangerg/lynx/core/chat"
 )
 
 type alwaysResumable struct{}
 
-func (alwaysResumable) CanResumeCheckpoint(
+func (alwaysResumable) CanResumeWaitingExecution(
 	context.Context,
-	runs.ExecutorCheckpointExpectation,
+	runs.WaitingContinuation,
 ) (bool, error) {
 	return true, nil
+}
+
+type goalRunRecorderFunc func(context.Context, goal.RunRecord) error
+
+func (record goalRunRecorderFunc) RecordRun(ctx context.Context, value goal.RunRecord) error {
+	return record(ctx, value)
 }
 
 func TestRecoveryMarksClaimedResumeLostAndRemovesItsHiddenRecord(t *testing.T) {
@@ -93,11 +100,24 @@ func TestRecoveryMarksClaimedResumeLostAndRemovesItsHiddenRecord(t *testing.T) {
 		t.Fatalf("open Pending after claim = found:%t err:%v", found, err)
 	}
 
+	messageStore := sqlite.NewMessageStore(db)
+	if err := messageStore.Write(
+		ctx,
+		pending.SessionID,
+		corechat.NewUserMessage(corechat.NewTextPart("ask me")),
+		corechat.NewAssistantMessage(corechat.NewToolCallPart(corechat.ToolCall{
+			ID: "provider_call_claim", Name: "ask_user", Arguments: "{}",
+		})),
+	); err != nil {
+		t.Fatalf("seed conversation: %v", err)
+	}
 	checkpointStore := persistence.NewExecutorCheckpointStore(sqlite.NewExecutorCheckpointStore(db))
 	store, err := New(Config{
 		Sessions: sessionStore, Runs: runStore, Interrupts: interruptStore,
-		Transcript: sqlite.NewTranscriptStore(db), Messages: sqlite.NewMessageStore(db),
+		Transcript: sqlite.NewTranscriptStore(db), Messages: messageStore,
 		GoalRuns: sqlite.NewGoalStore(db), ExecutorCheckpoints: checkpointStore,
+		ModelInvocations: sqlite.NewModelInvocationStore(db),
+		ToolInvocations:  sqlite.NewToolInvocationStore(db),
 		Tx: func(ctx context.Context, fn func(context.Context) error) error {
 			return sqlite.RunInTx(ctx, db, fn)
 		},
@@ -106,9 +126,9 @@ func TestRecoveryMarksClaimedResumeLostAndRemovesItsHiddenRecord(t *testing.T) {
 		t.Fatalf("New persistence: %v", err)
 	}
 	checkpointProbes := 0
-	recovery, err := runs.NewRecovery(store, checkpointResumabilityFunc(func(
+	recovery, err := runs.NewRecovery(store, waitingExecutionResumabilityFunc(func(
 		context.Context,
-		runs.ExecutorCheckpointExpectation,
+		runs.WaitingContinuation,
 	) (bool, error) {
 		checkpointProbes++
 		return true, nil
@@ -126,8 +146,15 @@ func TestRecoveryMarksClaimedResumeLostAndRemovesItsHiddenRecord(t *testing.T) {
 	stored, found, err := runStore.Run(ctx, pending.RootRunID)
 	failure, failed := stored.Failure()
 	if err != nil || !found || stored.State() != run.Failed ||
-		!failed || failure.Kind != run.FailureLost {
+		!failed || failure.Kind != run.FailureLost || stored.MessageMark() != 3 {
 		t.Fatalf("recovered Run = found:%t value:%+v err:%v", found, stored, err)
+	}
+	messages, err := messageStore.Read(ctx, pending.SessionID)
+	if err != nil || len(messages) != 3 || messages[2].Role != corechat.RoleTool ||
+		len(messages[2].Parts) != 1 || messages[2].Parts[0].ToolResult == nil ||
+		messages[2].Parts[0].ToolResult.ID != "provider_call_claim" ||
+		!messages[2].Parts[0].ToolResult.IsError {
+		t.Fatalf("recovered conversation = %#v, %v", messages, err)
 	}
 	var remaining int
 	if err := db.QueryRowContext(ctx,
@@ -140,13 +167,13 @@ func TestRecoveryMarksClaimedResumeLostAndRemovesItsHiddenRecord(t *testing.T) {
 	}
 }
 
-type checkpointResumabilityFunc func(context.Context, runs.ExecutorCheckpointExpectation) (bool, error)
+type waitingExecutionResumabilityFunc func(context.Context, runs.WaitingContinuation) (bool, error)
 
-func (probe checkpointResumabilityFunc) CanResumeCheckpoint(
+func (probe waitingExecutionResumabilityFunc) CanResumeWaitingExecution(
 	ctx context.Context,
-	expected runs.ExecutorCheckpointExpectation,
+	continuation runs.WaitingContinuation,
 ) (bool, error) {
-	return probe(ctx, expected)
+	return probe(ctx, continuation)
 }
 
 // TestRecoveryRepairsWholeDurableLifecycle proves
@@ -171,6 +198,8 @@ func TestRecoveryRepairsWholeDurableLifecycle(t *testing.T) {
 	messageStore := sqlite.NewMessageStore(db)
 	goalStore := sqlite.NewGoalStore(db)
 	checkpointStore := persistence.NewExecutorCheckpointStore(sqlite.NewExecutorCheckpointStore(db))
+	modelInvocations := sqlite.NewModelInvocationStore(db)
+	toolInvocations := sqlite.NewToolInvocationStore(db)
 	goalValue, err := goal.New("session", "finish recovery", modelref.Selection{}, goal.Budget{}, "lease_recovery", createdAt)
 	if err != nil {
 		t.Fatalf("New Goal: %v", err)
@@ -191,6 +220,26 @@ func TestRecoveryRepairsWholeDurableLifecycle(t *testing.T) {
 	if err := transcriptStore.AppendItem(ctx, item); err != nil {
 		t.Fatalf("AppendItem: %v", err)
 	}
+	toolItem := itemfixture.MustRestore(itemfixture.Input{
+		ID: "item_tool_running", SessionID: "session", RunID: "run_lost",
+		Status: transcript.ItemRunning, Kind: transcript.ToolCall,
+		Tool: &transcript.ToolInvocation{Name: "long_running_tool"}, OccurredAt: createdAt.Add(time.Second),
+	})
+	if err := transcriptStore.AppendItem(ctx, toolItem); err != nil {
+		t.Fatalf("Append Tool Item: %v", err)
+	}
+	modelStartedAt := createdAt.Add(2 * time.Second)
+	if err := modelInvocations.StartModelInvocation(
+		ctx, "session", "run_lost", "segment", "model_call_lost", modelStartedAt,
+	); err != nil {
+		t.Fatalf("start model invocation: %v", err)
+	}
+	toolStartedAt := createdAt.Add(3 * time.Second)
+	if err := toolInvocations.StartToolInvocation(
+		ctx, "session", "run_lost", "segment", "tool_call_lost", toolItem.ID(), toolStartedAt,
+	); err != nil {
+		t.Fatalf("start Tool invocation: %v", err)
+	}
 	checkpoint := runs.ExecutorCheckpoint{
 		RootMemberID: "orphan_checkpoint",
 		Payload:      []byte(`{"opaque":true}`),
@@ -200,6 +249,66 @@ func TestRecoveryRepairsWholeDurableLifecycle(t *testing.T) {
 	if err := checkpointStore.SaveCheckpoint(ctx, checkpoint); err != nil {
 		t.Fatalf("SaveCheckpoint: %v", err)
 	}
+	if err := messageStore.Write(
+		ctx,
+		"session",
+		corechat.NewUserMessage(corechat.NewTextPart("recover this")),
+		corechat.NewAssistantMessage(corechat.NewToolCallPart(corechat.ToolCall{
+			ID: "provider_call_lost", Name: "ask_user", Arguments: "{}",
+		})),
+	); err != nil {
+		t.Fatalf("seed conversation: %v", err)
+	}
+	rollbackFailure := errors.New("record recovered Goal Run")
+	failingPersistence, err := New(Config{
+		Sessions:   sessionStore,
+		Runs:       runStore,
+		Interrupts: interruptStore,
+		Transcript: transcriptStore,
+		Messages:   messageStore,
+		GoalRuns: goalRunRecorderFunc(func(context.Context, goal.RunRecord) error {
+			return rollbackFailure
+		}),
+		ExecutorCheckpoints: checkpointStore,
+		ModelInvocations:    modelInvocations,
+		ToolInvocations:     toolInvocations,
+		Tx: func(ctx context.Context, fn func(context.Context) error) error {
+			return sqlite.RunInTx(ctx, db, fn)
+		},
+	})
+	if err != nil {
+		t.Fatalf("New failing persistence: %v", err)
+	}
+	failingRecovery, err := runs.NewRecovery(failingPersistence, alwaysResumable{})
+	if err != nil {
+		t.Fatalf("New failing Recovery: %v", err)
+	}
+	if _, err := failingRecovery.Reconcile(ctx); !errors.Is(err, rollbackFailure) {
+		t.Fatalf("failed Reconcile error = %v, want %v", err, rollbackFailure)
+	}
+	afterRollback, err := messageStore.Read(ctx, "session")
+	if err != nil || len(afterRollback) != 2 {
+		t.Fatalf("conversation after rollback = %#v, %v", afterRollback, err)
+	}
+	activeAfterRollback, found, err := runStore.Run(ctx, "run_lost")
+	if err != nil || !found || activeAfterRollback.State() != run.Running {
+		t.Fatalf("Run after rollback = found:%t value:%+v err:%v", found, activeAfterRollback, err)
+	}
+	if _, err := checkpointStore.LoadCheckpoint(ctx, checkpoint.RootMemberID); err != nil {
+		t.Fatalf("checkpoint after rollback: %v", err)
+	}
+	var modelState, toolState string
+	if err := db.QueryRowContext(ctx,
+		`SELECT state FROM model_invocations WHERE call_id = ?`, "model_call_lost",
+	).Scan(&modelState); err != nil || modelState != "started" {
+		t.Fatalf("model invocation after rollback = %q, %v, want started", modelState, err)
+	}
+	if err := db.QueryRowContext(ctx,
+		`SELECT state FROM tool_invocations WHERE call_id = ? AND segment_id = ?`,
+		"tool_call_lost", "segment",
+	).Scan(&toolState); err != nil || toolState != "started" {
+		t.Fatalf("Tool invocation after rollback = %q, %v, want started", toolState, err)
+	}
 	persistence, err := New(Config{
 		Sessions:            sessionStore,
 		Runs:                runStore,
@@ -208,6 +317,8 @@ func TestRecoveryRepairsWholeDurableLifecycle(t *testing.T) {
 		Messages:            messageStore,
 		GoalRuns:            goalStore,
 		ExecutorCheckpoints: checkpointStore,
+		ModelInvocations:    modelInvocations,
+		ToolInvocations:     toolInvocations,
 		Tx: func(ctx context.Context, fn func(context.Context) error) error {
 			return sqlite.RunInTx(ctx, db, fn)
 		},
@@ -230,13 +341,36 @@ func TestRecoveryRepairsWholeDurableLifecycle(t *testing.T) {
 	stored, found, err := runStore.Run(ctx, "run_lost")
 	failure, failed := stored.Failure()
 	if err != nil || !found || stored.State() != run.Failed ||
-		!failed || failure.Kind != run.FailureLost {
+		!failed || failure.Kind != run.FailureLost || stored.MessageMark() != 3 {
 		t.Fatalf("recovered Run = found:%t value:%+v err:%v", found, stored, err)
+	}
+	recoveredMessages, err := messageStore.Read(ctx, "session")
+	if err != nil || len(recoveredMessages) != 3 || recoveredMessages[2].Role != corechat.RoleTool ||
+		len(recoveredMessages[2].Parts) != 1 || recoveredMessages[2].Parts[0].ToolResult == nil ||
+		recoveredMessages[2].Parts[0].ToolResult.ID != "provider_call_lost" ||
+		!recoveredMessages[2].Parts[0].ToolResult.IsError {
+		t.Fatalf("recovered conversation = %#v, %v", recoveredMessages, err)
 	}
 	storedItem, found, err := transcriptStore.Item(ctx, item.ID())
 	if err != nil || !found || storedItem.Status() != transcript.ItemCompleted ||
 		!reflect.DeepEqual(storedItem.Snapshot(), item.Snapshot()) {
 		t.Fatalf("recovered Item = found:%t value:%+v err:%v", found, storedItem, err)
+	}
+	recoveredToolItem, found, err := transcriptStore.Item(ctx, toolItem.ID())
+	if err != nil || !found || recoveredToolItem.Status() != transcript.ItemIncomplete {
+		t.Fatalf("recovered Tool Item = found:%t value:%+v err:%v", found, recoveredToolItem, err)
+	}
+	var modelFinishedAt, toolFinishedAt int64
+	if err := db.QueryRowContext(ctx,
+		`SELECT state, finished_at FROM model_invocations WHERE call_id = ?`, "model_call_lost",
+	).Scan(&modelState, &modelFinishedAt); err != nil || modelState != "unknown" || modelFinishedAt == 0 {
+		t.Fatalf("recovered model invocation = state:%q finished:%d err:%v", modelState, modelFinishedAt, err)
+	}
+	if err := db.QueryRowContext(ctx,
+		`SELECT state, finished_at FROM tool_invocations WHERE call_id = ? AND segment_id = ?`,
+		"tool_call_lost", "segment",
+	).Scan(&toolState, &toolFinishedAt); err != nil || toolState != "incomplete" || toolFinishedAt == 0 {
+		t.Fatalf("recovered Tool invocation = state:%q finished:%d err:%v", toolState, toolFinishedAt, err)
 	}
 	if _, err := checkpointStore.LoadCheckpoint(ctx, checkpoint.RootMemberID); !errors.Is(err, runs.ErrExecutorCheckpointNotFound) {
 		t.Fatalf("orphan checkpoint after recovery = %v", err)
@@ -316,6 +450,7 @@ func TestRecoveryRejectsPartialParkWithoutMutatingIt(t *testing.T) {
 	persistence, err := New(Config{
 		Sessions: sessionStore, Runs: runStore, Interrupts: interruptStore, Transcript: transcriptStore,
 		Messages: sqlite.NewMessageStore(db), GoalRuns: sqlite.NewGoalStore(db), ExecutorCheckpoints: checkpointStore,
+		ModelInvocations: sqlite.NewModelInvocationStore(db), ToolInvocations: sqlite.NewToolInvocationStore(db),
 		Tx: func(ctx context.Context, fn func(context.Context) error) error {
 			return sqlite.RunInTx(ctx, db, fn)
 		},

@@ -9,6 +9,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/promptsource"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/agentmemory"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/knowledge"
+	corechat "github.com/Tangerg/lynx/core/chat"
 )
 
 // agentMemoryInjectBudget bounds the always-on curated-memory block whole-inject
@@ -33,7 +34,7 @@ When you change files, show the change. When a tool returns an
 error, read the message and adjust — don't blindly retry. If a
 task is ambiguous, ask one focused question rather than guess.`
 
-// systemPrompt assembles the system prompt for one turn. Global
+// composeSystemMessage assembles the system prompt for one turn. Global
 // context loads first, project context second, so project knowledge
 // extends and overrides the global layer:
 //
@@ -54,58 +55,50 @@ task is ambiguous, ask one focused question rather than guess.`
 // read-only cross-tool AGENTS.md convention.
 // Engines built without knowledge or agent memory simply yield the base prompt +
 // discovered files.
-// appendPlan appends the turn's session Plan to the prompt when a Plan reader
-// is wired and the session has Steps. Best-effort: a missing session
-// id or a store error silently skips — the Plan is context for the
-// model, never a correctness input, so it must never derail prompt assembly.
-// Kept off composePrompt so that function stays focused on the knowledge /
-// AGENTS.md cascade (and its direct unit tests need no plan stub).
-func appendPlanForSession(ctx context.Context, prompt string, plan PlanReader, sessionID string) string {
-	if plan == nil || sessionID == "" {
-		return prompt
-	}
-	steps, err := plan.List(ctx, sessionID)
-	if err != nil || len(steps) == 0 {
-		return prompt
-	}
-	return prompt + "\n\n## Current Plan\n\n" + planpresentation.Render(steps)
-}
+// The optional knowledge, memory, document and Plan sources are best-effort:
+// they enrich model context but never become correctness inputs for a run.
+func (composer *WorkingContextComposer) composeSystemMessage(
+	ctx context.Context,
+	sessionID string,
+	cwd string,
+) (corechat.Message, error) {
+	var prompt promptComposition
+	prompt.append(
+		basePrompt,
+		contextSourceBasePrompt.source("builtin:lyra"),
+	)
 
-// composePrompt assembles the immutable instruction layers for a fresh root.
-func composePrompt(ctx context.Context, knowledgeReader KnowledgeReader, agentMemory AgentMemoryReader, cwd, userHome string) string {
-	var b strings.Builder
-	b.WriteString(basePrompt)
-
-	if knowledgeReader != nil {
-		userKnowledge, _ := knowledgeReader.Get(ctx, knowledge.ScopeUser, "")
+	if composer.config.Knowledge != nil {
+		userKnowledge, _ := composer.config.Knowledge.Get(ctx, knowledge.ScopeUser, "")
 		if s := strings.TrimSpace(userKnowledge); s != "" {
-			b.WriteString("\n\n## User preferences (from ~/.lyra/LYRA.md)\n\n")
-			b.WriteString(s)
+			prompt.append(
+				"## User preferences (from ~/.lyra/LYRA.md)\n\n"+s,
+				contextSourceUserKnowledge.source("~/.lyra/LYRA.md"),
+			)
 		}
 	}
 
-	if agentMemory != nil {
+	if composer.config.AgentMemory != nil {
 		// The always-on core is the PINNED items (project + user scope). Non-pinned
 		// approved memory is surfaced per turn by relevance (the recall block), so a
 		// growing corpus never bloats every prompt.
 		var pinned []agentmemory.Item
 		if project := strings.TrimSpace(cwd); project != "" {
-			items, _ := agentMemory.Items(ctx, agentmemory.ScopeProject, filepath.Clean(project))
+			items, _ := composer.config.AgentMemory.Items(ctx, agentmemory.ScopeProject, filepath.Clean(project))
 			pinned = appendPinned(pinned, items)
 		}
-		userItems, _ := agentMemory.Items(ctx, agentmemory.ScopeUser, "")
+		userItems, _ := composer.config.AgentMemory.Items(ctx, agentmemory.ScopeUser, "")
 		pinned = appendPinned(pinned, userItems)
-		if s := renderPinnedMemory(pinned, agentMemoryInjectBudget); s != "" {
-			b.WriteString("\n\n## Pinned memory (managed by Lyra)\n\n")
-			b.WriteString(s)
-		}
+		newPinnedMemoryPrompt(pinned, agentMemoryInjectBudget).appendTo(&prompt)
 	}
 
-	if knowledgeReader != nil {
-		projectKnowledge, _ := knowledgeReader.Get(ctx, knowledge.ScopeProject, cwd)
+	if composer.config.Knowledge != nil {
+		projectKnowledge, _ := composer.config.Knowledge.Get(ctx, knowledge.ScopeProject, cwd)
 		if s := strings.TrimSpace(projectKnowledge); s != "" {
-			b.WriteString("\n\n## Project knowledge (from <cwd>/LYRA.md)\n\n")
-			b.WriteString(s)
+			prompt.append(
+				"## Project knowledge (from <cwd>/LYRA.md)\n\n"+s,
+				contextSourceProjectKnowledge.source(filepath.Join(filepath.Clean(cwd), "LYRA.md")),
+			)
 		}
 	}
 
@@ -113,15 +106,33 @@ func composePrompt(ctx context.Context, knowledgeReader KnowledgeReader, agentMe
 	// instruction file never derails a turn. User Home is injected rather than
 	// rediscovered inside every prompt assembly.
 	if dir := strings.TrimSpace(cwd); dir != "" {
-		if files, err := promptsource.DiscoverAgentDocs(ctx, dir, userHome); err == nil {
-			if rendered := renderAgentDocs(files, agentDocPromptMaxBytes); rendered != "" {
-				b.WriteString("\n\n## Project context (from AGENTS.md cascade)\n\n")
-				b.WriteString(rendered)
-			}
+		if files, err := promptsource.DiscoverAgentDocs(ctx, dir, composer.config.UserHome); err == nil {
+			newAgentDocumentsPrompt(files, agentDocPromptMaxBytes).appendTo(&prompt)
 		}
 	}
 
-	return b.String()
+	composer.appendSessionPlan(ctx, &prompt, sessionID)
+	return prompt.systemMessage()
+}
+
+// appendSessionPlan appends the turn's Plan when the configured reader has
+// steps for the Session. Plan context is informative and remains best-effort.
+func (composer *WorkingContextComposer) appendSessionPlan(
+	ctx context.Context,
+	prompt *promptComposition,
+	sessionID string,
+) {
+	if composer.config.Plan == nil || sessionID == "" {
+		return
+	}
+	steps, err := composer.config.Plan.List(ctx, sessionID)
+	if err != nil || len(steps) == 0 {
+		return
+	}
+	prompt.append(
+		"## Current Plan\n\n"+planpresentation.Render(steps),
+		contextSourceSessionPlan.source(sessionID),
+	)
 }
 
 // appendPinned appends the pinned items of src to dst.

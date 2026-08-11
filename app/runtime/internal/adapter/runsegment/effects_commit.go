@@ -404,6 +404,14 @@ func (e *Effects) applyCommit(ctx context.Context, commit runs.EventCommit) erro
 			return err
 		}
 	}
+	if len(commit.ConversationMessages) != 0 {
+		if e.conversation == nil {
+			return errors.New("runsegment: conversation persistence is unavailable")
+		}
+		if err := e.conversation.Write(ctx, commit.SessionID, commit.ConversationMessages...); err != nil {
+			return fmt.Errorf("runsegment: append conversation messages: %w", err)
+		}
+	}
 	if err := e.applyModelInvocations(ctx, commit); err != nil {
 		return err
 	}
@@ -621,10 +629,10 @@ func (e *Effects) finishedRun(ctx context.Context, commit runs.EventCommit) (run
 	}
 	record := *commit.Run
 	if record.MessageMark() < 0 {
-		if e.messages == nil {
+		if e.conversation == nil {
 			return run.Run{}, errors.New("runsegment: message persistence is unavailable")
 		}
-		mark, err := e.messages.Count(ctx, record.SessionID())
+		mark, err := e.conversation.Count(ctx, record.SessionID())
 		if err != nil {
 			return run.Run{}, fmt.Errorf("runsegment: resolve terminal message watermark: %w", err)
 		}

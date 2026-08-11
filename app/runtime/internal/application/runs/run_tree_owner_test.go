@@ -115,6 +115,90 @@ func TestRunTreeOwnerCancelInterruptsBlockedCommit(t *testing.T) {
 	}
 }
 
+func TestRunTreeOwnerCancelWaitsForSegmentActivation(t *testing.T) {
+	activationStarted := make(chan struct{})
+	releaseActivation := make(chan struct{})
+	cancelRequested := make(chan struct{})
+	treeOwner := &runTreeOwner{
+		activation: segmentActivation{done: make(chan struct{})},
+	}
+
+	activationDone := make(chan error, 1)
+	go func() {
+		_, err := treeOwner.beginExecution(t.Context(), func(context.Context) error {
+			close(activationStarted)
+			<-releaseActivation
+			return nil
+		})
+		activationDone <- err
+	}()
+	<-activationStarted
+
+	cancelDone := make(chan error, 1)
+	go func() {
+		_, err := treeOwner.requestCancel(t.Context(), "stop", func(context.Context) error {
+			close(cancelRequested)
+			return nil
+		})
+		cancelDone <- err
+	}()
+	select {
+	case <-cancelRequested:
+		t.Fatal("cancel crossed an in-flight segment activation")
+	case <-time.After(20 * time.Millisecond):
+	}
+
+	close(releaseActivation)
+	if err := <-activationDone; err != nil {
+		t.Fatalf("activate segment: %v", err)
+	}
+	if err := <-cancelDone; err != nil {
+		t.Fatalf("cancel after activation: %v", err)
+	}
+	select {
+	case <-cancelRequested:
+	case <-time.After(time.Second):
+		t.Fatal("cancel did not continue after segment activation")
+	}
+}
+
+func TestRunTreeOwnerCancelBeforeActivationSuppressesExecutorBegin(t *testing.T) {
+	treeOwner := &runTreeOwner{
+		activation: segmentActivation{done: make(chan struct{})},
+	}
+	if _, err := treeOwner.requestCancel(t.Context(), "stop", acceptRootCancel); err != nil {
+		t.Fatalf("request cancel: %v", err)
+	}
+
+	beginCalled := false
+	canceled, err := treeOwner.beginExecution(t.Context(), func(context.Context) error {
+		beginCalled = true
+		return nil
+	})
+	if err != nil || !canceled || beginCalled {
+		t.Fatalf(
+			"begin after cancel = canceled:%t called:%t err:%v, want true/false/nil",
+			canceled,
+			beginCalled,
+			err,
+		)
+	}
+}
+
+func TestRunTreeOwnerCancelClassifiesActivationFailureAsFinished(t *testing.T) {
+	treeOwner := &runTreeOwner{
+		activation: segmentActivation{done: make(chan struct{})},
+	}
+	if _, err := treeOwner.beginExecution(t.Context(), func(context.Context) error {
+		return errors.New("activation failed")
+	}); err == nil {
+		t.Fatal("segment activation unexpectedly succeeded")
+	}
+	if _, err := treeOwner.requestCancel(t.Context(), "stop", acceptRootCancel); !errors.Is(err, ErrRunFinished) {
+		t.Fatalf("cancel after activation failure = %v, want ErrRunFinished", err)
+	}
+}
+
 func TestRunTreeOwnerRetainsCommittedInterruptOutcomeAfterCommitReturns(t *testing.T) {
 	treeOwner := &runTreeOwner{}
 	committed, err := treeOwner.commitInterrupt(t.Context(), func(context.Context) error {

@@ -1,9 +1,12 @@
 import type { WorkspaceEventLoop } from "./workspaceEventLoop";
 
+export type WorkspaceCwdResolution =
+  { status: "resolved"; cwd?: string } | { status: "unavailable" };
+
 export interface WorkspaceEventSubscriptionPorts {
   canSubscribe: () => boolean;
   subscribeCapabilities: (onChange: () => void) => () => void;
-  resolveWorkspaceCwd: () => Promise<string | undefined>;
+  resolveWorkspaceCwd: () => Promise<WorkspaceCwdResolution>;
   subscribeWorkspaceCwdInputs: (onChange: () => void) => () => void;
   loop: WorkspaceEventLoop;
 }
@@ -17,9 +20,9 @@ export function startWorkspaceEventSubscription(
 
   const retarget = (): void => {
     const generation = ++retargetGeneration;
-    void ports.resolveWorkspaceCwd().then((cwd) => {
+    void ports.resolveWorkspaceCwd().then((resolution) => {
       if (generation !== retargetGeneration || controller.signal.aborted) return;
-      ports.loop.retarget(cwd);
+      if (resolution.status === "resolved") ports.loop.retarget(resolution.cwd);
     });
   };
 

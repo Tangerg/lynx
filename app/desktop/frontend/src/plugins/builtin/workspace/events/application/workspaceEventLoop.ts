@@ -35,7 +35,7 @@ export function createWorkspaceEventLoop(deps: WorkspaceEventLoopDeps): Workspac
       );
     },
     retarget(cwd) {
-      if (cwd === undefined || cwd === watchCwd) return;
+      if (cwd === watchCwd) return;
       watchCwd = cwd;
       iterAbort?.abort(RETARGET);
     },
@@ -56,10 +56,15 @@ async function subscribeLoop(
     signal.addEventListener("abort", onOuterAbort, { once: true });
     try {
       const events = await deps.subscribe({ cwd: watchCwd(), signal: iter.signal });
+      // A transport may resolve its opening promise at the same instant a
+      // retarget abort wins. Do not publish the stale subscription's initial
+      // resync or any already-buffered event into the new workspace target.
+      if (iter.signal.aborted) continue;
       attempt = 0;
       deps.invalidateAll();
       let lastSequence: number | undefined;
       for await (const ev of events) {
+        if (iter.signal.aborted) break;
         if (lastSequence !== undefined && ev.sequence !== lastSequence + 1) {
           deps.invalidateAll();
         }
@@ -77,7 +82,18 @@ async function subscribeLoop(
       attempt = 0;
       continue;
     }
-    await delay(Math.min(RECONNECT_BASE_MS * 2 ** attempt, RECONNECT_CAP_MS), signal);
+    const backoff = new AbortController();
+    setIterAbort(backoff);
+    const abortBackoff = () => backoff.abort();
+    signal.addEventListener("abort", abortBackoff, { once: true });
+    await delay(Math.min(RECONNECT_BASE_MS * 2 ** attempt, RECONNECT_CAP_MS), backoff.signal);
+    signal.removeEventListener("abort", abortBackoff);
+    setIterAbort(null);
+    if (signal.aborted) return;
+    if (backoff.signal.reason === RETARGET) {
+      attempt = 0;
+      continue;
+    }
     attempt += 1;
   }
 }

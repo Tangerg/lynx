@@ -24,6 +24,41 @@ func NewToolInvocationStore(db *sql.DB) *ToolInvocationStore {
 	return &ToolInvocationStore{db: db}
 }
 
+// ListStartedToolInvocations yields every Tool attempt still owned by a
+// pre-crash process without importing recovery application types into storage.
+func (store *ToolInvocationStore) ListStartedToolInvocations(
+	ctx context.Context,
+	yield func(sessionID, runID, segmentID, callID, itemID string, startedAt time.Time) error,
+) error {
+	if yield == nil {
+		return errors.New("sqlite: Tool invocation reader is required")
+	}
+	rows, err := conn(ctx, store.db).QueryContext(ctx, `
+		SELECT session_id, run_id, segment_id, call_id, item_id, started_at
+		  FROM tool_invocations
+		 WHERE state = ?
+		 ORDER BY session_id, run_id, segment_id, call_id, item_id
+	`, toolInvocationStarted)
+	if err != nil {
+		return fmt.Errorf("sqlite: list started Tool invocations: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var sessionID, runID, segmentID, callID, itemID string
+		var startedAt int64
+		if err := rows.Scan(&sessionID, &runID, &segmentID, &callID, &itemID, &startedAt); err != nil {
+			return fmt.Errorf("sqlite: scan started Tool invocation: %w", err)
+		}
+		if err := yield(sessionID, runID, segmentID, callID, itemID, time.Unix(0, startedAt).UTC()); err != nil {
+			return err
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("sqlite: iterate started Tool invocations: %w", err)
+	}
+	return nil
+}
+
 func (store *ToolInvocationStore) StartToolInvocation(
 	ctx context.Context,
 	sessionID, runID, segmentID, callID, itemID string,

@@ -12,50 +12,72 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
-func (r *reducer) interrupt(e SegmentInterrupted) ([]RunEvent, error) {
+func (r *reducer) interrupt(e SegmentInterrupted) (factReduction, error) {
 	if err := e.validate(); err != nil {
-		return nil, err
+		return factReduction{}, err
 	}
 	out, err := r.closeStreaming()
 	if err != nil {
-		return nil, err
+		return factReduction{}, err
 	}
+	parkItems := completedEventItems(nil, out)
 	open := r.tools.drain()
-	matched, err := matchApprovalTools(open, e.Interrupts)
+	matched, err := matchInterruptTools(open, e.Interrupts)
 	if err != nil {
-		return nil, err
+		return factReduction{}, err
 	}
 	priorDrained := r.resume.remainingDrainedTools()
-	r.drained = mergeDrainedTools(priorDrained, drainedToolRefs(open, matched))
+	r.drained = mergeDrainedTools(priorDrained, drainedToolRefs(open, matched, e.Interrupts))
 
 	approvalItems := make(map[int]transcript.Item, len(matched))
 	for _, ref := range open {
 		if index, ok := matched[ref]; ok {
-			item, err := r.approvalItem(*e.Interrupts[index].Approval, ref)
-			if err != nil {
-				return nil, err
+			if err := r.closeSuspendedToolAttempt(ref); err != nil {
+				return factReduction{}, err
 			}
-			approvalItems[index] = item
-			started, err := newToolItemStart(item)
-			if err != nil {
-				return nil, err
+			switch pending := e.Interrupts[index]; pending.Kind {
+			case interrupt.Approval:
+				item, publishStart, err := r.approvalItem(*pending.Approval, ref)
+				if err != nil {
+					return factReduction{}, err
+				}
+				approvalItems[index] = item
+				parkItems = append(parkItems, item)
+				if publishStart {
+					started, err := newToolItemStart(item)
+					if err != nil {
+						return factReduction{}, err
+					}
+					out = append(out, ItemStarted{Item: started})
+				}
+			case interrupt.Question:
+				// The question is a separate completed prompt Item, but the tool
+				// call that owns it is still suspended inside its handler. Persist
+				// that Tool Item as running and carry its identity through the
+				// continuation; publishing a completion here would make resume
+				// complete the same client block a second time.
+				item, err := r.runningToolItem(ref)
+				if err != nil {
+					return factReduction{}, err
+				}
+				parkItems = append(parkItems, item)
 			}
-			out = append(out, ItemStarted{Item: started})
 			continue
 		}
 		if ref.end != nil {
 			completed, err := r.completeTool(ref, *ref.end)
 			if err != nil {
-				return nil, err
+				return factReduction{}, err
 			}
 			out = append(out, completed...)
+			parkItems = completedEventItems(parkItems, completed)
 			continue
 		}
-		incomplete, err := r.incompleteToolItem(ref)
+		suspended, err := r.suspendedToolItem(ref)
 		if err != nil {
-			return nil, err
+			return factReduction{}, err
 		}
-		out = append(out, incomplete)
+		parkItems = append(parkItems, suspended)
 	}
 
 	pending := make([]transcript.Interrupt, 0, len(e.Interrupts))
@@ -68,24 +90,29 @@ func (r *reducer) interrupt(e SegmentInterrupted) ([]RunEvent, error) {
 				item = matchedItem
 				pendingInterrupt = approvalTranscriptInterrupt(item, *in.Approval)
 			} else {
+				var publishStart bool
 				var err error
-				item, pendingInterrupt, err = r.approvalInterrupt(in)
+				item, pendingInterrupt, publishStart, err = r.approvalInterrupt(in)
 				if err != nil {
-					return nil, err
+					return factReduction{}, err
 				}
-				started, err := newToolItemStart(item)
-				if err != nil {
-					return nil, err
+				parkItems = append(parkItems, item)
+				if publishStart {
+					started, err := newToolItemStart(item)
+					if err != nil {
+						return factReduction{}, err
+					}
+					out = append(out, ItemStarted{Item: started})
 				}
-				out = append(out, ItemStarted{Item: started})
 			}
 		case interrupt.Question:
 			var err error
 			item, pendingInterrupt, err = r.questionInterrupt(in)
 			if err != nil {
-				return nil, err
+				return factReduction{}, err
 			}
 			out = append(out, ItemCompleted{Item: item})
+			parkItems = append(parkItems, item)
 		}
 		pending = append(pending, pendingInterrupt)
 	}
@@ -93,80 +120,100 @@ func (r *reducer) interrupt(e SegmentInterrupted) ([]RunEvent, error) {
 	r.segmentDuration = e.Duration
 	waiting, err := r.runRecord(run.Waiting)
 	if err != nil {
-		return nil, err
+		return factReduction{}, err
 	}
-	return append(out, SegmentFinished{Run: waiting, Interrupts: pending}), nil
+	return factReduction{
+		events:          append(out, SegmentFinished{Run: waiting, Interrupts: pending}),
+		parkItems:       parkItems,
+		toolInvocations: closedToolInvocationCommits(r.cfg.SegmentID, open),
+	}, nil
 }
 
 // suspend closes this Run's Segment because another Run in the same tree raised
 // the human-input barrier. It carries no direct interrupts, which distinguishes
-// a suspended sibling from the Run that owns the barrier. Open tool items are made
-// incomplete and retained for continuation correlation exactly as on the source
-// Run, because the whole tree resumes rather than replaying those calls as new
-// work.
-func (r *reducer) suspend(duration time.Duration) ([]RunEvent, error) {
+// a suspended sibling from the Run that owns the barrier. Logical Tool Items stay
+// running across the barrier while their segment-scoped attempts end incomplete.
+func (r *reducer) suspend(duration time.Duration) (factReduction, error) {
 	out, err := r.closeStreaming()
 	if err != nil {
-		return nil, err
+		return factReduction{}, err
 	}
+	parkItems := completedEventItems(nil, out)
 	open := r.tools.drain()
 	r.drained = mergeDrainedTools(
 		r.resume.remainingDrainedTools(),
-		drainedToolRefs(open, nil),
+		drainedToolRefs(open, nil, nil),
 	)
 	for _, ref := range open {
 		if ref.end != nil {
 			completed, err := r.completeTool(ref, *ref.end)
 			if err != nil {
-				return nil, err
+				return factReduction{}, err
 			}
 			out = append(out, completed...)
+			parkItems = completedEventItems(parkItems, completed)
 			continue
 		}
-		incomplete, err := r.incompleteToolItem(ref)
+		suspended, err := r.suspendedToolItem(ref)
 		if err != nil {
-			return nil, err
+			return factReduction{}, err
 		}
-		out = append(out, incomplete)
+		parkItems = append(parkItems, suspended)
 	}
 	r.segmentDuration = duration
 	waiting, err := r.runRecord(run.Waiting)
 	if err != nil {
-		return nil, err
+		return factReduction{}, err
 	}
-	return append(out, SegmentFinished{Run: waiting}), nil
+	return factReduction{
+		events:          append(out, SegmentFinished{Run: waiting}),
+		parkItems:       parkItems,
+		toolInvocations: closedToolInvocationCommits(r.cfg.SegmentID, open),
+	}, nil
 }
 
-func (r *reducer) approvalInterrupt(in Interrupt) (transcript.Item, transcript.Interrupt, error) {
+func completedEventItems(items []transcript.Item, events []RunEvent) []transcript.Item {
+	for _, event := range events {
+		if completed, ok := event.(ItemCompleted); ok {
+			items = append(items, completed.Item)
+		}
+	}
+	return items
+}
+
+func (r *reducer) approvalInterrupt(in Interrupt) (transcript.Item, transcript.Interrupt, bool, error) {
 	if in.Approval == nil {
-		return transcript.Item{}, transcript.Interrupt{}, nil
+		return transcript.Item{}, transcript.Interrupt{}, false, nil
 	}
-	item, err := r.approvalItem(*in.Approval, nil)
+	item, publishStart, err := r.approvalItem(*in.Approval, nil)
 	if err != nil {
-		return transcript.Item{}, transcript.Interrupt{}, err
+		return transcript.Item{}, transcript.Interrupt{}, false, err
 	}
-	return item, approvalTranscriptInterrupt(item, *in.Approval), nil
+	return item, approvalTranscriptInterrupt(item, *in.Approval), publishStart, nil
 }
 
-func (r *reducer) approvalItem(prompt ApprovalPrompt, ref *openTool) (transcript.Item, error) {
+func (r *reducer) approvalItem(prompt ApprovalPrompt, ref *openTool) (transcript.Item, bool, error) {
 	arguments, err := parseToolArguments(prompt.Arguments)
 	if err != nil {
-		return transcript.Item{}, fmt.Errorf("approval tool %q arguments: %w", prompt.ToolName, err)
+		return transcript.Item{}, false, fmt.Errorf("approval tool %q arguments: %w", prompt.ToolName, err)
 	}
 	var id string
 	var startedAt time.Time
+	publishStart := false
 	if ref != nil {
 		id, startedAt = ref.id, ref.occurredAt
 	} else {
-		identity := r.reuseOrCreateToolItem(prompt.CallID, prompt.ToolName, arguments)
+		identity, reused := r.reuseOrCreateToolItem(prompt.CallID, prompt.ToolName, arguments)
 		id, startedAt = identity.id, identity.occurredAt
+		publishStart = !reused
 		r.removeDrained(id)
 	}
-	return transcript.NewToolCall(
+	item, err := transcript.NewToolCall(
 		r.itemIdentity(id, startedAt),
 		*newToolInvocation(prompt.ToolName, arguments, nil),
 		prompt.SafetyClass,
 	)
+	return item, publishStart, err
 }
 
 func approvalTranscriptInterrupt(item transcript.Item, prompt ApprovalPrompt) transcript.Interrupt {
@@ -182,16 +229,27 @@ func approvalTranscriptInterrupt(item transcript.Item, prompt ApprovalPrompt) tr
 	}
 }
 
-func matchApprovalTools(open []*openTool, values []Interrupt) (map[*openTool]int, error) {
+// matchInterruptTools binds an executor interrupt back to the open tool call
+// that raised it. Approval carries a provider call ID; question-producing tools
+// are correlated by their canonical name and arguments because their handler
+// creates the interrupt below the execution wrapper that owns that ID.
+func matchInterruptTools(open []*openTool, values []Interrupt) (map[*openTool]int, error) {
 	matched := make(map[*openTool]int)
 	for index, value := range values {
-		if value.Kind != interrupt.Approval || value.Approval == nil {
+		toolName, rawArguments := value.Tool()
+		if toolName == "" {
 			continue
 		}
-		prompt := value.Approval
-		arguments, err := parseToolArguments(prompt.Arguments)
+		arguments, err := parseToolArguments(rawArguments)
 		if err != nil {
-			return nil, fmt.Errorf("approval tool %q arguments: %w", prompt.ToolName, err)
+			return nil, fmt.Errorf("%s interrupt tool %q arguments: %w", value.Kind, toolName, err)
+		}
+		callID := ""
+		switch {
+		case value.Approval != nil:
+			callID = value.Approval.CallID
+		case value.Question != nil:
+			callID = value.Question.CallID
 		}
 		for _, ref := range open {
 			if ref.end != nil {
@@ -200,11 +258,11 @@ func matchApprovalTools(open []*openTool, values []Interrupt) (map[*openTool]int
 			if _, used := matched[ref]; used {
 				continue
 			}
-			if prompt.CallID != "" {
-				if ref.callID != prompt.CallID {
+			if callID != "" {
+				if ref.callID != callID {
 					continue
 				}
-			} else if ref.name != prompt.ToolName || argumentIdentity(ref.arguments) != argumentIdentity(arguments) {
+			} else if ref.name != toolName || argumentIdentity(ref.arguments) != argumentIdentity(arguments) {
 				continue
 			}
 			matched[ref] = index
@@ -214,14 +272,20 @@ func matchApprovalTools(open []*openTool, values []Interrupt) (map[*openTool]int
 	return matched, nil
 }
 
-func drainedToolRefs(open []*openTool, matched map[*openTool]int) []DrainedTool {
+func drainedToolRefs(
+	open []*openTool,
+	matched map[*openTool]int,
+	interrupts []Interrupt,
+) []DrainedTool {
 	var drained []DrainedTool
 	for _, ref := range open {
-		_, activeApproval := matched[ref]
+		matchedIndex, matchedInterrupt := matched[ref]
+		activeApproval := matchedInterrupt && interrupts[matchedIndex].Kind == interrupt.Approval
 		if ref.end == nil && !activeApproval {
 			drained = append(drained, DrainedTool{
 				ItemID: ref.id, ItemOccurredAt: ref.occurredAt,
-				CallID: ref.callID, Name: ref.name, Arguments: ref.arguments.Canonical(),
+				CallID: ref.callID, SourceCallID: ref.sourceCallID,
+				Name: ref.name, Arguments: ref.arguments.Canonical(),
 			})
 		}
 	}
@@ -250,20 +314,34 @@ func (r *reducer) removeDrained(itemID string) {
 }
 
 func (r *reducer) incompleteToolItem(ref *openTool) (ItemCompleted, error) {
-	finishedAt := r.now()
-	if finishedAt.Before(ref.attemptStartedAt) {
-		return ItemCompleted{}, fmt.Errorf("tool call %q finish time precedes start time", ref.callID)
+	if err := r.closeSuspendedToolAttempt(ref); err != nil {
+		return ItemCompleted{}, err
 	}
-	ref.finishedAt = finishedAt
 	item, err := r.runningToolItem(ref)
 	if err != nil {
 		return ItemCompleted{}, err
 	}
-	item, err = item.AbandonToolCall(nil, finishedAt)
+	item, err = item.AbandonToolCall(nil, ref.finishedAt)
 	if err != nil {
 		return ItemCompleted{}, err
 	}
 	return ItemCompleted{Item: item}, nil
+}
+
+func (r *reducer) suspendedToolItem(ref *openTool) (transcript.Item, error) {
+	if err := r.closeSuspendedToolAttempt(ref); err != nil {
+		return transcript.Item{}, err
+	}
+	return r.runningToolItem(ref)
+}
+
+func (r *reducer) closeSuspendedToolAttempt(ref *openTool) error {
+	finishedAt := r.now()
+	if finishedAt.Before(ref.attemptStartedAt) {
+		return fmt.Errorf("tool call %q finish time precedes start time", ref.callID)
+	}
+	ref.finishedAt = finishedAt
+	return nil
 }
 
 func (r *reducer) questionInterrupt(in Interrupt) (transcript.Item, transcript.Interrupt, error) {

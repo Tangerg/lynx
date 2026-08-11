@@ -9,28 +9,23 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 )
 
-// CanResumeCheckpoint probes one durable, opaque waiting tree without
-// publishing or registering a live executor. Invalid, missing, incompatible or
-// unknown-effect checkpoints return false; storage/probe I/O failures remain
-// errors so startup never mutates facts after an inconclusive read.
-func (executor *InteractionExecutor) CanResumeCheckpoint(
+// CanResumeWaitingExecution probes one exact durable waiting tree without
+// publishing or registering a live executor. Invalid, incompatible, or
+// unknown-effect state returns false; assembly/probe I/O failures remain errors
+// so startup never mutates facts after an inconclusive read. It deliberately
+// executes the same restoration and product-member rebinding used by resume.
+func (executor *InteractionExecutor) CanResumeWaitingExecution(
 	ctx context.Context,
-	expected runs.ExecutorCheckpointExpectation,
+	continuation runs.WaitingContinuation,
 ) (bool, error) {
 	if executor == nil {
 		return false, errors.New("agentexec: Interaction executor is nil")
 	}
-	if executor.config.Checkpoints == nil {
-		return false, errors.New("agentexec: Interaction checkpoint reader is unavailable")
+	if err := continuation.Validate(); err != nil {
+		return false, nil
 	}
-	checkpoint, err := executor.config.Checkpoints.LoadCheckpoint(ctx, expected.RootMemberID)
-	if err != nil {
-		if errors.Is(err, runs.ErrExecutorCheckpointNotFound) {
-			return false, nil
-		}
-		return false, fmt.Errorf("agentexec: load Interaction checkpoint: %w", err)
-	}
-	if err := checkpoint.ValidateFor(expected); err != nil || checkpoint.BuildID != executor.config.BuildID || checkpoint.Scope.Isolated {
+	checkpoint := continuation.Checkpoint
+	if checkpoint.BuildID != executor.config.BuildID || checkpoint.Scope.Isolated {
 		return false, nil
 	}
 	if err := executor.validateRestoreScope(ctx, checkpoint.Scope); err != nil {
@@ -57,11 +52,11 @@ func (executor *InteractionExecutor) CanResumeCheckpoint(
 		GoalLeaseID:              checkpoint.Scope.GoalLeaseID,
 		ModelSelection:           checkpoint.ModelSelection,
 		Limits:                   checkpoint.Limits,
-		InterruptKinds:           expected.Capabilities.InterruptKinds,
-		ChildRunAdmissionEnabled: expected.Capabilities.ChildRuns,
+		InterruptKinds:           continuation.Capabilities.InterruptKinds,
+		ChildRunAdmissionEnabled: continuation.ChildRunAdmissionEnabled,
 		WorkingContext:           cloneChatMessages(state.instructions),
 	}
-	ref := runs.ExecutorRef{SessionID: start.SessionID, ExecutorID: "checkpoint-probe"}
+	ref := runs.ExecutorRef{SessionID: start.SessionID, ExecutorID: continuation.ExecutorID}
 	assembled, err := executor.assembleInteraction(ctx, ref, start)
 	if err != nil {
 		return false, fmt.Errorf("agentexec: assemble Interaction checkpoint probe: %w", err)
@@ -72,7 +67,14 @@ func (executor *InteractionExecutor) CanResumeCheckpoint(
 		return false, nil
 	}
 	defer discardRestoredInteraction(assembled, process)
-	assembled.setProcess(process)
+	if err := assembled.initializeRestoredContinuation(
+		process,
+		continuation,
+		state,
+		interactionBoundaryWaiting,
+	); err != nil {
+		return false, nil
+	}
 	unknown, err := assembled.unknownEffectIDs(ctx)
 	if err != nil {
 		return false, fmt.Errorf("agentexec: inspect Interaction checkpoint effects: %w", err)
@@ -81,7 +83,13 @@ func (executor *InteractionExecutor) CanResumeCheckpoint(
 		return false, nil
 	}
 	interruptions, err := assembled.pendingInterruptions(state.tree)
-	return err == nil && len(interruptions) > 0, nil
+	if err != nil {
+		return false, nil
+	}
+	if len(interruptions) == 0 {
+		return false, nil
+	}
+	return true, nil
 }
 
-var _ runs.CheckpointResumability = (*InteractionExecutor)(nil)
+var _ runs.WaitingExecutionResumability = (*InteractionExecutor)(nil)

@@ -252,6 +252,7 @@ func (c *Coordinator) prepareSegmentStartup(
 		taskContext: taskContext,
 		hub:         startup.journal,
 		done:        make(chan struct{}),
+		activation:  segmentActivation{done: make(chan struct{})},
 	}
 	startup.routes, err = c.openingRoutes(spec, startup.treeOwner.CancelReasonFor)
 	if err != nil {
@@ -355,12 +356,17 @@ func (startup *segmentStartup) markSegmentsStarted() {
 }
 
 func (startup *segmentStartup) beginExecution() {
-	if startup.spec.BeginExecution == nil {
-		return
-	}
-	if err := startup.spec.BeginExecution(startup.taskContext); err != nil {
+	canceled, err := startup.treeOwner.beginExecution(
+		startup.taskContext,
+		startup.spec.BeginExecution,
+	)
+	if err != nil {
 		trace.SpanFromContext(startup.taskContext).RecordError(fmt.Errorf("runs: begin execution: %w", err))
 		startup.routes.abortUnfinished()
+		startup.cancelRun()
+		return
+	}
+	if canceled {
 		startup.cancelRun()
 	}
 }

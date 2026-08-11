@@ -53,6 +53,11 @@ func (s *Server) serveRPC(w http.ResponseWriter, r *http.Request) {
 		writeProblem(w, http.StatusBadRequest, "invalid_request", "invalid JSON-RPC message: "+err.Error(), false)
 		return
 	}
+	request, ok := message.(*transport.Request)
+	if !ok {
+		writeProblem(w, http.StatusBadRequest, "invalid_request", "POST /v2/rpc accepts only JSON-RPC requests and notifications", false)
+		return
+	}
 
 	// Carry the streaming reconnect cursor (Last-Event-Id) out-of-band on
 	// the ctx so runs.subscribe replays a run's retained replay window from that
@@ -62,14 +67,8 @@ func (s *Server) serveRPC(w http.ResponseWriter, r *http.Request) {
 	ctx = transport.WithIdempotencyKey(ctx, strings.TrimSpace(r.Header.Get("Idempotency-Key")))
 	result := s.router.Dispatch(ctx, message)
 
-	// Surface the body's method (if any) for the X-Method header.
-	// Only Request envelopes carry Method; Responses don't.
-	bodyMethod := ""
-	if request, ok := message.(*transport.Request); ok {
-		bodyMethod = request.Method
-	}
-
-	methodLabel := bodyMethod
+	// Surface the request method for the X-Method header.
+	methodLabel := request.Method
 
 	// Client notifications are dispatched synchronously and acknowledged
 	// with 204 No Content — no body (TRANSPORT §6.3 explicitly picks 204

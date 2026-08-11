@@ -231,6 +231,8 @@ func artifactToolFailureFromDomain(failure *tool.Failure) (*protocol.ArtifactPro
 		kind = protocol.ArtifactProblemToolFailed
 	case tool.FailureChildRunCanceled:
 		kind = protocol.ArtifactProblemChildRunCanceled
+	case tool.FailureCanceled:
+		kind = protocol.ArtifactProblemToolCanceled
 	default:
 		return nil, fmt.Errorf("unknown value %d", failure.Kind)
 	}

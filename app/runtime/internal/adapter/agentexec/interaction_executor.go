@@ -56,12 +56,6 @@ type RestoreScopeValidator interface {
 	ValidateRestoreScope(ctx context.Context, scope runs.ExecutionScope) error
 }
 
-// CheckpointReader is the executor's read-only durable continuation boundary.
-// Payload interpretation remains private to the concrete executor.
-type CheckpointReader interface {
-	LoadCheckpoint(ctx context.Context, rootMemberID string) (runs.ExecutorCheckpoint, error)
-}
-
 // InteractionExecutorConfig freezes the host-owned inputs shared by
 // Interaction root executions. Identity strings must change whenever the
 // executable Interaction adapter or behavior-affecting dispatcher configuration
@@ -71,7 +65,6 @@ type InteractionExecutorConfig struct {
 	DefaultClient             *chatclient.Client
 	ChatResolver              InteractionChatResolver
 	RestoreScopeValidator     RestoreScopeValidator
-	Checkpoints               CheckpointReader
 	ImplementationIdentity    string
 	ConfigurationIdentity     string
 	DefaultMaxModelCalls      uint32
@@ -121,7 +114,6 @@ func NewInteractionExecutor(config InteractionExecutorConfig) (*InteractionExecu
 	}{
 		{name: "chat resolver", value: config.ChatResolver},
 		{name: "restore-scope validator", value: config.RestoreScopeValidator},
-		{name: "checkpoint reader", value: config.Checkpoints},
 		{name: "Tool resolver", value: config.ToolResolver},
 		{name: "Tool interpreter", value: config.ToolInterpreter},
 		{name: "Tool presenter", value: config.ToolPresenter},
@@ -706,6 +698,9 @@ func (executor *InteractionExecutor) BeginContinuation(
 	if err != nil {
 		return err
 	}
+	// The previous Agent Process lifetime includes the human wait. Reset the
+	// executor's Segment clock before any answer can make that Process runnable.
+	session.startSegment()
 	if err := session.deliverContinuationAnswers(ctx, prepared); err != nil {
 		return err
 	}
@@ -880,8 +875,10 @@ func (executor *InteractionExecutor) Release(ctx context.Context, ref runs.Execu
 
 // RequestRootCancellation submits the Application's accepted cancellation to
 // Agent Framework without deciding the product outcome or releasing the tree.
-// Success means the request entered Engine's queue; an in-flight Effect may
-// still settle before Agent Framework applies the intent at a safe boundary.
+// Success means the request entered Engine's queue. The adapter then cancels
+// its cooperative in-flight model/Tool dispatches so they can settle promptly;
+// Agent Framework remains the sole lifecycle owner and applies the accepted
+// intent only after that safe settlement boundary.
 func (executor *InteractionExecutor) RequestRootCancellation(
 	ctx context.Context,
 	ref runs.ExecutorRef,
@@ -899,6 +896,7 @@ func (executor *InteractionExecutor) RequestRootCancellation(
 		!errors.Is(err, agent.ErrProcessFinished) {
 		return fmt.Errorf("agentexec: submit Interaction cancellation intent: %w", err)
 	}
+	session.cancelAllDispatches()
 	return nil
 }
 

@@ -8,12 +8,14 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/pagination"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 )
 
-// Activity is the resolved session activity view used by read consumers.
-// Running is process-local admission state; Waiting is a durable open HITL
-// interrupt; Idle means neither. This precedence is application policy.
+// Activity is the resolved durable Run activity used by Session read consumers.
+// Running wins over Waiting when a Run tree contains both; Idle means the
+// Session has no non-terminal Run. Admission and terminal maintenance are
+// concurrency fences, not user-visible lifecycle facts.
 type Activity string
 
 const (
@@ -38,41 +40,45 @@ type View struct {
 	Revision    uint64
 }
 
-// Activities resolves activity for the requested sessions in one use-case
-// read. It centralizes the precedence between a live execution and a durable
-// interrupt so every caller observes the same resolved state.
+// Activities resolves activity for the requested sessions in one durable read.
+// Reading the Run projection instead of the process-local admission gate keeps
+// sessions.list linearized with the runs.changed/sessions.changed notifications:
+// once the terminal transaction publishes, a refetch cannot still report the
+// already-terminal Run as running while maintenance releases its admission.
 func (c *Coordinator) Activities(ctx context.Context, sessionIDs []string) (map[string]Activity, error) {
 	activities := make(map[string]Activity, len(sessionIDs))
 	if len(sessionIDs) == 0 {
 		return activities, nil
 	}
-	if c.admissions == nil {
-		return nil, errors.New("sessions: admission gate is unavailable")
+	if c.runs == nil {
+		return nil, errors.New("sessions: run store is unavailable")
 	}
-	active := c.admissions.ActiveSessions()
-	hasIdle := false
+	requested := make(map[string]struct{}, len(sessionIDs))
 	for _, id := range sessionIDs {
-		if active[id] {
-			activities[id] = ActivityRunning
-		} else {
-			activities[id] = ActivityIdle
-			hasIdle = true
-		}
+		requested[id] = struct{}{}
+		activities[id] = ActivityIdle
 	}
-	if !hasIdle || c.interrupts == nil {
-		return activities, nil
-	}
-	filter := ""
-	if len(sessionIDs) == 1 {
-		filter = sessionIDs[0]
-	}
-	pending, err := c.interrupts.List(ctx, filter)
+	activeRuns, err := c.runs.ListNonTerminalRuns(ctx)
 	if err != nil {
 		return nil, err
 	}
-	for _, interrupt := range pending {
-		if activities[interrupt.SessionID] == ActivityIdle {
-			activities[interrupt.SessionID] = ActivityWaiting
+	for _, activeRun := range activeRuns {
+		sessionID := activeRun.SessionID()
+		if _, ok := requested[sessionID]; !ok {
+			continue
+		}
+		switch activeRun.State().Status() {
+		case run.StatusRunning:
+			activities[sessionID] = ActivityRunning
+		case run.StatusWaiting:
+			if activities[sessionID] == ActivityIdle {
+				activities[sessionID] = ActivityWaiting
+			}
+		case run.StatusFinished:
+			return nil, fmt.Errorf(
+				"sessions: non-terminal Run read returned finished Run %q",
+				activeRun.ID(),
+			)
 		}
 	}
 	return activities, nil

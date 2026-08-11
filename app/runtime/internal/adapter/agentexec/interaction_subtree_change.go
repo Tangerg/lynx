@@ -121,6 +121,9 @@ func (change *interactionWaitingSubtreeChange) Continue(ctx context.Context) err
 		)
 	}
 	change.state = interactionWaitingSubtreeChangeContinued
+	// Continue is the first operation that can advance the Process tree after the
+	// Application durably opened the replacement product Segment.
+	change.session.startSegment()
 	resumeCtx, cancelResume := context.WithTimeout(ctx, authoritativeProjectionTimeout)
 	err := change.session.resumePausedProcesses(resumeCtx, change.paused)
 	cancelResume()

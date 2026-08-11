@@ -2,6 +2,7 @@ package runs
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 
@@ -24,7 +25,8 @@ func validateRecoveryParkedTree(
 	pending Pending,
 	sess session.Session,
 	items []transcript.Item,
-	checkpoints CheckpointResumability,
+	store RecoveryStore,
+	resumability WaitingExecutionResumability,
 ) (bool, error) {
 	if err := pending.Validate(); err != nil {
 		return false, fmt.Errorf("runs: validate recovery Run tree %q Pending: %w", tree.root.ID(), err)
@@ -80,7 +82,13 @@ func validateRecoveryParkedTree(
 	if err != nil {
 		return false, err
 	}
-	if err := validateRecoveryRunningItems(tree, items, interruptItems); err != nil {
+	drainedItems := make(map[string]struct{})
+	for _, continuation := range pending.Continuations {
+		for _, drained := range continuation.DrainedTools {
+			drainedItems[drained.ItemID] = struct{}{}
+		}
+	}
+	if err := validateRecoveryRunningItems(tree, items, interruptItems, drainedItems); err != nil {
 		return false, err
 	}
 	claimedItems := make(map[string]string, len(interruptItems))
@@ -105,7 +113,7 @@ func validateRecoveryParkedTree(
 	if sess.Isolated() {
 		return false, nil
 	}
-	resumable, err := checkpoints.CanResumeCheckpoint(ctx, ExecutorCheckpointExpectation{
+	expected := ExecutorCheckpointExpectation{
 		RootMemberID:   rootContinuation.MemberID,
 		SessionID:      pending.SessionID,
 		CWD:            sess.CWD(),
@@ -115,10 +123,33 @@ func validateRecoveryParkedTree(
 		ModelSelection: rootContinuation.ModelSelection,
 		Limits:         rootContinuation.Limits,
 		Capabilities:   pending.Capabilities,
-	})
+	}
+	checkpoint, err := store.LoadExecutorCheckpoint(ctx, rootContinuation.MemberID)
+	if errors.Is(err, ErrExecutorCheckpointNotFound) || errors.Is(err, ErrInvalidExecutorCheckpoint) {
+		return false, nil
+	}
 	if err != nil {
 		return false, fmt.Errorf(
-			"runs: validate executor checkpoint %q resumability: %w",
+			"runs: load executor checkpoint %q for recovery: %w",
+			rootContinuation.MemberID,
+			err,
+		)
+	}
+	if err := checkpoint.ValidateFor(expected); err != nil {
+		return false, nil
+	}
+	continuation, err := waitingContinuationFromPending(pending, checkpoint)
+	if err != nil {
+		return false, fmt.Errorf(
+			"runs: build waiting continuation %q for recovery: %w",
+			rootContinuation.MemberID,
+			err,
+		)
+	}
+	resumable, err := resumability.CanResumeWaitingExecution(ctx, continuation)
+	if err != nil {
+		return false, fmt.Errorf(
+			"runs: probe waiting execution %q resumability: %w",
 			rootContinuation.MemberID,
 			err,
 		)
@@ -244,12 +275,15 @@ func validateRecoveryRunningItems(
 	tree recoveryRunTree,
 	items []transcript.Item,
 	interruptItems map[string]struct{},
+	drainedItems map[string]struct{},
 ) error {
 	for _, item := range items {
 		if _, active := tree.runsByID[item.RunID()]; !active || item.Status() != transcript.ItemRunning {
 			continue
 		}
-		if _, belongsToInterrupt := interruptItems[item.ID()]; !belongsToInterrupt {
+		_, belongsToInterrupt := interruptItems[item.ID()]
+		_, belongsToDrainedTool := drainedItems[item.ID()]
+		if !belongsToInterrupt && !belongsToDrainedTool {
 			return fmt.Errorf(
 				"runs: validate recovery Run tree %q: Running Item %q in Run %q has no matching interrupt",
 				tree.root.ID(),
@@ -277,7 +311,7 @@ func validateRecoveryContinuationTools(
 		if !found ||
 			item.RunID() != continuation.RunID ||
 			item.Kind() != transcript.ToolCall ||
-			item.Status() != transcript.ItemIncomplete ||
+			item.Status() != transcript.ItemRunning ||
 			!hasInvocation ||
 			invocation.Name != drained.Name ||
 			invocation.Arguments.Canonical() != drained.Arguments ||

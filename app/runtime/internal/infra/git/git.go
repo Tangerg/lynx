@@ -79,7 +79,12 @@ func run(ctx context.Context, dir string, args ...string) (string, error) {
 // documented nonzero status as success. Git uses status 1 for read-only
 // predicates and for `diff --no-index` when differences exist.
 func runAllowingExitCode(ctx context.Context, dir string, allowedExitCode int, args ...string) (string, error) {
-	full := append([]string{"-C", dir, "-c", "core.quotepath=false"}, args...)
+	// Workspace VCS operations are observations. Suppress Git's optional index
+	// refreshes so commands such as status do not take index.lock merely to
+	// improve a later read. Some Git commands still perform mandatory metadata
+	// refreshes; the workspace watcher compares semantic Git state before it
+	// publishes and therefore does not expose those implementation writes.
+	full := append([]string{"--no-optional-locks", "-C", dir, "-c", "core.quotepath=false"}, args...)
 	cmd := exec.CommandContext(ctx, "git", full...)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout

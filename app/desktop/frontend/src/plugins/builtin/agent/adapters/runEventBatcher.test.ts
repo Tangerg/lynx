@@ -102,6 +102,33 @@ describe("createRunEventBatcher", () => {
     expect(applied[0]![0]!.event.type).toBe("segment.finished");
   });
 
+  it("can land the queued tail synchronously before a durable snapshot", () => {
+    const applied: RunEvent[][] = [];
+    const frames = frameScheduler();
+    const batcher = createRunEventBatcher({
+      readEpoch: () => 0,
+      apply: (batch) => applied.push(batch),
+      scheduleFrame: frames.scheduleFrame,
+      cancelFrame: frames.cancelFrame,
+    });
+
+    batcher.enqueue(runStarted());
+    batcher.enqueue(runFinished());
+    batcher.flush();
+
+    expect(frames.cancelFrame).toHaveBeenCalledWith(1);
+    expect(applied).toHaveLength(1);
+    expect(applied[0]!.map((entry) => entry.event.type)).toEqual([
+      "segment.started",
+      "segment.finished",
+    ]);
+
+    // A frame already queued by the browser is harmless if its callback races
+    // the cancellation and still fires.
+    frames.flushNext();
+    expect(applied).toHaveLength(1);
+  });
+
   it("cancels pending frames and ignores future events after dispose", () => {
     const applied: RunEvent[][] = [];
     const frames = frameScheduler();

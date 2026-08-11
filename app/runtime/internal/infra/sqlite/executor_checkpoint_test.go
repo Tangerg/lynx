@@ -12,6 +12,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/persistence"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/accounting"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/sqlite"
@@ -47,6 +48,10 @@ func storedExecutorCheckpoint(rootMemberID, sessionID, payload string) runs.Exec
 			MaxTotalTokens: 8_192,
 			MaxBudgetUSD:   2.5,
 			MaxSteps:       16,
+		},
+		Capabilities: run.Capabilities{
+			ChildRuns:      true,
+			InterruptKinds: []interrupt.Kind{interrupt.Approval, interrupt.Question},
 		},
 		Usage: accounting.Snapshot{Models: []accounting.ModelUsage{{
 			Model: "claude",
@@ -104,6 +109,9 @@ func TestExecutorCheckpointStoreRejectsImmutablePolicyReplacement(t *testing.T) 
 			checkpoint.ModelSelection, _ = modelref.New("anthropic", "claude-sonnet")
 		},
 		"limits": func(checkpoint *runs.ExecutorCheckpoint) { checkpoint.Limits.MaxSteps++ },
+		"capabilities": func(checkpoint *runs.ExecutorCheckpoint) {
+			checkpoint.Capabilities.ChildRuns = false
+		},
 	} {
 		t.Run(name, func(t *testing.T) {
 			replacement := first.Clone()
@@ -194,8 +202,37 @@ func TestExecutorCheckpointStoreRoundTripsApplicationEnvelope(t *testing.T) {
 		got.Scope != want.Scope ||
 		got.ModelSelection != want.ModelSelection ||
 		got.Limits != want.Limits ||
+		!reflect.DeepEqual(got.Capabilities, want.Capabilities) ||
 		!reflect.DeepEqual(got.Usage, want.Usage) {
 		t.Fatalf("application envelope = %+v, want %+v", got, want)
+	}
+}
+
+func TestExecutorCheckpointStoreRejectsUnversionedOrMalformedCapabilities(t *testing.T) {
+	tests := map[string]string{
+		"unversioned policy":     `{"scope":{"session_id":"session-1","cwd":"/workspace/session-1","workspace_cwd":"","isolated":true,"goal_lease_id":"lease-session-1"},"provider":"anthropic","model":"claude","limits":{"max_total_tokens":8192,"max_budget_usd":2.5,"max_steps":16},"capabilities":{"child_runs":true,"interrupt_kinds":["approval","question"]}}`,
+		"missing capability set": `{"schema_version":1,"scope":{"session_id":"session-1","cwd":"/workspace/session-1","workspace_cwd":"","isolated":true,"goal_lease_id":"lease-session-1"},"provider":"anthropic","model":"claude","limits":{"max_total_tokens":8192,"max_budget_usd":2.5,"max_steps":16}}`,
+		"noncanonical kinds":     `{"schema_version":1,"scope":{"session_id":"session-1","cwd":"/workspace/session-1","workspace_cwd":"","isolated":true,"goal_lease_id":"lease-session-1"},"provider":"anthropic","model":"claude","limits":{"max_total_tokens":8192,"max_budget_usd":2.5,"max_steps":16},"capabilities":{"child_runs":true,"interrupt_kinds":["question","approval"]}}`,
+		"unknown kind":           `{"schema_version":1,"scope":{"session_id":"session-1","cwd":"/workspace/session-1","workspace_cwd":"","isolated":true,"goal_lease_id":"lease-session-1"},"provider":"anthropic","model":"claude","limits":{"max_total_tokens":8192,"max_budget_usd":2.5,"max_steps":16},"capabilities":{"child_runs":true,"interrupt_kinds":["approval","future"]}}`,
+	}
+	for name, policy := range tests {
+		t.Run(name, func(t *testing.T) {
+			db, store := newExecutorCheckpointStorage(t)
+			checkpoint := storedExecutorCheckpoint("member_root", "session-1", `{"opaque":true}`)
+			if err := store.SaveCheckpoint(t.Context(), checkpoint); err != nil {
+				t.Fatalf("SaveCheckpoint: %v", err)
+			}
+			if _, err := db.ExecContext(t.Context(),
+				`UPDATE executor_checkpoints SET policy = ? WHERE root_member_id = ?`,
+				policy,
+				checkpoint.RootMemberID,
+			); err != nil {
+				t.Fatalf("corrupt policy: %v", err)
+			}
+			if _, err := store.LoadCheckpoint(t.Context(), checkpoint.RootMemberID); !errors.Is(err, runs.ErrInvalidExecutorCheckpoint) {
+				t.Fatalf("LoadCheckpoint error = %v, want ErrInvalidExecutorCheckpoint", err)
+			}
+		})
 	}
 }
 

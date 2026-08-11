@@ -681,6 +681,11 @@
           "value": "\"timeout\""
         },
         {
+          "name": "ArtifactProblemToolCanceled",
+          "type": "ArtifactProblemType",
+          "value": "\"toolCanceled\""
+        },
+        {
           "name": "ArtifactProblemToolFailed",
           "type": "ArtifactProblemType",
           "value": "\"toolFailed\""
@@ -1283,7 +1288,7 @@
         {
           "name": "MinProtocolVersion",
           "type": "untyped string",
-          "value": "\"2026-08-10\""
+          "value": "\"2026-08-11\""
         },
         {
           "name": "ModalityAudio",
@@ -1441,6 +1446,11 @@
           "value": "\"timeout\""
         },
         {
+          "name": "ProblemToolCanceled",
+          "type": "untyped string",
+          "value": "\"tool_canceled\""
+        },
+        {
           "name": "ProblemToolFailed",
           "type": "untyped string",
           "value": "\"tool_failed\""
@@ -1448,7 +1458,7 @@
         {
           "name": "ProtocolVersion",
           "type": "untyped string",
-          "value": "\"2026-08-10\""
+          "value": "\"2026-08-11\""
         },
         {
           "name": "ProviderConfigClear",
@@ -1718,7 +1728,7 @@
         {
           "name": "SessionArtifactVersion",
           "type": "untyped int",
-          "value": "15"
+          "value": "16"
         },
         {
           "name": "SessionStatusIdle",

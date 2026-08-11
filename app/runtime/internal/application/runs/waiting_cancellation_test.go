@@ -18,6 +18,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/itemfixture"
 	runfixture "github.com/Tangerg/lynx/app/runtime/internal/testsupport/runfixture"
 	"github.com/Tangerg/lynx/app/runtime/internal/testsupport/sessionfixture"
+	corechat "github.com/Tangerg/lynx/core/chat"
 )
 
 type fakeItemProjection struct {
@@ -152,8 +153,16 @@ func TestPrepareWaitingCancellationKeepsSurvivingExternalBoundary(t *testing.T) 
 	if got, want := runIDs(transformation.terminalRuns), []string{"run_grandchild", "run_a"}; !slices.Equal(got, want) {
 		t.Fatalf("terminal Runs = %v, want canonical postorder %v", got, want)
 	}
-	if len(transformation.terminalItems) != 0 {
-		t.Fatalf("terminal interrupt Items = %+v, complete Questions must remain unchanged", transformation.terminalItems)
+	if len(transformation.terminalItems) != 1 ||
+		transformation.terminalItems[0].Expected.ID() != "item_target_tool" ||
+		transformation.terminalItems[0].Replacement.Status() != transcript.ItemIncomplete {
+		t.Fatalf("terminal Tool Items = %+v, want canceled branch Tool settled once", transformation.terminalItems)
+	}
+	if len(transformation.conversationMessages) != 1 ||
+		transformation.conversationMessages[0].Role != corechat.RoleTool ||
+		transformation.conversationMessages[0].Parts[0].ToolResult == nil ||
+		transformation.conversationMessages[0].Parts[0].ToolResult.ID != "provider_run_a" {
+		t.Fatalf("conversation Messages = %+v, want parent delegate Tool result", transformation.conversationMessages)
 	}
 	if transformation.remaining == nil ||
 		len(transformation.remaining.Interrupts) != 1 ||
@@ -775,13 +784,24 @@ func runACancellationPlan(
 	callID := "call_" + targetRunID
 	for index := range pending.Continuations {
 		if pending.Continuations[index].RunID != target.Lineage().ParentRunID {
+			if pending.Continuations[index].RunID == targetRunID {
+				pending.Continuations[index].DrainedTools = append(
+					pending.Continuations[index].DrainedTools,
+					DrainedTool{
+						ItemID: "item_target_tool", ItemOccurredAt: createdAt,
+						CallID: "call_target_tool", SourceCallID: "provider_target_tool",
+						Name: "ask_user", Arguments: "{}",
+					},
+				)
+			}
 			continue
 		}
 		pending.Continuations[index].DrainedTools = append(
 			pending.Continuations[index].DrainedTools,
 			DrainedTool{
 				ItemID: target.Lineage().SpawnedByItemID, ItemOccurredAt: createdAt,
-				CallID: callID, Name: "delegate_task", Arguments: "{}",
+				CallID: callID, SourceCallID: "provider_" + targetRunID,
+				Name: "delegate_task", Arguments: "{}",
 			},
 		)
 	}
@@ -807,10 +827,9 @@ func runACancellationPlan(
 		ID:         target.Lineage().SpawnedByItemID,
 		SessionID:  pending.SessionID,
 		RunID:      target.Lineage().ParentRunID,
-		Status:     transcript.ItemIncomplete,
+		Status:     transcript.ItemRunning,
 		Kind:       transcript.ToolCall,
 		OccurredAt: createdAt,
-		FinishedAt: createdAt,
 		Tool: &transcript.ToolInvocation{
 			Name:      "delegate_task",
 			Arguments: tool.Arguments{},
@@ -844,13 +863,28 @@ func runACancellationPlan(
 		item := itemfixture.MustRestore(input)
 		plan.targetInterruptItems = append(plan.targetInterruptItems, item)
 	}
+	for _, continuation := range pending.Continuations {
+		if _, targeted := targetRunIDs[continuation.RunID]; !targeted {
+			continue
+		}
+		for _, drained := range continuation.DrainedTools {
+			plan.targetDrainedItems = append(plan.targetDrainedItems, itemfixture.MustRestore(itemfixture.Input{
+				ID: drained.ItemID, SessionID: pending.SessionID, RunID: continuation.RunID,
+				Status: transcript.ItemRunning, Kind: transcript.ToolCall, OccurredAt: drained.ItemOccurredAt,
+				Tool: &transcript.ToolInvocation{Name: drained.Name},
+			}))
+		}
+	}
 	return plan
 }
 
 func waitingCancellationItems(plan cancellationPlan) map[string]transcript.Item {
-	items := make(map[string]transcript.Item, len(plan.targetInterruptItems)+1)
+	items := make(map[string]transcript.Item, len(plan.targetInterruptItems)+len(plan.targetDrainedItems)+1)
 	items[plan.spawningItem.ID()] = plan.spawningItem
 	for _, item := range plan.targetInterruptItems {
+		items[item.ID()] = item
+	}
+	for _, item := range plan.targetDrainedItems {
 		items[item.ID()] = item
 	}
 	return items

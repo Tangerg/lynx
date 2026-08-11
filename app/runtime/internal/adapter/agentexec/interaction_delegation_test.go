@@ -247,7 +247,11 @@ func TestInteractionExecutorCancelsRunningDelegateAndKeepsRootRunning(t *testing
 	case <-time.After(3 * time.Second):
 		t.Fatal("running Delegate cancellation was not accepted")
 	}
-	close(model.releaseChildCall)
+	select {
+	case <-model.childCallReturned:
+	case <-time.After(3 * time.Second):
+		t.Fatal("running Delegate cancellation did not stop its in-flight model call")
+	}
 
 	var canceledResult runs.CancelResult
 	select {

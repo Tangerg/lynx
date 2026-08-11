@@ -126,6 +126,10 @@ func (p treePublisher) publishAuthoritativeAtomically(
 			)
 		}
 		combined.Items = append(combined.Items, reduced.Commit.Items...)
+		combined.ConversationMessages = appendClonedMessages(
+			combined.ConversationMessages,
+			reduced.Commit.ConversationMessages...,
+		)
 		combined.ModelInvocations = append(
 			combined.ModelInvocations,
 			reduced.Commit.ModelInvocations...,
@@ -182,6 +186,10 @@ func (p treePublisher) publishTerminalAtomically(
 	for _, reduced := range batch.events {
 		if reduced.Commit != nil {
 			combined.Items = append(combined.Items, reduced.Commit.Items...)
+			combined.ConversationMessages = appendClonedMessages(
+				combined.ConversationMessages,
+				reduced.Commit.ConversationMessages...,
+			)
 			combined.ModelInvocations = append(
 				combined.ModelInvocations,
 				reduced.Commit.ModelInvocations...,
@@ -366,19 +374,19 @@ func (p treePublisher) reduceInterruptedRoute(
 	directInterruptions []MemberInterruption,
 	boundaryAt time.Time,
 ) (treeBarrierReduction, []InterruptBinding, Continuation, error) {
-	var events []RunEvent
+	var reduced factReduction
 	var err error
 	if len(directInterruptions) > 0 {
 		interrupts := make([]Interrupt, len(directInterruptions))
 		for index, interruption := range directInterruptions {
 			interrupts[index] = interruption.Interrupt
 		}
-		events, err = route.reducer.interrupt(SegmentInterrupted{
+		reduced, err = route.reducer.interrupt(SegmentInterrupted{
 			Interrupts: interrupts,
 			Duration:   route.activeDuration(boundaryAt),
 		})
 	} else {
-		events, err = route.reducer.suspend(route.activeDuration(boundaryAt))
+		reduced, err = route.reducer.suspend(route.activeDuration(boundaryAt))
 	}
 	if err != nil {
 		return treeBarrierReduction{}, nil, Continuation{}, fmt.Errorf(
@@ -387,7 +395,7 @@ func (p treePublisher) reduceInterruptedRoute(
 			err,
 		)
 	}
-	batch, err := route.reducer.project(events)
+	batch, err := route.reducer.projectFact(reduced)
 	if err != nil {
 		return treeBarrierReduction{}, nil, Continuation{}, fmt.Errorf(
 			"runs: project tree barrier for run %q: %w",
@@ -405,7 +413,7 @@ func (p treePublisher) reduceInterruptedRoute(
 		)
 	}
 	waitingRun := *batch.parkCommit.Run
-	projectedInterrupts := suspendedInterrupts(events)
+	projectedInterrupts := suspendedInterrupts(reduced.events)
 	if len(projectedInterrupts) != len(directInterruptions) {
 		return treeBarrierReduction{}, nil, Continuation{}, fmt.Errorf(
 			"runs: run %q projected %d interrupts from %d input requests",

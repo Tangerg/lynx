@@ -21,7 +21,7 @@ export function durableItemSource(item: Item): AgentFoldSource {
   return {
     runId: item.runId,
     segmentId: null,
-    eventId: `history:${item.id}:completed`,
+    eventId: `history:${item.id}:${item.status === "running" ? "started" : "completed"}`,
     timestamp: itemStartedAt(item),
   };
 }

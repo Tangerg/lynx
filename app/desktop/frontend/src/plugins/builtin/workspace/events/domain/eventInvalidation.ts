@@ -30,10 +30,13 @@ export type WorkspaceEventType =
   | "interrupts.changed"
   | "resync";
 
+export type WorkspaceTopic = Exclude<WorkspaceEventType, "resync">;
+
 export interface WorkspaceEventLike {
   type: WorkspaceEventType;
   sequence: number;
   sessionIds?: string[];
+  topics?: WorkspaceTopic[];
 }
 
 // Every runtime signal is an invalidation: it says a resource moved, and the reads it
@@ -53,31 +56,38 @@ export function workspaceInvalidations(ev: WorkspaceEventLike): WorkspaceInvalid
     case "mcp.changed":
       return ["mcpServers", "mcpTools"];
     case "schedules.changed":
-      // A schedule that fired starts a run in a fresh session, so the session list
-      // moves with it.
-      return ["schedules", "sessions"];
+      return ["schedules"];
     case "sessions.changed":
       return ["sessions"];
     case "runs.changed":
-      // A run's position is what a session row reports as its status, and a run that
-      // ended changed what the session has spent.
-      // A run that ended cannot still be waiting on anyone.
-      return ["sessions", "sessionUsage", "agentSessionProjection", "pendingWork"];
+      // The material projection and accounting depend on Runs. The Runtime
+      // publishes sessions.changed separately for the Session list and
+      // interrupts.changed separately for pending human work; invalidating those
+      // here as well duplicates every lifecycle read and reintroduces races
+      // between two refetches of the same resource.
+      return ["sessionUsage", "agentSessionProjection"];
     case "interrupts.changed":
-      // A session waiting on a person reads differently in the list than one working,
-      // and the queue of what is waiting is this signal's whole subject.
-      return ["sessions", "agentSessionProjection", "pendingWork"];
+      return ["agentSessionProjection", "pendingWork"];
     case "goals.changed":
       // This is why the goal banner no longer polls: an autonomous loop moves a goal
       // between turns, and the signal says so as it happens.
       return ["goal"];
     case "state.changed":
       return ["agentSessionProjection"];
-    case "resync":
-      // The signal names the topics that went stale, but a client that fell behind on
-      // one may have fallen behind on more: this stream is lossy by design, so the
-      // honest response to "you missed something" is to read everything again.
-      return ["all"];
+    case "resync": {
+      // Resync is already the runtime's exact loss projection: it names every
+      // topic that was folded while this subscriber's queue was full. Widening
+      // that scope to every query creates false dependencies between unrelated
+      // read models and can turn one watched Git change into a refetch loop.
+      if (!ev.topics?.length) return ["all"];
+      const targets = new Set<WorkspaceInvalidationTarget>();
+      for (const topic of ev.topics) {
+        for (const target of workspaceInvalidations({ type: topic, sequence: ev.sequence })) {
+          targets.add(target);
+        }
+      }
+      return [...targets];
+    }
     default: {
       const unhandled: never = ev.type;
       return unhandled;
