@@ -12,9 +12,11 @@ Production API consumption: 87 methods
 Queued API consumption: 0 methods
 
 `internal/runtimeembedded` reflects the public method set in tests and assigns
-every method to one bounded context. A runtime method addition, removal, or
-duplicate assignment fails the CLI suite until this ledger and its production
-consumer are reviewed together.
+every method to one bounded context. The same executable contract compares the
+runtime topic vocabulary with the CLI-owned changefeed inventory and binds
+negotiated HITL/ephemeral stream capabilities to the adapter's projection
+policy. A method, topic, or capability-boundary drift fails the CLI suite until
+this ledger and its production consumer are reviewed together.
 
 Status meanings:
 

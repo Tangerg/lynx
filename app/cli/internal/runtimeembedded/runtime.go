@@ -24,6 +24,43 @@ import (
 
 const clientName = "lyra-cli"
 
+func supportedInterruptTypes() []protocol.InterruptType {
+	return []protocol.InterruptType{
+		protocol.InterruptApproval,
+		protocol.InterruptQuestion,
+	}
+}
+
+func excludedEphemeralRunEvents() []protocol.SuppressibleRunEventType {
+	return []protocol.SuppressibleRunEventType{
+		protocol.SuppressibleRunSegmentProgress,
+	}
+}
+
+func recognizedRunEventTypes() []protocol.StreamEventType {
+	return []protocol.StreamEventType{
+		protocol.StreamSegmentStarted,
+		protocol.StreamSegmentProgress,
+		protocol.StreamSegmentFinished,
+		protocol.StreamItemStarted,
+		protocol.StreamItemDelta,
+		protocol.StreamItemCompleted,
+		protocol.StreamStateSnapshot,
+		protocol.StreamCustom,
+	}
+}
+
+func requiredRunEventTypes() []protocol.StreamEventType {
+	return []protocol.StreamEventType{
+		protocol.StreamSegmentStarted,
+		protocol.StreamSegmentFinished,
+		protocol.StreamItemStarted,
+		protocol.StreamItemDelta,
+		protocol.StreamItemCompleted,
+		protocol.StreamStateSnapshot,
+	}
+}
+
 // Config contains the process-owned paths and build identity needed to open one
 // embedded runtime. Paths retain the semantics documented by embedded.Config.
 type Config struct {
@@ -148,13 +185,8 @@ func requestMeta(version string) protocol.RequestMeta {
 		ProtocolVersion: protocol.ProtocolVersion,
 		ClientInfo:      &protocol.ClientInfo{Name: clientName, Version: version},
 		ClientCapabilities: &protocol.ClientCapabilities{
-			InterruptTypes: []protocol.InterruptType{
-				protocol.InterruptApproval,
-				protocol.InterruptQuestion,
-			},
-			ExcludedEphemeralEvents: []protocol.SuppressibleRunEventType{
-				protocol.SuppressibleRunSegmentProgress,
-			},
+			InterruptTypes:          supportedInterruptTypes(),
+			ExcludedEphemeralEvents: excludedEphemeralRunEvents(),
 		},
 	}
 }
@@ -236,16 +268,19 @@ func validateDiscovery(discovery *protocol.DiscoverResponse) error {
 			return fmt.Errorf("%w: runtime does not stream %s", agent.ErrIncompatibleRuntime, method)
 		}
 	}
-	for _, eventType := range []protocol.StreamEventType{
-		protocol.StreamSegmentStarted,
-		protocol.StreamSegmentFinished,
-		protocol.StreamItemStarted,
-		protocol.StreamItemDelta,
-		protocol.StreamItemCompleted,
-		protocol.StreamStateSnapshot,
-	} {
+	for _, eventType := range discovery.Capabilities.RunEvents {
+		if !slices.Contains(recognizedRunEventTypes(), eventType) {
+			return fmt.Errorf("%w: runtime advertises unsupported run event %q", agent.ErrIncompatibleRuntime, eventType)
+		}
+	}
+	for _, eventType := range requiredRunEventTypes() {
 		if !slices.Contains(discovery.Capabilities.RunEvents, eventType) {
 			return fmt.Errorf("%w: runtime does not advertise %s", agent.ErrIncompatibleRuntime, eventType)
+		}
+	}
+	for _, topic := range discovery.Capabilities.RuntimeTopics {
+		if !slices.Contains(changefeed.Topics(), changefeed.Topic(topic)) {
+			return fmt.Errorf("%w: runtime advertises unsupported change topic %q", agent.ErrIncompatibleRuntime, topic)
 		}
 	}
 	if !slices.ContainsFunc(discovery.Capabilities.StateSnapshots, func(capability protocol.StateSnapshotCapability) bool {

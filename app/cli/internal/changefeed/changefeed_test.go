@@ -1,9 +1,26 @@
 package changefeed
 
 import (
+	"slices"
 	"strings"
 	"testing"
 )
+
+func TestTopicsReturnsAnOwnedCompleteInventory(t *testing.T) {
+	t.Parallel()
+	want := []Topic{
+		FilesChanged, SkillsChanged, MCPChanged, SchedulesChanged,
+		SessionsChanged, RunsChanged, StateChanged, GoalsChanged, InterruptsChanged,
+	}
+	got := Topics()
+	if !slices.Equal(got, want) {
+		t.Fatalf("Topics = %v, want %v", got, want)
+	}
+	got[0] = "mutated"
+	if Topics()[0] != FilesChanged {
+		t.Fatal("mutating a Topics result rewrote the package inventory")
+	}
+}
 
 func TestSubscriptionMakesWatchScopeExplicit(t *testing.T) {
 	t.Parallel()

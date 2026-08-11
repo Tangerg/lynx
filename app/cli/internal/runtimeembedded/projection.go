@@ -50,7 +50,7 @@ func validateRunProfile(profile protocol.RunProtocolProfile) error {
 			return fmt.Errorf("%w: duplicate interrupt type %q", agent.ErrIncompatibleRuntime, interruptType)
 		}
 		seen[interruptType] = struct{}{}
-		if !slices.Contains([]protocol.InterruptType{protocol.InterruptApproval, protocol.InterruptQuestion}, interruptType) {
+		if !slices.Contains(supportedInterruptTypes(), interruptType) {
 			return fmt.Errorf("%w: interrupt type %q is unsupported", agent.ErrIncompatibleRuntime, interruptType)
 		}
 	}

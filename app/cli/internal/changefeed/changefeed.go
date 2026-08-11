@@ -26,14 +26,25 @@ const (
 	InterruptsChanged Topic = "interrupts.changed"
 )
 
-func (topic Topic) Valid() bool {
-	switch topic {
-	case FilesChanged, SkillsChanged, MCPChanged, SchedulesChanged, SessionsChanged,
-		RunsChanged, StateChanged, GoalsChanged, InterruptsChanged:
-		return true
-	default:
-		return false
+// Topics returns the complete change vocabulary understood by this client.
+// Callers own the returned slice, so subscription policy cannot mutate the
+// package's inventory.
+func Topics() []Topic {
+	return []Topic{
+		FilesChanged,
+		SkillsChanged,
+		MCPChanged,
+		SchedulesChanged,
+		SessionsChanged,
+		RunsChanged,
+		StateChanged,
+		GoalsChanged,
+		InterruptsChanged,
 	}
+}
+
+func (topic Topic) Valid() bool {
+	return slices.Contains(Topics(), topic)
 }
 
 type EventType string

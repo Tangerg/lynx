@@ -1,11 +1,16 @@
 package runtimeembedded
 
 import (
+	"errors"
 	"reflect"
 	"slices"
 	"testing"
 
 	"github.com/Tangerg/lynx/app/runtime/embedded"
+	"github.com/Tangerg/lynx/app/runtime/protocol"
+
+	"github.com/Tangerg/lynx/app/cli/internal/agent"
+	"github.com/Tangerg/lynx/app/cli/internal/changefeed"
 )
 
 func TestRuntimeAPIInventoryHasNoUnreviewedMethods(t *testing.T) {
@@ -41,6 +46,89 @@ func TestRuntimeAPIInventoryHasNoUnreviewedMethods(t *testing.T) {
 	slices.Sort(unreviewed)
 	if len(missing) > 0 || len(unreviewed) > 0 {
 		t.Fatalf("runtime API inventory drifted: removed=%v unreviewed=%v", missing, unreviewed)
+	}
+}
+
+func TestRuntimeTopicInventoryHasNoUnreviewedTopics(t *testing.T) {
+	t.Parallel()
+	protocolTopics := protocol.RuntimeTopics()
+	clientTopics := changefeed.Topics()
+	got := make([]changefeed.Topic, 0, len(protocolTopics))
+	for _, topic := range protocolTopics {
+		got = append(got, changefeed.Topic(topic))
+	}
+	if !slices.Equal(got, clientTopics) {
+		t.Fatalf("runtime topic inventory drifted: protocol=%v client=%v", got, clientTopics)
+	}
+}
+
+func TestNegotiatedRunCapabilitiesMatchProjectionBoundary(t *testing.T) {
+	t.Parallel()
+	meta := requestMeta("test")
+	if meta.ClientCapabilities == nil {
+		t.Fatal("request metadata omitted client capabilities")
+	}
+	wantInterrupts := supportedInterruptTypes()
+	if !slices.Equal(meta.ClientCapabilities.InterruptTypes, wantInterrupts) {
+		t.Fatalf("negotiated interrupts = %v, projection supports %v", meta.ClientCapabilities.InterruptTypes, wantInterrupts)
+	}
+	wantExcluded := excludedEphemeralRunEvents()
+	if !slices.Equal(meta.ClientCapabilities.ExcludedEphemeralEvents, wantExcluded) {
+		t.Fatalf("excluded events = %v, policy excludes %v", meta.ClientCapabilities.ExcludedEphemeralEvents, wantExcluded)
+	}
+	for _, eventType := range requiredRunEventTypes() {
+		if !slices.Contains(recognizedRunEventTypes(), eventType) {
+			t.Fatalf("required run event %q has no projection policy", eventType)
+		}
+	}
+}
+
+func TestDiscoveryRejectsUnprojectedStreamAndChangeCapabilities(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name   string
+		mutate func(*protocol.DiscoverResponse)
+	}{
+		{
+			name: "run event",
+			mutate: func(discovery *protocol.DiscoverResponse) {
+				discovery.Capabilities.RunEvents = append(discovery.Capabilities.RunEvents, "vendor.authoritative")
+			},
+		},
+		{
+			name: "runtime topic",
+			mutate: func(discovery *protocol.DiscoverResponse) {
+				discovery.Capabilities.RuntimeTopics = append(discovery.Capabilities.RuntimeTopics, "indexes.changed")
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			discovery := compatibleDiscovery()
+			test.mutate(discovery)
+			if err := validateDiscovery(discovery); !errors.Is(err, agent.ErrIncompatibleRuntime) {
+				t.Fatalf("validateDiscovery = %v, want ErrIncompatibleRuntime", err)
+			}
+		})
+	}
+}
+
+func compatibleDiscovery() *protocol.DiscoverResponse {
+	return &protocol.DiscoverResponse{
+		Protocol: protocol.SupportedProtocolRange(),
+		Capabilities: protocol.ServerCapabilities{
+			RunEvents:        recognizedRunEventTypes(),
+			RuntimeTopics:    protocol.RuntimeTopics(),
+			StreamingMethods: []string{"runs.start", "runs.resume", "runs.subscribe"},
+			StateSnapshots: []protocol.StateSnapshotCapability{{
+				Key: protocol.StatePlan, RecoveryMethod: "plan.get",
+				Scope: protocol.StateScopeSession, Writer: protocol.StateWriterRootRun,
+			}},
+			Limits: protocol.RuntimeLimits{RunReplay: protocol.RunReplayLimits{
+				Scope: protocol.ReplayScopeRuntimeInstanceRootSegment,
+			}},
+		},
 	}
 }
 
