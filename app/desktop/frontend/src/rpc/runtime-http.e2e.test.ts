@@ -23,6 +23,7 @@ import { PROTOCOL_VERSION, type RunEvent, type RuntimeEvent } from "./wire.gener
 const execFileAsync = promisify(execFile);
 const runtimeDirectory = resolve(process.cwd(), "../../runtime");
 const managedSkillName = "runtime-http-e2e";
+const liveMCPToolName = "http-e2e-stdio_ping";
 
 async function unusedLoopbackPort(): Promise<number> {
   const server = createNetServer();
@@ -223,6 +224,34 @@ function scriptedReply(body: FakeChatRequest): { text?: string; tool?: FakeToolC
         }),
       },
     };
+  }
+  if (
+    transcript.includes("E2E_MCP_TOOL") &&
+    availableTools.has("search_tools") &&
+    !availableTools.has(liveMCPToolName) &&
+    toolResultCount === 0
+  ) {
+    return {
+      tool: {
+        name: "search_tools",
+        arguments: JSON.stringify({ query: `select:${liveMCPToolName}` }),
+      },
+    };
+  }
+  if (
+    transcript.includes("E2E_MCP_TOOL") &&
+    availableTools.has(liveMCPToolName) &&
+    toolResultCount === 1
+  ) {
+    return {
+      tool: {
+        name: liveMCPToolName,
+        arguments: "{}",
+      },
+    };
+  }
+  if (transcript.includes("E2E_MCP_TOOL") && toolResultCount >= 2) {
+    return { text: transcript.includes("pong") ? "MCP pong observed." : "MCP pong missing." };
   }
   return { text: "HTTP runtime lifecycle complete." };
 }
@@ -437,6 +466,10 @@ for await (const line of lines) {
         inputSchema: { type: "object", properties: {}, additionalProperties: false },
       }],
     });
+    continue;
+  }
+  if (message.method === "tools/call") {
+    reply(message.id, { content: [{ type: "text", text: "pong" }] });
     continue;
   }
   reply(message.id, { });
@@ -1518,6 +1551,7 @@ for await (const line of lines) {
 
     const server = "http-e2e-stdio";
     const candidate = {
+      autoApproveTools: ["ping"],
       connection: { type: "stdio" as const, command: process.execPath, args: [mcpFixturePath] },
       description: "Live MCP E2E fixture",
       enabled: true,
@@ -1562,6 +1596,39 @@ for await (const line of lines) {
     });
     await expect(client.mcp.listTools(server)).resolves.toMatchObject({
       data: [expect.objectContaining({ server, name: "ping" })],
+    });
+
+    const runSession = await client.sessions.create({
+      workspace: { path: root },
+      title: "HTTP live MCP tool",
+    });
+    const mcpRun = await client.runs.start({
+      sessionId: asSessionId(runSession.id),
+      input: [{ type: "text", text: "E2E_MCP_TOOL invoke the live ping capability." }],
+    });
+    const mcpRunEvents = await collectRunEvents(mcpRun.events);
+    expect(mcpRunEvents).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          event: expect.objectContaining({
+            type: "item.completed",
+            item: expect.objectContaining({
+              type: "toolCall",
+              tool: expect.objectContaining({ name: liveMCPToolName }),
+            }),
+          }),
+        }),
+      ]),
+    );
+    await expect(
+      client.items.list({ scope: { type: "run", runId: mcpRun.result.runId } }),
+    ).resolves.toMatchObject({
+      data: expect.arrayContaining([
+        expect.objectContaining({
+          type: "agentMessage",
+          content: [{ type: "text", text: "MCP pong observed." }],
+        }),
+      ]),
     });
 
     await expect(client.mcp.authorizationAttempts.create(server)).rejects.toSatisfy(
