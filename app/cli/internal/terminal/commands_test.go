@@ -55,7 +55,7 @@ func TestBuiltinCommandsOwnTheirCategoryAndAvailabilityPolicy(t *testing.T) {
 		commandCategoryTranscript:  {"help", "shortcuts", "clear", "find", "next", "previous", "queue", "details", "view", "copy-last", "export"},
 		commandCategorySessions:    {"sessions", "timeline", "new", "workspace", "rename", "fork", "rollback", "import"},
 		commandCategoryComposer:    {"attach", "detach", "attachments", "stash", "stashes", "stash-apply", "stash-delete", "editor"},
-		commandCategoryRuntime:     {"model", "approval", "status", "rules", "steer"},
+		commandCategoryRuntime:     {"model", "usage", "roles", "utility", "embedding", "providers", "provider-test", "provider-config", "approval", "status", "rules", "steer", "goal", "goal-start", "goal-stop", "goal-resume"},
 		commandCategoryWorkspace:   {"workspaces", "changes", "diff", "preview", "grep", "browse", "read"},
 		commandCategoryExtensions:  {"plugins", "reload", "unload"},
 	}
@@ -64,7 +64,8 @@ func TestBuiltinCommandsOwnTheirCategoryAndAvailabilityPolicy(t *testing.T) {
 		"sessions": true, "timeline": true, "new": true, "workspace": true, "rename": true, "fork": true, "rollback": true, "import": true,
 		"stash": true, "stash-apply": true, "editor": true,
 		"workspaces": true, "changes": true, "diff": true, "preview": true, "grep": true, "browse": true, "read": true,
-		"steer": true,
+		"usage": true, "roles": true, "utility": true, "embedding": true, "providers": true, "provider-test": true, "provider-config": true,
+		"steer": true, "goal": true, "goal-start": true, "goal-stop": true, "goal-resume": true,
 	}
 
 	seen := make(map[string]struct{})
@@ -92,5 +93,21 @@ func TestBuiltinCommandsOwnTheirCategoryAndAvailabilityPolicy(t *testing.T) {
 	}
 	for category, commands := range gotCategories {
 		t.Errorf("unexpected category %q with commands %v", category, commands)
+	}
+}
+
+func TestCommandCatalogRanksAnExactAliasAheadOfFuzzyNames(t *testing.T) {
+	t.Parallel()
+	catalog := newCommandCatalog()
+	if err := catalog.add("test", CommandDescriptor{Name: "goal-resume", Title: "resume goal"}, func(string) {}, nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := catalog.add("test", CommandDescriptor{Name: "sessions", Title: "resume session", Aliases: []string{"resume"}}, func(string) {}, nil); err != nil {
+		t.Fatal(err)
+	}
+
+	found := catalog.find("resume")
+	if len(found) == 0 || found[0].Command.Name != "sessions" {
+		t.Fatalf("find exact alias = %v, want sessions first", found)
 	}
 }

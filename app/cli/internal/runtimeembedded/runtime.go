@@ -42,6 +42,9 @@ type Runtime struct {
 	sessions         sessionBinding
 	workspaces       workspaceBinding
 	changes          changeBinding
+	usage            usageBinding
+	modelConfig      modelConfigBinding
+	goals            goalBinding
 	meta             protocol.RequestMeta
 	readFile         func(string) ([]byte, error)
 	supportedTopics  map[changefeed.Topic]struct{}
@@ -72,6 +75,9 @@ func Open(ctx context.Context, cfg Config) (*Runtime, error) {
 		sessions:        binding,
 		workspaces:      binding,
 		changes:         binding,
+		usage:           binding,
+		modelConfig:     binding,
+		goals:           binding,
 		meta:            requestMeta(cfg.ClientVersion),
 		readFile:        readFile,
 		supportedTopics: make(map[changefeed.Topic]struct{}),
@@ -261,7 +267,10 @@ func (o *Owner) Runtime(ctx context.Context) (backend.Services, error) {
 }
 
 func (r *Runtime) services() backend.Services {
-	return backend.Services{Agent: r, Workspaces: r, Changes: r, Transfers: r}
+	return backend.Services{
+		Agent: r, Workspaces: r, Changes: r, Transfers: r,
+		Usage: r, ModelConfig: r, Goals: r,
+	}
 }
 
 func (o *Owner) Close() error {

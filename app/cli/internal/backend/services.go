@@ -8,16 +8,22 @@ import (
 
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
 	"github.com/Tangerg/lynx/app/cli/internal/changefeed"
+	"github.com/Tangerg/lynx/app/cli/internal/goal"
+	"github.com/Tangerg/lynx/app/cli/internal/modelconfig"
 	"github.com/Tangerg/lynx/app/cli/internal/sessiontransfer"
+	"github.com/Tangerg/lynx/app/cli/internal/usage"
 	"github.com/Tangerg/lynx/app/cli/internal/workspace"
 )
 
 // Services is one coherent connection to a backend runtime.
 type Services struct {
-	Agent      agent.Runtime
-	Workspaces workspace.Service
-	Changes    changefeed.Source
-	Transfers  sessiontransfer.Service
+	Agent       agent.Runtime
+	Workspaces  workspace.Service
+	Changes     changefeed.Source
+	Transfers   sessiontransfer.Service
+	Usage       usage.Service
+	ModelConfig modelconfig.Service
+	Goals       goal.Service
 }
 
 // AgentOnly builds the intentionally reduced composition used by the scripted

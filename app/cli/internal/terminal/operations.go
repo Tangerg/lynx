@@ -22,6 +22,9 @@ const (
 	workspaceQueryOperation      operationSlot = "workspace-query"
 	runtimeChangesOperation      operationSlot = "runtime-changes"
 	sessionInvalidationOperation operationSlot = "session-invalidation"
+	usageQueryOperation          operationSlot = "usage-query"
+	modelConfigOperation         operationSlot = "model-config"
+	goalOperation                operationSlot = "goal"
 )
 
 type operationLease struct {
@@ -159,25 +162,6 @@ func (o *operationOwner) release(lease operationLease, cancel context.CancelFunc
 func runOperation[T any](a *app, slot operationSlot, replace bool, work func(context.Context) (T, error), apply func(T, error)) bool {
 	dispatcher := a.loop.Dispatcher()
 	return a.operations.Go(slot, replace, func(ctx context.Context, lease operationLease) {
-		result, err := work(ctx)
-		if context.Cause(ctx) != nil {
-			return
-		}
-		_ = post(ctx, dispatcher, func() {
-			if !a.operations.Current(lease) || a.closed {
-				return
-			}
-			apply(result, err)
-		})
-	})
-}
-
-// runCoalescingOperation releases its exclusive slot immediately before apply.
-// The apply callback may therefore start a successor in the same slot when work
-// became stale while it was in flight.
-func runCoalescingOperation[T any](a *app, slot operationSlot, work func(context.Context) (T, error), apply func(T, error)) bool {
-	dispatcher := a.loop.Dispatcher()
-	return a.operations.Go(slot, false, func(ctx context.Context, lease operationLease) {
 		result, err := work(ctx)
 		if context.Cause(ctx) != nil {
 			return

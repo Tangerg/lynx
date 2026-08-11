@@ -63,7 +63,23 @@ func (catalog *commandCatalog) add(owner string, descriptor CommandDescriptor, r
 }
 
 func (catalog *commandCatalog) find(query string) []headless.Found {
-	return catalog.index.Find(query)
+	found := catalog.index.Find(query)
+	exact, ok := catalog.index.Lookup(query)
+	if !ok {
+		return found
+	}
+	for index := range found {
+		if found[index].Command.Name != exact.Name {
+			continue
+		}
+		if index > 0 {
+			exactMatch := found[index]
+			copy(found[1:index+1], found[:index])
+			found[0] = exactMatch
+		}
+		return found
+	}
+	return append([]headless.Found{{Command: exact}}, found...)
 }
 
 func (catalog *commandCatalog) lookup(identity string) (headless.Command, bool) {

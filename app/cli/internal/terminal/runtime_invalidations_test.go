@@ -20,9 +20,13 @@ type runtimeChangeSourceStub struct {
 	events       chan changefeed.Event
 	subscription chan changefeed.Subscription
 	applied      chan changefeed.Event
+	supported    []changefeed.Topic
 }
 
 func (stub *runtimeChangeSourceStub) Supports(topic changefeed.Topic) bool {
+	if stub.supported != nil {
+		return slices.Contains(stub.supported, topic)
+	}
 	return slices.Contains([]changefeed.Topic{
 		changefeed.SessionsChanged, changefeed.RunsChanged,
 		changefeed.StateChanged, changefeed.InterruptsChanged,

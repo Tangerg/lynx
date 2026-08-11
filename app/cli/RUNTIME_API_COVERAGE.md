@@ -25,20 +25,20 @@ resync policy; mutations need lifecycle and failure-path tests.
 | Bounded context | Exported embedded methods | Status | Current consumption and remaining work |
 | --- | --- | --- | --- |
 | Runtime lifecycle and discovery | `Discover`, `Close` | complete | Open validates protocol, run stream vocabulary, replay scope, plan recovery, topics, and closes process-owned state. |
-| Runtime invalidations | `SubscribeRuntime` | partial | One negotiated attach-first subscription consumes `files.changed`, `sessions.changed`, `runs.changed`, `state.changed`, and `interrupts.changed`. File events re-read workspace changes; session/run/state/interrupt events re-read the authoritative session without taking ownership from an active stream. Reconnects and sequence gaps resync every subscribed topic. Add skills, MCP, schedules, and goals when their query surfaces land. |
+| Runtime invalidations | `SubscribeRuntime` | partial | One negotiated attach-first subscription consumes `files.changed`, `sessions.changed`, `runs.changed`, `state.changed`, `goals.changed`, and `interrupts.changed`. File events re-read workspace changes; session/run/state/interrupt events re-read the authoritative session without taking ownership from an active stream; goal events refresh the open goal projection. Reconnects and sequence gaps resync every subscribed topic. Add skills, MCP, and schedules when their query surfaces land. |
 | Sessions | `CreateSession`, `DeleteSession`, `ForkSession`, `GetSession`, `ListSessions`, `UpdateSession` | complete | Interactive session center, switching, creation, rename, favorite, fork, delete, and cold snapshot recovery. |
 | Session portability and rewind | `ExportSession`, `ImportSession`, `RollbackSession` | complete | Runtime-authored Markdown/JSON exports, opaque JSON round-trip import, conflict-safe artifact files, authoritative rollback preview, destructive confirmation, change-before-commit rejection, and cold snapshot reinstall. |
 | Runs | `CancelRun`, `GetRun`, `ListRuns`, `ResumeRun`, `StartRun`, `SubscribeRun` | complete | Core streaming, reconnect/replay, recovery, cancellation, HITL resume, and timeline. `GetRun`/`ListRuns` are consumed by the cold session projection. |
 | Run steering | `SteerRun` | complete | `/steer` binds text and staged attachments to the exact observed run/segment; stale segments fail closed and refused attachments return to the live draft. Queued follow-ups remain a distinct interaction. |
 | Run resources | `GetPlan`, `ListInterrupts`, `ListItems` | complete | Folded into the authoritative cold snapshot and recovery/HITL projections. |
 | Models | `ListModels` | complete | Provider-qualified model picker and run options. |
-| Model roles | `GetEmbeddingRole`, `GetUtilityRole`, `SetEmbeddingRole`, `SetUtilityRole` | queued | Add role inspection and selection without mixing them into the primary run model picker. |
-| Providers | `ListProviders`, `TestProvider`, `UpdateProvider` | queued | Add provider status, configuration editing, secret-safe diagnostics, and test feedback. |
+| Model roles | `GetEmbeddingRole`, `GetUtilityRole`, `SetEmbeddingRole`, `SetUtilityRole` | complete | `/roles`, `/utility`, and `/embedding` inspect and mutate the two auxiliary roles without conflating them with the primary run model. |
+| Providers | `ListProviders`, `TestProvider`, `UpdateProvider` | complete | `/providers`, `/provider-test`, and `/provider-config` expose status, endpoint/key changes, structured diagnostics, resize-safe editing, and masked write-only secret handling. |
 | Approvals | `ForgetApprovalRule`, `GetApprovalMode`, `ListApprovalRules`, `SetApprovalMode` | complete | Approval mode picker, remembered-rule catalog/deletion, and HITL decisions. |
 | Workspace catalog | `ListWorkspaces`, `ResolveWorkspace` | complete | Runtime-known workspace inspector and picker; explicit workspace changes resolve through the authoritative runtime service. |
 | Workspace inspection | `GetWorkspaceDiff`, `GetWorkspaceFileHead`, `ListWorkspaceFileChanges`, `ListWorkspaceFiles`, `ReadWorkspaceFile`, `SearchWorkspaceFiles` | complete | `/diff`, `/preview`, `/changes`, `/browse`, `/read`, and `/grep`, all rendered in the searchable full reader. |
-| Usage | `GetSessionUsage`, `GetUsageSummary` | queued | Add session and global usage/cost views; retain stream usage as the active-run source. |
-| Goals | `GetGoal`, `ResumeGoal`, `StartGoal`, `StopGoal` | queued | Add goal lifecycle, budget display, resume/stop, and `goals.changed` refetch. |
+| Usage | `GetSessionUsage`, `GetUsageSummary` | complete | `/usage [positive-days\|all]` renders session and global totals plus provider/model/day breakdowns; live stream usage remains the active-run source. |
+| Goals | `GetGoal`, `ResumeGoal`, `StartGoal`, `StopGoal` | complete | `/goal`, `/goal-start`, `/goal-stop`, and `/goal-resume` expose objective, model, budget, usage, reason, and the full lifecycle; `goals.changed` refetches an open goal projection. |
 | Agent memory | `AddAgentMemory`, `DeleteAgentMemory`, `ListAgentMemory`, `ReviewAgentMemory`, `UpdateAgentMemory` | queued | Add a reviewable memory manager with explicit mutation confirmation. |
 | Knowledge | `GetKnowledge`, `ListKnowledge`, `UpdateKnowledge` | queued | Add provenance-aware knowledge browser/editor and invalidation policy when exposed. |
 | Skills | `ApproveSkillProposal`, `ArchiveSkill`, `ListDiscoveredSkills`, `ListManagedSkills`, `ListSkillProposals`, `RejectSkillProposal`, `RestoreSkill` | queued | Add discovered/managed/proposal views, proposal review workflow, archive/restore, and `skills.changed` refetch. |
@@ -55,7 +55,7 @@ resync policy; mutations need lifecycle and failure-path tests.
 1. Workspace inspection plus `files.changed` invalidation — complete.
 2. Session rollback/portability, run steering, and session/run/state/interrupt
    invalidations — complete.
-3. Goals, usage, model roles, and providers.
+3. Goals, usage, model roles, and providers — complete.
 4. Skills and MCP, including terminal authorization.
 5. Schedules, memory, knowledge, codebase, tools, hooks, docs/recipes, and
    feedback.

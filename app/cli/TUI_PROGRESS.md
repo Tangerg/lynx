@@ -68,6 +68,7 @@ Status values are `done`, `active`, `pending`, and `deferred`.
 | WORKSPACE-02 | Runtime workspace inspection | Local attachment resolver only | Runtime-backed changes, diff, head, list, read and grep surfaces use the full reader | done |
 | WORKSPACE-03 | File invalidation stream | No runtime-wide subscription | Negotiated watch refetches authoritative changes after events, gaps and reconnects | done |
 | BACKEND-02 | Session-side invalidation stream | No side-channel reconciliation | Session, run, state and interrupt events trigger scoped authoritative reads without racing active streams | done |
+| BACKEND-03 | Runtime management surfaces | Usage, provider, auxiliary-role, and goal APIs were not consumed | Secret-safe provider configuration, usage reporting, model roles, goal lifecycle, and goal invalidation have deterministic and real-runtime evidence | done |
 | BACKEND-01 | Public runtime API coverage | Core run/session methods only | Every exported embedded API is inventoried and tracked to a consumer surface and test | active |
 | QUALITY-01 | Deterministic package tests | Full suite passes | New domains use table tests and consumer-owned fakes | done |
 | QUALITY-02 | Race safety | Terminal race suite passes | Full CLI race suite passes after all batches | done |
@@ -105,4 +106,7 @@ session portability, rollback, and exact-segment steering are covered by
 protocol-shape tests, real embedded round trips, destructive-dialog resize
 tests, stale-segment failure tests, and authoritative cold reinstall. Runtime
 invalidation tests cover attach-first cold reads, topic negotiation, scope,
-sequence-gap resync, metadata-only updates, and side-channel session refresh.
+sequence-gap resync, metadata-only updates, side-channel session refresh, and
+goal projection refresh. Provider configuration tests additionally prove that
+write-only API keys never appear in recorded terminal frames, including after
+an extreme resize.

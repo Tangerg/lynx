@@ -4,6 +4,7 @@ import (
 	"slices"
 
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
+	"github.com/Tangerg/lynx/app/cli/internal/modelconfig"
 )
 
 const (
@@ -56,10 +57,21 @@ func builtinCommands() []localCommand {
 		),
 		commandGroup(commandCategoryRuntime,
 			localCommand{Descriptor: CommandDescriptor{Name: "model", Title: "choose the model for new runs"}, Run: func(a *app, _ string) error { a.ChooseModel(); return nil }},
+			localCommand{Descriptor: CommandDescriptor{Name: "usage", Title: "inspect session and runtime usage", Takes: true}, Available: availableWithUsage, Run: func(a *app, days string) error { return a.ShowUsage(days) }},
+			localCommand{Descriptor: CommandDescriptor{Name: "roles", Title: "inspect utility and embedding model roles"}, Available: availableWithModelConfiguration, Run: func(a *app, _ string) error { a.ShowModelRoles(); return nil }},
+			localCommand{Descriptor: CommandDescriptor{Name: "utility", Title: "set the utility model role", Takes: true}, Available: availableWithModelConfiguration, Run: func(a *app, target string) error { return a.SetModelRole(modelconfig.UtilityRole, target) }},
+			localCommand{Descriptor: CommandDescriptor{Name: "embedding", Title: "set the embedding model role", Takes: true}, Available: availableWithModelConfiguration, Run: func(a *app, target string) error { return a.SetModelRole(modelconfig.EmbeddingRole, target) }},
+			localCommand{Descriptor: CommandDescriptor{Name: "providers", Title: "inspect configured model providers"}, Available: availableWithModelConfiguration, Run: func(a *app, _ string) error { a.ShowProviders(); return nil }},
+			localCommand{Descriptor: CommandDescriptor{Name: "provider-test", Title: "test a configured provider", Takes: true}, Available: availableWithModelConfiguration, Run: func(a *app, provider string) error { return a.TestConfiguredProvider(provider) }},
+			localCommand{Descriptor: CommandDescriptor{Name: "provider-config", Title: "configure provider endpoint and credentials", Takes: true}, Available: availableWithModelConfiguration, Run: func(a *app, provider string) error { return a.ConfigureProvider(provider) }},
 			localCommand{Descriptor: CommandDescriptor{Name: "approval", Title: "choose the runtime approval mode", Aliases: []string{"permissions", "permission"}}, Run: func(a *app, _ string) error { a.ChooseApprovalMode(); return nil }},
 			localCommand{Descriptor: CommandDescriptor{Name: "status", Title: "show model, run limits, and runtime approval mode"}, Run: func(a *app, _ string) error { a.ShowRuntimeStatus(); return nil }},
 			localCommand{Descriptor: CommandDescriptor{Name: "rules", Title: "show remembered approval rules"}, Run: func(a *app, _ string) error { a.ShowApprovalRules(); return nil }},
 			localCommand{Descriptor: CommandDescriptor{Name: "steer", Title: "inject an instruction into the observed run segment", Takes: true}, Available: availableWithRunningSegment, Run: func(a *app, instruction string) error { return a.steerRun(instruction) }},
+			localCommand{Descriptor: CommandDescriptor{Name: "goal", Title: "inspect the current autonomous session goal"}, Available: availableWithGoals, Run: func(a *app, _ string) error { a.ShowGoal(); return nil }},
+			localCommand{Descriptor: CommandDescriptor{Name: "goal-start", Title: "start autonomous pursuit for this session", Takes: true}, Available: availableForGoalStart, Run: func(a *app, objective string) error { return a.StartGoal(objective) }},
+			localCommand{Descriptor: CommandDescriptor{Name: "goal-stop", Title: "pause autonomous pursuit for this session"}, Available: availableWithGoals, Run: func(a *app, _ string) error { return a.StopGoal() }},
+			localCommand{Descriptor: CommandDescriptor{Name: "goal-resume", Title: "resume autonomous pursuit for this session"}, Available: availableWithGoals, Run: func(a *app, _ string) error { return a.ResumeGoal() }},
 		),
 		commandGroup(commandCategoryWorkspace,
 			localCommand{Descriptor: CommandDescriptor{Name: "workspaces", Title: "inspect runtime-known workspaces"}, Available: availableWithWorkspaceService, Run: func(a *app, _ string) error { a.ShowWorkspaces(); return nil }},
@@ -93,6 +105,34 @@ func availableWithSessionTransfer(a *app) CommandAvailability {
 		return CommandAvailability{Reason: "this runtime composition has no session transfer service"}
 	}
 	return CommandAvailability{Enabled: true}
+}
+
+func availableWithUsage(a *app) CommandAvailability {
+	if a.usage == nil {
+		return CommandAvailability{Reason: "this runtime composition has no usage service"}
+	}
+	return CommandAvailability{Enabled: true}
+}
+
+func availableWithModelConfiguration(a *app) CommandAvailability {
+	if a.modelConfig == nil {
+		return CommandAvailability{Reason: "this runtime composition has no model configuration service"}
+	}
+	return CommandAvailability{Enabled: true}
+}
+
+func availableWithGoals(a *app) CommandAvailability {
+	if a.goals == nil {
+		return CommandAvailability{Reason: "this runtime composition has no goal service"}
+	}
+	return CommandAvailability{Enabled: true}
+}
+
+func availableForGoalStart(a *app) CommandAvailability {
+	if unavailable := availableWithoutActiveRun(a); !unavailable.Enabled {
+		return unavailable
+	}
+	return availableWithGoals(a)
 }
 
 func availableForRollback(a *app) CommandAvailability {

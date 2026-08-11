@@ -10,6 +10,7 @@ import (
 )
 
 func (a *app) applyRuntimeInvalidation(event changefeed.Event) {
+	a.refreshGoalReader(goalInvalidationAffectsSession(event, a.session.ID))
 	a.applySessionInvalidation(
 		invalidatesSessionCatalog(event),
 		invalidationAffectsSession(event, a.session.ID, a.conversation.RunID()),
@@ -17,10 +18,25 @@ func (a *app) applyRuntimeInvalidation(event changefeed.Event) {
 }
 
 func (a *app) applyRuntimeResync(topics []changefeed.Topic) {
+	a.refreshGoalReader(containsTopic(topics, changefeed.GoalsChanged))
 	a.applySessionInvalidation(
 		containsTopic(topics, changefeed.SessionsChanged),
 		resyncAffectsSession(topics),
 	)
+}
+
+func (a *app) refreshGoalReader(affected bool) {
+	if affected && a.goals != nil && a.runtimeReader == runtimeReaderGoal && a.readerDialog.Open() {
+		a.ShowGoal()
+	}
+}
+
+func goalInvalidationAffectsSession(event changefeed.Event, sessionID string) bool {
+	if event.Type == changefeed.Resync {
+		return containsTopic(event.Topics, changefeed.GoalsChanged)
+	}
+	return changefeed.Topic(event.Type) == changefeed.GoalsChanged &&
+		(len(event.SessionIDs) == 0 || containsString(event.SessionIDs, sessionID))
 }
 
 func (a *app) applySessionInvalidation(catalogChanged, currentSessionChanged bool) {
@@ -71,7 +87,7 @@ func invalidationAffectsSession(event changefeed.Event, sessionID, runID string)
 func (a *app) refreshInvalidatedSession(settleAfter bool) {
 	sessionID := a.session.ID
 	a.sessionInvalidated = false
-	started := runCoalescingOperation(a, sessionInvalidationOperation,
+	started := runOperation(a, sessionInvalidationOperation, false,
 		func(ctx context.Context) (agent.SessionSnapshot, error) {
 			return a.runtime.GetSession(ctx, sessionID)
 		},

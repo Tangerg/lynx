@@ -174,6 +174,25 @@ func requireRuntimeCatalogs(t *testing.T, runtime *Runtime, sessionID string) {
 	if len(models) == 0 {
 		t.Fatal("ListModels returned no provider-qualified models")
 	}
+	providers, err := runtime.Providers(t.Context())
+	if err != nil || len(providers) == 0 {
+		t.Fatalf("Providers = (%+v, %v)", providers, err)
+	}
+	roles, err := runtime.Roles(t.Context())
+	if err != nil {
+		t.Fatalf("Roles = (%+v, %v)", roles, err)
+	}
+	sessionUsage, err := runtime.SessionUsage(t.Context(), sessionID)
+	if err != nil || sessionUsage.SessionID != sessionID {
+		t.Fatalf("SessionUsage = (%+v, %v)", sessionUsage, err)
+	}
+	usageSummary, err := runtime.Summary(t.Context(), 30)
+	if err != nil || usageSummary.SinceDays != 30 {
+		t.Fatalf("Summary = (%+v, %v)", usageSummary, err)
+	}
+	if current, exists, err := runtime.GetGoal(t.Context(), sessionID); err != nil || exists {
+		t.Fatalf("GetGoal without a goal = (%+v, %t, %v)", current, exists, err)
+	}
 	if rules, err := runtime.ListApprovalRules(t.Context(), sessionID); err != nil || len(rules) != 0 {
 		t.Fatalf("ListApprovalRules = (%+v, %v)", rules, err)
 	}

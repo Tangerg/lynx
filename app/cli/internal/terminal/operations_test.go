@@ -44,3 +44,23 @@ func TestOperationOwnerReplacesJoinsAndRejectsWorkAfterClose(t *testing.T) {
 		t.Fatal("operation was accepted after close")
 	}
 }
+
+func TestOperationOwnerReleaseMakesExclusiveSlotAvailableToSuccessor(t *testing.T) {
+	owner := newOperationOwner(t.Context())
+	t.Cleanup(owner.Close)
+	successorDone := make(chan struct{})
+	if !owner.Go("serial", false, func(_ context.Context, lease operationLease) {
+		if !owner.Release(lease) {
+			t.Error("active lease was not released")
+			return
+		}
+		if !owner.Go("serial", false, func(context.Context, operationLease) {
+			close(successorDone)
+		}) {
+			t.Error("successor was rejected after release")
+		}
+	}) {
+		t.Fatal("first operation was rejected")
+	}
+	<-successorDone
+}
