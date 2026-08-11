@@ -16,11 +16,12 @@ import (
 )
 
 type sessionCenterPane struct {
-	theme  kit.Theme
-	glyphs kit.Glyphs
-	picker *picker[agent.Session]
-	items  []agent.Session
-	cursor string
+	theme       kit.Theme
+	glyphs      kit.Glyphs
+	picker      *picker[agent.Session]
+	items       []agent.Session
+	cursor      string
+	seenCursors map[string]struct{}
 
 	loadMore       func()
 	toggleFavorite func(agent.Session)
@@ -41,16 +42,26 @@ func newSessionCenterPane(theme kit.Theme, glyphs kit.Glyphs, open func(agent.Se
 		func(session agent.Session) string { return compactRelativeAge(session.UpdatedAt) },
 		open,
 	)
+	center.Reset()
 	return center
 }
 
 func (c *sessionCenterPane) Reset() {
 	c.items, c.cursor = nil, ""
+	c.seenCursors = map[string]struct{}{"": {}}
 	c.picker.Reset()
 	c.picker.SetItems(nil)
 }
 
 func (c *sessionCenterPane) SetPage(page agent.SessionPage, appendPage bool) error {
+	if !appendPage {
+		c.seenCursors = map[string]struct{}{"": {}}
+	}
+	if page.NextCursor != "" {
+		if _, exists := c.seenCursors[page.NextCursor]; exists {
+			return fmt.Errorf("session catalog returned cyclic continuation cursor %q", page.NextCursor)
+		}
+	}
 	next := slices.Clone(page.Items)
 	if appendPage {
 		seen := make(map[string]struct{}, len(c.items)+len(page.Items))
@@ -66,6 +77,9 @@ func (c *sessionCenterPane) SetPage(page agent.SessionPage, appendPage bool) err
 		next = append(slices.Clone(c.items), page.Items...)
 	}
 	c.items, c.cursor = sortSessionCenter(next), page.NextCursor
+	if page.NextCursor != "" {
+		c.seenCursors[page.NextCursor] = struct{}{}
+	}
 	c.picker.SetItems(c.items)
 	return nil
 }

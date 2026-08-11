@@ -6,10 +6,19 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/Tangerg/lynx/app/runtime/embedded"
 	"github.com/Tangerg/lynx/app/runtime/protocol"
 
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
 )
+
+type sessionCatalogBinding interface {
+	ListSessions(context.Context, protocol.PageQuery, embedded.CallOptions) (*protocol.Page[protocol.Session], error)
+	CreateSession(context.Context, protocol.CreateSessionRequest, embedded.CommandOptions) (*protocol.Session, error)
+	UpdateSession(context.Context, protocol.UpdateSessionRequest, embedded.CommandOptions) (*protocol.Session, error)
+	ForkSession(context.Context, protocol.ForkSessionRequest, embedded.CommandOptions) (*protocol.Session, error)
+	DeleteSession(context.Context, protocol.DeleteSessionRequest, embedded.CommandOptions) error
+}
 
 const (
 	defaultSessionPageSize = 20
@@ -28,7 +37,7 @@ func (r *Runtime) ListSessions(ctx context.Context, query agent.SessionQuery) (a
 	search := strings.ToLower(strings.TrimSpace(query.Search))
 	workspace := strings.TrimSpace(query.Workspace)
 	if search == "" && workspace == "" {
-		page, err := r.binding.ListSessions(ctx, protocol.PageQuery{Limit: limit, Cursor: query.Cursor}, r.callOptions())
+		page, err := r.sessionCatalog.ListSessions(ctx, protocol.PageQuery{Limit: limit, Cursor: query.Cursor}, r.callOptions())
 		if err != nil {
 			return agent.SessionPage{}, classifyError(err)
 		}
@@ -39,14 +48,18 @@ func (r *Runtime) ListSessions(ctx context.Context, query agent.SessionQuery) (a
 	// Walk opaque cursors one row at a time so NextCursor remains the exact
 	// continuation after the last examined runtime row, including filtered rows.
 	result := agent.SessionPage{Items: make([]agent.Session, 0, limit)}
-	cursor := query.Cursor
+	cursors := newCursorTraversal("list sessions", query.Cursor)
 	for len(result.Items) < limit {
-		page, err := r.binding.ListSessions(ctx, protocol.PageQuery{Limit: 1, Cursor: cursor}, r.callOptions())
+		cursor := cursors.Current()
+		page, err := r.sessionCatalog.ListSessions(ctx, protocol.PageQuery{Limit: 1, Cursor: cursor}, r.callOptions())
 		if err != nil {
 			return agent.SessionPage{}, classifyError(err)
 		}
 		if page == nil {
 			return agent.SessionPage{}, errors.New("list sessions: runtime returned a nil page")
+		}
+		if len(page.Data) > 1 {
+			return agent.SessionPage{}, errors.New("list sessions: runtime exceeded the requested one-row page")
 		}
 		for _, value := range page.Data {
 			projected, err := projectSession(value)
@@ -57,15 +70,15 @@ func (r *Runtime) ListSessions(ctx context.Context, query agent.SessionQuery) (a
 				result.Items = append(result.Items, projected)
 			}
 		}
-		cursor, err = continueCursor("list sessions", cursor, page.NextCursor)
+		more, err := cursors.Advance(page.NextCursor)
 		if err != nil {
 			return agent.SessionPage{}, err
 		}
-		if cursor == "" {
+		if !more {
 			break
 		}
 	}
-	result.NextCursor = cursor
+	result.NextCursor = cursors.Current()
 	if err := result.Validate(); err != nil {
 		return agent.SessionPage{}, fmt.Errorf("list sessions projection: %w", err)
 	}
@@ -120,7 +133,7 @@ func (r *Runtime) CreateSession(ctx context.Context, input agent.CreateSession) 
 	if input.Workspace != "" {
 		request.Workspace = &protocol.WorkspaceRef{Path: input.Workspace}
 	}
-	created, err := r.binding.CreateSession(ctx, request, options)
+	created, err := r.sessionCatalog.CreateSession(ctx, request, options)
 	if err != nil {
 		return agent.Session{}, classifyError(err)
 	}
@@ -135,7 +148,7 @@ func (r *Runtime) UpdateSession(ctx context.Context, input agent.UpdateSession) 
 	if err != nil {
 		return agent.Session{}, err
 	}
-	updated, err := r.binding.UpdateSession(ctx, protocol.UpdateSessionRequest{
+	updated, err := r.sessionCatalog.UpdateSession(ctx, protocol.UpdateSessionRequest{
 		SessionID: input.SessionID, ExpectedRevision: input.ExpectedRevision,
 		Title: input.Title, Favorite: input.Favorite,
 	}, options)
@@ -153,7 +166,7 @@ func (r *Runtime) ForkSession(ctx context.Context, input agent.ForkSession) (age
 	if err != nil {
 		return agent.Session{}, err
 	}
-	forked, err := r.binding.ForkSession(ctx, protocol.ForkSessionRequest{
+	forked, err := r.sessionCatalog.ForkSession(ctx, protocol.ForkSessionRequest{
 		SessionID: input.SessionID, FromRunID: input.FromRunID, Title: input.Title,
 	}, options)
 	if err != nil {
@@ -170,5 +183,5 @@ func (r *Runtime) DeleteSession(ctx context.Context, input agent.DeleteSession) 
 	if err != nil {
 		return err
 	}
-	return classifyError(r.binding.DeleteSession(ctx, protocol.DeleteSessionRequest{SessionID: input.SessionID}, options))
+	return classifyError(r.sessionCatalog.DeleteSession(ctx, protocol.DeleteSessionRequest{SessionID: input.SessionID}, options))
 }

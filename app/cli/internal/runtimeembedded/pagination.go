@@ -18,3 +18,32 @@ func requireCompletePage[T any](operation string, page *protocol.Page[T]) ([]T, 
 	}
 	return page.Data, nil
 }
+
+type cursorTraversal struct {
+	operation string
+	current   string
+	seen      map[string]struct{}
+}
+
+func newCursorTraversal(operation, initial string) *cursorTraversal {
+	return &cursorTraversal{
+		operation: operation,
+		current:   initial,
+		seen:      map[string]struct{}{initial: {}},
+	}
+}
+
+func (traversal *cursorTraversal) Current() string { return traversal.current }
+
+func (traversal *cursorTraversal) Advance(next string) (bool, error) {
+	if next == "" {
+		traversal.current = ""
+		return false, nil
+	}
+	if _, exists := traversal.seen[next]; exists {
+		return false, fmt.Errorf("%s: runtime returned a cyclic continuation cursor", traversal.operation)
+	}
+	traversal.seen[next] = struct{}{}
+	traversal.current = next
+	return true, nil
+}

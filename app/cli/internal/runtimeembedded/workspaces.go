@@ -153,12 +153,12 @@ func (r *Runtime) Files(ctx context.Context, request workspace.FilesRequest) (wo
 		return workspace.FileListing{}, err
 	}
 	result := workspace.FileListing{}
-	cursor := ""
-	seenCursors := map[string]struct{}{"": {}}
+	cursors := newCursorTraversal("list workspace files", "")
 	for {
 		if err := context.Cause(ctx); err != nil {
 			return workspace.FileListing{}, err
 		}
+		cursor := cursors.Current()
 		page, err := r.workspaces.ListWorkspaceFiles(ctx, protocol.ListFilesRequest{
 			Workspace: protocol.WorkspaceRef{Path: request.Workspace}, Path: request.Path, Glob: request.Glob,
 			Recursive: request.Recursive, IncludeIgnored: request.IncludeIgnored,
@@ -176,14 +176,13 @@ func (r *Runtime) Files(ctx context.Context, request workspace.FilesRequest) (wo
 				SizeBytes: cloneInt64(entry.SizeBytes), ModifiedAt: entry.ModifiedAt,
 			})
 		}
-		if page.NextCursor == "" {
+		more, err := cursors.Advance(page.NextCursor)
+		if err != nil {
+			return workspace.FileListing{}, err
+		}
+		if !more {
 			break
 		}
-		if _, exists := seenCursors[page.NextCursor]; exists {
-			return workspace.FileListing{}, errors.New("list workspace files: runtime returned a cyclic continuation cursor")
-		}
-		seenCursors[page.NextCursor] = struct{}{}
-		cursor = page.NextCursor
 	}
 	if err := result.Validate(); err != nil {
 		return workspace.FileListing{}, fmt.Errorf("list workspace files projection: %w", err)

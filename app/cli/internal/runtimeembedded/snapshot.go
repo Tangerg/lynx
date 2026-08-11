@@ -7,10 +7,19 @@ import (
 	"reflect"
 	"slices"
 
+	"github.com/Tangerg/lynx/app/runtime/embedded"
 	"github.com/Tangerg/lynx/app/runtime/protocol"
 
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
 )
+
+type snapshotBinding interface {
+	GetSession(context.Context, protocol.GetSessionRequest, embedded.CallOptions) (*protocol.Session, error)
+	GetPlan(context.Context, protocol.GetPlanRequest, embedded.CallOptions) (*protocol.StateSnapshot, error)
+	ListRuns(context.Context, protocol.ListRunsRequest, embedded.CallOptions) (*protocol.Page[protocol.RunRef], error)
+	ListItems(context.Context, protocol.ListItemsRequest, embedded.CallOptions) (*protocol.ListItemsResponse, error)
+	ListInterrupts(context.Context, protocol.ListInterruptsRequest, embedded.CallOptions) (*protocol.Page[protocol.PendingInterruptSet], error)
+}
 
 const snapshotStabilityAttempts = 8
 
@@ -45,7 +54,7 @@ func (r *Runtime) GetSession(ctx context.Context, sessionID string) (agent.Sessi
 }
 
 func (r *Runtime) readCold(ctx context.Context, sessionID string) (coldRead, error) {
-	session, err := r.binding.GetSession(ctx, protocol.GetSessionRequest{SessionID: sessionID}, r.callOptions())
+	session, err := r.snapshot.GetSession(ctx, protocol.GetSessionRequest{SessionID: sessionID}, r.callOptions())
 	if err != nil {
 		return coldRead{}, classifyError(err)
 	}
@@ -60,7 +69,7 @@ func (r *Runtime) readCold(ctx context.Context, sessionID string) (coldRead, err
 	if err != nil {
 		return coldRead{}, err
 	}
-	plan, err := r.binding.GetPlan(ctx, protocol.GetPlanRequest{SessionID: sessionID}, r.callOptions())
+	plan, err := r.snapshot.GetPlan(ctx, protocol.GetPlanRequest{SessionID: sessionID}, r.callOptions())
 	if err != nil {
 		return coldRead{}, classifyError(err)
 	}
@@ -73,9 +82,10 @@ func (r *Runtime) readCold(ctx context.Context, sessionID string) (coldRead, err
 
 func (r *Runtime) listAllRuns(ctx context.Context, sessionID string) ([]protocol.RunRef, error) {
 	var values []protocol.RunRef
-	cursor := ""
+	cursors := newCursorTraversal("list runs", "")
 	for {
-		page, err := r.binding.ListRuns(ctx, protocol.ListRunsRequest{
+		cursor := cursors.Current()
+		page, err := r.snapshot.ListRuns(ctx, protocol.ListRunsRequest{
 			SessionID: sessionID, IncludeDescendants: false,
 			PageQuery: protocol.PageQuery{Limit: 100, Cursor: cursor},
 		}, r.callOptions())
@@ -86,21 +96,22 @@ func (r *Runtime) listAllRuns(ctx context.Context, sessionID string) ([]protocol
 			return nil, errors.New("list runs: runtime returned a nil page")
 		}
 		values = append(values, page.Data...)
-		if page.NextCursor == "" {
-			return values, nil
-		}
-		cursor, err = continueCursor("list runs", cursor, page.NextCursor)
+		more, err := cursors.Advance(page.NextCursor)
 		if err != nil {
 			return nil, err
+		}
+		if !more {
+			return values, nil
 		}
 	}
 }
 
 func (r *Runtime) listAllItems(ctx context.Context, sessionID string) ([]protocol.Item, error) {
 	var values []protocol.Item
-	cursor := ""
+	cursors := newCursorTraversal("list items", "")
 	for {
-		page, err := r.binding.ListItems(ctx, protocol.ListItemsRequest{
+		cursor := cursors.Current()
+		page, err := r.snapshot.ListItems(ctx, protocol.ListItemsRequest{
 			Scope: protocol.ItemListScope{Type: protocol.ItemScopeSession, SessionID: sessionID},
 			Order: protocol.ItemOrderAsc, PageQuery: protocol.PageQuery{Limit: 200, Cursor: cursor},
 		}, r.callOptions())
@@ -111,21 +122,22 @@ func (r *Runtime) listAllItems(ctx context.Context, sessionID string) ([]protoco
 			return nil, errors.New("list items: runtime returned nil")
 		}
 		values = append(values, page.Data...)
-		if page.NextCursor == "" {
-			return values, nil
-		}
-		cursor, err = continueCursor("list items", cursor, page.NextCursor)
+		more, err := cursors.Advance(page.NextCursor)
 		if err != nil {
 			return nil, err
+		}
+		if !more {
+			return values, nil
 		}
 	}
 }
 
 func (r *Runtime) listAllInterrupts(ctx context.Context, sessionID string) ([]protocol.PendingInterruptSet, error) {
 	var values []protocol.PendingInterruptSet
-	cursor := ""
+	cursors := newCursorTraversal("list interrupts", "")
 	for {
-		page, err := r.binding.ListInterrupts(ctx, protocol.ListInterruptsRequest{
+		cursor := cursors.Current()
+		page, err := r.snapshot.ListInterrupts(ctx, protocol.ListInterruptsRequest{
 			SessionID: sessionID, PageQuery: protocol.PageQuery{Limit: 100, Cursor: cursor},
 		}, r.callOptions())
 		if err != nil {
@@ -135,12 +147,12 @@ func (r *Runtime) listAllInterrupts(ctx context.Context, sessionID string) ([]pr
 			return nil, errors.New("list interrupts: runtime returned a nil page")
 		}
 		values = append(values, page.Data...)
-		if page.NextCursor == "" {
-			return values, nil
-		}
-		cursor, err = continueCursor("list interrupts", cursor, page.NextCursor)
+		more, err := cursors.Advance(page.NextCursor)
 		if err != nil {
 			return nil, err
+		}
+		if !more {
+			return values, nil
 		}
 	}
 }

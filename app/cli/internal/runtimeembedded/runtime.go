@@ -40,6 +40,8 @@ type Runtime struct {
 	binding          *embedded.Runtime
 	modelCatalog     modelCatalogBinding
 	approvals        approvalBinding
+	sessionCatalog   sessionCatalogBinding
+	snapshot         snapshotBinding
 	runs             runBinding
 	sessions         sessionBinding
 	workspaces       workspaceBinding
@@ -94,6 +96,8 @@ func Open(ctx context.Context, cfg Config) (*Runtime, error) {
 		binding:          binding,
 		modelCatalog:     binding,
 		approvals:        binding,
+		sessionCatalog:   binding,
+		snapshot:         binding,
 		runs:             binding,
 		sessions:         binding,
 		workspaces:       binding,
@@ -208,13 +212,6 @@ func newIdempotencyKey() (string, error) {
 		return "", fmt.Errorf("generate runtime idempotency key: %w", err)
 	}
 	return "cli_" + hex.EncodeToString(entropy[:]), nil
-}
-
-func continueCursor(operation, current, next string) (string, error) {
-	if next != "" && next == current {
-		return "", fmt.Errorf("%s: runtime returned a non-advancing cursor", operation)
-	}
-	return next, nil
 }
 
 func validateDiscovery(discovery *protocol.DiscoverResponse) error {

@@ -27,9 +27,9 @@ var _ schedule.Service = (*Runtime)(nil)
 func (r *Runtime) Schedules(ctx context.Context) ([]schedule.Schedule, error) {
 	var schedules []schedule.Schedule
 	seenIDs := make(map[string]struct{})
-	seenCursors := make(map[string]struct{})
-	cursor := ""
+	cursors := newCursorTraversal("list schedules", "")
 	for {
+		cursor := cursors.Current()
 		page, err := r.schedules.ListSchedules(ctx, protocol.PageQuery{Cursor: cursor, Limit: schedulePageLimit}, r.callOptions())
 		if err != nil {
 			return nil, classifyError(err)
@@ -48,14 +48,13 @@ func (r *Runtime) Schedules(ctx context.Context) ([]schedule.Schedule, error) {
 			seenIDs[projected.ID] = struct{}{}
 			schedules = append(schedules, projected)
 		}
-		if page.NextCursor == "" {
+		more, err := cursors.Advance(page.NextCursor)
+		if err != nil {
+			return nil, err
+		}
+		if !more {
 			return schedules, nil
 		}
-		if _, cycle := seenCursors[page.NextCursor]; cycle {
-			return nil, errors.New("list schedules: runtime returned a cyclic continuation cursor")
-		}
-		seenCursors[page.NextCursor] = struct{}{}
-		cursor = page.NextCursor
 	}
 }
 

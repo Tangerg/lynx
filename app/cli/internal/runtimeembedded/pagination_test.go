@@ -37,6 +37,42 @@ func TestRequireCompletePageRejectsUnconsumableResults(t *testing.T) {
 	}
 }
 
+func TestCursorTraversalRejectsDirectAndMultiStepCycles(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name     string
+		initial  string
+		sequence []string
+		wantMore []bool
+		wantErr  bool
+	}{
+		{name: "complete", sequence: []string{"next", ""}, wantMore: []bool{true, false}},
+		{name: "direct cycle", initial: "current", sequence: []string{"current"}, wantErr: true},
+		{name: "multi-step cycle", sequence: []string{"first", "second", "first"}, wantErr: true},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			traversal := newCursorTraversal("list values", test.initial)
+			for index, next := range test.sequence {
+				more, err := traversal.Advance(next)
+				if err != nil {
+					if !test.wantErr || !strings.Contains(err.Error(), "cyclic continuation cursor") {
+						t.Fatalf("Advance(%q) error = %v", next, err)
+					}
+					return
+				}
+				if index < len(test.wantMore) && more != test.wantMore[index] {
+					t.Fatalf("Advance(%q) more = %t, want %t", next, more, test.wantMore[index])
+				}
+			}
+			if test.wantErr {
+				t.Fatal("cursor cycle was accepted")
+			}
+		})
+	}
+}
+
 type modelCatalogBindingStub struct {
 	providers *protocol.Page[protocol.Provider]
 	models    map[string]*protocol.Page[protocol.Model]
