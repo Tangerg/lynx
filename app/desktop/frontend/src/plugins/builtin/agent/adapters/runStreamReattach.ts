@@ -20,8 +20,7 @@ interface RunStreamReattachOptions {
  * it or refuses. The two refusals mean different things and get different answers:
  *
  *   - the run is not attachable (finished, waiting on a person, or already on another
- *     segment) — there is nothing to follow, and the fold either holds the end
- *     already or learns it from the change stream;
+ *     segment) — there is nothing to follow, so the durable projection is re-read;
  *   - the replay window has moved past the cursor — the events are unrecoverable, but
  *     the Items they produced are persisted, so the history is re-read and the stream
  *     is reattached tail-only. Attaching tail-first without that read would leave a
@@ -49,7 +48,7 @@ export function createRunStreamReattach({
         const tail = await client().runs.subscribe(target, signal);
         return { result: brandAck(tail.result), events: tail.events };
       } catch (tailErr) {
-        if (!isCancelled() && !signal.aborted)
+        if (!isCancelled() && !signal.aborted && !agentRuntime().isRunGone(tailErr))
           console.warn("[agent] run tail reattach failed:", sessionId, tailErr);
         return null;
       }
@@ -63,7 +62,10 @@ export function createRunStreamReattach({
       return { result: brandAck(stream.result), events: stream.events };
     } catch (err) {
       if (isCancelled() || signal.aborted) return null;
-      if (agentRuntime().isRunGone(err)) return null;
+      if (agentRuntime().isRunGone(err)) {
+        await recoverProjection();
+        return null;
+      }
       if (!agentRuntime().isReplayLost(err)) {
         console.warn("[agent] run reattach failed:", sessionId, err);
         return null;

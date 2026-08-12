@@ -2,6 +2,7 @@ import type { LyraClient } from "@/rpc";
 import { asRunId, asSegmentId } from "@/rpc";
 import type { AgentRunView } from "@/plugins/sdk/types/agentSessionView";
 import { refreshAgentSessionProjection } from "../application/session/refreshSessionProjection";
+import { agentRuntime } from "../application/ports/runtimeGateway";
 import type { RunStream } from "./agentRunPump";
 
 interface AgentSessionRecoveryOptions {
@@ -61,6 +62,12 @@ async function attachRootRun(
     );
   } catch (error) {
     if (options.isCancelled() || controller.signal.aborted) return;
+    if (agentRuntime().isRunGone(error)) {
+      await refreshAgentSessionProjection(options.sessionId, {
+        canCommit: () => !stale(options),
+      });
+      return;
+    }
     console.warn("[agent] run reattach failed:", options.sessionId, error);
     return;
   }

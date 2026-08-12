@@ -412,6 +412,49 @@ describe("useAgentSession durable recovery", () => {
     expect(selectCurrentRootRun(useAgentStore.getState().sessions[RID]!.view)?.id).toBe("run_live");
   });
 
+  it("treats a run that finishes between snapshot and subscribe as synchronized", async () => {
+    const warning = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const subscribe = vi.fn().mockRejectedValue(
+      new RpcError({
+        code: -32002,
+        message: "run finished",
+        data: { type: "run_finished" },
+      }),
+    );
+    const running = runRef({
+      id: "run_raced_terminal",
+      sessionId: RID,
+      activeSegmentId: "seg_raced_terminal",
+    });
+    const finished = runRef({
+      ...running,
+      status: "finished",
+      activeSegmentId: undefined,
+      outcome: { type: "completed" },
+      finishedAt: "2026-07-29T00:00:01Z",
+    });
+    const list = vi
+      .fn()
+      .mockImplementationOnce(() => autoPage([running]))
+      .mockImplementation(() => autoPage([finished]));
+    stubClient({
+      list,
+      subscribe,
+    });
+    const { driver } = parkedDriver();
+    renderHook(() => useAgentSession(() => driver, RID));
+
+    await waitFor(() => {
+      expect(
+        useAgentStore.getState().sessions[RID]!.view.runsById.run_raced_terminal,
+      ).toMatchObject({ status: "finished", outcome: { type: "completed" } });
+    });
+
+    expect(list).toHaveBeenCalledTimes(2);
+    expect(subscribe).toHaveBeenCalledTimes(1);
+    expect(warning).not.toHaveBeenCalled();
+  });
+
   it("reattaches the root's new segment after a waiting child is canceled", async () => {
     let canceled = false;
     const rootBefore = runRef({

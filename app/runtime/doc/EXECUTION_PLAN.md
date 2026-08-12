@@ -1,6 +1,6 @@
 # Lyra Runtime 重构实施计划
 
-> 状态：P1–P34 已完成；发布后反证审计持续进行
+> 状态：P1–P35 已完成；发布后反证审计持续进行
 >
 > 工作方式：原模块内治本重构，按可验证纵切分批完成；不创建完整 `runtime2`
 
@@ -68,6 +68,7 @@
 | P32 | Goal objective incarnation / HITL Resume accounting | P31 + crash-resume accounting 证据 | 已完成 |
 | P33 | Schedule 默认工作区更新合同与 Desktop 消费闭环 | P32 + 真实 UI/SQLite 失败证据 | 已完成 |
 | P34 | Goal HITL capability、权威 Question answer 与 Desktop Markdown 收口 | P33 + 双客户端/真实 HTTP/事务反例 | 已完成 |
+| P35 | Run 订阅终态收敛与观察生命周期 | P34 + snapshot/subscribe 竞态与多观察者反例 | 已完成 |
 
 ## 4. P0 — 文档、事实和边界基线
 
@@ -913,10 +914,32 @@
 - `agent` module 不接收 Runtime Goal/Run/capability/Store/transaction/UI 抽象，Framework concrete import 仍只存在于 `adapter/agentexec`；
 - Runtime standalone 与 race、contract digest、Desktop 完整 check、86/86 operations + 10/10 events、真实 HTTP/崩溃恢复和 SQLite 终态不变量全绿。
 
-## 39. 进度记录
+## 39. P35 — Run 订阅终态收敛与观察生命周期
+
+### 目标
+
+消除 durable snapshot 与 stream subscribe 之间的终态竞态、Run 已接受后跟随失败被误判为 start/resume 失败，以及 process-local Session 变更观察永久保留状态三处同源 lifecycle ownership 缺口。
+
+### 工作项
+
+- [x] P35-01 Desktop cold recovery 在 snapshot 后 subscribe 得到 terminal/waiting/stale 时立即重读 durable Session projection，不保留幽灵 Running；
+- [x] P35-02 replay/cold reattach 统一把不可附着 Run 收敛到 durable projection，teardown 后的异步 refresh 通过 CAS commit guard 失效；
+- [x] P35-03 `runs.start/resume` ack 成为明确 accepted boundary，ack 后 stream/recovery failure 不再进入 command error 或 HITL `onStartError` 回滚通道；
+- [x] P35-04 Runtime Session Run change fan-out 只在存在活跃 waiter 时保留 generation，使用引用计数与幂等 disposer 支持多观察者、取消、通知和代际切换；
+- [x] P35-05 补齐前端红测、Runtime 多观察者/取消/无观察者回归、重复 race、全量质量门禁与真实浏览器双客户端复核。
+
+### 验收
+
+- Run 在 snapshot 与 subscribe 之间进入 finished/waiting/stale 时，Desktop 最终只显示 Runtime durable truth，不打印伪 reattach failure；
+- 已返回 Run ack 的 HITL answer/resume 不因后续 stream 故障被本地回滚，只有 ack 前拒绝才进入 start-error 通道；
+- process-local wake signal 不保存产品状态、无 waiter 时零 Session 条目，多 waiter 同代唤醒且旧代不污染新代；
+- 改动止于 Runtime Application wake mechanism 与 Desktop Agent adapter/application port 边界，不修改 Agent Framework、Protocol、Artifact 或 SQLite shape。
+
+## 40. 进度记录
 
 | 日期 | 阶段 | 完成事实 | 验证 |
 |---|---|---|---|
+| 2026-08-12 | P35（Run subscription convergence / observation lifecycle） | Desktop 在 initial recovery 与 replay reattach 的 snapshot→subscribe 竞态中以 application port 重读 durable projection，accepted Run boundary 与 channel-A start/resume failure 分离；Runtime wake-only fan-out 改为 live-observer-owned generation/refcount/disposer，无 observer 时不保留 Session 状态。改动没有引入 Runtime DTO/Store/transaction/Framework 类型到 Agent context，也没有修改 Agent Framework、Protocol 或持久化 shape | 前端精确红测覆盖 terminal/waiting race 与 post-ack failure classification；Runtime 多 waiter、取消、代际、重复 disposer 与无 observer 回归在 race 下重复通过；Frontend/Runtime 全门禁、真实浏览器双客户端与 staged path/boundary 扫描在本批提交前收口 |
 | 2026-08-12 | P34（Goal HITL / authoritative Question / Markdown） | Question accepted response 成为 Transcript 不可变事实并与 resume claim/checkpoint 同事务；Artifact v18、Protocol、SQLite epoch 69、Delivery 和 Desktop 只投影该事实。Goal 冻结/继承协商能力，Resume 验证 capability gap；Runtime execution context carrier 留在 Adapter，Agent Framework 未修改。真实 HTTP 反证出的 parked Run durable admission 缺口由 Application 同时观察本地 gate 与权威 Run 并用 lifecycle signal 唤醒解决。Desktop 未知 raw HTML 在 Markdown AST owner 按字面量显示 | Domain/Application/Adapter/Infra/Delivery/contract 定向回归与真实 HTTP Goal ask_user waiting→Goal resume→同 Run answer→terminal accounting 通过；双客户端、取消/reload、事务失败、冷重启、Frontend 全门禁、Runtime standalone/race/lint 与 SQLite 终态不变量在本批提交前收口 |
 | 2026-08-12 | P33（Schedule workspace patch / Desktop consumer） | Schedule 更新合同补齐省略保持、合法 ref 设置、`workspaceMode:"default"` 清空三态，并生成互斥约束；Delivery 将 default 投影到既有空 CWD Domain 语义。Desktop 删除非法空 ref，handwritten SDK 改为直接消费生成 `UpdateScheduleRequest` 并公开该类型。没有把 Runtime workspace/transport 类型泄露进 Agent、Domain 或 Application，也没有修改 SQLite shape 或并存 CLI 工作 | 原失败 UI 路径真实复测后标题持久化、cwd 为空、revision 1→2；wire/Delivery/SDK/gateway/HTTP lifecycle 回归、Frontend 238 files/1471 tests、API consumer 86/86 operations + 10/10 events 和 Desktop Go tests 全绿；Runtime 全门禁与 race 在本批提交前收口 |
 | 2026-08-12 | P32（Goal objective incarnation / HITL Resume accounting） | Goal provenance 从混合 process-local ownership 的 lease 治本纠正为 objective-lifetime incarnation：fresh Start 才换身份，Pause/Resume/Stop/Reconcile 保留身份；outstanding HITL Run 的 terminal accounting/outcome 因而仍归原目标。driver 在每次 session-startable 等待后重读并结算权威状态，消除预算耗尽或已完成后额外启动 Run 的窗口。SQLite epoch 68、checkpoint policy v2 采用唯一 incarnation shape，旧字段/版本 fail closed；没有修改公共 Protocol 或 Agent Framework | outstanding Run budget/completed-report、fresh-objective fencing、SQLite exact/retired shape 与 checkpoint strict codec 回归通过；Runtime standalone 全门禁与双向抽象边界扫描在本批提交前收口 |
@@ -1002,6 +1025,6 @@
 | 2026-08-09 | P9.2 | 完成 Adapter/Infra/Application/Delivery 逐包职责审计；workspace physical path identity 收敛到唯一 Infra mechanism；删除空的 temporary architecture 台账并把旧 Agent 禁止与 Domain no-context-I/O 变为永久 framework boundary guard；确认 agentexec 按真实变化原因组织且没有第二 lifecycle owner或虚构子包 | Adapter→Infra 单向图与目标六环 DAG 全绿；Delivery concrete Adapter/Infra import、Infra 反向 import、Application outward import、纯转发 wrapper、package/type 口吃、空目录和 temporary exception 均为零；workspacepath/pathidentity/arch targeted tests 与全量质量门禁通过 |
 | 2026-08-09 | P10 | Runtime Protocol 一次性提升到 `2026-08-09`、Session Artifact 到 v14；删除 wire 中实现泄露的 `processRootSegment`，只保留准确的 `runtimeInstanceRootSegment`；Go registry、validator、manifest、OpenRPC、JSON Schema、TypeScript binding、canonical samples 与人读 API/Transport/Aux 文档同步；新增精确 consumer handoff | canonical artifact samples 中漏存的 v12 与旧 `outcome.error` 被 strict sample gate 暴露并治本修正；生成器零漂移、旧 wire token/版本归零、strict validator/round-trip、HTTP/in-process、全量质量门禁通过；Desktop backlog 已记录但未改消费者 |
 
-## 40. 当前下一步
+## 41. 当前下一步
 
-P34 已关闭 Goal HITL capability、Question accepted answer、多客户端最终显示、parked Run durable admission 和 Markdown unknown raw HTML 的已知缺口。本轮提交推送后按用户要求暂停；恢复后继续沿 backend operation → generated client → frontend product consumer → stream/invalidation 矩阵反证 Goal commands、核心 Run stream、文件/旁路事件、cancel/duplicate resolution、Plan/Goal 并发、subscription close/retarget、事务失败和崩溃恢复。每轮提交前执行 Runtime→Agent/Agent→Runtime 双向依赖与 staged path 审计。
+P35 已关闭 snapshot→subscribe 终态竞态、accepted Run 错误分类和 Session wake observation 生命周期泄漏。下一轮继续沿 backend operation → generated client → frontend product consumer → stream/invalidation 矩阵反证 Goal commands、核心 Run stream、文件/旁路事件、cancel/duplicate resolution、Plan/Goal 并发、subscription close/retarget、事务失败和崩溃恢复。每轮提交前执行 Runtime→Agent/Agent→Runtime 双向依赖与 staged path 审计。

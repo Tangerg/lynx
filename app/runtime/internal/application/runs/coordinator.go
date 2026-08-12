@@ -178,7 +178,7 @@ func (c *Coordinator) ReplayRetention() Retention { return c.retention }
 // free before attempting its own Start. It does not reserve either resource;
 // Start remains the authority that acquires them.
 func (c *Coordinator) WaitSessionStartable(ctx context.Context, sessionID string) error {
-	if c == nil || c.admission == nil || c.sessionReader == nil {
+	if c == nil || c.admission == nil || c.sessionReader == nil || c.activeRuns == nil {
 		return errors.New("runs: admission gate is unavailable")
 	}
 	sess, err := c.sessionReader.Get(ctx, sessionID)
@@ -189,18 +189,22 @@ func (c *Coordinator) WaitSessionStartable(ctx context.Context, sessionID string
 		if err := c.admission.WaitRunStartable(ctx, sess.ID(), sess.CWD()); err != nil {
 			return err
 		}
-		changed := c.runChanges.observe(sess.ID())
+		changed, stopObserving := c.runChanges.observe(sess.ID())
 		_, active, err := c.activeRuns.ActiveRun(ctx, sess.ID())
 		if err != nil {
+			stopObserving()
 			return err
 		}
 		if !active {
+			stopObserving()
 			return nil
 		}
 		select {
 		case <-ctx.Done():
+			stopObserving()
 			return ctx.Err()
 		case <-changed:
+			stopObserving()
 		}
 	}
 }

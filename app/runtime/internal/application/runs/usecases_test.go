@@ -421,6 +421,60 @@ func TestWaitSessionStartableIncludesDurableWaitingRun(t *testing.T) {
 	}
 }
 
+func TestWaitSessionStartableReleasesDurableChangeObservation(t *testing.T) {
+	sessions := &fakeRunSessions{sess: sessionfixture.MustRestore(session.Snapshot{ID: "ses_1", CWD: "/work"})}
+	c := newUseCaseCoordinator(&fakeExecutor{}, &fakeExecutionPorts{}, sessions, &fakeEffects{})
+
+	if err := c.WaitSessionStartable(t.Context(), "ses_1"); err != nil {
+		t.Fatalf("WaitSessionStartable: %v", err)
+	}
+
+	if got := len(c.runChanges.sessions); got != 0 {
+		t.Fatalf("retained session change observations = %d, want 0", got)
+	}
+}
+
+func TestWaitSessionStartableCancellationReleasesDurableChangeObservation(t *testing.T) {
+	waitingRun := runfixture.MustRestore(run.Snapshot{
+		ID:        "run_waiting",
+		SessionID: "ses_1",
+		State:     run.Waiting,
+	})
+	sessions := &fakeRunSessions{
+		sess:           sessionfixture.MustRestore(session.Snapshot{ID: "ses_1", CWD: "/work"}),
+		active:         &waitingRun,
+		activeObserved: make(chan struct{}),
+	}
+	c := newUseCaseCoordinator(&fakeExecutor{}, &fakeExecutionPorts{}, sessions, &fakeEffects{})
+	ctx, cancel := context.WithCancel(t.Context())
+	done := make(chan error, 1)
+	go func() { done <- c.WaitSessionStartable(ctx, "ses_1") }()
+
+	<-sessions.activeObserved
+	cancel()
+	if err := <-done; !errors.Is(err, context.Canceled) {
+		t.Fatalf("WaitSessionStartable error = %v, want context cancellation", err)
+	}
+	if got := len(c.runChanges.sessions); got != 0 {
+		t.Fatalf("retained canceled session change observations = %d, want 0", got)
+	}
+}
+
+func TestRunChangeWithoutObserverRetainsNoSessionState(t *testing.T) {
+	c := newUseCaseCoordinator(
+		&fakeExecutor{},
+		&fakeExecutionPorts{},
+		&fakeRunSessions{},
+		&fakeEffects{},
+	)
+
+	c.publishRunMoved("ses_1", "run_1")
+
+	if got := len(c.runChanges.sessions); got != 0 {
+		t.Fatalf("retained unobserved session changes = %d, want 0", got)
+	}
+}
+
 func TestStartOwnsCompleteAdmissionSequence(t *testing.T) {
 	exec := &fakeExecutor{}
 	effects := &fakeEffects{}

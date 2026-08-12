@@ -486,6 +486,7 @@ Runtime Toolset 负责产品工具清单、schema、执行 capability、安全�
 - 慢 Delivery subscriber 不得阻塞或改变 Run 终态；
 - cancel、terminal、waiting 和 resume 的线性化点必须有行为测试；
 - Engine 使用 Run-owned lifecycle context，不使用短命 Delivery request context；请求返回或连接断开不得隐式取消仍在执行的 Run；
+- Application process-local wake-only fan-out 不保存产品状态：observation 只在活跃 waiter 存在时持有 generation 并提供显式 disposer，通知只关闭当代 channel，消费者醒来后重读 durable projection；
 - 不使用 `time.Sleep` 证明并发正确性；使用 channel、明确 barrier 或 `testing/synctest`。
 
 Agent Framework Event/Delta listener 都是 observation/wake-up 边界，不是 Application durable commit callback。listener failure/panic 不会回滚 Framework 状态，因此 Application 不能仅因“收到一个 Event”就假定产品事实已经可靠提交。per-Run pump 必须通过 Agent Framework public Process status/result、Strategy public helper 和 quiescent complete-tree capture 对账 waiting/terminal；Event 丢失后仍能在下一次 wake、control 或 recovery reconciliation 收敛。terminal truth 最终来自 `Process.Await`/`Result`，不是 Event payload。

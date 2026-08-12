@@ -55,20 +55,28 @@ export function createRunOpeningController({
         opening = Promise.reject(err);
       }
       void opening
-        .then((stream) => {
-          if (isCancelled() || ctrl.signal.aborted || beginId !== beginSeq) return;
-          onResult?.(stream.result);
-          span.setAttribute("lyra.run_id", stream.result.runId);
-          return pump(stream, ctrl.signal);
-        })
-        .catch((err: unknown) => {
-          if (isCancelled() || ctrl.signal.aborted || beginId !== beginSeq) return;
-          failure = err;
-          console.error("[agent] run failed to start:", sessionId, err);
-          const problem = agentProblemFromRpcError(err);
-          if (problem) setStartError(problem);
-          onStartError?.();
-        })
+        .then(
+          async (stream) => {
+            if (isCancelled() || ctrl.signal.aborted || beginId !== beginSeq) return;
+            try {
+              onResult?.(stream.result);
+              span.setAttribute("lyra.run_id", stream.result.runId);
+              await pump(stream, ctrl.signal);
+            } catch (err) {
+              if (isCancelled() || ctrl.signal.aborted || beginId !== beginSeq) return;
+              failure = err;
+              console.error("[agent] accepted run stream failed:", sessionId, err);
+            }
+          },
+          (err: unknown) => {
+            if (isCancelled() || ctrl.signal.aborted || beginId !== beginSeq) return;
+            failure = err;
+            console.error("[agent] run failed to start:", sessionId, err);
+            const problem = agentProblemFromRpcError(err);
+            if (problem) setStartError(problem);
+            onStartError?.();
+          },
+        )
         .finally(() => {
           if (beginId === beginSeq) starting = false;
           endSpan(span, failure);

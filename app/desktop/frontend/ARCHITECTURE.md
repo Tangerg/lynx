@@ -30,7 +30,7 @@
 | 数据     | TanStack React Query                                              |
 | 协议     | 自研 Lyra Runtime Protocol v2（JSON-RPC 2.0，`src/rpc/`）         |
 | 动画     | motion/react                                                      |
-| 桌面壳   | Wails v2（Go 后端 + WebView 前端）                                |
+| 桌面壳   | Wails v3 beta（Go 后端 + WebView 前端，版本钉死）                  |
 | 测试     | Vitest 4 + Testing Library + happy-dom                            |
 | 构建     | Vite 8（内置 Rolldown bundler）                                   |
 | Lint     | OxLint 1.x（Rust-based）；`prettier` 格式化                       |
@@ -559,6 +559,11 @@ cancelRun(runId):
 unmount → abort follower + 解绑 actions；projection 留到 Session 不再 open 时统一 prune
 ```
 
+`runs.start/resume` 的 ack 是 accepted boundary：只有 ack 前拒绝进入 command error / HITL
+`onStartError`；ack 后 stream/recovery failure 不能否定已经提交的命令。cold recovery 或 replay
+reattach 在 snapshot 与 subscribe 之间遇到 terminal/waiting/stale Run 时，必须经 Agent
+application port 重读完整 durable projection；不能把旧 Running 留给 UI 等待偶然 invalidation。
+
 默认 driver 由 `rpc-agent` 插件贡献（`AGENT_SOURCE`，走 JSON-RPC）；插件可替换成 mock / IPC / 本地模型等。
 
 ---
@@ -702,7 +707,8 @@ ChatPanel → ChatStream → MessageBlock → PartRenderer
 | 插件组件 render 抛错                  | PluginBoundary 接住画 fallback；其余 kernel 正常          |
 | stream / custom handler 抛错          | 该 handler 跳过，state 保持入态；其余 handler 继续        |
 | 插件 tool action / command 抛错       | console.error + `reportPluginError`，UI 不挂              |
-| `runs.start/resume` 调用 reject       | channel-a 失败：无流；保存 Session command problem        |
+| `runs.start/resume` 在 ack 前 reject  | channel-a 失败：无流；保存 Session command problem        |
+| 已 accepted Run 的 stream/recovery 失败 | 不回滚命令；durable projection 负责权威收敛               |
 | `segment.finished{error}`             | terminal Run outcome 投影为可 dismiss problem             |
 | stream 断线且 replay 可用             | 从最后 folded eventId reattach                            |
 | `replay_unavailable` / runtime resync | 读取完整 durable Session snapshot，再做 CAS 原子替换      |

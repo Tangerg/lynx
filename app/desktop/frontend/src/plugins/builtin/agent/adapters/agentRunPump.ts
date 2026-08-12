@@ -42,7 +42,7 @@ interface AgentRunPumpOptions {
   applyRunSnapshot?: (run: RunRef) => void;
   /** Reattach a run whose stream ended before the run did. null means the run is no
    *  longer attachable at all — finished, waiting on a person, or moved to another
-   *  segment — and the fold already holds, or will be told, everything it can. */
+   *  segment — after the durable projection has reconciled that transition. */
   reattach?: (position: RunStreamPosition, signal: AbortSignal) => Promise<RunStream | null>;
   /** The newest live stream became idle after its queued tail was folded. */
   onIdle?: () => void;

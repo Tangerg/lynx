@@ -7,31 +7,47 @@ import "sync"
 // projection after every wake.
 type sessionRunChanges struct {
 	mu       sync.Mutex
-	sessions map[string]chan struct{}
+	sessions map[string]*sessionRunObservation
 }
 
-func (changes *sessionRunChanges) observe(sessionID string) <-chan struct{} {
+type sessionRunObservation struct {
+	changed   chan struct{}
+	observers int
+}
+
+func (changes *sessionRunChanges) observe(sessionID string) (<-chan struct{}, func()) {
 	changes.mu.Lock()
-	defer changes.mu.Unlock()
 	if changes.sessions == nil {
-		changes.sessions = make(map[string]chan struct{})
+		changes.sessions = make(map[string]*sessionRunObservation)
 	}
-	changed := changes.sessions[sessionID]
-	if changed == nil {
-		changed = make(chan struct{})
-		changes.sessions[sessionID] = changed
+	observation := changes.sessions[sessionID]
+	if observation == nil {
+		observation = &sessionRunObservation{changed: make(chan struct{})}
+		changes.sessions[sessionID] = observation
 	}
-	return changed
+	observation.observers++
+	changes.mu.Unlock()
+
+	var once sync.Once
+	return observation.changed, func() {
+		once.Do(func() {
+			changes.mu.Lock()
+			defer changes.mu.Unlock()
+			observation.observers--
+			if observation.observers == 0 && changes.sessions[sessionID] == observation {
+				delete(changes.sessions, sessionID)
+			}
+		})
+	}
 }
 
 func (changes *sessionRunChanges) notify(sessionID string) {
 	changes.mu.Lock()
 	defer changes.mu.Unlock()
-	if changes.sessions == nil {
-		changes.sessions = make(map[string]chan struct{})
+	observation := changes.sessions[sessionID]
+	if observation == nil {
+		return
 	}
-	if changed := changes.sessions[sessionID]; changed != nil {
-		close(changed)
-	}
-	changes.sessions[sessionID] = make(chan struct{})
+	delete(changes.sessions, sessionID)
+	close(observation.changed)
 }

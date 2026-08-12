@@ -64,7 +64,10 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
         sessionId,
         client,
         isCancelled: () => cancelled,
-        recoverProjection: () => refreshAgentSessionProjection(sessionId).then(() => undefined),
+        recoverProjection: () =>
+          refreshAgentSessionProjection(sessionId, {
+            canCommit: () => !cancelled,
+          }).then(() => undefined),
       }),
       onIdle: () => projectionSynchronization?.liveStreamSettled(),
     });

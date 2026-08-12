@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { LyraClient } from "@/rpc";
+import { RpcError, type LyraClient } from "@/rpc";
 import { asRunId, asSegmentId } from "@/rpc";
 import type { RunStream, RunStreamPosition } from "./agentRunPump";
 import { createRunStreamReattach } from "./runStreamReattach";
@@ -68,5 +68,49 @@ describe("run stream reattach", () => {
     expect(subscribe).toHaveBeenCalledWith({ runId: RUN, segmentId: SEGMENT }, signal, {
       lastEventId: "evt_7",
     });
+  });
+
+  it("rebuilds durable state when the addressed run finishes before replay attach", async () => {
+    const recoverProjection = vi.fn(async () => {});
+    const subscribe = vi.fn<LyraClient["runs"]["subscribe"]>().mockRejectedValue(
+      new RpcError({
+        code: -32002,
+        message: "run finished",
+        data: { type: "run_finished" },
+      }),
+    );
+    const reattach = createRunStreamReattach({
+      sessionId: "ses_1",
+      client: () => runClient(subscribe),
+      isCancelled: () => false,
+      recoverProjection,
+    });
+
+    await expect(reattach(position("replay"), new AbortController().signal)).resolves.toBeNull();
+
+    expect(recoverProjection).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not warn when a cold projection read proves the run already moved", async () => {
+    const warning = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const recoverProjection = vi.fn(async () => {});
+    const subscribe = vi.fn<LyraClient["runs"]["subscribe"]>().mockRejectedValue(
+      new RpcError({
+        code: -32002,
+        message: "run waiting",
+        data: { type: "run_waiting" },
+      }),
+    );
+    const reattach = createRunStreamReattach({
+      sessionId: "ses_1",
+      client: () => runClient(subscribe),
+      isCancelled: () => false,
+      recoverProjection,
+    });
+
+    await expect(reattach(position("cold"), new AbortController().signal)).resolves.toBeNull();
+
+    expect(recoverProjection).toHaveBeenCalledTimes(1);
+    expect(warning).not.toHaveBeenCalled();
   });
 });
