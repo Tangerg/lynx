@@ -106,9 +106,19 @@ func TestChangefeedAdapterRejectsMalformedWireEvent(t *testing.T) {
 		if eventErr == nil {
 			t.Fatal("malformed wire event was accepted")
 		}
+		requireRuntimeContractViolation(t, eventErr)
 		return
 	}
 	t.Fatal("malformed stream yielded no error")
+}
+
+func TestChangefeedAdapterRejectsAnIncompleteRuntimeStream(t *testing.T) {
+	t.Parallel()
+	runtime := &Runtime{
+		changes: &changeBindingStub{}, profile: changefeedProfile(changefeed.FilesChanged),
+	}
+	_, err := runtime.Subscribe(t.Context(), changefeed.Subscription{Topics: []changefeed.Topic{changefeed.FilesChanged}})
+	requireRuntimeContractViolation(t, err)
 }
 
 func TestChangefeedAdapterPreservesTheStateProjectionIdentity(t *testing.T) {

@@ -31,7 +31,7 @@ func (r *Runtime) GetGoal(ctx context.Context, sessionID string) (goal.Goal, boo
 	if result == nil {
 		return goal.Goal{}, false, nil
 	}
-	projected, err := projectGoal(*result)
+	projected, err := projectGoalResult("get goal", sessionID, result, nil)
 	return projected, err == nil, err
 }
 
@@ -48,7 +48,7 @@ func (r *Runtime) StartGoal(ctx context.Context, start goal.Start) (goal.Goal, e
 		Provider: start.Provider, Model: start.Model,
 		Budget: protocol.GoalBudget{MaxRuns: start.Budget.MaxRuns, MaxCostUSD: start.Budget.MaxCostUSD, MaxSteps: start.Budget.MaxSteps},
 	}, options)
-	return projectGoalResult("start goal", result, err)
+	return projectGoalResult("start goal", start.SessionID, result, err)
 }
 
 func (r *Runtime) StopGoal(ctx context.Context, sessionID string) (goal.Goal, error) {
@@ -72,17 +72,29 @@ func (r *Runtime) changeGoal(
 		return goal.Goal{}, err
 	}
 	result, err := change(ctx, protocol.GoalRequest{SessionID: sessionID}, options)
-	return projectGoalResult(operation, result, err)
+	return projectGoalResult(operation, sessionID, result, err)
 }
 
-func projectGoalResult(operation string, result *protocol.Goal, err error) (goal.Goal, error) {
+func projectGoalResult(operation, expectedSessionID string, result *protocol.Goal, err error) (goal.Goal, error) {
 	if err != nil {
 		return goal.Goal{}, classifyError(err)
 	}
 	if result == nil {
-		return goal.Goal{}, fmt.Errorf("%s: runtime returned nil", operation)
+		return goal.Goal{}, runtimeContractViolation("%s returned nil", operation)
 	}
-	return projectGoal(*result)
+	projected, err := projectGoal(*result)
+	if err != nil {
+		return goal.Goal{}, runtimeContractViolation("%s returned an invalid goal: %v", operation, err)
+	}
+	if projected.SessionID != expectedSessionID {
+		return goal.Goal{}, runtimeContractViolation(
+			"%s returned session %q for %q",
+			operation,
+			projected.SessionID,
+			expectedSessionID,
+		)
+	}
+	return projected, nil
 }
 
 func projectGoal(value protocol.Goal) (goal.Goal, error) {

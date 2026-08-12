@@ -16,6 +16,13 @@ type runtimeProblemError struct {
 	cause error
 }
 
+func requireRuntimeContractViolation(t testing.TB, err error) {
+	t.Helper()
+	if !errors.Is(err, agent.ErrIncompatibleRuntime) {
+		t.Fatalf("error = %v, want ErrIncompatibleRuntime", err)
+	}
+}
+
 func (err runtimeProblemError) Error() string                 { return err.data.Type }
 func (err runtimeProblemError) Unwrap() error                 { return err.cause }
 func (err runtimeProblemError) Problem() protocol.ProblemData { return err.data }

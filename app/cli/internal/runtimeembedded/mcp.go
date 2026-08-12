@@ -12,7 +12,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/embedded"
 	"github.com/Tangerg/lynx/app/runtime/protocol"
 
-	"github.com/Tangerg/lynx/app/cli/internal/agent"
 	"github.com/Tangerg/lynx/app/cli/internal/mcp"
 )
 
@@ -44,10 +43,10 @@ func (r *Runtime) Servers(ctx context.Context) ([]mcp.Server, error) {
 	for index, value := range values {
 		server := projectMCPServer(value)
 		if err := server.Validate(); err != nil {
-			return nil, fmt.Errorf("list MCP servers item %d: %w", index+1, err)
+			return nil, runtimeContractViolation("list MCP servers item %d is invalid: %v", index+1, err)
 		}
 		if _, duplicate := seen[server.Name]; duplicate {
-			return nil, fmt.Errorf("list MCP servers repeats %q", server.Name)
+			return nil, runtimeContractViolation("list MCP servers repeats %q", server.Name)
 		}
 		seen[server.Name] = struct{}{}
 		servers = append(servers, server)
@@ -128,11 +127,11 @@ func (r *Runtime) TestServer(ctx context.Context, candidate mcp.Candidate) (mcp.
 		return mcp.TestResult{}, classifyMCPError(err)
 	}
 	if result == nil {
-		return mcp.TestResult{}, errors.New("test MCP server: runtime returned nil")
+		return mcp.TestResult{}, runtimeContractViolation("test MCP server returned nil")
 	}
 	projected := mcp.TestResult{OK: result.OK, Problem: projectRuntimeProblem(result.Error)}
 	if err := projected.Validate(); err != nil {
-		return mcp.TestResult{}, fmt.Errorf("test MCP server: %w", err)
+		return mcp.TestResult{}, runtimeContractViolation("test MCP server returned an invalid result: %v", err)
 	}
 	return projected, nil
 }
@@ -154,19 +153,19 @@ func (r *Runtime) Tools(ctx context.Context, server string) ([]mcp.Tool, error) 
 		if value.InputSchema != nil {
 			schema, marshalErr := json.Marshal(value.InputSchema)
 			if marshalErr != nil {
-				return nil, fmt.Errorf("list MCP tools item %d schema: %w", index+1, marshalErr)
+				return nil, runtimeContractViolation("list MCP tools item %d has an invalid schema: %v", index+1, marshalErr)
 			}
 			tool.InputSchema = schema
 		}
 		if err := tool.Validate(); err != nil {
-			return nil, fmt.Errorf("list MCP tools item %d: %w", index+1, err)
+			return nil, runtimeContractViolation("list MCP tools item %d is invalid: %v", index+1, err)
 		}
 		if server != "" && tool.Server != server {
-			return nil, fmt.Errorf("list MCP tools for %q returned a tool from %q", server, tool.Server)
+			return nil, runtimeContractViolation("list MCP tools for %q returned a tool from %q", server, tool.Server)
 		}
 		identity := [2]string{tool.Server, tool.Name}
 		if _, duplicate := seen[identity]; duplicate {
-			return nil, fmt.Errorf("list MCP tools repeats %s/%s", tool.Server, tool.Name)
+			return nil, runtimeContractViolation("list MCP tools repeats %s/%s", tool.Server, tool.Name)
 		}
 		seen[identity] = struct{}{}
 		tools = append(tools, tool)
@@ -205,16 +204,15 @@ func projectMCPServerResult(operation, expectedName string, result *protocol.MCP
 		return mcp.Server{}, classifyMCPError(err)
 	}
 	if result == nil {
-		return mcp.Server{}, fmt.Errorf("%w: %s returned nil", agent.ErrIncompatibleRuntime, operation)
+		return mcp.Server{}, runtimeContractViolation("%s returned nil", operation)
 	}
 	server := projectMCPServer(*result)
 	if err := server.Validate(); err != nil {
-		return mcp.Server{}, fmt.Errorf("%w: %s returned an invalid server: %v", agent.ErrIncompatibleRuntime, operation, err)
+		return mcp.Server{}, runtimeContractViolation("%s returned an invalid server: %v", operation, err)
 	}
 	if server.Name != expectedName {
-		return mcp.Server{}, fmt.Errorf(
-			"%w: %s returned server %q for %q",
-			agent.ErrIncompatibleRuntime,
+		return mcp.Server{}, runtimeContractViolation(
+			"%s returned server %q for %q",
 			operation,
 			server.Name,
 			expectedName,
@@ -288,7 +286,7 @@ func projectMCPAuthorizationResult(
 		return mcp.AuthorizationAttempt{}, classifyMCPError(err)
 	}
 	if result == nil {
-		return mcp.AuthorizationAttempt{}, fmt.Errorf("%w: %s returned nil", agent.ErrIncompatibleRuntime, operation)
+		return mcp.AuthorizationAttempt{}, runtimeContractViolation("%s returned nil", operation)
 	}
 	attempt := mcp.AuthorizationAttempt{
 		ID: result.ID, Server: result.Server, Status: mcp.AuthorizationStatus(result.Status.Type),
@@ -296,26 +294,23 @@ func projectMCPAuthorizationResult(
 		FinishedAt: clonePointer(result.FinishedAt),
 	}
 	if err := attempt.Validate(); err != nil {
-		return mcp.AuthorizationAttempt{}, fmt.Errorf(
-			"%w: %s returned an invalid authorization attempt: %v",
-			agent.ErrIncompatibleRuntime,
+		return mcp.AuthorizationAttempt{}, runtimeContractViolation(
+			"%s returned an invalid authorization attempt: %v",
 			operation,
 			err,
 		)
 	}
 	if expected.attemptID != "" && attempt.ID != expected.attemptID {
-		return mcp.AuthorizationAttempt{}, fmt.Errorf(
-			"%w: %s returned attempt %q for %q",
-			agent.ErrIncompatibleRuntime,
+		return mcp.AuthorizationAttempt{}, runtimeContractViolation(
+			"%s returned attempt %q for %q",
 			operation,
 			attempt.ID,
 			expected.attemptID,
 		)
 	}
 	if attempt.Server != expected.server {
-		return mcp.AuthorizationAttempt{}, fmt.Errorf(
-			"%w: %s returned server %q for %q",
-			agent.ErrIncompatibleRuntime,
+		return mcp.AuthorizationAttempt{}, runtimeContractViolation(
+			"%s returned server %q for %q",
 			operation,
 			attempt.Server,
 			expected.server,

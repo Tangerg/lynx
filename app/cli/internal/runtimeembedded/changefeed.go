@@ -54,7 +54,7 @@ func (r *Runtime) Subscribe(ctx context.Context, subscription changefeed.Subscri
 		return nil, classifyError(err)
 	}
 	if ack == nil || events == nil {
-		return nil, errors.New("subscribe runtime changes: runtime returned an incomplete stream")
+		return nil, runtimeContractViolation("subscribe runtime changes returned an incomplete stream")
 	}
 	return func(yield func(changefeed.Event, error) bool) {
 		for event, err := range events {
@@ -63,12 +63,12 @@ func (r *Runtime) Subscribe(ctx context.Context, subscription changefeed.Subscri
 				return
 			}
 			if err := protocol.ValidateWireTree(event); err != nil {
-				yield(changefeed.Event{}, err)
+				yield(changefeed.Event{}, runtimeContractViolation("runtime change event is invalid: %v", err))
 				return
 			}
 			projected := projectRuntimeEvent(event)
 			if err := projected.Validate(); err != nil {
-				yield(changefeed.Event{}, err)
+				yield(changefeed.Event{}, runtimeContractViolation("runtime change event cannot be projected: %v", err))
 				return
 			}
 			if !yield(projected, nil) {

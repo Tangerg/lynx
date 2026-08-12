@@ -3,6 +3,7 @@ package runtimeembedded
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/Tangerg/lynx/app/runtime/embedded"
 	"github.com/Tangerg/lynx/app/runtime/protocol"
@@ -32,6 +33,13 @@ func (e projectedError) Unwrap() []error {
 }
 
 func (e projectedError) Failure() *failure.Problem { return e.problem.Clone() }
+
+// runtimeContractViolation marks a response that cannot satisfy the protocol
+// negotiated at startup. Callers may retry transport and storage failures, but
+// the same malformed response cannot become valid through backoff.
+func runtimeContractViolation(format string, arguments ...any) error {
+	return fmt.Errorf("%w: %s", agent.ErrIncompatibleRuntime, fmt.Sprintf(format, arguments...))
+}
 
 func classifyError(err error) error {
 	if err == nil {

@@ -20,6 +20,8 @@ import (
 
 type runtimeChangeSourceStub struct {
 	events       chan changefeed.Event
+	subscribeErr chan error
+	streamErrors chan error
 	subscription chan changefeed.Subscription
 	applied      chan changefeed.Event
 	supported    []changefeed.Topic
@@ -41,9 +43,17 @@ func (stub *runtimeChangeSourceStub) Subscribe(ctx context.Context, subscription
 	case <-ctx.Done():
 		return nil, context.Cause(ctx)
 	}
+	select {
+	case err := <-stub.subscribeErr:
+		return nil, err
+	default:
+	}
 	return func(yield func(changefeed.Event, error) bool) {
 		for {
 			select {
+			case err := <-stub.streamErrors:
+				yield(changefeed.Event{}, err)
+				return
 			case event := <-stub.events:
 				if !yield(event, nil) {
 					return
@@ -60,6 +70,42 @@ func (stub *runtimeChangeSourceStub) Subscribe(ctx context.Context, subscription
 			}
 		}
 	}, nil
+}
+
+func TestRuntimeChangeMonitorStopsOnAnIncompatibleSubscription(t *testing.T) {
+	t.Parallel()
+	source := &runtimeChangeSourceStub{
+		events:       make(chan changefeed.Event),
+		subscribeErr: make(chan error, 1),
+		subscription: make(chan changefeed.Subscription, 1),
+	}
+	source.subscribeErr <- agent.ErrIncompatibleRuntime
+
+	err := (runtimeChangeMonitor{source: source}).run(t.Context())
+	if !errors.Is(err, agent.ErrIncompatibleRuntime) {
+		t.Fatalf("run error = %v, want ErrIncompatibleRuntime", err)
+	}
+	if subscriptions := len(source.subscription); subscriptions != 1 {
+		t.Fatalf("subscriptions = %d, want exactly one", subscriptions)
+	}
+}
+
+func TestRuntimeChangeMonitorStopsOnAnIncompatibleStream(t *testing.T) {
+	t.Parallel()
+	source := &runtimeChangeSourceStub{
+		events:       make(chan changefeed.Event),
+		streamErrors: make(chan error, 1),
+		subscription: make(chan changefeed.Subscription, 1),
+	}
+	source.streamErrors <- agent.ErrIncompatibleRuntime
+
+	err := (runtimeChangeMonitor{source: source}).run(t.Context())
+	if !errors.Is(err, agent.ErrIncompatibleRuntime) {
+		t.Fatalf("run error = %v, want ErrIncompatibleRuntime", err)
+	}
+	if subscriptions := len(source.subscription); subscriptions != 1 {
+		t.Fatalf("subscriptions = %d, want exactly one", subscriptions)
+	}
 }
 
 func TestRuntimeInvalidationDefersColdReplacementUntilTheStreamSettles(t *testing.T) {

@@ -2,12 +2,14 @@ package terminal
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"sort"
 	"strings"
 	"time"
 
+	"github.com/Tangerg/lynx/app/cli/internal/agent"
 	"github.com/Tangerg/lynx/app/cli/internal/changefeed"
 	"github.com/Tangerg/lynx/app/cli/internal/reconnect"
 	"github.com/Tangerg/lynx/app/cli/internal/runtimeprofile"
@@ -311,7 +313,14 @@ func (a *app) followRuntimeChanges() {
 				})
 			},
 		}
-		monitor.run(ctx)
+		if err := monitor.run(ctx); err != nil && context.Cause(ctx) == nil {
+			_ = post(ctx, dispatcher, func() {
+				if !a.operations.Current(lease) || a.closed || a.session.Workspace.Path != workspacePath {
+					return
+				}
+				a.message("runtime change observation stopped: " + err.Error())
+			})
+		}
 	})
 }
 
@@ -337,11 +346,10 @@ type runtimeChangeMonitor struct {
 	applyResync      func([]changefeed.Topic) error
 }
 
-func (monitor runtimeChangeMonitor) run(ctx context.Context) {
+func (monitor runtimeChangeMonitor) run(ctx context.Context) error {
 	topics := monitor.supportedTopics()
 	if monitor.source == nil || len(topics) == 0 {
-		monitor.runWithoutWatch(ctx)
-		return
+		return monitor.runWithoutWatch(ctx)
 	}
 	subscription := changefeed.Subscription{Topics: topics}
 	if monitor.repository != nil && monitor.watchFiles && containsTopic(topics, changefeed.FilesChanged) {
@@ -353,9 +361,12 @@ func (monitor runtimeChangeMonitor) run(ctx context.Context) {
 		stream, err := monitor.source.Subscribe(attemptContext, subscription)
 		if err != nil {
 			cancelAttempt()
+			if errors.Is(err, agent.ErrIncompatibleRuntime) {
+				return err
+			}
 			failures++
 			if reconnect.Wait(ctx, runtimeRecoveryBackoff.Delay(failures)) != nil {
-				return
+				return context.Cause(ctx)
 			}
 			continue
 		}
@@ -368,25 +379,33 @@ func (monitor runtimeChangeMonitor) run(ctx context.Context) {
 		if monitor.repository != nil {
 			if err := monitor.refreshFiles(attemptContext); err != nil {
 				cancelAttempt()
+				if errors.Is(err, agent.ErrIncompatibleRuntime) {
+					return err
+				}
 				failures++
 				if reconnect.Wait(ctx, runtimeRecoveryBackoff.Delay(failures)) != nil {
-					return
+					return context.Cause(ctx)
 				}
 				continue
 			}
 		}
 		if err := monitor.resync(topics); err != nil {
 			cancelAttempt()
+			if errors.Is(err, agent.ErrIncompatibleRuntime) {
+				return err
+			}
 			failures++
 			if reconnect.Wait(ctx, runtimeRecoveryBackoff.Delay(failures)) != nil {
-				return
+				return context.Cause(ctx)
 			}
 			continue
 		}
 		failures = 0
 		lastSequence := uint64(0)
+		var attemptErr error
 		for event, streamErr := range stream {
 			if streamErr != nil {
+				attemptErr = streamErr
 				break
 			}
 			gap := event.Sequence != lastSequence+1
@@ -394,10 +413,12 @@ func (monitor runtimeChangeMonitor) run(ctx context.Context) {
 			if gap {
 				if containsTopic(topics, changefeed.FilesChanged) {
 					if err := monitor.refreshFiles(attemptContext); err != nil {
+						attemptErr = err
 						break
 					}
 				}
 				if err := monitor.resync(topics); err != nil {
+					attemptErr = err
 					break
 				}
 				// The authoritative reads started after this frame was
@@ -408,37 +429,49 @@ func (monitor runtimeChangeMonitor) run(ctx context.Context) {
 			}
 			if monitor.invalidatesFiles(event) {
 				if err := monitor.refreshFiles(attemptContext); err != nil {
+					attemptErr = err
 					break
 				}
 			}
 			if event.Type != changefeed.EventType(changefeed.FilesChanged) {
 				if err := monitor.invalidate(event); err != nil {
+					attemptErr = err
 					break
 				}
 			}
 		}
 		cancelAttempt()
+		if cause := context.Cause(ctx); cause != nil {
+			return cause
+		}
+		if errors.Is(attemptErr, agent.ErrIncompatibleRuntime) {
+			return attemptErr
+		}
 		failures++
 		if reconnect.Wait(ctx, runtimeRecoveryBackoff.Delay(failures)) != nil {
-			return
+			return context.Cause(ctx)
 		}
 	}
+	return context.Cause(ctx)
 }
 
-func (monitor runtimeChangeMonitor) runWithoutWatch(ctx context.Context) {
+func (monitor runtimeChangeMonitor) runWithoutWatch(ctx context.Context) error {
 	if monitor.repository == nil {
-		return
+		return nil
 	}
 	failures := 0
 	for context.Cause(ctx) == nil {
 		if err := monitor.refreshFiles(ctx); err == nil {
-			return
+			return nil
+		} else if errors.Is(err, agent.ErrIncompatibleRuntime) {
+			return err
 		}
 		failures++
 		if reconnect.Wait(ctx, runtimeRecoveryBackoff.Delay(failures)) != nil {
-			return
+			return context.Cause(ctx)
 		}
 	}
+	return context.Cause(ctx)
 }
 
 func (monitor runtimeChangeMonitor) supportedTopics() []changefeed.Topic {

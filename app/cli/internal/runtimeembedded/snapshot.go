@@ -2,7 +2,6 @@ package runtimeembedded
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"reflect"
 	"slices"
@@ -45,7 +44,11 @@ func (r *Runtime) GetSession(ctx context.Context, sessionID string) (agent.Sessi
 			return agent.SessionSnapshot{}, err
 		}
 		if coldReadsAgree(previous, current) {
-			return projectSnapshot(current)
+			projected, err := projectSnapshot(current)
+			if err != nil {
+				return agent.SessionSnapshot{}, runtimeContractViolation("get session projection is invalid: %v", err)
+			}
+			return projected, nil
 		}
 		previous = current
 	}
@@ -58,7 +61,7 @@ func (r *Runtime) readCold(ctx context.Context, sessionID string) (coldRead, err
 		return coldRead{}, classifyError(err)
 	}
 	if session == nil {
-		return coldRead{}, errors.New("get session: runtime returned nil")
+		return coldRead{}, runtimeContractViolation("get session returned nil")
 	}
 	runs, err := r.listAllRuns(ctx, sessionID)
 	if err != nil {
@@ -92,7 +95,7 @@ func (r *Runtime) listAllRuns(ctx context.Context, sessionID string) ([]protocol
 			return nil, classifyError(err)
 		}
 		if page == nil {
-			return nil, errors.New("list runs: runtime returned a nil page")
+			return nil, runtimeContractViolation("list runs returned a nil page")
 		}
 		values = append(values, page.Data...)
 		more, err := cursors.Advance(page.NextCursor)
@@ -118,7 +121,7 @@ func (r *Runtime) listAllItems(ctx context.Context, sessionID string) ([]protoco
 			return nil, classifyError(err)
 		}
 		if page == nil {
-			return nil, errors.New("list items: runtime returned nil")
+			return nil, runtimeContractViolation("list items returned a nil page")
 		}
 		values = append(values, page.Data...)
 		more, err := cursors.Advance(page.NextCursor)
@@ -143,7 +146,7 @@ func (r *Runtime) listAllInterrupts(ctx context.Context, sessionID string) ([]pr
 			return nil, classifyError(err)
 		}
 		if page == nil {
-			return nil, errors.New("list interrupts: runtime returned a nil page")
+			return nil, runtimeContractViolation("list interrupts returned a nil page")
 		}
 		values = append(values, page.Data...)
 		more, err := cursors.Advance(page.NextCursor)

@@ -2,7 +2,6 @@ package runtimeembedded
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/Tangerg/lynx/app/runtime/embedded"
@@ -37,9 +36,13 @@ func (r *Runtime) Resolve(ctx context.Context, request workspace.ResolveRequest)
 		return workspace.Workspace{}, classifyError(err)
 	}
 	if resolved == nil {
-		return workspace.Workspace{}, errors.New("resolve workspace: runtime returned nil")
+		return workspace.Workspace{}, runtimeContractViolation("resolve workspace returned nil")
 	}
-	return projectWorkspace(*resolved)
+	projected, err := projectWorkspace(*resolved)
+	if err != nil {
+		return workspace.Workspace{}, runtimeContractViolation("resolve workspace returned an invalid workspace: %v", err)
+	}
+	return projected, nil
 }
 
 func (r *Runtime) List(ctx context.Context) ([]workspace.Summary, error) {
@@ -55,7 +58,7 @@ func (r *Runtime) List(ctx context.Context) ([]workspace.Summary, error) {
 	for index, value := range values {
 		projected, err := projectWorkspaceSummary(value)
 		if err != nil {
-			return nil, fmt.Errorf("list workspaces row %d: %w", index, err)
+			return nil, runtimeContractViolation("list workspaces row %d is invalid: %v", index, err)
 		}
 		result = append(result, projected)
 	}
@@ -77,7 +80,7 @@ func (r *Runtime) Changes(ctx context.Context, path string) ([]workspace.Change,
 	for index, value := range values {
 		projected, err := projectChange(value.Path, value.Status, value.PreviousPath, value.Added, value.Removed, value.Binary)
 		if err != nil {
-			return nil, fmt.Errorf("list workspace changes row %d: %w", index, err)
+			return nil, runtimeContractViolation("list workspace changes row %d is invalid: %v", index, err)
 		}
 		result = append(result, projected)
 	}
@@ -96,9 +99,13 @@ func (r *Runtime) Diff(ctx context.Context, request workspace.DiffRequest) (work
 		return workspace.Diff{}, classifyError(err)
 	}
 	if value == nil {
-		return workspace.Diff{}, errors.New("get workspace diff: runtime returned nil")
+		return workspace.Diff{}, runtimeContractViolation("get workspace diff returned nil")
 	}
-	return projectDiff(*value)
+	projected, err := projectDiff(*value)
+	if err != nil {
+		return workspace.Diff{}, runtimeContractViolation("get workspace diff returned an invalid projection: %v", err)
+	}
+	return projected, nil
 }
 
 func (r *Runtime) Head(ctx context.Context, request workspace.HeadRequest) (workspace.FileHead, error) {
@@ -112,14 +119,14 @@ func (r *Runtime) Head(ctx context.Context, request workspace.HeadRequest) (work
 		return workspace.FileHead{}, classifyError(err)
 	}
 	if value == nil {
-		return workspace.FileHead{}, errors.New("get workspace file head: runtime returned nil")
+		return workspace.FileHead{}, runtimeContractViolation("get workspace file head returned nil")
 	}
 	result := workspace.FileHead{Path: value.Path, Lines: make([]workspace.FileLine, 0, len(value.Lines))}
 	for _, line := range value.Lines {
 		result.Lines = append(result.Lines, workspace.FileLine{Number: line.LineNumber, Text: line.Text})
 	}
 	if err := result.Validate(); err != nil {
-		return workspace.FileHead{}, fmt.Errorf("get workspace file head projection: %w", err)
+		return workspace.FileHead{}, runtimeContractViolation("get workspace file head returned an invalid projection: %v", err)
 	}
 	return result, nil
 }
@@ -136,14 +143,14 @@ func (r *Runtime) Search(ctx context.Context, request workspace.SearchRequest) (
 		return workspace.SearchResult{}, classifyError(err)
 	}
 	if value == nil {
-		return workspace.SearchResult{}, errors.New("search workspace files: runtime returned nil")
+		return workspace.SearchResult{}, runtimeContractViolation("search workspace files returned nil")
 	}
 	result := workspace.SearchResult{Total: value.Total, Matches: make([]workspace.Match, 0, len(value.Matches))}
 	for _, match := range value.Matches {
 		result.Matches = append(result.Matches, workspace.Match{Path: match.Path, Line: match.LineNumber, Text: match.Text})
 	}
 	if err := result.Validate(); err != nil {
-		return workspace.SearchResult{}, fmt.Errorf("search workspace files projection: %w", err)
+		return workspace.SearchResult{}, runtimeContractViolation("search workspace files returned an invalid projection: %v", err)
 	}
 	return result, nil
 }
@@ -168,7 +175,7 @@ func (r *Runtime) Files(ctx context.Context, request workspace.FilesRequest) (wo
 			return workspace.FileListing{}, classifyError(err)
 		}
 		if page == nil {
-			return workspace.FileListing{}, fmt.Errorf("list workspace files after cursor %q: runtime returned a nil page", cursor)
+			return workspace.FileListing{}, runtimeContractViolation("list workspace files after cursor %q returned a nil page", cursor)
 		}
 		for _, entry := range page.Data {
 			result.Entries = append(result.Entries, workspace.FileEntry{
@@ -185,7 +192,7 @@ func (r *Runtime) Files(ctx context.Context, request workspace.FilesRequest) (wo
 		}
 	}
 	if err := result.Validate(); err != nil {
-		return workspace.FileListing{}, fmt.Errorf("list workspace files projection: %w", err)
+		return workspace.FileListing{}, runtimeContractViolation("list workspace files returned an invalid projection: %v", err)
 	}
 	return result, nil
 }
@@ -202,14 +209,14 @@ func (r *Runtime) Read(ctx context.Context, request workspace.ReadRequest) (work
 		return workspace.FileContent{}, classifyError(err)
 	}
 	if value == nil {
-		return workspace.FileContent{}, errors.New("read workspace file: runtime returned nil")
+		return workspace.FileContent{}, runtimeContractViolation("read workspace file returned nil")
 	}
 	result := workspace.FileContent{
 		Path: value.Path, Content: value.Content, Encoding: value.Encoding, TotalLines: value.TotalLines,
 		Truncated: value.Truncated, StartLine: value.StartLine, EndLine: value.EndLine,
 	}
 	if err := result.Validate(); err != nil {
-		return workspace.FileContent{}, fmt.Errorf("read workspace file projection: %w", err)
+		return workspace.FileContent{}, runtimeContractViolation("read workspace file returned an invalid projection: %v", err)
 	}
 	return result, nil
 }

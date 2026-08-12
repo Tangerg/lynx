@@ -12,6 +12,7 @@ import (
 	"github.com/Tangerg/oolong/core/input"
 	"github.com/Tangerg/oolong/core/programtest"
 
+	"github.com/Tangerg/lynx/app/cli/internal/agent"
 	"github.com/Tangerg/lynx/app/cli/internal/agent/mock"
 	"github.com/Tangerg/lynx/app/cli/internal/changefeed"
 	"github.com/Tangerg/lynx/app/cli/internal/goal"
@@ -246,15 +247,20 @@ func TestProviderConfigurationMasksSecretsAndPreservesExplicitChanges(t *testing
 }
 
 type goalServiceStub struct {
-	mu      sync.Mutex
-	current *goal.Goal
-	reads   atomic.Int32
-	writes  atomic.Int32
-	readErr chan error
+	mu         sync.Mutex
+	current    *goal.Goal
+	reads      atomic.Int32
+	writes     atomic.Int32
+	readErr    chan error
+	readSignal chan struct{}
 }
 
 func (service *goalServiceStub) GetGoal(context.Context, string) (goal.Goal, bool, error) {
 	service.reads.Add(1)
+	select {
+	case service.readSignal <- struct{}{}:
+	default:
+	}
 	select {
 	case err := <-service.readErr:
 		return goal.Goal{}, false, err
@@ -416,6 +422,39 @@ func TestGoalInvalidationConvergesAfterATransientReadFailure(t *testing.T) {
 	host.Shows(t, "converged objective")
 	if reads := goals.reads.Load() - baseline; reads < 2 {
 		t.Fatalf("goal refresh reads = %d, want a failed attempt followed by recovery", reads)
+	}
+	stop()
+}
+
+func TestGoalInvalidationDoesNotRetryAnIncompatibleProjection(t *testing.T) {
+	goals := &goalServiceStub{
+		current:    &goal.Goal{SessionID: "ses_demo_1", Objective: "original objective", Status: goal.Active},
+		readErr:    make(chan error, 1),
+		readSignal: make(chan struct{}, 4),
+	}
+	source := &runtimeChangeSourceStub{
+		events: make(chan changefeed.Event, 1), subscription: make(chan changefeed.Subscription, 1),
+		applied: make(chan changefeed.Event, 1), supported: []changefeed.Topic{changefeed.GoalsChanged},
+	}
+	host, stop := runUIWithRuntimeServices(t, Config{Runtime: mock.New(), Goals: goals, Changes: source})
+	host.Shows(t, "Ask lyra")
+	awaitValue(t, source.subscription, "goal invalidation subscription")
+	host.Type("/goal")
+	host.Press(input.Enter)
+	host.Shows(t, "original objective")
+	drainSignals(goals.readSignal)
+
+	goals.readErr <- agent.ErrIncompatibleRuntime
+	source.events <- changefeed.Event{
+		Type: changefeed.EventType(changefeed.GoalsChanged), Sequence: 1,
+		SessionIDs: []string{"ses_demo_1"},
+	}
+	awaitSignal(t, source.applied, "goals.changed delivery")
+	awaitSignal(t, goals.readSignal, "incompatible goal read")
+	select {
+	case <-goals.readSignal:
+		t.Fatal("incompatible goal projection was retried")
+	case <-time.After(3 * runtimeRecoveryBackoff.Base):
 	}
 	stop()
 }

@@ -3,7 +3,6 @@ package runtimeembedded
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strings"
 
 	"github.com/Tangerg/lynx/app/runtime/embedded"
@@ -35,15 +34,15 @@ func (r *Runtime) Schedules(ctx context.Context) ([]schedule.Schedule, error) {
 			return nil, classifyError(err)
 		}
 		if page == nil {
-			return nil, errors.New("list schedules: runtime returned nil")
+			return nil, runtimeContractViolation("list schedules returned a nil page")
 		}
 		for index, value := range page.Data {
 			projected := projectSchedule(value)
 			if err := projected.Validate(); err != nil {
-				return nil, fmt.Errorf("list schedules item %d after cursor %q: %w", index+1, cursor, err)
+				return nil, runtimeContractViolation("list schedules item %d after cursor %q is invalid: %v", index+1, cursor, err)
 			}
 			if _, duplicate := seenIDs[projected.ID]; duplicate {
-				return nil, fmt.Errorf("list schedules repeats %q", projected.ID)
+				return nil, runtimeContractViolation("list schedules repeats %q", projected.ID)
 			}
 			seenIDs[projected.ID] = struct{}{}
 			schedules = append(schedules, projected)
@@ -74,7 +73,7 @@ func (r *Runtime) Create(ctx context.Context, candidate schedule.Candidate) (sch
 		request.Workspace = &protocol.WorkspaceRef{Path: candidate.Workspace}
 	}
 	created, err := r.schedules.CreateSchedule(ctx, request, options)
-	return projectScheduleResult("create schedule", created, err)
+	return projectScheduleResult("create schedule", "", created, err)
 }
 
 func (r *Runtime) Update(ctx context.Context, patch schedule.Patch) (schedule.Schedule, error) {
@@ -97,7 +96,7 @@ func (r *Runtime) Update(ctx context.Context, patch schedule.Patch) (schedule.Sc
 		request.WorkspaceMode = protocol.ScheduleWorkspaceDefault
 	}
 	updated, err := r.schedules.UpdateSchedule(ctx, request, options)
-	return projectScheduleResult("update schedule", updated, err)
+	return projectScheduleResult("update schedule", patch.ID, updated, err)
 }
 
 func (r *Runtime) Delete(ctx context.Context, id string) error {
@@ -126,25 +125,28 @@ func (r *Runtime) RunNow(ctx context.Context, id string) (schedule.RunHandle, er
 		return schedule.RunHandle{}, classifyError(err)
 	}
 	if result == nil {
-		return schedule.RunHandle{}, errors.New("run schedule now: runtime returned nil")
+		return schedule.RunHandle{}, runtimeContractViolation("run schedule now returned nil")
 	}
 	handle := schedule.RunHandle{SessionID: result.SessionID, RunID: result.RunID}
 	if err := handle.Validate(); err != nil {
-		return schedule.RunHandle{}, fmt.Errorf("run schedule now: %w", err)
+		return schedule.RunHandle{}, runtimeContractViolation("run schedule now returned an invalid handle: %v", err)
 	}
 	return handle, nil
 }
 
-func projectScheduleResult(operation string, result *protocol.Schedule, err error) (schedule.Schedule, error) {
+func projectScheduleResult(operation, expectedID string, result *protocol.Schedule, err error) (schedule.Schedule, error) {
 	if err != nil {
 		return schedule.Schedule{}, classifyError(err)
 	}
 	if result == nil {
-		return schedule.Schedule{}, fmt.Errorf("%s: runtime returned nil", operation)
+		return schedule.Schedule{}, runtimeContractViolation("%s returned nil", operation)
 	}
 	projected := projectSchedule(*result)
 	if err := projected.Validate(); err != nil {
-		return schedule.Schedule{}, fmt.Errorf("%s: %w", operation, err)
+		return schedule.Schedule{}, runtimeContractViolation("%s returned an invalid schedule: %v", operation, err)
+	}
+	if expectedID != "" && projected.ID != expectedID {
+		return schedule.Schedule{}, runtimeContractViolation("%s returned id %q for %q", operation, projected.ID, expectedID)
 	}
 	return projected, nil
 }

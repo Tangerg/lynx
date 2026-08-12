@@ -33,6 +33,7 @@ func TestRequireCompletePageRejectsUnconsumableResults(t *testing.T) {
 			if err == nil || !strings.Contains(err.Error(), test.want) {
 				t.Fatalf("requireCompletePage error = %v, want %q", err, test.want)
 			}
+			requireRuntimeContractViolation(t, err)
 		})
 	}
 }
@@ -60,6 +61,7 @@ func TestCursorTraversalRejectsDirectAndMultiStepCycles(t *testing.T) {
 					if !test.wantErr || !strings.Contains(err.Error(), "cyclic continuation cursor") {
 						t.Fatalf("Advance(%q) error = %v", next, err)
 					}
+					requireRuntimeContractViolation(t, err)
 					return
 				}
 				if index < len(test.wantMore) && more != test.wantMore[index] {

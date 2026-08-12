@@ -235,3 +235,12 @@ func TestGoalAdapterProjectsTheCompleteLifecycle(t *testing.T) {
 		t.Fatalf("completing GetGoal = (%+v, %t, %v)", observed, exists, err)
 	}
 }
+
+func TestGoalAdapterRejectsAResponseForAnotherSession(t *testing.T) {
+	t.Parallel()
+	stub := &goalBindingStub{t: t, current: activeProtocolGoal()}
+	runtime := &Runtime{goals: stub, meta: requestMeta("test")}
+
+	_, _, err := runtime.GetGoal(t.Context(), "ses_other")
+	requireRuntimeContractViolation(t, err)
+}

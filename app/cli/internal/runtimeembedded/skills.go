@@ -44,10 +44,10 @@ func (r *Runtime) Discover(ctx context.Context, workspace string) ([]skills.Disc
 			Name: value.Name, Description: value.Description, Scope: skills.Scope(value.Scope),
 		}
 		if err := skill.Validate(); err != nil {
-			return nil, fmt.Errorf("list discovered skills item %d: %w", index+1, err)
+			return nil, runtimeContractViolation("list discovered skills item %d is invalid: %v", index+1, err)
 		}
 		if _, duplicate := seen[skill.Key()]; duplicate {
-			return nil, fmt.Errorf("list discovered skills repeats %q", skill.Key())
+			return nil, runtimeContractViolation("list discovered skills repeats %q", skill.Key())
 		}
 		seen[skill.Key()] = struct{}{}
 		projected = append(projected, skill)
@@ -71,10 +71,10 @@ func (r *Runtime) Managed(ctx context.Context) ([]skills.Managed, error) {
 			Name: value.Name, Description: value.Description, Lifecycle: skills.Lifecycle(value.Lifecycle),
 		}
 		if err := skill.Validate(); err != nil {
-			return nil, fmt.Errorf("list managed skills item %d: %w", index+1, err)
+			return nil, runtimeContractViolation("list managed skills item %d is invalid: %v", index+1, err)
 		}
 		if _, duplicate := seen[skill.Name]; duplicate {
-			return nil, fmt.Errorf("list managed skills repeats %q", skill.Name)
+			return nil, runtimeContractViolation("list managed skills repeats %q", skill.Name)
 		}
 		seen[skill.Name] = struct{}{}
 		projected = append(projected, skill)
@@ -104,11 +104,11 @@ func (r *Runtime) Proposals(ctx context.Context, workspace string) ([]skills.Pro
 			Origin: skills.Origin(value.Origin), SourceSession: value.SourceSession, Revises: value.Revises,
 		}
 		if err := proposal.Validate(); err != nil {
-			return nil, fmt.Errorf("list skill proposals item %d: %w", index+1, err)
+			return nil, runtimeContractViolation("list skill proposals item %d is invalid: %v", index+1, err)
 		}
 		identity := [3]string{string(proposal.Scope), proposal.Name, proposal.Revision}
 		if _, duplicate := seen[identity]; duplicate {
-			return nil, fmt.Errorf("list skill proposals repeats %q", proposal.Key())
+			return nil, runtimeContractViolation("list skill proposals repeats %q", proposal.Key())
 		}
 		seen[identity] = struct{}{}
 		projected = append(projected, proposal)

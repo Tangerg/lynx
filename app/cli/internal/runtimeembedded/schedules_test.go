@@ -163,3 +163,10 @@ func TestScheduleAdapterProjectsWorkspaceChangeSemantics(t *testing.T) {
 		t.Fatalf("default workspace request = %+v", stub.updated)
 	}
 }
+
+func TestScheduleAdapterRejectsAMutationForAnotherSchedule(t *testing.T) {
+	t.Parallel()
+	value := wireSchedule(time.Unix(1, 0), "sch_other")
+	_, err := projectScheduleResult("update schedule", "sch_expected", &value, nil)
+	requireRuntimeContractViolation(t, err)
+}
