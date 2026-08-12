@@ -16,6 +16,7 @@ func (a *app) buildReader(theme kit.Theme, glyphs kit.Glyphs) {
 		Where: layout.Placement{},
 	})
 	a.reader.dismiss = func() {
+		a.operations.Cancel(readerDocumentOperation)
 		a.workspaceReader = workspaceReaderNone
 		a.setRuntimeReader(runtimeReaderNone)
 		a.reader.CloseDocument()
@@ -59,6 +60,7 @@ func (a *app) openReaderDocument(document readerDocument) {
 }
 
 func (a *app) openReaderTarget(target readerTarget) {
+	a.operations.Cancel(readerDocumentOperation)
 	a.reader.Open(target)
 	a.readerDialog.Controller().SetDescription(target.document.Title)
 	a.readerDialog.Show()

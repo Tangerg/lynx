@@ -11,7 +11,7 @@ import (
 )
 
 func (a *app) ShowModels() {
-	a.runRuntimeReaderQuery("loading model catalog", pickerCatalogOperation, runtimeReaderNone,
+	a.runRuntimeReaderQuery("loading model catalog", runtimeReaderNone,
 		func(ctx context.Context) (readerDocument, error) {
 			models, err := a.runtime.ListModels(ctx)
 			if err != nil {

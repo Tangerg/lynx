@@ -19,7 +19,7 @@ func (a *app) ShowCodebaseStatus() {
 		return
 	}
 	workspace := a.session.Workspace.Path
-	a.runRuntimeReaderQuery("loading codebase index status", codebaseOperation, runtimeReaderCodebase,
+	a.runRuntimeReaderQuery("loading codebase index status", runtimeReaderCodebase,
 		func(ctx context.Context) (readerDocument, error) {
 			status, err := a.codebase.Status(ctx, workspace)
 			if err != nil {
@@ -54,7 +54,7 @@ func (a *app) SearchCodebase(query string) error {
 	if err := request.Validate(); err != nil {
 		return errors.New("usage: /codebase-search <query>")
 	}
-	a.runRuntimeReaderQuery("searching semantic codebase", codebaseOperation, runtimeReaderCodebase,
+	a.runRuntimeReaderQuery("searching semantic codebase", runtimeReaderCodebase,
 		func(ctx context.Context) (readerDocument, error) {
 			hits, err := a.codebase.Search(ctx, request)
 			if err != nil {

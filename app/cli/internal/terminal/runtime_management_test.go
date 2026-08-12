@@ -18,6 +18,7 @@ import (
 	"github.com/Tangerg/lynx/app/cli/internal/modelconfig"
 	"github.com/Tangerg/lynx/app/cli/internal/runtimeprofile"
 	"github.com/Tangerg/lynx/app/cli/internal/usage"
+	"github.com/Tangerg/lynx/app/cli/internal/workspace"
 )
 
 type usageServiceStub struct{}
@@ -378,6 +379,100 @@ func TestGoalLifecycleAndInvalidationRefreshTheOpenGoalReader(t *testing.T) {
 	settling, exists, err := goals.GetGoal(t.Context(), "ses_demo_1")
 	if err != nil || !exists || settling.Status != goal.Completing {
 		t.Fatalf("goal after rejected settlement command = (%+v, %t, %v)", settling, exists, err)
+	}
+	stop()
+}
+
+type blockingWorkspaceListService struct {
+	*workspaceServiceStub
+	started  chan struct{}
+	canceled chan struct{}
+}
+
+func (service *blockingWorkspaceListService) List(ctx context.Context) ([]workspace.Summary, error) {
+	select {
+	case service.started <- struct{}{}:
+	default:
+	}
+	<-ctx.Done()
+	select {
+	case service.canceled <- struct{}{}:
+	default:
+	}
+	return nil, context.Cause(ctx)
+}
+
+func TestLatestReaderQueryRetiresAnOlderBoundedContextProjection(t *testing.T) {
+	workspaces := &blockingWorkspaceListService{
+		workspaceServiceStub: newWorkspaceServiceStub(),
+		started:              make(chan struct{}, 1),
+		canceled:             make(chan struct{}, 1),
+	}
+	host, stop := runUIWithRuntimeServices(t, Config{
+		Runtime: mock.New(), Workspaces: workspaces, Goals: new(goalServiceStub),
+	})
+	host.Shows(t, "Ask lyra")
+	host.Type("/workspaces")
+	host.Press(input.Enter)
+	awaitSignal(t, workspaces.started, "workspace reader query")
+	host.Type("/goal")
+	host.Press(input.Enter)
+	host.Shows(t, "No autonomous goal")
+	awaitSignal(t, workspaces.canceled, "superseded workspace reader query")
+	host.Hides(t, "Runtime workspaces")
+	stop()
+}
+
+type blockingGoalMutationService struct {
+	*goalServiceStub
+	started  chan struct{}
+	release  chan struct{}
+	canceled chan struct{}
+}
+
+func (service *blockingGoalMutationService) StopGoal(ctx context.Context, sessionID string) (goal.Goal, error) {
+	select {
+	case service.started <- struct{}{}:
+	default:
+	}
+	select {
+	case <-service.release:
+		return service.goalServiceStub.StopGoal(ctx, sessionID)
+	case <-ctx.Done():
+		select {
+		case service.canceled <- struct{}{}:
+		default:
+		}
+		return goal.Goal{}, context.Cause(ctx)
+	}
+}
+
+func TestReaderRefreshDoesNotCancelAGoalLifecycleCommand(t *testing.T) {
+	base := new(goalServiceStub)
+	base.set(goal.Goal{SessionID: "ses_demo_1", Objective: "finish safely", Status: goal.Active})
+	service := &blockingGoalMutationService{
+		goalServiceStub: base,
+		started:         make(chan struct{}, 1), release: make(chan struct{}), canceled: make(chan struct{}, 1),
+	}
+	release := sync.OnceFunc(func() { close(service.release) })
+	t.Cleanup(release)
+	host, stop := runUIWithRuntimeServices(t, Config{Runtime: mock.New(), Goals: service})
+	host.Shows(t, "Ask lyra")
+	host.Type("/goal-stop")
+	host.Press(input.Enter)
+	awaitSignal(t, service.started, "goal stop command")
+	host.Type("/goal")
+	host.Press(input.Enter)
+	host.Shows(t, "finish safely")
+	select {
+	case <-service.canceled:
+		t.Fatal("reader refresh canceled the goal lifecycle command")
+	default:
+	}
+	release()
+	host.Shows(t, "stoppedByUser")
+	if writes := base.writes.Load(); writes != 1 {
+		t.Fatalf("goal lifecycle writes = %d, want 1", writes)
 	}
 	stop()
 }

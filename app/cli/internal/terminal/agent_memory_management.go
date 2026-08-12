@@ -23,7 +23,7 @@ func (a *app) ShowAgentMemory(argument string) error {
 }
 
 func (a *app) showAgentMemory(target agentmemory.Target) {
-	a.runRuntimeReaderQuery("loading "+string(target.Scope)+" agent memory", agentMemoryOperation, runtimeReaderAgentMemory,
+	a.runRuntimeReaderQuery("loading "+string(target.Scope)+" agent memory", runtimeReaderAgentMemory,
 		func(ctx context.Context) (readerDocument, error) {
 			items, err := a.agentMemory.Items(ctx, target)
 			if err != nil {

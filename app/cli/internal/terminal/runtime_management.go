@@ -62,7 +62,7 @@ func (a *app) ShowUsage(argument string) error {
 		return err
 	}
 	sessionID := a.session.ID
-	a.runRuntimeReaderQuery("loading runtime usage", usageQueryOperation, runtimeReaderNone,
+	a.runRuntimeReaderQuery("loading runtime usage", runtimeReaderNone,
 		func(ctx context.Context) (readerDocument, error) {
 			session, err := a.usage.SessionUsage(ctx, sessionID)
 			if err != nil {
@@ -149,7 +149,7 @@ func (a *app) ShowModelRoles() {
 		a.message("this runtime composition has no model configuration service")
 		return
 	}
-	a.runRuntimeReaderQuery("loading model roles", modelConfigOperation, runtimeReaderNone,
+	a.runRuntimeReaderQuery("loading model roles", runtimeReaderNone,
 		func(ctx context.Context) (readerDocument, error) {
 			roles, err := a.modelConfig.Roles(ctx)
 			if err != nil {
@@ -210,7 +210,7 @@ func (a *app) ShowProviders() {
 		a.message("this runtime composition has no model configuration service")
 		return
 	}
-	a.runRuntimeReaderQuery("loading providers", modelConfigOperation, runtimeReaderNone,
+	a.runRuntimeReaderQuery("loading providers", runtimeReaderNone,
 		func(ctx context.Context) (readerDocument, error) {
 			providers, err := a.modelConfig.Providers(ctx)
 			if err != nil {
@@ -429,7 +429,7 @@ func (a *app) ShowGoal() {
 		return
 	}
 	sessionID := a.session.ID
-	a.runRuntimeReaderQuery("loading session goal", goalOperation, runtimeReaderGoal,
+	a.runRuntimeReaderQuery("loading session goal", runtimeReaderGoal,
 		func(ctx context.Context) (readerDocument, error) {
 			current, exists, err := a.goals.GetGoal(ctx, sessionID)
 			if err != nil {
@@ -544,12 +544,11 @@ func (a *app) changeGoal(label string, change func(context.Context) (goal.Goal, 
 
 func (a *app) runRuntimeReaderQuery(
 	status string,
-	slot operationSlot,
 	mode runtimeReaderMode,
 	query func(context.Context) (readerDocument, error),
 ) {
 	a.status.note(status)
-	runOperation(a, slot, true, query, func(document readerDocument, err error) {
+	runOperation(a, readerDocumentOperation, true, query, func(document readerDocument, err error) {
 		if err != nil {
 			a.message(status + " failed: " + err.Error())
 			return

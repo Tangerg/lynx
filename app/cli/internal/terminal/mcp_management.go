@@ -20,7 +20,7 @@ func (a *app) ShowMCPServers() {
 		a.message("this runtime composition has no MCP service")
 		return
 	}
-	a.runRuntimeReaderQuery("loading MCP servers", mcpOperation, runtimeReaderMCPServers,
+	a.runRuntimeReaderQuery("loading MCP servers", runtimeReaderMCPServers,
 		func(ctx context.Context) (readerDocument, error) {
 			servers, err := a.mcp.Servers(ctx)
 			if err != nil {
@@ -117,7 +117,7 @@ func (a *app) ShowMCPTools(server string) {
 	}
 	server = strings.TrimSpace(server)
 	a.mcpToolServer = server
-	a.runRuntimeReaderQuery("loading MCP tools", mcpOperation, runtimeReaderMCPTools,
+	a.runRuntimeReaderQuery("loading MCP tools", runtimeReaderMCPTools,
 		func(ctx context.Context) (readerDocument, error) {
 			tools, err := a.mcp.Tools(ctx, server)
 			if err != nil {

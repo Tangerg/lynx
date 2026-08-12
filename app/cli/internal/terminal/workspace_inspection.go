@@ -223,7 +223,7 @@ func (a *app) ReadWorkspaceFile(argument string) error {
 
 func (a *app) runWorkspaceQuery(status string, query func(context.Context) (readerDocument, error), mode workspaceReaderMode) {
 	a.status.note(status)
-	runOperation(a, workspaceQueryOperation, true, query, func(document readerDocument, err error) {
+	runOperation(a, readerDocumentOperation, true, query, func(document readerDocument, err error) {
 		if err != nil {
 			a.message("workspace: " + err.Error())
 			return

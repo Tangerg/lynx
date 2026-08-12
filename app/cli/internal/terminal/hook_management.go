@@ -16,7 +16,7 @@ func (a *app) ShowHooks() {
 		return
 	}
 	workspace := a.session.Workspace.Path
-	a.runRuntimeReaderQuery("loading lifecycle hooks", hookOperation, runtimeReaderHooks,
+	a.runRuntimeReaderQuery("loading lifecycle hooks", runtimeReaderHooks,
 		func(ctx context.Context) (readerDocument, error) {
 			catalog, err := a.hooks.Catalog(ctx, workspace)
 			if err != nil {

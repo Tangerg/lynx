@@ -15,7 +15,7 @@ func (a *app) ShowDiscoveredSkills() {
 		return
 	}
 	workspace := a.session.Workspace.Path
-	a.runRuntimeReaderQuery("loading discovered skills", skillOperation, runtimeReaderDiscoveredSkills,
+	a.runRuntimeReaderQuery("loading discovered skills", runtimeReaderDiscoveredSkills,
 		func(ctx context.Context) (readerDocument, error) {
 			discovered, err := a.skills.Discover(ctx, workspace)
 			if err != nil {
@@ -45,7 +45,7 @@ func (a *app) ShowManagedSkills() {
 		a.message("this runtime composition has no skill service")
 		return
 	}
-	a.runRuntimeReaderQuery("loading managed skills", skillOperation, runtimeReaderManagedSkills,
+	a.runRuntimeReaderQuery("loading managed skills", runtimeReaderManagedSkills,
 		func(ctx context.Context) (readerDocument, error) {
 			managed, err := a.skills.Managed(ctx)
 			if err != nil {
@@ -76,7 +76,7 @@ func (a *app) ShowSkillProposals() {
 		return
 	}
 	workspace := a.session.Workspace.Path
-	a.runRuntimeReaderQuery("loading skill proposals", skillOperation, runtimeReaderSkillProposals,
+	a.runRuntimeReaderQuery("loading skill proposals", runtimeReaderSkillProposals,
 		func(ctx context.Context) (readerDocument, error) {
 			proposals, err := a.skills.Proposals(ctx, workspace)
 			if err != nil {

@@ -16,7 +16,7 @@ func (a *app) ShowAgentDocuments() {
 		return
 	}
 	workspace := a.session.Workspace.Path
-	a.runRuntimeReaderQuery("loading agent documents", authoringContextOperation, runtimeReaderAgentDocuments,
+	a.runRuntimeReaderQuery("loading agent documents", runtimeReaderAgentDocuments,
 		func(ctx context.Context) (readerDocument, error) {
 			documents, err := a.authoringContext.Documents(ctx, workspace)
 			if err != nil {
@@ -47,7 +47,7 @@ func (a *app) ShowRecipes() {
 		return
 	}
 	workspace := a.session.Workspace.Path
-	a.runRuntimeReaderQuery("loading recipes", authoringContextOperation, runtimeReaderRecipes,
+	a.runRuntimeReaderQuery("loading recipes", runtimeReaderRecipes,
 		func(ctx context.Context) (readerDocument, error) {
 			recipes, err := a.authoringContext.Recipes(ctx, workspace)
 			if err != nil {

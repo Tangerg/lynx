@@ -16,7 +16,7 @@ func (a *app) ShowKnowledge() {
 		return
 	}
 	workspace := a.session.Workspace.Path
-	a.runRuntimeReaderQuery("loading LYRA.md knowledge", knowledgeOperation, runtimeReaderKnowledge,
+	a.runRuntimeReaderQuery("loading LYRA.md knowledge", runtimeReaderKnowledge,
 		func(ctx context.Context) (readerDocument, error) {
 			entries, err := a.knowledge.Entries(ctx, workspace)
 			if err != nil {
@@ -60,7 +60,7 @@ func (a *app) ReadKnowledge(argument string) error {
 }
 
 func (a *app) readKnowledge(target knowledge.Target) {
-	a.runRuntimeReaderQuery("loading "+string(target.Scope)+" LYRA.md", knowledgeOperation, runtimeReaderKnowledge,
+	a.runRuntimeReaderQuery("loading "+string(target.Scope)+" LYRA.md", runtimeReaderKnowledge,
 		func(ctx context.Context) (readerDocument, error) {
 			entry, err := a.knowledge.Document(ctx, target)
 			if err != nil {

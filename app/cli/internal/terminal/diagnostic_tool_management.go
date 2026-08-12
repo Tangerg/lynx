@@ -15,7 +15,7 @@ func (a *app) ShowDiagnosticTools() {
 		a.message("this runtime composition has no diagnostic tool service")
 		return
 	}
-	a.runRuntimeReaderQuery("loading diagnostic tools", diagnosticToolOperation, runtimeReaderDiagnosticTools,
+	a.runRuntimeReaderQuery("loading diagnostic tools", runtimeReaderDiagnosticTools,
 		func(ctx context.Context) (readerDocument, error) {
 			tools, err := a.diagnosticTools.Tools(ctx)
 			if err != nil {
