@@ -17,6 +17,8 @@ import (
 	"time"
 
 	"github.com/Tangerg/oolong/ptytest"
+
+	"github.com/Tangerg/lynx/app/cli/internal/backend"
 )
 
 type terminalModeCase struct {
@@ -614,6 +616,46 @@ type testExitError struct{ code int }
 
 func (e testExitError) Error() string { return "coded" }
 func (e testExitError) ExitCode() int { return e.code }
+
+type scriptedRuntimeOwner struct {
+	closeErrors []error
+	closes      int
+}
+
+func (*scriptedRuntimeOwner) Runtime(context.Context) (backend.Services, error) {
+	return backend.Services{}, nil
+}
+
+func (owner *scriptedRuntimeOwner) Close() error {
+	index := owner.closes
+	owner.closes++
+	if index >= len(owner.closeErrors) {
+		return nil
+	}
+	return owner.closeErrors[index]
+}
+
+func TestRuntimeOwnerCloseResumesIncompleteTeardown(t *testing.T) {
+	t.Parallel()
+	transient := errors.New("teardown still draining")
+	owner := &scriptedRuntimeOwner{closeErrors: []error{transient, transient, nil}}
+	if err := closeRuntimeOwner(owner); err != nil {
+		t.Fatalf("closeRuntimeOwner: %v", err)
+	}
+	if owner.closes != 3 {
+		t.Fatalf("close attempts = %d, want 3", owner.closes)
+	}
+}
+
+func TestRuntimeOwnerCloseBoundsPermanentFailure(t *testing.T) {
+	t.Parallel()
+	want := errors.New("permanent teardown failure")
+	owner := &scriptedRuntimeOwner{closeErrors: []error{want, want, want, nil}}
+	err := closeRuntimeOwner(owner)
+	if !errors.Is(err, want) || owner.closes != runtimeCloseAttempts {
+		t.Fatalf("close result = (%v, %d attempts)", err, owner.closes)
+	}
+}
 
 func TestExitCodePreservesSignalsAndClassifiesCancellation(t *testing.T) {
 	if got := exitCode(testExitError{code: 143}); got != 143 {

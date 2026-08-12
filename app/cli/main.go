@@ -19,6 +19,8 @@ import (
 
 const mockRuntimeNotice = "lyra: scripted mock runtime (explicit test/demo mode)"
 
+const runtimeCloseAttempts = 3
+
 func main() {
 	os.Exit(run())
 }
@@ -46,7 +48,7 @@ func run() int {
 	root.SetOut(os.Stdout)
 	root.SetErr(os.Stderr)
 	err = root.ExecuteContext(ctx)
-	err = errors.Join(err, owner.Close())
+	err = errors.Join(err, closeRuntimeOwner(owner))
 	if cause := context.Cause(ctx); cause != nil {
 		err = errors.Join(cause, err)
 	}
@@ -66,6 +68,21 @@ type mockOwner struct{ services backend.Services }
 
 func (o *mockOwner) Runtime(context.Context) (backend.Services, error) { return o.services, nil }
 func (*mockOwner) Close() error                                        { return nil }
+
+func closeRuntimeOwner(owner runtimeOwner) error {
+	if owner == nil {
+		return nil
+	}
+	errorsByAttempt := make([]error, 0, runtimeCloseAttempts)
+	for range runtimeCloseAttempts {
+		err := owner.Close()
+		if err == nil {
+			return nil
+		}
+		errorsByAttempt = append(errorsByAttempt, err)
+	}
+	return fmt.Errorf("close runtime after %d attempts: %w", runtimeCloseAttempts, errors.Join(errorsByAttempt...))
+}
 
 func newRuntimeOwner() (runtimeOwner, string, error) {
 	if os.Getenv("LYRA_RUNTIME") == "mock" {
