@@ -51,6 +51,10 @@ type BlockStarted struct{ Block Block }
 type BlockDelta struct {
 	BlockID string
 	Text    string
+	// ContentIndex identifies the assistant content block receiving Text. Nil
+	// means block zero and is also the only valid shape for reasoning and tool
+	// output deltas.
+	ContentIndex *int
 }
 
 // ToolArgumentsDelta carries the provisional JSON text used to assemble a
@@ -137,6 +141,9 @@ func CloneEvent(event Event) Event {
 		item.Block = item.Block.Clone()
 		return item
 	case BlockDelta:
+		if item.ContentIndex != nil {
+			item.ContentIndex = new(*item.ContentIndex)
+		}
 		return item
 	case ToolArgumentsDelta:
 		return item
@@ -186,7 +193,8 @@ func equalEvent(left, right Event) bool {
 		return ok && item.Block.Equal(other.Block)
 	case BlockDelta:
 		other, ok := right.(BlockDelta)
-		return ok && item == other
+		return ok && item.BlockID == other.BlockID && item.Text == other.Text &&
+			equalOptional(item.ContentIndex, other.ContentIndex)
 	case ToolArgumentsDelta:
 		other, ok := right.(ToolArgumentsDelta)
 		return ok && item == other

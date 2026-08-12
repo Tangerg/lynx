@@ -56,6 +56,45 @@ func TestConversationFoldsInitialAndResumedSegments(t *testing.T) {
 	}
 }
 
+func TestConversationOrdersIndexedAssistantDeltasAndRejectsIndicesElsewhere(t *testing.T) {
+	conversation := NewConversation()
+	run := runningRun("seg_1")
+	apply(t, conversation, RunEvent{EventID: "start", RunID: run.ID, SegmentID: run.ActiveSegmentID, Event: SegmentStarted{Run: run}})
+	for _, block := range []Block{
+		{ID: "answer", RunID: run.ID, Status: BlockStatusRunning, Kind: BlockAssistant},
+		{ID: "reasoning", RunID: run.ID, Status: BlockStatusRunning, Kind: BlockReasoning},
+		{ID: "tool", RunID: run.ID, Status: BlockStatusRunning, Kind: BlockTool, Tool: &ToolCall{Kind: ToolShell, Name: "shell", Status: ToolRunning}},
+	} {
+		apply(t, conversation, RunEvent{EventID: "start-" + block.ID, RunID: run.ID, SegmentID: run.ActiveSegmentID, Event: BlockStarted{Block: block}})
+	}
+
+	second, first := 1, 0
+	apply(t, conversation, RunEvent{EventID: "answer-second", RunID: run.ID, SegmentID: run.ActiveSegmentID, Event: BlockDelta{BlockID: "answer", Text: "second", ContentIndex: &second}})
+	apply(t, conversation, RunEvent{EventID: "answer-first", RunID: run.ID, SegmentID: run.ActiveSegmentID, Event: BlockDelta{BlockID: "answer", Text: "first", ContentIndex: &first}})
+	apply(t, conversation, RunEvent{EventID: "answer-first-tail", RunID: run.ID, SegmentID: run.ActiveSegmentID, Event: BlockDelta{BlockID: "answer", Text: " tail", ContentIndex: &first}})
+	blocks := conversation.Blocks()
+	if blocks[0].Text != "first tail\n\nsecond" {
+		t.Fatalf("assistant text = %q", blocks[0].Text)
+	}
+
+	for _, blockID := range []string{"reasoning", "tool"} {
+		_, err := conversation.ApplyRunEvent(RunEvent{
+			EventID: "invalid-" + blockID, RunID: run.ID, SegmentID: run.ActiveSegmentID,
+			Event: BlockDelta{BlockID: blockID, Text: "invalid", ContentIndex: &first},
+		})
+		if !errors.Is(err, ErrInvalidTransition) {
+			t.Fatalf("%s indexed delta error = %v", blockID, err)
+		}
+	}
+
+	apply(t, conversation, RunEvent{EventID: "answer-complete", RunID: run.ID, SegmentID: run.ActiveSegmentID, Event: BlockCompleted{Block: Block{
+		ID: "answer", RunID: run.ID, Status: BlockStatusCompleted, Kind: BlockAssistant, Text: "authoritative",
+	}}})
+	if got := conversation.Blocks()[0].Text; got != "authoritative" {
+		t.Fatalf("completed assistant text = %q", got)
+	}
+}
+
 func TestConversationRejectsRegressingRunUsage(t *testing.T) {
 	conversation := NewConversation()
 	run := runningRun("seg_1")

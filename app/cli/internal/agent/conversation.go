@@ -40,6 +40,7 @@ type Conversation struct {
 	runs        map[string]Run
 	index       map[string]int
 	open        map[string]bool
+	textStreams map[string]StreamedText
 	revision    uint64
 	reconciling bool
 	coldTail    bool
@@ -47,10 +48,11 @@ type Conversation struct {
 
 func NewConversation() *Conversation {
 	return &Conversation{
-		seen:  make(map[string]RunEvent),
-		runs:  make(map[string]Run),
-		index: make(map[string]int),
-		open:  make(map[string]bool),
+		seen:        make(map[string]RunEvent),
+		runs:        make(map[string]Run),
+		index:       make(map[string]int),
+		open:        make(map[string]bool),
+		textStreams: make(map[string]StreamedText),
 	}
 }
 
@@ -362,9 +364,27 @@ func (c *Conversation) applyBlockDelta(runID string, event BlockDelta) error {
 	}
 	block := &c.blocks[at]
 	switch block.Kind {
-	case BlockAssistant, BlockReasoning:
-		block.Text += event.Text
+	case BlockAssistant:
+		stream := c.textStreams[key]
+		if _, err := stream.Apply(event); err != nil {
+			return fmt.Errorf("%w: block %s: %w", ErrInvalidTransition, event.BlockID, err)
+		}
+		c.textStreams[key] = stream
+		block.Text = stream.String()
+	case BlockReasoning:
+		if event.ContentIndex != nil {
+			return fmt.Errorf("%w: reasoning block %s has a content index", ErrInvalidTransition, event.BlockID)
+		}
+		stream := c.textStreams[key]
+		if _, err := stream.Apply(event); err != nil {
+			return fmt.Errorf("%w: block %s: %w", ErrInvalidTransition, event.BlockID, err)
+		}
+		c.textStreams[key] = stream
+		block.Text = stream.String()
 	case BlockTool:
+		if event.ContentIndex != nil {
+			return fmt.Errorf("%w: tool block %s has a content index", ErrInvalidTransition, event.BlockID)
+		}
 		block.Tool.Output += event.Text
 	default:
 		return fmt.Errorf("%w: block %s of kind %s cannot stream", ErrInvalidTransition, event.BlockID, block.Kind)
@@ -637,6 +657,7 @@ func (c *Conversation) ClearPresentation() {
 	c.outcome = Outcome{}
 	c.index = make(map[string]int)
 	c.open = make(map[string]bool)
+	c.textStreams = make(map[string]StreamedText)
 	c.revision++
 }
 
@@ -655,11 +676,15 @@ func (c *Conversation) put(block Block, completed bool) error {
 		}
 		c.blocks[at] = block.Clone()
 		c.open[key] = block.Status == BlockStatusRunning
+		delete(c.textStreams, key)
 		return nil
 	}
 	c.index[key] = len(c.blocks)
 	c.blocks = append(c.blocks, block.Clone())
 	c.open[key] = !completed
+	if !completed && (block.Kind == BlockAssistant || block.Kind == BlockReasoning) {
+		c.textStreams[key] = NewStreamedText(block.Text)
+	}
 	return nil
 }
 
@@ -692,15 +717,22 @@ func (c *Conversation) ensureStorage() {
 	if c.open == nil {
 		c.open = make(map[string]bool)
 	}
+	if c.textStreams == nil {
+		c.textStreams = make(map[string]StreamedText)
+	}
 }
 
 func (c *Conversation) rebuildBlockIndex() {
 	c.index = make(map[string]int, len(c.blocks))
 	c.open = make(map[string]bool, len(c.blocks))
+	c.textStreams = make(map[string]StreamedText)
 	for i, block := range c.blocks {
 		key := blockIdentity(block.RunID, block.ID)
 		c.index[key] = i
 		c.open[key] = block.Status == BlockStatusRunning
+		if block.Status == BlockStatusRunning && (block.Kind == BlockAssistant || block.Kind == BlockReasoning) {
+			c.textStreams[key] = NewStreamedText(block.Text)
+		}
 	}
 }
 
@@ -724,6 +756,7 @@ func (c *Conversation) settleOpenBlocks(toolStatus ToolStatus) {
 		}
 		block.Status = BlockStatusIncomplete
 		c.open[key] = false
+		delete(c.textStreams, key)
 	}
 }
 
@@ -741,6 +774,7 @@ func (c *Conversation) settleOpenBlocksForRun(runID string, toolStatus ToolStatu
 		}
 		block.Status = BlockStatusIncomplete
 		c.open[key] = false
+		delete(c.textStreams, key)
 	}
 }
 

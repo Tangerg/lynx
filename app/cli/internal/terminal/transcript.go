@@ -76,6 +76,8 @@ type liveTool struct {
 
 type liveText struct {
 	runID  string
+	kind   agent.BlockKind
+	text   agent.StreamedText
 	stream markdown.Stream
 	stable []markdown.Block
 	block  *markdownBlock
@@ -547,9 +549,9 @@ func (c *transcriptView) apply(runID string, event agent.Event, registry *extens
 	case agent.BlockDelta:
 		key := transcriptBlockKey(runID, e.BlockID)
 		if _, live := c.tools[key]; live {
-			return c.deltaTool(key, e.BlockID, e.Text)
+			return c.deltaTool(key, e)
 		}
-		return c.delta(key, e.BlockID, e.Text)
+		return c.delta(key, e)
 	case agent.ToolArgumentsDelta, agent.RunProgress:
 		// Tool arguments are provisional JSON and progress belongs in the status
 		// chrome. Neither creates an authoritative transcript block.
@@ -610,38 +612,59 @@ func (c *transcriptView) begin(block agent.Block) error {
 	}
 	c.sealToolGroup()
 	speaker := c.speakerFor(block)
-	live := &liveText{runID: block.RunID, block: &markdownBlock{theme: c.theme, speaker: speaker}}
+	live := &liveText{
+		runID: block.RunID, kind: block.Kind, text: agent.NewStreamedText(block.Text),
+		block: &markdownBlock{theme: c.theme, speaker: speaker},
+	}
 	live.stream.SetLook(c.lookFor(block.Kind))
 	live.id = c.place(live.block, false)
 	c.trackRunEntry(block.RunID, live.id)
 	c.textStreams[key] = live
 	if block.Text != "" {
-		return c.delta(key, block.ID, block.Text)
+		c.updateLiveText(live, agent.TextMutation{Text: block.Text})
 	}
 	return nil
 }
 
-func (c *transcriptView) delta(key, blockID, chunk string) error {
+func (c *transcriptView) delta(key string, delta agent.BlockDelta) error {
 	live, ok := c.textStreams[key]
 	if !ok {
-		return fmt.Errorf("terminal transcript: delta for inactive text block %s", blockID)
+		return fmt.Errorf("terminal transcript: delta for inactive text block %s", delta.BlockID)
 	}
-	live.stable = append(live.stable, live.stream.Feed(chunk)...)
+	if live.kind != agent.BlockAssistant && delta.ContentIndex != nil {
+		return fmt.Errorf("terminal transcript: %s block %s has a content index", live.kind, delta.BlockID)
+	}
+	mutation, err := live.text.Apply(delta)
+	if err != nil {
+		return fmt.Errorf("terminal transcript: stream text block %s: %w", delta.BlockID, err)
+	}
+	c.updateLiveText(live, mutation)
+	return nil
+}
+
+func (c *transcriptView) updateLiveText(live *liveText, mutation agent.TextMutation) {
+	if mutation.Replace {
+		live.stream.Reset()
+		live.stable = nil
+	}
+	live.stable = append(live.stable, live.stream.Feed(mutation.Text)...)
 	blocks := slices.Clone(live.stable)
 	blocks = append(blocks, live.stream.Open()...)
 	live.block.doc.SetBlocks(blocks)
 	c.content.Changed(live.id)
 	c.refreshSearch()
-	return nil
 }
 
-func (c *transcriptView) deltaTool(key, blockID, chunk string) error {
+func (c *transcriptView) deltaTool(key string, delta agent.BlockDelta) error {
 	live, ok := c.tools[key]
 	if !ok {
-		return fmt.Errorf("terminal transcript: delta for inactive tool block %s", blockID)
+		return fmt.Errorf("terminal transcript: delta for inactive tool block %s", delta.BlockID)
+	}
+	if delta.ContentIndex != nil {
+		return fmt.Errorf("terminal transcript: tool block %s has a content index", delta.BlockID)
 	}
 	for _, tracked := range live.blocks {
-		tracked.block.AppendOutput(chunk)
+		tracked.block.AppendOutput(delta.Text)
 		c.content.Changed(tracked.id)
 	}
 	c.refreshSearch()

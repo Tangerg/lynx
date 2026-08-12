@@ -159,6 +159,23 @@ func TestProjectEventPreservesEphemeralFramesAndClassifiesStreams(t *testing.T) 
 		t.Fatalf("tool arguments = %#v, include %v, error %v", arguments.Event, include, err)
 	}
 
+	contentIndex := 2
+	content, include, err := projectEvent(protocol.RunEvent{EventID: "content", Event: protocol.StreamEvent{
+		Type: protocol.StreamItemDelta, ItemID: "answer",
+		Delta: &protocol.ItemDelta{Type: protocol.DeltaContent, Index: &contentIndex, Text: "third block"},
+	}})
+	if err != nil || !include {
+		t.Fatalf("content = (include %v, error %v)", include, err)
+	}
+	delta, ok := content.Event.(agent.BlockDelta)
+	if !ok || delta.BlockID != "answer" || delta.Text != "third block" || delta.ContentIndex == nil || *delta.ContentIndex != contentIndex {
+		t.Fatalf("content delta = %#v", content.Event)
+	}
+	*delta.ContentIndex = 9
+	if contentIndex != 2 {
+		t.Fatal("projected content index aliases the runtime event")
+	}
+
 	customEvent, include, err := projectEvent(protocol.RunEvent{EventID: "custom", Event: protocol.StreamEvent{
 		Type: protocol.StreamCustom, Name: "vendor.trace", Payload: map[string]any{"span": "abc", "sampled": true},
 	}})

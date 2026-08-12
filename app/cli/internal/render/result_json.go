@@ -19,8 +19,68 @@ type ResultJSON struct {
 	started bool
 	scope   runScope
 	frame   resultFrame
-	live    map[string]*strings.Builder
-	prose   []string
+	prose   assistantProse
+}
+
+type assistantProse struct {
+	blocks []assistantProseBlock
+	index  map[string]int
+}
+
+type assistantProseBlock struct {
+	text agent.StreamedText
+}
+
+func (prose *assistantProse) reset() {
+	prose.blocks = nil
+	prose.index = make(map[string]int)
+}
+
+func (prose *assistantProse) begin(block agent.Block) {
+	prose.ensureIndex()
+	if at, exists := prose.index[block.ID]; exists {
+		prose.blocks[at].text = agent.NewStreamedText(block.Text)
+		return
+	}
+	prose.index[block.ID] = len(prose.blocks)
+	prose.blocks = append(prose.blocks, assistantProseBlock{text: agent.NewStreamedText(block.Text)})
+}
+
+func (prose *assistantProse) delta(delta agent.BlockDelta) error {
+	prose.ensureIndex()
+	at, exists := prose.index[delta.BlockID]
+	if !exists {
+		return nil
+	}
+	_, err := prose.blocks[at].text.Apply(delta)
+	return err
+}
+
+func (prose *assistantProse) complete(block agent.Block) {
+	prose.ensureIndex()
+	at, exists := prose.index[block.ID]
+	if !exists {
+		prose.index[block.ID] = len(prose.blocks)
+		prose.blocks = append(prose.blocks, assistantProseBlock{})
+		at = len(prose.blocks) - 1
+	}
+	prose.blocks[at].text = agent.NewStreamedText(block.Text)
+}
+
+func (prose *assistantProse) text() string {
+	parts := make([]string, 0, len(prose.blocks))
+	for _, block := range prose.blocks {
+		if text := block.text.String(); text != "" {
+			parts = append(parts, text)
+		}
+	}
+	return strings.Join(parts, "\n\n")
+}
+
+func (prose *assistantProse) ensureIndex() {
+	if prose.index == nil {
+		prose.index = make(map[string]int)
+	}
 }
 
 type resultFrame struct {
@@ -38,7 +98,7 @@ type resultFrame struct {
 
 // NewResultJSON builds a renderer that emits at most one JSON result from Close.
 func NewResultJSON(w io.Writer) *ResultJSON {
-	return &ResultJSON{enc: json.NewEncoder(w), live: make(map[string]*strings.Builder)}
+	return &ResultJSON{enc: json.NewEncoder(w)}
 }
 
 // Begin records the accepted run before its first subscription opens, so a
@@ -88,7 +148,7 @@ func (r *ResultJSON) Render(envelope agent.RunEvent) error {
 		r.frame.RunID = r.scope.rootID
 	}
 	r.fold(envelope)
-	return nil
+	return r.err
 }
 
 // Reconcile replaces the folded result with durable cold-read values after the
@@ -106,8 +166,7 @@ func (r *ResultJSON) Reconcile(snapshot agent.SessionSnapshot) error {
 		return r.err
 	}
 	r.started = true
-	r.live = make(map[string]*strings.Builder)
-	r.prose = r.prose[:0]
+	r.prose.reset()
 	r.frame.Images = nil
 	target, err := resolveSnapshotRun(snapshot, r.frame.RunID)
 	if err != nil {
@@ -121,9 +180,7 @@ func (r *ResultJSON) Reconcile(snapshot agent.SessionSnapshot) error {
 	}
 	for _, block := range snapshot.Transcript {
 		if block.RunID == targetRunID && block.Status != agent.BlockStatusRunning && block.Kind == agent.BlockAssistant {
-			if block.Text != "" {
-				r.prose = append(r.prose, block.Text)
-			}
+			r.prose.complete(block)
 			r.appendImages(block.Images)
 		}
 	}
@@ -169,8 +226,8 @@ func (r *ResultJSON) fold(envelope agent.RunEvent) {
 		}
 	case agent.BlockDelta:
 		if r.scope.isRoot(envelope.RunID) {
-			if body := r.live[event.BlockID]; body != nil {
-				body.WriteString(event.Text)
+			if err := r.prose.delta(event); err != nil {
+				r.err = fmt.Errorf("fold result delta %s: %w", event.BlockID, err)
 			}
 		}
 	case agent.RunProgress:
@@ -208,25 +265,14 @@ func (r *ResultJSON) begin(block agent.Block) {
 	if block.Kind != agent.BlockAssistant {
 		return
 	}
-	body := new(strings.Builder)
-	body.WriteString(block.Text)
-	r.live[block.ID] = body
+	r.prose.begin(block)
 }
 
 func (r *ResultJSON) complete(block agent.Block) {
 	if block.Kind != agent.BlockAssistant {
 		return
 	}
-	text := block.Text
-	if text == "" {
-		if body := r.live[block.ID]; body != nil {
-			text = body.String()
-		}
-	}
-	delete(r.live, block.ID)
-	if text != "" {
-		r.prose = append(r.prose, text)
-	}
+	r.prose.complete(block)
 	r.appendImages(block.Images)
 }
 
@@ -249,7 +295,7 @@ func (r *ResultJSON) Close() error {
 	if r.err != nil || !r.started {
 		return r.err
 	}
-	r.frame.Text = strings.Join(r.prose, "\n\n")
+	r.frame.Text = r.prose.text()
 	r.err = r.enc.Encode(r.frame)
 	return r.err
 }

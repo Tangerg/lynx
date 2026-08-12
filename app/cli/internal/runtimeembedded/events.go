@@ -129,7 +129,13 @@ func (projection runEventProjection) itemDelta() (projectedRunEvent, error) {
 		return includeRunEvent(agent.ToolArgumentsDelta{
 			BlockID: projection.source.Event.ItemID, Text: delta.ArgumentsTextDelta,
 		}), nil
-	case protocol.DeltaContent, protocol.DeltaReasoning, protocol.DeltaToolOutput:
+	case protocol.DeltaContent:
+		projected := agent.BlockDelta{BlockID: projection.source.Event.ItemID, Text: delta.Text}
+		if delta.Index != nil {
+			projected.ContentIndex = new(*delta.Index)
+		}
+		return includeRunEvent(projected), nil
+	case protocol.DeltaReasoning, protocol.DeltaToolOutput:
 		return includeRunEvent(agent.BlockDelta{BlockID: projection.source.Event.ItemID, Text: delta.Text}), nil
 	default:
 		return projectedRunEvent{}, fmt.Errorf("event %s: unsupported item delta %q", projection.source.EventID, delta.Type)

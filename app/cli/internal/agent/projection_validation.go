@@ -167,6 +167,12 @@ func ValidateEvent(event Event) error {
 		if strings.TrimSpace(item.BlockID) == "" {
 			return errors.New("block delta without a block id")
 		}
+		if item.Text == "" {
+			return errors.New("block delta without text")
+		}
+		if item.ContentIndex != nil && *item.ContentIndex < 0 {
+			return errors.New("block delta with a negative content index")
+		}
 		return nil
 	case ToolArgumentsDelta:
 		if strings.TrimSpace(item.BlockID) == "" {

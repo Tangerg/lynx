@@ -29,6 +29,58 @@ func TestTextRendersStreamedAnswerToolAndUsage(t *testing.T) {
 	}
 }
 
+func TestTextBuffersLaterContentBlocksUntilAuthoritativeCompletion(t *testing.T) {
+	var output bytes.Buffer
+	renderer := NewText(&output)
+	if err := renderer.Begin(testRun(), agent.RunOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	second, first := 1, 0
+	for _, event := range []agent.RunEvent{
+		testEvent("start", agent.BlockStarted{Block: agent.Block{ID: "answer", Kind: agent.BlockAssistant}}),
+		testEvent("second", agent.BlockDelta{BlockID: "answer", Text: "second", ContentIndex: &second}),
+	} {
+		if err := renderer.Render(event); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if strings.Contains(output.String(), "second") {
+		t.Fatalf("later content block streamed before its predecessor: %q", output.String())
+	}
+	if err := renderer.Render(testEvent("first", agent.BlockDelta{BlockID: "answer", Text: "first", ContentIndex: &first})); err != nil {
+		t.Fatal(err)
+	}
+	if got := output.String(); !strings.Contains(got, "first") || strings.Contains(got, "second") {
+		t.Fatalf("primary content stream = %q", got)
+	}
+	if err := renderer.Render(testEvent("complete", agent.BlockCompleted{Block: agent.Block{
+		ID: "answer", Kind: agent.BlockAssistant, Text: "first\n\nsecond",
+	}})); err != nil {
+		t.Fatal(err)
+	}
+	if err := renderer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if got := output.String(); strings.Count(got, "first") != 1 || strings.Count(got, "second") != 1 || !strings.Contains(got, "first\n\nsecond") {
+		t.Fatalf("completed indexed output = %q", got)
+	}
+}
+
+func TestTextRejectsContentIndicesOnNonAssistantBlocks(t *testing.T) {
+	var output bytes.Buffer
+	renderer := NewText(&output)
+	if err := renderer.Begin(testRun(), agent.RunOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	index := 0
+	if err := renderer.Render(testEvent("start", agent.BlockStarted{Block: agent.Block{ID: "reasoning", Kind: agent.BlockReasoning}})); err != nil {
+		t.Fatal(err)
+	}
+	if err := renderer.Render(testEvent("delta", agent.BlockDelta{BlockID: "reasoning", Text: "thought", ContentIndex: &index})); err == nil {
+		t.Fatal("text renderer accepted an indexed reasoning delta")
+	}
+}
+
 func TestNDJSONCarriesSegmentIdentityAndInterruptSet(t *testing.T) {
 	var output bytes.Buffer
 	renderer := NewNDJSON(&output)
@@ -113,6 +165,25 @@ func TestNDJSONPreservesProgressToolArgumentsAndCustomPayloads(t *testing.T) {
 	}
 }
 
+func TestNDJSONPreservesContentBlockIndex(t *testing.T) {
+	var output bytes.Buffer
+	renderer := NewNDJSON(&output)
+	if err := renderer.Begin(testRun(), agent.RunOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	index := 2
+	if err := renderer.Render(testEvent("content", agent.BlockDelta{BlockID: "answer", Text: "third", ContentIndex: &index})); err != nil {
+		t.Fatal(err)
+	}
+	var frame map[string]any
+	if err := json.Unmarshal(bytes.TrimSpace(output.Bytes()), &frame); err != nil {
+		t.Fatal(err)
+	}
+	if frame["type"] != "block.delta" || frame["index"] != float64(index) || frame["text"] != "third" {
+		t.Fatalf("content delta frame = %+v", frame)
+	}
+}
+
 func TestResultJSONRetainsLatestRootProgressUsageBeforeSettlement(t *testing.T) {
 	var output bytes.Buffer
 	renderer := NewResultJSON(&output)
@@ -131,6 +202,82 @@ func TestResultJSONRetainsLatestRootProgressUsageBeforeSettlement(t *testing.T) 
 	}
 	if result.Status != "incomplete" || result.Usage == nil || result.Usage.InputTokens != 33 || result.Usage.OutputTokens != 5 {
 		t.Fatalf("incomplete result = %+v", result)
+	}
+}
+
+func TestResultJSONUsesAuthoritativeAssistantCompletionAfterIndexedDeltas(t *testing.T) {
+	var output bytes.Buffer
+	renderer := NewResultJSON(&output)
+	second, first := 1, 0
+	for _, event := range []agent.RunEvent{
+		testEvent("segment", agent.SegmentStarted{Run: testRun()}),
+		testEvent("start", agent.BlockStarted{Block: agent.Block{ID: "answer", Kind: agent.BlockAssistant}}),
+		testEvent("second", agent.BlockDelta{BlockID: "answer", Text: "provisional second", ContentIndex: &second}),
+		testEvent("first", agent.BlockDelta{BlockID: "answer", Text: "provisional first", ContentIndex: &first}),
+		testEvent("complete", agent.BlockCompleted{Block: agent.Block{ID: "answer", Kind: agent.BlockAssistant, Text: "authoritative"}}),
+		testEvent("finished", agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCompleted}}),
+	} {
+		if err := renderer.Render(event); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := renderer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	var result map[string]any
+	if err := json.Unmarshal(output.Bytes(), &result); err != nil {
+		t.Fatal(err)
+	}
+	if result["text"] != "authoritative" || strings.Contains(output.String(), "provisional") {
+		t.Fatalf("result = %s", output.String())
+	}
+}
+
+func TestResultJSONOrdersPartialIndexedAssistantOutput(t *testing.T) {
+	var output bytes.Buffer
+	renderer := NewResultJSON(&output)
+	second, first := 1, 0
+	for _, event := range []agent.RunEvent{
+		testEvent("segment", agent.SegmentStarted{Run: testRun()}),
+		testEvent("start", agent.BlockStarted{Block: agent.Block{ID: "answer", Kind: agent.BlockAssistant}}),
+		testEvent("second", agent.BlockDelta{BlockID: "answer", Text: "second", ContentIndex: &second}),
+		testEvent("first", agent.BlockDelta{BlockID: "answer", Text: "first", ContentIndex: &first}),
+	} {
+		if err := renderer.Render(event); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := renderer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	var result map[string]any
+	if err := json.Unmarshal(output.Bytes(), &result); err != nil {
+		t.Fatal(err)
+	}
+	if result["status"] != "incomplete" || result["text"] != "first\n\nsecond" {
+		t.Fatalf("partial result = %s", output.String())
+	}
+}
+
+func TestResultJSONDoesNotRetainProvisionalTextForEmptyCompletion(t *testing.T) {
+	var output bytes.Buffer
+	renderer := NewResultJSON(&output)
+	for _, event := range []agent.RunEvent{
+		testEvent("segment", agent.SegmentStarted{Run: testRun()}),
+		testEvent("start", agent.BlockStarted{Block: agent.Block{ID: "answer", Kind: agent.BlockAssistant}}),
+		testEvent("delta", agent.BlockDelta{BlockID: "answer", Text: "provisional"}),
+		testEvent("complete", agent.BlockCompleted{Block: agent.Block{ID: "answer", Kind: agent.BlockAssistant}}),
+		testEvent("finished", agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCompleted}}),
+	} {
+		if err := renderer.Render(event); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := renderer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(output.String(), "provisional") {
+		t.Fatalf("empty authoritative completion retained provisional text: %s", output.String())
 	}
 }
 

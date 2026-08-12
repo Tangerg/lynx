@@ -88,6 +88,46 @@ func TestStreamingPreservesAReadersScrollPosition(t *testing.T) {
 	}
 }
 
+func TestTranscriptReordersIndexedAssistantDeltas(t *testing.T) {
+	view := testTranscriptView(t)
+	started := agent.Block{ID: "answer", Kind: agent.BlockAssistant}
+	if err := view.Apply(agent.BlockStarted{Block: started}, nil); err != nil {
+		t.Fatal(err)
+	}
+	second, first := 1, 0
+	if err := view.Apply(agent.BlockDelta{BlockID: started.ID, Text: "second block", ContentIndex: &second}, nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := view.Apply(agent.BlockDelta{BlockID: started.ID, Text: "first block", ContentIndex: &first}, nil); err != nil {
+		t.Fatal(err)
+	}
+	drawn := drawRoot(t, view, 48, 8)
+	firstAt, secondAt := strings.Index(drawn, "first block"), strings.Index(drawn, "second block")
+	if firstAt < 0 || secondAt < 0 || firstAt >= secondAt {
+		t.Fatalf("indexed assistant rendering =\n%s", drawn)
+	}
+
+	if err := view.Apply(agent.BlockDelta{BlockID: started.ID, Text: " tail", ContentIndex: &first}, nil); err != nil {
+		t.Fatal(err)
+	}
+	drawn = drawRoot(t, view, 48, 8)
+	if !strings.Contains(drawn, "first block tail") || strings.Count(drawn, "second block") != 1 {
+		t.Fatalf("replaced indexed assistant rendering =\n%s", drawn)
+	}
+}
+
+func TestTranscriptRejectsContentIndicesOutsideAssistantBlocks(t *testing.T) {
+	view := testTranscriptView(t)
+	block := agent.Block{ID: "reasoning", Kind: agent.BlockReasoning}
+	if err := view.Apply(agent.BlockStarted{Block: block}, nil); err != nil {
+		t.Fatal(err)
+	}
+	index := 0
+	if err := view.Apply(agent.BlockDelta{BlockID: block.ID, Text: "invalid", ContentIndex: &index}, nil); err == nil {
+		t.Fatal("transcript accepted indexed reasoning delta")
+	}
+}
+
 func TestInterleavedTextBlocksStreamIndependently(t *testing.T) {
 	view := testTranscriptView(t)
 	for _, event := range []agent.Event{

@@ -69,6 +69,7 @@ type eventRecord struct {
 	Options          *runOptionsJSON   `json:"options,omitzero"`
 	BlockID          string            `json:"blockId,omitzero"`
 	Text             string            `json:"text,omitzero"`
+	Index            *int              `json:"index,omitempty"`
 	Step             *int              `json:"step,omitempty"`
 	ContextTokens    *int64            `json:"contextTokens,omitempty"`
 	Activity         string            `json:"activity,omitzero"`
@@ -273,7 +274,9 @@ func encodeEventFrame(envelope agent.RunEvent) (eventRecord, error) {
 	case agent.BlockStarted:
 		return eventRecord{Type: "block.started", Block: encodeBlock(event.Block)}, nil
 	case agent.BlockDelta:
-		return eventRecord{Type: "block.delta", BlockID: event.BlockID, Text: event.Text}, nil
+		return eventRecord{
+			Type: "block.delta", BlockID: event.BlockID, Text: event.Text, Index: event.ContentIndex,
+		}, nil
 	case agent.ToolArgumentsDelta:
 		return eventRecord{Type: "tool.arguments.delta", BlockID: event.BlockID, Text: event.Text}, nil
 	case agent.RunProgress:

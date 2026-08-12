@@ -81,6 +81,14 @@ func TestEphemeralEventsCloneOwnedValues(t *testing.T) {
 	if !bytes.Equal(custom.PayloadJSON, []byte(`{"span":"abc"}`)) {
 		t.Fatalf("custom clone aliases source: %s", custom.PayloadJSON)
 	}
+
+	index := 2
+	delta := BlockDelta{BlockID: "answer", Text: "tail", ContentIndex: &index}
+	deltaClone := CloneEvent(delta).(BlockDelta)
+	*deltaClone.ContentIndex = 7
+	if *delta.ContentIndex != 2 || !equalEvent(delta, CloneEvent(delta)) {
+		t.Fatalf("block delta clone aliases source: source=%+v clone=%+v", delta, deltaClone)
+	}
 }
 
 func TestEphemeralEventValidationRejectsMalformedValues(t *testing.T) {
@@ -89,6 +97,7 @@ func TestEphemeralEventValidationRejectsMalformedValues(t *testing.T) {
 	tests := []Event{
 		RunProgress{Step: &negative},
 		RunProgress{ContextTokens: &negativeContext},
+		BlockDelta{BlockID: "answer", Text: "invalid", ContentIndex: &negative},
 		ToolArgumentsDelta{},
 		CustomEvent{Name: "vendor.trace", PayloadJSON: []byte(`{`)},
 		CustomEvent{PayloadJSON: []byte(`null`)},

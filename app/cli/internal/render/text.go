@@ -34,11 +34,13 @@ type Text struct {
 	err   error
 	scope runScope
 
-	// streaming contains assistant blocks whose deltas are written straight
-	// through. A map preserves correct routing if a runtime interleaves blocks.
-	streaming map[string]struct{}
-	// pending collects the bodies of blocks that print on completion.
-	pending map[string]*strings.Builder
+	// streaming contains assistant blocks whose block-zero deltas are written
+	// straight through. Later indexed blocks stay buffered until authoritative
+	// completion so interleaved content cannot be emitted in the wrong order.
+	streaming map[string]*plainTextStream
+	// pending collects blocks that print only on completion. Retaining the kind
+	// lets this projection enforce the same delta semantics as the aggregate.
+	pending map[string]*pendingTextBlock
 	seen    map[string]struct{}
 	shown   map[string]struct{}
 	settled bool
@@ -47,11 +49,21 @@ type Text struct {
 	column bool
 }
 
+type plainTextStream struct {
+	text    agent.StreamedText
+	emitted strings.Builder
+}
+
+type pendingTextBlock struct {
+	kind agent.BlockKind
+	body strings.Builder
+}
+
 // NewText builds a plain-text renderer over w.
 func NewText(w io.Writer) *Text {
 	return &Text{
-		w: w, streaming: make(map[string]struct{}),
-		pending: make(map[string]*strings.Builder), seen: make(map[string]struct{}),
+		w: w, streaming: make(map[string]*plainTextStream),
+		pending: make(map[string]*pendingTextBlock), seen: make(map[string]struct{}),
 		shown: make(map[string]struct{}),
 	}
 }
@@ -140,23 +152,36 @@ func (t *Text) begin(b agent.Block) {
 		if t.scope.isChild(b.RunID) {
 			t.line("subagent · " + b.RunID)
 		}
-		t.streaming[key] = struct{}{}
+		stream := &plainTextStream{text: agent.NewStreamedText(b.Text)}
+		stream.emitted.WriteString(b.Text)
+		t.streaming[key] = stream
 		t.write(b.Text)
 	case agent.BlockReasoning, agent.BlockTool, agent.BlockUser, agent.BlockQuestion, agent.BlockNotice, agent.BlockError:
-		body := &strings.Builder{}
-		body.WriteString(b.Text)
-		t.pending[key] = body
+		pending := &pendingTextBlock{kind: b.Kind}
+		pending.body.WriteString(b.Text)
+		t.pending[key] = pending
 	}
 }
 
 func (t *Text) delta(runID string, d agent.BlockDelta) {
 	key := streamBlockKey(runID, d.BlockID)
-	if _, streaming := t.streaming[key]; streaming {
-		t.write(d.Text)
+	if stream := t.streaming[key]; stream != nil {
+		if _, err := stream.text.Apply(d); err != nil {
+			t.err = fmt.Errorf("render text delta %s: %w", d.BlockID, err)
+			return
+		}
+		if d.ContentIndex == nil || *d.ContentIndex == 0 {
+			t.write(d.Text)
+			stream.emitted.WriteString(d.Text)
+		}
 		return
 	}
-	if body, ok := t.pending[key]; ok {
-		body.WriteString(d.Text)
+	if pending := t.pending[key]; pending != nil {
+		if d.ContentIndex != nil {
+			t.err = fmt.Errorf("render text delta %s: %s block has a content index", d.BlockID, pending.kind)
+			return
+		}
+		pending.body.WriteString(d.Text)
 	}
 }
 
@@ -166,8 +191,17 @@ func (t *Text) finish(b agent.Block) {
 		return
 	}
 	t.seen[key] = struct{}{}
-	if _, streaming := t.streaming[key]; streaming {
+	if stream := t.streaming[key]; stream != nil {
 		delete(t.streaming, key)
+		authoritative := b.Text
+		emitted := stream.emitted.String()
+		if strings.HasPrefix(authoritative, emitted) {
+			t.write(strings.TrimPrefix(authoritative, emitted))
+		} else if authoritative != emitted {
+			t.endLine()
+			t.line("! assistant output replaced by authoritative completion")
+			t.write(authoritative)
+		}
 		t.endLine()
 		t.showImages(b.Images)
 		delete(t.pending, key)
@@ -245,8 +279,8 @@ func (t *Text) completedText(block agent.Block) string {
 	if block.Text != "" {
 		return block.Text
 	}
-	if body, ok := t.pending[streamBlockKey(block.RunID, block.ID)]; ok {
-		return body.String()
+	if pending := t.pending[streamBlockKey(block.RunID, block.ID)]; pending != nil {
+		return pending.body.String()
 	}
 	return ""
 }
