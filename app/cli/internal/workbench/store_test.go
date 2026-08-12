@@ -115,6 +115,101 @@ func TestStorePreservesCachedDraftWhenDurableDeletionFails(t *testing.T) {
 	}
 }
 
+func TestStoreRetiresCompleteSessionStateAtomically(t *testing.T) {
+	directory := t.TempDir()
+	store, err := Open(directory, Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	const sessionID = "session"
+	command := PendingRun{
+		State: PendingRunQueued,
+		Command: agent.StartRun{
+			CommandID: agent.CommandID("cli_11111111111111111111111111111111"),
+			SessionID: sessionID, Message: agent.Message{Text: "pending run"},
+		},
+	}
+	if err := store.StagePendingRun(command); err != nil {
+		t.Fatal(err)
+	}
+	approval := agent.Approval{
+		RunID: "run_waiting", ItemID: "approval", Title: "Approve",
+		Tool: &agent.ToolCall{Kind: agent.ToolRead, Name: "read", Path: "README.md", Status: agent.ToolRunning},
+	}
+	resume := PendingResume{
+		Command: agent.ResumeRun{
+			CommandID: agent.CommandID("cli_22222222222222222222222222222222"), RunID: approval.RunID,
+			Answers: []agent.InterruptAnswer{{ItemID: approval.ItemID, Answer: agent.ApprovalAnswer{Decision: agent.ApprovalDeny}}},
+		},
+		Interactions: []agent.Interaction{approval},
+	}
+	if err := store.StagePendingResume(sessionID, resume); err != nil {
+		t.Fatal(err)
+	}
+	draft := agent.Message{Text: "unsent draft"}
+	if err := store.SaveDraft(sessionID, draft); err != nil {
+		t.Fatal(err)
+	}
+
+	statePath := store.path(store.sessionStateName(sessionID))
+	backupPath := statePath + ".backup"
+	if err := os.Rename(statePath, backupPath); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(statePath, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	blocker := filepath.Join(statePath, "blocker")
+	if err := os.WriteFile(blocker, []byte("block deletion"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := store.RetireSessionState(sessionID); err == nil {
+		t.Fatal("durable session retirement unexpectedly succeeded")
+	}
+	if got, found, err := store.Draft(sessionID); err != nil || !found || !got.Equal(draft) {
+		t.Fatalf("cached draft after failed retirement = %+v, %v, %v", got, found, err)
+	}
+	if got := store.PendingRuns(sessionID); len(got) != 1 || got[0].Command.CommandID != command.Command.CommandID {
+		t.Fatalf("cached runs after failed retirement = %+v", got)
+	}
+	if got, found := store.PendingResume(sessionID); !found || got.Command.CommandID != resume.Command.CommandID {
+		t.Fatalf("cached resume after failed retirement = %+v, %v", got, found)
+	}
+
+	if err := os.Remove(blocker); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(statePath); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(backupPath, statePath); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.RetireSessionState(sessionID); err != nil {
+		t.Fatal(err)
+	}
+	if _, found, err := store.Draft(sessionID); err != nil || found {
+		t.Fatalf("retired draft remains, found %v, error %v", found, err)
+	}
+	if got := store.PendingRuns(sessionID); len(got) != 0 {
+		t.Fatalf("retired runs remain = %+v", got)
+	}
+	if got, found := store.PendingResume(sessionID); found {
+		t.Fatalf("retired resume remains = %+v", got)
+	}
+	reopened, err := Open(directory, Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, found, err := reopened.Draft(sessionID); err != nil || found || len(reopened.PendingRuns(sessionID)) != 0 {
+		t.Fatalf("reopened retired state has draft=%v runs=%+v error=%v", found, reopened.PendingRuns(sessionID), err)
+	}
+	if pending, found := reopened.PendingResume(sessionID); found {
+		t.Fatalf("reopened retired resume = %+v", pending)
+	}
+}
+
 func TestStoreDoesNotDeduplicateChangedAttachmentMetadata(t *testing.T) {
 	store, err := Open("", Config{})
 	if err != nil {

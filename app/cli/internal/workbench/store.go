@@ -639,6 +639,27 @@ func (s *Store) DiscardDraft(sessionID string) error {
 	return s.SaveDraft(sessionID, agent.Message{})
 }
 
+// RetireSessionState atomically removes every authoring concern owned by one
+// session: its draft, pending run commands, and pending HITL command. Session
+// deletion cannot safely compose the three narrower mutations because each
+// rewrites the same durable aggregate and a failure between them would expose a
+// partially retired session after restart.
+func (s *Store) RetireSessionState(sessionID string) error {
+	sessionID = strings.TrimSpace(sessionID)
+	if sessionID == "" {
+		return errors.New("session id is empty")
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if err := s.saveSessionStateWithResume(sessionID, agent.Message{}, nil, nil); err != nil {
+		return err
+	}
+	delete(s.drafts, sessionID)
+	delete(s.pendingRuns, sessionID)
+	delete(s.pendingResumes, sessionID)
+	return nil
+}
+
 // StashPrompt preserves a prompt independently of its session draft.
 func (s *Store) StashPrompt(message agent.Message) (Stash, error) {
 	message = message.Clone()

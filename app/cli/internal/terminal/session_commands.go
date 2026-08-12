@@ -432,21 +432,14 @@ func (a *app) prepareDestinationDraft(session agent.Session) (agent.Message, err
 }
 
 func (a *app) retireSessionState(sessionID string) (int, error) {
+	if a.workbench != nil {
+		if err := a.workbench.RetireSessionState(sessionID); err != nil {
+			return 0, fmt.Errorf("discard session authoring state: %w", err)
+		}
+	}
 	discarded := 0
 	if a.queue != nil {
 		discarded = a.queue.Clear(sessionID)
-	}
-	if a.workbench == nil {
-		return discarded, nil
-	}
-	if err := a.workbench.SavePendingRuns(sessionID, nil); err != nil {
-		return discarded, fmt.Errorf("discard session pending runs: %w", err)
-	}
-	if err := a.workbench.DiscardPendingResume(sessionID); err != nil {
-		return discarded, fmt.Errorf("discard session pending resume: %w", err)
-	}
-	if err := a.workbench.DiscardDraft(sessionID); err != nil {
-		return discarded, fmt.Errorf("discard session draft: %w", err)
 	}
 	return discarded, nil
 }

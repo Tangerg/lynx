@@ -81,6 +81,52 @@ func TestRetiringSessionStateClearsOnlyTheRetiredSession(t *testing.T) {
 	}
 }
 
+func TestRetiringSessionStateKeepsTheQueueWhenDurableRetirementFails(t *testing.T) {
+	directory := t.TempDir()
+	store, err := workbench.Open(directory, workbench.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	const sessionID = "session"
+	if err := store.SaveDraft(sessionID, agent.Message{Text: "keep authoring state"}); err != nil {
+		t.Fatal(err)
+	}
+	queue := promptqueue.New()
+	queued, err := queue.Enqueue(sessionID, agent.Message{Text: "keep queued prompt"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	entries, err := os.ReadDir(filepath.Join(directory, "sessions"))
+	if err != nil || len(entries) != 1 {
+		t.Fatalf("session state files = %d, %v", len(entries), err)
+	}
+	statePath := filepath.Join(directory, "sessions", entries[0].Name())
+	if err := os.Remove(statePath); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(statePath, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(statePath, "blocker"), []byte("block deletion"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	application := &app{workbench: store, queue: queue}
+	discarded, err := application.retireSessionState(sessionID)
+	if err == nil {
+		t.Fatal("session retirement unexpectedly succeeded")
+	}
+	if discarded != 0 {
+		t.Fatalf("failed retirement reported %d discarded prompts", discarded)
+	}
+	if got := queue.Snapshot(sessionID).Entries; len(got) != 1 || got[0].ID != queued.ID {
+		t.Fatalf("failed retirement changed queue = %+v", got)
+	}
+	if draft, found, draftErr := store.Draft(sessionID); draftErr != nil || !found || draft.Text != "keep authoring state" {
+		t.Fatalf("failed retirement changed draft = %+v, %v, %v", draft, found, draftErr)
+	}
+}
+
 func TestParseRollbackArgumentPreservesTheInclusiveBoundaryAndScope(t *testing.T) {
 	request, err := parseRollbackArgument("ses_1", "run_42 both")
 	if err != nil {
