@@ -176,7 +176,7 @@ func TestQueueRestoresDurableCommandsWithFreshLocalIdentities(t *testing.T) {
 		{CommandID: agent.CommandID("cli_11111111111111111111111111111111"), SessionID: "session", Message: agent.Message{Text: "first"}},
 		{CommandID: agent.CommandID("cli_22222222222222222222222222222222"), SessionID: "session", Message: agent.Message{Text: "second"}},
 	}
-	if err := queue.Restore("session", commands); err != nil {
+	if err := queue.Restore("session", commands, ""); err != nil {
 		t.Fatal(err)
 	}
 	snapshot := queue.Snapshot("session")
@@ -185,11 +185,53 @@ func TestQueueRestoresDurableCommandsWithFreshLocalIdentities(t *testing.T) {
 		snapshot.Entries[1].Message.Text != commands[1].Message.Text {
 		t.Fatalf("restored durable queue = %+v", snapshot)
 	}
-	if err := queue.Restore("session", nil); err != nil {
+	if err := queue.Restore("session", nil, ""); err != nil {
 		t.Fatal(err)
 	}
 	if got := queue.State("session"); len(got.Entries) != 0 || got.DispatchingID != 0 {
 		t.Fatalf("empty restore left queue state: %+v", got)
+	}
+}
+
+func TestQueueRestoresADurableDispatchReservationAtomically(t *testing.T) {
+	queue := New()
+	commands := []agent.StartRun{
+		{CommandID: agent.CommandID("cli_11111111111111111111111111111111"), SessionID: "session", Message: agent.Message{Text: "opening"}},
+		{CommandID: agent.CommandID("cli_22222222222222222222222222222222"), SessionID: "session", Message: agent.Message{Text: "queued"}},
+	}
+	if err := queue.Restore("session", commands, commands[0].CommandID); err != nil {
+		t.Fatal(err)
+	}
+	dispatching, ok := queue.Dispatching("session")
+	if !ok || dispatching.CommandID != commands[0].CommandID {
+		t.Fatalf("restored dispatch = %+v, %t", dispatching, ok)
+	}
+	if _, err := queue.Remove("session", dispatching.ID); !errors.Is(err, ErrEntryDispatching) {
+		t.Fatalf("restored dispatch removal returned %v", err)
+	}
+	if err := queue.Promote("session", queue.Snapshot("session").Entries[1].ID); err != nil {
+		t.Fatal(err)
+	}
+	if first := queue.Snapshot("session").Entries[0]; first.CommandID != commands[0].CommandID {
+		t.Fatalf("priority edit crossed restored dispatch: %+v", queue.State("session"))
+	}
+}
+
+func TestQueueRejectsAnInvalidDurableDispatchWithoutMutation(t *testing.T) {
+	queue := New()
+	existing, _ := queue.Enqueue("session", agent.Message{Text: "existing"})
+	before := queue.State("session")
+	commands := []agent.StartRun{
+		{CommandID: agent.CommandID("cli_11111111111111111111111111111111"), SessionID: "session", Message: agent.Message{Text: "first"}},
+		{CommandID: agent.CommandID("cli_22222222222222222222222222222222"), SessionID: "session", Message: agent.Message{Text: "second"}},
+	}
+	if err := queue.Restore("session", commands, commands[1].CommandID); err == nil {
+		t.Fatal("queue accepted a non-front durable dispatch")
+	}
+	after := queue.State("session")
+	if len(after.Entries) != 1 || after.Entries[0].ID != existing.ID || after.Entries[0].CommandID != before.Entries[0].CommandID ||
+		after.DispatchingID != before.DispatchingID {
+		t.Fatalf("invalid durable restore mutated queue: before=%+v after=%+v", before, after)
 	}
 }
 

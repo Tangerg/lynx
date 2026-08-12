@@ -318,20 +318,20 @@ func (a *app) restorePendingRuns() {
 	if len(pending) == 0 {
 		return
 	}
+	if err := a.restorePendingQueue(pending); err != nil {
+		a.fail(err)
+		return
+	}
 	if pending[0].State == workbench.PendingRunCanceling {
-		if err := a.restorePendingQueue(pending); err != nil {
-			a.fail(err)
-			return
-		}
 		a.reconcileCanceledStart(pending[0])
 		return
 	}
-	if a.conversation.Busy() && pending[0].State == workbench.PendingRunDispatching {
-		a.reconcilePendingRun(pending[0])
-		return
-	}
-	if err := a.restorePendingQueue(pending); err != nil {
-		a.fail(err)
+	if pending[0].State == workbench.PendingRunDispatching {
+		if a.conversation.Busy() {
+			a.reconcilePendingRun(pending[0])
+			return
+		}
+		a.replayPendingRun(pending[0])
 		return
 	}
 	if !a.conversation.Busy() {
@@ -395,11 +395,26 @@ func (a *app) restorePendingQueue(pending []workbench.PendingRun) error {
 	for _, entry := range pending {
 		commands = append(commands, entry.Command.Clone())
 	}
-	if err := a.queue.Restore(a.session.ID, commands); err != nil {
+	var dispatching agent.CommandID
+	if len(pending) > 0 && pending[0].State != workbench.PendingRunQueued {
+		dispatching = pending[0].Command.CommandID
+	}
+	if err := a.queue.Restore(a.session.ID, commands, dispatching); err != nil {
 		return fmt.Errorf("restore pending runs: %w", err)
 	}
 	a.syncQueue()
 	return nil
+}
+
+func (a *app) replayPendingRun(pending workbench.PendingRun) {
+	entry, ok := a.queue.Dispatching(pending.Command.SessionID)
+	if !ok || entry.CommandID != pending.Command.CommandID {
+		a.fail(errors.New("replay pending run: dispatch reservation is unavailable"))
+		return
+	}
+	if !a.startRun(entry.CommandID, entry.Message, entry.Options, "recovering queued prompt") {
+		a.releaseQueuedDispatch()
+	}
 }
 
 func (a *app) reconcilePendingRun(pending workbench.PendingRun) {

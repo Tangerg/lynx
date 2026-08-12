@@ -411,6 +411,155 @@ func TestDurableQueueKeepsTheOpeningCommandAheadOfPriorityEdits(t *testing.T) {
 	}
 }
 
+func TestQueueMutationRollbackPreservesTheDispatchReservation(t *testing.T) {
+	directory := t.TempDir()
+	store, err := workbench.Open(directory, workbench.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	queue := promptqueue.New()
+	commands := []agent.StartRun{
+		{CommandID: agent.CommandID("cli_11111111111111111111111111111111"), SessionID: "session", Message: agent.Message{Text: "opening"}},
+		{CommandID: agent.CommandID("cli_22222222222222222222222222222222"), SessionID: "session", Message: agent.Message{Text: "second"}},
+		{CommandID: agent.CommandID("cli_33333333333333333333333333333333"), SessionID: "session", Message: agent.Message{Text: "promote me"}},
+	}
+	for _, command := range commands {
+		if err := store.StagePendingRun(workbench.PendingRun{State: workbench.PendingRunQueued, Command: command}); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := queue.EnqueueCommand(command.CommandID, command.SessionID, command.Message, command.Options); err != nil {
+			t.Fatal(err)
+		}
+	}
+	dispatching, ok := queue.BeginDispatch("session")
+	if !ok {
+		t.Fatal("queue did not reserve its first entry")
+	}
+	if err := store.MarkPendingRunDispatching("session", dispatching.CommandID); err != nil {
+		t.Fatal(err)
+	}
+	before := queue.State("session")
+
+	stateDirectory := filepath.Join(directory, "sessions")
+	states, err := os.ReadDir(stateDirectory)
+	if err != nil || len(states) != 1 {
+		t.Fatalf("session state files = %d, %v", len(states), err)
+	}
+	statePath := filepath.Join(stateDirectory, states[0].Name())
+	backupPath := statePath + ".backup"
+	if err := os.Rename(statePath, backupPath); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(statePath, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	blocker := filepath.Join(statePath, "blocker")
+	if err := os.WriteFile(blocker, []byte("block state replacement"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	queueView := newQueueView(kit.Dark(), kit.Unicode())
+	prompt := &promptView{}
+	application := &app{
+		queue: queue, workbench: store, session: agent.Session{ID: "session"},
+		queueView: queueView, prompt: prompt,
+	}
+	promotedID := before.Entries[2].ID
+	if err := application.commitQueueMutation(func() error {
+		return queue.Promote("session", promotedID)
+	}); err == nil {
+		t.Fatal("queue mutation unexpectedly survived a failed durable replacement")
+	}
+	after := queue.State("session")
+	assertQueueStateEqual(t, after, before)
+	if got := queueView.snapshot.Entries; len(got) != len(before.Entries) || got[2].ID != promotedID {
+		t.Fatalf("rolled-back queue projection = %+v", got)
+	}
+	if prompt.queued != len(before.Entries) {
+		t.Fatalf("rolled-back prompt queue count = %d, want %d", prompt.queued, len(before.Entries))
+	}
+
+	if err := os.Remove(blocker); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(statePath); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(backupPath, statePath); err != nil {
+		t.Fatal(err)
+	}
+	reopened, err := workbench.Open(directory, workbench.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	pending := reopened.PendingRuns("session")
+	if len(pending) != len(commands) || pending[0].State != workbench.PendingRunDispatching {
+		t.Fatalf("durable queue after failed mutation = %+v", pending)
+	}
+	for index, command := range commands {
+		if pending[index].Command.CommandID != command.CommandID {
+			t.Fatalf("durable command %d = %s, want %s", index, pending[index].Command.CommandID, command.CommandID)
+		}
+	}
+}
+
+func TestRestoredPendingRunStateControlsQueueOwnership(t *testing.T) {
+	for _, test := range []struct {
+		name        string
+		state       workbench.PendingRunState
+		dispatching bool
+	}{
+		{name: "queued", state: workbench.PendingRunQueued},
+		{name: "dispatching", state: workbench.PendingRunDispatching, dispatching: true},
+		{name: "canceling", state: workbench.PendingRunCanceling, dispatching: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			queue := promptqueue.New()
+			application := &app{
+				queue: queue, session: agent.Session{ID: "session"},
+				queueView: newQueueView(kit.Dark(), kit.Unicode()), prompt: &promptView{},
+			}
+			pending := []workbench.PendingRun{
+				{State: test.state, Command: agent.StartRun{
+					CommandID: agent.CommandID("cli_11111111111111111111111111111111"),
+					SessionID: "session", Message: agent.Message{Text: "first"},
+				}},
+				{State: workbench.PendingRunQueued, Command: agent.StartRun{
+					CommandID: agent.CommandID("cli_22222222222222222222222222222222"),
+					SessionID: "session", Message: agent.Message{Text: "second"},
+				}},
+			}
+			if err := application.restorePendingQueue(pending); err != nil {
+				t.Fatal(err)
+			}
+			dispatching, found := queue.Dispatching("session")
+			if found != test.dispatching {
+				t.Fatalf("dispatch reservation present = %t, want %t", found, test.dispatching)
+			}
+			if found && dispatching.CommandID != pending[0].Command.CommandID {
+				t.Fatalf("dispatch reservation = %+v", dispatching)
+			}
+			if got := application.queueView.snapshot.Entries; len(got) != len(pending) || application.prompt.queued != len(pending) {
+				t.Fatalf("restored queue projection = %+v, prompt count %d", got, application.prompt.queued)
+			}
+		})
+	}
+}
+
+func assertQueueStateEqual(t *testing.T, got, want promptqueue.State) {
+	t.Helper()
+	if got.DispatchingID != want.DispatchingID || len(got.Entries) != len(want.Entries) {
+		t.Fatalf("queue state = %+v, want %+v", got, want)
+	}
+	for index := range want.Entries {
+		actual, expected := got.Entries[index], want.Entries[index]
+		if actual.ID != expected.ID || actual.CommandID != expected.CommandID || actual.SessionID != expected.SessionID ||
+			actual.Held != expected.Held || !actual.Message.Equal(expected.Message) || !actual.Options.Equal(expected.Options) {
+			t.Fatalf("queue entry %d = %+v, want %+v", index, actual, expected)
+		}
+	}
+}
+
 func TestRunningTurnQueuesFollowUpsAndDrainsThemInFIFOOrder(t *testing.T) {
 	base := mock.New()
 	base.Script = func(prompt string) mock.Script {

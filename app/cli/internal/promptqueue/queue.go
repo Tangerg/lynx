@@ -92,8 +92,11 @@ func (q *Queue) EnqueueCommand(commandID agent.CommandID, sessionID string, mess
 }
 
 // Restore replaces one session queue from a durable authoring outbox. Command
-// identity and order are preserved so runtime retries remain idempotent.
-func (q *Queue) Restore(sessionID string, commands []agent.StartRun) error {
+// identity and order are preserved so runtime retries remain idempotent. A
+// non-empty dispatchingCommandID must identify the first command: it restores
+// ownership of an interrupted runtime handshake without exposing that command
+// to ordinary queue mutations.
+func (q *Queue) Restore(sessionID string, commands []agent.StartRun, dispatchingCommandID agent.CommandID) error {
 	entries := make([]Entry, len(commands))
 	seen := make(map[agent.CommandID]struct{}, len(commands))
 	for index, command := range commands {
@@ -112,6 +115,14 @@ func (q *Queue) Restore(sessionID string, commands []agent.StartRun) error {
 			Message: command.Message.Clone(), Options: command.Options.Clone(),
 		}
 	}
+	if dispatchingCommandID != "" {
+		if err := dispatchingCommandID.Validate(); err != nil {
+			return fmt.Errorf("prompt queue: dispatch command: %w", err)
+		}
+		if len(entries) == 0 || entries[0].CommandID != dispatchingCommandID {
+			return errors.New("prompt queue: dispatch command is not the first entry")
+		}
+	}
 	q.mu.Lock()
 	defer q.mu.Unlock()
 	q.ensureStorage()
@@ -124,7 +135,11 @@ func (q *Queue) Restore(sessionID string, commands []agent.StartRun) error {
 	} else {
 		q.entries[sessionID] = entries
 	}
-	delete(q.dispatching, sessionID)
+	if dispatchingCommandID == "" {
+		delete(q.dispatching, sessionID)
+	} else {
+		q.dispatching[sessionID] = entries[0].ID
+	}
 	q.revision++
 	return nil
 }
