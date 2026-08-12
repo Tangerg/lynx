@@ -2409,6 +2409,94 @@ func TestApprovalCanRememberADenialWithoutLosingFeedback(t *testing.T) {
 	stop()
 }
 
+func TestApprovalFormSubmitsEveryDecisionAndRememberScope(t *testing.T) {
+	tests := []struct {
+		name     string
+		moves    int
+		decision agent.ApprovalDecision
+		remember agent.RememberScope
+	}{
+		{name: "allow once", decision: agent.ApprovalApprove},
+		{name: "allow session", moves: 1, decision: agent.ApprovalApprove, remember: agent.RememberSession},
+		{name: "allow project", moves: 2, decision: agent.ApprovalApprove, remember: agent.RememberProject},
+		{name: "allow global", moves: 3, decision: agent.ApprovalApprove, remember: agent.RememberGlobal},
+		{name: "deny once", moves: 4, decision: agent.ApprovalDeny},
+		{name: "deny session", moves: 5, decision: agent.ApprovalDeny, remember: agent.RememberSession},
+		{name: "deny project", moves: 6, decision: agent.ApprovalDeny, remember: agent.RememberProject},
+		{name: "deny global", moves: 7, decision: agent.ApprovalDeny, remember: agent.RememberGlobal},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			backend := mock.New()
+			backend.Instant = true
+			answers := make(chan agent.ApprovalAnswer, 1)
+			backend.Script = func(string) mock.Script {
+				return mock.Script{
+					Interactions: []agent.Interaction{agent.Approval{
+						ItemID: "approval-matrix", Title: "Review generated command", Rememberable: true,
+						RuleHint: "shell:go test ./...",
+						Tool: &agent.ToolCall{
+							Kind: agent.ToolShell, Name: "shell", Command: "go test ./...", Status: agent.ToolRunning,
+						},
+					}},
+					Continue: func(provided []agent.InterruptAnswer) []mock.Step {
+						answers <- provided[0].Answer.(agent.ApprovalAnswer)
+						return []mock.Step{{Event: agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCompleted}}}}
+					},
+				}
+			}
+			host, stop := runUIWith(t, backend)
+			host.Shows(t, "Ask lyra")
+			host.Type("exercise " + test.name)
+			host.Press(input.Enter)
+			host.Shows(t, "Tool approval")
+			for range test.moves {
+				host.Press(input.Down)
+			}
+			if test.decision == agent.ApprovalDeny {
+				host.Press(input.Tab)
+				host.Type("matrix feedback")
+			}
+			if !host.Resize(1, 1) || !host.Repaint() || !host.Resize(96, 28) {
+				t.Fatal("approval decision did not survive a minimal viewport")
+			}
+			host.Press(input.Enter)
+			host.Shows(t, "complete")
+			answer := <-answers
+			if answer.Decision != test.decision || answer.Remember != test.remember {
+				t.Fatalf("approval answer = %+v, want decision %q and scope %q", answer, test.decision, test.remember)
+			}
+			if test.decision == agent.ApprovalDeny && answer.Reason != "matrix feedback" {
+				t.Fatalf("denial reason = %q", answer.Reason)
+			}
+			if test.decision == agent.ApprovalApprove && answer.Reason != "" {
+				t.Fatalf("approval retained denial feedback: %q", answer.Reason)
+			}
+			rules, err := backend.ListApprovalRules(t.Context(), firstRuntimeSession(t, backend))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if test.remember == agent.RememberNone {
+				if len(rules) != 0 {
+					t.Fatalf("one-shot decision created rules: %+v", rules)
+				}
+			} else if len(rules) != 1 || rules[0].Scope != test.remember ||
+				rules[0].Decision != approvalRuleDecision(test.decision) {
+				t.Fatalf("remembered rules = %+v", rules)
+			}
+			host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
+			stop()
+		})
+	}
+}
+
+func approvalRuleDecision(decision agent.ApprovalDecision) agent.ApprovalRuleDecision {
+	if decision == agent.ApprovalApprove {
+		return agent.ApprovalRuleAllow
+	}
+	return agent.ApprovalRuleDeny
+}
+
 func TestApprovalCanEditToolArgumentsOnceAcrossValidationAndResize(t *testing.T) {
 	backend := mock.New()
 	backend.Instant = true

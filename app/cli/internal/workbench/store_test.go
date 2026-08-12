@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 	"time"
 
@@ -301,5 +302,62 @@ func TestStorePersistsPendingInteractionResumeUntilExactSettlement(t *testing.T)
 	}
 	if _, ok := reopened.PendingResume("ses_1"); ok {
 		t.Fatal("acknowledged pending resume remains")
+	}
+}
+
+func TestStorePersistsTheCompleteMixedInteractionReview(t *testing.T) {
+	directory := t.TempDir()
+	store, err := Open(directory, Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	approval := agent.Approval{
+		RunID: "run_1", ItemID: "item_approval", Title: "Run checks", Rememberable: true,
+		Tool: &agent.ToolCall{Kind: agent.ToolShell, Name: "shell", Status: agent.ToolRunning},
+	}
+	question := agent.Question{
+		RunID: "run_1", ItemID: "item_question", Title: "Choose targets",
+		Fields: []agent.QuestionField{
+			{Prompt: "Reason", Kind: agent.QuestionText},
+			{Prompt: "Platforms", Kind: agent.QuestionMulti, AllowCustom: true, Options: []agent.QuestionOption{{Label: "linux"}, {Label: "darwin"}}},
+		},
+	}
+	pending := PendingResume{
+		Command: agent.ResumeRun{
+			CommandID: agent.CommandID("cli_77777777777777777777777777777777"), RunID: "run_1",
+			Answers: []agent.InterruptAnswer{
+				{ItemID: approval.ItemID, Answer: agent.ApprovalAnswer{
+					Decision: agent.ApprovalDeny, Remember: agent.RememberProject, Reason: "protect generated output",
+				}},
+				{ItemID: question.ItemID, Answer: agent.QuestionAnswer{Values: [][]string{{"portable"}, {"linux", "freebsd"}}}},
+			},
+		},
+		Interactions: []agent.Interaction{approval, question},
+	}
+	if err := store.StagePendingResume("ses_1", pending); err != nil {
+		t.Fatal(err)
+	}
+	reopened, err := Open(directory, Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	restored, ok := reopened.PendingResume("ses_1")
+	if !ok || len(restored.Command.Answers) != 2 || len(restored.Interactions) != 2 {
+		t.Fatalf("restored mixed resume = %+v, present = %t", restored, ok)
+	}
+	approvalAnswer, ok := restored.Command.Answers[0].Answer.(agent.ApprovalAnswer)
+	if !ok || approvalAnswer.Decision != agent.ApprovalDeny || approvalAnswer.Remember != agent.RememberProject ||
+		approvalAnswer.Reason != "protect generated output" {
+		t.Fatalf("restored approval answer = %#v", restored.Command.Answers[0].Answer)
+	}
+	questionAnswer, ok := restored.Command.Answers[1].Answer.(agent.QuestionAnswer)
+	if !ok || !reflect.DeepEqual(questionAnswer.Values, [][]string{{"portable"}, {"linux", "freebsd"}}) {
+		t.Fatalf("restored question answer = %#v", restored.Command.Answers[1].Answer)
+	}
+	questionAnswer.Values[1][0] = "mutated"
+	again, _ := reopened.PendingResume("ses_1")
+	againQuestion := again.Command.Answers[1].Answer.(agent.QuestionAnswer)
+	if againQuestion.Values[1][0] != "linux" {
+		t.Fatal("pending resume exposed shared nested question storage")
 	}
 }

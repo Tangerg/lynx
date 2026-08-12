@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"iter"
+	"slices"
 	"testing"
 	"time"
 
@@ -292,6 +293,30 @@ func TestProjectAnswerMapsRememberedDenial(t *testing.T) {
 		projected.Response.Remember.Scope != protocol.RememberGlobal ||
 		projected.Response.Reason != "protect generated files" || projected.Response.EditedArgs != nil {
 		t.Fatalf("projected denial = %+v", projected)
+	}
+}
+
+func TestProjectAnswerPreservesQuestionFieldOrderAndOwnsValues(t *testing.T) {
+	t.Parallel()
+	answer := agent.QuestionAnswer{Values: [][]string{
+		{"concise explanation"},
+		{"linux", "darwin"},
+		{"custom target"},
+	}}
+	projected, err := projectAnswer(agent.InterruptAnswer{ItemID: "item_question", Answer: answer})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := projected.Response.ValidateWire(); err != nil {
+		t.Fatalf("projected question violates runtime wire contract: %v", err)
+	}
+	if projected.Response.Type != protocol.InterruptResponseAnswer ||
+		!slices.EqualFunc(projected.Response.Answers, answer.Values, slices.Equal) {
+		t.Fatalf("projected question = %+v", projected)
+	}
+	projected.Response.Answers[0][0] = "mutated"
+	if answer.Values[0][0] != "concise explanation" {
+		t.Fatal("projected question shared nested answer storage with the caller")
 	}
 }
 
