@@ -310,9 +310,11 @@ export function registerDefaultDataProviders(host: ContributingHost): void {
       const enabled = (await pageData(client().providers.list())).filter(
         (p) => p.apiKeyMasked !== "",
       );
-      const lists = await Promise.all(
-        enabled.map((p) => pageData(client().models.list(p.id)).catch(() => [])),
-      );
+      // Runtime owns remote-discovery fallback (for example, an offline
+      // endpoint falls back to its static catalog). A rejected models.list is
+      // therefore a transport / protocol / service failure, not an empty model
+      // catalog; preserve it so consumers can render the failure honestly.
+      const lists = await Promise.all(enabled.map((p) => pageData(client().models.list(p.id))));
       return lists.flat().map((m) => ({
         id: m.id,
         provider: m.provider,

@@ -20,7 +20,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { resetContainer, setContainer } from "@/main/container";
 import { loadPlugin } from "@/plugins/sdk/definePlugin";
 import { lookupDataProvider } from "@/plugins/sdk/selectors";
-import { createLyraClient } from "@/rpc";
+import { createLyraClient, JSONRPC_VERSION } from "@/rpc";
 import { createMemoryTransport } from "@/rpc/transports/memory";
 import { respondSuccess, waitForRequest } from "@/rpc/transports/memory.testkit";
 import type { WireMethodName } from "@/rpc/wire.methods.generated";
@@ -327,5 +327,70 @@ describe("defaultDataProviders — providers over JSON-RPC", () => {
       workspace: { path: "/work/auth" },
     });
     expect(value).toEqual([{ lineNumber: 1, text: "import x" }]);
+  });
+
+  it("models: queries enabled providers only and maps their catalogs", async () => {
+    const { value, requests } = await runProvider<
+      Array<{ id: string; provider: string; label: string; multimodal: boolean }>
+    >("models", [
+      [
+        "providers.list",
+        {
+          data: [
+            { id: "openai", apiKeyMasked: "sk****42" },
+            { id: "disabled", apiKeyMasked: "" },
+          ],
+        },
+      ],
+      [
+        "models.list",
+        {
+          data: [
+            {
+              id: "gpt-test",
+              provider: "openai",
+              displayName: "GPT Test",
+              capabilities: { multimodal: true },
+            },
+          ],
+        },
+      ],
+    ]);
+
+    expect(requests).toEqual([
+      { method: "providers.list", params: {} },
+      { method: "models.list", params: { provider: "openai" } },
+    ]);
+    expect(value).toEqual([
+      { id: "gpt-test", provider: "openai", label: "GPT Test", multimodal: true },
+    ]);
+  });
+
+  it("models: preserves a Runtime failure instead of presenting an empty catalog", async () => {
+    const transport = createMemoryTransport();
+    const client = createLyraClient(transport);
+    setContainer({ client: () => client });
+    await loadPlugin(defaultDataProviders);
+    const fetcher = lookupDataProvider("models");
+    if (!fetcher) throw new Error('no provider for "models"');
+
+    const pending = fetcher();
+    const providersRequest = await waitForRequest(transport, "providers.list");
+    respondSuccess(transport, providersRequest.id, {
+      data: [{ id: "openai", apiKeyMasked: "sk****42" }],
+    });
+    const modelsRequest = await waitForRequest(transport, "models.list");
+    transport.inject({
+      jsonrpc: JSONRPC_VERSION,
+      id: modelsRequest.id,
+      error: {
+        code: -32603,
+        message: "Internal error",
+        data: { type: "internal_error" },
+      },
+    });
+
+    await expect(pending).rejects.toMatchObject({ name: "RpcError" });
+    await client.close();
   });
 });

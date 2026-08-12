@@ -277,6 +277,7 @@ export const zhTW: Record<string, string> = {
   "providers.connectionOk": "連線正常",
   "providers.error.save": "儲存失敗",
   "providers.error.test": "測試失敗",
+  "providers.models.error": "無法載入模型",
   "providers.empty": "尚無供應商",
   "providers.empty.sub": "執行時回報沒有受支援的 LLM 供應商。",
   "plugins.errorDetail.show": "顯示錯誤詳情",

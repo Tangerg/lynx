@@ -280,6 +280,7 @@ export const de: Record<string, string> = {
   "providers.connectionOk": "Verbindung OK",
   "providers.error.save": "Speichern fehlgeschlagen",
   "providers.error.test": "Test fehlgeschlagen",
+  "providers.models.error": "Modelle konnten nicht geladen werden",
   "providers.empty": "Keine Anbieter",
   "providers.empty.sub": "Die Runtime meldet keine unterstützten LLM-Anbieter.",
   "plugins.errorDetail.show": "Fehlerdetails anzeigen",

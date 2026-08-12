@@ -277,6 +277,7 @@ export const ja: Record<string, string> = {
   "providers.connectionOk": "接続 OK",
   "providers.error.save": "保存に失敗しました",
   "providers.error.test": "テストに失敗しました",
+  "providers.models.error": "モデルを読み込めませんでした",
   "providers.empty": "プロバイダーがありません",
   "providers.empty.sub": "ランタイムはサポートされている LLM プロバイダーを報告していません。",
   "plugins.errorDetail.show": "エラー詳細を表示",

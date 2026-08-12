@@ -50,6 +50,7 @@ export function useUtilityModelConfig() {
     selected,
     isSet: Boolean(role?.model),
     isAvailable: providerRoleIsAvailable(role, providerConfigs),
+    isError: models.isError,
   };
 }
 

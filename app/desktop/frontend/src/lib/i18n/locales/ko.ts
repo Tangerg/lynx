@@ -276,6 +276,7 @@ export const ko: Record<string, string> = {
   "providers.connectionOk": "연결 정상",
   "providers.error.save": "저장 실패",
   "providers.error.test": "테스트 실패",
+  "providers.models.error": "모델을 불러올 수 없습니다",
   "providers.empty": "공급자 없음",
   "providers.empty.sub": "런타임이 지원되는 LLM 공급자를 보고하지 않습니다.",
   "plugins.errorDetail.show": "오류 세부 정보 표시",

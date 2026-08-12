@@ -47,7 +47,7 @@ function RoleSectionShell({
 // empty means "use the main turn model".
 export function UtilityModelSection() {
   const t = useT();
-  const { role, modelOptions, selected, isSet, isAvailable } = useUtilityModelConfig();
+  const { role, modelOptions, selected, isSet, isAvailable, isError } = useUtilityModelConfig();
   const [error, setError] = useState<string | null>(null);
 
   const pick = async (next: { provider: string; model: string } | null): Promise<void> => {
@@ -60,7 +60,7 @@ export function UtilityModelSection() {
     <RoleSectionShell
       title={t("providers.utility.title")}
       description={t("providers.utility.desc")}
-      error={error}
+      error={error ?? (isError ? t("providers.models.error") : null)}
       note={
         isSet && !isAvailable ? (
           <p className="text-ui-md leading-snug text-fg-muted">{t("providers.notConfigured")}</p>

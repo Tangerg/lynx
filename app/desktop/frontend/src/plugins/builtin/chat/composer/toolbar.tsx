@@ -32,7 +32,7 @@ import {
 // never does; provider health is not something this app models.
 function ModelPicker() {
   const t = useT();
-  const { data: models = [], isLoading } = useModels();
+  const { data: models = [], isLoading, isError } = useModels();
   const { provider, model } = useComposerModelPreference();
   const setModel = useSetComposerModelPreference();
 
@@ -41,6 +41,19 @@ function ModelPicker() {
   }, [model, models, setModel]);
 
   if (models.length === 0) {
+    if (isError) {
+      return (
+        <Button
+          variant="ghost"
+          disabled
+          title={t("providers.models.error")}
+          className="gap-1.5 px-2 text-ui-sm text-negative"
+        >
+          <Icon name="alert" size="sm" />
+          <span>{t("providers.models.error")}</span>
+        </Button>
+      );
+    }
     if (!isLoading) return null;
     return (
       <div
