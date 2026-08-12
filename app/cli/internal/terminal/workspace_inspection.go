@@ -400,6 +400,11 @@ func (monitor runtimeChangeMonitor) run(ctx context.Context) {
 				if err := monitor.resync(topics); err != nil {
 					break
 				}
+				// The authoritative reads started after this frame was
+				// observed, so they include both the missing changes and the
+				// frame itself. Applying it again would only restart the same
+				// projections and can starve convergence on a gappy stream.
+				continue
 			}
 			if monitor.invalidatesFiles(event) {
 				if err := monitor.refreshFiles(attemptContext); err != nil {

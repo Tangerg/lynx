@@ -458,19 +458,19 @@ func TestRuntimeChangeMonitorTurnsASequenceGapIntoFullResync(t *testing.T) {
 		source: source,
 		applyEvent: func(event changefeed.Event) error {
 			events = append(events, event)
-			if event.Sequence == 3 {
-				cancel()
-			}
 			return nil
 		},
 		applyResync: func(topics []changefeed.Topic) error {
 			resyncs = append(resyncs, slices.Clone(topics))
+			if len(resyncs) == 2 {
+				cancel()
+			}
 			return nil
 		},
 	}
 	monitor.run(ctx)
-	if len(events) != 2 || events[0].Sequence != 1 || events[1].Sequence != 3 {
-		t.Fatalf("events = %+v", events)
+	if len(events) != 1 || events[0].Sequence != 1 {
+		t.Fatalf("events = %+v, want only the contiguous frame before the gap", events)
 	}
 	if len(resyncs) != 2 || !slices.Equal(resyncs[0], resyncs[1]) ||
 		!slices.Equal(resyncs[0], []changefeed.Topic{
@@ -492,17 +492,75 @@ func TestRuntimeChangeMonitorDetectsASequenceGapOnTheFirstFrame(t *testing.T) {
 	monitor := runtimeChangeMonitor{
 		source: source,
 		applyEvent: func(changefeed.Event) error {
-			cancel()
-			return nil
+			return errors.New("a frame absorbed by gap recovery must not be applied again")
 		},
 		applyResync: func(topics []changefeed.Topic) error {
 			resyncs = append(resyncs, slices.Clone(topics))
+			if len(resyncs) == 2 {
+				cancel()
+			}
 			return nil
 		},
 	}
 	monitor.run(ctx)
 	if len(resyncs) != 2 || !slices.Equal(resyncs[0], resyncs[1]) {
 		t.Fatalf("resyncs = %+v, want matching initial and first-frame-gap reads", resyncs)
+	}
+}
+
+func TestRuntimeChangeMonitorRefreshesFilesOnceForASequenceGap(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	service := newWorkspaceServiceStub()
+	source := &runtimeChangeSourceStub{
+		events: make(chan changefeed.Event, 1), subscription: make(chan changefeed.Subscription, 1),
+		supported: []changefeed.Topic{changefeed.FilesChanged},
+	}
+	source.events <- changefeed.Event{
+		Type: changefeed.EventType(changefeed.FilesChanged), Sequence: 2,
+		WatchID: workspaceWatchID, Workspace: "/workspace", Paths: []string{"main.go"},
+	}
+	resyncs := 0
+	monitor := runtimeChangeMonitor{
+		workspace: "/workspace", repository: service, source: source, watchFiles: true,
+		applyFiles: func([]workspace.Change) error { return nil },
+		applyResync: func([]changefeed.Topic) error {
+			resyncs++
+			if resyncs == 2 {
+				cancel()
+			}
+			return nil
+		},
+	}
+	monitor.run(ctx)
+	if reads := service.callCount("changes"); reads != 2 {
+		t.Fatalf("workspace change reads = %d, want initial read plus one gap recovery", reads)
+	}
+}
+
+func TestRuntimeChangeMonitorAppliesAContiguousScopedResync(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	source := &runtimeChangeSourceStub{
+		events: make(chan changefeed.Event, 1), subscription: make(chan changefeed.Subscription, 1),
+		supported: []changefeed.Topic{changefeed.SkillsChanged},
+	}
+	source.events <- changefeed.Event{
+		Type: changefeed.Resync, Sequence: 1, Topics: []changefeed.Topic{changefeed.SkillsChanged},
+	}
+	var applied []changefeed.Event
+	monitor := runtimeChangeMonitor{
+		source: source, includeSkills: true,
+		applyEvent: func(event changefeed.Event) error {
+			applied = append(applied, event)
+			cancel()
+			return nil
+		},
+	}
+	monitor.run(ctx)
+	if len(applied) != 1 || applied[0].Type != changefeed.Resync ||
+		!slices.Equal(applied[0].Topics, []changefeed.Topic{changefeed.SkillsChanged}) {
+		t.Fatalf("applied events = %+v, want the scoped resync frame", applied)
 	}
 }
 
