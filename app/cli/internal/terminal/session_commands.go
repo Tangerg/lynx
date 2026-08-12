@@ -282,7 +282,12 @@ func runSessionChangeWithDraftDisposition[T any](
 		a.message(label + " failed: " + err.Error())
 		return
 	}
-	a.persistDraft()
+	if err := a.saveDraft(baseline); err != nil {
+		a.reportWorkbenchError(err)
+		a.message("session change blocked: save session draft: " + err.Error())
+		return
+	}
+	a.reportWorkbenchError(nil)
 	a.sessionDraftTransition = &sessionDraftTransition{
 		sourceSessionID: a.session.ID,
 		baseline:        baseline,
@@ -405,7 +410,13 @@ func (a *app) prepareSessionInstallation(snapshot agent.SessionSnapshot) (sessio
 }
 
 func (a *app) prepareDestinationDraft(session agent.Session) (agent.Message, error) {
-	a.persistDraft()
+	current, _, err := a.currentDraft()
+	if err != nil {
+		return agent.Message{}, err
+	}
+	if err := a.saveDraft(current); err != nil {
+		return agent.Message{}, fmt.Errorf("save source session draft: %w", err)
+	}
 	draft, _, err := a.workbench.Draft(session.ID)
 	if err != nil {
 		return agent.Message{}, fmt.Errorf("load session draft: %w", err)
@@ -416,10 +427,6 @@ func (a *app) prepareDestinationDraft(session agent.Session) (agent.Message, err
 	transition := a.sessionDraftTransition
 	if transition == nil {
 		return draft, nil
-	}
-	current, _, err := a.currentDraft()
-	if err != nil {
-		return agent.Message{}, err
 	}
 	return transition.resolve(a.workbench, session.ID, draft, current)
 }
@@ -478,6 +485,7 @@ func (installation sessionInstallation) apply(a *app) {
 	a.transcript = installation.projection.transcript
 	a.wireTranscript(installation.projection.transcript)
 	a.restoreComposer(installation.draft)
+	a.draftState.Reset(a.session.ID, installation.draft)
 	a.activity.Reset()
 	a.status.Reset(a.options)
 	a.header.SetUsage(installation.projection.conversation.Usage())

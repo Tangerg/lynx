@@ -504,12 +504,22 @@ func TestTranscriptFocusDoesNotSubmitAndTypingReturnsToPrompt(t *testing.T) {
 		t.Fatalf("Enter with transcript focus started %d runs, want 1", got)
 	}
 
+	host.Send(input.Paste{Text: "pasted prompt"})
+	host.Shows(t, "pasted prompt")
+	host.Press(input.Enter)
+	host.Shows(t, "focused answer · pasted prompt")
+	if got := backend.startCount(); got != 2 {
+		t.Fatalf("pasting from transcript focus started %d runs, want 2", got)
+	}
+
+	host.Press(input.Tab)
+	host.Shows(t, "select prev")
 	host.Type("second prompt")
 	host.Shows(t, "second prompt")
 	host.Press(input.Enter)
 	host.Shows(t, "focused answer · second prompt")
-	if got := backend.startCount(); got != 2 {
-		t.Fatalf("typing from transcript focus started %d runs, want 2", got)
+	if got := backend.startCount(); got != 3 {
+		t.Fatalf("typing from transcript focus started %d runs, want 3", got)
 	}
 
 	host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
@@ -1261,6 +1271,79 @@ func TestCtrlCCancelsSessionChangeWithoutDiscardingTheDraft(t *testing.T) {
 	stop()
 }
 
+func TestSessionChangeDoesNotInstallAfterAnInFlightDraftSaveFailure(t *testing.T) {
+	base := mock.New()
+	backend := &blockingSessionChangeRuntime{
+		Runtime:       base,
+		blockCreateAt: 1,
+		changeStarted: make(chan struct{}),
+		releaseChange: make(chan struct{}),
+	}
+	stateDirectory := t.TempDir()
+	store, err := workbench.Open(stateDirectory, workbench.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SaveDraft("ses_demo_1", agent.Message{Text: "saved before transition"}); err != nil {
+		t.Fatal(err)
+	}
+	host, stop := runUIWithState(t, backend, "", "ses_demo_1", stateDirectory)
+	host.Shows(t, "saved before transition")
+	host.Send(input.Key{Code: input.Character, Rune: 'p', Mods: input.Ctrl})
+	host.Shows(t, "Commands")
+	host.Type("start a new session")
+	host.Shows(t, "/new")
+	host.Press(input.Enter)
+	select {
+	case <-backend.changeStarted:
+	case <-time.After(time.Second):
+		t.Fatal("session creation did not start")
+	}
+	host.Shows(t, "creating session in /tmp/demo/store")
+
+	draftsDirectory := filepath.Join(stateDirectory, "drafts")
+	entries, err := os.ReadDir(draftsDirectory)
+	if err != nil || len(entries) != 1 {
+		t.Fatalf("draft files = %d, %v", len(entries), err)
+	}
+	draftPath := filepath.Join(draftsDirectory, entries[0].Name())
+	backupPath := draftPath + ".backup"
+	if err := os.Rename(draftPath, backupPath); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(draftPath, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(draftPath, "blocker"), []byte("block replacement"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	host.Send(input.Paste{Text: " plus input during transition"})
+	host.Shows(t, "saved before transition plus input during transition")
+	host.Shows(t, "workbench:")
+	close(backend.releaseChange)
+	host.Shows(t, "failed: save source")
+	host.Shows(t, "saved before transition plus input during transition")
+	host.Shows(t, "Flaky cache expiry test")
+	page, err := base.ListSessions(t.Context(), agent.SessionQuery{Limit: 100})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(page.Items) != 4 {
+		t.Fatalf("runtime sessions = %d, want created session to remain discoverable", len(page.Items))
+	}
+
+	if err := os.Remove(filepath.Join(draftPath, "blocker")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(draftPath); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(backupPath, draftPath); err != nil {
+		t.Fatal(err)
+	}
+	stop()
+}
+
 func TestSessionSwitchRebindsWorkspaceAttachmentsAndDropsOldChips(t *testing.T) {
 	firstWorkspace := t.TempDir()
 	secondWorkspace := t.TempDir()
@@ -1698,6 +1781,58 @@ func TestUserCreatedSessionPreservesTheSourceDraft(t *testing.T) {
 	if draft, found, err := store.Draft(replacementID); err != nil || found {
 		t.Fatalf("new session draft = %+v, found %t, error %v", draft, found, err)
 	}
+}
+
+func TestSessionChangeStopsBeforeMutationWhenTheSourceDraftCannotBeSaved(t *testing.T) {
+	backend := mock.New()
+	stateDirectory := t.TempDir()
+	store, err := workbench.Open(stateDirectory, workbench.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SaveDraft("ses_demo_1", agent.Message{Text: "durable prefix"}); err != nil {
+		t.Fatal(err)
+	}
+	host, stop := runUIWithState(t, backend, "/tmp/lyra-cli-test", "ses_demo_1", stateDirectory)
+	host.Shows(t, "durable prefix")
+
+	draftsDirectory := filepath.Join(stateDirectory, "drafts")
+	backupDirectory := filepath.Join(stateDirectory, "drafts-backup")
+	if err := os.Rename(draftsDirectory, backupDirectory); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(draftsDirectory, []byte("block draft writes"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	host.Send(input.Paste{Text: " plus unsaved input"})
+	host.Shows(t, "workbench:")
+
+	before, err := backend.ListSessions(t.Context(), agent.SessionQuery{Limit: 100})
+	if err != nil {
+		t.Fatal(err)
+	}
+	host.Send(input.Key{Code: input.Character, Rune: 'p', Mods: input.Ctrl})
+	host.Shows(t, "Commands")
+	host.Type("start a new session")
+	host.Shows(t, "/new")
+	host.Press(input.Enter)
+	host.Shows(t, "session change blocked: save session draft")
+	host.Shows(t, "durable prefix plus unsaved input")
+	after, err := backend.ListSessions(t.Context(), agent.SessionQuery{Limit: 100})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(after.Items) != len(before.Items) {
+		t.Fatalf("failed draft save changed session count from %d to %d", len(before.Items), len(after.Items))
+	}
+
+	if err := os.Remove(draftsDirectory); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(backupDirectory, draftsDirectory); err != nil {
+		t.Fatal(err)
+	}
+	stop()
 }
 
 func TestPromptStashCanBeListedAppliedAndDeleted(t *testing.T) {

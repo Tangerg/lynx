@@ -114,6 +114,8 @@ type app struct {
 	stack          headless.Stack
 	queue          *promptqueue.Queue
 	workbench      *workbench.Store
+	drafts         *draftPersistence
+	draftState     draftObservation
 	editor         promptEditor
 
 	approval            *agent.Approval
@@ -272,6 +274,14 @@ func newApp(loop *program.Runtime, cfg appConfig) *app {
 		applicationKeys:    cfg.keyBindings.application,
 		globalKeys:         cfg.keyBindings.global,
 	}
+	a.drafts = newDraftPersistence(cfg.workbench, draftPersistenceDelay, func(result draftPersistenceResult) {
+		loop.Dispatcher().Post(func() {
+			if a.closed || !a.drafts.Current(result.revision) {
+				return
+			}
+			a.reportWorkbenchError(result.err)
+		})
+	})
 	a.transcript.images = newTerminalImagePresenter(loop.Images())
 	a.configureComposer(appearance, cfg.keyBindings.editor, cfg.initialDraft)
 	a.configureCompletion(appearance)
@@ -536,7 +546,6 @@ func (a *app) Close(ctx context.Context) {
 	if a.closed {
 		return
 	}
-	a.persistDraft()
 	a.closed = true
 	target, cancelRuntime := a.activeCancellation()
 	if !cancelRuntime && a.pendingCancel != nil {
@@ -546,6 +555,12 @@ func (a *app) Close(ctx context.Context) {
 	a.operations.Cancel(completionOperation)
 	a.cancelPluginCommands()
 	a.operations.Close()
+	// Flush is a serialization barrier: any autosave already in the filesystem
+	// finishes first, then the last visible composer state is written last.
+	a.persistDraft()
+	if err := a.drafts.Close(); err != nil {
+		a.reportWorkbenchError(err)
+	}
 	if cancelRuntime {
 		a.cancelRuntimeNow(ctx, target)
 	}

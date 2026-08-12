@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/Tangerg/oolong/components/headless"
 	"github.com/Tangerg/oolong/components/kit"
@@ -15,9 +16,30 @@ import (
 
 const fileElement headless.ElementKind = 1
 
+const draftPersistenceDelay = 150 * time.Millisecond
+
 type attachmentInsertion struct {
 	item  agent.Attachment
 	count int
+}
+
+type draftObservation struct {
+	sessionID string
+	message   agent.Message
+	ready     bool
+}
+
+func (observation *draftObservation) Observe(sessionID string, message agent.Message) bool {
+	changed := observation.ready &&
+		(observation.sessionID != sessionID || !observation.message.Equal(message))
+	observation.Reset(sessionID, message)
+	return changed
+}
+
+func (observation *draftObservation) Reset(sessionID string, message agent.Message) {
+	observation.sessionID = sessionID
+	observation.message = message.Clone()
+	observation.ready = true
 }
 
 // promptHistory keeps semantic messages rather than rendered editor text. A
@@ -304,14 +326,32 @@ func (a *app) rememberPrompt(message agent.Message) {
 }
 
 func (a *app) persistDraft() {
-	if a.workbench == nil || a.session.ID == "" {
-		return
-	}
 	message, _, err := a.currentDraft()
 	if err == nil {
-		err = a.workbench.SaveDraft(a.session.ID, message)
+		err = a.saveDraft(message)
 	}
 	a.reportWorkbenchError(err)
+}
+
+// observeDraftPersistence compares complete authoring values, so navigation,
+// modal input, and focus changes do not create filesystem work.
+func (a *app) observeDraftPersistence() {
+	message, _, err := a.currentDraft()
+	if err != nil {
+		a.reportWorkbenchError(err)
+		return
+	}
+	if a.draftState.Observe(a.session.ID, message) {
+		a.drafts.Schedule(a.session.ID, message)
+	}
+}
+
+func (a *app) saveDraft(message agent.Message) error {
+	if a.drafts == nil || a.session.ID == "" {
+		return nil
+	}
+	a.draftState.Reset(a.session.ID, message)
+	return a.drafts.Flush(a.session.ID, message)
 }
 
 func (a *app) reportWorkbenchError(err error) {

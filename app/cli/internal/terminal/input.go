@@ -10,7 +10,7 @@ import (
 )
 
 func (a *app) Handle(event input.Event) bool {
-	defer a.persistDraft()
+	defer a.observeDraftPersistence()
 	a.observeAttention(event)
 	matched, handled := a.matchConfiguredAction(event)
 	if handled {
@@ -208,6 +208,9 @@ func (a *app) currentDraft() (agent.Message, bool, error) {
 }
 
 func isPromptTextEvent(event input.Event) bool {
+	if paste, ok := event.(input.Paste); ok {
+		return paste.Text != ""
+	}
 	key, ok := event.(input.Key)
 	if !ok || !key.Down() || key.Code != input.Character {
 		return false
