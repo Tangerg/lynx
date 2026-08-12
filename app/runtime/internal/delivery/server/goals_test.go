@@ -60,6 +60,18 @@ func TestGoalPtrOmitsReasonForActiveGoal(t *testing.T) {
 	}
 }
 
+func TestGoalPtrProjectsCompletingGoalDuringSettlement(t *testing.T) {
+	t.Parallel()
+
+	presented, err := presentGoal(goal.Goal{Status: goal.StatusComplete})
+	if err != nil {
+		t.Fatalf("presentGoal: %v", err)
+	}
+	if presented.Status != protocol.GoalCompleting {
+		t.Fatalf("status = %q, want %q", presented.Status, protocol.GoalCompleting)
+	}
+}
+
 func TestGoalPtrRejectsUnknownReasonCode(t *testing.T) {
 	t.Parallel()
 

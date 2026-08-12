@@ -156,6 +156,7 @@ export const ja: Record<string, string> = {
   "goal.status.active": "実行中",
   "goal.status.paused": "一時停止",
   "goal.status.blocked": "ブロック中",
+  "goal.status.completing": "完了処理中",
   "goal.budget.runs": "ターン",
   "goal.budget.cost": "コスト",
   "goal.budget.steps": "ステップ",

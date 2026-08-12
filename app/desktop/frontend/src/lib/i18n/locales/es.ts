@@ -157,6 +157,7 @@ export const es: Record<string, string> = {
   "goal.status.active": "En curso",
   "goal.status.paused": "En pausa",
   "goal.status.blocked": "Bloqueado",
+  "goal.status.completing": "Finalizando",
   "goal.budget.runs": "Turnos",
   "goal.budget.cost": "Coste",
   "goal.budget.steps": "Pasos",

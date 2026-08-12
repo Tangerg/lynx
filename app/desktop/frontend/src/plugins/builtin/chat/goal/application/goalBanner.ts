@@ -67,6 +67,7 @@ export const GOAL_STATUS_I18N = {
   active: { tone: "neutral", label: "goal.status.active" },
   paused: { tone: "warning", label: "goal.status.paused" },
   blocked: { tone: "negative", label: "goal.status.blocked" },
+  completing: { tone: "neutral", label: "goal.status.completing" },
 } as const satisfies Record<
   GoalStatus,
   { tone: "neutral" | "warning" | "negative"; label: string }

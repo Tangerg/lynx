@@ -388,3 +388,11 @@
 - 决策：Goal 可在 owned Run 仍 parked 时先恢复 drive。`application/runs.WaitSessionStartable` 必须同时观察 process-local admission 与 durable non-terminal Run，并由 committed Run lifecycle change 唤醒后重读；它不把等待当 reservation，也不以重试延迟掩盖 durable conflict。
 - 决策：capability carrier 位于 `adapter/executionctx`，只由 `adapter/agentexec` 在 Runtime/Framework 防腐边界写入、Tool adapter 读取；Domain/Application 值不依赖 context，Toolset 不依赖 Agent Framework，Agent module 不认识 Runtime capability、Goal、Run 或 Store。
 - 后果：Goal 的 HITL/child 能力与创建目标时的真实客户端承诺一致，冷恢复和嵌套 Goal 不降级也不扩权；边界仍保持 `adapter/agentexec` 是唯一 Framework concrete import island。
+
+## ADR-RT-058：Goal 完成声明到最终结算是可观察的读模型状态
+
+- 状态：已接受并实施，P37 完成；不改变 Goal Domain 状态机、SQLite shape、Artifact 或 Agent Framework 合同。
+- 背景：模型通过 terminal-outcome boundary 将 Goal 原子推进到 Domain `complete` 后，owning Run 仍可能继续提交最终消息、usage 与 Goal 记账；Application driver 只有在该 Run terminal 后才条件清除 Goal。Goal store 的每次成功写都会发布 `goals.changed`，因此客户端在完成写与清除之间回读是合法时序。旧 Protocol 却声称 complete 一定在客户端观察前清除，Delivery 因而拒绝这个有效快照，使一次正确 invalidation 确定性导向 `goals.get` 错误。
+- 决策：Domain 保留 `StatusComplete` 作为 objective 已完成、等待 owner settlement 的内部事实；Delivery 在公共 Goal read model 中将它投影为 `status:"completing"`。该词描述消费者此刻能做什么，而不复制 Domain transition 名。`completing` 保持 Goal 占位但不可 stop/resume/start；最终 accounting 与条件清除仍只由 Application drive 拥有，下一次 invalidation 后读取 `null`。
+- 决策：生成的 Go/JSON Schema/TypeScript enum、Desktop vendored binding 与 Goal context 自有 read model 原子同步。Desktop banner 本地化显示收尾状态且不暴露 lifecycle command；组件不 import Runtime client，gateway/provider 边界不改变。不得以吞掉读取错误、投影为 active、提前返回 null 或客户端重试延迟掩盖该状态。
+- 后果：`goals.changed → goals.get` 在完成窗口内保持闭合，客户端不会提前开放 fresh Goal launcher 或错误地恢复/停止终态目标。Runtime Domain/Application/Delivery、Desktop context 与 Agent Framework 的抽象边界保持不变。

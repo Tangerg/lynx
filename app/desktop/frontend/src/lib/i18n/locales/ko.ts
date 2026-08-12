@@ -156,6 +156,7 @@ export const ko: Record<string, string> = {
   "goal.status.active": "진행 중",
   "goal.status.paused": "일시 중지",
   "goal.status.blocked": "차단됨",
+  "goal.status.completing": "마무리 중",
   "goal.budget.runs": "턴",
   "goal.budget.cost": "비용",
   "goal.budget.steps": "스텝",

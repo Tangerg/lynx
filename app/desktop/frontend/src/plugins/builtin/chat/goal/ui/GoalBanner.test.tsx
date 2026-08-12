@@ -81,4 +81,15 @@ describe("GoalBanner disclosure identity", () => {
     await vi.waitFor(() => expect(model.resumeGoal).toHaveBeenCalledWith("session-a"));
     expect(model.stopGoal).not.toHaveBeenCalled();
   });
+
+  it("keeps a completing goal visible without exposing a lifecycle command", () => {
+    model.goal = { ...model.goal, status: "completing" };
+    render(<GoalBanner />);
+
+    expect(screen.getByText("Finishing")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Stop" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Resume" })).toBeNull();
+    expect(model.stopGoal).not.toHaveBeenCalled();
+    expect(model.resumeGoal).not.toHaveBeenCalled();
+  });
 });

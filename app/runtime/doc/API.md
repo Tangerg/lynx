@@ -851,6 +851,10 @@ embedding 角色属于运行时配置（§7.6），不是每次检索的参数�
 决定行为并本地化文案；`detail` 只携带安全的领域/模型上下文。runtime 不生成面向用户的英文句子，也不把基础设施错误
 写入 goal。active goal 省略 `reason`。
 
+`status:"completing"` 是可观察的收尾窗口：模型已声明目标成功，但 owning drive 仍在提交最终 Run 记账并清除 goal。
+它不是可恢复的暂停态；客户端必须保留 goal 占位、禁止 stop/resume/start，等待下一次 `goals.changed` 后回读到 `null`。
+这避免把完成声明与最终记账之间的合法状态伪装成读取失败或“没有 goal”。
+
 ---
 
 ## 8. 错误

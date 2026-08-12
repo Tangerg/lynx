@@ -961,6 +961,11 @@
           "value": "\"blocked\""
         },
         {
+          "name": "GoalCompleting",
+          "type": "GoalStatus",
+          "value": "\"completing\""
+        },
+        {
           "name": "GoalPaused",
           "type": "GoalStatus",
           "value": "\"paused\""

@@ -158,6 +158,7 @@ export const zhTW: Record<string, string> = {
   "goal.status.active": "進行中",
   "goal.status.paused": "已暫停",
   "goal.status.blocked": "已阻塞",
+  "goal.status.completing": "正在收尾",
   "goal.budget.runs": "輪次",
   "goal.budget.cost": "花費",
   "goal.budget.steps": "步數",

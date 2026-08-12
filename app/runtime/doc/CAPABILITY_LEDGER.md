@@ -94,6 +94,7 @@
 | JSON-RPC envelope ambiguity | `delivery/transport.DecodeMessage` 在 SDK decode 前递归拒绝 duplicate/unknown member、空 method、非字符串 id、request/response 混合及 result/error 双载荷；HTTP 只接受 request/notification 并投影 transport problem | Retain exact transport owner | P25-02 完成 |
 | Adversarial recovery matrix | HITL 双提交与真实 ask_user resume、Plan revision 2、Goal completed/blocked/budget、cancel/resume、idempotency drift、cursor、transaction failure、断线与 active-Run `kill -9` 已覆盖；崩溃 started invocation 收口 unknown，真实终态无开放 lifecycle | Retain regression matrix | P25-03 完成 |
 | Standalone Framework dependency | Agent Baseline 20 已发布为 commit `8e667d716b22`；Runtime 直接绑定远端 pseudo-version `v0.0.0-20260811152247-8e667d716b22`，没有 `replace`、Schema 复制或 metadata 降形旁路 | Retain canonical dependency | P25-04 完成 |
+| Goal terminal settlement projection | Domain `complete` 保持 objective terminal fact，Application drive 独占最终 Run accounting 与条件清除；Delivery 将可观察窗口投影为公共 `completing`，Desktop Goal context 保留占位且禁止 lifecycle command，随后由 `goals.changed` 收敛到 `null` | Retain exact cross-layer owners | P37 完成 |
 
 ## 3. 产品领域能力
 
@@ -404,3 +405,4 @@ P8 production cutover 已用真实 Bootstrap consumer 冻结 root stage/observe/
 - P35 将这个 wake-only 原则补齐到完整生命周期：Runtime Session change generation 只由活跃 Application waiter 持有，多观察者共享当代通知并以幂等 disposer 释放，无 waiter 时不保存 Session 条目；它不是 durable state/cache，也不承担 reservation。
 - P35 同时关闭 Desktop 的 snapshot→subscribe TOCTOU 与 accepted boundary 混淆：initial recovery/replay reattach 遇到 terminal/waiting/stale 时经 Agent application port 重读 durable projection；只有 Run ack 前拒绝进入 command error/HITL rollback，ack 后 stream failure 不否定已提交命令。Runtime DTO、Store、transaction 与 Agent Framework concrete type 均未进入 Agent context。
 - P36 关闭 Desktop 旁路 file watch 的静默失联：Session workspace adapter 只把 `session_not_found` 解释为权威 unavailable，Workspace event application 对其他瞬时失败执行同 identity 可取消退避；retarget/dispose 使旧 generation 失效，global topics 与 file watch 继续由唯一 `runtime.subscribe` consumer 拥有。该恢复策略没有进入 Agent context，Runtime/Protocol/Artifact/SQLite shape 均未变化。
+- P37 纠正 Goal 完成态不可观察的错误协议假设：Domain/Application 继续分别拥有 terminal fact 与最终 settlement，Delivery 只将该窗口投影为 `completing`；生成合同与 Desktop 自有 read model 同步，banner 保留目标但不提供 stop/resume，最终清除仍经 invalidation 收敛。真实 HTTP 回归在 `report_goal_outcome(completed)` 后卡住 owning Run，证明 `goals.changed → goals.get(completing) → null` 全链闭合；Agent Framework、Artifact 与 SQLite 均未变化。

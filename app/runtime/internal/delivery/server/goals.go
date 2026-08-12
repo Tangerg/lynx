@@ -135,6 +135,8 @@ func presentGoalStatus(status goal.Status) (protocol.GoalStatus, bool) {
 		return protocol.GoalPaused, true
 	case goal.StatusBlocked:
 		return protocol.GoalBlocked, true
+	case goal.StatusComplete:
+		return protocol.GoalCompleting, true
 	default:
 		return "", false
 	}

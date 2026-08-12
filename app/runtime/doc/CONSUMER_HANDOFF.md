@@ -67,6 +67,11 @@ handwritten `schedules.update` wrapper to consume `UpdateScheduleRequest`
 directly, and connected the default-workspace branch to the Schedule settings
 product form.
 
+P37 synchronized the generated Goal status and validator. During the valid
+terminal settlement window, `goals.get` returns `status:"completing"`; a consumer
+keeps the Goal visible, offers no stop/resume/start action, and waits for the
+following `goals.changed` read to return `null`.
+
 - `app/desktop/frontend/src/rpc/` generated bindings, validators, samples, SDK,
   preflight, and schema tests;
 - `app/desktop/frontend/src/plugins/builtin/runtime/` discovery and capability

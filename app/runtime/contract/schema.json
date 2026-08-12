@@ -2488,7 +2488,8 @@
       "enum": [
         "active",
         "paused",
-        "blocked"
+        "blocked",
+        "completing"
       ]
     },
     "GoalUsage": {

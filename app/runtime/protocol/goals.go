@@ -5,8 +5,9 @@ import (
 )
 
 // Goal is one session's autonomous objective and loop state (API.md §7.14).
-// status is active | paused | blocked; a completed goal is cleared, so it never
-// appears here.
+// status is active | paused | blocked | completing. Completing is the observable
+// settlement window after the model has declared success and before the owning
+// drive has charged the final Run and cleared the objective.
 type Goal struct {
 	SessionID string      `json:"sessionId"`
 	Objective string      `json:"objective"`
@@ -20,16 +21,17 @@ type Goal struct {
 	UpdatedAt time.Time   `json:"updatedAt"`
 }
 
-// GoalStatus is the durable resting-state vocabulary exposed by the
-// autonomous-goal API. The domain's complete state is intentionally absent:
-// it is a loop-internal transient that is cleared before a client can observe
-// a goal again.
+// GoalStatus is the lifecycle vocabulary exposed by the autonomous-goal API.
+// Completing is intentionally a read-model word rather than the domain's
+// complete: the objective is complete, but its owning drive is still settling
+// final accounting and remains the lifecycle owner until the row is cleared.
 type GoalStatus string
 
 const (
-	GoalActive  GoalStatus = "active"
-	GoalPaused  GoalStatus = "paused"
-	GoalBlocked GoalStatus = "blocked"
+	GoalActive     GoalStatus = "active"
+	GoalPaused     GoalStatus = "paused"
+	GoalBlocked    GoalStatus = "blocked"
+	GoalCompleting GoalStatus = "completing"
 )
 
 // GoalReason is machine-readable stopping context. Code determines client

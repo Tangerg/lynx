@@ -49,7 +49,7 @@ function GoalDisclosure({ goal }: { goal: GoalReadModel }) {
   const axes = goalBudgetAxes(goal);
 
   const changeStatus = async () => {
-    if (commandInFlight.current) return;
+    if (commandInFlight.current || goal.status === "completing") return;
     commandInFlight.current = true;
     setBusy(true);
     try {
@@ -87,15 +87,17 @@ function GoalDisclosure({ goal }: { goal: GoalReadModel }) {
                 {t(GOAL_STATUS_I18N[goal.status].label)}
               </Badge>
             )}
-            <TextButton
-              type="button"
-              size="sm"
-              tone={goal.status === "active" ? "negative" : "accent"}
-              disabled={busy}
-              onClick={() => void changeStatus()}
-            >
-              {goal.status === "active" ? t("goal.action.stop") : t("goal.action.resume")}
-            </TextButton>
+            {goal.status !== "completing" && (
+              <TextButton
+                type="button"
+                size="sm"
+                tone={goal.status === "active" ? "negative" : "accent"}
+                disabled={busy}
+                onClick={() => void changeStatus()}
+              >
+                {goal.status === "active" ? t("goal.action.stop") : t("goal.action.resume")}
+              </TextButton>
+            )}
           </div>
         }
         open={expanded}

@@ -37,8 +37,8 @@ Digest 只用于发现未审计漂移，不能替代语义测试。
 |---|---|
 | `contract/manifest.json` | `5494c98252895b0bf5c52e0f70bded54841ab9f0383e707c83258db0bce647d7` |
 | `contract/openrpc.json` | `60db6e751a820c15f89305aac655069e5f30f00a63492ef98e435f19b1a01ddc` |
-| `contract/schema.json` | `351a1b358c5d3f67650ccf2bfd8be15da4b542e56a2b0c2ea9d74fd2adaab8e7` |
-| `contract/go-api.json` | `920323dc29d151c32169e3eb73abe1c067d8ad8ca3eb61979d42ef91d110ae84` |
+| `contract/schema.json` | `3b34f384432bf2fc964a1b5720aee0be11f645cbff899abff00b285f219b9525` |
+| `contract/go-api.json` | `92454a0ee5fd0bb3ccdee91a63d1ccb1fc489daad36b049bc0c009ae333e7b16` |
 
 TypeScript generated files 是派生制品，不单独定义语义。它们必须由同一个 contract generator 产生且 diff-free；当前前端/TUI/CLI 是否已经消费最新 shape，由 P10/P12 的 consumer handoff 记录，不通过兼容字段掩盖。
 
@@ -51,6 +51,8 @@ TypeScript generated files 是派生制品，不单独定义语义。它们必�
 本文件不复制 method、field、error 或 example catalog。
 
 当前协议版本为 `2026-08-12`，只服务同值的 `minSupported`。唯一 replay scope 是 `runtimeInstanceRootSegment`：它准确表达一个 Runtime instance 内的一条 root Segment replay buffer；旧 `processRootSegment` 已直接删除。消费者 breaking surface 与未接线事实由 [`CONSUMER_HANDOFF.md`](CONSUMER_HANDOFF.md) 唯一记录。
+
+Goal read model 的 `status:"completing"` 精确表示模型已声明 objective 成功、但 owning Run 的最终记账与条件清除尚未完成。它保持目标占位且不可 stop/resume/start；下一次 `goals.changed` 后读取 `null` 才表示 settlement owner 已释放。Domain `complete`、Application drive 与公共 `completing` 分属各层，不互相泄露类型。
 
 公共 Go surface 只有 `runtime/protocol` 与 `runtime/embedded`，由生成的 `contract/go-api.json` 完整冻结。`protocol` 只公开 binding-neutral values、strict validation、版本、稳定错误 identity 与 `ProblemError`；`embedded` 只公开 concrete Runtime lifecycle、准确 options 和类型化 operation methods。服务端 method interface、request context plumbing、numeric JSON-RPC code、reflection shape walker、artifact catalogue、Host、Store、Engine 和 Router 均属于 `internal`，不构成公共 Go surface。
 

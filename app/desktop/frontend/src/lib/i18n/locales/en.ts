@@ -169,6 +169,7 @@ export const en: Record<string, string> = {
   "goal.status.active": "Running",
   "goal.status.paused": "Paused",
   "goal.status.blocked": "Blocked",
+  "goal.status.completing": "Finishing",
   "goal.budget.runs": "Turns",
   "goal.budget.cost": "Cost",
   "goal.budget.steps": "Steps",

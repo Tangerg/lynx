@@ -11,7 +11,7 @@ import { createParameterizedDataQuery } from "@/plugins/sdk";
 
 export const GOAL_KEY = "goal";
 
-export type GoalStatus = "active" | "paused" | "blocked";
+export type GoalStatus = "active" | "paused" | "blocked" | "completing";
 
 // A zero field is uncapped on that axis (matches the wire's omit-when-zero).
 export interface GoalBudget {

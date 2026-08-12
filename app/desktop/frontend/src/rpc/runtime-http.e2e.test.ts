@@ -62,6 +62,7 @@ interface ProviderGate {
   claimed: boolean;
   closed: Deferred;
   marker: string;
+  minimumToolResults: number;
   release: Deferred;
 }
 
@@ -73,12 +74,13 @@ function deferred(): Deferred {
   return { promise, resolve };
 }
 
-function createProviderGate(marker: string): ProviderGate {
+function createProviderGate(marker: string, minimumToolResults = 0): ProviderGate {
   return {
     arrived: deferred(),
     claimed: false,
     closed: deferred(),
     marker,
+    minimumToolResults,
     release: deferred(),
   };
 }
@@ -108,6 +110,19 @@ function scriptedReply(body: FakeChatRequest): { text?: string; tool?: FakeToolC
   );
   const toolResultCount = (body.messages ?? []).filter((message) => message.role === "tool").length;
   const hasToolResult = toolResultCount > 0;
+
+  if (
+    transcript.includes("E2E_GOAL_SETTLEMENT") &&
+    availableTools.has("report_goal_outcome") &&
+    !hasToolResult
+  ) {
+    return {
+      tool: {
+        name: "report_goal_outcome",
+        arguments: JSON.stringify({ outcome: "completed" }),
+      },
+    };
+  }
 
   if (transcript.includes("E2E_HITL") && availableTools.has("ask_user") && !hasToolResult) {
     return {
@@ -519,7 +534,9 @@ for await (const line of lines) {
         if (
           gate !== undefined &&
           !gate.claimed &&
-          JSON.stringify(body.messages ?? []).includes(gate.marker)
+          JSON.stringify(body.messages ?? []).includes(gate.marker) &&
+          (body.messages ?? []).filter((message) => message.role === "tool").length >=
+            gate.minimumToolResults
         ) {
           gate.claimed = true;
           response.once("close", gate.closed.resolve);
@@ -1444,6 +1461,66 @@ for await (const line of lines) {
 
     streamController.abort();
     await runtimeEvents.return?.();
+  }, 30_000);
+
+  it("publishes a readable completing goal while final Run settlement is pending", async () => {
+    if (!client) throw new Error("runtime client was not initialized");
+
+    const gate = createProviderGate("E2E_GOAL_SETTLEMENT", 1);
+    providerGate = gate;
+    const streamController = new AbortController();
+    let runtimeEvents: AsyncIterator<RuntimeEvent> | undefined;
+    try {
+      const session = await client.sessions.create({
+        workspace: { path: root },
+        title: "HTTP goal settlement lifecycle",
+      });
+      const sessionId = asSessionId(session.id);
+      const subscription = await client.runtimeEvents.subscribe(
+        { topics: ["goals.changed"] },
+        streamController.signal,
+      );
+      runtimeEvents = subscription.events[Symbol.asyncIterator]();
+
+      await expect(
+        client.goals.start({
+          sessionId,
+          objective: "E2E_GOAL_SETTLEMENT expose the terminal settlement window.",
+        }),
+      ).resolves.toMatchObject({ status: "active" });
+      await nextRuntimeEvent(runtimeEvents, "goals.changed");
+
+      await within(gate.arrived.promise, "the post-outcome model request");
+      await nextRuntimeEvent(runtimeEvents, "goals.changed");
+      const completing = await client.goals.get(sessionId);
+      expect(completing).toMatchObject({
+        sessionId: session.id,
+        status: "completing",
+      });
+      expect(completing).not.toHaveProperty("reason");
+
+      gate.release.resolve();
+      providerGate = undefined;
+      let current = await client.goals.get(sessionId);
+      for (let attempt = 0; attempt < 100 && current !== null; attempt++) {
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        current = await client.goals.get(sessionId);
+      }
+      expect(current).toBeNull();
+      await expect(client.runs.list({ sessionId })).resolves.toMatchObject({
+        data: [
+          expect.objectContaining({
+            status: "finished",
+            outcome: { type: "completed" },
+          }),
+        ],
+      });
+    } finally {
+      gate.release.resolve();
+      providerGate = undefined;
+      streamController.abort();
+      await runtimeEvents?.return?.();
+    }
   }, 30_000);
 
   it("parks and resumes a goal run through the negotiated HITL capability", async () => {

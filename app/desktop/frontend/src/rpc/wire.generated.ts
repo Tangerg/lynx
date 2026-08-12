@@ -543,7 +543,7 @@ export interface GoalRequest {
   sessionId: string;
 }
 
-export type GoalStatus = "active" | "paused" | "blocked";
+export type GoalStatus = "active" | "paused" | "blocked" | "completing";
 
 export interface GoalUsage {
   costUsd: number;
@@ -1602,7 +1602,7 @@ export const WIRE_ENUMS = {
   FileEntryType: ["file", "dir", "symlink"],
   FileStatus: ["added", "modified", "deleted", "renamed", "untracked"],
   GoalReasonCode: ["stoppedByUser", "runtimeRestarted", "runStartFailed", "awaitingInput", "terminalOutcomeMissing", "runNotCompleted", "runBudgetReached", "costBudgetReached", "stepBudgetReached", "blockedByModel"],
-  GoalStatus: ["active", "paused", "blocked"],
+  GoalStatus: ["active", "paused", "blocked", "completing"],
   HookEvent: ["PreToolUse", "PostToolUse", "UserPromptSubmit", "SessionStart", "SubagentStart", "SubagentStop", "PreCompact", "Stop", "Notification"],
   HookScope: ["global", "project"],
   InterruptResponseType: ["approval", "answer", "toolResult"],

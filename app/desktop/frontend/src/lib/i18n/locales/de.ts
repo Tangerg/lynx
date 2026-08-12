@@ -157,6 +157,7 @@ export const de: Record<string, string> = {
   "goal.status.active": "Läuft",
   "goal.status.paused": "Angehalten",
   "goal.status.blocked": "Blockiert",
+  "goal.status.completing": "Wird abgeschlossen",
   "goal.budget.runs": "Runden",
   "goal.budget.cost": "Kosten",
   "goal.budget.steps": "Schritte",

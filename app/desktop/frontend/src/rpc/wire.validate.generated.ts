@@ -1071,7 +1071,7 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
   GoalRequest: object({
     sessionId: allOf([text(), minLength(1)]),
   }, ["sessionId"]),
-  GoalStatus: enumOf(["active", "paused", "blocked"]),
+  GoalStatus: enumOf(["active", "paused", "blocked", "completing"]),
   GoalUsage: object({
     costUsd: numeric(),
     runs: integer(),
