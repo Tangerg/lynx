@@ -1,7 +1,11 @@
 import { queryClient } from "@/lib/queryClient";
 import { createKeyedSerialTaskQueue } from "@/lib/serialTaskQueue";
-import { GOAL_KEY, type GoalReadModel, type GoalState } from "./goalQueries";
-import { goalCommandsGateway, type StartGoalInput } from "./ports/goalCommandsGateway";
+import { GOAL_KEY } from "./goalQueries";
+import {
+  goalCommandsGateway,
+  type GoalCommandReceipt,
+  type StartGoalInput,
+} from "./ports/goalCommandsGateway";
 
 function invalidateGoal(sessionId: string): Promise<void> {
   return queryClient
@@ -11,32 +15,26 @@ function invalidateGoal(sessionId: string): Promise<void> {
 
 const goalMutations = createKeyedSerialTaskQueue<string>();
 
-function fractionalNanosecondsAfterMillis(timestamp: string): number {
-  const fraction = /\.(\d+)(?:Z|[+-]\d{2}:\d{2})$/.exec(timestamp)?.[1] ?? "";
-  return Number((fraction.slice(3, 9) + "000000").slice(0, 6));
+export class GoalCommandSessionMismatchError extends Error {
+  constructor(
+    readonly expectedSessionId: string,
+    readonly actualSessionId: string,
+  ) {
+    super();
+    this.name = "GoalCommandSessionMismatchError";
+  }
 }
 
-function isLaterTimestamp(held: string, arriving: string): boolean {
-  const heldMillis = Date.parse(held);
-  const arrivingMillis = Date.parse(arriving);
-  if (!Number.isFinite(heldMillis) || !Number.isFinite(arrivingMillis)) return held > arriving;
-  if (heldMillis !== arrivingMillis) return heldMillis > arrivingMillis;
-  return fractionalNanosecondsAfterMillis(held) > fractionalNanosecondsAfterMillis(arriving);
-}
-
-function commitGoal(goal: GoalReadModel): void {
-  const queryKey = [GOAL_KEY, { sessionId: goal.sessionId }] as const;
-  queryClient.setQueryData<GoalState>(queryKey, (current) => {
-    const held = current?.goal;
-    if (held && isLaterTimestamp(held.updatedAt, goal.updatedAt)) return current;
-    return { available: true, goal };
-  });
-}
-
-async function mutateGoal(sessionId: string, command: () => Promise<GoalReadModel>): Promise<void> {
+async function mutateGoal(
+  sessionId: string,
+  command: () => Promise<GoalCommandReceipt>,
+): Promise<void> {
   await goalMutations.run(sessionId, async () => {
     try {
-      commitGoal(await command());
+      const committed = await command();
+      if (committed.sessionId !== sessionId) {
+        throw new GoalCommandSessionMismatchError(sessionId, committed.sessionId);
+      }
     } catch (error) {
       // A command rejection may be a revision/admission race with another client,
       // or a response lost after Runtime committed. Preserve the command error for
@@ -49,9 +47,12 @@ async function mutateGoal(sessionId: string, command: () => Promise<GoalReadMode
       }
       throw error;
     }
-    // Revalidation is part of the serialized lifecycle settlement. Starting the
-    // next command while this read is still in flight could let an intermediate
-    // projection race the newer command response.
+    // Mutation responses are point-in-time acknowledgements, not the standing
+    // Goal read model. Only goals.get may write that model: a delayed response can
+    // otherwise overwrite a newer autonomous or remote transition, and updatedAt
+    // cannot establish authority across equal timestamps or a clock correction.
+    // Keep the next local command behind this read so intent order and projection
+    // order have one settlement boundary.
     await invalidateGoal(sessionId);
   });
 }

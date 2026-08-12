@@ -1,11 +1,13 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { QueryObserver } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import {
   configureGoalCommandsGateway,
+  type GoalCommandReceipt,
   type GoalCommandsGateway,
 } from "./ports/goalCommandsGateway";
-import { GOAL_KEY, type GoalReadModel } from "./goalQueries";
-import { resumeGoal, startGoal, stopGoal } from "./goalCommands";
+import { GOAL_KEY, type GoalState } from "./goalQueries";
+import { GoalCommandSessionMismatchError, resumeGoal, startGoal, stopGoal } from "./goalCommands";
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -37,6 +39,8 @@ const goal = {
   updatedAt: "2026-08-12T08:00:00Z",
 };
 
+const receipt = { sessionId: "ses_goal" };
+
 describe("Goal lifecycle commands", () => {
   it.each([
     {
@@ -57,9 +61,9 @@ describe("Goal lifecycle commands", () => {
   ])("revalidates authoritative Goal state when $name settlement is ambiguous", async (test) => {
     const invalidate = vi.spyOn(queryClient, "invalidateQueries").mockResolvedValue();
     restoreGateway = configureGoalCommandsGateway({
-      start: vi.fn().mockResolvedValue(goal),
-      stop: vi.fn().mockResolvedValue(goal),
-      resume: vi.fn().mockResolvedValue(goal),
+      start: vi.fn().mockResolvedValue(receipt),
+      stop: vi.fn().mockResolvedValue(receipt),
+      resume: vi.fn().mockResolvedValue(receipt),
       ...test.gateway,
     } as GoalCommandsGateway);
 
@@ -75,32 +79,31 @@ describe("Goal lifecycle commands", () => {
     const commandError = new Error("stop response lost");
     vi.spyOn(queryClient, "invalidateQueries").mockRejectedValue(new Error("query unavailable"));
     restoreGateway = configureGoalCommandsGateway({
-      start: vi.fn().mockResolvedValue(goal),
+      start: vi.fn().mockResolvedValue(receipt),
       stop: vi.fn().mockRejectedValue(commandError),
-      resume: vi.fn().mockResolvedValue(goal),
+      resume: vi.fn().mockResolvedValue(receipt),
     });
 
     await expect(stopGoal("ses_goal")).rejects.toBe(commandError);
   });
 
-  it("commits the typed command response before revalidating autonomous progress", async () => {
+  it("keeps goals.get as the sole author of the standing read model", async () => {
     const invalidate = vi.spyOn(queryClient, "invalidateQueries").mockResolvedValue();
+    queryClient.setQueryData([GOAL_KEY, { sessionId: "ses_goal" }], {
+      available: true,
+      goal: { ...goal, used: { ...goal.used, runs: 2 } },
+    });
     restoreGateway = configureGoalCommandsGateway({
-      start: vi.fn().mockResolvedValue(goal),
-      stop: vi.fn().mockResolvedValue({
-        ...goal,
-        status: "paused",
-        stop: { code: "stoppedByUser", detail: "" },
-        updatedAt: "2026-08-12T08:01:00Z",
-      }),
-      resume: vi.fn().mockResolvedValue(goal),
+      start: vi.fn().mockResolvedValue(receipt),
+      stop: vi.fn().mockResolvedValue(receipt),
+      resume: vi.fn().mockResolvedValue(receipt),
     });
 
     await stopGoal("ses_goal");
 
     expect(queryClient.getQueryData([GOAL_KEY, { sessionId: "ses_goal" }])).toEqual({
       available: true,
-      goal: expect.objectContaining({ status: "paused", updatedAt: "2026-08-12T08:01:00Z" }),
+      goal: { ...goal, used: { ...goal.used, runs: 2 } },
     });
     expect(invalidate).toHaveBeenCalledWith({
       queryKey: [GOAL_KEY, { sessionId: "ses_goal" }],
@@ -110,11 +113,11 @@ describe("Goal lifecycle commands", () => {
 
   it("serializes lifecycle commands for one Session while leaving intent order intact", async () => {
     vi.spyOn(queryClient, "invalidateQueries").mockResolvedValue();
-    const stopping = deferred<GoalReadModel>();
+    const stopping = deferred<GoalCommandReceipt>();
     const stop = vi.fn(() => stopping.promise);
-    const resume = vi.fn().mockResolvedValue(goal);
+    const resume = vi.fn().mockResolvedValue(receipt);
     restoreGateway = configureGoalCommandsGateway({
-      start: vi.fn().mockResolvedValue(goal),
+      start: vi.fn().mockResolvedValue(receipt),
       stop,
       resume,
     });
@@ -125,12 +128,7 @@ describe("Goal lifecycle commands", () => {
     expect(stop).toHaveBeenCalledOnce();
     expect(resume).not.toHaveBeenCalled();
 
-    stopping.resolve({
-      ...goal,
-      status: "paused",
-      stop: { code: "stoppedByUser", detail: "" },
-      updatedAt: "2026-08-12T08:01:00Z",
-    });
+    stopping.resolve({ sessionId: "ses_goal" });
     await expect(first).resolves.toBeUndefined();
     await expect(second).resolves.toBeUndefined();
     expect(resume).toHaveBeenCalledOnce();
@@ -139,15 +137,10 @@ describe("Goal lifecycle commands", () => {
   it("keeps the next lifecycle command behind authoritative revalidation", async () => {
     const revalidated = deferred<void>();
     vi.spyOn(queryClient, "invalidateQueries").mockReturnValue(revalidated.promise);
-    const stop = vi.fn().mockResolvedValue({
-      ...goal,
-      status: "paused",
-      stop: { code: "stoppedByUser", detail: "" },
-      updatedAt: "2026-08-12T08:01:00Z",
-    });
-    const resume = vi.fn().mockResolvedValue(goal);
+    const stop = vi.fn().mockResolvedValue(receipt);
+    const resume = vi.fn().mockResolvedValue(receipt);
     restoreGateway = configureGoalCommandsGateway({
-      start: vi.fn().mockResolvedValue(goal),
+      start: vi.fn().mockResolvedValue(receipt),
       stop,
       resume,
     });
@@ -163,51 +156,77 @@ describe("Goal lifecycle commands", () => {
     expect(resume).toHaveBeenCalledOnce();
   });
 
-  it("does not let an older command response regress newer autonomous state", async () => {
+  it("does not let a delayed command response regress newer autonomous state", async () => {
     vi.spyOn(queryClient, "invalidateQueries").mockResolvedValue();
     queryClient.setQueryData([GOAL_KEY, { sessionId: "ses_goal" }], {
       available: true,
-      goal: { ...goal, used: { ...goal.used, runs: 2 }, updatedAt: "2026-08-12T08:03:00Z" },
+      goal: { ...goal, used: { ...goal.used, runs: 2 } },
     });
     restoreGateway = configureGoalCommandsGateway({
-      start: vi.fn().mockResolvedValue(goal),
-      stop: vi.fn().mockResolvedValue({
-        ...goal,
-        status: "paused",
-        stop: { code: "stoppedByUser", detail: "" },
-        updatedAt: "2026-08-12T08:02:00Z",
-      }),
-      resume: vi.fn().mockResolvedValue(goal),
+      start: vi.fn().mockResolvedValue(receipt),
+      stop: vi.fn().mockResolvedValue(receipt),
+      resume: vi.fn().mockResolvedValue(receipt),
     });
 
     await stopGoal("ses_goal");
 
     expect(queryClient.getQueryData([GOAL_KEY, { sessionId: "ses_goal" }])).toMatchObject({
-      goal: { status: "active", used: { runs: 2 }, updatedAt: "2026-08-12T08:03:00Z" },
+      goal: { status: "active", used: { runs: 2 }, updatedAt: goal.updatedAt },
     });
   });
 
-  it("orders Runtime timestamps by instant rather than RFC3339 spelling", async () => {
-    vi.spyOn(queryClient, "invalidateQueries").mockResolvedValue();
-    queryClient.setQueryData([GOAL_KEY, { sessionId: "ses_goal" }], {
-      available: true,
-      goal: { ...goal, updatedAt: "2026-08-12T08:00:00Z" },
+  it("settles a mounted Goal query from its authoritative fetcher after success", async () => {
+    const queryKey = [GOAL_KEY, { sessionId: "ses_goal" }] as const;
+    let authoritative: GoalState = { available: true, goal };
+    const observer = new QueryObserver(queryClient, {
+      queryKey,
+      queryFn: async () => authoritative,
     });
+    const unsubscribe = observer.subscribe(() => undefined);
+    try {
+      await observer.refetch();
+      authoritative = {
+        available: true,
+        goal: {
+          ...goal,
+          status: "paused",
+          stop: { code: "stoppedByUser", detail: "" },
+          updatedAt: "2026-08-12T08:01:00Z",
+        },
+      };
+      restoreGateway = configureGoalCommandsGateway({
+        start: vi.fn().mockResolvedValue(receipt),
+        stop: vi.fn().mockResolvedValue(receipt),
+        resume: vi.fn().mockResolvedValue(receipt),
+      });
+
+      await stopGoal("ses_goal");
+
+      expect(queryClient.getQueryData(queryKey)).toEqual(authoritative);
+    } finally {
+      unsubscribe();
+    }
+  });
+
+  it("rejects a mutation response addressed to another Session and still revalidates", async () => {
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries").mockResolvedValue();
     restoreGateway = configureGoalCommandsGateway({
-      start: vi.fn().mockResolvedValue(goal),
-      stop: vi.fn().mockResolvedValue({
-        ...goal,
-        status: "paused",
-        stop: { code: "stoppedByUser", detail: "" },
-        updatedAt: "2026-08-12T08:00:00.000000001Z",
-      }),
-      resume: vi.fn().mockResolvedValue(goal),
+      start: vi.fn().mockResolvedValue(receipt),
+      stop: vi.fn().mockResolvedValue({ sessionId: "ses_other" }),
+      resume: vi.fn().mockResolvedValue(receipt),
     });
 
-    await stopGoal("ses_goal");
+    const failure = await stopGoal("ses_goal").catch((error: unknown) => error);
 
-    expect(queryClient.getQueryData([GOAL_KEY, { sessionId: "ses_goal" }])).toMatchObject({
-      goal: { status: "paused", updatedAt: "2026-08-12T08:00:00.000000001Z" },
+    expect(failure).toBeInstanceOf(GoalCommandSessionMismatchError);
+    expect(failure).toMatchObject({
+      expectedSessionId: "ses_goal",
+      actualSessionId: "ses_other",
+    });
+
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: [GOAL_KEY, { sessionId: "ses_goal" }],
+      exact: true,
     });
   });
 });

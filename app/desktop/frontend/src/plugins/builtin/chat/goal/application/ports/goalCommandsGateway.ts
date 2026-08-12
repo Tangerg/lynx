@@ -1,5 +1,4 @@
 import { createSingletonPort } from "@/lib/ports/singletonPort";
-import type { GoalReadModel } from "../goalQueries";
 
 export interface GoalCommandBudget {
   maxRuns?: number;
@@ -15,10 +14,17 @@ export interface StartGoalInput {
   budget?: GoalCommandBudget;
 }
 
+/** Correlates a committed Goal lifecycle command with the Session it addressed.
+ * The standing Goal projection is deliberately absent: only the goals.get read
+ * boundary owns that state. */
+export interface GoalCommandReceipt {
+  sessionId: string;
+}
+
 export interface GoalCommandsGateway {
-  start(input: StartGoalInput): Promise<GoalReadModel>;
-  stop(sessionId: string): Promise<GoalReadModel>;
-  resume(sessionId: string): Promise<GoalReadModel>;
+  start(input: StartGoalInput): Promise<GoalCommandReceipt>;
+  stop(sessionId: string): Promise<GoalCommandReceipt>;
+  resume(sessionId: string): Promise<GoalCommandReceipt>;
 }
 
 const port = createSingletonPort<GoalCommandsGateway>("Goal commands gateway is not configured");

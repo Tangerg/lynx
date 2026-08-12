@@ -86,6 +86,7 @@
 | P50 | Knowledge CAS 与 Knowledge/Hook 失效闭环 | P49 + lost update / empty document / multi-window stale 反例 | 已完成 |
 | P51 | Knowledge filesystem identity 与 crash-safe CAS | P50 + symlink / cross-process / kill recovery 反例 | 已完成 |
 | P52 | 外部人工配置变更与 Runtime stream 收敛 | P51 + external create/write/rename/remove / duplicate event 反例 | 已完成 |
+| P53 | Desktop Goal mutation/read-model 单一事实源收敛 | P52 + delayed response / equal timestamp / remote transition 反例 | 已完成 |
 
 ## 4. P0 — 文档、事实和边界基线
 
@@ -1268,10 +1269,51 @@
 - focused Domain/Application/Infra/Delivery/Bootstrap、race 与 Windows advisorylock/knowledgefile/bootstrap 三包交叉编译全绿；真实 HTTP 验证三条 API 的外链拒绝，以及域内 symlink/0600 physical target 的 get/update/list；
 - Runtime/Protocol 文档与机器合同同步；Agent/Agent Framework、SQLite、Artifact shape 均未变化，Desktop 只消费既有中性 `path_outside_root`。
 
-## 56. 进度记录
+## 56. P52 — 外部人工配置变更与 Runtime stream 收敛
+
+### 目标
+
+让用户或其他进程直接创建、修改、原子替换、删除 Knowledge 与 Hooks 配置时，复用既有 Runtime 专用失效流使全部客户端收敛；路径观察、语义资源和 wire topic 必须分别留在 Infra、Workspace Adapter、Application 与 Delivery，不得进入 Agent。
+
+### 工作项
+
+- [x] P52-01 中性 `infra/fileobservation` 以精确语义路径指纹观察 missing parent、write、rename、remove 与域内 symlink physical target，并提供可等待的幂等关闭；
+- [x] P52-02 Workspace Adapter 独占 `LYRA.md` 与 global/project/cwd hooks cascade 的文件布局，向 Application 只暴露 workspace/projectRoot 与语义资源变更；
+- [x] P52-03 Knowledge API commit 在发布事件前接受精确 returned path 的新基线，抑制自身 filesystem 回声但不吞同资源其他文档的并发外部编辑；
+- [x] P52-04 Application 复用 committed invalidation，Delivery 继续只投影既有 `knowledge.changed` / `hooks.changed`，Protocol 和 Desktop consumer 无新增抽象；
+- [x] P52-05 覆盖 create/write/atomic rename/remove、missing parent、symlink target、identity 去重、close join 与真实 HTTP SSE → TypeScript SDK 收敛。
+
+### 验收
+
+- Infra/Application/Adapter/Delivery/Bootstrap/architecture 聚焦、race、Runtime standalone tidy/build/vet/test 全绿；
+- 真实 Go Runtime → HTTP SSE → TypeScript SDK 验证 home/projectRoot/cwd Knowledge 与 global/project/cwd Hooks 外部变更逐项发专用事件且冷读收敛；
+- Desktop 唯一 consumer 继续覆盖 86/86 operations 与 12/12 events；Agent/Framework、Protocol、SQLite、Artifact shape 均未变化。
+
+## 57. P53 — Desktop Goal mutation/read-model 单一事实源收敛
+
+### 目标
+
+关闭 Goal lifecycle mutation 返回的瞬时快照与 `goals.get` 长期 read model 争夺缓存所有权的缺口。延迟响应可能晚于自治循环或另一客户端的更新；`updatedAt` 在同时间戳、时钟校正和不同 Goal incarnation 下都不能证明事实新旧。修复必须停留在 Desktop Goal context，Runtime wire 只由 Adapter 消费，Agent context 不得接触 Goal wire、query cache 或 Runtime 抽象。
+
+### 工作项
+
+- [x] P53-01 Goal Application 删除 mutation 快照的 timestamp 比较和直接缓存写入，成功、失败与结算不明统一回读 `goals.get`；
+- [x] P53-02 Goal command port 收窄为只含 Session correlation 的中性 receipt，完整 Runtime Goal 响应仅在 Adapter 映射，standing read model 只由 data provider 产生；
+- [x] P53-03 保留同 Session intent 串行与权威回读 settlement boundary；回执 Session 不一致时 fail closed，并在二次读取失败时保留原 command error；
+- [x] P53-04 回归覆盖 delayed/equal-timestamp response、mounted query 权威 refetch、跨 Session 回执、连续 stop/resume、失败恢复与 typed wire projection；
+- [x] P53-05 完成 Frontend 全量门禁、Runtime 回归与真实客户端 Goal stop/resume/remote transition 联调。
+
+### 验收
+
+- mutation response 不再是 standing state 的第二事实源；mounted query 在命令结算后只能由 `goals.get` 写入；
+- Frontend Goal/Application/Adapter 红测、全量架构/API consumer/bundle 门禁及 Runtime Goal/Run/Plan/HITL 回归全绿；
+- 真实客户端验证 Goal stop/resume 与远端状态变化最终一致，Agent/Agent Framework、Runtime/Protocol、SQLite/Artifact shape 零变更。
+
+## 58. 进度记录
 
 | 日期 | 阶段 | 完成事实 | 验证 |
 |---|---|---|---|
+| 2026-08-13 | P53（Goal mutation/read-model single authority） | Desktop Goal Application 删除 mutation snapshot 的 timestamp 排序与 standing cache 写入，成功、失败和结算不明统一回读；command port 收窄为中性 Session receipt，完整 Runtime Goal 只在 Adapter 消费，`goals.get` data provider 成为长期状态唯一作者。跨 Session receipt fail closed，Application 错误保持结构化且无产品文案。Agent/Framework、Runtime/Protocol、SQLite/Artifact shape 零变更 | 红测覆盖 equal timestamp、延迟未来时间戳、mounted query refetch、跨 Session receipt、失败恢复和同 Session 串行；Frontend 270 文件/1630 测试、95 public edges、86/86 operations + 12/12 events / 103 typed call sites、本地化与 bundle 全绿，Runtime standalone tidy/build/vet/test 全绿。隔离 Runtime/假 provider/延迟代理/真实浏览器中，本地 Stop response 被改为 `2099` 并延迟，远端 Resume 先提交；页面经 `goals.changed → goals.get` 保持 active 1/3，释放旧响应及随后权威回读均不倒退，page/业务 console error 为零 |
 | 2026-08-13 | P52（external authored configuration convergence） | 中性 `infra/fileobservation` 以精确路径语义指纹观察 missing-parent create、write、atomic rename、remove 与域内 symlink physical target；Workspace Adapter 独占 `LYRA.md` / hooks cascade 布局，Application 只解析 workspace/projectRoot 与语义资源，Delivery 只投影既有 topic。Knowledge API commit 在发布前按 exact returned path 接受新基线，避免 filesystem 回声导致重复 refetch，同时不吞同资源另一文档的并发外部编辑。Agent/Framework、Protocol、SQLite、Artifact shape 均未变化 | 红测先证明外部配置 3 秒无事件；Infra/Application/Adapter/Delivery/Bootstrap/architecture 聚焦全绿，精确 identity 去重与 close-join 回归通过；真实 Go Runtime → HTTP SSE → TypeScript SDK 验证 home/projectRoot/cwd Knowledge 与 global/project/cwd Hooks 外部变更逐项发专用事件且冷读收敛；Desktop 唯一 consumer 仍消费 86/86 operations + 12/12 events |
 | 2026-08-13 | P51（Knowledge physical identity / cross-process CAS / crash recovery） | Knowledge Infra 以唯一 physical identity 将 containment、read/revision/atomic replacement 对齐；域外 symlink fail closed，域内 alias 保持，目标 mode 继承。中性 advisory-lock 同时承载 Bootstrap 单实例 lease 与 Knowledge 跨进程 document lease，但错误与生命周期仍各归 owner；strict staging 在 cold read 回收。Application/Delivery 只投影既有 path policy/problem，Agent/Framework、SQLite、Artifact 不变 | 12×12 独立进程 CAS 恰好一个 winner；12 轮 64 MiB staging 强杀后旧 content 完整、orphan cold recovery、后续写成功；Runtime standalone、Frontend 270 文件/1628 测试及 86/86 operations + 12/12 events、focused/race/Windows 三包交叉编译全绿；真实 HTTP/浏览器验证三 API 外链拒绝及域内 symlink、0600 权限、physical target 写回，page/业务 console error 为零 |
 | 2026-08-12 | P50（Knowledge CAS / dedicated invalidations / Desktop conflict recovery） | Runtime Knowledge 由无条件覆盖改为 opaque content revision 条件更新，空文档保持可寻址，成功写返回权威 Entry 并发 `knowledge.changed`；Hook trust 成功提交发 `hooks.changed`。Desktop Adapter 独占 wire/错误映射，Workspace editor 保留脏草稿并在冲突后显式 rebase，Hook mutation 按 project 串行且 UI latch 阻止重复意图。Agent/Framework、SQLite、Artifact shape 均未变化 | Runtime standalone 全绿；Frontend 270 文件/1627 测试、95 public edges、981×8 locales、bundle、86/86 operations + 12/12 events / 103 typed call sites全绿。真实 HTTP 验证首次空文档创建、三 scope CAS、stale revision 拒绝、清空可寻址和两类 committed invalidation；真实浏览器验证 clean refresh、dirty conflict/rebase/second-save 与 Hook 同步双击 latch，page error/业务 console error 为零 |

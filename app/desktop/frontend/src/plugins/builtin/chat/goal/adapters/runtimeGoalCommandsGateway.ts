@@ -3,7 +3,10 @@ import { asSessionId, settleUnaryMutation, type Goal } from "@/rpc";
 import type { ContributingHost } from "@/plugins/sdk";
 import { DATA_PROVIDER } from "@/plugins/sdk/kernelPoints";
 import { runtimeCapability } from "@/plugins/builtin/runtime/public/capabilities";
-import type { GoalCommandsGateway } from "../application/ports/goalCommandsGateway";
+import type {
+  GoalCommandReceipt,
+  GoalCommandsGateway,
+} from "../application/ports/goalCommandsGateway";
 import { configureGoalCommandsGateway } from "../application/ports/goalCommandsGateway";
 import {
   GOAL_KEY,
@@ -35,25 +38,31 @@ export function toGoalReadModel(goal: Goal): GoalReadModel {
   };
 }
 
+export function toGoalCommandReceipt(goal: Pick<Goal, "sessionId">): GoalCommandReceipt {
+  return { sessionId: goal.sessionId };
+}
+
 const gateway: GoalCommandsGateway = {
   async start(input) {
     const client = getContainer().client();
     const goal = await settleUnaryMutation((signal) =>
       client.goals.start({ ...input, sessionId: asSessionId(input.sessionId) }, signal),
     );
-    return toGoalReadModel(goal);
+    return toGoalCommandReceipt(goal);
   },
   async stop(sessionId) {
     const client = getContainer().client();
-    return toGoalReadModel(
-      await settleUnaryMutation((signal) => client.goals.stop(asSessionId(sessionId), signal)),
+    const goal = await settleUnaryMutation((signal) =>
+      client.goals.stop(asSessionId(sessionId), signal),
     );
+    return toGoalCommandReceipt(goal);
   },
   async resume(sessionId) {
     const client = getContainer().client();
-    return toGoalReadModel(
-      await settleUnaryMutation((signal) => client.goals.resume(asSessionId(sessionId), signal)),
+    const goal = await settleUnaryMutation((signal) =>
+      client.goals.resume(asSessionId(sessionId), signal),
     );
+    return toGoalCommandReceipt(goal);
   },
 };
 
