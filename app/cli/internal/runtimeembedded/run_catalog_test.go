@@ -76,9 +76,13 @@ func TestRunCatalogRejectsIncompleteBindingResults(t *testing.T) {
 	runtime := &Runtime{runCatalog: stub, meta: requestMeta("test")}
 	if _, err := runtime.GetRun(t.Context(), "run_1"); err == nil {
 		t.Fatal("GetRun accepted nil response")
+	} else {
+		requireRuntimeContractViolation(t, err)
 	}
 	if _, err := runtime.ListRuns(t.Context(), agent.RunQuery{}); err == nil {
 		t.Fatal("ListRuns accepted nil response")
+	} else {
+		requireRuntimeContractViolation(t, err)
 	}
 	if _, err := runtime.GetRun(t.Context(), " "); err == nil {
 		t.Fatal("GetRun accepted empty id")
@@ -101,6 +105,47 @@ func TestRunCatalogRejectsIncompleteBindingResults(t *testing.T) {
 	}
 	if _, err := runtime.ListRuns(t.Context(), agent.RunQuery{SessionID: "missing"}); !errors.Is(err, agent.ErrSessionNotFound) {
 		t.Fatalf("ListRuns error = %v", err)
+	}
+}
+
+func TestRunCatalogRejectsResponsesOutsideTheRequestedScope(t *testing.T) {
+	t.Parallel()
+	base := protocol.RunRef{
+		RunSummary: protocol.RunSummary{ID: "run_1", SessionID: "ses_other", Status: protocol.RunStatusFinished,
+			Outcome: &protocol.RunOutcome{Type: protocol.OutcomeCompleted}},
+		ProtocolProfile: protocol.RunProtocolProfile{RequiredFeatures: []protocol.RunProtocolFeature{}, InterruptTypes: []protocol.InterruptType{}},
+	}
+	wrongIdentity := base
+	wrongIdentity.ID = "run_other"
+	runtime := &Runtime{runCatalog: runCatalogBindingStub{get: func(context.Context, protocol.GetRunRequest, embedded.CallOptions) (*protocol.RunRef, error) {
+		return &wrongIdentity, nil
+	}}, meta: requestMeta("test")}
+	_, err := runtime.GetRun(t.Context(), "run_1")
+	requireRuntimeContractViolation(t, err)
+
+	for _, test := range []struct {
+		name  string
+		query agent.RunQuery
+		value protocol.RunRef
+	}{
+		{name: "session", query: agent.RunQuery{SessionID: "ses_1"}, value: base},
+		{name: "status", query: agent.RunQuery{Statuses: []agent.RunStatus{agent.RunStatusRunning}}, value: base},
+		{name: "descendant", value: func() protocol.RunRef {
+			value := base
+			value.SessionID = "ses_1"
+			value.SpawnedByItemID, value.ParentRunID, value.RootRunID = "item_1", "run_root", "run_root"
+			return value
+		}()},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			stub := runCatalogBindingStub{list: func(context.Context, protocol.ListRunsRequest, embedded.CallOptions) (*protocol.Page[protocol.RunRef], error) {
+				return protocol.NewPage([]protocol.RunRef{test.value}), nil
+			}}
+			runtime := &Runtime{runCatalog: stub, meta: requestMeta("test")}
+			_, err := runtime.ListRuns(t.Context(), test.query)
+			requireRuntimeContractViolation(t, err)
+		})
 	}
 }
 

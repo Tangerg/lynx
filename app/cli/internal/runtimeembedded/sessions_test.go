@@ -126,6 +126,28 @@ func TestFilteredSessionCatalogRejectsMultiStepCursorCycle(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "cyclic continuation cursor") {
 		t.Fatalf("ListSessions error = %v, want cursor cycle failure", err)
 	}
+	requireRuntimeContractViolation(t, err)
+}
+
+func TestSessionCatalogRejectsAStalledCursorAndMutationIdentity(t *testing.T) {
+	t.Parallel()
+	runtime := &Runtime{sessionCatalog: sessionCatalogStub{
+		pages: map[string]*protocol.Page[protocol.Session]{
+			"stalled": protocol.NewPageWithCursor([]protocol.Session{}, "stalled"),
+		},
+		update: func(protocol.UpdateSessionRequest) (*protocol.Session, error) {
+			return &protocol.Session{
+				ID: "ses_other", Status: protocol.SessionStatusIdle,
+				Workspace: testProtocolWorkspace("/workspace", "/workspace", protocol.WorkspaceAvailable),
+			}, nil
+		},
+	}, meta: requestMeta("test")}
+
+	_, err := runtime.ListSessions(t.Context(), agent.SessionQuery{Cursor: "stalled"})
+	requireRuntimeContractViolation(t, err)
+	title := "Renamed"
+	_, err = runtime.UpdateSession(t.Context(), agent.UpdateSession{SessionID: "ses_1", Title: &title})
+	requireRuntimeContractViolation(t, err)
 }
 
 func TestSessionCatalogRejectsInvalidLocalFiltersBeforeCallingRuntime(t *testing.T) {

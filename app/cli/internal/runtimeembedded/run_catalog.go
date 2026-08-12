@@ -3,7 +3,7 @@ package runtimeembedded
 import (
 	"context"
 	"errors"
-	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/Tangerg/lynx/app/runtime/embedded"
@@ -31,9 +31,16 @@ func (r *Runtime) GetRun(ctx context.Context, runID string) (agent.Run, error) {
 		return agent.Run{}, classifyError(err)
 	}
 	if value == nil {
-		return agent.Run{}, errors.New("get run: runtime returned nil")
+		return agent.Run{}, runtimeContractViolation("get run returned nil")
 	}
-	return projectRun(*value)
+	projected, err := projectRun(*value)
+	if err != nil {
+		return agent.Run{}, runtimeContractViolation("get run returned an invalid run: %v", err)
+	}
+	if projected.ID != runID {
+		return agent.Run{}, runtimeContractViolation("get run returned id %q for %q", projected.ID, runID)
+	}
+	return projected, nil
 }
 
 func (r *Runtime) ListRuns(ctx context.Context, query agent.RunQuery) (agent.RunPage, error) {
@@ -59,23 +66,38 @@ func (r *Runtime) ListRuns(ctx context.Context, query agent.RunQuery) (agent.Run
 	if err != nil {
 		return agent.RunPage{}, classifyError(err)
 	}
-	return projectRunPage(page)
+	return projectRunPage(page, query, limit)
 }
 
-func projectRunPage(page *protocol.Page[protocol.RunRef]) (agent.RunPage, error) {
+func projectRunPage(page *protocol.Page[protocol.RunRef], query agent.RunQuery, limit int) (agent.RunPage, error) {
 	if page == nil {
-		return agent.RunPage{}, errors.New("list runs: runtime returned a nil page")
+		return agent.RunPage{}, runtimeContractViolation("list runs returned a nil page")
+	}
+	if len(page.Data) > limit {
+		return agent.RunPage{}, runtimeContractViolation("list runs returned %d rows for limit %d", len(page.Data), limit)
+	}
+	if page.NextCursor != "" && page.NextCursor == query.Cursor {
+		return agent.RunPage{}, runtimeContractViolation("list runs returned its request cursor as the continuation")
 	}
 	projected := agent.RunPage{Items: make([]agent.Run, 0, len(page.Data)), NextCursor: page.NextCursor}
 	for _, value := range page.Data {
 		run, err := projectRun(value)
 		if err != nil {
-			return agent.RunPage{}, err
+			return agent.RunPage{}, runtimeContractViolation("list runs returned an invalid run: %v", err)
+		}
+		if query.SessionID != "" && run.SessionID != query.SessionID {
+			return agent.RunPage{}, runtimeContractViolation("list runs for session %q returned run %q from %q", query.SessionID, run.ID, run.SessionID)
+		}
+		if len(query.Statuses) != 0 && !slices.Contains(query.Statuses, run.Status) {
+			return agent.RunPage{}, runtimeContractViolation("list runs returned run %q with unrequested status %q", run.ID, run.Status)
+		}
+		if !query.IncludeDescendants && !run.Lineage.IsRoot() {
+			return agent.RunPage{}, runtimeContractViolation("list root runs returned child %q", run.ID)
 		}
 		projected.Items = append(projected.Items, run)
 	}
 	if err := projected.Validate(); err != nil {
-		return agent.RunPage{}, fmt.Errorf("list runs projection: %w", err)
+		return agent.RunPage{}, runtimeContractViolation("list runs returned an invalid projection: %v", err)
 	}
 	return projected, nil
 }

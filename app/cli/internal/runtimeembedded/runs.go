@@ -2,7 +2,6 @@ package runtimeembedded
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"iter"
 	"slices"
@@ -53,14 +52,14 @@ func (r *Runtime) StartRun(ctx context.Context, input agent.StartRun) (agent.Seg
 		return agent.SegmentStream{}, classifyError(err)
 	}
 	if ack == nil || events == nil {
-		return agent.SegmentStream{}, errors.New("start run: runtime returned an incomplete stream")
+		return agent.SegmentStream{}, runtimeContractViolation("start run returned an incomplete stream")
 	}
 	stream := agent.SegmentStream{
 		RunID: ack.RunID, SegmentID: ack.SegmentID, UserItemID: ack.UserItemID,
 		Events: projectEventStream(events, ack.SegmentID),
 	}
 	if err := stream.ValidateStart(); err != nil {
-		return agent.SegmentStream{}, err
+		return agent.SegmentStream{}, runtimeContractViolation("start run returned an invalid stream: %v", err)
 	}
 	return stream, nil
 }
@@ -97,14 +96,17 @@ func (r *Runtime) ResumeRun(ctx context.Context, input agent.ResumeRun) (agent.S
 		return agent.SegmentStream{}, classifyError(err)
 	}
 	if ack == nil || events == nil {
-		return agent.SegmentStream{}, errors.New("resume run: runtime returned an incomplete stream")
+		return agent.SegmentStream{}, runtimeContractViolation("resume run returned an incomplete stream")
 	}
 	stream := agent.SegmentStream{RunID: ack.RunID, SegmentID: ack.SegmentID, Events: projectEventStream(events, ack.SegmentID)}
 	if ack.UserItemID != nil {
 		stream.UserItemID = *ack.UserItemID
 	}
 	if err := stream.ValidateResume(input.Message); err != nil {
-		return agent.SegmentStream{}, err
+		return agent.SegmentStream{}, runtimeContractViolation("resume run returned an invalid stream: %v", err)
+	}
+	if stream.RunID != input.RunID {
+		return agent.SegmentStream{}, runtimeContractViolation("resume run returned run %q for %q", stream.RunID, input.RunID)
 	}
 	return stream, nil
 }
@@ -142,14 +144,20 @@ func (r *Runtime) SubscribeRun(ctx context.Context, input agent.SubscribeRun) (a
 		return agent.SegmentStream{}, classifyError(err)
 	}
 	if ack == nil || events == nil {
-		return agent.SegmentStream{}, errors.New("subscribe run: runtime returned an incomplete stream")
+		return agent.SegmentStream{}, runtimeContractViolation("subscribe run returned an incomplete stream")
 	}
 	stream := agent.SegmentStream{
 		RunID: ack.RunID, SegmentID: ack.SegmentID, HeadEventID: ack.HeadEventID,
 		Events: projectEventStream(events, ack.SegmentID),
 	}
 	if err := stream.ValidateSubscription(); err != nil {
-		return agent.SegmentStream{}, err
+		return agent.SegmentStream{}, runtimeContractViolation("subscribe run returned an invalid stream: %v", err)
+	}
+	if stream.RunID != input.RunID || stream.SegmentID != input.SegmentID {
+		return agent.SegmentStream{}, runtimeContractViolation(
+			"subscribe run returned segment %s/%s for %s/%s",
+			stream.RunID, stream.SegmentID, input.RunID, input.SegmentID,
+		)
 	}
 	return stream, nil
 }
@@ -167,33 +175,33 @@ func (r *Runtime) CancelRun(ctx context.Context, input agent.CancelRun) (agent.R
 		return agent.RunCancellation{}, classifyError(err)
 	}
 	if result == nil {
-		return agent.RunCancellation{}, errors.New("cancel run: runtime returned nil")
+		return agent.RunCancellation{}, runtimeContractViolation("cancel run returned nil")
 	}
 	canceled, err := projectRun(result.Run)
 	if err != nil {
-		return agent.RunCancellation{}, err
+		return agent.RunCancellation{}, runtimeContractViolation("cancel run returned an invalid run: %v", err)
 	}
 	var root agent.Run
 	switch result.Type {
 	case protocol.CancelRunRoot:
 		if result.RootRun != nil {
-			return agent.RunCancellation{}, fmt.Errorf("%w: root cancellation carries rootRun", agent.ErrIncompatibleRuntime)
+			return agent.RunCancellation{}, runtimeContractViolation("root cancellation carries rootRun")
 		}
 		root = canceled.Clone()
 	case protocol.CancelRunChild:
 		if result.RootRun == nil {
-			return agent.RunCancellation{}, fmt.Errorf("%w: child cancellation omits rootRun", agent.ErrIncompatibleRuntime)
+			return agent.RunCancellation{}, runtimeContractViolation("child cancellation omits rootRun")
 		}
 		root, err = projectRun(*result.RootRun)
 		if err != nil {
-			return agent.RunCancellation{}, err
+			return agent.RunCancellation{}, runtimeContractViolation("cancel run returned an invalid root: %v", err)
 		}
 	default:
-		return agent.RunCancellation{}, fmt.Errorf("%w: cancel returned unknown result type %q", agent.ErrIncompatibleRuntime, result.Type)
+		return agent.RunCancellation{}, runtimeContractViolation("cancel run returned unknown result type %q", result.Type)
 	}
 	projected := agent.RunCancellation{Canceled: canceled, Root: root}
 	if err := projected.ValidateTarget(input.RunID); err != nil {
-		return agent.RunCancellation{}, fmt.Errorf("%w: cancel run projection: %w", agent.ErrIncompatibleRuntime, err)
+		return agent.RunCancellation{}, runtimeContractViolation("cancel run returned an invalid projection: %v", err)
 	}
 	return projected, nil
 }
@@ -224,7 +232,7 @@ func projectEventStream(source iter.Seq2[protocol.RunEvent, error], streamSegmen
 			}
 			projected, include, err := projectEvent(value)
 			if err != nil {
-				yield(agent.RunEvent{}, err)
+				yield(agent.RunEvent{}, runtimeContractViolation("run stream returned an invalid event: %v", err))
 				return
 			}
 			projected.StreamSegmentID = streamSegmentID

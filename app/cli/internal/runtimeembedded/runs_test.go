@@ -138,6 +138,38 @@ func TestProjectedStreamClassifiesClosedRuntime(t *testing.T) {
 	t.Fatal("stream yielded no error")
 }
 
+func TestProjectedStreamClassifiesMalformedRuntimeEvents(t *testing.T) {
+	t.Parallel()
+	stream := projectEventStream(func(yield func(protocol.RunEvent, error) bool) {
+		yield(protocol.RunEvent{}, nil)
+	}, "seg_1")
+	for _, err := range stream {
+		requireRuntimeContractViolation(t, err)
+		return
+	}
+	t.Fatal("malformed stream yielded no error")
+}
+
+func TestRunAdaptersRejectMismatchedAcknowledgements(t *testing.T) {
+	t.Parallel()
+	events := func(func(protocol.RunEvent, error) bool) {}
+	runtime := &Runtime{runs: runBindingStub{
+		resume: func(context.Context, protocol.ResumeRunRequest, embedded.RunCommandOptions) (*protocol.ResumeRunResponse, iter.Seq2[protocol.RunEvent, error], error) {
+			return &protocol.ResumeRunResponse{RunID: "run_other", SegmentID: "seg_2"}, events, nil
+		},
+		subscribe: func(context.Context, protocol.SubscribeRunRequest, embedded.RunSubscriptionOptions) (*protocol.SubscribeRunResponse, iter.Seq2[protocol.RunEvent, error], error) {
+			return &protocol.SubscribeRunResponse{RunID: "run_1", SegmentID: "seg_other"}, events, nil
+		},
+	}, meta: requestMeta("test")}
+
+	_, err := runtime.ResumeRun(t.Context(), agent.ResumeRun{RunID: "run_1", Answers: []agent.InterruptAnswer{{
+		ItemID: "approval", Answer: agent.ApprovalAnswer{Decision: agent.ApprovalDeny},
+	}}})
+	requireRuntimeContractViolation(t, err)
+	_, err = runtime.SubscribeRun(t.Context(), agent.SubscribeRun{RunID: "run_1", SegmentID: "seg_1"})
+	requireRuntimeContractViolation(t, err)
+}
+
 func TestResumeAndCancelMapControlContracts(t *testing.T) {
 	stub := runBindingStub{}
 	stub.resume = func(_ context.Context, request protocol.ResumeRunRequest, options embedded.RunCommandOptions) (*protocol.ResumeRunResponse, iter.Seq2[protocol.RunEvent, error], error) {

@@ -2,7 +2,6 @@ package runtimeembedded
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 
@@ -45,7 +44,7 @@ func (r *Runtime) ListSessions(ctx context.Context, query agent.SessionQuery) (a
 		if err != nil {
 			return agent.SessionPage{}, classifyError(err)
 		}
-		return projectSessionPage(page)
+		return projectSessionPage(page, query.Cursor, limit)
 	}
 
 	// Search and workspace are CLI projections absent from the runtime protocol.
@@ -60,15 +59,15 @@ func (r *Runtime) ListSessions(ctx context.Context, query agent.SessionQuery) (a
 			return agent.SessionPage{}, classifyError(err)
 		}
 		if page == nil {
-			return agent.SessionPage{}, errors.New("list sessions: runtime returned a nil page")
+			return agent.SessionPage{}, runtimeContractViolation("list sessions returned a nil page")
 		}
 		if len(page.Data) > 1 {
-			return agent.SessionPage{}, errors.New("list sessions: runtime exceeded the requested one-row page")
+			return agent.SessionPage{}, runtimeContractViolation("list sessions exceeded the requested one-row page")
 		}
 		for _, value := range page.Data {
 			projected, err := projectSession(value)
 			if err != nil {
-				return agent.SessionPage{}, err
+				return agent.SessionPage{}, runtimeContractViolation("list sessions returned an invalid session: %v", err)
 			}
 			if matchesSession(projected, search, workspace) {
 				result.Items = append(result.Items, projected)
@@ -84,7 +83,7 @@ func (r *Runtime) ListSessions(ctx context.Context, query agent.SessionQuery) (a
 	}
 	result.NextCursor = cursors.Current()
 	if err := result.Validate(); err != nil {
-		return agent.SessionPage{}, fmt.Errorf("list sessions projection: %w", err)
+		return agent.SessionPage{}, runtimeContractViolation("list sessions returned an invalid projection: %v", err)
 	}
 	return result, nil
 }
@@ -98,20 +97,26 @@ func matchesSession(session agent.Session, search, workspace string) bool {
 		strings.Contains(strings.ToLower(session.Workspace.ProjectRoot), search)
 }
 
-func projectSessionPage(page *protocol.Page[protocol.Session]) (agent.SessionPage, error) {
+func projectSessionPage(page *protocol.Page[protocol.Session], cursor string, limit int) (agent.SessionPage, error) {
 	if page == nil {
-		return agent.SessionPage{}, errors.New("list sessions: runtime returned a nil page")
+		return agent.SessionPage{}, runtimeContractViolation("list sessions returned a nil page")
+	}
+	if len(page.Data) > limit {
+		return agent.SessionPage{}, runtimeContractViolation("list sessions returned %d rows for limit %d", len(page.Data), limit)
+	}
+	if page.NextCursor != "" && page.NextCursor == cursor {
+		return agent.SessionPage{}, runtimeContractViolation("list sessions returned its request cursor as the continuation")
 	}
 	result := agent.SessionPage{Items: make([]agent.Session, 0, len(page.Data)), NextCursor: page.NextCursor}
 	for _, value := range page.Data {
 		projected, err := projectSession(value)
 		if err != nil {
-			return agent.SessionPage{}, err
+			return agent.SessionPage{}, runtimeContractViolation("list sessions returned an invalid session: %v", err)
 		}
 		result.Items = append(result.Items, projected)
 	}
 	if err := result.Validate(); err != nil {
-		return agent.SessionPage{}, fmt.Errorf("list sessions projection: %w", err)
+		return agent.SessionPage{}, runtimeContractViolation("list sessions returned an invalid projection: %v", err)
 	}
 	return result, nil
 }
@@ -143,13 +148,7 @@ func (r *Runtime) CreateSession(ctx context.Context, input agent.CreateSession) 
 		request.Workspace = &protocol.WorkspaceRef{Path: input.Workspace}
 	}
 	created, err := r.sessionCatalog.CreateSession(ctx, request, options)
-	if err != nil {
-		return agent.Session{}, classifyError(err)
-	}
-	if created == nil {
-		return agent.Session{}, errors.New("create session: runtime returned nil")
-	}
-	return projectSession(*created)
+	return projectSessionResult("create session", "", created, err)
 }
 
 func (r *Runtime) UpdateSession(ctx context.Context, input agent.UpdateSession) (agent.Session, error) {
@@ -168,13 +167,7 @@ func (r *Runtime) UpdateSession(ctx context.Context, input agent.UpdateSession) 
 		request.Workspace = &protocol.WorkspaceRef{Path: *input.Workspace}
 	}
 	updated, err := r.sessionCatalog.UpdateSession(ctx, request, options)
-	if err != nil {
-		return agent.Session{}, classifyError(err)
-	}
-	if updated == nil {
-		return agent.Session{}, errors.New("update session: runtime returned nil")
-	}
-	return projectSession(*updated)
+	return projectSessionResult("update session", input.SessionID, updated, err)
 }
 
 func (r *Runtime) ForkSession(ctx context.Context, input agent.ForkSession) (agent.Session, error) {
@@ -185,13 +178,31 @@ func (r *Runtime) ForkSession(ctx context.Context, input agent.ForkSession) (age
 	forked, err := r.sessionCatalog.ForkSession(ctx, protocol.ForkSessionRequest{
 		SessionID: input.SessionID, FromRunID: input.FromRunID, Title: input.Title,
 	}, options)
+	projected, err := projectSessionResult("fork session", "", forked, err)
+	if err != nil {
+		return agent.Session{}, err
+	}
+	if projected.ID == input.SessionID {
+		return agent.Session{}, runtimeContractViolation("fork session returned its source id %q", input.SessionID)
+	}
+	return projected, nil
+}
+
+func projectSessionResult(operation, expectedID string, result *protocol.Session, err error) (agent.Session, error) {
 	if err != nil {
 		return agent.Session{}, classifyError(err)
 	}
-	if forked == nil {
-		return agent.Session{}, errors.New("fork session: runtime returned nil")
+	if result == nil {
+		return agent.Session{}, runtimeContractViolation("%s returned nil", operation)
 	}
-	return projectSession(*forked)
+	projected, err := projectSession(*result)
+	if err != nil {
+		return agent.Session{}, runtimeContractViolation("%s returned an invalid session: %v", operation, err)
+	}
+	if expectedID != "" && projected.ID != expectedID {
+		return agent.Session{}, runtimeContractViolation("%s returned id %q for %q", operation, projected.ID, expectedID)
+	}
+	return projected, nil
 }
 
 func (r *Runtime) DeleteSession(ctx context.Context, input agent.DeleteSession) error {
