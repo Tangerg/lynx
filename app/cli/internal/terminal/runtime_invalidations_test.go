@@ -17,6 +17,7 @@ import (
 	"github.com/Tangerg/lynx/app/cli/internal/agent/mock"
 	"github.com/Tangerg/lynx/app/cli/internal/changefeed"
 	"github.com/Tangerg/lynx/app/cli/internal/reconnect"
+	"github.com/Tangerg/lynx/app/cli/internal/workbench"
 	"github.com/Tangerg/lynx/app/cli/internal/workspace"
 )
 
@@ -517,6 +518,48 @@ func TestDeletedActiveSessionIsReplacedFromItsWorkspace(t *testing.T) {
 	awaitSignal(t, source.applied, "deleted-session invalidation")
 	host.Shows(t, "Untitled session")
 	stop()
+}
+
+func TestDeletedActiveSessionTransfersItsUnsentDraftToTheReplacement(t *testing.T) {
+	base := mock.New()
+	source := &runtimeChangeSourceStub{
+		events: make(chan changefeed.Event, 1), subscription: make(chan changefeed.Subscription, 1),
+		applied: make(chan changefeed.Event, 1),
+	}
+	stateDirectory := t.TempDir()
+	host, stop := runUIFromConfig(t, Config{
+		Runtime: base, Changes: source, SessionID: "ses_demo_1",
+		StateDirectory: stateDirectory,
+	})
+	host.Shows(t, "Ask lyra")
+	awaitSignal(t, source.subscription, "runtime invalidation subscription")
+	host.Type("unsent draft survives forced replacement")
+	host.Shows(t, "unsent draft survives forced replacement")
+
+	if err := base.DeleteSession(t.Context(), agent.DeleteSession{SessionID: "ses_demo_1"}); err != nil {
+		t.Fatal(err)
+	}
+	source.events <- changefeed.Event{
+		Type: changefeed.EventType(changefeed.SessionsChanged), Sequence: 1,
+		SessionIDs: []string{"ses_demo_1"},
+	}
+	awaitSignal(t, source.applied, "deleted-session invalidation")
+	host.Shows(t, "Untitled session")
+	host.Shows(t, "unsent draft survives forced replacement")
+	replacementID := firstRuntimeSession(t, base)
+	stop()
+
+	store, err := workbench.Open(stateDirectory, workbench.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if draft, found, err := store.Draft("ses_demo_1"); err != nil || found {
+		t.Fatalf("deleted session draft = %+v, found %t, error %v", draft, found, err)
+	}
+	draft, found, err := store.Draft(replacementID)
+	if err != nil || !found || draft.Text != "unsent draft survives forced replacement" {
+		t.Fatalf("replacement draft = %+v, found %t, error %v", draft, found, err)
+	}
 }
 
 func TestDeletedSessionReplacementClosesItsQueueEditor(t *testing.T) {

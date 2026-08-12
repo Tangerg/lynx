@@ -102,7 +102,7 @@ func TestStorePreservesCachedDraftWhenDurableDeletionFails(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := store.SaveDraft(sessionID, agent.Message{}); err == nil {
+	if err := store.DiscardDraft(sessionID); err == nil {
 		t.Fatal("durable draft deletion unexpectedly succeeded")
 	}
 	got, ok, err := store.Draft(sessionID)

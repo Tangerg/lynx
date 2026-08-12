@@ -188,6 +188,13 @@ func (s *Store) SaveDraft(sessionID string, message agent.Message) error {
 	return nil
 }
 
+// DiscardDraft retires authoring state for a session that no longer exists.
+// It is intentionally distinct from saving an empty draft at call sites: the
+// caller is expressing a lifecycle transition, not an editor value change.
+func (s *Store) DiscardDraft(sessionID string) error {
+	return s.SaveDraft(sessionID, agent.Message{})
+}
+
 // StashPrompt preserves a prompt independently of its session draft.
 func (s *Store) StashPrompt(message agent.Message) (Stash, error) {
 	message = message.Clone()

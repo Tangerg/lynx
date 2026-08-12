@@ -170,7 +170,7 @@ func (a *app) refreshInvalidatedSession(settleAfter bool) {
 				a.sessionInvalidated = true
 				if errors.Is(err, agent.ErrSessionNotFound) && a.conversation.Phase() == agent.ConversationIdle && !a.following {
 					a.message("the active session was deleted; creating a replacement")
-					a.startSessionInWorkspace(a.session.Workspace.Path)
+					a.replaceDeletedSessionInWorkspace(a.session.Workspace.Path)
 					return
 				}
 				a.message("refresh session after runtime change failed: " + err.Error())

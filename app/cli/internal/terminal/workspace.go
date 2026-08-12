@@ -258,6 +258,33 @@ func (a *app) startSessionInWorkspace(workspace string) {
 	)
 }
 
+// replaceDeletedSessionInWorkspace is the forced counterpart to /new. The
+// current draft moves to the replacement because its source identity is gone;
+// queued follow-ups remain session-scoped and are retired after installation.
+func (a *app) replaceDeletedSessionInWorkspace(workspace string) {
+	retiredSessionID := a.session.ID
+	runSessionChangeWithDraftDisposition(a, "creating replacement session in "+workspace, retireSourceDraft,
+		func(ctx context.Context) (agent.SessionSnapshot, error) {
+			created, err := a.runtime.CreateSession(ctx, agent.CreateSession{Workspace: workspace})
+			return agent.SessionSnapshot{Session: created}, err
+		},
+		func(snapshot agent.SessionSnapshot) error {
+			if err := a.installSnapshot(snapshot); err != nil {
+				return err
+			}
+			discarded, err := a.retireSessionState(retiredSessionID)
+			if err != nil {
+				a.message("replacement installed; local state cleanup failed: " + err.Error())
+				return nil
+			}
+			if discarded > 0 {
+				a.message(fmt.Sprintf("discarded %s from the deleted session", countedNoun(discarded, "queued prompt")))
+			}
+			return nil
+		},
+	)
+}
+
 func resolveWorkspace(current, requested string) (string, error) {
 	requested = strings.TrimSpace(requested)
 	if requested == "" {

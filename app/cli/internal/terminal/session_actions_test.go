@@ -14,8 +14,47 @@ import (
 
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
 	"github.com/Tangerg/lynx/app/cli/internal/agent/mock"
+	"github.com/Tangerg/lynx/app/cli/internal/promptqueue"
 	"github.com/Tangerg/lynx/app/cli/internal/sessiontransfer"
+	"github.com/Tangerg/lynx/app/cli/internal/workbench"
 )
+
+func TestRetiringSessionStateClearsOnlyTheRetiredSession(t *testing.T) {
+	store, err := workbench.Open("", workbench.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	queue := promptqueue.New()
+	for _, sessionID := range []string{"retired", "active"} {
+		if err := store.SaveDraft(sessionID, agent.Message{Text: sessionID + " draft"}); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := queue.Enqueue(sessionID, agent.Message{Text: sessionID + " queued"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	application := &app{workbench: store, queue: queue}
+
+	discarded, err := application.retireSessionState("retired")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if discarded != 1 {
+		t.Fatalf("discarded queue entries = %d, want 1", discarded)
+	}
+	if draft, found, err := store.Draft("retired"); err != nil || found {
+		t.Fatalf("retired draft = %+v, found %t, error %v", draft, found, err)
+	}
+	if entries := queue.Snapshot("retired").Entries; len(entries) != 0 {
+		t.Fatalf("retired queue = %+v", entries)
+	}
+	if draft, found, err := store.Draft("active"); err != nil || !found || draft.Text != "active draft" {
+		t.Fatalf("active draft = %+v, found %t, error %v", draft, found, err)
+	}
+	if entries := queue.Snapshot("active").Entries; len(entries) != 1 || entries[0].Message.Text != "active queued" {
+		t.Fatalf("active queue = %+v", entries)
+	}
+}
 
 func TestParseRollbackArgumentPreservesTheInclusiveBoundaryAndScope(t *testing.T) {
 	request, err := parseRollbackArgument("ses_1", "run_42 both")

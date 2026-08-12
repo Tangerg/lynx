@@ -2,6 +2,7 @@ package terminal
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
 	"github.com/Tangerg/lynx/app/cli/internal/attachment"
+	"github.com/Tangerg/lynx/app/cli/internal/workbench"
 )
 
 func (a *app) ShowSessions() {
@@ -161,6 +163,10 @@ func (a *app) deleteSessionFromCenter(id string) {
 				return
 			}
 			a.sessionCenter.Remove(id)
+			if _, err := a.retireSessionState(id); err != nil {
+				a.message("deleted session; local state cleanup failed: " + err.Error())
+				return
+			}
 			a.message("deleted session")
 		},
 	)
@@ -249,6 +255,16 @@ func (a *app) switchSession(id string) {
 }
 
 func runSessionChange[T any](a *app, label string, work func(context.Context) (T, error), apply func(T) error) {
+	runSessionChangeWithDraftDisposition(a, label, preserveSourceDraft, work, apply)
+}
+
+func runSessionChangeWithDraftDisposition[T any](
+	a *app,
+	label string,
+	disposition sourceDraftDisposition,
+	work func(context.Context) (T, error),
+	apply func(T) error,
+) {
 	if a.conversation.Busy() || a.following {
 		a.message("finish or cancel the current run before changing sessions")
 		return
@@ -269,27 +285,76 @@ func runSessionChange[T any](a *app, label string, work func(context.Context) (T
 		return
 	}
 	a.persistDraft()
-	a.sessionChangeDraft = &sessionChangeDraft{sessionID: a.session.ID, message: baseline}
+	a.sessionDraftTransition = &sessionDraftTransition{
+		sourceSessionID: a.session.ID,
+		baseline:        baseline,
+		disposition:     disposition,
+	}
 	a.message(label)
 	if !runOperation(a, sessionChangeOperation, false, work, func(result T, err error) {
 		if err != nil {
-			a.sessionChangeDraft = nil
+			a.sessionDraftTransition = nil
 			a.message(label + " failed: " + err.Error())
 			return
 		}
 		if err := apply(result); err != nil {
 			a.message(label + " failed: " + err.Error())
 		}
-		a.sessionChangeDraft = nil
+		a.sessionDraftTransition = nil
 	}) {
-		a.sessionChangeDraft = nil
+		a.sessionDraftTransition = nil
 		a.message("wait for the current session change to finish")
 	}
 }
 
-type sessionChangeDraft struct {
-	sessionID string
-	message   agent.Message
+type sourceDraftDisposition uint8
+
+const (
+	preserveSourceDraft sourceDraftDisposition = iota
+	retireSourceDraft
+)
+
+// sessionDraftTransition owns the authoring-state boundary while a session
+// change is in flight. User-requested navigation preserves the source draft;
+// forced replacement transfers it because the source session no longer exists.
+type sessionDraftTransition struct {
+	sourceSessionID string
+	baseline        agent.Message
+	disposition     sourceDraftDisposition
+}
+
+func (transition sessionDraftTransition) resolve(
+	store *workbench.Store,
+	destinationSessionID string,
+	destinationDraft agent.Message,
+	currentDraft agent.Message,
+) (agent.Message, error) {
+	switch transition.disposition {
+	case retireSourceDraft:
+		if destinationSessionID == transition.sourceSessionID {
+			return agent.Message{}, fmt.Errorf("replacement session reused retired identity %s", destinationSessionID)
+		}
+		if err := store.SaveDraft(destinationSessionID, currentDraft); err != nil {
+			return agent.Message{}, fmt.Errorf("save replacement session draft: %w", err)
+		}
+		if err := store.DiscardDraft(transition.sourceSessionID); err != nil {
+			return agent.Message{}, fmt.Errorf("discard retired session draft: %w", err)
+		}
+		return currentDraft, nil
+	case preserveSourceDraft:
+		if currentDraft.Equal(transition.baseline) {
+			return destinationDraft, nil
+		}
+		if err := store.SaveDraft(transition.sourceSessionID, transition.baseline); err != nil {
+			return agent.Message{}, fmt.Errorf("restore source session draft: %w", err)
+		}
+		if err := store.SaveDraft(destinationSessionID, currentDraft); err != nil {
+			return agent.Message{}, fmt.Errorf("move draft to destination session: %w", err)
+		}
+		return currentDraft, nil
+	default:
+		return agent.Message{}, errors.New("session draft transition has an invalid source disposition")
+	}
 }
 
 type sessionInstallation struct {
@@ -327,21 +392,29 @@ func (a *app) prepareDestinationDraft(session agent.Session) (agent.Message, err
 	if err := a.workbench.RememberWorkspace(session.Workspace.Path); err != nil {
 		return agent.Message{}, fmt.Errorf("remember workspace: %w", err)
 	}
-	change := a.sessionChangeDraft
-	if change == nil {
+	transition := a.sessionDraftTransition
+	if transition == nil {
 		return draft, nil
 	}
 	current, _, err := a.currentDraft()
-	if err != nil || current.Equal(change.message) {
-		return draft, err
+	if err != nil {
+		return agent.Message{}, err
 	}
-	if err := a.workbench.SaveDraft(change.sessionID, change.message); err != nil {
-		return agent.Message{}, fmt.Errorf("restore source session draft: %w", err)
+	return transition.resolve(a.workbench, session.ID, draft, current)
+}
+
+func (a *app) retireSessionState(sessionID string) (int, error) {
+	discarded := 0
+	if a.queue != nil {
+		discarded = a.queue.Clear(sessionID)
 	}
-	if err := a.workbench.SaveDraft(session.ID, current); err != nil {
-		return agent.Message{}, fmt.Errorf("move draft to destination session: %w", err)
+	if a.workbench == nil {
+		return discarded, nil
 	}
-	return current, nil
+	if err := a.workbench.DiscardDraft(sessionID); err != nil {
+		return discarded, fmt.Errorf("discard session draft: %w", err)
+	}
+	return discarded, nil
 }
 
 func (installation sessionInstallation) apply(a *app) {

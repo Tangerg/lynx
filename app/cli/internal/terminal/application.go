@@ -172,15 +172,15 @@ type app struct {
 	globalMatcher       keymap.Matcher
 	attention           attentionCenter
 
-	streamSeq             uint64
-	dispatchingQueueEntry uint64
-	pendingCancel         *agent.CancelRun
-	sessionChangeDraft    *sessionChangeDraft
-	following             bool
-	stopClock             func()
-	executionClock        activeDurationClock
-	closed                bool
-	syntax                highlight.Renderer
+	streamSeq              uint64
+	dispatchingQueueEntry  uint64
+	pendingCancel          *agent.CancelRun
+	sessionDraftTransition *sessionDraftTransition
+	following              bool
+	stopClock              func()
+	executionClock         activeDurationClock
+	closed                 bool
+	syntax                 highlight.Renderer
 }
 
 type appConfig struct {

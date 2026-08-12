@@ -22,6 +22,7 @@ import (
 	"github.com/Tangerg/lynx/app/cli/internal/extensions"
 	"github.com/Tangerg/lynx/app/cli/internal/failure"
 	"github.com/Tangerg/lynx/app/cli/internal/settings"
+	"github.com/Tangerg/lynx/app/cli/internal/workbench"
 )
 
 func runUI(t *testing.T, plugins ...extensions.Plugin) (*programtest.Host, func()) {
@@ -1481,6 +1482,35 @@ func TestWorkbenchRestoresHistoryAndSessionDraftAcrossLaunches(t *testing.T) {
 
 	second.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
 	stopSecond()
+}
+
+func TestUserCreatedSessionPreservesTheSourceDraft(t *testing.T) {
+	backend := mock.New()
+	stateDirectory := t.TempDir()
+	host, stop := runUIWithState(t, backend, "/tmp/lyra-cli-test", "ses_demo_1", stateDirectory)
+	host.Shows(t, "Ask lyra")
+	host.Type("draft stays with the source session")
+	host.Send(input.Key{Code: input.Character, Rune: 'p', Mods: input.Ctrl})
+	host.Shows(t, "Commands")
+	host.Type("start a new session")
+	host.Shows(t, "/new")
+	host.Press(input.Enter)
+	host.Shows(t, "session · Untitled session")
+	host.Hides(t, "draft stays with the source session")
+	replacementID := firstRuntimeSession(t, backend)
+	stop()
+
+	store, err := workbench.Open(stateDirectory, workbench.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	draft, found, err := store.Draft("ses_demo_1")
+	if err != nil || !found || draft.Text != "draft stays with the source session" {
+		t.Fatalf("source draft = %+v, found %t, error %v", draft, found, err)
+	}
+	if draft, found, err := store.Draft(replacementID); err != nil || found {
+		t.Fatalf("new session draft = %+v, found %t, error %v", draft, found, err)
+	}
 }
 
 func TestPromptStashCanBeListedAppliedAndDeleted(t *testing.T) {
