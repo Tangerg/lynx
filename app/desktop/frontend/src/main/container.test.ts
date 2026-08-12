@@ -10,6 +10,7 @@ describe("main/container", () => {
   it("exposes the Runtime Protocol entry points out of the box", () => {
     const c = getContainer();
     expect(typeof c.client).toBe("function");
+    expect(typeof c.sidecar).toBe("function");
     expect(c.desktop).toBeDefined();
   });
 
@@ -33,5 +34,12 @@ describe("main/container", () => {
     expect(getContainer().client()).toBe(first);
     resetContainer();
     expect(getContainer().client()).not.toBe(first);
+  });
+
+  it("sidecar() returns a cached client for the active endpoint", () => {
+    const first = getContainer().sidecar();
+    expect(getContainer().sidecar()).toBe(first);
+    resetContainer();
+    expect(getContainer().sidecar()).not.toBe(first);
   });
 });

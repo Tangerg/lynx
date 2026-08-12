@@ -1,8 +1,17 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { resetContainer, setContainer } from "@/main/container";
 import { loadPlugin, unloadPlugin } from "@/plugins/sdk/definePlugin";
-import { PROTOCOL_VERSION, type DiscoverResponse, type LyraClient, type Methods } from "@/rpc";
+import {
+  HTTP_ENDPOINTS,
+  PROTOCOL_VERSION,
+  type DiscoverResponse,
+  type LyraClient,
+  type Methods,
+  type ReadinessStatus,
+  type SidecarClient,
+} from "@/rpc";
 import { useRuntimeStore } from "./adapters/runtimeCapabilityStore";
+import { useRuntimeServiceStore } from "./adapters/runtimeServiceStore";
 import runtimePlugin from "./index";
 
 // Typed, not cast. What this test asserts is that discovery reaches the store at
@@ -33,12 +42,34 @@ const discovery: DiscoverResponse = {
   },
 };
 
-function stubContainer(discover: Methods["runtime"]["discover"]) {
+function healthySidecar(): SidecarClient {
+  return {
+    info: vi.fn().mockResolvedValue({
+      protocol: { current: PROTOCOL_VERSION, minSupported: PROTOCOL_VERSION },
+      server: { name: "lyra-runtime", version: "1.2.3" },
+      transport: "http",
+      endpoints: {
+        rpc: HTTP_ENDPOINTS.rpc.path,
+        info: HTTP_ENDPOINTS.info.path,
+        liveness: HTTP_ENDPOINTS.liveness.path,
+        readiness: HTTP_ENDPOINTS.readiness.path,
+      },
+    }),
+    liveness: vi.fn().mockResolvedValue({ status: "ok" }),
+    readiness: vi.fn().mockResolvedValue({ status: "ok" }),
+  };
+}
+
+function stubContainer(
+  discover: Methods["runtime"]["discover"],
+  sidecar: SidecarClient = healthySidecar(),
+) {
   setContainer({
     client: () =>
       ({
         runtime: { discover },
       }) as unknown as LyraClient,
+    sidecar: () => sidecar,
   });
 }
 
@@ -46,6 +77,7 @@ afterEach(() => {
   unloadPlugin(runtimePlugin.name);
   resetContainer();
   useRuntimeStore.getState().clear();
+  useRuntimeServiceStore.getState().clear();
   vi.restoreAllMocks();
 });
 
@@ -60,6 +92,35 @@ describe("runtime plugin", () => {
       expect(useRuntimeStore.getState().capabilities).not.toBeNull();
     });
     expect(discover).toHaveBeenCalledOnce();
+  });
+
+  it("inspects all operational endpoints through the Runtime context", async () => {
+    const sidecar = healthySidecar();
+    stubContainer(vi.fn().mockResolvedValue(discovery), sidecar);
+
+    await loadPlugin(runtimePlugin);
+
+    await vi.waitFor(() => {
+      expect(useRuntimeServiceStore.getState().snapshot.phase).toBe("ready");
+    });
+    expect(sidecar.info).toHaveBeenCalledOnce();
+    expect(sidecar.liveness).toHaveBeenCalledOnce();
+    expect(sidecar.readiness).toHaveBeenCalledOnce();
+  });
+
+  it("publishes sidecar failure without preserving a stale ready phase", async () => {
+    const sidecar = healthySidecar();
+    sidecar.readiness = vi.fn().mockRejectedValue(new Error("connection refused"));
+    stubContainer(vi.fn().mockResolvedValue(discovery), sidecar);
+
+    await loadPlugin(runtimePlugin);
+
+    await vi.waitFor(() => {
+      expect(useRuntimeServiceStore.getState().snapshot).toMatchObject({
+        phase: "unavailable",
+        failure: { reason: "failed", detail: "connection refused" },
+      });
+    });
   });
 
   it("degrades without publishing stale capabilities when discovery fails", async () => {
@@ -92,5 +153,31 @@ describe("runtime plugin", () => {
     await Promise.resolve();
 
     expect(useRuntimeStore.getState().capabilities).toBeNull();
+  });
+
+  it("does not publish a sidecar result after the plugin is unloaded", async () => {
+    let resolveReadiness: (value: ReadinessStatus) => void = () => undefined;
+    const sidecar = healthySidecar();
+    sidecar.readiness = vi.fn<SidecarClient["readiness"]>(
+      () =>
+        new Promise<ReadinessStatus>((resolve) => {
+          resolveReadiness = resolve;
+        }),
+    );
+    stubContainer(vi.fn().mockResolvedValue(discovery), sidecar);
+
+    await loadPlugin(runtimePlugin);
+    await vi.waitFor(() => expect(sidecar.readiness).toHaveBeenCalledOnce());
+    unloadPlugin(runtimePlugin.name);
+
+    resolveReadiness({ status: "ok" });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(useRuntimeServiceStore.getState().snapshot).toEqual({
+      phase: "checking",
+      observation: null,
+      failure: null,
+    });
   });
 });

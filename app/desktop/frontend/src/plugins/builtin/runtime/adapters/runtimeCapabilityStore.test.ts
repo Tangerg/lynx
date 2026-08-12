@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import type { FeatureCapability, ServerCapabilities } from "@/rpc";
-import { useRuntimeStore, useServerFeature } from "./runtimeCapabilityStore";
+import { runtimeSupportsTopic, useRuntimeStore, useServerFeature } from "./runtimeCapabilityStore";
 
 // Every advertised capability carries the feature's own negotiation facts. These
 // fixtures are about whether a build offers a feature, so they say "advertised,
@@ -72,6 +72,14 @@ describe("runtime capability store", () => {
     const caps = useRuntimeStore.getState().capabilities!;
     expect(caps.runEvents.includes("item.started")).toBe(true);
     expect(caps.runEvents.includes("UNKNOWN")).toBe(false);
+  });
+
+  it("answers runtime topic negotiation from discovery", () => {
+    expect(runtimeSupportsTopic("files.changed")).toBe(false);
+    useRuntimeStore.getState().replace(makeCaps());
+
+    expect(runtimeSupportsTopic("files.changed")).toBe(true);
+    expect(runtimeSupportsTopic("knowledge.changed")).toBe(false);
   });
 
   // Sanity: import the selector so knip doesn't flag it as unused

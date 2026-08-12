@@ -85,11 +85,7 @@ func (s *Server) authGate(next http.Handler) http.Handler {
 // operational sidecars (no-auth ops endpoints). The RPC endpoint —
 // including streaming POSTs — is gated.
 func isAuthBypassPath(p string) bool {
-	switch p {
-	case infoPath, livenessPath, readinessPath:
-		return true
-	}
-	return false
+	return isPublicEndpointPath(p)
 }
 
 // validBearer parses `Authorization: Bearer <token>` and compares

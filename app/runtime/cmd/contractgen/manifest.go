@@ -7,6 +7,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/dispatch"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/operation"
+	runtimehttp "github.com/Tangerg/lynx/app/runtime/internal/delivery/transport/http"
 	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
@@ -22,6 +23,7 @@ type manifest struct {
 	Methods             []methodEntry                 `json:"methods"`
 	Notifications       []string                      `json:"notifications"`
 	StreamingMethods    []string                      `json:"streamingMethods"`
+	HTTPEndpoints       []httpEndpointEntry           `json:"httpEndpoints"`
 	Errors              errorRegistry                 `json:"errors"`
 	CapabilityPolicy    []capabilityEntry             `json:"capabilityPolicy"`
 	RunEventPolicy      []eventEntry                  `json:"runEventPolicy"`
@@ -34,6 +36,16 @@ type manifest struct {
 	ValueConstraints    []valueConstraintEntry        `json:"valueConstraints"`
 	SystemInvariants    []invariantEntry              `json:"systemInvariants"`
 	CanonicalSamples    []sampleEntry                 `json:"canonicalSamples"`
+}
+
+type httpEndpointEntry struct {
+	Name             string  `json:"name"`
+	Kind             string  `json:"kind"`
+	Method           string  `json:"method"`
+	Path             string  `json:"path"`
+	Authentication   string  `json:"authentication"`
+	ResponseStatuses []int   `json:"responseStatuses"`
+	Response         *schema `json:"response,omitempty"`
 }
 
 type methodEntry struct {
@@ -183,6 +195,7 @@ func build(walked *schemaSet) manifest {
 		Methods:             methods(registry),
 		Notifications:       notificationNames(shapes),
 		StreamingMethods:    registry.StreamMethods(),
+		HTTPEndpoints:       httpEndpoints(walked),
 		Errors:              errors(registry),
 		CapabilityPolicy:    capabilities(registry),
 		RunEventPolicy:      runEvents(shapes),
@@ -196,6 +209,28 @@ func build(walked *schemaSet) manifest {
 		SystemInvariants:    systemInvariants(),
 		CanonicalSamples:    canonicalSamples(),
 	}
+}
+
+func httpEndpoints(walked *schemaSet) []httpEndpointEntry {
+	contract := runtimehttp.Contract()
+	out := make([]httpEndpointEntry, 0, len(contract.Endpoints))
+	for _, endpoint := range contract.Endpoints {
+		var response *schema
+		if endpoint.ResponseType != nil {
+			local := walked.walk(endpoint.ResponseType)
+			response = &schema{Ref: "schema.json" + local.Ref}
+		}
+		out = append(out, httpEndpointEntry{
+			Name:             endpoint.Name,
+			Kind:             string(endpoint.Kind),
+			Method:           endpoint.Method,
+			Path:             endpoint.Path,
+			Authentication:   string(endpoint.Authentication),
+			ResponseStatuses: slices.Clone(endpoint.ResponseStatuses),
+			Response:         response,
+		})
+	}
+	return out
 }
 
 func notificationNames(shapes *dispatch.Shapes) []string {

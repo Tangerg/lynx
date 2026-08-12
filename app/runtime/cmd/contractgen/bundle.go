@@ -4,6 +4,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/dispatch"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/operation"
+	runtimehttp "github.com/Tangerg/lynx/app/runtime/internal/delivery/transport/http"
 	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
@@ -27,6 +28,15 @@ const schemaDialect = "https://json-schema.org/draft/2020-12/schema"
 // methods, but are equally part of the wire surface.
 func walkWireTypes(registry *operation.Registry, shapes *dispatch.Shapes) *schemaSet {
 	set := newSchemaSet(shapes)
+	httpContract := runtimehttp.Contract()
+	for _, enum := range httpContract.Enums {
+		set.registerEnum(enum.Type, enum.Values)
+	}
+	for _, endpoint := range httpContract.Endpoints {
+		if endpoint.ResponseType != nil {
+			set.walk(endpoint.ResponseType)
+		}
+	}
 	for _, contract := range toolset.PresentationContracts() {
 		for enumType, values := range contract.EnumValues {
 			set.registerEnum(enumType, values)

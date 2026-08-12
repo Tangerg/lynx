@@ -123,6 +123,8 @@ export type WireTypeName =
   | "GrepMatch"
   | "GrepRequest"
   | "GrepResult"
+  | "HTTPTransportKind"
+  | "HealthStatus"
   | "HookEvent"
   | "HookInfo"
   | "HookScope"
@@ -156,6 +158,8 @@ export type WireTypeName =
   | "ListItemsResponse"
   | "ListModelsRequest"
   | "ListRunsRequest"
+  | "LivenessState"
+  | "LivenessStatus"
   | "MCPAuthorizationAttempt"
   | "MCPAuthorizationAttemptLimits"
   | "MCPAuthorizationAttemptRequest"
@@ -217,6 +221,7 @@ export type WireTypeName =
   | "QuestionFieldType"
   | "QuestionOption"
   | "ReadFileRequest"
+  | "ReadinessStatus"
   | "Recipe"
   | "RecipeScope"
   | "RememberScope"
@@ -246,7 +251,10 @@ export type WireTypeName =
   | "RuntimeEvent"
   | "RuntimeEventNotification"
   | "RuntimeEventType"
+  | "RuntimeInfo"
+  | "RuntimeInfoEndpoints"
   | "RuntimeLimits"
+  | "RuntimeServerInfo"
   | "RuntimeSubscribeRequest"
   | "RuntimeSubscribeResponse"
   | "RuntimeTopic"
@@ -1092,6 +1100,8 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     matches: array(ref(() => CHECKS.GrepMatch)),
     total: integer(),
   }, ["matches", "total"]),
+  HTTPTransportKind: enumOf(["http"]),
+  HealthStatus: enumOf(["ok", "degraded", "unhealthy"]),
   HookEvent: enumOf(["PreToolUse", "PostToolUse", "UserPromptSubmit", "SessionStart", "SubagentStart", "SubagentStop", "PreCompact", "Stop", "Notification"]),
   HookInfo: object({
     active: flag(),
@@ -1453,6 +1463,10 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     sessionId: text(),
     statuses: allOf([array(ref(() => CHECKS.RunStatus)), minItems(1), uniqueItems()]),
   }, []),
+  LivenessState: enumOf(["ok"]),
+  LivenessStatus: object({
+    status: ref(() => CHECKS.LivenessState),
+  }, ["status"]),
   MCPAuthorizationAttempt: allOf([
     object({
       createdAt: text(),
@@ -2257,6 +2271,10 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     startLine: allOf([integer(), minimum(0)]),
     workspace: ref(() => CHECKS.WorkspaceRef),
   }, ["path", "workspace"]),
+  ReadinessStatus: object({
+    checks: record(ref(() => CHECKS.HealthStatus)),
+    status: ref(() => CHECKS.HealthStatus),
+  }, ["status"]),
   Recipe: object({
     argumentHint: text(),
     body: text(),
@@ -2705,6 +2723,18 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     event: ref(() => CHECKS.RuntimeEvent),
   }, ["event"]),
   RuntimeEventType: enumOf(["files.changed", "skills.changed", "mcp.changed", "schedules.changed", "sessions.changed", "runs.changed", "state.changed", "goals.changed", "interrupts.changed", "knowledge.changed", "hooks.changed", "resync"]),
+  RuntimeInfo: object({
+    endpoints: ref(() => CHECKS.RuntimeInfoEndpoints),
+    protocol: ref(() => CHECKS.ProtocolRange),
+    server: ref(() => CHECKS.RuntimeServerInfo),
+    transport: ref(() => CHECKS.HTTPTransportKind),
+  }, ["endpoints", "protocol", "server", "transport"]),
+  RuntimeInfoEndpoints: object({
+    info: text(),
+    liveness: text(),
+    readiness: text(),
+    rpc: text(),
+  }, ["info", "liveness", "readiness", "rpc"]),
   RuntimeLimits: object({
     idempotency: ref(() => CHECKS.IdempotencyLimits),
     maxConcurrentRuns: integer(),
@@ -2712,6 +2742,10 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     runReplay: ref(() => CHECKS.RunReplayLimits),
     runtimeSubscription: ref(() => CHECKS.SubscriptionLimits),
   }, ["idempotency", "mcpAuthorizationAttempts", "runReplay", "runtimeSubscription"]),
+  RuntimeServerInfo: object({
+    name: text(),
+    version: text(),
+  }, ["name", "version"]),
   RuntimeSubscribeRequest: object({
     topics: allOf([array(ref(() => CHECKS.RuntimeTopic)), minItems(1), uniqueItems()]),
     watches: array(ref(() => CHECKS.WatchSpec)),
@@ -3331,6 +3365,22 @@ const METHOD_RESULTS: Record<WireMethodName, WireCheck> = {
 export function validateMethodResult(method: WireMethodName, value: unknown): WireViolation[] {
   const out: WireViolation[] = [];
   METHOD_RESULTS[method](value, `${method}.result`, out);
+  return out;
+}
+
+const HTTP_RESPONSES: Record<Wire.HTTPSidecarEndpointName, WireCheck> = {
+  "info": ref(() => CHECKS.RuntimeInfo),
+  "liveness": ref(() => CHECKS.LivenessStatus),
+  "readiness": ref(() => CHECKS.ReadinessStatus),
+};
+
+/** Validate the flat-JSON response returned by one operational sidecar. */
+export function validateHTTPSidecarResponse(
+  endpoint: Wire.HTTPSidecarEndpointName,
+  value: unknown,
+): WireViolation[] {
+  const out: WireViolation[] = [];
+  HTTP_RESPONSES[endpoint](value, `${endpoint}.response`, out);
   return out;
 }
 

@@ -2571,6 +2571,20 @@
         "total"
       ]
     },
+    "HTTPTransportKind": {
+      "type": "string",
+      "enum": [
+        "http"
+      ]
+    },
+    "HealthStatus": {
+      "type": "string",
+      "enum": [
+        "ok",
+        "degraded",
+        "unhealthy"
+      ]
+    },
     "HookEvent": {
       "type": "string",
       "enum": [
@@ -3582,6 +3596,23 @@
           }
         }
       }
+    },
+    "LivenessState": {
+      "type": "string",
+      "enum": [
+        "ok"
+      ]
+    },
+    "LivenessStatus": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "$ref": "#/$defs/LivenessState"
+        }
+      },
+      "required": [
+        "status"
+      ]
     },
     "MCPAuthorizationAttempt": {
       "type": "object",
@@ -5800,6 +5831,23 @@
         "workspace"
       ]
     },
+    "ReadinessStatus": {
+      "type": "object",
+      "properties": {
+        "checks": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/HealthStatus"
+          }
+        },
+        "status": {
+          "$ref": "#/$defs/HealthStatus"
+        }
+      },
+      "required": [
+        "status"
+      ]
+    },
     "Recipe": {
       "type": "object",
       "properties": {
@@ -7018,6 +7066,52 @@
         "resync"
       ]
     },
+    "RuntimeInfo": {
+      "type": "object",
+      "properties": {
+        "endpoints": {
+          "$ref": "#/$defs/RuntimeInfoEndpoints"
+        },
+        "protocol": {
+          "$ref": "#/$defs/ProtocolRange"
+        },
+        "server": {
+          "$ref": "#/$defs/RuntimeServerInfo"
+        },
+        "transport": {
+          "$ref": "#/$defs/HTTPTransportKind"
+        }
+      },
+      "required": [
+        "endpoints",
+        "protocol",
+        "server",
+        "transport"
+      ]
+    },
+    "RuntimeInfoEndpoints": {
+      "type": "object",
+      "properties": {
+        "info": {
+          "type": "string"
+        },
+        "liveness": {
+          "type": "string"
+        },
+        "readiness": {
+          "type": "string"
+        },
+        "rpc": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "info",
+        "liveness",
+        "readiness",
+        "rpc"
+      ]
+    },
     "RuntimeLimits": {
       "type": "object",
       "properties": {
@@ -7042,6 +7136,21 @@
         "mcpAuthorizationAttempts",
         "runReplay",
         "runtimeSubscription"
+      ]
+    },
+    "RuntimeServerInfo": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "version"
       ]
     },
     "RuntimeSubscribeRequest": {

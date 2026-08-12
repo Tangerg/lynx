@@ -5,6 +5,7 @@ import ts from "typescript";
 
 const ROOT = process.cwd();
 const METHODS_PATH = resolve(ROOT, "src/rpc/methods.ts");
+const SIDECAR_PATH = resolve(ROOT, "src/rpc/sidecar.ts");
 const MANIFEST_PATH = resolve(ROOT, "../../runtime/contract/manifest.json");
 const EVENT_POLICY_PATH = resolve(
   ROOT,
@@ -17,6 +18,11 @@ const EVENT_ADAPTER_PATH = resolve(
 
 const manifest = JSON.parse(readFileSync(MANIFEST_PATH, "utf8"));
 const operations = new Set(manifest.methods.map((method) => method.name));
+const sidecarEndpoints = new Set(
+  manifest.httpEndpoints
+    .filter((endpoint) => endpoint.kind === "sidecar")
+    .map((endpoint) => endpoint.name),
+);
 const runtimeTopics = new Set(manifest.runtimeTopics.map((topic) => topic.type));
 
 const configPath = ts.findConfigFile(ROOT, ts.sys.fileExists, "tsconfig.json");
@@ -29,12 +35,16 @@ const program = ts.createProgram(parsed.fileNames, parsed.options);
 const checker = program.getTypeChecker();
 const methodsSource = program.getSourceFile(METHODS_PATH);
 if (!methodsSource) fail([`TypeScript did not load ${relative(ROOT, METHODS_PATH)}`]);
+const sidecarSource = program.getSourceFile(SIDECAR_PATH);
+if (!sidecarSource) fail([`TypeScript did not load ${relative(ROOT, SIDECAR_PATH)}`]);
 
 const implementationMap = new Map();
 mapReturnedObject("createMethods", []);
 mapReturnedObject("bindWorkspace", []);
+const sidecarMethodMap = mappedSidecarMethods();
 
 const consumerCalls = new Map();
+const sidecarConsumerCalls = new Map();
 const discardedResults = [];
 for (const source of program.getSourceFiles()) {
   const sourcePath = resolve(source.fileName);
@@ -45,14 +55,24 @@ for (const source of program.getSourceFiles()) {
     if (!symbol) return;
     if (symbol.flags & ts.SymbolFlags.Alias) symbol = checker.getAliasedSymbol(symbol);
     for (const declaration of symbol.declarations ?? []) {
-      if (resolve(declaration.getSourceFile().fileName) !== METHODS_PATH) continue;
-      const wrapper = wrapperPath(declaration);
-      if (!wrapper) continue;
+      const declarationPath = resolve(declaration.getSourceFile().fileName);
+      let wrapper;
+      let target;
+      if (declarationPath === METHODS_PATH) {
+        wrapper = wrapperPath(declaration, METHODS_PATH);
+        target = consumerCalls;
+      } else if (declarationPath === SIDECAR_PATH) {
+        wrapper = wrapperPath(declaration, SIDECAR_PATH);
+        target = sidecarConsumerCalls;
+      } else {
+        continue;
+      }
+      if (!wrapper || !target) continue;
       const position = source.getLineAndCharacterOfPosition(node.getStart(source));
       const location = `${relative(ROOT, sourcePath)}:${position.line + 1}`;
-      const locations = consumerCalls.get(wrapper) ?? new Set();
+      const locations = target.get(wrapper) ?? new Set();
       locations.add(location);
-      consumerCalls.set(wrapper, locations);
+      target.set(wrapper, locations);
       if (discardsNonVoidResult(node)) {
         discardedResults.push(`${wrapper} returns a value that is discarded at ${location}`);
       }
@@ -91,16 +111,63 @@ for (const [operation, consumers] of operationConsumers) {
   }
 }
 
+checkSidecarConsumers(sidecarEndpoints, sidecarMethodMap, sidecarConsumerCalls, errors);
+
 checkRuntimeTopics(errors);
 if (errors.length > 0) fail(errors);
 
-const callCount = [...consumerCalls.values()].reduce(
-  (total, locations) => total + locations.size,
-  0,
-);
+const callCount =
+  [...consumerCalls.values()].reduce((total, locations) => total + locations.size, 0) +
+  [...sidecarConsumerCalls.values()].reduce((total, locations) => total + locations.size, 0);
 console.log(
-  `check-backend-api-consumers: ${operations.size}/${operations.size} Runtime operations and ${runtimeTopics.size}/${runtimeTopics.size} event types have product consumers (${callCount} typed call sites)`,
+  `check-backend-api-consumers: ${operations.size}/${operations.size} Runtime operations, ${sidecarEndpoints.size}/${sidecarEndpoints.size} HTTP sidecars, and ${runtimeTopics.size}/${runtimeTopics.size} event types have product consumers (${callCount} typed call sites)`,
 );
+
+function mappedSidecarMethods() {
+  let declaration;
+  for (const statement of sidecarSource.statements) {
+    if (!ts.isVariableStatement(statement)) continue;
+    declaration = statement.declarationList.declarations.find(
+      (candidate) => ts.isIdentifier(candidate.name) && candidate.name.text === "SIDECAR_METHODS",
+    );
+    if (declaration) break;
+  }
+  const initializer = declaration?.initializer && unwrapExpression(declaration.initializer);
+  if (!initializer || !ts.isObjectLiteralExpression(initializer)) {
+    fail(["SIDECAR_METHODS must be an object literal in sidecar.ts"]);
+  }
+  const mapped = new Map();
+  for (const property of initializer.properties) {
+    if (!ts.isPropertyAssignment(property)) continue;
+    const endpoint = propertyName(property.name);
+    const method = constantString(property.initializer);
+    if (endpoint && method) mapped.set(endpoint, method);
+  }
+  return mapped;
+}
+
+function checkSidecarConsumers(expected, methods, calls, targetErrors) {
+  for (const endpoint of expected) {
+    const method = methods.get(endpoint);
+    if (!method) {
+      targetErrors.push(`${endpoint} has no typed SidecarClient method mapping`);
+      continue;
+    }
+    const consumers = calls.get(method);
+    if (!consumers?.size) {
+      targetErrors.push(
+        `${endpoint} has no non-test frontend consumer (the SidecarClient implementation and tests do not count)`,
+      );
+    }
+  }
+  for (const endpoint of methods.keys()) {
+    if (!expected.has(endpoint)) {
+      targetErrors.push(
+        `SidecarClient maps ${endpoint}, which is absent from the Runtime manifest`,
+      );
+    }
+  }
+}
 
 function mapReturnedObject(functionName, prefix) {
   const declaration = methodsSource.statements.find(
@@ -194,10 +261,10 @@ function unwrapExpression(expression) {
   return node;
 }
 
-function wrapperPath(declaration) {
+function wrapperPath(declaration, declarationSourcePath) {
   const parts = [];
   let node = declaration;
-  while (node && resolve(node.getSourceFile().fileName) === METHODS_PATH) {
+  while (node && resolve(node.getSourceFile().fileName) === declarationSourcePath) {
     if (
       (ts.isPropertySignature(node) ||
         ts.isPropertyDeclaration(node) ||

@@ -88,6 +88,8 @@
 | P52 | 外部人工配置变更与 Runtime stream 收敛 | P51 + external create/write/rename/remove / duplicate event 反例 | 已完成 |
 | P53 | Desktop Goal mutation/read-model 单一事实源收敛 | P52 + delayed response / equal timestamp / remote transition 反例 | 已完成 |
 | P54 | Checkpoint source ownership 与 shadow ignore 收敛 | P53 + tracked build input / ignored generated sibling 反例 | 已完成 |
+| P55 | Git 子进程仓库环境所有权收敛 | P54 + foreign `GIT_*` / physical metadata identity 反例 | 已完成 |
+| P56 | HTTP sidecar 合同、Desktop 消费与事件协商收敛 | P55 + sidecar omission / outage recovery / older-topic negotiation 反例 | 已完成 |
 
 ## 4. P0 — 文档、事实和边界基线
 
@@ -1350,10 +1352,32 @@
 - Git process、checkpoint、VCS read、workspace watcher、architecture 的完整包与 race 全绿，Runtime standalone tidy/build/vet/test 全绿；
 - 生产代码直接 Git subprocess 只剩 `infra/gitprocess`，Application/Delivery/Agent/Agent Framework、Protocol、SQLite 与 Artifact shape 均未变化。
 
-## 60. 进度记录
+## 60. P56 — HTTP sidecar 合同、Desktop 消费与事件协商收敛
+
+### 目标
+
+关闭核心 RPC 之外的 info/liveness/readiness API 未进入生成合同、产品消费和静态覆盖门禁的缺口，并以真实停机/恢复反例验证其生命周期。所有 HTTP path/status/response/auth 事实必须归 Runtime HTTP Delivery；Desktop Runtime context 只向 Settings 暴露中性服务观察。同时确保事件消费者只请求 discovery 已声明的 topic，不能因新客户端连接旧 Runtime 而让全部文件、Session、Run、Goal、Plan/HITL 旁路失效流离线。
+
+### 工作项
+
+- [x] P56-01 Runtime HTTP Delivery 建立唯一 endpoint registry，同源驱动 handler 注册、auth policy、info 自描述与可生成 contract；
+- [x] P56-02 contractgen 生成 HTTP endpoint manifest、sidecar response Schema/TS/validator/reference，兼容性比较覆盖 endpoint 删除、方法/路径/auth/响应与状态变化；
+- [x] P56-03 Desktop sidecar SDK 只消费生成 method/path/status/type/validator，API consumer gate 将三条 sidecar 纳入非测试产品调用覆盖；
+- [x] P56-04 Desktop Runtime Application 以中性 inspection/controller/port 管理 timeout、并发合并、dispose 与失败重试，HTTP Adapter 做防腐映射，Connection UI 只消费公开状态；
+- [x] P56-05 Workspace event Adapter 以客户端 foldable topics 与 Runtime discovery topics 的交集建立订阅，旧 Runtime 不再因新增 topic 拒绝整个 stream；
+- [x] P56-06 完成生成漂移、边界、全量前端/Runtime 门禁与真实浏览器停机、恢复、旧 Runtime negotiation 联调。
+
+### 验收
+
+- Runtime endpoint 注册、自描述、生成合同和 Desktop SDK 不存在第二套 path/status/schema；静态门禁覆盖全部 RPC、sidecar 和 Runtime event；
+- 后端停机后 UI 有界进入 unavailable，同页重启可回到 ready；旧 Runtime 只接收自己声明的 9 topic，SSE 保持 200；
+- HTTP/wire/UI/i18n 不进入 Runtime Domain/Application、Desktop Agent 或 Go Agent Framework。
+
+## 61. 进度记录
 
 | 日期 | 阶段 | 完成事实 | 验证 |
 |---|---|---|---|
+| 2026-08-13 | P56（HTTP sidecar contract / Desktop consumption / topic negotiation） | Runtime HTTP Delivery 以唯一 endpoint registry 同源生成 RPC、info、liveness、readiness 的 method/path/auth/status/response contract，并由该 registry 注册 handler、豁免 auth、生成 info 自描述；contractgen 将三条 sidecar API 与响应 Schema 投影到 manifest/TS/validator/reference，Desktop SDK 删除手写路径和响应 Schema。Runtime context 新增中性 service inspection Application/port，由 HTTP Adapter 消费三条 sidecar，Settings 只消费公开状态；10 秒 deadline、并发 coalescing、dispose late-settlement 与 retry 均由 lifecycle owner 管理。真实旧 Runtime 进一步暴露 workspace subscription 把客户端全量主题误当后端能力，现由 Runtime capability port 提供中性 topic membership，Workspace Adapter 只请求客户端可折叠集合与 discovery 声明集合的交集。HTTP/wire/UI/i18n 均未进入 Runtime Application、Desktop Agent 或 Go Agent Framework | Runtime standalone build/vet/test/tidy/lint/race 全绿；Frontend 定向 controller/inspector/store/UI/SDK/consumer/旧 Runtime topic negotiation 回归通过，静态 consumer gate 覆盖 86/86 operations + 3/3 HTTP sidecars + 12/12 events / 106 typed call sites。真实浏览器确认三条 sidecar 均 200、停机刷新进入 unavailable、同页重启恢复 ready；旧 Runtime discovery 仅声明 9 topic 时，重载后的 `runtime.subscribe` 精确发送这 9 个并保持 SSE 200，console/page error 为零 |
 | 2026-08-13 | P55（Git process environment ownership） | 新增中立 `infra/gitprocess` 作为 Runtime 内唯一 Git OS-process boundary：清除父进程全部 `GIT_*` 控制面，再按 checkpoint shadow repo 等调用者安装显式 override；checkpoint source discovery、workspace VCS read 与 Git watcher 共同消费。Watcher 的 per-worktree/common metadata path 同时经 `pathidentity` 收敛为 physical identity。Application、Delivery、Agent/Framework、Protocol、SQLite/Artifact shape 均未变化 | 三条红测先证明 ambient foreign index 令 checkpoint 失败、foreign repository routing 令 VCS read 判错且 watcher 订阅外部 `.git`；修复后各自转绿，相关五包完整测试与四包 race、Runtime standalone tidy/build/vet/test 全绿。污染父进程中的真实 HTTP VCS read 返回目标仓库 modified +1/-1；真实 HTTP→TypeScript SDK 流式 Run 与手工保留 Run 均 completed，maintenance checkpoint 成功，shadow tag/tree/fsck 完整，foreign index SHA-256 前后不变；architecture guard 阻止 owner 外直接 Git subprocess |
 | 2026-08-13 | P54（checkpoint source ownership / shadow ignore） | Checkpoint Infra 明确 `ls-files --exclude-standard` 是唯一路径 ownership decision：source index 已跟踪路径保留，ignored untracked 路径排除，普通文件再经类型/2 MiB 策略筛选；精确候选列表用 force-add 更新 shadow index，避免 `build/` backstop exclude 二次否决真实仓库合法跟踪的 build 输入。修复止于 `infra/checkpoint`，Run/Goal/Agent 不吞 maintenance 错误，Runtime/Protocol/SQLite/Artifact shape 不变 | 红测真实复现 tracked `app/build/config.yml` 因 shadow ignore 导致 `git add` 失败；修复后 tracked+ignored sibling 矩阵 20×、checkpoint 完整包/race、Runtime standalone tidy/build/vet/test 全绿，真实 HTTP Plan/HITL/Approval/Goal 7 场景通过。修复后的 Runtime 对真实 lynx 工作树完成 Goal checkpoint：shadow tree 精确含 7 个 tracked Desktop build 输入、排除 bin/ios/linux/windows generated paths，`git fsck` 通过且 maintenance 无 ERROR，Goal 到达 1/1 budget boundary |
 | 2026-08-13 | P53（Goal mutation/read-model single authority） | Desktop Goal Application 删除 mutation snapshot 的 timestamp 排序与 standing cache 写入，成功、失败和结算不明统一回读；command port 收窄为中性 Session receipt，完整 Runtime Goal 只在 Adapter 消费，`goals.get` data provider 成为长期状态唯一作者。跨 Session receipt fail closed，Application 错误保持结构化且无产品文案。Agent/Framework、Runtime/Protocol、SQLite/Artifact shape 零变更 | 红测覆盖 equal timestamp、延迟未来时间戳、mounted query refetch、跨 Session receipt、失败恢复和同 Session 串行；Frontend 270 文件/1630 测试、95 public edges、86/86 operations + 12/12 events / 103 typed call sites、本地化与 bundle 全绿，Runtime standalone tidy/build/vet/test 全绿。隔离 Runtime/假 provider/延迟代理/真实浏览器中，本地 Stop response 被改为 `2099` 并延迟，远端 Resume 先提交；页面经 `goals.changed → goals.get` 保持 active 1/3，释放旧响应及随后权威回读均不倒退，page/业务 console error 为零 |

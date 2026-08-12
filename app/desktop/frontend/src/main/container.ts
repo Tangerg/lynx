@@ -5,8 +5,13 @@
 import { runtimeRequestMeta } from "@/main/runtimeProtocol";
 import { negotiatedCapabilities } from "@/plugins/builtin/runtime/public/capabilities";
 import { currentRuntimeEndpoint } from "@/plugins/builtin/runtime/public/endpoint";
-import type { DesktopBootstrap, DesktopHostClient, LyraClient } from "@/rpc";
-import { createDesktopHostClient, createHttpTransport, createLyraClient } from "@/rpc";
+import type { DesktopBootstrap, DesktopHostClient, LyraClient, SidecarClient } from "@/rpc";
+import {
+  createDesktopHostClient,
+  createHttpTransport,
+  createLyraClient,
+  createSidecarClient,
+} from "@/rpc";
 
 export interface Container {
   /**
@@ -17,6 +22,8 @@ export interface Container {
    * startup default. Tests can override with `setContainer({ client })`.
    */
   client: () => LyraClient;
+  /** Typed HTTP operational endpoints owned by the Runtime transport adapter. */
+  sidecar: () => SidecarClient;
   /** App-owned Wails capability boundary. It never becomes Runtime Protocol. */
   desktop: DesktopHostClient;
 }
@@ -32,6 +39,7 @@ function localTokenFor(endpoint: string): string | undefined {
 
 function defaultContainer(): Container {
   let shared: { signature: string; client: LyraClient } | null = null;
+  let sidecar: { endpoint: string; client: SidecarClient } | null = null;
   return {
     client: () => {
       const baseUrl = currentRuntimeEndpoint();
@@ -43,6 +51,13 @@ function defaultContainer(): Container {
         capabilities: negotiatedCapabilities,
       });
       shared = { signature, client };
+      return client;
+    },
+    sidecar: () => {
+      const endpoint = currentRuntimeEndpoint();
+      if (sidecar?.endpoint === endpoint) return sidecar.client;
+      const client = createSidecarClient({ baseUrl: endpoint });
+      sidecar = { endpoint, client };
       return client;
     },
     desktop: createDesktopHostClient(),

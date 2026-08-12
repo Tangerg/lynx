@@ -11,6 +11,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/contractcatalog"
 	"github.com/Tangerg/lynx/app/runtime/internal/contractshape"
+	runtimehttp "github.com/Tangerg/lynx/app/runtime/internal/delivery/transport/http"
 	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
@@ -48,6 +49,7 @@ func newTypeScript(set *schemaSet, notifications []string) string {
 	emitter := &tsEmitter{tsTypes: tsTypes{set: set}}
 	emitter.header()
 	emitter.protocolVersion()
+	emitter.httpEndpoints()
 	emitter.notifications(notifications)
 
 	names := slices.Sorted(maps.Keys(set.defs))
@@ -65,6 +67,41 @@ func newTypeScript(set *schemaSet, notifications []string) string {
 	emitter.enumValues(names)
 	emitter.runEventReliability()
 	return emitter.out.String()
+}
+
+// httpEndpoints publishes transport locations from the same Delivery registry
+// the HTTP router uses. A vendored client never has to restate /v2 paths.
+func (e *tsEmitter) httpEndpoints() {
+	e.line("// HTTP entrypoints implemented by this runtime build.")
+	e.line("export const HTTP_ENDPOINTS = {")
+	contract := runtimehttp.Contract()
+	for _, endpoint := range contract.Endpoints {
+		e.line("  %s: {", propertyKey(endpoint.Name))
+		e.line("    kind: %s,", strconv.Quote(string(endpoint.Kind)))
+		e.line("    method: %s,", strconv.Quote(endpoint.Method))
+		e.line("    path: %s,", strconv.Quote(endpoint.Path))
+		e.line("    authentication: %s,", strconv.Quote(string(endpoint.Authentication)))
+		statuses := make([]string, 0, len(endpoint.ResponseStatuses))
+		for _, status := range endpoint.ResponseStatuses {
+			statuses = append(statuses, strconv.Itoa(status))
+		}
+		e.line("    responseStatuses: [%s],", strings.Join(statuses, ", "))
+		e.line("  },")
+	}
+	e.line("} as const;")
+	e.line("")
+	e.line("// Flat-JSON responses returned outside the JSON-RPC envelope.")
+	e.line("export interface HTTPSidecarResponses {")
+	for _, endpoint := range contract.Endpoints {
+		if endpoint.Kind != runtimehttp.EndpointKindSidecar || endpoint.ResponseType == nil {
+			continue
+		}
+		e.line("  %s: %s;", propertyKey(endpoint.Name), defName(endpoint.ResponseType))
+	}
+	e.line("}")
+	e.line("")
+	e.line("export type HTTPSidecarEndpointName = keyof HTTPSidecarResponses;")
+	e.line("")
 }
 
 // notifications emits the downstream method names.

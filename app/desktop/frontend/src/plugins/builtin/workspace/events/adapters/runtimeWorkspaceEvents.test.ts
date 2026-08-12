@@ -1,15 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { subscribeRuntimeWorkspaceEvents } from "./runtimeWorkspaceEvents";
 
-const { fileWatch, resolveWorkspace, subscribe } = vi.hoisted(() => ({
+const { fileWatch, resolveWorkspace, subscribe, supportedTopics } = vi.hoisted(() => ({
   fileWatch: vi.fn(() => true),
   resolveWorkspace: vi.fn(),
   subscribe: vi.fn(),
+  supportedTopics: new Set<string>(),
 }));
 
 vi.mock("@/plugins/builtin/runtime/public/capabilities", () => ({
   runtimeCapability: fileWatch,
   runtimeSupportsStreamingMethod: vi.fn(() => true),
+  runtimeSupportsTopic: (topic: string) => supportedTopics.has(topic),
 }));
 
 vi.mock("@/main/container", () => ({
@@ -27,6 +29,22 @@ const events = {
 
 beforeEach(() => {
   fileWatch.mockReturnValue(true);
+  supportedTopics.clear();
+  for (const topic of [
+    "files.changed",
+    "skills.changed",
+    "mcp.changed",
+    "schedules.changed",
+    "sessions.changed",
+    "runs.changed",
+    "interrupts.changed",
+    "goals.changed",
+    "state.changed",
+    "knowledge.changed",
+    "hooks.changed",
+  ]) {
+    supportedTopics.add(topic);
+  }
   resolveWorkspace.mockReset();
   subscribe.mockReset();
   subscribe.mockResolvedValue({ result: {}, events });
@@ -53,6 +71,24 @@ describe("runtime workspace event subscription", () => {
       }),
       signal,
     );
+  });
+
+  it("intersects foldable topics with discovery for an older Runtime", async () => {
+    supportedTopics.delete("knowledge.changed");
+    supportedTopics.delete("hooks.changed");
+    const signal = new AbortController().signal;
+
+    await expect(subscribeRuntimeWorkspaceEvents({ type: "none" }, signal)).resolves.toBe(events);
+
+    expect(subscribe).toHaveBeenCalledWith(
+      expect.objectContaining({
+        topics: expect.arrayContaining(["files.changed", "sessions.changed", "goals.changed"]),
+      }),
+      signal,
+    );
+    const request = subscribe.mock.calls[0]?.[0];
+    expect(request.topics).not.toContain("knowledge.changed");
+    expect(request.topics).not.toContain("hooks.changed");
   });
 
   it("cancels watch-root resolution with the subscription lifecycle", async () => {

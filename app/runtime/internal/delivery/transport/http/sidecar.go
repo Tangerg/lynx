@@ -7,42 +7,39 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
-const (
-	rpcPath       = "/v2/rpc"
-	infoPath      = "/v2/info"
-	livenessPath  = "/v2/health/live"
-	readinessPath = "/v2/health/ready"
-)
-
-type publicServerInfo struct {
+type RuntimeServerInfo struct {
 	Name    string `json:"name"`
 	Version string `json:"version"`
 }
 
-type infoEndpoints struct {
+type RuntimeInfoEndpoints struct {
 	RPC       string `json:"rpc"`
 	Info      string `json:"info"`
 	Liveness  string `json:"liveness"`
 	Readiness string `json:"readiness"`
 }
 
-type infoResponse struct {
+type HTTPTransportKind string
+
+const HTTPTransport HTTPTransportKind = "http"
+
+type RuntimeInfo struct {
 	Protocol  protocol.ProtocolRange `json:"protocol"`
-	Server    publicServerInfo       `json:"server"`
-	Transport string                 `json:"transport"`
-	Endpoints infoEndpoints          `json:"endpoints"`
+	Server    RuntimeServerInfo      `json:"server"`
+	Transport HTTPTransportKind      `json:"transport"`
+	Endpoints RuntimeInfoEndpoints   `json:"endpoints"`
 }
 
-func newInfoResponse(server protocol.ServerInfo, currentVersion string) infoResponse {
-	return infoResponse{
+func newInfoResponse(server protocol.ServerInfo, currentVersion string) RuntimeInfo {
+	return RuntimeInfo{
 		Protocol:  protocol.ProtocolRange{Current: currentVersion, MinSupported: protocol.MinProtocolVersion},
-		Server:    publicServerInfo{Name: server.Name, Version: server.Version},
-		Transport: "http",
-		Endpoints: infoEndpoints{
-			RPC:       rpcPath,
-			Info:      infoPath,
-			Liveness:  livenessPath,
-			Readiness: readinessPath,
+		Server:    RuntimeServerInfo{Name: server.Name, Version: server.Version},
+		Transport: HTTPTransport,
+		Endpoints: RuntimeInfoEndpoints{
+			RPC:       endpointPath(endpointRPC),
+			Info:      endpointPath(endpointInfo),
+			Liveness:  endpointPath(endpointLiveness),
+			Readiness: endpointPath(endpointReadiness),
 		},
 	}
 }
@@ -57,21 +54,25 @@ func (s *Server) handleInfo(w http.ResponseWriter, _ *http.Request) {
 	}
 }
 
-type livenessResponse struct {
-	Status string `json:"status"`
+type LivenessState string
+
+const LivenessOK LivenessState = "ok"
+
+type LivenessStatus struct {
+	Status LivenessState `json:"status"`
 }
 
 func (s *Server) handleLiveness(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(livenessResponse{Status: "ok"}); err != nil {
+	if err := json.NewEncoder(w).Encode(LivenessStatus{Status: LivenessOK}); err != nil {
 		return
 	}
 }
 
-type readinessResponse struct {
-	Status string                  `json:"status"`
+type ReadinessStatus struct {
+	Status HealthStatus            `json:"status"`
 	Checks map[string]HealthStatus `json:"checks,omitempty"`
 }
 
@@ -87,7 +88,7 @@ func (s *Server) handleReadiness(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(status)
 
-	if err := json.NewEncoder(w).Encode(readinessResponse{Status: string(overall), Checks: checks}); err != nil {
+	if err := json.NewEncoder(w).Encode(ReadinessStatus{Status: overall, Checks: checks}); err != nil {
 		return
 	}
 }

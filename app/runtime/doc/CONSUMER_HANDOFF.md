@@ -72,6 +72,13 @@ terminal settlement window, `goals.get` returns `status:"completing"`; a consume
 keeps the Goal visible, offers no stop/resume/start action, and waits for the
 following `goals.changed` read to return `null`.
 
+P56 added the Runtime-owned HTTP endpoint registry to `manifest.json` and the
+generated TypeScript surface. Desktop consumes generated RPC/info/liveness/readiness
+method, path, status, response type, and validator facts; it no longer maintains
+handwritten sidecar paths or response schemas. A runtime-event consumer must also
+intersect the topics it can fold with `runtime.discover.capabilities.runtimeTopics`:
+asking an older Runtime for a newly added topic rejects the entire subscription.
+
 - `app/desktop/frontend/src/rpc/` generated bindings, validators, samples, SDK,
   preflight, and schema tests;
 - `app/desktop/frontend/src/plugins/builtin/runtime/` discovery and capability

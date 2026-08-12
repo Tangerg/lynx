@@ -31,6 +31,23 @@ func reference(m manifest) string {
 			method.Pagination, code(method.Features), code(method.Errors))
 	}
 
+	b.WriteString("\n## HTTP endpoints\n\n")
+	b.WriteString("| name | kind | method | path | authentication | response statuses | response |\n")
+	b.WriteString("| --- | --- | --- | --- | --- | --- | --- |\n")
+	for _, endpoint := range m.HTTPEndpoints {
+		response := "—"
+		if endpoint.Response != nil {
+			response = "`" + endpoint.Response.Ref + "`"
+		}
+		statuses := make([]string, 0, len(endpoint.ResponseStatuses))
+		for _, status := range endpoint.ResponseStatuses {
+			statuses = append(statuses, fmt.Sprint(status))
+		}
+		fmt.Fprintf(&b, "| `%s` | %s | `%s` | `%s` | %s | %s | %s |\n",
+			endpoint.Name, endpoint.Kind, endpoint.Method, endpoint.Path,
+			endpoint.Authentication, strings.Join(statuses, ", "), response)
+	}
+
 	b.WriteString("\n## Streaming methods\n\n")
 	b.WriteString("A client reads this set instead of hardcoding names: these calls answer with\n")
 	b.WriteString("their own event stream (doc/TRANSPORT.md §6.4).\n\n")

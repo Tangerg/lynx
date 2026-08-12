@@ -94,3 +94,39 @@ func TestGeneratedMethodsPublishDerivedPagination(t *testing.T) {
 		}
 	}
 }
+
+func TestManifestPublishesImplementedHTTPEndpoints(t *testing.T) {
+	t.Parallel()
+
+	generated := build(walkWireTypes(operation.Contract(), dispatch.WireShapes()))
+	want := map[string]struct {
+		method   string
+		path     string
+		response string
+	}{
+		"rpc":       {method: "POST", path: "/v2/rpc"},
+		"info":      {method: "GET", path: "/v2/info", response: "schema.json#/$defs/RuntimeInfo"},
+		"liveness":  {method: "GET", path: "/v2/health/live", response: "schema.json#/$defs/LivenessStatus"},
+		"readiness": {method: "GET", path: "/v2/health/ready", response: "schema.json#/$defs/ReadinessStatus"},
+	}
+	if len(generated.HTTPEndpoints) != len(want) {
+		t.Fatalf("HTTP endpoints = %d, want %d", len(generated.HTTPEndpoints), len(want))
+	}
+	for _, endpoint := range generated.HTTPEndpoints {
+		expected, ok := want[endpoint.Name]
+		if !ok {
+			t.Errorf("unexpected HTTP endpoint %q", endpoint.Name)
+			continue
+		}
+		if endpoint.Method != expected.method || endpoint.Path != expected.path {
+			t.Errorf("%s = %s %s, want %s %s", endpoint.Name, endpoint.Method, endpoint.Path, expected.method, expected.path)
+		}
+		response := ""
+		if endpoint.Response != nil {
+			response = endpoint.Response.Ref
+		}
+		if response != expected.response {
+			t.Errorf("%s response = %q, want %q", endpoint.Name, response, expected.response)
+		}
+	}
+}

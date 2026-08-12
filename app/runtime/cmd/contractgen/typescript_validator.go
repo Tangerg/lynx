@@ -9,6 +9,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/dispatch"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/operation"
+	runtimehttp "github.com/Tangerg/lynx/app/runtime/internal/delivery/transport/http"
 )
 
 // The TypeScript validator is COMPILED FROM THE SCHEMA TREE, for the same reason
@@ -54,6 +55,7 @@ func newWireChecks(registry *operation.Registry, shapes *dispatch.Shapes, set *s
 	body.WriteString("};\n")
 	// Rendered before the import list, because these are what decide it.
 	methodResults := emitter.methodResults(registry)
+	httpResponses := emitter.httpResponses()
 	notifications := emitter.notifications(shapes)
 
 	var out strings.Builder
@@ -61,7 +63,7 @@ func newWireChecks(registry *operation.Registry, shapes *dispatch.Shapes, set *s
 	fmt.Fprintf(&out, "import { %s } from \"./wireCheck\";\n", strings.Join(slices.Sorted(maps.Keys(emitter.used)), ", "))
 	out.WriteString("import type { WireCheck, WireViolation } from \"./wireCheck\";\n\n")
 	out.WriteString("import type { WireMethodName } from \"./wire.methods.generated\";\n\n")
-	if len(shapes.Notifications()) > 0 {
+	if len(shapes.Notifications()) > 0 || len(runtimehttp.Contract().Endpoints) > 0 {
 		out.WriteString("import type * as Wire from \"./wire.generated\";\n\n")
 	}
 	out.WriteString("/** Every shape the protocol publishes. */\nexport type WireTypeName =\n")
@@ -71,8 +73,35 @@ func newWireChecks(registry *operation.Registry, shapes *dispatch.Shapes, set *s
 	out.WriteString("  ;\n\n")
 	out.WriteString(body.String())
 	out.WriteString(methodResults)
+	out.WriteString(httpResponses)
 	out.WriteString(notifications)
 	out.WriteString(checksEntryPoint)
+	return out.String()
+}
+
+// httpResponses binds each sidecar name to its Delivery-declared response type.
+// It is the flat-JSON equivalent of METHOD_RESULTS.
+func (e *checkEmitter) httpResponses() string {
+	var out strings.Builder
+	out.WriteString("\nconst HTTP_RESPONSES: Record<Wire.HTTPSidecarEndpointName, WireCheck> = {\n")
+	for _, endpoint := range runtimehttp.Contract().Endpoints {
+		if endpoint.Kind != runtimehttp.EndpointKindSidecar || endpoint.ResponseType == nil {
+			continue
+		}
+		fmt.Fprintf(&out, "  %s: %s,\n", strconv.Quote(endpoint.Name), indent(e.compile(e.set.walk(endpoint.ResponseType))))
+	}
+	out.WriteString("};\n")
+	out.WriteString(`
+/** Validate the flat-JSON response returned by one operational sidecar. */
+export function validateHTTPSidecarResponse(
+  endpoint: Wire.HTTPSidecarEndpointName,
+  value: unknown,
+): WireViolation[] {
+  const out: WireViolation[] = [];
+  HTTP_RESPONSES[endpoint](value, ` + "`${endpoint}.response`" + `, out);
+  return out;
+}
+`)
 	return out.String()
 }
 

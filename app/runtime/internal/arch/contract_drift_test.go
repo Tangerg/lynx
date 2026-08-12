@@ -132,6 +132,7 @@ func TestGeneratedContractIsSubstantive(t *testing.T) {
 		Protocol         map[string]string `json:"protocol"`
 		Methods          []struct{}        `json:"methods"`
 		StreamingMethods []string          `json:"streamingMethods"`
+		HTTPEndpoints    []struct{}        `json:"httpEndpoints"`
 		Errors           struct {
 			Types []struct{} `json:"types"`
 		} `json:"errors"`
@@ -152,6 +153,7 @@ func TestGeneratedContractIsSubstantive(t *testing.T) {
 		"protocol":                len(manifest.Protocol),
 		"methods":                 len(manifest.Methods),
 		"streamingMethods":        len(manifest.StreamingMethods),
+		"httpEndpoints":           len(manifest.HTTPEndpoints),
 		"errors.types":            len(manifest.Errors.Types),
 		"capabilityPolicy":        len(manifest.CapabilityPolicy),
 		"carriedShapes":           len(manifest.CarriedShapes),

@@ -1131,6 +1131,60 @@
     "runs.subscribe",
     "runtime.subscribe"
   ],
+  "httpEndpoints": [
+    {
+      "name": "rpc",
+      "kind": "rpc",
+      "method": "POST",
+      "path": "/v2/rpc",
+      "authentication": "localToken",
+      "responseStatuses": [
+        200,
+        202,
+        204
+      ]
+    },
+    {
+      "name": "info",
+      "kind": "sidecar",
+      "method": "GET",
+      "path": "/v2/info",
+      "authentication": "none",
+      "responseStatuses": [
+        200
+      ],
+      "response": {
+        "$ref": "schema.json#/$defs/RuntimeInfo"
+      }
+    },
+    {
+      "name": "liveness",
+      "kind": "sidecar",
+      "method": "GET",
+      "path": "/v2/health/live",
+      "authentication": "none",
+      "responseStatuses": [
+        200
+      ],
+      "response": {
+        "$ref": "schema.json#/$defs/LivenessStatus"
+      }
+    },
+    {
+      "name": "readiness",
+      "kind": "sidecar",
+      "method": "GET",
+      "path": "/v2/health/ready",
+      "authentication": "none",
+      "responseStatuses": [
+        200,
+        503
+      ],
+      "response": {
+        "$ref": "schema.json#/$defs/ReadinessStatus"
+      }
+    }
+  ],
   "errors": {
     "types": [
       {

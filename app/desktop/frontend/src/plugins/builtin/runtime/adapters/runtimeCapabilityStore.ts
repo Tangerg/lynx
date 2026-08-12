@@ -1,5 +1,5 @@
 // Runtime discovery state — the server capabilities returned by
-// `runtime.discover` or `/v2/info`, so UI can gate optional features behind
+// `runtime.discover`, so UI can gate optional features behind
 // what the server actually supports.
 //
 // Per docs/protocol/API.md §6.1: "Frontend treats every features.* as false by
@@ -51,6 +51,14 @@ export function runtimeSupportsStreamingMethod(method: string): boolean {
   return useRuntimeStore.getState().capabilities?.streamingMethods?.includes(method) ?? false;
 }
 
+export function runtimeSupportsTopic(topic: string): boolean {
+  return (
+    useRuntimeStore
+      .getState()
+      .capabilities?.runtimeTopics.some((advertised) => advertised === topic) ?? false
+  );
+}
+
 export function subscribeRuntimeCapabilities(onChange: () => void): () => void {
   return useRuntimeStore.subscribe(onChange);
 }
@@ -60,6 +68,7 @@ export function installRuntimeCapabilityPort(): () => void {
     useCapability: useServerFeature,
     hasCapability: serverFeature,
     supportsStreamingMethod: runtimeSupportsStreamingMethod,
+    supportsRuntimeTopic: runtimeSupportsTopic,
     negotiated: () => useRuntimeStore.getState().capabilities,
     subscribe: subscribeRuntimeCapabilities,
     replace: (capabilities) => useRuntimeStore.getState().replace(capabilities),

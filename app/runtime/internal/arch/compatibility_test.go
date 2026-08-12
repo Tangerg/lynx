@@ -54,17 +54,30 @@ type releaseManifest struct {
 		Current      string `json:"current"`
 		MinSupported string `json:"minSupported"`
 	} `json:"protocol"`
-	Methods          []manifestMethod `json:"methods"`
-	Notifications    []string         `json:"notifications"`
-	CapabilityPolicy []manifestPolicy `json:"capabilityPolicy"`
-	Errors           manifestErrors   `json:"errors"`
-	RuntimeTopics    []manifestTopic  `json:"runtimeTopics"`
-	Unions           []manifestUnion  `json:"unions"`
+	Methods          []manifestMethod       `json:"methods"`
+	Notifications    []string               `json:"notifications"`
+	HTTPEndpoints    []manifestHTTPEndpoint `json:"httpEndpoints"`
+	CapabilityPolicy []manifestPolicy       `json:"capabilityPolicy"`
+	Errors           manifestErrors         `json:"errors"`
+	RuntimeTopics    []manifestTopic        `json:"runtimeTopics"`
+	Unions           []manifestUnion        `json:"unions"`
 }
 
 type manifestMethod struct {
 	Name string `json:"name"`
 	Kind string `json:"kind"`
+}
+
+type manifestHTTPEndpoint struct {
+	Name             string `json:"name"`
+	Kind             string `json:"kind"`
+	Method           string `json:"method"`
+	Path             string `json:"path"`
+	Authentication   string `json:"authentication"`
+	ResponseStatuses []int  `json:"responseStatuses"`
+	Response         struct {
+		Ref string `json:"$ref"`
+	} `json:"response"`
 }
 
 type manifestPolicy struct {
@@ -118,12 +131,62 @@ func diffContract(before, after releaseManifest, beforeShapes, afterShapes relea
 	var out compatibility
 	diffProtocolRange(before, after, &out)
 	diffMethods(before, after, &out)
+	diffHTTPEndpoints(before, after, &out)
 	diffCapabilityPolicy(before, after, &out)
 	diffErrors(before, after, &out)
 	diffRuntimeTopics(before, after, &out)
 	diffUnions(before, after, &out)
 	diffShapes(beforeShapes, afterShapes, &out)
 	return out
+}
+
+func diffHTTPEndpoints(before, after releaseManifest, out *compatibility) {
+	byName := func(manifest releaseManifest) map[string]manifestHTTPEndpoint {
+		endpoints := make(map[string]manifestHTTPEndpoint, len(manifest.HTTPEndpoints))
+		for _, endpoint := range manifest.HTTPEndpoints {
+			endpoints[endpoint.Name] = endpoint
+		}
+		return endpoints
+	}
+	previous, current := byName(before), byName(after)
+	for _, name := range slices.Sorted(maps.Keys(previous)) {
+		beforeEndpoint := previous[name]
+		afterEndpoint, kept := current[name]
+		if !kept {
+			out.breaks("HTTP endpoint %s is gone", name)
+			continue
+		}
+		for _, field := range []struct {
+			name   string
+			before string
+			after  string
+		}{
+			{name: "kind", before: beforeEndpoint.Kind, after: afterEndpoint.Kind},
+			{name: "method", before: beforeEndpoint.Method, after: afterEndpoint.Method},
+			{name: "path", before: beforeEndpoint.Path, after: afterEndpoint.Path},
+			{name: "authentication", before: beforeEndpoint.Authentication, after: afterEndpoint.Authentication},
+			{name: "response", before: beforeEndpoint.Response.Ref, after: afterEndpoint.Response.Ref},
+		} {
+			if field.before != field.after {
+				out.breaks("HTTP endpoint %s changed %s from %s to %s", name, field.name, field.before, field.after)
+			}
+		}
+		for _, status := range afterEndpoint.ResponseStatuses {
+			if !slices.Contains(beforeEndpoint.ResponseStatuses, status) {
+				out.breaks("HTTP endpoint %s may now return status %d", name, status)
+			}
+		}
+		for _, status := range beforeEndpoint.ResponseStatuses {
+			if !slices.Contains(afterEndpoint.ResponseStatuses, status) {
+				out.allows("HTTP endpoint %s no longer returns status %d", name, status)
+			}
+		}
+	}
+	for _, name := range slices.Sorted(maps.Keys(current)) {
+		if _, existed := previous[name]; !existed {
+			out.allows("HTTP endpoint %s is new", name)
+		}
+	}
 }
 
 func diffProtocolRange(before, after releaseManifest, out *compatibility) {
@@ -435,6 +498,33 @@ func TestDifferSeparatesAdditiveChangesFromBreakingOnes(t *testing.T) {
 			},
 		},
 		{
+			name: "a new HTTP endpoint",
+			mutate: func(m *releaseManifest, _ *releaseShapes) {
+				m.HTTPEndpoints = append(m.HTTPEndpoints, manifestHTTPEndpoint{Name: "metrics", Kind: "sidecar", Method: "GET", Path: "/v2/metrics"})
+			},
+		},
+		{
+			name: "a removed HTTP endpoint",
+			mutate: func(m *releaseManifest, _ *releaseShapes) {
+				m.HTTPEndpoints = nil
+			},
+			breaking: true,
+		},
+		{
+			name: "a moved HTTP endpoint",
+			mutate: func(m *releaseManifest, _ *releaseShapes) {
+				m.HTTPEndpoints[0].Path = "/v3/things"
+			},
+			breaking: true,
+		},
+		{
+			name: "a new HTTP response status",
+			mutate: func(m *releaseManifest, _ *releaseShapes) {
+				m.HTTPEndpoints[0].ResponseStatuses = append(m.HTTPEndpoints[0].ResponseStatuses, 503)
+			},
+			breaking: true,
+		},
+		{
 			name:     "a removed method",
 			mutate:   func(m *releaseManifest, _ *releaseShapes) { m.Methods = m.Methods[:len(m.Methods)-1] },
 			breaking: true,
@@ -561,6 +651,10 @@ func syntheticContract() (releaseManifest, releaseShapes) {
 	document := releaseManifest{
 		Methods:       []manifestMethod{{Name: "things.get", Kind: "unary"}},
 		Notifications: []string{"notifications.thing.event"},
+		HTTPEndpoints: []manifestHTTPEndpoint{{
+			Name: "things", Kind: "sidecar", Method: "GET", Path: "/v2/things",
+			Authentication: "none", ResponseStatuses: []int{200},
+		}},
 		CapabilityPolicy: []manifestPolicy{{
 			Method: "things.get",
 			Rules:  []manifestPolicyRule{{Requires: []string{"things"}}},

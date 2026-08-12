@@ -50,7 +50,7 @@ type messageDispatcher interface {
 // the call's event sequence as text/event-stream (TRANSPORT §6.4). It
 // holds no per-run state — the event hubs + replay live in the runtime.
 type Server struct {
-	info     infoResponse
+	info     RuntimeInfo
 	serverID string
 
 	localToken   string
@@ -167,14 +167,9 @@ func (s *Server) Handler() http.Handler {
 	r := chi.NewRouter()
 	r.Use(s.instrumentRequests, corsMiddleware(s.corsOrigins), s.authGate)
 
-	// Sidecars — flat JSON, must NOT go through the JSON-RPC envelope.
-	r.Get(infoPath, s.handleInfo)
-	r.Get(livenessPath, s.handleLiveness)
-	r.Get(readinessPath, s.handleReadiness)
-
-	// A streaming method's events ride its own POST response, so there is no
-	// separate stream endpoint. The envelope is the sole owner of method identity.
-	r.Post(rpcPath, s.serveRPC)
+	// The Delivery registry owns both metadata and handler binding. Sidecars stay
+	// flat JSON; the RPC entrypoint is the sole owner of envelope method identity.
+	registerEndpoints(r, s)
 
 	return s.withServerLifecycle(r)
 }

@@ -4,6 +4,7 @@ import { RUNTIME_SUBSCRIBE_METHOD } from "@/rpc/transport";
 import {
   runtimeCapability,
   runtimeSupportsStreamingMethod,
+  runtimeSupportsTopic,
 } from "@/plugins/builtin/runtime/public/capabilities";
 import type { WorkspaceWatchTarget } from "../application/workspaceEventLoop";
 
@@ -49,8 +50,13 @@ export async function subscribeRuntimeWorkspaceEvents(
     workspace?.availability === "available"
       ? [{ watchId: "active-session", workspace: { path: workspace.ref.path } }]
       : undefined;
+  // The client-owned list states what this build can fold. Discovery states what
+  // this Runtime accepts. Their intersection is the only honest subscription:
+  // requesting a newer topic from an older Runtime rejects the whole stream and
+  // takes unrelated file/session/run invalidations offline.
+  const topics = SUBSCRIBED_TOPICS.filter(runtimeSupportsTopic);
   const { events } = await client.runtimeEvents.subscribe(
-    { topics: [...SUBSCRIBED_TOPICS], ...(watches ? { watches } : {}) },
+    { topics, ...(watches ? { watches } : {}) },
     signal,
   );
   return events;

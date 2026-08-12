@@ -1,40 +1,15 @@
-import { z } from "zod";
 import { errorMessage, parseTransportProblem, RpcTransportError } from "./errors";
+import { validateHTTPSidecarResponse } from "./wire.validate.generated";
+import {
+  HTTP_ENDPOINTS,
+  type HTTPSidecarEndpointName,
+  type HTTPSidecarResponses,
+  type LivenessStatus,
+  type ReadinessStatus,
+  type RuntimeInfo,
+} from "./wire.generated";
 
-const INFO_PATH = "/v2/info";
-const LIVENESS_PATH = "/v2/health/live";
-const READINESS_PATH = "/v2/health/ready";
-
-const HealthStateSchema = z.enum(["ok", "degraded", "unhealthy"]);
-
-const RuntimeInfoSchema = z.looseObject({
-  protocol: z.looseObject({
-    current: z.string(),
-    minSupported: z.string(),
-  }),
-  server: z.looseObject({
-    name: z.string(),
-    version: z.string(),
-  }),
-  transport: z.literal("http"),
-  endpoints: z.looseObject({
-    rpc: z.string(),
-    info: z.string(),
-    liveness: z.string(),
-    readiness: z.string(),
-  }),
-});
-
-const LivenessStatusSchema = z.looseObject({ status: z.literal("ok") });
-
-const ReadinessStatusSchema = z.looseObject({
-  status: HealthStateSchema,
-  checks: z.record(z.string(), HealthStateSchema).optional(),
-});
-
-export type RuntimeInfo = z.infer<typeof RuntimeInfoSchema>;
-export type LivenessStatus = z.infer<typeof LivenessStatusSchema>;
-export type ReadinessStatus = z.infer<typeof ReadinessStatusSchema>;
+export type { LivenessStatus, ReadinessStatus, RuntimeInfo } from "./wire.generated";
 
 export interface SidecarClientConfig {
   baseUrl: string;
@@ -47,20 +22,29 @@ export interface SidecarClient {
   readiness(signal?: AbortSignal): Promise<ReadinessStatus>;
 }
 
+// A new sidecar in Runtime's generated endpoint set must acquire an SDK method
+// in this object or TypeScript fails. The values keep the public method names
+// explicit so product-consumer analysis can resolve typed callsites.
+const SIDECAR_METHODS = {
+  info: "info",
+  liveness: "liveness",
+  readiness: "readiness",
+} as const satisfies Record<HTTPSidecarEndpointName, keyof SidecarClient>;
+
 export function createSidecarClient(config: SidecarClientConfig): SidecarClient {
   const baseUrl = config.baseUrl.replace(/\/+$/, "");
   const fetchImpl = config.fetch ?? globalThis.fetch.bind(globalThis);
 
-  async function getJson<T>(
-    path: string,
-    schema: z.ZodType<T>,
+  async function getJson<Endpoint extends HTTPSidecarEndpointName>(
+    endpoint: Endpoint,
     signal?: AbortSignal,
-    acceptUnavailable = false,
-  ): Promise<T> {
+  ): Promise<HTTPSidecarResponses[Endpoint]> {
+    const specification = HTTP_ENDPOINTS[endpoint];
+    const path = specification.path;
     let res: Response;
     try {
       res = await fetchImpl(`${baseUrl}${path}`, {
-        method: "GET",
+        method: specification.method,
         headers: { Accept: "application/json" },
         signal,
       });
@@ -77,7 +61,7 @@ export function createSidecarClient(config: SidecarClientConfig): SidecarClient 
         res.headers.get("Request-Id") ?? undefined,
       );
     }
-    if (!res.ok && !(acceptUnavailable && res.status === 503)) {
+    if (!specification.responseStatuses.some((status) => status === res.status)) {
       const problem = parseTransportProblem(text);
       const requestId = problem?.requestId ?? res.headers.get("Request-Id") ?? undefined;
       const detail = problem?.detail || res.statusText || "sidecar request failed";
@@ -98,20 +82,20 @@ export function createSidecarClient(config: SidecarClientConfig): SidecarClient 
         res.headers.get("Request-Id") ?? undefined,
       );
     }
-    const parsed = schema.safeParse(json);
-    if (!parsed.success) {
+    const violations = validateHTTPSidecarResponse(endpoint, json);
+    if (violations.length > 0) {
       throw new RpcTransportError(
-        `sidecar ${path}: response violates its contract: ${parsed.error.message}`,
+        `sidecar ${path}: response violates its contract: ${violations.map(({ path: field, detail }) => `${field} ${detail}`).join("; ")}`,
         res.status,
         res.headers.get("Request-Id") ?? undefined,
       );
     }
-    return parsed.data;
+    return json as HTTPSidecarResponses[Endpoint];
   }
 
   return {
-    info: (signal) => getJson(INFO_PATH, RuntimeInfoSchema, signal),
-    liveness: (signal) => getJson(LIVENESS_PATH, LivenessStatusSchema, signal),
-    readiness: (signal) => getJson(READINESS_PATH, ReadinessStatusSchema, signal, true),
+    info: (signal) => getJson(SIDECAR_METHODS.info, signal),
+    liveness: (signal) => getJson(SIDECAR_METHODS.liveness, signal),
+    readiness: (signal) => getJson(SIDECAR_METHODS.readiness, signal),
   };
 }

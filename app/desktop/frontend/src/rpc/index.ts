@@ -29,7 +29,7 @@ export { createMethods } from "./methods";
 export type { AgentMemoryTarget, Methods, StreamingResult, WorkspaceMethods } from "./methods";
 export { createLyraClient } from "./sdk";
 export type { LyraClient } from "./sdk";
-export { PROTOCOL_VERSION } from "./wire.generated";
+export { HTTP_ENDPOINTS, PROTOCOL_VERSION } from "./wire.generated";
 export type {
   // Lifecycle / capabilities
   ClientCapabilities,

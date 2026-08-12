@@ -43,9 +43,8 @@ import {
 } from "../transport";
 import type { RpcId } from "../types";
 import { isResponse, parseRpcMessage } from "../types";
+import { HTTP_ENDPOINTS } from "../wire.generated";
 import { isWireStreamingMethodName, type WireStreamingMethodName } from "../wire.methods.generated";
-
-const RPC_PATH = "/v2/rpc";
 
 // Delegating tracer — resolves to the global provider once observability is
 // installed (no-op spans before then). One CLIENT span per RPC call; the
@@ -187,7 +186,7 @@ export function createHttpTransport(config: HttpTransportConfig): Transport {
     if (channel.closed) throw new RpcTransportError("transport closed");
 
     const method = msg.method;
-    const url = `${baseUrl}${RPC_PATH}`;
+    const url = `${baseUrl}${HTTP_ENDPOINTS.rpc.path}`;
     const rpcId = msg.id;
     const requestSignal = signal
       ? AbortSignal.any([signal, closeController.signal])
@@ -212,7 +211,7 @@ export function createHttpTransport(config: HttpTransportConfig): Transport {
     let res: Response;
     try {
       res = await fetchImpl(url, {
-        method: "POST",
+        method: HTTP_ENDPOINTS.rpc.method,
         headers,
         body: JSON.stringify(msg),
         signal: requestSignal,

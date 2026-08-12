@@ -11,6 +11,47 @@
 // The wire version this runtime serves; a client states it in request metadata.
 export const PROTOCOL_VERSION = "2026-08-12";
 
+// HTTP entrypoints implemented by this runtime build.
+export const HTTP_ENDPOINTS = {
+  rpc: {
+    kind: "rpc",
+    method: "POST",
+    path: "/v2/rpc",
+    authentication: "localToken",
+    responseStatuses: [200, 202, 204],
+  },
+  info: {
+    kind: "sidecar",
+    method: "GET",
+    path: "/v2/info",
+    authentication: "none",
+    responseStatuses: [200],
+  },
+  liveness: {
+    kind: "sidecar",
+    method: "GET",
+    path: "/v2/health/live",
+    authentication: "none",
+    responseStatuses: [200],
+  },
+  readiness: {
+    kind: "sidecar",
+    method: "GET",
+    path: "/v2/health/ready",
+    authentication: "none",
+    responseStatuses: [200, 503],
+  },
+} as const;
+
+// Flat-JSON responses returned outside the JSON-RPC envelope.
+export interface HTTPSidecarResponses {
+  info: RuntimeInfo;
+  liveness: LivenessStatus;
+  readiness: ReadinessStatus;
+}
+
+export type HTTPSidecarEndpointName = keyof HTTPSidecarResponses;
+
 // The methods the runtime sends downstream. A client only ever subscribes.
 export const NOTIFICATIONS_RUN_EVENT = "notifications.run.event";
 export const NOTIFICATIONS_RUNTIME_EVENT = "notifications.runtime.event";
@@ -569,6 +610,10 @@ export interface GrepResult {
   total: number;
 }
 
+export type HTTPTransportKind = "http";
+
+export type HealthStatus = "ok" | "degraded" | "unhealthy";
+
 export type HookEvent = "PreToolUse" | "PostToolUse" | "UserPromptSubmit" | "SessionStart" | "SubagentStart" | "SubagentStop" | "PreCompact" | "Stop" | "Notification";
 
 export interface HookInfo {
@@ -724,6 +769,12 @@ export interface ListRunsRequest {
   limit?: number;
   sessionId?: string;
   statuses?: RunStatus[];
+}
+
+export type LivenessState = "ok";
+
+export interface LivenessStatus {
+  status: LivenessState;
 }
 
 export interface MCPAuthorizationAttempt {
@@ -1035,6 +1086,11 @@ export interface ReadFileRequest {
   workspace: WorkspaceRef;
 }
 
+export interface ReadinessStatus {
+  checks?: Record<string, HealthStatus>;
+  status: HealthStatus;
+}
+
 export interface Recipe {
   argumentHint?: string;
   body: string;
@@ -1203,12 +1259,31 @@ export interface RuntimeEventNotification {
 
 export type RuntimeEventType = "files.changed" | "skills.changed" | "mcp.changed" | "schedules.changed" | "sessions.changed" | "runs.changed" | "state.changed" | "goals.changed" | "interrupts.changed" | "knowledge.changed" | "hooks.changed" | "resync";
 
+export interface RuntimeInfo {
+  endpoints: RuntimeInfoEndpoints;
+  protocol: ProtocolRange;
+  server: RuntimeServerInfo;
+  transport: HTTPTransportKind;
+}
+
+export interface RuntimeInfoEndpoints {
+  info: string;
+  liveness: string;
+  readiness: string;
+  rpc: string;
+}
+
 export interface RuntimeLimits {
   idempotency: IdempotencyLimits;
   maxConcurrentRuns?: number;
   mcpAuthorizationAttempts: MCPAuthorizationAttemptLimits;
   runReplay: RunReplayLimits;
   runtimeSubscription: SubscriptionLimits;
+}
+
+export interface RuntimeServerInfo {
+  name: string;
+  version: string;
 }
 
 export interface RuntimeSubscribeRequest {
@@ -1607,6 +1682,8 @@ export const WIRE_ENUMS = {
   FileStatus: ["added", "modified", "deleted", "renamed", "untracked"],
   GoalReasonCode: ["stoppedByUser", "runtimeRestarted", "runStartFailed", "awaitingInput", "terminalOutcomeMissing", "runNotCompleted", "runBudgetReached", "costBudgetReached", "stepBudgetReached", "blockedByModel"],
   GoalStatus: ["active", "paused", "blocked", "completing"],
+  HTTPTransportKind: ["http"],
+  HealthStatus: ["ok", "degraded", "unhealthy"],
   HookEvent: ["PreToolUse", "PostToolUse", "UserPromptSubmit", "SessionStart", "SubagentStart", "SubagentStop", "PreCompact", "Stop", "Notification"],
   HookScope: ["global", "project"],
   InterruptResponseType: ["approval", "answer", "toolResult"],
@@ -1617,6 +1694,7 @@ export const WIRE_ENUMS = {
   ItemStatus: ["running", "completed", "incomplete"],
   ItemType: ["userMessage", "agentMessage", "reasoning", "question", "toolCall", "compaction"],
   KnowledgeScope: ["cwd", "projectRoot", "home"],
+  LivenessState: ["ok"],
   MCPAuthorizationAttemptStatusType: ["pending", "succeeded", "failed", "canceled"],
   MCPSecretChangeType: ["set", "clear"],
   MCPServerStateType: ["disabled", "disconnected", "connecting", "connected", "failed", "needsAuth"],

@@ -8,6 +8,11 @@ import test from "node:test";
 const script = readFileSync(new URL("./check-backend-api-consumers.mjs", import.meta.url), "utf8");
 const match = /function discardsNonVoidResult\(call\) \{[\s\S]*?\n\}/.exec(script);
 if (!match) throw new Error("discardsNonVoidResult helper was not found");
+const sidecarMatch =
+  /function checkSidecarConsumers\(expected, methods, calls, targetErrors\) \{[\s\S]*?\n\}/.exec(
+    script,
+  );
+if (!sidecarMatch) throw new Error("checkSidecarConsumers helper was not found");
 
 function discardedResult(sourceText) {
   const dir = mkdtempSync(join(tmpdir(), "api-result-consumer-"));
@@ -67,4 +72,27 @@ test("allows a statement whose awaited result is void", () => {
     ),
     false,
   );
+});
+
+test("fails a manifest sidecar with no product callsite", () => {
+  const checkSidecarConsumers = Function(
+    `return (${sidecarMatch[0].replace(/^function checkSidecarConsumers/, "function")})`,
+  )();
+  const errors = [];
+  checkSidecarConsumers(
+    new Set(["info", "liveness", "readiness"]),
+    new Map([
+      ["info", "info"],
+      ["liveness", "liveness"],
+      ["readiness", "readiness"],
+    ]),
+    new Map([
+      ["info", new Set(["runtimeServiceInspector.ts:1"])],
+      ["liveness", new Set(["runtimeServiceInspector.ts:2"])],
+    ]),
+    errors,
+  );
+  assert.deepEqual(errors, [
+    "readiness has no non-test frontend consumer (the SidecarClient implementation and tests do not count)",
+  ]);
 });
