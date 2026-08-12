@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/embedded"
 	"github.com/Tangerg/lynx/app/runtime/protocol"
@@ -63,11 +64,12 @@ func (stub *workspaceBindingStub) ReadWorkspaceFile(context.Context, protocol.Re
 func TestWorkspaceAdapterProjectsEveryReadShape(t *testing.T) {
 	t.Parallel()
 	added, removed, size := 4, 1, int64(120)
+	lastActive := time.Date(2026, time.August, 12, 9, 0, 0, 0, time.UTC)
 	stub := &workspaceBindingStub{
 		resolved: &protocol.WorkspaceInfo{Ref: protocol.WorkspaceRef{Path: "/workspace"}, ProjectRoot: "/workspace", Availability: protocol.WorkspaceAvailable},
 		known: protocol.NewPage([]protocol.WorkspaceSummary{{
 			Workspace: protocol.WorkspaceInfo{Ref: protocol.WorkspaceRef{Path: "/workspace"}, ProjectRoot: "/workspace", Availability: protocol.WorkspaceAvailable},
-			Name:      "workspace", SessionCount: 2,
+			Name:      "workspace", SessionCount: 2, LastActiveAt: &lastActive,
 		}}),
 		changes: protocol.NewPage([]protocol.WorkspaceFileChange{{Path: "main.go", Status: protocol.FileStatusModified, Added: &added, Removed: &removed}}),
 		diff: &protocol.Diff{Files: []protocol.FileDiff{{
@@ -89,8 +91,12 @@ func TestWorkspaceAdapterProjectsEveryReadShape(t *testing.T) {
 		t.Fatalf("Resolve = (%+v, %v)", resolved, err)
 	}
 	known, err := runtime.List(t.Context())
-	if err != nil || len(known) != 1 || known[0].Sessions != 2 {
+	if err != nil || len(known) != 1 || known[0].Sessions != 2 || known[0].LastActive == nil || !known[0].LastActive.Equal(lastActive) {
 		t.Fatalf("List = (%+v, %v)", known, err)
+	}
+	lastActive = lastActive.Add(time.Hour)
+	if known[0].LastActive.Equal(lastActive) {
+		t.Fatal("workspace projection aliases runtime last-active storage")
 	}
 	changes, err := runtime.Changes(t.Context(), "/workspace")
 	if err != nil || len(changes) != 1 || changes[0].Stat() != "+4 -1" {

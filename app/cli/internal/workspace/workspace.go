@@ -49,6 +49,13 @@ type Summary struct {
 	LastActive *time.Time
 }
 
+func (summary Summary) Clone() Summary {
+	if summary.LastActive != nil {
+		summary.LastActive = new(*summary.LastActive)
+	}
+	return summary
+}
+
 func (summary Summary) Validate() error {
 	if err := summary.Workspace.Validate(); err != nil {
 		return err

@@ -16,9 +16,14 @@ import (
 )
 
 type workspaceServiceStub struct {
-	mu      sync.Mutex
-	changes []workspace.Change
-	calls   map[string]int
+	mu          sync.Mutex
+	changes     []workspace.Change
+	calls       map[string]int
+	diffRequest workspace.DiffRequest
+	headRequest workspace.HeadRequest
+	search      workspace.SearchRequest
+	files       workspace.FilesRequest
+	read        workspace.ReadRequest
 }
 
 func newWorkspaceServiceStub() *workspaceServiceStub {
@@ -53,9 +58,10 @@ func (stub *workspaceServiceStub) Resolve(_ context.Context, request workspace.R
 
 func (stub *workspaceServiceStub) List(context.Context) ([]workspace.Summary, error) {
 	stub.called("list")
+	lastActive := time.Date(2026, time.August, 12, 9, 0, 0, 0, time.UTC)
 	return []workspace.Summary{{
-		Workspace: workspace.Workspace{Path: "/tmp/lyra-cli-test", ProjectRoot: "/tmp/lyra-cli-test", Availability: workspace.Available},
-		Name:      "lyra-cli-test", Sessions: 1,
+		Workspace: workspace.Workspace{Path: "/tmp/lyra-cli-test", ProjectRoot: "/tmp/project-root", Availability: workspace.Available},
+		Name:      "lyra-cli-test", Sessions: 1, LastActive: &lastActive,
 	}}, nil
 }
 
@@ -66,29 +72,60 @@ func (stub *workspaceServiceStub) Changes(context.Context, string) ([]workspace.
 	return append([]workspace.Change(nil), stub.changes...), nil
 }
 
-func (stub *workspaceServiceStub) Diff(context.Context, workspace.DiffRequest) (workspace.Diff, error) {
+func (stub *workspaceServiceStub) Diff(_ context.Context, request workspace.DiffRequest) (workspace.Diff, error) {
 	stub.called("diff")
+	stub.mu.Lock()
+	stub.diffRequest = request
+	stub.mu.Unlock()
 	return workspace.Diff{Patch: "diff --git a/main.go b/main.go\n+var current = true"}, nil
 }
 
-func (stub *workspaceServiceStub) Head(context.Context, workspace.HeadRequest) (workspace.FileHead, error) {
+func (stub *workspaceServiceStub) lastDiffRequest() workspace.DiffRequest {
+	stub.mu.Lock()
+	defer stub.mu.Unlock()
+	return stub.diffRequest
+}
+
+func (stub *workspaceServiceStub) Head(_ context.Context, request workspace.HeadRequest) (workspace.FileHead, error) {
 	stub.called("head")
+	stub.mu.Lock()
+	stub.headRequest = request
+	stub.mu.Unlock()
 	return workspace.FileHead{Path: "main.go", Lines: []workspace.FileLine{{Number: 1, Text: "package main"}}}, nil
 }
 
-func (stub *workspaceServiceStub) Search(context.Context, workspace.SearchRequest) (workspace.SearchResult, error) {
+func (stub *workspaceServiceStub) Search(_ context.Context, request workspace.SearchRequest) (workspace.SearchResult, error) {
 	stub.called("search")
+	stub.mu.Lock()
+	stub.search = request
+	stub.mu.Unlock()
 	return workspace.SearchResult{Matches: []workspace.Match{{Path: "main.go", Line: 1, Text: "package main"}}, Total: 1}, nil
 }
 
-func (stub *workspaceServiceStub) Files(context.Context, workspace.FilesRequest) (workspace.FileListing, error) {
+func (stub *workspaceServiceStub) Files(_ context.Context, request workspace.FilesRequest) (workspace.FileListing, error) {
 	stub.called("files")
-	return workspace.FileListing{Entries: []workspace.FileEntry{{Path: "main.go", Name: "main.go", Type: workspace.FileEntryFile}}}, nil
+	stub.mu.Lock()
+	stub.files = request
+	stub.mu.Unlock()
+	size := int64(42)
+	return workspace.FileListing{Entries: []workspace.FileEntry{{
+		Path: "main.go", Name: "main.go", Type: workspace.FileEntryFile,
+		SizeBytes: &size, ModifiedAt: "2026-08-12T09:00:00Z",
+	}}}, nil
 }
 
-func (stub *workspaceServiceStub) Read(context.Context, workspace.ReadRequest) (workspace.FileContent, error) {
+func (stub *workspaceServiceStub) Read(_ context.Context, request workspace.ReadRequest) (workspace.FileContent, error) {
 	stub.called("read")
+	stub.mu.Lock()
+	stub.read = request
+	stub.mu.Unlock()
 	return workspace.FileContent{Path: "main.go", Content: "package main\n", Encoding: "utf-8", TotalLines: 1}, nil
+}
+
+func (stub *workspaceServiceStub) inspectionRequests() (workspace.HeadRequest, workspace.SearchRequest, workspace.FilesRequest, workspace.ReadRequest) {
+	stub.mu.Lock()
+	defer stub.mu.Unlock()
+	return stub.headRequest, stub.search, stub.files, stub.read
 }
 
 type changeSourceStub struct {
@@ -178,6 +215,10 @@ func TestWorkspaceCommandsConsumeEveryInspectionRead(t *testing.T) {
 		host.Type(command.input)
 		host.Press(input.Enter)
 		host.Shows(t, command.show)
+		if command.input == "/workspaces" {
+			host.Shows(t, "project /tmp/project-root")
+			host.Shows(t, "2026-08-12T09:00:00Z")
+		}
 		if service.callCount(command.call) == 0 {
 			t.Fatalf("%s did not call %s", command.input, command.call)
 		}
@@ -185,6 +226,106 @@ func TestWorkspaceCommandsConsumeEveryInspectionRead(t *testing.T) {
 		host.Shows(t, "Ask lyra")
 	}
 	stop()
+}
+
+func TestWorkspaceDiffConsumesModeFormatLimitAndPath(t *testing.T) {
+	service := newWorkspaceServiceStub()
+	host, stop := runUIWithWorkspaceBackend(t, service, nil)
+	host.Shows(t, "Ask lyra")
+	host.Type("/diff --base --rows --limit 50 dir with spaces/main.go")
+	host.Press(input.Enter)
+	host.Shows(t, "Workspace diff")
+	host.Shows(t, "base · rows · dir with spaces/main.go")
+	request := service.lastDiffRequest()
+	if request.Mode != workspace.DiffModeBase || request.Format != workspace.DiffFormatRows ||
+		request.Limit != 50 || request.Path != "dir with spaces/main.go" {
+		t.Fatalf("diff request = %+v", request)
+	}
+	stop()
+}
+
+func TestWorkspaceDiffOptionsRejectAmbiguousOrInvalidInput(t *testing.T) {
+	t.Parallel()
+
+	for _, argument := range []string{
+		"--base --worktree",
+		"--rows --raw",
+		"--limit 0",
+		"--limit 10",
+		"--unknown",
+	} {
+		if _, err := parseWorkspaceDiffSelection(argument); err == nil {
+			t.Errorf("parseWorkspaceDiffSelection(%q) accepted invalid input", argument)
+		}
+	}
+	selection, err := parseWorkspaceDiffSelection("-- --generated.go")
+	if err != nil || selection.path != "--generated.go" {
+		t.Fatalf("option terminator = (%+v, %v)", selection, err)
+	}
+}
+
+func TestWorkspaceCommandsConsumeEveryPublishedQueryOption(t *testing.T) {
+	service := newWorkspaceServiceStub()
+	host, stop := runUIWithWorkspaceBackend(t, service, nil)
+	host.Shows(t, "Ask lyra")
+
+	for _, command := range []struct {
+		input string
+		show  string
+	}{
+		{input: "/preview --lines 25 dir with spaces/main.go", show: "File preview"},
+		{input: "/grep --path internal --limit 75 transition conflict", show: "Workspace search"},
+		{input: "/browse --recursive --ignored --glob *.go dir with spaces", show: "Workspace files"},
+		{input: "/read --start 10 --end 20 --max-bytes 4096 dir with spaces/main.go", show: "Workspace file"},
+	} {
+		host.Type(command.input)
+		host.Press(input.Enter)
+		host.Shows(t, command.show)
+		if command.show == "Workspace files" {
+			host.Shows(t, "42 B · 2026-08-12T09:00:00Z")
+		}
+		host.Press(input.Esc)
+		host.Shows(t, "Ask lyra")
+	}
+
+	head, search, files, read := service.inspectionRequests()
+	if head.Path != "dir with spaces/main.go" || head.Lines != 25 {
+		t.Errorf("head request = %+v", head)
+	}
+	if search.Path != "internal" || search.Limit != 75 || search.Query != "transition conflict" {
+		t.Errorf("search request = %+v", search)
+	}
+	if files.Path != "dir with spaces" || files.Glob != "*.go" || !files.Recursive || !files.IncludeIgnored {
+		t.Errorf("files request = %+v", files)
+	}
+	if read.Path != "dir with spaces/main.go" || read.StartLine != 10 || read.EndLine != 20 || read.MaxBytes != 4096 {
+		t.Errorf("read request = %+v", read)
+	}
+	stop()
+}
+
+func TestWorkspaceQueryOptionsFailBeforeStartingARead(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		parse func(string) error
+		input string
+	}{
+		{name: "preview duplicate", input: "--lines 2 --lines 3 main.go", parse: func(value string) error { _, err := parseWorkspaceHeadSelection(value); return err }},
+		{name: "search missing query", input: "--limit 5", parse: func(value string) error { _, err := parseWorkspaceSearchSelection(value); return err }},
+		{name: "browse missing glob", input: "--glob", parse: func(value string) error { _, err := parseWorkspaceFilesSelection(value); return err }},
+		{name: "read incomplete range", input: "--end 5 main.go", parse: func(value string) error { _, err := parseWorkspaceReadSelection(value); return err }},
+		{name: "read reversed range", input: "--start 10 --end 5 main.go", parse: func(value string) error { _, err := parseWorkspaceReadSelection(value); return err }},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			if err := test.parse(test.input); err == nil {
+				t.Fatalf("parser accepted %q", test.input)
+			}
+		})
+	}
 }
 
 func TestFileInvalidationsRefetchAuthoritativeChangesAndRecoverSequenceGaps(t *testing.T) {

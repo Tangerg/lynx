@@ -230,7 +230,10 @@ func projectWorkspaceSummary(value protocol.WorkspaceSummary) (workspace.Summary
 		return workspace.Summary{}, err
 	}
 	result := workspace.Summary{
-		Workspace: projected, Name: value.Name, Sessions: value.SessionCount, LastActive: value.LastActiveAt,
+		Workspace: projected, Name: value.Name, Sessions: value.SessionCount,
+	}
+	if value.LastActiveAt != nil {
+		result.LastActive = new(*value.LastActiveAt)
 	}
 	if err := result.Validate(); err != nil {
 		return workspace.Summary{}, err

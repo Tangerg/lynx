@@ -104,6 +104,9 @@ func (request DiffRequest) Validate() error {
 	if request.Limit < 0 {
 		return errors.New("workspace diff limit is negative")
 	}
+	if request.Limit > 0 && request.Format != DiffFormatRows {
+		return errors.New("workspace diff limit requires structured rows")
+	}
 	return nil
 }
 
