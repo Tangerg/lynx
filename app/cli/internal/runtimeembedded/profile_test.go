@@ -1,0 +1,66 @@
+package runtimeembedded
+
+import (
+	"testing"
+
+	"github.com/Tangerg/lynx/app/runtime/protocol"
+
+	"github.com/Tangerg/lynx/app/cli/internal/runtimeprofile"
+)
+
+func TestRuntimeProfileProjectionPreservesCompleteDiscovery(t *testing.T) {
+	t.Parallel()
+
+	discovery := compatibleDiscovery()
+	discovery.Capabilities.Features = map[string]protocol.FeatureCapability{
+		protocol.FeatureMCP: {
+			Enabled: true, Stability: protocol.StabilityExperimental,
+			ClientOptIn: true, RequiredByRunProtocol: true,
+		},
+	}
+	profile, err := projectRuntimeProfile(discovery, &protocol.ClientCapabilities{Features: map[string]protocol.FeaturePreference{
+		protocol.FeatureMCP: {Enabled: true},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if profile.Server.Name != "lyra-runtime" || profile.Server.DefaultWorkspace != "/workspace" ||
+		profile.Protocol.Current != string(protocol.ProtocolVersion) ||
+		len(profile.RunEvents) != len(discovery.Capabilities.RunEvents) ||
+		len(profile.RuntimeTopics) != len(discovery.Capabilities.RuntimeTopics) ||
+		len(profile.StateSnapshots) != len(discovery.Capabilities.StateSnapshots) ||
+		len(profile.StreamingMethods) != len(discovery.Capabilities.StreamingMethods) {
+		t.Fatalf("runtime profile = %+v", profile)
+	}
+	feature := profile.Features[protocol.FeatureMCP]
+	if !feature.Enabled || feature.Stability != runtimeprofile.Experimental || !feature.ClientOptIn ||
+		!feature.ClientRequested || !feature.RequiredByRunProtocol || !feature.Available() {
+		t.Fatalf("MCP profile = %+v", feature)
+	}
+	limits := profile.Limits
+	if limits.MaxConcurrentRuns != 4 || limits.IdempotencyRetentionSeconds != 600 ||
+		limits.RunReplay.MaxEvents != 1024 || limits.RunReplay.MaxBytes != 1<<20 ||
+		limits.MCPAuthorizationRetentionSeconds != 600 ||
+		limits.RuntimeSubscription.MaxTopics != 32 || limits.RuntimeSubscription.MaxWatches != 32 {
+		t.Fatalf("runtime limits = %+v", limits)
+	}
+}
+
+func TestServicesReturnOwnedProfilesWithoutForkingCapabilityPolicy(t *testing.T) {
+	t.Parallel()
+
+	profile, err := projectRuntimeProfile(compatibleDiscovery(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	runtime := &Runtime{profile: profile}
+	first := runtime.services()
+	second := runtime.services()
+	if first.RuntimeProfile == nil || second.RuntimeProfile == nil || first.RuntimeProfile == second.RuntimeProfile {
+		t.Fatalf("services profiles = (%p, %p)", first.RuntimeProfile, second.RuntimeProfile)
+	}
+	first.RuntimeProfile.RuntimeTopics[0] = "mutated"
+	if runtime.profile.RuntimeTopics[0] == "mutated" || second.RuntimeProfile.RuntimeTopics[0] == "mutated" {
+		t.Fatal("service profile mutation crossed an ownership boundary")
+	}
+}

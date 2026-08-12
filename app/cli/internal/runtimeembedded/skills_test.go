@@ -7,6 +7,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/embedded"
 	"github.com/Tangerg/lynx/app/runtime/protocol"
 
+	"github.com/Tangerg/lynx/app/cli/internal/runtimeprofile"
 	"github.com/Tangerg/lynx/app/cli/internal/skills"
 )
 
@@ -130,10 +131,11 @@ func TestSkillAdapterProjectsCatalogsAndExactMutationReferences(t *testing.T) {
 }
 
 func TestServicesExposeOnlyAdvertisedOptionalFeatures(t *testing.T) {
-	runtime := &Runtime{enabledFeatures: map[string]struct{}{
-		protocol.FeatureSkills: {}, protocol.FeatureMCP: {}, protocol.FeatureSchedules: {},
-		protocol.FeatureAgentMemory: {}, protocol.FeatureKnowledge: {},
-	}}
+	runtime := &Runtime{profile: runtimeprofile.Profile{Features: map[string]runtimeprofile.Feature{
+		protocol.FeatureSkills: {Enabled: true}, protocol.FeatureMCP: {Enabled: true},
+		protocol.FeatureSchedules: {Enabled: true}, protocol.FeatureAgentMemory: {Enabled: true},
+		protocol.FeatureKnowledge: {Enabled: true},
+	}}}
 	services := runtime.services()
 	if services.Skills == nil || services.MCP == nil || services.Schedules == nil ||
 		services.AgentMemory == nil || services.Knowledge == nil || services.Goals != nil {

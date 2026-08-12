@@ -9,6 +9,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/protocol"
 
 	"github.com/Tangerg/lynx/app/cli/internal/changefeed"
+	"github.com/Tangerg/lynx/app/cli/internal/runtimeprofile"
 )
 
 type changeBindingStub struct {
@@ -33,7 +34,7 @@ func TestChangefeedAdapterNegotiatesAndProjectsRuntimeEvents(t *testing.T) {
 	}}
 	runtime := &Runtime{
 		changes: stub, meta: requestMeta("test"),
-		supportedTopics: map[changefeed.Topic]struct{}{changefeed.FilesChanged: {}},
+		profile: changefeedProfile(changefeed.FilesChanged),
 	}
 	stream, err := runtime.Subscribe(t.Context(), changefeed.Subscription{
 		Topics:  []changefeed.Topic{changefeed.FilesChanged},
@@ -60,7 +61,7 @@ func TestChangefeedAdapterNegotiatesAndProjectsRuntimeEvents(t *testing.T) {
 func TestChangefeedAdapterRefusesAnUnadvertisedTopic(t *testing.T) {
 	t.Parallel()
 	stub := &changeBindingStub{}
-	runtime := &Runtime{changes: stub, supportedTopics: map[changefeed.Topic]struct{}{}}
+	runtime := &Runtime{changes: stub}
 	_, err := runtime.Subscribe(t.Context(), changefeed.Subscription{Topics: []changefeed.Topic{changefeed.FilesChanged}})
 	if err == nil {
 		t.Fatal("unadvertised topic was accepted")
@@ -74,9 +75,9 @@ func TestChangefeedAdapterHonorsAdvertisedSubscriptionLimits(t *testing.T) {
 	t.Parallel()
 	stub := &changeBindingStub{}
 	runtime := &Runtime{
-		changes: stub, supportedTopics: map[changefeed.Topic]struct{}{changefeed.FilesChanged: {}},
-		maxChangeWatches: 1,
+		changes: stub, profile: changefeedProfile(changefeed.FilesChanged),
 	}
+	runtime.profile.Limits.RuntimeSubscription.MaxWatches = 1
 	_, err := runtime.Subscribe(t.Context(), changefeed.Subscription{
 		Topics:  []changefeed.Topic{changefeed.FilesChanged},
 		Watches: []changefeed.Watch{{ID: "one", Workspace: "/one"}, {ID: "two", Workspace: "/two"}},
@@ -95,7 +96,7 @@ func TestChangefeedAdapterRejectsMalformedWireEvent(t *testing.T) {
 		yield(protocol.RuntimeEvent{Type: protocol.RuntimeFilesChanged}, nil)
 	}}
 	runtime := &Runtime{
-		changes: stub, supportedTopics: map[changefeed.Topic]struct{}{changefeed.FilesChanged: {}},
+		changes: stub, profile: changefeedProfile(changefeed.FilesChanged),
 	}
 	stream, err := runtime.Subscribe(t.Context(), changefeed.Subscription{Topics: []changefeed.Topic{changefeed.FilesChanged}})
 	if err != nil {
@@ -108,4 +109,14 @@ func TestChangefeedAdapterRejectsMalformedWireEvent(t *testing.T) {
 		return
 	}
 	t.Fatal("malformed stream yielded no error")
+}
+
+func changefeedProfile(topics ...changefeed.Topic) runtimeprofile.Profile {
+	profile := runtimeprofile.Profile{
+		Limits: runtimeprofile.Limits{RuntimeSubscription: runtimeprofile.SubscriptionLimits{MaxTopics: 32, MaxWatches: 32}},
+	}
+	for _, topic := range topics {
+		profile.RuntimeTopics = append(profile.RuntimeTopics, string(topic))
+	}
+	return profile
 }

@@ -18,19 +18,19 @@ type changeBinding interface {
 }
 
 func (r *Runtime) Supports(topic changefeed.Topic) bool {
-	_, supported := r.supportedTopics[topic]
-	return supported
+	return r.profile.SupportsRuntimeTopic(string(topic))
 }
 
 func (r *Runtime) Subscribe(ctx context.Context, subscription changefeed.Subscription) (changefeed.EventStream, error) {
 	if err := subscription.Validate(); err != nil {
 		return nil, err
 	}
-	if r.maxChangeTopics > 0 && len(subscription.Topics) > r.maxChangeTopics {
-		return nil, fmt.Errorf("runtime change subscription has %d topics; maximum is %d", len(subscription.Topics), r.maxChangeTopics)
+	limits := r.profile.Limits.RuntimeSubscription
+	if limits.MaxTopics > 0 && len(subscription.Topics) > limits.MaxTopics {
+		return nil, fmt.Errorf("runtime change subscription has %d topics; maximum is %d", len(subscription.Topics), limits.MaxTopics)
 	}
-	if r.maxChangeWatches > 0 && len(subscription.Watches) > r.maxChangeWatches {
-		return nil, fmt.Errorf("runtime change subscription has %d watches; maximum is %d", len(subscription.Watches), r.maxChangeWatches)
+	if limits.MaxWatches > 0 && len(subscription.Watches) > limits.MaxWatches {
+		return nil, fmt.Errorf("runtime change subscription has %d watches; maximum is %d", len(subscription.Watches), limits.MaxWatches)
 	}
 	for _, topic := range subscription.Topics {
 		if !r.Supports(topic) {

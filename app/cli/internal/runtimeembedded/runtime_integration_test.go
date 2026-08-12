@@ -386,8 +386,11 @@ func TestOwnerOpensOnceAndRefusesReopenAfterClose(t *testing.T) {
 	if err != nil {
 		t.Fatalf("second Runtime: %v", err)
 	}
-	if first != second {
+	if first.Agent != second.Agent {
 		t.Fatal("owner opened more than one runtime")
+	}
+	if first.RuntimeProfile == nil || second.RuntimeProfile == nil || first.RuntimeProfile == second.RuntimeProfile {
+		t.Fatal("owner did not return independently owned runtime profiles")
 	}
 	if first.Goals == nil || first.Skills == nil || first.MCP == nil || first.Schedules == nil ||
 		first.AgentMemory == nil || first.Knowledge == nil || first.DiagnosticTools == nil ||

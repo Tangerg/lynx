@@ -5,6 +5,7 @@ package backend
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
 	"github.com/Tangerg/lynx/app/cli/internal/agentmemory"
@@ -18,6 +19,7 @@ import (
 	"github.com/Tangerg/lynx/app/cli/internal/knowledge"
 	"github.com/Tangerg/lynx/app/cli/internal/mcp"
 	"github.com/Tangerg/lynx/app/cli/internal/modelconfig"
+	"github.com/Tangerg/lynx/app/cli/internal/runtimeprofile"
 	"github.com/Tangerg/lynx/app/cli/internal/schedule"
 	"github.com/Tangerg/lynx/app/cli/internal/sessiontransfer"
 	"github.com/Tangerg/lynx/app/cli/internal/skills"
@@ -28,6 +30,7 @@ import (
 // Services is one coherent connection to a backend runtime.
 type Services struct {
 	Agent            agent.Runtime
+	RuntimeProfile   *runtimeprofile.Profile
 	Workspaces       workspace.Service
 	Changes          changefeed.Source
 	Transfers        sessiontransfer.Service
@@ -58,6 +61,11 @@ func AgentOnly(runtime agent.Runtime) Services {
 func (services Services) Validate() error {
 	if services.Agent == nil {
 		return errors.New("backend services: agent runtime is required")
+	}
+	if services.RuntimeProfile != nil {
+		if err := services.RuntimeProfile.Validate(); err != nil {
+			return fmt.Errorf("backend services: %w", err)
+		}
 	}
 	return nil
 }

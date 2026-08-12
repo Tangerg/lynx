@@ -3,12 +3,14 @@ package terminal
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/Tangerg/oolong/components/kit"
 	"github.com/Tangerg/oolong/core/layout"
 
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
+	"github.com/Tangerg/lynx/app/cli/internal/runtimeprofile"
 )
 
 func (a *app) buildRuntimePickers(theme kit.Theme, glyphs kit.Glyphs) {
@@ -137,10 +139,68 @@ func (a *app) ShowRuntimeStatus() {
 			}
 			a.transcript.Append(&kit.Message{
 				Theme: a.transcript.theme, Speaker: "runtime options",
-				Body: fmt.Sprintf("model: %s\napproval mode: %s%s", modelLabel(a.options), mode, limitsLabel(a.options.Limits)),
+				Body: runtimeStatusText(a.runtimeProfile, a.options, mode),
 			})
 		},
 	)
+}
+
+func runtimeStatusText(profile *runtimeprofile.Profile, options agent.RunOptions, mode agent.ApprovalMode) string {
+	lines := []string{
+		"model: " + modelLabel(options),
+		"approval mode: " + string(mode) + limitsLabel(options.Limits),
+	}
+	if profile == nil {
+		return strings.Join(lines, "\n")
+	}
+	features := profile.AvailableFeatureNames()
+	if len(features) == 0 {
+		features = []string{"none"}
+	}
+	limits := profile.Limits
+	profileLines := []string{
+		fmt.Sprintf("runtime: %s %s", profile.Server.Name, profile.Server.Version),
+		fmt.Sprintf("protocol: %s (minimum %s)", profile.Protocol.Current, profile.Protocol.MinSupported),
+		"default workspace: " + profile.Server.DefaultWorkspace,
+		"home: " + profile.Server.Home,
+		"available features: " + strings.Join(features, ", "),
+		fmt.Sprintf("run concurrency: %s", optionalLimit(limits.MaxConcurrentRuns)),
+		fmt.Sprintf("run replay: %d events / %s / %s", limits.RunReplay.MaxEvents, formatRuntimeBytes(limits.RunReplay.MaxBytes), limits.RunReplay.Scope),
+		"command replay retention: " + formatRuntimeSeconds(limits.IdempotencyRetentionSeconds),
+		"MCP authorization retention: " + formatRuntimeSeconds(limits.MCPAuthorizationRetentionSeconds),
+		fmt.Sprintf("runtime subscriptions: %d topics / %d watches", limits.RuntimeSubscription.MaxTopics, limits.RuntimeSubscription.MaxWatches),
+		fmt.Sprintf("surface: %d run events / %d topics / %d snapshots / %d streaming methods", len(profile.RunEvents), len(profile.RuntimeTopics), len(profile.StateSnapshots), len(profile.StreamingMethods)),
+	}
+	return strings.Join(slices.Concat(profileLines, lines), "\n")
+}
+
+func optionalLimit(value int) string {
+	if value == 0 {
+		return "runtime default"
+	}
+	return fmt.Sprintf("%d runs", value)
+}
+
+func formatRuntimeSeconds(value int) string {
+	if value%3600 == 0 {
+		return fmt.Sprintf("%dh", value/3600)
+	}
+	if value%60 == 0 {
+		return fmt.Sprintf("%dm", value/60)
+	}
+	return fmt.Sprintf("%ds", value)
+}
+
+func formatRuntimeBytes(value int) string {
+	const unit = 1024
+	switch {
+	case value >= unit*unit && value%(unit*unit) == 0:
+		return fmt.Sprintf("%d MiB", value/(unit*unit))
+	case value >= unit && value%unit == 0:
+		return fmt.Sprintf("%d KiB", value/unit)
+	default:
+		return fmt.Sprintf("%d B", value)
+	}
 }
 
 func (a *app) ShowApprovalRules() {

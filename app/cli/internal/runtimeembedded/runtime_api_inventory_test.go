@@ -122,6 +122,10 @@ func TestDiscoveryRejectsUnprojectedStreamAndChangeCapabilities(t *testing.T) {
 func compatibleDiscovery() *protocol.DiscoverResponse {
 	return &protocol.DiscoverResponse{
 		Protocol: protocol.SupportedProtocolRange(),
+		ServerInfo: protocol.ServerInfo{
+			Name: "lyra-runtime", Version: "test",
+			DefaultWorkspace: protocol.WorkspaceRef{Path: "/workspace"}, Home: "/home/test",
+		},
 		Capabilities: protocol.ServerCapabilities{
 			RunEvents:        recognizedRunEventTypes(),
 			RuntimeTopics:    protocol.RuntimeTopics(),
@@ -130,9 +134,15 @@ func compatibleDiscovery() *protocol.DiscoverResponse {
 				Key: protocol.StatePlan, RecoveryMethod: "plan.get",
 				Scope: protocol.StateScopeSession, Writer: protocol.StateWriterRootRun,
 			}},
-			Limits: protocol.RuntimeLimits{RunReplay: protocol.RunReplayLimits{
-				Scope: protocol.ReplayScopeRuntimeInstanceRootSegment,
-			}},
+			Limits: protocol.RuntimeLimits{
+				MaxConcurrentRuns: 4,
+				Idempotency:       protocol.IdempotencyLimits{RetentionSeconds: 600},
+				RunReplay: protocol.RunReplayLimits{
+					Scope: protocol.ReplayScopeRuntimeInstanceRootSegment, MaxEvents: 1024, MaxBytes: 1 << 20,
+				},
+				MCPAuthorizationAttempts: protocol.MCPAuthorizationAttemptLimits{RetentionSeconds: 600},
+				RuntimeSubscription:      protocol.SubscriptionLimits{MaxTopics: 32, MaxWatches: 32},
+			},
 		},
 	}
 }
@@ -166,7 +176,7 @@ func runtimeAPIConsumptionByMethod() map[string]runtimeAPIConsumption {
 		return runtimeAPIConsumption{Area: area, Mode: consumedBySideChannel, Entry: entry}
 	}
 	return map[string]runtimeAPIConsumption{
-		"Discover": lifecycle("lifecycle", "embedded runtime startup negotiation"),
+		"Discover": lifecycle("lifecycle", "startup negotiation, capability gates, TUI status, and runtime info"),
 		"Close":    lifecycle("lifecycle", "process-owned backend shutdown"),
 
 		"CreateSession":   flow("sessions", "interactive and one-shot session opening"),

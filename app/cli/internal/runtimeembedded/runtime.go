@@ -19,6 +19,7 @@ import (
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
 	"github.com/Tangerg/lynx/app/cli/internal/backend"
 	"github.com/Tangerg/lynx/app/cli/internal/changefeed"
+	"github.com/Tangerg/lynx/app/cli/internal/runtimeprofile"
 	"github.com/Tangerg/lynx/app/cli/internal/workspace"
 )
 
@@ -101,10 +102,7 @@ type Runtime struct {
 	feedbackPort     *feedbackAdapter
 	meta             protocol.RequestMeta
 	loadAttachment   attachmentLoader
-	supportedTopics  map[changefeed.Topic]struct{}
-	enabledFeatures  map[string]struct{}
-	maxChangeTopics  int
-	maxChangeWatches int
+	profile          runtimeprofile.Profile
 }
 
 var _ agent.Runtime = (*Runtime)(nil)
@@ -150,8 +148,6 @@ func Open(ctx context.Context, cfg Config) (*Runtime, error) {
 		feedback:         binding,
 		meta:             requestMeta(cfg.ClientVersion),
 		loadAttachment:   loadAttachmentFile,
-		supportedTopics:  make(map[changefeed.Topic]struct{}),
-		enabledFeatures:  make(map[string]struct{}),
 	}
 	discovery, err := binding.Discover(ctx, runtime.callOptions())
 	if err == nil {
@@ -160,16 +156,10 @@ func Open(ctx context.Context, cfg Config) (*Runtime, error) {
 	if err != nil {
 		return nil, errors.Join(classifyError(err), binding.Close())
 	}
-	for _, topic := range discovery.Capabilities.RuntimeTopics {
-		runtime.supportedTopics[changefeed.Topic(topic)] = struct{}{}
+	runtime.profile, err = projectRuntimeProfile(discovery, runtime.meta.ClientCapabilities)
+	if err != nil {
+		return nil, errors.Join(fmt.Errorf("%w: %w", agent.ErrIncompatibleRuntime, err), binding.Close())
 	}
-	for name, capability := range discovery.Capabilities.Features {
-		if capability.Enabled {
-			runtime.enabledFeatures[name] = struct{}{}
-		}
-	}
-	runtime.maxChangeTopics = discovery.Capabilities.Limits.RuntimeSubscription.MaxTopics
-	runtime.maxChangeWatches = discovery.Capabilities.Limits.RuntimeSubscription.MaxWatches
 	return runtime, nil
 }
 
@@ -350,6 +340,9 @@ func (r *Runtime) services() backend.Services {
 		Usage: r, ModelConfig: r, DiagnosticTools: r.diagnosticPort,
 		AuthoringContext: r.authoringPort, Hooks: r.hookPort, Feedback: r.feedbackPort,
 	}
+	if r.profile.Available() {
+		services.RuntimeProfile = new(r.profile.Clone())
+	}
 	if r.supportsFeature(protocol.FeatureGoals) {
 		services.Goals = r
 	}
@@ -375,8 +368,7 @@ func (r *Runtime) services() backend.Services {
 }
 
 func (r *Runtime) supportsFeature(name string) bool {
-	_, supported := r.enabledFeatures[name]
-	return supported
+	return r.profile.Supports(name)
 }
 
 func (o *Owner) Close() error {

@@ -16,6 +16,7 @@ import (
 	"github.com/Tangerg/lynx/app/cli/internal/changefeed"
 	"github.com/Tangerg/lynx/app/cli/internal/goal"
 	"github.com/Tangerg/lynx/app/cli/internal/modelconfig"
+	"github.com/Tangerg/lynx/app/cli/internal/runtimeprofile"
 	"github.com/Tangerg/lynx/app/cli/internal/usage"
 )
 
@@ -82,6 +83,35 @@ func TestUsageAndModelRoleCommandsProjectRuntimeConfiguration(t *testing.T) {
 	roles, err := models.Roles(t.Context())
 	if err != nil || roles.Utility.Model != "maintenance" || roles.Embedding.Configured() {
 		t.Fatalf("roles = (%+v, %v)", roles, err)
+	}
+	stop()
+}
+
+func TestRuntimeStatusConsumesTheNegotiatedDiscoveryProfile(t *testing.T) {
+	profile := runtimeprofile.Profile{
+		Protocol:  runtimeprofile.Protocol{Current: "2.0", MinSupported: "2.0"},
+		Server:    runtimeprofile.Server{Name: "lyra-runtime", Version: "1.2.3", DefaultWorkspace: "/workspace", Home: "/home/test"},
+		RunEvents: []string{"segment.started"}, RuntimeTopics: []string{"files.changed"},
+		StateSnapshots:   []runtimeprofile.Snapshot{{Key: "plan", RecoveryMethod: "plan.get", Scope: "session", Writer: "rootRun"}},
+		StreamingMethods: []string{"runs.start"},
+		Features:         map[string]runtimeprofile.Feature{"mcp": {Enabled: true, Stability: runtimeprofile.Stable}},
+		Limits: runtimeprofile.Limits{
+			MaxConcurrentRuns: 4, IdempotencyRetentionSeconds: 600,
+			RunReplay:                        runtimeprofile.ReplayLimits{Scope: "runtimeInstanceRootSegment", MaxEvents: 1024, MaxBytes: 1 << 20},
+			MCPAuthorizationRetentionSeconds: 600,
+			RuntimeSubscription:              runtimeprofile.SubscriptionLimits{MaxTopics: 16, MaxWatches: 32},
+		},
+	}
+	host, stop := runUIWithRuntimeServices(t, Config{Runtime: mock.New(), RuntimeProfile: &profile})
+	host.Shows(t, "Ask lyra")
+	host.Type("/status")
+	host.Press(input.Enter)
+	for _, want := range []string{
+		"lyra-runtime 1.2.3", "protocol: 2.0", "default workspace: /workspace", "available features: mcp",
+		"run concurrency: 4 runs", "run replay: 1024 events / 1 MiB", "command replay retention: 10m",
+		"runtime subscriptions: 16 topics / 32 watches", "1 run events / 1 topics / 1 snapshots / 1 streaming methods",
+	} {
+		host.Shows(t, want)
 	}
 	stop()
 }

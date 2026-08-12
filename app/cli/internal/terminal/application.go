@@ -30,6 +30,7 @@ import (
 	"github.com/Tangerg/lynx/app/cli/internal/mcp"
 	"github.com/Tangerg/lynx/app/cli/internal/modelconfig"
 	"github.com/Tangerg/lynx/app/cli/internal/promptqueue"
+	"github.com/Tangerg/lynx/app/cli/internal/runtimeprofile"
 	"github.com/Tangerg/lynx/app/cli/internal/schedule"
 	"github.com/Tangerg/lynx/app/cli/internal/sessionartifact"
 	"github.com/Tangerg/lynx/app/cli/internal/sessiontransfer"
@@ -86,6 +87,7 @@ type app struct {
 	authoringContext authoringcontext.Service
 	hooks            hookpolicy.Service
 	feedback         feedback.Service
+	runtimeProfile   *runtimeprofile.Profile
 	artifacts        sessionartifact.Store
 	session          agent.Session
 	registry         *extensions.Registry
@@ -183,6 +185,7 @@ type app struct {
 type appConfig struct {
 	context          context.Context
 	runtime          agent.Runtime
+	runtimeProfile   *runtimeprofile.Profile
 	workspaces       workspace.Service
 	changes          changefeed.Source
 	transfers        sessiontransfer.Service
@@ -234,7 +237,8 @@ func newApp(loop *program.Runtime, cfg appConfig) *app {
 	appearance := newTerminalAppearance(loop)
 	a := &app{
 		ctx: cfg.context, loop: loop, runtime: cfg.runtime, workspaces: cfg.workspaces,
-		changes: cfg.changes, transfers: cfg.transfers, usage: cfg.usage, modelConfig: cfg.modelConfig,
+		runtimeProfile: cfg.runtimeProfile,
+		changes:        cfg.changes, transfers: cfg.transfers, usage: cfg.usage, modelConfig: cfg.modelConfig,
 		goals: cfg.goals, skills: cfg.skills, mcp: cfg.mcp, schedules: cfg.schedules,
 		agentMemory: cfg.agentMemory, knowledge: cfg.knowledge,
 		diagnosticTools: cfg.diagnosticTools, codebase: cfg.codebase,

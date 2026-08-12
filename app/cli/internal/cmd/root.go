@@ -158,11 +158,13 @@ func addRootCommands(root *cobra.Command, provider runtimeProvider, v *viper.Vip
 	runs.GroupID = "manage"
 	approvals := newApprovalsCommand(provider)
 	approvals.GroupID = "manage"
+	runtimeCommand := newRuntimeCommand(provider)
+	runtimeCommand.GroupID = "manage"
 	config := newConfigCommand(v)
 	config.GroupID = "setup"
 	completion := newCompletionCommand(root)
 	completion.GroupID = "setup"
-	root.AddCommand(run, sessions, runs, approvals, config, completion)
+	root.AddCommand(run, sessions, runs, approvals, runtimeCommand, config, completion)
 }
 
 // runInteractive opens the terminal interface, seeding the field with whatever was typed
@@ -186,6 +188,7 @@ func runInteractive(cmd *cobra.Command, args []string, provider runtimeProvider,
 
 	err = terminalui.Run(cmd.Context(), terminalui.Config{
 		Runtime:          services.Agent,
+		RuntimeProfile:   services.RuntimeProfile,
 		Workspaces:       services.Workspaces,
 		Changes:          services.Changes,
 		Transfers:        services.Transfers,

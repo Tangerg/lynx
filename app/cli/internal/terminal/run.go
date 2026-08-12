@@ -27,6 +27,7 @@ import (
 	"github.com/Tangerg/lynx/app/cli/internal/mcp"
 	"github.com/Tangerg/lynx/app/cli/internal/modelconfig"
 	"github.com/Tangerg/lynx/app/cli/internal/promptqueue"
+	"github.com/Tangerg/lynx/app/cli/internal/runtimeprofile"
 	"github.com/Tangerg/lynx/app/cli/internal/schedule"
 	"github.com/Tangerg/lynx/app/cli/internal/session"
 	"github.com/Tangerg/lynx/app/cli/internal/sessiontransfer"
@@ -40,6 +41,7 @@ import (
 // Config describes one terminal application instance.
 type Config struct {
 	Runtime          agent.Runtime
+	RuntimeProfile   *runtimeprofile.Profile
 	Workspaces       workspace.Service
 	Changes          changefeed.Source
 	Transfers        sessiontransfer.Service
@@ -102,7 +104,8 @@ func Run(ctx context.Context, cfg Config) (runErr error) {
 		Root: func(loop *program.Runtime) program.Component {
 			active = newApp(loop, appConfig{
 				context: ctx, runtime: cfg.Runtime, snapshot: prepared.opened,
-				workspaces: cfg.Workspaces, changes: cfg.Changes,
+				runtimeProfile: prepared.runtimeProfile,
+				workspaces:     cfg.Workspaces, changes: cfg.Changes,
 				transfers: cfg.Transfers, usage: cfg.Usage, modelConfig: cfg.ModelConfig,
 				goals: cfg.Goals, skills: cfg.Skills, mcp: cfg.MCP, schedules: cfg.Schedules,
 				agentMemory: cfg.AgentMemory, knowledge: cfg.Knowledge,
@@ -125,18 +128,27 @@ func Run(ctx context.Context, cfg Config) (runErr error) {
 }
 
 type preparedSession struct {
-	opened      agent.SessionSnapshot
-	attachments *attachment.Resolver
-	keyBindings keyBindings
-	settings    settings.Config
-	workbench   *workbench.Store
-	draft       agent.Message
-	editor      *draftEditor
+	opened         agent.SessionSnapshot
+	runtimeProfile *runtimeprofile.Profile
+	attachments    *attachment.Resolver
+	keyBindings    keyBindings
+	settings       settings.Config
+	workbench      *workbench.Store
+	draft          agent.Message
+	editor         *draftEditor
 }
 
 func prepareSession(ctx context.Context, cfg Config) (preparedSession, error) {
 	if cfg.Runtime == nil {
 		return preparedSession{}, errors.New("session: a runtime is required")
+	}
+	var profile *runtimeprofile.Profile
+	if cfg.RuntimeProfile != nil {
+		cloned := cfg.RuntimeProfile.Clone()
+		if err := cloned.Validate(); err != nil {
+			return preparedSession{}, fmt.Errorf("session runtime profile: %w", err)
+		}
+		profile = &cloned
 	}
 	configured := settings.Default()
 	if cfg.Settings != nil {
@@ -176,7 +188,7 @@ func prepareSession(ctx context.Context, cfg Config) (preparedSession, error) {
 		return preparedSession{}, err
 	}
 	return preparedSession{
-		opened: opened, attachments: attachments, keyBindings: bindings, settings: configured,
+		opened: opened, runtimeProfile: profile, attachments: attachments, keyBindings: bindings, settings: configured,
 		workbench: authoring, draft: draft, editor: editor,
 	}, nil
 }
