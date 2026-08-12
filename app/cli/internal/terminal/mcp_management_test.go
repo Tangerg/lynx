@@ -15,6 +15,7 @@ import (
 	"github.com/Tangerg/lynx/app/cli/internal/agent/mock"
 	"github.com/Tangerg/lynx/app/cli/internal/changefeed"
 	"github.com/Tangerg/lynx/app/cli/internal/mcp"
+	"github.com/Tangerg/lynx/app/cli/internal/reconnect"
 )
 
 type mcpServiceStub struct {
@@ -25,6 +26,7 @@ type mcpServiceStub struct {
 	deleted     chan string
 	reconnected chan string
 	authReads   atomic.Int32
+	authErrors  chan error
 	now         time.Time
 }
 
@@ -128,13 +130,46 @@ func (service *mcpServiceStub) StartAuthorization(_ context.Context, server stri
 	return mcp.AuthorizationAttempt{ID: "auth_1", Server: server, Status: mcp.AuthorizationPending, CreatedAt: service.now}, nil
 }
 
-func (service *mcpServiceStub) GetAuthorization(context.Context, string) (mcp.AuthorizationAttempt, error) {
+func (service *mcpServiceStub) GetAuthorization(context.Context, mcp.AuthorizationReference) (mcp.AuthorizationAttempt, error) {
 	service.authReads.Add(1)
+	select {
+	case err := <-service.authErrors:
+		return mcp.AuthorizationAttempt{}, err
+	default:
+	}
 	finished := service.now.Add(time.Second)
 	return mcp.AuthorizationAttempt{
 		ID: "auth_1", Server: "docs", Status: mcp.AuthorizationSucceeded,
 		CreatedAt: service.now, FinishedAt: &finished,
 	}, nil
+}
+
+func TestMCPAuthorizationObserverRecoversTransientReadsAndStopsOnAuthoritativeAbsence(t *testing.T) {
+	service := newMCPServiceStub()
+	service.authErrors = make(chan error, 2)
+	service.authErrors <- errors.New("temporary authorization read failure")
+	service.authErrors <- errors.New("another temporary authorization read failure")
+	observer := mcpAuthorizationObserver{
+		service: service, pollInterval: time.Nanosecond,
+		recovery: reconnect.Backoff{Base: time.Nanosecond, Maximum: time.Nanosecond},
+	}
+	initial, err := service.StartAuthorization(t.Context(), "docs")
+	if err != nil {
+		t.Fatal(err)
+	}
+	observed, err := observer.observe(t.Context(), initial)
+	if err != nil || observed.Status != mcp.AuthorizationSucceeded || service.authReads.Load() != 3 {
+		t.Fatalf("observe after transient failures = (%+v, %v), reads %d", observed, err, service.authReads.Load())
+	}
+
+	service.authReads.Store(0)
+	service.authErrors <- mcp.ErrAuthorizationAttemptNotFound
+	if _, err := observer.observe(t.Context(), initial); !errors.Is(err, mcp.ErrAuthorizationAttemptNotFound) {
+		t.Fatalf("observe missing attempt = %v, want ErrAuthorizationAttemptNotFound", err)
+	}
+	if reads := service.authReads.Load(); reads != 1 {
+		t.Fatalf("missing attempt reads = %d, want no retry", reads)
+	}
 }
 
 func TestMCPReadersFormsAndLifecycleCommands(t *testing.T) {

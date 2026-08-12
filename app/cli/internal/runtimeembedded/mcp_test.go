@@ -2,12 +2,14 @@ package runtimeembedded
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/embedded"
 	"github.com/Tangerg/lynx/app/runtime/protocol"
 
+	"github.com/Tangerg/lynx/app/cli/internal/agent"
 	"github.com/Tangerg/lynx/app/cli/internal/mcp"
 )
 
@@ -16,6 +18,8 @@ type mcpBindingStub struct {
 	actions []string
 	created protocol.MCPServerCandidate
 	updated protocol.UpdateMCPServerRequest
+	authErr error
+	authGet *protocol.MCPAuthorizationAttempt
 	now     time.Time
 }
 
@@ -76,6 +80,12 @@ func (stub *mcpBindingStub) CreateMCPAuthorizationAttempt(_ context.Context, req
 func (stub *mcpBindingStub) GetMCPAuthorizationAttempt(_ context.Context, request protocol.MCPAuthorizationAttemptRequest, options embedded.CallOptions) (*protocol.MCPAuthorizationAttempt, error) {
 	stub.assertMeta(options.RequestMeta)
 	stub.actions = append(stub.actions, "authorization:"+request.AttemptID)
+	if stub.authErr != nil {
+		return nil, stub.authErr
+	}
+	if stub.authGet != nil {
+		return stub.authGet, nil
+	}
 	finished := stub.now.Add(time.Second)
 	return &protocol.MCPAuthorizationAttempt{
 		ID: request.AttemptID, Server: "docs", Status: protocol.MCPAuthorizationAttemptStatus{Type: protocol.MCPAuthorizationAttemptSucceeded},
@@ -156,11 +166,59 @@ func TestMCPAdapterProjectsEveryServerToolAndAuthorizationOperation(t *testing.T
 	if err != nil || !attempt.Pending() || attempt.ID != "auth_1" {
 		t.Fatalf("StartAuthorization = (%+v, %v)", attempt, err)
 	}
-	attempt, err = runtime.GetAuthorization(t.Context(), attempt.ID)
+	attempt, err = runtime.GetAuthorization(t.Context(), attempt.Reference())
 	if err != nil || attempt.Status != mcp.AuthorizationSucceeded || attempt.FinishedAt == nil {
 		t.Fatalf("GetAuthorization = (%+v, %v)", attempt, err)
 	}
 	if len(stub.actions) != 8 {
 		t.Fatalf("MCP actions = %v", stub.actions)
+	}
+}
+
+func TestMCPAuthorizationAdapterClassifiesAbsenceAndEnforcesReferenceIdentity(t *testing.T) {
+	server := wireMCPServer()
+	if _, err := projectMCPServerResult("update MCP server", "other", &server, nil); !errors.Is(err, agent.ErrIncompatibleRuntime) {
+		t.Fatalf("mismatched MCP server identity = %v, want ErrIncompatibleRuntime", err)
+	}
+
+	stub := &mcpBindingStub{t: t, now: time.Unix(100, 0), authErr: protocol.ErrMCPAuthorizationAttemptNotFound}
+	runtime := &Runtime{mcp: stub, meta: requestMeta("test")}
+	reference := mcp.AuthorizationReference{ID: "auth_1", Server: "docs"}
+	if _, err := runtime.GetAuthorization(t.Context(), reference); !errors.Is(err, mcp.ErrAuthorizationAttemptNotFound) {
+		t.Fatalf("missing authorization = %v, want ErrAuthorizationAttemptNotFound", err)
+	}
+
+	finished := stub.now.Add(time.Second)
+	stub.authErr = nil
+	stub.authGet = &protocol.MCPAuthorizationAttempt{
+		ID: "auth_other", Server: "docs",
+		Status:    protocol.MCPAuthorizationAttemptStatus{Type: protocol.MCPAuthorizationAttemptSucceeded},
+		CreatedAt: stub.now, FinishedAt: &finished,
+	}
+	if _, err := runtime.GetAuthorization(t.Context(), reference); !errors.Is(err, agent.ErrIncompatibleRuntime) {
+		t.Fatalf("mismatched authorization identity = %v, want ErrIncompatibleRuntime", err)
+	}
+	stub.authGet.ID = reference.ID
+	stub.authGet.Server = "other"
+	if _, err := runtime.GetAuthorization(t.Context(), reference); !errors.Is(err, agent.ErrIncompatibleRuntime) {
+		t.Fatalf("mismatched authorization server = %v, want ErrIncompatibleRuntime", err)
+	}
+}
+
+func TestMCPAdapterClassifiesBoundedContextErrors(t *testing.T) {
+	tests := []struct {
+		source error
+		target error
+	}{
+		{protocol.ErrMCPServerNotFound, mcp.ErrServerNotFound},
+		{protocol.ErrMCPServerAlreadyExists, mcp.ErrServerAlreadyExists},
+		{protocol.ErrMCPServerDisabled, mcp.ErrServerDisabled},
+		{protocol.ErrMCPAuthorizationAttemptNotFound, mcp.ErrAuthorizationAttemptNotFound},
+	}
+	for _, test := range tests {
+		classified := classifyMCPError(test.source)
+		if !errors.Is(classified, test.source) || !errors.Is(classified, test.target) {
+			t.Errorf("classifyMCPError(%v) = %v, want source and bounded-context identities", test.source, classified)
+		}
 	}
 }

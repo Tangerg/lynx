@@ -15,6 +15,17 @@ import (
 	"github.com/Tangerg/lynx/app/cli/internal/failure"
 )
 
+var (
+	// ErrServerNotFound reports that the addressed configured server no longer exists.
+	ErrServerNotFound = errors.New("MCP server not found")
+	// ErrServerAlreadyExists reports a create conflict on the server identity.
+	ErrServerAlreadyExists = errors.New("MCP server already exists")
+	// ErrServerDisabled reports that a live operation requires an enabled server.
+	ErrServerDisabled = errors.New("MCP server is disabled")
+	// ErrAuthorizationAttemptNotFound reports an expired or unknown observation target.
+	ErrAuthorizationAttemptNotFound = errors.New("MCP authorization attempt not found")
+)
+
 type Transport string
 
 const (
@@ -414,6 +425,21 @@ type AuthorizationAttempt struct {
 	FinishedAt *time.Time
 }
 
+// AuthorizationReference is the stable identity used to observe an attempt.
+// Server is retained even though the runtime query is keyed by ID so adapters
+// can reject a response that silently crosses authorization ownership.
+type AuthorizationReference struct {
+	ID     string
+	Server string
+}
+
+func (reference AuthorizationReference) Validate() error {
+	if strings.TrimSpace(reference.ID) == "" || strings.TrimSpace(reference.Server) == "" {
+		return errors.New("MCP authorization reference requires attempt id and server")
+	}
+	return nil
+}
+
 func (attempt AuthorizationAttempt) Validate() error {
 	if strings.TrimSpace(attempt.ID) == "" || strings.TrimSpace(attempt.Server) == "" || attempt.CreatedAt.IsZero() {
 		return errors.New("MCP authorization attempt identity is incomplete")
@@ -445,6 +471,10 @@ func (attempt AuthorizationAttempt) Validate() error {
 
 func (attempt AuthorizationAttempt) Pending() bool { return attempt.Status == AuthorizationPending }
 
+func (attempt AuthorizationAttempt) Reference() AuthorizationReference {
+	return AuthorizationReference{ID: attempt.ID, Server: attempt.Server}
+}
+
 type Service interface {
 	Servers(context.Context) ([]Server, error)
 	CreateServer(context.Context, Candidate) (Server, error)
@@ -454,7 +484,7 @@ type Service interface {
 	Tools(context.Context, string) ([]Tool, error)
 	ReconnectServer(context.Context, string) error
 	StartAuthorization(context.Context, string) (AuthorizationAttempt, error)
-	GetAuthorization(context.Context, string) (AuthorizationAttempt, error)
+	GetAuthorization(context.Context, AuthorizationReference) (AuthorizationAttempt, error)
 }
 
 func validateMapChange(label string, kind ChangeKind, values map[string]string) error {

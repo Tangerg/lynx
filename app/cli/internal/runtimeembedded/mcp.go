@@ -12,6 +12,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/embedded"
 	"github.com/Tangerg/lynx/app/runtime/protocol"
 
+	"github.com/Tangerg/lynx/app/cli/internal/agent"
 	"github.com/Tangerg/lynx/app/cli/internal/mcp"
 )
 
@@ -32,7 +33,7 @@ var _ mcp.Service = (*Runtime)(nil)
 func (r *Runtime) Servers(ctx context.Context) ([]mcp.Server, error) {
 	page, err := r.mcp.ListMCPServers(ctx, r.callOptions())
 	if err != nil {
-		return nil, classifyError(err)
+		return nil, classifyMCPError(err)
 	}
 	values, err := requireCompletePage("list MCP servers", page)
 	if err != nil {
@@ -63,7 +64,7 @@ func (r *Runtime) CreateServer(ctx context.Context, candidate mcp.Candidate) (mc
 		return mcp.Server{}, err
 	}
 	result, err := r.mcp.CreateMCPServer(ctx, projectMCPCandidate(candidate), options)
-	return projectMCPServerResult("create MCP server", result, err)
+	return projectMCPServerResult("create MCP server", candidate.Name, result, err)
 }
 
 func (r *Runtime) UpdateServer(ctx context.Context, update mcp.ServerUpdate) (mcp.Server, error) {
@@ -91,7 +92,7 @@ func (r *Runtime) UpdateServer(ctx context.Context, update mcp.ServerUpdate) (mc
 		request.AutoApproveTools = &values
 	}
 	result, err := r.mcp.UpdateMCPServer(ctx, request, options)
-	return projectMCPServerResult("update MCP server", result, err)
+	return projectMCPServerResult("update MCP server", update.Server, result, err)
 }
 
 func (r *Runtime) DeleteServer(ctx context.Context, server string) error {
@@ -115,7 +116,7 @@ func (r *Runtime) mutateMCPServer(
 	if err != nil {
 		return err
 	}
-	return classifyError(mutate(ctx, protocol.MCPServerRequest{Server: server}, options))
+	return classifyMCPError(mutate(ctx, protocol.MCPServerRequest{Server: server}, options))
 }
 
 func (r *Runtime) TestServer(ctx context.Context, candidate mcp.Candidate) (mcp.TestResult, error) {
@@ -124,7 +125,7 @@ func (r *Runtime) TestServer(ctx context.Context, candidate mcp.Candidate) (mcp.
 	}
 	result, err := r.mcp.TestMCPServer(ctx, projectMCPCandidate(candidate), r.callOptions())
 	if err != nil {
-		return mcp.TestResult{}, classifyError(err)
+		return mcp.TestResult{}, classifyMCPError(err)
 	}
 	if result == nil {
 		return mcp.TestResult{}, errors.New("test MCP server: runtime returned nil")
@@ -140,7 +141,7 @@ func (r *Runtime) Tools(ctx context.Context, server string) ([]mcp.Tool, error) 
 	server = strings.TrimSpace(server)
 	page, err := r.mcp.ListMCPTools(ctx, protocol.MCPListToolsRequest{Server: server}, r.callOptions())
 	if err != nil {
-		return nil, classifyError(err)
+		return nil, classifyMCPError(err)
 	}
 	values, err := requireCompletePage("list MCP tools", page)
 	if err != nil {
@@ -183,28 +184,41 @@ func (r *Runtime) StartAuthorization(ctx context.Context, server string) (mcp.Au
 		return mcp.AuthorizationAttempt{}, err
 	}
 	result, err := r.mcp.CreateMCPAuthorizationAttempt(ctx, protocol.CreateMCPAuthorizationAttemptRequest{Server: server}, options)
-	return projectMCPAuthorizationResult("start MCP authorization", result, err)
+	return projectMCPAuthorizationResult("start MCP authorization", mcpAuthorizationIdentity{server: server}, result, err)
 }
 
-func (r *Runtime) GetAuthorization(ctx context.Context, attemptID string) (mcp.AuthorizationAttempt, error) {
-	attemptID = strings.TrimSpace(attemptID)
-	if attemptID == "" {
-		return mcp.AuthorizationAttempt{}, errors.New("get MCP authorization: attempt id is empty")
+func (r *Runtime) GetAuthorization(ctx context.Context, reference mcp.AuthorizationReference) (mcp.AuthorizationAttempt, error) {
+	if err := reference.Validate(); err != nil {
+		return mcp.AuthorizationAttempt{}, fmt.Errorf("get MCP authorization: %w", err)
 	}
-	result, err := r.mcp.GetMCPAuthorizationAttempt(ctx, protocol.MCPAuthorizationAttemptRequest{AttemptID: attemptID}, r.callOptions())
-	return projectMCPAuthorizationResult("get MCP authorization", result, err)
+	result, err := r.mcp.GetMCPAuthorizationAttempt(ctx, protocol.MCPAuthorizationAttemptRequest{AttemptID: reference.ID}, r.callOptions())
+	return projectMCPAuthorizationResult(
+		"get MCP authorization",
+		mcpAuthorizationIdentity{attemptID: reference.ID, server: reference.Server},
+		result,
+		err,
+	)
 }
 
-func projectMCPServerResult(operation string, result *protocol.MCPServer, err error) (mcp.Server, error) {
+func projectMCPServerResult(operation, expectedName string, result *protocol.MCPServer, err error) (mcp.Server, error) {
 	if err != nil {
-		return mcp.Server{}, classifyError(err)
+		return mcp.Server{}, classifyMCPError(err)
 	}
 	if result == nil {
-		return mcp.Server{}, fmt.Errorf("%s: runtime returned nil", operation)
+		return mcp.Server{}, fmt.Errorf("%w: %s returned nil", agent.ErrIncompatibleRuntime, operation)
 	}
 	server := projectMCPServer(*result)
 	if err := server.Validate(); err != nil {
-		return mcp.Server{}, fmt.Errorf("%s: %w", operation, err)
+		return mcp.Server{}, fmt.Errorf("%w: %s returned an invalid server: %v", agent.ErrIncompatibleRuntime, operation, err)
+	}
+	if server.Name != expectedName {
+		return mcp.Server{}, fmt.Errorf(
+			"%w: %s returned server %q for %q",
+			agent.ErrIncompatibleRuntime,
+			operation,
+			server.Name,
+			expectedName,
+		)
 	}
 	return server, nil
 }
@@ -259,12 +273,22 @@ func projectMCPConnectionInput(connection mcp.ConnectionInput) protocol.MCPConne
 	return projected
 }
 
-func projectMCPAuthorizationResult(operation string, result *protocol.MCPAuthorizationAttempt, err error) (mcp.AuthorizationAttempt, error) {
+type mcpAuthorizationIdentity struct {
+	attemptID string
+	server    string
+}
+
+func projectMCPAuthorizationResult(
+	operation string,
+	expected mcpAuthorizationIdentity,
+	result *protocol.MCPAuthorizationAttempt,
+	err error,
+) (mcp.AuthorizationAttempt, error) {
 	if err != nil {
-		return mcp.AuthorizationAttempt{}, classifyError(err)
+		return mcp.AuthorizationAttempt{}, classifyMCPError(err)
 	}
 	if result == nil {
-		return mcp.AuthorizationAttempt{}, fmt.Errorf("%s: runtime returned nil", operation)
+		return mcp.AuthorizationAttempt{}, fmt.Errorf("%w: %s returned nil", agent.ErrIncompatibleRuntime, operation)
 	}
 	attempt := mcp.AuthorizationAttempt{
 		ID: result.ID, Server: result.Server, Status: mcp.AuthorizationStatus(result.Status.Type),
@@ -272,9 +296,50 @@ func projectMCPAuthorizationResult(operation string, result *protocol.MCPAuthori
 		FinishedAt: clonePointer(result.FinishedAt),
 	}
 	if err := attempt.Validate(); err != nil {
-		return mcp.AuthorizationAttempt{}, fmt.Errorf("%s: %w", operation, err)
+		return mcp.AuthorizationAttempt{}, fmt.Errorf(
+			"%w: %s returned an invalid authorization attempt: %v",
+			agent.ErrIncompatibleRuntime,
+			operation,
+			err,
+		)
+	}
+	if expected.attemptID != "" && attempt.ID != expected.attemptID {
+		return mcp.AuthorizationAttempt{}, fmt.Errorf(
+			"%w: %s returned attempt %q for %q",
+			agent.ErrIncompatibleRuntime,
+			operation,
+			attempt.ID,
+			expected.attemptID,
+		)
+	}
+	if attempt.Server != expected.server {
+		return mcp.AuthorizationAttempt{}, fmt.Errorf(
+			"%w: %s returned server %q for %q",
+			agent.ErrIncompatibleRuntime,
+			operation,
+			attempt.Server,
+			expected.server,
+		)
 	}
 	return attempt, nil
+}
+
+func classifyMCPError(err error) error {
+	classified := classifyError(err)
+	for _, mapping := range []struct {
+		source error
+		target error
+	}{
+		{protocol.ErrMCPServerNotFound, mcp.ErrServerNotFound},
+		{protocol.ErrMCPServerAlreadyExists, mcp.ErrServerAlreadyExists},
+		{protocol.ErrMCPServerDisabled, mcp.ErrServerDisabled},
+		{protocol.ErrMCPAuthorizationAttemptNotFound, mcp.ErrAuthorizationAttemptNotFound},
+	} {
+		if errors.Is(classified, mapping.source) {
+			return fmt.Errorf("%w: %w", mapping.target, classified)
+		}
+	}
+	return classified
 }
 
 func clonePointer[T any](value *T) *T {

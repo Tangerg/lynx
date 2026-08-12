@@ -10,7 +10,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Tangerg/lynx/app/cli/internal/agent"
 	"github.com/Tangerg/lynx/app/cli/internal/mcp"
+	"github.com/Tangerg/lynx/app/cli/internal/reconnect"
 )
 
 const mcpAuthorizationPollInterval = 500 * time.Millisecond
@@ -350,24 +352,12 @@ func (a *app) AuthorizeMCPServer(server string) error {
 }
 
 func (a *app) pollMCPAuthorization(initial mcp.AuthorizationAttempt) {
+	observer := mcpAuthorizationObserver{
+		service: a.mcp, pollInterval: mcpAuthorizationPollInterval, recovery: runtimeRecoveryBackoff,
+	}
 	started := runOperation(a, mcpAuthorizationOperation, false,
 		func(ctx context.Context) (mcp.AuthorizationAttempt, error) {
-			ticker := time.NewTicker(mcpAuthorizationPollInterval)
-			defer ticker.Stop()
-			current := initial
-			for current.Pending() {
-				select {
-				case <-ctx.Done():
-					return mcp.AuthorizationAttempt{}, context.Cause(ctx)
-				case <-ticker.C:
-					var err error
-					current, err = a.mcp.GetAuthorization(ctx, initial.ID)
-					if err != nil {
-						return mcp.AuthorizationAttempt{}, err
-					}
-				}
-			}
-			return current, nil
+			return observer.observe(ctx, initial)
 		},
 		func(attempt mcp.AuthorizationAttempt, err error) {
 			if err != nil {
@@ -383,6 +373,54 @@ func (a *app) pollMCPAuthorization(initial mcp.AuthorizationAttempt) {
 	if !started {
 		a.message("could not observe MCP authorization " + initial.ID)
 	}
+}
+
+type mcpAuthorizationObserver struct {
+	service      mcp.Service
+	pollInterval time.Duration
+	recovery     reconnect.Backoff
+}
+
+func (observer mcpAuthorizationObserver) observe(
+	ctx context.Context,
+	initial mcp.AuthorizationAttempt,
+) (mcp.AuthorizationAttempt, error) {
+	if err := initial.Validate(); err != nil {
+		return mcp.AuthorizationAttempt{}, fmt.Errorf("observe MCP authorization: %w", err)
+	}
+	current := initial
+	reference := initial.Reference()
+	delay := observer.pollInterval
+	failures := 0
+	for current.Pending() {
+		if err := reconnect.Wait(ctx, delay); err != nil {
+			return mcp.AuthorizationAttempt{}, err
+		}
+		next, err := observer.service.GetAuthorization(ctx, reference)
+		if err != nil {
+			if errors.Is(err, mcp.ErrAuthorizationAttemptNotFound) || errors.Is(err, agent.ErrIncompatibleRuntime) {
+				return mcp.AuthorizationAttempt{}, err
+			}
+			failures++
+			delay = observer.recovery.Delay(failures)
+			continue
+		}
+		if err := next.Validate(); err != nil {
+			return mcp.AuthorizationAttempt{}, fmt.Errorf("observe MCP authorization: %w", err)
+		}
+		if next.Reference() != reference {
+			return mcp.AuthorizationAttempt{}, fmt.Errorf(
+				"%w: authorization observation moved from %+v to %+v",
+				agent.ErrIncompatibleRuntime,
+				reference,
+				next.Reference(),
+			)
+		}
+		current = next
+		failures = 0
+		delay = observer.pollInterval
+	}
+	return current, nil
 }
 
 func mcpAuthorizationDocument(attempt mcp.AuthorizationAttempt) readerDocument {
