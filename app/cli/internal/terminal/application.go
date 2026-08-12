@@ -239,7 +239,7 @@ func newApp(loop *program.Runtime, cfg appConfig) *app {
 	appearance := newTerminalAppearance(loop)
 	transcript := newTranscriptView(appearance.theme, appearance.glyphs, loop.Environment().Wheel(), appearance.syntax, cfg.settings.UI.TranscriptRetain, cfg.settings.UI.ToolDetails, loop.Clipboard())
 	brand := newBrandBanner(appearance.theme, appearance.glyphs, cfg.clientVersion, cfg.snapshot.Session, cfg.settings.RunOptions())
-	transcript.SetEmptyState(brand)
+	transcript.SetEntrance(brand)
 	a := &app{
 		ctx: cfg.context, loop: loop, runtime: cfg.runtime, workspaces: cfg.workspaces,
 		runtimeProfile: cfg.runtimeProfile,
@@ -431,7 +431,6 @@ func (a *app) newTranscript() *transcriptView {
 		a.settings.UI.TranscriptRetain, a.transcript.details, a.transcript.clipboard,
 	)
 	transcript.images = a.transcript.images
-	transcript.SetEmptyState(a.brand)
 	return transcript
 }
 

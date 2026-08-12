@@ -37,7 +37,7 @@ type transcriptView struct {
 	retain          int
 	details         bool
 	clipboard       headless.Clipboard
-	emptyState      grid.Drawable
+	entrance        grid.Drawable
 	focused         bool
 	selected        headless.BlockID
 	hasSelected     bool
@@ -171,12 +171,14 @@ func newTranscriptView(
 func (c *transcriptView) Draw(frame headless.Frame) {
 	c.view.Matches, c.view.Current = c.matches, c.current
 	c.view.Draw(frame)
-	if c.content.Len() == 0 && c.emptyState != nil {
-		c.emptyState.Draw(frame.View)
+	if c.content.Len() == 0 && c.entrance != nil {
+		c.entrance.Draw(frame.View)
 	}
 }
 
-func (c *transcriptView) SetEmptyState(state grid.Drawable) { c.emptyState = state }
+// SetEntrance installs a presentation-only projection that is consumed by the
+// first transcript block or reset. It is not part of retained transcript state.
+func (c *transcriptView) SetEntrance(entrance grid.Drawable) { c.entrance = entrance }
 
 func (c *transcriptView) Handle(event input.Event) bool {
 	if key, ok := event.(input.Key); ok && key.Down() && c.focused {
@@ -959,6 +961,7 @@ func (c *transcriptView) append(block headless.Block) headless.BlockID {
 }
 
 func (c *transcriptView) place(block headless.Block, finished bool) headless.BlockID {
+	c.entrance = nil
 	entry := newTranscriptEntry(c.theme, c.glyphs, block)
 	id := c.content.Append(entry)
 	c.entries[id] = entry
@@ -1012,6 +1015,7 @@ func (c *transcriptView) DiscardExcess() {
 }
 
 func (c *transcriptView) Reset() {
+	c.entrance = nil
 	c.content = headless.Transcript{}
 	c.scroll = headless.Scroll{}
 	c.scroll.Wheel(c.wheel)

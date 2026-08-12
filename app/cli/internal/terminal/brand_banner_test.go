@@ -61,10 +61,10 @@ func TestBrandBannerUsesASCIIMarkForASCIITerminals(t *testing.T) {
 	}
 }
 
-func TestTranscriptBrandIsPresentationOnly(t *testing.T) {
+func TestTranscriptBrandIsAOneShotEntranceProjection(t *testing.T) {
 	view := testTranscriptView(t)
 	banner := newBrandBanner(kit.Dark(), kit.Unicode(), "test", agent.Session{}, agent.RunOptions{})
-	view.SetEmptyState(banner)
+	view.SetEntrance(banner)
 
 	if empty := drawRoot(t, view, 72, 12); !strings.Contains(empty, "Lyra CLI  vtest") {
 		t.Fatalf("empty transcript does not show the brand:\n%s", empty)
@@ -76,7 +76,29 @@ func TestTranscriptBrandIsPresentationOnly(t *testing.T) {
 	}
 
 	view.Reset()
-	if emptyAgain := drawRoot(t, view, 72, 12); !strings.Contains(emptyAgain, "Lyra CLI  vtest") {
-		t.Fatalf("reset transcript did not restore the brand:\n%s", emptyAgain)
+	if cleared := drawRoot(t, view, 72, 12); strings.Contains(cleared, "Lyra CLI") {
+		t.Fatalf("reset transcript restored the consumed brand:\n%s", cleared)
+	}
+}
+
+func TestTranscriptResetConsumesAnUnshownEntranceProjection(t *testing.T) {
+	view := testTranscriptView(t)
+	view.SetEntrance(newBrandBanner(kit.Dark(), kit.Unicode(), "test", agent.Session{}, agent.RunOptions{}))
+
+	view.Reset()
+	if got := drawRoot(t, view, 72, 12); strings.Contains(got, "Lyra CLI") {
+		t.Fatalf("reset transcript restored the startup brand:\n%s", got)
+	}
+}
+
+func TestReplacementTranscriptDoesNotInheritTheBrand(t *testing.T) {
+	initial := testTranscriptView(t)
+	initial.SetEntrance(newBrandBanner(kit.Dark(), kit.Unicode(), "test", agent.Session{}, agent.RunOptions{}))
+	a := &app{transcript: initial, syntax: initial.syntax, settings: settings.Default()}
+
+	replacement := a.newTranscript()
+	t.Cleanup(replacement.Close)
+	if got := drawRoot(t, replacement, 72, 12); strings.Contains(got, "Lyra CLI") {
+		t.Fatalf("replacement transcript inherited the startup brand:\n%s", got)
 	}
 }

@@ -30,8 +30,9 @@ var (
 	}
 )
 
-// brandBanner is the empty-session projection. It is intentionally outside the
-// transcript model so identity chrome never becomes searchable conversation data.
+// brandBanner is the initial entrance projection. It is intentionally outside
+// the transcript model so identity chrome never becomes searchable conversation
+// data or reappears in later empty sessions.
 type brandBanner struct {
 	theme     kit.Theme
 	glyphs    kit.Glyphs
