@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
@@ -93,7 +94,51 @@ func (claim ResumeClaimCommit) Validate() error {
 			return fmt.Errorf("runs: resume claim answer[%d] differs from its pending boundary", index)
 		}
 	}
+	if _, err := claim.QuestionReplacements(); err != nil {
+		return fmt.Errorf("runs: resume claim question projections: %w", err)
+	}
 	return nil
+}
+
+// QuestionReplacements derives the transcript compare-and-swap write-set for
+// every accepted Question answer. It is computed by the Application from the
+// exact Pending snapshot and validated resolutions; the persistence port only
+// executes these replacements in the same transaction as the claim.
+func (claim ResumeClaimCommit) QuestionReplacements() ([]ItemReplacement, error) {
+	answersByItem := make(map[string]InterruptAnswer, len(claim.Answers))
+	for _, answer := range claim.Answers {
+		answersByItem[answer.InterruptItemID] = answer
+	}
+	replacements := make([]ItemReplacement, 0, len(claim.Expected.Interrupts))
+	for _, request := range claim.Expected.Interrupts {
+		if request.Kind != interrupt.Question {
+			continue
+		}
+		if request.Question == nil {
+			return nil, fmt.Errorf("question item %q has no prompt", request.ItemID)
+		}
+		answer, ok := answersByItem[request.ItemID]
+		if !ok {
+			return nil, fmt.Errorf("question item %q has no answer", request.ItemID)
+		}
+		expected, err := transcript.NewQuestion(transcript.ItemIdentity{
+			SessionID:  claim.Expected.SessionID,
+			RunID:      request.RunID,
+			ItemID:     request.ItemID,
+			OccurredAt: request.ItemOccurredAt,
+		}, *request.Question)
+		if err != nil {
+			return nil, fmt.Errorf("restore question item %q: %w", request.ItemID, err)
+		}
+		replacement, err := expected.AnswerQuestion(answer.Resolution.Answers)
+		if err != nil {
+			return nil, fmt.Errorf("answer question item %q: %w", request.ItemID, err)
+		}
+		replacements = append(replacements, ItemReplacement{
+			Expected: expected, Replacement: replacement,
+		})
+	}
+	return replacements, nil
 }
 
 // SessionReplacement is the exact Session aggregate replacement committed with

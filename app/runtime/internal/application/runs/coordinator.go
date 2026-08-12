@@ -72,11 +72,12 @@ type Coordinator struct {
 	// longer exists instead of resolving against a live one. It is minted once
 	// per Coordinator, which is what makes "a restart changes it" structural
 	// rather than remembered.
-	epoch     string
-	retention Retention
-	tasks     taskgroup.Group
-	registry  registry
-	admission *sessionadmission.Gate
+	epoch      string
+	retention  Retention
+	tasks      taskgroup.Group
+	registry   registry
+	admission  *sessionadmission.Gate
+	runChanges sessionRunChanges
 	// invalidations tell clients that are NOT following this run that its lifecycle
 	// moved. The run's own stream carries the events themselves; this is the
 	// invalidation for everyone else, published only after the durable commit the
@@ -172,10 +173,10 @@ func NewCoordinator(deps Dependencies) *Coordinator {
 // told and a number the runtime evicts by must be the same number.
 func (c *Coordinator) ReplayRetention() Retention { return c.retention }
 
-// WaitSessionStartable lets an application-owned continuation wait for the
-// current Session Run and working-tree mutation boundaries before attempting
-// its own Start. It does not reserve either resource; Start remains the
-// authority that acquires them.
+// WaitSessionStartable lets an application-owned continuation wait until both
+// the process-local admission gate and the durable Session Run projection are
+// free before attempting its own Start. It does not reserve either resource;
+// Start remains the authority that acquires them.
 func (c *Coordinator) WaitSessionStartable(ctx context.Context, sessionID string) error {
 	if c == nil || c.admission == nil || c.sessionReader == nil {
 		return errors.New("runs: admission gate is unavailable")
@@ -184,7 +185,24 @@ func (c *Coordinator) WaitSessionStartable(ctx context.Context, sessionID string
 	if err != nil {
 		return err
 	}
-	return c.admission.WaitRunStartable(ctx, sess.ID(), sess.CWD())
+	for {
+		if err := c.admission.WaitRunStartable(ctx, sess.ID(), sess.CWD()); err != nil {
+			return err
+		}
+		changed := c.runChanges.observe(sess.ID())
+		_, active, err := c.activeRuns.ActiveRun(ctx, sess.ID())
+		if err != nil {
+			return err
+		}
+		if !active {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-changed:
+		}
+	}
 }
 
 // openSegment attaches an already-staged executor stream, atomically commits

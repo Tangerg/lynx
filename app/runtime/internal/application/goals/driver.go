@@ -2,7 +2,7 @@
 // session's objective, it launches runs back-to-back until the model signals the
 // goal complete or blocked (through terminal outcome reporting), an opt-in cross-Run
 // budget is spent, or the user stops it. It mirrors application/schedules — a
-// headless application component that drives the runs Coordinator — but is
+// autonomous application component that drives the runs Coordinator — but is
 // event-driven per goal rather than cron-timed, and consumes each run's terminal
 // to decide whether to continue.
 //
@@ -24,6 +24,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/taskgroup"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 )
 
 var (
@@ -47,15 +48,31 @@ var (
 	// nil receiver for a caller to remember to check — "not assembled" is a state
 	// the owner of the capability reports, not a precondition it delegates.
 	ErrUnavailable = errors.New("goals: goal mode unavailable")
+	// ErrInsufficientCapabilities reports a caller that cannot observe every
+	// optional behavior already frozen on the Goal incarnation.
+	ErrInsufficientCapabilities = errors.New("goals: caller capabilities are insufficient")
 )
+
+// InsufficientCapabilitiesError names the complete frozen capability gap.
+type InsufficientCapabilitiesError struct {
+	SessionID string
+	Missing   run.Capabilities
+}
+
+func (e *InsufficientCapabilitiesError) Error() string {
+	return e.SessionID + ": " + ErrInsufficientCapabilities.Error() + ": " + e.Missing.String()
+}
+
+func (e *InsufficientCapabilitiesError) Is(target error) bool {
+	return target == ErrInsufficientCapabilities
+}
 
 // Available reports whether goal mode is assembled in this runtime. Nil-safe: a
 // runtime with no goal store leaves the driver nil, and asking an absent
 // capability whether it exists must answer, not panic.
 func (d *Driver) Available() bool { return d != nil && d.goals != nil }
 
-// AutonomousRuns is the Goal driver's narrow view of the Run entry point — the same
-// headless start the scheduler uses.
+// AutonomousRuns is the Goal driver's narrow view of the Run entry point.
 type AutonomousRuns interface {
 	WaitSessionStartable(ctx context.Context, sessionID string) error
 	Start(ctx context.Context, cmd runs.StartCommand) (runs.StartResult, error)
@@ -129,7 +146,13 @@ func NewDriver(store Store, autonomousRuns AutonomousRuns, sessions SessionExist
 // clobber a goal that is already actively driving, and refuses a session that
 // does not exist. The new objective gets a fresh incarnation so a Run from any
 // previously-cleared Goal can no longer write it.
-func (d *Driver) Start(ctx context.Context, sessionID, objective string, selection modelref.Selection, budget goal.Budget) (goal.Goal, error) {
+func (d *Driver) Start(
+	ctx context.Context,
+	sessionID, objective string,
+	selection modelref.Selection,
+	budget goal.Budget,
+	capabilities run.Capabilities,
+) (goal.Goal, error) {
 	if !d.Available() {
 		return goal.Goal{}, ErrUnavailable
 	}
@@ -175,7 +198,7 @@ func (d *Driver) Start(ctx context.Context, sessionID, objective string, selecti
 	if ok {
 		expected = existing.Version()
 	}
-	g, err := goal.New(sessionID, objective, selection, budget, d.newIncarnation(), d.now())
+	g, err := goal.New(sessionID, objective, selection, budget, capabilities, d.newIncarnation(), d.now())
 	if err != nil {
 		return goal.Goal{}, err
 	}
@@ -196,7 +219,7 @@ func (d *Driver) Start(ctx context.Context, sessionID, objective string, selecti
 // idempotent on an already-active goal. Resume preserves the objective
 // incarnation: a Run parked for HITL remains part of this Goal when it resumes,
 // while quiesceDrive is the process-local boundary between old and new drives.
-func (d *Driver) Resume(ctx context.Context, sessionID string) (goal.Goal, error) {
+func (d *Driver) Resume(ctx context.Context, sessionID string, caller run.Capabilities) (goal.Goal, error) {
 	if !d.Available() {
 		return goal.Goal{}, ErrUnavailable
 	}
@@ -211,6 +234,9 @@ func (d *Driver) Resume(ctx context.Context, sessionID string) (goal.Goal, error
 	}
 	if !ok {
 		return goal.Goal{}, ErrNoGoal
+	}
+	if missing := g.Capabilities.MissingFrom(caller); !missing.IsEmpty() {
+		return goal.Goal{}, &InsufficientCapabilitiesError{SessionID: sessionID, Missing: missing}
 	}
 	if g.Status == goal.StatusActive {
 		if err := d.ensureDriveLocked(ctx, sessionID, g.IncarnationID); err != nil {
@@ -227,6 +253,9 @@ func (d *Driver) Resume(ctx context.Context, sessionID string) (goal.Goal, error
 	}
 	if !ok {
 		return goal.Goal{}, ErrNoGoal
+	}
+	if missing := g.Capabilities.MissingFrom(caller); !missing.IsEmpty() {
+		return goal.Goal{}, &InsufficientCapabilitiesError{SessionID: sessionID, Missing: missing}
 	}
 	if g.Status == goal.StatusActive {
 		if err := d.ensureDriveLocked(ctx, sessionID, g.IncarnationID); err != nil {

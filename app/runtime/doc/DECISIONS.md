@@ -371,3 +371,20 @@
 - 决策：Goal drive 的 goroutine、cancellation 与 completion 仍是 Application process-local ownership，由 `quiesceDrive`/join 关闭。`WaitSessionStartable` 只是观察边界，不是 reservation；每次等待返回后、尝试 Run admission 前，driver 必须重读权威 Goal 并先结算 budget/terminal 状态。
 - 决策：SQLite 直接提升至 epoch 68，列统一为 `incarnation_id`/`goal_incarnation_id`；executor checkpoint policy 直接提升至 v2。旧 lease 列、字段和 v1 policy 均确定性拒绝，不提供 migration、alias 或 dual codec。
 - 后果：HITL Resume 不再切断 outstanding Run 与目标的账务/终态关系，等待中的 drive 也不能基于陈旧状态多启动 Run；fresh objective 仍能隔离 straggler。改动只重塑 Runtime Domain/Application/Infra/Adapter 内部 provenance，没有把 Goal、Run、Store、checkpoint 或 drive 类型泄露给 Agent Framework、Protocol 或消费者。
+
+## ADR-RT-056：Question 的已接受响应是 Transcript 事实
+
+- 状态：已接受并实施，P34 完成。
+- 背景：Interrupt row 的 hidden answer audit 只服务 continuation claim，Run resume 后会删除；Question Transcript 只保存 prompt。两个客户端并发提交不同答案时，失败客户端只能继续显示本地草稿，重载后又完全丢失答案；取消也可能把未接受草稿伪装成最终响应。
+- 决策：`domain/transcript.Question` 以 optional `Answers` 不可变补充唯一已接受响应；nil 精确表示没有已接受响应。Application 从已验证 Pending + resolution 形成 expected/replacement，`runsegment` 在 exact resume claim 的同一事务内替换 Transcript，再推进 checkpoint/Pending。SQLite 只实现 CAS/codec，不解释答案；Delivery、Artifact v18、Protocol 和 Desktop 只投影该事实。
+- 决策：本地前端 settle 只作为 claim 返回与 Runtime 投影间的延迟桥。Runtime 一旦给出 settled Item，前端必须丢弃本地答案；取消/无答案显示已关闭但未回答。不得用客户端 winner 推断、interrupt audit 反查或 UI sanitizer 形成第二真相源。
+- 后果：并发 answer/resume 仍只有一个线性化 winner，所有客户端和重放最终显示相同响应；事务中任一 Transcript/claim/checkpoint 写失败都会整体回滚。该语义不进入 Agent Framework，Framework 仍只接收 typed answer Signal。
+
+## ADR-RT-057：Goal 冻结并继承 Runtime Run capabilities
+
+- 状态：已接受并实施，P34 完成。
+- 背景：普通 Run 在 Delivery admission 时协商 question/approval/child 能力，但 Goal loop 曾刻意构造空 capability Run，导致同一 Runtime 的 `ask_user` 在自治 Goal 中被拒绝。仅在 Goal 内无条件打开能力会绕过客户端协商，Resume 换客户端时也会静默提升权限。
+- 决策：fresh `Goal.Start` 冻结 Delivery 已协商并 canonicalize 的 Run capabilities，SQLite epoch 69 精确持久化。Goal 的每个自治 Run 复制该集合；`Goal.Resume` 的调用方重新协商能力并必须覆盖冻结集合，否则返回结构化 capability gap。Goal 内 `create_goal` 通过 Runtime adapter-owned execution context 继承当前 Run capabilities。
+- 决策：Goal 可在 owned Run 仍 parked 时先恢复 drive。`application/runs.WaitSessionStartable` 必须同时观察 process-local admission 与 durable non-terminal Run，并由 committed Run lifecycle change 唤醒后重读；它不把等待当 reservation，也不以重试延迟掩盖 durable conflict。
+- 决策：capability carrier 位于 `adapter/executionctx`，只由 `adapter/agentexec` 在 Runtime/Framework 防腐边界写入、Tool adapter 读取；Domain/Application 值不依赖 context，Toolset 不依赖 Agent Framework，Agent module 不认识 Runtime capability、Goal、Run 或 Store。
+- 后果：Goal 的 HITL/child 能力与创建目标时的真实客户端承诺一致，冷恢复和嵌套 Goal 不降级也不扩权；边界仍保持 `adapter/agentexec` 是唯一 Framework concrete import island。

@@ -1,5 +1,5 @@
 {
-  "version": 17,
+  "version": 18,
   "session": {
     "id": "ses_01",
     "title": "Refactor the runtime protocol",

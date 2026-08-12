@@ -943,6 +943,15 @@
     "ArtifactQuestion": {
       "type": "object",
       "properties": {
+        "answers": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
         "fields": {
           "type": "array",
           "minItems": 1,
@@ -5654,6 +5663,15 @@
     "Question": {
       "type": "object",
       "properties": {
+        "answers": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
         "fields": {
           "type": "array",
           "minItems": 1,
@@ -7515,8 +7533,8 @@
         },
         "version": {
           "type": "integer",
-          "minimum": 17,
-          "maximum": 17
+          "minimum": 18,
+          "maximum": 18
         }
       },
       "required": [

@@ -200,7 +200,7 @@ func TestRecoveryRepairsWholeDurableLifecycle(t *testing.T) {
 	checkpointStore := persistence.NewExecutorCheckpointStore(sqlite.NewExecutorCheckpointStore(db))
 	modelInvocations := sqlite.NewModelInvocationStore(db)
 	toolInvocations := sqlite.NewToolInvocationStore(db)
-	goalValue, err := goal.New("session", "finish recovery", modelref.Selection{}, goal.Budget{}, "lease_recovery", createdAt)
+	goalValue, err := goal.New("session", "finish recovery", modelref.Selection{}, goal.Budget{}, run.Capabilities{}, "lease_recovery", createdAt)
 	if err != nil {
 		t.Fatalf("New Goal: %v", err)
 	}

@@ -171,7 +171,14 @@ func (e *Effects) ClaimResume(
 		return runs.ClaimedResume{}, errors.New("runsegment: resume claim has no root continuation")
 	}
 	var checkpoint runs.ExecutorCheckpoint
-	err := e.runInTx(ctx, func(ctx context.Context) error {
+	questionReplacements, err := claim.QuestionReplacements()
+	if err != nil {
+		return runs.ClaimedResume{}, fmt.Errorf("runsegment: prepare answered questions: %w", err)
+	}
+	if len(questionReplacements) > 0 && e.itemReplacer == nil {
+		return runs.ClaimedResume{}, errors.New("runsegment: answered-question replacement is unavailable")
+	}
+	err = e.runInTx(ctx, func(ctx context.Context) error {
 		loaded, err := e.executorCheckpoints.LoadCheckpoint(ctx, root.MemberID)
 		if err != nil {
 			return fmt.Errorf("runsegment: load claimed executor checkpoint: %w", err)
@@ -194,6 +201,11 @@ func (e *Effects) ClaimResume(
 		}
 		if !reflect.DeepEqual(consumed, claim.Expected) {
 			return errors.New("runsegment: waiting hand-off changed before answer claim")
+		}
+		for _, replacement := range questionReplacements {
+			if err := e.itemReplacer.ReplaceItem(ctx, replacement.Expected, replacement.Replacement); err != nil {
+				return fmt.Errorf("runsegment: record answered question %q: %w", replacement.Expected.ID(), err)
+			}
 		}
 		if err := e.executorCheckpoints.DeleteCheckpoints(
 			ctx, claim.Expected.SessionID, []string{root.MemberID},

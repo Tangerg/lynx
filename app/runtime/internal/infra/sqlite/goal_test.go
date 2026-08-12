@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
@@ -32,7 +33,7 @@ func TestGoalStoreRecordRunIsIdempotentAndBlocksAtBudget(t *testing.T) {
 	const sessionID = "ses_goal_run"
 	seedSession(t, sessions, sessionID)
 	now := time.Date(2026, 7, 25, 10, 0, 0, 0, time.UTC)
-	g, err := goal.New(sessionID, "finish", modelref.Selection{}, goal.Budget{MaxRuns: 1}, "lease_goal_run", now)
+	g, err := goal.New(sessionID, "finish", modelref.Selection{}, goal.Budget{MaxRuns: 1}, run.Capabilities{}, "lease_goal_run", now)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -138,7 +139,11 @@ func TestGoalStore_RoundTrip(t *testing.T) {
 	}
 
 	now := time.Unix(1_700_000_000, 0).UTC()
-	g, err := goal.New(sess, "ship the feature", testModelSelection(t, "anthropic", "claude"), goal.Budget{MaxRuns: 5, MaxCostUSD: 2.5}, "lease-round-trip", now)
+	wantCapabilities := run.Capabilities{
+		ChildRuns:      true,
+		InterruptKinds: []interrupt.Kind{interrupt.Approval, interrupt.Question},
+	}
+	g, err := goal.New(sess, "ship the feature", testModelSelection(t, "anthropic", "claude"), goal.Budget{MaxRuns: 5, MaxCostUSD: 2.5}, wantCapabilities, "lease-round-trip", now)
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
@@ -154,7 +159,8 @@ func TestGoalStore_RoundTrip(t *testing.T) {
 	if got.Objective != "ship the feature" || got.Status != goal.StatusActive ||
 		got.Budget.MaxRuns != 5 || got.Budget.MaxCostUSD != 2.5 ||
 		got.Used.Runs != 1 || got.Used.CostUSD != 0.4 || got.Used.Steps != 3 ||
-		got.ModelSelection.Provider() != "anthropic" || got.ModelSelection.Model() != "claude" {
+		got.ModelSelection.Provider() != "anthropic" || got.ModelSelection.Model() != "claude" ||
+		!got.Capabilities.Equal(wantCapabilities) {
 		t.Fatalf("round-trip mismatch: %+v", got)
 	}
 	if !got.CreatedAt.Equal(now) {
@@ -178,7 +184,7 @@ func TestGoalStore_ListAndClear(t *testing.T) {
 
 	for _, s := range []string{"a", "b"} {
 		seedSession(t, sessions, s)
-		g, _ := goal.New(s, "obj-"+s, modelref.Selection{}, goal.Budget{}, "lease-"+s, now)
+		g, _ := goal.New(s, "obj-"+s, modelref.Selection{}, goal.Budget{}, run.Capabilities{}, "lease-"+s, now)
 		if _, applied, err := store.Save(ctx, g, goal.Version{}); err != nil || !applied {
 			t.Fatalf("Save(%s): applied=%v err=%v", s, applied, err)
 		}
@@ -215,7 +221,7 @@ func TestGoalStore_CompareAndSwap(t *testing.T) {
 	seedSession(t, sessions, sess)
 
 	mk := func(incarnationID string, revision int64, status goal.Status) goal.Goal {
-		g, _ := goal.New(sess, "obj", modelref.Selection{}, goal.Budget{}, incarnationID, now)
+		g, _ := goal.New(sess, "obj", modelref.Selection{}, goal.Budget{}, run.Capabilities{}, incarnationID, now)
 		g.IncarnationID = incarnationID
 		g.Revision = revision
 		g.Status = status
@@ -273,7 +279,7 @@ func TestGoalStoreReplacesExistingGoalWithoutCallerRevision(t *testing.T) {
 	seedSession(t, sessions, sessionID)
 	now := time.Unix(1_700_000_000, 0).UTC()
 
-	first, _ := goal.New(sessionID, "first", modelref.Selection{}, goal.Budget{}, "lease-first", now)
+	first, _ := goal.New(sessionID, "first", modelref.Selection{}, goal.Budget{}, run.Capabilities{}, "lease-first", now)
 	first, applied, err := store.Save(t.Context(), first, goal.Version{})
 	if err != nil || !applied {
 		t.Fatalf("insert first goal: applied=%v err=%v", applied, err)
@@ -285,7 +291,7 @@ func TestGoalStoreReplacesExistingGoalWithoutCallerRevision(t *testing.T) {
 		t.Fatalf("stop first goal: applied=%v err=%v", applied, err)
 	}
 
-	fresh, _ := goal.New(sessionID, "second", modelref.Selection{}, goal.Budget{}, "lease-second", now.Add(2*time.Second))
+	fresh, _ := goal.New(sessionID, "second", modelref.Selection{}, goal.Budget{}, run.Capabilities{}, "lease-second", now.Add(2*time.Second))
 	fresh, applied, err = store.Save(t.Context(), fresh, first.Version())
 	if err != nil || !applied {
 		t.Fatalf("replace goal: applied=%v err=%v", applied, err)
@@ -301,7 +307,7 @@ func TestGoalStore_ClearThenRecreateRejectsStaleIncarnation(t *testing.T) {
 	seedSession(t, sessions, sessionID)
 	now := time.Unix(1_700_000_000, 0).UTC()
 
-	stale, _ := goal.New(sessionID, "old", modelref.Selection{}, goal.Budget{}, "lease-old", now)
+	stale, _ := goal.New(sessionID, "old", modelref.Selection{}, goal.Budget{}, run.Capabilities{}, "lease-old", now)
 	if _, applied, err := store.Save(t.Context(), stale, goal.Version{}); err != nil || !applied {
 		t.Fatalf("seed stale goal: applied=%v err=%v", applied, err)
 	}
@@ -309,7 +315,7 @@ func TestGoalStore_ClearThenRecreateRejectsStaleIncarnation(t *testing.T) {
 		t.Fatalf("Clear: %v", err)
 	}
 
-	fresh, _ := goal.New(sessionID, "new", modelref.Selection{}, goal.Budget{}, "lease-fresh", now)
+	fresh, _ := goal.New(sessionID, "new", modelref.Selection{}, goal.Budget{}, run.Capabilities{}, "lease-fresh", now)
 	if _, applied, err := store.Save(t.Context(), fresh, goal.Version{}); err != nil || !applied {
 		t.Fatalf("seed fresh goal: applied=%v err=%v", applied, err)
 	}
@@ -333,7 +339,7 @@ func TestGoalStore_ClearThenRecreateRejectsStaleIncarnation(t *testing.T) {
 // session has already gone.
 func TestGoalStoreRejectsMissingSession(t *testing.T) {
 	store, _ := newGoalStore(t)
-	g, _ := goal.New("missing", "obj", modelref.Selection{}, goal.Budget{}, "lease-missing", time.Unix(0, 0))
+	g, _ := goal.New("missing", "obj", modelref.Selection{}, goal.Budget{}, run.Capabilities{}, "lease-missing", time.Unix(0, 0))
 	if _, applied, err := store.Save(t.Context(), g, goal.Version{}); err == nil || applied {
 		t.Fatalf("Save(missing session) = applied=%v err=%v, want false/non-nil", applied, err)
 	}
@@ -343,7 +349,7 @@ func TestGoalStoreCascadesWithSessionDeletion(t *testing.T) {
 	store, sessions := newGoalStore(t)
 	const sessionID = "s"
 	seedSession(t, sessions, sessionID)
-	g, _ := goal.New(sessionID, "obj", modelref.Selection{}, goal.Budget{}, "lease", time.Unix(0, 0))
+	g, _ := goal.New(sessionID, "obj", modelref.Selection{}, goal.Budget{}, run.Capabilities{}, "lease", time.Unix(0, 0))
 	if _, applied, err := store.Save(t.Context(), g, goal.Version{}); err != nil || !applied {
 		t.Fatalf("seed goal: applied=%v err=%v", applied, err)
 	}
@@ -365,7 +371,7 @@ func TestGoalStoreCascadesWithSessionDeletion(t *testing.T) {
 	// Reusing the same ids proves the old idempotency ledger row was owned by and
 	// cascaded with the deleted Session.
 	seedSession(t, sessions, sessionID)
-	recreated, _ := goal.New(sessionID, "new", modelref.Selection{}, goal.Budget{}, "lease-new", time.Unix(2, 0))
+	recreated, _ := goal.New(sessionID, "new", modelref.Selection{}, goal.Budget{}, run.Capabilities{}, "lease-new", time.Unix(2, 0))
 	if _, applied, err := store.Save(t.Context(), recreated, goal.Version{}); err != nil || !applied {
 		t.Fatalf("seed recreated goal: applied=%v err=%v", applied, err)
 	}
@@ -384,7 +390,7 @@ func TestGoalStoreOwnsRevision(t *testing.T) {
 	store, sessions := newGoalStore(t)
 	const sessionID = "s"
 	seedSession(t, sessions, sessionID)
-	g, _ := goal.New(sessionID, "obj", modelref.Selection{}, goal.Budget{}, "lease", time.Unix(0, 0))
+	g, _ := goal.New(sessionID, "obj", modelref.Selection{}, goal.Budget{}, run.Capabilities{}, "lease", time.Unix(0, 0))
 	g.Revision = 99
 	saved, applied, err := store.Save(t.Context(), g, goal.Version{})
 	if err != nil || !applied || saved.Revision != 1 {

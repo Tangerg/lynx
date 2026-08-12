@@ -402,6 +402,7 @@ export const ko: Record<string, string> = {
   "question.multiSelect": "다중 선택",
   "question.action.submit": "제출",
   "question.settled.answered": "답변함",
+  "question.settled.dismissed": "답변 없이 종료됨",
   "question.freetext.placeholder": "직접 입력…",
 
   "cwdMissing.title": "작업 디렉터리를 찾을 수 없음",

@@ -140,10 +140,10 @@ type ExportSessionResponse struct {
 // artifact it doesn't recognize; development builds do not migrate old
 // artifacts.
 //
-// Version 17 distinguishes a ToolCall's visible lifecycle from its optional
-// exact execution duration. Approval and other pre-execution waits are not
-// execution time, while recovery may leave that duration unknowable.
-const SessionArtifactVersion = 17
+// Version 18 preserves the exact accepted answers on Question transcript facts.
+// An unanswered Question remains distinguishable from one whose response was
+// accepted before export.
+const SessionArtifactVersion = 18
 
 // SessionArtifact is the portable, round-trippable form of a session: its
 // identity plus the full conversation — chat messages (the model's context),
@@ -327,7 +327,8 @@ type ArtifactContentBlock struct {
 }
 
 type ArtifactQuestion struct {
-	Fields []ArtifactQuestionField `json:"fields"`
+	Fields  []ArtifactQuestionField `json:"fields"`
+	Answers [][]string              `json:"answers,omitempty"`
 }
 
 type ArtifactQuestionField struct {

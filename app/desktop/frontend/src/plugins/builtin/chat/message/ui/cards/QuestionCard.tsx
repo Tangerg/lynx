@@ -25,10 +25,9 @@ interface Props {
   runId?: string;
   itemId?: string;
   questions: QuestionItem[];
-  /** Set once the answer is submitted (optimistic) / the run resolves. */
+  /** Runtime-projected accepted-answer state. */
   answered?: boolean;
-  /** Submitted values in Question.fields order, echoed on the settled card.
-   *  Absent on history replay → the card falls back to a bare row. */
+  /** Runtime-projected accepted values in Question.fields order. */
   answers?: string[][];
 }
 
@@ -39,7 +38,8 @@ interface Props {
 //   1. Run ends with a question Interrupt → reducer materialises a question
 //      block (status="requires-action") bound to { runId, itemId }
 //   2. User selects / types → useQuestionAnswer resumes the run (new segment)
-//      via runs.resume + optimistically settles the card (resolveInterrupt)
+//   3. The accepted response returns on the authoritative Question transcript
+//      projection; an unaccepted/canceled question has no answers.
 export function QuestionCard({ status, runId, itemId, questions, answered, answers }: Props) {
   const t = useT();
   const [draft, setDraft] = useState<QuestionDraft>(() => createQuestionDraft(questions));
@@ -56,7 +56,7 @@ export function QuestionCard({ status, runId, itemId, questions, answered, answe
 
   if (settled.settled) {
     const shown = settled.answers;
-    if (!shown) return <HitlSettledRow label={t("question.settled.answered")} />;
+    if (!shown) return <HitlSettledRow label={t("question.settled.dismissed")} />;
     return (
       <Surface className="flex flex-col gap-2">
         <div className="flex items-center gap-1.5 font-mono text-ui-xs font-medium text-fg-faint">

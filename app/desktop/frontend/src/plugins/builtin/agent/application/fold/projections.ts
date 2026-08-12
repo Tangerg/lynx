@@ -77,6 +77,10 @@ export function mapQuestion(q: Question | undefined): QuestionItem[] {
   );
 }
 
+export function mapQuestionAnswers(q: Question | undefined): string[][] | undefined {
+  return q?.answers?.map((values) => [...values]);
+}
+
 // §4.4.2 display conventions — read the domain-neutral { name, arguments,
 // result } envelope into view fields. NOT wire-enforced: unknown names fall to
 // the JSON-tree generic path. The category map lives in viewState

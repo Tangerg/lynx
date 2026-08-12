@@ -449,8 +449,8 @@ TypeScript validator from this single registry projection.
 | `UpdateSessionRequest` | `sessionId` | `nonEmpty` |
 | `UpdateSessionRequest` | `expectedRevision` | `positive` |
 | `ImportSessionRequest` | `artifact.session.id` | `nonEmpty` |
-| `SessionArtifact` | `version` | `minimum(17)` |
-| `SessionArtifact` | `version` | `maximum(17)` |
+| `SessionArtifact` | `version` | `minimum(18)` |
+| `SessionArtifact` | `version` | `maximum(18)` |
 | `ArtifactRun` | `messageMark` | `nonNegative` |
 | `ArtifactRunMetrics` | `steps` | `nonNegative` |
 | `ArtifactRunMetrics` | `activeDurationMillis` | `nonNegative` |

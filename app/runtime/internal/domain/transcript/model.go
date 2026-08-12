@@ -147,6 +147,10 @@ func CloneContent(blocks []ContentBlock) []ContentBlock {
 
 type Question struct {
 	Fields []QuestionField
+	// Answers is the ordered response accepted by the Runtime, when one exists.
+	// A nil value means no response was accepted; the root-owned Pending set is
+	// still the sole authority on whether the question is currently open.
+	Answers [][]string
 }
 
 type QuestionField struct {
@@ -287,5 +291,70 @@ func (question Question) Validate() error {
 			seenOptions[label] = struct{}{}
 		}
 	}
+	if question.Answers != nil {
+		if len(question.Answers) != len(question.Fields) {
+			return fmt.Errorf(
+				"question answers contain %d entries for %d fields",
+				len(question.Answers), len(question.Fields),
+			)
+		}
+		for index, values := range question.Answers {
+			if err := validateQuestionAnswer(question.Fields[index], values); err != nil {
+				return fmt.Errorf("question answer %d: %w", index, err)
+			}
+		}
+	}
 	return nil
+}
+
+// Answered reports whether the Runtime accepted an answer for this question.
+// It does not claim that an unanswered question is still open; Pending owns
+// that separate lifecycle fact.
+func (question Question) Answered() bool { return question.Answers != nil }
+
+func validateQuestionAnswer(field QuestionField, values []string) error {
+	switch field.Kind {
+	case QuestionText:
+		if len(values) != 1 || strings.TrimSpace(values[0]) == "" {
+			return errors.New("one non-empty text value is required")
+		}
+		return nil
+	case QuestionChoice:
+		if len(values) == 0 {
+			return errors.New("at least one choice is required")
+		}
+		if !field.Multiple && len(values) != 1 {
+			return errors.New("exactly one choice is required")
+		}
+		allowed := make(map[string]struct{}, len(field.Options))
+		for _, option := range field.Options {
+			allowed[option.Label] = struct{}{}
+		}
+		seen := make(map[string]struct{}, len(values))
+		custom := 0
+		for _, value := range values {
+			if strings.TrimSpace(value) == "" {
+				return errors.New("choice values must not be empty")
+			}
+			if value != strings.TrimSpace(value) {
+				return errors.New("choice values must not have surrounding whitespace")
+			}
+			if _, known := allowed[value]; !known {
+				if !field.AllowCustom {
+					return fmt.Errorf("unknown choice %q", value)
+				}
+				custom++
+				if custom > 1 {
+					return errors.New("at most one custom choice is allowed")
+				}
+			}
+			if _, duplicate := seen[value]; duplicate {
+				return errors.New("duplicate choices are not allowed")
+			}
+			seen[value] = struct{}{}
+		}
+		return nil
+	default:
+		return fmt.Errorf("unknown question field kind %d", field.Kind)
+	}
 }

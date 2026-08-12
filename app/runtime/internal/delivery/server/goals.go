@@ -8,6 +8,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/goals"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
@@ -16,8 +17,8 @@ import (
 // the user stops it.
 
 type goalUseCases interface {
-	Start(ctx context.Context, sessionID, objective string, selection modelref.Selection, budget goal.Budget) (goal.Goal, error)
-	Resume(ctx context.Context, sessionID string) (goal.Goal, error)
+	Start(ctx context.Context, sessionID, objective string, selection modelref.Selection, budget goal.Budget, capabilities run.Capabilities) (goal.Goal, error)
+	Resume(ctx context.Context, sessionID string, caller run.Capabilities) (goal.Goal, error)
 	Stop(ctx context.Context, sessionID string) (goal.Goal, error)
 	Current(ctx context.Context, sessionID string) (goal.Goal, bool, error)
 }
@@ -28,7 +29,11 @@ func (s *Server) StartGoal(ctx context.Context, in protocol.StartGoalRequest) (*
 	if err != nil {
 		return nil, mapGoalErr(err, "goals.start")
 	}
-	g, err := s.goals.Start(ctx, in.SessionID, in.Objective, selection, budgetFromWire(in.Budget))
+	capabilities, err := s.negotiateCapabilities(ctx)
+	if err != nil {
+		return nil, err
+	}
+	g, err := s.goals.Start(ctx, in.SessionID, in.Objective, selection, budgetFromWire(in.Budget), capabilities)
 	if err != nil {
 		return nil, mapGoalErr(err, "goals.start")
 	}
@@ -58,7 +63,14 @@ func (s *Server) StopGoal(ctx context.Context, in protocol.GoalRequest) (*protoc
 
 // ResumeGoal re-activates a paused or blocked goal (goals.resume).
 func (s *Server) ResumeGoal(ctx context.Context, in protocol.GoalRequest) (*protocol.Goal, error) {
-	g, err := s.goals.Resume(ctx, in.SessionID)
+	caller, err := s.negotiateCapabilities(ctx)
+	if err != nil {
+		return nil, err
+	}
+	g, err := s.goals.Resume(ctx, in.SessionID, caller)
+	if uncovered, ok := errors.AsType[*goals.InsufficientCapabilitiesError](err); ok {
+		return nil, capabilityGap(uncovered.Missing)
+	}
 	if err != nil {
 		return nil, mapGoalErr(err, "goals.resume")
 	}

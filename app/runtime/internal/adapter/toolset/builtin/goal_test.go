@@ -10,7 +10,9 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/goals"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	goalstate "github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 )
 
 // in-memory goals.Store for the tool tests.
@@ -56,12 +58,20 @@ func (s *memStore) List(context.Context) ([]goalstate.Goal, error) { return nil,
 
 // testSessionActiveGoal builds a stored active goal with an opaque current incarnation.
 func testSessionActiveGoal() goalstate.Goal {
-	g, _ := goalstate.New("s1", "obj", modelref.Selection{}, goalstate.Budget{}, "lease-active", time.Unix(0, 0))
+	g, _ := goalstate.New("s1", "obj", modelref.Selection{}, goalstate.Budget{}, run.Capabilities{}, "lease-active", time.Unix(0, 0))
 	return g
 }
 
 func testSessionContext() context.Context {
-	return executionctx.WithScope(context.Background(), runs.ExecutionScope{SessionID: "s1"})
+	ctx := executionctx.WithScope(context.Background(), runs.ExecutionScope{SessionID: "s1"})
+	return executionctx.WithRunCapabilities(ctx, testGoalRunCapabilities())
+}
+
+func testGoalRunCapabilities() run.Capabilities {
+	return run.Capabilities{
+		ChildRuns:      true,
+		InterruptKinds: []interrupt.Kind{interrupt.Approval, interrupt.Question},
+	}
 }
 
 func newGetter(t *testing.T, store goals.Store) *getter {
@@ -223,18 +233,20 @@ func TestGetGoalReturnsNullWhenAbsent(t *testing.T) {
 }
 
 type fakeStarter struct {
-	sessionID string
-	objective string
-	selection modelref.Selection
-	budget    goalstate.Budget
+	sessionID    string
+	objective    string
+	selection    modelref.Selection
+	budget       goalstate.Budget
+	capabilities run.Capabilities
 }
 
-func (s *fakeStarter) Start(_ context.Context, sessionID, objective string, selection modelref.Selection, budget goalstate.Budget) (goalstate.Goal, error) {
+func (s *fakeStarter) Start(_ context.Context, sessionID, objective string, selection modelref.Selection, budget goalstate.Budget, capabilities run.Capabilities) (goalstate.Goal, error) {
 	s.sessionID = sessionID
 	s.objective = objective
 	s.selection = selection
 	s.budget = budget
-	return goalstate.New(sessionID, objective, selection, budget, "lease", time.Unix(1, 0))
+	s.capabilities = capabilities.Clone()
+	return goalstate.New(sessionID, objective, selection, budget, capabilities, "lease", time.Unix(1, 0))
 }
 
 func TestCreateGoalUsesCurrentSessionAndExplicitBudget(t *testing.T) {
@@ -254,6 +266,9 @@ func TestCreateGoalUsesCurrentSessionAndExplicitBudget(t *testing.T) {
 	}
 	if starter.budget != (goalstate.Budget{MaxRuns: 4, MaxCostUSD: 2.5, MaxSteps: 20}) {
 		t.Fatalf("budget = %+v", starter.budget)
+	}
+	if !starter.capabilities.Equal(testGoalRunCapabilities()) {
+		t.Fatalf("capabilities = %+v", starter.capabilities)
 	}
 	if result.Goal == nil || !strings.Contains(result.Message, "after the current Run") {
 		t.Fatalf("result = %+v", result)

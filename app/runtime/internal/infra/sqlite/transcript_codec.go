@@ -37,7 +37,8 @@ type contentPayload struct {
 }
 
 type questionPayload struct {
-	Fields []questionFieldPayload `json:"fields"`
+	Fields  []questionFieldPayload `json:"fields"`
+	Answers [][]string             `json:"answers,omitempty"`
 }
 
 type questionFieldPayload struct {
@@ -285,7 +286,10 @@ func decodeContentPayload(payload contentPayload) (transcript.ContentBlock, erro
 }
 
 func encodeQuestionPayload(question transcript.Question) (questionPayload, error) {
-	encoded := questionPayload{Fields: make([]questionFieldPayload, len(question.Fields))}
+	encoded := questionPayload{
+		Fields:  make([]questionFieldPayload, len(question.Fields)),
+		Answers: cloneStringMatrix(question.Answers),
+	}
 	for index, field := range question.Fields {
 		var kind string
 		switch field.Kind {
@@ -314,7 +318,10 @@ func encodeQuestionPayload(question transcript.Question) (questionPayload, error
 }
 
 func decodeQuestionPayload(payload questionPayload) (transcript.Question, error) {
-	question := transcript.Question{Fields: make([]transcript.QuestionField, len(payload.Fields))}
+	question := transcript.Question{
+		Fields:  make([]transcript.QuestionField, len(payload.Fields)),
+		Answers: cloneStringMatrix(payload.Answers),
+	}
 	for index, field := range payload.Fields {
 		var kind transcript.QuestionFieldKind
 		switch field.Kind {
@@ -340,6 +347,17 @@ func decodeQuestionPayload(payload questionPayload) (transcript.Question, error)
 		question.Fields[index] = decoded
 	}
 	return question, nil
+}
+
+func cloneStringMatrix(values [][]string) [][]string {
+	if values == nil {
+		return nil
+	}
+	cloned := make([][]string, len(values))
+	for index, row := range values {
+		cloned[index] = append([]string(nil), row...)
+	}
+	return cloned
 }
 
 func encodeToolInvocationPayload(invocation transcript.ToolInvocation) toolInvocationPayload {

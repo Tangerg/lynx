@@ -1446,12 +1446,12 @@ for await (const line of lines) {
     await runtimeEvents.return?.();
   }, 30_000);
 
-  it("keeps headless goal runs from parking on HITL tools", async () => {
+  it("parks and resumes a goal run through the negotiated HITL capability", async () => {
     if (!client) throw new Error("runtime client was not initialized");
 
     const session = await client.sessions.create({
       workspace: { path: root },
-      title: "HTTP headless goal HITL policy",
+      title: "HTTP goal HITL lifecycle",
     });
     const sessionId = asSessionId(session.id);
     await expect(
@@ -1473,34 +1473,69 @@ for await (const line of lines) {
     }
     expect(current).toMatchObject({
       sessionId: session.id,
-      status: "blocked",
-      reason: { code: "runBudgetReached" },
-      used: { runs: 1 },
+      status: "paused",
+      reason: { code: "awaitingInput" },
+      used: { runs: 0 },
     });
 
     const runs = await client.runs.list({ sessionId });
     expect(runs.data).toEqual([
       expect.objectContaining({
         sessionId: session.id,
-        status: "finished",
-        outcome: { type: "completed" },
+        status: "waiting",
       }),
     ]);
     const ownedRun = runs.data[0];
-    if (!ownedRun) throw new Error("headless goal run disappeared");
-    await expect(
-      client.items.list({ scope: { type: "run", runId: asRunId(ownedRun.id) } }),
-    ).resolves.toMatchObject({
+    if (!ownedRun) throw new Error("goal-owned waiting run disappeared");
+    const runId = asRunId(ownedRun.id);
+    const pending = await client.interrupts.list({ rootRunId: runId });
+    const question = pending.data[0]?.interrupts[0];
+    if (!question || question.type !== "question") {
+      throw new Error("goal-owned run did not persist its question interrupt");
+    }
+
+    // Resume the Goal drive while its owned Run still occupies the Session. The
+    // drive waits for that exact Run and must not admit a replacement.
+    await expect(client.goals.resume(sessionId)).resolves.toMatchObject({
+      sessionId: session.id,
+      status: "active",
+    });
+
+    const resumed = await client.runs.resume({
+      runId,
+      responses: [
+        {
+          itemId: question.itemId,
+          response: { type: "answer", answers: [["Yes"]] },
+        },
+      ],
+    });
+    const resumeEvents = await collectRunEvents(resumed.events);
+    expect(resumeEvents.at(-1)?.event).toMatchObject({
+      type: "segment.finished",
+      outcome: { type: "completed" },
+    });
+    await expect(client.interrupts.list({ rootRunId: runId })).resolves.toMatchObject({ data: [] });
+    await expect(client.items.list({ scope: { type: "run", runId } })).resolves.toMatchObject({
       data: expect.arrayContaining([
         expect.objectContaining({
-          type: "toolCall",
-          tool: expect.objectContaining({ name: "ask_user" }),
+          type: "question",
+          status: "completed",
+          question: expect.objectContaining({ answers: [["Yes"]] }),
         }),
       ]),
     });
-    await expect(
-      client.interrupts.list({ rootRunId: asRunId(ownedRun.id) }),
-    ).resolves.toMatchObject({ data: [] });
+
+    current = await client.goals.get(sessionId);
+    for (let attempt = 0; attempt < 100 && current?.status === "active"; attempt++) {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      current = await client.goals.get(sessionId);
+    }
+    expect(current).toMatchObject({
+      status: "blocked",
+      reason: { code: "runBudgetReached" },
+      used: { runs: 1 },
+    });
   }, 30_000);
 
   it("stops an active goal, cancels its owned run and resumes from durable usage", async () => {

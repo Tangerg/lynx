@@ -107,7 +107,7 @@ A consumer migration is complete only when it:
 2. sends `protocolVersion: "2026-08-12"` and rejects any different discovered
    range instead of guessing compatibility;
 3. accepts only `runtimeInstanceRootSegment` for `RunReplayScope`;
-4. imports/exports Session artifact v17 without rewriting prior documents;
+4. imports/exports Session artifact v18, including accepted Question answers, without rewriting prior documents;
 5. passes its strict fixture validation and HTTP integration suite.
 
 An embedded Go consumer additionally passes an external-module compile test,

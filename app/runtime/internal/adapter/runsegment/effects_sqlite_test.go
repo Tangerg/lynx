@@ -618,7 +618,7 @@ func TestCommitEventRecordsGoalRunWithTerminalRun(t *testing.T) {
 		t.Fatalf("seed goal session: %v", err)
 	}
 	selection := mustEffectSelection(t, "provider", "model")
-	g, err := goal.New("ses_goal", "finish", selection, goal.Budget{MaxRuns: 1}, "lease_goal", created)
+	g, err := goal.New("ses_goal", "finish", selection, goal.Budget{MaxRuns: 1}, run.Capabilities{}, "lease_goal", created)
 	if err != nil {
 		t.Fatalf("new goal: %v", err)
 	}
@@ -854,6 +854,7 @@ func TestClaimResumeAtomicallyRecordsAnswerAndInvalidatesCheckpoint(t *testing.T
 	claimedAt := createdAt.Add(2 * time.Second)
 	interruptStore := persistence.NewInterruptStore(sqlite.NewInterruptStore(db))
 	checkpointStore := persistence.NewExecutorCheckpointStore(sqlite.NewExecutorCheckpointStore(db))
+	transcriptStore := sqlite.NewTranscriptStore(db)
 	pending := singleRunPending(
 		t,
 		"run_claim", "session_claim", "member_claim", "request_claim", "item_claim",
@@ -861,6 +862,18 @@ func TestClaimResumeAtomicallyRecordsAnswerAndInvalidatesCheckpoint(t *testing.T
 	)
 	if err := interruptStore.Open(ctx, pending); err != nil {
 		t.Fatalf("open interrupt: %v", err)
+	}
+	questionItem, err := transcript.NewQuestion(transcript.ItemIdentity{
+		SessionID:  pending.SessionID,
+		RunID:      pending.Interrupts[0].RunID,
+		ItemID:     pending.Interrupts[0].ItemID,
+		OccurredAt: pending.Interrupts[0].ItemOccurredAt,
+	}, *pending.Interrupts[0].Question)
+	if err != nil {
+		t.Fatalf("new question Item: %v", err)
+	}
+	if err := transcriptStore.AppendItem(ctx, questionItem); err != nil {
+		t.Fatalf("seed question Item: %v", err)
 	}
 	root, _ := pending.RootContinuation()
 	checkpoint := runs.ExecutorCheckpoint{
@@ -878,6 +891,7 @@ func TestClaimResumeAtomicallyRecordsAnswerAndInvalidatesCheckpoint(t *testing.T
 		Interrupts:          interruptStore,
 		ResumeClaims:        interruptStore,
 		ExecutorCheckpoints: checkpointStore,
+		ItemReplacer:        transcriptStore,
 		Tx: func(ctx context.Context, fn func(context.Context) error) error {
 			return sqlite.RunInTx(ctx, db, fn)
 		},
@@ -888,6 +902,21 @@ func TestClaimResumeAtomicallyRecordsAnswerAndInvalidatesCheckpoint(t *testing.T
 		RequestID:       pending.Bindings[0].RequestID,
 		Resolution:      interrupt.Resolution{Answers: [][]string{{"continue"}}},
 	}}
+	replacements, err := (runs.ResumeClaimCommit{
+		Expected: pending, Answers: answers, ClaimedAt: claimedAt,
+	}).QuestionReplacements()
+	if err != nil {
+		t.Fatalf("prepare question replacement: %v", err)
+	}
+	storedQuestion, found, err := transcriptStore.Item(ctx, questionItem.ID())
+	if err != nil || !found {
+		t.Fatalf("stored question Item = found:%t err:%v", found, err)
+	}
+	if !reflect.DeepEqual(storedQuestion.Snapshot(), replacements[0].Expected.Snapshot()) {
+		storedValue, _ := storedQuestion.Question()
+		expectedValue, _ := replacements[0].Expected.Question()
+		t.Fatalf("stored/expected question differ:\n stored: %#v\nexpected: %#v\nitems: %#v / %#v", storedValue, expectedValue, storedQuestion.Snapshot(), replacements[0].Expected.Snapshot())
+	}
 
 	stale := pending
 	stale.ExecutorID = "turn_stale"
@@ -918,6 +947,14 @@ func TestClaimResumeAtomicallyRecordsAnswerAndInvalidatesCheckpoint(t *testing.T
 	}
 	if _, err := checkpointStore.LoadCheckpoint(ctx, root.MemberID); !errors.Is(err, runs.ErrExecutorCheckpointNotFound) {
 		t.Fatalf("checkpoint after claim = %v, want not found", err)
+	}
+	answeredItem, found, err := transcriptStore.Item(ctx, questionItem.ID())
+	if err != nil || !found {
+		t.Fatalf("answered question Item = found:%t err:%v", found, err)
+	}
+	answeredQuestion, _ := answeredItem.Question()
+	if !reflect.DeepEqual(answeredQuestion.Answers, [][]string{{"continue"}}) {
+		t.Fatalf("answered question = %+v", answeredQuestion)
 	}
 	var state, encodedAnswers string
 	var storedClaimedAt int64

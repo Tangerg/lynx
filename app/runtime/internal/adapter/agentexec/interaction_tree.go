@@ -10,7 +10,6 @@ import (
 	agent "github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/interaction"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/interactioninput"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/executionctx"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 )
 
@@ -50,7 +49,9 @@ func (executor *InteractionExecutor) CancelRunningSubtree(
 	}
 	controlCtx, cancel := session.lifecycleContext(ctx)
 	defer cancel()
-	if err := process.RequestCancellation(executionctx.WithScope(controlCtx, session.scope), reason); err != nil {
+	if err := process.RequestCancellation(
+		runExecutionContext(controlCtx, session.scope, session.start), reason,
+	); err != nil {
 		return fmt.Errorf("agentexec: cancel running Interaction member %s: %w", processID, err)
 	}
 	session.cancelSubtreeDispatches(processID)

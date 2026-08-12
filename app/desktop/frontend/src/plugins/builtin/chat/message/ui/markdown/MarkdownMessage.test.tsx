@@ -89,4 +89,19 @@ describe("markdownMessage", () => {
     expect(container.querySelectorAll("span.fade-in")).toHaveLength(0);
     expect(container.textContent ?? "").toContain("Hello world");
   });
+
+  it("renders model placeholders as literal text instead of unknown React elements", () => {
+    const { container } = render(<MarkdownMessage text="ANGLE=<chosen>" reveal="instant" />);
+    expect(container.textContent).toContain("ANGLE=<chosen>");
+    expect(container.querySelector("chosen")).toBeNull();
+  });
+
+  it("keeps supported semantic raw HTML while rendering dangerous tags literally", () => {
+    const { container } = render(
+      <MarkdownMessage text={'value<sup>2</sup> <script>alert("x")</script>'} reveal="instant" />,
+    );
+    expect(container.querySelector("sup")?.textContent).toBe("2");
+    expect(container.querySelector("script")).toBeNull();
+    expect(container.textContent).toContain('<script>alert("x")</script>');
+  });
 });

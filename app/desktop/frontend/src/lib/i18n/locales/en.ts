@@ -553,6 +553,7 @@ export const en: Record<string, string> = {
   "question.multiSelect": "Multiple choice",
   "question.action.submit": "Submit",
   "question.settled.answered": "Answered",
+  "question.settled.dismissed": "Closed without an answer",
   "question.freetext.placeholder": "Type a custom answer…",
 
   "cwdMissing.title": "Working directory missing",

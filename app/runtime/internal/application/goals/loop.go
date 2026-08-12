@@ -326,9 +326,9 @@ func (d *Driver) resolveTerminalRun(
 		return disposition, nil
 	}
 	if finished.State() == run.Waiting {
-		// Rare for a headless autonomous Run (unanswerable interrupts normally
-		// auto-deny), but Waiting is a first-class root boundary. The user may
-		// resolve the durable interrupt and explicitly resume the Goal.
+		// Waiting is a first-class root boundary. The user may resume the Goal
+		// drive while resolving the durable interrupt; WaitSessionStartable keeps
+		// that drive behind the same parked Run until it terminalizes.
 		disposition, err := d.pauseOwned(ctx, g, goal.ReasonAwaitingInput, "")
 		if err != nil {
 			if ctx.Err() != nil {
@@ -359,14 +359,14 @@ func (d *Driver) resolveTerminalRun(
 	return dispContinue, nil
 }
 
-// command builds the next autonomous run. It is headless: no InterruptKinds, so a
-// tool that would need approval is auto-denied by the run rather than parking a
-// drive no client is watching (the user's chosen global approval stance still
-// gates tools — yolo runs everything, a stricter stance keeps the agent read-only).
+// command builds the next autonomous Run under the exact client contract frozen
+// on the Goal incarnation. Waiting is therefore a first-class Goal boundary: a
+// capable client may answer it and resume the same Goal provenance.
 func (d *Driver) command(g goal.Goal) runs.StartCommand {
 	return runs.StartCommand{
 		SessionID:      g.SessionID,
 		ModelSelection: g.ModelSelection,
+		Capabilities:   g.Capabilities.Clone(),
 		Input: []transcript.ContentBlock{{
 			Kind: transcript.TextContent,
 			Text: d.instructions(RunInstructionInput{

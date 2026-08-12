@@ -1733,7 +1733,7 @@
         {
           "name": "SessionArtifactVersion",
           "type": "untyped int",
-          "value": "17"
+          "value": "18"
         },
         {
           "name": "SessionStatusIdle",
@@ -2660,6 +2660,11 @@
               "name": "Fields",
               "type": "[]ArtifactQuestionField",
               "tag": "json:\"fields\""
+            },
+            {
+              "name": "Answers",
+              "type": "[][]string",
+              "tag": "json:\"answers,omitempty\""
             }
           ],
           "methods": [
@@ -6005,6 +6010,11 @@
               "name": "Fields",
               "type": "[]QuestionField",
               "tag": "json:\"fields\""
+            },
+            {
+              "name": "Answers",
+              "type": "[][]string",
+              "tag": "json:\"answers,omitempty\""
             }
           ],
           "methods": [

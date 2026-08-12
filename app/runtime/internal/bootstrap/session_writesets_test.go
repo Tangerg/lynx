@@ -354,6 +354,7 @@ func TestApplyTerminalChargesGoalOwnedParkAtomically(t *testing.T) {
 		"finish the parked run",
 		modelref.Selection{},
 		goal.Budget{},
+		run.Capabilities{},
 		incarnationID,
 		parkCreatedAt,
 	)
@@ -812,7 +813,7 @@ func seedGoal(t *testing.T, ss sessionStores, sessionID string) {
 	} else if err != nil {
 		t.Fatalf("get goal session %q: %v", sessionID, err)
 	}
-	g, _ := goal.New(sessionID, "obj", modelref.Selection{}, goal.Budget{}, "lease-"+sessionID, time.Unix(0, 0))
+	g, _ := goal.New(sessionID, "obj", modelref.Selection{}, goal.Budget{}, run.Capabilities{}, "lease-"+sessionID, time.Unix(0, 0))
 	if _, applied, err := ss.goals.Save(context.Background(), g, goal.Version{}); err != nil || !applied {
 		t.Fatalf("seed goal %q: applied=%v err=%v", sessionID, applied, err)
 	}

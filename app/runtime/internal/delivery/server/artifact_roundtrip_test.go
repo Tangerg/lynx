@@ -34,13 +34,13 @@ import (
 // is that the document this build writes is the version the contract named. Bumping
 // it is a breaking act, so it should cost a deliberate edit here.
 func TestArtifactVersionMatchesCurrentContractBaseline(t *testing.T) {
-	if protocol.SessionArtifactVersion != 17 {
-		t.Fatalf("SessionArtifactVersion = %d; current Runtime contract requires artifact v17",
+	if protocol.SessionArtifactVersion != 18 {
+		t.Fatalf("SessionArtifactVersion = %d; current Runtime contract requires artifact v18",
 			protocol.SessionArtifactVersion)
 	}
 }
 
-// TestArtifactV16RoundTripsEveryFieldItCarries is the rest of gate 16.
+// TestArtifactV18RoundTripsEveryFieldItCarries is the rest of gate 16.
 //
 // The failure mode a version bump actually has is a field the encoder writes and
 // the decoder drops — the archive still imports, still looks right, and the value is
@@ -53,7 +53,7 @@ func TestArtifactVersionMatchesCurrentContractBaseline(t *testing.T) {
 //   - the archive survives the trip WHOLE — export, wipe, import, export again, and
 //     the two documents must be identical byte for byte. Any field the decoder
 //     forgets is missing from the second document.
-func TestArtifactV16RoundTripsEveryFieldItCarries(t *testing.T) {
+func TestArtifactV18RoundTripsEveryFieldItCarries(t *testing.T) {
 	s, rt := rollbackHarness(t)
 	s.features.plan = true // this composition owns the key, so it may restore it
 	ctx := t.Context()
@@ -477,6 +477,7 @@ func seedEveryItemKind(t *testing.T, rt *stubRuntime, sessionID string) {
 		ID: "item_question", RunID: "run_done", Kind: transcript.QuestionItem,
 		Status: transcript.ItemCompleted, OccurredAt: time.Unix(6, 0).UTC(),
 		Question: &transcript.Question{
+			Answers: [][]string{{"left", "custom route"}},
 			Fields: []transcript.QuestionField{{
 				Prompt: "Which route?", Header: "Pick one",
 				Kind: transcript.QuestionChoice, Multiple: true, AllowCustom: true,

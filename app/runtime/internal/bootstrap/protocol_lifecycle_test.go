@@ -77,7 +77,7 @@ func TestAssemblyPreservesParkedQuestionAcrossCrashLikeRestart(t *testing.T) {
 		len(pending.Data) != 1 || len(pending.Data[0].Interrupts) != 1 {
 		t.Fatalf("restarted waiting boundary = run %+v, interrupts %+v", restarted, pending.Data)
 	}
-
+	fixture.resumeAndCancelWith(restartedAPI, pending.Data[0].Interrupts[0], false)
 }
 
 type protocolLifecycleFixture struct {
@@ -211,8 +211,16 @@ func (f *protocolLifecycleFixture) domainFailureDiagnostic(runID string) string 
 }
 
 func (f *protocolLifecycleFixture) resumeAndCancel(question protocol.Interrupt) {
+	f.resumeAndCancelWith(f.api, question, true)
+}
+
+func (f *protocolLifecycleFixture) resumeAndCancelWith(
+	api *runtimeserver.Server,
+	question protocol.Interrupt,
+	closeFirst bool,
+) {
 	f.t.Helper()
-	resumed, resumeEvents, err := f.api.ResumeRun(f.ctx, protocol.ResumeRunRequest{
+	resumed, resumeEvents, err := api.ResumeRun(f.ctx, protocol.ResumeRunRequest{
 		RunID: f.started.RunID,
 		Responses: []protocol.InterruptResponse{{
 			ItemID: question.ItemID,
@@ -233,6 +241,23 @@ func (f *protocolLifecycleFixture) resumeAndCancel(question protocol.Interrupt) 
 	}
 	resumeEventsDone := collectRunEvents(resumeEvents)
 	waitForSignal(f.t, f.model.resumedCallStarted, "resumed model call")
+	items, err := api.ListItems(f.ctx, protocol.ListItemsRequest{
+		Scope: protocol.ItemListScope{Type: protocol.ItemScopeRun, RunID: f.started.RunID},
+	})
+	if err != nil {
+		f.t.Fatalf("items.list after accepted answer: %v", err)
+	}
+	var accepted bool
+	for _, item := range items.Data {
+		if item.Type == protocol.ItemTypeQuestion && item.Question != nil &&
+			len(item.Question.Answers) == 1 && len(item.Question.Answers[0]) == 1 &&
+			item.Question.Answers[0][0] == "Yes" {
+			accepted = true
+		}
+	}
+	if !accepted {
+		f.t.Fatalf("items after accepted answer = %+v, want durable Question answers", items.Data)
+	}
 
 	type cancelResult struct {
 		response *protocol.CancelRunResponse
@@ -240,7 +265,7 @@ func (f *protocolLifecycleFixture) resumeAndCancel(question protocol.Interrupt) 
 	}
 	cancelDone := make(chan cancelResult, 1)
 	go func() {
-		response, cancelErr := f.api.CancelRun(f.ctx, protocol.CancelRunRequest{
+		response, cancelErr := api.CancelRun(f.ctx, protocol.CancelRunRequest{
 			RunID: f.started.RunID, Reason: "conformance smoke complete",
 		})
 		cancelDone <- cancelResult{response: response, err: cancelErr}
@@ -261,7 +286,9 @@ func (f *protocolLifecycleFixture) resumeAndCancel(question protocol.Interrupt) 
 		f.t.Fatalf("runs.cancel result = %+v, want finished(canceled) root", canceled)
 	}
 	waitForRunEvents(f.t, resumeEventsDone, "canceled segment")
-	f.closeFirstRuntime()
+	if closeFirst {
+		f.closeFirstRuntime()
+	}
 }
 
 func (f *protocolLifecycleFixture) assertColdState() {

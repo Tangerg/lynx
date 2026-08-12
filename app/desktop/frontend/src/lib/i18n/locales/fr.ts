@@ -410,6 +410,7 @@ export const fr: Record<string, string> = {
   "question.multiSelect": "Choix multiple",
   "question.action.submit": "Envoyer",
   "question.settled.answered": "Répondu",
+  "question.settled.dismissed": "Fermé sans réponse",
   "question.freetext.placeholder": "Saisir une réponse…",
 
   "cwdMissing.title": "Répertoire de travail introuvable",

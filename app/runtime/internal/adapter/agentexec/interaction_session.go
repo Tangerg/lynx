@@ -18,7 +18,6 @@ import (
 
 	agent "github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/interaction"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/executionctx"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/accounting"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
@@ -403,7 +402,9 @@ func (session *interactionSession) submitSteer(
 		content: transcript.CloneContent(content),
 	}
 	session.mu.Unlock()
-	accepted, deliverErr := process.DeliverSignal(executionctx.WithScope(ctx, session.scope), signal)
+	accepted, deliverErr := process.DeliverSignal(
+		runExecutionContext(ctx, session.scope, session.start), signal,
+	)
 	if deliverErr != nil {
 		// A context error only reports that the caller stopped waiting. Engine may
 		// already have accepted the command, so retain its exact product mapping

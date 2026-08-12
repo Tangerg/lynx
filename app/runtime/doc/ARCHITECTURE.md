@@ -131,7 +131,7 @@ Application checkpoint 包含：
 
 ### 5.4 `transcript`
 
-`transcript` 拥有稳定 Item、Run projection、顺序、rollback/fork boundary、ToolCall 开始与完成时间以及可观察内容。它不决定 Run 状态机，不保存 WorkingContext。
+`transcript` 拥有稳定 Item、Run projection、顺序、rollback/fork boundary、ToolCall 开始与完成时间以及可观察内容。Question Item 还不可变保存 Runtime 已接受的响应；未回答或取消不生成答案。它不决定 Run 状态机，不保存 WorkingContext。
 
 ### 5.5 `interrupt`
 
@@ -145,7 +145,7 @@ Application checkpoint 包含：
 
 以下上下文继续保持独立语义：
 
-- `goal`：目标 incarnation、预算、跨 Run 进度与终态；
+- `goal`：目标 incarnation、fresh Start 时冻结的 Run capabilities、预算、跨 Run 进度与终态；
 - `plan`：当前 Plan 与 Step 状态；
 - `knowledge`：人类可编辑项目知识；
 - `agentmemory`：经过蒸馏和检索的 Agent memory；
@@ -165,9 +165,9 @@ Application checkpoint 包含：
 | `Run` | lifecycle、Segment、lineage、limits、capabilities、outcome | Transcript Items、executor state、Store |
 | `Session` | workspace/default model/isolation 和 root admission 状态 | Run 推进、Conversation 内容 |
 | `Conversation` | message sequence、watermark、truncate/seed/fork | Transcript、WorkingContext |
-| `Transcript` | Item/Run projection 顺序、rollback/fork boundary | Run 状态机、Agent state |
+| `Transcript` | Item/Run projection 顺序、accepted Question response、rollback/fork boundary | Run 状态机、Agent state |
 | `Pending` | 一个 root Run tree 的 open Interrupt 集与答案/claim | Framework wait/mailbox |
-| `Goal` | incarnation、budget、progress、terminal outcome | 当前 Run Plan、executor loop |
+| `Goal` | incarnation、frozen Run capabilities、budget、progress、terminal outcome | 当前 Run Plan、executor loop |
 | `Plan` | 当前 Plan revision 与 Step 状态 | Goal lifecycle、delegated Process |
 | `Schedule` | cadence、enabled state 和下次触发定义 | Run admission 和执行 |
 
@@ -179,6 +179,7 @@ Domain entity 只保护自身不变量。需要同时改变多个 aggregate 时�
 
 - Run admission + Session active root；
 - waiting checkpoint + Pending interrupts + Run state；
+- accepted Question answer + resume claim/checkpoint replacement；
 - terminal Run tree + Transcript repair + checkpoint deletion + Goal outcome；
 - conversation rollback + transcript boundary + executor invalidation/cleanup intent。数据库事务不能直接 kill live tree；commit 后由 Run owner 执行 release，进程在两者之间崩溃则由启动 reconciler 根据已提交 intent 收口。
 

@@ -6,6 +6,7 @@ import (
 	"iter"
 	"runtime"
 	"slices"
+	"sync"
 	"testing"
 	"time"
 
@@ -26,16 +27,19 @@ type fakeRunSessions struct {
 	sess session.Session
 	// active is the Session's non-terminal Run, when it has one. The zero value is a
 	// Session free to start.
-	active        *run.Run
-	createdTitle  string
-	pending       map[string]Pending
-	canceledRunID string
-	cancelReason  string
-	canceledAt    time.Time
-	lostRunID     string
-	lostAt        time.Time
-	lostErr       error
-	operations    *[]string
+	activeMu       sync.RWMutex
+	active         *run.Run
+	activeObserved chan struct{}
+	activeObserve  sync.Once
+	createdTitle   string
+	pending        map[string]Pending
+	canceledRunID  string
+	cancelReason   string
+	canceledAt     time.Time
+	lostRunID      string
+	lostAt         time.Time
+	lostErr        error
+	operations     *[]string
 }
 
 type completeTestSessionPorts interface {
@@ -61,10 +65,21 @@ func (f *fakeRunSessions) Get(context.Context, string) (session.Session, error) 
 }
 
 func (f *fakeRunSessions) ActiveRun(context.Context, string) (run.Run, bool, error) {
+	f.activeMu.RLock()
+	defer f.activeMu.RUnlock()
+	if f.activeObserved != nil {
+		f.activeObserve.Do(func() { close(f.activeObserved) })
+	}
 	if f.active == nil {
 		return run.Run{}, false, nil
 	}
 	return *f.active, true, nil
+}
+
+func (f *fakeRunSessions) setActive(value *run.Run) {
+	f.activeMu.Lock()
+	defer f.activeMu.Unlock()
+	f.active = value
 }
 
 func (f *fakeRunSessions) Create(_ context.Context, title, cwd string) (session.Session, error) {
@@ -367,6 +382,42 @@ func TestWaitSessionStartableResolvesWorkingTreeBoundary(t *testing.T) {
 		}
 	case <-time.After(time.Second):
 		t.Fatal("WaitSessionStartable did not observe the session working-tree release")
+	}
+}
+
+func TestWaitSessionStartableIncludesDurableWaitingRun(t *testing.T) {
+	waiting := runfixture.MustRestore(run.Snapshot{
+		ID: "run_waiting", SessionID: "ses_1", State: run.Waiting,
+	})
+	sessions := &fakeRunSessions{
+		sess:           sessionfixture.MustRestore(session.Snapshot{ID: "ses_1", CWD: "/work"}),
+		active:         &waiting,
+		activeObserved: make(chan struct{}),
+	}
+	c := newUseCaseCoordinator(&fakeExecutor{}, &fakeExecutionPorts{}, sessions, &fakeEffects{})
+
+	done := make(chan error, 1)
+	go func() { done <- c.WaitSessionStartable(t.Context(), "ses_1") }()
+	select {
+	case <-sessions.activeObserved:
+	case <-time.After(time.Second):
+		t.Fatal("WaitSessionStartable did not inspect the durable Run")
+	}
+	select {
+	case err := <-done:
+		t.Fatalf("WaitSessionStartable returned while a durable Run was waiting: %v", err)
+	default:
+	}
+
+	sessions.setActive(nil)
+	c.publishRunMoved("ses_1", "run_waiting")
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("WaitSessionStartable: %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("WaitSessionStartable did not observe the durable Run terminal transition")
 	}
 }
 

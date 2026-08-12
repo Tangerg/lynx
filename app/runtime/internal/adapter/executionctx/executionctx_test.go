@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 )
 
 func TestScopeAccessorsShareOneImmutableTurnValue(t *testing.T) {
@@ -53,5 +55,20 @@ func TestMissingScopeUsesHostFallbacks(t *testing.T) {
 	}
 	if _, ok := GoalIncarnationID(ctx); ok {
 		t.Fatal("missing scope produced a goal incarnation")
+	}
+}
+
+func TestRunCapabilitiesAreOwnershipIsolated(t *testing.T) {
+	input := run.Capabilities{InterruptKinds: []interrupt.Kind{interrupt.Question}}
+	ctx := WithRunCapabilities(context.Background(), input)
+	input.InterruptKinds[0] = interrupt.Approval
+	first, ok := RunCapabilities(ctx)
+	if !ok || !first.Equal(run.Capabilities{InterruptKinds: []interrupt.Kind{interrupt.Question}}) {
+		t.Fatalf("RunCapabilities = (%+v, %t)", first, ok)
+	}
+	first.InterruptKinds[0] = interrupt.Approval
+	second, _ := RunCapabilities(ctx)
+	if !second.Equal(run.Capabilities{InterruptKinds: []interrupt.Kind{interrupt.Question}}) {
+		t.Fatalf("RunCapabilities returned shared storage: %+v", second)
 	}
 }

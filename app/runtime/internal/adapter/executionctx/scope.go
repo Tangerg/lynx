@@ -9,9 +9,11 @@ import (
 	"context"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 )
 
 type scopeKey struct{}
+type runCapabilitiesKey struct{}
 
 // WithScope returns a context carrying scope. The value is immutable and safe
 // to share across the complete delegation tree.
@@ -29,6 +31,24 @@ func Scope(ctx context.Context) (runs.ExecutionScope, bool) {
 	}
 	scope, ok := ctx.Value(scopeKey{}).(runs.ExecutionScope)
 	return scope, ok
+}
+
+// WithRunCapabilities carries the frozen product Run contract through tool
+// execution without placing Runtime policy inside Agent Framework state.
+func WithRunCapabilities(ctx context.Context, capabilities run.Capabilities) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return context.WithValue(ctx, runCapabilitiesKey{}, capabilities.Clone())
+}
+
+// RunCapabilities returns an ownership-isolated frozen Run contract.
+func RunCapabilities(ctx context.Context) (run.Capabilities, bool) {
+	if ctx == nil {
+		return run.Capabilities{}, false
+	}
+	capabilities, ok := ctx.Value(runCapabilitiesKey{}).(run.Capabilities)
+	return capabilities.Clone(), ok
 }
 
 // CWD returns the execution workspace, falling back when the Run is

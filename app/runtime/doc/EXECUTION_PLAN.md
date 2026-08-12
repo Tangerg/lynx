@@ -1,6 +1,6 @@
 # Lyra Runtime 重构实施计划
 
-> 状态：P1–P33 已完成；发布后反证审计持续进行
+> 状态：P1–P34 已完成；发布后反证审计持续进行
 >
 > 工作方式：原模块内治本重构，按可验证纵切分批完成；不创建完整 `runtime2`
 
@@ -67,6 +67,7 @@
 | P31 | Goal root Run boundary / HITL 状态判定 | P30 + whole-tree stream 反例 | 已完成 |
 | P32 | Goal objective incarnation / HITL Resume accounting | P31 + crash-resume accounting 证据 | 已完成 |
 | P33 | Schedule 默认工作区更新合同与 Desktop 消费闭环 | P32 + 真实 UI/SQLite 失败证据 | 已完成 |
+| P34 | Goal HITL capability、权威 Question answer 与 Desktop Markdown 收口 | P33 + 双客户端/真实 HTTP/事务反例 | 已完成 |
 
 ## 4. P0 — 文档、事实和边界基线
 
@@ -890,10 +891,33 @@
 - Runtime 生成器、Go/JSON Schema/TypeScript validator、Desktop SDK 与产品调用点使用同一 request shape；
 - 变更不进入 Agent Framework、Domain 或 Application 协议层，不修改 SQLite shape，也不触碰并存的 CLI 工作。
 
-## 38. 进度记录
+## 38. P34 — Goal HITL capability、权威 Question answer 与 Desktop Markdown 收口
+
+### 目标
+
+消除多客户端 HITL 最终答案、Goal 内 Runtime 能力和 Markdown raw HTML 三处第二真相源，使 accepted response、自治 Run admission 与 UI 解析分别回到 Transcript、Goal/Application 和 Desktop Markdown owner。
+
+### 工作项
+
+- [x] P34-01 Question Transcript 不可变保存唯一 accepted answers；Application 从 Pending + resolution 形成 replacement，resume claim、Transcript replacement 与 checkpoint/Pending 更新在同一事务内提交；
+- [x] P34-02 Protocol/Artifact v18/SQLite codec/Delivery/Desktop generated consumer 原子同步，前端 settled card 只把本地草稿作为短暂延迟桥，Runtime 投影到达后以 accepted answer 或未回答关闭态为准；
+- [x] P34-03 Goal fresh Start 冻结协商后的 canonical Run capabilities，SQLite epoch 69 持久化，Resume 验证 caller 覆盖，自治 Run 和 Goal 内 `create_goal` 继承该集合；
+- [x] P34-04 `WaitSessionStartable` 同时观察 process-local admission 与 durable non-terminal Run，以 committed lifecycle signal 唤醒重读，允许先恢复 Goal drive 再回答其 owned parked Run；
+- [x] P34-05 Desktop 在 Markdown AST 边界把不支持/危险 raw HTML 保留为字面量，安全 allowlist 仍由前端 owner 维护；补齐 `<chosen>`、支持标签和 `<script>` 回归；
+- [x] P34-06 双客户端 opposite answer、取消、reload、Goal ask_user、真实 HTTP resume、事务 rollback、生成合同和 API consumer 覆盖形成永久回归。
+
+### 验收
+
+- 并发 Question 只有一个 claim winner，所有客户端最终显示同一 Runtime accepted answer；取消不把本地草稿升级为回答，重放保持一致；
+- Goal 只使用客户端真实承诺的 capabilities，HITL waiting/resume 不扩权、不降级、不启动额外 Run；
+- `agent` module 不接收 Runtime Goal/Run/capability/Store/transaction/UI 抽象，Framework concrete import 仍只存在于 `adapter/agentexec`；
+- Runtime standalone 与 race、contract digest、Desktop 完整 check、86/86 operations + 10/10 events、真实 HTTP/崩溃恢复和 SQLite 终态不变量全绿。
+
+## 39. 进度记录
 
 | 日期 | 阶段 | 完成事实 | 验证 |
 |---|---|---|---|
+| 2026-08-12 | P34（Goal HITL / authoritative Question / Markdown） | Question accepted response 成为 Transcript 不可变事实并与 resume claim/checkpoint 同事务；Artifact v18、Protocol、SQLite epoch 69、Delivery 和 Desktop 只投影该事实。Goal 冻结/继承协商能力，Resume 验证 capability gap；Runtime execution context carrier 留在 Adapter，Agent Framework 未修改。真实 HTTP 反证出的 parked Run durable admission 缺口由 Application 同时观察本地 gate 与权威 Run 并用 lifecycle signal 唤醒解决。Desktop 未知 raw HTML 在 Markdown AST owner 按字面量显示 | Domain/Application/Adapter/Infra/Delivery/contract 定向回归与真实 HTTP Goal ask_user waiting→Goal resume→同 Run answer→terminal accounting 通过；双客户端、取消/reload、事务失败、冷重启、Frontend 全门禁、Runtime standalone/race/lint 与 SQLite 终态不变量在本批提交前收口 |
 | 2026-08-12 | P33（Schedule workspace patch / Desktop consumer） | Schedule 更新合同补齐省略保持、合法 ref 设置、`workspaceMode:"default"` 清空三态，并生成互斥约束；Delivery 将 default 投影到既有空 CWD Domain 语义。Desktop 删除非法空 ref，handwritten SDK 改为直接消费生成 `UpdateScheduleRequest` 并公开该类型。没有把 Runtime workspace/transport 类型泄露进 Agent、Domain 或 Application，也没有修改 SQLite shape 或并存 CLI 工作 | 原失败 UI 路径真实复测后标题持久化、cwd 为空、revision 1→2；wire/Delivery/SDK/gateway/HTTP lifecycle 回归、Frontend 238 files/1471 tests、API consumer 86/86 operations + 10/10 events 和 Desktop Go tests 全绿；Runtime 全门禁与 race 在本批提交前收口 |
 | 2026-08-12 | P32（Goal objective incarnation / HITL Resume accounting） | Goal provenance 从混合 process-local ownership 的 lease 治本纠正为 objective-lifetime incarnation：fresh Start 才换身份，Pause/Resume/Stop/Reconcile 保留身份；outstanding HITL Run 的 terminal accounting/outcome 因而仍归原目标。driver 在每次 session-startable 等待后重读并结算权威状态，消除预算耗尽或已完成后额外启动 Run 的窗口。SQLite epoch 68、checkpoint policy v2 采用唯一 incarnation shape，旧字段/版本 fail closed；没有修改公共 Protocol 或 Agent Framework | outstanding Run budget/completed-report、fresh-objective fencing、SQLite exact/retired shape 与 checkpoint strict codec 回归通过；Runtime standalone 全门禁与双向抽象边界扫描在本批提交前收口 |
 | 2026-08-12 | P31（Goal root boundary / HITL classification） | Goal driver 从 whole-tree Run stream 只采纳 `StartResult.RunID` 的 root segment boundary；root `Waiting` 以权威 Run state 暂停为 `awaitingInput`，无 root boundary 或只有 child waiting frame 均 fail closed 为 `terminalOutcomeMissing`。测试 fake 同步真实 Event envelope。变更止于 Application/goals，没有引入 Delivery、Infra、SQLite、Frontend 或 Agent Framework 类型 | waiting/missing/foreign-child/malformed 定向普通与 race 各连续 20 轮通过，goals 全包普通与 race 各 20 轮通过；Runtime `GOWORK=off` build/vet/test/race/staticcheck/golangci-lint/tidy 全绿且 lint 0 issue；Agent production import 反向扫描零 `app/runtime` |
@@ -978,6 +1002,6 @@
 | 2026-08-09 | P9.2 | 完成 Adapter/Infra/Application/Delivery 逐包职责审计；workspace physical path identity 收敛到唯一 Infra mechanism；删除空的 temporary architecture 台账并把旧 Agent 禁止与 Domain no-context-I/O 变为永久 framework boundary guard；确认 agentexec 按真实变化原因组织且没有第二 lifecycle owner或虚构子包 | Adapter→Infra 单向图与目标六环 DAG 全绿；Delivery concrete Adapter/Infra import、Infra 反向 import、Application outward import、纯转发 wrapper、package/type 口吃、空目录和 temporary exception 均为零；workspacepath/pathidentity/arch targeted tests 与全量质量门禁通过 |
 | 2026-08-09 | P10 | Runtime Protocol 一次性提升到 `2026-08-09`、Session Artifact 到 v14；删除 wire 中实现泄露的 `processRootSegment`，只保留准确的 `runtimeInstanceRootSegment`；Go registry、validator、manifest、OpenRPC、JSON Schema、TypeScript binding、canonical samples 与人读 API/Transport/Aux 文档同步；新增精确 consumer handoff | canonical artifact samples 中漏存的 v12 与旧 `outcome.error` 被 strict sample gate 暴露并治本修正；生成器零漂移、旧 wire token/版本归零、strict validator/round-trip、HTTP/in-process、全量质量门禁通过；Desktop backlog 已记录但未改消费者 |
 
-## 39. 当前下一步
+## 40. 当前下一步
 
-P33 已关闭 Schedule 默认工作区编辑和 handwritten SDK 丢失 update-only 字段的问题。下一轮继续沿 backend operation → generated client → frontend product consumer → stream/invalidation 矩阵做真实反证，并优先排查开发热更新时插件重复装载警告是否掩盖 subscription/consumer 重复注册；同时继续覆盖 Goal commands、核心 Run stream、文件/旁路事件、cancel/duplicate resolution、Plan/Goal 并发、subscription close/retarget、事务失败和崩溃恢复。每轮提交前执行 Runtime→Agent/Agent→Runtime 双向依赖与 staged path 审计。
+P34 已关闭 Goal HITL capability、Question accepted answer、多客户端最终显示、parked Run durable admission 和 Markdown unknown raw HTML 的已知缺口。本轮提交推送后按用户要求暂停；恢复后继续沿 backend operation → generated client → frontend product consumer → stream/invalidation 矩阵反证 Goal commands、核心 Run stream、文件/旁路事件、cancel/duplicate resolution、Plan/Goal 并发、subscription close/retarget、事务失败和崩溃恢复。每轮提交前执行 Runtime→Agent/Agent→Runtime 双向依赖与 staged path 审计。

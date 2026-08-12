@@ -15,6 +15,7 @@ import "github.com/Tangerg/lynx/app/runtime/internal/application/invalidation"
 // publishRunMoved reports a run whose lifecycle position changed without touching
 // what it is waiting on: a run that started, or one that ended.
 func (c *Coordinator) publishRunMoved(sessionID, runID string) {
+	c.runChanges.notify(sessionID)
 	c.invalidations.Notify(
 		invalidation.InSession(invalidation.Runs, sessionID, runID),
 		invalidation.InSession(invalidation.Sessions, sessionID),
@@ -24,6 +25,7 @@ func (c *Coordinator) publishRunMoved(sessionID, runID string) {
 // publishWaitingMoved reports a transition that also opened, answered or dropped
 // the session's open-interrupt set — a park, a resume, or a canceled park.
 func (c *Coordinator) publishWaitingMoved(sessionID, runID string) {
+	c.runChanges.notify(sessionID)
 	c.invalidations.Notify(
 		invalidation.InSession(invalidation.Runs, sessionID, runID),
 		invalidation.InSession(invalidation.Interrupts, sessionID, runID),

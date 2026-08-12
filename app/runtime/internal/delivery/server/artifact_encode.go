@@ -360,7 +360,7 @@ func artifactQuestionFromDomain(question transcript.Question) (*protocol.Artifac
 			Options: options, Multiple: field.Multiple, AllowCustom: field.AllowCustom,
 		}
 	}
-	return &protocol.ArtifactQuestion{Fields: fields}, nil
+	return &protocol.ArtifactQuestion{Fields: fields, Answers: cloneAnswers(question.Answers)}, nil
 }
 
 func artifactSafetyClass(class tool.SafetyClass) (protocol.SafetyClass, error) {

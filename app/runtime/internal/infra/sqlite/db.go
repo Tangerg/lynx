@@ -61,7 +61,7 @@ func Open(ctx context.Context, path string) (*sql.DB, error) {
 // schemaEpoch identifies the one storage shape this build understands. It is an
 // epoch rather than a version because nothing connects two values: a database
 // stamped with any other number is refused, never upgraded.
-const schemaEpoch = 68
+const schemaEpoch = 69
 
 func installCurrentSchema(ctx context.Context, db *sql.DB, path string) error {
 	var epoch int
@@ -421,6 +421,7 @@ func installCurrentSchema(ctx context.Context, db *sql.DB, path string) error {
 			reason_detail TEXT    NOT NULL DEFAULT '',
 			provider   TEXT    NOT NULL DEFAULT '',
 			model      TEXT    NOT NULL DEFAULT '',
+			capabilities TEXT  NOT NULL DEFAULT '',
 			budget     TEXT    NOT NULL,
 			used       TEXT    NOT NULL,
 			incarnation_id   TEXT    NOT NULL CHECK (incarnation_id <> ''),

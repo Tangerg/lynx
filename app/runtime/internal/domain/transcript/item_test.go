@@ -107,6 +107,37 @@ func TestItemOwnsMutablePayloads(t *testing.T) {
 	}
 }
 
+func TestAnswerQuestionEnrichesAnImmutablePromptExactlyOnce(t *testing.T) {
+	prompt, err := transcript.NewQuestion(itemIdentity(), transcript.Question{
+		Fields: []transcript.QuestionField{{
+			Prompt: "Choose", Kind: transcript.QuestionChoice,
+			Options: []transcript.QuestionOption{{Label: "A"}, {Label: "B"}},
+		}},
+	})
+	if err != nil {
+		t.Fatalf("NewQuestion: %v", err)
+	}
+	answers := [][]string{{"B"}}
+	answered, err := prompt.AnswerQuestion(answers)
+	if err != nil {
+		t.Fatalf("AnswerQuestion: %v", err)
+	}
+	answers[0][0] = "A"
+	original, _ := prompt.Question()
+	accepted, _ := answered.Question()
+	if original.Answered() || !accepted.Answered() || accepted.Answers[0][0] != "B" {
+		t.Fatalf("prompt/answered = %+v / %+v", original, accepted)
+	}
+	accepted.Answers[0][0] = "A"
+	again, _ := answered.Question()
+	if again.Answers[0][0] != "B" {
+		t.Fatalf("answered Question shares returned answer storage: %+v", again)
+	}
+	if _, err := answered.AnswerQuestion([][]string{{"A"}}); err == nil {
+		t.Fatal("AnswerQuestion accepted a second answer")
+	}
+}
+
 func TestItemForkReidentifiesTerminalHistoryAndRemapsOffload(t *testing.T) {
 	running, err := transcript.NewToolCall(
 		itemIdentity(), transcript.ToolInvocation{Name: "read_large"}, tool.SafetyClassSafe,

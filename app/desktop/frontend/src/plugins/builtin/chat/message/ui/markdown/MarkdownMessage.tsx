@@ -18,6 +18,7 @@ import { rehypeFadeIn } from "./rehypeFadeIn";
 import { rehypeFileRefs } from "./rehypeFileRefs";
 import { rehypeStreamCaret } from "./rehypeStreamCaret";
 import { normalizeMarkdownMath } from "./preprocess";
+import { remarkLiteralUnknownHtml } from "./remarkLiteralUnknownHtml";
 import { useCommitThrottle, useStreamReveal } from "./streamReveal";
 import "remark-github-blockquote-alert/alert.css";
 
@@ -52,7 +53,14 @@ interface MarkdownBlockProps {
 // Module-level plugin lists keep react-markdown from treating each
 // render as a new plugin set. Order matters in the rehype chain — see
 // the MarkdownBlock comment for the pipeline.
-const remarkPlugins = [remarkGfm, remarkBreaks, remarkCjkFriendly, remarkMath, remarkAlert];
+const remarkPlugins = [
+  remarkGfm,
+  remarkBreaks,
+  remarkCjkFriendly,
+  remarkMath,
+  remarkAlert,
+  remarkLiteralUnknownHtml,
+];
 
 // Tags that can execute / break sandbox even if the model emitted
 // them as raw HTML — blocklist takes precedence over rehype-raw.

@@ -31,8 +31,14 @@ export function questionCardSettledView({
   draft: QuestionDraft;
   answers?: QuestionAnswers;
 }): QuestionCardSettledView {
-  if (!questionSettled(status, answered) && !pending) return { settled: false };
-  return { settled: true, answers: questionSettledAnswers(questions, draft, answers) };
+  if (pending) {
+    return { settled: true, answers: questionSettledAnswers(questions, draft, answers) };
+  }
+  if (!questionSettled(status, answered)) return { settled: false };
+  // Once the Runtime closes the Pending set, only its transcript projection is
+  // authoritative. A local draft may have lost a cross-client race or the Run
+  // may have been canceled without accepting any answer.
+  return { settled: true, answers };
 }
 
 export function canSubmitQuestionCard({

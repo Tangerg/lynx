@@ -10,6 +10,7 @@ import {
   argsText,
   contentText,
   mapQuestion,
+  mapQuestionAnswers,
   toolFields,
   toolLabel,
   toolLabelKind,
@@ -308,12 +309,28 @@ export function foldQuestion(
   item: ItemOf<"question">,
   status: BlockStatus,
 ): AgentSessionView {
+  const questions = mapQuestion(item.question);
+  const answers = mapQuestionAnswers(item.question);
   return upsertBlock(
     state,
     item,
     (b) => b.kind === "question" && b.itemId === item.id,
-    () => ({ kind: "question", status, itemId: item.id, questions: mapQuestion(item.question) }),
-    (b) => (b.kind === "question" ? { ...b, status } : b),
+    () => ({
+      kind: "question",
+      status,
+      itemId: item.id,
+      questions,
+      answered: answers !== undefined,
+      answers,
+    }),
+    (b) =>
+      b.kind === "question"
+        ? {
+            ...b,
+            status,
+            ...(item.question ? { questions, answered: answers !== undefined, answers } : {}),
+          }
+        : b,
   );
 }
 

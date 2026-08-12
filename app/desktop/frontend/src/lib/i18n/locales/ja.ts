@@ -404,6 +404,7 @@ export const ja: Record<string, string> = {
   "question.multiSelect": "複数選択可",
   "question.action.submit": "送信",
   "question.settled.answered": "回答済み",
+  "question.settled.dismissed": "未回答のまま終了",
   "question.freetext.placeholder": "自由に入力…",
 
   "cwdMissing.title": "作業ディレクトリが見つかりません",

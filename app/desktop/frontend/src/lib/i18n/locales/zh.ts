@@ -537,6 +537,7 @@ export const zh: Record<string, string> = {
   "question.multiSelect": "可多选",
   "question.action.submit": "提交",
   "question.settled.answered": "已回答",
+  "question.settled.dismissed": "未作答即关闭",
   "question.freetext.placeholder": "输入自定义答案…",
 
   "cwdMissing.title": "工作目录丢失",

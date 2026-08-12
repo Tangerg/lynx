@@ -6,34 +6,63 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 )
 
 func TestNewValidates(t *testing.T) {
 	now := time.Unix(0, 0)
-	if _, err := New("", "obj", modelref.Selection{}, Budget{}, "lease", now); err == nil {
+	if _, err := New("", "obj", modelref.Selection{}, Budget{}, run.Capabilities{}, "lease", now); err == nil {
 		t.Fatal("empty session should error")
 	}
-	if _, err := New("s", "", modelref.Selection{}, Budget{}, "lease", now); err == nil {
+	if _, err := New("s", "", modelref.Selection{}, Budget{}, run.Capabilities{}, "lease", now); err == nil {
 		t.Fatal("empty objective should error")
 	}
-	if _, err := New("s", "obj", modelref.Selection{}, Budget{MaxRuns: -1}, "lease", now); err == nil {
+	if _, err := New("s", "obj", modelref.Selection{}, Budget{MaxRuns: -1}, run.Capabilities{}, "lease", now); err == nil {
 		t.Fatal("negative budget should error")
 	}
 	selection, err := modelref.New("p", "m")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := New("s", "obj", selection, Budget{}, "", now); err == nil {
+	if _, err := New("s", "obj", selection, Budget{}, run.Capabilities{}, "", now); err == nil {
 		t.Fatal("empty incarnation should error")
 	}
-	g, err := New("s", "obj", selection, Budget{MaxRuns: 3}, "lease", now)
+	g, err := New("s", "obj", selection, Budget{MaxRuns: 3}, run.Capabilities{}, "lease", now)
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
 	if g.Status != StatusActive {
 		t.Fatalf("new goal status = %q, want active", g.Status)
+	}
+}
+
+func TestGoalOwnsFrozenRunCapabilities(t *testing.T) {
+	input := run.Capabilities{
+		ChildRuns:      true,
+		InterruptKinds: []interrupt.Kind{interrupt.Question, interrupt.Approval},
+	}
+	g, err := New("s", "obj", modelref.Selection{}, Budget{}, input, "lease", time.Unix(0, 0))
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	want := run.Capabilities{
+		ChildRuns:      true,
+		InterruptKinds: []interrupt.Kind{interrupt.Approval, interrupt.Question},
+	}
+	validationErr := g.Capabilities.Validate()
+	if !g.Capabilities.Equal(want) || validationErr != nil {
+		t.Fatalf("capabilities = %+v err=%v, want canonical %+v", g.Capabilities, validationErr, want)
+	}
+	input.InterruptKinds[0] = interrupt.Approval
+	if !g.Capabilities.Equal(want) {
+		t.Fatalf("Goal shares caller capability storage: %+v", g.Capabilities)
+	}
+	clone := g.Clone()
+	clone.Capabilities.InterruptKinds[0] = interrupt.Question
+	if !g.Capabilities.Equal(want) {
+		t.Fatalf("Goal.Clone shares capability storage: %+v", g.Capabilities)
 	}
 }
 
@@ -46,13 +75,14 @@ func TestGoalRejectsNonFiniteBudgetAndUsage(t *testing.T) {
 		t.Run("budget "+name, func(t *testing.T) {
 			if _, err := New(
 				"s", "obj", modelref.Selection{}, Budget{MaxCostUSD: value},
+				run.Capabilities{},
 				"lease", time.Unix(0, 0),
 			); err == nil {
 				t.Fatal("New accepted a non-finite goal budget")
 			}
 		})
 		t.Run("usage "+name, func(t *testing.T) {
-			goal, err := New("s", "obj", modelref.Selection{}, Budget{}, "lease", time.Unix(0, 0))
+			goal, err := New("s", "obj", modelref.Selection{}, Budget{}, run.Capabilities{}, "lease", time.Unix(0, 0))
 			if err != nil {
 				t.Fatalf("New: %v", err)
 			}
@@ -66,7 +96,7 @@ func TestGoalRejectsNonFiniteBudgetAndUsage(t *testing.T) {
 }
 
 func TestValidateSnapshotRejectsMissingConcurrencyIdentity(t *testing.T) {
-	g, err := New("s", "obj", modelref.Selection{}, Budget{}, "lease", time.Unix(0, 0))
+	g, err := New("s", "obj", modelref.Selection{}, Budget{}, run.Capabilities{}, "lease", time.Unix(0, 0))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -90,7 +120,7 @@ func TestValidateSnapshotRejectsMissingConcurrencyIdentity(t *testing.T) {
 
 func TestResumeRejectsSpentBudget(t *testing.T) {
 	now := time.Unix(0, 0)
-	g, err := New("s", "obj", modelref.Selection{}, Budget{MaxRuns: 1}, "lease", now)
+	g, err := New("s", "obj", modelref.Selection{}, Budget{MaxRuns: 1}, run.Capabilities{}, "lease", now)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -130,7 +160,7 @@ func TestBudgetExceeded(t *testing.T) {
 
 func TestRecordRunPreservesPriorTerminalReport(t *testing.T) {
 	now := time.Unix(0, 0)
-	g, err := New("s", "obj", modelref.Selection{}, Budget{MaxRuns: 1}, "lease", now)
+	g, err := New("s", "obj", modelref.Selection{}, Budget{MaxRuns: 1}, run.Capabilities{}, "lease", now)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -149,7 +179,7 @@ func TestRecordRunPreservesPriorTerminalReport(t *testing.T) {
 
 func TestTransitions(t *testing.T) {
 	now := time.Unix(0, 0)
-	g, _ := New("s", "obj", modelref.Selection{}, Budget{}, "lease", now)
+	g, _ := New("s", "obj", modelref.Selection{}, Budget{}, run.Capabilities{}, "lease", now)
 
 	g.AddRun(0.5, 2, now)
 	g.AddRun(0.25, 1, now)

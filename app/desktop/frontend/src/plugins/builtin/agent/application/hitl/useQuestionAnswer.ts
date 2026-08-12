@@ -20,8 +20,9 @@ export function useQuestionAnswer(runId?: string, itemId?: string): QuestionAnsw
 
   const submit = useCallback(
     (answers: QuestionAnswers) => {
-      // Stamp answers onto the settled block too, so the collapsed card can
-      // echo what was chosen (the runtime never sends the answer back).
+      // The local settle removes interaction latency after the Runtime accepted
+      // the claim. Durable refresh/replay then replaces it with the same
+      // authoritative Question.answers projection.
       resume(true, { type: "answer", answers }, { answered: true, answers });
     },
     [resume],

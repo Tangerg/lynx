@@ -40,7 +40,8 @@ func (identity ItemIdentity) Validate() error {
 }
 
 // Item is one immutable, user-visible transcript fact. Only ToolCall has an
-// internal lifecycle: every other variant is complete when constructed.
+// internal status lifecycle. A Question prompt is complete when constructed and
+// may later be replaced by the same fact enriched with its accepted answer.
 type Item struct {
 	identity          ItemIdentity
 	status            ItemStatus
@@ -453,12 +454,26 @@ func cloneQuestion(question *Question) *Question {
 	if question == nil {
 		return nil
 	}
-	copy := Question{Fields: make([]QuestionField, len(question.Fields))}
+	copy := Question{
+		Fields:  make([]QuestionField, len(question.Fields)),
+		Answers: cloneQuestionAnswers(question.Answers),
+	}
 	for index, field := range question.Fields {
 		copy.Fields[index] = field
 		copy.Fields[index].Options = append([]QuestionOption(nil), field.Options...)
 	}
 	return &copy
+}
+
+func cloneQuestionAnswers(answers [][]string) [][]string {
+	if answers == nil {
+		return nil
+	}
+	cloned := make([][]string, len(answers))
+	for index, values := range answers {
+		cloned[index] = append([]string(nil), values...)
+	}
+	return cloned
 }
 
 func (item Item) SessionID() string     { return item.identity.SessionID }
@@ -491,6 +506,24 @@ func (item Item) ToolInvocation() (ToolInvocation, bool) {
 		return ToolInvocation{}, false
 	}
 	return *cloneToolInvocation(item.tool), true
+}
+
+// AnswerQuestion enriches one complete Question prompt with the exact response
+// accepted at the resume linearization point. Identity, occurrence, and Item
+// status remain unchanged; a second answer is rejected.
+func (item Item) AnswerQuestion(answers [][]string) (Item, error) {
+	if item.kind != QuestionItem || item.question == nil || item.status != ItemCompleted {
+		return Item{}, errors.New("transcript: only a complete Question can be answered")
+	}
+	if item.question.Answered() {
+		return Item{}, errors.New("transcript: Question is already answered")
+	}
+	item.question = cloneQuestion(item.question)
+	item.question.Answers = cloneQuestionAnswers(answers)
+	if err := item.Validate(); err != nil {
+		return Item{}, err
+	}
+	return item, nil
 }
 func (item Item) Failure() (tool.Failure, bool) {
 	if item.failure == nil {

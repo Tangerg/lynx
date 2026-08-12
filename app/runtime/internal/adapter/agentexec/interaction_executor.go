@@ -26,6 +26,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/accounting"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	"github.com/Tangerg/lynx/chatclient"
 	corechat "github.com/Tangerg/lynx/core/chat"
@@ -243,7 +244,7 @@ func (executor *InteractionExecutor) assembleInteraction(
 		return nil, fmt.Errorf("agentexec: observe Interaction client: %w", err)
 	}
 	deployments, err := executor.buildInteractionDeployments(
-		executionctx.WithScope(ctx, rootExecutionScope(start)), session, start, observedClient, maxModelCalls,
+		runExecutionContext(ctx, rootExecutionScope(start), start), session, start, observedClient, maxModelCalls,
 	)
 	if err != nil {
 		return nil, err
@@ -479,7 +480,7 @@ func (executor *InteractionExecutor) BeginRoot(_ context.Context, ref runs.Execu
 		return errors.New("agentexec: Interaction execution must be observed before begin")
 	}
 	process, err := session.engine.Start(
-		executionctx.WithScope(session.lifecycle, session.scope),
+		runExecutionContext(session.lifecycle, session.scope, session.start),
 		session.deployment,
 		session.input,
 	)
@@ -603,7 +604,7 @@ func (executor *InteractionExecutor) restoreWaitingTree(
 		return err
 	}
 	process, err := session.engine.RestoreTree(
-		executionctx.WithScope(session.lifecycle, session.scope),
+		runExecutionContext(session.lifecycle, session.scope, session.start),
 		session.deployment,
 		checkpoint.tree,
 	)
@@ -788,7 +789,7 @@ func (session *interactionSession) deliverContinuationAnswers(
 ) error {
 	for _, answer := range answers {
 		accepted, err := answer.process.DeliverSignal(
-			executionctx.WithScope(ctx, session.scope), answer.signal,
+			runExecutionContext(ctx, session.scope, session.start), answer.signal,
 		)
 		if err != nil {
 			return fmt.Errorf("agentexec: deliver Interaction answer Signal: %w", err)
@@ -839,6 +840,18 @@ func rootExecutionScope(start runs.RootExecutionStart) runs.ExecutionScope {
 		SessionID: start.SessionID, CWD: start.CWD, WorkspaceCWD: start.WorkspaceCWD,
 		Isolated: start.Isolated, GoalIncarnationID: start.GoalIncarnationID,
 	}
+}
+
+func runExecutionContext(
+	ctx context.Context,
+	scope runs.ExecutionScope,
+	start runs.RootExecutionStart,
+) context.Context {
+	capabilities := run.Capabilities{
+		ChildRuns:      start.ChildRunAdmissionEnabled,
+		InterruptKinds: slices.Clone(start.InterruptKinds),
+	}.Normalized()
+	return executionctx.WithRunCapabilities(executionctx.WithScope(ctx, scope), capabilities)
 }
 
 // Release tears down one staged or terminal per-root Engine. It is idempotent

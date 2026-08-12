@@ -21,6 +21,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/skills"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
@@ -40,7 +41,7 @@ func (activeGoalStub) Report(context.Context, goals.ReportCommand) (goals.Report
 
 type allWiredGoalStarter struct{}
 
-func (allWiredGoalStarter) Start(context.Context, string, string, modelref.Selection, goal.Budget) (goal.Goal, error) {
+func (allWiredGoalStarter) Start(context.Context, string, string, modelref.Selection, goal.Budget, run.Capabilities) (goal.Goal, error) {
 	return goal.Goal{}, nil
 }
 

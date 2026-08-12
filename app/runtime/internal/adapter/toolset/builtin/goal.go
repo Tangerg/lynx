@@ -16,6 +16,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/goals"
 	goalstate "github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 )
 
 const createDescription = `Create and start a persistent autonomous Goal for the current session.
@@ -81,7 +82,7 @@ type GoalOutcomeReporter interface {
 // GoalStarter is the one lifecycle operation create_goal needs. The Driver owns
 // admission waiting and loop lifetime; the tool does not reproduce either.
 type GoalStarter interface {
-	Start(ctx context.Context, sessionID, objective string, selection modelref.Selection, budget goalstate.Budget) (goalstate.Goal, error)
+	Start(ctx context.Context, sessionID, objective string, selection modelref.Selection, budget goalstate.Budget, capabilities run.Capabilities) (goalstate.Goal, error)
 }
 
 type creator struct{ goals GoalStarter }
@@ -172,7 +173,8 @@ func (t *creator) create(ctx context.Context, args createArgs) (goalResult, erro
 			MaxSteps:   args.Budget.MaxSteps,
 		}
 	}
-	g, err := t.goals.Start(ctx, sessionID, objective, modelref.Selection{}, budget)
+	capabilities, _ := executionctx.RunCapabilities(ctx)
+	g, err := t.goals.Start(ctx, sessionID, objective, modelref.Selection{}, budget, capabilities)
 	if err != nil {
 		switch {
 		case errors.Is(err, goals.ErrGoalActive):

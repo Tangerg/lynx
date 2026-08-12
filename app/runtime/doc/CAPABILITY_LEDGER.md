@@ -28,7 +28,7 @@
 - P3 已删除 Application 的 `ExecutionControl`、`SegmentExecutor`、`SessionLifecycle` 与 `Effects` 胖接口；root start/observe/release、Session reads/termination 与 Run projection write-sets 均由真实 consumer-owned ports 表达；
 - Application executor tree identity 已统一为 `ExecutorMember`/`MemberID`；Framework `ProcessID` 只存在于 `adapter/agentexec` 内部映射，SQLite technical shape 使用 `root_member_id`/`memberId`；
 - 同一 Interaction tree 已在生产 Bootstrap 接通 conclusive child start、durable Delegate child Run attribution、nested/sibling child reconciliation，以及 one-shot prepared waiting-subtree cancellation；
-- SQLite 当前唯一 shape 为 epoch 68：model/tool invocation operational journal 与 Transcript semantic final 分离，interrupt row 具有 `open`/`resuming` answer-claim 状态，child-start reservation payload 由 `runsegment` 显式编码；Goal/Run provenance 使用目标 incarnation 而非 drive lease；Transcript/committed-tool failure payload 使用准确的 `failure` vocabulary，并区分 owning Run 取消、执行失败、审批拒绝与父 Run 上的 child Run 取消；Run pump 是唯一 reducer/persistence writer；
+- SQLite 当前唯一 shape 为 epoch 69：model/tool invocation operational journal 与 Transcript semantic final 分离，interrupt row 具有 `open`/`resuming` answer-claim 状态，accepted Question answer 与 claim/checkpoint 更新同事务提交，child-start reservation payload 由 `runsegment` 显式编码；Goal/Run provenance 使用目标 incarnation，Goal 同时冻结 canonical Run capabilities；Transcript/committed-tool failure payload 使用准确的 `failure` vocabulary，并区分 owning Run 取消、执行失败、审批拒绝与父 Run 上的 child Run 取消；Run pump 是唯一 reducer/persistence writer；
 - Agent Framework production dependency 只存在于执行防腐层；Runtime 其他 ring 对 Framework concrete type 为零。
 
 ### 2.2 当前架构基础
@@ -43,7 +43,7 @@
 | Adapter/Infra direction | Adapter 单向使用 Infra；Infra 对 Application/Adapter/Delivery/Bootstrap 反向 import 为零 | Retain | P9 已完成 |
 | Shared mechanisms | `component` umbrella 已删除；根级只保留三个真正跨环 capability，Application 共享机制归还 Application | Retain exact owners | P18 所有权纠偏，永久 purity/owner guard |
 | Contract generation | `contract/` 的 manifest/OpenRPC/schema/TypeScript/Go validator 来自唯一 registry；public Go API baseline 来自真实 type information；canonical samples 同时经 round-trip 与 strict validator | Retain | P10/P19-06 已完成 |
-| SQLite exact epoch | epoch 68 单一 shape，无生产 migration chain | Retain | P6/P8 完成；P15-03 收回 child-start durable wire owner；P16-02 收回 Tool failure vocabulary；P21 区分 owning Run 取消；P32 收敛 Goal incarnation provenance |
+| SQLite exact epoch | epoch 69 单一 shape，无生产 migration chain | Retain | P6/P8 完成；P15-03 收回 child-start durable wire owner；P16-02 收回 Tool failure vocabulary；P21 区分 owning Run 取消；P32 收敛 Goal incarnation provenance；P34 冻结 Goal capabilities 与 accepted Question answer |
 
 ### 2.3 P19 公共 Go binding 事实
 
@@ -253,7 +253,7 @@ P8 production cutover 已用真实 Bootstrap consumer 冻结 root stage/observe/
 
 | 能力 | 当前事实 | Verdict | 验收 |
 |---|---|---|---|
-| SQLite schema | epoch 68；保留 `root_member_id`/`memberId`，open/resuming answer audit；Goal/Run 使用 `incarnation_id`/`goal_incarnation_id`；child-start payload 为 adapter-owned canonical JSON；Transcript/committed-tool 使用 closed `failure` taxonomy；tool invocation identity 按 Segment 隔离 | Retain pattern | 旧 epoch/列/codec 被拒绝，无 migration |
+| SQLite schema | epoch 69；保留 `root_member_id`/`memberId`，open/resuming answer audit；accepted Question answer 与 resume claim 同事务；Goal/Run 使用 `incarnation_id`/`goal_incarnation_id`，Goal 冻结 canonical Run capabilities；child-start payload 为 adapter-owned canonical JSON；Transcript/committed-tool 使用 closed `failure` taxonomy；tool invocation identity 按 Segment 隔离 | Retain pattern | 旧 epoch/列/codec 被拒绝，无 migration |
 | executor checkpoint | Host metadata + Agent Framework public complete-tree snapshot | Retain opaque payload owner | Application/Store 完全 opaque；exact capabilities 纳入 expectation |
 | checkpoint transaction | runsegment/persistence 组合 | Retain semantics | waiting facts 同事务 |
 | BuildID | Host-owned | Retain | 不进入 Agent Framework deployment/snapshot |
@@ -268,7 +268,7 @@ P8 production cutover 已用真实 Bootstrap consumer 冻结 root stage/observe/
 
 | 能力 | 当前 owner | Verdict | 说明 |
 |---|---|---|---|
-| Protocol types/errors | `protocol` + `contract` | Retain | Protocol `2026-08-12`、Artifact v17；ToolCall lifecycle 与 optional exact execution duration 分离，后者排除审批等待且 unknown 时不伪造；Tool cancellation 是独立 `tool_canceled` / `toolCanceled` variant；Schedule workspace patch 以省略/合法 ref/`workspaceMode:"default"` 精确表达保持/设置/清空且生成互斥约束；机器真相仍在 contract |
+| Protocol types/errors | `protocol` + `contract` | Retain | Protocol `2026-08-12`、Artifact v18；Question `answers` 只投影 Runtime 已接受响应，未回答/取消不伪造；ToolCall lifecycle 与 optional exact execution duration 分离，后者排除审批等待且 unknown 时不伪造；Tool cancellation 是独立 `tool_canceled` / `toolCanceled` variant；Schedule workspace patch 以省略/合法 ref/`workspaceMode:"default"` 精确表达保持/设置/清空且生成互斥约束；机器真相仍在 contract |
 | Runtime method implementation | `delivery/server` | Retain | Protocol server side 与 projection；构造按 required use-case validation、defaults、contract facts、instance、notification observation 分阶段，不持有 transport listener |
 | JSON-RPC dispatch/registry | `delivery/dispatch` | Retain | method registry/router/idempotency；typed params decode 与 response projection 分属 `params.go`/`response.go`，不与 server 合并 |
 | HTTP/SSE | transport/http | Retain | envelope I/O、stream/backpressure |
@@ -372,7 +372,7 @@ P8 production cutover 已用真实 Bootstrap consumer 冻结 root stage/observe/
 - Runtime 对原框架 source/test/module dependency 与临时 module path 已归零；唯一 `agent` Framework 仍只拥有中性合同，产品 Run、Store、transaction、WorkingContext composition 与 recovery policy 均留在 Runtime；
 - P11 删除迁移期 execution/port 快照文档；P12 继续删除已完成的架构清洗台账。当前架构、端口与工具接线分别只有 `ARCHITECTURE.md`、真实 consumer code/GoDoc 和 `TOOL_SYSTEM.md` 一个 owner，历史实施事实归 Git，不保留第二套错误现状；
 - P12 全量静态审计捕获的格式漂移与嵌入字段冗余已在各自源码 owner 治本清除；Runtime 与 Agent Framework 的 tracked production TODO/FIXME/HACK、旧 Framework 路径、旧 replay scope、空文件、空目录和内部死代码均为零。
-- P12 最终行为矩阵证明 Runtime root/child Interaction、authoritative model/tool、waiting、restore、resume、steer、unknown、recovery、rollback 与全部外环能力仍自洽；SQLite 当前 epoch 68 由 baseline consistency test 永久守卫。`interactioninput` 是 pending continuation/prompt/resolution 的唯一 ACL 与 codec owner，原单消费者子包和第二 decoder 已删除；三个 Runtime strict-codec fuzz owner与 Agent Framework 十三个 wire/state fuzz owner均全绿。
+- P12 最终行为矩阵证明 Runtime root/child Interaction、authoritative model/tool、waiting、restore、resume、steer、unknown、recovery、rollback 与全部外环能力仍自洽；SQLite 当前 epoch 69 由 baseline consistency test 永久守卫。`interactioninput` 是 pending continuation/prompt/resolution 的唯一 ACL 与 codec owner，原单消费者子包和第二 decoder 已删除；三个 Runtime strict-codec fuzz owner与 Agent Framework 十三个 wire/state fuzz owner均全绿。
 - P14 完成 Runtime 内部职责与全层级命名精修：package、目录、文件、类型、方法、函数、常量、字段和局部变量按 owner/行为逐层反证；淘汰词汇与失真文件路径由精确 package guard 防回流。最终 standalone、race、生成物、文档链接、死代码、空残留、复杂度与完整 lint 门禁全绿，未改变 Runtime/Agent Framework 边界、协议或持久化合同。
 - P15-02 再次反证 Domain/Application 后，将 system-invariant 的说明性 catalog 从生产 Application graph 移至 `cmd/contractgen`，而真实跨聚合不变量继续由对应 write-set 和 integration fixture 独占；无消费者导出链已删除，结果值、水位与 child/executor 语言按真实语义统一。Domain 仍只拥有聚合、值与纯策略合同，Application 仍独占 I/O ports；本批没有新增 Framework concrete type、协议 wire、SQLite shape 或消费者兼容路径。
 - P15-03 反证 Adapter/Infra/Delivery/Bootstrap 后，executor checkpoint 在 `agentexec` 之外重新成为纯 opaque bytes：Bootstrap 与 runsegment 不再复制或解释 TreeSnapshot shape，持久化测试只证明 checkpoint envelope 的原子保存、替换和删除。非 Framework 层的 member/request/child-Run 词汇、LLM catalog/profile 命名、execution scope 文件职责与 SQLite epoch 事实已同步；新增 architecture guard 禁止外环重新拼装 Framework tree wire。本批没有改变协议、SQLite shape 或 Agent Framework 合同。
@@ -399,3 +399,5 @@ P8 production cutover 已用真实 Bootstrap consumer 冻结 root stage/observe/
 - P28 将同一依赖边界修复推进到独立 `models/ollama` owner：provider module 以私有窄 wire 保留原生 `/api/chat`、`/api/embed`、NDJSON stream、Core extensions 与 HTTP failure 语义，同时移除完整 daemon repository 及其 server/auth/ordered-map 依赖。该模块 `govulncheck` 从 8 条可达路径降为零，公开构造器与 Runtime/Agent 合同不变化。
 - P29 关闭 CLI standalone consumer 的发布图缺口：CLI 直接绑定已推送 commit `420f627f131a` 对应 Runtime pseudo-version，并随其消费 Agent Baseline 20；旧 Runtime→`models/ollama`→daemon 依赖链从 standalone graph 删除。CLI 全量 normal/race/static/lint/build/vet 与 `govulncheck` 全绿，未使用 workspace `replace` 或夹带 CLI 功能改动。
 - P33 关闭 Schedule 默认工作区更新的协议表达缺口：Protocol/Delivery 精确拥有保持、设置、回到默认三态及互斥校验，Desktop handwritten SDK 直接消费生成 `UpdateScheduleRequest`。Domain/Application 仍只拥有 Schedule/CWD 行为，Agent Framework 未接收任何 Runtime workspace、wire 或 UI 抽象；真实 UI/SQLite 证明失败路径已持久化收口。
+- P34 将 HITL 的最终显示事实收回 Runtime：Question Transcript 在 accepted resume claim 的同一事务内不可变补充答案，Artifact v18/Protocol/SQLite codec/Delivery/Desktop 只消费该事实；取消保持未回答。Goal 在 fresh Start 冻结协商能力，Resume 验证调用方覆盖，自治 Run 与 Goal 内 `create_goal` 继承它；执行上下文 carrier 留在 Runtime adapter，不修改 Agent Framework。Desktop 的未知 raw HTML 在 Markdown AST 边界按字面量展示，不把 sanitizer 或 UI 语义下沉 Runtime。
+- P34 的真实 HTTP 反证进一步关闭 Goal resume 与 parked Run 的 durable admission 缺口：`application/runs` 的 startable observation 同时等待本地 gate 和权威 non-terminal Run，committed lifecycle change 只负责唤醒，状态仍由 durable projection 重读；Goal 不再把同一 waiting Run 误判为新 Run start failure。

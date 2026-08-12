@@ -155,6 +155,7 @@ export interface ArtifactProblem {
 export type ArtifactProblemType = "internalError" | "runLost" | "agentStuck" | "rateLimited" | "invalidApiKey" | "timeout" | "providerUnavailable" | "providerRejected" | "deniedByUser" | "toolFailed" | "childRunCanceled" | "toolCanceled";
 
 export interface ArtifactQuestion {
+  answers?: string[][];
   fields: ArtifactQuestionField[];
 }
 
@@ -1009,6 +1010,7 @@ export interface ProviderTestResult {
 }
 
 export interface Question {
+  answers?: string[][];
   fields: QuestionField[];
 }
 

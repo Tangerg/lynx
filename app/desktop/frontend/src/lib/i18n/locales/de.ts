@@ -410,6 +410,7 @@ export const de: Record<string, string> = {
   "question.multiSelect": "Mehrfachauswahl",
   "question.action.submit": "Senden",
   "question.settled.answered": "Beantwortet",
+  "question.settled.dismissed": "Ohne Antwort geschlossen",
   "question.freetext.placeholder": "Eigene Antwort eingeben…",
 
   "cwdMissing.title": "Arbeitsverzeichnis fehlt",

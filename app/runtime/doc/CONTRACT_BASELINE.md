@@ -35,10 +35,10 @@ Digest 只用于发现未审计漂移，不能替代语义测试。
 
 | 制品 | SHA-256 |
 |---|---|
-| `contract/manifest.json` | `717627e5ab3d12ecbc532f14165d0dde0c652b4efb65be380de397bd4166f3d7` |
+| `contract/manifest.json` | `5494c98252895b0bf5c52e0f70bded54841ab9f0383e707c83258db0bce647d7` |
 | `contract/openrpc.json` | `60db6e751a820c15f89305aac655069e5f30f00a63492ef98e435f19b1a01ddc` |
-| `contract/schema.json` | `10cc1e46c1718d7e72b62ecd90f8fcdb25c3aa7bfee2468ccc9b95fbd7e22d3d` |
-| `contract/go-api.json` | `2e85a4b024152ab9a8ddec6f1dc76a95744ded4a7e907435f7387efb95aefbb9` |
+| `contract/schema.json` | `351a1b358c5d3f67650ccf2bfd8be15da4b542e56a2b0c2ea9d74fd2adaab8e7` |
+| `contract/go-api.json` | `920323dc29d151c32169e3eb73abe1c067d8ad8ca3eb61979d42ef91d110ae84` |
 
 TypeScript generated files 是派生制品，不单独定义语义。它们必须由同一个 contract generator 产生且 diff-free；当前前端/TUI/CLI 是否已经消费最新 shape，由 P10/P12 的 consumer handoff 记录，不通过兼容字段掩盖。
 
@@ -58,8 +58,9 @@ TypeScript generated files 是派生制品，不单独定义语义。它们必�
 
 ### 3.1 SQLite
 
-- 当前 `schemaEpoch = 68`；
+- 当前 `schemaEpoch = 69`；
 - Goal aggregate 与 Goal terminal ledger 使用 `incarnation_id`，Run/Interrupt provenance 使用 `goal_incarnation_id`；已退休的 `lease_id`/`goal_lease_id` 列不存在且不双读；
+- Goal aggregate 还持久化 fresh Start 时协商并冻结的 canonical Run capabilities；Goal Resume 的调用方能力必须覆盖该集合，自治 Run 与 Goal 内 `create_goal` 都继承相同集合；
 - executor checkpoint 与 pending interrupt 的技术身份列为 `root_member_id`，continuation/input-request binding JSON 使用 `memberId`/`requestId`；
 - `model_invocations` 与 `tool_invocations` 是 operational attempt journals，只保存 exact Run/Segment/call identity、state 与 started/finished time；semantic assistant final、Tool result 和 usage 仍只由 Transcript/Run owners 保存；
 - `interrupts.state` 只有 `open`/`resuming`：`open` 不得携带 answer/claimedAt，`resuming` 必须携带两者；普通列表/读取只返回 `open`，continuation opening 必须在事务内证明 exact root 的 `resuming` claim；
@@ -87,7 +88,7 @@ P7 延续的 continuation payload baseline 是 Agent Framework TreeSnapshot v4 �
 
 ### 3.3 Artifact 与 Transcript
 
-Artifact、Transcript Item 和 ToolCall timing 的当前机器 shape 仍由 Runtime contract/store codec 拥有。Session Artifact 当前唯一版本为 17；v16 及更早版本在任何写入前确定性拒绝，不从旧 artifact 猜测缺失事实或改写版本号。ToolCall lifecycle 与可选 exact execution duration 是两个事实：后者排除审批等待，无法证明时保持 unknown。Tool failure taxonomy 将工具所属 Run 的取消导致的在途终止表示为 `toolCanceled`，不与执行失败、审批拒绝或父 Run 上的 `childRunCanceled` 合并。
+Artifact、Transcript Item 和 ToolCall timing 的当前机器 shape 仍由 Runtime contract/store codec 拥有。Session Artifact 当前唯一版本为 18；v17 及更早版本在任何写入前确定性拒绝，不从旧 artifact 猜测缺失事实或改写版本号。Question Item 的 `answers` 是唯一已接受响应；未回答或取消保持字段缺失，claim 成功时与 pending/checkpoint 变更同事务写入 Transcript。ToolCall lifecycle 与可选 exact execution duration 是两个事实：后者排除审批等待，无法证明时保持 unknown。Tool failure taxonomy 将工具所属 Run 的取消导致的在途终止表示为 `toolCanceled`，不与执行失败、审批拒绝或父 Run 上的 `childRunCanceled` 合并。
 
 ## 4. Agent Framework 消费 Baseline
 

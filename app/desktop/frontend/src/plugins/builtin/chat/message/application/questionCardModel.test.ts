@@ -51,6 +51,35 @@ describe("questionCardSettledView", () => {
       }),
     ).toEqual({ settled: false });
   });
+
+  it("never promotes a losing local draft after the Runtime settles another answer", () => {
+    const draft = setQuestionText(createQuestionDraft([question]), 0, question, "local loser");
+
+    expect(
+      questionCardSettledView({
+        status: "complete",
+        answered: true,
+        pending: false,
+        questions: [question],
+        draft,
+        answers: [["authoritative winner"]],
+      }),
+    ).toEqual({ settled: true, answers: [["authoritative winner"]] });
+  });
+
+  it("shows no answer when a question closes without an accepted response", () => {
+    const draft = setQuestionText(createQuestionDraft([question]), 0, question, "never accepted");
+
+    expect(
+      questionCardSettledView({
+        status: "complete",
+        answered: false,
+        pending: false,
+        questions: [question],
+        draft,
+      }),
+    ).toEqual({ settled: true, answers: undefined });
+  });
 });
 
 describe("canSubmitQuestionCard", () => {

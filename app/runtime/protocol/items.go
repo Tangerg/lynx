@@ -199,7 +199,8 @@ type ContentBlock struct {
 // InterruptResponseValue.answers uses this same order; no derivable field IDs
 // or dynamic map keys travel on the wire.
 type Question struct {
-	Fields []QuestionField `json:"fields"`
+	Fields  []QuestionField `json:"fields"`
+	Answers [][]string      `json:"answers,omitempty"` // accepted response, in Fields order
 }
 
 // QuestionField is one field of a Question. Type selects the shape:

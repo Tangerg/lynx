@@ -405,6 +405,7 @@ export const zhTW: Record<string, string> = {
   "question.multiSelect": "可多選",
   "question.action.submit": "提交",
   "question.settled.answered": "已回答",
+  "question.settled.dismissed": "未作答即關閉",
   "question.freetext.placeholder": "輸入自訂答案…",
 
   "cwdMissing.title": "工作目錄遺失",

@@ -408,6 +408,7 @@ export const es: Record<string, string> = {
   "question.multiSelect": "Selección múltiple",
   "question.action.submit": "Enviar",
   "question.settled.answered": "Respondido",
+  "question.settled.dismissed": "Cerrado sin respuesta",
   "question.freetext.placeholder": "Escribe una respuesta…",
 
   "cwdMissing.title": "Falta el directorio de trabajo",

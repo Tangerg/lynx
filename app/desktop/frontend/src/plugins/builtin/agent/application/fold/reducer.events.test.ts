@@ -286,6 +286,40 @@ describe("reducer — item fold", () => {
     });
   });
 
+  it("a completed question projects the runtime-accepted answer", () => {
+    let s: AgentSessionView = EMPTY_AGENT_SESSION_VIEW;
+    s = reduce(s, started(item({ id: "q1", type: "question" })));
+    s = reduce(
+      s,
+      completed(
+        item({
+          id: "q1",
+          type: "question",
+          status: "completed",
+          question: {
+            fields: [
+              {
+                type: "choice",
+                prompt: "Pick a database",
+                options: [{ label: "Postgres" }, { label: "SQLite" }],
+              },
+            ],
+            answers: [["SQLite"]],
+          },
+        }),
+      ),
+    );
+
+    expect(
+      s.messages.flatMap((message) => message.blocks).find((b) => b.kind === "question"),
+    ).toMatchObject({
+      kind: "question",
+      status: "complete",
+      answered: true,
+      answers: [["SQLite"]],
+    });
+  });
+
   it("hydrates a durable running Item through start semantics", () => {
     const running = item({
       id: "tool_waiting",

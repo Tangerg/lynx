@@ -161,8 +161,12 @@ type Goal struct {
 	Status         Status
 	Reason         Reason             // why it is paused or blocked; zero while active
 	ModelSelection modelref.Selection // model the loop runs each Run against
-	Budget         Budget
-	Used           Usage
+	// Capabilities is the client contract frozen when this objective incarnation
+	// starts. Every autonomous Run uses the same set; a later resume may prove it
+	// can cover the set but cannot renegotiate it.
+	Capabilities run.Capabilities
+	Budget       Budget
+	Used         Usage
 	// IncarnationID names this objective incarnation. Pausing and resuming do not
 	// replace the objective, so every Run already admitted for it keeps the same
 	// identity until a fresh Goal replaces the aggregate.
@@ -195,7 +199,14 @@ var (
 // incarnation is part of the aggregate rather than a follow-up mutation, so an
 // admitted Run can always carry exact Goal provenance. Persistence assigns the
 // first durable revision.
-func New(sessionID, objective string, selection modelref.Selection, budget Budget, incarnationID string, now time.Time) (Goal, error) {
+func New(
+	sessionID, objective string,
+	selection modelref.Selection,
+	budget Budget,
+	capabilities run.Capabilities,
+	incarnationID string,
+	now time.Time,
+) (Goal, error) {
 	if sessionID == "" {
 		return Goal{}, errSessionRequired
 	}
@@ -208,11 +219,16 @@ func New(sessionID, objective string, selection modelref.Selection, budget Budge
 	if err := budget.Validate(); err != nil {
 		return Goal{}, err
 	}
+	capabilities = capabilities.Normalized()
+	if err := capabilities.Validate(); err != nil {
+		return Goal{}, fmt.Errorf("goal: capabilities: %w", err)
+	}
 	return Goal{
 		SessionID:      sessionID,
 		Objective:      objective,
 		Status:         StatusActive,
 		ModelSelection: selection,
+		Capabilities:   capabilities,
 		Budget:         budget,
 		IncarnationID:  incarnationID,
 		CreatedAt:      now,
@@ -245,6 +261,9 @@ func (g Goal) ValidateSnapshot() error {
 	if err := g.Budget.Validate(); err != nil {
 		return fmt.Errorf("%w: %w", errInvalidSnapshot, err)
 	}
+	if err := g.Capabilities.Validate(); err != nil {
+		return fmt.Errorf("%w: capabilities: %w", errInvalidSnapshot, err)
+	}
 	if g.Used.Runs < 0 || g.Used.CostUSD < 0 || g.Used.Steps < 0 ||
 		math.IsNaN(g.Used.CostUSD) || math.IsInf(g.Used.CostUSD, 0) {
 		return fmt.Errorf("%w: usage must be finite and non-negative", errInvalidSnapshot)
@@ -260,6 +279,12 @@ func (g Goal) ValidateSnapshot() error {
 		}
 	}
 	return nil
+}
+
+// Clone returns an ownership-isolated Goal value.
+func (g Goal) Clone() Goal {
+	g.Capabilities = g.Capabilities.Clone()
+	return g
 }
 
 // AddRun folds one completed Run's usage into the accumulator.
