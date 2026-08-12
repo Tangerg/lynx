@@ -1,6 +1,6 @@
 # Lyra Runtime 重构实施计划
 
-> 状态：P1–P38 已完成；发布后反证审计持续进行
+> 状态：P1–P39 已完成；发布后反证审计持续进行
 >
 > 工作方式：原模块内治本重构，按可验证纵切分批完成；不创建完整 `runtime2`
 
@@ -72,6 +72,7 @@
 | P36 | Desktop 旁路事件目标解析恢复 | P35 + `runtime.subscribe` 瞬时失败反例 | 已完成 |
 | P37 | Goal 完成窗口的事件/读取/产品状态闭环 | P36 + terminal outcome 与 owning Run settlement 反例 | 已完成 |
 | P38 | Desktop 失效 Session 恢复的权威缺失语义 | P37 + stale deep-link/browser console 反例 | 已完成 |
+| P39 | Desktop 多客户端 Session 删除与导航收敛 | P38 + remote delete / optimistic mutation 竞态 | 已完成 |
 
 ## 4. P0 — 文档、事实和边界基线
 
@@ -996,10 +997,30 @@
 - Application port 只表达可选会话快照，不识别 wire error；Adapter 不拥有导航或 projection lifecycle；
 - Runtime Protocol/Artifact/SQLite 与 Agent Framework 零变更，前端 Agent bounded context 不 import Runtime Domain/Application 类型。
 
-## 43. 进度记录
+## 43. P39 — Desktop 多客户端 Session 删除与导航收敛
+
+### 目标
+
+消除启动后另一客户端删除当前 Session 时，列表已刷新但 active/open 导航因一次性对账门闩而永久停留幽灵会话的生命周期断裂；同时防止本地乐观 mutation 把未提交或已并发失效的快照冒充权威身份集合。
+
+### 工作项
+
+- [x] P39-01 将“恢复上次 Session”保持为一次性启动动作，而 active/open reconciliation 对每次成功 `sessions.list` 读执行；
+- [x] P39-02 Session delete 在 Runtime commit 前不修改列表身份，Application Port 的完成语义为“权威不存在”，Adapter 只把 `session_not_found` 翻译为幂等成功；
+- [x] P39-03 rename/favorite 乐观字段 mutation 失败时先恢复局部快照、再重读 Runtime，不让 cancelQueries 吞掉并发 delete/update 事实；
+- [x] P39-04 补齐跨客户端删除、delete commit boundary、already-absent 和 summary mutation 竞态红测，并以隔离 Runtime + 真实浏览器 + 第二 JSON-RPC 客户端复验。
+
+### 验收
+
+- 另一客户端删除当前 idle 或 parked/HITL Session 后，Desktop 以 `sessions.changed → sessions.list` 收敛列表、open set、active URL、Agent view 和 composer lifecycle；
+- delete 失败不提前导航，already absent 不变成假错误，rename/favorite 失败不复活已删除 Session；
+- wire error 识别止于 Adapter，Application 只消费权威身份/快照语义；Runtime、Protocol、SQLite 和 Agent Framework 零变更。
+
+## 44. 进度记录
 
 | 日期 | 阶段 | 完成事实 | 验证 |
 |---|---|---|---|
+| 2026-08-12 | P39（multi-client Session deletion convergence） | Desktop 把启动记忆恢复与持续权威列表对账分离；Session delete 不再提交前乐观删除身份，already-absent 在 Adapter 层投影为目标达成；rename/favorite 失败回滚后重读权威列表。导航、query cache、wire error 各归 Agent State Port、Application query owner 和 Runtime Gateway Adapter | 红测稳定复现 one-shot reconciliation、pre-commit identity mutation 和并发删除复活后转绿；隔离 Runtime 下浏览器打开目标 Session，第二客户端删除后 URL 从 `?session=...` 收敛到 `/`、列表和 Agent view 同步清除，console/page error 为零；Frontend 完整门禁在本批提交前收口 |
 | 2026-08-12 | P38（stale Session recovery semantics） | Desktop Runtime Gateway adapter 将权威 `session_not_found` 翻译为 application port 的 absent snapshot，projection refresh 与 history action 不再识别 wire error；其他 protocol/transport 失败继续进入原 recovery error owner。改动没有进入 Runtime 或 Agent Framework，也没有把 Runtime DTO 泄露到 Agent application | Adapter/application 红测先稳定复现 reject/null dereference 后转绿；Frontend 完整 check 和隔离 Runtime 下 stale URL 浏览器复验在本批提交前收口 |
 | 2026-08-12 | P37（Goal terminal settlement projection） | Goal Domain `complete` 与 Application owning-drive settlement 保持原 owner；Delivery 将可观察窗口投影为公共 `completing`，生成合同与 Desktop 自有 Goal read model 原子同步。Banner 保留占位并禁止 lifecycle command，最终清除继续由 `goals.changed` 驱动回读。没有修改 Agent Framework、Artifact 或 SQLite shape，也没有把 Runtime 类型下沉到 Agent/Frontend context | Delivery 红测先因公共状态缺失失败后转绿；真实 HTTP Runtime 在 terminal outcome 后冻结下一模型边界，证明 `goals.changed → goals.get(completing) → null` 且唯一 Run completed；Frontend Goal/UI/wire 回归、Runtime contract/Delivery 回归、全量质量门禁和真实浏览器复核在本批提交前收口 |
 | 2026-08-12 | P36（side-channel workspace watch recovery） | Desktop Workspace event application 对 active Session cwd 的瞬时解析失败执行可取消、有上限退避并在同一 identity 上自主恢复；adapter 只把权威 `session_not_found` 解释为 unavailable，其他 wire/transport failure 保持失败。Session 切换与 plugin dispose 均终止旧 generation，app-wide topics 与 workspace file watch 仍由一个 `runtime.subscribe` consumer 拥有。改动没有进入 Agent context，也没有修改 Runtime、Protocol、Artifact 或 SQLite shape | 红测覆盖 transient failure、同 identity 恢复、30 秒退避上限、旧 identity backoff 取消、dispose 和 typed missing-session；Frontend 239 files/1485 tests、86/86 Runtime operations + 10/10 events / 103 typed call sites，以及全部类型、lint、format、knip、架构、设计系统、本地化、bootstrap 和 production bundle 门禁全绿；隔离 Runtime/真实浏览器先证明普通外部 worktree 写入不伪造 Git-state event，再由 index semantic change 触发 `files.changed`，已打开 Explorer 无刷新出现新文件，console 仅 dev info、page error 为零 |
@@ -1089,6 +1110,6 @@
 | 2026-08-09 | P9.2 | 完成 Adapter/Infra/Application/Delivery 逐包职责审计；workspace physical path identity 收敛到唯一 Infra mechanism；删除空的 temporary architecture 台账并把旧 Agent 禁止与 Domain no-context-I/O 变为永久 framework boundary guard；确认 agentexec 按真实变化原因组织且没有第二 lifecycle owner或虚构子包 | Adapter→Infra 单向图与目标六环 DAG 全绿；Delivery concrete Adapter/Infra import、Infra 反向 import、Application outward import、纯转发 wrapper、package/type 口吃、空目录和 temporary exception 均为零；workspacepath/pathidentity/arch targeted tests 与全量质量门禁通过 |
 | 2026-08-09 | P10 | Runtime Protocol 一次性提升到 `2026-08-09`、Session Artifact 到 v14；删除 wire 中实现泄露的 `processRootSegment`，只保留准确的 `runtimeInstanceRootSegment`；Go registry、validator、manifest、OpenRPC、JSON Schema、TypeScript binding、canonical samples 与人读 API/Transport/Aux 文档同步；新增精确 consumer handoff | canonical artifact samples 中漏存的 v12 与旧 `outcome.error` 被 strict sample gate 暴露并治本修正；生成器零漂移、旧 wire token/版本归零、strict validator/round-trip、HTTP/in-process、全量质量门禁通过；Desktop backlog 已记录但未改消费者 |
 
-## 44. 当前下一步
+## 45. 当前下一步
 
-P38 已关闭失效 Session 深链接的权威缺失/运行故障混淆。下一轮继续沿 backend operation → generated client → frontend product consumer → stream/invalidation 矩阵反证核心 Run stream、文件/旁路事件、cancel/duplicate resolution、Plan/Goal 并发、subscription close/retarget、事务失败和崩溃恢复。每轮提交前执行 Runtime→Agent/Agent→Runtime 双向依赖与 staged path 审计。
+P39 已关闭多客户端 Session 删除后的幽灵导航及 optimistic summary 并发复活。下一轮继续沿 backend operation → generated client → frontend product consumer → stream/invalidation 矩阵反证核心 Run stream、文件/旁路事件、cancel/duplicate resolution、Plan/Goal 并发、subscription close/retarget、事务失败和崩溃恢复。每轮提交前执行 Runtime→Agent/Agent→Runtime 双向依赖与 staged path 审计。

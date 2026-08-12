@@ -13,7 +13,12 @@ const gateway: AgentRuntimeGateway = {
     return { id: session.id };
   },
   async deleteSession(sessionId) {
-    await getContainer().client().sessions.delete(asSessionId(sessionId));
+    try {
+      await getContainer().client().sessions.delete(asSessionId(sessionId));
+    } catch (error) {
+      if (isErrorType(error, "session_not_found")) return;
+      throw error;
+    }
   },
   async updateSession({ sessionId, cwd, ...patch }) {
     const updated = await getContainer()

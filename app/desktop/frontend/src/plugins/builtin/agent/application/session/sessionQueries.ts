@@ -23,6 +23,17 @@ export function invalidateAgentSessions(): Promise<void> {
 }
 
 /**
+ * Roll back one optimistic summary mutation, then re-read Runtime truth. The
+ * snapshot cannot be the final recovery value: a concurrent delete/update may
+ * have committed after it was captured, and cancelQueries may have consumed
+ * the invalidation which would otherwise expose that fact.
+ */
+export function recoverAgentSessionSummaries(previous: AgentSessionSummary[] | undefined): void {
+  if (previous) queryClient.setQueryData([AGENT_SESSIONS_KEY], previous);
+  void invalidateAgentSessions();
+}
+
+/**
  * Observe one semantic projection of the Session collection.
  *
  * TanStack Query emits cache events for observer attachment, option changes,

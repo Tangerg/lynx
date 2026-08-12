@@ -122,4 +122,19 @@ describe("agentRuntimeGateway", () => {
 
     await expect(agentRuntime().loadSessionSnapshot("ses_gone")).resolves.toBeNull();
   });
+
+  it("treats an already missing Session as a completed delete", async () => {
+    const missing = new RpcError({
+      code: -32002,
+      message: "session missing",
+      data: { type: "session_not_found" },
+    });
+    setContainer({
+      client: () =>
+        ({ sessions: { delete: vi.fn().mockRejectedValue(missing) } }) as unknown as LyraClient,
+    });
+    uninstall = installAgentRuntimeGateway();
+
+    await expect(agentRuntime().deleteSession("ses_gone")).resolves.toBeUndefined();
+  });
 });

@@ -1,7 +1,11 @@
 import { useCallback } from "react";
 import type { AgentSessionSummary } from "./sessionQueries";
 import { queryClient } from "@/lib/queryClient";
-import { invalidateAgentSessions, AGENT_SESSIONS_KEY } from "./sessionQueries";
+import {
+  invalidateAgentSessions,
+  recoverAgentSessionSummaries,
+  AGENT_SESSIONS_KEY,
+} from "./sessionQueries";
 import { agentRuntime } from "../ports/runtimeGateway";
 import { reportSessionError } from "./reportSessionError";
 
@@ -36,7 +40,7 @@ export function useRenameSession(): (
       );
       void invalidateAgentSessions();
     } catch (err) {
-      if (prev) queryClient.setQueryData([AGENT_SESSIONS_KEY], prev);
+      recoverAgentSessionSummaries(prev);
       reportSessionError("rename", err);
     }
   }, []);

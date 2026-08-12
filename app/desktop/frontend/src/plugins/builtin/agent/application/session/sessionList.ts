@@ -17,17 +17,20 @@ export function useVisibleAgentSessions(): AgentSessionSummary[] {
 
 export function useReconcilePersistedAgentSessions(): void {
   const { data, isSuccess } = useAgentSessions();
-  const done = useRef(false);
+  const restored = useRef(false);
   useEffect(() => {
-    if (done.current || !isSuccess) return;
-    done.current = true;
+    if (!isSuccess) return;
     const sessions = data ?? [];
-    // Seed the location from memory before reconciling: a cold start always
-    // opens at "/" with no session, and where the user was is remembered rather
-    // than owned (see lib/navigation). Reconcile then gets the chance to reject
-    // it if the runtime no longer has that session.
-    agentSessionState().restoreLastSession();
-    // Reconcile SECOND: it decides which sessions the app still holds open.
+    if (!restored.current) {
+      restored.current = true;
+      // Seed the location from memory before the first reconciliation: a cold
+      // start always opens at "/" with no session, and where the user was is
+      // remembered rather than owned (see lib/navigation). Later authoritative
+      // reads must reconcile deletion without replaying this boot-only move.
+      agentSessionState().restoreLastSession();
+    }
+    // Reconcile every successful Runtime read: sessions.changed can remove an
+    // active Session from another client long after boot.
     // Empty sessions that belong to another client remain visible. This client
     // cannot infer their draft ownership after a cold start, so only the
     // owner-scoped navigation cleanup may delete an unused draft.
