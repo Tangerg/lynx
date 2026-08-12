@@ -30,26 +30,32 @@ type sessionFrame struct {
 }
 
 type runFrame struct {
-	ID               string          `json:"id"`
-	SessionID        string          `json:"sessionId"`
-	SpawnedByBlockID string          `json:"spawnedByBlockId,omitempty"`
-	ParentRunID      string          `json:"parentRunId,omitempty"`
-	RootRunID        string          `json:"rootRunId,omitempty"`
-	Provider         string          `json:"provider,omitempty"`
-	Model            string          `json:"model,omitempty"`
-	Status           string          `json:"status"`
-	ActiveSegmentID  string          `json:"activeSegmentId,omitempty"`
-	CreatedAt        time.Time       `json:"createdAt,omitzero"`
-	FinishedAt       time.Time       `json:"finishedAt,omitzero"`
-	Limits           *runLimitsFrame `json:"limits,omitempty"`
-	Outcome          *outcomeJSON    `json:"outcome,omitempty"`
-	Usage            usageJSON       `json:"usage"`
+	ID               string           `json:"id"`
+	SessionID        string           `json:"sessionId"`
+	SpawnedByBlockID string           `json:"spawnedByBlockId,omitempty"`
+	ParentRunID      string           `json:"parentRunId,omitempty"`
+	RootRunID        string           `json:"rootRunId,omitempty"`
+	Provider         string           `json:"provider,omitempty"`
+	Model            string           `json:"model,omitempty"`
+	Status           string           `json:"status"`
+	ActiveSegmentID  string           `json:"activeSegmentId,omitempty"`
+	CreatedAt        time.Time        `json:"createdAt,omitzero"`
+	FinishedAt       time.Time        `json:"finishedAt,omitzero"`
+	Limits           *runLimitsFrame  `json:"limits,omitempty"`
+	Outcome          *outcomeJSON     `json:"outcome,omitempty"`
+	Usage            usageJSON        `json:"usage"`
+	ProtocolProfile  *runContractJSON `json:"protocolProfile,omitempty"`
 }
 
 type runLimitsFrame struct {
 	MaxTotalTokens int64   `json:"maxTotalTokens,omitempty"`
 	MaxSteps       int     `json:"maxSteps,omitempty"`
 	MaxBudgetUSD   float64 `json:"maxBudgetUsd,omitempty"`
+}
+
+type runContractJSON struct {
+	RequiredFeatures []string `json:"requiredFeatures"`
+	InterruptTypes   []string `json:"interruptTypes"`
 }
 
 type planSnapshotFrame struct {
@@ -140,6 +146,18 @@ func encodeRun(run agent.Run) runFrame {
 	}
 	if run.Status == agent.RunStatusFinished {
 		encoded.Outcome = encodeOutcome(run.Outcome)
+	}
+	if run.Contract != nil {
+		encoded.ProtocolProfile = &runContractJSON{
+			RequiredFeatures: make([]string, len(run.Contract.RequiredFeatures)),
+			InterruptTypes:   make([]string, len(run.Contract.InteractionKinds)),
+		}
+		for index, feature := range run.Contract.RequiredFeatures {
+			encoded.ProtocolProfile.RequiredFeatures[index] = string(feature)
+		}
+		for index, kind := range run.Contract.InteractionKinds {
+			encoded.ProtocolProfile.InterruptTypes[index] = string(kind)
+		}
 	}
 	return encoded
 }

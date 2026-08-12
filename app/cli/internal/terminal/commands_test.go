@@ -174,7 +174,7 @@ func TestBuiltinCommandsOwnTheirCategoryAndAvailabilityPolicy(t *testing.T) {
 		commandCategoryTranscript:  {"help", "shortcuts", "clear", "find", "next", "previous", "queue", "details", "view", "copy-last", "export", "feedback"},
 		commandCategorySessions:    {"sessions", "timeline", "new", "workspace", "relocate", "rename", "fork", "rollback", "import"},
 		commandCategoryComposer:    {"attach", "detach", "attachments", "stash", "stashes", "stash-apply", "stash-delete", "editor"},
-		commandCategoryRuntime:     {"tools", "tool-invoke", "model", "usage", "roles", "utility", "embedding", "providers", "provider-test", "provider-config", "approval", "status", "rules", "steer", "goal", "goal-start", "goal-stop", "goal-resume", "hooks", "hooks-trust", "hooks-revoke"},
+		commandCategoryRuntime:     {"tools", "tool-invoke", "model", "models", "usage", "roles", "utility", "embedding", "providers", "provider-test", "provider-config", "approval", "status", "rules", "steer", "goal", "goal-start", "goal-stop", "goal-resume", "hooks", "hooks-trust", "hooks-revoke"},
 		commandCategoryAutomation:  {"schedules", "schedule-create", "schedule-edit", "schedule-enable", "schedule-disable", "schedule-run", "schedule-delete"},
 		commandCategoryContext:     {"agent-docs", "recipes", "recipe", "memory", "memory-add", "memory-edit", "memory-pin", "memory-unpin", "memory-approve", "memory-reject", "memory-delete", "knowledge", "knowledge-read", "knowledge-edit", "skills", "skill-library", "skill-proposals", "skill-archive", "skill-restore", "skill-approve", "skill-reject"},
 		commandCategoryConnections: {"mcp", "mcp-tools", "mcp-create", "mcp-edit", "mcp-probe", "mcp-delete", "mcp-reconnect", "mcp-auth"},

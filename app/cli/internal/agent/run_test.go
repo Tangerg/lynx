@@ -11,6 +11,10 @@ import (
 func TestRunLifecycleShape(t *testing.T) {
 	running := runningRun("seg_1")
 	running.CreatedAt = time.Date(2026, time.August, 12, 9, 0, 0, 0, time.UTC)
+	running.Contract = &RunContract{
+		RequiredFeatures: []RunFeature{RunFeatureSubagents},
+		InteractionKinds: []InteractionKind{InteractionApproval, InteractionQuestion},
+	}
 	if err := running.Validate(); err != nil {
 		t.Fatal(err)
 	}
@@ -29,6 +33,16 @@ func TestRunLifecycleShape(t *testing.T) {
 	invalid.FinishedAt = invalid.CreatedAt.Add(time.Second)
 	if err := invalid.Validate(); err == nil {
 		t.Fatal("running run with a finish time was accepted")
+	}
+	cloned := running.Clone()
+	cloned.Contract.InteractionKinds[0] = InteractionQuestion
+	if running.Contract.InteractionKinds[0] != InteractionApproval || running.Equal(cloned) {
+		t.Fatal("run clone shares its negotiated contract")
+	}
+	invalidContract := running.Clone()
+	invalidContract.Contract.RequiredFeatures = append(invalidContract.Contract.RequiredFeatures, RunFeatureSubagents)
+	if err := invalidContract.Validate(); err == nil {
+		t.Fatal("run accepted a duplicate negotiated feature")
 	}
 }
 

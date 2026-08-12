@@ -386,11 +386,11 @@ func TestProjectEventPreservesEphemeralFramesAndClassifiesStreams(t *testing.T) 
 }
 
 func TestRunProfileAcceptsSubagentTrees(t *testing.T) {
-	err := validateRunProfile(protocol.RunProtocolProfile{
+	_, err := projectRunContract(protocol.RunProtocolProfile{
 		RequiredFeatures: []protocol.RunProtocolFeature{protocol.RunProtocolFeatureSubagents},
 	})
 	if err != nil {
-		t.Fatalf("validateRunProfile: %v", err)
+		t.Fatalf("projectRunContract: %v", err)
 	}
 }
 
@@ -412,8 +412,12 @@ func TestProjectChildRunPreservesLineage(t *testing.T) {
 		t.Fatalf("projectRun: %v", err)
 	}
 	want := agent.RunLineage{SpawnedByBlockID: "item_delegate", ParentRunID: "run_root", RootRunID: "run_root"}
-	if projected.Lineage != want || !projected.CreatedAt.Equal(created) {
-		t.Fatalf("lineage = %+v, want %+v", projected.Lineage, want)
+	wantContract := &agent.RunContract{
+		RequiredFeatures: []agent.RunFeature{agent.RunFeatureSubagents},
+		InteractionKinds: []agent.InteractionKind{agent.InteractionApproval, agent.InteractionQuestion},
+	}
+	if projected.Lineage != want || !projected.CreatedAt.Equal(created) || !reflect.DeepEqual(projected.Contract, wantContract) {
+		t.Fatalf("projected run = %+v", projected)
 	}
 }
 

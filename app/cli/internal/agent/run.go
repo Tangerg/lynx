@@ -31,6 +31,7 @@ type Run struct {
 	Limits          RunLimits
 	Outcome         Outcome
 	Usage           Usage
+	Contract        *RunContract
 }
 
 // RunLineage locates a child run beneath the tool block that spawned it. The
@@ -48,6 +49,10 @@ func (lineage RunLineage) IsRoot() bool {
 func (r Run) Clone() Run {
 	r.Outcome = r.Outcome.Clone()
 	r.Usage = r.Usage.Clone()
+	if r.Contract != nil {
+		contract := r.Contract.Clone()
+		r.Contract = &contract
+	}
 	return r
 }
 
@@ -56,7 +61,40 @@ func (r Run) Equal(other Run) bool {
 	return r.ID == other.ID && r.SessionID == other.SessionID && r.Lineage == other.Lineage && r.Provider == other.Provider &&
 		r.Model == other.Model && r.Status == other.Status && r.ActiveSegmentID == other.ActiveSegmentID &&
 		r.CreatedAt.Equal(other.CreatedAt) && r.FinishedAt.Equal(other.FinishedAt) &&
-		r.Limits == other.Limits && r.Outcome.Equal(other.Outcome) && r.Usage.Equal(other.Usage)
+		r.Limits == other.Limits && r.Outcome.Equal(other.Outcome) && r.Usage.Equal(other.Usage) &&
+		equalRunContracts(r.Contract, other.Contract)
+}
+
+type RunFeature string
+
+const RunFeatureSubagents RunFeature = "subagents"
+
+type InteractionKind string
+
+const (
+	InteractionApproval InteractionKind = "approval"
+	InteractionQuestion InteractionKind = "question"
+)
+
+// RunContract is the immutable execution profile negotiated when a run tree
+// was created. A nil contract is reserved for discovery-less test backends.
+type RunContract struct {
+	RequiredFeatures []RunFeature
+	InteractionKinds []InteractionKind
+}
+
+func (contract RunContract) Clone() RunContract {
+	contract.RequiredFeatures = slices.Clone(contract.RequiredFeatures)
+	contract.InteractionKinds = slices.Clone(contract.InteractionKinds)
+	return contract
+}
+
+func equalRunContracts(left, right *RunContract) bool {
+	if (left == nil) != (right == nil) {
+		return false
+	}
+	return left == nil || slices.Equal(left.RequiredFeatures, right.RequiredFeatures) &&
+		slices.Equal(left.InteractionKinds, right.InteractionKinds)
 }
 
 type Message struct {
@@ -148,15 +186,38 @@ type Model struct {
 	ContextWindow   int
 	MaxInputTokens  int
 	MaxOutputTokens int
+	KnowledgeCutoff string
 	Deprecated      bool
-	Capabilities    ModelCapabilities
+	Capabilities    *ModelCapabilities
+	Pricing         *ModelPricing
 }
 
+type ModelModality string
+
+const (
+	ModelModalityText  ModelModality = "text"
+	ModelModalityImage ModelModality = "image"
+	ModelModalityAudio ModelModality = "audio"
+	ModelModalityVideo ModelModality = "video"
+	ModelModalityPDF   ModelModality = "pdf"
+)
+
 type ModelCapabilities struct {
-	Reasoning       bool
-	ReasoningLevels []string
-	Multimodal      bool
-	ToolUse         bool
+	Reasoning             bool
+	ReasoningLevels       []string
+	ReasoningDefaultLevel string
+	Multimodal            bool
+	InputModalities       []ModelModality
+	OutputModalities      []ModelModality
+	ToolUse               bool
+	StructuredOutput      bool
+}
+
+type ModelPricing struct {
+	InputUSDPerMillionTokens      float64
+	OutputUSDPerMillionTokens     float64
+	CacheReadUSDPerMillionTokens  float64
+	CacheWriteUSDPerMillionTokens float64
 }
 
 // Interaction is a closed interrupt payload.

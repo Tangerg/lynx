@@ -211,7 +211,7 @@ func runtimeAPIConsumptionByMethod() map[string]runtimeAPIConsumption {
 		"ReadWorkspaceFile":             command("workspaces", "workspace file reader"),
 		"ResolveWorkspace":              flow("workspaces", "session workspace identity resolution"),
 		"SearchWorkspaceFiles":          command("workspaces", "workspace file search"),
-		"ListModels":                    command("models", "model picker and runtime status"),
+		"ListModels":                    command("models", "model picker and TUI /models catalog"),
 		"GetSessionUsage":               command("usage", "TUI /usage session view"),
 		"GetUsageSummary":               command("usage", "TUI /usage runtime summary"),
 		"GetEmbeddingRole":              command("model roles", "TUI /roles"),

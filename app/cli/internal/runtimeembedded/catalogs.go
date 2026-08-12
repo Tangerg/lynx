@@ -45,24 +45,49 @@ func (r *Runtime) ListModels(ctx context.Context) ([]agent.Model, error) {
 			return nil, err
 		}
 		for _, value := range values {
-			model := agent.Model{
-				ID: value.ID, Provider: value.Provider, DisplayName: value.DisplayName,
-				ContextWindow: value.ContextWindow, MaxInputTokens: value.MaxInputTokens,
-				MaxOutputTokens: value.MaxOutputTokens, Deprecated: value.Deprecated,
-			}
-			if value.Capabilities != nil {
-				model.Capabilities = agent.ModelCapabilities{
-					Reasoning: value.Capabilities.Reasoning, ReasoningLevels: slices.Clone(value.Capabilities.ReasoningLevels),
-					Multimodal: value.Capabilities.Multimodal, ToolUse: value.Capabilities.ToolUse,
-				}
-			}
-			models = append(models, model)
+			models = append(models, projectModel(value))
 		}
 	}
 	if err := agent.ValidateModels(models); err != nil {
 		return nil, fmt.Errorf("list models projection: %w", err)
 	}
 	return models, nil
+}
+
+func projectModel(value protocol.Model) agent.Model {
+	model := agent.Model{
+		ID: value.ID, Provider: value.Provider, DisplayName: value.DisplayName,
+		ContextWindow: value.ContextWindow, MaxInputTokens: value.MaxInputTokens,
+		MaxOutputTokens: value.MaxOutputTokens, KnowledgeCutoff: value.KnowledgeCutoff,
+		Deprecated: value.Deprecated,
+	}
+	if value.Capabilities != nil {
+		capabilities := &agent.ModelCapabilities{
+			Reasoning: value.Capabilities.Reasoning, ReasoningLevels: slices.Clone(value.Capabilities.ReasoningLevels),
+			ReasoningDefaultLevel: value.Capabilities.ReasoningDefaultLevel,
+			Multimodal:            value.Capabilities.Multimodal,
+			ToolUse:               value.Capabilities.ToolUse,
+			StructuredOutput:      value.Capabilities.StructuredOutput,
+			InputModalities:       make([]agent.ModelModality, len(value.Capabilities.InputModalities)),
+			OutputModalities:      make([]agent.ModelModality, len(value.Capabilities.OutputModalities)),
+		}
+		for index, modality := range value.Capabilities.InputModalities {
+			capabilities.InputModalities[index] = agent.ModelModality(modality)
+		}
+		for index, modality := range value.Capabilities.OutputModalities {
+			capabilities.OutputModalities[index] = agent.ModelModality(modality)
+		}
+		model.Capabilities = capabilities
+	}
+	if value.Pricing != nil {
+		model.Pricing = &agent.ModelPricing{
+			InputUSDPerMillionTokens:      value.Pricing.InputUSDPerMillionTokens,
+			OutputUSDPerMillionTokens:     value.Pricing.OutputUSDPerMillionTokens,
+			CacheReadUSDPerMillionTokens:  value.Pricing.CacheReadUSDPerMillionTokens,
+			CacheWriteUSDPerMillionTokens: value.Pricing.CacheWriteUSDPerMillionTokens,
+		}
+	}
+	return model
 }
 
 func (r *Runtime) GetApprovalMode(ctx context.Context) (agent.ApprovalMode, error) {

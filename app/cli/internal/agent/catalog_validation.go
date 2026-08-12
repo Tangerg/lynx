@@ -3,8 +3,10 @@ package agent
 import (
 	"errors"
 	"fmt"
+	"math"
 	"slices"
 	"strings"
+	"time"
 )
 
 func (m Model) Validate() error {
@@ -18,21 +20,106 @@ func (m Model) Validate() error {
 	if m.ContextWindow < 0 || m.MaxInputTokens < 0 || m.MaxOutputTokens < 0 {
 		problems = append(problems, errors.New("token limits cannot be negative"))
 	}
-	seen := make(map[string]struct{}, len(m.Capabilities.ReasoningLevels))
-	for _, level := range m.Capabilities.ReasoningLevels {
-		if strings.TrimSpace(level) == "" {
-			problems = append(problems, errors.New("reasoning level is empty"))
+	if m.KnowledgeCutoff != "" {
+		if _, err := time.Parse(time.DateOnly, m.KnowledgeCutoff); err != nil {
+			problems = append(problems, fmt.Errorf("knowledge cutoff %q is not an RFC3339 date", m.KnowledgeCutoff))
 		}
-		if _, duplicate := seen[level]; duplicate {
-			problems = append(problems, fmt.Errorf("reasoning level %q is duplicated", level))
-		}
-		seen[level] = struct{}{}
 	}
-	if !m.Capabilities.Reasoning && len(m.Capabilities.ReasoningLevels) != 0 {
-		problems = append(problems, errors.New("non-reasoning model carries reasoning levels"))
+	if m.Capabilities != nil {
+		if err := m.Capabilities.validate(); err != nil {
+			problems = append(problems, err)
+		}
+	}
+	if m.Pricing != nil {
+		if err := m.Pricing.validate(); err != nil {
+			problems = append(problems, err)
+		}
 	}
 	if err := errors.Join(problems...); err != nil {
 		return fmt.Errorf("model: %w", err)
+	}
+	return nil
+}
+
+// Clone returns a model with no capability slices shared with the caller.
+func (m Model) Clone() Model {
+	if m.Capabilities != nil {
+		capabilities := m.Capabilities.clone()
+		m.Capabilities = &capabilities
+	}
+	if m.Pricing != nil {
+		pricing := *m.Pricing
+		m.Pricing = &pricing
+	}
+	return m
+}
+
+func (capabilities ModelCapabilities) clone() ModelCapabilities {
+	capabilities.ReasoningLevels = slices.Clone(capabilities.ReasoningLevels)
+	capabilities.InputModalities = slices.Clone(capabilities.InputModalities)
+	capabilities.OutputModalities = slices.Clone(capabilities.OutputModalities)
+	return capabilities
+}
+
+func (capabilities ModelCapabilities) validate() error {
+	var problems []error
+	if err := validateUniqueModelStrings("reasoning level", capabilities.ReasoningLevels); err != nil {
+		problems = append(problems, err)
+	}
+	if !capabilities.Reasoning && (len(capabilities.ReasoningLevels) != 0 || capabilities.ReasoningDefaultLevel != "") {
+		problems = append(problems, errors.New("non-reasoning model carries reasoning configuration"))
+	}
+	if capabilities.ReasoningDefaultLevel != "" && !slices.Contains(capabilities.ReasoningLevels, capabilities.ReasoningDefaultLevel) {
+		problems = append(problems, fmt.Errorf("default reasoning level %q is not offered", capabilities.ReasoningDefaultLevel))
+	}
+	if err := validateUniqueModalities("input", capabilities.InputModalities); err != nil {
+		problems = append(problems, err)
+	}
+	if err := validateUniqueModalities("output", capabilities.OutputModalities); err != nil {
+		problems = append(problems, err)
+	}
+	return errors.Join(problems...)
+}
+
+func validateUniqueModelStrings(label string, values []string) error {
+	seen := make(map[string]struct{}, len(values))
+	for _, value := range values {
+		if strings.TrimSpace(value) == "" {
+			return fmt.Errorf("%s is empty", label)
+		}
+		if _, duplicate := seen[value]; duplicate {
+			return fmt.Errorf("%s %q is duplicated", label, value)
+		}
+		seen[value] = struct{}{}
+	}
+	return nil
+}
+
+func validateUniqueModalities(direction string, modalities []ModelModality) error {
+	seen := make(map[ModelModality]struct{}, len(modalities))
+	for _, modality := range modalities {
+		if strings.TrimSpace(string(modality)) == "" {
+			return fmt.Errorf("%s modality is empty", direction)
+		}
+		if _, duplicate := seen[modality]; duplicate {
+			return fmt.Errorf("%s modality %q is duplicated", direction, modality)
+		}
+		seen[modality] = struct{}{}
+	}
+	return nil
+}
+
+func (pricing ModelPricing) validate() error {
+	rates := []float64{
+		pricing.InputUSDPerMillionTokens,
+		pricing.OutputUSDPerMillionTokens,
+		pricing.CacheReadUSDPerMillionTokens,
+		pricing.CacheWriteUSDPerMillionTokens,
+	}
+	for _, rate := range rates {
+		if rate < 0 || math.IsNaN(rate) || math.IsInf(rate, 0) {
+			return errors.New("pricing rates must be finite and non-negative")
+		}
 	}
 	return nil
 }

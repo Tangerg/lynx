@@ -54,8 +54,36 @@ func (r Run) Validate() error {
 	if err := r.Usage.Validate(); err != nil {
 		problems = append(problems, err)
 	}
+	if r.Contract != nil {
+		if err := r.Contract.validate(); err != nil {
+			problems = append(problems, err)
+		}
+	}
 	if err := errors.Join(problems...); err != nil {
 		return fmt.Errorf("run: %w", err)
+	}
+	return nil
+}
+
+func (contract RunContract) validate() error {
+	if err := validateRunContractSet("required feature", contract.RequiredFeatures, []RunFeature{RunFeatureSubagents}); err != nil {
+		return err
+	}
+	return validateRunContractSet("interaction kind", contract.InteractionKinds, []InteractionKind{
+		InteractionApproval, InteractionQuestion,
+	})
+}
+
+func validateRunContractSet[T comparable](label string, values, supported []T) error {
+	seen := make(map[T]struct{}, len(values))
+	for _, value := range values {
+		if !slices.Contains(supported, value) {
+			return fmt.Errorf("run contract: %s %v is unsupported", label, value)
+		}
+		if _, duplicate := seen[value]; duplicate {
+			return fmt.Errorf("run contract: %s %v is duplicated", label, value)
+		}
+		seen[value] = struct{}{}
 	}
 	return nil
 }
