@@ -8,13 +8,17 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/embedded"
 	"github.com/Tangerg/lynx/app/runtime/protocol"
+
+	"github.com/Tangerg/lynx/app/cli/internal/runtimeprofile"
 )
 
 type snapshotBindingStub struct {
-	runs        map[string]*protocol.Page[protocol.RunRef]
-	items       map[string]*protocol.ListItemsResponse
-	interrupts  map[string]*protocol.Page[protocol.PendingInterruptSet]
-	runRequests *[]protocol.ListRunsRequest
+	runs         map[string]*protocol.Page[protocol.RunRef]
+	items        map[string]*protocol.ListItemsResponse
+	interrupts   map[string]*protocol.Page[protocol.PendingInterruptSet]
+	runRequests  *[]protocol.ListRunsRequest
+	plan         *protocol.StateSnapshot
+	planRequests *int
 }
 
 func (snapshotBindingStub) GetRun(context.Context, protocol.GetRunRequest, embedded.CallOptions) (*protocol.RunRef, error) {
@@ -25,8 +29,12 @@ func (snapshotBindingStub) GetSession(context.Context, protocol.GetSessionReques
 	return nil, errors.New("unexpected GetSession")
 }
 
-func (snapshotBindingStub) GetPlan(context.Context, protocol.GetPlanRequest, embedded.CallOptions) (*protocol.StateSnapshot, error) {
-	return nil, errors.New("unexpected GetPlan")
+func (stub snapshotBindingStub) GetPlan(context.Context, protocol.GetPlanRequest, embedded.CallOptions) (*protocol.StateSnapshot, error) {
+	if stub.planRequests == nil {
+		return nil, errors.New("unexpected GetPlan")
+	}
+	*stub.planRequests++
+	return stub.plan, nil
 }
 
 func (stub snapshotBindingStub) ListRuns(_ context.Context, request protocol.ListRunsRequest, _ embedded.CallOptions) (*protocol.Page[protocol.RunRef], error) {
@@ -58,6 +66,41 @@ func TestSnapshotRunCatalogExplicitlyRequestsDescendants(t *testing.T) {
 	}
 	if len(requests) != 1 || requests[0].SessionID != "ses_1" || !requests[0].IncludeDescendants {
 		t.Fatalf("list run requests = %+v", requests)
+	}
+}
+
+func TestPlanColdReadFollowsThePublishedFeature(t *testing.T) {
+	t.Parallel()
+	requests := 0
+	stub := snapshotBindingStub{
+		plan:         &protocol.StateSnapshot{Type: protocol.StatePlan, SessionID: "ses_1"},
+		planRequests: &requests,
+	}
+	runtime := &Runtime{snapshot: stub, meta: requestMeta("test")}
+	if plan, err := runtime.readPlan(t.Context(), "ses_1"); err != nil || plan != nil || requests != 0 {
+		t.Fatalf("disabled plan read = (%+v, %v), requests=%d", plan, err, requests)
+	}
+	runtime.profile.Features = map[runtimeprofile.FeatureName]runtimeprofile.Feature{
+		runtimeprofile.FeaturePlan: {Enabled: true, Stability: runtimeprofile.Stable},
+	}
+	plan, err := runtime.readPlan(t.Context(), "ses_1")
+	if err != nil || plan != stub.plan || requests != 1 {
+		t.Fatalf("enabled plan read = (%+v, %v), requests=%d", plan, err, requests)
+	}
+}
+
+func TestEnabledPlanColdReadRejectsMissingProjection(t *testing.T) {
+	t.Parallel()
+	requests := 0
+	runtime := &Runtime{
+		snapshot: snapshotBindingStub{planRequests: &requests},
+		profile: runtimeprofile.Profile{Features: map[runtimeprofile.FeatureName]runtimeprofile.Feature{
+			runtimeprofile.FeaturePlan: {Enabled: true, Stability: runtimeprofile.Stable},
+		}},
+		meta: requestMeta("test"),
+	}
+	if plan, err := runtime.readPlan(t.Context(), "ses_1"); err == nil || plan != nil || requests != 1 {
+		t.Fatalf("missing enabled plan read = (%+v, %v), requests=%d", plan, err, requests)
 	}
 }
 

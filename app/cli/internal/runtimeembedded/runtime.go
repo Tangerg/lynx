@@ -291,13 +291,20 @@ func validateDiscovery(discovery *protocol.DiscoverResponse) error {
 			return fmt.Errorf("%w: runtime advertises unsupported change topic %q", agent.ErrIncompatibleRuntime, topic)
 		}
 	}
-	if !slices.ContainsFunc(discovery.Capabilities.StateSnapshots, func(capability protocol.StateSnapshotCapability) bool {
+	planSnapshot := slices.ContainsFunc(discovery.Capabilities.StateSnapshots, func(capability protocol.StateSnapshotCapability) bool {
 		return capability.Key == protocol.StatePlan &&
 			capability.RecoveryMethod == "plan.get" &&
 			capability.Scope == protocol.StateScopeSession &&
 			capability.Writer == protocol.StateWriterRootRun
-	}) {
-		return fmt.Errorf("%w: runtime does not expose the required plan projection", agent.ErrIncompatibleRuntime)
+	})
+	planEnabled := discovery.Capabilities.Features[protocol.FeaturePlan].Enabled
+	if planEnabled != planSnapshot {
+		return fmt.Errorf(
+			"%w: runtime plan feature enabled=%t but canonical plan snapshot advertised=%t",
+			agent.ErrIncompatibleRuntime,
+			planEnabled,
+			planSnapshot,
+		)
 	}
 	return nil
 }

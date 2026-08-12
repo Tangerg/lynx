@@ -10,6 +10,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/protocol"
 
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
+	"github.com/Tangerg/lynx/app/cli/internal/runtimeprofile"
 )
 
 type snapshotBinding interface {
@@ -71,15 +72,29 @@ func (r *Runtime) readCold(ctx context.Context, sessionID string) (coldRead, err
 	if err != nil {
 		return coldRead{}, err
 	}
-	plan, err := r.snapshot.GetPlan(ctx, protocol.GetPlanRequest{SessionID: sessionID}, r.callOptions())
+	plan, err := r.readPlan(ctx, sessionID)
 	if err != nil {
-		return coldRead{}, classifyError(err)
+		return coldRead{}, err
 	}
 	interrupts, err := r.listAllInterrupts(ctx, sessionID)
 	if err != nil {
 		return coldRead{}, err
 	}
 	return coldRead{session: *session, runs: runs, items: items, plan: plan, interrupts: interrupts}, nil
+}
+
+func (r *Runtime) readPlan(ctx context.Context, sessionID string) (*protocol.StateSnapshot, error) {
+	if !r.profile.Supports(runtimeprofile.FeaturePlan) {
+		return nil, nil
+	}
+	plan, err := r.snapshot.GetPlan(ctx, protocol.GetPlanRequest{SessionID: sessionID}, r.callOptions())
+	if err != nil {
+		return nil, classifyError(err)
+	}
+	if plan == nil {
+		return nil, runtimeContractViolation("get plan returned nil while the plan feature is enabled")
+	}
+	return plan, nil
 }
 
 func (r *Runtime) listAllRuns(ctx context.Context, sessionID string) ([]protocol.RunRef, error) {
@@ -203,9 +218,11 @@ func projectSnapshot(read coldRead) (agent.SessionSnapshot, error) {
 		}
 		snapshot.Runs = append(snapshot.Runs, run)
 	}
-	snapshot.Plan, snapshot.PlanRevision, err = projectPlan(read.plan)
-	if err != nil {
-		return agent.SessionSnapshot{}, err
+	if read.plan != nil {
+		snapshot.Plan, snapshot.PlanRevision, err = projectPlan(read.plan)
+		if err != nil {
+			return agent.SessionSnapshot{}, err
+		}
 	}
 	if active, ok := snapshot.ActiveRun(); ok && active.Status == agent.RunStatusWaiting {
 		sets := make([]protocol.PendingInterruptSet, 0, 1)

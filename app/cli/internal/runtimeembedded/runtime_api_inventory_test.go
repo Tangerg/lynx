@@ -156,6 +156,20 @@ func TestDiscoveryRejectsUnprojectedStreamAndChangeCapabilities(t *testing.T) {
 				discovery.Capabilities.RuntimeTopics = append(discovery.Capabilities.RuntimeTopics, "indexes.changed")
 			},
 		},
+		{
+			name: "plan snapshot without feature",
+			mutate: func(discovery *protocol.DiscoverResponse) {
+				feature := discovery.Capabilities.Features[protocol.FeaturePlan]
+				feature.Enabled = false
+				discovery.Capabilities.Features[protocol.FeaturePlan] = feature
+			},
+		},
+		{
+			name: "plan feature without snapshot",
+			mutate: func(discovery *protocol.DiscoverResponse) {
+				discovery.Capabilities.StateSnapshots = nil
+			},
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -166,6 +180,18 @@ func TestDiscoveryRejectsUnprojectedStreamAndChangeCapabilities(t *testing.T) {
 				t.Fatalf("validateDiscovery = %v, want ErrIncompatibleRuntime", err)
 			}
 		})
+	}
+}
+
+func TestDiscoveryAcceptsRuntimeWithoutOptionalPlanCapability(t *testing.T) {
+	t.Parallel()
+	discovery := compatibleDiscovery()
+	feature := discovery.Capabilities.Features[protocol.FeaturePlan]
+	feature.Enabled = false
+	discovery.Capabilities.Features[protocol.FeaturePlan] = feature
+	discovery.Capabilities.StateSnapshots = nil
+	if err := validateDiscovery(discovery); err != nil {
+		t.Fatalf("validateDiscovery rejected a runtime without optional plan support: %v", err)
 	}
 }
 
@@ -184,6 +210,9 @@ func compatibleDiscovery() *protocol.DiscoverResponse {
 				Key: protocol.StatePlan, RecoveryMethod: "plan.get",
 				Scope: protocol.StateScopeSession, Writer: protocol.StateWriterRootRun,
 			}},
+			Features: map[string]protocol.FeatureCapability{
+				protocol.FeaturePlan: {Enabled: true, Stability: protocol.StabilityStable},
+			},
 			Limits: protocol.RuntimeLimits{
 				MaxConcurrentRuns: 4,
 				Idempotency:       protocol.IdempotencyLimits{RetentionSeconds: 600},
@@ -248,7 +277,7 @@ func runtimeFeatureConsumptionByName() map[string]runtimeFeatureConsumption {
 		protocol.FeatureReasoning:     projected("run projection", "reasoning items, token usage, and model catalog"),
 		protocol.FeatureMultimodal:    gated("composer", "image attachment submission"),
 		protocol.FeatureCompaction:    projected("run projection", "compaction items and restored transcript occupancy"),
-		protocol.FeaturePlan:          projected("run projection", "required plan snapshot, stream events, and activity view"),
+		protocol.FeaturePlan:          projected("run projection", "feature-gated plan snapshot, stream events, and activity view"),
 		protocol.FeatureGoals:         gated("runtime commands", "goal lifecycle surfaces"),
 		protocol.FeatureAgentMemory:   gated("context commands", "governed memory surfaces"),
 		protocol.FeatureKnowledge:     gated("context commands", "knowledge cascade surfaces"),
