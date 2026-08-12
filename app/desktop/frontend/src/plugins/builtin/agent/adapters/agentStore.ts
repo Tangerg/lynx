@@ -56,7 +56,11 @@ interface AgentStore {
    */
   applyRunEvents: (sessionId: string, events: RunEvent[]) => void;
   applyRunSnapshot: (sessionId: string, run: RunRef) => void;
-  applyCancelResponse: (sessionId: string, response: CancelRunResponse) => void;
+  commitCancelResponse: (
+    sessionId: string,
+    expectedViewRevision: number,
+    response: CancelRunResponse,
+  ) => boolean;
   appendLocalMessage: (sessionId: string, message: Message) => void;
   /** Create the mounted session slice if absent. Existing projection state is
    *  retained while a new authoritative read is in flight. */
@@ -187,13 +191,19 @@ export const useAgentStore = create<AgentStore>((set) => ({
       const sessions = patchView(state.sessions, sessionId, (view) => foldRunSnapshot(view, run));
       return sessions === state.sessions ? state : { sessions };
     }),
-  applyCancelResponse: (sessionId, response) =>
+  commitCancelResponse: (sessionId, expectedViewRevision, response) => {
+    let committed = false;
     set((state) => {
+      const entry = state.sessions[sessionId];
+      if (!entry || entry.viewRevision !== expectedViewRevision) return state;
       const sessions = patchView(state.sessions, sessionId, (view) =>
         foldCancelRunResponse(view, response),
       );
+      committed = true;
       return sessions === state.sessions ? state : { sessions };
-    }),
+    });
+    return committed;
+  },
   appendLocalMessage: (sessionId, message) =>
     set((state) => {
       const sessions = patchView(state.sessions, sessionId, (view) =>

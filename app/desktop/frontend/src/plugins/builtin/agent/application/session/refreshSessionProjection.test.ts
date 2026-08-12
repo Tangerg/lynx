@@ -2,7 +2,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AgentSessionSnapshot, AgentRuntimeGateway } from "../ports/runtimeGateway";
 import { configureAgentRuntimeGateway } from "../ports/runtimeGateway";
 import { useAgentStore } from "../../adapters/agentStore";
-import { refreshAgentSessionProjection } from "./refreshSessionProjection";
+import {
+  refreshAgentSessionProjection,
+  revalidateAgentSessionProjection,
+} from "./refreshSessionProjection";
 
 const SESSION_ID = "ses_refresh";
 
@@ -97,6 +100,25 @@ describe("refreshAgentSessionProjection", () => {
     read.resolve(snapshot(1));
 
     await expect(refreshing).resolves.toBeNull();
+    expect(useAgentStore.getState().sessions[SESSION_ID]!.view.commandError).toEqual({
+      code: "live",
+    });
+  });
+
+  it("returns authoritative facts even when a newer local write rejects their commit", async () => {
+    const read = deferred<AgentSessionSnapshot>();
+    restoreRuntime = configureAgentRuntimeGateway({
+      loadSessionSnapshot: vi.fn(() => read.promise),
+    } as unknown as AgentRuntimeGateway);
+
+    const revalidating = revalidateAgentSessionProjection(SESSION_ID);
+    useAgentStore.getState().setCommandError(SESSION_ID, { code: "live" });
+    read.resolve(snapshot(4));
+
+    await expect(revalidating).resolves.toMatchObject({
+      committed: false,
+      authoritativeView: { shared: { plan: { revision: 4 } } },
+    });
     expect(useAgentStore.getState().sessions[SESSION_ID]!.view.commandError).toEqual({
       code: "live",
     });

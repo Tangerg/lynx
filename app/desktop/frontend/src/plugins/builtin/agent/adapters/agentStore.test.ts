@@ -131,7 +131,7 @@ beforeEach(async () => {
   await loadPlugin(spec);
 });
 
-describe("agentStore.applyCancelResponse", () => {
+describe("agentStore.commitCancelResponse", () => {
   it("merges the exact root RunRef committed by the runtime", () => {
     const store = useAgentStore.getState();
     store.ensureSession(SID);
@@ -147,7 +147,8 @@ describe("agentStore.applyCancelResponse", () => {
     );
     expect(selectCurrentRootRun(view())?.status).toBe("running");
 
-    useAgentStore.getState().applyCancelResponse(SID, {
+    const revision = useAgentStore.getState().sessions[SID]!.viewRevision;
+    useAgentStore.getState().commitCancelResponse(SID, revision, {
       type: "root",
       run: runRef({
         status: "finished",
@@ -171,7 +172,8 @@ describe("agentStore.applyCancelResponse", () => {
     store.ensureSession(SID);
     store.applyRunEvents(SID, [runStarted("run_1", SID), runStarted("run_sibling", SID)].map(fold));
 
-    store.applyCancelResponse(SID, {
+    const revision = useAgentStore.getState().sessions[SID]!.viewRevision;
+    store.commitCancelResponse(SID, revision, {
       type: "child",
       run: runRef({
         id: "run_child",
@@ -197,6 +199,43 @@ describe("agentStore.applyCancelResponse", () => {
       activeSegmentId: "seg_resumed",
     });
     expect(view().runsById.run_sibling).toMatchObject({ status: "running" });
+  });
+
+  it("rejects a delayed cancel snapshot after a newer terminal projection", () => {
+    const store = useAgentStore.getState();
+    store.ensureSession(SID);
+    store.applyRunEvents(SID, [runStarted("run_1", SID)].map(fold));
+    const revision = useAgentStore.getState().sessions[SID]!.viewRevision;
+    store.applyRunSnapshot(
+      SID,
+      runRef({
+        status: "finished",
+        activeSegmentId: undefined,
+        outcome: { type: "completed" },
+        finishedAt: "2026-06-03T00:00:03.000Z",
+      }),
+    );
+
+    const committed = store.commitCancelResponse(SID, revision, {
+      type: "child",
+      run: runRef({
+        id: "run_child",
+        parentRunId: "run_1",
+        rootRunId: "run_1",
+        status: "finished",
+        activeSegmentId: undefined,
+        outcome: { type: "canceled" },
+        finishedAt: "2026-06-03T00:00:02.000Z",
+      }),
+      rootRun: runRef({ activeSegmentId: "seg_stale" }),
+    });
+
+    expect(committed).toBe(false);
+    expect(view().runsById.run_1).toMatchObject({
+      status: "finished",
+      outcome: { type: "completed" },
+      activeSegmentId: null,
+    });
   });
 });
 

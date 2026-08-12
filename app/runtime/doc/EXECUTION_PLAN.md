@@ -1,6 +1,6 @@
 # Lyra Runtime 重构实施计划
 
-> 状态：P1–P42 已完成；发布后反证审计持续进行
+> 状态：P1–P43 已完成；发布后反证审计持续进行
 >
 > 工作方式：原模块内治本重构，按可验证纵切分批完成；不创建完整 `runtime2`
 
@@ -76,6 +76,7 @@
 | P40 | Desktop 深链 Session lifecycle 与条件写收敛 | P39 + active/open memory / stale revision 竞态 | 已完成 |
 | P41 | Desktop HITL 多客户端 resume 与 Goal 命令结算收敛 | P40 + delayed ack / remote winner / response-loss 竞态 | 已完成 |
 | P42 | Desktop command replay 与 draft 冷启动所有权收敛 | P41 + response loss / in-progress / reload / remote delete 竞态 | 已完成 |
+| P43 | Desktop Run opening / cancel 结算收敛 | P42 + hung response / remote winner / stale snapshot 竞态 | 已完成 |
 
 ## 4. P0 — 文档、事实和边界基线
 
@@ -1077,10 +1078,31 @@
 - `sessions.create` 首响应在 commit 后损坏时，两次 attempt 使用同 key，Runtime/SQLite 只产生一个 Session；Run opening 重放不泄漏旧流；
 - 空 draft 重载后仍隐藏且保持 URL/composer，权威历史使其毕业，权威 Session 缺失使其导航/owner 被清理；Runtime、Protocol、SQLite 与 Agent Framework 零变更。
 
-## 47. 进度记录
+## 47. P43 — Desktop Run opening / cancel 结算收敛
+
+### 目标
+
+消除 Run opening 响应永久悬挂、握手 deadline 误杀已接受长流，以及 cancel 迟到响应或失败反转较新权威终态；重试、传输、投影与产品状态仍各守原抽象层。
+
+### 工作项
+
+- [x] P43-01 RPC Agent Adapter 将 opening attempt deadline 与 accepted event stream lifetime 拆分；首个 timeout 对原 MutationPromise 使用 fresh signal 重试，第二个 timeout 有限返回；
+- [x] P43-02 winning attempt 在 ack 后清除 deadline，但继续由外层 session signal 控制 stream；失败 attempt 在重放前完整释放；
+- [x] P43-03 cancel controller 以发起时 material revision 条件提交 command snapshot，任何新 live/query projection 都能拒绝迟到回滚；
+- [x] P43-04 cancel failure 通过 Application 权威 Session projection 重读 terminal 中性事实；远端胜出时收敛，重读失败时保留原命令错误；
+- [x] P43-05 transport failure 由 Agent Adapter 投影为稳定产品 problem，Application 不接触 transport；以隔离 Runtime、故障代理、假 provider、第二客户端和真实浏览器验证。
+
+### 验收
+
+- opening 首响应悬挂后以同 key、fresh signal 有界重放，Runtime/SQLite 仍只有一个 Run 与一份消息；
+- accepted stream 超过 30 秒继续运行且仍受 session owner 取消；cancel 迟到响应不能覆盖更新的终态；
+- 86/86 Runtime operations、10/10 event types 和 103 个 typed call sites 继续完整消费；Runtime、Protocol、SQLite 与 Agent Framework 零变更。
+
+## 48. 进度记录
 
 | 日期 | 阶段 | 完成事实 | 验证 |
 |---|---|---|---|
+| 2026-08-12 | P43（Run opening deadline / cancel remote-winner settlement） | RPC Agent Adapter 把 opening handshake deadline 与 accepted stream lifetime 分离：首 timeout 对原 MutationPromise 以 fresh signal 重试，第二 timeout 有限返回；winning signal 在 ack 后继续受 session owner 控制。Cancel controller 以 material revision 条件提交响应，失败后经 Application 权威投影判断 terminal，transport 只在 Adapter 投影。Runtime、Protocol、SQLite 与 Agent Framework 零变更 | 红测覆盖 same-key/fresh-signal、parent abort、双 timeout、stale cancel snapshot、remote terminal、revalidation 双失败和 transport problem 后转绿；7 个测试文件/54 个测试、typecheck/lint 通过。隔离 Runtime 中代理在完整 6,514-byte Run stream 已生成后悬挂首响应，30 秒后第二 attempt 同 key，页面取得 completed tail；SQLite 1 Session/1 Run/2 Messages，reload 无重复。第二场代理延迟本地 cancel 30 秒，直连客户端先取消，页面先显示 canceled，迟到拒绝后无 banner/console/page error；Frontend 完整门禁通过（250 个测试文件/1533 个用例） |
 | 2026-08-12 | P42（command replay / draft cold-start ownership） | Desktop RPC SDK 从生成 command policy 统一驱动稳定-key 有界 settlement recovery，分别处理 unknown transport、typed in-progress、definitive refusal 与 cancellation；Run opening attempt 各自拥有并清理 event stream。Session create deadline 留在 Adapter，Application 只消费结果；draft provisional owner 持久化，fresh-create proof 保持 ephemeral，durable recovery 是毕业 owner。Runtime、Protocol、SQLite 与 Agent Framework 零变更 | 红测证明产品调用点从不消费既有 `retry()`、commit 后断帧直接失败、in-progress 不等待、opening stream 重放和 cold draft 身份错误后转绿；RPC 19 files/362 tests、40 command policy/API consumer gate、Agent targeted tests 通过；隔离 Runtime 中代理让首个 `sessions.create` commit 后返回坏 body，第二 attempt 使用同 key，SQLite 仅 1 Session/1 replay record；页面打开同一 URL，reload 后 Work Index 保持 0，首次消息后变 1 且 Session 总数仍为 1，console/page error 为零；Frontend 完整门禁在本批提交前收口 |
 | 2026-08-12 | P41（HITL remote-resume / Goal settlement convergence） | Desktop Application 让 submitting HITL batch 随 standing projection 幂等退休并向 Adapter 返回中性 supersession 事实；Run opening Adapter 不识别 operation/wire error，只禁止迟到 rejection 反转权威结果；Goal start/stop/resume 在成功或结算不明后统一回读，回读失败保留原命令错误。Runtime、Protocol、SQLite 与 Agent Framework 零变更 | 红测稳定复现 submitting batch 永久 staged、remote winner 后迟到 rejection 进入 command error、Goal 失败不回读及双失败错误替换后转绿；隔离 Runtime 经透明代理延迟浏览器 `runs.resume`，第二客户端先完成同一 approval，页面终态 `P41_HITL_REMOTE_DONE`、无卡片/command banner，console/page error 为零；Frontend 完整门禁在本批提交前收口 |
 | 2026-08-12 | P40（deep-link Session lifecycle convergence） | Desktop mounted driver 在 material view 前建立 active Session 的 held-open/last-session memory；纯 selection model 以 Runtime live/draft identity 对账并永不清理存活 active，close/reconcile 同步修正 cold-start seed；relocate 失败回到 Session query owner 重读。Runtime、Protocol、SQLite 与 Agent Framework 零变更 | 红测分别复现 stale open cleanup 清空存活 active、close/reconcile 遗留失效 seed 和 relocate ambiguous failure 不回读后转绿；隔离 Runtime 中预置 stale open id 并直达真实 Session，权威对账后 localStorage 只保留 active identity，旧历史完整且页面成功提交第二个 completed Run，URL 稳定、console/page error 为零；Frontend 完整门禁在本批提交前收口 |
@@ -1174,6 +1196,6 @@
 | 2026-08-09 | P9.2 | 完成 Adapter/Infra/Application/Delivery 逐包职责审计；workspace physical path identity 收敛到唯一 Infra mechanism；删除空的 temporary architecture 台账并把旧 Agent 禁止与 Domain no-context-I/O 变为永久 framework boundary guard；确认 agentexec 按真实变化原因组织且没有第二 lifecycle owner或虚构子包 | Adapter→Infra 单向图与目标六环 DAG 全绿；Delivery concrete Adapter/Infra import、Infra 反向 import、Application outward import、纯转发 wrapper、package/type 口吃、空目录和 temporary exception 均为零；workspacepath/pathidentity/arch targeted tests 与全量质量门禁通过 |
 | 2026-08-09 | P10 | Runtime Protocol 一次性提升到 `2026-08-09`、Session Artifact 到 v14；删除 wire 中实现泄露的 `processRootSegment`，只保留准确的 `runtimeInstanceRootSegment`；Go registry、validator、manifest、OpenRPC、JSON Schema、TypeScript binding、canonical samples 与人读 API/Transport/Aux 文档同步；新增精确 consumer handoff | canonical artifact samples 中漏存的 v12 与旧 `outcome.error` 被 strict sample gate 暴露并治本修正；生成器零漂移、旧 wire token/版本归零、strict validator/round-trip、HTTP/in-process、全量质量门禁通过；Desktop backlog 已记录但未改消费者 |
 
-## 48. 当前下一步
+## 49. 当前下一步
 
-P42 已关闭 Desktop 对 Runtime command replay 合同的全局漏消费，以及 provisional draft 的冷启动/远端身份边界。下一轮继续沿 backend operation → generated client → frontend product consumer → stream/invalidation 矩阵反证 Run cancel 与 stream settlement、Plan/Goal 并发、Session rollback/fork projection、文件/旁路事件、subscription close/retarget、事务失败和崩溃恢复。每轮提交前执行 Runtime→Agent/Agent→Runtime 双向依赖与 staged path 审计。
+P43 已关闭 Desktop Run opening 永久 pending、accepted stream 被 deadline 误杀，以及 cancel 迟到响应/远端胜出反转。下一轮继续沿 backend operation → generated client → frontend product consumer → stream/invalidation 矩阵反证 Session rollback/fork projection、Plan/Goal 并发、文件/旁路事件、subscription close/retarget、事务失败和崩溃恢复。每轮提交前执行 Runtime→Agent/Agent→Runtime 双向依赖与 staged path 审计。

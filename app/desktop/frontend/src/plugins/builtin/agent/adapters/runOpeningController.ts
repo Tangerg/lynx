@@ -1,7 +1,7 @@
 import type { RunEvent, RunId, SegmentId, StreamingResult } from "@/rpc";
 import type { AgentProblem } from "@/plugins/sdk/types/agentSessionView";
 import { endSpan, startRunSpan, withSpan } from "@/lib/observability/tracing";
-import { agentProblemFromRpcError } from "./rpcProblem";
+import { agentProblemFromRpcFailure } from "./rpcProblem";
 
 /** A Run segment this client opened and can immediately pump. */
 export type RunOpening = { runId: RunId; segmentId: SegmentId };
@@ -77,7 +77,7 @@ export function createRunOpeningController({
             if (onStartError?.() === true) return;
             failure = err;
             console.error("[agent] run failed to start:", sessionId, err);
-            const problem = agentProblemFromRpcError(err);
+            const problem = agentProblemFromRpcFailure(err);
             if (problem) setStartError(problem);
           },
         )

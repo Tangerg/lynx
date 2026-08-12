@@ -1,6 +1,7 @@
 import { getContainer } from "@/main/container";
 import { asItemId, asRunId, asSegmentId, asSessionId, type StartRunResponse } from "@/rpc";
 import type { RpcRunsGateway } from "../application/rpcAgentDriver";
+import { settleRunOpening } from "./runOpeningSettlement";
 
 /**
  * The runs gateway the RPC agent source drives, bound to the live client.
@@ -15,13 +16,20 @@ import type { RpcRunsGateway } from "../application/rpcAgentDriver";
 export function runtimeRunsGateway(): RpcRunsGateway {
   return {
     start: async ({ sessionId, ...params }, signal) => {
-      const { result, events } = await getContainer()
-        .client()
-        .runs.start({ ...params, sessionId: asSessionId(sessionId) }, signal);
+      const client = getContainer().client();
+      const { result, events } = await settleRunOpening(
+        (attemptSignal) =>
+          client.runs.start({ ...params, sessionId: asSessionId(sessionId) }, attemptSignal),
+        signal,
+      );
       return { result: brandStartedRun(result), events };
     },
     resume: async (params, signal) => {
-      const { result, events } = await getContainer().client().runs.resume(params, signal);
+      const client = getContainer().client();
+      const { result, events } = await settleRunOpening(
+        (attemptSignal) => client.runs.resume(params, attemptSignal),
+        signal,
+      );
       return {
         result: { runId: asRunId(result.runId), segmentId: asSegmentId(result.segmentId) },
         events,

@@ -12,10 +12,26 @@ interface RefreshSessionProjectionOptions {
   canCommit?: () => boolean;
 }
 
+export interface AgentSessionProjectionRevalidation {
+  /** Projection built from this read even when a newer local write prevents it
+   * from replacing the material view. Command settlement may still use this
+   * neutral fact without forcing a stale projection commit. */
+  authoritativeView: AgentSessionView;
+  committed: boolean;
+}
+
 export async function refreshAgentSessionProjection(
   sessionId: string,
   options: RefreshSessionProjectionOptions = {},
 ): Promise<AgentSessionView | null> {
+  const result = await revalidateAgentSessionProjection(sessionId, options);
+  return result?.committed ? result.authoritativeView : null;
+}
+
+export async function revalidateAgentSessionProjection(
+  sessionId: string,
+  options: RefreshSessionProjectionOptions = {},
+): Promise<AgentSessionProjectionRevalidation | null> {
   const viewPort = agentSessionView();
   const token = viewPort.beginViewRefresh(sessionId, options.invalidateQueuedRunEvents ?? false);
   if (!token) return null;
@@ -23,7 +39,10 @@ export async function refreshAgentSessionProjection(
   const snapshot = await agentRuntime().loadSessionSnapshot(sessionId);
   if (!snapshot || (options.canCommit && !options.canCommit())) return null;
   const view = projectAgentSessionSnapshot(snapshot);
-  return viewPort.commitViewRefresh(sessionId, token, view) ? view : null;
+  return {
+    authoritativeView: view,
+    committed: viewPort.commitViewRefresh(sessionId, token, view),
+  };
 }
 
 export function synchronizeMountedAgentSessions(sessionIds?: readonly string[]): void {

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { RpcError, asRunId, asSegmentId, type RunEvent } from "@/rpc";
+import { RpcError, RpcTransportError, asRunId, asSegmentId, type RunEvent } from "@/rpc";
 import type { AgentProblem } from "@/plugins/sdk/types/agentSessionView";
 import { createRunOpeningController } from "./runOpeningController";
 
@@ -75,6 +75,24 @@ describe("run opening controller", () => {
     );
     expect(setStartError).not.toHaveBeenCalled();
     expect(onStartError).not.toHaveBeenCalled();
+  });
+
+  it("surfaces a transport failure through the product command channel", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const setStartError = vi.fn<(problem: AgentProblem) => void>();
+    const controller = createRunOpeningController({
+      sessionId: "ses_1",
+      isCancelled: () => false,
+      markInteracted: vi.fn(),
+      setAbortController: vi.fn(),
+      abortCurrent: vi.fn(),
+      pump: vi.fn(),
+      setStartError,
+    });
+
+    controller.begin(() => Promise.reject(new RpcTransportError("connection unavailable")));
+
+    await vi.waitFor(() => expect(setStartError).toHaveBeenCalledWith({ code: "transport_error" }));
   });
 });
 

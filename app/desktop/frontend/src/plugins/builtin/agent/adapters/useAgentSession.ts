@@ -17,8 +17,10 @@ import { startAgentSessionRecovery } from "./agentSessionRecovery";
 import { useAgentSessionStore } from "./agentSessionStore";
 import { createOptimisticUserMessage } from "./optimisticUserMessage";
 import { createRunOpeningController } from "./runOpeningController";
-import { agentProblemFromRpcError } from "./rpcProblem";
+import { agentProblemFromRpcFailure } from "./rpcProblem";
 import { createSessionProjectionSynchronization } from "../application/session/sessionProjectionSynchronization";
+import { createRunCancellationController } from "./runCancellationController";
+import { revalidateRunTermination } from "../application/run/revalidateRunTermination";
 
 export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string): AgentSession {
   // Driver construction belongs to the session effect, but the adapter factory
@@ -51,7 +53,6 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
 
     let abort: AbortController | null = null;
     let cancelled = false;
-    const cancelRequests = new Set<string>();
     // Set as soon as this driver accepts a local command. The initial durable
     // read must not commit after that command, even before its first stream
     // event has advanced the store revision.
@@ -180,38 +181,40 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
       return true;
     };
 
-    const cancelRun = (runId: string): void => {
-      const run = store().sessions[sessionId]?.view.runsById[runId];
-      if (!run || run.status === "finished" || cancelRequests.has(runId)) return;
-      interacted = true;
-      cancelRequests.add(runId);
-      void client()
-        .runs.cancel(asRunId(runId))
-        .then((response) => {
-          if (cancelled) return;
-          // A cancel command commits a concrete RunRef (and, for a child,
-          // the root's exact post-cancel state). Fold only those facts; the
-          // following snapshot fills in every query-owned descendant.
-          store().applyCancelResponse(sessionId, response);
-          // Root cancellation ends the stream; child cancellation advances
-          // the parent onto a new segment. In both cases the currently attached
-          // segment has lost ownership, so release it before reconciliation.
-          abort?.abort();
-          projectionSynchronization?.request();
-          void queryClient.invalidateQueries({
-            queryKey: [AGENT_SESSION_USAGE_KEY, sessionId],
-          });
-        })
-        .catch((error: unknown) => {
-          if (cancelled) return;
-          console.error("[agent] run cancellation failed:", sessionId, runId, error);
-          const problem = agentProblemFromRpcError(error);
-          if (problem) store().setCommandError(sessionId, problem);
-        })
-        .finally(() => {
-          cancelRequests.delete(runId);
+    const runCancellation = createRunCancellationController({
+      isCancelled: () => cancelled,
+      markInteracted: () => {
+        interacted = true;
+      },
+      readTarget: (runId) => {
+        const entry = store().sessions[sessionId];
+        const run = entry?.view.runsById[runId];
+        return entry && run
+          ? { terminal: run.status === "finished", viewRevision: entry.viewRevision }
+          : null;
+      },
+      execute: (runId) => client().runs.cancel(asRunId(runId)),
+      commitIfCurrent: (response, expectedViewRevision) =>
+        store().commitCancelResponse(sessionId, expectedViewRevision, response),
+      revalidateTerminal: (runId) => revalidateRunTermination(sessionId, runId),
+      onSettled: () => {
+        // Root cancellation ends the stream; child cancellation advances the
+        // parent onto a new segment. In both cases the currently attached
+        // segment has lost ownership, so release it before reconciliation.
+        abort?.abort();
+        projectionSynchronization?.request();
+        void queryClient.invalidateQueries({
+          queryKey: [AGENT_SESSION_USAGE_KEY, sessionId],
         });
-    };
+      },
+      onFailure: (runId, error) => {
+        console.error("[agent] run cancellation failed:", sessionId, runId, error);
+        const problem = agentProblemFromRpcFailure(error);
+        if (problem) store().setCommandError(sessionId, problem);
+      },
+    });
+
+    const cancelRun = (runId: string): void => runCancellation.cancel(runId);
 
     const stop = (): boolean => {
       const view = store().sessions[sessionId]?.view;

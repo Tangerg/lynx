@@ -306,6 +306,59 @@ describe("useAgentSession run timing guards", () => {
       activeSegmentId: "seg_failed_cancel",
     });
   });
+
+  it("converges without an error when another client terminates the Run first", async () => {
+    const terminal = runRef({
+      id: "run_remote_terminal",
+      status: "finished",
+      activeSegmentId: undefined,
+      outcome: { type: "completed" },
+      finishedAt: "2026-07-30T02:00:02.000Z",
+    });
+    const cancel = vi.fn().mockRejectedValue(
+      new RpcError({
+        code: -32002,
+        message: "already finished",
+        data: { type: "run_finished" },
+      }),
+    );
+    setContainer({
+      client: () =>
+        ({
+          items: { list: vi.fn(() => autoPage([])) },
+          interrupts: { list: vi.fn(() => autoPage([])) },
+          plan: {
+            get: vi.fn().mockResolvedValue({
+              type: "plan",
+              sessionId: SID,
+              revision: 0,
+              plan: [],
+            }),
+          },
+          runs: {
+            cancel,
+            list: vi.fn(() => autoPage([terminal])),
+          },
+        }) as unknown as LyraClient,
+    });
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const { driver } = parkedDriver();
+    renderHook(() => useAgentSession(() => driver, SID));
+    act(() => {
+      useAgentStore
+        .getState()
+        .applyRunEvents(SID, [startedRunEvent("run_remote_terminal", "seg_remote")]);
+      useAgentStore.getState().sessions[SID]!.stop?.();
+    });
+
+    await waitFor(() => {
+      expect(
+        useAgentStore.getState().sessions[SID]!.view.runsById.run_remote_terminal,
+      ).toMatchObject({ status: "finished", outcome: { type: "completed" } });
+    });
+    expect(useAgentStore.getState().sessions[SID]!.view.commandError).toBeNull();
+    expect(errorSpy).not.toHaveBeenCalled();
+  });
 });
 
 // Durable recovery (§10.2): opening a NON-draft session must rebuild unresolved
