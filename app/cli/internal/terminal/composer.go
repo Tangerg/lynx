@@ -98,6 +98,9 @@ func (a *app) resolveAttachment(path string) (attachmentInsertion, error) {
 	if err != nil {
 		return attachmentInsertion{}, err
 	}
+	if err := a.validateMessageCapabilities(agent.Message{Attachments: []agent.Attachment{item}}); err != nil {
+		return attachmentInsertion{}, err
+	}
 	for _, attached := range current.Attachments {
 		if attached.Path == item.Path {
 			return attachmentInsertion{}, fmt.Errorf("%s is already attached", item.Name)

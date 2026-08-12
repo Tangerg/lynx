@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -117,7 +118,17 @@ func projectQuestion(runID, itemID string, value *protocol.Question) (agent.Ques
 	if value == nil {
 		return agent.Question{}, fmt.Errorf("question item %s has no payload", itemID)
 	}
-	question := agent.Question{RunID: runID, ItemID: itemID, Fields: make([]agent.QuestionField, 0, len(value.Fields))}
+	question := agent.Question{
+		RunID: runID, ItemID: itemID, Fields: make([]agent.QuestionField, 0, len(value.Fields)),
+		Answers: make([][]string, len(value.Answers)),
+	}
+	if value.Answers == nil {
+		question.Answers = nil
+	} else {
+		for index, answers := range value.Answers {
+			question.Answers[index] = slices.Clone(answers)
+		}
+	}
 	for _, field := range value.Fields {
 		projected := agent.QuestionField{
 			Prompt: field.Prompt, Header: field.Header, AllowCustom: field.AllowCustom,

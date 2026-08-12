@@ -94,7 +94,9 @@ func TestRuntimeStatusConsumesTheNegotiatedDiscoveryProfile(t *testing.T) {
 		RunEvents: []string{"segment.started"}, RuntimeTopics: []string{"files.changed"},
 		StateSnapshots:   []runtimeprofile.Snapshot{{Key: "plan", RecoveryMethod: "plan.get", Scope: "session", Writer: "rootRun"}},
 		StreamingMethods: []string{"runs.start"},
-		Features:         map[string]runtimeprofile.Feature{"mcp": {Enabled: true, Stability: runtimeprofile.Stable}},
+		Features: map[runtimeprofile.FeatureName]runtimeprofile.Feature{
+			runtimeprofile.FeatureMCP: {Enabled: true, Stability: runtimeprofile.Stable},
+		},
 		Limits: runtimeprofile.Limits{
 			MaxConcurrentRuns: 4, IdempotencyRetentionSeconds: 600,
 			RunReplay:                        runtimeprofile.ReplayLimits{Scope: "runtimeInstanceRootSegment", MaxEvents: 1024, MaxBytes: 1 << 20},

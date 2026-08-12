@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -91,7 +92,8 @@ func TestSessionTransferPreservesRuntimeNativeFormats(t *testing.T) {
 		t.Fatalf("Markdown export = (%q, %v)", markdown.Bytes(), err)
 	}
 	artifact, err := runtime.ExportSession(t.Context(), sessiontransfer.ExportRequest{SessionID: "ses_1", Format: sessiontransfer.JSON})
-	if err != nil || !strings.Contains(string(artifact.Bytes()), `"version": 17`) || !artifact.Importable() {
+	versionField := fmt.Sprintf(`"version": %d`, protocol.SessionArtifactVersion)
+	if err != nil || !strings.Contains(string(artifact.Bytes()), versionField) || !artifact.Importable() {
 		t.Fatalf("JSON export = (%q, %v)", artifact.Bytes(), err)
 	}
 }
@@ -108,7 +110,8 @@ func TestSessionImportDecodesOpaqueDocumentOnlyAtTheAdapterBoundary(t *testing.T
 		}}, nil
 	}
 	runtime := &Runtime{sessions: stub, meta: requestMeta("test")}
-	document, err := sessiontransfer.NewDocument(sessiontransfer.JSON, []byte(`{"version":17,"session":{"id":"ses_1","title":"Session","workspace":{"path":"/workspace"},"model":"","createdAt":"0001-01-01T00:00:00Z","updatedAt":"0001-01-01T00:00:00Z"},"messages":[],"runs":[],"items":[],"toolResults":[]}`))
+	artifactJSON := fmt.Sprintf(`{"version":%d,"session":{"id":"ses_1","title":"Session","workspace":{"path":"/workspace"},"model":"","createdAt":"0001-01-01T00:00:00Z","updatedAt":"0001-01-01T00:00:00Z"},"messages":[],"runs":[],"items":[],"toolResults":[]}`, protocol.SessionArtifactVersion)
+	document, err := sessiontransfer.NewDocument(sessiontransfer.JSON, []byte(artifactJSON))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -117,7 +120,8 @@ func TestSessionImportDecodesOpaqueDocumentOnlyAtTheAdapterBoundary(t *testing.T
 		t.Fatalf("ImportSession = (%+v, %v)", session, err)
 	}
 
-	unknown, err := sessiontransfer.NewDocument(sessiontransfer.JSON, []byte(`{"version":17,"future":true}`))
+	unknownJSON := fmt.Sprintf(`{"version":%d,"future":true}`, protocol.SessionArtifactVersion)
+	unknown, err := sessiontransfer.NewDocument(sessiontransfer.JSON, []byte(unknownJSON))
 	if err != nil {
 		t.Fatal(err)
 	}

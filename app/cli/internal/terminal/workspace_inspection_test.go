@@ -235,7 +235,7 @@ func TestWorkspaceMonitorSubscribesBeforeItsAuthoritativeRead(t *testing.T) {
 		mu.Unlock()
 	}
 	monitor := runtimeChangeMonitor{
-		workspace: "/workspace",
+		workspace: "/workspace", watchFiles: true,
 		source: changeSourceFunc(func(ctx context.Context, _ changefeed.Subscription) (changefeed.EventStream, error) {
 			record("subscribe")
 			return func(func(changefeed.Event, error) bool) { <-ctx.Done() }, nil
@@ -269,7 +269,7 @@ func TestWorkspaceMonitorReadsFilesWhenTheChangeSourceCannotWatchThem(t *testing
 	read := make(chan struct{}, 1)
 	applied := make(chan []workspace.Change, 1)
 	monitor := runtimeChangeMonitor{
-		workspace: "/workspace", source: source,
+		workspace: "/workspace", source: source, watchFiles: true,
 		repository: changeReaderFunc(func(context.Context, string) ([]workspace.Change, error) {
 			read <- struct{}{}
 			return []workspace.Change{{Path: "main.go", Status: workspace.FileStatusModified}}, nil
@@ -307,6 +307,26 @@ func TestWorkspaceMonitorReadsFilesWhenTheChangeSourceCannotWatchThem(t *testing
 	case <-done:
 	case <-time.After(time.Second):
 		t.Fatal("monitor did not stop")
+	}
+}
+
+func TestWorkspaceMonitorDoesNotRequestAFileWatchWithoutTheNegotiatedCapability(t *testing.T) {
+	t.Parallel()
+
+	source := &runtimeChangeSourceStub{supported: []changefeed.Topic{
+		changefeed.FilesChanged, changefeed.SessionsChanged,
+	}}
+	monitor := runtimeChangeMonitor{
+		source: source, repository: changeReaderFunc(func(context.Context, string) ([]workspace.Change, error) {
+			return nil, nil
+		}),
+	}
+	if topics := monitor.supportedTopics(); !slices.Equal(topics, []changefeed.Topic{changefeed.SessionsChanged}) {
+		t.Fatalf("topics without fileWatch = %v", topics)
+	}
+	monitor.watchFiles = true
+	if topics := monitor.supportedTopics(); !slices.Equal(topics, []changefeed.Topic{changefeed.FilesChanged, changefeed.SessionsChanged}) {
+		t.Fatalf("topics with fileWatch = %v", topics)
 	}
 }
 

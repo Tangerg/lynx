@@ -35,6 +35,9 @@ func ValidateInteraction(interaction Interaction) error {
 	case Approval:
 		return item.Validate()
 	case Question:
+		if item.Answered() {
+			return errors.New("interaction question already has accepted answers")
+		}
 		return item.Validate()
 	case nil:
 		return errors.New("interaction is nil")
@@ -130,11 +133,20 @@ func (q Question) Validate() error {
 			problems = append(problems, fmt.Errorf("field %d: %w", i+1, err))
 		}
 	}
+	if q.Answered() {
+		if err := validateQuestionAnswer(q, QuestionAnswer{Values: q.Answers}); err != nil {
+			problems = append(problems, fmt.Errorf("accepted answer: %w", err))
+		}
+	}
 	if err := errors.Join(problems...); err != nil {
 		return fmt.Errorf("question: %w", err)
 	}
 	return nil
 }
+
+// Answered reports whether this question is an authoritative completed
+// transcript fact rather than a pending interaction.
+func (q Question) Answered() bool { return q.Answers != nil }
 
 // Clone returns a question with no mutable field or option storage shared with the caller.
 func (q Question) Clone() Question { return cloneQuestion(q) }
@@ -143,9 +155,10 @@ func (q Question) Clone() Question { return cloneQuestion(q) }
 // order is semantic because QuestionAnswer uses the same order on the wire.
 func (q Question) Equal(other Question) bool {
 	return q.RunID == other.RunID && q.ItemID == other.ItemID && q.Title == other.Title && q.Detail == other.Detail &&
+		q.Answered() == other.Answered() &&
 		slices.EqualFunc(q.Fields, other.Fields, func(left, right QuestionField) bool {
 			return left.Equal(right)
-		})
+		}) && equalAnswerValues(q.Answers, other.Answers)
 }
 
 func (f QuestionField) Validate() error {
@@ -284,7 +297,25 @@ func cloneQuestion(question Question) Question {
 	for i := range question.Fields {
 		question.Fields[i].Options = slices.Clone(question.Fields[i].Options)
 	}
+	question.Answers = cloneAnswerValues(question.Answers)
 	return question
+}
+
+func cloneAnswerValues(values [][]string) [][]string {
+	if values == nil {
+		return nil
+	}
+	cloned := make([][]string, len(values))
+	for i, answers := range values {
+		cloned[i] = slices.Clone(answers)
+	}
+	return cloned
+}
+
+func equalAnswerValues(left, right [][]string) bool {
+	return slices.EqualFunc(left, right, func(left, right []string) bool {
+		return slices.Equal(left, right)
+	})
 }
 
 func CloneInteractions(interactions []Interaction) []Interaction {
@@ -301,10 +332,7 @@ func CloneAnswer(answer Answer) Answer {
 		return item
 	case QuestionAnswer:
 		cloned := item
-		cloned.Values = make([][]string, len(item.Values))
-		for i, values := range item.Values {
-			cloned.Values[i] = slices.Clone(values)
-		}
+		cloned.Values = cloneAnswerValues(item.Values)
 		return cloned
 	default:
 		return nil

@@ -131,14 +131,21 @@ func TestSkillAdapterProjectsCatalogsAndExactMutationReferences(t *testing.T) {
 }
 
 func TestServicesExposeOnlyAdvertisedOptionalFeatures(t *testing.T) {
-	runtime := &Runtime{profile: runtimeprofile.Profile{Features: map[string]runtimeprofile.Feature{
-		protocol.FeatureSkills: {Enabled: true}, protocol.FeatureMCP: {Enabled: true},
-		protocol.FeatureSchedules: {Enabled: true}, protocol.FeatureAgentMemory: {Enabled: true},
-		protocol.FeatureKnowledge: {Enabled: true},
+	runtime := &Runtime{profile: runtimeprofile.Profile{Features: map[runtimeprofile.FeatureName]runtimeprofile.Feature{
+		runtimeprofile.FeatureSkills: {Enabled: true}, runtimeprofile.FeatureMCP: {Enabled: true},
+		runtimeprofile.FeatureSchedules: {Enabled: true}, runtimeprofile.FeatureAgentMemory: {Enabled: true},
+		runtimeprofile.FeatureKnowledge: {Enabled: true}, runtimeprofile.FeatureSessionExport: {Enabled: true},
 	}}}
 	services := runtime.services()
 	if services.Skills == nil || services.MCP == nil || services.Schedules == nil ||
 		services.AgentMemory == nil || services.Knowledge == nil || services.Goals != nil {
 		t.Fatalf("services = %+v", services)
+	}
+	if services.Transfers == nil {
+		t.Fatal("advertised session export did not expose the transfer service")
+	}
+	runtime.profile.Features[runtimeprofile.FeatureSessionExport] = runtimeprofile.Feature{}
+	if runtime.services().Transfers != nil {
+		t.Fatal("unadvertised session export exposed the transfer service")
 	}
 }

@@ -127,6 +127,54 @@ func TestNDJSONCarriesSegmentIdentityAndInterruptSet(t *testing.T) {
 	}
 }
 
+func TestCompletedQuestionAnswersReachTextAndNDJSON(t *testing.T) {
+	t.Parallel()
+
+	question := agent.Question{
+		RunID: "run_1", ItemID: "question_1", Title: "choose",
+		Fields: []agent.QuestionField{{
+			Prompt: "Target", Kind: agent.QuestionSingle,
+			Options: []agent.QuestionOption{{Label: "linux"}, {Label: "darwin"}},
+		}},
+		Answers: [][]string{{"linux"}},
+	}
+	block := agent.Block{
+		ID: "question_1", RunID: "run_1", Kind: agent.BlockQuestion,
+		Status: agent.BlockStatusCompleted, Question: &question,
+	}
+	event := testEvent("question", agent.BlockCompleted{Block: block})
+
+	var textOutput bytes.Buffer
+	textRenderer := NewText(&textOutput)
+	if err := textRenderer.Begin(testRun(), agent.RunOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	if err := textRenderer.Render(event); err != nil {
+		t.Fatal(err)
+	}
+	if err := textRenderer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(textOutput.String(), "answer: linux") {
+		t.Fatalf("text output omitted accepted answer: %q", textOutput.String())
+	}
+
+	var jsonOutput bytes.Buffer
+	jsonRenderer := NewNDJSON(&jsonOutput)
+	if err := jsonRenderer.Begin(testRun(), agent.RunOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	if err := jsonRenderer.Render(event); err != nil {
+		t.Fatal(err)
+	}
+	if err := jsonRenderer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(jsonOutput.String(), `"answers":[["linux"]]`) {
+		t.Fatalf("NDJSON omitted accepted answer: %s", jsonOutput.String())
+	}
+}
+
 func TestNDJSONPreservesProgressToolArgumentsAndCustomPayloads(t *testing.T) {
 	var output bytes.Buffer
 	renderer := NewNDJSON(&output)

@@ -575,6 +575,10 @@ func (a *app) submit() {
 // active run or its durable follow-up queue. Callers such as recipe expansion
 // cannot bypass session-change exclusion, prompt history, or composer cleanup.
 func (a *app) dispatchPrompt(message agent.Message) {
+	if err := a.validateMessageCapabilities(message); err != nil {
+		a.message(err.Error())
+		return
+	}
 	if a.conversation.Busy() || a.following || a.pendingCancel != nil {
 		a.enqueueFollowUp(message)
 		return

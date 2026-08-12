@@ -42,3 +42,41 @@ func TestQuestionFieldEnforcesRuntimePresentationBounds(t *testing.T) {
 		t.Fatal("single-option choice was accepted")
 	}
 }
+
+func TestCompletedQuestionOwnsAndValidatesAcceptedAnswers(t *testing.T) {
+	t.Parallel()
+
+	question := Question{
+		RunID: "run_1", ItemID: "q_1", Title: "Configuration",
+		Fields: []QuestionField{
+			{Prompt: "Target", Kind: QuestionText},
+			{Prompt: "Checks", Kind: QuestionMulti, Options: []QuestionOption{{Label: "unit"}, {Label: "smoke"}}},
+		},
+		Answers: [][]string{{"linux"}, {"unit", "smoke"}},
+	}
+	if err := question.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	if err := ValidateInteraction(question); err == nil {
+		t.Fatal("answered transcript question was accepted as a pending interaction")
+	}
+	cloned := question.Clone()
+	if !question.Equal(cloned) {
+		t.Fatal("question clone changed its value")
+	}
+	pending := question.Clone()
+	pending.Answers = nil
+	if question.Equal(pending) {
+		t.Fatal("completed question equals its pending form")
+	}
+	cloned.Answers[0][0] = "mutated"
+	if question.Answers[0][0] == "mutated" || question.Equal(cloned) {
+		t.Fatal("question clone shares accepted answer storage")
+	}
+
+	invalid := question.Clone()
+	invalid.Answers[1] = []string{"integration"}
+	if err := invalid.Validate(); err == nil {
+		t.Fatal("question accepted an answer outside its declared options")
+	}
+}

@@ -336,38 +336,41 @@ func (r *Runtime) services() backend.Services {
 		r.feedbackPort = &feedbackAdapter{runtime: r}
 	})
 	services := backend.Services{
-		Agent: r, Workspaces: r, Changes: r, Transfers: r,
+		Agent: r, Workspaces: r, Changes: r,
 		Usage: r, ModelConfig: r, DiagnosticTools: r.diagnosticPort,
 		AuthoringContext: r.authoringPort, Hooks: r.hookPort, Feedback: r.feedbackPort,
 	}
 	if r.profile.Available() {
 		services.RuntimeProfile = new(r.profile.Clone())
 	}
-	if r.supportsFeature(protocol.FeatureGoals) {
+	if r.supportsFeature(runtimeprofile.FeatureGoals) {
 		services.Goals = r
 	}
-	if r.supportsFeature(protocol.FeatureSkills) {
+	if r.supportsFeature(runtimeprofile.FeatureSkills) {
 		services.Skills = r
 	}
-	if r.supportsFeature(protocol.FeatureMCP) {
+	if r.supportsFeature(runtimeprofile.FeatureMCP) {
 		services.MCP = r
 	}
-	if r.supportsFeature(protocol.FeatureSchedules) {
+	if r.supportsFeature(runtimeprofile.FeatureSchedules) {
 		services.Schedules = r
 	}
-	if r.supportsFeature(protocol.FeatureAgentMemory) {
+	if r.supportsFeature(runtimeprofile.FeatureAgentMemory) {
 		services.AgentMemory = r.agentMemoryPort
 	}
-	if r.supportsFeature(protocol.FeatureKnowledge) {
+	if r.supportsFeature(runtimeprofile.FeatureKnowledge) {
 		services.Knowledge = r.knowledgePort
 	}
-	if r.supportsFeature(protocol.FeatureCodebase) {
+	if r.supportsFeature(runtimeprofile.FeatureCodebase) {
 		services.Codebase = r.codebasePort
+	}
+	if r.supportsFeature(runtimeprofile.FeatureSessionExport) {
+		services.Transfers = r
 	}
 	return services
 }
 
-func (r *Runtime) supportsFeature(name string) bool {
+func (r *Runtime) supportsFeature(name runtimeprofile.FeatureName) bool {
 	return r.profile.Supports(name)
 }
 

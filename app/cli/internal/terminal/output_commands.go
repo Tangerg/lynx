@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/Tangerg/lynx/app/cli/internal/runtimeprofile"
 	"github.com/Tangerg/lynx/app/cli/internal/sessiontransfer"
 )
 
@@ -47,6 +48,9 @@ func (a *app) copyLastAssistant() error {
 }
 
 func (a *app) exportSession(argument string) error {
+	if err := a.requireRuntimeFeature(runtimeprofile.FeatureSessionExport); err != nil {
+		return err
+	}
 	format, filename, err := parseExportArgument(argument)
 	if err != nil {
 		return err

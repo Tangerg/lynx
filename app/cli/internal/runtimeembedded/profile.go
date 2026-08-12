@@ -27,7 +27,7 @@ func projectRuntimeProfile(
 		RuntimeTopics:    make([]string, 0, len(discovery.Capabilities.RuntimeTopics)),
 		StateSnapshots:   make([]runtimeprofile.Snapshot, 0, len(discovery.Capabilities.StateSnapshots)),
 		StreamingMethods: append([]string(nil), discovery.Capabilities.StreamingMethods...),
-		Features:         make(map[string]runtimeprofile.Feature, len(discovery.Capabilities.Features)),
+		Features:         make(map[runtimeprofile.FeatureName]runtimeprofile.Feature, len(discovery.Capabilities.Features)),
 		Limits: runtimeprofile.Limits{
 			MaxConcurrentRuns:           discovery.Capabilities.Limits.MaxConcurrentRuns,
 			IdempotencyRetentionSeconds: discovery.Capabilities.Limits.Idempotency.RetentionSeconds,
@@ -57,7 +57,7 @@ func projectRuntimeProfile(
 	}
 	for name, feature := range discovery.Capabilities.Features {
 		requested := client != nil && client.Features[name].Enabled
-		profile.Features[name] = runtimeprofile.Feature{
+		profile.Features[runtimeprofile.FeatureName(name)] = runtimeprofile.Feature{
 			Enabled: feature.Enabled, Stability: runtimeprofile.Stability(feature.Stability),
 			ClientOptIn: feature.ClientOptIn, ClientRequested: requested,
 			RequiredByRunProtocol: feature.RequiredByRunProtocol,

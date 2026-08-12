@@ -75,7 +75,7 @@ func commandRuntimeProfile() runtimeprofile.Profile {
 		RunEvents: []string{"segment.started"}, RuntimeTopics: []string{"files.changed"},
 		StateSnapshots:   []runtimeprofile.Snapshot{{Key: "plan", RecoveryMethod: "plan.get", Scope: "session", Writer: "rootRun"}},
 		StreamingMethods: []string{"runs.start"},
-		Features: map[string]runtimeprofile.Feature{
+		Features: map[runtimeprofile.FeatureName]runtimeprofile.Feature{
 			"mcp": {
 				Enabled: true, Stability: runtimeprofile.Experimental,
 				ClientOptIn: true, ClientRequested: true, RequiredByRunProtocol: true,

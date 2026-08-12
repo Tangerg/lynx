@@ -89,7 +89,7 @@ func writeRuntimeProfile(output io.Writer, profile runtimeprofile.Profile) error
 		if feature.Available() {
 			flags = append(flags, "available")
 		}
-		rows = append(rows, [2]string{"feature " + name, strings.Join(flags, " · ")})
+		rows = append(rows, [2]string{"feature " + string(name), strings.Join(flags, " · ")})
 	}
 	limits := profile.Limits
 	rows = append(rows,

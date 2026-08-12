@@ -24,6 +24,9 @@ func (a *app) steerRun(instruction string) error {
 		return err
 	}
 	message := agent.Message{Text: instruction, Attachments: slices.Clone(draft.Attachments)}
+	if err := a.validateMessageCapabilities(message); err != nil {
+		return err
+	}
 	request := agent.SteerRun{RunID: runID, SegmentID: segmentID, Message: message}
 	if err := request.Validate(); err != nil {
 		return err

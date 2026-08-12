@@ -252,6 +252,47 @@ func TestQuestionItemAndInterruptShareProjection(t *testing.T) {
 	}
 }
 
+func TestCompletedQuestionPreservesAcceptedAnswers(t *testing.T) {
+	t.Parallel()
+
+	answers := [][]string{{"safe"}}
+	block, err := projectItem(protocol.Item{
+		ID: "item_1", RunID: "run_1", Status: protocol.ItemStatusCompleted,
+		Type: protocol.ItemTypeQuestion, Question: &protocol.Question{
+			Fields: []protocol.QuestionField{{
+				Prompt: "Choose a strategy", Type: protocol.QuestionFieldChoice,
+				Options: []protocol.QuestionOption{{Label: "safe"}, {Label: "fast"}},
+			}},
+			Answers: answers,
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if block.Question == nil || !block.Question.Answered() || !reflect.DeepEqual(block.Question.Answers, answers) {
+		t.Fatalf("completed question = %+v", block.Question)
+	}
+	answers[0][0] = "mutated"
+	if block.Question.Answers[0][0] != "safe" {
+		t.Fatal("question projection aliases runtime answer storage")
+	}
+}
+
+func TestCompletedQuestionCannotReenterTheInterruptChannel(t *testing.T) {
+	t.Parallel()
+
+	_, err := projectInteraction(protocol.Interrupt{
+		ItemID: "item_1", RunID: "run_1", Type: protocol.InterruptQuestion,
+		Payload: &protocol.InterruptPayload{Question: &protocol.Question{
+			Fields:  []protocol.QuestionField{{Prompt: "Target", Type: protocol.QuestionFieldText}},
+			Answers: [][]string{{"linux"}},
+		}},
+	})
+	if err == nil || !strings.Contains(err.Error(), "already has accepted answers") {
+		t.Fatalf("answered question interrupt error = %v", err)
+	}
+}
+
 func TestApprovalInterruptPreservesCompleteToolArguments(t *testing.T) {
 	interaction, err := projectInteraction(protocol.Interrupt{
 		ItemID: "tool_1", RunID: "run_1", Type: protocol.InterruptApproval,

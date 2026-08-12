@@ -1,12 +1,29 @@
 package runtimeembedded
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/Tangerg/lynx/app/runtime/protocol"
 
 	"github.com/Tangerg/lynx/app/cli/internal/runtimeprofile"
 )
+
+func TestCLIProfileFeatureVocabularyMatchesRuntimeProtocol(t *testing.T) {
+	t.Parallel()
+
+	want := protocol.FeatureKeys()
+	gotNames := runtimeprofile.KnownFeatures()
+	got := make([]string, len(gotNames))
+	for index, name := range gotNames {
+		got[index] = string(name)
+	}
+	slices.Sort(got)
+	slices.Sort(want)
+	if !slices.Equal(got, want) {
+		t.Fatalf("CLI features = %v, runtime features = %v", got, want)
+	}
+}
 
 func TestRuntimeProfileProjectionPreservesCompleteDiscovery(t *testing.T) {
 	t.Parallel()
@@ -32,7 +49,7 @@ func TestRuntimeProfileProjectionPreservesCompleteDiscovery(t *testing.T) {
 		len(profile.StreamingMethods) != len(discovery.Capabilities.StreamingMethods) {
 		t.Fatalf("runtime profile = %+v", profile)
 	}
-	feature := profile.Features[protocol.FeatureMCP]
+	feature := profile.Features[runtimeprofile.FeatureMCP]
 	if !feature.Enabled || feature.Stability != runtimeprofile.Experimental || !feature.ClientOptIn ||
 		!feature.ClientRequested || !feature.RequiredByRunProtocol || !feature.Available() {
 		t.Fatalf("MCP profile = %+v", feature)

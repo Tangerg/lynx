@@ -188,6 +188,9 @@ type Question struct {
 	Title  string
 	Detail string
 	Fields []QuestionField
+	// Answers is nil while the question is pending. Once the runtime accepts a
+	// response, it preserves one values slice per field as a transcript fact.
+	Answers [][]string
 }
 
 type QuestionKind string

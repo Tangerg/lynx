@@ -9,7 +9,7 @@ func TestProfileOwnsCapabilityCollectionsAndAnswersGates(t *testing.T) {
 	if err := profile.Validate(); err != nil {
 		t.Fatal(err)
 	}
-	if !profile.Supports("mcp") || profile.Supports("schedules") || !profile.SupportsRuntimeTopic("files.changed") {
+	if !profile.Supports(FeatureMCP) || profile.Supports(FeatureSchedules) || !profile.SupportsRuntimeTopic("files.changed") {
 		t.Fatalf("profile gates = %+v", profile)
 	}
 	if names := profile.AvailableFeatureNames(); len(names) != 1 || names[0] != "mcp" {
@@ -33,13 +33,13 @@ func TestProfileRequiresClientAgreementForOptInFeatures(t *testing.T) {
 
 	profile := validProfile()
 	profile.Features["subagents"] = Feature{Enabled: true, Stability: Stable, ClientOptIn: true}
-	if profile.Supports("subagents") {
+	if profile.Supports(FeatureSubagents) {
 		t.Fatal("server support bypassed the client opt-in requirement")
 	}
 	feature := profile.Features["subagents"]
 	feature.ClientRequested = true
 	profile.Features["subagents"] = feature
-	if !profile.Supports("subagents") {
+	if !profile.Supports(FeatureSubagents) {
 		t.Fatal("negotiated opt-in feature was unavailable")
 	}
 }
@@ -79,9 +79,9 @@ func validProfile() Profile {
 		RuntimeTopics:    []string{"files.changed"},
 		StateSnapshots:   []Snapshot{{Key: "plan", RecoveryMethod: "plan.get", Scope: "session", Writer: "rootRun"}},
 		StreamingMethods: []string{"runs.start"},
-		Features: map[string]Feature{
-			"mcp":       {Enabled: true, Stability: Stable},
-			"schedules": {Stability: Experimental},
+		Features: map[FeatureName]Feature{
+			FeatureMCP:       {Enabled: true, Stability: Stable},
+			FeatureSchedules: {Stability: Experimental},
 		},
 		Limits: Limits{
 			MaxConcurrentRuns: 4, IdempotencyRetentionSeconds: 600,

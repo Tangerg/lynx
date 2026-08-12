@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"slices"
 	"time"
 
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
@@ -163,6 +164,7 @@ type interactionJSON struct {
 	RuleHint     string              `json:"ruleHint,omitzero"`
 	Rememberable bool                `json:"rememberable,omitzero"`
 	Fields       []questionFieldJSON `json:"fields,omitzero"`
+	Answers      [][]string          `json:"answers,omitempty"`
 }
 
 type questionFieldJSON struct {
@@ -402,7 +404,10 @@ func encodeInteraction(interaction agent.Interaction) *interactionJSON {
 			RuleHint: item.RuleHint, Rememberable: item.Rememberable,
 		}
 	case agent.Question:
-		out := &interactionJSON{Kind: "question", RunID: item.RunID, ItemID: item.ItemID, Title: item.Title, Detail: item.Detail}
+		out := &interactionJSON{
+			Kind: "question", RunID: item.RunID, ItemID: item.ItemID,
+			Title: item.Title, Detail: item.Detail, Answers: cloneStringMatrix(item.Answers),
+		}
 		for _, field := range item.Fields {
 			encoded := questionFieldJSON{
 				Prompt: field.Prompt, Header: field.Header,
@@ -419,6 +424,17 @@ func encodeInteraction(interaction agent.Interaction) *interactionJSON {
 	default:
 		return nil
 	}
+}
+
+func cloneStringMatrix(values [][]string) [][]string {
+	if values == nil {
+		return nil
+	}
+	cloned := make([][]string, len(values))
+	for index, row := range values {
+		cloned[index] = slices.Clone(row)
+	}
+	return cloned
 }
 
 // Close reports the first write error, if any. There is nothing to flush: a line

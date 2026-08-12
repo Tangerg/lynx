@@ -10,6 +10,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/cli/internal/changefeed"
 	"github.com/Tangerg/lynx/app/cli/internal/reconnect"
+	"github.com/Tangerg/lynx/app/cli/internal/runtimeprofile"
 	"github.com/Tangerg/lynx/app/cli/internal/workspace"
 )
 
@@ -208,14 +209,19 @@ func workspaceChangesDocument(path string, changes []workspace.Change) readerDoc
 
 func (a *app) followRuntimeChanges() {
 	a.operations.Cancel(runtimeChangesOperation)
-	if a.workspaces == nil && a.changes == nil {
+	workspacePath := a.session.Workspace
+	var repository workspace.ChangeReader
+	if a.runtimeSupports(runtimeprofile.FeatureGit) {
+		repository = a.workspaces
+	}
+	if repository == nil && a.changes == nil {
 		return
 	}
-	workspacePath := a.session.Workspace
 	dispatcher := a.loop.Dispatcher()
 	a.operations.Go(runtimeChangesOperation, true, func(ctx context.Context, lease operationLease) {
 		monitor := runtimeChangeMonitor{
-			workspace: workspacePath, repository: a.workspaces, source: a.changes,
+			workspace: workspacePath, repository: repository, source: a.changes,
+			watchFiles:   a.runtimeSupports(runtimeprofile.FeatureFileWatch),
 			includeGoals: a.goals != nil, includeSkills: a.skills != nil, includeMCP: a.mcp != nil,
 			includeSchedules: a.schedules != nil,
 			applyFiles: func(changes []workspace.Change) error {
@@ -259,6 +265,7 @@ type runtimeChangeMonitor struct {
 	workspace        string
 	repository       workspace.ChangeReader
 	source           changefeed.Source
+	watchFiles       bool
 	includeGoals     bool
 	includeSkills    bool
 	includeMCP       bool
@@ -275,7 +282,7 @@ func (monitor runtimeChangeMonitor) run(ctx context.Context) {
 		return
 	}
 	subscription := changefeed.Subscription{Topics: topics}
-	if monitor.repository != nil && containsTopic(topics, changefeed.FilesChanged) {
+	if monitor.repository != nil && monitor.watchFiles && containsTopic(topics, changefeed.FilesChanged) {
 		subscription.Watches = []changefeed.Watch{{ID: workspaceWatchID, Workspace: monitor.workspace}}
 	}
 	failures := 0
@@ -389,7 +396,7 @@ func (monitor runtimeChangeMonitor) supportedTopics() []changefeed.Topic {
 	if monitor.includeSchedules {
 		candidates = append(candidates, changefeed.SchedulesChanged)
 	}
-	if monitor.repository != nil {
+	if monitor.repository != nil && monitor.watchFiles {
 		candidates = append([]changefeed.Topic{changefeed.FilesChanged}, candidates...)
 	}
 	topics := make([]changefeed.Topic, 0, len(candidates))

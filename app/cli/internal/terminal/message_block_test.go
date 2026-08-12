@@ -66,3 +66,20 @@ func TestUserPresenterKeepsAttachmentsInsideTheMessageSurface(t *testing.T) {
 		t.Fatalf("presented user message = %#v", rendered[0])
 	}
 }
+
+func TestQuestionPresenterShowsAcceptedTranscriptAnswers(t *testing.T) {
+	t.Parallel()
+
+	question := agent.Question{
+		Title: "Target", Fields: []agent.QuestionField{{Prompt: "Which platform?"}},
+		Answers: [][]string{{"linux"}},
+	}
+	rendered := presentQuestion(BlockPresentation{Theme: kit.Dark(), Glyphs: kit.Unicode()}, agent.Block{Question: &question})
+	if len(rendered) != 1 {
+		t.Fatalf("presented blocks = %d, want 1", len(rendered))
+	}
+	message, ok := rendered[0].(*kit.Message)
+	if !ok || !strings.Contains(message.Body, "answer · linux") {
+		t.Fatalf("presented question = %#v", rendered[0])
+	}
+}

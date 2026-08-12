@@ -14,6 +14,7 @@ import (
 	"github.com/Tangerg/oolong/core/layout"
 
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
+	"github.com/Tangerg/lynx/app/cli/internal/runtimeprofile"
 	"github.com/Tangerg/lynx/app/cli/internal/workbench"
 	"github.com/Tangerg/lynx/app/cli/internal/workspace"
 )
@@ -190,6 +191,9 @@ func (a *app) createSessionInWorkspace(requested string) error {
 }
 
 func (a *app) RelocateSession(requested string) error {
+	if err := a.requireRuntimeFeature(runtimeprofile.FeatureRelocate); err != nil {
+		return err
+	}
 	path, err := resolveWorkspace(a.session.Workspace, requested)
 	if err != nil {
 		return err

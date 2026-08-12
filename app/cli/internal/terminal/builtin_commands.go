@@ -5,6 +5,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
 	"github.com/Tangerg/lynx/app/cli/internal/modelconfig"
+	"github.com/Tangerg/lynx/app/cli/internal/runtimeprofile"
 )
 
 const (
@@ -44,7 +45,7 @@ func builtinCommands() []localCommand {
 			localCommand{Descriptor: CommandDescriptor{Name: "timeline", Title: "browse runs in the current session"}, Available: availableWithoutActiveRun, Run: func(a *app, _ string) error { a.ShowTimeline(); return nil }},
 			localCommand{Descriptor: CommandDescriptor{Name: "new", Title: "start a new session"}, Available: availableWithoutActiveRun, Run: func(a *app, _ string) error { a.NewSession(); return nil }},
 			localCommand{Descriptor: CommandDescriptor{Name: "workspace", Title: "start a session in a recent or specified workspace", Arguments: OptionalArguments}, Available: availableWithoutActiveRun, Run: func(a *app, path string) error { return a.chooseWorkspace(path) }},
-			localCommand{Descriptor: CommandDescriptor{Name: "relocate", Title: "move the current session to another workspace", Arguments: RequiredArguments}, Available: availableWithoutActiveRun, Run: func(a *app, path string) error { return a.RelocateSession(path) }},
+			localCommand{Descriptor: CommandDescriptor{Name: "relocate", Title: "move the current session to another workspace", Arguments: RequiredArguments}, Available: availableForRelocation, Run: func(a *app, path string) error { return a.RelocateSession(path) }},
 			localCommand{Descriptor: CommandDescriptor{Name: "rename", Title: "rename the current session", Arguments: RequiredArguments}, Available: availableWithoutActiveRun, Run: func(a *app, title string) error { a.RenameSession(title); return nil }},
 			localCommand{Descriptor: CommandDescriptor{Name: "fork", Title: "fork the complete current session", Arguments: OptionalArguments}, Available: availableWithoutActiveRun, Run: func(a *app, title string) error { a.ForkSession(title); return nil }},
 			localCommand{Descriptor: CommandDescriptor{Name: "rollback", Title: "rewind history, files, or both to a run boundary", Arguments: RequiredArguments}, Available: availableForRollback, Run: func(a *app, argument string) error { return a.prepareSessionRollback(argument) }},
@@ -130,8 +131,8 @@ func builtinCommands() []localCommand {
 			localCommand{Descriptor: CommandDescriptor{Name: "codebase-search", Title: "search the semantic codebase index", Arguments: RequiredArguments}, Available: availableWithCodebase, Run: func(a *app, query string) error { return a.SearchCodebase(query) }},
 			localCommand{Descriptor: CommandDescriptor{Name: "codebase-reindex", Title: "rebuild the semantic codebase index"}, Available: availableWithCodebase, Run: func(a *app, _ string) error { return a.PrepareCodebaseReindex() }},
 			localCommand{Descriptor: CommandDescriptor{Name: "workspaces", Title: "inspect runtime-known workspaces"}, Available: availableWithWorkspaceService, Run: func(a *app, _ string) error { a.ShowWorkspaces(); return nil }},
-			localCommand{Descriptor: CommandDescriptor{Name: "changes", Title: "inspect authoritative workspace changes"}, Available: availableWithWorkspaceService, Run: func(a *app, _ string) error { a.ShowWorkspaceChanges(); return nil }},
-			localCommand{Descriptor: CommandDescriptor{Name: "diff", Title: "inspect the workspace diff, optionally for one path", Arguments: OptionalArguments}, Available: availableWithWorkspaceService, Run: func(a *app, path string) error { a.ShowWorkspaceDiff(path); return nil }},
+			localCommand{Descriptor: CommandDescriptor{Name: "changes", Title: "inspect authoritative workspace changes"}, Available: availableWithGitWorkspaceService, Run: func(a *app, _ string) error { a.ShowWorkspaceChanges(); return nil }},
+			localCommand{Descriptor: CommandDescriptor{Name: "diff", Title: "inspect the workspace diff, optionally for one path", Arguments: OptionalArguments}, Available: availableWithGitWorkspaceService, Run: func(a *app, path string) error { a.ShowWorkspaceDiff(path); return nil }},
 			localCommand{Descriptor: CommandDescriptor{Name: "preview", Title: "preview the first lines of a workspace file", Arguments: RequiredArguments}, Available: availableWithWorkspaceService, Run: func(a *app, path string) error { a.PreviewWorkspaceFile(path); return nil }},
 			localCommand{Descriptor: CommandDescriptor{Name: "grep", Title: "search text across workspace files", Arguments: RequiredArguments}, Available: availableWithWorkspaceService, Run: func(a *app, query string) error { a.SearchWorkspace(query); return nil }},
 			localCommand{Descriptor: CommandDescriptor{Name: "browse", Title: "browse a workspace directory", Arguments: OptionalArguments}, Available: availableWithWorkspaceService, Run: func(a *app, path string) error { a.BrowseWorkspace(path); return nil }},
@@ -152,6 +153,13 @@ func availableWithWorkspaceService(a *app) CommandAvailability {
 	return CommandAvailability{Enabled: true}
 }
 
+func availableWithGitWorkspaceService(a *app) CommandAvailability {
+	if unavailable := availableWithWorkspaceService(a); !unavailable.Enabled {
+		return unavailable
+	}
+	return availableWithRuntimeFeature(a, runtimeprofile.FeatureGit)
+}
+
 func availableWithSessionTransfer(a *app) CommandAvailability {
 	if unavailable := availableWithoutActiveRun(a); !unavailable.Enabled {
 		return unavailable
@@ -159,7 +167,7 @@ func availableWithSessionTransfer(a *app) CommandAvailability {
 	if a.transfers == nil {
 		return CommandAvailability{Reason: "this runtime composition has no session transfer service"}
 	}
-	return CommandAvailability{Enabled: true}
+	return availableWithRuntimeFeature(a, runtimeprofile.FeatureSessionExport)
 }
 
 func availableWithUsage(a *app) CommandAvailability {
@@ -258,6 +266,13 @@ func availableForGoalStart(a *app) CommandAvailability {
 		return unavailable
 	}
 	return availableWithGoals(a)
+}
+
+func availableForRelocation(a *app) CommandAvailability {
+	if unavailable := availableWithoutActiveRun(a); !unavailable.Enabled {
+		return unavailable
+	}
+	return availableWithRuntimeFeature(a, runtimeprofile.FeatureRelocate)
 }
 
 func availableForRollback(a *app) CommandAvailability {

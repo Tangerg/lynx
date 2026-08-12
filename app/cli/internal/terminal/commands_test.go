@@ -4,6 +4,9 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/Tangerg/lynx/app/cli/internal/agent"
+	"github.com/Tangerg/lynx/app/cli/internal/runtimeprofile"
 )
 
 func TestCommandDescriptorValidatesItsIdentityNamespace(t *testing.T) {
@@ -83,6 +86,54 @@ func TestCommandsWithUsefulDefaultsDeclareOptionalArguments(t *testing.T) {
 	}
 	for name := range want {
 		t.Errorf("defaultable command /%s is not registered", name)
+	}
+}
+
+func TestBuiltinCommandsHonorNegotiatedFineGrainedCapabilities(t *testing.T) {
+	t.Parallel()
+
+	profile := runtimeprofile.Profile{Features: map[runtimeprofile.FeatureName]runtimeprofile.Feature{
+		runtimeprofile.FeatureGit:           {Stability: runtimeprofile.Stable},
+		runtimeprofile.FeatureRelocate:      {Stability: runtimeprofile.Stable},
+		runtimeprofile.FeatureSessionExport: {Stability: runtimeprofile.Stable},
+	}}
+	application := &app{
+		runtimeProfile: &profile,
+		conversation:   agent.NewConversation(),
+		workspaces:     &workspaceServiceStub{},
+		transfers:      outputTransferStub{},
+	}
+	for name, availability := range map[string]CommandAvailability{
+		"changes":  availableWithGitWorkspaceService(application),
+		"relocate": availableForRelocation(application),
+		"export":   availableWithSessionTransfer(application),
+	} {
+		if availability.Enabled || !strings.Contains(availability.Reason, "was not negotiated") {
+			t.Errorf("%s availability = %+v", name, availability)
+		}
+	}
+
+	application.runtimeProfile = nil
+	if !availableWithGitWorkspaceService(application).Enabled ||
+		!availableForRelocation(application).Enabled ||
+		!availableWithSessionTransfer(application).Enabled {
+		t.Fatal("backend without discovery lost its service-based fallback")
+	}
+}
+
+func TestMessageCapabilitiesRejectImagesOnlyWhenMultimodalWasNotNegotiated(t *testing.T) {
+	t.Parallel()
+
+	application := &app{runtimeProfile: &runtimeprofile.Profile{Features: map[runtimeprofile.FeatureName]runtimeprofile.Feature{
+		runtimeprofile.FeatureMultimodal: {Enabled: false, Stability: runtimeprofile.Stable},
+	}}}
+	text := agent.Message{Attachments: []agent.Attachment{{Kind: agent.AttachmentText}}}
+	if err := application.validateMessageCapabilities(text); err != nil {
+		t.Fatalf("text attachment: %v", err)
+	}
+	image := agent.Message{Attachments: []agent.Attachment{{Kind: agent.AttachmentImage}}}
+	if err := application.validateMessageCapabilities(image); err == nil || !strings.Contains(err.Error(), "multimodal") {
+		t.Fatalf("image attachment error = %v", err)
 	}
 }
 

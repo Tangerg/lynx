@@ -29,6 +29,45 @@ const (
 	Experimental Stability = "experimental"
 )
 
+// FeatureName is the runtime capability vocabulary the CLI currently knows how
+// to consume. Discovery may still carry newer names; FeatureName remains a
+// string so the profile can preserve and report them without interpreting them.
+type FeatureName string
+
+const (
+	FeatureReasoning     FeatureName = "reasoning"
+	FeatureMultimodal    FeatureName = "multimodal"
+	FeatureCompaction    FeatureName = "compaction"
+	FeaturePlan          FeatureName = "plan"
+	FeatureGoals         FeatureName = "goals"
+	FeatureAgentMemory   FeatureName = "agentMemory"
+	FeatureKnowledge     FeatureName = "knowledge"
+	FeatureSkills        FeatureName = "skills"
+	FeatureMCP           FeatureName = "mcp"
+	FeatureSchedules     FeatureName = "schedules"
+	FeatureCodebase      FeatureName = "codebase"
+	FeatureGit           FeatureName = "git"
+	FeatureCheckpoints   FeatureName = "checkpoints"
+	FeatureFileWatch     FeatureName = "fileWatch"
+	FeatureLSP           FeatureName = "lsp"
+	FeatureSessionExport FeatureName = "sessionExport"
+	FeatureRelocate      FeatureName = "relocate"
+	FeatureSubagents     FeatureName = "subagents"
+	FeatureClientTools   FeatureName = "clientTools"
+)
+
+// KnownFeatures returns the runtime feature vocabulary understood by this CLI.
+// Profiles still preserve unknown future names for diagnostics.
+func KnownFeatures() []FeatureName {
+	return []FeatureName{
+		FeatureReasoning, FeatureMultimodal, FeatureCompaction, FeaturePlan,
+		FeatureGoals, FeatureAgentMemory, FeatureKnowledge, FeatureSkills,
+		FeatureMCP, FeatureSchedules, FeatureCodebase, FeatureGit,
+		FeatureCheckpoints, FeatureFileWatch, FeatureLSP, FeatureSessionExport,
+		FeatureRelocate, FeatureSubagents, FeatureClientTools,
+	}
+}
+
 type Feature struct {
 	Enabled               bool      `json:"enabled"`
 	Stability             Stability `json:"stability"`
@@ -72,14 +111,14 @@ type Limits struct {
 // Profile is the complete, CLI-owned projection of one successful runtime
 // discovery. It is immutable by convention; Clone crosses ownership boundaries.
 type Profile struct {
-	Protocol         Protocol           `json:"protocol"`
-	Server           Server             `json:"server"`
-	RunEvents        []string           `json:"runEvents"`
-	RuntimeTopics    []string           `json:"runtimeTopics"`
-	StateSnapshots   []Snapshot         `json:"stateSnapshots"`
-	StreamingMethods []string           `json:"streamingMethods"`
-	Features         map[string]Feature `json:"features"`
-	Limits           Limits             `json:"limits"`
+	Protocol         Protocol                `json:"protocol"`
+	Server           Server                  `json:"server"`
+	RunEvents        []string                `json:"runEvents"`
+	RuntimeTopics    []string                `json:"runtimeTopics"`
+	StateSnapshots   []Snapshot              `json:"stateSnapshots"`
+	StreamingMethods []string                `json:"streamingMethods"`
+	Features         map[FeatureName]Feature `json:"features"`
+	Limits           Limits                  `json:"limits"`
 }
 
 func (profile Profile) Clone() Profile {
@@ -127,7 +166,7 @@ func (profile Profile) Validate() error {
 		seenSnapshots[snapshot.Key] = struct{}{}
 	}
 	for name, feature := range profile.Features {
-		if strings.TrimSpace(name) == "" {
+		if strings.TrimSpace(string(name)) == "" {
 			problems = append(problems, errors.New("feature name is empty"))
 		}
 		if feature.Stability != Stable && feature.Stability != Experimental {
@@ -173,7 +212,7 @@ func validateUniqueStrings(name string, values []string) error {
 	return nil
 }
 
-func (profile Profile) Supports(feature string) bool {
+func (profile Profile) Supports(feature FeatureName) bool {
 	return profile.Features[feature].Available()
 }
 
@@ -185,7 +224,7 @@ func (profile Profile) AvailableFeatureNames() []string {
 	names := make([]string, 0, len(profile.Features))
 	for name, feature := range profile.Features {
 		if feature.Available() {
-			names = append(names, name)
+			names = append(names, string(name))
 		}
 	}
 	slices.Sort(names)

@@ -13,6 +13,7 @@ import (
 	"github.com/Tangerg/oolong/core/layout"
 
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
+	"github.com/Tangerg/lynx/app/cli/internal/runtimeprofile"
 	"github.com/Tangerg/lynx/app/cli/internal/sessiontransfer"
 )
 
@@ -24,6 +25,9 @@ type sessionImport struct {
 func (a *app) prepareSessionImport(path string) error {
 	if a.transfers == nil {
 		return errors.New("this runtime composition has no session transfer service")
+	}
+	if err := a.requireRuntimeFeature(runtimeprofile.FeatureSessionExport); err != nil {
+		return err
 	}
 	workspace := a.session.Workspace
 	a.message("reading session artifact")
@@ -74,6 +78,11 @@ func (a *app) prepareSessionRollback(argument string) error {
 	request, err := parseRollbackArgument(a.session.ID, argument)
 	if err != nil {
 		return err
+	}
+	if request.Scope != agent.RestoreHistory {
+		if err := a.requireRuntimeFeature(runtimeprofile.FeatureCheckpoints); err != nil {
+			return err
+		}
 	}
 	a.message("previewing rollback")
 	started := runOperation(a, sessionOutputOperation, false,

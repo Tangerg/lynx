@@ -494,8 +494,11 @@ func (t *Text) interrupted(interaction agent.Interaction) {
 		}
 	case agent.Question:
 		t.line("? " + item.Title)
-		for _, field := range item.Fields {
+		for index, field := range item.Fields {
 			t.line("  - " + field.Prompt)
+			if item.Answered() {
+				t.line("    answer: " + strings.Join(item.Answers[index], ", "))
+			}
 		}
 	}
 }

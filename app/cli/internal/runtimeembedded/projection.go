@@ -213,6 +213,9 @@ func projectInteraction(value protocol.Interrupt) (agent.Interaction, error) {
 		if err != nil {
 			return nil, err
 		}
+		if err := agent.ValidateInteraction(question); err != nil {
+			return nil, fmt.Errorf("question interrupt %s: %w", value.ItemID, err)
+		}
 		return question, nil
 	default:
 		return nil, fmt.Errorf("%w: interrupt type %q is unsupported", agent.ErrIncompatibleRuntime, value.Type)
