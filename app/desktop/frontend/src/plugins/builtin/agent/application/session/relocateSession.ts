@@ -22,6 +22,11 @@ export function useRelocateSession(): (
       await invalidateAgentSessions();
       return true;
     } catch (err) {
+      // A conditional-write failure means our revision may be stale; a lost
+      // response can also hide a committed relocation. Re-read the Session
+      // owner in both cases so the banner receives the current cwd/revision or
+      // disappears if another client deleted the Session.
+      void invalidateAgentSessions();
       reportSessionError("relocate", err, rpcErrorText(err) ?? String(err));
       return false;
     }

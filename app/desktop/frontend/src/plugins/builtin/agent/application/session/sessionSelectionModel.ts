@@ -34,9 +34,21 @@ export function reconcileOpenSessions(
   liveIds: string[],
 ): AgentOpenSessions | null {
   const known = new Set([...liveIds, ...state.draftSessionIds]);
-  const openSessionIds = state.openSessionIds.filter((id) => known.has(id));
+  const retainedOpenSessionIds = state.openSessionIds.filter((id) => known.has(id));
   const activeAlive = state.activeSessionId === "" || known.has(state.activeSessionId);
-  if (openSessionIds.length === state.openSessionIds.length && activeAlive) return null;
+  // A URL deep-link or browser history move can select a Session without going
+  // through the explicit selection action. Once Runtime confirms that identity,
+  // hold it open before stale refs are released: open-set subscribers own the
+  // mounted Agent/composer lifecycle and would otherwise prune the still-active
+  // Session as dead while leaving its location untouched.
+  const openSessionIds =
+    activeAlive && state.activeSessionId !== ""
+      ? openSession(retainedOpenSessionIds, state.activeSessionId)
+      : retainedOpenSessionIds;
+  const openSessionsChanged =
+    openSessionIds.length !== state.openSessionIds.length ||
+    openSessionIds.some((id, index) => id !== state.openSessionIds[index]);
+  if (!openSessionsChanged && activeAlive) return null;
   return {
     openSessionIds,
     activeSessionId: activeAlive ? state.activeSessionId : (openSessionIds.at(-1) ?? ""),

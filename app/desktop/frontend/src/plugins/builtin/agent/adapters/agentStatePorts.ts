@@ -95,6 +95,7 @@ export function installAgentStatePorts(): () => void {
         id,
       );
       store.release(id);
+      store.rememberSession(next.activeSessionId);
       navigator().go({ session: next.activeSessionId });
     },
     useDraftSessionIds: () => useAgentSessionStore((state) => state.draftSessionIds),
@@ -114,6 +115,11 @@ export function installAgentStatePorts(): () => void {
       );
       if (!next) return;
       store.retainOnly(next.openSessionIds);
+      // Reconciliation may correct a deleted deep-link/last-session seed or
+      // establish a direct live deep-link as held-open. Keep cold-start memory
+      // aligned with that accepted location; otherwise the next launch replays
+      // the identity we just proved stale.
+      store.rememberSession(next.activeSessionId);
       if (next.activeSessionId !== activeSessionId()) {
         navigator().go({ session: next.activeSessionId }, { replace: true });
       }

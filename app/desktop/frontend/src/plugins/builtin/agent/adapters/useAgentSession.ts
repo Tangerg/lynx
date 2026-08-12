@@ -36,6 +36,15 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
     const client = () => getContainer().client();
     const store = () => useAgentStore.getState();
 
+    // Explicit selection already holds the Session open, but a URL deep-link
+    // or browser history move mounts this lifecycle without passing through
+    // that action. Establish the same invariant before creating its material
+    // view: open-set subscribers use membership to prune Agent/composer state,
+    // so an active-but-unheld Session could otherwise be deleted underneath
+    // this still-mounted driver by an unrelated reconciliation.
+    const sessionMemory = useAgentSessionStore.getState();
+    sessionMemory.holdOpen(sessionId);
+    sessionMemory.rememberSession(sessionId);
     // Preserve an already-materialized view while the authoritative refresh
     // is in flight; a first mount creates the empty slice.
     store().ensureSession(sessionId);

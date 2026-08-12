@@ -55,6 +55,33 @@ afterEach(() => {
 });
 
 describe("useAgentSession driver lifecycle", () => {
+  it("holds a directly mounted session open before lifecycle pruning can drop its view", () => {
+    const { driver } = parkedDriver();
+    useAgentSessionStore.setState({ openSessionIds: [], lastSessionId: "" });
+    setContainer({
+      client: () =>
+        ({
+          items: { list: vi.fn(() => autoPage([])) },
+          interrupts: { list: vi.fn(() => autoPage([])) },
+          plan: {
+            get: vi.fn().mockResolvedValue({
+              type: "plan",
+              sessionId: SID,
+              revision: 0,
+              plan: [],
+            }),
+          },
+          runs: { list: vi.fn(() => autoPage([])) },
+        }) as unknown as LyraClient,
+    });
+
+    renderHook(() => useAgentSession(() => driver, SID));
+
+    expect(useAgentSessionStore.getState().openSessionIds).toContain(SID);
+    expect(useAgentSessionStore.getState().lastSessionId).toBe(SID);
+    expect(useAgentStore.getState().sessions[SID]!.send).not.toBeNull();
+  });
+
   it("uses session identity as the lifecycle key and the latest factory at that boundary", () => {
     const first = parkedDriver().driver;
     const second = parkedDriver().driver;

@@ -65,6 +65,19 @@ describe("sessionSelectionModel", () => {
     ).toBeNull();
   });
 
+  it("holds an authoritative deep-linked active session open during reconciliation", () => {
+    expect(
+      reconcileOpenSessions(
+        {
+          activeSessionId: "deep-link",
+          draftSessionIds: new Set<string>(),
+          openSessionIds: ["stale"],
+        },
+        ["deep-link"],
+      ),
+    ).toEqual({ activeSessionId: "deep-link", openSessionIds: ["deep-link"] });
+  });
+
   it("prunes draft and pending handoffs for closed sessions", () => {
     expect(
       pruneSessionHandoffs({
