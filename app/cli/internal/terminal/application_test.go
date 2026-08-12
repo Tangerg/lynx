@@ -616,6 +616,122 @@ func TestPendingMixedInteractionResumeSurvivesRestartWithoutLosingAnswers(t *tes
 	stop()
 }
 
+func TestSwitchingSessionsRecoversTheDestinationPendingRunOutbox(t *testing.T) {
+	base := mock.New()
+	base.Instant = true
+	base.Script = stableCompletedScript
+	backend := &recordingRuntime{Runtime: base}
+	stateDirectory := t.TempDir()
+	store, err := workbench.Open(stateDirectory, workbench.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	command := agent.StartRun{
+		CommandID: agent.CommandID("cli_77777777777777777777777777777777"),
+		SessionID: "ses_demo_2",
+		Message:   agent.Message{Text: "recover destination queued prompt"},
+	}
+	if err := store.StagePendingRun(workbench.PendingRun{State: workbench.PendingRunQueued, Command: command}); err != nil {
+		t.Fatal(err)
+	}
+
+	host, stop := runUIWithState(t, backend, "/tmp/lyra-cli-test", "ses_demo_1", stateDirectory)
+	host.Shows(t, "Ask lyra")
+	host.Send(input.Key{Code: input.Character, Rune: 'r', Mods: input.Ctrl})
+	host.Shows(t, "Sessions")
+	host.Type("Rename the shell tool family")
+	host.Press(input.Enter)
+	host.Shows(t, "stable answer")
+	host.Shows(t, "complete")
+
+	inputs := backend.startInputs()
+	if len(inputs) != 1 || inputs[0].CommandID != command.CommandID || inputs[0].SessionID != command.SessionID ||
+		inputs[0].Message.Text != command.Message.Text {
+		t.Fatalf("recovered destination starts = %+v", inputs)
+	}
+	reopened, err := workbench.Open(stateDirectory, workbench.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pending := reopened.PendingRuns(command.SessionID); len(pending) != 0 {
+		t.Fatalf("acknowledged destination run remains = %+v", pending)
+	}
+	stop()
+}
+
+func TestSwitchingSessionsRecoversTheDestinationPendingResume(t *testing.T) {
+	base := mock.New()
+	base.Instant = true
+	base.Script = func(string) mock.Script {
+		return mock.Script{
+			Interactions: []agent.Interaction{agent.Approval{
+				ItemID: "destination-approval", Title: "Approve destination run",
+				Tool: &agent.ToolCall{Kind: agent.ToolRead, Name: "read", Path: "README.md", Status: agent.ToolRunning},
+			}},
+			Continue: func([]agent.InterruptAnswer) []mock.Step {
+				return []mock.Step{{Event: agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCompleted}}}}
+			},
+		}
+	}
+	opened, err := base.StartRun(t.Context(), agent.StartRun{
+		CommandID: agent.CommandID("cli_88888888888888888888888888888888"),
+		SessionID: "ses_demo_2", Message: agent.Message{Text: "recover destination decision"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, streamErr := range opened.Events {
+		if streamErr != nil {
+			t.Fatal(streamErr)
+		}
+	}
+	snapshot, err := base.GetSession(t.Context(), "ses_demo_2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(snapshot.Interactions) != 1 {
+		t.Fatalf("destination interactions = %+v", snapshot.Interactions)
+	}
+	command := agent.ResumeRun{
+		CommandID: agent.CommandID("cli_99999999999999999999999999999999"), RunID: opened.RunID,
+		Answers: []agent.InterruptAnswer{{
+			ItemID: agent.InteractionItemID(snapshot.Interactions[0]),
+			Answer: agent.ApprovalAnswer{Decision: agent.ApprovalApprove},
+		}},
+	}
+	stateDirectory := t.TempDir()
+	store, err := workbench.Open(stateDirectory, workbench.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.StagePendingResume("ses_demo_2", workbench.PendingResume{
+		Command: command, Interactions: snapshot.Interactions,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	runtime := &replayingResumeRuntime{Runtime: base}
+	host, stop := runUIWithState(t, runtime, "/tmp/lyra-cli-test", "ses_demo_1", stateDirectory)
+	host.Shows(t, "Ask lyra")
+	host.Send(input.Key{Code: input.Character, Rune: 'r', Mods: input.Ctrl})
+	host.Shows(t, "Sessions")
+	host.Type("Rename the shell tool family")
+	host.Press(input.Enter)
+	host.Shows(t, "complete")
+
+	attempts := runtime.resumeAttempts()
+	if len(attempts) < 2 || attempts[0].CommandID != command.CommandID || attempts[1].CommandID != command.CommandID {
+		t.Fatalf("destination resume attempts = %+v", attempts)
+	}
+	reopened, err := workbench.Open(stateDirectory, workbench.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pending, ok := reopened.PendingResume("ses_demo_2"); ok {
+		t.Fatalf("acknowledged destination resume remains = %+v", pending)
+	}
+	stop()
+}
+
 func TestShiftEnterInsertsANewlineWithoutSubmitting(t *testing.T) {
 	backend := &recordingRuntime{Runtime: mock.New()}
 	backend.Instant = true

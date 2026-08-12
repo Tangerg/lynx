@@ -507,6 +507,7 @@ func (installation sessionInstallation) apply(a *app) {
 	a.listenForSearch()
 	a.setWindowTitle()
 	a.restoreActivity(installation.snapshot)
+	a.restoreSessionOutbox()
 	if a.session.Workspace != previousWorkspace {
 		a.followRuntimeChanges()
 	}

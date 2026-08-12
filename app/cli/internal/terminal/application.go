@@ -297,11 +297,19 @@ func newApp(loop *program.Runtime, cfg appConfig) *app {
 	a.registerCommands()
 	a.buildInterface(appearance, cfg.keyBindings.editor)
 	a.restore(cfg.snapshot)
-	a.restorePendingResume()
-	a.restorePendingRuns()
+	a.restoreSessionOutbox()
 	_ = a.persistDraft()
 	a.followRuntimeChanges()
 	return a
+}
+
+// restoreSessionOutbox resumes durable runtime deliveries owned by the active
+// session. It belongs to projection installation rather than process startup:
+// every session can have an independent outbox, including one first visited
+// after this process began.
+func (a *app) restoreSessionOutbox() {
+	a.restorePendingResume()
+	a.restorePendingRuns()
 }
 
 func (a *app) restorePendingRuns() {
