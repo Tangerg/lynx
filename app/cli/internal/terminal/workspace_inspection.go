@@ -355,6 +355,10 @@ type runtimeResourceObservation struct {
 	hooks     bool
 }
 
+func (observation runtimeResourceObservation) hasWorkspaceAuthoredResources() bool {
+	return observation.knowledge || observation.hooks
+}
+
 func (a *app) observedRuntimeResources() runtimeResourceObservation {
 	return runtimeResourceObservation{
 		goals:     a.goals != nil && a.runtimeSupports(runtimeprofile.FeatureGoals),
@@ -366,13 +370,17 @@ func (a *app) observedRuntimeResources() runtimeResourceObservation {
 	}
 }
 
+func (monitor runtimeChangeMonitor) observesWorkspace() bool {
+	return monitor.watchFiles && (monitor.repository != nil || monitor.resources.hasWorkspaceAuthoredResources())
+}
+
 func (monitor runtimeChangeMonitor) run(ctx context.Context) error {
 	topics := monitor.supportedTopics()
 	if monitor.source == nil || len(topics) == 0 {
 		return monitor.runWithoutWatch(ctx)
 	}
 	requested := changefeed.Subscription{Topics: topics}
-	if monitor.repository != nil && monitor.watchFiles && containsTopic(topics, changefeed.FilesChanged) {
+	if monitor.observesWorkspace() && containsTopic(topics, changefeed.FilesChanged) {
 		requested.Watches = []changefeed.Watch{{ID: workspaceWatchID, Workspace: monitor.workspace}}
 	}
 	subscriptions, err := monitor.subscriptionLimits.Partition(requested)
@@ -602,7 +610,7 @@ func (monitor runtimeChangeMonitor) supportedTopics() []changefeed.Topic {
 	if monitor.resources.hooks {
 		candidates = append(candidates, changefeed.HooksChanged)
 	}
-	if monitor.repository != nil && monitor.watchFiles {
+	if monitor.observesWorkspace() {
 		candidates = append([]changefeed.Topic{changefeed.FilesChanged}, candidates...)
 	}
 	topics := make([]changefeed.Topic, 0, len(candidates))

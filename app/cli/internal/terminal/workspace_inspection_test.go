@@ -2,6 +2,7 @@ package terminal
 
 import (
 	"context"
+	"errors"
 	"slices"
 	"sync"
 	"testing"
@@ -469,6 +470,43 @@ func TestWorkspaceMonitorDoesNotRequestAFileWatchWithoutTheNegotiatedCapability(
 	monitor.watchFiles = true
 	if topics := monitor.supportedTopics(); !slices.Equal(topics, []changefeed.Topic{changefeed.FilesChanged, changefeed.SessionsChanged}) {
 		t.Fatalf("topics with fileWatch = %v", topics)
+	}
+}
+
+func TestWorkspaceMonitorWatchesAuthoredResourcesWithoutGitProjection(t *testing.T) {
+	t.Parallel()
+
+	source := &runtimeChangeSourceStub{
+		events:       make(chan changefeed.Event),
+		subscription: make(chan changefeed.Subscription, 1),
+		supported: []changefeed.Topic{
+			changefeed.FilesChanged, changefeed.SessionsChanged,
+			changefeed.KnowledgeChanged, changefeed.HooksChanged,
+		},
+	}
+	monitor := runtimeChangeMonitor{
+		workspace: "/workspace", source: source, watchFiles: true,
+		resources: runtimeResourceObservation{knowledge: true, hooks: true},
+	}
+	wantTopics := []changefeed.Topic{
+		changefeed.FilesChanged, changefeed.SessionsChanged,
+		changefeed.KnowledgeChanged, changefeed.HooksChanged,
+	}
+	if topics := monitor.supportedTopics(); !slices.Equal(topics, wantTopics) {
+		t.Fatalf("authored-resource topics without Git = %v, want %v", topics, wantTopics)
+	}
+
+	ctx, cancel := context.WithCancel(t.Context())
+	done := make(chan error, 1)
+	go func() { done <- monitor.run(ctx) }()
+	subscription := awaitValue(t, source.subscription, "authored-resource workspace watch")
+	if !slices.Equal(subscription.Topics, wantTopics) ||
+		!slices.Equal(subscription.Watches, []changefeed.Watch{{ID: workspaceWatchID, Workspace: "/workspace"}}) {
+		t.Fatalf("authored-resource subscription without Git = %+v", subscription)
+	}
+	cancel()
+	if err := <-done; !errors.Is(err, context.Canceled) {
+		t.Fatalf("monitor error = %v, want context cancellation", err)
 	}
 }
 
