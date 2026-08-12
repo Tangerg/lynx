@@ -21,7 +21,7 @@ export async function refreshAgentSessionProjection(
   if (!token) return null;
 
   const snapshot = await agentRuntime().loadSessionSnapshot(sessionId);
-  if (options.canCommit && !options.canCommit()) return null;
+  if (!snapshot || (options.canCommit && !options.canCommit())) return null;
   const view = projectAgentSessionSnapshot(snapshot);
   return viewPort.commitViewRefresh(sessionId, token, view) ? view : null;
 }

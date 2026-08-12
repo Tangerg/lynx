@@ -35,9 +35,11 @@ export interface AgentRuntimeGateway {
   /**
    * Read every durable fact needed to rebuild the Agent projection. The adapter
    * owns capability-aware query scope; callers always receive one canonical
-   * snapshot shape and commit it atomically.
+   * snapshot shape and commit it atomically. Null means the Runtime
+   * authoritatively reports that the Session no longer exists; transport and
+   * other operational failures still reject.
    */
-  loadSessionSnapshot(sessionId: string): Promise<AgentSessionSnapshot>;
+  loadSessionSnapshot(sessionId: string): Promise<AgentSessionSnapshot | null>;
   loadSessionUsage(sessionId: string): Promise<AgentSessionUsage>;
   rollbackSession(input: {
     sessionId: string;

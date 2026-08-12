@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { resetContainer, setContainer } from "@/main/container";
-import type { LyraClient, Methods } from "@/rpc";
+import { RpcError, type LyraClient, type Methods } from "@/rpc";
 import { asRunId, asSegmentId, asSessionId } from "@/rpc";
 import * as runtimeCapabilities from "@/plugins/builtin/runtime/public/capabilities";
 import { agentRuntime } from "../application/ports/runtimeGateway";
@@ -98,4 +98,28 @@ describe("agentRuntimeGateway", () => {
       });
     },
   );
+
+  it("translates an authoritatively missing session into an absent snapshot", async () => {
+    const missing = new RpcError({
+      code: -32002,
+      message: "session missing",
+      data: { type: "session_not_found" },
+    });
+    setContainer({
+      client: () =>
+        ({
+          items: {
+            list: vi.fn(() => ({
+              autoPagingToArray: vi.fn().mockRejectedValue(missing),
+            })),
+          },
+          runs: { list: vi.fn(() => autoPage([])) },
+          interrupts: { list: vi.fn(() => autoPage([])) },
+          plan: { get: vi.fn().mockRejectedValue(missing) },
+        }) as unknown as LyraClient,
+    });
+    uninstall = installAgentRuntimeGateway();
+
+    await expect(agentRuntime().loadSessionSnapshot("ses_gone")).resolves.toBeNull();
+  });
 });

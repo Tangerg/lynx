@@ -38,27 +38,32 @@ const gateway: AgentRuntimeGateway = {
     const client = getContainer().client();
     const sid = asSessionId(sessionId);
     const includeDescendants = runtimeCapability("subagents");
-    const [items, runs, pendingInterruptSets, state] = await Promise.all([
-      client.items
-        .list({
-          scope: { type: "session", sessionId: sid },
-        })
-        .autoPagingToArray(),
-      client.runs
-        .list({
-          sessionId: sid,
-          ...(includeDescendants ? { includeDescendants: true } : {}),
-        })
-        .autoPagingToArray(),
-      client.interrupts.list({ sessionId: sid }).autoPagingToArray(),
-      loadOptionalSessionState(sessionId),
-    ]);
-    return {
-      items,
-      runs,
-      pendingInterruptSets,
-      ...(state ? { state } : {}),
-    };
+    try {
+      const [items, runs, pendingInterruptSets, state] = await Promise.all([
+        client.items
+          .list({
+            scope: { type: "session", sessionId: sid },
+          })
+          .autoPagingToArray(),
+        client.runs
+          .list({
+            sessionId: sid,
+            ...(includeDescendants ? { includeDescendants: true } : {}),
+          })
+          .autoPagingToArray(),
+        client.interrupts.list({ sessionId: sid }).autoPagingToArray(),
+        loadOptionalSessionState(sessionId),
+      ]);
+      return {
+        items,
+        runs,
+        pendingInterruptSets,
+        ...(state ? { state } : {}),
+      };
+    } catch (error) {
+      if (isErrorType(error, "session_not_found")) return null;
+      throw error;
+    }
   },
   loadSessionUsage(sessionId) {
     return getContainer().client().usage.session(asSessionId(sessionId));

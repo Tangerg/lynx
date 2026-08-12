@@ -33,7 +33,9 @@ export async function rollbackSessionToBeforeRun(
   runId: string,
   restoreType: RestoreType = "history",
 ): Promise<boolean> {
-  const view = projectAgentSessionSnapshot(await agentRuntime().loadSessionSnapshot(sessionId));
+  const snapshot = await agentRuntime().loadSessionSnapshot(sessionId);
+  if (!snapshot) return false;
+  const view = projectAgentSessionSnapshot(snapshot);
   const roots = selectRootRuns(view);
   const index = roots.findIndex((run) => run.id === runId);
   if (index < 0) return false;

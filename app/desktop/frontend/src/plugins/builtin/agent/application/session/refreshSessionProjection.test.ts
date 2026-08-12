@@ -112,4 +112,15 @@ describe("refreshAgentSessionProjection", () => {
     await expect(refreshAgentSessionProjection(SESSION_ID)).rejects.toThrow("offline");
     expect(useAgentStore.getState().sessions[SESSION_ID]!.view).toBe(visible);
   });
+
+  it("treats an authoritatively missing session as no applicable projection", async () => {
+    useAgentStore.getState().setCommandError(SESSION_ID, { code: "still-visible" });
+    const visible = useAgentStore.getState().sessions[SESSION_ID]!.view;
+    restoreRuntime = configureAgentRuntimeGateway({
+      loadSessionSnapshot: vi.fn().mockResolvedValue(null),
+    } as unknown as AgentRuntimeGateway);
+
+    await expect(refreshAgentSessionProjection(SESSION_ID)).resolves.toBeNull();
+    expect(useAgentStore.getState().sessions[SESSION_ID]!.view).toBe(visible);
+  });
 });
