@@ -90,7 +90,7 @@ Protocol `2026-08-12` (minimum supported `2026-08-12`) · 86 methods
 | `usage.summary` | query | unary | none | none | — | — |
 | `knowledge.list` | query | unary | none | none | `knowledge` | `workspace_unavailable`, `capability_not_negotiated` |
 | `knowledge.get` | query | unary | none | none | `knowledge` | `workspace_unavailable`, `capability_not_negotiated` |
-| `knowledge.update` | command | unary | replayResponse | none | `knowledge` | `workspace_unavailable`, `capability_not_negotiated` |
+| `knowledge.update` | command | unary | replayResponse | none | `knowledge` | `workspace_unavailable`, `revision_conflict`, `capability_not_negotiated` |
 | `agentMemory.list` | query | unary | none | none | `agentMemory` | `capability_not_negotiated` |
 | `agentMemory.review` | command | unary | replayResponse | none | `agentMemory` | `capability_not_negotiated` |
 | `agentMemory.update` | command | unary | replayResponse | none | `agentMemory` | `capability_not_negotiated` |
@@ -392,6 +392,8 @@ Forbidden on every variant: `durable`.
 | `state.changed` | `sequence`, `key` | `sessionIds`, `runIds` |
 | `goals.changed` | `sequence` | `sessionIds` |
 | `interrupts.changed` | `sequence` | `runIds`, `sessionIds` |
+| `knowledge.changed` | `sequence` | — |
+| `hooks.changed` | `sequence` | — |
 | `resync` | `sequence`, `topics` | `watchIds` |
 
 ### `ArtifactOutcome`
@@ -565,6 +567,8 @@ TypeScript validator from this single registry projection.
 | `ProviderConfigChange` | `value` | `nonEmpty` |
 | `TestProviderRequest` | `provider` | `nonEmpty` |
 | `InvokeToolRequest` | `name` | `nonEmpty` |
+| `KnowledgeEntry` | `revision` | `nonEmpty` |
+| `UpdateKnowledgeRequest` | `expectedRevision` | `nonEmpty` |
 | `AgentMemoryItemRequest` | `id` | `nonEmpty` |
 | `AgentMemoryReviewRequest` | `id` | `nonEmpty` |
 | `AgentMemoryUpdateRequest` | `id` | `nonEmpty` |

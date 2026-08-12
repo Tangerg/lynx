@@ -40,7 +40,13 @@ func TestOpenRequiresAndUsesExplicitProcessPaths(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(dataDirectory, "lyra.db")); err != nil {
 		t.Fatalf("data directory does not own lyra.db: %v", err)
 	}
-	if err := bundle.Knowledge.Update(t.Context(), knowledge.ScopeCWD, "", "project"); err != nil {
+	fresh, err := bundle.Knowledge.Get(t.Context(), knowledge.ScopeCWD, "")
+	if err != nil {
+		t.Fatalf("read default project knowledge: %v", err)
+	}
+	if _, err := bundle.Knowledge.Update(
+		t.Context(), knowledge.ScopeCWD, "", fresh.Revision, "project",
+	); err != nil {
 		t.Fatalf("write default project knowledge: %v", err)
 	}
 	if _, err := os.Stat(filepath.Join(defaultWorkspace, "LYRA.md")); err != nil {

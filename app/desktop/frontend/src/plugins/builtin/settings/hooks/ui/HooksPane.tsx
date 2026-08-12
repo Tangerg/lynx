@@ -18,6 +18,7 @@ import { useActiveSessionWorkspace } from "@/plugins/builtin/agent/public/sessio
 import { notifyError } from "@/plugins/sdk";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/classNames";
+import { useRef, useState } from "react";
 
 function HookRow({ h }: { h: HookReadModel }) {
   const t = useT();
@@ -63,6 +64,8 @@ function HookRow({ h }: { h: HookReadModel }) {
 
 export function HooksPane() {
   const t = useT();
+  const [trusting, setTrusting] = useState(false);
+  const trustingRef = useRef(false);
   const workspace = useActiveSessionWorkspace();
   const { data, isLoading, isError, error } = useHookConfigs(
     workspace.status === "ready" ? { cwd: workspace.cwd } : undefined,
@@ -81,11 +84,16 @@ export function HooksPane() {
   const projectRoot = data?.projectRoot;
 
   const onTrust = async (trusted: boolean) => {
-    if (!projectRoot) return;
+    if (!projectRoot || trustingRef.current) return;
+    trustingRef.current = true;
+    setTrusting(true);
     try {
       await setHookTrust(projectRoot, trusted);
     } catch (err) {
       notifyError(rpcErrorText(err) ?? t("hooks.error.trust"));
+    } finally {
+      trustingRef.current = false;
+      setTrusting(false);
     }
   };
 
@@ -106,6 +114,7 @@ export function HooksPane() {
           </div>
           <Switch
             checked={data?.projectTrusted ?? false}
+            disabled={trusting}
             onCheckedChange={(v) => void onTrust(v)}
             ariaLabel={t("hooks.trust.aria")}
           />

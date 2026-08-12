@@ -153,8 +153,8 @@ type workspaceDiscoveryUseCases interface {
 type workspaceKnowledgeUseCases interface {
 	Available() bool
 	Entries(ctx context.Context, cwd string) ([]knowledge.Entry, error)
-	Read(ctx context.Context, scope knowledge.Scope, cwd string) (string, error)
-	Update(ctx context.Context, scope knowledge.Scope, cwd string, content string) error
+	Read(ctx context.Context, scope knowledge.Scope, cwd string) (knowledge.Entry, error)
+	Update(ctx context.Context, scope knowledge.Scope, cwd, expectedRevision, content string) (knowledge.Entry, error)
 }
 
 type workspaceSkillUseCases interface {

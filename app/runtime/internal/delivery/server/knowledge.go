@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/knowledge"
@@ -22,11 +23,9 @@ func (s *Server) ListKnowledge(ctx context.Context, in protocol.WorkspaceQuery) 
 		if err != nil {
 			return nil, err
 		}
-		out = append(out, protocol.KnowledgeEntry{
-			Scope:     scope,
-			Content:   e.Content,
-			UpdatedAt: e.UpdatedAt,
-		})
+		wire := presentKnowledgeEntry(e)
+		wire.Scope = scope
+		out = append(out, wire)
 	}
 	return protocol.NewPage(out), nil
 }
@@ -38,19 +37,40 @@ func (s *Server) GetKnowledge(ctx context.Context, in protocol.GetKnowledgeReque
 	if err != nil {
 		return nil, err
 	}
-	content, err := s.workspaceKnowledge.Read(ctx, scope, workspaceRefPath(in.Workspace))
+	entry, err := s.workspaceKnowledge.Read(ctx, scope, workspaceRefPath(in.Workspace))
 	if err != nil {
 		return nil, wireWorkspaceError(err)
 	}
-	return &protocol.KnowledgeEntry{Scope: in.Scope, Content: content}, nil
+	wire := presentKnowledgeEntry(entry)
+	return &wire, nil
 }
 
-func (s *Server) UpdateKnowledge(ctx context.Context, in protocol.UpdateKnowledgeRequest) error {
+func (s *Server) UpdateKnowledge(ctx context.Context, in protocol.UpdateKnowledgeRequest) (*protocol.KnowledgeEntry, error) {
 	scope, err := knowledgeScopeFromWire(in.Scope)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	return wireWorkspaceError(s.workspaceKnowledge.Update(ctx, scope, workspaceRefPath(in.Workspace), in.Content))
+	entry, err := s.workspaceKnowledge.Update(
+		ctx, scope, workspaceRefPath(in.Workspace), in.ExpectedRevision, in.Content,
+	)
+	if err != nil {
+		if errors.Is(err, knowledge.ErrRevisionConflict) {
+			return nil, fmt.Errorf("%w: the knowledge document changed after it was read", protocol.ErrRevisionConflict)
+		}
+		if errors.Is(err, knowledge.ErrRevisionRequired) {
+			return nil, fmt.Errorf("%w: %w", protocol.ErrInvalidParams, err)
+		}
+		return nil, wireWorkspaceError(err)
+	}
+	wire := presentKnowledgeEntry(entry)
+	return &wire, nil
+}
+
+func presentKnowledgeEntry(entry knowledge.Entry) protocol.KnowledgeEntry {
+	return protocol.KnowledgeEntry{
+		Scope: protocol.KnowledgeScope(entry.Scope), Content: entry.Content,
+		Revision: entry.Revision, UpdatedAt: entry.UpdatedAt,
+	}
 }
 
 // presentKnowledgeScope / knowledgeScopeFromWire bridge the protocol and Domain

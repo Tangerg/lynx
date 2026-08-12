@@ -219,7 +219,11 @@ export interface WorkspaceMethods {
   knowledge: {
     list: () => Promise<Page<KnowledgeEntry>>;
     get: (scope: KnowledgeScope) => Promise<KnowledgeEntry>;
-    update: (params: { scope: KnowledgeScope; content: string }) => MutationPromise<void>;
+    update: (params: {
+      scope: KnowledgeScope;
+      content: string;
+      expectedRevision: string;
+    }) => MutationPromise<KnowledgeEntry>;
   };
   agentMemory: {
     list: () => Promise<AgentMemoryList>;

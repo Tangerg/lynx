@@ -5462,6 +5462,14 @@
           }
         },
         {
+          "name": "expectedRevision",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        {
           "name": "content",
           "required": true,
           "schema": {
@@ -5478,13 +5486,17 @@
       "result": {
         "name": "result",
         "schema": {
-          "type": "object"
+          "$ref": "schema.json#/$defs/KnowledgeEntry"
         }
       },
       "errors": [
         {
           "code": -32005,
           "message": "workspace_unavailable"
+        },
+        {
+          "code": -32019,
+          "message": "revision_conflict"
         },
         {
           "code": -32006,

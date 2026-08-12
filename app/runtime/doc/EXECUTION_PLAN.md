@@ -82,6 +82,8 @@
 | P46 | Desktop Agent Runtime DTO 防腐与 Composer 冷启动模型收敛 | P45 + Run/Item/Interrupt/Event wire census 与 durable model race | 已完成 |
 | P47 | Workspace 订阅 opening 取消与 Runtime resync fail-closed | P46 + retarget/dispose/malformed resync 反例 | 已完成 |
 | P48 | Desktop API 返回事实与身份解析生命周期消费闭环 | P47 + hanging identity read / ignored mutation response 反例 | 已完成 |
+| P49 | Desktop Mutation 权威事实、并发顺序与上下文归属收敛 | P48 + non-void result / rapid mutation 反例 | 已完成 |
+| P50 | Knowledge CAS 与 Knowledge/Hook 失效闭环 | P49 + lost update / empty document / multi-window stale 反例 | 已完成 |
 
 ## 4. P0 — 文档、事实和边界基线
 
@@ -1223,10 +1225,32 @@
 - API consumer 保持 86/86 Runtime operations、10/10 events、103 typed call sites；Runtime standalone tidy/build/vet/test 全绿；
 - 隔离 Runtime/真实浏览器验证 Approval 快速连点、MCP 创建/失败/三连切换/删除、Provider endpoint 必填与规范化回写、Agent Memory 新增/置顶/编辑/删除、Plan、HITL allow/deny 与 Goal 三轮完成。Runtime、Protocol、SQLite 与 Agent Framework 零变更，Agent 内层没有接触 MCP/Provider/Workspace Runtime DTO。
 
-## 54. 进度记录
+## 54. P50 — Knowledge CAS 与 Knowledge/Hook 失效闭环
+
+### 目标
+
+消除 Knowledge 无条件覆盖导致的真实丢更新、空 LYRA.md 不可从客户端首次创建，以及 Knowledge/Hook API 写入不经过文件 watch 时多窗口永久陈旧；所有修复留在各自 owner，尤其不把 Runtime/Workspace/Hook 抽象泄露到 Agent。
+
+### 工作项
+
+- [x] P50-01 Knowledge Domain 定义 opaque revision required/conflict 语义，Infra 从精确内容计算 revision，并在同一 Store 临界区内比较后使用同目录临时文件原子替换；
+- [x] P50-02 `knowledge.list/get` 返回包括尚未创建空文档在内的可寻址 Entry，`knowledge.update` 强制 `expectedRevision`、返回 committed Entry 并声明 `revision_conflict`；
+- [x] P50-03 Application 只在 Knowledge/Hook trust 成功提交后发布中性 invalidation，Delivery 穷尽投影为 `knowledge.changed` / `hooks.changed`，生成 Protocol/Go/TS 合同同步；
+- [x] P50-04 Desktop Workspace Adapter 将 revision/冲突映射为中性 Knowledge 模型，编辑器保留飞行中与冲突时的用户草稿，干净 snapshot 跟随事件刷新；
+- [x] P50-05 Hook trust 按 project 串行，UI 用同步 latch 禁止旧受控值重复提交；唯一 Workspace event consumer 订阅并消费两个新 topic；
+- [x] P50-06 API consumer 门禁覆盖全部 86 个 operation 与 12 个 Runtime event type，真实 HTTP 验证首次创建、三 scope CAS、冲突拒绝、清空可寻址及两类 committed invalidation。
+
+### 验收
+
+- Runtime Domain/Application/Infra/Delivery/embedded 聚焦回归全绿；并发 stale writers 只有一个提交且无 torn content，失败写不发布 invalidation；
+- Frontend Knowledge/Hook/Event 聚焦 6 文件/24 测试、typecheck/lint/format 与 API consumer 门禁全绿；真实 HTTP Knowledge 与 Hook trust 两条纵切均通过；
+- Runtime standalone tidy/build/vet/test 与 Frontend 270 文件/1627 测试及全部架构、本地化、bundle 门禁全绿。真实浏览器证明首次创建、clean event refresh、dirty conflict/rebase/second-save 和 Hook 同步双击 latch；Agent 与 Agent Framework 零修改、零 Runtime/Knowledge/Hook 抽象新增，SQLite/Artifact shape 不变。
+
+## 55. 进度记录
 
 | 日期 | 阶段 | 完成事实 | 验证 |
 |---|---|---|---|
+| 2026-08-12 | P50（Knowledge CAS / dedicated invalidations / Desktop conflict recovery） | Runtime Knowledge 由无条件覆盖改为 opaque content revision 条件更新，空文档保持可寻址，成功写返回权威 Entry 并发 `knowledge.changed`；Hook trust 成功提交发 `hooks.changed`。Desktop Adapter 独占 wire/错误映射，Workspace editor 保留脏草稿并在冲突后显式 rebase，Hook mutation 按 project 串行且 UI latch 阻止重复意图。Agent/Framework、SQLite、Artifact shape 均未变化 | Runtime standalone 全绿；Frontend 270 文件/1627 测试、95 public edges、981×8 locales、bundle、86/86 operations + 12/12 events / 103 typed call sites全绿。真实 HTTP 验证首次空文档创建、三 scope CAS、stale revision 拒绝、清空可寻址和两类 committed invalidation；真实浏览器验证 clean refresh、dirty conflict/rebase/second-save 与 Hook 同步双击 latch，page error/业务 console error 为零 |
 | 2026-08-12 | P49（mutation authoritative facts / concurrency / context ownership） | Desktop Provider、Approval、MCP、Agent Memory、Codebase mutation 均由所属 Adapter 将 Runtime response 投影为中性资源，所属 Application 在线性化队列中先提交权威 fact 再失效重验；MCP data provider/wire projection 从 defaults 收回 MCP context，Provider `requiresBaseUrl` 进入产品模型。真实联调发现 Provider 保存后草稿没有采用规范化返回值，现以 saved resource 重建草稿。Agent context 未导入 MCP/Provider/Workspace wire 或 Runtime DTO，Runtime/Protocol/SQLite/Framework 未变化 | 红测覆盖非 void 结果丢弃、队列失败恢复/冲突域、返回事实写回、Memory update→delete、MCP toggle/delete、Provider endpoint 必填/trim/UI authoritative reset；真实浏览器覆盖 Approval 快速连点、MCP 全生命周期、Provider、Memory、Plan、HITL approve/reject 与三轮 Goal。Frontend 完整门禁 269 文件/1621 测试、95 public edges、86/86 operations + 10/10 events / 103 typed call sites、981×8 locales 和 bundle 全绿；Runtime standalone tidy/build/vet/test 全绿 |
 | 2026-08-12 | P48（API response / identity lifecycle consumption） | Desktop Workspace subscription 的 generation signal 从 Application consumer port 经 Workspace Adapter、SDK 到 `sessions.get`，retarget/dispose 真实取消旧身份读取。Schedule Adapter/Application 保留 `runNow` 的 Session/Run identity 并经 Agent 公开会话动作进入既有 durable recovery；enablement 先提交后端返回的新 revision 再失效重验。wire/transport 只停留在 Adapter/SDK，Agent 内层与 Runtime/Protocol/SQLite shape 均未变化 | Application/Adapter/SDK 三层红测和 Schedule 返回事实红测转绿；隔离 Runtime/真实浏览器证明 `runNow` 自动打开目标 Session、接管流并得到 `P48_SCHEDULE_DONE.`，连续关闭/开启后 SQLite revision 单调到 4、唯一 Run terminal completed，page error 为零。Frontend 完整门禁 257 文件/1591 测试及全部结构/消费/bundle 检查通过；Runtime standalone tidy/build/vet/test 全绿；API consumer 为 86/86 operations、10/10 events、103 typed call sites |
 | 2026-08-12 | P47（Workspace opening cancellation / resync fail-closed） | Desktop Workspace subscription lifecycle 的 AbortSignal 现在贯穿 Adapter 与 SDK 的 `workspaces.resolve`，retarget/dispose 会取消仍在 watch-root resolution 的旧 opening 并立即建立新 target。Runtime Delivery 对 `watchIds` 与非 `files.changed` topics 的矛盾 resync 不再静默删除 scope，而是扩大为完整 subscription resync。watch/protocol 事实没有进入 Agent 或 Runtime Domain/Application | 三个定向 Frontend 文件 30 个测试、Workspace events 7 文件/36 测试通过；Runtime resync 目标测试 normal 50 次、race 20 次通过。隔离数据目录真实联调覆盖 HITL approve/reject、Plan、Goal、`sessions.changed`、Git staged 文件事件及 Runtime 重启后无刷新恢复。Frontend 完整门禁 256 文件/1585 测试及全部结构/消费/bundle 检查通过；Runtime standalone tidy/build/vet/test 全绿；API consumer 为 86/86 operations、10/10 events、103 typed call sites |

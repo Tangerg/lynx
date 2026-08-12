@@ -33,6 +33,7 @@ func registerValueConstraints(s *Shapes) {
 	registerMCPValues(s)
 	registerProviderValues(s)
 	registerToolValues(s)
+	registerKnowledgeValues(s)
 	registerAgentMemoryValues(s)
 	registerScheduleValues(s)
 	registerGoalValues(s)
@@ -349,6 +350,11 @@ func registerProviderValues(s *Shapes) {
 
 func registerToolValues(s *Shapes) {
 	nonEmpty[protocol.InvokeToolRequest](s, "name")
+}
+
+func registerKnowledgeValues(s *Shapes) {
+	nonEmpty[protocol.KnowledgeEntry](s, "revision")
+	nonEmpty[protocol.UpdateKnowledgeRequest](s, "expectedRevision")
 }
 
 func registerAgentMemoryValues(s *Shapes) {

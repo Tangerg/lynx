@@ -13,7 +13,14 @@ describe("workspace catalog view models", () => {
   it("gates knowledge rows when the runtime capability is off", () => {
     expect(
       workspaceKnowledgeViewModel(
-        [{ scope: "cwd", content: "knowledge", updatedAt: "2026-01-01T00:00:00Z" }],
+        [
+          {
+            scope: "cwd",
+            content: "knowledge",
+            revision: "rev-1",
+            updatedAt: "2026-01-01T00:00:00Z",
+          },
+        ],
         false,
       ),
     ).toEqual({
@@ -26,7 +33,10 @@ describe("workspace catalog view models", () => {
 
   it("projects knowledge row identity and scope labels", () => {
     expect(
-      workspaceKnowledgeViewModel([{ scope: "projectRoot", content: "knowledge" }], true),
+      workspaceKnowledgeViewModel(
+        [{ scope: "projectRoot", content: "knowledge", revision: "rev-1" }],
+        true,
+      ),
     ).toEqual({
       rows: [
         {
@@ -35,6 +45,7 @@ describe("workspace catalog view models", () => {
           scopeLabelKey: "knowledge.scope.projectRoot",
           path: "project/LYRA.md",
           content: "knowledge",
+          revision: "rev-1",
           updatedAt: undefined,
         },
       ],

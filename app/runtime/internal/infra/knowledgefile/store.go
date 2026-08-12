@@ -5,6 +5,8 @@ package knowledgefile
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"os"
@@ -25,9 +27,10 @@ const knowledgeFileName = "LYRA.md"
 //   - <project-root>/LYRA.md — project knowledge when the workspace is nested
 //   - <data-dir>/LYRA.md — user scope (cross-project preferences)
 //
-// Files are created lazily on first Update; Get returns "" until that point.
-// Concurrent updates are serialized with last-write-wins semantics. Machine-
-// curated facts never enter these human-owned files.
+// Files are created lazily on first Update. Every read returns an opaque content
+// revision, and writes compare that revision while holding the store lock so two
+// clients cannot silently overwrite each other's edits. Machine-curated facts
+// never enter these human-owned files.
 type Store struct {
 	defaultWorkspaceDirectory string
 	userScopeDirectory        string
@@ -77,73 +80,104 @@ func (s *Store) pathFor(scope knowledge.Scope, dir string) (string, error) {
 	}
 }
 
-func (s *Store) Get(_ context.Context, scope knowledge.Scope, dir string) (string, error) {
+func (s *Store) Get(_ context.Context, scope knowledge.Scope, dir string) (knowledge.Entry, error) {
 	path, err := s.pathFor(scope, dir)
 	if err != nil {
-		return "", fmt.Errorf("knowledge store: resolve path: %w", err)
-	}
-	if path == "" {
-		return "", nil
-	}
-	data, err := os.ReadFile(path)
-	if errors.Is(err, os.ErrNotExist) {
-		return "", nil
-	}
-	if err != nil {
-		return "", fmt.Errorf("knowledge store: read %q: %w", path, err)
-	}
-	return string(data), nil
-}
-
-func (s *Store) Update(_ context.Context, scope knowledge.Scope, dir string, content string) error {
-	path, err := s.pathFor(scope, dir)
-	if err != nil {
-		return fmt.Errorf("knowledge store: resolve path: %w", err)
-	}
-	if path == "" {
-		return errors.New("knowledge store: project scope unavailable")
+		return knowledge.Entry{}, fmt.Errorf("knowledge store: resolve path: %w", err)
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	return readEntry(scope, path)
+}
+
+func readEntry(scope knowledge.Scope, path string) (knowledge.Entry, error) {
+	data, err := os.ReadFile(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return knowledge.Entry{Scope: scope, Path: path, Revision: contentRevision(nil)}, nil
+	}
+	if err != nil {
+		return knowledge.Entry{}, fmt.Errorf("knowledge store: read %q: %w", path, err)
+	}
+	entry := knowledge.Entry{
+		Scope: scope, Path: path, Content: string(data), Revision: contentRevision(data),
+	}
+	if info, err := os.Stat(path); err == nil {
+		entry.UpdatedAt = info.ModTime()
+	}
+	return entry, nil
+}
+
+func (s *Store) Update(_ context.Context, scope knowledge.Scope, dir, expectedRevision, content string) (knowledge.Entry, error) {
+	path, err := s.pathFor(scope, dir)
+	if err != nil {
+		return knowledge.Entry{}, fmt.Errorf("knowledge store: resolve path: %w", err)
+	}
+	if expectedRevision == "" {
+		return knowledge.Entry{}, knowledge.ErrRevisionRequired
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	current, err := readEntry(scope, path)
+	if err != nil {
+		return knowledge.Entry{}, err
+	}
+	if current.Revision != expectedRevision {
+		return knowledge.Entry{}, knowledge.ErrRevisionConflict
+	}
 
 	// Ensure the parent directory exists. The persistence bundle creates the
 	// process data directory eagerly; a project directory can be supplied later
 	// by a Session and therefore remains a per-write responsibility here.
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return fmt.Errorf("knowledge store: mkdir: %w", err)
+		return knowledge.Entry{}, fmt.Errorf("knowledge store: mkdir: %w", err)
 	}
 
 	tmp, err := os.CreateTemp(filepath.Dir(path), "."+knowledgeFileName+"-*")
 	if err != nil {
-		return fmt.Errorf("knowledge store: create temporary file: %w", err)
+		return knowledge.Entry{}, fmt.Errorf("knowledge store: create temporary file: %w", err)
 	}
 	tmpPath := tmp.Name()
 	defer func() { _ = os.Remove(tmpPath) }()
 	if err := tmp.Chmod(0o644); err != nil {
 		_ = tmp.Close()
-		return fmt.Errorf("knowledge store: set temporary file mode: %w", err)
+		return knowledge.Entry{}, fmt.Errorf("knowledge store: set temporary file mode: %w", err)
 	}
 	if _, err := tmp.WriteString(content); err != nil {
 		_ = tmp.Close()
-		return fmt.Errorf("knowledge store: write temporary file: %w", err)
+		return knowledge.Entry{}, fmt.Errorf("knowledge store: write temporary file: %w", err)
 	}
 	if err := tmp.Sync(); err != nil {
 		_ = tmp.Close()
-		return fmt.Errorf("knowledge store: sync temporary file: %w", err)
+		return knowledge.Entry{}, fmt.Errorf("knowledge store: sync temporary file: %w", err)
 	}
 	if err := tmp.Close(); err != nil {
-		return fmt.Errorf("knowledge store: close temporary file: %w", err)
+		return knowledge.Entry{}, fmt.Errorf("knowledge store: close temporary file: %w", err)
 	}
 	if err := os.Rename(tmpPath, path); err != nil {
-		return fmt.Errorf("knowledge store: rename: %w", err)
+		return knowledge.Entry{}, fmt.Errorf("knowledge store: rename: %w", err)
 	}
-	return nil
+	// The replacement is already committed. Build the authoritative response
+	// from the exact bytes we wrote so a transient post-rename read failure can
+	// never turn a successful mutation into an apparent failure that a client
+	// might retry with an obsolete revision.
+	entry := knowledge.Entry{
+		Scope: scope, Path: path, Content: content, Revision: contentRevision([]byte(content)),
+	}
+	if info, err := os.Stat(path); err == nil {
+		entry.UpdatedAt = info.ModTime()
+	}
+	return entry, nil
+}
+
+func contentRevision(content []byte) string {
+	digest := sha256.Sum256(content)
+	return "sha256:" + hex.EncodeToString(digest[:])
 }
 
 // List returns the visible cascade in precedence order: home, distinct project
 // root, then cwd. A workspace at its project root has one physical file, so it
-// is emitted once as cwd rather than duplicated under two scopes. Missing and
-// empty documents are absent.
+// is emitted once as cwd rather than duplicated under two scopes. Empty documents
+// remain addressable and carry the revision a conditional create must use.
 func (s *Store) List(ctx context.Context, cwd, projectRoot string) ([]knowledge.Entry, error) {
 	type target struct {
 		scope knowledge.Scope
@@ -163,26 +197,17 @@ func (s *Store) List(ctx context.Context, cwd, projectRoot string) ([]knowledge.
 	}
 	targets = append(targets, target{scope: knowledge.ScopeCWD, dir: cwd})
 
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	out := make([]knowledge.Entry, 0, len(targets))
 	for _, target := range targets {
-		content, err := s.Get(ctx, target.scope, target.dir)
-		if err != nil {
-			return nil, err
-		}
-		if content == "" {
-			continue
-		}
 		path, err := s.pathFor(target.scope, target.dir)
 		if err != nil {
 			return nil, fmt.Errorf("knowledge store: resolve listed path: %w", err)
 		}
-		entry := knowledge.Entry{Scope: target.scope, Path: path, Content: content}
-		// UpdatedAt = the LYRA.md file's mtime: it's a user-editable file, so
-		// its last-modified time is the truthful "when this knowledge was updated".
-		// Best-effort — a stat failure leaves the zero time rather than
-		// dropping the entry.
-		if info, err := os.Stat(path); err == nil {
-			entry.UpdatedAt = info.ModTime()
+		entry, err := readEntry(target.scope, path)
+		if err != nil {
+			return nil, err
 		}
 		out = append(out, entry)
 	}

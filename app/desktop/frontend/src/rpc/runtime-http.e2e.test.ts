@@ -2359,34 +2359,82 @@ for await (const line of lines) {
     await execFileAsync("git", ["init", "--quiet"], { cwd: projectRoot });
     const workspace = client.workspace({ path: workspaceRoot });
 
-    await workspace.knowledge.update({ scope: "home", content: "home knowledge\n" });
-    await workspace.knowledge.update({
-      scope: "projectRoot",
-      content: "project-root knowledge\n",
-    });
-    await workspace.knowledge.update({ scope: "cwd", content: "workspace knowledge\n" });
+    const streamController = new AbortController();
+    const subscription = await client.runtimeEvents.subscribe(
+      { topics: ["knowledge.changed"] },
+      streamController.signal,
+    );
+    const events = subscription.events[Symbol.asyncIterator]();
+    const initialHome = await workspace.knowledge.get("home");
+    const initialProject = await workspace.knowledge.get("projectRoot");
+    const initialCwd = await workspace.knowledge.get("cwd");
 
-    await expect(workspace.knowledge.get("home")).resolves.toEqual({
+    const savedHome = await workspace.knowledge.update({
       scope: "home",
       content: "home knowledge\n",
+      expectedRevision: initialHome.revision,
     });
-    await expect(workspace.knowledge.get("projectRoot")).resolves.toEqual({
+    await expect(nextRuntimeEvent(events, "knowledge.changed")).resolves.toMatchObject({
+      type: "knowledge.changed",
+    });
+    const savedProject = await workspace.knowledge.update({
       scope: "projectRoot",
       content: "project-root knowledge\n",
+      expectedRevision: initialProject.revision,
     });
-    await expect(workspace.knowledge.get("cwd")).resolves.toEqual({
+    await expect(nextRuntimeEvent(events, "knowledge.changed")).resolves.toMatchObject({
+      type: "knowledge.changed",
+    });
+    const savedCwd = await workspace.knowledge.update({
       scope: "cwd",
       content: "workspace knowledge\n",
+      expectedRevision: initialCwd.revision,
+    });
+    await expect(nextRuntimeEvent(events, "knowledge.changed")).resolves.toMatchObject({
+      type: "knowledge.changed",
+    });
+    expect(savedHome).toMatchObject({
+      scope: "home",
+      content: "home knowledge\n",
+      revision: expect.any(String),
+      updatedAt: expect.any(String),
+    });
+
+    await expect(workspace.knowledge.get("home")).resolves.toMatchObject({
+      scope: "home",
+      content: "home knowledge\n",
+      revision: savedHome.revision,
+    });
+    await expect(workspace.knowledge.get("projectRoot")).resolves.toMatchObject({
+      scope: "projectRoot",
+      content: "project-root knowledge\n",
+      revision: savedProject.revision,
+    });
+    await expect(workspace.knowledge.get("cwd")).resolves.toMatchObject({
+      scope: "cwd",
+      content: "workspace knowledge\n",
+      revision: savedCwd.revision,
     });
     await expect(workspace.knowledge.list()).resolves.toMatchObject({
       data: [
-        { scope: "home", content: "home knowledge\n", updatedAt: expect.any(String) },
+        {
+          scope: "home",
+          content: "home knowledge\n",
+          revision: savedHome.revision,
+          updatedAt: expect.any(String),
+        },
         {
           scope: "projectRoot",
           content: "project-root knowledge\n",
+          revision: savedProject.revision,
           updatedAt: expect.any(String),
         },
-        { scope: "cwd", content: "workspace knowledge\n", updatedAt: expect.any(String) },
+        {
+          scope: "cwd",
+          content: "workspace knowledge\n",
+          revision: savedCwd.revision,
+          updatedAt: expect.any(String),
+        },
       ],
     });
     await expect(readFile(join(projectRoot, "LYRA.md"), "utf8")).resolves.toBe(
@@ -2396,10 +2444,44 @@ for await (const line of lines) {
       "workspace knowledge\n",
     );
 
-    await workspace.knowledge.update({ scope: "home", content: "" });
-    await workspace.knowledge.update({ scope: "projectRoot", content: "" });
-    await workspace.knowledge.update({ scope: "cwd", content: "" });
-    await expect(workspace.knowledge.list()).resolves.toMatchObject({ data: [] });
+    await expect(
+      workspace.knowledge.update({
+        scope: "cwd",
+        content: "stale overwrite",
+        expectedRevision: initialCwd.revision,
+      }),
+    ).rejects.toSatisfy(
+      (error: unknown) =>
+        error instanceof RpcError && errorType(error.data) === "revision_conflict",
+    );
+
+    const clearedHome = await workspace.knowledge.update({
+      scope: "home",
+      content: "",
+      expectedRevision: savedHome.revision,
+    });
+    await nextRuntimeEvent(events, "knowledge.changed");
+    const clearedProject = await workspace.knowledge.update({
+      scope: "projectRoot",
+      content: "",
+      expectedRevision: savedProject.revision,
+    });
+    await nextRuntimeEvent(events, "knowledge.changed");
+    const clearedCwd = await workspace.knowledge.update({
+      scope: "cwd",
+      content: "",
+      expectedRevision: savedCwd.revision,
+    });
+    await nextRuntimeEvent(events, "knowledge.changed");
+    await expect(workspace.knowledge.list()).resolves.toMatchObject({
+      data: [
+        { scope: "home", content: "", revision: clearedHome.revision },
+        { scope: "projectRoot", content: "", revision: clearedProject.revision },
+        { scope: "cwd", content: "", revision: clearedCwd.revision },
+      ],
+    });
+    streamController.abort();
+    await events.return?.();
   }, 30_000);
 
   it("round-trips project and user agent memory through durable cold reads", async () => {
@@ -2688,7 +2770,16 @@ for await (const line of lines) {
         active: false,
       }),
     ]);
+    const hookController = new AbortController();
+    const hookSubscription = await client.runtimeEvents.subscribe(
+      { topics: ["hooks.changed"] },
+      hookController.signal,
+    );
+    const hookEvents = hookSubscription.events[Symbol.asyncIterator]();
     await client.hooks.setTrust(resolved.projectRoot, true);
+    await expect(nextRuntimeEvent(hookEvents, "hooks.changed")).resolves.toMatchObject({
+      type: "hooks.changed",
+    });
     await expect(workspace.hooks.list()).resolves.toMatchObject({
       projectRoot: resolved.projectRoot,
       projectTrusted: true,
@@ -2698,7 +2789,12 @@ for await (const line of lines) {
       ],
     });
     await client.hooks.setTrust(resolved.projectRoot, false);
+    await expect(nextRuntimeEvent(hookEvents, "hooks.changed")).resolves.toMatchObject({
+      type: "hooks.changed",
+    });
     await expect(workspace.hooks.list()).resolves.toMatchObject({ projectTrusted: false });
+    hookController.abort();
+    await hookEvents.return?.();
   }, 30_000);
 
   it("invokes the direct diagnostic catalog inside its admitted workspace", async () => {

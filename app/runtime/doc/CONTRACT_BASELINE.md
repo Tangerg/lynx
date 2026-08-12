@@ -35,10 +35,10 @@ Digest 只用于发现未审计漂移，不能替代语义测试。
 
 | 制品 | SHA-256 |
 |---|---|
-| `contract/manifest.json` | `5494c98252895b0bf5c52e0f70bded54841ab9f0383e707c83258db0bce647d7` |
-| `contract/openrpc.json` | `60db6e751a820c15f89305aac655069e5f30f00a63492ef98e435f19b1a01ddc` |
-| `contract/schema.json` | `3b34f384432bf2fc964a1b5720aee0be11f645cbff899abff00b285f219b9525` |
-| `contract/go-api.json` | `92454a0ee5fd0bb3ccdee91a63d1ccb1fc489daad36b049bc0c009ae333e7b16` |
+| `contract/manifest.json` | `08e418bcf680589bc837876dbc02fc2555a0d149e22cc47f61b71e4b050442b8` |
+| `contract/openrpc.json` | `a257c8602f969abb0b2057728e2ffa7e365bf6b196e6e41b68b50d131952db1b` |
+| `contract/schema.json` | `283877061d2720f4813b9c86e1539da7e6257677c43c3d8ba8d35c77d43c10be` |
+| `contract/go-api.json` | `f66471d817f690405fe8b8aea9ab14aa7d07bf7e3ee93d633ce44026ae29d115` |
 
 TypeScript generated files 是派生制品，不单独定义语义。它们必须由同一个 contract generator 产生且 diff-free；当前前端/TUI/CLI 是否已经消费最新 shape，由 P10/P12 的 consumer handoff 记录，不通过兼容字段掩盖。
 
@@ -53,6 +53,11 @@ TypeScript generated files 是派生制品，不单独定义语义。它们必�
 当前协议版本为 `2026-08-12`，只服务同值的 `minSupported`。唯一 replay scope 是 `runtimeInstanceRootSegment`：它准确表达一个 Runtime instance 内的一条 root Segment replay buffer；旧 `processRootSegment` 已直接删除。消费者 breaking surface 与未接线事实由 [`CONSUMER_HANDOFF.md`](CONSUMER_HANDOFF.md) 唯一记录。
 
 Goal read model 的 `status:"completing"` 精确表示模型已声明 objective 成功、但 owning Run 的最终记账与条件清除尚未完成。它保持目标占位且不可 stop/resume/start；下一次 `goals.changed` 后读取 `null` 才表示 settlement owner 已释放。Domain `complete`、Application drive 与公共 `completing` 分属各层，不互相泄露类型。
+
+Knowledge 条目以内容摘要作为 opaque revision。`knowledge.list/get` 即使文件尚不存在也返回可用于首次条件创建的 revision；
+`knowledge.update` 必须携带 `expectedRevision`，在 Infra 的同路径原子替换边界比较并返回 committed Entry，不匹配以
+`revision_conflict` fail closed。Application 只在成功提交后发布 `knowledge.changed`；Hook trust 同理发布 `hooks.changed`。
+这些 topic 是失效事实，不携带配置值，Desktop Adapter 将 wire 投影为 Workspace/Hook 自有模型，Agent Framework 零感知。
 
 公共 Go surface 只有 `runtime/protocol` 与 `runtime/embedded`，由生成的 `contract/go-api.json` 完整冻结。`protocol` 只公开 binding-neutral values、strict validation、版本、稳定错误 identity 与 `ProblemError`；`embedded` 只公开 concrete Runtime lifecycle、准确 options 和类型化 operation methods。服务端 method interface、request context plumbing、numeric JSON-RPC code、reflection shape walker、artifact catalogue、Host、Store、Engine 和 Router 均属于 `internal`，不构成公共 Go surface。
 

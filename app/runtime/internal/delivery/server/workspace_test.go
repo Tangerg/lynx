@@ -48,9 +48,9 @@ func newWorkspaceSurfaces(cwd string, cfg workspaceTestConfig) workspaceSurfaces
 		files:     workspaceapp.NewFiles(roots, workspaceadapter.FileBrowser{}),
 		vcs:       workspaceapp.NewVCS(roots, workspaceadapter.VCS{}),
 		discovery: workspaceapp.NewDiscovery(roots, nil, nil, cfg.Recipes),
-		knowledge: workspaceapp.NewKnowledge(roots, workspacepath.Resolver{}, cfg.Knowledge),
+		knowledge: workspaceapp.NewKnowledge(roots, workspacepath.Resolver{}, cfg.Knowledge, nil),
 		skills:    workspaceapp.NewSkills(roots, cfg.Skills, cfg.Curator, cfg.Proposals, nil),
-		hooks:     workspaceapp.NewHooks(roots, cfg.Hooks, cfg.Trust),
+		hooks:     workspaceapp.NewHooks(roots, cfg.Hooks, cfg.Trust, nil),
 		watch:     workspaceapp.NewGitWatch(roots, watcher),
 	}
 }

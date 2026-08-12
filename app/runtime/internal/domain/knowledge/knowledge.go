@@ -5,8 +5,16 @@
 package knowledge
 
 import (
+	"errors"
 	"fmt"
 	"time"
+)
+
+var (
+	// ErrRevisionRequired reports a knowledge mutation without the revision it read.
+	ErrRevisionRequired = errors.New("knowledge: expected revision is required")
+	// ErrRevisionConflict reports that the document changed after it was read.
+	ErrRevisionConflict = errors.New("knowledge: revision conflict")
 )
 
 // Scope selects one location in the human-authored LYRA.md cascade. The three
@@ -46,5 +54,6 @@ type Entry struct {
 	Scope     Scope
 	Path      string
 	Content   string
+	Revision  string
 	UpdatedAt time.Time
 }

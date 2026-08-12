@@ -1,10 +1,10 @@
 package protocol
 
-// RuntimeEventType discriminates the [RuntimeEvent] union (§7.3): the nine change
+// RuntimeEventType discriminates the [RuntimeEvent] union (§7.3): the change
 // signals a client can subscribe to, plus the one frame that is not a change —
 // `resync`, which says the stream lost its place.
 //
-// Nine of the ten values are also the subscribable topics. They are ONE set of
+// Every value except resync is also a subscribable topic. They are ONE set of
 // strings, written here and referenced by [RuntimeTopic], because the alternative is
 // a topic table and an event table that can disagree about a name.
 type RuntimeEventType string
@@ -32,6 +32,10 @@ const (
 	RuntimeGoalsChanged RuntimeEventType = "goals.changed"
 	// RuntimeInterruptsChanged — a waiting set opened, was answered, or was canceled.
 	RuntimeInterruptsChanged RuntimeEventType = "interrupts.changed"
+	// RuntimeKnowledgeChanged — one human-authored knowledge document changed.
+	RuntimeKnowledgeChanged RuntimeEventType = "knowledge.changed"
+	// RuntimeHooksChanged — a project's lifecycle-hook trust decision changed.
+	RuntimeHooksChanged RuntimeEventType = "hooks.changed"
 	// RuntimeResync — the stream could not keep every change, so what a client holds
 	// may be stale. It names the topics and watches affected; the remedy is to read
 	// them again.
@@ -53,6 +57,8 @@ const (
 	TopicStateChanged      = RuntimeTopic(RuntimeStateChanged)
 	TopicGoalsChanged      = RuntimeTopic(RuntimeGoalsChanged)
 	TopicInterruptsChanged = RuntimeTopic(RuntimeInterruptsChanged)
+	TopicKnowledgeChanged  = RuntimeTopic(RuntimeKnowledgeChanged)
+	TopicHooksChanged      = RuntimeTopic(RuntimeHooksChanged)
 )
 
 // RuntimeTopics returns the closed subscribable set in declaration order. It is
@@ -63,7 +69,7 @@ func RuntimeTopics() []RuntimeTopic {
 	return []RuntimeTopic{
 		TopicFilesChanged, TopicSkillsChanged, TopicMCPChanged, TopicSchedulesChanged,
 		TopicSessionsChanged, TopicRunsChanged, TopicStateChanged, TopicGoalsChanged,
-		TopicInterruptsChanged,
+		TopicInterruptsChanged, TopicKnowledgeChanged, TopicHooksChanged,
 	}
 }
 

@@ -436,7 +436,7 @@
             },
             {
               "name": "UpdateKnowledge",
-              "signature": "func(ctx context.Context, request protocol.UpdateKnowledgeRequest, options CommandOptions) error"
+              "signature": "func(ctx context.Context, request protocol.UpdateKnowledgeRequest, options CommandOptions) (*protocol.KnowledgeEntry, error)"
             },
             {
               "name": "UpdateMCPServer",
@@ -1626,9 +1626,19 @@
           "value": "\"goals.changed\""
         },
         {
+          "name": "RuntimeHooksChanged",
+          "type": "RuntimeEventType",
+          "value": "\"hooks.changed\""
+        },
+        {
           "name": "RuntimeInterruptsChanged",
           "type": "RuntimeEventType",
           "value": "\"interrupts.changed\""
+        },
+        {
+          "name": "RuntimeKnowledgeChanged",
+          "type": "RuntimeEventType",
+          "value": "\"knowledge.changed\""
         },
         {
           "name": "RuntimeMCPChanged",
@@ -1881,9 +1891,19 @@
           "value": "\"goals.changed\""
         },
         {
+          "name": "TopicHooksChanged",
+          "type": "RuntimeTopic",
+          "value": "\"hooks.changed\""
+        },
+        {
           "name": "TopicInterruptsChanged",
           "type": "RuntimeTopic",
           "value": "\"interrupts.changed\""
+        },
+        {
+          "name": "TopicKnowledgeChanged",
+          "type": "RuntimeTopic",
+          "value": "\"knowledge.changed\""
         },
         {
           "name": "TopicMCPChanged",
@@ -4881,9 +4901,20 @@
               "tag": "json:\"content\""
             },
             {
+              "name": "Revision",
+              "type": "string",
+              "tag": "json:\"revision\""
+            },
+            {
               "name": "UpdatedAt",
               "type": "time.Time",
               "tag": "json:\"updatedAt,omitzero\""
+            }
+          ],
+          "methods": [
+            {
+              "name": "ValidateWire",
+              "signature": "func() error"
             }
           ]
         },
@@ -7758,6 +7789,11 @@
               "name": "Workspace",
               "type": "*WorkspaceRef",
               "tag": "json:\"workspace,omitempty\""
+            },
+            {
+              "name": "ExpectedRevision",
+              "type": "string",
+              "tag": "json:\"expectedRevision\""
             },
             {
               "name": "Content",

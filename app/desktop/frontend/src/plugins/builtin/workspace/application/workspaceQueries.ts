@@ -154,6 +154,7 @@ export interface WorkspaceKnowledgeQuery {
 export interface WorkspaceKnowledgeEntry {
   scope: WorkspaceKnowledgeScope;
   content: string;
+  revision: string;
   updatedAt?: string;
 }
 

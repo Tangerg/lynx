@@ -37,6 +37,8 @@ export type WorkspaceEventType =
   | "state.changed"
   | "goals.changed"
   | "interrupts.changed"
+  | "knowledge.changed"
+  | "hooks.changed"
   | "resync";
 
 export type WorkspaceTopic = Exclude<WorkspaceEventType, "resync">;
@@ -98,6 +100,10 @@ export function workspaceInvalidations(ev: WorkspaceEventLike): WorkspaceInvalid
       return ["goal"];
     case "state.changed":
       return ["agentSessionProjection"];
+    case "knowledge.changed":
+      return ["knowledge"];
+    case "hooks.changed":
+      return ["hooks"];
     case "resync": {
       // Resync is already the runtime's exact loss projection: it names every
       // topic that was folded while this subscriber's queue was full. Widening

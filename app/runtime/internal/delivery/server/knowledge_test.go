@@ -21,10 +21,12 @@ type fakeKnowledgeStore struct {
 	listProjectRoot string
 	getScope        knowledge.Scope
 	getCWD          string
-	getContent      string
+	getEntry        knowledge.Entry
 	updateScope     knowledge.Scope
 	updateCWD       string
+	updateRevision  string
 	updateContent   string
+	updateErr       error
 }
 
 func (s *fakeKnowledgeStore) List(_ context.Context, cwd, projectRoot string) ([]knowledge.Entry, error) {
@@ -33,17 +35,21 @@ func (s *fakeKnowledgeStore) List(_ context.Context, cwd, projectRoot string) ([
 	return s.entries, nil
 }
 
-func (s *fakeKnowledgeStore) Get(_ context.Context, scope knowledge.Scope, cwd string) (string, error) {
+func (s *fakeKnowledgeStore) Get(_ context.Context, scope knowledge.Scope, cwd string) (knowledge.Entry, error) {
 	s.getScope = scope
 	s.getCWD = cwd
-	return s.getContent, nil
+	return s.getEntry, nil
 }
 
-func (s *fakeKnowledgeStore) Update(_ context.Context, scope knowledge.Scope, cwd string, content string) error {
+func (s *fakeKnowledgeStore) Update(_ context.Context, scope knowledge.Scope, cwd, expectedRevision, content string) (knowledge.Entry, error) {
 	s.updateScope = scope
 	s.updateCWD = cwd
+	s.updateRevision = expectedRevision
 	s.updateContent = content
-	return nil
+	if s.updateErr != nil {
+		return knowledge.Entry{}, s.updateErr
+	}
+	return knowledge.Entry{Scope: scope, Content: content, Revision: "rev-2"}, nil
 }
 
 // serverWithKnowledge builds a test Server whose knowledge use case is backed by
@@ -73,7 +79,9 @@ func TestKnowledgeHandlersReturnCapabilityErrorWithoutStore(t *testing.T) {
 	if !errors.Is(err, protocol.ErrCapabilityNotNeg) {
 		t.Fatalf("get knowledge err = %v, want capability_not_negotiated", err)
 	}
-	err = s.UpdateKnowledge(context.Background(), protocol.UpdateKnowledgeRequest{Scope: protocol.KnowledgeScopeHome, Content: "prefs"})
+	_, err = s.UpdateKnowledge(context.Background(), protocol.UpdateKnowledgeRequest{
+		Scope: protocol.KnowledgeScopeHome, ExpectedRevision: "rev-1", Content: "prefs",
+	})
 	if !errors.Is(err, protocol.ErrCapabilityNotNeg) {
 		t.Fatalf("update knowledge err = %v, want capability_not_negotiated", err)
 	}
@@ -86,6 +94,7 @@ func TestListKnowledgeMapsEntriesToWire(t *testing.T) {
 		entries: []knowledge.Entry{{
 			Scope:     knowledge.ScopeHome,
 			Content:   "Use short answers",
+			Revision:  "rev-1",
 			UpdatedAt: captured,
 		}},
 	}
@@ -106,7 +115,9 @@ func TestListKnowledgeMapsEntriesToWire(t *testing.T) {
 }
 
 func TestGetAndUpdateKnowledgeMapScopeToRuntime(t *testing.T) {
-	store := &fakeKnowledgeStore{getContent: "project notes"}
+	store := &fakeKnowledgeStore{getEntry: knowledge.Entry{
+		Scope: knowledge.ScopeProjectRoot, Content: "project notes", Revision: "rev-1",
+	}}
 	s := serverWithKnowledge(store)
 	repo := t.TempDir()
 
@@ -120,15 +131,16 @@ func TestGetAndUpdateKnowledgeMapScopeToRuntime(t *testing.T) {
 		t.Fatalf("get wire=%+v scope=%v cwd=%q", got, store.getScope, store.getCWD)
 	}
 
-	err = s.UpdateKnowledge(context.Background(), protocol.UpdateKnowledgeRequest{
-		Scope:     protocol.KnowledgeScopeHome,
-		Workspace: &protocol.WorkspaceRef{Path: "/ignored"},
-		Content:   "global prefs",
+	updated, err := s.UpdateKnowledge(context.Background(), protocol.UpdateKnowledgeRequest{
+		Scope:            protocol.KnowledgeScopeHome,
+		Workspace:        &protocol.WorkspaceRef{Path: "/ignored"},
+		ExpectedRevision: "rev-1",
+		Content:          "global prefs",
 	})
 	if err != nil {
 		t.Fatalf("update knowledge: %v", err)
 	}
-	if store.updateScope != knowledge.ScopeHome || store.updateCWD != "" || store.updateContent != "global prefs" {
+	if updated.Revision != "rev-2" || store.updateScope != knowledge.ScopeHome || store.updateCWD != "" || store.updateRevision != "rev-1" || store.updateContent != "global prefs" {
 		t.Fatalf("update scope=%v cwd=%q content=%q", store.updateScope, store.updateCWD, store.updateContent)
 	}
 }
@@ -144,12 +156,24 @@ func TestProjectKnowledgeRejectsUnavailableCWD(t *testing.T) {
 	}); !errors.Is(err, protocol.ErrWorkspaceUnavailable) {
 		t.Fatalf("get knowledge err = %v, want ErrWorkspaceUnavailable", err)
 	}
-	if err := s.UpdateKnowledge(context.Background(), protocol.UpdateKnowledgeRequest{
-		Scope:     protocol.KnowledgeScopeProjectRoot,
-		Workspace: &protocol.WorkspaceRef{Path: missing},
-		Content:   "notes",
+	if _, err := s.UpdateKnowledge(context.Background(), protocol.UpdateKnowledgeRequest{
+		Scope:            protocol.KnowledgeScopeProjectRoot,
+		Workspace:        &protocol.WorkspaceRef{Path: missing},
+		ExpectedRevision: "rev-1",
+		Content:          "notes",
 	}); !errors.Is(err, protocol.ErrWorkspaceUnavailable) {
 		t.Fatalf("update knowledge err = %v, want ErrWorkspaceUnavailable", err)
+	}
+}
+
+func TestUpdateKnowledgeMapsStaleRevisionToProtocolConflict(t *testing.T) {
+	s := serverWithKnowledge(&fakeKnowledgeStore{updateErr: knowledge.ErrRevisionConflict})
+
+	_, err := s.UpdateKnowledge(t.Context(), protocol.UpdateKnowledgeRequest{
+		Scope: protocol.KnowledgeScopeHome, ExpectedRevision: "rev-old", Content: "stale",
+	})
+	if !errors.Is(err, protocol.ErrRevisionConflict) {
+		t.Fatalf("UpdateKnowledge err = %v, want revision_conflict", err)
 	}
 }
 

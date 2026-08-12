@@ -29,10 +29,14 @@ describe("workspaceInvalidations", () => {
       "schedules",
     ]);
     expect(workspaceInvalidations({ type: "sessions.changed", sequence: 5 })).toEqual(["sessions"]);
+    expect(workspaceInvalidations({ type: "knowledge.changed", sequence: 6 })).toEqual([
+      "knowledge",
+    ]);
+    expect(workspaceInvalidations({ type: "hooks.changed", sequence: 7 })).toEqual(["hooks"]);
     expect(
       workspaceInvalidations({
         type: "resync",
-        sequence: 6,
+        sequence: 8,
         topics: ["files.changed", "goals.changed", "files.changed"],
       }),
     ).toEqual([
@@ -49,7 +53,7 @@ describe("workspaceInvalidations", () => {
       "skills",
       "goal",
     ]);
-    expect(workspaceInvalidations({ type: "resync", sequence: 7 })).toEqual(["all"]);
+    expect(workspaceInvalidations({ type: "resync", sequence: 9 })).toEqual(["all"]);
   });
 
   // The four topics that used to be unmapped. They are read-backed now — the run

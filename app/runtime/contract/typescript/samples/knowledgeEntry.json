@@ -1,5 +1,6 @@
 {
   "scope": "projectRoot",
   "content": "# Project notes\n\nUse pnpm, not npm.",
+  "revision": "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
   "updatedAt": "2026-07-05T14:30:00Z"
 }

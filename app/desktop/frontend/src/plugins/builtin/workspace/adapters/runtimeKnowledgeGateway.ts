@@ -1,5 +1,9 @@
 import { getContainer } from "@/main/container";
-import { configureWorkspaceKnowledgeGateway } from "../application/ports/knowledgeGateway";
+import { isErrorType } from "@/rpc";
+import {
+  configureWorkspaceKnowledgeGateway,
+  WorkspaceKnowledgeRevisionConflictError,
+} from "../application/ports/knowledgeGateway";
 import type { WorkspaceKnowledgeGateway } from "../application/ports/knowledgeGateway";
 
 const gateway: WorkspaceKnowledgeGateway = {
@@ -10,6 +14,7 @@ const gateway: WorkspaceKnowledgeGateway = {
     const entry = await workspace.knowledge.get(input.scope);
     return {
       content: entry.content,
+      revision: entry.revision,
       ...(entry.updatedAt ? { updatedAt: entry.updatedAt } : {}),
     };
   },
@@ -18,7 +23,19 @@ const gateway: WorkspaceKnowledgeGateway = {
     const workspace = await getContainer()
       .client()
       .workspaces.open(cwd ? { path: cwd } : undefined);
-    await workspace.knowledge.update(update);
+    try {
+      const entry = await workspace.knowledge.update(update);
+      return {
+        content: entry.content,
+        revision: entry.revision,
+        ...(entry.updatedAt ? { updatedAt: entry.updatedAt } : {}),
+      };
+    } catch (error) {
+      if (isErrorType(error, "revision_conflict")) {
+        throw new WorkspaceKnowledgeRevisionConflictError();
+      }
+      throw error;
+    }
   },
 };
 

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/application/invalidation"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/knowledge"
 )
 
@@ -13,8 +14,8 @@ var ErrKnowledgeUnavailable = errors.New("workspace: knowledge unavailable")
 
 // KnowledgeStore is the complete persistence surface consumed by Knowledge.
 type KnowledgeStore interface {
-	Get(ctx context.Context, scope knowledge.Scope, dir string) (string, error)
-	Update(ctx context.Context, scope knowledge.Scope, dir string, content string) error
+	Get(ctx context.Context, scope knowledge.Scope, dir string) (knowledge.Entry, error)
+	Update(ctx context.Context, scope knowledge.Scope, dir, expectedRevision, content string) (knowledge.Entry, error)
 	List(ctx context.Context, cwd, projectRoot string) ([]knowledge.Entry, error)
 }
 
@@ -26,13 +27,14 @@ type KnowledgeWorkspaceInspector interface {
 
 // Knowledge owns the human-authored LYRA.md cascade use cases.
 type Knowledge struct {
-	scope      *Scope
-	workspaces KnowledgeWorkspaceInspector
-	store      KnowledgeStore
+	scope         *Scope
+	workspaces    KnowledgeWorkspaceInspector
+	store         KnowledgeStore
+	invalidations invalidation.Publish
 }
 
-func NewKnowledge(scope *Scope, workspaces KnowledgeWorkspaceInspector, store KnowledgeStore) *Knowledge {
-	return &Knowledge{scope: scope, workspaces: workspaces, store: store}
+func NewKnowledge(scope *Scope, workspaces KnowledgeWorkspaceInspector, store KnowledgeStore, invalidations invalidation.Publish) *Knowledge {
+	return &Knowledge{scope: scope, workspaces: workspaces, store: store, invalidations: invalidations}
 }
 
 // Available reports whether this runtime has a long-term knowledge store.
@@ -55,51 +57,62 @@ func (k *Knowledge) Entries(ctx context.Context, cwd string) ([]knowledge.Entry,
 }
 
 // Read returns the LYRA.md content for one scope.
-func (k *Knowledge) Read(ctx context.Context, scope knowledge.Scope, cwd string) (string, error) {
+func (k *Knowledge) Read(ctx context.Context, scope knowledge.Scope, cwd string) (knowledge.Entry, error) {
 	if err := scope.Validate(); err != nil {
-		return "", err
+		return knowledge.Entry{}, err
 	}
 	if k.store == nil {
-		return "", ErrKnowledgeUnavailable
+		return knowledge.Entry{}, ErrKnowledgeUnavailable
 	}
 	if scope == knowledge.ScopeHome {
 		return k.store.Get(ctx, scope, "")
 	}
 	root, err := k.scope.root(cwd)
 	if err != nil {
-		return "", err
+		return knowledge.Entry{}, err
 	}
 	if scope == knowledge.ScopeProjectRoot {
 		root, err = k.projectRoot(root)
 		if err != nil {
-			return "", err
+			return knowledge.Entry{}, err
 		}
 	}
 	return k.store.Get(ctx, scope, root)
 }
 
-// Update overwrites the LYRA.md content for one scope.
-func (k *Knowledge) Update(ctx context.Context, scope knowledge.Scope, cwd, content string) error {
+// Update conditionally replaces one LYRA.md document and returns the committed fact.
+func (k *Knowledge) Update(ctx context.Context, scope knowledge.Scope, cwd, expectedRevision, content string) (knowledge.Entry, error) {
 	if err := scope.Validate(); err != nil {
-		return err
+		return knowledge.Entry{}, err
+	}
+	if expectedRevision == "" {
+		return knowledge.Entry{}, knowledge.ErrRevisionRequired
 	}
 	if k.store == nil {
-		return ErrKnowledgeUnavailable
+		return knowledge.Entry{}, ErrKnowledgeUnavailable
 	}
 	if scope == knowledge.ScopeHome {
-		return k.store.Update(ctx, scope, "", content)
+		return k.update(ctx, scope, "", expectedRevision, content)
 	}
 	root, err := k.scope.root(cwd)
 	if err != nil {
-		return err
+		return knowledge.Entry{}, err
 	}
 	if scope == knowledge.ScopeProjectRoot {
 		root, err = k.projectRoot(root)
 		if err != nil {
-			return err
+			return knowledge.Entry{}, err
 		}
 	}
-	return k.store.Update(ctx, scope, root, content)
+	return k.update(ctx, scope, root, expectedRevision, content)
+}
+
+func (k *Knowledge) update(ctx context.Context, scope knowledge.Scope, root, expectedRevision, content string) (knowledge.Entry, error) {
+	entry, err := k.store.Update(ctx, scope, root, expectedRevision, content)
+	if err == nil {
+		k.invalidations.Notify(invalidation.Notice{Resource: invalidation.Knowledge})
+	}
+	return entry, err
 }
 
 func (k *Knowledge) projectRoot(cwd string) (string, error) {

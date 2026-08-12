@@ -20,6 +20,8 @@ func TestEveryInvalidationResourceIsPublishable(t *testing.T) {
 		invalidation.Goals,
 		invalidation.PlanState,
 		invalidation.Schedules,
+		invalidation.Knowledge,
+		invalidation.Hooks,
 	} {
 		notice := invalidation.Notice{Resource: resource, SessionIDs: []string{"ses_1"}}
 		if resource == invalidation.Schedules {
@@ -32,7 +34,10 @@ func TestEveryInvalidationResourceIsPublishable(t *testing.T) {
 		if !slices.Contains(protocol.RuntimeTopics(), protocol.RuntimeTopic(ev.Type)) {
 			t.Fatalf("resource %d maps to %q, which is not a subscribable topic", resource, ev.Type)
 		}
-		if resource != invalidation.Schedules && !slices.Equal(ev.SessionIDs, []string{"ses_1"}) {
+		sessionScoped := resource == invalidation.Sessions || resource == invalidation.Runs ||
+			resource == invalidation.Interrupts || resource == invalidation.Goals ||
+			resource == invalidation.PlanState
+		if sessionScoped && !slices.Equal(ev.SessionIDs, []string{"ses_1"}) {
 			t.Fatalf("resource %d dropped the session scope: %+v", resource, ev.SessionIDs)
 		}
 		if resource == invalidation.Schedules && !slices.Equal(ev.ScheduleIDs, []string{"sch_1"}) {

@@ -2,7 +2,7 @@
 // loads into the agent's context. One entry per scope expands into an inline
 // whole-file editor.
 
-import { useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { Collapsible, DataView, Icon, PillButton, Pressable, TextArea } from "@/ui";
 import { useT } from "@/lib/i18n";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
@@ -12,14 +12,17 @@ import { cn } from "@/lib/classNames";
 import { defineWorkspaceView } from "./defineWorkspaceView";
 import {
   loadWorkspaceKnowledge,
+  isWorkspaceKnowledgeRevisionConflict,
   saveWorkspaceKnowledge,
   useWorkspaceKnowledge,
 } from "@/plugins/builtin/workspace/application/knowledgeConfig";
 import {
-  commitKnowledgeSave,
   editKnowledge,
   isKnowledgeDirty,
   openedKnowledgeEditor,
+  rebaseKnowledgeDraft,
+  reconcileKnowledgeSnapshot,
+  settleKnowledgeSave,
 } from "@/plugins/builtin/workspace/application/knowledgeEditor";
 import {
   type WorkspaceKnowledgeRowViewModel,
@@ -31,12 +34,14 @@ function KnowledgeRow({ row, cwd }: { row: WorkspaceKnowledgeRowViewModel; cwd?:
   const t = useT();
   const [open, setOpen] = useState(false);
   const panelId = useId();
-  const [editor, setEditor] = useState(() =>
-    openedKnowledgeEditor({
-      content: row.content,
-      ...(row.updatedAt ? { updatedAt: row.updatedAt } : {}),
-    }),
-  );
+  const listedDocument = {
+    content: row.content,
+    revision: row.revision,
+    ...(row.updatedAt ? { updatedAt: row.updatedAt } : {}),
+  };
+  const latestListedDocument = useRef(listedDocument);
+  latestListedDocument.current = listedDocument;
+  const [editor, setEditor] = useState(() => openedKnowledgeEditor(listedDocument));
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const loadSequence = useRef(0);
@@ -44,6 +49,19 @@ function KnowledgeRow({ row, cwd }: { row: WorkspaceKnowledgeRowViewModel; cwd?:
   // the disabled state applies would otherwise fire two knowledge.update writes.
   const savingRef = useRef(false);
   const dirty = isKnowledgeDirty(editor);
+
+  // Event-driven list refetches refresh clean editors in place. Dirty drafts
+  // deliberately keep their baseline until save, where CAS either commits or
+  // rebases them onto the latest exact document.
+  useEffect(() => {
+    setEditor((current) =>
+      reconcileKnowledgeSnapshot(current, {
+        content: row.content,
+        revision: row.revision,
+        ...(row.updatedAt ? { updatedAt: row.updatedAt } : {}),
+      }),
+    );
+  }, [row.content, row.revision, row.updatedAt]);
 
   const toggle = (): void => {
     if (open) {
@@ -68,6 +86,7 @@ function KnowledgeRow({ row, cwd }: { row: WorkspaceKnowledgeRowViewModel; cwd?:
         setEditor(
           openedKnowledgeEditor({
             content: row.content,
+            revision: row.revision,
             ...(row.updatedAt ? { updatedAt: row.updatedAt } : {}),
           }),
         );
@@ -84,13 +103,31 @@ function KnowledgeRow({ row, cwd }: { row: WorkspaceKnowledgeRowViewModel; cwd?:
   const save = (): void => {
     if (!dirty || savingRef.current) return;
     const savedContent = editor.draft;
+    const expectedRevision = editor.revision;
     savingRef.current = true;
     setSaving(true);
-    saveWorkspaceKnowledge({ scope: row.scope, cwd, content: savedContent })
-      .then(() => {
-        setEditor((current) => commitKnowledgeSave(current, savedContent));
+    saveWorkspaceKnowledge({
+      scope: row.scope,
+      cwd,
+      content: savedContent,
+      expectedRevision,
+    })
+      .then((saved) => {
+        setEditor((current) => settleKnowledgeSave(current, saved, latestListedDocument.current));
       })
-      .catch((err: unknown) => {
+      .catch(async (err: unknown) => {
+        if (isWorkspaceKnowledgeRevisionConflict(err)) {
+          // Refresh the expected revision, but retain the user's draft. A
+          // deliberate second save can then replace the newly observed value;
+          // an accidental stale save never can.
+          try {
+            const latest = await loadWorkspaceKnowledge({ scope: row.scope, cwd });
+            setEditor((current) => rebaseKnowledgeDraft(current, latest));
+          } catch {
+            // The original conflict remains the actionable failure. A later
+            // event/reopen will retry the authoritative read.
+          }
+        }
         notifyError(t("knowledge.saveError"), {
           description: err instanceof Error ? err.message : String(err),
           source: "knowledge",

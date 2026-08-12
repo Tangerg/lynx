@@ -73,6 +73,10 @@ func runtimeEventFor(notice invalidation.Notice) (protocol.RuntimeEvent, bool) {
 		return protocol.RuntimeEvent{
 			Type: protocol.RuntimeSchedulesChanged, ScheduleIDs: notice.ScheduleIDs,
 		}, true
+	case invalidation.Knowledge:
+		return protocol.RuntimeEvent{Type: protocol.RuntimeKnowledgeChanged}, true
+	case invalidation.Hooks:
+		return protocol.RuntimeEvent{Type: protocol.RuntimeHooksChanged}, true
 	default:
 		return protocol.RuntimeEvent{}, false
 	}

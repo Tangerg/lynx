@@ -28,6 +28,10 @@ const (
 	PlanState
 	// Schedules — an editable scheduled run was created, updated, or deleted.
 	Schedules
+	// Knowledge — a human-authored knowledge document was conditionally replaced.
+	Knowledge
+	// Hooks — a project's lifecycle-hook trust decision changed.
+	Hooks
 )
 
 // Notice is one committed change: the resource, and the members of it a reader can

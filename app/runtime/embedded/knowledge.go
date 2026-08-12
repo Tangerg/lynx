@@ -16,7 +16,7 @@ func (r *Runtime) GetKnowledge(ctx context.Context, request protocol.GetKnowledg
 	return invoke[protocol.GetKnowledgeRequest, *protocol.KnowledgeEntry](ctx, r, "knowledge.get", request, callOptions(options))
 }
 
-// UpdateKnowledge replaces one user-editable knowledge entry.
-func (r *Runtime) UpdateKnowledge(ctx context.Context, request protocol.UpdateKnowledgeRequest, options CommandOptions) error {
-	return invokeAck(ctx, r, "knowledge.update", request, commandOptions(options))
+// UpdateKnowledge conditionally replaces one user-editable knowledge entry.
+func (r *Runtime) UpdateKnowledge(ctx context.Context, request protocol.UpdateKnowledgeRequest, options CommandOptions) (*protocol.KnowledgeEntry, error) {
+	return invoke[protocol.UpdateKnowledgeRequest, *protocol.KnowledgeEntry](ctx, r, "knowledge.update", request, commandOptions(options))
 }

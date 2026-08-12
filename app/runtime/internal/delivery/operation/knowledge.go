@@ -21,10 +21,12 @@ func registerKnowledge(registry *Registry) {
 		return service.GetKnowledge(ctx, request)
 	})
 
-	CommandAck(registry, MethodMeta{
-		Name: "knowledge.update", Errors: []string{protocol.ErrWorkspaceUnavailable.Error()},
+	Command(registry, MethodMeta{
+		Name: "knowledge.update", Errors: []string{
+			protocol.ErrWorkspaceUnavailable.Error(), protocol.ErrRevisionConflict.Error(),
+		},
 		CapabilityRules: requires(protocol.FeatureKnowledge), Stability: stable,
-	}, func(service Service, ctx context.Context, request protocol.UpdateKnowledgeRequest) error {
+	}, func(service Service, ctx context.Context, request protocol.UpdateKnowledgeRequest) (*protocol.KnowledgeEntry, error) {
 		return service.UpdateKnowledge(ctx, request)
 	})
 }

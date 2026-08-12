@@ -1031,6 +1031,7 @@
       "pagination": "none",
       "errors": [
         "workspace_unavailable",
+        "revision_conflict",
         "capability_not_negotiated"
       ],
       "features": [
@@ -1320,6 +1321,7 @@
         "code": -32019,
         "recoveryAction": "refetch",
         "methods": [
+          "knowledge.update",
           "schedules.update",
           "sessions.update"
         ]
@@ -2058,6 +2060,12 @@
     },
     {
       "type": "interrupts.changed"
+    },
+    {
+      "type": "knowledge.changed"
+    },
+    {
+      "type": "hooks.changed"
     },
     {
       "type": "resync"
@@ -3226,6 +3234,18 @@
           "optional": [
             "runIds",
             "sessionIds"
+          ]
+        },
+        {
+          "tag": "knowledge.changed",
+          "required": [
+            "sequence"
+          ]
+        },
+        {
+          "tag": "hooks.changed",
+          "required": [
+            "sequence"
           ]
         },
         {
@@ -4935,6 +4955,24 @@
       "rules": [
         {
           "field": "name",
+          "constraint": "nonEmpty"
+        }
+      ]
+    },
+    {
+      "type": "KnowledgeEntry",
+      "rules": [
+        {
+          "field": "revision",
+          "constraint": "nonEmpty"
+        }
+      ]
+    },
+    {
+      "type": "UpdateKnowledgeRequest",
+      "rules": [
+        {
+          "field": "expectedRevision",
           "constraint": "nonEmpty"
         }
       ]

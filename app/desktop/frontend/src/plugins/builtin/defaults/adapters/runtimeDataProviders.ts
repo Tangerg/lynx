@@ -196,6 +196,7 @@ export function registerDefaultDataProviders(host: ContributingHost): void {
       return (await pageData(resources.knowledge.list()).catch(emptyListIfUngated)).map((m) => ({
         scope: m.scope,
         content: m.content,
+        revision: m.revision,
         updatedAt: m.updatedAt,
       }));
     },

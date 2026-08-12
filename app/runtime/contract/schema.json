@@ -3380,6 +3380,10 @@
         "content": {
           "type": "string"
         },
+        "revision": {
+          "type": "string",
+          "minLength": 1
+        },
         "scope": {
           "$ref": "#/$defs/KnowledgeScope"
         },
@@ -3390,6 +3394,7 @@
       },
       "required": [
         "content",
+        "revision",
         "scope"
       ]
     },
@@ -6927,6 +6932,50 @@
             "scheduleIds": false,
             "serverIds": false,
             "sessionIds": false,
+            "topics": false,
+            "type": {
+              "const": "knowledge.changed"
+            },
+            "watchId": false,
+            "watchIds": false,
+            "workspace": false
+          },
+          "required": [
+            "sequence",
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "key": false,
+            "names": false,
+            "paths": false,
+            "runIds": false,
+            "scheduleIds": false,
+            "serverIds": false,
+            "sessionIds": false,
+            "topics": false,
+            "type": {
+              "const": "hooks.changed"
+            },
+            "watchId": false,
+            "watchIds": false,
+            "workspace": false
+          },
+          "required": [
+            "sequence",
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "key": false,
+            "names": false,
+            "paths": false,
+            "runIds": false,
+            "scheduleIds": false,
+            "serverIds": false,
+            "sessionIds": false,
             "type": {
               "const": "resync"
             },
@@ -6964,6 +7013,8 @@
         "state.changed",
         "goals.changed",
         "interrupts.changed",
+        "knowledge.changed",
+        "hooks.changed",
         "resync"
       ]
     },
@@ -7029,7 +7080,9 @@
         "runs.changed",
         "state.changed",
         "goals.changed",
-        "interrupts.changed"
+        "interrupts.changed",
+        "knowledge.changed",
+        "hooks.changed"
       ]
     },
     "SafetyClass": {
@@ -8243,6 +8296,10 @@
         "content": {
           "type": "string"
         },
+        "expectedRevision": {
+          "type": "string",
+          "minLength": 1
+        },
         "scope": {
           "$ref": "#/$defs/KnowledgeScope"
         },
@@ -8252,6 +8309,7 @@
       },
       "required": [
         "content",
+        "expectedRevision",
         "scope"
       ]
     },

@@ -248,7 +248,9 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 		Invalidations: applicationInvalidations.Publish,
 	})
 	workspaceScope := workspace.NewScope(cfg.DefaultWorkspacePath, cfg.UserHome, workspacepath.Resolver{})
-	workspaceKnowledge := workspace.NewKnowledge(workspaceScope, workspacepath.Resolver{}, cfg.KnowledgeStore)
+	workspaceKnowledge := workspace.NewKnowledge(
+		workspaceScope, workspacepath.Resolver{}, cfg.KnowledgeStore, applicationInvalidations.Publish,
+	)
 	// One signal covers every committed Skill-library mutation, including
 	// proposal submission and review decisions.
 	skillChanges := &notification.Relay[struct{}]{}
@@ -565,7 +567,9 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 	workspaceDiscovery := workspace.NewDiscovery(
 		workspaceScope, sessionCoordinator, promptsource.AgentDocs{}, promptsource.NewWorkspaceRecipes(cfg.RecipesGlobalDir),
 	)
-	workspaceHooks := workspace.NewHooks(workspaceScope, cfg.HooksResolver, cfg.HookTrustStore)
+	workspaceHooks := workspace.NewHooks(
+		workspaceScope, cfg.HooksResolver, cfg.HookTrustStore, applicationInvalidations.Publish,
+	)
 	workspaceWatch := workspace.NewGitWatch(workspaceScope, checkpointstore.GitWatcher{})
 	// The @codebase semantic index is its own use-case coordinator (nil index =
 	// disabled); it owns the background reindex task group, closed by the Host.

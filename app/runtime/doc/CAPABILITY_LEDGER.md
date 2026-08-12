@@ -122,7 +122,7 @@
 | Conversation message log | `domain/conversation` + `application/conversations` I/O | 保持 | Retain | Count/Truncate/Seed 不依赖 Run executor |
 | Transcript Items | `domain/transcript` | 保持唯一 Item aggregate owner | Retain + Refactor complete | P16-02 已关闭公开 tagged-union mutation：非 Tool variants 构造即 complete，ToolCall 只经 start/complete/fail/abandon/classify 行为迁移；Application 仅拥有 provisional stream `ItemStart`，Persistence/Artifact codec 只在机器守卫允许的技术边界使用严格 snapshot |
 | Offloaded transcript content | `domain/toolresult` | 保持准确独立 capability | Retain | 无泛化 blob service |
-| Knowledge/LYRA.md | `domain/knowledge` | 保持独立 | Retain | 用户编辑与 Agent state 无关 |
+| Knowledge/LYRA.md | `domain/knowledge` + `application/workspace` + `infra/knowledgefile` | 保持独立 | Retain + CAS hardening | P50 以 opaque content revision、同路径原子条件替换、权威返回与 committed-only `knowledge.changed` 消除丢更新；用户编辑与 Agent state 无关，wire 只在 Delivery/Desktop Adapter 映射 |
 | WorkingContext | Application composer + Agent Framework Interaction private state | 保持 Host composition 与 executor state 分离 | Retain | fresh root 读取产品事实；restore 只用 opaque checkpoint，不从 Conversation 重算 |
 
 ### 3.3 Interrupt 与 approval
@@ -156,7 +156,7 @@
 | Model/provider catalog | domain/application/adapters | Retain | 每 Run exact model binding 进入 deployment assembly |
 | MCP/A2A/LSP | domain/application/infra/toolset | Retain | 保持技术能力，不进入 Agent Framework Kernel |
 | Workspace/change/isolation | application/adapters/infra | Retain + recovery audit | 外部事实失效由 Host policy 处理 |
-| Hooks | domain/application/adapter | Retain | P5 已在普通 Tool 边界触发；post-hook 是 observation，不覆写 settlement；child 边界留 P7 |
+| Hooks | domain/application/adapter | Retain | P5 已在普通 Tool 边界触发；post-hook 是 observation，不覆写 settlement；P50 trust commit 后发布专用 `hooks.changed`，Desktop 按 project 串行且 UI pending 锁定，不依赖文件 watch |
 | Feedback/codebase index | domain/application | Retain | 与 execution migration 无直接耦合 |
 
 ## 4. Application 能力
@@ -423,3 +423,4 @@ P8 production cutover 已用真实 Bootstrap consumer 冻结 root stage/observe/
 - P47 关闭 Workspace subscription opening 的取消传播缺口：retarget/dispose 的 lifecycle signal 从 Workspace Application 经 Runtime Adapter 与 SDK 到达 `workspaces.resolve`，旧 watch-root resolution 不再阻塞唯一重连循环。Runtime Delivery 同时将 `watchIds` 与非 `files.changed` topics 的跨字段矛盾视为不可猜测输入并扩大到完整 subscription resync；watch、wire 与 HTTP 取消语义没有进入 Agent 或 Runtime Domain/Application。真实 HITL、Plan、Goal、旁路 Session、Git 文件事件与 Runtime 重启恢复均收敛。
 - P48 关闭 Desktop “丢弃旧结果但不取消底层身份读取”与 Schedule mutation 返回事实未消费的缺口：Workspace Application 的每代 signal 经 Adapter/SDK 到达 `sessions.get`，retarget/dispose 不再积累孤儿请求；`schedules.runNow` 的 Session/Run identity 由 Schedule 用例保留，并经 Agent 公开会话动作进入 Agent 自有 durable recovery，Schedule 条件更新则先提交后端返回的新 revision 再重验。Runtime DTO/transport 没有进入 Agent 内层，Runtime、Protocol、SQLite shape 与 Agent Framework 均未变化。
 - P49 关闭 Desktop 非 void mutation 返回事实未消费及连续写乱序覆盖的系统性缺口：Provider、Approval、MCP、Agent Memory、Codebase 各自的 Adapter 将 Runtime response 投影为中性产品资源，所属 Application 按真实冲突域串行并先提交权威 fact 再失效重验；通用 serial queue 对失败后续跑与 keyed independence 有直接回归。MCP data provider/wire projection 回到 MCP context Adapter，defaults 和 Agent 内层均不接触其 wire；Provider `requiresBaseUrl` 驱动真实必填校验，UI 用 saved resource 重建规范化草稿。Runtime、Protocol、SQLite shape 与 Agent Framework 均未变化。
+- P50 关闭 Knowledge 丢更新、空文件不可创建及 Knowledge/Hook 多窗口静默陈旧：Knowledge Domain 只持有 scope/revision conflict，Application 拥有条件更新与 committed invalidation，Infra 独占内容 revision 和同目录原子替换，Delivery 独占 Protocol problem/topic 投影；Desktop Workspace/Hook Adapter 将 wire 转为中性模型，干净编辑器跟随事件、脏草稿保留且冲突后显式 rebase，Hook intent 按 project 串行并有 UI latch。Agent/Agent Framework 未导入 Runtime、Knowledge revision、Hook topic 或前端状态，SQLite/Artifact/Framework shape 不变。

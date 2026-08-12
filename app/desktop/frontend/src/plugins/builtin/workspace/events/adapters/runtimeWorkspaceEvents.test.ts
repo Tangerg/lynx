@@ -48,6 +48,7 @@ describe("runtime workspace event subscription", () => {
     expect(resolveWorkspace).toHaveBeenCalledWith({ path: "/linked/repo" }, signal);
     expect(subscribe).toHaveBeenCalledWith(
       expect.objectContaining({
+        topics: expect.arrayContaining(["knowledge.changed", "hooks.changed"]),
         watches: [{ watchId: "active-session", workspace: { path: "/canonical/repo" } }],
       }),
       signal,

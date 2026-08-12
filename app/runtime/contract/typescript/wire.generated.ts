@@ -665,6 +665,7 @@ export type ItemType = "userMessage" | "agentMessage" | "reasoning" | "question"
 
 export interface KnowledgeEntry {
   content: string;
+  revision: string;
   scope: KnowledgeScope;
   updatedAt?: string;
 }
@@ -1192,13 +1193,15 @@ export type RuntimeEvent =
   | { type: "state.changed"; key: StateSnapshotType; runIds?: string[]; sequence: number; sessionIds?: string[] }
   | { type: "goals.changed"; sequence: number; sessionIds?: string[] }
   | { type: "interrupts.changed"; runIds?: string[]; sequence: number; sessionIds?: string[] }
+  | { type: "knowledge.changed"; sequence: number }
+  | { type: "hooks.changed"; sequence: number }
   | { type: "resync"; sequence: number; topics: RuntimeTopic[]; watchIds?: string[] };
 
 export interface RuntimeEventNotification {
   event: RuntimeEvent;
 }
 
-export type RuntimeEventType = "files.changed" | "skills.changed" | "mcp.changed" | "schedules.changed" | "sessions.changed" | "runs.changed" | "state.changed" | "goals.changed" | "interrupts.changed" | "resync";
+export type RuntimeEventType = "files.changed" | "skills.changed" | "mcp.changed" | "schedules.changed" | "sessions.changed" | "runs.changed" | "state.changed" | "goals.changed" | "interrupts.changed" | "knowledge.changed" | "hooks.changed" | "resync";
 
 export interface RuntimeLimits {
   idempotency: IdempotencyLimits;
@@ -1216,7 +1219,7 @@ export interface RuntimeSubscribeRequest {
 export interface RuntimeSubscribeResponse {
 }
 
-export type RuntimeTopic = "files.changed" | "skills.changed" | "mcp.changed" | "schedules.changed" | "sessions.changed" | "runs.changed" | "state.changed" | "goals.changed" | "interrupts.changed";
+export type RuntimeTopic = "files.changed" | "skills.changed" | "mcp.changed" | "schedules.changed" | "sessions.changed" | "runs.changed" | "state.changed" | "goals.changed" | "interrupts.changed" | "knowledge.changed" | "hooks.changed";
 
 export type SafetyClass = "safe" | "write" | "exec" | "network";
 
@@ -1445,6 +1448,7 @@ export interface ToolSpec {
 
 export interface UpdateKnowledgeRequest {
   content: string;
+  expectedRevision: string;
   scope: KnowledgeScope;
   workspace?: WorkspaceRef;
 }
@@ -1629,8 +1633,8 @@ export const WIRE_ENUMS = {
   RunProtocolFeature: ["subagents"],
   RunReplayScope: ["runtimeInstanceRootSegment"],
   RunStatus: ["running", "waiting", "finished"],
-  RuntimeEventType: ["files.changed", "skills.changed", "mcp.changed", "schedules.changed", "sessions.changed", "runs.changed", "state.changed", "goals.changed", "interrupts.changed", "resync"],
-  RuntimeTopic: ["files.changed", "skills.changed", "mcp.changed", "schedules.changed", "sessions.changed", "runs.changed", "state.changed", "goals.changed", "interrupts.changed"],
+  RuntimeEventType: ["files.changed", "skills.changed", "mcp.changed", "schedules.changed", "sessions.changed", "runs.changed", "state.changed", "goals.changed", "interrupts.changed", "knowledge.changed", "hooks.changed", "resync"],
+  RuntimeTopic: ["files.changed", "skills.changed", "mcp.changed", "schedules.changed", "sessions.changed", "runs.changed", "state.changed", "goals.changed", "interrupts.changed", "knowledge.changed", "hooks.changed"],
   SafetyClass: ["safe", "write", "exec", "network"],
   ScheduleWorkspaceMode: ["default"],
   SegmentOutcomeType: ["interrupt", "suspended", "completed", "timedOut", "failed", "maxSteps", "maxBudget", "canceled", "lost"],

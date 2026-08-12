@@ -19,6 +19,7 @@ export interface WorkspaceKnowledgeRowViewModel {
   scopeLabelKey: string;
   path: string;
   content: string;
+  revision: string;
   updatedAt?: string;
 }
 
@@ -108,6 +109,7 @@ export function workspaceKnowledgeViewModel(
       scopeLabelKey: scopeLabelKey(entry.scope),
       path: knowledgePath(entry.scope),
       content: entry.content,
+      revision: entry.revision,
       updatedAt: entry.updatedAt,
     })),
   );

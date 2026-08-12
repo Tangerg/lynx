@@ -4,6 +4,7 @@ import (
 	"context"
 
 	apphooks "github.com/Tangerg/lynx/app/runtime/internal/application/hooks"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/invalidation"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
 )
 
@@ -20,9 +21,10 @@ type HookTrustStore interface {
 
 // Hooks owns lifecycle-hook inspection and trust decisions.
 type Hooks struct {
-	scope     *Scope
-	inspector HookInspector
-	trust     HookTrustStore
+	scope         *Scope
+	inspector     HookInspector
+	trust         HookTrustStore
+	invalidations invalidation.Publish
 }
 
 // HookInspection is the resolved hook view after applying trust policy.
@@ -37,8 +39,8 @@ type ResolvedHook struct {
 	Active bool
 }
 
-func NewHooks(scope *Scope, inspector HookInspector, trust HookTrustStore) *Hooks {
-	return &Hooks{scope: scope, inspector: inspector, trust: trust}
+func NewHooks(scope *Scope, inspector HookInspector, trust HookTrustStore, invalidations invalidation.Publish) *Hooks {
+	return &Hooks{scope: scope, inspector: inspector, trust: trust, invalidations: invalidations}
 }
 
 // Inspect returns lifecycle hooks and their effective activation state.
@@ -75,8 +77,14 @@ func (h *Hooks) SetProjectTrust(ctx context.Context, projectRoot string, trusted
 	if h.trust == nil {
 		return nil
 	}
+	var changeErr error
 	if trusted {
-		return h.trust.Trust(ctx, root)
+		changeErr = h.trust.Trust(ctx, root)
+	} else {
+		changeErr = h.trust.Untrust(ctx, root)
 	}
-	return h.trust.Untrust(ctx, root)
+	if changeErr == nil {
+		h.invalidations.Notify(invalidation.Notice{Resource: invalidation.Hooks})
+	}
+	return changeErr
 }

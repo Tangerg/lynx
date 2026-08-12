@@ -2,6 +2,7 @@ package knowledgefile_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -26,15 +27,20 @@ func TestStoreUpdateAndGet(t *testing.T) {
 	ctx := context.Background()
 
 	const userBody = "# User\nprefer terse output\n"
-	if err := store.Update(ctx, knowledge.ScopeHome, "", userBody); err != nil {
+	fresh, err := store.Get(ctx, knowledge.ScopeHome, "")
+	if err != nil {
+		t.Fatalf("Get fresh: %v", err)
+	}
+	written, err := store.Update(ctx, knowledge.ScopeHome, "", fresh.Revision, userBody)
+	if err != nil {
 		t.Fatalf("Update: %v", err)
 	}
 	got, err := store.Get(ctx, knowledge.ScopeHome, "")
 	if err != nil {
 		t.Fatalf("Get: %v", err)
 	}
-	if got != userBody {
-		t.Errorf("Get returned %q, want %q", got, userBody)
+	if got.Content != userBody || got.Revision == fresh.Revision || got != written {
+		t.Errorf("Get returned %+v, written %+v, fresh revision %q", got, written, fresh.Revision)
 	}
 }
 
@@ -44,8 +50,8 @@ func TestStoreGetEmptyOnFreshHome(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got != "" {
-		t.Errorf("fresh home: want empty, got %q", got)
+	if got.Content != "" || got.Revision == "" {
+		t.Errorf("fresh home: want empty content with revision, got %+v", got)
 	}
 }
 
@@ -53,20 +59,24 @@ func TestStorePersistsAcrossInstances(t *testing.T) {
 	userScopeDirectory := t.TempDir()
 	defaultWorkspaceDirectory := t.TempDir()
 	first := newKnowledgeStore(t, userScopeDirectory, defaultWorkspaceDirectory)
-	_ = first.Update(context.Background(), knowledge.ScopeHome, "", "remember me")
+	fresh, _ := first.Get(context.Background(), knowledge.ScopeHome, "")
+	_, _ = first.Update(context.Background(), knowledge.ScopeHome, "", fresh.Revision, "remember me")
 
 	second := newKnowledgeStore(t, userScopeDirectory, defaultWorkspaceDirectory)
 	got, _ := second.Get(context.Background(), knowledge.ScopeHome, "")
-	if got != "remember me" {
-		t.Errorf("after restart got %q", got)
+	if got.Content != "remember me" {
+		t.Errorf("after restart got %+v", got)
 	}
 }
 
-func TestStoreConcurrentInstancesUseIndependentTemporaryFiles(t *testing.T) {
+func TestStoreConcurrentUpdatesRejectStaleRevisionsWithoutTornWrites(t *testing.T) {
 	home := t.TempDir()
 	defaultWorkspaceDirectory := t.TempDir()
-	first := newKnowledgeStore(t, home, defaultWorkspaceDirectory)
-	second := newKnowledgeStore(t, home, defaultWorkspaceDirectory)
+	store := newKnowledgeStore(t, home, defaultWorkspaceDirectory)
+	fresh, err := store.Get(t.Context(), knowledge.ScopeHome, "")
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// A fixed sibling used by an older implementation must not be a reserved path.
 	legacyTemporary := filepath.Join(home, "LYRA.md.tmp")
@@ -75,55 +85,67 @@ func TestStoreConcurrentInstancesUseIndependentTemporaryFiles(t *testing.T) {
 	}
 
 	wantBodies := make(map[string]struct{}, 32)
+	written := make(chan knowledge.Entry, 32)
 	writeErrors := make(chan error, 32)
 	var writes sync.WaitGroup
 	for index := range 32 {
-		store := first
-		if index%2 != 0 {
-			store = second
-		}
 		body := fmt.Sprintf("knowledge from writer %02d", index)
 		wantBodies[body] = struct{}{}
 		writes.Go(func() {
-			if err := store.Update(t.Context(), knowledge.ScopeHome, "", body); err != nil {
+			entry, err := store.Update(
+				t.Context(), knowledge.ScopeHome, "", fresh.Revision, body,
+			)
+			if err != nil {
 				writeErrors <- err
+				return
 			}
+			written <- entry
 		})
 	}
 	writes.Wait()
+	close(written)
 	close(writeErrors)
+	if len(written) != 1 {
+		t.Fatalf("successful writes = %d, want exactly one CAS winner", len(written))
+	}
+	if len(writeErrors) != 31 {
+		t.Fatalf("failed writes = %d, want 31 stale revisions", len(writeErrors))
+	}
 	for err := range writeErrors {
-		t.Errorf("concurrent Update: %v", err)
+		if !errors.Is(err, knowledge.ErrRevisionConflict) {
+			t.Errorf("concurrent Update: %v, want revision conflict", err)
+		}
 	}
 	if t.Failed() {
 		return
 	}
-	body, err := first.Get(t.Context(), knowledge.ScopeHome, "")
+	body, err := store.Get(t.Context(), knowledge.ScopeHome, "")
 	if err != nil {
 		t.Fatalf("read final knowledge: %v", err)
 	}
-	if _, ok := wantBodies[body]; !ok {
-		t.Fatalf("final knowledge = %q, want one complete writer value", body)
+	if _, ok := wantBodies[body.Content]; !ok {
+		t.Fatalf("final knowledge = %q, want one complete writer value", body.Content)
 	}
 	if info, err := os.Stat(legacyTemporary); err != nil || !info.IsDir() {
 		t.Fatalf("legacy temporary path changed: info=%v err=%v", info, err)
 	}
 }
 
-func TestStoreList_SkipsEmptyScopes(t *testing.T) {
+func TestStoreListIncludesEmptyAddressableScopes(t *testing.T) {
 	store := newKnowledgeStore(t, t.TempDir(), t.TempDir())
 	ctx := context.Background()
 
-	_ = store.Update(ctx, knowledge.ScopeHome, "", "only user")
+	fresh, _ := store.Get(ctx, knowledge.ScopeHome, "")
+	_, _ = store.Update(ctx, knowledge.ScopeHome, "", fresh.Revision, "only user")
 
 	entries, err := store.List(ctx, "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(entries) != 1 {
-		t.Fatalf("len = %d, want 1 (project skipped)", len(entries))
+	if len(entries) != 2 {
+		t.Fatalf("len = %d, want home plus the de-duplicated workspace document", len(entries))
 	}
-	if entries[0].Scope != knowledge.ScopeHome {
+	if entries[0].Scope != knowledge.ScopeHome || entries[0].Revision == "" || entries[1].Content != "" || entries[1].Revision == "" {
 		t.Errorf("scope = %q, want user", entries[0].Scope)
 	}
 	// UpdatedAt must be populated from the file mtime, not left zero (the wire
@@ -150,7 +172,11 @@ func TestStoreListPreservesDistinctCascadeScopes(t *testing.T) {
 		{knowledge.ScopeProjectRoot, projectRoot, "project knowledge"},
 		{knowledge.ScopeCWD, cwd, "workspace knowledge"},
 	} {
-		if err := store.Update(t.Context(), write.scope, write.dir, write.body); err != nil {
+		fresh, err := store.Get(t.Context(), write.scope, write.dir)
+		if err != nil {
+			t.Fatalf("Get(%s): %v", write.scope, err)
+		}
+		if _, err := store.Update(t.Context(), write.scope, write.dir, fresh.Revision, write.body); err != nil {
 			t.Fatalf("Update(%s): %v", write.scope, err)
 		}
 	}
@@ -193,7 +219,7 @@ func TestStoreRejectsUnknownScope(t *testing.T) {
 	if _, err := store.Get(t.Context(), unknown, t.TempDir()); err == nil {
 		t.Fatal("Get accepted an unknown scope")
 	}
-	if err := store.Update(t.Context(), unknown, t.TempDir(), "notes"); err == nil {
+	if _, err := store.Update(t.Context(), unknown, t.TempDir(), "revision", "notes"); err == nil {
 		t.Fatal("Update accepted an unknown scope")
 	}
 }
@@ -204,7 +230,8 @@ func TestStoreProjectScopeUsesConfiguredDefault(t *testing.T) {
 	projectDir := t.TempDir()
 	store := newKnowledgeStore(t, t.TempDir(), projectDir)
 	ctx := context.Background()
-	_ = store.Update(ctx, knowledge.ScopeCWD, "", "project body")
+	fresh, _ := store.Get(ctx, knowledge.ScopeCWD, "")
+	_, _ = store.Update(ctx, knowledge.ScopeCWD, "", fresh.Revision, "project body")
 
 	// File should live at <projectDir>/LYRA.md
 	body, err := os.ReadFile(filepath.Join(projectDir, "LYRA.md"))
@@ -224,16 +251,17 @@ func TestStoreProjectScopeFollowsDir(t *testing.T) {
 
 	dirA, dirB := t.TempDir(), t.TempDir()
 	ctx := context.Background()
-	if err := store.Update(ctx, knowledge.ScopeCWD, dirA, "alpha knowledge"); err != nil {
+	fresh, _ := store.Get(ctx, knowledge.ScopeCWD, dirA)
+	if _, err := store.Update(ctx, knowledge.ScopeCWD, dirA, fresh.Revision, "alpha knowledge"); err != nil {
 		t.Fatalf("Update dirA: %v", err)
 	}
 
 	got, err := store.Get(ctx, knowledge.ScopeCWD, dirA)
-	if err != nil || got != "alpha knowledge" {
-		t.Fatalf("Get dirA = (%q, %v), want alpha knowledge", got, err)
+	if err != nil || got.Content != "alpha knowledge" {
+		t.Fatalf("Get dirA = (%+v, %v), want alpha knowledge", got, err)
 	}
-	if got, _ := store.Get(ctx, knowledge.ScopeCWD, dirB); got != "" {
-		t.Fatalf("Get dirB = %q, want empty (projects are isolated)", got)
+	if got, _ := store.Get(ctx, knowledge.ScopeCWD, dirB); got.Content != "" {
+		t.Fatalf("Get dirB = %+v, want empty (projects are isolated)", got)
 	}
 }
 

@@ -335,6 +335,7 @@ const VALUE_METHOD_NAMES = [
   "usage.summary",
   "knowledge.list",
   "knowledge.get",
+  "knowledge.update",
   "agentMemory.list",
   "agentMemory.update",
   "agentMemory.add",
@@ -1144,7 +1145,7 @@ export interface WireShapes {
   "usage.summary": { params: UsageSummaryRequest; result: UsageSummary };
   "knowledge.list": { params: WorkspaceQuery; result: PageOfKnowledgeEntry };
   "knowledge.get": { params: GetKnowledgeRequest; result: KnowledgeEntry };
-  "knowledge.update": { params: UpdateKnowledgeRequest };
+  "knowledge.update": { params: UpdateKnowledgeRequest; result: KnowledgeEntry };
   "agentMemory.list": { params: AgentMemoryListRequest; result: AgentMemoryList };
   "agentMemory.review": { params: AgentMemoryReviewRequest };
   "agentMemory.update": { params: AgentMemoryUpdateRequest; result: AgentMemoryItem };

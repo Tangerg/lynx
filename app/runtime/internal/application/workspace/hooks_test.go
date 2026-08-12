@@ -3,14 +3,16 @@ package workspace
 import (
 	"context"
 	"errors"
+	"reflect"
 	"testing"
 
 	apphooks "github.com/Tangerg/lynx/app/runtime/internal/application/hooks"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/invalidation"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
 )
 
 func TestRuntimeInspectReturnsEmptyWhenUnconfigured(t *testing.T) {
-	c := NewHooks(NewScope("", "", testPaths{}), nil, nil)
+	c := NewHooks(NewScope("", "", testPaths{}), nil, nil, nil)
 
 	got, err := c.Inspect(context.Background(), "/repo")
 	if err != nil {
@@ -32,7 +34,7 @@ func TestRuntimeInspectUsesInspectionPort(t *testing.T) {
 			}},
 		},
 	}
-	c := NewHooks(NewScope("", "", testPaths{}), inspector, nil)
+	c := NewHooks(NewScope("", "", testPaths{}), inspector, nil, nil)
 
 	got, err := c.Inspect(context.Background(), "/repo")
 	if err != nil {
@@ -59,9 +61,49 @@ func (i *fakeHookInspector) Inspect(_ context.Context, cwd string) (apphooks.Ins
 
 func TestRuntimeInspectPreservesInspectorFailure(t *testing.T) {
 	wantErr := errors.New("hook trust unavailable")
-	c := NewHooks(NewScope("", "", testPaths{}), &fakeHookInspector{err: wantErr}, nil)
+	c := NewHooks(NewScope("", "", testPaths{}), &fakeHookInspector{err: wantErr}, nil, nil)
 
 	if _, err := c.Inspect(context.Background(), "/repo"); !errors.Is(err, wantErr) {
 		t.Fatalf("Inspect error = %v, want %v", err, wantErr)
 	}
+}
+
+func TestHookTrustPublishesOnlyCommittedChanges(t *testing.T) {
+	trust := &fakeHookTrust{}
+	var notices []invalidation.Notice
+	hooks := NewHooks(
+		NewScope("", "", testPaths{}), nil, trust,
+		func(notice invalidation.Notice) { notices = append(notices, notice) },
+	)
+
+	if err := hooks.SetProjectTrust(t.Context(), "/repo", true); err != nil {
+		t.Fatal(err)
+	}
+	if trust.trusted != "/repo" || !reflect.DeepEqual(notices, []invalidation.Notice{{Resource: invalidation.Hooks}}) {
+		t.Fatalf("trust=%q invalidations=%+v", trust.trusted, notices)
+	}
+
+	trust.err = errors.New("write failed")
+	if err := hooks.SetProjectTrust(t.Context(), "/repo", false); !errors.Is(err, trust.err) {
+		t.Fatalf("SetProjectTrust err = %v, want %v", err, trust.err)
+	}
+	if len(notices) != 1 {
+		t.Fatalf("failed mutation published %+v", notices)
+	}
+}
+
+type fakeHookTrust struct {
+	trusted   string
+	untrusted string
+	err       error
+}
+
+func (s *fakeHookTrust) Trust(_ context.Context, root string) error {
+	s.trusted = root
+	return s.err
+}
+
+func (s *fakeHookTrust) Untrust(_ context.Context, root string) error {
+	s.untrusted = root
+	return s.err
 }

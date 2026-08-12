@@ -22,6 +22,7 @@ func (s KnowledgeScope) Valid() bool {
 type KnowledgeEntry struct {
 	Scope     KnowledgeScope `json:"scope"`
 	Content   string         `json:"content"`
+	Revision  string         `json:"revision"`
 	UpdatedAt time.Time      `json:"updatedAt,omitzero"`
 }
 
@@ -33,7 +34,8 @@ type GetKnowledgeRequest struct {
 
 // UpdateKnowledgeRequest — knowledge.update body.
 type UpdateKnowledgeRequest struct {
-	Scope     KnowledgeScope `json:"scope"`
-	Workspace *WorkspaceRef  `json:"workspace,omitempty"`
-	Content   string         `json:"content"`
+	Scope            KnowledgeScope `json:"scope"`
+	Workspace        *WorkspaceRef  `json:"workspace,omitempty"`
+	ExpectedRevision string         `json:"expectedRevision"`
+	Content          string         `json:"content"`
 }

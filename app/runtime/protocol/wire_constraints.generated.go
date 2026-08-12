@@ -154,7 +154,7 @@ func (value RuntimeSubscribeRequest) ValidateWire() error {
 	return collectWireViolations("RuntimeSubscribeRequest",
 		requiredItems("topics", value.Topics),
 		uniqueItems("topics", value.Topics),
-		closedEnumItems("topics", value.Topics, []string{"files.changed", "skills.changed", "mcp.changed", "schedules.changed", "sessions.changed", "runs.changed", "state.changed", "goals.changed", "interrupts.changed"}),
+		closedEnumItems("topics", value.Topics, []string{"files.changed", "skills.changed", "mcp.changed", "schedules.changed", "sessions.changed", "runs.changed", "state.changed", "goals.changed", "interrupts.changed", "knowledge.changed", "hooks.changed"}),
 	)
 }
 
@@ -320,6 +320,7 @@ func (value GetKnowledgeRequest) ValidateWire() error {
 
 func (value UpdateKnowledgeRequest) ValidateWire() error {
 	return collectWireViolations("UpdateKnowledgeRequest",
+		requiredText("expectedRevision", value.ExpectedRevision),
 		closedEnum("scope", string(value.Scope), []string{"cwd", "projectRoot", "home"}, false),
 	)
 }
@@ -1088,9 +1089,9 @@ func (value RuntimeEvent) ValidateWire() error {
 		uniqueItems("topics", value.Topics),
 		nonEmptyItems("watchIds", value.WatchIDs),
 		uniqueItems("watchIds", value.WatchIDs),
-		closedEnum("type", string(value.Type), []string{"files.changed", "skills.changed", "mcp.changed", "schedules.changed", "sessions.changed", "runs.changed", "state.changed", "goals.changed", "interrupts.changed", "resync"}, false),
+		closedEnum("type", string(value.Type), []string{"files.changed", "skills.changed", "mcp.changed", "schedules.changed", "sessions.changed", "runs.changed", "state.changed", "goals.changed", "interrupts.changed", "knowledge.changed", "hooks.changed", "resync"}, false),
 		closedEnum("key", string(value.Key), []string{"plan"}, true),
-		closedEnumItems("topics", value.Topics, []string{"files.changed", "skills.changed", "mcp.changed", "schedules.changed", "sessions.changed", "runs.changed", "state.changed", "goals.changed", "interrupts.changed"}),
+		closedEnumItems("topics", value.Topics, []string{"files.changed", "skills.changed", "mcp.changed", "schedules.changed", "sessions.changed", "runs.changed", "state.changed", "goals.changed", "interrupts.changed", "knowledge.changed", "hooks.changed"}),
 		requiredWhen(wireFieldEquals(value, "type", "files.changed"), "sequence", value),
 		requiredWhen(wireFieldEquals(value, "type", "files.changed"), "paths", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "files.changed"), "names", value),
@@ -1186,6 +1187,30 @@ func (value RuntimeEvent) ValidateWire() error {
 		forbiddenWhen(wireFieldEquals(value, "type", "interrupts.changed"), "key", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "interrupts.changed"), "topics", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "interrupts.changed"), "watchIds", value),
+		requiredWhen(wireFieldEquals(value, "type", "knowledge.changed"), "sequence", value),
+		forbiddenWhen(wireFieldEquals(value, "type", "knowledge.changed"), "paths", value),
+		forbiddenWhen(wireFieldEquals(value, "type", "knowledge.changed"), "watchId", value),
+		forbiddenWhen(wireFieldEquals(value, "type", "knowledge.changed"), "workspace", value),
+		forbiddenWhen(wireFieldEquals(value, "type", "knowledge.changed"), "names", value),
+		forbiddenWhen(wireFieldEquals(value, "type", "knowledge.changed"), "serverIds", value),
+		forbiddenWhen(wireFieldEquals(value, "type", "knowledge.changed"), "scheduleIds", value),
+		forbiddenWhen(wireFieldEquals(value, "type", "knowledge.changed"), "sessionIds", value),
+		forbiddenWhen(wireFieldEquals(value, "type", "knowledge.changed"), "runIds", value),
+		forbiddenWhen(wireFieldEquals(value, "type", "knowledge.changed"), "key", value),
+		forbiddenWhen(wireFieldEquals(value, "type", "knowledge.changed"), "topics", value),
+		forbiddenWhen(wireFieldEquals(value, "type", "knowledge.changed"), "watchIds", value),
+		requiredWhen(wireFieldEquals(value, "type", "hooks.changed"), "sequence", value),
+		forbiddenWhen(wireFieldEquals(value, "type", "hooks.changed"), "paths", value),
+		forbiddenWhen(wireFieldEquals(value, "type", "hooks.changed"), "watchId", value),
+		forbiddenWhen(wireFieldEquals(value, "type", "hooks.changed"), "workspace", value),
+		forbiddenWhen(wireFieldEquals(value, "type", "hooks.changed"), "names", value),
+		forbiddenWhen(wireFieldEquals(value, "type", "hooks.changed"), "serverIds", value),
+		forbiddenWhen(wireFieldEquals(value, "type", "hooks.changed"), "scheduleIds", value),
+		forbiddenWhen(wireFieldEquals(value, "type", "hooks.changed"), "sessionIds", value),
+		forbiddenWhen(wireFieldEquals(value, "type", "hooks.changed"), "runIds", value),
+		forbiddenWhen(wireFieldEquals(value, "type", "hooks.changed"), "key", value),
+		forbiddenWhen(wireFieldEquals(value, "type", "hooks.changed"), "topics", value),
+		forbiddenWhen(wireFieldEquals(value, "type", "hooks.changed"), "watchIds", value),
 		requiredWhen(wireFieldEquals(value, "type", "resync"), "sequence", value),
 		requiredWhen(wireFieldEquals(value, "type", "resync"), "topics", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "resync"), "paths", value),
@@ -1553,6 +1578,13 @@ func (value ResumeRunResponse) ValidateWire() error {
 func (value WorkspaceRef) ValidateWire() error {
 	return collectWireViolations("WorkspaceRef",
 		requiredText("path", value.Path),
+	)
+}
+
+func (value KnowledgeEntry) ValidateWire() error {
+	return collectWireViolations("KnowledgeEntry",
+		requiredText("revision", value.Revision),
+		closedEnum("scope", string(value.Scope), []string{"cwd", "projectRoot", "home"}, false),
 	)
 }
 

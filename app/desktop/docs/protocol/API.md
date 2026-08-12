@@ -795,10 +795,17 @@ provider 的 key，读取面自然回落到 `keySource:"env"`；环境值只参�
 
 ### 7.7 可选域（capability-gated）
 
-`skills.*` / `recipes.*` / `agentDocs.*` / `hooks.*` / `mcp.*` / `memory.*` / `agentMemory.*` / `approval.*` /
+`skills.*` / `recipes.*` / `agentDocs.*` / `hooks.*` / `mcp.*` / `knowledge.*` / `agentMemory.*` / `approval.*` /
 `checkpoints` / `usage.*` / `feedback.*` 等，每个由 §9 的一个 feature 门控，关掉即返回
 `capability_not_negotiated`（problem 里带 `requiredCapabilities`，客户端因此知道缺的是哪一个）。语义见
 [`AUX_API.md`](./AUX_API.md)。
+
+`knowledge.*` 专指人工维护的 `LYRA.md` 级联：`knowledge.list` 列出 workspace 可见且可寻址的条目，包括尚未创建的空文档；
+`knowledge.get` / `knowledge.update` 以闭合 `scope`（`cwd` / `projectRoot` / `home`）读取或条件覆盖一个条目。
+级联按 `home → projectRoot → cwd` 从宽到窄排列；当 workspace 本身就是 project root 时，同一物理文件只列一次并归为
+`cwd`，但 `knowledge.get/update` 仍可用任一显式 scope 寻址。每个 `KnowledgeEntry` 都带非空 opaque `revision`；
+`knowledge.update` 必须回传最近读取的 `expectedRevision`，只在它仍匹配时原子替换，并返回包含新 revision 的权威条目。
+不匹配返回 `revision_conflict`；首次创建也使用空文档读取所得 revision。
 
 `agentMemory.list` / `agentMemory.add` 的 target 是闭合二选一：`scope:"project"` 必带 `workspace: WorkspaceRef`；
 `scope:"user"` 禁止 `workspace`。不再有“省略 scope 默认 project”或“user scope 带一个会被忽略的 workspace”这两种
@@ -811,7 +818,7 @@ provider 的 key，读取面自然回落到 `keySource:"env"`；环境值只参�
 | method                        | params         | 载什么                                                                                                                                                                                         |
 | ----------------------------- | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `notifications.run.event`     | `RunEvent`     | 一个 run 段的 run/item/state 事件（§5）                                                                                                                                                        |
-| `notifications.runtime.event` | `RuntimeEvent` | 失效信号：`files.changed` / `skills.changed` / `mcp.changed` / `schedules.changed` / `sessions.changed` / `runs.changed` / `state.changed` / `goals.changed` / `interrupts.changed` / `resync` |
+| `notifications.runtime.event` | `RuntimeEvent` | 失效信号：`files.changed` / `skills.changed` / `mcp.changed` / `schedules.changed` / `sessions.changed` / `runs.changed` / `state.changed` / `goals.changed` / `interrupts.changed` / `knowledge.changed` / `hooks.changed` / `resync` |
 
 失效信号的契约（§9 / AUX_API §3）：
 

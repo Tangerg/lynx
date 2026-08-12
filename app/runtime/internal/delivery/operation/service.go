@@ -90,7 +90,7 @@ type Service interface {
 	InvokeTool(context.Context, protocol.InvokeToolRequest) (any, error)
 	ListKnowledge(context.Context, protocol.WorkspaceQuery) (*protocol.Page[protocol.KnowledgeEntry], error)
 	GetKnowledge(context.Context, protocol.GetKnowledgeRequest) (*protocol.KnowledgeEntry, error)
-	UpdateKnowledge(context.Context, protocol.UpdateKnowledgeRequest) error
+	UpdateKnowledge(context.Context, protocol.UpdateKnowledgeRequest) (*protocol.KnowledgeEntry, error)
 	ListAgentMemory(context.Context, protocol.AgentMemoryListRequest) (*protocol.AgentMemoryList, error)
 	ReviewAgentMemory(context.Context, protocol.AgentMemoryReviewRequest) error
 	UpdateAgentMemory(context.Context, protocol.AgentMemoryUpdateRequest) (*protocol.AgentMemoryItem, error)
