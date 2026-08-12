@@ -4,7 +4,7 @@
 // model configured in Settings → Providers (else it points the user there).
 
 import { useState } from "react";
-import { EmptyState, IconButton, PillButton, Pressable, SearchField } from "@/ui";
+import { EmptyState, IconButton, PillButton, Pressable, SearchField, SkeletonList } from "@/ui";
 import {
   type CodebaseSearchHit,
   reindexCodebase,
@@ -37,7 +37,7 @@ function statusLabel(state: CodebaseStatusProjection["state"], t: ReturnType<typ
 
 function CodebaseTab() {
   const t = useT();
-  const { cwd, available, enabled, status } = useCodebaseSearchConfig();
+  const { cwd, available, enabled, resolving, status } = useCodebaseSearchConfig();
   const [query, setQuery] = useState("");
   const [hits, setHits] = useState<CodebaseSearchHit[] | null>(null);
   const [busy, setBusy] = useState(false);
@@ -75,6 +75,14 @@ function CodebaseTab() {
           title={t("codebase.unavailable.title")}
           sub={t("codebase.unavailable.sub")}
         />
+      </WorkspaceViewLayout>
+    );
+  }
+
+  if (resolving) {
+    return (
+      <WorkspaceViewLayout icon="command" titleStrong title="codebase.title">
+        <SkeletonList count={4} />
       </WorkspaceViewLayout>
     );
   }

@@ -8,7 +8,7 @@ function scheduleInput(input: ScheduleConfigInput): CreateScheduleRequest {
   return {
     title: input.title,
     instructions: input.instructions,
-    workspace: { path: input.cwd },
+    ...(input.cwd ? { workspace: { path: input.cwd } } : {}),
     cron: input.cron,
   };
 }
@@ -31,6 +31,9 @@ const gateway: ScheduleGateway = {
         .client()
         .schedules.update({
           ...scheduleInput(input),
+          // Update is a patch: an explicit empty ref clears a previous binding
+          // back to the Runtime default, while omission would preserve it.
+          workspace: { path: input.cwd },
           id: input.id,
           expectedRevision: input.revision,
           enabled: input.enabled,

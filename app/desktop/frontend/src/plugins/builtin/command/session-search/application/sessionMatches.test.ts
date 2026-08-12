@@ -3,7 +3,15 @@ import { describe, expect, it } from "vitest";
 import { matchSessions } from "./sessionMatches";
 
 function session(title: string, time: string): AgentSessionSummary {
-  return { id: `ses_${title}`, revision: 1, title, status: "idle", model: "gpt-5.6", time };
+  return {
+    id: `ses_${title}`,
+    revision: 1,
+    title,
+    status: "idle",
+    model: "gpt-5.6",
+    cwd: "/repo",
+    time,
+  };
 }
 
 const SESSIONS = [

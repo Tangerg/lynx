@@ -19,12 +19,14 @@ import {
   approveSkillProposal,
   rejectSkillProposal,
 } from "@/plugins/builtin/workspace/application/skillProposalsConfig";
-import { useActiveSessionCwd } from "@/plugins/builtin/agent/public/session";
+import { useActiveSessionWorkspace } from "@/plugins/builtin/agent/public/session";
 
 function SkillProposalsTab() {
   const t = useT();
-  const cwd = useActiveSessionCwd();
-  const { data, isLoading, isError } = useSkillProposals({ cwd });
+  const workspace = useActiveSessionWorkspace();
+  const { data, isLoading, isError } = useSkillProposals(
+    workspace.status === "ready" ? { cwd: workspace.cwd } : undefined,
+  );
   const proposals = data ?? [];
 
   return (
@@ -37,7 +39,7 @@ function SkillProposalsTab() {
     >
       <DataView
         items={proposals}
-        isLoading={isLoading}
+        isLoading={isLoading || workspace.status === "resolving"}
         isError={isError}
         skeletonCount={3}
         empty={{

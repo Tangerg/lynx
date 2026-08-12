@@ -2,7 +2,7 @@
 // status query so the view's status header reflects the new index state.
 
 import { queryClient } from "@/lib/queryClient";
-import { useActiveSessionCwd } from "@/plugins/builtin/agent/public/session";
+import { useActiveSessionWorkspace } from "@/plugins/builtin/agent/public/session";
 import { useRuntimeCapability } from "@/plugins/builtin/runtime/public/capabilities";
 import {
   CODEBASE_STATUS_KEY,
@@ -14,15 +14,19 @@ import { codebaseGateway, type CodebaseSearchHit } from "./ports/codebaseGateway
 export type { CodebaseSearchHit } from "./ports/codebaseGateway";
 
 export function useCodebaseSearchConfig() {
-  const cwd = useActiveSessionCwd();
+  const workspace = useActiveSessionWorkspace();
+  const cwd = workspace.status === "ready" ? workspace.cwd : undefined;
   const available = useRuntimeCapability("codebase");
-  const { data: role } = useEmbeddingRole();
-  const { data: status } = useCodebaseStatus(available ? { cwd } : undefined);
+  const { data: role, isLoading: roleLoading } = useEmbeddingRole();
+  const { data: status } = useCodebaseStatus(
+    available && workspace.status === "ready" ? { cwd } : undefined,
+  );
   return {
     cwd,
     status,
     available,
-    enabled: available && Boolean(role?.model),
+    resolving: workspace.status === "resolving" || roleLoading,
+    enabled: workspace.status === "ready" && available && Boolean(role?.model),
   };
 }
 

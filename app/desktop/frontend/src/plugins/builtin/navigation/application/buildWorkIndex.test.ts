@@ -11,6 +11,7 @@ function session(
     title: overrides.id,
     status: "idle",
     model: "gpt-test",
+    cwd: "/unclaimed",
     time: "2026-01-01T00:00:00.000Z",
     ...overrides,
   };
@@ -59,12 +60,12 @@ describe("buildWorkIndex", () => {
         session({ id: "owned", cwd: "/repo/lynx", time: "2026-01-04T00:00:00.000Z" }),
         session({ id: "scratch", cwd: "/tmp/probe", time: "2026-01-02T00:00:00.000Z" }),
         session({ id: "loose", cwd: "/tmp/other", time: "2026-01-03T00:00:00.000Z" }),
-        session({ id: "no-directory", time: "2026-01-01T00:00:00.000Z" }),
+        session({ id: "other", cwd: "/tmp/other-2", time: "2026-01-01T00:00:00.000Z" }),
       ],
     });
 
     expect(content?.groups[0]?.sessions.map((item) => item.id)).toEqual(["owned"]);
-    expect(content?.recents.map((item) => item.id)).toEqual(["loose", "scratch", "no-directory"]);
+    expect(content?.recents.map((item) => item.id)).toEqual(["loose", "scratch", "other"]);
   });
 
   it("pins favorite sessions inside their project before recency sorting", () => {

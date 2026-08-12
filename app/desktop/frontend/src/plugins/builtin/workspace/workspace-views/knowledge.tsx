@@ -6,7 +6,7 @@ import { useId, useRef, useState } from "react";
 import { Collapsible, DataView, Icon, PillButton, Pressable, TextArea } from "@/ui";
 import { useT } from "@/lib/i18n";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
-import { useActiveSessionCwd } from "@/plugins/builtin/agent/public/session";
+import { useActiveSessionWorkspace } from "@/plugins/builtin/agent/public/session";
 import { notifyError } from "@/plugins/sdk";
 import { cn } from "@/lib/classNames";
 import { defineWorkspaceView } from "./defineWorkspaceView";
@@ -171,8 +171,11 @@ function KnowledgeRow({ row, cwd }: { row: WorkspaceKnowledgeRowViewModel; cwd?:
 function KnowledgeTab() {
   const t = useT();
   const knowledgeEnabled = useWorkspaceCapability("knowledge");
-  const cwd = useActiveSessionCwd();
-  const { data, isLoading, isError } = useWorkspaceKnowledge(knowledgeEnabled, cwd);
+  const workspace = useActiveSessionWorkspace();
+  const cwd = workspace.status === "ready" ? workspace.cwd : undefined;
+  const { data, isLoading, isError } = useWorkspaceKnowledge(
+    knowledgeEnabled && workspace.status === "ready" ? { cwd } : undefined,
+  );
   const view = workspaceKnowledgeViewModel(data ?? [], knowledgeEnabled);
 
   return (
@@ -185,7 +188,7 @@ function KnowledgeTab() {
     >
       <DataView
         items={view.rows}
-        isLoading={view.enabled && isLoading}
+        isLoading={view.enabled && (isLoading || workspace.status === "resolving")}
         isError={isError}
         skeletonCount={2}
         empty={

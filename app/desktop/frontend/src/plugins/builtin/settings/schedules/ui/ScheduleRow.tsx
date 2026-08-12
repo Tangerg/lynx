@@ -46,13 +46,7 @@ function ScheduleActionButton({
   );
 }
 
-export function ScheduleRow({
-  schedule,
-  defaultCwd,
-}: {
-  schedule: ScheduleConfig;
-  defaultCwd?: string;
-}) {
+export function ScheduleRow({ schedule }: { schedule: ScheduleConfig }) {
   const t = useT();
   const [editing, setEditing] = useState(false);
 
@@ -124,7 +118,6 @@ export function ScheduleRow({
         <div className="mt-2.5">
           <ScheduleForm
             schedule={schedule}
-            defaultCwd={defaultCwd}
             onDone={() => setEditing(false)}
             onCancel={() => setEditing(false)}
           />

@@ -26,7 +26,7 @@ import {
   workspaceDiffFileHeader,
   useWorkspaceDiffView,
 } from "@/plugins/builtin/workspace/application/diffViewModel";
-import { useActiveSessionCwd } from "@/plugins/builtin/agent/public/session";
+import { useActiveSessionWorkspace } from "@/plugins/builtin/agent/public/session";
 import {
   useWorkspaceCapability,
   useWorkspaceFileChanges,
@@ -239,8 +239,10 @@ function ReviewPanel() {
 // and while the query is in flight, for the same reason the header stat is.
 function DiffTabBadge() {
   const gitEnabled = useWorkspaceCapability("git");
-  const cwd = useActiveSessionCwd();
-  const { data: files } = useWorkspaceFileChanges(gitEnabled ? { cwd } : undefined);
+  const workspace = useActiveSessionWorkspace();
+  const { data: files } = useWorkspaceFileChanges(
+    gitEnabled && workspace.status === "ready" ? { cwd: workspace.cwd } : undefined,
+  );
   if (!files || files.length === 0) return null;
   return String(files.length);
 }

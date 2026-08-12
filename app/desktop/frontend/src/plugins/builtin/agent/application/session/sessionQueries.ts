@@ -7,7 +7,7 @@ export interface AgentSessionSummary {
   title: string;
   status: "running" | "waiting" | "idle";
   model: string;
-  cwd?: string;
+  cwd: string;
   cwdMissing?: boolean;
   favorite?: boolean;
   time: string;

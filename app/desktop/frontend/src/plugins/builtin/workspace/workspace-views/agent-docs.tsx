@@ -7,12 +7,14 @@ import { useT } from "@/lib/i18n";
 import { defineWorkspaceView } from "./defineWorkspaceView";
 import { useWorkspaceAgentDocs } from "@/plugins/builtin/workspace/application/workspaceQueries";
 import { workspaceAgentDocsViewModel } from "@/plugins/builtin/workspace/application/workspaceCatalogViewModel";
-import { useActiveSessionCwd } from "@/plugins/builtin/agent/public/session";
+import { useActiveSessionWorkspace } from "@/plugins/builtin/agent/public/session";
 
 function AgentDocsTab() {
   const t = useT();
-  const cwd = useActiveSessionCwd();
-  const { data, isLoading, isError } = useWorkspaceAgentDocs({ cwd });
+  const workspace = useActiveSessionWorkspace();
+  const { data, isLoading, isError } = useWorkspaceAgentDocs(
+    workspace.status === "ready" ? { cwd: workspace.cwd } : undefined,
+  );
   const view = workspaceAgentDocsViewModel(data ?? []);
 
   return (
@@ -25,7 +27,7 @@ function AgentDocsTab() {
     >
       <DataView
         items={view.rows}
-        isLoading={isLoading}
+        isLoading={isLoading || workspace.status === "resolving"}
         isError={isError}
         skeletonCount={3}
         empty={{

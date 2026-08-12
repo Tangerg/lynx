@@ -1,7 +1,7 @@
 import { Button } from "@/ui";
 import { cn } from "@/lib/classNames";
 import { useT } from "@/lib/i18n";
-import { useActiveSessionCwd } from "@/plugins/builtin/agent/public/session";
+import { useActiveSessionWorkspace } from "@/plugins/builtin/agent/public/session";
 import { openDiffViewInDock } from "@/plugins/builtin/workspace/public/deeplinks";
 import {
   useWorkspaceCapability,
@@ -18,8 +18,10 @@ import {
 export function HeaderDiffStat({ className }: { className?: string }) {
   const t = useT();
   const gitEnabled = useWorkspaceCapability("git");
-  const cwd = useActiveSessionCwd();
-  const { data: files } = useWorkspaceFileChanges(gitEnabled ? { cwd } : undefined);
+  const workspace = useActiveSessionWorkspace();
+  const { data: files } = useWorkspaceFileChanges(
+    gitEnabled && workspace.status === "ready" ? { cwd: workspace.cwd } : undefined,
+  );
 
   const totals = (files ?? []).reduce(
     (sum, file) => ({

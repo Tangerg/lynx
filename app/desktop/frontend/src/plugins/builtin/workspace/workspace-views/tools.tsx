@@ -22,7 +22,7 @@ import { cn } from "@/lib/classNames";
 import { useT } from "@/lib/i18n";
 import { rpcErrorText } from "@/lib/rpcErrors";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
-import { useActiveSessionCwd } from "@/plugins/builtin/agent/public/session";
+import { useActiveSessionWorkspace } from "@/plugins/builtin/agent/public/session";
 import { openWorkspaceSettingsPane } from "@/plugins/builtin/workspace/public/navigation";
 import { defineWorkspaceView } from "./defineWorkspaceView";
 import {
@@ -55,7 +55,12 @@ function SectionHead({ children, count }: { children: React.ReactNode; count?: n
 
 function BuiltinToolsSection() {
   const t = useT();
-  const cwd = useActiveSessionCwd();
+  const workspace = useActiveSessionWorkspace();
+  const cwd = workspace.status === "ready" ? workspace.cwd : undefined;
+  const workspaceKey =
+    workspace.status === "ready"
+      ? (workspace.cwd ?? "default")
+      : `resolving:${workspace.sessionId}`;
   const { data, isLoading } = useBuiltinToolConfigs();
   const view = builtinToolCatalogViewModel(data ?? []);
   // No skeleton/error chrome here — the MCP DataView below owns the tab's
@@ -70,7 +75,12 @@ function BuiltinToolsSection() {
         <div key={family.id} className="pb-1">
           <SectionHead count={family.rows.length}>{t(family.titleKey)}</SectionHead>
           {family.rows.map((tool) => (
-            <DiagnosticToolRow key={`${cwd ?? ""}:${tool.id}`} tool={tool} cwd={cwd} />
+            <DiagnosticToolRow
+              key={`${workspaceKey}:${tool.id}`}
+              tool={tool}
+              cwd={cwd}
+              enabled={workspace.status === "ready"}
+            />
           ))}
         </div>
       ))}
@@ -79,7 +89,15 @@ function BuiltinToolsSection() {
   );
 }
 
-function DiagnosticToolRow({ tool, cwd }: { tool: BuiltinToolRowViewModel; cwd?: string }) {
+function DiagnosticToolRow({
+  tool,
+  cwd,
+  enabled,
+}: {
+  tool: BuiltinToolRowViewModel;
+  cwd?: string;
+  enabled: boolean;
+}) {
   const t = useT();
   const panelId = useId();
   const runningRef = useRef(false);
@@ -92,7 +110,7 @@ function DiagnosticToolRow({ tool, cwd }: { tool: BuiltinToolRowViewModel; cwd?:
   const schema = JSON.stringify(tool.parameters, null, 2);
 
   const invoke = async (): Promise<void> => {
-    if (runningRef.current) return;
+    if (!enabled || runningRef.current) return;
     const parsed = parseDiagnosticToolArguments(argumentsText);
     if (!parsed.ok) {
       setArgumentsInvalid(true);
@@ -180,7 +198,12 @@ function DiagnosticToolRow({ tool, cwd }: { tool: BuiltinToolRowViewModel; cwd?:
             </pre>
           </div>
           <div className="flex items-center gap-2">
-            <PillButton size="sm" variant="accent" disabled={running} onClick={() => void invoke()}>
+            <PillButton
+              size="sm"
+              variant="accent"
+              disabled={!enabled || running}
+              onClick={() => void invoke()}
+            >
               {running ? t("tools.diagnostics.running") : t("tools.diagnostics.run")}
             </PillButton>
             {error && (

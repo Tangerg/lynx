@@ -9,7 +9,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { ComposerImage, PastedText } from "@/plugins/builtin/chat/composer/public/attachments";
 import type { UserInput } from "@/plugins/builtin/chat/composer/public/input";
 import { imageFiles } from "@/plugins/builtin/chat/composer/public/input";
-import { useActiveSessionCwd } from "@/plugins/builtin/agent/public/session";
+import { useActiveSessionWorkspace } from "@/plugins/builtin/agent/public/session";
 import { useFileMentions } from "@/plugins/builtin/chat/composer/public/fileMentions";
 import { useIsCurrentRootRunning } from "@/plugins/builtin/agent/public/run";
 import { COMPOSER_KEY_BINDING, lookupExtensionByKey } from "@/plugins/sdk";
@@ -52,7 +52,8 @@ export function useComposerInputController({
     setComposerFocusTarget(inputRef.current);
     return () => setComposerFocusTarget(null);
   }, []);
-  const cwd = useActiveSessionCwd();
+  const workspace = useActiveSessionWorkspace();
+  const cwd = workspace.status === "ready" ? workspace.cwd : undefined;
   const [caret, setCaret] = useState(0);
   // IME composition guard (CJK-first). While a syllable is still being composed
   // the textarea fires intermediate change/select events; broadcasting the caret

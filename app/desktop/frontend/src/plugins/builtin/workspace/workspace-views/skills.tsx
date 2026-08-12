@@ -9,13 +9,15 @@ import { defineWorkspaceView } from "./defineWorkspaceView";
 import { useWorkspaceSkills } from "@/plugins/builtin/workspace/application/workspaceQueries";
 import { useWorkspaceCapability } from "@/plugins/builtin/workspace/application/workspaceCapabilities";
 import { workspaceSkillsViewModel } from "@/plugins/builtin/workspace/application/workspaceCatalogViewModel";
-import { useActiveSessionCwd } from "@/plugins/builtin/agent/public/session";
+import { useActiveSessionWorkspace } from "@/plugins/builtin/agent/public/session";
 
 function SkillsTab() {
   const t = useT();
   const skillsEnabled = useWorkspaceCapability("skills");
-  const cwd = useActiveSessionCwd();
-  const { data, isLoading, isError } = useWorkspaceSkills({ cwd });
+  const workspace = useActiveSessionWorkspace();
+  const { data, isLoading, isError } = useWorkspaceSkills(
+    workspace.status === "ready" ? { cwd: workspace.cwd } : undefined,
+  );
   const view = workspaceSkillsViewModel(data ?? [], skillsEnabled);
 
   return (
@@ -28,7 +30,7 @@ function SkillsTab() {
     >
       <DataView
         items={view.rows}
-        isLoading={view.enabled && isLoading}
+        isLoading={view.enabled && (isLoading || workspace.status === "resolving")}
         isError={isError}
         skeletonCount={4}
         empty={

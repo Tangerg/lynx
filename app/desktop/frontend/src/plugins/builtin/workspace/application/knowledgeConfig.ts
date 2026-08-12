@@ -8,10 +8,11 @@ import {
 import {
   WORKSPACE_KNOWLEDGE_KEY,
   useWorkspaceKnowledge as useKnowledgeQuery,
+  type WorkspaceKnowledgeQuery,
 } from "./workspaceQueries";
 
-export function useWorkspaceKnowledge(enabled: boolean, cwd?: string) {
-  return useKnowledgeQuery(enabled ? { cwd } : undefined);
+export function useWorkspaceKnowledge(query: WorkspaceKnowledgeQuery | undefined) {
+  return useKnowledgeQuery(query);
 }
 
 export function loadWorkspaceKnowledge(

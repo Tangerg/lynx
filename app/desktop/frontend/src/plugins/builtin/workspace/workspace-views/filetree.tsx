@@ -1,6 +1,6 @@
 import { DataView } from "@/ui";
 import { useT } from "@/lib/i18n";
-import { useActiveSessionCwd } from "@/plugins/builtin/agent/public/session";
+import { useActiveSessionWorkspace } from "@/plugins/builtin/agent/public/session";
 import { isUnsupportedMethod } from "@/lib/rpcErrors";
 import { useWorkspaceListFiles } from "@/plugins/builtin/workspace/application/workspaceQueries";
 import { FileTree } from "./views/FileTree";
@@ -17,15 +17,21 @@ import {
 
 function ExplorerView() {
   const t = useT();
-  const cwd = useActiveSessionCwd();
+  const workspace = useActiveSessionWorkspace();
+  const cwd = workspace.status === "ready" ? workspace.cwd : undefined;
   const viewer = useWorkspaceFileViewer();
-  const { data: roots, isLoading, isError, error } = useWorkspaceListFiles({ cwd });
+  const {
+    data: roots,
+    isLoading,
+    isError,
+    error,
+  } = useWorkspaceListFiles(workspace.status === "ready" ? { cwd } : undefined);
 
   return (
     <WorkspaceViewLayout icon="folder" titleStrong title="filetree.title">
       <DataView
         items={roots}
-        isLoading={isLoading}
+        isLoading={isLoading || workspace.status === "resolving"}
         isError={isError}
         // A runtime without workspace.files.list errors the query —
         // show a calm "unavailable here" state, not the generic load error.

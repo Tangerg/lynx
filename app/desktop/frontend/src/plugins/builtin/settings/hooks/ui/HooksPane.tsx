@@ -14,7 +14,7 @@ import { isUnsupportedMethod, rpcErrorText } from "@/lib/rpcErrors";
 import type { HookReadModel } from "../application/hookConfig";
 import { useHookConfigs } from "../application/hookConfig";
 import { setHookTrust } from "../application/hookTrust";
-import { useActiveSessionCwd } from "@/plugins/builtin/agent/public/session";
+import { useActiveSessionWorkspace } from "@/plugins/builtin/agent/public/session";
 import { notifyError } from "@/plugins/sdk";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/classNames";
@@ -63,8 +63,10 @@ function HookRow({ h }: { h: HookReadModel }) {
 
 export function HooksPane() {
   const t = useT();
-  const cwd = useActiveSessionCwd();
-  const { data, isLoading, isError, error } = useHookConfigs(cwd);
+  const workspace = useActiveSessionWorkspace();
+  const { data, isLoading, isError, error } = useHookConfigs(
+    workspace.status === "ready" ? { cwd: workspace.cwd } : undefined,
+  );
 
   if (isError && isUnsupportedMethod(error)) {
     return (
@@ -112,7 +114,7 @@ export function HooksPane() {
 
       <DataView
         items={data?.hooks}
-        isLoading={isLoading}
+        isLoading={isLoading || workspace.status === "resolving"}
         isError={isError}
         skeletonCount={3}
         empty={{ icon: "lightning", title: t("hooks.empty"), sub: t("hooks.empty.sub") }}

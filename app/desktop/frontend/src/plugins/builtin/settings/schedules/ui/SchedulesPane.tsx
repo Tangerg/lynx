@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { DataView, EmptyState, Icon, PillButton } from "@/ui";
-import { useActiveSessionCwd } from "@/plugins/builtin/agent/public/session";
+import { useActiveSessionWorkspace } from "@/plugins/builtin/agent/public/session";
 import { useRuntimeCapability } from "@/plugins/builtin/runtime/public/capabilities";
 import { useT } from "@/lib/i18n";
 import { useScheduleConfigs } from "../application/scheduleCommands";
@@ -24,7 +24,8 @@ export function SchedulesPane() {
 
 function EnabledSchedulesPane() {
   const t = useT();
-  const cwd = useActiveSessionCwd();
+  const workspace = useActiveSessionWorkspace();
+  const cwd = workspace.status === "ready" ? workspace.cwd : undefined;
   const { data, isLoading, isError } = useScheduleConfigs();
   const [adding, setAdding] = useState(false);
 
@@ -40,7 +41,12 @@ function EnabledSchedulesPane() {
         />
       ) : (
         <div className="flex justify-end">
-          <PillButton variant="outlined" size="sm" onClick={() => setAdding(true)}>
+          <PillButton
+            variant="outlined"
+            size="sm"
+            disabled={workspace.status === "resolving"}
+            onClick={() => setAdding(true)}
+          >
             <Icon name="plus" size="sm" />
             {t("schedules.add")}
           </PillButton>
@@ -57,7 +63,7 @@ function EnabledSchedulesPane() {
         {(rows) => (
           <div className="flex flex-col gap-2">
             {rows.map((schedule) => (
-              <ScheduleRow key={schedule.id} schedule={schedule} defaultCwd={cwd} />
+              <ScheduleRow key={schedule.id} schedule={schedule} />
             ))}
           </div>
         )}

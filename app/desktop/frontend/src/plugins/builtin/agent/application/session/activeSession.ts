@@ -5,6 +5,9 @@ import { agentSessionState, type AgentSessionLifecycleSnapshot } from "../ports/
 
 export type { AgentSessionLifecycleSnapshot } from "../ports/sessionState";
 
+export type ActiveSessionWorkspaceSelection =
+  { status: "ready"; cwd?: string } | { status: "resolving"; sessionId: string };
+
 export function useActiveSessionId(): string {
   return agentSessionState().useActiveSessionId();
 }
@@ -56,12 +59,28 @@ export function useActiveSession(): AgentSessionSummary | undefined {
 }
 
 /**
- * The active session's working directory. Workspace reads (VCS panels,
- * grep / file-head previews, memory) pass this as `cwd` so they reflect
- * the session's project rather than the serve-process directory — the
- * runtime may serve from anywhere (BACKEND_API_REFERENCE §5 registers
- * watches with an explicit project cwd for the same reason).
+ * Resolve the workspace identity independently from its eventual transport use.
+ *
+ * No active session deliberately means the app's default workspace. An active
+ * id absent from the current Session projection means something very different:
+ * the projection is still catching up (most visibly just after create or on a
+ * cold restore). Keeping that state explicit prevents callers from turning
+ * "unknown" into the Runtime's default workspace and reading or mutating the
+ * wrong project.
  */
-export function useActiveSessionCwd(): string | undefined {
-  return useActiveSession()?.cwd;
+export function activeSessionWorkspaceSelection(
+  activeSessionId: string,
+  sessions: readonly AgentSessionSummary[] | undefined,
+): ActiveSessionWorkspaceSelection {
+  if (!activeSessionId) return { status: "ready" };
+  const session = sessions?.find((candidate) => candidate.id === activeSessionId);
+  return session
+    ? { status: "ready", cwd: session.cwd }
+    : { status: "resolving", sessionId: activeSessionId };
+}
+
+export function useActiveSessionWorkspace(): ActiveSessionWorkspaceSelection {
+  const activeSessionId = useActiveSessionId();
+  const { data } = useAgentSessions();
+  return activeSessionWorkspaceSelection(activeSessionId, data);
 }

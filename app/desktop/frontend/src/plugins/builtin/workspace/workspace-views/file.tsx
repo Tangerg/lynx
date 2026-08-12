@@ -6,17 +6,20 @@ import { DataView } from "@/ui";
 import { useT } from "@/lib/i18n";
 import { FileView } from "./views/FileView";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
-import { useActiveSessionCwd } from "@/plugins/builtin/agent/public/session";
+import { useActiveSessionWorkspace } from "@/plugins/builtin/agent/public/session";
 import { useWorkspaceReadFile } from "@/plugins/builtin/workspace/application/workspaceQueries";
 import { useWorkspaceFileViewer } from "@/plugins/builtin/workspace/public/navigation";
 import { defineWorkspaceView } from "./defineWorkspaceView";
 
 function FileViewTab() {
   const t = useT();
-  const cwd = useActiveSessionCwd();
+  const workspace = useActiveSessionWorkspace();
+  const cwd = workspace.status === "ready" ? workspace.cwd : undefined;
   const viewer = useWorkspaceFileViewer();
   const { data, isLoading, isError } = useWorkspaceReadFile(
-    viewer && cwd !== undefined ? { cwd, path: viewer.path } : undefined,
+    viewer && workspace.status === "ready" && cwd !== undefined
+      ? { cwd, path: viewer.path }
+      : undefined,
   );
 
   const sub = data ? (
@@ -30,7 +33,7 @@ function FileViewTab() {
     <WorkspaceViewLayout icon="filetext" title={viewer?.path || t("file.empty.title")} sub={sub}>
       <DataView
         items={data ? [data] : []}
-        isLoading={isLoading}
+        isLoading={isLoading || (Boolean(viewer) && workspace.status === "resolving")}
         isError={isError}
         skeletonCount={12}
         empty={{ icon: "filetext", title: t("file.empty.title"), sub: t("file.empty.sub") }}

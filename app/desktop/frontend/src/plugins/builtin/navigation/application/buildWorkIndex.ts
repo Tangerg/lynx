@@ -50,7 +50,7 @@ export function buildWorkIndex({
 
   const byDirectory = new Map<string, AgentSessionSummary[]>();
   for (const session of sessions) {
-    const key = session.cwd ?? "";
+    const key = session.cwd;
     const directory = byDirectory.get(key);
     if (directory) directory.push(session);
     else byDirectory.set(key, [session]);

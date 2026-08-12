@@ -6,7 +6,7 @@ import { DataView } from "@/ui";
 import { useT } from "@/lib/i18n";
 import { FilesChanged } from "./views/FilesChanged";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
-import { useActiveSessionCwd } from "@/plugins/builtin/agent/public/session";
+import { useActiveSessionWorkspace } from "@/plugins/builtin/agent/public/session";
 import { useWorkspaceFileChanges } from "@/plugins/builtin/workspace/application/workspaceQueries";
 import {
   fileChangesSubtext,
@@ -23,16 +23,18 @@ import { useWorkspaceCapability } from "@/plugins/builtin/workspace/application/
 function FilesView() {
   const t = useT();
   const gitEnabled = useWorkspaceCapability("git");
-  const cwd = useActiveSessionCwd();
+  const workspace = useActiveSessionWorkspace();
   const activeFile = useActiveWorkspaceFile();
-  // Scoped to the ACTIVE session's cwd (undefined = serve dir fallback);
-  // disabled entirely while the git capability is off.
+  // Scoped to the ACTIVE session's cwd. No session deliberately uses the
+  // default workspace; an unresolved selected session disables the read.
   const {
     data: files,
     isLoading,
     isError,
     error,
-  } = useWorkspaceFileChanges(gitEnabled ? { cwd } : undefined);
+  } = useWorkspaceFileChanges(
+    gitEnabled && workspace.status === "ready" ? { cwd: workspace.cwd } : undefined,
+  );
   const items = files ?? [];
   const view = fileChangesViewModel(items, activeFile);
   const notARepo = isVcsUnavailable(error);
@@ -46,7 +48,7 @@ function FilesView() {
     >
       <DataView
         items={gitEnabled ? items : []}
-        isLoading={isLoading}
+        isLoading={isLoading || workspace.status === "resolving"}
         // AUX_API §3: a non-repo cwd is an expected state, not a failure.
         isError={isError && !notARepo}
         skeletonCount={6}

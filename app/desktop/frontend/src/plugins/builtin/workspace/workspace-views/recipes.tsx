@@ -4,7 +4,7 @@
 // Skills view shape (recipes are skills' user-facing sibling).
 
 import { DataView } from "@/ui";
-import { useActiveSessionCwd } from "@/plugins/builtin/agent/public/session";
+import { useActiveSessionWorkspace } from "@/plugins/builtin/agent/public/session";
 import { useT } from "@/lib/i18n";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { defineWorkspaceView } from "./defineWorkspaceView";
@@ -13,8 +13,10 @@ import { workspaceRecipesViewModel } from "@/plugins/builtin/workspace/applicati
 
 function RecipesTab() {
   const t = useT();
-  const cwd = useActiveSessionCwd();
-  const { data, isLoading, isError } = useWorkspaceRecipes({ cwd });
+  const workspace = useActiveSessionWorkspace();
+  const { data, isLoading, isError } = useWorkspaceRecipes(
+    workspace.status === "ready" ? { cwd: workspace.cwd } : undefined,
+  );
   const view = workspaceRecipesViewModel(data ?? []);
 
   return (
@@ -27,7 +29,7 @@ function RecipesTab() {
     >
       <DataView
         items={view.rows}
-        isLoading={isLoading}
+        isLoading={isLoading || workspace.status === "resolving"}
         isError={isError}
         skeletonCount={4}
         empty={{ icon: "command", title: t("recipes.empty.title"), sub: t("recipes.empty.sub") }}

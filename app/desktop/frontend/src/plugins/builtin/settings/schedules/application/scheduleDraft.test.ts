@@ -38,6 +38,23 @@ describe("scheduleDraft", () => {
     });
   });
 
+  it("does not relocate a default-workspace schedule to the active session", () => {
+    expect(
+      initialScheduleDraft(
+        {
+          id: "sched-default",
+          title: "Default review",
+          instructions: "Review the default workspace",
+          cron: "0 9 * * 1",
+          enabled: true,
+          createdAt: "2026-01-01T00:00:00Z",
+          revision: 1,
+        },
+        "/active-session",
+      ).cwd,
+    ).toBe("");
+  });
+
   it("builds the schedules create/update input from trimmed form text", () => {
     expect(
       scheduleInputFromDraft({

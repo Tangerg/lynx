@@ -6,7 +6,7 @@ import {
   useApprovalRuleConfigs,
 } from "../application/approvalConfig";
 import { isUnsupportedMethod, rpcErrorText } from "@/lib/rpcErrors";
-import { useActiveSession } from "@/plugins/builtin/agent/public/session";
+import { useActiveSessionId } from "@/plugins/builtin/agent/public/session";
 import { notifyError } from "@/plugins/sdk";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/classNames";
@@ -19,7 +19,9 @@ const SCOPE_CHIP: Record<ApprovalRuleSummary["scope"], string> = {
 
 export function RulesRow() {
   const t = useT();
-  const sessionId = useActiveSession()?.id;
+  // Rules are addressed by Session id, which is authoritative before the
+  // Session list projection (and its workspace) finishes loading.
+  const sessionId = useActiveSessionId();
   const { data, isLoading, isError, error } = useApprovalRuleConfigs(sessionId);
   const forget = async (id: string) => {
     try {

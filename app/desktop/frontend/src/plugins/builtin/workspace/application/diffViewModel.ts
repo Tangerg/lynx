@@ -1,4 +1,4 @@
-import { useActiveSessionCwd } from "@/plugins/builtin/agent/public/session";
+import { useActiveSessionWorkspace } from "@/plugins/builtin/agent/public/session";
 import { useActiveWorkspaceFile } from "@/plugins/builtin/workspace/public/navigation";
 import { isVcsUnavailable } from "./vcsAvailability";
 import type { WorkspaceDiff, WorkspaceDiffQuery, WorkspaceFileDiff } from "./workspaceQueries";
@@ -36,15 +36,17 @@ export interface WorkspaceDiffFileHeader {
  */
 export function useWorkspaceDiffView(mode: WorkspaceDiffMode) {
   const gitEnabled = useWorkspaceCapability("git");
-  const cwd = useActiveSessionCwd();
+  const workspace = useActiveSessionWorkspace();
   const activeFile = useActiveWorkspaceFile();
-  const query = useWorkspaceDiff(gitEnabled ? { cwd, mode } : undefined);
+  const query = useWorkspaceDiff(
+    gitEnabled && workspace.status === "ready" ? { cwd: workspace.cwd, mode } : undefined,
+  );
   const view = workspaceDiffViewModel(query.data);
   return {
     activeFile,
     data: query.data,
     files: view.files,
-    isLoading: query.isLoading,
+    isLoading: query.isLoading || workspace.status === "resolving",
     isError: query.isError,
     gitEnabled,
     notARepo: isVcsUnavailable(query.error),

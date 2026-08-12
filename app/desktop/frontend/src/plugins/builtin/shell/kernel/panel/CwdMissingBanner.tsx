@@ -88,7 +88,7 @@ export function CwdMissingBanner() {
               <BannerAction
                 label={t("cwdMissing.action.relocate")}
                 onClick={() => {
-                  setPath(session.cwd ?? "");
+                  setPath(session.cwd);
                   setEditing(true);
                 }}
                 primary

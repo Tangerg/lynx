@@ -9,7 +9,7 @@ import { useDebouncedValue } from "@tanstack/react-pacer";
 import { DataView, Pressable, SearchField } from "@/ui";
 import { useT } from "@/lib/i18n";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
-import { useActiveSessionCwd } from "@/plugins/builtin/agent/public/session";
+import { useActiveSessionWorkspace } from "@/plugins/builtin/agent/public/session";
 import { useWorkspaceGrep } from "@/plugins/builtin/workspace/application/workspaceQueries";
 import {
   WORKSPACE_SEARCH_MATCH_LIMIT,
@@ -21,13 +21,15 @@ import { openWorkspaceFile } from "@/plugins/builtin/workspace/public/navigation
 
 function SearchTab() {
   const t = useT();
-  const cwd = useActiveSessionCwd();
+  const workspace = useActiveSessionWorkspace();
   const [input, setInput] = useState("");
   // Debounce keystrokes so each distinct query hits the backend once — every
   // params object is its own react-query cache entry.
   const [query] = useDebouncedValue(input.trim(), { wait: 300 });
   const { data, isLoading, isError } = useWorkspaceGrep(
-    query ? { query, cwd, limit: WORKSPACE_SEARCH_MATCH_LIMIT } : undefined,
+    query && workspace.status === "ready"
+      ? { query, cwd: workspace.cwd, limit: WORKSPACE_SEARCH_MATCH_LIMIT }
+      : undefined,
   );
   const view = workspaceSearchViewModel(data);
 
@@ -52,7 +54,7 @@ function SearchTab() {
       {query === "" ? null : (
         <DataView
           items={data ? view.groups : undefined}
-          isLoading={isLoading}
+          isLoading={isLoading || workspace.status === "resolving"}
           isError={isError}
           skeletonCount={4}
           empty={{

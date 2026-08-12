@@ -1,4 +1,5 @@
 export {
+  activeSessionWorkspaceSelection,
   closeActiveAgentSession,
   getAgentSessionLifecycleSnapshot,
   getActiveSessionId,
@@ -6,7 +7,7 @@ export {
   subscribeAgentSessionLifecycle,
   subscribeActiveSessionId,
   useActiveSession,
-  useActiveSessionCwd,
+  useActiveSessionWorkspace,
   useActiveSessionId,
   type AgentSessionLifecycleSnapshot,
 } from "../application/session/activeSession";

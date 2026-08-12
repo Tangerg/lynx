@@ -4,6 +4,7 @@ import { lookupDataProvider } from "@/plugins/sdk";
 import { SLASH_COMMAND } from "@/plugins/sdk/kernelPoints";
 import {
   AGENT_SESSIONS_KEY,
+  activeSessionWorkspaceSelection,
   getActiveSessionId,
   subscribeAgentSessionProjection,
   subscribeActiveSessionId,
@@ -29,24 +30,25 @@ function expandRecipe(body: string, argStr: string): string {
     .replace(/\$([1-9])(?!\d)/g, (_match, digit: string) => parts[Number(digit) - 1] ?? "");
 }
 
-function activeCwd(): string | undefined {
-  const id = getActiveSessionId();
-  if (!id) return undefined;
-  const sessions = queryClient.getQueryData<AgentSessionSummary[]>([AGENT_SESSIONS_KEY]);
-  return sessions?.find((session) => session.id === id)?.cwd;
+export function recipeWorkspaceQuery(
+  activeSessionId: string,
+  sessions: readonly AgentSessionSummary[] | undefined,
+): RecipesQuery | undefined {
+  const selection = activeSessionWorkspaceSelection(activeSessionId, sessions);
+  return selection.status === "ready" ? { cwd: selection.cwd } : undefined;
 }
 
 function sessionWorkspaceRevision(sessions: readonly AgentSessionSummary[] | undefined): string {
   return JSON.stringify(sessions?.map(({ id, cwd }) => [id, cwd ?? ""]) ?? null);
 }
 
-function fetchRecipes(cwd?: string): Promise<Recipe[]> {
+function fetchRecipes(query: RecipesQuery): Promise<Recipe[]> {
   return queryClient.fetchQuery({
-    queryKey: [RECIPES_KEY, { cwd }],
+    queryKey: [RECIPES_KEY, query],
     staleTime: 60_000,
     queryFn: () => {
       const provider = lookupDataProvider<Recipe[], RecipesQuery>(RECIPES_KEY);
-      return provider ? provider({ cwd }) : Promise.resolve<Recipe[]>([]);
+      return provider ? provider(query) : Promise.resolve<Recipe[]>([]);
     },
   });
 }
@@ -82,7 +84,16 @@ export function installRecipeSlashCommands(host: ContributingHost): () => void {
   let generation = 0;
   const refresh = () => {
     const current = ++generation;
-    void fetchRecipes(activeCwd())
+    const sessions = queryClient.getQueryData<AgentSessionSummary[]>([AGENT_SESSIONS_KEY]);
+    const query = recipeWorkspaceQuery(getActiveSessionId(), sessions);
+    // Remove commands from the previous project immediately. An active id whose
+    // Session row has not arrived is not permission to fall back to the Runtime's
+    // default workspace.
+    if (!query) {
+      rebuild([]);
+      return;
+    }
+    void fetchRecipes(query)
       .then((recipes) => {
         if (current === generation) rebuild(recipes);
       })

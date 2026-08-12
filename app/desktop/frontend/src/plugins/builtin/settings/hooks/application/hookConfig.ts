@@ -1,4 +1,4 @@
-import { useHooks, type HookReadModel } from "./hookQueries";
+import { useHooks, type HookReadModel, type HooksQuery } from "./hookQueries";
 
 export type { HookReadModel };
 
@@ -11,8 +11,8 @@ export interface HookListViewModel {
   hasProjectHooks: boolean;
 }
 
-export function useHookConfigs(cwd?: string) {
-  const query = useHooks({ cwd });
+export function useHookConfigs(input: HooksQuery | undefined) {
+  const query = useHooks(input);
   const source = query.data;
   const data: HookListViewModel | undefined = source
     ? {

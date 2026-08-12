@@ -5,13 +5,15 @@ import {
   useWorkspaceGrep,
 } from "@/plugins/builtin/workspace/public/queries";
 import { useRuntimeCapability } from "@/plugins/builtin/runtime/public/capabilities";
-import { useActiveSessionCwd } from "@/plugins/builtin/agent/public/session";
+import { useActiveSessionWorkspace } from "@/plugins/builtin/agent/public/session";
 import { parseJsonResult } from "./toolResultParsing";
 
 export function useDiffToolPreview(tool: ToolCall, maxRows: number) {
   const gitEnabled = useRuntimeCapability("git");
-  const cwd = useActiveSessionCwd();
-  const { data } = useWorkspaceDiff(gitEnabled ? { cwd } : undefined);
+  const workspace = useActiveSessionWorkspace();
+  const { data } = useWorkspaceDiff(
+    gitEnabled && workspace.status === "ready" ? { cwd: workspace.cwd } : undefined,
+  );
   const rows = tool.diff
     ? tool.diff
     : (data?.files ?? []).flatMap((file) => [
@@ -26,9 +28,13 @@ export function useDiffToolPreview(tool: ToolCall, maxRows: number) {
 }
 
 export function useFileToolPreview(tool: ToolCall, maxLines: number) {
-  const cwd = useActiveSessionCwd();
+  const workspace = useActiveSessionWorkspace();
   const path = tool.fn && tool.fn !== tool.name ? tool.fn : undefined;
-  return useWorkspaceFileHead(path ? { path, cwd, lines: maxLines } : undefined);
+  return useWorkspaceFileHead(
+    path && workspace.status === "ready"
+      ? { path, cwd: workspace.cwd, lines: maxLines }
+      : undefined,
+  );
 }
 
 interface GrepPreviewRow {
@@ -55,10 +61,14 @@ function inlineGrepRows(result: string | undefined): GrepPreviewRow[] | undefine
 
 export function useGrepToolPreview(tool: ToolCall, maxMatches: number) {
   const inline = inlineGrepRows(tool.result);
-  const cwd = useActiveSessionCwd();
+  const workspace = useActiveSessionWorkspace();
   const query =
     !inline && tool.name === "grep" && tool.fn && tool.fn !== "search" ? tool.fn : undefined;
-  const { data } = useWorkspaceGrep(query ? { query, cwd, limit: maxMatches } : undefined);
+  const { data } = useWorkspaceGrep(
+    query && workspace.status === "ready"
+      ? { query, cwd: workspace.cwd, limit: maxMatches }
+      : undefined,
+  );
   const rows =
     inline ??
     (data?.matches ?? []).map((match) => ({

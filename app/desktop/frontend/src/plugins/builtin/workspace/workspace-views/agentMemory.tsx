@@ -11,7 +11,7 @@ import { DataView, EmptyState, Icon, IconButton, PillButton, SectionLabel, TextA
 
 import { useT } from "@/lib/i18n";
 import { notifyError } from "@/plugins/sdk";
-import { useActiveSessionCwd } from "@/plugins/builtin/agent/public/session";
+import { useActiveSessionWorkspace } from "@/plugins/builtin/agent/public/session";
 import { useRuntimeCapability } from "@/plugins/builtin/runtime/public/capabilities";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { defineWorkspaceView } from "./defineWorkspaceView";
@@ -271,10 +271,12 @@ function ScopeToggle({ scope, onChange }: { scope: Scope; onChange: (s: Scope) =
 function AgentMemoryTab() {
   const t = useT();
   const [scope, setScope] = useState<Scope>("project");
-  const cwd = useActiveSessionCwd();
+  const workspace = useActiveSessionWorkspace();
+  const cwd = workspace.status === "ready" ? workspace.cwd : undefined;
   const available = useRuntimeCapability("agentMemory");
+  const projectResolving = scope === "project" && workspace.status === "resolving";
   // The project scope needs a cwd to resolve; the user scope is cwd-independent.
-  const enabled = available && (scope === "user" || Boolean(cwd));
+  const enabled = available && (scope === "user" || (workspace.status === "ready" && Boolean(cwd)));
   const { data, isLoading, isError } = useAgentMemory(enabled, scope, cwd);
   const items = data ?? [];
   const pending = items.filter((m) => m.status === "pending");
@@ -307,7 +309,7 @@ function AgentMemoryTab() {
       {enabled && <AddMemory scope={scope} cwd={cwd} />}
       <DataView
         items={items}
-        isLoading={enabled && isLoading}
+        isLoading={(enabled && isLoading) || projectResolving}
         isError={isError}
         skeletonCount={3}
         empty={
