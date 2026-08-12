@@ -1099,6 +1099,10 @@ func TestProviderQualifiedModelAndLimitsApplyToTheNextRun(t *testing.T) {
 	host.Shows(t, "model · synthetic/deep")
 
 	host.Shows(t, "synthetic/deep")
+	snapshot, err := backend.GetSession(t.Context(), firstRuntimeSession(t, backend))
+	if err != nil || snapshot.Session.Model != "deep" {
+		t.Fatalf("selected session model = %q, %v", snapshot.Session.Model, err)
+	}
 
 	host.Type("use these options")
 	host.Press(input.Enter)
@@ -1107,6 +1111,34 @@ func TestProviderQualifiedModelAndLimitsApplyToTheNextRun(t *testing.T) {
 	host.Shows(t, "complete")
 	if got := backend.options(); got.Provider != "synthetic" || got.Model != "deep" || got.Limits.MaxSteps != 42 || got.Limits.MaxBudgetUSD != 2.5 {
 		t.Fatalf("StartRun options = %+v", got)
+	}
+
+	host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
+	stop()
+}
+
+func TestRelocateMovesTheCurrentSessionAndRebindsWorkspaceState(t *testing.T) {
+	backend := mock.New()
+	backend.Instant = true
+	source, destination := t.TempDir(), t.TempDir()
+	host, stop := runUIWithWorkspace(t, backend, source)
+	host.Shows(t, "Ask lyra")
+
+	host.Type("/relocate " + destination)
+	host.Press(input.Enter)
+	want, err := filepath.EvalSymlinks(destination)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sessionID := firstRuntimeSession(t, backend)
+	var snapshot agent.SessionSnapshot
+	host.Until(t, "the current session to relocate", func() bool {
+		var readErr error
+		snapshot, readErr = backend.GetSession(t.Context(), sessionID)
+		return readErr == nil && snapshot.Session.Workspace == want && host.Repaint()
+	})
+	if snapshot.Session.Workspace != want {
+		t.Fatalf("relocated workspace = %q, want %q", snapshot.Session.Workspace, want)
 	}
 
 	host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})

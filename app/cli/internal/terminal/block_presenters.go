@@ -22,12 +22,20 @@ func presentUser(p BlockPresentation, block agent.Block) []headless.Block {
 		}
 		body += strings.Join(lines, "\n")
 	}
-	return []headless.Block{newUserMessageBlock(p.Theme, body)}
+	speaker := p.Speaker
+	if speaker == "" {
+		speaker = "you"
+	}
+	return []headless.Block{newUserMessageBlockAs(p.Theme, speaker, body, speaker == "you")}
 }
 
 func presentMarkdown(speaker string) func(BlockPresentation, agent.Block) []headless.Block {
 	return func(p BlockPresentation, block agent.Block) []headless.Block {
-		message := &markdownBlock{theme: p.Theme, speaker: speaker}
+		label := speaker
+		if p.Speaker != "" {
+			label = p.Speaker
+		}
+		message := &markdownBlock{theme: p.Theme, speaker: label}
 		look := p.Look
 		if block.Kind == agent.BlockReasoning {
 			look.Text, look.Strong = p.Theme.Muted, p.Theme.Subtle

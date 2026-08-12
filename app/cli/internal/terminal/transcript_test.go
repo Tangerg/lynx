@@ -214,6 +214,50 @@ func TestCanceledRunSettlesEveryLiveTranscriptBlock(t *testing.T) {
 	}
 }
 
+func TestChildCompletionSettlesOnlyThatRunsCollidingBlockIdentity(t *testing.T) {
+	view := testTranscriptView(t)
+	rootID, childID, blockID := "run_root", "run_child", "answer"
+	apply := func(runID string, event agent.Event) {
+		t.Helper()
+		if err := view.ApplyRunEvent(agent.RunEvent{RunID: runID, Event: event}, nil); err != nil {
+			t.Fatalf("apply %T for %s: %v", event, runID, err)
+		}
+	}
+	started := func(runID string) agent.BlockStarted {
+		return agent.BlockStarted{Block: agent.Block{ID: blockID, RunID: runID, Kind: agent.BlockAssistant, Status: agent.BlockStatusRunning}}
+	}
+	apply(rootID, agent.SegmentStarted{Run: agent.Run{ID: rootID}})
+	apply(childID, agent.SegmentStarted{Run: agent.Run{
+		ID: childID, Lineage: agent.RunLineage{SpawnedByBlockID: "spawn", ParentRunID: rootID, RootRunID: rootID},
+	}})
+	apply(rootID, started(rootID))
+	apply(rootID, agent.BlockDelta{BlockID: blockID, Text: "root partial"})
+	apply(childID, started(childID))
+	apply(childID, agent.BlockDelta{BlockID: blockID, Text: "child partial"})
+	apply(childID, agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCompleted}})
+
+	if _, live := view.textStreams[transcriptBlockKey(childID, blockID)]; live {
+		t.Fatal("child text stream survived child completion")
+	}
+	if _, live := view.textStreams[transcriptBlockKey(rootID, blockID)]; !live {
+		t.Fatal("child completion settled the root text stream")
+	}
+	apply(rootID, agent.BlockDelta{BlockID: blockID, Text: " continued"})
+	apply(rootID, agent.BlockCompleted{Block: agent.Block{
+		ID: blockID, RunID: rootID, Kind: agent.BlockAssistant,
+		Status: agent.BlockStatusCompleted, Text: "root final",
+	}})
+
+	surface := grid.NewSurface(48, 12)
+	headless.NewRoot(view).Draw(surface.View())
+	drawn := strings.Join(surface.Rows(), "\n")
+	for _, want := range []string{"subagent · run_child", "child partial", "root final"} {
+		if !strings.Contains(drawn, want) {
+			t.Fatalf("tree transcript does not contain %q:\n%s", want, drawn)
+		}
+	}
+}
+
 func TestClickingAToolHeaderTogglesOnlyThatTool(t *testing.T) {
 	view := testTranscriptView(t)
 	first := appendTestTool(view, "first", "FIRST_DETAIL")

@@ -144,14 +144,21 @@ func (r *Runtime) CreateSession(ctx context.Context, input agent.CreateSession) 
 }
 
 func (r *Runtime) UpdateSession(ctx context.Context, input agent.UpdateSession) (agent.Session, error) {
+	if err := input.Validate(); err != nil {
+		return agent.Session{}, err
+	}
 	options, err := r.commandOptions()
 	if err != nil {
 		return agent.Session{}, err
 	}
-	updated, err := r.sessionCatalog.UpdateSession(ctx, protocol.UpdateSessionRequest{
+	request := protocol.UpdateSessionRequest{
 		SessionID: input.SessionID, ExpectedRevision: input.ExpectedRevision,
-		Title: input.Title, Favorite: input.Favorite,
-	}, options)
+		Title: input.Title, Model: input.Model, Favorite: input.Favorite,
+	}
+	if input.Workspace != nil {
+		request.Workspace = &protocol.WorkspaceRef{Path: *input.Workspace}
+	}
+	updated, err := r.sessionCatalog.UpdateSession(ctx, request, options)
 	if err != nil {
 		return agent.Session{}, classifyError(err)
 	}

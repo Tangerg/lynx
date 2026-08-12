@@ -26,13 +26,17 @@ var (
 )
 
 func newUserMessageBlock(theme kit.Theme, body string) *userMessageBlock {
+	return newUserMessageBlockAs(theme, "you", body, true)
+}
+
+func newUserMessageBlockAs(theme kit.Theme, speaker, body string, own bool) *userMessageBlock {
 	return &userMessageBlock{
 		box: kit.Box{
 			Theme:   theme,
 			Bare:    true,
 			Padding: layout.Symmetric(0, userMessageInset),
 		},
-		message: &kit.Message{Theme: theme, Speaker: "you", Body: body, Own: true},
+		message: &kit.Message{Theme: theme, Speaker: speaker, Body: body, Own: own},
 	}
 }
 

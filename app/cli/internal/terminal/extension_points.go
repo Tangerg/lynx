@@ -12,11 +12,12 @@ import (
 
 // BlockPresentation is the terminal vocabulary a block presenter receives.
 type BlockPresentation struct {
-	Theme  kit.Theme
-	Glyphs kit.Glyphs
-	Look   markdown.Look
-	Syntax highlight.Renderer
-	Tools  []ToolPresenter
+	Theme   kit.Theme
+	Glyphs  kit.Glyphs
+	Look    markdown.Look
+	Syntax  highlight.Renderer
+	Tools   []ToolPresenter
+	Speaker string
 }
 
 // BlockPresenter maps one closed domain block kind to terminal blocks.

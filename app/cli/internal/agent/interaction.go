@@ -19,6 +19,17 @@ func InteractionItemID(interaction Interaction) string {
 	}
 }
 
+func InteractionRunID(interaction Interaction) string {
+	switch item := interaction.(type) {
+	case Approval:
+		return item.RunID
+	case Question:
+		return item.RunID
+	default:
+		return ""
+	}
+}
+
 func ValidateInteraction(interaction Interaction) error {
 	switch item := interaction.(type) {
 	case Approval:
@@ -52,6 +63,9 @@ func ValidateInteractions(interactions []Interaction) error {
 
 func (a Approval) Validate() error {
 	var problems []error
+	if strings.TrimSpace(a.RunID) == "" {
+		problems = append(problems, errors.New("run id is empty"))
+	}
 	if strings.TrimSpace(a.ItemID) == "" {
 		problems = append(problems, errors.New("item id is empty"))
 	}
@@ -89,7 +103,7 @@ func (a Approval) Clone() Approval {
 // Equal reports whether two approvals ask for the same decision about the same
 // projected tool invocation.
 func (a Approval) Equal(other Approval) bool {
-	if a.ItemID != other.ItemID || a.Title != other.Title || a.Detail != other.Detail ||
+	if a.RunID != other.RunID || a.ItemID != other.ItemID || a.Title != other.Title || a.Detail != other.Detail ||
 		a.Diff != other.Diff || a.Risk != other.Risk || a.RuleHint != other.RuleHint ||
 		a.Rememberable != other.Rememberable || (a.Tool == nil) != (other.Tool == nil) {
 		return false
@@ -99,6 +113,9 @@ func (a Approval) Equal(other Approval) bool {
 
 func (q Question) Validate() error {
 	var problems []error
+	if strings.TrimSpace(q.RunID) == "" {
+		problems = append(problems, errors.New("run id is empty"))
+	}
 	if strings.TrimSpace(q.ItemID) == "" {
 		problems = append(problems, errors.New("item id is empty"))
 	}
@@ -125,7 +142,7 @@ func (q Question) Clone() Question { return cloneQuestion(q) }
 // Equal reports whether two questions present the same ordered fields. Field
 // order is semantic because QuestionAnswer uses the same order on the wire.
 func (q Question) Equal(other Question) bool {
-	return q.ItemID == other.ItemID && q.Title == other.Title && q.Detail == other.Detail &&
+	return q.RunID == other.RunID && q.ItemID == other.ItemID && q.Title == other.Title && q.Detail == other.Detail &&
 		slices.EqualFunc(q.Fields, other.Fields, func(left, right QuestionField) bool {
 			return left.Equal(right)
 		})

@@ -16,6 +16,9 @@ func (r Run) Validate() error {
 	if strings.TrimSpace(r.SessionID) == "" {
 		problems = append(problems, errors.New("session id is empty"))
 	}
+	if err := r.Lineage.validate(r.ID); err != nil {
+		problems = append(problems, err)
+	}
 	if !slices.Contains([]RunStatus{RunStatusRunning, RunStatusWaiting, RunStatusFinished}, r.Status) {
 		problems = append(problems, fmt.Errorf("status %q is invalid", r.Status))
 	}
@@ -45,6 +48,28 @@ func (r Run) Validate() error {
 		return fmt.Errorf("run: %w", err)
 	}
 	return nil
+}
+
+func (lineage RunLineage) validate(runID string) error {
+	values := []string{lineage.SpawnedByBlockID, lineage.ParentRunID, lineage.RootRunID}
+	present := 0
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			present++
+		}
+	}
+	switch {
+	case present == 0:
+		return nil
+	case present != len(values):
+		return errors.New("run lineage must provide spawn block, parent, and root together")
+	case lineage.ParentRunID == runID:
+		return errors.New("run lineage names itself as parent")
+	case lineage.RootRunID == runID:
+		return errors.New("run lineage names itself as root")
+	default:
+		return nil
+	}
 }
 
 func (o RunOptions) Validate() error {
@@ -151,6 +176,8 @@ func ValidateEvent(event Event) error {
 		return validatePlan(item.Items)
 	case RunInterrupted:
 		return errors.Join(ValidateInteractions(item.Interactions), item.Usage.Validate())
+	case RunSuspended:
+		return item.Usage.Validate()
 	case RunFinished:
 		if err := item.Outcome.Validate(); err != nil {
 			return err
@@ -312,6 +339,9 @@ func validateInteractionItem(interaction Interaction, block Block) error {
 	itemID := InteractionItemID(interaction)
 	if block.ID != itemID {
 		return fmt.Errorf("interaction item %s resolved to block %s", itemID, block.ID)
+	}
+	if runID := InteractionRunID(interaction); block.RunID != runID {
+		return fmt.Errorf("interaction item %s belongs to run %s, not %s", itemID, runID, block.RunID)
 	}
 	switch item := interaction.(type) {
 	case Approval:

@@ -121,7 +121,7 @@ func TestBuiltinCommandsOwnTheirCategoryAndAvailabilityPolicy(t *testing.T) {
 	wantCategories := map[string][]string{
 		commandCategoryApplication: {"quit"},
 		commandCategoryTranscript:  {"help", "shortcuts", "clear", "find", "next", "previous", "queue", "details", "view", "copy-last", "export", "feedback"},
-		commandCategorySessions:    {"sessions", "timeline", "new", "workspace", "rename", "fork", "rollback", "import"},
+		commandCategorySessions:    {"sessions", "timeline", "new", "workspace", "relocate", "rename", "fork", "rollback", "import"},
 		commandCategoryComposer:    {"attach", "detach", "attachments", "stash", "stashes", "stash-apply", "stash-delete", "editor"},
 		commandCategoryRuntime:     {"tools", "tool-invoke", "model", "usage", "roles", "utility", "embedding", "providers", "provider-test", "provider-config", "approval", "status", "rules", "steer", "goal", "goal-start", "goal-stop", "goal-resume", "hooks", "hooks-trust", "hooks-revoke"},
 		commandCategoryAutomation:  {"schedules", "schedule-create", "schedule-edit", "schedule-enable", "schedule-disable", "schedule-run", "schedule-delete"},
@@ -132,7 +132,7 @@ func TestBuiltinCommandsOwnTheirCategoryAndAvailabilityPolicy(t *testing.T) {
 	}
 	wantGuard := map[string]bool{
 		"clear": true, "view": true, "export": true,
-		"sessions": true, "timeline": true, "new": true, "workspace": true, "rename": true, "fork": true, "rollback": true, "import": true,
+		"sessions": true, "timeline": true, "new": true, "workspace": true, "relocate": true, "rename": true, "fork": true, "rollback": true, "import": true,
 		"stash": true, "stash-apply": true, "editor": true,
 		"workspaces": true, "changes": true, "diff": true, "preview": true, "grep": true, "browse": true, "read": true,
 		"usage": true, "roles": true, "utility": true, "embedding": true, "providers": true, "provider-test": true, "provider-config": true,

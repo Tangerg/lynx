@@ -30,7 +30,7 @@ func TestEmbeddedRuntimeSessionCatalogAndLifecycle(t *testing.T) {
 	runtime := openIntegrationRuntime(t, workspace)
 	created := requireSessionCatalog(t, runtime, workspace)
 	requireWorkspaceInspection(t, runtime, workspace)
-	forked := requireSessionMutation(t, runtime, created)
+	forked := requireSessionMutation(t, runtime, created, t.TempDir())
 	requireSessionPortability(t, runtime, forked.ID)
 	requireRuntimeCatalogs(t, runtime, created.ID, created.Workspace)
 	requireContextManagement(t, runtime, created.Workspace)
@@ -227,16 +227,22 @@ func requireSessionCatalog(t *testing.T, runtime *Runtime, workspace string) age
 	return created
 }
 
-func requireSessionMutation(t *testing.T, runtime *Runtime, created agent.Session) agent.Session {
+func requireSessionMutation(t *testing.T, runtime *Runtime, created agent.Session, workspace string) agent.Session {
 	t.Helper()
-	title := "renamed adapter session"
+	title, model, favorite := "renamed adapter session", "integration-model", true
 	updated, err := runtime.UpdateSession(t.Context(), agent.UpdateSession{
-		SessionID: created.ID, Title: &title, ExpectedRevision: created.Revision,
+		SessionID: created.ID, Title: &title, Workspace: &workspace, Model: &model,
+		Favorite: &favorite, ExpectedRevision: created.Revision,
 	})
 	if err != nil {
 		t.Fatalf("UpdateSession: %v", err)
 	}
-	if updated.Title != "renamed adapter session" || updated.Revision <= created.Revision {
+	canonicalWorkspace, canonicalErr := filepath.EvalSymlinks(workspace)
+	if canonicalErr != nil {
+		t.Fatal(canonicalErr)
+	}
+	if updated.Title != title || updated.Workspace != canonicalWorkspace || updated.Model != model ||
+		!updated.Favorite || updated.Revision <= created.Revision {
 		t.Fatalf("updated = %+v", updated)
 	}
 	forked, err := runtime.ForkSession(t.Context(), agent.ForkSession{SessionID: created.ID, Title: "forked adapter session"})

@@ -68,6 +68,9 @@ func TestNegotiatedRunCapabilitiesMatchProjectionBoundary(t *testing.T) {
 	if meta.ClientCapabilities == nil {
 		t.Fatal("request metadata omitted client capabilities")
 	}
+	if preference := meta.ClientCapabilities.Features[protocol.FeatureSubagents]; !preference.Enabled {
+		t.Fatal("request metadata does not negotiate the supported subagent stream profile")
+	}
 	wantInterrupts := supportedInterruptTypes()
 	if !slices.Equal(meta.ClientCapabilities.InterruptTypes, wantInterrupts) {
 		t.Fatalf("negotiated interrupts = %v, projection supports %v", meta.ClientCapabilities.InterruptTypes, wantInterrupts)

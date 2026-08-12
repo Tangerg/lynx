@@ -613,9 +613,37 @@ func TestSessionManagementCommands(t *testing.T) {
 	runtime := instantRuntime()
 	id := firstSession(t, runtime)
 	requireSessionShow(t, runtime, id)
+	requireSessionUpdate(t, runtime, id)
 	requireSessionRename(t, runtime, id)
 	forkID := forkTestSession(t, runtime, id)
 	requireSessionDelete(t, runtime, forkID)
+}
+
+func requireSessionUpdate(t *testing.T, runtime agent.Runtime, id string) {
+	t.Helper()
+	snapshot, err := runtime.GetSession(t.Context(), id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	workspace := t.TempDir()
+	out, _, err := executeCommand(t, runtime, "", "sessions", "update", id,
+		"--revision", strconv.FormatUint(snapshot.Session.Revision, 10),
+		"--workspace", workspace, "--model", "deep", "--favorite=true",
+	)
+	if err != nil {
+		t.Fatalf("sessions update: %v", err)
+	}
+	var updated sessionJSON
+	if err := json.Unmarshal([]byte(out), &updated); err != nil {
+		t.Fatalf("sessions update output: %v\n%s", err, out)
+	}
+	wantWorkspace, err := filepath.EvalSymlinks(workspace)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.ID != id || updated.Workspace != wantWorkspace || updated.Model != "deep" || !updated.Favorite {
+		t.Fatalf("updated session = %+v", updated)
+	}
 }
 
 func TestSessionShowJSONUsesTheCLISnapshotContract(t *testing.T) {

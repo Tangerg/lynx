@@ -19,7 +19,7 @@ import (
 type NDJSON struct {
 	enc       *json.Encoder
 	err       error
-	runID     string
+	scope     runScope
 	sessionID string
 }
 
@@ -38,11 +38,11 @@ func (j *NDJSON) Begin(run agent.Run, _ agent.RunOptions) error {
 		j.err = fmt.Errorf("begin NDJSON: %w", err)
 		return j.err
 	}
-	if j.runID != "" && j.runID != run.ID {
-		j.err = fmt.Errorf("begin NDJSON: run %s does not match %s", run.ID, j.runID)
+	if err := j.scope.bind(run); err != nil {
+		j.err = fmt.Errorf("begin NDJSON: %w", err)
 		return j.err
 	}
-	j.runID, j.sessionID = run.ID, run.SessionID
+	j.sessionID = run.SessionID
 	return nil
 }
 
@@ -53,24 +53,29 @@ func (j *NDJSON) Begin(run agent.Run, _ agent.RunOptions) error {
 // lets a reader ignore what it does not use. Type is always set and is the only
 // field a consumer must switch on.
 type eventRecord struct {
-	Type         string            `json:"type"`
-	EventID      string            `json:"eventId,omitzero"`
-	SegmentID    string            `json:"segmentId,omitzero"`
-	Status       string            `json:"status,omitzero"`
-	Revision     uint64            `json:"revision,omitzero"`
-	At           time.Time         `json:"at,omitzero"`
-	RunID        string            `json:"runId,omitzero"`
-	SessionID    string            `json:"sessionId,omitzero"`
-	ItemID       string            `json:"itemId,omitzero"`
-	Options      *runOptionsJSON   `json:"options,omitzero"`
-	BlockID      string            `json:"blockId,omitzero"`
-	Text         string            `json:"text,omitzero"`
-	Block        *blockFrame       `json:"block,omitzero"`
-	Transcript   []blockFrame      `json:"transcript,omitzero"`
-	Plan         []planFrame       `json:"plan,omitzero"`
-	Interactions []interactionJSON `json:"interactions,omitzero"`
-	Outcome      *outcomeJSON      `json:"outcome,omitzero"`
-	Usage        *usageJSON        `json:"usage,omitzero"`
+	Type             string            `json:"type"`
+	EventID          string            `json:"eventId,omitzero"`
+	SegmentID        string            `json:"segmentId,omitzero"`
+	StreamSegmentID  string            `json:"streamSegmentId,omitzero"`
+	Status           string            `json:"status,omitzero"`
+	Revision         uint64            `json:"revision,omitzero"`
+	At               time.Time         `json:"at,omitzero"`
+	RunID            string            `json:"runId,omitzero"`
+	SpawnedByBlockID string            `json:"spawnedByBlockId,omitzero"`
+	ParentRunID      string            `json:"parentRunId,omitzero"`
+	RootRunID        string            `json:"rootRunId,omitzero"`
+	SessionID        string            `json:"sessionId,omitzero"`
+	ItemID           string            `json:"itemId,omitzero"`
+	Options          *runOptionsJSON   `json:"options,omitzero"`
+	BlockID          string            `json:"blockId,omitzero"`
+	Text             string            `json:"text,omitzero"`
+	Block            *blockFrame       `json:"block,omitzero"`
+	Transcript       []blockFrame      `json:"transcript,omitzero"`
+	Runs             []runFrame        `json:"runs,omitzero"`
+	Plan             []planFrame       `json:"plan,omitzero"`
+	Interactions     []interactionJSON `json:"interactions,omitzero"`
+	Outcome          *outcomeJSON      `json:"outcome,omitzero"`
+	Usage            *usageJSON        `json:"usage,omitzero"`
 }
 
 type runOptionsJSON struct {
@@ -123,6 +128,7 @@ type planFrame struct {
 
 type interactionJSON struct {
 	Kind     string              `json:"kind"`
+	RunID    string              `json:"runId"`
 	ItemID   string              `json:"itemId"`
 	Title    string              `json:"title"`
 	Detail   string              `json:"detail,omitzero"`
@@ -171,10 +177,8 @@ func (j *NDJSON) Render(envelope agent.RunEvent) error {
 		j.err = fmt.Errorf("render NDJSON event: %w", err)
 		return j.err
 	}
-	if j.runID == "" {
-		j.runID = envelope.RunID
-	} else if envelope.RunID != j.runID {
-		j.err = fmt.Errorf("render NDJSON event: run %s does not match %s", envelope.RunID, j.runID)
+	if err := j.scope.accept(envelope); err != nil {
+		j.err = fmt.Errorf("render NDJSON event: %w", err)
 		return j.err
 	}
 	f, err := encodeEventFrame(envelope)
@@ -182,7 +186,7 @@ func (j *NDJSON) Render(envelope agent.RunEvent) error {
 		j.err = err
 		return j.err
 	}
-	f.EventID, f.SegmentID, f.At = envelope.EventID, envelope.SegmentID, envelope.At
+	f.EventID, f.SegmentID, f.StreamSegmentID, f.At = envelope.EventID, envelope.SegmentID, envelope.StreamSegment(), envelope.At
 	if f.RunID == "" {
 		f.RunID = envelope.RunID
 	}
@@ -201,18 +205,28 @@ func (j *NDJSON) Reconcile(snapshot agent.SessionSnapshot) error {
 		j.err = fmt.Errorf("render NDJSON snapshot: %w", err)
 		return j.err
 	}
-	target, err := resolveSnapshotRun(snapshot, j.runID)
+	target, err := resolveSnapshotRun(snapshot, j.scope.rootID)
 	if err != nil {
 		j.err = fmt.Errorf("render NDJSON snapshot: %w", err)
 		return j.err
 	}
-	j.runID, j.sessionID = target.ID, snapshot.Session.ID
+	if err := j.scope.restore(snapshot, target.ID); err != nil {
+		j.err = fmt.Errorf("render NDJSON snapshot: %w", err)
+		return j.err
+	}
+	j.sessionID = snapshot.Session.ID
 	frame := eventRecord{
 		Type: "run.snapshot", RunID: target.ID, SessionID: snapshot.Session.ID, Status: string(target.Status),
 		Transcript: make([]blockFrame, 0, len(snapshot.Transcript)),
+		Runs:       make([]runFrame, 0, len(snapshot.Runs)),
+	}
+	for _, run := range snapshot.Runs {
+		if run.ID == target.ID || run.Lineage.RootRunID == target.ID {
+			frame.Runs = append(frame.Runs, encodeRun(run))
+		}
 	}
 	for _, block := range snapshot.Transcript {
-		if block.RunID == target.ID {
+		if j.scope.contains(block.RunID) {
 			frame.Transcript = append(frame.Transcript, *encodeBlock(block))
 		}
 	}
@@ -233,7 +247,11 @@ func (j *NDJSON) Reconcile(snapshot agent.SessionSnapshot) error {
 func encodeEventFrame(envelope agent.RunEvent) (eventRecord, error) {
 	switch event := envelope.Event.(type) {
 	case agent.SegmentStarted:
-		return eventRecord{Type: "segment.started", RunID: event.Run.ID, SessionID: event.Run.SessionID}, nil
+		return eventRecord{
+			Type: "segment.started", RunID: event.Run.ID, SessionID: event.Run.SessionID,
+			SpawnedByBlockID: event.Run.Lineage.SpawnedByBlockID,
+			ParentRunID:      event.Run.Lineage.ParentRunID, RootRunID: event.Run.Lineage.RootRunID,
+		}, nil
 	case agent.BlockStarted:
 		return eventRecord{Type: "block.started", Block: encodeBlock(event.Block)}, nil
 	case agent.BlockDelta:
@@ -244,6 +262,8 @@ func encodeEventFrame(envelope agent.RunEvent) (eventRecord, error) {
 		return eventRecord{Type: "plan.changed", Revision: event.Revision, Plan: encodePlan(event.Items)}, nil
 	case agent.RunInterrupted:
 		return eventRecord{Type: "run.interrupted", Interactions: encodeInteractions(event.Interactions), Usage: encodeUsage(event.Usage)}, nil
+	case agent.RunSuspended:
+		return eventRecord{Type: "run.suspended", Usage: encodeUsage(event.Usage)}, nil
 	case agent.RunFinished:
 		return encodeFinishedFrame(event), nil
 	default:
@@ -301,11 +321,11 @@ func encodeInteraction(interaction agent.Interaction) *interactionJSON {
 	switch item := interaction.(type) {
 	case agent.Approval:
 		return &interactionJSON{
-			Kind: "approval", ItemID: item.ItemID, Title: item.Title,
+			Kind: "approval", RunID: item.RunID, ItemID: item.ItemID, Title: item.Title,
 			Detail: item.Detail, Diff: item.Diff, Risk: string(item.Risk), RuleHint: item.RuleHint,
 		}
 	case agent.Question:
-		out := &interactionJSON{Kind: "question", ItemID: item.ItemID, Title: item.Title, Detail: item.Detail}
+		out := &interactionJSON{Kind: "question", RunID: item.RunID, ItemID: item.ItemID, Title: item.Title, Detail: item.Detail}
 		for _, field := range item.Fields {
 			encoded := questionFieldJSON{
 				Prompt: field.Prompt, Header: field.Header,

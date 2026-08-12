@@ -37,6 +37,7 @@ type Conversation struct {
 	segmentID   string
 	checkpoint  string
 	seen        map[string]RunEvent
+	runs        map[string]Run
 	index       map[string]int
 	open        map[string]bool
 	revision    uint64
@@ -47,6 +48,7 @@ type Conversation struct {
 func NewConversation() *Conversation {
 	return &Conversation{
 		seen:  make(map[string]RunEvent),
+		runs:  make(map[string]Run),
 		index: make(map[string]int),
 		open:  make(map[string]bool),
 	}
@@ -83,7 +85,20 @@ func (c *Conversation) MatchesSnapshot(snapshot SessionSnapshot) bool {
 	return slices.Equal(c.plan, expected.plan) && c.planRevision == expected.planRevision &&
 		c.usage.Equal(expected.usage) && equalInteractions(c.interactions, expected.interactions) &&
 		c.outcome == expected.outcome && c.phase == expected.phase && c.runID == expected.runID &&
-		c.segmentID == expected.segmentID
+		c.segmentID == expected.segmentID && equalRunMaps(c.runs, expected.runs)
+}
+
+func equalRunMaps(left, right map[string]Run) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for id, run := range left {
+		other, exists := right[id]
+		if !exists || !run.Equal(other) {
+			return false
+		}
+	}
+	return true
 }
 
 // ApplyRunEvent validates and folds one event exactly once. It never assigns
@@ -92,10 +107,11 @@ func (c *Conversation) ApplyRunEvent(envelope RunEvent) (EventAcceptance, error)
 	if err := validateConversationEvent(envelope); err != nil {
 		return EventAcceptance{}, err
 	}
-	newSegment := c.segmentID != envelope.SegmentID
-	if newSegment {
+	streamSegmentID := envelope.StreamSegment()
+	newStreamSegment := c.segmentID != streamSegmentID
+	if newStreamSegment {
 		if _, ok := envelope.Event.(SegmentStarted); !ok {
-			return EventAcceptance{}, fmt.Errorf("conversation: event segment %s does not match active segment %s", envelope.SegmentID, c.segmentID)
+			return EventAcceptance{}, fmt.Errorf("conversation: event stream segment %s does not match active stream segment %s", streamSegmentID, c.segmentID)
 		}
 	} else if known, duplicate := c.seen[envelope.EventID]; duplicate {
 		if !known.Equal(envelope) {
@@ -109,12 +125,12 @@ func (c *Conversation) ApplyRunEvent(envelope RunEvent) (EventAcceptance, error)
 	if err := ValidateEvent(envelope.Event); err != nil {
 		return EventAcceptance{}, fmt.Errorf("conversation: %w", err)
 	}
-	ignored, err := c.ignoreRecoveredOverlap(envelope.Event)
+	ignored, err := c.ignoreRecoveredOverlap(envelope)
 	if err != nil {
 		return EventAcceptance{}, err
 	}
 	if !ignored {
-		err = c.apply(envelope.Event)
+		err = c.apply(envelope)
 		if err == nil {
 			c.reconciling = false
 		}
@@ -122,11 +138,11 @@ func (c *Conversation) ApplyRunEvent(envelope RunEvent) (EventAcceptance, error)
 	if err != nil {
 		return EventAcceptance{}, err
 	}
-	if newSegment {
+	if newStreamSegment {
 		c.seen = make(map[string]RunEvent)
 		c.checkpoint = ""
 	}
-	c.segmentID = envelope.SegmentID
+	c.segmentID = streamSegmentID
 	c.seen[envelope.EventID] = envelope.Clone()
 	if ReplayableEvent(envelope.Event) {
 		c.checkpoint = envelope.EventID
@@ -134,9 +150,10 @@ func (c *Conversation) ApplyRunEvent(envelope RunEvent) (EventAcceptance, error)
 	return EventAcceptance{Applied: !ignored}, nil
 }
 
-func (c *Conversation) ignoreRecoveredOverlap(event Event) (bool, error) {
+func (c *Conversation) ignoreRecoveredOverlap(envelope RunEvent) (bool, error) {
+	event := envelope.Event
 	if delta, ok := event.(BlockDelta); ok {
-		key := blockIdentity(c.runID, delta.BlockID)
+		key := blockIdentity(envelope.RunID, delta.BlockID)
 		if _, exists := c.index[key]; !exists && c.coldTail {
 			// Agent-message and reasoning starts are non-durable previews. A
 			// head attachment can therefore observe their later deltas without
@@ -159,7 +176,7 @@ func (c *Conversation) ignoreRecoveredOverlap(event Event) (bool, error) {
 		}
 		return true, nil
 	case BlockDelta:
-		key := blockIdentity(c.runID, item.BlockID)
+		key := blockIdentity(envelope.RunID, item.BlockID)
 		_, exists := c.index[key]
 		return !exists || !c.open[key], nil
 	case BlockCompleted:
@@ -193,6 +210,8 @@ func validateConversationEvent(envelope RunEvent) error {
 		return errors.New("conversation: run id is empty")
 	case strings.TrimSpace(envelope.SegmentID) == "":
 		return errors.New("conversation: segment id is empty")
+	case strings.TrimSpace(envelope.StreamSegment()) == "":
+		return errors.New("conversation: stream segment id is empty")
 	case envelope.Event == nil:
 		return errors.New("conversation: event payload is nil")
 	default:
@@ -205,16 +224,20 @@ func (c *Conversation) validateEventIdentity(envelope RunEvent) error {
 		if started.Run.ID != envelope.RunID || started.Run.ActiveSegmentID != envelope.SegmentID {
 			return errors.New("conversation: segment-start identity does not match its event")
 		}
-		if c.phase == ConversationWaiting && c.runID != envelope.RunID {
-			return fmt.Errorf("conversation: resumed run %s does not match waiting run %s", envelope.RunID, c.runID)
+		if !started.Run.Lineage.IsRoot() && started.Run.Lineage.RootRunID != c.runID {
+			return fmt.Errorf("conversation: child run %s belongs to root %s, not %s", envelope.RunID, started.Run.Lineage.RootRunID, c.runID)
+		}
+		if c.phase == ConversationWaiting && started.Run.Lineage.IsRoot() && c.runID != envelope.RunID {
+			return fmt.Errorf("conversation: resumed root run %s does not match waiting run %s", envelope.RunID, c.runID)
 		}
 		return nil
 	}
-	if c.runID == "" || envelope.RunID != c.runID {
-		return fmt.Errorf("conversation: event run %s does not match active run %s", envelope.RunID, c.runID)
+	run, exists := c.runs[envelope.RunID]
+	if !exists {
+		return fmt.Errorf("conversation: event references unknown run %s", envelope.RunID)
 	}
-	if c.segmentID == "" || envelope.SegmentID != c.segmentID {
-		return fmt.Errorf("conversation: event segment %s does not match active segment %s", envelope.SegmentID, c.segmentID)
+	if run.Status != RunStatusRunning || run.ActiveSegmentID != envelope.SegmentID {
+		return fmt.Errorf("conversation: event segment %s does not match active run %s segment %s", envelope.SegmentID, envelope.RunID, run.ActiveSegmentID)
 	}
 	switch item := envelope.Event.(type) {
 	case BlockStarted:
@@ -229,26 +252,28 @@ func (c *Conversation) validateEventIdentity(envelope RunEvent) error {
 	return nil
 }
 
-func (c *Conversation) apply(event Event) error {
+func (c *Conversation) apply(envelope RunEvent) error {
 	c.ensureStorage()
 	var err error
-	switch item := event.(type) {
+	switch item := envelope.Event.(type) {
 	case SegmentStarted:
 		err = c.applySegmentStarted(item)
 	case BlockStarted:
-		err = c.applyBlockStarted(item)
+		err = c.applyBlockStarted(envelope.RunID, item)
 	case BlockDelta:
-		err = c.applyBlockDelta(item)
+		err = c.applyBlockDelta(envelope.RunID, item)
 	case BlockCompleted:
-		err = c.applyBlockCompleted(item)
+		err = c.applyBlockCompleted(envelope.RunID, item)
 	case PlanChanged:
-		err = c.applyPlanChanged(item)
+		err = c.applyPlanChanged(envelope.RunID, item)
 	case RunInterrupted:
-		err = c.applyInterrupted(item)
+		err = c.applyInterrupted(envelope.RunID, item)
+	case RunSuspended:
+		err = c.applySuspended(envelope.RunID, item)
 	case RunFinished:
-		err = c.applyFinished(item)
+		err = c.applyFinished(envelope.RunID, item)
 	default:
-		err = fmt.Errorf("conversation: event %T is unsupported", event)
+		err = fmt.Errorf("conversation: event %T is unsupported", envelope.Event)
 	}
 	if err != nil {
 		return err
@@ -260,42 +285,68 @@ func (c *Conversation) apply(event Event) error {
 func (c *Conversation) applySegmentStarted(event SegmentStarted) error {
 	c.reconciling = false
 	c.coldTail = false
-	previousUsage := c.usage
-	switch c.phase {
-	case ConversationIdle:
-		c.outcome = Outcome{}
-		previousUsage = Usage{}
-	case ConversationWaiting:
-		if c.runID != event.Run.ID {
-			return fmt.Errorf("%w: cannot resume %s while %s is waiting", ErrInvalidTransition, event.Run.ID, c.runID)
+	run := event.Run
+	previous, exists := c.runs[run.ID]
+	if run.Lineage.IsRoot() {
+		previousUsage := c.usage
+		switch c.phase {
+		case ConversationIdle:
+			c.outcome = Outcome{}
+			previousUsage = Usage{}
+		case ConversationWaiting:
+			if c.runID != run.ID {
+				return fmt.Errorf("%w: cannot resume %s while %s is waiting", ErrInvalidTransition, run.ID, c.runID)
+			}
+		case ConversationRunning:
+			if c.runID != "" && (!exists || previous.Status == RunStatusRunning) {
+				return fmt.Errorf("%w: cannot start root segment while %s is running", ErrInvalidTransition, c.runID)
+			}
 		}
-	case ConversationRunning:
-		if c.runID != "" {
-			return fmt.Errorf("%w: cannot start segment while %s is running", ErrInvalidTransition, c.runID)
+		if c.runID != "" && c.runID != run.ID {
+			return fmt.Errorf("%w: root run changed from %s to %s", ErrInvalidTransition, c.runID, run.ID)
+		}
+		if err := validateUsageProgress(previousUsage, run.Usage); err != nil {
+			return fmt.Errorf("%w: root segment started: %w", ErrInvalidTransition, err)
+		}
+		c.runID = run.ID
+		c.phase = ConversationRunning
+		c.interactions = nil
+		c.usage = run.Usage.Clone()
+	} else {
+		if c.runID == "" || run.Lineage.RootRunID != c.runID {
+			return fmt.Errorf("%w: child run %s has no active root", ErrInvalidTransition, run.ID)
+		}
+		if _, parentExists := c.runs[run.Lineage.ParentRunID]; !parentExists {
+			return fmt.Errorf("%w: child run %s has unknown parent %s", ErrInvalidTransition, run.ID, run.Lineage.ParentRunID)
+		}
+		if exists && previous.Lineage != run.Lineage {
+			return fmt.Errorf("%w: child run %s changed lineage", ErrInvalidTransition, run.ID)
+		}
+		if exists && previous.Status == RunStatusRunning {
+			return fmt.Errorf("%w: child run %s started twice", ErrInvalidTransition, run.ID)
+		}
+		if exists {
+			if err := validateUsageProgress(previous.Usage, run.Usage); err != nil {
+				return fmt.Errorf("%w: child segment started: %w", ErrInvalidTransition, err)
+			}
 		}
 	}
-	if err := validateUsageProgress(previousUsage, event.Run.Usage); err != nil {
-		return fmt.Errorf("%w: segment started: %w", ErrInvalidTransition, err)
-	}
-	c.runID = event.Run.ID
-	c.phase = ConversationRunning
-	c.interactions = nil
-	c.usage = event.Run.Usage.Clone()
+	c.runs[run.ID] = run.Clone()
 	return nil
 }
 
-func (c *Conversation) applyBlockStarted(event BlockStarted) error {
-	if err := c.requireRunning("start a block"); err != nil {
+func (c *Conversation) applyBlockStarted(runID string, event BlockStarted) error {
+	if err := c.requireRunRunning(runID, "start a block"); err != nil {
 		return err
 	}
 	return c.put(event.Block, false)
 }
 
-func (c *Conversation) applyBlockDelta(event BlockDelta) error {
-	if err := c.requireRunning("append a block delta"); err != nil {
+func (c *Conversation) applyBlockDelta(runID string, event BlockDelta) error {
+	if err := c.requireRunRunning(runID, "append a block delta"); err != nil {
 		return err
 	}
-	key := blockIdentity(c.runID, event.BlockID)
+	key := blockIdentity(runID, event.BlockID)
 	at, ok := c.index[key]
 	if !ok {
 		return fmt.Errorf("%w: %s", ErrUnknownBlock, event.BlockID)
@@ -315,15 +366,18 @@ func (c *Conversation) applyBlockDelta(event BlockDelta) error {
 	return nil
 }
 
-func (c *Conversation) applyBlockCompleted(event BlockCompleted) error {
-	if err := c.requireRunning("complete a block"); err != nil {
+func (c *Conversation) applyBlockCompleted(runID string, event BlockCompleted) error {
+	if err := c.requireRunRunning(runID, "complete a block"); err != nil {
 		return err
 	}
 	return c.put(event.Block, true)
 }
 
-func (c *Conversation) applyPlanChanged(event PlanChanged) error {
-	if err := c.requireRunning("change the plan"); err != nil {
+func (c *Conversation) applyPlanChanged(runID string, event PlanChanged) error {
+	if runID != c.runID {
+		return fmt.Errorf("%w: child run %s cannot change session plan", ErrInvalidTransition, runID)
+	}
+	if err := c.requireRunRunning(runID, "change the plan"); err != nil {
 		return err
 	}
 	if event.Revision <= c.planRevision {
@@ -334,13 +388,13 @@ func (c *Conversation) applyPlanChanged(event PlanChanged) error {
 	return nil
 }
 
-func (c *Conversation) applyInterrupted(event RunInterrupted) error {
-	if err := c.requireRunning("interrupt a run"); err != nil {
+func (c *Conversation) applyInterrupted(runID string, event RunInterrupted) error {
+	if err := c.requireRunRunning(runID, "interrupt a run"); err != nil {
 		return err
 	}
 	for _, interaction := range event.Interactions {
 		itemID := InteractionItemID(interaction)
-		at, exists := c.index[blockIdentity(c.runID, itemID)]
+		at, exists := c.index[blockIdentity(runID, itemID)]
 		if !exists {
 			return fmt.Errorf("%w: interrupt references unknown item %s", ErrInvalidTransition, itemID)
 		}
@@ -348,41 +402,93 @@ func (c *Conversation) applyInterrupted(event RunInterrupted) error {
 			return fmt.Errorf("%w: %w", ErrInvalidTransition, err)
 		}
 	}
-	if err := validateUsageProgress(c.usage, event.Usage); err != nil {
+	run := c.runs[runID]
+	if err := validateUsageProgress(run.Usage, event.Usage); err != nil {
 		return fmt.Errorf("%w: run interrupted: %w", ErrInvalidTransition, err)
 	}
-	c.phase = ConversationWaiting
+	pending := append(CloneInteractions(c.interactions), CloneInteractions(event.Interactions)...)
+	if err := ValidateInteractions(pending); err != nil {
+		return fmt.Errorf("%w: tree interrupt set: %v", ErrInvalidTransition, err)
+	}
+	run.Status = RunStatusWaiting
+	run.ActiveSegmentID = ""
+	run.Usage = event.Usage.Clone()
+	c.runs[runID] = run
+	if runID == c.runID {
+		c.phase = ConversationWaiting
+		c.usage = event.Usage.Clone()
+	}
 	c.reconciling = false
 	c.coldTail = false
-	c.interactions = CloneInteractions(event.Interactions)
-	c.usage = event.Usage.Clone()
+	c.interactions = pending
 	return nil
 }
 
-func (c *Conversation) applyFinished(event RunFinished) error {
-	if c.phase == ConversationIdle || c.runID == "" {
-		return fmt.Errorf("%w: cannot finish a run that has not started", ErrInvalidTransition)
+func (c *Conversation) applySuspended(runID string, event RunSuspended) error {
+	if err := c.requireRunRunning(runID, "suspend a run"); err != nil {
+		return err
 	}
-	if c.phase == ConversationWaiting && event.Outcome.Status != OutcomeCanceled {
+	run := c.runs[runID]
+	if err := validateUsageProgress(run.Usage, event.Usage); err != nil {
+		return fmt.Errorf("%w: run suspended: %w", ErrInvalidTransition, err)
+	}
+	if runID == c.runID {
+		if err := ValidateInteractions(c.interactions); err != nil {
+			return fmt.Errorf("%w: root run suspended without a valid tree interrupt: %v", ErrInvalidTransition, err)
+		}
+	}
+	run.Status = RunStatusWaiting
+	run.ActiveSegmentID = ""
+	run.Usage = event.Usage.Clone()
+	c.runs[runID] = run
+	if runID == c.runID {
+		c.phase = ConversationWaiting
+		c.usage = event.Usage.Clone()
+		c.reconciling = false
+		c.coldTail = false
+	}
+	return nil
+}
+
+func (c *Conversation) applyFinished(runID string, event RunFinished) error {
+	run, exists := c.runs[runID]
+	if !exists {
+		return fmt.Errorf("%w: cannot finish unknown run %s", ErrInvalidTransition, runID)
+	}
+	if run.Status == RunStatusWaiting && event.Outcome.Status != OutcomeCanceled {
 		return fmt.Errorf("%w: a waiting run can only finish by cancellation", ErrInvalidTransition)
 	}
-	if event.Outcome.Status == OutcomeCompleted && c.hasOpenBlocks() {
-		return fmt.Errorf("%w: a completed run still has open blocks", ErrInvalidTransition)
+	if event.Outcome.Status == OutcomeCompleted && c.hasOpenBlocksForRun(runID) {
+		return fmt.Errorf("%w: completed run %s still has open blocks", ErrInvalidTransition, runID)
 	}
-	if err := validateUsageProgress(c.usage, event.Usage); err != nil {
+	if err := validateUsageProgress(run.Usage, event.Usage); err != nil {
 		return fmt.Errorf("%w: run finished: %w", ErrInvalidTransition, err)
+	}
+	if runID == c.runID {
+		for memberID, member := range c.runs {
+			if memberID != runID && member.Lineage.RootRunID == runID && member.Status != RunStatusFinished {
+				return fmt.Errorf("%w: root run finished while child %s is %s", ErrInvalidTransition, memberID, member.Status)
+			}
+		}
 	}
 	toolStatus := ToolError
 	if event.Outcome.Status == OutcomeCanceled {
 		toolStatus = ToolCanceled
 	}
-	c.settleOpenBlocks(toolStatus)
-	c.phase = ConversationIdle
-	c.reconciling = false
-	c.coldTail = false
-	c.interactions = nil
-	c.outcome = event.Outcome
-	c.usage = event.Usage.Clone()
+	c.settleOpenBlocksForRun(runID, toolStatus)
+	run.Status = RunStatusFinished
+	run.ActiveSegmentID = ""
+	run.Outcome = event.Outcome
+	run.Usage = event.Usage.Clone()
+	c.runs[runID] = run
+	if runID == c.runID {
+		c.phase = ConversationIdle
+		c.reconciling = false
+		c.coldTail = false
+		c.interactions = nil
+		c.outcome = event.Outcome
+		c.usage = event.Usage.Clone()
+	}
 	return nil
 }
 
@@ -425,6 +531,9 @@ func (c *Conversation) SettleRun(run Run) error {
 	if run.Status != RunStatusFinished {
 		return errors.New("cannot settle conversation from an unfinished run")
 	}
+	if !run.Lineage.IsRoot() {
+		return errors.New("cannot settle conversation from a child-run control result")
+	}
 	if c.runID != "" && c.runID != run.ID {
 		return fmt.Errorf("%w: settled run %s does not match %s", ErrInvalidTransition, run.ID, c.runID)
 	}
@@ -438,6 +547,16 @@ func (c *Conversation) SettleRun(run Run) error {
 		toolStatus = ToolCanceled
 	}
 	c.settleOpenBlocks(toolStatus)
+	for memberID, member := range c.runs {
+		if member.Lineage.RootRunID != run.ID || member.Status == RunStatusFinished {
+			continue
+		}
+		member.Status = RunStatusFinished
+		member.ActiveSegmentID = ""
+		member.Outcome = Outcome{Status: run.Outcome.Status, Detail: run.Outcome.Detail, Error: run.Outcome.Error}
+		c.runs[memberID] = member
+	}
+	c.runs[run.ID] = run.Clone()
 	c.runID = run.ID
 	c.segmentID = ""
 	c.phase = ConversationIdle
@@ -521,6 +640,9 @@ func (c *Conversation) ensureStorage() {
 	if c.index == nil {
 		c.index = make(map[string]int)
 	}
+	if c.runs == nil {
+		c.runs = make(map[string]Run)
+	}
 	if c.open == nil {
 		c.open = make(map[string]bool)
 	}
@@ -536,9 +658,9 @@ func (c *Conversation) rebuildBlockIndex() {
 	}
 }
 
-func (c *Conversation) hasOpenBlocks() bool {
-	for _, open := range c.open {
-		if open {
+func (c *Conversation) hasOpenBlocksForRun(runID string) bool {
+	for key, open := range c.open {
+		if open && c.blocks[c.index[key]].RunID == runID {
 			return true
 		}
 	}
@@ -559,11 +681,29 @@ func (c *Conversation) settleOpenBlocks(toolStatus ToolStatus) {
 	}
 }
 
+func (c *Conversation) settleOpenBlocksForRun(runID string, toolStatus ToolStatus) {
+	for key, open := range c.open {
+		if !open {
+			continue
+		}
+		block := &c.blocks[c.index[key]]
+		if block.RunID != runID {
+			continue
+		}
+		if block.Kind == BlockTool && block.Tool != nil {
+			block.Tool.Status = toolStatus
+		}
+		block.Status = BlockStatusIncomplete
+		c.open[key] = false
+	}
+}
+
 func blockIdentity(runID, blockID string) string { return runID + "\x00" + blockID }
 
-func (c *Conversation) requireRunning(action string) error {
-	if c.phase != ConversationRunning || c.runID == "" {
-		return fmt.Errorf("%w: cannot %s without an active run", ErrInvalidTransition, action)
+func (c *Conversation) requireRunRunning(runID, action string) error {
+	run, exists := c.runs[runID]
+	if !exists || run.Status != RunStatusRunning {
+		return fmt.Errorf("%w: cannot %s without active run %s", ErrInvalidTransition, action, runID)
 	}
 	return nil
 }

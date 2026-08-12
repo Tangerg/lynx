@@ -21,6 +21,7 @@ const (
 type Run struct {
 	ID              string
 	SessionID       string
+	Lineage         RunLineage
 	Provider        string
 	Model           string
 	Status          RunStatus
@@ -30,6 +31,18 @@ type Run struct {
 	Usage           Usage
 }
 
+// RunLineage locates a child run beneath the tool block that spawned it. The
+// zero value is a root run; child fields are an all-or-none identity tuple.
+type RunLineage struct {
+	SpawnedByBlockID string
+	ParentRunID      string
+	RootRunID        string
+}
+
+func (lineage RunLineage) IsRoot() bool {
+	return lineage == (RunLineage{})
+}
+
 func (r Run) Clone() Run {
 	r.Usage = r.Usage.Clone()
 	return r
@@ -37,7 +50,7 @@ func (r Run) Clone() Run {
 
 // Equal reports whether two run projections carry the same lifecycle fact.
 func (r Run) Equal(other Run) bool {
-	return r.ID == other.ID && r.SessionID == other.SessionID && r.Provider == other.Provider &&
+	return r.ID == other.ID && r.SessionID == other.SessionID && r.Lineage == other.Lineage && r.Provider == other.Provider &&
 		r.Model == other.Model && r.Status == other.Status && r.ActiveSegmentID == other.ActiveSegmentID &&
 		r.Limits == other.Limits && r.Outcome == other.Outcome && r.Usage.Equal(other.Usage)
 }
@@ -154,6 +167,7 @@ const (
 )
 
 type Approval struct {
+	RunID        string
 	ItemID       string
 	Title        string
 	Detail       string
@@ -165,6 +179,7 @@ type Approval struct {
 }
 
 type Question struct {
+	RunID  string
 	ItemID string
 	Title  string
 	Detail string

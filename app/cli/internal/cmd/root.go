@@ -223,7 +223,11 @@ func resolveWorkspace(cmd *cobra.Command) (string, error) {
 			return "", fmt.Errorf("resolve working directory: %w", err)
 		}
 	}
-	abs, err := filepath.Abs(cwd)
+	return canonicalWorkspacePath(cwd)
+}
+
+func canonicalWorkspacePath(path string) (string, error) {
+	abs, err := filepath.Abs(path)
 	if err != nil {
 		return "", fmt.Errorf("resolve workspace: %w", err)
 	}

@@ -32,7 +32,7 @@ const maxToolOutputLines = 12
 type Text struct {
 	w     io.Writer
 	err   error
-	runID string
+	scope runScope
 
 	// streaming contains assistant blocks whose deltas are written straight
 	// through. A map preserves correct routing if a runtime interleaves blocks.
@@ -67,11 +67,10 @@ func (t *Text) Begin(run agent.Run, _ agent.RunOptions) error {
 		t.err = fmt.Errorf("begin text: %w", err)
 		return t.err
 	}
-	if t.runID != "" && t.runID != run.ID {
-		t.err = fmt.Errorf("begin text: run %s does not match %s", run.ID, t.runID)
+	if err := t.scope.bind(run); err != nil {
+		t.err = fmt.Errorf("begin text: %w", err)
 		return t.err
 	}
-	t.runID = run.ID
 	return nil
 }
 
@@ -85,24 +84,22 @@ func (t *Text) Render(envelope agent.RunEvent) error {
 		t.err = fmt.Errorf("render text event: %w", err)
 		return t.err
 	}
-	if t.runID == "" {
-		t.runID = envelope.RunID
-	} else if envelope.RunID != t.runID {
-		t.err = fmt.Errorf("render text event: run %s does not match %s", envelope.RunID, t.runID)
+	if err := t.scope.accept(envelope); err != nil {
+		t.err = fmt.Errorf("render text event: %w", err)
 		return t.err
 	}
-	t.renderEvent(envelope.Event)
+	t.renderEvent(envelope)
 	return t.err
 }
 
-func (t *Text) renderEvent(event agent.Event) {
-	switch event := event.(type) {
+func (t *Text) renderEvent(envelope agent.RunEvent) {
+	switch event := envelope.Event.(type) {
 	case agent.SegmentStarted:
 		// A run's identity is machinery, not content.
 	case agent.BlockStarted:
 		t.begin(event.Block)
 	case agent.BlockDelta:
-		t.delta(event)
+		t.delta(envelope.RunID, event)
 	case agent.BlockCompleted:
 		t.finish(event.Block)
 	case agent.PlanChanged:
@@ -112,9 +109,15 @@ func (t *Text) renderEvent(event agent.Event) {
 			t.showInteraction(interaction)
 		}
 		t.showUsage(event.Usage)
+	case agent.RunSuspended:
+		if t.scope.isRoot(envelope.RunID) {
+			t.showUsage(event.Usage)
+		}
 	case agent.RunFinished:
-		t.finished(event)
-		t.settled = true
+		if t.scope.isRoot(envelope.RunID) {
+			t.finished(event)
+			t.settled = true
+		}
 	default:
 		t.err = fmt.Errorf("render text event: unsupported event %T", event)
 	}
@@ -127,41 +130,47 @@ func (t *Text) Close() error {
 }
 
 func (t *Text) begin(b agent.Block) {
+	key := streamBlockKey(b.RunID, b.ID)
 	switch b.Kind {
 	case agent.BlockAssistant:
 		t.blank()
-		t.streaming[b.ID] = struct{}{}
+		if t.scope.isChild(b.RunID) {
+			t.line("subagent · " + b.RunID)
+		}
+		t.streaming[key] = struct{}{}
 		t.write(b.Text)
 	case agent.BlockReasoning, agent.BlockTool, agent.BlockUser, agent.BlockQuestion, agent.BlockNotice, agent.BlockError:
 		body := &strings.Builder{}
 		body.WriteString(b.Text)
-		t.pending[b.ID] = body
+		t.pending[key] = body
 	}
 }
 
-func (t *Text) delta(d agent.BlockDelta) {
-	if _, streaming := t.streaming[d.BlockID]; streaming {
+func (t *Text) delta(runID string, d agent.BlockDelta) {
+	key := streamBlockKey(runID, d.BlockID)
+	if _, streaming := t.streaming[key]; streaming {
 		t.write(d.Text)
 		return
 	}
-	if body, ok := t.pending[d.BlockID]; ok {
+	if body, ok := t.pending[key]; ok {
 		body.WriteString(d.Text)
 	}
 }
 
 func (t *Text) finish(b agent.Block) {
-	if _, duplicate := t.seen[b.ID]; duplicate {
+	key := streamBlockKey(b.RunID, b.ID)
+	if _, duplicate := t.seen[key]; duplicate {
 		return
 	}
-	t.seen[b.ID] = struct{}{}
-	if _, streaming := t.streaming[b.ID]; streaming {
-		delete(t.streaming, b.ID)
+	t.seen[key] = struct{}{}
+	if _, streaming := t.streaming[key]; streaming {
+		delete(t.streaming, key)
 		t.endLine()
-		delete(t.pending, b.ID)
+		delete(t.pending, key)
 		return
 	}
 	text := t.completedText(b)
-	delete(t.pending, b.ID)
+	delete(t.pending, key)
 	t.renderCompletedBlock(b, text)
 }
 
@@ -176,15 +185,18 @@ func (t *Text) Reconcile(snapshot agent.SessionSnapshot) error {
 		t.err = fmt.Errorf("render text snapshot: %w", err)
 		return t.err
 	}
-	target, err := resolveSnapshotRun(snapshot, t.runID)
+	target, err := resolveSnapshotRun(snapshot, t.scope.rootID)
 	if err != nil {
 		t.err = fmt.Errorf("render text snapshot: %w", err)
 		return t.err
 	}
 	targetRunID := target.ID
-	t.runID = targetRunID
+	if err := t.scope.restore(snapshot, targetRunID); err != nil {
+		t.err = fmt.Errorf("render text snapshot: %w", err)
+		return t.err
+	}
 	for _, block := range snapshot.Transcript {
-		if block.RunID == targetRunID {
+		if t.scope.contains(block.RunID) {
 			if block.Status == agent.BlockStatusRunning {
 				t.resume(block)
 			} else {
@@ -206,21 +218,22 @@ func (t *Text) Reconcile(snapshot agent.SessionSnapshot) error {
 }
 
 func (t *Text) resume(block agent.Block) {
-	if _, present := t.streaming[block.ID]; present {
+	key := streamBlockKey(block.RunID, block.ID)
+	if _, present := t.streaming[key]; present {
 		return
 	}
-	if _, present := t.pending[block.ID]; present {
+	if _, present := t.pending[key]; present {
 		return
 	}
 	t.begin(block)
 }
 
 func (t *Text) showInteraction(interaction agent.Interaction) {
-	id := agent.InteractionItemID(interaction)
-	if _, duplicate := t.shown[id]; duplicate {
+	key := streamBlockKey(agent.InteractionRunID(interaction), agent.InteractionItemID(interaction))
+	if _, duplicate := t.shown[key]; duplicate {
 		return
 	}
-	t.shown[id] = struct{}{}
+	t.shown[key] = struct{}{}
 	t.interrupted(interaction)
 }
 
@@ -228,7 +241,7 @@ func (t *Text) completedText(block agent.Block) string {
 	if block.Text != "" {
 		return block.Text
 	}
-	if body, ok := t.pending[block.ID]; ok {
+	if body, ok := t.pending[streamBlockKey(block.RunID, block.ID)]; ok {
 		return body.String()
 	}
 	return ""
@@ -239,7 +252,7 @@ func (t *Text) renderCompletedBlock(b agent.Block, text string) {
 	case agent.BlockUser:
 		t.userBlock(b, text)
 	case agent.BlockAssistant:
-		t.proseBlock(text)
+		t.proseBlock(b.RunID, text)
 	case agent.BlockReasoning:
 		t.blank()
 		t.block("· ", text)
@@ -247,7 +260,7 @@ func (t *Text) renderCompletedBlock(b agent.Block, text string) {
 		t.tool(b)
 	case agent.BlockQuestion:
 		if b.Question != nil {
-			t.shown[b.ID] = struct{}{}
+			t.shown[streamBlockKey(b.RunID, b.ID)] = struct{}{}
 			t.interrupted(*b.Question)
 		}
 	case agent.BlockNotice:
@@ -257,6 +270,10 @@ func (t *Text) renderCompletedBlock(b agent.Block, text string) {
 		t.blank()
 		t.block("× ", text)
 	}
+}
+
+func streamBlockKey(runID, blockID string) string {
+	return runID + "\x00" + blockID
 }
 
 func (t *Text) userBlock(block agent.Block, text string) {
@@ -269,8 +286,11 @@ func (t *Text) userBlock(block agent.Block, text string) {
 	}
 }
 
-func (t *Text) proseBlock(text string) {
+func (t *Text) proseBlock(runID, text string) {
 	t.blank()
+	if t.scope.isChild(runID) {
+		t.line("subagent · " + runID)
+	}
 	t.write(text)
 	t.endLine()
 }

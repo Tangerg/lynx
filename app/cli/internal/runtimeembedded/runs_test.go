@@ -128,7 +128,7 @@ func TestSubscribeRunPassesOpaqueReplayCursor(t *testing.T) {
 func TestProjectedStreamClassifiesClosedRuntime(t *testing.T) {
 	stream := projectEventStream(func(yield func(protocol.RunEvent, error) bool) {
 		yield(protocol.RunEvent{}, embedded.ErrClosed)
-	})
+	}, "seg_1")
 	for _, err := range stream {
 		if !errors.Is(err, agent.ErrDisconnected) || !errors.Is(err, embedded.ErrClosed) {
 			t.Fatalf("stream error = %v", err)

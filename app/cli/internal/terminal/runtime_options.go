@@ -26,8 +26,7 @@ func (a *app) buildRuntimePickers(theme kit.Theme, glyphs kit.Glyphs) {
 		func(model agent.Model) string { return model.Provider + "/" + model.ID },
 		func(model agent.Model) {
 			a.modelDialog.Dismiss()
-			a.options.Provider, a.options.Model = model.Provider, model.ID
-			a.syncOptions("model · " + model.Provider + "/" + model.ID)
+			a.selectSessionModel(model)
 		},
 	)
 	a.modelDialog = kit.NewDialog(kit.DialogConfig{
@@ -50,6 +49,34 @@ func (a *app) buildRuntimePickers(theme kit.Theme, glyphs kit.Glyphs) {
 		Where: layout.Placement{Width: 88, Height: 9},
 	})
 	a.approvalModePicker.cancel = a.approvalModeDialog.Dismiss
+}
+
+func (a *app) selectSessionModel(model agent.Model) {
+	sessionID := a.session.ID
+	runSessionChange(a, "selecting model",
+		func(ctx context.Context) (agent.Session, error) {
+			latest, err := a.runtime.GetSession(ctx, sessionID)
+			if err != nil {
+				return agent.Session{}, err
+			}
+			return a.runtime.UpdateSession(ctx, agent.UpdateSession{
+				SessionID: sessionID, Model: &model.ID, ExpectedRevision: latest.Session.Revision,
+			})
+		},
+		func(updated agent.Session) error {
+			if err := updated.Validate(); err != nil {
+				return fmt.Errorf("select session model: %w", err)
+			}
+			if updated.ID != sessionID || updated.Model != model.ID {
+				return fmt.Errorf("select session model: runtime returned session %s with model %q", updated.ID, updated.Model)
+			}
+			a.session = updated
+			a.header.SetSession(updated)
+			a.options.Provider, a.options.Model = model.Provider, model.ID
+			a.syncOptions("model · " + model.Provider + "/" + model.ID)
+			return nil
+		},
+	)
 }
 
 func (a *app) ChooseModel() {

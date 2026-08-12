@@ -11,9 +11,10 @@ import (
 )
 
 type snapshotBindingStub struct {
-	runs       map[string]*protocol.Page[protocol.RunRef]
-	items      map[string]*protocol.ListItemsResponse
-	interrupts map[string]*protocol.Page[protocol.PendingInterruptSet]
+	runs        map[string]*protocol.Page[protocol.RunRef]
+	items       map[string]*protocol.ListItemsResponse
+	interrupts  map[string]*protocol.Page[protocol.PendingInterruptSet]
+	runRequests *[]protocol.ListRunsRequest
 }
 
 func (snapshotBindingStub) GetSession(context.Context, protocol.GetSessionRequest, embedded.CallOptions) (*protocol.Session, error) {
@@ -25,11 +26,31 @@ func (snapshotBindingStub) GetPlan(context.Context, protocol.GetPlanRequest, emb
 }
 
 func (stub snapshotBindingStub) ListRuns(_ context.Context, request protocol.ListRunsRequest, _ embedded.CallOptions) (*protocol.Page[protocol.RunRef], error) {
+	if stub.runRequests != nil {
+		*stub.runRequests = append(*stub.runRequests, request)
+	}
 	return stub.runs[request.Cursor], nil
 }
 
 func (stub snapshotBindingStub) ListItems(_ context.Context, request protocol.ListItemsRequest, _ embedded.CallOptions) (*protocol.ListItemsResponse, error) {
 	return stub.items[request.Cursor], nil
+}
+
+func TestSnapshotRunCatalogExplicitlyRequestsDescendants(t *testing.T) {
+	var requests []protocol.ListRunsRequest
+	runtime := &Runtime{
+		snapshot: snapshotBindingStub{
+			runs:        map[string]*protocol.Page[protocol.RunRef]{"": protocol.NewPage([]protocol.RunRef{})},
+			runRequests: &requests,
+		},
+		meta: requestMeta("test"),
+	}
+	if _, err := runtime.listAllRuns(t.Context(), "ses_1"); err != nil {
+		t.Fatal(err)
+	}
+	if len(requests) != 1 || requests[0].SessionID != "ses_1" || !requests[0].IncludeDescendants {
+		t.Fatalf("list run requests = %+v", requests)
+	}
 }
 
 func (stub snapshotBindingStub) ListInterrupts(_ context.Context, request protocol.ListInterruptsRequest, _ embedded.CallOptions) (*protocol.Page[protocol.PendingInterruptSet], error) {

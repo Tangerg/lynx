@@ -8,11 +8,11 @@ import (
 
 func TestInteractionReviewRecordsEditsAndCommitsInRuntimeOrder(t *testing.T) {
 	approval := agent.Approval{
-		ItemID: "approval", Title: "Run command", Rememberable: true,
+		RunID: "run_1", ItemID: "approval", Title: "Run command", Rememberable: true,
 		Tool: &agent.ToolCall{Kind: agent.ToolShell, Name: "shell", Command: "go test ./...", Status: agent.ToolRunning},
 	}
 	question := agent.Question{
-		ItemID: "question", Title: "Choose target",
+		RunID: "run_1", ItemID: "question", Title: "Choose target",
 		Fields: []agent.QuestionField{{Prompt: "Target", Kind: agent.QuestionSingle, Options: []agent.QuestionOption{{Label: "linux"}, {Label: "darwin"}}}},
 	}
 	review, err := newInteractionReview([]agent.Interaction{approval, question})
@@ -53,7 +53,7 @@ func TestInteractionReviewRecordsEditsAndCommitsInRuntimeOrder(t *testing.T) {
 
 func TestInteractionReviewRejectsInvalidAnswersAndIncompleteCommit(t *testing.T) {
 	approval := agent.Approval{
-		ItemID: "approval", Title: "Read file",
+		RunID: "run_1", ItemID: "approval", Title: "Read file",
 		Tool: &agent.ToolCall{Kind: agent.ToolRead, Name: "read", Path: "README.md", Status: agent.ToolRunning},
 	}
 	review, err := newInteractionReview([]agent.Interaction{approval})

@@ -9,11 +9,11 @@ func TestRunEventEqualityUsesDomainValues(t *testing.T) {
 	t.Parallel()
 	cost := 0.0
 	approval := Approval{
-		ItemID: "approval_1", Title: "Run command", Rememberable: true,
+		RunID: "run_1", ItemID: "approval_1", Title: "Run command", Rememberable: true,
 		Tool: &ToolCall{Kind: ToolShell, Name: "shell", Status: ToolRunning, Command: "go test ./..."},
 	}
 	question := Question{
-		ItemID: "question_1", Title: "Choose target",
+		RunID: "run_1", ItemID: "question_1", Title: "Choose target",
 		Fields: []QuestionField{{
 			Prompt: "Target", Kind: QuestionSingle,
 			Options: []QuestionOption{{Label: "linux"}, {Label: "darwin"}},

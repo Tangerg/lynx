@@ -57,7 +57,7 @@ func (r *Runtime) StartRun(ctx context.Context, input agent.StartRun) (agent.Seg
 	}
 	stream := agent.SegmentStream{
 		RunID: ack.RunID, SegmentID: ack.SegmentID, UserItemID: ack.UserItemID,
-		Events: projectEventStream(events),
+		Events: projectEventStream(events, ack.SegmentID),
 	}
 	if err := stream.ValidateStart(); err != nil {
 		return agent.SegmentStream{}, err
@@ -99,7 +99,7 @@ func (r *Runtime) ResumeRun(ctx context.Context, input agent.ResumeRun) (agent.S
 	if ack == nil || events == nil {
 		return agent.SegmentStream{}, errors.New("resume run: runtime returned an incomplete stream")
 	}
-	stream := agent.SegmentStream{RunID: ack.RunID, SegmentID: ack.SegmentID, Events: projectEventStream(events)}
+	stream := agent.SegmentStream{RunID: ack.RunID, SegmentID: ack.SegmentID, Events: projectEventStream(events, ack.SegmentID)}
 	if ack.UserItemID != nil {
 		stream.UserItemID = *ack.UserItemID
 	}
@@ -146,7 +146,7 @@ func (r *Runtime) SubscribeRun(ctx context.Context, input agent.SubscribeRun) (a
 	}
 	stream := agent.SegmentStream{
 		RunID: ack.RunID, SegmentID: ack.SegmentID, HeadEventID: ack.HeadEventID,
-		Events: projectEventStream(events),
+		Events: projectEventStream(events, ack.SegmentID),
 	}
 	if err := stream.ValidateSubscription(); err != nil {
 		return agent.SegmentStream{}, err
@@ -192,7 +192,7 @@ func (r *Runtime) SteerRun(ctx context.Context, input agent.SteerRun) error {
 	}, options))
 }
 
-func projectEventStream(source iter.Seq2[protocol.RunEvent, error]) agent.EventStream {
+func projectEventStream(source iter.Seq2[protocol.RunEvent, error], streamSegmentID string) agent.EventStream {
 	return func(yield func(agent.RunEvent, error) bool) {
 		for value, streamErr := range source {
 			if streamErr != nil {
@@ -204,6 +204,7 @@ func projectEventStream(source iter.Seq2[protocol.RunEvent, error]) agent.EventS
 				yield(agent.RunEvent{}, err)
 				return
 			}
+			projected.StreamSegmentID = streamSegmentID
 			if include && !yield(projected, nil) {
 				return
 			}

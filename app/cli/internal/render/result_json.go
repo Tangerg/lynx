@@ -17,6 +17,7 @@ type ResultJSON struct {
 	err     error
 	closed  bool
 	started bool
+	scope   runScope
 	frame   resultFrame
 	live    map[string]*strings.Builder
 	prose   []string
@@ -53,6 +54,10 @@ func (r *ResultJSON) Begin(run agent.Run, options agent.RunOptions) error {
 		r.err = fmt.Errorf("begin result: %w", err)
 		return r.err
 	}
+	if err := r.scope.bind(run); err != nil {
+		r.err = fmt.Errorf("begin result: %w", err)
+		return r.err
+	}
 	r.started = true
 	r.frame = resultFrame{
 		Type: "result", Status: "incomplete", RunID: run.ID,
@@ -74,11 +79,12 @@ func (r *ResultJSON) Render(envelope agent.RunEvent) error {
 		r.err = fmt.Errorf("render result event: %w", err)
 		return r.err
 	}
-	if r.frame.RunID == "" {
-		r.frame.RunID = envelope.RunID
-	} else if envelope.RunID != r.frame.RunID {
-		r.err = fmt.Errorf("render result event: run %s does not match %s", envelope.RunID, r.frame.RunID)
+	if err := r.scope.accept(envelope); err != nil {
+		r.err = fmt.Errorf("render result event: %w", err)
 		return r.err
+	}
+	if r.frame.RunID == "" {
+		r.frame.RunID = r.scope.rootID
 	}
 	r.fold(envelope)
 	return nil
@@ -107,6 +113,10 @@ func (r *ResultJSON) Reconcile(snapshot agent.SessionSnapshot) error {
 		return r.err
 	}
 	targetRunID := target.ID
+	if err := r.scope.restore(snapshot, targetRunID); err != nil {
+		r.err = fmt.Errorf("render result snapshot: %w", err)
+		return r.err
+	}
 	for _, block := range snapshot.Transcript {
 		if block.RunID == targetRunID && block.Status != agent.BlockStatusRunning && block.Kind == agent.BlockAssistant && block.Text != "" {
 			r.prose = append(r.prose, block.Text)
@@ -135,6 +145,9 @@ func (r *ResultJSON) Reconcile(snapshot agent.SessionSnapshot) error {
 func (r *ResultJSON) fold(envelope agent.RunEvent) {
 	switch event := envelope.Event.(type) {
 	case agent.SegmentStarted:
+		if !event.Run.Lineage.IsRoot() {
+			return
+		}
 		if !r.started {
 			r.started = true
 			r.frame = resultFrame{Type: "result", Status: "incomplete"}
@@ -146,22 +159,37 @@ func (r *ResultJSON) fold(envelope agent.RunEvent) {
 			r.frame.RunID = envelope.RunID
 		}
 	case agent.BlockStarted:
-		r.begin(event.Block)
+		if r.scope.isRoot(envelope.RunID) {
+			r.begin(event.Block)
+		}
 	case agent.BlockDelta:
-		if body := r.live[event.BlockID]; body != nil {
-			body.WriteString(event.Text)
+		if r.scope.isRoot(envelope.RunID) {
+			if body := r.live[event.BlockID]; body != nil {
+				body.WriteString(event.Text)
+			}
 		}
 	case agent.BlockCompleted:
-		r.complete(event.Block)
+		if r.scope.isRoot(envelope.RunID) {
+			r.complete(event.Block)
+		}
 	case agent.RunInterrupted:
-		r.frame.Status = "interrupted"
-		r.frame.Interactions = encodeInteractions(event.Interactions)
-		r.frame.Usage = encodeUsage(event.Usage)
+		r.frame.Interactions = append(r.frame.Interactions, encodeInteractions(event.Interactions)...)
+		if r.scope.isRoot(envelope.RunID) {
+			r.frame.Status = "interrupted"
+			r.frame.Usage = encodeUsage(event.Usage)
+		}
+	case agent.RunSuspended:
+		if r.scope.isRoot(envelope.RunID) {
+			r.frame.Status = "interrupted"
+			r.frame.Usage = encodeUsage(event.Usage)
+		}
 	case agent.RunFinished:
-		r.frame.Status = string(event.Outcome.Status)
-		r.frame.Interactions = nil
-		finished := encodeFinishedFrame(event)
-		r.frame.Outcome, r.frame.Usage = finished.Outcome, finished.Usage
+		if r.scope.isRoot(envelope.RunID) {
+			r.frame.Status = string(event.Outcome.Status)
+			r.frame.Interactions = nil
+			finished := encodeFinishedFrame(event)
+			r.frame.Outcome, r.frame.Usage = finished.Outcome, finished.Usage
+		}
 	case agent.PlanChanged:
 		// A final result intentionally omits incremental plan state.
 	}

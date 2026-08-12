@@ -60,8 +60,9 @@ func TestLiveGroupedToolFinishesOnlyAfterItsAdjacencyWindowCloses(t *testing.T) 
 	tool := newToolBlock(toolGroupPresentation(view), agent.Block{ID: "read", RunID: "run-1", Kind: agent.BlockTool, Tool: &call})
 	group := view.addGroupedTool("run-1", tool)
 	tracked := trackedTool{id: group.id, block: tool}
-	view.tools["read"] = liveTool{blocks: []trackedTool{tracked}, group: group}
-	if err := view.deltaTool("read", "package live\n"); err != nil {
+	key := transcriptBlockKey("run-1", "read")
+	view.tools[key] = liveTool{runID: "run-1", blocks: []trackedTool{tracked}, group: group}
+	if err := view.deltaTool(key, "read", "package live\n"); err != nil {
 		t.Fatal(err)
 	}
 	completed := call

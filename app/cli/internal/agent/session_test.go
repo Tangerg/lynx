@@ -2,6 +2,7 @@ package agent
 
 import (
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -16,7 +17,7 @@ func TestSessionSnapshotRestoresDurableProjection(t *testing.T) {
 		PlanRevision: 3,
 		Runs:         []Run{{ID: "run_1", SessionID: "ses_1", Status: RunStatusWaiting}},
 		Interactions: []Interaction{Approval{
-			ItemID: "tool_1", Title: "edit", Rememberable: true,
+			RunID: "run_1", ItemID: "tool_1", Title: "edit", Rememberable: true,
 			Tool: &ToolCall{Kind: ToolEdit, Name: "edit", Status: ToolRunning},
 		}},
 	}
@@ -42,6 +43,63 @@ func TestSessionSnapshotRejectsWaitingWithoutInteractions(t *testing.T) {
 	}
 }
 
+func TestSessionUpdateRequiresIdentityAndAtLeastOneValidField(t *testing.T) {
+	title, workspace := "Title", "/workspace"
+	for _, test := range []struct {
+		name   string
+		update UpdateSession
+		valid  bool
+	}{
+		{name: "title", update: UpdateSession{SessionID: "ses_1", Title: &title}, valid: true},
+		{name: "workspace", update: UpdateSession{SessionID: "ses_1", Workspace: &workspace}, valid: true},
+		{name: "empty", update: UpdateSession{SessionID: "ses_1"}},
+		{name: "missing identity", update: UpdateSession{Title: &title}},
+		{name: "blank workspace", update: UpdateSession{SessionID: "ses_1", Workspace: new(string)}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			err := test.update.Validate()
+			if (err == nil) != test.valid {
+				t.Fatalf("Validate = %v, valid %t", err, test.valid)
+			}
+		})
+	}
+}
+
+func TestSessionSnapshotRestoresAChildOwnedInterrupt(t *testing.T) {
+	root := Run{ID: "run_root", SessionID: "ses_1", Status: RunStatusWaiting}
+	child := Run{
+		ID: "run_child", SessionID: "ses_1", Status: RunStatusWaiting,
+		Lineage: RunLineage{SpawnedByBlockID: "delegate", ParentRunID: root.ID, RootRunID: root.ID},
+	}
+	approval := Approval{
+		RunID: child.ID, ItemID: "approval", Title: "Read generated output",
+		Tool: &ToolCall{Kind: ToolRead, Name: "read", Status: ToolRunning},
+	}
+	snapshot := SessionSnapshot{
+		Session: Session{ID: "ses_1", Status: SessionWaiting, Workspace: "/tmp/demo"},
+		Runs:    []Run{root, child},
+		Transcript: []Block{
+			{ID: "delegate", RunID: root.ID, Status: BlockStatusRunning, Kind: BlockTool, Tool: &ToolCall{Kind: ToolTask, Name: "delegate_task", Status: ToolRunning}},
+			{ID: approval.ItemID, RunID: child.ID, Status: BlockStatusRunning, Kind: BlockTool, Tool: approval.Tool},
+		},
+		Interactions: []Interaction{approval},
+	}
+	if err := snapshot.Validate(); err != nil {
+		t.Fatalf("Validate: %v", err)
+	}
+	active, ok := snapshot.ActiveRun()
+	if !ok || active.ID != root.ID {
+		t.Fatalf("ActiveRun = %+v, %v", active, ok)
+	}
+	conversation := NewConversation()
+	if err := conversation.RestoreSnapshot(snapshot); err != nil {
+		t.Fatalf("RestoreSnapshot: %v", err)
+	}
+	if conversation.RunID() != root.ID || conversation.Interactions()[0].(Approval).RunID != child.ID {
+		t.Fatalf("restored tree = root %s interactions %+v", conversation.RunID(), conversation.Interactions())
+	}
+}
+
 func TestSessionSnapshotRestoresLatestFinishedRun(t *testing.T) {
 	snapshot := SessionSnapshot{
 		Session: Session{ID: "ses_1", Status: SessionIdle, Workspace: "/tmp/demo"},
@@ -60,9 +118,11 @@ func TestSessionSnapshotRestoresLatestFinishedRun(t *testing.T) {
 }
 
 func TestSessionSnapshotRejectsLifecycleDrift(t *testing.T) {
+	lineage := RunLineage{SpawnedByBlockID: "delegate", ParentRunID: "run_root", RootRunID: "run_root"}
 	for _, test := range []struct {
 		name     string
 		snapshot SessionSnapshot
+		want     string
 	}{
 		{
 			name: "running run with idle session",
@@ -81,10 +141,36 @@ func TestSessionSnapshotRejectsLifecycleDrift(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "waiting child beneath running root",
+			want: "waiting beneath running root",
+			snapshot: SessionSnapshot{
+				Session: Session{ID: "ses_1", Status: SessionRunning, Workspace: "/tmp/demo"},
+				Runs: []Run{
+					{ID: "run_root", SessionID: "ses_1", Status: RunStatusRunning, ActiveSegmentID: "seg_root"},
+					{ID: "run_child", SessionID: "ses_1", Lineage: lineage, Status: RunStatusWaiting},
+				},
+			},
+		},
+		{
+			name: "running child beneath waiting root",
+			want: "running beneath waiting root",
+			snapshot: SessionSnapshot{
+				Session: Session{ID: "ses_1", Status: SessionWaiting, Workspace: "/tmp/demo"},
+				Runs: []Run{
+					{ID: "run_root", SessionID: "ses_1", Status: RunStatusWaiting},
+					{ID: "run_child", SessionID: "ses_1", Lineage: lineage, Status: RunStatusRunning, ActiveSegmentID: "seg_child"},
+				},
+			},
+		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			if err := test.snapshot.Validate(); err == nil {
+			err := test.snapshot.Validate()
+			if err == nil {
 				t.Fatal("inconsistent snapshot was accepted")
+			}
+			if test.want != "" && !strings.Contains(err.Error(), test.want) {
+				t.Fatalf("snapshot error = %v, want %q", err, test.want)
 			}
 		})
 	}

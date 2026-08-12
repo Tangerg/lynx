@@ -53,6 +53,7 @@ type transcriptView struct {
 	textStreams     map[string]*liveText
 	toolViews       []trackedToolView
 	runEntries      map[string][]headless.BlockID
+	runLineages     map[string]agent.RunLineage
 	activeToolGroup *trackedToolGroup
 }
 
@@ -66,12 +67,14 @@ type transcriptSelection struct {
 const transcriptPrompt keymap.Action = "prompt"
 
 type liveTool struct {
+	runID  string
 	ids    []headless.BlockID
 	blocks []trackedTool
 	group  *trackedToolGroup
 }
 
 type liveText struct {
+	runID  string
 	stream markdown.Stream
 	stable []markdown.Block
 	block  *markdownBlock
@@ -147,8 +150,9 @@ func newTranscriptView(
 		search: headless.NewSearch(), current: -1, retain: max(retain, 4), details: details,
 		clipboard: clipboard, entries: make(map[headless.BlockID]*transcriptEntry),
 		tools: make(map[string]liveTool), textStreams: make(map[string]*liveText),
-		runEntries: make(map[string][]headless.BlockID),
-		keys:       transcriptKeys(),
+		runEntries:  make(map[string][]headless.BlockID),
+		runLineages: make(map[string]agent.RunLineage),
+		keys:        transcriptKeys(),
 	}
 	c.scroll.Wheel(wheel)
 	c.scroll.ToBottom()
@@ -519,6 +523,17 @@ func (c *transcriptView) Close() {
 }
 
 func (c *transcriptView) Apply(event agent.Event, registry *extensions.Registry) error {
+	return c.apply("", event, registry)
+}
+
+func (c *transcriptView) ApplyRunEvent(envelope agent.RunEvent, registry *extensions.Registry) error {
+	if started, ok := envelope.Event.(agent.SegmentStarted); ok {
+		c.runLineages[started.Run.ID] = started.Run.Lineage
+	}
+	return c.apply(envelope.RunID, envelope.Event, registry)
+}
+
+func (c *transcriptView) apply(runID string, event agent.Event, registry *extensions.Registry) error {
 	switch e := event.(type) {
 	case agent.BlockStarted:
 		if e.Block.Kind == agent.BlockAssistant || e.Block.Kind == agent.BlockReasoning {
@@ -529,14 +544,19 @@ func (c *transcriptView) Apply(event agent.Event, registry *extensions.Registry)
 		}
 		c.sealToolGroup()
 	case agent.BlockDelta:
-		if _, live := c.tools[e.BlockID]; live {
-			return c.deltaTool(e.BlockID, e.Text)
+		key := transcriptBlockKey(runID, e.BlockID)
+		if _, live := c.tools[key]; live {
+			return c.deltaTool(key, e.BlockID, e.Text)
 		}
-		return c.delta(e.BlockID, e.Text)
+		return c.delta(key, e.BlockID, e.Text)
 	case agent.BlockCompleted:
 		return c.complete(e.Block, registry)
 	case agent.RunFinished:
-		c.settleLive(e.Outcome)
+		if strings.TrimSpace(runID) == "" {
+			c.settleLive(e.Outcome)
+		} else {
+			c.settleRun(runID, e.Outcome)
+		}
 	case agent.RunInterrupted:
 		c.sealToolGroup()
 	}
@@ -544,32 +564,30 @@ func (c *transcriptView) Apply(event agent.Event, registry *extensions.Registry)
 }
 
 func (c *transcriptView) begin(block agent.Block) error {
-	if _, exists := c.textStreams[block.ID]; exists {
+	key := transcriptBlockKey(block.RunID, block.ID)
+	if _, exists := c.textStreams[key]; exists {
 		return fmt.Errorf("terminal transcript: text block %s started twice", block.ID)
 	}
-	if _, exists := c.tools[block.ID]; exists {
+	if _, exists := c.tools[key]; exists {
 		return fmt.Errorf("terminal transcript: block %s is already a live tool", block.ID)
 	}
 	c.sealToolGroup()
-	speaker := "lyra"
-	if block.Kind == agent.BlockReasoning {
-		speaker = "thinking"
-	}
-	live := &liveText{block: &markdownBlock{theme: c.theme, speaker: speaker}}
+	speaker := c.speakerFor(block)
+	live := &liveText{runID: block.RunID, block: &markdownBlock{theme: c.theme, speaker: speaker}}
 	live.stream.SetLook(c.lookFor(block.Kind))
 	live.id = c.place(live.block, false)
 	c.trackRunEntry(block.RunID, live.id)
-	c.textStreams[block.ID] = live
+	c.textStreams[key] = live
 	if block.Text != "" {
-		return c.delta(block.ID, block.Text)
+		return c.delta(key, block.ID, block.Text)
 	}
 	return nil
 }
 
-func (c *transcriptView) delta(id, chunk string) error {
-	live, ok := c.textStreams[id]
+func (c *transcriptView) delta(key, blockID, chunk string) error {
+	live, ok := c.textStreams[key]
 	if !ok {
-		return fmt.Errorf("terminal transcript: delta for inactive text block %s", id)
+		return fmt.Errorf("terminal transcript: delta for inactive text block %s", blockID)
 	}
 	live.stable = append(live.stable, live.stream.Feed(chunk)...)
 	blocks := slices.Clone(live.stable)
@@ -580,10 +598,10 @@ func (c *transcriptView) delta(id, chunk string) error {
 	return nil
 }
 
-func (c *transcriptView) deltaTool(id, chunk string) error {
-	live, ok := c.tools[id]
+func (c *transcriptView) deltaTool(key, blockID, chunk string) error {
+	live, ok := c.tools[key]
 	if !ok {
-		return fmt.Errorf("terminal transcript: delta for inactive tool block %s", id)
+		return fmt.Errorf("terminal transcript: delta for inactive tool block %s", blockID)
 	}
 	for _, tracked := range live.blocks {
 		tracked.block.AppendOutput(chunk)
@@ -595,7 +613,8 @@ func (c *transcriptView) deltaTool(id, chunk string) error {
 }
 
 func (c *transcriptView) complete(block agent.Block, registry *extensions.Registry) error {
-	if _, live := c.textStreams[block.ID]; live {
+	key := transcriptBlockKey(block.RunID, block.ID)
+	if _, live := c.textStreams[key]; live {
 		return c.completeStream(block)
 	}
 	if block.Kind == agent.BlockTool && c.completeLiveTool(block) {
@@ -605,7 +624,8 @@ func (c *transcriptView) complete(block agent.Block, registry *extensions.Regist
 }
 
 func (c *transcriptView) completeStream(block agent.Block) error {
-	live, ok := c.textStreams[block.ID]
+	key := transcriptBlockKey(block.RunID, block.ID)
+	live, ok := c.textStreams[key]
 	if !ok {
 		return fmt.Errorf("terminal transcript: completion for inactive text block %s", block.ID)
 	}
@@ -615,13 +635,14 @@ func (c *transcriptView) completeStream(block agent.Block) error {
 	c.content.Changed(live.id)
 	c.content.Finish(live.id)
 	live.stream.Reset()
-	delete(c.textStreams, block.ID)
+	delete(c.textStreams, key)
 	c.refreshSearch()
 	return nil
 }
 
 func (c *transcriptView) completeLiveTool(block agent.Block) bool {
-	live, ok := c.tools[block.ID]
+	key := transcriptBlockKey(block.RunID, block.ID)
+	live, ok := c.tools[key]
 	if !ok {
 		return false
 	}
@@ -636,7 +657,7 @@ func (c *transcriptView) completeLiveTool(block agent.Block) bool {
 			c.content.Finish(id)
 		}
 	}
-	delete(c.tools, block.ID)
+	delete(c.tools, key)
 	if len(live.blocks) == 0 {
 		return false
 	}
@@ -674,6 +695,43 @@ func (c *transcriptView) settleLive(outcome agent.Outcome) {
 	c.announceSelection()
 }
 
+func (c *transcriptView) settleRun(runID string, outcome agent.Outcome) {
+	for id, live := range c.textStreams {
+		if live.runID != runID {
+			continue
+		}
+		c.content.Finish(live.id)
+		live.stream.Reset()
+		delete(c.textStreams, id)
+	}
+	toolStatus := agent.ToolError
+	if outcome.Status == agent.OutcomeCanceled {
+		toolStatus = agent.ToolCanceled
+	}
+	for id, live := range c.tools {
+		if live.runID != runID {
+			continue
+		}
+		for _, tracked := range live.blocks {
+			tracked.block.Finish(toolStatus)
+			c.content.Changed(tracked.id)
+		}
+		if live.group != nil {
+			c.finishToolGroupIfReady(live.group)
+		} else {
+			for _, blockID := range live.ids {
+				c.content.Finish(blockID)
+			}
+		}
+		delete(c.tools, id)
+	}
+	if c.activeToolGroup != nil && c.activeToolGroup.runID == runID {
+		c.sealToolGroup()
+	}
+	c.refreshSearch()
+	c.announceSelection()
+}
+
 func (c *transcriptView) appendCompleted(block agent.Block, registry *extensions.Registry) error {
 	rendered, err := c.present(block, registry)
 	if err != nil {
@@ -705,10 +763,11 @@ func (c *transcriptView) appendCompleted(block agent.Block, registry *extensions
 }
 
 func (c *transcriptView) beginTool(block agent.Block, registry *extensions.Registry) error {
-	if _, exists := c.tools[block.ID]; exists {
+	key := transcriptBlockKey(block.RunID, block.ID)
+	if _, exists := c.tools[key]; exists {
 		return fmt.Errorf("terminal transcript: tool block %s started twice", block.ID)
 	}
-	if _, exists := c.textStreams[block.ID]; exists {
+	if _, exists := c.textStreams[key]; exists {
 		return fmt.Errorf("terminal transcript: block %s is already a live text block", block.ID)
 	}
 	rendered, err := c.present(block, registry)
@@ -718,12 +777,12 @@ func (c *transcriptView) beginTool(block agent.Block, registry *extensions.Regis
 	if tool, grouped := groupedTool(rendered); grouped {
 		group := c.addGroupedTool(block.RunID, tool)
 		tracked := trackedTool{id: group.id, block: tool}
-		c.tools[block.ID] = liveTool{blocks: []trackedTool{tracked}, group: group}
+		c.tools[key] = liveTool{runID: block.RunID, blocks: []trackedTool{tracked}, group: group}
 		c.refreshSearch()
 		return nil
 	}
 	c.sealToolGroup()
-	live := liveTool{}
+	live := liveTool{runID: block.RunID}
 	for _, item := range rendered {
 		mutable, isMutable := item.(mutableToolBlock)
 		if isMutable {
@@ -738,7 +797,7 @@ func (c *transcriptView) beginTool(block agent.Block, registry *extensions.Regis
 			c.toolViews = append(c.toolViews, trackedToolView{id: id, block: mutable})
 		}
 	}
-	c.tools[block.ID] = live
+	c.tools[key] = live
 	c.refreshSearch()
 	return nil
 }
@@ -795,7 +854,7 @@ func (c *transcriptView) present(block agent.Block, registry *extensions.Registr
 		if presenter.Kind == block.Kind {
 			return presentSafely(presenter, BlockPresentation{
 				Theme: c.theme, Glyphs: c.glyphs, Look: c.look, Syntax: c.syntax,
-				Tools: extensions.Values(registry, ToolPresenters),
+				Tools: extensions.Values(registry, ToolPresenters), Speaker: c.speakerFor(block),
 			}, block)
 		}
 	}
@@ -892,10 +951,41 @@ func (c *transcriptView) Reset() {
 	clear(c.tools)
 	clear(c.entries)
 	clear(c.runEntries)
+	clear(c.runLineages)
 	c.activeToolGroup = nil
 	c.hasSelected, c.pressedHeader, c.dragged = false, false, false
 	c.toolViews = nil
 	c.search.Submit(&c.content, "", false)
+}
+
+func (c *transcriptView) SetRuns(runs []agent.Run) {
+	clear(c.runLineages)
+	for _, run := range runs {
+		c.runLineages[run.ID] = run.Lineage
+	}
+}
+
+func (c *transcriptView) speakerFor(block agent.Block) string {
+	lineage, known := c.runLineages[block.RunID]
+	if !known || lineage.IsRoot() {
+		switch block.Kind {
+		case agent.BlockUser:
+			return "you"
+		case agent.BlockReasoning:
+			return "thinking"
+		default:
+			return "lyra"
+		}
+	}
+	identity := shortIdentity(block.RunID)
+	switch block.Kind {
+	case agent.BlockUser:
+		return "subagent input · " + identity
+	case agent.BlockReasoning:
+		return "subagent thinking · " + identity
+	default:
+		return "subagent · " + identity
+	}
 }
 
 func (c *transcriptView) trackRunEntry(runID string, id headless.BlockID) {
@@ -923,6 +1013,13 @@ func blockOffset(index int) headless.BlockID {
 		panic("terminal: negative transcript block offset")
 	}
 	return headless.BlockID(index) // #nosec G115 -- validated nonnegative and int cannot exceed uint64.
+}
+
+func transcriptBlockKey(runID, blockID string) string {
+	if runID == "" {
+		return blockID
+	}
+	return runID + "\x00" + blockID
 }
 
 func (c *transcriptView) Find(query string) {

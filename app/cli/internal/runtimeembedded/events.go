@@ -124,7 +124,7 @@ func (projection runEventProjection) segmentFinished() (projectedRunEvent, error
 		}
 		return includeRunEvent(agent.RunInterrupted{Interactions: interactions, Usage: usage}), nil
 	case protocol.SegmentSuspended:
-		return projectedRunEvent{}, fmt.Errorf("%w: event %s suspended for a child run", agent.ErrIncompatibleRuntime, projection.source.EventID)
+		return includeRunEvent(agent.RunSuspended{Usage: usage}), nil
 	default:
 		return includeRunEvent(agent.RunFinished{Outcome: projectOutcome(*stream.Outcome), Usage: usage}), nil
 	}

@@ -361,6 +361,7 @@ func (a *app) restore(snapshot agent.SessionSnapshot) {
 }
 
 func presentSnapshot(view *transcriptView, snapshot agent.SessionSnapshot, registry *extensions.Registry) error {
+	view.SetRuns(snapshot.Runs)
 	for _, block := range snapshot.Transcript {
 		var event agent.Event = agent.BlockCompleted{Block: block}
 		if block.Status == agent.BlockStatusRunning {

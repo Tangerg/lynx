@@ -396,21 +396,23 @@ func (a *app) apply(event agent.RunEvent) error {
 	if !result.Applied {
 		return nil
 	}
-	if err := a.transcript.Apply(event.Event, a.registry); err != nil {
+	if err := a.transcript.ApplyRunEvent(event, a.registry); err != nil {
 		return err
 	}
-	a.applyPresentationEvent(event.Event)
+	a.applyPresentationEvent(event)
 	a.transcript.DiscardExcess()
 	a.syncAnimation()
 	return nil
 }
 
-func (a *app) applyPresentationEvent(event agent.Event) {
-	switch event := event.(type) {
+func (a *app) applyPresentationEvent(envelope agent.RunEvent) {
+	switch event := envelope.Event.(type) {
 	case agent.SegmentStarted:
-		a.commitQueuedDispatch()
-		a.executionClock.start(event.Run.Usage.Duration, time.Now())
-		a.status.active("working")
+		if event.Run.Lineage.IsRoot() {
+			a.commitQueuedDispatch()
+			a.executionClock.start(event.Run.Usage.Duration, time.Now())
+			a.status.active("working")
+		}
 	case agent.BlockStarted:
 		a.noteBlockStarted(event.Block)
 	case agent.BlockCompleted:
@@ -420,11 +422,21 @@ func (a *app) applyPresentationEvent(event agent.Event) {
 	case agent.PlanChanged:
 		a.activity.Set(a.conversation.Plan())
 	case agent.RunInterrupted:
-		a.openInteractions(event.Interactions)
-		a.header.SetUsage(event.Usage)
-		a.status.note("waiting for your answers")
+		if a.conversation.Phase() == agent.ConversationWaiting {
+			a.openInteractions(a.conversation.Interactions())
+			a.header.SetUsage(a.conversation.Usage())
+			a.status.note("waiting for your answers")
+		}
+	case agent.RunSuspended:
+		if a.conversation.Phase() == agent.ConversationWaiting {
+			a.openInteractions(a.conversation.Interactions())
+			a.header.SetUsage(a.conversation.Usage())
+			a.status.note("waiting for your answers")
+		}
 	case agent.RunFinished:
-		a.noteRunFinished()
+		if envelope.RunID == a.conversation.RunID() {
+			a.noteRunFinished()
+		}
 	case agent.BlockDelta:
 	default:
 	}

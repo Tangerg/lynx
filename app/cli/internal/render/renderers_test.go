@@ -36,7 +36,7 @@ func TestNDJSONCarriesSegmentIdentityAndInterruptSet(t *testing.T) {
 		testEvent("evt_start", agent.SegmentStarted{Run: testRun()}),
 		testEvent("evt_wait", agent.RunInterrupted{Usage: agent.Usage{InputTokens: 42}, Interactions: []agent.Interaction{
 			testApproval("tool_1", "shell"),
-			agent.Question{ItemID: "question_1", Title: "choose", Fields: []agent.QuestionField{{Prompt: "Target", Kind: agent.QuestionSingle, Options: []agent.QuestionOption{{Label: "linux"}, {Label: "darwin"}}}}},
+			agent.Question{RunID: "run_1", ItemID: "question_1", Title: "choose", Fields: []agent.QuestionField{{Prompt: "Target", Kind: agent.QuestionSingle, Options: []agent.QuestionOption{{Label: "linux"}, {Label: "darwin"}}}}},
 		}}),
 	}
 	for _, event := range events {
@@ -75,7 +75,7 @@ func TestResultJSONClearsPriorInterruptWhenANewSegmentStarts(t *testing.T) {
 		t.Fatal(err)
 	}
 	question := agent.Question{
-		ItemID: "question_1", Title: "choose",
+		RunID: "run_1", ItemID: "question_1", Title: "choose",
 		Fields: []agent.QuestionField{{Prompt: "Target", Kind: agent.QuestionSingle, Options: []agent.QuestionOption{{Label: "linux"}, {Label: "darwin"}}}},
 	}
 	resumed := testRun()
@@ -121,6 +121,74 @@ func TestResultJSONFoldsFinalAssistantProjection(t *testing.T) {
 	}
 	if result["status"] != "completed" || result["text"] != "hello world" || result["runId"] != "run_1" {
 		t.Fatalf("result = %+v", result)
+	}
+}
+
+func TestRenderersPreserveChildRunIdentityWithoutSettlingTheRoot(t *testing.T) {
+	events := runTreeEvents()
+
+	var textOutput bytes.Buffer
+	textRenderer := NewText(&textOutput)
+	if err := textRenderer.Begin(testRun(), agent.RunOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	for _, event := range events {
+		if err := textRenderer.Render(event); err != nil {
+			t.Fatalf("render text %s: %v", event.EventID, err)
+		}
+		if event.EventID == "child-finished" && textRenderer.settled {
+			t.Fatal("child completion settled the root text renderer")
+		}
+	}
+	if err := textRenderer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"child answer", "root answer"} {
+		if !strings.Contains(textOutput.String(), want) {
+			t.Fatalf("tree text output is missing %q:\n%s", want, textOutput.String())
+		}
+	}
+
+	var streamOutput bytes.Buffer
+	streamRenderer := NewNDJSON(&streamOutput)
+	if err := streamRenderer.Begin(testRun(), agent.RunOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	for _, event := range events {
+		if err := streamRenderer.Render(event); err != nil {
+			t.Fatalf("render NDJSON %s: %v", event.EventID, err)
+		}
+	}
+	lines := strings.Split(strings.TrimSpace(streamOutput.String()), "\n")
+	var childStart eventRecord
+	if err := json.Unmarshal([]byte(lines[1]), &childStart); err != nil {
+		t.Fatal(err)
+	}
+	if childStart.Type != "segment.started" || childStart.RunID != "run_child" ||
+		childStart.ParentRunID != "run_1" || childStart.RootRunID != "run_1" ||
+		childStart.SpawnedByBlockID != "spawn" || childStart.StreamSegmentID != "seg_1" || childStart.SegmentID != "seg_child" {
+		t.Fatalf("child segment frame = %+v", childStart)
+	}
+
+	var resultOutput bytes.Buffer
+	resultRenderer := NewResultJSON(&resultOutput)
+	if err := resultRenderer.Begin(testRun(), agent.RunOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	for _, event := range events {
+		if err := resultRenderer.Render(event); err != nil {
+			t.Fatalf("render result %s: %v", event.EventID, err)
+		}
+	}
+	if err := resultRenderer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	var result resultFrame
+	if err := json.Unmarshal(resultOutput.Bytes(), &result); err != nil {
+		t.Fatal(err)
+	}
+	if result.RunID != "run_1" || result.Status != "completed" || result.Text != "root answer" {
+		t.Fatalf("tree result = %+v", result)
 	}
 }
 
@@ -256,6 +324,36 @@ func testEvents() []agent.RunEvent {
 	}
 }
 
+func runTreeEvents() []agent.RunEvent {
+	root := testRun()
+	child := agent.Run{
+		ID: "run_child", SessionID: root.SessionID,
+		Lineage:  agent.RunLineage{SpawnedByBlockID: "spawn", ParentRunID: root.ID, RootRunID: root.ID},
+		Provider: root.Provider, Model: root.Model, Status: agent.RunStatusRunning, ActiveSegmentID: "seg_child",
+	}
+	event := func(id, runID, segmentID string, payload agent.Event) agent.RunEvent {
+		return agent.RunEvent{
+			EventID: id, RunID: runID, SegmentID: segmentID, StreamSegmentID: root.ActiveSegmentID,
+			At: time.Unix(1, 0), Event: payload,
+		}
+	}
+	block := func(runID, text string, status agent.BlockStatus) agent.Block {
+		return agent.Block{ID: "answer", RunID: runID, Kind: agent.BlockAssistant, Status: status, Text: text}
+	}
+	return []agent.RunEvent{
+		event("root-started", root.ID, root.ActiveSegmentID, agent.SegmentStarted{Run: root}),
+		event("child-started", child.ID, child.ActiveSegmentID, agent.SegmentStarted{Run: child}),
+		event("child-block-started", child.ID, child.ActiveSegmentID, agent.BlockStarted{Block: block(child.ID, "", agent.BlockStatusRunning)}),
+		event("child-delta", child.ID, child.ActiveSegmentID, agent.BlockDelta{BlockID: "answer", Text: "child answer"}),
+		event("child-block-completed", child.ID, child.ActiveSegmentID, agent.BlockCompleted{Block: block(child.ID, "child answer", agent.BlockStatusCompleted)}),
+		event("child-finished", child.ID, child.ActiveSegmentID, agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCompleted}}),
+		event("root-block-started", root.ID, root.ActiveSegmentID, agent.BlockStarted{Block: block(root.ID, "", agent.BlockStatusRunning)}),
+		event("root-delta", root.ID, root.ActiveSegmentID, agent.BlockDelta{BlockID: "answer", Text: "root answer"}),
+		event("root-block-completed", root.ID, root.ActiveSegmentID, agent.BlockCompleted{Block: block(root.ID, "root answer", agent.BlockStatusCompleted)}),
+		event("root-finished", root.ID, root.ActiveSegmentID, agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCompleted}}),
+	}
+}
+
 func testEvent(id string, event agent.Event) agent.RunEvent {
 	switch item := event.(type) {
 	case agent.BlockStarted:
@@ -276,7 +374,7 @@ func testRun() agent.Run {
 
 func testApproval(itemID, title string) agent.Approval {
 	return agent.Approval{
-		ItemID: itemID, Title: title,
+		RunID: "run_1", ItemID: itemID, Title: title,
 		Tool: &agent.ToolCall{Kind: agent.ToolShell, Name: "shell", Status: agent.ToolRunning},
 	}
 }

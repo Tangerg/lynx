@@ -16,11 +16,13 @@ func projectRun(value protocol.RunRef) (agent.Run, error) {
 	if err := validateRunProfile(value.ProtocolProfile); err != nil {
 		return agent.Run{}, fmt.Errorf("run %s: %w", value.ID, err)
 	}
-	if value.ParentRunID != "" || value.RootRunID != "" || value.SpawnedByItemID != "" {
-		return agent.Run{}, fmt.Errorf("%w: child run %s is outside the CLI profile", agent.ErrIncompatibleRuntime, value.ID)
-	}
 	projected := agent.Run{
 		ID: value.ID, SessionID: value.SessionID, Provider: value.Provider, Model: value.Model,
+		Lineage: agent.RunLineage{
+			SpawnedByBlockID: value.SpawnedByItemID,
+			ParentRunID:      value.ParentRunID,
+			RootRunID:        value.RootRunID,
+		},
 		Status: agent.RunStatus(value.Status), ActiveSegmentID: value.ActiveSegmentID,
 		Usage: projectUsage(value.Metrics),
 	}
@@ -41,8 +43,15 @@ func projectRun(value protocol.RunRef) (agent.Run, error) {
 }
 
 func validateRunProfile(profile protocol.RunProtocolProfile) error {
-	if len(profile.RequiredFeatures) != 0 {
-		return fmt.Errorf("%w: required run features %v are unsupported", agent.ErrIncompatibleRuntime, profile.RequiredFeatures)
+	seenFeatures := make(map[protocol.RunProtocolFeature]struct{}, len(profile.RequiredFeatures))
+	for _, feature := range profile.RequiredFeatures {
+		if _, duplicate := seenFeatures[feature]; duplicate {
+			return fmt.Errorf("%w: duplicate required run feature %q", agent.ErrIncompatibleRuntime, feature)
+		}
+		seenFeatures[feature] = struct{}{}
+		if feature != protocol.RunProtocolFeatureSubagents {
+			return fmt.Errorf("%w: required run feature %q is unsupported", agent.ErrIncompatibleRuntime, feature)
+		}
 	}
 	seen := make(map[protocol.InterruptType]struct{}, len(profile.InterruptTypes))
 	for _, interruptType := range profile.InterruptTypes {
@@ -146,7 +155,7 @@ func projectInteraction(value protocol.Interrupt) (agent.Interaction, error) {
 			return nil, fmt.Errorf("approval %s: %w", value.ItemID, err)
 		}
 		approval := agent.Approval{
-			ItemID: value.ItemID, Title: "Approve " + tool.Name, Detail: value.Payload.Reason,
+			RunID: value.RunID, ItemID: value.ItemID, Title: "Approve " + tool.Name, Detail: value.Payload.Reason,
 			Tool: &tool, Risk: agent.ApprovalRisk(value.Payload.Risk), Rememberable: value.Payload.Rememberable,
 		}
 		if err := approval.Validate(); err != nil {
@@ -154,7 +163,7 @@ func projectInteraction(value protocol.Interrupt) (agent.Interaction, error) {
 		}
 		return approval, nil
 	case protocol.InterruptQuestion:
-		question, err := projectQuestion(value.ItemID, value.Payload.Question)
+		question, err := projectQuestion(value.RunID, value.ItemID, value.Payload.Question)
 		if err != nil {
 			return nil, err
 		}

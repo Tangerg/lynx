@@ -3,7 +3,6 @@ package terminal
 import (
 	"context"
 	"fmt"
-	"slices"
 	"strings"
 
 	"github.com/Tangerg/oolong/components/headless"
@@ -15,9 +14,10 @@ import (
 )
 
 type timelineEntry struct {
-	Run      agent.Run
-	Position int
-	Total    int
+	Run          agent.Run
+	RootPosition int
+	RootTotal    int
+	Depth        int
 }
 
 type timelinePane struct {
@@ -31,12 +31,18 @@ func newTimelinePane(theme kit.Theme, glyphs kit.Glyphs, jump func(timelineEntry
 	pane := &timelinePane{theme: theme, glyphs: glyphs, fork: fork}
 	pane.picker = newPicker(theme, glyphs, "search runs",
 		func(entry timelineEntry) string {
-			return fmt.Sprintf("Run %d of %d · %s", entry.Position, entry.Total, shortIdentity(entry.Run.ID))
+			if entry.Depth > 0 {
+				return strings.Repeat("  ", entry.Depth-1) + glyphs.Bullet + " Subagent · " + shortIdentity(entry.Run.ID)
+			}
+			return fmt.Sprintf("Run %d of %d · %s", entry.RootPosition, entry.RootTotal, shortIdentity(entry.Run.ID))
 		},
 		func(entry timelineEntry) string {
 			detail := string(entry.Run.Status)
 			if entry.Run.Model != "" {
 				detail = entry.Run.Model + " · " + detail
+			}
+			if entry.Depth > 0 {
+				detail += " · parent " + shortIdentity(entry.Run.Lineage.ParentRunID)
 			}
 			return detail
 		},
@@ -46,13 +52,43 @@ func newTimelinePane(theme kit.Theme, glyphs kit.Glyphs, jump func(timelineEntry
 }
 
 func (p *timelinePane) SetRuns(runs []agent.Run) {
-	entries := make([]timelineEntry, 0, len(runs))
-	for index, run := range runs {
-		entries = append(entries, timelineEntry{Run: run.Clone(), Position: index + 1, Total: len(runs)})
-	}
-	slices.Reverse(entries)
 	p.picker.Reset()
-	p.picker.SetItems(entries)
+	p.picker.SetItems(buildTimelineEntries(runs))
+}
+
+func buildTimelineEntries(runs []agent.Run) []timelineEntry {
+	children := make(map[string][]agent.Run)
+	var roots []agent.Run
+	for _, run := range runs {
+		if run.Lineage.IsRoot() {
+			roots = append(roots, run)
+		} else {
+			children[run.Lineage.ParentRunID] = append(children[run.Lineage.ParentRunID], run)
+		}
+	}
+	entries := make([]timelineEntry, 0, len(runs))
+	for index := len(roots) - 1; index >= 0; index-- {
+		root := roots[index]
+		entries = append(entries, timelineEntry{
+			Run: root.Clone(), RootPosition: index + 1, RootTotal: len(roots),
+		})
+		appendTimelineDescendants(&entries, children, root.ID, index+1, len(roots), 1)
+	}
+	return entries
+}
+
+func appendTimelineDescendants(
+	entries *[]timelineEntry,
+	children map[string][]agent.Run,
+	parentID string,
+	rootPosition, rootTotal, depth int,
+) {
+	for _, child := range children[parentID] {
+		*entries = append(*entries, timelineEntry{
+			Run: child.Clone(), RootPosition: rootPosition, RootTotal: rootTotal, Depth: depth,
+		})
+		appendTimelineDescendants(entries, children, child.ID, rootPosition, rootTotal, depth+1)
+	}
 }
 
 func (p *timelinePane) Draw(frame headless.Frame) {

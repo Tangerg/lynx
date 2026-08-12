@@ -9,7 +9,7 @@ import (
 
 func TestQuestionnaireOwnsAnswersAndNavigation(t *testing.T) {
 	question := agent.Question{
-		ItemID: "plan", Title: "Plan deployment",
+		RunID: "run_1", ItemID: "plan", Title: "Plan deployment",
 		Fields: []agent.QuestionField{
 			{Prompt: "Goal", Kind: agent.QuestionText},
 			{Prompt: "Strategy", Kind: agent.QuestionSingle, Options: []agent.QuestionOption{{Label: "Safe"}, {Label: "Fast"}}},
@@ -45,7 +45,7 @@ func TestQuestionnaireOwnsAnswersAndNavigation(t *testing.T) {
 
 func TestQuestionnaireNormalizesCustomMultipleValues(t *testing.T) {
 	question := agent.Question{
-		ItemID: "targets", Title: "Targets",
+		RunID: "run_1", ItemID: "targets", Title: "Targets",
 		Fields: []agent.QuestionField{{
 			Prompt: "Targets", Kind: agent.QuestionMulti, AllowCustom: true,
 			Options: []agent.QuestionOption{{Label: "linux"}, {Label: "darwin"}},
@@ -69,7 +69,7 @@ func TestQuestionnaireNormalizesCustomMultipleValues(t *testing.T) {
 
 func TestQuestionnaireRestoresOfferedAndCustomChoices(t *testing.T) {
 	question := agent.Question{
-		ItemID: "targets", Title: "Targets",
+		RunID: "run_1", ItemID: "targets", Title: "Targets",
 		Fields: []agent.QuestionField{
 			{Prompt: "Platform", Kind: agent.QuestionSingle, AllowCustom: true, Options: []agent.QuestionOption{{Label: "linux"}, {Label: "darwin"}}},
 			{Prompt: "Checks", Kind: agent.QuestionMulti, AllowCustom: true, Options: []agent.QuestionOption{{Label: "unit"}, {Label: "integration"}}},
@@ -117,7 +117,7 @@ func TestQuestionnaireRejectsMissingFieldsAndIncompleteAnswers(t *testing.T) {
 		t.Fatal("question without fields was accepted")
 	}
 	question := agent.Question{
-		ItemID: "goal", Title: "Goal",
+		RunID: "run_1", ItemID: "goal", Title: "Goal",
 		Fields: []agent.QuestionField{{Prompt: "Goal", Kind: agent.QuestionText}},
 	}
 	review, err := newQuestionnaire(question, nil)

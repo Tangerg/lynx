@@ -86,7 +86,7 @@ func (r *Runtime) listAllRuns(ctx context.Context, sessionID string) ([]protocol
 	for {
 		cursor := cursors.Current()
 		page, err := r.snapshot.ListRuns(ctx, protocol.ListRunsRequest{
-			SessionID: sessionID, IncludeDescendants: false,
+			SessionID: sessionID, IncludeDescendants: true,
 			PageQuery: protocol.PageQuery{Limit: 100, Cursor: cursor},
 		}, r.callOptions())
 		if err != nil {

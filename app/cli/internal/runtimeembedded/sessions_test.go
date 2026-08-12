@@ -13,7 +13,8 @@ import (
 )
 
 type sessionCatalogStub struct {
-	pages map[string]*protocol.Page[protocol.Session]
+	pages  map[string]*protocol.Page[protocol.Session]
+	update func(protocol.UpdateSessionRequest) (*protocol.Session, error)
 }
 
 func (stub sessionCatalogStub) ListSessions(_ context.Context, query protocol.PageQuery, _ embedded.CallOptions) (*protocol.Page[protocol.Session], error) {
@@ -24,12 +25,41 @@ func (sessionCatalogStub) CreateSession(context.Context, protocol.CreateSessionR
 	return nil, errors.New("unexpected CreateSession")
 }
 
-func (sessionCatalogStub) UpdateSession(context.Context, protocol.UpdateSessionRequest, embedded.CommandOptions) (*protocol.Session, error) {
+func (stub sessionCatalogStub) UpdateSession(_ context.Context, request protocol.UpdateSessionRequest, _ embedded.CommandOptions) (*protocol.Session, error) {
+	if stub.update != nil {
+		return stub.update(request)
+	}
 	return nil, errors.New("unexpected UpdateSession")
 }
 
 func (sessionCatalogStub) ForkSession(context.Context, protocol.ForkSessionRequest, embedded.CommandOptions) (*protocol.Session, error) {
 	return nil, errors.New("unexpected ForkSession")
+}
+
+func TestUpdateSessionProjectsEveryWritableField(t *testing.T) {
+	workspace, model, title, favorite := "/workspace/new", "deep", "Renamed", true
+	stub := sessionCatalogStub{update: func(request protocol.UpdateSessionRequest) (*protocol.Session, error) {
+		if request.SessionID != "ses_1" || request.ExpectedRevision != 7 || request.Title == nil || *request.Title != title ||
+			request.Workspace == nil || request.Workspace.Path != workspace || request.Model == nil || *request.Model != model ||
+			request.Favorite == nil || *request.Favorite != favorite {
+			t.Fatalf("update request = %+v", request)
+		}
+		return &protocol.Session{
+			ID: request.SessionID, Title: title, Status: protocol.SessionStatusIdle, Model: model,
+			Workspace: protocol.WorkspaceInfo{Ref: *request.Workspace}, Favorite: favorite, Revision: 8,
+		}, nil
+	}}
+	runtime := &Runtime{sessionCatalog: stub, meta: requestMeta("test")}
+	updated, err := runtime.UpdateSession(t.Context(), agent.UpdateSession{
+		SessionID: "ses_1", Title: &title, Workspace: &workspace, Model: &model,
+		Favorite: &favorite, ExpectedRevision: 7,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.Workspace != workspace || updated.Model != model || !updated.Favorite || updated.Revision != 8 {
+		t.Fatalf("updated session = %+v", updated)
+	}
 }
 
 func (sessionCatalogStub) DeleteSession(context.Context, protocol.DeleteSessionRequest, embedded.CommandOptions) error {

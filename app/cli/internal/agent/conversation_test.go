@@ -18,7 +18,7 @@ func TestConversationFoldsInitialAndResumedSegments(t *testing.T) {
 
 	interrupts := []Interaction{
 		runningApproval("item_approval", "run shell"),
-		Question{ItemID: "item_question", Title: "choose", Fields: []QuestionField{{Prompt: "Which?", Kind: QuestionSingle, Options: []QuestionOption{{Label: "A"}, {Label: "B"}}}}},
+		Question{RunID: "run_1", ItemID: "item_question", Title: "choose", Fields: []QuestionField{{Prompt: "Which?", Kind: QuestionSingle, Options: []QuestionOption{{Label: "A"}, {Label: "B"}}}}},
 	}
 	approval := interrupts[0].(Approval)
 	apply(t, conversation, RunEvent{EventID: "approval-start", RunID: "run_1", SegmentID: "seg_1", Event: BlockStarted{Block: Block{
@@ -71,6 +71,100 @@ func TestConversationRejectsRegressingRunUsage(t *testing.T) {
 	}
 	if _, err := conversation.ApplyRunEvent(RunEvent{EventID: "wait", RunID: "run_1", SegmentID: "seg_1", Event: interrupted}); !errors.Is(err, ErrInvalidTransition) {
 		t.Fatalf("regressing usage error = %v", err)
+	}
+}
+
+func TestConversationFoldsAChildRunWithoutEndingTheRootStream(t *testing.T) {
+	conversation := NewConversation()
+	if err := conversation.Starting(); err != nil {
+		t.Fatal(err)
+	}
+	root := runningRun("seg_root")
+	apply(t, conversation, treeEvent("open-root", root.ID, root.ActiveSegmentID, root.ActiveSegmentID, SegmentStarted{Run: root}))
+	delegate := Block{
+		ID: "delegate", RunID: root.ID, Status: BlockStatusRunning, Kind: BlockTool,
+		Tool: &ToolCall{Kind: ToolTask, Name: "delegate_task", Status: ToolRunning},
+	}
+	apply(t, conversation, treeEvent("delegate-start", root.ID, root.ActiveSegmentID, root.ActiveSegmentID, BlockStarted{Block: delegate}))
+
+	child := runningRun("seg_child")
+	child.ID = "run_child"
+	child.Lineage = RunLineage{SpawnedByBlockID: delegate.ID, ParentRunID: root.ID, RootRunID: root.ID}
+	apply(t, conversation, treeEvent("open-child", child.ID, child.ActiveSegmentID, root.ActiveSegmentID, SegmentStarted{Run: child}))
+	childAnswer := Block{ID: "child-answer", RunID: child.ID, Status: BlockStatusRunning, Kind: BlockAssistant}
+	apply(t, conversation, treeEvent("child-answer-start", child.ID, child.ActiveSegmentID, root.ActiveSegmentID, BlockStarted{Block: childAnswer}))
+	apply(t, conversation, treeEvent("child-answer-delta", child.ID, child.ActiveSegmentID, root.ActiveSegmentID, BlockDelta{BlockID: childAnswer.ID, Text: "inspection"}))
+	childAnswer.Status, childAnswer.Text = BlockStatusCompleted, "inspection complete"
+	apply(t, conversation, treeEvent("child-answer-done", child.ID, child.ActiveSegmentID, root.ActiveSegmentID, BlockCompleted{Block: childAnswer}))
+	apply(t, conversation, treeEvent("child-done", child.ID, child.ActiveSegmentID, root.ActiveSegmentID, RunFinished{Outcome: Outcome{Status: OutcomeCompleted}, Usage: Usage{InputTokens: 4}}))
+	if conversation.Phase() != ConversationRunning || conversation.RunID() != root.ID {
+		t.Fatalf("child terminal ended root conversation: phase=%v run=%s", conversation.Phase(), conversation.RunID())
+	}
+
+	delegate.Status = BlockStatusCompleted
+	delegate.Tool.Status = ToolOK
+	apply(t, conversation, treeEvent("delegate-done", root.ID, root.ActiveSegmentID, root.ActiveSegmentID, BlockCompleted{Block: delegate}))
+	apply(t, conversation, treeEvent("root-done", root.ID, root.ActiveSegmentID, root.ActiveSegmentID, RunFinished{Outcome: Outcome{Status: OutcomeCompleted}, Usage: Usage{InputTokens: 8}}))
+	if conversation.Phase() != ConversationIdle || conversation.Outcome().Status != OutcomeCompleted {
+		t.Fatalf("root terminal projection = phase %v outcome %+v", conversation.Phase(), conversation.Outcome())
+	}
+	if blocks := conversation.Blocks(); len(blocks) != 2 || blocks[1].RunID != child.ID || blocks[1].Text != "inspection complete" {
+		t.Fatalf("tree transcript = %+v", blocks)
+	}
+}
+
+func TestConversationResumesATreeInterruptedByAChild(t *testing.T) {
+	conversation := NewConversation()
+	root := runningRun("seg_root_1")
+	apply(t, conversation, treeEvent("root-start-1", root.ID, root.ActiveSegmentID, root.ActiveSegmentID, SegmentStarted{Run: root}))
+	delegate := Block{
+		ID: "delegate", RunID: root.ID, Status: BlockStatusRunning, Kind: BlockTool,
+		Tool: &ToolCall{Kind: ToolTask, Name: "delegate_task", Status: ToolRunning},
+	}
+	apply(t, conversation, treeEvent("delegate-start", root.ID, root.ActiveSegmentID, root.ActiveSegmentID, BlockStarted{Block: delegate}))
+	child := runningRun("seg_child_1")
+	child.ID = "run_child"
+	child.Lineage = RunLineage{SpawnedByBlockID: delegate.ID, ParentRunID: root.ID, RootRunID: root.ID}
+	apply(t, conversation, treeEvent("child-start-1", child.ID, child.ActiveSegmentID, root.ActiveSegmentID, SegmentStarted{Run: child}))
+	approval := Approval{
+		RunID: child.ID, ItemID: "child-approval", Title: "Inspect generated output",
+		Tool: &ToolCall{Kind: ToolRead, Name: "read", Status: ToolRunning},
+	}
+	apply(t, conversation, treeEvent("approval-start", child.ID, child.ActiveSegmentID, root.ActiveSegmentID, BlockStarted{Block: Block{
+		ID: approval.ItemID, RunID: child.ID, Status: BlockStatusRunning, Kind: BlockTool, Tool: approval.Tool,
+	}}))
+	apply(t, conversation, treeEvent("child-wait", child.ID, child.ActiveSegmentID, root.ActiveSegmentID, RunInterrupted{Interactions: []Interaction{approval}, Usage: Usage{InputTokens: 3}}))
+	apply(t, conversation, treeEvent("root-suspend", root.ID, root.ActiveSegmentID, root.ActiveSegmentID, RunSuspended{Usage: Usage{InputTokens: 5}}))
+	if conversation.Phase() != ConversationWaiting || len(conversation.Interactions()) != 1 || conversation.Interactions()[0].(Approval).RunID != child.ID {
+		t.Fatalf("tree wait = phase %v interactions %+v", conversation.Phase(), conversation.Interactions())
+	}
+
+	resumedRoot := root
+	resumedRoot.ActiveSegmentID = "seg_root_2"
+	resumedRoot.Usage = Usage{InputTokens: 5}
+	resumedChild := child
+	resumedChild.ActiveSegmentID = "seg_child_2"
+	resumedChild.Usage = Usage{InputTokens: 3}
+	apply(t, conversation, treeEvent("child-start-2", child.ID, resumedChild.ActiveSegmentID, resumedRoot.ActiveSegmentID, SegmentStarted{Run: resumedChild}))
+	apply(t, conversation, treeEvent("root-start-2", root.ID, resumedRoot.ActiveSegmentID, resumedRoot.ActiveSegmentID, SegmentStarted{Run: resumedRoot}))
+	completedApproval := approval.Tool.Clone()
+	completedApproval.Status = ToolOK
+	apply(t, conversation, treeEvent("approval-done", child.ID, resumedChild.ActiveSegmentID, resumedRoot.ActiveSegmentID, BlockCompleted{Block: Block{
+		ID: approval.ItemID, RunID: child.ID, Status: BlockStatusCompleted, Kind: BlockTool, Tool: &completedApproval,
+	}}))
+	apply(t, conversation, treeEvent("child-done", child.ID, resumedChild.ActiveSegmentID, resumedRoot.ActiveSegmentID, RunFinished{Outcome: Outcome{Status: OutcomeCompleted}, Usage: Usage{InputTokens: 4}}))
+	delegate.Status, delegate.Tool.Status = BlockStatusCompleted, ToolOK
+	apply(t, conversation, treeEvent("delegate-done", root.ID, resumedRoot.ActiveSegmentID, resumedRoot.ActiveSegmentID, BlockCompleted{Block: delegate}))
+	apply(t, conversation, treeEvent("root-done", root.ID, resumedRoot.ActiveSegmentID, resumedRoot.ActiveSegmentID, RunFinished{Outcome: Outcome{Status: OutcomeCompleted}, Usage: Usage{InputTokens: 9}}))
+	if conversation.Phase() != ConversationIdle || conversation.SegmentID() != resumedRoot.ActiveSegmentID {
+		t.Fatalf("resumed tree = phase %v segment %s", conversation.Phase(), conversation.SegmentID())
+	}
+}
+
+func treeEvent(eventID, runID, segmentID, streamSegmentID string, event Event) RunEvent {
+	return RunEvent{
+		EventID: eventID, RunID: runID, SegmentID: segmentID,
+		StreamSegmentID: streamSegmentID, Event: event,
 	}
 }
 

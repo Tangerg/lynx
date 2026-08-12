@@ -6,13 +6,24 @@ import (
 )
 
 // RunEvent is one projected runtime event. EventID is an opaque replay token
-// scoped to SegmentID.
+// scoped to the root StreamSegmentID; SegmentID identifies the producing run.
 type RunEvent struct {
-	EventID   string
-	RunID     string
-	SegmentID string
-	At        time.Time
-	Event     Event
+	EventID         string
+	RunID           string
+	SegmentID       string
+	StreamSegmentID string
+	At              time.Time
+	Event           Event
+}
+
+// StreamSegment returns the root segment whose journal owns this event. A
+// root-only producer may omit StreamSegmentID because its producer segment is
+// also the stream segment; tree adapters set it explicitly for every event.
+func (e RunEvent) StreamSegment() string {
+	if e.StreamSegmentID != "" {
+		return e.StreamSegmentID
+	}
+	return e.SegmentID
 }
 
 func (e RunEvent) Clone() RunEvent {
@@ -25,7 +36,7 @@ func (e RunEvent) Clone() RunEvent {
 // process-local monotonic reading that cannot survive persistence.
 func (e RunEvent) Equal(other RunEvent) bool {
 	return e.EventID == other.EventID && e.RunID == other.RunID && e.SegmentID == other.SegmentID &&
-		e.At.Equal(other.At) && equalEvent(e.Event, other.Event)
+		e.StreamSegment() == other.StreamSegment() && e.At.Equal(other.At) && equalEvent(e.Event, other.Event)
 }
 
 type Event interface{ isEvent() }
@@ -56,6 +67,11 @@ type RunInterrupted struct {
 	Usage        Usage
 }
 
+// RunSuspended closes a member segment because another run in the same tree
+// interrupted. It carries no duplicate interactions; the tree-level pending
+// set is assembled from the member that raised them.
+type RunSuspended struct{ Usage Usage }
+
 type RunFinished struct {
 	Outcome Outcome
 	Usage   Usage
@@ -67,13 +83,14 @@ func (BlockDelta) isEvent()     {}
 func (BlockCompleted) isEvent() {}
 func (PlanChanged) isEvent()    {}
 func (RunInterrupted) isEvent() {}
+func (RunSuspended) isEvent()   {}
 func (RunFinished) isEvent()    {}
 
 // ReplayableEvent reports whether the underlying runtime retains this event in
 // its segment journal. Deltas are deliberately ephemeral.
 func ReplayableEvent(event Event) bool {
 	switch event.(type) {
-	case SegmentStarted, BlockStarted, BlockCompleted, PlanChanged, RunInterrupted, RunFinished:
+	case SegmentStarted, BlockStarted, BlockCompleted, PlanChanged, RunInterrupted, RunSuspended, RunFinished:
 		return true
 	default:
 		return false
@@ -98,6 +115,9 @@ func CloneEvent(event Event) Event {
 		return item
 	case RunInterrupted:
 		item.Interactions = CloneInteractions(item.Interactions)
+		item.Usage = item.Usage.Clone()
+		return item
+	case RunSuspended:
 		item.Usage = item.Usage.Clone()
 		return item
 	case RunFinished:
@@ -128,6 +148,9 @@ func equalEvent(left, right Event) bool {
 	case RunInterrupted:
 		other, ok := right.(RunInterrupted)
 		return ok && item.Usage.Equal(other.Usage) && equalInteractions(item.Interactions, other.Interactions)
+	case RunSuspended:
+		other, ok := right.(RunSuspended)
+		return ok && item.Usage.Equal(other.Usage)
 	case RunFinished:
 		other, ok := right.(RunFinished)
 		return ok && item.Outcome == other.Outcome && item.Usage.Equal(other.Usage)

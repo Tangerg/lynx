@@ -25,11 +25,72 @@ func newSessionsCommand(provider runtimeProvider) *cobra.Command {
 	sessions.AddCommand(
 		newSessionsListCommand(provider),
 		newSessionsShowCommand(provider),
+		newSessionsUpdateCommand(provider),
 		newSessionsRenameCommand(provider),
 		newSessionsForkCommand(provider),
 		newSessionsDeleteCommand(provider),
 	)
 	return sessions
+}
+
+func newSessionsUpdateCommand(provider runtimeProvider) *cobra.Command {
+	var (
+		title, workspace, model string
+		favorite                bool
+		revision                uint64
+	)
+	cmd := &cobra.Command{
+		Use:          "update <session-id>",
+		Short:        "Update session metadata, model, or workspace",
+		Args:         cobra.ExactArgs(1),
+		SilenceUsage: true,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			update := agent.UpdateSession{SessionID: args[0], ExpectedRevision: revision}
+			if cmd.Flags().Changed("title") {
+				update.Title = &title
+			}
+			if cmd.Flags().Changed("workspace") {
+				resolved, err := canonicalWorkspacePath(workspace)
+				if err != nil {
+					return err
+				}
+				update.Workspace = &resolved
+			}
+			if cmd.Flags().Changed("model") {
+				update.Model = &model
+			}
+			if cmd.Flags().Changed("favorite") {
+				update.Favorite = &favorite
+			}
+			if err := update.Validate(); err != nil {
+				return err
+			}
+			runtime, err := provider.Open(cmd)
+			if err != nil {
+				return err
+			}
+			updated, err := runtime.UpdateSession(cmd.Context(), update)
+			if err != nil {
+				return err
+			}
+			if err := updated.Validate(); err != nil {
+				return fmt.Errorf("update session: %w", err)
+			}
+			return json.NewEncoder(cmd.OutOrStdout()).Encode(sessionJSON{
+				ID: updated.ID, Title: updated.Title, Status: string(updated.Status), Model: updated.Model,
+				Workspace: updated.Workspace, CreatedAt: updated.CreatedAt, UpdatedAt: updated.UpdatedAt,
+				Favorite: updated.Favorite, Revision: updated.Revision,
+			})
+		},
+	}
+	cmd.Flags().StringVar(&title, "title", "", "Replace the session title")
+	cmd.Flags().StringVar(&workspace, "workspace", "", "Relocate the session to this workspace")
+	cmd.Flags().StringVar(&model, "model", "", "Set the session model (empty selects the runtime default)")
+	cmd.Flags().BoolVar(&favorite, "favorite", false, "Set whether the session is a favorite")
+	cmd.Flags().Uint64Var(&revision, "revision", 0, "Revision previously read from sessions ls/show")
+	_ = cmd.MarkFlagRequired("revision")
+	cmd.ValidArgsFunction = completeFirstSessionArgument(provider)
+	return cmd
 }
 
 func newSessionsListCommand(provider runtimeProvider) *cobra.Command {
@@ -141,26 +202,14 @@ func newSessionsShowCommand(provider runtimeProvider) *cobra.Command {
 	return cmd
 }
 
-type sessionRenderer interface {
-	Render(agent.RunEvent) error
-	Close() error
-}
-
-func writeSessionSnapshot(cmd *cobra.Command, snapshot agent.SessionSnapshot, asJSON bool) (writeErr error) {
+func writeSessionSnapshot(cmd *cobra.Command, snapshot agent.SessionSnapshot, asJSON bool) error {
 	if asJSON {
 		return render.WriteSessionSnapshotJSON(cmd.OutOrStdout(), snapshot)
 	}
-	var output sessionRenderer = render.NewText(cmd.OutOrStdout())
 	if _, err := fmt.Fprintf(cmd.OutOrStdout(), "%s · %s\n", snapshot.Session.Title, snapshot.Session.Workspace); err != nil {
 		return err
 	}
-	defer func() { writeErr = errors.Join(writeErr, output.Close()) }()
-	for _, block := range snapshot.Transcript {
-		if err := output.Render(agent.RunEvent{EventID: block.ID, RunID: "cold-read", SegmentID: "cold-read", Event: agent.BlockCompleted{Block: block}}); err != nil {
-			return err
-		}
-	}
-	return nil
+	return render.WriteSessionTranscript(cmd.OutOrStdout(), snapshot)
 }
 
 func newSessionsRenameCommand(provider runtimeProvider) *cobra.Command {

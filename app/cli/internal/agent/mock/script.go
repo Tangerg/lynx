@@ -50,7 +50,11 @@ func (s Script) validate() error {
 	}
 	interrupted := s.interrupts()
 	if interrupted {
-		if err := agent.ValidateInteractions(s.Interactions); err != nil {
+		interactions := agent.CloneInteractions(s.Interactions)
+		for i, interaction := range interactions {
+			interactions[i] = bindInteractionToRun(interaction, "fixture")
+		}
+		if err := agent.ValidateInteractions(interactions); err != nil {
 			return err
 		}
 	} else if s.Continue != nil {
@@ -179,12 +183,26 @@ func namespaceSteps(steps []Step, runID string) []Step {
 }
 
 func namespaceInteraction(interaction agent.Interaction, runID string) agent.Interaction {
+	interaction = bindInteractionToRun(interaction, runID)
 	switch item := interaction.(type) {
 	case agent.Approval:
 		item.ItemID = runID + ":" + item.ItemID
 		return item
 	case agent.Question:
 		item.ItemID = runID + ":" + item.ItemID
+		return item
+	default:
+		return nil
+	}
+}
+
+func bindInteractionToRun(interaction agent.Interaction, runID string) agent.Interaction {
+	switch item := interaction.(type) {
+	case agent.Approval:
+		item.RunID = runID
+		return item
+	case agent.Question:
+		item.RunID = runID
 		return item
 	default:
 		return nil

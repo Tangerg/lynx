@@ -30,15 +30,18 @@ type sessionFrame struct {
 }
 
 type runFrame struct {
-	ID              string          `json:"id"`
-	SessionID       string          `json:"sessionId"`
-	Provider        string          `json:"provider,omitempty"`
-	Model           string          `json:"model,omitempty"`
-	Status          string          `json:"status"`
-	ActiveSegmentID string          `json:"activeSegmentId,omitempty"`
-	Limits          *runLimitsFrame `json:"limits,omitempty"`
-	Outcome         *outcomeJSON    `json:"outcome,omitempty"`
-	Usage           usageJSON       `json:"usage"`
+	ID               string          `json:"id"`
+	SessionID        string          `json:"sessionId"`
+	SpawnedByBlockID string          `json:"spawnedByBlockId,omitempty"`
+	ParentRunID      string          `json:"parentRunId,omitempty"`
+	RootRunID        string          `json:"rootRunId,omitempty"`
+	Provider         string          `json:"provider,omitempty"`
+	Model            string          `json:"model,omitempty"`
+	Status           string          `json:"status"`
+	ActiveSegmentID  string          `json:"activeSegmentId,omitempty"`
+	Limits           *runLimitsFrame `json:"limits,omitempty"`
+	Outcome          *outcomeJSON    `json:"outcome,omitempty"`
+	Usage            usageJSON       `json:"usage"`
 }
 
 type runLimitsFrame struct {
@@ -75,18 +78,25 @@ func WriteSessionSnapshotJSON(w io.Writer, snapshot agent.SessionSnapshot) error
 		record.Transcript = append(record.Transcript, *encodeBlock(block))
 	}
 	for _, run := range snapshot.Runs {
-		encoded := runFrame{
-			ID: run.ID, SessionID: run.SessionID, Provider: run.Provider, Model: run.Model,
-			Status: string(run.Status), ActiveSegmentID: run.ActiveSegmentID,
-			Usage: *encodeUsage(run.Usage),
-		}
-		if run.Limits != (agent.RunLimits{}) {
-			encoded.Limits = &runLimitsFrame{MaxTotalTokens: run.Limits.MaxTotalTokens, MaxSteps: run.Limits.MaxSteps, MaxBudgetUSD: run.Limits.MaxBudgetUSD}
-		}
-		if run.Status == agent.RunStatusFinished {
-			encoded.Outcome = &outcomeJSON{Status: string(run.Outcome.Status), Error: run.Outcome.Error, Detail: run.Outcome.Detail}
-		}
-		record.Runs = append(record.Runs, encoded)
+		record.Runs = append(record.Runs, encodeRun(run))
 	}
 	return json.NewEncoder(w).Encode(record)
+}
+
+func encodeRun(run agent.Run) runFrame {
+	encoded := runFrame{
+		ID: run.ID, SessionID: run.SessionID,
+		SpawnedByBlockID: run.Lineage.SpawnedByBlockID,
+		ParentRunID:      run.Lineage.ParentRunID, RootRunID: run.Lineage.RootRunID,
+		Provider: run.Provider, Model: run.Model,
+		Status: string(run.Status), ActiveSegmentID: run.ActiveSegmentID,
+		Usage: *encodeUsage(run.Usage),
+	}
+	if run.Limits != (agent.RunLimits{}) {
+		encoded.Limits = &runLimitsFrame{MaxTotalTokens: run.Limits.MaxTotalTokens, MaxSteps: run.Limits.MaxSteps, MaxBudgetUSD: run.Limits.MaxBudgetUSD}
+	}
+	if run.Status == agent.RunStatusFinished {
+		encoded.Outcome = &outcomeJSON{Status: string(run.Outcome.Status), Error: run.Outcome.Error, Detail: run.Outcome.Detail}
+	}
+	return encoded
 }

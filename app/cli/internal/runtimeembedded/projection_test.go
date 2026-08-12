@@ -76,7 +76,7 @@ func TestProjectEventSkipsEphemeralFramesAndClassifiesStreams(t *testing.T) {
 	streamError := errors.New("broken stream")
 	stream := projectEventStream(func(yield func(protocol.RunEvent, error) bool) {
 		yield(protocol.RunEvent{}, streamError)
-	})
+	}, "seg_1")
 	for _, err := range stream {
 		if !errors.Is(err, streamError) {
 			t.Fatalf("stream error = %v", err)
@@ -86,13 +86,60 @@ func TestProjectEventSkipsEphemeralFramesAndClassifiesStreams(t *testing.T) {
 	t.Fatal("stream yielded no error")
 }
 
-func TestRunProfileRejectsShapeChangingFeatures(t *testing.T) {
+func TestRunProfileAcceptsSubagentTrees(t *testing.T) {
 	err := validateRunProfile(protocol.RunProtocolProfile{
 		RequiredFeatures: []protocol.RunProtocolFeature{protocol.RunProtocolFeatureSubagents},
 	})
-	if !errors.Is(err, agent.ErrIncompatibleRuntime) {
-		t.Fatalf("error = %v, want ErrIncompatibleRuntime", err)
+	if err != nil {
+		t.Fatalf("validateRunProfile: %v", err)
 	}
+}
+
+func TestProjectChildRunPreservesLineage(t *testing.T) {
+	projected, err := projectRun(protocol.RunRef{
+		RunSummary: protocol.RunSummary{
+			ID: "run_child", SessionID: "ses_1", Status: protocol.RunStatusRunning,
+			SpawnedByItemID: "item_delegate", ParentRunID: "run_root", RootRunID: "run_root",
+		},
+		ActiveSegmentID: "seg_child",
+		ProtocolProfile: protocol.RunProtocolProfile{
+			RequiredFeatures: []protocol.RunProtocolFeature{protocol.RunProtocolFeatureSubagents},
+			InterruptTypes:   []protocol.InterruptType{protocol.InterruptApproval, protocol.InterruptQuestion},
+		},
+	})
+	if err != nil {
+		t.Fatalf("projectRun: %v", err)
+	}
+	want := agent.RunLineage{SpawnedByBlockID: "item_delegate", ParentRunID: "run_root", RootRunID: "run_root"}
+	if projected.Lineage != want {
+		t.Fatalf("lineage = %+v, want %+v", projected.Lineage, want)
+	}
+}
+
+func TestProjectTreeStreamRetainsProducerAndStreamSegments(t *testing.T) {
+	source := func(yield func(protocol.RunEvent, error) bool) {
+		yield(protocol.RunEvent{
+			RunID: "run_root", SegmentID: "seg_root", EventID: "evt_suspend",
+			Event: protocol.StreamEvent{
+				Type:    protocol.StreamSegmentFinished,
+				Outcome: &protocol.SegmentOutcome{Type: protocol.SegmentSuspended},
+				Metrics: &protocol.RunMetrics{},
+			},
+		}, nil)
+	}
+	for event, err := range projectEventStream(source, "seg_root") {
+		if err != nil {
+			t.Fatal(err)
+		}
+		if event.StreamSegment() != "seg_root" || event.SegmentID != "seg_root" {
+			t.Fatalf("event segments = producer %s stream %s", event.SegmentID, event.StreamSegment())
+		}
+		if _, ok := event.Event.(agent.RunSuspended); !ok {
+			t.Fatalf("event = %T, want RunSuspended", event.Event)
+		}
+		return
+	}
+	t.Fatal("tree stream yielded no event")
 }
 
 func TestProjectSnapshotKeepsPendingApprovalIdenticalToToolItem(t *testing.T) {

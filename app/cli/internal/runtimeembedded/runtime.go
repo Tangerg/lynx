@@ -185,6 +185,9 @@ func requestMeta(version string) protocol.RequestMeta {
 		ProtocolVersion: protocol.ProtocolVersion,
 		ClientInfo:      &protocol.ClientInfo{Name: clientName, Version: version},
 		ClientCapabilities: &protocol.ClientCapabilities{
+			Features: map[string]protocol.FeaturePreference{
+				protocol.FeatureSubagents: {Enabled: true},
+			},
 			InterruptTypes:          supportedInterruptTypes(),
 			ExcludedEphemeralEvents: excludedEphemeralRunEvents(),
 		},

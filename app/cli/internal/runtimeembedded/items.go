@@ -46,7 +46,7 @@ func (projection *itemProjection) project() error {
 		projection.block.Text = projection.source.Text
 	case protocol.ItemTypeQuestion:
 		projection.block.Kind = agent.BlockQuestion
-		question, err := projectQuestion(projection.source.ID, projection.source.Question)
+		question, err := projectQuestion(projection.source.RunID, projection.source.ID, projection.source.Question)
 		if err != nil {
 			return err
 		}
@@ -95,11 +95,11 @@ func validateProjectedBlock(block agent.Block) error {
 	return agent.ValidateEvent(event)
 }
 
-func projectQuestion(itemID string, value *protocol.Question) (agent.Question, error) {
+func projectQuestion(runID, itemID string, value *protocol.Question) (agent.Question, error) {
 	if value == nil {
 		return agent.Question{}, fmt.Errorf("question item %s has no payload", itemID)
 	}
-	question := agent.Question{ItemID: itemID, Fields: make([]agent.QuestionField, 0, len(value.Fields))}
+	question := agent.Question{RunID: runID, ItemID: itemID, Fields: make([]agent.QuestionField, 0, len(value.Fields))}
 	for _, field := range value.Fields {
 		projected := agent.QuestionField{
 			Prompt: field.Prompt, Header: field.Header, AllowCustom: field.AllowCustom,

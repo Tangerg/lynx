@@ -128,6 +128,9 @@ func (r *Runtime) CreateSession(ctx context.Context, in agent.CreateSession) (ag
 }
 
 func (r *Runtime) UpdateSession(ctx context.Context, in agent.UpdateSession) (agent.Session, error) {
+	if err := in.Validate(); err != nil {
+		return agent.Session{}, fmt.Errorf("mock: %w", err)
+	}
 	if err := context.Cause(ctx); err != nil {
 		return agent.Session{}, err
 	}
@@ -140,15 +143,18 @@ func (r *Runtime) UpdateSession(ctx context.Context, in agent.UpdateSession) (ag
 	if in.ExpectedRevision != state.meta.Revision {
 		return agent.Session{}, fmt.Errorf("%w: session %s is at revision %d", agent.ErrRevisionConflict, in.SessionID, state.meta.Revision)
 	}
-	if in.Title == nil && in.Favorite == nil {
-		return agent.Session{}, errors.New("mock: session update is empty")
-	}
 	if in.Title != nil {
 		title := strings.TrimSpace(*in.Title)
 		if title == "" {
 			return agent.Session{}, errors.New("mock: session title is empty")
 		}
 		state.meta.Title = title
+	}
+	if in.Workspace != nil {
+		state.meta.Workspace = strings.TrimSpace(*in.Workspace)
+	}
+	if in.Model != nil {
+		state.meta.Model = strings.TrimSpace(*in.Model)
 	}
 	if in.Favorite != nil {
 		state.meta.Favorite = *in.Favorite

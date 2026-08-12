@@ -189,6 +189,58 @@ func (a *app) createSessionInWorkspace(requested string) error {
 	return nil
 }
 
+func (a *app) RelocateSession(requested string) error {
+	path, err := resolveWorkspace(a.session.Workspace, requested)
+	if err != nil {
+		return err
+	}
+	if a.workspaces == nil {
+		a.relocateSession(path)
+		return nil
+	}
+	a.status.note("resolving workspace")
+	runOperation(a, workspaceQueryOperation, true,
+		func(ctx context.Context) (workspace.Workspace, error) {
+			return a.workspaces.Resolve(ctx, workspace.ResolveRequest{Path: path})
+		},
+		func(resolved workspace.Workspace, err error) {
+			if err != nil {
+				a.message("resolve workspace: " + err.Error())
+				return
+			}
+			if !resolved.IsAvailable() {
+				a.message("workspace is unavailable · " + resolved.Path)
+				return
+			}
+			a.relocateSession(resolved.Path)
+		},
+	)
+	return nil
+}
+
+func (a *app) relocateSession(path string) {
+	if samePath(path, a.session.Workspace) {
+		a.message("session already uses " + path)
+		return
+	}
+	sessionID := a.session.ID
+	runSessionChange(a, "relocating session",
+		func(ctx context.Context) (agent.SessionSnapshot, error) {
+			latest, err := a.runtime.GetSession(ctx, sessionID)
+			if err != nil {
+				return agent.SessionSnapshot{}, err
+			}
+			if _, err := a.runtime.UpdateSession(ctx, agent.UpdateSession{
+				SessionID: sessionID, Workspace: &path, ExpectedRevision: latest.Session.Revision,
+			}); err != nil {
+				return agent.SessionSnapshot{}, err
+			}
+			return a.runtime.GetSession(ctx, sessionID)
+		},
+		func(snapshot agent.SessionSnapshot) error { return a.installSnapshot(snapshot) },
+	)
+}
+
 // startSessionInWorkspace accepts an already established workspace identity.
 // Callers resolving new user input go through createSessionInWorkspace; /new
 // reuses the runtime-authoritative workspace of the current session directly.

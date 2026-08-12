@@ -3,7 +3,7 @@ package agent
 import "testing"
 
 func TestQuestionAnswerUsesFieldOrder(t *testing.T) {
-	question := Question{ItemID: "q_1", Title: "Configuration", Fields: []QuestionField{
+	question := Question{RunID: "run_1", ItemID: "q_1", Title: "Configuration", Fields: []QuestionField{
 		{Prompt: "Name", Kind: QuestionText},
 		{Prompt: "Targets", Kind: QuestionMulti, Options: []QuestionOption{{Label: "linux"}, {Label: "darwin"}}},
 	}}
@@ -29,7 +29,7 @@ func TestApprovalHonorsRememberable(t *testing.T) {
 
 func runningApproval(itemID, title string) Approval {
 	return Approval{
-		ItemID: itemID, Title: title,
+		RunID: "run_1", ItemID: itemID, Title: title,
 		Tool: &ToolCall{Kind: ToolShell, Name: "shell", Status: ToolRunning},
 	}
 }
