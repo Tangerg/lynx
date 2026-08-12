@@ -651,6 +651,28 @@ type snapshotCountingRuntime struct {
 	readSignal chan struct{}
 }
 
+type blockedResumeRuntime struct {
+	agent.Runtime
+	started chan agent.ResumeRun
+	release chan struct{}
+	calls   atomic.Int32
+}
+
+func (runtime *blockedResumeRuntime) ResumeRun(ctx context.Context, input agent.ResumeRun) (agent.SegmentStream, error) {
+	runtime.calls.Add(1)
+	select {
+	case runtime.started <- input.Clone():
+	case <-ctx.Done():
+		return agent.SegmentStream{}, context.Cause(ctx)
+	}
+	select {
+	case <-runtime.release:
+		return agent.SegmentStream{}, agent.ErrInterruptNotOpen
+	case <-ctx.Done():
+		return agent.SegmentStream{}, context.Cause(ctx)
+	}
+}
+
 func (runtime *snapshotCountingRuntime) GetSession(ctx context.Context, id string) (agent.SessionSnapshot, error) {
 	runtime.reads.Add(1)
 	if runtime.readSignal != nil {
@@ -1121,6 +1143,63 @@ func TestAdvancedInterruptInvalidationClosesTheApprovalArgumentEditor(t *testing
 	stop()
 }
 
+func TestInterruptInvalidationWinsARejectedStaleResume(t *testing.T) {
+	base := mock.New()
+	base.Instant = true
+	base.Script = func(string) mock.Script {
+		return mock.Script{
+			Interactions: []agent.Interaction{agent.Approval{
+				ItemID: "approval_resume_race", Title: "Run generated command",
+				Tool: &agent.ToolCall{Kind: agent.ToolShell, Name: "shell", Command: "go test ./...", Status: agent.ToolRunning},
+			}},
+			Continue: func([]agent.InterruptAnswer) []mock.Step {
+				return []mock.Step{{Event: agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCompleted}}}}
+			},
+		}
+	}
+	backend := &snapshotCountingRuntime{Runtime: base, readSignal: make(chan struct{}, 8)}
+	runtime := &blockedResumeRuntime{
+		Runtime: backend, started: make(chan agent.ResumeRun, 1), release: make(chan struct{}),
+	}
+	source := &runtimeChangeSourceStub{
+		events: make(chan changefeed.Event, 1), subscription: make(chan changefeed.Subscription, 1),
+		applied: make(chan changefeed.Event, 1),
+	}
+	host, stop := runUIWithRuntimeChanges(t, runtime, source, "ses_demo_1")
+	host.Shows(t, "Ask lyra")
+	awaitSignal(t, source.subscription, "runtime invalidation subscription")
+	host.Type("exercise the approval race")
+	host.Press(input.Enter)
+	host.Shows(t, "Tool approval")
+	host.Press(input.Enter)
+	pending := awaitSignalValue(t, runtime.started, "blocked resume delivery")
+
+	continued, err := base.ResumeRun(t.Context(), pending)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, streamErr := range continued.Events {
+		if streamErr != nil {
+			t.Fatal(streamErr)
+		}
+	}
+	drainSignals(backend.readSignal)
+	source.events <- changefeed.Event{
+		Type: changefeed.EventType(changefeed.InterruptsChanged), Sequence: 1,
+		SessionIDs: []string{"ses_demo_1"},
+	}
+	awaitSignal(t, source.applied, "interrupts.changed during resume delivery")
+	close(runtime.release)
+	awaitSignal(t, backend.readSignal, "authoritative read after stale resume refusal")
+	host.Shows(t, "session refreshed after runtime change")
+	host.Shows(t, "done")
+	host.Hides(t, "Tool approval")
+	if calls := runtime.calls.Load(); calls != 1 {
+		t.Fatalf("resume delivery calls = %d, want no stale retry", calls)
+	}
+	stop()
+}
+
 func drainSignals[T any](signals <-chan T) {
 	for {
 		select {
@@ -1137,6 +1216,18 @@ func awaitSignal[T any](t *testing.T, signals <-chan T, what string) {
 	case <-signals:
 	case <-time.After(3 * time.Second):
 		t.Fatal("timed out waiting for " + what)
+	}
+}
+
+func awaitSignalValue[T any](t *testing.T, signals <-chan T, what string) T {
+	t.Helper()
+	select {
+	case value := <-signals:
+		return value
+	case <-time.After(3 * time.Second):
+		t.Fatal("timed out waiting for " + what)
+		var zero T
+		return zero
 	}
 }
 

@@ -355,6 +355,11 @@ func (a *app) restoreRejectedInteractionReview(review *interactionReview, comman
 		}
 	}
 	a.following = false
+	if a.sessionInvalidated {
+		a.status.note("resume refused · refreshing session")
+		a.refreshInvalidatedSession(false)
+		return nil
+	}
 	a.status.note("resume refused · review preserved")
 	if review.Reviewing() {
 		a.openInteractionSummary()
