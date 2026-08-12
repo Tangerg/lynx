@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
+	"github.com/Tangerg/lynx/app/cli/internal/failure"
 )
 
 func (r *Runtime) play(run *runState, steps []Step, interrupt bool) {
@@ -44,7 +45,7 @@ func (r *Runtime) park(run *runState) {
 	}
 	if err := r.ensureInterruptItemsLocked(run); err != nil {
 		r.mu.Unlock()
-		r.finish(run, agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeFailed, Error: "mock interrupt projection: " + err.Error()}})
+		r.finish(run, agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeFailed, Problem: &failure.Problem{Type: "mock_interrupt_failed", Detail: err.Error()}}})
 		return
 	}
 	resolved, pending := r.resolveRememberedLocked(run, run.script.Interactions)
@@ -66,7 +67,7 @@ func (r *Runtime) park(run *runState) {
 			steps, err = continueSafely(run.script, answers)
 		}
 		if err != nil {
-			r.finish(run, agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeFailed, Error: "mock continuation: " + err.Error()}})
+			r.finish(run, agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeFailed, Problem: &failure.Problem{Type: "mock_continuation_failed", Detail: err.Error()}}})
 			return
 		}
 		r.mu.Lock()

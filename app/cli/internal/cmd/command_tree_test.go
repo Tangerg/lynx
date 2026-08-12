@@ -20,6 +20,7 @@ import (
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
 	"github.com/Tangerg/lynx/app/cli/internal/agent/mock"
 	"github.com/Tangerg/lynx/app/cli/internal/backend"
+	"github.com/Tangerg/lynx/app/cli/internal/failure"
 )
 
 // executeCommand runs the CLI in memory and returns stdout, stderr and the command error.
@@ -345,7 +346,7 @@ func TestRunReturnsAnErrorForNonCompletedOutcomes(t *testing.T) {
 		outcome agent.Outcome
 		want    string
 	}{
-		{name: "failed", outcome: agent.Outcome{Status: agent.OutcomeFailed, Error: "provider refused"}, want: "run failed: provider refused"},
+		{name: "failed", outcome: agent.Outcome{Status: agent.OutcomeFailed, Problem: &failure.Problem{Type: "provider_rejected", Detail: "provider refused"}}, want: "run failed: provider refused"},
 		{name: "canceled", outcome: agent.Outcome{Status: agent.OutcomeCanceled}, want: "run canceled"},
 	} {
 		t.Run(test.name, func(t *testing.T) {

@@ -94,23 +94,24 @@ type app struct {
 	conversation     *agent.Conversation
 	operations       *operationOwner
 
-	transcript  *transcriptView
-	header      *sessionHeader
-	activity    *activityView
-	queueView   *queueView
-	queueDrawer *queueDrawer
-	status      *statusView
-	settings    settings.Config
-	options     agent.RunOptions
-	composer    kit.Composer
-	prompt      *promptView
-	commands    commandCatalog
-	completion  headless.Completion
-	shell       *shellView
-	stack       headless.Stack
-	queue       *promptqueue.Queue
-	workbench   *workbench.Store
-	editor      promptEditor
+	transcript     *transcriptView
+	header         *sessionHeader
+	activity       *activityView
+	queueView      *queueView
+	queueDrawer    *queueDrawer
+	status         *statusView
+	settings       settings.Config
+	options        agent.RunOptions
+	composer       kit.Composer
+	prompt         *promptView
+	commands       commandCatalog
+	completion     headless.Completion
+	completionGate completionGate
+	shell          *shellView
+	stack          headless.Stack
+	queue          *promptqueue.Queue
+	workbench      *workbench.Store
+	editor         promptEditor
 
 	approval            *agent.Approval
 	approvalChoice      string
@@ -292,10 +293,15 @@ func (a *app) configureCompletion(appearance terminalAppearance) {
 	a.completion = headless.Completion{
 		Look: appearance.theme.Look(appearance.glyphs), Keys: completionKeys,
 		Accept: func(candidate headless.Candidate, token headless.Token) {
+			// Acceptance closes both halves of completion: Oolong has already
+			// dismissed the list, while the application must retire its async
+			// producer so an older file lookup cannot reopen the accepted token.
+			a.operations.Cancel(completionOperation)
 			if token.Trigger.Prefix == "@" {
 				a.acceptAttachmentCompletion(candidate.Text, token)
 				return
 			}
+			a.completionGate.Reset()
 			a.composer.Editor().Replace(token.Start, token.End, candidate.Text)
 		},
 	}

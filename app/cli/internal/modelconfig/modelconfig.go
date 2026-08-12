@@ -7,6 +7,8 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+
+	"github.com/Tangerg/lynx/app/cli/internal/failure"
 )
 
 type RoleKind string
@@ -165,15 +167,15 @@ func (update UpdateProvider) Validate() error {
 
 type TestResult struct {
 	OK      bool
-	Problem string
+	Problem *failure.Problem
 }
 
 func (result TestResult) Validate() error {
-	if result.OK && result.Problem != "" {
-		return errors.New("successful provider test carries a problem")
+	if result.OK == (result.Problem != nil) {
+		return errors.New("provider test result must contain exactly one success or problem state")
 	}
-	if !result.OK && strings.TrimSpace(result.Problem) == "" {
-		return errors.New("failed provider test has no problem")
+	if result.Problem != nil {
+		return result.Problem.Validate()
 	}
 	return nil
 }

@@ -146,13 +146,7 @@ func (r *Runtime) TestProvider(ctx context.Context, providerID string) (modelcon
 	if result == nil {
 		return modelconfig.TestResult{}, errors.New("test provider: runtime returned nil")
 	}
-	projected := modelconfig.TestResult{OK: result.OK}
-	if result.Error != nil {
-		projected.Problem = result.Error.Type
-		if result.Error.Detail != "" {
-			projected.Problem += ": " + result.Error.Detail
-		}
-	}
+	projected := modelconfig.TestResult{OK: result.OK, Problem: projectRuntimeProblem(result.Error)}
 	if err := projected.Validate(); err != nil {
 		return modelconfig.TestResult{}, fmt.Errorf("test provider: %w", err)
 	}

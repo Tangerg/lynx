@@ -194,11 +194,7 @@ func projectTool(projection toolProjection) (agent.ToolCall, error) {
 		tool.ResultJSON = resultJSON
 	}
 	if projection.problem != nil {
-		problemJSON, err := encodeRuntimeProblem(projection.problem)
-		if err != nil {
-			return agent.ToolCall{}, err
-		}
-		tool.ProblemJSON = problemJSON
+		tool.Problem = projectRuntimeProblem(projection.problem)
 	}
 	if projection.durationMillis != nil {
 		tool.Duration = time.Duration(*projection.durationMillis) * time.Millisecond

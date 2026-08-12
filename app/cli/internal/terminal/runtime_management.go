@@ -267,7 +267,7 @@ func (a *app) TestConfiguredProvider(providerID string) error {
 				a.message("provider " + providerID + " is reachable")
 				return
 			}
-			a.message("provider " + providerID + " failed: " + result.Problem)
+			a.message("provider " + providerID + " failed: " + result.Problem.String())
 		},
 	)
 	if !started {

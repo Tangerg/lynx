@@ -1,16 +1,15 @@
 package runtimeembedded
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
-	"strings"
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/protocol"
 
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
+	"github.com/Tangerg/lynx/app/cli/internal/failure"
 )
 
 func projectRun(value protocol.RunRef) (agent.Run, error) {
@@ -126,38 +125,36 @@ func projectOutcome(value protocol.SegmentOutcome) (agent.Outcome, error) {
 	switch value.Type {
 	case protocol.SegmentTimedOut, protocol.SegmentFailed, protocol.SegmentLost:
 		outcome.Detail = ""
-		outcome.Error = problemText(value.Error, string(value.Type))
-		problemJSON, err := encodeRuntimeProblem(value.Error)
-		if err != nil {
-			return agent.Outcome{}, err
+		outcome.Problem = projectRuntimeProblem(value.Error)
+		if outcome.Problem == nil {
+			outcome.Problem = &failure.Problem{Type: string(value.Type)}
 		}
-		outcome.ProblemJSON = problemJSON
 	}
 	return outcome, nil
 }
 
-func encodeRuntimeProblem(problem *protocol.ProblemData) ([]byte, error) {
+func projectRuntimeProblem(problem *protocol.ProblemData) *failure.Problem {
 	if problem == nil {
-		return nil, nil
+		return nil
 	}
-	encoded, err := json.Marshal(problem)
-	if err != nil {
-		return nil, fmt.Errorf("encode runtime problem: %w", err)
+	projected := &failure.Problem{
+		Type: problem.Type, Detail: problem.Detail, DocURL: problem.DocURL,
+		RetryAfterSeconds:    problem.RetryAfterSeconds,
+		RequiredCapabilities: make([]failure.CapabilityRequirement, 0, len(problem.RequiredCapabilities)),
+		Errors:               make([]failure.FieldError, 0, len(problem.Errors)),
 	}
-	return encoded, nil
-}
-
-func problemText(problem *protocol.ProblemData, fallback string) string {
-	if problem == nil {
-		return fallback
+	for _, requirement := range problem.RequiredCapabilities {
+		projected.RequiredCapabilities = append(projected.RequiredCapabilities, failure.CapabilityRequirement{
+			Kind: failure.RequirementKind(requirement.Type), Name: requirement.Name,
+		})
 	}
-	if strings.TrimSpace(problem.Detail) != "" {
-		return problem.Detail
+	if problem.ActiveRun != nil {
+		projected.ActiveRun = &failure.ActiveRun{RunID: problem.ActiveRun.RunID, Status: string(problem.ActiveRun.Status)}
 	}
-	if strings.TrimSpace(problem.Type) != "" {
-		return problem.Type
+	for _, field := range problem.Errors {
+		projected.Errors = append(projected.Errors, failure.FieldError{Field: field.Field, Detail: field.Detail})
 	}
-	return fallback
+	return projected
 }
 
 func projectPlan(snapshot *protocol.StateSnapshot) ([]agent.PlanItem, uint64, error) {

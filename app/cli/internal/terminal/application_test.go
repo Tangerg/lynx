@@ -20,6 +20,7 @@ import (
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
 	"github.com/Tangerg/lynx/app/cli/internal/agent/mock"
 	"github.com/Tangerg/lynx/app/cli/internal/extensions"
+	"github.com/Tangerg/lynx/app/cli/internal/failure"
 	"github.com/Tangerg/lynx/app/cli/internal/settings"
 )
 
@@ -1962,6 +1963,7 @@ func TestRejectedWorkspaceFileCompletionPreservesTheDraftToken(t *testing.T) {
 	host.Shows(t, "workspace files")
 	host.Press(input.Enter)
 	host.Shows(t, "attachment must be text or an image")
+	host.Hides(t, "workspace files")
 	host.Shows(t, "inspect @archive")
 
 	host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
@@ -2379,7 +2381,7 @@ func TestOutcomeNotificationMatchesTheRunVerdict(t *testing.T) {
 	}{
 		{name: "completed", outcome: agent.Outcome{Status: agent.OutcomeCompleted}, want: "lyra run completed"},
 		{name: "canceled", outcome: agent.Outcome{Status: agent.OutcomeCanceled}, want: "lyra run canceled"},
-		{name: "failed", outcome: agent.Outcome{Status: agent.OutcomeFailed, Error: "boom"}, want: "lyra run failed"},
+		{name: "failed", outcome: agent.Outcome{Status: agent.OutcomeFailed, Problem: &failure.Problem{Type: "provider_error", Detail: "boom"}}, want: "lyra run failed"},
 		{name: "unsettled", outcome: agent.Outcome{}, want: ""},
 	} {
 		t.Run(test.name, func(t *testing.T) {

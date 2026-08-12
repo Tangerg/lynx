@@ -131,6 +131,7 @@ func (a *app) acceptAttachmentCompletion(path string, token headless.Token) {
 		a.message(err.Error())
 		return
 	}
+	a.completionGate.Reset()
 	a.composer.Editor().Replace(max(token.Start-1, 0), token.End, "")
 	a.insertAttachment(insertion)
 }

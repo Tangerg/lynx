@@ -99,7 +99,10 @@ func (stub *modelConfigBindingStub) UpdateProvider(_ context.Context, request pr
 }
 
 func (*modelConfigBindingStub) TestProvider(_ context.Context, request protocol.TestProviderRequest, _ embedded.CallOptions) (*protocol.ProviderTestResult, error) {
-	return &protocol.ProviderTestResult{OK: false, Error: &protocol.ProblemData{Type: "provider_unavailable", Detail: request.Provider}}, nil
+	return &protocol.ProviderTestResult{OK: false, Error: &protocol.ProblemData{
+		Type: protocol.ProblemProviderUnavailable, Detail: request.Provider,
+		DocURL: "https://docs.example/providers", RetryAfterSeconds: 3,
+	}}, nil
 }
 
 func TestModelConfigurationAdapterPreservesRoleAndSecretMutationSemantics(t *testing.T) {
@@ -157,7 +160,7 @@ func TestModelConfigurationAdapterPreservesRoleAndSecretMutationSemantics(t *tes
 		t.Fatal(err)
 	}
 	tested, err := runtime.TestProvider(t.Context(), "deepseek")
-	if err != nil || tested.OK || tested.Problem != "provider_unavailable: deepseek" {
+	if err != nil || tested.OK || tested.Problem == nil || tested.Problem.String() != "provider_unavailable: deepseek · retry after 3s · docs https://docs.example/providers" {
 		t.Fatalf("TestProvider = (%+v, %v)", tested, err)
 	}
 }

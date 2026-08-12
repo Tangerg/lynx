@@ -11,6 +11,8 @@ import (
 	"slices"
 	"strings"
 	"time"
+
+	"github.com/Tangerg/lynx/app/cli/internal/failure"
 )
 
 type Transport string
@@ -27,25 +29,6 @@ func (transport Transport) Validate() error {
 	return nil
 }
 
-type Problem struct {
-	Type   string
-	Detail string
-}
-
-func (problem Problem) Validate() error {
-	if strings.TrimSpace(problem.Type) == "" {
-		return errors.New("MCP problem type is empty")
-	}
-	return nil
-}
-
-func (problem Problem) String() string {
-	if problem.Detail == "" {
-		return problem.Type
-	}
-	return problem.Type + ": " + problem.Detail
-}
-
 type StateType string
 
 const (
@@ -60,7 +43,7 @@ const (
 type State struct {
 	Type      StateType
 	ToolCount *int
-	Problem   *Problem
+	Problem   *failure.Problem
 }
 
 func (state State) Validate() error {
@@ -167,7 +150,7 @@ func (server Server) Clone() Server {
 		server.State.ToolCount = new(*server.State.ToolCount)
 	}
 	if server.State.Problem != nil {
-		server.State.Problem = new(*server.State.Problem)
+		server.State.Problem = server.State.Problem.Clone()
 	}
 	return server
 }
@@ -383,7 +366,7 @@ func (update ServerUpdate) HasChanges() bool {
 
 type TestResult struct {
 	OK      bool
-	Problem *Problem
+	Problem *failure.Problem
 }
 
 func (result TestResult) Validate() error {
@@ -426,7 +409,7 @@ type AuthorizationAttempt struct {
 	ID         string
 	Server     string
 	Status     AuthorizationStatus
-	Problem    *Problem
+	Problem    *failure.Problem
 	CreatedAt  time.Time
 	FinishedAt *time.Time
 }

@@ -3,6 +3,8 @@ package mcp
 import (
 	"testing"
 	"time"
+
+	"github.com/Tangerg/lynx/app/cli/internal/failure"
 )
 
 func TestConnectionInputsKeepTransportAndSecretScopesClosed(t *testing.T) {
@@ -40,7 +42,7 @@ func TestServerAndAuthorizationStatesRejectContradictoryData(t *testing.T) {
 	if err := server.Validate(); err != nil {
 		t.Fatal(err)
 	}
-	server.State.Problem = &Problem{Type: "mcp_dial_failed"}
+	server.State.Problem = &failure.Problem{Type: "mcp_dial_failed"}
 	if err := server.Validate(); err == nil {
 		t.Fatal("connected state carrying a problem was accepted")
 	}

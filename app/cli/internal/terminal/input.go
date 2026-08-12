@@ -80,7 +80,7 @@ func (a *app) handleConfiguredAction(event input.Event, action keymap.Action) bo
 	// history, submission, or editing actions, matching the visual layer on top.
 	if action == sendPrompt && a.exactCommandCompletion() {
 		a.completion.Dismiss()
-	} else if a.completion.Handle(event) {
+	} else if a.handleCompletion(event) {
 		return true
 	}
 	if a.shell.PromptFocused() && a.handleHistoryAction(action) {
@@ -116,7 +116,7 @@ func (a *app) handleUnboundEvent(event input.Event) bool {
 			return true
 		}
 	}
-	if a.completion.Handle(event) {
+	if a.handleCompletion(event) {
 		return true
 	}
 	handled := a.stack.Handle(event)

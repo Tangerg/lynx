@@ -1,6 +1,7 @@
 package terminal
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
@@ -163,9 +164,13 @@ func toolSections(call agent.ToolCall, output ToolSection) []ToolSection {
 			Title: "Result", Style: toolSectionCode, Language: "json", Text: prettyJSON(call.ResultJSON),
 		})
 	}
-	if len(call.ProblemJSON) != 0 {
+	if call.Problem != nil {
+		encoded, err := json.Marshal(call.Problem)
+		if err != nil {
+			encoded = []byte(call.Problem.String())
+		}
 		sections = append(sections, ToolSection{
-			Title: "Problem", Style: toolSectionCode, Language: "json", Text: prettyJSON(call.ProblemJSON),
+			Title: "Problem", Style: toolSectionCode, Language: "json", Text: prettyJSON(encoded),
 		})
 	}
 	return sections

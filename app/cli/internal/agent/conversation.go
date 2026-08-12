@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+
+	"github.com/Tangerg/lynx/app/cli/internal/failure"
 )
 
 var (
@@ -646,7 +648,7 @@ func (c *Conversation) Failed(err error) {
 	c.interactions = nil
 	c.reconciling = false
 	c.coldTail = false
-	c.outcome = Outcome{Status: OutcomeFailed, Error: err.Error()}
+	c.outcome = Outcome{Status: OutcomeFailed, Problem: &failure.Problem{Type: "conversation_failed", Detail: err.Error()}}
 	c.settleOpenBlocks(ToolError)
 	_ = c.put(Block{ID: fmt.Sprintf("failure:%d", c.revision+1), RunID: c.runID, Status: BlockStatusIncomplete, Kind: BlockError, Text: err.Error()}, true)
 	c.revision++

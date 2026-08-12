@@ -13,6 +13,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/protocol"
 
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
+	"github.com/Tangerg/lynx/app/cli/internal/failure"
 )
 
 func TestProjectToolPreservesStructuredDetails(t *testing.T) {
@@ -134,10 +135,81 @@ func TestProjectOutcomePreservesStructuredProblem(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if outcome.Status != agent.OutcomeFailed || outcome.Error != "quota exhausted" ||
-		!bytes.Contains(outcome.ProblemJSON, []byte(`"retryAfterSeconds":2`)) ||
-		!bytes.Contains(outcome.ProblemJSON, []byte(`"docUrl":"https://docs.example/rate-limit"`)) {
+	if outcome.Status != agent.OutcomeFailed || outcome.Description() != "quota exhausted" || outcome.Problem == nil ||
+		outcome.Problem.RetryAfterSeconds != 2 || outcome.Problem.DocURL != "https://docs.example/rate-limit" {
 		t.Fatalf("outcome = %+v", outcome)
+	}
+}
+
+func TestProjectRuntimeProblemPreservesEveryRecoveryShape(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		problem protocol.ProblemData
+		assert  func(*testing.T, *failure.Problem)
+	}{
+		{
+			name: "retry guidance",
+			problem: protocol.ProblemData{
+				Type: protocol.ProblemRateLimited, Detail: "quota exhausted",
+				DocURL: "https://docs.example/rate-limit", RetryAfterSeconds: 2,
+			},
+			assert: func(t *testing.T, problem *failure.Problem) {
+				if problem.Detail != "quota exhausted" || problem.DocURL == "" || problem.RetryAfterSeconds != 2 {
+					t.Fatalf("retry problem = %+v", problem)
+				}
+			},
+		},
+		{
+			name: "capability requirements",
+			problem: protocol.ProblemData{
+				Type:                 protocol.ErrCapabilityNotNeg.Error(),
+				RequiredCapabilities: []protocol.CapabilityRequirement{{Type: protocol.RequirementRuntimeTopic, Name: "files.changed"}},
+			},
+			assert: func(t *testing.T, problem *failure.Problem) {
+				if len(problem.RequiredCapabilities) != 1 || problem.RequiredCapabilities[0].Kind != failure.RequirementRuntimeTopic || problem.RequiredCapabilities[0].Name != "files.changed" {
+					t.Fatalf("capability problem = %+v", problem)
+				}
+			},
+		},
+		{
+			name: "active run",
+			problem: protocol.ProblemData{
+				Type:      protocol.ErrSessionHasActiveRun.Error(),
+				ActiveRun: &protocol.ActiveRunRef{RunID: "run_1", Status: protocol.RunStatusWaiting},
+			},
+			assert: func(t *testing.T, problem *failure.Problem) {
+				if problem.ActiveRun == nil || problem.ActiveRun.RunID != "run_1" || problem.ActiveRun.Status != "waiting" {
+					t.Fatalf("active-run problem = %+v", problem)
+				}
+			},
+		},
+		{
+			name: "field errors",
+			problem: protocol.ProblemData{
+				Type:   protocol.ErrInvalidParams.Error(),
+				Errors: []protocol.FieldError{{Field: "provider", Detail: "is unknown"}},
+			},
+			assert: func(t *testing.T, problem *failure.Problem) {
+				if len(problem.Errors) != 1 || problem.Errors[0].Field != "provider" || problem.Errors[0].Detail != "is unknown" {
+					t.Fatalf("field problem = %+v", problem)
+				}
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			projected := projectRuntimeProblem(&test.problem)
+			if projected == nil {
+				t.Fatal("projectRuntimeProblem returned nil")
+			}
+			if err := projected.Validate(); err != nil {
+				t.Fatal(err)
+			}
+			test.assert(t, projected)
+		})
 	}
 }
 
@@ -151,7 +223,7 @@ func TestProjectToolRecognizesRootRunCancellation(t *testing.T) {
 		t.Fatalf("projectTool: %v", err)
 	}
 	if tool.Status != agent.ToolCanceled || tool.Output != "run canceled" ||
-		!bytes.Contains(tool.ProblemJSON, []byte(`"type":"tool_canceled"`)) {
+		tool.Problem == nil || tool.Problem.Type != "tool_canceled" {
 		t.Fatalf("tool = %+v", tool)
 	}
 }

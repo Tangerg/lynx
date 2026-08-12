@@ -48,7 +48,7 @@ func (stub *mcpBindingStub) DeleteMCPServer(_ context.Context, request protocol.
 func (stub *mcpBindingStub) TestMCPServer(_ context.Context, request protocol.MCPServerCandidate, options embedded.CallOptions) (*protocol.MCPTestResult, error) {
 	stub.assertMeta(options.RequestMeta)
 	stub.actions = append(stub.actions, "test:"+request.Name)
-	return &protocol.MCPTestResult{Error: &protocol.ProblemData{Type: "mcp_dial_failed", Detail: "refused"}}, nil
+	return &protocol.MCPTestResult{Error: &protocol.ProblemData{Type: protocol.ProblemMCPDialFailed}}, nil
 }
 
 func (stub *mcpBindingStub) ListMCPTools(_ context.Context, request protocol.MCPListToolsRequest, options embedded.CallOptions) (*protocol.Page[protocol.MCPTool], error) {

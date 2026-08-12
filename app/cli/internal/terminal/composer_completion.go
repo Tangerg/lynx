@@ -7,27 +7,57 @@ import (
 	"github.com/Tangerg/oolong/components/headless"
 	"github.com/Tangerg/oolong/components/kit"
 	"github.com/Tangerg/oolong/core/grid"
+	"github.com/Tangerg/oolong/core/input"
 	"github.com/Tangerg/oolong/core/layout"
 )
 
+type completionQuery struct {
+	line  int
+	token headless.Token
+}
+
+// completionGate remembers a token whose popup was explicitly closed. A key-up
+// event, repaint, rejected candidate, or late async result must not immediately
+// reopen it; editing the token or leaving it explicitly starts a new query.
+type completionGate struct {
+	suppressed completionQuery
+	active     bool
+}
+
+func (gate *completionGate) Allow(query completionQuery) bool {
+	if !gate.active {
+		return true
+	}
+	if gate.suppressed == query {
+		return false
+	}
+	gate.Reset()
+	return true
+}
+
+func (gate *completionGate) Suppress(query completionQuery) {
+	gate.suppressed, gate.active = query, true
+}
+
+func (gate *completionGate) Reset() {
+	gate.suppressed, gate.active = completionQuery{}, false
+}
+
 func (a *app) refreshCompletion() {
 	a.operations.Cancel(completionOperation)
-	lines := strings.Split(a.composer.Text(), "\n")
-	line, column := a.composer.Editor().Cursor()
-	if line < 0 || line >= len(lines) {
-		a.completion.Dismiss()
-		return
-	}
-	token, ok := headless.TokenAt(lines[line], column,
-		headless.Trigger{Prefix: "/", AtStart: true},
-		headless.Trigger{Prefix: "@"},
-	)
+	query, ok := a.currentCompletionQuery()
 	if !ok {
+		a.completionGate.Reset()
 		a.completion.Dismiss()
 		return
 	}
+	if !a.completionGate.Allow(query) {
+		a.completion.Dismiss()
+		return
+	}
+	token := query.token
 	if token.Trigger.Prefix == "@" {
-		a.completeFiles(token)
+		a.completeFiles(query)
 		return
 	}
 	found := a.commands.find(token.Query)
@@ -46,7 +76,37 @@ func (a *app) refreshCompletion() {
 	a.completion.Offer(token, candidates)
 }
 
-func (a *app) completeFiles(token headless.Token) {
+func (a *app) currentCompletionQuery() (completionQuery, bool) {
+	lines := strings.Split(a.composer.Text(), "\n")
+	line, column := a.composer.Editor().Cursor()
+	if line < 0 || line >= len(lines) {
+		return completionQuery{}, false
+	}
+	token, ok := headless.TokenAt(lines[line], column,
+		headless.Trigger{Prefix: "/", AtStart: true},
+		headless.Trigger{Prefix: "@"},
+	)
+	if !ok {
+		return completionQuery{}, false
+	}
+	return completionQuery{line: line, token: token}, true
+}
+
+func (a *app) handleCompletion(event input.Event) bool {
+	_, wasOpen := a.completion.Token()
+	handled := a.completion.Handle(event)
+	if !handled || !wasOpen || a.completion.Open() {
+		return handled
+	}
+	if query, ok := a.currentCompletionQuery(); ok {
+		a.completionGate.Suppress(query)
+	} else {
+		a.completionGate.Reset()
+	}
+	return true
+}
+
+func (a *app) completeFiles(query completionQuery) {
 	if a.attachments == nil {
 		a.completion.Dismiss()
 		return
@@ -54,7 +114,7 @@ func (a *app) completeFiles(token headless.Token) {
 	resolver := a.attachments
 	runOperation(a, completionOperation, true,
 		func(ctx context.Context) ([]headless.Candidate, error) {
-			matches, err := resolver.Complete(ctx, token.Query, 50)
+			matches, err := resolver.Complete(ctx, query.token.Query, 50)
 			candidates := make([]headless.Candidate, 0, len(matches))
 			for _, match := range matches {
 				candidates = append(candidates, headless.Candidate{
@@ -64,12 +124,16 @@ func (a *app) completeFiles(token headless.Token) {
 			return candidates, err
 		},
 		func(candidates []headless.Candidate, err error) {
+			if !a.completionGate.Allow(query) {
+				a.completion.Dismiss()
+				return
+			}
 			if err != nil {
 				a.completion.Dismiss()
 				a.message(err.Error())
 				return
 			}
-			a.completion.Offer(token, candidates)
+			a.completion.Offer(query.token, candidates)
 		},
 	)
 }

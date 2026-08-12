@@ -129,7 +129,7 @@ func (r *Runtime) TestServer(ctx context.Context, candidate mcp.Candidate) (mcp.
 	if result == nil {
 		return mcp.TestResult{}, errors.New("test MCP server: runtime returned nil")
 	}
-	projected := mcp.TestResult{OK: result.OK, Problem: projectMCPProblem(result.Error)}
+	projected := mcp.TestResult{OK: result.OK, Problem: projectRuntimeProblem(result.Error)}
 	if err := projected.Validate(); err != nil {
 		return mcp.TestResult{}, fmt.Errorf("test MCP server: %w", err)
 	}
@@ -223,7 +223,7 @@ func projectMCPServer(value protocol.MCPServer) mcp.Server {
 		AutoApproveTools: slices.Clone(value.AutoApproveTools),
 		State: mcp.State{
 			Type: mcp.StateType(value.Status.Type), ToolCount: clonePointer(value.Status.ToolCount),
-			Problem: projectMCPProblem(value.Status.Error),
+			Problem: projectRuntimeProblem(value.Status.Error),
 		},
 	}
 }
@@ -268,20 +268,13 @@ func projectMCPAuthorizationResult(operation string, result *protocol.MCPAuthori
 	}
 	attempt := mcp.AuthorizationAttempt{
 		ID: result.ID, Server: result.Server, Status: mcp.AuthorizationStatus(result.Status.Type),
-		Problem: projectMCPProblem(result.Status.Error), CreatedAt: result.CreatedAt,
+		Problem: projectRuntimeProblem(result.Status.Error), CreatedAt: result.CreatedAt,
 		FinishedAt: clonePointer(result.FinishedAt),
 	}
 	if err := attempt.Validate(); err != nil {
 		return mcp.AuthorizationAttempt{}, fmt.Errorf("%s: %w", operation, err)
 	}
 	return attempt, nil
-}
-
-func projectMCPProblem(problem *protocol.ProblemData) *mcp.Problem {
-	if problem == nil {
-		return nil
-	}
-	return &mcp.Problem{Type: problem.Type, Detail: problem.Detail}
 }
 
 func clonePointer[T any](value *T) *T {

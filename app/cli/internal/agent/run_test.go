@@ -4,6 +4,8 @@ import (
 	"math"
 	"testing"
 	"time"
+
+	"github.com/Tangerg/lynx/app/cli/internal/failure"
 )
 
 func TestRunLifecycleShape(t *testing.T) {
@@ -48,12 +50,12 @@ func TestRunOptionsValidateBounds(t *testing.T) {
 }
 
 func TestOutcomeValidationMatchesRuntimeUnion(t *testing.T) {
-	problem := []byte(`{"type":"rate_limited","retryAfterSeconds":2}`)
+	problem := &failure.Problem{Type: "rate_limited", Detail: "deadline exceeded", RetryAfterSeconds: 2}
 	valid := []Outcome{
 		{Status: OutcomeCompleted},
-		{Status: OutcomeTimedOut, Error: "deadline exceeded", ProblemJSON: problem},
-		{Status: OutcomeFailed, Error: "provider failed"},
-		{Status: OutcomeLost, Error: "executor disappeared"},
+		{Status: OutcomeTimedOut, Problem: problem},
+		{Status: OutcomeFailed, Problem: &failure.Problem{Type: "provider_failed", Detail: "provider failed"}},
+		{Status: OutcomeLost, Problem: &failure.Problem{Type: "run_lost", Detail: "executor disappeared"}},
 		{Status: OutcomeMaxSteps, Detail: "20 / 20 steps"},
 		{Status: OutcomeMaxBudget, Detail: "$2.00 / $2.00"},
 		{Status: OutcomeCanceled, Detail: "user stopped"},
@@ -66,19 +68,19 @@ func TestOutcomeValidationMatchesRuntimeUnion(t *testing.T) {
 	for _, outcome := range []Outcome{
 		{Status: OutcomeTimedOut},
 		{Status: OutcomeFailed, Detail: "wrong channel"},
-		{Status: OutcomeCanceled, Error: "wrong channel"},
+		{Status: OutcomeCanceled, Problem: problem},
 		{Status: OutcomeCompleted, Detail: "unexpected"},
-		{Status: OutcomeCompleted, ProblemJSON: problem},
-		{Status: OutcomeFailed, Error: "bad problem", ProblemJSON: []byte(`{`)},
+		{Status: OutcomeCompleted, Problem: problem},
+		{Status: OutcomeFailed, Problem: &failure.Problem{}},
 	} {
 		if err := outcome.Validate(); err == nil {
 			t.Fatalf("invalid outcome %+v was accepted", outcome)
 		}
 	}
 	cloned := valid[1].Clone()
-	cloned.ProblemJSON[0] = '['
+	cloned.Problem.Detail = "mutated"
 	if valid[1].Equal(cloned) || !valid[1].Equal(valid[1].Clone()) {
-		t.Fatal("outcome problem JSON is not value-owned")
+		t.Fatal("outcome problem is not value-owned")
 	}
 }
 

@@ -12,6 +12,7 @@ import (
 	"github.com/Tangerg/oolong/highlight"
 
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
+	"github.com/Tangerg/lynx/app/cli/internal/failure"
 )
 
 func TestPluginPresenterPanicBecomesAnError(t *testing.T) {
@@ -188,7 +189,10 @@ func TestToolDetailsPresentSafetyAndLifecycleMetadata(t *testing.T) {
 func TestToolDetailsPreserveStructuredProblems(t *testing.T) {
 	presentation := presentUnknownTool(agent.ToolCall{
 		Kind: agent.ToolUnknown, Name: "provider_tool", Status: agent.ToolError,
-		ProblemJSON: []byte(`{"type":"provider_rate_limited","retryAfterSeconds":2,"docUrl":"https://docs.example/errors/rate-limit"}`),
+		Problem: &failure.Problem{
+			Type: "provider_rate_limited", RetryAfterSeconds: 2,
+			DocURL: "https://docs.example/errors/rate-limit",
+		},
 	})
 	if len(presentation.Sections) != 1 || presentation.Sections[0].Title != "Problem" ||
 		!strings.Contains(presentation.Sections[0].Text, "retryAfterSeconds") ||

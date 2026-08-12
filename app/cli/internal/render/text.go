@@ -504,10 +504,8 @@ func (t *Text) finished(e agent.RunFinished) {
 	t.blank()
 	if e.Outcome.Status != agent.OutcomeCompleted {
 		msg := string(e.Outcome.Status)
-		if e.Outcome.Error != "" {
-			msg += ": " + e.Outcome.Error
-		} else if e.Outcome.Detail != "" {
-			msg += ": " + e.Outcome.Detail
+		if detail := e.Outcome.Description(); detail != "" {
+			msg += ": " + detail
 		}
 		t.line(msg)
 	}

@@ -125,29 +125,25 @@ func (p GenerationParams) Validate() error {
 }
 
 func (o Outcome) Validate() error {
-	if len(o.ProblemJSON) > 0 {
-		var problem map[string]any
-		if !json.Valid(o.ProblemJSON) || json.Unmarshal(o.ProblemJSON, &problem) != nil || problem == nil {
-			return errors.New("outcome problem JSON is not an object")
+	if o.Problem != nil {
+		if err := o.Problem.Validate(); err != nil {
+			return fmt.Errorf("outcome: %w", err)
 		}
 	}
 	switch o.Status {
 	case OutcomeCompleted:
-		if strings.TrimSpace(o.Error) != "" || strings.TrimSpace(o.Detail) != "" || len(o.ProblemJSON) != 0 {
-			return errors.New("completed outcome cannot carry an error, problem, or detail")
+		if strings.TrimSpace(o.Detail) != "" || o.Problem != nil {
+			return errors.New("completed outcome cannot carry a problem or detail")
 		}
 	case OutcomeTimedOut, OutcomeFailed, OutcomeLost:
-		if strings.TrimSpace(o.Error) == "" {
-			return fmt.Errorf("%s outcome has no error", o.Status)
+		if o.Problem == nil {
+			return fmt.Errorf("%s outcome has no problem", o.Status)
 		}
 		if strings.TrimSpace(o.Detail) != "" {
 			return fmt.Errorf("%s outcome carries a policy detail", o.Status)
 		}
 	case OutcomeMaxSteps, OutcomeMaxBudget, OutcomeCanceled:
-		if strings.TrimSpace(o.Error) != "" {
-			return fmt.Errorf("%s outcome carries an error", o.Status)
-		}
-		if len(o.ProblemJSON) != 0 {
+		if o.Problem != nil {
 			return fmt.Errorf("%s outcome carries a problem", o.Status)
 		}
 	default:

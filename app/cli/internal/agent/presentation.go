@@ -15,6 +15,8 @@ import (
 	"slices"
 	"strings"
 	"time"
+
+	"github.com/Tangerg/lynx/app/cli/internal/failure"
 )
 
 // Errors a [Runtime] reports by identity rather than by message, mirroring the
@@ -213,9 +215,9 @@ type ToolCall struct {
 	// as Command and Path remain the high-quality projection for known tools.
 	ArgumentsJSON []byte
 	ResultJSON    []byte
-	// ProblemJSON retains the runtime's structured tool-level failure, including
-	// documentation, retry guidance, and capability or field-level details.
-	ProblemJSON []byte
+	// Problem retains the structured tool-level failure, including documentation,
+	// retry guidance, and capability or field-level details.
+	Problem *failure.Problem
 	// Diff is a unified diff when the call changed files.
 	Diff string
 	// ExitCode is set for completed process-like tools. Nil distinguishes an
@@ -228,7 +230,7 @@ type ToolCall struct {
 func (t ToolCall) Clone() ToolCall {
 	t.ArgumentsJSON = bytes.Clone(t.ArgumentsJSON)
 	t.ResultJSON = bytes.Clone(t.ResultJSON)
-	t.ProblemJSON = bytes.Clone(t.ProblemJSON)
+	t.Problem = t.Problem.Clone()
 	if t.ExitCode != nil {
 		t.ExitCode = new(*t.ExitCode)
 	}
@@ -243,7 +245,7 @@ func (t ToolCall) Equal(other ToolCall) bool {
 		!t.FinishedAt.Equal(other.FinishedAt) || t.Command != other.Command || t.Path != other.Path ||
 		t.Query != other.Query || t.URL != other.URL || t.Output != other.Output ||
 		!bytes.Equal(t.ArgumentsJSON, other.ArgumentsJSON) || !bytes.Equal(t.ResultJSON, other.ResultJSON) ||
-		!bytes.Equal(t.ProblemJSON, other.ProblemJSON) ||
+		!t.Problem.Equal(other.Problem) ||
 		t.Diff != other.Diff || t.Duration != other.Duration ||
 		(t.ExitCode == nil) != (other.ExitCode == nil) {
 		return false
@@ -298,10 +300,9 @@ func (t ToolCall) Validate() error {
 	if len(t.ResultJSON) > 0 && !json.Valid(t.ResultJSON) {
 		problems = append(problems, errors.New("result JSON is invalid"))
 	}
-	if len(t.ProblemJSON) > 0 {
-		var problem map[string]any
-		if !json.Valid(t.ProblemJSON) || json.Unmarshal(t.ProblemJSON, &problem) != nil || problem == nil {
-			problems = append(problems, errors.New("problem JSON is not an object"))
+	if t.Problem != nil {
+		if err := t.Problem.Validate(); err != nil {
+			problems = append(problems, err)
 		}
 		if t.Status != ToolError && t.Status != ToolCanceled {
 			problems = append(problems, errors.New("successful or running tool carries a problem"))
@@ -344,22 +345,26 @@ const (
 // Outcome is a finished run's verdict.
 type Outcome struct {
 	Status OutcomeStatus
-	// Error carries the structured runtime problem's display text for failed,
-	// timed-out, and lost outcomes.
-	Error string
-	// ProblemJSON retains the runtime's complete structured failure for machine
-	// consumers and detailed presenters.
-	ProblemJSON []byte
+	// Problem is the single source of failure classification, display text, and
+	// recovery metadata for failed, timed-out, and lost outcomes.
+	Problem *failure.Problem
 	// Detail explains a policy stop such as max steps, max budget, or cancel.
 	Detail string
 }
 
 func (o Outcome) Clone() Outcome {
-	o.ProblemJSON = bytes.Clone(o.ProblemJSON)
+	o.Problem = o.Problem.Clone()
 	return o
 }
 
 func (o Outcome) Equal(other Outcome) bool {
-	return o.Status == other.Status && o.Error == other.Error && o.Detail == other.Detail &&
-		bytes.Equal(o.ProblemJSON, other.ProblemJSON)
+	return o.Status == other.Status && o.Detail == other.Detail && o.Problem.Equal(other.Problem)
+}
+
+// Description returns the concise explanation appropriate for status lines.
+func (o Outcome) Description() string {
+	if o.Problem != nil {
+		return o.Problem.Message("")
+	}
+	return strings.TrimSpace(o.Detail)
 }

@@ -144,10 +144,8 @@ func writeRunDetails(cmd *cobra.Command, run agent.Run) error {
 	}
 	if run.Status == agent.RunStatusFinished {
 		outcome := string(run.Outcome.Status)
-		if detail := strings.TrimSpace(run.Outcome.Detail); detail != "" {
+		if detail := run.Outcome.Description(); detail != "" {
 			outcome += " · " + detail
-		} else if problem := strings.TrimSpace(run.Outcome.Error); problem != "" {
-			outcome += " · " + problem
 		}
 		rows = append(rows, [2]string{"outcome", outcome})
 	}

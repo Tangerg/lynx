@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"testing"
 	"time"
+
+	"github.com/Tangerg/lynx/app/cli/internal/failure"
 )
 
 func TestRunEventEqualityUsesDomainValues(t *testing.T) {
@@ -93,12 +95,12 @@ func TestEphemeralEventsCloneOwnedValues(t *testing.T) {
 
 func TestFinishedEventCloneOwnsOutcomeProblem(t *testing.T) {
 	event := RunFinished{Outcome: Outcome{
-		Status: OutcomeFailed, Error: "rate limited",
-		ProblemJSON: []byte(`{"type":"rate_limited","retryAfterSeconds":2}`),
+		Status:  OutcomeFailed,
+		Problem: &failure.Problem{Type: "rate_limited", Detail: "rate limited", RetryAfterSeconds: 2},
 	}}
 	clone := CloneEvent(event).(RunFinished)
-	clone.Outcome.ProblemJSON[0] = '['
-	if bytes.Equal(event.Outcome.ProblemJSON, clone.Outcome.ProblemJSON) || !equalEvent(event, CloneEvent(event)) {
+	clone.Outcome.Problem.Detail = "mutated"
+	if event.Outcome.Problem.Equal(clone.Outcome.Problem) || !equalEvent(event, CloneEvent(event)) {
 		t.Fatal("finished event outcome problem is not value-owned")
 	}
 }
@@ -140,14 +142,14 @@ func TestToolCallCloneOwnsRawJSON(t *testing.T) {
 	call := ToolCall{
 		Kind: ToolUnknown, Name: "provider_tool", Status: ToolError,
 		ArgumentsJSON: []byte(`{"nested":{"value":1}}`),
-		ProblemJSON:   []byte(`{"type":"provider_error","retryAfterSeconds":2}`),
+		Problem:       &failure.Problem{Type: "provider_error", RetryAfterSeconds: 2},
 	}
 	if err := call.Validate(); err != nil {
 		t.Fatal(err)
 	}
 	clone := call.Clone()
-	clone.ArgumentsJSON[0], clone.ProblemJSON[0] = '[', '['
-	if bytes.Equal(call.ArgumentsJSON, clone.ArgumentsJSON) || bytes.Equal(call.ProblemJSON, clone.ProblemJSON) || !call.Equal(call.Clone()) {
+	clone.ArgumentsJSON[0], clone.Problem.Detail = '[', "mutated"
+	if bytes.Equal(call.ArgumentsJSON, clone.ArgumentsJSON) || call.Problem.Equal(clone.Problem) || !call.Equal(call.Clone()) {
 		t.Fatalf("tool JSON clone aliases source: source=%+v clone=%+v", call, clone)
 	}
 

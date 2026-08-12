@@ -303,11 +303,8 @@ func consume(stream agent.EventStream, conversation *agent.Conversation, rendere
 type outcomeError struct{ outcome agent.Outcome }
 
 func (e *outcomeError) Error() string {
-	if e.outcome.Error != "" {
-		return "run " + string(e.outcome.Status) + ": " + e.outcome.Error
-	}
-	if e.outcome.Detail != "" {
-		return "run " + string(e.outcome.Status) + ": " + e.outcome.Detail
+	if detail := e.outcome.Description(); detail != "" {
+		return "run " + string(e.outcome.Status) + ": " + detail
 	}
 	return "run " + string(e.outcome.Status)
 }
