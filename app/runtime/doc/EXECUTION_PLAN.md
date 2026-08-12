@@ -87,6 +87,7 @@
 | P51 | Knowledge filesystem identity 与 crash-safe CAS | P50 + symlink / cross-process / kill recovery 反例 | 已完成 |
 | P52 | 外部人工配置变更与 Runtime stream 收敛 | P51 + external create/write/rename/remove / duplicate event 反例 | 已完成 |
 | P53 | Desktop Goal mutation/read-model 单一事实源收敛 | P52 + delayed response / equal timestamp / remote transition 反例 | 已完成 |
+| P54 | Checkpoint source ownership 与 shadow ignore 收敛 | P53 + tracked build input / ignored generated sibling 反例 | 已完成 |
 
 ## 4. P0 — 文档、事实和边界基线
 
@@ -1309,10 +1310,31 @@
 - Frontend Goal/Application/Adapter 红测、全量架构/API consumer/bundle 门禁及 Runtime Goal/Run/Plan/HITL 回归全绿；
 - 真实客户端验证 Goal stop/resume 与远端状态变化最终一致，Agent/Agent Framework、Runtime/Protocol、SQLite/Artifact shape 零变更。
 
-## 58. 进度记录
+## 58. P54 — Checkpoint source ownership 与 shadow ignore 收敛
+
+### 目标
+
+关闭 shadow checkpoint 的 backstop ignore 与复制 source index 自相矛盾的缺口：真实仓库合法跟踪的 `build/` 输入进入 shadow index 后，不能被 shadow 自己的 `build/` exclude 再次拒绝；同目录未跟踪生成物仍不得被 checkpoint 接管。修复必须留在 checkpoint Infra 的路径选择/暂存 owner，不在 Run/Goal maintenance 或 Agent 层吞错。
+
+### 工作项
+
+- [x] P54-01 用真实 source Git repo 复现 tracked nested build input 在首次 Snapshot 因 shadow ignore 被 `git add` 拒绝；
+- [x] P54-02 明确 `git ls-files --exclude-standard` 是唯一 ownership selection：它保留 source index 已跟踪路径，同时排除 ignored untracked path；
+- [x] P54-03 对这份经过类型/大小策略筛选的精确路径列表执行 force-add，避免后续 index update 二次解释 shadow ignore；
+- [x] P54-04 回归覆盖 tracked build input 两轮 snapshot/restore、同目录 ignored generated sibling 保持不变、oversize drop、普通 gitignore 与 source-index baseline；
+- [x] P54-05 完成 checkpoint race、Runtime standalone、真实 HTTP Plan/HITL/Approval/Goal 矩阵与真实 lynx 工作树 Goal checkpoint 复验。
+
+### 验收
+
+- checkpoint 首次/后续 Snapshot 都保留 source repo 已跟踪且命中 backstop exclude 的文件，ignored untracked 与 oversize 文件仍不进入 shadow tree；
+- checkpoint focused 20×、完整包、race、Runtime tidy/build/vet/test 与真实 HTTP 7 个 Plan/HITL/Approval/Goal 场景全绿；
+- 真实 lynx 工作树 checkpoint tree 包含已跟踪 Desktop build 配置、排除生成目录并通过 `git fsck`，maintenance 无 ERROR；Runtime/Protocol/SQLite/Artifact/Agent Framework shape 不变。
+
+## 59. 进度记录
 
 | 日期 | 阶段 | 完成事实 | 验证 |
 |---|---|---|---|
+| 2026-08-13 | P54（checkpoint source ownership / shadow ignore） | Checkpoint Infra 明确 `ls-files --exclude-standard` 是唯一路径 ownership decision：source index 已跟踪路径保留，ignored untracked 路径排除，普通文件再经类型/2 MiB 策略筛选；精确候选列表用 force-add 更新 shadow index，避免 `build/` backstop exclude 二次否决真实仓库合法跟踪的 build 输入。修复止于 `infra/checkpoint`，Run/Goal/Agent 不吞 maintenance 错误，Runtime/Protocol/SQLite/Artifact shape 不变 | 红测真实复现 tracked `app/build/config.yml` 因 shadow ignore 导致 `git add` 失败；修复后 tracked+ignored sibling 矩阵 20×、checkpoint 完整包/race、Runtime standalone tidy/build/vet/test 全绿，真实 HTTP Plan/HITL/Approval/Goal 7 场景通过。修复后的 Runtime 对真实 lynx 工作树完成 Goal checkpoint：shadow tree 精确含 7 个 tracked Desktop build 输入、排除 bin/ios/linux/windows generated paths，`git fsck` 通过且 maintenance 无 ERROR，Goal 到达 1/1 budget boundary |
 | 2026-08-13 | P53（Goal mutation/read-model single authority） | Desktop Goal Application 删除 mutation snapshot 的 timestamp 排序与 standing cache 写入，成功、失败和结算不明统一回读；command port 收窄为中性 Session receipt，完整 Runtime Goal 只在 Adapter 消费，`goals.get` data provider 成为长期状态唯一作者。跨 Session receipt fail closed，Application 错误保持结构化且无产品文案。Agent/Framework、Runtime/Protocol、SQLite/Artifact shape 零变更 | 红测覆盖 equal timestamp、延迟未来时间戳、mounted query refetch、跨 Session receipt、失败恢复和同 Session 串行；Frontend 270 文件/1630 测试、95 public edges、86/86 operations + 12/12 events / 103 typed call sites、本地化与 bundle 全绿，Runtime standalone tidy/build/vet/test 全绿。隔离 Runtime/假 provider/延迟代理/真实浏览器中，本地 Stop response 被改为 `2099` 并延迟，远端 Resume 先提交；页面经 `goals.changed → goals.get` 保持 active 1/3，释放旧响应及随后权威回读均不倒退，page/业务 console error 为零 |
 | 2026-08-13 | P52（external authored configuration convergence） | 中性 `infra/fileobservation` 以精确路径语义指纹观察 missing-parent create、write、atomic rename、remove 与域内 symlink physical target；Workspace Adapter 独占 `LYRA.md` / hooks cascade 布局，Application 只解析 workspace/projectRoot 与语义资源，Delivery 只投影既有 topic。Knowledge API commit 在发布前按 exact returned path 接受新基线，避免 filesystem 回声导致重复 refetch，同时不吞同资源另一文档的并发外部编辑。Agent/Framework、Protocol、SQLite、Artifact shape 均未变化 | 红测先证明外部配置 3 秒无事件；Infra/Application/Adapter/Delivery/Bootstrap/architecture 聚焦全绿，精确 identity 去重与 close-join 回归通过；真实 Go Runtime → HTTP SSE → TypeScript SDK 验证 home/projectRoot/cwd Knowledge 与 global/project/cwd Hooks 外部变更逐项发专用事件且冷读收敛；Desktop 唯一 consumer 仍消费 86/86 operations + 12/12 events |
 | 2026-08-13 | P51（Knowledge physical identity / cross-process CAS / crash recovery） | Knowledge Infra 以唯一 physical identity 将 containment、read/revision/atomic replacement 对齐；域外 symlink fail closed，域内 alias 保持，目标 mode 继承。中性 advisory-lock 同时承载 Bootstrap 单实例 lease 与 Knowledge 跨进程 document lease，但错误与生命周期仍各归 owner；strict staging 在 cold read 回收。Application/Delivery 只投影既有 path policy/problem，Agent/Framework、SQLite、Artifact 不变 | 12×12 独立进程 CAS 恰好一个 winner；12 轮 64 MiB staging 强杀后旧 content 完整、orphan cold recovery、后续写成功；Runtime standalone、Frontend 270 文件/1628 测试及 86/86 operations + 12/12 events、focused/race/Windows 三包交叉编译全绿；真实 HTTP/浏览器验证三 API 外链拒绝及域内 symlink、0600 权限、physical target 写回，page/业务 console error 为零 |

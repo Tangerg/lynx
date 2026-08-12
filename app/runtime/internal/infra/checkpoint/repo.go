@@ -10,9 +10,10 @@ import (
 )
 
 // commonExcludes keep a checkpoint from ballooning into dependency / build
-// output in a repo that lacks its own .gitignore. A repo WITH a .gitignore is
-// already honored by git; this is only a backstop so a no-ignore project
-// doesn't snapshot node_modules on every run.
+// output that the source repository does not own. Work-tree .gitignore rules
+// remain in force too. These are a backstop for no-ignore projects, but they
+// must never erase a path already tracked by the source index; stageChanges
+// preserves that distinction after it has selected the exact paths.
 const commonExcludes = "node_modules/\n.venv/\nvenv/\n__pycache__/\ndist/\nbuild/\ntarget/\n.next/\n.DS_Store\n"
 
 // ensureRepo lazily initializes the session's shadow repo (idempotent).

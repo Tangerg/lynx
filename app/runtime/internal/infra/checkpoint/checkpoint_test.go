@@ -205,6 +205,39 @@ func TestStore_MaterializesSourceRepoSeed(t *testing.T) {
 	}
 }
 
+func TestStore_PreservesTrackedSourcePathMatchedByBackstopIgnore(t *testing.T) {
+	s, cwd := newTestStore(t)
+	ctx := t.Context()
+
+	gitCmd(t, cwd, "init", "-q")
+	buildDir := filepath.Join(cwd, "app", "build")
+	if err := os.MkdirAll(buildDir, 0o755); err != nil {
+		t.Fatalf("create tracked build directory: %v", err)
+	}
+	write(t, buildDir, "config.yml", "v1")
+	gitCmd(t, cwd, "add", "app/build/config.yml")
+	gitCmd(t, cwd, "commit", "-qm", "track nested build input")
+	write(t, buildDir, "generated.bin", "unowned-v1")
+
+	if err := s.Snapshot(ctx, "ses1", cwd, "run1"); err != nil {
+		t.Fatalf("snapshot tracked path matched by shadow backstop: %v", err)
+	}
+	write(t, buildDir, "config.yml", "v2")
+	write(t, buildDir, "generated.bin", "unowned-v2")
+	if err := s.Snapshot(ctx, "ses1", cwd, "run2"); err != nil {
+		t.Fatalf("snapshot modified tracked path matched by shadow backstop: %v", err)
+	}
+	if err := s.Restore(ctx, "ses1", cwd, "run1"); err != nil {
+		t.Fatalf("restore tracked path matched by shadow backstop: %v", err)
+	}
+	if got := read(t, buildDir, "config.yml"); got != "v1" {
+		t.Fatalf("config.yml = %q, want v1", got)
+	}
+	if got := read(t, buildDir, "generated.bin"); got != "unowned-v2" {
+		t.Fatalf("generated.bin = %q, want ignored untracked content left untouched", got)
+	}
+}
+
 func TestStore_AppliesSizeLimitToSourceIndex(t *testing.T) {
 	s, cwd := newTestStore(t)
 	ctx := context.Background()

@@ -96,8 +96,12 @@ func (s *Store) hasHead(ctx context.Context, gitDir string) (bool, error) {
 // stageChanges stages the work tree's changes into the shadow index, skipping
 // files over [maxCheckpointFileSize]. The baseline inspects all initial index
 // entries once to establish ownership; later snapshots consider only changed,
-// new, or removed paths. `git ls-files` honors .gitignore + info/exclude, and
-// the index carries unchanged files forward without rescanning the whole tree.
+// new, or removed paths. `git ls-files` is the ownership decision: it honors
+// .gitignore + info/exclude for untracked files while retaining paths copied
+// from the source index. The exact selected paths are then force-added because
+// a shadow backstop exclude such as build/ must not veto a legitimately tracked
+// source path after selection. The force applies only to this filtered list; it
+// cannot admit an ignored untracked path that ls-files did not return.
 func (s *Store) stageChanges(ctx context.Context, gitDir, cwd string) error {
 	hasHead, err := s.hasHead(ctx, gitDir)
 	if err != nil {
@@ -150,7 +154,7 @@ func (s *Store) stageChanges(ctx context.Context, gitDir, cwd string) error {
 		[]string{"rm", "-q", "-f", "--cached", "--ignore-unmatch", "--"}, untrack); err != nil {
 		return err
 	}
-	return s.updateIndex(ctx, gitDir, cwd, []string{"add", "--"}, stage)
+	return s.updateIndex(ctx, gitDir, cwd, []string{"add", "--force", "--"}, stage)
 }
 
 func (s *Store) updateIndex(ctx context.Context, gitDir, cwd string, prefix, paths []string) error {
