@@ -266,6 +266,19 @@ type CancelCommand struct {
 	AllowChildRun bool
 }
 
+const defaultCancelReason = "user canceled the run"
+
+// withReason normalizes the optional product-facing note once at the
+// application boundary. Every cancellation topology then records and forwards
+// the same non-empty reason, independent of which caller initiated it.
+func (c CancelCommand) withReason() CancelCommand {
+	c.Reason = strings.TrimSpace(c.Reason)
+	if c.Reason == "" {
+		c.Reason = defaultCancelReason
+	}
+	return c
+}
+
 // CancelResult is the exact durable terminal snapshot committed by Cancel.
 // RootRun is present only when the addressed Run is a child, so callers do not
 // have to query or reconstruct state after the command boundary.

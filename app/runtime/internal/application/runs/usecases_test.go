@@ -143,6 +143,7 @@ type fakeExecutionPorts struct {
 	operations        *[]string
 	releaseErr        error
 	requestRootCancel func()
+	rootCancelReason  string
 	cancelTreeErr     error
 	cancelSubtree     func(ExecutorRef, string, string) error
 	prepareWaiting    func(WaitingSubtreeCancellationRequest) (PreparedWaitingSubtreeCancellation, error)
@@ -254,7 +255,8 @@ func (f *fakeExecutionPorts) Release(_ context.Context, ref ExecutorRef) error {
 	return f.releaseErr
 }
 
-func (f *fakeExecutionPorts) RequestRootCancellation(context.Context, ExecutorRef, string) error {
+func (f *fakeExecutionPorts) RequestRootCancellation(_ context.Context, _ ExecutorRef, reason string) error {
+	f.rootCancelReason = reason
 	if f.requestRootCancel != nil {
 		f.requestRootCancel()
 	}
@@ -1665,6 +1667,39 @@ func TestCancelLiveRunReportsExecutorReleaseFailureAndStillTerminalizes(t *testi
 	consumePulledEvents(next) // drain the terminal events
 	if !effects.terminalized("ses_1", "run_1") {
 		t.Fatal("executor release failure prevented live Run terminalization")
+	}
+}
+
+func TestCancelLiveRunDefaultsOmittedReasonAtApplicationBoundary(t *testing.T) {
+	executor := &fakeExecutor{block: true}
+	effects := &fakeEffects{}
+	control := &fakeExecutionPorts{requestRootCancel: executor.requestRootCancellation}
+	c := NewCoordinator(Dependencies{
+		Observations: executor, Releases: control, RootCancellation: control,
+		Session: testSessionPorts(&fakeRunSessions{}), Projection: testProjectionPorts(effects),
+		Runs: &fakeRunProjection{runs: map[string]run.Run{
+			"run_1": runForSegment(testSegment()),
+		}},
+		Admissions: new(sessionadmission.Gate),
+	})
+	stream, err := c.openSegment(t.Context(), testSegment())
+	if err != nil {
+		t.Fatalf("openSegment: %v", err)
+	}
+	next, stop := iter.Pull(stream)
+	defer stop()
+	next() // consume the opening event so the pump is live
+
+	result, err := c.Cancel(t.Context(), CancelCommand{RunID: "run_1"})
+	if err != nil {
+		t.Fatalf("Cancel: %v", err)
+	}
+	consumePulledEvents(next)
+	if control.rootCancelReason != defaultCancelReason {
+		t.Fatalf("executor cancellation reason = %q, want %q", control.rootCancelReason, defaultCancelReason)
+	}
+	if result.Run.Detail() != defaultCancelReason {
+		t.Fatalf("durable cancellation detail = %q, want %q", result.Run.Detail(), defaultCancelReason)
 	}
 }
 

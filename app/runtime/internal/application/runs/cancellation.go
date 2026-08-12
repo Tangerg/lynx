@@ -19,6 +19,7 @@ func (c *Coordinator) Cancel(ctx context.Context, cmd CancelCommand) (CancelResu
 	if err := c.requireControlDependencies(); err != nil {
 		return CancelResult{}, err
 	}
+	cmd = cmd.withReason()
 
 	plan, entry, live, err := c.cancellationPlanFor(ctx, cmd)
 	if err != nil {

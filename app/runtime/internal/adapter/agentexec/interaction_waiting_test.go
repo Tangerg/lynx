@@ -17,6 +17,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	domaintool "github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
+	infraexec "github.com/Tangerg/lynx/app/runtime/internal/infra/exec"
 	"github.com/Tangerg/lynx/chatclient"
 	"github.com/Tangerg/lynx/core/chat"
 	toolcontract "github.com/Tangerg/lynx/tool"
@@ -275,6 +276,156 @@ func TestInteractionExecutorRestoresInteractiveApprovalWithoutRepeatingPolicyOrH
 	}
 	if len(payloadsOf[runs.ToolCallStarted](observed)) != 1 || len(payloadsOf[runs.ToolCallFinished](observed)) != 1 {
 		t.Fatalf("approved Tool lifecycle = %#v", observed)
+	}
+	if err := executor.Release(t.Context(), ref); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestInteractionExecutorCancellationStopsApprovedInflightTool(t *testing.T) {
+	workspace := t.TempDir()
+	toolStarted := make(chan struct{})
+	toolReturned := make(chan struct{})
+	executable, err := toolcontract.NewFunc(toolcontract.FuncConfig{
+		Name: "mutate", Description: "Perform an approved mutation until canceled.",
+	}, func(ctx context.Context, _ struct{}) (string, error) {
+		close(toolStarted)
+		<-ctx.Done()
+		close(toolReturned)
+		return "", ctx.Err()
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	model := &observationScriptModel{responses: []*chat.Response{
+		interactionToolResponse(chat.ToolCall{ID: "mutate_call", Name: "mutate", Arguments: `{}`}, 1, 1),
+	}}
+	executor := newObservedTestInteractionExecutor(t, model, InteractionExecutorConfig{
+		ToolResolver:    staticInteractionTools{manifest: toolset.Manifest{Visible: []toolcontract.Tool{executable}}},
+		ToolInterpreter: testInteractionToolInterpreter{}, ToolAuthorizer: &promptingInteractionAuthorizer{},
+	})
+	start := interactionTestStart()
+	start.CWD, start.WorkspaceCWD = workspace, workspace
+	start.InterruptKinds = []interrupt.Kind{interrupt.Approval}
+	ref, err := executor.StageRoot(t.Context(), start)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, barrier := observeInteractionUntilWaiting(t, executor, ref, func() error {
+		return executor.BeginRoot(t.Context(), ref)
+	})
+	continuation := rootInteractionWaitingContinuation(
+		barrier.Checkpoint,
+		ref.ExecutorID,
+		run.Capabilities{InterruptKinds: []interrupt.Kind{interrupt.Approval}},
+	)
+	if _, err := executor.StageContinuation(t.Context(), continuation); err != nil {
+		t.Fatal(err)
+	}
+	sequence, err := executor.Observe(context.Background(), ref)
+	if err != nil {
+		t.Fatal(err)
+	}
+	events := collectInteractionEvents(sequence)
+	binding := barrier.Interruptions[0]
+	if err := executor.BeginContinuation(t.Context(), ref, []runs.InterruptAnswer{{
+		InterruptItemID: "item_approval", MemberID: binding.MemberID,
+		RequestID: binding.RequestID, Resolution: interrupt.Resolution{Approved: true},
+	}}, []interrupt.Kind{interrupt.Approval}); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-toolStarted:
+	case <-time.After(time.Second):
+		t.Fatal("approved Tool did not start")
+	}
+	if err := executor.RequestRootCancellation(t.Context(), ref, "operator canceled"); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-toolReturned:
+	case <-time.After(time.Second):
+		t.Fatal("approved Tool context was not canceled")
+	}
+	observed := <-events
+	ended := payloadsOf[runs.SegmentEnded](observed)
+	if len(ended) != 1 || ended[0].Reason != run.OutcomeCanceled {
+		t.Fatalf("segment end = %#v, want canceled", ended)
+	}
+	if err := executor.Release(t.Context(), ref); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestInteractionExecutorCancellationStopsApprovedForegroundShell(t *testing.T) {
+	workspace := t.TempDir()
+	shells := infraexec.NewShells(nil, false)
+	t.Cleanup(func() {
+		if err := shells.KillAll(); err != nil {
+			t.Errorf("KillAll: %v", err)
+		}
+	})
+	shellTools, err := builtin.BuildShell(shells, workspace)
+	if err != nil {
+		t.Fatal(err)
+	}
+	model := &observationScriptModel{responses: []*chat.Response{
+		interactionToolResponse(chat.ToolCall{
+			ID: "shell_call", Name: toolname.Shell,
+			Arguments: `{"command":"sleep 30","description":"Wait until canceled"}`,
+		}, 1, 1),
+	}}
+	executor := newObservedTestInteractionExecutor(t, model, InteractionExecutorConfig{
+		ToolResolver:    staticInteractionTools{manifest: toolset.Manifest{Visible: shellTools}},
+		ToolInterpreter: testInteractionToolInterpreter{}, ToolAuthorizer: &promptingInteractionAuthorizer{},
+	})
+	start := interactionTestStart()
+	start.CWD, start.WorkspaceCWD = workspace, workspace
+	start.InterruptKinds = []interrupt.Kind{interrupt.Approval}
+	ref, err := executor.StageRoot(t.Context(), start)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, barrier := observeInteractionUntilWaiting(t, executor, ref, func() error {
+		return executor.BeginRoot(t.Context(), ref)
+	})
+	continuation := rootInteractionWaitingContinuation(
+		barrier.Checkpoint,
+		ref.ExecutorID,
+		run.Capabilities{InterruptKinds: []interrupt.Kind{interrupt.Approval}},
+	)
+	if _, err := executor.StageContinuation(t.Context(), continuation); err != nil {
+		t.Fatal(err)
+	}
+	sequence, err := executor.Observe(context.Background(), ref)
+	if err != nil {
+		t.Fatal(err)
+	}
+	events := collectInteractionEvents(sequence)
+	binding := barrier.Interruptions[0]
+	if err := executor.BeginContinuation(t.Context(), ref, []runs.InterruptAnswer{{
+		InterruptItemID: "item_approval", MemberID: binding.MemberID,
+		RequestID: binding.RequestID, Resolution: interrupt.Resolution{Approved: true},
+	}}, []interrupt.Kind{interrupt.Approval}); err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(time.Second)
+	for len(shells.RunningForSession(start.SessionID)) == 0 && time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
+	}
+	if running := shells.RunningForSession(start.SessionID); len(running) != 1 {
+		t.Fatalf("running shells = %#v, want one approved foreground command", running)
+	}
+	if err := executor.RequestRootCancellation(t.Context(), ref, "operator canceled"); err != nil {
+		t.Fatal(err)
+	}
+	observed := <-events
+	ended := payloadsOf[runs.SegmentEnded](observed)
+	if len(ended) != 1 || ended[0].Reason != run.OutcomeCanceled {
+		t.Fatalf("segment end = %#v, want canceled", ended)
+	}
+	if running := shells.RunningForSession(start.SessionID); len(running) != 0 {
+		t.Fatalf("approved foreground shell survived cancellation: %#v", running)
 	}
 	if err := executor.Release(t.Context(), ref); err != nil {
 		t.Fatal(err)
