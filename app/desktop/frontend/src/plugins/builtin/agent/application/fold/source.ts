@@ -1,4 +1,4 @@
-import type { Item, RunEvent } from "@/rpc";
+import type { AgentEventEnvelope, AgentItem } from "@/plugins/sdk";
 import { itemStartedAt } from "./projections";
 
 export interface AgentFoldSource {
@@ -8,7 +8,7 @@ export interface AgentFoldSource {
   timestamp: string;
 }
 
-export function runEventSource(event: RunEvent): AgentFoldSource {
+export function runEventSource(event: AgentEventEnvelope): AgentFoldSource {
   return {
     runId: event.runId,
     segmentId: event.segmentId,
@@ -17,7 +17,7 @@ export function runEventSource(event: RunEvent): AgentFoldSource {
   };
 }
 
-export function durableItemSource(item: Item): AgentFoldSource {
+export function durableItemSource(item: AgentItem): AgentFoldSource {
   return {
     runId: item.runId,
     segmentId: null,

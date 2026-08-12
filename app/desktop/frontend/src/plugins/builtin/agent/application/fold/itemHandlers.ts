@@ -1,4 +1,4 @@
-import type { Item, ItemDelta } from "@/rpc";
+import type { AgentItem, AgentItemDelta } from "@/plugins/sdk";
 import type { AgentSessionView, TimelineEntry } from "@/plugins/sdk/types/agentSessionView";
 import { appendTimelineEntry } from "@/plugins/sdk";
 import { blockStatus } from "./projections";
@@ -15,7 +15,7 @@ import {
 import type { AgentFoldSource } from "./source";
 import { sourceTimestamp } from "./source";
 
-function assertItemSource(item: Item, source: AgentFoldSource): void {
+function assertItemSource(item: AgentItem, source: AgentFoldSource): void {
   if (item.runId !== source.runId) {
     throw new Error(
       `agent.fold.itemSourceMismatch:type=${item.type};item=${item.id};itemRun=${item.runId};eventRun=${source.runId}`,
@@ -39,7 +39,7 @@ function toolTimelineEntry(
 
 export function onItemStarted(
   state: AgentSessionView,
-  item: Item,
+  item: AgentItem,
   source: AgentFoldSource,
 ): AgentSessionView {
   assertItemSource(item, source);
@@ -78,11 +78,11 @@ export function onItemStarted(
 }
 
 interface ProjectedItemIdentity {
-  type: Item["type"];
+  type: AgentItem["type"];
   runId: string | null;
 }
 
-function assertItemProjectionIdentity(state: AgentSessionView, item: Item): boolean {
+function assertItemProjectionIdentity(state: AgentSessionView, item: AgentItem): boolean {
   const identities: ProjectedItemIdentity[] = [];
   const tool = state.toolCalls[item.id];
   if (tool) identities.push({ type: "toolCall", runId: tool.runId });
@@ -134,7 +134,7 @@ function assertItemProjectionIdentity(state: AgentSessionView, item: Item): bool
 export function onItemDelta(
   state: AgentSessionView,
   itemId: string,
-  delta: ItemDelta,
+  delta: AgentItemDelta,
   source: AgentFoldSource,
 ): AgentSessionView {
   switch (delta.type) {
@@ -175,7 +175,7 @@ export function onItemDelta(
 
 export function onItemCompleted(
   state: AgentSessionView,
-  item: Item,
+  item: AgentItem,
   source: AgentFoldSource,
 ): AgentSessionView {
   assertItemSource(item, source);

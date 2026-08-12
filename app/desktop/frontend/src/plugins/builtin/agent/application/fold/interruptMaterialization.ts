@@ -1,4 +1,4 @@
-import type { Interrupt } from "@/rpc";
+import type { AgentInterrupt } from "@/plugins/sdk";
 import type { ContentBlock } from "@/plugins/sdk/types/contentBlock";
 import type { AgentSessionView } from "@/plugins/sdk/types/agentSessionView";
 import { appendTimelineEntry } from "@/plugins/sdk";
@@ -9,7 +9,7 @@ import { sourceTimestamp } from "./source";
 
 export function materializeInterrupt(
   state: AgentSessionView,
-  interrupt: Interrupt,
+  interrupt: AgentInterrupt,
   source: AgentFoldSource,
   resumeRunId: string = source.runId,
 ): AgentSessionView {
@@ -34,11 +34,11 @@ export function materializeInterrupt(
           ...b,
           status: "requires-action",
           runId: resumeRunId,
-          rememberable: interrupt.payload?.rememberable ?? false,
+          rememberable: interrupt.payload.rememberable ?? false,
         }),
       );
     }
-    const tool = interrupt.payload?.tool;
+    const tool = interrupt.payload.tool;
     const block: ContentBlock = {
       kind: "approval",
       status: "requires-action",
@@ -46,10 +46,10 @@ export function materializeInterrupt(
       runId: resumeRunId,
       toolName: tool?.name,
       command: tool ? commandString(tool) : "",
-      reason: interrupt.payload?.reason ?? "",
+      reason: interrupt.payload.reason ?? "",
       args: tool ? editableArgs(tool) : undefined,
-      risk: interrupt.payload?.risk,
-      rememberable: interrupt.payload?.rememberable ?? false,
+      risk: interrupt.payload.risk,
+      rememberable: interrupt.payload.rememberable ?? false,
     };
     const withBlock = appendToTurn(
       withToolStatus,
@@ -94,7 +94,7 @@ export function materializeInterrupt(
         status: "requires-action",
         itemId: interrupt.itemId,
         runId: resumeRunId,
-        questions: mapQuestion(interrupt.payload?.question),
+        questions: mapQuestion(interrupt.payload.question),
       },
       source.timestamp,
     );

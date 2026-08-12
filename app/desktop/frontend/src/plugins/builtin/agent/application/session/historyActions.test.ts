@@ -1,5 +1,5 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import type { RunRef } from "@/rpc";
+import type { AgentRunFact as RunRef } from "@/plugins/sdk";
 import { loadPlugin } from "@/plugins/sdk/definePlugin";
 import {
   configureAgentRuntimeGateway,
@@ -131,10 +131,17 @@ function run(id: string, createdAt: string): RunRef {
     id,
     sessionId: "ses_1",
     status: "finished",
+    parentRunId: null,
+    rootRunId: id,
+    spawnedByItemId: null,
+    activeSegmentId: null,
     createdAt,
     finishedAt: createdAt,
     outcome: { type: "completed" },
-    metrics: { steps: 1, activeDurationMillis: 1 },
-    protocolProfile: { interruptTypes: [], requiredFeatures: [] },
+    metrics: {
+      steps: 1,
+      activeDurationMillis: 1,
+      usage: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0 },
+    },
   };
 }

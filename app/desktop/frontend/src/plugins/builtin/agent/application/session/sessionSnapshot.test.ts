@@ -8,6 +8,7 @@ const ROOT_RUN_ID = "run_root";
 const CHILD_RUN_ID = "run_child";
 const RUNNING_CHILD_RUN_ID = "run_child_running";
 const LOST_RUN_ID = "run_lost";
+const usage = { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0 };
 
 beforeAll(async () => {
   const { default: foldPlugin } = await import("@/plugins/builtin/agent/bootstrap/foldPlugin");
@@ -22,34 +23,43 @@ describe("projectAgentSessionSnapshot", () => {
           id: LOST_RUN_ID,
           sessionId: SESSION_ID,
           status: "finished",
+          parentRunId: null,
+          rootRunId: LOST_RUN_ID,
+          spawnedByItemId: null,
+          activeSegmentId: null,
           createdAt: "2026-07-30T00:59:00.000Z",
           finishedAt: "2026-07-30T00:59:30.000Z",
           outcome: {
             type: "lost",
             error: {
-              type: "run_lost",
-              detail: "runtime restarted before the run settled",
+              code: "run_lost",
+              message: "runtime restarted before the run settled",
             },
           },
-          metrics: { steps: 3, activeDurationMillis: 30 },
-          protocolProfile: { interruptTypes: [], requiredFeatures: [] },
+          metrics: { steps: 3, activeDurationMillis: 30, usage },
         },
         {
           id: ROOT_RUN_ID,
           sessionId: SESSION_ID,
           status: "running",
+          parentRunId: null,
+          rootRunId: ROOT_RUN_ID,
+          spawnedByItemId: null,
           activeSegmentId: "seg_root",
+          outcome: null,
+          finishedAt: null,
           createdAt: "2026-07-30T01:00:00.000Z",
-          metrics: { steps: 2, activeDurationMillis: 20 },
-          protocolProfile: { interruptTypes: ["approval"], requiredFeatures: ["subagents"] },
+          metrics: { steps: 2, activeDurationMillis: 20, usage },
         },
         {
           id: CHILD_RUN_ID,
           sessionId: SESSION_ID,
           status: "waiting",
+          activeSegmentId: null,
+          outcome: null,
+          finishedAt: null,
           createdAt: "2026-07-30T01:00:01.000Z",
-          metrics: { steps: 1, activeDurationMillis: 10 },
-          protocolProfile: { interruptTypes: ["approval"], requiredFeatures: [] },
+          metrics: { steps: 1, activeDurationMillis: 10, usage },
           parentRunId: ROOT_RUN_ID,
           rootRunId: ROOT_RUN_ID,
           spawnedByItemId: "item_spawn",
@@ -59,9 +69,10 @@ describe("projectAgentSessionSnapshot", () => {
           sessionId: SESSION_ID,
           status: "running",
           activeSegmentId: "seg_child_running",
+          outcome: null,
+          finishedAt: null,
           createdAt: "2026-07-30T01:00:01.500Z",
-          metrics: { steps: 1, activeDurationMillis: 5 },
-          protocolProfile: { interruptTypes: [], requiredFeatures: [] },
+          metrics: { steps: 1, activeDurationMillis: 5, usage },
           parentRunId: ROOT_RUN_ID,
           rootRunId: ROOT_RUN_ID,
           spawnedByItemId: "item_spawn_running",

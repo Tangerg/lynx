@@ -2,7 +2,7 @@
 // segment.finished.result is the authoritative landing (API.md §5.2). The reducer
 // must surface progress live AND let the finished totals win.
 import { beforeEach, describe, expect, it } from "vitest";
-import type { StreamEvent } from "@/rpc";
+import type { AgentStreamEvent as StreamEvent } from "@/plugins/sdk";
 import type { AgentSessionView } from "@/plugins/sdk/types/agentSessionView";
 import { loadPlugin } from "@/plugins/sdk/definePlugin";
 import { foldTestEvent as reduce, runFinished } from "./reducer.fixtures";
@@ -30,7 +30,7 @@ describe("reducer — segment.progress (mid-run live readout)", () => {
       progress({
         step: 2,
         activity: "calling tool: ls -la",
-        usage: { inputTokens: 1200, outputTokens: 80, costUsd: 0.0123 },
+        usage: { inputTokens: 1200, outputTokens: 80, cacheReadTokens: 0, costUsd: 0.0123 },
       }),
     );
     expect(selectCurrentRootRun(s)).toMatchObject({
@@ -59,7 +59,7 @@ describe("reducer — segment.progress (mid-run live readout)", () => {
         {
           steps: 3,
           activeDurationMillis: 0,
-          usage: { inputTokens: 1200, outputTokens: 80, costUsd: 0.5 },
+          usage: { inputTokens: 1200, outputTokens: 80, cacheReadTokens: 0, costUsd: 0.5 },
         },
       ),
     );

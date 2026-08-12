@@ -4,7 +4,7 @@
 // routing, the unrecognised-name no-op, and throwing-handler isolation.
 
 import { beforeEach, describe, expect, it } from "vitest";
-import type { Item, StreamEvent } from "@/rpc";
+import type { AgentItem as Item, AgentStreamEvent as StreamEvent } from "@/plugins/sdk";
 import { loadPlugin } from "@/plugins/sdk/definePlugin";
 import { usePluginErrorStore } from "@/plugins/sdk/errors";
 import { createHost } from "@/plugins/sdk/host";

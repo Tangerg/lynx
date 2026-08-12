@@ -27,7 +27,7 @@
 // symmetric core keeps this invariant an apples-to-apples comparison.
 
 import { beforeEach, describe, expect, it } from "vitest";
-import type { Item, StreamEvent } from "@/rpc";
+import type { AgentItem as Item, AgentStreamEvent as StreamEvent } from "@/plugins/sdk";
 import type { AgentSessionView, Message } from "@/plugins/sdk/types/agentSessionView";
 import { loadPlugin } from "@/plugins/sdk/definePlugin";
 import { foldTestEvent as reduce } from "./reducer.fixtures";
@@ -122,7 +122,11 @@ const FULL_STREAM: StreamEvent[] = [
   {
     type: "segment.finished",
     outcome: { type: "completed" },
-    metrics: { steps: 1, activeDurationMillis: 0 },
+    metrics: {
+      steps: 1,
+      activeDurationMillis: 0,
+      usage: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0 },
+    },
   },
 ];
 

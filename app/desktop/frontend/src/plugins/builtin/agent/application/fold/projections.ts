@@ -1,10 +1,15 @@
-// Pure wire → view projections + formatting. No AgentSessionView here — these
-// map a v2 Item (or its pieces) into the shapes the chat UI renders. The
+// Pure Agent fact → view projections + formatting. No AgentSessionView here — these
+// map an Item (or its pieces) into the shapes the chat UI renders. The
 // stateful folds that place these into AgentSessionView live in `fold.ts`.
 
-import type { Item, ItemStatus, Question, ToolInvocation } from "@/rpc";
+import type {
+  AgentItem,
+  AgentItemStatus,
+  AgentMessagePart,
+  AgentQuestion,
+  AgentToolInvocation,
+} from "@/plugins/sdk";
 import { activePlanStep, planProgress, planStepsFromArguments } from "../view/sessionPlan";
-import type { ContentBlock as WireContentBlock } from "@/rpc";
 import type { BlockStatus, ContentBlock, QuestionItem } from "@/plugins/sdk/types/contentBlock";
 import type { ToolCall, ToolCallStatus, ToolDiffRow } from "@/plugins/sdk/types/agentSessionView";
 import { toolCategory } from "../../domain/toolCategory";
@@ -12,11 +17,11 @@ import { toolCategory } from "../../domain/toolCategory";
 /** When an Item came into being. A toolCall spans time and names its endpoints
  *  `startedAt` / `finishedAt`; every other Item is instantaneous and carries
  *  `createdAt`. Readers that only need "when" should not have to know which. */
-export function itemStartedAt(item: Item): string {
+export function itemStartedAt(item: AgentItem): string {
   return item.type === "toolCall" ? item.startedAt : item.createdAt;
 }
 
-export function blockStatus(status: ItemStatus): BlockStatus {
+export function blockStatus(status: AgentItemStatus): BlockStatus {
   if (status === "running") return "running";
   if (status === "incomplete") return "incomplete";
   return "complete";
@@ -28,9 +33,9 @@ export function blockStatus(status: ItemStatus): BlockStatus {
 // content streams in via item.delta and only lands whole on item.completed.
 // Treat a missing/empty content as "" so the started shell folds to an empty
 // text block that deltas then patch (not a crash that skips streaming).
-export function contentText(blocks: WireContentBlock[] | undefined): string {
+export function contentText(blocks: AgentMessagePart[] | undefined): string {
   return (blocks ?? [])
-    .filter((b): b is Extract<WireContentBlock, { type: "text" }> => b.type === "text")
+    .filter((b): b is Extract<AgentMessagePart, { type: "text" }> => b.type === "text")
     .map((b) => b.text)
     .join("");
 }
@@ -38,7 +43,7 @@ export function contentText(blocks: WireContentBlock[] | undefined): string {
 // Project a userMessage's wire content into view blocks: the merged text (one
 // block) followed by one image block per inlined image (MULTIMODAL_IMAGE_INPUT,
 // §4.3). A userMessage is atomic, so the text block is always `complete`.
-export function userContentBlocks(content: WireContentBlock[] | undefined): ContentBlock[] {
+export function userContentBlocks(content: AgentMessagePart[] | undefined): ContentBlock[] {
   const blocks: ContentBlock[] = [];
   const text = contentText(content);
   if (text) blocks.push({ kind: "text", text, status: "complete" });
@@ -54,7 +59,7 @@ export function userContentBlocks(content: WireContentBlock[] | undefined): Cont
 // missing field so the shell folds to an empty block that later events patch —
 // not a throw the reducer's try/catch swallows, leaving the block permanently
 // unrendered.
-export function mapQuestion(q: Question | undefined): QuestionItem[] {
+export function mapQuestion(q: AgentQuestion | undefined): QuestionItem[] {
   return (q?.fields ?? []).map((f) =>
     f.type === "choice"
       ? {
@@ -77,7 +82,7 @@ export function mapQuestion(q: Question | undefined): QuestionItem[] {
   );
 }
 
-export function mapQuestionAnswers(q: Question | undefined): string[][] | undefined {
+export function mapQuestionAnswers(q: AgentQuestion | undefined): string[][] | undefined {
   return q?.answers?.map((values) => [...values]);
 }
 
@@ -196,7 +201,7 @@ function firstLine(v: unknown): string | undefined {
 /** Name-keyed labels for the runtime's specialised tools — these don't fit a
  *  category (each reads a different key argument). Checked BEFORE the
  *  category switch in toolLabel. */
-function nameLabel(tool: ToolInvocation): string | undefined {
+function nameLabel(tool: AgentToolInvocation): string | undefined {
   const a = tool.arguments ?? {};
   switch (tool.name) {
     case "lsp": {
@@ -239,7 +244,7 @@ function nameLabel(tool: ToolInvocation): string | undefined {
 }
 
 /** Human-readable label for a tool invocation (the toolCall row title). */
-export function toolLabel(tool: ToolInvocation | undefined): string {
+export function toolLabel(tool: AgentToolInvocation | undefined): string {
   return labelSource(tool).text;
 }
 
@@ -252,11 +257,11 @@ export function toolLabel(tool: ToolInvocation | undefined): string {
  * name instead), and a second rule that "fileEdit means path" would call those a
  * path too, then truncate a word from its left.
  */
-export function toolLabelKind(tool: ToolInvocation | undefined): "path" | "text" {
+export function toolLabelKind(tool: AgentToolInvocation | undefined): "path" | "text" {
   return labelSource(tool).path ? "path" : "text";
 }
 
-function labelSource(tool: ToolInvocation | undefined): { text: string; path: boolean } {
+function labelSource(tool: AgentToolInvocation | undefined): { text: string; path: boolean } {
   if (!tool) return { text: "tool", path: false };
   const byName = nameLabel(tool);
   if (byName) return { text: byName, path: false };
@@ -303,7 +308,7 @@ function labelSource(tool: ToolInvocation | undefined): { text: string; path: bo
 }
 
 /** Derive view ToolCall fields from a (possibly completed) toolCall Item. */
-export function toolFields(tool: ToolInvocation | undefined): Partial<ToolCall> {
+export function toolFields(tool: AgentToolInvocation | undefined): Partial<ToolCall> {
   if (!tool) return {};
   const result = asRecord(tool.result);
   const operation = asString(tool.arguments?.operation);
@@ -323,7 +328,7 @@ export function toolFields(tool: ToolInvocation | undefined): Partial<ToolCall> 
  * same argument text on every stream tick. The steps themselves stay in `args`,
  * which is where the preview reads them from when it lists all of them.
  */
-function planFields(tool: ToolInvocation): Partial<ToolCall> {
+function planFields(tool: AgentToolInvocation): Partial<ToolCall> {
   if (tool.name !== "set_plan") return {};
   const steps = planStepsFromArguments(tool.arguments);
   if (steps.length === 0) return {};
@@ -331,7 +336,7 @@ function planFields(tool: ToolInvocation): Partial<ToolCall> {
 }
 
 function categoryFields(
-  tool: ToolInvocation,
+  tool: AgentToolInvocation,
   result: Record<string, unknown> | undefined,
 ): Partial<ToolCall> {
   switch (toolCategory(tool.name)) {
@@ -435,7 +440,7 @@ function categoryFields(
  *  ones (lsp_* / skill / ask_user, see nameLabel) — and for an empty object,
  *  so a started shell seeds "" for delta accrual rather than "{}". Guards the
  *  case where a tool delivers its args only on item.completed (no streaming). */
-export function argsText(tool: ToolInvocation | undefined): string {
+export function argsText(tool: AgentToolInvocation | undefined): string {
   if (!tool) return "";
   if (nameLabel(tool) !== undefined) return "";
   if (toolCategory(tool.name) !== "generic" && toolCategory(tool.name) !== "subagent") return "";
@@ -444,11 +449,11 @@ export function argsText(tool: ToolInvocation | undefined): string {
     : "";
 }
 
-export function toolStatus(item: Extract<Item, { type: "toolCall" }>): ToolCallStatus {
+export function toolStatus(item: Extract<AgentItem, { type: "toolCall" }>): ToolCallStatus {
   // A HITL-declined tool settles as incomplete + error.type "denied_by_user"
   // (API.md §8.1). A user's decision is not a fault, so it is its own status rather
   // than an error — the card reads it as warning-toned, never failure-red.
-  if (item.error?.type === "denied_by_user") return "denied";
+  if (item.error?.code === "denied_by_user") return "denied";
   if (item.error || item.status === "incomplete") return "err";
   if (item.status === "running") return "running";
   return "ok";
@@ -460,7 +465,7 @@ export function toolStatus(item: Extract<Item, { type: "toolCall" }>): ToolCallS
 // the StreamEvent dispatcher (handlers.ts).
 
 /** The bare command string for a command-category approval (the `$ cmd` line). */
-export function commandString(tool: ToolInvocation): string {
+export function commandString(tool: AgentToolInvocation): string {
   const c = tool.arguments?.command;
   return typeof c === "string" ? c : "";
 }
@@ -468,7 +473,7 @@ export function commandString(tool: ToolInvocation): string {
 /** Editable args make sense for free-form tools (the JSON-tree generic envelope
  *  + subagent) — approve-with-modified-args (§6.1 editedArgs). Commands / file
  *  edits / searches bake their key arg into the card title, so no arg editor. */
-export function editableArgs(tool: ToolInvocation): Record<string, unknown> | undefined {
+export function editableArgs(tool: AgentToolInvocation): Record<string, unknown> | undefined {
   const cat = toolCategory(tool.name);
   return cat === "generic" || cat === "subagent" ? tool.arguments : undefined;
 }

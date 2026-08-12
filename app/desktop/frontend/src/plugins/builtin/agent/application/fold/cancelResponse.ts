@@ -1,4 +1,4 @@
-import type { CancelRunResponse } from "@/rpc";
+import type { AgentCancelResult } from "@/plugins/sdk";
 import type { AgentSessionView } from "@/plugins/sdk/types/agentSessionView";
 import { settleRunPendingInterrupts } from "./fold";
 import { foldRunSnapshot } from "./runSnapshot";
@@ -8,7 +8,7 @@ import { foldRunSnapshot } from "./runSnapshot";
  * authoritative refresh; no local terminal state is invented. */
 export function foldCancelRunResponse(
   state: AgentSessionView,
-  response: CancelRunResponse,
+  response: AgentCancelResult,
 ): AgentSessionView {
   if (response.type === "child") {
     const withChild = foldRunSnapshot(state, response.run);

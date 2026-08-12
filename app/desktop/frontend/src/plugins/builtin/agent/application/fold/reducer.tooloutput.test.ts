@@ -4,7 +4,7 @@
 // preview. So history replay (completed-only, no deltas), reconnect, and
 // non-streaming runtimes must all still render output. See API.md §4.4.1 + §5.2.
 import { beforeEach, describe, expect, it } from "vitest";
-import type { Item, StreamEvent } from "@/rpc";
+import type { AgentItem as Item, AgentStreamEvent as StreamEvent } from "@/plugins/sdk";
 import type { AgentSessionView } from "@/plugins/sdk/types/agentSessionView";
 import { loadPlugin } from "@/plugins/sdk/definePlugin";
 import { foldTestEvent as reduce } from "./reducer.fixtures";

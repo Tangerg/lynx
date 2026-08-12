@@ -3,12 +3,14 @@ import { installAbandonedDraftCleanup } from "../adapters/abandonedDraftCleanup"
 import { installAgentDefaultSessionPort } from "../adapters/agentDefaultSessionPort";
 import { installAgentRuntimeGateway } from "../adapters/agentRuntimeGateway";
 import { installAgentStatePorts } from "../adapters/agentStatePorts";
+import { contributeRuntimePendingWork } from "../adapters/runtimePendingWorkProvider";
 import { installInterruptResponseReconciliation } from "../application/hitl/interruptResponseCoordinator";
 
 export default definePlugin({
   name: "lyra.builtin.agent-bootstrap",
   version: "1.0.0",
-  setup() {
+  setup({ host }) {
+    contributeRuntimePendingWork(host);
     const disposeState = installAgentStatePorts();
     const disposeDefaultSession = installAgentDefaultSessionPort();
     const disposeRuntime = installAgentRuntimeGateway();

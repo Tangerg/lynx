@@ -1,4 +1,4 @@
-import type { RunRef } from "@/rpc";
+import type { AgentRunFact } from "@/plugins/sdk";
 import type {
   AgentRunOutcome,
   AgentSessionView,
@@ -8,7 +8,7 @@ import { appendTimelineEntry } from "@/plugins/sdk/types/agentTimeline";
 import { projectRunRef } from "../view/runProjection";
 import { isAgentRunFailure } from "../view/runOutcome";
 
-export function foldRunSnapshot(state: AgentSessionView, run: RunRef): AgentSessionView {
+export function foldRunSnapshot(state: AgentSessionView, run: AgentRunFact): AgentSessionView {
   const projected = projectRunRef(run);
   const previous = state.runsById[run.id];
   const progress =

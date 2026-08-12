@@ -18,6 +18,7 @@ export type MessageRole = "user" | "assistant" | "system";
 // `denied` is a user decision (HITL decline → error.type "denied_by_user"),
 // NOT a failure — it gets a neutral treatment, not the alarming "err" red.
 export type ToolCallStatus = "running" | "ok" | "err" | "denied" | "requires-action";
+export type AgentSafetyClass = "safe" | "write" | "exec" | "network";
 
 export type ToolDiffRow =
   | { type: "hunk"; text: string }
@@ -78,7 +79,7 @@ export interface ToolCall {
    *  Absent for a tool the runtime has no class for; treated as unknown, which
    *  reads as "not a read" — the same fail-conservative default the approval gate
    *  applies. This is what replaced a hand-maintained read-only tool list here. */
-  safetyClass?: "safe" | "write" | "exec" | "network";
+  safetyClass?: AgentSafetyClass;
   /** read-category: the line span actually returned, when it is not the whole file.
    *  From the result (`start_line`/`end_line`), not the request: the runtime clamps,
    *  and what a reader needs is the window they are looking at. Absent for a whole

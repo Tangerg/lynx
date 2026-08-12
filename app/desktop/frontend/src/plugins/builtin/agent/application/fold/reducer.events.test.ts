@@ -5,7 +5,7 @@
 // reducer.aggregates.test.ts.
 
 import { beforeEach, describe, expect, it } from "vitest";
-import type { Item, StreamEvent } from "@/rpc";
+import type { AgentItem as Item, AgentStreamEvent as StreamEvent } from "@/plugins/sdk";
 import type { AgentSessionView } from "@/plugins/sdk/types/agentSessionView";
 import { loadPlugin } from "@/plugins/sdk/definePlugin";
 import { foldTestEvent as reduce, runFinished } from "./reducer.fixtures";
@@ -56,7 +56,7 @@ describe("reducer — run lifecycle", () => {
     let s = reduce(EMPTY_AGENT_SESSION_VIEW, runStarted("run_1", "ses_1"));
     s = reduce(
       s,
-      runFinished({ type: "failed", error: { type: "provider_error", detail: "boom" } }),
+      runFinished({ type: "failed", error: { code: "provider_error", message: "boom" } }),
     );
     expect(selectVisibleProblem(s)).toEqual({
       message: "boom",
@@ -73,7 +73,7 @@ describe("reducer — run lifecycle", () => {
   // explanation and leave the banner nothing to translate.
   it("segment.finished{failed} without a detail leaves the words to the banner", () => {
     let s = reduce(EMPTY_AGENT_SESSION_VIEW, runStarted("run_1", "ses_1"));
-    s = reduce(s, runFinished({ type: "failed", error: { type: "internal_error" } }));
+    s = reduce(s, runFinished({ type: "failed", error: { code: "internal_error" } }));
     expect(selectVisibleProblem(s)).toEqual({
       message: undefined,
       code: "internal_error",
@@ -376,7 +376,7 @@ describe("reducer — item fold", () => {
           type: "toolCall",
           status: "incomplete",
           tool: { name: "shell", arguments: { command: "bad" } },
-          error: { type: "tool_failed", detail: "boom" },
+          error: { code: "tool_failed", message: "boom" },
         }),
       ),
     );
@@ -384,7 +384,7 @@ describe("reducer — item fold", () => {
   });
 
   it("a HITL-denied toolCall projects `denied`, not `err`", () => {
-    // Backend settles a declined tool as incomplete + error.type
+    // The Adapter translates a declined tool to the product-owned error code
     // "denied_by_user" (API.md §8.1). That's a user decision — the fold maps
     // it to a neutral `denied` state, distinct from a real failure.
     let s: AgentSessionView = EMPTY_AGENT_SESSION_VIEW;
@@ -406,7 +406,7 @@ describe("reducer — item fold", () => {
           type: "toolCall",
           status: "incomplete",
           tool: { name: "shell", arguments: { command: "shell" } },
-          error: { type: "denied_by_user", detail: "tool call denied by user" },
+          error: { code: "denied_by_user", message: "tool call denied by user" },
         }),
       ),
     );

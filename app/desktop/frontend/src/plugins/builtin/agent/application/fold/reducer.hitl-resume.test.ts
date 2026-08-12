@@ -6,7 +6,7 @@
 // settling. The fold must preserve the resume-streamed output onto the
 // pre-existing toolCalls entry — not reset it when item.started re-fires.
 import { beforeEach, describe, expect, it } from "vitest";
-import type { Item, StreamEvent } from "@/rpc";
+import type { AgentItem as Item, AgentStreamEvent as StreamEvent } from "@/plugins/sdk";
 import type { AgentSessionView } from "@/plugins/sdk/types/agentSessionView";
 import { loadPlugin } from "@/plugins/sdk/definePlugin";
 import { foldTestEvent as reduce, runFinished } from "./reducer.fixtures";

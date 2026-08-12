@@ -2,7 +2,7 @@ import { installAgentStatePorts } from "@/plugins/builtin/agent/adapters/agentSt
 import { navigator } from "@/lib/navigation";
 import { useAgentSessionStore } from "@/plugins/builtin/agent/adapters/agentSessionStore";
 import { useAgentStore } from "@/plugins/builtin/agent/adapters/agentStore";
-import { reduceRunEvent } from "@/plugins/builtin/agent/application/fold/reducer";
+import { reduceAgentEvent } from "@/plugins/builtin/agent/application/fold/reducer";
 import {
   configureAgentRuntimeGateway,
   type AgentRuntimeGateway,
@@ -211,7 +211,7 @@ export async function installVisualAgentFixture(
 
   let view = projectAgentSessionSnapshot(AGENT_SESSION_SNAPSHOTS[state]);
   for (const event of AGENT_SESSION_TAIL_EVENTS[state]) {
-    view = reduceRunEvent(view, event);
+    view = reduceAgentEvent(view, event);
   }
 
   const store = useAgentStore.getState();

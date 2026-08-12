@@ -35,10 +35,13 @@ function ModelPicker() {
   const { data: models = [], isLoading, isError } = useModels();
   const { provider, model } = useComposerModelPreference();
   const setModel = useSetComposerModelPreference();
+  const selected = useSelectedModel();
 
   useEffect(() => {
-    if (!model && models.length > 0) setModel(models[0]!.provider, models[0]!.id);
-  }, [model, models, setModel]);
+    if (selected && (provider !== selected.provider || model !== selected.id)) {
+      setModel(selected.provider, selected.id);
+    }
+  }, [model, provider, selected, setModel]);
 
   if (models.length === 0) {
     if (isError) {
@@ -65,7 +68,20 @@ function ModelPicker() {
       </div>
     );
   }
-  const selected = models.find((m) => m.provider === provider && m.id === model) ?? models[0]!;
+  // An active Session id can be available one query tick before its summary.
+  // Keep the placeholder for that tick instead of showing — and then seeding —
+  // a catalog model which would override the Session's durable model.
+  if (!selected) {
+    return (
+      <div
+        className="inline-flex h-[var(--control-height-md)] shrink-0 items-center gap-1.5 rounded-md px-2.5 opacity-60"
+        aria-hidden
+      >
+        <span className="h-1.5 w-1.5 rounded-full bg-surface-2" />
+        <span className="h-3 w-16 rounded-sm bg-surface-2" />
+      </div>
+    );
+  }
 
   return (
     <DropdownMenu.Root>

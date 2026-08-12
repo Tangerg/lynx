@@ -1,5 +1,5 @@
 import { createSingletonPort } from "@/lib/ports/singletonPort";
-import type { Item, PendingInterruptSet, RunRef } from "@/rpc";
+import type { AgentItem, AgentPendingInterruptSet, AgentRunFact } from "@/plugins/sdk";
 import type { ApprovalMode } from "../../domain/hitl";
 import type { AgentInput } from "../../domain/input";
 import type { AgentPlanStateSnapshot } from "../../domain/plan";
@@ -7,9 +7,9 @@ import type { AgentPlanStateSnapshot } from "../../domain/plan";
 export type RestoreType = "history" | "files" | "both";
 
 export interface AgentSessionSnapshot {
-  items: Item[];
-  runs: RunRef[];
-  pendingInterruptSets: PendingInterruptSet[];
+  items: AgentItem[];
+  runs: AgentRunFact[];
+  pendingInterruptSets: AgentPendingInterruptSet[];
   state?: AgentPlanStateSnapshot;
 }
 

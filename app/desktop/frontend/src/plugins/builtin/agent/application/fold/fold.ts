@@ -1,8 +1,8 @@
 // Stateful folds — immutable (state, …) → state updates that place projected
-// Items into AgentSessionView. The pure wire→view mappers they build on live in
-// `projections.ts`; the StreamEvent dispatch that calls these is `handlers.ts`.
+// Items into AgentSessionView. The pure Agent-fact→view mappers they build on
+// live in `projections.ts`; stream dispatch is registered at the Adapter boundary.
 
-import { errorDetail, type Item } from "@/rpc";
+import type { AgentItem } from "@/plugins/sdk";
 import type { BlockStatus, ContentBlock } from "@/plugins/sdk/types/contentBlock";
 import type { AgentSessionView, Message, ToolCall } from "@/plugins/sdk/types/agentSessionView";
 import { isOptimisticSteerMessageId } from "../view/optimisticMessageIdentity";
@@ -194,7 +194,7 @@ export function settleRunPendingInterrupts(
 // so both call through here; the upsert keeps stream replay / persisted-history
 // hydration idempotent (a re-seen item patches in place, never duplicates).
 
-type ItemOf<T extends Item["type"]> = Extract<Item, { type: T }>;
+type ItemOf<T extends AgentItem["type"]> = Extract<AgentItem, { type: T }>;
 
 /** Append a user-message bubble (opens a fresh assistant turn). Idempotent —
  *  a re-seen id is a no-op, dodging React's duplicate-key warning — and it
@@ -405,7 +405,7 @@ export function writeToolCall(
     result: prev?.result,
     // Surface the tool-level failure reason (§8.1 channel b) so an "err" tool
     // tells the user *why*, not just that it went red.
-    error: item.error ? (errorDetail(item.error) ?? item.error.type) : undefined,
+    error: item.error ? (item.error.message ?? item.error.code) : undefined,
     durationMillis: item.durationMillis,
     safetyClass: item.safetyClass,
     ...toolFields(item.tool),

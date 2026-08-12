@@ -9,7 +9,7 @@
 // contract — so a regression names the exact handler.
 
 import { beforeEach, describe, expect, it } from "vitest";
-import type { Item, StreamEvent } from "@/rpc";
+import type { AgentItem as Item, AgentStreamEvent as StreamEvent } from "@/plugins/sdk";
 import { loadPlugin } from "@/plugins/sdk/definePlugin";
 import { foldTestEvent as reduce, runFinished } from "./reducer.fixtures";
 import { EMPTY_AGENT_SESSION_VIEW } from "@/plugins/sdk/types/agentSessionView";
@@ -56,7 +56,7 @@ describe("handler contract — run.*", () => {
     s = reduce(
       s,
       runFinished(
-        { type: "failed", error: { type: "provider_error", detail: "boom" } },
+        { type: "failed", error: { code: "provider_error", message: "boom" } },
         {
           steps: 3,
           activeDurationMillis: 20,

@@ -10,7 +10,7 @@ import type {
 import type { AgentProblem, AgentSessionView, Message } from "@/plugins/sdk/types/agentSessionView";
 import { create } from "zustand";
 import { disposeOnHmr } from "@/lib/hmr";
-import { reduceRunEvent } from "@/plugins/builtin/agent/application/fold/reducer";
+import { reduceAgentEvent } from "@/plugins/builtin/agent/application/fold/reducer";
 import { foldCancelRunResponse } from "@/plugins/builtin/agent/application/fold/cancelResponse";
 import { foldRunSnapshot } from "@/plugins/builtin/agent/application/fold/runSnapshot";
 import { EMPTY_AGENT_SESSION_VIEW } from "@/plugins/sdk/types/agentSessionView";
@@ -23,6 +23,7 @@ import {
   type SettledInterrupt,
 } from "@/plugins/builtin/agent/application/view/viewMutations";
 import { useAgentSessionStore } from "./agentSessionStore";
+import { runtimeAgentEvent, runtimeCancelResult, runtimeRunFact } from "./runtimeAgentFacts";
 
 interface SessionEntry {
   view: AgentSessionView;
@@ -177,7 +178,7 @@ export const useAgentStore = create<AgentStore>((set) => ({
       const prev = state.sessions[sessionId];
       if (!prev) return state; // session torn down — drop the late batch
       let view = prev.view;
-      for (const event of events) view = reduceRunEvent(view, event);
+      for (const event of events) view = reduceAgentEvent(view, runtimeAgentEvent(event));
       if (view === prev.view) return state;
       return {
         sessions: patchSession(state.sessions, sessionId, {
@@ -188,7 +189,9 @@ export const useAgentStore = create<AgentStore>((set) => ({
     }),
   applyRunSnapshot: (sessionId, run) =>
     set((state) => {
-      const sessions = patchView(state.sessions, sessionId, (view) => foldRunSnapshot(view, run));
+      const sessions = patchView(state.sessions, sessionId, (view) =>
+        foldRunSnapshot(view, runtimeRunFact(run)),
+      );
       return sessions === state.sessions ? state : { sessions };
     }),
   commitCancelResponse: (sessionId, expectedViewRevision, response) => {
@@ -197,7 +200,7 @@ export const useAgentStore = create<AgentStore>((set) => ({
       const entry = state.sessions[sessionId];
       if (!entry || entry.viewRevision !== expectedViewRevision) return state;
       const sessions = patchView(state.sessions, sessionId, (view) =>
-        foldCancelRunResponse(view, response),
+        foldCancelRunResponse(view, runtimeCancelResult(response)),
       );
       committed = true;
       return sessions === state.sessions ? state : { sessions };

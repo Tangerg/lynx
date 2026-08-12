@@ -1,7 +1,8 @@
-import type { RunMetrics, RunProgress, RunRef, SegmentOutcome } from "@/rpc";
+import type { AgentRunFact, AgentSegmentOutcome } from "@/plugins/sdk";
 import type {
   AgentRunMetrics,
   AgentRunOutcome,
+  AgentRunProgress,
   AgentRunView,
   AgentSessionView,
   PendingInterrupt,
@@ -16,7 +17,6 @@ import {
   projectRunMetrics,
   projectStartedRun,
   projectTerminalSegmentOutcome,
-  projectUsage,
 } from "../view/runProjection";
 import { isAgentRunFailure } from "../view/runOutcome";
 
@@ -52,8 +52,8 @@ function sameRunOutcome(left: AgentRunOutcome | null, right: AgentRunOutcome): b
 
 function isDuplicateRunFinish(
   state: AgentSessionView,
-  outcome: SegmentOutcome,
-  metrics: RunMetrics,
+  outcome: AgentSegmentOutcome,
+  metrics: AgentRunMetrics,
   source: AgentFoldSource,
 ): boolean {
   const run = state.runsById[source.runId];
@@ -110,7 +110,7 @@ function timelineEntry(
 
 export function onRunStarted(
   state: AgentSessionView,
-  run: RunRef,
+  run: AgentRunFact,
   source: AgentFoldSource,
 ): AgentSessionView {
   const started = projectStartedRun(run, source);
@@ -146,7 +146,7 @@ export function onRunStarted(
 
 export function onRunProgress(
   state: AgentSessionView,
-  progress: RunProgress,
+  progress: AgentRunProgress,
   source: AgentFoldSource,
 ): AgentSessionView {
   return updateRun(state, source.runId, "segment.progress", (run) => {
@@ -166,7 +166,7 @@ export function onRunProgress(
         ...run.progress,
         ...(progress.step !== undefined ? { step: progress.step } : {}),
         ...(progress.activity !== undefined ? { activity: progress.activity } : {}),
-        ...(progress.usage ? { usage: projectUsage(progress.usage) } : {}),
+        ...(progress.usage ? { usage: { ...progress.usage } } : {}),
         ...(progress.contextTokens !== undefined ? { contextTokens: progress.contextTokens } : {}),
       },
     };
@@ -175,8 +175,8 @@ export function onRunProgress(
 
 export function onRunFinished(
   state: AgentSessionView,
-  outcome: SegmentOutcome,
-  metrics: RunMetrics,
+  outcome: AgentSegmentOutcome,
+  metrics: AgentRunMetrics,
   source: AgentFoldSource,
 ): AgentSessionView {
   if (isDuplicateRunFinish(state, outcome, metrics, source)) return state;

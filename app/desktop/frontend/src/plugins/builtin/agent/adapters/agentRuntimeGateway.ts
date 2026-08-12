@@ -5,6 +5,7 @@ import type { AgentRuntimeGateway } from "../application/ports/runtimeGateway";
 import { agentInputToContentBlocks, contentBlocksToAgentInput } from "./wireInput";
 import { runtimePlanState } from "./runtimePlanState";
 import { runtimeCapability } from "@/plugins/builtin/runtime/public/capabilities";
+import { runtimeItem, runtimePendingInterruptSet, runtimeRunFact } from "./runtimeAgentFacts";
 
 const gateway: AgentRuntimeGateway = {
   async createSession(input) {
@@ -62,9 +63,9 @@ const gateway: AgentRuntimeGateway = {
         loadOptionalSessionState(sessionId),
       ]);
       return {
-        items,
-        runs,
-        pendingInterruptSets,
+        items: items.map(runtimeItem),
+        runs: runs.map(runtimeRunFact),
+        pendingInterruptSets: pendingInterruptSets.map(runtimePendingInterruptSet),
         ...(state ? { state } : {}),
       };
     } catch (error) {

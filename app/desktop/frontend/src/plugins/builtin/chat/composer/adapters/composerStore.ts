@@ -36,9 +36,10 @@ interface ComposerState {
   value: string;
   images: ComposerImage[];
   pastes: PastedText[];
-  // provider/model are a GLOBAL sticky preference — the picked model carries
-  // across sessions (it's not per-conversation work) — so they stay top-level
-  // and unmirrored. Not persisted: ModelPicker re-defaults to the first model.
+  // provider/model are a GLOBAL in-process preference — an explicit pick
+  // carries across sessions (it's not per-conversation work), so they stay
+  // top-level and unmirrored. On a cold start the active durable Session owns
+  // the fallback; the catalog owns it only on the no-session welcome surface.
   provider: string | null;
   model: string | null;
   /** Per-session draft archive, keyed by sessionId ("" = the no-session scratch
@@ -207,7 +208,7 @@ export const useComposerStore = create<ComposerState & ComposerActions>()(
       migrate: discardOlderVersions,
       // Persist text-only drafts. value/images/provider/model are NOT persisted:
       // value/images rehydrate from drafts via the cold-start loadSession below,
-      // images are transient, and model re-defaults to the first available.
+      // images are transient; model fallback comes from the active Session.
       partialize: (s) => ({ drafts: persistedComposerDrafts(s.drafts) }),
       merge: (persisted, current) => {
         const drafts = parsePersistedComposerDrafts(persisted);

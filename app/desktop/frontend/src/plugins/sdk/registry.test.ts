@@ -1,4 +1,4 @@
-import type { RunEvent } from "@/rpc";
+import type { AgentEventEnvelope as RunEvent } from "./types";
 import type { ContentBlockRenderer, Disposable, ToolPreviewComponent } from "./types";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EMPTY_AGENT_SESSION_VIEW } from "@/plugins/sdk/types/agentSessionView";
@@ -201,10 +201,18 @@ describe("plugin registry", () => {
           id: "r",
           sessionId: "a",
           status: "running",
+          parentRunId: null,
+          rootRunId: "r",
+          spawnedByItemId: null,
           activeSegmentId: "seg_1",
+          outcome: null,
+          finishedAt: null,
           createdAt: "2026-06-03T00:00:00.000Z",
-          metrics: { steps: 0, activeDurationMillis: 0 },
-          protocolProfile: { interruptTypes: [], requiredFeatures: [] },
+          metrics: {
+            steps: 0,
+            activeDurationMillis: 0,
+            usage: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0 },
+          },
         },
       },
       eventId: "evt_1",

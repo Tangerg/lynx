@@ -5,8 +5,8 @@
 // `custom` StreamEvent, third-party extension only). The built-in protocol
 // semantics live in `lyra.builtin.agent-fold`.
 
-import type { RunEvent } from "@/rpc";
 import type { AgentSessionView } from "@/plugins/sdk/types/agentSessionView";
+import type { AgentEventEnvelope } from "./agentEvents";
 
 /**
  * Pure state update — takes the current view state, returns the next.
@@ -39,4 +39,7 @@ export type CustomEventHandler<T = unknown> = (value: T) => StateUpdate | void;
  * The envelope is mandatory provenance: source Run, Segment, event identity and
  * runtime timestamp cannot be reconstructed from a payload or current UI state.
  */
-export type StreamEventHandler = (state: AgentSessionView, event: RunEvent) => AgentSessionView;
+export type StreamEventHandler = (
+  state: AgentSessionView,
+  event: AgentEventEnvelope,
+) => AgentSessionView;

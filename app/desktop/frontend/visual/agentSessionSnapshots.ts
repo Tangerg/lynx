@@ -1,4 +1,11 @@
-import type { Item, RunEvent, RunProtocolProfile, RunRef, StreamEvent } from "@/rpc";
+import type { Item, PendingInterruptSet, RunProtocolProfile, RunRef, StreamEvent } from "@/rpc";
+import type { AgentEventEnvelope } from "@/plugins/sdk";
+import {
+  runtimeAgentEvent,
+  runtimeItem,
+  runtimePendingInterruptSet,
+  runtimeRunFact,
+} from "@/plugins/builtin/agent/adapters/runtimeAgentFacts";
 import type { AgentSessionSnapshot } from "@/plugins/builtin/agent/application/ports/runtimeGateway";
 import type { GoalReadModel } from "@/plugins/builtin/chat/goal/application/goalQueries";
 
@@ -30,6 +37,15 @@ const METRICS = { steps: 4, activeDurationMillis: 12_000 };
 const PROFILE: RunProtocolProfile = {
   interruptTypes: ["approval"],
   requiredFeatures: ["subagents"],
+};
+
+type RuntimeAgentSessionSnapshot = Omit<
+  AgentSessionSnapshot,
+  "items" | "pendingInterruptSets" | "runs"
+> & {
+  items: Item[];
+  pendingInterruptSets: PendingInterruptSet[];
+  runs: RunRef[];
 };
 
 const SAFETY_CLASS: Record<string, "safe" | "write" | "exec" | "network"> = {
@@ -405,14 +421,14 @@ const WAVE_LIVE_TOOL: Item = {
   },
 };
 
-function tailEvent(index: number, event: StreamEvent): RunEvent {
-  return {
+function tailEvent(index: number, event: StreamEvent): AgentEventEnvelope {
+  return runtimeAgentEvent({
     event,
     eventId: `event_visual_${index}`,
     runId: ROOT_RUN_ID,
     segmentId: "seg_root",
     timestamp: CREATED_AT,
-  };
+  });
 }
 
 const LONG_RESPONSE = message(
@@ -540,13 +556,15 @@ const NARRATIVE_COMPACTION: Item = {
   summary: "Earlier tool output folded into a summary.",
 };
 
-const BASE: AgentSessionSnapshot = {
+const BASE: RuntimeAgentSessionSnapshot = {
   runs: [],
   items: [],
   pendingInterruptSets: [],
 };
 
-export const AGENT_SESSION_SNAPSHOTS: Readonly<Record<VisualAgentState, AgentSessionSnapshot>> = {
+const RUNTIME_AGENT_SESSION_SNAPSHOTS: Readonly<
+  Record<VisualAgentState, RuntimeAgentSessionSnapshot>
+> = {
   empty: BASE,
   idle: {
     runs: [
@@ -913,7 +931,20 @@ export const AGENT_SESSION_SNAPSHOTS: Readonly<Record<VisualAgentState, AgentSes
   },
 };
 
-export const AGENT_SESSION_TAIL_EVENTS: Readonly<Record<VisualAgentState, RunEvent[]>> = {
+export const AGENT_SESSION_SNAPSHOTS: Readonly<Record<VisualAgentState, AgentSessionSnapshot>> =
+  Object.fromEntries(
+    Object.entries(RUNTIME_AGENT_SESSION_SNAPSHOTS).map(([state, snapshot]) => [
+      state,
+      {
+        ...snapshot,
+        runs: snapshot.runs.map(runtimeRunFact),
+        items: snapshot.items.map(runtimeItem),
+        pendingInterruptSets: snapshot.pendingInterruptSets.map(runtimePendingInterruptSet),
+      },
+    ]),
+  ) as Record<VisualAgentState, AgentSessionSnapshot>;
+
+export const AGENT_SESSION_TAIL_EVENTS: Readonly<Record<VisualAgentState, AgentEventEnvelope[]>> = {
   empty: [],
   idle: [],
   running: [

@@ -1,42 +1,48 @@
-import type { RunEvent, RunMetrics, RunRef, SegmentOutcome, StreamEvent } from "@/rpc";
-import type { AgentSessionView } from "@/plugins/sdk/types/agentSessionView";
+import type {
+  AgentEventEnvelope as RunEvent,
+  AgentRunFact as RunRef,
+  AgentSegmentOutcome as SegmentOutcome,
+  AgentStreamEvent as StreamEvent,
+} from "@/plugins/sdk";
+import type {
+  AgentRunMetrics as RunMetrics,
+  AgentSessionView,
+} from "@/plugins/sdk/types/agentSessionView";
 import { selectCurrentRootRun, selectRun } from "../view/runTree";
-import { reduceRunEvent } from "./reducer";
+import { reduceAgentEvent } from "./reducer";
 
 /** The accounting of a run that has reported none. */
-export const noMetrics: RunMetrics = { steps: 0, activeDurationMillis: 0 };
+export const noMetrics: RunMetrics = {
+  steps: 0,
+  activeDurationMillis: 0,
+  usage: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0 },
+};
 
 let nextEventSequence = 0;
 
 function completeStartedRun(state: AgentSessionView, run: RunRef, segmentId: string): RunRef {
   const parent = run.spawnedByItemId ? selectCurrentRootRun(state) : null;
-  const {
-    createdAt = "2026-06-03T00:00:00.000Z",
-    metrics = noMetrics,
-    protocolProfile = { interruptTypes: [], requiredFeatures: [] },
-    status = "running",
-    ...identity
-  } = run;
+  const { createdAt = "2026-06-03T00:00:00.000Z", metrics = noMetrics, status = "running" } = run;
+  const child = run.spawnedByItemId !== null && run.spawnedByItemId !== undefined;
   return {
-    ...identity,
+    id: run.id,
+    sessionId: run.sessionId,
+    parentRunId: child ? (run.parentRunId ?? parent?.id ?? null) : null,
+    rootRunId: child ? (run.rootRunId ?? parent?.rootRunId ?? parent?.id ?? run.id) : run.id,
+    spawnedByItemId: run.spawnedByItemId ?? null,
     activeSegmentId: segmentId,
     createdAt,
     metrics,
-    protocolProfile,
     status,
-    ...(run.spawnedByItemId
-      ? {
-          parentRunId: run.parentRunId ?? parent?.id,
-          rootRunId: run.rootRunId ?? parent?.rootRunId,
-        }
-      : {}),
+    outcome: null,
+    finishedAt: null,
   };
 }
 
 /**
- * Build a complete wire envelope for scenario tests.
+ * Build a complete product-owned Agent envelope for scenario tests.
  *
- * Production folds never infer provenance: they accept RunEvent only. This
+ * Production folds never infer provenance: they accept AgentEventEnvelope only. This
  * test helper keeps the scenario bodies readable while stamping every payload
  * with an explicit, internally consistent source. Source-sensitive contracts
  * should call `testRunEvent` directly and assert the envelope fields.
@@ -82,7 +88,7 @@ export function foldTestEvent(
   runId?: string,
   segmentId?: string,
 ): AgentSessionView {
-  return reduceRunEvent(state, testRunEvent(state, event, runId, segmentId));
+  return reduceAgentEvent(state, testRunEvent(state, event, runId, segmentId));
 }
 
 /**
@@ -94,5 +100,9 @@ export function foldTestEvent(
  */
 export const runFinished = (
   outcome: SegmentOutcome,
-  metrics: RunMetrics = noMetrics,
-): StreamEvent => ({ type: "segment.finished", outcome, metrics });
+  metrics: Omit<RunMetrics, "usage"> & { usage?: RunMetrics["usage"] } = noMetrics,
+): StreamEvent => ({
+  type: "segment.finished",
+  outcome,
+  metrics: { ...metrics, usage: metrics.usage ?? noMetrics.usage },
+});

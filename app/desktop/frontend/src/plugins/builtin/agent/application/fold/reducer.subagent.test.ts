@@ -1,12 +1,20 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { Item, RunEvent, RunRef, StreamEvent } from "@/rpc";
+import type {
+  AgentEventEnvelope as RunEvent,
+  AgentItem as Item,
+  AgentRunFact as RunRef,
+  AgentStreamEvent as StreamEvent,
+} from "@/plugins/sdk";
 import { loadPlugin } from "@/plugins/sdk/definePlugin";
 import { EMPTY_AGENT_SESSION_VIEW } from "@/plugins/sdk/types/agentSessionView";
-import { reduceRunEvent } from "./reducer";
+import { reduceAgentEvent } from "./reducer";
 import { foldRunSnapshot } from "./runSnapshot";
 
-const METRICS = { steps: 0, activeDurationMillis: 0 };
-const PROFILE = { interruptTypes: [], requiredFeatures: [] };
+const METRICS = {
+  steps: 0,
+  activeDurationMillis: 0,
+  usage: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0 },
+};
 
 function runningRun(
   id: string,
@@ -22,10 +30,13 @@ function runningRun(
     sessionId: "ses_1",
     status: "running",
     activeSegmentId: segmentId,
+    parentRunId: lineage?.parentRunId ?? null,
+    rootRunId: lineage?.rootRunId ?? id,
+    spawnedByItemId: lineage?.spawnedByItemId ?? null,
+    outcome: null,
+    finishedAt: null,
     createdAt: `2026-06-03T00:00:0${id.length}.000Z`,
     metrics: METRICS,
-    protocolProfile: PROFILE,
-    ...lineage,
   };
 }
 
@@ -57,7 +68,7 @@ function finished(eventId: string, runId: string, segmentId: string): RunEvent {
   return envelope(eventId, runId, segmentId, {
     type: "segment.finished",
     outcome: { type: "completed" },
-    metrics: { steps: 7, activeDurationMillis: 50 },
+    metrics: { ...METRICS, steps: 7, activeDurationMillis: 50 },
   });
 }
 
@@ -86,11 +97,11 @@ describe("reducer — source-owned Run tree", () => {
       rootRunId: root.id,
       spawnedByItemId: "spawn_b",
     });
-    let view = reduceRunEvent(EMPTY_AGENT_SESSION_VIEW, started("evt_root_start", root));
-    view = reduceRunEvent(view, started("evt_a_start", childA));
-    view = reduceRunEvent(view, started("evt_b_start", childB));
+    let view = reduceAgentEvent(EMPTY_AGENT_SESSION_VIEW, started("evt_root_start", root));
+    view = reduceAgentEvent(view, started("evt_a_start", childA));
+    view = reduceAgentEvent(view, started("evt_b_start", childB));
 
-    view = reduceRunEvent(
+    view = reduceAgentEvent(
       view,
       envelope("evt_root_wait", root.id, "seg_root", {
         type: "segment.finished",
@@ -163,14 +174,14 @@ describe("reducer — source-owned Run tree", () => {
       spawnedByItemId: "spawn_nested",
     });
 
-    let view = reduceRunEvent(EMPTY_AGENT_SESSION_VIEW, started("evt_root_start", root));
-    view = reduceRunEvent(view, started("evt_a_start", childA));
-    view = reduceRunEvent(view, started("evt_b_start", childB));
-    view = reduceRunEvent(view, started("evt_nested_start", nested));
-    view = reduceRunEvent(view, progress("evt_root_progress", root.id, "seg_root", 1));
-    view = reduceRunEvent(view, progress("evt_a_progress", childA.id, "seg_a", 2));
-    view = reduceRunEvent(view, progress("evt_b_progress", childB.id, "seg_b", 3));
-    view = reduceRunEvent(view, progress("evt_nested_progress", nested.id, "seg_nested", 4));
+    let view = reduceAgentEvent(EMPTY_AGENT_SESSION_VIEW, started("evt_root_start", root));
+    view = reduceAgentEvent(view, started("evt_a_start", childA));
+    view = reduceAgentEvent(view, started("evt_b_start", childB));
+    view = reduceAgentEvent(view, started("evt_nested_start", nested));
+    view = reduceAgentEvent(view, progress("evt_root_progress", root.id, "seg_root", 1));
+    view = reduceAgentEvent(view, progress("evt_a_progress", childA.id, "seg_a", 2));
+    view = reduceAgentEvent(view, progress("evt_b_progress", childB.id, "seg_b", 3));
+    view = reduceAgentEvent(view, progress("evt_nested_progress", nested.id, "seg_nested", 4));
 
     expect(view.runsById).toMatchObject({
       root: {
@@ -195,7 +206,7 @@ describe("reducer — source-owned Run tree", () => {
       },
     });
 
-    view = reduceRunEvent(view, finished("evt_nested_finish", nested.id, "seg_nested"));
+    view = reduceAgentEvent(view, finished("evt_nested_finish", nested.id, "seg_nested"));
     expect(view.runsById.nested).toMatchObject({
       status: "finished",
       outcome: { type: "completed" },
@@ -212,8 +223,8 @@ describe("reducer — source-owned Run tree", () => {
       rootRunId: root.id,
       spawnedByItemId: "spawn_child",
     });
-    let view = reduceRunEvent(EMPTY_AGENT_SESSION_VIEW, started("evt_root_start", root));
-    view = reduceRunEvent(view, started("evt_child_start", child));
+    let view = reduceAgentEvent(EMPTY_AGENT_SESSION_VIEW, started("evt_root_start", root));
+    view = reduceAgentEvent(view, started("evt_child_start", child));
 
     const rootMessage = {
       id: "root_message",
@@ -240,9 +251,9 @@ describe("reducer — source-owned Run tree", () => {
       tool: { name: "shell", arguments: { command: "pwd", description: "Print the cwd" } },
     } as Item;
 
-    view = reduceRunEvent(view, itemStarted("evt_child_message", childMessage, "seg_child"));
-    view = reduceRunEvent(view, itemStarted("evt_root_message", rootMessage, "seg_root"));
-    view = reduceRunEvent(view, itemStarted("evt_root_tool", rootTool, "seg_root"));
+    view = reduceAgentEvent(view, itemStarted("evt_child_message", childMessage, "seg_child"));
+    view = reduceAgentEvent(view, itemStarted("evt_root_message", rootMessage, "seg_root"));
+    view = reduceAgentEvent(view, itemStarted("evt_root_tool", rootTool, "seg_root"));
 
     expect(view.messages.map(({ runId }) => runId)).toEqual(["child", "root"]);
     expect(view.assistantTurnByRunId).toEqual({
@@ -262,17 +273,17 @@ describe("reducer — source-owned Run tree", () => {
   it("converges live terminal folding with the durable RunRef snapshot", () => {
     const root = runningRun("root", "seg_root");
     const terminalEvent = finished("evt_root_finish", root.id, "seg_root");
-    const startedView = reduceRunEvent(EMPTY_AGENT_SESSION_VIEW, started("evt_root_start", root));
-    const live = reduceRunEvent(startedView, terminalEvent);
-    const duplicate = reduceRunEvent(live, terminalEvent);
+    const startedView = reduceAgentEvent(EMPTY_AGENT_SESSION_VIEW, started("evt_root_start", root));
+    const live = reduceAgentEvent(startedView, terminalEvent);
+    const duplicate = reduceAgentEvent(live, terminalEvent);
     expect(duplicate).toBe(live);
 
     const cold = foldRunSnapshot(EMPTY_AGENT_SESSION_VIEW, {
       ...root,
       status: "finished",
-      activeSegmentId: undefined,
+      activeSegmentId: null,
       outcome: { type: "completed" },
-      metrics: { steps: 7, activeDurationMillis: 50 },
+      metrics: { ...METRICS, steps: 7, activeDurationMillis: 50 },
       finishedAt: terminalEvent.timestamp,
     });
     expect(cold.runsById.root).toEqual(live.runsById.root);
@@ -282,17 +293,17 @@ describe("reducer — source-owned Run tree", () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
     const root = runningRun("root", "seg_root");
     const startEvent = started("evt_root_start", root);
-    const startedView = reduceRunEvent(EMPTY_AGENT_SESSION_VIEW, startEvent);
-    const progressed = reduceRunEvent(
+    const startedView = reduceAgentEvent(EMPTY_AGENT_SESSION_VIEW, startEvent);
+    const progressed = reduceAgentEvent(
       startedView,
       progress("evt_root_progress", root.id, "seg_root", 3),
     );
 
-    expect(reduceRunEvent(progressed, startEvent)).toBe(progressed);
-    const terminal = reduceRunEvent(progressed, finished("evt_root_finish", root.id, "seg_root"));
-    expect(reduceRunEvent(terminal, startEvent)).toBe(terminal);
+    expect(reduceAgentEvent(progressed, startEvent)).toBe(progressed);
+    const terminal = reduceAgentEvent(progressed, finished("evt_root_finish", root.id, "seg_root"));
+    expect(reduceAgentEvent(terminal, startEvent)).toBe(terminal);
 
-    const late = reduceRunEvent(terminal, started("evt_late_start", root));
+    const late = reduceAgentEvent(terminal, started("evt_late_start", root));
     expect(late).toBe(terminal);
     expect(error).toHaveBeenCalledWith(
       expect.stringContaining('stream handler "segment.started"'),
@@ -306,8 +317,8 @@ describe("reducer — source-owned Run tree", () => {
   it("does not let a second segment start while another segment is running", () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
     const root = runningRun("root", "seg_root");
-    const startedView = reduceRunEvent(EMPTY_AGENT_SESSION_VIEW, started("evt_root_start", root));
-    const conflicting = reduceRunEvent(
+    const startedView = reduceAgentEvent(EMPTY_AGENT_SESSION_VIEW, started("evt_root_start", root));
+    const conflicting = reduceAgentEvent(
       startedView,
       started("evt_conflicting_start", runningRun("root", "seg_other")),
     );
@@ -325,7 +336,7 @@ describe("reducer — source-owned Run tree", () => {
   it("fails closed when an Item owner disagrees with the event envelope", () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
     const root = runningRun("root", "seg_root");
-    const startedView = reduceRunEvent(EMPTY_AGENT_SESSION_VIEW, started("evt_root_start", root));
+    const startedView = reduceAgentEvent(EMPTY_AGENT_SESSION_VIEW, started("evt_root_start", root));
     const foreignItem = {
       id: "foreign_message",
       runId: "child",
@@ -335,7 +346,7 @@ describe("reducer — source-owned Run tree", () => {
       content: [],
     } as Item;
 
-    const next = reduceRunEvent(
+    const next = reduceAgentEvent(
       startedView,
       envelope("evt_bad_owner", root.id, "seg_root", { type: "item.started", item: foreignItem }),
     );

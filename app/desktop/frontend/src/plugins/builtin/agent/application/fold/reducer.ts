@@ -1,11 +1,11 @@
-import type { Item, RunEvent } from "@/rpc";
+import type { AgentEventEnvelope, AgentItem } from "@/plugins/sdk";
 import type { AgentSessionView } from "@/plugins/sdk/types/agentSessionView";
 import { measureReduce } from "@/lib/metrics";
 import { lookupCustomHandlers, lookupStreamHandlers, reportPluginError } from "@/plugins/sdk";
 import { onItemCompleted, onItemStarted } from "./itemHandlers";
 import { durableItemSource } from "./source";
 
-function applyStreamHandlers(state: AgentSessionView, event: RunEvent): AgentSessionView {
+function applyStreamHandlers(state: AgentSessionView, event: AgentEventEnvelope): AgentSessionView {
   const handlers = lookupStreamHandlers(event.event.type);
   if (handlers.length === 0) return state;
   let next = state;
@@ -20,7 +20,7 @@ function applyStreamHandlers(state: AgentSessionView, event: RunEvent): AgentSes
   return next;
 }
 
-function applyCustom(state: AgentSessionView, event: RunEvent): AgentSessionView {
+function applyCustom(state: AgentSessionView, event: AgentEventEnvelope): AgentSessionView {
   if (event.event.type !== "custom") return state;
   const handlers = lookupCustomHandlers(event.event.name);
   if (handlers.length === 0) return state;
@@ -37,14 +37,17 @@ function applyCustom(state: AgentSessionView, event: RunEvent): AgentSessionView
   return next;
 }
 
-export function reduceRunEvent(state: AgentSessionView, event: RunEvent): AgentSessionView {
+export function reduceAgentEvent(
+  state: AgentSessionView,
+  event: AgentEventEnvelope,
+): AgentSessionView {
   const tag = event.event.type === "custom" ? event.event.name : event.event.type;
   return measureReduce(tag, () =>
     event.event.type === "custom" ? applyCustom(state, event) : applyStreamHandlers(state, event),
   );
 }
 
-export function reduceDurableItem(state: AgentSessionView, item: Item): AgentSessionView {
+export function reduceDurableItem(state: AgentSessionView, item: AgentItem): AgentSessionView {
   const source = durableItemSource(item);
   return item.status === "running"
     ? onItemStarted(state, item, source)

@@ -12,7 +12,7 @@
 // the same list from session status would lose both the ordering and what each
 // session is actually waiting FOR.
 
-import type { Interrupt, PendingInterruptSet } from "@/rpc";
+import type { AgentInterrupt, AgentPendingInterruptSet } from "@/plugins/sdk";
 import type { PendingInterruptKind } from "@/plugins/sdk/types/agentSessionView";
 import { createDataQuery } from "@/plugins/sdk";
 
@@ -45,9 +45,9 @@ export interface PendingWorkItem {
  *  kind carries is the compiler's business rather than a guess. Reading a question
  *  through a hand-written mirror of the shape is how this first looked for a
  *  prompt on the question itself; the prompts are on its FIELDS. */
-type AnswerableInterrupt = Extract<Interrupt, { type: PendingWorkKind }>;
+type AnswerableInterrupt = Extract<AgentInterrupt, { type: PendingWorkKind }>;
 
-function answerable(set: PendingInterruptSet): AnswerableInterrupt[] {
+function answerable(set: AgentPendingInterruptSet): AnswerableInterrupt[] {
   return set.interrupts.filter(
     (interrupt): interrupt is AnswerableInterrupt =>
       interrupt.type === "approval" || interrupt.type === "question",
@@ -71,7 +71,7 @@ function subjectOf(interrupt: AnswerableInterrupt): string {
  * because resuming answers the whole set at once: N rows that all disappear on
  * one click would be N lies about how much work is left.
  */
-export function pendingWorkItems(sets: readonly PendingInterruptSet[]): PendingWorkItem[] {
+export function pendingWorkItems(sets: readonly AgentPendingInterruptSet[]): PendingWorkItem[] {
   const items: PendingWorkItem[] = [];
   for (const set of sets) {
     const asks = answerable(set);

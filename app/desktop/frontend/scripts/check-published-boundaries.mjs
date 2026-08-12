@@ -124,6 +124,34 @@ for (const file of files(SRC)) {
   if (!isTest && /\.tsx?$/.test(rel)) {
     collectVocabulary(rel, text);
 
+    // Runtime wire vocabulary is translated at the Agent Adapter boundary.
+    // Letting Application, Domain, or Public import `rpc` makes transport DTOs
+    // the product model by accident; publishing them from the SDK stream seam
+    // leaks the same dependency to every plugin handler. These were once spread
+    // across live events, durable snapshots, cancel responses, and HITL reads,
+    // so guard every inward/public ring and both neutral SDK event contracts.
+    const importsRuntimeWire = /from\s+["']@\/rpc(?:\/[^"']*)?["']/.test(code(text));
+    if (
+      importsRuntimeWire &&
+      /^plugins\/builtin\/agent\/(?:application|domain|public)\//.test(rel)
+    ) {
+      violations.push({
+        file: rel,
+        reason:
+          "Agent Application/Domain/Public imports Runtime wire vocabulary — translate it in agent/adapters",
+      });
+    }
+    if (
+      importsRuntimeWire &&
+      (rel === "plugins/sdk/types/events.ts" || rel === "plugins/sdk/types/agentEvents.ts")
+    ) {
+      violations.push({
+        file: rel,
+        reason:
+          "the SDK Agent event surface publishes Runtime wire vocabulary — publish neutral Agent facts instead",
+      });
+    }
+
     if (/(?:^|\/)_?(?:utils?|helpers?|shared|impl|data|info)\.(?:ts|tsx)$/.test(rel)) {
       violations.push({
         file: rel,

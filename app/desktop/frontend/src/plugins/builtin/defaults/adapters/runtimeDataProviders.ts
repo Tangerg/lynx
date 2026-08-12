@@ -4,7 +4,6 @@ import {
   APPROVAL_RULES_KEY,
 } from "@/plugins/builtin/agent/public/approvalPolicy";
 import { AGENT_SESSIONS_KEY } from "@/plugins/builtin/agent/public/session";
-import { PENDING_WORK_KEY, pendingWorkItems } from "@/plugins/builtin/agent/public/hitl";
 import { RECIPES_KEY, type RecipesQuery } from "@/plugins/builtin/chat/recipes/public/queries";
 import { HOOKS_KEY, type HooksQuery } from "@/plugins/builtin/settings/hooks/public/queries";
 import {
@@ -102,12 +101,6 @@ export function registerDefaultDataProviders(host: ContributingHost): void {
     key: AGENT_SESSIONS_KEY,
     fetcher: async () =>
       (await client().sessions.list().autoPagingToArray()).map(toAgentSessionSummary),
-  });
-  contribute({
-    key: PENDING_WORK_KEY,
-    // No session filter: the queue is the whole install's, and the runtime
-    // already orders the sets longest-wait-first.
-    fetcher: async () => pendingWorkItems(await client().interrupts.list().autoPagingToArray()),
   });
   contribute({
     key: WORKSPACE_PROJECTS_KEY,

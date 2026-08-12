@@ -1,9 +1,13 @@
 import { useModels } from "@/plugins/builtin/settings/providers/public/queries";
+import { useActiveSessionId, useAgentSessions } from "@/plugins/builtin/agent/public/session";
+import { resolveComposerModel } from "../application/modelSelection";
 import { useComposerModelPreference } from "./modelPreference";
 
 /** The model the next run will use: composerStore's provider+model pair
- *  resolved against the live model list, falling back to the first model while
- *  the pair is still null (boot) or no longer matches an enabled provider.
+ *  resolved against the live model list, then the active durable Session's
+ *  model before the first explicit pick, then the catalog default when no
+ *  Session is active. While an active Session summary is loading there is no
+ *  fallback: choosing early would turn a query race into a model override.
  *  `undefined` when no provider is enabled yet.
  *
  *  One home for "which model is selected" so the surfaces that gate on its
@@ -11,6 +15,13 @@ import { useComposerModelPreference } from "./modelPreference";
  *  paste/drop image staging — can't disagree. */
 export function useSelectedModel() {
   const { data: models = [] } = useModels();
-  const { provider, model } = useComposerModelPreference();
-  return models.find((m) => m.provider === provider && m.id === model) ?? models[0];
+  const preference = useComposerModelPreference();
+  const activeSessionId = useActiveSessionId();
+  const { data: sessions } = useAgentSessions();
+  const activeSessionModel = activeSessionId
+    ? sessions === undefined
+      ? undefined
+      : (sessions.find((session) => session.id === activeSessionId)?.model ?? null)
+    : null;
+  return resolveComposerModel(models, preference, activeSessionModel);
 }

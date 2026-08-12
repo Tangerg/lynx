@@ -1,10 +1,10 @@
-import type { PendingInterruptSet } from "@/rpc";
+import type { AgentPendingInterruptSet } from "@/plugins/sdk";
 import type { AgentSessionView, PendingInterrupt } from "@/plugins/sdk/types/agentSessionView";
 import { materializeInterrupt } from "./interruptMaterialization";
 
 export function foldPendingInterruptSet(
   state: AgentSessionView,
-  snapshot: PendingInterruptSet,
+  snapshot: AgentPendingInterruptSet,
 ): AgentSessionView {
   let next = state;
   const byRunId = new Map<string, PendingInterrupt[]>();
