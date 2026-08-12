@@ -389,7 +389,7 @@ func (monitor runtimeChangeMonitor) run(ctx context.Context) {
 			if streamErr != nil {
 				break
 			}
-			gap := lastSequence > 0 && event.Sequence != lastSequence+1
+			gap := event.Sequence != lastSequence+1
 			lastSequence = event.Sequence
 			if gap {
 				if containsTopic(topics, changefeed.FilesChanged) {

@@ -51,6 +51,14 @@ type EventType string
 
 const Resync EventType = "resync"
 
+// StateKey names an authoritative durable projection a state-change event
+// invalidates. The set is deliberately limited to projections this client can
+// refetch and install.
+type StateKey string
+
+// StatePlan identifies the root Run's durable session plan.
+const StatePlan StateKey = "plan"
+
 type Watch struct {
 	ID        string
 	Workspace string
@@ -109,7 +117,7 @@ type Event struct {
 	ScheduleIDs []string
 	SessionIDs  []string
 	RunIDs      []string
-	StateKey    string
+	StateKey    StateKey
 	Topics      []Topic
 	WatchIDs    []string
 }
@@ -132,6 +140,9 @@ func (event Event) Validate() error {
 		if strings.TrimSpace(event.WatchID) == "" || strings.TrimSpace(event.Workspace) == "" || len(event.Paths) == 0 {
 			return errors.New("file change event is incomplete")
 		}
+	}
+	if topic == StateChanged && event.StateKey != StatePlan {
+		return fmt.Errorf("state change key %q is unsupported", event.StateKey)
 	}
 	return nil
 }

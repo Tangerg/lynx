@@ -83,7 +83,7 @@ func projectRuntimeEvent(event protocol.RuntimeEvent) changefeed.Event {
 		Type: changefeed.EventType(event.Type), Sequence: event.Sequence, WatchID: event.WatchID,
 		Paths: slices.Clone(event.Paths), Names: slices.Clone(event.Names), ServerIDs: slices.Clone(event.ServerIDs),
 		ScheduleIDs: slices.Clone(event.ScheduleIDs), SessionIDs: slices.Clone(event.SessionIDs),
-		RunIDs: slices.Clone(event.RunIDs), StateKey: string(event.Key), WatchIDs: slices.Clone(event.WatchIDs),
+		RunIDs: slices.Clone(event.RunIDs), StateKey: changefeed.StateKey(event.Key), WatchIDs: slices.Clone(event.WatchIDs),
 	}
 	if event.Workspace != nil {
 		projected.Workspace = event.Workspace.Path

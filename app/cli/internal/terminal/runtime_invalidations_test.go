@@ -341,10 +341,14 @@ func TestRuntimeInvalidationsRefetchTheCurrentAuthoritativeSession(t *testing.T)
 	} {
 		baseline = backend.reads.Load()
 		drainSignals(backend.readSignal)
-		source.events <- changefeed.Event{
+		event := changefeed.Event{
 			Type: changefeed.EventType(topic), Sequence: uint64(index + 2),
 			SessionIDs: []string{"ses_demo_1"},
 		}
+		if topic == changefeed.StateChanged {
+			event.StateKey = changefeed.StatePlan
+		}
+		source.events <- event
 		awaitSignal(t, source.applied, string(topic)+" delivery")
 		awaitSignal(t, backend.readSignal, string(topic)+" authoritative read")
 		if backend.reads.Load() <= baseline {
@@ -477,6 +481,31 @@ func TestRuntimeChangeMonitorTurnsASequenceGapIntoFullResync(t *testing.T) {
 	}
 }
 
+func TestRuntimeChangeMonitorDetectsASequenceGapOnTheFirstFrame(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	source := &runtimeChangeSourceStub{
+		events: make(chan changefeed.Event, 1), subscription: make(chan changefeed.Subscription, 1),
+	}
+	source.events <- changefeed.Event{Type: changefeed.EventType(changefeed.SessionsChanged), Sequence: 2}
+	var resyncs [][]changefeed.Topic
+	monitor := runtimeChangeMonitor{
+		source: source,
+		applyEvent: func(changefeed.Event) error {
+			cancel()
+			return nil
+		},
+		applyResync: func(topics []changefeed.Topic) error {
+			resyncs = append(resyncs, slices.Clone(topics))
+			return nil
+		},
+	}
+	monitor.run(ctx)
+	if len(resyncs) != 2 || !slices.Equal(resyncs[0], resyncs[1]) {
+		t.Fatalf("resyncs = %+v, want matching initial and first-frame-gap reads", resyncs)
+	}
+}
+
 func TestRuntimeInvalidationScope(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -485,7 +514,8 @@ func TestRuntimeInvalidationScope(t *testing.T) {
 	}{
 		{name: "foreign session", event: changefeed.Event{Type: changefeed.EventType(changefeed.SessionsChanged), SessionIDs: []string{"other"}}},
 		{name: "current session", event: changefeed.Event{Type: changefeed.EventType(changefeed.SessionsChanged), SessionIDs: []string{"session"}}, want: true},
-		{name: "unscoped state", event: changefeed.Event{Type: changefeed.EventType(changefeed.StateChanged)}, want: true},
+		{name: "plan state", event: changefeed.Event{Type: changefeed.EventType(changefeed.StateChanged), StateKey: changefeed.StatePlan}, want: true},
+		{name: "unsupported state", event: changefeed.Event{Type: changefeed.EventType(changefeed.StateChanged), StateKey: "vendor-state"}},
 		{name: "foreign run", event: changefeed.Event{Type: changefeed.EventType(changefeed.RunsChanged), RunIDs: []string{"other"}}},
 		{name: "current run", event: changefeed.Event{Type: changefeed.EventType(changefeed.InterruptsChanged), RunIDs: []string{"run"}}, want: true},
 		{name: "files", event: changefeed.Event{Type: changefeed.EventType(changefeed.FilesChanged)}},

@@ -15,6 +15,14 @@ func TestGoalLifecycleValuesRejectAmbiguousState(t *testing.T) {
 	if err := paused.Validate(); err == nil {
 		t.Fatal("paused goal without a reason was accepted")
 	}
+	completing := Goal{SessionID: "ses_1", Objective: "finish the task", Status: Completing}
+	if err := completing.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	completing.Reason = &Reason{Code: RunNotCompleted}
+	if err := completing.Validate(); err == nil {
+		t.Fatal("completing goal with a stop reason was accepted")
+	}
 	if err := (Start{SessionID: "ses_1", Objective: "finish", Budget: Budget{MaxRuns: -1}}).Validate(); err == nil {
 		t.Fatal("negative goal budget was accepted")
 	}

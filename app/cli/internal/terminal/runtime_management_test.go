@@ -353,6 +353,15 @@ func TestGoalLifecycleAndInvalidationRefreshTheOpenGoalReader(t *testing.T) {
 	if goals.reads.Load() <= baseline {
 		t.Fatal("goals.changed did not refetch the goal")
 	}
+	current.Status = goal.Completing
+	current.Reason = nil
+	goals.set(current)
+	source.events <- changefeed.Event{
+		Type: changefeed.EventType(changefeed.GoalsChanged), Sequence: 2,
+		SessionIDs: []string{"ses_demo_1"},
+	}
+	awaitSignal(t, source.applied, "completing goals.changed delivery")
+	host.Shows(t, "completing")
 	stop()
 }
 

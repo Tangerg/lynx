@@ -227,4 +227,11 @@ func TestGoalAdapterProjectsTheCompleteLifecycle(t *testing.T) {
 	if err != nil || resumed.Status != goal.Active || stub.last != "resume" {
 		t.Fatalf("ResumeGoal = (%+v, %v), last %q", resumed, err, stub.last)
 	}
+	completing := *stub.current
+	completing.Status = protocol.GoalCompleting
+	stub.current = &completing
+	observed, exists, err := runtime.GetGoal(t.Context(), "ses_1")
+	if err != nil || !exists || observed.Status != goal.Completing || observed.Reason != nil {
+		t.Fatalf("completing GetGoal = (%+v, %t, %v)", observed, exists, err)
+	}
 }

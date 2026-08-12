@@ -63,3 +63,15 @@ func TestEventDistinguishesInvalidationFromResync(t *testing.T) {
 		t.Fatal("scope-free resync was accepted")
 	}
 }
+
+func TestStateChangeRequiresTheProjectionThisClientOwns(t *testing.T) {
+	t.Parallel()
+	event := Event{Type: EventType(StateChanged), Sequence: 1, StateKey: StatePlan}
+	if err := event.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	event.StateKey = "vendor-state"
+	if err := event.Validate(); err == nil {
+		t.Fatal("unsupported state projection was accepted")
+	}
+}

@@ -14,9 +14,10 @@ import (
 type Status string
 
 const (
-	Active  Status = "active"
-	Paused  Status = "paused"
-	Blocked Status = "blocked"
+	Active     Status = "active"
+	Paused     Status = "paused"
+	Blocked    Status = "blocked"
+	Completing Status = "completing"
 )
 
 type ReasonCode string
@@ -97,13 +98,13 @@ func (goal Goal) Validate() error {
 	if strings.TrimSpace(goal.Objective) == "" {
 		problems = append(problems, errors.New("objective is empty"))
 	}
-	if goal.Status != Active && goal.Status != Paused && goal.Status != Blocked {
+	if goal.Status != Active && goal.Status != Paused && goal.Status != Blocked && goal.Status != Completing {
 		problems = append(problems, fmt.Errorf("status %q is invalid", goal.Status))
 	}
-	if goal.Status == Active && goal.Reason != nil {
-		problems = append(problems, errors.New("active goal carries a stopping reason"))
+	if (goal.Status == Active || goal.Status == Completing) && goal.Reason != nil {
+		problems = append(problems, errors.New("non-resting goal carries a stopping reason"))
 	}
-	if goal.Status != Active && goal.Reason == nil {
+	if (goal.Status == Paused || goal.Status == Blocked) && goal.Reason == nil {
 		problems = append(problems, errors.New("resting goal has no reason"))
 	}
 	if goal.Reason != nil {

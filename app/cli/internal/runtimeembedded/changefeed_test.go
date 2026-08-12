@@ -111,6 +111,33 @@ func TestChangefeedAdapterRejectsMalformedWireEvent(t *testing.T) {
 	t.Fatal("malformed stream yielded no error")
 }
 
+func TestChangefeedAdapterPreservesTheStateProjectionIdentity(t *testing.T) {
+	t.Parallel()
+	stub := &changeBindingStub{events: func(yield func(protocol.RuntimeEvent, error) bool) {
+		yield(protocol.RuntimeEvent{
+			Type: protocol.RuntimeStateChanged, Sequence: 1,
+			SessionIDs: []string{"ses_1"}, Key: protocol.StatePlan,
+		}, nil)
+	}}
+	runtime := &Runtime{
+		changes: stub, profile: changefeedProfile(changefeed.StateChanged),
+	}
+	stream, err := runtime.Subscribe(t.Context(), changefeed.Subscription{Topics: []changefeed.Topic{changefeed.StateChanged}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for event, eventErr := range stream {
+		if eventErr != nil {
+			t.Fatal(eventErr)
+		}
+		if event.StateKey != changefeed.StatePlan {
+			t.Fatalf("state key = %q, want %q", event.StateKey, changefeed.StatePlan)
+		}
+		return
+	}
+	t.Fatal("state change stream yielded no event")
+}
+
 func changefeedProfile(topics ...changefeed.Topic) runtimeprofile.Profile {
 	profile := runtimeprofile.Profile{
 		Limits: runtimeprofile.Limits{RuntimeSubscription: runtimeprofile.SubscriptionLimits{MaxTopics: 32, MaxWatches: 32}},
