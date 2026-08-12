@@ -15,14 +15,21 @@ func (a *app) ShowSchedules() {
 		a.message("this runtime composition has no schedule service")
 		return
 	}
-	a.runRuntimeReaderQuery("loading schedules", runtimeReaderSchedules,
-		func(ctx context.Context) (readerDocument, error) {
+	a.executeRuntimeReaderQuery(a.schedulesReaderQuery())
+}
+
+func (a *app) schedulesReaderQuery() runtimeReaderQuery {
+	return runtimeReaderQuery{
+		status: "loading schedules",
+		mode:   runtimeReaderSchedules,
+		read: func(ctx context.Context) (readerDocument, error) {
 			schedules, err := a.schedules.Schedules(ctx)
 			if err != nil {
 				return readerDocument{}, err
 			}
 			return schedulesDocument(schedules), nil
-		})
+		},
+	}
 }
 
 func schedulesDocument(schedules []schedule.Schedule) readerDocument {

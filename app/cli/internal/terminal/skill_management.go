@@ -14,15 +14,22 @@ func (a *app) ShowDiscoveredSkills() {
 		a.message("this runtime composition has no skill service")
 		return
 	}
+	a.executeRuntimeReaderQuery(a.discoveredSkillsReaderQuery())
+}
+
+func (a *app) discoveredSkillsReaderQuery() runtimeReaderQuery {
 	workspace := a.session.Workspace.Path
-	a.runRuntimeReaderQuery("loading discovered skills", runtimeReaderDiscoveredSkills,
-		func(ctx context.Context) (readerDocument, error) {
+	return runtimeReaderQuery{
+		status: "loading discovered skills",
+		mode:   runtimeReaderDiscoveredSkills,
+		read: func(ctx context.Context) (readerDocument, error) {
 			discovered, err := a.skills.Discover(ctx, workspace)
 			if err != nil {
 				return readerDocument{}, err
 			}
 			return discoveredSkillsDocument(workspace, discovered), nil
-		})
+		},
+	}
 }
 
 func discoveredSkillsDocument(workspace string, discovered []skills.Discovered) readerDocument {
@@ -45,14 +52,21 @@ func (a *app) ShowManagedSkills() {
 		a.message("this runtime composition has no skill service")
 		return
 	}
-	a.runRuntimeReaderQuery("loading managed skills", runtimeReaderManagedSkills,
-		func(ctx context.Context) (readerDocument, error) {
+	a.executeRuntimeReaderQuery(a.managedSkillsReaderQuery())
+}
+
+func (a *app) managedSkillsReaderQuery() runtimeReaderQuery {
+	return runtimeReaderQuery{
+		status: "loading managed skills",
+		mode:   runtimeReaderManagedSkills,
+		read: func(ctx context.Context) (readerDocument, error) {
 			managed, err := a.skills.Managed(ctx)
 			if err != nil {
 				return readerDocument{}, err
 			}
 			return managedSkillsDocument(managed), nil
-		})
+		},
+	}
 }
 
 func managedSkillsDocument(managed []skills.Managed) readerDocument {
@@ -75,15 +89,22 @@ func (a *app) ShowSkillProposals() {
 		a.message("this runtime composition has no skill service")
 		return
 	}
+	a.executeRuntimeReaderQuery(a.skillProposalsReaderQuery())
+}
+
+func (a *app) skillProposalsReaderQuery() runtimeReaderQuery {
 	workspace := a.session.Workspace.Path
-	a.runRuntimeReaderQuery("loading skill proposals", runtimeReaderSkillProposals,
-		func(ctx context.Context) (readerDocument, error) {
+	return runtimeReaderQuery{
+		status: "loading skill proposals",
+		mode:   runtimeReaderSkillProposals,
+		read: func(ctx context.Context) (readerDocument, error) {
 			proposals, err := a.skills.Proposals(ctx, workspace)
 			if err != nil {
 				return readerDocument{}, err
 			}
 			return skillProposalsDocument(proposals), nil
-		})
+		},
+	}
 }
 
 func skillProposalsDocument(proposals []skills.Proposal) readerDocument {

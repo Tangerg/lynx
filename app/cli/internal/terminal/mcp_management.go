@@ -20,14 +20,21 @@ func (a *app) ShowMCPServers() {
 		a.message("this runtime composition has no MCP service")
 		return
 	}
-	a.runRuntimeReaderQuery("loading MCP servers", runtimeReaderMCPServers,
-		func(ctx context.Context) (readerDocument, error) {
+	a.executeRuntimeReaderQuery(a.mcpServersReaderQuery())
+}
+
+func (a *app) mcpServersReaderQuery() runtimeReaderQuery {
+	return runtimeReaderQuery{
+		status: "loading MCP servers",
+		mode:   runtimeReaderMCPServers,
+		read: func(ctx context.Context) (readerDocument, error) {
 			servers, err := a.mcp.Servers(ctx)
 			if err != nil {
 				return readerDocument{}, err
 			}
 			return mcpServersDocument(servers), nil
-		})
+		},
+	}
 }
 
 func mcpServersDocument(servers []mcp.Server) readerDocument {
@@ -117,14 +124,21 @@ func (a *app) ShowMCPTools(server string) {
 	}
 	server = strings.TrimSpace(server)
 	a.mcpToolServer = server
-	a.runRuntimeReaderQuery("loading MCP tools", runtimeReaderMCPTools,
-		func(ctx context.Context) (readerDocument, error) {
+	a.executeRuntimeReaderQuery(a.mcpToolsReaderQuery(server))
+}
+
+func (a *app) mcpToolsReaderQuery(server string) runtimeReaderQuery {
+	return runtimeReaderQuery{
+		status: "loading MCP tools",
+		mode:   runtimeReaderMCPTools,
+		read: func(ctx context.Context) (readerDocument, error) {
 			tools, err := a.mcp.Tools(ctx, server)
 			if err != nil {
 				return readerDocument{}, err
 			}
 			return mcpToolsDocument(server, tools), nil
-		})
+		},
+	}
 }
 
 func mcpToolsDocument(server string, tools []mcp.Tool) readerDocument {

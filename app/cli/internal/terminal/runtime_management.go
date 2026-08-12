@@ -38,6 +38,15 @@ const (
 	runtimeReaderHooks
 )
 
+// runtimeReaderQuery describes one authoritative runtime projection read.
+// Keeping the request as a value lets user-initiated reads and event-driven
+// convergence share the same query without sharing their failure policy.
+type runtimeReaderQuery struct {
+	status string
+	mode   runtimeReaderMode
+	read   func(context.Context) (readerDocument, error)
+}
+
 type usageReport struct {
 	session usage.SessionReport
 	summary usage.Summary
@@ -428,15 +437,22 @@ func (a *app) ShowGoal() {
 		a.message("this runtime composition has no goal service")
 		return
 	}
+	a.executeRuntimeReaderQuery(a.goalReaderQuery())
+}
+
+func (a *app) goalReaderQuery() runtimeReaderQuery {
 	sessionID := a.session.ID
-	a.runRuntimeReaderQuery("loading session goal", runtimeReaderGoal,
-		func(ctx context.Context) (readerDocument, error) {
+	return runtimeReaderQuery{
+		status: "loading session goal",
+		mode:   runtimeReaderGoal,
+		read: func(ctx context.Context) (readerDocument, error) {
 			current, exists, err := a.goals.GetGoal(ctx, sessionID)
 			if err != nil {
 				return readerDocument{}, err
 			}
 			return goalDocument(current, exists), nil
-		})
+		},
+	}
 }
 
 func goalDocument(current goal.Goal, exists bool) readerDocument {
@@ -545,15 +561,19 @@ func (a *app) changeGoal(label string, change func(context.Context) (goal.Goal, 
 func (a *app) runRuntimeReaderQuery(
 	status string,
 	mode runtimeReaderMode,
-	query func(context.Context) (readerDocument, error),
+	read func(context.Context) (readerDocument, error),
 ) {
-	a.status.note(status)
-	runOperation(a, readerDocumentOperation, true, query, func(document readerDocument, err error) {
+	a.executeRuntimeReaderQuery(runtimeReaderQuery{status: status, mode: mode, read: read})
+}
+
+func (a *app) executeRuntimeReaderQuery(query runtimeReaderQuery) {
+	a.status.note(query.status)
+	runOperation(a, readerDocumentOperation, true, query.read, func(document readerDocument, err error) {
 		if err != nil {
-			a.message(status + " failed: " + err.Error())
+			a.message(query.status + " failed: " + err.Error())
 			return
 		}
-		a.setRuntimeReader(mode)
+		a.setRuntimeReader(query.mode)
 		a.workspaceReader = workspaceReaderNone
 		a.openReaderDocument(document)
 		a.status.note(strings.ToLower(document.Title))

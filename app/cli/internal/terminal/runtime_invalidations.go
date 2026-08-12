@@ -37,7 +37,7 @@ func (a *app) applyRuntimeResync(topics []changefeed.Topic) {
 
 func (a *app) refreshScheduleReader(affected bool) {
 	if affected && a.schedules != nil && a.runtimeReader == runtimeReaderSchedules && a.readerDialog.Open() {
-		a.ShowSchedules()
+		a.refreshRuntimeReader(a.schedulesReaderQuery())
 	}
 }
 
@@ -47,9 +47,9 @@ func (a *app) refreshMCPReader(affected bool) {
 	}
 	switch a.runtimeReader {
 	case runtimeReaderMCPServers:
-		a.ShowMCPServers()
+		a.refreshRuntimeReader(a.mcpServersReaderQuery())
 	case runtimeReaderMCPTools:
-		a.ShowMCPTools(a.mcpToolServer)
+		a.refreshRuntimeReader(a.mcpToolsReaderQuery(a.mcpToolServer))
 	}
 }
 
@@ -59,18 +59,36 @@ func (a *app) refreshSkillReader(affected bool) {
 	}
 	switch a.runtimeReader {
 	case runtimeReaderDiscoveredSkills:
-		a.ShowDiscoveredSkills()
+		a.refreshRuntimeReader(a.discoveredSkillsReaderQuery())
 	case runtimeReaderManagedSkills:
-		a.ShowManagedSkills()
+		a.refreshRuntimeReader(a.managedSkillsReaderQuery())
 	case runtimeReaderSkillProposals:
-		a.ShowSkillProposals()
+		a.refreshRuntimeReader(a.skillProposalsReaderQuery())
 	}
 }
 
 func (a *app) refreshGoalReader(affected bool) {
 	if affected && a.goals != nil && a.runtimeReader == runtimeReaderGoal && a.readerDialog.Open() {
-		a.ShowGoal()
+		a.refreshRuntimeReader(a.goalReaderQuery())
 	}
+}
+
+func (a *app) refreshRuntimeReader(query runtimeReaderQuery) {
+	read := query.read
+	query.read = func(ctx context.Context) (readerDocument, error) {
+		failures := 0
+		for {
+			document, err := read(ctx)
+			if err == nil || errors.Is(err, agent.ErrIncompatibleRuntime) {
+				return document, err
+			}
+			failures++
+			if err := reconnect.Wait(ctx, runtimeRecoveryBackoff.Delay(failures)); err != nil {
+				return readerDocument{}, err
+			}
+		}
+	}
+	a.executeRuntimeReaderQuery(query)
 }
 
 func goalInvalidationAffectsSession(event changefeed.Event, sessionID string) bool {
