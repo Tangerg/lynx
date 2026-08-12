@@ -119,6 +119,30 @@ func TestInterleavedTextBlocksStreamIndependently(t *testing.T) {
 	}
 }
 
+func TestStreamedAssistantCompletionAppendsInlineImages(t *testing.T) {
+	view := testTranscriptView(t)
+	started := agent.Block{ID: "answer", RunID: "run_1", Kind: agent.BlockAssistant, Status: agent.BlockStatusRunning}
+	if err := view.ApplyRunEvent(agent.RunEvent{RunID: "run_1", Event: agent.BlockStarted{Block: started}}, nil); err != nil {
+		t.Fatal(err)
+	}
+	completed := started
+	completed.Status = agent.BlockStatusCompleted
+	completed.Text = "Generated chart"
+	completed.Images = []agent.InlineImage{{
+		ID: "answer:image:0", Name: "chart.png", MIMEType: "image/png", Data: []byte("png"),
+	}}
+	if err := view.ApplyRunEvent(agent.RunEvent{RunID: "run_1", Event: agent.BlockCompleted{Block: completed}}, nil); err != nil {
+		t.Fatal(err)
+	}
+	if view.content.Len() != 2 || len(view.runEntries["run_1"]) != 2 {
+		t.Fatalf("streamed image entries = content %d, run entries %+v", view.content.Len(), view.runEntries)
+	}
+	drawn := drawRoot(t, view, 48, 8)
+	if !strings.Contains(drawn, "Generated chart") || !strings.Contains(drawn, "chart.png") {
+		t.Fatalf("streamed image transcript =\n%s", drawn)
+	}
+}
+
 func TestToolStreamingPreservesAReadersScrollPosition(t *testing.T) {
 	view := testTranscriptView(t)
 	root := headless.NewRoot(view)

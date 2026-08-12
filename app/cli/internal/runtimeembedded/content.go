@@ -103,8 +103,25 @@ func (r *Runtime) projectInput(ctx context.Context, message agent.Message) ([]pr
 }
 
 func projectContent(itemID string, content []protocol.ContentBlock) (string, []agent.Attachment, error) {
+	projected, err := projectContentValue(itemID, content)
+	return projected.text, projected.attachments, err
+}
+
+func projectAssistantContent(itemID string, content []protocol.ContentBlock) (string, []agent.InlineImage, error) {
+	projected, err := projectContentValue(itemID, content)
+	return projected.text, projected.images, err
+}
+
+type contentProjection struct {
+	text        string
+	attachments []agent.Attachment
+	images      []agent.InlineImage
+}
+
+func projectContentValue(itemID string, content []protocol.ContentBlock) (contentProjection, error) {
 	textParts := make([]string, 0, len(content))
 	attachments := make([]agent.Attachment, 0, len(content))
+	images := make([]agent.InlineImage, 0, len(content))
 	for index, block := range content {
 		switch block.Type {
 		case protocol.ContentBlockText:
@@ -112,7 +129,7 @@ func projectContent(itemID string, content []protocol.ContentBlock) (string, []a
 		case protocol.ContentBlockImage:
 			data, err := base64.StdEncoding.DecodeString(block.Data)
 			if err != nil {
-				return "", nil, fmt.Errorf("item %s image %d: decode base64: %w", itemID, index+1, err)
+				return contentProjection{}, fmt.Errorf("item %s image %d: decode base64: %w", itemID, index+1, err)
 			}
 			name := "image"
 			if extensions, _ := mime.ExtensionsByType(block.Mime); len(extensions) != 0 {
@@ -124,9 +141,14 @@ func projectContent(itemID string, content []protocol.ContentBlock) (string, []a
 				ID: fmt.Sprintf("%s:image:%d", itemID, index), Kind: agent.AttachmentImage,
 				Name: name, MimeType: block.Mime, Size: int64(len(data)),
 			})
+			images = append(images, agent.InlineImage{
+				ID: fmt.Sprintf("%s:image:%d", itemID, index), Name: name, MIMEType: block.Mime, Data: data,
+			})
 		default:
-			return "", nil, fmt.Errorf("item %s content %d has unsupported type %q", itemID, index+1, block.Type)
+			return contentProjection{}, fmt.Errorf("item %s content %d has unsupported type %q", itemID, index+1, block.Type)
 		}
 	}
-	return strings.Join(textParts, "\n\n"), attachments, nil
+	return contentProjection{
+		text: strings.Join(textParts, "\n\n"), attachments: attachments, images: images,
+	}, nil
 }

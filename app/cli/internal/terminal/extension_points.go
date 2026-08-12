@@ -18,6 +18,7 @@ type BlockPresentation struct {
 	Syntax  highlight.Renderer
 	Tools   []ToolPresenter
 	Speaker string
+	Image   func(agent.InlineImage) headless.Block
 }
 
 // BlockPresenter maps one closed domain block kind to terminal blocks.

@@ -41,7 +41,15 @@ func presentMarkdown(speaker string) func(BlockPresentation, agent.Block) []head
 			look.Text, look.Strong = p.Theme.Muted, p.Theme.Subtle
 		}
 		message.doc.SetBlocks(markdown.Render(block.Text, look))
-		return []headless.Block{message}
+		rendered := []headless.Block{message}
+		for _, image := range block.Images {
+			if p.Image == nil {
+				rendered = append(rendered, fallbackInlineImage(p.Theme, image))
+				continue
+			}
+			rendered = append(rendered, p.Image(image))
+		}
+		return rendered
 	}
 }
 

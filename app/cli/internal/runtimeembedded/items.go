@@ -67,15 +67,21 @@ func (projection *itemProjection) project() error {
 }
 
 func (projection *itemProjection) projectMessage(allowAttachments bool) error {
-	text, attachments, err := projectContent(projection.source.ID, projection.source.Content)
+	if allowAttachments {
+		text, attachments, err := projectContent(projection.source.ID, projection.source.Content)
+		if err != nil {
+			return err
+		}
+		projection.block.Text = text
+		projection.block.Attachments = attachments
+		return nil
+	}
+	text, images, err := projectAssistantContent(projection.source.ID, projection.source.Content)
 	if err != nil {
 		return err
 	}
-	if !allowAttachments && len(attachments) != 0 {
-		return fmt.Errorf("agent message %s contains unsupported image output", projection.source.ID)
-	}
 	projection.block.Text = text
-	projection.block.Attachments = attachments
+	projection.block.Images = images
 	return nil
 }
 

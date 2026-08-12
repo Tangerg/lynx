@@ -261,6 +261,7 @@ func newApp(loop *program.Runtime, cfg appConfig) *app {
 		applicationKeys:    cfg.keyBindings.application,
 		globalKeys:         cfg.keyBindings.global,
 	}
+	a.transcript.images = newTerminalImagePresenter(loop.Images())
 	a.configureComposer(appearance, cfg.keyBindings.editor, cfg.initialDraft)
 	a.configureCompletion(appearance)
 	a.registerCommands()
@@ -409,10 +410,12 @@ func (a *app) projectSession(snapshot agent.SessionSnapshot, attached *agent.Seg
 }
 
 func (a *app) newTranscript() *transcriptView {
-	return newTranscriptView(
+	transcript := newTranscriptView(
 		a.transcript.theme, a.transcript.glyphs, a.transcript.wheel, a.syntax,
 		a.settings.UI.TranscriptRetain, a.transcript.details, a.transcript.clipboard,
 	)
+	transcript.images = a.transcript.images
+	return transcript
 }
 
 // reconcileRunSnapshot atomically replaces the in-memory projection after a

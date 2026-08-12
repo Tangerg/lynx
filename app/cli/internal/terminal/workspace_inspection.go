@@ -293,7 +293,10 @@ func (monitor runtimeChangeMonitor) run(ctx context.Context) {
 		// The subscription is registered before every authoritative cold refresh.
 		// Events that race those reads remain buffered in the stream and trigger a
 		// later replacement read, closing read-then-subscribe gaps for every topic.
-		if containsTopic(topics, changefeed.FilesChanged) {
+		// Query support and subscription support are independent capabilities.
+		// Even when this runtime cannot watch files.changed, install the
+		// authoritative file projection instead of leaving the header empty.
+		if monitor.repository != nil {
 			if err := monitor.refreshFiles(attemptContext); err != nil {
 				cancelAttempt()
 				failures++

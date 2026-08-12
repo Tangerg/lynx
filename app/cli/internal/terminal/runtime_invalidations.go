@@ -94,8 +94,12 @@ func (a *app) applySessionInvalidation(catalogChanged, currentSessionChanged boo
 }
 
 func invalidatesSessionCatalog(event changefeed.Event) bool {
+	if event.Type == changefeed.Resync {
+		return containsTopic(event.Topics, changefeed.SessionsChanged) ||
+			containsTopic(event.Topics, changefeed.RunsChanged)
+	}
 	return event.Type == changefeed.EventType(changefeed.SessionsChanged) ||
-		(event.Type == changefeed.Resync && containsTopic(event.Topics, changefeed.SessionsChanged))
+		event.Type == changefeed.EventType(changefeed.RunsChanged)
 }
 
 func resyncAffectsSession(topics []changefeed.Topic) bool {

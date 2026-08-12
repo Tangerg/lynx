@@ -55,6 +55,7 @@ type transcriptView struct {
 	runEntries      map[string][]headless.BlockID
 	runLineages     map[string]agent.RunLineage
 	activeToolGroup *trackedToolGroup
+	images          *terminalImagePresenter
 }
 
 type transcriptSelection struct {
@@ -575,7 +576,7 @@ func (c *transcriptView) appendCustom(runID string, event agent.CustomEvent, reg
 		}
 		rendered, err := presentCustomSafely(presenter, BlockPresentation{
 			Theme: c.theme, Glyphs: c.glyphs, Look: c.look, Syntax: c.syntax,
-			Tools: extensions.Values(registry, ToolPresenters), Speaker: "runtime",
+			Tools: extensions.Values(registry, ToolPresenters), Speaker: "runtime", Image: c.presentImage,
 		}, event)
 		if err != nil {
 			return err
@@ -672,6 +673,10 @@ func (c *transcriptView) completeStream(block agent.Block) error {
 	c.content.Finish(live.id)
 	live.stream.Reset()
 	delete(c.textStreams, key)
+	for _, image := range block.Images {
+		id := c.append(c.presentImage(image))
+		c.trackRunEntry(block.RunID, id)
+	}
 	c.refreshSearch()
 	return nil
 }
@@ -890,11 +895,18 @@ func (c *transcriptView) present(block agent.Block, registry *extensions.Registr
 		if presenter.Kind == block.Kind {
 			return presentSafely(presenter, BlockPresentation{
 				Theme: c.theme, Glyphs: c.glyphs, Look: c.look, Syntax: c.syntax,
-				Tools: extensions.Values(registry, ToolPresenters), Speaker: c.speakerFor(block),
+				Tools: extensions.Values(registry, ToolPresenters), Speaker: c.speakerFor(block), Image: c.presentImage,
 			}, block)
 		}
 	}
 	return nil, fmt.Errorf("terminal transcript: no presenter for block kind %q", block.Kind)
+}
+
+func (c *transcriptView) presentImage(image agent.InlineImage) headless.Block {
+	if c.images != nil {
+		return c.images.Present(c.theme, image)
+	}
+	return fallbackInlineImage(c.theme, image)
 }
 
 func presentSafely(presenter BlockPresenter, presentation BlockPresentation, block agent.Block) (rendered []headless.Block, err error) {

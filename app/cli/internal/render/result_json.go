@@ -29,6 +29,7 @@ type resultFrame struct {
 	RunID        string            `json:"runId"`
 	SessionID    string            `json:"sessionId"`
 	Text         string            `json:"text,omitzero"`
+	Images       []imageFrame      `json:"images,omitzero"`
 	Options      *runOptionsJSON   `json:"options,omitzero"`
 	Interactions []interactionJSON `json:"interactions,omitzero"`
 	Outcome      *outcomeJSON      `json:"outcome,omitzero"`
@@ -107,6 +108,7 @@ func (r *ResultJSON) Reconcile(snapshot agent.SessionSnapshot) error {
 	r.started = true
 	r.live = make(map[string]*strings.Builder)
 	r.prose = r.prose[:0]
+	r.frame.Images = nil
 	target, err := resolveSnapshotRun(snapshot, r.frame.RunID)
 	if err != nil {
 		r.err = fmt.Errorf("render result snapshot: %w", err)
@@ -118,8 +120,11 @@ func (r *ResultJSON) Reconcile(snapshot agent.SessionSnapshot) error {
 		return r.err
 	}
 	for _, block := range snapshot.Transcript {
-		if block.RunID == targetRunID && block.Status != agent.BlockStatusRunning && block.Kind == agent.BlockAssistant && block.Text != "" {
-			r.prose = append(r.prose, block.Text)
+		if block.RunID == targetRunID && block.Status != agent.BlockStatusRunning && block.Kind == agent.BlockAssistant {
+			if block.Text != "" {
+				r.prose = append(r.prose, block.Text)
+			}
+			r.appendImages(block.Images)
 		}
 	}
 	r.frame.RunID = targetRunID
@@ -221,6 +226,16 @@ func (r *ResultJSON) complete(block agent.Block) {
 	delete(r.live, block.ID)
 	if text != "" {
 		r.prose = append(r.prose, text)
+	}
+	r.appendImages(block.Images)
+}
+
+func (r *ResultJSON) appendImages(images []agent.InlineImage) {
+	for _, image := range images {
+		r.frame.Images = append(r.frame.Images, imageFrame{
+			ID: image.ID, Name: image.Name, MIMEType: image.MIMEType,
+			Data: image.Data, Size: int64(len(image.Data)),
+		})
 	}
 }
 

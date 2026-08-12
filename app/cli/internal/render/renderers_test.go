@@ -128,6 +128,63 @@ func TestResultJSONRetainsLatestRootProgressUsageBeforeSettlement(t *testing.T) 
 	}
 }
 
+func TestRenderersPreserveAssistantInlineImages(t *testing.T) {
+	image := agent.InlineImage{
+		ID: "answer:image:0", Name: "chart.png", MIMEType: "image/png", Data: []byte("png bytes"),
+	}
+	completed := testEvent("image", agent.BlockCompleted{Block: agent.Block{
+		ID: "answer", Kind: agent.BlockAssistant, Text: "Generated chart", Images: []agent.InlineImage{image},
+	}})
+
+	var stream bytes.Buffer
+	ndjson := NewNDJSON(&stream)
+	if err := ndjson.Begin(testRun(), agent.RunOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	if err := ndjson.Render(completed); err != nil {
+		t.Fatal(err)
+	}
+	var event eventRecord
+	if err := json.Unmarshal(stream.Bytes(), &event); err != nil {
+		t.Fatal(err)
+	}
+	if event.Block == nil || len(event.Block.Images) != 1 || event.Block.Images[0].Name != image.Name ||
+		!bytes.Equal(event.Block.Images[0].Data, image.Data) {
+		t.Fatalf("stream image = %+v", event.Block)
+	}
+
+	var resultOutput bytes.Buffer
+	result := NewResultJSON(&resultOutput)
+	if err := result.Begin(testRun(), agent.RunOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	if err := result.Render(completed); err != nil {
+		t.Fatal(err)
+	}
+	if err := result.Close(); err != nil {
+		t.Fatal(err)
+	}
+	var final resultFrame
+	if err := json.Unmarshal(resultOutput.Bytes(), &final); err != nil {
+		t.Fatal(err)
+	}
+	if len(final.Images) != 1 || !bytes.Equal(final.Images[0].Data, image.Data) {
+		t.Fatalf("result images = %+v", final.Images)
+	}
+
+	var textOutput bytes.Buffer
+	plain := NewText(&textOutput)
+	if err := plain.Begin(testRun(), agent.RunOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	if err := plain.Render(completed); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(textOutput.String(), "@ chart.png (image/png, 9 bytes)") {
+		t.Fatalf("text image fallback = %q", textOutput.String())
+	}
+}
+
 func TestResultJSONClearsPriorInterruptWhenANewSegmentStarts(t *testing.T) {
 	var output bytes.Buffer
 	renderer := NewResultJSON(&output)

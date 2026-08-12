@@ -2,6 +2,7 @@ package runtimeembedded
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"reflect"
@@ -25,6 +26,24 @@ func TestProjectToolPreservesStructuredDetails(t *testing.T) {
 	if tool.Kind != agent.ToolShell || tool.Command != "go test ./..." || tool.Output != "ok" ||
 		tool.ExitCode == nil || *tool.ExitCode != 0 || tool.Duration != 1250*time.Millisecond {
 		t.Fatalf("tool = %+v", tool)
+	}
+}
+
+func TestProjectAssistantMessagePreservesInlineImages(t *testing.T) {
+	data := []byte("generated image bytes")
+	block, err := projectItem(protocol.Item{
+		ID: "answer", RunID: "run_1", Status: protocol.ItemStatusCompleted, Type: protocol.ItemTypeAgentMessage,
+		Content: []protocol.ContentBlock{
+			{Type: protocol.ContentBlockText, Text: "Generated chart"},
+			{Type: protocol.ContentBlockImage, Mime: "image/png", Data: base64.StdEncoding.EncodeToString(data)},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if block.Text != "Generated chart" || len(block.Images) != 1 || block.Images[0].Name != "image.png" ||
+		block.Images[0].MIMEType != "image/png" || !bytes.Equal(block.Images[0].Data, data) || len(block.Attachments) != 0 {
+		t.Fatalf("assistant block = %+v", block)
 	}
 }
 

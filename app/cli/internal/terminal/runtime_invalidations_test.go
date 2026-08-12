@@ -369,3 +369,23 @@ func TestRuntimeInvalidationScope(t *testing.T) {
 		})
 	}
 }
+
+func TestRunChangesInvalidateSessionActivityCatalog(t *testing.T) {
+	tests := []struct {
+		name  string
+		event changefeed.Event
+		want  bool
+	}{
+		{name: "session change", event: changefeed.Event{Type: changefeed.EventType(changefeed.SessionsChanged)}, want: true},
+		{name: "run change", event: changefeed.Event{Type: changefeed.EventType(changefeed.RunsChanged)}, want: true},
+		{name: "run resync", event: changefeed.Event{Type: changefeed.Resync, Topics: []changefeed.Topic{changefeed.RunsChanged}}, want: true},
+		{name: "unrelated resync", event: changefeed.Event{Type: changefeed.Resync, Topics: []changefeed.Topic{changefeed.GoalsChanged}}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := invalidatesSessionCatalog(test.event); got != test.want {
+				t.Fatalf("invalidatesSessionCatalog() = %t, want %t", got, test.want)
+			}
+		})
+	}
+}

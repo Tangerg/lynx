@@ -251,6 +251,9 @@ func (block Block) validateEnvelope(completed bool) error {
 	if block.Kind != BlockUser && len(block.Attachments) != 0 {
 		return fmt.Errorf("%s block %s carries attachments", block.Kind, block.ID)
 	}
+	if block.Kind != BlockAssistant && len(block.Images) != 0 {
+		return fmt.Errorf("%s block %s carries inline images", block.Kind, block.ID)
+	}
 	return nil
 }
 
@@ -259,6 +262,31 @@ func (block Block) validateAttachments() error {
 		if err := attachment.Validate(); err != nil {
 			return fmt.Errorf("block %s attachment %d: %w", block.ID, i+1, err)
 		}
+	}
+	for i, image := range block.Images {
+		if err := image.Validate(); err != nil {
+			return fmt.Errorf("block %s inline image %d: %w", block.ID, i+1, err)
+		}
+	}
+	return nil
+}
+
+func (image InlineImage) Validate() error {
+	var problems []error
+	if strings.TrimSpace(image.ID) == "" {
+		problems = append(problems, errors.New("id is empty"))
+	}
+	if strings.TrimSpace(image.Name) == "" {
+		problems = append(problems, errors.New("name is empty"))
+	}
+	if !strings.HasPrefix(strings.ToLower(strings.TrimSpace(image.MIMEType)), "image/") {
+		problems = append(problems, errors.New("MIME type is not an image"))
+	}
+	if len(image.Data) == 0 {
+		problems = append(problems, errors.New("data is empty"))
+	}
+	if err := errors.Join(problems...); err != nil {
+		return fmt.Errorf("inline image: %w", err)
 	}
 	return nil
 }

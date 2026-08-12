@@ -99,3 +99,18 @@ func TestEphemeralEventValidationRejectsMalformedValues(t *testing.T) {
 		}
 	}
 }
+
+func TestBlockCloneOwnsAssistantImageBytes(t *testing.T) {
+	block := Block{
+		ID: "answer", RunID: "run_1", Status: BlockStatusCompleted, Kind: BlockAssistant,
+		Images: []InlineImage{{ID: "answer:image:0", Name: "chart.png", MIMEType: "image/png", Data: []byte("png")}},
+	}
+	if err := ValidateEvent(BlockCompleted{Block: block}); err != nil {
+		t.Fatal(err)
+	}
+	clone := block.Clone()
+	clone.Images[0].Data[0] = 'x'
+	if bytes.Equal(block.Images[0].Data, clone.Images[0].Data) || !block.Equal(block.Clone()) {
+		t.Fatalf("inline image clone is not value-owned: source=%+v clone=%+v", block.Images, clone.Images)
+	}
+}

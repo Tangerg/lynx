@@ -169,6 +169,7 @@ func (t *Text) finish(b agent.Block) {
 	if _, streaming := t.streaming[key]; streaming {
 		delete(t.streaming, key)
 		t.endLine()
+		t.showImages(b.Images)
 		delete(t.pending, key)
 		return
 	}
@@ -255,7 +256,7 @@ func (t *Text) renderCompletedBlock(b agent.Block, text string) {
 	case agent.BlockUser:
 		t.userBlock(b, text)
 	case agent.BlockAssistant:
-		t.proseBlock(b.RunID, text)
+		t.proseBlock(b, text)
 	case agent.BlockReasoning:
 		t.blank()
 		t.block("· ", text)
@@ -289,13 +290,20 @@ func (t *Text) userBlock(block agent.Block, text string) {
 	}
 }
 
-func (t *Text) proseBlock(runID, text string) {
+func (t *Text) proseBlock(block agent.Block, text string) {
 	t.blank()
-	if t.scope.isChild(runID) {
-		t.line("subagent · " + runID)
+	if t.scope.isChild(block.RunID) {
+		t.line("subagent · " + block.RunID)
 	}
 	t.write(text)
 	t.endLine()
+	t.showImages(block.Images)
+}
+
+func (t *Text) showImages(images []agent.InlineImage) {
+	for _, image := range images {
+		t.line("  @ " + image.Name + " (" + image.MIMEType + ", " + strconv.Itoa(len(image.Data)) + " bytes)")
+	}
 }
 
 func (t *Text) tool(b agent.Block) {

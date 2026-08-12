@@ -5,6 +5,7 @@ import (
 	"slices"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/Tangerg/oolong/core/input"
 	"github.com/Tangerg/oolong/core/programtest"
@@ -255,6 +256,57 @@ func TestWorkspaceMonitorSubscribesBeforeItsAuthoritativeRead(t *testing.T) {
 	want := []string{"subscribe", "read", "apply"}
 	if !slices.Equal(order, want) {
 		t.Fatalf("monitor order = %v, want %v", order, want)
+	}
+}
+
+func TestWorkspaceMonitorReadsFilesWhenTheChangeSourceCannotWatchThem(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	source := &runtimeChangeSourceStub{
+		events: make(chan changefeed.Event), subscription: make(chan changefeed.Subscription, 1),
+		supported: []changefeed.Topic{changefeed.SessionsChanged},
+	}
+	read := make(chan struct{}, 1)
+	applied := make(chan []workspace.Change, 1)
+	monitor := runtimeChangeMonitor{
+		workspace: "/workspace", source: source,
+		repository: changeReaderFunc(func(context.Context, string) ([]workspace.Change, error) {
+			read <- struct{}{}
+			return []workspace.Change{{Path: "main.go", Status: workspace.FileStatusModified}}, nil
+		}),
+		applyFiles: func(changes []workspace.Change) error {
+			applied <- changes
+			cancel()
+			return nil
+		},
+	}
+	done := make(chan struct{})
+	go func() {
+		monitor.run(ctx)
+		close(done)
+	}()
+
+	subscription := <-source.subscription
+	if !slices.Equal(subscription.Topics, []changefeed.Topic{changefeed.SessionsChanged}) || len(subscription.Watches) != 0 {
+		t.Fatalf("subscription = %+v", subscription)
+	}
+	select {
+	case <-read:
+	case <-time.After(time.Second):
+		t.Fatal("file projection was not read")
+	}
+	select {
+	case changes := <-applied:
+		if len(changes) != 1 || changes[0].Path != "main.go" {
+			t.Fatalf("applied changes = %+v", changes)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("file projection was not applied")
+	}
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("monitor did not stop")
 	}
 }
 

@@ -8,6 +8,7 @@
 package agent
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"slices"
@@ -68,6 +69,7 @@ type Block struct {
 	Status      BlockStatus
 	Kind        BlockKind
 	Attachments []Attachment
+	Images      []InlineImage
 	// Text is the block's body. Assistant and reasoning bodies are markdown and
 	// arrive in pieces (see [BlockDelta]). Tool deltas append to Tool.Output;
 	// the remaining block kinds arrive whole.
@@ -82,6 +84,7 @@ type Block struct {
 // Clone returns a block with no mutable storage shared with the caller.
 func (b Block) Clone() Block {
 	b.Attachments = slices.Clone(b.Attachments)
+	b.Images = cloneInlineImages(b.Images)
 	if b.Question != nil {
 		question := cloneQuestion(*b.Question)
 		b.Question = &question
@@ -98,7 +101,7 @@ func (b Block) Clone() Block {
 // does not depend on pointer identity or on a reflection-based struct layout.
 func (b Block) Equal(other Block) bool {
 	if b.ID != other.ID || b.RunID != other.RunID || b.Status != other.Status || b.Kind != other.Kind ||
-		b.Text != other.Text || !slices.Equal(b.Attachments, other.Attachments) {
+		b.Text != other.Text || !slices.Equal(b.Attachments, other.Attachments) || !equalInlineImages(b.Images, other.Images) {
 		return false
 	}
 	if (b.Question == nil) != (other.Question == nil) ||
@@ -107,6 +110,42 @@ func (b Block) Equal(other Block) bool {
 	}
 	return (b.Tool == nil) == (other.Tool == nil) &&
 		(b.Tool == nil || b.Tool.Equal(*other.Tool))
+}
+
+// InlineImage is model-produced media embedded in an assistant message. It is
+// deliberately separate from Attachment: attachments are workspace-backed
+// authoring inputs, while an inline image is immutable output owned by the
+// transcript itself.
+type InlineImage struct {
+	ID       string
+	Name     string
+	MIMEType string
+	Data     []byte
+}
+
+func (image InlineImage) Clone() InlineImage {
+	image.Data = bytes.Clone(image.Data)
+	return image
+}
+
+func (image InlineImage) Equal(other InlineImage) bool {
+	return image.ID == other.ID && image.Name == other.Name && image.MIMEType == other.MIMEType &&
+		bytes.Equal(image.Data, other.Data)
+}
+
+func cloneInlineImages(images []InlineImage) []InlineImage {
+	if images == nil {
+		return nil
+	}
+	cloned := make([]InlineImage, len(images))
+	for index, image := range images {
+		cloned[index] = image.Clone()
+	}
+	return cloned
+}
+
+func equalInlineImages(left, right []InlineImage) bool {
+	return slices.EqualFunc(left, right, func(left, right InlineImage) bool { return left.Equal(right) })
 }
 
 // ToolStatus is where a tool call is in its life.

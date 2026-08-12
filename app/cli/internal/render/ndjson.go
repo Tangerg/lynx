@@ -98,6 +98,7 @@ type blockFrame struct {
 	Kind        string            `json:"kind"`
 	Text        string            `json:"text,omitzero"`
 	Attachments []attachmentFrame `json:"attachments,omitzero"`
+	Images      []imageFrame      `json:"images,omitzero"`
 	Question    *interactionJSON  `json:"question,omitzero"`
 	Tool        *toolFrame        `json:"tool,omitzero"`
 }
@@ -108,6 +109,14 @@ type attachmentFrame struct {
 	Name     string `json:"name"`
 	Path     string `json:"path"`
 	MimeType string `json:"mimeType,omitzero"`
+	Size     int64  `json:"size"`
+}
+
+type imageFrame struct {
+	ID       string `json:"id"`
+	Name     string `json:"name"`
+	MIMEType string `json:"mimeType"`
+	Data     []byte `json:"data"`
 	Size     int64  `json:"size"`
 }
 
@@ -371,6 +380,12 @@ func encodeBlock(b agent.Block) *blockFrame {
 		out.Attachments = append(out.Attachments, attachmentFrame{
 			ID: attachment.ID, Kind: string(attachment.Kind), Name: attachment.Name,
 			Path: attachment.Path, MimeType: attachment.MimeType, Size: attachment.Size,
+		})
+	}
+	for _, image := range b.Images {
+		out.Images = append(out.Images, imageFrame{
+			ID: image.ID, Name: image.Name, MIMEType: image.MIMEType,
+			Data: image.Data, Size: int64(len(image.Data)),
 		})
 	}
 	if b.Tool != nil {
