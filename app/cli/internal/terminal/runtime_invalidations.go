@@ -79,7 +79,7 @@ func (a *app) refreshRuntimeReader(query runtimeReaderQuery) {
 		failures := 0
 		for {
 			document, err := read(ctx)
-			if err == nil || errors.Is(err, agent.ErrIncompatibleRuntime) {
+			if err == nil || !reconnect.Retryable(err) {
 				return document, err
 			}
 			failures++
@@ -204,7 +204,7 @@ func (a *app) readInvalidatedSession(ctx context.Context, sessionID string) (age
 	failures := 0
 	for {
 		snapshot, err := a.runtime.GetSession(ctx, sessionID)
-		if err == nil || errors.Is(err, agent.ErrSessionNotFound) || errors.Is(err, agent.ErrIncompatibleRuntime) {
+		if err == nil || !reconnect.Retryable(err) {
 			return snapshot, err
 		}
 		failures++
@@ -215,10 +215,8 @@ func (a *app) readInvalidatedSession(ctx context.Context, sessionID string) (age
 }
 
 func (a *app) installSessionMetadata(session agent.Session) {
-	a.session = session
-	a.header.SetSession(session)
+	a.setActiveSession(session)
 	a.sessionCenter.Upsert(session)
-	a.setWindowTitle()
 }
 
 // dismissInteractionProjection drops only the obsolete terminal-side answer

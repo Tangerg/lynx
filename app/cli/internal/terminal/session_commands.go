@@ -140,9 +140,7 @@ func (a *app) updateSessionFromCenter(id, label string, build func(agent.Session
 			}
 			a.sessionCenter.Upsert(updated)
 			if updated.ID == a.session.ID {
-				a.session = updated
-				a.header.SetSession(updated)
-				a.setWindowTitle()
+				a.setActiveSession(updated)
 			}
 			a.message(label + " complete")
 		},
@@ -201,9 +199,7 @@ func (a *app) RenameSession(title string) {
 			if updated.ID != sessionID {
 				return fmt.Errorf("rename session: runtime returned session %s, want %s", updated.ID, sessionID)
 			}
-			a.session = updated
-			a.header.SetSession(updated)
-			a.setWindowTitle()
+			a.setActiveSession(updated)
 			a.message("renamed session to " + updated.Title)
 			return nil
 		},
@@ -356,7 +352,7 @@ func (installation sessionInstallation) apply(a *app) {
 	a.dropStream()
 	a.completion.Dismiss()
 	previousTranscript := a.transcript
-	a.session = installation.snapshot.Session
+	a.setActiveSession(installation.snapshot.Session)
 	a.dispatchingQueueEntry = 0
 	a.conversation = installation.projection.conversation
 	a.attachments = installation.attachments
@@ -365,7 +361,6 @@ func (installation sessionInstallation) apply(a *app) {
 	a.restoreComposer(installation.draft)
 	a.activity.Reset()
 	a.status.Reset(a.options)
-	a.header.SetSession(installation.snapshot.Session)
 	a.header.SetUsage(installation.projection.conversation.Usage())
 	a.prompt.SetOptions(a.options)
 	a.prompt.SetBusy(installation.projection.conversation.Busy())

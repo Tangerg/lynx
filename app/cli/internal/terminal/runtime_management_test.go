@@ -3,6 +3,7 @@ package terminal
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -412,7 +413,7 @@ func TestGoalInvalidationConvergesAfterATransientReadFailure(t *testing.T) {
 	host.Shows(t, "original objective")
 
 	goals.set(goal.Goal{SessionID: "ses_demo_1", Objective: "converged objective", Status: goal.Active})
-	goals.readErr <- errors.New("temporary goal read failure")
+	goals.readErr <- fmt.Errorf("temporary goal read failure: %w", agent.ErrDisconnected)
 	baseline := goals.reads.Load()
 	source.events <- changefeed.Event{
 		Type: changefeed.EventType(changefeed.GoalsChanged), Sequence: 1,
@@ -456,6 +457,42 @@ func TestGoalInvalidationDoesNotRetryAnIncompatibleProjection(t *testing.T) {
 		t.Fatal("incompatible goal projection was retried")
 	case <-time.After(3 * runtimeRecoveryBackoff.Base):
 	}
+	stop()
+}
+
+func TestGoalInvalidationDoesNotRetryAPermanentProjectionFailure(t *testing.T) {
+	goals := &goalServiceStub{
+		current:    &goal.Goal{SessionID: "ses_demo_1", Objective: "original objective", Status: goal.Active},
+		readErr:    make(chan error, 1),
+		readSignal: make(chan struct{}, 4),
+	}
+	source := &runtimeChangeSourceStub{
+		events: make(chan changefeed.Event, 1), subscription: make(chan changefeed.Subscription, 1),
+		applied: make(chan changefeed.Event, 1), supported: []changefeed.Topic{changefeed.GoalsChanged},
+	}
+	host, stop := runUIWithRuntimeServices(t, Config{Runtime: mock.New(), Goals: goals, Changes: source})
+	host.Shows(t, "Ask lyra")
+	awaitValue(t, source.subscription, "goal invalidation subscription")
+	host.Type("/goal")
+	host.Press(input.Enter)
+	host.Shows(t, "original objective")
+	drainSignals(goals.readSignal)
+
+	permanent := errors.New("goal projection rejected")
+	goals.readErr <- permanent
+	source.events <- changefeed.Event{
+		Type: changefeed.EventType(changefeed.GoalsChanged), Sequence: 1,
+		SessionIDs: []string{"ses_demo_1"},
+	}
+	awaitSignal(t, source.applied, "goals.changed delivery")
+	awaitSignal(t, goals.readSignal, "permanent goal read")
+	select {
+	case <-goals.readSignal:
+		t.Fatal("permanent goal projection failure was retried")
+	case <-time.After(3 * runtimeRecoveryBackoff.Base):
+	}
+	host.Press(input.Esc)
+	host.Shows(t, permanent.Error())
 	stop()
 }
 

@@ -37,6 +37,7 @@ type transcriptView struct {
 	retain          int
 	details         bool
 	clipboard       headless.Clipboard
+	emptyState      grid.Drawable
 	focused         bool
 	selected        headless.BlockID
 	hasSelected     bool
@@ -170,7 +171,12 @@ func newTranscriptView(
 func (c *transcriptView) Draw(frame headless.Frame) {
 	c.view.Matches, c.view.Current = c.matches, c.current
 	c.view.Draw(frame)
+	if c.content.Len() == 0 && c.emptyState != nil {
+		c.emptyState.Draw(frame.View)
+	}
 }
+
+func (c *transcriptView) SetEmptyState(state grid.Drawable) { c.emptyState = state }
 
 func (c *transcriptView) Handle(event input.Event) bool {
 	if key, ok := event.(input.Key); ok && key.Down() && c.focused {

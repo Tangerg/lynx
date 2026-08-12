@@ -58,6 +58,7 @@ type Config struct {
 	AuthoringContext authoringcontext.Service
 	Hooks            hookpolicy.Service
 	Feedback         feedback.Service
+	ClientVersion    string
 	SessionID        string
 	Workspace        string
 	InitialPrompt    string
@@ -103,7 +104,7 @@ func Run(ctx context.Context, cfg Config) (runErr error) {
 	err = program.Run(ctx, program.Config{
 		Root: func(loop *program.Runtime) program.Component {
 			active = newApp(loop, appConfig{
-				context: ctx, runtime: cfg.Runtime, snapshot: prepared.opened,
+				context: ctx, runtime: cfg.Runtime, snapshot: prepared.opened, clientVersion: cfg.ClientVersion,
 				runtimeProfile: prepared.runtimeProfile,
 				workspaces:     cfg.Workspaces, changes: cfg.Changes,
 				transfers: cfg.Transfers, usage: cfg.Usage, modelConfig: cfg.ModelConfig,

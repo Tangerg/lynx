@@ -97,6 +97,7 @@ type app struct {
 	operations       *operationOwner
 
 	transcript     *transcriptView
+	brand          *brandBanner
 	header         *sessionHeader
 	activity       *activityView
 	queueView      *queueView
@@ -202,6 +203,7 @@ type appConfig struct {
 	authoringContext authoringcontext.Service
 	hooks            hookpolicy.Service
 	feedback         feedback.Service
+	clientVersion    string
 	snapshot         agent.SessionSnapshot
 	registry         *extensions.Registry
 	pluginHost       *extensions.Host
@@ -235,6 +237,9 @@ func newTerminalAppearance(loop *program.Runtime) terminalAppearance {
 func newApp(loop *program.Runtime, cfg appConfig) *app {
 	cfg.keyBindings.setResolver(loop.After)
 	appearance := newTerminalAppearance(loop)
+	transcript := newTranscriptView(appearance.theme, appearance.glyphs, loop.Environment().Wheel(), appearance.syntax, cfg.settings.UI.TranscriptRetain, cfg.settings.UI.ToolDetails, loop.Clipboard())
+	brand := newBrandBanner(appearance.theme, appearance.glyphs, cfg.clientVersion, cfg.snapshot.Session, cfg.settings.RunOptions())
+	transcript.SetEmptyState(brand)
 	a := &app{
 		ctx: cfg.context, loop: loop, runtime: cfg.runtime, workspaces: cfg.workspaces,
 		runtimeProfile: cfg.runtimeProfile,
@@ -247,7 +252,8 @@ func newApp(loop *program.Runtime, cfg appConfig) *app {
 		pluginHost: cfg.pluginHost, pluginIssues: cfg.pluginIssues,
 		conversation:       agent.NewConversation(),
 		operations:         newOperationOwner(cfg.context),
-		transcript:         newTranscriptView(appearance.theme, appearance.glyphs, loop.Environment().Wheel(), appearance.syntax, cfg.settings.UI.TranscriptRetain, cfg.settings.UI.ToolDetails, loop.Clipboard()),
+		transcript:         transcript,
+		brand:              brand,
 		header:             newSessionHeader(appearance.theme, appearance.glyphs, cfg.snapshot.Session),
 		activity:           newActivityView(appearance.theme, appearance.glyphs),
 		queueView:          newQueueView(appearance.theme, appearance.glyphs),
@@ -425,6 +431,7 @@ func (a *app) newTranscript() *transcriptView {
 		a.settings.UI.TranscriptRetain, a.transcript.details, a.transcript.clipboard,
 	)
 	transcript.images = a.transcript.images
+	transcript.SetEmptyState(a.brand)
 	return transcript
 }
 
@@ -442,18 +449,16 @@ func (a *app) reconcileRunSnapshot(snapshot agent.SessionSnapshot, stream agent.
 	}
 
 	previousTranscript := a.transcript
-	a.session = snapshot.Session
+	a.setActiveSession(snapshot.Session)
 	a.conversation = projection.conversation
 	a.transcript = projection.transcript
 	a.wireTranscript(projection.transcript)
 	a.shell.SetTranscript(projection.transcript)
-	a.header.SetSession(snapshot.Session)
 	a.header.SetUsage(projection.conversation.Usage())
 	a.activity.Set(projection.conversation.Plan())
 	a.prompt.SetBusy(projection.conversation.Busy())
 	previousTranscript.Close()
 	a.listenForSearch()
-	a.setWindowTitle()
 
 	switch projection.conversation.Phase() {
 	case agent.ConversationRunning:
@@ -512,6 +517,13 @@ func displayTitle(session agent.Session) string {
 		return "untitled"
 	}
 	return session.Title
+}
+
+func (a *app) setActiveSession(session agent.Session) {
+	a.session = session
+	a.header.SetSession(session)
+	a.brand.SetSession(session)
+	a.setWindowTitle()
 }
 
 func (a *app) Draw(frame headless.Frame) {

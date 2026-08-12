@@ -3,6 +3,7 @@ package terminal
 import (
 	"context"
 	"errors"
+	"fmt"
 	"slices"
 	"strings"
 	"sync"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/Tangerg/oolong/core/input"
 
+	"github.com/Tangerg/lynx/app/cli/internal/agent"
 	"github.com/Tangerg/lynx/app/cli/internal/agent/mock"
 	"github.com/Tangerg/lynx/app/cli/internal/changefeed"
 	"github.com/Tangerg/lynx/app/cli/internal/mcp"
@@ -150,8 +152,8 @@ func (service *mcpServiceStub) GetAuthorization(context.Context, mcp.Authorizati
 func TestMCPAuthorizationObserverRecoversTransientReadsAndStopsOnAuthoritativeAbsence(t *testing.T) {
 	service := newMCPServiceStub()
 	service.authErrors = make(chan error, 2)
-	service.authErrors <- errors.New("temporary authorization read failure")
-	service.authErrors <- errors.New("another temporary authorization read failure")
+	service.authErrors <- fmt.Errorf("temporary authorization read failure: %w", agent.ErrDisconnected)
+	service.authErrors <- fmt.Errorf("another temporary authorization read failure: %w", agent.ErrDisconnected)
 	observer := mcpAuthorizationObserver{
 		service: service, pollInterval: time.Nanosecond,
 		recovery: reconnect.Backoff{Base: time.Nanosecond, Maximum: time.Nanosecond},
@@ -172,6 +174,16 @@ func TestMCPAuthorizationObserverRecoversTransientReadsAndStopsOnAuthoritativeAb
 	}
 	if reads := service.authReads.Load(); reads != 1 {
 		t.Fatalf("missing attempt reads = %d, want no retry", reads)
+	}
+
+	service.authReads.Store(0)
+	permanent := errors.New("authorization rejected")
+	service.authErrors <- permanent
+	if _, err := observer.observe(t.Context(), initial); !errors.Is(err, permanent) {
+		t.Fatalf("observe permanent failure = %v, want original error", err)
+	}
+	if reads := service.authReads.Load(); reads != 1 {
+		t.Fatalf("permanent failure reads = %d, want no retry", reads)
 	}
 }
 

@@ -3,6 +3,7 @@ package reconnect
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -25,6 +26,28 @@ func TestReconnectRetriesOnlyTransientErrorsWithinBudget(t *testing.T) {
 	}
 	if _, ok := policy.Next(1, agent.ErrReplayUnavailable); ok {
 		t.Fatal("unavailable replay was treated as a retryable disconnect")
+	}
+}
+
+func TestRetryableRecognizesOnlyClassifiedDisconnects(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{name: "disconnect", err: agent.ErrDisconnected, want: true},
+		{name: "wrapped disconnect", err: fmt.Errorf("transport closed: %w", agent.ErrDisconnected), want: true},
+		{name: "business error", err: errors.New("server not found")},
+		{name: "compatibility error", err: agent.ErrIncompatibleRuntime},
+		{name: "cancellation", err: context.Canceled},
+		{name: "nil"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := Retryable(test.err); got != test.want {
+				t.Fatalf("Retryable(%v) = %t, want %t", test.err, got, test.want)
+			}
+		})
 	}
 }
 

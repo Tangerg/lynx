@@ -2,7 +2,6 @@ package terminal
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"path/filepath"
 	"sort"
@@ -361,7 +360,10 @@ func (monitor runtimeChangeMonitor) run(ctx context.Context) error {
 		stream, err := monitor.source.Subscribe(attemptContext, subscription)
 		if err != nil {
 			cancelAttempt()
-			if errors.Is(err, agent.ErrIncompatibleRuntime) {
+			if cause := context.Cause(ctx); cause != nil {
+				return cause
+			}
+			if !reconnect.Retryable(err) {
 				return err
 			}
 			failures++
@@ -379,7 +381,10 @@ func (monitor runtimeChangeMonitor) run(ctx context.Context) error {
 		if monitor.repository != nil {
 			if err := monitor.refreshFiles(attemptContext); err != nil {
 				cancelAttempt()
-				if errors.Is(err, agent.ErrIncompatibleRuntime) {
+				if cause := context.Cause(ctx); cause != nil {
+					return cause
+				}
+				if !reconnect.Retryable(err) {
 					return err
 				}
 				failures++
@@ -391,7 +396,10 @@ func (monitor runtimeChangeMonitor) run(ctx context.Context) error {
 		}
 		if err := monitor.resync(topics); err != nil {
 			cancelAttempt()
-			if errors.Is(err, agent.ErrIncompatibleRuntime) {
+			if cause := context.Cause(ctx); cause != nil {
+				return cause
+			}
+			if !reconnect.Retryable(err) {
 				return err
 			}
 			failures++
@@ -444,7 +452,10 @@ func (monitor runtimeChangeMonitor) run(ctx context.Context) error {
 		if cause := context.Cause(ctx); cause != nil {
 			return cause
 		}
-		if errors.Is(attemptErr, agent.ErrIncompatibleRuntime) {
+		if attemptErr == nil {
+			attemptErr = fmt.Errorf("%w: runtime change stream ended", agent.ErrDisconnected)
+		}
+		if !reconnect.Retryable(attemptErr) {
 			return attemptErr
 		}
 		failures++
@@ -463,7 +474,7 @@ func (monitor runtimeChangeMonitor) runWithoutWatch(ctx context.Context) error {
 	for context.Cause(ctx) == nil {
 		if err := monitor.refreshFiles(ctx); err == nil {
 			return nil
-		} else if errors.Is(err, agent.ErrIncompatibleRuntime) {
+		} else if !reconnect.Retryable(err) {
 			return err
 		}
 		failures++

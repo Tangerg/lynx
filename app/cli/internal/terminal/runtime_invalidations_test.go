@@ -3,6 +3,7 @@ package terminal
 import (
 	"context"
 	"errors"
+	"fmt"
 	"slices"
 	"sync"
 	"sync/atomic"
@@ -22,6 +23,7 @@ type runtimeChangeSourceStub struct {
 	events       chan changefeed.Event
 	subscribeErr chan error
 	streamErrors chan error
+	streamClosed <-chan struct{}
 	subscription chan changefeed.Subscription
 	applied      chan changefeed.Event
 	supported    []changefeed.Topic
@@ -51,6 +53,8 @@ func (stub *runtimeChangeSourceStub) Subscribe(ctx context.Context, subscription
 	return func(yield func(changefeed.Event, error) bool) {
 		for {
 			select {
+			case <-stub.streamClosed:
+				return
 			case err := <-stub.streamErrors:
 				yield(changefeed.Event{}, err)
 				return
@@ -90,6 +94,25 @@ func TestRuntimeChangeMonitorStopsOnAnIncompatibleSubscription(t *testing.T) {
 	}
 }
 
+func TestRuntimeChangeMonitorStopsOnAPermanentSubscriptionFailure(t *testing.T) {
+	t.Parallel()
+	permanent := errors.New("invalid change subscription")
+	source := &runtimeChangeSourceStub{
+		events:       make(chan changefeed.Event),
+		subscribeErr: make(chan error, 1),
+		subscription: make(chan changefeed.Subscription, 2),
+	}
+	source.subscribeErr <- permanent
+
+	err := (runtimeChangeMonitor{source: source}).run(t.Context())
+	if !errors.Is(err, permanent) {
+		t.Fatalf("run error = %v, want permanent subscription failure", err)
+	}
+	if subscriptions := len(source.subscription); subscriptions != 1 {
+		t.Fatalf("subscriptions = %d, want exactly one", subscriptions)
+	}
+}
+
 func TestRuntimeChangeMonitorStopsOnAnIncompatibleStream(t *testing.T) {
 	t.Parallel()
 	source := &runtimeChangeSourceStub{
@@ -105,6 +128,27 @@ func TestRuntimeChangeMonitorStopsOnAnIncompatibleStream(t *testing.T) {
 	}
 	if subscriptions := len(source.subscription); subscriptions != 1 {
 		t.Fatalf("subscriptions = %d, want exactly one", subscriptions)
+	}
+}
+
+func TestRuntimeChangeMonitorReconnectsWhenAStreamClosesUnexpectedly(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	closed := make(chan struct{})
+	close(closed)
+	source := &runtimeChangeSourceStub{
+		events:       make(chan changefeed.Event),
+		streamClosed: closed,
+		subscription: make(chan changefeed.Subscription, 2),
+	}
+	done := make(chan error, 1)
+	go func() { done <- (runtimeChangeMonitor{source: source}).run(ctx) }()
+
+	awaitSignal(t, source.subscription, "initial runtime subscription")
+	awaitSignal(t, source.subscription, "replacement runtime subscription")
+	cancel()
+	if err := <-done; !errors.Is(err, context.Canceled) {
+		t.Fatalf("run error = %v, want context cancellation", err)
 	}
 }
 
@@ -218,7 +262,9 @@ func runUIWithRuntimeChangeServices(t *testing.T, runtime agent.Runtime, workspa
 func TestRuntimeInvalidationRecoversAReadOnlyProjectionAfterTransientFailures(t *testing.T) {
 	base := mock.New()
 	backend := &snapshotCountingRuntime{
-		Runtime: base, failure: errors.New("temporary session projection failure"), readSignal: make(chan struct{}, 16),
+		Runtime:    base,
+		failure:    fmt.Errorf("temporary session projection failure: %w", agent.ErrDisconnected),
+		readSignal: make(chan struct{}, 16),
 	}
 	source := &runtimeChangeSourceStub{
 		events: make(chan changefeed.Event, 1), subscription: make(chan changefeed.Subscription, 1),
@@ -251,6 +297,20 @@ func TestRuntimeInvalidationRecoversAReadOnlyProjectionAfterTransientFailures(t 
 		t.Fatalf("session reads after invalidation = %d, want at least 3", got)
 	}
 	stop()
+}
+
+func TestInvalidatedSessionReadDoesNotRetryAPermanentFailure(t *testing.T) {
+	permanent := errors.New("invalid session projection")
+	backend := &snapshotCountingRuntime{Runtime: mock.New(), failure: permanent}
+	backend.failures.Store(2)
+
+	_, err := (&app{runtime: backend}).readInvalidatedSession(t.Context(), "ses_demo_1")
+	if !errors.Is(err, permanent) {
+		t.Fatalf("readInvalidatedSession error = %v, want permanent failure", err)
+	}
+	if reads := backend.reads.Load(); reads != 1 {
+		t.Fatalf("session reads = %d, want exactly one", reads)
+	}
 }
 
 func TestExternalWorkspaceChangeRebindsTheRuntimeWatch(t *testing.T) {

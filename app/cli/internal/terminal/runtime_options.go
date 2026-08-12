@@ -72,8 +72,7 @@ func (a *app) selectSessionModel(model agent.Model) {
 			if updated.ID != sessionID || updated.Model != model.ID {
 				return fmt.Errorf("select session model: runtime returned session %s with model %q", updated.ID, updated.Model)
 			}
-			a.session = updated
-			a.header.SetSession(updated)
+			a.setActiveSession(updated)
 			a.options.Provider, a.options.Model = model.Provider, model.ID
 			a.syncOptions("model · " + model.Provider + "/" + model.ID)
 			return nil
@@ -238,6 +237,7 @@ func (a *app) ShowApprovalRules() {
 func (a *app) syncOptions(message string) {
 	a.status.setOptions(a.options)
 	a.prompt.SetOptions(a.options)
+	a.brand.SetOptions(a.options)
 	a.message(message)
 }
 

@@ -398,7 +398,7 @@ func (observer mcpAuthorizationObserver) observe(
 		}
 		next, err := observer.service.GetAuthorization(ctx, reference)
 		if err != nil {
-			if errors.Is(err, mcp.ErrAuthorizationAttemptNotFound) || errors.Is(err, agent.ErrIncompatibleRuntime) {
+			if !reconnect.Retryable(err) {
 				return mcp.AuthorizationAttempt{}, err
 			}
 			failures++
