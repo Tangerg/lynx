@@ -25,11 +25,7 @@ func TestRecoverReadsAFinishedRunAfterItsSegmentExpires(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, streamErr := range opened.Events {
-		if streamErr != nil {
-			t.Fatal(streamErr)
-		}
-	}
+	consumeSegment(t, opened)
 	if _, err := runtime.SubscribeRun(t.Context(), agent.SubscribeRun{RunID: opened.RunID, SegmentID: opened.SegmentID}); !runrecovery.Required(err) {
 		t.Fatalf("subscribe error = %v, want a cold-recovery condition", err)
 	}
@@ -103,6 +99,88 @@ func TestAttachSessionPerformsTheHeadAttachmentBeforeItsAuthoritativeRead(t *tes
 	}
 	if _, err := runtime.CancelRun(t.Context(), agent.CancelRun{RunID: opened.RunID, Reason: "test complete"}); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestAttachSessionReturnsAuthoritativeStateWhenNoStreamIsRequired(t *testing.T) {
+	t.Run("waiting", func(t *testing.T) {
+		runtime := mock.New()
+		runtime.Instant = true
+		runtime.Script = func(string) mock.Script {
+			return mock.Script{Interactions: []agent.Interaction{agent.Approval{
+				ItemID: "approval_1", Title: "Run checks",
+				Tool: &agent.ToolCall{Kind: agent.ToolShell, Name: "shell", Command: "go test ./...", Status: agent.ToolRunning},
+			}}}
+		}
+		session, err := runtime.CreateSession(t.Context(), agent.CreateSession{Workspace: t.TempDir()})
+		if err != nil {
+			t.Fatal(err)
+		}
+		opened, err := runtime.StartRun(t.Context(), agent.StartRun{
+			SessionID: session.ID, Message: agent.Message{Text: "wait for approval"},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		consumeSegment(t, opened)
+
+		recovered, err := runrecovery.AttachSession(t.Context(), runtime, session.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if recovered.Run.ID != opened.RunID || recovered.Run.Status != agent.RunStatusWaiting ||
+			recovered.Stream.Events != nil || len(recovered.Snapshot.Interactions) != 1 {
+			t.Fatalf("waiting session attachment = %+v", recovered)
+		}
+	})
+
+	t.Run("finished", func(t *testing.T) {
+		runtime := mock.New()
+		runtime.Instant = true
+		runtime.Script = completedScript
+		session, err := runtime.CreateSession(t.Context(), agent.CreateSession{Workspace: t.TempDir()})
+		if err != nil {
+			t.Fatal(err)
+		}
+		opened, err := runtime.StartRun(t.Context(), agent.StartRun{
+			SessionID: session.ID, Message: agent.Message{Text: "finish"},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		consumeSegment(t, opened)
+
+		recovered, err := runrecovery.AttachSession(t.Context(), runtime, session.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if recovered.Run.ID != opened.RunID || recovered.Run.Status != agent.RunStatusFinished || recovered.Stream.Events != nil {
+			t.Fatalf("finished session attachment = %+v", recovered)
+		}
+	})
+
+	t.Run("empty", func(t *testing.T) {
+		runtime := mock.New()
+		session, err := runtime.CreateSession(t.Context(), agent.CreateSession{Workspace: t.TempDir()})
+		if err != nil {
+			t.Fatal(err)
+		}
+		recovered, err := runrecovery.AttachSession(t.Context(), runtime, session.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if recovered.Run.ID != "" || recovered.Stream.Events != nil || len(recovered.Snapshot.Runs) != 0 {
+			t.Fatalf("empty session attachment = %+v", recovered)
+		}
+	})
+}
+
+func consumeSegment(t *testing.T, stream agent.SegmentStream) {
+	t.Helper()
+	for _, streamErr := range stream.Events {
+		if streamErr != nil {
+			t.Fatal(streamErr)
+		}
 	}
 }
 

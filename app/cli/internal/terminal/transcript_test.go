@@ -4,6 +4,7 @@ import (
 	"image"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Tangerg/oolong/components/headless"
 	"github.com/Tangerg/oolong/components/kit"
@@ -85,6 +86,50 @@ func TestStreamingPreservesAReadersScrollPosition(t *testing.T) {
 	}
 	if got := view.scroll.Offset(); got != wantOffset {
 		t.Fatalf("streaming moved reader from offset %d to %d", wantOffset, got)
+	}
+}
+
+func TestTranscriptNavigationUsesRetainedBlockAndSearchCoordinates(t *testing.T) {
+	view := testTranscriptView(t)
+	for _, body := range []string{"discarded needle", "retained middle", "retained needle"} {
+		view.Append(&kit.Message{Theme: view.theme, Speaker: "test", Body: body})
+	}
+	view.retain = 2
+	drawRoot(t, view, 48, 6)
+	view.DiscardExcess()
+	first := view.content.FirstBlock()
+	if first == 0 {
+		t.Fatal("test did not advance the retained transcript block identity")
+	}
+
+	view.Focus(true)
+	if !view.Do(headless.SelectFirst) || view.selected != first {
+		t.Fatalf("first retained selection = %d, want %d", view.selected, first)
+	}
+	last := first + headless.BlockID(view.content.Len()-1)
+	if !view.Do(headless.SelectLast) || view.selected != last {
+		t.Fatalf("last retained selection = %d, want %d", view.selected, last)
+	}
+
+	drawRoot(t, view, 48, 6)
+	view.Find("retained")
+	select {
+	case result := <-view.SearchResults():
+		accepted, _ := view.AcceptSearch(result)
+		if !accepted {
+			t.Fatal("transcript rejected its current search result")
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("transcript search did not finish")
+	}
+	if len(view.matches) != 2 || view.current != 0 {
+		t.Fatalf("search state = (%d matches, current %d)", len(view.matches), view.current)
+	}
+	if !view.StepMatch(-1) || view.current != 1 {
+		t.Fatalf("previous search match = %d, want wrapped index 1", view.current)
+	}
+	if !view.StepMatch(1) || view.current != 0 {
+		t.Fatalf("next search match = %d, want wrapped index 0", view.current)
 	}
 }
 
