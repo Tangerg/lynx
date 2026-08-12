@@ -41,6 +41,15 @@ func TestSessionHeaderUsesSpaceProgressively(t *testing.T) {
 	}
 }
 
+func TestStatusProgressIncludesRuntimeActivityStepAndContext(t *testing.T) {
+	status := newStatusView(kit.Dark(), kit.Unicode(), settings.Default().RunOptions())
+	step, contextTokens := 7, int64(12_345)
+	status.progress(agent.RunProgress{Step: &step, ContextTokens: &contextTokens, Activity: "calling tools"})
+	if !status.busy || status.doing != "calling tools · step 7 · ctx 12,345" {
+		t.Fatalf("progress status = busy %t, doing %q", status.busy, status.doing)
+	}
+}
+
 func TestActivityViewCentersACompactWindowOnTheActiveStep(t *testing.T) {
 	activity := newActivityView(kit.Dark(), kit.Unicode())
 	activity.Set([]agent.PlanItem{

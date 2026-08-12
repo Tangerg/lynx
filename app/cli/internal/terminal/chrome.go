@@ -343,6 +343,21 @@ func (s *statusView) active(label string) {
 	s.busy = true
 }
 
+func (s *statusView) progress(progress agent.RunProgress) {
+	label := strings.TrimSpace(progress.Activity)
+	if label == "" {
+		label = "working"
+	}
+	parts := []string{label}
+	if progress.Step != nil {
+		parts = append(parts, "step "+strconv.Itoa(*progress.Step))
+	}
+	if progress.ContextTokens != nil {
+		parts = append(parts, "ctx "+formatThousands(*progress.ContextTokens))
+	}
+	s.active(strings.Join(parts, " · "))
+}
+
 func (s *statusView) note(label string) {
 	s.doing = label
 	s.outcome = agent.Outcome{}

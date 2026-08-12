@@ -100,6 +100,9 @@ func (t *Text) renderEvent(envelope agent.RunEvent) {
 		t.begin(event.Block)
 	case agent.BlockDelta:
 		t.delta(envelope.RunID, event)
+	case agent.ToolArgumentsDelta, agent.RunProgress, agent.CustomEvent:
+		// These previews are available in NDJSON and the interactive terminal.
+		// Plain text stays focused on human-readable transcript content.
 	case agent.BlockCompleted:
 		t.finish(event.Block)
 	case agent.PlanChanged:

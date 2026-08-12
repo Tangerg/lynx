@@ -74,6 +74,47 @@ func TestConversationRejectsRegressingRunUsage(t *testing.T) {
 	}
 }
 
+func TestConversationFoldsRunProgressWithoutMakingPreviewsDurable(t *testing.T) {
+	conversation := NewConversation()
+	cost := 0.1
+	run := runningRun("seg_1")
+	run.Usage = Usage{InputTokens: 10, CostUSD: &cost}
+	apply(t, conversation, RunEvent{EventID: "start", RunID: run.ID, SegmentID: run.ActiveSegmentID, Event: SegmentStarted{Run: run}})
+
+	progressUsage := Usage{InputTokens: 14, OutputTokens: 2}
+	apply(t, conversation, RunEvent{EventID: "progress", RunID: run.ID, SegmentID: run.ActiveSegmentID, Event: RunProgress{Usage: &progressUsage, Activity: "thinking"}})
+	got := conversation.Usage()
+	if got.InputTokens != 14 || got.OutputTokens != 2 || got.CostUSD == nil || *got.CostUSD != cost {
+		t.Fatalf("progress usage = %+v", got)
+	}
+	if conversation.Checkpoint() != "start" {
+		t.Fatalf("ephemeral progress advanced checkpoint to %q", conversation.Checkpoint())
+	}
+
+	regressed := Usage{InputTokens: 13, OutputTokens: 2}
+	if _, err := conversation.ApplyRunEvent(RunEvent{EventID: "regression", RunID: run.ID, SegmentID: run.ActiveSegmentID, Event: RunProgress{Usage: &regressed}}); !errors.Is(err, ErrInvalidTransition) {
+		t.Fatalf("regressing progress error = %v", err)
+	}
+}
+
+func TestConversationValidatesEphemeralToolAndCustomEventsAgainstTheActiveRun(t *testing.T) {
+	conversation := NewConversation()
+	run := runningRun("seg_1")
+	apply(t, conversation, RunEvent{EventID: "start", RunID: run.ID, SegmentID: run.ActiveSegmentID, Event: SegmentStarted{Run: run}})
+	apply(t, conversation, RunEvent{EventID: "tool", RunID: run.ID, SegmentID: run.ActiveSegmentID, Event: BlockStarted{Block: Block{
+		ID: "tool_1", RunID: run.ID, Status: BlockStatusRunning, Kind: BlockTool,
+		Tool: &ToolCall{Kind: ToolShell, Name: "shell", Status: ToolRunning},
+	}}})
+	apply(t, conversation, RunEvent{EventID: "args", RunID: run.ID, SegmentID: run.ActiveSegmentID, Event: ToolArgumentsDelta{BlockID: "tool_1", Text: `{"command":"go test`}})
+	apply(t, conversation, RunEvent{EventID: "custom", RunID: run.ID, SegmentID: run.ActiveSegmentID, Event: CustomEvent{Name: "vendor.trace", PayloadJSON: []byte(`{"span":"abc"}`)}})
+	if conversation.Checkpoint() != "tool" {
+		t.Fatalf("ephemeral events advanced checkpoint to %q", conversation.Checkpoint())
+	}
+	if _, err := conversation.ApplyRunEvent(RunEvent{EventID: "orphan", RunID: run.ID, SegmentID: run.ActiveSegmentID, Event: ToolArgumentsDelta{BlockID: "missing"}}); !errors.Is(err, ErrUnknownBlock) {
+		t.Fatalf("orphan tool arguments error = %v", err)
+	}
+}
+
 func TestConversationFoldsAChildRunWithoutEndingTheRootStream(t *testing.T) {
 	conversation := NewConversation()
 	if err := conversation.Starting(); err != nil {

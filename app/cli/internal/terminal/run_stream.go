@@ -421,6 +421,13 @@ func (a *app) applyPresentationEvent(envelope agent.RunEvent) {
 		}
 	case agent.PlanChanged:
 		a.activity.Set(a.conversation.Plan())
+	case agent.RunProgress:
+		if envelope.RunID == a.conversation.RunID() {
+			a.header.SetUsage(a.conversation.Usage())
+			a.status.progress(event)
+		} else if strings.TrimSpace(event.Activity) != "" {
+			a.status.active("subagent · " + event.Activity)
+		}
 	case agent.RunInterrupted:
 		if a.conversation.Phase() == agent.ConversationWaiting {
 			a.openInteractions(a.conversation.Interactions())
@@ -437,7 +444,7 @@ func (a *app) applyPresentationEvent(envelope agent.RunEvent) {
 		if envelope.RunID == a.conversation.RunID() {
 			a.noteRunFinished()
 		}
-	case agent.BlockDelta:
+	case agent.BlockDelta, agent.ToolArgumentsDelta, agent.CustomEvent:
 	default:
 	}
 }
@@ -573,14 +580,14 @@ func (a *app) requestRuntimeCancellation(target agent.CancelRun, policy cancella
 	a.operations.Go(cancelRunOperation, true, func(ownerCtx context.Context, lease operationLease) {
 		ctx, cancel := context.WithTimeout(ownerCtx, runtimeControlTimeout)
 		defer cancel()
-		settled, err := a.runtime.CancelRun(ctx, target)
+		result, err := a.runtime.CancelRun(ctx, target)
 		_ = post(ctx, dispatcher, func() {
-			a.handleRuntimeCancellation(lease, settled, err, policy)
+			a.handleRuntimeCancellation(lease, result, err, policy)
 		})
 	})
 }
 
-func (a *app) handleRuntimeCancellation(lease operationLease, settled agent.Run, err error, policy cancellationResultPolicy) {
+func (a *app) handleRuntimeCancellation(lease operationLease, result agent.RunCancellation, err error, policy cancellationResultPolicy) {
 	if !a.operations.Current(lease) || a.closed {
 		return
 	}
@@ -598,6 +605,7 @@ func (a *app) handleRuntimeCancellation(lease operationLease, settled agent.Run,
 		a.drainQueue()
 		return
 	}
+	settled := result.Root
 	if err := a.conversation.SettleRun(settled); err != nil {
 		a.fail(err)
 		return

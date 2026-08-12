@@ -154,25 +154,48 @@ func (r *Runtime) SubscribeRun(ctx context.Context, input agent.SubscribeRun) (a
 	return stream, nil
 }
 
-func (r *Runtime) CancelRun(ctx context.Context, input agent.CancelRun) (agent.Run, error) {
+func (r *Runtime) CancelRun(ctx context.Context, input agent.CancelRun) (agent.RunCancellation, error) {
 	if err := input.Validate(); err != nil {
-		return agent.Run{}, err
+		return agent.RunCancellation{}, err
 	}
 	options, err := r.commandOptions()
 	if err != nil {
-		return agent.Run{}, err
+		return agent.RunCancellation{}, err
 	}
 	result, err := r.runs.CancelRun(ctx, protocol.CancelRunRequest{RunID: input.RunID, Reason: input.Reason}, options)
 	if err != nil {
-		return agent.Run{}, classifyError(err)
+		return agent.RunCancellation{}, classifyError(err)
 	}
 	if result == nil {
-		return agent.Run{}, errors.New("cancel run: runtime returned nil")
+		return agent.RunCancellation{}, errors.New("cancel run: runtime returned nil")
 	}
-	if result.Type != protocol.CancelRunRoot || result.RootRun != nil {
-		return agent.Run{}, fmt.Errorf("%w: cancel returned child-run result %q", agent.ErrIncompatibleRuntime, result.Type)
+	canceled, err := projectRun(result.Run)
+	if err != nil {
+		return agent.RunCancellation{}, err
 	}
-	return projectRun(result.Run)
+	var root agent.Run
+	switch result.Type {
+	case protocol.CancelRunRoot:
+		if result.RootRun != nil {
+			return agent.RunCancellation{}, fmt.Errorf("%w: root cancellation carries rootRun", agent.ErrIncompatibleRuntime)
+		}
+		root = canceled.Clone()
+	case protocol.CancelRunChild:
+		if result.RootRun == nil {
+			return agent.RunCancellation{}, fmt.Errorf("%w: child cancellation omits rootRun", agent.ErrIncompatibleRuntime)
+		}
+		root, err = projectRun(*result.RootRun)
+		if err != nil {
+			return agent.RunCancellation{}, err
+		}
+	default:
+		return agent.RunCancellation{}, fmt.Errorf("%w: cancel returned unknown result type %q", agent.ErrIncompatibleRuntime, result.Type)
+	}
+	projected := agent.RunCancellation{Canceled: canceled, Root: root}
+	if err := projected.ValidateTarget(input.RunID); err != nil {
+		return agent.RunCancellation{}, fmt.Errorf("%w: cancel run projection: %w", agent.ErrIncompatibleRuntime, err)
+	}
+	return projected, nil
 }
 
 func (r *Runtime) SteerRun(ctx context.Context, input agent.SteerRun) error {

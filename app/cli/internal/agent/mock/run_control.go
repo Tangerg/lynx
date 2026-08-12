@@ -53,6 +53,7 @@ func (r *Runtime) StartRun(ctx context.Context, in agent.StartRun) (agent.Segmen
 	}
 	segment := r.openSegmentLocked(run)
 	r.runs[run.id] = run
+	r.runOrder = append(r.runOrder, run.id)
 	session.active = run.id
 	session.runs = append(session.runs, run.id)
 	r.setSessionStatusLocked(session, agent.SessionRunning)
@@ -232,25 +233,26 @@ func cloneAnswers(answers []agent.InterruptAnswer) []agent.InterruptAnswer {
 	return out
 }
 
-func (r *Runtime) CancelRun(ctx context.Context, in agent.CancelRun) (agent.Run, error) {
+func (r *Runtime) CancelRun(ctx context.Context, in agent.CancelRun) (agent.RunCancellation, error) {
 	if err := in.Validate(); err != nil {
-		return agent.Run{}, fmt.Errorf("mock: %w", err)
+		return agent.RunCancellation{}, fmt.Errorf("mock: %w", err)
 	}
 	if err := context.Cause(ctx); err != nil {
-		return agent.Run{}, err
+		return agent.RunCancellation{}, err
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	run := r.runs[in.RunID]
 	if run == nil {
-		return agent.Run{}, fmt.Errorf("%w: %s", agent.ErrRunNotFound, in.RunID)
+		return agent.RunCancellation{}, fmt.Errorf("%w: %s", agent.ErrRunNotFound, in.RunID)
 	}
 	if run.status == agent.RunStatusFinished {
-		return projectRun(run), nil
+		return agent.RunCancellation{}, fmt.Errorf("%w: %s", agent.ErrRunFinished, run.id)
 	}
 	run.cancelOnce.Do(func() { close(run.cancel) })
 	r.finishLocked(run, agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCanceled, Detail: strings.TrimSpace(in.Reason)}})
-	return projectRun(run), nil
+	projected := projectRun(run)
+	return agent.RunCancellation{Canceled: projected, Root: projected.Clone()}, nil
 }
 
 func (r *Runtime) SteerRun(ctx context.Context, in agent.SteerRun) error {

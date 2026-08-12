@@ -262,6 +262,12 @@ func (c *Conversation) apply(envelope RunEvent) error {
 		err = c.applyBlockStarted(envelope.RunID, item)
 	case BlockDelta:
 		err = c.applyBlockDelta(envelope.RunID, item)
+	case ToolArgumentsDelta:
+		err = c.applyToolArgumentsDelta(envelope.RunID, item)
+	case RunProgress:
+		err = c.applyRunProgress(envelope.RunID, item)
+	case CustomEvent:
+		err = c.requireRunRunning(envelope.RunID, "publish a custom event")
 	case BlockCompleted:
 		err = c.applyBlockCompleted(envelope.RunID, item)
 	case PlanChanged:
@@ -362,6 +368,46 @@ func (c *Conversation) applyBlockDelta(runID string, event BlockDelta) error {
 		block.Tool.Output += event.Text
 	default:
 		return fmt.Errorf("%w: block %s of kind %s cannot stream", ErrInvalidTransition, event.BlockID, block.Kind)
+	}
+	return nil
+}
+
+func (c *Conversation) applyToolArgumentsDelta(runID string, event ToolArgumentsDelta) error {
+	if err := c.requireRunRunning(runID, "append tool arguments"); err != nil {
+		return err
+	}
+	key := blockIdentity(runID, event.BlockID)
+	at, exists := c.index[key]
+	if !exists {
+		return fmt.Errorf("%w: %s", ErrUnknownBlock, event.BlockID)
+	}
+	block := c.blocks[at]
+	if !c.open[key] || block.Kind != BlockTool {
+		return fmt.Errorf("%w: block %s cannot stream tool arguments", ErrInvalidTransition, event.BlockID)
+	}
+	return nil
+}
+
+func (c *Conversation) applyRunProgress(runID string, event RunProgress) error {
+	if err := c.requireRunRunning(runID, "report progress"); err != nil {
+		return err
+	}
+	if event.Usage == nil {
+		return nil
+	}
+	run := c.runs[runID]
+	usage := event.Usage.Clone()
+	usage.Duration = run.Usage.Duration
+	if usage.CostUSD == nil && run.Usage.CostUSD != nil {
+		usage.CostUSD = new(*run.Usage.CostUSD)
+	}
+	if err := validateUsageProgress(run.Usage, usage); err != nil {
+		return fmt.Errorf("%w: run progress: %w", ErrInvalidTransition, err)
+	}
+	run.Usage = usage
+	c.runs[runID] = run
+	if runID == c.runID {
+		c.usage = usage.Clone()
 	}
 	return nil
 }

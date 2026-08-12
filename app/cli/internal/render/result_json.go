@@ -168,6 +168,10 @@ func (r *ResultJSON) fold(envelope agent.RunEvent) {
 				body.WriteString(event.Text)
 			}
 		}
+	case agent.RunProgress:
+		if r.scope.isRoot(envelope.RunID) && event.Usage != nil {
+			r.frame.Usage = encodeUsage(*event.Usage)
+		}
 	case agent.BlockCompleted:
 		if r.scope.isRoot(envelope.RunID) {
 			r.complete(event.Block)
@@ -190,7 +194,7 @@ func (r *ResultJSON) fold(envelope agent.RunEvent) {
 			finished := encodeFinishedFrame(event)
 			r.frame.Outcome, r.frame.Usage = finished.Outcome, finished.Usage
 		}
-	case agent.PlanChanged:
+	case agent.PlanChanged, agent.ToolArgumentsDelta, agent.CustomEvent:
 		// A final result intentionally omits incremental plan state.
 	}
 }

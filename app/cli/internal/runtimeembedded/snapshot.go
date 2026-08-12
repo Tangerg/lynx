@@ -16,7 +16,6 @@ import (
 type snapshotBinding interface {
 	GetSession(context.Context, protocol.GetSessionRequest, embedded.CallOptions) (*protocol.Session, error)
 	GetPlan(context.Context, protocol.GetPlanRequest, embedded.CallOptions) (*protocol.StateSnapshot, error)
-	ListRuns(context.Context, protocol.ListRunsRequest, embedded.CallOptions) (*protocol.Page[protocol.RunRef], error)
 	ListItems(context.Context, protocol.ListItemsRequest, embedded.CallOptions) (*protocol.ListItemsResponse, error)
 	ListInterrupts(context.Context, protocol.ListInterruptsRequest, embedded.CallOptions) (*protocol.Page[protocol.PendingInterruptSet], error)
 }
@@ -85,7 +84,7 @@ func (r *Runtime) listAllRuns(ctx context.Context, sessionID string) ([]protocol
 	cursors := newCursorTraversal("list runs", "")
 	for {
 		cursor := cursors.Current()
-		page, err := r.snapshot.ListRuns(ctx, protocol.ListRunsRequest{
+		page, err := r.runCatalog.ListRuns(ctx, protocol.ListRunsRequest{
 			SessionID: sessionID, IncludeDescendants: true,
 			PageQuery: protocol.PageQuery{Limit: 100, Cursor: cursor},
 		}, r.callOptions())

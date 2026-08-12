@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"bytes"
 	"slices"
 	"time"
 )
@@ -52,6 +53,33 @@ type BlockDelta struct {
 	Text    string
 }
 
+// ToolArgumentsDelta carries the provisional JSON text used to assemble a
+// tool invocation. The completed tool block remains authoritative; preserving
+// this preview lets streaming clients expose it without teaching the
+// conversation aggregate how to repair partial JSON.
+type ToolArgumentsDelta struct {
+	BlockID string
+	Text    string
+}
+
+// RunProgress is a non-replayable preview of a running segment. Usage is
+// run-cumulative when present; ContextTokens is the current context-window
+// occupancy and may decrease after compaction.
+type RunProgress struct {
+	Step          *int
+	Usage         *Usage
+	ContextTokens *int64
+	Activity      string
+}
+
+// CustomEvent preserves an extension event without coupling the CLI domain to
+// a vendor-specific payload type. PayloadJSON always contains one valid JSON
+// value, including "null" when the runtime supplied no payload.
+type CustomEvent struct {
+	Name        string
+	PayloadJSON []byte
+}
+
 type BlockCompleted struct{ Block Block }
 
 type PlanChanged struct {
@@ -77,14 +105,17 @@ type RunFinished struct {
 	Usage   Usage
 }
 
-func (SegmentStarted) isEvent() {}
-func (BlockStarted) isEvent()   {}
-func (BlockDelta) isEvent()     {}
-func (BlockCompleted) isEvent() {}
-func (PlanChanged) isEvent()    {}
-func (RunInterrupted) isEvent() {}
-func (RunSuspended) isEvent()   {}
-func (RunFinished) isEvent()    {}
+func (SegmentStarted) isEvent()     {}
+func (BlockStarted) isEvent()       {}
+func (BlockDelta) isEvent()         {}
+func (ToolArgumentsDelta) isEvent() {}
+func (RunProgress) isEvent()        {}
+func (CustomEvent) isEvent()        {}
+func (BlockCompleted) isEvent()     {}
+func (PlanChanged) isEvent()        {}
+func (RunInterrupted) isEvent()     {}
+func (RunSuspended) isEvent()       {}
+func (RunFinished) isEvent()        {}
 
 // ReplayableEvent reports whether the underlying runtime retains this event in
 // its segment journal. Deltas are deliberately ephemeral.
@@ -106,6 +137,23 @@ func CloneEvent(event Event) Event {
 		item.Block = item.Block.Clone()
 		return item
 	case BlockDelta:
+		return item
+	case ToolArgumentsDelta:
+		return item
+	case RunProgress:
+		if item.Step != nil {
+			item.Step = new(*item.Step)
+		}
+		if item.Usage != nil {
+			usage := item.Usage.Clone()
+			item.Usage = &usage
+		}
+		if item.ContextTokens != nil {
+			item.ContextTokens = new(*item.ContextTokens)
+		}
+		return item
+	case CustomEvent:
+		item.PayloadJSON = bytes.Clone(item.PayloadJSON)
 		return item
 	case BlockCompleted:
 		item.Block = item.Block.Clone()
@@ -139,6 +187,16 @@ func equalEvent(left, right Event) bool {
 	case BlockDelta:
 		other, ok := right.(BlockDelta)
 		return ok && item == other
+	case ToolArgumentsDelta:
+		other, ok := right.(ToolArgumentsDelta)
+		return ok && item == other
+	case RunProgress:
+		other, ok := right.(RunProgress)
+		return ok && equalOptional(item.Step, other.Step) && equalOptionalUsage(item.Usage, other.Usage) &&
+			equalOptional(item.ContextTokens, other.ContextTokens) && item.Activity == other.Activity
+	case CustomEvent:
+		other, ok := right.(CustomEvent)
+		return ok && item.Name == other.Name && bytes.Equal(item.PayloadJSON, other.PayloadJSON)
 	case BlockCompleted:
 		other, ok := right.(BlockCompleted)
 		return ok && item.Block.Equal(other.Block)
@@ -159,6 +217,14 @@ func equalEvent(left, right Event) bool {
 	default:
 		return false
 	}
+}
+
+func equalOptional[T comparable](left, right *T) bool {
+	return (left == nil) == (right == nil) && (left == nil || *left == *right)
+}
+
+func equalOptionalUsage(left, right *Usage) bool {
+	return (left == nil) == (right == nil) && (left == nil || left.Equal(*right))
 }
 
 func equalInteractions(left, right []Interaction) bool {

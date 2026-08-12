@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -165,6 +166,30 @@ func ValidateEvent(event Event) error {
 	case BlockDelta:
 		if strings.TrimSpace(item.BlockID) == "" {
 			return errors.New("block delta without a block id")
+		}
+		return nil
+	case ToolArgumentsDelta:
+		if strings.TrimSpace(item.BlockID) == "" {
+			return errors.New("tool arguments delta without a block id")
+		}
+		return nil
+	case RunProgress:
+		if item.Step != nil && *item.Step < 0 {
+			return errors.New("run progress step cannot be negative")
+		}
+		if item.ContextTokens != nil && *item.ContextTokens < 0 {
+			return errors.New("run progress context tokens cannot be negative")
+		}
+		if item.Usage != nil {
+			return item.Usage.Validate()
+		}
+		return nil
+	case CustomEvent:
+		if strings.TrimSpace(item.Name) == "" {
+			return errors.New("custom event without a name")
+		}
+		if !json.Valid(item.PayloadJSON) {
+			return errors.New("custom event payload is not valid JSON")
 		}
 		return nil
 	case BlockCompleted:

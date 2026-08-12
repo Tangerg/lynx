@@ -68,6 +68,66 @@ func TestNDJSONCarriesSegmentIdentityAndInterruptSet(t *testing.T) {
 	}
 }
 
+func TestNDJSONPreservesProgressToolArgumentsAndCustomPayloads(t *testing.T) {
+	var output bytes.Buffer
+	renderer := NewNDJSON(&output)
+	if err := renderer.Begin(testRun(), agent.RunOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	step, contextTokens := 4, int64(16_384)
+	events := []agent.RunEvent{
+		testEvent("progress", agent.RunProgress{Step: &step, ContextTokens: &contextTokens, Activity: "thinking", Usage: &agent.Usage{InputTokens: 22}}),
+		testEvent("arguments", agent.ToolArgumentsDelta{BlockID: "tool_1", Text: `{"path":"/tmp`}),
+		testEvent("custom", agent.CustomEvent{Name: "vendor.trace", PayloadJSON: []byte(`{"span":"abc","sampled":true}`)}),
+	}
+	for _, event := range events {
+		if err := renderer.Render(event); err != nil {
+			t.Fatal(err)
+		}
+	}
+	lines := strings.Split(strings.TrimSpace(output.String()), "\n")
+	if len(lines) != 3 {
+		t.Fatalf("NDJSON lines = %d: %s", len(lines), output.String())
+	}
+	var progress, arguments, custom map[string]any
+	for index, target := range []*map[string]any{&progress, &arguments, &custom} {
+		if err := json.Unmarshal([]byte(lines[index]), target); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if progress["type"] != "run.progress" || progress["step"] != float64(step) || progress["contextTokens"] != float64(contextTokens) {
+		t.Fatalf("progress frame = %+v", progress)
+	}
+	if arguments["type"] != "tool.arguments.delta" || arguments["blockId"] != "tool_1" || arguments["text"] != `{"path":"/tmp` {
+		t.Fatalf("arguments frame = %+v", arguments)
+	}
+	payload, ok := custom["payload"].(map[string]any)
+	if custom["type"] != "custom" || custom["name"] != "vendor.trace" || !ok || payload["span"] != "abc" {
+		t.Fatalf("custom frame = %+v", custom)
+	}
+}
+
+func TestResultJSONRetainsLatestRootProgressUsageBeforeSettlement(t *testing.T) {
+	var output bytes.Buffer
+	renderer := NewResultJSON(&output)
+	if err := renderer.Begin(testRun(), agent.RunOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	if err := renderer.Render(testEvent("progress", agent.RunProgress{Usage: &agent.Usage{InputTokens: 33, OutputTokens: 5}})); err != nil {
+		t.Fatal(err)
+	}
+	if err := renderer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	var result resultFrame
+	if err := json.Unmarshal(output.Bytes(), &result); err != nil {
+		t.Fatal(err)
+	}
+	if result.Status != "incomplete" || result.Usage == nil || result.Usage.InputTokens != 33 || result.Usage.OutputTokens != 5 {
+		t.Fatalf("incomplete result = %+v", result)
+	}
+}
+
 func TestResultJSONClearsPriorInterruptWhenANewSegmentStarts(t *testing.T) {
 	var output bytes.Buffer
 	renderer := NewResultJSON(&output)

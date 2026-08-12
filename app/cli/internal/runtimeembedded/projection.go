@@ -71,13 +71,20 @@ func projectUsage(metrics protocol.RunMetrics) agent.Usage {
 	if metrics.Usage == nil {
 		return usage
 	}
-	usage.InputTokens = metrics.Usage.InputTokens
-	usage.OutputTokens = metrics.Usage.OutputTokens
-	usage.CacheReadTokens = metrics.Usage.CacheReadTokens
-	usage.CacheWriteTokens = metrics.Usage.CacheWriteTokens
-	usage.ReasoningTokens = metrics.Usage.ReasoningTokens
-	if metrics.Usage.CostUSD != nil {
-		usage.CostUSD = new(*metrics.Usage.CostUSD)
+	projected := projectModelUsage(*metrics.Usage)
+	projected.Duration = usage.Duration
+	usage = projected
+	return usage
+}
+
+func projectModelUsage(value protocol.Usage) agent.Usage {
+	usage := agent.Usage{
+		InputTokens: value.InputTokens, OutputTokens: value.OutputTokens,
+		CacheReadTokens: value.CacheReadTokens, CacheWriteTokens: value.CacheWriteTokens,
+		ReasoningTokens: value.ReasoningTokens,
+	}
+	if value.CostUSD != nil {
+		usage.CostUSD = new(*value.CostUSD)
 	}
 	return usage
 }

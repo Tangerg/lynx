@@ -12,7 +12,48 @@ import (
 	"github.com/Tangerg/oolong/highlight"
 
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
+	"github.com/Tangerg/lynx/app/cli/internal/extensions"
 )
+
+func TestCustomRuntimeEventsUseNamedTerminalPresenters(t *testing.T) {
+	view := testTranscriptView(t)
+	registry := new(extensions.Registry)
+	loaded, err := extensions.Load(registry, extensions.Plugin{
+		ID: "test.custom-events", Version: "1.0.0", APIVersion: extensions.HostAPIVersion,
+		Capabilities: []extensions.Capability{CustomEventPresenters.Capability()},
+		Setup: func(scope *extensions.Scope) error {
+			_, err := extensions.Contribute(scope, CustomEventPresenters, CustomEventPresenter{
+				Name: "vendor.trace",
+				Present: func(presentation BlockPresentation, event agent.CustomEvent) []headless.Block {
+					return []headless.Block{&kit.Message{Theme: presentation.Theme, Speaker: "trace", Body: string(event.PayloadJSON)}}
+				},
+			}, extensions.Contribution{})
+			return err
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = loaded.Dispose() })
+
+	if err := view.ApplyRunEvent(agent.RunEvent{
+		RunID: "run_1", Event: agent.CustomEvent{Name: "vendor.trace", PayloadJSON: []byte(`{"span":"abc"}`)},
+	}, registry); err != nil {
+		t.Fatal(err)
+	}
+	if err := view.ApplyRunEvent(agent.RunEvent{
+		RunID: "run_1", Event: agent.CustomEvent{Name: "vendor.unhandled", PayloadJSON: []byte(`null`)},
+	}, registry); err != nil {
+		t.Fatal(err)
+	}
+	if len(view.runEntries["run_1"]) != 1 {
+		t.Fatalf("custom event entries = %+v", view.runEntries)
+	}
+	drawn := drawRoot(t, view, 48, 6)
+	if !strings.Contains(drawn, "trace") || !strings.Contains(drawn, `"span":"abc"`) {
+		t.Fatalf("custom event rendering =\n%s", drawn)
+	}
+}
 
 func TestStreamingPreservesAReadersScrollPosition(t *testing.T) {
 	view := testTranscriptView(t)

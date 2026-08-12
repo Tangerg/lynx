@@ -154,13 +154,15 @@ func addRootCommands(root *cobra.Command, provider runtimeProvider, v *viper.Vip
 	run.GroupID = "work"
 	sessions := newSessionsCommand(provider)
 	sessions.GroupID = "manage"
+	runs := newRunsCommand(provider)
+	runs.GroupID = "manage"
 	approvals := newApprovalsCommand(provider)
 	approvals.GroupID = "manage"
 	config := newConfigCommand(v)
 	config.GroupID = "setup"
 	completion := newCompletionCommand(root)
 	completion.GroupID = "setup"
-	root.AddCommand(run, sessions, approvals, config, completion)
+	root.AddCommand(run, sessions, runs, approvals, config, completion)
 }
 
 // runInteractive opens the terminal interface, seeding the field with whatever was typed

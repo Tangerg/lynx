@@ -26,10 +26,20 @@ type BlockPresenter struct {
 	Present func(BlockPresentation, agent.Block) []headless.Block
 }
 
+// CustomEventPresenter gives runtime extensions an explicit projection seam.
+// Unhandled custom events remain observable through NDJSON but do not add
+// terminal noise; a matching presenter may turn one into ordinary transcript
+// blocks without changing the terminal event switch.
+type CustomEventPresenter struct {
+	Name    string
+	Present func(BlockPresentation, agent.CustomEvent) []headless.Block
+}
+
 var (
-	SlashCommands   = extensions.NewCapabilityKeyedPoint("terminal.slash-command", extensions.Capability("terminal.commands"), func(command SlashCommand) string { return command.Descriptor.Name })
-	BlockPresenters = extensions.NewCapabilityKeyedPoint("terminal.block-presenter", extensions.Capability("terminal.presentation"), func(presenter BlockPresenter) string { return string(presenter.Kind) })
-	ToolPresenters  = extensions.NewCapabilityMultiPoint[ToolPresenter]("terminal.tool-presenter", extensions.Capability("terminal.presentation"))
+	SlashCommands         = extensions.NewCapabilityKeyedPoint("terminal.slash-command", extensions.Capability("terminal.commands"), func(command SlashCommand) string { return command.Descriptor.Name })
+	BlockPresenters       = extensions.NewCapabilityKeyedPoint("terminal.block-presenter", extensions.Capability("terminal.presentation"), func(presenter BlockPresenter) string { return string(presenter.Kind) })
+	ToolPresenters        = extensions.NewCapabilityMultiPoint[ToolPresenter]("terminal.tool-presenter", extensions.Capability("terminal.presentation"))
+	CustomEventPresenters = extensions.NewCapabilityKeyedPoint("terminal.custom-event-presenter", extensions.Capability("terminal.presentation"), func(presenter CustomEventPresenter) string { return presenter.Name })
 )
 
 func builtinPlugin() extensions.Plugin {

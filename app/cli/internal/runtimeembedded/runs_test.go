@@ -181,8 +181,85 @@ func TestResumeAndCancelMapControlContracts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CancelRun: %v", err)
 	}
-	if canceled.Status != agent.RunStatusFinished || canceled.Outcome.Status != agent.OutcomeCanceled || canceled.Outcome.Detail != "stop" {
+	if !canceled.Canceled.Equal(canceled.Root) || canceled.Canceled.Status != agent.RunStatusFinished ||
+		canceled.Canceled.Outcome.Status != agent.OutcomeCanceled || canceled.Canceled.Outcome.Detail != "stop" {
 		t.Fatalf("canceled = %+v", canceled)
+	}
+}
+
+func TestCancelRunProjectsChildAndSurvivingRootAtomically(t *testing.T) {
+	stub := runBindingStub{}
+	stub.cancel = func(_ context.Context, request protocol.CancelRunRequest, _ embedded.CommandOptions) (*protocol.CancelRunResponse, error) {
+		if request.RunID != "run_child" {
+			t.Fatalf("request = %+v", request)
+		}
+		root := protocol.RunRef{
+			RunSummary: protocol.RunSummary{ID: "run_root", SessionID: "ses_1", Status: protocol.RunStatusWaiting},
+			ProtocolProfile: protocol.RunProtocolProfile{
+				RequiredFeatures: []protocol.RunProtocolFeature{protocol.RunProtocolFeatureSubagents},
+				InterruptTypes:   []protocol.InterruptType{protocol.InterruptApproval},
+			},
+		}
+		return &protocol.CancelRunResponse{
+			Type: protocol.CancelRunChild,
+			Run: protocol.RunRef{
+				RunSummary: protocol.RunSummary{
+					ID: "run_child", SessionID: "ses_1", SpawnedByItemID: "item_spawn",
+					ParentRunID: "run_root", RootRunID: "run_root", Status: protocol.RunStatusFinished,
+					Outcome: &protocol.RunOutcome{Type: protocol.OutcomeCanceled, Detail: "stop child"},
+				},
+				ProtocolProfile: root.ProtocolProfile,
+			},
+			RootRun: &root,
+		}, nil
+	}
+	runtime := &Runtime{runs: stub, meta: requestMeta("test")}
+	result, err := runtime.CancelRun(t.Context(), agent.CancelRun{RunID: "run_child", Reason: "stop child"})
+	if err != nil {
+		t.Fatalf("CancelRun: %v", err)
+	}
+	if result.Canceled.ID != "run_child" || result.Canceled.Lineage.RootRunID != "run_root" ||
+		result.Root.ID != "run_root" || result.Root.Status != agent.RunStatusWaiting {
+		t.Fatalf("result = %+v", result)
+	}
+}
+
+func TestCancelRunRejectsMalformedClosedResults(t *testing.T) {
+	t.Parallel()
+	canceled := protocol.RunRef{
+		RunSummary: protocol.RunSummary{
+			ID: "run_1", SessionID: "ses_1", Status: protocol.RunStatusFinished,
+			Outcome: &protocol.RunOutcome{Type: protocol.OutcomeCanceled},
+		},
+		ProtocolProfile: protocol.RunProtocolProfile{RequiredFeatures: []protocol.RunProtocolFeature{}, InterruptTypes: []protocol.InterruptType{}},
+	}
+	root := canceled
+	for _, test := range []struct {
+		name     string
+		response *protocol.CancelRunResponse
+	}{
+		{name: "unknown type", response: &protocol.CancelRunResponse{Type: "future", Run: canceled}},
+		{name: "root carries duplicate", response: &protocol.CancelRunResponse{Type: protocol.CancelRunRoot, Run: canceled, RootRun: &root}},
+		{name: "child omits root", response: &protocol.CancelRunResponse{Type: protocol.CancelRunChild, Run: canceled}},
+		{name: "wrong addressed run", response: &protocol.CancelRunResponse{
+			Type: protocol.CancelRunRoot,
+			Run: func() protocol.RunRef {
+				value := canceled
+				value.ID = "run_other"
+				return value
+			}(),
+		}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			stub := runBindingStub{cancel: func(context.Context, protocol.CancelRunRequest, embedded.CommandOptions) (*protocol.CancelRunResponse, error) {
+				return test.response, nil
+			}}
+			runtime := &Runtime{runs: stub, meta: requestMeta("test")}
+			if _, err := runtime.CancelRun(t.Context(), agent.CancelRun{RunID: "run_1"}); !errors.Is(err, agent.ErrIncompatibleRuntime) {
+				t.Fatalf("CancelRun error = %v, want ErrIncompatibleRuntime", err)
+			}
+		})
 	}
 }
 

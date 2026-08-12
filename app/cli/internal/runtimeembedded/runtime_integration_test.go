@@ -224,6 +224,13 @@ func requireSessionCatalog(t *testing.T, runtime *Runtime, workspace string) age
 	if snapshot.Session.ID != created.ID || len(snapshot.Runs) != 0 || len(snapshot.Transcript) != 0 {
 		t.Fatalf("snapshot = %+v", snapshot)
 	}
+	runs, err := runtime.ListRuns(t.Context(), agent.RunQuery{SessionID: created.ID, IncludeDescendants: true})
+	if err != nil || len(runs.Items) != 0 {
+		t.Fatalf("ListRuns = (%+v, %v)", runs, err)
+	}
+	if _, err := runtime.GetRun(t.Context(), "run_missing"); !errors.Is(err, agent.ErrRunNotFound) {
+		t.Fatalf("GetRun missing = %v, want ErrRunNotFound", err)
+	}
 	return created
 }
 

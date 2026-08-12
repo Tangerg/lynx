@@ -549,6 +549,11 @@ func (c *transcriptView) apply(runID string, event agent.Event, registry *extens
 			return c.deltaTool(key, e.BlockID, e.Text)
 		}
 		return c.delta(key, e.BlockID, e.Text)
+	case agent.ToolArgumentsDelta, agent.RunProgress:
+		// Tool arguments are provisional JSON and progress belongs in the status
+		// chrome. Neither creates an authoritative transcript block.
+	case agent.CustomEvent:
+		return c.appendCustom(runID, e, registry)
 	case agent.BlockCompleted:
 		return c.complete(e.Block, registry)
 	case agent.RunFinished:
@@ -561,6 +566,37 @@ func (c *transcriptView) apply(runID string, event agent.Event, registry *extens
 		c.sealToolGroup()
 	}
 	return nil
+}
+
+func (c *transcriptView) appendCustom(runID string, event agent.CustomEvent, registry *extensions.Registry) error {
+	for _, presenter := range extensions.Values(registry, CustomEventPresenters) {
+		if presenter.Name != event.Name {
+			continue
+		}
+		rendered, err := presentCustomSafely(presenter, BlockPresentation{
+			Theme: c.theme, Glyphs: c.glyphs, Look: c.look, Syntax: c.syntax,
+			Tools: extensions.Values(registry, ToolPresenters), Speaker: "runtime",
+		}, event)
+		if err != nil {
+			return err
+		}
+		c.sealToolGroup()
+		for _, block := range rendered {
+			id := c.append(block)
+			c.trackRunEntry(runID, id)
+		}
+		return nil
+	}
+	return nil
+}
+
+func presentCustomSafely(presenter CustomEventPresenter, presentation BlockPresentation, event agent.CustomEvent) (rendered []headless.Block, err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			err = fmt.Errorf("terminal transcript: custom presenter for %q panicked: %v", presenter.Name, recovered)
+		}
+	}()
+	return presenter.Present(presentation, event), nil
 }
 
 func (c *transcriptView) begin(block agent.Block) error {

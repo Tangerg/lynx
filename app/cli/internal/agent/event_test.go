@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"bytes"
 	"testing"
 	"time"
 )
@@ -59,5 +60,42 @@ func TestRunEventEqualityUsesDomainValues(t *testing.T) {
 	unknownCost.Event = interrupted
 	if event.Equal(unknownCost) {
 		t.Fatal("unknown cost was treated as an explicit zero cost")
+	}
+}
+
+func TestEphemeralEventsCloneOwnedValues(t *testing.T) {
+	step, contextTokens, cost := 2, int64(4_096), 0.5
+	progress := RunProgress{
+		Step: &step, ContextTokens: &contextTokens,
+		Usage: &Usage{InputTokens: 10, CostUSD: &cost}, Activity: "calling tools",
+	}
+	clone := CloneEvent(progress).(RunProgress)
+	*clone.Step, *clone.ContextTokens, clone.Usage.InputTokens, *clone.Usage.CostUSD = 9, 1, 99, 9
+	if *progress.Step != 2 || *progress.ContextTokens != 4_096 || progress.Usage.InputTokens != 10 || *progress.Usage.CostUSD != 0.5 {
+		t.Fatalf("progress clone aliases source: source=%+v clone=%+v", progress, clone)
+	}
+
+	custom := CustomEvent{Name: "vendor.trace", PayloadJSON: []byte(`{"span":"abc"}`)}
+	customClone := CloneEvent(custom).(CustomEvent)
+	customClone.PayloadJSON[0] = '['
+	if !bytes.Equal(custom.PayloadJSON, []byte(`{"span":"abc"}`)) {
+		t.Fatalf("custom clone aliases source: %s", custom.PayloadJSON)
+	}
+}
+
+func TestEphemeralEventValidationRejectsMalformedValues(t *testing.T) {
+	negative := -1
+	negativeContext := int64(-1)
+	tests := []Event{
+		RunProgress{Step: &negative},
+		RunProgress{ContextTokens: &negativeContext},
+		ToolArgumentsDelta{},
+		CustomEvent{Name: "vendor.trace", PayloadJSON: []byte(`{`)},
+		CustomEvent{PayloadJSON: []byte(`null`)},
+	}
+	for _, event := range tests {
+		if err := ValidateEvent(event); err == nil {
+			t.Fatalf("ValidateEvent(%T) accepted %+v", event, event)
+		}
 	}
 }

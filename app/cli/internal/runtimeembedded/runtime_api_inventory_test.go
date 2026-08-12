@@ -15,13 +15,16 @@ import (
 
 func TestRuntimeAPIInventoryHasNoUnreviewedMethods(t *testing.T) {
 	t.Parallel()
-	covered := make(map[string]string)
-	for area, methods := range runtimeAPIMethodsByArea() {
-		for _, method := range methods {
-			if previous, duplicate := covered[method]; duplicate {
-				t.Fatalf("runtime method %s is assigned to both %s and %s", method, previous, area)
-			}
-			covered[method] = area
+	covered := runtimeAPIConsumptionByMethod()
+	validModes := []runtimeConsumptionMode{
+		consumedByLifecycle, consumedByCoreFlow, consumedByCommand, consumedBySideChannel,
+	}
+	for method, consumption := range covered {
+		if consumption.Area == "" || consumption.Entry == "" {
+			t.Fatalf("runtime method %s has no concrete product consumption path: %+v", method, consumption)
+		}
+		if !slices.Contains(validModes, consumption.Mode) {
+			t.Fatalf("runtime method %s has invalid consumption mode %q", method, consumption.Mode)
 		}
 	}
 
@@ -75,9 +78,8 @@ func TestNegotiatedRunCapabilitiesMatchProjectionBoundary(t *testing.T) {
 	if !slices.Equal(meta.ClientCapabilities.InterruptTypes, wantInterrupts) {
 		t.Fatalf("negotiated interrupts = %v, projection supports %v", meta.ClientCapabilities.InterruptTypes, wantInterrupts)
 	}
-	wantExcluded := excludedEphemeralRunEvents()
-	if !slices.Equal(meta.ClientCapabilities.ExcludedEphemeralEvents, wantExcluded) {
-		t.Fatalf("excluded events = %v, policy excludes %v", meta.ClientCapabilities.ExcludedEphemeralEvents, wantExcluded)
+	if len(meta.ClientCapabilities.ExcludedEphemeralEvents) != 0 {
+		t.Fatalf("client unexpectedly suppresses runtime events: %v", meta.ClientCapabilities.ExcludedEphemeralEvents)
 	}
 	for _, eventType := range requiredRunEventTypes() {
 		if !slices.Contains(recognizedRunEventTypes(), eventType) {
@@ -135,77 +137,126 @@ func compatibleDiscovery() *protocol.DiscoverResponse {
 	}
 }
 
-func runtimeAPIMethodsByArea() map[string][]string {
-	return map[string][]string{
-		"lifecycle": {
-			"Discover", "Close",
-		},
-		"sessions": {
-			"CreateSession", "DeleteSession", "ExportSession", "ForkSession", "GetSession",
-			"ImportSession", "ListSessions", "RollbackSession", "UpdateSession",
-		},
-		"runs": {
-			"CancelRun", "GetRun", "ListRuns", "ResumeRun", "StartRun", "SteerRun", "SubscribeRun",
-		},
-		"run resources": {
-			"GetPlan", "ListInterrupts", "ListItems",
-		},
-		"runtime events": {
-			"SubscribeRuntime",
-		},
-		"workspaces": {
-			"GetWorkspaceDiff", "GetWorkspaceFileHead", "ListWorkspaceFileChanges", "ListWorkspaceFiles",
-			"ListWorkspaces", "ReadWorkspaceFile", "ResolveWorkspace", "SearchWorkspaceFiles",
-		},
-		"models": {
-			"ListModels",
-		},
-		"usage": {
-			"GetSessionUsage", "GetUsageSummary",
-		},
-		"model roles": {
-			"GetEmbeddingRole", "GetUtilityRole", "SetEmbeddingRole", "SetUtilityRole",
-		},
-		"providers": {
-			"ListProviders", "TestProvider", "UpdateProvider",
-		},
-		"approvals": {
-			"ForgetApprovalRule", "GetApprovalMode", "ListApprovalRules", "SetApprovalMode",
-		},
-		"goals": {
-			"GetGoal", "ResumeGoal", "StartGoal", "StopGoal",
-		},
-		"skills": {
-			"ApproveSkillProposal", "ArchiveSkill", "ListDiscoveredSkills", "ListManagedSkills",
-			"ListSkillProposals", "RejectSkillProposal", "RestoreSkill",
-		},
-		"MCP": {
-			"CreateMCPAuthorizationAttempt", "CreateMCPServer", "DeleteMCPServer", "GetMCPAuthorizationAttempt",
-			"ListMCPServers", "ListMCPTools", "ReconnectMCPServer", "TestMCPServer", "UpdateMCPServer",
-		},
-		"schedules": {
-			"CreateSchedule", "DeleteSchedule", "ListSchedules", "RunScheduleNow", "UpdateSchedule",
-		},
-		"agent memory": {
-			"AddAgentMemory", "DeleteAgentMemory", "ListAgentMemory", "ReviewAgentMemory", "UpdateAgentMemory",
-		},
-		"knowledge": {
-			"GetKnowledge", "ListKnowledge", "UpdateKnowledge",
-		},
-		"diagnostic tools": {
-			"InvokeTool", "ListTools",
-		},
-		"codebase": {
-			"GetCodebaseStatus", "ReindexCodebase", "SearchCodebase",
-		},
-		"authoring context": {
-			"ListAgentDocs", "ListRecipes",
-		},
-		"hooks": {
-			"ListHooks", "SetHookTrust",
-		},
-		"feedback": {
-			"CreateFeedback",
-		},
+type runtimeConsumptionMode string
+
+const (
+	consumedByLifecycle   runtimeConsumptionMode = "lifecycle"
+	consumedByCoreFlow    runtimeConsumptionMode = "core-flow"
+	consumedByCommand     runtimeConsumptionMode = "command"
+	consumedBySideChannel runtimeConsumptionMode = "side-channel"
+)
+
+type runtimeAPIConsumption struct {
+	Area  string
+	Mode  runtimeConsumptionMode
+	Entry string
+}
+
+func runtimeAPIConsumptionByMethod() map[string]runtimeAPIConsumption {
+	lifecycle := func(area, entry string) runtimeAPIConsumption {
+		return runtimeAPIConsumption{Area: area, Mode: consumedByLifecycle, Entry: entry}
+	}
+	flow := func(area, entry string) runtimeAPIConsumption {
+		return runtimeAPIConsumption{Area: area, Mode: consumedByCoreFlow, Entry: entry}
+	}
+	command := func(area, entry string) runtimeAPIConsumption {
+		return runtimeAPIConsumption{Area: area, Mode: consumedByCommand, Entry: entry}
+	}
+	sideChannel := func(area, entry string) runtimeAPIConsumption {
+		return runtimeAPIConsumption{Area: area, Mode: consumedBySideChannel, Entry: entry}
+	}
+	return map[string]runtimeAPIConsumption{
+		"Discover": lifecycle("lifecycle", "embedded runtime startup negotiation"),
+		"Close":    lifecycle("lifecycle", "process-owned backend shutdown"),
+
+		"CreateSession":   flow("sessions", "interactive and one-shot session opening"),
+		"DeleteSession":   command("sessions", "sessions delete"),
+		"ExportSession":   command("sessions", "TUI /export"),
+		"ForkSession":     command("sessions", "sessions fork and TUI /fork"),
+		"GetSession":      flow("sessions", "cold restore, recovery, and sessions show"),
+		"ImportSession":   command("sessions", "TUI /import"),
+		"ListSessions":    command("sessions", "sessions ls, completion, and session picker"),
+		"RollbackSession": command("sessions", "TUI /rollback"),
+		"UpdateSession":   command("sessions", "sessions update/rename and TUI metadata actions"),
+
+		"CancelRun":    command("runs", "run cleanup, TUI stop, and runs cancel"),
+		"GetRun":       command("runs", "runs show"),
+		"ListRuns":     command("runs", "runs ls/completion and cold session projection"),
+		"ResumeRun":    flow("runs", "HITL continuation"),
+		"StartRun":     flow("runs", "interactive and one-shot execution"),
+		"SteerRun":     command("runs", "TUI /steer"),
+		"SubscribeRun": flow("runs", "stream recovery and reattachment"),
+
+		"GetPlan":        flow("run resources", "authoritative cold session projection"),
+		"ListInterrupts": flow("run resources", "HITL cold restore"),
+		"ListItems":      flow("run resources", "authoritative transcript restore"),
+
+		"SubscribeRuntime": sideChannel("runtime events", "TUI invalidation and workspace file-change monitor"),
+
+		"GetWorkspaceDiff":              command("workspaces", "TUI /diff"),
+		"GetWorkspaceFileHead":          command("workspaces", "workspace change inspector"),
+		"ListWorkspaceFileChanges":      sideChannel("workspaces", "files.changed authoritative reconciliation"),
+		"ListWorkspaceFiles":            command("workspaces", "workspace browser"),
+		"ListWorkspaces":                command("workspaces", "TUI /workspace picker"),
+		"ReadWorkspaceFile":             command("workspaces", "workspace file reader"),
+		"ResolveWorkspace":              flow("workspaces", "session workspace identity resolution"),
+		"SearchWorkspaceFiles":          command("workspaces", "workspace file search"),
+		"ListModels":                    command("models", "model picker and runtime status"),
+		"GetSessionUsage":               command("usage", "TUI /usage session view"),
+		"GetUsageSummary":               command("usage", "TUI /usage runtime summary"),
+		"GetEmbeddingRole":              command("model roles", "TUI /roles"),
+		"GetUtilityRole":                command("model roles", "TUI /roles"),
+		"SetEmbeddingRole":              command("model roles", "TUI /embedding"),
+		"SetUtilityRole":                command("model roles", "TUI /utility"),
+		"ListProviders":                 command("providers", "TUI /providers and provider forms"),
+		"TestProvider":                  command("providers", "TUI /provider-test"),
+		"UpdateProvider":                command("providers", "TUI /provider-config"),
+		"ForgetApprovalRule":            command("approvals", "approvals delete and TUI rule deletion"),
+		"GetApprovalMode":               command("approvals", "TUI approval/status surfaces"),
+		"ListApprovalRules":             command("approvals", "approvals ls/completion and TUI /rules"),
+		"SetApprovalMode":               command("approvals", "TUI /approval"),
+		"GetGoal":                       command("goals", "TUI /goal"),
+		"ResumeGoal":                    command("goals", "TUI /goal-resume"),
+		"StartGoal":                     command("goals", "TUI /goal-start"),
+		"StopGoal":                      command("goals", "TUI /goal-stop"),
+		"ApproveSkillProposal":          command("skills", "TUI /skill-approve"),
+		"ArchiveSkill":                  command("skills", "TUI /skill-archive"),
+		"ListDiscoveredSkills":          command("skills", "TUI /skills"),
+		"ListManagedSkills":             command("skills", "TUI /skill-library"),
+		"ListSkillProposals":            command("skills", "TUI /skill-proposals"),
+		"RejectSkillProposal":           command("skills", "TUI /skill-reject"),
+		"RestoreSkill":                  command("skills", "TUI /skill-restore"),
+		"CreateMCPAuthorizationAttempt": command("MCP", "TUI /mcp-connect authorization flow"),
+		"CreateMCPServer":               command("MCP", "TUI /mcp-add"),
+		"DeleteMCPServer":               command("MCP", "TUI /mcp-delete"),
+		"GetMCPAuthorizationAttempt":    command("MCP", "TUI MCP authorization polling"),
+		"ListMCPServers":                command("MCP", "TUI /mcp and connection forms"),
+		"ListMCPTools":                  command("MCP", "TUI /mcp-tools"),
+		"ReconnectMCPServer":            command("MCP", "TUI /mcp-reconnect"),
+		"TestMCPServer":                 command("MCP", "TUI /mcp-test"),
+		"UpdateMCPServer":               command("MCP", "TUI /mcp-edit"),
+		"CreateSchedule":                command("schedules", "TUI /schedule-create"),
+		"DeleteSchedule":                command("schedules", "TUI /schedule-delete"),
+		"ListSchedules":                 command("schedules", "TUI /schedules and schedule forms"),
+		"RunScheduleNow":                command("schedules", "TUI /schedule-run"),
+		"UpdateSchedule":                command("schedules", "TUI schedule edit/enable/disable"),
+		"AddAgentMemory":                command("agent memory", "TUI /memory-add"),
+		"DeleteAgentMemory":             command("agent memory", "TUI /memory-delete"),
+		"ListAgentMemory":               command("agent memory", "TUI /memory and memory forms"),
+		"ReviewAgentMemory":             command("agent memory", "TUI /memory-approve and /memory-reject"),
+		"UpdateAgentMemory":             command("agent memory", "TUI memory edit/pin/unpin"),
+		"GetKnowledge":                  command("knowledge", "TUI /knowledge-read and editor"),
+		"ListKnowledge":                 command("knowledge", "TUI /knowledge"),
+		"UpdateKnowledge":               command("knowledge", "TUI /knowledge-edit"),
+		"InvokeTool":                    command("diagnostic tools", "TUI /tool-invoke"),
+		"ListTools":                     command("diagnostic tools", "TUI /tools"),
+		"GetCodebaseStatus":             command("codebase", "TUI /codebase"),
+		"ReindexCodebase":               command("codebase", "TUI /codebase-reindex"),
+		"SearchCodebase":                command("codebase", "TUI /codebase-search"),
+		"ListAgentDocs":                 command("authoring context", "TUI /agent-docs"),
+		"ListRecipes":                   command("authoring context", "TUI /recipes and /recipe"),
+		"ListHooks":                     command("hooks", "TUI /hooks"),
+		"SetHookTrust":                  command("hooks", "TUI /hooks-trust and /hooks-revoke"),
+		"CreateFeedback":                command("feedback", "TUI /feedback"),
 	}
 }

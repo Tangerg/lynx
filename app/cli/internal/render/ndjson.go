@@ -69,6 +69,11 @@ type eventRecord struct {
 	Options          *runOptionsJSON   `json:"options,omitzero"`
 	BlockID          string            `json:"blockId,omitzero"`
 	Text             string            `json:"text,omitzero"`
+	Step             *int              `json:"step,omitempty"`
+	ContextTokens    *int64            `json:"contextTokens,omitempty"`
+	Activity         string            `json:"activity,omitzero"`
+	Name             string            `json:"name,omitzero"`
+	Payload          json.RawMessage   `json:"payload,omitempty"`
 	Block            *blockFrame       `json:"block,omitzero"`
 	Transcript       []blockFrame      `json:"transcript,omitzero"`
 	Runs             []runFrame        `json:"runs,omitzero"`
@@ -256,6 +261,18 @@ func encodeEventFrame(envelope agent.RunEvent) (eventRecord, error) {
 		return eventRecord{Type: "block.started", Block: encodeBlock(event.Block)}, nil
 	case agent.BlockDelta:
 		return eventRecord{Type: "block.delta", BlockID: event.BlockID, Text: event.Text}, nil
+	case agent.ToolArgumentsDelta:
+		return eventRecord{Type: "tool.arguments.delta", BlockID: event.BlockID, Text: event.Text}, nil
+	case agent.RunProgress:
+		frame := eventRecord{
+			Type: "run.progress", Step: event.Step, ContextTokens: event.ContextTokens, Activity: event.Activity,
+		}
+		if event.Usage != nil {
+			frame.Usage = encodeUsage(*event.Usage)
+		}
+		return frame, nil
+	case agent.CustomEvent:
+		return eventRecord{Type: "custom", Name: event.Name, Payload: json.RawMessage(event.PayloadJSON)}, nil
 	case agent.BlockCompleted:
 		return eventRecord{Type: "block.completed", Block: encodeBlock(event.Block)}, nil
 	case agent.PlanChanged:

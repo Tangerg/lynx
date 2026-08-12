@@ -55,6 +55,16 @@ type planSnapshotFrame struct {
 	Items    []planFrame `json:"items"`
 }
 
+type runPageRecord struct {
+	Items      []runFrame `json:"items"`
+	NextCursor string     `json:"nextCursor,omitempty"`
+}
+
+type runCancellationRecord struct {
+	Canceled runFrame `json:"canceled"`
+	Root     runFrame `json:"root"`
+}
+
 // WriteSessionSnapshotJSON writes the CLI's stable cold-read JSON projection.
 // Domain values intentionally carry no encoding tags, so this adapter owns the
 // external field names instead of leaking a delivery format into the core.
@@ -81,6 +91,36 @@ func WriteSessionSnapshotJSON(w io.Writer, snapshot agent.SessionSnapshot) error
 		record.Runs = append(record.Runs, encodeRun(run))
 	}
 	return json.NewEncoder(w).Encode(record)
+}
+
+// WriteRunJSON writes one durable run projection using the same field contract
+// as runs embedded in a session snapshot.
+func WriteRunJSON(w io.Writer, run agent.Run) error {
+	if err := run.Validate(); err != nil {
+		return fmt.Errorf("render run: %w", err)
+	}
+	return json.NewEncoder(w).Encode(encodeRun(run))
+}
+
+func WriteRunPageJSON(w io.Writer, page agent.RunPage) error {
+	if err := page.Validate(); err != nil {
+		return fmt.Errorf("render run page: %w", err)
+	}
+	record := runPageRecord{Items: make([]runFrame, 0, len(page.Items)), NextCursor: page.NextCursor}
+	for _, run := range page.Items {
+		record.Items = append(record.Items, encodeRun(run))
+	}
+	return json.NewEncoder(w).Encode(record)
+}
+
+func WriteRunCancellationJSON(w io.Writer, result agent.RunCancellation) error {
+	if err := result.Validate(); err != nil {
+		return fmt.Errorf("render run cancellation: %w", err)
+	}
+	return json.NewEncoder(w).Encode(runCancellationRecord{
+		Canceled: encodeRun(result.Canceled),
+		Root:     encodeRun(result.Root),
+	})
 }
 
 func encodeRun(run agent.Run) runFrame {

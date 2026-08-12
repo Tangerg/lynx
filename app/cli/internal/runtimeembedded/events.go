@@ -1,6 +1,7 @@
 package runtimeembedded
 
 import (
+	"encoding/json"
 	"fmt"
 
 	"github.com/Tangerg/lynx/app/runtime/protocol"
@@ -56,11 +57,42 @@ func (projection runEventProjection) project() (projectedRunEvent, error) {
 		return projection.stateSnapshot()
 	case protocol.StreamSegmentFinished:
 		return projection.segmentFinished()
-	case protocol.StreamSegmentProgress, protocol.StreamCustom:
-		return projectedRunEvent{}, nil
+	case protocol.StreamSegmentProgress:
+		return projection.segmentProgress()
+	case protocol.StreamCustom:
+		return projection.custom()
 	default:
 		return projectedRunEvent{}, fmt.Errorf("event %s has unsupported authoritative type %q", projection.source.EventID, projection.source.Event.Type)
 	}
+}
+
+func (projection runEventProjection) segmentProgress() (projectedRunEvent, error) {
+	value := projection.source.Event.Progress
+	if value == nil {
+		return projectedRunEvent{}, fmt.Errorf("event %s: segment.progress has no progress", projection.source.EventID)
+	}
+	progress := agent.RunProgress{
+		Activity: value.Activity,
+	}
+	if value.Step != nil {
+		progress.Step = new(*value.Step)
+	}
+	if value.ContextTokens != nil {
+		progress.ContextTokens = new(*value.ContextTokens)
+	}
+	if value.Usage != nil {
+		usage := projectModelUsage(*value.Usage)
+		progress.Usage = &usage
+	}
+	return includeRunEvent(progress), nil
+}
+
+func (projection runEventProjection) custom() (projectedRunEvent, error) {
+	payload, err := json.Marshal(projection.source.Event.Payload)
+	if err != nil {
+		return projectedRunEvent{}, fmt.Errorf("event %s: encode custom payload: %w", projection.source.EventID, err)
+	}
+	return includeRunEvent(agent.CustomEvent{Name: projection.source.Event.Name, PayloadJSON: payload}), nil
 }
 
 func (projection runEventProjection) segmentStarted() (projectedRunEvent, error) {
@@ -94,7 +126,9 @@ func (projection runEventProjection) itemDelta() (projectedRunEvent, error) {
 	}
 	switch delta.Type {
 	case protocol.DeltaToolArguments:
-		return projectedRunEvent{}, nil
+		return includeRunEvent(agent.ToolArgumentsDelta{
+			BlockID: projection.source.Event.ItemID, Text: delta.ArgumentsTextDelta,
+		}), nil
 	case protocol.DeltaContent, protocol.DeltaReasoning, protocol.DeltaToolOutput:
 		return includeRunEvent(agent.BlockDelta{BlockID: projection.source.Event.ItemID, Text: delta.Text}), nil
 	default:

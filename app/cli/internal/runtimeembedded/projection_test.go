@@ -1,6 +1,7 @@
 package runtimeembedded
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"reflect"
@@ -66,11 +67,42 @@ func TestQuestionItemAndInterruptShareProjection(t *testing.T) {
 	}
 }
 
-func TestProjectEventSkipsEphemeralFramesAndClassifiesStreams(t *testing.T) {
-	if _, include, err := projectEvent(protocol.RunEvent{Event: protocol.StreamEvent{
-		Type: protocol.StreamSegmentProgress, Progress: &protocol.RunProgress{Activity: "thinking"},
-	}}); err != nil || include {
+func TestProjectEventPreservesEphemeralFramesAndClassifiesStreams(t *testing.T) {
+	step, contextTokens, cost := 3, int64(8_192), 0.25
+	progressEvent, include, err := projectEvent(protocol.RunEvent{EventID: "progress", Event: protocol.StreamEvent{
+		Type: protocol.StreamSegmentProgress,
+		Progress: &protocol.RunProgress{
+			Step: &step, ContextTokens: &contextTokens, Activity: "thinking",
+			Usage: &protocol.Usage{ModelUsage: protocol.ModelUsage{InputTokens: 12, CostUSD: &cost}},
+		},
+	}})
+	if err != nil || !include {
 		t.Fatalf("progress = (include %v, error %v)", include, err)
+	}
+	progress, ok := progressEvent.Event.(agent.RunProgress)
+	if !ok || progress.Step == nil || *progress.Step != step || progress.ContextTokens == nil ||
+		*progress.ContextTokens != contextTokens || progress.Usage == nil || progress.Usage.InputTokens != 12 ||
+		progress.Usage.CostUSD == nil || *progress.Usage.CostUSD != cost || progress.Activity != "thinking" {
+		t.Fatalf("projected progress = %#v", progressEvent.Event)
+	}
+
+	arguments, include, err := projectEvent(protocol.RunEvent{EventID: "arguments", Event: protocol.StreamEvent{
+		Type: protocol.StreamItemDelta, ItemID: "tool_1",
+		Delta: &protocol.ItemDelta{Type: protocol.DeltaToolArguments, ArgumentsTextDelta: `{"path":"/tmp`},
+	}})
+	if err != nil || !include || arguments.Event != (agent.ToolArgumentsDelta{BlockID: "tool_1", Text: `{"path":"/tmp`}) {
+		t.Fatalf("tool arguments = %#v, include %v, error %v", arguments.Event, include, err)
+	}
+
+	customEvent, include, err := projectEvent(protocol.RunEvent{EventID: "custom", Event: protocol.StreamEvent{
+		Type: protocol.StreamCustom, Name: "vendor.trace", Payload: map[string]any{"span": "abc", "sampled": true},
+	}})
+	if err != nil || !include {
+		t.Fatalf("custom = (include %v, error %v)", include, err)
+	}
+	custom, ok := customEvent.Event.(agent.CustomEvent)
+	if !ok || custom.Name != "vendor.trace" || !json.Valid(custom.PayloadJSON) || !bytes.Contains(custom.PayloadJSON, []byte(`"span":"abc"`)) {
+		t.Fatalf("projected custom event = %#v", customEvent.Event)
 	}
 
 	streamError := errors.New("broken stream")

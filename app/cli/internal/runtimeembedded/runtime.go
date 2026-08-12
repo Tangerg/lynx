@@ -31,12 +31,6 @@ func supportedInterruptTypes() []protocol.InterruptType {
 	}
 }
 
-func excludedEphemeralRunEvents() []protocol.SuppressibleRunEventType {
-	return []protocol.SuppressibleRunEventType{
-		protocol.SuppressibleRunSegmentProgress,
-	}
-}
-
 func recognizedRunEventTypes() []protocol.StreamEventType {
 	return []protocol.StreamEventType{
 		protocol.StreamSegmentStarted,
@@ -79,6 +73,7 @@ type Runtime struct {
 	approvals        approvalBinding
 	sessionCatalog   sessionCatalogBinding
 	snapshot         snapshotBinding
+	runCatalog       runCatalogBinding
 	runs             runBinding
 	sessions         sessionBinding
 	workspaces       workspaceBinding
@@ -135,6 +130,7 @@ func Open(ctx context.Context, cfg Config) (*Runtime, error) {
 		approvals:        binding,
 		sessionCatalog:   binding,
 		snapshot:         binding,
+		runCatalog:       binding,
 		runs:             binding,
 		sessions:         binding,
 		workspaces:       binding,
@@ -188,8 +184,7 @@ func requestMeta(version string) protocol.RequestMeta {
 			Features: map[string]protocol.FeaturePreference{
 				protocol.FeatureSubagents: {Enabled: true},
 			},
-			InterruptTypes:          supportedInterruptTypes(),
-			ExcludedEphemeralEvents: excludedEphemeralRunEvents(),
+			InterruptTypes: supportedInterruptTypes(),
 		},
 	}
 }

@@ -26,6 +26,7 @@ type Runtime interface {
 	SessionCatalog
 	SessionReader
 	SessionWriter
+	RunCatalog
 	RunLifecycle
 	ModelCatalog
 	ApprovalCatalog
@@ -49,6 +50,14 @@ type SessionWriter interface {
 	DeleteSession(context.Context, DeleteSession) error
 }
 
+// RunCatalog exposes durable run projections independently from a session
+// transcript. It is the read side used by operational commands and recovery
+// diagnostics that already hold a run identity.
+type RunCatalog interface {
+	GetRun(context.Context, string) (Run, error)
+	ListRuns(context.Context, RunQuery) (RunPage, error)
+}
+
 // RunLifecycle opens and rebinds segment streams. StartRun and ResumeRun return
 // the stream created by the same atomic runtime operation; consumers never have
 // to race a second subscription against the first event.
@@ -57,7 +66,7 @@ type RunLifecycle interface {
 	ResumeRun(context.Context, ResumeRun) (SegmentStream, error)
 	SubscribeRun(context.Context, SubscribeRun) (SegmentStream, error)
 	SteerRun(context.Context, SteerRun) error
-	CancelRun(context.Context, CancelRun) (Run, error)
+	CancelRun(context.Context, CancelRun) (RunCancellation, error)
 }
 
 // ModelCatalog exposes provider-qualified models. Model IDs are not assumed to

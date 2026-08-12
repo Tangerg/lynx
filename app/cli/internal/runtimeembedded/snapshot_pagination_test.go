@@ -17,6 +17,10 @@ type snapshotBindingStub struct {
 	runRequests *[]protocol.ListRunsRequest
 }
 
+func (snapshotBindingStub) GetRun(context.Context, protocol.GetRunRequest, embedded.CallOptions) (*protocol.RunRef, error) {
+	return nil, errors.New("unexpected GetRun")
+}
+
 func (snapshotBindingStub) GetSession(context.Context, protocol.GetSessionRequest, embedded.CallOptions) (*protocol.Session, error) {
 	return nil, errors.New("unexpected GetSession")
 }
@@ -40,6 +44,10 @@ func TestSnapshotRunCatalogExplicitlyRequestsDescendants(t *testing.T) {
 	var requests []protocol.ListRunsRequest
 	runtime := &Runtime{
 		snapshot: snapshotBindingStub{
+			runs:        map[string]*protocol.Page[protocol.RunRef]{"": protocol.NewPage([]protocol.RunRef{})},
+			runRequests: &requests,
+		},
+		runCatalog: snapshotBindingStub{
 			runs:        map[string]*protocol.Page[protocol.RunRef]{"": protocol.NewPage([]protocol.RunRef{})},
 			runRequests: &requests,
 		},
@@ -105,7 +113,7 @@ func TestSnapshotResourcesRejectMultiStepCursorCycles(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			runtime := &Runtime{snapshot: test.stub, meta: requestMeta("test")}
+			runtime := &Runtime{snapshot: test.stub, runCatalog: test.stub, meta: requestMeta("test")}
 			err := test.call(t.Context(), runtime)
 			if err == nil || !strings.Contains(err.Error(), "cyclic continuation cursor") {
 				t.Fatalf("snapshot list error = %v, want cursor cycle failure", err)

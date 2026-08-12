@@ -41,7 +41,7 @@ func (r *Runtime) ListSessions(ctx context.Context, query agent.SessionQuery) (a
 		return b.UpdatedAt.Compare(a.UpdatedAt)
 	})
 
-	offset, err := pageOffset(query.Cursor, len(items))
+	offset, err := pageOffset("session", query.Cursor, len(items))
 	if err != nil {
 		return agent.SessionPage{}, err
 	}
@@ -58,13 +58,13 @@ func (r *Runtime) ListSessions(ctx context.Context, query agent.SessionQuery) (a
 	return page, nil
 }
 
-func pageOffset(cursor string, length int) (int, error) {
+func pageOffset(collection, cursor string, length int) (int, error) {
 	if cursor == "" {
 		return 0, nil
 	}
 	offset, err := strconv.Atoi(cursor)
 	if err != nil || offset < 0 || offset > length {
-		return 0, fmt.Errorf("mock: invalid session page cursor %q", cursor)
+		return 0, fmt.Errorf("mock: invalid %s page cursor %q", collection, cursor)
 	}
 	return offset, nil
 }
@@ -298,6 +298,9 @@ func (r *Runtime) DeleteSession(ctx context.Context, in agent.DeleteSession) err
 	if state.active != "" {
 		return fmt.Errorf("%w: %s", agent.ErrSessionBusy, in.SessionID)
 	}
+	for _, runID := range state.runs {
+		delete(r.runs, runID)
+	}
 	delete(r.sessions, in.SessionID)
 	return nil
 }
@@ -314,6 +317,7 @@ func (r *Runtime) seedHistory() {
 		usage:   agent.Usage{InputTokens: 820, OutputTokens: 94, CacheReadTokens: 512, Duration: 3 * time.Second},
 	}
 	r.runs[run.id] = run
+	r.runOrder = append(r.runOrder, run.id)
 	state.runs = append(state.runs, run.id)
 	state.items = append(state.items,
 		durableItem{runID: run.id, block: agent.Block{ID: "demo_prompt", RunID: run.id, Status: agent.BlockStatusCompleted, Kind: agent.BlockUser, Text: "Why is the cache expiry test flaky?"}},

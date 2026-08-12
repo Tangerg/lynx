@@ -41,6 +41,7 @@ type Runtime struct {
 	mu           sync.Mutex
 	sessions     map[string]*sessionState
 	runs         map[string]*runState
+	runOrder     []string
 	rules        []storedRule
 	approvalMode agent.ApprovalMode
 	fault        int
@@ -71,6 +72,7 @@ type storedRule struct {
 type runState struct {
 	id           string
 	sessionID    string
+	lineage      agent.RunLineage
 	provider     string
 	model        string
 	limits       agent.RunLimits

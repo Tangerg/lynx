@@ -25,6 +25,18 @@ func TestPluginPresenterPanicBecomesAnError(t *testing.T) {
 	}
 }
 
+func TestCustomEventPresenterPanicBecomesAnError(t *testing.T) {
+	_, err := presentCustomSafely(CustomEventPresenter{
+		Name: "vendor.broken",
+		Present: func(BlockPresentation, agent.CustomEvent) []headless.Block {
+			panic("custom boom")
+		},
+	}, BlockPresentation{}, agent.CustomEvent{Name: "vendor.broken", PayloadJSON: []byte(`null`)})
+	if err == nil || !strings.Contains(err.Error(), "custom boom") {
+		t.Fatalf("custom presenter panic error = %v", err)
+	}
+}
+
 func TestToolPresentersUseOrderedMatchingAndAGenericFallback(t *testing.T) {
 	call := agent.ToolCall{Kind: agent.ToolUnknown, Name: "provider_tool", Summary: "work", Status: agent.ToolRunning}
 	presenters := []ToolPresenter{
