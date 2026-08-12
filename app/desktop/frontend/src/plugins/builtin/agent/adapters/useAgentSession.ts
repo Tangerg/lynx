@@ -81,7 +81,13 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
       onIdle: () => projectionSynchronization?.liveStreamSettled(),
     });
 
-    const recoverExistingSession = !useAgentSessionStore.getState().draftSessionIds.has(sessionId);
+    // Persisted draft ownership survives reload, but the proof that this process
+    // just created an empty Session does not. Only a same-process fresh draft may
+    // skip its initial durable read; a cold draft must verify whether another
+    // client added history while this one was away.
+    const recoverExistingSession = !useAgentSessionStore
+      .getState()
+      .freshDraftSessionIds.has(sessionId);
     let guardInitialInteraction = recoverExistingSession;
     projectionSynchronization = createSessionProjectionSynchronization({
       isLiveStreamActive: runPump.isActive,
@@ -99,6 +105,11 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
             abort = controller;
           },
           pump: runPump.pump,
+        }).then((authoritativeView) => {
+          const state = useAgentSessionStore.getState();
+          if (state.draftSessionIds.has(sessionId) && authoritativeView?.messages.length) {
+            state.graduateDraft(sessionId);
+          }
         });
       },
     });

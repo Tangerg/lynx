@@ -109,7 +109,7 @@ export function installAgentStatePorts(): () => void {
         {
           activeSessionId: activeSessionId(),
           openSessionIds: store.openSessionIds,
-          draftSessionIds: store.draftSessionIds,
+          provisionalSessionIds: store.freshDraftSessionIds,
         },
         liveIds,
       );

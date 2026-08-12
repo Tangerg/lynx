@@ -29,12 +29,12 @@ describe("sessionSelectionModel", () => {
     });
   });
 
-  it("reconciles persisted open sessions against backend sessions and local drafts", () => {
+  it("reconciles persisted open sessions against backend sessions and fresh local creates", () => {
     expect(
       reconcileOpenSessions(
         {
           activeSessionId: "s1",
-          draftSessionIds: new Set(["s3"]),
+          provisionalSessionIds: new Set(["s3"]),
           openSessionIds: ["s1", "s2", "s3"],
         },
         ["s1"],
@@ -44,7 +44,7 @@ describe("sessionSelectionModel", () => {
       reconcileOpenSessions(
         {
           activeSessionId: "s1",
-          draftSessionIds: new Set<string>(),
+          provisionalSessionIds: new Set<string>(),
           openSessionIds: ["s1", "s2", "s3"],
         },
         ["s2", "s3"],
@@ -57,7 +57,7 @@ describe("sessionSelectionModel", () => {
       reconcileOpenSessions(
         {
           activeSessionId: "s1",
-          draftSessionIds: new Set<string>(),
+          provisionalSessionIds: new Set<string>(),
           openSessionIds: ["s1", "s2"],
         },
         ["s1", "s2"],
@@ -70,12 +70,25 @@ describe("sessionSelectionModel", () => {
       reconcileOpenSessions(
         {
           activeSessionId: "deep-link",
-          draftSessionIds: new Set<string>(),
+          provisionalSessionIds: new Set<string>(),
           openSessionIds: ["stale"],
         },
         ["deep-link"],
       ),
     ).toEqual({ activeSessionId: "deep-link", openSessionIds: ["deep-link"] });
+  });
+
+  it("does not treat persisted draft ownership as authoritative membership", () => {
+    expect(
+      reconcileOpenSessions(
+        {
+          activeSessionId: "draft-deleted-remotely",
+          provisionalSessionIds: new Set<string>(),
+          openSessionIds: ["draft-deleted-remotely"],
+        },
+        [],
+      ),
+    ).toEqual({ activeSessionId: "", openSessionIds: [] });
   });
 
   it("prunes draft and pending handoffs for closed sessions", () => {

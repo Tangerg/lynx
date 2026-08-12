@@ -23,7 +23,7 @@ export { asEventId, asItemId, asRunId, asSegmentId, asSessionId } from "./ids";
 export type { EventId, ItemId, RunId, SegmentId, SessionId } from "./ids";
 export { PaginationError } from "./pagination";
 export type { AutoPagingPromise, CursorPage, PageItem } from "./pagination";
-export type { MutationPromise } from "./mutation";
+export type { MutationAttemptOptions, MutationPromise } from "./mutation";
 export { createMethods } from "./methods";
 export type { AgentMemoryTarget, Methods, StreamingResult, WorkspaceMethods } from "./methods";
 export { createLyraClient } from "./sdk";

@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { resetContainer, setContainer } from "@/main/container";
-import { RpcError, type LyraClient, type Methods } from "@/rpc";
+import { RpcError, RpcTransportError, type LyraClient, type Methods } from "@/rpc";
 import { asRunId, asSegmentId, asSessionId } from "@/rpc";
+import { createMutationPromise } from "@/rpc/mutation";
 import * as runtimeCapabilities from "@/plugins/builtin/runtime/public/capabilities";
 import { agentRuntime } from "../application/ports/runtimeGateway";
 import { installAgentRuntimeGateway } from "./agentRuntimeGateway";
@@ -17,9 +18,57 @@ afterEach(() => {
   uninstall = undefined;
   resetContainer();
   vi.restoreAllMocks();
+  vi.useRealTimers();
 });
 
 describe("agentRuntimeGateway", () => {
+  it("replays a timed-out create with the same mutation identity and a fresh signal", async () => {
+    const firstAttempt = new AbortController();
+    const replayAttempt = new AbortController();
+    vi.spyOn(AbortSignal, "timeout")
+      .mockReturnValueOnce(firstAttempt.signal)
+      .mockReturnValueOnce(replayAttempt.signal);
+    const keys: string[] = [];
+    const signals: AbortSignal[] = [];
+    let executions = 0;
+    const create = vi.fn((_params, signal?: AbortSignal) =>
+      createMutationPromise(
+        async (key, attempt) => {
+          keys.push(key);
+          signals.push(attempt.signal!);
+          executions += 1;
+          if (executions === 2) return { id: asSessionId("ses_replayed") };
+          await new Promise<void>((_resolve, reject) => {
+            attempt.signal?.addEventListener(
+              "abort",
+              () => reject(new RpcTransportError("attempt timed out")),
+              { once: true },
+            );
+          });
+          throw new Error("unreachable");
+        },
+        "logical-create",
+        { signal },
+      ),
+    );
+    setContainer({
+      client: () => ({ sessions: { create } }) as unknown as LyraClient,
+    });
+    uninstall = installAgentRuntimeGateway();
+
+    const creating = agentRuntime().createSession({ cwd: "/repo" });
+    await vi.waitFor(() => expect(executions).toBe(1));
+    firstAttempt.abort();
+
+    await expect(creating).resolves.toEqual({ id: "ses_replayed" });
+    expect(create).toHaveBeenCalledOnce();
+    expect(keys).toEqual(["logical-create", "logical-create"]);
+    expect(signals).toHaveLength(2);
+    expect(signals[0]).not.toBe(signals[1]);
+    expect(signals[0]?.aborted).toBe(true);
+    expect(signals[1]?.aborted).toBe(false);
+  });
+
   it("forwards the caller snapshot revision without a get-before-write", async () => {
     const get = vi.fn();
     const update = vi.fn().mockResolvedValue({ revision: 12 });

@@ -9,6 +9,7 @@ beforeEach(() => {
     openSessionIds: [],
     lastSessionId: "",
     draftSessionIds: new Set<string>(),
+    freshDraftSessionIds: new Set<string>(),
     pendingMessages: {},
   });
 });

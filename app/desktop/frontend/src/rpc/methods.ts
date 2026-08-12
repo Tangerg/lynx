@@ -563,9 +563,16 @@ export function createMethods(client: RpcClient, options: MethodsOptions = {}): 
     if (!wireMethodRequiresIdempotency(method)) {
       return perform(method, params, callOptions) as WireInvokeResult<M>;
     }
+    const { signal, ...stableCallOptions } = callOptions ?? {};
     return createMutationPromise(
-      (idempotencyKey) => perform(method, params, { ...callOptions, idempotencyKey }),
+      (idempotencyKey, attempt) =>
+        perform(method, params, {
+          ...stableCallOptions,
+          ...(attempt.signal ? { signal: attempt.signal } : {}),
+          idempotencyKey,
+        }),
       callOptions?.idempotencyKey,
+      { signal },
     ) as WireInvokeResult<M>;
   }) as WireInvoke;
 
@@ -618,37 +625,45 @@ export function createMethods(client: RpcClient, options: MethodsOptions = {}): 
     },
     runs: {
       start: (params, signal) =>
-        createMutationPromise(async (idempotencyKey) => {
-          // Subscribe BEFORE the POST, then bind the tree to the runtime-assigned
-          // root segmentId. Under streamable HTTP the response + its event frames
-          // arrive on the same ordered stream, so the first events follow the
-          // response immediately; binding only after `call` resolves could drop
-          // the head (see streamRunEvents).
-          const stream = streamRunEvents(client, signal);
-          const result = await callOrDispose(stream, () =>
-            perform("runs.start", params, {
-              signal: stream.requestSignal,
-              idempotencyKey,
-              onRequestRpcId: stream.bindRequest,
-            }),
-          );
-          stream.bind(result.runId, result.segmentId);
-          return { result, events: stream.events };
-        }),
+        createMutationPromise(
+          async (idempotencyKey, attempt) => {
+            // Subscribe BEFORE the POST, then bind the tree to the runtime-assigned
+            // root segmentId. Under streamable HTTP the response + its event frames
+            // arrive on the same ordered stream, so the first events follow the
+            // response immediately; binding only after `call` resolves could drop
+            // the head (see streamRunEvents).
+            const stream = streamRunEvents(client, attempt.signal);
+            const result = await callOrDispose(stream, () =>
+              perform("runs.start", params, {
+                signal: stream.requestSignal,
+                idempotencyKey,
+                onRequestRpcId: stream.bindRequest,
+              }),
+            );
+            stream.bind(result.runId, result.segmentId);
+            return { result, events: stream.events };
+          },
+          undefined,
+          { signal },
+        ),
       resume: (params, signal) =>
-        createMutationPromise(async (idempotencyKey) => {
-          // A resume opens a NEW segment of the SAME run — bind the tree to it.
-          const stream = streamRunEvents(client, signal);
-          const result = await callOrDispose(stream, () =>
-            perform("runs.resume", params, {
-              signal: stream.requestSignal,
-              idempotencyKey,
-              onRequestRpcId: stream.bindRequest,
-            }),
-          );
-          stream.bind(result.runId, result.segmentId);
-          return { result, events: stream.events };
-        }),
+        createMutationPromise(
+          async (idempotencyKey, attempt) => {
+            // A resume opens a NEW segment of the SAME run — bind the tree to it.
+            const stream = streamRunEvents(client, attempt.signal);
+            const result = await callOrDispose(stream, () =>
+              perform("runs.resume", params, {
+                signal: stream.requestSignal,
+                idempotencyKey,
+                onRequestRpcId: stream.bindRequest,
+              }),
+            );
+            stream.bind(result.runId, result.segmentId);
+            return { result, events: stream.events };
+          },
+          undefined,
+          { signal },
+        ),
       subscribe: async (params, signal, options) => {
         // Reattach to the segment the caller named; the ack echoes it, and the tree
         // binds to it (same deferred-bind head-drop guard).

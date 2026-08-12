@@ -1,6 +1,6 @@
 import type { LyraClient } from "@/rpc";
 import { asRunId, asSegmentId } from "@/rpc";
-import type { AgentRunView } from "@/plugins/sdk/types/agentSessionView";
+import type { AgentRunView, AgentSessionView } from "@/plugins/sdk/types/agentSessionView";
 import { refreshAgentSessionProjection } from "../application/session/refreshSessionProjection";
 import { agentRuntime } from "../application/ports/runtimeGateway";
 import type { RunStream } from "./agentRunPump";
@@ -15,11 +15,14 @@ interface AgentSessionRecoveryOptions {
   pump: (stream: RunStream, signal: AbortSignal) => Promise<void>;
 }
 
-export function startAgentSessionRecovery(options: AgentSessionRecoveryOptions): Promise<void> {
+export function startAgentSessionRecovery(
+  options: AgentSessionRecoveryOptions,
+): Promise<AgentSessionView | null> {
   return recover(options).catch((error: unknown) => {
     if (!options.isCancelled()) {
       console.error("[agent] session recovery failed:", options.sessionId, error);
     }
+    return null;
   });
 }
 
@@ -27,11 +30,11 @@ function stale(options: AgentSessionRecoveryOptions): boolean {
   return options.isCancelled() || options.hasInteracted();
 }
 
-async function recover(options: AgentSessionRecoveryOptions): Promise<void> {
+async function recover(options: AgentSessionRecoveryOptions): Promise<AgentSessionView | null> {
   const view = await refreshAgentSessionProjection(options.sessionId, {
     canCommit: () => !stale(options),
   });
-  if (!view || stale(options)) return;
+  if (!view || stale(options)) return null;
 
   const runningRoots = Object.values(view.runsById).filter(
     (run) => run.parentRunId === null && run.status === "running",
@@ -43,6 +46,7 @@ async function recover(options: AgentSessionRecoveryOptions): Promise<void> {
   }
   const root = runningRoots[0];
   if (root) await attachRootRun(options, root);
+  return view;
 }
 
 async function attachRootRun(

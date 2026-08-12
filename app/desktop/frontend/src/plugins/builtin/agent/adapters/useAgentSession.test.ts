@@ -44,12 +44,18 @@ beforeEach(async () => {
   await loadPlugin(spec);
   // Mark draft so the effect skips history hydration (items.list → container).
   navigator().go({ session: SID });
-  useAgentSessionStore.setState({ draftSessionIds: new Set([SID]) });
+  useAgentSessionStore.setState({
+    draftSessionIds: new Set([SID]),
+    freshDraftSessionIds: new Set([SID]),
+  });
 });
 afterEach(() => {
   useAgentStore.getState().dropSession(SID);
   useAgentStore.getState().dropSession(SID_B);
-  useAgentSessionStore.setState({ draftSessionIds: new Set() });
+  useAgentSessionStore.setState({
+    draftSessionIds: new Set(),
+    freshDraftSessionIds: new Set(),
+  });
   resetContainer();
   vi.restoreAllMocks();
 });
@@ -87,7 +93,10 @@ describe("useAgentSession driver lifecycle", () => {
     const second = parkedDriver().driver;
     const firstFactory = vi.fn(() => first);
     const secondFactory = vi.fn(() => second);
-    useAgentSessionStore.setState({ draftSessionIds: new Set([SID, SID_B]) });
+    useAgentSessionStore.setState({
+      draftSessionIds: new Set([SID, SID_B]),
+      freshDraftSessionIds: new Set([SID, SID_B]),
+    });
 
     type HookProps = {
       makeDriver: () => AgentDriver;
@@ -315,7 +324,9 @@ describe("useAgentSession durable recovery", () => {
   function stubClient(
     overrides: Record<string, unknown> = {},
     interruptOverrides: Record<string, unknown> = {},
+    items: unknown[] = [],
   ) {
+    const listItems = vi.fn(() => autoPage(items));
     const subscribe = vi.fn(() =>
       Promise.resolve({
         result: { runId: "run_live", segmentId: "seg_live" },
@@ -329,7 +340,7 @@ describe("useAgentSession durable recovery", () => {
     setContainer({
       client: () =>
         ({
-          items: { list: vi.fn(() => autoPage([])) },
+          items: { list: listItems },
           plan: {
             get: vi.fn().mockResolvedValue({
               type: "plan",
@@ -350,13 +361,16 @@ describe("useAgentSession durable recovery", () => {
           },
         }) as unknown as LyraClient,
     });
-    return { subscribe };
+    return { listItems, subscribe };
   }
 
   beforeEach(() => {
     // NOT a draft — recovery only runs for existing sessions.
     navigator().go({ session: RID });
-    useAgentSessionStore.setState({ draftSessionIds: new Set() });
+    useAgentSessionStore.setState({
+      draftSessionIds: new Set(),
+      freshDraftSessionIds: new Set(),
+    });
   });
   afterEach(() => {
     useAgentStore.getState().dropSession(RID);
@@ -392,6 +406,64 @@ describe("useAgentSession durable recovery", () => {
       .find((b) => b.kind === "approval" && b.itemId === "item_appr");
     expect(approval).toMatchObject({ status: "requires-action", runId: "run_int" });
     expect(selectCurrentRootRun(view)).toBeNull();
+  });
+
+  it("rehydrates a persisted empty draft without publishing it as an ordinary Session", async () => {
+    useAgentSessionStore.setState({
+      draftSessionIds: new Set([RID]),
+      freshDraftSessionIds: new Set(),
+    });
+    const { listItems } = stubClient();
+    const { driver } = parkedDriver();
+
+    renderHook(() => useAgentSession(() => driver, RID));
+
+    await waitFor(() => expect(listItems).toHaveBeenCalledOnce());
+    expect(useAgentSessionStore.getState().draftSessionIds.has(RID)).toBe(true);
+  });
+
+  it("graduates a persisted draft when durable recovery finds conversation history", async () => {
+    useAgentSessionStore.setState({
+      draftSessionIds: new Set([RID]),
+      freshDraftSessionIds: new Set(),
+    });
+    stubClient(
+      {
+        list: vi.fn(() =>
+          autoPage([
+            {
+              id: "run_used_draft",
+              sessionId: RID,
+              status: "finished",
+              outcome: { type: "completed" },
+              createdAt: "2026-08-12T00:00:00Z",
+              finishedAt: "2026-08-12T00:00:01Z",
+              metrics: { steps: 1, activeDurationMillis: 1 },
+              protocolProfile: { interruptTypes: [], requiredFeatures: [] },
+            },
+          ]),
+        ),
+      },
+      {},
+      [
+        {
+          id: "item_used_draft",
+          runId: "run_used_draft",
+          status: "completed",
+          createdAt: "2026-08-12T00:00:00Z",
+          type: "userMessage",
+          content: [{ type: "text", text: "used elsewhere" }],
+        },
+      ],
+    );
+    const { driver } = parkedDriver();
+
+    renderHook(() => useAgentSession(() => driver, RID));
+
+    await waitFor(() =>
+      expect(useAgentStore.getState().sessions[RID]?.view.messages).toHaveLength(1),
+    );
+    expect(useAgentSessionStore.getState().draftSessionIds.has(RID)).toBe(false);
   });
 
   it("reattaches to a still-running root run via runs.subscribe", async () => {

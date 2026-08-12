@@ -9,6 +9,7 @@ beforeEach(() => {
     openSessionIds: [],
     lastSessionId: "",
     draftSessionIds: new Set(),
+    freshDraftSessionIds: new Set(),
     pendingMessages: {},
   });
 });
@@ -70,9 +71,30 @@ describe("drafts and queued first messages", () => {
   it("marks and graduates a draft", () => {
     store().markDraft("s1");
     expect(store().draftSessionIds.has("s1")).toBe(true);
+    expect(store().freshDraftSessionIds.has("s1")).toBe(true);
 
     store().graduateDraft("s1");
     expect(store().draftSessionIds.has("s1")).toBe(false);
+    expect(store().freshDraftSessionIds.has("s1")).toBe(false);
+  });
+
+  it("restores draft ownership without restoring the in-process freshness proof", async () => {
+    localStorage.setItem(
+      "lyra.agent-session",
+      JSON.stringify({
+        state: {
+          openSessionIds: ["s1"],
+          lastSessionId: "s1",
+          draftSessionIds: ["s1"],
+        },
+        version: useAgentSessionStore.persist.getOptions().version,
+      }),
+    );
+
+    await useAgentSessionStore.persist.rehydrate();
+
+    expect(store().draftSessionIds).toEqual(new Set(["s1"]));
+    expect(store().freshDraftSessionIds).toEqual(new Set());
   });
 
   it("graduating a session that isn't a draft changes nothing", () => {
@@ -97,6 +119,7 @@ describe("drafts and queued first messages", () => {
     store().release("s1");
 
     expect(store().draftSessionIds.has("s1")).toBe(false);
+    expect(store().freshDraftSessionIds.has("s1")).toBe(false);
     expect(store().takePendingMessage("s1")).toBeUndefined();
   });
 });

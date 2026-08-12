@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createRpcClient, type RpcCallOptions, type RpcClient } from "./client";
 import { RpcError, RpcProtocolError, RpcTransportError } from "./errors";
 import { asRunId, asSegmentId, asSessionId } from "./ids";
@@ -24,6 +24,8 @@ function agentMessageItem(id: string, runId: string, status: Item["status"]): It
     type: "agentMessage",
   } as Item;
 }
+
+afterEach(() => vi.useRealTimers());
 
 describe("methods factory", () => {
   it("forwards the complete generated schedule update contract", async () => {
@@ -116,7 +118,7 @@ describe("methods factory", () => {
     expect(call).toHaveBeenCalledTimes(2);
   });
 
-  it("reuses a mutation key only when the caller retries the same invocation", async () => {
+  it("automatically replays an ambiguously failed mutation with the same key", async () => {
     const call = vi
       .fn()
       .mockRejectedValueOnce(new RpcTransportError("connection reset"))
@@ -126,8 +128,7 @@ describe("methods factory", () => {
     const methods = createMethods(client);
 
     const attempt = methods.schedules.runNow("schedule_1");
-    await expect(attempt).rejects.toBeInstanceOf(RpcTransportError);
-    await expect(attempt.retry()).resolves.toMatchObject({
+    await expect(attempt).resolves.toMatchObject({
       runId: "run_1",
     });
     await expect(methods.schedules.runNow("schedule_1")).resolves.toMatchObject({
@@ -138,6 +139,49 @@ describe("methods factory", () => {
     expect(keys[0]).toBeTruthy();
     expect(keys[1]).toBe(keys[0]);
     expect(keys[2]).not.toBe(keys[1]);
+  });
+
+  it("opens a fresh event stream when replaying an ambiguous run opening", async () => {
+    const unsubscribers = [vi.fn(), vi.fn()];
+    const subscribe = vi
+      .fn()
+      .mockReturnValueOnce(unsubscribers[0])
+      .mockReturnValueOnce(unsubscribers[1]);
+    const onStreamEnd = vi
+      .fn()
+      .mockReturnValueOnce(unsubscribers[0])
+      .mockReturnValueOnce(unsubscribers[1]);
+    const call = vi
+      .fn()
+      .mockImplementationOnce(async (_method, _params, options: RpcCallOptions) => {
+        options.onRequestRpcId?.("request_1");
+        throw new RpcTransportError("opening response lost");
+      })
+      .mockImplementationOnce(async (_method, _params, options: RpcCallOptions) => {
+        options.onRequestRpcId?.("request_2");
+        return { runId: "run_1", segmentId: "seg_1", userItemId: "item_user_1" };
+      });
+    const methods = createMethods({ call, subscribe, onStreamEnd } as unknown as RpcClient);
+
+    const opened = await methods.runs.start({
+      sessionId: asSessionId("ses_1"),
+      input: [{ type: "text", text: "hello" }],
+    });
+
+    expect(opened.result).toMatchObject({ runId: "run_1", segmentId: "seg_1" });
+    expect(call).toHaveBeenCalledTimes(2);
+    expect(subscribe).toHaveBeenCalledTimes(2);
+    expect(onStreamEnd).toHaveBeenCalledTimes(2);
+    expect(unsubscribers[0]).toHaveBeenCalledTimes(2);
+    const first = call.mock.calls[0]?.[2] as RpcCallOptions;
+    const second = call.mock.calls[1]?.[2] as RpcCallOptions;
+    expect(second.idempotencyKey).toBe(first.idempotencyKey);
+    expect(second.signal).not.toBe(first.signal);
+    expect(first.signal?.aborted).toBe(true);
+    expect(second.signal?.aborted).toBe(false);
+
+    await opened.events[Symbol.asyncIterator]().return?.();
+    expect(unsubscribers[1]).toHaveBeenCalledTimes(2);
   });
 
   it("gives concurrent mutations with identical params distinct invocation keys", async () => {
@@ -158,7 +202,8 @@ describe("methods factory", () => {
     expect(call.mock.calls[1]?.[2]?.idempotencyKey).toBe(second.idempotencyKey);
   });
 
-  it("retains a mutation key while the original execution is in progress", async () => {
+  it("honors the server backoff while the original mutation is in progress", async () => {
+    vi.useFakeTimers();
     const call = vi
       .fn()
       .mockRejectedValueOnce(
@@ -173,12 +218,15 @@ describe("methods factory", () => {
     const methods = createMethods(client);
 
     const attempt = methods.sessions.create({ title: "same", workspace: { path: "/repo" } });
-    await expect(attempt).rejects.toBeInstanceOf(RpcError);
-    await attempt.retry();
+    await vi.advanceTimersByTimeAsync(999);
+    expect(call).toHaveBeenCalledOnce();
+    await vi.advanceTimersByTimeAsync(1);
+    await expect(attempt).resolves.toMatchObject({ id: "session_1" });
 
     const first = call.mock.calls[0]?.[2] as RpcCallOptions | undefined;
     const second = call.mock.calls[1]?.[2] as RpcCallOptions | undefined;
     expect(second?.idempotencyKey).toBe(first?.idempotencyKey);
+    vi.useRealTimers();
   });
 
   it("sessions.list sends sessions.list with optional query and returns a Page", async () => {

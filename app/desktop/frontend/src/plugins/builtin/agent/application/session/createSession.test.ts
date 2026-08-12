@@ -29,6 +29,7 @@ afterEach(() => {
   useAgentSessionStore.setState({
     openSessionIds: [],
     draftSessionIds: new Set<string>(),
+    freshDraftSessionIds: new Set<string>(),
     pendingMessages: {},
   });
 });
@@ -71,7 +72,7 @@ describe("useCreateSession", () => {
 
     await result.current({ cwd: "/tmp/proj" });
 
-    // Second arg is the AbortSignal.timeout guard (CREATE_TIMEOUT_MS).
+    // The Runtime Adapter bounds each transport attempt with its own signal.
     expect(create).toHaveBeenCalledWith(
       { workspace: { path: "/tmp/proj" } },
       expect.any(AbortSignal),
@@ -113,7 +114,10 @@ describe("useCreateSession", () => {
     await result.current();
     // A message-less session that is NOT a draft may simply not have loaded its
     // history yet — reuse would drop the user back into a conversation.
-    useAgentSessionStore.setState({ draftSessionIds: new Set<string>() });
+    useAgentSessionStore.setState({
+      draftSessionIds: new Set<string>(),
+      freshDraftSessionIds: new Set<string>(),
+    });
     await result.current();
     expect(create).toHaveBeenCalledTimes(2);
 

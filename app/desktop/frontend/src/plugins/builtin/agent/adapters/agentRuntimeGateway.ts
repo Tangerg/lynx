@@ -5,11 +5,24 @@ import type { AgentRuntimeGateway } from "../application/ports/runtimeGateway";
 import { agentInputToContentBlocks } from "./wireInput";
 import { runtimeCapability } from "@/plugins/builtin/runtime/public/capabilities";
 
+// A unary create should answer quickly, but a connected socket can remain open
+// forever. Bound each delivery attempt here in the Runtime Adapter. If the first
+// deadline wins, MutationPromise replays the same logical command with a fresh
+// signal; Runtime returns the first response without creating a second Session.
+const SESSION_CREATE_ATTEMPT_TIMEOUT_MS = 30_000;
+
 const gateway: AgentRuntimeGateway = {
-  async createSession(input, signal) {
-    const session = await getContainer()
+  async createSession(input) {
+    const firstSignal = AbortSignal.timeout(SESSION_CREATE_ATTEMPT_TIMEOUT_MS);
+    const mutation = getContainer()
       .client()
-      .sessions.create(input.cwd ? { workspace: { path: input.cwd } } : {}, signal);
+      .sessions.create(input.cwd ? { workspace: { path: input.cwd } } : {}, firstSignal);
+    const session = await mutation.catch((error) => {
+      if (!firstSignal.aborted) throw error;
+      return mutation.retry({
+        signal: AbortSignal.timeout(SESSION_CREATE_ATTEMPT_TIMEOUT_MS),
+      });
+    });
     return { id: session.id };
   },
   async deleteSession(sessionId) {

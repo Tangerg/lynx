@@ -7,8 +7,10 @@
 // location. One direction only; nothing here is a second copy of the location.
 //
 // Persistence policy:
-//   - Persisted: openSessionIds + lastSessionId (continuity across launches).
-//   - Ephemeral: draftSessionIds, pendingMessages.
+//   - Persisted: openSessionIds + lastSessionId + draftSessionIds (continuity
+//     and ownership of provisional backend Sessions across launches).
+//   - Ephemeral: freshDraftSessionIds + pendingMessages. These only describe an
+//     in-process handoff which may skip the first durable read.
 
 import { z } from "zod";
 import { create } from "zustand";
@@ -25,6 +27,7 @@ import { openSession, pruneSessionHandoffs } from "../application/session/sessio
 const sessionPersistSchema = z.object({
   lastSessionId: z.string(),
   openSessionIds: z.array(z.string()),
+  draftSessionIds: z.array(z.string()),
 });
 
 export interface PendingAgentMessage {
@@ -47,9 +50,13 @@ interface AgentSessionState {
    * Draft sessions — real backend sessions (created up front so they can
    * receive a run) that haven't had their first message yet. Hidden from
    * the Work Index until they "graduate" (first send), so a fresh
-   * "New" doesn't litter the list with empties. Ephemeral (not persisted).
+   * "New" doesn't litter the list with empties. Persisted until graduation so
+   * a reload cannot publish an unused draft as an ordinary Session.
    */
   draftSessionIds: Set<string>;
+  /** Drafts created in this process and therefore known to have no durable
+   * history yet. Unlike draft ownership, this read-skipping fact is ephemeral. */
+  freshDraftSessionIds: Set<string>;
   /**
    * First message queued for a freshly-created session, keyed by id. When
    * the user types on the welcome screen (no active session), we create a
@@ -89,6 +96,7 @@ export const useAgentSessionStore = create<AgentSessionState & AgentSessionActio
       openSessionIds: [],
       lastSessionId: "",
       draftSessionIds: new Set<string>(),
+      freshDraftSessionIds: new Set<string>(),
       pendingMessages: {},
 
       holdOpen: (id) => set({ openSessionIds: openSession(get().openSessionIds, id) }),
@@ -96,13 +104,19 @@ export const useAgentSessionStore = create<AgentSessionState & AgentSessionActio
         set({ openSessionIds: get().openSessionIds.filter((openId) => openId !== id) }),
       retainOnly: (openSessionIds) => set({ openSessionIds }),
       rememberSession: (id) => set({ lastSessionId: id }),
-      markDraft: (id) => set({ draftSessionIds: new Set(get().draftSessionIds).add(id) }),
+      markDraft: (id) =>
+        set({
+          draftSessionIds: new Set(get().draftSessionIds).add(id),
+          freshDraftSessionIds: new Set(get().freshDraftSessionIds).add(id),
+        }),
       graduateDraft: (id) => {
         const drafts = get().draftSessionIds;
         if (!drafts.has(id)) return;
         const next = new Set(drafts);
         next.delete(id);
-        set({ draftSessionIds: next });
+        const fresh = new Set(get().freshDraftSessionIds);
+        fresh.delete(id);
+        set({ draftSessionIds: next, freshDraftSessionIds: fresh });
       },
       setPendingMessage: (id, message) =>
         set({ pendingMessages: { ...get().pendingMessages, [id]: message } }),
@@ -119,15 +133,16 @@ export const useAgentSessionStore = create<AgentSessionState & AgentSessionActio
     {
       name: "lyra.agent-session",
       storage: createJSONStorage(() => localStorage),
-      // Persist only the continuity fields. Draft and pending-message refs are
-      // ephemeral because they point at in-memory first-run handoff state.
+      // Persist continuity plus provisional Session ownership. Only the
+      // in-process freshness proof and pending-message handoff are ephemeral.
       partialize: (s) => ({
         openSessionIds: s.openSessionIds,
         lastSessionId: s.lastSessionId,
+        draftSessionIds: [...s.draftSessionIds],
       }),
       // Persisted shape is dev-phase only; bump to discard stale payloads
       // rather than migrate (the merge below Zod-validates what survives).
-      version: 6,
+      version: 7,
       migrate: discardOlderVersions,
       merge: (persisted, current) => {
         if (persisted === undefined) return current;
@@ -139,7 +154,11 @@ export const useAgentSessionStore = create<AgentSessionState & AgentSessionActio
           );
           return current;
         }
-        return { ...current, ...parsed.data };
+        return {
+          ...current,
+          ...parsed.data,
+          draftSessionIds: new Set(parsed.data.draftSessionIds),
+        };
       },
     },
   ),
@@ -154,6 +173,15 @@ export const useAgentSessionStore = create<AgentSessionState & AgentSessionActio
 const unsubPruneSessionRefs = useAgentSessionStore.subscribe((state, prev) => {
   if (state.openSessionIds === prev.openSessionIds) return;
   const next = pruneSessionHandoffs(state);
-  if (next) useAgentSessionStore.setState(next);
+  const open = new Set(state.openSessionIds);
+  const freshDraftSessionIds = new Set(
+    [...state.freshDraftSessionIds].filter((id) => open.has(id)),
+  );
+  if (next || freshDraftSessionIds.size !== state.freshDraftSessionIds.size) {
+    useAgentSessionStore.setState({
+      ...next,
+      freshDraftSessionIds,
+    });
+  }
 });
 disposeOnHmr(unsubPruneSessionRefs);

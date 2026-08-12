@@ -30,10 +30,13 @@ export function closeOpenSession(state: AgentOpenSessions, sessionId: string): A
 }
 
 export function reconcileOpenSessions(
-  state: AgentOpenSessions & { draftSessionIds: Set<string> },
+  state: AgentOpenSessions & { provisionalSessionIds: Set<string> },
   liveIds: string[],
 ): AgentOpenSessions | null {
-  const known = new Set([...liveIds, ...state.draftSessionIds]);
+  // Only an in-process create that has not reached the next authoritative list
+  // may supplement Runtime membership. Persisted draft ownership controls UI
+  // visibility, but cannot prove that another client did not delete the Session.
+  const known = new Set([...liveIds, ...state.provisionalSessionIds]);
   const retainedOpenSessionIds = state.openSessionIds.filter((id) => known.has(id));
   const activeAlive = state.activeSessionId === "" || known.has(state.activeSessionId);
   // A URL deep-link or browser history move can select a Session without going
