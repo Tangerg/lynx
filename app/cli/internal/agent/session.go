@@ -354,7 +354,7 @@ func (c *Conversation) RestoreSnapshot(snapshot SessionSnapshot) error {
 	} else if latest, ok := snapshot.LatestRun(); ok {
 		next.runID = latest.ID
 		next.usage = latest.Usage.Clone()
-		next.outcome = latest.Outcome
+		next.outcome = latest.Outcome.Clone()
 	}
 	*c = *next
 	return nil

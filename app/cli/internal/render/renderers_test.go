@@ -184,6 +184,68 @@ func TestNDJSONPreservesContentBlockIndex(t *testing.T) {
 	}
 }
 
+func TestBlockJSONPreservesRuntimeItemMetadata(t *testing.T) {
+	created := time.Date(2026, time.August, 12, 9, 0, 0, 0, time.UTC)
+	reasoning := encodeBlock(agent.Block{
+		ID: "reasoning", RunID: "run_1", Status: agent.BlockStatusCompleted, Kind: agent.BlockReasoning,
+		CreatedAt: created, Redacted: true, Text: "Reasoning redacted by provider.",
+	})
+	if !reasoning.CreatedAt.Equal(created) || !reasoning.Redacted {
+		t.Fatalf("reasoning frame = %+v", reasoning)
+	}
+
+	started, finished := created, created.Add(2*time.Second)
+	tool := encodeBlock(agent.Block{
+		ID: "tool", RunID: "run_1", Status: agent.BlockStatusIncomplete, Kind: agent.BlockTool,
+		Tool: &agent.ToolCall{
+			Kind: agent.ToolShell, Name: "shell", Status: agent.ToolError, Safety: agent.ToolSafetyExec,
+			StartedAt: started, FinishedAt: finished,
+			ProblemJSON: []byte(`{"type":"provider_error","retryAfterSeconds":2}`),
+		},
+	})
+	if tool.Tool == nil || tool.Tool.Safety != "exec" || !tool.Tool.StartedAt.Equal(started) || !tool.Tool.FinishedAt.Equal(finished) {
+		t.Fatalf("tool frame = %+v", tool)
+	}
+	if !bytes.Contains(tool.Tool.Problem, []byte(`"retryAfterSeconds":2`)) {
+		t.Fatalf("tool problem frame = %s", tool.Tool.Problem)
+	}
+
+	compaction := encodeBlock(agent.Block{
+		ID: "compact", RunID: "run_1", Status: agent.BlockStatusCompleted, Kind: agent.BlockNotice,
+		CreatedAt: created, DroppedMessages: 17, Text: "Conversation compacted.",
+	})
+	if compaction.DroppedMessages != 17 {
+		t.Fatalf("compaction frame = %+v", compaction)
+	}
+}
+
+func TestRunJSONPreservesLifecycleTimestamps(t *testing.T) {
+	created := time.Date(2026, time.August, 12, 9, 0, 0, 0, time.UTC)
+	finished := created.Add(2 * time.Second)
+	frame := encodeRun(agent.Run{
+		ID: "run_1", SessionID: "ses_1", Status: agent.RunStatusFinished,
+		CreatedAt: created, FinishedAt: finished, Outcome: agent.Outcome{Status: agent.OutcomeCompleted},
+	})
+	if !frame.CreatedAt.Equal(created) || !frame.FinishedAt.Equal(finished) {
+		t.Fatalf("run frame = %+v", frame)
+	}
+}
+
+func TestOutcomeJSONPreservesStructuredProblem(t *testing.T) {
+	encoded, err := json.Marshal(encodeOutcome(agent.Outcome{
+		Status: agent.OutcomeFailed, Error: "quota exhausted",
+		ProblemJSON: []byte(`{"type":"rate_limited","retryAfterSeconds":2}`),
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{`"error":"quota exhausted"`, `"problem"`, `"type":"rate_limited"`, `"retryAfterSeconds":2`} {
+		if !bytes.Contains(encoded, []byte(want)) {
+			t.Fatalf("outcome JSON omitted %s: %s", want, encoded)
+		}
+	}
+}
+
 func TestResultJSONRetainsLatestRootProgressUsageBeforeSettlement(t *testing.T) {
 	var output bytes.Buffer
 	renderer := NewResultJSON(&output)
@@ -599,6 +661,21 @@ func TestUsageJSONDistinguishesUnknownFromKnownZeroCost(t *testing.T) {
 	}
 	if !bytes.Contains(known, []byte(`"costUsd":0`)) {
 		t.Fatalf("known zero cost was omitted: %s", known)
+	}
+	modelCost := 0.25
+	detailed, err := json.Marshal(encodeUsage(agent.Usage{
+		Steps: 3,
+		ByModel: map[string]agent.ModelUsage{
+			"deepseek/v4": {InputTokens: 12, ReasoningTokens: 4, CostUSD: &modelCost},
+		},
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{`"steps":3`, `"byModel"`, `"deepseek/v4"`, `"reasoningTokens":4`, `"costUsd":0.25`} {
+		if !bytes.Contains(detailed, []byte(want)) {
+			t.Fatalf("detailed usage omitted %s: %s", want, detailed)
+		}
 	}
 }
 

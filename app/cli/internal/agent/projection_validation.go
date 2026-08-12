@@ -32,6 +32,15 @@ func (r Run) Validate() error {
 	if r.Status != RunStatusRunning && r.ActiveSegmentID != "" {
 		problems = append(problems, errors.New("non-running run carries an active segment"))
 	}
+	if r.Status != RunStatusFinished && !r.FinishedAt.IsZero() {
+		problems = append(problems, errors.New("unfinished run carries a finish time"))
+	}
+	if !r.FinishedAt.IsZero() && r.CreatedAt.IsZero() {
+		problems = append(problems, errors.New("finished run has no creation time"))
+	}
+	if !r.FinishedAt.IsZero() && r.FinishedAt.Before(r.CreatedAt) {
+		problems = append(problems, errors.New("run finish time precedes creation time"))
+	}
 	if err := r.Limits.Validate(); err != nil {
 		problems = append(problems, err)
 	}
@@ -116,10 +125,16 @@ func (p GenerationParams) Validate() error {
 }
 
 func (o Outcome) Validate() error {
+	if len(o.ProblemJSON) > 0 {
+		var problem map[string]any
+		if !json.Valid(o.ProblemJSON) || json.Unmarshal(o.ProblemJSON, &problem) != nil || problem == nil {
+			return errors.New("outcome problem JSON is not an object")
+		}
+	}
 	switch o.Status {
 	case OutcomeCompleted:
-		if strings.TrimSpace(o.Error) != "" || strings.TrimSpace(o.Detail) != "" {
-			return errors.New("completed outcome cannot carry an error or detail")
+		if strings.TrimSpace(o.Error) != "" || strings.TrimSpace(o.Detail) != "" || len(o.ProblemJSON) != 0 {
+			return errors.New("completed outcome cannot carry an error, problem, or detail")
 		}
 	case OutcomeTimedOut, OutcomeFailed, OutcomeLost:
 		if strings.TrimSpace(o.Error) == "" {
@@ -132,6 +147,9 @@ func (o Outcome) Validate() error {
 		if strings.TrimSpace(o.Error) != "" {
 			return fmt.Errorf("%s outcome carries an error", o.Status)
 		}
+		if len(o.ProblemJSON) != 0 {
+			return fmt.Errorf("%s outcome carries a problem", o.Status)
+		}
 	default:
 		return fmt.Errorf("outcome status %q is invalid", o.Status)
 	}
@@ -139,14 +157,37 @@ func (o Outcome) Validate() error {
 }
 
 func (u Usage) Validate() error {
-	if u.InputTokens < 0 || u.OutputTokens < 0 || u.CacheReadTokens < 0 || u.CacheWriteTokens < 0 || u.ReasoningTokens < 0 {
-		return errors.New("usage token counts cannot be negative")
+	if err := validateModelUsage(ModelUsage{
+		InputTokens: u.InputTokens, OutputTokens: u.OutputTokens,
+		CacheReadTokens: u.CacheReadTokens, CacheWriteTokens: u.CacheWriteTokens,
+		ReasoningTokens: u.ReasoningTokens, CostUSD: u.CostUSD,
+	}); err != nil {
+		return fmt.Errorf("total usage: %w", err)
 	}
-	if u.CostUSD != nil && (*u.CostUSD < 0 || math.IsNaN(*u.CostUSD) || math.IsInf(*u.CostUSD, 0)) {
-		return errors.New("usage cost must be finite and non-negative when known")
+	if u.Steps < 0 {
+		return errors.New("usage steps cannot be negative")
 	}
 	if u.Duration < 0 {
 		return errors.New("usage duration cannot be negative")
+	}
+	for model, usage := range u.ByModel {
+		if strings.TrimSpace(model) == "" {
+			return errors.New("usage has an empty model key")
+		}
+		if err := validateModelUsage(usage); err != nil {
+			return fmt.Errorf("model usage %q: %w", model, err)
+		}
+	}
+	return nil
+}
+
+func validateModelUsage(usage ModelUsage) error {
+	if usage.InputTokens < 0 || usage.OutputTokens < 0 || usage.CacheReadTokens < 0 ||
+		usage.CacheWriteTokens < 0 || usage.ReasoningTokens < 0 {
+		return errors.New("token counts cannot be negative")
+	}
+	if usage.CostUSD != nil && (*usage.CostUSD < 0 || math.IsNaN(*usage.CostUSD) || math.IsInf(*usage.CostUSD, 0)) {
+		return errors.New("cost must be finite and non-negative when known")
 	}
 	return nil
 }
@@ -260,6 +301,18 @@ func (block Block) validateEnvelope(completed bool) error {
 	if block.Kind != BlockAssistant && len(block.Images) != 0 {
 		return fmt.Errorf("%s block %s carries inline images", block.Kind, block.ID)
 	}
+	if block.Kind == BlockTool && !block.CreatedAt.IsZero() {
+		return fmt.Errorf("tool block %s carries a message creation time", block.ID)
+	}
+	if block.Kind != BlockReasoning && block.Redacted {
+		return fmt.Errorf("%s block %s is marked as redacted reasoning", block.Kind, block.ID)
+	}
+	if block.DroppedMessages < 0 {
+		return fmt.Errorf("block %s has a negative dropped-message count", block.ID)
+	}
+	if block.Kind != BlockNotice && block.DroppedMessages != 0 {
+		return fmt.Errorf("%s block %s carries a dropped-message count", block.Kind, block.ID)
+	}
 	return nil
 }
 
@@ -372,23 +425,51 @@ func validatePlan(items []PlanItem) error {
 }
 
 func validateUsageProgress(previous, next Usage) error {
+	if err := validateModelUsageProgress("total", ModelUsage{
+		InputTokens: previous.InputTokens, OutputTokens: previous.OutputTokens,
+		CacheReadTokens: previous.CacheReadTokens, CacheWriteTokens: previous.CacheWriteTokens,
+		ReasoningTokens: previous.ReasoningTokens, CostUSD: previous.CostUSD,
+	}, ModelUsage{
+		InputTokens: next.InputTokens, OutputTokens: next.OutputTokens,
+		CacheReadTokens: next.CacheReadTokens, CacheWriteTokens: next.CacheWriteTokens,
+		ReasoningTokens: next.ReasoningTokens, CostUSD: next.CostUSD,
+	}); err != nil {
+		return err
+	}
 	switch {
-	case next.InputTokens < previous.InputTokens:
-		return errors.New("input-token usage regressed")
-	case next.OutputTokens < previous.OutputTokens:
-		return errors.New("output-token usage regressed")
-	case next.CacheReadTokens < previous.CacheReadTokens:
-		return errors.New("cache-read usage regressed")
-	case next.CacheWriteTokens < previous.CacheWriteTokens:
-		return errors.New("cache-write usage regressed")
-	case next.ReasoningTokens < previous.ReasoningTokens:
-		return errors.New("reasoning-token usage regressed")
-	case previous.CostUSD != nil && next.CostUSD == nil:
-		return errors.New("usage cost became unknown")
-	case previous.CostUSD != nil && next.CostUSD != nil && *next.CostUSD < *previous.CostUSD:
-		return errors.New("cost usage regressed")
+	case next.Steps < previous.Steps:
+		return errors.New("step usage regressed")
 	case next.Duration < previous.Duration:
 		return errors.New("active duration regressed")
+	}
+	for model, previousUsage := range previous.ByModel {
+		nextUsage, exists := next.ByModel[model]
+		if !exists {
+			return fmt.Errorf("model usage %q disappeared", model)
+		}
+		if err := validateModelUsageProgress("model "+model, previousUsage, nextUsage); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateModelUsageProgress(label string, previous, next ModelUsage) error {
+	switch {
+	case next.InputTokens < previous.InputTokens:
+		return fmt.Errorf("%s input-token usage regressed", label)
+	case next.OutputTokens < previous.OutputTokens:
+		return fmt.Errorf("%s output-token usage regressed", label)
+	case next.CacheReadTokens < previous.CacheReadTokens:
+		return fmt.Errorf("%s cache-read usage regressed", label)
+	case next.CacheWriteTokens < previous.CacheWriteTokens:
+		return fmt.Errorf("%s cache-write usage regressed", label)
+	case next.ReasoningTokens < previous.ReasoningTokens:
+		return fmt.Errorf("%s reasoning-token usage regressed", label)
+	case previous.CostUSD != nil && next.CostUSD == nil:
+		return fmt.Errorf("%s cost became unknown", label)
+	case previous.CostUSD != nil && next.CostUSD != nil && *next.CostUSD < *previous.CostUSD:
+		return fmt.Errorf("%s cost usage regressed", label)
 	default:
 		return nil
 	}

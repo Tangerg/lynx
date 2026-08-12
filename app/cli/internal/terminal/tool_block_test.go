@@ -3,6 +3,7 @@ package terminal
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Tangerg/oolong/components/headless"
 	"github.com/Tangerg/oolong/components/kit"
@@ -167,6 +168,32 @@ func TestKnownToolAlsoPresentsCompleteArgumentsAndResult(t *testing.T) {
 		!strings.Contains(presentation.Sections[0].Text, "timeoutMs") ||
 		!strings.Contains(presentation.Sections[1].Text, "truncated") {
 		t.Fatalf("known tool presentation = %+v", presentation)
+	}
+}
+
+func TestToolDetailsPresentSafetyAndLifecycleMetadata(t *testing.T) {
+	started := time.Date(2026, time.August, 12, 9, 0, 0, 0, time.UTC)
+	presentation := presentShellTool(agent.ToolCall{
+		Kind: agent.ToolShell, Command: "go test ./...", Status: agent.ToolOK,
+		Safety: agent.ToolSafetyExec, StartedAt: started, FinishedAt: started.Add(2 * time.Second),
+	})
+	if len(presentation.Sections) == 0 || presentation.Sections[0].Title != "Execution" ||
+		!strings.Contains(presentation.Sections[0].Text, "safety   exec") ||
+		!strings.Contains(presentation.Sections[0].Text, "started  2026-08-12T09:00:00Z") ||
+		!strings.Contains(presentation.Sections[0].Text, "finished 2026-08-12T09:00:02Z") {
+		t.Fatalf("tool lifecycle presentation = %+v", presentation)
+	}
+}
+
+func TestToolDetailsPreserveStructuredProblems(t *testing.T) {
+	presentation := presentUnknownTool(agent.ToolCall{
+		Kind: agent.ToolUnknown, Name: "provider_tool", Status: agent.ToolError,
+		ProblemJSON: []byte(`{"type":"provider_rate_limited","retryAfterSeconds":2,"docUrl":"https://docs.example/errors/rate-limit"}`),
+	})
+	if len(presentation.Sections) != 1 || presentation.Sections[0].Title != "Problem" ||
+		!strings.Contains(presentation.Sections[0].Text, "retryAfterSeconds") ||
+		!strings.Contains(presentation.Sections[0].Text, "docs.example") {
+		t.Fatalf("tool problem presentation = %+v", presentation)
 	}
 }
 

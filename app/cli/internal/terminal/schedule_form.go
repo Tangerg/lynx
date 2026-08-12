@@ -64,7 +64,11 @@ func (draft scheduleFormDraft) patch(original schedule.Schedule) (schedule.Patch
 	}
 	workspace := strings.TrimSpace(draft.workspace)
 	if workspace != original.Workspace {
-		patch.Workspace = &workspace
+		if workspace == "" {
+			patch.Workspace = schedule.UseDefaultWorkspace()
+		} else {
+			patch.Workspace = schedule.BindWorkspace(workspace)
+		}
 	}
 	provider, model := strings.TrimSpace(draft.provider), strings.TrimSpace(draft.model)
 	if provider != original.Provider || model != original.Model {
@@ -102,7 +106,7 @@ func (a *app) openScheduleForm(mode scheduleFormMode, scheduled schedule.Schedul
 		textField("Title", "Optional name", &draft.title, nil),
 		textField("Instructions", "Prompt sent when this schedule fires", &draft.instructions, requiredText),
 		textField("Cron", "0 9 * * 1-5", &draft.cron, validateCronShape),
-		textField("Workspace", "Optional absolute path", &draft.workspace, nil),
+		textField("Workspace", "Empty uses the runtime default", &draft.workspace, nil),
 		textField("Provider", "Optional; set together with model", &draft.provider, nil),
 		textField("Model", "Optional; set together with provider", &draft.model, func(string) error {
 			return validateScheduleModelPair(draft.provider, draft.model)

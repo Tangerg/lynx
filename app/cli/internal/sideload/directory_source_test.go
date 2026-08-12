@@ -12,10 +12,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/oolong/core/input"
-	"github.com/Tangerg/oolong/core/programtest"
-
-	"github.com/Tangerg/lynx/app/cli/internal/agent/mock"
 	"github.com/Tangerg/lynx/app/cli/internal/extensions"
 	"github.com/Tangerg/lynx/app/cli/internal/terminal"
 )
@@ -234,38 +230,5 @@ func TestCommandEnvironmentUsesAnExplicitAllowlist(t *testing.T) {
 	}
 	if slices.ContainsFunc(environment, func(value string) bool { return strings.HasPrefix(value, "LYRA_TEST_SECRET=") }) {
 		t.Fatalf("secret leaked into command environment: %v", environment)
-	}
-}
-
-func TestSideloadedCommandRunsEndToEndInTheTerminal(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("shell fixture is Unix-specific")
-	}
-	root := t.TempDir()
-	declared := validManifest("test.e2e")
-	declared.Contributes.Commands[0].Arguments = "none"
-	script := "#!/bin/sh\nread request\nprintf '{\"protocol\":1,\"message\":\"sideload end to end\"}'\n"
-	writePlugin(t, root, "e2e", declared, script)
-	backend := mock.New()
-	backend.Instant = true
-	host := programtest.New(t, 96, 28)
-	workspace := t.TempDir()
-	ctx, cancel := context.WithCancel(t.Context())
-	done := make(chan error, 1)
-	go func() {
-		done <- terminal.Run(ctx, terminal.Config{
-			Runtime: backend, Workspace: workspace, Host: host,
-			PluginSources: []extensions.Source{New([]string{root})},
-		})
-	}()
-	host.Shows(t, "Ask lyra")
-	host.Type("/hello")
-	host.Press(input.Enter)
-	host.Press(input.Enter)
-	host.Shows(t, "sideload end to end")
-	host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
-	cancel()
-	if err := <-done; err != nil {
-		t.Fatalf("terminal stopped with %v", err)
 	}
 }

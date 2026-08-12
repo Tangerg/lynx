@@ -91,8 +91,10 @@ func (r *Runtime) Update(ctx context.Context, patch schedule.Patch) (schedule.Sc
 		Provider: clonePointer(patch.Provider), Model: clonePointer(patch.Model),
 		Cron: clonePointer(patch.Cron), Enabled: clonePointer(patch.Enabled),
 	}
-	if patch.Workspace != nil {
-		request.Workspace = &protocol.WorkspaceRef{Path: *patch.Workspace}
+	if workspace, bound := patch.Workspace.Binding(); bound {
+		request.Workspace = &protocol.WorkspaceRef{Path: workspace}
+	} else if patch.Workspace.UsesDefault() {
+		request.WorkspaceMode = protocol.ScheduleWorkspaceDefault
 	}
 	updated, err := r.schedules.UpdateSchedule(ctx, request, options)
 	return projectScheduleResult("update schedule", updated, err)

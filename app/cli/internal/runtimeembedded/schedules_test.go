@@ -137,3 +137,29 @@ func TestScheduleAdapterConsumesEveryOperationAndPaginates(t *testing.T) {
 		}
 	}
 }
+
+func TestScheduleAdapterProjectsWorkspaceChangeSemantics(t *testing.T) {
+	now := time.Date(2026, time.August, 12, 10, 0, 0, 0, time.UTC)
+	stub := &scheduleBindingStub{t: t, now: now, keys: make(map[string]struct{})}
+	runtime := &Runtime{schedules: stub, meta: requestMeta("test")}
+
+	_, err := runtime.Update(t.Context(), schedule.Patch{
+		ID: "sch_1", ExpectedRevision: 1, Workspace: schedule.BindWorkspace("/workspace"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stub.updated.Workspace == nil || stub.updated.Workspace.Path != "/workspace" || stub.updated.WorkspaceMode != "" {
+		t.Fatalf("bound workspace request = %+v", stub.updated)
+	}
+
+	_, err = runtime.Update(t.Context(), schedule.Patch{
+		ID: "sch_1", ExpectedRevision: 2, Workspace: schedule.UseDefaultWorkspace(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stub.updated.Workspace != nil || stub.updated.WorkspaceMode != protocol.ScheduleWorkspaceDefault {
+		t.Fatalf("default workspace request = %+v", stub.updated)
+	}
+}

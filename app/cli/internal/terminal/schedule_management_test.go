@@ -125,8 +125,10 @@ func applySchedulePatch(scheduled *schedule.Schedule, patch schedule.Patch) {
 	if patch.Instructions != nil {
 		scheduled.Instructions = *patch.Instructions
 	}
-	if patch.Workspace != nil {
-		scheduled.Workspace = *patch.Workspace
+	if workspace, bound := patch.Workspace.Binding(); bound {
+		scheduled.Workspace = workspace
+	} else if patch.Workspace.UsesDefault() {
+		scheduled.Workspace = ""
 	}
 	if patch.Provider != nil {
 		scheduled.Provider, scheduled.Model = *patch.Provider, *patch.Model
@@ -302,13 +304,14 @@ func TestSchedulesChangedRefetchesOnlyTheOpenScheduleReader(t *testing.T) {
 	stop()
 }
 
-func TestScheduleDraftRejectsWorkspaceClearingAndAmbiguousIdentity(t *testing.T) {
+func TestScheduleDraftClearsWorkspaceBindingAndRejectsAmbiguousIdentity(t *testing.T) {
 	t.Parallel()
 	original := newScheduleServiceStub().schedules[0]
 	draft := newScheduleFormDraft(scheduleFormUpdate, original, "")
 	draft.workspace = ""
-	if _, _, err := draft.patch(original); err == nil {
-		t.Fatal("schedule draft cleared a workspace the protocol cannot clear")
+	patch, changed, err := draft.patch(original)
+	if err != nil || !changed || !patch.Workspace.UsesDefault() {
+		t.Fatalf("workspace clearing patch = (%+v, %v, %v)", patch, changed, err)
 	}
 	duplicate := cloneSchedule(original)
 	duplicate.ID = "sch_review_other"

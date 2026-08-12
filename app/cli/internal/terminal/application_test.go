@@ -58,13 +58,19 @@ func runUIWithSettings(t *testing.T, backend agent.Runtime, configured settings.
 
 func runUIConfigured(t *testing.T, backend agent.Runtime, workspace string, configured *settings.Config, plugins ...extensions.Plugin) (*programtest.Host, func()) {
 	t.Helper()
+	return runUIFromConfig(t, Config{
+		Runtime: backend, Workspace: workspace, Plugins: plugins, Settings: configured,
+	})
+}
+
+func runUIFromConfig(t *testing.T, config Config) (*programtest.Host, func()) {
+	t.Helper()
 	host := programtest.New(t, 96, 28)
 	ctx, cancel := context.WithCancel(t.Context())
 	done := make(chan error, 1)
+	config.Host = host
 	go func() {
-		done <- Run(ctx, Config{
-			Runtime: backend, Workspace: workspace, Plugins: plugins, Host: host, Settings: configured,
-		})
+		done <- Run(ctx, config)
 	}()
 
 	var once sync.Once
@@ -720,6 +726,34 @@ func TestAPluginCanAddACommandWithoutChangingTheShell(t *testing.T) {
 		t.Fatalf("plugin setup ran %d times, want 3", got)
 	}
 
+	host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
+	stop()
+}
+
+func TestAPluginSourceCanAddACommand(t *testing.T) {
+	plugin := extensions.Plugin{
+		ID: "test.source", Version: "1.0.0", APIVersion: extensions.HostAPIVersion,
+		Capabilities: []extensions.Capability{SlashCommands.Capability()},
+		Setup: func(scope *extensions.Scope) error {
+			_, err := extensions.Contribute(scope, SlashCommands, SlashCommand{
+				Descriptor: CommandDescriptor{Name: "source-command", Title: "run a source command"},
+				Execute: func(context.Context, CommandRequest) (CommandResult, error) {
+					return CommandResult{Message: "plugin source command complete"}, nil
+				},
+			}, extensions.Contribution{})
+			return err
+		},
+	}
+	backend := mock.New()
+	backend.Instant = true
+	host, stop := runUIFromConfig(t, Config{
+		Runtime: backend, Workspace: "/tmp/lyra-cli-test",
+		PluginSources: []extensions.Source{extensions.StaticSource{Name: "test", Plugins: []extensions.Plugin{plugin}}},
+	})
+	host.Shows(t, "Ask lyra")
+	host.Type("/source-command")
+	host.Press(input.Enter)
+	host.Shows(t, "plugin source command complete")
 	host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
 	stop()
 }

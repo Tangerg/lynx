@@ -93,15 +93,18 @@ type runOptionsJSON struct {
 }
 
 type blockFrame struct {
-	ID          string            `json:"id"`
-	RunID       string            `json:"runId,omitzero"`
-	Status      string            `json:"status"`
-	Kind        string            `json:"kind"`
-	Text        string            `json:"text,omitzero"`
-	Attachments []attachmentFrame `json:"attachments,omitzero"`
-	Images      []imageFrame      `json:"images,omitzero"`
-	Question    *interactionJSON  `json:"question,omitzero"`
-	Tool        *toolFrame        `json:"tool,omitzero"`
+	ID              string            `json:"id"`
+	RunID           string            `json:"runId,omitzero"`
+	Status          string            `json:"status"`
+	Kind            string            `json:"kind"`
+	CreatedAt       time.Time         `json:"createdAt,omitzero"`
+	Redacted        bool              `json:"redacted,omitzero"`
+	DroppedMessages int               `json:"droppedMessages,omitzero"`
+	Text            string            `json:"text,omitzero"`
+	Attachments     []attachmentFrame `json:"attachments,omitzero"`
+	Images          []imageFrame      `json:"images,omitzero"`
+	Question        *interactionJSON  `json:"question,omitzero"`
+	Tool            *toolFrame        `json:"tool,omitzero"`
 }
 
 type attachmentFrame struct {
@@ -126,6 +129,9 @@ type toolFrame struct {
 	Name       string          `json:"name"`
 	Summary    string          `json:"summary,omitzero"`
 	Status     string          `json:"status"`
+	Safety     string          `json:"safetyClass,omitzero"`
+	StartedAt  time.Time       `json:"startedAt,omitzero"`
+	FinishedAt time.Time       `json:"finishedAt,omitzero"`
 	Command    string          `json:"command,omitzero"`
 	Path       string          `json:"path,omitzero"`
 	Query      string          `json:"query,omitzero"`
@@ -133,6 +139,7 @@ type toolFrame struct {
 	Output     string          `json:"output,omitzero"`
 	Arguments  json.RawMessage `json:"arguments,omitempty"`
 	Result     json.RawMessage `json:"result,omitempty"`
+	Problem    json.RawMessage `json:"problem,omitempty"`
 	Diff       string          `json:"diff,omitzero"`
 	ExitCode   *int            `json:"exitCode,omitzero"`
 	DurationMS float64         `json:"durationMs,omitzero"`
@@ -172,19 +179,31 @@ type questionOptionJSON struct {
 }
 
 type outcomeJSON struct {
-	Status string `json:"status"`
-	Error  string `json:"error,omitzero"`
-	Detail string `json:"detail,omitzero"`
+	Status  string          `json:"status"`
+	Error   string          `json:"error,omitzero"`
+	Problem json.RawMessage `json:"problem,omitempty"`
+	Detail  string          `json:"detail,omitzero"`
 }
 
 type usageJSON struct {
+	InputTokens      int64                     `json:"inputTokens"`
+	OutputTokens     int64                     `json:"outputTokens"`
+	CacheReadTokens  int64                     `json:"cacheReadTokens,omitzero"`
+	CacheWriteTokens int64                     `json:"cacheWriteTokens,omitzero"`
+	ReasoningTokens  int64                     `json:"reasoningTokens,omitzero"`
+	CostUSD          *float64                  `json:"costUsd,omitempty"`
+	ByModel          map[string]modelUsageJSON `json:"byModel,omitempty"`
+	Steps            int                       `json:"steps,omitzero"`
+	DurationMS       float64                   `json:"durationMs,omitzero"`
+}
+
+type modelUsageJSON struct {
 	InputTokens      int64    `json:"inputTokens"`
 	OutputTokens     int64    `json:"outputTokens"`
 	CacheReadTokens  int64    `json:"cacheReadTokens,omitzero"`
 	CacheWriteTokens int64    `json:"cacheWriteTokens,omitzero"`
 	ReasoningTokens  int64    `json:"reasoningTokens,omitzero"`
 	CostUSD          *float64 `json:"costUsd,omitempty"`
-	DurationMS       float64  `json:"durationMs,omitzero"`
 }
 
 // Render writes one line. As with [Text], the first error sticks.
@@ -307,21 +326,40 @@ func encodeEventFrame(envelope agent.RunEvent) (eventRecord, error) {
 func encodeFinishedFrame(event agent.RunFinished) eventRecord {
 	return eventRecord{
 		Type:    "run.finished",
-		Outcome: &outcomeJSON{Status: string(event.Outcome.Status), Error: event.Outcome.Error, Detail: event.Outcome.Detail},
+		Outcome: encodeOutcome(event.Outcome),
 		Usage:   encodeUsage(event.Usage),
 	}
 }
 
+func encodeOutcome(outcome agent.Outcome) *outcomeJSON {
+	return &outcomeJSON{
+		Status: string(outcome.Status), Error: outcome.Error,
+		Problem: json.RawMessage(outcome.ProblemJSON), Detail: outcome.Detail,
+	}
+}
+
 func encodeUsage(usage agent.Usage) *usageJSON {
-	return &usageJSON{
+	encoded := &usageJSON{
 		InputTokens:      usage.InputTokens,
 		OutputTokens:     usage.OutputTokens,
 		CacheReadTokens:  usage.CacheReadTokens,
 		CacheWriteTokens: usage.CacheWriteTokens,
 		ReasoningTokens:  usage.ReasoningTokens,
 		CostUSD:          cloneFloat64(usage.CostUSD),
+		Steps:            usage.Steps,
 		DurationMS:       float64(usage.Duration.Milliseconds()),
 	}
+	if usage.ByModel != nil {
+		encoded.ByModel = make(map[string]modelUsageJSON, len(usage.ByModel))
+		for model, value := range usage.ByModel {
+			encoded.ByModel[model] = modelUsageJSON{
+				InputTokens: value.InputTokens, OutputTokens: value.OutputTokens,
+				CacheReadTokens: value.CacheReadTokens, CacheWriteTokens: value.CacheWriteTokens,
+				ReasoningTokens: value.ReasoningTokens, CostUSD: cloneFloat64(value.CostUSD),
+			}
+		}
+	}
+	return encoded
 }
 
 func cloneFloat64(value *float64) *float64 {
@@ -383,7 +421,10 @@ func encodeInteraction(interaction agent.Interaction) *interactionJSON {
 func (j *NDJSON) Close() error { return j.err }
 
 func encodeBlock(b agent.Block) *blockFrame {
-	out := &blockFrame{ID: b.ID, RunID: b.RunID, Status: string(b.Status), Kind: string(b.Kind), Text: b.Text}
+	out := &blockFrame{
+		ID: b.ID, RunID: b.RunID, Status: string(b.Status), Kind: string(b.Kind),
+		CreatedAt: b.CreatedAt, Redacted: b.Redacted, DroppedMessages: b.DroppedMessages, Text: b.Text,
+	}
 	for _, attachment := range b.Attachments {
 		out.Attachments = append(out.Attachments, attachmentFrame{
 			ID: attachment.ID, Kind: string(attachment.Kind), Name: attachment.Name,
@@ -414,6 +455,9 @@ func encodeTool(tool *agent.ToolCall) *toolFrame {
 		Name:       tool.Name,
 		Summary:    tool.Summary,
 		Status:     string(tool.Status),
+		Safety:     string(tool.Safety),
+		StartedAt:  tool.StartedAt,
+		FinishedAt: tool.FinishedAt,
 		Command:    tool.Command,
 		Path:       tool.Path,
 		Query:      tool.Query,
@@ -421,6 +465,7 @@ func encodeTool(tool *agent.ToolCall) *toolFrame {
 		Output:     tool.Output,
 		Arguments:  json.RawMessage(tool.ArgumentsJSON),
 		Result:     json.RawMessage(tool.ResultJSON),
+		Problem:    json.RawMessage(tool.ProblemJSON),
 		Diff:       tool.Diff,
 		ExitCode:   tool.ExitCode,
 		DurationMS: float64(tool.Duration.Milliseconds()),

@@ -81,7 +81,7 @@ func (projection runEventProjection) segmentProgress() (projectedRunEvent, error
 		progress.ContextTokens = new(*value.ContextTokens)
 	}
 	if value.Usage != nil {
-		usage := projectModelUsage(*value.Usage)
+		usage := projectUsageBreakdown(*value.Usage)
 		progress.Usage = &usage
 	}
 	return includeRunEvent(progress), nil
@@ -166,6 +166,10 @@ func (projection runEventProjection) segmentFinished() (projectedRunEvent, error
 	case protocol.SegmentSuspended:
 		return includeRunEvent(agent.RunSuspended{Usage: usage}), nil
 	default:
-		return includeRunEvent(agent.RunFinished{Outcome: projectOutcome(*stream.Outcome), Usage: usage}), nil
+		outcome, err := projectOutcome(*stream.Outcome)
+		if err != nil {
+			return projectedRunEvent{}, fmt.Errorf("event %s: %w", projection.source.EventID, err)
+		}
+		return includeRunEvent(agent.RunFinished{Outcome: outcome, Usage: usage}), nil
 	}
 }

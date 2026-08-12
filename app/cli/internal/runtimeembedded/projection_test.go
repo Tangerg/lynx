@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -16,14 +17,18 @@ import (
 
 func TestProjectToolPreservesStructuredDetails(t *testing.T) {
 	duration := int64(1250)
-	tool, err := projectTool(&protocol.ToolInvocation{
+	started := time.Date(2026, time.August, 12, 9, 0, 0, 0, time.UTC)
+	finished := started.Add(2 * time.Second)
+	tool, err := projectTool(toolProjection{invocation: &protocol.ToolInvocation{
 		Name: "shell", Arguments: map[string]any{"command": "go test ./..."},
 		Result: map[string]any{"output": "ok", "exitCode": json.Number("0")},
-	}, protocol.ItemStatusCompleted, &duration, nil)
+	}, status: protocol.ItemStatusCompleted, safety: protocol.SafetyClassExec,
+		startedAt: started, finishedAt: finished, durationMillis: &duration})
 	if err != nil {
 		t.Fatalf("projectTool: %v", err)
 	}
 	if tool.Kind != agent.ToolShell || tool.Command != "go test ./..." || tool.Output != "ok" ||
+		tool.Safety != agent.ToolSafetyExec || !tool.StartedAt.Equal(started) || !tool.FinishedAt.Equal(finished) ||
 		tool.ExitCode == nil || *tool.ExitCode != 0 || tool.Duration != 1250*time.Millisecond ||
 		!json.Valid(tool.ArgumentsJSON) || !bytes.Contains(tool.ArgumentsJSON, []byte(`"command":"go test ./..."`)) ||
 		!json.Valid(tool.ResultJSON) || !bytes.Contains(tool.ResultJSON, []byte(`"output":"ok"`)) {
@@ -32,14 +37,14 @@ func TestProjectToolPreservesStructuredDetails(t *testing.T) {
 }
 
 func TestProjectUnknownToolPreservesCompleteArgumentsAndResult(t *testing.T) {
-	tool, err := projectTool(&protocol.ToolInvocation{
+	tool, err := projectTool(toolProjection{invocation: &protocol.ToolInvocation{
 		Name: "mcp__calendar__create_event",
 		Arguments: map[string]any{
 			"calendar": "work", "guests": []any{"a@example.com", "b@example.com"},
 			"metadata": map[string]any{"source": "lyra"},
 		},
 		Result: map[string]any{"eventId": "evt_123", "accepted": true},
-	}, protocol.ItemStatusCompleted, nil, nil)
+	}, status: protocol.ItemStatusCompleted})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -53,8 +58,10 @@ func TestProjectUnknownToolPreservesCompleteArgumentsAndResult(t *testing.T) {
 
 func TestProjectAssistantMessagePreservesInlineImages(t *testing.T) {
 	data := []byte("generated image bytes")
+	created := time.Date(2026, time.August, 12, 9, 0, 0, 0, time.UTC)
 	block, err := projectItem(protocol.Item{
 		ID: "answer", RunID: "run_1", Status: protocol.ItemStatusCompleted, Type: protocol.ItemTypeAgentMessage,
+		CreatedAt: created,
 		Content: []protocol.ContentBlock{
 			{Type: protocol.ContentBlockText, Text: "Generated chart"},
 			{Type: protocol.ContentBlockImage, Mime: "image/png", Data: base64.StdEncoding.EncodeToString(data)},
@@ -63,23 +70,88 @@ func TestProjectAssistantMessagePreservesInlineImages(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if block.Text != "Generated chart" || len(block.Images) != 1 || block.Images[0].Name != "image.png" ||
+	if !block.CreatedAt.Equal(created) || block.Text != "Generated chart" || len(block.Images) != 1 || block.Images[0].Name != "image.png" ||
 		block.Images[0].MIMEType != "image/png" || !bytes.Equal(block.Images[0].Data, data) || len(block.Attachments) != 0 {
 		t.Fatalf("assistant block = %+v", block)
 	}
 }
 
+func TestProjectItemPreservesReasoningAndCompactionMetadata(t *testing.T) {
+	created := time.Date(2026, time.August, 12, 9, 0, 0, 0, time.UTC)
+	reasoning, err := projectItem(protocol.Item{
+		ID: "reasoning", RunID: "run_1", Status: protocol.ItemStatusCompleted,
+		Type: protocol.ItemTypeReasoning, CreatedAt: created, Redacted: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reasoning.Redacted || !reasoning.CreatedAt.Equal(created) || reasoning.Text != "Reasoning redacted by provider." {
+		t.Fatalf("reasoning = %+v", reasoning)
+	}
+
+	compaction, err := projectItem(protocol.Item{
+		ID: "compaction", RunID: "run_1", Status: protocol.ItemStatusCompleted,
+		Type: protocol.ItemTypeCompaction, CreatedAt: created, DroppedMessages: 17,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if compaction.DroppedMessages != 17 || !strings.Contains(compaction.Text, "17 messages") {
+		t.Fatalf("compaction = %+v", compaction)
+	}
+}
+
+func TestProjectRunUsagePreservesStepsAndPerModelAttribution(t *testing.T) {
+	totalCost, modelCost := 0.4, 0.25
+	usage := projectUsage(protocol.RunMetrics{
+		Steps: 4, ActiveDurationMillis: 1250,
+		Usage: &protocol.Usage{
+			ModelUsage: protocol.ModelUsage{InputTokens: 100, CostUSD: &totalCost},
+			ByModel: map[string]protocol.ModelUsage{
+				"deepseek/v4": {InputTokens: 75, ReasoningTokens: 12, CostUSD: &modelCost},
+			},
+		},
+	})
+	model := usage.ByModel["deepseek/v4"]
+	if usage.Steps != 4 || usage.Duration != 1250*time.Millisecond || usage.InputTokens != 100 ||
+		model.InputTokens != 75 || model.ReasoningTokens != 12 || model.CostUSD == nil || *model.CostUSD != modelCost {
+		t.Fatalf("usage = %+v", usage)
+	}
+	*model.CostUSD = 9
+	if modelCost != 0.25 {
+		t.Fatal("projected model cost aliases runtime usage")
+	}
+}
+
+func TestProjectOutcomePreservesStructuredProblem(t *testing.T) {
+	outcome, err := projectOutcome(protocol.SegmentOutcome{
+		Type: protocol.SegmentFailed,
+		Error: &protocol.ProblemData{
+			Type: protocol.ProblemRateLimited, Detail: "quota exhausted",
+			DocURL: "https://docs.example/rate-limit", RetryAfterSeconds: 2,
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if outcome.Status != agent.OutcomeFailed || outcome.Error != "quota exhausted" ||
+		!bytes.Contains(outcome.ProblemJSON, []byte(`"retryAfterSeconds":2`)) ||
+		!bytes.Contains(outcome.ProblemJSON, []byte(`"docUrl":"https://docs.example/rate-limit"`)) {
+		t.Fatalf("outcome = %+v", outcome)
+	}
+}
+
 func TestProjectToolRecognizesRootRunCancellation(t *testing.T) {
-	tool, err := projectTool(
-		&protocol.ToolInvocation{Name: "shell", Arguments: map[string]any{"command": "sleep 30"}},
-		protocol.ItemStatusIncomplete,
-		nil,
-		&protocol.ProblemData{Type: protocol.ProblemToolCanceled, Detail: "run canceled"},
-	)
+	tool, err := projectTool(toolProjection{
+		invocation: &protocol.ToolInvocation{Name: "shell", Arguments: map[string]any{"command": "sleep 30"}},
+		status:     protocol.ItemStatusIncomplete,
+		problem:    &protocol.ProblemData{Type: protocol.ProblemToolCanceled, Detail: "run canceled"},
+	})
 	if err != nil {
 		t.Fatalf("projectTool: %v", err)
 	}
-	if tool.Status != agent.ToolCanceled || tool.Output != "run canceled" {
+	if tool.Status != agent.ToolCanceled || tool.Output != "run canceled" ||
+		!bytes.Contains(tool.ProblemJSON, []byte(`"type":"tool_canceled"`)) {
 		t.Fatalf("tool = %+v", tool)
 	}
 }
@@ -210,10 +282,12 @@ func TestRunProfileAcceptsSubagentTrees(t *testing.T) {
 }
 
 func TestProjectChildRunPreservesLineage(t *testing.T) {
+	created := time.Date(2026, time.August, 12, 9, 0, 0, 0, time.UTC)
 	projected, err := projectRun(protocol.RunRef{
 		RunSummary: protocol.RunSummary{
 			ID: "run_child", SessionID: "ses_1", Status: protocol.RunStatusRunning,
 			SpawnedByItemID: "item_delegate", ParentRunID: "run_root", RootRunID: "run_root",
+			CreatedAt: created,
 		},
 		ActiveSegmentID: "seg_child",
 		ProtocolProfile: protocol.RunProtocolProfile{
@@ -225,7 +299,7 @@ func TestProjectChildRunPreservesLineage(t *testing.T) {
 		t.Fatalf("projectRun: %v", err)
 	}
 	want := agent.RunLineage{SpawnedByBlockID: "item_delegate", ParentRunID: "run_root", RootRunID: "run_root"}
-	if projected.Lineage != want {
+	if projected.Lineage != want || !projected.CreatedAt.Equal(created) {
 		t.Fatalf("lineage = %+v, want %+v", projected.Lineage, want)
 	}
 }

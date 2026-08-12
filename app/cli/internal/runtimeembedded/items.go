@@ -17,7 +17,9 @@ import (
 func projectItem(value protocol.Item) (agent.Block, error) {
 	projection := itemProjection{
 		source: value,
-		block:  agent.Block{ID: value.ID, RunID: value.RunID, Status: agent.BlockStatus(value.Status)},
+		block: agent.Block{
+			ID: value.ID, RunID: value.RunID, Status: agent.BlockStatus(value.Status), CreatedAt: value.CreatedAt,
+		},
 	}
 	if err := projection.project(); err != nil {
 		return agent.Block{}, err
@@ -44,6 +46,10 @@ func (projection *itemProjection) project() error {
 	case protocol.ItemTypeReasoning:
 		projection.block.Kind = agent.BlockReasoning
 		projection.block.Text = projection.source.Text
+		projection.block.Redacted = projection.source.Redacted
+		if projection.block.Redacted && strings.TrimSpace(projection.block.Text) == "" {
+			projection.block.Text = "Reasoning redacted by provider."
+		}
 	case protocol.ItemTypeQuestion:
 		projection.block.Kind = agent.BlockQuestion
 		question, err := projectQuestion(projection.source.RunID, projection.source.ID, projection.source.Question)
@@ -53,7 +59,12 @@ func (projection *itemProjection) project() error {
 		projection.block.Question = &question
 	case protocol.ItemTypeToolCall:
 		projection.block.Kind = agent.BlockTool
-		tool, err := projectTool(projection.source.Tool, projection.source.Status, projection.source.DurationMillis, projection.source.Error)
+		tool, err := projectTool(toolProjection{
+			invocation: projection.source.Tool,
+			status:     projection.source.Status, safety: projection.source.SafetyClass,
+			startedAt: projection.source.StartedAt, finishedAt: projection.source.FinishedAt,
+			durationMillis: projection.source.DurationMillis, problem: projection.source.Error,
+		})
 		if err != nil {
 			return fmt.Errorf("item %s: %w", projection.source.ID, err)
 		}
@@ -88,6 +99,7 @@ func (projection *itemProjection) projectMessage(allowAttachments bool) error {
 func (projection *itemProjection) projectCompaction() {
 	projection.block.Kind = agent.BlockNotice
 	projection.block.Text = projection.source.Summary
+	projection.block.DroppedMessages = projection.source.DroppedMessages
 	if strings.TrimSpace(projection.block.Text) == "" {
 		projection.block.Text = fmt.Sprintf("Conversation compacted; %d messages removed.", projection.source.DroppedMessages)
 	}
@@ -145,12 +157,25 @@ func projectQuestion(runID, itemID string, value *protocol.Question) (agent.Ques
 	return question, nil
 }
 
-func projectTool(value *protocol.ToolInvocation, status protocol.ItemStatus, durationMillis *int64, problem *protocol.ProblemData) (agent.ToolCall, error) {
+type toolProjection struct {
+	invocation     *protocol.ToolInvocation
+	status         protocol.ItemStatus
+	safety         protocol.SafetyClass
+	startedAt      time.Time
+	finishedAt     time.Time
+	durationMillis *int64
+	problem        *protocol.ProblemData
+}
+
+func projectTool(projection toolProjection) (agent.ToolCall, error) {
+	value := projection.invocation
 	if value == nil {
 		return agent.ToolCall{}, errors.New("tool payload is absent")
 	}
 	tool := agent.ToolCall{
 		Kind: kindForTool(value.Name), Name: value.Name, Summary: toolSummary(value),
+		Safety:    agent.ToolSafetyClass(projection.safety),
+		StartedAt: projection.startedAt, FinishedAt: projection.finishedAt,
 		Command: stringArgument(value.Arguments, "command"),
 		Path:    firstStringArgument(value.Arguments, "path", "file", "filename"),
 		Query:   firstStringArgument(value.Arguments, "query", "pattern", "search"),
@@ -168,26 +193,33 @@ func projectTool(value *protocol.ToolInvocation, status protocol.ItemStatus, dur
 		}
 		tool.ResultJSON = resultJSON
 	}
-	if durationMillis != nil {
-		tool.Duration = time.Duration(*durationMillis) * time.Millisecond
+	if projection.problem != nil {
+		problemJSON, err := encodeRuntimeProblem(projection.problem)
+		if err != nil {
+			return agent.ToolCall{}, err
+		}
+		tool.ProblemJSON = problemJSON
 	}
-	switch status {
+	if projection.durationMillis != nil {
+		tool.Duration = time.Duration(*projection.durationMillis) * time.Millisecond
+	}
+	switch projection.status {
 	case protocol.ItemStatusRunning:
 		tool.Status = agent.ToolRunning
 	case protocol.ItemStatusCompleted:
 		tool.Status = agent.ToolOK
 	case protocol.ItemStatusIncomplete:
 		tool.Status = agent.ToolError
-		if problem != nil && (problem.Type == protocol.ProblemDeniedByUser ||
-			problem.Type == protocol.ProblemChildRunCanceled || problem.Type == protocol.ProblemToolCanceled) {
+		if projection.problem != nil && (projection.problem.Type == protocol.ProblemDeniedByUser ||
+			projection.problem.Type == protocol.ProblemChildRunCanceled || projection.problem.Type == protocol.ProblemToolCanceled) {
 			tool.Status = agent.ToolCanceled
 		}
 	default:
-		return agent.ToolCall{}, fmt.Errorf("tool status %q is unsupported", status)
+		return agent.ToolCall{}, fmt.Errorf("tool status %q is unsupported", projection.status)
 	}
 	projectToolResult(&tool, value.Result)
-	if problem != nil && strings.TrimSpace(problem.Detail) != "" {
-		tool.Output = problem.Detail
+	if projection.problem != nil && strings.TrimSpace(projection.problem.Detail) != "" {
+		tool.Output = projection.problem.Detail
 	}
 	if err := tool.Validate(); err != nil {
 		return agent.ToolCall{}, err

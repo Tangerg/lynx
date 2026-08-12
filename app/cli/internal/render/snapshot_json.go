@@ -39,6 +39,8 @@ type runFrame struct {
 	Model            string          `json:"model,omitempty"`
 	Status           string          `json:"status"`
 	ActiveSegmentID  string          `json:"activeSegmentId,omitempty"`
+	CreatedAt        time.Time       `json:"createdAt,omitzero"`
+	FinishedAt       time.Time       `json:"finishedAt,omitzero"`
 	Limits           *runLimitsFrame `json:"limits,omitempty"`
 	Outcome          *outcomeJSON    `json:"outcome,omitempty"`
 	Usage            usageJSON       `json:"usage"`
@@ -130,13 +132,14 @@ func encodeRun(run agent.Run) runFrame {
 		ParentRunID:      run.Lineage.ParentRunID, RootRunID: run.Lineage.RootRunID,
 		Provider: run.Provider, Model: run.Model,
 		Status: string(run.Status), ActiveSegmentID: run.ActiveSegmentID,
+		CreatedAt: run.CreatedAt, FinishedAt: run.FinishedAt,
 		Usage: *encodeUsage(run.Usage),
 	}
 	if run.Limits != (agent.RunLimits{}) {
 		encoded.Limits = &runLimitsFrame{MaxTotalTokens: run.Limits.MaxTotalTokens, MaxSteps: run.Limits.MaxSteps, MaxBudgetUSD: run.Limits.MaxBudgetUSD}
 	}
 	if run.Status == agent.RunStatusFinished {
-		encoded.Outcome = &outcomeJSON{Status: string(run.Outcome.Status), Error: run.Outcome.Error, Detail: run.Outcome.Detail}
+		encoded.Outcome = encodeOutcome(run.Outcome)
 	}
 	return encoded
 }

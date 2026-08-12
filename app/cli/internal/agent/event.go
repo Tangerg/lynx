@@ -176,6 +176,7 @@ func CloneEvent(event Event) Event {
 		item.Usage = item.Usage.Clone()
 		return item
 	case RunFinished:
+		item.Outcome = item.Outcome.Clone()
 		item.Usage = item.Usage.Clone()
 		return item
 	default:
@@ -219,7 +220,7 @@ func equalEvent(left, right Event) bool {
 		return ok && item.Usage.Equal(other.Usage)
 	case RunFinished:
 		other, ok := right.(RunFinished)
-		return ok && item.Outcome == other.Outcome && item.Usage.Equal(other.Usage)
+		return ok && item.Outcome.Equal(other.Outcome) && item.Usage.Equal(other.Usage)
 	case nil:
 		return right == nil
 	default:

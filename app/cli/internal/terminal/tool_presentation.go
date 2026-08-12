@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
 )
@@ -130,7 +131,22 @@ func presentUnknownTool(call agent.ToolCall) ToolPresentation {
 }
 
 func toolSections(call agent.ToolCall, output ToolSection) []ToolSection {
-	sections := make([]ToolSection, 0, 4)
+	sections := make([]ToolSection, 0, 6)
+	metadata := make([]string, 0, 3)
+	if call.Safety != "" {
+		metadata = append(metadata, "safety   "+string(call.Safety))
+	}
+	if !call.StartedAt.IsZero() {
+		metadata = append(metadata, "started  "+call.StartedAt.Format(time.RFC3339))
+	}
+	if !call.FinishedAt.IsZero() {
+		metadata = append(metadata, "finished "+call.FinishedAt.Format(time.RFC3339))
+	}
+	if len(metadata) > 0 {
+		sections = append(sections, ToolSection{
+			Title: "Execution", Style: toolSectionCode, Language: "text", Text: strings.Join(metadata, "\n"),
+		})
+	}
 	if len(call.ArgumentsJSON) != 0 {
 		sections = append(sections, ToolSection{
 			Title: "Arguments", Style: toolSectionCode, Language: "json", Text: prettyJSON(call.ArgumentsJSON),
@@ -145,6 +161,11 @@ func toolSections(call agent.ToolCall, output ToolSection) []ToolSection {
 	if len(call.ResultJSON) != 0 {
 		sections = append(sections, ToolSection{
 			Title: "Result", Style: toolSectionCode, Language: "json", Text: prettyJSON(call.ResultJSON),
+		})
+	}
+	if len(call.ProblemJSON) != 0 {
+		sections = append(sections, ToolSection{
+			Title: "Problem", Style: toolSectionCode, Language: "json", Text: prettyJSON(call.ProblemJSON),
 		})
 	}
 	return sections

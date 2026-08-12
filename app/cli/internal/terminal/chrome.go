@@ -365,7 +365,7 @@ func (s *statusView) note(label string) {
 }
 
 func usageLabel(usage agent.Usage) string {
-	if usage == (agent.Usage{}) {
+	if usage.Empty() {
 		return ""
 	}
 	parts := []string{"↑" + formatThousands(usage.InputTokens), "↓" + formatThousands(usage.OutputTokens)}
@@ -374,6 +374,9 @@ func usageLabel(usage agent.Usage) string {
 	}
 	if usage.CostUSD != nil {
 		parts = append(parts, "$"+strconv.FormatFloat(*usage.CostUSD, 'f', 4, 64))
+	}
+	if usage.Steps > 0 {
+		parts = append(parts, "steps "+strconv.Itoa(usage.Steps))
 	}
 	if usage.Duration > 0 {
 		parts = append(parts, formatCompactDuration(usage.Duration))

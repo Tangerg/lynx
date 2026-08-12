@@ -65,12 +65,16 @@ const (
 // Block is one renderable unit of a transcript. RunID preserves the durable
 // item's provenance across cold reads; ID identifies the item within that Run.
 type Block struct {
-	ID          string
-	RunID       string
-	Status      BlockStatus
-	Kind        BlockKind
-	Attachments []Attachment
-	Images      []InlineImage
+	ID        string
+	RunID     string
+	Status    BlockStatus
+	Kind      BlockKind
+	CreatedAt time.Time
+	Redacted  bool
+	// DroppedMessages is meaningful only for a compaction notice.
+	DroppedMessages int
+	Attachments     []Attachment
+	Images          []InlineImage
 	// Text is the block's body. Assistant and reasoning bodies are markdown and
 	// arrive in pieces (see [BlockDelta]). Tool deltas append to Tool.Output;
 	// the remaining block kinds arrive whole.
@@ -102,6 +106,7 @@ func (b Block) Clone() Block {
 // does not depend on pointer identity or on a reflection-based struct layout.
 func (b Block) Equal(other Block) bool {
 	if b.ID != other.ID || b.RunID != other.RunID || b.Status != other.Status || b.Kind != other.Kind ||
+		!b.CreatedAt.Equal(other.CreatedAt) || b.Redacted != other.Redacted || b.DroppedMessages != other.DroppedMessages ||
 		b.Text != other.Text || !slices.Equal(b.Attachments, other.Attachments) || !equalInlineImages(b.Images, other.Images) {
 		return false
 	}
@@ -159,6 +164,16 @@ const (
 	ToolCanceled ToolStatus = "canceled"
 )
 
+// ToolSafetyClass is the runtime-classified mutation boundary of a tool call.
+type ToolSafetyClass string
+
+const (
+	ToolSafetySafe    ToolSafetyClass = "safe"
+	ToolSafetyWrite   ToolSafetyClass = "write"
+	ToolSafetyExec    ToolSafetyClass = "exec"
+	ToolSafetyNetwork ToolSafetyClass = "network"
+)
+
 // ToolKind is a terminal-relevant semantic category assigned by a runtime
 // adapter. Delivery adapters switch on this closed projection, never on a
 // provider's tool name.
@@ -181,20 +196,26 @@ const (
 // are the stable vocabulary renderers use. This keeps provider tool semantics in
 // one adapter rather than rediscovering them in every UI.
 type ToolCall struct {
-	Kind    ToolKind
-	Name    string
-	Summary string
-	Status  ToolStatus
-	Command string
-	Path    string
-	Query   string
-	URL     string
-	Output  string
+	Kind       ToolKind
+	Name       string
+	Summary    string
+	Status     ToolStatus
+	Safety     ToolSafetyClass
+	StartedAt  time.Time
+	FinishedAt time.Time
+	Command    string
+	Path       string
+	Query      string
+	URL        string
+	Output     string
 	// ArgumentsJSON and ResultJSON preserve the complete, normalized JSON
 	// values for generic presenters and machine consumers. Semantic fields such
 	// as Command and Path remain the high-quality projection for known tools.
 	ArgumentsJSON []byte
 	ResultJSON    []byte
+	// ProblemJSON retains the runtime's structured tool-level failure, including
+	// documentation, retry guidance, and capability or field-level details.
+	ProblemJSON []byte
 	// Diff is a unified diff when the call changed files.
 	Diff string
 	// ExitCode is set for completed process-like tools. Nil distinguishes an
@@ -207,6 +228,7 @@ type ToolCall struct {
 func (t ToolCall) Clone() ToolCall {
 	t.ArgumentsJSON = bytes.Clone(t.ArgumentsJSON)
 	t.ResultJSON = bytes.Clone(t.ResultJSON)
+	t.ProblemJSON = bytes.Clone(t.ProblemJSON)
 	if t.ExitCode != nil {
 		t.ExitCode = new(*t.ExitCode)
 	}
@@ -217,9 +239,11 @@ func (t ToolCall) Clone() ToolCall {
 // state. An absent exit code remains distinct from an explicit successful zero.
 func (t ToolCall) Equal(other ToolCall) bool {
 	if t.Kind != other.Kind || t.Name != other.Name || t.Summary != other.Summary ||
-		t.Status != other.Status || t.Command != other.Command || t.Path != other.Path ||
+		t.Status != other.Status || t.Safety != other.Safety || !t.StartedAt.Equal(other.StartedAt) ||
+		!t.FinishedAt.Equal(other.FinishedAt) || t.Command != other.Command || t.Path != other.Path ||
 		t.Query != other.Query || t.URL != other.URL || t.Output != other.Output ||
 		!bytes.Equal(t.ArgumentsJSON, other.ArgumentsJSON) || !bytes.Equal(t.ResultJSON, other.ResultJSON) ||
+		!bytes.Equal(t.ProblemJSON, other.ProblemJSON) ||
 		t.Diff != other.Diff || t.Duration != other.Duration ||
 		(t.ExitCode == nil) != (other.ExitCode == nil) {
 		return false
@@ -239,11 +263,31 @@ func (t ToolCall) Validate() error {
 	default:
 		problems = append(problems, fmt.Errorf("status %q is invalid", t.Status))
 	}
+	switch t.Safety {
+	case "", ToolSafetySafe, ToolSafetyWrite, ToolSafetyExec, ToolSafetyNetwork:
+	default:
+		problems = append(problems, fmt.Errorf("safety class %q is invalid", t.Safety))
+	}
 	if t.Kind == ToolUnknown && strings.TrimSpace(t.Name) == "" {
 		problems = append(problems, errors.New("unknown tool has no provider name"))
 	}
 	if t.Status == ToolRunning && t.ExitCode != nil {
 		problems = append(problems, errors.New("running tool has an exit code"))
+	}
+	if t.Duration < 0 {
+		problems = append(problems, errors.New("tool duration is negative"))
+	}
+	if t.Status == ToolRunning && t.Duration != 0 {
+		problems = append(problems, errors.New("running tool has a duration"))
+	}
+	if t.Status == ToolRunning && !t.FinishedAt.IsZero() {
+		problems = append(problems, errors.New("running tool has a finish time"))
+	}
+	if !t.FinishedAt.IsZero() && t.StartedAt.IsZero() {
+		problems = append(problems, errors.New("finished tool has no start time"))
+	}
+	if !t.FinishedAt.IsZero() && t.FinishedAt.Before(t.StartedAt) {
+		problems = append(problems, errors.New("tool finish time precedes start time"))
 	}
 	if len(t.ArgumentsJSON) > 0 {
 		var arguments map[string]any
@@ -253,6 +297,15 @@ func (t ToolCall) Validate() error {
 	}
 	if len(t.ResultJSON) > 0 && !json.Valid(t.ResultJSON) {
 		problems = append(problems, errors.New("result JSON is invalid"))
+	}
+	if len(t.ProblemJSON) > 0 {
+		var problem map[string]any
+		if !json.Valid(t.ProblemJSON) || json.Unmarshal(t.ProblemJSON, &problem) != nil || problem == nil {
+			problems = append(problems, errors.New("problem JSON is not an object"))
+		}
+		if t.Status != ToolError && t.Status != ToolCanceled {
+			problems = append(problems, errors.New("successful or running tool carries a problem"))
+		}
 	}
 	if err := errors.Join(problems...); err != nil {
 		return fmt.Errorf("tool call: %w", err)
@@ -294,6 +347,19 @@ type Outcome struct {
 	// Error carries the structured runtime problem's display text for failed,
 	// timed-out, and lost outcomes.
 	Error string
+	// ProblemJSON retains the runtime's complete structured failure for machine
+	// consumers and detailed presenters.
+	ProblemJSON []byte
 	// Detail explains a policy stop such as max steps, max budget, or cancel.
 	Detail string
+}
+
+func (o Outcome) Clone() Outcome {
+	o.ProblemJSON = bytes.Clone(o.ProblemJSON)
+	return o
+}
+
+func (o Outcome) Equal(other Outcome) bool {
+	return o.Status == other.Status && o.Error == other.Error && o.Detail == other.Detail &&
+		bytes.Equal(o.ProblemJSON, other.ProblemJSON)
 }

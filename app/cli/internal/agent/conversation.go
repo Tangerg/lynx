@@ -61,7 +61,7 @@ func (c *Conversation) Plan() []PlanItem            { return slices.Clone(c.plan
 func (c *Conversation) PlanRevision() uint64        { return c.planRevision }
 func (c *Conversation) Usage() Usage                { return c.usage.Clone() }
 func (c *Conversation) Interactions() []Interaction { return CloneInteractions(c.interactions) }
-func (c *Conversation) Outcome() Outcome            { return c.outcome }
+func (c *Conversation) Outcome() Outcome            { return c.outcome.Clone() }
 func (c *Conversation) Phase() ConversationPhase    { return c.phase }
 func (c *Conversation) RunID() string               { return c.runID }
 func (c *Conversation) SegmentID() string           { return c.segmentID }
@@ -86,7 +86,7 @@ func (c *Conversation) MatchesSnapshot(snapshot SessionSnapshot) bool {
 	}
 	return slices.Equal(c.plan, expected.plan) && c.planRevision == expected.planRevision &&
 		c.usage.Equal(expected.usage) && equalInteractions(c.interactions, expected.interactions) &&
-		c.outcome == expected.outcome && c.phase == expected.phase && c.runID == expected.runID &&
+		c.outcome.Equal(expected.outcome) && c.phase == expected.phase && c.runID == expected.runID &&
 		c.segmentID == expected.segmentID && equalRunMaps(c.runs, expected.runs)
 }
 
@@ -417,9 +417,12 @@ func (c *Conversation) applyRunProgress(runID string, event RunProgress) error {
 	}
 	run := c.runs[runID]
 	usage := event.Usage.Clone()
-	usage.Duration = run.Usage.Duration
+	usage.Steps, usage.Duration = run.Usage.Steps, run.Usage.Duration
 	if usage.CostUSD == nil && run.Usage.CostUSD != nil {
 		usage.CostUSD = new(*run.Usage.CostUSD)
+	}
+	if usage.ByModel == nil && run.Usage.ByModel != nil {
+		usage.ByModel = run.Usage.Clone().ByModel
 	}
 	if err := validateUsageProgress(run.Usage, usage); err != nil {
 		return fmt.Errorf("%w: run progress: %w", ErrInvalidTransition, err)
@@ -544,7 +547,7 @@ func (c *Conversation) applyFinished(runID string, event RunFinished) error {
 	c.settleOpenBlocksForRun(runID, toolStatus)
 	run.Status = RunStatusFinished
 	run.ActiveSegmentID = ""
-	run.Outcome = event.Outcome
+	run.Outcome = event.Outcome.Clone()
 	run.Usage = event.Usage.Clone()
 	c.runs[runID] = run
 	if runID == c.runID {
@@ -552,7 +555,7 @@ func (c *Conversation) applyFinished(runID string, event RunFinished) error {
 		c.reconciling = false
 		c.coldTail = false
 		c.interactions = nil
-		c.outcome = event.Outcome
+		c.outcome = event.Outcome.Clone()
 		c.usage = event.Usage.Clone()
 	}
 	return nil
@@ -619,7 +622,7 @@ func (c *Conversation) SettleRun(run Run) error {
 		}
 		member.Status = RunStatusFinished
 		member.ActiveSegmentID = ""
-		member.Outcome = Outcome{Status: run.Outcome.Status, Detail: run.Outcome.Detail, Error: run.Outcome.Error}
+		member.Outcome = run.Outcome.Clone()
 		c.runs[memberID] = member
 	}
 	c.runs[run.ID] = run.Clone()
@@ -629,7 +632,7 @@ func (c *Conversation) SettleRun(run Run) error {
 	c.interactions = nil
 	c.reconciling = false
 	c.coldTail = false
-	c.outcome = run.Outcome
+	c.outcome = run.Outcome.Clone()
 	c.usage = run.Usage.Clone()
 	c.revision++
 	return nil

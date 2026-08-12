@@ -26,6 +26,8 @@ type Run struct {
 	Model           string
 	Status          RunStatus
 	ActiveSegmentID string
+	CreatedAt       time.Time
+	FinishedAt      time.Time
 	Limits          RunLimits
 	Outcome         Outcome
 	Usage           Usage
@@ -44,6 +46,7 @@ func (lineage RunLineage) IsRoot() bool {
 }
 
 func (r Run) Clone() Run {
+	r.Outcome = r.Outcome.Clone()
 	r.Usage = r.Usage.Clone()
 	return r
 }
@@ -52,7 +55,8 @@ func (r Run) Clone() Run {
 func (r Run) Equal(other Run) bool {
 	return r.ID == other.ID && r.SessionID == other.SessionID && r.Lineage == other.Lineage && r.Provider == other.Provider &&
 		r.Model == other.Model && r.Status == other.Status && r.ActiveSegmentID == other.ActiveSegmentID &&
-		r.Limits == other.Limits && r.Outcome == other.Outcome && r.Usage.Equal(other.Usage)
+		r.CreatedAt.Equal(other.CreatedAt) && r.FinishedAt.Equal(other.FinishedAt) &&
+		r.Limits == other.Limits && r.Outcome.Equal(other.Outcome) && r.Usage.Equal(other.Usage)
 }
 
 type Message struct {
@@ -252,13 +256,35 @@ type Usage struct {
 	ReasoningTokens  int64
 	// CostUSD is nil when the runtime cannot price the usage. A present zero is
 	// distinct: it is known, priced usage whose current cost is zero.
-	CostUSD  *float64
+	CostUSD *float64
+	// ByModel retains the runtime's cumulative attribution without coupling the
+	// conversation domain to provider-specific model registries.
+	ByModel map[string]ModelUsage
+	Steps   int
+	// Duration is active execution time; human-interrupt waiting is excluded.
 	Duration time.Duration
+}
+
+// ModelUsage is one model's cumulative metering slice within a run.
+type ModelUsage struct {
+	InputTokens      int64
+	OutputTokens     int64
+	CacheReadTokens  int64
+	CacheWriteTokens int64
+	ReasoningTokens  int64
+	CostUSD          *float64
 }
 
 func (u Usage) Clone() Usage {
 	if u.CostUSD != nil {
 		u.CostUSD = new(*u.CostUSD)
+	}
+	if u.ByModel != nil {
+		cloned := make(map[string]ModelUsage, len(u.ByModel))
+		for model, usage := range u.ByModel {
+			cloned[model] = usage.Clone()
+		}
+		u.ByModel = cloned
 	}
 	return u
 }
@@ -267,9 +293,42 @@ func (u Usage) Clone() Usage {
 func (u Usage) Equal(other Usage) bool {
 	if u.InputTokens != other.InputTokens || u.OutputTokens != other.OutputTokens ||
 		u.CacheReadTokens != other.CacheReadTokens || u.CacheWriteTokens != other.CacheWriteTokens ||
-		u.ReasoningTokens != other.ReasoningTokens || u.Duration != other.Duration ||
+		u.ReasoningTokens != other.ReasoningTokens || u.Steps != other.Steps || u.Duration != other.Duration ||
 		(u.CostUSD == nil) != (other.CostUSD == nil) {
 		return false
 	}
-	return u.CostUSD == nil || *u.CostUSD == *other.CostUSD
+	if u.CostUSD != nil && *u.CostUSD != *other.CostUSD {
+		return false
+	}
+	if len(u.ByModel) != len(other.ByModel) {
+		return false
+	}
+	for model, usage := range u.ByModel {
+		otherUsage, exists := other.ByModel[model]
+		if !exists || !usage.Equal(otherUsage) {
+			return false
+		}
+	}
+	return true
+}
+
+// Empty reports whether the usage projection carries no metering fact.
+func (u Usage) Empty() bool {
+	return u.InputTokens == 0 && u.OutputTokens == 0 && u.CacheReadTokens == 0 &&
+		u.CacheWriteTokens == 0 && u.ReasoningTokens == 0 && u.CostUSD == nil &&
+		len(u.ByModel) == 0 && u.Steps == 0 && u.Duration == 0
+}
+
+func (usage ModelUsage) Clone() ModelUsage {
+	if usage.CostUSD != nil {
+		usage.CostUSD = new(*usage.CostUSD)
+	}
+	return usage
+}
+
+func (usage ModelUsage) Equal(other ModelUsage) bool {
+	return usage.InputTokens == other.InputTokens && usage.OutputTokens == other.OutputTokens &&
+		usage.CacheReadTokens == other.CacheReadTokens && usage.CacheWriteTokens == other.CacheWriteTokens &&
+		usage.ReasoningTokens == other.ReasoningTokens && (usage.CostUSD == nil) == (other.CostUSD == nil) &&
+		(usage.CostUSD == nil || *usage.CostUSD == *other.CostUSD)
 }

@@ -67,16 +67,62 @@ func (candidate Candidate) Validate() error {
 	return validateModelSelection(candidate.Provider, candidate.Model)
 }
 
+// WorkspaceChange is a three-state schedule binding update. Its zero value
+// preserves the current binding; constructors express either an explicit path
+// or a return to the runtime's default workspace.
+type WorkspaceChange struct {
+	mode workspaceChangeMode
+	path string
+}
+
+type workspaceChangeMode uint8
+
+const (
+	workspaceUnchanged workspaceChangeMode = iota
+	workspaceBound
+	workspaceDefault
+)
+
+func BindWorkspace(path string) WorkspaceChange {
+	return WorkspaceChange{mode: workspaceBound, path: strings.TrimSpace(path)}
+}
+
+func UseDefaultWorkspace() WorkspaceChange {
+	return WorkspaceChange{mode: workspaceDefault}
+}
+
+func (change WorkspaceChange) Changed() bool { return change.mode != workspaceUnchanged }
+
+func (change WorkspaceChange) Binding() (string, bool) {
+	return change.path, change.mode == workspaceBound
+}
+
+func (change WorkspaceChange) UsesDefault() bool { return change.mode == workspaceDefault }
+
+func (change WorkspaceChange) validate() error {
+	switch change.mode {
+	case workspaceUnchanged, workspaceDefault:
+		if change.path != "" {
+			return errors.New("schedule workspace change carries an unused path")
+		}
+	case workspaceBound:
+		if change.path == "" {
+			return errors.New("schedule workspace binding is empty")
+		}
+	default:
+		return errors.New("schedule workspace change mode is invalid")
+	}
+	return nil
+}
+
 // Patch is a revision-guarded partial update. Provider and Model are replaced
 // together so the client cannot manufacture an incomplete model selection.
-// Workspace can be kept or replaced with a non-empty runtime-resolvable path;
-// the current protocol has no representation for clearing it.
 type Patch struct {
 	ID               string
 	ExpectedRevision uint64
 	Title            *string
 	Instructions     *string
-	Workspace        *string
+	Workspace        WorkspaceChange
 	Provider         *string
 	Model            *string
 	Cron             *string
@@ -99,8 +145,8 @@ func (patch Patch) Validate() error {
 	if patch.Cron != nil && strings.TrimSpace(*patch.Cron) == "" {
 		return errors.New("schedule patch cron is empty")
 	}
-	if patch.Workspace != nil && strings.TrimSpace(*patch.Workspace) == "" {
-		return errors.New("schedule patch cannot clear the workspace")
+	if err := patch.Workspace.validate(); err != nil {
+		return err
 	}
 	if (patch.Provider == nil) != (patch.Model == nil) {
 		return errors.New("schedule patch must replace provider and model together")
@@ -114,7 +160,7 @@ func (patch Patch) Validate() error {
 }
 
 func (patch Patch) HasChanges() bool {
-	return patch.Title != nil || patch.Instructions != nil || patch.Workspace != nil ||
+	return patch.Title != nil || patch.Instructions != nil || patch.Workspace.Changed() ||
 		patch.Provider != nil || patch.Model != nil || patch.Cron != nil || patch.Enabled != nil
 }
 

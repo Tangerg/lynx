@@ -30,7 +30,7 @@ func TestConversationFoldsInitialAndResumedSegments(t *testing.T) {
 	}}})
 	interruptedUsage := Usage{InputTokens: 10, OutputTokens: 2}
 	apply(t, conversation, RunEvent{EventID: "opaque:park", RunID: "run_1", SegmentID: "seg_1", Event: RunInterrupted{Interactions: interrupts, Usage: interruptedUsage}})
-	if conversation.Phase() != ConversationWaiting || len(conversation.Interactions()) != 2 || conversation.Usage() != interruptedUsage {
+	if conversation.Phase() != ConversationWaiting || len(conversation.Interactions()) != 2 || !conversation.Usage().Equal(interruptedUsage) {
 		t.Fatalf("waiting projection = phase %v, interactions %d, usage %+v", conversation.Phase(), len(conversation.Interactions()), conversation.Usage())
 	}
 
@@ -117,13 +117,17 @@ func TestConversationFoldsRunProgressWithoutMakingPreviewsDurable(t *testing.T) 
 	conversation := NewConversation()
 	cost := 0.1
 	run := runningRun("seg_1")
-	run.Usage = Usage{InputTokens: 10, CostUSD: &cost}
+	run.Usage = Usage{
+		InputTokens: 10, CostUSD: &cost, Steps: 2,
+		ByModel: map[string]ModelUsage{"mock/balanced": {InputTokens: 10}},
+	}
 	apply(t, conversation, RunEvent{EventID: "start", RunID: run.ID, SegmentID: run.ActiveSegmentID, Event: SegmentStarted{Run: run}})
 
 	progressUsage := Usage{InputTokens: 14, OutputTokens: 2}
 	apply(t, conversation, RunEvent{EventID: "progress", RunID: run.ID, SegmentID: run.ActiveSegmentID, Event: RunProgress{Usage: &progressUsage, Activity: "thinking"}})
 	got := conversation.Usage()
-	if got.InputTokens != 14 || got.OutputTokens != 2 || got.CostUSD == nil || *got.CostUSD != cost {
+	if got.InputTokens != 14 || got.OutputTokens != 2 || got.CostUSD == nil || *got.CostUSD != cost ||
+		got.Steps != 2 || got.ByModel["mock/balanced"].InputTokens != 10 {
 		t.Fatalf("progress usage = %+v", got)
 	}
 	if conversation.Checkpoint() != "start" {

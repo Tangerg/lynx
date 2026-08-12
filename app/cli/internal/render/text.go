@@ -358,6 +358,9 @@ func (t *Text) tool(b agent.Block) {
 
 func (t *Text) toolHeader(call *agent.ToolCall) {
 	head := "● " + textToolName(call)
+	if call.Safety != "" {
+		head += " · " + string(call.Safety)
+	}
 	primary := textToolPrimary(call)
 	if primary != "" {
 		head += " · " + primary
@@ -518,6 +521,9 @@ func (t *Text) showUsage(u agent.Usage) {
 	}
 	if u.CostUSD != nil {
 		parts = append(parts, "$"+strconv.FormatFloat(*u.CostUSD, 'f', 4, 64))
+	}
+	if u.Steps > 0 {
+		parts = append(parts, "steps "+strconv.Itoa(u.Steps))
 	}
 	if u.Duration > 0 {
 		parts = append(parts, formatDuration(u.Duration))

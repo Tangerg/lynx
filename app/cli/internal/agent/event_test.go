@@ -91,6 +91,18 @@ func TestEphemeralEventsCloneOwnedValues(t *testing.T) {
 	}
 }
 
+func TestFinishedEventCloneOwnsOutcomeProblem(t *testing.T) {
+	event := RunFinished{Outcome: Outcome{
+		Status: OutcomeFailed, Error: "rate limited",
+		ProblemJSON: []byte(`{"type":"rate_limited","retryAfterSeconds":2}`),
+	}}
+	clone := CloneEvent(event).(RunFinished)
+	clone.Outcome.ProblemJSON[0] = '['
+	if bytes.Equal(event.Outcome.ProblemJSON, clone.Outcome.ProblemJSON) || !equalEvent(event, CloneEvent(event)) {
+		t.Fatal("finished event outcome problem is not value-owned")
+	}
+}
+
 func TestEphemeralEventValidationRejectsMalformedValues(t *testing.T) {
 	negative := -1
 	negativeContext := int64(-1)
@@ -126,15 +138,35 @@ func TestBlockCloneOwnsAssistantImageBytes(t *testing.T) {
 
 func TestToolCallCloneOwnsRawJSON(t *testing.T) {
 	call := ToolCall{
-		Kind: ToolUnknown, Name: "provider_tool", Status: ToolOK,
-		ArgumentsJSON: []byte(`{"nested":{"value":1}}`), ResultJSON: []byte(`{"ok":true}`),
+		Kind: ToolUnknown, Name: "provider_tool", Status: ToolError,
+		ArgumentsJSON: []byte(`{"nested":{"value":1}}`),
+		ProblemJSON:   []byte(`{"type":"provider_error","retryAfterSeconds":2}`),
 	}
 	if err := call.Validate(); err != nil {
 		t.Fatal(err)
 	}
 	clone := call.Clone()
-	clone.ArgumentsJSON[0], clone.ResultJSON[0] = '[', '['
-	if bytes.Equal(call.ArgumentsJSON, clone.ArgumentsJSON) || bytes.Equal(call.ResultJSON, clone.ResultJSON) || !call.Equal(call.Clone()) {
+	clone.ArgumentsJSON[0], clone.ProblemJSON[0] = '[', '['
+	if bytes.Equal(call.ArgumentsJSON, clone.ArgumentsJSON) || bytes.Equal(call.ProblemJSON, clone.ProblemJSON) || !call.Equal(call.Clone()) {
 		t.Fatalf("tool JSON clone aliases source: source=%+v clone=%+v", call, clone)
+	}
+
+	result := ToolCall{Kind: ToolUnknown, Name: "provider_tool", Status: ToolOK, ResultJSON: []byte(`{"ok":true}`)}
+	resultClone := result.Clone()
+	resultClone.ResultJSON[0] = '['
+	if bytes.Equal(result.ResultJSON, resultClone.ResultJSON) || !result.Equal(result.Clone()) {
+		t.Fatalf("tool result clone aliases source: source=%+v clone=%+v", result, resultClone)
+	}
+}
+
+func TestRunningToolRejectsTerminalTiming(t *testing.T) {
+	for _, call := range []ToolCall{
+		{Kind: ToolShell, Status: ToolRunning, Duration: time.Second},
+		{Kind: ToolShell, Status: ToolRunning, FinishedAt: time.Now()},
+		{Kind: ToolShell, Status: ToolOK, Duration: -time.Millisecond},
+	} {
+		if err := call.Validate(); err == nil {
+			t.Fatalf("invalid tool timing was accepted: %+v", call)
+		}
 	}
 }

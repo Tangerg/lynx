@@ -1,6 +1,7 @@
 package runtimeembedded
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
@@ -24,6 +25,7 @@ func projectRun(value protocol.RunRef) (agent.Run, error) {
 			RootRunID:        value.RootRunID,
 		},
 		Status: agent.RunStatus(value.Status), ActiveSegmentID: value.ActiveSegmentID,
+		CreatedAt: value.CreatedAt, FinishedAt: value.FinishedAt,
 		Usage: projectUsage(value.Metrics),
 	}
 	if value.Limits != nil {
@@ -34,7 +36,11 @@ func projectRun(value protocol.RunRef) (agent.Run, error) {
 		}
 	}
 	if value.Outcome != nil {
-		projected.Outcome = projectRunOutcome(*value.Outcome)
+		outcome, err := projectRunOutcome(*value.Outcome)
+		if err != nil {
+			return agent.Run{}, fmt.Errorf("runtime run %s outcome: %w", value.ID, err)
+		}
+		projected.Outcome = outcome
 	}
 	if err := projected.Validate(); err != nil {
 		return agent.Run{}, fmt.Errorf("runtime run %s: %w", value.ID, err)
@@ -67,21 +73,22 @@ func validateRunProfile(profile protocol.RunProtocolProfile) error {
 }
 
 func projectUsage(metrics protocol.RunMetrics) agent.Usage {
-	usage := agent.Usage{Duration: time.Duration(metrics.ActiveDurationMillis) * time.Millisecond}
+	usage := agent.Usage{
+		Steps: metrics.Steps, Duration: time.Duration(metrics.ActiveDurationMillis) * time.Millisecond,
+	}
 	if metrics.Usage == nil {
 		return usage
 	}
-	projected := projectModelUsage(*metrics.Usage)
-	projected.Duration = usage.Duration
-	usage = projected
-	return usage
+	projected := projectUsageBreakdown(*metrics.Usage)
+	projected.Steps, projected.Duration = usage.Steps, usage.Duration
+	return projected
 }
 
-func projectModelUsage(value protocol.Usage) agent.Usage {
+func projectUsageBreakdown(value protocol.Usage) agent.Usage {
 	usage := agent.Usage{
 		InputTokens: value.InputTokens, OutputTokens: value.OutputTokens,
 		CacheReadTokens: value.CacheReadTokens, CacheWriteTokens: value.CacheWriteTokens,
-		ReasoningTokens: value.ReasoningTokens,
+		ReasoningTokens: value.ReasoningTokens, ByModel: projectUsageByModel(value.ByModel),
 	}
 	if value.CostUSD != nil {
 		usage.CostUSD = new(*value.CostUSD)
@@ -89,20 +96,55 @@ func projectModelUsage(value protocol.Usage) agent.Usage {
 	return usage
 }
 
-func projectRunOutcome(value protocol.RunOutcome) agent.Outcome {
+func projectUsageByModel(values map[string]protocol.ModelUsage) map[string]agent.ModelUsage {
+	if values == nil {
+		return nil
+	}
+	projected := make(map[string]agent.ModelUsage, len(values))
+	for model, value := range values {
+		usage := agent.ModelUsage{
+			InputTokens: value.InputTokens, OutputTokens: value.OutputTokens,
+			CacheReadTokens: value.CacheReadTokens, CacheWriteTokens: value.CacheWriteTokens,
+			ReasoningTokens: value.ReasoningTokens,
+		}
+		if value.CostUSD != nil {
+			usage.CostUSD = new(*value.CostUSD)
+		}
+		projected[model] = usage
+	}
+	return projected
+}
+
+func projectRunOutcome(value protocol.RunOutcome) (agent.Outcome, error) {
 	return projectOutcome(protocol.SegmentOutcome{
 		Type: protocol.SegmentOutcomeType(value.Type), Error: value.Error, Detail: value.Detail,
 	})
 }
 
-func projectOutcome(value protocol.SegmentOutcome) agent.Outcome {
+func projectOutcome(value protocol.SegmentOutcome) (agent.Outcome, error) {
 	outcome := agent.Outcome{Status: agent.OutcomeStatus(value.Type), Detail: value.Detail}
 	switch value.Type {
 	case protocol.SegmentTimedOut, protocol.SegmentFailed, protocol.SegmentLost:
 		outcome.Detail = ""
 		outcome.Error = problemText(value.Error, string(value.Type))
+		problemJSON, err := encodeRuntimeProblem(value.Error)
+		if err != nil {
+			return agent.Outcome{}, err
+		}
+		outcome.ProblemJSON = problemJSON
 	}
-	return outcome
+	return outcome, nil
+}
+
+func encodeRuntimeProblem(problem *protocol.ProblemData) ([]byte, error) {
+	if problem == nil {
+		return nil, nil
+	}
+	encoded, err := json.Marshal(problem)
+	if err != nil {
+		return nil, fmt.Errorf("encode runtime problem: %w", err)
+	}
+	return encoded, nil
 }
 
 func problemText(problem *protocol.ProblemData, fallback string) string {
@@ -157,7 +199,7 @@ func projectInteraction(value protocol.Interrupt) (agent.Interaction, error) {
 	}
 	switch value.Type {
 	case protocol.InterruptApproval:
-		tool, err := projectTool(value.Payload.Tool, protocol.ItemStatusRunning, nil, nil)
+		tool, err := projectTool(toolProjection{invocation: value.Payload.Tool, status: protocol.ItemStatusRunning})
 		if err != nil {
 			return nil, fmt.Errorf("approval %s: %w", value.ItemID, err)
 		}

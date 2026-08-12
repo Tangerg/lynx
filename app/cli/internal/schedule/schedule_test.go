@@ -56,6 +56,8 @@ func TestPatchRequiresRevisionAndCoherentChanges(t *testing.T) {
 		{name: "no changes", patch: Patch{ID: "sch_1", ExpectedRevision: 1}, want: "no changes"},
 		{name: "partial model", patch: Patch{ID: "sch_1", ExpectedRevision: 1, Provider: &provider}, want: "together"},
 		{name: "complete model", patch: Patch{ID: "sch_1", ExpectedRevision: 1, Provider: &provider, Model: &model}},
+		{name: "bind empty workspace", patch: Patch{ID: "sch_1", ExpectedRevision: 1, Workspace: BindWorkspace(" ")}, want: "binding is empty"},
+		{name: "use default workspace", patch: Patch{ID: "sch_1", ExpectedRevision: 1, Workspace: UseDefaultWorkspace()}},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			err := test.patch.Validate()
@@ -66,5 +68,22 @@ func TestPatchRequiresRevisionAndCoherentChanges(t *testing.T) {
 				t.Fatalf("Validate() = %v, want %q", err, test.want)
 			}
 		})
+	}
+}
+
+func TestWorkspaceChangeOwnsItsThreeStateSemantics(t *testing.T) {
+	t.Parallel()
+	var unchanged WorkspaceChange
+	if unchanged.Changed() || unchanged.UsesDefault() {
+		t.Fatalf("zero workspace change = %+v", unchanged)
+	}
+	bound := BindWorkspace(" /workspace ")
+	path, ok := bound.Binding()
+	if !bound.Changed() || !ok || path != "/workspace" || bound.UsesDefault() {
+		t.Fatalf("bound workspace change = %+v", bound)
+	}
+	cleared := UseDefaultWorkspace()
+	if !cleared.Changed() || !cleared.UsesDefault() {
+		t.Fatalf("default workspace change = %+v", cleared)
 	}
 }
