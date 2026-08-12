@@ -339,6 +339,80 @@ func TestRejectedDispatchRequeuesWithANewCommandIdentity(t *testing.T) {
 	}
 }
 
+func TestPendingRunStateMachineRejectsUndeliveredSettlement(t *testing.T) {
+	store, err := Open(t.TempDir(), Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	command := agent.StartRun{
+		CommandID: agent.CommandID("cli_44444444444444444444444444444444"),
+		SessionID: "ses_1", Message: agent.Message{Text: "must be delivered before settlement"},
+	}
+	if err := store.StagePendingRun(PendingRun{State: PendingRunQueued, Command: command}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.AcknowledgePendingRun(command.SessionID, command.CommandID); err == nil {
+		t.Fatal("queued run was acknowledged before delivery")
+	}
+	if _, err := store.RequeuePendingRun(command.SessionID, command.CommandID); err == nil {
+		t.Fatal("queued run was reidentified before delivery")
+	}
+	if _, err := store.MarkPendingRunCanceling(command.SessionID, command.CommandID); err == nil {
+		t.Fatal("queued run entered cancellation before delivery")
+	}
+	pending := store.PendingRuns(command.SessionID)
+	if len(pending) != 1 || pending[0].State != PendingRunQueued || pending[0].Command.CommandID != command.CommandID {
+		t.Fatalf("invalid transitions mutated outbox: %+v", pending)
+	}
+	if history := store.History(); len(history) != 0 {
+		t.Fatalf("invalid acknowledgement committed history: %+v", history)
+	}
+
+	if err := store.MarkPendingRunDispatching(command.SessionID, command.CommandID); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.MarkPendingRunDispatching(command.SessionID, command.CommandID); err != nil {
+		t.Fatalf("idempotent dispatch returned %v", err)
+	}
+	if err := store.AcknowledgePendingRun(command.SessionID, command.CommandID); err != nil {
+		t.Fatal(err)
+	}
+	if pending := store.PendingRuns(command.SessionID); len(pending) != 0 {
+		t.Fatalf("acknowledged dispatch remains: %+v", pending)
+	}
+	if history := store.History(); len(history) != 1 || !history[0].Equal(command.Message) {
+		t.Fatalf("acknowledged history = %+v", history)
+	}
+}
+
+func TestCancelingPendingRunCannotReturnToQueuedDelivery(t *testing.T) {
+	store, err := Open(t.TempDir(), Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	command := agent.StartRun{
+		CommandID: agent.CommandID("cli_55555555555555555555555555555555"),
+		SessionID: "ses_1", Message: agent.Message{Text: "canceling delivery"},
+	}
+	if err := store.StagePendingRun(PendingRun{State: PendingRunDispatching, Command: command}); err != nil {
+		t.Fatal(err)
+	}
+	cancelID, err := store.MarkPendingRunCanceling(command.SessionID, command.CommandID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.RequeuePendingRun(command.SessionID, command.CommandID); err == nil {
+		t.Fatal("canceling run returned to queued delivery")
+	}
+	pending := store.PendingRuns(command.SessionID)
+	if len(pending) != 1 || pending[0].State != PendingRunCanceling || pending[0].CancelCommandID != cancelID {
+		t.Fatalf("invalid requeue mutated canceling run: %+v", pending)
+	}
+	if err := store.AcknowledgePendingRun(command.SessionID, command.CommandID); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestCancelingDispatchPersistsBothMutationIdentities(t *testing.T) {
 	directory := t.TempDir()
 	store, err := Open(directory, Config{})

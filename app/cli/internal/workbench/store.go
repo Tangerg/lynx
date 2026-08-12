@@ -219,6 +219,48 @@ func (pending PendingRun) validate(sessionID string) error {
 	return nil
 }
 
+func (pending *PendingRun) beginDispatch() error {
+	switch pending.State {
+	case PendingRunQueued:
+		pending.State = PendingRunDispatching
+		return nil
+	case PendingRunDispatching, PendingRunCanceling:
+		return nil
+	default:
+		return fmt.Errorf("pending run cannot begin dispatch from %q", pending.State)
+	}
+}
+
+func (pending *PendingRun) beginCancellation(cancelCommandID agent.CommandID) error {
+	switch pending.State {
+	case PendingRunDispatching:
+		pending.State = PendingRunCanceling
+		pending.CancelCommandID = cancelCommandID
+		return nil
+	case PendingRunCanceling:
+		return nil
+	default:
+		return fmt.Errorf("pending run cannot begin cancellation from %q", pending.State)
+	}
+}
+
+func (pending *PendingRun) requeue(replacement agent.CommandID) error {
+	if pending.State != PendingRunDispatching {
+		return fmt.Errorf("pending run cannot be requeued from %q", pending.State)
+	}
+	pending.State = PendingRunQueued
+	pending.Command.CommandID = replacement
+	pending.CancelCommandID = ""
+	return nil
+}
+
+func (pending PendingRun) acknowledgeable() error {
+	if pending.State != PendingRunDispatching && pending.State != PendingRunCanceling {
+		return fmt.Errorf("pending run cannot be acknowledged from %q", pending.State)
+	}
+	return nil
+}
+
 func validatePendingRunSequence(sessionID string, pending []PendingRun) error {
 	seen := make(map[agent.CommandID]struct{}, len(pending))
 	for index, command := range pending {
@@ -456,12 +498,13 @@ func (s *Store) MarkPendingRunDispatching(sessionID string, commandID agent.Comm
 	if index < 0 {
 		return errors.New("pending run is absent")
 	}
-	if s.pendingRuns[sessionID][index].State == PendingRunDispatching ||
-		s.pendingRuns[sessionID][index].State == PendingRunCanceling {
+	next := clonePendingRuns(s.pendingRuns)
+	if err := next[sessionID][index].beginDispatch(); err != nil {
+		return err
+	}
+	if next[sessionID][index].State == s.pendingRuns[sessionID][index].State {
 		return nil
 	}
-	next := clonePendingRuns(s.pendingRuns)
-	next[sessionID][index].State = PendingRunDispatching
 	if err := validatePendingRunSequence(sessionID, next[sessionID]); err != nil {
 		return err
 	}
@@ -488,16 +531,14 @@ func (s *Store) MarkPendingRunCanceling(sessionID string, commandID agent.Comman
 	if s.pendingRuns[sessionID][index].State == PendingRunCanceling {
 		return s.pendingRuns[sessionID][index].CancelCommandID, nil
 	}
-	if s.pendingRuns[sessionID][index].State != PendingRunDispatching {
-		return "", errors.New("pending run has not been dispatched")
-	}
 	cancelCommandID, err := agent.NewCommandID()
 	if err != nil {
 		return "", err
 	}
 	next := clonePendingRuns(s.pendingRuns)
-	next[sessionID][index].State = PendingRunCanceling
-	next[sessionID][index].CancelCommandID = cancelCommandID
+	if err := next[sessionID][index].beginCancellation(cancelCommandID); err != nil {
+		return "", err
+	}
 	if err := validatePendingRunSequence(sessionID, next[sessionID]); err != nil {
 		return "", err
 	}
@@ -527,9 +568,9 @@ func (s *Store) RequeuePendingRun(sessionID string, commandID agent.CommandID) (
 		return "", errors.New("pending run is absent")
 	}
 	next := clonePendingRuns(s.pendingRuns)
-	next[sessionID][index].State = PendingRunQueued
-	next[sessionID][index].Command.CommandID = replacement
-	next[sessionID][index].CancelCommandID = ""
+	if err := next[sessionID][index].requeue(replacement); err != nil {
+		return "", err
+	}
 	if err := validatePendingRunSequence(sessionID, next[sessionID]); err != nil {
 		return "", err
 	}
@@ -554,6 +595,9 @@ func (s *Store) AcknowledgePendingRun(sessionID string, commandID agent.CommandI
 	if index < 0 {
 		return errors.New("pending run command identity changed")
 	}
+	if err := commands[index].acknowledgeable(); err != nil {
+		return err
+	}
 	message := commands[index].Command.Message.Clone()
 	nextHistory := cloneMessages(s.history)
 	if len(nextHistory) == 0 || !nextHistory[len(nextHistory)-1].Equal(message) {
@@ -574,36 +618,6 @@ func (s *Store) AcknowledgePendingRun(sessionID string, commandID agent.CommandI
 		return err
 	}
 	s.history = nextHistory
-	s.pendingRuns = next
-	return nil
-}
-
-// RejectPendingRun releases a mutation the runtime definitively refused. The
-// draft is intentionally preserved so the delivery layer can return ownership
-// to the composer without reconstructing authoring state from an error.
-func (s *Store) RejectPendingRun(sessionID string, commandID agent.CommandID) error {
-	if err := commandID.Validate(); err != nil {
-		return err
-	}
-	sessionID = strings.TrimSpace(sessionID)
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	commands := s.pendingRuns[sessionID]
-	index := pendingRunIndex(commands, commandID)
-	if index < 0 {
-		return errors.New("pending run command identity changed")
-	}
-	next := clonePendingRuns(s.pendingRuns)
-	next[sessionID] = slices.Delete(next[sessionID], index, index+1)
-	if len(next[sessionID]) == 0 {
-		delete(next, sessionID)
-	}
-	if err := validatePendingRunSequence(sessionID, next[sessionID]); err != nil {
-		return err
-	}
-	if err := s.saveSessionState(sessionID, s.drafts[sessionID], next[sessionID]); err != nil {
-		return err
-	}
 	s.pendingRuns = next
 	return nil
 }
