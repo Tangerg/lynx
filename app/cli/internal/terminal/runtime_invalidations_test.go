@@ -243,7 +243,7 @@ func TestRuntimeChangeMonitorPartitionsTopicsAtTheNegotiatedLimit(t *testing.T) 
 	resyncs := make(chan []changefeed.Topic, 4)
 	applied := make(chan changefeed.Event, 3)
 	monitor := runtimeChangeMonitor{
-		source: source, resources: runtimeResourceObservation{skills: true},
+		source: source, resources: runtimeResourceObservation{plan: true, skills: true},
 		subscriptionLimits: changefeed.SubscriptionLimits{MaxTopics: 2, MaxWatches: 1},
 		applyResync: func(topics []changefeed.Topic) error {
 			resyncs <- slices.Clone(topics)
@@ -310,6 +310,7 @@ func TestRuntimeChangeMonitorResyncsOnlyThePartitionWithASequenceGap(t *testing.
 	resyncs := make(chan []changefeed.Topic, 3)
 	monitor := runtimeChangeMonitor{
 		source:             source,
+		resources:          runtimeResourceObservation{plan: true},
 		subscriptionLimits: changefeed.SubscriptionLimits{MaxTopics: 2, MaxWatches: 1},
 		applyResync: func(topics []changefeed.Topic) error {
 			resyncs <- slices.Clone(topics)
@@ -356,6 +357,7 @@ func TestRuntimeChangeMonitorAssignsTheWorkspaceWatchToOnePartition(t *testing.T
 	filesApplied := make(chan struct{}, 1)
 	monitor := runtimeChangeMonitor{
 		workspace: "/workspace", source: source, watchFiles: true,
+		resources: runtimeResourceObservation{plan: true},
 		repository: changeReaderFunc(func(context.Context, string) ([]workspace.Change, error) {
 			reads.Add(1)
 			return nil, nil
@@ -1149,7 +1151,7 @@ func TestRuntimeChangeMonitorTurnsASequenceGapIntoFullResync(t *testing.T) {
 	var events []changefeed.Event
 	var resyncs [][]changefeed.Topic
 	monitor := runtimeChangeMonitor{
-		source: source,
+		source: source, resources: runtimeResourceObservation{plan: true},
 		applyEvent: func(event changefeed.Event) error {
 			events = append(events, event)
 			return nil
@@ -1184,7 +1186,7 @@ func TestRuntimeChangeMonitorDetectsASequenceGapOnTheFirstFrame(t *testing.T) {
 	source.events <- changefeed.Event{Type: changefeed.EventType(changefeed.SessionsChanged), Sequence: 2}
 	var resyncs [][]changefeed.Topic
 	monitor := runtimeChangeMonitor{
-		source: source,
+		source: source, resources: runtimeResourceObservation{plan: true},
 		applyEvent: func(changefeed.Event) error {
 			return errors.New("a frame absorbed by gap recovery must not be applied again")
 		},

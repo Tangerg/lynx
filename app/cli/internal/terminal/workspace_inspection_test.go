@@ -473,6 +473,30 @@ func TestWorkspaceMonitorDoesNotRequestAFileWatchWithoutTheNegotiatedCapability(
 	}
 }
 
+func TestWorkspaceMonitorObservesStateOnlyWithPlanProjection(t *testing.T) {
+	t.Parallel()
+
+	source := &runtimeChangeSourceStub{supported: []changefeed.Topic{
+		changefeed.SessionsChanged, changefeed.RunsChanged,
+		changefeed.StateChanged, changefeed.InterruptsChanged,
+	}}
+	monitor := runtimeChangeMonitor{source: source}
+	withoutPlan := []changefeed.Topic{
+		changefeed.SessionsChanged, changefeed.RunsChanged, changefeed.InterruptsChanged,
+	}
+	if topics := monitor.supportedTopics(); !slices.Equal(topics, withoutPlan) {
+		t.Fatalf("topics without plan = %v, want %v", topics, withoutPlan)
+	}
+	monitor.resources.plan = true
+	withPlan := []changefeed.Topic{
+		changefeed.SessionsChanged, changefeed.RunsChanged,
+		changefeed.StateChanged, changefeed.InterruptsChanged,
+	}
+	if topics := monitor.supportedTopics(); !slices.Equal(topics, withPlan) {
+		t.Fatalf("topics with plan = %v, want %v", topics, withPlan)
+	}
+}
+
 func TestWorkspaceMonitorWatchesAuthoredResourcesWithoutGitProjection(t *testing.T) {
 	t.Parallel()
 
@@ -514,6 +538,7 @@ func TestObservedRuntimeResourcesRequireTheirPublishedFeature(t *testing.T) {
 	t.Parallel()
 
 	features := map[runtimeprofile.FeatureName]runtimeprofile.Feature{
+		runtimeprofile.FeaturePlan:      {Stability: runtimeprofile.Stable},
 		runtimeprofile.FeatureGoals:     {Stability: runtimeprofile.Stable},
 		runtimeprofile.FeatureSkills:    {Stability: runtimeprofile.Stable},
 		runtimeprofile.FeatureMCP:       {Stability: runtimeprofile.Stable},
@@ -539,7 +564,7 @@ func TestObservedRuntimeResourcesRequireTheirPublishedFeature(t *testing.T) {
 		features[feature] = capability
 	}
 	want := runtimeResourceObservation{
-		goals: true, skills: true, mcp: true, schedules: true, knowledge: true, hooks: true,
+		plan: true, goals: true, skills: true, mcp: true, schedules: true, knowledge: true, hooks: true,
 	}
 	if got := application.observedRuntimeResources(); got != want {
 		t.Fatalf("resources with enabled features = %+v, want %+v", got, want)

@@ -347,6 +347,7 @@ type runtimeChangeMonitor struct {
 }
 
 type runtimeResourceObservation struct {
+	plan      bool
 	goals     bool
 	skills    bool
 	mcp       bool
@@ -361,6 +362,7 @@ func (observation runtimeResourceObservation) hasWorkspaceAuthoredResources() bo
 
 func (a *app) observedRuntimeResources() runtimeResourceObservation {
 	return runtimeResourceObservation{
+		plan:      a.runtimeSupports(runtimeprofile.FeaturePlan),
 		goals:     a.goals != nil && a.runtimeSupports(runtimeprofile.FeatureGoals),
 		skills:    a.skills != nil && a.runtimeSupports(runtimeprofile.FeatureSkills),
 		mcp:       a.mcp != nil && a.runtimeSupports(runtimeprofile.FeatureMCP),
@@ -586,12 +588,11 @@ func (monitor runtimeChangeMonitor) supportedTopics() []changefeed.Topic {
 	if monitor.source == nil {
 		return nil
 	}
-	candidates := []changefeed.Topic{
-		changefeed.SessionsChanged,
-		changefeed.RunsChanged,
-		changefeed.StateChanged,
-		changefeed.InterruptsChanged,
+	candidates := []changefeed.Topic{changefeed.SessionsChanged, changefeed.RunsChanged}
+	if monitor.resources.plan {
+		candidates = append(candidates, changefeed.StateChanged)
 	}
+	candidates = append(candidates, changefeed.InterruptsChanged)
 	if monitor.resources.goals {
 		candidates = append(candidates, changefeed.GoalsChanged)
 	}
