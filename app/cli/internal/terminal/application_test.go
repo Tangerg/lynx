@@ -172,6 +172,24 @@ type transientForkProjectionRuntime struct {
 	forkedID  string
 }
 
+type flakyCancellationRuntime struct {
+	agent.Runtime
+
+	attempts  atomic.Int32
+	remaining atomic.Int32
+	failure   error
+}
+
+func (r *flakyCancellationRuntime) CancelRun(ctx context.Context, input agent.CancelRun) (agent.RunCancellation, error) {
+	r.attempts.Add(1)
+	for remaining := r.remaining.Load(); remaining > 0; remaining = r.remaining.Load() {
+		if r.remaining.CompareAndSwap(remaining, remaining-1) {
+			return agent.RunCancellation{}, r.failure
+		}
+	}
+	return r.Runtime.CancelRun(ctx, input)
+}
+
 func (runtime *transientForkProjectionRuntime) ForkSession(ctx context.Context, input agent.ForkSession) (agent.Session, error) {
 	forked, err := runtime.Runtime.ForkSession(ctx, input)
 	if err != nil {
@@ -516,6 +534,42 @@ func TestCtrlCClearsTheDraftBeforeCancelingAnActiveRun(t *testing.T) {
 
 	host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
 	host.Shows(t, "canceled")
+	stop()
+}
+
+func TestCancellationFailureLeavesTheRunRetryable(t *testing.T) {
+	base := mock.New()
+	base.Script = func(string) mock.Script {
+		return mock.Script{Prelude: []mock.Step{
+			{Delay: time.Hour, Event: agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCompleted}}},
+		}}
+	}
+	backend := &flakyCancellationRuntime{
+		Runtime: base, failure: errors.New("temporary cancellation failure"),
+	}
+	backend.remaining.Store(1)
+	host, stop := runUIWith(t, backend)
+	host.Shows(t, "Ask lyra")
+	host.Type("start a retryable run")
+	host.Press(input.Enter)
+	host.Shows(t, "working")
+
+	host.Press(input.Esc)
+	host.Shows(t, "could not cancel run: temporary cancellation failure")
+	startedSession := firstRuntimeSession(t, base)
+	snapshot, err := base.GetSession(t.Context(), startedSession)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, active := snapshot.ActiveRun(); !active {
+		t.Fatal("failed cancellation settled the runtime run")
+	}
+
+	host.Press(input.Esc)
+	host.Shows(t, "canceled")
+	if attempts := backend.attempts.Load(); attempts != 2 {
+		t.Fatalf("cancellation attempts = %d, want 2", attempts)
+	}
 	stop()
 }
 

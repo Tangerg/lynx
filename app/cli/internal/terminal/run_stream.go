@@ -592,21 +592,49 @@ func (a *app) requestRuntimeCancellation(target agent.CancelRun, policy cancella
 	a.operations.Go(cancelRunOperation, true, func(ownerCtx context.Context, lease operationLease) {
 		ctx, cancel := context.WithTimeout(ownerCtx, runtimeControlTimeout)
 		defer cancel()
-		result, err := a.runtime.CancelRun(ctx, target)
+		settled, err := a.cancelRootRun(ctx, target)
 		_ = post(ctx, dispatcher, func() {
-			a.handleRuntimeCancellation(lease, result, err, policy)
+			a.handleRuntimeCancellation(lease, settled, err, policy)
 		})
 	})
 }
 
-func (a *app) handleRuntimeCancellation(lease operationLease, result agent.RunCancellation, err error, policy cancellationResultPolicy) {
+// cancelRootRun makes cancellation idempotent at the terminal boundary. A run
+// may finish between the user's gesture and the control request; in that case
+// the durable run projection is the successful settlement of the same intent.
+func (a *app) cancelRootRun(ctx context.Context, target agent.CancelRun) (agent.Run, error) {
+	result, err := a.runtime.CancelRun(ctx, target)
+	if err == nil {
+		if err := result.ValidateTarget(target.RunID); err != nil {
+			return agent.Run{}, fmt.Errorf("cancel run: %w", err)
+		}
+		return result.Root, nil
+	}
+	if !errors.Is(err, agent.ErrRunFinished) {
+		return agent.Run{}, err
+	}
+	settled, readErr := a.runtime.GetRun(ctx, target.RunID)
+	if readErr != nil {
+		return agent.Run{}, fmt.Errorf("read run after cancellation race: %w", readErr)
+	}
+	if validateErr := settled.Validate(); validateErr != nil {
+		return agent.Run{}, fmt.Errorf("validate run after cancellation race: %w", validateErr)
+	}
+	if settled.ID != target.RunID || !settled.Lineage.IsRoot() || settled.Status != agent.RunStatusFinished {
+		return agent.Run{}, fmt.Errorf("cancellation race returned non-terminal root run %s", settled.ID)
+	}
+	return settled, nil
+}
+
+func (a *app) handleRuntimeCancellation(lease operationLease, settled agent.Run, err error, policy cancellationResultPolicy) {
 	if !a.operations.Current(lease) || a.closed {
 		return
 	}
 	if err != nil {
-		if policy != preserveProjectionFailure {
-			a.fail(err)
-		}
+		// A rejected control request says nothing about the run itself. Keep the
+		// conversation and cancellation target intact so the user can retry while
+		// the runtime remains the source of truth for eventual settlement.
+		a.message("could not cancel run: " + err.Error())
 		return
 	}
 	a.pendingCancel = nil
@@ -617,7 +645,6 @@ func (a *app) handleRuntimeCancellation(lease operationLease, result agent.RunCa
 		a.drainQueue()
 		return
 	}
-	settled := result.Root
 	if err := a.conversation.SettleRun(settled); err != nil {
 		a.fail(err)
 		return
