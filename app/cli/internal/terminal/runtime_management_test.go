@@ -248,6 +248,7 @@ type goalServiceStub struct {
 	mu      sync.Mutex
 	current *goal.Goal
 	reads   atomic.Int32
+	writes  atomic.Int32
 }
 
 func (service *goalServiceStub) GetGoal(context.Context, string) (goal.Goal, bool, error) {
@@ -265,6 +266,7 @@ func (service *goalServiceStub) GetGoal(context.Context, string) (goal.Goal, boo
 }
 
 func (service *goalServiceStub) StartGoal(_ context.Context, start goal.Start) (goal.Goal, error) {
+	service.writes.Add(1)
 	if err := start.Validate(); err != nil {
 		return goal.Goal{}, err
 	}
@@ -277,6 +279,7 @@ func (service *goalServiceStub) StartGoal(_ context.Context, start goal.Start) (
 }
 
 func (service *goalServiceStub) StopGoal(context.Context, string) (goal.Goal, error) {
+	service.writes.Add(1)
 	service.mu.Lock()
 	defer service.mu.Unlock()
 	if service.current == nil {
@@ -288,6 +291,7 @@ func (service *goalServiceStub) StopGoal(context.Context, string) (goal.Goal, er
 }
 
 func (service *goalServiceStub) ResumeGoal(context.Context, string) (goal.Goal, error) {
+	service.writes.Add(1)
 	service.mu.Lock()
 	defer service.mu.Unlock()
 	if service.current == nil {
@@ -362,6 +366,19 @@ func TestGoalLifecycleAndInvalidationRefreshTheOpenGoalReader(t *testing.T) {
 	}
 	awaitSignal(t, source.applied, "completing goals.changed delivery")
 	host.Shows(t, "completing")
+	host.Press(input.Esc)
+	host.Shows(t, "Ask lyra")
+	baselineWrites := goals.writes.Load()
+	host.Type("/goal-stop")
+	host.Press(input.Enter)
+	host.Shows(t, "goal is completing final accounting")
+	if writes := goals.writes.Load(); writes != baselineWrites {
+		t.Fatalf("goal mutations after settlement command = %d, want %d", writes, baselineWrites)
+	}
+	settling, exists, err := goals.GetGoal(t.Context(), "ses_demo_1")
+	if err != nil || !exists || settling.Status != goal.Completing {
+		t.Fatalf("goal after rejected settlement command = (%+v, %t, %v)", settling, exists, err)
+	}
 	stop()
 }
 

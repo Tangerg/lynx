@@ -515,7 +515,18 @@ func (a *app) ResumeGoal() error {
 
 func (a *app) changeGoal(label string, change func(context.Context) (goal.Goal, error)) error {
 	a.status.note(label)
-	started := runOperation(a, goalOperation, false, change, func(current goal.Goal, err error) {
+	sessionID := a.session.ID
+	work := func(ctx context.Context) (goal.Goal, error) {
+		current, exists, err := a.goals.GetGoal(ctx, sessionID)
+		if err != nil {
+			return goal.Goal{}, err
+		}
+		if exists && !current.Status.AllowsLifecycleCommands() {
+			return goal.Goal{}, errors.New("goal is completing final accounting; wait for the next runtime change")
+		}
+		return change(ctx)
+	}
+	started := runOperation(a, goalOperation, false, work, func(current goal.Goal, err error) {
 		if err != nil {
 			a.message(label + " failed: " + err.Error())
 			return

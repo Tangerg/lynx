@@ -20,6 +20,11 @@ const (
 	Completing Status = "completing"
 )
 
+// AllowsLifecycleCommands reports whether a start, stop, or resume request can
+// be meaningful in this observed state. The runtime remains authoritative for
+// concurrent transitions between the observation and a command.
+func (status Status) AllowsLifecycleCommands() bool { return status != Completing }
+
 type ReasonCode string
 
 const (

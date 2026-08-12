@@ -23,6 +23,9 @@ func TestGoalLifecycleValuesRejectAmbiguousState(t *testing.T) {
 	if err := completing.Validate(); err == nil {
 		t.Fatal("completing goal with a stop reason was accepted")
 	}
+	if completing.Status.AllowsLifecycleCommands() || !active.Status.AllowsLifecycleCommands() {
+		t.Fatal("goal lifecycle command policy does not distinguish settlement")
+	}
 	if err := (Start{SessionID: "ses_1", Objective: "finish", Budget: Budget{MaxRuns: -1}}).Validate(); err == nil {
 		t.Fatal("negative goal budget was accepted")
 	}
