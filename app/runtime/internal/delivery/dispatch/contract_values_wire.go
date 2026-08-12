@@ -3,6 +3,7 @@ package dispatch
 import (
 	"reflect"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/protocol"
 )
 
@@ -201,7 +202,13 @@ func registerRunValues(s *Shapes) {
 	// folding — or steering — an execution it never saw.
 	nonEmpty[protocol.SubscribeRunRequest](s, "runId", "segmentId")
 	nonEmpty[protocol.GetRunRequest](s, "runId")
-	nonEmpty[protocol.CancelRunRequest](s, "runId")
+	s.valueConstraint(FieldConstraintSpec{
+		GoType: typeOf[protocol.CancelRunRequest](),
+		Constraints: []FieldConstraint{
+			{Field: "runId", Kind: ConstraintNonEmpty},
+			{Field: "reason", Kind: ConstraintMaxLength, Limit: runs.MaxCancellationReasonCharacters},
+		},
+	})
 	s.valueConstraint(FieldConstraintSpec{
 		GoType: typeOf[protocol.SteerRunRequest](),
 		Constraints: []FieldConstraint{

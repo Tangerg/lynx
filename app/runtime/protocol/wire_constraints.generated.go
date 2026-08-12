@@ -80,6 +80,7 @@ func (value SubscribeRunRequest) ValidateWire() error {
 func (value CancelRunRequest) ValidateWire() error {
 	return collectWireViolations("CancelRunRequest",
 		requiredText("runId", value.RunID),
+		maxLength("reason", value.Reason, 1024),
 	)
 }
 

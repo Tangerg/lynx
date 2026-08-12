@@ -3,6 +3,7 @@ package runs
 import (
 	"errors"
 	"math"
+	"strings"
 	"testing"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
@@ -80,6 +81,48 @@ func TestStartExecutionValidateRejectsNonCanonicalAdmissionPolicy(t *testing.T) 
 			t.Parallel()
 			if err := execution.Validate(); err == nil {
 				t.Fatal("Validate accepted non-canonical admission policy")
+			}
+		})
+	}
+}
+
+func TestCancelCommandNormalizeReasonOwnsProductBoundary(t *testing.T) {
+	t.Parallel()
+
+	for _, test := range []struct {
+		name       string
+		reason     string
+		wantReason string
+		wantErr    bool
+	}{
+		{name: "omitted", wantReason: defaultCancelReason},
+		{name: "whitespace", reason: "  user stopped  ", wantReason: "user stopped"},
+		{
+			name:       "unicode boundary",
+			reason:     strings.Repeat("界", MaxCancellationReasonCharacters),
+			wantReason: strings.Repeat("界", MaxCancellationReasonCharacters),
+		},
+		{
+			name:    "over unicode boundary",
+			reason:  strings.Repeat("界", MaxCancellationReasonCharacters+1),
+			wantErr: true,
+		},
+		{name: "invalid UTF-8", reason: string([]byte{0xff}), wantErr: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			command, err := (CancelCommand{RunID: "run_1", Reason: test.reason}).normalizeReason()
+			if test.wantErr {
+				if !errors.Is(err, ErrInvalidCancellationReason) {
+					t.Fatalf("normalizeReason() error = %v, want ErrInvalidCancellationReason", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("normalizeReason(): %v", err)
+			}
+			if command.Reason != test.wantReason {
+				t.Fatalf("Reason = %q, want %q", command.Reason, test.wantReason)
 			}
 		})
 	}

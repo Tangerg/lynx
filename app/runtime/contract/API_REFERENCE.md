@@ -513,6 +513,7 @@ TypeScript validator from this single registry projection.
 | `SubscribeRunRequest` | `segmentId` | `nonEmpty` |
 | `GetRunRequest` | `runId` | `nonEmpty` |
 | `CancelRunRequest` | `runId` | `nonEmpty` |
+| `CancelRunRequest` | `reason` | `maxLength(1024)` |
 | `SteerRunRequest` | `runId` | `nonEmpty` |
 | `SteerRunRequest` | `expectedSegmentId` | `nonEmpty` |
 | `SteerRunRequest` | `input` | `nonEmptyItems` |

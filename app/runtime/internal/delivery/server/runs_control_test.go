@@ -77,6 +77,16 @@ func TestCancelRunMapsFinishedToTheSharedLifecycleError(t *testing.T) {
 	}
 }
 
+func TestCancelRunMapsInvalidReasonToInvalidParams(t *testing.T) {
+	server := &Server{runs: &cancelRunUseCaseStub{err: runs.ErrInvalidCancellationReason}}
+
+	result, err := server.CancelRun(t.Context(), protocol.CancelRunRequest{RunID: "run_1"})
+	if result != nil || !errors.Is(err, protocol.ErrInvalidParams) ||
+		!errors.Is(err, runs.ErrInvalidCancellationReason) {
+		t.Fatalf("CancelRun = (%+v, %v), want nil/ErrInvalidParams wrapping ErrInvalidCancellationReason", result, err)
+	}
+}
+
 func TestCancelRunNamesTheCapabilityNeededForAChild(t *testing.T) {
 	server := &Server{runs: &cancelRunUseCaseStub{err: runs.ErrChildRunNotAllowed}}
 

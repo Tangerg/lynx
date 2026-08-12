@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"iter"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
@@ -61,6 +62,9 @@ var (
 	ErrUnsupportedMedia  = errors.New("runs: unsupported media")
 	ErrInvalidRunLimit   = errors.New("runs: invalid run limit")
 	ErrInvalidRunOptions = errors.New("runs: invalid run options")
+	// ErrInvalidCancellationReason reports a cancellation note that cannot be
+	// represented by the Runtime product contract.
+	ErrInvalidCancellationReason = errors.New("runs: invalid cancellation reason")
 	// ErrInvalidScheduledStart reports an internal start command that carries
 	// only part of the durable schedule-occurrence identity. A scheduled run
 	// must be all-or-nothing: its Run, Session, and occurrence rows are one
@@ -266,17 +270,32 @@ type CancelCommand struct {
 	AllowChildRun bool
 }
 
-const defaultCancelReason = "user canceled the run"
+const (
+	defaultCancelReason = "user canceled the run"
 
-// withReason normalizes the optional product-facing note once at the
+	// MaxCancellationReasonCharacters bounds the product-facing cancellation
+	// note stored in Run history. It is expressed in Unicode code points so the
+	// application and every generated wire binding apply the same user-visible
+	// rule independent of the caller's encoding.
+	MaxCancellationReasonCharacters = 1024
+)
+
+// normalizeReason normalizes the optional product-facing note once at the
 // application boundary. Every cancellation topology then records and forwards
 // the same non-empty reason, independent of which caller initiated it.
-func (c CancelCommand) withReason() CancelCommand {
+func (c CancelCommand) normalizeReason() (CancelCommand, error) {
 	c.Reason = strings.TrimSpace(c.Reason)
 	if c.Reason == "" {
 		c.Reason = defaultCancelReason
 	}
-	return c
+	if !utf8.ValidString(c.Reason) || utf8.RuneCountInString(c.Reason) > MaxCancellationReasonCharacters {
+		return CancelCommand{}, fmt.Errorf(
+			"%w: reason must be valid UTF-8 containing at most %d characters",
+			ErrInvalidCancellationReason,
+			MaxCancellationReasonCharacters,
+		)
+	}
+	return c, nil
 }
 
 // CancelResult is the exact durable terminal snapshot committed by Cancel.

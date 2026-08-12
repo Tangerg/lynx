@@ -29,6 +29,8 @@ func (s *Server) CancelRun(ctx context.Context, in protocol.CancelRunRequest) (*
 		return nil, protocol.ErrRunFinished
 	case errors.Is(err, runs.ErrSessionBusy):
 		return nil, protocol.ErrSessionBusy
+	case errors.Is(err, runs.ErrInvalidCancellationReason):
+		return nil, fmt.Errorf("%w: %w", protocol.ErrInvalidParams, err)
 	case errors.Is(err, runs.ErrChildRunNotAllowed):
 		return nil, operation.NewCapabilityGapError(protocol.CapabilityRequirement{
 			Type: protocol.RequirementFeature,

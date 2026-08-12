@@ -4551,6 +4551,10 @@
         {
           "field": "runId",
           "constraint": "nonEmpty"
+        },
+        {
+          "field": "reason",
+          "constraint": "maxLength(1024)"
         }
       ]
     },

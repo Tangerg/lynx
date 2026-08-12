@@ -1341,7 +1341,8 @@
       "type": "object",
       "properties": {
         "reason": {
-          "type": "string"
+          "type": "string",
+          "maxLength": 1024
         },
         "runId": {
           "type": "string",

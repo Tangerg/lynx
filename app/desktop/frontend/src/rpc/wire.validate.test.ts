@@ -212,6 +212,19 @@ describe("the generated wire checks", () => {
     expect(validateWire("GenerationParams", { topP: 1.1 })).toEqual([
       { path: "GenerationParams.topP", detail: "expected at most 1" },
     ]);
+
+    const boundaryReason = "😀".repeat(1024);
+    expect(validateWire("CancelRunRequest", { runId: "run_01", reason: boundaryReason })).toEqual(
+      [],
+    );
+    expect(
+      validateWire("CancelRunRequest", { runId: "run_01", reason: `${boundaryReason}😀` }),
+    ).toEqual([
+      {
+        path: "CancelRunRequest.reason",
+        detail: "expected at most 1024 character(s)",
+      },
+    ]);
   });
 
   // The constraint belongs to this request, not to every carrier of the shared

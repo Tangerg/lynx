@@ -333,6 +333,19 @@ func TestRunOpeningResponseWireConstraints(t *testing.T) {
 	assertConstraintField(t, resume.ValidateWire(), "ResumeRunResponse", "userItemId")
 }
 
+func TestCancelRunReasonWireConstraintUsesUnicodeCharacters(t *testing.T) {
+	t.Parallel()
+
+	const maximum = 1024
+	valid := CancelRunRequest{RunID: "run_1", Reason: strings.Repeat("界", maximum)}
+	if err := valid.ValidateWire(); err != nil {
+		t.Fatalf("ValidateWire rejected the cancellation reason boundary: %v", err)
+	}
+
+	valid.Reason += "界"
+	assertConstraintField(t, valid.ValidateWire(), "CancelRunRequest", "reason")
+}
+
 func TestRunProtocolProfileWireConstraints(t *testing.T) {
 	t.Parallel()
 

@@ -45,6 +45,11 @@ ToolCall `startedAt` / `finishedAt` describe the visible Item lifecycle. Optiona
 `durationMillis` is exact Tool execution time, excludes approval and other
 pre-execution waits, and remains absent when recovery cannot prove the interval.
 
+The optional `runs.cancel.reason` is bounded to 1024 Unicode characters. The
+Runtime normalizes the durable note at its Application boundary, while generated
+Go, JSON Schema, OpenRPC, and TypeScript validators reject an oversized request
+before it reaches execution.
+
 ## Desktop follow-up
 
 The desktop vendors generated Runtime bindings and samples from

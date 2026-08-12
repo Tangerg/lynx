@@ -16,10 +16,14 @@ import (
 // executor is torn down. Cleanup errors are returned unless the executor already
 // disappeared, which is the idempotent completion race.
 func (c *Coordinator) Cancel(ctx context.Context, cmd CancelCommand) (CancelResult, error) {
+	var err error
+	cmd, err = cmd.normalizeReason()
+	if err != nil {
+		return CancelResult{}, err
+	}
 	if err := c.requireControlDependencies(); err != nil {
 		return CancelResult{}, err
 	}
-	cmd = cmd.withReason()
 
 	plan, entry, live, err := c.cancellationPlanFor(ctx, cmd)
 	if err != nil {

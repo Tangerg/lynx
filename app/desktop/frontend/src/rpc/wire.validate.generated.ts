@@ -757,7 +757,7 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     reasoningTokens: allOf([integer(), minimum(0)]),
   }, []),
   CancelRunRequest: object({
-    reason: text(),
+    reason: allOf([text(), maxLength(1024)]),
     runId: allOf([text(), minLength(1)]),
   }, ["runId"]),
   CancelRunResponse: allOf([
