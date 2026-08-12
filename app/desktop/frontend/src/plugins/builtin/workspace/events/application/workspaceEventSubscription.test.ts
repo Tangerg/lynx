@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { WorkspaceEventLoop } from "./workspaceEventLoop";
 import {
   startWorkspaceEventSubscription,
@@ -15,6 +15,8 @@ function deferred<T>() {
 
 const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
 
+afterEach(() => vi.useRealTimers());
+
 function subscriptionPorts(
   patch: Partial<WorkspaceEventSubscriptionPorts> = {},
 ): WorkspaceEventSubscriptionPorts {
@@ -26,6 +28,7 @@ function subscriptionPorts(
     canSubscribe: vi.fn(() => true),
     subscribeCapabilities: vi.fn(() => vi.fn()),
     resolveWorkspaceCwd: vi.fn().mockResolvedValue({ status: "resolved", cwd: "/repo" }),
+    reportResolutionError: vi.fn(),
     subscribeWorkspaceCwdInputs: vi.fn(() => vi.fn()),
     loop,
     ...patch,
@@ -119,6 +122,97 @@ describe("startWorkspaceEventSubscription", () => {
     await tick();
     expect(ports.resolveWorkspaceCwd).toHaveBeenCalledTimes(2);
     expect(ports.loop.retarget).toHaveBeenLastCalledWith({ type: "workspace" });
+  });
+
+  it("retries a transient workspace resolution without waiting for another identity change", async () => {
+    vi.useFakeTimers();
+    const resolveWorkspaceCwd = vi
+      .fn<WorkspaceEventSubscriptionPorts["resolveWorkspaceCwd"]>()
+      .mockRejectedValueOnce(new Error("offline"))
+      .mockResolvedValue({ status: "resolved", cwd: "/recovered" });
+    const ports = subscriptionPorts({ resolveWorkspaceCwd });
+
+    const dispose = startWorkspaceEventSubscription(ports);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(resolveWorkspaceCwd).toHaveBeenCalledOnce();
+    expect(ports.loop.retarget).toHaveBeenLastCalledWith({ type: "none" });
+    expect(ports.reportResolutionError).toHaveBeenCalledOnce();
+
+    await vi.advanceTimersByTimeAsync(999);
+    expect(resolveWorkspaceCwd).toHaveBeenCalledOnce();
+    await vi.advanceTimersByTimeAsync(1);
+    expect(resolveWorkspaceCwd).toHaveBeenCalledTimes(2);
+    expect(ports.loop.retarget).toHaveBeenLastCalledWith({
+      type: "workspace",
+      cwd: "/recovered",
+    });
+    dispose();
+  });
+
+  it("cancels a failed identity's backoff when the active session changes", async () => {
+    vi.useFakeTimers();
+    let onCwdChange: (() => void) | undefined;
+    const resolveWorkspaceCwd = vi
+      .fn<WorkspaceEventSubscriptionPorts["resolveWorkspaceCwd"]>()
+      .mockRejectedValueOnce(new Error("old session offline"))
+      .mockResolvedValue({ status: "resolved", cwd: "/new-session" });
+    const ports = subscriptionPorts({
+      resolveWorkspaceCwd,
+      subscribeWorkspaceCwdInputs: (listener) => {
+        onCwdChange = listener;
+        return vi.fn();
+      },
+    });
+
+    const dispose = startWorkspaceEventSubscription(ports);
+    await vi.advanceTimersByTimeAsync(0);
+    onCwdChange?.();
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(resolveWorkspaceCwd).toHaveBeenCalledTimes(2);
+    expect(ports.loop.retarget).toHaveBeenLastCalledWith({
+      type: "workspace",
+      cwd: "/new-session",
+    });
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(resolveWorkspaceCwd).toHaveBeenCalledTimes(2);
+    dispose();
+  });
+
+  it("caps repeated resolution backoff at thirty seconds", async () => {
+    vi.useFakeTimers();
+    const resolveWorkspaceCwd = vi
+      .fn<WorkspaceEventSubscriptionPorts["resolveWorkspaceCwd"]>()
+      .mockRejectedValue(new Error("offline"));
+    const ports = subscriptionPorts({ resolveWorkspaceCwd });
+
+    const dispose = startWorkspaceEventSubscription(ports);
+    await vi.advanceTimersByTimeAsync(0);
+    await vi.advanceTimersByTimeAsync(60_999);
+    expect(resolveWorkspaceCwd).toHaveBeenCalledTimes(6);
+
+    await vi.advanceTimersByTimeAsync(1);
+    expect(resolveWorkspaceCwd).toHaveBeenCalledTimes(7);
+    await vi.advanceTimersByTimeAsync(29_999);
+    expect(resolveWorkspaceCwd).toHaveBeenCalledTimes(7);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(resolveWorkspaceCwd).toHaveBeenCalledTimes(8);
+    dispose();
+  });
+
+  it("cancels workspace resolution backoff on dispose", async () => {
+    vi.useFakeTimers();
+    const resolveWorkspaceCwd = vi
+      .fn<WorkspaceEventSubscriptionPorts["resolveWorkspaceCwd"]>()
+      .mockRejectedValue(new Error("offline"));
+    const ports = subscriptionPorts({ resolveWorkspaceCwd });
+
+    const dispose = startWorkspaceEventSubscription(ports);
+    await vi.advanceTimersByTimeAsync(0);
+    dispose();
+    await vi.advanceTimersByTimeAsync(30_000);
+
+    expect(resolveWorkspaceCwd).toHaveBeenCalledOnce();
   });
 
   it("drops the previous file watch before resolving a newly selected session", async () => {

@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { queryClient } from "@/lib/queryClient";
 import { AGENT_SESSIONS_KEY } from "@/plugins/builtin/agent/public/session";
+import { RpcError } from "@/rpc";
 import { resolveActiveSessionWorkspaceCwd } from "./sessionWorkspaceCwd";
 
 const { activeSessionId, getSession } = vi.hoisted(() => ({
@@ -54,12 +55,25 @@ describe("active session workspace resolution", () => {
     expect(getSession).toHaveBeenCalledWith("ses_draft");
   });
 
-  it("reports an unavailable authoritative read until the projection changes", async () => {
+  it("keeps a missing session unavailable until the projection changes", async () => {
     activeSessionId.mockReturnValue("ses_remote");
-    getSession.mockRejectedValue(new Error("offline"));
+    getSession.mockRejectedValue(
+      new RpcError({
+        code: -32002,
+        message: "session missing",
+        data: { type: "session_not_found" },
+      }),
+    );
 
     await expect(resolveActiveSessionWorkspaceCwd()).resolves.toEqual({
       status: "unavailable",
     });
+  });
+
+  it("preserves a transient read failure for the subscription retry owner", async () => {
+    activeSessionId.mockReturnValue("ses_remote");
+    getSession.mockRejectedValue(new Error("offline"));
+
+    await expect(resolveActiveSessionWorkspaceCwd()).rejects.toThrow("offline");
   });
 });

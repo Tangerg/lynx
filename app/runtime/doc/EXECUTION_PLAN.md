@@ -1,6 +1,6 @@
 # Lyra Runtime 重构实施计划
 
-> 状态：P1–P35 已完成；发布后反证审计持续进行
+> 状态：P1–P36 已完成；发布后反证审计持续进行
 >
 > 工作方式：原模块内治本重构，按可验证纵切分批完成；不创建完整 `runtime2`
 
@@ -69,6 +69,7 @@
 | P33 | Schedule 默认工作区更新合同与 Desktop 消费闭环 | P32 + 真实 UI/SQLite 失败证据 | 已完成 |
 | P34 | Goal HITL capability、权威 Question answer 与 Desktop Markdown 收口 | P33 + 双客户端/真实 HTTP/事务反例 | 已完成 |
 | P35 | Run 订阅终态收敛与观察生命周期 | P34 + snapshot/subscribe 竞态与多观察者反例 | 已完成 |
+| P36 | Desktop 旁路事件目标解析恢复 | P35 + `runtime.subscribe` 瞬时失败反例 | 已完成 |
 
 ## 4. P0 — 文档、事实和边界基线
 
@@ -935,10 +936,31 @@
 - process-local wake signal 不保存产品状态、无 waiter 时零 Session 条目，多 waiter 同代唤醒且旧代不污染新代；
 - 改动止于 Runtime Application wake mechanism 与 Desktop Agent adapter/application port 边界，不修改 Agent Framework、Protocol、Artifact 或 SQLite shape。
 
-## 40. 进度记录
+## 40. P36 — Desktop 旁路事件目标解析恢复
+
+### 目标
+
+消除 `runtime.subscribe` 全局 topic 流仍在线、但 active Session 工作区解析遇到瞬时 RPC 故障后文件 watch 永久停留在 `none` 的静默失联；保持 Session 语义、订阅 lifecycle 与 wire 错误各自位于原 owner。
+
+### 工作项
+
+- [x] P36-01 Session workspace adapter 只把权威 `session_not_found` 投影为 unavailable，不再吞掉网络、transport 或 protocol 故障；
+- [x] P36-02 workspace event application owner 对瞬时解析失败做有上限的指数退避，并在同一 identity 上自主恢复，不等待偶然的 Session/query 变化；
+- [x] P36-03 active Session retarget 与 plugin dispose 都取消旧解析和 backoff，旧 identity 不得重装 file watch；
+- [x] P36-04 补齐失败语义、同 identity 恢复、identity 切换和 dispose 回归，并通过完整 Desktop 架构/API consumer/生产 bundle 门禁与真实 Git-state 文件事件联调。
+
+### 验收
+
+- 瞬时 `sessions.get` 故障不会被误写成业务 unavailable，恢复后同一 Session 自动重建精确 workspace watch；
+- 权威 Session 缺失继续 fail closed 为无 file watch，同时 app-wide topics 保持在线；
+- 重试、取消和日志属于 Workspace event application/composition，wire 错误识别止于 adapter；没有把 Runtime DTO、subscription 或重连策略泄露进 Agent context；
+- Desktop 全量 test、type/lint/format/knip、限界上下文/层/循环/port/API consumer、设计系统、本地化、bootstrap 和 production bundle 全绿。
+
+## 41. 进度记录
 
 | 日期 | 阶段 | 完成事实 | 验证 |
 |---|---|---|---|
+| 2026-08-12 | P36（side-channel workspace watch recovery） | Desktop Workspace event application 对 active Session cwd 的瞬时解析失败执行可取消、有上限退避并在同一 identity 上自主恢复；adapter 只把权威 `session_not_found` 解释为 unavailable，其他 wire/transport failure 保持失败。Session 切换与 plugin dispose 均终止旧 generation，app-wide topics 与 workspace file watch 仍由一个 `runtime.subscribe` consumer 拥有。改动没有进入 Agent context，也没有修改 Runtime、Protocol、Artifact 或 SQLite shape | 红测覆盖 transient failure、同 identity 恢复、30 秒退避上限、旧 identity backoff 取消、dispose 和 typed missing-session；Frontend 239 files/1485 tests、86/86 Runtime operations + 10/10 events / 103 typed call sites，以及全部类型、lint、format、knip、架构、设计系统、本地化、bootstrap 和 production bundle 门禁全绿；隔离 Runtime/真实浏览器先证明普通外部 worktree 写入不伪造 Git-state event，再由 index semantic change 触发 `files.changed`，已打开 Explorer 无刷新出现新文件，console 仅 dev info、page error 为零 |
 | 2026-08-12 | P35（Run subscription convergence / observation lifecycle） | Desktop 在 initial recovery 与 replay reattach 的 snapshot→subscribe 竞态中以 application port 重读 durable projection，accepted Run boundary 与 channel-A start/resume failure 分离；Runtime wake-only fan-out 改为 live-observer-owned generation/refcount/disposer，无 observer 时不保留 Session 状态。改动没有引入 Runtime DTO/Store/transaction/Framework 类型到 Agent context，也没有修改 Agent Framework、Protocol 或持久化 shape | 前端精确红测覆盖 terminal/waiting race 与 post-ack failure classification；Runtime 多 waiter、取消、代际、重复 disposer 与无 observer 回归在 race 下重复通过；Frontend/Runtime 全门禁、真实浏览器双客户端与 staged path/boundary 扫描在本批提交前收口 |
 | 2026-08-12 | P34（Goal HITL / authoritative Question / Markdown） | Question accepted response 成为 Transcript 不可变事实并与 resume claim/checkpoint 同事务；Artifact v18、Protocol、SQLite epoch 69、Delivery 和 Desktop 只投影该事实。Goal 冻结/继承协商能力，Resume 验证 capability gap；Runtime execution context carrier 留在 Adapter，Agent Framework 未修改。真实 HTTP 反证出的 parked Run durable admission 缺口由 Application 同时观察本地 gate 与权威 Run 并用 lifecycle signal 唤醒解决。Desktop 未知 raw HTML 在 Markdown AST owner 按字面量显示 | Domain/Application/Adapter/Infra/Delivery/contract 定向回归与真实 HTTP Goal ask_user waiting→Goal resume→同 Run answer→terminal accounting 通过；双客户端、取消/reload、事务失败、冷重启、Frontend 全门禁、Runtime standalone/race/lint 与 SQLite 终态不变量在本批提交前收口 |
 | 2026-08-12 | P33（Schedule workspace patch / Desktop consumer） | Schedule 更新合同补齐省略保持、合法 ref 设置、`workspaceMode:"default"` 清空三态，并生成互斥约束；Delivery 将 default 投影到既有空 CWD Domain 语义。Desktop 删除非法空 ref，handwritten SDK 改为直接消费生成 `UpdateScheduleRequest` 并公开该类型。没有把 Runtime workspace/transport 类型泄露进 Agent、Domain 或 Application，也没有修改 SQLite shape 或并存 CLI 工作 | 原失败 UI 路径真实复测后标题持久化、cwd 为空、revision 1→2；wire/Delivery/SDK/gateway/HTTP lifecycle 回归、Frontend 238 files/1471 tests、API consumer 86/86 operations + 10/10 events 和 Desktop Go tests 全绿；Runtime 全门禁与 race 在本批提交前收口 |

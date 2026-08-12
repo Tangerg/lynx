@@ -39,6 +39,8 @@ export default definePlugin({
       canSubscribe: canSubscribeWorkspaceEvents,
       subscribeCapabilities: subscribeRuntimeCapabilities,
       resolveWorkspaceCwd: resolveActiveSessionWorkspaceCwd,
+      reportResolutionError: (error) =>
+        console.warn("[workspace-events] target resolution failed:", error),
       subscribeWorkspaceCwdInputs,
       loop,
     });

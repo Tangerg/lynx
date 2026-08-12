@@ -7,7 +7,7 @@ import {
   subscribeActiveSessionId,
   type AgentSessionSummary,
 } from "@/plugins/builtin/agent/public/session";
-import { asSessionId } from "@/rpc";
+import { asSessionId, isErrorType } from "@/rpc";
 import type { WorkspaceCwdResolution } from "../application/workspaceEventSubscription";
 
 export async function resolveActiveSessionWorkspaceCwd(): Promise<WorkspaceCwdResolution> {
@@ -20,7 +20,10 @@ export async function resolveActiveSessionWorkspaceCwd(): Promise<WorkspaceCwdRe
     .client()
     .sessions.get(asSessionId(id))
     .then((session) => ({ status: "resolved", cwd: session.workspace.ref.path }) as const)
-    .catch(() => ({ status: "unavailable" }) as const);
+    .catch((error: unknown) => {
+      if (isErrorType(error, "session_not_found")) return { status: "unavailable" } as const;
+      throw error;
+    });
 }
 
 export function subscribeWorkspaceCwdInputs(onChange: () => void): () => void {

@@ -220,6 +220,14 @@ Capability discovery application 只依赖 `RuntimeDiscovery.discoverCapabilitie
 adapter 调用 typed `client.runtime.discover()` 并移除 `DiscoverResponse` envelope。
 插件 unload 后迟到的 discovery result 不得重新发布 capability。
 
+Workspace event context 是 `runtime.subscribe` 的唯一产品 consumer：global topics 在 active
+Session 工作区暂不可解析时仍保持在线，file watch 则 fail closed 为 `none`。Session adapter
+只把权威 `session_not_found` 投影为 unavailable；network/transport/protocol 瞬时故障保留为
+failure，由 event application 以可取消、有上限退避在同一 identity 上恢复。Session retarget
+和 plugin dispose 必须使旧解析 generation 失效，旧 cwd 不能重新安装 watch。wire 错误识别、
+订阅 lifecycle 和 Agent Session 投影因此仍分别留在 adapter、Workspace application 与 Agent
+public facade，不互相泄露抽象。
+
 **增加新协议方法的步骤**：
 
 1. 在 Runtime Contract Registry 声明 method、shape、error、capability 与 wire

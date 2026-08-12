@@ -7,9 +7,13 @@ export interface WorkspaceEventSubscriptionPorts {
   canSubscribe: () => boolean;
   subscribeCapabilities: (onChange: () => void) => () => void;
   resolveWorkspaceCwd: () => Promise<WorkspaceCwdResolution>;
+  reportResolutionError: (error: unknown) => void;
   subscribeWorkspaceCwdInputs: (onChange: () => void) => () => void;
   loop: WorkspaceEventLoop;
 }
+
+const RESOLVE_RETRY_BASE_MS = 1_000;
+const RESOLVE_RETRY_CAP_MS = 30_000;
 
 export function startWorkspaceEventSubscription(
   ports: WorkspaceEventSubscriptionPorts,
@@ -17,17 +21,46 @@ export function startWorkspaceEventSubscription(
   const controller = new AbortController();
   let started = false;
   let retargetGeneration = 0;
+  let resolutionAbort: AbortController | null = null;
 
   const resolveTarget = (generation: number): void => {
-    void ports.resolveWorkspaceCwd().then((resolution) => {
-      if (generation !== retargetGeneration || controller.signal.aborted) return;
-      if (resolution.status === "resolved") {
-        ports.loop.retarget({
-          type: "workspace",
-          ...(resolution.cwd ? { cwd: resolution.cwd } : {}),
-        });
+    resolutionAbort?.abort();
+    const attemptAbort = new AbortController();
+    resolutionAbort = attemptAbort;
+    void (async () => {
+      let attempt = 0;
+      while (!attemptAbort.signal.aborted && !controller.signal.aborted) {
+        try {
+          const resolution = await ports.resolveWorkspaceCwd();
+          if (
+            generation !== retargetGeneration ||
+            attemptAbort.signal.aborted ||
+            controller.signal.aborted
+          )
+            return;
+          if (resolution.status === "resolved") {
+            ports.loop.retarget({
+              type: "workspace",
+              ...(resolution.cwd ? { cwd: resolution.cwd } : {}),
+            });
+          }
+          return;
+        } catch (error) {
+          if (
+            generation !== retargetGeneration ||
+            attemptAbort.signal.aborted ||
+            controller.signal.aborted
+          )
+            return;
+          ports.reportResolutionError(error);
+          await retryDelay(
+            Math.min(RESOLVE_RETRY_BASE_MS * 2 ** attempt, RESOLVE_RETRY_CAP_MS),
+            attemptAbort.signal,
+          );
+          attempt += 1;
+        }
       }
-    });
+    })();
   };
 
   const retarget = (): void => {
@@ -53,8 +86,25 @@ export function startWorkspaceEventSubscription(
 
   return () => {
     retargetGeneration += 1;
+    resolutionAbort?.abort();
     unsubscribeCapabilities();
     unsubscribeCwdInputs();
     controller.abort();
   };
+}
+
+function retryDelay(ms: number, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve) => {
+    if (signal.aborted) {
+      resolve();
+      return;
+    }
+    const timer = setTimeout(done, ms);
+    function done(): void {
+      clearTimeout(timer);
+      signal.removeEventListener("abort", done);
+      resolve();
+    }
+    signal.addEventListener("abort", done, { once: true });
+  });
 }
