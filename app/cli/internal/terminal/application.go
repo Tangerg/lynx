@@ -412,9 +412,7 @@ func (a *app) replayPendingRun(pending workbench.PendingRun) {
 		a.fail(errors.New("replay pending run: dispatch reservation is unavailable"))
 		return
 	}
-	if !a.startRun(entry.CommandID, entry.Message, entry.Options, "recovering queued prompt") {
-		a.releaseQueuedDispatch()
-	}
+	a.startRun(entry.CommandID, entry.Message, entry.Options, "recovering queued prompt")
 }
 
 func (a *app) reconcilePendingRun(pending workbench.PendingRun) {

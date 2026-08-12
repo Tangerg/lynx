@@ -75,7 +75,7 @@ func (q *Queue) Enqueue(sessionID string, message agent.Message) (Entry, error) 
 // authoring transaction. Queue edits allocate a new identity because changing
 // content creates a different runtime operation fingerprint.
 func (q *Queue) EnqueueCommand(commandID agent.CommandID, sessionID string, message agent.Message, options agent.RunOptions) (Entry, error) {
-	if err := validateEntry(commandID, sessionID, message); err != nil {
+	if err := validateEntry(commandID, sessionID, message, options); err != nil {
 		return Entry{}, err
 	}
 	q.mu.Lock()
@@ -103,7 +103,7 @@ func (q *Queue) Restore(sessionID string, commands []agent.StartRun, dispatching
 		if command.SessionID != sessionID {
 			return fmt.Errorf("prompt queue: command %d belongs to session %s", index+1, command.SessionID)
 		}
-		if err := validateEntry(command.CommandID, sessionID, command.Message); err != nil {
+		if err := validateEntry(command.CommandID, sessionID, command.Message, command.Options); err != nil {
 			return err
 		}
 		if _, duplicate := seen[command.CommandID]; duplicate {
@@ -159,7 +159,7 @@ func (q *Queue) RestoreState(sessionID string, state State) error {
 		if entry.ID == 0 {
 			return fmt.Errorf("prompt queue: entry %d has no identity", index+1)
 		}
-		if err := validateEntry(entry.CommandID, sessionID, entry.Message); err != nil {
+		if err := validateEntry(entry.CommandID, sessionID, entry.Message, entry.Options); err != nil {
 			return err
 		}
 		if _, duplicate := seenIDs[entry.ID]; duplicate {
@@ -353,14 +353,14 @@ func (q *Queue) Update(sessionID string, id uint64, message agent.Message) error
 	if err != nil {
 		return fmt.Errorf("prompt queue: %w", err)
 	}
-	if err := validateEntry(commandID, sessionID, message); err != nil {
-		return err
-	}
 	q.mu.Lock()
 	defer q.mu.Unlock()
 	index := entryIndex(q.entries[sessionID], id)
 	if index < 0 {
 		return ErrEntryNotFound
+	}
+	if err := validateEntry(commandID, sessionID, message, q.entries[sessionID][index].Options); err != nil {
+		return err
 	}
 	if q.dispatching[sessionID] == id {
 		return ErrEntryDispatching
@@ -504,7 +504,7 @@ func (q *Queue) removeAt(sessionID string, index int) {
 	q.entries[sessionID] = entries
 }
 
-func validateEntry(commandID agent.CommandID, sessionID string, message agent.Message) error {
+func validateEntry(commandID agent.CommandID, sessionID string, message agent.Message, options agent.RunOptions) error {
 	if err := commandID.Validate(); err != nil {
 		return fmt.Errorf("prompt queue: %w", err)
 	}
@@ -512,6 +512,9 @@ func validateEntry(commandID agent.CommandID, sessionID string, message agent.Me
 		return ErrSessionIDRequired
 	}
 	if err := message.Validate(); err != nil {
+		return fmt.Errorf("prompt queue: %w", err)
+	}
+	if err := options.Validate(); err != nil {
 		return fmt.Errorf("prompt queue: %w", err)
 	}
 	return nil

@@ -129,6 +129,41 @@ func TestQueueRejectsInvalidMessagesWithoutMutation(t *testing.T) {
 	}
 }
 
+func TestQueueRejectsInvalidRunOptionsWithoutMutation(t *testing.T) {
+	queue := New()
+	existing, err := queue.Enqueue("session", agent.Message{Text: "existing"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := queue.BeginDispatch("session"); !ok {
+		t.Fatal("queue did not reserve its existing entry")
+	}
+	before := queue.State("session")
+	invalid := agent.RunOptions{Provider: "deepseek"}
+	command := agent.StartRun{
+		CommandID: agent.CommandID("cli_11111111111111111111111111111111"),
+		SessionID: "session", Message: agent.Message{Text: "invalid"}, Options: invalid,
+	}
+	if _, err := queue.EnqueueCommand(command.CommandID, command.SessionID, command.Message, command.Options); err == nil {
+		t.Fatal("queue accepted invalid run options")
+	}
+	if err := queue.Restore("session", []agent.StartRun{command}, command.CommandID); err == nil {
+		t.Fatal("durable restore accepted invalid run options")
+	}
+	state := State{Entries: []Entry{{
+		ID: 99, CommandID: command.CommandID, SessionID: command.SessionID,
+		Message: command.Message, Options: command.Options,
+	}}, DispatchingID: 99}
+	if err := queue.RestoreState("session", state); err == nil {
+		t.Fatal("transaction restore accepted invalid run options")
+	}
+	after := queue.State("session")
+	if len(after.Entries) != 1 || after.Entries[0].ID != existing.ID || after.DispatchingID != before.DispatchingID ||
+		after.Entries[0].CommandID != before.Entries[0].CommandID {
+		t.Fatalf("invalid options mutated queue: before=%+v after=%+v", before, after)
+	}
+}
+
 func TestQueueRestoresAnExactSnapshotAfterARejectedTransaction(t *testing.T) {
 	queue := New()
 	first, _ := queue.Enqueue("session", agent.Message{Text: "first"})
