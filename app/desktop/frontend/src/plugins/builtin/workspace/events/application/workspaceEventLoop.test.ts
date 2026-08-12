@@ -67,16 +67,16 @@ describe("workspace event loop", () => {
     expect(invalidateAll).toHaveBeenCalledTimes(2); // subscribe + missing sequence 1
   });
 
-  it("retargets from an explicit project back to the default workspace", async () => {
+  it("keeps unresolved identity distinct from the default workspace", async () => {
     const outer = new AbortController();
-    const subscribed: Array<string | undefined> = [];
+    const subscribed: Array<{ type: "none" } | { type: "workspace"; cwd?: string }> = [];
     let wake!: () => void;
     let reached = new Promise<void>((resolve) => {
       wake = resolve;
     });
     const loop = createWorkspaceEventLoop({
-      async subscribe({ cwd, signal }) {
-        subscribed.push(cwd);
+      async subscribe({ target, signal }) {
+        subscribed.push(target);
         wake();
         return (async function* () {
           yield { type: "resync", sequence: subscribed.length } as const;
@@ -97,17 +97,21 @@ describe("workspace event loop", () => {
     reached = new Promise<void>((resolve) => {
       wake = resolve;
     });
-    loop.retarget("/repo");
+    loop.retarget({ type: "workspace", cwd: "/repo" });
     await reached;
 
     reached = new Promise<void>((resolve) => {
       wake = resolve;
     });
-    loop.retarget(undefined);
+    loop.retarget({ type: "workspace" });
     await reached;
     outer.abort();
 
-    expect(subscribed).toEqual([undefined, "/repo", undefined]);
+    expect(subscribed).toEqual([
+      { type: "none" },
+      { type: "workspace", cwd: "/repo" },
+      { type: "workspace" },
+    ]);
   });
 
   it("interrupts reconnect backoff when the workspace target changes", async () => {
@@ -124,12 +128,15 @@ describe("workspace event loop", () => {
     loop.start(outer.signal);
     await vi.advanceTimersByTimeAsync(0);
     expect(subscribe).toHaveBeenCalledTimes(1);
-    expect(subscribe.mock.calls[0]?.[0].cwd).toBeUndefined();
+    expect(subscribe.mock.calls[0]?.[0].target).toEqual({ type: "none" });
 
-    loop.retarget("/new-repo");
+    loop.retarget({ type: "workspace", cwd: "/new-repo" });
     await vi.advanceTimersByTimeAsync(0);
     expect(subscribe).toHaveBeenCalledTimes(2);
-    expect(subscribe.mock.calls[1]?.[0].cwd).toBe("/new-repo");
+    expect(subscribe.mock.calls[1]?.[0].target).toEqual({
+      type: "workspace",
+      cwd: "/new-repo",
+    });
 
     outer.abort();
     await vi.advanceTimersByTimeAsync(0);
@@ -143,7 +150,7 @@ describe("workspace event loop", () => {
         resolveOld = resolve;
       },
     );
-    const subscribed: Array<string | undefined> = [];
+    const subscribed: Array<{ type: "none" } | { type: "workspace"; cwd?: string }> = [];
     const handled: number[] = [];
     const invalidateAll = vi.fn();
     let reachedNew!: () => void;
@@ -151,8 +158,8 @@ describe("workspace event loop", () => {
       reachedNew = resolve;
     });
     const loop = createWorkspaceEventLoop({
-      async subscribe({ cwd, signal }) {
-        subscribed.push(cwd);
+      async subscribe({ target, signal }) {
+        subscribed.push(target);
         if (subscribed.length === 1) return oldOpening;
         reachedNew();
         return (async function* () {
@@ -171,7 +178,7 @@ describe("workspace event loop", () => {
 
     loop.start(outer.signal);
     await Promise.resolve();
-    loop.retarget("/new-repo");
+    loop.retarget({ type: "workspace", cwd: "/new-repo" });
     resolveOld(
       (async function* () {
         yield { type: "resync", sequence: 1 } as const;
@@ -181,7 +188,7 @@ describe("workspace event loop", () => {
     await vi.waitFor(() => expect(handled).toEqual([1]));
     outer.abort();
 
-    expect(subscribed).toEqual([undefined, "/new-repo"]);
+    expect(subscribed).toEqual([{ type: "none" }, { type: "workspace", cwd: "/new-repo" }]);
     expect(invalidateAll).toHaveBeenCalledTimes(1);
   });
 });

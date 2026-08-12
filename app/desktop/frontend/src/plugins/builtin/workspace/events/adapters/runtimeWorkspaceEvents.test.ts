@@ -41,7 +41,9 @@ describe("runtime workspace event subscription", () => {
     });
     const signal = new AbortController().signal;
 
-    await expect(subscribeRuntimeWorkspaceEvents("/linked/repo", signal)).resolves.toBe(events);
+    await expect(
+      subscribeRuntimeWorkspaceEvents({ type: "workspace", cwd: "/linked/repo" }, signal),
+    ).resolves.toBe(events);
 
     expect(resolveWorkspace).toHaveBeenCalledWith({ path: "/linked/repo" });
     expect(subscribe).toHaveBeenCalledWith(
@@ -60,7 +62,9 @@ describe("runtime workspace event subscription", () => {
     });
     const signal = new AbortController().signal;
 
-    await expect(subscribeRuntimeWorkspaceEvents("/missing/repo", signal)).resolves.toBe(events);
+    await expect(
+      subscribeRuntimeWorkspaceEvents({ type: "workspace", cwd: "/missing/repo" }, signal),
+    ).resolves.toBe(events);
 
     expect(subscribe).toHaveBeenCalledWith(
       expect.not.objectContaining({ watches: expect.anything() }),
@@ -72,7 +76,21 @@ describe("runtime workspace event subscription", () => {
     fileWatch.mockReturnValue(false);
     const signal = new AbortController().signal;
 
-    await expect(subscribeRuntimeWorkspaceEvents(undefined, signal)).resolves.toBe(events);
+    await expect(subscribeRuntimeWorkspaceEvents({ type: "workspace" }, signal)).resolves.toBe(
+      events,
+    );
+
+    expect(resolveWorkspace).not.toHaveBeenCalled();
+    expect(subscribe).toHaveBeenCalledWith(
+      expect.not.objectContaining({ watches: expect.anything() }),
+      signal,
+    );
+  });
+
+  it("subscribes global topics without resolving a default watch while identity is unknown", async () => {
+    const signal = new AbortController().signal;
+
+    await expect(subscribeRuntimeWorkspaceEvents({ type: "none" }, signal)).resolves.toBe(events);
 
     expect(resolveWorkspace).not.toHaveBeenCalled();
     expect(subscribe).toHaveBeenCalledWith(

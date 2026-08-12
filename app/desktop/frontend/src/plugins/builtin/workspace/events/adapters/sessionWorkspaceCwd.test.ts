@@ -54,7 +54,7 @@ describe("active session workspace resolution", () => {
     expect(getSession).toHaveBeenCalledWith("ses_draft");
   });
 
-  it("keeps the current target when the authoritative read is unavailable", async () => {
+  it("reports an unavailable authoritative read for subscription retry", async () => {
     activeSessionId.mockReturnValue("ses_remote");
     getSession.mockRejectedValue(new Error("offline"));
 

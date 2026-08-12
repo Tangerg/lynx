@@ -28,7 +28,7 @@ export default definePlugin({
   requires: ["lyra.builtin.runtime", "lyra.builtin.agent-bootstrap"],
   setup() {
     const loop = createWorkspaceEventLoop({
-      subscribe: ({ cwd, signal }) => subscribeRuntimeWorkspaceEvents(cwd, signal),
+      subscribe: ({ target, signal }) => subscribeRuntimeWorkspaceEvents(target, signal),
       handleEvent: invalidateWorkspaceEvent,
       invalidateAll: invalidateWorkspaceEverything,
       reportError: (error) => console.warn("[workspace-events] subscribe failed:", error),

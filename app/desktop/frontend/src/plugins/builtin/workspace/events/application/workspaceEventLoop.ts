@@ -6,7 +6,7 @@ const RETARGET = Symbol("workspace-events.retarget");
 
 export interface WorkspaceEventLoopDeps {
   subscribe(input: {
-    cwd: string | undefined;
+    target: WorkspaceWatchTarget;
     signal: AbortSignal;
   }): Promise<AsyncIterable<WorkspaceEventLike>>;
   handleEvent(ev: WorkspaceEventLike): void;
@@ -16,11 +16,25 @@ export interface WorkspaceEventLoopDeps {
 
 export interface WorkspaceEventLoop {
   start(signal: AbortSignal): void;
-  retarget(cwd: string | undefined): void;
+  retarget(target: WorkspaceWatchTarget): void;
+}
+
+/**
+ * `none` means the app-wide topics stay subscribed without a file watch while
+ * active-session identity is unresolved. It is intentionally distinct from a
+ * resolved workspace with no cwd, which means the Runtime's default workspace.
+ */
+export type WorkspaceWatchTarget = { type: "none" } | { type: "workspace"; cwd?: string };
+
+function sameTarget(left: WorkspaceWatchTarget, right: WorkspaceWatchTarget): boolean {
+  return (
+    left.type === right.type &&
+    (left.type === "none" || right.type === "none" || left.cwd === right.cwd)
+  );
 }
 
 export function createWorkspaceEventLoop(deps: WorkspaceEventLoopDeps): WorkspaceEventLoop {
-  let watchCwd: string | undefined;
+  let watchTarget: WorkspaceWatchTarget = { type: "none" };
   let iterAbort: AbortController | null = null;
 
   return {
@@ -28,15 +42,15 @@ export function createWorkspaceEventLoop(deps: WorkspaceEventLoopDeps): Workspac
       void subscribeLoop(
         deps,
         signal,
-        () => watchCwd,
+        () => watchTarget,
         (next) => {
           iterAbort = next;
         },
       );
     },
-    retarget(cwd) {
-      if (cwd === watchCwd) return;
-      watchCwd = cwd;
+    retarget(target) {
+      if (sameTarget(target, watchTarget)) return;
+      watchTarget = target;
       iterAbort?.abort(RETARGET);
     },
   };
@@ -45,7 +59,7 @@ export function createWorkspaceEventLoop(deps: WorkspaceEventLoopDeps): Workspac
 async function subscribeLoop(
   deps: WorkspaceEventLoopDeps,
   signal: AbortSignal,
-  watchCwd: () => string | undefined,
+  watchTarget: () => WorkspaceWatchTarget,
   setIterAbort: (controller: AbortController | null) => void,
 ): Promise<void> {
   let attempt = 0;
@@ -55,7 +69,7 @@ async function subscribeLoop(
     const onOuterAbort = () => iter.abort();
     signal.addEventListener("abort", onOuterAbort, { once: true });
     try {
-      const events = await deps.subscribe({ cwd: watchCwd(), signal: iter.signal });
+      const events = await deps.subscribe({ target: watchTarget(), signal: iter.signal });
       // A transport may resolve its opening promise at the same instant a
       // retarget abort wins. Do not publish the stale subscription's initial
       // resync or any already-buffered event into the new workspace target.

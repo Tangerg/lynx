@@ -5,6 +5,7 @@ import {
   runtimeCapability,
   runtimeSupportsStreamingMethod,
 } from "@/plugins/builtin/runtime/public/capabilities";
+import type { WorkspaceWatchTarget } from "../application/workspaceEventLoop";
 
 // Every topic, because this client now has a read for every one of them — the run
 // stream reaches only the window driving that run, so a session moved by the
@@ -28,7 +29,7 @@ export function canSubscribeWorkspaceEvents(): boolean {
 }
 
 export async function subscribeRuntimeWorkspaceEvents(
-  cwd: string | undefined,
+  target: WorkspaceWatchTarget,
   signal: AbortSignal,
 ): Promise<AsyncIterable<RuntimeEvent>> {
   // A file watch is an optional scope on the app-wide signal stream. Resolve it
@@ -38,9 +39,10 @@ export async function subscribeRuntimeWorkspaceEvents(
   // Other resolution failures still reject and enter the subscription loop's
   // reconnect path.
   const client = getContainer().client();
-  const workspace = runtimeCapability("fileWatch")
-    ? await client.workspaces.resolve(cwd ? { path: cwd } : undefined)
-    : undefined;
+  const workspace =
+    runtimeCapability("fileWatch") && target.type === "workspace"
+      ? await client.workspaces.resolve(target.cwd ? { path: target.cwd } : undefined)
+      : undefined;
   const watches =
     workspace?.availability === "available"
       ? [{ watchId: "active-session", workspace: { path: workspace.ref.path } }]

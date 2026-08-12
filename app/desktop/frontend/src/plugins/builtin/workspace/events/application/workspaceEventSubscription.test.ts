@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { WorkspaceEventLoop } from "./workspaceEventLoop";
 import {
   startWorkspaceEventSubscription,
@@ -14,6 +14,8 @@ function deferred<T>() {
 }
 
 const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+afterEach(() => vi.useRealTimers());
 
 function subscriptionPorts(
   patch: Partial<WorkspaceEventSubscriptionPorts> = {},
@@ -88,21 +90,45 @@ describe("startWorkspaceEventSubscription", () => {
     second.resolve({ status: "resolved", cwd: "/new" });
     await tick();
 
-    expect(ports.loop.retarget).toHaveBeenCalledTimes(1);
-    expect(ports.loop.retarget).toHaveBeenCalledWith("/new");
+    expect(ports.loop.retarget).toHaveBeenNthCalledWith(1, { type: "none" });
+    expect(ports.loop.retarget).toHaveBeenNthCalledWith(2, { type: "none" });
+    expect(ports.loop.retarget).toHaveBeenNthCalledWith(3, {
+      type: "workspace",
+      cwd: "/new",
+    });
   });
 
-  it("retargets to the default workspace but preserves the target on resolution failure", async () => {
-    const unavailable =
-      deferred<Awaited<ReturnType<WorkspaceEventSubscriptionPorts["resolveWorkspaceCwd"]>>>();
-    const defaultWorkspace =
-      deferred<Awaited<ReturnType<WorkspaceEventSubscriptionPorts["resolveWorkspaceCwd"]>>>();
-    let onCwdChange: (() => void) | undefined;
+  it("keeps global topics online and retries before binding the default workspace", async () => {
+    vi.useFakeTimers();
     const ports = subscriptionPorts({
       resolveWorkspaceCwd: vi
         .fn<WorkspaceEventSubscriptionPorts["resolveWorkspaceCwd"]>()
-        .mockReturnValueOnce(unavailable.promise)
-        .mockReturnValueOnce(defaultWorkspace.promise),
+        .mockResolvedValueOnce({ status: "unavailable" })
+        .mockResolvedValueOnce({ status: "resolved" }),
+    });
+
+    startWorkspaceEventSubscription(ports);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(ports.loop.retarget).toHaveBeenCalledOnce();
+    expect(ports.loop.retarget).toHaveBeenLastCalledWith({ type: "none" });
+    expect(ports.resolveWorkspaceCwd).toHaveBeenCalledOnce();
+
+    await vi.advanceTimersByTimeAsync(999);
+    expect(ports.resolveWorkspaceCwd).toHaveBeenCalledOnce();
+    await vi.advanceTimersByTimeAsync(1);
+    expect(ports.resolveWorkspaceCwd).toHaveBeenCalledTimes(2);
+    expect(ports.loop.retarget).toHaveBeenLastCalledWith({ type: "workspace" });
+  });
+
+  it("drops the previous file watch before resolving a newly selected session", async () => {
+    let onCwdChange: (() => void) | undefined;
+    const second =
+      deferred<Awaited<ReturnType<WorkspaceEventSubscriptionPorts["resolveWorkspaceCwd"]>>>();
+    const ports = subscriptionPorts({
+      resolveWorkspaceCwd: vi
+        .fn<WorkspaceEventSubscriptionPorts["resolveWorkspaceCwd"]>()
+        .mockResolvedValueOnce({ status: "resolved", cwd: "/first" })
+        .mockReturnValueOnce(second.promise),
       subscribeWorkspaceCwdInputs: (listener) => {
         onCwdChange = listener;
         return vi.fn();
@@ -110,15 +136,17 @@ describe("startWorkspaceEventSubscription", () => {
     });
 
     startWorkspaceEventSubscription(ports);
-    unavailable.resolve({ status: "unavailable" });
     await tick();
-    expect(ports.loop.retarget).not.toHaveBeenCalled();
+    expect(ports.loop.retarget).toHaveBeenLastCalledWith({
+      type: "workspace",
+      cwd: "/first",
+    });
 
     onCwdChange?.();
-    defaultWorkspace.resolve({ status: "resolved" });
+    expect(ports.loop.retarget).toHaveBeenLastCalledWith({ type: "none" });
+    second.resolve({ status: "unavailable" });
     await tick();
-    expect(ports.loop.retarget).toHaveBeenCalledOnce();
-    expect(ports.loop.retarget).toHaveBeenCalledWith(undefined);
+    expect(ports.loop.retarget).toHaveBeenLastCalledWith({ type: "none" });
   });
 
   it("unsubscribes, aborts the loop signal, and suppresses late retargets on dispose", async () => {
@@ -148,6 +176,7 @@ describe("startWorkspaceEventSubscription", () => {
     expect(unsubscribeCapabilities).toHaveBeenCalledOnce();
     expect(unsubscribeCwdInputs).toHaveBeenCalledOnce();
     expect(loopSignal?.aborted).toBe(true);
-    expect(loop.retarget).not.toHaveBeenCalled();
+    expect(loop.retarget).toHaveBeenCalledOnce();
+    expect(loop.retarget).toHaveBeenCalledWith({ type: "none" });
   });
 });
