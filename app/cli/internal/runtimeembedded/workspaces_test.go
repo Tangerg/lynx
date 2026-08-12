@@ -10,21 +10,25 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/embedded"
 	"github.com/Tangerg/lynx/app/runtime/protocol"
 
+	"github.com/Tangerg/lynx/app/cli/internal/agent"
+	"github.com/Tangerg/lynx/app/cli/internal/runtimeprofile"
 	"github.com/Tangerg/lynx/app/cli/internal/workspace"
 )
 
 type workspaceBindingStub struct {
-	resolved   *protocol.WorkspaceInfo
-	known      *protocol.Page[protocol.WorkspaceSummary]
-	changes    *protocol.Page[protocol.WorkspaceFileChange]
-	changesErr error
-	diff       *protocol.Diff
-	head       *protocol.FileHead
-	search     *protocol.GrepResult
-	files      *protocol.Page[protocol.FileEntry]
-	filePages  map[string]*protocol.Page[protocol.FileEntry]
-	fileCalls  []protocol.ListFilesRequest
-	content    *protocol.FileContent
+	resolved     *protocol.WorkspaceInfo
+	known        *protocol.Page[protocol.WorkspaceSummary]
+	changes      *protocol.Page[protocol.WorkspaceFileChange]
+	changesErr   error
+	changesCalls int
+	diff         *protocol.Diff
+	diffCalls    int
+	head         *protocol.FileHead
+	search       *protocol.GrepResult
+	files        *protocol.Page[protocol.FileEntry]
+	filePages    map[string]*protocol.Page[protocol.FileEntry]
+	fileCalls    []protocol.ListFilesRequest
+	content      *protocol.FileContent
 }
 
 func (stub *workspaceBindingStub) ResolveWorkspace(context.Context, protocol.ResolveWorkspaceRequest, embedded.CallOptions) (*protocol.WorkspaceInfo, error) {
@@ -36,13 +40,19 @@ func (stub *workspaceBindingStub) ListWorkspaces(context.Context, embedded.CallO
 }
 
 func (stub *workspaceBindingStub) ListWorkspaceFileChanges(context.Context, protocol.WorkspaceQuery, embedded.CallOptions) (*protocol.Page[protocol.WorkspaceFileChange], error) {
+	stub.changesCalls++
 	return stub.changes, stub.changesErr
 }
 
 func TestWorkspaceAdapterProjectsVersionControlUnavailability(t *testing.T) {
 	t.Parallel()
 	stub := &workspaceBindingStub{changesErr: protocol.ErrVcsUnavailable}
-	runtime := &Runtime{workspaces: stub, meta: requestMeta("test")}
+	runtime := &Runtime{
+		workspaces: stub, meta: requestMeta("test"),
+		profile: runtimeprofile.Profile{Features: map[runtimeprofile.FeatureName]runtimeprofile.Feature{
+			runtimeprofile.FeatureGit: {Enabled: true, Stability: runtimeprofile.Stable},
+		}},
+	}
 
 	_, err := runtime.Changes(t.Context(), "/workspace")
 	if !errors.Is(err, workspace.ErrVersionControlUnavailable) ||
@@ -52,6 +62,7 @@ func TestWorkspaceAdapterProjectsVersionControlUnavailability(t *testing.T) {
 }
 
 func (stub *workspaceBindingStub) GetWorkspaceDiff(context.Context, protocol.GetDiffRequest, embedded.CallOptions) (*protocol.Diff, error) {
+	stub.diffCalls++
 	return stub.diff, nil
 }
 
@@ -98,7 +109,12 @@ func TestWorkspaceAdapterProjectsEveryReadShape(t *testing.T) {
 		},
 		content: &protocol.FileContent{Path: "main.go", Content: "package main\n", Encoding: "utf-8", TotalLines: 1},
 	}
-	runtime := &Runtime{workspaces: stub, meta: requestMeta("test")}
+	runtime := &Runtime{
+		workspaces: stub, meta: requestMeta("test"),
+		profile: runtimeprofile.Profile{Features: map[runtimeprofile.FeatureName]runtimeprofile.Feature{
+			runtimeprofile.FeatureGit: {Enabled: true, Stability: runtimeprofile.Stable},
+		}},
+	}
 
 	resolved, err := runtime.Resolve(t.Context(), workspace.ResolveRequest{Path: "/workspace"})
 	if err != nil || resolved.Path != "/workspace" || !resolved.IsAvailable() {
@@ -148,6 +164,21 @@ func TestWorkspaceAdapterProjectsEveryReadShape(t *testing.T) {
 	}
 }
 
+func TestWorkspaceAdapterRejectsGitReadsBeforeCallingBinding(t *testing.T) {
+	t.Parallel()
+	stub := &workspaceBindingStub{}
+	runtime := &Runtime{workspaces: stub}
+	if _, err := runtime.Changes(t.Context(), "/workspace"); err == nil || !errors.Is(err, agent.ErrIncompatibleRuntime) {
+		t.Fatalf("Changes error = %v, want ErrIncompatibleRuntime", err)
+	}
+	if _, err := runtime.Diff(t.Context(), workspace.DiffRequest{Workspace: "/workspace"}); err == nil || !errors.Is(err, agent.ErrIncompatibleRuntime) {
+		t.Fatalf("Diff error = %v, want ErrIncompatibleRuntime", err)
+	}
+	if stub.changesCalls != 0 || stub.diffCalls != 0 {
+		t.Fatalf("git reads reached binding without capability: changes=%d diff=%d", stub.changesCalls, stub.diffCalls)
+	}
+}
+
 func TestWorkspaceFilesRejectsCyclicRuntimePagination(t *testing.T) {
 	t.Parallel()
 	stub := &workspaceBindingStub{filePages: map[string]*protocol.Page[protocol.FileEntry]{
@@ -190,7 +221,13 @@ func TestWorkspaceUnpageableListsRejectContinuation(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			err := test.call(t.Context(), &Runtime{workspaces: test.stub, meta: requestMeta("test")})
+			runtime := &Runtime{workspaces: test.stub, meta: requestMeta("test")}
+			if test.name == "changes" {
+				runtime.profile.Features = map[runtimeprofile.FeatureName]runtimeprofile.Feature{
+					runtimeprofile.FeatureGit: {Enabled: true, Stability: runtimeprofile.Stable},
+				}
+			}
+			err := test.call(t.Context(), runtime)
 			if err == nil || !strings.Contains(err.Error(), "continuation cursor") {
 				t.Fatalf("list error = %v, want continuation cursor failure", err)
 			}

@@ -2,6 +2,7 @@ package runtimeembedded
 
 import (
 	"context"
+	"errors"
 	"iter"
 	"slices"
 	"testing"
@@ -9,6 +10,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/embedded"
 	"github.com/Tangerg/lynx/app/runtime/protocol"
 
+	"github.com/Tangerg/lynx/app/cli/internal/agent"
 	"github.com/Tangerg/lynx/app/cli/internal/changefeed"
 	"github.com/Tangerg/lynx/app/cli/internal/runtimeprofile"
 )
@@ -36,6 +38,9 @@ func TestChangefeedAdapterNegotiatesAndProjectsRuntimeEvents(t *testing.T) {
 	runtime := &Runtime{
 		changes: stub, meta: requestMeta("test"),
 		profile: changefeedProfile(changefeed.FilesChanged),
+	}
+	runtime.profile.Features = map[runtimeprofile.FeatureName]runtimeprofile.Feature{
+		runtimeprofile.FeatureFileWatch: {Enabled: true, Stability: runtimeprofile.Stable},
 	}
 	stream, err := runtime.Subscribe(t.Context(), changefeed.Subscription{
 		Topics:  []changefeed.Topic{changefeed.FilesChanged},
@@ -132,6 +137,11 @@ func TestChangefeedAdapterRejectsEventsOutsideTheSubscription(t *testing.T) {
 				changes: stub, meta: requestMeta("test"),
 				profile: changefeedProfile(changefeed.FilesChanged, changefeed.SessionsChanged, changefeed.RunsChanged),
 			}
+			if len(test.subscription.Watches) != 0 {
+				runtime.profile.Features = map[runtimeprofile.FeatureName]runtimeprofile.Feature{
+					runtimeprofile.FeatureFileWatch: {Enabled: true, Stability: runtimeprofile.Stable},
+				}
+			}
 			stream, err := runtime.Subscribe(t.Context(), test.subscription)
 			if err != nil {
 				t.Fatal(err)
@@ -155,6 +165,22 @@ func TestChangefeedAdapterRefusesAnUnadvertisedTopic(t *testing.T) {
 	}
 	if stub.called {
 		t.Fatal("runtime binding was called before capability validation")
+	}
+}
+
+func TestChangefeedAdapterRejectsWatchesWithoutFileWatchCapability(t *testing.T) {
+	t.Parallel()
+	stub := &changeBindingStub{}
+	runtime := &Runtime{changes: stub, profile: changefeedProfile(changefeed.FilesChanged)}
+	_, err := runtime.Subscribe(t.Context(), changefeed.Subscription{
+		Topics:  []changefeed.Topic{changefeed.FilesChanged},
+		Watches: []changefeed.Watch{{ID: "active", Workspace: "/workspace"}},
+	})
+	if err == nil || !errors.Is(err, agent.ErrIncompatibleRuntime) {
+		t.Fatalf("Subscribe error = %v, want ErrIncompatibleRuntime", err)
+	}
+	if stub.called {
+		t.Fatal("workspace watch reached the binding without fileWatch capability")
 	}
 }
 

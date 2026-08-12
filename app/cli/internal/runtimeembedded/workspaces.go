@@ -7,6 +7,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/embedded"
 	"github.com/Tangerg/lynx/app/runtime/protocol"
 
+	"github.com/Tangerg/lynx/app/cli/internal/runtimeprofile"
 	"github.com/Tangerg/lynx/app/cli/internal/workspace"
 )
 
@@ -66,6 +67,9 @@ func (r *Runtime) List(ctx context.Context) ([]workspace.Summary, error) {
 }
 
 func (r *Runtime) Changes(ctx context.Context, path string) ([]workspace.Change, error) {
+	if err := r.requireFeature(runtimeprofile.FeatureGit); err != nil {
+		return nil, err
+	}
 	page, err := r.workspaces.ListWorkspaceFileChanges(ctx, protocol.WorkspaceQuery{
 		Workspace: protocol.WorkspaceRef{Path: path},
 	}, r.callOptions())
@@ -89,6 +93,9 @@ func (r *Runtime) Changes(ctx context.Context, path string) ([]workspace.Change,
 
 func (r *Runtime) Diff(ctx context.Context, request workspace.DiffRequest) (workspace.Diff, error) {
 	if err := request.Validate(); err != nil {
+		return workspace.Diff{}, err
+	}
+	if err := r.requireFeature(runtimeprofile.FeatureGit); err != nil {
 		return workspace.Diff{}, err
 	}
 	value, err := r.workspaces.GetWorkspaceDiff(ctx, protocol.GetDiffRequest{

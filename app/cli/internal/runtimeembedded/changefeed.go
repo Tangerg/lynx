@@ -11,6 +11,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/protocol"
 
 	"github.com/Tangerg/lynx/app/cli/internal/changefeed"
+	"github.com/Tangerg/lynx/app/cli/internal/runtimeprofile"
 )
 
 type changeBinding interface {
@@ -24,6 +25,11 @@ func (r *Runtime) Supports(topic changefeed.Topic) bool {
 func (r *Runtime) Subscribe(ctx context.Context, subscription changefeed.Subscription) (changefeed.EventStream, error) {
 	if err := subscription.Validate(); err != nil {
 		return nil, err
+	}
+	if len(subscription.Watches) != 0 {
+		if err := r.requireFeature(runtimeprofile.FeatureFileWatch); err != nil {
+			return nil, err
+		}
 	}
 	limits := r.profile.Limits.RuntimeSubscription
 	if limits.MaxTopics > 0 && len(subscription.Topics) > limits.MaxTopics {
