@@ -49,6 +49,64 @@ func TestSubscriptionMakesWatchScopeExplicit(t *testing.T) {
 	}
 }
 
+func TestSubscriptionLimitsPartitionWithoutLosingDeliveryScope(t *testing.T) {
+	t.Parallel()
+	requested := Subscription{
+		Topics: []Topic{FilesChanged, SessionsChanged, RunsChanged, StateChanged, InterruptsChanged},
+		Watches: []Watch{
+			{ID: "first", Workspace: "/first"},
+			{ID: "second", Workspace: "/second"},
+			{ID: "third", Workspace: "/third"},
+		},
+	}
+	partitions, err := (SubscriptionLimits{MaxTopics: 2, MaxWatches: 2}).Partition(requested)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []Subscription{
+		{Topics: []Topic{FilesChanged, SessionsChanged}, Watches: requested.Watches[:2]},
+		{Topics: []Topic{RunsChanged, StateChanged}},
+		{Topics: []Topic{InterruptsChanged}},
+		{Topics: []Topic{FilesChanged}, Watches: requested.Watches[2:]},
+	}
+	if !slices.EqualFunc(partitions, want, func(got, want Subscription) bool {
+		return slices.Equal(got.Topics, want.Topics) && slices.Equal(got.Watches, want.Watches)
+	}) {
+		t.Fatalf("partitions = %+v, want %+v", partitions, want)
+	}
+	partitions[0].Topics[0] = RunsChanged
+	partitions[0].Watches[0].ID = "mutated"
+	if requested.Topics[0] != FilesChanged || requested.Watches[0].ID != "first" {
+		t.Fatal("partition returned aliases into the requested subscription")
+	}
+}
+
+func TestSubscriptionLimitsKeepAnUnboundedRequestWhole(t *testing.T) {
+	t.Parallel()
+	requested := Subscription{
+		Topics:  []Topic{FilesChanged, SessionsChanged},
+		Watches: []Watch{{ID: "active", Workspace: "/workspace"}},
+	}
+	partitions, err := (SubscriptionLimits{}).Partition(requested)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(partitions) != 1 || !slices.Equal(partitions[0].Topics, requested.Topics) ||
+		!slices.Equal(partitions[0].Watches, requested.Watches) {
+		t.Fatalf("partitions = %+v, want one complete subscription", partitions)
+	}
+}
+
+func TestSubscriptionLimitsRejectInvalidConstraints(t *testing.T) {
+	t.Parallel()
+	requested := Subscription{Topics: []Topic{SessionsChanged}}
+	for _, limits := range []SubscriptionLimits{{MaxTopics: -1}, {MaxWatches: -1}} {
+		if _, err := limits.Partition(requested); err == nil {
+			t.Fatalf("negative limits %+v were accepted", limits)
+		}
+	}
+}
+
 func TestEventDistinguishesInvalidationFromResync(t *testing.T) {
 	t.Parallel()
 	changed := Event{Type: EventType(FilesChanged), Sequence: 1, WatchID: "active", Workspace: "/workspace", Paths: []string{"main.go"}}

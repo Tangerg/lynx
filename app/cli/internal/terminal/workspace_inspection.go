@@ -284,9 +284,10 @@ func (a *app) followRuntimeChanges() {
 	a.operations.Go(runtimeChangesOperation, true, func(ctx context.Context, lease operationLease) {
 		monitor := runtimeChangeMonitor{
 			workspace: workspacePath, repository: repository, source: a.changes,
-			recovery:     runtimeRecoveryBackoff,
-			watchFiles:   a.runtimeSupports(runtimeprofile.FeatureFileWatch),
-			includeGoals: a.goals != nil, includeSkills: a.skills != nil, includeMCP: a.mcp != nil,
+			recovery:           runtimeRecoveryBackoff,
+			subscriptionLimits: a.runtimeChangeSubscriptionLimits(),
+			watchFiles:         a.runtimeSupports(runtimeprofile.FeatureFileWatch),
+			includeGoals:       a.goals != nil, includeSkills: a.skills != nil, includeMCP: a.mcp != nil,
 			includeSchedules: a.schedules != nil,
 			includeKnowledge: a.knowledge != nil, includeHooks: a.hooks != nil,
 			applyFiles: func(changes []workspace.Change) error {
@@ -334,20 +335,21 @@ func (a *app) applyWorkspaceChanges(changes []workspace.Change) {
 }
 
 type runtimeChangeMonitor struct {
-	workspace        string
-	repository       workspace.ChangeReader
-	source           changefeed.Source
-	recovery         reconnect.Backoff
-	watchFiles       bool
-	includeGoals     bool
-	includeSkills    bool
-	includeMCP       bool
-	includeSchedules bool
-	includeKnowledge bool
-	includeHooks     bool
-	applyFiles       func([]workspace.Change) error
-	applyEvent       func(changefeed.Event) error
-	applyResync      func([]changefeed.Topic) error
+	workspace          string
+	repository         workspace.ChangeReader
+	source             changefeed.Source
+	recovery           reconnect.Backoff
+	watchFiles         bool
+	includeGoals       bool
+	includeSkills      bool
+	includeMCP         bool
+	includeSchedules   bool
+	includeKnowledge   bool
+	includeHooks       bool
+	applyFiles         func([]workspace.Change) error
+	applyEvent         func(changefeed.Event) error
+	applyResync        func([]changefeed.Topic) error
+	subscriptionLimits changefeed.SubscriptionLimits
 }
 
 func (monitor runtimeChangeMonitor) run(ctx context.Context) error {
@@ -355,10 +357,64 @@ func (monitor runtimeChangeMonitor) run(ctx context.Context) error {
 	if monitor.source == nil || len(topics) == 0 {
 		return monitor.runWithoutWatch(ctx)
 	}
-	subscription := changefeed.Subscription{Topics: topics}
+	requested := changefeed.Subscription{Topics: topics}
 	if monitor.repository != nil && monitor.watchFiles && containsTopic(topics, changefeed.FilesChanged) {
-		subscription.Watches = []changefeed.Watch{{ID: workspaceWatchID, Workspace: monitor.workspace}}
+		requested.Watches = []changefeed.Watch{{ID: workspaceWatchID, Workspace: monitor.workspace}}
 	}
+	subscriptions, err := monitor.subscriptionLimits.Partition(requested)
+	if err != nil {
+		return fmt.Errorf("plan runtime change subscriptions: %w", err)
+	}
+	if len(subscriptions) == 1 {
+		return monitor.runSubscription(ctx, subscriptions[0], monitor.repository != nil)
+	}
+	return monitor.runSubscriptions(ctx, subscriptions)
+}
+
+func (a *app) runtimeChangeSubscriptionLimits() changefeed.SubscriptionLimits {
+	if a.runtimeProfile == nil {
+		return changefeed.SubscriptionLimits{}
+	}
+	limits := a.runtimeProfile.Limits.RuntimeSubscription
+	return changefeed.SubscriptionLimits{MaxTopics: limits.MaxTopics, MaxWatches: limits.MaxWatches}
+}
+
+func (monitor runtimeChangeMonitor) runSubscriptions(ctx context.Context, subscriptions []changefeed.Subscription) error {
+	groupContext, cancelGroup := context.WithCancelCause(ctx)
+	defer cancelGroup(nil)
+
+	fileOwner := 0
+	for index, subscription := range subscriptions {
+		if containsTopic(subscription.Topics, changefeed.FilesChanged) {
+			fileOwner = index
+			break
+		}
+	}
+	results := make(chan error, len(subscriptions))
+	for index, subscription := range subscriptions {
+		ownsFileProjection := monitor.repository != nil && index == fileOwner
+		go func(subscription changefeed.Subscription, ownsFileProjection bool) {
+			results <- monitor.runSubscription(groupContext, subscription, ownsFileProjection)
+		}(subscription, ownsFileProjection)
+	}
+
+	first := <-results
+	cancelGroup(first)
+	for range len(subscriptions) - 1 {
+		<-results
+	}
+	if cause := context.Cause(ctx); cause != nil {
+		return cause
+	}
+	return first
+}
+
+func (monitor runtimeChangeMonitor) runSubscription(
+	ctx context.Context,
+	subscription changefeed.Subscription,
+	ownsFileProjection bool,
+) error {
+	topics := subscription.Topics
 	setupFailures, streamFailures := 0, 0
 	for context.Cause(ctx) == nil {
 		attemptContext, cancelAttempt := context.WithCancel(ctx)
@@ -383,7 +439,7 @@ func (monitor runtimeChangeMonitor) run(ctx context.Context) error {
 		// Query support and subscription support are independent capabilities.
 		// Even when this runtime cannot watch files.changed, install the
 		// authoritative file projection instead of leaving the header empty.
-		if monitor.repository != nil {
+		if ownsFileProjection {
 			if err := monitor.refreshFiles(attemptContext); err != nil {
 				cancelAttempt()
 				if cause := context.Cause(ctx); cause != nil {

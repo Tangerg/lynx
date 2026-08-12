@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -29,6 +30,47 @@ type runtimeChangeSourceStub struct {
 	subscription chan changefeed.Subscription
 	applied      chan changefeed.Event
 	supported    []changefeed.Topic
+}
+
+type runtimeSubscriptionRegistration struct {
+	subscription changefeed.Subscription
+	events       chan changefeed.Event
+}
+
+type partitionedRuntimeChangeSourceStub struct {
+	supported     []changefeed.Topic
+	registrations chan runtimeSubscriptionRegistration
+}
+
+func (stub *partitionedRuntimeChangeSourceStub) Supports(topic changefeed.Topic) bool {
+	return slices.Contains(stub.supported, topic)
+}
+
+func (stub *partitionedRuntimeChangeSourceStub) Subscribe(
+	ctx context.Context,
+	subscription changefeed.Subscription,
+) (changefeed.EventStream, error) {
+	registration := runtimeSubscriptionRegistration{
+		subscription: subscription,
+		events:       make(chan changefeed.Event, 4),
+	}
+	select {
+	case stub.registrations <- registration:
+	case <-ctx.Done():
+		return nil, context.Cause(ctx)
+	}
+	return func(yield func(changefeed.Event, error) bool) {
+		for {
+			select {
+			case event := <-registration.events:
+				if !yield(event, nil) {
+					return
+				}
+			case <-ctx.Done():
+				return
+			}
+		}
+	}, nil
 }
 
 func (stub *runtimeChangeSourceStub) Supports(topic changefeed.Topic) bool {
@@ -177,6 +219,171 @@ func TestRuntimeChangeMonitorBacksOffRepeatedEmptyStreams(t *testing.T) {
 	awaitSignal(t, source.subscription, "second replacement runtime subscription")
 	if elapsed := time.Since(started); elapsed < 55*time.Millisecond {
 		t.Fatalf("three empty streams retried after %s, before the cumulative backoff", elapsed)
+	}
+	cancel()
+	if err := <-done; !errors.Is(err, context.Canceled) {
+		t.Fatalf("run error = %v, want context cancellation", err)
+	}
+}
+
+func TestRuntimeChangeMonitorPartitionsTopicsAtTheNegotiatedLimit(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	supported := []changefeed.Topic{
+		changefeed.SessionsChanged,
+		changefeed.RunsChanged,
+		changefeed.StateChanged,
+		changefeed.InterruptsChanged,
+		changefeed.SkillsChanged,
+	}
+	source := &partitionedRuntimeChangeSourceStub{
+		supported:     supported,
+		registrations: make(chan runtimeSubscriptionRegistration, 3),
+	}
+	resyncs := make(chan []changefeed.Topic, 4)
+	applied := make(chan changefeed.Event, 3)
+	monitor := runtimeChangeMonitor{
+		source: source, includeSkills: true,
+		subscriptionLimits: changefeed.SubscriptionLimits{MaxTopics: 2, MaxWatches: 1},
+		applyResync: func(topics []changefeed.Topic) error {
+			resyncs <- slices.Clone(topics)
+			return nil
+		},
+		applyEvent: func(event changefeed.Event) error {
+			applied <- event
+			return nil
+		},
+	}
+	done := make(chan error, 1)
+	go func() { done <- monitor.run(ctx) }()
+
+	registrations := make([]runtimeSubscriptionRegistration, 0, 3)
+	for range 3 {
+		registrations = append(registrations, awaitValue(t, source.registrations, "partitioned subscription"))
+	}
+	for range 3 {
+		awaitValue(t, resyncs, "partition initial resync")
+	}
+	slices.SortFunc(registrations, func(left, right runtimeSubscriptionRegistration) int {
+		return strings.Compare(string(left.subscription.Topics[0]), string(right.subscription.Topics[0]))
+	})
+	var subscribed []changefeed.Topic
+	for _, registration := range registrations {
+		if len(registration.subscription.Topics) > 2 {
+			t.Fatalf("subscription topics = %v, exceeds negotiated limit", registration.subscription.Topics)
+		}
+		subscribed = append(subscribed, registration.subscription.Topics...)
+		registration.events <- changefeed.Event{
+			Type: changefeed.EventType(registration.subscription.Topics[0]), Sequence: 1,
+		}
+	}
+	slices.Sort(subscribed)
+	wantTopics := slices.Clone(supported)
+	slices.Sort(wantTopics)
+	if !slices.Equal(subscribed, wantTopics) {
+		t.Fatalf("subscribed topics = %v, want %v", subscribed, wantTopics)
+	}
+	for range 3 {
+		awaitValue(t, applied, "partitioned event")
+	}
+	select {
+	case unexpected := <-resyncs:
+		t.Fatalf("independent sequence-one frames triggered a gap resync for %v", unexpected)
+	default:
+	}
+	cancel()
+	if err := <-done; !errors.Is(err, context.Canceled) {
+		t.Fatalf("run error = %v, want context cancellation", err)
+	}
+}
+
+func TestRuntimeChangeMonitorResyncsOnlyThePartitionWithASequenceGap(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	source := &partitionedRuntimeChangeSourceStub{
+		supported: []changefeed.Topic{
+			changefeed.SessionsChanged, changefeed.RunsChanged,
+			changefeed.StateChanged, changefeed.InterruptsChanged,
+		},
+		registrations: make(chan runtimeSubscriptionRegistration, 2),
+	}
+	resyncs := make(chan []changefeed.Topic, 3)
+	monitor := runtimeChangeMonitor{
+		source:             source,
+		subscriptionLimits: changefeed.SubscriptionLimits{MaxTopics: 2, MaxWatches: 1},
+		applyResync: func(topics []changefeed.Topic) error {
+			resyncs <- slices.Clone(topics)
+			return nil
+		},
+	}
+	done := make(chan error, 1)
+	go func() { done <- monitor.run(ctx) }()
+
+	first := awaitValue(t, source.registrations, "first partition")
+	awaitValue(t, source.registrations, "second partition")
+	for range 2 {
+		awaitValue(t, resyncs, "partition initial resync")
+	}
+	first.events <- changefeed.Event{
+		Type: changefeed.EventType(first.subscription.Topics[0]), Sequence: 2,
+	}
+	gapScope := awaitValue(t, resyncs, "partition gap resync")
+	if !slices.Equal(gapScope, first.subscription.Topics) {
+		t.Fatalf("gap resync scope = %v, want %v", gapScope, first.subscription.Topics)
+	}
+	select {
+	case unexpected := <-resyncs:
+		t.Fatalf("gap in one partition resynced another scope: %v", unexpected)
+	case <-time.After(25 * time.Millisecond):
+	}
+	cancel()
+	if err := <-done; !errors.Is(err, context.Canceled) {
+		t.Fatalf("run error = %v, want context cancellation", err)
+	}
+}
+
+func TestRuntimeChangeMonitorAssignsTheWorkspaceWatchToOnePartition(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	source := &partitionedRuntimeChangeSourceStub{
+		supported: []changefeed.Topic{
+			changefeed.FilesChanged, changefeed.SessionsChanged,
+			changefeed.RunsChanged, changefeed.StateChanged, changefeed.InterruptsChanged,
+		},
+		registrations: make(chan runtimeSubscriptionRegistration, 5),
+	}
+	var reads atomic.Int32
+	filesApplied := make(chan struct{}, 1)
+	monitor := runtimeChangeMonitor{
+		workspace: "/workspace", source: source, watchFiles: true,
+		repository: changeReaderFunc(func(context.Context, string) ([]workspace.Change, error) {
+			reads.Add(1)
+			return nil, nil
+		}),
+		subscriptionLimits: changefeed.SubscriptionLimits{MaxTopics: 1, MaxWatches: 1},
+		applyFiles: func([]workspace.Change) error {
+			filesApplied <- struct{}{}
+			return nil
+		},
+	}
+	done := make(chan error, 1)
+	go func() { done <- monitor.run(ctx) }()
+
+	watchSubscriptions := 0
+	for range 5 {
+		registration := awaitValue(t, source.registrations, "single-topic subscription")
+		if len(registration.subscription.Watches) == 0 {
+			continue
+		}
+		watchSubscriptions++
+		if !slices.Equal(registration.subscription.Topics, []changefeed.Topic{changefeed.FilesChanged}) ||
+			!slices.Equal(registration.subscription.Watches, []changefeed.Watch{{ID: workspaceWatchID, Workspace: "/workspace"}}) {
+			t.Fatalf("file subscription = %+v", registration.subscription)
+		}
+	}
+	awaitSignal(t, filesApplied, "initial workspace projection")
+	if watchSubscriptions != 1 || reads.Load() != 1 {
+		t.Fatalf("watch subscriptions = %d, workspace reads = %d; want one of each", watchSubscriptions, reads.Load())
 	}
 	cancel()
 	if err := <-done; !errors.Is(err, context.Canceled) {

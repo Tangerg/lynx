@@ -80,6 +80,57 @@ type Subscription struct {
 	Watches []Watch
 }
 
+// SubscriptionLimits are the delivery constraints negotiated with the
+// runtime. A zero value means the transport did not advertise a constraint.
+// Partition keeps those transport details out of change consumers while
+// preserving every requested topic and watch.
+type SubscriptionLimits struct {
+	MaxTopics  int
+	MaxWatches int
+}
+
+func (limits SubscriptionLimits) Partition(subscription Subscription) ([]Subscription, error) {
+	if err := subscription.Validate(); err != nil {
+		return nil, err
+	}
+	if limits.MaxTopics < 0 || limits.MaxWatches < 0 {
+		return nil, errors.New("change subscription limits cannot be negative")
+	}
+	topicLimit := len(subscription.Topics)
+	if limits.MaxTopics > 0 {
+		topicLimit = min(limits.MaxTopics, topicLimit)
+	}
+	watchLimit := len(subscription.Watches)
+	if limits.MaxWatches > 0 {
+		watchLimit = min(limits.MaxWatches, watchLimit)
+	}
+
+	partitions := make([]Subscription, 0, (len(subscription.Topics)+topicLimit-1)/topicLimit)
+	for remaining := subscription.Topics; len(remaining) > 0; {
+		count := min(topicLimit, len(remaining))
+		partitions = append(partitions, Subscription{Topics: slices.Clone(remaining[:count])})
+		remaining = remaining[count:]
+	}
+	if len(subscription.Watches) == 0 {
+		return partitions, nil
+	}
+
+	filePartition := slices.Index(subscription.Topics, FilesChanged) / topicLimit
+	remainingWatches := subscription.Watches
+	count := min(watchLimit, len(remainingWatches))
+	partitions[filePartition].Watches = slices.Clone(remainingWatches[:count])
+	remainingWatches = remainingWatches[count:]
+	for len(remainingWatches) > 0 {
+		count = min(watchLimit, len(remainingWatches))
+		partitions = append(partitions, Subscription{
+			Topics:  []Topic{FilesChanged},
+			Watches: slices.Clone(remainingWatches[:count]),
+		})
+		remainingWatches = remainingWatches[count:]
+	}
+	return partitions, nil
+}
+
 func (subscription Subscription) Validate() error {
 	if len(subscription.Topics) == 0 {
 		return errors.New("change subscription has no topics")
