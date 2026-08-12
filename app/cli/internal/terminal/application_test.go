@@ -1203,8 +1203,12 @@ func TestSessionChangeOwnsTheComposerUntilItsSnapshotIsInstalled(t *testing.T) {
 		changeStarted: make(chan struct{}),
 		releaseChange: make(chan struct{}),
 	}
-	host, stop := runUIWith(t, backend)
+	stateDirectory := t.TempDir()
+	host, stop := runUIFromConfig(t, Config{
+		Runtime: backend, Workspace: "/tmp/lyra-cli-test", StateDirectory: stateDirectory,
+	})
 	host.Shows(t, "Ask lyra")
+	originalSession := firstRuntimeSession(t, base)
 	host.Type("/new")
 	host.Press(input.Enter)
 	select {
@@ -1216,6 +1220,24 @@ func TestSessionChangeOwnsTheComposerUntilItsSnapshotIsInstalled(t *testing.T) {
 	host.Type("do not orphan this prompt")
 	host.Press(input.Enter)
 	host.Shows(t, "wait for the current session change")
+	host.Until(t, "the rejected prompt to remain durable", func() bool {
+		if !host.Repaint() {
+			return false
+		}
+		store, err := workbench.Open(stateDirectory, workbench.Config{})
+		if err != nil {
+			return false
+		}
+		draft, found, readErr := store.Draft(originalSession)
+		return readErr == nil && found && draft.Text == "do not orphan this prompt"
+	})
+	store, err := workbench.Open(stateDirectory, workbench.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if history := store.History(); len(history) != 0 {
+		t.Fatalf("rejected prompt was committed to history: %+v", history)
+	}
 	if calls := backend.starts.Load(); calls != 0 {
 		t.Fatalf("prompt started %d run(s) before the session change settled", calls)
 	}
@@ -1831,6 +1853,88 @@ func TestSessionChangeStopsBeforeMutationWhenTheSourceDraftCannotBeSaved(t *test
 	}
 	if err := os.Rename(backupDirectory, draftsDirectory); err != nil {
 		t.Fatal(err)
+	}
+	stop()
+}
+
+func TestPromptSubmissionStopsBeforeRuntimeWhenTheDraftCannotBeRetired(t *testing.T) {
+	base := mock.New()
+	backend := &recordingRuntime{Runtime: base}
+	stateDirectory := t.TempDir()
+	store, err := workbench.Open(stateDirectory, workbench.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SaveDraft("ses_demo_1", agent.Message{Text: "must remain editable"}); err != nil {
+		t.Fatal(err)
+	}
+	host, stop := runUIWithState(t, backend, "/tmp/lyra-cli-test", "ses_demo_1", stateDirectory)
+	host.Shows(t, "must remain editable")
+
+	draftsDirectory := filepath.Join(stateDirectory, "drafts")
+	entries, err := os.ReadDir(draftsDirectory)
+	if err != nil || len(entries) != 1 {
+		t.Fatalf("draft files = %d, %v", len(entries), err)
+	}
+	draftPath := filepath.Join(draftsDirectory, entries[0].Name())
+	backupPath := draftPath + ".backup"
+	if err := os.Rename(draftPath, backupPath); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(draftPath, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(draftPath, "blocker"), []byte("block deletion"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	host.Press(input.Enter)
+	host.Shows(t, "prompt submission blocked: save cleared draft")
+	host.Shows(t, "must remain editable")
+	if got := backend.startCount(); got != 0 {
+		t.Fatalf("runtime started %d runs after draft retirement failed", got)
+	}
+
+	if err := os.Remove(filepath.Join(draftPath, "blocker")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(draftPath); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(backupPath, draftPath); err != nil {
+		t.Fatal(err)
+	}
+	stop()
+}
+
+func TestPromptSubmissionStopsBeforeRuntimeWhenHistoryCannotBeSaved(t *testing.T) {
+	base := mock.New()
+	backend := &recordingRuntime{Runtime: base}
+	stateDirectory := t.TempDir()
+	store, err := workbench.Open(stateDirectory, workbench.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SaveDraft("ses_demo_1", agent.Message{Text: "history must commit first"}); err != nil {
+		t.Fatal(err)
+	}
+	host, stop := runUIWithState(t, backend, "/tmp/lyra-cli-test", "ses_demo_1", stateDirectory)
+	host.Shows(t, "history must commit first")
+	if err := os.Mkdir(filepath.Join(stateDirectory, "history.json"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(stateDirectory, "history.json", "blocker"), []byte("block replacement"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	host.Press(input.Enter)
+	host.Shows(t, "prompt submission blocked: save prompt history")
+	host.Shows(t, "history must commit first")
+	if got := backend.startCount(); got != 0 {
+		t.Fatalf("runtime started %d runs after history persistence failed", got)
+	}
+	draft, found, err := store.Draft("ses_demo_1")
+	if err != nil || !found || draft.Text != "history must commit first" {
+		t.Fatalf("draft after failed history save = %+v, found %t, error %v", draft, found, err)
 	}
 	stop()
 }

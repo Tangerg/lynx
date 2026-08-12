@@ -46,7 +46,10 @@ func (a *app) steerRun(instruction string) error {
 				a.message("steer run failed: " + err.Error())
 				return
 			}
-			a.rememberPrompt(message)
+			if err := a.rememberPrompt(message); err != nil {
+				a.message("steer accepted; save prompt history failed: " + err.Error())
+				return
+			}
 			a.message("steer accepted for " + shortIdentity(runID))
 		},
 	)

@@ -106,7 +106,6 @@ func (a *app) enqueueFollowUp(message agent.Message) {
 		a.message(err.Error())
 		return
 	}
-	a.rememberPrompt(message)
 	a.resetComposer()
 	a.operations.Cancel(completionOperation)
 	a.completion.Dismiss()

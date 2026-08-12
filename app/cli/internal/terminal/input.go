@@ -180,7 +180,10 @@ func (a *app) handleEscape() bool {
 		a.status.note("press Esc again to clear the draft")
 		return true
 	}
-	a.rememberPrompt(message)
+	if err := a.rememberPrompt(message); err != nil {
+		a.message("draft clear blocked: save prompt history: " + err.Error())
+		return true
+	}
 	a.resetComposer()
 	a.completion.Dismiss()
 	a.status.note("draft cleared")
@@ -240,7 +243,10 @@ func (a *app) handleCancelGesture() {
 		return
 	}
 	if hasDraft {
-		a.rememberPrompt(message)
+		if err := a.rememberPrompt(message); err != nil {
+			a.message("draft clear blocked: save prompt history: " + err.Error())
+			return
+		}
 		a.resetComposer()
 		a.completion.Dismiss()
 		a.message("draft cleared; repeat " + formatKeyBindings(a.applicationKeys, cancelRun, " or ") + " to cancel")

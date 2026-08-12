@@ -317,12 +317,16 @@ func (a *app) resetComposer() {
 	a.confirmation.Reset()
 }
 
-func (a *app) rememberPrompt(message agent.Message) {
-	a.history.Add(message)
-	if a.workbench == nil {
-		return
+func (a *app) rememberPrompt(message agent.Message) error {
+	if a.workbench != nil {
+		if err := a.workbench.Remember(message); err != nil {
+			a.reportWorkbenchError(err)
+			return err
+		}
 	}
-	a.reportWorkbenchError(a.workbench.Remember(message))
+	a.history.Add(message)
+	a.reportWorkbenchError(nil)
+	return nil
 }
 
 func (a *app) persistDraft() {

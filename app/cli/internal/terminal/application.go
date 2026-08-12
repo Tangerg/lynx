@@ -607,22 +607,43 @@ func (a *app) dispatchPrompt(message agent.Message) {
 		a.message(err.Error())
 		return
 	}
-	if a.conversation.Busy() || a.following || a.pendingCancel != nil {
-		a.enqueueFollowUp(message)
-		return
-	}
 	if a.operations.Active(sessionChangeOperation) {
 		a.message("wait for the current session change to finish")
+		return
+	}
+	if err := a.commitPromptSubmission(message); err != nil {
+		a.reportWorkbenchError(err)
+		a.message("prompt submission blocked: " + err.Error())
+		return
+	}
+	a.reportWorkbenchError(nil)
+	if a.conversation.Busy() || a.following || a.pendingCancel != nil {
+		a.enqueueFollowUp(message)
 		return
 	}
 	a.operations.Cancel(pickerCatalogOperation)
 	a.sessionDialog.Dismiss()
 	a.modelDialog.Dismiss()
-	a.rememberPrompt(message)
 	a.resetComposer()
 	a.operations.Cancel(completionOperation)
 	a.completion.Dismiss()
 	a.startRun(message, "starting run")
+}
+
+// commitPromptSubmission is the durable ownership boundary between the composer
+// and a runtime run or follow-up queue. Once submission starts, a restart must
+// not resurrect the same prompt as an unsent draft.
+func (a *app) commitPromptSubmission(message agent.Message) error {
+	if err := message.Validate(); err != nil {
+		return err
+	}
+	if err := a.rememberPrompt(message); err != nil {
+		return fmt.Errorf("save prompt history: %w", err)
+	}
+	if err := a.saveDraft(agent.Message{}); err != nil {
+		return fmt.Errorf("save cleared draft: %w", err)
+	}
+	return nil
 }
 
 func (a *app) sendNextQueuedIfBusy() {
