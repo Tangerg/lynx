@@ -63,6 +63,24 @@ func TestRunOptionsValidateBounds(t *testing.T) {
 	}
 }
 
+func TestRunOptionsEqualPreservesOptionalGenerationSemantics(t *testing.T) {
+	zero := 0.0
+	left := RunOptions{Provider: "deepseek", Model: "v4", Generation: GenerationParams{Temperature: &zero, Stop: []string{"END"}}}
+	if !left.Equal(left.Clone()) {
+		t.Fatal("cloned options are not equal")
+	}
+	right := left.Clone()
+	right.Generation.Temperature = nil
+	if left.Equal(right) {
+		t.Fatal("explicit zero temperature equals an omitted temperature")
+	}
+	right = left.Clone()
+	right.Generation.Stop[0] = "STOP"
+	if left.Equal(right) {
+		t.Fatal("different stop sequences are equal")
+	}
+}
+
 func TestOutcomeValidationMatchesRuntimeUnion(t *testing.T) {
 	problem := &failure.Problem{Type: "rate_limited", Detail: "deadline exceeded", RetryAfterSeconds: 2}
 	valid := []Outcome{

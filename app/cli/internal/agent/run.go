@@ -194,6 +194,16 @@ func (options RunOptions) Clone() RunOptions {
 	return options
 }
 
+// Equal reports whether two run starts would carry the same complete execution
+// configuration. Optional generation values retain nil-vs-zero semantics.
+func (options RunOptions) Equal(other RunOptions) bool {
+	return options.Provider == other.Provider && options.Model == other.Model && options.Limits == other.Limits &&
+		equalOptional(options.Generation.Temperature, other.Generation.Temperature) &&
+		equalOptional(options.Generation.MaxTokens, other.Generation.MaxTokens) &&
+		equalOptional(options.Generation.TopP, other.Generation.TopP) &&
+		slices.Equal(options.Generation.Stop, other.Generation.Stop)
+}
+
 type Model struct {
 	ID              string
 	Provider        string

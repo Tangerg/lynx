@@ -482,7 +482,7 @@ func (installation sessionInstallation) apply(a *app) {
 	if installation.snapshot.Session.ID != previousSessionID {
 		a.queueDialog.Dismiss()
 	}
-	a.dispatchingQueueEntry = 0
+	a.queue.ReleaseDispatch(previousSessionID)
 	a.openingRunID = ""
 	a.conversation = installation.projection.conversation
 	a.attachments = installation.attachments

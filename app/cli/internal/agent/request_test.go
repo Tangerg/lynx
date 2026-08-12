@@ -17,6 +17,21 @@ func TestStartRunValidation(t *testing.T) {
 	}
 }
 
+func TestStartRunEqualUsesTheCompleteMutationFingerprint(t *testing.T) {
+	request := StartRun{
+		CommandID: CommandID("cli_11111111111111111111111111111111"), SessionID: "ses_1",
+		Message: Message{Text: "hello"}, Options: RunOptions{Provider: "mock", Model: "balanced"},
+	}
+	if !request.Equal(request.Clone()) {
+		t.Fatal("cloned start request is not equal")
+	}
+	changed := request.Clone()
+	changed.Message.Text = "different"
+	if request.Equal(changed) {
+		t.Fatal("different start payloads are equal")
+	}
+}
+
 func TestResumeRunRequiresCompleteUniqueSet(t *testing.T) {
 	request := ResumeRun{RunID: "run_1", Answers: []InterruptAnswer{
 		{ItemID: "a", Answer: ApprovalAnswer{Decision: ApprovalApprove}},

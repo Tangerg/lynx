@@ -181,7 +181,6 @@ type app struct {
 	attention           attentionCenter
 
 	streamSeq              uint64
-	dispatchingQueueEntry  uint64
 	openingRunID           string
 	pendingCancel          *agent.CancelRun
 	sessionDraftTransition *sessionDraftTransition
@@ -833,11 +832,18 @@ func (a *app) sendNextQueuedIfBusy() {
 	if !a.conversation.Busy() && !a.following && a.pendingCancel == nil {
 		return
 	}
-	entry, ok := a.queue.Next(a.session.ID)
-	if !ok {
+	state := a.queue.State(a.session.ID)
+	if len(state.Entries) == 0 {
 		return
 	}
-	if err := a.sendQueuedNow(entry.ID); err != nil {
+	index := 0
+	if state.DispatchingID != 0 {
+		index = 1
+	}
+	if index >= len(state.Entries) || state.Entries[index].Held {
+		return
+	}
+	if err := a.sendQueuedNow(state.Entries[index].ID); err != nil {
 		a.message(err.Error())
 	}
 }

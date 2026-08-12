@@ -282,6 +282,37 @@ func TestStorePersistsAndAcknowledgesPendingRunsByCommandIdentity(t *testing.T) 
 	}
 }
 
+func TestStagingTheSameCommandRejectsADifferentPayload(t *testing.T) {
+	store, err := Open(t.TempDir(), Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	pending := PendingRun{State: PendingRunQueued, Command: agent.StartRun{
+		CommandID: agent.CommandID("cli_33333333333333333333333333333333"),
+		SessionID: "ses_1", Message: agent.Message{Text: "original"},
+		Options: agent.RunOptions{Provider: "deepseek", Model: "v4"},
+	}}
+	if err := store.StagePendingRun(pending); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.StagePendingRun(pending); err != nil {
+		t.Fatalf("identical idempotent staging returned %v", err)
+	}
+	conflict := pending
+	conflict.Command.Message.Text = "different"
+	if err := store.StagePendingRun(conflict); err == nil {
+		t.Fatal("same command identity accepted a different payload")
+	}
+	conflict = pending
+	conflict.Command.Options.Model = "v5"
+	if err := store.StagePendingRun(conflict); err == nil {
+		t.Fatal("same command identity accepted different run options")
+	}
+	if got := store.PendingRuns("ses_1"); len(got) != 1 || got[0].Command.Message.Text != "original" {
+		t.Fatalf("conflicting staging mutated outbox: %+v", got)
+	}
+}
+
 func TestRejectedDispatchRequeuesWithANewCommandIdentity(t *testing.T) {
 	store, err := Open(t.TempDir(), Config{})
 	if err != nil {
@@ -336,6 +367,37 @@ func TestCancelingDispatchPersistsBothMutationIdentities(t *testing.T) {
 	if len(pending) != 1 || pending[0].State != PendingRunCanceling ||
 		pending[0].Command.CommandID != command.CommandID || pending[0].CancelCommandID != cancelID {
 		t.Fatalf("restored canceling dispatch = %+v", pending)
+	}
+}
+
+func TestPendingRunSequenceKeepsTheOnlyDeliveryStateAtTheFIFOBoundary(t *testing.T) {
+	store, err := Open(t.TempDir(), Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	commands := []PendingRun{
+		{State: PendingRunQueued, Command: agent.StartRun{
+			CommandID: agent.CommandID("cli_11111111111111111111111111111111"),
+			SessionID: "ses_1", Message: agent.Message{Text: "first"},
+		}},
+		{State: PendingRunQueued, Command: agent.StartRun{
+			CommandID: agent.CommandID("cli_22222222222222222222222222222222"),
+			SessionID: "ses_1", Message: agent.Message{Text: "second"},
+		}},
+	}
+	if err := store.SavePendingRuns("ses_1", commands); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.MarkPendingRunDispatching("ses_1", commands[1].Command.CommandID); err == nil {
+		t.Fatal("non-front command entered dispatching state")
+	}
+	if got := store.PendingRuns("ses_1"); len(got) != 2 || got[0].State != PendingRunQueued || got[1].State != PendingRunQueued {
+		t.Fatalf("rejected transition mutated pending runs: %+v", got)
+	}
+	invalid := clonePendingRunSlice(commands)
+	invalid[1].State = PendingRunDispatching
+	if err := store.SavePendingRuns("ses_1", invalid); err == nil {
+		t.Fatal("durable replacement accepted delivery state behind the FIFO boundary")
 	}
 }
 

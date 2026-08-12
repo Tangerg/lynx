@@ -16,6 +16,7 @@ import (
 var (
 	ErrEntryNotFound     = errors.New("prompt queue: entry not found")
 	ErrEntryHeld         = errors.New("prompt queue: entry is already held")
+	ErrEntryDispatching  = errors.New("prompt queue: entry is being dispatched")
 	ErrMoveUnavailable   = errors.New("prompt queue: move unavailable")
 	ErrSessionIDRequired = errors.New("prompt queue: session id is empty")
 )
@@ -37,18 +38,29 @@ type Snapshot struct {
 	Revision uint64
 }
 
+// State is a transactional queue snapshot. DispatchingID is intentionally
+// absent from the read-only projection exposed to views.
+type State struct {
+	Entries       []Entry
+	DispatchingID uint64
+}
+
 // Queue keeps independent FIFO sequences for every session visited by the app.
 // This prevents a failed follow-up from moving to another session when the
 // user switches away and later comes back.
 type Queue struct {
-	mu       sync.RWMutex
-	nextID   uint64
-	revision uint64
-	entries  map[string][]Entry
+	mu          sync.RWMutex
+	nextID      uint64
+	revision    uint64
+	entries     map[string][]Entry
+	dispatching map[string]uint64
 }
 
 func New() *Queue {
-	return &Queue{entries: make(map[string][]Entry)}
+	return &Queue{
+		entries:     make(map[string][]Entry),
+		dispatching: make(map[string]uint64),
+	}
 }
 
 func (q *Queue) Enqueue(sessionID string, message agent.Message) (Entry, error) {
@@ -68,7 +80,7 @@ func (q *Queue) EnqueueCommand(commandID agent.CommandID, sessionID string, mess
 	}
 	q.mu.Lock()
 	defer q.mu.Unlock()
-	q.ensureEntries()
+	q.ensureStorage()
 	q.nextID++
 	entry := Entry{
 		ID: q.nextID, CommandID: commandID, SessionID: strings.Clone(sessionID),
@@ -102,7 +114,7 @@ func (q *Queue) Restore(sessionID string, commands []agent.StartRun) error {
 	}
 	q.mu.Lock()
 	defer q.mu.Unlock()
-	q.ensureEntries()
+	q.ensureStorage()
 	for index := range entries {
 		q.nextID++
 		entries[index].ID = q.nextID
@@ -112,19 +124,20 @@ func (q *Queue) Restore(sessionID string, commands []agent.StartRun) error {
 	} else {
 		q.entries[sessionID] = entries
 	}
+	delete(q.dispatching, sessionID)
 	q.revision++
 	return nil
 }
 
-// RestoreSnapshot replaces one session with a previously observed queue
-// snapshot. It is intended for rolling back an in-memory mutation when the
+// RestoreState replaces one session with a previously observed transactional
+// state. It is intended for rolling back an in-memory mutation when the
 // corresponding durable authoring transaction cannot be committed.
-func (q *Queue) RestoreSnapshot(sessionID string, snapshot Snapshot) error {
-	entries := make([]Entry, len(snapshot.Entries))
-	seenIDs := make(map[uint64]struct{}, len(snapshot.Entries))
-	seenCommands := make(map[agent.CommandID]struct{}, len(snapshot.Entries))
+func (q *Queue) RestoreState(sessionID string, state State) error {
+	entries := make([]Entry, len(state.Entries))
+	seenIDs := make(map[uint64]struct{}, len(state.Entries))
+	seenCommands := make(map[agent.CommandID]struct{}, len(state.Entries))
 	var maximumID uint64
-	for index, entry := range snapshot.Entries {
+	for index, entry := range state.Entries {
 		if entry.SessionID != sessionID {
 			return fmt.Errorf("prompt queue: entry %d belongs to session %s", index+1, entry.SessionID)
 		}
@@ -145,15 +158,24 @@ func (q *Queue) RestoreSnapshot(sessionID string, snapshot Snapshot) error {
 		maximumID = max(maximumID, entry.ID)
 		entries[index] = cloneEntry(entry)
 	}
+	dispatchingID := state.DispatchingID
+	if dispatchingID != 0 && (len(entries) == 0 || entries[0].ID != dispatchingID) {
+		return errors.New("prompt queue: dispatch reservation is not the first entry")
+	}
 
 	q.mu.Lock()
 	defer q.mu.Unlock()
-	q.ensureEntries()
+	q.ensureStorage()
 	q.nextID = max(q.nextID, maximumID)
 	if len(entries) == 0 {
 		delete(q.entries, sessionID)
 	} else {
 		q.entries[sessionID] = entries
+	}
+	if dispatchingID == 0 {
+		delete(q.dispatching, sessionID)
+	} else {
+		q.dispatching[sessionID] = dispatchingID
 	}
 	q.revision++
 	return nil
@@ -170,14 +192,101 @@ func (q *Queue) Snapshot(sessionID string) Snapshot {
 	return Snapshot{Entries: out, Revision: q.revision}
 }
 
-func (q *Queue) Next(sessionID string) (Entry, bool) {
+func (q *Queue) State(sessionID string) State {
 	q.mu.RLock()
 	defer q.mu.RUnlock()
 	entries := q.entries[sessionID]
-	if len(entries) == 0 || entries[0].Held {
+	out := make([]Entry, len(entries))
+	for index, entry := range entries {
+		out[index] = cloneEntry(entry)
+	}
+	return State{Entries: out, DispatchingID: q.dispatching[sessionID]}
+}
+
+// BeginDispatch reserves the first dispatchable entry. While the reservation
+// is open, authoring mutations may reorder only the entries behind it. This
+// keeps the runtime mutation identity independent from transient queue
+// selection and prevents a priority edit from changing the command being
+// acknowledged or canceled.
+func (q *Queue) BeginDispatch(sessionID string) (Entry, bool) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	q.ensureStorage()
+	entries := q.entries[sessionID]
+	if len(entries) == 0 || entries[0].Held || q.dispatching[sessionID] != 0 {
 		return Entry{}, false
 	}
+	q.dispatching[sessionID] = entries[0].ID
+	q.revision++
 	return cloneEntry(entries[0]), true
+}
+
+// Dispatching returns the exact entry whose StartRun handshake is owned by the
+// current process. The entry remains reserved until its first event commits the
+// dispatch or delivery is released for recovery.
+func (q *Queue) Dispatching(sessionID string) (Entry, bool) {
+	q.mu.RLock()
+	defer q.mu.RUnlock()
+	id := q.dispatching[sessionID]
+	index := entryIndex(q.entries[sessionID], id)
+	if id == 0 || index < 0 {
+		return Entry{}, false
+	}
+	return cloneEntry(q.entries[sessionID][index]), true
+}
+
+// CommitDispatch removes only the reserved entry after its SegmentStarted
+// event has been folded into the active conversation.
+func (q *Queue) CommitDispatch(sessionID string) (Entry, error) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	id := q.dispatching[sessionID]
+	index := entryIndex(q.entries[sessionID], id)
+	if id == 0 || index < 0 {
+		return Entry{}, ErrEntryNotFound
+	}
+	entry := q.entries[sessionID][index]
+	removed := cloneEntry(entry)
+	q.removeAt(sessionID, index)
+	delete(q.dispatching, sessionID)
+	q.revision++
+	return removed, nil
+}
+
+// RetireCommand removes the exact command settled by runtime recovery. Unlike
+// an authoring removal, it is allowed to close a dispatch reservation and is
+// therefore safe both before and after a local opening handshake is released.
+func (q *Queue) RetireCommand(sessionID string, commandID agent.CommandID) (Entry, error) {
+	if err := commandID.Validate(); err != nil {
+		return Entry{}, fmt.Errorf("prompt queue: %w", err)
+	}
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	index := slices.IndexFunc(q.entries[sessionID], func(entry Entry) bool {
+		return entry.CommandID == commandID
+	})
+	if index < 0 {
+		return Entry{}, ErrEntryNotFound
+	}
+	removed := cloneEntry(q.entries[sessionID][index])
+	if q.dispatching[sessionID] == removed.ID {
+		delete(q.dispatching, sessionID)
+	}
+	q.removeAt(sessionID, index)
+	q.revision++
+	return removed, nil
+}
+
+// ReleaseDispatch returns the reserved entry to ordinary FIFO ownership.
+func (q *Queue) ReleaseDispatch(sessionID string) bool {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	if q.dispatching[sessionID] == 0 {
+		return false
+	}
+	delete(q.dispatching, sessionID)
+	q.revision++
+	return true
 }
 
 // Hold prevents the FIFO consumer from dispatching an entry while an editor
@@ -189,6 +298,9 @@ func (q *Queue) Hold(sessionID string, id uint64) error {
 	index := entryIndex(entries, id)
 	if index < 0 {
 		return ErrEntryNotFound
+	}
+	if q.dispatching[sessionID] == id {
+		return ErrEntryDispatching
 	}
 	if entries[index].Held {
 		return ErrEntryHeld
@@ -208,6 +320,9 @@ func (q *Queue) Release(sessionID string, id uint64) error {
 	index := entryIndex(entries, id)
 	if index < 0 {
 		return ErrEntryNotFound
+	}
+	if q.dispatching[sessionID] == id {
+		return ErrEntryDispatching
 	}
 	if !entries[index].Held {
 		return nil
@@ -232,36 +347,42 @@ func (q *Queue) Update(sessionID string, id uint64, message agent.Message) error
 	if index < 0 {
 		return ErrEntryNotFound
 	}
+	if q.dispatching[sessionID] == id {
+		return ErrEntryDispatching
+	}
 	q.entries[sessionID][index].Message = message.Clone()
 	q.entries[sessionID][index].CommandID = commandID
 	q.revision++
 	return nil
 }
 
-// ReplaceCommandID gives a queued intent a fresh runtime mutation identity
-// after the previous identity received a definitive refusal. Message content,
-// FIFO position, edit ownership, and local entry identity remain unchanged.
-func (q *Queue) ReplaceCommandID(sessionID string, id uint64, commandID agent.CommandID) error {
-	if err := commandID.Validate(); err != nil {
-		return fmt.Errorf("prompt queue: %w", err)
+// RequeueDispatch assigns a fresh command identity to the exact reserved entry
+// after the runtime definitively refuses its previous identity, then releases
+// it back to FIFO ownership as one in-memory transition.
+func (q *Queue) RequeueDispatch(sessionID string, previous, replacement agent.CommandID) error {
+	if err := previous.Validate(); err != nil {
+		return fmt.Errorf("prompt queue: previous command: %w", err)
+	}
+	if err := replacement.Validate(); err != nil {
+		return fmt.Errorf("prompt queue: replacement command: %w", err)
 	}
 	q.mu.Lock()
 	defer q.mu.Unlock()
-	entries := q.entries[sessionID]
-	index := entryIndex(entries, id)
-	if index < 0 {
+	id := q.dispatching[sessionID]
+	index := entryIndex(q.entries[sessionID], id)
+	if id == 0 || index < 0 {
 		return ErrEntryNotFound
 	}
-	if slices.ContainsFunc(entries, func(entry Entry) bool {
-		return entry.ID != id && entry.CommandID == commandID
+	if q.entries[sessionID][index].CommandID != previous {
+		return errors.New("prompt queue: dispatch command identity changed")
+	}
+	if slices.ContainsFunc(q.entries[sessionID], func(entry Entry) bool {
+		return entry.ID != id && entry.CommandID == replacement
 	}) {
-		return fmt.Errorf("prompt queue: command %s is duplicated", commandID)
+		return fmt.Errorf("prompt queue: command %s is duplicated", replacement)
 	}
-	if entries[index].CommandID == commandID {
-		return nil
-	}
-	entries[index].CommandID = commandID
-	q.entries[sessionID] = entries
+	q.entries[sessionID][index].CommandID = replacement
+	delete(q.dispatching, sessionID)
 	q.revision++
 	return nil
 }
@@ -274,14 +395,11 @@ func (q *Queue) Remove(sessionID string, id uint64) (Entry, error) {
 	if index < 0 {
 		return Entry{}, ErrEntryNotFound
 	}
-	removed := cloneEntry(entries[index])
-	clear(entries[index : index+1])
-	entries = slices.Delete(entries, index, index+1)
-	if len(entries) == 0 {
-		delete(q.entries, sessionID)
-	} else {
-		q.entries[sessionID] = entries
+	if q.dispatching[sessionID] == id {
+		return Entry{}, ErrEntryDispatching
 	}
+	removed := cloneEntry(entries[index])
+	q.removeAt(sessionID, index)
 	q.revision++
 	return removed, nil
 }
@@ -295,7 +413,8 @@ func (q *Queue) Move(sessionID string, id uint64, offset int) error {
 		return ErrEntryNotFound
 	}
 	to := from + offset
-	if offset == 0 || to < 0 || to >= len(entries) {
+	reserved := q.dispatching[sessionID]
+	if offset == 0 || to < 0 || to >= len(entries) || entries[from].ID == reserved || (reserved != 0 && to == 0) {
 		return ErrMoveUnavailable
 	}
 	entry := entries[from]
@@ -317,12 +436,19 @@ func (q *Queue) Promote(sessionID string, id uint64) error {
 	if from < 0 {
 		return ErrEntryNotFound
 	}
-	if from == 0 {
+	target := 0
+	if q.dispatching[sessionID] != 0 {
+		if entries[from].ID == q.dispatching[sessionID] {
+			return ErrEntryDispatching
+		}
+		target = 1
+	}
+	if from == target {
 		return nil
 	}
 	entry := entries[from]
 	entries = slices.Delete(entries, from, from+1)
-	entries = slices.Insert(entries, 0, entry)
+	entries = slices.Insert(entries, target, entry)
 	q.entries[sessionID] = entries
 	q.revision++
 	return nil
@@ -338,14 +464,29 @@ func (q *Queue) Clear(sessionID string) int {
 	count := len(entries)
 	clear(entries)
 	delete(q.entries, sessionID)
+	delete(q.dispatching, sessionID)
 	q.revision++
 	return count
 }
 
-func (q *Queue) ensureEntries() {
+func (q *Queue) ensureStorage() {
 	if q.entries == nil {
 		q.entries = make(map[string][]Entry)
 	}
+	if q.dispatching == nil {
+		q.dispatching = make(map[string]uint64)
+	}
+}
+
+func (q *Queue) removeAt(sessionID string, index int) {
+	entries := q.entries[sessionID]
+	clear(entries[index : index+1])
+	entries = slices.Delete(entries, index, index+1)
+	if len(entries) == 0 {
+		delete(q.entries, sessionID)
+		return
+	}
+	q.entries[sessionID] = entries
 }
 
 func validateEntry(commandID agent.CommandID, sessionID string, message agent.Message) error {

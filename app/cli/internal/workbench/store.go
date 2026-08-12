@@ -219,6 +219,23 @@ func (pending PendingRun) validate(sessionID string) error {
 	return nil
 }
 
+func validatePendingRunSequence(sessionID string, pending []PendingRun) error {
+	seen := make(map[agent.CommandID]struct{}, len(pending))
+	for index, command := range pending {
+		if err := command.validate(sessionID); err != nil {
+			return fmt.Errorf("pending run %d: %w", index+1, err)
+		}
+		if _, duplicate := seen[command.Command.CommandID]; duplicate {
+			return fmt.Errorf("pending run %d repeats command %s", index+1, command.Command.CommandID)
+		}
+		seen[command.Command.CommandID] = struct{}{}
+		if index > 0 && command.State != PendingRunQueued {
+			return fmt.Errorf("pending run %d is %s behind the FIFO boundary", index+1, command.State)
+		}
+	}
+	return nil
+}
+
 // Store is the aggregate root for CLI authoring state. Every mutating method
 // updates memory only after its durable replacement succeeds.
 type Store struct {
@@ -387,11 +404,17 @@ func (s *Store) StagePendingRun(pending PendingRun) error {
 	defer s.mu.Unlock()
 	for _, current := range s.pendingRuns[pending.Command.SessionID] {
 		if current.Command.CommandID == pending.Command.CommandID {
+			if !pendingRunEqual(current, pending) {
+				return errors.New("pending run command identity already owns another payload")
+			}
 			return nil
 		}
 	}
 	next := clonePendingRuns(s.pendingRuns)
 	next[pending.Command.SessionID] = append(next[pending.Command.SessionID], pending)
+	if err := validatePendingRunSequence(pending.Command.SessionID, next[pending.Command.SessionID]); err != nil {
+		return err
+	}
 	if err := s.saveSessionState(pending.Command.SessionID, agent.Message{}, next[pending.Command.SessionID]); err != nil {
 		return err
 	}
@@ -405,15 +428,8 @@ func (s *Store) StagePendingRun(pending PendingRun) error {
 // crash-consistent with the next launch.
 func (s *Store) SavePendingRuns(sessionID string, commands []PendingRun) error {
 	sessionID = strings.TrimSpace(sessionID)
-	seen := make(map[agent.CommandID]struct{}, len(commands))
-	for index, command := range commands {
-		if err := command.validate(sessionID); err != nil {
-			return fmt.Errorf("pending run %d: %w", index+1, err)
-		}
-		if _, duplicate := seen[command.Command.CommandID]; duplicate {
-			return fmt.Errorf("pending run %d repeats command %s", index+1, command.Command.CommandID)
-		}
-		seen[command.Command.CommandID] = struct{}{}
+	if err := validatePendingRunSequence(sessionID, commands); err != nil {
+		return err
 	}
 	commands = clonePendingRunSlice(commands)
 	s.mu.Lock()
@@ -446,6 +462,9 @@ func (s *Store) MarkPendingRunDispatching(sessionID string, commandID agent.Comm
 	}
 	next := clonePendingRuns(s.pendingRuns)
 	next[sessionID][index].State = PendingRunDispatching
+	if err := validatePendingRunSequence(sessionID, next[sessionID]); err != nil {
+		return err
+	}
 	if err := s.saveSessionState(sessionID, s.drafts[sessionID], next[sessionID]); err != nil {
 		return err
 	}
@@ -479,6 +498,9 @@ func (s *Store) MarkPendingRunCanceling(sessionID string, commandID agent.Comman
 	next := clonePendingRuns(s.pendingRuns)
 	next[sessionID][index].State = PendingRunCanceling
 	next[sessionID][index].CancelCommandID = cancelCommandID
+	if err := validatePendingRunSequence(sessionID, next[sessionID]); err != nil {
+		return "", err
+	}
 	if err := s.saveSessionState(sessionID, s.drafts[sessionID], next[sessionID]); err != nil {
 		return "", err
 	}
@@ -508,6 +530,9 @@ func (s *Store) RequeuePendingRun(sessionID string, commandID agent.CommandID) (
 	next[sessionID][index].State = PendingRunQueued
 	next[sessionID][index].Command.CommandID = replacement
 	next[sessionID][index].CancelCommandID = ""
+	if err := validatePendingRunSequence(sessionID, next[sessionID]); err != nil {
+		return "", err
+	}
 	if err := s.saveSessionState(sessionID, s.drafts[sessionID], next[sessionID]); err != nil {
 		return "", err
 	}
@@ -542,6 +567,9 @@ func (s *Store) AcknowledgePendingRun(sessionID string, commandID agent.CommandI
 	if len(next[sessionID]) == 0 {
 		delete(next, sessionID)
 	}
+	if err := validatePendingRunSequence(sessionID, next[sessionID]); err != nil {
+		return err
+	}
 	if err := s.saveSessionState(sessionID, s.drafts[sessionID], next[sessionID]); err != nil {
 		return err
 	}
@@ -569,6 +597,9 @@ func (s *Store) RejectPendingRun(sessionID string, commandID agent.CommandID) er
 	next[sessionID] = slices.Delete(next[sessionID], index, index+1)
 	if len(next[sessionID]) == 0 {
 		delete(next, sessionID)
+	}
+	if err := validatePendingRunSequence(sessionID, next[sessionID]); err != nil {
+		return err
 	}
 	if err := s.saveSessionState(sessionID, s.drafts[sessionID], next[sessionID]); err != nil {
 		return err
@@ -805,15 +836,8 @@ func (s *Store) loadSessionStates() error {
 		if state.SessionID == "" || entry.Name() != filepath.Base(s.sessionStateName(state.SessionID)) {
 			return fmt.Errorf("state %s has an invalid session identity", entry.Name())
 		}
-		seen := make(map[agent.CommandID]struct{}, len(state.PendingRuns))
-		for index, command := range state.PendingRuns {
-			if err := command.validate(state.SessionID); err != nil {
-				return fmt.Errorf("state %s pending run %d: %w", entry.Name(), index+1, err)
-			}
-			if _, duplicate := seen[command.Command.CommandID]; duplicate {
-				return fmt.Errorf("state %s repeats command %s", entry.Name(), command.Command.CommandID)
-			}
-			seen[command.Command.CommandID] = struct{}{}
+		if err := validatePendingRunSequence(state.SessionID, state.PendingRuns); err != nil {
+			return fmt.Errorf("state %s: %w", entry.Name(), err)
 		}
 		if !messageEmpty(state.Draft) {
 			s.drafts[state.SessionID] = state.Draft.Clone()
@@ -981,6 +1005,11 @@ func clonePendingRunSlice(commands []PendingRun) []PendingRun {
 func clonePendingRun(command PendingRun) PendingRun {
 	command.Command = command.Command.Clone()
 	return command
+}
+
+func pendingRunEqual(left, right PendingRun) bool {
+	return left.State == right.State && left.CancelCommandID == right.CancelCommandID &&
+		left.Command.Equal(right.Command)
 }
 
 func clonePendingResume(pending PendingResume) PendingResume {

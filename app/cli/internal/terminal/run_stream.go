@@ -128,7 +128,8 @@ func (a *app) acceptStartedRun(input agent.StartRun, opened agent.SegmentStream)
 
 func (a *app) requeueDefinitivelyRefusedStart(input agent.StartRun, failure error) error {
 	callFailure, refused := errors.AsType[*startRunCallError](failure)
-	if !refused || mutation.AcknowledgementUncertain(callFailure.err) || a.dispatchingQueueEntry == 0 {
+	_, dispatchingPresent := a.queue.Dispatching(input.SessionID)
+	if !refused || mutation.AcknowledgementUncertain(callFailure.err) || !dispatchingPresent {
 		return nil
 	}
 	var replacement agent.CommandID
@@ -144,7 +145,7 @@ func (a *app) requeueDefinitivelyRefusedStart(input agent.StartRun, failure erro
 			return fmt.Errorf("prepare refused run for retry: %w", err)
 		}
 	}
-	if err := a.queue.ReplaceCommandID(input.SessionID, a.dispatchingQueueEntry, replacement); err != nil {
+	if err := a.queue.RequeueDispatch(input.SessionID, input.CommandID, replacement); err != nil {
 		return fmt.Errorf("reidentify refused run: %w", err)
 	}
 	return nil
@@ -748,11 +749,11 @@ func (a *app) cancel() {
 }
 
 func (a *app) stageOpeningCancellation() (workbench.PendingRun, bool, error) {
-	if a.dispatchingQueueEntry == 0 {
+	entry, ok := a.queue.Dispatching(a.session.ID)
+	if !ok {
 		return workbench.PendingRun{}, false, nil
 	}
-	entry, ok := a.queue.Next(a.session.ID)
-	if !ok || entry.ID != a.dispatchingQueueEntry {
+	if entry.CommandID == "" {
 		return workbench.PendingRun{}, false, errors.New("dispatching queue entry is no longer available")
 	}
 	if a.workbench == nil {
@@ -818,8 +819,7 @@ func (a *app) retireCanceledStart(pending workbench.PendingRun) error {
 	if err := a.workbench.AcknowledgePendingRun(pending.Command.SessionID, pending.Command.CommandID); err != nil {
 		return fmt.Errorf("retire canceled start: %w", err)
 	}
-	if entry, ok := a.queue.Next(pending.Command.SessionID); ok && entry.CommandID == pending.Command.CommandID {
-		_, _ = a.queue.Remove(pending.Command.SessionID, entry.ID)
+	if _, err := a.queue.RetireCommand(pending.Command.SessionID, pending.Command.CommandID); err == nil {
 		a.syncQueue()
 	}
 	a.status.note("canceled")
@@ -929,11 +929,7 @@ func (a *app) handleRuntimeCancellation(lease operationLease, settled agent.Run,
 			pending[0].CancelCommandID == a.pendingCancel.CommandID {
 			if retireErr := a.workbench.AcknowledgePendingRun(a.session.ID, pending[0].Command.CommandID); retireErr != nil {
 				a.message("could not retire canceled run start: " + retireErr.Error())
-			} else if entry, ok := a.queue.Next(a.session.ID); ok && entry.CommandID == pending[0].Command.CommandID {
-				_, _ = a.queue.Remove(a.session.ID, entry.ID)
-				if entry.ID == a.dispatchingQueueEntry {
-					a.dispatchingQueueEntry = 0
-				}
+			} else if _, removeErr := a.queue.RetireCommand(a.session.ID, pending[0].Command.CommandID); removeErr == nil {
 				a.syncQueue()
 			}
 		}

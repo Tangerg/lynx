@@ -19,6 +19,7 @@ import (
 	"github.com/Tangerg/lynx/app/cli/internal/agent/mock"
 	"github.com/Tangerg/lynx/app/cli/internal/promptqueue"
 	"github.com/Tangerg/lynx/app/cli/internal/settings"
+	"github.com/Tangerg/lynx/app/cli/internal/workbench"
 )
 
 type finishObservingRuntime struct {
@@ -190,10 +191,11 @@ func TestQueueDrawerEditsMultilineTextAndKeepsAttachments(t *testing.T) {
 	if drawer.Editing() {
 		t.Fatal("Enter did not save queue editing")
 	}
-	entry, ok := queue.Next("session")
+	entry, ok := queue.BeginDispatch("session")
 	if !ok || entry.Message.Text != "edited\nsecond line" || len(entry.Message.Attachments) != 1 || entry.Message.Attachments[0].ID != attachment.ID {
 		t.Fatalf("saved queued message = %+v, %v", entry.Message, ok)
 	}
+	queue.ReleaseDispatch("session")
 
 	drawer.Handle(input.Key{Code: input.Enter})
 	drawer.Handle(input.Paste{Text: " discarded"})
@@ -203,9 +205,9 @@ func TestQueueDrawerEditsMultilineTextAndKeepsAttachments(t *testing.T) {
 	if drawer.Handle(input.Key{Code: input.Esc}) {
 		t.Fatal("browse-mode Esc should be left for the dialog controller")
 	}
-	entry, _ = queue.Next("session")
-	if entry.Message.Text != "edited\nsecond line" {
-		t.Fatalf("discard changed queued text to %q", entry.Message.Text)
+	entries := queue.Snapshot("session").Entries
+	if len(entries) != 1 || entries[0].Message.Text != "edited\nsecond line" {
+		t.Fatalf("discard changed queued entries to %+v", entries)
 	}
 }
 
@@ -231,7 +233,7 @@ func TestQueueDrawerPreservesItsEditThroughAnExtremeResize(t *testing.T) {
 	}
 
 	drawer.Handle(input.Key{Code: input.Enter})
-	entry, ok := queue.Next("session")
+	entry, ok := queue.BeginDispatch("session")
 	if !ok || entry.Message.Text != "first line\nsecond line while tiny" {
 		t.Fatalf("saved queue edit after resize = %+v, %v", entry.Message, ok)
 	}
@@ -268,8 +270,8 @@ func TestQueueDrawerReleasesTheOriginalSessionWhenSnapshotChanges(t *testing.T) 
 	if queue.Snapshot("session").Entries[0].Held {
 		t.Fatal("snapshot replacement left the original session entry held")
 	}
-	if next, ok := queue.Next("session"); !ok || next.Message.Text != "old session prompt" {
-		t.Fatalf("released original entry = %+v, %v", next, ok)
+	if entries := queue.Snapshot("session").Entries; len(entries) != 1 || entries[0].Message.Text != "old session prompt" || entries[0].Held {
+		t.Fatalf("released original entry = %+v", entries)
 	}
 	_, _, rendered := drawQueueDrawer(t, drawer, 72, 7)
 	if !strings.Contains(rendered, "next session prompt") || strings.Contains(rendered, "old session prompt") {
@@ -350,6 +352,62 @@ func TestQueueDrawerMouseActionsCommitOnlyOnAnUndraggedMatchingRelease(t *testin
 	root.Handle(input.Mouse{Pos: remove.area.Min, Action: input.MouseUp, Button: input.ButtonLeft})
 	if got := len(queue.Snapshot("session").Entries); got != 1 {
 		t.Fatalf("matching release left %d entries", got)
+	}
+}
+
+func TestDurableQueueKeepsTheOpeningCommandAheadOfPriorityEdits(t *testing.T) {
+	store, err := workbench.Open("", workbench.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	queue := promptqueue.New()
+	commands := []agent.StartRun{
+		{CommandID: agent.CommandID("cli_11111111111111111111111111111111"), SessionID: "session", Message: agent.Message{Text: "opening"}},
+		{CommandID: agent.CommandID("cli_22222222222222222222222222222222"), SessionID: "session", Message: agent.Message{Text: "send next"}},
+	}
+	for _, command := range commands {
+		if err := store.StagePendingRun(workbench.PendingRun{State: workbench.PendingRunQueued, Command: command}); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := queue.EnqueueCommand(command.CommandID, command.SessionID, command.Message, command.Options); err != nil {
+			t.Fatal(err)
+		}
+	}
+	dispatching, ok := queue.BeginDispatch("session")
+	if !ok || dispatching.CommandID != commands[0].CommandID {
+		t.Fatalf("opening reservation = %+v, %t", dispatching, ok)
+	}
+	if err := store.MarkPendingRunDispatching("session", dispatching.CommandID); err != nil {
+		t.Fatal(err)
+	}
+	secondID := queue.Snapshot("session").Entries[1].ID
+	if err := queue.Promote("session", secondID); err != nil {
+		t.Fatal(err)
+	}
+
+	application := &app{queue: queue, workbench: store, session: agent.Session{ID: "session"}}
+	if err := application.persistQueuedRuns(); err != nil {
+		t.Fatal(err)
+	}
+	pending := store.PendingRuns("session")
+	if len(pending) != 2 || pending[0].Command.CommandID != commands[0].CommandID ||
+		pending[0].State != workbench.PendingRunDispatching || pending[1].Command.CommandID != commands[1].CommandID ||
+		pending[1].State != workbench.PendingRunQueued {
+		t.Fatalf("durable queue crossed opening boundary: %+v", pending)
+	}
+
+	if err := store.AcknowledgePendingRun("session", commands[0].CommandID); err != nil {
+		t.Fatal(err)
+	}
+	if err := application.persistQueuedRuns(); err != nil {
+		t.Fatal(err)
+	}
+	pending = store.PendingRuns("session")
+	if len(pending) != 1 || pending[0].Command.CommandID != commands[1].CommandID || pending[0].State != workbench.PendingRunQueued {
+		t.Fatalf("post-acknowledgement queue = %+v", pending)
+	}
+	if removed, err := queue.CommitDispatch("session"); err != nil || removed.CommandID != commands[0].CommandID {
+		t.Fatalf("committed opening command = %+v, %v", removed, err)
 	}
 }
 

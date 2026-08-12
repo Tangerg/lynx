@@ -97,6 +97,11 @@ func (r StartRun) Clone() StartRun {
 	return r
 }
 
+func (r StartRun) Equal(other StartRun) bool {
+	return r.CommandID == other.CommandID && r.SessionID == other.SessionID &&
+		r.Message.Equal(other.Message) && r.Options.Equal(other.Options)
+}
+
 // SubscribeRun rebinds one exact segment. AfterEventID is an opaque checkpoint
 // previously accepted from that segment. Empty means attach at its current head.
 type SubscribeRun struct {
