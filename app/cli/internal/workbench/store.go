@@ -52,6 +52,15 @@ type Workspace struct {
 	LastOpened time.Time `json:"lastOpened"`
 }
 
+// historyEntry binds a runtime-accepted prompt to its mutation identity. Plain
+// authoring history intentionally has no identity; accepted starts use it to
+// make the history half of outbox settlement idempotent across process or
+// filesystem failure between the two durable files.
+type historyEntry struct {
+	agent.Message
+	CommandID agent.CommandID `json:"commandId,omitempty"`
+}
+
 type sessionState struct {
 	SessionID     string         `json:"sessionId"`
 	Draft         agent.Message  `json:"draft"`
@@ -302,7 +311,7 @@ type Store struct {
 	workspaceLimit int
 	now            func() time.Time
 	random         io.Reader
-	history        []agent.Message
+	history        []historyEntry
 	drafts         map[string]agent.Message
 	stashes        []Stash
 	workspaces     []Workspace
@@ -343,6 +352,9 @@ func Open(directory string, config Config) (*Store, error) {
 	if err := store.loadOptional("history.json", &store.history); err != nil {
 		return nil, fmt.Errorf("load prompt history: %w", err)
 	}
+	if err := validateHistory(store.history); err != nil {
+		return nil, fmt.Errorf("load prompt history: %w", err)
+	}
 	if err := store.loadOptional("stashes.json", &store.stashes); err != nil {
 		return nil, fmt.Errorf("load prompt stashes: %w", err)
 	}
@@ -352,7 +364,7 @@ func Open(directory string, config Config) (*Store, error) {
 	if err := store.loadSessionStates(); err != nil {
 		return nil, fmt.Errorf("load session authoring state: %w", err)
 	}
-	store.history = tailMessages(store.history, store.historyLimit)
+	store.history = store.trimHistory(store.history)
 	store.stashes = tailStashes(store.stashes, store.stashLimit)
 	store.workspaces = slices.Clone(store.workspaces[:min(len(store.workspaces), store.workspaceLimit)])
 	return store, nil
@@ -613,12 +625,22 @@ func (s *Store) AcknowledgePendingRun(sessionID string, commandID agent.CommandI
 		return err
 	}
 	message := commands[index].Command.Message.Clone()
-	nextHistory := cloneMessages(s.history)
-	if len(nextHistory) == 0 || !nextHistory[len(nextHistory)-1].Equal(message) {
-		nextHistory = tailMessages(append(nextHistory, message), s.historyLimit)
+	nextHistory := cloneHistory(s.history)
+	historyIndex := slices.IndexFunc(nextHistory, func(entry historyEntry) bool {
+		return entry.CommandID == commandID
+	})
+	if historyIndex >= 0 && !nextHistory[historyIndex].Equal(message) {
+		return errors.New("prompt history command identity already owns another message")
+	}
+	if historyIndex < 0 {
+		nextHistory = s.trimHistory(append(nextHistory, historyEntry{Message: message, CommandID: commandID}))
 		if err := s.save("history.json", nextHistory); err != nil {
 			return err
 		}
+		// History and the session outbox are separate durable aggregates. Publish
+		// the completed first half immediately so a failed outbox replacement can
+		// retry by command identity without appending the prompt a second time.
+		s.history = nextHistory
 	}
 	next := clonePendingRuns(s.pendingRuns)
 	next[sessionID] = slices.Delete(next[sessionID], index, index+1)
@@ -631,8 +653,8 @@ func (s *Store) AcknowledgePendingRun(sessionID string, commandID agent.CommandI
 	if err := s.saveSessionState(sessionID, s.drafts[sessionID], next[sessionID]); err != nil {
 		return err
 	}
-	s.history = nextHistory
 	s.pendingRuns = next
+	s.history = s.trimHistory(s.history)
 	return nil
 }
 
@@ -640,7 +662,11 @@ func (s *Store) AcknowledgePendingRun(sessionID string, commandID agent.CommandI
 func (s *Store) History() []agent.Message {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return cloneMessages(s.history)
+	messages := make([]agent.Message, len(s.history))
+	for index, entry := range s.history {
+		messages[index] = entry.Clone()
+	}
+	return messages
 }
 
 // Remember records a submitted or deliberately cleared prompt.
@@ -654,8 +680,8 @@ func (s *Store) Remember(message agent.Message) error {
 	if len(s.history) > 0 && s.history[len(s.history)-1].Equal(message) {
 		return nil
 	}
-	next := append(cloneMessages(s.history), message)
-	next = tailMessages(next, s.historyLimit)
+	next := append(cloneHistory(s.history), historyEntry{Message: message})
+	next = s.trimHistory(next)
 	if err := s.save("history.json", next); err != nil {
 		return err
 	}
@@ -980,11 +1006,58 @@ func positiveOr(value, fallback int) int {
 	return fallback
 }
 
-func tailMessages(messages []agent.Message, limit int) []agent.Message {
-	if len(messages) > limit {
-		messages = messages[len(messages)-limit:]
+func validateHistory(history []historyEntry) error {
+	seen := make(map[agent.CommandID]struct{}, len(history))
+	for index, entry := range history {
+		if err := entry.Validate(); err != nil {
+			return fmt.Errorf("entry %d: %w", index+1, err)
+		}
+		if entry.CommandID == "" {
+			continue
+		}
+		if err := entry.CommandID.Validate(); err != nil {
+			return fmt.Errorf("entry %d command: %w", index+1, err)
+		}
+		if _, duplicate := seen[entry.CommandID]; duplicate {
+			return fmt.Errorf("entry %d repeats command %s", index+1, entry.CommandID)
+		}
+		seen[entry.CommandID] = struct{}{}
 	}
-	return cloneMessages(messages)
+	return nil
+}
+
+func (s *Store) trimHistory(history []historyEntry) []historyEntry {
+	if len(history) <= s.historyLimit {
+		return cloneHistory(history)
+	}
+	pinned := make(map[agent.CommandID]struct{})
+	for _, commands := range s.pendingRuns {
+		for _, pending := range commands {
+			pinned[pending.Command.CommandID] = struct{}{}
+		}
+	}
+	pinnedHistory := 0
+	for _, entry := range history {
+		if _, protected := pinned[entry.CommandID]; protected {
+			pinnedHistory++
+		}
+	}
+	nonPinnedBudget := s.historyLimit
+	keepNonPinned := make(map[int]struct{}, nonPinnedBudget)
+	for index := len(history) - 1; index >= 0 && len(keepNonPinned) < nonPinnedBudget; index-- {
+		if _, protected := pinned[history[index].CommandID]; !protected {
+			keepNonPinned[index] = struct{}{}
+		}
+	}
+	trimmed := make([]historyEntry, 0, min(len(history), s.historyLimit+pinnedHistory))
+	for index, entry := range history {
+		_, protected := pinned[entry.CommandID]
+		_, recent := keepNonPinned[index]
+		if protected || recent {
+			trimmed = append(trimmed, historyEntry{Message: entry.Clone(), CommandID: entry.CommandID})
+		}
+	}
+	return trimmed
 }
 
 func tailStashes(stashes []Stash, limit int) []Stash {
@@ -998,10 +1071,10 @@ func tailStashes(stashes []Stash, limit int) []Stash {
 	return out
 }
 
-func cloneMessages(messages []agent.Message) []agent.Message {
-	out := make([]agent.Message, len(messages))
-	for i, message := range messages {
-		out[i] = message.Clone()
+func cloneHistory(history []historyEntry) []historyEntry {
+	out := make([]historyEntry, len(history))
+	for index, entry := range history {
+		out[index] = historyEntry{Message: entry.Clone(), CommandID: entry.CommandID}
 	}
 	return out
 }

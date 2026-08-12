@@ -2,7 +2,9 @@ package terminal
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -51,6 +53,48 @@ type refusingFirstCommandRuntime struct {
 	mu      sync.Mutex
 	refused agent.CommandID
 	inputs  []agent.StartRun
+}
+
+type invalidAcceptedStartRuntime struct {
+	agent.Runtime
+
+	mu            sync.Mutex
+	starts        []agent.StartRun
+	cancellations []agent.CancelRun
+	refuseFirst   bool
+}
+
+func (runtime *invalidAcceptedStartRuntime) StartRun(ctx context.Context, input agent.StartRun) (agent.SegmentStream, error) {
+	opened, err := runtime.Runtime.StartRun(ctx, input)
+	if err != nil {
+		return agent.SegmentStream{}, err
+	}
+	runtime.mu.Lock()
+	runtime.starts = append(runtime.starts, input.Clone())
+	runtime.mu.Unlock()
+	opened.UserItemID = ""
+	return opened, nil
+}
+
+func (runtime *invalidAcceptedStartRuntime) CancelRun(ctx context.Context, input agent.CancelRun) (agent.RunCancellation, error) {
+	runtime.mu.Lock()
+	runtime.cancellations = append(runtime.cancellations, input)
+	refuse := runtime.refuseFirst && len(runtime.cancellations) == 1
+	runtime.mu.Unlock()
+	if refuse {
+		return agent.RunCancellation{}, errors.New("temporary malformed-receipt cleanup failure")
+	}
+	return runtime.Runtime.CancelRun(ctx, input)
+}
+
+func (runtime *invalidAcceptedStartRuntime) attempts() ([]agent.StartRun, []agent.CancelRun) {
+	runtime.mu.Lock()
+	defer runtime.mu.Unlock()
+	starts := make([]agent.StartRun, len(runtime.starts))
+	for index, input := range runtime.starts {
+		starts[index] = input.Clone()
+	}
+	return starts, slices.Clone(runtime.cancellations)
 }
 
 func (runtime *refusingFirstCommandRuntime) StartRun(ctx context.Context, input agent.StartRun) (agent.SegmentStream, error) {
@@ -257,6 +301,108 @@ func TestDefinitivelyRefusedStartReturnsToTheDurableQueueWithANewIdentity(t *tes
 		t.Fatalf("requeued command = %+v, refused command = %+v", pending, refused)
 	}
 
+	stop()
+}
+
+func TestInvalidAcceptedStartReceiptCancelsAndSettlesTheExactMutation(t *testing.T) {
+	base := mock.New()
+	base.Script = func(string) mock.Script {
+		return mock.Script{Prelude: []mock.Step{{
+			Delay: time.Hour, Event: agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCompleted}},
+		}}}
+	}
+	runtime := &invalidAcceptedStartRuntime{Runtime: base}
+	stateDirectory := t.TempDir()
+	host, stop := runUIWithState(t, runtime, "/tmp/lyra-cli-test", "ses_demo_1", stateDirectory)
+	host.Shows(t, "Ask lyra")
+	host.Type("cancel malformed accepted start")
+	host.Press(input.Enter)
+	host.Shows(t, "start segment stream: user item id is empty")
+	host.Until(t, "the malformed accepted start to be canceled", func() bool {
+		starts, cancellations := runtime.attempts()
+		if len(starts) != 1 || len(cancellations) != 1 {
+			return false
+		}
+		reopened, err := workbench.Open(stateDirectory, workbench.Config{})
+		return err == nil && len(reopened.PendingRuns(starts[0].SessionID)) == 0 && host.Repaint()
+	})
+	starts, cancellations := runtime.attempts()
+	if starts[0].CommandID == "" || cancellations[0].CommandID == "" || cancellations[0].RunID == "" ||
+		cancellations[0].Reason != "runtime returned an invalid start receipt" {
+		t.Fatalf("malformed receipt cleanup = starts %+v, cancellations %+v", starts, cancellations)
+	}
+	reopened, err := workbench.Open(stateDirectory, workbench.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pending := reopened.PendingRuns(starts[0].SessionID); len(pending) != 0 {
+		t.Fatalf("canceled malformed start remains durable: %+v", pending)
+	}
+	history := reopened.History()
+	if len(history) != 1 || !history[0].Equal(starts[0].Message) {
+		t.Fatalf("canceled accepted start history = %+v", history)
+	}
+	snapshot, err := base.GetSession(t.Context(), starts[0].SessionID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, active := snapshot.ActiveRun(); active {
+		t.Fatalf("malformed accepted receipt left a runtime run active: %+v", snapshot.Runs)
+	}
+	stop()
+}
+
+func TestInvalidAcceptedStartReceiptSettlesTheMemoryOnlyQueue(t *testing.T) {
+	base := mock.New()
+	base.Script = func(string) mock.Script {
+		return mock.Script{Prelude: []mock.Step{{
+			Delay: time.Hour, Event: agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCompleted}},
+		}}}
+	}
+	runtime := &invalidAcceptedStartRuntime{Runtime: base}
+	host, stop := runUIWith(t, runtime)
+	host.Shows(t, "Ask lyra")
+	host.Type("settle malformed start without files")
+	host.Press(input.Enter)
+	host.Shows(t, "start segment stream: user item id is empty")
+	host.Until(t, "the memory-only malformed start cleanup", func() bool {
+		starts, cancellations := runtime.attempts()
+		return len(starts) == 1 && len(cancellations) == 1 && host.Repaint()
+	})
+	host.Hides(t, "1 queued")
+	stop()
+}
+
+func TestRetryingInvalidAcceptedStartCleanupPreservesIdentityAndFailurePolicy(t *testing.T) {
+	base := mock.New()
+	base.Script = func(string) mock.Script {
+		return mock.Script{Prelude: []mock.Step{{
+			Delay: time.Hour, Event: agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCompleted}},
+		}}}
+	}
+	runtime := &invalidAcceptedStartRuntime{Runtime: base, refuseFirst: true}
+	stateDirectory := t.TempDir()
+	host, stop := runUIWithState(t, runtime, "/tmp/lyra-cli-test", "ses_demo_1", stateDirectory)
+	host.Shows(t, "Ask lyra")
+	host.Type("retry malformed accepted start cleanup")
+	host.Press(input.Enter)
+	host.Shows(t, "could not cancel run: temporary malformed-receipt cleanup failure")
+	host.Press(input.Esc)
+	host.Until(t, "the retried malformed receipt cleanup", func() bool {
+		starts, cancellations := runtime.attempts()
+		if len(starts) != 1 || len(cancellations) != 2 {
+			return false
+		}
+		reopened, err := workbench.Open(stateDirectory, workbench.Config{})
+		return err == nil && len(reopened.PendingRuns(starts[0].SessionID)) == 0 && host.Repaint()
+	})
+	_, cancellations := runtime.attempts()
+	if cancellations[0].CommandID == "" || cancellations[0].CommandID != cancellations[1].CommandID ||
+		cancellations[0].RunID != cancellations[1].RunID {
+		t.Fatalf("malformed receipt cleanup retry identities = %+v", cancellations)
+	}
+	host.Shows(t, "start segment stream: user item id is empty")
+	host.Hides(t, "apply runtime event")
 	stop()
 }
 

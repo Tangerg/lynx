@@ -1,8 +1,10 @@
 package terminal
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/Tangerg/oolong/components/headless"
@@ -13,6 +15,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
 	"github.com/Tangerg/lynx/app/cli/internal/promptqueue"
+	"github.com/Tangerg/lynx/app/cli/internal/retry"
 	"github.com/Tangerg/lynx/app/cli/internal/workbench"
 )
 
@@ -22,6 +25,8 @@ const (
 )
 
 var errQueuedPromptDispatching = errors.New("queued prompt is already being sent")
+
+var errQueuedPromptCanceling = errors.New("queued prompt is awaiting cancellation")
 
 type queueView struct {
 	theme    kit.Theme
@@ -116,7 +121,21 @@ func (a *app) enqueueFollowUp(commandID agent.CommandID, message agent.Message) 
 }
 
 func (a *app) drainQueue() bool {
-	if _, dispatching := a.queue.Dispatching(a.session.ID); dispatching || a.conversation.Busy() || a.following || a.pendingCancel != nil ||
+	if a.closed {
+		return false
+	}
+	if _, dispatching := a.queue.Dispatching(a.session.ID); dispatching {
+		if a.conversation.Busy() || a.following || a.pendingCancel != nil || a.openingRunID == "" ||
+			a.operations.Active(sessionChangeOperation) || a.operations.Active(pendingRunRecoveryOperation) {
+			return false
+		}
+		if err := a.attemptQueuedDispatchSettlement(); err != nil {
+			a.reportQueuedDispatchSettlementFailure(err)
+			return false
+		}
+		a.openingRunID = ""
+	}
+	if a.conversation.Busy() || a.following || a.pendingCancel != nil ||
 		a.operations.Active(sessionChangeOperation) || a.operations.Active(pendingRunRecoveryOperation) {
 		return false
 	}
@@ -133,23 +152,162 @@ func (a *app) drainQueue() bool {
 	return true
 }
 
-func (a *app) commitQueuedDispatch() {
-	if _, ok := a.queue.Dispatching(a.session.ID); !ok {
-		return
+// settleQueuedDispatch closes the local side of an acknowledged StartRun.
+// Durable history and outbox ownership move first; the in-memory reservation
+// remains intact when persistence fails so later events or user activity can
+// retry the same settlement without crossing the FIFO boundary.
+func (a *app) attemptQueuedDispatchSettlement() error {
+	entry, ok := a.queue.Dispatching(a.session.ID)
+	if !ok {
+		return nil
 	}
-	_, err := a.queue.CommitDispatch(a.session.ID)
-	if err != nil {
-		a.message(err.Error())
-		return
+	if a.workbench != nil {
+		if pending, found := pendingRunByCommandID(a.workbench.PendingRuns(a.session.ID), entry.CommandID); found {
+			if pending.State == workbench.PendingRunCanceling {
+				return errQueuedPromptCanceling
+			}
+		}
 	}
-	a.syncQueue()
+	return a.retireQueuedCommand(a.session.ID, entry.CommandID)
 }
 
-func (a *app) releaseQueuedDispatch() {
-	if !a.queue.ReleaseDispatch(a.session.ID) {
+// retireQueuedCommand settles one exact StartRun command in both durable and
+// live authoring projections. All accepted, recovered, and canceled opening
+// paths use this method so prompt history cannot diverge by lifecycle route.
+func (a *app) retireQueuedCommand(sessionID string, commandID agent.CommandID) error {
+	entry, ok := a.queue.Dispatching(sessionID)
+	pendingPresent := false
+	if a.workbench != nil {
+		_, pendingPresent = pendingRunByCommandID(a.workbench.PendingRuns(sessionID), commandID)
+	}
+	if !ok {
+		present := slices.ContainsFunc(a.queue.Snapshot(sessionID).Entries, func(entry promptqueue.Entry) bool {
+			return entry.CommandID == commandID
+		})
+		if !present && !pendingPresent {
+			return nil
+		}
+		return errors.New("dispatching prompt command ownership was released before settlement")
+	}
+	if entry.CommandID != commandID {
+		return errors.New("dispatching prompt command identity changed")
+	}
+	if a.workbench != nil {
+		if pendingPresent {
+			if err := a.workbench.AcknowledgePendingRun(sessionID, commandID); err != nil {
+				return err
+			}
+		}
+	}
+	if _, err := a.queue.RetireCommand(sessionID, commandID); err != nil {
+		return err
+	}
+	a.history.Add(entry.Message)
+	a.reportWorkbenchError(nil)
+	a.syncQueue()
+	return nil
+}
+
+func (a *app) settleQueuedDispatch() bool {
+	if a.operations.Active(pendingRunSettlementOperation) {
+		return false
+	}
+	if err := a.attemptQueuedDispatchSettlement(); err != nil {
+		a.reportQueuedDispatchSettlementFailure(err)
+		return false
+	}
+	return true
+}
+
+func (a *app) queuedDispatchCanceling() bool {
+	if a.workbench == nil {
+		return false
+	}
+	entry, ok := a.queue.Dispatching(a.session.ID)
+	if !ok {
+		return false
+	}
+	pending, found := pendingRunByCommandID(a.workbench.PendingRuns(a.session.ID), entry.CommandID)
+	return found && pending.State == workbench.PendingRunCanceling
+}
+
+func (a *app) reportQueuedDispatchSettlementFailure(err error) {
+	if errors.Is(err, errQueuedPromptCanceling) {
 		return
 	}
-	a.syncQueue()
+	a.reportWorkbenchError(err)
+	a.message("could not settle acknowledged run start: " + err.Error())
+	a.retryQueuedDispatchSettlement()
+}
+
+func (a *app) retryQueuedDispatchSettlement() {
+	if a.workbench == nil || a.operations.Active(pendingRunSettlementOperation) {
+		return
+	}
+	sessionID := a.session.ID
+	dispatcher := a.loop.Dispatcher()
+	a.operations.GoSession(pendingRunSettlementOperation, false, func(ctx context.Context, lease operationLease) {
+		for failures := 1; ; failures++ {
+			if err := retry.Wait(ctx, runtimeRecoveryBackoff.Delay(failures)); err != nil {
+				return
+			}
+			settled := false
+			if err := post(ctx, dispatcher, func() {
+				if !a.operations.Current(lease) || a.closed || a.session.ID != sessionID {
+					return
+				}
+				if a.attemptQueuedDispatchSettlement() != nil || !a.operations.Release(lease) {
+					return
+				}
+				settled = true
+				a.finishQueuedSettlementRecovery()
+			}); err != nil || settled {
+				return
+			}
+		}
+	})
+}
+
+// retryCanceledRuntimeOwnership is the cancellation counterpart to ordinary
+// acknowledgement settlement. It retries both a pending HITL decision and the
+// exact opening command, because either can remain after a partial state write.
+func (a *app) retryCanceledRuntimeOwnership(runID string, commandID agent.CommandID) {
+	if a.operations.Active(pendingRunSettlementOperation) {
+		return
+	}
+	sessionID := a.session.ID
+	dispatcher := a.loop.Dispatcher()
+	a.operations.GoSession(pendingRunSettlementOperation, false, func(ctx context.Context, lease operationLease) {
+		for failures := 1; ; failures++ {
+			if err := retry.Wait(ctx, runtimeRecoveryBackoff.Delay(failures)); err != nil {
+				return
+			}
+			retired := false
+			if err := post(ctx, dispatcher, func() {
+				if !a.operations.Current(lease) || a.closed || a.session.ID != sessionID {
+					return
+				}
+				if a.retireCanceledRuntimeOwnership(runID, commandID) != nil || !a.operations.Release(lease) {
+					return
+				}
+				retired = true
+				a.finishQueuedSettlementRecovery()
+			}); err != nil || retired {
+				return
+			}
+		}
+	})
+}
+
+func (a *app) finishQueuedSettlementRecovery() {
+	a.openingRunID = ""
+	if a.conversation.Busy() || a.following || a.pendingCancel != nil || a.drainQueue() {
+		return
+	}
+	if a.conversation.Outcome().Status != "" {
+		a.status.settled(a.conversation.Outcome(), a.conversation.Usage())
+		a.syncAnimation()
+	}
 }
 
 func (a *app) syncQueue() promptqueue.Snapshot {

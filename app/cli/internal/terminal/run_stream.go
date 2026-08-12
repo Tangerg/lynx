@@ -38,6 +38,18 @@ type startRunCallError struct{ err error }
 func (e *startRunCallError) Error() string { return e.err.Error() }
 func (e *startRunCallError) Unwrap() error { return e.err }
 
+// acceptedStartValidationError preserves the identity returned by a runtime
+// that accepted StartRun but produced a malformed receipt. The mutation must
+// not be requeued; when RunID is usable, the terminal instead cancels that
+// exact runtime run and settles the original outbox command.
+type acceptedStartValidationError struct {
+	stream agent.SegmentStream
+	err    error
+}
+
+func (e *acceptedStartValidationError) Error() string { return e.err.Error() }
+func (e *acceptedStartValidationError) Unwrap() error { return e.err }
+
 // resumeRunCallError has the same acknowledgement semantics as
 // startRunCallError, but its recovery owner is the still-open HITL review.
 type resumeRunCallError struct{ err error }
@@ -90,13 +102,22 @@ func (a *app) startRun(commandID agent.CommandID, message agent.Message, options
 			return agent.SegmentStream{}, &startRunCallError{err: err}
 		}
 		if err := opened.ValidateStart(); err != nil {
-			return agent.SegmentStream{}, fmt.Errorf("start run: %w", err)
+			return agent.SegmentStream{}, &acceptedStartValidationError{
+				stream: opened, err: fmt.Errorf("start run: %w", err),
+			}
 		}
 		return opened, nil
 	}, streamOpeningObserver{
 		persistent: true,
 		accepted:   func(opened agent.SegmentStream) { a.acceptStartedRun(input, opened) },
 		rejected: func(err error) error {
+			if accepted, ok := errors.AsType[*acceptedStartValidationError](err); ok &&
+				strings.TrimSpace(accepted.stream.RunID) != "" {
+				a.openingRunID = accepted.stream.RunID
+				a.cancelRuntimePreservingFailure(agent.CancelRun{
+					RunID: accepted.stream.RunID, Reason: "runtime returned an invalid start receipt",
+				})
+			}
 			return errors.Join(err, a.requeueDefinitivelyRefusedStart(input, err))
 		},
 	})
@@ -113,9 +134,6 @@ func (a *app) acceptStartedRun(input agent.StartRun, opened agent.SegmentStream)
 		return
 	}
 	if pending[0].State != workbench.PendingRunCanceling {
-		if err := a.workbench.AcknowledgePendingRun(input.SessionID, input.CommandID); err != nil {
-			a.message("could not retire acknowledged run start: " + err.Error())
-		}
 		return
 	}
 	a.status.active("canceling")
@@ -599,10 +617,15 @@ func (a *app) applyPresentationEvent(envelope agent.RunEvent) {
 	switch event := envelope.Event.(type) {
 	case agent.SegmentStarted:
 		if event.Run.Lineage.IsRoot() {
-			a.openingRunID = ""
-			a.commitQueuedDispatch()
+			if settled := a.settleQueuedDispatch(); settled {
+				a.openingRunID = ""
+				a.status.active("working")
+			} else if a.queuedDispatchCanceling() {
+				a.status.active("canceling")
+			} else {
+				a.status.note("working · retrying local settlement")
+			}
 			a.executionClock.start(event.Run.Usage.Duration, time.Now())
-			a.status.active("working")
 		}
 	case agent.BlockStarted:
 		a.noteBlockStarted(event.Block)
@@ -667,7 +690,15 @@ func (a *app) finishFollowing() {
 	}
 	a.status.settled(a.conversation.Outcome(), a.conversation.Usage())
 	a.prompt.SetBusy(false)
-	if a.drainQueue() {
+	settled := a.settleQueuedDispatch()
+	if settled {
+		a.openingRunID = ""
+	} else if a.queuedDispatchCanceling() || a.pendingCancel != nil {
+		a.status.note("canceling")
+	} else {
+		a.status.note("run complete · retrying local settlement")
+	}
+	if settled && a.drainQueue() {
 		return
 	}
 	a.raiseAttention(outcomeAttention(a.conversation.Outcome()))
@@ -693,8 +724,6 @@ func (a *app) fail(err error) {
 		return
 	}
 	a.following = false
-	a.openingRunID = ""
-	a.releaseQueuedDispatch()
 	a.conversation.Failed(err)
 	a.transcript.settleLive(a.conversation.Outcome())
 	a.transcript.Append(presentError(a.transcript.theme, err.Error()))
@@ -716,7 +745,7 @@ func (a *app) cancel() {
 	}
 	if a.pendingCancel != nil {
 		a.status.doing = "retrying cancellation"
-		a.cancelRuntime(*a.pendingCancel)
+		a.requestRuntimeCancellation(a.pendingCancel.request, a.pendingCancel.policy)
 		return
 	}
 	if !a.conversation.Busy() && !a.following {
@@ -738,7 +767,6 @@ func (a *app) cancel() {
 			a.fail(err)
 			return
 		}
-		a.releaseQueuedDispatch()
 		a.prompt.SetBusy(false)
 		a.status.note("canceled · reconciling runtime delivery")
 		a.syncAnimation()
@@ -816,11 +844,8 @@ func openStartRunWithBackoff(
 }
 
 func (a *app) retireCanceledStart(pending workbench.PendingRun) error {
-	if err := a.workbench.AcknowledgePendingRun(pending.Command.SessionID, pending.Command.CommandID); err != nil {
+	if err := a.retireQueuedCommand(pending.Command.SessionID, pending.Command.CommandID); err != nil {
 		return fmt.Errorf("retire canceled start: %w", err)
-	}
-	if _, err := a.queue.RetireCommand(pending.Command.SessionID, pending.Command.CommandID); err == nil {
-		a.syncQueue()
 	}
 	a.status.note("canceled")
 	a.drainQueue()
@@ -831,7 +856,7 @@ func (a *app) activeCancellation() (agent.CancelRun, bool) {
 	if runID := a.conversation.RunID(); runID != "" && a.conversation.Busy() {
 		return agent.CancelRun{RunID: runID, Reason: "terminal closed"}, true
 	}
-	if a.openingRunID != "" {
+	if a.openingRunID != "" && a.conversation.Busy() {
 		return agent.CancelRun{RunID: a.openingRunID, Reason: "terminal closed"}, true
 	}
 	return agent.CancelRun{}, false
@@ -855,6 +880,12 @@ const (
 	preserveProjectionFailure
 )
 
+type pendingCancellation struct {
+	request          agent.CancelRun
+	openingCommandID agent.CommandID
+	policy           cancellationResultPolicy
+}
+
 func (a *app) requestRuntimeCancellation(target agent.CancelRun, policy cancellationResultPolicy) {
 	if target.CommandID == "" {
 		commandID, err := agent.NewCommandID()
@@ -864,8 +895,20 @@ func (a *app) requestRuntimeCancellation(target agent.CancelRun, policy cancella
 		}
 		target.CommandID = commandID
 	}
-	targetCopy := target
-	a.pendingCancel = &targetCopy
+	pending := pendingCancellation{
+		request: target, openingCommandID: a.openingCommandForRun(target.RunID), policy: policy,
+	}
+	if pending.openingCommandID == "" && a.pendingCancel != nil && a.pendingCancel.request.RunID == target.RunID {
+		pending.openingCommandID = a.pendingCancel.openingCommandID
+	}
+	if pending.openingCommandID == "" && a.workbench != nil {
+		outbox := a.workbench.PendingRuns(a.session.ID)
+		if len(outbox) > 0 && outbox[0].State == workbench.PendingRunCanceling &&
+			outbox[0].CancelCommandID == target.CommandID {
+			pending.openingCommandID = outbox[0].Command.CommandID
+		}
+	}
+	a.pendingCancel = &pending
 	dispatcher := a.loop.Dispatcher()
 	a.operations.Go(cancelRunOperation, true, func(ownerCtx context.Context, lease operationLease) {
 		settled, err := a.cancelRootRun(ownerCtx, target)
@@ -917,21 +960,13 @@ func (a *app) handleRuntimeCancellation(lease operationLease, settled agent.Run,
 		a.message("could not cancel run: " + err.Error())
 		return
 	}
-	if a.workbench != nil && a.pendingCancel != nil {
-		if pendingResume, ok := a.workbench.PendingResume(a.session.ID); ok &&
-			pendingResume.Command.RunID == a.pendingCancel.RunID {
-			if retireErr := a.workbench.AcknowledgePendingResume(a.session.ID, pendingResume.Command.CommandID); retireErr != nil {
-				a.message("could not retire canceled interaction decisions: " + retireErr.Error())
-			}
-		}
-		pending := a.workbench.PendingRuns(a.session.ID)
-		if len(pending) > 0 && pending[0].State == workbench.PendingRunCanceling &&
-			pending[0].CancelCommandID == a.pendingCancel.CommandID {
-			if retireErr := a.workbench.AcknowledgePendingRun(a.session.ID, pending[0].Command.CommandID); retireErr != nil {
-				a.message("could not retire canceled run start: " + retireErr.Error())
-			} else if _, removeErr := a.queue.RetireCommand(a.session.ID, pending[0].Command.CommandID); removeErr == nil {
-				a.syncQueue()
-			}
+	if a.pendingCancel != nil {
+		if retireErr := a.retireCanceledRuntimeOwnership(
+			a.pendingCancel.request.RunID,
+			a.pendingCancel.openingCommandID,
+		); retireErr != nil {
+			a.message("could not retire canceled runtime ownership: " + retireErr.Error())
+			a.retryCanceledRuntimeOwnership(a.pendingCancel.request.RunID, a.pendingCancel.openingCommandID)
 		}
 	}
 	a.pendingCancel = nil
@@ -957,6 +992,30 @@ func (a *app) handleRuntimeCancellation(lease operationLease, settled agent.Run,
 		return
 	}
 	a.drainQueue()
+}
+
+func (a *app) openingCommandForRun(runID string) agent.CommandID {
+	if runID == "" || runID != a.openingRunID {
+		return ""
+	}
+	entry, ok := a.queue.Dispatching(a.session.ID)
+	if !ok {
+		return ""
+	}
+	return entry.CommandID
+}
+
+func (a *app) retireCanceledRuntimeOwnership(runID string, openingCommandID agent.CommandID) error {
+	var err error
+	if a.workbench != nil {
+		if pending, ok := a.workbench.PendingResume(a.session.ID); ok && pending.Command.RunID == runID {
+			err = errors.Join(err, a.workbench.AcknowledgePendingResume(a.session.ID, pending.Command.CommandID))
+		}
+	}
+	if openingCommandID != "" {
+		err = errors.Join(err, a.retireQueuedCommand(a.session.ID, openingCommandID))
+	}
+	return err
 }
 
 func (a *app) cancelRuntimeNow(ownerCtx context.Context, target agent.CancelRun) error {

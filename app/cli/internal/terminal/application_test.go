@@ -219,6 +219,15 @@ type refusingCloseCancellationRuntime struct {
 	err      error
 }
 
+type blockingCloseCancellationRuntime struct {
+	agent.Runtime
+
+	mu       sync.Mutex
+	attempts []agent.CancelRun
+	started  chan struct{}
+	release  chan struct{}
+}
+
 type invalidCloseCancellationRuntime struct {
 	agent.Runtime
 }
@@ -239,6 +248,31 @@ func (runtime *refusingCloseCancellationRuntime) CancelRun(
 	default:
 	}
 	return agent.RunCancellation{}, runtime.err
+}
+
+func (runtime *blockingCloseCancellationRuntime) CancelRun(
+	ctx context.Context,
+	input agent.CancelRun,
+) (agent.RunCancellation, error) {
+	runtime.mu.Lock()
+	runtime.attempts = append(runtime.attempts, input)
+	runtime.mu.Unlock()
+	select {
+	case runtime.started <- struct{}{}:
+	default:
+	}
+	select {
+	case <-runtime.release:
+		return runtime.Runtime.CancelRun(ctx, input)
+	case <-ctx.Done():
+		return agent.RunCancellation{}, context.Cause(ctx)
+	}
+}
+
+func (runtime *blockingCloseCancellationRuntime) cancelAttempts() []agent.CancelRun {
+	runtime.mu.Lock()
+	defer runtime.mu.Unlock()
+	return slices.Clone(runtime.attempts)
 }
 
 type mismatchedSessionUpdateRuntime struct {
@@ -1359,6 +1393,55 @@ func TestClosingTheTerminalConfirmsCancellationWithOneIdentity(t *testing.T) {
 	if len(attempts) != 2 || attempts[0].CommandID == "" || attempts[0].CommandID != attempts[1].CommandID ||
 		attempts[0].RunID == "" || attempts[0].RunID != attempts[1].RunID {
 		t.Fatalf("terminal-close cancellation attempts = %+v", attempts)
+	}
+}
+
+func TestClosingDuringCancellationReusesThePendingCommandIdentity(t *testing.T) {
+	base := mock.New()
+	base.Script = func(string) mock.Script {
+		return mock.Script{Prelude: []mock.Step{{
+			Delay: time.Hour, Event: agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCompleted}},
+		}}}
+	}
+	runtime := &blockingCloseCancellationRuntime{
+		Runtime: base, started: make(chan struct{}, 1), release: make(chan struct{}),
+	}
+	host := programtest.New(t, 96, 28)
+	ctx, cancel := context.WithCancel(t.Context())
+	done := make(chan error, 1)
+	go func() {
+		done <- Run(ctx, Config{Runtime: runtime, Workspace: "/tmp/lyra-cli-test", Host: host})
+	}()
+	t.Cleanup(func() {
+		cancel()
+		select {
+		case <-runtime.release:
+		default:
+			close(runtime.release)
+		}
+		_ = host.Close()
+	})
+
+	host.Shows(t, "Ask lyra")
+	host.Type("close during cancellation")
+	host.Press(input.Enter)
+	host.Shows(t, "working")
+	host.Press(input.Esc)
+	awaitSignal(t, runtime.started, "interactive cancellation start")
+	cancel()
+	close(runtime.release)
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("terminal did not close while cancellation was pending")
+	}
+	attempts := runtime.cancelAttempts()
+	if len(attempts) != 2 || attempts[0].CommandID == "" || attempts[0].CommandID != attempts[1].CommandID ||
+		attempts[0].RunID != attempts[1].RunID {
+		t.Fatalf("close cancellation attempts = %+v", attempts)
 	}
 }
 

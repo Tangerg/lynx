@@ -182,7 +182,7 @@ type app struct {
 
 	streamSeq              uint64
 	openingRunID           string
-	pendingCancel          *agent.CancelRun
+	pendingCancel          *pendingCancellation
 	sessionDraftTransition *sessionDraftTransition
 	following              bool
 	stopClock              func()
@@ -434,7 +434,7 @@ func (a *app) reconcilePendingRun(pending workbench.PendingRun) {
 				if validateErr := opened.ValidateStart(); validateErr != nil {
 					err = fmt.Errorf("reconcile pending run: %w", validateErr)
 				} else {
-					err = a.workbench.AcknowledgePendingRun(command.SessionID, command.CommandID)
+					err = a.retireQueuedCommand(command.SessionID, command.CommandID)
 				}
 			case err == nil:
 				err = fmt.Errorf("pending command %s opened run %s while session projects %s", command.CommandID, opened.RunID, activeRunID)
@@ -620,7 +620,6 @@ func (a *app) reconcileRunSnapshot(snapshot agent.SessionSnapshot, stream agent.
 
 	previousTranscript := a.transcript
 	a.setActiveSession(snapshot.Session)
-	a.openingRunID = ""
 	a.conversation = projection.conversation
 	a.transcript = projection.transcript
 	a.wireTranscript(projection.transcript)
@@ -708,17 +707,31 @@ func (a *app) Close(ctx context.Context) error {
 	if a.closed {
 		return a.closeErr
 	}
-	a.closed = true
 	var closeErr error
-	target, cancelRuntime := a.activeCancellation()
-	if !cancelRuntime && a.pendingCancel != nil {
-		target, cancelRuntime = *a.pendingCancel, true
+	if !a.conversation.Busy() && !a.following && a.pendingCancel == nil && a.openingRunID != "" {
+		if err := a.attemptQueuedDispatchSettlement(); err != nil {
+			closeErr = errors.Join(closeErr, fmt.Errorf("settle acknowledged run start: %w", err))
+		} else {
+			a.openingRunID = ""
+		}
+	}
+	a.closed = true
+	var (
+		target           agent.CancelRun
+		openingCommandID agent.CommandID
+		cancelRuntime    bool
+	)
+	if a.pendingCancel != nil {
+		target, openingCommandID, cancelRuntime = a.pendingCancel.request, a.pendingCancel.openingCommandID, true
+	} else {
+		target, cancelRuntime = a.activeCancellation()
+		openingCommandID = a.openingCommandForRun(target.RunID)
 	}
 	var (
 		pendingStart  workbench.PendingRun
 		cancelOpening bool
 	)
-	if !cancelRuntime {
+	if !cancelRuntime && closeErr == nil {
 		var err error
 		pendingStart, cancelOpening, err = a.stageOpeningCancellation()
 		closeErr = errors.Join(closeErr, err)
@@ -732,10 +745,8 @@ func (a *app) Close(ctx context.Context) error {
 	// finishes first, then the last visible composer state is written last.
 	closeErr = errors.Join(closeErr, a.persistDraft(), a.drafts.Close())
 	if cancelRuntime {
-		if err := a.cancelRuntimeNow(ctx, target); err == nil && a.workbench != nil {
-			if pending, ok := a.workbench.PendingResume(a.session.ID); ok && pending.Command.RunID == target.RunID {
-				closeErr = errors.Join(closeErr, a.workbench.AcknowledgePendingResume(a.session.ID, pending.Command.CommandID))
-			}
+		if err := a.cancelRuntimeNow(ctx, target); err == nil {
+			closeErr = errors.Join(closeErr, a.retireCanceledRuntimeOwnership(target.RunID, openingCommandID))
 		} else {
 			closeErr = errors.Join(closeErr, err)
 		}

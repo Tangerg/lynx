@@ -2,6 +2,7 @@ package workbench
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -277,6 +278,136 @@ func TestStorePersistsAndAcknowledgesPendingRunsByCommandIdentity(t *testing.T) 
 	}
 	if len(reopened.PendingRuns("ses_1")) != 0 {
 		t.Fatal("acknowledged pending run remains")
+	}
+}
+
+func TestPendingRunAcknowledgementIsIdempotentAfterSessionStatePersistenceFailure(t *testing.T) {
+	directory := t.TempDir()
+	store, err := Open(directory, Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	command := agent.StartRun{
+		CommandID: agent.CommandID("cli_99999999999999999999999999999999"),
+		SessionID: "ses_1", Message: agent.Message{Text: "commit this prompt exactly once"},
+	}
+	stageDispatchingPendingRun(t, store, command)
+
+	statePath := store.path(store.sessionStateName(command.SessionID))
+	backupPath := statePath + ".backup"
+	if err := os.Rename(statePath, backupPath); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(statePath, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	blocker := filepath.Join(statePath, "blocker")
+	if err := os.WriteFile(blocker, []byte("block outbox retirement"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.AcknowledgePendingRun(command.SessionID, command.CommandID); err == nil {
+		t.Fatal("pending run acknowledgement survived blocked outbox retirement")
+	}
+	if history := store.History(); len(history) != 1 || !history[0].Equal(command.Message) {
+		t.Fatalf("first settlement half did not publish history: %+v", history)
+	}
+
+	if err := os.Remove(blocker); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(statePath); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(backupPath, statePath); err != nil {
+		t.Fatal(err)
+	}
+	reopened, err := Open(directory, Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := reopened.AcknowledgePendingRun(command.SessionID, command.CommandID); err != nil {
+		t.Fatal(err)
+	}
+	if history := reopened.History(); len(history) != 1 || !history[0].Equal(command.Message) {
+		t.Fatalf("retried settlement duplicated history: %+v", history)
+	}
+	if pending := reopened.PendingRuns(command.SessionID); len(pending) != 0 {
+		t.Fatalf("retried settlement retained outbox: %+v", pending)
+	}
+
+	settled, err := Open(directory, Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if history := settled.History(); len(history) != 1 || !history[0].Equal(command.Message) {
+		t.Fatalf("durable history after restart = %+v", history)
+	}
+}
+
+func TestBoundedHistoryRetainsAnUnsettledCommandIdentity(t *testing.T) {
+	directory := t.TempDir()
+	store, err := Open(directory, Config{HistoryLimit: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	command := agent.StartRun{
+		CommandID: agent.CommandID("cli_abababababababababababababababab"),
+		SessionID: "ses_1", Message: agent.Message{Text: "unsettled accepted prompt"},
+	}
+	stageDispatchingPendingRun(t, store, command)
+
+	statePath := store.path(store.sessionStateName(command.SessionID))
+	backupPath := statePath + ".backup"
+	if err := os.Rename(statePath, backupPath); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(statePath, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	blocker := filepath.Join(statePath, "blocker")
+	if err := os.WriteFile(blocker, []byte("block outbox retirement"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.AcknowledgePendingRun(command.SessionID, command.CommandID); err == nil {
+		t.Fatal("acknowledgement unexpectedly retired the blocked outbox")
+	}
+	if err := store.Remember(agent.Message{Text: "newer plain history"}); err != nil {
+		t.Fatal(err)
+	}
+	if history := store.History(); len(history) != 2 || !history[0].Equal(command.Message) || history[1].Text != "newer plain history" {
+		t.Fatalf("history limit evicted unsettled command identity: %+v", history)
+	}
+
+	if err := os.Remove(blocker); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(statePath); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(backupPath, statePath); err != nil {
+		t.Fatal(err)
+	}
+	reopened, err := Open(directory, Config{HistoryLimit: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := reopened.AcknowledgePendingRun(command.SessionID, command.CommandID); err != nil {
+		t.Fatal(err)
+	}
+	if history := reopened.History(); len(history) != 1 || history[0].Text != "newer plain history" {
+		t.Fatalf("bounded settlement did not restore ordinary history policy: %+v", history)
+	}
+}
+
+func TestStoreRejectsDuplicateHistoryCommandIdentity(t *testing.T) {
+	directory := t.TempDir()
+	commandID := agent.CommandID("cli_cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd")
+	encoded := fmt.Sprintf(`{"version":1,"value":[{"Text":"one","commandId":%q},{"Text":"two","commandId":%q}]}`, commandID, commandID)
+	if err := os.WriteFile(filepath.Join(directory, "history.json"), []byte(encoded), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Open(directory, Config{}); err == nil {
+		t.Fatal("duplicate history command identity was accepted")
 	}
 }
 

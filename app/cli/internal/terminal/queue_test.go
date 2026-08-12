@@ -28,6 +28,49 @@ type finishObservingRuntime struct {
 	once     sync.Once
 }
 
+type blockingFirstStartRuntime struct {
+	agent.Runtime
+
+	mu      sync.Mutex
+	blocked bool
+	inputs  []agent.StartRun
+	started chan agent.StartRun
+	release chan struct{}
+}
+
+func (r *blockingFirstStartRuntime) StartRun(ctx context.Context, request agent.StartRun) (agent.SegmentStream, error) {
+	r.mu.Lock()
+	first := !r.blocked
+	r.blocked = true
+	r.inputs = append(r.inputs, request.Clone())
+	r.mu.Unlock()
+	stream, err := r.Runtime.StartRun(ctx, request)
+	if err != nil || !first {
+		return stream, err
+	}
+	select {
+	case r.started <- request.Clone():
+	case <-ctx.Done():
+		return agent.SegmentStream{}, context.Cause(ctx)
+	}
+	select {
+	case <-r.release:
+		return stream, nil
+	case <-ctx.Done():
+		return agent.SegmentStream{}, context.Cause(ctx)
+	}
+}
+
+func (r *blockingFirstStartRuntime) startInputs() []agent.StartRun {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	inputs := make([]agent.StartRun, len(r.inputs))
+	for index, input := range r.inputs {
+		inputs[index] = input.Clone()
+	}
+	return inputs
+}
+
 func (r *finishObservingRuntime) StartRun(ctx context.Context, request agent.StartRun) (agent.SegmentStream, error) {
 	stream, err := r.recordingRuntime.StartRun(ctx, request)
 	if err != nil {
@@ -598,6 +641,151 @@ func TestRunningTurnQueuesFollowUpsAndDrainsThemInFIFOOrder(t *testing.T) {
 			t.Fatalf("run %d = %q, want %q", index+1, got, want)
 		}
 	}
+	stop()
+}
+
+func TestAcceptedStartRetainsTheFIFOBoundaryUntilDurableSettlementRecovers(t *testing.T) {
+	base := mock.New()
+	base.Script = func(prompt string) mock.Script {
+		finishDelay := time.Duration(0)
+		if prompt == "FIRST_SETTLEMENT" {
+			finishDelay = time.Second
+		}
+		return mock.Script{Prelude: []mock.Step{
+			{Event: agent.BlockCompleted{Block: agent.Block{
+				ID: "answer-" + prompt, Kind: agent.BlockAssistant, Text: prompt + "_RAN",
+			}}},
+			{Delay: finishDelay, Event: agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCompleted}}},
+		}}
+	}
+	gate := &blockingFirstStartRuntime{
+		Runtime: base, started: make(chan agent.StartRun, 1), release: make(chan struct{}),
+	}
+	stateDirectory := t.TempDir()
+	host, stop := runUIWithState(t, gate, "/tmp/lyra-cli-test", "ses_demo_1", stateDirectory)
+	host.Shows(t, "Ask lyra")
+	host.Type("FIRST_SETTLEMENT")
+	host.Press(input.Enter)
+	first := awaitSignalValue(t, gate.started, "accepted start held before returning its receipt")
+	host.Type("SECOND_SETTLEMENT")
+	host.Press(input.Enter)
+
+	var pending []workbench.PendingRun
+	host.Until(t, "both runtime commands to become durable", func() bool {
+		store, err := workbench.Open(stateDirectory, workbench.Config{})
+		if err != nil {
+			return false
+		}
+		pending = store.PendingRuns(first.SessionID)
+		return host.Repaint() && len(pending) == 2 && pending[0].State == workbench.PendingRunDispatching
+	})
+	if pending[0].Command.CommandID != first.CommandID || pending[1].Command.Message.Text != "SECOND_SETTLEMENT" {
+		t.Fatalf("durable FIFO before settlement = %+v", pending)
+	}
+
+	states, err := os.ReadDir(filepath.Join(stateDirectory, "sessions"))
+	if err != nil || len(states) != 1 {
+		t.Fatalf("session state files = %d, %v", len(states), err)
+	}
+	statePath := filepath.Join(stateDirectory, "sessions", states[0].Name())
+	backupPath := statePath + ".backup"
+	if err := os.Rename(statePath, backupPath); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(statePath, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	blocker := filepath.Join(statePath, "blocker")
+	if err := os.WriteFile(blocker, []byte("block acknowledged start settlement"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	close(gate.release)
+	host.Shows(t, "retrying local settlement")
+	host.Shows(t, "FIRST_SETTLEMENT_RAN")
+	if got := len(gate.startInputs()); got != 1 {
+		t.Fatalf("second command crossed the failed settlement boundary: %d starts", got)
+	}
+
+	if err := os.Remove(blocker); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(statePath); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(backupPath, statePath); err != nil {
+		t.Fatal(err)
+	}
+	host.Shows(t, "SECOND_SETTLEMENT_RAN")
+	host.Shows(t, "complete")
+	if inputs := gate.startInputs(); len(inputs) != 2 || inputs[0].Message.Text != "FIRST_SETTLEMENT" ||
+		inputs[1].Message.Text != "SECOND_SETTLEMENT" {
+		t.Fatalf("starts after durable recovery = %+v", inputs)
+	}
+
+	reopened, err := workbench.Open(stateDirectory, workbench.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if remaining := reopened.PendingRuns(first.SessionID); len(remaining) != 0 {
+		t.Fatalf("settled FIFO remains durable: %+v", remaining)
+	}
+	history := reopened.History()
+	if len(history) != 2 || history[0].Text != "FIRST_SETTLEMENT" || history[1].Text != "SECOND_SETTLEMENT" {
+		t.Fatalf("history after settlement recovery = %+v", history)
+	}
+	stop()
+}
+
+func TestAcceptedStartSettlementRecoveryRestoresTheTerminalStatusWithoutAFollowUp(t *testing.T) {
+	base := mock.New()
+	base.Script = func(string) mock.Script {
+		return mock.Script{Prelude: []mock.Step{
+			{Event: agent.BlockCompleted{Block: agent.Block{ID: "answer", Kind: agent.BlockAssistant, Text: "ONLY_SETTLEMENT_RAN"}}},
+			{Delay: time.Second, Event: agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCompleted}}},
+		}}
+	}
+	gate := &blockingFirstStartRuntime{
+		Runtime: base, started: make(chan agent.StartRun, 1), release: make(chan struct{}),
+	}
+	stateDirectory := t.TempDir()
+	host, stop := runUIWithState(t, gate, "/tmp/lyra-cli-test", "ses_demo_1", stateDirectory)
+	host.Shows(t, "Ask lyra")
+	host.Type("ONLY_SETTLEMENT")
+	host.Press(input.Enter)
+	awaitSignalValue(t, gate.started, "accepted start held before its single settlement")
+
+	states, err := os.ReadDir(filepath.Join(stateDirectory, "sessions"))
+	if err != nil || len(states) != 1 {
+		t.Fatalf("session state files = %d, %v", len(states), err)
+	}
+	statePath := filepath.Join(stateDirectory, "sessions", states[0].Name())
+	backupPath := statePath + ".backup"
+	if err := os.Rename(statePath, backupPath); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(statePath, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	blocker := filepath.Join(statePath, "blocker")
+	if err := os.WriteFile(blocker, []byte("block single settlement"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	close(gate.release)
+	host.Shows(t, "retrying local settlement")
+	host.Shows(t, "ONLY_SETTLEMENT_RAN")
+	if err := os.Remove(blocker); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(statePath); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(backupPath, statePath); err != nil {
+		t.Fatal(err)
+	}
+	host.Shows(t, "complete")
+	host.Hides(t, "retrying local settlement")
 	stop()
 }
 
