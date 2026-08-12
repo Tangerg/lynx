@@ -239,7 +239,7 @@ func (a *app) relocateSession(path string) {
 			}); err != nil {
 				return agent.SessionSnapshot{}, err
 			}
-			return a.runtime.GetSession(ctx, sessionID)
+			return a.readSessionAfterMutation(ctx, sessionID)
 		},
 		func(snapshot agent.SessionSnapshot) error { return a.installSnapshot(snapshot) },
 	)

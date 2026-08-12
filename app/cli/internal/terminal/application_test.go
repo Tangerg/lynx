@@ -161,6 +161,41 @@ type blockingSessionChangeRuntime struct {
 	startedIn     string
 }
 
+type transientForkProjectionRuntime struct {
+	*mock.Runtime
+
+	forks     atomic.Int32
+	remaining atomic.Int32
+	mu        sync.Mutex
+	forkedID  string
+}
+
+func (runtime *transientForkProjectionRuntime) ForkSession(ctx context.Context, input agent.ForkSession) (agent.Session, error) {
+	forked, err := runtime.Runtime.ForkSession(ctx, input)
+	if err != nil {
+		return agent.Session{}, err
+	}
+	runtime.forks.Add(1)
+	runtime.mu.Lock()
+	runtime.forkedID = forked.ID
+	runtime.mu.Unlock()
+	return forked, nil
+}
+
+func (runtime *transientForkProjectionRuntime) GetSession(ctx context.Context, sessionID string) (agent.SessionSnapshot, error) {
+	runtime.mu.Lock()
+	forkedID := runtime.forkedID
+	runtime.mu.Unlock()
+	if sessionID == forkedID {
+		for remaining := runtime.remaining.Load(); remaining > 0; remaining = runtime.remaining.Load() {
+			if runtime.remaining.CompareAndSwap(remaining, remaining-1) {
+				return agent.SessionSnapshot{}, fmt.Errorf("temporary fork projection: %w", agent.ErrDisconnected)
+			}
+		}
+	}
+	return runtime.Runtime.GetSession(ctx, sessionID)
+}
+
 func (r *blockingSessionChangeRuntime) CreateSession(ctx context.Context, input agent.CreateSession) (agent.Session, error) {
 	if r.creates.Add(1) == 1 {
 		return r.Runtime.CreateSession(ctx, input)
@@ -944,6 +979,20 @@ func TestSessionPickerRestoresHistoryAndLifecycleCommandsSwitchCleanly(t *testin
 	host.Hides(t, "Lyra CLI")
 
 	host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
+	stop()
+}
+
+func TestForkRetriesTheAuthoritativeReadWithoutRepeatingTheMutation(t *testing.T) {
+	backend := &transientForkProjectionRuntime{Runtime: mock.New()}
+	backend.remaining.Store(2)
+	host, stop := runUIForSession(t, backend, "ses_demo_1")
+	host.Shows(t, "Ask lyra")
+	host.Type("/fork Recovered fork")
+	host.Press(input.Enter)
+	host.Shows(t, "session · Recovered fork")
+	if forks := backend.forks.Load(); forks != 1 {
+		t.Fatalf("fork mutations = %d, want exactly one", forks)
+	}
 	stop()
 }
 

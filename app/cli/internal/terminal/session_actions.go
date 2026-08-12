@@ -62,7 +62,7 @@ func (a *app) importSession(artifact sessiontransfer.Document) {
 			if err != nil {
 				return agent.SessionSnapshot{}, err
 			}
-			return a.runtime.GetSession(ctx, imported.ID)
+			return a.readSessionAfterMutation(ctx, imported.ID)
 		},
 		func(snapshot agent.SessionSnapshot) error {
 			if err := a.installSnapshot(snapshot); err != nil {
@@ -184,7 +184,7 @@ func (a *app) rollbackSession(preview rollbackPreview) {
 			if err != nil {
 				return rollbackInstallation{}, err
 			}
-			snapshot, err := a.runtime.GetSession(ctx, request.SessionID)
+			snapshot, err := a.readSessionAfterMutation(ctx, request.SessionID)
 			return rollbackInstallation{result: result, snapshot: snapshot}, err
 		},
 		func(installation rollbackInstallation) error {

@@ -14,6 +14,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
 	"github.com/Tangerg/lynx/app/cli/internal/attachment"
+	"github.com/Tangerg/lynx/app/cli/internal/reconnect"
 	"github.com/Tangerg/lynx/app/cli/internal/workbench"
 )
 
@@ -220,7 +221,7 @@ func (a *app) ForkSession(title string) {
 			if err != nil {
 				return agent.SessionSnapshot{}, err
 			}
-			return a.runtime.GetSession(ctx, forked.ID)
+			return a.readSessionAfterMutation(ctx, forked.ID)
 		},
 		func(snapshot agent.SessionSnapshot) error { return a.installSnapshot(snapshot) },
 	)
@@ -237,7 +238,7 @@ func (a *app) forkSessionFromRun(runID string) {
 			if err != nil {
 				return agent.SessionSnapshot{}, err
 			}
-			return a.runtime.GetSession(ctx, forked.ID)
+			return a.readSessionAfterMutation(ctx, forked.ID)
 		},
 		func(snapshot agent.SessionSnapshot) error { return a.installSnapshot(snapshot) },
 	)
@@ -415,6 +416,27 @@ func (a *app) retireSessionState(sessionID string) (int, error) {
 		return discarded, fmt.Errorf("discard session draft: %w", err)
 	}
 	return discarded, nil
+}
+
+// readSessionAfterMutation converges the authoritative projection without
+// repeating a mutation that may already be durable. Its retry budget is the
+// same user-configured transport policy as live run recovery.
+func (a *app) readSessionAfterMutation(ctx context.Context, sessionID string) (agent.SessionSnapshot, error) {
+	policy := reconnect.New(a.settings.UI.ReconnectAttempts)
+	for failures := 0; ; {
+		snapshot, err := a.runtime.GetSession(ctx, sessionID)
+		if err == nil {
+			return snapshot, nil
+		}
+		failures++
+		delay, retry := policy.Next(failures, err)
+		if !retry {
+			return agent.SessionSnapshot{}, err
+		}
+		if err := reconnect.Wait(ctx, delay); err != nil {
+			return agent.SessionSnapshot{}, err
+		}
+	}
 }
 
 func (installation sessionInstallation) apply(a *app) {
