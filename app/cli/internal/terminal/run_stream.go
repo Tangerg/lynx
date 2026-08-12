@@ -35,6 +35,13 @@ type startRunCallError struct{ err error }
 func (e *startRunCallError) Error() string { return e.err.Error() }
 func (e *startRunCallError) Unwrap() error { return e.err }
 
+// resumeRunCallError has the same acknowledgement semantics as
+// startRunCallError, but its recovery owner is the still-open HITL review.
+type resumeRunCallError struct{ err error }
+
+func (e *resumeRunCallError) Error() string { return e.err.Error() }
+func (e *resumeRunCallError) Unwrap() error { return e.err }
+
 func (clock *activeDurationClock) start(carried time.Duration, at time.Time) {
 	clock.carried = carried
 	clock.segmentStartedAt = at
@@ -88,9 +95,9 @@ func (a *app) startRun(commandID agent.CommandID, message agent.Message, options
 			}
 		}
 		return opened, nil
-	}, func(err error) error {
-		return a.requeueDefinitivelyRefusedStart(input, err)
-	})
+	}, streamOpeningObserver{rejected: func(err error) error {
+		return errors.Join(err, a.requeueDefinitivelyRefusedStart(input, err))
+	}})
 	return true
 }
 
@@ -134,13 +141,14 @@ func openStartRun(ctx context.Context, runtime agent.RunLifecycle, command agent
 	}
 }
 
-func (a *app) follow(open func(context.Context) (agent.SegmentStream, error)) {
-	a.followOpening(open, nil)
+type streamOpeningObserver struct {
+	accepted func()
+	rejected func(error) error
 }
 
 func (a *app) followOpening(
 	open func(context.Context) (agent.SegmentStream, error),
-	onOpenFailure func(error) error,
+	observer streamOpeningObserver,
 ) {
 	a.dropStream()
 	sequence := a.streamSeq
@@ -151,7 +159,7 @@ func (a *app) followOpening(
 			open: open, applyEvent: a.apply,
 			policy: reconnect.New(a.settings.UI.ReconnectAttempts),
 		}
-		follower.onOpenFailure = onOpenFailure
+		follower.opening = observer
 		follower.run()
 	})
 }
@@ -196,16 +204,16 @@ func (a *app) followRecoveredSession() {
 }
 
 type streamFollower struct {
-	app           *app
-	ctx           context.Context
-	dispatcher    program.Dispatcher
-	sequence      uint64
-	open          func(context.Context) (agent.SegmentStream, error)
-	applyEvent    func(agent.RunEvent) error
-	policy        reconnect.Policy
-	onOpenFailure func(error) error
-	failures      int
-	checkpoint    string
+	app        *app
+	ctx        context.Context
+	dispatcher program.Dispatcher
+	sequence   uint64
+	open       func(context.Context) (agent.SegmentStream, error)
+	applyEvent func(agent.RunEvent) error
+	policy     reconnect.Policy
+	opening    streamOpeningObserver
+	failures   int
+	checkpoint string
 }
 
 func (f *streamFollower) restoreAttachedSession(sessionID string) (runrecovery.State, bool) {
@@ -242,7 +250,25 @@ func (f *streamFollower) run() {
 			return
 		}
 	}
+	if !f.postOpenAccepted() {
+		return
+	}
 	f.runStream(current)
+}
+
+func (f *streamFollower) postOpenAccepted() bool {
+	if f.opening.accepted == nil {
+		return true
+	}
+	active := true
+	err := post(f.ctx, f.dispatcher, func() {
+		if f.app.streamSeq != f.sequence {
+			active = false
+			return
+		}
+		f.opening.accepted()
+	})
+	return err == nil && active
 }
 
 func (f *streamFollower) waitBeforeOpenRetry(cause error) bool {
@@ -456,14 +482,6 @@ func (f *streamFollower) finish() {
 }
 
 func (f *streamFollower) postFailure(runID string, err error) {
-	f.postFailureWith(runID, err, nil)
-}
-
-func (f *streamFollower) postOpenFailure(err error) {
-	f.postFailureWith("", err, f.onOpenFailure)
-}
-
-func (f *streamFollower) postFailureWith(runID string, err error, before func(error) error) {
 	if errors.Is(err, context.Canceled) || f.ctx.Err() != nil {
 		return
 	}
@@ -471,13 +489,28 @@ func (f *streamFollower) postFailureWith(runID string, err error, before func(er
 		if f.app.streamSeq != f.sequence {
 			return
 		}
-		if before != nil {
-			err = errors.Join(err, before(err))
-		}
 		f.app.fail(err)
 		if runID != "" {
 			f.app.cancelRuntimePreservingFailure(agent.CancelRun{RunID: runID, Reason: "terminal stream failed"})
 		}
+	})
+}
+
+func (f *streamFollower) postOpenFailure(err error) {
+	if errors.Is(err, context.Canceled) || f.ctx.Err() != nil {
+		return
+	}
+	_ = post(f.ctx, f.dispatcher, func() {
+		if f.app.streamSeq != f.sequence {
+			return
+		}
+		if f.opening.rejected != nil {
+			err = f.opening.rejected(err)
+			if err == nil {
+				return
+			}
+		}
+		f.app.fail(err)
 	})
 }
 

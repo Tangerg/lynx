@@ -148,6 +148,13 @@ type replayingResumeRuntime struct {
 	stream   agent.SegmentStream
 }
 
+type refusingFirstResumeRuntime struct {
+	*mock.Runtime
+
+	mu       sync.Mutex
+	attempts []agent.ResumeRun
+}
+
 type recordingRuntime struct {
 	*mock.Runtime
 
@@ -348,6 +355,23 @@ func (r *replayingResumeRuntime) resumeAttempts() []agent.ResumeRun {
 	return slices.Clone(r.attempts)
 }
 
+func (r *refusingFirstResumeRuntime) ResumeRun(ctx context.Context, input agent.ResumeRun) (agent.SegmentStream, error) {
+	r.mu.Lock()
+	r.attempts = append(r.attempts, input)
+	attempt := len(r.attempts)
+	r.mu.Unlock()
+	if attempt == 1 {
+		return agent.SegmentStream{}, errors.New("answers rejected by runtime")
+	}
+	return r.Runtime.ResumeRun(ctx, input)
+}
+
+func (r *refusingFirstResumeRuntime) resumeAttempts() []agent.ResumeRun {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return slices.Clone(r.attempts)
+}
+
 func TestMockConversationStreamsApprovalAndCompletes(t *testing.T) {
 	host, stop := runUI(t)
 	host.Shows(t, "Ask lyra")
@@ -393,6 +417,40 @@ func TestApprovalResumeRetriesTheSameMutationIdentity(t *testing.T) {
 	attempts := runtime.resumeAttempts()
 	if len(attempts) != 2 || attempts[0].CommandID == "" || attempts[0].CommandID != attempts[1].CommandID {
 		t.Fatalf("resume attempts = %+v", attempts)
+	}
+	stop()
+}
+
+func TestRejectedApprovalResumePreservesTheReviewAndUsesANewIdentity(t *testing.T) {
+	base := mock.New()
+	base.Instant = true
+	runtime := &refusingFirstResumeRuntime{Runtime: base}
+	host, stop := runUIWith(t, runtime)
+	host.Shows(t, "Ask lyra")
+	host.Type("approval rejection")
+	host.Press(input.Enter)
+	showsPlain(t, host, "╭─Tool approval")
+	for range 4 {
+		host.Press(input.Down)
+	}
+	host.Press(input.Tab)
+	host.Type("KEEP_REJECTED_REVIEW")
+	host.Press(input.Enter)
+	host.Until(t, "the refused resume to return ownership to the review", func() bool {
+		return len(runtime.resumeAttempts()) == 1 && host.Repaint()
+	})
+	host.Shows(t, "KEEP_REJECTED_REVIEW")
+
+	host.Press(input.Esc)
+	host.Shows(t, "complete")
+	attempts := runtime.resumeAttempts()
+	if len(attempts) != 2 || attempts[0].CommandID == "" || attempts[1].CommandID == "" ||
+		attempts[0].CommandID == attempts[1].CommandID {
+		t.Fatalf("resume attempts = %+v", attempts)
+	}
+	answer, ok := attempts[1].Answers[0].Answer.(agent.ApprovalAnswer)
+	if !ok || answer.Decision != agent.ApprovalDeny || answer.Reason != "KEEP_REJECTED_REVIEW" {
+		t.Fatalf("retried approval answer = %#v", attempts[1].Answers[0].Answer)
 	}
 	stop()
 }

@@ -16,6 +16,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
 	"github.com/Tangerg/lynx/app/cli/internal/extensions"
+	"github.com/Tangerg/lynx/app/cli/internal/reconnect"
 )
 
 type approvalPane struct {
@@ -332,24 +333,48 @@ func (a *app) resumeInteractions() {
 		return
 	}
 	runID := a.conversation.RunID()
+	review := a.interactionReview
 	commandID, err := agent.NewCommandID()
 	if err != nil {
 		a.fail(err)
 		return
 	}
-	a.interactionReview = nil
 	a.status.active("resuming")
 	a.syncAnimation()
-	a.follow(func(ctx context.Context) (agent.SegmentStream, error) {
+	a.followOpening(func(ctx context.Context) (agent.SegmentStream, error) {
 		stream, err := a.runtime.ResumeRun(ctx, agent.ResumeRun{CommandID: commandID, RunID: runID, Answers: answers})
 		if err != nil {
-			return agent.SegmentStream{}, err
+			return agent.SegmentStream{}, &resumeRunCallError{err: err}
 		}
 		if err := stream.ValidateResume(nil); err != nil {
 			return agent.SegmentStream{}, fmt.Errorf("resume run: %w", err)
 		}
 		return stream, nil
+	}, streamOpeningObserver{
+		accepted: func() { a.interactionReview = nil },
+		rejected: func(failure error) error {
+			return a.restoreRejectedInteractionReview(review, runID, failure)
+		},
 	})
+}
+
+func (a *app) restoreRejectedInteractionReview(review *interactionReview, runID string, failure error) error {
+	callFailure, refused := errors.AsType[*resumeRunCallError](failure)
+	if !refused || reconnect.Retryable(callFailure.err) || a.interactionReview != review ||
+		a.conversation.Phase() != agent.ConversationWaiting || a.conversation.RunID() != runID {
+		return failure
+	}
+	a.following = false
+	a.status.note("resume refused · review preserved")
+	if review.Reviewing() {
+		a.openInteractionSummary()
+		return nil
+	}
+	if !review.Back() {
+		return errors.Join(failure, errors.New("interaction review cannot return to its submitted answer"))
+	}
+	a.openCurrentInteraction()
+	return nil
 }
 
 func (a *app) abortInteractions(reason string) {
