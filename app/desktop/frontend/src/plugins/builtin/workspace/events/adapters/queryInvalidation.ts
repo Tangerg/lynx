@@ -9,6 +9,7 @@ import { GOAL_KEY } from "@/plugins/builtin/chat/goal/public/queries";
 import { RECIPES_KEY } from "@/plugins/builtin/chat/recipes/public/queries";
 import { HOOKS_KEY } from "@/plugins/builtin/settings/hooks/public/queries";
 import { SCHEDULES_KEY } from "@/plugins/builtin/settings/schedules/public/queries";
+import { USAGE_SUMMARY_KEY } from "@/plugins/builtin/settings/usage/public/queries";
 import {
   MCP_SERVERS_KEY,
   MCP_TOOLS_KEY,
@@ -55,6 +56,7 @@ const QUERY_KEYS: Record<
   schedules: SCHEDULES_KEY,
   sessions: AGENT_SESSIONS_KEY,
   sessionUsage: AGENT_SESSION_USAGE_KEY,
+  usageSummary: USAGE_SUMMARY_KEY,
   skills: WORKSPACE_SKILLS_KEY,
   managedSkills: WORKSPACE_MANAGED_SKILLS_KEY,
   skillProposals: WORKSPACE_SKILL_PROPOSALS_KEY,

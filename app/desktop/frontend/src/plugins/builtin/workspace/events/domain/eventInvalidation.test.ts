@@ -62,6 +62,7 @@ describe("workspaceInvalidations", () => {
   it("maps every signal a session can move through", () => {
     expect(workspaceInvalidations({ type: "runs.changed", sequence: 1 })).toEqual([
       "sessionUsage",
+      "usageSummary",
       "agentMemory",
       "agentSessionProjection",
     ]);
