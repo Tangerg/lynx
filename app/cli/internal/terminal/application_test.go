@@ -1123,6 +1123,42 @@ func TestSessionChangeOwnsTheComposerUntilItsSnapshotIsInstalled(t *testing.T) {
 	stop()
 }
 
+func TestCtrlCCancelsSessionChangeWithoutDiscardingTheDraft(t *testing.T) {
+	base := mock.New()
+	base.Instant = true
+	base.Script = stableCompletedScript
+	backend := &blockingSessionChangeRuntime{
+		Runtime:       base,
+		changeStarted: make(chan struct{}),
+		releaseChange: make(chan struct{}),
+	}
+	host, stop := runUIWith(t, backend)
+	host.Shows(t, "Ask lyra")
+	sourceSession := firstRuntimeSession(t, base)
+	host.Type("/new")
+	host.Press(input.Enter)
+	select {
+	case <-backend.changeStarted:
+	case <-time.After(time.Second):
+		t.Fatal("session creation did not start")
+	}
+
+	host.Type("keep this draft")
+	host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
+	host.Shows(t, "session change canceled")
+	host.Shows(t, "keep this draft")
+	host.Press(input.Enter)
+	host.Shows(t, "stable answer")
+	if calls := backend.starts.Load(); calls != 1 {
+		t.Fatalf("prompt started %d runs after canceling the session change", calls)
+	}
+	if got := backend.startedSession(); got != sourceSession {
+		t.Fatalf("prompt started in %q, want original session %q", got, sourceSession)
+	}
+	host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
+	stop()
+}
+
 func TestSessionSwitchRebindsWorkspaceAttachmentsAndDropsOldChips(t *testing.T) {
 	firstWorkspace := t.TempDir()
 	secondWorkspace := t.TempDir()

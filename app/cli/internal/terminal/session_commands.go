@@ -308,6 +308,20 @@ func runSessionChangeWithDraftDisposition[T any](
 	}
 }
 
+// cancelSessionChange abandons the pending projection replacement while
+// retaining the composer state authored during it. Runtime mutations that
+// completed before cancellation remain discoverable through the session list;
+// the terminal only withdraws its unfinished local transition.
+func (a *app) cancelSessionChange() bool {
+	if !a.operations.Active(sessionChangeOperation) {
+		return false
+	}
+	a.operations.Cancel(sessionChangeOperation)
+	a.sessionDraftTransition = nil
+	a.message("session change canceled")
+	return true
+}
+
 type sourceDraftDisposition uint8
 
 const (

@@ -228,6 +228,9 @@ func (a *app) handleCancelGesture() {
 		a.cancel()
 		return
 	}
+	if a.cancelSessionChange() {
+		return
+	}
 	message, hasDraft, err := a.currentDraft()
 	if err != nil {
 		a.message(err.Error())
