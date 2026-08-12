@@ -91,7 +91,7 @@ Architecture tests prevent the domain from importing Cobra, Viper, oolong, rende
 - map authoritative item/state events into the domain projection while treating item deltas as disposable previews whose completed Item remains the terminal source of truth;
 - project workspace catalog, change, diff, file, preview, and grep resources without exposing protocol DTOs, and negotiate runtime invalidation topics before subscribing;
 - reconcile session, run, state, and interrupt invalidations through authoritative cold reads while deferring replacement until an active stream releases projection ownership;
-- treat runtime-wide events as invalidations: a logical observer partitions subscriptions within negotiated limits; sequence gaps, `resync`, and reconnects re-read the authoritative state for the affected scope, including open knowledge and hook projections;
+- treat runtime-wide events as invalidations: a logical observer partitions subscriptions within negotiated limits while keeping each workspace watch beside the file, knowledge, and hook topics whose observation it scopes; sequence gaps, `resync`, and reconnects re-read the authoritative state for the affected scope;
 - keep provider secrets write-only while projecting usage, auxiliary roles, provider diagnostics, and goal lifecycle into CLI-owned models;
 - preserve Skill proposal identity through workspace, scope, name, and full content revision while keeping runtime protocol values at the adapter edge;
 - keep MCP credentials write-only, preserve every masked-safe connection field, project tool schemas as owned JSON, and model browser authorization as a closed cancellable attempt lifecycle;

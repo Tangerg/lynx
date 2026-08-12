@@ -482,7 +482,7 @@ func (monitor runtimeChangeMonitor) runSubscription(
 			gap := event.Sequence != lastSequence+1
 			lastSequence = event.Sequence
 			if gap {
-				if containsTopic(topics, changefeed.FilesChanged) {
+				if ownsFileProjection && containsTopic(topics, changefeed.FilesChanged) {
 					if err := monitor.refreshFiles(attemptContext); err != nil {
 						attemptErr = err
 						break
@@ -499,7 +499,7 @@ func (monitor runtimeChangeMonitor) runSubscription(
 				progressed = true
 				continue
 			}
-			if monitor.invalidatesFiles(event) {
+			if ownsFileProjection && monitor.invalidatesFiles(event) {
 				if err := monitor.refreshFiles(attemptContext); err != nil {
 					attemptErr = err
 					break

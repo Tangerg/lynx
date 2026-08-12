@@ -97,6 +97,66 @@ func TestSubscriptionLimitsKeepAnUnboundedRequestWhole(t *testing.T) {
 	}
 }
 
+func TestSubscriptionLimitsKeepWorkspaceObservationAtomicAcrossTopicPartitions(t *testing.T) {
+	t.Parallel()
+	requested := Subscription{
+		Topics: []Topic{
+			FilesChanged, SessionsChanged, RunsChanged, KnowledgeChanged, HooksChanged,
+		},
+		Watches: []Watch{{ID: "active", Workspace: "/workspace"}},
+	}
+	partitions, err := (SubscriptionLimits{MaxTopics: 2, MaxWatches: 1}).Partition(requested)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []Subscription{
+		{Topics: []Topic{FilesChanged, KnowledgeChanged}, Watches: requested.Watches},
+		{Topics: []Topic{FilesChanged, HooksChanged}, Watches: requested.Watches},
+		{Topics: []Topic{SessionsChanged, RunsChanged}},
+	}
+	if !slices.EqualFunc(partitions, want, func(got, want Subscription) bool {
+		return slices.Equal(got.Topics, want.Topics) && slices.Equal(got.Watches, want.Watches)
+	}) {
+		t.Fatalf("partitions = %+v, want %+v", partitions, want)
+	}
+}
+
+func TestSubscriptionLimitsRepeatWorkspaceObservationForEveryWatchPartition(t *testing.T) {
+	t.Parallel()
+	requested := Subscription{
+		Topics: []Topic{FilesChanged, KnowledgeChanged, HooksChanged},
+		Watches: []Watch{
+			{ID: "first", Workspace: "/first"},
+			{ID: "second", Workspace: "/second"},
+		},
+	}
+	partitions, err := (SubscriptionLimits{MaxTopics: 3, MaxWatches: 1}).Partition(requested)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []Subscription{
+		{Topics: requested.Topics, Watches: requested.Watches[:1]},
+		{Topics: requested.Topics, Watches: requested.Watches[1:]},
+	}
+	if !slices.EqualFunc(partitions, want, func(got, want Subscription) bool {
+		return slices.Equal(got.Topics, want.Topics) && slices.Equal(got.Watches, want.Watches)
+	}) {
+		t.Fatalf("partitions = %+v, want %+v", partitions, want)
+	}
+}
+
+func TestSubscriptionLimitsRejectUnrepresentableWorkspaceObservation(t *testing.T) {
+	t.Parallel()
+	requested := Subscription{
+		Topics:  []Topic{FilesChanged, KnowledgeChanged},
+		Watches: []Watch{{ID: "active", Workspace: "/workspace"}},
+	}
+	if _, err := (SubscriptionLimits{MaxTopics: 1, MaxWatches: 1}).Partition(requested); err == nil ||
+		!strings.Contains(err.Error(), "workspace observation") {
+		t.Fatalf("Partition error = %v, want workspace observation failure", err)
+	}
+}
+
 func TestSubscriptionLimitsRejectInvalidConstraints(t *testing.T) {
 	t.Parallel()
 	requested := Subscription{Topics: []Topic{SessionsChanged}}

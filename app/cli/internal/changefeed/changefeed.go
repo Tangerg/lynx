@@ -83,7 +83,7 @@ type Subscription struct {
 // SubscriptionLimits are the delivery constraints negotiated with the
 // runtime. A zero value means the transport did not advertise a constraint.
 // Partition keeps those transport details out of change consumers while
-// preserving every requested topic and watch.
+// preserving every requested topic and workspace-observation scope.
 type SubscriptionLimits struct {
 	MaxTopics  int
 	MaxWatches int
@@ -104,13 +104,17 @@ func (limits SubscriptionLimits) Partition(subscription Subscription) ([]Subscri
 	if limits.MaxWatches > 0 {
 		watchLimit = min(limits.MaxWatches, watchLimit)
 	}
-
-	partitions := make([]Subscription, 0, (len(subscription.Topics)+topicLimit-1)/topicLimit)
-	for remaining := subscription.Topics; len(remaining) > 0; {
-		count := min(topicLimit, len(remaining))
-		partitions = append(partitions, Subscription{Topics: slices.Clone(remaining[:count])})
-		remaining = remaining[count:]
+	if len(subscription.Topics) <= topicLimit && len(subscription.Watches) <= watchLimit {
+		return []Subscription{cloneSubscription(subscription)}, nil
 	}
+	if len(subscription.Watches) > 0 {
+		workspaceTopics := workspaceObservedTopics(subscription.Topics)
+		if len(workspaceTopics) > 0 {
+			return partitionWorkspaceObservation(subscription, workspaceTopics, topicLimit, watchLimit)
+		}
+	}
+
+	partitions := partitionTopics(subscription.Topics, topicLimit)
 	if len(subscription.Watches) == 0 {
 		return partitions, nil
 	}
@@ -129,6 +133,77 @@ func (limits SubscriptionLimits) Partition(subscription Subscription) ([]Subscri
 		remainingWatches = remainingWatches[count:]
 	}
 	return partitions, nil
+}
+
+// workspaceObservedTopics are global without a watch, but observe the named
+// workspace's externally-authored files when a watch accompanies them. The
+// runtime wire contract uses FilesChanged as the anchor that makes a watch
+// legal, so a partitioner must keep that anchor and scope beside each topic.
+func workspaceObservedTopics(topics []Topic) []Topic {
+	observed := make([]Topic, 0, 2)
+	for _, topic := range topics {
+		if topic == KnowledgeChanged || topic == HooksChanged {
+			observed = append(observed, topic)
+		}
+	}
+	return observed
+}
+
+func partitionWorkspaceObservation(
+	subscription Subscription,
+	workspaceTopics []Topic,
+	topicLimit int,
+	watchLimit int,
+) ([]Subscription, error) {
+	if topicLimit < 2 {
+		return nil, errors.New("change subscription topic limit cannot preserve workspace observation")
+	}
+	workspaceTopicPartitions := partitionTopics(workspaceTopics, topicLimit-1)
+	watchPartitions := partitionWatches(subscription.Watches, watchLimit)
+	partitions := make([]Subscription, 0, len(workspaceTopicPartitions)*len(watchPartitions))
+	for _, watches := range watchPartitions {
+		for _, topics := range workspaceTopicPartitions {
+			partitions = append(partitions, Subscription{
+				Topics:  append([]Topic{FilesChanged}, topics.Topics...),
+				Watches: slices.Clone(watches),
+			})
+		}
+	}
+
+	unscoped := make([]Topic, 0, len(subscription.Topics))
+	for _, topic := range subscription.Topics {
+		if topic != FilesChanged && !slices.Contains(workspaceTopics, topic) {
+			unscoped = append(unscoped, topic)
+		}
+	}
+	return append(partitions, partitionTopics(unscoped, topicLimit)...), nil
+}
+
+func partitionTopics(topics []Topic, limit int) []Subscription {
+	partitions := make([]Subscription, 0, (len(topics)+limit-1)/limit)
+	for remaining := topics; len(remaining) > 0; {
+		count := min(limit, len(remaining))
+		partitions = append(partitions, Subscription{Topics: slices.Clone(remaining[:count])})
+		remaining = remaining[count:]
+	}
+	return partitions
+}
+
+func partitionWatches(watches []Watch, limit int) [][]Watch {
+	partitions := make([][]Watch, 0, (len(watches)+limit-1)/limit)
+	for remaining := watches; len(remaining) > 0; {
+		count := min(limit, len(remaining))
+		partitions = append(partitions, slices.Clone(remaining[:count]))
+		remaining = remaining[count:]
+	}
+	return partitions
+}
+
+func cloneSubscription(subscription Subscription) Subscription {
+	return Subscription{
+		Topics:  slices.Clone(subscription.Topics),
+		Watches: slices.Clone(subscription.Watches),
+	}
 }
 
 func (subscription Subscription) Validate() error {

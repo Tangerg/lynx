@@ -391,6 +391,78 @@ func TestRuntimeChangeMonitorAssignsTheWorkspaceWatchToOnePartition(t *testing.T
 	}
 }
 
+func TestRuntimeChangeMonitorPreservesAuthoredWorkspaceScopeAcrossPartitions(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	source := &partitionedRuntimeChangeSourceStub{
+		supported: []changefeed.Topic{
+			changefeed.FilesChanged, changefeed.SessionsChanged,
+			changefeed.KnowledgeChanged, changefeed.HooksChanged,
+		},
+		registrations: make(chan runtimeSubscriptionRegistration, 3),
+	}
+	var fileReads atomic.Int32
+	fileRefreshes := make(chan struct{}, 2)
+	monitor := runtimeChangeMonitor{
+		workspace: "/workspace", source: source, watchFiles: true,
+		repository: changeReaderFunc(func(context.Context, string) ([]workspace.Change, error) {
+			fileReads.Add(1)
+			return nil, nil
+		}),
+		includeKnowledge: true,
+		includeHooks:     true,
+		subscriptionLimits: changefeed.SubscriptionLimits{
+			MaxTopics: 2, MaxWatches: 1,
+		},
+		applyFiles: func([]workspace.Change) error {
+			fileRefreshes <- struct{}{}
+			return nil
+		},
+	}
+	done := make(chan error, 1)
+	go func() { done <- monitor.run(ctx) }()
+
+	registrations := make([]runtimeSubscriptionRegistration, 0, 3)
+	for range 3 {
+		registrations = append(registrations, awaitValue(t, source.registrations, "authored-resource partition"))
+	}
+	for _, topic := range []changefeed.Topic{changefeed.KnowledgeChanged, changefeed.HooksChanged} {
+		index := slices.IndexFunc(registrations, func(registration runtimeSubscriptionRegistration) bool {
+			return containsTopic(registration.subscription.Topics, topic)
+		})
+		if index < 0 {
+			t.Fatalf("%s partition is missing", topic)
+		}
+		subscription := registrations[index].subscription
+		if !containsTopic(subscription.Topics, changefeed.FilesChanged) ||
+			!slices.Equal(subscription.Watches, []changefeed.Watch{{ID: workspaceWatchID, Workspace: "/workspace"}}) {
+			t.Fatalf("%s partition lost workspace scope: %+v", topic, subscription)
+		}
+	}
+
+	awaitSignal(t, fileRefreshes, "owned initial file refresh")
+	if fileReads.Load() != 1 {
+		t.Fatalf("initial file reads = %d, want one projection owner", fileReads.Load())
+	}
+	for _, registration := range registrations {
+		if containsTopic(registration.subscription.Topics, changefeed.FilesChanged) {
+			registration.events <- changefeed.Event{
+				Type: changefeed.EventType(changefeed.FilesChanged), Sequence: 1,
+				WatchID: workspaceWatchID, Workspace: "/workspace", Paths: []string{"main.go"},
+			}
+		}
+	}
+	awaitSignal(t, fileRefreshes, "owned changed-file refresh")
+	time.Sleep(25 * time.Millisecond)
+	if fileReads.Load() != 2 {
+		t.Fatalf("file reads after duplicate partition events = %d, want one owner refresh", fileReads.Load())
+	}
+	cancel()
+	if err := <-done; !errors.Is(err, context.Canceled) {
+		t.Fatalf("run error = %v, want context cancellation", err)
+	}
+}
+
 func TestRuntimeChangeMonitorKeepsGlobalEventsAliveWithoutVersionControl(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
