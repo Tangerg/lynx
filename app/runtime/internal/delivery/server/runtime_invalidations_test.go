@@ -22,6 +22,10 @@ func TestEveryInvalidationResourceIsPublishable(t *testing.T) {
 		invalidation.Schedules,
 		invalidation.Knowledge,
 		invalidation.Hooks,
+		invalidation.Models,
+		invalidation.Approvals,
+		invalidation.AgentMemory,
+		invalidation.Codebase,
 	} {
 		notice := invalidation.Notice{Resource: resource, SessionIDs: []string{"ses_1"}}
 		if resource == invalidation.Schedules {

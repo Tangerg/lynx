@@ -10,6 +10,7 @@ import (
 	"errors"
 	"sync"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/application/invalidation"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
 )
@@ -95,6 +96,7 @@ type Coordinator struct {
 	embeddingValidator EmbeddingModelValidator
 	embeddingStore     EmbeddingRoleSaver
 	embeddingMu        sync.Mutex
+	invalidations      invalidation.Publish
 }
 
 // Config bundles the Coordinator's dependencies.
@@ -111,6 +113,8 @@ type Config struct {
 	EmbeddingRoleState *RoleState
 	EmbeddingValidator EmbeddingModelValidator
 	EmbeddingStore     EmbeddingRoleSaver
+
+	Invalidations invalidation.Publish
 }
 
 // New returns a models Coordinator over cfg.
@@ -132,5 +136,6 @@ func New(cfg Config) *Coordinator {
 		embeddingRoleState: cfg.EmbeddingRoleState,
 		embeddingValidator: cfg.EmbeddingValidator,
 		embeddingStore:     cfg.EmbeddingStore,
+		invalidations:      cfg.Invalidations,
 	}
 }

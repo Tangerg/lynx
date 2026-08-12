@@ -1,4 +1,4 @@
-# Lyra Runtime Protocol · 旁路 API（定稿 `2026-08-12`）
+# Lyra Runtime Protocol · 旁路 API（定稿 `2026-08-13`）
 
 > **状态：正式契约（canonical）。** 本文是 [`API.md`](./API.md) 的配套契约，定义 Lyra Runtime 的**旁路面**——不经 LLM 的
 > 辅助能力：git/VCS、失效事件流、会话回退 / 派生 / 归档、MCP 生命周期、审批 scope。与 `API.md` /
@@ -11,7 +11,7 @@
 > **字段级真相在生成物**（`runtime/contract/{schema,openrpc,manifest}.json` 与 `API_REFERENCE.md`，`API.md §14`）。
 > 本文写语义与不变量，不重述字段表。
 >
-> 文内裸 `§x` 指**本文**小节；引 `API.md` 一律写全 `API.md §x.y`。`protocolVersion`：**`2026-08-12`**（与 `API.md` 同）。
+> 文内裸 `§x` 指**本文**小节；引 `API.md` 一律写全 `API.md §x.y`。`protocolVersion`：**`2026-08-13`**（与 `API.md` 同）。
 
 ---
 
@@ -90,10 +90,10 @@
 
 ## 3. 失效事件流
 
-非-run 的**失效信号**推送（文件 / skills / MCP / schedules / 会话 / run / interrupt / goal / state / knowledge / hooks），与 run 事件流
+非-run 的**失效信号**推送（文件 / skills / MCP / schedules / 会话 / run / interrupt / goal / state / knowledge / hooks / models / approvals / agent memory / codebase），与 run 事件流
 （`API.md §5`）分层，自成一条常驻流。
 
-`runtime.subscribe{ topics, watches? }` 打开它；流式 `notifications.runtime.event`（params `RuntimeEvent`，十二个变体
+`runtime.subscribe{ topics, watches? }` 打开它；流式 `notifications.runtime.event`（params `RuntimeEvent`，十六个变体
 见 `API.md §7.8`）。
 
 - **订阅点名 topic**：`topics` 是闭合集合（`RuntimeTopic`），客户端只收它点过的名。上限在
@@ -107,9 +107,10 @@
   客户端收到后调对应读方法重取（`state.changed` 带 `key`，指向该 key 声明的 `recoveryMethod`，`API.md §5.3`）。
 - **每个 topic 都有生产者**：discovery 里出现的 topic，runtime 一定会在对应提交之后发它。一个"名字在、流是静的"
   topic 比没有更糟——第二个窗口会安静地过时，并且察觉不到。
-- **人工配置也有专用信号**：成功的 `knowledge.update` 发一次 `knowledge.changed`，成功的 `hooks.setTrust` 发
-  `hooks.changed`；外部进程新增、替换、删除已订阅作用域的 `LYRA.md` / `.lyra/hooks.json` 也发对应信号。客户端分别重读
-  `knowledge.*` 与 `hooks.list`；文件事件只提供语义失效，不把文件内容塞进流，也不把 workspace 观测细节泄露到 Agent。
+- **配置与后台任务有专用信号**：成功的 `knowledge.update` / `hooks.setTrust`、provider/role、approval policy、agent-memory
+  review mutation 分别发布所属 topic；codebase rebuild 在 operation 可读后与 settle 后各发布一次 `codebase.changed`。外部进程新增、
+  替换、删除已订阅作用域的 `LYRA.md` / `.lyra/hooks.json` 也发对应信号。客户端只重读所属资源；事件不携带业务值，也不把
+  workspace 观测或 Runtime wire 细节泄露到 Agent。
 
 ### 3.1 连接与投递模型
 

@@ -6,6 +6,7 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/application/invalidation"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
 )
 
@@ -209,5 +210,41 @@ func TestTestProviderRequiresAConfiguredSupportedProvider(t *testing.T) {
 	}
 	if prober.got.ID != "anthropic" {
 		t.Fatalf("probed = %+v", prober.got)
+	}
+}
+
+func TestCommittedProviderUpdatePublishesModelsInvalidation(t *testing.T) {
+	var notices []invalidation.Notice
+	c := New(Config{
+		Providers: &testProviderRegistry{},
+		Catalog: testCatalog{metadata: []ProviderMetadata{{
+			ID: "compat", RequiresBaseURL: true,
+		}}},
+		Invalidations: func(notice invalidation.Notice) { notices = append(notices, notice) },
+	})
+	baseURL := "https://example.test"
+	if _, err := c.UpdateProvider(t.Context(), UpdateProviderCommand{ID: "compat", BaseURL: &baseURL}); err != nil {
+		t.Fatal(err)
+	}
+	if len(notices) != 1 || notices[0].Resource != invalidation.Models {
+		t.Fatalf("notices = %+v, want models", notices)
+	}
+}
+
+func TestFailedProviderUpdateDoesNotPublishInvalidation(t *testing.T) {
+	var notices []invalidation.Notice
+	c := New(Config{
+		Providers: &testProviderRegistry{updateErr: errors.New("store unavailable")},
+		Catalog: testCatalog{metadata: []ProviderMetadata{{
+			ID: "compat", RequiresBaseURL: true,
+		}}},
+		Invalidations: func(notice invalidation.Notice) { notices = append(notices, notice) },
+	})
+	baseURL := "https://example.test"
+	if _, err := c.UpdateProvider(t.Context(), UpdateProviderCommand{ID: "compat", BaseURL: &baseURL}); err == nil {
+		t.Fatal("UpdateProvider unexpectedly succeeded")
+	}
+	if len(notices) != 0 {
+		t.Fatalf("failed update published %+v", notices)
 	}
 }

@@ -5,7 +5,7 @@
 > method the runtime does not serve. Prose, rationale and wire examples live in
 > `app/runtime/doc/{API,TRANSPORT,AUX_API}.md`; this is the mechanical index.
 
-Protocol `2026-08-12` (minimum supported `2026-08-12`) · 86 methods
+Protocol `2026-08-13` (minimum supported `2026-08-13`) · 86 methods
 
 ## Methods
 
@@ -403,6 +403,10 @@ Forbidden on every variant: `durable`.
 | `interrupts.changed` | `sequence` | `runIds`, `sessionIds` |
 | `knowledge.changed` | `sequence` | — |
 | `hooks.changed` | `sequence` | — |
+| `models.changed` | `sequence` | — |
+| `approvals.changed` | `sequence` | — |
+| `agentMemory.changed` | `sequence` | — |
+| `codebase.changed` | `sequence` | — |
 | `resync` | `sequence`, `topics` | `watchIds` |
 
 ### `ArtifactOutcome`

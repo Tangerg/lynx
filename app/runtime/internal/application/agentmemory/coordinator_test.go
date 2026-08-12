@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/application/invalidation"
 	domain "github.com/Tangerg/lynx/app/runtime/internal/domain/agentmemory"
 )
 
@@ -16,6 +17,7 @@ type fakeStore struct {
 	content     *string
 	pinned      *bool
 	decision    domain.ReviewDecision
+	err         error
 }
 
 func (s *fakeStore) List(_ context.Context, scope domain.Scope, project string) ([]domain.Item, error) {
@@ -25,18 +27,18 @@ func (s *fakeStore) List(_ context.Context, scope domain.Scope, project string) 
 
 func (s *fakeStore) Review(_ context.Context, _ string, decision domain.ReviewDecision, _ time.Time) error {
 	s.decision = decision
-	return nil
+	return s.err
 }
 
 func (s *fakeStore) Update(_ context.Context, _ string, content *string, pinned *bool, now time.Time) (domain.Item, error) {
 	s.content, s.pinned, s.updatedAt = content, pinned, now
-	return domain.Item{ID: "mem_1"}, nil
+	return domain.Item{ID: "mem_1"}, s.err
 }
 
-func (*fakeStore) Delete(context.Context, string) error { return nil }
+func (s *fakeStore) Delete(context.Context, string) error { return s.err }
 
-func (*fakeStore) Add(context.Context, domain.Scope, string, string, time.Time) (domain.Item, error) {
-	return domain.Item{}, nil
+func (s *fakeStore) Add(context.Context, domain.Scope, string, string, time.Time) (domain.Item, error) {
+	return domain.Item{}, s.err
 }
 
 type rootResolver struct {
@@ -107,5 +109,55 @@ func TestDisabledCoordinatorFailsExplicitly(t *testing.T) {
 	c := New(Config{})
 	if _, err := c.List(context.Background(), domain.ScopeProject, "/repo"); !errors.Is(err, ErrUnavailable) {
 		t.Fatalf("List error = %v, want ErrUnavailable", err)
+	}
+}
+
+func TestCommittedAgentMemoryMutationsPublishInvalidations(t *testing.T) {
+	var notices []invalidation.Notice
+	c := New(Config{
+		Store: &fakeStore{},
+		Roots: rootResolver{root: "/repo"},
+		Invalidations: func(notice invalidation.Notice) {
+			notices = append(notices, notice)
+		},
+	})
+	content := "updated"
+	pinned := true
+	if err := c.Review(t.Context(), "mem_1", domain.ReviewApprove); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.Update(t.Context(), "mem_1", &content, &pinned); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.Delete(t.Context(), "mem_1"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.Add(t.Context(), domain.ScopeProject, "/repo", "new"); err != nil {
+		t.Fatal(err)
+	}
+	if len(notices) != 4 {
+		t.Fatalf("notices = %+v, want four", notices)
+	}
+	for _, notice := range notices {
+		if notice.Resource != invalidation.AgentMemory {
+			t.Fatalf("notice = %+v, want agent memory", notice)
+		}
+	}
+}
+
+func TestFailedAgentMemoryMutationDoesNotPublishInvalidation(t *testing.T) {
+	wantErr := errors.New("store unavailable")
+	var notices []invalidation.Notice
+	c := New(Config{
+		Store: &fakeStore{err: wantErr},
+		Invalidations: func(notice invalidation.Notice) {
+			notices = append(notices, notice)
+		},
+	})
+	if _, err := c.Update(t.Context(), "mem_1", nil, nil); !errors.Is(err, wantErr) {
+		t.Fatalf("Update error = %v, want %v", err, wantErr)
+	}
+	if len(notices) != 0 {
+		t.Fatalf("failed mutation published %+v", notices)
 	}
 }

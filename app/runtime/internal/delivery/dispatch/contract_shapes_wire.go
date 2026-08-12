@@ -388,6 +388,10 @@ func registerEventUnions(s *Shapes) {
 			{Tag: string(protocol.RuntimeInterruptsChanged), Required: []string{"sequence"}, Optional: []string{"runIds", "sessionIds"}},
 			{Tag: string(protocol.RuntimeKnowledgeChanged), Required: []string{"sequence"}},
 			{Tag: string(protocol.RuntimeHooksChanged), Required: []string{"sequence"}},
+			{Tag: string(protocol.RuntimeModelsChanged), Required: []string{"sequence"}},
+			{Tag: string(protocol.RuntimeApprovalsChanged), Required: []string{"sequence"}},
+			{Tag: string(protocol.RuntimeAgentMemoryChanged), Required: []string{"sequence"}},
+			{Tag: string(protocol.RuntimeCodebaseChanged), Required: []string{"sequence"}},
 			// Resync names what went stale rather than saying "everything": a client that
 			// subscribed broadly should not reload unrelated resources because one watch
 			// overflowed.

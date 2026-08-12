@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/application/invalidation"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/taskgroup"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
 )
@@ -62,14 +63,17 @@ type Coordinator struct {
 	roots RootResolver
 	tasks taskgroup.Group
 
-	activeMu sync.Mutex
-	active   map[string]string // canonical root -> operation ID
+	activeMu      sync.Mutex
+	active        map[string]string // canonical root -> operation ID
+	invalidations invalidation.Publish
 }
 
 // New returns a Coordinator over index (nil to disable semantic indexing), scoped by
 // roots. Root resolution belongs to this use case.
-func New(index Index, roots RootResolver) *Coordinator {
-	return &Coordinator{index: index, roots: roots, active: make(map[string]string)}
+func New(index Index, roots RootResolver, invalidations invalidation.Publish) *Coordinator {
+	return &Coordinator{
+		index: index, roots: roots, active: make(map[string]string), invalidations: invalidations,
+	}
 }
 
 // BeginShutdown prevents new reindexes and cancels the background work.
@@ -150,9 +154,13 @@ func (c *Coordinator) StartReindex(ctx context.Context, cwd string) (string, err
 		release()
 		return operationID, nil
 	}
+	// Publish while the operation is already visible through Status, but before
+	// the worker can settle it. This preserves start-before-finish ordering even
+	// when an index rebuild completes immediately.
+	c.invalidations.Notify(invalidation.Notice{Resource: invalidation.Codebase})
 	go func() {
 		defer release()
-		defer c.endOperation(root, operationID)
+		defer c.finishOperation(root, operationID)
 		if err := c.index.Reindex(taskCtx, root); err != nil {
 			// The asynchronous result channel is the status state; preserve the
 			// detailed operational cause only on the request trace.
@@ -186,10 +194,13 @@ func (c *Coordinator) beginOperation(root string) (string, bool) {
 	return operationID, true
 }
 
-func (c *Coordinator) endOperation(root, operationID string) {
+func (c *Coordinator) finishOperation(root, operationID string) {
 	c.activeMu.Lock()
-	defer c.activeMu.Unlock()
-	if c.active[root] == operationID {
-		delete(c.active, root)
+	if c.active[root] != operationID {
+		c.activeMu.Unlock()
+		return
 	}
+	delete(c.active, root)
+	c.activeMu.Unlock()
+	c.invalidations.Notify(invalidation.Notice{Resource: invalidation.Codebase})
 }

@@ -2,6 +2,8 @@ export type WorkspaceInvalidationTarget =
   | "all"
   | "agentMemory"
   | "agentSessionProjection"
+  | "approvalMode"
+  | "approvalRules"
   | "agentDocs"
   | "diff"
   | "fileHead"
@@ -12,14 +14,19 @@ export type WorkspaceInvalidationTarget =
   | "grep"
   | "hooks"
   | "knowledge"
+  | "models"
   | "mcpServers"
   | "mcpTools"
   | "pendingWork"
+  | "providers"
   | "recipes"
   | "schedules"
   | "sessionUsage"
   | "sessions"
   | "usageSummary"
+  | "utilityRole"
+  | "embeddingRole"
+  | "codebaseStatus"
   | "skills"
   | "managedSkills"
   | "skillProposals";
@@ -40,6 +47,10 @@ export type WorkspaceEventType =
   | "interrupts.changed"
   | "knowledge.changed"
   | "hooks.changed"
+  | "models.changed"
+  | "approvals.changed"
+  | "agentMemory.changed"
+  | "codebase.changed"
   | "resync";
 
 export type WorkspaceTopic = Exclude<WorkspaceEventType, "resync">;
@@ -109,6 +120,17 @@ export function workspaceInvalidations(ev: WorkspaceEventLike): WorkspaceInvalid
       return ["knowledge"];
     case "hooks.changed":
       return ["hooks"];
+    case "models.changed":
+      // Provider credentials determine which model lists and stored roles are
+      // usable. The embedding role also determines codebase availability, so all
+      // five reads must converge from the same committed model configuration.
+      return ["providers", "models", "utilityRole", "embeddingRole", "codebaseStatus"];
+    case "approvals.changed":
+      return ["approvalMode", "approvalRules"];
+    case "agentMemory.changed":
+      return ["agentMemory"];
+    case "codebase.changed":
+      return ["codebaseStatus"];
     case "resync": {
       // Resync is already the runtime's exact loss projection: it names every
       // topic that was folded while this subscriber's queue was full. Widening

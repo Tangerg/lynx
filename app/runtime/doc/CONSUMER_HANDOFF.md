@@ -7,13 +7,13 @@
 > promise and does not authorize dual fields or fallback decoding in the server.
 >
 > Last verified against the Runtime-owned server, public Go contracts, and
-> Desktop generated consumer: 2026-08-12, during the post-P33 adversarial audit.
+> Desktop generated consumer: 2026-08-13, during the P58 external-mutation audit.
 > Other consumers migrate independently and do not change the Runtime contract.
 
 ## Current server baseline
 
-- Protocol version: `2026-08-12`; `minSupported` is the same value.
-- Session artifact version: `17`; versions 16 and earlier are rejected before
+- Protocol version: `2026-08-13`; `minSupported` is the same value.
+- Session artifact version: `18`; versions 17 and earlier are rejected before
   any import write.
 - Machine truth: [`../contract/`](../contract/) generated from the Go contract
   registry with `go generate ./...`; `go-api.json` freezes the complete public
@@ -126,7 +126,7 @@ that an in-tree or out-of-tree consumer is compatible.
 A consumer migration is complete only when it:
 
 1. vendors or generates from the current Runtime-owned contract;
-2. sends `protocolVersion: "2026-08-12"` and rejects any different discovered
+2. sends `protocolVersion: "2026-08-13"` and rejects any different discovered
    range instead of guessing compatibility;
 3. accepts only `runtimeInstanceRootSegment` for `RunReplayScope`;
 4. imports/exports Session artifact v18, including accepted Question answers, without rewriting prior documents;

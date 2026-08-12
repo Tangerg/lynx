@@ -42,6 +42,10 @@ beforeEach(() => {
     "state.changed",
     "knowledge.changed",
     "hooks.changed",
+    "models.changed",
+    "approvals.changed",
+    "agentMemory.changed",
+    "codebase.changed",
   ]) {
     supportedTopics.add(topic);
   }
@@ -66,7 +70,14 @@ describe("runtime workspace event subscription", () => {
     expect(resolveWorkspace).toHaveBeenCalledWith({ path: "/linked/repo" }, signal);
     expect(subscribe).toHaveBeenCalledWith(
       expect.objectContaining({
-        topics: expect.arrayContaining(["knowledge.changed", "hooks.changed"]),
+        topics: expect.arrayContaining([
+          "knowledge.changed",
+          "hooks.changed",
+          "models.changed",
+          "approvals.changed",
+          "agentMemory.changed",
+          "codebase.changed",
+        ]),
         watches: [{ watchId: "active-session", workspace: { path: "/canonical/repo" } }],
       }),
       signal,

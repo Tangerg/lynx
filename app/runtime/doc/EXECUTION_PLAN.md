@@ -1396,10 +1396,31 @@
 - stream 断线立即请求 Runtime supervisor 复检并撤销能力，不等待下一轮健康巡检、不由 Workspace 自行猜测全局状态；
 - HTTP/RPC DTO、重试/身份校验不进入 Workspace Application、Desktop Agent 或 Go Agent Framework。
 
-## 62. 进度记录
+## 62. P58 — 外部配置与后台任务失效闭环
+
+### 目标
+
+关闭第二客户端修改 provider/model role、approval policy、agent memory，或启动 codebase rebuild 后，已挂载 Desktop read model 静默陈旧的缺口。Application 只发布中性“资源已变”事实，Delivery 独占 wire topic，Desktop Workspace events Adapter 只依赖各 context 的公开 query identity；Runtime/transport 抽象不得进入 Agent Application/Domain 或 Go Agent Framework。
+
+### 工作项
+
+- [x] P58-01 Runtime 失效资源闭集新增 models / approvals / agent memory / codebase，并在各 use case 成功提交后发布；失败路径不伪造事件；
+- [x] P58-02 codebase rebuild 在 worker 启动前同步发布可读 operation identity，并在 settle 后再次发布，固定 start-before-finish 时序；
+- [x] P58-03 Delivery 映射四个专用 topic，Protocol 闭合 union 提升至 `2026-08-13`，生成合同与 Desktop vendored binding 原子同步；
+- [x] P58-04 Desktop 订阅全部十六个 topic，并将每个 topic 精确映射到所属 context 的公开 query identity；
+- [x] P58-05 完成 Runtime/Frontend 全门禁与真实双客户端 provider/role、approval、agent-memory、codebase 联调。
+
+### 验收
+
+- 成功提交事件、失败不发事件、codebase start/finish 顺序和 resync 闭集均有回归；
+- Desktop 已挂载面板在第二客户端 mutation 后无需 reload 自动收敛，codebase 外部重建能进入 indexing 并退出；
+- consumer gate 覆盖 86/86 operations、3/3 HTTP sidecars 和 16/16 Runtime events；Agent/Framework 反向 import 与 Runtime wire/DTO 泄露为零。
+
+## 63. 进度记录
 
 | 日期 | 阶段 | 完成事实 | 验证 |
 |---|---|---|---|
+| 2026-08-13 | P58（external configuration / background invalidation closure） | Runtime Application 中性失效闭集扩展到 models、approvals、agent memory、codebase：provider/role、default/rules、review mutations 仅在成功提交后通知；codebase 在 operation 可读但 worker 尚未运行时发布 start，settle 后发布 finish。Delivery 独占四个新 wire topic，Protocol/生成合同/Desktop binding 原子提升到 `2026-08-13`；Desktop Workspace events Adapter 将 topic 映射到各 context 公开 query identity，Agent Application/Domain 与 Go Agent Framework 不感知 Runtime 事件 | Runtime 全包与生成内容稳定性全绿；Frontend 275 files / 1671 tests 及全部 type/lint/format/knip/架构/API/design/i18n/bootstrap/bundle 门禁全绿，consumer gate 为 86/86 operations + 3/3 sidecars + 16/16 events / 106 typed call sites。新 Runtime 原位重启后页面无 reload 恢复；真实第二客户端令 approval cache balanced→safe、models 四个挂载 read model 同步刷新、agent-memory active query 1→2；codebase 精确观察 none→indexing(operationId)→ready，最终缓存与权威 API 一致，page error/业务 console error 为零 |
 | 2026-08-13 | P57（Desktop Runtime cold start / disconnect verification / single stream ownership） | Desktop Runtime context 将原一次性 discovery 与 sidecar 状态合并为唯一 connection supervisor：同代 inspection 并发读取 info/liveness/readiness/discovery，校验 endpoint/server/version/protocol identity 后原子发布 service/capabilities，失败执行有界退避，健康执行周期巡检。Workspace event stream 只通过 Runtime 公共 service port 上报连接丢失证据；capability withdrawal/restore 分别停止和新建 stream generation。Session target 输入区分 identity 与 projection，同 Session projection catch-up 不再先清空相同 watch，revision 只关注 active Session cwd。HTTP/RPC wire、连接策略未进入 Workspace Application、Desktop Agent 或 Go Agent Framework | Frontend 272 files / 1655 tests 与 typecheck/lint/format/knip/circular/context/published-boundary/layer/port/API consumer/design/i18n/bootstrap/bundle 全绿；consumer gate 为 86/86 operations + 3/3 sidecars + 12/12 events / 106 typed call sites。fresh browser 在后端离线启动后按 1/2/4/8/16 秒退避，无 reload 恢复；恢复、30 秒健康巡检、在线 crash、再次恢复各阶段 page error 为零。网络记录证明两个恢复 generation 各只有一条 `runtime.subscribe`，健康巡检只追加 discovery；stream 故障触发即时静默复检后 console/page error 为零 |
 | 2026-08-13 | P56（HTTP sidecar contract / Desktop consumption / topic negotiation） | Runtime HTTP Delivery 以唯一 endpoint registry 同源生成 RPC、info、liveness、readiness 的 method/path/auth/status/response contract，并由该 registry 注册 handler、豁免 auth、生成 info 自描述；contractgen 将三条 sidecar API 与响应 Schema 投影到 manifest/TS/validator/reference，Desktop SDK 删除手写路径和响应 Schema。Runtime context 新增中性 service inspection Application/port，由 HTTP Adapter 消费三条 sidecar，Settings 只消费公开状态；10 秒 deadline、并发 coalescing、dispose late-settlement 与 retry 均由 lifecycle owner 管理。真实旧 Runtime 进一步暴露 workspace subscription 把客户端全量主题误当后端能力，现由 Runtime capability port 提供中性 topic membership，Workspace Adapter 只请求客户端可折叠集合与 discovery 声明集合的交集。HTTP/wire/UI/i18n 均未进入 Runtime Application、Desktop Agent 或 Go Agent Framework | Runtime standalone build/vet/test/tidy/lint/race 全绿；Frontend 定向 controller/inspector/store/UI/SDK/consumer/旧 Runtime topic negotiation 回归通过，静态 consumer gate 覆盖 86/86 operations + 3/3 HTTP sidecars + 12/12 events / 106 typed call sites。真实浏览器确认三条 sidecar 均 200、停机刷新进入 unavailable、同页重启恢复 ready；旧 Runtime discovery 仅声明 9 topic 时，重载后的 `runtime.subscribe` 精确发送这 9 个并保持 SSE 200，console/page error 为零 |
 | 2026-08-13 | P55（Git process environment ownership） | 新增中立 `infra/gitprocess` 作为 Runtime 内唯一 Git OS-process boundary：清除父进程全部 `GIT_*` 控制面，再按 checkpoint shadow repo 等调用者安装显式 override；checkpoint source discovery、workspace VCS read 与 Git watcher 共同消费。Watcher 的 per-worktree/common metadata path 同时经 `pathidentity` 收敛为 physical identity。Application、Delivery、Agent/Framework、Protocol、SQLite/Artifact shape 均未变化 | 三条红测先证明 ambient foreign index 令 checkpoint 失败、foreign repository routing 令 VCS read 判错且 watcher 订阅外部 `.git`；修复后各自转绿，相关五包完整测试与四包 race、Runtime standalone tidy/build/vet/test 全绿。污染父进程中的真实 HTTP VCS read 返回目标仓库 modified +1/-1；真实 HTTP→TypeScript SDK 流式 Run 与手工保留 Run 均 completed，maintenance checkpoint 成功，shadow tag/tree/fsck 完整，foreign index SHA-256 前后不变；architecture guard 阻止 owner 外直接 Git subprocess |
@@ -1508,6 +1529,6 @@
 | 2026-08-09 | P9.2 | 完成 Adapter/Infra/Application/Delivery 逐包职责审计；workspace physical path identity 收敛到唯一 Infra mechanism；删除空的 temporary architecture 台账并把旧 Agent 禁止与 Domain no-context-I/O 变为永久 framework boundary guard；确认 agentexec 按真实变化原因组织且没有第二 lifecycle owner或虚构子包 | Adapter→Infra 单向图与目标六环 DAG 全绿；Delivery concrete Adapter/Infra import、Infra 反向 import、Application outward import、纯转发 wrapper、package/type 口吃、空目录和 temporary exception 均为零；workspacepath/pathidentity/arch targeted tests 与全量质量门禁通过 |
 | 2026-08-09 | P10 | Runtime Protocol 一次性提升到 `2026-08-09`、Session Artifact 到 v14；删除 wire 中实现泄露的 `processRootSegment`，只保留准确的 `runtimeInstanceRootSegment`；Go registry、validator、manifest、OpenRPC、JSON Schema、TypeScript binding、canonical samples 与人读 API/Transport/Aux 文档同步；新增精确 consumer handoff | canonical artifact samples 中漏存的 v12 与旧 `outcome.error` 被 strict sample gate 暴露并治本修正；生成器零漂移、旧 wire token/版本归零、strict validator/round-trip、HTTP/in-process、全量质量门禁通过；Desktop backlog 已记录但未改消费者 |
 
-## 52. 当前下一步
+## 64. 当前下一步
 
-P46 已关闭 Agent live/durable/cancel/pending-work 四条 Runtime DTO 泄露路径，并修复 Composer 冷启动把 catalog 默认模型误写成显式 override 的竞态。重启后下一轮继续沿 backend operation → generated client → frontend product consumer → stream/invalidation 矩阵反证文件旁路事件、subscription close/retarget、跨 Session 晚到事件、事务失败和崩溃恢复；每轮提交前执行 Runtime→Agent/Agent→Runtime 双向依赖与 staged path 审计。
+P58 正沿 backend operation → committed invalidation → generated client → frontend product consumer 收口外部配置与后台任务矩阵。下一轮继续反证 subscription close/retarget、跨 Session 晚到事件、事务失败、崩溃恢复及尚未挂载/挂载中 query 的一致性；每轮提交前执行 Runtime→Agent/Agent→Runtime 双向依赖与 staged path 审计。

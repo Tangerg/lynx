@@ -44,7 +44,7 @@ func planContext(t *testing.T, sessionID string) context.Context {
 
 func balancedPlanPolicy(t *testing.T) *approvals.RuntimePolicy {
 	t.Helper()
-	policy, err := approvals.NewRuntimePolicy(approval.ModeBalanced, nil, &modeStore{states: make(map[string]approval.SessionMode)})
+	policy, err := approvals.NewRuntimePolicy(approval.ModeBalanced, nil, &modeStore{states: make(map[string]approval.SessionMode)}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

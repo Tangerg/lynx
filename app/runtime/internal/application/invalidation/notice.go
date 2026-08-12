@@ -32,6 +32,14 @@ const (
 	Knowledge
 	// Hooks — a project's lifecycle-hook trust decision changed.
 	Hooks
+	// Models — provider configuration or a utility/embedding model role changed.
+	Models
+	// Approvals — the default approval mode or remembered approval rules changed.
+	Approvals
+	// AgentMemory — the agent-memory review collection changed.
+	AgentMemory
+	// Codebase — a semantic-index rebuild started or settled.
+	Codebase
 )
 
 // Notice is one committed change: the resource, and the members of it a reader can

@@ -9,7 +9,7 @@
 // in the generated validator and in schema.json.
 
 // The wire version this runtime serves; a client states it in request metadata.
-export const PROTOCOL_VERSION = "2026-08-12";
+export const PROTOCOL_VERSION = "2026-08-13";
 
 // HTTP entrypoints implemented by this runtime build.
 export const HTTP_ENDPOINTS = {
@@ -1251,13 +1251,17 @@ export type RuntimeEvent =
   | { type: "interrupts.changed"; runIds?: string[]; sequence: number; sessionIds?: string[] }
   | { type: "knowledge.changed"; sequence: number }
   | { type: "hooks.changed"; sequence: number }
+  | { type: "models.changed"; sequence: number }
+  | { type: "approvals.changed"; sequence: number }
+  | { type: "agentMemory.changed"; sequence: number }
+  | { type: "codebase.changed"; sequence: number }
   | { type: "resync"; sequence: number; topics: RuntimeTopic[]; watchIds?: string[] };
 
 export interface RuntimeEventNotification {
   event: RuntimeEvent;
 }
 
-export type RuntimeEventType = "files.changed" | "skills.changed" | "mcp.changed" | "schedules.changed" | "sessions.changed" | "runs.changed" | "state.changed" | "goals.changed" | "interrupts.changed" | "knowledge.changed" | "hooks.changed" | "resync";
+export type RuntimeEventType = "files.changed" | "skills.changed" | "mcp.changed" | "schedules.changed" | "sessions.changed" | "runs.changed" | "state.changed" | "goals.changed" | "interrupts.changed" | "knowledge.changed" | "hooks.changed" | "models.changed" | "approvals.changed" | "agentMemory.changed" | "codebase.changed" | "resync";
 
 export interface RuntimeInfo {
   endpoints: RuntimeInfoEndpoints;
@@ -1294,7 +1298,7 @@ export interface RuntimeSubscribeRequest {
 export interface RuntimeSubscribeResponse {
 }
 
-export type RuntimeTopic = "files.changed" | "skills.changed" | "mcp.changed" | "schedules.changed" | "sessions.changed" | "runs.changed" | "state.changed" | "goals.changed" | "interrupts.changed" | "knowledge.changed" | "hooks.changed";
+export type RuntimeTopic = "files.changed" | "skills.changed" | "mcp.changed" | "schedules.changed" | "sessions.changed" | "runs.changed" | "state.changed" | "goals.changed" | "interrupts.changed" | "knowledge.changed" | "hooks.changed" | "models.changed" | "approvals.changed" | "agentMemory.changed" | "codebase.changed";
 
 export type SafetyClass = "safe" | "write" | "exec" | "network";
 
@@ -1711,8 +1715,8 @@ export const WIRE_ENUMS = {
   RunProtocolFeature: ["subagents"],
   RunReplayScope: ["runtimeInstanceRootSegment"],
   RunStatus: ["running", "waiting", "finished"],
-  RuntimeEventType: ["files.changed", "skills.changed", "mcp.changed", "schedules.changed", "sessions.changed", "runs.changed", "state.changed", "goals.changed", "interrupts.changed", "knowledge.changed", "hooks.changed", "resync"],
-  RuntimeTopic: ["files.changed", "skills.changed", "mcp.changed", "schedules.changed", "sessions.changed", "runs.changed", "state.changed", "goals.changed", "interrupts.changed", "knowledge.changed", "hooks.changed"],
+  RuntimeEventType: ["files.changed", "skills.changed", "mcp.changed", "schedules.changed", "sessions.changed", "runs.changed", "state.changed", "goals.changed", "interrupts.changed", "knowledge.changed", "hooks.changed", "models.changed", "approvals.changed", "agentMemory.changed", "codebase.changed", "resync"],
+  RuntimeTopic: ["files.changed", "skills.changed", "mcp.changed", "schedules.changed", "sessions.changed", "runs.changed", "state.changed", "goals.changed", "interrupts.changed", "knowledge.changed", "hooks.changed", "models.changed", "approvals.changed", "agentMemory.changed", "codebase.changed"],
   SafetyClass: ["safe", "write", "exec", "network"],
   ScheduleWorkspaceMode: ["default"],
   SegmentOutcomeType: ["interrupt", "suspended", "completed", "timedOut", "failed", "maxSteps", "maxBudget", "canceled", "lost"],

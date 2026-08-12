@@ -36,7 +36,7 @@ func (roleGoalStub) Report(context.Context, goals.ReportCommand) (goals.ReportRe
 }
 
 func TestPlanModeToolsAreRootOnly(t *testing.T) {
-	policy, err := approvals.NewRuntimePolicy(approval.ModeBalanced, nil, nil)
+	policy, err := approvals.NewRuntimePolicy(approval.ModeBalanced, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("approval policy: %v", err)
 	}

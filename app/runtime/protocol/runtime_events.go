@@ -36,6 +36,14 @@ const (
 	RuntimeKnowledgeChanged RuntimeEventType = "knowledge.changed"
 	// RuntimeHooksChanged — a project's lifecycle-hook trust decision changed.
 	RuntimeHooksChanged RuntimeEventType = "hooks.changed"
+	// RuntimeModelsChanged — provider configuration or a model role changed.
+	RuntimeModelsChanged RuntimeEventType = "models.changed"
+	// RuntimeApprovalsChanged — the default approval mode or remembered rules changed.
+	RuntimeApprovalsChanged RuntimeEventType = "approvals.changed"
+	// RuntimeAgentMemoryChanged — the agent-memory review collection changed.
+	RuntimeAgentMemoryChanged RuntimeEventType = "agentMemory.changed"
+	// RuntimeCodebaseChanged — a semantic-index rebuild started or settled.
+	RuntimeCodebaseChanged RuntimeEventType = "codebase.changed"
 	// RuntimeResync — the stream could not keep every change, so what a client holds
 	// may be stale. It names the topics and watches affected; the remedy is to read
 	// them again.
@@ -48,17 +56,21 @@ const (
 type RuntimeTopic string
 
 const (
-	TopicFilesChanged      = RuntimeTopic(RuntimeFilesChanged)
-	TopicSkillsChanged     = RuntimeTopic(RuntimeSkillsChanged)
-	TopicMCPChanged        = RuntimeTopic(RuntimeMCPChanged)
-	TopicSchedulesChanged  = RuntimeTopic(RuntimeSchedulesChanged)
-	TopicSessionsChanged   = RuntimeTopic(RuntimeSessionsChanged)
-	TopicRunsChanged       = RuntimeTopic(RuntimeRunsChanged)
-	TopicStateChanged      = RuntimeTopic(RuntimeStateChanged)
-	TopicGoalsChanged      = RuntimeTopic(RuntimeGoalsChanged)
-	TopicInterruptsChanged = RuntimeTopic(RuntimeInterruptsChanged)
-	TopicKnowledgeChanged  = RuntimeTopic(RuntimeKnowledgeChanged)
-	TopicHooksChanged      = RuntimeTopic(RuntimeHooksChanged)
+	TopicFilesChanged       = RuntimeTopic(RuntimeFilesChanged)
+	TopicSkillsChanged      = RuntimeTopic(RuntimeSkillsChanged)
+	TopicMCPChanged         = RuntimeTopic(RuntimeMCPChanged)
+	TopicSchedulesChanged   = RuntimeTopic(RuntimeSchedulesChanged)
+	TopicSessionsChanged    = RuntimeTopic(RuntimeSessionsChanged)
+	TopicRunsChanged        = RuntimeTopic(RuntimeRunsChanged)
+	TopicStateChanged       = RuntimeTopic(RuntimeStateChanged)
+	TopicGoalsChanged       = RuntimeTopic(RuntimeGoalsChanged)
+	TopicInterruptsChanged  = RuntimeTopic(RuntimeInterruptsChanged)
+	TopicKnowledgeChanged   = RuntimeTopic(RuntimeKnowledgeChanged)
+	TopicHooksChanged       = RuntimeTopic(RuntimeHooksChanged)
+	TopicModelsChanged      = RuntimeTopic(RuntimeModelsChanged)
+	TopicApprovalsChanged   = RuntimeTopic(RuntimeApprovalsChanged)
+	TopicAgentMemoryChanged = RuntimeTopic(RuntimeAgentMemoryChanged)
+	TopicCodebaseChanged    = RuntimeTopic(RuntimeCodebaseChanged)
 )
 
 // RuntimeTopics returns the closed subscribable set in declaration order. It is
@@ -70,6 +82,8 @@ func RuntimeTopics() []RuntimeTopic {
 		TopicFilesChanged, TopicSkillsChanged, TopicMCPChanged, TopicSchedulesChanged,
 		TopicSessionsChanged, TopicRunsChanged, TopicStateChanged, TopicGoalsChanged,
 		TopicInterruptsChanged, TopicKnowledgeChanged, TopicHooksChanged,
+		TopicModelsChanged, TopicApprovalsChanged, TopicAgentMemoryChanged,
+		TopicCodebaseChanged,
 	}
 }
 

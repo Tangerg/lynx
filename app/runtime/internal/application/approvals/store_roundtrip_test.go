@@ -104,7 +104,7 @@ func TestRememberRejectsUnkeyable(t *testing.T) {
 
 func newPolicy(t *testing.T) *approvals.RuntimePolicy {
 	t.Helper()
-	policy, err := approvals.NewRuntimePolicy(approval.ModeSafe, newMemoryRuleStore(), nil)
+	policy, err := approvals.NewRuntimePolicy(approval.ModeSafe, newMemoryRuleStore(), nil, nil)
 	if err != nil {
 		t.Fatalf("new policy: %v", err)
 	}

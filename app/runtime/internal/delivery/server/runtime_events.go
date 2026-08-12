@@ -77,6 +77,14 @@ func runtimeEventFor(notice invalidation.Notice) (protocol.RuntimeEvent, bool) {
 		return protocol.RuntimeEvent{Type: protocol.RuntimeKnowledgeChanged}, true
 	case invalidation.Hooks:
 		return protocol.RuntimeEvent{Type: protocol.RuntimeHooksChanged}, true
+	case invalidation.Models:
+		return protocol.RuntimeEvent{Type: protocol.RuntimeModelsChanged}, true
+	case invalidation.Approvals:
+		return protocol.RuntimeEvent{Type: protocol.RuntimeApprovalsChanged}, true
+	case invalidation.AgentMemory:
+		return protocol.RuntimeEvent{Type: protocol.RuntimeAgentMemoryChanged}, true
+	case invalidation.Codebase:
+		return protocol.RuntimeEvent{Type: protocol.RuntimeCodebaseChanged}, true
 	default:
 		return protocol.RuntimeEvent{}, false
 	}

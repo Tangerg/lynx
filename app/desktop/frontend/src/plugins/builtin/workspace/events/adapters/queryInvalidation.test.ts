@@ -19,6 +19,19 @@ vi.mock("@/plugins/builtin/settings/usage/public/queries", () => ({
   USAGE_SUMMARY_KEY: "usage-summary",
 }));
 
+vi.mock("@/plugins/builtin/agent/public/approvalPolicy", () => ({
+  APPROVAL_MODE_KEY: "approval-mode",
+  APPROVAL_RULES_KEY: "approval-rules",
+}));
+
+vi.mock("@/plugins/builtin/settings/providers/public/queries", () => ({
+  CODEBASE_STATUS_KEY: "codebase-status",
+  EMBEDDING_ROLE_KEY: "embedding-role",
+  MODELS_KEY: "models",
+  PROVIDERS_KEY: "providers",
+  UTILITY_ROLE_KEY: "utility-role",
+}));
+
 import { invalidateWorkspaceEvent, invalidateWorkspaceEverything } from "./queryInvalidation";
 
 beforeEach(() => {
@@ -59,6 +72,29 @@ describe("workspace session projection invalidation", () => {
 
     expect(invalidateQueries).toHaveBeenCalledWith();
     expect(synchronizeMountedAgentSessions).toHaveBeenCalledWith();
+  });
+
+  it("refreshes every read affected by external settings mutations", () => {
+    for (const type of [
+      "models.changed",
+      "approvals.changed",
+      "agentMemory.changed",
+      "codebase.changed",
+    ] as const) {
+      invalidateWorkspaceEvent({ type, sequence: 1 });
+    }
+
+    expect(invalidateQueries.mock.calls.map(([options]) => options.queryKey[0])).toEqual([
+      "providers",
+      "models",
+      "utility-role",
+      "embedding-role",
+      "codebase-status",
+      "approval-mode",
+      "approval-rules",
+      "agent-memory",
+      "codebase-status",
+    ]);
   });
 
   it("keeps a scoped resync inside the reads named by its topics", () => {

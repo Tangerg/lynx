@@ -7,6 +7,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/application/invalidation"
 	domain "github.com/Tangerg/lynx/app/runtime/internal/domain/agentmemory"
 )
 
@@ -34,16 +35,18 @@ type Store interface {
 // deliberately disabled capability. Roots is required only for project-scoped
 // requests; a missing resolver reports an explicit unavailable error.
 type Config struct {
-	Store Store
-	Roots RootResolver
-	Now   func() time.Time
+	Store         Store
+	Roots         RootResolver
+	Now           func() time.Time
+	Invalidations invalidation.Publish
 }
 
 // Coordinator implements agent-memory review commands and queries.
 type Coordinator struct {
-	store Store
-	roots RootResolver
-	now   func() time.Time
+	store         Store
+	roots         RootResolver
+	now           func() time.Time
+	invalidations invalidation.Publish
 }
 
 // New builds the review coordinator. A nil store is a valid disabled runtime
@@ -53,7 +56,7 @@ func New(cfg Config) *Coordinator {
 	if now == nil {
 		now = time.Now
 	}
-	return &Coordinator{store: cfg.Store, roots: cfg.Roots, now: now}
+	return &Coordinator{store: cfg.Store, roots: cfg.Roots, now: now, invalidations: cfg.Invalidations}
 }
 
 // Available reports whether agent-memory review operations are wired.
@@ -79,7 +82,11 @@ func (c *Coordinator) Review(ctx context.Context, id string, decision domain.Rev
 	if _, err := decision.Result(); err != nil {
 		return err
 	}
-	return c.store.Review(ctx, id, decision, c.now())
+	if err := c.store.Review(ctx, id, decision, c.now()); err != nil {
+		return err
+	}
+	c.invalidations.Notify(invalidation.Notice{Resource: invalidation.AgentMemory})
+	return nil
 }
 
 // Update applies the content/pin patch as one use case and returns the saved
@@ -88,7 +95,12 @@ func (c *Coordinator) Update(ctx context.Context, id string, content *string, pi
 	if !c.Available() {
 		return domain.Item{}, ErrUnavailable
 	}
-	return c.store.Update(ctx, id, content, pinned, c.now())
+	item, err := c.store.Update(ctx, id, content, pinned, c.now())
+	if err != nil {
+		return domain.Item{}, err
+	}
+	c.invalidations.Notify(invalidation.Notice{Resource: invalidation.AgentMemory})
+	return item, nil
 }
 
 // Delete removes one memory item.
@@ -96,7 +108,11 @@ func (c *Coordinator) Delete(ctx context.Context, id string) error {
 	if !c.Available() {
 		return ErrUnavailable
 	}
-	return c.store.Delete(ctx, id)
+	if err := c.store.Delete(ctx, id); err != nil {
+		return err
+	}
+	c.invalidations.Notify(invalidation.Notice{Resource: invalidation.AgentMemory})
+	return nil
 }
 
 // Add creates an immediately-active user-authored memory item.
@@ -108,7 +124,12 @@ func (c *Coordinator) Add(ctx context.Context, scope domain.Scope, cwd, content 
 	if err != nil {
 		return domain.Item{}, err
 	}
-	return c.store.Add(ctx, scope, project, content, c.now())
+	item, err := c.store.Add(ctx, scope, project, content, c.now())
+	if err != nil {
+		return domain.Item{}, err
+	}
+	c.invalidations.Notify(invalidation.Notice{Resource: invalidation.AgentMemory})
+	return item, nil
 }
 
 func (c *Coordinator) project(scope domain.Scope, cwd string) (string, error) {

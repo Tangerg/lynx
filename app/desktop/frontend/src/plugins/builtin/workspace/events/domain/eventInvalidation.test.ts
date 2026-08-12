@@ -33,10 +33,27 @@ describe("workspaceInvalidations", () => {
       "knowledge",
     ]);
     expect(workspaceInvalidations({ type: "hooks.changed", sequence: 7 })).toEqual(["hooks"]);
+    expect(workspaceInvalidations({ type: "models.changed", sequence: 8 })).toEqual([
+      "providers",
+      "models",
+      "utilityRole",
+      "embeddingRole",
+      "codebaseStatus",
+    ]);
+    expect(workspaceInvalidations({ type: "approvals.changed", sequence: 9 })).toEqual([
+      "approvalMode",
+      "approvalRules",
+    ]);
+    expect(workspaceInvalidations({ type: "agentMemory.changed", sequence: 10 })).toEqual([
+      "agentMemory",
+    ]);
+    expect(workspaceInvalidations({ type: "codebase.changed", sequence: 11 })).toEqual([
+      "codebaseStatus",
+    ]);
     expect(
       workspaceInvalidations({
         type: "resync",
-        sequence: 8,
+        sequence: 12,
         topics: ["files.changed", "goals.changed", "files.changed"],
       }),
     ).toEqual([
@@ -53,7 +70,7 @@ describe("workspaceInvalidations", () => {
       "skills",
       "goal",
     ]);
-    expect(workspaceInvalidations({ type: "resync", sequence: 9 })).toEqual(["all"]);
+    expect(workspaceInvalidations({ type: "resync", sequence: 13 })).toEqual(["all"]);
   });
 
   // The four topics that used to be unmapped. They are read-backed now — the run

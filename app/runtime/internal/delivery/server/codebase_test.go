@@ -48,7 +48,7 @@ func (i *fakeCodebaseIndex) Status(_ context.Context, root string) (codebaseinde
 
 func serverWithCodebase(root string, idx codebase.Index) *Server {
 	surfaces := newWorkspaceSurfaces(root, workspaceTestConfig{})
-	s := &Server{codebase: codebase.New(idx, surfaces.roots), features: featureAvailability{codebase: idx != nil}}
+	s := &Server{codebase: codebase.New(idx, surfaces.roots, nil), features: featureAvailability{codebase: idx != nil}}
 	applyWorkspaceSurfaces(s, surfaces)
 	return s
 }

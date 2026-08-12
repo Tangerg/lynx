@@ -7,6 +7,7 @@ import (
 
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/application/invalidation"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/secrets"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
 )
@@ -98,6 +99,7 @@ func (c *Coordinator) UpdateProvider(ctx context.Context, cmd UpdateProviderComm
 	if err != nil {
 		return ProviderSummary{}, err
 	}
+	c.invalidations.Notify(invalidation.Notice{Resource: invalidation.Models})
 	return providerSummary(meta, entry), nil
 }
 

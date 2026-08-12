@@ -1,7 +1,7 @@
 {
   "protocol": {
-    "current": "2026-08-12",
-    "minSupported": "2026-08-12"
+    "current": "2026-08-13",
+    "minSupported": "2026-08-13"
   },
   "features": [
     "reasoning",
@@ -2128,6 +2128,18 @@
       "type": "hooks.changed"
     },
     {
+      "type": "models.changed"
+    },
+    {
+      "type": "approvals.changed"
+    },
+    {
+      "type": "agentMemory.changed"
+    },
+    {
+      "type": "codebase.changed"
+    },
+    {
       "type": "resync"
     }
   ],
@@ -3304,6 +3316,30 @@
         },
         {
           "tag": "hooks.changed",
+          "required": [
+            "sequence"
+          ]
+        },
+        {
+          "tag": "models.changed",
+          "required": [
+            "sequence"
+          ]
+        },
+        {
+          "tag": "approvals.changed",
+          "required": [
+            "sequence"
+          ]
+        },
+        {
+          "tag": "agentMemory.changed",
+          "required": [
+            "sequence"
+          ]
+        },
+        {
+          "tag": "codebase.changed",
           "required": [
             "sequence"
           ]

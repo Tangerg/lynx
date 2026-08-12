@@ -127,7 +127,7 @@ func assertBuiltInToolContract(t *testing.T, candidate toolcontract.Tool) {
 }
 
 func TestRootResolverIncludesConfiguredConditionalTools(t *testing.T) {
-	policy, err := approvals.NewRuntimePolicy(approval.ModeBalanced, nil, nil)
+	policy, err := approvals.NewRuntimePolicy(approval.ModeBalanced, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("approval policy: %v", err)
 	}
@@ -175,7 +175,7 @@ func TestRootResolverIncludesConfiguredConditionalTools(t *testing.T) {
 // The resolver is built with every optional subsystem wired, because a name is
 // only unreachable if NO configuration reaches it.
 func TestDescriptorCatalogMatchesBuiltInTools(t *testing.T) {
-	policy, err := approvals.NewRuntimePolicy(approval.ModeBalanced, nil, nil)
+	policy, err := approvals.NewRuntimePolicy(approval.ModeBalanced, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("approval policy: %v", err)
 	}

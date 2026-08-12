@@ -7,6 +7,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/application/invalidation"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 )
 
@@ -22,11 +23,16 @@ var (
 // operations return [ErrRuleStoreUnavailable]. modeStore may be nil when Plan
 // mode is unavailable; ordinary calls still use the runtime default. ModePlan
 // is rejected as a default because only a session may enter it.
-func NewRuntimePolicy(mode approval.Mode, store RuleStore, modeStore ModeStore) (*RuntimePolicy, error) {
+func NewRuntimePolicy(
+	mode approval.Mode,
+	store RuleStore,
+	modeStore ModeStore,
+	invalidations invalidation.Publish,
+) (*RuntimePolicy, error) {
 	if !mode.ValidDefault() {
 		return nil, fmt.Errorf("%w: %d", approval.ErrInvalidMode, mode)
 	}
-	p := &RuntimePolicy{store: store, modeStore: modeStore}
+	p := &RuntimePolicy{store: store, modeStore: modeStore, invalidations: invalidations}
 	p.mode.Store(int32(mode))
 	return p, nil
 }
@@ -44,10 +50,11 @@ type ModeStore interface {
 // The default mode is atomic; Plan-mode transitions are serialized because
 // they are rare state changes whose read/replace pair must be one process fact.
 type RuntimePolicy struct {
-	mode      atomic.Int32
-	modeMu    sync.Mutex
-	modeStore ModeStore
-	store     RuleStore
+	mode          atomic.Int32
+	modeMu        sync.Mutex
+	modeStore     ModeStore
+	store         RuleStore
+	invalidations invalidation.Publish
 }
 
 // DefaultMode returns the runtime fallback used by sessions without an explicit
@@ -67,6 +74,7 @@ func (p *RuntimePolicy) SetDefaultMode(_ context.Context, mode approval.Mode) er
 		return fmt.Errorf("%w: %d", approval.ErrInvalidMode, mode)
 	}
 	p.mode.Store(int32(mode))
+	p.invalidations.Notify(invalidation.Notice{Resource: invalidation.Approvals})
 	return nil
 }
 
@@ -172,7 +180,11 @@ func (p *RuntimePolicy) Remember(ctx context.Context, req approval.RememberReque
 	if p.store == nil {
 		return ErrRuleStoreUnavailable
 	}
-	return p.store.Put(ctx, rule)
+	if err := p.store.Put(ctx, rule); err != nil {
+		return err
+	}
+	p.invalidations.Notify(invalidation.Notice{Resource: invalidation.Approvals})
+	return nil
 }
 
 func (p *RuntimePolicy) Rules(ctx context.Context, sessionID, projectDir string) ([]approval.Rule, error) {
@@ -198,5 +210,9 @@ func (p *RuntimePolicy) Forget(ctx context.Context, id string) error {
 	if p.store == nil {
 		return ErrRuleStoreUnavailable
 	}
-	return p.store.Delete(ctx, id)
+	if err := p.store.Delete(ctx, id); err != nil {
+		return err
+	}
+	p.invalidations.Notify(invalidation.Notice{Resource: invalidation.Approvals})
+	return nil
 }

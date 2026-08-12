@@ -2,7 +2,7 @@
 
 > 状态：Runtime Protocol Baseline 1
 >
-> 基线日期：2026-08-12
+> 基线日期：2026-08-13
 >
 > 适用范围：Runtime Protocol 制品、持久化 shape、Agent Framework 消费边界和重构期间的内部防腐合同
 
@@ -35,10 +35,10 @@ Digest 只用于发现未审计漂移，不能替代语义测试。
 
 | 制品 | SHA-256 |
 |---|---|
-| `contract/manifest.json` | `d4b6f3d9cbed18d0331910c8017d8397e30d460da04eef86ce57115dbf96c22d` |
-| `contract/openrpc.json` | `53c158a7abd70995f1e740b268569bda06c604008a14164a725ce318720f5b3d` |
-| `contract/schema.json` | `2bb7a91ffe79c81ce35cf52e2b433f219848a6cfa954962cf52a2f1d55bcf895` |
-| `contract/go-api.json` | `f66471d817f690405fe8b8aea9ab14aa7d07bf7e3ee93d633ce44026ae29d115` |
+| `contract/manifest.json` | `c1f89bf5730719d90f96f99faf6b2b703c8a5f0c2e956b2cfba203c22102c38d` |
+| `contract/openrpc.json` | `f27ac7f699d43b146b47882a33b74da987404f00475c56bc5b76d1c0aad2f3b2` |
+| `contract/schema.json` | `d1a7a4b8933787aadc7340c02de2d2cd32a373976abb2062f3e144c05bdf1bc1` |
+| `contract/go-api.json` | `35aca78cbadf63c8807b0564c417dba5b93f9f91819b34197ad0111f6e2ade7b` |
 
 TypeScript generated files 是派生制品，不单独定义语义。它们必须由同一个 contract generator 产生且 diff-free；当前前端/TUI/CLI 是否已经消费最新 shape，由 P10/P12 的 consumer handoff 记录，不通过兼容字段掩盖。
 
@@ -50,7 +50,7 @@ TypeScript generated files 是派生制品，不单独定义语义。它们必�
 
 本文件不复制 method、field、error 或 example catalog。
 
-当前协议版本为 `2026-08-12`，只服务同值的 `minSupported`。唯一 replay scope 是 `runtimeInstanceRootSegment`：它准确表达一个 Runtime instance 内的一条 root Segment replay buffer；旧 `processRootSegment` 已直接删除。消费者 breaking surface 与未接线事实由 [`CONSUMER_HANDOFF.md`](CONSUMER_HANDOFF.md) 唯一记录。
+当前协议版本为 `2026-08-13`，只服务同值的 `minSupported`。唯一 replay scope 是 `runtimeInstanceRootSegment`：它准确表达一个 Runtime instance 内的一条 root Segment replay buffer；旧 `processRootSegment` 已直接删除。消费者 breaking surface 与未接线事实由 [`CONSUMER_HANDOFF.md`](CONSUMER_HANDOFF.md) 唯一记录。
 
 Goal read model 的 `status:"completing"` 精确表示模型已声明 objective 成功、但 owning Run 的最终记账与条件清除尚未完成。它保持目标占位且不可 stop/resume/start；下一次 `goals.changed` 后读取 `null` 才表示 settlement owner 已释放。Domain `complete`、Application drive 与公共 `completing` 分属各层，不互相泄露类型。
 
@@ -61,7 +61,7 @@ Knowledge 条目以内容摘要作为 opaque revision。`knowledge.list/get` 即
 identity 后才读写，域内 symlink 的 alias 本身保持不变；跨进程 directory lease 包围 revision compare、权限继承、临时文件 fsync、
 原子 rename 和父目录 sync，cold read 回收严格命名的 pre-publish staging。进程崩溃后的可见内容只能是上一 committed revision 或完整
 新 revision。
-这些 topic 是失效事实，不携带配置值，Desktop Adapter 将 wire 投影为 Workspace/Hook 自有模型，Agent Framework 零感知。
+这些 topic 是失效事实，不携带配置值。Provider/model role、approval policy、agent-memory review 与 codebase rebuild 同样在所属 Application use case 提交后发布专用失效事实；Delivery 才将中性 notice 映射为 wire topic，Desktop Workspace events Adapter 再映射到各 context 公开 query identity，Agent Framework 零感知。
 
 公共 Go surface 只有 `runtime/protocol` 与 `runtime/embedded`，由生成的 `contract/go-api.json` 完整冻结。`protocol` 只公开 binding-neutral values、strict validation、版本、稳定错误 identity 与 `ProblemError`；`embedded` 只公开 concrete Runtime lifecycle、准确 options 和类型化 operation methods。服务端 method interface、request context plumbing、numeric JSON-RPC code、reflection shape walker、artifact catalogue、Host、Store、Engine 和 Router 均属于 `internal`，不构成公共 Go surface。
 

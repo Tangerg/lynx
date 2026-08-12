@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/application/invalidation"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 )
 
@@ -42,6 +43,7 @@ func (c *Coordinator) SetUtilityRole(ctx context.Context, provider, model string
 		}
 	}
 	c.utilityRoleState.Store(role)
+	c.invalidations.Notify(invalidation.Notice{Resource: invalidation.Models})
 	return role, nil
 }
 
@@ -82,5 +84,6 @@ func (c *Coordinator) SetEmbeddingRole(ctx context.Context, providerID, model st
 		}
 	}
 	c.embeddingRoleState.Store(role)
+	c.invalidations.Notify(invalidation.Notice{Resource: invalidation.Models})
 	return role, nil
 }

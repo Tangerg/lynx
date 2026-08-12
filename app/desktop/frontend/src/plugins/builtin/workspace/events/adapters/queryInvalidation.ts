@@ -5,11 +5,22 @@ import {
   synchronizeMountedAgentSessions,
 } from "@/plugins/builtin/agent/public/session";
 import { PENDING_WORK_KEY } from "@/plugins/builtin/agent/public/hitl";
+import {
+  APPROVAL_MODE_KEY,
+  APPROVAL_RULES_KEY,
+} from "@/plugins/builtin/agent/public/approvalPolicy";
 import { GOAL_KEY } from "@/plugins/builtin/chat/goal/public/queries";
 import { RECIPES_KEY } from "@/plugins/builtin/chat/recipes/public/queries";
 import { HOOKS_KEY } from "@/plugins/builtin/settings/hooks/public/queries";
 import { SCHEDULES_KEY } from "@/plugins/builtin/settings/schedules/public/queries";
 import { USAGE_SUMMARY_KEY } from "@/plugins/builtin/settings/usage/public/queries";
+import {
+  CODEBASE_STATUS_KEY,
+  EMBEDDING_ROLE_KEY,
+  MODELS_KEY,
+  PROVIDERS_KEY,
+  UTILITY_ROLE_KEY,
+} from "@/plugins/builtin/settings/providers/public/queries";
 import {
   MCP_SERVERS_KEY,
   MCP_TOOLS_KEY,
@@ -40,6 +51,9 @@ const QUERY_KEYS: Record<
 > = {
   agentDocs: WORKSPACE_AGENT_DOCS_KEY,
   agentMemory: WORKSPACE_AGENT_MEMORY_KEY,
+  approvalMode: APPROVAL_MODE_KEY,
+  approvalRules: APPROVAL_RULES_KEY,
+  codebaseStatus: CODEBASE_STATUS_KEY,
   diff: WORKSPACE_DIFF_KEY,
   fileHead: WORKSPACE_FILE_HEAD_KEY,
   fileList: WORKSPACE_LIST_FILES_KEY,
@@ -49,14 +63,18 @@ const QUERY_KEYS: Record<
   grep: WORKSPACE_GREP_KEY,
   hooks: HOOKS_KEY,
   knowledge: WORKSPACE_KNOWLEDGE_KEY,
+  models: MODELS_KEY,
   mcpServers: MCP_SERVERS_KEY,
   mcpTools: MCP_TOOLS_KEY,
   pendingWork: PENDING_WORK_KEY,
+  providers: PROVIDERS_KEY,
   recipes: RECIPES_KEY,
   schedules: SCHEDULES_KEY,
   sessions: AGENT_SESSIONS_KEY,
   sessionUsage: AGENT_SESSION_USAGE_KEY,
   usageSummary: USAGE_SUMMARY_KEY,
+  utilityRole: UTILITY_ROLE_KEY,
+  embeddingRole: EMBEDDING_ROLE_KEY,
   skills: WORKSPACE_SKILLS_KEY,
   managedSkills: WORKSPACE_MANAGED_SKILLS_KEY,
   skillProposals: WORKSPACE_SKILL_PROPOSALS_KEY,

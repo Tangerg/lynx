@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/application/invalidation"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
 )
@@ -106,6 +107,34 @@ func TestSetEmbeddingRoleUsesSaverPort(t *testing.T) {
 	}
 	if role.Configured() {
 		t.Fatalf("role = %+v, want cleared", role)
+	}
+}
+
+func TestCommittedRoleUpdatesPublishModelsInvalidation(t *testing.T) {
+	var notices []invalidation.Notice
+	cfg := configuredRoleConfig()
+	cfg.UtilityRoleState = NewRoleState(modelref.Selection{})
+	cfg.UtilityValidator = staticChatModelValidator{}
+	cfg.UtilityStore = &fakeUtilityRoleSaver{}
+	cfg.EmbeddingRoleState = NewRoleState(modelref.Selection{})
+	cfg.EmbeddingValidator = staticEmbeddingResolver{}
+	cfg.EmbeddingStore = &fakeEmbeddingRoleSaver{}
+	cfg.Invalidations = func(notice invalidation.Notice) { notices = append(notices, notice) }
+	c := New(cfg)
+
+	if _, err := c.SetUtilityRole(t.Context(), "anthropic", "claude-haiku"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.SetEmbeddingRole(t.Context(), "openai", "text-embedding-3-small"); err != nil {
+		t.Fatal(err)
+	}
+	if len(notices) != 2 {
+		t.Fatalf("notices = %+v, want two", notices)
+	}
+	for _, notice := range notices {
+		if notice.Resource != invalidation.Models {
+			t.Fatalf("notice = %+v, want models", notice)
+		}
 	}
 }
 

@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/application/invalidation"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
 )
 
@@ -35,7 +36,7 @@ type staticRootResolver struct{}
 func (staticRootResolver) ResolveRoot(cwd string) (string, error) { return cwd, nil }
 
 func newCoordinator(index Index) *Coordinator {
-	return New(index, staticRootResolver{})
+	return New(index, staticRootResolver{}, nil)
 }
 
 func (i *codebaseIndex) Available(ctx context.Context) (bool, error) {
@@ -193,6 +194,47 @@ func TestStartReindexCoalescesOperationsByRoot(t *testing.T) {
 	status, statusErr = c.Status(context.Background(), "/repo")
 	if statusErr != nil || status.OperationID != "" {
 		t.Fatalf("status after completion = %+v, err=%v, want no active operation", status, statusErr)
+	}
+}
+
+func TestStartReindexPublishesStartBeforeFinish(t *testing.T) {
+	release := make(chan struct{})
+	idx := &codebaseIndex{
+		available: true,
+		reindex: func(_ context.Context, _ string) error {
+			<-release
+			return nil
+		},
+	}
+	notices := make(chan invalidation.Notice, 2)
+	c := New(idx, staticRootResolver{}, func(notice invalidation.Notice) { notices <- notice })
+
+	operationID, err := c.StartReindex(t.Context(), "/repo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case notice := <-notices:
+		if notice.Resource != invalidation.Codebase {
+			t.Fatalf("start notice = %+v", notice)
+		}
+		status, statusErr := c.Status(t.Context(), "/repo")
+		if statusErr != nil || status.OperationID != operationID {
+			t.Fatalf("status at start = %+v, %v; want operation %q", status, statusErr, operationID)
+		}
+	default:
+		t.Fatal("start notice was not published synchronously")
+	}
+
+	close(release)
+	requireCoordinatorShutdown(t, c)
+	select {
+	case notice := <-notices:
+		if notice.Resource != invalidation.Codebase {
+			t.Fatalf("finish notice = %+v", notice)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("finish notice was not published")
 	}
 }
 

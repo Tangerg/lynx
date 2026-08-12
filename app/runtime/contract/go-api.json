@@ -1293,7 +1293,7 @@
         {
           "name": "MinProtocolVersion",
           "type": "untyped string",
-          "value": "\"2026-08-12\""
+          "value": "\"2026-08-13\""
         },
         {
           "name": "ModalityAudio",
@@ -1463,7 +1463,7 @@
         {
           "name": "ProtocolVersion",
           "type": "untyped string",
-          "value": "\"2026-08-12\""
+          "value": "\"2026-08-13\""
         },
         {
           "name": "ProviderConfigClear",
@@ -1616,6 +1616,21 @@
           "value": "\"waiting\""
         },
         {
+          "name": "RuntimeAgentMemoryChanged",
+          "type": "RuntimeEventType",
+          "value": "\"agentMemory.changed\""
+        },
+        {
+          "name": "RuntimeApprovalsChanged",
+          "type": "RuntimeEventType",
+          "value": "\"approvals.changed\""
+        },
+        {
+          "name": "RuntimeCodebaseChanged",
+          "type": "RuntimeEventType",
+          "value": "\"codebase.changed\""
+        },
+        {
           "name": "RuntimeFilesChanged",
           "type": "RuntimeEventType",
           "value": "\"files.changed\""
@@ -1644,6 +1659,11 @@
           "name": "RuntimeMCPChanged",
           "type": "RuntimeEventType",
           "value": "\"mcp.changed\""
+        },
+        {
+          "name": "RuntimeModelsChanged",
+          "type": "RuntimeEventType",
+          "value": "\"models.changed\""
         },
         {
           "name": "RuntimeResync",
@@ -1881,6 +1901,21 @@
           "value": "\"segment.progress\""
         },
         {
+          "name": "TopicAgentMemoryChanged",
+          "type": "RuntimeTopic",
+          "value": "\"agentMemory.changed\""
+        },
+        {
+          "name": "TopicApprovalsChanged",
+          "type": "RuntimeTopic",
+          "value": "\"approvals.changed\""
+        },
+        {
+          "name": "TopicCodebaseChanged",
+          "type": "RuntimeTopic",
+          "value": "\"codebase.changed\""
+        },
+        {
           "name": "TopicFilesChanged",
           "type": "RuntimeTopic",
           "value": "\"files.changed\""
@@ -1909,6 +1944,11 @@
           "name": "TopicMCPChanged",
           "type": "RuntimeTopic",
           "value": "\"mcp.changed\""
+        },
+        {
+          "name": "TopicModelsChanged",
+          "type": "RuntimeTopic",
+          "value": "\"models.changed\""
         },
         {
           "name": "TopicRunsChanged",

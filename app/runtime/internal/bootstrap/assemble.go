@@ -218,16 +218,19 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 	// Permission policy is built early because Plan-mode tools and the execution gate
 	// share its narrow session-mode views. The policy owns no Agent execution
 	// state: Plan-mode persistence remains a runtime/session concern.
-	approvalPolicy, err := approvals.NewRuntimePolicy(cfg.ApprovalMode, cfg.ApprovalRuleStore, cfg.PermissionModeStore)
-	if err != nil {
-		return nil, fmt.Errorf("runtime: approval policy: %w", err)
-	}
 	// One bridge carries every committed change a client can fold — sessions, runs,
-	// interrupts, goals, state, schedules — from the use case that committed it to the delivery
-	// hub that names its topic. It is one channel rather than five because the
+	// interrupts, goals, state, schedules, and settings — from the use case that
+	// committed it to the delivery hub that names its topic. It is one channel
+	// rather than one per resource because the
 	// producers publish the same shape (a resource plus the ids that moved), and the
 	// wire vocabulary belongs to delivery either way.
 	applicationInvalidations := &notification.Relay[invalidation.Notice]{}
+	approvalPolicy, err := approvals.NewRuntimePolicy(
+		cfg.ApprovalMode, cfg.ApprovalRuleStore, cfg.PermissionModeStore, applicationInvalidations.Publish,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("runtime: approval policy: %w", err)
+	}
 	// Goal reads and terminal outcome reporting cross into the tool environment
 	// before the loop driver can be constructed. They remain separate application
 	// boundaries over the same change-publishing store.
@@ -374,6 +377,7 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 		EmbeddingRoleState: modelServices.embeddingRoleState,
 		EmbeddingValidator: modelServices.embeddingResolver,
 		EmbeddingStore:     cfg.EmbeddingRoleStore,
+		Invalidations:      applicationInvalidations.Publish,
 	})
 	sessionDependencies := sessions.Dependencies{
 		Sessions:          cfg.SessionStore,
@@ -579,11 +583,14 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 	workspaceWatch := workspace.NewGitWatch(workspaceScope, checkpointstore.GitWatcher{})
 	// The @codebase semantic index is its own use-case coordinator (nil index =
 	// disabled); it owns the background reindex task group, closed by the Host.
-	codebaseCoordinator := codebase.New(modelServices.codebaseIndex, workspaceScope)
+	codebaseCoordinator := codebase.New(
+		modelServices.codebaseIndex, workspaceScope, applicationInvalidations.Publish,
+	)
 	lifetime.codebaseCoordinator = codebaseCoordinator
 	agentMemoryCoordinator := agentmemoryapp.New(agentmemoryapp.Config{
-		Store: cfg.AgentMemoryStore,
-		Roots: workspaceScope,
+		Store:         cfg.AgentMemoryStore,
+		Roots:         workspaceScope,
+		Invalidations: applicationInvalidations.Publish,
 	})
 	host := &Host{
 		Stack: Stack{
