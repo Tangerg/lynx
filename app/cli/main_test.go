@@ -169,6 +169,50 @@ func requireSubmittedInputSequence(t *testing.T, binary string, size ptytest.Siz
 	}
 }
 
+func TestInteractiveBinaryConsumesTheStartupBrandOnce(t *testing.T) {
+	if !ptytest.Supported() {
+		t.Skip("no pty on this platform")
+	}
+	binary := buildTestBinary(t)
+	size := ptytest.Size{Cols: 96, Rows: 24}
+	session, err := ptytest.Start(t.Context(), ptytest.Config{
+		Size: size,
+		Env: terminalTestEnvironment(t, map[string]string{
+			"TERM": "xterm-256color", "COLORTERM": "truecolor", "LANG": "en_US.UTF-8",
+		}),
+	}, binary, "--mouse=false", "--notifications=false")
+	if errors.Is(err, ptytest.ErrUnsupported) {
+		t.Skip("no pty on this platform")
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = session.Close() })
+
+	waitForVisibleTerminalText(t, session, size, "Lyra CLI", "Ask lyra")
+	if _, err := io.WriteString(session, "startup-banner-contract\r"); err != nil {
+		t.Fatal(err)
+	}
+	afterPrompt := waitForVisibleTerminalText(t, session, size, "startup-banner-contract", "Reproduce the flake")
+	if visible := strings.Join(afterPrompt.Rows(), "\n"); strings.Contains(visible, "Lyra CLI") {
+		t.Fatalf("conversation retained the startup brand:\n%s", visible)
+	}
+
+	waitForVisibleTerminalText(t, session, size, "Tool approval")
+	if _, err := io.WriteString(session, "\x03"); err != nil {
+		t.Fatal(err)
+	}
+	waitForVisibleTerminalText(t, session, size, "$0.0291", "complete")
+	if _, err := io.WriteString(session, "/clear\r"); err != nil {
+		t.Fatal(err)
+	}
+	cleared := waitForVisibleTerminalText(t, session, size, "cleared", "Ask lyra")
+	if visible := strings.Join(cleared.Rows(), "\n"); strings.Contains(visible, "Lyra CLI") || strings.Contains(visible, "LYRA") {
+		t.Fatalf("clear restored the consumed startup brand:\n%s", visible)
+	}
+	quitInteractiveSession(t, session)
+}
+
 func TestInteractiveBinarySurvivesResizeAndApprovalRoundTrip(t *testing.T) {
 	if !ptytest.Supported() {
 		t.Skip("no pty on this platform")
