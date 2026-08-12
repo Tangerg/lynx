@@ -1,5 +1,6 @@
 import { queryClient } from "@/lib/queryClient";
 import {
+  RpcConnectionError,
   RpcProtocolError,
   type RunEvent,
   type RunId,
@@ -125,7 +126,7 @@ export function createAgentRunPump({
             try {
               snapshot = await readRunSnapshot(runId, signal);
             } catch (error) {
-              if (!isCancelled() && !signal.aborted) {
+              if (!isCancelled() && !signal.aborted && !(error instanceof RpcConnectionError)) {
                 console.warn("[agent] exact run read failed:", sessionId, runId, error);
               }
             }
@@ -178,7 +179,7 @@ export function createAgentRunPump({
       if (err instanceof RpcProtocolError) {
         position = { ...position, recovery: "cold" };
       }
-      if (!isCancelled() && !signal.aborted)
+      if (!isCancelled() && !signal.aborted && !(err instanceof RpcConnectionError))
         console.warn("[agent] run stream ended early:", sessionId, err);
     }
     return { finished, position };

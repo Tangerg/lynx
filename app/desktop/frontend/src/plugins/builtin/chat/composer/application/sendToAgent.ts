@@ -12,11 +12,11 @@ function composerInputToAgentInput(input: UserInput): AgentInput {
   };
 }
 
-export function useSendComposerInput(): (input: UserInput) => void {
+export function useSendComposerInput(): (input: UserInput) => boolean {
   const sendAgentInput = useChatSend();
   return useCallback(
     (input: UserInput) => {
-      sendAgentInput(composerInputToAgentInput(input));
+      return sendAgentInput(composerInputToAgentInput(input));
     },
     [sendAgentInput],
   );

@@ -8,6 +8,7 @@ const model = vi.hoisted(() => ({
   goal: null as { status: "active" | "paused" | "blocked" | "completing" } | null,
   setComposerText: vi.fn(),
   startGoal: vi.fn(async () => {}),
+  runtimeAvailable: true,
 }));
 
 vi.mock("@/plugins/builtin/agent/public/session", () => ({
@@ -29,6 +30,11 @@ vi.mock("@/plugins/builtin/runtime/public/capabilities", () => ({
   useRuntimeCapability: () => true,
 }));
 
+vi.mock("@/plugins/builtin/runtime/public/serviceStatus", () => ({
+  runtimeCommandsAvailable: () => model.runtimeAvailable,
+  useRuntimeCommandsAvailable: () => model.runtimeAvailable,
+}));
+
 vi.mock("../application/goalQueries", () => ({
   useGoal: () => ({ data: { available: true, goal: model.goal } }),
 }));
@@ -44,6 +50,7 @@ describe("GoalLauncher", () => {
     model.goal = null;
     model.setComposerText.mockClear();
     model.startGoal.mockClear();
+    model.runtimeAvailable = true;
   });
 
   it("starts an uncapped goal from the current draft and consumes only that text", async () => {
@@ -78,6 +85,17 @@ describe("GoalLauncher", () => {
 
     await vi.waitFor(() => expect(model.startGoal).toHaveBeenCalledOnce());
     expect(model.setComposerText).not.toHaveBeenCalled();
+  });
+
+  it("does not open or start a Goal while Runtime is offline", () => {
+    model.runtimeAvailable = false;
+    render(<GoalLauncher />);
+
+    const start = screen.getByRole("button", { name: "Start Goal" });
+    expect(start.hasAttribute("disabled")).toBe(true);
+    fireEvent.click(start);
+    expect(screen.queryByRole("textbox", { name: "Objective" })).toBeNull();
+    expect(model.startGoal).not.toHaveBeenCalled();
   });
 
   it.each(["paused", "blocked"] as const)(

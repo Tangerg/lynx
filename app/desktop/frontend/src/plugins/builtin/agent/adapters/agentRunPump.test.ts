@@ -4,7 +4,7 @@
 
 import { describe, expect, it, vi } from "vitest";
 import type { RunEvent, RunRef } from "@/rpc";
-import { asRunId, asSegmentId, asSessionId, RpcProtocolError } from "@/rpc";
+import { asRunId, asSegmentId, asSessionId, RpcConnectionError, RpcProtocolError } from "@/rpc";
 import { createAgentRunPump, type RunStream, type RunStreamPosition } from "./agentRunPump";
 
 const RUN = asRunId("run_1");
@@ -98,6 +98,31 @@ describe("agent run pump reattach", () => {
     await pump.pump(failed, new AbortController().signal);
 
     expect(positions[0]).toMatchObject({ lastEventId: "evt_7", recovery: "cold" });
+  });
+
+  it("does not diagnose an expected Runtime connection loss as an Agent failure", async () => {
+    const warning = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const failed: RunStream = {
+      result: { runId: RUN, segmentId: SEGMENT },
+      events: (async function* () {
+        yield frame("evt_before_disconnect", progressed);
+        throw new RpcConnectionError("network error");
+      })(),
+    };
+    const readRunSnapshot = vi.fn(() => Promise.reject(new RpcConnectionError("fetch failed")));
+    const pump = createAgentRunPump({
+      sessionId: "ses_1",
+      isCancelled: () => false,
+      readEpoch: () => 0,
+      applyEvents: vi.fn(),
+      readRunSnapshot,
+      reattach: () => Promise.resolve(null),
+    });
+
+    await pump.pump(failed, new AbortController().signal);
+
+    expect(readRunSnapshot).toHaveBeenCalledOnce();
+    expect(warning).not.toHaveBeenCalled();
   });
 
   it("hands back the head the attach captured when it folded nothing", async () => {

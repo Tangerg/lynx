@@ -8,10 +8,11 @@ import type { AgentInput } from "../../domain/input";
 import { OPTIMISTIC_STEER_MESSAGE_PREFIX } from "../view/optimisticMessageIdentity";
 import { agentRuntime } from "../ports/runtimeGateway";
 import { agentSessionView } from "../ports/sessionView";
-import { getActiveSessionId } from "../session/activeSession";
+import { getActiveSessionId, useActiveSessionId } from "../session/activeSession";
 import { type CreateSessionOptions, useCreateSession } from "../session/createSession";
+import { selectCurrentRootRun } from "../view/runTree";
 
-type SendToAgent = (input: AgentInput, options?: AgentRunStartOptions) => void;
+type SendToAgent = (input: AgentInput, options?: AgentRunStartOptions) => boolean;
 type CreateSession = (opts?: CreateSessionOptions) => Promise<string | null>;
 
 /**
@@ -33,31 +34,57 @@ type CreateSession = (opts?: CreateSessionOptions) => Promise<string | null>;
  *     no longer deliverable — roll the optimistic bubble back and fall back to a
  *     fresh turn so the message is never lost (and never duplicated).
  */
-export function useChatSend(): (input: AgentInput) => void {
+export function useChatSend(): (input: AgentInput) => boolean {
   const createSession = useCreateSession();
   const send = agentSessionView().useAction("send");
-  const running = agentSessionView().useCurrentRootAttention().status === "running";
-  const runId = agentSessionView().useCurrentRootRunId();
-  const segmentId = agentSessionView().useCurrentRootSegmentId();
   return useCallback(
     (input: AgentInput) => {
       const sessionId = getActiveSessionId();
       const runOptions = resolveAgentRunStartOptions();
+      // Admission is decided at event time, not from the render that created
+      // this callback. A Run can park for HITL between the last paint and an
+      // Enter keydown; steering a captured `running` identity would clear the
+      // composer before the Runtime rejects it as no longer addressable.
+      const root = selectCurrentRootRun(agentSessionView().getCurrentView());
       // A steer needs the segment as well as the run: without it there is nothing to
       // address, and a fresh turn is the honest fallback.
-      if (running && sessionId && runId && segmentId) {
-        if (steerRunningTurn({ sessionId, runId, segmentId, input, send, runOptions })) {
-          return;
+      if (root?.status === "running" && sessionId && root.activeSegmentId) {
+        if (
+          steerRunningTurn({
+            sessionId,
+            runId: root.id,
+            segmentId: root.activeSegmentId,
+            input,
+            send,
+            runOptions,
+          })
+        ) {
+          return true;
         }
       }
-      sendFreshTurn({ sessionId, send, createSession, input, runOptions });
+      return sendFreshTurn({ sessionId, send, createSession, input, runOptions });
     },
-    [send, running, runId, segmentId, createSession],
+    [send, createSession],
   );
 }
 
 export function useCanSendToAgent(): boolean {
-  return Boolean(agentSessionView().useAction("send"));
+  const sessionId = useActiveSessionId();
+  const send = agentSessionView().useAction("send");
+  const attention = agentSessionView().useCurrentRootAttention();
+  return canAcceptChatInput(sessionId, Boolean(send), attention.status);
+}
+
+export function canAcceptChatInput(
+  sessionId: string,
+  mountedSendAvailable: boolean,
+  rootStatus: "idle" | "running" | "waiting" | "finished",
+): boolean {
+  // The welcome screen has no mounted Session by design; its accepted send
+  // creates a draft Session and queues the first input. Once an identity exists,
+  // only its lifecycle owner may accept input, and a parked root must be resumed
+  // through its interrupt rather than opened as a competing turn.
+  return sessionId === "" || (mountedSendAvailable && rootStatus !== "waiting");
 }
 
 // Optimistic steer bubble: render the user's steered message immediately under a
@@ -94,7 +121,12 @@ function steerRunningTurn({
     // fresh turn is what they meant, and it is the runtime — not a guess here —
     // that says which of those happened.
     if (runtime.isRunGone(err)) {
-      send?.(input, runOptions);
+      if (send?.(input, runOptions) !== true) {
+        // The Run parked rather than finished. The input remains in composer
+        // history, but it was not accepted as a new turn; make that explicit
+        // instead of silently discarding an optimistic steer.
+        notifyError(describeRpcError(err) ?? t("session.error.steer"), { source: "session" });
+      }
       return;
     }
     // Any other failure means the steer may or may not have reached the loop, so
@@ -122,12 +154,12 @@ function sendFreshTurn({
   createSession,
   input,
   runOptions,
-}: SendFreshTurnInput): void {
+}: SendFreshTurnInput): boolean {
   if (sessionId && send) {
-    send(input, runOptions);
-    return;
+    return send(input, runOptions);
   }
   void createSession({ firstInput: input, firstRunOptions: runOptions });
+  return true;
 }
 
 function mintSteerBubble(sessionId: string, input: AgentInput): string {

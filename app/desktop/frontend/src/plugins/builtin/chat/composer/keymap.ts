@@ -8,6 +8,7 @@ import {
   recallPreviousHistoryFromKey,
 } from "./application/composerHistoryKeys";
 import { recallNextComposerHistory, recallPreviousComposerHistory } from "./public/history";
+import { runtimeCommandsAvailable } from "@/plugins/builtin/runtime/public/serviceStatus";
 
 export const composerKeymap = definePlugin({
   name: "lyra.builtin.composer-keymap",
@@ -16,16 +17,19 @@ export const composerKeymap = definePlugin({
     for (const binding of composerKeyBindings({
       send: ({ submit, event }) => {
         if (event.shiftKey) return false;
+        if (!runtimeCommandsAvailable()) return true;
         submit();
         return true;
       },
       approveOrSend: ({ submit }) => {
+        if (!runtimeCommandsAvailable()) return true;
         if (submitPendingApproval("approved")) return true;
         submit();
         return true;
       },
-      declineApproval: () => submitPendingApproval("declined"),
-      stopRun: () => stopCurrentRootRun(),
+      declineApproval: () =>
+        runtimeCommandsAvailable() ? submitPendingApproval("declined") : true,
+      stopRun: () => runtimeCommandsAvailable() && stopCurrentRootRun(),
       historyPrevious: ({ event }) =>
         recallPreviousHistoryFromKey({ event, recall: recallPreviousComposerHistory }),
       historyNext: ({ event }) =>

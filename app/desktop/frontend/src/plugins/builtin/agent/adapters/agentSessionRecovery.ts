@@ -1,5 +1,5 @@
 import type { LyraClient } from "@/rpc";
-import { asRunId, asSegmentId } from "@/rpc";
+import { asRunId, asSegmentId, RpcConnectionError } from "@/rpc";
 import type { AgentRunView, AgentSessionView } from "@/plugins/sdk/types/agentSessionView";
 import { refreshAgentSessionProjection } from "../application/session/refreshSessionProjection";
 import { agentRuntime } from "../application/ports/runtimeGateway";
@@ -72,6 +72,7 @@ async function attachRootRun(
       });
       return;
     }
+    if (error instanceof RpcConnectionError) return;
     console.warn("[agent] run reattach failed:", options.sessionId, error);
     return;
   }

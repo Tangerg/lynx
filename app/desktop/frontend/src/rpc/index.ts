@@ -18,7 +18,13 @@ export { createPushPullChannel } from "./channel";
 export type { PushPullChannel } from "./channel";
 export { createRpcClient } from "./client";
 export type { NotificationObserver, RpcClient, StreamEndHandler } from "./client";
-export { isErrorType, RpcError, RpcProtocolError, RpcTransportError } from "./errors";
+export {
+  isErrorType,
+  RpcConnectionError,
+  RpcError,
+  RpcProtocolError,
+  RpcTransportError,
+} from "./errors";
 export { asEventId, asItemId, asRunId, asSegmentId, asSessionId } from "./ids";
 export type { EventId, ItemId, RunId, SegmentId, SessionId } from "./ids";
 export { PaginationError } from "./pagination";

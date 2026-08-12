@@ -18,6 +18,10 @@ import {
   type GoalStartDraftField,
 } from "../application/goalStartDraft";
 import { useGoal } from "../application/goalQueries";
+import {
+  runtimeCommandsAvailable,
+  useRuntimeCommandsAvailable,
+} from "@/plugins/builtin/runtime/public/serviceStatus";
 
 const EMPTY_LIMITS = { maxRuns: "", maxCostUsd: "", maxSteps: "" } as const;
 
@@ -32,6 +36,7 @@ function SessionGoalLauncher({ sessionId }: { sessionId: string }) {
   const setComposerText = useSetComposerText();
   const { provider, model } = useComposerModelPreference();
   const goalsAvailable = useRuntimeCapability("goals");
+  const runtimeAvailable = useRuntimeCommandsAvailable();
   const { data } = useGoal(sessionId ? { sessionId } : undefined);
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -65,7 +70,7 @@ function SessionGoalLauncher({ sessionId }: { sessionId: string }) {
   };
 
   const submit = async () => {
-    if (busy) return;
+    if (busy || !runtimeCommandsAvailable()) return;
     const parsed = parseGoalStartDraft(draft);
     if (!parsed.ok) {
       setInvalid(parsed.field);
@@ -99,7 +104,7 @@ function SessionGoalLauncher({ sessionId }: { sessionId: string }) {
           <IconButton
             icon="target"
             title={t("goal.action.start")}
-            disabled={!composerText.trim() || busy}
+            disabled={!runtimeAvailable || !composerText.trim() || busy}
             active={open}
           />
         }
@@ -159,7 +164,12 @@ function SessionGoalLauncher({ sessionId }: { sessionId: string }) {
             <PillButton type="button" size="sm" disabled={busy} onClick={() => changeOpen(false)}>
               {t("common.cancel")}
             </PillButton>
-            <PillButton type="submit" size="sm" variant="solid" disabled={busy}>
+            <PillButton
+              type="submit"
+              size="sm"
+              variant="solid"
+              disabled={busy || !runtimeAvailable}
+            >
               {busy ? t("goal.start.running") : t("goal.action.start")}
             </PillButton>
           </div>

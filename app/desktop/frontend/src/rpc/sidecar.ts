@@ -1,4 +1,9 @@
-import { errorMessage, parseTransportProblem, RpcTransportError } from "./errors";
+import {
+  errorMessage,
+  parseTransportProblem,
+  RpcConnectionError,
+  RpcTransportError,
+} from "./errors";
 import { validateHTTPSidecarResponse } from "./wire.validate.generated";
 import {
   HTTP_ENDPOINTS,
@@ -49,15 +54,14 @@ export function createSidecarClient(config: SidecarClientConfig): SidecarClient 
         signal,
       });
     } catch (err) {
-      throw new RpcTransportError(`sidecar ${path}: ${errorMessage(err)}`);
+      throw new RpcConnectionError(`sidecar ${path}: ${errorMessage(err)}`);
     }
     let text: string;
     try {
       text = await res.text();
     } catch (err) {
-      throw new RpcTransportError(
+      throw new RpcConnectionError(
         `sidecar ${path}: response could not be read: ${errorMessage(err)}`,
-        res.status,
         res.headers.get("Request-Id") ?? undefined,
       );
     }

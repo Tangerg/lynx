@@ -8,16 +8,17 @@ describe("submitComposer", () => {
     return {
       value: "",
       clear: () => {},
-      sendInput: () => {},
+      sendInput: () => true,
       images: [],
       pastes: [],
       recordHistory: () => {},
+      canSend: () => true,
       ...input,
     };
   }
 
   it("is a no-op on empty / whitespace-only input", () => {
-    const send = vi.fn();
+    const send = vi.fn(() => true);
     const clear = vi.fn();
     submitComposer(deps({ value: "   ", clear, sendInput: send }));
     expect(send).not.toHaveBeenCalled();
@@ -25,11 +26,51 @@ describe("submitComposer", () => {
   });
 
   it("forwards plain text as user input then clears", () => {
-    const send = vi.fn();
+    const send = vi.fn(() => true);
     const clear = vi.fn();
     submitComposer(deps({ value: "hello", clear, sendInput: send }));
     expect(send).toHaveBeenCalledWith({ parts: [{ kind: "text", text: "hello" }] });
     expect(clear).toHaveBeenCalledOnce();
+  });
+
+  it("keeps a draft intact while the Agent cannot accept a Run", () => {
+    const send = vi.fn();
+    const clear = vi.fn();
+    const recordHistory = vi.fn();
+
+    submitComposer(
+      deps({
+        value: "answer this later",
+        canSend: () => false,
+        clear,
+        sendInput: send,
+        recordHistory,
+      }),
+    );
+
+    expect(send).not.toHaveBeenCalled();
+    expect(clear).not.toHaveBeenCalled();
+    expect(recordHistory).not.toHaveBeenCalled();
+  });
+
+  it("keeps a draft intact when admission changes between render and submit", () => {
+    const send = vi.fn(() => false);
+    const clear = vi.fn();
+    const recordHistory = vi.fn();
+
+    submitComposer(
+      deps({
+        value: "do not lose this race",
+        canSend: () => true,
+        clear,
+        sendInput: send,
+        recordHistory,
+      }),
+    );
+
+    expect(send).toHaveBeenCalledOnce();
+    expect(clear).not.toHaveBeenCalled();
+    expect(recordHistory).not.toHaveBeenCalled();
   });
 
   it("routes a registered slash command to its handler — sendInput not called", async () => {
@@ -43,7 +84,7 @@ describe("submitComposer", () => {
         },
       }),
     );
-    const send = vi.fn();
+    const send = vi.fn(() => true);
     const clear = vi.fn();
     submitComposer(deps({ value: "/echo hi there", clear, sendInput: send }));
     // The slash handler gets a text→input adapter, not sendInput itself.
@@ -53,13 +94,13 @@ describe("submitComposer", () => {
   });
 
   it("falls back to sendInput for an unknown slash command", () => {
-    const send = vi.fn();
+    const send = vi.fn(() => true);
     submitComposer(deps({ value: "/unknown args", sendInput: send }));
     expect(send).toHaveBeenCalledWith({ parts: [{ kind: "text", text: "/unknown args" }] });
   });
 
   it("folds pasted-text attachments into the message below the typed text", () => {
-    const send = vi.fn();
+    const send = vi.fn(() => true);
     const clear = vi.fn();
     submitComposer(
       deps({
@@ -76,7 +117,7 @@ describe("submitComposer", () => {
   });
 
   it("allows a paste-only send (no typed text)", () => {
-    const send = vi.fn();
+    const send = vi.fn(() => true);
     submitComposer(
       deps({
         value: "   ",

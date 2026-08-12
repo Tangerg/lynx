@@ -153,7 +153,7 @@
 | 文件修改 | `apply_patch` | 所有模型 Direct |
 | Shell 生命周期 | `shell`、`read_shell_output`、`stop_shell` | Direct |
 | Plan | `enter_plan_mode`、`set_plan`、`exit_plan_mode` | 根 Agent Direct |
-| Goal | `create_goal`、`get_goal`、`report_goal_outcome` | 根 Agent；report 仅 active Goal |
+| Goal | `create_goal`、`get_goal`、`report_goal_outcome` | 根 Agent；report 仅属于 Goal incarnation 的 Run |
 | 编排与交互 | `delegate_task`、`ask_user` | 根/委派 Agent 按 resolver policy |
 | 工具渐进披露 | `search_tools`、`read_tool_result` | 有 deferred/offloaded 资源时出现 |
 | 代码智能 | `lsp` | Deferred |
@@ -342,7 +342,7 @@
 - 将旧 `update_goal(status="complete|blocked")` 完整替换为 `report_goal_outcome(outcome="completed|blocked", reason?)`；工具名称、参数、enum、描述、Goal prompt、注释、安全分类和测试使用同一套报告语义，不保留别名或兼容字段；
 - 新增 `create_goal(objective,budget?)` 和无参数 `get_goal`。`create_goal` 只响应用户明确的跨 Run 自主执行请求；`get_goal` 返回模型可操作的 Goal 投影，并剔除 incarnation/revision 内部机制；
 - `create_goal` 通过 Goal Driver 的 `Start` 窄端口持久化并启动受 task group 所有的 loop；Goal Run 在 runs `WaitSessionStartable` 观察到当前 Run、pending opening、terminal maintenance 和 working-tree mutation 全部释放后才开始，且只对 Gate 标记的可恢复 admission 竞争重试；
-- `get_goal` 始终对启用 Goal 的根 Agent 可见；`report_goal_outcome` 只在该 session 存在 active Goal 时可见；`create_goal` 在 Driver 构造完成后晚绑定到根 resolver。委派 Agent 不获得任何 Goal 生命周期或状态报告能力；
+- `get_goal` 始终对启用 Goal 的根 Agent 可见；`report_goal_outcome` 只对 admission 时冻结了 Goal incarnation 的根 Run 可见，实际调用仍由 Goal Application 校验 active 状态、incarnation 和 CAS。清单不能读取可变 Goal 状态，否则 Goal 因 HITL 暂停后，同一 parked Run 的 checkpoint 会因 deployment 漂移而无法恢复；`create_goal` 在 Driver 构造完成后晚绑定到根 resolver。委派 Agent 不获得任何 Goal 生命周期或状态报告能力；
 - 晚绑定 seam 只传递通用 `tool.Tool`。Resolver 不持有 Driver，`agentexec.ToolResolver` 不新增 Goal 方法，`agent` 模块不知道 Goal、session admission 或 Runtime lifecycle；`create/get/report/active gate` 分别消费 `Starter/Reader/Reporter/ActiveReader` 单方法接口，只有 tool family 的 BuildConfig 组合为 `State`；没有引入 Bootstrap proxy、store facade、unowned goroutine 或复制的 Run 状态；
 - admission/runs 只新增通用的 Run-startable 事件等待与可恢复 Gate 竞争分类，不知道 Goal。Goal application 只依赖 `WaitSessionStartable/Start/Cancel` Run 用例接口，不读取 Gate、registry 或 delivery DTO；边界扫描继续确认 `agent` 对 `app/runtime` 零导入，domain/application 对 adapter/infra/delivery/bootstrap 零反向依赖；
 - 聚焦测试覆盖当前 Run 释放后启动、terminal maintenance 等待、context 取消、admission 丢失竞争重试、终态 CAS、Schema 词汇、根/委派角色可见性和安全表可达性。

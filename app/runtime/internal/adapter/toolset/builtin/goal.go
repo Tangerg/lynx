@@ -69,11 +69,6 @@ type GoalReader interface {
 	Current(ctx context.Context, sessionID string) (goalstate.Goal, bool, error)
 }
 
-// ActiveGoalReader is the resolver gate's complete consumer view.
-type ActiveGoalReader interface {
-	Active(ctx context.Context, sessionID string) (bool, error)
-}
-
 // GoalOutcomeReporter is report_goal_outcome's complete consumer view.
 type GoalOutcomeReporter interface {
 	Report(ctx context.Context, command goals.ReportCommand) (goals.ReportResult, error)

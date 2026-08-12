@@ -15,6 +15,7 @@ import {
   useQuestionCardActions,
 } from "../../application/questionCardModel";
 import { cn } from "@/lib/classNames";
+import { useRuntimeCommandsAvailable } from "@/plugins/builtin/runtime/public/serviceStatus";
 
 interface Props {
   /** Block lifecycle. `"requires-action"` shows the interactive card;
@@ -42,6 +43,7 @@ interface Props {
 //      projection; an unaccepted/canceled question has no answers.
 export function QuestionCard({ status, runId, itemId, questions, answered, answers }: Props) {
   const t = useT();
+  const runtimeAvailable = useRuntimeCommandsAvailable();
   const [draft, setDraft] = useState<QuestionDraft>(() => createQuestionDraft(questions));
   const actions = useQuestionCardActions({ runId, itemId, status, questions, draft });
 
@@ -156,7 +158,12 @@ export function QuestionCard({ status, runId, itemId, questions, answered, answe
       </div>
 
       <div className="mt-2.5 flex items-center gap-2">
-        <Button variant="primary" size="sm" disabled={actions.disabled} onClick={actions.submit}>
+        <Button
+          variant="primary"
+          size="sm"
+          disabled={actions.disabled || !runtimeAvailable}
+          onClick={actions.submit}
+        >
           {t("question.action.submit")}
         </Button>
       </div>

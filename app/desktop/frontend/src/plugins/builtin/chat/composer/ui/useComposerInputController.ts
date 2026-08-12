@@ -17,12 +17,13 @@ import { submitComposer } from "@/plugins/builtin/chat/composer/public/submit";
 import { setComposerFocusTarget } from "../application/focus";
 import { useT } from "@/lib/i18n";
 import { composerKeyBindingKey, composerPasteIntent } from "../application/composerInputEvents";
+import { runtimeCommandsAvailable } from "@/plugins/builtin/runtime/public/serviceStatus";
 
 interface Args {
   value: string;
   onChange: (value: string) => void;
   onClear: () => void;
-  onSend: (input: UserInput) => void;
+  onSend: (input: UserInput) => boolean;
   images: ComposerImage[];
   pastes: PastedText[];
   recordHistory: (text: string) => void;
@@ -81,7 +82,15 @@ export function useComposerInputController({
   const placeholder = running ? t("composer.placeholder.steer") : t("composer.placeholder");
   const submit = useCallback(
     () =>
-      submitComposer({ value, clear: onClear, sendInput: onSend, images, pastes, recordHistory }),
+      submitComposer({
+        value,
+        clear: onClear,
+        sendInput: onSend,
+        images,
+        pastes,
+        recordHistory,
+        canSend: runtimeCommandsAvailable,
+      }),
     [images, onClear, onSend, pastes, recordHistory, value],
   );
 

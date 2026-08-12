@@ -19,7 +19,7 @@ import { ComposerImageDrop } from "./ComposerImageDrop";
 import { useComposerInputController } from "./useComposerInputController";
 
 interface Props {
-  onSend: (input: UserInput) => void;
+  onSend: (input: UserInput) => boolean;
   value: string;
   onChange: (v: string) => void;
   /** Wipe the textarea + staged images (one call per successful submit). */

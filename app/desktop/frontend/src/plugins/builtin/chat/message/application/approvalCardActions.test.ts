@@ -37,5 +37,13 @@ describe("canRegisterApprovalActions", () => {
         status: "requires-action",
       }),
     ).toBe(false);
+    expect(
+      canRegisterApprovalActions({
+        runId: "run",
+        itemId: "item",
+        status: "requires-action",
+        runtimeAvailable: false,
+      }),
+    ).toBe(false);
   });
 });

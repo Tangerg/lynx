@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { RpcError, type LyraClient } from "@/rpc";
+import { RpcConnectionError, RpcError, type LyraClient } from "@/rpc";
 import { asRunId, asSegmentId } from "@/rpc";
 import type { RunStream, RunStreamPosition } from "./agentRunPump";
 import { createRunStreamReattach } from "./runStreamReattach";
@@ -111,6 +111,25 @@ describe("run stream reattach", () => {
     await expect(reattach(position("cold"), new AbortController().signal)).resolves.toBeNull();
 
     expect(recoverProjection).toHaveBeenCalledTimes(1);
+    expect(warning).not.toHaveBeenCalled();
+  });
+
+  it("does not diagnose a disappeared Runtime as a reattach failure", async () => {
+    const warning = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const recoverProjection = vi.fn(async () => {});
+    const subscribe = vi
+      .fn<LyraClient["runs"]["subscribe"]>()
+      .mockRejectedValue(new RpcConnectionError("fetch failed"));
+    const reattach = createRunStreamReattach({
+      sessionId: "ses_1",
+      client: () => runClient(subscribe),
+      isCancelled: () => false,
+      recoverProjection,
+    });
+
+    await expect(reattach(position("replay"), new AbortController().signal)).resolves.toBeNull();
+
+    expect(recoverProjection).not.toHaveBeenCalled();
     expect(warning).not.toHaveBeenCalled();
   });
 });

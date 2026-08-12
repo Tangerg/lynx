@@ -7,6 +7,10 @@ import { COMPOSER_KEY_BINDING } from "@/plugins/sdk/kernelPoints";
 import { addLocaleBundle, setLocale } from "@/lib/i18n";
 import { Composer } from "./Composer";
 
+vi.mock("@/plugins/builtin/runtime/public/serviceStatus", () => ({
+  runtimeCommandsAvailable: () => true,
+}));
+
 // Composer now reads the workspace file list (useFileMentions → useListFiles)
 // via React Query, so renders need a provider. Retries off so a missing
 // provider/fetcher fails fast rather than hanging the test.
@@ -59,21 +63,21 @@ afterEach(async () => {
 describe("composer", () => {
   it("calls onChange as the user types", () => {
     const onChange = vi.fn();
-    wrap(<Composer {...baseProps} value="" onChange={onChange} onSend={() => {}} />);
+    wrap(<Composer {...baseProps} value="" onChange={onChange} onSend={() => true} />);
     const textarea = screen.getByRole("textbox") as HTMLTextAreaElement;
     fireEvent.change(textarea, { target: { value: "hi" } });
     expect(onChange).toHaveBeenCalledWith("hi");
   });
 
   it("does not reference an unmounted mention listbox", () => {
-    wrap(<Composer {...baseProps} value="" onChange={() => {}} onSend={() => {}} />);
+    wrap(<Composer {...baseProps} value="" onChange={() => {}} onSend={() => true} />);
 
     expect(screen.getByRole("textbox").hasAttribute("aria-controls")).toBe(false);
   });
 
   it("submits non-empty text on Enter when a binding maps Enter → submit", async () => {
     await withEnterKeymap();
-    const onSend = vi.fn();
+    const onSend = vi.fn(() => true);
     const onChange = vi.fn();
     wrap(<Composer {...baseProps} value="hello world" onChange={onChange} onSend={onSend} />);
     fireEvent.keyDown(screen.getByRole("textbox"), { key: "Enter" });
@@ -82,7 +86,7 @@ describe("composer", () => {
 
   it("does not submit when the textarea is empty / whitespace only", async () => {
     await withEnterKeymap();
-    const onSend = vi.fn();
+    const onSend = vi.fn(() => true);
     wrap(<Composer {...baseProps} value="   " onChange={() => {}} onSend={onSend} />);
     fireEvent.keyDown(screen.getByRole("textbox"), { key: "Enter" });
     expect(onSend).not.toHaveBeenCalled();
@@ -94,7 +98,7 @@ describe("composer", () => {
         {...baseProps}
         value=""
         onChange={() => {}}
-        onSend={() => {}}
+        onSend={() => true}
         images={[
           { id: "a1", mime: "image/png", data: "AAAA", name: "shot1.png" },
           { id: "a2", mime: "image/jpeg", data: "BBBB", name: "shot2.jpg" },
@@ -111,7 +115,7 @@ describe("composer", () => {
       "composer.input.label": "Prompt",
       "composer.placeholder": "Localized placeholder",
     });
-    wrap(<Composer {...baseProps} value="" onChange={() => {}} onSend={() => {}} />);
+    wrap(<Composer {...baseProps} value="" onChange={() => {}} onSend={() => true} />);
 
     await act(async () => {
       setLocale("placeholder-test");

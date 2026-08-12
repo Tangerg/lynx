@@ -1,6 +1,10 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { ReasoningBlock } from "./ReasoningBlock";
+
+vi.mock("@/plugins/builtin/runtime/public/serviceStatus", () => ({
+  useRuntimeCommandsAvailable: () => true,
+}));
 
 describe("ReasoningBlock disclosure policy", () => {
   it("turns the first user toggle into an explicit override of the automatic state", () => {

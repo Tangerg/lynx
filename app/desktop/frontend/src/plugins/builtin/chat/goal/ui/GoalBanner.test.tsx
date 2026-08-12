@@ -7,6 +7,7 @@ const model = vi.hoisted(() => ({
   sessionId: "session-a",
   stopGoal: vi.fn(async () => {}),
   resumeGoal: vi.fn(async () => {}),
+  runtimeAvailable: true,
   goal: {
     sessionId: "session-a",
     objective: "Ship alpha",
@@ -28,6 +29,11 @@ vi.mock("../application/goalCommands", () => ({
 
 vi.mock("@/plugins/builtin/agent/public/session", () => ({
   useActiveSessionId: () => model.sessionId,
+}));
+
+vi.mock("@/plugins/builtin/runtime/public/serviceStatus", () => ({
+  runtimeCommandsAvailable: () => model.runtimeAvailable,
+  useRuntimeCommandsAvailable: () => model.runtimeAvailable,
 }));
 
 vi.mock("../application/goalQueries", async (importOriginal) => ({
@@ -52,6 +58,7 @@ describe("GoalBanner disclosure identity", () => {
     };
     model.stopGoal.mockClear();
     model.resumeGoal.mockClear();
+    model.runtimeAvailable = true;
   });
 
   it("preserves a choice while a goal advances and resets it for another goal", () => {
@@ -87,6 +94,16 @@ describe("GoalBanner disclosure identity", () => {
     render(<GoalBanner />);
     fireEvent.click(screen.getByRole("button", { name: "Resume" }));
     await vi.waitFor(() => expect(model.resumeGoal).toHaveBeenCalledWith("session-a"));
+    expect(model.stopGoal).not.toHaveBeenCalled();
+  });
+
+  it("keeps lifecycle commands visible but inert while Runtime is offline", () => {
+    model.runtimeAvailable = false;
+    render(<GoalBanner />);
+
+    const stop = screen.getByRole("button", { name: "Stop" });
+    expect(stop.hasAttribute("disabled")).toBe(true);
+    fireEvent.click(stop);
     expect(model.stopGoal).not.toHaveBeenCalled();
   });
 

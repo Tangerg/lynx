@@ -1,5 +1,5 @@
 import type { LyraClient } from "@/rpc";
-import { asRunId, asSegmentId } from "@/rpc";
+import { asRunId, asSegmentId, RpcConnectionError } from "@/rpc";
 import { agentRuntime } from "../application/ports/runtimeGateway";
 import type { RunStream, RunStreamPosition } from "./agentRunPump";
 
@@ -48,7 +48,12 @@ export function createRunStreamReattach({
         const tail = await client().runs.subscribe(target, signal);
         return { result: brandAck(tail.result), events: tail.events };
       } catch (tailErr) {
-        if (!isCancelled() && !signal.aborted && !agentRuntime().isRunGone(tailErr))
+        if (
+          !isCancelled() &&
+          !signal.aborted &&
+          !(tailErr instanceof RpcConnectionError) &&
+          !agentRuntime().isRunGone(tailErr)
+        )
           console.warn("[agent] run tail reattach failed:", sessionId, tailErr);
         return null;
       }
@@ -66,6 +71,7 @@ export function createRunStreamReattach({
         await recoverProjection();
         return null;
       }
+      if (err instanceof RpcConnectionError) return null;
       if (!agentRuntime().isReplayLost(err)) {
         console.warn("[agent] run reattach failed:", sessionId, err);
         return null;

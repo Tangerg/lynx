@@ -31,7 +31,7 @@ import { RunErrorBanner } from "./RunErrorBanner";
 
 interface Props {
   /** Send the user's message input (text + inlined images) through the live agent. */
-  onSend: (input: UserInput) => void;
+  onSend: (input: UserInput) => boolean;
 }
 
 // The turn map hangs off the reading column's leading edge, OUT of its flow.

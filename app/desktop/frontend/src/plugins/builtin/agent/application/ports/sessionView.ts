@@ -27,7 +27,7 @@ export type StopCurrentRootRunAction = () => boolean;
  * was superseded, unavailable, or failed and the caller may retry. */
 export type SynchronizeSessionAction = () => Promise<boolean>;
 export type CancelRunAction = (runId: string) => void;
-export type SendAgentInputAction = (input: AgentInput, options?: AgentRunStartOptions) => void;
+export type SendAgentInputAction = (input: AgentInput, options?: AgentRunStartOptions) => boolean;
 export type InterruptResumePayload =
   | {
       type: "approval";
@@ -73,7 +73,6 @@ export interface AgentSessionViewPort {
   useCurrentRootOutcome(): AgentRunOutcome | null;
   useCurrentRootMetrics(): AgentRunMetrics | null;
   useCurrentRootRunId(): string | null;
-  useCurrentRootSegmentId(): string | null;
   useToolCalls(): Record<string, ToolCall>;
   useSessionTimeline(): TimelineEntry[];
   useRootNarrativeMessages(): Message[];

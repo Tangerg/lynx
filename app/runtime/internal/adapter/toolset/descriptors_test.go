@@ -10,6 +10,7 @@ import (
 
 	toolcontract "github.com/Tangerg/lynx/tool"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/executionctx"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolname"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/builtin"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/approvals"
@@ -34,7 +35,6 @@ type activeGoalStub struct{}
 func (activeGoalStub) Current(context.Context, string) (goal.Goal, bool, error) {
 	return goal.Goal{}, false, nil
 }
-func (activeGoalStub) Active(context.Context, string) (bool, error) { return true, nil }
 func (activeGoalStub) Report(context.Context, goals.ReportCommand) (goals.ReportResult, error) {
 	return goals.ReportNoActiveGoal, nil
 }
@@ -148,7 +148,10 @@ func TestRootResolverIncludesConfiguredConditionalTools(t *testing.T) {
 	closeBuiltToolset(t, built)
 	wireCreateGoal(t, built.Resolver)
 
-	manifest, err := built.Resolver.Manifest(t.Context(), tool.GroupRoot)
+	goalRunContext := executionctx.WithScope(t.Context(), runs.ExecutionScope{
+		SessionID: "session-goal", GoalIncarnationID: "incarnation-1",
+	})
+	manifest, err := built.Resolver.Manifest(goalRunContext, tool.GroupRoot)
 	if err != nil {
 		t.Fatalf("Manifest: %v", err)
 	}
@@ -204,7 +207,10 @@ func TestDescriptorCatalogMatchesBuiltInTools(t *testing.T) {
 	closeBuiltToolset(t, built)
 	wireCreateGoal(t, built.Resolver)
 
-	manifest, err := built.Resolver.Manifest(t.Context(), tool.GroupRoot)
+	goalRunContext := executionctx.WithScope(t.Context(), runs.ExecutionScope{
+		SessionID: "session-goal", GoalIncarnationID: "incarnation-1",
+	})
+	manifest, err := built.Resolver.Manifest(goalRunContext, tool.GroupRoot)
 	if err != nil {
 		t.Fatalf("Manifest: %v", err)
 	}

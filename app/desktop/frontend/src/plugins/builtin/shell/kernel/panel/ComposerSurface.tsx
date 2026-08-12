@@ -22,7 +22,7 @@ import {
 // keystroke re-rendered the message list, and every streamed token re-rendered the
 // composer. Neither has anything to say to the other: the transcript changes when
 // the run produces something, the composer changes when the user types.
-export function ComposerSurface({ onSend }: { onSend: (input: UserInput) => void }) {
+export function ComposerSurface({ onSend }: { onSend: (input: UserInput) => boolean }) {
   const value = useComposerText();
   const setValue = useSetComposerText();
   const clear = useClearComposerDraft();

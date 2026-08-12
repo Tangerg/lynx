@@ -3,6 +3,10 @@ import { describe, expect, it, vi } from "vitest";
 import type { AgentRunView } from "@/plugins/builtin/agent/public/viewState";
 import { DelegatedRunDisclosure } from "./DelegatedRunDisclosure";
 
+vi.mock("@/plugins/builtin/runtime/public/serviceStatus", () => ({
+  useRuntimeCommandsAvailable: () => true,
+}));
+
 function run(overrides: Partial<AgentRunView> = {}): AgentRunView {
   return {
     id: "child-run",

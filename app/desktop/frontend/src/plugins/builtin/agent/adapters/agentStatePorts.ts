@@ -25,7 +25,6 @@ import {
   useCurrentRootOutcome,
   useCurrentRootMetrics,
   useCurrentRootRunId,
-  useCurrentRootSegmentId,
 } from "./agentViewSelectors";
 import { useAgentStore } from "./agentStore";
 
@@ -141,7 +140,6 @@ export function installAgentStatePorts(): () => void {
     useCurrentRootOutcome,
     useCurrentRootMetrics,
     useCurrentRootRunId,
-    useCurrentRootSegmentId,
     useToolCalls: useAgentToolCalls,
     useSessionTimeline: useAgentSessionTimeline,
     useRootNarrativeMessages,
@@ -156,8 +154,7 @@ export function installAgentStatePorts(): () => void {
     sendToSession: (sessionId, input, options) => {
       const send = useAgentStore.getState().sessions[sessionId]?.send;
       if (!send) return false;
-      send(input, options);
-      return true;
+      return send(input, options);
     },
     dropMessage: (sessionId, messageId) =>
       useAgentStore.getState().dropMessage(sessionId, messageId),

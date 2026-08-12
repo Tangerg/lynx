@@ -222,6 +222,7 @@ export async function installVisualAgentFixture(
   }
   store.setSend(VISUAL_SESSION_ID, (input) => {
     document.documentElement.dataset.visualSentInput = JSON.stringify(input);
+    return true;
   });
   store.setStop(VISUAL_SESSION_ID, () => {
     document.documentElement.dataset.visualStoppedRoot = VISUAL_ROOT_RUN_ID;

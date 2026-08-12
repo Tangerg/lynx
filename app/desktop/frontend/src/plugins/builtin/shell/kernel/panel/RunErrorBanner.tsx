@@ -25,6 +25,7 @@ import {
   openDiagnosticsView,
   openTimelineView,
 } from "@/plugins/builtin/workspace/public/deeplinks";
+import { useRuntimeCommandsAvailable } from "@/plugins/builtin/runtime/public/serviceStatus";
 
 // Best-effort: find the most recent user-message plaintext so Retry can
 // replay it. Returns "" if no usable text exists — Retry hides in that
@@ -68,7 +69,9 @@ export function RunErrorBanner() {
   const t = useT();
   const error = useActiveSessionProblem();
   const send = useChatSend();
-  const canSend = useCanSendToAgent();
+  const hasSendAction = useCanSendToAgent();
+  const runtimeAvailable = useRuntimeCommandsAvailable();
+  const canSend = hasSendAction && runtimeAvailable;
 
   // Provider-requested backoff countdown (rate-limit / overload). Ticks down
   // from error.retryAfterSeconds; re-armed whenever the error changes. While
@@ -96,8 +99,8 @@ export function RunErrorBanner() {
 
   const onRetry = () => {
     if (retryIn > 0 || !canSend || !retryText) return;
+    if (!send(agentTextInput(retryText))) return;
     dismissActiveSessionProblem();
-    send(agentTextInput(retryText));
   };
 
   const canRetry = canSend && Boolean(retryText) && !UNRETRYABLE.includes(error?.code ?? "");

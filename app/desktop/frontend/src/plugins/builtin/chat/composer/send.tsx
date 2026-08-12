@@ -9,6 +9,9 @@ import { useRecordComposerHistory } from "./public/history";
 import { composerActionLayout } from "./application/composerActionLayout";
 import { composerSendSlot } from "./application/composerContributions";
 import { submitComposer } from "./application/submitComposer";
+import { useRuntimeCommandsAvailable } from "@/plugins/builtin/runtime/public/serviceStatus";
+import { useCanSendToAgent } from "@/plugins/builtin/agent/public/input";
+import { runtimeCommandsAvailable } from "@/plugins/builtin/runtime/public/serviceStatus";
 
 // The composer's action target: one control whose glyph changes across steer /
 // send / stop, so the place you click never moves. A rounded square on the
@@ -30,21 +33,32 @@ function SendButton() {
   const send = useSendComposerInput();
   const stop = useStopCurrentRootRun();
   const running = useIsCurrentRootRunning();
+  const runtimeAvailable = useRuntimeCommandsAvailable();
+  const agentCanSend = useCanSendToAgent();
+  const canSend = runtimeAvailable && agentCanSend;
 
   const hasInput = Boolean(value.trim()) || images.length > 0 || pastes.length > 0;
   const layout = composerActionLayout({ running, hasInput });
   const submit = () =>
-    submitComposer({ value, clear, sendInput: send, images, pastes, recordHistory });
+    submitComposer({
+      value,
+      clear,
+      sendInput: send,
+      images,
+      pastes,
+      recordHistory,
+      canSend: runtimeCommandsAvailable,
+    });
 
   const stopButton = (primary: boolean) => (
     <IconButton
       icon="stop"
       iconSize="xs"
       press={false}
-      disabled={!stop}
+      disabled={!stop || !runtimeAvailable}
       title={t("composer.action.stop")}
       onClick={() => stop?.()}
-      className={primary ? (stop ? ACTION : ACTION_OFF) : QUIET}
+      className={primary ? (stop && runtimeAvailable ? ACTION : ACTION_OFF) : QUIET}
     />
   );
 
@@ -64,8 +78,8 @@ function SendButton() {
     <>
       {layout.secondary === "stop" && stopButton(false)}
       {layout.primary === "stop" && stopButton(true)}
-      {layout.primary === "steer" && submitButton(t("composer.action.steer"), true)}
-      {layout.primary === "send" && submitButton(t("composer.action.send"), hasInput)}
+      {layout.primary === "steer" && submitButton(t("composer.action.steer"), canSend)}
+      {layout.primary === "send" && submitButton(t("composer.action.send"), canSend && hasInput)}
     </>
   );
 }

@@ -69,10 +69,6 @@ export function useCurrentRootRunId(): string | null {
   return useCurrentRoot()?.id ?? null;
 }
 
-export function useCurrentRootSegmentId(): string | null {
-  return useCurrentRoot()?.activeSegmentId ?? null;
-}
-
 export function useAgentToolCalls(): Record<string, ToolCall> {
   return useActiveAgentView((view) => view.toolCalls);
 }

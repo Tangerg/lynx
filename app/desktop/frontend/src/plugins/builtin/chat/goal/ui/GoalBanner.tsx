@@ -18,6 +18,10 @@ import {
   type BudgetAxisView,
 } from "../application/goalBanner";
 import { type GoalReadModel, useGoal } from "../application/goalQueries";
+import {
+  runtimeCommandsAvailable,
+  useRuntimeCommandsAvailable,
+} from "@/plugins/builtin/runtime/public/serviceStatus";
 
 /**
  * The session's standing order, pinned above the stream.
@@ -47,11 +51,12 @@ function GoalDisclosure({ goal }: { goal: GoalReadModel }) {
   const [expanded, setExpanded] = useState(false);
   const [busy, setBusy] = useState(false);
   const commandInFlight = useRef(false);
+  const runtimeAvailable = useRuntimeCommandsAvailable();
   const axes = goalBudgetAxes(goal);
   const canChangeStatus = goal.status === "active" || goalCanResume(goal);
 
   const changeStatus = async () => {
-    if (commandInFlight.current || !canChangeStatus) return;
+    if (commandInFlight.current || !canChangeStatus || !runtimeCommandsAvailable()) return;
     commandInFlight.current = true;
     setBusy(true);
     try {
@@ -94,7 +99,7 @@ function GoalDisclosure({ goal }: { goal: GoalReadModel }) {
                 type="button"
                 size="sm"
                 tone={goal.status === "active" ? "negative" : "accent"}
-                disabled={busy}
+                disabled={busy || !runtimeAvailable}
                 onClick={() => void changeStatus()}
               >
                 {goal.status === "active" ? t("goal.action.stop") : t("goal.action.resume")}

@@ -86,7 +86,7 @@ export function VisualAgentStateFixture({
           data-message-count={messages.length}
           data-problem={problem?.code}
         >
-          <ChatPanel onSend={() => undefined} />
+          <ChatPanel onSend={() => true} />
         </div>
       }
     />

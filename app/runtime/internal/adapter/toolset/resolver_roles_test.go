@@ -2,10 +2,10 @@ package toolset
 
 import (
 	"context"
-	"errors"
 	"testing"
 	"time"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/executionctx"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/approvals"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/goals"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
@@ -17,8 +17,7 @@ import (
 	toolcontract "github.com/Tangerg/lynx/tool"
 )
 
-type failingGoalStub struct{ err error }
-type roleGoalStub struct{ active bool }
+type roleGoalStub struct{}
 
 type rolePlanStore struct{}
 
@@ -29,18 +28,9 @@ func (rolePlanStore) State(context.Context, string) (plan.State, error) {
 	return (plan.State{}).Replace([]plan.Step{{Description: "implement", Status: plan.StatusPending}}, time.Now())
 }
 
-func (failingGoalStub) Current(context.Context, string) (goal.Goal, bool, error) {
-	return goal.Goal{}, false, nil
-}
-func (s failingGoalStub) Active(context.Context, string) (bool, error) { return false, s.err }
-func (failingGoalStub) Report(context.Context, goals.ReportCommand) (goals.ReportResult, error) {
-	return goals.ReportNoActiveGoal, nil
-}
-
 func (roleGoalStub) Current(context.Context, string) (goal.Goal, bool, error) {
 	return goal.Goal{}, false, nil
 }
-func (s roleGoalStub) Active(context.Context, string) (bool, error) { return s.active, nil }
 func (roleGoalStub) Report(context.Context, goals.ReportCommand) (goals.ReportResult, error) {
 	return goals.ReportNoActiveGoal, nil
 }
@@ -99,11 +89,13 @@ func TestPlanModeToolsAreRootOnly(t *testing.T) {
 	}
 }
 
-func TestGoalToolsAreRootOnlyAndOutcomeRequiresActiveGoal(t *testing.T) {
+func TestGoalToolsAreRootOnlyAndOutcomeRequiresGoalRunProvenance(t *testing.T) {
 	built, err := Build(t.Context(), BuildConfig{
 		DefaultCWD: t.TempDir(), UserHome: t.TempDir(),
-		GoalReader:   roleGoalStub{active: true},
-		GoalReporter: roleGoalStub{active: true},
+		// Deliberately inactive: manifest membership must remain tied to the Run's
+		// frozen incarnation even when mutable Goal state pauses for HITL.
+		GoalReader:   roleGoalStub{},
+		GoalReporter: roleGoalStub{},
 	})
 	if err != nil {
 		t.Fatalf("Build: %v", err)
@@ -117,40 +109,38 @@ func TestGoalToolsAreRootOnlyAndOutcomeRequiresActiveGoal(t *testing.T) {
 		t.Fatalf("create_goal: %v", err)
 	}
 	built.Resolver.UseCreateGoalTool(create)
+	goalRunContext := executionctx.WithScope(t.Context(), runs.ExecutionScope{
+		SessionID: "session-goal", GoalIncarnationID: "incarnation-1",
+	})
 
 	for _, tc := range []struct {
+		name string
+		ctx  context.Context
 		role string
 		want map[string]bool
 	}{
-		{role: domaintool.GroupRoot, want: map[string]bool{"create_goal": true, "get_goal": true, "report_goal_outcome": true}},
-		{role: domaintool.GroupDelegated, want: map[string]bool{}},
+		{
+			name: "goal-owned root", ctx: goalRunContext, role: domaintool.GroupRoot,
+			want: map[string]bool{"create_goal": true, "get_goal": true, "report_goal_outcome": true},
+		},
+		{
+			name: "ordinary root", ctx: t.Context(), role: domaintool.GroupRoot,
+			want: map[string]bool{"create_goal": true, "get_goal": true},
+		},
+		{name: "goal-owned delegate", ctx: goalRunContext, role: domaintool.GroupDelegated, want: map[string]bool{}},
 	} {
-		manifest, err := built.Resolver.Manifest(t.Context(), tc.role)
-		if err != nil {
-			t.Fatalf("Manifest(%s): %v", tc.role, err)
-		}
-		names := definitionNames(manifestTools(manifest))
-		for _, name := range []string{"create_goal", "get_goal", "report_goal_outcome"} {
-			if names[name] != tc.want[name] {
-				t.Errorf("role %s tool %s present=%v, want %v", tc.role, name, names[name], tc.want[name])
+		t.Run(tc.name, func(t *testing.T) {
+			manifest, err := built.Resolver.Manifest(tc.ctx, tc.role)
+			if err != nil {
+				t.Fatalf("Manifest(%s): %v", tc.role, err)
 			}
-		}
-	}
-
-	inactive, err := Build(t.Context(), BuildConfig{
-		DefaultCWD: t.TempDir(), UserHome: t.TempDir(), GoalReader: roleGoalStub{}, GoalReporter: roleGoalStub{},
-	})
-	if err != nil {
-		t.Fatalf("Build(inactive): %v", err)
-	}
-	closeBuiltToolset(t, inactive)
-	manifest, err := inactive.Resolver.Manifest(t.Context(), domaintool.GroupRoot)
-	if err != nil {
-		t.Fatal(err)
-	}
-	names := definitionNames(manifestTools(manifest))
-	if !names["get_goal"] || names["report_goal_outcome"] {
-		t.Fatalf("inactive Goal tools = %v", names)
+			names := definitionNames(manifestTools(manifest))
+			for _, name := range []string{"create_goal", "get_goal", "report_goal_outcome"} {
+				if names[name] != tc.want[name] {
+					t.Errorf("role %s tool %s present=%v, want %v", tc.role, name, names[name], tc.want[name])
+				}
+			}
+		})
 	}
 }
 
@@ -184,23 +174,6 @@ func TestProposeSkillIsRootOnlyAndDeferred(t *testing.T) {
 				t.Errorf("role %s advertised deferred propose_skill", tc.role)
 			}
 		}
-	}
-}
-
-func TestManifestPreservesActiveGoalLookupFailure(t *testing.T) {
-	wantErr := errors.New("goal store unavailable")
-	built, err := Build(t.Context(), BuildConfig{
-		DefaultCWD: t.TempDir(), UserHome: t.TempDir(),
-		GoalReader:   failingGoalStub{err: wantErr},
-		GoalReporter: failingGoalStub{err: wantErr},
-	})
-	if err != nil {
-		t.Fatalf("Build: %v", err)
-	}
-	closeBuiltToolset(t, built)
-
-	if _, err := built.Resolver.Manifest(t.Context(), domaintool.GroupRoot); !errors.Is(err, wantErr) {
-		t.Fatalf("Manifest error = %v, want %v", err, wantErr)
 	}
 }
 

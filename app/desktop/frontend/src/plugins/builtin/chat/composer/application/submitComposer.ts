@@ -1,6 +1,6 @@
 // Shared composer submit use case — used by the textarea Enter path, the send
 // button, and plugin key bindings. Owns slash routing + the
-// always-clear-after-submit invariant; draft interpretation stays in the
+// clear-after-accepted-submit invariant; draft interpretation stays in the
 // composer domain layer.
 
 import {
@@ -24,13 +24,15 @@ export interface SubmitDeps {
   /** Wipe the textarea + its image attachments. Called once per successful submit. */
   clear: () => void;
   /** Forward the composed user input (text + inlined images) to the agent. */
-  sendInput: (input: UserInput) => void;
+  sendInput: (input: UserInput) => boolean;
   /** Image attachments to inline alongside the text (empty = text-only). */
   images: InputImage[];
   /** Large pasted text attachments staged on the active draft. */
   pastes: PastedText[];
   /** Record a submitted typed message for shell-style history recall. */
   recordHistory: (text: string) => void;
+  /** Whether a non-command input can open or steer a Run right now. */
+  canSend: () => boolean;
 }
 
 /** Run the composer submit pipeline. Safe to call on empty text + no images. */
@@ -41,15 +43,12 @@ export function submitComposer({
   images,
   pastes,
   recordHistory,
+  canSend,
 }: SubmitDeps): void {
   const intent = createComposerSendIntent({ value, images, pastes });
   // An image-only / paste-only send (a screenshot or a dropped blob with no
   // caption) is valid.
   if (!intent.shouldSend) return;
-
-  // Record the submitted text for ↑/↓ recall (slash commands included — they're
-  // worth re-running too). Image-/paste-only sends have no typed text to recall.
-  if (intent.historyText) recordHistory(intent.historyText);
 
   // Slash routing applies only to a text command — an attached image / paste
   // isn't a command argument. A "/cmd" still routes as the command (attachments
@@ -58,6 +57,7 @@ export function submitComposer({
   if (slash) {
     const spec = lookupExtensionByKey(SLASH_COMMAND, slash.cmd);
     if (spec?.run) {
+      if (intent.historyText) recordHistory(intent.historyText);
       void Promise.resolve(
         spec.run({ args: slash.args, send: (text: string) => sendInput(textInput(text)) }),
       ).catch((err) => {
@@ -69,6 +69,8 @@ export function submitComposer({
       return;
     }
   }
-  sendInput(buildInput(intent.body, images));
+  if (!canSend()) return;
+  if (!sendInput(buildInput(intent.body, images))) return;
+  if (intent.historyText) recordHistory(intent.historyText);
   clear();
 }

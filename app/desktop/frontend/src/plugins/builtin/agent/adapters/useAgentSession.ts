@@ -132,8 +132,10 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
       setStartError: (error) => store().setCommandError(sessionId, error),
     });
 
-    const send = (input: AgentInput, options: AgentRunStartOptions = {}): void => {
-      if (runOpening.isStarting()) return;
+    const send = (input: AgentInput, options: AgentRunStartOptions = {}): boolean => {
+      if (runOpening.isStarting()) return false;
+      const currentRoot = store().sessions[sessionId]?.view;
+      if (currentRoot && selectCurrentRootRun(currentRoot)?.status === "waiting") return false;
       const wireInput = agentInputToContentBlocks(input);
       // Optimistically render the user's own bubble with a local id. The
       // runtime DOES stream the userMessage Item back (with its own server id),
@@ -161,6 +163,7 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
         // wasn't accepted. The banner (set in begin's catch) carries the reason.
         () => store().dropMessage(sessionId, optimistic.localId),
       );
+      return true;
     };
 
     const resume = (
@@ -256,7 +259,7 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
 
   return {
     send: (input: AgentInput, options?: AgentRunStartOptions) =>
-      useAgentStore.getState().sessions[sessionId]?.send?.(input, options),
+      useAgentStore.getState().sessions[sessionId]?.send?.(input, options) ?? false,
     stop: () => {
       useAgentStore.getState().sessions[sessionId]?.stop?.();
     },

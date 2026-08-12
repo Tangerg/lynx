@@ -6,6 +6,7 @@ import { AgentActivityDisclosure } from "@/ui/agent";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/classNames";
 import { delegatedRunCardModel } from "../application/delegatedRunCardModel";
+import { useRuntimeCommandsAvailable } from "@/plugins/builtin/runtime/public/serviceStatus";
 
 interface Props {
   run: AgentRunView;
@@ -27,6 +28,7 @@ export function DelegatedRunDisclosure({
   children,
 }: Props) {
   const t = useT();
+  const runtimeAvailable = useRuntimeCommandsAvailable();
   const model = delegatedRunCardModel(t, run, ordinal, siblingCount);
   const [pinnedExpanded, setPinnedExpanded] = useState<boolean | null>(null);
   const expanded = pinnedExpanded ?? model.autoExpanded;
@@ -81,6 +83,7 @@ export function DelegatedRunDisclosure({
               icon="stop"
               size="sm"
               quiet
+              disabled={!runtimeAvailable}
               title={t("agent.runTree.action.cancel")}
               onClick={onCancel}
             />

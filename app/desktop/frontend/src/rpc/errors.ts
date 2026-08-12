@@ -75,6 +75,16 @@ export class RpcTransportError extends Error {
   }
 }
 
+/** The HTTP connection failed before a complete Runtime response arrived.
+ *  This remains a transport error for broad callers while letting lifecycle
+ *  owners distinguish a disappeared process from a malformed response. */
+export class RpcConnectionError extends RpcTransportError {
+  constructor(message: string, requestId?: string) {
+    super(message, undefined, requestId);
+    this.name = "RpcConnectionError";
+  }
+}
+
 /** An inbound JSON-RPC frame contradicted the generated Runtime contract. */
 export class RpcProtocolError extends Error {
   readonly violations: readonly WireViolation[];

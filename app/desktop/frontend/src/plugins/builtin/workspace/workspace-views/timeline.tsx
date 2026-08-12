@@ -32,6 +32,7 @@ import {
   timelineTimeOfDay,
   timelineViewModel,
 } from "@/plugins/builtin/workspace/application/timelineViewModel";
+import { useRuntimeCommandsAvailable } from "@/plugins/builtin/runtime/public/serviceStatus";
 
 // i18n key → icon. Labels are resolved at render via t().
 const KIND_ICON: Record<TimelineEntryKind, IconName> = {
@@ -96,7 +97,13 @@ function TimelineRow({ entry }: { entry: TimelineEntry }) {
   );
 }
 
-function TimelineRunHeader({ group }: { group: TimelineRunGroup }) {
+function TimelineRunHeader({
+  group,
+  runtimeAvailable,
+}: {
+  group: TimelineRunGroup;
+  runtimeAvailable: boolean;
+}) {
   const t = useT();
   const run = group.run;
   if (!run) {
@@ -145,6 +152,7 @@ function TimelineRunHeader({ group }: { group: TimelineRunGroup }) {
           icon="chat"
           size="lg"
           quiet
+          disabled={!runtimeAvailable}
           title={t("timeline.locateParent")}
           onClick={() => locateWorkspaceTool(spawnedByItemId)}
         />
@@ -168,6 +176,7 @@ function TimelineTab() {
   const t = useT();
   const timeline = useActiveSessionTimeline();
   const runTree = useActiveSessionRunTree();
+  const runtimeAvailable = useRuntimeCommandsAvailable();
   const view = timelineViewModel(timeline, runTree);
 
   return (
@@ -202,7 +211,7 @@ function TimelineTab() {
               group.depth > 0 && "border-l border-field pl-2",
             )}
           >
-            <TimelineRunHeader group={group} />
+            <TimelineRunHeader group={group} runtimeAvailable={runtimeAvailable} />
             {group.items.length > 0 ? (
               group.items.map((entry) => <TimelineRow key={entry.id} entry={entry} />)
             ) : (

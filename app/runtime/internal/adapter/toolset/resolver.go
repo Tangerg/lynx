@@ -35,18 +35,17 @@ type Resolver struct {
 	lateMu sync.RWMutex
 
 	defaultCWD    string
-	skillsUserDir string                                      // user-scope skills dir; merged under each Run's project skills
-	skillUsage    builtin.SkillUsageRecorder                  // records skill loads for the idle-lifecycle curator; nil → off
-	online        []toolcontract.Tool                         // working-directory-independent network tools
-	a2a           []toolcontract.Tool                         // working-directory-independent remote A2A agents
-	lsp           []toolcontract.Tool                         // code-intelligence tools; cwd read per-call (analyzer keys servers by root)
-	codeIntel     *codeintel.Analyzer                         // backs post-patch diagnostics (rebuilt per resolution with the Run's cwd)
-	readTracker   *readTracker                                // backs the read-before-patch and stale-read guards
-	pathLocker    *pathLocker                                 // serializes same-path fs calls across every concurrent Run resolution
-	shell         []toolcontract.Tool                         // shell tools (shell / read_shell_output / stop_shell) over the exec.Shells; cwd read per-call
-	createGoal    toolcontract.Tool                           // root-only Goal entry tool; nil until the Goal Driver exists
-	staticSpecs   []staticSpec                                // built-once capabilities with one role/placement policy for Run manifests
-	goalActive    func(context.Context, string) (bool, error) // reports whether the session has an active Goal; nil → outcome reporting never offered
+	skillsUserDir string                     // user-scope skills dir; merged under each Run's project skills
+	skillUsage    builtin.SkillUsageRecorder // records skill loads for the idle-lifecycle curator; nil → off
+	online        []toolcontract.Tool        // working-directory-independent network tools
+	a2a           []toolcontract.Tool        // working-directory-independent remote A2A agents
+	lsp           []toolcontract.Tool        // code-intelligence tools; cwd read per-call (analyzer keys servers by root)
+	codeIntel     *codeintel.Analyzer        // backs post-patch diagnostics (rebuilt per resolution with the Run's cwd)
+	readTracker   *readTracker               // backs the read-before-patch and stale-read guards
+	pathLocker    *pathLocker                // serializes same-path fs calls across every concurrent Run resolution
+	shell         []toolcontract.Tool        // shell tools (shell / read_shell_output / stop_shell) over the exec.Shells; cwd read per-call
+	createGoal    toolcontract.Tool          // root-only Goal entry tool; nil until the Goal Driver exists
+	staticSpecs   []staticSpec               // built-once capabilities with one role/placement policy for Run manifests
 
 	// mcp is the working-directory-independent MCP tool set, held behind an
 	// atomic pointer so a reconnect (B3b-2) can hot-swap the live set without
@@ -80,14 +79,14 @@ const (
 )
 
 // staticSpec is the policy record for one built-once per-Run capability. A Run
-// consumes entries in its placement and audience, evaluating the one dynamic
-// active-goal condition without turning resolution into a generic registry.
+// consumes entries in its placement and audience, with Goal-only capabilities
+// keyed by the immutable incarnation stamped at Run admission.
 type staticSpec struct {
-	tool               toolcontract.Tool
-	audience           audience
-	placement          placement
-	deferred           bool
-	requiresActiveGoal bool
+	tool            toolcontract.Tool
+	audience        audience
+	placement       placement
+	deferred        bool
+	requiresGoalRun bool
 }
 
 // resolverDeps bundles the working-directory-independent inputs the resolver captures
@@ -98,24 +97,23 @@ type resolverDeps struct {
 	DefaultCWD         string
 	SkillsUserDir      string
 	SkillUsage         builtin.SkillUsageRecorder
-	Online             []toolcontract.Tool                         // network tools (webfetch/websearch/httpreq)
-	A2A                []toolcontract.Tool                         // remote A2A delegation tools
-	LSP                []toolcontract.Tool                         // code-intelligence tools
-	Shell              []toolcontract.Tool                         // shell tools (shell / read_shell_output / stop_shell); nil means omitted
-	AskUser            toolcontract.Tool                           // ask_user HITL tool (both roles)
-	EnterPlan          toolcontract.Tool                           // enter_plan_mode (root role only); nil → omitted
-	ExitPlan           toolcontract.Tool                           // exit_plan_mode (root role only); nil → omitted
-	Plan               toolcontract.Tool                           // set_plan execution-plan tool (root role only); nil → omitted
-	ScheduleTools      []toolcontract.Tool                         // schedule management tools (root role only); nil → omitted
-	ToolResult         toolcontract.Tool                           // read_tool_result offloaded-output reader (both roles); nil → omitted
-	AgentMemorySearch  toolcontract.Tool                           // search_memory agent-memory reader (both roles); nil → omitted
-	ConversationSearch toolcontract.Tool                           // search_conversations past-transcript reader (both roles); nil → omitted
-	GoalGet            toolcontract.Tool                           // get_goal state reader (root role only); nil → omitted
-	GoalReport         toolcontract.Tool                           // report_goal_outcome loop signal (root role only); nil → omitted
-	ProposeSkill       toolcontract.Tool                           // propose_skill pending submission (root role only); nil → omitted
-	GoalActive         func(context.Context, string) (bool, error) // reports an active Goal for the session; nil → outcome reporting never offered
-	CodeIntel          *codeintel.Analyzer                         // backs post-mutation diagnostics
-	ReadTracker        *readTracker                                // backs the read-before-patch and stale-read guards
+	Online             []toolcontract.Tool // network tools (webfetch/websearch/httpreq)
+	A2A                []toolcontract.Tool // remote A2A delegation tools
+	LSP                []toolcontract.Tool // code-intelligence tools
+	Shell              []toolcontract.Tool // shell tools (shell / read_shell_output / stop_shell); nil means omitted
+	AskUser            toolcontract.Tool   // ask_user HITL tool (both roles)
+	EnterPlan          toolcontract.Tool   // enter_plan_mode (root role only); nil → omitted
+	ExitPlan           toolcontract.Tool   // exit_plan_mode (root role only); nil → omitted
+	Plan               toolcontract.Tool   // set_plan execution-plan tool (root role only); nil → omitted
+	ScheduleTools      []toolcontract.Tool // schedule management tools (root role only); nil → omitted
+	ToolResult         toolcontract.Tool   // read_tool_result offloaded-output reader (both roles); nil → omitted
+	AgentMemorySearch  toolcontract.Tool   // search_memory agent-memory reader (both roles); nil → omitted
+	ConversationSearch toolcontract.Tool   // search_conversations past-transcript reader (both roles); nil → omitted
+	GoalGet            toolcontract.Tool   // get_goal state reader (root role only); nil → omitted
+	GoalReport         toolcontract.Tool   // report_goal_outcome loop signal (Goal-owned root Runs only); nil → omitted
+	ProposeSkill       toolcontract.Tool   // propose_skill pending submission (root role only); nil → omitted
+	CodeIntel          *codeintel.Analyzer // backs post-mutation diagnostics
+	ReadTracker        *readTracker        // backs the read-before-patch and stale-read guards
 	// MCPToolDisabled reports whether an identified MCP tool is hidden.
 	MCPToolDisabled func(mcpserver.ToolRef) bool
 }
@@ -153,9 +151,8 @@ func newResolver(d resolverDeps) (*Resolver, error) {
 			{tool: d.ConversationSearch, audience: audienceBoth, placement: afterSkill, deferred: true},
 			{tool: d.ProposeSkill, audience: audienceRoot, placement: afterSkill, deferred: true},
 			{tool: d.GoalGet, audience: audienceRoot, placement: rootTail},
-			{tool: d.GoalReport, audience: audienceRoot, placement: rootTail, requiresActiveGoal: true},
+			{tool: d.GoalReport, audience: audienceRoot, placement: rootTail, requiresGoalRun: true},
 		},
-		goalActive:      d.GoalActive,
 		codeIntel:       d.CodeIntel,
 		readTracker:     d.ReadTracker,
 		pathLocker:      newPathLocker(),
@@ -174,15 +171,8 @@ func (r *Resolver) appendStatic(ctx context.Context, into *manifestBuilder, at p
 		if spec.tool == nil || spec.placement != at || !spec.audience.includes(role) {
 			continue
 		}
-		if spec.requiresActiveGoal {
-			if r.goalActive == nil {
-				continue
-			}
-			active, err := r.goalActive(ctx, executionctx.SessionID(ctx))
-			if err != nil {
-				return fmt.Errorf("toolset: resolve report_goal_outcome availability: %w", err)
-			}
-			if !active {
+		if spec.requiresGoalRun {
+			if _, owned := executionctx.GoalIncarnationID(ctx); !owned {
 				continue
 			}
 		}

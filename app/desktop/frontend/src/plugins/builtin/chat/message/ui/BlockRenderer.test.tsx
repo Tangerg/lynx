@@ -18,6 +18,9 @@ const agentRunCommands = vi.hoisted(() => ({ cancel: vi.fn() }));
 vi.mock("@/plugins/builtin/agent/public/run", () => ({
   cancelActiveSessionRun: agentRunCommands.cancel,
 }));
+vi.mock("@/plugins/builtin/runtime/public/serviceStatus", () => ({
+  useRuntimeCommandsAvailable: () => true,
+}));
 
 function run(
   id: string,

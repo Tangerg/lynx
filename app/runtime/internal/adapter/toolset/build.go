@@ -43,7 +43,7 @@ type BuildConfig struct {
 	ToolResults    builtin.ToolResultStore        // backs read_tool_result (reads offloaded tool output); nil → omitted
 	SkillUsage     builtin.SkillUsageRecorder     // records skill loads for the idle-lifecycle curator; nil → use recording off
 	SkillProposals builtin.SkillProposalSubmitter // backs root-only propose_skill; nil → omitted
-	GoalReader     GoalReader                     // backs get_goal and the report_goal_outcome gate; nil → omitted
+	GoalReader     GoalReader                     // backs get_goal; nil → omitted
 	GoalReporter   builtin.GoalOutcomeReporter    // backs report_goal_outcome; nil → omitted
 
 	// AgentMemorySearch backs search_memory (keyword + semantic search over the
@@ -69,11 +69,11 @@ type BuildConfig struct {
 	SandboxReadOnlyPaths []string
 }
 
-// GoalReader supplies both the Goal read model and the active-Goal predicate
-// required while resolving the root Agent's Goal tools.
+// GoalReader supplies the Goal read model used by get_goal. Outcome-tool
+// availability is derived from immutable Run admission provenance instead of
+// mutable Goal state.
 type GoalReader interface {
 	builtin.GoalReader
-	builtin.ActiveGoalReader
 }
 
 // Built is the assembled tool environment: the runtime-scope resolver (also the
@@ -185,8 +185,9 @@ func Build(ctx context.Context, config BuildConfig) (_ Built, err error) {
 		return Built{}, fmt.Errorf("toolset: build search_conversations: %w", err)
 	}
 	// Goal state is working-directory independent and keyed by session. get_goal
-	// is always useful to the root Agent; report_goal_outcome is additionally
-	// gated to an active Goal by the resolver.
+	// is always useful to the root Agent; report_goal_outcome is exposed only to
+	// Runs stamped with a Goal incarnation at admission. That immutable provenance
+	// keeps a parked deployment restorable even while the Goal is paused for HITL.
 	goalGetTool, err := builtin.NewGet(config.GoalReader)
 	if err != nil {
 		return Built{}, fmt.Errorf("toolset: build get_goal: %w", err)
@@ -195,7 +196,6 @@ func Build(ctx context.Context, config BuildConfig) (_ Built, err error) {
 	if err != nil {
 		return Built{}, fmt.Errorf("toolset: build report_goal_outcome: %w", err)
 	}
-	goalActive := goalActiveReader(config.GoalReader)
 	proposeSkillTool, err := builtin.NewProposal(config.SkillProposals, config.DefaultCWD)
 	if err != nil {
 		return Built{}, fmt.Errorf("toolset: build propose_skill: %w", err)
@@ -226,7 +226,6 @@ func Build(ctx context.Context, config BuildConfig) (_ Built, err error) {
 		GoalGet:            goalGetTool,
 		GoalReport:         goalReportTool,
 		ProposeSkill:       proposeSkillTool,
-		GoalActive:         goalActive,
 		CodeIntel:          codeIntel,
 		ReadTracker:        tracker,
 		MCPToolDisabled:    config.MCPToolDisabled,
@@ -246,17 +245,4 @@ func Build(ctx context.Context, config BuildConfig) (_ Built, err error) {
 			a2aConns.Close,
 		},
 	}, nil
-}
-
-// goalActiveReader adapts the active-Goal lookup into the resolver's per-Run gate for
-// report_goal_outcome. A paused or blocked Goal does not count: only a Run
-// driven by the active autonomous loop can truthfully report its outcome.
-// Returns nil when Goal mode is off so the tool is never offered.
-func goalActiveReader(state builtin.ActiveGoalReader) func(context.Context, string) (bool, error) {
-	if state == nil {
-		return nil
-	}
-	return func(ctx context.Context, sessionID string) (bool, error) {
-		return state.Active(ctx, sessionID)
-	}
 }

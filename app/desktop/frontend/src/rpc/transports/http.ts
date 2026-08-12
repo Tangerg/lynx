@@ -33,7 +33,12 @@ import {
 } from "@opentelemetry/api";
 import { createParser } from "eventsource-parser";
 import { createPushPullChannel } from "../channel";
-import { errorMessage, parseTransportProblem, RpcTransportError } from "../errors";
+import {
+  errorMessage,
+  parseTransportProblem,
+  RpcConnectionError,
+  RpcTransportError,
+} from "../errors";
 import {
   type Transport,
   type TransportEvent,
@@ -149,7 +154,10 @@ export function createHttpTransport(config: HttpTransportConfig): Transport {
       // expected teardown via the fetch signal — not failures, stay quiet.
       aborted = signal?.aborted === true || (err instanceof Error && err.name === "AbortError");
       if (!aborted && !channel.closed) {
-        streamError = err instanceof Error ? err : new RpcTransportError(String(err));
+        streamError =
+          err instanceof RpcTransportError
+            ? err
+            : new RpcConnectionError(errorMessage(err), metadata.requestId);
       }
     } finally {
       readers.delete(reader);
@@ -218,7 +226,7 @@ export function createHttpTransport(config: HttpTransportConfig): Transport {
       });
     } catch (err) {
       endSpan(span, err);
-      throw new RpcTransportError(`fetch failed: ${errorMessage(err)}`);
+      throw new RpcConnectionError(`fetch failed: ${errorMessage(err)}`);
     }
     span.setAttribute("rpc.http.status_code", res.status);
     const metadata: TransportResponseMetadata = {
@@ -291,9 +299,8 @@ export function createHttpTransport(config: HttpTransportConfig): Transport {
     try {
       text = await res.text();
     } catch (cause) {
-      const err = new RpcTransportError(
+      const err = new RpcConnectionError(
         `failed to read RPC response: ${errorMessage(cause)}`,
-        undefined,
         metadata.requestId,
       );
       endSpan(span, err);

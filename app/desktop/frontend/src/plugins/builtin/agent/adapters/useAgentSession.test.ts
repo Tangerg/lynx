@@ -135,6 +135,27 @@ describe("useAgentSession send re-entrancy", () => {
     expect(msgs).toHaveLength(1);
     expect(msgs[0]!.blocks.some((b) => "text" in b && b.text === "first")).toBe(true);
   });
+
+  it("rejects a fresh send while the current root is parked for HITL", () => {
+    const { driver, start } = parkedDriver();
+    renderHook(() => useAgentSession(() => driver, SID));
+    act(() => {
+      useAgentStore
+        .getState()
+        .applyRunSnapshot(SID, runRef({ status: "waiting", activeSegmentId: undefined }));
+    });
+
+    let accepted = true;
+    act(() => {
+      accepted = useAgentStore.getState().sessions[SID]!.send!(
+        agentTextInput("must wait for the interrupt"),
+      );
+    });
+
+    expect(accepted).toBe(false);
+    expect(start).not.toHaveBeenCalled();
+    expect(useAgentStore.getState().sessions[SID]!.view.messages).toHaveLength(0);
+  });
 });
 
 describe("useAgentSession run timing guards", () => {

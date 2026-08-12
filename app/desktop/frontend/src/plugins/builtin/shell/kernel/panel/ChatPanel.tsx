@@ -44,7 +44,7 @@ function viewIcon(name: string | undefined): IconName | undefined {
 }
 
 interface Props {
-  onSend: (input: UserInput) => void;
+  onSend: (input: UserInput) => boolean;
 }
 
 function AddDockViewPicker({

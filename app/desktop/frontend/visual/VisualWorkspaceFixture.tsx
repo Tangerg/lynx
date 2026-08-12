@@ -97,7 +97,7 @@ export function VisualWorkspaceFixture({ state }: { state: VisualWorkspaceState 
       sidebar={settingsOpen ? undefined : <WorkspaceStateSidebar state={state} />}
       main={
         <div className="contents" data-testid="workspace-state" data-state={state}>
-          <ChatPanel onSend={() => undefined} />
+          <ChatPanel onSend={() => true} />
         </div>
       }
       overlay={

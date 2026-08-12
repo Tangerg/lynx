@@ -18,6 +18,7 @@ import {
 import { useApprovalArgsEditor } from "../../application/approvalArgsEditor";
 import { useApprovalCardActions } from "../../application/approvalCardActions";
 import { ApprovalArgsEditor } from "./ApprovalArgsEditor";
+import { useRuntimeCommandsAvailable } from "@/plugins/builtin/runtime/public/serviceStatus";
 
 interface Props {
   /** Block lifecycle. `"requires-action"` shows the action card with the
@@ -84,6 +85,7 @@ export function ApprovalCard({
   reversible,
 }: Props) {
   const t = useT();
+  const runtimeAvailable = useRuntimeCommandsAvailable();
 
   const hasArgs = args !== undefined;
   const originalArgs = hasArgs ? JSON.stringify(args, null, 2) : "";
@@ -97,6 +99,7 @@ export function ApprovalCard({
     status,
     argsEditor: hasArgs ? argsEditor : undefined,
     rememberScope: rememberable && remember ? rememberScope : undefined,
+    runtimeAvailable,
   });
 
   const finalised = approvalSettledDecision(status, decision, pending);
@@ -212,6 +215,7 @@ export function ApprovalCard({
         </Button>
         {rememberable && (
           <Checkbox
+            disabled={!runtimeAvailable}
             checked={remember}
             onCheckedChange={setRemember}
             label={t("approval.remember")}
@@ -222,7 +226,7 @@ export function ApprovalCard({
       {/* Scope picker — only meaningful once "don't ask again" is on. Session
           keys the rule to this session, project to this folder, global everywhere. */}
       {rememberable && remember && (
-        <div className="mt-2 flex justify-end">
+        <fieldset disabled={!runtimeAvailable} className="mt-2 flex justify-end">
           <Segmented
             value={rememberScope}
             options={[
@@ -233,7 +237,7 @@ export function ApprovalCard({
             onChange={setRememberScope}
             ariaLabel={t("approval.remember.scope")}
           />
-        </div>
+        </fieldset>
       )}
     </HitlCardShell>
   );

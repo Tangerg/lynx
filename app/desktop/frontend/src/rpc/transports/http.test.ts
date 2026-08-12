@@ -1,6 +1,6 @@
 import type { TransportRequest } from "../transport";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { RpcTransportError } from "../errors";
+import { RpcConnectionError, RpcTransportError } from "../errors";
 import type { WireMethodName } from "../wire.methods.generated";
 import { createHttpTransport } from "./http";
 
@@ -290,7 +290,7 @@ describe("HTTPTransport — streamable HTTP", () => {
       type: "streamEnd",
       method: "runs.start",
       requestRpcId: "1",
-      error: expect.any(Error),
+      error: expect.any(RpcConnectionError),
     });
   });
 

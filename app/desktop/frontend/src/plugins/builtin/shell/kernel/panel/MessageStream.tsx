@@ -18,6 +18,7 @@ import { Divider, Loader } from "@/ui";
 import { COMPOSER_CLEARANCE, READING_COLUMN, READING_GUTTER } from "./readingColumn";
 import { useIsCurrentRootRunning } from "@/plugins/builtin/agent/public/run";
 import { MessageBlock, RootRunOutcome } from "@/plugins/builtin/chat/message/public/rendering";
+import { transcriptTurnContentVisibility } from "./transcriptTurnContentVisibility";
 
 // Chat scroll surface, backed by use-stick-to-bottom. `resetKey`
 // re-keys the subtree on session switch so a new thread lands at the
@@ -168,11 +169,7 @@ const TranscriptTurn = memo(function TranscriptTurn({
         // clipped, and the turn's last row is a strip of round buttons deliberately
         // inset outward so their glyphs line up with the text. Against a box that
         // hugged the text they came out sliced.
-        className={cn(
-          READING_GUTTER,
-          TURN_GAP[gap],
-          "[content-visibility:auto] [contain-intrinsic-size:auto_220px]",
-        )}
+        className={cn(READING_GUTTER, TURN_GAP[gap], transcriptTurnContentVisibility(isLast))}
       >
         <MessageBlock row={row} ctx={ctx} isLast={isLast} isRunning={isRunning} />
       </motion.div>

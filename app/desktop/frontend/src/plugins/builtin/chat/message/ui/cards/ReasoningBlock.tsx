@@ -6,6 +6,7 @@ import { AgentActivityDisclosure } from "@/ui/agent";
 import { stopCurrentRootRun } from "@/plugins/builtin/agent/public/run";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/classNames";
+import { useRuntimeCommandsAvailable } from "@/plugins/builtin/runtime/public/serviceStatus";
 
 interface Props {
   text: string;
@@ -55,6 +56,7 @@ function lastLine(text: string): string {
 // fades ported from assistant-ui canonical reasoning component technique.
 export function ReasoningBlock({ text, status, superseded = false }: Props) {
   const t = useT();
+  const runtimeAvailable = useRuntimeCommandsAvailable();
   const streaming = status === "running";
   // null delegates to the domain policy; a boolean is the user's explicit
   // override. This is one state machine, not two booleans that can disagree.
@@ -181,6 +183,7 @@ export function ReasoningBlock({ text, status, superseded = false }: Props) {
           <Button
             variant="ghost"
             size="xs"
+            disabled={!runtimeAvailable}
             onClick={() => {
               stopCurrentRootRun();
             }}
