@@ -48,7 +48,7 @@ func (repository *recordingDraftRepository) snapshot() ([]draftSnapshot, int) {
 func TestDraftPersistenceSerializesAndCoalescesWrites(t *testing.T) {
 	repository := &recordingDraftRepository{first: make(chan struct{}), releaseFirst: make(chan struct{})}
 	results := make(chan draftPersistenceResult, 3)
-	persistence := newDraftPersistence(repository, 0, func(result draftPersistenceResult) { results <- result })
+	persistence := newDraftPersistence(repository, func(result draftPersistenceResult) { results <- result })
 	persistence.Schedule("session", agent.Message{Text: "first"})
 	select {
 	case <-repository.first:
@@ -80,10 +80,18 @@ func TestDraftPersistenceSerializesAndCoalescesWrites(t *testing.T) {
 }
 
 func TestDraftPersistenceFlushSupersedesPendingAutosave(t *testing.T) {
-	repository := &recordingDraftRepository{}
-	persistence := newDraftPersistence(repository, time.Hour, nil)
+	repository := &recordingDraftRepository{first: make(chan struct{}), releaseFirst: make(chan struct{})}
+	persistence := newDraftPersistence(repository, nil)
 	persistence.Schedule("session", agent.Message{Text: "pending"})
-	if err := persistence.Flush("session", agent.Message{Text: "barrier"}); err != nil {
+	select {
+	case <-repository.first:
+	case <-time.After(time.Second):
+		t.Fatal("pending autosave did not start")
+	}
+	flushed := make(chan error, 1)
+	go func() { flushed <- persistence.Flush("session", agent.Message{Text: "barrier"}) }()
+	close(repository.releaseFirst)
+	if err := <-flushed; err != nil {
 		t.Fatal(err)
 	}
 	if err := persistence.Close(); err != nil {
@@ -91,14 +99,14 @@ func TestDraftPersistenceFlushSupersedesPendingAutosave(t *testing.T) {
 	}
 
 	writes, maxActive := repository.snapshot()
-	if maxActive != 1 || len(writes) != 1 || writes[0].message.Text != "barrier" {
+	if maxActive != 1 || len(writes) != 2 || writes[0].message.Text != "pending" || writes[1].message.Text != "barrier" {
 		t.Fatalf("writes = %+v, max concurrency = %d", writes, maxActive)
 	}
 }
 
 func TestDraftPersistenceCloseFlushesPendingAutosave(t *testing.T) {
 	repository := &recordingDraftRepository{}
-	persistence := newDraftPersistence(repository, time.Hour, nil)
+	persistence := newDraftPersistence(repository, nil)
 	persistence.Schedule("session", agent.Message{Text: "last visible value"})
 	if err := persistence.Close(); err != nil {
 		t.Fatal(err)

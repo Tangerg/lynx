@@ -116,6 +116,7 @@ type app struct {
 	workbench      *workbench.Store
 	drafts         *draftPersistence
 	draftState     draftObservation
+	stopDraftSave  func()
 	editor         promptEditor
 
 	approval            *agent.Approval
@@ -274,7 +275,7 @@ func newApp(loop *program.Runtime, cfg appConfig) *app {
 		applicationKeys:    cfg.keyBindings.application,
 		globalKeys:         cfg.keyBindings.global,
 	}
-	a.drafts = newDraftPersistence(cfg.workbench, draftPersistenceDelay, func(result draftPersistenceResult) {
+	a.drafts = newDraftPersistence(cfg.workbench, func(result draftPersistenceResult) {
 		loop.Dispatcher().Post(func() {
 			if a.closed || !a.drafts.Current(result.revision) {
 				return
@@ -555,6 +556,7 @@ func (a *app) Close(ctx context.Context) {
 	a.operations.Cancel(completionOperation)
 	a.cancelPluginCommands()
 	a.operations.Close()
+	a.cancelScheduledDraftSave()
 	// Flush is a serialization barrier: any autosave already in the filesystem
 	// finishes first, then the last visible composer state is written last.
 	a.persistDraft()

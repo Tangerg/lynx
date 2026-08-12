@@ -10,7 +10,7 @@ import (
 )
 
 func (a *app) Handle(event input.Event) bool {
-	defer a.observeDraftPersistence()
+	defer a.scheduleDraftPersistence()
 	a.observeAttention(event)
 	matched, handled := a.matchConfiguredAction(event)
 	if handled {

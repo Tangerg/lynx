@@ -326,6 +326,7 @@ func (a *app) rememberPrompt(message agent.Message) {
 }
 
 func (a *app) persistDraft() {
+	a.cancelScheduledDraftSave()
 	message, _, err := a.currentDraft()
 	if err == nil {
 		err = a.saveDraft(message)
@@ -333,23 +334,40 @@ func (a *app) persistDraft() {
 	a.reportWorkbenchError(err)
 }
 
-// observeDraftPersistence compares complete authoring values, so navigation,
-// modal input, and focus changes do not create filesystem work.
-func (a *app) observeDraftPersistence() {
-	message, _, err := a.currentDraft()
-	if err != nil {
-		a.reportWorkbenchError(err)
+// scheduleDraftPersistence marks authoring input in constant time. The complete
+// message is captured only after the input burst settles, so editing a long
+// prompt does not rebuild and clone its entire value after every key.
+func (a *app) scheduleDraftPersistence() {
+	if a.drafts == nil || a.session.ID == "" || a.closed {
 		return
 	}
-	if a.draftState.Observe(a.session.ID, message) {
-		a.drafts.Schedule(a.session.ID, message)
+	a.cancelScheduledDraftSave()
+	a.stopDraftSave = a.loop.After(draftPersistenceDelay, func() {
+		a.stopDraftSave = nil
+		message, _, err := a.currentDraft()
+		if err != nil {
+			a.reportWorkbenchError(err)
+			return
+		}
+		if a.draftState.Observe(a.session.ID, message) {
+			a.drafts.Schedule(a.session.ID, message)
+		}
+	})
+}
+
+func (a *app) cancelScheduledDraftSave() {
+	if a.stopDraftSave == nil {
+		return
 	}
+	a.stopDraftSave()
+	a.stopDraftSave = nil
 }
 
 func (a *app) saveDraft(message agent.Message) error {
 	if a.drafts == nil || a.session.ID == "" {
 		return nil
 	}
+	a.cancelScheduledDraftSave()
 	a.draftState.Reset(a.session.ID, message)
 	return a.drafts.Flush(a.session.ID, message)
 }
