@@ -273,6 +273,82 @@ func TestPendingAgentMemoryReviewRequiresResizeSafeConfirmation(t *testing.T) {
 	stop()
 }
 
+func TestAgentMemoryEditPinAndDeleteRoundTripThroughAuthoritativeReads(t *testing.T) {
+	memory := newAgentMemoryServiceStub()
+	host, stop := runUIWithRuntimeServices(t, Config{
+		Runtime: mock.New(), Workspace: "/workspace", AgentMemory: memory,
+	})
+	host.Shows(t, "Ask lyra")
+
+	host.Type("/memory-edit user mem_user")
+	host.Press(input.Enter)
+	host.Shows(t, "Edit agent memory · mem_user")
+	host.Send(input.Key{Code: input.Character, Rune: 'a', Mods: input.Alt})
+	host.Type("prefer explicit answers")
+	host.Press(input.Enter)
+	host.Type("with evidence")
+	if !host.Resize(1, 1) || !host.Repaint() || !host.Resize(96, 28) {
+		t.Fatal("agent memory editor did not survive a minimal viewport")
+	}
+	host.Send(input.Key{Code: input.Character, Rune: 's', Mods: input.Ctrl})
+	host.Shows(t, "Agent memory · user")
+	host.Shows(t, "prefer explicit answers")
+	items, err := memory.Items(t.Context(), agentmemory.Target{Scope: agentmemory.User})
+	if err != nil || len(items) != 1 || items[0].Content != "prefer explicit answers\nwith evidence" {
+		t.Fatalf("edited user memory = (%+v, %v)", items, err)
+	}
+
+	host.Press(input.Esc)
+	host.Shows(t, "Ask lyra")
+	host.Type("/memory-unpin user mem_user")
+	host.Press(input.Enter)
+	host.Shows(t, "Agent memory · user")
+	items, err = memory.Items(t.Context(), agentmemory.Target{Scope: agentmemory.User})
+	if err != nil || len(items) != 1 || items[0].Pinned {
+		t.Fatalf("unpinned user memory = (%+v, %v)", items, err)
+	}
+
+	host.Press(input.Esc)
+	host.Shows(t, "Ask lyra")
+	host.Type("/memory-pin user mem_user")
+	host.Press(input.Enter)
+	host.Shows(t, "pinned")
+	items, err = memory.Items(t.Context(), agentmemory.Target{Scope: agentmemory.User})
+	if err != nil || len(items) != 1 || !items[0].Pinned {
+		t.Fatalf("pinned user memory = (%+v, %v)", items, err)
+	}
+
+	host.Press(input.Esc)
+	host.Shows(t, "Ask lyra")
+	host.Type("/memory-delete user mem_user")
+	host.Press(input.Enter)
+	host.Shows(t, "Delete agent memory")
+	if !host.Resize(1, 1) || !host.Repaint() || !host.Resize(96, 28) {
+		t.Fatal("agent memory deletion did not survive a minimal viewport")
+	}
+	host.Press(input.Down)
+	host.Press(input.Enter)
+	host.Shows(t, "No active or pending memory")
+	items, err = memory.Items(t.Context(), agentmemory.Target{Scope: agentmemory.User})
+	if err != nil || len(items) != 0 {
+		t.Fatalf("deleted user memory = (%+v, %v)", items, err)
+	}
+	stop()
+}
+
+func TestKnowledgeReadUsesTheRequestedScope(t *testing.T) {
+	knowledgeStore := newKnowledgeServiceStub()
+	host, stop := runUIWithRuntimeServices(t, Config{
+		Runtime: mock.New(), Workspace: "/workspace", Knowledge: knowledgeStore,
+	})
+	host.Shows(t, "Ask lyra")
+	host.Type("/knowledge-read home")
+	host.Press(input.Enter)
+	host.Shows(t, "LYRA.md · home")
+	host.Shows(t, "global preferences")
+	stop()
+}
+
 func TestKnowledgeEditorPreservesMultilineContentAcrossResize(t *testing.T) {
 	knowledgeStore := newKnowledgeServiceStub()
 	host, stop := runUIWithRuntimeServices(t, Config{

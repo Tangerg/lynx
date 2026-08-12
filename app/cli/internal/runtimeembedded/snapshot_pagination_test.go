@@ -121,3 +121,47 @@ func TestSnapshotResourcesRejectMultiStepCursorCycles(t *testing.T) {
 		})
 	}
 }
+
+func TestColdReadStabilityAllowsMeteringProgressOnly(t *testing.T) {
+	t.Parallel()
+	base := coldRead{runs: []protocol.RunRef{{
+		RunSummary: protocol.RunSummary{
+			ID: "run_1", SessionID: "ses_1", Status: protocol.RunStatusRunning,
+		},
+		ActiveSegmentID: "seg_1",
+		Limits:          &protocol.RunLimits{MaxSteps: 12},
+		ProtocolProfile: protocol.RunProtocolProfile{
+			RequiredFeatures: []protocol.RunProtocolFeature{protocol.RunProtocolFeatureSubagents},
+			InterruptTypes:   []protocol.InterruptType{protocol.InterruptApproval},
+		},
+	}}}
+
+	progressed := base
+	progressed.runs = append([]protocol.RunRef(nil), base.runs...)
+	progressed.runs[0].Metrics = protocol.RunMetrics{Steps: 3, ActiveDurationMillis: 250}
+	if !coldReadsAgree(base, progressed) {
+		t.Fatal("metering progress made an otherwise stable cold read disagree")
+	}
+
+	tests := []struct {
+		name   string
+		mutate func(*protocol.RunRef)
+	}{
+		{name: "lifecycle", mutate: func(run *protocol.RunRef) { run.Status = protocol.RunStatusWaiting }},
+		{name: "active segment", mutate: func(run *protocol.RunRef) { run.ActiveSegmentID = "seg_2" }},
+		{name: "limits", mutate: func(run *protocol.RunRef) { run.Limits = &protocol.RunLimits{MaxSteps: 24} }},
+		{name: "protocol profile", mutate: func(run *protocol.RunRef) {
+			run.ProtocolProfile.InterruptTypes = []protocol.InterruptType{protocol.InterruptQuestion}
+		}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			changed := base
+			changed.runs = append([]protocol.RunRef(nil), base.runs...)
+			test.mutate(&changed.runs[0])
+			if coldReadsAgree(base, changed) {
+				t.Fatal("lifecycle change was accepted as a stable cold read")
+			}
+		})
+	}
+}

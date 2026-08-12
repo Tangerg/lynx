@@ -1791,7 +1791,33 @@ func TestApprovalRememberScopeAppliesToLaterRuns(t *testing.T) {
 	if err != nil || len(rules) != 1 || rules[0].Scope != agent.RememberSession {
 		t.Fatalf("remembered rules = %+v, %v", rules, err)
 	}
+	host.Type("/rules")
+	host.Press(input.Enter)
+	host.Shows(t, "approval rules")
+	host.Shows(t, rules[0].ID)
+	host.Shows(t, "session  allow")
 
+	host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
+	stop()
+}
+
+func TestApprovalModeSelectionRoundTripsThroughTheRuntime(t *testing.T) {
+	backend := mock.New()
+	host, stop := runUIWith(t, backend)
+	host.Shows(t, "Ask lyra")
+	host.Type("/approval")
+	host.Press(input.Enter)
+	host.Shows(t, "Runtime approval mode")
+	host.Press(input.Enter)
+	host.Shows(t, "approval mode · safe")
+	mode, err := backend.GetApprovalMode(t.Context())
+	if err != nil || mode != agent.ApprovalModeSafe {
+		t.Fatalf("approval mode = (%q, %v)", mode, err)
+	}
+
+	host.Type("/rules")
+	host.Press(input.Enter)
+	host.Shows(t, "no remembered approval rules")
 	host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
 	stop()
 }

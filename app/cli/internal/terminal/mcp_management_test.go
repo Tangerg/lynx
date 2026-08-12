@@ -22,6 +22,7 @@ type mcpServiceStub struct {
 	mu          sync.Mutex
 	servers     []mcp.Server
 	created     chan mcp.Candidate
+	probed      chan mcp.Candidate
 	updated     chan mcp.ServerUpdate
 	deleted     chan string
 	reconnected chan string
@@ -38,7 +39,8 @@ func newMCPServiceStub() *mcpServiceStub {
 			Connection: mcp.Connection{Transport: mcp.StreamableHTTP, URL: "https://mcp.example/tools", AuthorizationMasked: "Bearer ****"},
 			State:      mcp.State{Type: mcp.Connected, ToolCount: &count},
 		}},
-		created: make(chan mcp.Candidate, 1), updated: make(chan mcp.ServerUpdate, 1),
+		created: make(chan mcp.Candidate, 1), probed: make(chan mcp.Candidate, 1),
+		updated: make(chan mcp.ServerUpdate, 1),
 		deleted: make(chan string, 1), reconnected: make(chan string, 1), now: time.Unix(100, 0),
 	}
 }
@@ -107,10 +109,11 @@ func (service *mcpServiceStub) DeleteServer(_ context.Context, name string) erro
 	return errors.New("server not found")
 }
 
-func (*mcpServiceStub) TestServer(_ context.Context, candidate mcp.Candidate) (mcp.TestResult, error) {
+func (service *mcpServiceStub) TestServer(_ context.Context, candidate mcp.Candidate) (mcp.TestResult, error) {
 	if err := candidate.Validate(); err != nil {
 		return mcp.TestResult{}, err
 	}
+	service.probed <- candidate.Clone()
 	return mcp.TestResult{OK: true}, nil
 }
 
@@ -260,6 +263,37 @@ func TestMCPReadersFormsAndLifecycleCommands(t *testing.T) {
 	host.Shows(t, "deleting MCP server docs accepted")
 	if deleted := <-service.deleted; deleted != "docs" {
 		t.Fatalf("deleted = %q", deleted)
+	}
+	stop()
+}
+
+func TestMCPProbeValidatesAnUnpersistedCandidateAcrossResize(t *testing.T) {
+	service := newMCPServiceStub()
+	host, stop := runUIWithRuntimeServices(t, Config{Runtime: mock.New(), MCP: service})
+	host.Shows(t, "Ask lyra")
+	host.Type("/mcp-probe")
+	host.Press(input.Enter)
+	host.Shows(t, "Test MCP candidate · 1/3")
+	host.Type("probe-docs")
+	host.Press(input.Enter)
+	host.Shows(t, "Test MCP candidate · 2/3")
+	host.Type("https://probe.example/tools")
+	if !host.Resize(1, 1) || !host.Repaint() || !host.Resize(96, 28) {
+		t.Fatal("MCP probe form did not survive a minimal viewport")
+	}
+	host.Shows(t, "Test MCP candidate · 2/3")
+	host.Press(input.Enter)
+	host.Shows(t, "Test MCP candidate · 3/3")
+	host.Press(input.Enter)
+	host.Shows(t, "MCP candidate is reachable · probe-docs")
+	probed := awaitValue(t, service.probed, "MCP candidate probe")
+	if probed.Name != "probe-docs" || probed.Connection.Transport != mcp.StreamableHTTP ||
+		probed.Connection.URL != "https://probe.example/tools" {
+		t.Fatalf("probed MCP candidate = %+v", probed)
+	}
+	servers, err := service.Servers(t.Context())
+	if err != nil || len(servers) != 1 || servers[0].Name != "docs" {
+		t.Fatalf("MCP probe persisted candidate: servers=(%+v, %v)", servers, err)
 	}
 	stop()
 }

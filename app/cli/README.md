@@ -87,7 +87,7 @@ Architecture tests prevent the domain from importing Cobra, Viper, oolong, rende
 - map waiting, finished, stale-segment, invalid-cursor, and replay-unavailable errors by identity so the client can switch to cold recovery;
 - consume an entire pending interrupt set in one resume and preserve provider/model pairing plus run limits;
 - bind steering to the exact observed segment, and consume runtime-native session export, import, and rollback without duplicating the artifact schema outside the adapter;
-- negotiate the CLI's exact Run Protocol profile (`approval` and `question` interrupts, without `subagents` or `clientTools`) and reject an incompatible existing Run at the adapter boundary;
+- negotiate the CLI's exact Run Protocol profile (`approval` and `question` interrupts with `subagents`, while leaving `clientTools` disabled) and reject an incompatible existing Run at the adapter boundary;
 - map authoritative item/state events into the domain projection while treating item deltas as disposable previews whose completed Item remains the terminal source of truth;
 - project workspace catalog, change, diff, file, preview, and grep resources without exposing protocol DTOs, and negotiate runtime invalidation topics before subscribing;
 - reconcile session, run, state, and interrupt invalidations through authoritative cold reads while deferring replacement until an active stream releases projection ownership;
