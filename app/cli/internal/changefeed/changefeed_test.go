@@ -1,6 +1,7 @@
 package changefeed
 
 import (
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
@@ -154,6 +155,98 @@ func TestSubscriptionLimitsRejectUnrepresentableWorkspaceObservation(t *testing.
 	if _, err := (SubscriptionLimits{MaxTopics: 1, MaxWatches: 1}).Partition(requested); err == nil ||
 		!strings.Contains(err.Error(), "workspace observation") {
 		t.Fatalf("Partition error = %v, want workspace observation failure", err)
+	}
+}
+
+func TestSubscriptionLimitsPreserveEveryDeliveryInvariant(t *testing.T) {
+	t.Parallel()
+	optional := []Topic{SessionsChanged, RunsChanged, KnowledgeChanged, HooksChanged}
+	for mask := 0; mask < 1<<len(optional); mask++ {
+		topics := []Topic{FilesChanged}
+		for index, topic := range optional {
+			if mask&(1<<index) != 0 {
+				topics = append(topics, topic)
+			}
+		}
+		for watchCount := 1; watchCount <= 3; watchCount++ {
+			watches := make([]Watch, watchCount)
+			for index := range watches {
+				watches[index] = Watch{ID: fmt.Sprintf("watch-%d", index), Workspace: fmt.Sprintf("/workspace/%d", index)}
+			}
+			requested := Subscription{Topics: topics, Watches: watches}
+			for topicLimit := 1; topicLimit <= len(topics); topicLimit++ {
+				for watchLimit := 1; watchLimit <= watchCount; watchLimit++ {
+					name := fmt.Sprintf("mask-%02x/watches-%d/topics-%d/watch-limit-%d", mask, watchCount, topicLimit, watchLimit)
+					t.Run(name, func(t *testing.T) {
+						partitions, err := (SubscriptionLimits{MaxTopics: topicLimit, MaxWatches: watchLimit}).Partition(requested)
+						observed := workspaceObservedTopics(topics)
+						if len(observed) > 0 && topicLimit == 1 {
+							if err == nil {
+								t.Fatalf("unrepresentable workspace observation produced %+v", partitions)
+							}
+							return
+						}
+						if err != nil {
+							t.Fatal(err)
+						}
+						assertPartitionDeliveryInvariants(t, requested, partitions, topicLimit, watchLimit)
+					})
+				}
+			}
+		}
+	}
+}
+
+func assertPartitionDeliveryInvariants(
+	t *testing.T,
+	requested Subscription,
+	partitions []Subscription,
+	topicLimit int,
+	watchLimit int,
+) {
+	t.Helper()
+	if len(partitions) == 0 {
+		t.Fatal("partitioning returned no subscriptions")
+	}
+	for index, partition := range partitions {
+		if err := partition.Validate(); err != nil {
+			t.Fatalf("partition %d is invalid: %v", index, err)
+		}
+		if len(partition.Topics) > topicLimit || len(partition.Watches) > watchLimit {
+			t.Fatalf("partition %d exceeds limits: %+v", index, partition)
+		}
+		for _, topic := range partition.Topics {
+			if !slices.Contains(requested.Topics, topic) {
+				t.Fatalf("partition %d introduced topic %q", index, topic)
+			}
+		}
+		for _, watch := range partition.Watches {
+			if !slices.Contains(requested.Watches, watch) {
+				t.Fatalf("partition %d introduced watch %+v", index, watch)
+			}
+		}
+	}
+	for _, topic := range requested.Topics {
+		if !slices.ContainsFunc(partitions, func(partition Subscription) bool {
+			return slices.Contains(partition.Topics, topic)
+		}) {
+			t.Fatalf("topic %q was dropped by %+v", topic, partitions)
+		}
+	}
+	for _, watch := range requested.Watches {
+		if !slices.ContainsFunc(partitions, func(partition Subscription) bool {
+			return slices.Contains(partition.Watches, watch)
+		}) {
+			t.Fatalf("watch %+v was dropped by %+v", watch, partitions)
+		}
+		for _, topic := range workspaceObservedTopics(requested.Topics) {
+			if !slices.ContainsFunc(partitions, func(partition Subscription) bool {
+				return slices.Contains(partition.Watches, watch) &&
+					slices.Contains(partition.Topics, FilesChanged) && slices.Contains(partition.Topics, topic)
+			}) {
+				t.Fatalf("workspace observation %s × %s was split: %+v", watch.ID, topic, partitions)
+			}
+		}
 	}
 }
 
