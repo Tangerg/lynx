@@ -69,6 +69,19 @@ func (c Conversation) Append(messages ...chat.Message) (Conversation, error) {
 // matching the provider-neutral conversation protocol. A resolved call ID may
 // be reused by a later generation without reopening the former generation.
 func (c Conversation) CloseOpenToolCalls(result string) (Conversation, []chat.Message, error) {
+	return c.CloseOpenToolCallsWithResults(result, nil)
+}
+
+// CloseOpenToolCallsWithResults is CloseOpenToolCalls with authoritative
+// results for calls that completed out of order but could not yet be appended.
+// Every supplied result must match the latest unresolved generation. The final
+// Tool message follows provider call order and fills only the remaining calls
+// with the fallback error, so a terminal boundary preserves known output
+// without leaving a malformed model history.
+func (c Conversation) CloseOpenToolCallsWithResults(
+	result string,
+	completed []chat.ToolResult,
+) (Conversation, []chat.Message, error) {
 	type openCall struct {
 		call       chat.ToolCall
 		generation int
@@ -90,7 +103,18 @@ func (c Conversation) CloseOpenToolCalls(result string) (Conversation, []chat.Me
 			}
 		}
 	}
-	if len(open) == 0 {
+	known := make(map[string]chat.ToolResult, len(completed))
+	for _, toolResult := range completed {
+		if _, duplicate := known[toolResult.ID]; duplicate {
+			return Conversation{}, nil, fmt.Errorf(
+				"%w: completed ToolResult %q is repeated",
+				ErrInvalid,
+				toolResult.ID,
+			)
+		}
+		known[toolResult.ID] = toolResult
+	}
+	if len(open) == 0 && len(known) == 0 {
 		return c, nil, nil
 	}
 	results := make([]chat.ToolResult, 0, len(open))
@@ -99,10 +123,33 @@ func (c Conversation) CloseOpenToolCalls(result string) (Conversation, []chat.Me
 		if !present || current != unresolved.generation {
 			continue
 		}
+		if completedResult, ok := known[unresolved.call.ID]; ok {
+			if completedResult.Name != unresolved.call.Name {
+				return Conversation{}, nil, fmt.Errorf(
+					"%w: completed ToolResult %q names %q, want %q",
+					ErrInvalid,
+					completedResult.ID,
+					completedResult.Name,
+					unresolved.call.Name,
+				)
+			}
+			results = append(results, completedResult)
+			delete(known, unresolved.call.ID)
+			continue
+		}
 		results = append(results, chat.ToolResult{
 			ID: unresolved.call.ID, Name: unresolved.call.Name,
 			Result: result, IsError: true,
 		})
+	}
+	if len(known) != 0 {
+		for id := range known {
+			return Conversation{}, nil, fmt.Errorf(
+				"%w: completed ToolResult %q has no unresolved ToolCall",
+				ErrInvalid,
+				id,
+			)
+		}
 	}
 	if len(results) == 0 {
 		return c, nil, nil

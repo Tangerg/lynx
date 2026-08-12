@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/accounting"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/conversation"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
@@ -236,6 +237,92 @@ func TestReducerProjectsModelToolContextWithProviderCallIdentity(t *testing.T) {
 	result := toolMessages[0].Parts[0].ToolResult
 	if result == nil || result.ID != call.ID || result.Name != call.Name || result.Result != "contents" || result.IsError {
 		t.Fatalf("Tool result = %#v, want provider identity and successful output", result)
+	}
+}
+
+func TestReducerTerminalClosesProviderToolCallCanceledBeforeRuntimeStart(t *testing.T) {
+	reducer := newReducer(testReducerConfig())
+	first := corechat.ToolCall{ID: "provider_first", Name: "glob", Arguments: `{"pattern":"**/*"}`}
+	second := corechat.ToolCall{ID: "provider_second", Name: "search_tools", Arguments: `{"query":"lookup"}`}
+	mustReduce(t, reducer, ModelCallStarted{CallID: "model_call_1"})
+	modelBatch := mustReduce(t, reducer, ModelCallCompleted{
+		CallID: "model_call_1",
+		Message: corechat.NewAssistantMessage(
+			corechat.NewToolCallPart(first),
+			corechat.NewToolCallPart(second),
+		),
+		Steps: 1,
+	})
+
+	mustReduce(t, reducer, ToolCallStarted{
+		CallID: "runtime_first", SourceCallID: first.ID,
+		ModelCallSequence: 1, ToolCallIndex: 0,
+		ToolName: first.Name, Arguments: first.Arguments,
+	})
+	toolBatch := mustReduce(t, reducer, ToolCallFinished{
+		CallID: "runtime_first", Result: testToolResult(t, "first result"),
+	})
+	terminalBatch := mustReduce(t, reducer, SegmentEnded{Reason: run.OutcomeCanceled})
+	terminalMessages := committedConversationMessages(terminalBatch)
+	if len(terminalMessages) != 1 || terminalMessages[0].Role != corechat.RoleTool ||
+		len(terminalMessages[0].Parts) != 1 {
+		t.Fatalf("terminal conversation closure = %#v, want one Tool result", terminalMessages)
+	}
+	result := terminalMessages[0].Parts[0].ToolResult
+	if result == nil || result.ID != second.ID || result.Name != second.Name || !result.IsError ||
+		!strings.Contains(result.Result, "canceled") {
+		t.Fatalf("terminal Tool result = %#v, want canceled %q", result, second.ID)
+	}
+
+	allMessages := append(committedConversationMessages(modelBatch), committedConversationMessages(toolBatch)...)
+	allMessages = append(allMessages, terminalMessages...)
+	history, err := conversation.New(allMessages)
+	if err != nil {
+		t.Fatalf("terminal conversation: %v", err)
+	}
+	_, stillOpen, err := history.CloseOpenToolCalls("still open")
+	if err != nil || len(stillOpen) != 0 {
+		t.Fatalf("terminal conversation left open Tool calls: messages=%#v err=%v", stillOpen, err)
+	}
+}
+
+func TestReducerTerminalPreservesCompletedOutOfOrderToolResult(t *testing.T) {
+	reducer := newReducer(testReducerConfig())
+	calls := []corechat.ToolCall{
+		{ID: "provider_first", Name: "first", Arguments: `{}`},
+		{ID: "provider_second", Name: "second", Arguments: `{}`},
+	}
+	mustReduce(t, reducer, ModelCallStarted{CallID: "model_call_1"})
+	mustReduce(t, reducer, ModelCallCompleted{
+		CallID: "model_call_1",
+		Message: corechat.NewAssistantMessage(
+			corechat.NewToolCallPart(calls[0]),
+			corechat.NewToolCallPart(calls[1]),
+		),
+		Steps: 1,
+	})
+	for index, call := range calls {
+		mustReduce(t, reducer, ToolCallStarted{
+			CallID: "runtime_" + call.Name, SourceCallID: call.ID,
+			ModelCallSequence: 1, ToolCallIndex: uint32(index),
+			ToolName: call.Name, Arguments: call.Arguments,
+		})
+	}
+	if messages := committedConversationMessages(mustReduce(t, reducer, ToolCallFinished{
+		CallID: "runtime_second", Result: testToolResult(t, "known second"),
+	})); len(messages) != 0 {
+		t.Fatalf("out-of-order Tool result committed before its prefix: %#v", messages)
+	}
+
+	terminal := committedConversationMessages(mustReduce(t, reducer, SegmentEnded{Reason: run.OutcomeCanceled}))
+	if len(terminal) != 1 || len(terminal[0].Parts) != 2 {
+		t.Fatalf("terminal conversation closure = %#v, want two ordered results", terminal)
+	}
+	first := terminal[0].Parts[0].ToolResult
+	second := terminal[0].Parts[1].ToolResult
+	if first == nil || first.ID != calls[0].ID || !first.IsError ||
+		second == nil || second.ID != calls[1].ID || second.IsError || second.Result != "known second" {
+		t.Fatalf("terminal results = %#v, want canceled first then known second", terminal[0].Parts)
 	}
 }
 
@@ -1128,7 +1215,8 @@ func TestReducerTerminalSynthesisClosesUnrestartedResumeTool(t *testing.T) {
 			RunID: "run_1",
 			DrainedTools: []DrainedTool{{
 				ItemID: "item_original", ItemOccurredAt: itemOccurredAt,
-				CallID: "old_call", Name: "shell", Arguments: `{"command":"pwd"}`,
+				CallID: "old_call", SourceCallID: "provider_original",
+				Name: "shell", Arguments: `{"command":"pwd"}`,
 			}},
 		}},
 	})
@@ -1152,6 +1240,13 @@ func TestReducerTerminalSynthesisClosesUnrestartedResumeTool(t *testing.T) {
 	}
 	if duration, known := settled.ExecutionDuration(); known {
 		t.Fatalf("unrestarted resume Tool fabricated execution duration %v", duration)
+	}
+	closure := committedConversationMessages(testReductions(batch))
+	if len(closure) != 1 || len(closure[0].Parts) != 1 ||
+		closure[0].Parts[0].ToolResult == nil ||
+		closure[0].Parts[0].ToolResult.ID != "provider_original" ||
+		!closure[0].Parts[0].ToolResult.IsError {
+		t.Fatalf("unrestarted resume Tool conversation closure = %#v", closure)
 	}
 }
 

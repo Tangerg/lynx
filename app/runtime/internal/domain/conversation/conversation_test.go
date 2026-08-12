@@ -83,3 +83,29 @@ func TestCloseOpenToolCallsIsNoOpWhenConversationIsClosed(t *testing.T) {
 		t.Fatalf("closed/appended/error = %#v/%#v/%v", closed.Messages(), appended, err)
 	}
 }
+
+func TestCloseOpenToolCallsWithResultsPreservesProviderOrder(t *testing.T) {
+	history, err := New([]chat.Message{chat.NewAssistantMessage(
+		chat.NewToolCallPart(chat.ToolCall{ID: "first", Name: "read", Arguments: `{}`}),
+		chat.NewToolCallPart(chat.ToolCall{ID: "second", Name: "glob", Arguments: `{}`}),
+	)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	closed, appended, err := history.CloseOpenToolCallsWithResults(
+		"canceled",
+		[]chat.ToolResult{{ID: "second", Name: "glob", Result: "known"}},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if closed.Count() != 2 || len(appended) != 1 || len(appended[0].Parts) != 2 {
+		t.Fatalf("closed/appended = %d/%#v", closed.Count(), appended)
+	}
+	first := appended[0].Parts[0].ToolResult
+	second := appended[0].Parts[1].ToolResult
+	if first == nil || first.ID != "first" || !first.IsError || first.Result != "canceled" ||
+		second == nil || second.ID != "second" || second.IsError || second.Result != "known" {
+		t.Fatalf("ordered terminal results = %#v", appended[0].Parts)
+	}
+}
