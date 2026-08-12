@@ -3,6 +3,7 @@ package runtimeembedded
 import (
 	"context"
 	"errors"
+	"fmt"
 	"iter"
 	"testing"
 	"time"
@@ -216,6 +217,10 @@ func TestRunAdaptersRejectMismatchedAcknowledgements(t *testing.T) {
 }
 
 func TestResumeAndCancelMapControlContracts(t *testing.T) {
+	override, err := agent.ParseToolArgumentOverride([]byte(`{"command":"go test -race ./...","count":9007199254740993}`))
+	if err != nil {
+		t.Fatal(err)
+	}
 	stub := runBindingStub{}
 	stub.resume = func(_ context.Context, request protocol.ResumeRunRequest, options embedded.RunCommandOptions) (*protocol.ResumeRunResponse, iter.Seq2[protocol.RunEvent, error], error) {
 		if options.IdempotencyKey == "" || request.RunID != "run_1" || len(request.Responses) != 1 {
@@ -224,7 +229,9 @@ func TestResumeAndCancelMapControlContracts(t *testing.T) {
 		answer := request.Responses[0]
 		if answer.ItemID != "item_approval" || answer.Response.Type != protocol.InterruptResponseApproval ||
 			answer.Response.Decision != protocol.ApprovalApprove || answer.Response.Remember == nil ||
-			answer.Response.Remember.Scope != protocol.RememberProject {
+			answer.Response.Remember.Scope != protocol.RememberProject ||
+			answer.Response.EditedArgs["command"] != "go test -race ./..." ||
+			fmt.Sprint(answer.Response.EditedArgs["count"]) != "9007199254740993" {
 			t.Fatalf("resume answer = %+v", answer)
 		}
 		return &protocol.ResumeRunResponse{RunID: request.RunID, SegmentID: "seg_2"}, func(func(protocol.RunEvent, error) bool) {}, nil
@@ -245,7 +252,9 @@ func TestResumeAndCancelMapControlContracts(t *testing.T) {
 	resumed, err := runtime.ResumeRun(t.Context(), agent.ResumeRun{
 		RunID: "run_1", Answers: []agent.InterruptAnswer{{
 			ItemID: "item_approval",
-			Answer: agent.ApprovalAnswer{Decision: agent.ApprovalApprove, Remember: agent.RememberProject},
+			Answer: agent.ApprovalAnswer{
+				Decision: agent.ApprovalApprove, Remember: agent.RememberProject, ArgumentOverride: override,
+			},
 		}},
 	})
 	if err != nil {
@@ -261,6 +270,28 @@ func TestResumeAndCancelMapControlContracts(t *testing.T) {
 	if !canceled.Canceled.Equal(canceled.Root) || canceled.Canceled.Status != agent.RunStatusFinished ||
 		canceled.Canceled.Outcome.Status != agent.OutcomeCanceled || canceled.Canceled.Outcome.Detail != "stop" {
 		t.Fatalf("canceled = %+v", canceled)
+	}
+}
+
+func TestProjectAnswerMapsRememberedDenial(t *testing.T) {
+	t.Parallel()
+	projected, err := projectAnswer(agent.InterruptAnswer{
+		ItemID: "item_denial",
+		Answer: agent.ApprovalAnswer{
+			Decision: agent.ApprovalDeny, Remember: agent.RememberGlobal, Reason: "protect generated files",
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := projected.Response.ValidateWire(); err != nil {
+		t.Fatalf("projected denial violates runtime wire contract: %v", err)
+	}
+	if projected.Response.Type != protocol.InterruptResponseApproval ||
+		projected.Response.Decision != protocol.ApprovalDeny || projected.Response.Remember == nil ||
+		projected.Response.Remember.Scope != protocol.RememberGlobal ||
+		projected.Response.Reason != "protect generated files" || projected.Response.EditedArgs != nil {
+		t.Fatalf("projected denial = %+v", projected)
 	}
 }
 

@@ -129,6 +129,9 @@ func (r *Runtime) completeApprovalItemsLocked(run *runState, answers []agent.Int
 		}
 		tool := cloneTool(approval.Tool)
 		tool.Status = agent.ToolOK
+		if answer.ArgumentOverride != nil {
+			tool.ArgumentsJSON = answer.ArgumentOverride.JSON()
+		}
 		if answer.Decision == agent.ApprovalDeny {
 			tool.Status = agent.ToolError
 			tool.Output = strings.TrimSpace(answer.Reason)

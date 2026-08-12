@@ -121,8 +121,12 @@ type app struct {
 	editor         promptEditor
 
 	approval            *agent.Approval
-	approvalChoice      string
+	approvalChoice      approvalAction
 	approvalReason      string
+	approvalArguments   string
+	approvalOverride    *agent.ToolArgumentOverride
+	approvalSections    []ToolSection
+	approvalEditor      *contextEditorSession
 	approvalForm        *headless.Form
 	approvalPane        approvalPane
 	approvalDialog      *kit.Dialog
@@ -142,7 +146,7 @@ type app struct {
 	providerDialog      *kit.Dialog
 	mcpDialog           *kit.Dialog
 	scheduleDialog      *kit.Dialog
-	contextEditorDialog *kit.Dialog
+	activeContextEditor *contextEditorSession
 	questionnaire       *questionnaire
 	questionDialog      *kit.Dialog
 	interactionReview   *interactionReview

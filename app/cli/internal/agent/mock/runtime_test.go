@@ -429,6 +429,60 @@ func TestScriptContinuationReceivesFixtureLocalItemIDs(t *testing.T) {
 	}
 }
 
+func TestApprovalArgumentOverrideBecomesTheCompletedToolProjection(t *testing.T) {
+	runtime := New()
+	runtime.Instant = true
+	original := []byte(`{"command":"rm generated.txt"}`)
+	runtime.Script = func(string) Script {
+		return Script{
+			Interactions: []agent.Interaction{agent.Approval{
+				ItemID: "approval", Title: "Run command",
+				Tool: &agent.ToolCall{
+					Kind: agent.ToolShell, Name: "shell", Status: agent.ToolRunning, ArgumentsJSON: original,
+				},
+			}},
+			Continue: func([]agent.InterruptAnswer) []Step {
+				return []Step{{Event: agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCompleted}}}}
+			},
+		}
+	}
+	session, _ := runtime.CreateSession(t.Context(), agent.CreateSession{Workspace: "/tmp/mock"})
+	opened, err := runtime.StartRun(t.Context(), agent.StartRun{
+		SessionID: session.ID, Message: agent.Message{Text: "run safely"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	conversation := agent.NewConversation()
+	drain(t, opened, conversation)
+	interaction := conversation.Interactions()[0]
+	override, err := agent.ParseToolArgumentOverride([]byte(`{"command":"echo safe"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	continued, err := runtime.ResumeRun(t.Context(), agent.ResumeRun{
+		RunID: opened.RunID, Answers: []agent.InterruptAnswer{{
+			ItemID: agent.InteractionItemID(interaction),
+			Answer: agent.ApprovalAnswer{Decision: agent.ApprovalApprove, ArgumentOverride: override},
+		}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	drain(t, continued, conversation)
+	snapshot, err := runtime.GetSession(t.Context(), session.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	completed, ok := snapshotBlock(snapshot, opened.RunID, agent.InteractionItemID(interaction))
+	if !ok || completed.Tool == nil || string(completed.Tool.ArgumentsJSON) != `{"command":"echo safe"}` {
+		t.Fatalf("completed edited tool = %+v", completed)
+	}
+	if string(original) != `{"command":"rm generated.txt"}` {
+		t.Fatalf("mock mutated fixture arguments: %s", original)
+	}
+}
+
 func TestInvalidFaultConfigurationDoesNotMutateRunState(t *testing.T) {
 	runtime := New()
 	runtime.Faults = []SubscriptionFault{{Kind: FaultKind("unknown"), After: 1}}

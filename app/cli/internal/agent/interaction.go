@@ -231,6 +231,14 @@ func (a ApprovalAnswer) Validate() error {
 	if !slices.Contains([]RememberScope{RememberNone, RememberSession, RememberProject, RememberGlobal}, a.Remember) {
 		return fmt.Errorf("approval answer: remember scope %q is invalid", a.Remember)
 	}
+	if a.ArgumentOverride != nil {
+		if a.Decision != ApprovalApprove {
+			return errors.New("approval answer: denied tool carries an argument override")
+		}
+		if err := a.ArgumentOverride.Validate(); err != nil {
+			return fmt.Errorf("approval answer: %w", err)
+		}
+	}
 	return nil
 }
 
@@ -329,6 +337,7 @@ func CloneInteractions(interactions []Interaction) []Interaction {
 func CloneAnswer(answer Answer) Answer {
 	switch item := answer.(type) {
 	case ApprovalAnswer:
+		item.ArgumentOverride = item.ArgumentOverride.Clone()
 		return item
 	case QuestionAnswer:
 		cloned := item

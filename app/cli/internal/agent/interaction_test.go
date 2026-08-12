@@ -25,6 +25,31 @@ func TestApprovalHonorsRememberable(t *testing.T) {
 	if err := ValidateAnswer(approval, ApprovalAnswer{Decision: ApprovalApprove, Remember: RememberProject}); err != nil {
 		t.Fatal(err)
 	}
+	if err := ValidateAnswer(approval, ApprovalAnswer{Decision: ApprovalDeny, Remember: RememberSession}); err != nil {
+		t.Fatalf("remembered denial was rejected: %v", err)
+	}
+}
+
+func TestApprovalAnswerOwnsOnlyApprovedArgumentOverrides(t *testing.T) {
+	t.Parallel()
+	approval := runningApproval("a_1", "shell")
+	override, err := ParseToolArgumentOverride([]byte(`{"command":"go test ./..."}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	approved := ApprovalAnswer{Decision: ApprovalApprove, ArgumentOverride: override}
+	if err := ValidateAnswer(approval, approved); err != nil {
+		t.Fatal(err)
+	}
+	cloned := CloneAnswer(approved).(ApprovalAnswer)
+	if cloned.ArgumentOverride == approved.ArgumentOverride || !cloned.ArgumentOverride.Equal(approved.ArgumentOverride) {
+		t.Fatal("approval answer did not deep-clone its argument override")
+	}
+	denied := approved
+	denied.Decision = ApprovalDeny
+	if err := ValidateAnswer(approval, denied); err == nil {
+		t.Fatal("denied approval retained an argument override")
+	}
 }
 
 func runningApproval(itemID, title string) Approval {

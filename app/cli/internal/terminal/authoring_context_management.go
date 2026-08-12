@@ -104,11 +104,12 @@ func (a *app) PrepareRecipe(argument string) error {
 				a.message("prepare recipe failed: " + err.Error())
 				return
 			}
-			a.openContextEditor(
-				"Recipe · "+expanded.recipe.Name,
-				"Review the expanded prompt. Enter inserts a newline; Ctrl+S sends or queues it.",
-				expanded.prompt, "Expanded prompt",
-				func(content string, complete func(error) bool) error {
+			a.openContextEditor(contextEditorRequest{
+				Title:       "Recipe · " + expanded.recipe.Name,
+				Description: "Review the expanded prompt. Enter inserts a newline; Ctrl+S sends or queues it.",
+				Content:     expanded.prompt,
+				Placeholder: "Expanded prompt",
+				Save: func(content string, complete func(error) bool) error {
 					if strings.TrimSpace(content) == "" {
 						return errors.New("recipe prompt is empty")
 					}
@@ -116,7 +117,7 @@ func (a *app) PrepareRecipe(argument string) error {
 					a.dispatchPrompt(agent.Message{Text: content})
 					return nil
 				},
-			)
+			})
 		},
 	) {
 		return errors.New("another authoring context operation is running")

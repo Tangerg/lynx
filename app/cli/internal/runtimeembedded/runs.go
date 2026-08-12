@@ -118,6 +118,13 @@ func projectAnswer(value agent.InterruptAnswer) (protocol.InterruptResponse, err
 		response.Response.Type = protocol.InterruptResponseApproval
 		response.Response.Decision = protocol.ApprovalDecision(answer.Decision)
 		response.Response.Reason = answer.Reason
+		if answer.ArgumentOverride != nil {
+			arguments, err := answer.ArgumentOverride.Object()
+			if err != nil {
+				return protocol.InterruptResponse{}, fmt.Errorf("answer for item %s: %w", value.ItemID, err)
+			}
+			response.Response.EditedArgs = arguments
+		}
 		if answer.Remember != agent.RememberNone {
 			response.Response.Remember = &protocol.RememberScope{Scope: protocol.RememberScopeKind(answer.Remember)}
 		}

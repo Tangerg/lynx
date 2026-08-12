@@ -991,6 +991,63 @@ func TestMatchingInterruptInvalidationPreservesTheOpenApproval(t *testing.T) {
 	stop()
 }
 
+func TestAdvancedInterruptInvalidationClosesTheApprovalArgumentEditor(t *testing.T) {
+	base := mock.New()
+	base.Instant = true
+	base.Script = func(string) mock.Script {
+		return mock.Script{
+			Interactions: []agent.Interaction{agent.Approval{
+				ItemID: "approval_editor_invalidation", Title: "Run generated command",
+				Tool: &agent.ToolCall{
+					Kind: agent.ToolShell, Name: "shell", Command: "go test ./...", Status: agent.ToolRunning,
+					ArgumentsJSON: []byte(`{"command":"go test ./..."}`),
+				},
+			}},
+			Continue: func([]agent.InterruptAnswer) []mock.Step {
+				return []mock.Step{{Event: agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCompleted}}}}
+			},
+		}
+	}
+	backend := &snapshotCountingRuntime{Runtime: base, readSignal: make(chan struct{}, 8)}
+	source := &runtimeChangeSourceStub{
+		events: make(chan changefeed.Event, 1), subscription: make(chan changefeed.Subscription, 1),
+		applied: make(chan changefeed.Event, 1),
+	}
+	host, stop := runUIWithRuntimeChanges(t, backend, source, "ses_demo_1")
+	host.Shows(t, "Ask lyra")
+	awaitSignal(t, source.subscription, "runtime invalidation subscription")
+	host.Type("test an externally settled approval")
+	host.Press(input.Enter)
+	host.Shows(t, "Tool approval")
+	host.Press(input.End)
+	host.Press(input.Enter)
+	host.Shows(t, "Edit tool arguments")
+	host.Type("unsaved editor draft")
+
+	snapshot, err := base.GetSession(t.Context(), "ses_demo_1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	active, ok := snapshot.ActiveRun()
+	if !ok {
+		t.Fatal("approval editor invalidation test has no waiting run")
+	}
+	if _, err := base.CancelRun(t.Context(), agent.CancelRun{RunID: active.ID, Reason: "settled elsewhere"}); err != nil {
+		t.Fatal(err)
+	}
+	drainSignals(backend.readSignal)
+	source.events <- changefeed.Event{
+		Type: changefeed.EventType(changefeed.InterruptsChanged), Sequence: 1,
+		SessionIDs: []string{"ses_demo_1"},
+	}
+	awaitSignal(t, source.applied, "advanced interrupts.changed delivery")
+	awaitSignal(t, backend.readSignal, "advanced interrupts.changed authoritative read")
+	host.Hides(t, "Edit tool arguments")
+	host.Hides(t, "Tool approval")
+	host.Shows(t, "canceled")
+	stop()
+}
+
 func drainSignals[T any](signals <-chan T) {
 	for {
 		select {

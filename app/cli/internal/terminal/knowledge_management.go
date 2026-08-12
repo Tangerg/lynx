@@ -118,11 +118,12 @@ func (a *app) EditKnowledge(argument string) error {
 				return
 			}
 			current := entry
-			a.openContextEditor(
-				"Edit LYRA.md · "+string(target.Scope),
-				"Enter inserts a newline. Ctrl+S saves; an empty document clears this scope.",
-				entry.Content, "Human-authored instructions and project knowledge",
-				func(content string, complete func(error) bool) error {
+			a.openContextEditor(contextEditorRequest{
+				Title:       "Edit LYRA.md · " + string(target.Scope),
+				Description: "Enter inserts a newline. Ctrl+S saves; an empty document clears this scope.",
+				Content:     entry.Content,
+				Placeholder: "Human-authored instructions and project knowledge",
+				Save: func(content string, complete func(error) bool) error {
 					if content == entry.Content {
 						a.message("LYRA.md unchanged · " + string(target.Scope))
 						complete(nil)
@@ -130,7 +131,7 @@ func (a *app) EditKnowledge(argument string) error {
 					}
 					return a.saveKnowledge(&current, target, content, complete)
 				},
-			)
+			})
 		},
 	) {
 		return errors.New("another knowledge operation is running")

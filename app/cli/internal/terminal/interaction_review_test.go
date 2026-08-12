@@ -1,6 +1,7 @@
 package terminal
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
@@ -99,5 +100,49 @@ func TestInteractionReviewRestoresACommittedBatchWithoutSharingAnswers(t *testin
 	answer := committed[1].Answer.(agent.QuestionAnswer)
 	if answer.Values[0][0] != "linux" {
 		t.Fatalf("restored answer shares caller storage: %+v", answer.Values)
+	}
+}
+
+func TestInteractionSummaryDisclosesEditedApprovalArguments(t *testing.T) {
+	t.Parallel()
+	approval := agent.Approval{
+		RunID: "run_1", ItemID: "approval", Title: "Run command",
+		Tool: &agent.ToolCall{Kind: agent.ToolShell, Name: "shell", Status: agent.ToolRunning},
+	}
+	override, err := agent.ParseToolArgumentOverride([]byte(`{"command":"echo safe"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	review, err := restoreInteractionReview(
+		[]agent.Interaction{approval},
+		[]agent.InterruptAnswer{{
+			ItemID: approval.ItemID,
+			Answer: agent.ApprovalAnswer{
+				Decision: agent.ApprovalApprove, ArgumentOverride: override,
+			},
+		}},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := summarizeInteraction(review.items[0], review.answers[0])
+	for _, want := range []string{"with edited arguments", `{"command":"echo safe"}`} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("interaction summary %q omits %q", got, want)
+		}
+	}
+}
+
+func TestInteractionSummaryDisclosesRememberedDenial(t *testing.T) {
+	t.Parallel()
+	approval := agent.Approval{Title: "Delete generated file"}
+	answer := agent.ApprovalAnswer{
+		Decision: agent.ApprovalDeny, Remember: agent.RememberProject, Reason: "preserve fixtures",
+	}
+	got := summarizeInteraction(approval, answer)
+	for _, want := range []string{"deny for project", "preserve fixtures"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("interaction summary %q omits %q", got, want)
+		}
 	}
 }

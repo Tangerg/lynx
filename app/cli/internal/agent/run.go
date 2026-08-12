@@ -313,9 +313,10 @@ const (
 )
 
 type ApprovalAnswer struct {
-	Decision ApprovalDecision
-	Remember RememberScope
-	Reason   string
+	Decision         ApprovalDecision
+	Remember         RememberScope
+	Reason           string
+	ArgumentOverride *ToolArgumentOverride
 }
 
 // QuestionAnswer preserves the field order from Question.Fields, matching the

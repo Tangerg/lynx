@@ -72,17 +72,17 @@ func (a *app) buildApprovalDialog(theme kit.Theme, glyphs kit.Glyphs) {
 		Content: &a.approvalPane.preview, Scroll: &a.approvalPane.scroll,
 		Theme: theme, Glyphs: glyphs,
 	}
-	a.setApprovalForm("allow-once")
+	a.setApprovalForm(approvalAllowOnce)
 	a.approvalDialog = kit.NewDialog(kit.DialogConfig{
 		Stack: &a.stack, Theme: theme, Glyphs: glyphs, Title: "Tool approval", Body: &a.approvalPane,
 		Where: layout.Placement{Width: 88, Height: 24},
 	})
 }
 
-func (a *app) setApprovalForm(initial string) {
+func (a *app) setApprovalForm(initial approvalAction) {
 	rememberable := a.approval == nil || a.approval.Rememberable
-	a.approvalChoice = normalizeApprovalChoice(initial, rememberable)
-	choice := &headless.Select[string]{
+	a.approvalChoice = initial.Normalize(rememberable)
+	choice := &headless.Select[approvalAction]{
 		Label: "How should lyra proceed?", Value: headless.Bind(&a.approvalChoice), Rows: 3,
 	}
 	choice.SetOptions(approvalOptions(rememberable))
@@ -103,38 +103,20 @@ func (a *app) setApprovalForm(initial string) {
 	a.approvalPane.form = dressed
 }
 
-func approvalOptions(rememberable bool) []headless.Option[string] {
-	options := []headless.Option[string]{
-		{Label: "Allow once", Value: "allow-once"},
-		{Label: "Deny", Value: "deny"},
-	}
-	if !rememberable {
-		return options
-	}
-	return slices.Insert(options, 1,
-		headless.Option[string]{Label: "Allow for this session", Value: "allow-session"},
-		headless.Option[string]{Label: "Allow for this project", Value: "allow-project"},
-		headless.Option[string]{Label: "Always allow this rule", Value: "allow-global"},
-	)
-}
-
-func normalizeApprovalChoice(choice string, rememberable bool) string {
-	for _, option := range approvalOptions(rememberable) {
-		if option.Value == choice {
-			return choice
-		}
-	}
-	return "allow-once"
-}
-
 func (a *app) openApproval(approval agent.Approval) {
 	cloned := approval.Clone()
 	a.approval = &cloned
 	a.approvalReason = ""
-	initial := approvalDefault(a.settings.Approval.Remember.Scope())
+	a.approvalArguments = editableApprovalArguments(approval.Tool)
+	a.approvalOverride = nil
+	initial := defaultApprovalAction(a.settings.Approval.Remember.Scope())
 	if answer, ok := a.interactionReview.CurrentAnswer().(agent.ApprovalAnswer); ok {
-		initial = approvalChoice(answer)
+		initial = approvalActionFromAnswer(answer)
 		a.approvalReason = answer.Reason
+		if answer.ArgumentOverride != nil {
+			a.approvalOverride = answer.ArgumentOverride.Clone()
+			a.approvalArguments = formatToolArguments(a.approvalOverride.JSON())
+		}
 	}
 	a.setApprovalForm(initial)
 	a.approvalPane.title = approval.Title
@@ -149,6 +131,7 @@ func (a *app) openApproval(approval agent.Approval) {
 			Sections: []ToolSection{{Title: "Presentation error", Style: toolSectionParagraph, Text: err.Error()}},
 		}
 	}
+	a.approvalSections = slices.Clone(presentation.Sections)
 	details := []string{approval.Detail, presentation.Label}
 	if approval.Risk != "" {
 		details = append(details, "risk: "+string(approval.Risk))
@@ -157,7 +140,7 @@ func (a *app) openApproval(approval agent.Approval) {
 		details = append(details, "rule: "+approval.RuleHint)
 	}
 	a.approvalPane.detail.SetText([]text.Line{text.Of(strings.Join(nonEmptyStrings(details), "\n"), a.approvalPane.theme.Text)})
-	a.setApprovalPreview(presentation.Sections)
+	a.setApprovalPreview(a.approvalPreviewSections())
 	a.approvalDialog.Controller().SetDescription(approval.Title)
 	a.approvalDialog.Show()
 }
@@ -165,14 +148,18 @@ func (a *app) openApproval(approval agent.Approval) {
 func (a *app) setApprovalPreview(sections []ToolSection) {
 	a.approvalPane.preview = headless.Transcript{}
 	a.approvalPane.view.Content = &a.approvalPane.preview
-	blocks := renderToolSections(BlockPresentation{
+	presentation := BlockPresentation{
 		Theme: a.approvalPane.theme, Glyphs: a.approvalPane.glyphs, Syntax: a.syntax,
-	}, sections, false)
-	for _, block := range blocks {
-		id := a.approvalPane.preview.Append(block)
-		a.approvalPane.preview.Finish(id)
 	}
-	if len(blocks) == 0 {
+	blockCount := 0
+	for _, section := range sections {
+		for _, block := range renderToolSections(presentation, []ToolSection{section}, false) {
+			id := a.approvalPane.preview.Append(newReaderSectionBlock(a.approvalPane.theme, section.Title, block))
+			a.approvalPane.preview.Finish(id)
+			blockCount++
+		}
+	}
+	if blockCount == 0 {
 		id := a.approvalPane.preview.Append(&kit.Message{Theme: a.approvalPane.theme, Body: "This request has no additional preview."})
 		a.approvalPane.preview.Finish(id)
 	}
@@ -220,23 +207,43 @@ func (a *app) openCurrentInteraction() {
 	}
 }
 
-func (a *app) answerApproval(choice string) {
+func (a *app) answerApproval(action approvalAction) {
 	approval := a.approval
 	if approval == nil {
 		return
 	}
-	decision := approvalAnswer(choice)
+	if action == approvalEditArgs {
+		a.openApprovalArgumentEditor()
+		return
+	}
+	decision, ok := action.Answer()
+	if !ok {
+		a.fail(fmt.Errorf("approval action %q is unsupported", action))
+		return
+	}
 	if decision.Decision == agent.ApprovalDeny {
 		decision.Reason = strings.TrimSpace(a.approvalReason)
 		if decision.Reason == "" {
 			decision.Reason = "denied by the user in the terminal"
 		}
+	} else {
+		decision.ArgumentOverride = a.approvalOverride.Clone()
+	}
+	a.submitApproval(decision)
+}
+
+func (a *app) submitApproval(decision agent.ApprovalAnswer) {
+	if a.interactionReview == nil {
+		return
 	}
 	if err := a.interactionReview.Record(decision); err != nil {
 		a.fail(fmt.Errorf("record approval: %w", err))
 		return
 	}
 	a.approval = nil
+	a.approvalOverride = nil
+	a.approvalSections = nil
+	a.dismissApprovalEditor()
 	a.approvalDialog.Dismiss()
 	a.advanceInteractionReview()
 }
@@ -245,53 +252,7 @@ func (a *app) backOrCancelApproval() {
 	if a.backInteraction() {
 		return
 	}
-	a.answerApproval("deny")
-}
-
-func approvalDefault(scope agent.RememberScope) string {
-	switch scope {
-	case agent.RememberSession:
-		return "allow-session"
-	case agent.RememberProject:
-		return "allow-project"
-	case agent.RememberGlobal:
-		return "allow-global"
-	case agent.RememberNone:
-		return "allow-once"
-	default:
-		return "allow-once"
-	}
-}
-
-func approvalAnswer(choice string) agent.ApprovalAnswer {
-	switch choice {
-	case "allow-session":
-		return agent.ApprovalAnswer{Decision: agent.ApprovalApprove, Remember: agent.RememberSession}
-	case "allow-project":
-		return agent.ApprovalAnswer{Decision: agent.ApprovalApprove, Remember: agent.RememberProject}
-	case "allow-global":
-		return agent.ApprovalAnswer{Decision: agent.ApprovalApprove, Remember: agent.RememberGlobal}
-	case "allow-once":
-		return agent.ApprovalAnswer{Decision: agent.ApprovalApprove, Remember: agent.RememberNone}
-	default:
-		return agent.ApprovalAnswer{Decision: agent.ApprovalDeny, Remember: agent.RememberNone}
-	}
-}
-
-func approvalChoice(answer agent.ApprovalAnswer) string {
-	if answer.Decision == agent.ApprovalDeny {
-		return "deny"
-	}
-	switch answer.Remember {
-	case agent.RememberSession:
-		return "allow-session"
-	case agent.RememberProject:
-		return "allow-project"
-	case agent.RememberGlobal:
-		return "allow-global"
-	default:
-		return "allow-once"
-	}
+	a.answerApproval(approvalDenyOnce)
 }
 
 func (a *app) advanceInteractionReview() {
@@ -311,6 +272,9 @@ func (a *app) backInteraction() bool {
 	}
 	if a.approval != nil {
 		a.approval = nil
+		a.approvalOverride = nil
+		a.approvalSections = nil
+		a.dismissApprovalEditor()
 		a.approvalDialog.Dismiss()
 	}
 	if a.questionnaire != nil {
@@ -405,6 +369,9 @@ func (a *app) restoreRejectedInteractionReview(review *interactionReview, comman
 
 func (a *app) abortInteractions(reason string) {
 	a.approval = nil
+	a.approvalOverride = nil
+	a.approvalSections = nil
+	a.dismissApprovalEditor()
 	a.questionnaire = nil
 	a.interactionReview = nil
 	if a.reviewDialog != nil {

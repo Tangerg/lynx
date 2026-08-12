@@ -27,6 +27,34 @@ type contextEditor struct {
 	saving   bool
 }
 
+type contextEditorRequest struct {
+	Title       string
+	Description string
+	Content     string
+	Placeholder string
+	Save        func(string, func(error) bool) error
+	Dismissed   func()
+}
+
+type contextEditorSession struct {
+	dialog    *kit.Dialog
+	dismissed func()
+	closed    bool
+}
+
+func (session *contextEditorSession) Dismiss() {
+	if session == nil || session.closed {
+		return
+	}
+	session.closed = true
+	if session.dialog != nil {
+		session.dialog.Dismiss()
+	}
+	if session.dismissed != nil {
+		session.dismissed()
+	}
+}
+
 func newContextEditor(theme kit.Theme, clipboard headless.Clipboard, content, placeholder string) *contextEditor {
 	keys := headless.DefaultEditorKeys()
 	keys.Bind(headless.InsertNewline, input.Chord{Code: input.Enter})
@@ -83,22 +111,22 @@ func (editor *contextEditor) Handle(event input.Event) bool {
 
 func (editor *contextEditor) Focus(has bool) { editor.composer.Focus(has) }
 
-func (a *app) openContextEditor(title, description, content, placeholder string, save func(string, func(error) bool) error) {
-	if a.contextEditorDialog != nil {
-		a.contextEditorDialog.Dismiss()
-		a.contextEditorDialog = nil
+func (a *app) openContextEditor(request contextEditorRequest) *contextEditorSession {
+	if a.activeContextEditor != nil {
+		a.activeContextEditor.Dismiss()
 	}
-	editor := newContextEditor(a.transcript.theme, a.loop.Clipboard(), content, placeholder)
+	editor := newContextEditor(a.transcript.theme, a.loop.Clipboard(), request.Content, request.Placeholder)
 	var dialog *kit.Dialog
-	dismiss := func() {
-		if dialog != nil {
-			dialog.Dismiss()
+	session := &contextEditorSession{}
+	session.dismissed = func() {
+		if a.activeContextEditor == session {
+			a.activeContextEditor = nil
 		}
-		if a.contextEditorDialog == dialog {
-			a.contextEditorDialog = nil
+		if request.Dismissed != nil {
+			request.Dismissed()
 		}
 	}
-	editor.cancel = dismiss
+	editor.cancel = session.Dismiss
 	editor.save = func(value string) error {
 		if editor.saving {
 			return nil
@@ -124,24 +152,32 @@ func (a *app) openContextEditor(title, description, content, placeholder string,
 				}
 				return false
 			}
-			dismiss()
+			session.Dismiss()
 			return true
 		}
-		if err := save(value, complete); err != nil {
+		if err := request.Save(value, complete); err != nil {
 			complete(err)
-			a.message(title + ": " + err.Error())
+			a.message(request.Title + ": " + err.Error())
 			return err
 		}
 		return nil
 	}
 	dialog = kit.NewDialog(kit.DialogConfig{
 		Stack: &a.stack, Theme: a.transcript.theme, Glyphs: a.transcript.glyphs,
-		Title: title, Description: description, Body: editor,
+		Title: request.Title, Description: request.Description, Body: editor,
 		Where: layout.Placement{Width: 100, Height: 24}, Keys: editor.keys,
 		Hints: []keymap.Action{saveContextDocument, cancelContextDocument},
 	})
-	a.contextEditorDialog = dialog
+	session.dialog = dialog
+	a.activeContextEditor = session
 	dialog.Show()
+	return session
+}
+
+func (a *app) dismissContextEditor() {
+	if a.activeContextEditor != nil {
+		a.activeContextEditor.Dismiss()
+	}
 }
 
 var _ headless.Widget = (*contextEditor)(nil)

@@ -111,12 +111,18 @@ func summarizeInteraction(item agent.Interaction, answer agent.Answer) string {
 		provided, _ := answer.(agent.ApprovalAnswer)
 		decision := "allow once"
 		if provided.Decision == agent.ApprovalDeny {
-			decision = "deny"
+			decision = "deny once"
+			if provided.Remember != agent.RememberNone {
+				decision = "deny for " + string(provided.Remember)
+			}
 			if strings.TrimSpace(provided.Reason) != "" {
 				decision += " — " + strings.TrimSpace(provided.Reason)
 			}
 		} else if provided.Remember != agent.RememberNone {
 			decision = "allow for " + string(provided.Remember)
+		}
+		if provided.ArgumentOverride != nil {
+			decision += " with edited arguments: " + string(provided.ArgumentOverride.JSON())
 		}
 		return interaction.Title + " — " + decision
 	case agent.Question:

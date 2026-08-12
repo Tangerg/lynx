@@ -78,28 +78,29 @@ func (a *app) AddAgentMemory(argument string) error {
 	if err != nil {
 		return err
 	}
-	a.openContextEditor(
-		"Add "+string(target.Scope)+" memory",
-		"User-authored memory becomes active immediately.",
-		"", "Write one durable fact. Enter inserts a newline; Ctrl+S saves.",
-		func(content string, complete func(error) bool) error {
+	a.openContextEditor(contextEditorRequest{
+		Title:       "Add " + string(target.Scope) + " memory",
+		Description: "User-authored memory becomes active immediately.",
+		Placeholder: "Write one durable fact. Enter inserts a newline; Ctrl+S saves.",
+		Save: func(content string, complete func(error) bool) error {
 			content = strings.TrimSpace(content)
 			if content == "" {
 				return errors.New("memory content is empty")
 			}
 			return a.addAgentMemory(target, content, complete)
 		},
-	)
+	})
 	return nil
 }
 
 func (a *app) EditAgentMemory(argument string) error {
 	return a.loadAgentMemoryItem(argument, "loading agent memory to edit", func(target agentmemory.Target, item agentmemory.Item) {
-		a.openContextEditor(
-			"Edit agent memory · "+item.ID,
-			"The item identity and provenance are preserved.",
-			item.Content, "Memory content",
-			func(content string, complete func(error) bool) error {
+		a.openContextEditor(contextEditorRequest{
+			Title:       "Edit agent memory · " + item.ID,
+			Description: "The item identity and provenance are preserved.",
+			Content:     item.Content,
+			Placeholder: "Memory content",
+			Save: func(content string, complete func(error) bool) error {
 				content = strings.TrimSpace(content)
 				if content == "" {
 					return errors.New("memory content is empty")
@@ -111,7 +112,7 @@ func (a *app) EditAgentMemory(argument string) error {
 				}
 				return a.updateAgentMemory(target, agentmemory.Patch{ID: item.ID, Content: &content}, "updating agent memory "+item.ID, complete)
 			},
-		)
+		})
 	})
 }
 

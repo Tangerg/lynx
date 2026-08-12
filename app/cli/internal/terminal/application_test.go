@@ -1439,7 +1439,9 @@ func TestSessionCenterPaginatesAndManagesSelectedSession(t *testing.T) {
 
 	host.Send(input.Key{Code: input.Character, Rune: 'd', Mods: input.Alt})
 	host.Shows(t, "Delete session")
-	host.Press(input.Down)
+	for range 2 {
+		host.Press(input.Down)
+	}
 	host.Press(input.Enter)
 	host.Hides(t, "Delete session")
 	host.Hides(t, "Renamed center target")
@@ -2357,6 +2359,163 @@ func TestApprovalDenialSubmitsOptionalUserFeedback(t *testing.T) {
 		t.Fatalf("denial answer = %#v", provided[0].Answer)
 	}
 
+	host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
+	stop()
+}
+
+func TestApprovalCanRememberADenialWithoutLosingFeedback(t *testing.T) {
+	backend := mock.New()
+	backend.Instant = true
+	answers := make(chan agent.ApprovalAnswer, 1)
+	backend.Script = func(string) mock.Script {
+		return mock.Script{
+			Interactions: []agent.Interaction{agent.Approval{
+				ItemID: "remember-denial", Title: "Delete generated fixtures", Rememberable: true,
+				RuleHint: "shell:rm generated/*",
+				Tool: &agent.ToolCall{
+					Kind: agent.ToolShell, Name: "shell", Command: "rm generated/*", Status: agent.ToolRunning,
+				},
+			}},
+			Continue: func(provided []agent.InterruptAnswer) []mock.Step {
+				answers <- provided[0].Answer.(agent.ApprovalAnswer)
+				return []mock.Step{{Event: agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCompleted}}}}
+			},
+		}
+	}
+	host, stop := runUIWith(t, backend)
+	host.Shows(t, "Ask lyra")
+	host.Type("protect generated fixtures")
+	host.Press(input.Enter)
+	host.Shows(t, "Tool approval")
+	for range 5 {
+		host.Press(input.Down)
+	}
+	showsPlain(t, host, "● Deny for this session")
+	host.Press(input.Tab)
+	host.Type("preserve generated fixtures")
+	host.Press(input.Enter)
+	host.Shows(t, "complete")
+	answer := <-answers
+	if answer.Decision != agent.ApprovalDeny || answer.Remember != agent.RememberSession ||
+		answer.Reason != "preserve generated fixtures" || answer.ArgumentOverride != nil {
+		t.Fatalf("remembered denial = %+v", answer)
+	}
+	rules, err := backend.ListApprovalRules(t.Context(), firstRuntimeSession(t, backend))
+	if err != nil || len(rules) != 1 || rules[0].Decision != agent.ApprovalRuleDeny ||
+		rules[0].Scope != agent.RememberSession {
+		t.Fatalf("remembered denial rules = %+v, %v", rules, err)
+	}
+	host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
+	stop()
+}
+
+func TestApprovalCanEditToolArgumentsOnceAcrossValidationAndResize(t *testing.T) {
+	backend := mock.New()
+	backend.Instant = true
+	answers := make(chan agent.ApprovalAnswer, 1)
+	backend.Script = func(string) mock.Script {
+		return mock.Script{
+			Interactions: []agent.Interaction{agent.Approval{
+				ItemID: "edit-approval", Title: "Run generated command",
+				Rememberable: true,
+				Tool: &agent.ToolCall{
+					Kind: agent.ToolShell, Name: "shell", Command: "rm generated.txt", Status: agent.ToolRunning,
+					ArgumentsJSON: []byte(`{"command":"rm generated.txt","timeout":30}`),
+				},
+			}},
+			Continue: func(provided []agent.InterruptAnswer) []mock.Step {
+				answers <- provided[0].Answer.(agent.ApprovalAnswer)
+				return []mock.Step{{Event: agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCompleted}}}}
+			},
+		}
+	}
+	host, stop := runUIWith(t, backend)
+	host.Shows(t, "Ask lyra")
+	host.Type("run a safer generated command")
+	host.Press(input.Enter)
+	host.Shows(t, "Tool approval")
+	host.Press(input.End)
+	showsPlain(t, host, "● Edit arguments before deciding")
+	host.Press(input.Enter)
+	host.Shows(t, "Edit tool arguments")
+	host.Shows(t, `"command": "rm generated.txt"`)
+
+	host.Send(input.Key{Code: input.Character, Rune: 'a', Mods: input.Alt})
+	host.Type(`{"command":"echo safe","timeout":`)
+	host.Send(input.Key{Code: input.Character, Rune: 's', Mods: input.Ctrl})
+	host.Shows(t, "tool argument override")
+	host.Shows(t, `{"command":"echo safe","timeout":`)
+	select {
+	case premature := <-answers:
+		t.Fatalf("invalid argument override resumed runtime: %+v", premature)
+	default:
+	}
+
+	host.Send(input.Key{Code: input.Character, Rune: 'a', Mods: input.Alt})
+	host.Type(`{"command":"echo safe","timeout":45}`)
+	if !host.Resize(1, 1) || !host.Repaint() || !host.Resize(96, 28) {
+		t.Fatal("argument editor did not survive a minimal viewport")
+	}
+	host.Shows(t, `{"command":"echo safe","timeout":45}`)
+	host.Send(input.Key{Code: input.Character, Rune: 's', Mods: input.Ctrl})
+	host.Shows(t, "Edited arguments · one-shot")
+	showsPlain(t, host, `"command": "echo safe"`)
+	showsPlain(t, host, "● Allow once")
+	host.Press(input.Down)
+	showsPlain(t, host, "● Allow for this session")
+	host.Press(input.Enter)
+	host.Shows(t, "complete")
+	answer := <-answers
+	if answer.Decision != agent.ApprovalApprove || answer.Remember != agent.RememberSession ||
+		answer.ArgumentOverride == nil ||
+		string(answer.ArgumentOverride.JSON()) != `{"command":"echo safe","timeout":45}` {
+		t.Fatalf("edited approval answer = %+v", answer)
+	}
+
+	host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
+	stop()
+}
+
+func TestCancelingApprovalArgumentEditReturnsToTheUnchangedApproval(t *testing.T) {
+	backend := mock.New()
+	backend.Instant = true
+	answers := make(chan agent.ApprovalAnswer, 1)
+	backend.Script = func(string) mock.Script {
+		return mock.Script{
+			Interactions: []agent.Interaction{agent.Approval{
+				ItemID: "cancel-edit-approval", Title: "Run generated command",
+				Tool: &agent.ToolCall{
+					Kind: agent.ToolShell, Name: "shell", Command: "echo original", Status: agent.ToolRunning,
+					ArgumentsJSON: []byte(`{"command":"echo original"}`),
+				},
+			}},
+			Continue: func(provided []agent.InterruptAnswer) []mock.Step {
+				answers <- provided[0].Answer.(agent.ApprovalAnswer)
+				return []mock.Step{{Event: agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCompleted}}}}
+			},
+		}
+	}
+	host, stop := runUIWith(t, backend)
+	host.Shows(t, "Ask lyra")
+	host.Type("cancel an argument edit")
+	host.Press(input.Enter)
+	host.Shows(t, "Tool approval")
+	host.Press(input.End)
+	host.Press(input.Enter)
+	host.Shows(t, "Edit tool arguments")
+	host.Send(input.Key{Code: input.Character, Rune: 'a', Mods: input.Alt})
+	host.Type(`{"command":"echo abandoned"}`)
+	host.Press(input.Esc)
+	host.Hides(t, "Edit tool arguments")
+	host.Shows(t, "Tool approval")
+	host.Hides(t, "Edited arguments · one-shot")
+	host.Press(input.Home)
+	host.Press(input.Enter)
+	host.Shows(t, "complete")
+	answer := <-answers
+	if answer.Decision != agent.ApprovalApprove || answer.ArgumentOverride != nil {
+		t.Fatalf("canceled argument edit leaked into approval answer: %+v", answer)
+	}
 	host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
 	stop()
 }

@@ -254,13 +254,17 @@ func TestStorePersistsPendingInteractionResumeUntilExactSettlement(t *testing.T)
 		Tool:         &agent.ToolCall{Kind: agent.ToolEdit, Name: "delete", Status: agent.ToolRunning},
 		Rememberable: true,
 	}
+	override, err := agent.ParseToolArgumentOverride([]byte(`{"path":"generated/fixture.go"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
 	pending := PendingResume{
 		Command: agent.ResumeRun{
 			CommandID: agent.CommandID("cli_33333333333333333333333333333333"), RunID: approval.RunID,
 			Answers: []agent.InterruptAnswer{{
 				ItemID: approval.ItemID,
 				Answer: agent.ApprovalAnswer{
-					Decision: agent.ApprovalDeny, Reason: "keep the generated fixture",
+					Decision: agent.ApprovalApprove, ArgumentOverride: override,
 				},
 			}},
 		},
@@ -282,7 +286,8 @@ func TestStorePersistsPendingInteractionResumeUntilExactSettlement(t *testing.T)
 		t.Fatalf("restored pending resume = %+v, present = %v", restored, ok)
 	}
 	answer, ok := restored.Command.Answers[0].Answer.(agent.ApprovalAnswer)
-	if !ok || answer.Decision != agent.ApprovalDeny || answer.Reason != "keep the generated fixture" {
+	if !ok || answer.Decision != agent.ApprovalApprove || answer.ArgumentOverride == nil ||
+		string(answer.ArgumentOverride.JSON()) != `{"path":"generated/fixture.go"}` {
 		t.Fatalf("restored pending answer = %#v", restored.Command.Answers[0].Answer)
 	}
 	if err := reopened.AcknowledgePendingResume("ses_1", agent.CommandID("cli_44444444444444444444444444444444")); err == nil {

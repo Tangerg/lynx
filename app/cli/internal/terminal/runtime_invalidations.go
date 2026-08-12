@@ -248,6 +248,9 @@ func (a *app) installSessionMetadata(session agent.Session) {
 // draft. It never answers or cancels the runtime interaction.
 func (a *app) dismissInteractionProjection() {
 	a.approval = nil
+	a.approvalOverride = nil
+	a.approvalSections = nil
+	a.dismissApprovalEditor()
 	a.questionnaire = nil
 	a.interactionReview = nil
 	if a.approvalDialog != nil {

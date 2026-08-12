@@ -476,6 +476,9 @@ func (installation sessionInstallation) apply(a *app) {
 	previousSessionID := a.session.ID
 	previousWorkspace := a.session.Workspace
 	a.dismissInteractionProjection()
+	if installation.snapshot.Session.ID != previousSessionID || installation.snapshot.Session.Workspace != previousWorkspace {
+		a.dismissContextEditor()
+	}
 	a.cancelPluginCommands()
 	a.operations.CancelScope(sessionOperationScope)
 	a.dropStream()

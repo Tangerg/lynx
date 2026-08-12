@@ -704,7 +704,7 @@ func (a *app) fail(err error) {
 
 func (a *app) cancel() {
 	if a.approval != nil {
-		a.answerApproval("deny")
+		a.answerApproval(approvalDenyOnce)
 		return
 	}
 	if a.questionnaire != nil {
