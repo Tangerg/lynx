@@ -152,6 +152,78 @@ func TestRunMutationsPreserveCallerCommandIdentity(t *testing.T) {
 	}
 }
 
+func TestRunInputMutationsRejectImagesBeforeCallingBindingWithoutMultimodalCapability(t *testing.T) {
+	t.Parallel()
+	attachment := agent.Attachment{
+		ID: "image", Kind: agent.AttachmentImage, Name: "image.png", Path: "/image.png",
+		MimeType: "image/png", Size: 5,
+	}
+	message := agent.Message{Attachments: []agent.Attachment{attachment}}
+	for _, test := range []struct {
+		name string
+		call func(context.Context, *Runtime) error
+	}{
+		{
+			name: "start",
+			call: func(ctx context.Context, runtime *Runtime) error {
+				_, err := runtime.StartRun(ctx, agent.StartRun{SessionID: "ses_1", Message: message})
+				return err
+			},
+		},
+		{
+			name: "resume",
+			call: func(ctx context.Context, runtime *Runtime) error {
+				_, err := runtime.ResumeRun(ctx, agent.ResumeRun{
+					RunID: "run_1", Message: &message,
+					Answers: []agent.InterruptAnswer{{
+						ItemID: "item_approval", Answer: agent.ApprovalAnswer{Decision: agent.ApprovalDeny},
+					}},
+				})
+				return err
+			},
+		},
+		{
+			name: "steer",
+			call: func(ctx context.Context, runtime *Runtime) error {
+				return runtime.SteerRun(ctx, agent.SteerRun{RunID: "run_1", SegmentID: "seg_1", Message: message})
+			},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			called := false
+			stub := runBindingStub{
+				start: func(context.Context, protocol.StartRunRequest, embedded.RunCommandOptions) (*protocol.StartRunResponse, iter.Seq2[protocol.RunEvent, error], error) {
+					called = true
+					return nil, nil, nil
+				},
+				resume: func(context.Context, protocol.ResumeRunRequest, embedded.RunCommandOptions) (*protocol.ResumeRunResponse, iter.Seq2[protocol.RunEvent, error], error) {
+					called = true
+					return nil, nil, nil
+				},
+				steer: func(context.Context, protocol.SteerRunRequest, embedded.CommandOptions) error {
+					called = true
+					return nil
+				},
+			}
+			runtime := &Runtime{
+				runs: stub,
+				loadAttachment: func(context.Context, string, int64) ([]byte, error) {
+					t.Fatal("image was read without multimodal capability")
+					return nil, nil
+				},
+			}
+			err := test.call(t.Context(), runtime)
+			if err == nil || !errors.Is(err, agent.ErrIncompatibleRuntime) {
+				t.Fatalf("run mutation error = %v, want ErrIncompatibleRuntime", err)
+			}
+			if called {
+				t.Fatal("run mutation reached binding without multimodal capability")
+			}
+		})
+	}
+}
+
 func TestSubscribeRunPassesOpaqueReplayCursor(t *testing.T) {
 	stub := runBindingStub{}
 	stub.subscribe = func(_ context.Context, request protocol.SubscribeRunRequest, options embedded.RunSubscriptionOptions) (*protocol.SubscribeRunResponse, iter.Seq2[protocol.RunEvent, error], error) {

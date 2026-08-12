@@ -14,6 +14,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/protocol"
 
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
+	"github.com/Tangerg/lynx/app/cli/internal/runtimeprofile"
 )
 
 const maximumAttachmentBytes = 20 << 20
@@ -69,6 +70,9 @@ func (r *Runtime) projectInput(ctx context.Context, message agent.Message) ([]pr
 	if err := message.Validate(); err != nil {
 		return nil, err
 	}
+	if err := r.requireInputCapabilities(message); err != nil {
+		return nil, err
+	}
 	blocks := make([]protocol.ContentBlock, 0, 1+len(message.Attachments))
 	if message.Text != "" {
 		blocks = append(blocks, protocol.ContentBlock{Type: protocol.ContentBlockText, Text: message.Text})
@@ -100,6 +104,15 @@ func (r *Runtime) projectInput(ctx context.Context, message agent.Message) ([]pr
 		}
 	}
 	return blocks, nil
+}
+
+func (r *Runtime) requireInputCapabilities(message agent.Message) error {
+	for _, attachment := range message.Attachments {
+		if attachment.Kind == agent.AttachmentImage {
+			return r.requireFeature(runtimeprofile.FeatureMultimodal)
+		}
+	}
+	return nil
 }
 
 func projectContent(itemID string, content []protocol.ContentBlock) (string, []agent.Attachment, error) {

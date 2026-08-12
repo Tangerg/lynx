@@ -11,6 +11,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/protocol"
 
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
+	"github.com/Tangerg/lynx/app/cli/internal/runtimeprofile"
 )
 
 func TestProjectInputReadsTypedAttachmentsAtDispatch(t *testing.T) {
@@ -24,7 +25,12 @@ func TestProjectInputReadsTypedAttachmentsAtDispatch(t *testing.T) {
 	if err := os.WriteFile(imagePath, image, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	runtime := &Runtime{loadAttachment: loadAttachmentFile}
+	runtime := &Runtime{
+		loadAttachment: loadAttachmentFile,
+		profile: runtimeprofile.Profile{Features: map[runtimeprofile.FeatureName]runtimeprofile.Feature{
+			runtimeprofile.FeatureMultimodal: {Enabled: true, Stability: runtimeprofile.Stable},
+		}},
+	}
 	blocks, err := runtime.projectInput(t.Context(), agent.Message{
 		Text: "prompt",
 		Attachments: []agent.Attachment{
@@ -39,6 +45,25 @@ func TestProjectInputReadsTypedAttachmentsAtDispatch(t *testing.T) {
 		blocks[1].Type != protocol.ContentBlockText || blocks[2].Type != protocol.ContentBlockImage ||
 		blocks[2].Data != base64.StdEncoding.EncodeToString(image) {
 		t.Fatalf("blocks = %+v", blocks)
+	}
+}
+
+func TestProjectInputRejectsImagesBeforeReadingWithoutMultimodalCapability(t *testing.T) {
+	t.Parallel()
+	reads := 0
+	runtime := &Runtime{loadAttachment: func(context.Context, string, int64) ([]byte, error) {
+		reads++
+		return []byte("image"), nil
+	}}
+	blocks, err := runtime.projectInput(t.Context(), agent.Message{Attachments: []agent.Attachment{{
+		ID: "image", Kind: agent.AttachmentImage, Name: "image.png", Path: "/image.png",
+		MimeType: "image/png", Size: 5,
+	}}})
+	if err == nil || !errors.Is(err, agent.ErrIncompatibleRuntime) {
+		t.Fatalf("projectInput error = %v, want ErrIncompatibleRuntime", err)
+	}
+	if blocks != nil || reads != 0 {
+		t.Fatalf("projectInput = (%+v, %v), want no blocks or attachment reads", blocks, reads)
 	}
 }
 
