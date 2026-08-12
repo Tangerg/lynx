@@ -121,6 +121,58 @@ func TestBuiltinCommandsHonorNegotiatedFineGrainedCapabilities(t *testing.T) {
 	}
 }
 
+func TestRuntimeFeatureServicesRequireBothPortAndPublishedCapability(t *testing.T) {
+	t.Parallel()
+
+	features := map[runtimeprofile.FeatureName]runtimeprofile.Feature{
+		runtimeprofile.FeatureGoals:       {Stability: runtimeprofile.Stable},
+		runtimeprofile.FeatureSkills:      {Stability: runtimeprofile.Stable},
+		runtimeprofile.FeatureMCP:         {Stability: runtimeprofile.Stable},
+		runtimeprofile.FeatureSchedules:   {Stability: runtimeprofile.Stable},
+		runtimeprofile.FeatureAgentMemory: {Stability: runtimeprofile.Stable},
+		runtimeprofile.FeatureKnowledge:   {Stability: runtimeprofile.Stable},
+		runtimeprofile.FeatureCodebase:    {Stability: runtimeprofile.Stable},
+	}
+	profile := runtimeprofile.Profile{Features: features}
+	application := &app{
+		runtimeProfile: &profile,
+		goals:          new(goalServiceStub),
+		skills:         newSkillServiceStub(),
+		mcp:            newMCPServiceStub(),
+		schedules:      newScheduleServiceStub(),
+		agentMemory:    newAgentMemoryServiceStub(),
+		knowledge:      newKnowledgeServiceStub(),
+		codebase:       &codebaseServiceStub{},
+	}
+	checks := map[runtimeprofile.FeatureName]func(*app) CommandAvailability{
+		runtimeprofile.FeatureGoals:       availableWithGoals,
+		runtimeprofile.FeatureSkills:      availableWithSkills,
+		runtimeprofile.FeatureMCP:         availableWithMCP,
+		runtimeprofile.FeatureSchedules:   availableWithSchedules,
+		runtimeprofile.FeatureAgentMemory: availableWithAgentMemory,
+		runtimeprofile.FeatureKnowledge:   availableWithKnowledge,
+		runtimeprofile.FeatureCodebase:    availableWithCodebase,
+	}
+	for feature, check := range checks {
+		if availability := check(application); availability.Enabled || !strings.Contains(availability.Reason, "was not negotiated") {
+			t.Errorf("disabled %s availability = %+v", feature, availability)
+		}
+		capability := features[feature]
+		capability.Enabled = true
+		features[feature] = capability
+		if availability := check(application); !availability.Enabled {
+			t.Errorf("enabled %s availability = %+v", feature, availability)
+		}
+	}
+
+	application.runtimeProfile = nil
+	for feature, check := range checks {
+		if availability := check(application); !availability.Enabled {
+			t.Errorf("undiscovered %s availability = %+v", feature, availability)
+		}
+	}
+}
+
 func TestMessageCapabilitiesRejectImagesOnlyWhenMultimodalWasNotNegotiated(t *testing.T) {
 	t.Parallel()
 

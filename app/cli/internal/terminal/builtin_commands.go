@@ -189,42 +189,42 @@ func availableWithGoals(a *app) CommandAvailability {
 	if a.goals == nil {
 		return CommandAvailability{Reason: "this runtime composition has no goal service"}
 	}
-	return CommandAvailability{Enabled: true}
+	return availableWithRuntimeFeature(a, runtimeprofile.FeatureGoals)
 }
 
 func availableWithSkills(a *app) CommandAvailability {
 	if a.skills == nil {
 		return CommandAvailability{Reason: "this runtime composition has no skill service"}
 	}
-	return CommandAvailability{Enabled: true}
+	return availableWithRuntimeFeature(a, runtimeprofile.FeatureSkills)
 }
 
 func availableWithMCP(a *app) CommandAvailability {
 	if a.mcp == nil {
 		return CommandAvailability{Reason: "this runtime composition has no MCP service"}
 	}
-	return CommandAvailability{Enabled: true}
+	return availableWithRuntimeFeature(a, runtimeprofile.FeatureMCP)
 }
 
 func availableWithSchedules(a *app) CommandAvailability {
 	if a.schedules == nil {
 		return CommandAvailability{Reason: "this runtime composition has no schedule service"}
 	}
-	return CommandAvailability{Enabled: true}
+	return availableWithRuntimeFeature(a, runtimeprofile.FeatureSchedules)
 }
 
 func availableWithAgentMemory(a *app) CommandAvailability {
 	if a.agentMemory == nil {
 		return CommandAvailability{Reason: "this runtime composition has no agent memory service"}
 	}
-	return CommandAvailability{Enabled: true}
+	return availableWithRuntimeFeature(a, runtimeprofile.FeatureAgentMemory)
 }
 
 func availableWithKnowledge(a *app) CommandAvailability {
 	if a.knowledge == nil {
 		return CommandAvailability{Reason: "this runtime composition has no knowledge service"}
 	}
-	return CommandAvailability{Enabled: true}
+	return availableWithRuntimeFeature(a, runtimeprofile.FeatureKnowledge)
 }
 
 func availableWithDiagnosticTools(a *app) CommandAvailability {
@@ -238,7 +238,7 @@ func availableWithCodebase(a *app) CommandAvailability {
 	if a.codebase == nil {
 		return CommandAvailability{Reason: "this runtime composition has no codebase service"}
 	}
-	return CommandAvailability{Enabled: true}
+	return availableWithRuntimeFeature(a, runtimeprofile.FeatureCodebase)
 }
 
 func availableWithAuthoringContext(a *app) CommandAvailability {

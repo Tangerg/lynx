@@ -65,6 +65,50 @@ func TestRuntimeTopicInventoryHasNoUnreviewedTopics(t *testing.T) {
 	}
 }
 
+func TestRuntimeFeatureInventoryHasNoUnreviewedFeatures(t *testing.T) {
+	t.Parallel()
+	covered := runtimeFeatureConsumptionByName()
+	validModes := []runtimeFeatureConsumptionMode{
+		featureProjectedByCoreFlow,
+		featureConsumedByCapabilityGate,
+		featureNegotiatedByClient,
+		featureExecutedByRuntime,
+		featureDeclinedByClient,
+	}
+	for feature, consumption := range covered {
+		if consumption.Area == "" || consumption.Entry == "" {
+			t.Fatalf("runtime feature %s has no concrete product decision: %+v", feature, consumption)
+		}
+		if !slices.Contains(validModes, consumption.Mode) {
+			t.Fatalf("runtime feature %s has invalid consumption mode %q", feature, consumption.Mode)
+		}
+	}
+
+	published := protocol.Features()
+	var removed, unreviewed []string
+	for feature := range covered {
+		if _, exists := protocol.LookupFeature(feature); !exists {
+			removed = append(removed, feature)
+		}
+	}
+	for _, feature := range published {
+		consumption, exists := covered[feature.Key]
+		if !exists {
+			unreviewed = append(unreviewed, feature.Key)
+			continue
+		}
+		clientDecision := consumption.Mode == featureNegotiatedByClient || consumption.Mode == featureDeclinedByClient
+		if feature.ClientOptIn != clientDecision {
+			t.Errorf("runtime feature %s opt-in = %t, client decision mode = %q", feature.Key, feature.ClientOptIn, consumption.Mode)
+		}
+	}
+	slices.Sort(removed)
+	slices.Sort(unreviewed)
+	if len(removed) > 0 || len(unreviewed) > 0 {
+		t.Fatalf("runtime feature inventory drifted: removed=%v unreviewed=%v", removed, unreviewed)
+	}
+}
+
 func TestNegotiatedRunCapabilitiesMatchProjectionBoundary(t *testing.T) {
 	t.Parallel()
 	meta := requestMeta("test")
@@ -74,12 +118,18 @@ func TestNegotiatedRunCapabilitiesMatchProjectionBoundary(t *testing.T) {
 	if preference := meta.ClientCapabilities.Features[protocol.FeatureSubagents]; !preference.Enabled {
 		t.Fatal("request metadata does not negotiate the supported subagent stream profile")
 	}
+	if _, requested := meta.ClientCapabilities.Features[protocol.FeatureClientTools]; requested {
+		t.Fatal("request metadata negotiates client tools without a governed client-side executor")
+	}
 	wantInterrupts := supportedInterruptTypes()
 	if !slices.Equal(meta.ClientCapabilities.InterruptTypes, wantInterrupts) {
 		t.Fatalf("negotiated interrupts = %v, projection supports %v", meta.ClientCapabilities.InterruptTypes, wantInterrupts)
 	}
 	if len(meta.ClientCapabilities.ExcludedEphemeralEvents) != 0 {
 		t.Fatalf("client unexpectedly suppresses runtime events: %v", meta.ClientCapabilities.ExcludedEphemeralEvents)
+	}
+	if slices.Contains(meta.ClientCapabilities.InterruptTypes, protocol.InterruptToolResult) {
+		t.Fatal("request metadata accepts tool-result interrupts without a governed client-side executor")
 	}
 	for _, eventType := range requiredRunEventTypes() {
 		if !slices.Contains(recognizedRunEventTypes(), eventType) {
@@ -160,6 +210,61 @@ type runtimeAPIConsumption struct {
 	Area  string
 	Mode  runtimeConsumptionMode
 	Entry string
+}
+
+type runtimeFeatureConsumptionMode string
+
+const (
+	featureProjectedByCoreFlow      runtimeFeatureConsumptionMode = "core-projection"
+	featureConsumedByCapabilityGate runtimeFeatureConsumptionMode = "capability-gate"
+	featureNegotiatedByClient       runtimeFeatureConsumptionMode = "client-negotiated"
+	featureExecutedByRuntime        runtimeFeatureConsumptionMode = "runtime-executed"
+	featureDeclinedByClient         runtimeFeatureConsumptionMode = "client-declined"
+)
+
+type runtimeFeatureConsumption struct {
+	Area  string
+	Mode  runtimeFeatureConsumptionMode
+	Entry string
+}
+
+func runtimeFeatureConsumptionByName() map[string]runtimeFeatureConsumption {
+	projected := func(area, entry string) runtimeFeatureConsumption {
+		return runtimeFeatureConsumption{Area: area, Mode: featureProjectedByCoreFlow, Entry: entry}
+	}
+	gated := func(area, entry string) runtimeFeatureConsumption {
+		return runtimeFeatureConsumption{Area: area, Mode: featureConsumedByCapabilityGate, Entry: entry}
+	}
+	negotiated := func(area, entry string) runtimeFeatureConsumption {
+		return runtimeFeatureConsumption{Area: area, Mode: featureNegotiatedByClient, Entry: entry}
+	}
+	runtimeExecuted := func(area, entry string) runtimeFeatureConsumption {
+		return runtimeFeatureConsumption{Area: area, Mode: featureExecutedByRuntime, Entry: entry}
+	}
+	declined := func(area, entry string) runtimeFeatureConsumption {
+		return runtimeFeatureConsumption{Area: area, Mode: featureDeclinedByClient, Entry: entry}
+	}
+	return map[string]runtimeFeatureConsumption{
+		protocol.FeatureReasoning:     projected("run projection", "reasoning items, token usage, and model catalog"),
+		protocol.FeatureMultimodal:    gated("composer", "image attachment submission"),
+		protocol.FeatureCompaction:    projected("run projection", "compaction items and restored transcript occupancy"),
+		protocol.FeaturePlan:          projected("run projection", "required plan snapshot, stream events, and activity view"),
+		protocol.FeatureGoals:         gated("runtime commands", "goal lifecycle surfaces"),
+		protocol.FeatureAgentMemory:   gated("context commands", "governed memory surfaces"),
+		protocol.FeatureKnowledge:     gated("context commands", "knowledge cascade surfaces"),
+		protocol.FeatureSkills:        gated("context commands", "skill discovery and governance surfaces"),
+		protocol.FeatureMCP:           gated("connection commands", "MCP configuration, tools, reconnect, and authorization surfaces"),
+		protocol.FeatureSchedules:     gated("automation commands", "schedule lifecycle surfaces"),
+		protocol.FeatureCodebase:      gated("workspace commands", "semantic codebase status, search, and reindex surfaces"),
+		protocol.FeatureGit:           gated("workspace", "change monitor, change list, and diff surfaces"),
+		protocol.FeatureCheckpoints:   gated("sessions", "file and combined rollback scopes"),
+		protocol.FeatureFileWatch:     gated("runtime side channel", "workspace file-change subscriptions"),
+		protocol.FeatureLSP:           runtimeExecuted("run projection", "runtime-owned LSP tools projected as ordinary tool activity"),
+		protocol.FeatureSessionExport: gated("transcript and sessions", "session import and export surfaces"),
+		protocol.FeatureRelocate:      gated("sessions", "workspace relocation surface"),
+		protocol.FeatureSubagents:     negotiated("run protocol", "child-run lineage, suspension, and subtree projection"),
+		protocol.FeatureClientTools:   declined("run protocol", "no client tool executor or client-owned tool governance boundary"),
+	}
 }
 
 func runtimeAPIConsumptionByMethod() map[string]runtimeAPIConsumption {
