@@ -917,6 +917,7 @@ func TestPluginCommandCannotShadowABuiltin(t *testing.T) {
 func TestSessionPickerRestoresHistoryAndLifecycleCommandsSwitchCleanly(t *testing.T) {
 	host, stop := runUI(t)
 	host.Shows(t, "Ask lyra")
+	host.Shows(t, "Lyra CLI")
 	host.Send(input.Key{Code: input.Character, Rune: 'r', Mods: input.Ctrl})
 	host.Shows(t, "Sessions")
 	host.Type("Flaky cache")
@@ -924,6 +925,7 @@ func TestSessionPickerRestoresHistoryAndLifecycleCommandsSwitchCleanly(t *testin
 	host.Press(input.Enter)
 	host.Hides(t, "search sessions")
 	host.Shows(t, "The fixed sleep races the janitor")
+	host.Hides(t, "Lyra CLI")
 
 	host.Type("/rename Restored cache investigation")
 	host.Press(input.Enter)
@@ -933,10 +935,12 @@ func TestSessionPickerRestoresHistoryAndLifecycleCommandsSwitchCleanly(t *testin
 	host.Press(input.Enter)
 	host.Shows(t, "session · Safe alternative")
 	host.Hides(t, "The fixed sleep races the janitor")
+	host.Hides(t, "Lyra CLI")
 
 	host.Type("/new")
 	host.Press(input.Enter)
 	host.Shows(t, "session · Untitled session")
+	host.Hides(t, "Lyra CLI")
 
 	host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
 	stop()
