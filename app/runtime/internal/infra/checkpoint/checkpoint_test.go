@@ -238,6 +238,36 @@ func TestStore_PreservesTrackedSourcePathMatchedByBackstopIgnore(t *testing.T) {
 	}
 }
 
+func TestStore_IgnoresAmbientSourceIndexOverride(t *testing.T) {
+	s, cwd := newTestStore(t)
+	ctx := t.Context()
+
+	gitCmd(t, cwd, "init", "-q")
+	write(t, cwd, "tracked.txt", "source\n")
+	gitCmd(t, cwd, "add", "tracked.txt")
+	gitCmd(t, cwd, "commit", "-qm", "track source")
+
+	// A parent process may itself have been launched by Git tooling. Its
+	// repository-local environment must not redirect checkpoint discovery or
+	// shadow-index writes away from the session's canonical work tree.
+	foreignIndex := filepath.Join(t.TempDir(), "foreign.index")
+	const sentinel = "belongs-to-parent-process\n"
+	if err := os.WriteFile(foreignIndex, []byte(sentinel), 0o644); err != nil {
+		t.Fatalf("write foreign index sentinel: %v", err)
+	}
+	t.Setenv("GIT_INDEX_FILE", foreignIndex)
+
+	if err := s.Snapshot(ctx, "ses1", cwd, "run1"); err != nil {
+		t.Fatalf("snapshot with ambient GIT_INDEX_FILE: %v", err)
+	}
+	if got := read(t, filepath.Dir(foreignIndex), filepath.Base(foreignIndex)); got != sentinel {
+		t.Fatalf("foreign index changed to %q, want untouched parent-process sentinel", got)
+	}
+	if _, err := s.git(ctx, s.gitDir("ses1"), cwd, "cat-file", "-e", tagFor("run1")+":tracked.txt"); err != nil {
+		t.Fatalf("checkpoint lost the session source tree: %v", err)
+	}
+}
+
 func TestStore_AppliesSizeLimitToSourceIndex(t *testing.T) {
 	s, cwd := newTestStore(t)
 	ctx := context.Background()

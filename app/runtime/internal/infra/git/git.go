@@ -12,6 +12,8 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+
+	"github.com/Tangerg/lynx/app/runtime/internal/infra/gitprocess"
 )
 
 // ErrUnavailable means the git binary isn't on PATH. ErrNotRepo means the
@@ -85,7 +87,7 @@ func runAllowingExitCode(ctx context.Context, dir string, allowedExitCode int, a
 	// refreshes; the workspace watcher compares semantic Git state before it
 	// publishes and therefore does not expose those implementation writes.
 	full := append([]string{"--no-optional-locks", "-C", dir, "-c", "core.quotepath=false"}, args...)
-	cmd := exec.CommandContext(ctx, "git", full...)
+	cmd := gitprocess.CommandContext(ctx, full...)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr

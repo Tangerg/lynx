@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/Tangerg/lynx/app/runtime/internal/infra/pathidentity"
 )
 
 func TestGitWatcherRejectsUnwatchableGitDirectory(t *testing.T) {
@@ -215,6 +217,34 @@ func TestGitWatcherObservesLinkedWorktreeFromNestedWorkspace(t *testing.T) {
 	case <-notified:
 	case <-time.After(3 * time.Second):
 		t.Fatal("linked worktree did not observe its private index change")
+	}
+}
+
+func TestGitWatcherIgnoresAmbientRepositoryRouting(t *testing.T) {
+	if !GitAvailable() {
+		t.Skip("git not on PATH")
+	}
+	root := t.TempDir()
+	foreign := t.TempDir()
+	gitCommand(t, root, "init", "-b", "main")
+	gitCommand(t, foreign, "init", "-b", "main")
+
+	// Git repository-local variables override -C. Discovery must remain owned
+	// by the explicit WorkspaceRef root, or the watcher silently subscribes to
+	// another repository's metadata directory.
+	t.Setenv("GIT_DIR", filepath.Join(foreign, ".git"))
+	t.Setenv("GIT_WORK_TREE", foreign)
+
+	gitDir, commonDir, ok := gitDirectoriesOf(root)
+	if !ok {
+		t.Fatal("requested workspace was not resolved as a repository")
+	}
+	want, err := pathidentity.Resolve("", filepath.Join(root, ".git"))
+	if err != nil {
+		t.Fatalf("resolve requested repository identity: %v", err)
+	}
+	if gitDir != want || commonDir != want {
+		t.Fatalf("git directories = (%q, %q), want requested workspace %q", gitDir, commonDir, want)
 	}
 }
 

@@ -9,6 +9,8 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+
+	"github.com/Tangerg/lynx/app/runtime/internal/infra/gitprocess"
 )
 
 // git runs one git command against the shadow GIT_DIR with cwd as the work tree
@@ -16,12 +18,12 @@ import (
 // identity + disabled signing keep commits independent of the user's global git
 // config.
 func (s *Store) git(ctx context.Context, gitDir, workTree string, args ...string) (string, error) {
-	cmd := exec.CommandContext(ctx, "git", args...)
-	env := append(os.Environ(),
+	cmd := gitprocess.CommandContext(ctx, args...)
+	env := gitprocess.Environment(
 		"GIT_DIR="+gitDir,
 		"GIT_AUTHOR_NAME=lyra", "GIT_AUTHOR_EMAIL=lyra@localhost",
 		"GIT_COMMITTER_NAME=lyra", "GIT_COMMITTER_EMAIL=lyra@localhost",
-		"GIT_CONFIG_GLOBAL=/dev/null", "GIT_CONFIG_SYSTEM=/dev/null",
+		"GIT_CONFIG_GLOBAL="+os.DevNull, "GIT_CONFIG_SYSTEM="+os.DevNull,
 	)
 	if workTree != "" {
 		env = append(env, "GIT_WORK_TREE="+workTree)
@@ -47,7 +49,7 @@ func gitExitCode(err error) int {
 // gitIn runs a git query inside the real repo at cwd (no shadow GIT_DIR), used
 // to discover what a new shadow repo can seed from. Returns trimmed stdout.
 func gitIn(ctx context.Context, cwd string, args ...string) (string, error) {
-	cmd := exec.CommandContext(ctx, "git", args...)
+	cmd := gitprocess.CommandContext(ctx, args...)
 	cmd.Dir = cwd
 	var out bytes.Buffer
 	cmd.Stdout = &out

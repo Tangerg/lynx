@@ -12,6 +12,74 @@ import (
 	"testing"
 )
 
+// TestGitProcessEnvironmentHasOneOwner keeps repository routing and process
+// behavior below one infrastructure boundary. Direct Git subprocesses can
+// silently inherit a parent process's GIT_DIR, index, object database, config,
+// or pathspec controls even when the caller supplies -C.
+func TestGitProcessEnvironmentHasOneOwner(t *testing.T) {
+	root := moduleRoot(t)
+	owner := filepath.Join(root, "internal", "infra", "gitprocess")
+	err := filepath.WalkDir(filepath.Join(root, "internal"), func(path string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() || filepath.Ext(path) != ".go" || strings.HasSuffix(path, "_test.go") || filepath.Dir(path) == owner {
+			return nil
+		}
+		file, parseErr := parser.ParseFile(token.NewFileSet(), path, nil, 0)
+		if parseErr != nil {
+			return parseErr
+		}
+		execAliases := map[string]struct{}{}
+		for _, imported := range file.Imports {
+			if strings.Trim(imported.Path.Value, `"`) != "os/exec" {
+				continue
+			}
+			name := "exec"
+			if imported.Name != nil {
+				name = imported.Name.Name
+			}
+			execAliases[name] = struct{}{}
+		}
+		ast.Inspect(file, func(node ast.Node) bool {
+			call, ok := node.(*ast.CallExpr)
+			if !ok {
+				return true
+			}
+			selector, ok := call.Fun.(*ast.SelectorExpr)
+			if !ok {
+				return true
+			}
+			alias, ok := selector.X.(*ast.Ident)
+			if !ok {
+				return true
+			}
+			if _, isExec := execAliases[alias.Name]; !isExec {
+				return true
+			}
+			argument := 0
+			if selector.Sel.Name == "CommandContext" {
+				argument = 1
+			} else if selector.Sel.Name != "Command" {
+				return true
+			}
+			if len(call.Args) > argument && gitLiteral(call.Args[argument]) {
+				t.Errorf("%s launches Git outside internal/infra/gitprocess", path)
+			}
+			return true
+		})
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("scan Git process ownership: %v", err)
+	}
+}
+
+func gitLiteral(expression ast.Expr) bool {
+	literal, ok := expression.(*ast.BasicLit)
+	return ok && literal.Kind == token.STRING && literal.Value == `"git"`
+}
+
 func TestMediaContentEncodingStaysAtOuterBoundaries(t *testing.T) {
 	root := moduleRoot(t)
 	applicationTokenFraming := filepath.Join(root, "internal", "application", "opaquetoken")

@@ -246,6 +246,25 @@ func TestStatusObservationDoesNotRefreshGitIndex(t *testing.T) {
 	}
 }
 
+func TestListChangesIgnoresAmbientRepositoryRouting(t *testing.T) {
+	dir := initRepo(t)
+	foreign := initRepo(t)
+	write(t, dir, "a.txt", "changed in requested workspace\n")
+
+	// Git gives these variables precedence over -C. A Runtime embedded in a
+	// parent Git process must still observe the explicitly requested workspace.
+	t.Setenv("GIT_DIR", filepath.Join(foreign, ".git"))
+	t.Setenv("GIT_WORK_TREE", foreign)
+
+	changes, err := ListChanges(t.Context(), dir)
+	if err != nil {
+		t.Fatalf("ListChanges with ambient repository routing: %v", err)
+	}
+	if len(changes) != 1 || changes[0].Path != "a.txt" || changes[0].Status != StatusModified {
+		t.Fatalf("changes = %+v, want requested workspace's modified a.txt", changes)
+	}
+}
+
 func TestParseUnifiedDiffRejectsMalformedHunkHeader(t *testing.T) {
 	patch := "diff --git a/a.txt b/a.txt\n--- a/a.txt\n+++ b/a.txt\n@@ -invalid +1 @@\n-old\n+new\n"
 	if _, err := parseUnifiedDiff(patch); err == nil {

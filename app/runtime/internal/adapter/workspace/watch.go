@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -15,6 +14,8 @@ import (
 	"github.com/fsnotify/fsnotify"
 
 	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
+	"github.com/Tangerg/lynx/app/runtime/internal/infra/gitprocess"
+	"github.com/Tangerg/lynx/app/runtime/internal/infra/pathidentity"
 )
 
 // GitWatcher adapts platform filesystem notifications to the workspace
@@ -108,8 +109,15 @@ func gitDirectoriesOf(root string) (gitDir, commonDir string, ok bool) {
 	if !filepath.IsAbs(commonDir) {
 		commonDir = filepath.Join(root, commonDir)
 	}
-	gitDir = filepath.Clean(gitDir)
-	commonDir = filepath.Clean(commonDir)
+	var err error
+	gitDir, err = pathidentity.Resolve("", gitDir)
+	if err != nil {
+		return "", "", false
+	}
+	commonDir, err = pathidentity.Resolve("", commonDir)
+	if err != nil {
+		return "", "", false
+	}
 	for _, directory := range []string{gitDir, commonDir} {
 		info, err := os.Stat(directory)
 		if err != nil || !info.IsDir() {
@@ -217,7 +225,7 @@ func semanticGitFingerprint(root string) ([sha256.Size]byte, bool) {
 
 func gitObservation(root string, args ...string) ([]byte, bool) {
 	full := append([]string{"--no-optional-locks", "-C", root}, args...)
-	output, err := exec.Command("git", full...).Output()
+	output, err := gitprocess.Command(full...).Output()
 	return output, err == nil
 }
 

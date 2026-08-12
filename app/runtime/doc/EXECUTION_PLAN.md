@@ -1330,10 +1330,31 @@
 - checkpoint focused 20×、完整包、race、Runtime tidy/build/vet/test 与真实 HTTP 7 个 Plan/HITL/Approval/Goal 场景全绿；
 - 真实 lynx 工作树 checkpoint tree 包含已跟踪 Desktop build 配置、排除生成目录并通过 `git fsck`，maintenance 无 ERROR；Runtime/Protocol/SQLite/Artifact/Agent Framework shape 不变。
 
-## 59. 进度记录
+## 59. P55 — Git 子进程仓库环境所有权收敛
+
+### 目标
+
+关闭 Runtime 嵌入 Git tooling、hook、IDE 或测试进程时继承父进程 `GIT_*` 控制面的缺口。Checkpoint、workspace VCS read 与 Git watcher 明确指定的工作树必须是唯一事实源，不能被外部 index/object/common dir/config/pathspec/replace-ref 环境重定向。修复必须属于中立 Infra Git 进程机制；Application、Delivery 与 Agent 不得感知宿主进程环境。
+
+### 工作项
+
+- [x] P55-01 分别以 `GIT_INDEX_FILE` 与 `GIT_DIR`/`GIT_WORK_TREE` 污染稳定复现 checkpoint 失败、VCS read 误判和 watcher 订阅外部仓库；
+- [x] P55-02 新建 `infra/gitprocess` 作为唯一 Git OS-process owner，剥离父进程全部 `GIT_*` 控制面后再安装命令自身显式 override；
+- [x] P55-03 checkpoint shadow/source discovery、`infra/git` observation 与 workspace watcher 全部消费该机制，不在三个调用点维护会漂移的局部 denylist；
+- [x] P55-04 watcher 将 Git 返回的 per-worktree/common metadata directory 解析为 physical identity，消除 `/var`/`/private/var` 与 symlink alias 的重复 watch；
+- [x] P55-05 架构门禁禁止 Runtime production 在 owner 之外直接 `exec.Command("git", ...)`，并完成 focused、race、standalone 与污染环境真实进程复验。
+
+### 验收
+
+- foreign index sentinel 不被 checkpoint 读取或改写，请求 workspace 的 modified file 在 foreign repo routing 下仍被准确投影，watcher 只解析并订阅请求仓库的 physical `.git`；
+- Git process、checkpoint、VCS read、workspace watcher、architecture 的完整包与 race 全绿，Runtime standalone tidy/build/vet/test 全绿；
+- 生产代码直接 Git subprocess 只剩 `infra/gitprocess`，Application/Delivery/Agent/Agent Framework、Protocol、SQLite 与 Artifact shape 均未变化。
+
+## 60. 进度记录
 
 | 日期 | 阶段 | 完成事实 | 验证 |
 |---|---|---|---|
+| 2026-08-13 | P55（Git process environment ownership） | 新增中立 `infra/gitprocess` 作为 Runtime 内唯一 Git OS-process boundary：清除父进程全部 `GIT_*` 控制面，再按 checkpoint shadow repo 等调用者安装显式 override；checkpoint source discovery、workspace VCS read 与 Git watcher 共同消费。Watcher 的 per-worktree/common metadata path 同时经 `pathidentity` 收敛为 physical identity。Application、Delivery、Agent/Framework、Protocol、SQLite/Artifact shape 均未变化 | 三条红测先证明 ambient foreign index 令 checkpoint 失败、foreign repository routing 令 VCS read 判错且 watcher 订阅外部 `.git`；修复后各自转绿，相关五包完整测试与四包 race、Runtime standalone tidy/build/vet/test 全绿。污染父进程中的真实 HTTP VCS read 返回目标仓库 modified +1/-1；真实 HTTP→TypeScript SDK 流式 Run 与手工保留 Run 均 completed，maintenance checkpoint 成功，shadow tag/tree/fsck 完整，foreign index SHA-256 前后不变；architecture guard 阻止 owner 外直接 Git subprocess |
 | 2026-08-13 | P54（checkpoint source ownership / shadow ignore） | Checkpoint Infra 明确 `ls-files --exclude-standard` 是唯一路径 ownership decision：source index 已跟踪路径保留，ignored untracked 路径排除，普通文件再经类型/2 MiB 策略筛选；精确候选列表用 force-add 更新 shadow index，避免 `build/` backstop exclude 二次否决真实仓库合法跟踪的 build 输入。修复止于 `infra/checkpoint`，Run/Goal/Agent 不吞 maintenance 错误，Runtime/Protocol/SQLite/Artifact shape 不变 | 红测真实复现 tracked `app/build/config.yml` 因 shadow ignore 导致 `git add` 失败；修复后 tracked+ignored sibling 矩阵 20×、checkpoint 完整包/race、Runtime standalone tidy/build/vet/test 全绿，真实 HTTP Plan/HITL/Approval/Goal 7 场景通过。修复后的 Runtime 对真实 lynx 工作树完成 Goal checkpoint：shadow tree 精确含 7 个 tracked Desktop build 输入、排除 bin/ios/linux/windows generated paths，`git fsck` 通过且 maintenance 无 ERROR，Goal 到达 1/1 budget boundary |
 | 2026-08-13 | P53（Goal mutation/read-model single authority） | Desktop Goal Application 删除 mutation snapshot 的 timestamp 排序与 standing cache 写入，成功、失败和结算不明统一回读；command port 收窄为中性 Session receipt，完整 Runtime Goal 只在 Adapter 消费，`goals.get` data provider 成为长期状态唯一作者。跨 Session receipt fail closed，Application 错误保持结构化且无产品文案。Agent/Framework、Runtime/Protocol、SQLite/Artifact shape 零变更 | 红测覆盖 equal timestamp、延迟未来时间戳、mounted query refetch、跨 Session receipt、失败恢复和同 Session 串行；Frontend 270 文件/1630 测试、95 public edges、86/86 operations + 12/12 events / 103 typed call sites、本地化与 bundle 全绿，Runtime standalone tidy/build/vet/test 全绿。隔离 Runtime/假 provider/延迟代理/真实浏览器中，本地 Stop response 被改为 `2099` 并延迟，远端 Resume 先提交；页面经 `goals.changed → goals.get` 保持 active 1/3，释放旧响应及随后权威回读均不倒退，page/业务 console error 为零 |
 | 2026-08-13 | P52（external authored configuration convergence） | 中性 `infra/fileobservation` 以精确路径语义指纹观察 missing-parent create、write、atomic rename、remove 与域内 symlink physical target；Workspace Adapter 独占 `LYRA.md` / hooks cascade 布局，Application 只解析 workspace/projectRoot 与语义资源，Delivery 只投影既有 topic。Knowledge API commit 在发布前按 exact returned path 接受新基线，避免 filesystem 回声导致重复 refetch，同时不吞同资源另一文档的并发外部编辑。Agent/Framework、Protocol、SQLite、Artifact shape 均未变化 | 红测先证明外部配置 3 秒无事件；Infra/Application/Adapter/Delivery/Bootstrap/architecture 聚焦全绿，精确 identity 去重与 close-join 回归通过；真实 Go Runtime → HTTP SSE → TypeScript SDK 验证 home/projectRoot/cwd Knowledge 与 global/project/cwd Hooks 外部变更逐项发专用事件且冷读收敛；Desktop 唯一 consumer 仍消费 86/86 operations + 12/12 events |
