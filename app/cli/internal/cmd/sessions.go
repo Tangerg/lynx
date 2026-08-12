@@ -12,6 +12,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
 	"github.com/Tangerg/lynx/app/cli/internal/render"
+	"github.com/Tangerg/lynx/app/cli/internal/session"
 )
 
 func newSessionsCommand(provider runtimeProvider) *cobra.Command {
@@ -68,12 +69,9 @@ func newSessionsUpdateCommand(provider runtimeProvider) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			updated, err := runtime.UpdateSession(cmd.Context(), update)
+			updated, err := session.Update(cmd.Context(), runtime, update)
 			if err != nil {
 				return err
-			}
-			if err := updated.Validate(); err != nil {
-				return fmt.Errorf("update session: %w", err)
 			}
 			return render.WriteSessionJSON(cmd.OutOrStdout(), updated)
 		},
@@ -205,15 +203,11 @@ func newSessionsRenameCommand(provider runtimeProvider) *cobra.Command {
 				return err
 			}
 			title := args[1]
-			updated, err := runtime.UpdateSession(cmd.Context(), agent.UpdateSession{SessionID: args[0], Title: &title, ExpectedRevision: revision})
+			updated, err := session.Update(cmd.Context(), runtime, agent.UpdateSession{
+				SessionID: args[0], Title: &title, ExpectedRevision: revision,
+			})
 			if err != nil {
 				return err
-			}
-			if err := updated.Validate(); err != nil {
-				return fmt.Errorf("rename session: %w", err)
-			}
-			if updated.ID != args[0] {
-				return fmt.Errorf("rename session: runtime returned session %s, want %s", updated.ID, args[0])
 			}
 			_, err = fmt.Fprintf(cmd.OutOrStdout(), "%s\t%d\t%s\n", updated.ID, updated.Revision, updated.Title)
 			return err

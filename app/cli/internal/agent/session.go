@@ -433,6 +433,41 @@ func (update UpdateSession) Validate() error {
 	return nil
 }
 
+// ValidateResult verifies that a successful update response represents the
+// exact command the caller issued, rather than merely containing a valid but
+// unrelated session projection.
+func (update UpdateSession) ValidateResult(result Session) error {
+	if err := update.Validate(); err != nil {
+		return err
+	}
+	var problems []error
+	if err := result.Validate(); err != nil {
+		problems = append(problems, fmt.Errorf("runtime result: %w", err))
+	}
+	if result.ID != update.SessionID {
+		problems = append(problems, fmt.Errorf("runtime returned session %s, want %s", result.ID, update.SessionID))
+	}
+	if result.Revision <= update.ExpectedRevision {
+		problems = append(problems, fmt.Errorf("runtime returned revision %d after expected revision %d", result.Revision, update.ExpectedRevision))
+	}
+	if update.Title != nil && result.Title != strings.TrimSpace(*update.Title) {
+		problems = append(problems, fmt.Errorf("runtime returned title %q, want %q", result.Title, strings.TrimSpace(*update.Title)))
+	}
+	if update.Workspace != nil && result.Workspace.Path != strings.TrimSpace(*update.Workspace) {
+		problems = append(problems, fmt.Errorf("runtime returned workspace %q, want %q", result.Workspace.Path, strings.TrimSpace(*update.Workspace)))
+	}
+	if update.Model != nil && result.Model != strings.TrimSpace(*update.Model) {
+		problems = append(problems, fmt.Errorf("runtime returned model %q, want %q", result.Model, strings.TrimSpace(*update.Model)))
+	}
+	if update.Favorite != nil && result.Favorite != *update.Favorite {
+		problems = append(problems, fmt.Errorf("runtime returned favorite %t, want %t", result.Favorite, *update.Favorite))
+	}
+	if err := errors.Join(problems...); err != nil {
+		return fmt.Errorf("session update: %w", err)
+	}
+	return nil
+}
+
 type ForkSession struct {
 	SessionID string
 	FromRunID string

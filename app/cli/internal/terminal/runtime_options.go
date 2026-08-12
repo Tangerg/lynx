@@ -11,6 +11,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
 	"github.com/Tangerg/lynx/app/cli/internal/runtimeprofile"
+	"github.com/Tangerg/lynx/app/cli/internal/session"
 )
 
 func (a *app) buildRuntimePickers(theme kit.Theme, glyphs kit.Glyphs) {
@@ -61,17 +62,11 @@ func (a *app) selectSessionModel(model agent.Model) {
 			if err != nil {
 				return agent.Session{}, err
 			}
-			return a.runtime.UpdateSession(ctx, agent.UpdateSession{
+			return session.Update(ctx, a.runtime, agent.UpdateSession{
 				SessionID: sessionID, Model: &model.ID, ExpectedRevision: latest.Session.Revision,
 			})
 		},
 		func(updated agent.Session) error {
-			if err := updated.Validate(); err != nil {
-				return fmt.Errorf("select session model: %w", err)
-			}
-			if updated.ID != sessionID || updated.Model != model.ID {
-				return fmt.Errorf("select session model: runtime returned session %s with model %q", updated.ID, updated.Model)
-			}
 			a.setActiveSession(updated)
 			a.options.Provider, a.options.Model = model.Provider, model.ID
 			a.syncOptions("model · " + model.Provider + "/" + model.ID)

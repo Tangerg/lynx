@@ -15,6 +15,7 @@ import (
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
 	"github.com/Tangerg/lynx/app/cli/internal/attachment"
 	"github.com/Tangerg/lynx/app/cli/internal/reconnect"
+	"github.com/Tangerg/lynx/app/cli/internal/session"
 	"github.com/Tangerg/lynx/app/cli/internal/workbench"
 )
 
@@ -134,7 +135,7 @@ func (a *app) updateSessionFromCenter(id, label string, build func(agent.Session
 			if err != nil {
 				return agent.Session{}, err
 			}
-			return a.runtime.UpdateSession(ctx, build(latest.Session))
+			return session.Update(ctx, a.runtime, build(latest.Session))
 		},
 		func(updated agent.Session, err error) {
 			if err != nil {
@@ -197,15 +198,11 @@ func (a *app) RenameSession(title string) {
 			if err != nil {
 				return agent.Session{}, err
 			}
-			return a.runtime.UpdateSession(ctx, agent.UpdateSession{SessionID: sessionID, Title: &title, ExpectedRevision: latest.Session.Revision})
+			return session.Update(ctx, a.runtime, agent.UpdateSession{
+				SessionID: sessionID, Title: &title, ExpectedRevision: latest.Session.Revision,
+			})
 		},
 		func(updated agent.Session) error {
-			if err := updated.Validate(); err != nil {
-				return fmt.Errorf("rename session: %w", err)
-			}
-			if updated.ID != sessionID {
-				return fmt.Errorf("rename session: runtime returned session %s, want %s", updated.ID, sessionID)
-			}
 			a.setActiveSession(updated)
 			a.message("renamed session to " + updated.Title)
 			return nil

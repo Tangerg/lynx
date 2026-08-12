@@ -180,6 +180,18 @@ type flakyCancellationRuntime struct {
 	failure   error
 }
 
+type mismatchedSessionUpdateRuntime struct {
+	agent.Runtime
+	returned agent.Session
+}
+
+func (r *mismatchedSessionUpdateRuntime) UpdateSession(ctx context.Context, input agent.UpdateSession) (agent.Session, error) {
+	if _, err := r.Runtime.UpdateSession(ctx, input); err != nil {
+		return agent.Session{}, err
+	}
+	return r.returned, nil
+}
+
 func (r *flakyCancellationRuntime) CancelRun(ctx context.Context, input agent.CancelRun) (agent.RunCancellation, error) {
 	r.attempts.Add(1)
 	for remaining := r.remaining.Load(); remaining > 0; remaining = r.remaining.Load() {
@@ -1106,6 +1118,32 @@ func TestSessionCenterPaginatesAndManagesSelectedSession(t *testing.T) {
 	}
 
 	host.Press(input.Esc)
+	host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
+	stop()
+}
+
+func TestSessionCenterRejectsAMismatchedUpdateProjection(t *testing.T) {
+	base := mock.New()
+	workspace := t.TempDir()
+	target, err := base.CreateSession(t.Context(), agent.CreateSession{Title: "Update target", Workspace: workspace})
+	if err != nil {
+		t.Fatal(err)
+	}
+	returned, err := base.CreateSession(t.Context(), agent.CreateSession{Title: "Wrong response", Workspace: workspace})
+	if err != nil {
+		t.Fatal(err)
+	}
+	backend := &mismatchedSessionUpdateRuntime{Runtime: base, returned: returned}
+	host, stop := runUIWithWorkspace(t, backend, workspace)
+	host.Shows(t, "Ask lyra")
+	host.Send(input.Key{Code: input.Character, Rune: 'r', Mods: input.Ctrl})
+	host.Shows(t, "Sessions · Center")
+	host.Type(target.Title)
+	host.Shows(t, target.Title)
+
+	host.Send(input.Key{Code: input.Character, Rune: 'f', Mods: input.Alt})
+	host.Press(input.Esc)
+	host.Shows(t, "updating favorite failed: session update")
 	host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
 	stop()
 }

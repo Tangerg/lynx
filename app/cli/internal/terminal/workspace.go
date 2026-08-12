@@ -15,6 +15,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
 	"github.com/Tangerg/lynx/app/cli/internal/runtimeprofile"
+	"github.com/Tangerg/lynx/app/cli/internal/session"
 	"github.com/Tangerg/lynx/app/cli/internal/workbench"
 	"github.com/Tangerg/lynx/app/cli/internal/workspace"
 )
@@ -234,7 +235,7 @@ func (a *app) relocateSession(path string) {
 			if err != nil {
 				return agent.SessionSnapshot{}, err
 			}
-			if _, err := a.runtime.UpdateSession(ctx, agent.UpdateSession{
+			if _, err := session.Update(ctx, a.runtime, agent.UpdateSession{
 				SessionID: sessionID, Workspace: &path, ExpectedRevision: latest.Session.Revision,
 			}); err != nil {
 				return agent.SessionSnapshot{}, err

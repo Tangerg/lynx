@@ -91,6 +91,44 @@ func TestSessionUpdateRequiresIdentityAndAtLeastOneValidField(t *testing.T) {
 	}
 }
 
+func TestSessionUpdateResultMustFulfillTheCommand(t *testing.T) {
+	title, path, model, favorite := "Renamed", "/workspace/new", "model-new", true
+	update := UpdateSession{
+		SessionID: "ses_1", Title: &title, Workspace: &path, Model: &model,
+		Favorite: &favorite, ExpectedRevision: 4,
+	}
+	valid := Session{
+		ID: "ses_1", Title: title, Status: SessionIdle, Model: model,
+		Workspace: testWorkspace(path), Favorite: favorite, Revision: 5,
+	}
+	if err := update.ValidateResult(valid); err != nil {
+		t.Fatalf("valid result: %v", err)
+	}
+
+	tests := []struct {
+		name   string
+		mutate func(*Session)
+		want   string
+	}{
+		{name: "identity", mutate: func(result *Session) { result.ID = "ses_2" }, want: "runtime returned session"},
+		{name: "revision", mutate: func(result *Session) { result.Revision = 4 }, want: "runtime returned revision"},
+		{name: "title", mutate: func(result *Session) { result.Title = "Old" }, want: "runtime returned title"},
+		{name: "workspace", mutate: func(result *Session) { result.Workspace = testWorkspace("/workspace/old") }, want: "runtime returned workspace"},
+		{name: "model", mutate: func(result *Session) { result.Model = "model-old" }, want: "runtime returned model"},
+		{name: "favorite", mutate: func(result *Session) { result.Favorite = false }, want: "runtime returned favorite"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			result := valid
+			test.mutate(&result)
+			err := update.ValidateResult(result)
+			if err == nil || !strings.Contains(err.Error(), test.want) {
+				t.Fatalf("ValidateResult error = %v, want %q", err, test.want)
+			}
+		})
+	}
+}
+
 func TestSessionSnapshotRestoresAChildOwnedInterrupt(t *testing.T) {
 	root := Run{ID: "run_root", SessionID: "ses_1", Status: RunStatusWaiting}
 	child := Run{
