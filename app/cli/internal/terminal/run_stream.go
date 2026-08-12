@@ -96,9 +96,8 @@ func (a *app) followRecoveredSession() {
 			app: a, ctx: ctx, dispatcher: dispatcher, sequence: sequence,
 			applyEvent: a.apply, policy: reconnect.New(a.settings.UI.ReconnectAttempts),
 		}
-		recovered, err := runrecovery.AttachSession(ctx, a.runtime, a.session.ID)
-		if err != nil {
-			follower.postFailure("", fmt.Errorf("restore active session: %w", err))
+		recovered, ok := follower.restoreAttachedSession(a.session.ID)
+		if !ok {
 			return
 		}
 		active := true
@@ -132,6 +131,19 @@ type streamFollower struct {
 	policy     reconnect.Policy
 	failures   int
 	checkpoint string
+}
+
+func (f *streamFollower) restoreAttachedSession(sessionID string) (runrecovery.State, bool) {
+	for {
+		recovered, err := runrecovery.AttachSession(f.ctx, f.app.runtime, sessionID)
+		if err == nil {
+			f.failures = 0
+			return recovered, true
+		}
+		if !f.waitBeforeRetry("", fmt.Errorf("restore active session: %w", err)) {
+			return runrecovery.State{}, false
+		}
+	}
 }
 
 // eventApplicationError marks a runtime event that reached the terminal but could
@@ -258,7 +270,7 @@ func (f *streamFollower) snapshot() (followSnapshot, error) {
 
 func (f *streamFollower) reconnect(runID, segmentID string, cause error) (agent.SegmentStream, bool) {
 	for {
-		if !f.waitBeforeReconnect(runID, cause) {
+		if !f.waitBeforeRetry(runID, cause) {
 			return agent.SegmentStream{}, false
 		}
 		rebound, err := f.app.runtime.SubscribeRun(f.ctx, agent.SubscribeRun{
@@ -283,7 +295,7 @@ func (f *streamFollower) reconnect(runID, segmentID string, cause error) (agent.
 	}
 }
 
-func (f *streamFollower) waitBeforeReconnect(runID string, cause error) bool {
+func (f *streamFollower) waitBeforeRetry(runID string, cause error) bool {
 	f.failures++
 	delay, retry := f.policy.Next(f.failures, cause)
 	if !retry {

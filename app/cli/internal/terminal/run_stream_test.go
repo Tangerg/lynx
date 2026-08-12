@@ -1,9 +1,49 @@
 package terminal
 
 import (
+	"context"
+	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/Tangerg/lynx/app/cli/internal/agent"
+	"github.com/Tangerg/lynx/app/cli/internal/agent/mock"
 )
+
+type sessionReadFailureRuntime struct {
+	*mock.Runtime
+	reads     atomic.Int32
+	failureAt int32
+}
+
+func (runtime *sessionReadFailureRuntime) GetSession(ctx context.Context, sessionID string) (agent.SessionSnapshot, error) {
+	if runtime.reads.Add(1) == runtime.failureAt {
+		return agent.SessionSnapshot{}, agent.ErrDisconnected
+	}
+	return runtime.Runtime.GetSession(ctx, sessionID)
+}
+
+func TestRecoveredSessionRetriesATransientAttachRead(t *testing.T) {
+	base := mock.New()
+	base.Script = func(string) mock.Script {
+		return mock.Script{Prelude: []mock.Step{{Delay: time.Hour, Event: agent.RunFinished{
+			Outcome: agent.Outcome{Status: agent.OutcomeCompleted},
+		}}}}
+	}
+	_, err := base.StartRun(t.Context(), agent.StartRun{
+		SessionID: "ses_demo_1", Message: agent.Message{Text: "recover attach"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	runtime := &sessionReadFailureRuntime{Runtime: base, failureAt: 2}
+	host, stop := runUIWithRuntimeChanges(t, runtime, nil, "ses_demo_1")
+	host.Until(t, "the recovered session attach retry", func() bool {
+		return runtime.reads.Load() >= 4 && host.Repaint()
+	})
+	host.Shows(t, "recover attach")
+	stop()
+}
 
 func TestActiveDurationClockStartsFromDurableExecutionTime(t *testing.T) {
 	startedAt := time.Date(2026, 8, 11, 10, 0, 0, 0, time.UTC)
