@@ -31,19 +31,30 @@ function settleInterruptedTool(
   };
 }
 
-export function relabelMessage(
+/**
+ * Reconcile a provisional message identity with its durable identity.
+ *
+ * The durable message may already have arrived through another projection path
+ * before the command acknowledgement names it. In that ordering, retaining the
+ * provisional row would render the same user turn twice; collapse it into the
+ * existing durable row instead of treating the occupied target as a no-op.
+ */
+export function reconcileMessageIdentity(
   view: AgentSessionView,
   fromId: string,
   toId: string,
 ): AgentSessionView {
   if (fromId === toId) return view;
   const has = (id: string) => view.messages.some((message) => message.id === id);
-  if (!has(fromId) || has(toId)) return view;
+  if (!has(fromId)) return view;
+  const targetExists = has(toId);
   return {
     ...view,
-    messages: view.messages.map((message) =>
-      message.id === fromId ? { ...message, id: toId } : message,
-    ),
+    messages: targetExists
+      ? view.messages.filter((message) => message.id !== fromId)
+      : view.messages.map((message) =>
+          message.id === fromId ? { ...message, id: toId } : message,
+        ),
     assistantTurnByRunId: Object.fromEntries(
       Object.entries(view.assistantTurnByRunId).map(([runId, messageId]) => [
         runId,

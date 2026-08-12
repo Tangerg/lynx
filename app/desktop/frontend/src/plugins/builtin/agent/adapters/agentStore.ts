@@ -17,7 +17,7 @@ import { EMPTY_AGENT_SESSION_VIEW } from "@/plugins/sdk/types/agentSessionView";
 import {
   dismissVisibleProblem,
   dropMessage,
-  relabelMessage,
+  reconcileMessageIdentity,
   resolveInterrupt,
   setCommandError,
   type SettledInterrupt,
@@ -71,13 +71,11 @@ interface AgentStore {
     view: AgentSessionView,
   ) => boolean;
   /**
-   * Rename a message id (optimistic placeholder → server id). Used to
-   * reconcile the optimistic user bubble with the run's `userItemId` the
-   * moment runs.start resolves, so the streamed userMessage Item dedupes by
-   * exact id. No-op if `fromId` is gone or `toId` already exists (the streamed
-   * item won).
+   * Reconcile an optimistic placeholder with the server id named by the run
+   * acknowledgement. If the streamed item won the race and already occupies
+   * that id, the placeholder is collapsed into it.
    */
-  relabelMessage: (sessionId: string, fromId: string, toId: string) => void;
+  reconcileMessageIdentity: (sessionId: string, fromId: string, toId: string) => void;
   /** Remove one message by id. Used to roll back an optimistic steer bubble
    *  when the run ended mid-type (run_not_found) and the send falls back to a
    *  fresh turn that mints its own bubble. No-op if the id is gone. */
@@ -247,10 +245,10 @@ export const useAgentStore = create<AgentStore>((set) => ({
     });
     return committed;
   },
-  relabelMessage: (sessionId, fromId, toId) =>
+  reconcileMessageIdentity: (sessionId, fromId, toId) =>
     set((state) => {
       const sessions = patchView(state.sessions, sessionId, (view) =>
-        relabelMessage(view, fromId, toId),
+        reconcileMessageIdentity(view, fromId, toId),
       );
       return sessions === state.sessions ? state : { sessions };
     }),

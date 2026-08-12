@@ -7,7 +7,12 @@ import type {
   PendingInterruptGroup,
 } from "@/plugins/sdk/types/agentSessionView";
 import { EMPTY_AGENT_SESSION_VIEW } from "@/plugins/sdk/types/agentSessionView";
-import { dropMessage, relabelMessage, resolveInterrupt, setCommandError } from "./viewMutations";
+import {
+  dropMessage,
+  reconcileMessageIdentity,
+  resolveInterrupt,
+  setCommandError,
+} from "./viewMutations";
 
 const time = "2026-06-03T00:00:00Z";
 
@@ -76,20 +81,28 @@ describe("view mutations - messages", () => {
       messages: [message("local-1"), message("assistant-1")],
     });
 
-    const next = relabelMessage(original, "local-1", "server-1");
+    const next = reconcileMessageIdentity(original, "local-1", "server-1");
 
     expect(next.messages.map((m) => m.id)).toEqual(["server-1", "assistant-1"]);
     expect(next.messages[1]).toBe(original.messages[1]);
   });
 
-  it("does not relabel missing messages, existing target ids, or identical ids", () => {
+  it("collapses a provisional message when the durable target won the race", () => {
     const original = view({
       messages: [message("local-1"), message("server-1")],
     });
 
-    expect(relabelMessage(original, "missing", "server-2")).toBe(original);
-    expect(relabelMessage(original, "local-1", "server-1")).toBe(original);
-    expect(relabelMessage(original, "local-1", "local-1")).toBe(original);
+    const next = reconcileMessageIdentity(original, "local-1", "server-1");
+
+    expect(next.messages.map((message) => message.id)).toEqual(["server-1"]);
+    expect(next.messages[0]).toBe(original.messages[1]);
+  });
+
+  it("leaves missing and identical identities unchanged", () => {
+    const original = view({ messages: [message("local-1")] });
+
+    expect(reconcileMessageIdentity(original, "missing", "server-2")).toBe(original);
+    expect(reconcileMessageIdentity(original, "local-1", "local-1")).toBe(original);
   });
 
   it("drops a message by id and leaves unknown ids as no-ops", () => {

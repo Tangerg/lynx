@@ -432,7 +432,7 @@ describe("agentStore.setCommandError", () => {
   });
 });
 
-describe("agentStore.relabelMessage", () => {
+describe("agentStore.reconcileMessageIdentity", () => {
   const userMsg = (id: string): Item =>
     item({
       id,
@@ -447,19 +447,18 @@ describe("agentStore.relabelMessage", () => {
     applyCompletedItems([userMsg("local-1")]);
     expect(view().messages.map((m) => m.id)).toEqual(["local-1"]);
 
-    useAgentStore.getState().relabelMessage(SID, "local-1", "item_real");
+    useAgentStore.getState().reconcileMessageIdentity(SID, "local-1", "item_real");
     expect(view().messages.map((m) => m.id)).toEqual(["item_real"]);
   });
 
-  it("is a no-op when the target id already exists (streamed item won the race)", () => {
+  it("collapses the placeholder when the streamed item won the race", () => {
     const store = useAgentStore.getState();
     store.ensureSession(SID);
     applyCompletedItems([userMsg("item_real"), userMsg("local-1")]);
     expect(view().messages).toHaveLength(2);
 
-    useAgentStore.getState().relabelMessage(SID, "local-1", "item_real");
-    // local-1 left as-is rather than collapsed into a duplicate-key clash.
-    expect(view().messages.map((m) => m.id)).toEqual(["item_real", "local-1"]);
+    useAgentStore.getState().reconcileMessageIdentity(SID, "local-1", "item_real");
+    expect(view().messages.map((m) => m.id)).toEqual(["item_real"]);
   });
 });
 
