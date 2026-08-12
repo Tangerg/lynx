@@ -146,6 +146,7 @@ type replayingResumeRuntime struct {
 	mu       sync.Mutex
 	attempts []agent.ResumeRun
 	stream   agent.SegmentStream
+	failure  error
 }
 
 type refusingFirstResumeRuntime struct {
@@ -193,6 +194,15 @@ type flakyCancellationRuntime struct {
 	attempts  atomic.Int32
 	remaining atomic.Int32
 	failure   error
+}
+
+type uncertainCancellationRuntime struct {
+	agent.Runtime
+
+	mu                  sync.Mutex
+	attempts            []agent.CancelRun
+	timedOut            bool
+	commitBeforeTimeout bool
 }
 
 type refusingCloseCancellationRuntime struct {
@@ -243,6 +253,31 @@ func (r *flakyCancellationRuntime) CancelRun(ctx context.Context, input agent.Ca
 		}
 	}
 	return r.Runtime.CancelRun(ctx, input)
+}
+
+func (runtime *uncertainCancellationRuntime) CancelRun(ctx context.Context, input agent.CancelRun) (agent.RunCancellation, error) {
+	runtime.mu.Lock()
+	runtime.attempts = append(runtime.attempts, input)
+	first := !runtime.timedOut
+	if first {
+		runtime.timedOut = true
+	}
+	commitBeforeTimeout := runtime.commitBeforeTimeout
+	runtime.mu.Unlock()
+	if first && !commitBeforeTimeout {
+		return agent.RunCancellation{}, fmt.Errorf("cancellation acknowledgement timed out: %w", context.DeadlineExceeded)
+	}
+	result, err := runtime.Runtime.CancelRun(ctx, input)
+	if first && err == nil {
+		return agent.RunCancellation{}, fmt.Errorf("lost cancellation acknowledgement: %w", context.DeadlineExceeded)
+	}
+	return result, err
+}
+
+func (runtime *uncertainCancellationRuntime) cancelAttempts() []agent.CancelRun {
+	runtime.mu.Lock()
+	defer runtime.mu.Unlock()
+	return slices.Clone(runtime.attempts)
 }
 
 func (runtime *transientForkProjectionRuntime) ForkSession(ctx context.Context, input agent.ForkSession) (agent.Session, error) {
@@ -372,7 +407,11 @@ func (r *replayingResumeRuntime) ResumeRun(ctx context.Context, input agent.Resu
 		r.mu.Lock()
 		r.stream = continued
 		r.mu.Unlock()
-		return agent.SegmentStream{}, fmt.Errorf("lost resume acknowledgement: %w", agent.ErrDisconnected)
+		failure := r.failure
+		if failure == nil {
+			failure = agent.ErrDisconnected
+		}
+		return agent.SegmentStream{}, fmt.Errorf("lost resume acknowledgement: %w", failure)
 	}
 	return cached, nil
 }
@@ -453,6 +492,26 @@ func TestApprovalResumeRetriesTheSameMutationIdentity(t *testing.T) {
 	attempts := runtime.resumeAttempts()
 	if len(attempts) != 2 || attempts[0].CommandID == "" || attempts[0].CommandID != attempts[1].CommandID {
 		t.Fatalf("resume attempts = %+v", attempts)
+	}
+	stop()
+}
+
+func TestApprovalResumeTreatsCancellationAsAnUnknownAcknowledgement(t *testing.T) {
+	base := mock.New()
+	base.Instant = true
+	runtime := &replayingResumeRuntime{Runtime: base, failure: context.Canceled}
+	host, stop := runUIWith(t, runtime)
+	host.Shows(t, "Ask lyra")
+	host.Type("approval cancellation recovery")
+	host.Press(input.Enter)
+	host.Shows(t, "Tool approval")
+	host.Press(input.Enter)
+	host.Shows(t, "complete")
+	host.Hides(t, "Tool approval")
+
+	attempts := runtime.resumeAttempts()
+	if len(attempts) != 2 || attempts[0].CommandID == "" || attempts[0].CommandID != attempts[1].CommandID {
+		t.Fatalf("canceled acknowledgement attempts = %+v", attempts)
 	}
 	stop()
 }
@@ -982,6 +1041,63 @@ func TestCancellationFailureLeavesTheRunRetryable(t *testing.T) {
 	stop()
 }
 
+func TestCancellationConfirmsATimedOutAcknowledgementWithOneIdentity(t *testing.T) {
+	base := mock.New()
+	base.Script = func(string) mock.Script {
+		return mock.Script{Prelude: []mock.Step{{
+			Delay: time.Hour, Event: agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCompleted}},
+		}}}
+	}
+	backend := &uncertainCancellationRuntime{Runtime: base}
+	host, stop := runUIWith(t, backend)
+	host.Shows(t, "Ask lyra")
+	host.Type("cancel after a lost acknowledgement")
+	host.Press(input.Enter)
+	host.Shows(t, "working")
+	host.Press(input.Esc)
+	host.Shows(t, "canceled")
+
+	attempts := backend.cancelAttempts()
+	if len(attempts) != 2 || attempts[0].CommandID == "" || attempts[0].CommandID != attempts[1].CommandID ||
+		attempts[0].RunID == "" || attempts[0].RunID != attempts[1].RunID {
+		t.Fatalf("cancellation confirmation attempts = %+v", attempts)
+	}
+	stop()
+}
+
+func TestCancelRootRunConfirmsATimedOutAcknowledgement(t *testing.T) {
+	base := mock.New()
+	base.Script = func(string) mock.Script {
+		return mock.Script{Prelude: []mock.Step{{
+			Delay: time.Hour, Event: agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCompleted}},
+		}}}
+	}
+	session, err := base.CreateSession(t.Context(), agent.CreateSession{Workspace: t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	opened, err := base.StartRun(t.Context(), agent.StartRun{SessionID: session.ID, Message: agent.Message{Text: "cancel"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	backend := &uncertainCancellationRuntime{Runtime: base, commitBeforeTimeout: true}
+	application := &app{runtime: backend}
+	commandID := agent.CommandID("cli_11111111111111111111111111111111")
+	settled, err := application.cancelRootRun(t.Context(), agent.CancelRun{
+		CommandID: commandID, RunID: opened.RunID, Reason: "test",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if settled.ID != opened.RunID || settled.Outcome.Status != agent.OutcomeCanceled {
+		t.Fatalf("settled run = %+v", settled)
+	}
+	attempts := backend.cancelAttempts()
+	if len(attempts) != 2 || attempts[0].CommandID != commandID || attempts[1].CommandID != commandID {
+		t.Fatalf("cancellation attempts = %+v", attempts)
+	}
+}
+
 func TestEscapeCancelsAnActiveRunWithoutDiscardingTheDraft(t *testing.T) {
 	base := mock.New()
 	base.Script = func(string) mock.Script {
@@ -1121,6 +1237,28 @@ func TestClosingTheTerminalCancelsTheOwnedRuntimeRun(t *testing.T) {
 	}
 	if snapshot.Session.Status != agent.SessionIdle {
 		t.Fatalf("session status = %s, want idle", snapshot.Session.Status)
+	}
+}
+
+func TestClosingTheTerminalConfirmsCancellationWithOneIdentity(t *testing.T) {
+	base := mock.New()
+	base.Script = func(string) mock.Script {
+		return mock.Script{Prelude: []mock.Step{{
+			Delay: time.Hour, Event: agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCompleted}},
+		}}}
+	}
+	backend := &uncertainCancellationRuntime{Runtime: base}
+	host, stop := runUIWith(t, backend)
+	host.Shows(t, "Ask lyra")
+	host.Type("close after a lost cancellation acknowledgement")
+	host.Press(input.Enter)
+	host.Shows(t, "working")
+	stop()
+
+	attempts := backend.cancelAttempts()
+	if len(attempts) != 2 || attempts[0].CommandID == "" || attempts[0].CommandID != attempts[1].CommandID ||
+		attempts[0].RunID == "" || attempts[0].RunID != attempts[1].RunID {
+		t.Fatalf("terminal-close cancellation attempts = %+v", attempts)
 	}
 }
 

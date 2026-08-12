@@ -4,7 +4,6 @@
 package reconnect
 
 import (
-	"context"
 	"errors"
 	"time"
 
@@ -15,26 +14,6 @@ type Policy struct {
 	Attempts int
 	Base     time.Duration
 	Maximum  time.Duration
-}
-
-// Backoff is an unbounded retry schedule whose delay has a finite ceiling.
-// The operation owner, rather than an attempt budget, decides its lifetime.
-type Backoff struct {
-	Base    time.Duration
-	Maximum time.Duration
-}
-
-func (backoff Backoff) Delay(failure int) time.Duration {
-	base := max(backoff.Base, 0)
-	maximum := max(backoff.Maximum, base)
-	delay := base
-	for range max(failure-1, 0) {
-		if delay >= maximum/2 {
-			return maximum
-		}
-		delay *= 2
-	}
-	return min(delay, maximum)
 }
 
 func New(attempts int) Policy {
@@ -63,20 +42,6 @@ func (r Policy) Next(n int, err error) (time.Duration, bool) {
 		delay = max(delay, time.Second)
 	}
 	return min(delay, maximum), true
-}
-
-func Wait(ctx context.Context, delay time.Duration) error {
-	if delay <= 0 {
-		return context.Cause(ctx)
-	}
-	timer := time.NewTimer(delay)
-	defer timer.Stop()
-	select {
-	case <-timer.C:
-		return nil
-	case <-ctx.Done():
-		return context.Cause(ctx)
-	}
 }
 
 // Retryable reports whether retrying can repair the classified transport

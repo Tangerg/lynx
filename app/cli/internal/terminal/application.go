@@ -30,7 +30,6 @@ import (
 	"github.com/Tangerg/lynx/app/cli/internal/mcp"
 	"github.com/Tangerg/lynx/app/cli/internal/modelconfig"
 	"github.com/Tangerg/lynx/app/cli/internal/promptqueue"
-	"github.com/Tangerg/lynx/app/cli/internal/reconnect"
 	"github.com/Tangerg/lynx/app/cli/internal/runtimeprofile"
 	"github.com/Tangerg/lynx/app/cli/internal/schedule"
 	"github.com/Tangerg/lynx/app/cli/internal/sessionartifact"
@@ -409,7 +408,7 @@ func (a *app) reconcilePendingRun(pending workbench.PendingRun) {
 	activeRunID := a.conversation.RunID()
 	dispatcher := a.loop.Dispatcher()
 	a.operations.GoSession(pendingRunRecoveryOperation, false, func(ctx context.Context, lease operationLease) {
-		opened, err := openStartRun(ctx, a.runtime, command, reconnect.New(a.settings.UI.ReconnectAttempts))
+		opened, err := openStartRunWithBackoff(ctx, a.runtime, command, runtimeRecoveryBackoff)
 		if context.Cause(ctx) != nil {
 			return
 		}

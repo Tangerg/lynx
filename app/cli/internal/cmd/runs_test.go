@@ -3,7 +3,9 @@ package cmd
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -203,6 +205,30 @@ type childCancellationRuntime struct {
 	result agent.RunCancellation
 }
 
+type uncertainRunCancellationRuntime struct {
+	agent.Runtime
+
+	mu       sync.Mutex
+	attempts []agent.CancelRun
+}
+
+func (runtime *uncertainRunCancellationRuntime) CancelRun(ctx context.Context, request agent.CancelRun) (agent.RunCancellation, error) {
+	runtime.mu.Lock()
+	runtime.attempts = append(runtime.attempts, request)
+	attempt := len(runtime.attempts)
+	runtime.mu.Unlock()
+	if attempt == 1 {
+		return agent.RunCancellation{}, fmt.Errorf("cancellation acknowledgement timed out: %w", context.DeadlineExceeded)
+	}
+	return runtime.Runtime.CancelRun(ctx, request)
+}
+
+func (runtime *uncertainRunCancellationRuntime) cancelAttempts() []agent.CancelRun {
+	runtime.mu.Lock()
+	defer runtime.mu.Unlock()
+	return append([]agent.CancelRun(nil), runtime.attempts...)
+}
+
 func (runtime childCancellationRuntime) CancelRun(context.Context, agent.CancelRun) (agent.RunCancellation, error) {
 	return runtime.result, nil
 }
@@ -224,6 +250,31 @@ func TestRunsCancelPreservesSurvivingRootStateForAChild(t *testing.T) {
 	}
 	if !strings.Contains(out, `"id":"run_child"`) || !strings.Contains(out, `"id":"run_root"`) || !strings.Contains(out, `"status":"waiting"`) {
 		t.Fatalf("child cancellation output omitted surviving root:\n%s", out)
+	}
+}
+
+func TestRunsCancelConfirmsTimeoutWithOneMutationIdentity(t *testing.T) {
+	base := instantRuntime()
+	base.Instant = false
+	base.Script = func(string) mock.Script {
+		return mock.Script{Prelude: []mock.Step{{
+			Delay: time.Hour, Event: agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCompleted}},
+		}}}
+	}
+	opened, err := base.StartRun(t.Context(), agent.StartRun{
+		SessionID: "ses_demo_1", Message: agent.Message{Text: "cancel through subcommand"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	runtime := &uncertainRunCancellationRuntime{Runtime: base}
+	if _, _, err := executeCommand(t, runtime, "", "runs", "cancel", opened.RunID, "--yes"); err != nil {
+		t.Fatal(err)
+	}
+	attempts := runtime.cancelAttempts()
+	if len(attempts) != 2 || attempts[0].CommandID == "" || attempts[0].CommandID != attempts[1].CommandID ||
+		attempts[0].RunID != opened.RunID || attempts[1].RunID != opened.RunID {
+		t.Fatalf("cancellation confirmation attempts = %+v", attempts)
 	}
 }
 

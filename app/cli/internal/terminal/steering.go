@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
-	"github.com/Tangerg/lynx/app/cli/internal/reconnect"
+	"github.com/Tangerg/lynx/app/cli/internal/mutation"
 )
 
 func (a *app) steerRun(instruction string) error {
@@ -43,20 +43,9 @@ func (a *app) steerRun(instruction string) error {
 	a.resetComposer()
 	started := runOperation(a, steerRunOperation, false,
 		func(ctx context.Context) (struct{}, error) {
-			policy := reconnect.New(a.settings.UI.ReconnectAttempts)
-			for attempt := 1; ; attempt++ {
-				err := a.runtime.SteerRun(ctx, request)
-				if err == nil {
-					return struct{}{}, nil
-				}
-				delay, retry := policy.Next(attempt, err)
-				if !retry {
-					return struct{}{}, err
-				}
-				if err := reconnect.Wait(ctx, delay); err != nil {
-					return struct{}{}, err
-				}
-			}
+			return mutation.Confirm(ctx, runtimeRecoveryBackoff, func(ctx context.Context) (struct{}, error) {
+				return struct{}{}, a.runtime.SteerRun(ctx, request)
+			})
 		},
 		func(_ struct{}, err error) {
 			if err != nil {

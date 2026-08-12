@@ -12,6 +12,7 @@ import (
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
 	"github.com/Tangerg/lynx/app/cli/internal/changefeed"
 	"github.com/Tangerg/lynx/app/cli/internal/reconnect"
+	"github.com/Tangerg/lynx/app/cli/internal/retry"
 	"github.com/Tangerg/lynx/app/cli/internal/runtimeprofile"
 	"github.com/Tangerg/lynx/app/cli/internal/workspace"
 )
@@ -337,7 +338,7 @@ type runtimeChangeMonitor struct {
 	workspace          string
 	repository         workspace.ChangeReader
 	source             changefeed.Source
-	recovery           reconnect.Backoff
+	recovery           retry.Backoff
 	watchFiles         bool
 	resources          runtimeResourceObservation
 	applyFiles         func([]workspace.Change) error
@@ -452,7 +453,7 @@ func (monitor runtimeChangeMonitor) runSubscription(
 				return err
 			}
 			setupFailures++
-			if reconnect.Wait(ctx, monitor.recoveryDelay(setupFailures)) != nil {
+			if retry.Wait(ctx, monitor.recoveryDelay(setupFailures)) != nil {
 				return context.Cause(ctx)
 			}
 			continue
@@ -473,7 +474,7 @@ func (monitor runtimeChangeMonitor) runSubscription(
 					return err
 				}
 				setupFailures++
-				if reconnect.Wait(ctx, monitor.recoveryDelay(setupFailures)) != nil {
+				if retry.Wait(ctx, monitor.recoveryDelay(setupFailures)) != nil {
 					return context.Cause(ctx)
 				}
 				continue
@@ -488,7 +489,7 @@ func (monitor runtimeChangeMonitor) runSubscription(
 				return err
 			}
 			setupFailures++
-			if reconnect.Wait(ctx, monitor.recoveryDelay(setupFailures)) != nil {
+			if retry.Wait(ctx, monitor.recoveryDelay(setupFailures)) != nil {
 				return context.Cause(ctx)
 			}
 			continue
@@ -550,7 +551,7 @@ func (monitor runtimeChangeMonitor) runSubscription(
 			streamFailures = 0
 		}
 		streamFailures++
-		if reconnect.Wait(ctx, monitor.recoveryDelay(streamFailures)) != nil {
+		if retry.Wait(ctx, monitor.recoveryDelay(streamFailures)) != nil {
 			return context.Cause(ctx)
 		}
 	}
@@ -577,7 +578,7 @@ func (monitor runtimeChangeMonitor) runWithoutWatch(ctx context.Context) error {
 			return err
 		}
 		failures++
-		if reconnect.Wait(ctx, monitor.recoveryDelay(failures)) != nil {
+		if retry.Wait(ctx, monitor.recoveryDelay(failures)) != nil {
 			return context.Cause(ctx)
 		}
 	}

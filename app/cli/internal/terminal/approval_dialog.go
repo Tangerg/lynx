@@ -16,7 +16,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
 	"github.com/Tangerg/lynx/app/cli/internal/extensions"
-	"github.com/Tangerg/lynx/app/cli/internal/reconnect"
+	"github.com/Tangerg/lynx/app/cli/internal/mutation"
 	"github.com/Tangerg/lynx/app/cli/internal/workbench"
 )
 
@@ -345,7 +345,7 @@ func (a *app) deliverInteractionResume(review *interactionReview, command agent.
 
 func (a *app) restoreRejectedInteractionReview(review *interactionReview, command agent.ResumeRun, failure error) error {
 	callFailure, refused := errors.AsType[*resumeRunCallError](failure)
-	if !refused || reconnect.Retryable(callFailure.err) || a.interactionReview != review ||
+	if !refused || mutation.AcknowledgementUncertain(callFailure.err) || a.interactionReview != review ||
 		a.conversation.Phase() != agent.ConversationWaiting || a.conversation.RunID() != command.RunID {
 		return failure
 	}

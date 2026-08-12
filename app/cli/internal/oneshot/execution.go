@@ -8,11 +8,15 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
+	"github.com/Tangerg/lynx/app/cli/internal/mutation"
 	"github.com/Tangerg/lynx/app/cli/internal/reconnect"
+	"github.com/Tangerg/lynx/app/cli/internal/retry"
 	"github.com/Tangerg/lynx/app/cli/internal/runrecovery"
 )
 
 const cancellationTimeout = 5 * time.Second
+
+var acknowledgementBackoff = retry.Backoff{Base: 50 * time.Millisecond, Maximum: time.Second}
 
 type Renderer interface {
 	Begin(agent.Run, agent.RunOptions) error
@@ -56,7 +60,7 @@ func Execute(ctx context.Context, invocation Invocation) (runErr error) {
 	}
 	defer func() { runErr = errors.Join(runErr, invocation.Renderer.Close()) }()
 
-	opened, err := openRun(ctx, invocation.Runtime, invocation.Start, reconnect.New(invocation.ReconnectAttempts))
+	opened, err := openRun(ctx, invocation.Runtime, invocation.Start)
 	if err != nil {
 		return err
 	}
@@ -90,20 +94,10 @@ func Execute(ctx context.Context, invocation Invocation) (runErr error) {
 	return err
 }
 
-func openRun(ctx context.Context, runtime Runtime, command agent.StartRun, policy reconnect.Policy) (agent.SegmentStream, error) {
-	for attempt := 1; ; attempt++ {
-		opened, err := runtime.StartRun(ctx, command)
-		if err == nil {
-			return opened, nil
-		}
-		delay, retry := policy.Next(attempt, err)
-		if !retry {
-			return agent.SegmentStream{}, err
-		}
-		if err := reconnect.Wait(ctx, delay); err != nil {
-			return agent.SegmentStream{}, err
-		}
-	}
+func openRun(ctx context.Context, runtime Runtime, command agent.StartRun) (agent.SegmentStream, error) {
+	return mutation.Confirm(ctx, acknowledgementBackoff, func(ctx context.Context) (agent.SegmentStream, error) {
+		return runtime.StartRun(ctx, command)
+	})
 }
 
 type cancellationWatcher struct {
@@ -129,7 +123,11 @@ func watchCancellation(ctx context.Context, runtime agent.RunLifecycle, runID st
 		}
 		cancelCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), cancellationTimeout)
 		defer cancel()
-		_, _ = runtime.CancelRun(cancelCtx, agent.CancelRun{CommandID: commandID, RunID: runID, Reason: "CLI execution ended before the run settled"})
+		_, _ = mutation.Confirm(cancelCtx, acknowledgementBackoff, func(ctx context.Context) (agent.RunCancellation, error) {
+			return runtime.CancelRun(ctx, agent.CancelRun{
+				CommandID: commandID, RunID: runID, Reason: "CLI execution ended before the run settled",
+			})
+		})
 	}()
 	return watcher
 }
@@ -203,19 +201,11 @@ func (d *executionDriver) resume(ctx context.Context, interactions []agent.Inter
 		return err
 	}
 	command := agent.ResumeRun{CommandID: commandID, RunID: runID, Answers: answers}
-	var continued agent.SegmentStream
-	for attempt := 1; ; attempt++ {
-		continued, err = d.invocation.Runtime.ResumeRun(ctx, command)
-		if err == nil {
-			break
-		}
-		delay, retry := d.policy.Next(attempt, err)
-		if !retry {
-			return err
-		}
-		if err := reconnect.Wait(ctx, delay); err != nil {
-			return err
-		}
+	continued, err := mutation.Confirm(ctx, acknowledgementBackoff, func(ctx context.Context) (agent.SegmentStream, error) {
+		return d.invocation.Runtime.ResumeRun(ctx, command)
+	})
+	if err != nil {
+		return err
 	}
 	if err := validateContinuation(continued, d.openedRunID); err != nil {
 		return err
@@ -235,11 +225,11 @@ func interactionDisposition(err error) disposition {
 func (d *executionDriver) reconnect(ctx context.Context, cause error) (disposition, error) {
 	for {
 		d.failures++
-		delay, retry := d.policy.Next(d.failures, cause)
-		if !retry {
+		delay, shouldRetry := d.policy.Next(d.failures, cause)
+		if !shouldRetry {
 			return abandoned, cause
 		}
-		if err := reconnect.Wait(ctx, delay); err != nil {
+		if err := retry.Wait(ctx, delay); err != nil {
 			return abandoned, err
 		}
 		rebound, err := d.invocation.Runtime.SubscribeRun(ctx, agent.SubscribeRun{

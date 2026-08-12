@@ -1,15 +1,19 @@
 package cmd
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
 	"text/tabwriter"
+	"time"
 
 	"github.com/spf13/cobra"
 
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
+	"github.com/Tangerg/lynx/app/cli/internal/mutation"
 	"github.com/Tangerg/lynx/app/cli/internal/render"
+	"github.com/Tangerg/lynx/app/cli/internal/retry"
 	"github.com/Tangerg/lynx/app/cli/internal/runtimeprofile"
 )
 
@@ -182,7 +186,16 @@ func newRunsCancelCommand(provider runtimeProvider) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			result, err := runtime.CancelRun(cmd.Context(), agent.CancelRun{RunID: args[0], Reason: reason})
+			commandID, err := agent.NewCommandID()
+			if err != nil {
+				return fmt.Errorf("prepare run cancellation: %w", err)
+			}
+			request := agent.CancelRun{CommandID: commandID, RunID: args[0], Reason: reason}
+			result, err := mutation.Confirm(cmd.Context(), retry.Backoff{
+				Base: 50 * time.Millisecond, Maximum: time.Second,
+			}, func(ctx context.Context) (agent.RunCancellation, error) {
+				return runtime.CancelRun(ctx, request)
+			})
 			if err != nil {
 				return err
 			}

@@ -28,6 +28,7 @@ type replayingStartRuntime struct {
 	attempts int
 	inputs   []agent.StartRun
 	stream   agent.SegmentStream
+	failure  error
 }
 
 type idempotentStartRuntime struct {
@@ -132,7 +133,11 @@ func (runtime *replayingStartRuntime) StartRun(ctx context.Context, input agent.
 		runtime.mu.Lock()
 		runtime.stream = opened
 		runtime.mu.Unlock()
-		return agent.SegmentStream{}, fmt.Errorf("lost start acknowledgement: %w", agent.ErrDisconnected)
+		failure := runtime.failure
+		if failure == nil {
+			failure = agent.ErrDisconnected
+		}
+		return agent.SegmentStream{}, fmt.Errorf("lost start acknowledgement: %w", failure)
 	}
 	return cached, nil
 }
@@ -196,6 +201,25 @@ func TestStartHandshakeRetriesTheSameMutationIdentity(t *testing.T) {
 	}
 	if !attempts[0].Message.Equal(attempts[1].Message) {
 		t.Fatalf("start retry changed message: %+v, %+v", attempts[0].Message, attempts[1].Message)
+	}
+	stop()
+}
+
+func TestStartHandshakeTreatsDeadlineAsAnUnknownAcknowledgement(t *testing.T) {
+	base := mock.New()
+	base.Script = stableCompletedScript
+	runtime := &replayingStartRuntime{Runtime: base, failure: context.DeadlineExceeded}
+	host, stop := runUIWith(t, runtime)
+	host.Shows(t, "Ask lyra")
+	host.Type("recover a timed out acknowledgement")
+	host.Press(input.Enter)
+	host.Shows(t, "stable answer")
+	host.Shows(t, "complete")
+	host.Hides(t, "1 queued")
+
+	attempts := runtime.startAttempts()
+	if len(attempts) != 2 || attempts[0].CommandID == "" || attempts[0].CommandID != attempts[1].CommandID {
+		t.Fatalf("deadline recovery attempts = %+v", attempts)
 	}
 	stop()
 }

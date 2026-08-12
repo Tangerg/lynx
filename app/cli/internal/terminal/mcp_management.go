@@ -13,6 +13,7 @@ import (
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
 	"github.com/Tangerg/lynx/app/cli/internal/mcp"
 	"github.com/Tangerg/lynx/app/cli/internal/reconnect"
+	"github.com/Tangerg/lynx/app/cli/internal/retry"
 )
 
 const mcpAuthorizationPollInterval = 500 * time.Millisecond
@@ -378,7 +379,7 @@ func (a *app) pollMCPAuthorization(initial mcp.AuthorizationAttempt) {
 type mcpAuthorizationObserver struct {
 	service      mcp.Service
 	pollInterval time.Duration
-	recovery     reconnect.Backoff
+	recovery     retry.Backoff
 }
 
 func (observer mcpAuthorizationObserver) observe(
@@ -393,7 +394,7 @@ func (observer mcpAuthorizationObserver) observe(
 	delay := observer.pollInterval
 	failures := 0
 	for current.Pending() {
-		if err := reconnect.Wait(ctx, delay); err != nil {
+		if err := retry.Wait(ctx, delay); err != nil {
 			return mcp.AuthorizationAttempt{}, err
 		}
 		next, err := observer.service.GetAuthorization(ctx, reference)

@@ -15,6 +15,7 @@ import (
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
 	"github.com/Tangerg/lynx/app/cli/internal/attachment"
 	"github.com/Tangerg/lynx/app/cli/internal/reconnect"
+	"github.com/Tangerg/lynx/app/cli/internal/retry"
 	"github.com/Tangerg/lynx/app/cli/internal/session"
 	"github.com/Tangerg/lynx/app/cli/internal/workbench"
 )
@@ -455,11 +456,11 @@ func (a *app) readSessionAfterMutation(ctx context.Context, sessionID string) (a
 			return snapshot, nil
 		}
 		failures++
-		delay, retry := policy.Next(failures, err)
-		if !retry {
+		delay, shouldRetry := policy.Next(failures, err)
+		if !shouldRetry {
 			return agent.SessionSnapshot{}, err
 		}
-		if err := reconnect.Wait(ctx, delay); err != nil {
+		if err := retry.Wait(ctx, delay); err != nil {
 			return agent.SessionSnapshot{}, err
 		}
 	}

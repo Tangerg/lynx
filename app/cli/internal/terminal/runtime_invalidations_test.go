@@ -17,7 +17,7 @@ import (
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
 	"github.com/Tangerg/lynx/app/cli/internal/agent/mock"
 	"github.com/Tangerg/lynx/app/cli/internal/changefeed"
-	"github.com/Tangerg/lynx/app/cli/internal/reconnect"
+	"github.com/Tangerg/lynx/app/cli/internal/retry"
 	"github.com/Tangerg/lynx/app/cli/internal/workbench"
 	"github.com/Tangerg/lynx/app/cli/internal/workspace"
 )
@@ -208,7 +208,7 @@ func TestRuntimeChangeMonitorBacksOffRepeatedEmptyStreams(t *testing.T) {
 	defer cancel()
 	monitor := runtimeChangeMonitor{
 		source:   source,
-		recovery: reconnect.Backoff{Base: 20 * time.Millisecond, Maximum: 40 * time.Millisecond},
+		recovery: retry.Backoff{Base: 20 * time.Millisecond, Maximum: 40 * time.Millisecond},
 	}
 	done := make(chan error, 1)
 	started := time.Now()

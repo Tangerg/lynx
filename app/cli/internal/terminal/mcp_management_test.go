@@ -17,7 +17,7 @@ import (
 	"github.com/Tangerg/lynx/app/cli/internal/agent/mock"
 	"github.com/Tangerg/lynx/app/cli/internal/changefeed"
 	"github.com/Tangerg/lynx/app/cli/internal/mcp"
-	"github.com/Tangerg/lynx/app/cli/internal/reconnect"
+	"github.com/Tangerg/lynx/app/cli/internal/retry"
 )
 
 type mcpServiceStub struct {
@@ -156,7 +156,7 @@ func TestMCPAuthorizationObserverRecoversTransientReadsAndStopsOnAuthoritativeAb
 	service.authErrors <- fmt.Errorf("another temporary authorization read failure: %w", agent.ErrDisconnected)
 	observer := mcpAuthorizationObserver{
 		service: service, pollInterval: time.Nanosecond,
-		recovery: reconnect.Backoff{Base: time.Nanosecond, Maximum: time.Nanosecond},
+		recovery: retry.Backoff{Base: time.Nanosecond, Maximum: time.Nanosecond},
 	}
 	initial, err := service.StartAuthorization(t.Context(), "docs")
 	if err != nil {

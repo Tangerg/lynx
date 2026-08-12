@@ -9,9 +9,10 @@ import (
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
 	"github.com/Tangerg/lynx/app/cli/internal/changefeed"
 	"github.com/Tangerg/lynx/app/cli/internal/reconnect"
+	"github.com/Tangerg/lynx/app/cli/internal/retry"
 )
 
-var runtimeRecoveryBackoff = reconnect.Backoff{Base: 100 * time.Millisecond, Maximum: 5 * time.Second}
+var runtimeRecoveryBackoff = retry.Backoff{Base: 100 * time.Millisecond, Maximum: 5 * time.Second}
 
 func (a *app) applyRuntimeInvalidation(event changefeed.Event) {
 	if event.Type == changefeed.Resync {
@@ -108,7 +109,7 @@ func (a *app) refreshRuntimeReader(query runtimeReaderQuery) {
 				return document, err
 			}
 			failures++
-			if err := reconnect.Wait(ctx, runtimeRecoveryBackoff.Delay(failures)); err != nil {
+			if err := retry.Wait(ctx, runtimeRecoveryBackoff.Delay(failures)); err != nil {
 				return readerDocument{}, err
 			}
 		}
@@ -233,7 +234,7 @@ func (a *app) readInvalidatedSession(ctx context.Context, sessionID string) (age
 			return snapshot, err
 		}
 		failures++
-		if err := reconnect.Wait(ctx, runtimeRecoveryBackoff.Delay(failures)); err != nil {
+		if err := retry.Wait(ctx, runtimeRecoveryBackoff.Delay(failures)); err != nil {
 			return agent.SessionSnapshot{}, err
 		}
 	}

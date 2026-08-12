@@ -3,8 +3,10 @@ package terminal
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -266,6 +268,33 @@ func (runtime *steeringRuntime) lastSteer() agent.SteerRun {
 	return request
 }
 
+type uncertainSteeringRuntime struct {
+	*mock.Runtime
+
+	mu       sync.Mutex
+	requests []agent.SteerRun
+}
+
+func (runtime *uncertainSteeringRuntime) SteerRun(ctx context.Context, request agent.SteerRun) error {
+	runtime.mu.Lock()
+	runtime.requests = append(runtime.requests, request)
+	attempt := len(runtime.requests)
+	runtime.mu.Unlock()
+	if attempt == 1 {
+		if err := runtime.Runtime.SteerRun(ctx, request); err != nil {
+			return err
+		}
+		return fmt.Errorf("lost steer acknowledgement: %w", context.DeadlineExceeded)
+	}
+	return nil
+}
+
+func (runtime *uncertainSteeringRuntime) steerAttempts() []agent.SteerRun {
+	runtime.mu.Lock()
+	defer runtime.mu.Unlock()
+	return slices.Clone(runtime.requests)
+}
+
 func TestSteerTargetsTheObservedSegmentAndRestoresAttachmentsOnRefusal(t *testing.T) {
 	base := mock.New()
 	base.Script = func(string) mock.Script {
@@ -299,5 +328,31 @@ func TestSteerTargetsTheObservedSegmentAndRestoresAttachmentsOnRefusal(t *testin
 	host.Type("/attachments")
 	host.Press(input.Enter)
 	host.Shows(t, "notes.txt")
+	stop()
+}
+
+func TestSteerConfirmsATimedOutAcknowledgementWithOneIdentity(t *testing.T) {
+	base := mock.New()
+	base.Script = func(string) mock.Script {
+		return mock.Script{Prelude: []mock.Step{
+			{Event: agent.BlockStarted{Block: agent.Block{ID: "thinking", Kind: agent.BlockReasoning}}},
+			{Delay: time.Hour, Event: agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCompleted}}},
+		}}
+	}
+	backend := &uncertainSteeringRuntime{Runtime: base}
+	host, stop := runUIWith(t, backend)
+	host.Shows(t, "Ask lyra")
+	host.Type("start steer confirmation")
+	host.Press(input.Enter)
+	host.Shows(t, "thinking")
+	host.Type("/steer keep one identity")
+	host.Press(input.Enter)
+	host.Shows(t, "steer accepted")
+
+	attempts := backend.steerAttempts()
+	if len(attempts) != 2 || attempts[0].CommandID == "" || attempts[0].CommandID != attempts[1].CommandID ||
+		attempts[0].RunID != attempts[1].RunID || attempts[0].SegmentID != attempts[1].SegmentID {
+		t.Fatalf("steer confirmation attempts = %+v", attempts)
+	}
 	stop()
 }
