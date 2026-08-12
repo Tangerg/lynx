@@ -401,6 +401,13 @@ func (r *Runtime) supportsFeature(name runtimeprofile.FeatureName) bool {
 	return r.profile.Supports(name)
 }
 
+func (r *Runtime) requireFeature(name runtimeprofile.FeatureName) error {
+	if r.supportsFeature(name) {
+		return nil
+	}
+	return fmt.Errorf("%w: runtime capability %q was not negotiated", agent.ErrIncompatibleRuntime, name)
+}
+
 func (o *Owner) Close() error {
 	if o == nil {
 		return nil

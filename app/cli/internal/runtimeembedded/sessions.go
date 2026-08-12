@@ -156,12 +156,10 @@ func (r *Runtime) UpdateSession(ctx context.Context, input agent.UpdateSession) 
 	if err := input.Validate(); err != nil {
 		return agent.Session{}, err
 	}
-	if input.Workspace != nil && !r.profile.Supports(runtimeprofile.FeatureRelocate) {
-		return agent.Session{}, fmt.Errorf(
-			"%w: runtime capability %q was not negotiated",
-			agent.ErrIncompatibleRuntime,
-			runtimeprofile.FeatureRelocate,
-		)
+	if input.Workspace != nil {
+		if err := r.requireFeature(runtimeprofile.FeatureRelocate); err != nil {
+			return agent.Session{}, err
+		}
 	}
 	options, err := r.commandOptions()
 	if err != nil {

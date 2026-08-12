@@ -12,6 +12,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/protocol"
 
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
+	"github.com/Tangerg/lynx/app/cli/internal/runtimeprofile"
 	"github.com/Tangerg/lynx/app/cli/internal/sessiontransfer"
 )
 
@@ -19,6 +20,14 @@ type sessionBindingStub struct {
 	rollback func(context.Context, protocol.RollbackSessionRequest, embedded.CommandOptions) (*protocol.RollbackSessionResponse, error)
 	export   func(context.Context, protocol.ExportSessionRequest, embedded.CallOptions) (*protocol.ExportSessionResponse, error)
 	imported func(context.Context, protocol.ImportSessionRequest, embedded.CommandOptions) (*protocol.ImportSessionResponse, error)
+}
+
+func sessionControlProfile(features ...runtimeprofile.FeatureName) runtimeprofile.Profile {
+	profile := runtimeprofile.Profile{Features: make(map[runtimeprofile.FeatureName]runtimeprofile.Feature, len(features))}
+	for _, feature := range features {
+		profile.Features[feature] = runtimeprofile.Feature{Enabled: true, Stability: runtimeprofile.Stable}
+	}
+	return profile
 }
 
 func (stub sessionBindingStub) RollbackSession(ctx context.Context, request protocol.RollbackSessionRequest, options embedded.CommandOptions) (*protocol.RollbackSessionResponse, error) {
@@ -54,7 +63,10 @@ func TestSessionControlProjectsRollbackWithoutLosingInlineInput(t *testing.T) {
 			}},
 		}, nil
 	}
-	runtime := &Runtime{sessions: stub, meta: requestMeta("test")}
+	runtime := &Runtime{
+		sessions: stub, meta: requestMeta("test"),
+		profile: sessionControlProfile(runtimeprofile.FeatureCheckpoints),
+	}
 	result, err := runtime.RollbackSession(t.Context(), agent.RollbackSession{
 		SessionID: "ses_1", ToRunID: "run_1", Scope: agent.RestoreBoth,
 	})
@@ -87,7 +99,10 @@ func TestSessionControlRejectsCrossSessionResponses(t *testing.T) {
 			}}, nil
 		},
 	}
-	runtime := &Runtime{sessions: stub, meta: requestMeta("test")}
+	runtime := &Runtime{
+		sessions: stub, meta: requestMeta("test"),
+		profile: sessionControlProfile(runtimeprofile.FeatureSessionExport),
+	}
 	_, err := runtime.RollbackSession(t.Context(), agent.RollbackSession{SessionID: "ses_1", Scope: agent.RestoreHistory})
 	requireRuntimeContractViolation(t, err)
 	_, err = runtime.ExportSession(t.Context(), sessiontransfer.ExportRequest{SessionID: "ses_1", Format: sessiontransfer.JSON})
@@ -109,7 +124,10 @@ func TestSessionTransferPreservesRuntimeNativeFormats(t *testing.T) {
 			return nil, errors.New("unexpected format")
 		}
 	}
-	runtime := &Runtime{sessions: stub, meta: requestMeta("test")}
+	runtime := &Runtime{
+		sessions: stub, meta: requestMeta("test"),
+		profile: sessionControlProfile(runtimeprofile.FeatureSessionExport),
+	}
 	markdown, err := runtime.ExportSession(t.Context(), sessiontransfer.ExportRequest{SessionID: "ses_1", Format: sessiontransfer.Markdown})
 	if err != nil || string(markdown.Bytes()) != "# Runtime transcript" {
 		t.Fatalf("Markdown export = (%q, %v)", markdown.Bytes(), err)
@@ -132,7 +150,10 @@ func TestSessionImportDecodesOpaqueDocumentOnlyAtTheAdapterBoundary(t *testing.T
 			Workspace: testProtocolWorkspace("/workspace", "/workspace", protocol.WorkspaceAvailable),
 		}}, nil
 	}
-	runtime := &Runtime{sessions: stub, meta: requestMeta("test")}
+	runtime := &Runtime{
+		sessions: stub, meta: requestMeta("test"),
+		profile: sessionControlProfile(runtimeprofile.FeatureSessionExport),
+	}
 	artifactJSON := fmt.Sprintf(`{"version":%d,"session":{"id":"ses_1","title":"Session","workspace":{"path":"/workspace"},"model":"","createdAt":"0001-01-01T00:00:00Z","updatedAt":"0001-01-01T00:00:00Z"},"messages":[],"runs":[],"items":[],"toolResults":[]}`, protocol.SessionArtifactVersion)
 	document, err := sessiontransfer.NewDocument(sessiontransfer.JSON, []byte(artifactJSON))
 	if err != nil {
@@ -150,5 +171,46 @@ func TestSessionImportDecodesOpaqueDocumentOnlyAtTheAdapterBoundary(t *testing.T
 	}
 	if _, err := runtime.ImportSession(t.Context(), sessiontransfer.ImportRequest{Artifact: unknown}); err == nil || !strings.Contains(err.Error(), "unknown field") {
 		t.Fatalf("unknown artifact field error = %v", err)
+	}
+}
+
+func TestSessionControlRejectsConditionalOperationsBeforeCallingBinding(t *testing.T) {
+	t.Parallel()
+	called := false
+	stub := sessionBindingStub{
+		rollback: func(context.Context, protocol.RollbackSessionRequest, embedded.CommandOptions) (*protocol.RollbackSessionResponse, error) {
+			called = true
+			return nil, nil
+		},
+		export: func(context.Context, protocol.ExportSessionRequest, embedded.CallOptions) (*protocol.ExportSessionResponse, error) {
+			called = true
+			return nil, nil
+		},
+		imported: func(context.Context, protocol.ImportSessionRequest, embedded.CommandOptions) (*protocol.ImportSessionResponse, error) {
+			called = true
+			return nil, nil
+		},
+	}
+	runtime := &Runtime{sessions: stub, meta: requestMeta("test")}
+	if _, err := runtime.RollbackSession(t.Context(), agent.RollbackSession{
+		SessionID: "ses_1", ToRunID: "run_1", Scope: agent.RestoreFiles,
+	}); err == nil || !errors.Is(err, agent.ErrIncompatibleRuntime) {
+		t.Fatalf("files rollback error = %v, want ErrIncompatibleRuntime", err)
+	}
+	if _, err := runtime.ExportSession(t.Context(), sessiontransfer.ExportRequest{
+		SessionID: "ses_1", Format: sessiontransfer.JSON,
+	}); err == nil || !errors.Is(err, agent.ErrIncompatibleRuntime) {
+		t.Fatalf("export error = %v, want ErrIncompatibleRuntime", err)
+	}
+	artifactJSON := fmt.Sprintf(`{"version":%d,"session":{"id":"ses_1","workspace":{"path":"/workspace"}},"messages":[],"runs":[],"items":[],"toolResults":[]}`, protocol.SessionArtifactVersion)
+	document, err := sessiontransfer.NewDocument(sessiontransfer.JSON, []byte(artifactJSON))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := runtime.ImportSession(t.Context(), sessiontransfer.ImportRequest{Artifact: document}); err == nil || !errors.Is(err, agent.ErrIncompatibleRuntime) {
+		t.Fatalf("import error = %v, want ErrIncompatibleRuntime", err)
+	}
+	if called {
+		t.Fatal("conditional session control reached the binding without negotiated capabilities")
 	}
 }

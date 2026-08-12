@@ -3,7 +3,6 @@ package runtimeembedded
 import (
 	"context"
 	"errors"
-	"fmt"
 	"slices"
 	"strings"
 
@@ -49,12 +48,10 @@ func (r *Runtime) ListRuns(ctx context.Context, query agent.RunQuery) (agent.Run
 	if err := query.Validate(); err != nil {
 		return agent.RunPage{}, err
 	}
-	if query.IncludeDescendants && !r.profile.Supports(runtimeprofile.FeatureSubagents) {
-		return agent.RunPage{}, fmt.Errorf(
-			"%w: runtime capability %q was not negotiated",
-			agent.ErrIncompatibleRuntime,
-			runtimeprofile.FeatureSubagents,
-		)
+	if query.IncludeDescendants {
+		if err := r.requireFeature(runtimeprofile.FeatureSubagents); err != nil {
+			return agent.RunPage{}, err
+		}
 	}
 	limit := query.Limit
 	if limit == 0 {

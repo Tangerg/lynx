@@ -13,6 +13,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/protocol"
 
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
+	"github.com/Tangerg/lynx/app/cli/internal/runtimeprofile"
 	"github.com/Tangerg/lynx/app/cli/internal/sessiontransfer"
 )
 
@@ -27,6 +28,11 @@ var _ sessiontransfer.Service = (*Runtime)(nil)
 func (r *Runtime) RollbackSession(ctx context.Context, input agent.RollbackSession) (agent.RollbackResult, error) {
 	if err := input.Validate(); err != nil {
 		return agent.RollbackResult{}, err
+	}
+	if input.Scope != agent.RestoreHistory {
+		if err := r.requireFeature(runtimeprofile.FeatureCheckpoints); err != nil {
+			return agent.RollbackResult{}, err
+		}
 	}
 	options, err := r.commandOptions()
 	if err != nil {
@@ -94,6 +100,9 @@ func (r *Runtime) ExportSession(ctx context.Context, request sessiontransfer.Exp
 	if err := request.Validate(); err != nil {
 		return sessiontransfer.Document{}, err
 	}
+	if err := r.requireFeature(runtimeprofile.FeatureSessionExport); err != nil {
+		return sessiontransfer.Document{}, err
+	}
 	response, err := r.sessions.ExportSession(ctx, protocol.ExportSessionRequest{
 		SessionID: request.SessionID, Format: protocol.ExportFormat(request.Format),
 	}, r.callOptions())
@@ -140,6 +149,9 @@ func (r *Runtime) ExportSession(ctx context.Context, request sessiontransfer.Exp
 
 func (r *Runtime) ImportSession(ctx context.Context, request sessiontransfer.ImportRequest) (agent.Session, error) {
 	if err := request.Validate(); err != nil {
+		return agent.Session{}, err
+	}
+	if err := r.requireFeature(runtimeprofile.FeatureSessionExport); err != nil {
 		return agent.Session{}, err
 	}
 	var artifact protocol.SessionArtifact
