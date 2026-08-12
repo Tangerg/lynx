@@ -4,10 +4,14 @@ import (
 	"context"
 	"errors"
 	"slices"
+	"time"
 
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
 	"github.com/Tangerg/lynx/app/cli/internal/changefeed"
+	"github.com/Tangerg/lynx/app/cli/internal/reconnect"
 )
+
+var runtimeRecoveryBackoff = reconnect.Backoff{Base: 100 * time.Millisecond, Maximum: 5 * time.Second}
 
 func (a *app) applyRuntimeInvalidation(event changefeed.Event) {
 	a.refreshGoalReader(goalInvalidationAffectsSession(event, a.session.ID))
@@ -131,7 +135,7 @@ func (a *app) refreshInvalidatedSession(settleAfter bool) {
 	a.sessionInvalidated = false
 	started := runOperation(a, sessionInvalidationOperation, false,
 		func(ctx context.Context) (agent.SessionSnapshot, error) {
-			return a.runtime.GetSession(ctx, sessionID)
+			return a.readInvalidatedSession(ctx, sessionID)
 		},
 		func(snapshot agent.SessionSnapshot, err error) {
 			if a.session.ID != sessionID {
@@ -155,10 +159,9 @@ func (a *app) refreshInvalidatedSession(settleAfter bool) {
 				a.sessionInvalidated = true
 				return
 			}
-			if a.conversation.MatchesSnapshot(snapshot) {
+			if a.conversation.MatchesSnapshot(snapshot) && a.session.Workspace == snapshot.Session.Workspace {
 				a.installSessionMetadata(snapshot.Session)
 			} else {
-				a.dismissInteractionProjection()
 				if err := a.installSnapshot(snapshot); err != nil {
 					a.message("refresh session after runtime change failed: " + err.Error())
 					return
@@ -173,6 +176,20 @@ func (a *app) refreshInvalidatedSession(settleAfter bool) {
 	)
 	if !started {
 		a.sessionInvalidated = true
+	}
+}
+
+func (a *app) readInvalidatedSession(ctx context.Context, sessionID string) (agent.SessionSnapshot, error) {
+	failures := 0
+	for {
+		snapshot, err := a.runtime.GetSession(ctx, sessionID)
+		if err == nil || errors.Is(err, agent.ErrSessionNotFound) || errors.Is(err, agent.ErrIncompatibleRuntime) {
+			return snapshot, err
+		}
+		failures++
+		if err := reconnect.Wait(ctx, runtimeRecoveryBackoff.Delay(failures)); err != nil {
+			return agent.SessionSnapshot{}, err
+		}
 	}
 }
 

@@ -2,6 +2,7 @@ package terminal
 
 import (
 	"context"
+	"errors"
 	"slices"
 	"sync"
 	"sync/atomic"
@@ -14,6 +15,7 @@ import (
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
 	"github.com/Tangerg/lynx/app/cli/internal/agent/mock"
 	"github.com/Tangerg/lynx/app/cli/internal/changefeed"
+	"github.com/Tangerg/lynx/app/cli/internal/workspace"
 )
 
 type runtimeChangeSourceStub struct {
@@ -121,6 +123,8 @@ func TestRuntimeInvalidationDefersColdReplacementUntilTheStreamSettles(t *testin
 type snapshotCountingRuntime struct {
 	*mock.Runtime
 	reads      atomic.Int32
+	failures   atomic.Int32
+	failure    error
 	readSignal chan struct{}
 }
 
@@ -132,16 +136,25 @@ func (runtime *snapshotCountingRuntime) GetSession(ctx context.Context, id strin
 		default:
 		}
 	}
+	for remaining := runtime.failures.Load(); remaining > 0; remaining = runtime.failures.Load() {
+		if runtime.failures.CompareAndSwap(remaining, remaining-1) {
+			return agent.SessionSnapshot{}, runtime.failure
+		}
+	}
 	return runtime.Runtime.GetSession(ctx, id)
 }
 
 func runUIWithRuntimeChanges(t *testing.T, runtime agent.Runtime, source changefeed.Source, sessionID string) (*programtest.Host, func()) {
+	return runUIWithRuntimeChangeServices(t, runtime, nil, source, sessionID)
+}
+
+func runUIWithRuntimeChangeServices(t *testing.T, runtime agent.Runtime, workspaces workspace.Service, source changefeed.Source, sessionID string) (*programtest.Host, func()) {
 	t.Helper()
 	host := programtest.New(t, 96, 28)
 	ctx, cancel := context.WithCancel(t.Context())
 	done := make(chan error, 1)
 	go func() {
-		done <- Run(ctx, Config{Runtime: runtime, Changes: source, SessionID: sessionID, Host: host})
+		done <- Run(ctx, Config{Runtime: runtime, Workspaces: workspaces, Changes: source, SessionID: sessionID, Host: host})
 	}()
 	var once sync.Once
 	stop := func() {
@@ -154,6 +167,124 @@ func runUIWithRuntimeChanges(t *testing.T, runtime agent.Runtime, source changef
 	}
 	t.Cleanup(stop)
 	return host, stop
+}
+
+func TestRuntimeInvalidationRecoversAReadOnlyProjectionAfterTransientFailures(t *testing.T) {
+	base := mock.New()
+	backend := &snapshotCountingRuntime{
+		Runtime: base, failure: errors.New("temporary session projection failure"), readSignal: make(chan struct{}, 16),
+	}
+	source := &runtimeChangeSourceStub{
+		events: make(chan changefeed.Event, 1), subscription: make(chan changefeed.Subscription, 1),
+	}
+	host, stop := runUIWithRuntimeChanges(t, backend, source, "ses_demo_1")
+	host.Shows(t, "Ask lyra")
+	awaitSignal(t, source.subscription, "runtime invalidation subscription")
+	host.Until(t, "the initial attach-first session read", func() bool {
+		return backend.reads.Load() >= 2 && host.Repaint()
+	})
+
+	snapshot, err := base.GetSession(t.Context(), "ses_demo_1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	title := "Recovered without another event"
+	if _, err := base.UpdateSession(t.Context(), agent.UpdateSession{
+		SessionID: snapshot.Session.ID, Title: &title, ExpectedRevision: snapshot.Session.Revision,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	baseline := backend.reads.Load()
+	backend.failures.Store(2)
+	source.events <- changefeed.Event{
+		Type: changefeed.EventType(changefeed.SessionsChanged), Sequence: 1,
+		SessionIDs: []string{"ses_demo_1"},
+	}
+	host.Shows(t, title)
+	if got := backend.reads.Load() - baseline; got < 3 {
+		t.Fatalf("session reads after invalidation = %d, want at least 3", got)
+	}
+	stop()
+}
+
+func TestExternalWorkspaceChangeRebindsTheRuntimeWatch(t *testing.T) {
+	backend := mock.New()
+	service := &workspacePathRecordingService{workspaceServiceStub: newWorkspaceServiceStub(), paths: make(chan string, 4)}
+	source := &runtimeChangeSourceStub{
+		events: make(chan changefeed.Event, 1), subscription: make(chan changefeed.Subscription, 4),
+		supported: []changefeed.Topic{
+			changefeed.FilesChanged, changefeed.SessionsChanged, changefeed.RunsChanged,
+			changefeed.StateChanged, changefeed.InterruptsChanged,
+		},
+	}
+	host, stop := runUIWithRuntimeChangeServices(t, backend, service, source, "ses_demo_1")
+	host.Shows(t, "Ask lyra")
+	initial := awaitSubscription(t, source.subscription, "initial runtime subscription")
+	if len(initial.Watches) != 1 || initial.Watches[0].Workspace != "/tmp/demo/store" {
+		t.Fatalf("initial workspace watch = %+v", initial.Watches)
+	}
+	if initialPath := awaitWorkspacePath(t, service.paths, "initial workspace refresh"); initialPath != "/tmp/demo/store" {
+		t.Fatalf("initial workspace refresh = %s", initialPath)
+	}
+
+	snapshot, err := backend.GetSession(t.Context(), "ses_demo_1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	workspacePath := t.TempDir()
+	if _, err := backend.UpdateSession(t.Context(), agent.UpdateSession{
+		SessionID: snapshot.Session.ID, Workspace: &workspacePath, ExpectedRevision: snapshot.Session.Revision,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	source.events <- changefeed.Event{
+		Type: changefeed.EventType(changefeed.SessionsChanged), Sequence: 1,
+		SessionIDs: []string{"ses_demo_1"},
+	}
+	rebound := awaitSubscription(t, source.subscription, "rebound runtime subscription")
+	if len(rebound.Watches) != 1 || rebound.Watches[0].Workspace != workspacePath {
+		t.Fatalf("rebound workspace watch = %+v, want %s", rebound.Watches, workspacePath)
+	}
+	if reboundPath := awaitWorkspacePath(t, service.paths, "rebound workspace refresh"); reboundPath != workspacePath {
+		t.Fatalf("rebound workspace refresh = %s, want %s", reboundPath, workspacePath)
+	}
+	stop()
+}
+
+type workspacePathRecordingService struct {
+	*workspaceServiceStub
+	paths chan string
+}
+
+func (service *workspacePathRecordingService) Changes(ctx context.Context, path string) ([]workspace.Change, error) {
+	select {
+	case service.paths <- path:
+	case <-ctx.Done():
+		return nil, context.Cause(ctx)
+	}
+	return service.workspaceServiceStub.Changes(ctx, path)
+}
+
+func awaitSubscription(t *testing.T, subscriptions <-chan changefeed.Subscription, what string) changefeed.Subscription {
+	t.Helper()
+	select {
+	case subscription := <-subscriptions:
+		return subscription
+	case <-time.After(3 * time.Second):
+		t.Fatal("timed out waiting for " + what)
+		return changefeed.Subscription{}
+	}
+}
+
+func awaitWorkspacePath(t *testing.T, paths <-chan string, what string) string {
+	t.Helper()
+	select {
+	case path := <-paths:
+		return path
+	case <-time.After(3 * time.Second):
+		t.Fatal("timed out waiting for " + what)
+		return ""
+	}
 }
 
 func TestRuntimeInvalidationsRefetchTheCurrentAuthoritativeSession(t *testing.T) {

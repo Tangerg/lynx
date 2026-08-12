@@ -354,7 +354,7 @@ func (monitor runtimeChangeMonitor) run(ctx context.Context) {
 		if err != nil {
 			cancelAttempt()
 			failures++
-			if reconnect.Wait(ctx, workspaceRetryDelay(failures)) != nil {
+			if reconnect.Wait(ctx, runtimeRecoveryBackoff.Delay(failures)) != nil {
 				return
 			}
 			continue
@@ -369,7 +369,7 @@ func (monitor runtimeChangeMonitor) run(ctx context.Context) {
 			if err := monitor.refreshFiles(attemptContext); err != nil {
 				cancelAttempt()
 				failures++
-				if reconnect.Wait(ctx, workspaceRetryDelay(failures)) != nil {
+				if reconnect.Wait(ctx, runtimeRecoveryBackoff.Delay(failures)) != nil {
 					return
 				}
 				continue
@@ -378,7 +378,7 @@ func (monitor runtimeChangeMonitor) run(ctx context.Context) {
 		if err := monitor.resync(topics); err != nil {
 			cancelAttempt()
 			failures++
-			if reconnect.Wait(ctx, workspaceRetryDelay(failures)) != nil {
+			if reconnect.Wait(ctx, runtimeRecoveryBackoff.Delay(failures)) != nil {
 				return
 			}
 			continue
@@ -414,7 +414,7 @@ func (monitor runtimeChangeMonitor) run(ctx context.Context) {
 		}
 		cancelAttempt()
 		failures++
-		if reconnect.Wait(ctx, workspaceRetryDelay(failures)) != nil {
+		if reconnect.Wait(ctx, runtimeRecoveryBackoff.Delay(failures)) != nil {
 			return
 		}
 	}
@@ -430,7 +430,7 @@ func (monitor runtimeChangeMonitor) runWithoutWatch(ctx context.Context) {
 			return
 		}
 		failures++
-		if reconnect.Wait(ctx, workspaceRetryDelay(failures)) != nil {
+		if reconnect.Wait(ctx, runtimeRecoveryBackoff.Delay(failures)) != nil {
 			return
 		}
 	}
@@ -507,11 +507,6 @@ func (monitor runtimeChangeMonitor) invalidatesFiles(event changefeed.Event) boo
 	default:
 		return false
 	}
-}
-
-func workspaceRetryDelay(failures int) time.Duration {
-	shift := min(max(failures-1, 0), 6)
-	return min(100*time.Millisecond*time.Duration(1<<shift), 5*time.Second)
 }
 
 func containsTopic(values []changefeed.Topic, target changefeed.Topic) bool {

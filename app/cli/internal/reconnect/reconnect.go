@@ -17,6 +17,26 @@ type Policy struct {
 	Maximum  time.Duration
 }
 
+// Backoff is an unbounded retry schedule whose delay has a finite ceiling.
+// The operation owner, rather than an attempt budget, decides its lifetime.
+type Backoff struct {
+	Base    time.Duration
+	Maximum time.Duration
+}
+
+func (backoff Backoff) Delay(failure int) time.Duration {
+	base := max(backoff.Base, 0)
+	maximum := max(backoff.Maximum, base)
+	delay := base
+	for range max(failure-1, 0) {
+		if delay >= maximum/2 {
+			return maximum
+		}
+		delay *= 2
+	}
+	return min(delay, maximum)
+}
+
 func New(attempts int) Policy {
 	return Policy{Attempts: max(attempts, 0), Base: 50 * time.Millisecond, Maximum: time.Second}
 }

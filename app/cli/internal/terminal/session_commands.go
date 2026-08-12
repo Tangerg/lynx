@@ -350,6 +350,7 @@ func (a *app) prepareDestinationDraft(session agent.Session) (agent.Message, err
 
 func (installation sessionInstallation) apply(a *app) {
 	previousWorkspace := a.session.Workspace
+	a.dismissInteractionProjection()
 	a.cancelPluginCommands()
 	a.operations.CancelScope(sessionOperationScope)
 	a.dropStream()
