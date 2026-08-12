@@ -391,6 +391,63 @@ func TestRuntimeChangeMonitorAssignsTheWorkspaceWatchToOnePartition(t *testing.T
 	}
 }
 
+func TestRuntimeChangeMonitorKeepsGlobalEventsAliveWithoutVersionControl(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	source := &runtimeChangeSourceStub{
+		events:       make(chan changefeed.Event, 2),
+		subscription: make(chan changefeed.Subscription, 1),
+		supported:    []changefeed.Topic{changefeed.FilesChanged, changefeed.SessionsChanged},
+	}
+	var reads atomic.Int32
+	filesApplied := make(chan []workspace.Change, 2)
+	eventsApplied := make(chan changefeed.Event, 1)
+	monitor := runtimeChangeMonitor{
+		workspace: "/workspace", source: source, watchFiles: true,
+		repository: changeReaderFunc(func(context.Context, string) ([]workspace.Change, error) {
+			if reads.Add(1) == 1 {
+				return nil, workspace.ErrVersionControlUnavailable
+			}
+			return []workspace.Change{{Path: "main.go", Status: workspace.FileStatusModified}}, nil
+		}),
+		applyFiles: func(changes []workspace.Change) error {
+			filesApplied <- slices.Clone(changes)
+			return nil
+		},
+		applyEvent: func(event changefeed.Event) error {
+			eventsApplied <- event
+			return nil
+		},
+	}
+	done := make(chan error, 1)
+	go func() { done <- monitor.run(ctx) }()
+
+	awaitValue(t, source.subscription, "runtime subscription")
+	if initial := awaitValue(t, filesApplied, "empty non-git projection"); len(initial) != 0 {
+		t.Fatalf("initial file projection = %+v, want empty", initial)
+	}
+	sessionEvent := changefeed.Event{
+		Type: changefeed.EventType(changefeed.SessionsChanged), Sequence: 1,
+		SessionIDs: []string{"ses_demo_1"},
+	}
+	source.events <- sessionEvent
+	if applied := awaitValue(t, eventsApplied, "session invalidation"); applied.Type != sessionEvent.Type {
+		t.Fatalf("applied event = %+v, want %+v", applied, sessionEvent)
+	}
+	source.events <- changefeed.Event{
+		Type: changefeed.EventType(changefeed.FilesChanged), Sequence: 2,
+		Workspace: "/workspace",
+	}
+	if recovered := awaitValue(t, filesApplied, "recovered git projection"); len(recovered) != 1 || recovered[0].Path != "main.go" {
+		t.Fatalf("recovered file projection = %+v", recovered)
+	}
+
+	cancel()
+	if err := <-done; !errors.Is(err, context.Canceled) {
+		t.Fatalf("run error = %v, want context cancellation", err)
+	}
+}
+
 func TestRuntimeInvalidationDefersColdReplacementUntilTheStreamSettles(t *testing.T) {
 	base := mock.New()
 	base.Script = func(string) mock.Script {

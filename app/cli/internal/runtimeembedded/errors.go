@@ -10,6 +10,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
 	"github.com/Tangerg/lynx/app/cli/internal/failure"
+	"github.com/Tangerg/lynx/app/cli/internal/workspace"
 )
 
 type projectedError struct {
@@ -68,6 +69,7 @@ func classifyError(err error) error {
 		{protocol.ErrIdempotencyConflict, agent.ErrCommandConflict},
 		{protocol.ErrCapabilityNotNeg, agent.ErrIncompatibleRuntime},
 		{protocol.ErrInvalidProtocolVersion, agent.ErrIncompatibleRuntime},
+		{protocol.ErrVcsUnavailable, workspace.ErrVersionControlUnavailable},
 		{embedded.ErrClosed, agent.ErrDisconnected},
 	} {
 		if errors.Is(err, mapping.source) {

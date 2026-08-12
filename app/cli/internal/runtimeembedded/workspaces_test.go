@@ -2,6 +2,7 @@ package runtimeembedded
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -13,16 +14,17 @@ import (
 )
 
 type workspaceBindingStub struct {
-	resolved  *protocol.WorkspaceInfo
-	known     *protocol.Page[protocol.WorkspaceSummary]
-	changes   *protocol.Page[protocol.WorkspaceFileChange]
-	diff      *protocol.Diff
-	head      *protocol.FileHead
-	search    *protocol.GrepResult
-	files     *protocol.Page[protocol.FileEntry]
-	filePages map[string]*protocol.Page[protocol.FileEntry]
-	fileCalls []protocol.ListFilesRequest
-	content   *protocol.FileContent
+	resolved   *protocol.WorkspaceInfo
+	known      *protocol.Page[protocol.WorkspaceSummary]
+	changes    *protocol.Page[protocol.WorkspaceFileChange]
+	changesErr error
+	diff       *protocol.Diff
+	head       *protocol.FileHead
+	search     *protocol.GrepResult
+	files      *protocol.Page[protocol.FileEntry]
+	filePages  map[string]*protocol.Page[protocol.FileEntry]
+	fileCalls  []protocol.ListFilesRequest
+	content    *protocol.FileContent
 }
 
 func (stub *workspaceBindingStub) ResolveWorkspace(context.Context, protocol.ResolveWorkspaceRequest, embedded.CallOptions) (*protocol.WorkspaceInfo, error) {
@@ -34,7 +36,19 @@ func (stub *workspaceBindingStub) ListWorkspaces(context.Context, embedded.CallO
 }
 
 func (stub *workspaceBindingStub) ListWorkspaceFileChanges(context.Context, protocol.WorkspaceQuery, embedded.CallOptions) (*protocol.Page[protocol.WorkspaceFileChange], error) {
-	return stub.changes, nil
+	return stub.changes, stub.changesErr
+}
+
+func TestWorkspaceAdapterProjectsVersionControlUnavailability(t *testing.T) {
+	t.Parallel()
+	stub := &workspaceBindingStub{changesErr: protocol.ErrVcsUnavailable}
+	runtime := &Runtime{workspaces: stub, meta: requestMeta("test")}
+
+	_, err := runtime.Changes(t.Context(), "/workspace")
+	if !errors.Is(err, workspace.ErrVersionControlUnavailable) ||
+		!errors.Is(err, protocol.ErrVcsUnavailable) {
+		t.Fatalf("Changes error = %v, want workspace and protocol identities", err)
+	}
 }
 
 func (stub *workspaceBindingStub) GetWorkspaceDiff(context.Context, protocol.GetDiffRequest, embedded.CallOptions) (*protocol.Diff, error) {

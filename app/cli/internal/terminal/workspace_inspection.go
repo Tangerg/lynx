@@ -2,6 +2,7 @@ package terminal
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"sort"
@@ -605,7 +606,9 @@ func (monitor runtimeChangeMonitor) refreshFiles(ctx context.Context) error {
 		return nil
 	}
 	changes, err := monitor.repository.Changes(ctx, monitor.workspace)
-	if err != nil {
+	if errors.Is(err, workspace.ErrVersionControlUnavailable) {
+		changes = nil
+	} else if err != nil {
 		return err
 	}
 	if cause := context.Cause(ctx); cause != nil {

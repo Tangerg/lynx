@@ -2,7 +2,15 @@
 // it asks a backend adapter to implement.
 package workspace
 
-import "context"
+import (
+	"context"
+	"errors"
+)
+
+// ErrVersionControlUnavailable means the workspace has no version-control
+// projection. It is an expected workspace state, distinct from an empty change
+// set and from a backend or transport failure.
+var ErrVersionControlUnavailable = errors.New("version control unavailable")
 
 // Service is the complete workspace capability assembled at the application
 // boundary. Consumers should accept the narrower reader they actually use.
