@@ -96,4 +96,28 @@ describe("runtimeScheduleGateway", () => {
       enabled: true,
     });
   });
+
+  it("preserves the launched session and run identities from run-now", async () => {
+    const runNow = vi.fn().mockResolvedValue({ sessionId: "ses_scheduled", runId: "run_1" });
+    setContainer({ client: () => ({ schedules: { runNow } }) as unknown as LyraClient });
+    uninstall = installScheduleGateway();
+
+    await expect(scheduleGateway().runNow("schedule-1")).resolves.toEqual({
+      sessionId: "ses_scheduled",
+      runId: "run_1",
+    });
+    expect(runNow).toHaveBeenCalledWith("schedule-1");
+  });
+
+  it("preserves the authoritative revision returned by an enablement change", async () => {
+    const updated = { ...schedule(), enabled: false, revision: 8 };
+    const update = vi.fn().mockResolvedValue(updated);
+    setContainer({ client: () => ({ schedules: { update } }) as unknown as LyraClient });
+    uninstall = installScheduleGateway();
+
+    await expect(scheduleGateway().setEnabled(schedule(), false)).resolves.toMatchObject({
+      enabled: false,
+      revision: 8,
+    });
+  });
 });

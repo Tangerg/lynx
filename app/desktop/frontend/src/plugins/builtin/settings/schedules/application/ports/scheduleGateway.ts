@@ -1,5 +1,5 @@
 import { createSingletonPort } from "@/lib/ports/singletonPort";
-import type { ScheduleConfig, ScheduleConfigInput } from "../scheduleConfig";
+import type { ScheduleConfig, ScheduleConfigInput, ScheduledRunIdentity } from "../scheduleConfig";
 
 export interface ScheduleUpdateInput extends ScheduleConfigInput {
   id: string;
@@ -10,9 +10,9 @@ export interface ScheduleUpdateInput extends ScheduleConfigInput {
 export interface ScheduleGateway {
   create(input: ScheduleConfigInput): Promise<ScheduleConfig>;
   update(input: ScheduleUpdateInput): Promise<ScheduleConfig>;
-  setEnabled(schedule: ScheduleConfig, enabled: boolean): Promise<void>;
+  setEnabled(schedule: ScheduleConfig, enabled: boolean): Promise<ScheduleConfig>;
   remove(id: string): Promise<void>;
-  runNow(id: string): Promise<void>;
+  runNow(id: string): Promise<ScheduledRunIdentity>;
 }
 
 const port = createSingletonPort<ScheduleGateway>("Schedule gateway is not configured");

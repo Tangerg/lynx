@@ -237,7 +237,7 @@ export interface Methods {
   };
   sessions: {
     list: (query?: PageQuery) => AutoPagingPromise<Page<Session>>;
-    get: (sessionId: SessionId) => Promise<Session>;
+    get: (sessionId: SessionId, signal?: AbortSignal) => Promise<Session>;
     create: (params?: CreateSessionRequest, signal?: AbortSignal) => MutationPromise<Session>;
     update: (params: UpdateSessionRequest) => MutationPromise<Session>;
     delete: (sessionId: SessionId) => MutationPromise<void>;
@@ -614,7 +614,7 @@ export function createMethods(client: RpcClient, options: MethodsOptions = {}): 
     },
     sessions: {
       list: (query) => call("sessions.list", query ?? {}),
-      get: (sessionId) => call("sessions.get", { sessionId }),
+      get: (sessionId, signal) => call("sessions.get", { sessionId }, { signal }),
       create: (params, signal) => call("sessions.create", params ?? {}, { signal }),
       update: (params) => call("sessions.update", params),
       delete: (sessionId) => call("sessions.delete", { sessionId }),

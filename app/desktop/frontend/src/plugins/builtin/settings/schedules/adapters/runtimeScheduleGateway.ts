@@ -39,17 +39,20 @@ const gateway: ScheduleGateway = {
     );
   },
   async setEnabled(schedule, enabled) {
-    await getContainer().client().schedules.update({
-      id: schedule.id,
-      expectedRevision: schedule.revision,
-      enabled,
-    });
+    return scheduleConfig(
+      await getContainer().client().schedules.update({
+        id: schedule.id,
+        expectedRevision: schedule.revision,
+        enabled,
+      }),
+    );
   },
   async remove(id) {
     await getContainer().client().schedules.delete(id);
   },
   async runNow(id) {
-    await getContainer().client().schedules.runNow(id);
+    const run = await getContainer().client().schedules.runNow(id);
+    return { sessionId: run.sessionId, runId: run.runId };
   },
 };
 

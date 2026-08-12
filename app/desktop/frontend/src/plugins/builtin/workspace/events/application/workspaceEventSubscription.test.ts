@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { WorkspaceEventLoop } from "./workspaceEventLoop";
 import {
   startWorkspaceEventSubscription,
+  type WorkspaceCwdResolution,
   type WorkspaceEventSubscriptionPorts,
 } from "./workspaceEventSubscription";
 
@@ -97,6 +98,44 @@ describe("startWorkspaceEventSubscription", () => {
       type: "workspace",
       cwd: "/new",
     });
+  });
+
+  it("aborts in-flight identity reads when retargeted or disposed", async () => {
+    let onCwdChange: (() => void) | undefined;
+    const signals: AbortSignal[] = [];
+    const resolveWorkspaceCwd = vi.fn<WorkspaceEventSubscriptionPorts["resolveWorkspaceCwd"]>(
+      (signal) => {
+        signals.push(signal);
+        return new Promise<WorkspaceCwdResolution>((_resolve, reject) => {
+          signal.addEventListener(
+            "abort",
+            () => reject(signal.reason ?? new DOMException("Aborted", "AbortError")),
+            { once: true },
+          );
+        });
+      },
+    );
+    const ports = subscriptionPorts({
+      resolveWorkspaceCwd,
+      subscribeWorkspaceCwdInputs: (listener) => {
+        onCwdChange = listener;
+        return vi.fn();
+      },
+    });
+
+    const dispose = startWorkspaceEventSubscription(ports);
+    expect(signals).toHaveLength(1);
+    expect(signals[0]).toBeInstanceOf(AbortSignal);
+
+    onCwdChange?.();
+    expect(signals[0]?.aborted).toBe(true);
+    expect(signals).toHaveLength(2);
+    expect(signals[1]).toBeInstanceOf(AbortSignal);
+
+    dispose();
+    expect(signals[1]?.aborted).toBe(true);
+    await tick();
+    expect(ports.reportResolutionError).not.toHaveBeenCalled();
   });
 
   it("keeps global topics online until a new identity input resolves the workspace", async () => {

@@ -28,7 +28,9 @@ afterEach(() => {
 
 describe("active session workspace resolution", () => {
   it("resolves no active session to the runtime default workspace", async () => {
-    await expect(resolveActiveSessionWorkspaceCwd()).resolves.toEqual({ status: "resolved" });
+    await expect(resolveActiveSessionWorkspaceCwd(new AbortController().signal)).resolves.toEqual({
+      status: "resolved",
+    });
     expect(getSession).not.toHaveBeenCalled();
   });
 
@@ -36,7 +38,7 @@ describe("active session workspace resolution", () => {
     activeSessionId.mockReturnValue("ses_cached");
     queryClient.setQueryData([AGENT_SESSIONS_KEY], [{ id: "ses_cached", cwd: "/cached/repo" }]);
 
-    await expect(resolveActiveSessionWorkspaceCwd()).resolves.toEqual({
+    await expect(resolveActiveSessionWorkspaceCwd(new AbortController().signal)).resolves.toEqual({
       status: "resolved",
       cwd: "/cached/repo",
     });
@@ -47,12 +49,13 @@ describe("active session workspace resolution", () => {
     activeSessionId.mockReturnValue("ses_draft");
     queryClient.setQueryData([AGENT_SESSIONS_KEY], []);
     getSession.mockResolvedValue({ workspace: { ref: { path: "/draft/repo" } } });
+    const signal = new AbortController().signal;
 
-    await expect(resolveActiveSessionWorkspaceCwd()).resolves.toEqual({
+    await expect(resolveActiveSessionWorkspaceCwd(signal)).resolves.toEqual({
       status: "resolved",
       cwd: "/draft/repo",
     });
-    expect(getSession).toHaveBeenCalledWith("ses_draft");
+    expect(getSession).toHaveBeenCalledWith("ses_draft", signal);
   });
 
   it("keeps a missing session unavailable until the projection changes", async () => {
@@ -65,7 +68,7 @@ describe("active session workspace resolution", () => {
       }),
     );
 
-    await expect(resolveActiveSessionWorkspaceCwd()).resolves.toEqual({
+    await expect(resolveActiveSessionWorkspaceCwd(new AbortController().signal)).resolves.toEqual({
       status: "unavailable",
     });
   });
@@ -74,6 +77,8 @@ describe("active session workspace resolution", () => {
     activeSessionId.mockReturnValue("ses_remote");
     getSession.mockRejectedValue(new Error("offline"));
 
-    await expect(resolveActiveSessionWorkspaceCwd()).rejects.toThrow("offline");
+    await expect(resolveActiveSessionWorkspaceCwd(new AbortController().signal)).rejects.toThrow(
+      "offline",
+    );
   });
 });

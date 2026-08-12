@@ -50,7 +50,7 @@ export function ScheduleRow({ schedule }: { schedule: ScheduleConfig }) {
   const t = useT();
   const [editing, setEditing] = useState(false);
 
-  const guard = async (fn: () => Promise<void>) => {
+  const guard = async <T,>(fn: () => Promise<T>) => {
     try {
       await fn();
     } catch (err) {

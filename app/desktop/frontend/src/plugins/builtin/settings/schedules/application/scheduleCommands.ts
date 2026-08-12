@@ -4,8 +4,9 @@
 
 import { SCHEDULES_KEY, useSchedules } from "./scheduleQueries";
 import { queryClient } from "@/lib/queryClient";
-import type { ScheduleConfig, ScheduleConfigInput } from "./scheduleConfig";
+import type { ScheduleConfig, ScheduleConfigInput, ScheduledRunIdentity } from "./scheduleConfig";
 import { scheduleGateway } from "./ports/scheduleGateway";
+import { selectAgentSession } from "@/plugins/builtin/agent/public/session";
 export type { ScheduleConfig, ScheduleConfigInput } from "./scheduleConfig";
 
 export function useScheduleConfigs() {
@@ -32,9 +33,16 @@ export async function updateSchedule(
 
 // setScheduleEnabled flips just the enablement without dropping the schedule's
 // other persisted fields.
-export async function setScheduleEnabled(s: ScheduleConfig, enabled: boolean): Promise<void> {
-  await scheduleGateway().setEnabled(s, enabled);
+export async function setScheduleEnabled(
+  s: ScheduleConfig,
+  enabled: boolean,
+): Promise<ScheduleConfig> {
+  const updated = await scheduleGateway().setEnabled(s, enabled);
+  queryClient.setQueryData<ScheduleConfig[]>([SCHEDULES_KEY], (schedules) =>
+    schedules?.map((schedule) => (schedule.id === updated.id ? updated : schedule)),
+  );
   await invalidate();
+  return updated;
 }
 
 export async function deleteSchedule(id: string): Promise<void> {
@@ -44,7 +52,9 @@ export async function deleteSchedule(id: string): Promise<void> {
 
 // runScheduleNow fires the schedule immediately. Re-read the schedules so the
 // row's lastRunAt updates when the runtime reports the run.
-export async function runScheduleNow(id: string): Promise<void> {
-  await scheduleGateway().runNow(id);
+export async function runScheduleNow(id: string): Promise<ScheduledRunIdentity> {
+  const run = await scheduleGateway().runNow(id);
   await invalidate();
+  selectAgentSession(run.sessionId);
+  return run;
 }

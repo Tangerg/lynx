@@ -6,7 +6,7 @@ export type WorkspaceCwdResolution =
 export interface WorkspaceEventSubscriptionPorts {
   canSubscribe: () => boolean;
   subscribeCapabilities: (onChange: () => void) => () => void;
-  resolveWorkspaceCwd: () => Promise<WorkspaceCwdResolution>;
+  resolveWorkspaceCwd: (signal: AbortSignal) => Promise<WorkspaceCwdResolution>;
   reportResolutionError: (error: unknown) => void;
   subscribeWorkspaceCwdInputs: (onChange: () => void) => () => void;
   loop: WorkspaceEventLoop;
@@ -31,7 +31,7 @@ export function startWorkspaceEventSubscription(
       let attempt = 0;
       while (!attemptAbort.signal.aborted && !controller.signal.aborted) {
         try {
-          const resolution = await ports.resolveWorkspaceCwd();
+          const resolution = await ports.resolveWorkspaceCwd(attemptAbort.signal);
           if (
             generation !== retargetGeneration ||
             attemptAbort.signal.aborted ||

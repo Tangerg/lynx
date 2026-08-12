@@ -19,3 +19,8 @@ export interface ScheduleConfigInput {
   cwd: string;
   cron: string;
 }
+
+export interface ScheduledRunIdentity {
+  sessionId: string;
+  runId: string;
+}
