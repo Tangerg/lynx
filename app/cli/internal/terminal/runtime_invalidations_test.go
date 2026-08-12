@@ -512,6 +512,64 @@ func TestDeletedActiveSessionIsReplacedFromItsWorkspace(t *testing.T) {
 	stop()
 }
 
+func TestDeletedSessionReplacementClosesItsQueueEditor(t *testing.T) {
+	base := mock.New()
+	base.Script = func(string) mock.Script {
+		return mock.Script{Prelude: []mock.Step{
+			{Delay: time.Hour, Event: agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCompleted}}},
+		}}
+	}
+	backend := &snapshotCountingRuntime{Runtime: base, readSignal: make(chan struct{}, 8)}
+	source := &runtimeChangeSourceStub{
+		events: make(chan changefeed.Event, 1), subscription: make(chan changefeed.Subscription, 1),
+		applied: make(chan changefeed.Event, 1),
+	}
+	host, stop := runUIWithRuntimeChanges(t, backend, source, "ses_demo_1")
+	host.Shows(t, "Ask lyra")
+	awaitSignal(t, source.subscription, "runtime invalidation subscription")
+
+	host.Type("primary before session replacement")
+	host.Press(input.Enter)
+	host.Shows(t, "working")
+	host.Type("queued for the deleted session")
+	host.Press(input.Enter)
+	host.Send(input.Key{Code: input.Character, Rune: 'g', Mods: input.Ctrl})
+	host.Shows(t, "Queue · 1 prompt")
+	host.Press(input.Enter)
+	host.Shows(t, "Editing queued prompt")
+	snapshot, err := base.GetSession(t.Context(), "ses_demo_1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	active, ok := snapshot.ActiveRun()
+	if !ok {
+		t.Fatal("queued editor test has no active run")
+	}
+	if _, err := base.CancelRun(t.Context(), agent.CancelRun{RunID: active.ID}); err != nil {
+		t.Fatal(err)
+	}
+	snapshot, err = base.GetSession(t.Context(), "ses_demo_1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, active := snapshot.ActiveRun(); active {
+		t.Fatal("canceling the active run did not make the session deletable")
+	}
+
+	if err := base.DeleteSession(t.Context(), agent.DeleteSession{SessionID: "ses_demo_1"}); err != nil {
+		t.Fatal(err)
+	}
+	source.events <- changefeed.Event{
+		Type: changefeed.EventType(changefeed.SessionsChanged), Sequence: 1,
+		SessionIDs: []string{"ses_demo_1"},
+	}
+	awaitSignal(t, source.applied, "deleted-session invalidation")
+	host.Shows(t, "Untitled session")
+	host.Hides(t, "Editing queued prompt")
+	host.Hides(t, "Queue · 1 prompt")
+	stop()
+}
+
 func TestMatchingInterruptInvalidationPreservesTheOpenApproval(t *testing.T) {
 	base := mock.New()
 	base.Instant = true

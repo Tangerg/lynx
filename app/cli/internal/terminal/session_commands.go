@@ -345,6 +345,7 @@ func (a *app) prepareDestinationDraft(session agent.Session) (agent.Message, err
 }
 
 func (installation sessionInstallation) apply(a *app) {
+	previousSessionID := a.session.ID
 	previousWorkspace := a.session.Workspace
 	a.dismissInteractionProjection()
 	a.cancelPluginCommands()
@@ -353,6 +354,9 @@ func (installation sessionInstallation) apply(a *app) {
 	a.completion.Dismiss()
 	previousTranscript := a.transcript
 	a.setActiveSession(installation.snapshot.Session)
+	if installation.snapshot.Session.ID != previousSessionID {
+		a.queueDialog.Dismiss()
+	}
 	a.dispatchingQueueEntry = 0
 	a.conversation = installation.projection.conversation
 	a.attachments = installation.attachments

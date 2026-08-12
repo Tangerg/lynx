@@ -72,11 +72,11 @@ func (q *queueDrawer) footer() string {
 }
 
 func (q *queueDrawer) drawEditor(frame headless.Frame, inner image.Rectangle) image.Rectangle {
-	entry, ok := q.entry(q.editingID)
-	if !ok || inner.Empty() {
+	if !q.Editing() || inner.Empty() {
 		q.editorRegion.Stage(frame, image.Rectangle{}, nil)
 		return image.Rectangle{}
 	}
+	entry := q.editingEntry
 	rows := (layout.Flow{Axis: layout.Down}).Rects(inner.Size(), []layout.Slot{
 		{Size: layout.Fixed(1)},
 		{Size: layout.Flex(1)},

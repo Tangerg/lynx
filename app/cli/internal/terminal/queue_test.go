@@ -64,30 +64,28 @@ func testQueueDrawer(t *testing.T, messages ...agent.Message) (*queueDrawer, *pr
 	drawer := newQueueDrawer(kit.Dark(), kit.Unicode(), bindings.editor, nil)
 	sync := func() { drawer.Set(queue.Snapshot("session")) }
 	drawer.SetActions(queueDrawerActions{
-		BeginEdit: func(id uint64) error {
-			err := queue.Hold("session", id)
+		BeginEdit: func(entry promptqueue.Entry) error {
+			err := queue.Hold(entry.SessionID, entry.ID)
 			sync()
 			return err
 		},
-		SaveEdit: func(id uint64, message agent.Message, sendNow bool) error {
-			if err := queue.Update("session", id, message); err != nil {
+		SaveEdit: func(entry promptqueue.Entry, message agent.Message, sendNow bool) error {
+			if err := queue.Update(entry.SessionID, entry.ID, message); err != nil {
 				return err
 			}
-			if err := queue.Release("session", id); err != nil {
+			if err := queue.Release(entry.SessionID, entry.ID); err != nil {
 				return err
 			}
 			if sendNow {
-				if err := queue.Promote("session", id); err != nil {
+				if err := queue.Promote(entry.SessionID, entry.ID); err != nil {
 					return err
 				}
 			}
 			sync()
 			return nil
 		},
-		CancelEdit: func(id uint64) error {
-			err := queue.Release("session", id)
-			sync()
-			return err
+		CancelEdit: func(entry promptqueue.Entry) error {
+			return queue.Release(entry.SessionID, entry.ID)
 		},
 		Remove: func(id uint64) error {
 			_, err := queue.Remove("session", id)
@@ -249,6 +247,33 @@ func TestClosingQueueDrawerReleasesItsEditedEntry(t *testing.T) {
 	drawer.Closed()
 	if drawer.Editing() || queue.Snapshot("session").Entries[0].Held {
 		t.Fatalf("closed queue drawer left editing=%v snapshot=%+v", drawer.Editing(), queue.Snapshot("session"))
+	}
+}
+
+func TestQueueDrawerReleasesTheOriginalSessionWhenSnapshotChanges(t *testing.T) {
+	drawer, queue := testQueueDrawer(t, agent.Message{Text: "old session prompt"})
+	if _, err := queue.Enqueue("next-session", agent.Message{Text: "next session prompt"}); err != nil {
+		t.Fatal(err)
+	}
+	drawer.Focus(true)
+	drawer.Handle(input.Key{Code: input.Enter})
+	if !queue.Snapshot("session").Entries[0].Held {
+		t.Fatal("test did not hold the original session entry")
+	}
+
+	drawer.Set(queue.Snapshot("next-session"))
+	if drawer.Editing() {
+		t.Fatal("snapshot replacement retained an editor for another session")
+	}
+	if queue.Snapshot("session").Entries[0].Held {
+		t.Fatal("snapshot replacement left the original session entry held")
+	}
+	if next, ok := queue.Next("session"); !ok || next.Message.Text != "old session prompt" {
+		t.Fatalf("released original entry = %+v, %v", next, ok)
+	}
+	_, _, rendered := drawQueueDrawer(t, drawer, 72, 7)
+	if !strings.Contains(rendered, "next session prompt") || strings.Contains(rendered, "old session prompt") {
+		t.Fatalf("replacement snapshot rendered the wrong session:\n%s", rendered)
 	}
 }
 

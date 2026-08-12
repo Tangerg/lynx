@@ -203,38 +203,47 @@ func (a *app) buildQueueDrawer(theme kit.Theme, glyphs kit.Glyphs, keys *keymap.
 	a.queueDialog = dialog
 }
 
-func (a *app) holdQueuedPrompt(id uint64) error {
-	if id == a.dispatchingQueueEntry {
+func (a *app) holdQueuedPrompt(entry promptqueue.Entry) error {
+	if entry.SessionID != a.session.ID {
+		return errors.New("queued prompt belongs to another session")
+	}
+	if entry.ID == a.dispatchingQueueEntry {
 		return errQueuedPromptDispatching
 	}
-	if err := a.queue.Hold(a.session.ID, id); err != nil {
+	if err := a.queue.Hold(entry.SessionID, entry.ID); err != nil {
 		return err
 	}
 	a.syncQueue()
 	return nil
 }
 
-func (a *app) saveQueuedPrompt(id uint64, message agent.Message, sendNow bool) error {
-	if id == a.dispatchingQueueEntry {
+func (a *app) saveQueuedPrompt(entry promptqueue.Entry, message agent.Message, sendNow bool) error {
+	if entry.SessionID != a.session.ID {
+		return errors.New("queued prompt belongs to another session")
+	}
+	if entry.ID == a.dispatchingQueueEntry {
 		return errQueuedPromptDispatching
 	}
-	if err := a.queue.Update(a.session.ID, id, message); err != nil {
+	if err := a.queue.Update(entry.SessionID, entry.ID, message); err != nil {
 		return err
 	}
-	if err := a.queue.Release(a.session.ID, id); err != nil {
+	if err := a.queue.Release(entry.SessionID, entry.ID); err != nil {
 		return err
 	}
 	a.syncQueue()
 	if sendNow {
-		return a.sendQueuedNow(id)
+		return a.sendQueuedNow(entry.ID)
 	}
 	a.drainQueue()
 	return nil
 }
 
-func (a *app) releaseQueuedPrompt(id uint64) error {
-	if err := a.queue.Release(a.session.ID, id); err != nil {
+func (a *app) releaseQueuedPrompt(entry promptqueue.Entry) error {
+	if err := a.queue.Release(entry.SessionID, entry.ID); err != nil {
 		return err
+	}
+	if entry.SessionID != a.session.ID {
+		return nil
 	}
 	a.syncQueue()
 	a.drainQueue()

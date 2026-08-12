@@ -44,9 +44,9 @@ type queuePresentation struct {
 }
 
 type queueDrawerActions struct {
-	BeginEdit  func(uint64) error
-	SaveEdit   func(uint64, agent.Message, bool) error
-	CancelEdit func(uint64) error
+	BeginEdit  func(promptqueue.Entry) error
+	SaveEdit   func(promptqueue.Entry, agent.Message, bool) error
+	CancelEdit func(promptqueue.Entry) error
 	Remove     func(uint64) error
 	Move       func(uint64, int) error
 	SendNow    func(uint64) error
@@ -67,7 +67,7 @@ type queueDrawer struct {
 	selectedID uint64
 	viewport   int
 
-	editingID      uint64
+	editingEntry   promptqueue.Entry
 	editingMessage agent.Message
 	editor         kit.Composer
 	focused        bool
@@ -95,9 +95,13 @@ func (q *queueDrawer) SetActions(actions queueDrawerActions) { q.actions = actio
 func (q *queueDrawer) Set(snapshot promptqueue.Snapshot) {
 	q.snapshot = snapshot
 	entries := snapshot.Entries
+	if q.Editing() && queueEntryIndex(entries, q.editingEntry.ID) < 0 {
+		if err := q.releaseEdit(); err != nil && !errors.Is(err, promptqueue.ErrEntryNotFound) {
+			q.notice = err.Error()
+		}
+	}
 	if len(entries) == 0 {
 		q.selected, q.selectedID, q.viewport = 0, 0, 0
-		q.cancelEditState()
 		return
 	}
 	if q.selectedID != 0 {
@@ -110,15 +114,12 @@ func (q *queueDrawer) Set(snapshot promptqueue.Snapshot) {
 		q.selected = min(q.selected, len(entries)-1)
 	}
 	q.selectedID = entries[q.selected].ID
-	if q.editingID != 0 && queueEntryIndex(entries, q.editingID) < 0 {
-		q.cancelEditState()
-	}
 	q.ensureVisible()
 }
 
 func (q *queueDrawer) ResetNotice() { q.notice = "" }
 
-func (q *queueDrawer) Editing() bool { return q.editingID != 0 }
+func (q *queueDrawer) Editing() bool { return q.editingEntry.ID != 0 }
 
 func (q *queueDrawer) Handle(event input.Event) bool {
 	if key, ok := event.(input.Key); ok && key.Down() {
@@ -266,10 +267,7 @@ func (q *queueDrawer) Focus(has bool) {
 
 func (q *queueDrawer) Closed() {
 	q.focused = false
-	if q.editingID != 0 && q.actions.CancelEdit != nil {
-		_ = q.actions.CancelEdit(q.editingID)
-	}
-	q.cancelEditState()
+	_ = q.releaseEdit()
 	q.hovered, q.pressed, q.dragged = queueTarget{}, queueTarget{}, false
 }
 
@@ -278,14 +276,6 @@ func (q *queueDrawer) selectedEntry() (promptqueue.Entry, bool) {
 		return promptqueue.Entry{}, false
 	}
 	return q.snapshot.Entries[q.selected], true
-}
-
-func (q *queueDrawer) entry(id uint64) (promptqueue.Entry, bool) {
-	index := queueEntryIndex(q.snapshot.Entries, id)
-	if index < 0 {
-		return promptqueue.Entry{}, false
-	}
-	return q.snapshot.Entries[index], true
 }
 
 func (q *queueDrawer) selectIndex(index int) {
@@ -311,12 +301,12 @@ func (q *queueDrawer) beginEdit() {
 		return
 	}
 	if q.actions.BeginEdit != nil {
-		if err := q.actions.BeginEdit(entry.ID); err != nil {
+		if err := q.actions.BeginEdit(entry); err != nil {
 			q.notice = err.Error()
 			return
 		}
 	}
-	q.editingID = entry.ID
+	q.editingEntry = entry
 	q.editingMessage = entry.Message.Clone()
 	q.editor.SetText(entry.Message.Text)
 	q.editor.Focus(q.focused)
@@ -324,31 +314,40 @@ func (q *queueDrawer) beginEdit() {
 }
 
 func (q *queueDrawer) cancelEdit() {
-	if q.editingID != 0 && q.actions.CancelEdit != nil {
-		if err := q.actions.CancelEdit(q.editingID); err != nil {
-			q.notice = err.Error()
-			return
-		}
+	if err := q.releaseEdit(); err != nil {
+		q.notice = err.Error()
+		return
 	}
-	q.cancelEditState()
 	q.notice = "edit discarded"
 }
 
+func (q *queueDrawer) releaseEdit() error {
+	if !q.Editing() {
+		return nil
+	}
+	entry := q.editingEntry
+	q.cancelEditState()
+	if q.actions.CancelEdit == nil {
+		return nil
+	}
+	return q.actions.CancelEdit(entry)
+}
+
 func (q *queueDrawer) cancelEditState() {
-	q.editingID = 0
+	q.editingEntry = promptqueue.Entry{}
 	q.editingMessage = agent.Message{}
 	q.editor.Reset()
 	q.editor.Focus(false)
 }
 
 func (q *queueDrawer) saveEdit(sendNow bool) {
-	if q.editingID == 0 || q.actions.SaveEdit == nil {
+	if !q.Editing() || q.actions.SaveEdit == nil {
 		return
 	}
-	id := q.editingID
+	entry := q.editingEntry
 	message := q.editingMessage.Clone()
 	message.Text = strings.TrimSpace(q.editor.Text())
-	if err := q.actions.SaveEdit(id, message, sendNow); err != nil {
+	if err := q.actions.SaveEdit(entry, message, sendNow); err != nil {
 		q.notice = err.Error()
 		return
 	}
