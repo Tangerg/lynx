@@ -254,9 +254,7 @@ func TestStorePersistsAndAcknowledgesPendingRunsByCommandIdentity(t *testing.T) 
 	if err := store.SaveDraft("ses_1", pending.Message); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.StagePendingRun(PendingRun{State: PendingRunDispatching, Command: pending}); err != nil {
-		t.Fatal(err)
-	}
+	stageDispatchingPendingRun(t, store, pending)
 	pending.Message.Text = "mutated"
 	pending.Options.Generation.Stop[0] = "mutated"
 
@@ -322,9 +320,7 @@ func TestRejectedDispatchRequeuesWithANewCommandIdentity(t *testing.T) {
 	command := agent.StartRun{
 		CommandID: original, SessionID: "ses_1", Message: agent.Message{Text: "wait behind active run"},
 	}
-	if err := store.StagePendingRun(PendingRun{State: PendingRunDispatching, Command: command}); err != nil {
-		t.Fatal(err)
-	}
+	stageDispatchingPendingRun(t, store, command)
 	replacement, err := store.RequeuePendingRun(command.SessionID, original)
 	if err != nil {
 		t.Fatal(err)
@@ -394,9 +390,7 @@ func TestCancelingPendingRunCannotReturnToQueuedDelivery(t *testing.T) {
 		CommandID: agent.CommandID("cli_55555555555555555555555555555555"),
 		SessionID: "ses_1", Message: agent.Message{Text: "canceling delivery"},
 	}
-	if err := store.StagePendingRun(PendingRun{State: PendingRunDispatching, Command: command}); err != nil {
-		t.Fatal(err)
-	}
+	stageDispatchingPendingRun(t, store, command)
 	cancelID, err := store.MarkPendingRunCanceling(command.SessionID, command.CommandID)
 	if err != nil {
 		t.Fatal(err)
@@ -423,9 +417,7 @@ func TestCancelingDispatchPersistsBothMutationIdentities(t *testing.T) {
 		CommandID: agent.CommandID("cli_88888888888888888888888888888888"),
 		SessionID: "ses_1", Message: agent.Message{Text: "cancel this uncertain start"},
 	}
-	if err := store.StagePendingRun(PendingRun{State: PendingRunDispatching, Command: command}); err != nil {
-		t.Fatal(err)
-	}
+	stageDispatchingPendingRun(t, store, command)
 	cancelID, err := store.MarkPendingRunCanceling(command.SessionID, command.CommandID)
 	if err != nil {
 		t.Fatal(err)
@@ -472,6 +464,58 @@ func TestPendingRunSequenceKeepsTheOnlyDeliveryStateAtTheFIFOBoundary(t *testing
 	invalid[1].State = PendingRunDispatching
 	if err := store.SavePendingRuns("ses_1", invalid); err == nil {
 		t.Fatal("durable replacement accepted delivery state behind the FIFO boundary")
+	}
+}
+
+func TestPendingRunCannotBeStagedWithoutAQueuedCommandIdentity(t *testing.T) {
+	store, err := Open(t.TempDir(), Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	command := agent.StartRun{SessionID: "ses_1", Message: agent.Message{Text: "missing identity"}}
+	if err := store.StagePendingRun(PendingRun{State: PendingRunQueued, Command: command}); err == nil {
+		t.Fatal("pending run without a command identity was staged")
+	}
+	command.CommandID = agent.CommandID("cli_99999999999999999999999999999999")
+	if err := store.StagePendingRun(PendingRun{State: PendingRunDispatching, Command: command}); err == nil {
+		t.Fatal("pending run bypassed the queued initial state")
+	}
+	if pending := store.PendingRuns(command.SessionID); len(pending) != 0 {
+		t.Fatalf("invalid staging mutated outbox: %+v", pending)
+	}
+}
+
+func TestInvalidPendingRunTransitionsDoNotAllocateMutationIdentity(t *testing.T) {
+	pending := PendingRun{State: PendingRunQueued, Command: agent.StartRun{
+		CommandID: agent.CommandID("cli_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
+		SessionID: "ses_1", Message: agent.Message{Text: "still queued"},
+	}}
+	allocations := 0
+	allocate := func() (agent.CommandID, error) {
+		allocations++
+		return agent.CommandID("cli_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"), nil
+	}
+	if _, err := pending.beginCancellation(allocate); err == nil {
+		t.Fatal("queued run began cancellation")
+	}
+	if _, err := pending.requeue(allocate); err == nil {
+		t.Fatal("queued run was reidentified")
+	}
+	if allocations != 0 {
+		t.Fatalf("invalid transitions allocated %d mutation identities", allocations)
+	}
+	if pending.State != PendingRunQueued || pending.Command.CommandID != agent.CommandID("cli_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa") {
+		t.Fatalf("invalid transitions mutated pending run: %+v", pending)
+	}
+}
+
+func stageDispatchingPendingRun(t *testing.T, store *Store, command agent.StartRun) {
+	t.Helper()
+	if err := store.StagePendingRun(PendingRun{State: PendingRunQueued, Command: command}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.MarkPendingRunDispatching(command.SessionID, command.CommandID); err != nil {
+		t.Fatal(err)
 	}
 }
 

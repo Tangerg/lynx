@@ -273,9 +273,7 @@ func TestLaunchReplaysADispatchingRunFromTheDurableOutbox(t *testing.T) {
 		CommandID: agent.CommandID("cli_0123456789abcdef0123456789abcdef"),
 		SessionID: "ses_demo_1", Message: agent.Message{Text: "replay after launch"},
 	}
-	if err := store.StagePendingRun(workbench.PendingRun{State: workbench.PendingRunDispatching, Command: command}); err != nil {
-		t.Fatal(err)
-	}
+	stageDispatchingRun(t, store, command)
 	runtime := &recordingRuntime{Runtime: base}
 	host, stop := runUIWithState(t, runtime, "/tmp/lyra-cli-test", command.SessionID, stateDirectory)
 	host.Shows(t, "stable answer")
@@ -311,9 +309,7 @@ func TestLaunchDoesNotReplayAnOutboxCommandAlreadyVisibleInRuntime(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := store.StagePendingRun(workbench.PendingRun{State: workbench.PendingRunDispatching, Command: command}); err != nil {
-		t.Fatal(err)
-	}
+	stageDispatchingRun(t, store, command)
 	host, stop := runUIWithState(t, runtime, "/tmp/lyra-cli-test", command.SessionID, stateDirectory)
 	host.Shows(t, "already accepted")
 	host.Shows(t, "reconnected")
@@ -351,9 +347,7 @@ func TestLaunchRequeuesARejectedHandshakeBehindAnotherActiveRun(t *testing.T) {
 	command := agent.StartRun{
 		CommandID: original, SessionID: active.SessionID, Message: agent.Message{Text: "queue after recovery"},
 	}
-	if err := store.StagePendingRun(workbench.PendingRun{State: workbench.PendingRunDispatching, Command: command}); err != nil {
-		t.Fatal(err)
-	}
+	stageDispatchingRun(t, store, command)
 	runtime := &activeConflictRuntime{Runtime: base, attempted: make(chan agent.StartRun, 1), conflict: original}
 	host, stop := runUIWithState(t, runtime, "/tmp/lyra-cli-test", command.SessionID, stateDirectory)
 	host.Shows(t, "already active")
@@ -402,11 +396,7 @@ func TestLaunchFinishesCancellationOfAnUnconfirmedRunStart(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := store.StagePendingRun(workbench.PendingRun{
-		State: workbench.PendingRunDispatching, Command: command,
-	}); err != nil {
-		t.Fatal(err)
-	}
+	stageDispatchingRun(t, store, command)
 	cancelID, err := store.MarkPendingRunCanceling(command.SessionID, command.CommandID)
 	if err != nil {
 		t.Fatal(err)
@@ -422,6 +412,16 @@ func TestLaunchFinishesCancellationOfAnUnconfirmedRunStart(t *testing.T) {
 		t.Fatal("cancel command identity is empty")
 	}
 	stop()
+}
+
+func stageDispatchingRun(t *testing.T, store *workbench.Store, command agent.StartRun) {
+	t.Helper()
+	if err := store.StagePendingRun(workbench.PendingRun{State: workbench.PendingRunQueued, Command: command}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.MarkPendingRunDispatching(command.SessionID, command.CommandID); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestActiveDurationClockStartsFromDurableExecutionTime(t *testing.T) {

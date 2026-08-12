@@ -203,6 +203,9 @@ func (pending PendingRun) validate(sessionID string) error {
 	if err := pending.Command.Validate(); err != nil {
 		return err
 	}
+	if pending.Command.CommandID == "" {
+		return errors.New("command id is empty")
+	}
 	switch pending.State {
 	case PendingRunCanceling:
 		if err := pending.CancelCommandID.Validate(); err != nil {
@@ -231,27 +234,35 @@ func (pending *PendingRun) beginDispatch() error {
 	}
 }
 
-func (pending *PendingRun) beginCancellation(cancelCommandID agent.CommandID) error {
+func (pending *PendingRun) beginCancellation(newCommandID func() (agent.CommandID, error)) (agent.CommandID, error) {
 	switch pending.State {
 	case PendingRunDispatching:
+		cancelCommandID, err := newCommandID()
+		if err != nil {
+			return "", err
+		}
 		pending.State = PendingRunCanceling
 		pending.CancelCommandID = cancelCommandID
-		return nil
+		return cancelCommandID, nil
 	case PendingRunCanceling:
-		return nil
+		return pending.CancelCommandID, nil
 	default:
-		return fmt.Errorf("pending run cannot begin cancellation from %q", pending.State)
+		return "", fmt.Errorf("pending run cannot begin cancellation from %q", pending.State)
 	}
 }
 
-func (pending *PendingRun) requeue(replacement agent.CommandID) error {
+func (pending *PendingRun) requeue(newCommandID func() (agent.CommandID, error)) (agent.CommandID, error) {
 	if pending.State != PendingRunDispatching {
-		return fmt.Errorf("pending run cannot be requeued from %q", pending.State)
+		return "", fmt.Errorf("pending run cannot be requeued from %q", pending.State)
+	}
+	replacement, err := newCommandID()
+	if err != nil {
+		return "", err
 	}
 	pending.State = PendingRunQueued
 	pending.Command.CommandID = replacement
 	pending.CancelCommandID = ""
-	return nil
+	return replacement, nil
 }
 
 func (pending PendingRun) acknowledgeable() error {
@@ -441,6 +452,9 @@ func (s *Store) retirePendingResume(sessionID string, commandID agent.CommandID)
 // A crash observes either the editable draft or the replayable command, never
 // an ownership gap between separate files.
 func (s *Store) StagePendingRun(pending PendingRun) error {
+	if pending.State != PendingRunQueued {
+		return fmt.Errorf("stage pending run: initial state must be %q", PendingRunQueued)
+	}
 	if err := pending.validate(pending.Command.SessionID); err != nil {
 		return err
 	}
@@ -534,12 +548,9 @@ func (s *Store) MarkPendingRunCanceling(sessionID string, commandID agent.Comman
 	if s.pendingRuns[sessionID][index].State == PendingRunCanceling {
 		return s.pendingRuns[sessionID][index].CancelCommandID, nil
 	}
-	cancelCommandID, err := agent.NewCommandID()
-	if err != nil {
-		return "", err
-	}
 	next := clonePendingRuns(s.pendingRuns)
-	if err := next[sessionID][index].beginCancellation(cancelCommandID); err != nil {
+	cancelCommandID, err := next[sessionID][index].beginCancellation(agent.NewCommandID)
+	if err != nil {
 		return "", err
 	}
 	if err := validatePendingRunSequence(sessionID, next[sessionID]); err != nil {
@@ -559,10 +570,6 @@ func (s *Store) RequeuePendingRun(sessionID string, commandID agent.CommandID) (
 	if err := commandID.Validate(); err != nil {
 		return "", err
 	}
-	replacement, err := agent.NewCommandID()
-	if err != nil {
-		return "", err
-	}
 	sessionID = strings.TrimSpace(sessionID)
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -571,7 +578,8 @@ func (s *Store) RequeuePendingRun(sessionID string, commandID agent.CommandID) (
 		return "", errors.New("pending run is absent")
 	}
 	next := clonePendingRuns(s.pendingRuns)
-	if err := next[sessionID][index].requeue(replacement); err != nil {
+	replacement, err := next[sessionID][index].requeue(agent.NewCommandID)
+	if err != nil {
 		return "", err
 	}
 	if err := validatePendingRunSequence(sessionID, next[sessionID]); err != nil {
