@@ -12,6 +12,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/cli/internal/agent/mock"
 	"github.com/Tangerg/lynx/app/cli/internal/changefeed"
+	"github.com/Tangerg/lynx/app/cli/internal/runtimeprofile"
 	"github.com/Tangerg/lynx/app/cli/internal/workspace"
 )
 
@@ -468,6 +469,47 @@ func TestWorkspaceMonitorDoesNotRequestAFileWatchWithoutTheNegotiatedCapability(
 	monitor.watchFiles = true
 	if topics := monitor.supportedTopics(); !slices.Equal(topics, []changefeed.Topic{changefeed.FilesChanged, changefeed.SessionsChanged}) {
 		t.Fatalf("topics with fileWatch = %v", topics)
+	}
+}
+
+func TestObservedRuntimeResourcesRequireTheirPublishedFeature(t *testing.T) {
+	t.Parallel()
+
+	features := map[runtimeprofile.FeatureName]runtimeprofile.Feature{
+		runtimeprofile.FeatureGoals:     {Stability: runtimeprofile.Stable},
+		runtimeprofile.FeatureSkills:    {Stability: runtimeprofile.Stable},
+		runtimeprofile.FeatureMCP:       {Stability: runtimeprofile.Stable},
+		runtimeprofile.FeatureSchedules: {Stability: runtimeprofile.Stable},
+		runtimeprofile.FeatureKnowledge: {Stability: runtimeprofile.Stable},
+	}
+	profile := runtimeprofile.Profile{Features: features}
+	application := &app{
+		runtimeProfile: &profile,
+		goals:          new(goalServiceStub),
+		skills:         newSkillServiceStub(),
+		mcp:            newMCPServiceStub(),
+		schedules:      newScheduleServiceStub(),
+		knowledge:      newKnowledgeServiceStub(),
+		hooks:          &hookServiceStub{},
+	}
+	if got := application.observedRuntimeResources(); got != (runtimeResourceObservation{hooks: true}) {
+		t.Fatalf("resources with disabled features = %+v", got)
+	}
+	for feature := range features {
+		capability := features[feature]
+		capability.Enabled = true
+		features[feature] = capability
+	}
+	want := runtimeResourceObservation{
+		goals: true, skills: true, mcp: true, schedules: true, knowledge: true, hooks: true,
+	}
+	if got := application.observedRuntimeResources(); got != want {
+		t.Fatalf("resources with enabled features = %+v, want %+v", got, want)
+	}
+
+	application.runtimeProfile = nil
+	if got := application.observedRuntimeResources(); got != want {
+		t.Fatalf("resources without discovery = %+v, want %+v", got, want)
 	}
 }
 

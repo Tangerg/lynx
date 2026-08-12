@@ -288,9 +288,7 @@ func (a *app) followRuntimeChanges() {
 			recovery:           runtimeRecoveryBackoff,
 			subscriptionLimits: a.runtimeChangeSubscriptionLimits(),
 			watchFiles:         a.runtimeSupports(runtimeprofile.FeatureFileWatch),
-			includeGoals:       a.goals != nil, includeSkills: a.skills != nil, includeMCP: a.mcp != nil,
-			includeSchedules: a.schedules != nil,
-			includeKnowledge: a.knowledge != nil, includeHooks: a.hooks != nil,
+			resources:          a.observedRuntimeResources(),
 			applyFiles: func(changes []workspace.Change) error {
 				return post(ctx, dispatcher, func() {
 					if !a.operations.Current(lease) || a.closed || a.session.Workspace.Path != workspacePath {
@@ -341,16 +339,31 @@ type runtimeChangeMonitor struct {
 	source             changefeed.Source
 	recovery           reconnect.Backoff
 	watchFiles         bool
-	includeGoals       bool
-	includeSkills      bool
-	includeMCP         bool
-	includeSchedules   bool
-	includeKnowledge   bool
-	includeHooks       bool
+	resources          runtimeResourceObservation
 	applyFiles         func([]workspace.Change) error
 	applyEvent         func(changefeed.Event) error
 	applyResync        func([]changefeed.Topic) error
 	subscriptionLimits changefeed.SubscriptionLimits
+}
+
+type runtimeResourceObservation struct {
+	goals     bool
+	skills    bool
+	mcp       bool
+	schedules bool
+	knowledge bool
+	hooks     bool
+}
+
+func (a *app) observedRuntimeResources() runtimeResourceObservation {
+	return runtimeResourceObservation{
+		goals:     a.goals != nil && a.runtimeSupports(runtimeprofile.FeatureGoals),
+		skills:    a.skills != nil && a.runtimeSupports(runtimeprofile.FeatureSkills),
+		mcp:       a.mcp != nil && a.runtimeSupports(runtimeprofile.FeatureMCP),
+		schedules: a.schedules != nil && a.runtimeSupports(runtimeprofile.FeatureSchedules),
+		knowledge: a.knowledge != nil && a.runtimeSupports(runtimeprofile.FeatureKnowledge),
+		hooks:     a.hooks != nil,
+	}
 }
 
 func (monitor runtimeChangeMonitor) run(ctx context.Context) error {
@@ -571,22 +584,22 @@ func (monitor runtimeChangeMonitor) supportedTopics() []changefeed.Topic {
 		changefeed.StateChanged,
 		changefeed.InterruptsChanged,
 	}
-	if monitor.includeGoals {
+	if monitor.resources.goals {
 		candidates = append(candidates, changefeed.GoalsChanged)
 	}
-	if monitor.includeSkills {
+	if monitor.resources.skills {
 		candidates = append(candidates, changefeed.SkillsChanged)
 	}
-	if monitor.includeMCP {
+	if monitor.resources.mcp {
 		candidates = append(candidates, changefeed.MCPChanged)
 	}
-	if monitor.includeSchedules {
+	if monitor.resources.schedules {
 		candidates = append(candidates, changefeed.SchedulesChanged)
 	}
-	if monitor.includeKnowledge {
+	if monitor.resources.knowledge {
 		candidates = append(candidates, changefeed.KnowledgeChanged)
 	}
-	if monitor.includeHooks {
+	if monitor.resources.hooks {
 		candidates = append(candidates, changefeed.HooksChanged)
 	}
 	if monitor.repository != nil && monitor.watchFiles {

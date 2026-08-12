@@ -243,7 +243,7 @@ func TestRuntimeChangeMonitorPartitionsTopicsAtTheNegotiatedLimit(t *testing.T) 
 	resyncs := make(chan []changefeed.Topic, 4)
 	applied := make(chan changefeed.Event, 3)
 	monitor := runtimeChangeMonitor{
-		source: source, includeSkills: true,
+		source: source, resources: runtimeResourceObservation{skills: true},
 		subscriptionLimits: changefeed.SubscriptionLimits{MaxTopics: 2, MaxWatches: 1},
 		applyResync: func(topics []changefeed.Topic) error {
 			resyncs <- slices.Clone(topics)
@@ -409,8 +409,7 @@ func TestRuntimeChangeMonitorPreservesAuthoredWorkspaceScopeAcrossPartitions(t *
 			fileReads.Add(1)
 			return nil, nil
 		}),
-		includeKnowledge: true,
-		includeHooks:     true,
+		resources: runtimeResourceObservation{knowledge: true, hooks: true},
 		subscriptionLimits: changefeed.SubscriptionLimits{
 			MaxTopics: 2, MaxWatches: 1,
 		},
@@ -1304,7 +1303,7 @@ func TestRuntimeChangeMonitorAppliesAContiguousScopedResync(t *testing.T) {
 	}
 	var applied []changefeed.Event
 	monitor := runtimeChangeMonitor{
-		source: source, includeSkills: true,
+		source: source, resources: runtimeResourceObservation{skills: true},
 		applyEvent: func(event changefeed.Event) error {
 			applied = append(applied, event)
 			cancel()
