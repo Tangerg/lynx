@@ -36,6 +36,23 @@ export interface CodebaseStatusQuery {
   cwd?: string;
 }
 
+/**
+ * A stored role is configuration intent, not proof that its provider is usable
+ * right now. Stored credentials can be cleared (or an environment credential
+ * can disappear between launches) without erasing the role. Join the role with
+ * providers.list whenever a feature needs the effective availability.
+ */
+export function providerRoleIsAvailable(
+  role: ProviderRoleSelection | undefined,
+  providers: readonly ProviderConfiguration[],
+): boolean {
+  return Boolean(
+    role?.provider &&
+    role.model &&
+    providers.some((provider) => provider.id === role.provider && provider.apiKeyMasked !== ""),
+  );
+}
+
 export const PROVIDERS_KEY = "providers";
 export const MODELS_KEY = "models";
 export const UTILITY_ROLE_KEY = "utility-role";

@@ -5,6 +5,7 @@ export {
   MODELS_KEY,
   PROVIDERS_KEY,
   UTILITY_ROLE_KEY,
+  providerRoleIsAvailable,
   useCodebaseStatus,
   useEmbeddingRole,
   useModels,

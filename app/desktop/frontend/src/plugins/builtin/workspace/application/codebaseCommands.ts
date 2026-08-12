@@ -6,8 +6,10 @@ import { useActiveSessionWorkspace } from "@/plugins/builtin/agent/public/sessio
 import { useRuntimeCapability } from "@/plugins/builtin/runtime/public/capabilities";
 import {
   CODEBASE_STATUS_KEY,
+  providerRoleIsAvailable,
   useCodebaseStatus,
   useEmbeddingRole,
+  useProviders,
 } from "@/plugins/builtin/settings/providers/public/queries";
 import { codebaseGateway, type CodebaseSearchHit } from "./ports/codebaseGateway";
 
@@ -18,6 +20,8 @@ export function useCodebaseSearchConfig() {
   const cwd = workspace.status === "ready" ? workspace.cwd : undefined;
   const available = useRuntimeCapability("codebase");
   const { data: role, isLoading: roleLoading } = useEmbeddingRole();
+  const { data: providers, isLoading: providersLoading } = useProviders();
+  const roleAvailable = providerRoleIsAvailable(role, providers ?? []);
   const { data: status } = useCodebaseStatus(
     available && workspace.status === "ready" ? { cwd } : undefined,
   );
@@ -25,8 +29,8 @@ export function useCodebaseSearchConfig() {
     cwd,
     status,
     available,
-    resolving: workspace.status === "resolving" || roleLoading,
-    enabled: workspace.status === "ready" && available && Boolean(role?.model),
+    resolving: workspace.status === "resolving" || roleLoading || providersLoading,
+    enabled: workspace.status === "ready" && available && roleAvailable,
   };
 }
 

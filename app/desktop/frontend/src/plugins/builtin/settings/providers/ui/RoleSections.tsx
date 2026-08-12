@@ -47,7 +47,7 @@ function RoleSectionShell({
 // empty means "use the main turn model".
 export function UtilityModelSection() {
   const t = useT();
-  const { role, modelOptions, selected, isSet } = useUtilityModelConfig();
+  const { role, modelOptions, selected, isSet, isAvailable } = useUtilityModelConfig();
   const [error, setError] = useState<string | null>(null);
 
   const pick = async (next: { provider: string; model: string } | null): Promise<void> => {
@@ -61,6 +61,11 @@ export function UtilityModelSection() {
       title={t("providers.utility.title")}
       description={t("providers.utility.desc")}
       error={error}
+      note={
+        isSet && !isAvailable ? (
+          <p className="text-ui-md leading-snug text-fg-muted">{t("providers.notConfigured")}</p>
+        ) : null
+      }
     >
       <DropdownMenu.Root>
         <DropdownMenu.Trigger
@@ -73,11 +78,11 @@ export function UtilityModelSection() {
               aria-label={t("providers.utility.title")}
               className={triggerClass}
             >
-              {isSet && selected ? (
+              {isSet && role?.provider ? (
                 <>
-                  <ProviderIcon provider={selected.provider} size="sm" />
+                  <ProviderIcon provider={role.provider} size="sm" />
                   <span className="max-w-[160px] truncate font-mono text-ui-sm">
-                    {selected.label}
+                    {selected?.label ?? role.model}
                   </span>
                 </>
               ) : (
@@ -119,7 +124,7 @@ export function UtilityModelSection() {
 // Global embedding model for @codebase indexing; empty disables semantic search.
 export function EmbeddingModelSection() {
   const t = useT();
-  const { role, capableProviders, isSet } = useEmbeddingModelConfig();
+  const { role, capableProviders, isSet, isAvailable } = useEmbeddingModelConfig();
   const [error, setError] = useState<string | null>(null);
 
   const pick = async (p: ProviderConfiguration | null): Promise<void> => {
@@ -136,7 +141,9 @@ export function EmbeddingModelSection() {
       description={t("providers.embedding.desc")}
       error={error}
       note={
-        capableProviders.length === 0 ? (
+        isSet && !isAvailable ? (
+          <p className="text-ui-md leading-snug text-fg-muted">{t("providers.notConfigured")}</p>
+        ) : capableProviders.length === 0 ? (
           <p className="text-ui-md leading-snug text-fg-muted">{t("providers.embedding.none")}</p>
         ) : null
       }

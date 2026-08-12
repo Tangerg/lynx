@@ -7,6 +7,7 @@ import {
   type ProviderConfiguration,
   PROVIDERS_KEY,
   UTILITY_ROLE_KEY,
+  providerRoleIsAvailable,
   useEmbeddingRole,
   useModels,
   useProviders,
@@ -33,9 +34,10 @@ export function useProviderRoleConfig() {
 }
 
 export function useUtilityModelConfig() {
-  const { utilityRole, models } = useProviderRoleConfig();
+  const { utilityRole, models, providers } = useProviderRoleConfig();
   const role = utilityRole.data;
   const modelOptions = models.data ?? [];
+  const providerConfigs = providers.data ?? [];
   const selected =
     role?.provider && role.model
       ? (modelOptions.find(
@@ -47,6 +49,7 @@ export function useUtilityModelConfig() {
     modelOptions,
     selected,
     isSet: Boolean(role?.model),
+    isAvailable: providerRoleIsAvailable(role, providerConfigs),
   };
 }
 
@@ -57,8 +60,11 @@ export function useEmbeddingModelConfig() {
   return {
     role,
     providers: providerConfigs,
-    capableProviders: providerConfigs.filter((provider) => provider.embeddingCapable),
+    capableProviders: providerConfigs.filter(
+      (provider) => provider.embeddingCapable && provider.apiKeyMasked !== "",
+    ),
     isSet: Boolean(role?.model),
+    isAvailable: providerRoleIsAvailable(role, providerConfigs),
   };
 }
 

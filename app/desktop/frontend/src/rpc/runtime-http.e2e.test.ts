@@ -562,6 +562,7 @@ for await (const line of lines) {
         LYRA_APIKEY: "e2e-placeholder-key",
         LYRA_BASEURL: providerBaseUrl,
         OPENAI_COMPATIBLE_API_KEY: "e2e-placeholder-key",
+        OPENAI_API_KEY: "",
         LYRA_SERVER_LISTEN: `127.0.0.1:${port}`,
         LYRA_SERVER_NOLOCALTOKEN: "true",
         LYRA_MCP_SERVERS: "",
@@ -779,6 +780,26 @@ for await (const line of lines) {
     await expect(client.models.getEmbeddingRole()).resolves.toEqual({
       provider: "openai",
       model: "e2e-embedding",
+    });
+
+    // A role is durable configuration intent. Removing a credential makes the
+    // role temporarily unavailable, but must not silently erase the user's
+    // model choice; product clients join this read with providers.list.
+    await client.providers.update({
+      provider: "openai",
+      apiKey: { type: "clear" },
+    });
+    await expect(client.models.getEmbeddingRole()).resolves.toEqual({
+      provider: "openai",
+      model: "e2e-embedding",
+    });
+    await expect(client.providers.list()).resolves.toMatchObject({
+      data: expect.arrayContaining([expect.objectContaining({ id: "openai", apiKeyMasked: "" })]),
+    });
+    await client.providers.update({
+      provider: "openai",
+      apiKey: { type: "set", value: "embedding-test-key" },
+      baseUrl: { type: "set", value: providerBaseUrl },
     });
 
     await expect(client.models.setUtilityRole({})).resolves.toEqual({});

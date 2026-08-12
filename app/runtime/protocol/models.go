@@ -2,7 +2,9 @@ package protocol
 
 // UtilityRole is the (provider, model) the in-house maintenance services run
 // on (models.getUtilityRole / setUtilityRole). Empty model = unset → those run
-// on the main Run model. Provider must be a configured provider id.
+// on the main Run model. Provider must be configured when the role is assigned.
+// The selection remains stored if credentials later change, so clients that
+// need effective availability join it with providers.list.
 type UtilityRole struct {
 	Provider string `json:"provider,omitempty"`
 	Model    string `json:"model,omitempty"`
@@ -10,9 +12,11 @@ type UtilityRole struct {
 
 // EmbeddingRole is the (provider, model) the @codebase semantic index embeds
 // with (models.getEmbeddingRole / setEmbeddingRole). Empty model = unset → the
-// index feature is off. Provider must be a configured, embedding-capable
-// provider. A distinct type from [UtilityRole] (same shape, different domain —
-// under the rule-of-three for sharing).
+// index feature is off. Provider must be configured and embedding-capable when
+// the role is assigned. The selection remains stored if credentials later
+// change, so clients that need effective availability join it with
+// providers.list. A distinct type from [UtilityRole] (same shape, different
+// domain — under the rule-of-three for sharing).
 type EmbeddingRole struct {
 	Provider string `json:"provider,omitempty"`
 	Model    string `json:"model,omitempty"`

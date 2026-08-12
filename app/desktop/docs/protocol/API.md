@@ -788,7 +788,10 @@ provider 的 key，读取面自然回落到 `keySource:"env"`；环境值只参�
 `requiresBaseUrl:true` 的 provider 在最终状态中必须保有 endpoint，故首次设置 key 时需同时设置 URL，且不能清空
 已有 URL。`providers.test` 是只读探测，失败 verdict 走 `ProviderTestResult.error`，不改变配置。
 
-`models.*` 提供模型目录与 utility / embedding 角色；`tools.*` 提供直接诊断工具的 `list` / `invoke`（§4.7）。
+`models.*` 提供模型目录与 utility / embedding 角色；设置角色时 provider 必须已配置，但角色保存的是配置意图，不会因
+后续凭据变更而被隐式删除。需要判断“当前是否可执行”的客户端必须把 `models.get*Role` 与 `providers.list` 的有效凭据
+投影合并；这样移除 stored key 后可以正确回落 env key，暂时失效的角色也能在 provider 重新配置后恢复。`tools.*`
+提供直接诊断工具的 `list` / `invoke`（§4.7）。
 
 ### 7.7 可选域（capability-gated）
 
