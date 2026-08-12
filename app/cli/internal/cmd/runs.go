@@ -10,6 +10,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
 	"github.com/Tangerg/lynx/app/cli/internal/render"
+	"github.com/Tangerg/lynx/app/cli/internal/runtimeprofile"
 )
 
 func newRunsCommand(provider runtimeProvider) *cobra.Command {
@@ -54,11 +55,15 @@ func newRunsListCommand(provider runtimeProvider) *cobra.Command {
 			if err := query.Validate(); err != nil {
 				return err
 			}
-			runtime, err := provider.Open(cmd)
+			services, err := provider.OpenServices(cmd)
 			if err != nil {
 				return err
 			}
-			page, err := runtime.ListRuns(cmd.Context(), query)
+			if includeDescendants && services.RuntimeProfile != nil &&
+				!services.RuntimeProfile.Supports(runtimeprofile.FeatureSubagents) {
+				return fmt.Errorf("runtime capability %q was not negotiated", runtimeprofile.FeatureSubagents)
+			}
+			page, err := services.Agent.ListRuns(cmd.Context(), query)
 			if err != nil {
 				return err
 			}
@@ -233,11 +238,15 @@ func completeFirstRunArgument(provider runtimeProvider) cobra.CompletionFunc {
 		if len(args) > 0 {
 			return nil, cobra.ShellCompDirectiveNoFileComp
 		}
-		runtime, err := provider.OpenQuietly(cmd)
+		services, err := provider.resolve(cmd.Context())
 		if err != nil {
 			return nil, cobra.ShellCompDirectiveError
 		}
-		page, err := runtime.ListRuns(cmd.Context(), agent.RunQuery{IncludeDescendants: true, Limit: 100})
+		includeDescendants := services.RuntimeProfile == nil ||
+			services.RuntimeProfile.Supports(runtimeprofile.FeatureSubagents)
+		page, err := services.Agent.ListRuns(cmd.Context(), agent.RunQuery{
+			IncludeDescendants: includeDescendants, Limit: 100,
+		})
 		if err != nil || page.Validate() != nil {
 			return nil, cobra.ShellCompDirectiveError
 		}

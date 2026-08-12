@@ -7,9 +7,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/spf13/cobra"
+
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
 	"github.com/Tangerg/lynx/app/cli/internal/agent/mock"
 	"github.com/Tangerg/lynx/app/cli/internal/backend"
+	"github.com/Tangerg/lynx/app/cli/internal/runtimeprofile"
 )
 
 type recordingRunCatalog struct {
@@ -100,6 +103,28 @@ func TestRunsListRejectsAnInvalidStatusBeforeOpeningTheRuntime(t *testing.T) {
 	}
 	if opened {
 		t.Fatal("invalid status opened the runtime")
+	}
+}
+
+func TestRunsListRejectsDescendantsBeforeCallingAnUnnegotiatedRuntime(t *testing.T) {
+	t.Parallel()
+	profile := commandRuntimeProfile()
+	profile.Features[runtimeprofile.FeatureSubagents] = runtimeprofile.Feature{
+		Stability: runtimeprofile.Stable, ClientOptIn: true,
+	}
+	runtime := &recordingRunCatalog{Runtime: instantRuntime()}
+	provider := runtimeProvider{open: func(context.Context) (backend.Services, error) {
+		return backend.Services{Agent: runtime, RuntimeProfile: new(profile.Clone())}, nil
+	}}
+	command := newRunsListCommand(provider)
+	command.SetOut(&strings.Builder{})
+	command.SetErr(&strings.Builder{})
+	command.SetArgs([]string{"--include-descendants"})
+	if err := command.ExecuteContext(t.Context()); err == nil || !strings.Contains(err.Error(), "subagents") {
+		t.Fatalf("runs list error = %v", err)
+	}
+	if len(runtime.queries) != 0 {
+		t.Fatalf("unnegotiated descendant query reached runtime: %+v", runtime.queries)
 	}
 }
 
@@ -209,6 +234,27 @@ func TestRunIDCompletionIncludesDescendants(t *testing.T) {
 		t.Fatalf("completion = %q, %v", out, err)
 	}
 	if len(runtime.queries) != 1 || !runtime.queries[0].IncludeDescendants || runtime.queries[0].Limit != 100 {
+		t.Fatalf("completion query = %+v", runtime.queries)
+	}
+}
+
+func TestRunIDCompletionFallsBackToRootsWithoutSubagents(t *testing.T) {
+	t.Parallel()
+	profile := commandRuntimeProfile()
+	profile.Features[runtimeprofile.FeatureSubagents] = runtimeprofile.Feature{
+		Stability: runtimeprofile.Stable, ClientOptIn: true,
+	}
+	runtime := &recordingRunCatalog{Runtime: instantRuntime()}
+	provider := runtimeProvider{open: func(context.Context) (backend.Services, error) {
+		return backend.Services{Agent: runtime, RuntimeProfile: new(profile.Clone())}, nil
+	}}
+	command := newRunsShowCommand(provider)
+	command.SetContext(t.Context())
+	items, directive := command.ValidArgsFunction(command, nil, "run_demo")
+	if directive != cobra.ShellCompDirectiveNoFileComp || len(items) == 0 {
+		t.Fatalf("completion = (%v, %v)", items, directive)
+	}
+	if len(runtime.queries) != 1 || runtime.queries[0].IncludeDescendants || runtime.queries[0].Limit != 100 {
 		t.Fatalf("completion query = %+v", runtime.queries)
 	}
 }

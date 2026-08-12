@@ -9,6 +9,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/protocol"
 
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
+	"github.com/Tangerg/lynx/app/cli/internal/runtimeprofile"
 )
 
 type runCatalogBindingStub struct {
@@ -49,7 +50,14 @@ func TestRunCatalogMapsQueriesAndProjectsPages(t *testing.T) {
 			return protocol.NewPageWithCursor([]protocol.RunRef{wantRun}, "next"), nil
 		},
 	}
-	runtime := &Runtime{runCatalog: stub, meta: requestMeta("test")}
+	runtime := &Runtime{
+		runCatalog: stub, meta: requestMeta("test"),
+		profile: runtimeprofile.Profile{Features: map[runtimeprofile.FeatureName]runtimeprofile.Feature{
+			runtimeprofile.FeatureSubagents: {
+				Enabled: true, Stability: runtimeprofile.Stable, ClientOptIn: true, ClientRequested: true,
+			},
+		}},
+	}
 	got, err := runtime.GetRun(t.Context(), "run_1")
 	if err != nil || got.ID != "run_1" || got.Outcome.Status != agent.OutcomeCompleted {
 		t.Fatalf("GetRun = %+v, %v", got, err)
@@ -60,6 +68,23 @@ func TestRunCatalogMapsQueriesAndProjectsPages(t *testing.T) {
 	})
 	if err != nil || len(page.Items) != 1 || page.Items[0].ID != "run_1" || page.NextCursor != "next" {
 		t.Fatalf("ListRuns = %+v, %v", page, err)
+	}
+}
+
+func TestRunCatalogRejectsDescendantQueryWithoutNegotiatedSubagents(t *testing.T) {
+	t.Parallel()
+	called := false
+	runtime := &Runtime{runCatalog: runCatalogBindingStub{
+		list: func(context.Context, protocol.ListRunsRequest, embedded.CallOptions) (*protocol.Page[protocol.RunRef], error) {
+			called = true
+			return protocol.NewPage([]protocol.RunRef{}), nil
+		},
+	}}
+	if _, err := runtime.ListRuns(t.Context(), agent.RunQuery{IncludeDescendants: true}); err == nil || !errors.Is(err, agent.ErrIncompatibleRuntime) {
+		t.Fatalf("ListRuns error = %v, want ErrIncompatibleRuntime", err)
+	}
+	if called {
+		t.Fatal("descendant query reached the binding without negotiated subagents")
 	}
 }
 

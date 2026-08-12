@@ -3,6 +3,7 @@ package runtimeembedded
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -48,24 +49,32 @@ func (stub snapshotBindingStub) ListItems(_ context.Context, request protocol.Li
 	return stub.items[request.Cursor], nil
 }
 
-func TestSnapshotRunCatalogExplicitlyRequestsDescendants(t *testing.T) {
-	var requests []protocol.ListRunsRequest
-	runtime := &Runtime{
-		snapshot: snapshotBindingStub{
-			runs:        map[string]*protocol.Page[protocol.RunRef]{"": protocol.NewPage([]protocol.RunRef{})},
-			runRequests: &requests,
-		},
-		runCatalog: snapshotBindingStub{
-			runs:        map[string]*protocol.Page[protocol.RunRef]{"": protocol.NewPage([]protocol.RunRef{})},
-			runRequests: &requests,
-		},
-		meta: requestMeta("test"),
-	}
-	if _, err := runtime.listAllRuns(t.Context(), "ses_1"); err != nil {
-		t.Fatal(err)
-	}
-	if len(requests) != 1 || requests[0].SessionID != "ses_1" || !requests[0].IncludeDescendants {
-		t.Fatalf("list run requests = %+v", requests)
+func TestSnapshotRunCatalogFollowsTheNegotiatedRunTopology(t *testing.T) {
+	t.Parallel()
+	for _, enabled := range []bool{false, true} {
+		t.Run(fmt.Sprintf("subagents=%t", enabled), func(t *testing.T) {
+			t.Parallel()
+			var requests []protocol.ListRunsRequest
+			stub := snapshotBindingStub{
+				runs:        map[string]*protocol.Page[protocol.RunRef]{"": protocol.NewPage([]protocol.RunRef{})},
+				runRequests: &requests,
+			}
+			runtime := &Runtime{
+				snapshot: stub, runCatalog: stub, meta: requestMeta("test"),
+				profile: runtimeprofile.Profile{Features: map[runtimeprofile.FeatureName]runtimeprofile.Feature{
+					runtimeprofile.FeatureSubagents: {
+						Enabled: enabled, Stability: runtimeprofile.Stable,
+						ClientOptIn: true, ClientRequested: enabled,
+					},
+				}},
+			}
+			if _, err := runtime.listAllRuns(t.Context(), "ses_1"); err != nil {
+				t.Fatal(err)
+			}
+			if len(requests) != 1 || requests[0].SessionID != "ses_1" || requests[0].IncludeDescendants != enabled {
+				t.Fatalf("list run requests = %+v, want descendants=%t", requests, enabled)
+			}
+		})
 	}
 }
 

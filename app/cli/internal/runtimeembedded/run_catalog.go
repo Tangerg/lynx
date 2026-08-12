@@ -3,6 +3,7 @@ package runtimeembedded
 import (
 	"context"
 	"errors"
+	"fmt"
 	"slices"
 	"strings"
 
@@ -10,6 +11,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/protocol"
 
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
+	"github.com/Tangerg/lynx/app/cli/internal/runtimeprofile"
 )
 
 type runCatalogBinding interface {
@@ -46,6 +48,13 @@ func (r *Runtime) GetRun(ctx context.Context, runID string) (agent.Run, error) {
 func (r *Runtime) ListRuns(ctx context.Context, query agent.RunQuery) (agent.RunPage, error) {
 	if err := query.Validate(); err != nil {
 		return agent.RunPage{}, err
+	}
+	if query.IncludeDescendants && !r.profile.Supports(runtimeprofile.FeatureSubagents) {
+		return agent.RunPage{}, fmt.Errorf(
+			"%w: runtime capability %q was not negotiated",
+			agent.ErrIncompatibleRuntime,
+			runtimeprofile.FeatureSubagents,
+		)
 	}
 	limit := query.Limit
 	if limit == 0 {
