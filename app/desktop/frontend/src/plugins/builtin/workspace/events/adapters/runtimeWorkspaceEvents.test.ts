@@ -45,13 +45,33 @@ describe("runtime workspace event subscription", () => {
       subscribeRuntimeWorkspaceEvents({ type: "workspace", cwd: "/linked/repo" }, signal),
     ).resolves.toBe(events);
 
-    expect(resolveWorkspace).toHaveBeenCalledWith({ path: "/linked/repo" });
+    expect(resolveWorkspace).toHaveBeenCalledWith({ path: "/linked/repo" }, signal);
     expect(subscribe).toHaveBeenCalledWith(
       expect.objectContaining({
         watches: [{ watchId: "active-session", workspace: { path: "/canonical/repo" } }],
       }),
       signal,
     );
+  });
+
+  it("cancels watch-root resolution with the subscription lifecycle", async () => {
+    const controller = new AbortController();
+    const reason = new Error("retargeted");
+    resolveWorkspace.mockImplementation(
+      (_ref: unknown, signal: AbortSignal) =>
+        new Promise((_, reject) => {
+          signal.addEventListener("abort", () => reject(signal.reason), { once: true });
+        }),
+    );
+
+    const opening = subscribeRuntimeWorkspaceEvents(
+      { type: "workspace", cwd: "/repo" },
+      controller.signal,
+    );
+    controller.abort(reason);
+
+    await expect(opening).rejects.toBe(reason);
+    expect(subscribe).not.toHaveBeenCalled();
   });
 
   it("keeps global invalidations online when the active workspace disappeared", async () => {

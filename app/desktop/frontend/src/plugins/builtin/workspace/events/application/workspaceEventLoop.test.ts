@@ -142,6 +142,46 @@ describe("workspace event loop", () => {
     await vi.advanceTimersByTimeAsync(0);
   });
 
+  it("cancels an in-flight subscription opening before retargeting", async () => {
+    const outer = new AbortController();
+    const subscribed: Array<{ type: "none" } | { type: "workspace"; cwd?: string }> = [];
+    let reachedNew!: () => void;
+    const newSubscription = new Promise<void>((resolve) => {
+      reachedNew = resolve;
+    });
+    const loop = createWorkspaceEventLoop({
+      subscribe({ target, signal }) {
+        subscribed.push(target);
+        if (subscribed.length === 1) {
+          return new Promise((_, reject) => {
+            signal.addEventListener("abort", () => reject(signal.reason), { once: true });
+          });
+        }
+        reachedNew();
+        return Promise.resolve(
+          (async function* () {
+            await new Promise<void>((resolve) => {
+              if (signal.aborted) resolve();
+              else signal.addEventListener("abort", () => resolve(), { once: true });
+            });
+            yield* [];
+          })(),
+        );
+      },
+      handleEvent: vi.fn(),
+      invalidateAll: vi.fn(),
+      reportError: vi.fn(),
+    });
+
+    loop.start(outer.signal);
+    await Promise.resolve();
+    loop.retarget({ type: "workspace", cwd: "/new-repo" });
+    await newSubscription;
+    outer.abort();
+
+    expect(subscribed).toEqual([{ type: "none" }, { type: "workspace", cwd: "/new-repo" }]);
+  });
+
   it("does not publish a stale subscription that resolves after retarget", async () => {
     const outer = new AbortController();
     let resolveOld!: (events: AsyncIterable<{ type: "resync"; sequence: number }>) => void;

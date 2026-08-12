@@ -100,6 +100,20 @@ describe("methods factory", () => {
     );
   });
 
+  it("forwards cancellation when resolving a workspace", async () => {
+    const call = vi.fn().mockResolvedValue({
+      ref: { path: "/repo" },
+      projectRoot: "/repo",
+      availability: "available",
+    });
+    const methods = createMethods({ call } as unknown as RpcClient);
+    const signal = new AbortController().signal;
+
+    await methods.workspaces.resolve({ path: "/repo" }, signal);
+
+    expect(call).toHaveBeenCalledWith("workspaces.resolve", { ref: { path: "/repo" } }, { signal });
+  });
+
   it("retries default workspace resolution after a transient failure", async () => {
     const call = vi
       .fn()

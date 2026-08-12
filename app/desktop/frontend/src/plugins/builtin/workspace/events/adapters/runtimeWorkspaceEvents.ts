@@ -41,7 +41,7 @@ export async function subscribeRuntimeWorkspaceEvents(
   const client = getContainer().client();
   const workspace =
     runtimeCapability("fileWatch") && target.type === "workspace"
-      ? await client.workspaces.resolve(target.cwd ? { path: target.cwd } : undefined)
+      ? await client.workspaces.resolve(target.cwd ? { path: target.cwd } : undefined, signal)
       : undefined;
   const watches =
     workspace?.availability === "available"

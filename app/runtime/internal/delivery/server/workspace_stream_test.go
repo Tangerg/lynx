@@ -362,6 +362,11 @@ func TestWorkspaceHubRecoversMalformedResyncWithSubscriptionScope(t *testing.T) 
 			Type:   protocol.RuntimeResync,
 			Topics: []protocol.RuntimeTopic{"future.changed"},
 		},
+		"watch scope without files topic": {
+			Type:     protocol.RuntimeResync,
+			Topics:   []protocol.RuntimeTopic{protocol.TopicSkillsChanged},
+			WatchIDs: []string{"own-watch"},
+		},
 	} {
 		t.Run(name, func(t *testing.T) {
 			hub := newWorkspaceHub()

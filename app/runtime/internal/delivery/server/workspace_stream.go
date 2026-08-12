@@ -199,6 +199,12 @@ func (subscription *workspaceSubscription) scopeResync(
 		}
 		requested[topic] = true
 	}
+	if len(event.WatchIDs) > 0 && !requested[protocol.TopicFilesChanged] {
+		// watchIds only narrows files.changed. This cross-field contradiction cannot
+		// be scoped without guessing which part the producer meant, so fail closed to
+		// the complete set of facts held by this subscription.
+		return subscription.resyncEvent(), true
+	}
 	if requested[protocol.TopicFilesChanged] && len(event.WatchIDs) > 0 {
 		scopedWatchIDs := make([]string, 0, len(event.WatchIDs))
 		for _, watchID := range subscription.watchIDs {

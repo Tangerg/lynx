@@ -1162,10 +1162,30 @@
 - 281 个视觉、交互、WCAG、Retina 与 WebKit 场景全绿；active Goal 的 Stop 能力和当前工具目录 surface 已与明暗主题 golden 对齐；
 - Runtime `go test ./...` 全绿；86/86 Runtime operations、10/10 event types、103 typed call sites 保持完整消费；Runtime、Protocol、SQLite 与 Agent Framework 零变更。
 
-## 51. 进度记录
+## 51. P47 — Workspace 订阅 opening 取消与 Runtime resync fail-closed
+
+### 目标
+
+消除 Workspace 切换或销毁时旧 watch-root resolution 阻塞唯一重连循环的问题，并让 Runtime Delivery 对跨字段矛盾的 resync 保持 fail-closed；取消、订阅 scope 与 Agent 投影继续由各自 owner 独占。
+
+### 工作项
+
+- [x] P47-01 `workspaces.resolve` SDK 方法接受调用方 lifecycle signal，Workspace Runtime Adapter 将 subscription signal 透传到 watch-root resolution；
+- [x] P47-02 Workspace event loop 以反例证明 opening 中的旧订阅在 retarget 时先取消，随后立即建立新 target，不等待旧请求自然返回；
+- [x] P47-03 Runtime Delivery 识别 `watchIds` 存在但 topics 不含 `files.changed` 的跨字段矛盾，不猜测生产者意图，扩大为完整 subscription resync；
+- [x] P47-04 以真实 Runtime/浏览器覆盖 HITL approve/reject、两步 Plan、Goal 自主回合、旁路 Session 创建、Git 文件事件和 Runtime 重启恢复。
+
+### 验收
+
+- close/retarget 的取消从 Workspace Application lifecycle 经 Adapter/SDK 到 HTTP request 完整传播，旧 opening 不再阻塞新工作区订阅；
+- malformed resync 在 Delivery subscription scope 内 fail closed，Domain、Application 与 Agent Framework 不接触 watch/protocol 校验；
+- Frontend 全量门禁 256 个测试文件/1585 个用例全绿，API consumer 保持 86/86 operations、10/10 events、103 typed call sites；Runtime standalone tidy/build/vet/test 与目标 race 重复测试全绿。
+
+## 52. 进度记录
 
 | 日期 | 阶段 | 完成事实 | 验证 |
 |---|---|---|---|
+| 2026-08-12 | P47（Workspace opening cancellation / resync fail-closed） | Desktop Workspace subscription lifecycle 的 AbortSignal 现在贯穿 Adapter 与 SDK 的 `workspaces.resolve`，retarget/dispose 会取消仍在 watch-root resolution 的旧 opening 并立即建立新 target。Runtime Delivery 对 `watchIds` 与非 `files.changed` topics 的矛盾 resync 不再静默删除 scope，而是扩大为完整 subscription resync。watch/protocol 事实没有进入 Agent 或 Runtime Domain/Application | 三个定向 Frontend 文件 30 个测试、Workspace events 7 文件/36 测试通过；Runtime resync 目标测试 normal 50 次、race 20 次通过。隔离数据目录真实联调覆盖 HITL approve/reject、Plan、Goal、`sessions.changed`、Git staged 文件事件及 Runtime 重启后无刷新恢复。Frontend 完整门禁 256 文件/1585 测试及全部结构/消费/bundle 检查通过；Runtime standalone tidy/build/vet/test 全绿；API consumer 为 86/86 operations、10/10 events、103 typed call sites |
 | 2026-08-12 | P46（Agent Runtime DTO boundary / cold model restore） | Desktop SDK 以中性 Agent facts 承载 live event、durable Run/Item/Interrupt 与 cancel projection，所有 wire 校验和映射集中在 Agent Adapter；pending work provider 回归 Agent bootstrap，defaults/public surface 不再拥有 Agent 装配。发布边界门禁阻止 Agent Application/Domain/public 与 SDK event contract 导入 RPC。Composer 以显式偏好、durable Session 模型、catalog fallback 的顺序解析，并在 active Session summary 未决时等待，消除冷启动默认模型竞态。Runtime、Protocol、SQLite 与 Agent Framework 零变更 | Mapper/provider 13 个定向测试与 Composer model selection 4 个测试通过；隔离 Runtime/真实浏览器完成两步 Plan、冷重载及第二次 Run，两次 usage 均为 `deepseek-v4-pro`。完整 Frontend 门禁 256 个文件/1582 个测试、typecheck/lint/format/knip/循环/Context/发布边界/层级/port/API consumer/style/design/token/chrome/locales/bootstrap/bundle 全通过；281 个视觉/交互/WCAG/Retina/WebKit 场景通过；Runtime `go test ./...` 全绿；API consumer 为 86/86 operations、10/10 events、103 typed callsite |
 | 2026-08-12 | P45（Goal/Plan lifecycle / boundary convergence） | Desktop Goal launcher 让 paused/blocked replacement 能力可达，预算耗尽不再暴露无效 Resume，状态和 async completion 按 Session identity 隔离。Goal Application 按 Session 串行、单调提交 typed response，Adapter 独占有界 unary settlement、wire mapping 与 provider。Plan wire snapshot/event 在 Agent Adapter 转为中性 domain，fold composition 移入 bootstrap；`goals.changed` 精确失效目标 Session。Runtime、Protocol、SQLite 与 Agent Framework 零变更 | Goal/RPC 最终聚焦 3 文件/19 测试与 Plan 6 文件/41 测试通过。隔离 Runtime/假 provider/真实浏览器验证 Plan `1/2` live projection、Goal 1/1 `runBudgetReached`、同 Session blocked replacement 与冷重载；SQLite 精确为 replacement Goal revision 4、1/1 usage 和两步 Plan revision 1，console 仅开发提示、page error 为零。完整 Frontend 门禁 253 个文件/1565 个测试、typecheck/lint/format/knip/循环/Context/发布边界/层级/port/API consumer/style/design/token/chrome/locales/bootstrap/bundle 全通过；API consumer 为 86/86 operations、10/10 events、103 typed callsite |
 | 2026-08-12 | P44（Session rewrite / mutation settlement） | Desktop rollback 进入 mounted Session 唯一同步 owner并可等待权威 commit，按 Session single-flight；Runtime Adapter 消费 dropped user input，Application/Chat 只见 AgentInput。无 checkpoint 的 files/both fail closed。rename/favorite/relocate 共享 Session 级 revision settlement，失败恢复缩小到条件字段。Runtime、Protocol、SQLite 与 Agent Framework 零变更 | 红测覆盖同步等待/重试/dispose、重复 rollback、权威 dropped input、first-turn files/both、rename+favorite revision chain/局部回滚后转绿；7 个测试文件/40 个定向测试通过。隔离 Runtime/真实浏览器验证 files-only 不产生 rollback record且保留 1 Run/2 Items/2 Messages；两轮 edit-and-rerun 后精确回到 1 Run/2 Items/2 Messages并权威预填，reload 稳定；fork 后精确 2 Session/2 Run/4 Items/4 Messages，console/page error 为零。完整 Frontend 门禁 251 个文件/1543 个测试、typecheck/lint/format/knip/循环/Context/发布边界/层级/port/API consumer/style/design/token/chrome/locales/bootstrap/bundle 全通过；API consumer 仍为 86/86 operations、10/10 events、103 个 typed callsite |

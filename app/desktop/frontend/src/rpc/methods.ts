@@ -319,7 +319,7 @@ export interface Methods {
     }) => AutoPagingPromise<ListItemsResponse>;
   };
   workspaces: {
-    resolve: (ref?: WorkspaceRef) => Promise<WorkspaceInfo>;
+    resolve: (ref?: WorkspaceRef, signal?: AbortSignal) => Promise<WorkspaceInfo>;
     list: () => Promise<Page<WorkspaceSummary>>;
     /** Resolve the runtime default when omitted, then bind a scoped client. */
     open: (ref?: WorkspaceRef) => Promise<WorkspaceMethods>;
@@ -709,7 +709,7 @@ export function createMethods(client: RpcClient, options: MethodsOptions = {}): 
       list: (params) => call("items.list", params),
     },
     workspaces: {
-      resolve: (ref) => call("workspaces.resolve", ref ? { ref } : {}),
+      resolve: (ref, signal) => call("workspaces.resolve", ref ? { ref } : {}, { signal }),
       list: () => call("workspaces.list", {}),
       open: openWorkspace,
     },
