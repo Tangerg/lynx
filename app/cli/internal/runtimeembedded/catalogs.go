@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 
 	"github.com/Tangerg/lynx/app/runtime/embedded"
 	"github.com/Tangerg/lynx/app/runtime/protocol"
@@ -128,6 +129,10 @@ func (r *Runtime) SetApprovalMode(ctx context.Context, mode agent.ApprovalMode) 
 }
 
 func (r *Runtime) ListApprovalRules(ctx context.Context, sessionID string) ([]agent.ApprovalRule, error) {
+	sessionID = strings.TrimSpace(sessionID)
+	if sessionID == "" {
+		return nil, errors.New("list approval rules: session id is empty")
+	}
 	result, err := r.approvals.ListApprovalRules(ctx, protocol.ListApprovalRulesRequest{SessionID: sessionID}, r.callOptions())
 	if err != nil {
 		return nil, classifyError(err)
@@ -149,6 +154,10 @@ func (r *Runtime) ListApprovalRules(ctx context.Context, sessionID string) ([]ag
 }
 
 func (r *Runtime) DeleteApprovalRule(ctx context.Context, id string) error {
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return errors.New("delete approval rule: id is empty")
+	}
 	options, err := r.commandOptions()
 	if err != nil {
 		return err

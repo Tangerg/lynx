@@ -10,13 +10,16 @@ import (
 )
 
 func projectEvent(value protocol.RunEvent) (agent.RunEvent, bool, error) {
+	if value.Timestamp.IsZero() {
+		return agent.RunEvent{}, false, fmt.Errorf("event %s timestamp is zero", value.EventID)
+	}
 	projection := runEventProjection{source: value}
 	projected, err := projection.project()
 	if err != nil || !projected.included {
 		return agent.RunEvent{}, projected.included, err
 	}
 	envelope := projection.envelope(projected.event)
-	if err := agent.ValidateEvent(envelope.Event); err != nil {
+	if err := envelope.Validate(); err != nil {
 		return agent.RunEvent{}, false, fmt.Errorf("event %s projection: %w", value.EventID, err)
 	}
 	return envelope, true, nil

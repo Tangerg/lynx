@@ -319,13 +319,19 @@ func TestApprovalInterruptPreservesCompleteToolArguments(t *testing.T) {
 
 func TestProjectEventPreservesEphemeralFramesAndClassifiesStreams(t *testing.T) {
 	step, contextTokens, cost := 3, int64(8_192), 0.25
-	progressEvent, include, err := projectEvent(protocol.RunEvent{EventID: "progress", Event: protocol.StreamEvent{
+	at := time.Date(2026, time.August, 12, 9, 0, 0, 0, time.UTC)
+	project := func(eventID string, event protocol.StreamEvent) (agent.RunEvent, bool, error) {
+		return projectEvent(protocol.RunEvent{
+			EventID: eventID, RunID: "run_1", SegmentID: "segment_1", Timestamp: at, Event: event,
+		})
+	}
+	progressEvent, include, err := project("progress", protocol.StreamEvent{
 		Type: protocol.StreamSegmentProgress,
 		Progress: &protocol.RunProgress{
 			Step: &step, ContextTokens: &contextTokens, Activity: "thinking",
 			Usage: &protocol.Usage{ModelUsage: protocol.ModelUsage{InputTokens: 12, CostUSD: &cost}},
 		},
-	}})
+	})
 	if err != nil || !include {
 		t.Fatalf("progress = (include %v, error %v)", include, err)
 	}
@@ -336,19 +342,19 @@ func TestProjectEventPreservesEphemeralFramesAndClassifiesStreams(t *testing.T) 
 		t.Fatalf("projected progress = %#v", progressEvent.Event)
 	}
 
-	arguments, include, err := projectEvent(protocol.RunEvent{EventID: "arguments", Event: protocol.StreamEvent{
+	arguments, include, err := project("arguments", protocol.StreamEvent{
 		Type: protocol.StreamItemDelta, ItemID: "tool_1",
 		Delta: &protocol.ItemDelta{Type: protocol.DeltaToolArguments, ArgumentsTextDelta: `{"path":"/tmp`},
-	}})
+	})
 	if err != nil || !include || arguments.Event != (agent.ToolArgumentsDelta{BlockID: "tool_1", Text: `{"path":"/tmp`}) {
 		t.Fatalf("tool arguments = %#v, include %v, error %v", arguments.Event, include, err)
 	}
 
 	contentIndex := 2
-	content, include, err := projectEvent(protocol.RunEvent{EventID: "content", Event: protocol.StreamEvent{
+	content, include, err := project("content", protocol.StreamEvent{
 		Type: protocol.StreamItemDelta, ItemID: "answer",
 		Delta: &protocol.ItemDelta{Type: protocol.DeltaContent, Index: &contentIndex, Text: "third block"},
-	}})
+	})
 	if err != nil || !include {
 		t.Fatalf("content = (include %v, error %v)", include, err)
 	}
@@ -361,9 +367,9 @@ func TestProjectEventPreservesEphemeralFramesAndClassifiesStreams(t *testing.T) 
 		t.Fatal("projected content index aliases the runtime event")
 	}
 
-	customEvent, include, err := projectEvent(protocol.RunEvent{EventID: "custom", Event: protocol.StreamEvent{
+	customEvent, include, err := project("custom", protocol.StreamEvent{
 		Type: protocol.StreamCustom, Name: "vendor.trace", Payload: map[string]any{"span": "abc", "sampled": true},
-	}})
+	})
 	if err != nil || !include {
 		t.Fatalf("custom = (include %v, error %v)", include, err)
 	}
@@ -383,6 +389,95 @@ func TestProjectEventPreservesEphemeralFramesAndClassifiesStreams(t *testing.T) 
 		return
 	}
 	t.Fatal("stream yielded no error")
+}
+
+func TestProjectEventConsumesAuthoritativeItemAndStateFrames(t *testing.T) {
+	t.Parallel()
+
+	at := time.Date(2026, time.August, 12, 9, 0, 0, 0, time.UTC)
+	tests := []struct {
+		name   string
+		event  protocol.StreamEvent
+		assert func(*testing.T, agent.RunEvent)
+	}{
+		{
+			name: "item started",
+			event: protocol.StreamEvent{Type: protocol.StreamItemStarted, Item: &protocol.Item{
+				ID: "answer", RunID: "run_1", Status: protocol.ItemStatusRunning, Type: protocol.ItemTypeAgentMessage,
+			}},
+			assert: func(t *testing.T, event agent.RunEvent) {
+				started, ok := event.Event.(agent.BlockStarted)
+				if !ok || started.Block.ID != "answer" || started.Block.Status != agent.BlockStatusRunning {
+					t.Fatalf("item.started = %#v", event.Event)
+				}
+			},
+		},
+		{
+			name: "item completed",
+			event: protocol.StreamEvent{Type: protocol.StreamItemCompleted, Item: &protocol.Item{
+				ID: "answer", RunID: "run_1", Status: protocol.ItemStatusCompleted, Type: protocol.ItemTypeAgentMessage,
+				Content: []protocol.ContentBlock{{Type: protocol.ContentBlockText, Text: "done"}},
+			}},
+			assert: func(t *testing.T, event agent.RunEvent) {
+				completed, ok := event.Event.(agent.BlockCompleted)
+				if !ok || completed.Block.Text != "done" || completed.Block.Status != agent.BlockStatusCompleted {
+					t.Fatalf("item.completed = %#v", event.Event)
+				}
+			},
+		},
+		{
+			name: "state snapshot",
+			event: protocol.StreamEvent{Type: protocol.StreamStateSnapshot, State: &protocol.StateSnapshot{
+				Type: protocol.StatePlan, SessionID: "session_1", Revision: 2, UpdatedAt: at,
+				Plan: []protocol.PlanSnapshot{{ID: "step_1", Description: "verify", Status: protocol.PlanStatusInProgress}},
+			}},
+			assert: func(t *testing.T, event agent.RunEvent) {
+				plan, ok := event.Event.(agent.PlanChanged)
+				if !ok || plan.Revision != 2 || len(plan.Items) != 1 || plan.Items[0].Title != "verify" || plan.Items[0].Status != agent.PlanActive {
+					t.Fatalf("state.snapshot = %#v", event.Event)
+				}
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			event, included, err := projectEvent(protocol.RunEvent{
+				EventID: "event_1", RunID: "run_1", SegmentID: "segment_1", Timestamp: at, Event: test.event,
+			})
+			if err != nil || !included {
+				t.Fatalf("projectEvent = (%+v, %v, %v)", event, included, err)
+			}
+			if event.EventID != "event_1" || event.RunID != "run_1" || event.SegmentID != "segment_1" || !event.At.Equal(at) {
+				t.Fatalf("event envelope = %+v", event)
+			}
+			test.assert(t, event)
+		})
+	}
+}
+
+func TestProjectEventRejectsMalformedEnvelopeBeforeStreaming(t *testing.T) {
+	t.Parallel()
+
+	for _, event := range []protocol.RunEvent{
+		{
+			EventID: "event_1", RunID: "run_1", SegmentID: "segment_1",
+			Event: protocol.StreamEvent{Type: protocol.StreamItemCompleted, Item: &protocol.Item{
+				ID: "answer", RunID: "run_1", Status: protocol.ItemStatusCompleted, Type: protocol.ItemTypeAgentMessage,
+			}},
+		},
+		{
+			EventID: "event_1", RunID: "run_1", SegmentID: "segment_1", Timestamp: time.Now(),
+			Event: protocol.StreamEvent{Type: protocol.StreamItemCompleted, Item: &protocol.Item{
+				ID: "answer", RunID: "another_run", Status: protocol.ItemStatusCompleted, Type: protocol.ItemTypeAgentMessage,
+			}},
+		},
+	} {
+		_, included, err := projectEvent(event)
+		if err == nil || included {
+			t.Fatalf("malformed event = (included %v, error %v)", included, err)
+		}
+	}
 }
 
 func TestRunProfileAcceptsSubagentTrees(t *testing.T) {
@@ -424,7 +519,7 @@ func TestProjectChildRunPreservesLineage(t *testing.T) {
 func TestProjectTreeStreamRetainsProducerAndStreamSegments(t *testing.T) {
 	source := func(yield func(protocol.RunEvent, error) bool) {
 		yield(protocol.RunEvent{
-			RunID: "run_root", SegmentID: "seg_root", EventID: "evt_suspend",
+			RunID: "run_root", SegmentID: "seg_root", EventID: "evt_suspend", Timestamp: time.Now(),
 			Event: protocol.StreamEvent{
 				Type:    protocol.StreamSegmentFinished,
 				Outcome: &protocol.SegmentOutcome{Type: protocol.SegmentSuspended},

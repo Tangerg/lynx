@@ -22,6 +22,18 @@ func TestRuntimeStartResumeAndColdRestore(t *testing.T) {
 	requireCompletedColdProjection(t, runtime, session.ID, opened.RunID, interaction)
 }
 
+func TestApprovalCatalogRejectsEmptyIdentitiesConsistently(t *testing.T) {
+	t.Parallel()
+
+	runtime := New()
+	if _, err := runtime.ListApprovalRules(t.Context(), "  "); err == nil {
+		t.Fatal("empty session identity was accepted")
+	}
+	if err := runtime.DeleteApprovalRule(t.Context(), "\t"); err == nil {
+		t.Fatal("empty rule identity was accepted")
+	}
+}
+
 func startWaitingRun(t *testing.T, runtime *Runtime, sessionID string) (agent.SegmentStream, *agent.Conversation) {
 	t.Helper()
 	opened, err := runtime.StartRun(t.Context(), agent.StartRun{

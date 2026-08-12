@@ -65,6 +65,58 @@ func TestRunEventEqualityUsesDomainValues(t *testing.T) {
 	}
 }
 
+func TestRunEventValidationOwnsEnvelopeAndPayloadIdentity(t *testing.T) {
+	t.Parallel()
+
+	valid := RunEvent{
+		EventID: "event_1", RunID: "run_1", SegmentID: "segment_1", At: time.Now(),
+		Event: BlockCompleted{Block: Block{
+			ID: "answer", RunID: "run_1", Status: BlockStatusCompleted, Kind: BlockAssistant, Text: "done",
+		}},
+	}
+	if err := valid.Validate(); err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []struct {
+		name   string
+		mutate func(*RunEvent)
+	}{
+		{name: "event id", mutate: func(event *RunEvent) { event.EventID = " " }},
+		{name: "run id", mutate: func(event *RunEvent) { event.RunID = "" }},
+		{name: "segment id", mutate: func(event *RunEvent) { event.SegmentID = "" }},
+		{name: "stream segment id", mutate: func(event *RunEvent) { event.StreamSegmentID = " " }},
+		{name: "payload", mutate: func(event *RunEvent) { event.Event = nil }},
+		{name: "block ownership", mutate: func(event *RunEvent) {
+			completed := event.Event.(BlockCompleted)
+			completed.Block.RunID = "run_2"
+			event.Event = completed
+		}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			candidate := valid.Clone()
+			test.mutate(&candidate)
+			if err := candidate.Validate(); err == nil {
+				t.Fatalf("RunEvent.Validate accepted %+v", candidate)
+			}
+		})
+	}
+
+	started := RunEvent{
+		EventID: "event_2", RunID: "run_1", SegmentID: "segment_1", At: time.Now(),
+		Event: SegmentStarted{Run: runningRun("segment_1")},
+	}
+	if err := started.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	started.RunID = "run_2"
+	if err := started.Validate(); err == nil {
+		t.Fatal("segment-start identity mismatch was accepted")
+	}
+}
+
 func TestEphemeralEventsCloneOwnedValues(t *testing.T) {
 	step, contextTokens, cost := 2, int64(4_096), 0.5
 	progress := RunProgress{

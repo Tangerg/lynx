@@ -2,6 +2,7 @@ package mock
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -12,6 +13,10 @@ import (
 func (r *Runtime) ListApprovalRules(ctx context.Context, sessionID string) ([]agent.ApprovalRule, error) {
 	if err := context.Cause(ctx); err != nil {
 		return nil, err
+	}
+	sessionID = strings.TrimSpace(sessionID)
+	if sessionID == "" {
+		return nil, errors.New("list approval rules: session id is empty")
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -32,6 +37,10 @@ func (r *Runtime) ListApprovalRules(ctx context.Context, sessionID string) ([]ag
 func (r *Runtime) DeleteApprovalRule(ctx context.Context, id string) error {
 	if err := context.Cause(ctx); err != nil {
 		return err
+	}
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return errors.New("delete approval rule: id is empty")
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()

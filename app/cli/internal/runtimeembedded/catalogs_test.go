@@ -1,13 +1,47 @@
 package runtimeembedded
 
 import (
+	"context"
 	"reflect"
 	"testing"
 
+	"github.com/Tangerg/lynx/app/runtime/embedded"
 	"github.com/Tangerg/lynx/app/runtime/protocol"
 
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
 )
+
+type approvalBindingRecorder struct {
+	listRequest   protocol.ListApprovalRulesRequest
+	forgetRequest protocol.ForgetApprovalRuleRequest
+	forgetOptions embedded.CommandOptions
+	listCalls     int
+	forgetCalls   int
+}
+
+func (*approvalBindingRecorder) GetApprovalMode(context.Context, embedded.CallOptions) (*protocol.ApprovalModeResult, error) {
+	return &protocol.ApprovalModeResult{Mode: protocol.ApprovalModeBalanced}, nil
+}
+
+func (*approvalBindingRecorder) SetApprovalMode(_ context.Context, request protocol.SetApprovalModeRequest, _ embedded.CommandOptions) (*protocol.ApprovalModeResult, error) {
+	return &protocol.ApprovalModeResult{Mode: request.Mode}, nil
+}
+
+func (recorder *approvalBindingRecorder) ListApprovalRules(_ context.Context, request protocol.ListApprovalRulesRequest, _ embedded.CallOptions) (*protocol.ListApprovalRulesResult, error) {
+	recorder.listCalls++
+	recorder.listRequest = request
+	return &protocol.ListApprovalRulesResult{Rules: []protocol.ApprovalRule{{
+		ID: "rule_1", Scope: protocol.ApprovalRuleScopeProject, Tool: "shell",
+		Subject: "go test *", Dir: "/workspace", Decision: protocol.ApprovalRuleDecisionAllow,
+	}}}, nil
+}
+
+func (recorder *approvalBindingRecorder) ForgetApprovalRule(_ context.Context, request protocol.ForgetApprovalRuleRequest, options embedded.CommandOptions) error {
+	recorder.forgetCalls++
+	recorder.forgetRequest = request
+	recorder.forgetOptions = options
+	return nil
+}
 
 func TestModelCatalogProjectsEveryPublishedModelField(t *testing.T) {
 	t.Parallel()
@@ -58,5 +92,39 @@ func TestModelCatalogProjectsEveryPublishedModelField(t *testing.T) {
 		model.Capabilities.InputModalities[0] != agent.ModelModalityText ||
 		model.Pricing.InputUSDPerMillionTokens != 0.2 {
 		t.Fatal("model projection aliases runtime-owned metadata")
+	}
+}
+
+func TestApprovalCatalogNormalizesIdentitiesBeforeCrossingTheRuntimeBoundary(t *testing.T) {
+	t.Parallel()
+
+	recorder := &approvalBindingRecorder{}
+	runtime := &Runtime{approvals: recorder, meta: requestMeta("test")}
+	rules, err := runtime.ListApprovalRules(t.Context(), "  session_1  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rules) != 1 || rules[0].ID != "rule_1" || rules[0].Scope != agent.RememberProject ||
+		rules[0].Subject != "go test *" || rules[0].Dir != "/workspace" || rules[0].Decision != agent.ApprovalRuleAllow {
+		t.Fatalf("approval rules = %+v", rules)
+	}
+	if recorder.listRequest.SessionID != "session_1" {
+		t.Fatalf("list request = %+v", recorder.listRequest)
+	}
+	if err := runtime.DeleteApprovalRule(t.Context(), "  rule_1  "); err != nil {
+		t.Fatal(err)
+	}
+	if recorder.forgetRequest.ID != "rule_1" || recorder.forgetOptions.IdempotencyKey == "" || recorder.forgetCalls != 1 {
+		t.Fatalf("forget request = %+v, options = %+v, calls = %d", recorder.forgetRequest, recorder.forgetOptions, recorder.forgetCalls)
+	}
+
+	if _, err := runtime.ListApprovalRules(t.Context(), "  "); err == nil {
+		t.Fatal("empty session identity crossed the approval boundary")
+	}
+	if err := runtime.DeleteApprovalRule(t.Context(), "\t"); err == nil {
+		t.Fatal("empty rule identity crossed the approval boundary")
+	}
+	if recorder.listCalls != 1 || recorder.forgetCalls != 1 {
+		t.Fatalf("invalid identities reached runtime: list=%d forget=%d", recorder.listCalls, recorder.forgetCalls)
 	}
 }

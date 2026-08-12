@@ -2,7 +2,10 @@ package agent
 
 import (
 	"bytes"
+	"errors"
+	"fmt"
 	"slices"
+	"strings"
 	"time"
 )
 
@@ -25,6 +28,41 @@ func (e RunEvent) StreamSegment() string {
 		return e.StreamSegmentID
 	}
 	return e.SegmentID
+}
+
+// Validate enforces the CLI-owned event envelope and payload identity without
+// depending on the conversation aggregate that later folds the event.
+func (e RunEvent) Validate() error {
+	switch {
+	case strings.TrimSpace(e.EventID) == "":
+		return errors.New("run event id is empty")
+	case strings.TrimSpace(e.RunID) == "":
+		return errors.New("run event run id is empty")
+	case strings.TrimSpace(e.SegmentID) == "":
+		return errors.New("run event segment id is empty")
+	case strings.TrimSpace(e.StreamSegment()) == "":
+		return errors.New("run event stream segment id is empty")
+	case e.Event == nil:
+		return errors.New("run event payload is nil")
+	}
+	if err := ValidateEvent(e.Event); err != nil {
+		return fmt.Errorf("run event payload: %w", err)
+	}
+	switch event := e.Event.(type) {
+	case SegmentStarted:
+		if event.Run.ID != e.RunID || event.Run.ActiveSegmentID != e.SegmentID {
+			return errors.New("run event segment-start identity does not match its envelope")
+		}
+	case BlockStarted:
+		if event.Block.RunID != e.RunID {
+			return fmt.Errorf("run event block %s belongs to run %s, not %s", event.Block.ID, event.Block.RunID, e.RunID)
+		}
+	case BlockCompleted:
+		if event.Block.RunID != e.RunID {
+			return fmt.Errorf("run event block %s belongs to run %s, not %s", event.Block.ID, event.Block.RunID, e.RunID)
+		}
+	}
+	return nil
 }
 
 func (e RunEvent) Clone() RunEvent {

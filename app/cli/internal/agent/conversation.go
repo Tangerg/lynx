@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"slices"
-	"strings"
 
 	"github.com/Tangerg/lynx/app/cli/internal/failure"
 )
@@ -108,8 +107,8 @@ func equalRunMaps(left, right map[string]Run) bool {
 // ApplyRunEvent validates and folds one event exactly once. It never assigns
 // ordering meaning to EventID; the stream order is the order of delivery.
 func (c *Conversation) ApplyRunEvent(envelope RunEvent) (EventAcceptance, error) {
-	if err := validateConversationEvent(envelope); err != nil {
-		return EventAcceptance{}, err
+	if err := envelope.Validate(); err != nil {
+		return EventAcceptance{}, fmt.Errorf("conversation: %w", err)
 	}
 	streamSegmentID := envelope.StreamSegment()
 	newStreamSegment := c.segmentID != streamSegmentID
@@ -125,9 +124,6 @@ func (c *Conversation) ApplyRunEvent(envelope RunEvent) (EventAcceptance, error)
 	}
 	if err := c.validateEventIdentity(envelope); err != nil {
 		return EventAcceptance{}, err
-	}
-	if err := ValidateEvent(envelope.Event); err != nil {
-		return EventAcceptance{}, fmt.Errorf("conversation: %w", err)
 	}
 	ignored, err := c.ignoreRecoveredOverlap(envelope)
 	if err != nil {
@@ -206,28 +202,8 @@ func (c *Conversation) ignoreRecoveredOverlap(envelope RunEvent) (bool, error) {
 	}
 }
 
-func validateConversationEvent(envelope RunEvent) error {
-	switch {
-	case strings.TrimSpace(envelope.EventID) == "":
-		return errors.New("conversation: event id is empty")
-	case strings.TrimSpace(envelope.RunID) == "":
-		return errors.New("conversation: run id is empty")
-	case strings.TrimSpace(envelope.SegmentID) == "":
-		return errors.New("conversation: segment id is empty")
-	case strings.TrimSpace(envelope.StreamSegment()) == "":
-		return errors.New("conversation: stream segment id is empty")
-	case envelope.Event == nil:
-		return errors.New("conversation: event payload is nil")
-	default:
-		return nil
-	}
-}
-
 func (c *Conversation) validateEventIdentity(envelope RunEvent) error {
 	if started, ok := envelope.Event.(SegmentStarted); ok {
-		if started.Run.ID != envelope.RunID || started.Run.ActiveSegmentID != envelope.SegmentID {
-			return errors.New("conversation: segment-start identity does not match its event")
-		}
 		if !started.Run.Lineage.IsRoot() && started.Run.Lineage.RootRunID != c.runID {
 			return fmt.Errorf("conversation: child run %s belongs to root %s, not %s", envelope.RunID, started.Run.Lineage.RootRunID, c.runID)
 		}
@@ -242,16 +218,6 @@ func (c *Conversation) validateEventIdentity(envelope RunEvent) error {
 	}
 	if run.Status != RunStatusRunning || run.ActiveSegmentID != envelope.SegmentID {
 		return fmt.Errorf("conversation: event segment %s does not match active run %s segment %s", envelope.SegmentID, envelope.RunID, run.ActiveSegmentID)
-	}
-	switch item := envelope.Event.(type) {
-	case BlockStarted:
-		if item.Block.RunID != envelope.RunID {
-			return fmt.Errorf("conversation: block %s belongs to run %s, not %s", item.Block.ID, item.Block.RunID, envelope.RunID)
-		}
-	case BlockCompleted:
-		if item.Block.RunID != envelope.RunID {
-			return fmt.Errorf("conversation: block %s belongs to run %s, not %s", item.Block.ID, item.Block.RunID, envelope.RunID)
-		}
 	}
 	return nil
 }
