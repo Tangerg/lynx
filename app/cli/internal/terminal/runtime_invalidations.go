@@ -14,6 +14,10 @@ import (
 var runtimeRecoveryBackoff = reconnect.Backoff{Base: 100 * time.Millisecond, Maximum: 5 * time.Second}
 
 func (a *app) applyRuntimeInvalidation(event changefeed.Event) {
+	if event.Type == changefeed.Resync {
+		a.applyRuntimeResync(event.Topics)
+		return
+	}
 	a.refreshGoalReader(goalInvalidationAffectsSession(event, a.session.ID))
 	a.refreshSkillReader(changefeed.Topic(event.Type) == changefeed.SkillsChanged)
 	a.refreshMCPReader(changefeed.Topic(event.Type) == changefeed.MCPChanged)
@@ -34,7 +38,7 @@ func (a *app) applyRuntimeResync(topics []changefeed.Topic) {
 	a.refreshKnowledgeReader(containsTopic(topics, changefeed.KnowledgeChanged))
 	a.refreshHooksReader(containsTopic(topics, changefeed.HooksChanged))
 	a.applySessionInvalidation(
-		containsTopic(topics, changefeed.SessionsChanged),
+		invalidatesSessionCatalog(changefeed.Event{Type: changefeed.Resync, Topics: topics}),
 		resyncAffectsSession(topics),
 	)
 }

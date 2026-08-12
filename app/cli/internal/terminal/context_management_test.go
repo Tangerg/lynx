@@ -391,6 +391,33 @@ func TestKnowledgeChangeConvergesTheExactOpenScope(t *testing.T) {
 	stop()
 }
 
+func TestKnowledgeResyncConvergesTheExactOpenScope(t *testing.T) {
+	knowledgeStore := newKnowledgeServiceStub()
+	source := &runtimeChangeSourceStub{
+		events: make(chan changefeed.Event, 1), subscription: make(chan changefeed.Subscription, 1),
+		applied: make(chan changefeed.Event, 1), supported: []changefeed.Topic{changefeed.KnowledgeChanged},
+	}
+	host, stop := runUIWithRuntimeServices(t, Config{
+		Runtime: mock.New(), Workspace: "/workspace", Knowledge: knowledgeStore, Changes: source,
+	})
+	host.Shows(t, "Ask lyra")
+	awaitValue(t, source.subscription, "knowledge resync subscription")
+	host.Type("/knowledge-read home")
+	host.Press(input.Enter)
+	host.Shows(t, "global preferences")
+
+	knowledgeStore.mu.Lock()
+	knowledgeStore.content[knowledge.Home] = "preferences from scoped resync"
+	knowledgeStore.revisions[knowledge.Home] = "rev-home+resync"
+	knowledgeStore.mu.Unlock()
+	source.events <- changefeed.Event{
+		Type: changefeed.Resync, Sequence: 1, Topics: []changefeed.Topic{changefeed.KnowledgeChanged},
+	}
+	awaitValue(t, source.applied, "knowledge resync")
+	host.Shows(t, "preferences from scoped resync")
+	stop()
+}
+
 func TestKnowledgeEditorPreservesMultilineContentAcrossResize(t *testing.T) {
 	knowledgeStore := newKnowledgeServiceStub()
 	host, stop := runUIWithRuntimeServices(t, Config{
