@@ -3,11 +3,12 @@ import type { AgentSessionSummary } from "./sessionQueries";
 import { queryClient } from "@/lib/queryClient";
 import {
   invalidateAgentSessions,
-  recoverAgentSessionSummaries,
+  recoverAgentSessionSummaryField,
   AGENT_SESSIONS_KEY,
 } from "./sessionQueries";
 import { agentRuntime } from "../ports/runtimeGateway";
 import { reportSessionError } from "./reportSessionError";
+import { settleSessionSummaryMutation } from "./sessionSummaryMutationSettlement";
 
 /** Pin / unpin a session (sessions.update favorite) and refresh session summaries.
  *  Optimistic: flips the star in the list right away so the row reorders
@@ -27,17 +28,19 @@ export function useToggleFavorite(): (
       old?.map((s) => (s.id === id ? { ...s, favorite } : s)),
     );
     try {
-      const updated = await agentRuntime().updateSession({
-        sessionId: id,
-        expectedRevision,
-        favorite,
-      });
+      const updated = await settleSessionSummaryMutation(id, expectedRevision, (revision) =>
+        agentRuntime().updateSession({
+          sessionId: id,
+          expectedRevision: revision,
+          favorite,
+        }),
+      );
       queryClient.setQueryData<AgentSessionSummary[]>([AGENT_SESSIONS_KEY], (old) =>
         old?.map((s) => (s.id === id ? { ...s, revision: updated.revision } : s)),
       );
       void invalidateAgentSessions();
     } catch (err) {
-      recoverAgentSessionSummaries(prev);
+      recoverAgentSessionSummaryField(prev, id, "favorite", favorite);
       reportSessionError("favorite", err);
     }
   }, []);

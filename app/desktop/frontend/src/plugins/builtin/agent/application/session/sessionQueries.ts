@@ -28,8 +28,21 @@ export function invalidateAgentSessions(): Promise<void> {
  * have committed after it was captured, and cancelQueries may have consumed
  * the invalidation which would otherwise expose that fact.
  */
-export function recoverAgentSessionSummaries(previous: AgentSessionSummary[] | undefined): void {
-  if (previous) queryClient.setQueryData([AGENT_SESSIONS_KEY], previous);
+export function recoverAgentSessionSummaryField(
+  previous: AgentSessionSummary[] | undefined,
+  sessionId: string,
+  field: "title" | "favorite",
+  optimisticValue: string | boolean,
+): void {
+  const prior = previous?.find((session) => session.id === sessionId);
+  if (prior) {
+    queryClient.setQueryData<AgentSessionSummary[]>([AGENT_SESSIONS_KEY], (current) =>
+      current?.map((session) => {
+        if (session.id !== sessionId || session[field] !== optimisticValue) return session;
+        return { ...session, [field]: prior[field] };
+      }),
+    );
+  }
   void invalidateAgentSessions();
 }
 

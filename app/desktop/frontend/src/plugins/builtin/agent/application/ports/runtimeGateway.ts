@@ -46,7 +46,9 @@ export interface AgentRuntimeGateway {
     sessionId: string;
     toRunId?: string;
     restoreType?: RestoreType;
-  }): Promise<void>;
+  }): Promise<{
+    droppedRuns: Array<{ runId: string; userInput?: AgentInput }>;
+  }>;
   /** Inject a user instruction into the segment the caller believes is executing.
    *  The segment is part of the address: a run that parked and resumed between
    *  typing and sending must refuse rather than deliver the instruction into a

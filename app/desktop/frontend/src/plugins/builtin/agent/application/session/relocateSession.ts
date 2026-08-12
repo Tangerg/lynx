@@ -3,6 +3,7 @@ import { invalidateAgentSessions } from "./sessionQueries";
 import { rpcErrorText } from "@/lib/rpcErrors";
 import { agentRuntime } from "../ports/runtimeGateway";
 import { reportSessionError } from "./reportSessionError";
+import { settleSessionSummaryMutation } from "./sessionSummaryMutationSettlement";
 
 /** Relocate a session (sessions.update cwd — features.relocate gated,
  *  API.md §7.2). Refreshing session summaries also re-points the git-state
@@ -16,7 +17,9 @@ export function useRelocateSession(): (
 ) => Promise<boolean> {
   return useCallback(async (id, expectedRevision, cwd) => {
     try {
-      await agentRuntime().updateSession({ sessionId: id, expectedRevision, cwd });
+      await settleSessionSummaryMutation(id, expectedRevision, (revision) =>
+        agentRuntime().updateSession({ sessionId: id, expectedRevision: revision, cwd }),
+      );
       // projects too: the list is derived from session cwds, and this
       // session just moved — its old project may retire, the new one mint.
       await invalidateAgentSessions();

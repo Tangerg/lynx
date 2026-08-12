@@ -186,4 +186,48 @@ describe("agentRuntimeGateway", () => {
 
     await expect(agentRuntime().deleteSession("ses_gone")).resolves.toBeUndefined();
   });
+
+  it("projects rollback dropped input without leaking wire blocks into Application", async () => {
+    const rollback = vi.fn().mockResolvedValue({
+      session: {},
+      droppedRuns: [
+        {
+          run: { id: "run_dropped", sessionId: "ses_1" },
+          userInput: [
+            { type: "text", text: "retry this" },
+            { type: "image", mime: "image/png", data: "aW1hZ2U=" },
+          ],
+        },
+      ],
+    });
+    setContainer({
+      client: () => ({ sessions: { rollback } }) as unknown as LyraClient,
+    });
+    uninstall = installAgentRuntimeGateway();
+
+    await expect(
+      agentRuntime().rollbackSession({
+        sessionId: "ses_1",
+        toRunId: "run_keep",
+        restoreType: "both",
+      }),
+    ).resolves.toEqual({
+      droppedRuns: [
+        {
+          runId: "run_dropped",
+          userInput: {
+            parts: [
+              { kind: "text", text: "retry this" },
+              { kind: "image", mime: "image/png", data: "aW1hZ2U=" },
+            ],
+          },
+        },
+      ],
+    });
+    expect(rollback).toHaveBeenCalledWith({
+      sessionId: asSessionId("ses_1"),
+      toRunId: asRunId("run_keep"),
+      restoreType: "both",
+    });
+  });
 });

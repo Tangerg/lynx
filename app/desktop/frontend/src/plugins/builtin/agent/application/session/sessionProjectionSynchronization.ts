@@ -1,7 +1,8 @@
 export interface SessionProjectionSynchronization {
   /** Coalesce an authoritative refresh request. A request made while the live
-   *  stream owns the session is retained until that stream becomes idle. */
-  request(): void;
+   *  stream owns the session is retained until that stream becomes idle. The
+   *  returned promise settles with the refresh's authoritative commit fact. */
+  request(): Promise<boolean>;
   /** Notify the coordinator after the live stream has folded its queued tail. */
   liveStreamSettled(): void;
   dispose(): void;
@@ -9,7 +10,7 @@ export interface SessionProjectionSynchronization {
 
 interface SessionProjectionSynchronizationOptions {
   isLiveStreamActive: () => boolean;
-  synchronize: () => Promise<void>;
+  synchronize: () => Promise<boolean>;
 }
 
 /**
@@ -27,27 +28,47 @@ export function createSessionProjectionSynchronization({
   let requested = false;
   let synchronizing = false;
   let disposed = false;
+  let pendingWaiters: Array<(committed: boolean) => void> = [];
+  let activeWaiters: Array<(committed: boolean) => void> = [];
 
   const drain = (): void => {
     if (disposed || synchronizing || !requested || isLiveStreamActive()) return;
     requested = false;
     synchronizing = true;
-    void synchronize().finally(() => {
-      synchronizing = false;
-      drain();
-    });
+    const waiters = pendingWaiters;
+    pendingWaiters = [];
+    activeWaiters = waiters;
+    void synchronize()
+      .catch(() => false)
+      .then((committed) => {
+        for (const settle of waiters) settle(committed);
+      })
+      .finally(() => {
+        if (activeWaiters === waiters) activeWaiters = [];
+        synchronizing = false;
+        drain();
+      });
   };
 
   return {
     request() {
-      if (disposed) return;
-      requested = true;
-      drain();
+      if (disposed) return Promise.resolve(false);
+      return new Promise<boolean>((resolve) => {
+        pendingWaiters.push(resolve);
+        requested = true;
+        drain();
+      });
     },
     liveStreamSettled: drain,
     dispose() {
       disposed = true;
       requested = false;
+      const waiters = pendingWaiters;
+      pendingWaiters = [];
+      for (const settle of waiters) settle(false);
+      const inFlight = activeWaiters;
+      activeWaiters = [];
+      for (const settle of inFlight) settle(false);
     },
   };
 }

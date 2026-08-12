@@ -6,7 +6,7 @@ import type { Message } from "@/plugins/builtin/agent/public/viewState";
 import { t } from "@/lib/i18n";
 import { notifyError, notifyInfo } from "@/plugins/sdk";
 import { buildInput } from "@/plugins/builtin/chat/composer/public/input";
-import { composerInputToAgentInput } from "./inputBridge";
+import { agentInputToComposerDraft, composerInputToAgentInput } from "./inputBridge";
 import { describeRpcError } from "@/lib/rpcErrors";
 import {
   activeAgentConversation,
@@ -58,17 +58,17 @@ export function regenerateMessage(msg: Message, opts?: RollbackActionOptions): v
     return;
   }
   void rollbackSessionToBeforeRun(sessionId, prompt.runId, opts?.restoreFiles ? "both" : "history")
-    .then(() => {
+    .then((rollback) => {
+      if (rollback.status === "inFlight") return;
       // resetView kept the binding, but the tab could have been torn down —
       // or merely switched away, which nulls send via useAgentSession's
       // cleanup — while the rollback was in flight. No live binding ⇒ we
       // can't resend; surface it instead of dropping the regenerate silently.
-      if (
-        !sendToAgentSession(
-          sessionId,
-          composerInputToAgentInput(buildInput(prompt.text, prompt.images)),
-        )
-      ) {
+      const input =
+        rollback.status === "committed" && rollback.userInput
+          ? rollback.userInput
+          : composerInputToAgentInput(buildInput(prompt.text, prompt.images));
+      if (!sendToAgentSession(sessionId, input)) {
         notifyInfo(t("session.regenerate.switchedAway"), {
           source: "session",
         });
@@ -99,7 +99,14 @@ export function editAndRerunMessage(msg: Message, opts?: RollbackActionOptions):
   )
     // Run unknown to the server (ok=false) still prefills — the user can at
     // least resend; only a hard failure (busy / transport) aborts with a toast.
-    .then(() => prefillComposer(msg))
+    .then((rollback) => {
+      if (rollback.status === "inFlight") return;
+      if (rollback.status === "committed" && rollback.userInput) {
+        replaceComposerDraft(agentInputToComposerDraft(rollback.userInput));
+        return;
+      }
+      prefillComposer(msg);
+    })
     .catch(reportRollbackError);
 }
 
@@ -109,8 +116,10 @@ export function restoreCheckpoint(msg: Message, restoreType: RestoreType): void 
   const conversation = activeAgentConversation();
   if (!conversation || msg.role !== "user" || !msg.runId) return;
   void rollbackSessionToBeforeRun(conversation.sessionId, msg.runId, restoreType)
-    .then((ok) => {
-      if (ok) notifyInfo(restoreCopy(restoreType), { source: "session" });
+    .then((rollback) => {
+      if (rollback.status === "committed") {
+        notifyInfo(restoreCopy(restoreType), { source: "session" });
+      }
     })
     .catch(reportRollbackError);
 }

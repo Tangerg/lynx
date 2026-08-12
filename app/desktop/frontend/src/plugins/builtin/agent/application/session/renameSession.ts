@@ -3,11 +3,12 @@ import type { AgentSessionSummary } from "./sessionQueries";
 import { queryClient } from "@/lib/queryClient";
 import {
   invalidateAgentSessions,
-  recoverAgentSessionSummaries,
+  recoverAgentSessionSummaryField,
   AGENT_SESSIONS_KEY,
 } from "./sessionQueries";
 import { agentRuntime } from "../ports/runtimeGateway";
 import { reportSessionError } from "./reportSessionError";
+import { settleSessionSummaryMutation } from "./sessionSummaryMutationSettlement";
 
 /** Rename a session (sessions.update title) and refresh session summaries.
  *  Empty titles are rejected server-side (invalid_params) — callers trim
@@ -30,17 +31,19 @@ export function useRenameSession(): (
       old?.map((s) => (s.id === id ? { ...s, title } : s)),
     );
     try {
-      const updated = await agentRuntime().updateSession({
-        sessionId: id,
-        expectedRevision,
-        title,
-      });
+      const updated = await settleSessionSummaryMutation(id, expectedRevision, (revision) =>
+        agentRuntime().updateSession({
+          sessionId: id,
+          expectedRevision: revision,
+          title,
+        }),
+      );
       queryClient.setQueryData<AgentSessionSummary[]>([AGENT_SESSIONS_KEY], (old) =>
         old?.map((s) => (s.id === id ? { ...s, revision: updated.revision } : s)),
       );
       void invalidateAgentSessions();
     } catch (err) {
-      recoverAgentSessionSummaries(prev);
+      recoverAgentSessionSummaryField(prev, id, "title", title);
       reportSessionError("rename", err);
     }
   }, []);

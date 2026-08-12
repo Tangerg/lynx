@@ -2,7 +2,7 @@ import { getContainer } from "@/main/container";
 import { asRunId, asSegmentId, asSessionId, isErrorType } from "@/rpc";
 import { configureAgentRuntimeGateway } from "../application/ports/runtimeGateway";
 import type { AgentRuntimeGateway } from "../application/ports/runtimeGateway";
-import { agentInputToContentBlocks } from "./wireInput";
+import { agentInputToContentBlocks, contentBlocksToAgentInput } from "./wireInput";
 import { runtimeCapability } from "@/plugins/builtin/runtime/public/capabilities";
 
 // A unary create should answer quickly, but a connected socket can remain open
@@ -87,13 +87,21 @@ const gateway: AgentRuntimeGateway = {
     return getContainer().client().usage.session(asSessionId(sessionId));
   },
   async rollbackSession(input) {
-    await getContainer()
+    const response = await getContainer()
       .client()
       .sessions.rollback({
         sessionId: asSessionId(input.sessionId),
         ...(input.toRunId ? { toRunId: asRunId(input.toRunId) } : {}),
         ...(input.restoreType ? { restoreType: input.restoreType } : {}),
       });
+    return {
+      droppedRuns: response.droppedRuns.map((dropped) => ({
+        runId: dropped.run.id,
+        ...(dropped.userInput?.length
+          ? { userInput: contentBlocksToAgentInput(dropped.userInput) }
+          : {}),
+      })),
+    };
   },
   async steerRun(runId, segmentId, input) {
     await getContainer()

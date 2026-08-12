@@ -90,7 +90,7 @@ function visualAgentRuntimeGateway(state: VisualAgentState): AgentRuntimeGateway
     forkSession: async () => ({ id: `${VISUAL_SESSION_ID}_fork` }),
     loadSessionSnapshot: async () => snapshot,
     loadSessionUsage: async () => ({}),
-    rollbackSession: async () => undefined,
+    rollbackSession: async () => ({ droppedRuns: [] }),
     steerRun: async (runId, segmentId, input) => {
       document.documentElement.dataset.visualSteeredRun = runId;
       document.documentElement.dataset.visualSteeredSegment = segmentId;

@@ -111,11 +111,12 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
           if (state.draftSessionIds.has(sessionId) && authoritativeView?.messages.length) {
             state.graduateDraft(sessionId);
           }
+          return authoritativeView !== null;
         });
       },
     });
 
-    if (recoverExistingSession) projectionSynchronization.request();
+    if (recoverExistingSession) void projectionSynchronization.request();
 
     const runOpening = createRunOpeningController({
       sessionId,
@@ -227,7 +228,10 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
     store().setSend(sessionId, send);
     store().setStop(sessionId, stop);
     store().setResume(sessionId, resume);
-    store().setSynchronize(sessionId, () => projectionSynchronization?.request());
+    store().setSynchronize(
+      sessionId,
+      () => projectionSynchronization?.request() ?? Promise.resolve(false),
+    );
     store().setCancelRun(sessionId, cancelRun);
 
     // A message typed on the welcome screen (no active session) was queued

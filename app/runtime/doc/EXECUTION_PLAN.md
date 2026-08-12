@@ -1,6 +1,6 @@
 # Lyra Runtime 重构实施计划
 
-> 状态：P1–P43 已完成；发布后反证审计持续进行
+> 状态：P1–P44 已完成；发布后反证审计持续进行
 >
 > 工作方式：原模块内治本重构，按可验证纵切分批完成；不创建完整 `runtime2`
 
@@ -77,6 +77,7 @@
 | P41 | Desktop HITL 多客户端 resume 与 Goal 命令结算收敛 | P40 + delayed ack / remote winner / response-loss 竞态 | 已完成 |
 | P42 | Desktop command replay 与 draft 冷启动所有权收敛 | P41 + response loss / in-progress / reload / remote delete 竞态 | 已完成 |
 | P43 | Desktop Run opening / cancel 结算收敛 | P42 + hung response / remote winner / stale snapshot 竞态 | 已完成 |
+| P44 | Desktop Session rollback/fork/metadata mutation 收敛 | P43 + rewrite/first-checkpoint/local-CAS 竞态 | 已完成 |
 
 ## 4. P0 — 文档、事实和边界基线
 
@@ -1098,10 +1099,31 @@
 - accepted stream 超过 30 秒继续运行且仍受 session owner 取消；cancel 迟到响应不能覆盖更新的终态；
 - 86/86 Runtime operations、10/10 event types 和 103 个 typed call sites 继续完整消费；Runtime、Protocol、SQLite 与 Agent Framework 零变更。
 
-## 48. 进度记录
+## 48. P44 — Desktop Session 历史重写与条件写收敛
+
+### 目标
+
+完整消费 `sessions.rollback` 的提交结果，消除历史重写绕过 mounted projection owner、第一轮文件恢复误删对话、重复破坏动作与本地 Session 条件写互相制造 stale revision 的问题，同时保持 wire、Application、Store 与 Agent Framework 边界。
+
+### 工作项
+
+- [x] P44-01 rollback 通过 mounted Session 的唯一 stream/snapshot synchronization owner 等待权威 commit，失败/竞争有界重试，dispose 释放所有等待者；
+- [x] P44-02 同一 Session 只允许一个 destructive history rewrite，重复 UI 动作不再双重截断或执行两次 resend/prefill；
+- [x] P44-03 Runtime Adapter 消费 `RollbackSessionResponse.droppedRuns.userInput` 并投影中性 AgentInput，edit/regenerate 使用后端提交事实；
+- [x] P44-04 第一轮缺少 checkpoint 时 files/both fail closed，不把省略 `restoreType` 的默认 history 误当文件恢复；
+- [x] P44-05 rename/favorite/relocate 条件写按 Session 串行，成功 revision 传给后续本地命令，失败只条件回滚自身字段并回读权威列表。
+
+### 验收
+
+- files-only 第一轮无 rollback command/replay record，Run/Item/Message 原样保留；
+- 两轮 edit-and-rerun 后只保留首轮，composer 使用 Runtime dropped input；reload 与 fork 后 Session/Run/Item/Message 精确；
+- 86/86 Runtime operations、10/10 event types 和 103 typed call sites 继续完整消费；Application 无 wire/transport/idempotency，Agent Framework 无 Runtime import。
+
+## 49. 进度记录
 
 | 日期 | 阶段 | 完成事实 | 验证 |
 |---|---|---|---|
+| 2026-08-12 | P44（Session rewrite / mutation settlement） | Desktop rollback 进入 mounted Session 唯一同步 owner并可等待权威 commit，按 Session single-flight；Runtime Adapter 消费 dropped user input，Application/Chat 只见 AgentInput。无 checkpoint 的 files/both fail closed。rename/favorite/relocate 共享 Session 级 revision settlement，失败恢复缩小到条件字段。Runtime、Protocol、SQLite 与 Agent Framework 零变更 | 红测覆盖同步等待/重试/dispose、重复 rollback、权威 dropped input、first-turn files/both、rename+favorite revision chain/局部回滚后转绿；7 个测试文件/40 个定向测试通过。隔离 Runtime/真实浏览器验证 files-only 不产生 rollback record且保留 1 Run/2 Items/2 Messages；两轮 edit-and-rerun 后精确回到 1 Run/2 Items/2 Messages并权威预填，reload 稳定；fork 后精确 2 Session/2 Run/4 Items/4 Messages，console/page error 为零。完整 Frontend 门禁 251 个文件/1543 个测试、typecheck/lint/format/knip/循环/Context/发布边界/层级/port/API consumer/style/design/token/chrome/locales/bootstrap/bundle 全通过；API consumer 仍为 86/86 operations、10/10 events、103 个 typed callsite |
 | 2026-08-12 | P43（Run opening deadline / cancel remote-winner settlement） | RPC Agent Adapter 把 opening handshake deadline 与 accepted stream lifetime 分离：首 timeout 对原 MutationPromise 以 fresh signal 重试，第二 timeout 有限返回；winning signal 在 ack 后继续受 session owner 控制。Cancel controller 以 material revision 条件提交响应，失败后经 Application 权威投影判断 terminal，transport 只在 Adapter 投影。Runtime、Protocol、SQLite 与 Agent Framework 零变更 | 红测覆盖 same-key/fresh-signal、parent abort、双 timeout、stale cancel snapshot、remote terminal、revalidation 双失败和 transport problem 后转绿；7 个测试文件/54 个测试、typecheck/lint 通过。隔离 Runtime 中代理在完整 6,514-byte Run stream 已生成后悬挂首响应，30 秒后第二 attempt 同 key，页面取得 completed tail；SQLite 1 Session/1 Run/2 Messages，reload 无重复。第二场代理延迟本地 cancel 30 秒，直连客户端先取消，页面先显示 canceled，迟到拒绝后无 banner/console/page error；Frontend 完整门禁通过（250 个测试文件/1533 个用例） |
 | 2026-08-12 | P42（command replay / draft cold-start ownership） | Desktop RPC SDK 从生成 command policy 统一驱动稳定-key 有界 settlement recovery，分别处理 unknown transport、typed in-progress、definitive refusal 与 cancellation；Run opening attempt 各自拥有并清理 event stream。Session create deadline 留在 Adapter，Application 只消费结果；draft provisional owner 持久化，fresh-create proof 保持 ephemeral，durable recovery 是毕业 owner。Runtime、Protocol、SQLite 与 Agent Framework 零变更 | 红测证明产品调用点从不消费既有 `retry()`、commit 后断帧直接失败、in-progress 不等待、opening stream 重放和 cold draft 身份错误后转绿；RPC 19 files/362 tests、40 command policy/API consumer gate、Agent targeted tests 通过；隔离 Runtime 中代理让首个 `sessions.create` commit 后返回坏 body，第二 attempt 使用同 key，SQLite 仅 1 Session/1 replay record；页面打开同一 URL，reload 后 Work Index 保持 0，首次消息后变 1 且 Session 总数仍为 1，console/page error 为零；Frontend 完整门禁在本批提交前收口 |
 | 2026-08-12 | P41（HITL remote-resume / Goal settlement convergence） | Desktop Application 让 submitting HITL batch 随 standing projection 幂等退休并向 Adapter 返回中性 supersession 事实；Run opening Adapter 不识别 operation/wire error，只禁止迟到 rejection 反转权威结果；Goal start/stop/resume 在成功或结算不明后统一回读，回读失败保留原命令错误。Runtime、Protocol、SQLite 与 Agent Framework 零变更 | 红测稳定复现 submitting batch 永久 staged、remote winner 后迟到 rejection 进入 command error、Goal 失败不回读及双失败错误替换后转绿；隔离 Runtime 经透明代理延迟浏览器 `runs.resume`，第二客户端先完成同一 approval，页面终态 `P41_HITL_REMOTE_DONE`、无卡片/command banner，console/page error 为零；Frontend 完整门禁在本批提交前收口 |
@@ -1196,6 +1218,6 @@
 | 2026-08-09 | P9.2 | 完成 Adapter/Infra/Application/Delivery 逐包职责审计；workspace physical path identity 收敛到唯一 Infra mechanism；删除空的 temporary architecture 台账并把旧 Agent 禁止与 Domain no-context-I/O 变为永久 framework boundary guard；确认 agentexec 按真实变化原因组织且没有第二 lifecycle owner或虚构子包 | Adapter→Infra 单向图与目标六环 DAG 全绿；Delivery concrete Adapter/Infra import、Infra 反向 import、Application outward import、纯转发 wrapper、package/type 口吃、空目录和 temporary exception 均为零；workspacepath/pathidentity/arch targeted tests 与全量质量门禁通过 |
 | 2026-08-09 | P10 | Runtime Protocol 一次性提升到 `2026-08-09`、Session Artifact 到 v14；删除 wire 中实现泄露的 `processRootSegment`，只保留准确的 `runtimeInstanceRootSegment`；Go registry、validator、manifest、OpenRPC、JSON Schema、TypeScript binding、canonical samples 与人读 API/Transport/Aux 文档同步；新增精确 consumer handoff | canonical artifact samples 中漏存的 v12 与旧 `outcome.error` 被 strict sample gate 暴露并治本修正；生成器零漂移、旧 wire token/版本归零、strict validator/round-trip、HTTP/in-process、全量质量门禁通过；Desktop backlog 已记录但未改消费者 |
 
-## 49. 当前下一步
+## 50. 当前下一步
 
-P43 已关闭 Desktop Run opening 永久 pending、accepted stream 被 deadline 误杀，以及 cancel 迟到响应/远端胜出反转。下一轮继续沿 backend operation → generated client → frontend product consumer → stream/invalidation 矩阵反证 Session rollback/fork projection、Plan/Goal 并发、文件/旁路事件、subscription close/retarget、事务失败和崩溃恢复。每轮提交前执行 Runtime→Agent/Agent→Runtime 双向依赖与 staged path 审计。
+P44 已关闭 Desktop Session rollback/fork/metadata mutation 的历史重写、first-checkpoint 与本地 CAS 竞态。下一轮继续沿 backend operation → generated client → frontend product consumer → stream/invalidation 矩阵反证 Plan/Goal 并发、文件/旁路事件、subscription close/retarget、事务失败和崩溃恢复。每轮提交前执行 Runtime→Agent/Agent→Runtime 双向依赖与 staged path 审计。

@@ -54,7 +54,7 @@ export function synchronizeMountedAgentSessions(sessionIds?: readonly string[]):
     : mountedIds;
   for (const sessionId of targets) {
     const synchronize = sessions[sessionId]?.synchronize;
-    if (synchronize) synchronize();
+    if (synchronize) void synchronize();
     else void refreshAgentSessionProjection(sessionId);
   }
 }
