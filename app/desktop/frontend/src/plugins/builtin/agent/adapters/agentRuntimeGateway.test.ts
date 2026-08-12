@@ -1,6 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { resetContainer, setContainer } from "@/main/container";
-import { RpcError, RpcTransportError, type LyraClient, type Methods } from "@/rpc";
+import {
+  RpcError,
+  RpcTransportError,
+  UNARY_MUTATION_ATTEMPT_TIMEOUT_MS,
+  type LyraClient,
+  type Methods,
+} from "@/rpc";
 import { asRunId, asSegmentId, asSessionId } from "@/rpc";
 import { createMutationPromise } from "@/rpc/mutation";
 import * as runtimeCapabilities from "@/plugins/builtin/runtime/public/capabilities";
@@ -23,11 +29,7 @@ afterEach(() => {
 
 describe("agentRuntimeGateway", () => {
   it("replays a timed-out create with the same mutation identity and a fresh signal", async () => {
-    const firstAttempt = new AbortController();
-    const replayAttempt = new AbortController();
-    vi.spyOn(AbortSignal, "timeout")
-      .mockReturnValueOnce(firstAttempt.signal)
-      .mockReturnValueOnce(replayAttempt.signal);
+    vi.useFakeTimers();
     const keys: string[] = [];
     const signals: AbortSignal[] = [];
     let executions = 0;
@@ -57,8 +59,9 @@ describe("agentRuntimeGateway", () => {
     uninstall = installAgentRuntimeGateway();
 
     const creating = agentRuntime().createSession({ cwd: "/repo" });
-    await vi.waitFor(() => expect(executions).toBe(1));
-    firstAttempt.abort();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(executions).toBe(1);
+    await vi.advanceTimersByTimeAsync(UNARY_MUTATION_ATTEMPT_TIMEOUT_MS);
 
     await expect(creating).resolves.toEqual({ id: "ses_replayed" });
     expect(create).toHaveBeenCalledOnce();
@@ -131,19 +134,24 @@ describe("agentRuntimeGateway", () => {
               get: vi.fn().mockResolvedValue({
                 type: "plan",
                 sessionId: "ses_1",
-                revision: 0,
-                plan: [],
+                revision: 4,
+                plan: [{ id: "step_1", description: "Verify boundaries", status: "in_progress" }],
               }),
             },
           }) as unknown as LyraClient,
       });
       uninstall = installAgentRuntimeGateway();
 
-      await agentRuntime().loadSessionSnapshot("ses_1");
+      const snapshot = await agentRuntime().loadSessionSnapshot("ses_1");
 
       expect(listRuns).toHaveBeenCalledWith({
         sessionId: asSessionId("ses_1"),
         ...(expected ? { includeDescendants: expected } : {}),
+      });
+      expect(snapshot?.state).toEqual({
+        type: "plan",
+        revision: 4,
+        plan: [{ id: "step_1", text: "Verify boundaries", status: "active" }],
       });
     },
   );

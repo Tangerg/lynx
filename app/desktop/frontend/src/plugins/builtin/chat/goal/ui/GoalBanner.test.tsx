@@ -14,6 +14,10 @@ const model = vi.hoisted(() => ({
     stop: null,
     budget: { maxRuns: 10, maxCostUsd: 0, maxSteps: 0 },
     used: { runs: 1, costUsd: 0, steps: 2 },
+    provider: "openai",
+    model: "gpt-5",
+    createdAt: "2026-08-12T08:00:00Z",
+    updatedAt: "2026-08-12T08:01:00Z",
   } as GoalReadModel,
 }));
 
@@ -41,6 +45,10 @@ describe("GoalBanner disclosure identity", () => {
       stop: null,
       budget: { maxRuns: 10, maxCostUsd: 0, maxSteps: 0 },
       used: { runs: 1, costUsd: 0, steps: 2 },
+      provider: "openai",
+      model: "gpt-5",
+      createdAt: "2026-08-12T08:00:00Z",
+      updatedAt: "2026-08-12T08:01:00Z",
     };
     model.stopGoal.mockClear();
     model.resumeGoal.mockClear();
@@ -91,5 +99,18 @@ describe("GoalBanner disclosure identity", () => {
     expect(screen.queryByRole("button", { name: "Resume" })).toBeNull();
     expect(model.stopGoal).not.toHaveBeenCalled();
     expect(model.resumeGoal).not.toHaveBeenCalled();
+  });
+
+  it("does not offer Resume after a durable budget boundary", () => {
+    model.goal = {
+      ...model.goal,
+      status: "blocked",
+      stop: { code: "runBudgetReached", detail: "" },
+    };
+    render(<GoalBanner />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Show the allowance" }));
+    expect(screen.getByText("Out of turns")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Resume" })).toBeNull();
   });
 });

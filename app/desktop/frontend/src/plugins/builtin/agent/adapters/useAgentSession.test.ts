@@ -40,7 +40,7 @@ function parkedDriver(): { driver: AgentDriver; start: ReturnType<typeof vi.fn> 
 }
 
 beforeEach(async () => {
-  const { default: spec } = await import("@/plugins/builtin/agent/public/foldPlugin");
+  const { default: spec } = await import("@/plugins/builtin/agent/bootstrap/foldPlugin");
   await loadPlugin(spec);
   // Mark draft so the effect skips history hydration (items.list → container).
   navigator().go({ session: SID });

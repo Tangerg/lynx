@@ -16,7 +16,6 @@ function snapshot(revision: number): AgentSessionSnapshot {
     pendingInterruptSets: [],
     state: {
       type: "plan",
-      sessionId: SESSION_ID,
       revision,
       plan: [],
     },

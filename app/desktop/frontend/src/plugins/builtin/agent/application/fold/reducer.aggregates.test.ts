@@ -23,7 +23,7 @@ const started = (i: Item): StreamEvent => ({ type: "item.started", item: i });
 const completed = (i: Item): StreamEvent => ({ type: "item.completed", item: i });
 
 beforeEach(async () => {
-  const { default: spec } = await import("@/plugins/builtin/agent/public/foldPlugin");
+  const { default: spec } = await import("@/plugins/builtin/agent/bootstrap/foldPlugin");
   await loadPlugin(spec);
 });
 
@@ -115,7 +115,7 @@ describe("reducer — shared state", () => {
 
   it("a state snapshot replaces its own key wholesale", () => {
     const s = reduce(EMPTY_AGENT_SESSION_VIEW, plan(1, "first"));
-    expect(s.shared.plan).toMatchObject({ revision: 1, plan: [{ description: "first" }] });
+    expect(s.shared.plan).toMatchObject({ revision: 1, plan: [{ text: "first" }] });
   });
 
   // The list is replaced whole, so contents cannot say which snapshot is later — an
@@ -123,7 +123,7 @@ describe("reducer — shared state", () => {
   it("an older revision does not overwrite a newer one", () => {
     let s = reduce(EMPTY_AGENT_SESSION_VIEW, plan(4, "current"));
     s = reduce(s, plan(2, "stale"));
-    expect(s.shared.plan).toMatchObject({ revision: 4, plan: [{ description: "current" }] });
+    expect(s.shared.plan).toMatchObject({ revision: 4, plan: [{ text: "current" }] });
   });
 
   it("a duplicate revision is a no-op even if a drifted replay arrives", () => {
@@ -133,7 +133,7 @@ describe("reducer — shared state", () => {
     expect(duplicate).toBe(current);
     expect(duplicate.shared.plan).toMatchObject({
       revision: 4,
-      plan: [{ description: "current" }],
+      plan: [{ text: "current" }],
     });
   });
 });

@@ -17,7 +17,7 @@ const progress = (p: Record<string, unknown>): StreamEvent =>
   ({ type: "segment.progress", progress: p }) as StreamEvent;
 
 beforeEach(async () => {
-  const { default: spec } = await import("@/plugins/builtin/agent/public/foldPlugin");
+  const { default: spec } = await import("@/plugins/builtin/agent/bootstrap/foldPlugin");
   await loadPlugin(spec);
 });
 

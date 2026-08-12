@@ -1,5 +1,5 @@
-import type { StateSnapshot } from "@/rpc";
 import type { AgentSessionView } from "@/plugins/sdk/types/agentSessionView";
+import type { AgentPlanStateSnapshot } from "../../domain/plan";
 
 // A snapshot is a whole latest value, keyed by its own `type` — not by the run that
 // wrote it. The envelope's runId is provenance: a session-scoped list bucketed per
@@ -12,13 +12,13 @@ import type { AgentSessionView } from "@/plugins/sdk/types/agentSessionView";
 // both deliver one.
 export function onStateSnapshot(
   state: AgentSessionView,
-  snapshot: StateSnapshot,
+  snapshot: AgentPlanStateSnapshot,
 ): AgentSessionView {
   if (supersededBy(state.shared[snapshot.type], snapshot)) return state;
   return { ...state, shared: { ...state.shared, [snapshot.type]: snapshot } };
 }
 
-function supersededBy(held: unknown, arriving: StateSnapshot): boolean {
+function supersededBy(held: unknown, arriving: AgentPlanStateSnapshot): boolean {
   if (held === null || typeof held !== "object" || !("revision" in held)) return false;
   const revision = (held as { revision: unknown }).revision;
   // Equal revision is the same version, not a later write. Treat its replay as

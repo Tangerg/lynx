@@ -13,7 +13,7 @@ let restoreRuntime: (() => void) | undefined;
 let restoreView: (() => void) | undefined;
 
 beforeAll(async () => {
-  const { default: foldPlugin } = await import("@/plugins/builtin/agent/public/foldPlugin");
+  const { default: foldPlugin } = await import("@/plugins/builtin/agent/bootstrap/foldPlugin");
   await loadPlugin(foldPlugin);
 });
 

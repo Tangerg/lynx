@@ -77,6 +77,15 @@ export function invalidateWorkspaceTargets(
       synchronizeMountedAgentSessions(sessionIds);
       continue;
     }
+    if (target === "goal" && sessionIds?.length) {
+      for (const sessionId of new Set(sessionIds)) {
+        void queryClient.invalidateQueries({
+          queryKey: [GOAL_KEY, { sessionId }],
+          exact: true,
+        });
+      }
+      continue;
+    }
     void queryClient.invalidateQueries({ queryKey: [QUERY_KEYS[target]] });
   }
 }

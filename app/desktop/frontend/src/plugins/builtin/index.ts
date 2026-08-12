@@ -29,7 +29,7 @@ import observability from "./observability";
 import runtime from "./runtime";
 import conversationExport from "./workspace/conversation-export";
 import contextDockDestinations from "./workspace/context-dock";
-import agentFold from "./agent/public/foldPlugin";
+import agentFold from "./agent/bootstrap/foldPlugin";
 import {
   defaultAccents,
   defaultCommands,

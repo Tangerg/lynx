@@ -1,6 +1,8 @@
 import { useMemo } from "react";
-import type { PlanSnapshot } from "@/rpc";
+import type { PlanStep } from "../../domain/plan";
 import { agentSessionView } from "../ports/sessionView";
+
+export type { PlanStep } from "../../domain/plan";
 
 /**
  * One step of the session's plan, in this context's own words.
@@ -9,15 +11,7 @@ import { agentSessionView } from "../ports/sessionView";
  * (`plan.get` / `state.snapshot{plan}`), not a transcript Item — so it has no run
  * of its own and nothing about it is per-turn.
  */
-export interface PlanStep {
-  id: string;
-  text: string;
-  /** The checklist vocabulary, which is also the step row's. Translated once
-   *  here so no surface renders the wire's `in_progress`. */
-  status: "done" | "active" | "pending";
-}
-
-const STEP_STATUS: Record<PlanSnapshot["status"], PlanStep["status"]> = {
+const TOOL_STEP_STATUS: Record<string, PlanStep["status"]> = {
   completed: "done",
   in_progress: "active",
   pending: "pending",
@@ -29,17 +23,13 @@ const NO_STEPS: PlanStep[] = [];
  *  `revision` decides which of two deliveries is later, which is the fold's
  *  business, not a reader's. */
 interface SharedPlan {
-  plan?: readonly PlanSnapshot[];
+  plan?: readonly PlanStep[];
 }
 
 export function planSteps(snapshot: SharedPlan | undefined): PlanStep[] {
   const steps = snapshot?.plan;
   if (!steps || steps.length === 0) return NO_STEPS;
-  return steps.map((step) => ({
-    id: step.id,
-    text: step.description,
-    status: STEP_STATUS[step.status],
-  }));
+  return steps.map((step) => ({ ...step }));
 }
 
 /**
@@ -68,7 +58,7 @@ export function planStepsFromArguments(args: unknown): PlanStep[] {
     projected.push({
       id: String(index),
       text: description,
-      status: STEP_STATUS[status as PlanSnapshot["status"]] ?? "pending",
+      status: TOOL_STEP_STATUS[String(status)] ?? "pending",
     });
   }
   return projected;

@@ -1,6 +1,6 @@
 # Lyra Runtime 重构实施计划
 
-> 状态：P1–P44 已完成；发布后反证审计持续进行
+> 状态：P1–P45 已完成；发布后反证审计持续进行
 >
 > 工作方式：原模块内治本重构，按可验证纵切分批完成；不创建完整 `runtime2`
 
@@ -78,6 +78,7 @@
 | P42 | Desktop command replay 与 draft 冷启动所有权收敛 | P41 + response loss / in-progress / reload / remote delete 竞态 | 已完成 |
 | P43 | Desktop Run opening / cancel 结算收敛 | P42 + hung response / remote winner / stale snapshot 竞态 | 已完成 |
 | P44 | Desktop Session rollback/fork/metadata mutation 收敛 | P43 + rewrite/first-checkpoint/local-CAS 竞态 | 已完成 |
+| P45 | Desktop Goal/Plan lifecycle、旁路失效与抽象边界收敛 | P44 + budget/replace/session-switch/late-response/Plan wire 反例 | 已完成 |
 
 ## 4. P0 — 文档、事实和边界基线
 
@@ -1119,10 +1120,31 @@
 - 两轮 edit-and-rerun 后只保留首轮，composer 使用 Runtime dropped input；reload 与 fork 后 Session/Run/Item/Message 精确；
 - 86/86 Runtime operations、10/10 event types 和 103 typed call sites 继续完整消费；Application 无 wire/transport/idempotency，Agent Framework 无 Runtime import。
 
-## 49. 进度记录
+## 49. P45 — Desktop Goal/Plan lifecycle、旁路失效与抽象边界收敛
+
+### 目标
+
+让 Runtime 已提供的 Goal replacement 与预算语义在 Desktop 可达，消除 Goal lifecycle 命令跨 Session、乱序和永久等待；同时把 Plan wire projection 与 fold composition 收回 Agent Adapter/bootstrap，防止 Plan 的 app/runtime 协议抽象进入 Agent Application/domain/public surface。
+
+### 工作项
+
+- [x] P45-01 Goal launcher 按 Session identity 隔离 draft 与 async completion；active/completing 禁止替换，paused/blocked 可原位启动新 Goal；预算耗尽的 blocked Goal 不提供必然失败的 Resume；
+- [x] P45-02 Goal start/stop/resume 返回中性 GoalReadModel，按 Session 串行并以 `updatedAt` 单调提交；旧命令响应不能覆盖较新自治状态，成功/失败后均由 Goal query owner 重读；
+- [x] P45-03 通用 RPC unary mutation settlement 提供两次有界、同 mutation identity 的 delivery attempt；Session create 与三个 Goal command 复用，不向 Application 暴露 MutationPromise、signal 或 idempotency；
+- [x] P45-04 Goal Adapter 独占 wire mapping 和 data provider 注册，defaults 不再拥有 Goal；`goals.changed` 只失效事件点名 Session 的 query key；
+- [x] P45-05 Runtime Plan snapshot/event 在 Agent Adapter 映射为中性 Plan domain，Application fold/view 不消费 Runtime DTO；fold plugin 移入 bootstrap，public surface 不发布 composition mechanism。
+
+### 验收
+
+- 隔离 Runtime/真实浏览器证明 Plan live projection、预算 1 Run 后 `runBudgetReached`、blocked Goal replacement、冷重载和 SQLite 权威状态一致，无页面错误；
+- 253 个 Frontend 测试文件/1565 个用例与 typecheck/lint/format/knip/循环/Context/发布边界/层级/port/bundle 全绿；
+- 86/86 Runtime operations、10/10 event types、103 typed call sites 保持完整消费；Runtime、Protocol、SQLite 与 Agent Framework 零变更。
+
+## 50. 进度记录
 
 | 日期 | 阶段 | 完成事实 | 验证 |
 |---|---|---|---|
+| 2026-08-12 | P45（Goal/Plan lifecycle / boundary convergence） | Desktop Goal launcher 让 paused/blocked replacement 能力可达，预算耗尽不再暴露无效 Resume，状态和 async completion 按 Session identity 隔离。Goal Application 按 Session 串行、单调提交 typed response，Adapter 独占有界 unary settlement、wire mapping 与 provider。Plan wire snapshot/event 在 Agent Adapter 转为中性 domain，fold composition 移入 bootstrap；`goals.changed` 精确失效目标 Session。Runtime、Protocol、SQLite 与 Agent Framework 零变更 | Goal/RPC 最终聚焦 3 文件/19 测试与 Plan 6 文件/41 测试通过。隔离 Runtime/假 provider/真实浏览器验证 Plan `1/2` live projection、Goal 1/1 `runBudgetReached`、同 Session blocked replacement 与冷重载；SQLite 精确为 replacement Goal revision 4、1/1 usage 和两步 Plan revision 1，console 仅开发提示、page error 为零。完整 Frontend 门禁 253 个文件/1565 个测试、typecheck/lint/format/knip/循环/Context/发布边界/层级/port/API consumer/style/design/token/chrome/locales/bootstrap/bundle 全通过；API consumer 为 86/86 operations、10/10 events、103 typed callsite |
 | 2026-08-12 | P44（Session rewrite / mutation settlement） | Desktop rollback 进入 mounted Session 唯一同步 owner并可等待权威 commit，按 Session single-flight；Runtime Adapter 消费 dropped user input，Application/Chat 只见 AgentInput。无 checkpoint 的 files/both fail closed。rename/favorite/relocate 共享 Session 级 revision settlement，失败恢复缩小到条件字段。Runtime、Protocol、SQLite 与 Agent Framework 零变更 | 红测覆盖同步等待/重试/dispose、重复 rollback、权威 dropped input、first-turn files/both、rename+favorite revision chain/局部回滚后转绿；7 个测试文件/40 个定向测试通过。隔离 Runtime/真实浏览器验证 files-only 不产生 rollback record且保留 1 Run/2 Items/2 Messages；两轮 edit-and-rerun 后精确回到 1 Run/2 Items/2 Messages并权威预填，reload 稳定；fork 后精确 2 Session/2 Run/4 Items/4 Messages，console/page error 为零。完整 Frontend 门禁 251 个文件/1543 个测试、typecheck/lint/format/knip/循环/Context/发布边界/层级/port/API consumer/style/design/token/chrome/locales/bootstrap/bundle 全通过；API consumer 仍为 86/86 operations、10/10 events、103 个 typed callsite |
 | 2026-08-12 | P43（Run opening deadline / cancel remote-winner settlement） | RPC Agent Adapter 把 opening handshake deadline 与 accepted stream lifetime 分离：首 timeout 对原 MutationPromise 以 fresh signal 重试，第二 timeout 有限返回；winning signal 在 ack 后继续受 session owner 控制。Cancel controller 以 material revision 条件提交响应，失败后经 Application 权威投影判断 terminal，transport 只在 Adapter 投影。Runtime、Protocol、SQLite 与 Agent Framework 零变更 | 红测覆盖 same-key/fresh-signal、parent abort、双 timeout、stale cancel snapshot、remote terminal、revalidation 双失败和 transport problem 后转绿；7 个测试文件/54 个测试、typecheck/lint 通过。隔离 Runtime 中代理在完整 6,514-byte Run stream 已生成后悬挂首响应，30 秒后第二 attempt 同 key，页面取得 completed tail；SQLite 1 Session/1 Run/2 Messages，reload 无重复。第二场代理延迟本地 cancel 30 秒，直连客户端先取消，页面先显示 canceled，迟到拒绝后无 banner/console/page error；Frontend 完整门禁通过（250 个测试文件/1533 个用例） |
 | 2026-08-12 | P42（command replay / draft cold-start ownership） | Desktop RPC SDK 从生成 command policy 统一驱动稳定-key 有界 settlement recovery，分别处理 unknown transport、typed in-progress、definitive refusal 与 cancellation；Run opening attempt 各自拥有并清理 event stream。Session create deadline 留在 Adapter，Application 只消费结果；draft provisional owner 持久化，fresh-create proof 保持 ephemeral，durable recovery 是毕业 owner。Runtime、Protocol、SQLite 与 Agent Framework 零变更 | 红测证明产品调用点从不消费既有 `retry()`、commit 后断帧直接失败、in-progress 不等待、opening stream 重放和 cold draft 身份错误后转绿；RPC 19 files/362 tests、40 command policy/API consumer gate、Agent targeted tests 通过；隔离 Runtime 中代理让首个 `sessions.create` commit 后返回坏 body，第二 attempt 使用同 key，SQLite 仅 1 Session/1 replay record；页面打开同一 URL，reload 后 Work Index 保持 0，首次消息后变 1 且 Session 总数仍为 1，console/page error 为零；Frontend 完整门禁在本批提交前收口 |
@@ -1218,6 +1240,6 @@
 | 2026-08-09 | P9.2 | 完成 Adapter/Infra/Application/Delivery 逐包职责审计；workspace physical path identity 收敛到唯一 Infra mechanism；删除空的 temporary architecture 台账并把旧 Agent 禁止与 Domain no-context-I/O 变为永久 framework boundary guard；确认 agentexec 按真实变化原因组织且没有第二 lifecycle owner或虚构子包 | Adapter→Infra 单向图与目标六环 DAG 全绿；Delivery concrete Adapter/Infra import、Infra 反向 import、Application outward import、纯转发 wrapper、package/type 口吃、空目录和 temporary exception 均为零；workspacepath/pathidentity/arch targeted tests 与全量质量门禁通过 |
 | 2026-08-09 | P10 | Runtime Protocol 一次性提升到 `2026-08-09`、Session Artifact 到 v14；删除 wire 中实现泄露的 `processRootSegment`，只保留准确的 `runtimeInstanceRootSegment`；Go registry、validator、manifest、OpenRPC、JSON Schema、TypeScript binding、canonical samples 与人读 API/Transport/Aux 文档同步；新增精确 consumer handoff | canonical artifact samples 中漏存的 v12 与旧 `outcome.error` 被 strict sample gate 暴露并治本修正；生成器零漂移、旧 wire token/版本归零、strict validator/round-trip、HTTP/in-process、全量质量门禁通过；Desktop backlog 已记录但未改消费者 |
 
-## 50. 当前下一步
+## 51. 当前下一步
 
-P44 已关闭 Desktop Session rollback/fork/metadata mutation 的历史重写、first-checkpoint 与本地 CAS 竞态。下一轮继续沿 backend operation → generated client → frontend product consumer → stream/invalidation 矩阵反证 Plan/Goal 并发、文件/旁路事件、subscription close/retarget、事务失败和崩溃恢复。每轮提交前执行 Runtime→Agent/Agent→Runtime 双向依赖与 staged path 审计。
+P45 已关闭 Desktop Goal replacement/预算语义不可达、lifecycle 命令竞态、Plan wire projection 与旁路 Goal 全局失效。下一轮继续沿 backend operation → generated client → frontend product consumer → stream/invalidation 矩阵反证文件旁路事件、subscription close/retarget、跨 Session 晚到事件、事务失败和崩溃恢复，并继续逐条清除 Agent Application 中残留的 Runtime DTO。每轮提交前执行 Runtime→Agent/Agent→Runtime 双向依赖与 staged path 审计。

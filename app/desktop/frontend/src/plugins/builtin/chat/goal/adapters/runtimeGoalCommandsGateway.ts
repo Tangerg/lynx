@@ -1,22 +1,77 @@
 import { getContainer } from "@/main/container";
-import { asSessionId } from "@/rpc";
+import { asSessionId, settleUnaryMutation, type Goal } from "@/rpc";
+import type { ContributingHost } from "@/plugins/sdk";
+import { DATA_PROVIDER } from "@/plugins/sdk/kernelPoints";
+import { runtimeCapability } from "@/plugins/builtin/runtime/public/capabilities";
 import type { GoalCommandsGateway } from "../application/ports/goalCommandsGateway";
 import { configureGoalCommandsGateway } from "../application/ports/goalCommandsGateway";
+import {
+  GOAL_KEY,
+  type GoalQuery,
+  type GoalReadModel,
+  type GoalState,
+} from "../application/goalQueries";
+
+export function toGoalReadModel(goal: Goal): GoalReadModel {
+  return {
+    sessionId: goal.sessionId,
+    objective: goal.objective,
+    status: goal.status,
+    stop: goal.reason ? { code: goal.reason.code, detail: goal.reason.detail ?? "" } : null,
+    provider: goal.provider ?? "",
+    model: goal.model ?? "",
+    budget: {
+      maxRuns: goal.budget.maxRuns ?? 0,
+      maxCostUsd: goal.budget.maxCostUsd ?? 0,
+      maxSteps: goal.budget.maxSteps ?? 0,
+    },
+    used: {
+      runs: goal.used.runs,
+      costUsd: goal.used.costUsd,
+      steps: goal.used.steps,
+    },
+    createdAt: goal.createdAt,
+    updatedAt: goal.updatedAt,
+  };
+}
 
 const gateway: GoalCommandsGateway = {
   async start(input) {
-    await getContainer()
-      .client()
-      .goals.start({ ...input, sessionId: asSessionId(input.sessionId) });
+    const client = getContainer().client();
+    const goal = await settleUnaryMutation((signal) =>
+      client.goals.start({ ...input, sessionId: asSessionId(input.sessionId) }, signal),
+    );
+    return toGoalReadModel(goal);
   },
   async stop(sessionId) {
-    await getContainer().client().goals.stop(asSessionId(sessionId));
+    const client = getContainer().client();
+    return toGoalReadModel(
+      await settleUnaryMutation((signal) => client.goals.stop(asSessionId(sessionId), signal)),
+    );
   },
   async resume(sessionId) {
-    await getContainer().client().goals.resume(asSessionId(sessionId));
+    const client = getContainer().client();
+    return toGoalReadModel(
+      await settleUnaryMutation((signal) => client.goals.resume(asSessionId(sessionId), signal)),
+    );
   },
 };
 
-export function installGoalCommandsGateway(): () => void {
+export function installGoalRuntimeAdapter(host: ContributingHost): () => void {
+  host.extensions.contribute(DATA_PROVIDER, {
+    key: GOAL_KEY,
+    fetcher: async (params) => {
+      const query = params as GoalQuery | undefined;
+      if (!query) throw new Error(`Data provider "${GOAL_KEY}" requires parameters`);
+      if (!runtimeCapability("goals")) {
+        return { available: false, goal: null } satisfies GoalState;
+      }
+      const goal = await getContainer().client().goals.get(asSessionId(query.sessionId));
+      return {
+        available: true,
+        goal: goal ? toGoalReadModel(goal) : null,
+      } satisfies GoalState;
+    },
+  });
   return configureGoalCommandsGateway(gateway);
 }

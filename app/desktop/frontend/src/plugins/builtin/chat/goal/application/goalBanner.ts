@@ -95,3 +95,16 @@ export const GOAL_STOP_I18N: Record<GoalStopCode, string> = {
   stepBudgetReached: "goal.stop.stepBudgetReached",
   blockedByModel: "goal.stop.blockedByModel",
 };
+
+const EXHAUSTED_BUDGET_STOPS = new Set<GoalStopCode>([
+  "runBudgetReached",
+  "costBudgetReached",
+  "stepBudgetReached",
+]);
+
+/** Runtime refuses resume once a durable budget cap is spent. All other
+ * paused/blocked states retain the same Goal incarnation and are resumable. */
+export function goalCanResume(goal: GoalReadModel): boolean {
+  if (goal.status !== "paused" && goal.status !== "blocked") return false;
+  return !goal.stop || !EXHAUSTED_BUDGET_STOPS.has(goal.stop.code);
+}

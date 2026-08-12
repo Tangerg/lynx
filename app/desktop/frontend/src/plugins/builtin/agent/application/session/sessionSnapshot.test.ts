@@ -10,7 +10,7 @@ const RUNNING_CHILD_RUN_ID = "run_child_running";
 const LOST_RUN_ID = "run_lost";
 
 beforeAll(async () => {
-  const { default: foldPlugin } = await import("@/plugins/builtin/agent/public/foldPlugin");
+  const { default: foldPlugin } = await import("@/plugins/builtin/agent/bootstrap/foldPlugin");
   await loadPlugin(foldPlugin);
 });
 
@@ -104,10 +104,8 @@ describe("projectAgentSessionSnapshot", () => {
       ],
       state: {
         type: "plan",
-        sessionId: SESSION_ID,
         revision: 4,
-        updatedAt: "2026-07-30T01:00:03.000Z",
-        plan: [{ id: "step_1", description: "Verify", status: "in_progress" }],
+        plan: [{ id: "step_1", text: "Verify", status: "active" }],
       },
     };
 

@@ -1,4 +1,5 @@
 import { createSingletonPort } from "@/lib/ports/singletonPort";
+import type { GoalReadModel } from "../goalQueries";
 
 export interface GoalCommandBudget {
   maxRuns?: number;
@@ -15,9 +16,9 @@ export interface StartGoalInput {
 }
 
 export interface GoalCommandsGateway {
-  start(input: StartGoalInput): Promise<void>;
-  stop(sessionId: string): Promise<void>;
-  resume(sessionId: string): Promise<void>;
+  start(input: StartGoalInput): Promise<GoalReadModel>;
+  stop(sessionId: string): Promise<GoalReadModel>;
+  resume(sessionId: string): Promise<GoalReadModel>;
 }
 
 const port = createSingletonPort<GoalCommandsGateway>("Goal commands gateway is not configured");

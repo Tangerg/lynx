@@ -8,7 +8,7 @@ import {
   type AgentRuntimeGateway,
 } from "@/plugins/builtin/agent/application/ports/runtimeGateway";
 import { projectAgentSessionSnapshot } from "@/plugins/builtin/agent/application/session/sessionSnapshot";
-import agentFold from "@/plugins/builtin/agent/public/foldPlugin";
+import agentFold from "@/plugins/builtin/agent/bootstrap/foldPlugin";
 import type { AgentSessionView } from "@/plugins/sdk/types/agentSessionView";
 import {
   AGENT_SESSIONS_KEY,

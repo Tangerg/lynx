@@ -24,6 +24,7 @@ export type { EventId, ItemId, RunId, SegmentId, SessionId } from "./ids";
 export { PaginationError } from "./pagination";
 export type { AutoPagingPromise, CursorPage, PageItem } from "./pagination";
 export type { MutationAttemptOptions, MutationPromise } from "./mutation";
+export { settleUnaryMutation, UNARY_MUTATION_ATTEMPT_TIMEOUT_MS } from "./mutationSettlement";
 export { createMethods } from "./methods";
 export type { AgentMemoryTarget, Methods, StreamingResult, WorkspaceMethods } from "./methods";
 export { createLyraClient } from "./sdk";
@@ -89,6 +90,12 @@ export type {
   PendingInterruptSet,
   StateSnapshot,
   InterruptResponse,
+  Goal,
+  GoalBudget,
+  GoalReason,
+  GoalReasonCode,
+  GoalStatus,
+  GoalUsage,
   // Diff / search / files
   DiffRow,
   Diff,

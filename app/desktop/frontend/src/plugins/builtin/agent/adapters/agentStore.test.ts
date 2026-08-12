@@ -127,7 +127,7 @@ const view = () => useAgentStore.getState().sessions[SID]!.view;
 
 beforeEach(async () => {
   useAgentStore.getState().dropSession(SID);
-  const { default: spec } = await import("@/plugins/builtin/agent/public/foldPlugin");
+  const { default: spec } = await import("@/plugins/builtin/agent/bootstrap/foldPlugin");
   await loadPlugin(spec);
 });
 

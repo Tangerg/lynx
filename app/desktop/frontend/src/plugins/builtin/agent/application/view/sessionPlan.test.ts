@@ -8,13 +8,13 @@ import {
 } from "./sessionPlan";
 
 describe("planSteps", () => {
-  it("translates the wire's status into the checklist vocabulary", () => {
+  it("reads the Adapter-owned checklist projection", () => {
     expect(
       planSteps({
         plan: [
-          { id: "1", description: "Read the code", status: "completed" },
-          { id: "2", description: "Write the fix", status: "in_progress" },
-          { id: "3", description: "Run tests", status: "pending" },
+          { id: "1", text: "Read the code", status: "done" },
+          { id: "2", text: "Write the fix", status: "active" },
+          { id: "3", text: "Run tests", status: "pending" },
         ],
       }),
     ).toEqual([

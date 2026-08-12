@@ -60,6 +60,10 @@ export interface GoalReadModel {
   stop: GoalStop | null;
   budget: GoalBudget;
   used: GoalUsage;
+  provider: string;
+  model: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 // The read result folds three states into one shape: "feature off"

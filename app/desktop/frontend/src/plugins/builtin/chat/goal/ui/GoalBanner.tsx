@@ -13,6 +13,7 @@ import {
   GOAL_STATUS_I18N,
   GOAL_STOP_I18N,
   goalBudgetAxes,
+  goalCanResume,
   tightestAxis,
   type BudgetAxisView,
 } from "../application/goalBanner";
@@ -47,9 +48,10 @@ function GoalDisclosure({ goal }: { goal: GoalReadModel }) {
   const [busy, setBusy] = useState(false);
   const commandInFlight = useRef(false);
   const axes = goalBudgetAxes(goal);
+  const canChangeStatus = goal.status === "active" || goalCanResume(goal);
 
   const changeStatus = async () => {
-    if (commandInFlight.current || goal.status === "completing") return;
+    if (commandInFlight.current || !canChangeStatus) return;
     commandInFlight.current = true;
     setBusy(true);
     try {
@@ -87,7 +89,7 @@ function GoalDisclosure({ goal }: { goal: GoalReadModel }) {
                 {t(GOAL_STATUS_I18N[goal.status].label)}
               </Badge>
             )}
-            {goal.status !== "completing" && (
+            {canChangeStatus && (
               <TextButton
                 type="button"
                 size="sm"

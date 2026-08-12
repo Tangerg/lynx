@@ -78,4 +78,17 @@ describe("workspace session projection invalidation", () => {
     ]);
     expect(synchronizeMountedAgentSessions).not.toHaveBeenCalled();
   });
+
+  it("keeps goals.changed inside the Session ids named by the event", () => {
+    invalidateWorkspaceEvent({
+      type: "goals.changed",
+      sequence: 1,
+      sessionIds: ["ses_a", "ses_b"],
+    });
+
+    expect(invalidateQueries.mock.calls.map(([options]) => options)).toEqual([
+      { queryKey: ["goal", { sessionId: "ses_a" }], exact: true },
+      { queryKey: ["goal", { sessionId: "ses_b" }], exact: true },
+    ]);
+  });
 });

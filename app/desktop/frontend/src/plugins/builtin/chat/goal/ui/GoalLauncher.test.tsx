@@ -3,13 +3,16 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { GoalLauncher } from "./GoalLauncher";
 
 const model = vi.hoisted(() => ({
+  sessionId: "session-a",
   composerText: "Ship alpha",
+  goal: null as { status: "active" | "paused" | "blocked" | "completing" } | null,
   setComposerText: vi.fn(),
   startGoal: vi.fn(async () => {}),
 }));
 
 vi.mock("@/plugins/builtin/agent/public/session", () => ({
-  useActiveSessionId: () => "session-a",
+  getActiveSessionId: () => model.sessionId,
+  useActiveSessionId: () => model.sessionId,
 }));
 
 vi.mock("@/plugins/builtin/chat/composer/public/draft", () => ({
@@ -27,7 +30,7 @@ vi.mock("@/plugins/builtin/runtime/public/capabilities", () => ({
 }));
 
 vi.mock("../application/goalQueries", () => ({
-  useGoal: () => ({ data: { available: true, goal: null } }),
+  useGoal: () => ({ data: { available: true, goal: model.goal } }),
 }));
 
 vi.mock("../application/goalCommands", () => ({
@@ -36,7 +39,9 @@ vi.mock("../application/goalCommands", () => ({
 
 describe("GoalLauncher", () => {
   beforeEach(() => {
+    model.sessionId = "session-a";
     model.composerText = "Ship alpha";
+    model.goal = null;
     model.setComposerText.mockClear();
     model.startGoal.mockClear();
   });
@@ -69,6 +74,64 @@ describe("GoalLauncher", () => {
     fireEvent.click(screen.getByRole("button", { name: "Start Goal" }));
     fireEvent.click(screen.getAllByRole("button", { name: "Start Goal" }).at(-1)!);
     model.composerText = "A newer draft";
+    finish();
+
+    await vi.waitFor(() => expect(model.startGoal).toHaveBeenCalledOnce());
+    expect(model.setComposerText).not.toHaveBeenCalled();
+  });
+
+  it.each(["paused", "blocked"] as const)(
+    "keeps goals.start reachable so a %s goal can be replaced",
+    (status) => {
+      model.goal = { status };
+      render(<GoalLauncher />);
+
+      expect(screen.getByRole("button", { name: "Start Goal" })).toBeTruthy();
+    },
+  );
+
+  it.each(["active", "completing"] as const)(
+    "does not offer a conflicting start while a goal is %s",
+    (status) => {
+      model.goal = { status };
+      render(<GoalLauncher />);
+
+      expect(screen.queryByRole("button", { name: "Start Goal" })).toBeNull();
+    },
+  );
+
+  it("resets the open draft when active Session identity changes", () => {
+    const { rerender } = render(<GoalLauncher />);
+    fireEvent.click(screen.getByRole("button", { name: "Start Goal" }));
+    expect((screen.getByRole("textbox", { name: "Objective" }) as HTMLTextAreaElement).value).toBe(
+      "Ship alpha",
+    );
+
+    model.sessionId = "session-b";
+    model.composerText = "Ship beta";
+    rerender(<GoalLauncher />);
+
+    expect(screen.queryByRole("textbox", { name: "Objective" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Start Goal" }));
+    expect((screen.getByRole("textbox", { name: "Objective" }) as HTMLTextAreaElement).value).toBe(
+      "Ship beta",
+    );
+  });
+
+  it("does not consume the next Session's matching draft after an old start settles", async () => {
+    let finish!: () => void;
+    model.startGoal.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const { rerender } = render(<GoalLauncher />);
+    fireEvent.click(screen.getByRole("button", { name: "Start Goal" }));
+    fireEvent.click(screen.getAllByRole("button", { name: "Start Goal" }).at(-1)!);
+
+    model.sessionId = "session-b";
+    rerender(<GoalLauncher />);
     finish();
 
     await vi.waitFor(() => expect(model.startGoal).toHaveBeenCalledOnce());

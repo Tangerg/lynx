@@ -1,28 +1,17 @@
 import { getContainer } from "@/main/container";
-import { asRunId, asSegmentId, asSessionId, isErrorType } from "@/rpc";
+import { asRunId, asSegmentId, asSessionId, isErrorType, settleUnaryMutation } from "@/rpc";
 import { configureAgentRuntimeGateway } from "../application/ports/runtimeGateway";
 import type { AgentRuntimeGateway } from "../application/ports/runtimeGateway";
 import { agentInputToContentBlocks, contentBlocksToAgentInput } from "./wireInput";
+import { runtimePlanState } from "./runtimePlanState";
 import { runtimeCapability } from "@/plugins/builtin/runtime/public/capabilities";
-
-// A unary create should answer quickly, but a connected socket can remain open
-// forever. Bound each delivery attempt here in the Runtime Adapter. If the first
-// deadline wins, MutationPromise replays the same logical command with a fresh
-// signal; Runtime returns the first response without creating a second Session.
-const SESSION_CREATE_ATTEMPT_TIMEOUT_MS = 30_000;
 
 const gateway: AgentRuntimeGateway = {
   async createSession(input) {
-    const firstSignal = AbortSignal.timeout(SESSION_CREATE_ATTEMPT_TIMEOUT_MS);
-    const mutation = getContainer()
-      .client()
-      .sessions.create(input.cwd ? { workspace: { path: input.cwd } } : {}, firstSignal);
-    const session = await mutation.catch((error) => {
-      if (!firstSignal.aborted) throw error;
-      return mutation.retry({
-        signal: AbortSignal.timeout(SESSION_CREATE_ATTEMPT_TIMEOUT_MS),
-      });
-    });
+    const client = getContainer().client();
+    const session = await settleUnaryMutation((signal) =>
+      client.sessions.create(input.cwd ? { workspace: { path: input.cwd } } : {}, signal),
+    );
     return { id: session.id };
   },
   async deleteSession(sessionId) {
@@ -129,7 +118,7 @@ const gateway: AgentRuntimeGateway = {
 
 async function loadOptionalSessionState(sessionId: string) {
   try {
-    return await getContainer().client().plan.get(asSessionId(sessionId));
+    return runtimePlanState(await getContainer().client().plan.get(asSessionId(sessionId)));
   } catch (error) {
     if (isErrorType(error, "capability_not_negotiated")) return undefined;
     throw error;

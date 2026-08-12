@@ -6,11 +6,6 @@ import {
 import { AGENT_SESSIONS_KEY } from "@/plugins/builtin/agent/public/session";
 import { PENDING_WORK_KEY, pendingWorkItems } from "@/plugins/builtin/agent/public/hitl";
 import { RECIPES_KEY, type RecipesQuery } from "@/plugins/builtin/chat/recipes/public/queries";
-import {
-  GOAL_KEY,
-  type GoalQuery,
-  type GoalState,
-} from "@/plugins/builtin/chat/goal/public/queries";
 import { HOOKS_KEY, type HooksQuery } from "@/plugins/builtin/settings/hooks/public/queries";
 import {
   MCP_SERVERS_KEY,
@@ -255,39 +250,6 @@ export function registerDefaultDataProviders(host: ContributingHost): void {
         createdAt: m.createdAt,
         updatedAt: m.updatedAt,
       }));
-    },
-  });
-  contribute({
-    key: GOAL_KEY,
-    fetcher: async (params) => {
-      const { sessionId } = requiredParams<GoalQuery>(GOAL_KEY, params);
-      if (!runtimeCapability("goals")) {
-        return { available: false, goal: null } satisfies GoalState;
-      }
-      const goal = await client().goals.get(asSessionId(sessionId));
-      return {
-        available: true,
-        goal: goal
-          ? {
-              sessionId: goal.sessionId,
-              objective: goal.objective,
-              status: goal.status,
-              stop: goal.reason
-                ? { code: goal.reason.code, detail: goal.reason.detail ?? "" }
-                : null,
-              budget: {
-                maxRuns: goal.budget.maxRuns ?? 0,
-                maxCostUsd: goal.budget.maxCostUsd ?? 0,
-                maxSteps: goal.budget.maxSteps ?? 0,
-              },
-              used: {
-                runs: goal.used.runs,
-                costUsd: goal.used.costUsd,
-                steps: goal.used.steps,
-              },
-            }
-          : null,
-      } satisfies GoalState;
     },
   });
   contribute({

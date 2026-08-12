@@ -1,10 +1,11 @@
 import type { RunEvent, StreamEvent } from "@/rpc";
 import type { StreamEventHandler } from "@/plugins/sdk";
 import type { AgentSessionView } from "@/plugins/sdk/types/agentSessionView";
-import { onItemCompleted, onItemDelta, onItemStarted } from "./itemHandlers";
-import { onRunFinished, onRunProgress, onRunStarted } from "./runHandlers";
-import { runEventSource } from "./source";
-import { onStateSnapshot } from "./stateHandlers";
+import { onItemCompleted, onItemDelta, onItemStarted } from "../application/fold/itemHandlers";
+import { onRunFinished, onRunProgress, onRunStarted } from "../application/fold/runHandlers";
+import { runEventSource } from "../application/fold/source";
+import { onStateSnapshot } from "../application/fold/stateHandlers";
+import { runtimePlanState } from "./runtimePlanState";
 
 function bind<T extends StreamEvent["type"]>(
   type: T,
@@ -20,7 +21,9 @@ function bind<T extends StreamEvent["type"]>(
   ];
 }
 
-export const HANDLERS: ReadonlyArray<[string, StreamEventHandler]> = [
+/** Runtime event dispatch lives at the Adapter boundary. Shared Plan state is
+ * translated here before it enters the Agent product fold. */
+export const RUNTIME_EVENT_HANDLERS: ReadonlyArray<[string, StreamEventHandler]> = [
   bind("segment.started", (state, event, envelope) =>
     onRunStarted(state, event.run, runEventSource(envelope)),
   ),
@@ -39,5 +42,5 @@ export const HANDLERS: ReadonlyArray<[string, StreamEventHandler]> = [
   bind("item.completed", (state, event, envelope) =>
     onItemCompleted(state, event.item, runEventSource(envelope)),
   ),
-  bind("state.snapshot", (state, event) => onStateSnapshot(state, event.state)),
+  bind("state.snapshot", (state, event) => onStateSnapshot(state, runtimePlanState(event.state))),
 ];

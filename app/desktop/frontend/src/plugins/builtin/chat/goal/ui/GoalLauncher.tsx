@@ -1,9 +1,9 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { IconButton, PillButton, Popover, TextArea, TextField } from "@/ui";
 import { useT } from "@/lib/i18n";
 import { rpcErrorText } from "@/lib/rpcErrors";
 import { notifyError } from "@/plugins/sdk";
-import { useActiveSessionId } from "@/plugins/builtin/agent/public/session";
+import { getActiveSessionId, useActiveSessionId } from "@/plugins/builtin/agent/public/session";
 import {
   getComposerText,
   useComposerText,
@@ -22,8 +22,12 @@ import { useGoal } from "../application/goalQueries";
 const EMPTY_LIMITS = { maxRuns: "", maxCostUsd: "", maxSteps: "" } as const;
 
 export function GoalLauncher() {
-  const t = useT();
   const sessionId = useActiveSessionId();
+  return sessionId ? <SessionGoalLauncher key={sessionId} sessionId={sessionId} /> : null;
+}
+
+function SessionGoalLauncher({ sessionId }: { sessionId: string }) {
+  const t = useT();
   const composerText = useComposerText();
   const setComposerText = useSetComposerText();
   const { provider, model } = useComposerModelPreference();
@@ -36,8 +40,17 @@ export function GoalLauncher() {
     objective: "",
     ...EMPTY_LIMITS,
   });
+  const mounted = useRef(true);
+  useEffect(
+    () => () => {
+      mounted.current = false;
+    },
+    [],
+  );
 
-  if (!sessionId || !goalsAvailable || data?.available !== true || data.goal) return null;
+  const replaceable =
+    !data?.goal || data.goal.status === "paused" || data.goal.status === "blocked";
+  if (!goalsAvailable || data?.available !== true || !replaceable) return null;
 
   const update = (field: GoalStartDraftField, value: string) => {
     setDraft((current) => ({ ...current, [field]: value }));
@@ -67,12 +80,15 @@ export function GoalLauncher() {
         ...(provider && model ? { provider, model } : {}),
         ...(parsed.budget ? { budget: parsed.budget } : {}),
       });
+      if (!mounted.current || getActiveSessionId() !== sessionId) return;
       setOpen(false);
       if (getComposerText().trim() === parsed.objective) setComposerText("");
     } catch (error) {
-      notifyError(rpcErrorText(error) ?? t("goal.error.start"));
+      if (mounted.current && getActiveSessionId() === sessionId) {
+        notifyError(rpcErrorText(error) ?? t("goal.error.start"));
+      }
     } finally {
-      setBusy(false);
+      if (mounted.current) setBusy(false);
     }
   };
 

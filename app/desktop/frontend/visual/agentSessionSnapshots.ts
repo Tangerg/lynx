@@ -564,13 +564,11 @@ export const AGENT_SESSION_SNAPSHOTS: Readonly<Record<VisualAgentState, AgentSes
     pendingInterruptSets: [],
     state: {
       type: "plan",
-      sessionId: SESSION_ID,
       revision: 3,
-      updatedAt: "2026-07-31T08:00:08.000Z",
       plan: [
-        { id: "step_boundary", description: "Verify boundary ownership", status: "completed" },
-        { id: "step_visual", description: "Review visual evidence", status: "in_progress" },
-        { id: "step_gates", description: "Run quality gates", status: "pending" },
+        { id: "step_boundary", text: "Verify boundary ownership", status: "done" },
+        { id: "step_visual", text: "Review visual evidence", status: "active" },
+        { id: "step_gates", text: "Run quality gates", status: "pending" },
       ],
     },
   },
@@ -580,13 +578,11 @@ export const AGENT_SESSION_SNAPSHOTS: Readonly<Record<VisualAgentState, AgentSes
     pendingInterruptSets: [],
     state: {
       type: "plan",
-      sessionId: SESSION_ID,
       revision: 3,
-      updatedAt: "2026-07-31T08:00:08.000Z",
       plan: [
-        { id: "step_boundary", description: "Verify boundary ownership", status: "completed" },
-        { id: "step_visual", description: "Review visual evidence", status: "in_progress" },
-        { id: "step_gates", description: "Run quality gates", status: "pending" },
+        { id: "step_boundary", text: "Verify boundary ownership", status: "done" },
+        { id: "step_visual", text: "Review visual evidence", status: "active" },
+        { id: "step_gates", text: "Run quality gates", status: "pending" },
       ],
     },
   },
@@ -596,13 +592,11 @@ export const AGENT_SESSION_SNAPSHOTS: Readonly<Record<VisualAgentState, AgentSes
     pendingInterruptSets: [],
     state: {
       type: "plan",
-      sessionId: SESSION_ID,
       revision: 3,
-      updatedAt: "2026-07-31T08:00:08.000Z",
       plan: [
-        { id: "step_boundary", description: "Verify boundary ownership", status: "completed" },
-        { id: "step_visual", description: "Review visual evidence", status: "in_progress" },
-        { id: "step_gates", description: "Run quality gates", status: "pending" },
+        { id: "step_boundary", text: "Verify boundary ownership", status: "done" },
+        { id: "step_visual", text: "Review visual evidence", status: "active" },
+        { id: "step_gates", text: "Run quality gates", status: "pending" },
       ],
     },
   },
@@ -985,6 +979,10 @@ export const VISUAL_GOALS: Partial<Record<VisualAgentState, GoalReadModel>> = {
     // uncapped, which the expanded view states instead of drawing a full bar.
     budget: { maxRuns: 20, maxCostUsd: 5, maxSteps: 0 },
     used: { runs: 7, costUsd: 4.5, steps: 31 },
+    provider: "openai",
+    model: "gpt-5",
+    createdAt: "2026-08-12T08:00:00Z",
+    updatedAt: "2026-08-12T08:01:00Z",
   },
   terminal: {
     sessionId: SESSION_ID,
@@ -993,6 +991,10 @@ export const VISUAL_GOALS: Partial<Record<VisualAgentState, GoalReadModel>> = {
     stop: { code: "costBudgetReached", detail: "" },
     budget: { maxRuns: 20, maxCostUsd: 5, maxSteps: 0 },
     used: { runs: 12, costUsd: 5, steps: 58 },
+    provider: "openai",
+    model: "gpt-5",
+    createdAt: "2026-08-12T08:00:00Z",
+    updatedAt: "2026-08-12T08:02:00Z",
   },
 };
 

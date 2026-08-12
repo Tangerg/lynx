@@ -418,15 +418,18 @@ export interface Methods {
   // loop on the runtime default.
   goals: {
     get: (sessionId: SessionId) => Promise<Goal | null>;
-    start: (params: {
-      sessionId: SessionId;
-      objective: string;
-      provider?: string;
-      model?: string;
-      budget?: GoalBudget;
-    }) => MutationPromise<Goal>;
-    stop: (sessionId: SessionId) => MutationPromise<Goal>;
-    resume: (sessionId: SessionId) => MutationPromise<Goal>;
+    start: (
+      params: {
+        sessionId: SessionId;
+        objective: string;
+        provider?: string;
+        model?: string;
+        budget?: GoalBudget;
+      },
+      signal?: AbortSignal,
+    ) => MutationPromise<Goal>;
+    stop: (sessionId: SessionId, signal?: AbortSignal) => MutationPromise<Goal>;
+    resume: (sessionId: SessionId, signal?: AbortSignal) => MutationPromise<Goal>;
   };
   feedback: {
     create: (params: FeedbackRequest) => MutationPromise<void>;
@@ -771,9 +774,9 @@ export function createMethods(client: RpcClient, options: MethodsOptions = {}): 
     },
     goals: {
       get: (sessionId) => call("goals.get", { sessionId }),
-      start: (params) => call("goals.start", params),
-      stop: (sessionId) => call("goals.stop", { sessionId }),
-      resume: (sessionId) => call("goals.resume", { sessionId }),
+      start: (params, signal) => call("goals.start", params, { signal }),
+      stop: (sessionId, signal) => call("goals.stop", { sessionId }, { signal }),
+      resume: (sessionId, signal) => call("goals.resume", { sessionId }, { signal }),
     },
     feedback: {
       create: (params) => call("feedback.create", params),
