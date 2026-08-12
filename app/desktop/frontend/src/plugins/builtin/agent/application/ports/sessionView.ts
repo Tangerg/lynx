@@ -44,7 +44,9 @@ export type ResumeRunAction = (
   runId: string,
   responses: InterruptResumeInput[],
   onSettled?: () => void,
-  onStartError?: () => void,
+  /** Return true when a newer authoritative projection already superseded the
+   *  rejected opening, so the Adapter must not publish a stale command error. */
+  onStartError?: () => boolean | void,
 ) => boolean;
 
 export interface AgentSessionViewEntry {

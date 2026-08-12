@@ -1,6 +1,6 @@
 # Lyra Runtime 重构实施计划
 
-> 状态：P1–P40 已完成；发布后反证审计持续进行
+> 状态：P1–P41 已完成；发布后反证审计持续进行
 >
 > 工作方式：原模块内治本重构，按可验证纵切分批完成；不创建完整 `runtime2`
 
@@ -74,6 +74,7 @@
 | P38 | Desktop 失效 Session 恢复的权威缺失语义 | P37 + stale deep-link/browser console 反例 | 已完成 |
 | P39 | Desktop 多客户端 Session 删除与导航收敛 | P38 + remote delete / optimistic mutation 竞态 | 已完成 |
 | P40 | Desktop 深链 Session lifecycle 与条件写收敛 | P39 + active/open memory / stale revision 竞态 | 已完成 |
+| P41 | Desktop HITL 多客户端 resume 与 Goal 命令结算收敛 | P40 + delayed ack / remote winner / response-loss 竞态 | 已完成 |
 
 ## 4. P0 — 文档、事实和边界基线
 
@@ -1036,10 +1037,30 @@
 - 关闭/权威移除 Session 后 URL、open set 与 last-session memory 指向同一存活邻居或共同为空；
 - relocation 的 revision conflict、missing 或 ambiguous transport failure 都触发 Session truth 回读；Runtime/Protocol/SQLite 与 Agent Framework 零变更。
 
-## 45. 进度记录
+## 45. P41 — Desktop HITL 多客户端 resume 与 Goal 命令结算收敛
+
+### 目标
+
+消除本地 HITL resume 响应延迟时被另一客户端抢先消费后，standing projection 已收敛但本地 staged 状态与迟到 rejection 又把界面反转为失败的竞态；同时确保 Goal lifecycle 命令在响应丢失或并发 revision 拒绝后回到权威读模型。
+
+### 工作项
+
+- [x] P41-01 submitting HITL batch 也参与 standing projection 对账；其响应项消失时幂等释放全部 card-local staged 状态并记录 superseded opening；
+- [x] P41-02 Run opening Adapter 只消费 Application 返回的中性 supersession 事实，不识别 HITL operation 或 wire error；迟到本地 ack 不覆盖已物化的远端结果；
+- [x] P41-03 Goal start/stop/resume 统一在成功和结算不明后失效自身 query，回读失败不得替换原命令错误或产生未处理 rejection；
+- [x] P41-04 以红测和隔离 Runtime、延迟代理、真实浏览器、第二 RPC 客户端复现 remote-winner 竞态。
+
+### 验收
+
+- 远端客户端先消费同一 HITL set 后，本地 approval/question 卡片和 staged 标记收敛，延迟 `runs.resume` 拒绝不产生 command banner、console error 或结果反转；
+- 本地 opening 正常失败仍进入既有错误通道，非 HITL operation 不被协议特例吞掉；
+- Goal lifecycle 成功、响应丢失、并发拒绝和回读失败均保持唯一命令错误与可重读 projection；Runtime、Protocol、SQLite 与 Agent Framework 零变更。
+
+## 46. 进度记录
 
 | 日期 | 阶段 | 完成事实 | 验证 |
 |---|---|---|---|
+| 2026-08-12 | P41（HITL remote-resume / Goal settlement convergence） | Desktop Application 让 submitting HITL batch 随 standing projection 幂等退休并向 Adapter 返回中性 supersession 事实；Run opening Adapter 不识别 operation/wire error，只禁止迟到 rejection 反转权威结果；Goal start/stop/resume 在成功或结算不明后统一回读，回读失败保留原命令错误。Runtime、Protocol、SQLite 与 Agent Framework 零变更 | 红测稳定复现 submitting batch 永久 staged、remote winner 后迟到 rejection 进入 command error、Goal 失败不回读及双失败错误替换后转绿；隔离 Runtime 经透明代理延迟浏览器 `runs.resume`，第二客户端先完成同一 approval，页面终态 `P41_HITL_REMOTE_DONE`、无卡片/command banner，console/page error 为零；Frontend 完整门禁在本批提交前收口 |
 | 2026-08-12 | P40（deep-link Session lifecycle convergence） | Desktop mounted driver 在 material view 前建立 active Session 的 held-open/last-session memory；纯 selection model 以 Runtime live/draft identity 对账并永不清理存活 active，close/reconcile 同步修正 cold-start seed；relocate 失败回到 Session query owner 重读。Runtime、Protocol、SQLite 与 Agent Framework 零变更 | 红测分别复现 stale open cleanup 清空存活 active、close/reconcile 遗留失效 seed 和 relocate ambiguous failure 不回读后转绿；隔离 Runtime 中预置 stale open id 并直达真实 Session，权威对账后 localStorage 只保留 active identity，旧历史完整且页面成功提交第二个 completed Run，URL 稳定、console/page error 为零；Frontend 完整门禁在本批提交前收口 |
 | 2026-08-12 | P39（multi-client Session deletion convergence） | Desktop 把启动记忆恢复与持续权威列表对账分离；Session delete 不再提交前乐观删除身份，already-absent 在 Adapter 层投影为目标达成；rename/favorite 失败回滚后重读权威列表。导航、query cache、wire error 各归 Agent State Port、Application query owner 和 Runtime Gateway Adapter | 红测稳定复现 one-shot reconciliation、pre-commit identity mutation 和并发删除复活后转绿；隔离 Runtime 下浏览器打开目标 Session，第二客户端删除后 URL 从 `?session=...` 收敛到 `/`、列表和 Agent view 同步清除，console/page error 为零；Frontend 完整门禁在本批提交前收口 |
 | 2026-08-12 | P38（stale Session recovery semantics） | Desktop Runtime Gateway adapter 将权威 `session_not_found` 翻译为 application port 的 absent snapshot，projection refresh 与 history action 不再识别 wire error；其他 protocol/transport 失败继续进入原 recovery error owner。改动没有进入 Runtime 或 Agent Framework，也没有把 Runtime DTO 泄露到 Agent application | Adapter/application 红测先稳定复现 reject/null dereference 后转绿；Frontend 完整 check 和隔离 Runtime 下 stale URL 浏览器复验在本批提交前收口 |
@@ -1131,6 +1152,6 @@
 | 2026-08-09 | P9.2 | 完成 Adapter/Infra/Application/Delivery 逐包职责审计；workspace physical path identity 收敛到唯一 Infra mechanism；删除空的 temporary architecture 台账并把旧 Agent 禁止与 Domain no-context-I/O 变为永久 framework boundary guard；确认 agentexec 按真实变化原因组织且没有第二 lifecycle owner或虚构子包 | Adapter→Infra 单向图与目标六环 DAG 全绿；Delivery concrete Adapter/Infra import、Infra 反向 import、Application outward import、纯转发 wrapper、package/type 口吃、空目录和 temporary exception 均为零；workspacepath/pathidentity/arch targeted tests 与全量质量门禁通过 |
 | 2026-08-09 | P10 | Runtime Protocol 一次性提升到 `2026-08-09`、Session Artifact 到 v14；删除 wire 中实现泄露的 `processRootSegment`，只保留准确的 `runtimeInstanceRootSegment`；Go registry、validator、manifest、OpenRPC、JSON Schema、TypeScript binding、canonical samples 与人读 API/Transport/Aux 文档同步；新增精确 consumer handoff | canonical artifact samples 中漏存的 v12 与旧 `outcome.error` 被 strict sample gate 暴露并治本修正；生成器零漂移、旧 wire token/版本归零、strict validator/round-trip、HTTP/in-process、全量质量门禁通过；Desktop backlog 已记录但未改消费者 |
 
-## 46. 当前下一步
+## 47. 当前下一步
 
-P40 已关闭 direct URL/history active Session 未进入 held-open lifecycle 与 relocate 失败不回读的收敛缺口。下一轮继续沿 backend operation → generated client → frontend product consumer → stream/invalidation 矩阵反证核心 Run stream、文件/旁路事件、cancel/duplicate resolution、Plan/Goal 并发、subscription close/retarget、事务失败和崩溃恢复。每轮提交前执行 Runtime→Agent/Agent→Runtime 双向依赖与 staged path 审计。
+P41 已关闭双客户端 HITL resume 的 remote-winner 反转与 Goal lifecycle 命令结算不明后不回读的缺口。下一轮继续沿 backend operation → generated client → frontend product consumer → stream/invalidation 矩阵反证核心 Run opening/cancel、Session mutation settlement、Plan/Goal 并发、文件/旁路事件、subscription close/retarget、事务失败和崩溃恢复。每轮提交前执行 Runtime→Agent/Agent→Runtime 双向依赖与 staged path 审计。

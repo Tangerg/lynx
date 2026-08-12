@@ -21,7 +21,7 @@ export interface RunOpeningController {
   begin: <Result extends RunOpening>(
     run: (signal: AbortSignal) => Promise<StreamingResult<Result, RunEvent>>,
     onResult?: (result: Result) => void,
-    onStartError?: () => void,
+    onStartError?: () => boolean | void,
   ) => void;
 }
 
@@ -70,11 +70,15 @@ export function createRunOpeningController({
           },
           (err: unknown) => {
             if (isCancelled() || ctrl.signal.aborted || beginId !== beginSeq) return;
+            // The Application projection may already prove that another client
+            // won this opening race (for example, consumed the same HITL set).
+            // Let that neutral fact suppress a now-stale command error without
+            // teaching this Adapter any operation-specific wire error types.
+            if (onStartError?.() === true) return;
             failure = err;
             console.error("[agent] run failed to start:", sessionId, err);
             const problem = agentProblemFromRpcError(err);
             if (problem) setStartError(problem);
-            onStartError?.();
           },
         )
         .finally(() => {

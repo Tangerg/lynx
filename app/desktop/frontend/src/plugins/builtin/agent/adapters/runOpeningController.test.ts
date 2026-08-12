@@ -8,6 +8,32 @@ afterEach(() => {
 });
 
 describe("run opening controller", () => {
+  it("suppresses a rejected opening already superseded by authoritative projection", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const setStartError = vi.fn<(problem: AgentProblem) => void>();
+    const onStartError = vi.fn(() => true);
+    const rejected = new RpcError({
+      code: -32002,
+      message: "interrupt already consumed",
+      data: { type: "interrupt_not_open" },
+    });
+    const controller = createRunOpeningController({
+      sessionId: "ses_1",
+      isCancelled: () => false,
+      markInteracted: vi.fn(),
+      setAbortController: vi.fn(),
+      abortCurrent: vi.fn(),
+      pump: vi.fn(),
+      setStartError,
+    });
+
+    controller.begin(() => Promise.reject(rejected), undefined, onStartError);
+
+    await vi.waitFor(() => expect(onStartError).toHaveBeenCalledOnce());
+    expect(error).not.toHaveBeenCalled();
+    expect(setStartError).not.toHaveBeenCalled();
+  });
+
   it("keeps a post-accept stream failure out of the opening failure channel", async () => {
     const warning = vi.spyOn(console, "error").mockImplementation(() => undefined);
     const setStartError = vi.fn<(problem: AgentProblem) => void>();

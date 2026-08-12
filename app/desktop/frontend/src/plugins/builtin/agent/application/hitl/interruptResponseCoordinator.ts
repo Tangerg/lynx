@@ -17,6 +17,7 @@ interface ResponseBatch {
   rootRunId: string;
   responses: Map<string, StagedResponse>;
   submitting: boolean;
+  superseded: boolean;
 }
 
 const batches = new Map<string, ResponseBatch>();
@@ -33,8 +34,11 @@ function openResponseIds(entry: AgentSessionViewEntry, rootRunId: string): strin
     );
 }
 
-function rejectBatch(batch: ResponseBatch): void {
-  batches.delete(batchKey(batch.sessionId, batch.rootRunId));
+function rejectBatch(batch: ResponseBatch, superseded = false): void {
+  const key = batchKey(batch.sessionId, batch.rootRunId);
+  if (batches.get(key) !== batch) return;
+  batch.superseded ||= superseded;
+  batches.delete(key);
   for (const response of batch.responses.values()) response.onError?.();
 }
 
@@ -62,7 +66,13 @@ export function stageInterruptResponse(
   const key = batchKey(sessionId, rootRunId);
   let batch = batches.get(key);
   if (!batch) {
-    batch = { sessionId, rootRunId, responses: new Map(), submitting: false };
+    batch = {
+      sessionId,
+      rootRunId,
+      responses: new Map(),
+      submitting: false,
+      superseded: false,
+    };
     batches.set(key, batch);
   }
   if (batch.submitting) return false;
@@ -82,6 +92,7 @@ export function stageInterruptResponse(
     rootRunId,
     ordered.map(({ input }) => input),
     () => {
+      if (batches.get(key) !== batch) return;
       batches.delete(key);
       const resolvedAt = Date.now();
       for (const staged of ordered) {
@@ -94,7 +105,11 @@ export function stageInterruptResponse(
         staged.onSettled?.();
       }
     },
-    () => rejectBatch(batch!),
+    () => {
+      const superseded = batch!.superseded;
+      rejectBatch(batch!);
+      return superseded;
+    },
   );
   // Another local command may own the single run-opening channel. A refused
   // handoff has no asynchronous callback, so release every staged card here.
@@ -114,10 +129,15 @@ export function interruptResponseIsStaged(
 
 function reconcileBatches(sessions: Record<string, AgentSessionViewEntry>): void {
   for (const batch of [...batches.values()]) {
-    if (batch.submitting) continue;
     const entry = sessions[batch.sessionId];
     const open = entry ? new Set(openResponseIds(entry, batch.rootRunId)) : new Set<string>();
-    if ([...batch.responses.keys()].some((itemId) => !open.has(itemId))) rejectBatch(batch);
+    if ([...batch.responses.keys()].some((itemId) => !open.has(itemId))) {
+      // A complete submitted set disappearing is an authoritative continuation
+      // boundary, possibly won by another client while our ack is delayed. Drop
+      // local markers now and remember that a later rejection is stale rather
+      // than a user-facing command failure.
+      rejectBatch(batch, batch.submitting);
+    }
   }
 }
 

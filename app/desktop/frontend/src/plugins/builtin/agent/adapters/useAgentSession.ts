@@ -154,7 +154,7 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
       runId: string,
       responses: InterruptResumeInput[],
       onSettled?: () => void,
-      onStartError?: () => void,
+      onStartError?: () => boolean | void,
     ): boolean => {
       if (runOpening.isStarting()) return false;
       const wireResponses: InterruptResponse[] = responses.map((response) => ({

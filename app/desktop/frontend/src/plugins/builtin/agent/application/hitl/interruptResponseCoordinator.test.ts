@@ -194,4 +194,54 @@ describe("interrupt response coordinator", () => {
     expect(interruptResponseIsStaged(SESSION_ID, ROOT_RUN_ID, "approval_a")).toBe(false);
     dispose();
   });
+
+  it("retires a submitting batch when authoritative projection shows a remote continuation", () => {
+    seedPending(groups());
+    let accept: (() => void) | undefined;
+    let reject: (() => boolean | void) | undefined;
+    const resume = vi.fn((_runId, _responses, onSettled, onStartError) => {
+      accept = onSettled;
+      reject = onStartError;
+      return true;
+    });
+    useAgentStore.getState().setResume(SESSION_ID, resume);
+    const approvalSettled = vi.fn();
+    const questionSettled = vi.fn();
+    const approvalError = vi.fn();
+    const questionError = vi.fn();
+    const dispose = installInterruptResponseReconciliation();
+
+    stageInterruptResponse(
+      SESSION_ID,
+      ROOT_RUN_ID,
+      "approval_a",
+      { type: "approval", decision: "approve" },
+      { decision: "approved" },
+      { onSettled: approvalSettled, onError: approvalError },
+    );
+    stageInterruptResponse(
+      SESSION_ID,
+      ROOT_RUN_ID,
+      "question_b",
+      { type: "answer", answers: [["Postgres"]] },
+      { answered: true, answers: [["Postgres"]] },
+      { onSettled: questionSettled, onError: questionError },
+    );
+
+    // Another client consumed the atomic set while this client's resume ack
+    // remained in flight. The durable projection is now the only answer.
+    seedPending([]);
+
+    expect(approvalError).toHaveBeenCalledOnce();
+    expect(questionError).toHaveBeenCalledOnce();
+    expect(interruptResponseIsStaged(SESSION_ID, ROOT_RUN_ID, "approval_a")).toBe(false);
+    expect(reject?.()).toBe(true);
+
+    // A late local ack must not paint this client's choices over the already
+    // materialized authoritative result.
+    accept?.();
+    expect(approvalSettled).not.toHaveBeenCalled();
+    expect(questionSettled).not.toHaveBeenCalled();
+    dispose();
+  });
 });
