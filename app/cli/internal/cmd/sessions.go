@@ -12,6 +12,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
 	"github.com/Tangerg/lynx/app/cli/internal/render"
+	"github.com/Tangerg/lynx/app/cli/internal/runtimeprofile"
 	"github.com/Tangerg/lynx/app/cli/internal/session"
 )
 
@@ -65,11 +66,15 @@ func newSessionsUpdateCommand(provider runtimeProvider) *cobra.Command {
 			if err := update.Validate(); err != nil {
 				return err
 			}
-			runtime, err := provider.Open(cmd)
+			services, err := provider.OpenServices(cmd)
 			if err != nil {
 				return err
 			}
-			updated, err := session.Update(cmd.Context(), runtime, update)
+			if update.Workspace != nil && services.RuntimeProfile != nil &&
+				!services.RuntimeProfile.Supports(runtimeprofile.FeatureRelocate) {
+				return fmt.Errorf("runtime capability %q was not negotiated", runtimeprofile.FeatureRelocate)
+			}
+			updated, err := session.Update(cmd.Context(), services.Agent, update)
 			if err != nil {
 				return err
 			}

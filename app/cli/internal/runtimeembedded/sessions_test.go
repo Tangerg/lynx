@@ -10,6 +10,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/protocol"
 
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
+	"github.com/Tangerg/lynx/app/cli/internal/runtimeprofile"
 )
 
 type sessionCatalogStub struct {
@@ -56,7 +57,12 @@ func TestUpdateSessionProjectsEveryWritableField(t *testing.T) {
 			Favorite:  favorite, Revision: 8,
 		}, nil
 	}}
-	runtime := &Runtime{sessionCatalog: stub, meta: requestMeta("test")}
+	runtime := &Runtime{
+		sessionCatalog: stub, meta: requestMeta("test"),
+		profile: runtimeprofile.Profile{Features: map[runtimeprofile.FeatureName]runtimeprofile.Feature{
+			runtimeprofile.FeatureRelocate: {Enabled: true, Stability: runtimeprofile.Stable},
+		}},
+	}
 	updated, err := runtime.UpdateSession(t.Context(), agent.UpdateSession{
 		SessionID: "ses_1", Title: &title, Workspace: &workspace, Model: &model,
 		Favorite: &favorite, ExpectedRevision: 7,
@@ -67,6 +73,24 @@ func TestUpdateSessionProjectsEveryWritableField(t *testing.T) {
 	if updated.Workspace.Path != workspace || updated.Workspace.ProjectRoot != "/workspace" || !updated.Workspace.IsAvailable() ||
 		updated.Model != model || !updated.Favorite || updated.Revision != 8 {
 		t.Fatalf("updated session = %+v", updated)
+	}
+}
+
+func TestUpdateSessionRejectsWorkspaceWithoutRelocateCapability(t *testing.T) {
+	t.Parallel()
+	called := false
+	runtime := &Runtime{sessionCatalog: sessionCatalogStub{update: func(protocol.UpdateSessionRequest) (*protocol.Session, error) {
+		called = true
+		return nil, nil
+	}}}
+	workspace := "/workspace/new"
+	if _, err := runtime.UpdateSession(t.Context(), agent.UpdateSession{
+		SessionID: "ses_1", Workspace: &workspace, ExpectedRevision: 7,
+	}); err == nil || !errors.Is(err, agent.ErrIncompatibleRuntime) {
+		t.Fatalf("UpdateSession error = %v, want ErrIncompatibleRuntime", err)
+	}
+	if called {
+		t.Fatal("workspace update reached the binding without relocate capability")
 	}
 }
 

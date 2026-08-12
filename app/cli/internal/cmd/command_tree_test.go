@@ -21,6 +21,7 @@ import (
 	"github.com/Tangerg/lynx/app/cli/internal/agent/mock"
 	"github.com/Tangerg/lynx/app/cli/internal/backend"
 	"github.com/Tangerg/lynx/app/cli/internal/failure"
+	"github.com/Tangerg/lynx/app/cli/internal/runtimeprofile"
 )
 
 // executeCommand runs the CLI in memory and returns stdout, stderr and the command error.
@@ -650,6 +651,37 @@ func TestSessionManagementCommands(t *testing.T) {
 	requireSessionRename(t, runtime, id)
 	forkID := forkTestSession(t, runtime, id)
 	requireSessionDelete(t, runtime, forkID)
+}
+
+func TestSessionUpdateRejectsWorkspaceBeforeCallingAnUnnegotiatedRuntime(t *testing.T) {
+	t.Parallel()
+	base := instantRuntime()
+	snapshot, err := base.GetSession(t.Context(), "ses_demo_1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	profile := commandRuntimeProfile()
+	profile.Features[runtimeprofile.FeatureRelocate] = runtimeprofile.Feature{Stability: runtimeprofile.Stable}
+	provider := runtimeProvider{open: func(context.Context) (backend.Services, error) {
+		return backend.Services{Agent: base, RuntimeProfile: new(profile.Clone())}, nil
+	}}
+	command := newSessionsUpdateCommand(provider)
+	command.SetOut(&strings.Builder{})
+	command.SetErr(&strings.Builder{})
+	command.SetArgs([]string{
+		"ses_demo_1", "--revision", strconv.FormatUint(snapshot.Session.Revision, 10),
+		"--workspace", t.TempDir(),
+	})
+	if err := command.ExecuteContext(t.Context()); err == nil || !strings.Contains(err.Error(), "relocate") {
+		t.Fatalf("sessions update error = %v", err)
+	}
+	after, err := base.GetSession(t.Context(), "ses_demo_1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if after.Session.Revision != snapshot.Session.Revision || after.Session.Workspace != snapshot.Session.Workspace {
+		t.Fatalf("unnegotiated workspace update mutated session: before=%+v after=%+v", snapshot.Session, after.Session)
+	}
 }
 
 func requireSessionUpdate(t *testing.T, runtime agent.Runtime, id string) {

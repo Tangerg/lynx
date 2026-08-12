@@ -9,6 +9,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/protocol"
 
 	"github.com/Tangerg/lynx/app/cli/internal/agent"
+	"github.com/Tangerg/lynx/app/cli/internal/runtimeprofile"
 )
 
 type sessionCatalogBinding interface {
@@ -154,6 +155,13 @@ func (r *Runtime) CreateSession(ctx context.Context, input agent.CreateSession) 
 func (r *Runtime) UpdateSession(ctx context.Context, input agent.UpdateSession) (agent.Session, error) {
 	if err := input.Validate(); err != nil {
 		return agent.Session{}, err
+	}
+	if input.Workspace != nil && !r.profile.Supports(runtimeprofile.FeatureRelocate) {
+		return agent.Session{}, fmt.Errorf(
+			"%w: runtime capability %q was not negotiated",
+			agent.ErrIncompatibleRuntime,
+			runtimeprofile.FeatureRelocate,
+		)
 	}
 	options, err := r.commandOptions()
 	if err != nil {
