@@ -87,6 +87,9 @@ func (pending PendingResume) validate() error {
 	if err := pending.Command.Validate(); err != nil {
 		return err
 	}
+	if pending.Command.CommandID == "" {
+		return errors.New("resume command id is empty")
+	}
 	if err := agent.ValidateInteractions(pending.Interactions); err != nil {
 		return err
 	}

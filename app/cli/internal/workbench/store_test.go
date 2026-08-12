@@ -631,6 +631,34 @@ func TestStagingTheSameResumeCommandRejectsDifferentDecisions(t *testing.T) {
 	}
 }
 
+func TestStoreRejectsPendingResumeWithoutCommandIdentity(t *testing.T) {
+	store, err := Open(t.TempDir(), Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	approval := agent.Approval{
+		RunID: "run_1", ItemID: "item_1", Title: "Run checks",
+		Tool: &agent.ToolCall{Kind: agent.ToolShell, Name: "shell", Status: agent.ToolRunning},
+	}
+	pending := PendingResume{
+		Command: agent.ResumeRun{
+			RunID: approval.RunID,
+			Answers: []agent.InterruptAnswer{{
+				ItemID: approval.ItemID,
+				Answer: agent.ApprovalAnswer{Decision: agent.ApprovalApprove},
+			}},
+		},
+		Interactions: []agent.Interaction{approval},
+	}
+
+	if err := store.StagePendingResume("ses_1", pending); err == nil {
+		t.Fatal("pending resume without command identity was accepted")
+	}
+	if restored, found := store.PendingResume("ses_1"); found {
+		t.Fatalf("invalid pending resume mutated the outbox: %+v", restored)
+	}
+}
+
 func TestStorePersistsTheCompleteMixedInteractionReview(t *testing.T) {
 	directory := t.TempDir()
 	store, err := Open(directory, Config{})

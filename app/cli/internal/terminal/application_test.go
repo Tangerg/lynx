@@ -156,6 +156,14 @@ type refusingFirstResumeRuntime struct {
 	attempts []agent.ResumeRun
 }
 
+type blockingRefusingResumeRuntime struct {
+	agent.Runtime
+
+	started chan agent.ResumeRun
+	release chan struct{}
+	calls   atomic.Int32
+}
+
 type recordingRuntime struct {
 	*mock.Runtime
 
@@ -439,6 +447,21 @@ func (r *refusingFirstResumeRuntime) resumeAttempts() []agent.ResumeRun {
 	return cloneResumeRuns(r.attempts)
 }
 
+func (r *blockingRefusingResumeRuntime) ResumeRun(ctx context.Context, input agent.ResumeRun) (agent.SegmentStream, error) {
+	r.calls.Add(1)
+	select {
+	case r.started <- input.Clone():
+	case <-ctx.Done():
+		return agent.SegmentStream{}, context.Cause(ctx)
+	}
+	select {
+	case <-r.release:
+		return agent.SegmentStream{}, errors.New("answers rejected by runtime")
+	case <-ctx.Done():
+		return agent.SegmentStream{}, context.Cause(ctx)
+	}
+}
+
 func cloneResumeRuns(values []agent.ResumeRun) []agent.ResumeRun {
 	cloned := make([]agent.ResumeRun, len(values))
 	for index, value := range values {
@@ -548,6 +571,83 @@ func TestRejectedApprovalResumePreservesTheReviewAndUsesANewIdentity(t *testing.
 		t.Fatalf("retried approval answer = %#v", attempts[1].Answers[0].Answer)
 	}
 	stop()
+}
+
+func TestRejectedResumeRetirementFailurePreservesTheDurableDecision(t *testing.T) {
+	base := mock.New()
+	base.Instant = true
+	stateDirectory := t.TempDir()
+	runtime := &blockingRefusingResumeRuntime{
+		Runtime: base, started: make(chan agent.ResumeRun, 1), release: make(chan struct{}),
+	}
+	first, stopFirst := runUIWithState(t, runtime, "/tmp/lyra-cli-test", "ses_demo_1", stateDirectory)
+	first.Shows(t, "Ask lyra")
+	first.Type("preserve a rejected approval decision")
+	first.Press(input.Enter)
+	first.Shows(t, "Tool approval")
+	first.Press(input.Enter)
+	pending := awaitSignalValue(t, runtime.started, "blocked resume delivery")
+
+	stateFiles, err := os.ReadDir(filepath.Join(stateDirectory, "sessions"))
+	if err != nil || len(stateFiles) != 1 {
+		t.Fatalf("session state files = %d, %v", len(stateFiles), err)
+	}
+	statePath := filepath.Join(stateDirectory, "sessions", stateFiles[0].Name())
+	backupPath := statePath + ".backup"
+	if err := os.Rename(statePath, backupPath); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(statePath, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	blocker := filepath.Join(statePath, "blocker")
+	if err := os.WriteFile(blocker, []byte("block pending resume retirement"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	close(runtime.release)
+	first.Shows(t, "release refused interaction decisions")
+	first.Hides(t, "Tool approval")
+	first.Press(input.Enter)
+	first.Repaint()
+	if calls := runtime.calls.Load(); calls != 1 {
+		t.Fatalf("failed retirement submitted %d resume commands, want one", calls)
+	}
+
+	if err := os.Remove(blocker); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(statePath); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(backupPath, statePath); err != nil {
+		t.Fatal(err)
+	}
+	reopened, err := workbench.Open(stateDirectory, workbench.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	restored, ok := reopened.PendingResume("ses_demo_1")
+	if !ok || restored.Command.CommandID != pending.CommandID || !restored.Command.Equal(pending) {
+		t.Fatalf("durable resume after failed retirement = %+v, present %t; want %+v", restored, ok, pending)
+	}
+	stopFirst()
+
+	recovery := &replayingResumeRuntime{Runtime: base}
+	second, stopSecond := runUIWithState(t, recovery, "/tmp/lyra-cli-test", "ses_demo_1", stateDirectory)
+	second.Shows(t, "complete")
+	attempts := recovery.resumeAttempts()
+	if len(attempts) != 2 || attempts[0].CommandID != pending.CommandID || attempts[1].CommandID != pending.CommandID {
+		t.Fatalf("recovered resume attempts = %+v, want command %s", attempts, pending.CommandID)
+	}
+	reopened, err = workbench.Open(stateDirectory, workbench.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if durable, found := reopened.PendingResume("ses_demo_1"); found {
+		t.Fatalf("recovered resume remains durable: %+v", durable)
+	}
+	stopSecond()
 }
 
 func TestPendingMixedInteractionResumeSurvivesRestartWithoutLosingAnswers(t *testing.T) {
