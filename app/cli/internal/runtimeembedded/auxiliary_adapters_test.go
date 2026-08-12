@@ -68,6 +68,8 @@ func TestDiagnosticToolAdapterRejectsUnaddressableOrUnsafeCatalogs(t *testing.T)
 			}}
 			if _, err := adapter.Tools(t.Context()); err == nil {
 				t.Fatal("broken tool catalog was accepted")
+			} else {
+				requireRuntimeContractViolation(t, err)
 			}
 		})
 	}
@@ -78,11 +80,16 @@ type codebaseBindingStub struct {
 	status      *protocol.CodebaseStatus
 	hits        []protocol.CodebaseHit
 	operationID string
+	searchLimit int
 }
 
 func (stub *codebaseBindingStub) SearchCodebase(_ context.Context, request protocol.CodebaseSearchRequest, options embedded.CallOptions) (*protocol.CodebaseSearchResult, error) {
 	assertCallMeta(stub.t, options.RequestMeta)
-	if request.Workspace.Path != "/workspace" || request.Query != "ownership" || request.Limit != 8 {
+	expectedLimit := stub.searchLimit
+	if expectedLimit == 0 {
+		expectedLimit = 8
+	}
+	if request.Workspace.Path != "/workspace" || request.Query != "ownership" || request.Limit != expectedLimit {
 		stub.t.Fatalf("codebase search request = %+v", request)
 	}
 	return &protocol.CodebaseSearchResult{Hits: stub.hits}, nil
@@ -140,18 +147,35 @@ func TestCodebaseAdapterRejectsMalformedProjections(t *testing.T) {
 			case "nil status", "bad time":
 				if _, err := adapter.Status(t.Context(), "/workspace"); err == nil {
 					t.Fatal("malformed status was accepted")
+				} else {
+					requireRuntimeContractViolation(t, err)
 				}
 			case "bad hit":
 				if _, err := adapter.Search(t.Context(), codebase.Query{Workspace: "/workspace", Text: "ownership", Limit: 8}); err == nil {
 					t.Fatal("malformed hit was accepted")
+				} else {
+					requireRuntimeContractViolation(t, err)
 				}
 			case "empty operation":
 				if _, err := adapter.Reindex(t.Context(), "/workspace"); err == nil {
 					t.Fatal("empty operation was accepted")
+				} else {
+					requireRuntimeContractViolation(t, err)
 				}
 			}
 		})
 	}
+}
+
+func TestCodebaseAdapterRejectsSearchResultsAboveTheRequestedLimit(t *testing.T) {
+	t.Parallel()
+	stub := &codebaseBindingStub{t: t, searchLimit: 1, hits: []protocol.CodebaseHit{
+		{Path: "one.go", StartLine: 1, EndLine: 1, Score: .9},
+		{Path: "two.go", StartLine: 1, EndLine: 1, Score: .8},
+	}}
+	adapter := &codebaseAdapter{runtime: &Runtime{codebase: stub, meta: requestMeta("test")}}
+	_, err := adapter.Search(t.Context(), codebase.Query{Workspace: "/workspace", Text: "ownership", Limit: 1})
+	requireRuntimeContractViolation(t, err)
 }
 
 type authoringContextBindingStub struct {

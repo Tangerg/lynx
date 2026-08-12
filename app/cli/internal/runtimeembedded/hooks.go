@@ -3,7 +3,6 @@ package runtimeembedded
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strings"
 
 	"github.com/Tangerg/lynx/app/runtime/embedded"
@@ -34,7 +33,7 @@ func (adapter *hookAdapter) Catalog(ctx context.Context, workspace string) (hook
 		return hookpolicy.Catalog{}, classifyError(err)
 	}
 	if result == nil {
-		return hookpolicy.Catalog{}, errors.New("list hooks: runtime returned nil")
+		return hookpolicy.Catalog{}, runtimeContractViolation("list hooks returned nil")
 	}
 	catalog := hookpolicy.Catalog{
 		ProjectRoot: result.ProjectRoot, ProjectTrusted: result.ProjectTrusted,
@@ -48,7 +47,7 @@ func (adapter *hookAdapter) Catalog(ctx context.Context, workspace string) (hook
 		})
 	}
 	if err := catalog.Validate(); err != nil {
-		return hookpolicy.Catalog{}, fmt.Errorf("list hooks: %w", err)
+		return hookpolicy.Catalog{}, runtimeContractViolation("list hooks returned an invalid catalog: %v", err)
 	}
 	return catalog, nil
 }

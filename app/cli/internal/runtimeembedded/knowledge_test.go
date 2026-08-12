@@ -52,6 +52,8 @@ func TestKnowledgeAdapterRejectsUnaddressableCatalogs(t *testing.T) {
 			adapter := &knowledgeAdapter{runtime: &Runtime{knowledge: stub, meta: requestMeta("test")}}
 			if _, err := adapter.Entries(t.Context(), "/workspace"); err == nil {
 				t.Fatal("unaddressable catalog was accepted")
+			} else {
+				requireRuntimeContractViolation(t, err)
 			}
 		})
 	}

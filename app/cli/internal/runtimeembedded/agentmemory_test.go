@@ -74,6 +74,8 @@ func TestAgentMemoryAdapterRejectsBrokenRuntimeProjections(t *testing.T) {
 			}
 			if _, err := adapter.Items(t.Context(), target); err == nil {
 				t.Fatal("broken projection was accepted")
+			} else {
+				requireRuntimeContractViolation(t, err)
 			}
 		})
 	}
@@ -172,4 +174,16 @@ func TestAgentMemoryAdapterPreservesTargetReviewAndMutationSemantics(t *testing.
 			t.Fatalf("actions = %v, want %v", stub.actions, want)
 		}
 	}
+}
+
+func TestAgentMemoryMutationRejectsIdentityDrift(t *testing.T) {
+	t.Parallel()
+	now := time.Now()
+	result := protocol.AgentMemoryItem{
+		ID: "mem_other", Scope: protocol.AgentMemoryScopeProject, Content: "edited",
+		Origin: protocol.AgentMemoryOriginUser, Status: protocol.AgentMemoryStatusActive,
+		CreatedAt: now, UpdatedAt: now,
+	}
+	_, err := projectAgentMemoryResult("update agent memory", "mem_1", "", &result, nil)
+	requireRuntimeContractViolation(t, err)
 }

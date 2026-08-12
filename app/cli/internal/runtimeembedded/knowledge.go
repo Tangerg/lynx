@@ -3,7 +3,6 @@ package runtimeembedded
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strings"
 
 	"github.com/Tangerg/lynx/app/runtime/embedded"
@@ -43,10 +42,10 @@ func (adapter *knowledgeAdapter) Entries(ctx context.Context, workspace string) 
 	for index, value := range values {
 		entry := projectKnowledgeEntry(value)
 		if err := entry.Validate(); err != nil {
-			return nil, fmt.Errorf("list knowledge item %d: %w", index+1, err)
+			return nil, runtimeContractViolation("list knowledge item %d is invalid: %v", index+1, err)
 		}
 		if _, duplicate := seen[entry.Scope]; duplicate {
-			return nil, fmt.Errorf("list knowledge repeats %s scope", entry.Scope)
+			return nil, runtimeContractViolation("list knowledge repeats %s scope", entry.Scope)
 		}
 		seen[entry.Scope] = struct{}{}
 		entries = append(entries, entry)
@@ -68,14 +67,14 @@ func (adapter *knowledgeAdapter) Document(ctx context.Context, target knowledge.
 		return knowledge.Entry{}, classifyError(err)
 	}
 	if result == nil {
-		return knowledge.Entry{}, errors.New("get knowledge: runtime returned nil")
+		return knowledge.Entry{}, runtimeContractViolation("get knowledge returned nil")
 	}
 	entry := projectKnowledgeEntry(*result)
 	if err := entry.Validate(); err != nil {
-		return knowledge.Entry{}, fmt.Errorf("get knowledge: %w", err)
+		return knowledge.Entry{}, runtimeContractViolation("get knowledge returned an invalid entry: %v", err)
 	}
 	if entry.Scope != target.Scope {
-		return knowledge.Entry{}, fmt.Errorf("get knowledge returned %s scope, want %s", entry.Scope, target.Scope)
+		return knowledge.Entry{}, runtimeContractViolation("get knowledge returned %s scope, want %s", entry.Scope, target.Scope)
 	}
 	return entry, nil
 }

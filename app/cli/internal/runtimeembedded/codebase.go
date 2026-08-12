@@ -3,7 +3,6 @@ package runtimeembedded
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strings"
 	"time"
 
@@ -50,7 +49,10 @@ func (adapter *codebaseAdapter) Search(ctx context.Context, query codebase.Query
 		return nil, classifyError(err)
 	}
 	if result == nil {
-		return nil, errors.New("search codebase: runtime returned nil")
+		return nil, runtimeContractViolation("search codebase returned nil")
+	}
+	if query.Limit > 0 && len(result.Hits) > query.Limit {
+		return nil, runtimeContractViolation("search codebase returned %d hits for limit %d", len(result.Hits), query.Limit)
 	}
 	hits := make([]codebase.Hit, 0, len(result.Hits))
 	for index, value := range result.Hits {
@@ -59,7 +61,7 @@ func (adapter *codebaseAdapter) Search(ctx context.Context, query codebase.Query
 			Snippet: value.Snippet, Score: value.Score,
 		}
 		if err := hit.Validate(); err != nil {
-			return nil, fmt.Errorf("search codebase hit %d: %w", index+1, err)
+			return nil, runtimeContractViolation("search codebase hit %d is invalid: %v", index+1, err)
 		}
 		hits = append(hits, hit)
 	}
@@ -83,18 +85,18 @@ func (adapter *codebaseAdapter) Reindex(ctx context.Context, workspace string) (
 		return codebase.ReindexOperation{}, classifyError(err)
 	}
 	if result == nil {
-		return codebase.ReindexOperation{}, errors.New("reindex codebase: runtime returned nil")
+		return codebase.ReindexOperation{}, runtimeContractViolation("reindex codebase returned nil")
 	}
 	operation := codebase.ReindexOperation{ID: result.OperationID}
 	if err := operation.Validate(); err != nil {
-		return codebase.ReindexOperation{}, fmt.Errorf("reindex codebase: %w", err)
+		return codebase.ReindexOperation{}, runtimeContractViolation("reindex codebase returned an invalid operation: %v", err)
 	}
 	return operation, nil
 }
 
 func projectCodebaseStatus(operation string, value *protocol.CodebaseStatus) (codebase.Status, error) {
 	if value == nil {
-		return codebase.Status{}, fmt.Errorf("%s: runtime returned nil", operation)
+		return codebase.Status{}, runtimeContractViolation("%s returned nil", operation)
 	}
 	status := codebase.Status{
 		State: codebase.State(value.State), ModelID: value.ModelID,
@@ -104,12 +106,12 @@ func projectCodebaseStatus(operation string, value *protocol.CodebaseStatus) (co
 	if value.IndexedAt != "" {
 		indexedAt, err := time.Parse(time.RFC3339, value.IndexedAt)
 		if err != nil {
-			return codebase.Status{}, fmt.Errorf("%s: parse index time: %w", operation, err)
+			return codebase.Status{}, runtimeContractViolation("%s returned an invalid index time: %v", operation, err)
 		}
 		status.IndexedAt = &indexedAt
 	}
 	if err := status.Validate(); err != nil {
-		return codebase.Status{}, fmt.Errorf("%s: %w", operation, err)
+		return codebase.Status{}, runtimeContractViolation("%s returned an invalid status: %v", operation, err)
 	}
 	return status, nil
 }

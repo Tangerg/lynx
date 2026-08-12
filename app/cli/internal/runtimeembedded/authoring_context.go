@@ -3,7 +3,6 @@ package runtimeembedded
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strings"
 
 	"github.com/Tangerg/lynx/app/runtime/embedded"
@@ -40,10 +39,10 @@ func (adapter *authoringContextAdapter) Documents(ctx context.Context, workspace
 	for index, value := range values {
 		document := authoringcontext.Document{Path: value.Path, Title: value.Title, Scope: authoringcontext.DocumentScope(value.Scope)}
 		if err := document.Validate(); err != nil {
-			return nil, fmt.Errorf("list agent documents item %d: %w", index+1, err)
+			return nil, runtimeContractViolation("list agent documents item %d is invalid: %v", index+1, err)
 		}
 		if _, duplicate := seen[document.Path]; duplicate {
-			return nil, fmt.Errorf("list agent documents repeats %q", document.Path)
+			return nil, runtimeContractViolation("list agent documents repeats %q", document.Path)
 		}
 		seen[document.Path] = struct{}{}
 		documents = append(documents, document)
@@ -73,10 +72,10 @@ func (adapter *authoringContextAdapter) Recipes(ctx context.Context, workspace s
 			Body: value.Body, Scope: authoringcontext.RecipeScope(value.Scope), Source: value.Source,
 		}
 		if err := recipe.Validate(); err != nil {
-			return nil, fmt.Errorf("list recipes item %d: %w", index+1, err)
+			return nil, runtimeContractViolation("list recipes item %d is invalid: %v", index+1, err)
 		}
 		if _, duplicate := seen[recipe.Name]; duplicate {
-			return nil, fmt.Errorf("list recipes repeats %q", recipe.Name)
+			return nil, runtimeContractViolation("list recipes repeats %q", recipe.Name)
 		}
 		seen[recipe.Name] = struct{}{}
 		recipes = append(recipes, recipe)

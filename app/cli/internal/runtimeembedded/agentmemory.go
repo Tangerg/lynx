@@ -3,7 +3,6 @@ package runtimeembedded
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strings"
 
 	"github.com/Tangerg/lynx/app/runtime/embedded"
@@ -38,20 +37,20 @@ func (adapter *agentMemoryAdapter) Items(ctx context.Context, target agentmemory
 		return nil, classifyError(err)
 	}
 	if result == nil {
-		return nil, errors.New("list agent memory: runtime returned nil")
+		return nil, runtimeContractViolation("list agent memory returned nil")
 	}
 	items := make([]agentmemory.Item, 0, len(result.Items))
 	seen := make(map[string]struct{}, len(result.Items))
 	for index, value := range result.Items {
 		item := projectAgentMemoryItem(value)
 		if err := item.Validate(); err != nil {
-			return nil, fmt.Errorf("list agent memory item %d: %w", index+1, err)
+			return nil, runtimeContractViolation("list agent memory item %d is invalid: %v", index+1, err)
 		}
 		if item.Scope != target.Scope {
-			return nil, fmt.Errorf("list agent memory item %s belongs to %s, want %s", item.ID, item.Scope, target.Scope)
+			return nil, runtimeContractViolation("list agent memory item %s belongs to %s, want %s", item.ID, item.Scope, target.Scope)
 		}
 		if _, duplicate := seen[item.ID]; duplicate {
-			return nil, fmt.Errorf("list agent memory repeats %q", item.ID)
+			return nil, runtimeContractViolation("list agent memory repeats %q", item.ID)
 		}
 		seen[item.ID] = struct{}{}
 		items = append(items, item)
@@ -89,7 +88,7 @@ func (adapter *agentMemoryAdapter) Update(ctx context.Context, patch agentmemory
 	result, err := r.agentMemory.UpdateAgentMemory(ctx, protocol.AgentMemoryUpdateRequest{
 		ID: patch.ID, Content: clonePointer(patch.Content), Pinned: clonePointer(patch.Pinned),
 	}, options)
-	return projectAgentMemoryResult("update agent memory", result, err)
+	return projectAgentMemoryResult("update agent memory", patch.ID, "", result, err)
 }
 
 func (adapter *agentMemoryAdapter) Delete(ctx context.Context, id string) error {
@@ -122,26 +121,37 @@ func (adapter *agentMemoryAdapter) Add(ctx context.Context, target agentmemory.T
 		request.Workspace = &protocol.WorkspaceRef{Path: target.Workspace}
 	}
 	result, err := r.agentMemory.AddAgentMemory(ctx, request, options)
-	item, err := projectAgentMemoryResult("add agent memory", result, err)
+	item, err := projectAgentMemoryResult("add agent memory", "", target.Scope, result, err)
 	if err != nil {
 		return agentmemory.Item{}, err
 	}
 	if item.Scope != target.Scope {
-		return agentmemory.Item{}, fmt.Errorf("add agent memory returned %s scope, want %s", item.Scope, target.Scope)
+		return agentmemory.Item{}, runtimeContractViolation("add agent memory returned %s scope, want %s", item.Scope, target.Scope)
 	}
 	return item, nil
 }
 
-func projectAgentMemoryResult(operation string, result *protocol.AgentMemoryItem, err error) (agentmemory.Item, error) {
+func projectAgentMemoryResult(
+	operation, expectedID string,
+	expectedScope agentmemory.Scope,
+	result *protocol.AgentMemoryItem,
+	err error,
+) (agentmemory.Item, error) {
 	if err != nil {
 		return agentmemory.Item{}, classifyError(err)
 	}
 	if result == nil {
-		return agentmemory.Item{}, fmt.Errorf("%s: runtime returned nil", operation)
+		return agentmemory.Item{}, runtimeContractViolation("%s returned nil", operation)
 	}
 	item := projectAgentMemoryItem(*result)
 	if err := item.Validate(); err != nil {
-		return agentmemory.Item{}, fmt.Errorf("%s: %w", operation, err)
+		return agentmemory.Item{}, runtimeContractViolation("%s returned an invalid item: %v", operation, err)
+	}
+	if expectedID != "" && item.ID != expectedID {
+		return agentmemory.Item{}, runtimeContractViolation("%s returned id %q for %q", operation, item.ID, expectedID)
+	}
+	if expectedScope != "" && item.Scope != expectedScope {
+		return agentmemory.Item{}, runtimeContractViolation("%s returned %s scope, want %s", operation, item.Scope, expectedScope)
 	}
 	return item, nil
 }

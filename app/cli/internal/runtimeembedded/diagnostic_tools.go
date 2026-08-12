@@ -36,17 +36,17 @@ func (adapter *diagnosticToolAdapter) Tools(ctx context.Context) ([]diagnosticto
 	for index, value := range values {
 		schema, marshalErr := json.Marshal(value.Parameters)
 		if marshalErr != nil {
-			return nil, fmt.Errorf("list diagnostic tools item %d schema: %w", index+1, marshalErr)
+			return nil, runtimeContractViolation("list diagnostic tools item %d has an invalid schema: %v", index+1, marshalErr)
 		}
 		descriptor := diagnostictool.Descriptor{
 			Name: value.Name, Description: value.Description,
 			Schema: schema, Safety: diagnostictool.Safety(value.SafetyClass),
 		}
 		if err := descriptor.Validate(); err != nil {
-			return nil, fmt.Errorf("list diagnostic tools item %d: %w", index+1, err)
+			return nil, runtimeContractViolation("list diagnostic tools item %d is invalid: %v", index+1, err)
 		}
 		if _, duplicate := seen[descriptor.Name]; duplicate {
-			return nil, fmt.Errorf("list diagnostic tools repeats %q", descriptor.Name)
+			return nil, runtimeContractViolation("list diagnostic tools repeats %q", descriptor.Name)
 		}
 		seen[descriptor.Name] = struct{}{}
 		tools = append(tools, descriptor)
@@ -76,11 +76,11 @@ func (adapter *diagnosticToolAdapter) Invoke(ctx context.Context, invocation dia
 	}
 	encoded, err := json.Marshal(value)
 	if err != nil {
-		return diagnostictool.Result{}, fmt.Errorf("encode diagnostic tool result: %w", err)
+		return diagnostictool.Result{}, runtimeContractViolation("diagnostic tool result cannot be encoded: %v", err)
 	}
 	result := diagnostictool.Result{JSON: encoded}
 	if err := result.Validate(); err != nil {
-		return diagnostictool.Result{}, fmt.Errorf("invoke diagnostic tool: %w", err)
+		return diagnostictool.Result{}, runtimeContractViolation("diagnostic tool returned an invalid result: %v", err)
 	}
 	return result, nil
 }
