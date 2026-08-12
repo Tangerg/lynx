@@ -5336,6 +5336,10 @@
           "message": "workspace_unavailable"
         },
         {
+          "code": -32013,
+          "message": "path_outside_root"
+        },
+        {
           "code": -32006,
           "message": "capability_not_negotiated"
         }
@@ -5406,6 +5410,10 @@
         {
           "code": -32005,
           "message": "workspace_unavailable"
+        },
+        {
+          "code": -32013,
+          "message": "path_outside_root"
         },
         {
           "code": -32006,
@@ -5493,6 +5501,10 @@
         {
           "code": -32005,
           "message": "workspace_unavailable"
+        },
+        {
+          "code": -32013,
+          "message": "path_outside_root"
         },
         {
           "code": -32019,

@@ -15,6 +15,8 @@ var (
 	ErrRevisionRequired = errors.New("knowledge: expected revision is required")
 	// ErrRevisionConflict reports that the document changed after it was read.
 	ErrRevisionConflict = errors.New("knowledge: revision conflict")
+	// ErrPathOutsideScope reports a document that does not belong to the selected scope.
+	ErrPathOutsideScope = errors.New("knowledge: path outside scope")
 )
 
 // Scope selects one location in the human-authored LYRA.md cascade. The three

@@ -53,7 +53,8 @@ func (k *Knowledge) Entries(ctx context.Context, cwd string) ([]knowledge.Entry,
 	if err != nil {
 		return nil, err
 	}
-	return k.store.List(ctx, root, projectRoot)
+	entries, err := k.store.List(ctx, root, projectRoot)
+	return entries, knowledgePathError(err)
 }
 
 // Read returns the LYRA.md content for one scope.
@@ -65,7 +66,8 @@ func (k *Knowledge) Read(ctx context.Context, scope knowledge.Scope, cwd string)
 		return knowledge.Entry{}, ErrKnowledgeUnavailable
 	}
 	if scope == knowledge.ScopeHome {
-		return k.store.Get(ctx, scope, "")
+		entry, err := k.store.Get(ctx, scope, "")
+		return entry, knowledgePathError(err)
 	}
 	root, err := k.scope.root(cwd)
 	if err != nil {
@@ -77,7 +79,8 @@ func (k *Knowledge) Read(ctx context.Context, scope knowledge.Scope, cwd string)
 			return knowledge.Entry{}, err
 		}
 	}
-	return k.store.Get(ctx, scope, root)
+	entry, err := k.store.Get(ctx, scope, root)
+	return entry, knowledgePathError(err)
 }
 
 // Update conditionally replaces one LYRA.md document and returns the committed fact.
@@ -112,7 +115,14 @@ func (k *Knowledge) update(ctx context.Context, scope knowledge.Scope, root, exp
 	if err == nil {
 		k.invalidations.Notify(invalidation.Notice{Resource: invalidation.Knowledge})
 	}
-	return entry, err
+	return entry, knowledgePathError(err)
+}
+
+func knowledgePathError(err error) error {
+	if errors.Is(err, knowledge.ErrPathOutsideScope) {
+		return ErrPathOutsideRoot
+	}
+	return err
 }
 
 func (k *Knowledge) projectRoot(cwd string) (string, error) {

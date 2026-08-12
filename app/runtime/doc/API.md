@@ -799,6 +799,10 @@ provider 的 key，读取面自然回落到 `keySource:"env"`；环境值只参�
 每个 `KnowledgeEntry` 都带非空 opaque `revision`；调用方不得解析它。`knowledge.update` 必须回传最近读取的
 `expectedRevision`，只在它仍匹配时原子替换，并返回包含新 revision 的权威 `KnowledgeEntry`。不匹配返回
 `revision_conflict`，绝不静默覆盖并发编辑；首次创建也使用空文档读取所得 revision。
+文档的 filesystem identity 必须解析后仍位于所选 scope 根内；越界 symlink 对 list/get/update 都返回
+`path_outside_root`。域内 symlink 保持为 alias，读、revision 比较和原子替换共同作用于同一 physical target；
+替换保留目标文件权限。多个 Runtime 进程对同一 physical document 的 CAS 也只有一个 winner，进程在 publish 前退出只会留下
+可安全回收的 staging 文件，不能产生 torn content。
 它不承载模型提炼事实，也不与 `agentMemory.*` 共享生命周期；后者才是 Agent 自维护、可检索和人工复核的记忆账本。
 因此协议不再提供含混的 `memory.*` 别名或 `features.memory`。
 

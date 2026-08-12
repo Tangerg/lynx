@@ -91,9 +91,29 @@ func TestRuntimeKnowledgeRejectsUnknownScopeBeforeDispatch(t *testing.T) {
 	}
 }
 
+func TestRuntimeKnowledgeMapsInfraContainmentWithoutLeakingFilesystemMechanics(t *testing.T) {
+	store := &fakeKnowledgeStore{err: knowledge.ErrPathOutsideScope}
+	c := NewKnowledge(
+		NewScope("", "", testPaths{}),
+		knowledgeInspector{resolved: Resolved{Path: "/repo", ProjectRoot: "/repo"}},
+		store, nil,
+	)
+
+	if _, err := c.Entries(t.Context(), "/repo"); !errors.Is(err, ErrPathOutsideRoot) {
+		t.Fatalf("Entries error = %v, want ErrPathOutsideRoot", err)
+	}
+	if _, err := c.Read(t.Context(), knowledge.ScopeHome, ""); !errors.Is(err, ErrPathOutsideRoot) {
+		t.Fatalf("Read error = %v, want ErrPathOutsideRoot", err)
+	}
+	if _, err := c.Update(t.Context(), knowledge.ScopeHome, "", "rev-1", "notes"); !errors.Is(err, ErrPathOutsideRoot) {
+		t.Fatalf("Update error = %v, want ErrPathOutsideRoot", err)
+	}
+}
+
 type fakeKnowledgeStore struct {
 	entries []knowledge.Entry
 	entry   knowledge.Entry
+	err     error
 
 	listCWD         string
 	listProjectRoot string
@@ -110,13 +130,13 @@ type fakeKnowledgeStore struct {
 func (s *fakeKnowledgeStore) List(_ context.Context, cwd, projectRoot string) ([]knowledge.Entry, error) {
 	s.listCWD = cwd
 	s.listProjectRoot = projectRoot
-	return s.entries, nil
+	return s.entries, s.err
 }
 
 func (s *fakeKnowledgeStore) Get(_ context.Context, scope knowledge.Scope, cwd string) (knowledge.Entry, error) {
 	s.getScope = scope
 	s.getCWD = cwd
-	return s.entry, nil
+	return s.entry, s.err
 }
 
 func (s *fakeKnowledgeStore) Update(_ context.Context, scope knowledge.Scope, cwd, expectedRevision, content string) (knowledge.Entry, error) {
@@ -124,6 +144,9 @@ func (s *fakeKnowledgeStore) Update(_ context.Context, scope knowledge.Scope, cw
 	s.updateCWD = cwd
 	s.updateRevision = expectedRevision
 	s.updateContent = content
+	if s.err != nil {
+		return knowledge.Entry{}, s.err
+	}
 	return knowledge.Entry{Scope: scope, Content: content, Revision: "rev-2"}, nil
 }
 

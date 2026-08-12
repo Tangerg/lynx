@@ -1,7 +1,18 @@
 // @vitest-environment node
 
 import { execFile } from "node:child_process";
-import { mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from "node:fs/promises";
+import {
+  chmod,
+  lstat,
+  mkdir,
+  mkdtemp,
+  readFile,
+  realpath,
+  rm,
+  stat,
+  symlink,
+  writeFile,
+} from "node:fs/promises";
 import {
   createServer as createHttpServer,
   type IncomingMessage,
@@ -2482,6 +2493,60 @@ for await (const line of lines) {
     });
     streamController.abort();
     await events.return?.();
+  }, 30_000);
+
+  it("confines knowledge symlinks to their scope and preserves the physical file", async () => {
+    if (!client) throw new Error("runtime client was not initialized");
+
+    const workspaceRoot = join(root, "workspace-knowledge-boundary");
+    const outside = join(root, "knowledge-outside.md");
+    await mkdir(workspaceRoot);
+    await writeFile(outside, "outside secret\n", { mode: 0o600 });
+    const alias = join(workspaceRoot, "LYRA.md");
+    await symlink(outside, alias);
+    const workspace = client.workspace({ path: workspaceRoot });
+
+    for (const request of [
+      () => workspace.knowledge.get("cwd"),
+      () => workspace.knowledge.list(),
+      () =>
+        workspace.knowledge.update({
+          scope: "cwd",
+          content: "must not escape\n",
+          expectedRevision:
+            "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+        }),
+    ]) {
+      await expect(request()).rejects.toSatisfy(
+        (error: unknown) =>
+          error instanceof RpcError && errorType(error.data) === "path_outside_root",
+      );
+    }
+    await expect(readFile(outside, "utf8")).resolves.toBe("outside secret\n");
+
+    await rm(alias);
+    const physical = join(workspaceRoot, "private", "knowledge.md");
+    await mkdir(join(workspaceRoot, "private"));
+    await writeFile(physical, "before\n", { mode: 0o600 });
+    await chmod(physical, 0o600);
+    await symlink(join("private", "knowledge.md"), alias);
+
+    const before = await workspace.knowledge.get("cwd");
+    expect(before).toMatchObject({ scope: "cwd", content: "before\n" });
+    const saved = await workspace.knowledge.update({
+      scope: "cwd",
+      content: "after\n",
+      expectedRevision: before.revision,
+    });
+    expect(saved).toMatchObject({ scope: "cwd", content: "after\n" });
+    expect((await lstat(alias)).isSymbolicLink()).toBe(true);
+    await expect(readFile(physical, "utf8")).resolves.toBe("after\n");
+    expect((await stat(physical)).mode & 0o777).toBe(0o600);
+    await expect(workspace.knowledge.list()).resolves.toMatchObject({
+      data: expect.arrayContaining([
+        expect.objectContaining({ scope: "cwd", content: "after\n", revision: saved.revision }),
+      ]),
+    });
   }, 30_000);
 
   it("round-trips project and user agent memory through durable cold reads", async () => {

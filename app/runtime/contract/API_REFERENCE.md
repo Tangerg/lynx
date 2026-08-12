@@ -88,9 +88,9 @@ Protocol `2026-08-12` (minimum supported `2026-08-12`) · 86 methods
 | `tools.invoke` | command | unary | replayResponse | none | — | `workspace_unavailable`, `path_outside_root` |
 | `usage.session` | query | unary | none | none | — | `session_not_found` |
 | `usage.summary` | query | unary | none | none | — | — |
-| `knowledge.list` | query | unary | none | none | `knowledge` | `workspace_unavailable`, `capability_not_negotiated` |
-| `knowledge.get` | query | unary | none | none | `knowledge` | `workspace_unavailable`, `capability_not_negotiated` |
-| `knowledge.update` | command | unary | replayResponse | none | `knowledge` | `workspace_unavailable`, `revision_conflict`, `capability_not_negotiated` |
+| `knowledge.list` | query | unary | none | none | `knowledge` | `workspace_unavailable`, `path_outside_root`, `capability_not_negotiated` |
+| `knowledge.get` | query | unary | none | none | `knowledge` | `workspace_unavailable`, `path_outside_root`, `capability_not_negotiated` |
+| `knowledge.update` | command | unary | replayResponse | none | `knowledge` | `workspace_unavailable`, `path_outside_root`, `revision_conflict`, `capability_not_negotiated` |
 | `agentMemory.list` | query | unary | none | none | `agentMemory` | `capability_not_negotiated` |
 | `agentMemory.review` | command | unary | replayResponse | none | `agentMemory` | `capability_not_negotiated` |
 | `agentMemory.update` | command | unary | replayResponse | none | `agentMemory` | `capability_not_negotiated` |

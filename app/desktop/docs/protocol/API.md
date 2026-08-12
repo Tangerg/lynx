@@ -806,6 +806,9 @@ provider 的 key，读取面自然回落到 `keySource:"env"`；环境值只参�
 `cwd`，但 `knowledge.get/update` 仍可用任一显式 scope 寻址。每个 `KnowledgeEntry` 都带非空 opaque `revision`；
 `knowledge.update` 必须回传最近读取的 `expectedRevision`，只在它仍匹配时原子替换，并返回包含新 revision 的权威条目。
 不匹配返回 `revision_conflict`；首次创建也使用空文档读取所得 revision。
+文档的 filesystem identity 必须解析后仍位于所选 scope 根内；越界 symlink 对 list/get/update 都返回
+`path_outside_root`。域内 symlink 保持为 alias，读、revision 比较和原子替换共同作用于同一 physical target；
+替换保留目标文件权限。多个 Runtime 进程对同一 physical document 的 CAS 也只有一个 winner。
 
 `agentMemory.list` / `agentMemory.add` 的 target 是闭合二选一：`scope:"project"` 必带 `workspace: WorkspaceRef`；
 `scope:"user"` 禁止 `workspace`。不再有“省略 scope 默认 project”或“user scope 带一个会被忽略的 workspace”这两种

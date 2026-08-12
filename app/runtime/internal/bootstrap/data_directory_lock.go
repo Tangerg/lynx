@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+
+	"github.com/Tangerg/lynx/app/runtime/internal/infra/advisorylock"
 )
 
 // ErrDataDirectoryInUse identifies an Open refusal caused by another Runtime
@@ -18,6 +20,7 @@ type dataDirectoryLease struct {
 	mu        sync.Mutex
 	directory string
 	file      *os.File
+	lock      *advisorylock.Lease
 	released  bool
 }
 
@@ -42,14 +45,15 @@ func acquireDataDirectoryLease(directory string) (*dataDirectoryLease, error) {
 	if err != nil {
 		return nil, fmt.Errorf("runtime: open data directory lock: %w", err)
 	}
-	if err := tryLockFile(file); err != nil {
+	lock, err := advisorylock.TryFile(file)
+	if err != nil {
 		_ = file.Close()
-		if isLockContention(err) {
+		if errors.Is(err, advisorylock.ErrContended) {
 			return nil, fmt.Errorf("%w: %s", ErrDataDirectoryInUse, canonical)
 		}
 		return nil, fmt.Errorf("runtime: lock data directory %q: %w", canonical, err)
 	}
-	return &dataDirectoryLease{directory: canonical, file: file}, nil
+	return &dataDirectoryLease{directory: canonical, file: file, lock: lock}, nil
 }
 
 func (l *dataDirectoryLease) release() error {
@@ -61,7 +65,7 @@ func (l *dataDirectoryLease) release() error {
 	if l.released {
 		return nil
 	}
-	if err := unlockFile(l.file); err != nil {
+	if err := l.lock.Release(); err != nil {
 		return fmt.Errorf("runtime: unlock data directory %q: %w", l.directory, err)
 	}
 	// Unlocking is the semantic release. Closing the regular lock-file handle

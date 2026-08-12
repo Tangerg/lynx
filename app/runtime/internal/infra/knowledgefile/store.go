@@ -5,21 +5,28 @@ package knowledgefile
 
 import (
 	"context"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/knowledge"
+	"github.com/Tangerg/lynx/app/runtime/internal/infra/advisorylock"
+	"github.com/Tangerg/lynx/app/runtime/internal/infra/pathidentity"
 )
 
 // knowledgeFileName is the on-disk file name for both scopes.
 // "LYRA.md" on disk; rendered through the knowledge store as a markdown
 // blob consumed as project or user knowledge.
 const knowledgeFileName = "LYRA.md"
+
+const stagedFilePrefix = ".LYRA.md.lyra-stage-"
 
 // Store persists human-authored knowledge to markdown files:
 //
@@ -34,8 +41,9 @@ const knowledgeFileName = "LYRA.md"
 type Store struct {
 	defaultWorkspaceDirectory string
 	userScopeDirectory        string
+	recoveredDirectories      map[string]struct{}
 
-	mu sync.Mutex // protects the file writes (paths differ but a single mutex is plenty for this volume)
+	mu sync.Mutex // serializes this Store's recovery and compare-and-replace decisions
 }
 
 // New binds both filesystem roots explicitly and only maps
@@ -56,14 +64,13 @@ func New(userScopeDirectory, defaultWorkspaceDirectory string) (*Store, error) {
 	return &Store{
 		defaultWorkspaceDirectory: defaultWorkspaceDirectory,
 		userScopeDirectory:        userScopeDirectory,
+		recoveredDirectories:      make(map[string]struct{}),
 	}, nil
 }
 
-// pathFor maps a (scope, dir) pair to its absolute filesystem path.
-// Empty dir falls back to the construction-time default. Returns an
-// empty path when the project scope has neither a dir nor a resolvable default,
-// while an unknown scope is rejected rather than reinterpreted as unavailable.
-func (s *Store) pathFor(scope knowledge.Scope, dir string) (string, error) {
+// rootFor maps a semantic scope to the filesystem root that contains its one
+// knowledge document. Physical identity and containment remain an Infra concern.
+func (s *Store) rootFor(scope knowledge.Scope, dir string) (string, error) {
 	switch scope {
 	case knowledge.ScopeCWD, knowledge.ScopeProjectRoot:
 		if dir == "" {
@@ -72,52 +79,153 @@ func (s *Store) pathFor(scope knowledge.Scope, dir string) (string, error) {
 		if !filepath.IsAbs(dir) {
 			return "", errors.New("project directory must be absolute")
 		}
-		return filepath.Join(dir, knowledgeFileName), nil
+		return filepath.Clean(dir), nil
 	case knowledge.ScopeHome:
-		return filepath.Join(s.userScopeDirectory, knowledgeFileName), nil
+		return s.userScopeDirectory, nil
 	default:
 		return "", scope.Validate()
 	}
 }
 
-func (s *Store) Get(_ context.Context, scope knowledge.Scope, dir string) (knowledge.Entry, error) {
-	path, err := s.pathFor(scope, dir)
+type document struct {
+	scope    knowledge.Scope
+	root     string
+	relative string
+	path     string
+}
+
+func (s *Store) documentFor(scope knowledge.Scope, dir string) (document, error) {
+	root, err := s.rootFor(scope, dir)
+	if err != nil {
+		return document{}, err
+	}
+	physicalRoot, err := pathidentity.Resolve("", root)
+	if err != nil {
+		return document{}, fmt.Errorf("resolve knowledge scope root %q: %w", root, err)
+	}
+	physicalPath, err := pathidentity.Resolve(physicalRoot, knowledgeFileName)
+	if err != nil {
+		return document{}, fmt.Errorf("resolve knowledge document in %q: %w", root, err)
+	}
+	inside, err := pathidentity.Contains(physicalRoot, physicalPath)
+	if err != nil {
+		return document{}, err
+	}
+	if !inside {
+		return document{}, fmt.Errorf("%w: %q resolves outside %q", knowledge.ErrPathOutsideScope, filepath.Join(root, knowledgeFileName), root)
+	}
+	relative, err := filepath.Rel(physicalRoot, physicalPath)
+	if err != nil {
+		return document{}, fmt.Errorf("make knowledge path relative to scope: %w", err)
+	}
+	return document{scope: scope, root: physicalRoot, relative: relative, path: physicalPath}, nil
+}
+
+func (s *Store) Get(ctx context.Context, scope knowledge.Scope, dir string) (knowledge.Entry, error) {
+	doc, err := s.documentFor(scope, dir)
 	if err != nil {
 		return knowledge.Entry{}, fmt.Errorf("knowledge store: resolve path: %w", err)
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return readEntry(scope, path)
+	entry, _, err := s.read(ctx, doc)
+	return entry, err
 }
 
-func readEntry(scope knowledge.Scope, path string) (knowledge.Entry, error) {
-	data, err := os.ReadFile(path)
+func (s *Store) read(ctx context.Context, doc document) (knowledge.Entry, os.FileMode, error) {
+	if err := s.recoverStagedFiles(ctx, doc, false); err != nil {
+		return knowledge.Entry{}, 0, err
+	}
+	root, err := os.OpenRoot(doc.root)
 	if errors.Is(err, os.ErrNotExist) {
-		return knowledge.Entry{Scope: scope, Path: path, Revision: contentRevision(nil)}, nil
+		return emptyEntry(doc), initialMode(doc.scope), nil
 	}
 	if err != nil {
-		return knowledge.Entry{}, fmt.Errorf("knowledge store: read %q: %w", path, err)
+		return knowledge.Entry{}, 0, fmt.Errorf("knowledge store: open scope root %q: %w", doc.root, err)
+	}
+	defer func() { _ = root.Close() }()
+	return readDocumentAt(root, doc)
+}
+
+func readDocumentAt(root *os.Root, doc document) (knowledge.Entry, os.FileMode, error) {
+	file, err := root.Open(doc.relative)
+	if errors.Is(err, os.ErrNotExist) {
+		return emptyEntry(doc), initialMode(doc.scope), nil
+	}
+	if err != nil {
+		return knowledge.Entry{}, 0, fmt.Errorf("knowledge store: open %q: %w", doc.path, err)
+	}
+	defer func() { _ = file.Close() }()
+	info, err := file.Stat()
+	if err != nil {
+		return knowledge.Entry{}, 0, fmt.Errorf("knowledge store: inspect %q: %w", doc.path, err)
+	}
+	if !info.Mode().IsRegular() {
+		return knowledge.Entry{}, 0, fmt.Errorf("knowledge store: %q is not a regular file", doc.path)
+	}
+	data, err := io.ReadAll(file)
+	if err != nil {
+		return knowledge.Entry{}, 0, fmt.Errorf("knowledge store: read %q: %w", doc.path, err)
 	}
 	entry := knowledge.Entry{
-		Scope: scope, Path: path, Content: string(data), Revision: contentRevision(data),
+		Scope: doc.scope, Path: doc.path, Content: string(data), Revision: contentRevision(data),
+		UpdatedAt: info.ModTime(),
 	}
-	if info, err := os.Stat(path); err == nil {
-		entry.UpdatedAt = info.ModTime()
-	}
-	return entry, nil
+	return entry, info.Mode().Perm(), nil
 }
 
-func (s *Store) Update(_ context.Context, scope knowledge.Scope, dir, expectedRevision, content string) (knowledge.Entry, error) {
-	path, err := s.pathFor(scope, dir)
-	if err != nil {
-		return knowledge.Entry{}, fmt.Errorf("knowledge store: resolve path: %w", err)
+func emptyEntry(doc document) knowledge.Entry {
+	return knowledge.Entry{Scope: doc.scope, Path: doc.path, Revision: contentRevision(nil)}
+}
+
+func initialMode(scope knowledge.Scope) os.FileMode {
+	if scope == knowledge.ScopeHome {
+		return 0o600
 	}
+	return 0o644
+}
+
+func initialDirectoryMode(scope knowledge.Scope) os.FileMode {
+	if scope == knowledge.ScopeHome {
+		return 0o700
+	}
+	return 0o755
+}
+
+func (s *Store) Update(ctx context.Context, scope knowledge.Scope, dir, expectedRevision, content string) (knowledge.Entry, error) {
 	if expectedRevision == "" {
 		return knowledge.Entry{}, knowledge.ErrRevisionRequired
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	current, err := readEntry(scope, path)
+	rootPath, err := s.rootFor(scope, dir)
+	if err != nil {
+		return knowledge.Entry{}, fmt.Errorf("knowledge store: resolve root: %w", err)
+	}
+	if err := os.MkdirAll(rootPath, initialDirectoryMode(scope)); err != nil {
+		return knowledge.Entry{}, fmt.Errorf("knowledge store: mkdir: %w", err)
+	}
+	doc, err := s.documentFor(scope, dir)
+	if err != nil {
+		return knowledge.Entry{}, fmt.Errorf("knowledge store: resolve path: %w", err)
+	}
+	root, err := os.OpenRoot(doc.root)
+	if err != nil {
+		return knowledge.Entry{}, fmt.Errorf("knowledge store: open scope root %q: %w", doc.root, err)
+	}
+	defer func() { _ = root.Close() }()
+	if err := root.MkdirAll(filepath.Dir(doc.relative), initialDirectoryMode(scope)); err != nil {
+		return knowledge.Entry{}, fmt.Errorf("knowledge store: create document directory: %w", err)
+	}
+	lease, err := advisorylock.AcquireDirectory(ctx, filepath.Dir(doc.path))
+	if err != nil {
+		return knowledge.Entry{}, fmt.Errorf("knowledge store: acquire document lease: %w", err)
+	}
+	defer func() { _ = lease.Release() }()
+	if err := s.recoverStagedFilesAt(root, doc, true); err != nil {
+		return knowledge.Entry{}, err
+	}
+	current, mode, err := readDocumentAt(root, doc)
 	if err != nil {
 		return knowledge.Entry{}, err
 	}
@@ -125,26 +233,18 @@ func (s *Store) Update(_ context.Context, scope knowledge.Scope, dir, expectedRe
 		return knowledge.Entry{}, knowledge.ErrRevisionConflict
 	}
 
-	// Ensure the parent directory exists. The persistence bundle creates the
-	// process data directory eagerly; a project directory can be supplied later
-	// by a Session and therefore remains a per-write responsibility here.
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return knowledge.Entry{}, fmt.Errorf("knowledge store: mkdir: %w", err)
-	}
-
-	tmp, err := os.CreateTemp(filepath.Dir(path), "."+knowledgeFileName+"-*")
+	tmp, tmpPath, err := createTemporary(root, doc.relative)
 	if err != nil {
 		return knowledge.Entry{}, fmt.Errorf("knowledge store: create temporary file: %w", err)
 	}
-	tmpPath := tmp.Name()
-	defer func() { _ = os.Remove(tmpPath) }()
-	if err := tmp.Chmod(0o644); err != nil {
-		_ = tmp.Close()
-		return knowledge.Entry{}, fmt.Errorf("knowledge store: set temporary file mode: %w", err)
-	}
+	defer func() { _ = root.Remove(tmpPath) }()
 	if _, err := tmp.WriteString(content); err != nil {
 		_ = tmp.Close()
 		return knowledge.Entry{}, fmt.Errorf("knowledge store: write temporary file: %w", err)
+	}
+	if err := tmp.Chmod(mode); err != nil {
+		_ = tmp.Close()
+		return knowledge.Entry{}, fmt.Errorf("knowledge store: set temporary file mode: %w", err)
 	}
 	if err := tmp.Sync(); err != nil {
 		_ = tmp.Close()
@@ -153,20 +253,123 @@ func (s *Store) Update(_ context.Context, scope knowledge.Scope, dir, expectedRe
 	if err := tmp.Close(); err != nil {
 		return knowledge.Entry{}, fmt.Errorf("knowledge store: close temporary file: %w", err)
 	}
-	if err := os.Rename(tmpPath, path); err != nil {
+	if err := root.Rename(tmpPath, doc.relative); err != nil {
 		return knowledge.Entry{}, fmt.Errorf("knowledge store: rename: %w", err)
 	}
+	committed := knowledge.Entry{
+		Scope: doc.scope, Path: doc.path, Content: content, Revision: contentRevision([]byte(content)),
+	}
+	if info, err := root.Stat(doc.relative); err == nil {
+		committed.UpdatedAt = info.ModTime()
+	}
+	// A directory sync strengthens crash durability on filesystems that support
+	// it. The rename is already committed, so a platform-specific sync refusal
+	// cannot be returned as a command failure without making settlement ambiguous.
+	syncCommittedDirectory(root, filepath.Dir(doc.relative))
 	// The replacement is already committed. Build the authoritative response
 	// from the exact bytes we wrote so a transient post-rename read failure can
 	// never turn a successful mutation into an apparent failure that a client
 	// might retry with an obsolete revision.
-	entry := knowledge.Entry{
-		Scope: scope, Path: path, Content: content, Revision: contentRevision([]byte(content)),
+	return committed, nil
+}
+
+func createTemporary(root *os.Root, target string) (*os.File, string, error) {
+	directory := filepath.Dir(target)
+	for range 10 {
+		path := filepath.Join(directory, stagedFilePrefix+rand.Text())
+		file, err := root.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+		if errors.Is(err, os.ErrExist) {
+			continue
+		}
+		if err != nil {
+			return nil, "", err
+		}
+		return file, path, nil
 	}
-	if info, err := os.Stat(path); err == nil {
-		entry.UpdatedAt = info.ModTime()
+	return nil, "", errors.New("knowledge store: temporary file name collisions exhausted")
+}
+
+func removeStagedFiles(root *os.Root, target string) error {
+	directoryPath := filepath.Dir(target)
+	directory, err := root.Open(directoryPath)
+	if err != nil {
+		return err
 	}
-	return entry, nil
+	entries, readErr := directory.ReadDir(-1)
+	closeErr := directory.Close()
+	if err := errors.Join(readErr, closeErr); err != nil {
+		return err
+	}
+	for _, entry := range entries {
+		if !isStagedFileName(entry.Name()) {
+			continue
+		}
+		path := filepath.Join(directoryPath, entry.Name())
+		info, err := root.Lstat(path)
+		if errors.Is(err, os.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			return err
+		}
+		if !info.Mode().IsRegular() {
+			continue
+		}
+		if err := root.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *Store) recoverStagedFiles(ctx context.Context, doc document, force bool) error {
+	directoryPath := filepath.Dir(doc.path)
+	if _, recovered := s.recoveredDirectories[directoryPath]; recovered && !force {
+		return nil
+	}
+	if _, err := os.Stat(directoryPath); errors.Is(err, os.ErrNotExist) {
+		return nil
+	} else if err != nil {
+		return fmt.Errorf("knowledge store: inspect document directory: %w", err)
+	}
+	lease, err := advisorylock.AcquireDirectory(ctx, directoryPath)
+	if err != nil {
+		return fmt.Errorf("knowledge store: acquire document lease: %w", err)
+	}
+	defer func() { _ = lease.Release() }()
+	root, err := os.OpenRoot(doc.root)
+	if err != nil {
+		return fmt.Errorf("knowledge store: open scope root %q: %w", doc.root, err)
+	}
+	defer func() { _ = root.Close() }()
+	return s.recoverStagedFilesAt(root, doc, force)
+}
+
+func (s *Store) recoverStagedFilesAt(root *os.Root, doc document, force bool) error {
+	directoryPath := filepath.Dir(doc.path)
+	if _, recovered := s.recoveredDirectories[directoryPath]; recovered && !force {
+		return nil
+	}
+	if err := removeStagedFiles(root, doc.relative); err != nil {
+		return fmt.Errorf("knowledge store: recover staged files: %w", err)
+	}
+	s.recoveredDirectories[directoryPath] = struct{}{}
+	return nil
+}
+
+func isStagedFileName(name string) bool {
+	suffix, ok := strings.CutPrefix(name, stagedFilePrefix)
+	if !ok || len(suffix) < 26 {
+		return false
+	}
+	for _, character := range suffix {
+		letter := character >= 'A' && character <= 'Z'
+		digit := character >= '2' && character <= '7'
+		if !letter && !digit {
+			return false
+		}
+	}
+	return true
 }
 
 func contentRevision(content []byte) string {
@@ -179,33 +382,29 @@ func contentRevision(content []byte) string {
 // is emitted once as cwd rather than duplicated under two scopes. Empty documents
 // remain addressable and carry the revision a conditional create must use.
 func (s *Store) List(ctx context.Context, cwd, projectRoot string) ([]knowledge.Entry, error) {
-	type target struct {
-		scope knowledge.Scope
-		dir   string
+	homeDocument, err := s.documentFor(knowledge.ScopeHome, "")
+	if err != nil {
+		return nil, fmt.Errorf("knowledge store: resolve home path: %w", err)
 	}
-	targets := []target{{scope: knowledge.ScopeHome}}
-	cwdPath, err := s.pathFor(knowledge.ScopeCWD, cwd)
+	cwdDocument, err := s.documentFor(knowledge.ScopeCWD, cwd)
 	if err != nil {
 		return nil, fmt.Errorf("knowledge store: resolve cwd path: %w", err)
 	}
-	projectPath, err := s.pathFor(knowledge.ScopeProjectRoot, projectRoot)
+	projectDocument, err := s.documentFor(knowledge.ScopeProjectRoot, projectRoot)
 	if err != nil {
 		return nil, fmt.Errorf("knowledge store: resolve project-root path: %w", err)
 	}
-	if projectPath != cwdPath {
-		targets = append(targets, target{scope: knowledge.ScopeProjectRoot, dir: projectRoot})
+	targets := []document{homeDocument}
+	if projectDocument.path != cwdDocument.path {
+		targets = append(targets, projectDocument)
 	}
-	targets = append(targets, target{scope: knowledge.ScopeCWD, dir: cwd})
+	targets = append(targets, cwdDocument)
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	out := make([]knowledge.Entry, 0, len(targets))
 	for _, target := range targets {
-		path, err := s.pathFor(target.scope, target.dir)
-		if err != nil {
-			return nil, fmt.Errorf("knowledge store: resolve listed path: %w", err)
-		}
-		entry, err := readEntry(target.scope, path)
+		entry, _, err := s.read(ctx, target)
 		if err != nil {
 			return nil, err
 		}

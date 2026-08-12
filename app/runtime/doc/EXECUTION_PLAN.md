@@ -1246,10 +1246,31 @@
 - Frontend Knowledge/Hook/Event 聚焦 6 文件/24 测试、typecheck/lint/format 与 API consumer 门禁全绿；真实 HTTP Knowledge 与 Hook trust 两条纵切均通过；
 - Runtime standalone tidy/build/vet/test 与 Frontend 270 文件/1627 测试及全部架构、本地化、bundle 门禁全绿。真实浏览器证明首次创建、clean event refresh、dirty conflict/rebase/second-save 和 Hook 同步双击 latch；Agent 与 Agent Framework 零修改、零 Runtime/Knowledge/Hook 抽象新增，SQLite/Artifact shape 不变。
 
-## 55. 进度记录
+## 55. P51 — Knowledge filesystem identity 与 crash-safe CAS
+
+### 目标
+
+关闭 P50 条件更新在文件系统边界的反例：`LYRA.md` symlink 可越过 semantic scope 读取外部内容，域内 symlink 写入会替换 alias，原子替换会放宽已有权限，多个独立 Runtime 进程仍可同时赢得同一 revision；进程在 publish 前退出还会遗留 staging。修复必须留在 Infra/Application/Delivery 的既有 owner，Agent/Agent Framework 对 physical path、锁与 revision 零感知。
+
+### 工作项
+
+- [x] P51-01 Knowledge Infra 通过唯一 `pathidentity` 解析 scope root 与 document physical identity，越界 symlink fail closed；域内 symlink 的读、CAS、写与来源路径共同指向同一 physical target；
+- [x] P51-02 新建中性 `infra/advisorylock` 原语，Unix 使用 physical directory handle、Windows 使用固定 owner thread 的 path-keyed mutex；Bootstrap 单实例 lease 与 Knowledge document CAS 分别消费并保留自己的错误/生命周期语义；
+- [x] P51-03 revision compare、权限继承、私有 staging、file fsync、atomic rename 与 parent-directory sync 位于同一跨进程 lease；cold get/list/update 回收严格命名的 crash staging；
+- [x] P51-04 Domain 只表达 scope containment failure，Application 翻译为既有 workspace path policy，Delivery 为 knowledge.list/get/update 声明 `path_outside_root`；生成合同与 Desktop wire 同步；
+- [x] P51-05 单进程、跨进程、symlink alias、权限、强杀恢复、race、Windows 交叉编译与真实 HTTP case 覆盖完整纵切。
+
+### 验收
+
+- 12 轮、每轮 12 个独立进程持同一 revision 并发写均恰好一个 winner；12 轮真实子进程在 64 MiB staging 写入中被强杀，cold read 保持旧 committed content 并回收 orphan，后续 CAS 成功；
+- focused Domain/Application/Infra/Delivery/Bootstrap、race 与 Windows advisorylock/knowledgefile/bootstrap 三包交叉编译全绿；真实 HTTP 验证三条 API 的外链拒绝，以及域内 symlink/0600 physical target 的 get/update/list；
+- Runtime/Protocol 文档与机器合同同步；Agent/Agent Framework、SQLite、Artifact shape 均未变化，Desktop 只消费既有中性 `path_outside_root`。
+
+## 56. 进度记录
 
 | 日期 | 阶段 | 完成事实 | 验证 |
 |---|---|---|---|
+| 2026-08-13 | P51（Knowledge physical identity / cross-process CAS / crash recovery） | Knowledge Infra 以唯一 physical identity 将 containment、read/revision/atomic replacement 对齐；域外 symlink fail closed，域内 alias 保持，目标 mode 继承。中性 advisory-lock 同时承载 Bootstrap 单实例 lease 与 Knowledge 跨进程 document lease，但错误与生命周期仍各归 owner；strict staging 在 cold read 回收。Application/Delivery 只投影既有 path policy/problem，Agent/Framework、SQLite、Artifact 不变 | 12×12 独立进程 CAS 恰好一个 winner；12 轮 64 MiB staging 强杀后旧 content 完整、orphan cold recovery、后续写成功；Runtime standalone、Frontend 270 文件/1628 测试及 86/86 operations + 12/12 events、focused/race/Windows 三包交叉编译全绿；真实 HTTP/浏览器验证三 API 外链拒绝及域内 symlink、0600 权限、physical target 写回，page/业务 console error 为零 |
 | 2026-08-12 | P50（Knowledge CAS / dedicated invalidations / Desktop conflict recovery） | Runtime Knowledge 由无条件覆盖改为 opaque content revision 条件更新，空文档保持可寻址，成功写返回权威 Entry 并发 `knowledge.changed`；Hook trust 成功提交发 `hooks.changed`。Desktop Adapter 独占 wire/错误映射，Workspace editor 保留脏草稿并在冲突后显式 rebase，Hook mutation 按 project 串行且 UI latch 阻止重复意图。Agent/Framework、SQLite、Artifact shape 均未变化 | Runtime standalone 全绿；Frontend 270 文件/1627 测试、95 public edges、981×8 locales、bundle、86/86 operations + 12/12 events / 103 typed call sites全绿。真实 HTTP 验证首次空文档创建、三 scope CAS、stale revision 拒绝、清空可寻址和两类 committed invalidation；真实浏览器验证 clean refresh、dirty conflict/rebase/second-save 与 Hook 同步双击 latch，page error/业务 console error 为零 |
 | 2026-08-12 | P49（mutation authoritative facts / concurrency / context ownership） | Desktop Provider、Approval、MCP、Agent Memory、Codebase mutation 均由所属 Adapter 将 Runtime response 投影为中性资源，所属 Application 在线性化队列中先提交权威 fact 再失效重验；MCP data provider/wire projection 从 defaults 收回 MCP context，Provider `requiresBaseUrl` 进入产品模型。真实联调发现 Provider 保存后草稿没有采用规范化返回值，现以 saved resource 重建草稿。Agent context 未导入 MCP/Provider/Workspace wire 或 Runtime DTO，Runtime/Protocol/SQLite/Framework 未变化 | 红测覆盖非 void 结果丢弃、队列失败恢复/冲突域、返回事实写回、Memory update→delete、MCP toggle/delete、Provider endpoint 必填/trim/UI authoritative reset；真实浏览器覆盖 Approval 快速连点、MCP 全生命周期、Provider、Memory、Plan、HITL approve/reject 与三轮 Goal。Frontend 完整门禁 269 文件/1621 测试、95 public edges、86/86 operations + 10/10 events / 103 typed call sites、981×8 locales 和 bundle 全绿；Runtime standalone tidy/build/vet/test 全绿 |
 | 2026-08-12 | P48（API response / identity lifecycle consumption） | Desktop Workspace subscription 的 generation signal 从 Application consumer port 经 Workspace Adapter、SDK 到 `sessions.get`，retarget/dispose 真实取消旧身份读取。Schedule Adapter/Application 保留 `runNow` 的 Session/Run identity 并经 Agent 公开会话动作进入既有 durable recovery；enablement 先提交后端返回的新 revision 再失效重验。wire/transport 只停留在 Adapter/SDK，Agent 内层与 Runtime/Protocol/SQLite shape 均未变化 | Application/Adapter/SDK 三层红测和 Schedule 返回事实红测转绿；隔离 Runtime/真实浏览器证明 `runNow` 自动打开目标 Session、接管流并得到 `P48_SCHEDULE_DONE.`，连续关闭/开启后 SQLite revision 单调到 4、唯一 Run terminal completed，page error 为零。Frontend 完整门禁 257 文件/1591 测试及全部结构/消费/bundle 检查通过；Runtime standalone tidy/build/vet/test 全绿；API consumer 为 86/86 operations、10/10 events、103 typed call sites |

@@ -35,8 +35,8 @@ Digest 只用于发现未审计漂移，不能替代语义测试。
 
 | 制品 | SHA-256 |
 |---|---|
-| `contract/manifest.json` | `08e418bcf680589bc837876dbc02fc2555a0d149e22cc47f61b71e4b050442b8` |
-| `contract/openrpc.json` | `a257c8602f969abb0b2057728e2ffa7e365bf6b196e6e41b68b50d131952db1b` |
+| `contract/manifest.json` | `9f2e9091b5b712bd8bef8ac5b6ca2631b0d151f3a2e5fafd57347ae08bba9905` |
+| `contract/openrpc.json` | `53c158a7abd70995f1e740b268569bda06c604008a14164a725ce318720f5b3d` |
 | `contract/schema.json` | `283877061d2720f4813b9c86e1539da7e6257677c43c3d8ba8d35c77d43c10be` |
 | `contract/go-api.json` | `f66471d817f690405fe8b8aea9ab14aa7d07bf7e3ee93d633ce44026ae29d115` |
 
@@ -57,6 +57,10 @@ Goal read model 的 `status:"completing"` 精确表示模型已声明 objective 
 Knowledge 条目以内容摘要作为 opaque revision。`knowledge.list/get` 即使文件尚不存在也返回可用于首次条件创建的 revision；
 `knowledge.update` 必须携带 `expectedRevision`，在 Infra 的同路径原子替换边界比较并返回 committed Entry，不匹配以
 `revision_conflict` fail closed。Application 只在成功提交后发布 `knowledge.changed`；Hook trust 同理发布 `hooks.changed`。
+三条 Knowledge operation 都将 physical document 越过 semantic scope root 投影为 `path_outside_root`。Infra 解析唯一 physical
+identity 后才读写，域内 symlink 的 alias 本身保持不变；跨进程 directory lease 包围 revision compare、权限继承、临时文件 fsync、
+原子 rename 和父目录 sync，cold read 回收严格命名的 pre-publish staging。进程崩溃后的可见内容只能是上一 committed revision 或完整
+新 revision。
 这些 topic 是失效事实，不携带配置值，Desktop Adapter 将 wire 投影为 Workspace/Hook 自有模型，Agent Framework 零感知。
 
 公共 Go surface 只有 `runtime/protocol` 与 `runtime/embedded`，由生成的 `contract/go-api.json` 完整冻结。`protocol` 只公开 binding-neutral values、strict validation、版本、稳定错误 identity 与 `ProblemError`；`embedded` 只公开 concrete Runtime lifecycle、准确 options 和类型化 operation methods。服务端 method interface、request context plumbing、numeric JSON-RPC code、reflection shape walker、artifact catalogue、Host、Store、Engine 和 Router 均属于 `internal`，不构成公共 Go surface。

@@ -8,14 +8,18 @@ import (
 
 func registerKnowledge(registry *Registry) {
 	Query(registry, MethodMeta{
-		Name: "knowledge.list", Errors: []string{protocol.ErrWorkspaceUnavailable.Error()},
+		Name: "knowledge.list", Errors: []string{
+			protocol.ErrWorkspaceUnavailable.Error(), protocol.ErrPathOutsideRoot.Error(),
+		},
 		CapabilityRules: requires(protocol.FeatureKnowledge), Stability: stable,
 	}, func(service Service, ctx context.Context, request protocol.WorkspaceQuery) (*protocol.Page[protocol.KnowledgeEntry], error) {
 		return service.ListKnowledge(ctx, request)
 	})
 
 	Query(registry, MethodMeta{
-		Name: "knowledge.get", Errors: []string{protocol.ErrWorkspaceUnavailable.Error()},
+		Name: "knowledge.get", Errors: []string{
+			protocol.ErrWorkspaceUnavailable.Error(), protocol.ErrPathOutsideRoot.Error(),
+		},
 		CapabilityRules: requires(protocol.FeatureKnowledge), Stability: stable,
 	}, func(service Service, ctx context.Context, request protocol.GetKnowledgeRequest) (*protocol.KnowledgeEntry, error) {
 		return service.GetKnowledge(ctx, request)
@@ -23,7 +27,8 @@ func registerKnowledge(registry *Registry) {
 
 	Command(registry, MethodMeta{
 		Name: "knowledge.update", Errors: []string{
-			protocol.ErrWorkspaceUnavailable.Error(), protocol.ErrRevisionConflict.Error(),
+			protocol.ErrWorkspaceUnavailable.Error(), protocol.ErrPathOutsideRoot.Error(),
+			protocol.ErrRevisionConflict.Error(),
 		},
 		CapabilityRules: requires(protocol.FeatureKnowledge), Stability: stable,
 	}, func(service Service, ctx context.Context, request protocol.UpdateKnowledgeRequest) (*protocol.KnowledgeEntry, error) {

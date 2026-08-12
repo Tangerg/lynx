@@ -177,6 +177,17 @@ func TestUpdateKnowledgeMapsStaleRevisionToProtocolConflict(t *testing.T) {
 	}
 }
 
+func TestKnowledgeHandlersMapPhysicalPathEscape(t *testing.T) {
+	s := serverWithKnowledge(&fakeKnowledgeStore{updateErr: knowledge.ErrPathOutsideScope})
+
+	_, err := s.UpdateKnowledge(t.Context(), protocol.UpdateKnowledgeRequest{
+		Scope: protocol.KnowledgeScopeHome, ExpectedRevision: "rev-1", Content: "outside",
+	})
+	if !errors.Is(err, protocol.ErrPathOutsideRoot) {
+		t.Fatalf("UpdateKnowledge error = %v, want path_outside_root", err)
+	}
+}
+
 func TestKnowledgeMappingRejectsUnknownScopes(t *testing.T) {
 	s := serverWithKnowledge(&fakeKnowledgeStore{})
 

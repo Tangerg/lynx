@@ -1001,6 +1001,7 @@
       "pagination": "none",
       "errors": [
         "workspace_unavailable",
+        "path_outside_root",
         "capability_not_negotiated"
       ],
       "features": [
@@ -1016,6 +1017,7 @@
       "pagination": "none",
       "errors": [
         "workspace_unavailable",
+        "path_outside_root",
         "capability_not_negotiated"
       ],
       "features": [
@@ -1031,6 +1033,7 @@
       "pagination": "none",
       "errors": [
         "workspace_unavailable",
+        "path_outside_root",
         "revision_conflict",
         "capability_not_negotiated"
       ],
@@ -1287,6 +1290,9 @@
         "code": -32013,
         "recoveryAction": "promptUser",
         "methods": [
+          "knowledge.get",
+          "knowledge.list",
+          "knowledge.update",
           "tools.invoke",
           "workspace.diff.get",
           "workspace.files.head",
