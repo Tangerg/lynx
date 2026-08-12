@@ -360,7 +360,7 @@ func (r *delayedFirstRuntime) StartRun(ctx context.Context, input agent.StartRun
 
 func (r *replayingResumeRuntime) ResumeRun(ctx context.Context, input agent.ResumeRun) (agent.SegmentStream, error) {
 	r.mu.Lock()
-	r.attempts = append(r.attempts, input)
+	r.attempts = append(r.attempts, input.Clone())
 	attempt := len(r.attempts)
 	cached := r.stream
 	r.mu.Unlock()
@@ -380,12 +380,12 @@ func (r *replayingResumeRuntime) ResumeRun(ctx context.Context, input agent.Resu
 func (r *replayingResumeRuntime) resumeAttempts() []agent.ResumeRun {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	return slices.Clone(r.attempts)
+	return cloneResumeRuns(r.attempts)
 }
 
 func (r *refusingFirstResumeRuntime) ResumeRun(ctx context.Context, input agent.ResumeRun) (agent.SegmentStream, error) {
 	r.mu.Lock()
-	r.attempts = append(r.attempts, input)
+	r.attempts = append(r.attempts, input.Clone())
 	attempt := len(r.attempts)
 	r.mu.Unlock()
 	if attempt == 1 {
@@ -397,7 +397,15 @@ func (r *refusingFirstResumeRuntime) ResumeRun(ctx context.Context, input agent.
 func (r *refusingFirstResumeRuntime) resumeAttempts() []agent.ResumeRun {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	return slices.Clone(r.attempts)
+	return cloneResumeRuns(r.attempts)
+}
+
+func cloneResumeRuns(values []agent.ResumeRun) []agent.ResumeRun {
+	cloned := make([]agent.ResumeRun, len(values))
+	for index, value := range values {
+		cloned[index] = value.Clone()
+	}
+	return cloned
 }
 
 func TestMockConversationStreamsApprovalAndCompletes(t *testing.T) {
@@ -483,12 +491,36 @@ func TestRejectedApprovalResumePreservesTheReviewAndUsesANewIdentity(t *testing.
 	stop()
 }
 
-func TestPendingApprovalResumeSurvivesRestartAndReplaysTheSameIdentity(t *testing.T) {
+func TestPendingMixedInteractionResumeSurvivesRestartWithoutLosingAnswers(t *testing.T) {
 	base := mock.New()
 	base.Instant = true
+	base.Script = func(string) mock.Script {
+		return mock.Script{
+			Interactions: []agent.Interaction{
+				agent.Approval{
+					ItemID: "approval", Title: "Run checks", Rememberable: true,
+					RuleHint: "shell:go test ./...",
+					Tool: &agent.ToolCall{
+						Kind: agent.ToolShell, Name: "shell", Command: "go test ./...", Status: agent.ToolRunning,
+						ArgumentsJSON: []byte(`{"command":"go test ./...","count":1}`),
+					},
+				},
+				agent.Question{
+					ItemID: "question", Title: "Choose targets",
+					Fields: []agent.QuestionField{
+						{Prompt: "Reason", Kind: agent.QuestionText},
+						{Prompt: "Platforms", Kind: agent.QuestionMulti, AllowCustom: true, Options: []agent.QuestionOption{{Label: "linux"}, {Label: "darwin"}}},
+					},
+				},
+			},
+			Continue: func([]agent.InterruptAnswer) []mock.Step {
+				return []mock.Step{{Event: agent.RunFinished{Outcome: agent.Outcome{Status: agent.OutcomeCompleted}}}}
+			},
+		}
+	}
 	opened, err := base.StartRun(t.Context(), agent.StartRun{
 		CommandID: agent.CommandID("cli_55555555555555555555555555555555"),
-		SessionID: "ses_demo_1", Message: agent.Message{Text: "persist approval delivery"},
+		SessionID: "ses_demo_1", Message: agent.Message{Text: "persist mixed interaction delivery"},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -502,16 +534,28 @@ func TestPendingApprovalResumeSurvivesRestartAndReplaysTheSameIdentity(t *testin
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(snapshot.Interactions) != 1 {
+	if len(snapshot.Interactions) != 2 {
 		t.Fatalf("waiting interactions = %+v", snapshot.Interactions)
+	}
+	override, err := agent.ParseToolArgumentOverride([]byte(`{"command":"go test -race ./...","count":20}`))
+	if err != nil {
+		t.Fatal(err)
 	}
 	command := agent.ResumeRun{
 		CommandID: agent.CommandID("cli_66666666666666666666666666666666"),
 		RunID:     opened.RunID,
-		Answers: []agent.InterruptAnswer{{
-			ItemID: agent.InteractionItemID(snapshot.Interactions[0]),
-			Answer: agent.ApprovalAnswer{Decision: agent.ApprovalApprove},
-		}},
+		Answers: []agent.InterruptAnswer{
+			{
+				ItemID: agent.InteractionItemID(snapshot.Interactions[0]),
+				Answer: agent.ApprovalAnswer{
+					Decision: agent.ApprovalApprove, Remember: agent.RememberProject, ArgumentOverride: override,
+				},
+			},
+			{
+				ItemID: agent.InteractionItemID(snapshot.Interactions[1]),
+				Answer: agent.QuestionAnswer{Values: [][]string{{"portable"}, {"linux", "freebsd"}}},
+			},
+		},
 	}
 	stateDirectory := t.TempDir()
 	store, err := workbench.Open(stateDirectory, workbench.Config{})
@@ -534,12 +578,40 @@ func TestPendingApprovalResumeSurvivesRestartAndReplaysTheSameIdentity(t *testin
 		attempts[1].CommandID != command.CommandID {
 		t.Fatalf("resume attempts after restart = %+v", attempts)
 	}
+	for index, attempt := range attempts[:2] {
+		if len(attempt.Answers) != 2 {
+			t.Fatalf("resume attempt %d answers = %+v", index+1, attempt.Answers)
+		}
+		approval, ok := attempt.Answers[0].Answer.(agent.ApprovalAnswer)
+		if !ok || approval.Decision != agent.ApprovalApprove || approval.Remember != agent.RememberProject ||
+			approval.ArgumentOverride == nil ||
+			string(approval.ArgumentOverride.JSON()) != `{"command":"go test -race ./...","count":20}` {
+			t.Fatalf("resume attempt %d approval = %#v", index+1, attempt.Answers[0].Answer)
+		}
+		question, ok := attempt.Answers[1].Answer.(agent.QuestionAnswer)
+		if !ok || !slices.Equal(question.Values[0], []string{"portable"}) ||
+			!slices.Equal(question.Values[1], []string{"linux", "freebsd"}) {
+			t.Fatalf("resume attempt %d question = %#v", index+1, attempt.Answers[1].Answer)
+		}
+	}
 	store, err = workbench.Open(stateDirectory, workbench.Config{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if pending, ok := store.PendingResume("ses_demo_1"); ok {
 		t.Fatalf("acknowledged resume remains = %+v", pending)
+	}
+	completed, err := base.GetSession(t.Context(), "ses_demo_1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	approvalID := agent.InteractionItemID(snapshot.Interactions[0])
+	index := slices.IndexFunc(completed.Transcript, func(block agent.Block) bool {
+		return block.RunID == opened.RunID && block.ID == approvalID
+	})
+	if index < 0 || completed.Transcript[index].Tool == nil ||
+		string(completed.Transcript[index].Tool.ArgumentsJSON) != `{"command":"go test -race ./...","count":20}` {
+		t.Fatalf("completed approval after restart = %+v", completed.Transcript)
 	}
 	stop()
 }
