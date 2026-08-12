@@ -63,7 +63,7 @@ export interface AgentRuntimeGateway {
    *  events are gone for good; the items they produced are not, so the answer is a
    *  cold history read plus a tail attach — not a retry of the same cursor. */
   isReplayLost(error: unknown): boolean;
-  setApprovalMode(mode: ApprovalMode): Promise<void>;
+  setApprovalMode(mode: ApprovalMode): Promise<ApprovalMode>;
   forgetApprovalRule(id: string): Promise<void>;
 }
 

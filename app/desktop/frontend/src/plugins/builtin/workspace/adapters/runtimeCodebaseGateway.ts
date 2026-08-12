@@ -15,7 +15,8 @@ const gateway: CodebaseGateway = {
     const workspace = await getContainer()
       .client()
       .workspaces.open(cwd ? { path: cwd } : undefined);
-    await workspace.codebase.reindex();
+    const operation = await workspace.codebase.reindex();
+    return { operationId: operation.operationId };
   },
 };
 

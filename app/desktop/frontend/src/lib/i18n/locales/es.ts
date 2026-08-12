@@ -268,7 +268,7 @@ export const es: Record<string, string> = {
   "providers.apiKey.clear": "Quitar clave guardada",
   "providers.apiKey.placeholder": "Clave de API",
   "providers.apiKey.aria": "Clave de API de {{provider}}",
-  "providers.baseUrl.placeholder": "URL base (anulación opcional)",
+  "providers.baseUrl.placeholder": "URL base",
   "providers.baseUrl.aria": "URL base de {{provider}}",
   "providers.key": "clave {{masked}}",
   "providers.notConfigured": "sin configurar",

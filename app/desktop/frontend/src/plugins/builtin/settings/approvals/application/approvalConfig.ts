@@ -21,8 +21,8 @@ export function useApprovalRuleConfigs(sessionId: string | undefined) {
   return useApprovalRules(sessionId ? { sessionId } : undefined);
 }
 
-export async function saveApprovalMode(mode: ApprovalMode): Promise<void> {
-  await setApprovalMode(mode);
+export function saveApprovalMode(mode: ApprovalMode): Promise<ApprovalMode> {
+  return setApprovalMode(mode);
 }
 
 export async function forgetApprovalRule(id: string): Promise<void> {

@@ -266,7 +266,7 @@ export const ko: Record<string, string> = {
   "providers.apiKey.clear": "저장된 키 제거",
   "providers.apiKey.placeholder": "API 키",
   "providers.apiKey.aria": "{{provider}} API 키",
-  "providers.baseUrl.placeholder": "기본 URL(선택적 재정의)",
+  "providers.baseUrl.placeholder": "기본 URL",
   "providers.baseUrl.aria": "{{provider}} 기본 URL",
   "providers.key": "키 {{masked}}",
   "providers.notConfigured": "미설정",

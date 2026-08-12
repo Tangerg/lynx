@@ -270,7 +270,7 @@ export const fr: Record<string, string> = {
   "providers.apiKey.clear": "Supprimer la clé enregistrée",
   "providers.apiKey.placeholder": "Clé API",
   "providers.apiKey.aria": "Clé API {{provider}}",
-  "providers.baseUrl.placeholder": "URL de base (remplacement facultatif)",
+  "providers.baseUrl.placeholder": "URL de base",
   "providers.baseUrl.aria": "URL de base {{provider}}",
   "providers.key": "clé {{masked}}",
   "providers.notConfigured": "non configuré",

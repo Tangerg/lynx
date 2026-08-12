@@ -7,11 +7,6 @@ import { AGENT_SESSIONS_KEY } from "@/plugins/builtin/agent/public/session";
 import { RECIPES_KEY, type RecipesQuery } from "@/plugins/builtin/chat/recipes/public/queries";
 import { HOOKS_KEY, type HooksQuery } from "@/plugins/builtin/settings/hooks/public/queries";
 import {
-  MCP_SERVERS_KEY,
-  MCP_TOOLS_KEY,
-  type McpToolsQuery,
-} from "@/plugins/builtin/settings/mcp-servers/public/queries";
-import {
   CODEBASE_STATUS_KEY,
   EMBEDDING_ROLE_KEY,
   MODELS_KEY,
@@ -59,7 +54,6 @@ import type { Schedule } from "@/rpc";
 import { runtimeCapability } from "@/plugins/builtin/runtime/public/capabilities";
 import {
   emptyListIfUngated,
-  toMCPServerSettings,
   toWorkspaceFileChangeSummary,
   toWorkspaceProjectSummary,
   toAgentSessionSummary,
@@ -113,22 +107,6 @@ export function registerDefaultDataProviders(host: ContributingHost): void {
       const resources = await workspace(optionalParams<WorkspaceFileChangesQuery>(params)?.cwd);
       return (await pageData(resources.changes.list())).map(toWorkspaceFileChangeSummary);
     },
-  });
-  contribute({
-    key: MCP_SERVERS_KEY,
-    // One server entry carries both configuration and live state. listTools is
-    // reserved for the detail pane's input-schema view.
-    fetcher: async () =>
-      (await pageData(client().mcp.list()).catch(emptyListIfUngated)).map(toMCPServerSettings),
-  });
-  contribute({
-    key: MCP_TOOLS_KEY,
-    fetcher: async (params) =>
-      (
-        await pageData(
-          client().mcp.listTools(requiredParams<McpToolsQuery>(MCP_TOOLS_KEY, params).server),
-        ).catch(emptyListIfUngated)
-      ).map((t) => ({ name: t.name, description: t.description ?? "" })),
   });
   contribute({
     key: WORKSPACE_DIFF_KEY,
@@ -287,6 +265,7 @@ export function registerDefaultDataProviders(host: ContributingHost): void {
         baseUrl: p.baseUrl ?? "",
         apiKeyMasked: p.apiKeyMasked,
         keySource: p.keySource,
+        requiresBaseUrl: p.requiresBaseUrl,
         embeddingCapable: p.embeddingCapable,
         defaultEmbeddingModel: p.defaultEmbeddingModel,
       })),

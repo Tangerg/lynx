@@ -1,14 +1,11 @@
 import { createSingletonPort } from "@/lib/ports/singletonPort";
+import type { ProviderConfiguration, ProviderRole } from "../providerModels";
+
 export interface ProviderUpdate {
   provider: string;
   // undefined preserves, null clears, and a string replaces the setting.
   apiKey?: string | null;
   baseUrl?: string | null;
-}
-
-export interface ProviderRole {
-  provider?: string;
-  model?: string;
 }
 
 export interface ProviderTestOutcome {
@@ -17,9 +14,9 @@ export interface ProviderTestOutcome {
 }
 
 export interface ProviderGateway {
-  updateProvider(input: ProviderUpdate): Promise<void>;
-  setUtilityRole(role: ProviderRole): Promise<void>;
-  setEmbeddingRole(role: ProviderRole): Promise<void>;
+  updateProvider(input: ProviderUpdate): Promise<ProviderConfiguration>;
+  setUtilityRole(role: ProviderRole): Promise<ProviderRole>;
+  setEmbeddingRole(role: ProviderRole): Promise<ProviderRole>;
   testProvider(provider: string): Promise<ProviderTestOutcome>;
   errorMessage(error: unknown): string | undefined;
 }

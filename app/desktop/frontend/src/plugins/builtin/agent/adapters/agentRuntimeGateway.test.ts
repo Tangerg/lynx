@@ -96,6 +96,17 @@ describe("agentRuntimeGateway", () => {
     expect(get).not.toHaveBeenCalled();
   });
 
+  it("projects the approval mode saved by the Runtime", async () => {
+    const setMode = vi.fn().mockResolvedValue({ mode: "safe" });
+    setContainer({
+      client: () => ({ approval: { setMode } }) as unknown as LyraClient,
+    });
+    uninstall = installAgentRuntimeGateway();
+
+    await expect(agentRuntime().setApprovalMode("safe")).resolves.toBe("safe");
+    expect(setMode).toHaveBeenCalledWith("safe");
+  });
+
   it("translates structured steering input only at the runtime adapter", async () => {
     const steer = vi.fn().mockResolvedValue({});
     setContainer({

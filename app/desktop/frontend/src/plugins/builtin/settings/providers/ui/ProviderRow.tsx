@@ -9,6 +9,7 @@ import {
   initialProviderCredentialsDraft,
   providerCredentialsDirty,
   providerCredentialsInput,
+  providerCredentialsValid,
 } from "../application/providerDraft";
 import { useT } from "@/lib/i18n";
 import { useProbe } from "../../public";
@@ -27,13 +28,14 @@ export function ProviderRow({ p }: { p: ProviderConfiguration }) {
   const fromEnv = p.keySource === "env";
   const hasStoredKey = p.keySource === "stored";
   const dirty = providerCredentialsDirty(p, draft);
+  const valid = providerCredentialsValid(p, draft);
 
   const onSave = async () => {
     setSaving(true);
     reset(); // invalidate any in-flight test so its result can't overwrite the new key state
     try {
-      await update(providerCredentialsInput(p, draft));
-      setDraft((value) => ({ ...value, apiKey: "" }));
+      const saved = await update(providerCredentialsInput(p, draft));
+      setDraft(initialProviderCredentialsDraft(saved));
     } catch (err) {
       fail(err instanceof Error ? err.message : t("providers.error.save"));
     } finally {
@@ -45,8 +47,8 @@ export function ProviderRow({ p }: { p: ProviderConfiguration }) {
     setSaving(true);
     reset();
     try {
-      await update({ provider: p.id, apiKey: null });
-      setDraft((value) => ({ ...value, apiKey: "" }));
+      const saved = await update({ provider: p.id, apiKey: null });
+      setDraft(initialProviderCredentialsDraft(saved));
     } catch (err) {
       fail(err instanceof Error ? err.message : t("providers.error.save"));
     } finally {
@@ -106,7 +108,7 @@ export function ProviderRow({ p }: { p: ProviderConfiguration }) {
       </div>
 
       <div className="mt-2.5 flex items-center gap-2">
-        <Button variant="primary" size="sm" disabled={!dirty || saving} onClick={onSave}>
+        <Button variant="primary" size="sm" disabled={!dirty || !valid || saving} onClick={onSave}>
           {saving ? t("providers.saving") : t("providers.save")}
         </Button>
         <Button

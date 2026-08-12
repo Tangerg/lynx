@@ -267,7 +267,7 @@ export const ja: Record<string, string> = {
   "providers.apiKey.clear": "保存済みキーを削除",
   "providers.apiKey.placeholder": "API キー",
   "providers.apiKey.aria": "{{provider}} の API キー",
-  "providers.baseUrl.placeholder": "ベース URL（任意の上書き）",
+  "providers.baseUrl.placeholder": "ベース URL",
   "providers.baseUrl.aria": "{{provider}} のベース URL",
   "providers.key": "キー {{masked}}",
   "providers.notConfigured": "未設定",

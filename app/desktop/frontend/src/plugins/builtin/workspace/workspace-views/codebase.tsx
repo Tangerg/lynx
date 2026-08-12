@@ -41,6 +41,7 @@ function CodebaseTab() {
   const [query, setQuery] = useState("");
   const [hits, setHits] = useState<CodebaseSearchHit[] | null>(null);
   const [busy, setBusy] = useState(false);
+  const [reindexing, setReindexing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const statusView = codebaseStatusViewModel(status);
   const resultsView = codebaseSearchViewModel(hits);
@@ -59,11 +60,15 @@ function CodebaseTab() {
   };
 
   const reindex = async () => {
+    if (reindexing || status?.operationId) return;
+    setReindexing(true);
     setError(null);
     try {
       await reindexCodebase(cwd);
     } catch (e) {
       setError(rpcErrorText(e) ?? t("codebase.error"));
+    } finally {
+      setReindexing(false);
     }
   };
 
@@ -135,6 +140,7 @@ function CodebaseTab() {
             iconSize="sm"
             size="sm"
             quiet
+            disabled={reindexing || Boolean(status?.operationId)}
             title={t("codebase.reindex")}
             onClick={() => void reindex()}
             className="shrink-0"

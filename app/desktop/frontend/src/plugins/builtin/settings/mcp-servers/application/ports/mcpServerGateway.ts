@@ -1,5 +1,6 @@
 import { createSingletonPort } from "@/lib/ports/singletonPort";
 import type { MCPServerInput } from "../mcpServerInput";
+import type { MCPServerSettings } from "../mcpServerQueries";
 
 export interface MCPServerTestOutcome {
   ok: boolean;
@@ -13,10 +14,10 @@ export type MCPAuthorizationAttempt =
   | { id: string; status: "canceled" };
 
 export interface MCPServerGateway {
-  create(input: MCPServerInput): Promise<void>;
-  update(name: string, input: MCPServerInput): Promise<void>;
+  create(input: MCPServerInput): Promise<MCPServerSettings>;
+  update(name: string, input: MCPServerInput): Promise<MCPServerSettings>;
   delete(name: string): Promise<void>;
-  setEnabled(name: string, enabled: boolean): Promise<void>;
+  setEnabled(name: string, enabled: boolean): Promise<MCPServerSettings>;
   createAuthorizationAttempt(name: string, signal?: AbortSignal): Promise<MCPAuthorizationAttempt>;
   getAuthorizationAttempt(id: string, signal?: AbortSignal): Promise<MCPAuthorizationAttempt>;
   test(input: MCPServerInput): Promise<MCPServerTestOutcome>;

@@ -270,7 +270,7 @@ export const de: Record<string, string> = {
   "providers.apiKey.clear": "Gespeicherten Schlüssel entfernen",
   "providers.apiKey.placeholder": "API-Schlüssel",
   "providers.apiKey.aria": "{{provider}} API-Schlüssel",
-  "providers.baseUrl.placeholder": "Basis-URL (optionale Überschreibung)",
+  "providers.baseUrl.placeholder": "Basis-URL",
   "providers.baseUrl.aria": "{{provider}} Basis-URL",
   "providers.key": "Schlüssel {{masked}}",
   "providers.notConfigured": "nicht konfiguriert",

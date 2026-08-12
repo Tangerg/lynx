@@ -6,12 +6,17 @@ import { useActiveSessionWorkspace } from "@/plugins/builtin/agent/public/sessio
 import { useRuntimeCapability } from "@/plugins/builtin/runtime/public/capabilities";
 import {
   CODEBASE_STATUS_KEY,
+  commitCodebaseReindexStarted,
   providerRoleIsAvailable,
   useCodebaseStatus,
   useEmbeddingRole,
   useProviders,
 } from "@/plugins/builtin/settings/providers/public/queries";
-import { codebaseGateway, type CodebaseSearchHit } from "./ports/codebaseGateway";
+import {
+  codebaseGateway,
+  type CodebaseReindexOperation,
+  type CodebaseSearchHit,
+} from "./ports/codebaseGateway";
 
 export type { CodebaseSearchHit } from "./ports/codebaseGateway";
 
@@ -44,7 +49,9 @@ export async function searchCodebase(
   return hits;
 }
 
-export async function reindexCodebase(cwd: string | undefined): Promise<void> {
-  await codebaseGateway().reindex(cwd);
+export async function reindexCodebase(cwd: string | undefined): Promise<CodebaseReindexOperation> {
+  const operation = await codebaseGateway().reindex(cwd);
+  commitCodebaseReindexStarted({ cwd }, operation.operationId);
   await queryClient.invalidateQueries({ queryKey: [CODEBASE_STATUS_KEY] });
+  return operation;
 }

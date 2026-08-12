@@ -1,9 +1,8 @@
 import { createDataQuery, createParameterizedDataQuery } from "@/plugins/sdk";
+import { queryClient } from "@/lib/queryClient";
+import type { ProviderConfiguration, ProviderRole } from "./providerModels";
 
-export interface ProviderRoleSelection {
-  provider?: string;
-  model?: string;
-}
+export type { ProviderConfiguration, ProviderRole } from "./providerModels";
 
 export interface CodebaseStatusReadModel {
   state: "none" | "indexing" | "ready" | "error";
@@ -23,15 +22,6 @@ export interface SelectableModel {
   contextWindow?: number;
 }
 
-export interface ProviderConfiguration {
-  id: string;
-  baseUrl: string;
-  apiKeyMasked: string;
-  keySource?: "stored" | "env";
-  embeddingCapable?: boolean;
-  defaultEmbeddingModel?: string;
-}
-
 export interface CodebaseStatusQuery {
   cwd?: string;
 }
@@ -43,7 +33,7 @@ export interface CodebaseStatusQuery {
  * providers.list whenever a feature needs the effective availability.
  */
 export function providerRoleIsAvailable(
-  role: ProviderRoleSelection | undefined,
+  role: ProviderRole | undefined,
   providers: readonly ProviderConfiguration[],
 ): boolean {
   return Boolean(
@@ -59,6 +49,33 @@ export const UTILITY_ROLE_KEY = "utility-role";
 export const EMBEDDING_ROLE_KEY = "embedding-role";
 export const CODEBASE_STATUS_KEY = "codebase-status";
 
+export function commitProviderSaved(saved: ProviderConfiguration): void {
+  queryClient.setQueryData<ProviderConfiguration[]>([PROVIDERS_KEY], (current) =>
+    current?.map((provider) => (provider.id === saved.id ? saved : provider)),
+  );
+}
+
+export function commitUtilityRoleSaved(saved: ProviderRole): void {
+  queryClient.setQueryData([UTILITY_ROLE_KEY], saved);
+}
+
+export function commitEmbeddingRoleSaved(saved: ProviderRole): void {
+  queryClient.setQueryData([EMBEDDING_ROLE_KEY], saved);
+}
+
+export function commitCodebaseReindexStarted(
+  query: CodebaseStatusQuery,
+  operationId: string,
+): void {
+  queryClient.setQueryData<CodebaseStatusReadModel>([CODEBASE_STATUS_KEY, query], (current) => ({
+    ...current,
+    state: "indexing",
+    fileCount: current?.fileCount ?? 0,
+    chunkCount: current?.chunkCount ?? 0,
+    operationId,
+  }));
+}
+
 const ACTIVE_CODEBASE_STATUS_REFRESH_MS = 1_000;
 
 // Runtime owns background reindex execution and exposes operationId as its
@@ -72,8 +89,8 @@ export function codebaseStatusRefreshInterval(
 
 export const useModels = createDataQuery<SelectableModel[]>(MODELS_KEY);
 export const useProviders = createDataQuery<ProviderConfiguration[]>(PROVIDERS_KEY);
-export const useUtilityRole = createDataQuery<ProviderRoleSelection>(UTILITY_ROLE_KEY);
-export const useEmbeddingRole = createDataQuery<ProviderRoleSelection>(EMBEDDING_ROLE_KEY);
+export const useUtilityRole = createDataQuery<ProviderRole>(UTILITY_ROLE_KEY);
+export const useEmbeddingRole = createDataQuery<ProviderRole>(EMBEDDING_ROLE_KEY);
 export const useCodebaseStatus = createParameterizedDataQuery<
   CodebaseStatusQuery,
   CodebaseStatusReadModel

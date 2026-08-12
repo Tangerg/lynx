@@ -3,6 +3,7 @@ import {
   initialProviderCredentialsDraft,
   providerCredentialsDirty,
   providerCredentialsInput,
+  providerCredentialsValid,
 } from "./providerDraft";
 
 describe("providerDraft", () => {
@@ -45,5 +46,35 @@ describe("providerDraft", () => {
         { apiKey: "", baseUrl: "" },
       ),
     ).toEqual({ provider: "openai", baseUrl: null });
+  });
+
+  it("requires a non-blank endpoint only for endpoint-defined providers", () => {
+    expect(
+      providerCredentialsValid({ requiresBaseUrl: true }, { apiKey: "key", baseUrl: "   " }),
+    ).toBe(false);
+    expect(
+      providerCredentialsValid(
+        { requiresBaseUrl: true },
+        {
+          apiKey: "key",
+          baseUrl: " https://models.example.test/v1 ",
+        },
+      ),
+    ).toBe(true);
+    expect(
+      providerCredentialsValid({ requiresBaseUrl: false }, { apiKey: "key", baseUrl: "" }),
+    ).toBe(true);
+  });
+
+  it("trims an edited endpoint before persistence", () => {
+    expect(
+      providerCredentialsInput(
+        { id: "openai-compatible", baseUrl: "" },
+        { apiKey: "", baseUrl: " https://models.example.test/v1 " },
+      ),
+    ).toEqual({
+      provider: "openai-compatible",
+      baseUrl: "https://models.example.test/v1",
+    });
   });
 });

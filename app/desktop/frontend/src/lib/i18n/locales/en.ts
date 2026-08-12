@@ -326,7 +326,7 @@ export const en: Record<string, string> = {
   "providers.apiKey.placeholder": "API key",
   "providers.apiKey.envPlaceholder": "Using environment key — type to override",
   "providers.apiKey.aria": "{{provider}} API key",
-  "providers.baseUrl.placeholder": "Base URL (optional override)",
+  "providers.baseUrl.placeholder": "Base URL",
   "providers.baseUrl.aria": "{{provider}} base URL",
   "providers.key": "key {{masked}}",
   "providers.fromEnv": "from env",

@@ -1203,10 +1203,31 @@
 - 隔离 Runtime/真实浏览器从设置页创建 Schedule，`runNow` 后自动打开返回的 Session 并完成目标 Run；连续关闭/开启无 revision conflict，SQLite Schedule revision 单调且唯一 Run terminal completed；
 - Frontend 全量门禁 257 个测试文件/1591 个用例全绿，86/86 Runtime operations、10/10 event types、103 typed call sites 保持完整消费；Runtime standalone tidy/build/vet/test 全绿；Protocol、SQLite shape 与 Agent Framework 零变更，Agent 内层没有新增 Runtime/Workspace 抽象。
 
-## 53. 进度记录
+## 53. P49 — Desktop Mutation 权威事实、并发顺序与上下文归属收敛
+
+### 目标
+
+系统性消除 Desktop 对非 void Runtime command 只等待完成、随后依赖异步重读的资源分叉；让 Provider、MCP、Approval、Agent Memory 与 Codebase 各自在所属 Application 上下文提交返回事实并串行化有冲突的写操作，同时把 Runtime wire 映射严格留在对应 Adapter。
+
+### 工作项
+
+- [x] P49-01 SDK API consumer 门禁识别直接丢弃及显式 `void` 丢弃非 void command 结果，自测固定 Promise<void> 合法反例；
+- [x] P49-02 Provider configuration/role、Approval mode、MCP server、Agent Memory 与 Codebase reindex Adapter 返回中性产品事实，Application 先提交权威资源再失效重验；
+- [x] P49-03 用可恢复 serial queue 按真实资源冲突域线性化写操作，覆盖连续成功、首个失败、同 key/跨 key、update→delete 与快速 toggle；
+- [x] P49-04 MCP data provider 与 wire projection 回归 MCP context Adapter，defaults 不再拥有 MCP 读取或映射；Provider 的 `requiresBaseUrl` 成为产品模型并驱动必填校验；
+- [x] P49-05 Provider UI 成功写入后从 Runtime 返回资源重建草稿，消除 endpoint 规范化后仍保持 dirty 的前后端事实分叉。
+
+### 验收
+
+- Frontend 完整门禁 269 个测试文件/1621 个用例全绿，95 条公开 Context edge 无环，发布边界、层级、port、API consumer、8 语言 981 keys 与 production bundle 全部通过；
+- API consumer 保持 86/86 Runtime operations、10/10 events、103 typed call sites；Runtime standalone tidy/build/vet/test 全绿；
+- 隔离 Runtime/真实浏览器验证 Approval 快速连点、MCP 创建/失败/三连切换/删除、Provider endpoint 必填与规范化回写、Agent Memory 新增/置顶/编辑/删除、Plan、HITL allow/deny 与 Goal 三轮完成。Runtime、Protocol、SQLite 与 Agent Framework 零变更，Agent 内层没有接触 MCP/Provider/Workspace Runtime DTO。
+
+## 54. 进度记录
 
 | 日期 | 阶段 | 完成事实 | 验证 |
 |---|---|---|---|
+| 2026-08-12 | P49（mutation authoritative facts / concurrency / context ownership） | Desktop Provider、Approval、MCP、Agent Memory、Codebase mutation 均由所属 Adapter 将 Runtime response 投影为中性资源，所属 Application 在线性化队列中先提交权威 fact 再失效重验；MCP data provider/wire projection 从 defaults 收回 MCP context，Provider `requiresBaseUrl` 进入产品模型。真实联调发现 Provider 保存后草稿没有采用规范化返回值，现以 saved resource 重建草稿。Agent context 未导入 MCP/Provider/Workspace wire 或 Runtime DTO，Runtime/Protocol/SQLite/Framework 未变化 | 红测覆盖非 void 结果丢弃、队列失败恢复/冲突域、返回事实写回、Memory update→delete、MCP toggle/delete、Provider endpoint 必填/trim/UI authoritative reset；真实浏览器覆盖 Approval 快速连点、MCP 全生命周期、Provider、Memory、Plan、HITL approve/reject 与三轮 Goal。Frontend 完整门禁 269 文件/1621 测试、95 public edges、86/86 operations + 10/10 events / 103 typed call sites、981×8 locales 和 bundle 全绿；Runtime standalone tidy/build/vet/test 全绿 |
 | 2026-08-12 | P48（API response / identity lifecycle consumption） | Desktop Workspace subscription 的 generation signal 从 Application consumer port 经 Workspace Adapter、SDK 到 `sessions.get`，retarget/dispose 真实取消旧身份读取。Schedule Adapter/Application 保留 `runNow` 的 Session/Run identity 并经 Agent 公开会话动作进入既有 durable recovery；enablement 先提交后端返回的新 revision 再失效重验。wire/transport 只停留在 Adapter/SDK，Agent 内层与 Runtime/Protocol/SQLite shape 均未变化 | Application/Adapter/SDK 三层红测和 Schedule 返回事实红测转绿；隔离 Runtime/真实浏览器证明 `runNow` 自动打开目标 Session、接管流并得到 `P48_SCHEDULE_DONE.`，连续关闭/开启后 SQLite revision 单调到 4、唯一 Run terminal completed，page error 为零。Frontend 完整门禁 257 文件/1591 测试及全部结构/消费/bundle 检查通过；Runtime standalone tidy/build/vet/test 全绿；API consumer 为 86/86 operations、10/10 events、103 typed call sites |
 | 2026-08-12 | P47（Workspace opening cancellation / resync fail-closed） | Desktop Workspace subscription lifecycle 的 AbortSignal 现在贯穿 Adapter 与 SDK 的 `workspaces.resolve`，retarget/dispose 会取消仍在 watch-root resolution 的旧 opening 并立即建立新 target。Runtime Delivery 对 `watchIds` 与非 `files.changed` topics 的矛盾 resync 不再静默删除 scope，而是扩大为完整 subscription resync。watch/protocol 事实没有进入 Agent 或 Runtime Domain/Application | 三个定向 Frontend 文件 30 个测试、Workspace events 7 文件/36 测试通过；Runtime resync 目标测试 normal 50 次、race 20 次通过。隔离数据目录真实联调覆盖 HITL approve/reject、Plan、Goal、`sessions.changed`、Git staged 文件事件及 Runtime 重启后无刷新恢复。Frontend 完整门禁 256 文件/1585 测试及全部结构/消费/bundle 检查通过；Runtime standalone tidy/build/vet/test 全绿；API consumer 为 86/86 operations、10/10 events、103 typed call sites |
 | 2026-08-12 | P46（Agent Runtime DTO boundary / cold model restore） | Desktop SDK 以中性 Agent facts 承载 live event、durable Run/Item/Interrupt 与 cancel projection，所有 wire 校验和映射集中在 Agent Adapter；pending work provider 回归 Agent bootstrap，defaults/public surface 不再拥有 Agent 装配。发布边界门禁阻止 Agent Application/Domain/public 与 SDK event contract 导入 RPC。Composer 以显式偏好、durable Session 模型、catalog fallback 的顺序解析，并在 active Session summary 未决时等待，消除冷启动默认模型竞态。Runtime、Protocol、SQLite 与 Agent Framework 零变更 | Mapper/provider 13 个定向测试与 Composer model selection 4 个测试通过；隔离 Runtime/真实浏览器完成两步 Plan、冷重载及第二次 Run，两次 usage 均为 `deepseek-v4-pro`。完整 Frontend 门禁 256 个文件/1582 个测试、typecheck/lint/format/knip/循环/Context/发布边界/层级/port/API consumer/style/design/token/chrome/locales/bootstrap/bundle 全通过；281 个视觉/交互/WCAG/Retina/WebKit 场景通过；Runtime `go test ./...` 全绿；API consumer 为 86/86 operations、10/10 events、103 typed callsite |

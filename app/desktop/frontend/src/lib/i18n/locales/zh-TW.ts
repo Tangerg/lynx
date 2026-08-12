@@ -267,7 +267,7 @@ export const zhTW: Record<string, string> = {
   "providers.apiKey.clear": "移除已儲存金鑰",
   "providers.apiKey.placeholder": "API 金鑰",
   "providers.apiKey.aria": "{{provider}} API 金鑰",
-  "providers.baseUrl.placeholder": "Base URL（選填覆寫）",
+  "providers.baseUrl.placeholder": "Base URL",
   "providers.baseUrl.aria": "{{provider}} Base URL",
   "providers.key": "金鑰 {{masked}}",
   "providers.notConfigured": "未設定",

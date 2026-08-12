@@ -321,7 +321,7 @@ for (const file of files(SRC)) {
 
   if (
     /plugins\/builtin\/.+\/public\/.+\.(ts|tsx)$/.test(rel) &&
-    /from\s+["']@\/rpc["']/.test(text)
+    /from\s+["']@\/rpc(?:\/[^"']*)?["']/.test(text)
   ) {
     violations.push({
       file: rel,
@@ -331,7 +331,7 @@ for (const file of files(SRC)) {
 
   if (
     /plugins\/builtin\/.+\/application\/.+(?:Queries|Data)\.ts$/.test(rel) &&
-    /from\s+["']@\/rpc["']/.test(text)
+    /from\s+["']@\/rpc(?:\/[^"']*)?["']/.test(text)
   ) {
     violations.push({
       file: rel,

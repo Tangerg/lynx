@@ -1,11 +1,13 @@
 import { useCallback } from "react";
 import { queryClient } from "@/lib/queryClient";
 import {
+  commitMCPServerSaved,
   MCP_SERVERS_KEY,
   MCP_TOOLS_KEY,
   type MCPServerSettings,
   useMCPServers,
 } from "./mcpServerQueries";
+import { createSerialTaskQueue } from "@/lib/serialTaskQueue";
 import type { MCPServerInput } from "./mcpServerInput";
 import { mcpServerGateway, type MCPServerTestOutcome } from "./ports/mcpServerGateway";
 
@@ -27,32 +29,58 @@ function invalidateMcp(): Promise<void> {
   ]).then(() => undefined);
 }
 
-export function useCreateMCPServer(): (input: MCPServerInput) => Promise<void> {
-  return useCallback(async (input) => {
-    await mcpServerGateway().create(input);
+const serverChanges = createSerialTaskQueue();
+
+async function mutateMCPServer(
+  command: () => Promise<MCPServerSettings>,
+): Promise<MCPServerSettings> {
+  return serverChanges.run(async () => {
+    const saved = await command();
+    commitMCPServerSaved(saved);
     await invalidateMcp();
-  }, []);
+    return saved;
+  });
+}
+
+export function createMCPServer(input: MCPServerInput): Promise<MCPServerSettings> {
+  return mutateMCPServer(() => mcpServerGateway().create(input));
+}
+
+export function updateMCPServer(name: string, input: MCPServerInput): Promise<MCPServerSettings> {
+  return mutateMCPServer(() => mcpServerGateway().update(name, input));
+}
+
+export function setMCPServerEnabled(name: string, enabled: boolean): Promise<MCPServerSettings> {
+  return mutateMCPServer(() => mcpServerGateway().setEnabled(name, enabled));
+}
+
+export async function deleteMCPServer(name: string): Promise<void> {
+  await serverChanges.run(async () => {
+    await mcpServerGateway().delete(name);
+    queryClient.setQueryData<MCPServerSettings[]>([MCP_SERVERS_KEY], (current) =>
+      current?.filter((server) => server.id !== name),
+    );
+    await invalidateMcp();
+  });
+}
+
+export function useCreateMCPServer(): (input: MCPServerInput) => Promise<void> {
+  return useCallback((input) => createMCPServer(input).then(() => undefined), []);
 }
 
 export function useUpdateMCPServer(): (name: string, input: MCPServerInput) => Promise<void> {
-  return useCallback(async (name, input) => {
-    await mcpServerGateway().update(name, input);
-    await invalidateMcp();
-  }, []);
+  return useCallback((name, input) => updateMCPServer(name, input).then(() => undefined), []);
 }
 
 export function useDeleteMCPServer(): (name: string) => Promise<void> {
-  return useCallback(async (name) => {
-    await mcpServerGateway().delete(name);
-    await invalidateMcp();
-  }, []);
+  return useCallback(deleteMCPServer, []);
 }
 
 export function useSetMCPServerEnabled(): (name: string, enabled: boolean) => Promise<void> {
-  return useCallback(async (name, enabled) => {
-    await mcpServerGateway().setEnabled(name, enabled);
-    await invalidateMcp();
-  }, []);
+  return useCallback(
+    (name, enabled) => setMCPServerEnabled(name, enabled).then(() => undefined),
+    [],
+  );
 }
 
 export function useAuthorizeMCPServer(): (name: string, signal?: AbortSignal) => Promise<void> {

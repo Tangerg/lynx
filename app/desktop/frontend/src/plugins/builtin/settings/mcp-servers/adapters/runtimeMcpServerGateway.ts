@@ -11,6 +11,7 @@ import type {
   UpdateMCPServerRequest,
 } from "@/rpc";
 import type { MCPServerInput } from "../application/mcpServerInput";
+import { mcpServerSettings } from "./runtimeMcpServerProjection";
 import {
   configureMCPServerGateway,
   type MCPAuthorizationAttempt as AuthorizationAttempt,
@@ -94,16 +95,19 @@ function authorizationAttempt(attempt: MCPAuthorizationAttempt): AuthorizationAt
 
 const gateway: MCPServerGateway = {
   async create(input) {
-    await getContainer().client().mcp.create(candidate(input));
+    const saved = await getContainer().client().mcp.create(candidate(input));
+    return mcpServerSettings(saved);
   },
   async update(name, input) {
-    await getContainer().client().mcp.update(updateRequest(name, input));
+    const saved = await getContainer().client().mcp.update(updateRequest(name, input));
+    return mcpServerSettings(saved);
   },
   async delete(name) {
     await getContainer().client().mcp.delete(name);
   },
   async setEnabled(name, enabled) {
-    await getContainer().client().mcp.update({ server: name, enabled });
+    const saved = await getContainer().client().mcp.update({ server: name, enabled });
+    return mcpServerSettings(saved);
   },
   async createAuthorizationAttempt(name, signal) {
     const attempt = await getContainer().client().mcp.authorizationAttempts.create(name, signal);

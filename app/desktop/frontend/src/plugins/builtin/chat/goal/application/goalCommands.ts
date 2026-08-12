@@ -1,4 +1,5 @@
 import { queryClient } from "@/lib/queryClient";
+import { createKeyedSerialTaskQueue } from "@/lib/serialTaskQueue";
 import { GOAL_KEY, type GoalReadModel, type GoalState } from "./goalQueries";
 import { goalCommandsGateway, type StartGoalInput } from "./ports/goalCommandsGateway";
 
@@ -8,21 +9,7 @@ function invalidateGoal(sessionId: string): Promise<void> {
     .then(() => undefined);
 }
 
-const goalMutationTails = new Map<string, Promise<void>>();
-
-function serializeGoalMutation<T>(sessionId: string, command: () => Promise<T>): Promise<T> {
-  const previous = goalMutationTails.get(sessionId) ?? Promise.resolve();
-  const result = previous.then(command);
-  const settled = result.then(
-    () => undefined,
-    () => undefined,
-  );
-  goalMutationTails.set(sessionId, settled);
-  void settled.finally(() => {
-    if (goalMutationTails.get(sessionId) === settled) goalMutationTails.delete(sessionId);
-  });
-  return result;
-}
+const goalMutations = createKeyedSerialTaskQueue<string>();
 
 function fractionalNanosecondsAfterMillis(timestamp: string): number {
   const fraction = /\.(\d+)(?:Z|[+-]\d{2}:\d{2})$/.exec(timestamp)?.[1] ?? "";
@@ -47,7 +34,7 @@ function commitGoal(goal: GoalReadModel): void {
 }
 
 async function mutateGoal(sessionId: string, command: () => Promise<GoalReadModel>): Promise<void> {
-  await serializeGoalMutation(sessionId, async () => {
+  await goalMutations.run(sessionId, async () => {
     try {
       commitGoal(await command());
     } catch (error) {

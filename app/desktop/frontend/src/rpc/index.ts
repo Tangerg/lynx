@@ -152,6 +152,7 @@ export type {
   CreateScheduleRequest,
   UpdateScheduleRequest,
   AgentDoc,
+  AgentMemoryItem,
   MCPServer,
   MCPAuthorizationAttempt,
   MCPAuthorizationAttemptStatus,

@@ -98,7 +98,7 @@ function visualAgentRuntimeGateway(state: VisualAgentState): AgentRuntimeGateway
     },
     isRunGone: () => false,
     isReplayLost: () => false,
-    setApprovalMode: async () => undefined,
+    setApprovalMode: async (mode) => mode,
     forgetApprovalRule: async () => undefined,
   };
 }

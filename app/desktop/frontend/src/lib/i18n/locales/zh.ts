@@ -383,7 +383,7 @@ export const zh: Record<string, string> = {
   "providers.apiKey.placeholder": "API 密钥",
   "providers.apiKey.envPlaceholder": "正在使用环境变量密钥 — 输入以覆盖",
   "providers.apiKey.aria": "{{provider}} API 密钥",
-  "providers.baseUrl.placeholder": "Base URL（可选覆盖）",
+  "providers.baseUrl.placeholder": "Base URL",
   "providers.baseUrl.aria": "{{provider}} Base URL",
   "providers.key": "密钥 {{masked}}",
   "providers.fromEnv": "来自环境变量",

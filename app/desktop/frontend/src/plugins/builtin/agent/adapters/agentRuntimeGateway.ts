@@ -110,7 +110,7 @@ const gateway: AgentRuntimeGateway = {
     return isErrorType(error, "replay_unavailable") || isErrorType(error, "replay_cursor_invalid");
   },
   async setApprovalMode(mode) {
-    await getContainer().client().approval.setMode(mode);
+    return (await getContainer().client().approval.setMode(mode)).mode;
   },
   async forgetApprovalRule(id) {
     await getContainer().client().approval.forgetRule(id);

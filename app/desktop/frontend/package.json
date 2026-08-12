@@ -25,7 +25,7 @@
     "check:published-boundaries": "node scripts/check-published-boundaries.mjs",
     "check:layers": "node scripts/check-layers.mjs",
     "check:port-surface": "node scripts/check-port-surface.mjs",
-    "check:api-consumers": "node scripts/check-backend-api-consumers.mjs",
+    "check:api-consumers": "node --test scripts/check-backend-api-consumers.test.mjs && node scripts/check-backend-api-consumers.mjs",
     "check:style-invalidation": "node scripts/check-style-invalidation.mjs",
     "check:design-system": "node scripts/check-design-system-boundaries.mjs",
     "check:tokens": "node scripts/check-design-tokens.mjs",

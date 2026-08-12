@@ -7,13 +7,17 @@ export interface CodebaseSearchHit {
   score: number;
 }
 
+export interface CodebaseReindexOperation {
+  operationId: string;
+}
+
 export interface CodebaseGateway {
   search(input: {
     cwd: string | undefined;
     query: string;
     limit: number;
   }): Promise<CodebaseSearchHit[]>;
-  reindex(cwd: string | undefined): Promise<void>;
+  reindex(cwd: string | undefined): Promise<CodebaseReindexOperation>;
 }
 
 const port = createSingletonPort<CodebaseGateway>("Codebase gateway is not configured");

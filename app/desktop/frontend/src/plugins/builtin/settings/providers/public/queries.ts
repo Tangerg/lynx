@@ -1,6 +1,7 @@
 export { needsProviderSetup } from "../application/providerSetup";
 export {
   CODEBASE_STATUS_KEY,
+  commitCodebaseReindexStarted,
   EMBEDDING_ROLE_KEY,
   MODELS_KEY,
   PROVIDERS_KEY,

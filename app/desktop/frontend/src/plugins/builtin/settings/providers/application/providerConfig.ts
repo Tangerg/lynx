@@ -2,6 +2,9 @@ import { useCallback } from "react";
 import { t } from "@/lib/i18n";
 import {
   CODEBASE_STATUS_KEY,
+  commitEmbeddingRoleSaved,
+  commitProviderSaved,
+  commitUtilityRoleSaved,
   EMBEDDING_ROLE_KEY,
   MODELS_KEY,
   type ProviderConfiguration,
@@ -14,7 +17,9 @@ import {
   useUtilityRole,
 } from "./providerQueries";
 import { queryClient } from "@/lib/queryClient";
-import { providerGateway, type ProviderRole, type ProviderUpdate } from "./ports/providerGateway";
+import { createSerialTaskQueue } from "@/lib/serialTaskQueue";
+import type { ProviderRole } from "./providerModels";
+import { providerGateway, type ProviderUpdate } from "./ports/providerGateway";
 
 // Provider configuration mutations (providers.update / providers.test).
 // Counterpart to the read-side useProviders() query.
@@ -74,13 +79,25 @@ export function useEmbeddingModelConfig() {
  * providers + models lists so the pane and the composer picker pick up the
  * new enablement immediately.
  */
-export function useUpdateProvider(): (input: ProviderUpdate) => Promise<void> {
-  return useCallback(async (input) => {
-    await providerGateway().updateProvider(input);
+const providerChanges = createSerialTaskQueue();
+const utilityRoleChanges = createSerialTaskQueue();
+const embeddingRoleChanges = createSerialTaskQueue();
+
+export async function updateProvider(input: ProviderUpdate): Promise<ProviderConfiguration> {
+  return providerChanges.run(async () => {
+    const saved = await providerGateway().updateProvider(input);
+    commitProviderSaved(saved);
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: [PROVIDERS_KEY] }),
       queryClient.invalidateQueries({ queryKey: [MODELS_KEY] }),
     ]);
+    return saved;
+  });
+}
+
+export function useUpdateProvider(): (input: ProviderUpdate) => Promise<ProviderConfiguration> {
+  return useCallback((input) => {
+    return updateProvider(input);
   }, []);
 }
 
@@ -94,17 +111,20 @@ export function useUpdateProvider(): (input: ProviderUpdate) => Promise<void> {
  * utility-role query is refetched so the pane reflects the stored value.
  */
 export async function setUtilityRole(role: ProviderRole): Promise<TestOutcome> {
-  try {
-    await providerGateway().setUtilityRole(role);
-    await queryClient.invalidateQueries({ queryKey: [UTILITY_ROLE_KEY] });
-    return { ok: true };
-  } catch (e) {
-    const detail = providerGateway().errorMessage(e);
-    return {
-      ok: false,
-      error: detail ?? (e instanceof Error ? e.message : t("providers.utility.error")),
-    };
-  }
+  return utilityRoleChanges.run(async () => {
+    try {
+      const saved = await providerGateway().setUtilityRole(role);
+      commitUtilityRoleSaved(saved);
+      await queryClient.invalidateQueries({ queryKey: [UTILITY_ROLE_KEY] });
+      return { ok: true };
+    } catch (e) {
+      const detail = providerGateway().errorMessage(e);
+      return {
+        ok: false,
+        error: detail ?? (e instanceof Error ? e.message : t("providers.utility.error")),
+      };
+    }
+  });
 }
 
 /**
@@ -115,20 +135,23 @@ export async function setUtilityRole(role: ProviderRole): Promise<TestOutcome> {
  * the embedding-role + codebase-status queries on success.
  */
 export async function setEmbeddingRole(role: ProviderRole): Promise<TestOutcome> {
-  try {
-    await providerGateway().setEmbeddingRole(role);
-    await Promise.all([
-      queryClient.invalidateQueries({ queryKey: [EMBEDDING_ROLE_KEY] }),
-      queryClient.invalidateQueries({ queryKey: [CODEBASE_STATUS_KEY] }),
-    ]);
-    return { ok: true };
-  } catch (e) {
-    const detail = providerGateway().errorMessage(e);
-    return {
-      ok: false,
-      error: detail ?? (e instanceof Error ? e.message : t("providers.embedding.error")),
-    };
-  }
+  return embeddingRoleChanges.run(async () => {
+    try {
+      const saved = await providerGateway().setEmbeddingRole(role);
+      commitEmbeddingRoleSaved(saved);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: [EMBEDDING_ROLE_KEY] }),
+        queryClient.invalidateQueries({ queryKey: [CODEBASE_STATUS_KEY] }),
+      ]);
+      return { ok: true };
+    } catch (e) {
+      const detail = providerGateway().errorMessage(e);
+      return {
+        ok: false,
+        error: detail ?? (e instanceof Error ? e.message : t("providers.embedding.error")),
+      };
+    }
+  });
 }
 
 export interface TestOutcome {

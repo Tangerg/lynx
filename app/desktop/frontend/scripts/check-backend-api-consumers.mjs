@@ -35,6 +35,7 @@ mapReturnedObject("createMethods", []);
 mapReturnedObject("bindWorkspace", []);
 
 const consumerCalls = new Map();
+const discardedResults = [];
 for (const source of program.getSourceFiles()) {
   const sourcePath = resolve(source.fileName);
   if (!isProductSource(sourcePath)) continue;
@@ -52,11 +53,15 @@ for (const source of program.getSourceFiles()) {
       const locations = consumerCalls.get(wrapper) ?? new Set();
       locations.add(location);
       consumerCalls.set(wrapper, locations);
+      if (discardsNonVoidResult(node)) {
+        discardedResults.push(`${wrapper} returns a value that is discarded at ${location}`);
+      }
     }
   });
 }
 
 const errors = [];
+errors.push(...discardedResults);
 const operationConsumers = new Map([...operations].map((operation) => [operation, new Set()]));
 for (const [wrapper, locations] of consumerCalls) {
   const mappedOperations = implementationMap.get(wrapper);
@@ -206,6 +211,24 @@ function wrapperPath(declaration) {
     node = node.parent;
   }
   return parts.join(".");
+}
+
+function discardsNonVoidResult(call) {
+  let expression = call;
+  while (
+    ts.isAwaitExpression(expression.parent) ||
+    ts.isParenthesizedExpression(expression.parent) ||
+    ts.isAsExpression(expression.parent) ||
+    ts.isSatisfiesExpression(expression.parent) ||
+    ts.isTypeAssertionExpression(expression.parent) ||
+    ts.isNonNullExpression(expression.parent) ||
+    ts.isVoidExpression(expression.parent)
+  ) {
+    expression = expression.parent;
+  }
+  if (!ts.isExpressionStatement(expression.parent)) return false;
+  const result = checker.getAwaitedType(checker.getTypeAtLocation(call));
+  return !result || (result.flags & (ts.TypeFlags.Void | ts.TypeFlags.Never)) === 0;
 }
 
 function propertyName(node) {

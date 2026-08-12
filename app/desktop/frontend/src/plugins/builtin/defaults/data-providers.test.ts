@@ -3,12 +3,10 @@
 // transport) plus each v2 shape mapping:
 //   - sessions:    Page<Session>.data → AgentSessionSummary (updatedAt → time)
 //   - projects:    Page<WorkspaceSummary>.data → WorkspaceProjectSummary
-//   - mcp-servers: enriched B3 entry → status summary (id + icon + inline toolCount)
 //   - grep:        params pass-through, result verbatim (matches + total)
 //   - file-head:   params pass-through, FileHead unwrapped to its lines
 
 import type { AgentSessionSummary } from "@/plugins/builtin/agent/public/session";
-import type { MCPServerSummary } from "@/plugins/builtin/settings/mcp-servers/public/queries";
 import type {
   WorkspaceFileChange as WorkspaceFileChangeSummary,
   WorkspaceFileLine,
@@ -29,8 +27,8 @@ import { defaultDataProviders } from "./index";
 afterEach(resetContainer);
 
 // Run a provider against a scripted set of method → result responses. The
-// provider may fan out (mcp-servers fires two calls in parallel); requests
-// are answered in the order listed, which is also the fire order.
+// provider may fan out; requests are answered in the order listed, which is
+// also the fire order.
 async function runProvider<T>(
   key: string,
   responses: Array<[method: WireMethodName, result: unknown]>,
@@ -60,7 +58,6 @@ describe("defaultDataProviders — providers over JSON-RPC", () => {
     await loadPlugin(defaultDataProviders);
 
     for (const key of [
-      "mcp-tools",
       "diff",
       "grep",
       "file-head",
@@ -180,76 +177,6 @@ describe("defaultDataProviders — providers over JSON-RPC", () => {
         id: "/work/fern",
         name: "fern-api",
         sessionCount: 3,
-      },
-    ]);
-  });
-
-  it("mcp-servers: maps unified configuration, lifecycle, and localized inline errors", async () => {
-    const { value: rows } = await runProvider<MCPServerSummary[]>("mcp-servers", [
-      [
-        "mcp.servers.list",
-        {
-          data: [
-            {
-              name: "Git",
-              description: "Branches, commits",
-              connection: { type: "stdio", command: "mcp-git" },
-              status: { type: "connected", toolCount: 2 },
-            },
-            {
-              name: "Flaky",
-              connection: { type: "stdio", command: "mcp-flaky" },
-              status: { type: "failed", error: { type: "mcp_dial_failed" } },
-            },
-            {
-              name: "Cloud",
-              connection: { type: "streamableHttp", url: "https://mcp.example/rpc" },
-              status: {
-                type: "needsAuth",
-                error: { type: "mcp_authorization_required" },
-              },
-            },
-          ],
-        },
-      ],
-    ]);
-    expect(rows).toMatchObject([
-      {
-        id: "Git",
-        name: "Git",
-        desc: "Branches, commits",
-        tools: 2,
-        status: "connected",
-        errorDetail: undefined,
-        icon: "branch",
-        type: "stdio",
-        enabled: true,
-        command: "mcp-git",
-        toolCount: 2,
-      },
-      {
-        id: "Flaky",
-        name: "Flaky",
-        desc: "",
-        tools: 0,
-        status: "failed",
-        errorDetail: "Couldn't reach this server — check the command or URL and retry.",
-        icon: "tool",
-        type: "stdio",
-        enabled: true,
-        command: "mcp-flaky",
-      },
-      {
-        id: "Cloud",
-        name: "Cloud",
-        desc: "",
-        tools: 0,
-        status: "needsAuth",
-        errorDetail: "This server needs you to sign in before it can be used.",
-        icon: "tool",
-        type: "streamableHttp",
-        enabled: true,
-        url: "https://mcp.example/rpc",
       },
     ]);
   });

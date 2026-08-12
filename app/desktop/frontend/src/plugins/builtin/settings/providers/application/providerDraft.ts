@@ -22,6 +22,13 @@ export function providerCredentialsDirty(
   return draft.apiKey.trim() !== "" || draft.baseUrl !== provider.baseUrl;
 }
 
+export function providerCredentialsValid(
+  provider: Pick<ProviderConfiguration, "requiresBaseUrl">,
+  draft: ProviderCredentialsDraft,
+): boolean {
+  return !provider.requiresBaseUrl || draft.baseUrl.trim() !== "";
+}
+
 export function providerCredentialsInput(
   provider: Pick<ProviderConfiguration, "id" | "baseUrl">,
   draft: ProviderCredentialsDraft,
@@ -30,7 +37,8 @@ export function providerCredentialsInput(
   const apiKey = draft.apiKey.trim();
   if (apiKey) input.apiKey = apiKey;
   if (draft.baseUrl !== provider.baseUrl) {
-    input.baseUrl = draft.baseUrl || null;
+    const baseUrl = draft.baseUrl.trim();
+    input.baseUrl = baseUrl || null;
   }
   return input;
 }
