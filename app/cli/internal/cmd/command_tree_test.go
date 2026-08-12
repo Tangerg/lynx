@@ -746,6 +746,35 @@ func TestSessionsListPaginatesAndSearches(t *testing.T) {
 	}
 }
 
+func TestSessionsListCanonicalizesWorkspaceFilter(t *testing.T) {
+	t.Parallel()
+
+	runtime := instantRuntime()
+	workspace, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	created, err := runtime.CreateSession(t.Context(), agent.CreateSession{Workspace: workspace, Title: "Canonical workspace"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	current, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	relative, err := filepath.Rel(current, workspace)
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, _, err := executeCommand(t, runtime, "", "sessions", "ls", "--workspace", relative)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out, created.ID) || !strings.Contains(out, workspace) {
+		t.Fatalf("workspace-filtered sessions = %q", out)
+	}
+}
+
 func TestSessionsListJSONKeepsPaginationOnStdout(t *testing.T) {
 	runtime := instantRuntime()
 	out, errOut, err := executeCommand(t, runtime, "", "sessions", "ls", "--limit", "1", "--json")

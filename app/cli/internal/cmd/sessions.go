@@ -100,6 +100,13 @@ func newSessionsListCommand(provider runtimeProvider) *cobra.Command {
 		Args:         cobra.NoArgs,
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			if query.Workspace != "" {
+				resolved, err := canonicalWorkspacePath(query.Workspace)
+				if err != nil {
+					return err
+				}
+				query.Workspace = resolved
+			}
 			runtime, err := provider.Open(cmd)
 			if err != nil {
 				return err

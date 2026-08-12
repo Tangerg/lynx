@@ -17,12 +17,16 @@ func (r *Runtime) ListSessions(ctx context.Context, query agent.SessionQuery) (a
 	if err := context.Cause(ctx); err != nil {
 		return agent.SessionPage{}, err
 	}
+	query, err := query.Normalize()
+	if err != nil {
+		return agent.SessionPage{}, fmt.Errorf("mock: %w", err)
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
 	items := make([]agent.Session, 0, len(r.sessions))
-	needle := strings.ToLower(strings.TrimSpace(query.Search))
-	workspace := strings.TrimSpace(query.Workspace)
+	needle := strings.ToLower(query.Search)
+	workspace := query.Workspace
 	for _, state := range r.sessions {
 		if workspace != "" && state.meta.Workspace.Path != workspace {
 			continue

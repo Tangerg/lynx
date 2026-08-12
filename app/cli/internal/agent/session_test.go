@@ -12,6 +12,26 @@ func testWorkspace(path string) workspace.Workspace {
 	return workspace.Workspace{Path: path, ProjectRoot: path, Availability: workspace.Available}
 }
 
+func TestSessionQueryNormalizesLocalFilterIdentity(t *testing.T) {
+	t.Parallel()
+
+	normalized, err := (SessionQuery{Search: "  release notes  ", Workspace: "  /repo/work  ", Limit: 20}).Normalize()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if normalized.Search != "release notes" || normalized.Workspace != "/repo/work" || normalized.Limit != 20 {
+		t.Fatalf("normalized query = %+v", normalized)
+	}
+	for _, query := range []SessionQuery{
+		{Limit: -1},
+		{Workspace: "relative/workspace"},
+	} {
+		if _, err := query.Normalize(); err == nil {
+			t.Fatalf("Normalize accepted %+v", query)
+		}
+	}
+}
+
 func TestSessionSnapshotRestoresDurableProjection(t *testing.T) {
 	snapshot := SessionSnapshot{
 		Session: Session{ID: "ses_1", Status: SessionWaiting, Workspace: testWorkspace("/tmp/demo"), Revision: 2},

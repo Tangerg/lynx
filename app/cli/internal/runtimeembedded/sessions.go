@@ -26,6 +26,10 @@ const (
 )
 
 func (r *Runtime) ListSessions(ctx context.Context, query agent.SessionQuery) (agent.SessionPage, error) {
+	query, err := query.Normalize()
+	if err != nil {
+		return agent.SessionPage{}, err
+	}
 	limit := query.Limit
 	if limit <= 0 {
 		limit = defaultSessionPageSize
@@ -34,8 +38,8 @@ func (r *Runtime) ListSessions(ctx context.Context, query agent.SessionQuery) (a
 		limit = maximumSessionPageSize
 	}
 
-	search := strings.ToLower(strings.TrimSpace(query.Search))
-	workspace := strings.TrimSpace(query.Workspace)
+	search := strings.ToLower(query.Search)
+	workspace := query.Workspace
 	if search == "" && workspace == "" {
 		page, err := r.sessionCatalog.ListSessions(ctx, protocol.PageQuery{Limit: limit, Cursor: query.Cursor}, r.callOptions())
 		if err != nil {

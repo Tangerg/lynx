@@ -34,6 +34,20 @@ func TestApprovalCatalogRejectsEmptyIdentitiesConsistently(t *testing.T) {
 	}
 }
 
+func TestSessionCatalogRejectsInvalidLocalFilters(t *testing.T) {
+	t.Parallel()
+
+	runtime := New()
+	for _, query := range []agent.SessionQuery{
+		{Limit: -1},
+		{Workspace: "relative/workspace"},
+	} {
+		if _, err := runtime.ListSessions(t.Context(), query); err == nil {
+			t.Fatalf("ListSessions accepted %+v", query)
+		}
+	}
+}
+
 func TestProjectApprovalRulesFollowTheResolvedProjectRoot(t *testing.T) {
 	t.Parallel()
 

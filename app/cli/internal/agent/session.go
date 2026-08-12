@@ -54,6 +54,21 @@ type SessionQuery struct {
 	Workspace string
 }
 
+// Normalize returns one exact session-catalog query. Search text and workspace
+// input are presentation values, while a non-empty workspace is an absolute
+// identity because filtering happens client-side against canonical responses.
+func (query SessionQuery) Normalize() (SessionQuery, error) {
+	if query.Limit < 0 {
+		return SessionQuery{}, errors.New("session query: limit cannot be negative")
+	}
+	query.Search = strings.TrimSpace(query.Search)
+	query.Workspace = strings.TrimSpace(query.Workspace)
+	if err := (workspace.ResolveRequest{Path: query.Workspace}).Validate(); err != nil {
+		return SessionQuery{}, fmt.Errorf("session query: %w", err)
+	}
+	return query, nil
+}
+
 type SessionPage struct {
 	Items      []Session
 	NextCursor string

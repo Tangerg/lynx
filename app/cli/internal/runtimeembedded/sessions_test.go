@@ -127,3 +127,17 @@ func TestFilteredSessionCatalogRejectsMultiStepCursorCycle(t *testing.T) {
 		t.Fatalf("ListSessions error = %v, want cursor cycle failure", err)
 	}
 }
+
+func TestSessionCatalogRejectsInvalidLocalFiltersBeforeCallingRuntime(t *testing.T) {
+	t.Parallel()
+
+	runtime := &Runtime{sessionCatalog: sessionCatalogStub{}, meta: requestMeta("test")}
+	for _, query := range []agent.SessionQuery{
+		{Limit: -1},
+		{Workspace: "relative/workspace"},
+	} {
+		if _, err := runtime.ListSessions(t.Context(), query); err == nil {
+			t.Fatalf("ListSessions accepted %+v", query)
+		}
+	}
+}
