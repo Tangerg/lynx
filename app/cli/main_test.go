@@ -115,6 +115,11 @@ func TestInteractiveBinaryPreservesSubmittedInputSequences(t *testing.T) {
 			want:  []string{"contract-tail-你好终"},
 		},
 		{
+			name:  "long input burst preserves its unicode tail",
+			input: strings.Repeat("rapid-input-", 64) + "最后字符终\r",
+			want:  []string{"最后字符终"},
+		},
+		{
 			name:  "kitty shift enter inserts a newline",
 			input: "kitty-first\x1b[13;2u第二行-kitty-tail\r",
 			want:  []string{"kitty-first", "第二行-kitty-tail"},
@@ -189,6 +194,15 @@ func TestInteractiveBinaryConsumesTheStartupBrandOnce(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = session.Close() })
 
+	waitForVisibleTerminalText(t, session, size, "Lyra CLI", "Ask lyra")
+	narrowSize := ptytest.Size{Cols: 36, Rows: 18}
+	if err := session.Resize(narrowSize); err != nil {
+		t.Fatal(err)
+	}
+	waitForVisibleTerminalText(t, session, narrowSize, "LYRA", "Ask lyra")
+	if err := session.Resize(size); err != nil {
+		t.Fatal(err)
+	}
 	waitForVisibleTerminalText(t, session, size, "Lyra CLI", "Ask lyra")
 	if _, err := io.WriteString(session, "startup-banner-contract\r"); err != nil {
 		t.Fatal(err)
