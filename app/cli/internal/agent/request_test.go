@@ -85,17 +85,20 @@ func TestSegmentStreamValidatesOperationSpecificUserItemIdentity(t *testing.T) {
 	if err := stream.ValidateSubscription(); err == nil {
 		t.Fatal("subscription stream with a user item id was accepted")
 	}
-	if err := stream.ValidateResume(&Message{Text: "continue"}); err != nil {
+	if err := stream.ValidateResume("run_1", &Message{Text: "continue"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := stream.ValidateResume(nil); err == nil {
+	if err := stream.ValidateResume("run_1", nil); err == nil {
 		t.Fatal("response-only resume with a user item id was accepted")
 	}
 	stream.UserItemID = ""
 	if err := stream.ValidateSubscription(); err != nil {
 		t.Fatal(err)
 	}
-	if err := stream.ValidateResume(nil); err != nil {
+	if err := stream.ValidateResume("run_1", nil); err != nil {
 		t.Fatal(err)
+	}
+	if err := stream.ValidateResume("run_other", nil); err == nil || !strings.Contains(err.Error(), "does not match") {
+		t.Fatalf("mismatched resume target error = %v", err)
 	}
 }

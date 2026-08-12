@@ -281,12 +281,45 @@ func TestRunAdaptersRejectMismatchedAcknowledgements(t *testing.T) {
 		},
 	}, meta: requestMeta("test")}
 
-	_, err := runtime.ResumeRun(t.Context(), agent.ResumeRun{RunID: "run_1", Answers: []agent.InterruptAnswer{{
+	stream, err := runtime.ResumeRun(t.Context(), agent.ResumeRun{RunID: "run_1", Answers: []agent.InterruptAnswer{{
 		ItemID: "approval", Answer: agent.ApprovalAnswer{Decision: agent.ApprovalDeny},
 	}}})
 	requireRuntimeContractViolation(t, err)
+	receipt, accepted := agent.AcceptedMutationReceipt(err)
+	if !accepted || stream.RunID != "run_other" || receipt.RunID != stream.RunID || receipt.SegmentID != stream.SegmentID {
+		t.Fatalf("accepted mismatched resume = stream %+v, receipt %+v, accepted %t", stream, receipt, accepted)
+	}
 	_, err = runtime.SubscribeRun(t.Context(), agent.SubscribeRun{RunID: "run_1", SegmentID: "seg_1"})
 	requireRuntimeContractViolation(t, err)
+}
+
+func TestRunMutationAdaptersPreservePartialAcceptedReceipts(t *testing.T) {
+	t.Parallel()
+	events := func(func(protocol.RunEvent, error) bool) {}
+	runtime := &Runtime{runs: runBindingStub{
+		start: func(context.Context, protocol.StartRunRequest, embedded.RunCommandOptions) (*protocol.StartRunResponse, iter.Seq2[protocol.RunEvent, error], error) {
+			return &protocol.StartRunResponse{RunID: "run_started", SegmentID: "seg_started"}, events, nil
+		},
+		resume: func(context.Context, protocol.ResumeRunRequest, embedded.RunCommandOptions) (*protocol.ResumeRunResponse, iter.Seq2[protocol.RunEvent, error], error) {
+			return &protocol.ResumeRunResponse{RunID: "run_1", SegmentID: ""}, events, nil
+		},
+	}, meta: requestMeta("test")}
+
+	started, err := runtime.StartRun(t.Context(), agent.StartRun{SessionID: "ses_1", Message: agent.Message{Text: "start"}})
+	requireRuntimeContractViolation(t, err)
+	receipt, accepted := agent.AcceptedMutationReceipt(err)
+	if !accepted || started.RunID != "run_started" || receipt.RunID != started.RunID || receipt.SegmentID != "seg_started" {
+		t.Fatalf("partial accepted start = stream %+v, receipt %+v, accepted %t", started, receipt, accepted)
+	}
+
+	resumed, err := runtime.ResumeRun(t.Context(), agent.ResumeRun{RunID: "run_1", Answers: []agent.InterruptAnswer{{
+		ItemID: "approval", Answer: agent.ApprovalAnswer{Decision: agent.ApprovalDeny},
+	}}})
+	requireRuntimeContractViolation(t, err)
+	receipt, accepted = agent.AcceptedMutationReceipt(err)
+	if !accepted || resumed.RunID != "run_1" || receipt.RunID != resumed.RunID || receipt.SegmentID != "" {
+		t.Fatalf("partial accepted resume = stream %+v, receipt %+v, accepted %t", resumed, receipt, accepted)
+	}
 }
 
 func TestResumeAndCancelMapControlContracts(t *testing.T) {

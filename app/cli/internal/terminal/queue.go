@@ -241,66 +241,80 @@ func (a *app) reportQueuedDispatchSettlementFailure(err error) {
 }
 
 func (a *app) retryQueuedDispatchSettlement() {
-	if a.workbench == nil || a.operations.Active(pendingRunSettlementOperation) {
+	if a.workbench == nil {
 		return
 	}
-	sessionID := a.session.ID
-	dispatcher := a.loop.Dispatcher()
-	a.operations.GoSession(pendingRunSettlementOperation, false, func(ctx context.Context, lease operationLease) {
-		for failures := 1; ; failures++ {
-			if err := retry.Wait(ctx, runtimeRecoveryBackoff.Delay(failures)); err != nil {
-				return
-			}
-			settled := false
-			if err := post(ctx, dispatcher, func() {
-				if !a.operations.Current(lease) || a.closed || a.session.ID != sessionID {
-					return
-				}
-				if a.attemptQueuedDispatchSettlement() != nil || !a.operations.Release(lease) {
-					return
-				}
-				settled = true
-				a.finishQueuedSettlementRecovery()
-			}); err != nil || settled {
-				return
-			}
-		}
-	})
+	runID := a.openingRunID
+	a.retryAuthoringSettlement(
+		pendingRunSettlementOperation,
+		a.attemptQueuedDispatchSettlement,
+		func() { a.finishQueuedSettlementRecovery(runID) },
+	)
 }
 
 // retryCanceledRuntimeOwnership is the cancellation counterpart to ordinary
 // acknowledgement settlement. It retries both a pending HITL decision and the
 // exact opening command, because either can remain after a partial state write.
 func (a *app) retryCanceledRuntimeOwnership(runID string, commandID agent.CommandID) {
-	if a.operations.Active(pendingRunSettlementOperation) {
+	a.retryAuthoringSettlement(
+		ownershipSettlementOperation,
+		func() error { return a.retireCanceledRuntimeOwnership(runID, commandID) },
+		func() { a.finishCanceledRuntimeOwnershipRecovery(runID) },
+	)
+}
+
+// retryAuthoringSettlement owns transient local-commit recovery for the active
+// session. The settlement itself always runs on the UI thread: it may update
+// both a durable workbench aggregate and its in-memory projection atomically
+// from the application's point of view.
+func (a *app) retryAuthoringSettlement(slot operationSlot, settle func() error, finish func()) {
+	if settle == nil || a.operations.Active(slot) {
 		return
 	}
 	sessionID := a.session.ID
 	dispatcher := a.loop.Dispatcher()
-	a.operations.GoSession(pendingRunSettlementOperation, false, func(ctx context.Context, lease operationLease) {
+	a.operations.GoSession(slot, false, func(ctx context.Context, lease operationLease) {
 		for failures := 1; ; failures++ {
 			if err := retry.Wait(ctx, runtimeRecoveryBackoff.Delay(failures)); err != nil {
 				return
 			}
-			retired := false
+			completed := false
 			if err := post(ctx, dispatcher, func() {
 				if !a.operations.Current(lease) || a.closed || a.session.ID != sessionID {
 					return
 				}
-				if a.retireCanceledRuntimeOwnership(runID, commandID) != nil || !a.operations.Release(lease) {
+				if settle() != nil || !a.operations.Release(lease) {
 					return
 				}
-				retired = true
-				a.finishQueuedSettlementRecovery()
-			}); err != nil || retired {
+				completed = true
+				if finish != nil {
+					finish()
+				}
+			}); err != nil || completed {
 				return
 			}
 		}
 	})
 }
 
-func (a *app) finishQueuedSettlementRecovery() {
-	a.openingRunID = ""
+func (a *app) finishQueuedSettlementRecovery(runID string) {
+	if a.openingRunID == runID {
+		a.openingRunID = ""
+	}
+	a.finishAuthoringSettlementRecovery()
+}
+
+// A canceled ownership retry may outlive the queue drain that starts the next
+// run. It must only clear the opening identity it originally owned; otherwise
+// a late local disk recovery could detach the successor's lifecycle.
+func (a *app) finishCanceledRuntimeOwnershipRecovery(runID string) {
+	if a.openingRunID == runID {
+		a.openingRunID = ""
+	}
+	a.finishAuthoringSettlementRecovery()
+}
+
+func (a *app) finishAuthoringSettlementRecovery() {
 	if a.conversation.Busy() || a.following || a.pendingCancel != nil || a.drainQueue() {
 		return
 	}

@@ -51,15 +51,22 @@ func (r *Runtime) StartRun(ctx context.Context, input agent.StartRun) (agent.Seg
 	if err != nil {
 		return agent.SegmentStream{}, classifyError(err)
 	}
-	if ack == nil || events == nil {
-		return agent.SegmentStream{}, runtimeContractViolation("start run returned an incomplete stream")
+	stream := agent.SegmentStream{}
+	if ack != nil {
+		stream.RunID, stream.SegmentID, stream.UserItemID = ack.RunID, ack.SegmentID, ack.UserItemID
 	}
-	stream := agent.SegmentStream{
-		RunID: ack.RunID, SegmentID: ack.SegmentID, UserItemID: ack.UserItemID,
-		Events: projectEventStream(events, ack.SegmentID),
+	if events != nil {
+		stream.Events = projectEventStream(events, stream.SegmentID)
+	}
+	if ack == nil || events == nil {
+		return stream, agent.NewAcceptedMutationError(
+			stream, runtimeContractViolation("start run returned an incomplete stream"),
+		)
 	}
 	if err := stream.ValidateStart(); err != nil {
-		return agent.SegmentStream{}, runtimeContractViolation("start run returned an invalid stream: %v", err)
+		return stream, agent.NewAcceptedMutationError(
+			stream, runtimeContractViolation("start run returned an invalid stream: %v", err),
+		)
 	}
 	return stream, nil
 }
@@ -95,18 +102,25 @@ func (r *Runtime) ResumeRun(ctx context.Context, input agent.ResumeRun) (agent.S
 	if err != nil {
 		return agent.SegmentStream{}, classifyError(err)
 	}
+	stream := agent.SegmentStream{}
+	if ack != nil {
+		stream.RunID, stream.SegmentID = ack.RunID, ack.SegmentID
+		if ack.UserItemID != nil {
+			stream.UserItemID = *ack.UserItemID
+		}
+	}
+	if events != nil {
+		stream.Events = projectEventStream(events, stream.SegmentID)
+	}
 	if ack == nil || events == nil {
-		return agent.SegmentStream{}, runtimeContractViolation("resume run returned an incomplete stream")
+		return stream, agent.NewAcceptedMutationError(
+			stream, runtimeContractViolation("resume run returned an incomplete stream"),
+		)
 	}
-	stream := agent.SegmentStream{RunID: ack.RunID, SegmentID: ack.SegmentID, Events: projectEventStream(events, ack.SegmentID)}
-	if ack.UserItemID != nil {
-		stream.UserItemID = *ack.UserItemID
-	}
-	if err := stream.ValidateResume(input.Message); err != nil {
-		return agent.SegmentStream{}, runtimeContractViolation("resume run returned an invalid stream: %v", err)
-	}
-	if stream.RunID != input.RunID {
-		return agent.SegmentStream{}, runtimeContractViolation("resume run returned run %q for %q", stream.RunID, input.RunID)
+	if err := stream.ValidateResume(input.RunID, input.Message); err != nil {
+		return stream, agent.NewAcceptedMutationError(
+			stream, runtimeContractViolation("resume run returned an invalid stream: %v", err),
+		)
 	}
 	return stream, nil
 }

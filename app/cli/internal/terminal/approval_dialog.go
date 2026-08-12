@@ -321,26 +321,60 @@ func (a *app) deliverInteractionResume(review *interactionReview, command agent.
 	a.followOpening(func(ctx context.Context) (agent.SegmentStream, error) {
 		stream, err := a.runtime.ResumeRun(ctx, command)
 		if err != nil {
+			if _, accepted := agent.AcceptedMutationReceipt(err); accepted {
+				return agent.SegmentStream{}, err
+			}
 			return agent.SegmentStream{}, &resumeRunCallError{err: err}
 		}
-		if err := stream.ValidateResume(nil); err != nil {
-			return agent.SegmentStream{}, fmt.Errorf("resume run: %w", err)
+		if err := stream.ValidateResume(command.RunID, nil); err != nil {
+			return agent.SegmentStream{}, agent.NewAcceptedMutationError(stream, fmt.Errorf("resume run: %w", err))
 		}
 		return stream, nil
 	}, streamOpeningObserver{
 		persistent: true,
 		accepted: func(agent.SegmentStream) {
 			a.interactionReview = nil
-			if a.workbench != nil {
-				if err := a.workbench.AcknowledgePendingResume(a.session.ID, command.CommandID); err != nil {
-					a.message("could not retire acknowledged interaction decisions: " + err.Error())
-				}
-			}
+			a.settleAcknowledgedResume(command.CommandID)
 		},
 		rejected: func(failure error) error {
+			if _, accepted := agent.AcceptedMutationReceipt(failure); accepted {
+				a.interactionReview = nil
+				a.cancelRuntimePreservingFailure(agent.CancelRun{
+					RunID: command.RunID, Reason: "runtime returned an invalid resume receipt",
+				})
+				return failure
+			}
 			return a.restoreRejectedInteractionReview(review, command, failure)
 		},
 	})
+}
+
+func (a *app) settleAcknowledgedResume(commandID agent.CommandID) {
+	if err := a.retireAcknowledgedResume(commandID); err != nil {
+		a.reportWorkbenchError(err)
+		a.message("could not settle acknowledged interaction decisions: " + err.Error())
+		a.retryAuthoringSettlement(
+			resumeSettlementOperation,
+			func() error { return a.retireAcknowledgedResume(commandID) },
+			func() { a.reportWorkbenchError(nil) },
+		)
+		return
+	}
+	a.reportWorkbenchError(nil)
+}
+
+func (a *app) retireAcknowledgedResume(commandID agent.CommandID) error {
+	if a.workbench == nil {
+		return nil
+	}
+	pending, ok := a.workbench.PendingResume(a.session.ID)
+	if !ok {
+		return nil
+	}
+	if pending.Command.CommandID != commandID {
+		return errors.New("pending resume command identity changed")
+	}
+	return a.workbench.AcknowledgePendingResume(a.session.ID, commandID)
 }
 
 func (a *app) restoreRejectedInteractionReview(review *interactionReview, command agent.ResumeRun, failure error) error {

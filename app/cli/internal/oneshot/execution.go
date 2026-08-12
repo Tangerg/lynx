@@ -62,13 +62,20 @@ func Execute(ctx context.Context, invocation Invocation) (runErr error) {
 
 	opened, err := openRun(ctx, invocation.Runtime, invocation.Start)
 	if err != nil {
-		return err
+		if receipt, accepted := agent.AcceptedMutationReceipt(err); accepted {
+			opened = receipt
+		} else {
+			return err
+		}
 	}
 	cancelOnExit := true
 	var watcher *cancellationWatcher
 	if opened.RunID != "" {
 		watcher = watchCancellation(ctx, invocation.Runtime, opened.RunID)
 		defer func() { watcher.Finish(cancelOnExit) }()
+	}
+	if err != nil {
+		return err
 	}
 	if err := opened.ValidateStart(); err != nil {
 		return fmt.Errorf("start run: %w", err)
@@ -285,13 +292,7 @@ func restoreRecoveredConversation(conversation *agent.Conversation, recovered ru
 }
 
 func validateContinuation(stream agent.SegmentStream, runID string) error {
-	if err := stream.ValidateResume(nil); err != nil {
-		return err
-	}
-	if stream.RunID != runID {
-		return fmt.Errorf("resume run response: run %s does not match %s", stream.RunID, runID)
-	}
-	return nil
+	return stream.ValidateResume(runID, nil)
 }
 
 type followResult struct {

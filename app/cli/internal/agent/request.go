@@ -165,11 +165,15 @@ func (s SegmentStream) ValidateStart() error {
 	return nil
 }
 
-// ValidateResume enforces the runs.resume response union. UserItemID exists
-// exactly when an optional continuation message was committed with the answers.
-func (s SegmentStream) ValidateResume(message *Message) error {
+// ValidateResume enforces both the target identity and the runs.resume response
+// union. UserItemID exists exactly when an optional continuation message was
+// committed with the answers.
+func (s SegmentStream) ValidateResume(runID string, message *Message) error {
 	if err := s.Validate(); err != nil {
 		return err
+	}
+	if s.RunID != strings.TrimSpace(runID) {
+		return fmt.Errorf("resume segment stream: run %q does not match %q", s.RunID, runID)
 	}
 	hasUserItem := strings.TrimSpace(s.UserItemID) != ""
 	if hasUserItem != (message != nil) {

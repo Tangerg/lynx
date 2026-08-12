@@ -164,6 +164,23 @@ type blockingRefusingResumeRuntime struct {
 	calls   atomic.Int32
 }
 
+type blockingAcceptedResumeRuntime struct {
+	agent.Runtime
+
+	started  chan agent.ResumeRun
+	release  chan struct{}
+	mu       sync.Mutex
+	attempts []agent.ResumeRun
+}
+
+type invalidAcceptedResumeRuntime struct {
+	agent.Runtime
+
+	mu            sync.Mutex
+	resumes       []agent.ResumeRun
+	cancellations []agent.CancelRun
+}
+
 type recordingRuntime struct {
 	*mock.Runtime
 
@@ -496,6 +513,58 @@ func (r *blockingRefusingResumeRuntime) ResumeRun(ctx context.Context, input age
 	}
 }
 
+func (r *blockingAcceptedResumeRuntime) ResumeRun(ctx context.Context, input agent.ResumeRun) (agent.SegmentStream, error) {
+	stream, err := r.Runtime.ResumeRun(ctx, input)
+	if err != nil {
+		return agent.SegmentStream{}, err
+	}
+	r.mu.Lock()
+	r.attempts = append(r.attempts, input.Clone())
+	r.mu.Unlock()
+	select {
+	case r.started <- input.Clone():
+	case <-ctx.Done():
+		return agent.SegmentStream{}, context.Cause(ctx)
+	}
+	select {
+	case <-r.release:
+		return stream, nil
+	case <-ctx.Done():
+		return agent.SegmentStream{}, context.Cause(ctx)
+	}
+}
+
+func (r *blockingAcceptedResumeRuntime) resumeAttempts() []agent.ResumeRun {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return cloneResumeRuns(r.attempts)
+}
+
+func (r *invalidAcceptedResumeRuntime) ResumeRun(ctx context.Context, input agent.ResumeRun) (agent.SegmentStream, error) {
+	stream, err := r.Runtime.ResumeRun(ctx, input)
+	if err != nil {
+		return agent.SegmentStream{}, err
+	}
+	r.mu.Lock()
+	r.resumes = append(r.resumes, input.Clone())
+	r.mu.Unlock()
+	stream.RunID = "run_misdirected"
+	return stream, agent.NewAcceptedMutationError(stream, stream.ValidateResume(input.RunID, nil))
+}
+
+func (r *invalidAcceptedResumeRuntime) CancelRun(ctx context.Context, input agent.CancelRun) (agent.RunCancellation, error) {
+	r.mu.Lock()
+	r.cancellations = append(r.cancellations, input)
+	r.mu.Unlock()
+	return r.Runtime.CancelRun(ctx, input)
+}
+
+func (r *invalidAcceptedResumeRuntime) attempts() ([]agent.ResumeRun, []agent.CancelRun) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return cloneResumeRuns(r.resumes), slices.Clone(r.cancellations)
+}
+
 func cloneResumeRuns(values []agent.ResumeRun) []agent.ResumeRun {
 	cloned := make([]agent.ResumeRun, len(values))
 	for index, value := range values {
@@ -682,6 +751,109 @@ func TestRejectedResumeRetirementFailurePreservesTheDurableDecision(t *testing.T
 		t.Fatalf("recovered resume remains durable: %+v", durable)
 	}
 	stopSecond()
+}
+
+func TestAcceptedResumeSettlementRetriesTheExactDurableDecision(t *testing.T) {
+	base := mock.New()
+	base.Instant = true
+	runtime := &blockingAcceptedResumeRuntime{
+		Runtime: base, started: make(chan agent.ResumeRun, 1), release: make(chan struct{}),
+	}
+	stateDirectory := t.TempDir()
+	host, stop := runUIWithState(t, runtime, "/tmp/lyra-cli-test", "ses_demo_1", stateDirectory)
+	host.Shows(t, "Ask lyra")
+	host.Type("recover an accepted approval settlement")
+	host.Press(input.Enter)
+	host.Shows(t, "Tool approval")
+	host.Press(input.Enter)
+	pending := awaitSignalValue(t, runtime.started, "accepted resume held before returning its receipt")
+
+	stateFiles, err := os.ReadDir(filepath.Join(stateDirectory, "sessions"))
+	if err != nil || len(stateFiles) != 1 {
+		t.Fatalf("session state files = %d, %v", len(stateFiles), err)
+	}
+	statePath := filepath.Join(stateDirectory, "sessions", stateFiles[0].Name())
+	backupPath := statePath + ".backup"
+	if err := os.Rename(statePath, backupPath); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(statePath, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	blocker := filepath.Join(statePath, "blocker")
+	if err := os.WriteFile(blocker, []byte("block acknowledged resume settlement"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	close(runtime.release)
+	host.Shows(t, "could not settle acknowledged interaction decisions")
+	if attempts := runtime.resumeAttempts(); len(attempts) != 1 || attempts[0].CommandID != pending.CommandID {
+		t.Fatalf("accepted resume attempts = %+v, want one command %s", attempts, pending.CommandID)
+	}
+
+	if err := os.Remove(blocker); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(statePath); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(backupPath, statePath); err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(time.Second)
+	store, err := workbench.Open(stateDirectory, workbench.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if durable, exists := store.PendingResume("ses_demo_1"); exists {
+		t.Fatalf("accepted resume remains durable after retry: %+v", durable)
+	}
+	host.Repaint()
+	host.Shows(t, "complete")
+	if attempts := runtime.resumeAttempts(); len(attempts) != 1 {
+		t.Fatalf("local settlement replayed the accepted resume: %+v", attempts)
+	}
+	stop()
+}
+
+func TestMisdirectedAcceptedResumeReceiptCancelsAndSettlesTheRequestedRun(t *testing.T) {
+	base := mock.New()
+	base.Instant = true
+	runtime := &invalidAcceptedResumeRuntime{Runtime: base}
+	stateDirectory := t.TempDir()
+	host, stop := runUIWithState(t, runtime, "/tmp/lyra-cli-test", "ses_demo_1", stateDirectory)
+	host.Shows(t, "Ask lyra")
+	host.Type("reject a misdirected accepted approval receipt")
+	host.Press(input.Enter)
+	host.Shows(t, "Tool approval")
+	host.Press(input.Enter)
+	host.Shows(t, "does not match")
+	host.Until(t, "the misdirected resume receipt cleanup", func() bool {
+		resumes, cancellations := runtime.attempts()
+		if len(resumes) != 1 || len(cancellations) != 1 {
+			return false
+		}
+		store, err := workbench.Open(stateDirectory, workbench.Config{})
+		if err != nil {
+			return false
+		}
+		_, exists := store.PendingResume("ses_demo_1")
+		return !exists && host.Repaint()
+	})
+	resumes, cancellations := runtime.attempts()
+	if resumes[0].CommandID == "" || cancellations[0].CommandID == "" ||
+		cancellations[0].RunID != resumes[0].RunID ||
+		cancellations[0].Reason != "runtime returned an invalid resume receipt" {
+		t.Fatalf("misdirected receipt cleanup = resumes %+v, cancellations %+v", resumes, cancellations)
+	}
+	snapshot, err := base.GetSession(t.Context(), "ses_demo_1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, active := snapshot.ActiveRun(); active {
+		t.Fatalf("misdirected resume receipt left the requested run active: %+v", snapshot.Runs)
+	}
+	stop()
 }
 
 func TestPendingMixedInteractionResumeSurvivesRestartWithoutLosingAnswers(t *testing.T) {

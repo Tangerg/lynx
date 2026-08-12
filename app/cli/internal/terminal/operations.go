@@ -11,6 +11,8 @@ const (
 	streamOperation               operationSlot = "stream"
 	pendingRunRecoveryOperation   operationSlot = "pending-run-recovery"
 	pendingRunSettlementOperation operationSlot = "pending-run-settlement"
+	resumeSettlementOperation     operationSlot = "resume-settlement"
+	ownershipSettlementOperation  operationSlot = "ownership-settlement"
 	completionOperation           operationSlot = "completion"
 	searchOperation               operationSlot = "search"
 	readerSearchOperation         operationSlot = "reader-search"

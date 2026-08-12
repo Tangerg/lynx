@@ -38,18 +38,6 @@ type startRunCallError struct{ err error }
 func (e *startRunCallError) Error() string { return e.err.Error() }
 func (e *startRunCallError) Unwrap() error { return e.err }
 
-// acceptedStartValidationError preserves the identity returned by a runtime
-// that accepted StartRun but produced a malformed receipt. The mutation must
-// not be requeued; when RunID is usable, the terminal instead cancels that
-// exact runtime run and settles the original outbox command.
-type acceptedStartValidationError struct {
-	stream agent.SegmentStream
-	err    error
-}
-
-func (e *acceptedStartValidationError) Error() string { return e.err.Error() }
-func (e *acceptedStartValidationError) Unwrap() error { return e.err }
-
 // resumeRunCallError has the same acknowledgement semantics as
 // startRunCallError, but its recovery owner is the still-open HITL review.
 type resumeRunCallError struct{ err error }
@@ -99,23 +87,24 @@ func (a *app) startRun(commandID agent.CommandID, message agent.Message, options
 	a.followOpening(func(ctx context.Context) (agent.SegmentStream, error) {
 		opened, err := openStartRun(ctx, a.runtime, input, reconnect.Policy{})
 		if err != nil {
+			if _, accepted := agent.AcceptedMutationReceipt(err); accepted {
+				return agent.SegmentStream{}, err
+			}
 			return agent.SegmentStream{}, &startRunCallError{err: err}
 		}
 		if err := opened.ValidateStart(); err != nil {
-			return agent.SegmentStream{}, &acceptedStartValidationError{
-				stream: opened, err: fmt.Errorf("start run: %w", err),
-			}
+			return agent.SegmentStream{}, agent.NewAcceptedMutationError(opened, fmt.Errorf("start run: %w", err))
 		}
 		return opened, nil
 	}, streamOpeningObserver{
 		persistent: true,
 		accepted:   func(opened agent.SegmentStream) { a.acceptStartedRun(input, opened) },
 		rejected: func(err error) error {
-			if accepted, ok := errors.AsType[*acceptedStartValidationError](err); ok &&
-				strings.TrimSpace(accepted.stream.RunID) != "" {
-				a.openingRunID = accepted.stream.RunID
+			if receipt, accepted := agent.AcceptedMutationReceipt(err); accepted &&
+				strings.TrimSpace(receipt.RunID) != "" {
+				a.openingRunID = receipt.RunID
 				a.cancelRuntimePreservingFailure(agent.CancelRun{
-					RunID: accepted.stream.RunID, Reason: "runtime returned an invalid start receipt",
+					RunID: receipt.RunID, Reason: "runtime returned an invalid start receipt",
 				})
 			}
 			return errors.Join(err, a.requeueDefinitivelyRefusedStart(input, err))
